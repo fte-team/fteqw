@@ -19,7 +19,7 @@ extern cvar_t vid_gl_context_debug;
 extern cvar_t vid_gl_context_forwardcompatible;
 extern cvar_t vid_gl_context_es;
 extern cvar_t vid_gl_context_compatibility;
-extern int gammaworks;
+extern qboolean gammaworks;
 
 #ifdef _WIN32	//half the rest of the code uses windows apis to focus windows. Should be fixed, but it's not too important.
 HWND mainwindow;
@@ -377,7 +377,7 @@ qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 #endif
 }
 
-void GLVID_SetCaption(char *text)
+void GLVID_SetCaption(const char *text)
 {
 #if SDL_MAJOR_VERSION >= 2
 	SDL_SetWindowTitle(sdlwindow, text);

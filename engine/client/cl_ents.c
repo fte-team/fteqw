@@ -60,7 +60,7 @@ static struct predicted_player
 	player_state_t *oldstate;
 } predicted_players[MAX_CLIENTS];
 
-static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le);
+static void CL_LerpNetFrameState(framestate_t *fs, lerpents_t *le);
 qboolean CL_PredictPlayer(lerpents_t *le, entity_state_t *state, int sequence);
 void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int sequence);
 void CL_AckedInputFrame(int inseq, int outseq, qboolean worldstateokay);
@@ -91,6 +91,28 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 			modelindex == cl_gib3index))
 		return true;
 	return false;
+}
+
+
+static void *AllocateBoneSpace(packet_entities_t *pack, unsigned char bonecount, unsigned int *allocationpos)
+{
+	size_t space = bonecount * sizeof(short)*7;
+	void *r;
+	if (pack->bonedatacur + space > pack->bonedatamax)
+	{	//expand the storage as needed. messy, but whatever.
+		pack->bonedatamax = pack->bonedatacur + space;
+		pack->bonedata = BZ_Realloc(pack->bonedata, pack->bonedatamax);
+	}
+	r = pack->bonedata + pack->bonedatacur;
+	*allocationpos = pack->bonedatacur;
+	pack->bonedatacur += space;
+	return r;
+}
+void *GetBoneSpace(packet_entities_t *pack, unsigned int allocationpos)
+{
+	if (allocationpos >= pack->bonedatacur)
+		return NULL;
+	return pack->bonedata + allocationpos;
 }
 
 //============================================================
@@ -320,7 +342,7 @@ Can go from either a baseline or a previous packet_entity
 ==================
 */
 //int	bitcounts[32];	/// just for protocol profiling
-void CLQW_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean new)
+void CLQW_ParseDelta (entity_state_t *from, entity_state_t *to, int bits)
 {
 	int			i;
 #ifdef PROTOCOLEXTENSIONS
@@ -331,6 +353,7 @@ void CLQW_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboole
 	*to = *from;
 
 	to->number = bits & 511;
+	to->sequence = cls.netchan.incoming_sequence;
 	bits &= ~511;
 
 	if (bits & U_MOREBITS)
@@ -399,10 +422,11 @@ void CLQW_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboole
 	if (bits & U_ANGLE3)
 		to->angles[2] = MSG_ReadAngle ();
 
-	to->solid = ES_SOLID_BSP;
+	to->solidsize = ES_SOLID_BSP;
 	if (bits & U_SOLID)
 	{
-		//doesn't mean anything. solidity is infered instead.
+		//doesn't mean anything in vanilla. solidity is infered instead.
+
 	}
 
 #ifdef PEXT_SCALE
@@ -492,11 +516,11 @@ void FlushEntityPacket (void)
 		if (!word)
 			break;	// done
 
-		CLQW_ParseDelta (&olde, &newe, word, true);
+		CLQW_ParseDelta (&olde, &newe, word);
 	}
 }
 
-void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *olds, entity_state_t *baseline)
+void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *olds, entity_state_t *baseline, packet_entities_t *newp, packet_entities_t *oldp)
 {
 	unsigned int predbits = 0;
 	unsigned int bits;
@@ -527,6 +551,7 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 	else
 		*news = *olds;
 	news->number = entnum;
+	news->sequence = cls.netchan.incoming_sequence;
 	
 	if (bits & UF_FRAME)
 	{
@@ -672,7 +697,28 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		news->colormap = MSG_ReadByte();
 
 	if (bits & UF_SOLID)
-		news->solid = MSG_ReadShort();
+	{
+		if (cls.fteprotocolextensions2 & PEXT2_NEWSIZEENCODING)
+		{
+			qbyte enc = MSG_ReadByte();
+			if (enc == 0)
+				news->solidsize = ES_SOLID_NOT;
+			else if (enc == 1)
+				news->solidsize = ES_SOLID_BSP;
+			else if (enc == 2)
+				news->solidsize = ES_SOLID_HULL1;
+			else if (enc == 3)
+				news->solidsize = ES_SOLID_HULL2;
+			else if (enc == 16)
+				news->solidsize = MSG_ReadSize16(&net_message);
+			else if (enc == 32)
+				news->solidsize = MSG_ReadLong();
+			else
+				Sys_Error("Solid+Size encoding not known");
+		}
+		else
+			news->solidsize = MSG_ReadSize16(&net_message);
+	}
 
 	if (bits & UF_FLAGS)
 		news->dpflags = MSG_ReadByte();
@@ -681,14 +727,46 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		news->trans = MSG_ReadByte();
 	if (bits & UF_SCALE)
 		news->scale = MSG_ReadByte();
-	if (bits & UF_UNUSED3)
+	if (bits & UF_BONEDATA)
 	{
-	//	news->abslight = MSG_ReadByte();
+		unsigned char fl = MSG_ReadByte();
+		if (fl & 0x80)
+		{
+			//this is NOT finalized
+			short *bonedata;
+			int i;
+			news->bonecount = MSG_ReadByte();
+			bonedata = AllocateBoneSpace(newp, news->bonecount, &news->boneoffset);
+			for (i = 0; i < news->bonecount*7; i++)
+				bonedata[i] = MSG_ReadShort();
+		}
+		else
+			news->bonecount = 0;	//oo, it went away.
+		if (fl & 0x40)
+		{
+			news->basebone = MSG_ReadByte();
+			news->baseframe = MSG_ReadShort();
+		}
+		else
+		{
+			news->basebone = 0;
+			news->baseframe = 0;
+		}
+
+		//fixme: basebone, baseframe, etc.
+		if (fl & 0x3f)
+			Host_EndGame("unsupported entity delta info\n");
 	}
+	else if (news->bonecount)
+	{	//still has bone data from the previous frame.
+		short *bonedata = AllocateBoneSpace(newp, news->bonecount, &news->boneoffset);
+		memcpy(bonedata, oldp->bonedata+olds->boneoffset, sizeof(short)*7*news->bonecount);
+	}
+
 	if (bits & UF_DRAWFLAGS)
 	{
 		news->hexen2flags = MSG_ReadByte();
-		if ((news->hexen2flags & MLS_MASKIN) == MLS_ABSLIGHT)
+		if ((news->hexen2flags & MLS_MASK) == MLS_ABSLIGHT)
 			news->abslight = MSG_ReadByte();
 		else
 			news->abslight = 0;
@@ -740,9 +818,11 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 	}
 	if (bits & UF_UNUSED2)
 	{
+		Host_EndGame("UF_UNUSED2 bit\n");
 	}
 	if (bits & UF_UNUSED1)
 	{
+		Host_EndGame("UF_UNUSED1 bit\n");
 	}
 }
 
@@ -751,7 +831,7 @@ void CLFTE_ParseBaseline(entity_state_t *es, qboolean numberisimportant)
 	int entnum = 0;
 	if (numberisimportant)
 		entnum = MSGCL_ReadEntity();
-	CLFTE_ReadDelta(entnum, es, &nullentitystate, &nullentitystate);
+	CLFTE_ReadDelta(entnum, es, &nullentitystate, &nullentitystate, NULL, NULL);
 }
 
 
@@ -765,6 +845,7 @@ void CLFTE_ParseEntities(void)
 {
 	int			oldpacket, newpacket;
 	packet_entities_t	*oldp, *newp, nullp;
+	entity_state_t *news, *olds;
 	unsigned int newnum, oldnum;
 	int			oldindex;
 	qboolean	isvalid = false;
@@ -849,6 +930,7 @@ void CLFTE_ParseEntities(void)
 
 	/*clear all entities*/
 	newp->num_entities = 0;
+	newp->bonedatacur = 0;
 	oldindex = 0;
 	while(1)
 	{
@@ -870,7 +952,16 @@ void CLFTE_ParseEntities(void)
 					newp->max_entities = newp->num_entities+1;
 					newp->entities = BZ_Realloc(newp->entities, sizeof(entity_state_t)*newp->max_entities);
 				}
-				newp->entities[newp->num_entities++] = oldp->entities[oldindex++];
+
+				//copy it over
+				news = &newp->entities[newp->num_entities++];
+				olds = &oldp->entities[oldindex++];
+				*news = *olds;
+				if (news->bonecount)
+				{	//still has bone data somehow.
+					short *bonedata = AllocateBoneSpace(newp, news->bonecount, &news->boneoffset);
+					memcpy(bonedata, oldp->bonedata+olds->boneoffset, sizeof(short)*7*news->bonecount);
+				}
 			}
 			break;
 		}
@@ -885,7 +976,16 @@ void CLFTE_ParseEntities(void)
 				newp->max_entities = newp->num_entities+1;
 				newp->entities = BZ_Realloc(newp->entities, sizeof(entity_state_t)*newp->max_entities);
 			}
-			newp->entities[newp->num_entities++] = oldp->entities[oldindex++];
+
+			//copy it over
+			news = &newp->entities[newp->num_entities++];
+			olds = &oldp->entities[oldindex++];
+			*news = *olds;
+			if (news->bonecount)
+			{	//still has bone data somehow.
+				short *bonedata = AllocateBoneSpace(newp, news->bonecount, &news->boneoffset);
+				memcpy(bonedata, oldp->bonedata+olds->boneoffset, sizeof(short)*7*news->bonecount);
+			}
 
 			oldnum = (oldindex >= oldp->num_entities) ? 0xffffffff : oldp->entities[oldindex].number;
 		}
@@ -905,6 +1005,8 @@ void CLFTE_ParseEntities(void)
 				oldp->num_entities = 0;
 				oldp->max_entities = 0;
 				isvalid = true;
+
+				cls.demohadkeyframe = true;	//we can reactivate deltas when recording now.
 				continue;
 			}
 
@@ -924,9 +1026,9 @@ void CLFTE_ParseEntities(void)
 			}
 
 			if (oldnum == newnum)
-				CLFTE_ReadDelta(newnum, &newp->entities[newp->num_entities++], &oldp->entities[oldindex++], cl_baselines + newnum);
+				CLFTE_ReadDelta(newnum, &newp->entities[newp->num_entities++], &oldp->entities[oldindex++], cl_baselines + newnum, newp, oldp);
 			else
-				CLFTE_ReadDelta(newnum, &newp->entities[newp->num_entities++], NULL, cl_baselines + newnum);
+				CLFTE_ReadDelta(newnum, &newp->entities[newp->num_entities++], NULL, cl_baselines + newnum, newp, NULL);
 		}
 	}
 
@@ -1150,7 +1252,7 @@ void CLQW_ParsePacketEntities (qboolean delta)
 
 			if (!CL_CheckBaselines(newnum))
 				Host_EndGame("CL_ParsePacketEntities: check baselines failed with size %i", newnum);
-			CLQW_ParseDelta (cl_baselines + newnum, &newp->entities[newindex], word, true);
+			CLQW_ParseDelta (cl_baselines + newnum, &newp->entities[newindex], word);
 			newindex++;
 			continue;
 		}
@@ -1178,7 +1280,7 @@ void CLQW_ParsePacketEntities (qboolean delta)
 			}
 
 //Con_Printf ("delta %i\n",newnum);
-			CLQW_ParseDelta (&oldp->entities[oldindex], &newp->entities[newindex], word, false);
+			CLQW_ParseDelta (&oldp->entities[oldindex], &newp->entities[newindex], word);
 			newindex++;
 			oldindex++;
 		}
@@ -1208,8 +1310,7 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 	return NULL;
 }
 #ifdef NQPROT
-
-void DP5_ParseDelta(entity_state_t *s)
+void DP5_ParseDelta(entity_state_t *s, packet_entities_t *pack)
 {
 	int bits;
 
@@ -1276,7 +1377,7 @@ void DP5_ParseDelta(entity_state_t *s)
 		num = s->number;
 		*s = nullentitystate;
 		s->number = num;
-		s->solid = ES_SOLID_BSP;
+		s->solidsize = ES_SOLID_BSP;
 //		s->active = true;
 	}
 	if (bits & E5_FLAGS)
@@ -1376,6 +1477,36 @@ void DP5_ParseDelta(entity_state_t *s)
 		s->glowmod[1] = MSG_ReadByte();
 		s->glowmod[2] = MSG_ReadByte();
 	}
+	if (bits & E5_COMPLEXANIMATION)
+	{
+		int type = MSG_ReadByte();
+		int i, numbones;
+		if (type == 4)
+		{
+			short *bonedata;
+
+			/*modelindex = */MSG_ReadShort();
+			numbones = MSG_ReadByte();
+
+			bonedata = AllocateBoneSpace(pack, numbones, &s->boneoffset);
+			s->bonecount = numbones;
+			for (i = 0; i < numbones*7; i++)
+				bonedata[i] = MSG_ReadShort();
+		}
+		else if (type < 4)
+		{	//n-way blends
+			s->bonecount = 0;
+			type++;
+			for (i = 0; i < type; i++)
+				/*frame = */MSG_ReadShort();
+			for (i = 0; i < type; i++)
+				/*age = */MSG_ReadShort();
+			for (i = 0; i < type; i++)
+				/*frac = */(type==1)?255:MSG_ReadByte();
+		}
+		else
+			Host_Error("E5_COMPLEXANIMATION: Parse error - unknown type %i\n", type);
+	}
 	if (bits & E5_TRAILEFFECTNUM)
 		s->u.q1.traileffectnum = MSG_ReadShort();
 }
@@ -1383,12 +1514,11 @@ void DP5_ParseDelta(entity_state_t *s)
 static int QDECL CLDP_SortEntities(const void *va, const void *vb)
 {
 	const entity_state_t *a = va, *b = vb;
-	if (a->inactiveflag && b->inactiveflag)
-		return 0;
-	if ((a->number < b->number || b->inactiveflag) && !a->inactiveflag)
-		return -1;
-	else
-		return 1;
+	if (a->inactiveflag != b->inactiveflag)
+		return a->inactiveflag?1:-1;
+	if (a->number != b->number)
+		return a->number < b->number?-1:1;
+	return 0;
 }
 
 void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
@@ -1439,8 +1569,13 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		}
 		else
 			newpack->num_entities = 0;
+		newpack->bonedatacur = 0;
+
+		//flag them all as having old bones
+		//they'll be renewed after parsing
+		for (oldi=0 ; oldi<newpack->num_entities ; oldi++)
+			newpack->entities[oldi].boneoffset |= 0x80000000;
 	}
-	oldpack = NULL;
 
 	for (;;)
 	{
@@ -1488,11 +1623,13 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 			if (cl_shownet.ival >= 3)
 				Con_Printf("Remove %i\n", read);
 			to->inactiveflag = 1;
+			to->bonecount = 0;
 		}
 		else
 		{
 //			Con_Printf("Update %i\n", read);
-			DP5_ParseDelta(to);
+			DP5_ParseDelta(to, newpack);
+			to->sequence = cls.netchan.incoming_sequence;
 			to->inactiveflag = 0;
 		}
 	}
@@ -1506,6 +1643,18 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 			newpack->num_entities--;
 		else
 			break;
+	}
+
+	//make sure any bone states are refreshed
+	for (oldi=0, to = newpack->entities; oldi<newpack->num_entities ; oldi++, to++)
+	{
+		if (to->bonecount && (to->boneoffset & 0x80000000))
+		{
+			unsigned int oldoffset = to->boneoffset & 0x7fffffff;
+			void *dest = AllocateBoneSpace(newpack, to->bonecount, &to->boneoffset);
+			void *src = GetBoneSpace(oldpack, oldoffset);
+			memcpy(dest, src, to->bonecount * sizeof(short)*7);
+		}
 	}
 }
 
@@ -1575,7 +1724,8 @@ void CLNQ_ParseEntity(unsigned int bits)
 	memcpy(state, base, sizeof(*state));
 
 	state->number = num;
-	state->solid = ES_SOLID_BSP;
+	state->sequence = cls.netchan.incoming_sequence;
+	state->solidsize = ES_SOLID_BSP;
 
 	state->dpflags = (bits & NQU_NOLERP)?RENDER_STEP:0;
 
@@ -1774,7 +1924,7 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 		parent[10] = axis[2][2];
 		parent[11] = org[2];
 
-		CL_LerpNetFrameState(FS_REG, &fstate, &cl.lerpents[parenttagent]);
+		CL_LerpNetFrameState(&fstate, &cl.lerpents[parenttagent]);
 
 		/*inherit certain properties from the parent entity*/
 		if (ps->dpflags & RENDER_VIEWMODEL)
@@ -1808,11 +1958,11 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 			}
 			model = cl.model_precache[cl.inframes[parsecountmod].playerstate[parenttagent-1].modelindex];
 
-			CL_LerpNetFrameState(FS_REG, &fstate, &cl.lerpplayers[parenttagent-1]);
+			CL_LerpNetFrameState(&fstate, &cl.lerpplayers[parenttagent-1]);
 		}
 		else
 		{
-			CL_LerpNetFrameState(FS_REG, &fstate, &cl.lerpents[parenttagent]);
+			CL_LerpNetFrameState(&fstate, &cl.lerpents[parenttagent]);
 			model = 0;
 		}
 	}
@@ -2486,10 +2636,10 @@ void CLQ1_AddVisibleBBoxes(void)
 			{
 				state = &pak->entities[i];
 
-				if (!state->solid && !state->skinnum)
+				if (state->solidsize == ES_SOLID_NOT && !state->skinnum)
 					continue;
 
-				if (state->solid == ES_SOLID_BSP)
+				if (state->solidsize == ES_SOLID_BSP)
 				{	/*bsp model size*/
 					if (state->modelindex <= 0)
 						continue;
@@ -2507,18 +2657,12 @@ void CLQ1_AddVisibleBBoxes(void)
 				else
 				{
 					/*don't bother with angles*/
-					max[0] = max[1] = 8*(state->solid & 31);
-					min[0] = min[1] = -max[0];
-					min[2] = -8*((state->solid>>5) & 31);
-					max[2] = 8*((state->solid>>10) & 63) - 32;
+					COM_DecodeSize(state->solidsize, min, max);
 					VectorAdd(state->origin, min, min);
 					VectorAdd(state->origin, max, max);
 					CLQ1_AddOrientedCube(s, min, max, NULL, 0.1, 0, 0, 1);
 
-					max[0] = max[1] = 8*(state->solid & 31);
-					min[0] = min[1] = -max[0];
-					min[2] = -8*((state->solid>>5) & 31);
-					max[2] = 8*((state->solid>>10) & 63) - 32;
+					COM_DecodeSize(state->solidsize, min, max);
 					VectorAdd(state->u.q1.predorg, min, min);
 					VectorAdd(state->u.q1.predorg, max, max);
 					CLQ1_AddOrientedCube(s, min, max, NULL, 0, 0, 0.1, 1);
@@ -2711,7 +2855,7 @@ void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t
 	ctx.t = t;
 	VectorCopy(rgbvalue, ctx.rgbavalue);
 	ctx.rgbavalue[3] = alphavalue;
-	Mod_ClipDecal(cl.worldmodel, origin, ctx.axis[0], ctx.axis[1], ctx.axis[2], 2, CL_AddDecal_Callback, &ctx);
+	Mod_ClipDecal(cl.worldmodel, origin, ctx.axis[0], ctx.axis[1], ctx.axis[2], 2, 0,0, CL_AddDecal_Callback, &ctx);
 
 	if (!t->numidx)
 		cl_numstris--;
@@ -2777,7 +2921,7 @@ void R_AddItemTimer(vec3_t shadoworg, float yaw, float radius, float percent)
 
 	ctx.t = t;
 	Vector4Set(ctx.rgbavalue, 0.1, 0.1, 0.1, percent);
-	Mod_ClipDecal(cl.worldmodel, shadoworg, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius, CL_AddDecal_Callback, &ctx);
+	Mod_ClipDecal(cl.worldmodel, shadoworg, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius, 0,0, CL_AddDecal_Callback, &ctx);
 	if (!t->numidx)
 		cl_numstris--;
 }
@@ -2853,7 +2997,7 @@ void CLQ1_AddShadow(entity_t *ent)
 
 	ctx.t = t;
 	Vector4Set(ctx.rgbavalue, 0, 0, 0, r_shadows.value);
-	Mod_ClipDecal(cl.worldmodel, shadoworg, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius, CL_AddDecal_Callback, &ctx);
+	Mod_ClipDecal(cl.worldmodel, shadoworg, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius, 0,0, CL_AddDecal_Callback, &ctx);
 	if (!t->numidx)
 		cl_numstris--;
 }
@@ -2914,37 +3058,57 @@ void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects
 	shell->flags &= ~RF_TRANSLUCENT|RF_ADDITIVE;
 }
 
-static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le)
+static void CL_LerpNetFrameState(framestate_t *fs, lerpents_t *le)
 {
-	fs->g[fsanim].frame[0] = le->newframe;
-	fs->g[fsanim].frame[1] = le->oldframe;
+	int fsanim;
+	for (fsanim = 0; fsanim < FS_COUNT; fsanim++)
+	{
+		fs->g[fsanim].frame[0] = le->newframe[fsanim];
+		fs->g[fsanim].frame[1] = le->oldframe[fsanim];
 
-	fs->g[fsanim].frametime[0] = cl.servertime - le->newframestarttime;
-	fs->g[fsanim].frametime[1] = cl.servertime - le->oldframestarttime;
+		fs->g[fsanim].frametime[0] = cl.servertime - le->newframestarttime[fsanim];
+		fs->g[fsanim].frametime[1] = cl.servertime - le->oldframestarttime[fsanim];
 
-	fs->g[fsanim].lerpweight[0] = (fs->g[fsanim].frametime[0]) / le->framelerpdeltatime;
-	fs->g[fsanim].lerpweight[0] = bound(0, fs->g[FS_REG].lerpweight[0], 1);
-	fs->g[fsanim].lerpweight[1] = 1 - fs->g[fsanim].lerpweight[0];
+		fs->g[fsanim].lerpweight[0] = (fs->g[fsanim].frametime[0]) / le->framelerpdeltatime[fsanim];
+		fs->g[fsanim].lerpweight[0] = bound(0, fs->g[FS_REG].lerpweight[0], 1);
+		fs->g[fsanim].lerpweight[1] = 1 - fs->g[fsanim].lerpweight[0];
+	}
+	fs->g[0].endbone = le->basebone;
 }
 
-static void CL_UpdateNetFrameLerpState(qboolean force, unsigned int curframe, lerpents_t *le)
+static void CL_UpdateNetFrameLerpState(qboolean force, int curframe, int curbaseframe, int curbasebone, lerpents_t *le)
 {
-	if (force || curframe != le->newframe)
+	int fst, frame;
+	if (curbasebone != le->basebone)
 	{
-		le->framelerpdeltatime = bound(0, cl.servertime - le->newframestarttime, 0.1);	//clamp to 10 tics per second
-
-		if (!force)
-		{
-			le->oldframe = le->newframe;
-			le->oldframestarttime = le->newframestarttime;
-		}
+		//FIXME: we should be able to treat 0 and 255 specially by ignoring the change and locking the respective value to the other's value.
+		if (!curbasebone)
+			curbaseframe = curframe;
+		else if (curbasebone == 255)
+			curframe = curbaseframe;
 		else
+			le->basebone = curbasebone;
+	}
+	for (fst = 0; fst < FS_COUNT; fst++)
+	{
+		frame = fst?curframe:curbaseframe;
+		if (force || frame != le->newframe[fst])
 		{
-			le->oldframe = curframe;
-			le->oldframestarttime = cl.servertime;
+			le->framelerpdeltatime[fst] = bound(0, cl.servertime - le->newframestarttime[fst], 0.1);	//clamp to 10 tics per second
+
+			if (!force)
+			{
+				le->oldframe[fst] = le->newframe[fst];
+				le->oldframestarttime[fst] = le->newframestarttime[fst];
+			}
+			else
+			{
+				le->oldframe[fst] = frame;
+				le->oldframestarttime[fst] = cl.servertime;
+			}
+			le->newframe[fst] = frame;
+			le->newframestarttime[fst] = cl.servertime;
 		}
-		le->newframe = curframe;
-		le->newframestarttime = cl.servertime;
 	}
 }
 
@@ -3026,6 +3190,8 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 	int					oldpnum, newpnum;
 	float				*snew__origin;
 	float				*sold__origin;
+	int oldsequence;
+	extern cvar_t r_nolerp;
 
 	qboolean			isnew;
 
@@ -3042,7 +3208,15 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 	//we figure out which ones are new,
 	//we don't care about old, as our caller will use the lerpents array we fill, and the entity numbers from the 'new' packet.
 
+	oldsequence = cl.lerpentssequence;
+	if (!oldsequence)
+		oldsequence = -1;	//something invalid, so everything is new
 	cl.lerpentssequence = newsequence;
+
+	cl.packfrac = frac;
+	cl.currentpacktime = servertime;
+	cl.currentpackentities = newpack;
+	cl.previouspackentities = oldpack;
 
 	oldpnum=0;
 	for (newpnum=0 ; newpnum<newpack->num_entities ; newpnum++)
@@ -3064,6 +3238,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 			oldpnum++;
 
 #ifdef RAGDOLL
+			//note: not entirely reliable
 			le = &cl.lerpents[sold->number];
 			if (sold->number < cl.maxlerpents && le->skeletalobject)
 				rag_removedeltaent(le);
@@ -3077,9 +3252,6 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 			memset(cl.lerpents + cl.maxlerpents, 0, sizeof(lerpents_t)*(newmaxle - cl.maxlerpents));
 			cl.maxlerpents = newmaxle;
 		}
-		le = &cl.lerpents[snew->number];
-		le->sequence = newsequence;
-		le->entstate = snew;
 
 		if (!sold)
 		{
@@ -3088,6 +3260,12 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		}
 		else
 			isnew = false;
+
+		le = &cl.lerpents[snew->number];
+		if (le->sequence != oldsequence)
+			isnew = true;
+		le->sequence = newsequence;
+		le->entstate = snew;
 
 		if (snew->u.q1.pmovetype)
 		{
@@ -3102,7 +3280,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 					le->isnew = true;
 					VectorCopy(le->origin, le->lastorigin);
 				}
-				CL_UpdateNetFrameLerpState(sold == snew, snew->frame, le);
+				CL_UpdateNetFrameLerpState(sold == snew, snew->frame, snew->baseframe, snew->basebone, le);
 
 
 				from = sold;	//eww
@@ -3147,12 +3325,19 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		if (DotProduct(move, move) > 200*200 || snew->modelindex != sold->modelindex || ((sold->effects ^ snew->effects) & EF_TELEPORT_BIT))
 		{
 			isnew = true;	//disable lerping (and indirectly trails)
-			VectorClear(move);
+//			VectorClear(move);
 		}
 
 		VectorCopy(le->origin, le->lastorigin);
 		if (isnew)
 		{
+#ifdef RAGDOLL	//make sure nothing gets stale
+			if (le->skeletalobject)
+				rag_removedeltaent(le);
+#endif
+
+			le->newsequence = snew->sequence;
+
 			//new this frame (or we noticed something changed significantly)
 			VectorCopy(snew__origin, le->origin);
 			VectorCopy(snew->angles, le->angles);
@@ -3162,7 +3347,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 			VectorCopy(snew__origin, le->neworigin);
 			VectorCopy(snew->angles, le->newangle);
 
-			le->orglerpdeltatime = 0.1;
+			le->orglerpdeltatime = newpack->servertime - oldpack->servertime;
 			le->orglerpstarttime = oldpack->servertime;
 
 			le->isnew = true;
@@ -3179,6 +3364,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 				//ignore the old packet entirely, except for maybe its time.
 				if (!VectorEquals(le->neworigin, snew__origin) || !VectorEquals(le->newangle, snew->angles))
 				{
+					le->newsequence = snew->sequence;
 					le->orglerpdeltatime = bound(0, oldpack->servertime - le->orglerpstarttime, 0.11);	//clamp to 10 tics per second
 					le->orglerpstarttime = oldpack->servertime;
 
@@ -3191,6 +3377,8 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 
 				lfrac = (servertime - le->orglerpstarttime) / le->orglerpdeltatime;
 				lfrac = bound(0, lfrac, 1);
+				if (r_nolerp.ival)
+					lfrac = 1;
 				for (i = 0; i < 3; i++)
 				{
 					le->origin[i] = le->oldorigin[i] + lfrac*(le->neworigin[i] - le->oldorigin[i]);
@@ -3206,27 +3394,52 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 			}
 			else
 			{
+				float lfrac;
+
+				if (le->newsequence != snew->sequence)
+				{
+					le->newsequence = snew->sequence;
+					VectorCopy(le->neworigin, le->oldorigin);
+					VectorCopy(le->newangle, le->oldangle);
+					VectorCopy(snew__origin, le->neworigin);
+					VectorCopy(snew->angles, le->newangle);
+
+					//fixme: should be oldservertime
+					le->orglerpdeltatime = servertime-le->orglerpstarttime;
+					le->orglerpstarttime = servertime;
+				}
+
+				lfrac = (servertime - le->orglerpstarttime) / le->orglerpdeltatime;
+				lfrac = bound(0, lfrac, 1);
+
 				//lerp based purely on the packet times,
 				for (i = 0; i < 3; i++)
 				{
-					le->origin[i] = sold__origin[i] + frac*(move[i]);
+					le->origin[i] = le->oldorigin[i] + lfrac*(le->neworigin[i] - le->oldorigin[i]);
 
-					a1 = sold->angles[i];
-					a2 = snew->angles[i];
+					a1 = le->oldangle[i];
+					a2 = le->newangle[i];
 					if (a1 - a2 > 180)
 						a1 -= 360;
 					if (a1 - a2 < -180)
 						a1 += 360;
-					le->angles[i] = a1 + frac * (a2 - a1);
+					le->angles[i] = a1 + lfrac * (a2 - a1);
 				}
-				VectorCopy(le->origin, le->neworigin);
-				VectorCopy(le->angles, le->newangle);
-				le->orglerpdeltatime = 0.1;
-				le->orglerpstarttime = oldpack->servertime;
 			}
 		}
 
-		CL_UpdateNetFrameLerpState(isnew, snew->frame, le);
+#ifdef RAGDOLL //this preprocessor is misnamed, but oh well
+		if (snew->bonecount)
+		{
+			void *newbones = GetBoneSpace(newpack, snew->boneoffset);
+			if (sold && snew->bonecount == sold->bonecount)
+				rag_lerpdeltaent(le, snew->bonecount, newbones, r_nolerp.ival?1:frac, GetBoneSpace(oldpack, sold->boneoffset));
+			else
+				rag_lerpdeltaent(le, snew->bonecount, newbones, 1, newbones);
+		}
+#endif
+
+		CL_UpdateNetFrameLerpState(isnew, snew->frame, snew->baseframe, snew->basebone, le);
 	}
 }
 
@@ -3351,10 +3564,6 @@ void CL_TransitionEntities (void)
 //		Con_Printf("%f %f %f (%f) (%i) %f %f %f\n", packold->servertime, servertime, packnew->servertime, frac, newff, cl.oldgametime, servertime, cl.gametime);
 
 	CL_TransitionPacketEntities(newff, packnew, packold, frac, servertime);
-	cl.packfrac = frac;
-	cl.currentpacktime = servertime;
-	cl.currentpackentities = packnew;
-	cl.previouspackentities = packold;
 
 
 	/*and transition players too*/
@@ -3618,9 +3827,10 @@ void CL_LinkPacketEntities (void)
 		else
 			modelflags = model->flags;
 
-		if (cl.model_precache_vwep[0])
+		if (cl.model_precache_vwep[0] && state->modelindex2 < MAX_VWEP_MODELS)
 		{
-			if (state->modelindex == cl_playerindex && !cl.model_precache_vwep[0]->loadstate != MLS_LOADED)
+			if (state->modelindex == cl_playerindex && cl.model_precache_vwep[0]->loadstate == MLS_LOADED &&
+				cl.model_precache_vwep[state->modelindex2] && cl.model_precache_vwep[state->modelindex2]->loadstate == MLS_LOADED)
 			{
 				model = cl.model_precache_vwep[0];
 				model2 = cl.model_precache_vwep[state->modelindex2];
@@ -3628,7 +3838,7 @@ void CL_LinkPacketEntities (void)
 			else
 				model2 = NULL;
 		}
-		else if (state->modelindex2)
+		else if (state->modelindex2 && state->modelindex2 < MAX_PRECACHE_MODELS)
 			model2 = cl.model_precache[state->modelindex2];
 		else
 			model2 = NULL;
@@ -3644,10 +3854,14 @@ void CL_LinkPacketEntities (void)
 		ent->model = model;
 
 		ent->flags = 0;
-		if (state->dpflags & RENDER_VIEWMODEL)
-			ent->flags |= RF_WEAPONMODEL|Q2RF_MINLIGHT|RF_DEPTHHACK;
 		if ((state->dpflags & RENDER_EXTERIORMODEL) || r_refdef.playerview->viewentity == state->number)
 			ent->flags |= RF_EXTERNALMODEL;
+		if (state->dpflags & RENDER_VIEWMODEL)
+		{
+			ent->flags |= RF_WEAPONMODEL|Q2RF_MINLIGHT|RF_DEPTHHACK;
+			if (state->effects & DPEF_NOGUNBOB)
+				ent->flags |= RF_WEAPONMODELNOBOB;
+		}
 		if (state->effects & NQEF_ADDITIVE)
 			ent->flags |= RF_ADDITIVE;
 		if (state->effects & EF_NODEPTHTEST)
@@ -3684,7 +3898,7 @@ void CL_LinkPacketEntities (void)
 		ent->abslight = state->abslight;
 		ent->drawflags = state->hexen2flags;
 
-		CL_LerpNetFrameState(FS_REG, &ent->framestate, le);
+		CL_LerpNetFrameState(&ent->framestate, le);
 
 #ifdef PEXT_SCALE
 		//set scale
@@ -3786,7 +4000,7 @@ void CL_LinkPacketEntities (void)
 		}
 
 #ifdef RAGDOLL
-		if (model && model->dollinfo)
+		if (model && (model->dollinfo || le->skeletalobject))
 			rag_updatedeltaent(ent, le);
 #endif
 		ent->framestate.g[FS_REG].frame[0] &= ~0x8000;
@@ -3838,7 +4052,7 @@ void CL_LinkPacketEntities (void)
 		VectorCopy(le->lastorigin, old_origin);
 		for (i=0 ; i<3 ; i++)
 		{
-			if ( abs(old_origin[i] - ent->origin[i]) > 128)
+			if ( fabs(old_origin[i] - ent->origin[i]) > 128)
 			{	// no trail if too far
 				VectorCopy (ent->origin, old_origin);
 				break;
@@ -3846,32 +4060,35 @@ void CL_LinkPacketEntities (void)
 		}
 
 		//and emit it
-		if (trailef == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, trailef, ent->keynum, ent->axis, &(le->trailstate)))
-			if (model->traildefaultindex >= 0)
-				pe->ParticleTrailIndex(old_origin, ent->origin, trailidx, 0, &(le->trailstate));
-		if (model->particleeffect != P_INVALID && cls.allow_anyparticles && gl_part_flame.ival)
-			P_EmitEffect (ent->origin, model->particleeffect, &(le->emitstate));
-
-		//dlights are not so customisable.
-		if (r_rocketlight.value && (modelflags & MF_ROCKET) && !(state->lightpflags & (PFLAGS_FULLDYNAMIC|PFLAGS_CORONA)))
+//		if (lasttime != cl.currentpacktime)
 		{
-			float rad = 0;
-			vec3_t dclr;
+			if (trailef == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, trailef, ent->keynum, ent->axis, &(le->trailstate)))
+				if (model->traildefaultindex >= 0)
+					pe->ParticleTrailIndex(old_origin, ent->origin, trailidx, 0, &(le->trailstate));
+			if (model->particleeffect != P_INVALID && cls.allow_anyparticles && gl_part_flame.ival)
+				P_EmitEffect (ent->origin, model->particleeffect, &(le->emitstate));
 
-			dclr[0] = 2.0;
-			dclr[1] = 1.0;
-			dclr[2] = 0.25;
-			rad = 200;
-			rad += r_lightflicker.value?((flicker + state->number)&31):0;
+			//dlights are not so customisable.
+			if (r_rocketlight.value && (modelflags & MF_ROCKET) && !(state->lightpflags & (PFLAGS_FULLDYNAMIC|PFLAGS_CORONA)))
+			{
+				float rad = 0;
+				vec3_t dclr;
 
-			dl = CL_AllocDlight (state->number);
-			memcpy(dl->axis, ent->axis, sizeof(dl->axis));
-			VectorCopy (ent->origin, dl->origin);
-			dl->die = (float)cl.time;
-			if (modelflags & MF_ROCKET)
-				dl->origin[2] += 1; // is this even necessary
-			dl->radius = rad * r_rocketlight.value;
-			VectorCopy(dclr, dl->color);
+				dclr[0] = 2.0;
+				dclr[1] = 1.0;
+				dclr[2] = 0.25;
+				rad = 200;
+				rad += r_lightflicker.value?((flicker + state->number)&31):0;
+
+				dl = CL_AllocDlight (state->number);
+				memcpy(dl->axis, ent->axis, sizeof(dl->axis));
+				VectorCopy (ent->origin, dl->origin);
+				dl->die = (float)cl.time;
+				if (modelflags & MF_ROCKET)
+					dl->origin[2] += 1; // is this even necessary
+				dl->radius = rad * r_rocketlight.value;
+				VectorCopy(dclr, dl->color);
+			}
 		}
 	}
 #ifdef CSQC_DAT
@@ -4575,7 +4792,7 @@ void CL_LinkPlayers (void)
 			continue;	// not present this frame
 		}
 
-		CL_UpdateNetFrameLerpState(false, state->frame, &cl.lerpplayers[j]);
+		CL_UpdateNetFrameLerpState(false, state->frame, 0, 0, &cl.lerpplayers[j]);
 		cl.lerpplayers[j].sequence = cl.lerpentssequence;
 
 #ifdef CSQC_DAT
@@ -4685,7 +4902,7 @@ void CL_LinkPlayers (void)
 
 		ent->skinnum = state->skinnum;
 
-		CL_LerpNetFrameState(FS_REG, &ent->framestate,	&cl.lerpplayers[j]);
+		CL_LerpNetFrameState(&ent->framestate,	&cl.lerpplayers[j]);
 
 		// set colormap
 		ent->playerindex = j;
@@ -4963,6 +5180,9 @@ void CL_LinkViewModel(void)
 		plnum = r_refdef.playerview->playernum;
 	plstate = &cl.inframes[parsecountmod].playerstate[plnum];
 
+	if (plstate->effects & DPEF_NOGUNBOB)
+		ent.flags |= RF_WEAPONMODELNOBOB;
+
 /*	ent.topcolour = TOP_DEFAULT;//cl.players[plnum].ttopcolor;
 	ent.bottomcolour = cl.players[plnum].tbottomcolor;
 	ent.h2playerclass = cl.players[plnum].h2playerclass;
@@ -5023,10 +5243,10 @@ void CL_SetSolidEntities (void)
 	{
 		state = &pak->entities[i];
 
-		if (!state->solid && !state->skinnum)
+		if (state->solidsize==ES_SOLID_NOT)
 			continue;
 
-		if (state->solid == ES_SOLID_BSP)
+		if (state->solidsize == ES_SOLID_BSP)
 		{	/*bsp model size*/
 			if (state->modelindex <= 0)
 				continue;
@@ -5053,10 +5273,7 @@ void CL_SetSolidEntities (void)
 			memset(pent, 0, sizeof(physent_t));
 			pent->info = state->number;
 			/*don't bother with angles*/
-			pent->maxs[0] = pent->maxs[1] = 8*(state->solid & 31);
-			pent->mins[0] = pent->mins[1] = -pent->maxs[0];
-			pent->mins[2] = -8*((state->solid>>5) & 31);
-			pent->maxs[2] = 8*((state->solid>>10) & 63) - 32;
+			COM_DecodeSize(state->solidsize, pent->mins, pent->maxs);
 		}
 		if (++pmove.numphysent == MAX_PHYSENTS)
 			break;

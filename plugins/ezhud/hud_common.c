@@ -510,10 +510,12 @@ void SCR_HUD_DrawMouserate(hud_t *hud)
 
 void SCR_HUD_DrawTracking(hud_t *hud)
 {
+#ifdef HAXX
 	static char tracked_strings[MV_VIEWS][MAX_TRACKING_STRING];
 	static int tracked[MV_VIEWS] = {-1, -1, -1, -1};
-	int views = 1;
 	int view = 0;
+#endif
+	int views = 1;
     int x = 0, y = 0, width = 0, height = 0;
     char track_string[MAX_TRACKING_STRING];
 
@@ -847,8 +849,9 @@ void SCR_HUD_DrawGameClock(hud_t *hud)
         *hud_gameclock_style,
         *hud_gameclock_blink,
 		*hud_gameclock_countdown,
-		*hud_gameclock_scale,
-		*hud_gameclock_offset;
+		*hud_gameclock_scale
+//		*hud_gameclock_offset
+		;
 
     if (hud_gameclock_big == NULL)    // first time
     {
@@ -857,7 +860,7 @@ void SCR_HUD_DrawGameClock(hud_t *hud)
         hud_gameclock_blink = HUD_FindVar(hud, "blink");
 		hud_gameclock_countdown = HUD_FindVar(hud, "countdown");
 		hud_gameclock_scale = HUD_FindVar(hud, "scale");
-		hud_gameclock_offset = HUD_FindVar(hud, "offset");
+//		hud_gameclock_offset = HUD_FindVar(hud, "offset");
 //		gameclockoffset = &hud_gameclock_offset->ival;
     }
 
@@ -1170,7 +1173,7 @@ void SCR_HUD_DrawSpeed2(hud_t *hud)
     int x, y;
 
     static cvar_t *hud_speed2_xyz = NULL,
-		*hud_speed2_opacity,
+//		*hud_speed2_opacity,
 		*hud_speed2_color_stopped,
 		*hud_speed2_color_normal,
 		*hud_speed2_color_fast,
@@ -1183,7 +1186,7 @@ void SCR_HUD_DrawSpeed2(hud_t *hud)
     if (hud_speed2_xyz == NULL)    // first time
     {
         hud_speed2_xyz				= HUD_FindVar(hud, "xyz");
-		hud_speed2_opacity			= HUD_FindVar(hud, "opacity");
+//		hud_speed2_opacity			= HUD_FindVar(hud, "opacity");
 		hud_speed2_color_stopped	= HUD_FindVar(hud, "color_stopped");
 		hud_speed2_color_normal		= HUD_FindVar(hud, "color_normal");
 		hud_speed2_color_fast		= HUD_FindVar(hud, "color_fast");
@@ -1418,6 +1421,13 @@ void SCR_HUD_DrawSpeed2(hud_t *hud)
 
 		// Draw the speed needle.
 		Draw_AlphaLineRGB (needle_start_x, needle_start_y, needle_end_x, needle_end_y, 1, RGBA_TO_COLOR(250, 250, 250, 255 * hud_speed2_opacity->value));
+#else
+		(void)color1;
+		(void)color2;
+		(void)needle_start_x;
+		(void)needle_start_y;
+		(void)needle_end_x;
+		(void)needle_end_y;
 #endif
 
 		// Draw the speed.
@@ -2268,7 +2278,6 @@ void Amf_Reset_DamageStats(void)
 void Draw_AMFStatLoss (int stat, hud_t* hud) {
 	//fixme: should reset these on pov change
     int * vxdmgcnt, * vxdmgcnt_t, * vxdmgcnt_o;
-	int x;
     float alpha;
 	int elem;
 
@@ -2276,13 +2285,11 @@ void Draw_AMFStatLoss (int stat, hud_t* hud) {
         vxdmgcnt = &vxdamagecount;
         vxdmgcnt_t = &vxdamagecount_time;
         vxdmgcnt_o = &vxdamagecount_oldhealth;
-		x = 136;
 		elem = 0;
     } else {
         vxdmgcnt = &vxdamagecountarmour;
         vxdmgcnt_t = &vxdamagecountarmour_time;
         vxdmgcnt_o = &vxdamagecountarmour_oldhealth;
-		x = 24;
 		elem = 1;
     }
 
@@ -5102,9 +5109,9 @@ static void SCR_HUD_DrawTeamHoldBar(hud_t *hud)
 
 void TeamHold_OnChangeItemFilterInfo(cvar_t *var, char *oldvalue)
 {
-	char *start = var->string;
-	char *end = start;
-	int order = 0;
+//	char *start = var->string;
+//	char *end = start;
+//	int order = 0;
 
 	// Parse the item filter.
 	teamhold_show_rl		= Utils_RegExpMatch("RL",	var->string);

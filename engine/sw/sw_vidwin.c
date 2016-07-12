@@ -793,7 +793,7 @@ char *SW_VID_GetRGBInfo(int *truevidwidth, int *truevidheight, enum uploadfmt *f
 	*fmt = TF_BGR24;
 	return buf;
 }
-void SW_VID_SetWindowCaption(char *msg)
+void SW_VID_SetWindowCaption(const char *msg)
 {
 }
 #endif

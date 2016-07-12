@@ -22,6 +22,9 @@ cvar_t *tls_ignorecertificateerrors;
 #define USE_PROT_SERVER (SP_PROT_TLS1_SERVER | SP_PROT_TLS1_1_SERVER | SP_PROT_TLS1_2_SERVER)
 #define USE_PROT_CLIENT (SP_PROT_TLS1_CLIENT | SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_2_CLIENT)
 
+#define USE_PROT_DGRAM_SERVER (SP_PROT_DTLS_SERVER)
+#define USE_PROT_DGRAM_CLIENT (SP_PROT_DTLS_CLIENT)
+
 //hungarian ensures we hit no macros.
 static struct
 {
@@ -30,6 +33,7 @@ static struct
 	SECURITY_STATUS (WINAPI *pEncryptMessage)				(PCtxtHandle,ULONG,PSecBufferDesc,ULONG);
 	SECURITY_STATUS (WINAPI *pAcquireCredentialsHandleA)	(SEC_CHAR*,SEC_CHAR*,ULONG,PLUID,PVOID,SEC_GET_KEY_FN,PVOID,PCredHandle,PTimeStamp);
 	SECURITY_STATUS (WINAPI *pInitializeSecurityContextA)	(PCredHandle,PCtxtHandle,SEC_CHAR*,ULONG,ULONG,ULONG,PSecBufferDesc,ULONG,PCtxtHandle,PSecBufferDesc,PULONG,PTimeStamp);
+	SECURITY_STATUS (WINAPI *pInitializeSecurityContextW)	(PCredHandle,PCtxtHandle,SEC_WCHAR*,ULONG,ULONG,ULONG,PSecBufferDesc,ULONG,PCtxtHandle,PSecBufferDesc,PULONG,PTimeStamp);
 	SECURITY_STATUS (WINAPI *pAcceptSecurityContext)		(PCredHandle,PCtxtHandle,PSecBufferDesc,unsigned long,unsigned long,PCtxtHandle,PSecBufferDesc,unsigned long SEC_FAR *,PTimeStamp);
 	SECURITY_STATUS (WINAPI *pCompleteAuthToken)			(PCtxtHandle,PSecBufferDesc);
 	SECURITY_STATUS (WINAPI *pQueryContextAttributesA)		(PCtxtHandle,ULONG,PVOID);
@@ -55,6 +59,7 @@ void SSL_Init(void)
 		{(void**)&secur.pEncryptMessage,				"EncryptMessage"},
 		{(void**)&secur.pAcquireCredentialsHandleA,		"AcquireCredentialsHandleA"},
 		{(void**)&secur.pInitializeSecurityContextA,	"InitializeSecurityContextA"},
+		{(void**)&secur.pInitializeSecurityContextW,	"InitializeSecurityContextW"},
 		{(void**)&secur.pAcceptSecurityContext,			"AcceptSecurityContext"},
 		{(void**)&secur.pCompleteAuthToken,				"CompleteAuthToken"},
 		{(void**)&secur.pQueryContextAttributesA,		"QueryContextAttributesA"},
@@ -86,7 +91,7 @@ qboolean SSL_Inited(void)
 	return !!secur.lib && !!crypt.lib;
 }
 
-#define MessageAttribute (ISC_REQ_SEQUENCE_DETECT   | ISC_REQ_REPLAY_DETECT     | ISC_REQ_CONFIDENTIALITY   |  ISC_RET_EXTENDED_ERROR    | ISC_REQ_ALLOCATE_MEMORY   | ISC_REQ_STREAM | ISC_REQ_MANUAL_CRED_VALIDATION) 
+#define MessageAttribute (ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY | ISC_RET_EXTENDED_ERROR | ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_MANUAL_CRED_VALIDATION) 
 
 struct sslbuf
 {
@@ -101,6 +106,7 @@ typedef struct {
 	vfsfile_t *stream;
 
 	wchar_t wpeername[256];
+	qboolean datagram;
 	enum
 	{
 		HS_ESTABLISHED,
@@ -130,7 +136,7 @@ static int SSPI_ExpandBuffer(struct sslbuf *buf, size_t bytes)
 {
 	if (bytes < buf->datasize)
 		return buf->datasize;
-	Z_ReallocElements(&buf->data, &buf->datasize, bytes, 1);
+	Z_ReallocElements((void**)&buf->data, &buf->datasize, bytes, 1);
 	return bytes;
 }
 
@@ -147,7 +153,7 @@ static int SSPI_CopyIntoBuffer(struct sslbuf *buf, const void *data, unsigned in
 	return bytes;
 }
 
-static void SSPI_Error(sslfile_t *f, char *error)
+static void SSPI_Error(sslfile_t *f, char *error, ...)
 {
 	f->handshaking = HS_ERROR;
 	Sys_Printf("%s", error);
@@ -226,7 +232,7 @@ static void SSPI_Decode(sslfile_t *f)
 		switch(ss)
 		{
 		case SEC_E_INVALID_HANDLE:	SSPI_Error(f, "DecryptMessage failed: SEC_E_INVALID_HANDLE\n"); break;
-		default:					SSPI_Error(f, va("DecryptMessage failed: %0#lx\n", ss)); break;
+		default:					SSPI_Error(f, "DecryptMessage failed: %0#lx\n", ss); break;
 		}
 		return;
 	}
@@ -541,7 +547,7 @@ static void SSPI_GenServerCredentials(sslfile_t *f)
 
 	memset(&SchannelCred, 0, sizeof(SchannelCred));
 	SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
-	SchannelCred.grbitEnabledProtocols = USE_PROT_SERVER;
+	SchannelCred.grbitEnabledProtocols = f->datagram?USE_PROT_DGRAM_SERVER:USE_PROT_SERVER;
 	SchannelCred.dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER|SCH_CRED_DISABLE_RECONNECTS;	/*don't use windows login info or anything*/
 
 	cred = SSPI_GetServerCertificate();
@@ -600,7 +606,7 @@ static void SSPI_Handshake (sslfile_t *f)
 
 		memset(&SchannelCred, 0, sizeof(SchannelCred));
 		SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
-		SchannelCred.grbitEnabledProtocols = USE_PROT_CLIENT;
+		SchannelCred.grbitEnabledProtocols = f->datagram?USE_PROT_DGRAM_CLIENT:USE_PROT_CLIENT;
 		SchannelCred.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS;	/*don't use windows login info or anything*/
 
 		ss = secur.pAcquireCredentialsHandleA (NULL, UNISP_NAME_A, SECPKG_CRED_OUTBOUND, NULL, &SchannelCred, NULL, NULL, &f->cred, &Lifetime);
@@ -610,7 +616,7 @@ static void SSPI_Handshake (sslfile_t *f)
 			return;
 		}
 
-		ss = secur.pInitializeSecurityContextA (&f->cred, NULL, NULL, MessageAttribute, 0, SECURITY_NATIVE_DREP, NULL, 0, &f->sechnd, &OutBuffDesc, &ContextAttributes, &Lifetime);
+		ss = secur.pInitializeSecurityContextW (&f->cred, NULL, f->wpeername, MessageAttribute|(f->datagram?ISC_REQ_DATAGRAM:ISC_REQ_STREAM), 0, SECURITY_NATIVE_DREP, NULL, 0, &f->sechnd, &OutBuffDesc, &ContextAttributes, &Lifetime);
 	}
 	else if (f->handshaking == HS_CLIENT)
 	{
@@ -630,7 +636,7 @@ static void SSPI_Handshake (sslfile_t *f)
 		InSecBuff[1].pvBuffer   = NULL;
 		InSecBuff[1].cbBuffer   = 0;
 
-		ss = secur.pInitializeSecurityContextA (&f->cred, &f->sechnd, NULL, MessageAttribute, 0, SECURITY_NATIVE_DREP, &InBuffDesc, 0, &f->sechnd, &OutBuffDesc, &ContextAttributes, &Lifetime);
+		ss = secur.pInitializeSecurityContextA (&f->cred, &f->sechnd, NULL, MessageAttribute|(f->datagram?ISC_REQ_DATAGRAM:ISC_REQ_STREAM), 0, SECURITY_NATIVE_DREP, &InBuffDesc, 0, &f->sechnd, &OutBuffDesc, &ContextAttributes, &Lifetime);
 
 		if (ss == SEC_E_INCOMPLETE_MESSAGE)
 		{
@@ -701,7 +707,7 @@ static void SSPI_Handshake (sslfile_t *f)
 		case SEC_E_INVALID_HANDLE:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_INVALID_HANDLE\n");		break;
 		case SEC_E_ILLEGAL_MESSAGE:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_ILLEGAL_MESSAGE\n");		break;
 		case SEC_E_INVALID_TOKEN:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_INVALID_TOKEN\n");		break;
-		default:						SSPI_Error(f, va("InitializeSecurityContext failed: %#lx\n", ss));				break;
+		default:						SSPI_Error(f, "InitializeSecurityContext failed: %#lx\n", ss);				break;
 		}
 		return;
 	}
@@ -844,7 +850,7 @@ static qboolean QDECL SSPI_Close (struct vfsfile_s *file)
 }
 
 #include <wchar.h>
-vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server)
+vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, qboolean datagram)
 {
 	sslfile_t *newf;
 	int i = 0;
@@ -886,6 +892,7 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server)
 		}
 	}
 	newf->wpeername[i] = 0;
+	newf->datagram = datagram;
 	newf->handshaking = server?HS_STARTSERVER:HS_STARTCLIENT;
 	newf->stream = source;
 	newf->funcs.Close = SSPI_Close;

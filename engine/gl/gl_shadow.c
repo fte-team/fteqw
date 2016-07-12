@@ -11,6 +11,9 @@ model meshes are interpolated multiple times per frame
 
 #if defined(RTLIGHTS) && !defined(SERVERONLY)
 
+#ifdef VKQUAKE
+#include "../vk/vkrenderer.h"
+#endif
 #include "glquake.h"
 #include "shader.h"
 
@@ -31,6 +34,8 @@ void D3D11BE_RenderShadowBuffer(unsigned int numverts, void *vbuf, unsigned int 
 void D3D11_DestroyShadowBuffer(void *vbuf, void *ibuf);
 void D3D11BE_DoneShadows(void);
 #endif
+#ifdef VKQUAKE
+#endif
 void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsigned numindicies, int ibo, index_t *indicies);
 
 static void SHM_Shutdown(void);
@@ -39,10 +44,11 @@ static void SHM_Shutdown(void);
 
 #define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
 
+#ifdef GLQUAKE
 static texid_t shadowmap[2];
-
 static int shadow_fbo_id;
 static int shadow_fbo_depth_num;
+#endif
 texid_t crepuscular_texture_id;
 fbostate_t crepuscular_fbo;
 shader_t *crepuscular_shader;
@@ -63,6 +69,7 @@ cvar_t r_editlights_import_radius			= CVAR ("r_editlights_import_radius", "1");
 cvar_t r_editlights_import_ambient			= CVAR ("r_editlights_import_ambient", "0");
 cvar_t r_editlights_import_diffuse			= CVAR ("r_editlights_import_diffuse", "1");
 cvar_t r_editlights_import_specular			= CVAR ("r_editlights_import_specular", "1");	//excessive, but noticable. its called stylized, okay? shiesh, some people
+cvar_t r_shadow_playershadows				= CVARD ("r_shadow_playershadows", "1", "Controls the presence of shadows on the local player.");
 cvar_t r_shadow_shadowmapping				= CVARD ("r_shadow_shadowmapping", "1", "Enables soft shadows instead of stencil shadows.");
 cvar_t r_shadow_shadowmapping_precision		= CVARD ("r_shadow_shadowmapping_precision", "1", "Scales the shadowmap detail level up or down.");
 extern cvar_t r_shadow_shadowmapping_nearclip;
@@ -143,6 +150,9 @@ typedef struct shadowmesh_s
 	unsigned int leafbytes;
 	unsigned char *litleaves;
 
+#ifdef VKQUAKE
+	struct vk_shadowbuffer *vkbuffer;
+#endif
 #ifdef GLQUAKE
 	GLuint vebo[2];
 #endif
@@ -369,6 +379,12 @@ static void SH_FreeShadowMesh_(shadowmesh_t *sm)
 		sm->vebo[1] = 0;
 		break;
 #endif
+#ifdef VKQUAKE
+	case QR_VULKAN:
+		VKBE_DestroyShadowBuffer(sm->vkbuffer);
+		sm->vkbuffer = NULL;
+		break;
+#endif
 #ifdef D3D9QUAKE
 	case QR_DIRECT3D9:
 		if (sm->d3d9_ibuffer)
@@ -530,6 +546,12 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 
 			GL_SelectEBO(sh_shmesh->vebo[1]);
 			qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->indicies) * sh_shmesh->numindicies, sh_shmesh->indicies, GL_STATIC_DRAW_ARB);
+			break;
+#endif
+#ifdef VKQUAKE
+		case QR_VULKAN:
+			VKBE_DestroyShadowBuffer(sh_shmesh->vkbuffer);
+			sh_shmesh->vkbuffer = VKBE_GenerateShadowBuffer(sh_shmesh->verts, sh_shmesh->numverts, sh_shmesh->indicies, sh_shmesh->numindicies, sh_shmesh == &sh_tempshmesh);
 			break;
 #endif
 #ifdef D3D9QUAKE
@@ -1450,7 +1472,14 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 			break;
 #endif
 		default:
-			return NULL;
+			SHM_BeginShadowMesh(dl, type);
+			sh_shadowframe++;
+
+			{
+				int cluster = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+				sh_shmesh->litleaves[cluster>>3] |= 1<<(cluster&7);
+			}
+			break;
 		}
 	}
 	else
@@ -2213,9 +2242,16 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], shadowmesh_t *smesh, i
 		GLBE_RenderShadowBuffer(smesh->numverts, smesh->vebo[0], smesh->verts, smesh->numindicies, smesh->vebo[1], smesh->indicies);
 		break;
 #endif
+#ifdef VKQUAKE
+	case QR_VULKAN:
+		//FIXME: generate a single commandbuffer (requires full separation of viewprojection matrix)
+		VKBE_BeginShadowmapFace();
+		VKBE_RenderShadowBuffer(smesh->vkbuffer);
+		break;
+#endif
 #ifdef D3D11QUAKE
 	case QR_DIRECT3D11:
-		//d3d render targets are upside down
+		//opengl render targets are upside down - our code kinda assumes gl
 		r_refdef.pxrect.y = r_refdef.pxrect.maxheight -(r_refdef.pxrect.y+r_refdef.pxrect.height);
 		D3D11BE_BeginShadowmapFace();
 		D3D11BE_RenderShadowBuffer(smesh->numverts, smesh->d3d11_vbuffer, smesh->numindicies, smesh->d3d11_ibuffer);
@@ -2228,14 +2264,14 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], shadowmesh_t *smesh, i
 			if (!smesh->batches[tno].count)
 				continue;
 			tex = cl.worldmodel->shadowbatches[tno].tex;
-			if (tex->shader->flags & SHADER_NODLIGHT)	//FIXME: shadows not lights
+			if (tex->shader->flags & (SHADER_NOSHADOWS|SHADER_NODRAW))	//FIXME: shadows not lights
 				continue;
 			BE_DrawMesh_List(tex->shader, smesh->batches[tno].count, smesh->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, NULL, 0);
 		}
 		break;
 	}
 
-	//fixme: this walks through the entity lists up to 6 times per frame.
+	//fixme: this walks through the entity lists up to 6 times per frame per entity.
 	switch(qrenderer)
 	{
 	default:
@@ -2253,6 +2289,11 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], shadowmesh_t *smesh, i
 #ifdef D3D11QUAKE
 	case QR_DIRECT3D11:
 		D3D11BE_BaseEntTextures();
+		break;
+#endif
+#ifdef VKQUAKE
+	case QR_VULKAN:
+		VKBE_BaseEntTextures();
 		break;
 #endif
 	}
@@ -2290,7 +2331,9 @@ void D3D11BE_SetupForShadowMap(dlight_t *dl, qboolean isspot, int texwidth, int 
 
 qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 {
+#ifdef GLQUAKE
 	int restorefbo = 0;
+#endif
 	int f;
 	float oproj[16], oview[16];
 	pxrect_t oprect;
@@ -2427,6 +2470,13 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 //		BE_Scissor(&rect);
 		break;
 #endif
+
+#ifdef VKQUAKE
+	case QR_VULKAN:
+		if (!VKBE_BeginShadowmap(isspot, (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*3)), (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*2))))
+			return false;
+		break;
+#endif
 	}
 
 	r_refdef.externalview = true;	//never any viewmodels
@@ -2472,6 +2522,11 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 	case QR_DIRECT3D11:
 		D3D11_EndShadowMap();
 		D3D11BE_DoneShadows();
+		break;
+#endif
+#ifdef VKQUAKE
+	case QR_VULKAN:
+		VKBE_DoneShadows();
 		break;
 #endif
 	}
@@ -2559,6 +2614,10 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qb
 	if (qrenderer == QR_DIRECT3D11)
 		D3D11BE_SetupForShadowMap(l, isspot, isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
 #endif
+#ifdef VKQUAKE
+	if (qrenderer == QR_VULKAN)
+		VKBE_SetupForShadowMap(l, isspot, isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
+#endif
 
 	if (!BE_SelectDLight(l, colour, axis, isspot?LSHADER_SPOT:LSHADER_SMAP))
 		return;
@@ -2603,9 +2662,9 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 				shader = R_TextureAnimation_Q2(tex)->shader;
 			else
 				shader = R_TextureAnimation(false, tex)->shader;
-			if (shader->flags & SHADER_NODLIGHT)
+			if (shader->flags & (SHADER_NODLIGHT|SHADER_NODRAW|SHADER_SKY))
 				continue;
-			//FIXME: it may be worth building a dedicated ebo
+			//FIXME: it should be worth building a dedicated ebo, for static ones
 			BE_DrawMesh_List(shader, sm->batches[tno].count, sm->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, NULL, 0);
 			RQuantAdd(RQUANT_LITFACES, sm->batches[tno].count);
 		}
@@ -2617,6 +2676,11 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 #ifdef GLQUAKE
 		case QR_OPENGL:
 			GLBE_BaseEntTextures();
+			break;
+#endif
+#ifdef VKQUAKE
+		case QR_VULKAN:
+			VKBE_BaseEntTextures();
 			break;
 #endif
 #ifdef D3D9QUAKE
@@ -2633,13 +2697,13 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 	}
 }
 
+#ifdef GLQUAKE
 /*Fixme: this is brute forced*/
 #ifdef warningmsg
 #pragma warningmsg("brush shadows are bruteforced")
 #endif
 static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 {
-#ifdef GLQUAKE
 	int v;
 	float *v1, *v2;
 	vec3_t v3, v4;
@@ -2742,24 +2806,30 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 	}
 
 	GLBE_PolyOffsetStencilShadow(false);
-#endif
 }
+#endif
 
-
+#if defined(GLQUAKE) || defined(D3D9QUAKE)
 /*when this is called, the gl state has been set up to draw the stencil volumes using whatever extensions we have
 if secondside is set, then the gpu sucks and we're drawing stuff the slow 2-pass way, and this is the second pass.
 */
 static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, qboolean secondside)
 {
+	struct shadowmesh_s *sm;
+#ifdef GLQUAKE
 	extern cvar_t gl_part_flame;
 	int		i;
-	struct shadowmesh_s *sm;
 	entity_t *ent;
 	model_t *emodel;
+#endif
 
 	sm = SHM_BuildShadowMesh(dl, lvis, vvis, SMT_STENCILVOLUME);
 	if (!sm)
+	{
+#ifdef GLQUAKE
 		Sh_DrawBrushModelShadow(dl, &r_worldentity);
+#endif
+	}
 	else
 	{
 		switch (qrenderer)
@@ -2770,9 +2840,9 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 			break;
 
 #ifdef D3D11QUAKE
-		case QR_DIRECT3D11:
-			D3D11BE_RenderShadowBuffer(sm->numverts, sm->d3d11_vbuffer, sm->numindicies, sm->d3d11_ibuffer);
-			break;
+//		case QR_DIRECT3D11:
+//			D3D11BE_RenderShadowBuffer(sm->numverts, sm->d3d11_vbuffer, sm->numindicies, sm->d3d11_ibuffer);
+//			break;
 #endif
 #ifdef D3D9QUAKE
 		case QR_DIRECT3D9:
@@ -2784,21 +2854,23 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 			GLBE_RenderShadowBuffer(sm->numverts, sm->vebo[0], sm->verts, sm->numindicies, sm->vebo[1], sm->indicies);
 			break;
 #endif
+#ifdef VKQUAKE
+//		case QR_VULKAN:
+//			VKBE_RenderShadowBuffer(sm->numverts, sm->vebo[0], sm->verts, sm->numindicies, sm->vebo[1], sm->indicies);
+//			break;
+#endif
 		}
 	}
 	if (!r_drawentities.value)
 		return;
 
-	if (qrenderer == QR_DIRECT3D11)
-		return;
-	if (qrenderer != QR_OPENGL)
-		return;	//FIXME: uses glBegin specifics.
 #ifdef GLQUAKE
+	if (qrenderer != QR_OPENGL)
+		return;	//FIXME: still uses glBegin specifics.
 	if (gl_config_nofixedfunc)
-		return;	/*hackzone*/
+		return;	/*too lazy to use shaders*/
 	if (gl_config_gles)
 		return;	//FIXME: uses glBegin
-#endif
 
 	// draw sprites seperately, because of alpha blending
 	for (i=0 ; i<cl_numvisedicts ; i++)
@@ -2853,6 +2925,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 		}
 	}
 	BE_SelectEntity(&r_worldentity);
+#endif
 }
 
 //draws a light using stencil shadows.
@@ -2922,6 +2995,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 	switch(qrenderer)
 	{
 	default:
+		(void)sref;
 		break;
 #ifdef GLQUAKE
 	case QR_OPENGL:
@@ -3093,6 +3167,9 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 
 	return true;
 }
+#else
+#define Sh_DrawStencilLight Sh_DrawShadowlessLight
+#endif
 
 static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], qbyte *vvis)
 {
@@ -3152,7 +3229,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], 
 
 	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
 
-	BE_SelectDLight(dl, colour, axis, LSHADER_STANDARD);
+	BE_SelectDLight(dl, colour, axis, dl->fov?LSHADER_SPOT:LSHADER_STANDARD);
 	BE_SelectMode(BEM_LIGHT);
 	Sh_DrawEntLighting(dl, colour);
 }
@@ -3355,17 +3432,26 @@ void Sh_CheckSettings(void)
 
 	switch(qrenderer)
 	{
+#ifdef VKQUAKE
+	case QR_VULKAN:
+		canshadowless = true;
+		cansmap = true;
+		break;
+#endif
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		canshadowless = gl_config.arb_shader_objects || !gl_config_nofixedfunc; //falls back to crappy texture env
-		if (!gl_config.arb_shader_objects)
-			Con_Printf("No arb_shader_objects\n");
-		if (!gl_config.ext_framebuffer_objects)
-			Con_Printf("No ext_framebuffer_objects\n");
-		if (!gl_config.arb_depth_texture)
-			Con_Printf("No arb_depth_texture\n");
 		if (gl_config.arb_shader_objects && gl_config.ext_framebuffer_objects && gl_config.arb_depth_texture)// && gl_config.arb_shadow)
 			cansmap = true;
+		else if (r_shadow_realtime_world_shadows.ival || r_shadow_realtime_dlight_shadows.ival)
+		{
+			if (!gl_config.arb_shader_objects)
+				Con_Printf("No arb_shader_objects\n");
+			if (!gl_config.ext_framebuffer_objects)
+				Con_Printf("No ext_framebuffer_objects\n");
+			if (!gl_config.arb_depth_texture)
+				Con_Printf("No arb_depth_texture\n");
+		}
 		if (gl_stencilbits)
 			canstencil = true;
 		break;
@@ -3474,7 +3560,7 @@ void Sh_CalcPointLight(vec3_t point, vec3_t light)
 		if (frac >= 1)
 			continue;
 		//FIXME: this should be affected by the direction.
-		if (!TraceLineN(point, dl->origin, impact, norm))
+		if (CL_TraceLine(point, dl->origin, impact, norm, NULL)>=1)
 			VectorMA(light, 1-frac, colour, light);
 	}
 }
@@ -3653,6 +3739,7 @@ void Sh_RegisterCvars(void)
 	Cvar_Register (&r_shadow_realtime_dlight_specular,	REALTIMELIGHTING);
 	Cvar_Register (&r_shadow_realtime_dlight_shadows,	REALTIMELIGHTING);
 	Cvar_Register (&r_shadow_realtime_world_lightmaps,	REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_playershadows,				REALTIMELIGHTING);
 	Cvar_Register (&r_shadow_shadowmapping,				REALTIMELIGHTING);
 	Cvar_Register (&r_shadow_shadowmapping_precision,	REALTIMELIGHTING);
 	Cvar_Register (&r_shadow_shadowmapping_nearclip,	REALTIMELIGHTING);

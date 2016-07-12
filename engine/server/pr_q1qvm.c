@@ -429,7 +429,7 @@ static void Q1QVMED_ClearEdict (edict_t *e, qboolean wipe)
 	int num = e->entnum;
 	if (wipe)
 		memset (e->v, 0, sv.world.edict_size - WASTED_EDICT_T_SIZE);
-	e->isfree = false;
+	e->ereftype = ER_ENTITY;
 	e->entnum = num;
 }
 static void QDECL Q1QVMPF_ClearEdict(pubprogfuncs_t *pf, edict_t *e)
@@ -441,7 +441,7 @@ static void QDECL Q1QVMPF_EntRemove(pubprogfuncs_t *pf, edict_t *e)
 {
 	if (!ED_CanFree(e))
 		return;
-	e->isfree = true;
+	e->ereftype = ER_FREE;
 	e->freetime = sv.time;
 }
 
@@ -514,7 +514,7 @@ static int QDECL Q1QVMPF_QueryField(pubprogfuncs_t *prinst, unsigned int fieldof
 	return true;
 }
 
-static eval_t *QDECL Q1QVMPF_GetEdictFieldValue(pubprogfuncs_t *pf, edict_t *e, char *fieldname, evalc_t *cache)
+static eval_t *QDECL Q1QVMPF_GetEdictFieldValue(pubprogfuncs_t *pf, edict_t *e, char *fieldname, etype_t type, evalc_t *cache)
 {
 	if (cache && !cache->varname)
 	{
@@ -1279,7 +1279,7 @@ static qintptr_t QVM_ConPrint (void *offset, quintptr_t mask, const qintptr_t *a
 }
 static qintptr_t QVM_ReadCmd (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	extern char outputbuf[];
+	extern char sv_redirected_buf[];
 	extern redirect_t sv_redirected;
 	extern int sv_redirectedlang;
 	redirect_t old;
@@ -1302,7 +1302,7 @@ static qintptr_t QVM_ReadCmd (void *offset, quintptr_t mask, const qintptr_t *ar
 
 	SV_BeginRedirect(RD_OBLIVION, TL_FindLanguage(""));
 	Cbuf_Execute();
-	Q_strncpyz(output, outputbuf, outputlen);
+	Q_strncpyz(output, sv_redirected_buf, outputlen);
 	SV_EndRedirect();
 
 	if (old != RD_NONE)
@@ -1452,6 +1452,7 @@ static int QVM_FindExtField(char *fname)
 {
 	extentvars_t *xv = NULL;
 #define comfieldfloat(name,desc) if (!strcmp(fname, #name)) return ((int*)&xv->name - (int*)xv);
+#define comfieldint(name,desc) if (!strcmp(fname, #name)) return ((int*)&xv->name - (int*)xv);
 #define comfieldvector(name,desc) if (!strcmp(fname, #name)) return ((int*)&xv->name - (int*)xv);
 #define comfieldentity(name,desc) if (!strcmp(fname, #name)) return ((int*)&xv->name - (int*)xv);
 #define comfieldstring(name,desc) if (!strcmp(fname, #name)) return ((int*)&xv->name - (int*)xv);
@@ -1459,6 +1460,7 @@ static int QVM_FindExtField(char *fname)
 comextqcfields
 svextqcfields
 #undef comfieldfloat
+#undef comfieldint
 #undef comfieldvector
 #undef comfieldentity
 #undef comfieldstring
@@ -1824,7 +1826,7 @@ void Q1QVM_Shutdown(void)
 	}
 }
 
-void Q1QVM_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
+static void QDECL Q1QVM_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
 {
 	int oself = pr_global_struct->self;
 	int oother = pr_global_struct->other;
@@ -1838,19 +1840,19 @@ void Q1QVM_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
 	pr_global_struct->other = oother;
 }
 
-void Q1QVM_Event_Think(world_t *w, wedict_t *s)
+static void QDECL Q1QVM_Event_Think(world_t *w, wedict_t *s)
 {
 	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
 	pr_global_struct->other = EDICT_TO_PROG(w->progs, w->edicts);
 	VM_Call(q1qvm, GAME_EDICT_THINK, 0, 0, 0);
 }
 
-qboolean Q1QVM_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
+static qboolean QDECL Q1QVM_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
 {
 	return false;	//always do legacy behaviour
 }
 
-void QDECL Q1QVMPF_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static)
+static void QDECL Q1QVMPF_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static)
 {
 	string_t newval = progfuncs->StringToProgs(progfuncs, str);
 	if (newval || !str)
@@ -2003,7 +2005,7 @@ qboolean PR_LoadQ1QVM(void)
 #define globalstring(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)
 #define globalvec(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)
 #define globalfunc(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)
-#define globalfloatnull(required, name) pr_global_ptrs->name = NULL
+#define globalnull(required, name) pr_global_ptrs->name = NULL
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
 	globalint		(true, world);
@@ -2012,9 +2014,9 @@ qboolean PR_LoadQ1QVM(void)
 	globalint		(false, newmis);	//not always in nq.
 	globalfloat		(false, force_retouch);
 	globalstring	(true, mapname);
-	globalfloatnull	(false, deathmatch);
-	globalfloatnull	(false, coop);
-	globalfloatnull	(false, teamplay);
+	globalnull		(false, deathmatch);
+	globalnull		(false, coop);
+	globalnull		(false, teamplay);
 	globalfloat		(true, serverflags);
 	globalfloat		(true, total_secrets);
 	globalfloat		(true, total_monsters);
@@ -2032,9 +2034,11 @@ qboolean PR_LoadQ1QVM(void)
 	globalint		(true, trace_ent);
 	globalfloat		(true, trace_inopen);
 	globalfloat		(true, trace_inwater);
-	globalfloatnull	(false, trace_endcontents);
-	globalfloatnull	(false, trace_surfaceflags);
-	globalfloatnull	(false, cycle_wrapped);
+	globalnull		(false, trace_endcontents);
+	globalnull		(false, trace_endcontentsi);
+	globalnull		(false, trace_surfaceflags);
+	globalnull		(false, trace_surfaceflagsi);
+	globalnull		(false, cycle_wrapped);
 	globalint		(false, msg_entity);
 	globalfunc		(false, main);
 	globalfunc		(true, StartFrame);
@@ -2048,7 +2052,9 @@ qboolean PR_LoadQ1QVM(void)
 	globalfunc		(false, SetChangeParms);
 
 	pr_global_ptrs->trace_surfaceflags = &writable;
+	pr_global_ptrs->trace_surfaceflagsi = &writable_int;
 	pr_global_ptrs->trace_endcontents = &writable;
+	pr_global_ptrs->trace_endcontentsi = &writable_int;
 	pr_global_ptrs->dimension_default = &dimensiondefault;
 	pr_global_ptrs->dimension_send = &dimensionsend;
 	pr_global_ptrs->physics_mode = &physics_mode;

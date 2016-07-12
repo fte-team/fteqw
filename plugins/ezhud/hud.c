@@ -793,12 +793,18 @@ void HUD_Export_f(void)
 	cvar_t *var;
 	int i;
 
-	char *fname = "foo";
-	char *fdesc = "OMG ITS FOO";
+	char fname[64];
+	char fdesc[256];
+
+	pCmd_Argv(1, fname, sizeof(fname));
+	pCmd_Argv(2, fdesc, sizeof(fdesc));
+
+	if (!*fdesc)
+		snprintf(fdesc, sizeof(fdesc), "%s", fname);
 
 	snprintf(line, sizeof(line), "configs/hud_%s.cfg", fname);
 
-	if (pFS_Open(line, &handle, 0) < 0)
+	if (pFS_Open(line, &handle, 2) < 0)
 		Com_Printf("Couldn't open %s\n", line);
 	else
 	{
@@ -1353,7 +1359,7 @@ hud_t * HUD_Register(char *name, char *var_alias, char *description,
 
 void HUD_ParamsCleanup(void)
 {
-	int i = 0;
+//	int i = 0;
 	hud_t *hud = hud_huds;
 
     while (hud)

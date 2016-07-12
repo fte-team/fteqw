@@ -110,7 +110,7 @@ extern qboolean	mouseinitialized;
 //extern HANDLE	hinput, houtput;
 
 extern HCURSOR	hArrowCursor, hCustomCursor;
-void *WIN_CreateCursor(char *filename, float hotx, float hoty, float scale);
+void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale);
 qboolean WIN_SetCursor(void *cursor);
 void WIN_DestroyCursor(void *cursor);
 

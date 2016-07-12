@@ -19,18 +19,19 @@ nonstatic void(mitem_desktop desktop) M_Options_Hud =
 	mitem_frame fr = spawn(mitem_frame, item_flags: IF_SELECTABLE, frame_hasscroll:TRUE);
 	m.add(fr, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, -h], [0, h*2]);
 
-	float fs = search_begin("hud/*.cfg", TRUE, TRUE);
+	float fs = search_begin("huds/*.cfg", TRUE, TRUE);
 	float fc = search_getsize(fs);
 
 	//add the options
 	for (i = 0, float y = 0; i < fc; i++)
 	{
 		string fname = search_getfilename(fs, i);
-		string iname = substring(fname, 12, -5);
+		string iname = substring(fname, 5, -5);
 		string dname = GetFirstLineComment(fname, iname);
+		print(sprintf("\"%s\" \"%s\" - \"%s\"\n", fname, iname, dname));
 		if (dname)
 		{
-			fr.add(spawn(mitem_text, item_text:dname, item_command:sprintf("exec \"%s\"", fname), item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y], [0, 16]);
+			fr.add(spawn(mitem_text, item_text:dname, item_command:sprintf("cvarreset hud_*; exec \"%s\"; hud_recalculate", fname), item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y], [0, 16]);
 			y += 16;
 		}
 	}

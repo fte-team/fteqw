@@ -72,7 +72,16 @@ extern	netadr_t	net_from;		// address of who sent the packet
 extern	sizebuf_t	net_message;
 //#define	MAX_UDP_PACKET	(MAX_MSGLEN*2)	// one more than msg + header
 #define	MAX_UDP_PACKET	8192	// one more than msg + header
-extern	qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
+extern	FTE_ALIGN(4) qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
+
+typedef enum
+{
+	NETERR_SENT			= 0,	//all is well
+	NETERR_NOROUTE		= 1,	//destination isn't valid for this socket/etc. try a different one if possible
+	NETERR_DISCONNECTED = 2,	//socket can no longer send anything
+	NETERR_MTU			= 3,	//packet wasn't sent due to MTU
+	NETERR_CLOGGED		= 4		//socket is suffering from conjestion
+} neterr_t;
 
 extern	cvar_t	hostname;
 
@@ -89,8 +98,9 @@ void		NET_CloseServer (void);
 void		UDP_CloseSocket (int socket);
 void		NET_Shutdown (void);
 qboolean	NET_GetRates(struct ftenet_connections_s *collection, float *pi, float *po, float *bi, float *bo);
+qboolean	NET_UpdateRates(struct ftenet_connections_s *collection, qboolean inbound, size_t size);	//for demos to not be weird
 int			NET_GetPacket (netsrc_t netsrc, int firstsock);
-qboolean	NET_SendPacket (netsrc_t socket, int length, const void *data, netadr_t *to);
+neterr_t	NET_SendPacket (netsrc_t socket, int length, const void *data, netadr_t *to);
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);
@@ -113,7 +123,7 @@ char		*NET_BaseAdrToString (char *s, int len, netadr_t *a);
 size_t		NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount);
 #define NET_StringToSockaddr(s,p,a,f,z) (NET_StringToSockaddr2(s,p,a,f,z,1)>0)
 size_t		NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t addrcount);
-#define NET_StringToAdr(s,p,a) (NET_StringToAdr2(s,p,a,1)>0)
+#define NET_StringToAdr(s,p,a) NET_StringToAdr2(s,p,a,1)
 qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a);
 qboolean NET_IsClientLegal(netadr_t *adr);
 

@@ -150,7 +150,7 @@ qboolean SW_VID_Init(rendererstate_t *info, unsigned char *palette);
 void SW_VID_DeInit(void);
 qboolean SW_VID_ApplyGammaRamps		(unsigned short *ramps);
 char *SW_VID_GetRGBInfo(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
-void SW_VID_SetWindowCaption(char *msg);
+void SW_VID_SetWindowCaption(const char *msg);
 void SW_VID_SwapBuffers(void);
 void SW_VID_UpdateViewport(wqcom_t *com);
 

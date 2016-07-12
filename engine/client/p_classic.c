@@ -92,7 +92,7 @@ typedef struct cparticle_s
 #define ABSOLUTE_MAX_PARTICLES	8192
 static int r_numparticles;
 static cparticle_t	*particles, *active_particles, *free_particles;
-extern cvar_t r_part_density, r_part_classic_expgrav;
+extern cvar_t r_part_density, r_part_classic_expgrav, r_part_classic_opaque;
 
 static unsigned int particleframe;
 
@@ -496,7 +496,7 @@ static void PClassic_DrawParticles(void)
 //		Vector4Set(cl_strisvertc[cl_numstrisvert+1],1,1,1,1);
 //		Vector4Set(cl_strisvertc[cl_numstrisvert+2],1,1,1,1);
 
-		Vector4Set(cl_strisvertc[cl_numstrisvert+0], ((p->rgb&0xff)>>0)/256.0, ((p->rgb&0xff00)>>8)/256.0, ((p->rgb&0xff0000)>>16)/256.0, ((p->type == pt_fire)?((6 - p->ramp) *0.166666):1.0));
+		Vector4Set(cl_strisvertc[cl_numstrisvert+0], ((p->rgb&0xff)>>0)/256.0, ((p->rgb&0xff00)>>8)/256.0, ((p->rgb&0xff0000)>>16)/256.0, ((p->type == pt_fire && !r_part_classic_opaque.ival)?((6 - p->ramp) *0.166666):1.0));
 		Vector4Copy(cl_strisvertc[cl_numstrisvert+0], cl_strisvertc[cl_numstrisvert+1]);
 		Vector4Copy(cl_strisvertc[cl_numstrisvert+0], cl_strisvertc[cl_numstrisvert+2]);
 
@@ -1091,7 +1091,25 @@ done:
 	return leftover;
 }
 
+int PClassic_PointFile(int c, vec3_t point)
+{
+	cparticle_t *p;
 
+	if (!free_particles)
+		return 0;
+	p = free_particles;
+	free_particles = p->next;
+	p->next = active_particles;
+	active_particles = p;
+
+	VectorClear (p->vel);
+	p->die = 99999;
+	p->rgb = d_8to24rgbtable[(-c) & 0xff];
+	p->type = pt_static;
+	VectorCopy(point, p->org);
+
+	return 1;
+}
 
 //builds a trail from here to there. The trail state can be used to remember how far you got last frame.
 static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, vec3_t dlaxis[3], trailstate_t **tsk)

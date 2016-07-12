@@ -59,6 +59,9 @@ Draw_Init
 */
 void GLDraw_Init (void)
 {
+	if (gl_config.gles && gl_config.glversion < 3.0)
+		r_softwarebanding = false;
+
 	R2D_Init();
 
 	qglDisable(GL_SCISSOR_TEST);
@@ -257,7 +260,8 @@ static void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 	if (gl_anisotropy_factor)	//0 means driver doesn't support
 	{
 		//only use anisotrophy when using linear any linear, because of drivers that forces linear sampling when anis is active (annoyingly this is allowed by the spec).
-		if ((min == GL_LINEAR_MIPMAP_LINEAR || min == GL_LINEAR_MIPMAP_NEAREST) && mag == GL_LINEAR)
+		//(also protects r_softwarebanding)
+		if (min == GL_LINEAR_MIPMAP_LINEAR || min == GL_LINEAR_MIPMAP_NEAREST)
 			qglTexParameterf(targ, GL_TEXTURE_MAX_ANISOTROPY_EXT, gl_anisotropy_factor);
 		else
 			qglTexParameterf(targ, GL_TEXTURE_MAX_ANISOTROPY_EXT, 1);
@@ -328,7 +332,7 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 	//note that some drivers will just ignore levels that are not valid.
 	//this means that we can't make this setting dynamic, so we might as well let the drivers know BEFORE we do the uploads, to be kind to those that are buggy..
 	//this is available in gles3
-	if (!gl_config.gles)
+	if (!gl_config.gles || gl_config.glversion >= 3.0)
 	{
 		if (targ != GL_TEXTURE_CUBE_MAP_ARB)
 		{

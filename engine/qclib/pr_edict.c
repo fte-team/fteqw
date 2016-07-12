@@ -1967,7 +1967,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 			if (killonspawnflags)
 			{
-				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)&ed, "spawnflags", &prinst.spawnflagscache);
+				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)&ed, "spawnflags", ev_float, &prinst.spawnflagscache);
 				if (var)
 				{
 					if ((int)var->_float & (int)killonspawnflags)
@@ -1981,9 +1981,9 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 			if (!resethunk)
 			{
 				mfunction_t *f;
-				if ((var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "classname", NULL)))
+				if ((var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "classname", ev_string, NULL)))
 				{
-					f = ED_FindFunction(progfuncs, var->string + progfuncs->funcs.stringtable, NULL, -1);
+					f = ED_FindFunction(progfuncs, PR_StringToNative(&progfuncs->funcs, var->string), NULL, -1);
 					if (f)
 					{
 						var = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
@@ -2265,7 +2265,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 			if (killonspawnflags)
 			{
-				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "spawnflags", &prinst.spawnflagscache);
+				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "spawnflags", ev_float, &prinst.spawnflagscache);
 				if (var)
 				{
 					if ((int)var->_float & (int)killonspawnflags)
@@ -2284,7 +2284,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 				if (!CheckSpawn)
 					CheckSpawn = PR_FindFunc(&progfuncs->funcs, "CheckSpawn", -2);
 
-				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "classname", NULL);
+				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "classname", ev_string, NULL);
 				if (!var || !var->string || !*PR_StringToNative(&progfuncs->funcs, var->string))
 				{
 					printf("No classname\n");
@@ -2575,16 +2575,16 @@ void PR_CleanUpStatements16(progfuncs_t *progfuncs, dstatement16_t *st, pbool he
 			if (!st[i].c)
 				st[i].c = OFS_RETURN;
 
-		if (st[i].a < 0 || st[i].a >= numglob)
+		if (st[i].a >= numglob)
 			if (st[i].op != OP_GOTO)
 				st[i].op = ~0;
-		if (st[i].b < 0 || st[i].b >= numglob)
+		if (st[i].b >= numglob)
 			if (st[i].op != OP_IFNOT_I && st[i].op != OP_IF_I &&
 				st[i].op != OP_IFNOT_F && st[i].op != OP_IF_F &&
 				st[i].op != OP_IFNOT_S && st[i].op != OP_IF_S &&
 				st[i].op != OP_BOUNDCHECK && st[i].op != OP_CASE)
 				st[i].op = ~0;
-		if (st[i].c < 0 || st[i].c >= numglob)
+		if (st[i].c >= numglob)
 			if (st[i].op != OP_BOUNDCHECK && st[i].op != OP_CASERANGE)
 				st[i].op = ~0;
 	}
@@ -2602,16 +2602,16 @@ void PR_CleanUpStatements32(progfuncs_t *progfuncs, dstatement32_t *st, pbool he
 			if (!st[i].c)
 				st[i].c = OFS_RETURN;
 
-		if (st[i].a < 0 || st[i].a >= numglob)
+		if (st[i].a >= numglob)
 			if (st[i].op != OP_GOTO)
 				st[i].op = ~0;
-		if (st[i].b < 0 || st[i].b >= numglob)
+		if (st[i].b >= numglob)
 			if (st[i].op != OP_IFNOT_I && st[i].op != OP_IF_I &&
 				st[i].op != OP_IFNOT_F && st[i].op != OP_IF_F &&
 				st[i].op != OP_IFNOT_S && st[i].op != OP_IF_S &&
 				st[i].op != OP_BOUNDCHECK)
 				st[i].op = ~0;
-		if (st[i].c < 0 || st[i].c >= numglob)
+		if (st[i].c >= numglob)
 			if (st[i].op != OP_BOUNDCHECK)
 				st[i].op = ~0;
 	}

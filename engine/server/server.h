@@ -317,9 +317,12 @@ typedef struct
 	vec3_t				playerpositions[MAX_CLIENTS];	//where each player was in this frame, for antilag
 	qboolean			playerpresent[MAX_CLIENTS];		//whether the player was actually present
 	packet_entities_t	entities;		//package containing entity states that were sent in this frame, for deltaing
-	unsigned int		*resendentnum;	//the number of each entity that was sent in this frame
-	unsigned int		*resendentbits;	//the bits of each entity that were sent in this frame
-
+	struct resendinfo_s
+	{
+		unsigned int entnum;
+		unsigned int bits;	//delta
+		unsigned int flags;	//csqc
+	} *resend;
 	unsigned short		resendstats[32];//the number of each entity that was sent in this frame
 	unsigned int		numresendstats;	//the bits of each entity that were sent in this frame
 } client_frame_t;
@@ -363,6 +366,7 @@ typedef struct	//merge?
 enum
 {
 	PRESPAWN_INVALID=0,
+	PRESPAWN_PROTOCOLSWITCH,	//nq drops unreliables until reliables are acked
 	PRESPAWN_SERVERINFO,
 	PRESPAWN_SOUNDLIST,	//nq skips these
 	PRESPAWN_VWEPMODELLIST,	//qw ugly extension.
@@ -489,7 +493,11 @@ typedef struct client_s
 #endif
 	} frameunion;
 	packet_entities_t sentents;
-	unsigned int	*pendingentbits;
+	unsigned int	*pendingdeltabits;
+	unsigned int	*pendingcsqcbits;
+	#define SENDFLAGS_USABLE 0x3fffffffu	//this number of bits are actually safe in a float. not all together, but otherwise safe.
+	#define SENDFLAGS_PRESENT 0x80000000u	//this entity is present on that client
+	#define SENDFLAGS_REMOVED 0x40000000u	//to handle remove packetloss
 
 	char			downloadfn[MAX_QPATH];
 	vfsfile_t		*download;			// file being downloaded
@@ -511,11 +519,6 @@ typedef struct client_s
 	int num_client_commands;
 	char server_commands[64][1024];
 	char last_client_command[1024];
-#endif
-#ifdef PEXT_CSQC
-	int				csqclastsentsequence;
-	int				*csqcentsequence;//the sequence number a csqc entity was sent in
-	int				*csqcentversions;//the version of the entity when it was sent in that sequenced packet.
 #endif
 
 	//true/false/persist
@@ -599,12 +602,14 @@ typedef struct client_s
 		SCP_QUAKE3,
 		//all the below are considered netquake clients.
 		SCP_NETQUAKE,
-		SCP_PROQUAKE,
+		SCP_BJP3,		//16bit angles,model+sound indexes. nothing else (assume raised ent limits too).
 		SCP_FITZ666,
 		SCP_DARKPLACES6,
 		SCP_DARKPLACES7	//extra prediction stuff
 		//note, nq is nq+
 	} protocol;
+	unsigned int	supportedprotocols;
+	qboolean proquake_angles_hack;	//expect 16bit client->server angles .
 
 	unsigned int lastruncmd;	//for non-qw physics. timestamp they were last run, so switching between physics modes isn't a (significant) cheat
 //speed cheat testing
@@ -790,20 +795,6 @@ typedef struct
 	int			challenge;
 	int			time;
 } challenge_t;
-
-#define BAN_BAN			(1u<<0)	//user is banned from the server
-#define	BAN_PERMIT		(1u<<1)	//user can evade block bans or filterban
-#define	BAN_CUFF		(1u<<2)	//can't shoot/use impulses
-#define	BAN_MUTE		(1u<<3)	//can't use say/say_team
-#define	BAN_CRIPPLED	(1u<<4)	//can't move
-#define	BAN_DEAF		(1u<<5)	//can't see say/say_team
-#define	BAN_LAGGED		(1u<<6)	//given an extra 200ms
-#define BAN_VIP			(1u<<7)	//mods might give the user special rights, via the *VIP infokey. the engine itself currently does not do anything but track it.
-#define BAN_BLIND		(1u<<8)	//player's pvs is wiped.
-#define BAN_SPECONLY	(1u<<9) //player is forced to spectate
-#define BAN_STEALTH		(1u<<10)//player is not told of their bans
-
-#define BAN_ALL (BAN_BAN|BAN_PERMIT|BAN_CUFF|BAN_MUTE|BAN_CRIPPLED|BAN_DEAF|BAN_LAGGED|BAN_VIP|BAN_BLIND|BAN_SPECONLY|BAN_STEALTH)
 
 typedef struct bannedips_s {
 	unsigned int banflags;
@@ -1024,6 +1015,33 @@ void SV_AddDebugPolygons(void);
 const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned int protocol, unsigned int pext1, unsigned int pext2, char *guid);
 
 //
+//sv_ccmds.c
+//
+char *SV_BannedReason (netadr_t *a);
+void SV_EvaluatePenalties(client_t *cl);
+void SV_AutoAddPenalty (client_t *cl, unsigned int banflag, int duration, char *reason);
+
+#define BAN_BAN			(1u<<0)	//user is banned from the server
+#define	BAN_PERMIT		(1u<<1)	//user can evade block bans or filterban
+#define	BAN_CUFF		(1u<<2)	//can't shoot/use impulses
+#define	BAN_MUTE		(1u<<3)	//can't use say/say_team
+#define	BAN_CRIPPLED	(1u<<4)	//can't move
+#define	BAN_DEAF		(1u<<5)	//can't see say/say_team
+#define	BAN_LAGGED		(1u<<6)	//given an extra 200ms
+#define BAN_VIP			(1u<<7)	//mods might give the user special rights, via the *VIP infokey. the engine itself currently does not do anything but track it.
+#define BAN_BLIND		(1u<<8)	//player's pvs is wiped.
+#define BAN_SPECONLY	(1u<<9) //player is forced to spectate
+#define BAN_STEALTH		(1u<<10)//player is not told of their bans
+#define BAN_USER1		(1u<<11)//mod-specified
+#define BAN_USER2		(1u<<12)//mod-specified
+#define BAN_USER3		(1u<<13)//mod-specified
+#define BAN_USER4		(1u<<14)//mod-specified
+#define BAN_USER5		(1u<<15)//mod-specified
+#define BAN_USER6		(1u<<16)//mod-specified
+#define BAN_USER7		(1u<<17)//mod-specified
+#define BAN_USER8		(1u<<18)//mod-specified
+
+//
 // sv_main.c
 //
 NORETURN void VARGS SV_Error (char *error, ...) LIKEPRINTF(1);
@@ -1084,8 +1102,8 @@ typedef struct pubsubserver_s
 extern qboolean isClusterSlave;
 void SSV_UpdateAddresses(void);
 void SSV_InitiatePlayerTransfer(client_t *cl, const char *newserver);
-void SSV_PollSlaves(void);
 void SSV_InstructMaster(sizebuf_t *cmd);
+void SSV_CheckFromMaster(void);
 void SSV_PrintToMaster(char *s);
 void SSV_ReadFromControlServer(void);
 void SSV_SavePlayerStats(client_t *cl, int reason);	//initial, periodic (in case of node crashes), part
@@ -1164,9 +1182,10 @@ void SV_SendClientMessages (void);
 void VARGS SV_Multicast (vec3_t origin, multicast_t to);
 #define FULLDIMENSIONMASK 0xffffffff
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);
+void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*callback)(client_t *cl, sizebuf_t *msg, void *ctx), void *ctx);
 
-void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs, unsigned int flags);
-void SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs, unsigned int flags);
+void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int flags);
+void QDECL SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int chflags);
 void SV_PrintToClient(client_t *cl, int level, const char *string);
 void SV_TPrintToClient(client_t *cl, int level, const char *string);
 void SV_StuffcmdToClient(client_t *cl, const char *string);
@@ -1240,13 +1259,15 @@ qboolean PR_ShouldTogglePause(client_t *initiator, qboolean pausedornot);
 void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignorepvs);
 void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg, unsigned int pext2);
 void SVQ3Q1_BuildEntityPacket(client_t *client, packet_entities_t *pack);
+void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *client, packet_entities_t *pack);
 int SV_HullNumForPlayer(int h2hull, float *mins, float *maxs);
 void SV_GibFilterInit(void);
 void SV_GibFilterPurge(void);
 void SV_CleanupEnts(void);
+void SV_ProcessSendFlags(client_t *c);
 
-void SV_CSQC_DroppedPacket(client_t *client, int sequence);
-void SV_CSQC_DropAll(client_t *client);
+void SV_AckEntityFrame(client_t *cl, int framenum);
+void SV_ReplaceEntityFrame(client_t *cl, int framenum);
 
 //
 // sv_nchan.c
@@ -1401,15 +1422,21 @@ typedef struct mvddest_s {
 	qboolean error;	//disables writers, quit ASAP.
 	qboolean droponmapchange;
 
-	enum {DEST_NONE, DEST_FILE, DEST_BUFFEREDFILE, DEST_STREAM} desttype;
+	enum {DEST_NONE, DEST_FILE, DEST_BUFFEREDFILE, DEST_THREADEDFILE, DEST_STREAM} desttype;
 
+#ifdef _WIN32
+	quintptr_t socket;	//gah
+#else
 	int socket;
+#endif
 	vfsfile_t *file;
 
 	char name[MAX_QPATH];
 	char path[MAX_QPATH];
 
+	int flushing;	//worker has a cache (used as a sync point)
 	char *cache;
+	char *altcache;
 	int cacheused;
 	int maxcachesize;
 
@@ -1421,7 +1448,17 @@ void SV_MVDPings (void);
 void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player);
 sizebuf_t *MVDWrite_Begin(qbyte type, int to, int size);
 void MVDSetMsgBuf(demobuf_t *prev,demobuf_t *cur);
-void SV_MVDStop (int reason, qboolean mvdonly);
+
+enum mvdclosereason_e
+{
+	MVD_CLOSE_STOPPED,
+	MVD_CLOSE_SIZELIMIT,
+	MVD_CLOSE_CANCEL,
+	MVD_CLOSE_DISCONNECTED,	//qtv disconnected
+	MVD_CLOSE_FSERROR
+};
+
+void SV_MVDStop (enum mvdclosereason_e reason, qboolean mvdonly);
 void SV_MVDStop_f (void);
 qboolean SV_MVDWritePackets (int num);
 void MVD_Init (void);

@@ -31,6 +31,7 @@ typedef struct cinematics_s
 	qboolean cinematicpalette_active;
 	qbyte cinematicpalette[768];
 
+	qofs_t filestart;
 	vfsfile_t *cinematic_file;
 	int cinematicframe;
 } cinematics_t;
@@ -285,7 +286,7 @@ static cblock_t Huff1Decompress (cinematics_t *cin, cblock_t in)
 SCR_ReadNextFrame
 ==================
 */
-qbyte *CIN_ReadNextFrame (cinematics_t *cin)
+static qbyte *CIN_ReadNextFrame (cinematics_t *cin)
 {
 	int		r;
 	int		command;
@@ -319,9 +320,10 @@ qbyte *CIN_ReadNextFrame (cinematics_t *cin)
 		Host_Error ("Bad compressed frame size");
 	VFS_READ (cin->cinematic_file, compressed, size);
 
-	// read sound
-	start = cin->cinematicframe*cin->s_rate/14;
-	end = (cin->cinematicframe+1)*cin->s_rate/14;
+	// read sound. the number of samples per frame is not actually constant, despite a constant rate and fps...
+	// life is shit like that.
+	start = (cin->cinematicframe*cin->s_rate)/14;
+	end = ((cin->cinematicframe+1)*cin->s_rate)/14;
 	count = end - start;
 
 	VFS_READ (cin->cinematic_file, samples, count*cin->s_width*cin->s_channels);
@@ -345,6 +347,13 @@ qbyte *CIN_ReadNextFrame (cinematics_t *cin)
 	return pic;
 }
 
+void CIN_Rewind(cinematics_t *cin)
+{
+	VFS_SEEK(cin->cinematic_file, cin->filestart);
+
+	cin->cinematicframe = 0;
+	cin->cinematictime = -1000/14;
+}
 
 /*
 ==================
@@ -355,21 +364,15 @@ SCR_RunCinematic
 2 = success but nothing changed
 ==================
 */
-int CIN_RunCinematic (cinematics_t *cin, qbyte **outdata, int *outwidth, int *outheight, qbyte **outpalette)
+int CIN_RunCinematic (cinematics_t *cin, float playbacktime, qbyte **outdata, int *outwidth, int *outheight, qbyte **outpalette)
 {
 	int		frame;
 
-	if (cin->cinematictime <= 0)
-	{
-		cin->cinematictime = realtime;
-		cin->cinematicframe = -1;
-	}
+	if (cin->cinematictime-3 > playbacktime*1000)
+		cin->cinematictime = playbacktime*1000;
 
-	if (cin->cinematictime-3 > realtime*1000)
-		cin->cinematictime = realtime*1000;
-
-	frame = (realtime*1000 - cin->cinematictime)*14/1000;
-	if (frame <= cin->cinematicframe)
+	frame = (playbacktime*1000 - cin->cinematictime)*14/1000;
+	if (cin->pic && frame <= cin->cinematicframe)
 	{
 		*outdata = cin->pic;
 		*outwidth = cin->width;
@@ -380,10 +383,13 @@ int CIN_RunCinematic (cinematics_t *cin, qbyte **outdata, int *outwidth, int *ou
 	if (frame > cin->cinematicframe+1)
 	{
 		Con_DPrintf ("Dropped frame: %i > %i\n", frame, cin->cinematicframe+1);
-		cin->cinematictime = realtime*1000 - cin->cinematicframe*1000/14;
+		cin->cinematictime = playbacktime*1000 - cin->cinematicframe*1000/14;
 	}
 	if (cin->pic)
+	{
 		Z_Free (cin->pic);
+		cin->pic = NULL;
+	}
 	cin->pic = CIN_ReadNextFrame (cin);
 	if (!cin->pic)
 	{
@@ -396,48 +402,6 @@ int CIN_RunCinematic (cinematics_t *cin, qbyte **outdata, int *outwidth, int *ou
 	*outpalette = cin->cinematicpalette;
 	return 1;
 }
-
-/*
-==================
-SCR_DrawCinematic
-
-Returns true if a cinematic is active, meaning the view rendering
-should be skipped
-==================
-*/
-/*
-qboolean CIN_DrawCinematic (void)
-{
-	if (cin->cinematictime <= 0)
-	{
-		return false;
-	}
-
-	if (key_dest == key_menu)
-	{	// blank screen and pause if menu is up
-//		re.CinematicSetPalette(NULL);
-		cin.cinematicpalette_active = false;
-//		return true;
-	}
-
-	if (!cin.cinematicpalette_active)
-	{
-//		re.CinematicSetPalette(cl.cinematicpalette);
-		cin.cinematicpalette_active = true;
-	}
-
-	if (!cin.pic)
-		return true;
-
-
-	Media_ShowFrame8bit(cin.pic, cin.width, cin.height, cin.cinematicpalette);
-
-//	re.DrawStretchRaw (0, 0, viddef.width, viddef.height,
-//		cin.width, cin.height, cin.pic);
-
-	return true;
-}
-*/
 
 /*
 ==================
@@ -483,9 +447,11 @@ cinematics_t *CIN_PlayCinematic (char *arg)
 
 		Huff1TableInit (cin);
 
+		cin->filestart = VFS_TELL(cin->cinematic_file);
+
 		cin->cinematicframe = 0;
 		cin->pic = CIN_ReadNextFrame (cin);
-		cin->cinematictime = realtime*1000;
+		cin->cinematictime = 0;
 	}
 	else
 	{

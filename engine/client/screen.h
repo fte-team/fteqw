@@ -46,7 +46,7 @@ qboolean SCR_RSShot (void);
 //void SCR_UpdateScreen (void);
 
 #if defined(GLQUAKE)
-void GLSCR_UpdateScreen (void);
+qboolean GLSCR_UpdateScreen (void);
 #endif
 
 void SCR_ImageName (const char *mapname);

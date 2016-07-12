@@ -27,6 +27,7 @@ void CLDP_ParseDarkPlaces5Entities(void);
 static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue);
 #define CL_SetStatInt(pnum,stat,ival) do{int thevalue=ival; CL_SetStatNumeric(pnum,stat,thevalue,thevalue);}while(0)
 static qboolean CL_CheckModelResources (char *name);
+static char *CLNQ_ParseProQuakeMessage (char *s);
 
 char cl_dp_csqc_progsname[128];
 int cl_dp_csqc_progssize;
@@ -42,7 +43,7 @@ char *svc_qwstrings[] =
 	"svcqw_updatestatbyte",
 	"svc_version",		// [long] server version
 	"svc_setview",		// [short] entity number
-	"svc_sound",			// <see code>
+	"svcqw_sound",			// <see code>
 	"svc_time",			// [float] server time
 	"svc_print",			// [string] null terminated string
 	"svc_stufftext",		// [string] stuffed into client's console buffer
@@ -60,7 +61,7 @@ char *svc_qwstrings[] =
 	"svc_damage",			// [qbyte] impact [qbyte] blood [vec3] from
 
 	"svc_spawnstatic",
-	"svc_spawnstatic2",
+	"svcfte_spawnstatic2",
 	"svc_spawnbaseline",
 
 	"svc_temp_entity",		// <variable>
@@ -526,6 +527,8 @@ qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned 
 		if (!localname)
 			localname = filename;
 
+		if (cls.state < ca_connected)
+			return false;
 		if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
 			return false;
 	}
@@ -612,10 +615,6 @@ qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned 
 	return true;
 }
 
-#ifdef warningmsg
-#pragma warningmsg("fix this")
-#endif
-int downloadsize;
 void CL_GetDownloadSizes(unsigned int *filecount, qofs_t *totalsize, qboolean *somesizesunknown)
 {
 	downloadlist_t *dl;
@@ -1532,7 +1531,8 @@ void CL_RequestNextDownload (void)
 				}
 				else
 				{
-					Con_Printf("Already have %s\n", dl->localname);
+					//we already got this file somehow? must have come from a pak or something. don't spam.
+					Con_DPrintf("Already have %s\n", dl->localname);
 					CL_DisenqueDownload(dl->rname);
 
 					//recurse a bit.
@@ -2014,7 +2014,35 @@ void CL_ParseChunkedDownload(qdownload_t *dl)
 				if (CL_AllowArbitaryDownload(svname))
 				{
 					Con_Printf("Download of \"%s\" redirected to \"%s\"\n", dl->remotename, svname);
-					if (CL_CheckOrEnqueDownloadFile(svname, NULL, 0))
+					if (!strncmp(svname, "package/", 8))
+					{
+						int i, c;
+						Cmd_TokenizeString(cl.serverpaknames, false, false);
+						c = Cmd_Argc();
+						for (i = 0; i < c; i++)
+						{
+							if (!strcmp(Cmd_Argv(i), svname+8))
+								break;
+						}
+						if (i == c)
+							Con_Printf("However, package \"%s\" is unknown.\n", svname+8);
+						else
+						{
+							char localname[MAX_OSPATH];
+							char *crc;
+							Cmd_TokenizeString(cl.serverpakcrcs, false, false);
+							crc = Cmd_Argv(i);
+							if (FS_GenCachedPakName(svname+8, crc, localname, sizeof(localname)))
+							{
+								if (CL_CheckOrEnqueDownloadFile(svname+8, localname, DLLF_NONGAME))
+									if (!CL_CheckDLFile(dl->localname))
+										Con_Printf("However, \"%s\" already exists. You may need to delete it.\n", svname);
+							}
+							else
+								Con_Printf("However, package \"%s\" is invalid.\n", svname+8);
+						}
+					}
+					else if (CL_CheckOrEnqueDownloadFile(svname, NULL, 0))
 						Con_Printf("However, \"%s\" already exists. You may need to delete it.\n", svname);
 				}
 				svname = dl->remotename;
@@ -3058,30 +3086,19 @@ void CLQW_ParseServerData (void)
 	}
 
 	memset(cl.sound_name, 0, sizeof(cl.sound_name));
-#ifdef PEXT_PK3DOWNLOADS
-	if (cls.fteprotocolextensions & PEXT_PK3DOWNLOADS)	//instead of going for a soundlist, go for the pk3 list instead. The server will make us go for the soundlist after.
+	if (cls.demoplayback == DPB_EZTV)
 	{
-		if (CL_RemoveClientCommands("pk3list"))
-			Con_DPrintf("Multiple pk3lists\n");
-		CL_SendClientCommand ("pk3list %i 0", cl.servercount, 0);
+		if (CL_RemoveClientCommands("qtvsoundlist"))
+			Con_DPrintf("Multiple soundlists\n");
+		CL_SendClientCommand (true, "qtvsoundlist %i 0", cl.servercount);
 	}
 	else
-#endif
 	{
-		if (cls.demoplayback == DPB_EZTV)
-		{
-			if (CL_RemoveClientCommands("qtvsoundlist"))
-				Con_DPrintf("Multiple soundlists\n");
-			CL_SendClientCommand (true, "qtvsoundlist %i 0", cl.servercount);
-		}
-		else
-		{
-			if (CL_RemoveClientCommands("soundlist"))
-				Con_DPrintf("Multiple soundlists\n");
-			// ask for the sound list next
-//			CL_SendClientCommand ("soundlist %i 0", cl.servercount);
-			CL_SendClientCommand (true, soundlist_name, cl.servercount, 0);
-		}
+		if (CL_RemoveClientCommands("soundlist"))
+			Con_DPrintf("Multiple soundlists\n");
+		// ask for the sound list next
+//		CL_SendClientCommand ("soundlist %i 0", cl.servercount);
+		CL_SendClientCommand (true, soundlist_name, cl.servercount, 0);
 	}
 
 	// now waiting for downloads, etc
@@ -3208,7 +3225,7 @@ void CLQ2_ParseServerData (void)
 		MSG_ReadByte(); //strafejump hack
 
 		if (r1q2ver >= 1905)
-			cls.netchan.netprim.q2flags |= NPQ2_SOLID32;
+			cls.netchan.netprim.flags |= NPQ2_SOLID32;
 	}
 	else if (cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
 	{
@@ -3219,9 +3236,9 @@ void CLQ2_ParseServerData (void)
 		MSG_ReadByte(); //strafejump hack
 		MSG_ReadByte(); //q2pro qw-mode. kinda silly for us tbh.
 		if (q2prover >= 1014)
-			cls.netchan.netprim.q2flags |= NPQ2_SOLID32;
+			cls.netchan.netprim.flags |= NPQ2_SOLID32;
 		if (q2prover >= 1018)
-			cls.netchan.netprim.q2flags |= NPQ2_ANG16;
+			cls.netchan.netprim.flags |= NPQ2_ANG16;
 		if (q2prover >= 1015)
 			MSG_ReadByte();	//some kind of waterjump hack enable
 	}
@@ -3231,12 +3248,11 @@ void CLQ2_ParseServerData (void)
 	if (cl.playerview[0].playernum == -1)
 	{	// playing a cinematic or showing a pic, not a level
 		SCR_EndLoadingPlaque();
+		CL_MakeActive("Quake2");
 		if (!Media_PlayFilm(str, false))
 		{
 			CL_SendClientCommand(true, "nextserver %i", cl.servercount);
 		}
-
-		CL_MakeActive("Quake2");
 	}
 	else
 	{
@@ -3294,7 +3310,7 @@ void CLNQ_ParseProtoVersion(void)
 	netprim.coordsize = 2;
 	netprim.anglesize = 1;
 
-	cls.protocol_nq = (cls.protocol_nq==CPNQ_PROQUAKE3_4)?CPNQ_PROQUAKE3_4:CPNQ_ID;
+	cls.protocol_nq = CPNQ_ID;
 	cls.z_ext = 0;
 
 	if (protover == PROTOCOL_VERSION_NEHD)
@@ -3386,6 +3402,24 @@ void CLNQ_ParseProtoVersion(void)
 	}
 	cls.netchan.message.prim = cls.netchan.netprim = netprim;
 	MSG_ChangePrimitives(netprim);
+}
+
+static int CL_Darkplaces_Particle_Precache(const char *pname)
+{
+	int i;
+	for (i = 1; i < MAX_SSPARTICLESPRE; i++)
+	{
+		if (!cl.particle_ssname[i])
+		{
+			cl.particle_ssname[i] = strdup(pname);
+			cl.particle_ssprecache[i] = P_FindParticleType(pname);
+			cl.particle_ssprecaches = true;
+			return i;
+		}
+		if (!strcmp(cl.particle_ssname[i], pname))
+			return i;
+	}
+	return 0;	//failed
 }
 
 //FIXME: move to header
@@ -3493,9 +3527,8 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 	//allow some things by default that quakeworld bans by default
 	Info_SetValueForStarKey(cl.serverinfo, "watervis", "1", sizeof(cl.serverinfo));
-	Info_SetValueForStarKey(cl.serverinfo, "mirrors", "1", sizeof(cl.serverinfo));
 
-	//prohibit some things that QW/FTE has enabled by default
+	//prohibit some things that QW/FTE has enabled by default, which would be frowned upon in NQ
 	Info_SetValueForStarKey(cl.serverinfo, "fbskins", "0", sizeof(cl.serverinfo));
 
 	//pretend it came from the server, and update cheat/permissions/etc
@@ -3504,6 +3537,9 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	#if _MSC_VER > 1200
 	Sys_RecentServer("+nqconnect", cls.servername, cls.servername, "Join NQ Server");
 	#endif
+
+	if (CPNQ_IS_DP)	//DP's protocol requires client+server to have exactly the same data files. this is shit, but in the interests of compatibility...
+		COM_Effectinfo_Enumerate(CL_Darkplaces_Particle_Precache);
 
 #ifdef PEXT_CSQC
 	CSQC_Shutdown();
@@ -4097,17 +4133,24 @@ qboolean CL_CheckBaselines (int size)
 CL_ParseBaseline
 ==================
 */
-void CL_ParseBaseline (entity_state_t *es)
+void CL_ParseBaseline (entity_state_t *es, int baselinetype2)
 {
 	int			i;
+	unsigned int bits;
 
 	memcpy(es, &nullentitystate, sizeof(entity_state_t));
 
-	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_BJP)
-		es->modelindex = MSG_ReadShort ();
+	if (baselinetype2 == CPNQ_FITZ666)
+		bits = MSG_ReadByte();	//fitzquake has actual flags. yay extensibility. just a shame they're not the same as other entity updates.
+	else if (baselinetype2 >= CPNQ_DP5 && baselinetype2 <= CPNQ_DP7)
+		bits = FITZ_B_LARGEMODEL|FITZ_B_LARGEFRAME;	//dp's baseline2 always has these (regular baseline is unmodified)
+	else if (cls.protocol == CP_NETQUAKE && CPNQ_IS_BJP)
+		bits = FITZ_B_LARGEMODEL;	//bjp always uses shorts for models.
 	else
- 		es->modelindex = MSG_ReadByte ();
-	es->frame = MSG_ReadByte ();
+		bits = 0;	//vanilla nq or qw
+
+	es->modelindex = (bits & FITZ_B_LARGEMODEL) ? (unsigned short)MSG_ReadShort() : MSG_ReadByte();
+	es->frame = (bits & FITZ_B_LARGEFRAME) ? (unsigned short)MSG_ReadShort() : MSG_ReadByte();
 	es->colormap = MSG_ReadByte();
 	es->skinnum = MSG_ReadByte();
 
@@ -4116,6 +4159,9 @@ void CL_ParseBaseline (entity_state_t *es)
 		es->origin[i] = MSG_ReadCoord ();
 		es->angles[i] = MSG_ReadAngle ();
 	}
+
+	es->trans = (bits & FITZ_B_ALPHA) ? MSG_ReadByte() : 255;
+	es->scale = (bits & RMQFITZ_B_SCALE) ? MSG_ReadByte() : 16;
 }
 void CL_ParseBaseline2 (void)
 {
@@ -4124,20 +4170,23 @@ void CL_ParseBaseline2 (void)
 	if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 		CLFTE_ParseBaseline(&es, true);
 	else
-		CLQW_ParseDelta(&nullentitystate, &es, (unsigned short)MSG_ReadShort(), true);
+		CLQW_ParseDelta(&nullentitystate, &es, (unsigned short)MSG_ReadShort());
 	if (!CL_CheckBaselines(es.number))
 		Host_EndGame("CL_ParseBaseline2: check baselines failed with size %i", es.number);
 	memcpy(cl_baselines + es.number, &es, sizeof(es));
 }
 
-void CLFitz_ParseBaseline2 (entity_state_t *es)
+void CLNQ_ParseBaseline2 (entity_state_t *es, qboolean dp)
 {
 	int			i;
 	int			bits;
 
 	memcpy(es, &nullentitystate, sizeof(entity_state_t));
 
-	bits = MSG_ReadByte();
+	if (dp)
+		bits = FITZ_B_LARGEMODEL|FITZ_B_LARGEFRAME;
+	else
+		bits = MSG_ReadByte();
 	es->modelindex = (bits & FITZ_B_LARGEMODEL) ? MSG_ReadShort() : MSG_ReadByte();
 	es->frame = (bits & FITZ_B_LARGEFRAME) ? MSG_ReadShort() : MSG_ReadByte();
 	es->colormap = MSG_ReadByte();
@@ -4187,14 +4236,14 @@ void CL_ParseStatic (int version)
 
 	if (version == 3)
 	{
-		CLFitz_ParseBaseline2(&es);
+		CL_ParseBaseline(&es, CPNQ_FITZ666);
 		i = cl.num_statics;
 		cl.num_statics++;
 	}
 	else if (version == 1)
 	{
 		//old nq/qw style
-		CL_ParseBaseline (&es);
+		CL_ParseBaseline (&es, CPNQ_ID);
 		i = cl.num_statics;
 		cl.num_statics++;
 	}
@@ -4204,7 +4253,7 @@ void CL_ParseStatic (int version)
 		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			CLFTE_ParseBaseline(&es, false);
 		else
-			CLQW_ParseDelta(&nullentitystate, &es, (unsigned short)MSG_ReadShort(), true);
+			CLQW_ParseDelta(&nullentitystate, &es, (unsigned short)MSG_ReadShort());
 
 		if (!es.number)
 			i = cl.num_statics++;
@@ -4358,12 +4407,12 @@ void CLQW_ParseStartSoundPacket(void)
 
     channel = MSG_ReadShort();
 
-    if (channel & SND_VOLUME)
+    if (channel & QWSND_VOLUME)
 		volume = MSG_ReadByte ();
 	else
 		volume = DEFAULT_SOUND_PACKET_VOLUME;
 
-    if (channel & SND_ATTENUATION)
+    if (channel & QWSND_ATTENUATION)
 		attenuation = MSG_ReadByte () / 64.0;
 	else
 		attenuation = DEFAULT_SOUND_PACKET_ATTENUATION;
@@ -4386,7 +4435,7 @@ void CLQW_ParseStartSoundPacket(void)
 		if (!sound_num)
 			S_StopSound(ent, channel);
 		else
-			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, 0, 0, 0);
+			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, NULL, volume/255.0, attenuation, 0, 0, 0);
 	}
 
 	for (i = 0; i < cl.splitclients; i++)
@@ -4403,12 +4452,12 @@ void CLQW_ParseStartSoundPacket(void)
 #ifdef Q2CLIENT
 void CLQ2_ParseStartSoundPacket(void)
 {
-    vec3_t  pos_v;
+	vec3_t  pos_v;
 	float	*pos;
-    int 	channel, ent;
-    int 	sound_num;
-    float 	volume;
-    float 	attenuation;
+	int 	channel, ent;
+	int 	sound_num;
+	float 	volume;
+	float 	attenuation;
 	int		flags;
 	float	ofs;
 	sfx_t	*sfx;
@@ -4420,17 +4469,17 @@ void CLQ2_ParseStartSoundPacket(void)
 	else
 		sound_num = MSG_ReadByte ();
 
-    if (flags & Q2SND_VOLUME)
+	if (flags & Q2SND_VOLUME)
 		volume = MSG_ReadByte () / 255.0;
 	else
 		volume = Q2DEFAULT_SOUND_PACKET_VOLUME;
 
-    if (flags & Q2SND_ATTENUATION)
+	if (flags & Q2SND_ATTENUATION)
 		attenuation = MSG_ReadByte () / 64.0;
 	else
 		attenuation = Q2DEFAULT_SOUND_PACKET_ATTENUATION;
 
-    if (flags & Q2SND_OFFSET)
+	if (flags & Q2SND_OFFSET)
 		ofs = MSG_ReadByte () / 1000.0;
 	else
 		ofs = 0;
@@ -4491,14 +4540,14 @@ void CLQ2_ParseStartSoundPacket(void)
 		if (sfx->loadstate == SLS_FAILED)
 			sfx = S_PrecacheSound(va("players/male/%s", cl.sound_precache[sound_num]->name+1));
 	}
-	S_StartSound (ent, channel, sfx, pos, volume, attenuation, ofs, 0, 0);
+	S_StartSound (ent, channel, sfx, pos, NULL, volume, attenuation, ofs, 0, 0);
 }
 #endif
 
 #if defined(NQPROT) || defined(PEXT_SOUNDDBL)
 void CLNQ_ParseStartSoundPacket(void)
 {
-	vec3_t  pos;
+	vec3_t  pos, vel;
 	int 	channel, ent;
 	int 	sound_num;
 	int 	volume;
@@ -4534,10 +4583,19 @@ void CLNQ_ParseStartSoundPacket(void)
 	else
 		timeofs = 0;
 
-	flags = field_mask>>8;
-	flags &= CF_FORCELOOP;
+	if (field_mask & FTESND_VELOCITY)
+	{
+		vel[0] = MSG_ReadShort()/8.0;
+		vel[1] = MSG_ReadShort()/8.0;
+		vel[2] = MSG_ReadShort()/8.0;
+	}
+	else
+		VectorClear(vel);
 
-	if (field_mask & DPSND_LARGEENTITY)
+	flags = field_mask>>8;
+	flags &= CF_FORCELOOP | CF_NOREVERB | CF_FOLLOW;
+
+	if (field_mask & NQSND_LARGEENTITY)
 	{
 		ent = MSGCL_ReadEntity();
 		channel = MSG_ReadByte();
@@ -4552,7 +4610,7 @@ void CLNQ_ParseStartSoundPacket(void)
 	/*unpack mangling*/
 	channel = (channel & 7) | ((channel & 0x0f1) << 1);
 
-	if ((field_mask & DPSND_LARGESOUND) || (cls.protocol == CP_NETQUAKE && (cls.protocol_nq == CPNQ_BJP2 || cls.protocol_nq == CPNQ_BJP3))) //bjp2 kinda sucks
+	if ((field_mask & NQSND_LARGESOUND) || (cls.protocol == CP_NETQUAKE && (cls.protocol_nq == CPNQ_BJP2 || cls.protocol_nq == CPNQ_BJP3))) //bjp kinda sucks
 		sound_num = (unsigned short)MSG_ReadShort();
 	else
 		sound_num = (unsigned char)MSG_ReadByte ();
@@ -4570,7 +4628,7 @@ void CLNQ_ParseStartSoundPacket(void)
 		if (!sound_num)
 			S_StopSound(ent, channel);
 		else
-			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, timeofs, pitchadj, flags);
+			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, vel, volume/255.0, attenuation, timeofs, pitchadj, flags);
 	}
 
 	for (i = 0; i < cl.splitclients; i++)
@@ -4624,6 +4682,33 @@ void CL_ParseClientdata (void)
 		CL_AckedInputFrame(cls.netchan.incoming_sequence, cl.parsecount, false);
 }
 
+#include "shader.h"
+static qboolean CLQ2_PlayerSkinIsOkay(skinid_t id)
+{
+	skinfile_t *sk = Mod_LookupSkin(id);
+	if (!sk)	//err...
+		return false;
+	if (sk->nummappings != 1 || *sk->mappings[0].surface)
+		return true;	//looks like its a custom skin, ignore it.
+	return R_GetShaderSizes(sk->mappings[0].shader, NULL, NULL, true) > 0;
+}
+static int QDECL CLQ2_EnumeratedSkin(const char *name, qofs_t size, time_t mtime, void *ptr, searchpathfuncs_t *spath)
+{
+	//follows the form of players/$MODELNAME/$SKINNAME_i.$EXT
+	player_info_t	*player = ptr;
+	if (!player->skinid)
+	{
+		char *e;
+		e = strstr(name, "_i.");
+		if (e)
+		{
+			*e = 0;
+			player->skinid = Mod_ReadSkinFile(va("%s.skin", name), va("replace \"\" \"%s.pcx\"", name));
+		}
+	}
+	return true;
+}
+
 /*
 =====================
 CL_NewTranslation
@@ -4662,13 +4747,18 @@ void CL_NewTranslation (int slot)
 
 		player->model = Mod_ForName(va("players/%s/tris.md2", mod), 0);
 		if (player->model->loadstate == MLS_FAILED && strcmp(mod, "male"))
-		{	//fall back on male if the model doesn't exist. yes, sexist.
+		{	//fall back on male if the model doesn't exist. yes, sexist, but also statistically most likely to represent the actual player.
 			mod = "male";
 			player->model = Mod_ForName(va("players/%s/tris.md2", mod), 0);
 		}
 		player->skinid = Mod_RegisterSkinFile(va("players/%s/%s.skin", mod,skin));
 		if (!player->skinid)
 			player->skinid = Mod_ReadSkinFile(va("players/%s/%s.skin", mod,skin), va("replace \"\" \"players/%s/%s.pcx\"", mod,skin));
+		if (!CLQ2_PlayerSkinIsOkay(player->skinid))
+		{
+			player->skinid = 0;
+			COM_EnumerateFiles(va("players/%s/*_i.*", mod), CLQ2_EnumeratedSkin, player);
+		}
 		return;
 	}
 
@@ -5731,9 +5821,7 @@ void CL_PrintChat(player_info_t *plr, char *msg, int plrflags)
 
 			if (con_separatechat.ival == 1)
 			{
-				con_main.flags |= CONF_NOTIMES;
-				Con_PrintCon(&con_main, fullchatmessage, con_main.parseflags);
-				con_main.flags &= CONF_NOTIMES;
+				Con_PrintCon(&con_main, fullchatmessage, con_main.parseflags|PFS_NONOTIFY);
 				return;
 			}
 		}
@@ -5941,6 +6029,7 @@ static void CL_ParseItemTimer(void)
 	timer->end = cl.time + timer->duration;
 }
 
+#ifdef PLUGINS
 static void CL_ParseTeamInfo(void)
 {
 	unsigned int pidx = atoi(Cmd_Argv(1));
@@ -5966,11 +6055,20 @@ static void CL_ParseTeamInfo(void)
 		Q_strncpyz(pl->tinfo.nick, nick, sizeof(pl->tinfo.nick));
 	}
 }
+#endif
 
 
 char stufftext[4096];
 void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from network segregation.
 {
+#ifdef NQPROT
+	if (!*stufftext && *msg == 1 && !cls.allow_csqc)
+	{
+		Con_DPrintf("Proquake: %s\n", msg);
+		msg = CLNQ_ParseProQuakeMessage(msg);
+	}
+#endif
+
 	strncat(stufftext, msg, sizeof(stufftext)-1);
 	while((msg = strchr(stufftext, '\n')))
 	{
@@ -6305,7 +6403,7 @@ void CLQW_ParseServerMessage (void)
 		if (msg_badread)
 		{
 			CL_DumpPacket();
-			Host_EndGame ("CL_ParseServerMessage: Bad server message");
+			Host_EndGame ("CLQW_ParseServerMessage: Bad server message");
 			break;
 		}
 
@@ -6544,7 +6642,7 @@ void CLQW_ParseServerMessage (void)
 			i = MSGCL_ReadEntity ();
 			if (!CL_CheckBaselines(i))
 				Host_EndGame("CL_ParseServerMessage: svc_spawnbaseline failed with size %i", i);
-			CL_ParseBaseline (cl_baselines + i);
+			CL_ParseBaseline (cl_baselines + i, CPNQ_ID);
 			break;
 		case svcfte_spawnbaseline2:
 			CL_ParseBaseline2 ();
@@ -6998,17 +7096,17 @@ void CLQ2_ParseServerMessage (void)
 #define	pqc_match_time	5
 #define pqc_match_reset	6
 #define pqc_ping_times	7
-int MSG_ReadBytePQ (char **s)
+static int MSG_ReadBytePQ (char **s)
 {
 	int ret = (*s)[0] * 16 + (*s)[1] - 272;
 	*s+=2;
 	return ret;
 }
-int MSG_ReadShortPQ (char **s)
+static int MSG_ReadShortPQ (char **s)
 {
 	return MSG_ReadBytePQ(s) * 256 + MSG_ReadBytePQ(s);
 }
-void CLNQ_ParseProQuakeMessage (char *s)
+static char *CLNQ_ParseProQuakeMessage (char *s)
 {
 	int cmd;
 	int ping;
@@ -7063,6 +7161,7 @@ void CLNQ_ParseProQuakeMessage (char *s)
 		}
 		break;
 	}
+	return s;
 }
 
 static enum {
@@ -7181,7 +7280,7 @@ void CLNQ_ParseServerMessage (void)
 		{
 		default:
 			CL_DumpPacket();
-			Host_EndGame ("CLNQ_ParseServerMessage: Illegible server message (%i)", cmd);
+			Host_EndGame ("CLNQ_ParseServerMessage: Illegible server message (%i@%i)", cmd, msg_readcount-1);
 			return;
 
 		case svc_nop:
@@ -7214,48 +7313,45 @@ void CLNQ_ParseServerMessage (void)
 
 		case svc_stufftext:
 			s = MSG_ReadString ();
-			if (*s == 1)
+			if (*s == 1 && !cls.allow_csqc)
 			{
 				Con_DPrintf("Proquake: %s\n", s);
-				CLNQ_ParseProQuakeMessage(s);
+				s = CLNQ_ParseProQuakeMessage(s);
+			}
+			Con_DPrintf ("stufftext: %s\n", s);
+			if (!strncmp(s, "cl_serverextension_download ", 14))
+			{
+				cl_dp_serverextension_download = true;
+			}
+			else if (!strncmp(s, "//svi ", 6))
+			{
+				Cmd_TokenizeString(s+2, false, false);
+				Con_DPrintf("SERVERINFO: %s=%s\n", Cmd_Argv(1), Cmd_Argv(2));
+				Info_SetValueForStarKey (cl.serverinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_SERVERINFO_STRING);
+				CL_CheckServerInfo();
+			}
+			else if (!strncmp(s, "\ncl_downloadbegin ", 17))
+				CLDP_ParseDownloadBegin(s);
+			else if (!strncmp(s, "\ncl_downloadfinished ", 17))
+				CLDP_ParseDownloadFinished(s);
+			else if (!strcmp(s, "\nstopdownload\n"))
+			{
+				if (cls.download)
+					CL_DownloadFailed(cls.download->remotename, cls.download);
+			}
+			else if (!strncmp(s, "csqc_progname ", 14))
+				COM_ParseOut(s+14, cl_dp_csqc_progsname, sizeof(cl_dp_csqc_progsname));
+			else if (!strncmp(s, "csqc_progsize ", 14))
+				cl_dp_csqc_progssize = atoi(s+14);
+			else if (!strncmp(s, "csqc_progcrc ", 13))
+				cl_dp_csqc_progscrc = atoi(s+13);
+			else if (!strncmp(s, "cl_fullpitch ", 13) || !strncmp(s, "pq_fullpitch ", 13))
+			{
+				//
 			}
 			else
 			{
-				Con_DPrintf ("stufftext: %s\n", s);
-				if (!strncmp(s, "cl_serverextension_download ", 14))
-				{
-					cl_dp_serverextension_download = true;
-				}
-				else if (!strncmp(s, "//svi ", 6))
-				{
-					Cmd_TokenizeString(s+2, false, false);
-					Con_DPrintf("SERVERINFO: %s=%s\n", Cmd_Argv(1), Cmd_Argv(2));
-					Info_SetValueForStarKey (cl.serverinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_SERVERINFO_STRING);
-					CL_CheckServerInfo();
-				}
-				else if (!strncmp(s, "\ncl_downloadbegin ", 17))
-					CLDP_ParseDownloadBegin(s);
-				else if (!strncmp(s, "\ncl_downloadfinished ", 17))
-					CLDP_ParseDownloadFinished(s);
-				else if (!strcmp(s, "\nstopdownload\n"))
-				{
-					if (cls.download)
-						CL_DownloadFailed(cls.download->remotename, cls.download);
-				}
-				else if (!strncmp(s, "csqc_progname ", 14))
-					COM_ParseOut(s+14, cl_dp_csqc_progsname, sizeof(cl_dp_csqc_progsname));
-				else if (!strncmp(s, "csqc_progsize ", 14))
-					cl_dp_csqc_progssize = atoi(s+14);
-				else if (!strncmp(s, "csqc_progcrc ", 13))
-					cl_dp_csqc_progscrc = atoi(s+13);
-				else if (!strncmp(s, "cl_fullpitch ", 13) || !strncmp(s, "pq_fullpitch ", 13))
-				{
-					//
-				}
-				else
-				{
-					Cbuf_AddText (s, RESTRICT_SERVER);	//no cheating here...
-				}
+				Cbuf_AddText (s, RESTRICT_SERVER);	//no cheating here...
 			}
 			break;
 
@@ -7264,7 +7360,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 		case svc_serverdata:
 			if (*printtext)
-			{	//work around a missing-eol proquake bug.
+			{	//work around a missing-eol issue.
 				CL_PrintStandardMessage(printtext, PRINT_HIGH);
 				printtext[0] = 0;
 			}
@@ -7326,7 +7422,7 @@ void CLNQ_ParseServerMessage (void)
 			i = MSGCL_ReadEntity ();
 			if (!CL_CheckBaselines(i))
 				Host_EndGame("CLNQ_ParseServerMessage: svc_spawnbaseline failed with size %i", i);
-			CL_ParseBaseline (cl_baselines + i);
+			CL_ParseBaseline (cl_baselines + i, CPNQ_ID);
 			break;
 
 		//PEXT_REPLACEMENTDELTAS
@@ -7590,7 +7686,7 @@ void CLNQ_ParseServerMessage (void)
 			i = MSGCL_ReadEntity ();
 			if (!CL_CheckBaselines(i))
 				Host_EndGame("CLNQ_ParseServerMessage: svcfitz_spawnbaseline2 failed with ent %i", i);
-			CLFitz_ParseBaseline2 (cl_baselines + i);
+			CL_ParseBaseline (cl_baselines + i, CPNQ_FITZ666);
 			break;
 		case svcfitz_spawnstatic2:
 			CL_ParseStatic (3);
@@ -7615,6 +7711,12 @@ void CLNQ_ParseServerMessage (void)
 			}
 			//well, it's really any protocol, but we're only going to support version 5.
 			CLDP_ParseDarkPlaces5Entities();
+			break;
+		case svcdp_spawnbaseline2:
+			i = MSGCL_ReadEntity ();
+			if (!CL_CheckBaselines(i))
+				Host_EndGame("CLNQ_ParseServerMessage: svcdp_spawnbaseline2 failed with ent %i", i);
+			CL_ParseBaseline (cl_baselines + i, CPNQ_DP5);
 			break;
 
 		case svcdp_spawnstaticsound2:

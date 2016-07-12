@@ -239,9 +239,9 @@ typedef struct
 	mesh_t mesh;
 	int maxverts;
 	int maxindicies;
-} gldoomtexture_t;
-gldoomtexture_t *gldoomtextures;
-int numgldoomtextures;
+} doomtexture_t;
+doomtexture_t *doomtextures;
+int numdoomtextures;
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -741,20 +741,20 @@ int Doom_LoadFlat(model_t *mod, char *flatname)
 
 	sprintf(texname, "flats/%-.8s", flatname);
 
-	for (texnum = 0; texnum < numgldoomtextures; texnum++)
+	for (texnum = 0; texnum < numdoomtextures; texnum++)
 	{
-		if (!strcmp(gldoomtextures[texnum].name, texname))
+		if (!strcmp(doomtextures[texnum].name, texname))
 			return texnum;
 	}
 	
-	gldoomtextures = BZ_Realloc(gldoomtextures, sizeof(*gldoomtextures)*((numgldoomtextures+16)&~15));
-	memset(gldoomtextures + numgldoomtextures, 0, sizeof(gldoomtextures[numgldoomtextures]));
-	numgldoomtextures++;
+	doomtextures = BZ_Realloc(doomtextures, sizeof(*doomtextures)*((numdoomtextures+16)&~15));
+	memset(doomtextures + numdoomtextures, 0, sizeof(doomtextures[numdoomtextures]));
+	numdoomtextures++;
 
-	Q_strncpyz(gldoomtextures[texnum].name, texname, sizeof(gldoomtextures[texnum].name));
+	Q_strncpyz(doomtextures[texnum].name, texname, sizeof(doomtextures[texnum].name));
 
-	gldoomtextures[texnum].width = 64;
-	gldoomtextures[texnum].height = 64;
+	doomtextures[texnum].width = 64;
+	doomtextures[texnum].height = 64;
 
 	return texnum;
 #else
@@ -763,9 +763,9 @@ int Doom_LoadFlat(model_t *mod, char *flatname)
 }
 
 #ifndef SERVERONLY
-static void GLR_DrawWall(int texnum, int s, int t, float x1, float y1, float z1, float x2, float y2, float z2, qboolean unpegged, unsigned int colour4b)
+static void R_DrawWall(int texnum, int s, int t, float x1, float y1, float z1, float x2, float y2, float z2, qboolean unpegged, unsigned int colour4b)
 {
-	gldoomtexture_t *tex = gldoomtextures+texnum;
+	doomtexture_t *tex = doomtextures+texnum;
 	mesh_t *mesh = &tex->mesh;
 	float len = sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2));
 	float s1, s2;
@@ -790,10 +790,15 @@ static void GLR_DrawWall(int texnum, int s, int t, float x1, float y1, float z1,
 
 	if (mesh->numvertexes+4 > tex->maxverts)
 	{
-		tex->maxverts = mesh->numvertexes+4;
-		mesh->colors4b_array = BZ_Realloc(mesh->colors4b_array, sizeof(*mesh->colors4b_array) * tex->maxverts);
-		mesh->xyz_array = BZ_Realloc(mesh->xyz_array, sizeof(*mesh->xyz_array) * tex->maxverts);
-		mesh->st_array = BZ_Realloc(mesh->st_array, sizeof(*mesh->st_array) * tex->maxverts);
+		if (mesh->numvertexes+4 > MAX_INDICIES)
+			BE_DrawMesh_Single(tex->shader, mesh, NULL, 0);
+		else
+		{
+			tex->maxverts = mesh->numvertexes+4;
+			mesh->colors4b_array = BZ_Realloc(mesh->colors4b_array, sizeof(*mesh->colors4b_array) * tex->maxverts);
+			mesh->xyz_array = BZ_Realloc(mesh->xyz_array, sizeof(*mesh->xyz_array) * tex->maxverts);
+			mesh->st_array = BZ_Realloc(mesh->st_array, sizeof(*mesh->st_array) * tex->maxverts);
+		}
 	}
 	if (mesh->numindexes+6 > tex->maxindicies)
 	{
@@ -826,12 +831,9 @@ static void GLR_DrawWall(int texnum, int s, int t, float x1, float y1, float z1,
 
 	mesh->numvertexes += 4;
 	mesh->numindexes += 6;
-
-	if (tex->shader)
-		BE_DrawMesh_Single(tex->shader, mesh, NULL, 0);
 }
 
-static void GLR_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int ceilheight, int numverts, unsigned short *verts, unsigned int colour4b)
+static void R_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int ceilheight, int numverts, unsigned short *verts, unsigned int colour4b)
 {
 	mesh_t *mesh;
 	unsigned int col;
@@ -839,14 +841,23 @@ static void GLR_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int 
 
 	//floor
 	{
-		gldoomtexture_t *floortex = gldoomtextures + floortexnum;
+		doomtexture_t *floortex = doomtextures + floortexnum;
 		mesh = &floortex->mesh;
 		if (mesh->numvertexes+numverts > floortex->maxverts)
 		{
-			floortex->maxverts = mesh->numvertexes+numverts;
-			mesh->colors4b_array = BZ_Realloc(mesh->colors4b_array, sizeof(*mesh->colors4b_array) * floortex->maxverts);
-			mesh->xyz_array = BZ_Realloc(mesh->xyz_array, sizeof(*mesh->xyz_array) * floortex->maxverts);
-			mesh->st_array = BZ_Realloc(mesh->st_array, sizeof(*mesh->st_array) * floortex->maxverts);
+			if (mesh->numvertexes+numverts > MAX_INDICIES)
+			{
+				BE_DrawMesh_Single(floortex->shader, mesh, NULL, 0);
+				mesh->numvertexes = 0;
+				mesh->numindexes = 0;
+			}
+			else
+			{
+				floortex->maxverts = mesh->numvertexes+numverts;
+				mesh->colors4b_array = BZ_Realloc(mesh->colors4b_array, sizeof(*mesh->colors4b_array) * floortex->maxverts);
+				mesh->xyz_array = BZ_Realloc(mesh->xyz_array, sizeof(*mesh->xyz_array) * floortex->maxverts);
+				mesh->st_array = BZ_Realloc(mesh->st_array, sizeof(*mesh->st_array) * floortex->maxverts);
+			}
 		}
 		if (mesh->numindexes+numverts > floortex->maxindicies)
 		{
@@ -873,20 +884,29 @@ static void GLR_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int 
 		mesh->numvertexes += numverts;
 		mesh->numindexes += numverts;
 
-		if (floortex->shader)
-			BE_DrawMesh_Single(floortex->shader, mesh, NULL, 0);
+//		if (floortex->shader)
+//			BE_DrawMesh_Single(floortex->shader, mesh, NULL, 0);
 	}
 
 	//ceiling
 	{
-		gldoomtexture_t *ceiltex = gldoomtextures + ceiltexnum;
+		doomtexture_t *ceiltex = doomtextures + ceiltexnum;
 		mesh = &ceiltex->mesh;
 		if (mesh->numvertexes+numverts > ceiltex->maxverts)
 		{
-			ceiltex->maxverts = mesh->numvertexes+numverts;
-			mesh->colors4b_array = BZ_Realloc(mesh->colors4b_array, sizeof(*mesh->colors4b_array) * ceiltex->maxverts);
-			mesh->xyz_array = BZ_Realloc(mesh->xyz_array, sizeof(*mesh->xyz_array) * ceiltex->maxverts);
-			mesh->st_array = BZ_Realloc(mesh->st_array, sizeof(*mesh->st_array) * ceiltex->maxverts);
+			if (mesh->numvertexes+numverts > MAX_INDICIES)
+			{
+				BE_DrawMesh_Single(ceiltex->shader, mesh, NULL, 0);
+				mesh->numvertexes = 0;
+				mesh->numindexes = 0;
+			}
+			else
+			{
+				ceiltex->maxverts = mesh->numvertexes+numverts;
+				mesh->colors4b_array = BZ_Realloc(mesh->colors4b_array, sizeof(*mesh->colors4b_array) * ceiltex->maxverts);
+				mesh->xyz_array = BZ_Realloc(mesh->xyz_array, sizeof(*mesh->xyz_array) * ceiltex->maxverts);
+				mesh->st_array = BZ_Realloc(mesh->st_array, sizeof(*mesh->st_array) * ceiltex->maxverts);
+			}
 		}
 		if (mesh->numindexes+numverts > ceiltex->maxindicies)
 		{
@@ -913,12 +933,12 @@ static void GLR_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int 
 		mesh->numvertexes += numverts;
 		mesh->numindexes += numverts;
 
-		if (ceiltex->shader)
-			BE_DrawMesh_Single(ceiltex->shader, mesh, NULL, 0);
+//		if (ceiltex->shader)
+//			BE_DrawMesh_Single(ceiltex->shader, mesh, NULL, 0);
 	}
 }
 
-static void GLR_DrawSSector(unsigned int ssec)
+static void R_DrawSSector(unsigned int ssec)
 {
 	short v0, v1;
 	int sd;
@@ -933,7 +953,7 @@ static void GLR_DrawSSector(unsigned int ssec)
 
 	if (sec->visframe != r_visframecount)
 	{
-		GLR_DrawFlats(sec->floortex, sec->floorheight, sec->ceilingtex, sec->ceilingheight, sec->numflattris*3, sec->flats, sec->lightlev);
+		R_DrawFlats(sec->floortex, sec->floorheight, sec->ceilingtex, sec->ceilingheight, sec->numflattris*3, sec->flats, sec->lightlev);
 
 		sec->visframe = r_visframecount;
 	}
@@ -955,7 +975,7 @@ static void GLR_DrawSSector(unsigned int ssec)
 
 			if (sec->floorheight < sec2->floorheight)
 			{
-				GLR_DrawWall(sidedefsm[sd].lowertex, 
+				R_DrawWall(sidedefsm[sd].lowertex, 
 					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texx,
 					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texy,
 					vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight,
@@ -964,7 +984,7 @@ static void GLR_DrawSSector(unsigned int ssec)
 
 			if (sec->ceilingheight > sec2->ceilingheight)
 			{
-				GLR_DrawWall(sidedefsm[sd].uppertex, 
+				R_DrawWall(sidedefsm[sd].uppertex, 
 					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texx,
 					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texy,
 					vertexesl[v0].xpos, vertexesl[v0].ypos, sec2->ceilingheight,
@@ -973,7 +993,7 @@ static void GLR_DrawSSector(unsigned int ssec)
 
 			if (sidedefsm[sd].middletex)
 			{
-				GLR_DrawWall(sidedefsm[sd].middletex, 
+				R_DrawWall(sidedefsm[sd].middletex, 
 					sidedefsm[ld->sidedef[segsl[seg].direction]].texx,
 					sidedefsm[ld->sidedef[segsl[seg].direction]].texy,
 					vertexesl[v1].xpos, vertexesl[v1].ypos, (sec2->ceilingheight < sec->ceilingheight)?sec2->ceilingheight:sec->ceilingheight,
@@ -983,7 +1003,7 @@ static void GLR_DrawSSector(unsigned int ssec)
 		else
 		{	//solid wall, draw full wall.
 
-			GLR_DrawWall(sidedefsm[sd].middletex, 
+			R_DrawWall(sidedefsm[sd].middletex, 
 				sidedefsm[ld->sidedef[segsl[seg].direction]].texx,
 				sidedefsm[ld->sidedef[segsl[seg].direction]].texy,
 				vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight,
@@ -1106,45 +1126,47 @@ void R_Set2DFrustum (void)
 }
 
 
-static void GLR_RecursiveDoomNode(unsigned int node)
+static void R_RecursiveDoomNode(unsigned int node)
 {
 	if (node & NODE_IS_SSECTOR)
 	{
-		GLR_DrawSSector(node & ~NODE_IS_SSECTOR);		
+		R_DrawSSector(node & ~NODE_IS_SSECTOR);		
 
 		return;
 	}
 
 	if (!R_Cull2DBox(nodel[node].x1lower, nodel[node].y1lower, nodel[node].x1upper, nodel[node].y1upper)||1)
-		GLR_RecursiveDoomNode(nodel[node].node1);
+		R_RecursiveDoomNode(nodel[node].node1);
 	if (!R_Cull2DBox(nodel[node].x2lower, nodel[node].y2lower, nodel[node].x2upper, nodel[node].y2upper)||1)
-		GLR_RecursiveDoomNode(nodel[node].node2);
+		R_RecursiveDoomNode(nodel[node].node2);
 }
 
-void GLR_DoomWorld(void)
+void R_DoomWorld(void)
 {
 	int texnum;
-	gldoomtexture_t *t;
+	doomtexture_t *t;
 	if (!nodel || !nodec)
 		return;	//err... buggy
 
-	for (texnum = 0; texnum < numgldoomtextures; texnum++)	//a hash table might be a good plan.
+	for (texnum = 0; texnum < numdoomtextures; texnum++)	//a hash table might be a good plan.
 	{
-		t = &gldoomtextures[texnum];
+		t = &doomtextures[texnum];
 		t->mesh.numindexes = 0;
 		t->mesh.numvertexes = 0;
 	}
 	r_visframecount++;
-	GLR_RecursiveDoomNode(nodec-1);
+	R_RecursiveDoomNode(nodec-1);
 
 	memset(cl.worldmodel->batches, 0, sizeof(cl.worldmodel->batches));
-	for (texnum = 0; texnum < numgldoomtextures; texnum++)	//a hash table might be a good plan.
+	for (texnum = 0; texnum < numdoomtextures; texnum++)	//a hash table might be a good plan.
 	{
-		t = &gldoomtextures[texnum];
+		t = &doomtextures[texnum];
 		if (t->mesh.numindexes && t->shader)
 		{
 			t->batch.next = cl.worldmodel->batches[t->shader->sort];
 			cl.worldmodel->batches[t->shader->sort] = &t->batch;
+
+			BE_DrawMesh_Single(t->shader, &t->mesh, NULL, 0);
 		}
 	}
 }
@@ -1642,22 +1664,22 @@ static int Doom_LoadPatch(model_t *mod, char *name)
 	int texnum;
 	size_t nlen = strnlen(name, 8);
 
-	for (texnum = 0; texnum < numgldoomtextures; texnum++)	//a hash table might be a good plan.
+	for (texnum = 0; texnum < numdoomtextures; texnum++)	//a hash table might be a good plan.
 	{
-		if(!memcmp(name, gldoomtextures[texnum].name, nlen) && !gldoomtextures[texnum].name[nlen])
+		if(!memcmp(name, doomtextures[texnum].name, nlen) && !doomtextures[texnum].name[nlen])
 		{
 			return texnum;
 		}
 	}
 	//couldn't find it.
-//	texnum = numgldoomtextures;
+//	texnum = numdoomtextures;
 
-	gldoomtextures = BZ_Realloc(gldoomtextures, sizeof(*gldoomtextures)*((numgldoomtextures+16)&~15));
-	memset(gldoomtextures + numgldoomtextures, 0, sizeof(gldoomtextures[numgldoomtextures]));
-	numgldoomtextures++;
+	doomtextures = BZ_Realloc(doomtextures, sizeof(*doomtextures)*((numdoomtextures+16)&~15));
+	memset(doomtextures + numdoomtextures, 0, sizeof(doomtextures[numdoomtextures]));
+	numdoomtextures++;
 
-	memcpy(gldoomtextures[texnum].name, name, nlen);
-	gldoomtextures[texnum].name[nlen] = 0;
+	memcpy(doomtextures[texnum].name, name, nlen);
+	doomtextures[texnum].name[nlen] = 0;
 
 	return texnum;
 }
@@ -1671,56 +1693,56 @@ static void Doom_LoadShaders(void *ctx, void *data, size_t a, size_t b)
 	int texnum;
 	char tmp[MAX_QPATH];
 
-	for (texnum = 0; texnum < numgldoomtextures; texnum++)	//a hash table might be a good plan.
+	for (texnum = 0; texnum < numdoomtextures; texnum++)	//a hash table might be a good plan.
 	{
-		isflat = !strncmp(gldoomtextures[texnum].name, "flats/", 6);
+		isflat = !strncmp(doomtextures[texnum].name, "flats/", 6);
 		memset(&tn, 0, sizeof(tn));
 		if (isflat)
 		{
-			void *file = FS_LoadMallocFile(va2(tmp, sizeof(tmp), "%s.raw", gldoomtextures[texnum].name), NULL);
+			void *file = FS_LoadMallocFile(va2(tmp, sizeof(tmp), "%s.raw", doomtextures[texnum].name), NULL);
 			if (file)
 			{
-				tn.base = Image_GetTexture(gldoomtextures[texnum].name, NULL, 0, file, doompalette, 64, 64, TF_8PAL24);
+				tn.base = Image_GetTexture(doomtextures[texnum].name, NULL, 0, file, doompalette, 64, 64, TF_8PAL24);
 				Z_Free(file);
 			}
-			gldoomtextures[texnum].width = 64;
-			gldoomtextures[texnum].height = 64;
+			doomtextures[texnum].width = 64;
+			doomtextures[texnum].height = 64;
 		}
 		else
 		{
 			if (textures1 && !TEXVALID(tn.base))
-				tn.base = Doom_LoadPatchFromTexWad(gldoomtextures[texnum].name, textures1, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height, &hasalpha);
+				tn.base = Doom_LoadPatchFromTexWad(doomtextures[texnum].name, textures1, &doomtextures[texnum].width, &doomtextures[texnum].height, &hasalpha);
 			if (textures2 && !TEXVALID(tn.base))
-				tn.base = Doom_LoadPatchFromTexWad(gldoomtextures[texnum].name, textures2, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height, &hasalpha);
+				tn.base = Doom_LoadPatchFromTexWad(doomtextures[texnum].name, textures2, &doomtextures[texnum].width, &doomtextures[texnum].height, &hasalpha);
 		}
 		if (!TEXVALID(tn.base))
 		{
-			gldoomtextures[texnum].width = 64;
-			gldoomtextures[texnum].height = 64;
+			doomtextures[texnum].width = 64;
+			doomtextures[texnum].height = 64;
 			hasalpha = false;
 		}
 
 		if (hasalpha)
-			gldoomtextures[texnum].shader = R_RegisterShader(gldoomtextures[texnum].name, SUF_NONE, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\nalphafunc ge128\n}\n}\n");
+			doomtextures[texnum].shader = R_RegisterShader(doomtextures[texnum].name, SUF_NONE, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\nalphafunc ge128\n}\n}\n");
 		else
-			gldoomtextures[texnum].shader = R_RegisterShader(gldoomtextures[texnum].name, SUF_NONE, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\n}\n}\n");
+			doomtextures[texnum].shader = R_RegisterShader(doomtextures[texnum].name, SUF_NONE, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\n}\n}\n");
 
-		R_BuildDefaultTexnums(&tn, gldoomtextures[texnum].shader);
+		R_BuildDefaultTexnums(&tn, doomtextures[texnum].shader);
 	}
 };
 
 static void Doom_Purge (struct model_s *mod)
 {
 	int texnum;
-	for (texnum = 0; texnum < numgldoomtextures; texnum++)
+	for (texnum = 0; texnum < numdoomtextures; texnum++)
 	{
-		BZ_Free(gldoomtextures[texnum].mesh.colors4b_array);
-		BZ_Free(gldoomtextures[texnum].mesh.st_array);
-		BZ_Free(gldoomtextures[texnum].mesh.xyz_array);
-		BZ_Free(gldoomtextures[texnum].mesh.indexes);
+		BZ_Free(doomtextures[texnum].mesh.colors4b_array);
+		BZ_Free(doomtextures[texnum].mesh.st_array);
+		BZ_Free(doomtextures[texnum].mesh.xyz_array);
+		BZ_Free(doomtextures[texnum].mesh.indexes);
 	}
-	BZ_Free(gldoomtextures);
-	gldoomtextures = NULL;
+	BZ_Free(doomtextures);
+	doomtextures = NULL;
 }
 #endif
 static void CleanWalls(model_t *mod, dsidedef_t *sidedefsl)
@@ -1734,7 +1756,7 @@ static void CleanWalls(model_t *mod, dsidedef_t *sidedefsl)
 	sidedefsm = BZ_Malloc(sidedefsc * sizeof(*sidedefsm));
 	for (i = 0; i < sidedefsc; i++)
 	{
-#ifdef GLQUAKE
+#if 1//def GLQUAKE
 		strncpy(texname, sidedefsl[i].middletex, 8);
 		texname[8] = '\0';
 		if (!strcmp(texname, "-"))
@@ -2164,7 +2186,7 @@ qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize)
 	sectorc		= fsize/sizeof(*sectorl);
 
 #ifndef SERVERONLY
-	numgldoomtextures=0;
+	numdoomtextures=0;
 	Doom_LoadPalette();
 #endif
 

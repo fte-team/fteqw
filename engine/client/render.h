@@ -40,21 +40,24 @@ static const texid_t r_nulltex = NULL;
 //GLES2 requires GL_UNSIGNED_SHORT
 //geforce4 only does shorts. gffx can do ints, but with a performance hit (like most things on that gpu)
 //ati is generally more capable, but generally also has a smaller market share
-//desktop-gl will generally cope with ints, but expect a performance hit from that (so we don't bother)
-//dx10 can cope with ints, 
-#if 1 || defined(MINIMAL) || defined(D3DQUAKE) || defined(ANDROID)
+//desktop-gl will generally cope with ints, but expect a performance hit from that with old gpus (so we don't bother)
+//vulkan+dx10 can cope with ints, but might be 24bit
+//either way, all renderers in the same build need to use the same thing.
+#if (defined(GLQUAKE) && !defined(NOLEGACY)) || defined(MINIMAL) || defined(D3D9QUAKE) || defined(ANDROID)
 	#define sizeof_index_t 2
 #endif
 #if sizeof_index_t == 2
 	#define GL_INDEX_TYPE GL_UNSIGNED_SHORT
 	#define D3DFMT_QINDEX D3DFMT_INDEX16
+	#define VK_INDEX_TYPE VK_INDEX_TYPE_UINT16
 	typedef unsigned short index_t;
-	#define MAX_INDICIES 0xffff
+	#define MAX_INDICIES 0xffffu
 #else
 	#define GL_INDEX_TYPE GL_UNSIGNED_INT
 	#define D3DFMT_QINDEX D3DFMT_INDEX32
+	#define VK_INDEX_TYPE VK_INDEX_TYPE_UINT32
 	typedef unsigned int index_t;
-	#define MAX_INDICIES 0xffffffff
+	#define MAX_INDICIES 0x00ffffffu
 #endif
 
 //=============================================================================
@@ -97,9 +100,9 @@ typedef struct entity_s
 	vec3_t					glowmod;     /*meant to be a multiplier for the fullbrights*/
 
 	int						light_known; /*bsp lighting has been calced*/
-	vec3_t                  light_avg;   /*midpoint level*/
-	vec3_t                  light_range; /*avg + this = max, avg - this = min*/
-	vec3_t                  light_dir;
+	vec3_t					light_avg;   /*midpoint level*/
+	vec3_t					light_range; /*avg + this = max, avg - this = min*/
+	vec3_t					light_dir;
 
 	vec3_t					oldorigin;	/*for q2/q3 beams*/
 
@@ -281,6 +284,7 @@ typedef struct
 	rtname_t	rt_sourcecolour;	/*read by 2d. not used for 3d. */
 	rtname_t	rt_depth;			/*read by 2d. used by 3d (renderbuffer used if not set)*/
 	rtname_t	rt_ripplemap;		/*read by 2d. used by 3d (internal ripplemap buffer used if not set)*/
+	rtname_t	nearenvmap;			/*provides a fallback endmap cubemap to render with*/
 
 	qbyte		*forcedvis;
 	qboolean	areabitsknown;
@@ -417,6 +421,7 @@ image_t *Image_CreateTexture(const char *identifier, const char *subpath, unsign
 image_t *Image_GetTexture	(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
 qboolean Image_UnloadTexture(image_t *tex);	//true if it did something.
 void Image_DestroyTexture	(image_t *tex);
+qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, char *fname, qbyte *filedata, int filesize);	//intended really for worker threads, but should be fine from the main thread too
 void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void Image_Purge(void);	//purge any textures which are not needed any more (releases memory, but doesn't give null pointers).
 void Image_Init(void);
@@ -441,7 +446,7 @@ texid_tf R_LoadHiResTexture(const char *name, const char *subpath, unsigned int 
 texid_tf R_LoadBumpmapTexture(const char *name, const char *subpath);
 void R_LoadNumberedLightTexture(struct dlight_s *dl, int cubetexnum);
 
-qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname);
+qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, const char *fname);
 
 extern	texid_t	particletexture;
 extern	texid_t particlecqtexture;
@@ -560,6 +565,7 @@ extern	cvar_t	r_waterwarp;
 extern	cvar_t	r_fullbright;
 extern	cvar_t	r_lightmap;
 extern	cvar_t	r_glsl_offsetmapping;
+extern	cvar_t	r_shadow_playershadows;
 extern	cvar_t	r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
 extern	cvar_t	r_shadow_realtime_dlight_ambient;
 extern	cvar_t	r_shadow_realtime_dlight_diffuse;
@@ -598,7 +604,7 @@ extern	cvar_t	gl_poly;
 extern	cvar_t	gl_affinemodels;
 extern	cvar_t r_renderscale;
 extern	cvar_t	gl_nohwblend;
-extern	cvar_t	r_coronas, r_coronas_occlusion, r_flashblend, r_flashblendscale;
+extern	cvar_t	r_coronas, r_coronas_occlusion, r_coronas_mindist, r_coronas_fadedist, r_flashblend, r_flashblendscale;
 extern	cvar_t	r_lightstylesmooth;
 extern	cvar_t	r_lightstylesmooth_limit;
 extern	cvar_t	r_lightstylespeed;
@@ -627,7 +633,9 @@ enum {
 	RSPEED_PALETTEFLASHES,
 	RSPEED_2D,
 	RSPEED_SERVER,
-	RSPEED_FINISH,
+	RSPEED_SETUP,
+	RSPEED_SUBMIT,
+	RSPEED_PRESENT,
 
 	RSPEED_MAX
 };
@@ -657,7 +665,7 @@ extern int rquant[RQUANT_MAX];
 
 #define RQuantAdd(type,quant) rquant[type] += quant
 
-#if defined(NDEBUG) || !defined(_WIN32)
+#if 0//defined(NDEBUG) || !defined(_WIN32)
 #define RSpeedLocals()
 #define RSpeedMark()
 #define RSpeedRemark()

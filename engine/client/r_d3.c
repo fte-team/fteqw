@@ -6,9 +6,11 @@
 #endif
 
 //FIXME: shadowmaps should build a cache of the nearby area surfaces and flag those models as RF_NOSHADOW or something
+//fixme: merge areas and static ents too somehow.
 
 void Mod_SetParent (mnode_t *node, mnode_t *parent);
 static int	D3_ClusterForPoint (struct model_s *model, vec3_t point);
+void R_Generate_Mesh_ST_Vectors(mesh_t *mesh);
 
 #ifndef SERVERONLY
 void ModD3_GenAreaVBO(void *ctx, void *data, size_t a, size_t b)
@@ -16,6 +18,129 @@ void ModD3_GenAreaVBO(void *ctx, void *data, size_t a, size_t b)
 	model_t *sub = ctx;
 	BE_GenBrushModelVBO(sub);
 }
+
+static void R_BuildDefaultTexnums_Doom3(shader_t *shader)
+{
+	extern qboolean		r_loadbumpmapping;
+	extern cvar_t gl_specular;
+	extern cvar_t r_fb_bmodels;
+
+	char *h;
+	char imagename[MAX_QPATH];
+	char mapname[MAX_QPATH];
+	char *subpath = NULL;
+	texnums_t *tex;
+	unsigned int a, aframes;
+	unsigned int imageflags = 0;
+	strcpy(imagename, shader->name);
+	h = strchr(imagename, '#');
+	if (h)
+		*h = 0;
+	if (*imagename == '/' || strchr(imagename, ':'))
+	{	//this is not security. this is anti-spam for the verbose security in the filesystem code.
+		Con_Printf("Warning: shader has absolute path: %s\n", shader->name);
+		*imagename = 0;
+	}
+
+	tex = shader->defaulttextures;
+	aframes = max(1, shader->numdefaulttextures);
+	//if any were specified explicitly, replicate that into all.
+	//this means animmap can be used, with any explicit textures overriding all.
+
+	for (a = 1; a < aframes; a++)
+	{
+		if (!TEXVALID(tex[a].base))
+			tex[a].base			= tex[0].base;
+		if (!TEXVALID(tex[a].bump))
+			tex[a].bump			= tex[0].bump;
+		if (!TEXVALID(tex[a].fullbright))
+			tex[a].fullbright	= tex[0].fullbright;
+		if (!TEXVALID(tex[a].specular))
+			tex[a].specular		= tex[0].specular;
+		if (!TEXVALID(tex[a].loweroverlay))
+			tex[a].loweroverlay	= tex[0].loweroverlay;
+		if (!TEXVALID(tex[a].upperoverlay))
+			tex[a].upperoverlay	= tex[0].upperoverlay;
+		if (!TEXVALID(tex[a].reflectmask))
+			tex[a].reflectmask	= tex[0].reflectmask;
+		if (!TEXVALID(tex[a].reflectcube))
+			tex[a].reflectcube	= tex[0].reflectcube;
+	}
+	for (a = 0; a < aframes; a++, tex++)
+	{
+		COM_StripExtension(tex->mapname, mapname, sizeof(mapname));
+
+		if (!TEXVALID(tex->base))
+		{
+			/*dlights/realtime lighting needs some stuff*/
+			if (!TEXVALID(tex->base) && *tex->mapname)// && (shader->flags & SHADER_HASDIFFUSE))
+				tex->base = R_LoadHiResTexture(tex->mapname, NULL, 0);
+
+			if (!TEXVALID(tex->base))
+				tex->base = R_LoadHiResTexture(va("%s_d", imagename), subpath, (*imagename=='{')?0:IF_NOALPHA);
+		}
+
+		imageflags |= IF_LOWPRIORITY;
+
+		COM_StripExtension(imagename, imagename, sizeof(imagename));
+
+		if (!TEXVALID(tex->bump))
+		{
+			if ((shader->flags & SHADER_HASNORMALMAP) && r_loadbumpmapping)
+			{
+				if (!TEXVALID(tex->bump) && *mapname && (shader->flags & SHADER_HASNORMALMAP))
+					tex->bump = R_LoadHiResTexture(va("%s_local", mapname), NULL, imageflags|IF_TRYBUMP);
+				if (!TEXVALID(tex->bump))
+					tex->bump = R_LoadHiResTexture(va("%s_local", imagename), subpath, imageflags|IF_TRYBUMP);
+			}
+		}
+
+		if (!TEXVALID(tex->loweroverlay))
+		{
+			if (shader->flags & SHADER_HASTOPBOTTOM)
+			{
+				if (!TEXVALID(tex->loweroverlay) && *mapname)
+					tex->loweroverlay = R_LoadHiResTexture(va("%s_pants", mapname), NULL, imageflags);
+				if (!TEXVALID(tex->loweroverlay))
+					tex->loweroverlay = R_LoadHiResTexture(va("%s_pants", imagename), subpath, imageflags);	/*how rude*/
+			}
+		}
+
+		if (!TEXVALID(tex->upperoverlay))
+		{
+			if (shader->flags & SHADER_HASTOPBOTTOM)
+			{
+				if (!TEXVALID(tex->upperoverlay) && *mapname)
+					tex->upperoverlay = R_LoadHiResTexture(va("%s_shirt", mapname), NULL, imageflags);
+				if (!TEXVALID(tex->upperoverlay))
+					tex->upperoverlay = R_LoadHiResTexture(va("%s_shirt", imagename), subpath, imageflags);
+			}
+		}
+
+		if (!TEXVALID(tex->specular))
+		{
+			if ((shader->flags & SHADER_HASGLOSS) && gl_specular.value)
+			{
+				if (!TEXVALID(tex->specular) && *mapname)
+					tex->specular = R_LoadHiResTexture(va("%s_s", mapname), NULL, imageflags);
+				if (!TEXVALID(tex->specular))
+					tex->specular = R_LoadHiResTexture(va("%s_s", imagename), subpath, imageflags);
+			}
+		}
+
+		if (!TEXVALID(tex->fullbright))
+		{
+			if ((shader->flags & SHADER_HASFULLBRIGHT) && r_fb_bmodels.value && gl_load24bit.value)
+			{
+				if (!TEXVALID(tex->fullbright) && *mapname)
+					tex->fullbright = R_LoadHiResTexture(va("%s_luma", mapname), NULL, imageflags);
+				if (!TEXVALID(tex->fullbright))
+					tex->fullbright = R_LoadHiResTexture(va("%s_luma", imagename), subpath, imageflags);
+			}
+		}
+	}
+}
+
 static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 {
 	char token[256];
@@ -110,10 +235,14 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 				b[surf].lightmap[1] = -1;
 				b[surf].lightmap[2] = -1;
 				b[surf].lightmap[3] = -1;
+				b[surf].lmlightstyle[0] = 0;
+				b[surf].lmlightstyle[1] = 255;
+				b[surf].lmlightstyle[2] = 255;
+				b[surf].lmlightstyle[3] = 255;
 
 				data = COM_ParseOut(data, token, sizeof(token));
 				b[surf].shader = R_RegisterShader_Vertex(token);
-//				R_BuildDefaultTexnums(NULL, b[surf].shader);
+				R_BuildDefaultTexnums_Doom3(b[surf].shader);
 				data = COM_ParseOut(data, token, sizeof(token));
 				numverts = atoi(token);
 				data = COM_ParseOut(data, token, sizeof(token));
@@ -124,12 +253,14 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 
 				m[surf].numvertexes = numverts;
 				m[surf].numindexes = numindicies;
-				vdata = ZG_Malloc(&sub->memgroup, numverts * (sizeof(vecV_t) + sizeof(vec2_t) + sizeof(vec3_t) + sizeof(vec4_t)) + numindicies * sizeof(index_t));
+				vdata = ZG_Malloc(&sub->memgroup, numverts * (sizeof(vecV_t) + sizeof(vec2_t) + sizeof(vec3_t)*3 + sizeof(vec4_t)) + numindicies * sizeof(index_t));
 
 				m[surf].colors4f_array[0] = (vec4_t*)vdata;vdata += sizeof(vec4_t)*numverts;
 				m[surf].xyz_array = (vecV_t*)vdata;vdata += sizeof(vecV_t)*numverts;
 				m[surf].st_array = (vec2_t*)vdata;vdata += sizeof(vec2_t)*numverts;
 				m[surf].normals_array = (vec3_t*)vdata;vdata += sizeof(vec3_t)*numverts;
+				m[surf].snormals_array = (vec3_t*)vdata;vdata += sizeof(vec3_t)*numverts;
+				m[surf].tnormals_array = (vec3_t*)vdata;vdata += sizeof(vec3_t)*numverts;
 				m[surf].indexes = (index_t*)vdata;
 
 				for (v = 0; v < numverts; v++)
@@ -164,10 +295,10 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 							sub->mins[j] = f;
 					}
 
-					m[surf].colors4f_array[0][v][0] = 255;
-					m[surf].colors4f_array[0][v][1] = 255;
-					m[surf].colors4f_array[0][v][2] = 255;
-					m[surf].colors4f_array[0][v][3] = 255;
+					m[surf].colors4f_array[0][v][0] = 1;
+					m[surf].colors4f_array[0][v][1] = 1;
+					m[surf].colors4f_array[0][v][2] = 1;
+					m[surf].colors4f_array[0][v][3] = 1;
 
 					data = COM_ParseOut(data, token, sizeof(token));
 					/*if its not closed yet, there's an optional colour value*/
@@ -191,6 +322,10 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 					data = COM_ParseOut(data, token, sizeof(token));
 					m[surf].indexes[v] = atoi(token);
 				}
+
+				//generate the s+t vectors according to the normals that we just parsed.
+				R_Generate_Mesh_ST_Vectors(&m[surf]);
+
 				data = COM_ParseOut(data, token, sizeof(token));
 				if (strcmp(token, "}"))
 					return false;
@@ -201,6 +336,7 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 //			sub->loadstate = MLS_LOADED;
 			sub->fromgame = fg_doom3;
 			sub->type = mod_brush;
+			sub->lightmaps.surfstyles = 1;
 
 			COM_AddWork(WG_MAIN, ModD3_GenAreaVBO, sub, NULL, MLS_LOADED, 0);
 			COM_AddWork(WG_MAIN, Mod_ModelLoaded, sub, NULL, MLS_LOADED, 0);
@@ -309,7 +445,7 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 				return false;
 
 			data = COM_ParseOut(data, token, sizeof(token));
-			//numareas = atoi(token);
+			model->numclusters = atoi(token);
 			data = COM_ParseOut(data, token, sizeof(token));
 			model->numportals = atoi(token);
 
@@ -1164,7 +1300,7 @@ qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, void *buf, size_t bufsize)
 				buf = COM_ParseOut(buf, token, sizeof(token));
 #ifndef SERVERONLY
 //				surf->shader = R_RegisterShader_Vertex(token);
-//				R_BuildDefaultTexnums(NULL, surf->shader);
+//				R_BuildDefaultTexnums_Doom3(NULL, surf->shader);
 #endif
 
 				if (filever == 3)

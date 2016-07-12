@@ -404,6 +404,11 @@ enum qcop_e {
 	OP_AND_ANY,
 	OP_OR_ANY,
 
+	OP_ADD_EI,
+	OP_ADD_EF,
+	OP_SUB_EI,
+	OP_SUB_EF,
+
 	OP_NUMOPS
 };
 

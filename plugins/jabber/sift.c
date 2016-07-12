@@ -73,7 +73,7 @@ void XMPP_FT_Frame(jclient_t *jcl)
 							*req = 0;
 
 							//connect with hostname(3).
-							req = va("\x05\x01%c\x03""%c%s%c%c", 0, strlen(domain), domain, 0, 0);
+							req = va("\x05\x01%c\x03""%c%s%c%c", 0, (int)strlen(domain), domain, 0, 0);
 							pNet_Send(ft->stream, req, strlen(domain)+7);
 							ft->streamstatus = STRM_AUTHED;
 						}
@@ -143,7 +143,7 @@ void XMPP_FT_AcceptFile(jclient_t *jcl, int fileid, qboolean accept)
 	char *s;
 	xmltree_t *repiq, *repsi, *c;
 
-	for (link = &jcl->ft; ft=*link; link = &(*link)->next)
+	for (link = &jcl->ft; (ft=*link); link = &(*link)->next)
 	{
 		if (ft->privateid == fileid)
 			break;
@@ -523,9 +523,10 @@ qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, char *iqfrom, char *iqid, xmltree_t 
 	{
 		char block[65536];
 		char *sid = XML_GetParameter(ot, "sid", "");
-		unsigned short seq = atoi(XML_GetParameter(ot, "seq", "0"));
+//		unsigned short seq = atoi(XML_GetParameter(ot, "seq", "0"));
 		int blocksize;
 		struct ft_s *ft;
+		//FIXME: validate the sequence!
 		for (ft = jcl->ft; ft; ft = ft->next)
 		{
 			if (!strcmp(ft->sid, sid) && !ft->transmitting)
@@ -552,14 +553,14 @@ qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, char *iqfrom, char *iqid, xmltree_t 
 
 		if (!strcmp(profile, "http://jabber.org/protocol/si/profile/file-transfer"))
 		{
-			char *mimetype = XML_GetParameter(ot, "mime-type", "text/plain");
+//			char *mimetype = XML_GetParameter(ot, "mime-type", "text/plain");
 			char *sid = XML_GetParameter(ot, "id", "");
 			xmltree_t *file = XML_ChildOfTreeNS(ot, "http://jabber.org/protocol/si/profile/file-transfer", "file", 0);
 			char *fname = XML_GetParameter(file, "name", "file.txt");
-			char *date = XML_GetParameter(file, "date", "");
+//			char *date = XML_GetParameter(file, "date", "");
 			char *md5hash = XML_GetParameter(file, "hash", "");
 			int fsize = strtoul(XML_GetParameter(file, "size", "0"), NULL, 0);
-			char *desc = XML_GetChildBody(file, "desc", "");
+//			char *desc = XML_GetChildBody(file, "desc", "");
 			char authlink[512];
 			char denylink[512];
 			

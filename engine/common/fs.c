@@ -49,11 +49,11 @@ struct
 {
 	void *module;
 	const char *extension;
-	searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc);
+	searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc, const char *prefix);
 	qboolean loadscan;
 } searchpathformats[64];
 
-int FS_RegisterFileSystemType(void *module, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc), qboolean loadscan)
+int FS_RegisterFileSystemType(void *module, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc, const char *prefix), qboolean loadscan)
 {
 	unsigned int i;
 	for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
@@ -215,6 +215,7 @@ void FS_Manifest_Free(ftemanifest_t *man)
 	for (i = 0; i < sizeof(man->package) / sizeof(man->package[0]); i++)
 	{
 		Z_Free(man->package[i].path);
+		Z_Free(man->package[i].prefix);
 		Z_Free(man->package[i].condition);
 		for (j = 0; j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
 			Z_Free(man->package[i].mirrors[j]);
@@ -252,6 +253,8 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 	{
 		if (oldm->package[i].path)
 			newm->package[i].path = Z_StrDup(oldm->package[i].path);
+		if (oldm->package[i].prefix)
+			newm->package[i].prefix = Z_StrDup(oldm->package[i].prefix);
 		if (oldm->package[i].condition)
 			newm->package[i].condition = Z_StrDup(oldm->package[i].condition);
 		for (j = 0; j < sizeof(newm->package[i].mirrors) / sizeof(newm->package[i].mirrors[0]); j++)
@@ -300,9 +303,11 @@ void FS_Manifest_Print(ftemanifest_t *man)
 				Con_Printf("package ");
 			Con_Printf("%s", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer), false));
 			if (man->package[i].condition)
-				Con_Printf(" condition=%s", COM_QuotedString(man->package[i].condition, buffer, sizeof(buffer), false));
+				Con_Printf(" prefix %s", COM_QuotedString(man->package[i].condition, buffer, sizeof(buffer), false));
+			if (man->package[i].condition)
+				Con_Printf(" condition %s", COM_QuotedString(man->package[i].condition, buffer, sizeof(buffer), false));
 			if (man->package[i].crcknown)
-				Con_Printf(" crc=0x%x", man->package[i].crc);
+				Con_Printf(" crc 0x%x", man->package[i].crc);
 			for (j = 0; j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
 				if (man->package[i].mirrors[j])
 					Con_Printf(" %s", COM_QuotedString(man->package[i].mirrors[j], buffer, sizeof(buffer), false));
@@ -350,6 +355,7 @@ static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int type)
 	qboolean crcknown = false;
 	char *legacyextractname = NULL;
 	char *condition = NULL;
+	char *prefix = NULL;
 	char *arch = NULL;
 	unsigned int arg = 1;
 	unsigned int mirrors = 0;
@@ -393,6 +399,8 @@ static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int type)
 		}
 		else if (!strcmp(a, "condition"))
 			condition = Cmd_Argv(arg++);
+		else if (!strcmp(a, "prefix"))
+			prefix = Cmd_Argv(arg++);
 		else if (!strcmp(a, "arch"))
 			arch = Cmd_Argv(arg++);
 		else if (!strcmp(a, "mirror"))
@@ -437,6 +445,7 @@ mirror:
 			}
 			man->package[i].type = type;
 			man->package[i].path = Z_StrDup(path);
+			man->package[i].prefix = prefix?Z_StrDup(prefix):NULL;
 			man->package[i].condition = condition?Z_StrDup(condition):NULL;
 			man->package[i].crcknown = crcknown;
 			man->package[i].crc = crc;
@@ -606,6 +615,7 @@ ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data)
 //======================================================================================================
 
 
+char *fs_loadedcommand;			//execed once all packages are (down)loaded
 ftemanifest_t	*fs_manifest;	//currently active manifest.
 static searchpath_t	*com_searchpaths;
 static searchpath_t	*com_purepaths;
@@ -699,19 +709,79 @@ COM_Dir_f
 static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	searchpath_t	*s;
+	char link[512];
+	char *colour;
+	flocation_t loc;
 	for (s=com_searchpaths ; s ; s=s->next)
 	{
 		if (s->handle == spath)
 			break;
 	}
-	if (size > 1.0*1024*1024*1024)
-		Con_Printf(U8("%s \t(%#.3ggb) (%s)\n"), name, size/(1024.0*1024*1024), s?s->logicalpath:"??");
-	else if (size > 1.0*1024*1024)
-		Con_Printf(U8("%s \t(%#.3gmb) (%s)\n"), name, size/(1024.0*1024), s?s->logicalpath:"??");
-	else if (size > 1.0*1024)
-		Con_Printf(U8("%s \t(%#.3gkb) (%s)\n"), name, size/1024.0, s?s->logicalpath:"??");
+
+	if (*name && name[strlen(name)-1] == '/')
+	{
+		colour = "^7";	//superseeded
+		Q_snprintfz(link, sizeof(link), "\\dir\\%s*", name);
+	}
+	else if (!FS_FLocateFile(name, FSLF_IFFOUND, &loc))
+	{
+		colour = "^1";	//superseeded
+		Q_snprintfz(link, sizeof(link), "\\tip\\flocate error");
+	}
+	else if (loc.search->handle == spath)
+	{
+		colour = "^2";
+		COM_FileExtension(name, link, sizeof(link));
+		if ((!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "map") || !Q_strcasecmp(link, "hmp")) && !strncmp(name, "maps/", 5) && strncmp(name, "maps/b_", 7))
+		{
+			Q_snprintfz(link, sizeof(link), "\\map\\%s", name);
+			colour = "^4";	//disconnects
+		}
+		else if (!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "spr") || !Q_strcasecmp(link, "mdl") || !Q_strcasecmp(link, "md3") || !Q_strcasecmp(link, "iqm") || !Q_strcasecmp(link, "psk") || !Q_strcasecmp(link, "dpm") || !Q_strcasecmp(link, "zym"))
+			Q_snprintfz(link, sizeof(link), "\\modelviewer\\%s", name);
+		else if (!Q_strcasecmp(link, "qc") || !Q_strcasecmp(link, "src") || !Q_strcasecmp(link, "qh") || !Q_strcasecmp(link, "h") || !Q_strcasecmp(link, "c")
+			|| !Q_strcasecmp(link, "cfg") || !Q_strcasecmp(link, "rc")
+			|| !Q_strcasecmp(link, "txt") || !Q_strcasecmp(link, "log")
+			|| !Q_strcasecmp(link, "ent") || !Q_strcasecmp(link, "rtlights")
+			|| !Q_strcasecmp(link, "shader") || !Q_strcasecmp(link, "framegroups"))
+			Q_snprintfz(link, sizeof(link), "\\edit\\%s", name);
+		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "pcx"))
+		{
+			//FIXME: image replacements are getting in the way here.
+			Q_snprintfz(link, sizeof(link), "\\tiprawimg\\%s\\tip\\(note: image replacement rules are context-dependant, including base path, sub path, extension, or complete replacement via a shader)", name);
+			colour = "^6";	//shown on mouseover
+		}
+		else if (!Q_strcasecmp(link, "qwd") || !Q_strcasecmp(link, "dem") || !Q_strcasecmp(link, "mvd") || !Q_strcasecmp(link, "dm2"))
+		{
+			Q_snprintfz(link, sizeof(link), "\\demo\\%s", name);
+			colour = "^4";	//disconnects
+		}
+		else if (!Q_strcasecmp(link, "roq") || !Q_strcasecmp(link, "cin") || !Q_strcasecmp(link, "avi") || !Q_strcasecmp(link, "mp4") || !Q_strcasecmp(link, "mkv"))
+			Q_snprintfz(link, sizeof(link), "\\film\\%s", name);
+		else
+		{
+			colour = "^3";	//nothing
+			*link = 0;
+		}
+	}
 	else
-		Con_Printf(U8("%s \t(%ub) (%s)\n"), name, (unsigned int)size, s?s->logicalpath:"??");
+	{
+		char *gah;
+		colour = "^1";	//superseeded
+		Q_snprintfz(link, sizeof(link), "\\tip\\overriden by file from %s", loc.search->logicalpath);
+		gah = link + 20;	//whatever
+		while ((gah = strchr(gah, '\\')))
+			*gah = '/';
+	}
+
+	if (size > 1.0*1024*1024*1024)
+		Con_Printf(U8("^[%s%s%s^] \t(%#.3ggb) (%s)\n"), colour, name, link, size/(1024.0*1024*1024), s?s->logicalpath:"??");
+	else if (size > 1.0*1024*1024)
+		Con_Printf(U8("^[%s%s%s^] \t(%#.3gmb) (%s)\n"), colour, name, link, size/(1024.0*1024), s?s->logicalpath:"??");
+	else if (size > 1.0*1024)
+		Con_Printf(U8("^[%s%s%s^] \t(%#.3gkb) (%s)\n"), colour, name, link, size/1024.0, s?s->logicalpath:"??");
+	else
+		Con_Printf(U8("^[%s%s%s^] \t(%ub) (%s)\n"), colour, name, link, (unsigned int)size, s?s->logicalpath:"??");
 	return 1;
 }
 
@@ -719,7 +789,11 @@ void COM_Dir_f (void)
 {
 	char match[MAX_QPATH];
 
-	Q_strncpyz(match, Cmd_Argv(1), sizeof(match));
+	if (Cmd_Argc()>1)
+		Q_strncpyz(match, Cmd_Argv(1), sizeof(match));
+	else
+		Q_strncpyz(match, "*", sizeof(match));
+
 	if (Cmd_Argc()>2)
 	{
 		strncat(match, "/*.", sizeof(match)-1);
@@ -889,7 +963,8 @@ void FS_FlushFSHashReally(qboolean domutexes)
 }
 void FS_FlushFSHashWritten(void)
 {
-	/*automatically handled*/
+	/*SHOULD be handled automatically, but really isn't*/
+	FS_FlushFSHashReally(true);
 }
 void FS_FlushFSHashRemoved(void)
 {
@@ -1000,7 +1075,7 @@ Sets com_filesize and one of handle or file
 ===========
 */
 //if loc is valid, loc->search is always filled in, the others are filled on success.
-//returns -1 if couldn't find.
+//returns 0 if couldn't find.
 int FS_FLocateFile(const char *filename, unsigned int lflags, flocation_t *loc)
 {
 	int depth=0;
@@ -1043,7 +1118,8 @@ int FS_FLocateFile(const char *filename, unsigned int lflags, flocation_t *loc)
 		{
 			if ((lflags & FSLF_SECUREONLY) && !(search->flags & SPF_UNTRUSTED))
 				continue;
-			depth += ((search->flags & SPF_EXPLICIT) || (lflags & FSLF_DEPTH_EXPLICIT));
+			if (!((lflags & FSLF_IGNOREBASEDEPTH) && (search->flags & SPF_BASEPATH)))
+				depth += ((search->flags & SPF_EXPLICIT) || (lflags & FSLF_DEPTH_INEXPLICIT));
 			fs_finds++;
 			found = search->handle->FindFile(search->handle, loc, filename, pf);
 			if (found)
@@ -1067,7 +1143,8 @@ int FS_FLocateFile(const char *filename, unsigned int lflags, flocation_t *loc)
 		{
 			if ((lflags & FSLF_SECUREONLY) && (search->flags & SPF_UNTRUSTED))
 				continue;
-			depth += ((search->flags & SPF_EXPLICIT) || (lflags & FSLF_DEPTH_EXPLICIT));
+			if (!((lflags & FSLF_IGNOREBASEDEPTH) && (search->flags & SPF_BASEPATH)))
+				depth += ((search->flags & SPF_EXPLICIT) || (lflags & FSLF_DEPTH_INEXPLICIT));
 			fs_finds++;
 			found = search->handle->FindFile(search->handle, loc, filename, pf);
 			if (found)
@@ -1148,16 +1225,39 @@ fail:
 	else
 		Con_Printf("Failed\n");
 */
-	if (lflags & (FSLF_DEPTH_EXPLICIT | FSLF_DEPTH_INEXPLICIT))
+	if (found == FF_NOTFOUND || loc->len == -1)
 	{
-		if (found == FF_NOTFOUND)
-			return 0x7fffffff;
-		return depth;
+		if (lflags & FSLF_DEEPONFAILURE)
+			return 0x7fffffff;	//if we're asking for depth, the file is reported to be so far into the filesystem as to be irrelevant.
+		return 0;
 	}
-	else
-		return (found != FF_NOTFOUND) && (loc->len != -1); 
+	return depth+1;
 }
 
+char *FS_GetPackageDownloadFilename(flocation_t *loc)
+{
+	searchpath_t *sp, *search;
+
+	for (sp = loc->search; ;)
+	{
+		for (search = com_searchpaths; search; search = search->next)
+		{
+			if (search != sp && search->handle->GeneratePureCRC)
+			{	//only consider files that have a pure hash. this excludes system paths
+				if (!strncmp(search->purepath, sp->purepath, strlen(search->purepath)))
+					break;
+			}
+		}
+		if (search)
+			sp = search;
+		else
+			break;
+	}
+
+	if (sp && strchr(sp->purepath, '/'))
+		return sp->purepath;
+	return NULL;
+}
 char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced)
 {
 	char *ret;
@@ -2012,7 +2112,7 @@ qboolean COM_LoadMapPackFile (const char *filename, qofs_t ofs)
 	return false;
 }
 
-static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purepath, const char *probablepath, searchpathfuncs_t *handle, unsigned int flags, unsigned int loadstuff);
+static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purepath, const char *probablepath, searchpathfuncs_t *handle, const char *prefix, unsigned int flags, unsigned int loadstuff);
 searchpathfuncs_t *FS_GetOldPath(searchpath_t **oldpaths, const char *dir, unsigned int *keepflags)
 {
 	searchpath_t *p;
@@ -2037,10 +2137,11 @@ searchpathfuncs_t *FS_GetOldPath(searchpath_t **oldpaths, const char *dir, unsig
 }
 
 typedef struct {
-	searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc);
+	searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc, const char *prefix);
 	searchpath_t **oldpaths;
 	const char *parentdesc;
 	const char *puredesc;
+	unsigned int inheritflags;
 } wildpaks_t;
 
 static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, time_t mtime, void *vparam, searchpathfuncs_t *funcs)
@@ -2078,7 +2179,7 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, time_
 			if (!vfs)
 				return true;
 		}
-		newpak = param->OpenNew (vfs, pakfile);
+		newpak = param->OpenNew (vfs, pakfile, "");
 		if (!newpak)
 		{
 			VFS_CLOSE(vfs);
@@ -2091,7 +2192,7 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, time_
 		snprintf (purefile, sizeof(purefile), "%s/%s", param->puredesc, descriptor);
 	else
 		Q_strncpyz(purefile, descriptor, sizeof(purefile));
-	FS_AddPathHandle(param->oldpaths, purefile, pakfile, newpak, ((!Q_strncasecmp(descriptor, "pak", 3))?SPF_COPYPROTECTED:0)|keptflags, (unsigned int)-1);
+	FS_AddPathHandle(param->oldpaths, purefile, pakfile, newpak, "", ((!Q_strncasecmp(descriptor, "pak", 3))?SPF_COPYPROTECTED:0)|keptflags|param->inheritflags, (unsigned int)-1);
 
 	return true;
 }
@@ -2108,7 +2209,7 @@ searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, const char *pakname)
 			continue;
 		if (!strcmp(ext, searchpathformats[j].extension))
 		{
-			pak = searchpathformats[j].OpenNew(f, pakname);
+			pak = searchpathformats[j].OpenNew(f, pakname, "");
 			if (pak)
 				return pak;
 			Con_Printf("Unable to open %s - corrupt?\n", pakname);
@@ -2120,7 +2221,7 @@ searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, const char *pakname)
 	return NULL;
 }
 
-static void FS_AddManifestPackages(searchpath_t **oldpaths, const char *purepath, const char *logicalpaths, searchpath_t *search, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc))
+static void FS_AddManifestPackages(searchpath_t **oldpaths, const char *purepath, const char *logicalpaths, searchpath_t *search, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc, const char *prefix))
 {
 	int				i;
 	searchpathfuncs_t	*handle;
@@ -2153,6 +2254,8 @@ static void FS_AddManifestPackages(searchpath_t **oldpaths, const char *purepath
 
 				for (oldp = com_searchpaths; oldp; oldp = oldp->next)
 				{
+					if (strcmp(oldp->prefix, fs_manifest->package[i].prefix?fs_manifest->package[i].prefix:""))	//probably will only happen from typos, but should be correct.
+						continue;
 					if (!Q_strcasecmp(oldp->purepath, fs_manifest->package[i].path))
 						break;
 					if (!Q_strcasecmp(oldp->logicalpath, lname))
@@ -2183,7 +2286,7 @@ static void FS_AddManifestPackages(searchpath_t **oldpaths, const char *purepath
 						}
 
 						if (vfs)
-							handle = OpenNew (vfs, lname);
+							handle = OpenNew (vfs, lname, fs_manifest->package[i].prefix?fs_manifest->package[i].prefix:"");
 					}
 					if (handle && fs_manifest->package[i].crcknown)
 					{
@@ -2196,7 +2299,7 @@ static void FS_AddManifestPackages(searchpath_t **oldpaths, const char *purepath
 						}
 					}
 					if (handle)
-						FS_AddPathHandle(oldpaths, fs_manifest->package[i].path, lname, handle, SPF_COPYPROTECTED|SPF_UNTRUSTED|keptflags, (unsigned int)-1);
+						FS_AddPathHandle(oldpaths, fs_manifest->package[i].path, lname, handle, fs_manifest->package[i].prefix, SPF_COPYPROTECTED|SPF_UNTRUSTED|keptflags, (unsigned int)-1);
 				}
 			}
 		}
@@ -2219,10 +2322,10 @@ static void FS_AddDownloadManifestPackages(searchpath_t **oldpaths, unsigned int
 	}
 }
 
-static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const char *logicalpath, searchpath_t *search, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc))
+static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const char *logicalpath, searchpath_t *search, unsigned int pflags, unsigned int loadstuff)
 {
 	//search is the parent
-	int				i;
+	int				i, j;
 	searchpathfuncs_t	*handle;
 	char			pakfile[MAX_OSPATH];
 	char			logicalpaths[MAX_OSPATH];	//with a slash
@@ -2234,46 +2337,101 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 
 	Q_strncpyz(logicalpaths, logicalpath, sizeof(logicalpaths));
 	FS_CleanDir(logicalpaths, sizeof(logicalpaths));
-
-	//first load all the numbered pak files
-	for (i=0 ; ; i++)
-	{
-		snprintf (pakfile, sizeof(pakfile), "pak%i.%s", i, extension);
-		fs_finds++;
-		if (!search->handle->FindFile(search->handle, &loc, pakfile, NULL))
-			break;	//not found..
-
-		snprintf (pakfile, sizeof(pakfile), "%spak%i.%s", logicalpaths, i, extension);
-		snprintf (purefile, sizeof(purefile), "%s/pak%i.%s", purepath, i, extension);
-
-		handle = FS_GetOldPath(oldpaths, pakfile, &keptflags);
-		if (!handle)
-		{
-			vfs = search->handle->OpenVFS(search->handle, &loc, "r");
-			if (!vfs)
-				break;
-			handle = OpenNew (vfs, pakfile);
-			if (!handle)
-				break;
-		}
-		FS_AddPathHandle(oldpaths, purefile, pakfile, handle, SPF_COPYPROTECTED|keptflags, (unsigned int)-1);
-	}
-
-	//now load the random ones
-	Q_snprintfz (pakfile, sizeof(pakfile), "*.%s", extension);
-	wp.OpenNew = OpenNew;
 	wp.parentdesc = logicalpaths;
 	wp.puredesc = purepath;
 	wp.oldpaths = oldpaths;
-	search->handle->EnumerateFiles(search->handle, pakfile, FS_AddWildDataFiles, &wp);
+	wp.inheritflags = pflags;
 
-	FS_AddManifestPackages(oldpaths, purepath, logicalpaths, search, extension, OpenNew);
+	for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
+	{
+		if (!searchpathformats[j].extension || !searchpathformats[j].OpenNew || !searchpathformats[j].loadscan)
+			continue;
+		if (loadstuff & (1<<j))
+		{
+			const char *extension = searchpathformats[j].extension;
+
+			//first load all the numbered pak files
+			for (i=0 ; ; i++)
+			{
+				snprintf (pakfile, sizeof(pakfile), "pak%i.%s", i, extension);
+				fs_finds++;
+				if (!search->handle->FindFile(search->handle, &loc, pakfile, NULL))
+					break;	//not found..
+
+				snprintf (pakfile, sizeof(pakfile), "%spak%i.%s", logicalpaths, i, extension);
+				snprintf (purefile, sizeof(purefile), "%s/pak%i.%s", purepath, i, extension);
+
+				handle = FS_GetOldPath(oldpaths, pakfile, &keptflags);
+				if (!handle)
+				{
+					vfs = search->handle->OpenVFS(search->handle, &loc, "r");
+					if (!vfs)
+						break;
+					handle = searchpathformats[j].OpenNew (vfs, pakfile, "");
+					if (!handle)
+						break;
+				}
+				FS_AddPathHandle(oldpaths, purefile, pakfile, handle, "", SPF_COPYPROTECTED|pflags|keptflags, (unsigned int)-1);
+			}
+		}
+	}
+
+	//read pak.lst to get some sort of official ordering of pak files
+	if (search->handle->FindFile(search->handle, &loc, "pak.lst", NULL) == FF_FOUND)
+	{
+		char filename[MAX_QPATH];
+		char *buffer = BZ_Malloc(loc.len+1);
+		char *names = buffer;
+		search->handle->ReadFile(search->handle, &loc, buffer);
+		buffer[loc.len] = 0;
+		
+		while (names && *names)
+		{
+			names = COM_ParseOut(names, filename, sizeof(filename));
+			if (*filename)
+			{
+				char extension[MAX_QPATH];
+				COM_FileExtension(filename, extension, sizeof(extension));
+
+				//I dislike that this is tied to extensions, but whatever.
+				for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
+				{
+					if (!searchpathformats[j].extension || !searchpathformats[j].OpenNew || !searchpathformats[j].loadscan)
+						continue;
+					if (!stricmp(extension, searchpathformats[j].extension))
+					{
+						if (loadstuff & (1<<j))
+						{
+							wp.OpenNew = searchpathformats[j].OpenNew;
+							FS_AddWildDataFiles(filename, 0, 0, &wp, search->handle);
+						}
+						break;
+					}
+				}
+			}
+		}
+		BZ_Free(buffer);
+	}
+
+	//now load the random ones
+	for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
+	{
+		if (!searchpathformats[j].extension || !searchpathformats[j].OpenNew || !searchpathformats[j].loadscan)
+			continue;
+		if (loadstuff & (1<<j))
+		{
+			const char *extension = searchpathformats[j].extension;
+			wp.OpenNew = searchpathformats[j].OpenNew;
+			Q_snprintfz (pakfile, sizeof(pakfile), "*.%s", extension);
+			search->handle->EnumerateFiles(search->handle, pakfile, FS_AddWildDataFiles, &wp);
+
+			FS_AddManifestPackages(oldpaths, purepath, logicalpaths, search, extension, wp.OpenNew);
+		}
+	}
 }
 
-static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purepath, const char *logicalpath, searchpathfuncs_t *handle, unsigned int flags, unsigned int loadstuff)
+static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purepath, const char *logicalpath, searchpathfuncs_t *handle, const char *prefix, unsigned int flags, unsigned int loadstuff)
 {
-	unsigned int i;
-
 	searchpath_t *search, **link;
 
 	if (!handle)
@@ -2294,22 +2452,14 @@ static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purep
 	search->handle = handle;
 	Q_strncpyz(search->purepath, purepath, sizeof(search->purepath));
 	Q_strncpyz(search->logicalpath, logicalpath, sizeof(search->logicalpath));
+	if (prefix)
+		Q_strncpyz(search->prefix, prefix, sizeof(search->prefix));
 
 	flags &= ~SPF_WRITABLE;
 
 	//temp packages also do not nest
-	if (!(flags & SPF_TEMPORARY))
-	{
-		for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
-		{
-			if (!searchpathformats[i].extension || !searchpathformats[i].OpenNew || !searchpathformats[i].loadscan)
-				continue;
-			if (loadstuff & (1<<i))
-			{
-				FS_AddDataFiles(oldpaths, purepath, logicalpath, search, searchpathformats[i].extension, searchpathformats[i].OpenNew);
-			}
-		}
-	}
+//	if (!(flags & SPF_TEMPORARY))
+		FS_AddDataFiles(oldpaths, purepath, logicalpath, search, flags&(SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|SPF_PRIVATE), loadstuff);
 
 	if (flags & SPF_TEMPORARY)
 	{
@@ -2413,9 +2563,9 @@ void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, const ch
 //
 	handle = FS_GetOldPath(oldpaths, dir, &keptflags);
 	if (!handle)
-		handle = VFSOS_OpenPath(NULL, dir);
+		handle = VFSOS_OpenPath(NULL, dir, "");
 
-	FS_AddPathHandle(oldpaths, puredir, dir, handle, flags|keptflags, loadstuff);
+	FS_AddPathHandle(oldpaths, puredir, dir, handle, "", flags|keptflags, loadstuff);
 }
 
 //if syspath, something like c:\quake\baseq2
@@ -2472,9 +2622,29 @@ char *FS_GetManifestArgs(void)
 {
 	char *homearg = com_homepathenabled?"-usehome ":"-nohome ";
 	if (fs_manifest->updatefile)
-		return va("%s-manifest %s -basedir %s -outputdebugstring", homearg, fs_manifest->updatefile, com_gamepath);
+		return va("%s-manifest %s -basedir %s", homearg, fs_manifest->updatefile, com_gamepath);
 	
-	return va("%s-game %s -basedir %s -outputdebugstring", homearg, pubgamedirfile, com_gamepath);
+	return va("%s-game %s -basedir %s", homearg, pubgamedirfile, com_gamepath);
+}
+int FS_GetManifestArgv(char **argv, int maxargs)
+{
+	int c = 0;
+	if (maxargs < 5)
+		return c;
+	argv[c++] = com_homepathenabled?"-usehome ":"-nohome ";
+	if (fs_manifest->updatefile)
+	{
+		argv[c++] = "-manifest";
+		argv[c++] = fs_manifest->updatefile;
+	}
+	else
+	{
+		argv[c++] = "-game";
+		argv[c++] = pubgamedirfile;
+	}
+	argv[c++] = "-basedir";
+	argv[c++] = com_gamepath;
+	return c;
 }
 
 //given a 'c:/foo/bar/' path, will extract 'bar'.
@@ -2623,7 +2793,8 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 		{
 			char quot[MAX_QPATH];
 			char quot2[MAX_OSPATH];
-			Cmd_TokenizeString(va("package %s - %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->url, quot2, sizeof(quot2), false)), false, false);
+			char quot3[MAX_OSPATH];
+			Cmd_TokenizeString(va("package %s prefix %s %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->subpath?packagespaths->subpath:"", quot3, sizeof(quot3), false), COM_QuotedString(packagespaths->url, quot2, sizeof(quot2), false)), false, false);
 			FS_Manifest_ParseTokens(man);
 			packagespaths++;
 		}
@@ -2640,7 +2811,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
 /*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
-#define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
+#define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_watersplash \"misc/hith2o.wav\"\nsv_sound_land \"fx/thngland.wav\"\n"
 /*yay q2!*/
 #define Q2CFG "set com_parseutf8 0\ncom_nogamedirnativecode 0\nset sv_bigcoords 0\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
@@ -2733,6 +2904,12 @@ qboolean FS_GenCachedPakName(char *pname, char *crc, char *local, int llen)
 	{
 		*local = 0;
 		return false;
+	}
+
+	if (!strncmp(pname, "downloads/", 10))
+	{
+		Q_snprintfz(local, llen, "%s", pname);
+		return true;
 	}
 
 	for (fn = pname; *fn; fn++)
@@ -2863,7 +3040,7 @@ vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name)
 						f = (search?search:loc.search->handle)->OpenVFS(search?search:loc.search->handle, &loc, "rb");
 						if (f)
 						{
-							searchpathfuncs_t *newsearch = searchpathformats[i].OpenNew(f, name);
+							searchpathfuncs_t *newsearch = searchpathformats[i].OpenNew(f, name, "");
 							if (newsearch)
 							{
 								f = CL_OpenFileInPackage(newsearch, end+1);
@@ -3012,7 +3189,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 		vfsfile_t *vfs = VFSOS_Open(pakname, "rb");
 		pak = FS_OpenPackByExtension(vfs, pakname);
 		if (pak)
-			FS_AddPathHandle(&oldpaths, "", pakname, pak, SPF_COPYPROTECTED|SPF_EXPLICIT, reloadflags);
+			FS_AddPathHandle(&oldpaths, "", pakname, pak, "", SPF_COPYPROTECTED|SPF_EXPLICIT, reloadflags);
 		i = COM_CheckNextParm ("-basepack", i);
 	}
 
@@ -3033,23 +3210,15 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			//paths equal to '*' actually result in loading packages without an actual gamedir. note that this does not imply that we can write anything.
 			if (!strcmp(dir, "*"))
 			{
-				int j;
-				searchpathfuncs_t *handle = VFSOS_OpenPath(NULL, com_gamepath);
+				searchpathfuncs_t *handle = VFSOS_OpenPath(NULL, com_gamepath, "");
 				searchpath_t *search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
 				search->flags = 0;
 				search->handle = handle;
 				Q_strncpyz(search->purepath, "", sizeof(search->purepath));
 				Q_strncpyz(search->logicalpath, com_gamepath, sizeof(search->logicalpath));
 
-				for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
-				{
-					if (!searchpathformats[j].extension || !searchpathformats[j].OpenNew || !searchpathformats[j].loadscan)
-						continue;
-					if (reloadflags & (1<<j))
-					{
-						FS_AddDataFiles(&oldpaths, search->purepath, search->logicalpath, search, searchpathformats[j].extension, searchpathformats[j].OpenNew);
-					}
-				}
+				FS_AddDataFiles(&oldpaths, search->purepath, search->logicalpath, search, SPF_EXPLICIT, reloadflags);
+
 				handle->ClosePath(handle);
 				Z_Free(search);
 			}
@@ -3076,7 +3245,13 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			}
 		}
 	}
+
+	//now mark the depth values
+	if (com_searchpaths)
+		for (next = com_searchpaths->next; next; next = next->next)
+			next->flags |= SPF_BASEPATH;
 	com_base_searchpaths = com_searchpaths;
+
 	for (i = 0; i < sizeof(fs_manifest->gamepath) / sizeof(fs_manifest->gamepath[0]); i++)
 	{
 		char *dir = fs_manifest->gamepath[i].path;
@@ -3207,7 +3382,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 					handle = FS_GetOldPath(&oldpaths, local, &keptflags);
 					if (handle)
 					{
-						sp = FS_AddPathHandle(&oldpaths, pname, local, handle, SPF_COPYPROTECTED|SPF_TEMPORARY|keptflags, (unsigned int)-1);
+						sp = FS_AddPathHandle(&oldpaths, pname, local, handle, "", SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|keptflags, (unsigned int)-1);
 						if (sp->crc_check == crc)
 						{
 							if (fs_puremode)
@@ -3234,10 +3409,10 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 							continue;
 						if (!strcmp(ext, searchpathformats[i].extension))
 						{
-							handle = searchpathformats[i].OpenNew (vfs, local);
+							handle = searchpathformats[i].OpenNew (vfs, local, "");
 							if (!handle)
 								break;
-							sp = FS_AddPathHandle(&oldpaths, pname, local, handle, SPF_COPYPROTECTED|SPF_TEMPORARY, (unsigned int)-1);
+							sp = FS_AddPathHandle(&oldpaths, pname, local, handle, "", SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY, (unsigned int)-1);
 
 							sp->crc_check = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 0);
 							sp->crc_reply = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 1);
@@ -3269,7 +3444,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	{
 		next = oldpaths->next;
 
-		Con_Printf("%s is no longer needed\n", oldpaths->logicalpath);
+		Con_DPrintf("%s is no longer needed\n", oldpaths->logicalpath);
 		oldpaths->handle->ClosePath(oldpaths->handle);
 		Z_Free(oldpaths);
 		oldpaths = next;
@@ -3309,11 +3484,21 @@ void FS_UnloadPackFiles(void)
 
 void FS_ReloadPackFiles(void)
 {
+	//extra junk is to ensure the palette is reloaded if that changed.
+	flocation_t paletteloc = {NULL};
+	flocation_t paletteloc2 = {NULL};
+	FS_FLocateFile("gfx/palette.lmp", 0, &paletteloc);
+
 	if (Sys_LockMutex(fs_thread_mutex))
 	{
 		FS_ReloadPackFilesFlags(~0);
 		Sys_UnlockMutex(fs_thread_mutex);
 	}
+
+	FS_FLocateFile("gfx/palette.lmp", 0, &paletteloc2);
+	if (paletteloc.search != paletteloc2.search)
+		Cbuf_AddText("vid_reload\n", RESTRICT_LOCAL);
+
 }
 
 void FS_ReloadPackFiles_f(void)
@@ -3388,7 +3573,7 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 		if (pSHGetPathFromIDListW((LPITEMIDLIST) lp, szDir))
 		{
 			wchar_t statustxt[MAX_OSPATH];
-			while(foo = wcschr(szDir, '\\'))
+			while((foo = wcschr(szDir, '\\')))
 				*foo = '/';
 			if (pData)
 				_snwprintf(statustxt, countof(statustxt), L"%s/%s", szDir, pData);
@@ -3639,12 +3824,12 @@ static void FS_FreePaths(void)
 }
 void FS_Shutdown(void)
 {
+	if (!fs_thread_mutex)
+		return;
+
 	FS_FreePaths();
-	if (fs_thread_mutex)
-	{
-		Sys_DestroyMutex(fs_thread_mutex);
-		fs_thread_mutex = NULL;
-	}
+	Sys_DestroyMutex(fs_thread_mutex);
+	fs_thread_mutex = NULL;
 
 	Cvar_SetEngineDefault(&fs_gamename, NULL);
 	Cvar_SetEngineDefault(&com_protocolname, NULL);
@@ -3980,7 +4165,7 @@ static void FS_PackagePrompt(char *finalpath, char *filename, char *game)
 static void FS_PackageDownloaded(struct dl_download *dl)
 {
 	curpackagedownload = NULL;
-	
+
 	if (dl->file)
 	{
 		VFS_CLOSE(dl->file);
@@ -3996,7 +4181,7 @@ static void FS_PackageDownloaded(struct dl_download *dl)
 
 		if (fspdl_extracttype == X_UNZIP || fspdl_extracttype == X_MULTIUNZIP)	//if zip...
 		{	//archive
-			searchpathfuncs_t *archive = FSZIP_LoadArchive(VFSOS_Open(fspdl_temppath, "rb"), dl->url);
+			searchpathfuncs_t *archive = FSZIP_LoadArchive(VFSOS_Open(fspdl_temppath, "rb"), dl->url, "");
 			if (archive)
 			{
 				flocation_t loc;
@@ -4512,7 +4697,8 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	qboolean builtingame = false;
 	flocation_t loc;
 
-	char *vidfile[] = {"gfx.wad", "gfx/conback.lmp"};
+	char *vidfile[] = {"gfx.wad", "gfx/conback.lmp",	//misc stuff
+		"gfx/palette.lmp", "pics/colormap.pcx"};		//palettes
 	searchpathfuncs_t *vidpath[countof(vidfile)];
 
 	//if any of these files change location, the configs will be re-execed.
@@ -4697,31 +4883,37 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 	if (Sys_LockMutex(fs_thread_mutex))
 	{
+		qboolean vidrestart = false;
+
 		FS_ReloadPackFilesFlags(~0);
 
 		Sys_UnlockMutex(fs_thread_mutex);
 
 		FS_BeginManifestUpdates();
 
+#ifdef WEBCLIENT
+		if (curpackagedownload && fs_loadedcommand)
+			allowreloadconfigs = false;
+#endif
+
 		COM_CheckRegistered();
+
+
+		if (qrenderer != QR_NONE)
+		{
+			for (i = 0; i < countof(vidfile); i++)
+			{
+				FS_FLocateFile(vidfile[i], FSLF_IFFOUND, &loc);
+				if (vidpath[i] != (loc.search?loc.search->handle:NULL))
+				{
+					vidrestart = true;
+					Con_DPrintf("Restarting video because %s has changed\n", vidfile[i]);
+				}
+			}
+		}
 
 		if (allowreloadconfigs)
 		{
-			qboolean vidrestart = false;
-
-			if (qrenderer != QR_NONE)
-			{
-				for (i = 0; i < countof(vidfile); i++)
-				{
-					FS_FLocateFile(vidfile[i], FSLF_IFFOUND, &loc);
-					if (vidpath[i] != (loc.search?loc.search->handle:NULL))
-					{
-						vidrestart = true;
-						Con_DPrintf("Restarting video because %s has changed\n", vidfile[i]);
-					}
-				}
-			}
-
 			for (i = 0; i < countof(conffile); i++)
 			{
 				FS_FLocateFile(conffile[i], FSLF_IFFOUND, &loc);
@@ -4739,6 +4931,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 				//FIXME: flag this instead and do it after a delay?
 				Cvar_ForceSet(&fs_gamename, fs_gamename.enginevalue);
 				Cvar_ForceSet(&com_protocolname, com_protocolname.enginevalue);
+				vidrestart = false;
 
 				if (isDedicated)
 				{
@@ -4758,14 +4951,27 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 #ifndef SERVERONLY
 				Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
 #endif
+				vidrestart = false;
 			}
+			if (fs_loadedcommand)
+			{
+				Cbuf_AddText(fs_loadedcommand, RESTRICT_INSECURE);
+				Z_Free(fs_loadedcommand);
+				fs_loadedcommand = NULL;
+			}
+		}
+		if (vidrestart)
+		{
+#ifndef SERVERONLY
+			Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
+#endif
+			vidrestart = false;
 		}
 
 		//rebuild the cache now, should be safe to waste some cycles on it
 		COM_FlushFSCache(false, true);
 	}
 
-//	COM_Effectinfo_Clear();
 #ifndef SERVERONLY
 	Validation_FlushFileList();	//prevent previous hacks from making a difference.
 #endif
@@ -5044,6 +5250,83 @@ void FS_ChangeGame_f(void)
 #endif
 	}
 }
+
+void FS_ChangeMod_f(void)
+{
+	char cachename[512];
+	struct gamepacks packagespaths[16];
+	int i;
+	int packages = 0;
+	const char *arg = "?";
+	qboolean okay = false;
+
+	if (Cmd_IsInsecure())
+		return;
+
+	Z_Free(fs_loadedcommand);
+	fs_loadedcommand = NULL;
+
+	memset(packagespaths, 0, sizeof(packagespaths));
+
+	for (i = 1; ; )
+	{
+		if (i == Cmd_Argc())
+		{
+			okay = true;
+			break;
+		}
+		arg = Cmd_Argv(i++);
+		if (!strcmp(arg, "package"))
+		{
+			if (packages >= countof(packagespaths)-1)	//must leave space for one, as a terminator.
+				break;
+
+			arg = Cmd_Argv(i++);
+			packagespaths[packages].url = Z_StrDup(arg);
+			if (!FS_PathURLCache(packagespaths[packages].url, cachename, sizeof(cachename)))
+				break;
+			packagespaths[packages].path = Z_StrDup(cachename);
+			packages++;
+		}
+		else if (!strcmp(arg, "prefix"))
+		{
+			if (!packages)
+				break;
+			arg = Cmd_Argv(i++);
+			packagespaths[packages-1].subpath = Z_StrDup(arg);
+		}
+		else if (!strcmp(arg, "map"))
+		{
+			Z_Free(fs_loadedcommand);
+			arg = va("map \"%s\"\n", Cmd_Argv(i++));
+			fs_loadedcommand = Z_StrDup(arg);
+		}
+		else if (!strcmp(arg, "restart"))
+		{
+			Z_Free(fs_loadedcommand);
+			fs_loadedcommand = Z_StrDup("restart\n");
+		}
+		else
+			break;
+	}
+
+	if (okay)
+		COM_Gamedir("", packagespaths);
+	else
+	{
+		Con_Printf("unsupported args: %s\n", arg);
+		Z_Free(fs_loadedcommand);
+		fs_loadedcommand = NULL;
+	}
+
+	for (i = 0; i < packages; i++)
+	{
+		Z_Free(packagespaths[i].url);
+		Z_Free(packagespaths[i].path);
+		Z_Free(packagespaths[i].subpath);
+	}
+}
+
 void FS_ShowManifest_f(void)
 {
 	if (fs_manifest)
@@ -5068,7 +5351,8 @@ void COM_InitFilesystem (void)
 	FS_RegisterDefaultFileSystems();
 
 	Cmd_AddCommand("fs_restart", FS_ReloadPackFiles_f);
-	Cmd_AddCommand("fs_changegame", FS_ChangeGame_f);
+	Cmd_AddCommandD("fs_changegame", FS_ChangeGame_f, "Switch between different manifests (or registered games)");
+	Cmd_AddCommandD("fs_changemod", FS_ChangeMod_f, "Provides the backend functionality of a transient online installer. Eg, for quaddicted's map/mod database.");
 	Cmd_AddCommand("fs_showmanifest", FS_ShowManifest_f);
 
 //
@@ -5111,7 +5395,7 @@ void COM_InitFilesystem (void)
 		if (dSHGetFolderPathW)
 		{
 			wchar_t wfolder[MAX_PATH];
-			char folder[MAX_PATH];
+			char folder[MAX_OSPATH];
 			// 0x5 == CSIDL_PERSONAL
 			if (dSHGetFolderPathW(NULL, 0x5, NULL, 0, wfolder) == S_OK)
 			{
@@ -5227,13 +5511,13 @@ void COM_InitFilesystem (void)
 
 
 //this is at the bottom of the file to ensure these globals are not used elsewhere
-extern searchpathfuncs_t *(QDECL VFSOS_OpenPath) (vfsfile_t *file, const char *desc);
+extern searchpathfuncs_t *(QDECL VFSOS_OpenPath) (vfsfile_t *file, const char *desc, const char *prefix);
 #if 1//def AVAIL_ZLIB
-extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *packhandle, const char *desc);
+extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
 #endif
-extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *packhandle, const char *desc);
+extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
 #ifdef DOOMWADS
-extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *packhandle, const char *desc);
+extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
 #endif
 void FS_RegisterDefaultFileSystems(void)
 {

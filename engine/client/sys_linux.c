@@ -687,7 +687,7 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
         write(fd, "\n", 1);
         close(fd);
     }
-#ifdef DEBUG
+#if defined(DEBUG) && defined(GLQUAKE)
 	DumpGLState();
 #endif
     exit(1);
@@ -709,6 +709,12 @@ char *Sys_ConsoleInput(void)
 #if 1
 	static char text[256];
 	int len;
+
+	if (SSV_IsSubServer())
+	{
+		SSV_CheckFromMaster();
+		return NULL;
+	}
 
 	if (noconinput)
 		return NULL;
@@ -809,6 +815,11 @@ int main (int c, const char **v)
 	if (!noconinput)
 		fcntl(0, F_SETFL, fcntl (0, F_GETFL, 0) | FNDELAY);
 
+#ifdef SUBSERVERS
+	if (COM_CheckParm("-clusterslave"))
+		isDedicated = nostdout = isClusterSlave = true;
+#endif
+
 	if (COM_CheckParm("-nostdout"))
 		nostdout = 1;
 
@@ -903,7 +914,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 #endif
 }
 
-#ifndef GLQUAKE
+#if !defined(GLQUAKE) && !defined(VKQUAKE)
 #define SYS_CLIPBOARD_SIZE		256
 static char clipboard_buffer[SYS_CLIPBOARD_SIZE] = {0};
 

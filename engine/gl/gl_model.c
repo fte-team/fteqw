@@ -36,7 +36,7 @@ cvar_t mod_loadentfiles						= CVAR("sv_loadentfiles", "1");
 cvar_t mod_loadentfiles_dir					= CVAR("sv_loadentfiles_dir", "");
 cvar_t mod_external_vis						= CVARD("mod_external_vis", "1", "Attempt to load .vis patches for quake maps, allowing transparent water to work properly.");
 cvar_t mod_warnmodels						= CVARD("mod_warnmodels", "1", "Warn if any models failed to load. Set to 0 if your mod is likely to lack optional models (like its in development).");	//set to 0 for hexen2 and its otherwise-spammy-as-heck demo.
-cvar_t mod_litsprites						= CVARD("mod_litsprites", "0", "If set to 1, sprites will be lit according to world lighting (including rtlights), like Tenebrae. Use EF_ADDITIVE or EF_FULLBRIGHT to make emissive sprites instead.");
+cvar_t mod_litsprites_force					= CVARD("mod_litsprites_force", "0", "If set to 1, sprites will be lit according to world lighting (including rtlights), like Tenebrae. Ideally use EF_ADDITIVE or EF_FULLBRIGHT to make emissive sprites instead.");
 cvar_t temp_lit2support						= CVARD("temp_mod_lit2support", "0", "Set to 1 to enable lit2 support. This cvar will be removed once the format is finalised.");
 #ifdef SERVERONLY
 cvar_t gl_overbright, gl_specular, gl_load24bit, r_replacemodels, gl_miptexLevel, r_fb_bmodels;	//all of these can/should default to 0
@@ -166,6 +166,8 @@ static void Mod_TextureList_f(void)
 	model_t *mod;
 	qboolean shownmodelname = false;
 	int count = 0;
+	char *body;
+	char editname[MAX_OSPATH];
 	for (m=0 , mod=mod_known ; m<mod_numknown ; m++, mod++)
 	{
 		if (shownmodelname)
@@ -190,7 +192,20 @@ static void Mod_TextureList_f(void)
 					count = 0;
 				}
 
-				Con_Printf("  %s\n", tx->name);
+				body = Shader_GetShaderBody(tx->shader, editname, sizeof(editname));
+				if (!body)
+					body = "SHADER NOT KNOWN";
+				else
+				{
+					char *cr;
+					while ((cr = strchr(body, '\r')))
+						*cr = ' ';
+				}
+
+				if (*editname)
+					Con_Printf("  ^[^7%s\\edit\\%s\\tipimg\\%s\\tip\\{%s^]\n", tx->name, editname, tx->name, body);
+				else
+					Con_Printf("  ^[^7%s\\tipimg\\%s\\tip\\{%s^]\n", tx->name, tx->name, body);
 				count++;
 			}
 		}
@@ -419,6 +434,7 @@ void Mod_ResortShaders(void)
 
 		memcpy(oldlists, mod->batches, sizeof(oldlists));
 		memset(mod->batches, 0, sizeof(oldlists));
+		mod->numbatches = 0;	//this is a bit of a misnomer. clearing this will cause it to be recalculated, with everything renumbered as needed.
 	
 		for (j = 0; j < SHADER_SORT_COUNT; j++)
 		{
@@ -564,7 +580,7 @@ void Mod_Init (qboolean initial)
 	{
 		Cvar_Register(&mod_external_vis, "Graphical Nicaties");
 		Cvar_Register(&mod_warnmodels, "Graphical Nicaties");
-		Cvar_Register(&mod_litsprites, "Graphical Nicaties");
+		Cvar_Register(&mod_litsprites_force, "Graphical Nicaties");
 		Cvar_Register(&mod_loadentfiles, NULL);
 		Cvar_Register(&mod_loadentfiles_dir, NULL);
 		Cvar_Register(&temp_lit2support, NULL);
@@ -1330,11 +1346,11 @@ void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safetoloadf
 		maps |= SHADER_HASDIFFUSE;
 		if (r_fb_bmodels.ival)
 			maps |= SHADER_HASFULLBRIGHT;
-		if (r_loadbumpmapping || (r_waterstyle.ival > 1 && *tx->name == '*') || tx->shader->defaulttextures->reflectcube)
+		if (r_loadbumpmapping || ((r_waterstyle.ival > 1 || r_telestyle.ival > 1) && *tx->name == '*') || tx->shader->defaulttextures->reflectcube)
 			maps |= SHADER_HASNORMALMAP;
 		if (gl_specular.ival)
 			maps |= SHADER_HASGLOSS;
-		R_BuildLegacyTexnums(tx->shader, origname, loadname, maps, ((*tx->name=='{')?TF_TRANS8:TF_MIP4_SOLID8), tx->width, tx->height, tx->mips, tx->palette);
+		R_BuildLegacyTexnums(tx->shader, origname, loadname, maps, 0, ((*tx->name=='{')?TF_TRANS8:TF_MIP4_SOLID8), tx->width, tx->height, tx->mips, tx->palette);
 	}
 	BZ_Free(tx->mips[0]);
 #endif
@@ -1654,15 +1670,12 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 	//if we're not rendering with that, we need to brighten the lightmaps in order to keep the darker parts the same brightness. we loose the 2 upper bits. those bright areas become uniform and indistinct.
 	if (loadmodel->fromgame == fg_quake3)
 	{
-		gl_overbright.flags |= CVAR_LATCH;
+		gl_overbright.flags |= CVAR_RENDERERLATCH;
 		BuildLightMapGammaTable(1, (1<<(2-gl_overbright.ival)));
 	}
 	else
 	//lit file light intensity is made to match the world's light intensity.
-//	if (cls.allow_lightmapgamma)
-//		BuildLightMapGammaTable(0.6, 2);
-//	else
-		BuildLightMapGammaTable(1, 1);
+	BuildLightMapGammaTable(1, 1);
 
 	loadmodel->lightdata = NULL;
 	loadmodel->deluxdata = NULL;
@@ -2674,7 +2687,6 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 		mesh = surf->mesh = ZG_Malloc(&mod->memgroup, sizeof(mesh_t) + (sizeof(vecV_t)+sizeof(vec2_t)*(1+1)+sizeof(vec3_t)*3+sizeof(vec4_t)*1)* surf->numedges + sizeof(index_t)*(surf->numedges-2)*3);
 		mesh->numvertexes = surf->numedges;
 		mesh->numindexes = (mesh->numvertexes-2)*3;
-		mesh->istrifan = true;
 		mesh->xyz_array = (vecV_t*)(mesh+1);
 		mesh->st_array = (vec2_t*)(mesh->xyz_array+mesh->numvertexes);
 		mesh->lmst_array[0] = (vec2_t*)(mesh->st_array+mesh->numvertexes);
@@ -2684,6 +2696,7 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 		mesh->colors4f_array[0] = (vec4_t*)(mesh->tnormals_array+mesh->numvertexes);
 		mesh->indexes = (index_t*)(mesh->colors4f_array[0]+mesh->numvertexes);
 	}
+	mesh->istrifan = true;
 
 	//output the mesh's indicies
 	for (i=0 ; i<mesh->numvertexes-2 ; i++)
@@ -2957,18 +2970,10 @@ static int Mod_Batches_Generate(model_t *mod)
 	batch_t *batch, *lbatch = NULL;
 	vec4_t plane;
 
-	int merge = 1;
-/*
-	if (mod->fromgame == fg_quake3 && *mod->name != '*')
-	{
-		int limit = min(sh_config.texture_maxsize / mod->lightmaps.height, mod_mergeq3lightmaps.ival);
-		while (merge*2 <= limit)
-			merge *= 2;
+	int merge = mod->lightmaps.merge;
+	if (!merge)
+		merge = 1;
 
-		if (merge < 1)//erk?
-			merge = 1;
-	}
-*/
 	mod->lightmaps.count = (mod->lightmaps.count+merge-1) & ~(merge-1);
 	mod->lightmaps.count /= merge;
 	mod->lightmaps.height *= merge;
@@ -4491,7 +4496,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 //					maps |= SHADER_HASNORMALMAP;
 				if (gl_specular.ival)
 					maps |= SHADER_HASGLOSS;
-				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, TF_MIP4_SOLID8, mod->textures[a]->width, mod->textures[a]->height, mod->textures[a]->mips, mod->textures[a]->palette);
+				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, 0, maps, TF_MIP4_SOLID8, mod->textures[a]->width, mod->textures[a]->height, mod->textures[a]->mips, mod->textures[a]->palette);
 				BZ_Free(mod->textures[a]->mips[0]);
 			}
 		}
@@ -4541,7 +4546,7 @@ static void Mod_FindVisPatch(struct vispatch_s *patch, model_t *mod, size_t leaf
 
 	//ignore the patch file if its in a different gamedir.
 	//this file format sucks too much for other verification.
-	if (FS_FLocateFile(mod->name,FSLF_DEPTH_EXPLICIT, NULL) != FS_FLocateFile(patchname,FSLF_DEPTH_EXPLICIT, NULL))
+	if (FS_FLocateFile(mod->name,FSLF_DEEPONFAILURE, NULL) != FS_FLocateFile(patchname,FSLF_DEEPONFAILURE, NULL))
 		return;
 
 	patch->filelen = FS_LoadFile(patchname, &patch->fileptr);
@@ -4607,11 +4612,7 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	qbyte *mod_base = buffer;
 	qboolean hexen2map = false;
 	qboolean isnotmap;
-#if (defined(ODE_STATIC) || defined(ODE_DYNAMIC))
-	qboolean ode = true;
-#else
-#define ode true
-#endif
+	qboolean using_rbe = true;
 
 	COM_FileBase (mod->name, loadname, sizeof(loadname));
 	mod->type = mod_brush;
@@ -4707,7 +4708,7 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	Mod_FindVisPatch(&vispatch, mod, header->lumps[LUMP_LEAFS].filelen);
 
 // load into heap
-	if (!isDedicated || ode)
+	if (!isDedicated || using_rbe)
 	{
 		TRACE(("Loading verts\n"));
 		noerrors = noerrors && Mod_LoadVertexes (mod, mod_base, &header->lumps[LUMP_VERTEXES]);
@@ -4732,7 +4733,7 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	noerrors = noerrors && Mod_LoadPlanes (mod, mod_base, &header->lumps[LUMP_PLANES]);
 	TRACE(("Loading Entities\n"));
 	Mod_LoadEntities (mod, mod_base, &header->lumps[LUMP_ENTITIES]);
-	if (!isDedicated || ode)
+	if (!isDedicated || using_rbe)
 	{
 		TRACE(("Loading Texinfo\n"));
 		noerrors = noerrors && Mod_LoadTexinfo (mod, mod_base, &header->lumps[LUMP_TEXINFO]);
@@ -4833,7 +4834,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 		memset(&submod->batches, 0, sizeof(submod->batches));
 		submod->vbos = NULL;
 		TRACE(("LoadBrushModel %i\n", __LINE__));
-		if (!isDedicated || ode)
+		if (!isDedicated || using_rbe)
 		{
 			COM_AddWork(WG_MAIN, ModBrush_LoadGLStuff, submod, NULL, i, 0);
 		}
@@ -4925,21 +4926,10 @@ SPRITES
 void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspriteframe_t *frameinfo)
 {
 #ifndef SERVERONLY
-	/*
-	A quick note on tenebrae and sprites: In tenebrae, sprites are always lit, unless the light_lev field is set (which makes it fullbright).
-	While its generally preferable and more consistent to assume lit sprites, this is incompatible with vanilla quake and thus unacceptable to us, but you can set the mod_assumelitsprites cvar if you want it.
-	So for better compatibility, we have a whitelist of 'well-known' sprites that tenebrae uses in this way, which we do lighting on.
-	You should still be able to use EF_FULLBRIGHT on these, but light_lev is an imprecise setting and will result in issues. Just be specific about fullbright or additive.
-	DP on the other hand, supports lit sprites only when the sprite contains a ! in its name. We support that too.
-	*/
-	char *forcelitsprites[] =
-	{
-		"progs/smokepuff.spr",
-		NULL
-	};
 	int i;
 	char *shadertext;
 	char name[MAX_QPATH];
+	qboolean litsprite = false;
 
 	if (qrenderer == QR_NONE)
 		return;
@@ -4949,19 +4939,34 @@ void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspritefra
 	else
 		Q_snprintfz(name, sizeof(name), "%s_%i_%i.tga", spr->name, frame, subframe);
 
-	if (mod_litsprites.ival || strchr(spr->name, '!'))
-		i = -1;
+	if (mod_litsprites_force.ival || strchr(spr->name, '!'))
+		litsprite = true;
+#ifndef NOLEGACY
 	else
 	{
+		/*
+		A quick note on tenebrae and sprites: In tenebrae, sprites are always lit, unless the light_lev field is set (which makes it fullbright).
+		While its generally preferable and more consistent to assume lit sprites, this is incompatible with vanilla quake and thus unacceptable to us, but you can set the mod_assumelitsprites cvar if you want it.
+		So for better compatibility, we have a whitelist of 'well-known' sprites that tenebrae uses in this way, which we do lighting on.
+		You should still be able to use EF_FULLBRIGHT on these, but light_lev is an imprecise setting and will result in issues. Just be specific about fullbright or additive.
+		DP on the other hand, supports lit sprites only when the sprite contains a ! in its name. We support that too.
+		*/
+		static char *forcelitsprites[] =
+		{
+			"progs/smokepuff.spr",
+			NULL
+		};
+
 		for (i = 0; forcelitsprites[i]; i++)
 			if (!strcmp(spr->name, forcelitsprites[i]))
 			{
-				i = -1;
+				litsprite = true;
 				break;
 			}
 	}
+#endif
 
-	if (i == -1)	// a ! in the filename makes it non-fullbright (and can also be lit by rtlights too).
+	if (litsprite)	// a ! in the filename makes it non-fullbright (and can also be lit by rtlights too).
 	{
 		shadertext = 
 			"{\n"

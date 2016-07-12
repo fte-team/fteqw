@@ -31,7 +31,7 @@ console_t	*con_chat;			// points to a chat console
 #define Font_ScreenWidth() (vid.pixelwidth)
 
 static int Con_DrawProgress(int left, int right, int y);
-static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, int y, int top, qboolean selactive, int selsx, int selex, int selsy, int seley);
+static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, int y, int top, int selactive, int selsx, int selex, int selsy, int seley, float lineagelimit);
 
 #ifdef QTERM
 #include <windows.h>
@@ -110,6 +110,13 @@ void Con_Destroy (console_t *con)
 	shader_t *shader;
 	console_t *prev;
 	conline_t *t;
+
+	if (con->close)
+	{
+		con->close(con, true);
+		con->close = NULL;
+	}
+
 	/*purge the lines from the console*/
 	while (con->current)
 	{
@@ -165,6 +172,20 @@ void Con_Destroy (console_t *con)
 	if (shader)
 		R_UnloadShader(shader);
 }
+
+/*just purges the background images for various consoles on restart/shutdown*/
+void Con_FlushBackgrounds(void)
+{
+	console_t *con;
+	//fixme: we really need to handle videomaps differently here, for vid_restarts.
+	for (con = &con_main; con; con = con->next)
+	{
+		if (con->backshader)
+			R_UnloadShader(con->backshader);
+		con->backshader = NULL;
+	}
+}
+
 /*obtains a console_t without creating*/
 console_t *Con_FindConsole(const char *name)
 {
@@ -187,6 +208,7 @@ console_t *Con_Create(const char *name, unsigned int flags)
 	con = Z_Malloc(sizeof(console_t));
 	Q_strncpyz(con->name, name, sizeof(con->name));
 	Q_strncpyz(con->title, name, sizeof(con->title));
+	Q_strncpyz(con->prompt, "]", sizeof(con->prompt));
 
 	con->flags = flags;
 	Con_Finit(con);
@@ -200,9 +222,28 @@ void Con_SetActive (console_t *con)
 {
 	if (con->flags & CONF_ISWINDOW)
 	{
-		con_curwindow = con;
+		console_t *prev;
 		Key_Dest_Add(kdm_cwindows);
 		Key_Dest_Remove(kdm_console);
+
+		if (con_curwindow == con)
+			return;
+
+		for (prev = &con_main; prev; prev = prev->next)
+		{
+			if (prev->next == con)
+			{
+				prev->next = con->next;
+				while(prev->next)
+				{
+					prev = prev->next;
+				}
+				prev->next = con;
+				con->next = NULL;
+				break;
+			}
+		}
+		con_curwindow = con;
 	}
 	else
 		con_current = con;
@@ -399,10 +440,9 @@ void Con_QTerm_f(void)
 
 void Key_ClearTyping (void)
 {
-	key_lines[edit_line] = BZ_Realloc(key_lines[edit_line], 2);
-	key_lines[edit_line][0] = ']';
-	key_lines[edit_line][1] = 0;	// clear any typing
-	key_linepos = 1;
+	key_lines[edit_line] = BZ_Realloc(key_lines[edit_line], 1);
+	key_lines[edit_line][0] = 0;	// clear any typing
+	key_linepos = 0;
 }
 
 void Con_History_Load(void)
@@ -413,17 +453,15 @@ void Con_History_Load(void)
 
 	for (edit_line=0 ; edit_line<=CON_EDIT_LINES_MASK ; edit_line++)
 	{
-		key_lines[edit_line] = BZ_Realloc(key_lines[edit_line], 2);
-		key_lines[edit_line][0] = ']';
-		key_lines[edit_line][1] = 0;
+		key_lines[edit_line] = BZ_Realloc(key_lines[edit_line], 1);
+		key_lines[edit_line][0] = 0;
 	}
 	edit_line = 0;
-	key_linepos = 1;
+	key_linepos = 0;
 
 	if (file)
 	{
-		line[0] = ']';
-		while (VFS_GETS(file, line+1, sizeof(line)-1))
+		while (VFS_GETS(file, line, sizeof(line)-1))
 		{
 			//strip a trailing \r if its from windows.
 			cr = line + strlen(line);
@@ -431,7 +469,7 @@ void Con_History_Load(void)
 				cr[-1] = '\0';
 			key_lines[edit_line] = BZ_Realloc(key_lines[edit_line], strlen(line)+1);
 			strcpy(key_lines[edit_line], line);
-			edit_line = (edit_line + 1) & CON_EDIT_LINES_MASK;
+			edit_line = (edit_line+1) & CON_EDIT_LINES_MASK;
 		}
 		VFS_CLOSE(file);
 	}
@@ -448,7 +486,7 @@ void Con_History_Save(void)
 			line = 0;
 		for(; line < edit_line; line++)
 		{
-			VFS_PUTS(file, key_lines[line]+1);
+			VFS_PUTS(file, key_lines[line]);
 #ifdef _WIN32	//use an \r\n for readability with notepad.
 			VFS_PUTS(file, "\r\n");
 #else
@@ -632,6 +670,7 @@ void Con_Init (void)
 	con_main.linebuffered = Con_ExecuteLine;
 	con_main.commandcompletion = true;
 	Q_strncpyz(con_main.title, "MAIN", sizeof(con_main.title));
+	Q_strncpyz(con_main.prompt, "]", sizeof(con_main.prompt));
 
 	con_initialized = true;
 //	Con_TPrintf ("Console initialized.\n");
@@ -701,40 +740,63 @@ If no console is visible, the notify window will pop up.
 ================
 */
 
-static void Con_PrintConChars (console_t *con, conchar_t *c, int len)
+//reallocates a line (with its buffer), and updates its links. if shrinking, be sure to reduce the length
+conline_t *Con_ResizeLineBuffer(console_t *con, conline_t *old, unsigned int length)
 {
-	conline_t *oc;
+	conline_t *l;
+
+	old->maxlength = length;
+	if (old->maxlength < old->length)
+		return NULL;	//overflow.
+	l = BZ_Realloc(old, sizeof(*l)+(old->maxlength)*sizeof(conchar_t));
+
+	if (l->newer)
+		l->newer->older = l;
+	if (l->older)
+		l->older->newer = l;
+
+	if (con->selstartline == old)
+		con->selstartline = l;
+	if (con->selendline == old)
+		con->selendline = l;
+	if (con->display == old)
+		con->display = l;
+	if (con->oldest == old)
+		con->oldest = l;
+	if (con->current == old)
+		con->current = l;
+	if (con->footerline == old)
+		con->footerline = l;
+	if (con->userline == old)
+		con->userline = l;
+	if (con->highlightline == old)
+		con->highlightline = old;
+	return l;
+}
+
+qboolean Con_InsertConChars (console_t *con, conline_t *line, int offset, conchar_t *c, int len)
+{
 	conchar_t *o;
-	if (con->selstartline == con->current)
-		con->selstartline = NULL;
-	if (con->selendline == con->current)
-		con->selendline = NULL;
 
-	oc = con->current;
-	if (oc->length+len > oc->maxlength)
+	if (line->length+len > line->maxlength)
 	{
-		oc->maxlength = (oc->length+len)+8;
-		if (oc->maxlength < oc->length)
-			oc->length = 0;	//don't crash from console line overflows.
-		con->current = BZ_Realloc(con->current, sizeof(*con->current)+(oc->maxlength)*sizeof(conchar_t));
+		line = Con_ResizeLineBuffer(con, line, line->length+len + 8);
+		if (!line)
+			return false;	//overflowed!
 	}
-	if (con->display == oc)
-		con->display = con->current;
-	if (con->oldest == oc)
-		con->oldest = con->current;
 
-	if (con->current->older)
-		con->current->older->newer = con->current;
-	o = (conchar_t *)(con->current+1)+con->current->length;
-	memcpy(o, c, sizeof(*o) * len);
-	con->current->length+=len;
+	o = (conchar_t *)(line+1);
+	if (line->length-offset)
+		memmove(o+offset+len, o+offset, (line->length-offset)*sizeof(conchar_t));
+	memcpy(o+offset, c, sizeof(*o) * len);
+	line->length+=len;
+	return true;
 }
 
 void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 {
 	conchar_t expanded[4096];
 	conchar_t *c;
-	conline_t *oc;
 	conline_t *reuse;
 	int maxlines;
 
@@ -750,8 +812,6 @@ void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 		con->unseentext = true;
 	while (*c)
 	{
-		conchar_t *o;
-
 		switch (*c & (CON_CHARMASK|CON_HIDDEN))	//include hidden so we don't do \r or \n on hidden chars, allowing them to be embedded in links and stuff.
 		{
 		case '\r':
@@ -781,11 +841,12 @@ void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 				con->linecount--;
 			}
 			con->linecount++;
-			if ((con->flags & CONF_NOTIMES) || (parseflags & PFS_NONOTIFY))
-				con->current->time = 0;
-			else
-				con->current->time = realtime + con->notif_t;
-			con->current->flags = (parseflags & PFS_CENTERED)?CONL_CENTERED:0;
+			con->current->time = realtime;
+			con->current->flags = 0;
+			if (parseflags & PFS_CENTERED)
+				con->current->flags |= CONL_CENTERED;
+			if (parseflags & PFS_NONOTIFY)
+				con->current->flags |= CONL_NONOTIFY;
 
 #if defined(_WIN32) && !defined(NOMEDIA) && !defined(WINRT)
 			if (con->current)
@@ -825,42 +886,17 @@ void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 				time (&rawtime);
 				strftime(timeasc, sizeof(timeasc), con_timeformat.string, localtime (&rawtime));
 				timeconend = COM_ParseFunString(con->defaultcharbits, timeasc, timecon, sizeof(timecon), false);
-				Con_PrintConChars(con, timecon, timeconend-timecon);
+				Con_InsertConChars(con, con->current, con->current->length, timecon, timeconend-timecon);
 			}
 
-			if (con->selstartline == con->current)
-				con->selstartline = NULL;
-			if (con->selendline == con->current)
-				con->selendline = NULL;
-
-			oc = con->current;
-			if (oc->length+1 > oc->maxlength)
-			{
-				oc->maxlength = ((oc->length+1)+8)&0xffff;
-				if (oc->maxlength < oc->length)
-					oc->length = 0;	//don't crash from console line overflows.
-				con->current = BZ_Realloc(con->current, sizeof(*con->current)+(oc->maxlength)*sizeof(conchar_t));
-			}
-			if (con->display == oc)
-				con->display = con->current;
-			if (con->oldest == oc)
-				con->oldest = con->current;
-
-			if (con->current->older)
-				con->current->older->newer = con->current;
-			o = (conchar_t *)(con->current+1)+con->current->length;
-			*o = *c;
-			con->current->length+=1;
+			//FIXME: don't do this a char at a time
+			Con_InsertConChars(con, con->current, con->current->length, c, 1);
 			break;
 		}
 		c++;
 	}
 
-	
-	if ((con->flags & CONF_NOTIMES) || (parseflags & PFS_NONOTIFY))
-		con->current->time = 0;
-	else
-		con->current->time = realtime + con->notif_t;
+	con->current->time = realtime;
 }
 
 void Con_CenterPrint(const char *txt)
@@ -908,7 +944,7 @@ Handles cursor positioning, line wrapping, etc
 
 #ifndef CLIENTONLY
 extern redirect_t	sv_redirected;
-extern char	outputbuf[8000];
+extern char	sv_redirected_buf[8000];
 void SV_FlushRedirect (void);
 #endif
 
@@ -939,11 +975,10 @@ void VARGS Con_Printf (const char *fmt, ...)
 	// add to redirected message
 	if (sv_redirected)
 	{
-		if (strlen (msg) + strlen(outputbuf) > sizeof(outputbuf) - 1)
+		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
 			SV_FlushRedirect ();
-		strcat (outputbuf, msg);
-		if (sv_redirected != -1)
-			return;
+		strcat (sv_redirected_buf, msg);
+		return;
 	}
 #endif
 
@@ -1052,7 +1087,8 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 	else
 	{
 		Sys_Printf ("%s", msg);	// also echo to debugging console
-		Con_PrintCon(&con_main, msg, con_main.parseflags);
+		if (con_initialized)
+			Con_PrintCon(&con_main, msg, con_main.parseflags);
 	}
 }
 
@@ -1072,10 +1108,10 @@ void Con_Footerf(console_t *con, qboolean append, const char *fmt, ...)
 	va_start (argptr,fmt);
 	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
-	markedend = COM_ParseFunString(COLOR_YELLOW << CON_FGSHIFT, msg, marked, sizeof(marked), false);
+	markedend = COM_ParseFunString((COLOR_YELLOW << CON_FGSHIFT)|(con->backshader?CON_NONCLEARBG:0), msg, marked, sizeof(marked), false);
 
 	newlen = markedend - marked;
-	if (append)
+	if (append && con->footerline)
 		oldlen = con->footerline->length;
 	else
 		oldlen = 0;
@@ -1130,16 +1166,18 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	conchar_t *endmtext;
 	conchar_t *cursor;
 	conchar_t *cchar;
+	conchar_t *textstart;
+	size_t textsize;
 	qboolean cursorframe;
 	unsigned int codeflags, codepoint;
 
 	int x;
 
-	if (!con->linebuffered)
+	if (!con->linebuffered || con->linebuffered == Con_Navigate)
 	{
 		if (con->footerline)
 		{
-			y = Con_DrawConsoleLines(con, con->footerline, left, right, y, 0, selactive, selsx, selex, selsy, seley);
+			y = Con_DrawConsoleLines(con, con->footerline, left, right, y, 0, selactive, selsx, selex, selsy, seley, 0);
 		}
 		return y;	//fixme: draw any unfinished lines of the current console instead.
 	}
@@ -1156,11 +1194,13 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	//if it's not a command, and the cursor is at the end of the line, leave it as is,
 	//	but add to the end to show what the compleation will be.
 
+	textstart = COM_ParseFunString(CON_WHITEMASK, con->prompt, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), PFS_FORCEUTF8);
+	textsize = (countof(maskedtext) - (textstart-maskedtext) - 1) * sizeof(maskedtext[0]);
 	i = text[key_linepos];
 	text[key_linepos] = 0;
-	cursor = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), PFS_KEEPMARKUP | PFS_FORCEUTF8);
+	cursor = COM_ParseFunString(CON_WHITEMASK, text, textstart, textsize, PFS_KEEPMARKUP | PFS_FORCEUTF8);
 	text[key_linepos] = i;
-	endmtext = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), PFS_KEEPMARKUP | PFS_FORCEUTF8);
+	endmtext = COM_ParseFunString(CON_WHITEMASK, text, textstart, textsize, PFS_KEEPMARKUP | PFS_FORCEUTF8);
 //	endmtext = COM_ParseFunString(CON_WHITEMASK, text+key_linepos, cursor, ((char*)maskedtext)+sizeof(maskedtext) - (char*)(cursor+1), PFS_KEEPMARKUP | PFS_FORCEUTF8);
 
 	if ((char*)endmtext == (char*)(maskedtext-2) + sizeof(maskedtext))
@@ -1172,10 +1212,10 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 
 	if (con->commandcompletion)
 	{
-		if (cl_chatmode.ival && (text[1] == '/' || (cl_chatmode.ival == 2 && Cmd_IsCommand(text+1))))
+		if (cl_chatmode.ival && (text[0] == '/' || (cl_chatmode.ival == 2 && Cmd_IsCommand(text))))
 		{	//color the first token yellow, it's a valid command
-			for (p = 1; (maskedtext[p]&CON_CHARMASK)>' '; p++)
-				maskedtext[p] = (maskedtext[p]&CON_CHARMASK) | (COLOR_YELLOW<<CON_FGSHIFT);
+			for (p = 0; (textstart[p]&CON_CHARMASK)>' '; p++)
+				textstart[p] = (textstart[p]&CON_CHARMASK) | (COLOR_YELLOW<<CON_FGSHIFT);
 		}
 //		else
 //			Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8, si, con_current->linewidth);
@@ -1183,17 +1223,17 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 		if (cursor == endmtext)	//cursor is at end
 		{
 			int cmdstart;
-			cmdstart = text[1] == '/'?2:1;
+			cmdstart = text[0] == '/'?1:0;
 			fname = Cmd_CompleteCommand(text+cmdstart, true, true, con_commandmatch, NULL);
 			if (fname && strlen(fname) < 256)	//we can compleate it to:
 			{
 				for (p = min(strlen(fname), key_linepos-cmdstart); fname[p]>' '; p++)
-					maskedtext[p+cmdstart] = (unsigned int)fname[p] | (COLOR_GREEN<<CON_FGSHIFT);
+					textstart[p+cmdstart] = (unsigned int)fname[p] | (COLOR_GREEN<<CON_FGSHIFT);
 				if (p < key_linepos-cmdstart)
 					p = key_linepos-cmdstart;
 				p = min(p+cmdstart, sizeof(maskedtext)/sizeof(maskedtext[0]) - 2);
-				maskedtext[p] = 0;
-				maskedtext[p+1] = 0;
+				textstart[p] = 0;
+				textstart[p+1] = 0;
 			}
 		}
 	}
@@ -1259,7 +1299,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	/*if its getting completed to something, show some help about the command that is going to be used*/
 	if (con->footerline)
 	{
-		y = Con_DrawConsoleLines(con, con->footerline, left, right, y, 0, selactive, selsx, selex, selsy, seley);
+		y = Con_DrawConsoleLines(con, con->footerline, left, right, y, 0, selactive, selsx, selex, selsy, seley, 0);
 	}
 
 	/*just above that, we have the tab completion list*/
@@ -1269,7 +1309,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 		char *cmd;//, *desc;
 		int cmdstart;
 		size_t newlen;
-		cmdstart = text[1] == '/'?2:1;
+		cmdstart = text[0] == '/'?1:0;
 		end = maskedtext;
 
 		if (!con->completionline || con->completionline->length + 512 > con->completionline->maxlength)
@@ -1309,7 +1349,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 		}
 
 		if (con->completionline->length)
-			y = Con_DrawConsoleLines(con, con->completionline, left, right, y, 0, selactive, selsx, selex, selsy, seley);
+			y = Con_DrawConsoleLines(con, con->completionline, left, right, y, 0, selactive, selsx, selex, selsy, seley, 0);
 	}
 
 	return y;
@@ -1355,15 +1395,14 @@ void Con_DrawNotifyOne (console_t *con)
 		l = l->older;
 	for (; l && lines > con->notif_l-maxlines; l = l->older)
 	{
-		t = l->time;
-		if (!t)
+		if (l->flags & CONL_NONOTIFY)
 			continue; //hidden from notify
-		t = realtime - t;
+		t = realtime - (l->time+con->notif_t);
 		if (t > 0)
 		{
 			if (t > con->notif_fade)
 			{
-				l->time = 0;
+				l->flags |= CONL_NONOTIFY;
 				break;
 			}
 			a = 1 - (t/con->notif_fade);
@@ -1438,7 +1477,7 @@ void Con_ClearNotify(void)
 	for (con = &con_main; con; con = con->next)
 	{
 		for (l = con->current; l; l = l->older)
-			l->time = 0;
+			l->flags |= CONL_NONOTIFY;
 	}
 }
 void Con_DrawNotify (void)
@@ -1785,7 +1824,7 @@ int Con_DrawAlternateConsoles(int lines)
 
 //draws the conline_t list bottom-up within the width of the screen until the top of the screen is reached.
 //if text is selected, the selstartline globals will be updated, so make sure the lines persist or check them.
-static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, int y, int top, qboolean selactive, int selsx, int selex, int selsy, int seley)
+static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, int y, int top, int selactive, int selsx, int selex, int selsy, int seley, float lineagelimit)
 {
 	int linecount;
 	conchar_t *starts[64], *ends[sizeof(starts)/sizeof(starts[0])];
@@ -1793,6 +1832,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 	int x;
 	int charh = Font_CharHeight();
 	unsigned int codeflags, codepoint;
+	float alphaval = 1;
 
 	if (l != con->completionline)
 	if (l != con->footerline)
@@ -1804,72 +1844,89 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 			x = (Font_DrawChar (x, y, CON_WHITEMASK, '^')-x)*4+x;
 	}
 
-	if (!selactive)
-		selactive = 2;
-
-	//deactivate the selection if the start and end is outside
-	if (
-		(selsx < sx && selex < sx) ||
-		(selsx > ex && selex > ex) ||
-		(selsy < top && seley < top) ||
-		(selsy > y && seley > y)
-		)
-		selactive = false;
-
-	if (selactive)
+	if (selactive != -1)
 	{
-		//clip it
-		if (selsx < sx)
-			selsx = sx;
-		if (selex < sx)
-			selex = sx;
+		if (!selactive)
+			selactive = 2;	//calculate, but don't draw (to track mouse-over)
 
-		if (selsy > y)
-			selsy = y;
-		if (seley > y)
-			seley = y;
+		//deactivate the selection if the start and end is outside
+		if (
+			(selsx < sx && selex < sx) ||
+			(selsx > ex && selex > ex) ||
+			(selsy < top && seley < top) ||
+			(selsy > y && seley > y)
+			)
+			selactive = false;	//don't track it at all
 
-		//scale the y coord to be in lines instead of pixels
-		selsy -= y;
-		seley -= y;
-//		selsy -= charh;
-//		seley -= charh;
-
-		//invert the selections to make sense, text-wise
-		/*if (selsy == seley)
+		if (selactive)
 		{
-			//single line selected backwards
-			if (selex < selsx)
+			//clip it
+			if (selsx < sx)
+				selsx = sx;
+			if (selex < sx)
+				selex = sx;
+
+			if (selsy > y)
+				selsy = y;
+			if (seley > y)
+				seley = y;
+
+			//scale the y coord to be in lines instead of pixels
+			selsy -= y;
+			seley -= y;
+	//		selsy -= charh;
+	//		seley -= charh;
+
+			//invert the selections to make sense, text-wise
+			/*if (selsy == seley)
 			{
+				//single line selected backwards
+				if (selex < selsx)
+				{
+					x = selex;
+					selex = selsx;
+					selsx = x;
+				}
+			}
+			*/
+			if (seley < selsy)
+			{	//selection goes upwards
+				x = selsy;
+				selsy = seley;
+				seley = x;
+
 				x = selex;
 				selex = selsx;
 				selsx = x;
 			}
+	//		selsy *= Font_CharHeight();
+	//		seley *= Font_CharHeight();
+			selsy += y;
+			seley += y;
 		}
-		*/
-		if (seley < selsy)
-		{	//selection goes upwards
-			x = selsy;
-			selsy = seley;
-			seley = x;
-
-			x = selex;
-			selex = selsx;
-			selsx = x;
-		}
-//		selsy *= Font_CharHeight();
-//		seley *= Font_CharHeight();
-		selsy += y;
-		seley += y;
 	}
 
-	if (l && l == con->current && l->length == 0)
+	if (l && l == con->current && l->length == 0 && con->userline != l)
 		l = l->older;
 	for (; l; l = l->older)
 	{
 		shader_t *pic = NULL;
 		int picw=0, pich=0;
 		s = (conchar_t*)(l+1);
+
+		if (lineagelimit)
+		{
+			alphaval = realtime - (l->time+lineagelimit);
+			if (alphaval > 0)
+			{
+				float fadetime = con->notif_fade?con->notif_fade:1;
+				if (alphaval > fadetime)
+					break;	//we're done here
+				alphaval = 1 - (alphaval/fadetime);
+			}
+			else
+				alphaval = 1;
+		}
 
 		if (l->length >= 2 && *s == CON_LINKSTART && (s[1]&CON_CHARMASK) == '\\')
 		{	//leading tag with no text, look for an image in there
@@ -1902,6 +1959,12 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 								pich = (pic->height * vid.pixelheight) / vid.height;
 							else
 								pich = 64;
+
+							if (picw >= ex-sx)
+							{
+								pich *= (float)(ex-sx) / picw;
+								picw = ex-sx;
+							}
 						}
 					}
 					break;
@@ -1910,12 +1973,21 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 			}
 		}
 
-		linecount = Font_LineBreaks(s, s+l->length, ex-sx-picw, sizeof(starts)/sizeof(starts[0]), starts, ends);
-		//if Con_LineBreaks didn't find any lines at all, then it was an empty line, and we need to ensure that its still drawn
-		if (linecount == 0)
+		if (con->flags & CONF_NOWRAP)
 		{
 			linecount = 1;
-			starts[0] = ends[0] = NULL;
+			starts[0] = s;
+			ends[0] = s+l->length;
+		}
+		else
+		{
+			linecount = Font_LineBreaks(s, s+l->length, ex-sx-picw, sizeof(starts)/sizeof(starts[0]), starts, ends);
+			//if Con_LineBreaks didn't find any lines at all, then it was an empty line, and we need to ensure that its still drawn
+			if (linecount == 0 && !pic)
+			{
+				linecount = 1;
+				starts[0] = ends[0] = s;
+			}
 		}
 
 		if (pic)
@@ -1923,6 +1995,8 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 			float szx = (float)vid.width / vid.pixelwidth;
 			float szy = (float)vid.height / vid.pixelheight;
 			int texth = (linecount) * Font_CharHeight();
+			if (R2D_Flush)
+				R2D_Flush();
 			R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 			if (texth > pich)
 			{
@@ -1936,6 +2010,8 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 				pich -= texth;
 				y-= pich/2;	//skip some space above and below the text block, to keep the text and image aligned.
 			}
+			if (R2D_Flush)
+				R2D_Flush();
 
 //			if (selsx < picw && selex < picw)
 
@@ -1953,7 +2029,74 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 			if (top && y < top)
 				break;
 
-			if (selactive)
+			if (l->flags & (CONL_BREAKPOINT|CONL_EXECUTION))
+			{
+				if (l->flags & CONL_EXECUTION)
+				{
+					if (l->flags & CONL_BREAKPOINT)
+						R2D_ImageColours(0.3,0.15,0.0, alphaval);
+					else
+						R2D_ImageColours(0.3,0.3,0.0, alphaval);
+				}
+				else //if (l->flags & CONL_BREAKPOINT)
+					R2D_ImageColours(0.3,0.0,0.0, alphaval);
+				R2D_FillBlock((sx*(float)vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((ex - sx)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
+				R2D_Flush();
+			}
+
+			if (selactive < 0)
+			{	//display an existing selection
+				int sstart = picw;
+				int send = sstart;
+				int center;
+				if (selactive == -2 || l == con->selendline || l == con->selstartline)
+				{
+					for (c = s; c < e; )
+					{
+						c = Font_Decode(c, &codeflags, &codepoint);
+						send = Font_CharEndCoord(font_console, send, codeflags, codepoint);
+					}
+					//show something on blank lines
+					if (send == sstart)
+						send = Font_CharEndCoord(font_console, send, CON_WHITEMASK, ' ');
+
+					center = sx;
+					if (l->flags&CONL_CENTERED)
+						center += ((ex-sx) - send)/2;
+				
+					if (l == con->selendline)
+					{
+						selactive = -2;	//all following lines need to be selected, until we see the other end of the selection
+						send = sstart;
+						for (c = s; c < (conchar_t*)(con->selendline+1)+con->selendoffset; )
+						{
+							c = Font_Decode(c, &codeflags, &codepoint);
+							send = Font_CharEndCoord(font_console, send, codeflags, codepoint);
+						}
+					}
+					if (l == con->selstartline)
+					{
+						for (c = s; c < (conchar_t*)(con->selstartline+1)+con->selstartoffset; )
+						{
+							c = Font_Decode(c, &codeflags, &codepoint);
+							sstart = Font_CharEndCoord(font_console, sstart, codeflags, codepoint);
+						}
+						if (c == (conchar_t*)(con->selstartline+1)+con->selstartoffset)
+							selactive = 0;	//no need to track any other selections.
+					}
+
+					sstart += center;
+					send += center;
+
+					R2D_ImageColours(0.1,0.1,0.3, alphaval);
+					if (send < sstart)
+						R2D_FillBlock((send*(float)vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((sstart - send)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
+					else
+						R2D_FillBlock((sstart*(float)vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((send - sstart)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
+					R2D_Flush();
+				}
+			}
+			else if (selactive)
 			{
 				if (y+charh >= selsy)
 				{
@@ -2029,7 +2172,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 
 						if (selactive == 1)
 						{
-							R2D_ImagePaletteColour(0, 1.0);
+							R2D_ImageColours(0.1,0.1,0.3, alphaval);
 							if (send < sstart)
 								R2D_FillBlock((send*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((sstart - send)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
 							else
@@ -2039,7 +2182,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 					}
 				}
 			}
-			R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
+			R2D_ImageColours(1.0, 1.0, 1.0, alphaval);
 
 			x = sx + picw;
 
@@ -2056,6 +2199,20 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 			}
 
 			Font_LineDraw(x, y, s, e);
+
+
+			if (con->userline == l && s <= (conchar_t*)(l+1)+con->useroffset && (conchar_t*)(l+1)+con->useroffset <= e)
+			if ((int)(realtime*4)&1)
+			{
+				int sstart;
+				sstart = picw;
+				for (c = s; c < (conchar_t*)(l+1)+con->useroffset; )
+				{
+					c = Font_Decode(c, &codeflags, &codepoint);
+					sstart = Font_CharEndCoord(font_console, sstart, codeflags, codepoint);
+				}
+				Font_DrawChar(sx+sstart, y, CON_WHITEMASK, 0xe00b);
+			}
 
 			if (y < top)
 				break;
@@ -2082,19 +2239,23 @@ void Con_DrawConsole (int lines, qboolean noback)
 	int x, y, sx, ex;
 	conline_t *l;
 	int selsx, selsy, selex, seley, selactive;
-	int top;
 	qboolean haveprogress;
 	console_t *w, *mouseconsole;
+	float fadetime;
 
 	con_mouseover = NULL;
 
 	//draw any windowed consoles (under main console)
-	if (Key_Dest_Has(kdm_cwindows))
 	for (w = &con_main; w; w = w->next)
 	{
 		srect_t srect;
 		if ((w->flags & (CONF_HIDDEN|CONF_ISWINDOW)) != CONF_ISWINDOW)
 			continue;
+
+		if (Key_Dest_Has(kdm_cwindows))
+			fadetime = 0;	//nothing fades when focused.
+		else
+			fadetime = 4;
 
 		if (w->wnd_w > vid.width)
 			w->wnd_w = vid.width;
@@ -2120,58 +2281,113 @@ void Con_DrawConsole (int lines, qboolean noback)
 		if (mousecursor_x >= w->wnd_x && mousecursor_x < w->wnd_x+w->wnd_w && mousecursor_y >= w->wnd_y && mousecursor_y < w->wnd_y+w->wnd_h && mousecursor_y > lines)
 			con_mouseover = w;
 
-		w->mousecursor[0] = mousecursor_x - w->wnd_x;
+		w->mousecursor[0] = mousecursor_x - (w->wnd_x+8);
 		w->mousecursor[1] = mousecursor_y - w->wnd_y;
 
-		R2D_ImageColours(0.0, 0.05, 0.1, 0.5);
-		R2D_FillBlock(w->wnd_x, w->wnd_y, w->wnd_w, w->wnd_h);
-
-
-		if (w->backshader || *w->backimage)
+		if (Key_Dest_Has(kdm_cwindows))
 		{
-			shader_t *shader = w->backshader;
-			if (!shader)
-				shader = w->backshader = R_RegisterPic(w->backimage);// R_RegisterCustom(w->backimage, SUF_NONE, Shader_DefaultCinematic, w->backimage);
-			if (shader)
+			if (con_curwindow==w)
+				R2D_ImageColours(0.0, 0.05, 0.1, 0.8);
+			else
+				R2D_ImageColours(0.0, 0.05, 0.1, 0.5);
+			R2D_FillBlock(w->wnd_x, w->wnd_y, w->wnd_w, w->wnd_h);
+			R2D_ImageColours(1, 1, 1, 1);
+
+			if (w->backshader || *w->backimage)
 			{
-#ifndef NOMEDIA
-				cin_t *cin = R_ShaderGetCinematic(shader);
-				if (cin)
+				shader_t *shader = w->backshader;
+				if (!shader)
+					shader = w->backshader = R_RegisterPic(w->backimage);// R_RegisterCustom(w->backimage, SUF_NONE, Shader_DefaultCinematic, w->backimage);
+				if (shader)
 				{
-					Media_Send_Resize(cin, ((w->wnd_w-16.0)*(int)vid.rotpixelwidth) / (float)vid.width, ((w->wnd_h-16.0)*(int)vid.rotpixelheight) / (float)vid.height);
-					Media_Send_MouseMove(cin, (w->mousecursor[0]-8.0) / (w->wnd_w-16.0), (w->mousecursor[1]-8.0) / (w->wnd_h-16.0));
-					if (con_curwindow==w)
-						Media_Send_Command(cin, "cmd:focus");
-					else
-						Media_Send_Command(cin, "cmd:unfocus");
-				}
+					int top = 8;
+#ifndef NOMEDIA
+					cin_t *cin = R_ShaderGetCinematic(shader);
+					if (cin)
+					{
+						const char *url = Media_Send_GetProperty(cin, "url");
+						if (url)
+						{
+							float x = 0;
+//							float r = x+w->wnd_w-16;
+							const char *buttons[] = {"bck", "fwd", "rld", "home", ((w->linebuffered == Con_Navigate)?(char*)key_lines[edit_line]:url)};
+							const char *buttoncmds[] = {"cmd:back", "cmd:forward", "cmd:refresh", ENGINEWEBSITE, NULL};
+							float tw;
+							int i, fl;
+
+							for (i = 0; i < countof(buttons); i++)
+							{
+								if (i == countof(buttons)-1)
+									tw = ~0u;
+								else if (i == countof(buttons)-2)
+									tw = 40;
+								else
+									tw = 32;
+								fl = con_curwindow==w;
+								if (w->mousecursor[1] >= 8 && w->mousecursor[1] < 16 && w->mousecursor[0] >= x && w->mousecursor[0] < x+tw)
+								{
+									fl |= 2;
+									if (w->buttonsdown == CB_ACTIONBAR)
+									{
+										w->buttonsdown = CB_NONE;
+										if (buttoncmds[i])
+											Media_Send_Command(cin, buttoncmds[i]);
+										else if (w->linebuffered != Con_Navigate)
+										{
+											Key_ConsoleReplace(url);
+											w->linebuffered = Con_Navigate;
+										}
+									}
+								}
+								if (tw > w->wnd_w-16 - x)
+									tw = w->wnd_w-16 - x;
+								Draw_FunStringWidth(w->wnd_x+8+x, w->wnd_y+top, buttons[i], tw, false, fl);
+								x += tw;
+							}
+							top += 8;
+						}
+
+						Media_Send_Resize(cin, ((w->wnd_w-16.0)*(int)vid.rotpixelwidth) / (float)vid.width, ((w->wnd_h-8-top)*(int)vid.rotpixelheight) / (float)vid.height);
+						Media_Send_MouseMove(cin, (w->mousecursor[0]) / (w->wnd_w-16.0), (w->mousecursor[1]-top) / (w->wnd_h-8.0-top));
+						if (con_curwindow==w)
+							Media_Send_Command(cin, "cmd:focus");
+						else
+							Media_Send_Command(cin, "cmd:unfocus");
+					}
 #endif
-				R2D_ImageColours(1, 1, 1, 1);
-				R2D_Image(w->wnd_x+8, w->wnd_y+8, w->wnd_w-16, w->wnd_h-16, 0, 0, 1, 1, shader);
+					R2D_Image(w->wnd_x+8, w->wnd_y+top, w->wnd_w-16, w->wnd_h-8-top, 0, 0, 1, 1, shader);
+				}
 			}
+
+			Draw_FunStringWidth(w->wnd_x, w->wnd_y, w->title, w->wnd_w-8, 2, (con_curwindow==w)?true:false);
+			Draw_FunStringWidth(w->wnd_x+w->wnd_w-8, w->wnd_y, "X", 8, 2, ((w->buttonsdown == CB_CLOSE && w->mousecursor[0] > w->wnd_w-16 && w->mousecursor[1] < 8) || (con_curwindow==w && w->mousecursor[0] >= w->wnd_w-16 && w->mousecursor[0] < w->wnd_w-8 && w->mousecursor[1] >= 0 && w->mousecursor[1] < 8))?true:false);
+			w->unseentext = false;
 		}
+		else
+			w->buttonsdown = 0;
 
-		Draw_FunStringWidth(w->wnd_x, w->wnd_y, w->title, w->wnd_w-16, 2, (con_curwindow==w)?true:false);
-		Draw_FunStringWidth(w->wnd_x+w->wnd_w-8, w->wnd_y, "X", 8, 2, (w->buttonsdown == CB_CLOSE&& w->mousecursor[0] > w->wnd_w-8 && w->mousecursor[1] < 8)?true:false);
-
-		srect.x = w->wnd_x / vid.width;
+		srect.x = (w->wnd_x+8) / vid.width;
 		srect.y = (w->wnd_y+8) / vid.height;
-		srect.width = w->wnd_w / vid.width;
-		srect.height = (w->wnd_h-8) / vid.height;
+		srect.width = (w->wnd_w-16) / vid.width;
+		srect.height = (w->wnd_h-16) / vid.height;
 		srect.dmin = -99999;
 		srect.dmax = 99999;
 		srect.y = (1-srect.y) - srect.height;
 		if (srect.width && srect.height)
 		{
-			BE_Scissor(&srect);
 			R2D_ImageColours(0, 0.1, 0.2, 1.0);
-			if (w->buttonsdown & CB_SIZELEFT)
+			if ((w->buttonsdown & CB_SIZELEFT) || (con_curwindow==w && w->mousecursor[0] >= -8 && w->mousecursor[0] < 0 && w->mousecursor[1] >= 8 && w->mousecursor[1] < w->wnd_h))
 				R2D_FillBlock(w->wnd_x, w->wnd_y+8, 8, w->wnd_h-8);
-			if (w->buttonsdown & CB_SIZERIGHT)
+			if ((w->buttonsdown & CB_SIZERIGHT) || (con_curwindow==w && w->mousecursor[0] >= w->wnd_w-16 && w->mousecursor[0] < w->wnd_w-8 && w->mousecursor[1] >= 8 && w->mousecursor[1] < w->wnd_h))
 				R2D_FillBlock(w->wnd_x+w->wnd_w-8, w->wnd_y+8, 8, w->wnd_h-8);
-			if (w->buttonsdown & CB_SIZEBOTTOM)
+			if ((w->buttonsdown & CB_SIZEBOTTOM) || (con_curwindow==w && w->mousecursor[0] >= -8 && w->mousecursor[0] < w->wnd_w-8 && w->mousecursor[1] >= w->wnd_h-8 && w->mousecursor[1] < w->wnd_h))
 				R2D_FillBlock(w->wnd_x, w->wnd_y+w->wnd_h-8, w->wnd_w, 8);
-			Con_DrawOneConsole(w, con_curwindow == w && !Key_Dest_Has(kdm_console), font_console, w->wnd_x+8, w->wnd_y, w->wnd_w-16, w->wnd_h-8);
+			if (R2D_Flush)
+				R2D_Flush();
+			BE_Scissor(&srect);
+			Con_DrawOneConsole(w, con_curwindow == w && Key_Dest_Has(kdm_console|kdm_cwindows) == kdm_cwindows, font_console, w->wnd_x+8, w->wnd_y, w->wnd_w-16, w->wnd_h-8, fadetime);
+			if (R2D_Flush)
+				R2D_Flush();
 			BE_Scissor(NULL);
 		}
 
@@ -2181,8 +2397,10 @@ void Con_DrawConsole (int lines, qboolean noback)
 			con_curwindow = w;
 	}
 
+	//draw main console...
 	if (lines > 0)
 	{
+		int top;
 #ifdef QTERM
 		if (qterms)
 			QT_Update();
@@ -2223,7 +2441,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 		l = con_current->display;
 
-		y = Con_DrawConsoleLines(con_current, l, sx, ex, y, top, selactive, selsx, selex, selsy, seley);
+		y = Con_DrawConsoleLines(con_current, l, sx, ex, y, top, selactive, selsx, selex, selsy, seley, 0);
 
 		if (!haveprogress && lines == vid.height)
 		{
@@ -2246,60 +2464,130 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 	if (mouseconsole && mouseconsole->selstartline)
 	{
-		char *mouseover = Con_CopyConsole(mouseconsole, false, true);
-		if (mouseover)
+		char *tiptext = NULL;
+		shader_t *shader = NULL;
+		char *mouseover;
+		if (!mouseconsole->mouseover || !mouseconsole->mouseover(mouseconsole, &tiptext, &shader))
 		{
-			char *end = strstr(mouseover, "^]");
-			char *info = strchr(mouseover, '\\');
-			char *key;
-			if (!info)
-				info = "";
-			if (end)
-				*end = 0;
-#ifdef PLUGINS
-			if (!Plug_ConsoleLinkMouseOver(mousecursor_x, mousecursor_y, mouseover+2, info))
-#endif
+			mouseover = Con_CopyConsole(mouseconsole, false, true);
+			if (mouseover)
 			{
-				float x = mousecursor_x+8;
-				float y = mousecursor_y+8;
-				float ih = 0;
-				key = Info_ValueForKey(info, "tipimg");
-				if (*key)
+				char *end = strstr(mouseover, "^]");
+				char *info = strchr(mouseover, '\\');
+				if (!info)
+					info = "";
+				if (end)
+					*end = 0;
+	#ifdef PLUGINS
+				if (!Plug_ConsoleLinkMouseOver(mousecursor_x, mousecursor_y, mouseover+2, info))
+	#endif
 				{
-					shader_t *s = R2D_SafeCachePic(key);
-					if (s)
+					char *key = Info_ValueForKey(info, "tipimg");
+					if (*key)
+						shader = R2D_SafeCachePic(key);
+					else
 					{
-						R2D_Image(x, y, s->width, s->height, 0, 0, 1, 1, s);
-						ih = s->height;
-						x += s->width + 8;
+						key = Info_ValueForKey(info, "tiprawimg");
+						if (*key)
+						{
+							shader = R2D_SafeCachePic("riprawimg");
+							shader->defaulttextures->base = Image_FindTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA);
+							if (!shader->defaulttextures->base)
+							{
+								size_t fsize;
+								char *buf;
+								shader->defaulttextures->base = Image_CreateTexture(key, NULL, IF_NOREPLACE|IF_PREMULTIPLYALPHA);
+								if ((buf = COM_LoadFile (key, 5, &fsize)))
+									Image_LoadTextureFromMemory(shader->defaulttextures->base, shader->defaulttextures->base->flags|IF_NOWORKER, key, key, buf, fsize);
+							}
+							shader->width = shader->defaulttextures->base->width;
+							shader->height = shader->defaulttextures->base->height;
+							if (shader->width > 320)
+							{
+								shader->height *= 320.0/shader->width;
+								shader->width = 320;
+							}
+							if (shader->height > 240)
+							{
+								shader->width *= 240.0/shader->height;
+								shader->height = 240;
+							}
+						}
 					}
+					tiptext = Info_ValueForKey(info, "tip");
 				}
-				key = Info_ValueForKey(info, "tip");
-				if (*key)
-				{
-					//FIXME: draw a proper background.
-					//FIXME: support line breaks.
-					conchar_t buffer[2048], *starts[8], *ends[8];
-					int lines, i, px, py;
-					Font_BeginString(font_console, x, y, &px, &py);
-					lines = Font_LineBreaks(buffer, COM_ParseFunString(CON_WHITEMASK|CON_NONCLEARBG, key, buffer, sizeof(buffer), false), 256, 8, starts, ends);
-					ih = max(Font_CharHeight()*lines, ih)/2;
-					y += ih - (Font_CharHeight()*lines)/2;
-					Font_BeginString(font_console, x, y, &px, &py);
-					for (i = 0; i < lines; i++)
-					{
-						Font_LineDraw(px, py, starts[i], ends[i]);
-						py += Font_CharHeight();
-					}
-					Font_EndString(font_console);
-				}
+				Z_Free(mouseover);
 			}
 		}
-		Z_Free(mouseover);
+		if ((tiptext && *tiptext) || shader)
+		{
+			//FIXME: draw a proper background.
+			//FIXME: support line breaks.
+			conchar_t buffer[2048], *starts[64], *ends[countof(starts)];
+			int lines, i, px, py;
+			float tw, th;
+			float ih = 0, iw = 0;
+			float x = mousecursor_x+8;
+			float y = mousecursor_y+8;
+
+			Font_BeginString(font_console, x, y, &px, &py);
+			lines = Font_LineBreaks(buffer, COM_ParseFunString(CON_WHITEMASK, tiptext, buffer, sizeof(buffer), false), (256.0 * vid.pixelwidth) / vid.width, countof(starts), starts, ends);
+			th = (Font_CharHeight()*lines * vid.height) / vid.pixelheight;
+
+			if (shader)
+			{
+				int w, h;
+				if (R_GetShaderSizes(shader, &w, &h, false) >= 0)
+				{
+					iw = w;
+					ih = h;
+				}
+				else
+					shader = NULL;
+			}
+
+			if (x + iw/2 + 8 + 256 > vid.width)
+				x = vid.width - (iw/2 + 8 + 256);
+			if (x < iw/2)
+				x = iw/2;
+			x += iw/2 + 8;
+
+			if (y+max(th, ih) > vid.height)
+				y = mousecursor_y - 8 - max(th, ih);
+			if (y < 0)
+				y = 0;
+
+			Font_BeginString(font_console, x, y + (max(th, ih) - th)/2, &px, &py);
+			for (i = 0, tw = 0; i < lines; i++)
+			{
+				int lw = Font_LineWidth(starts[i], ends[i]);
+				if (lw > tw)
+					tw = lw;
+			}
+			tw *= (float)vid.width / vid.pixelwidth;
+			Font_EndString(font_console);
+			R2D_ImageColours(0, 0, 0, .75);
+			R2D_FillBlock(x, y + (max(th, ih) - th)/2, tw, th);
+			R2D_ImageColours(1, 1, 1, 1);
+			Font_BeginString(font_console, x, y + (max(th, ih) - th)/2, &px, &py);
+			for (i = 0; i < lines; i++)
+			{
+				Font_LineDraw(px, py, starts[i], ends[i]);
+				py += Font_CharHeight();
+			}
+			Font_EndString(font_console);
+
+			if (shader)
+			{
+				if (th > ih)
+					y += (th-ih)/2;
+				R2D_Image(x-8-iw, y, iw, ih, 0, 0, 1, 1, shader);
+			}
+		}
 	}
 }
 
-void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, float fx, float fy, float fsx, float fsy)
+void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, float fx, float fy, float fsx, float fsy, float lineagelimit)
 {
 	int selactive, selsx, selsy, selex, seley;
 	int x, y, sx, sy;
@@ -2313,28 +2601,60 @@ void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, f
 	}
 	else
 	{
-		con->selstartline = NULL;
-		con->selendline = NULL;
 		selactive = Key_GetConsoleSelectionBox(con, &selsx, &selsy, &selex, &seley);
-
-		Font_BeginString(font, selsx, selsy, &selsx, &selsy);
-		Font_BeginString(font, selex, seley, &selex, &seley);
-		selsx += x;
-		selsy += y;
-		selex += x;
-		seley += y;
+		if ((con->flags & CONF_KEEPSELECTION) && con->selstartline && con->selendline)
+		{
+			selactive = -1;
+			selsx = selsy = selex = seley = 0;
+		}
+		else
+		{
+			con->selstartline = NULL;
+			con->selendline = NULL;
+			Font_BeginString(font, selsx, selsy, &selsx, &selsy);
+			Font_BeginString(font, selex, seley, &selex, &seley);
+			selsx += x;
+			selsy += y;
+			selex += x;
+			seley += y;
+		}
 	}
 
+	R2D_ImageColours(1, 1, 1, 1);
 	sy = Con_DrawInput (con, focused, x, sx, sy, selactive, selsx, selex, selsy, seley);
+
+	sx -= con->displayoffset;
+	selsx -= con->displayoffset;
+	selex -= con->displayoffset;
 
 	if (!con->display)
 		con->display = con->current;
-	Con_DrawConsoleLines(con, con->display, x, sx, sy, y, selactive, selsx, selex, selsy, seley);
+	Con_DrawConsoleLines(con, con->display, x, sx, sy, y, selactive, selsx, selex, selsy, seley, lineagelimit);
 
 	Font_EndString(font);
 }
 
-
+//false=don't walk over it.
+//true=fine and dandy
+//2=ignore only if at the end.
+static qbyte Con_IsTokenChar(unsigned int chr)
+{
+	if (chr >= 0x80)	//unicode chars are all continuation
+		return true;
+	if (chr == '(' || chr == ')' || chr == '{' || chr == '}')
+		return false;
+	if (chr == '.' || chr == '/' || chr == '\\')
+		return 2;
+	if (chr >= 'a' && chr <= 'z')
+		return true;
+	if (chr >= 'A' && chr <= 'Z')
+		return true;
+	if (chr >= '0' && chr <= '9')
+		return true;
+	if (chr == '[' || chr == ']' || chr == '_' || chr == ':')
+		return true;
+	return false;
+}
 char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink)
 {
 	conchar_t *cur;
@@ -2365,7 +2685,7 @@ char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink)
 			{
 				cur--;
 				uc = (*cur & CON_CHARMASK);
-				if (uc == ' ' || uc == '\t')
+				if (!Con_IsTokenChar(uc))
 				{
 					cur++;
 					break;
@@ -2376,11 +2696,19 @@ char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink)
 			while (finalendoffset < l->length)
 			{
 				uc = (((conchar_t*)(l+1))[finalendoffset] & CON_CHARMASK);
-				if (uc != ' ' && uc != '\t' && ((conchar_t*)(l+1))[finalendoffset] != CON_LINKEND)
+				if (Con_IsTokenChar(uc)==1 && ((conchar_t*)(l+1))[finalendoffset] != CON_LINKEND)
 					finalendoffset++;
 				else
 					break;
 			}
+			/*while (finalendoffset > l->length)
+			{
+				uc = (((conchar_t*)(l+1))[finalendoffset] & CON_CHARMASK);
+				if (Con_IsTokenChar(uc) == 2)
+					finalendoffset--;
+				else
+					break;
+			}*/
 		}
 	}
 
@@ -2400,7 +2728,7 @@ char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink)
 		}
 	}
 	//scan forwards to find the end of the selected link
-	if (l->length && *cur == CON_LINKSTART)
+	if (l->length && cur < (conchar_t*)(l+1)+l->length && *cur == CON_LINKSTART)
 	{
 		for(lend = (conchar_t*)(con->selendline+1) + finalendoffset; lend < (conchar_t*)(con->selendline+1) + con->selendline->length; lend++)
 		{
@@ -2425,7 +2753,7 @@ char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink)
 		else
 			lend = (conchar_t*)(l+1) + l->length;
 
-		outlen = COM_DeFunString(cur, lend, result + outlen, maxlen - outlen, nomarkup) - result;
+		outlen = COM_DeFunString(cur, lend, result + outlen, maxlen - outlen, nomarkup, !!(con->parseflags & PFS_FORCEUTF8)) - result;
 
 		if (l == con->selendline)
 			break;

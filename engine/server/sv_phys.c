@@ -42,7 +42,7 @@ solid_edge items only clip against bsp models.
 
 */
 
-cvar_t	sv_maxvelocity = SCVAR("sv_maxvelocity","2000");
+cvar_t	sv_maxvelocity = SCVAR("sv_maxvelocity","10000");
 
 cvar_t	sv_gravity			 = SCVAR( "sv_gravity", "800");
 cvar_t	sv_stopspeed		 = SCVAR( "sv_stopspeed", "100");
@@ -53,9 +53,12 @@ cvar_t	sv_airaccelerate	 = SCVAR( "sv_airaccelerate", "0.7");
 cvar_t	sv_wateraccelerate	 = SCVAR( "sv_wateraccelerate", "10");
 cvar_t	sv_friction			 = SCVAR( "sv_friction", "4");
 cvar_t	sv_waterfriction	 = SCVAR( "sv_waterfriction", "4");
-cvar_t	sv_gameplayfix_noairborncorpse	= SCVAR( "sv_gameplayfix_noairborncorpse", "0");
-cvar_t	sv_gameplayfix_multiplethinks	= CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1.");
-cvar_t	sv_gameplayfix_stepdown			= CVARD( "sv_gameplayfix_stepdown", "0", "Attempt to step down steps, instead of only up them. Affects non-predicted movetype_walk.");
+cvar_t	sv_gameplayfix_noairborncorpse		= SCVAR( "sv_gameplayfix_noairborncorpse", "0");
+cvar_t	sv_gameplayfix_multiplethinks		= CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1.");
+cvar_t	sv_gameplayfix_stepdown				= CVARD( "sv_gameplayfix_stepdown", "0", "Attempt to step down steps, instead of only up them. Affects non-predicted movetype_walk.");
+#if !defined(CLIENTONLY) && defined(NQPROT) && !defined(NOLEGACY)
+cvar_t	sv_gameplayfix_spawnbeforethinks	= CVARD( "sv_gameplayfix_spawnbeforethinks", "0", "Fixes an issue where player thinks (including Pre+Post) can be called before PutClientInServer. Unfortunately at least one mod depends upon PreThink being called first in order to correctly determine spawn positions.");
+#endif
 cvar_t	sv_sound_watersplash = CVAR( "sv_sound_watersplash", "misc/h2ohit1.wav");
 cvar_t	sv_sound_land		 = CVAR( "sv_sound_land", "demon/dland2.wav");
 cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",	"sv_stepheight", CVAR_SERVERINFO, "If empty, the value 18 will be used instead. This is the size of the step you can step up or down.");
@@ -72,23 +75,27 @@ cvar_t	pm_walljump			 = CVARF("pm_walljump", "", CVAR_SERVERINFO);
 #define cvargroup_serverphysics  "server physics variables"
 void WPhys_Init(void)
 {
-    Cvar_Register (&sv_maxvelocity,                 cvargroup_serverphysics);
-    Cvar_Register (&sv_gravity,                             cvargroup_serverphysics);
-    Cvar_Register (&sv_stopspeed,                   cvargroup_serverphysics);
-    Cvar_Register (&sv_maxspeed,                    cvargroup_serverphysics);
-    Cvar_Register (&sv_spectatormaxspeed,   cvargroup_serverphysics);
-    Cvar_Register (&sv_accelerate,                  cvargroup_serverphysics);
-    Cvar_Register (&sv_airaccelerate,               cvargroup_serverphysics);
-    Cvar_Register (&sv_wateraccelerate,             cvargroup_serverphysics);
-    Cvar_Register (&sv_friction,                    cvargroup_serverphysics);
-    Cvar_Register (&sv_waterfriction,               cvargroup_serverphysics);
-    Cvar_Register (&sv_sound_watersplash,   cvargroup_serverphysics);
-    Cvar_Register (&sv_sound_land,                  cvargroup_serverphysics);
-    Cvar_Register (&sv_stepheight,                  cvargroup_serverphysics);
+    Cvar_Register (&sv_maxvelocity,						cvargroup_serverphysics);
+    Cvar_Register (&sv_gravity,							cvargroup_serverphysics);
+    Cvar_Register (&sv_stopspeed,						cvargroup_serverphysics);
+    Cvar_Register (&sv_maxspeed,						cvargroup_serverphysics);
+    Cvar_Register (&sv_spectatormaxspeed,				cvargroup_serverphysics);
+    Cvar_Register (&sv_accelerate,						cvargroup_serverphysics);
+    Cvar_Register (&sv_airaccelerate,					cvargroup_serverphysics);
+    Cvar_Register (&sv_wateraccelerate,					cvargroup_serverphysics);
+    Cvar_Register (&sv_friction,						cvargroup_serverphysics);
+    Cvar_Register (&sv_waterfriction,					cvargroup_serverphysics);
+    Cvar_Register (&sv_sound_watersplash,				cvargroup_serverphysics);
+    Cvar_Register (&sv_sound_land,						cvargroup_serverphysics);
+    Cvar_Register (&sv_stepheight,						cvargroup_serverphysics);
 
-	Cvar_Register (&sv_gameplayfix_noairborncorpse, cvargroup_serverphysics);
-	Cvar_Register (&sv_gameplayfix_multiplethinks,	cvargroup_serverphysics);
-	Cvar_Register (&sv_gameplayfix_stepdown,		cvargroup_serverphysics);
+	Cvar_Register (&sv_gameplayfix_noairborncorpse,		cvargroup_serverphysics);
+	Cvar_Register (&sv_gameplayfix_multiplethinks,		cvargroup_serverphysics);
+	Cvar_Register (&sv_gameplayfix_stepdown,			cvargroup_serverphysics);
+
+#if !defined(CLIENTONLY) && defined(NQPROT) && !defined(NOLEGACY)
+	Cvar_Register (&sv_gameplayfix_spawnbeforethinks,	cvargroup_serverphysics);
+#endif
 }
 
 #define	MOVE_EPSILON	0.01
@@ -222,8 +229,10 @@ SV_Impact
 Two entities have touched, so run their touch functions
 ==================
 */
-static void WPhys_Impact (world_t *w, wedict_t *e1, wedict_t *e2)
+static void WPhys_Impact (world_t *w, wedict_t *e1, trace_t *trace)
 {
+	wedict_t *e2 = trace->ent;
+
 	*w->g.time = w->physicstime;
 	if (e1->v->touch && e1->v->solid != SOLID_NOT)
 	{
@@ -455,7 +464,7 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 //
 // run the impact function
 //
-		WPhys_Impact (w, ent, trace.ent);
+		WPhys_Impact (w, ent, &trace);
 		if (ent->isfree)
 			break;		// removed by the impact function
 
@@ -626,7 +635,7 @@ static trace_t WPhys_PushEntity (world_t *w, wedict_t *ent, vec3_t push, unsigne
 	World_LinkEdict (w, ent, true);
 
 	if (trace.ent)
-		WPhys_Impact (w, ent, trace.ent);
+		WPhys_Impact (w, ent, &trace);
 
 	return trace;
 }
@@ -2050,7 +2059,17 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 	{	//a client woo.
 		qboolean readyforjump = false;
 
-		if ( svs.clients[ent->entnum-1].state < cs_spawned )
+#if defined(NQPROT) && !defined(NOLEGACY)
+		if (svs.clients[ent->entnum-1].state == cs_connected)
+		{	//nq is buggy and calls playerprethink/etc while the player is still connecting.
+			//some mods depend on this, hopefully unintentionally (as is the case with Arcane Dimensions).
+			//so don't do anything if we're qw, but use crappy behaviour for nq+h2.
+			if (progstype != PROG_NQ || sv_gameplayfix_spawnbeforethinks.ival)
+				return;
+		}
+		else
+#endif
+			if (svs.clients[ent->entnum-1].state < cs_spawned)
 			return;		// unconnected slot
 
 
@@ -2108,7 +2127,11 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 
 
 	if (ent->xv->customphysics)
+	{
+		*w->g.time = sv.world.physicstime;
+		*w->g.self = EDICT_TO_PROG(w->progs, ent);
 		PR_ExecuteProgram (w->progs, ent->xv->customphysics);
+	}
 	else switch ( (int)ent->v->movetype)
 	{
 	case MOVETYPE_PUSH:

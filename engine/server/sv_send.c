@@ -41,7 +41,7 @@ Con_Printf redirection
 =============================================================================
 */
 
-char	outputbuf[8000];
+char	sv_redirected_buf[8000];
 
 redirect_t	sv_redirected;
 int sv_redirectedlang;
@@ -56,23 +56,23 @@ SV_FlushRedirect
 void SV_FlushRedirect (void)
 {
 	int totallen;
-	char	send[8000+6];
+	char	send[sizeof(sv_redirected_buf)+6];
 
-	if (!*outputbuf)
+	if (!*sv_redirected_buf)
 		return;
 
 	if (sv_redirected == RD_PACKET || sv_redirected == RD_PACKET_LOG)
 	{
 		//log it to the rcon log if its not just a status response
 		if (sv_redirected == RD_PACKET_LOG)
-			Log_String(LOG_RCON, outputbuf);
+			Log_String(LOG_RCON, sv_redirected_buf);
 
 		send[0] = 0xff;
 		send[1] = 0xff;
 		send[2] = 0xff;
 		send[3] = 0xff;
 		send[4] = A2C_PRINT;
-		memcpy (send+5, outputbuf, strlen(outputbuf)+1);
+		memcpy (send+5, sv_redirected_buf, strlen(sv_redirected_buf)+1);
 
 		NET_SendPacket (NS_SERVER, strlen(send)+1, send, &net_from);
 	}
@@ -87,7 +87,7 @@ void SV_FlushRedirect (void)
 		s.cursize = 2;
 
 		MSG_WriteByte(&s, ccmd_print);
-		MSG_WriteString(&s, outputbuf);
+		MSG_WriteString(&s, sv_redirected_buf);
 		SSV_InstructMaster(&s);
 	}
 #endif
@@ -95,7 +95,7 @@ void SV_FlushRedirect (void)
 	{
 		int chop;
 		char spare;
-		char *s = outputbuf;
+		char *s = sv_redirected_buf;
 		totallen = strlen(s)+3;
 		while (sizeof(host_client->backbuf_data[0])/2 < totallen)
 		{
@@ -117,7 +117,7 @@ void SV_FlushRedirect (void)
 	}
 
 	// clear it
-	outputbuf[0] = 0;
+	sv_redirected_buf[0] = 0;
 }
 
 
@@ -135,7 +135,7 @@ void SV_BeginRedirect (redirect_t rd, int lang)
 
 	sv_redirected = rd;
 	sv_redirectedlang = lang;
-	outputbuf[0] = 0;
+	sv_redirected_buf[0] = 0;
 }
 
 void SV_EndRedirect (void)
@@ -156,6 +156,11 @@ Handles cursor positioning, line wrapping, etc
 #define	MAXPRINTMSG	4096
 // FIXME: make a buffer size safe vsprintf?
 #ifdef SERVERONLY
+static void Con_PrintFromThread (void *ctx, void *data, size_t a, size_t b)
+{
+	Con_Printf("%s", (char*)data);
+	BZ_Free(data);
+}
 void VARGS Con_Printf (const char *fmt, ...)
 {
 	va_list		argptr;
@@ -165,12 +170,18 @@ void VARGS Con_Printf (const char *fmt, ...)
 	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
 
+	if (!Sys_IsMainThread())
+	{
+		COM_AddWork(WG_MAIN, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+		return;
+	}
+
 	// add to redirected message
 	if (sv_redirected)
 	{
-		if (strlen (msg) + strlen(outputbuf) > sizeof(outputbuf) - 1)
+		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
 			SV_FlushRedirect ();
-		strcat (outputbuf, msg);
+		strcat (sv_redirected_buf, msg);
 		if (sv_redirected != -1)
 			return;
 	}
@@ -192,9 +203,9 @@ void Con_TPrintf (translation_t stringnum, ...)
 		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 		va_end (argptr);
 
-		if (strlen (msg) + strlen(outputbuf) > sizeof(outputbuf) - 1)
+		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
 			SV_FlushRedirect ();
-		strcat (outputbuf, msg);
+		strcat (sv_redirected_buf, msg);
 		return;
 	}
 
@@ -230,9 +241,9 @@ void Con_DPrintf (const char *fmt, ...)
 	// add to redirected message
 	if (sv_redirected)
 	{
-		if (strlen (msg) + strlen(outputbuf) > sizeof(outputbuf) - 1)
+		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
 			SV_FlushRedirect ();
-		strcat (outputbuf, msg);
+		strcat (sv_redirected_buf, msg);
 		if (sv_redirected != -1)
 			return;
 	}
@@ -280,7 +291,7 @@ void SV_PrintToClient(client_t *cl, int level, const char *string)
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
 	case SCP_NETQUAKE:
-	case SCP_PROQUAKE:
+	case SCP_BJP3:
 	case SCP_FITZ666:
 #ifdef NQPROT
 		ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
@@ -316,7 +327,7 @@ void SV_StuffcmdToClient(client_t *cl, const char *string)
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
 	case SCP_NETQUAKE:
-	case SCP_PROQUAKE:
+	case SCP_BJP3:
 	case SCP_FITZ666:
 		if (cl->controller)
 		{	//this is a slave client.
@@ -738,7 +749,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				break;
 #ifdef NQPROT
 			case SCP_NETQUAKE:
-			case SCP_PROQUAKE:
+			case SCP_BJP3:
 			case SCP_FITZ666:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:
@@ -908,7 +919,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 #ifdef NQPROT
 			case SCP_NETQUAKE:
-			case SCP_PROQUAKE:
+			case SCP_BJP3:
 			case SCP_FITZ666:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:	//extra prediction stuff
@@ -998,6 +1009,185 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	SZ_Clear (&sv.multicast);
 }
 
+void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*callback)(client_t *cl, sizebuf_t *msg, void *ctx), void *ctx)
+{
+	qboolean reliable = false;
+
+	client_t	*client;
+	qbyte		*mask;
+	int			cluster;
+	int			j;
+	client_t	*oneclient = NULL, *split;
+
+	switch (to)
+	{
+	case MULTICAST_ALL_R:
+		reliable = true;	// intentional fallthrough
+	case MULTICAST_ALL:
+		mask = NULL;
+		break;
+
+	case MULTICAST_PHS_R:
+		reliable = true;	// intentional fallthrough
+	case MULTICAST_PHS:
+		if (!sv.world.worldmodel->phs)	/*broadcast if no pvs*/
+			mask = NULL;
+		else
+		{
+			cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
+			if (cluster >= 0)
+				mask = sv.world.worldmodel->phs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+			else
+				mask = NULL;
+		}
+		break;
+
+	case MULTICAST_PVS_R:
+		reliable = true;	// intentional fallthrough
+	case MULTICAST_PVS:
+		cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
+		if (cluster >= 0)
+			mask = sv.world.worldmodel->pvs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+		else
+			mask = NULL;
+		break;
+
+	case MULTICAST_ONE_R:
+		reliable = true;
+	case MULTICAST_ONE:
+		if (svprogfuncs)
+		{
+			edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
+			oneclient = svs.clients + NUM_FOR_EDICT(svprogfuncs, ent) - 1;
+		}
+		else
+			oneclient = NULL;
+		mask = NULL;
+		break;
+
+	default:
+		mask = NULL;
+		SV_Error ("SV_Multicast: bad to:%i", to);
+	}
+
+	// send the data to all relevent clients
+	for (j = 0, client = svs.clients; j < sv.allocated_client_slots; j++, client++)
+	{
+		if (client->state != cs_spawned)
+			continue;
+
+		if (client->controller)
+			continue;
+		if (client->protocol == SCP_BAD)
+			continue;	//a bot.
+
+		for (split = client; split; split = split->controlled)
+		{
+			if (split->penalties & BAN_BLIND)
+				continue;
+
+			if (oneclient)
+			{
+				if (oneclient != split)
+					continue;
+			}
+			else if (svprogfuncs)
+			{
+				if (!((int)split->edict->xv->dimension_see & dimension_mask))
+					continue;
+
+				if (!mask)	//no pvs? broadcast.
+					break;
+
+				if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
+				{
+					vec3_t delta;
+					VectorSubtract(origin, split->edict->v->origin, delta);
+					if (DotProduct(delta, delta) <= 1024*1024)
+						break;
+				}
+
+				{
+					vec3_t pos;
+					VectorAdd(split->edict->v->origin, split->edict->v->view_ofs, pos);
+					cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, pos);
+					if (cluster>= 0 && !(mask[cluster>>3] & (1<<(cluster&7)) ) )
+					{
+		//				Con_Printf ("PVS supressed multicast\n");
+						continue;
+					}
+				}
+			}
+			break;
+		}
+		if (!split)
+			continue;
+
+		if (reliable)
+		{
+			char msgbuf[1024];
+			sizebuf_t msg = {0};
+			msg.data = msgbuf;
+			msg.maxsize = sizeof(msgbuf);
+			msg.prim = client->datagram.prim;
+			callback(client, &msg, ctx);
+			ClientReliableCheckBlock(client, msg.cursize);
+			ClientReliableWrite_SZ(client, msg.data, msg.cursize);
+		}
+		else
+			callback(client, &client->datagram, ctx);
+	}
+
+	if (sv.mvdrecording)
+	{
+		sizebuf_t *msg;
+		unsigned int maxsize = 1024;
+
+		switch(to)
+		{
+		//mvds have no idea where the receiver's camera will be.
+		//as such, they cannot have any support for pvs/phs
+		case MULTICAST_INIT:
+		default:
+		case MULTICAST_ALL_R:
+		case MULTICAST_PHS_R:
+		case MULTICAST_PVS_R:
+			msg = MVDWrite_Begin(dem_all, 0, maxsize);
+			break;
+		case MULTICAST_ALL:
+		case MULTICAST_PHS:
+		case MULTICAST_PVS:
+			msg = &demo.datagram;
+			break;
+
+		//mvds are all reliables really.
+		case MULTICAST_ONE_R:
+		case MULTICAST_ONE:
+			{
+				int pnum = -1;
+				if (svprogfuncs)
+				{
+					edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
+					pnum = NUM_FOR_EDICT(svprogfuncs, ent) - 1;
+					if (pnum < 0 || pnum >= sv.allocated_client_slots)
+					{
+						Con_Printf("SV_Multicast: not a client\n");
+						return;
+					}
+				}
+				else
+				{
+					Con_Printf("SV_Multicast: unsupported unicast\n");
+					return;
+				}
+				msg = MVDWrite_Begin(dem_single, pnum, maxsize);
+			}
+			break;
+		}
+		callback(&demo.recorder, msg, ctx);
+	}
+}
+
 //version does all the work now
 void VARGS SV_Multicast (vec3_t origin, multicast_t to)
 {
@@ -1019,15 +1209,117 @@ Larger attenuations will drop off.  (max 4 attenuation)
 
 ==================
 */
-void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs, unsigned int flags)
+struct startsoundcontext_s
 {
-	int			sound_num;
-	int			extfield_mask;
-	int			qwflags;
-	int			i;
+	float *org;
+	float *vel;
+	unsigned int ent;
+	unsigned int chan;
+	unsigned int sampleidx;
+	unsigned int volume;
+	float attenuation;
+	float pitchpct;
+	unsigned int chflags;
+	unsigned int timeofs;
+};
+static void SV_SoundMulticast(client_t *client, sizebuf_t *msg, void *vctx)
+{
+	int i;
+	struct startsoundcontext_s *ctx = vctx;
+	unsigned int field_mask = 0;
+
+	if (ctx->ent >= client->max_net_ents)
+		return;
+
+	field_mask |= (ctx->chflags & (CF_NOSPACIALISE|CF_NOREVERB|CF_FOLLOW)) << 8;
+	if (ctx->volume != DEFAULT_SOUND_PACKET_VOLUME)
+		field_mask |= NQSND_VOLUME;
+	if (ctx->attenuation != DEFAULT_SOUND_PACKET_ATTENUATION)
+		field_mask |= NQSND_ATTENUATION;
+	if (ctx->ent >= 8192 || ctx->chan >= 8)
+		field_mask |= NQSND_LARGEENTITY;
+	if (ctx->sampleidx > 0xff && client->protocol != SCP_BJP3)
+		field_mask |= NQSND_LARGESOUND;
+	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+	{
+		if (ctx->pitchpct && (ctx->pitchpct != 100))
+			field_mask |= FTESND_PITCHADJ;
+		if (ctx->timeofs != 0)
+			field_mask |= FTESND_TIMEOFS;
+		if (ctx->vel)
+			field_mask |= FTESND_VELOCITY;
+
+		if (field_mask > 0xff)
+			field_mask |= FTESND_MOREFLAGS;
+	}
+
+	if (ISNQCLIENT(client) || ctx->chan >= 8 || ctx->ent >= 2048 || (field_mask & ~(NQSND_VOLUME|NQSND_ATTENUATION)))
+	{
+		//if any of the above conditions evaluates to true, then we can't use standard qw protocols
+		if (ISNQCLIENT(client))
+			MSG_WriteByte (msg, svc_sound);
+		else
+		{
+			if (!(client->fteprotocolextensions & PEXT_SOUNDDBL) && !(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+				return;
+			MSG_WriteByte (msg, svcfte_soundextended);
+		}
+		MSG_WriteByte (msg, field_mask&0xff);
+		if (field_mask & FTESND_MOREFLAGS)
+			MSG_WriteByte (msg, field_mask>>8);
+		if (field_mask & NQSND_VOLUME)
+			MSG_WriteByte (msg, bound(0, ctx->volume, 255));
+		if (field_mask & NQSND_ATTENUATION)
+			MSG_WriteByte (msg, bound(0, ctx->attenuation*64, 255));
+		if (field_mask & FTESND_PITCHADJ)
+			MSG_WriteByte (msg, bound(1, ctx->pitchpct, 255));
+		if (field_mask & FTESND_TIMEOFS)
+			MSG_WriteShort (msg, bound(-32768, ctx->timeofs*1000, 32767));
+		if (field_mask & FTESND_VELOCITY)
+		{
+			MSG_WriteShort (msg, ctx->vel[0]*8);
+			MSG_WriteShort (msg, ctx->vel[1]*8);
+			MSG_WriteShort (msg, ctx->vel[2]*8);
+		}
+		if (field_mask & NQSND_LARGEENTITY)
+		{
+			MSG_WriteEntity (msg, ctx->ent);
+			MSG_WriteByte (msg, ctx->chan);
+		}
+		else
+			MSG_WriteShort (msg, (ctx->ent<<3) | ctx->chan);
+		if ((field_mask & NQSND_LARGESOUND) || client->protocol == SCP_BJP3)
+			MSG_WriteShort (msg, ctx->sampleidx);
+		else
+			MSG_WriteByte (msg, ctx->sampleidx);
+		for (i=0 ; i<3 ; i++)
+			MSG_WriteCoord (msg, ctx->org[i]);
+	}
+	else
+	{
+		unsigned short qwflags = (ctx->ent<<3) | ctx->chan;
+
+		if (ctx->volume != DEFAULT_SOUND_PACKET_VOLUME)
+			qwflags |= QWSND_VOLUME;
+		if (ctx->attenuation != DEFAULT_SOUND_PACKET_ATTENUATION)
+			qwflags |= QWSND_ATTENUATION;
+
+		MSG_WriteByte (msg, svc_sound);
+		MSG_WriteShort (msg, qwflags);
+		if (qwflags & QWSND_VOLUME)
+			MSG_WriteByte (msg, ctx->volume);
+		if (qwflags & QWSND_ATTENUATION)
+			MSG_WriteByte (msg, bound(0, ctx->attenuation*64, 255));
+		MSG_WriteByte (msg, ctx->sampleidx&0xff);
+		for (i=0 ; i<3 ; i++)
+			MSG_WriteCoord (msg, ctx->org[i]);
+	}
+}
+void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int chflags)
+{
 	qboolean	use_phs;
-	qboolean	reliable = flags & 1;
-	int requiredextensions = 0;
+	qboolean	reliable = chflags & CF_RELIABLE;
+	struct startsoundcontext_s ctx;
 
 	if (volume < 0 || volume > 255)
 	{
@@ -1047,32 +1339,45 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 		return;
 	}
 
+	ctx.attenuation = attenuation;
+	ctx.chan = channel;
+	ctx.ent = ent;
+	ctx.chflags = chflags;
+	ctx.org = origin;
+	ctx.vel = velocity;
+	ctx.pitchpct = pitchadj;
+	ctx.timeofs = timeofs;
+	ctx.volume = volume;
+
+	if (velocity && (!velocity[0] && !velocity[1] && !velocity[2]))
+		ctx.vel = NULL;
+
 // find precache number for sound
 	if (!sample)
-		sound_num = 0;
+		ctx.sampleidx = 0;
 	else if (!*sample)
 		return;
 	else
 	{
-		for (sound_num=1 ; sound_num<MAX_PRECACHE_SOUNDS
-			&& sv.strings.sound_precache[sound_num] ; sound_num++)
-			if (!strcmp(sample, sv.strings.sound_precache[sound_num]))
+		for (ctx.sampleidx=1 ; ctx.sampleidx<MAX_PRECACHE_SOUNDS
+			&& sv.strings.sound_precache[ctx.sampleidx] ; ctx.sampleidx++)
+			if (!strcmp(sample, sv.strings.sound_precache[ctx.sampleidx]))
 				break;
 
-		if ( sound_num == MAX_PRECACHE_SOUNDS || !sv.strings.sound_precache[sound_num] )
+		if ( ctx.sampleidx == MAX_PRECACHE_SOUNDS || !sv.strings.sound_precache[ctx.sampleidx] )
 		{
-			if (sound_num < MAX_PRECACHE_SOUNDS)
+			if (ctx.sampleidx < MAX_PRECACHE_SOUNDS)
 			{
 				Con_Printf("WARNING: SV_StartSound: sound %s not precached\n", sample);
 				//late precache it. use multicast to ensure that its sent NOW (and to all). normal reliables would mean it would arrive after the svc_sound
-				sv.strings.sound_precache[sound_num] = PR_AddString(svprogfuncs, sample, 0, false);
+				sv.strings.sound_precache[ctx.sampleidx] = PR_AddString(svprogfuncs, sample, 0, false);
 				Con_DPrintf("Delayed sound precache: %s\n", sample);
 				MSG_WriteByte(&sv.multicast, svcfte_precache);
-				MSG_WriteShort(&sv.multicast, sound_num+PC_SOUND);
+				MSG_WriteShort(&sv.multicast, ctx.sampleidx+PC_SOUND);
 				MSG_WriteString(&sv.multicast, sample);
 		#ifdef NQPROT
 				MSG_WriteByte(&sv.nqmulticast, svcdp_precache);
-				MSG_WriteShort(&sv.nqmulticast, sound_num+PC_SOUND);
+				MSG_WriteShort(&sv.nqmulticast, ctx.sampleidx+PC_SOUND);
 				MSG_WriteString(&sv.nqmulticast, sample);
 		#endif
 				SV_MulticastProtExt(NULL, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_CSQC, 0);
@@ -1092,133 +1397,25 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 	else
 		use_phs = attenuation!=0;
 
-//	if (channel == CHAN_BODY || channel == CHAN_VOICE)
-//		reliable = true;
-
-	extfield_mask = 0;
-	extfield_mask |= (flags & CF_NOSPACIALISE) << 8;
-	if (volume != DEFAULT_SOUND_PACKET_VOLUME)
-		extfield_mask |= NQSND_VOLUME;
-	if (attenuation != DEFAULT_SOUND_PACKET_ATTENUATION)
-		extfield_mask |= NQSND_ATTENUATION;
-	if (ent >= 8192 || channel >= 8)
-		extfield_mask |= DPSND_LARGEENTITY;
-	if (sound_num > 0xff)
-		extfield_mask |= DPSND_LARGESOUND;
-	if (pitchadj && (pitchadj != 100))
-		extfield_mask |= FTESND_PITCHADJ;
-	if (timeofs != 0)
-		extfield_mask |= FTESND_TIMEOFS;
-	if (extfield_mask > 0xff)
-		extfield_mask |= FTESND_MOREFLAGS;
-
-
-#ifdef PEXT_SOUNDDBL
-	if (channel >= 8 || ent >= 2048 || (extfield_mask & ~(NQSND_VOLUME|NQSND_ATTENUATION)))
+	if (chflags & CF_UNICAST)
 	{
-		//if any of the above conditions evaluates to true, then we can't use standard qw protocols
-		MSG_WriteByte (&sv.multicast, svcfte_soundextended);
-		MSG_WriteByte (&sv.multicast, extfield_mask&0xff);
-		if (extfield_mask & FTESND_MOREFLAGS)
-			MSG_WriteByte (&sv.multicast, extfield_mask>>8);
-		if (extfield_mask & NQSND_VOLUME)
-			MSG_WriteByte (&sv.multicast, bound(0, volume, 255));
-		if (extfield_mask & NQSND_ATTENUATION)
-			MSG_WriteByte (&sv.multicast, bound(0, attenuation*64, 255));
-		if (extfield_mask & FTESND_PITCHADJ)
-			MSG_WriteByte (&sv.multicast, bound(1, pitchadj, 255));
-		if (extfield_mask & FTESND_TIMEOFS)
-			MSG_WriteShort (&sv.multicast, bound(-32768, timeofs*1000, 32767));
-		if (extfield_mask & DPSND_LARGEENTITY)
-		{
-			MSG_WriteEntity (&sv.multicast, ent);
-			MSG_WriteByte (&sv.multicast, channel);
-		}
-		else
-			MSG_WriteShort (&sv.multicast, (ent<<3) | channel);
-		if (extfield_mask & DPSND_LARGESOUND)
-			MSG_WriteShort (&sv.multicast, sound_num);
-		else
-			MSG_WriteByte (&sv.multicast, sound_num);
-		for (i=0 ; i<3 ; i++)
-			MSG_WriteCoord (&sv.multicast, origin[i]);
-
-		requiredextensions |= PEXT_SOUNDDBL;
-		if (ent > 512)
-			requiredextensions |= PEXT_ENTITYDBL;
-		if (ent > 1024)
-			requiredextensions |= PEXT_ENTITYDBL2;
-	}
-	else
-#endif
-	{
-		qwflags = (ent<<3) | channel;
-
-		if (volume != DEFAULT_SOUND_PACKET_VOLUME)
-			qwflags |= SND_VOLUME;
-		if (attenuation != DEFAULT_SOUND_PACKET_ATTENUATION)
-			qwflags |= SND_ATTENUATION;
-
-		MSG_WriteByte (&sv.multicast, svc_sound);
-		MSG_WriteShort (&sv.multicast, qwflags);
-		if (qwflags & SND_VOLUME)
-			MSG_WriteByte (&sv.multicast, volume);
-		if (qwflags & SND_ATTENUATION)
-			MSG_WriteByte (&sv.multicast, bound(0, attenuation*64, 255));
-		MSG_WriteByte (&sv.multicast, sound_num);
-		for (i=0 ; i<3 ; i++)
-			MSG_WriteCoord (&sv.multicast, origin[i]);
-
-		if (ent > 512)
-			requiredextensions |= PEXT_ENTITYDBL;
-		if (ent > 1024)
-			requiredextensions |= PEXT_ENTITYDBL2;
-	}
-
-#ifdef NQPROT
-	MSG_WriteByte (&sv.nqmulticast, svc_sound);
-	MSG_WriteByte (&sv.nqmulticast, extfield_mask);
-	if (extfield_mask & NQSND_VOLUME)
-		MSG_WriteByte (&sv.nqmulticast, volume);
-	if (extfield_mask & NQSND_ATTENUATION)
-		MSG_WriteByte (&sv.nqmulticast, bound(0, attenuation*64, 255));
-	if (extfield_mask & FTESND_PITCHADJ)
-		MSG_WriteByte (&sv.nqmulticast, pitchadj);
-	if (extfield_mask & FTESND_TIMEOFS)
-		MSG_WriteShort (&sv.nqmulticast, bound(-32768, timeofs*1000, 32767));
-	if (extfield_mask & DPSND_LARGEENTITY)
-	{
-		MSG_WriteEntity (&sv.nqmulticast, ent);
-		MSG_WriteByte (&sv.nqmulticast, channel);
-	}
-	else
-		MSG_WriteShort (&sv.nqmulticast, (ent<<3) | channel);
-	if (extfield_mask & DPSND_LARGESOUND)
-		MSG_WriteShort (&sv.nqmulticast, sound_num);
-	else
-		MSG_WriteByte (&sv.nqmulticast, sound_num);
-	for (i=0 ; i<3 ; i++)
-		MSG_WriteCoord (&sv.nqmulticast, origin[i]);
-#endif
-
-	if (flags & CF_UNICAST)
-	{
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_ONE_R : MULTICAST_ONE, seenmask, requiredextensions, 0);
+		SV_MulticastCB(origin, reliable ? MULTICAST_ONE_R : MULTICAST_ONE, seenmask, SV_SoundMulticast, &ctx);
 	}
 	else
 	{
 		if (use_phs)
-			SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, seenmask, requiredextensions, 0);
+			SV_MulticastCB(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, seenmask, SV_SoundMulticast, &ctx);
 		else
-			SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, requiredextensions, 0);
+			SV_MulticastCB(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, SV_SoundMulticast, &ctx);
 	}
 }
 
-void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs, unsigned int flags)
+void QDECL SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int chflags)
 {
 	edict_t *entity = (edict_t*)wentity;
 	int i;
 	vec3_t originbuf;
+	float *velocity = NULL;
 	if (!origin)
 	{
 		origin = originbuf;
@@ -1232,7 +1429,7 @@ void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char 
 			//making them all reliable avoids packetloss and phs issues.
 			//this applies only to pushers. you won't get extra latency on player actions because of this.
 			//be warned that it does mean you might be able to hear people triggering stuff on the other side of the map however.
-			flags |= CF_RELIABLE;
+			chflags |= CF_RELIABLE;
 		}
 		else if (progstype == PROG_QW)
 		{	//quakeworld puts the sound ONLY at the entity's actual origin. this is annoying and stupid. I'm not really sure what to do here. it seems wrong.
@@ -1243,9 +1440,12 @@ void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char 
 			for (i=0 ; i<3 ; i++)
 				origin[i] = entity->v->origin[i]+0.5*(entity->v->mins[i]+entity->v->maxs[i]);
 		}
+
+		if (chflags & CF_SENDVELOCITY)
+			velocity = entity->v->velocity;
 	}
 
-	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, entity->xv->dimension_seen, channel, sample, volume, attenuation, pitchadj, timeofs, flags);
+	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, velocity, entity->xv->dimension_seen, channel, sample, volume, attenuation, pitchadj, timeofs, chflags);
 }
 
 /*
@@ -1303,8 +1503,8 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 			MSG_WriteByte(msg, pnum);
 		}
 		MSG_WriteByte (msg, svc_damage);
-		MSG_WriteByte (msg, min(255, ent->v->dmg_save));
-		MSG_WriteByte (msg, min(255, ent->v->dmg_take));
+		MSG_WriteByte (msg, bound(0, ent->v->dmg_save, 255));
+		MSG_WriteByte (msg, bound(0, ent->v->dmg_take, 255));
 		for (i=0 ; i<3 ; i++)
 			MSG_WriteCoord (msg, other->v->origin[i] + 0.5*(other->v->mins[i] + other->v->maxs[i]));
 
@@ -1586,7 +1786,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	MSG_WriteShort (msg, bits & 0xffff);
 
 	if (bits & SU_EXTEND1)
-		MSG_WriteByte(msg, bits>>16);
+		MSG_WriteByte(msg, (bits>>16)&0xff);
 	if (bits & SU_EXTEND2)
 		MSG_WriteByte(msg, bits>>24);
 
@@ -1629,7 +1829,12 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 			MSG_WriteByte (msg, (int)ent->v->armorvalue&0xff);
 	}
 	if (bits & SU_WEAPONMODEL)
-		MSG_WriteByte (msg, weaponmodelindex&0xff);
+	{
+		if (client->protocol == SCP_BJP3)
+			MSG_WriteShort (msg, weaponmodelindex&0xffff);
+		else
+			MSG_WriteByte (msg, weaponmodelindex&0xff);
+	}
 
 	if (nqjunk)
 	{
@@ -1668,15 +1873,18 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 		}
 	}
 
-	if (bits & FITZSU_WEAPONMODEL2)	MSG_WriteByte (msg, weaponmodelindex >> 8);
-	if (bits & FITZSU_ARMOR2)		MSG_WriteByte (msg, (int)ent->v->armorvalue >> 8);
-	if (bits & FITZSU_AMMO2)		MSG_WriteByte (msg, (int)ent->v->currentammo >> 8);
-	if (bits & FITZSU_SHELLS2)		MSG_WriteByte (msg, (int)ent->v->ammo_shells >> 8);
-	if (bits & FITZSU_NAILS2)		MSG_WriteByte (msg, (int)ent->v->ammo_nails >> 8);
-	if (bits & FITZSU_ROCKETS2)		MSG_WriteByte (msg, (int)ent->v->ammo_rockets >> 8);
-	if (bits & FITZSU_CELLS2)		MSG_WriteByte (msg, (int)ent->v->ammo_cells >> 8);
-	if (bits & FITZSU_WEAPONFRAME2)	MSG_WriteByte (msg, (int)ent->v->weaponframe >> 8);
-	if (bits & FITZSU_WEAPONALPHA)	MSG_WriteByte (msg, ent->xv->alpha*255);
+	if (client->protocol == SCP_FITZ666)
+	{
+		if (bits & FITZSU_WEAPONMODEL2)	MSG_WriteByte (msg, weaponmodelindex >> 8);
+		if (bits & FITZSU_ARMOR2)		MSG_WriteByte (msg, (int)ent->v->armorvalue >> 8);
+		if (bits & FITZSU_AMMO2)		MSG_WriteByte (msg, (int)ent->v->currentammo >> 8);
+		if (bits & FITZSU_SHELLS2)		MSG_WriteByte (msg, (int)ent->v->ammo_shells >> 8);
+		if (bits & FITZSU_NAILS2)		MSG_WriteByte (msg, (int)ent->v->ammo_nails >> 8);
+		if (bits & FITZSU_ROCKETS2)		MSG_WriteByte (msg, (int)ent->v->ammo_rockets >> 8);
+		if (bits & FITZSU_CELLS2)		MSG_WriteByte (msg, (int)ent->v->ammo_cells >> 8);
+		if (bits & FITZSU_WEAPONFRAME2)	MSG_WriteByte (msg, (int)ent->v->weaponframe >> 8);
+		if (bits & FITZSU_WEAPONALPHA)	MSG_WriteByte (msg, ent->xv->alpha*255);
+	}
 
 //	}
 #endif
@@ -1755,7 +1963,7 @@ void SV_QCStatName(int type, char *name, int statnum)
 		return;
 
 	memset(&cache, 0, sizeof(cache));
-	if (!svprogfuncs->GetEdictFieldValue(svprogfuncs, NULL, name, &cache))
+	if (!svprogfuncs->GetEdictFieldValue(svprogfuncs, NULL, name, 0, &cache))
 		return;
 
 	SV_QCStatEval(type, name, &cache, NULL, statnum);
@@ -1801,7 +2009,7 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char const** statss, float *sta
 		}
 		else
 		{
-			eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, qcstats[i].name, &qcstats[i].eval.c);
+			eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, qcstats[i].name, 0, &qcstats[i].eval.c);
 		}
 		if (!eval)
 			continue;
@@ -1889,7 +2097,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 		if (!ent->xv->viewzoom)
 			statsi[STAT_VIEWZOOM] = 255;
 		else
-			statsi[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
+			statsi[STAT_VIEWZOOM] = max(1,ent->xv->viewzoom*255);
 #endif
 
 #ifdef NQPROT
@@ -2261,7 +2469,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 	}
 
 	msg.data = buf;
-	msg.maxsize = sizeof(buf);
+	msg.maxsize = sizeof(buf)-50;
 	msg.cursize = 0;
 	msg.allowoverflow = true;
 	msg.overflowed = false;
@@ -2459,6 +2667,7 @@ void SV_UpdateToReliableMessages (void)
 	{
 		if ((svs.gametype == GT_Q1QVM || svs.gametype == GT_PROGS) && host_client->state == cs_spawned)
 		{
+#ifndef NOLEGACY
 			//DP_SV_CLIENTCOLORS
 			if (host_client->edict->xv->clientcolors != host_client->playercolor)
 			{
@@ -2478,6 +2687,7 @@ void SV_UpdateToReliableMessages (void)
 					MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, "bottomcolor"));
 				}
 			}
+#endif
 
 			name = PR_GetString(svprogfuncs, host_client->edict->v->netname);
 #ifndef QCGC	//this optimisation doesn't really work with a QC instead of static string management
@@ -2554,8 +2764,10 @@ void SV_UpdateToReliableMessages (void)
 				if (!curspeed)
 					curspeed = sv_maxspeed.value;
 			}
+#ifdef HEXEN2
 			if (ent->xv->hasted)
 				curspeed*=ent->xv->hasted;
+#endif
 		}
 		else
 		{
@@ -2899,6 +3111,8 @@ void SV_SendClientMessages (void)
 		//qw servers will set send_message on packet reception.
 #endif
 
+		SV_ProcessSendFlags(c);
+
 		if (!c->send_message)
 			continue;
 		c->send_message = false;	// try putting this after choke?
@@ -2923,6 +3137,7 @@ void SV_SendClientMessages (void)
 			c->ratetime = sv.time;
 		}
 
+		SV_ReplaceEntityFrame(c, c->netchan.outgoing_sequence);
 		if (c->state == cs_spawned)
 			SV_SendClientDatagram (c);
 		else

@@ -927,6 +927,7 @@ menuoption_t *MC_AddCursorSmall(menu_t *menu, menuresel_t *reselection, int x, i
 
 menupicture_t *MC_AddCursor(menu_t *menu, menuresel_t *reselection, int x, int y)
 {
+	int i;
 	menupicture_t *n = Z_Malloc(sizeof(menupicture_t));
 	if (reselection)
 		menu->reselection = reselection;
@@ -972,6 +973,10 @@ menupicture_t *MC_AddCursor(menu_t *menu, menuresel_t *reselection, int x, int y
 		dotofs=0;
 		break;
 	}
+
+	//cache them all. this avoids weird flickering as things get dynamically loaded
+	for (i = 0; i < maxdots; i++)
+		R2D_SafeCachePic(va(menudotstyle, i+mindot));
 
 	if (menu->reselection)
 	{
@@ -1673,6 +1678,17 @@ void M_RemoveMenu (menu_t *menu)
 		currentmenu = firstmenu;
 }
 
+void M_ReloadMenus(void)
+{
+	menu_t *m;
+
+	for (m = firstmenu; m; m = m->parent)
+	{
+		if (m->reset)
+			m->reset(m);
+	}
+}
+
 void M_RemoveAllMenus (qboolean leaveprompts)
 {
 	menu_t **link, *m;
@@ -2148,7 +2164,9 @@ void M_Menu_Main_f (void)
 
 		y = 32;
 		mainm->selecteditem = (menuoption_t *)
+#ifndef CLIENTONLY
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Single       ", "menu_single\n");	y += 20;
+#endif
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Multiplayer  ", "menu_multi\n");	y += 20;
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Options      ", "menu_options\n");	y += 20;
 		if (m_helpismedia.value)
@@ -2259,7 +2277,16 @@ int MC_AddBulk(struct menu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xs
 		int spacing = 8;
 
 		if (bulk->text)
-			x -= strlen(bulk->text) * 8;
+		{	//lots of fancy code just to figure out the correct width of the string. yay. :(
+			int px, py;
+			conchar_t buffer[2048], *end;
+			end = COM_ParseFunString(CON_WHITEMASK, bulk->text, buffer, sizeof(buffer), false);
+			Font_BeginString(font_default, 0, 0, &px, &py);
+			px = Font_LineWidth(buffer, end);
+			Font_EndString(NULL);
+
+			x -= ((float)px * vid.width) / vid.rotpixelwidth;
+		}
 		xleft = x - xstart;
 
 		switch (bulk->type)

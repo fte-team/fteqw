@@ -1741,10 +1741,6 @@ static bool World_Bullet_DoInit(void)
 	return false;
 }
 
-#define ARGNAMES ,version
-static BUILTINR(modplugfuncs_t*, Mod_GetPluginModelFuncs, (int version));
-#undef ARGNAMES
-
 extern "C" qintptr_t Plug_Init(qintptr_t *args)
 {
 	CHECKBUILTIN(Mod_GetPluginModelFuncs);

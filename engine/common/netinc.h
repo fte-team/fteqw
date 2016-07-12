@@ -150,7 +150,7 @@
 	#define NET_ECONNRESET		WSAECONNRESET
 	#define NET_ECONNABORTED	WSAECONNABORTED
 	#define NET_ECONNREFUSED	WSAECONNREFUSED
-	#define NET_ETIMEDOUT	WSAETIMEDOUT
+	#define NET_ETIMEDOUT		WSAETIMEDOUT
 	#define NET_ENOTCONN		WSAENOTCONN
 	#define NET_EACCES			WSAEACCES
 	#define NET_EADDRNOTAVAIL	WSAEADDRNOTAVAIL
@@ -234,13 +234,14 @@ struct icestate_s;
 #define ICE_API_CURRENT "Internet Connectivity Establishment 0.0"
 typedef struct
 {
-	struct icestate_s *(QDECL *ICE_Create)(void *module, char *conname, char *peername, enum icemode_e mode, enum iceproto_e proto);	//doesn't start pinging anything.
+	struct icestate_s *(QDECL *ICE_Create)(void *module, const char *conname, const char *peername, enum icemode_e mode, enum iceproto_e proto);	//doesn't start pinging anything.
 	qboolean (QDECL *ICE_Set)(struct icestate_s *con, const char *prop, const char *value);
 	qboolean (QDECL *ICE_Get)(struct icestate_s *con, const char *prop, char *value, int valuesize);
 	struct icecandinfo_s *(QDECL *ICE_GetLCandidateInfo)(struct icestate_s *con);		//retrieves candidates that need reporting to the peer.
 	void (QDECL *ICE_AddRCandidateInfo)(struct icestate_s *con, struct icecandinfo_s *cand);		//stuff that came from the peer.
 	void (QDECL *ICE_Close)(struct icestate_s *con);	//bye then.
 	void (QDECL *ICE_CloseModule)(void *module);	//closes all unclosed connections, with warning.
+//	struct icestate_s *(QDECL *ICE_Find)(void *module, const char *conname);
 } icefuncs_t;
 extern icefuncs_t iceapi;
 #endif
@@ -256,7 +257,7 @@ typedef struct ftenet_generic_connection_s {
 	int (*GetLocalAddresses)(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
 	qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, netadr_t *newadr);
 	qboolean (*GetPacket)(struct ftenet_generic_connection_s *con);
-	qboolean (*SendPacket)(struct ftenet_generic_connection_s *con, int length, const void *data, netadr_t *to);
+	neterr_t (*SendPacket)(struct ftenet_generic_connection_s *con, int length, const void *data, netadr_t *to);
 	void (*Close)(struct ftenet_generic_connection_s *con);
 #ifdef HAVE_PACKET
 	int (*SetReceiveFDSet) (struct ftenet_generic_connection_s *con, fd_set *fdset);	/*set for connections which have multiple sockets (ie: listening tcp connections)*/
@@ -297,8 +298,12 @@ void FTENET_CloseCollection(ftenet_connections_t *col);
 qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, qboolean islisten);
 int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, int *adrflags, netadr_t *addresses, int maxaddresses);
 
-vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server);
+vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, qboolean datagram);
 #ifdef HAVE_PACKET
 vfsfile_t *FS_OpenTCPSocket(SOCKET socket, qboolean conpending, const char *peername);	//conpending allows us to reject any writes until the connection has succeeded
 #endif
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
+
+#ifndef SOCK_CLOEXEC
+#define SOCK_CLOEXEC 0
+#endif

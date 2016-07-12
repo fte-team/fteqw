@@ -312,6 +312,7 @@ endif
 CLIENT_DIR=$(BASE_DIR)/client
 GL_DIR=$(BASE_DIR)/gl
 D3D_DIR=$(BASE_DIR)/d3d
+VK_DIR=$(BASE_DIR)/vk
 SERVER_DIR=$(BASE_DIR)/server
 COMMON_DIR=$(BASE_DIR)/common
 HTTP_DIR=$(BASE_DIR)/http
@@ -423,6 +424,7 @@ DX7SDK=-I./libs/dxsdk7/include/
 
 GLCFLAGS?=-DGLQUAKE
 D3DCFLAGS?=-DD3D9QUAKE -DD3D11QUAKE
+VKCFLAGS?=-DVKQUAKE
 NPFTECFLAGS=-DNPFTE
 SPEEXCFLAGS=-DSPEEX_STATIC -I$(BASE_DIR)/libs/speex/include -DFIXED_POINT -DUSE_KISS_FFT -DEXPORT=""
 
@@ -529,6 +531,10 @@ CLIENT_OBJS = \
 				\
 	pr_menu.o
 
+VKQUAKE_OBJS =		\
+	vk_init.o	\
+	vk_backend.o
+
 GLQUAKE_OBJS =		\
 	gl_draw.o		\
 	gl_backend.o		\
@@ -537,7 +543,8 @@ GLQUAKE_OBJS =		\
 	gl_rsurf.o		\
 	gl_screen.o		\
 	gl_bloom.o		\
-	gl_vidcommon.o
+	gl_vidcommon.o		\
+	$(VKQUAKE_OBJS)
 
 D3DQUAKE_OBJS =		\
 	d3d_backend.o \
@@ -632,6 +639,8 @@ WINDOWSSERVERONLY_OBJS = \
 WINDOWS_OBJS = \
 	snd_win.o \
 	snd_directx.o \
+	snd_xaudio.o \
+	snd_wasapi.o \
 	cd_win.o \
 	fs_win32.o \
 	in_win.o \
@@ -646,7 +655,6 @@ COMMON_OBJS = \
 	gl_heightmap.o		\
 	gl_model.o	\
 	com_mesh.o	\
-	com_phys_ode.o	\
 	common.o 		\
 	cvar.o 		\
 	cmd.o 		\
@@ -755,6 +763,8 @@ M_EXE_NAME=../fteqw_$(FTE_FULLTARGET)
 MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
 M_CFLAGS=$(GLCFLAGS) `$(SDLCONFIG) --cflags`
 M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
+
+QCC_DIR=qcc$(BITS)
 
 ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
 	SV_LDFLAGS+=-lz
@@ -896,6 +906,18 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	endif
 	D3DB_DIR=sdl_d3d_mgw$(BITS)
 	D3DCL_DIR=sdl_d3dcl_mgw$(BITS)
+
+
+	VKCL_OBJS=$(D3DQUAKE_OBJS) $(SPEEX_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
+	VK_EXE_NAME=../ftevk_sdl_qw$(BITS)$(EXEPOSTFIX)
+	VKCL_EXE_NAME=../ftevk_sdl_clqw$(BITS)$(EXEPOSTFIX)
+	VK_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
+	VK_CFLAGS=$(VKCFLAGS) -DFTE_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) -DLIBVORBISFILE_STATIC $(DX7SDK) $(SPEEXCFLAGS)
+	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
+		VK_CFLAGS+= -D_MINGW_VFPRINTF
+	endif
+	VKB_DIR=sdl_vk_mgw$(BITS)
+	VKCL_DIR=sdl_vkcl_mgw$(BITS)
 	
 endif
 
@@ -1011,6 +1033,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	ifeq ($(FTE_TARGET),win64)
 		BITS=64
 	endif
+	QCC_DIR=winqcc$(BITS)
 
 	BASELDFLAGS=
 
@@ -1062,12 +1085,21 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	D3DB_DIR=d3d_mgw$(BITS)
 	D3DCL_DIR=d3dcl_mgw$(BITS)
 
+	VKCL_OBJS=$(GLQUAKE_OBJS) $(D3DGL_OBJS) $(SPEEX_OBJS) $(WINDOWS_OBJS) vk_win32.o
+	VK_EXE_NAME=../ftevkqw$(BITS)$(EXEPOSTFIX)
+	VKCL_EXE_NAME=../ftevkclqw$(BITS)$(EXEPOSTFIX)
+	VK_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
+	VK_CFLAGS=$(VKCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC $(SPEEXCFLAGS)
+	VKB_DIR=vk_mgw$(BITS)
+	VKCL_DIR=vkcl_mgw$(BITS)
+
 	MINGL_EXE_NAME=../fteminglqw$(BITS)$(EXEPOSTFIX)
 	MINGL_DIR=mingl_mgw$(BITS)
 
 	ifeq ($(NOCOMPAT),1)
 		SV_EXE_NAME=../engine_sv$(BITS)$(EXEPOSTFIX)
 		GL_EXE_NAME=../engine_gl$(BITS)$(EXEPOSTFIX)
+		VK_EXE_NAME=../engine_vk$(BITS)$(EXEPOSTFIX)
 		M_EXE_NAME=../engine$(BITS)$(EXEPOSTFIX)
 		D3D_EXE_NAME=../engine_d3d$(BITS)$(EXEPOSTFIX)
 		MINGL_EXE_NAME=../engine_cl_gl$(BITS)$(EXEPOSTFIX)
@@ -1105,6 +1137,8 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	SV_EXE_NAME=../fteqw.sv$(BITS)
 	SV_LDFLAGS=
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DMULTITHREAD
+
+	QCC_DIR=linqcc$(BITS)
 	
 	NPFTE_OBJS=httpclient.o image.o sys_linux_threads.o sys_npfte.o sys_axfte.o sys_plugfte.o
 	NPFTE_DLL_NAME=../npfte$(BITS).so
@@ -1112,13 +1146,21 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	NPFTE_CFLAGS=$(NPFTECFLAGS) $(W32_CFLAGS) -DMULTITHREAD -fPIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG
 	NPFTEB_DIR=npfte_linux$(BITS)
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_alsa.o snd_linux.o snd_sdl.o cd_linux.o sys_linux.o sys_linux_threads.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) vid_headless.o gl_vidlinuxglx.o gl_videgl.o snd_alsa.o snd_linux.o snd_sdl.o cd_linux.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
 	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DMULTITHREAD -DLIBVORBISFILE_STATIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG -DDYNAMIC_SDL
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
+
+	VKCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_alsa.o snd_linux.o snd_sdl.o cd_linux.o sys_linux.o sys_linux_threads.o
+	VK_EXE_NAME=../fteqw_vk$(BITS)
+	VKCL_EXE_NAME=../fteqwcl_vk$(BITS)
+	VK_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
+	VK_CFLAGS=$(VKCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DMULTITHREAD -DLIBVORBISFILE_STATIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG -DDYNAMIC_SDL
+	VKB_DIR=vk_linux$(BITS)
+	VKCL_DIR=vkcl_linux$(BITS)
 
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_linux.o snd_sdl.o snd_alsa.o cd_linux.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../fteqw$(BITS)
@@ -1133,6 +1175,7 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
 		SV_LDFLAGS+= -lz
 		GL_LDFLAGS+= -lz
+		VK_LDFLAGS+= -lz
 		M_LDFLAGS+= -lz
 	endif
 
@@ -1285,7 +1328,7 @@ ifeq ($(FTE_TARGET),web)
 	DEBUG_CFLAGS=-g -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
 	RELEASE_LDFLAGS=-s ASM_JS=1 -O3	-s TOTAL_MEMORY=$(ASMJS_MEMORY) $(EMCC_ARGS)
 #	RELEASE_LDFLAGS=-s ASM_JS=0 -O1	-s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
-	DEBUG_LDFLAGS=-O0 -g4 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
+	DEBUG_LDFLAGS=-O0 -g4 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS) -s SAFE_HEAP=1 -s ALIASING_FUNCTION_POINTERS=0 -s ASSERTIONS=2
 	CC?=emcc
 	#BASELDFLAGS=
 	PRECOMPHEADERS=
@@ -1361,7 +1404,7 @@ ifneq ($(OUT_DIR),)
 endif
 
 
-VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(D3D_DIR) : $(BOTLIB_DIR) : $(BASE_DIR)/libs/speex/libspeex : $(BASE_DIR)/web
+VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(D3D_DIR) : $(VK_DIR) : $(BOTLIB_DIR) : $(BASE_DIR)/libs/speex/libspeex : $(BASE_DIR)/web
 
 ifneq ($(findstring -DSPEEX_STATIC, $(CFLAGS)),)
 	#add these to statically link libspeex
@@ -1505,6 +1548,27 @@ d3d-profile:
 	@$(MAKE) d3d-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(D3DB_DIR)"
 
 
+
+vkcl-tmp:
+	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(VKCL_EXE_NAME)" WCFLAGS="$(VK_CFLAGS)" LDFLAGS="$(VK_LDFLAGS) $(LDFLAGS)" SOBJS="$(VKCL_OBJS)"
+vk-tmp:
+	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(VK_EXE_NAME)" WCFLAGS="$(VK_CFLAGS)" LDFLAGS="$(VK_LDFLAGS) $(LDFLAGS)" SOBJS="$(VKCL_OBJS)"
+
+vkcl-rel:
+	@$(MAKE) vkcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(VKCL_DIR)"
+vkcl-dbg:
+	@$(MAKE) vkcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(VKCL_DIR)"
+vkcl-profile:
+	@$(MAKE) vkcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(VKCL_DIR)"
+
+vk-rel:
+	@$(MAKE) vk-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(VKB_DIR)"
+vk-dbg:
+	@$(MAKE) vk-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(VKB_DIR)"
+vk-profile:
+	@$(MAKE) vk-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(VKB_DIR)"
+
+
 glcl-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
 gl-tmp:
@@ -1556,32 +1620,32 @@ m-profile:
 _qcc-tmp: $(REQDIR)
 	@$(MAKE) $(TYPE) EXE_NAME="$(EXE_NAME)$(EXEPOSTFIX)" PRECOMPHEADERS="" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" OBJS="QCC_OBJS SOBJS"
 qcc-rel:
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-rel:
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 qcc-dbg:
-	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(QCC_DIR)" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-dbg:
-	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 
 #scintilla is messy as fuck when building statically. but at least we can strip out the lexers we don't use this way.
 #note that this is only used in the 'qccgui-scintilla' target.
-SCINTILLAVER=352
-SCINTILLA_FILES= AutoComplete.o CallTip.o CaseConvert.o CaseFolder.o CellBuffer.o CharacterCategory.o CharacterSet.o CharClassify.o ContractionState.o Decoration.o Document.o EditModel.o Editor.o EditView.o KeyMap.o Indicator.o LineMarker.o MarginView.o PerLine.o PlatWin.o PositionCache.o PropSetSimple.o RESearch.o RunStyles.o Selection.o Style.o UniConversion.o ViewStyle.o XPM.o ScintillaWin.o ScintillaBase.o Accessor.o Catalogue.o ExternalLexer.o LexerBase.o LexerModule.o LexerSimple.o StyleContext.o WordList.o LexCPP.o
+SCINTILLAVER=366
+SCINTILLA_FILES= AutoComplete.o CallTip.o CaseConvert.o CaseFolder.o CellBuffer.o CharacterCategory.o CharacterSet.o CharClassify.o ContractionState.o Decoration.o Document.o EditModel.o Editor.o EditView.o KeyMap.o Indicator.o LineMarker.o MarginView.o PerLine.o PlatWin.o PositionCache.o PropSetSimple.o RESearch.o RunStyles.o Selection.o Style.o UniConversion.o ViewStyle.o XPM.o ScintillaWin.o HanjaDic.o ScintillaBase.o Accessor.o Catalogue.o ExternalLexer.o LexerBase.o LexerModule.o LexerSimple.o StyleContext.o WordList.o LexCPP.o
 SCINTILLA_ROOT=$(BASE_DIR)/scintilla$(SCINTILLAVER)/scintilla
 SCINTILLA_DIRS=$(SCINTILLA_ROOT)/lexers:$(SCINTILLA_ROOT)/lexlib:$(SCINTILLA_ROOT)/src:$(SCINTILLA_ROOT)/win32
 SCINTILLA_INC=-I$(SCINTILLA_ROOT)/include -I$(SCINTILLA_ROOT)/lexlib -I$(SCINTILLA_ROOT)/win32 -I$(SCINTILLA_ROOT)/src
 $(RELEASE_DIR)/scintilla$(BITS).a: $(foreach f,$(SCINTILLA_FILES),$(OUT_DIR)/$(f))
-	$(AR) -r $@ $?
-	$(AR) -s $@
+	@$(AR) -r $@ $?
+	@$(AR) -s $@
 scintilla$(BITS)_static:
 	@test -f scintilla$(SCINTILLAVER).tar.gz || wget http://prdownloads.sourceforge.net/scintilla/scintilla$(SCINTILLAVER).tgz?download -O scintilla$(SCINTILLAVER).tar.gz
-	-test -f $(SCINTILLA_ROOT) || (mkdir $(BASE_DIR)/scintilla$(SCINTILLAVER) && cd $(BASE_DIR)/scintilla$(SCINTILLAVER) && tar -xvzf ../scintilla$(SCINTILLAVER).tar.gz && cd scintilla && mv lexers/LexCPP.cxx . && rm lexers/Lex*.cxx && mv LexCPP.cxx lexers/ && cd scripts && python LexGen.py)
-	@$(MAKE) reldir OUT_DIR=$(RELEASE_DIR)/qcc
-	@$(MAKE) $(RELEASE_DIR)/scintilla$(BITS).a VPATH="$(SCINTILLA_DIRS)" CFLAGS="$(SCINTILLA_INC) -DDISABLE_D2D -DSTATIC_BUILD -DSCI_LEXER" OUT_DIR=$(RELEASE_DIR)/qcc WCFLAGS="$(WCFLAGS) -Os"
+	@-test -f $(SCINTILLA_ROOT) || (mkdir $(BASE_DIR)/scintilla$(SCINTILLAVER) && cd $(BASE_DIR)/scintilla$(SCINTILLAVER) && tar -xvzf ../scintilla$(SCINTILLAVER).tar.gz && cd scintilla && mv lexers/LexCPP.cxx . && rm lexers/Lex*.cxx && mv LexCPP.cxx lexers/ && cd scripts && python LexGen.py)
+	@$(MAKE) reldir OUT_DIR=$(RELEASE_DIR)/$(QCC_DIR)scin
+	@$(MAKE) $(RELEASE_DIR)/scintilla$(BITS).a VPATH="$(SCINTILLA_DIRS)" CFLAGS="$(SCINTILLA_INC) -DDISABLE_D2D -DSTATIC_BUILD -DSCI_LEXER -std=c++11" OUT_DIR=$(RELEASE_DIR)/$(QCC_DIR)scin WCFLAGS="$(WCFLAGS) -Os" WARNINGFLAGS=
 qccgui-scintilla: scintilla$(BITS)_static
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o fteqcc.o" WCFLAGS="$(WCFLAGS) -DSCISTATIC" LDFLAGS="$(LDFLAGS) $(RELEASE_DIR)/scintilla$(BITS).a -static -luuid -lole32 -limm32 -lstdc++ -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)scin" SOBJS="qccgui.o qccguistuff.o fteqcc.o" WCFLAGS="$(WCFLAGS) -DSCISTATIC" LDFLAGS="$(LDFLAGS) $(RELEASE_DIR)/scintilla$(BITS).a -static -luuid -lole32 -limm32 -lstdc++ -loleaut32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 ifdef windir
 debugdir:
@@ -1707,17 +1771,18 @@ nacl-dbg:
 #assumes you installed the emscripten 1.22.0 sdk to EMSCRIPTENROOT
 #if you have a different version installed, you will need to fix up the paths yourself (or just use fte_target explicitly yourself).
 EMSCRIPTENROOT?=C:/Games/tools/Emscripten
-EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/e1.22.0_64bit):$(realpath $(EMSCRIPTENROOT)/node/0.10.17_64bit):$(realpath $(EMSCRIPTENROOT)/python/2.7.5.3_64bit):$(realpath $(EMSCRIPTENROOT)/emscripten/1.22.0):$(PATH)
+#EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/e1.22.0_64bit):$(realpath $(EMSCRIPTENROOT)/node/0.10.17_64bit):$(realpath $(EMSCRIPTENROOT)/python/2.7.5.3_64bit):$(realpath $(EMSCRIPTENROOT)/emscripten/1.22.0):$(PATH)
+EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/e1.35.0_64bit):$(realpath $(EMSCRIPTENROOT)/node/4.1.1_64bit/bin):$(realpath $(EMSCRIPTENROOT)/python/2.7.5.3_64bit):$(realpath $(EMSCRIPTENROOT)/emscripten/1.35.0):$(PATH)
 
 web-rel:
-	@$(MAKE) gl-rel FTE_TARGET=web	PATH="$(EMSCRIPTENPATH)" CC="emcc.bat"
+	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-rel FTE_TARGET=web CC="emcc.bat --em-config $(shell cygpath -m $(USERPROFILE))/.emscripten"
 	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.js
 	@gzip -f $(RELEASE_DIR)/ftewebgl.js.mem
 
 web-dbg:
-	@$(MAKE) gl-dbg FTE_TARGET=web	PATH="$(EMSCRIPTENPATH)" CC="emcc.bat"
+	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-dbg FTE_TARGET=web CC="emcc.bat --em-config $(shell cygpath -m $(USERPROFILE))/.emscripten"
 	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.js

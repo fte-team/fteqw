@@ -216,7 +216,9 @@ static qboolean JCL_JingleSend(jclient_t *jcl, struct c2c_s *c2c, char *action)
 //	struct icestate_s *ice = c2c->ice;
 	qboolean wasaccept = false;
 	int transportmode = ICEM_ICE;
+#ifdef VOIP_LEGACY
 	int cap = c2c->peercaps;
+#endif
 
 	if (!c2c->contents)
 		action = "session-terminate";
@@ -786,13 +788,13 @@ static qboolean JCL_JingleHandleInitiate_GoogleSession(jclient_t *jcl, xmltree_t
 				char parm[64];
 				char val[64];
 				//note: the engine will ignore codecs it does not support, returning false.
-				if (!stricmp(name, "SPEEX"))
+				if (!strcasecmp(name, "SPEEX"))
 				{
 					Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
 					Q_snprintf(val, sizeof(val), "speex@%i", atoi(clock));
 					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, val);
 				}
-				else if (!stricmp(name, "OPUS"))
+				else if (!strcasecmp(name, "OPUS"))
 				{
 					Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
 					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, "opus");
@@ -840,12 +842,8 @@ static qboolean JCL_JingleHandleInitiate_GoogleSession(jclient_t *jcl, xmltree_t
 #endif
 static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, char *from)
 {
-	xmltree_t *gamecontent = NULL;
-	xmltree_t *audiocontent = NULL;
-	xmltree_t *videocontent = NULL;
 	char *sid = XML_GetParameter(inj, "sid", "");
 
-	qboolean accepted = false;
 	qboolean okay;
 	char *initiator;
 
@@ -917,13 +915,13 @@ static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, ch
 				char parm[64];
 				char val[64];
 				//note: the engine will ignore codecs it does not support, returning false.
-				if (!stricmp(name, "SPEEX"))
+				if (!strcasecmp(name, "SPEEX"))
 				{
 					Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
 					Q_snprintf(val, sizeof(val), "speex@%i", atoi(clock));
 					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, val);
 				}
-				else if (!stricmp(name, "OPUS"))
+				else if (!strcasecmp(name, "OPUS"))
 				{
 					Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
 					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, "opus");

@@ -135,13 +135,14 @@ static void M_ScanSaves (void)
 		M_ScanSave(i, va("s%i", i-SAVEFIRST_STANDARD), true);
 }
 
-static void M_Menu_LoadSave_Remove(menu_t *menu)
+static void M_Menu_LoadSave_UnloadShaders(menu_t *menu)
 {
 	loadsavemenuinfo_t *info = menu->data;
 	if (info->picshader)
 	{
 		Image_UnloadTexture(info->picshader->defaulttextures->base);
 		R_UnloadShader(info->picshader);
+		info->picshader = NULL;
 	}
 }
 
@@ -234,7 +235,8 @@ void M_Menu_Save_f (void)
 
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
 	menu->data = menu+1;
-	menu->remove = M_Menu_LoadSave_Remove;
+	menu->remove = M_Menu_LoadSave_UnloadShaders;
+	menu->reset	 = M_Menu_LoadSave_UnloadShaders;
 	
 	MC_AddCenterPicture (menu, 4, 24, "gfx/p_save.lmp");	
 	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 0, 32, NULL, false);	
@@ -258,15 +260,17 @@ void M_Menu_Load_f (void)
 	menuoption_t *op = NULL;
 	menu_t *menu;
 	int		i;
+	char time[64];
 
 	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 	
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
 	menu->data = menu+1;
+	menu->remove = M_Menu_LoadSave_UnloadShaders;
+	menu->reset	 = M_Menu_LoadSave_UnloadShaders;
 	
 	MC_AddCenterPicture(menu, 4, 24, "gfx/p_load.lmp");	
-	menu->remove = M_Menu_LoadSave_Remove;
 
 	M_ScanSaves ();
 
@@ -276,8 +280,12 @@ void M_Menu_Load_f (void)
 			op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 170, 32+8*i, false, m_saves[i].desc, "loadgame %s\nclosemenu\n", m_saves[i].sname);
 		else
 			MC_AddWhiteText(menu, 16, 170, 32+8*i, m_saves[i].desc, false);
-		if (!menu->selecteditem && op)
-			menu->selecteditem = op;
+		if (op)
+			if (!menu->selecteditem || (*m_saves[i].time && strcmp(time, m_saves[i].time) < 0))
+			{
+				menu->selecteditem = op;
+				Q_strncpyz(time, m_saves[i].time, sizeof(time));
+			}
 	}
 
 	if (menu->selecteditem)
@@ -297,6 +305,7 @@ void M_Menu_SinglePlayer_f (void)
 	mpic_t *p;
 	static menuresel_t resel;
 #endif
+	extern cvar_t cl_splitscreen;
 
 	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
@@ -318,11 +327,11 @@ void M_Menu_SinglePlayer_f (void)
 
 		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_game");
 
-		//quake2 uses the 'newgame' alias.
+		//quake2 uses the 'newgame' alias, which controls the intro video and then start map.
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommand	(menu, 64, 170, 40,	"Easy",		"closemenu; skill 0;deathmatch 0; coop 0;newgame\n");
-		MC_AddConsoleCommand	(menu, 64, 170, 48,	"Medium",	"closemenu; skill 1;deathmatch 0; coop 0;newgame\n");
-		MC_AddConsoleCommand	(menu, 64, 170, 56,	"Hard",		"closemenu; skill 2;deathmatch 0; coop 0;newgame\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 40,	"Easy",		va("closemenu; skill 0;deathmatch 0; coop %i;newgame\n", cl_splitscreen.ival>0));
+		MC_AddConsoleCommand	(menu, 64, 170, 48,	"Medium",	va("closemenu; skill 1;deathmatch 0; coop %i;newgame\n", cl_splitscreen.ival>0));
+		MC_AddConsoleCommand	(menu, 64, 170, 56,	"Hard",		va("closemenu; skill 2;deathmatch 0; coop %i;newgame\n", cl_splitscreen.ival>0));
 
 		MC_AddConsoleCommand	(menu, 64, 170, 72,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommand	(menu, 64, 170, 80,	"Save Game", "menu_save\n");
@@ -338,6 +347,7 @@ void M_Menu_SinglePlayer_f (void)
 			cvar_t *pc;
 			qboolean havemp;
 			static char *classlistmp[] = {
+				"Random",
 				"Paladin",
 				"Crusader",
 				"Necromancer",
@@ -345,7 +355,7 @@ void M_Menu_SinglePlayer_f (void)
 				"Demoness"
 			};
 			menubutton_t *b;
-			havemp = COM_FCheckExists("maps/keep1.bsp");
+			havemp = !!COM_FCheckExists("maps/keep1.bsp");
 			menu = M_CreateMenu(0);
 			MC_AddPicture(menu, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
 
@@ -366,12 +376,12 @@ void M_Menu_SinglePlayer_f (void)
 				if (cl_splitscreen.ival)
 					MC_AddBufferedText(menu, 80, 0, (y+=8)+12, va("Player %i\n", pnum), false, true); 
 
-				for (i = 0; i < 4+havemp; i++)
+				for (i = 0; i <= 4+havemp; i++)
 				{
 					b = MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		classlistmp[i],
 							va("p%i setinfo cl_playerclass %i; menu_single %s %s\n",
 								pnum,
-								i+1,
+								i?i:((rand()%(4+havemp))+1),
 								((pnum+1 > cl_splitscreen.ival+1)?"skill":va("class%i",pnum+1)),
 								Cmd_Argv(2)));
 					if (!menu->selecteditem)
@@ -380,6 +390,7 @@ void M_Menu_SinglePlayer_f (void)
 			}
 			else if (!strncmp(Cmd_Argv(1), "skill", 5))
 			{
+				//yes, hexen2 has per-class names for the skill levels. because being weird and obtuse is kinda its forté
 				static char *skillnames[6][4] =
 				{
 					{
@@ -427,7 +438,7 @@ void M_Menu_SinglePlayer_f (void)
 				MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title5.lmp");
 				for (i = 0; i < 4; i++)
 				{
-					b = MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,	sn[i],	va("skill %i; closemenu; disconnect; deathmatch 0; coop 0;wait;map %s\n", i, Cmd_Argv(2)));
+					b = MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,	sn[i],	va("skill %i; closemenu; disconnect; deathmatch 0; coop %i;wait;map %s\n", i, cl_splitscreen.ival>0, Cmd_Argv(2)));
 					if (!menu->selecteditem)
 						menu->selecteditem = (menuoption_t*)b;
 				}
@@ -451,30 +462,6 @@ void M_Menu_SinglePlayer_f (void)
 				MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		"Load Game",	"menu_load\n");
 			}
 
-			/*
-			pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
-			if (pc)
-				MC_AddCvarCombo (menu, 64, y+=8,	"Player class", pc, havemp?(const char **)classlistmp:(const char **)classlist, (const char **)(classvalues+havemp));
-			y+=8;
-
-			menu->selecteditem = (menuoption_t*)
-			MC_AddConsoleCommand	(menu, 64, y+=8,	"Classic: Easy",		"closemenu\nskill 0;deathmatch 0; coop 0;disconnect;wait;map demo1\n");
-			MC_AddConsoleCommand	(menu, 64, y+=8,	"Classic: Medium",	"closemenu\nskill 1;deathmatch 0; coop 0;disconnect;wait;map demo1\n");
-			MC_AddConsoleCommand	(menu, 64, y+=8,	"Classic: Hard",		"closemenu\nskill 2;deathmatch 0; coop 0;disconnect;wait;map demo1\n");
-			y+=8;
-
-			if (havemp)
-			{
-				MC_AddConsoleCommand(menu, 64, y+=8,	"Expansion: Easy",		"closemenu\nskill 0;deathmatch 0; coop 0;disconnect;wait;map keep1\n");
-				MC_AddConsoleCommand(menu, 64, y+=8,	"Expansion: Medium",	"closemenu\nskill 1;deathmatch 0; coop 0;disconnect;wait;map keep1\n");
-				MC_AddConsoleCommand(menu, 64, y+=8,	"Expansion: Hard",		"closemenu\nskill 2;deathmatch 0; coop 0;disconnect;wait;map keep1\n");
-				y+=8;
-			}
-
-			MC_AddConsoleCommand	(menu, 64, y+=8,	"Load Game", "menu_load\n");
-			MC_AddConsoleCommand	(menu, 64, y+=8,	"Save Game", "menu_save\n");
-			*/
-
 			menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, &resel, 56, menu->selecteditem?menu->selecteditem->common.posy:0);
 
 			return;
@@ -489,7 +476,7 @@ void M_Menu_SinglePlayer_f (void)
 			MC_AddCenterPicture(menu, 0, 24, "gfx/ttl_sgl.lmp");
 
 			menu->selecteditem = (menuoption_t*)
-			MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",		"closemenu;disconnect;maxclients 1;deathmatch 0;coop 0;startmap_sp\n");
+			MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",		va("closemenu;disconnect;maxclients 1;deathmatch 0;coop %i;startmap_sp\n", cl_splitscreen.ival>0));
 			MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Load Game", "menu_load\n");
 			MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"Save Game", "menu_save\n");
 
@@ -517,7 +504,7 @@ void M_Menu_SinglePlayer_f (void)
 	{
 		MC_AddPicture(menu, 72, 32, 232, 64, "gfx/sp_menu.lmp");
 
-		b = MC_AddConsoleCommand	(menu, 16, 304, 32,	"", "closemenu;disconnect;maxclients 1;deathmatch 0;coop 0;startmap_sp\n");
+		b = MC_AddConsoleCommand	(menu, 16, 304, 32,	"", va("closemenu;disconnect;maxclients 1;samelevel 0;deathmatch 0;coop %i;startmap_sp\n", cl_splitscreen.ival>0));
 		menu->selecteditem = (menuoption_t *)b;
 		b->common.width = p->width;
 		b->common.height = 20;
@@ -957,7 +944,7 @@ static void ShowDemoMenu (menu_t *menu, const char *path)
 	}
 	if (info->fs->fsroot == FS_SYSTEM)
 	{
-		if (info->fs->path)
+		if (*info->fs->path)
 			Q_snprintfz(match, sizeof(match), "%s*", info->fs->path);
 		else
 			Q_snprintfz(match, sizeof(match), "/*");
@@ -987,7 +974,7 @@ void M_Menu_Demos_f (void)
 {
 	demomenu_t *info;
 	menu_t *menu;
-	static demoloc_t mediareenterloc = {FS_GAME};
+	static demoloc_t mediareenterloc = {FS_GAME, "demos/"};
 
 	Key_Dest_Add(kdm_emenu);
 	Key_Dest_Remove(kdm_console);
@@ -998,6 +985,21 @@ void M_Menu_Demos_f (void)
 	info = menu->data;
 
 	info->fs = &mediareenterloc;
+
+	if (Cmd_Argc()>1)
+	{
+		char *startdemo = Cmd_Argv(1);
+		if (*startdemo == '#')
+		{
+			startdemo++;
+			info->fs->fsroot = FS_SYSTEM;
+		}
+		else
+			info->fs->fsroot = FS_GAME;
+		Q_strncpyz(info->fs->path, startdemo, sizeof(info->fs->path));
+		*COM_SkipPath(info->fs->path) = 0;
+		Q_strncpyz(info->fs->selname, startdemo, sizeof(info->fs->selname));
+	}
 
 	info->numext = 0;
 	info->command[info->numext] = "closemenu;playdemo";

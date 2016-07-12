@@ -163,6 +163,9 @@ enum
 
 	SBITS_TRUFORM						= 0x00100000,
 	SBITS_AFFINE						= 0x00200000,
+
+	//provided for the backend to hack about with
+	SBITS_LINES							= 0x80000000
 };
 
 
@@ -232,6 +235,7 @@ typedef struct shaderpass_s {
 
 		TC_GEN_UNSPECIFIED
 	} tcgen;
+	vec3_t tcgenvec[2];	//bloat :(
 	int numtcmods;
 	tcmod_t		tcmods[SHADER_MAX_TC_MODS];
 
@@ -301,7 +305,7 @@ typedef struct shaderpass_s {
 		SHADER_PASS_ANIMMAP		= 1 << 11
 	} flags;
 
-#ifdef D3D11QUAKE
+#if defined(D3D11QUAKE) || defined(VKQUAKE)
 	void *becache;	//cache for blendstate objects.
 #endif
 } shaderpass_t;
@@ -437,6 +441,18 @@ typedef struct programshared_s
 	qboolean nofixedcompat;
 	unsigned short numsamplers;	//shader system can strip any passes above this
 	unsigned int defaulttextures;	//diffuse etc
+
+	unsigned int supportedpermutations;
+#ifdef VKQUAKE
+	unsigned char *cvardata;
+	unsigned int cvardatasize;
+	VkRetardedShaderModule vert;		//for slightly faster regeneration
+	VkRetardedShaderModule frag;
+	VkRetardedPipelineLayout layout;	//all permutations share the same layout. I'm too lazy not to.
+	VkRetardedDescriptorSetLayout desclayout;
+	struct pipeline_s *pipelines;
+#endif
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 	struct programpermu_s
 	{
 		union programhandle_u
@@ -473,6 +489,7 @@ typedef struct programshared_s
 		unsigned int numparms;
 		shaderprogparm_t *parm;
 	} permu[PERMUTATIONS];
+#endif
 } program_t;
 
 typedef struct {
@@ -536,8 +553,8 @@ struct shader_s
 		SHADER_NOPICMIP			= 1 << 2,
 		SHADER_CULL_FRONT		= 1 << 3,
 		SHADER_CULL_BACK		= 1 << 4,
-//		SHADER_DEFORMV_BULGE	= 1 << 5,
-//		SHADER_AUTOSPRITE		= 1 << 6,
+		SHADER_NOMARKS			= 1 << 5,
+		SHADER_POLYGONOFFSET	= 1 << 6,
 		SHADER_FLARE			= 1 << 7,
 		SHADER_NEEDSARRAYS		= 1 << 8,	//shader uses deforms or rgbmod tcmods or something that will not work well with sparse vbos
 		SHADER_ENTITY_MERGABLE	= 1 << 9,
@@ -561,6 +578,7 @@ struct shader_s
 		SHADER_HASFULLBRIGHT	= 1 << 26,	//needs a fullbright texture, if possible.
 		SHADER_HASDIFFUSE		= 1 << 27,	//has a T_GEN_DIFFUSE pass
 		SHADER_HASPALETTED		= 1 << 28,	//has a T_GEN_PALETTED pass
+		SHADER_HASCURRENTRENDER	= 1 << 29,	//has a $currentrender pass
 	} flags;
 
 	program_t *prog;
@@ -594,7 +612,7 @@ extern shader_t	**r_shaders;
 extern int be_maxpasses;
 
 
-char *Shader_GetShaderBody(shader_t *s);
+char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize);
 void R_UnloadShader(shader_t *shader);
 int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blocktillloaded);
 shader_t *R_RegisterPic (const char *name);
@@ -606,7 +624,7 @@ shader_t *QDECL R_RegisterSkin  (const char *shadername, const char *modname);
 shader_t *R_RegisterCustom (const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args);
 //once loaded, most shaders should have one of the following two calls used upon it
 void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader);
-void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, const char *subpath, unsigned int loadflags, uploadfmt_t basefmt, size_t width, size_t height, qbyte *mipdata[4], qbyte *palette);
+void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, const char *subpath, unsigned int loadflags, unsigned int imageflags, uploadfmt_t basefmt, size_t width, size_t height, qbyte *mipdata[4], qbyte *palette);
 void R_RemapShader(const char *sourcename, const char *destname, float timeoffset);
 
 cin_t *R_ShaderGetCinematic(shader_t *s);
@@ -632,6 +650,7 @@ void Shader_RemapShader_f(void);
 void Shader_ShowShader_f(void);
 
 program_t *Shader_FindGeneric(char *name, int qrtype);
+void Shader_ReleaseGeneric(program_t *prog);
 
 mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 
@@ -640,8 +659,9 @@ mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 #define BEF_FORCEADDITIVE		4	//blend dest = GL_ONE
 #define BEF_FORCETRANSPARENT	8	//texenv replace -> modulate
 #define BEF_FORCENODEPTH		16	//disables any and all depth.
+//FIXME: the above should really be legacy-only
 #define BEF_PUSHDEPTH			32	//additional polygon offset
-#define BEF_NODLIGHT            64  //don't use a dlight pass
+#define BEF_NODLIGHT			64  //don't use a dlight pass
 #define BEF_NOSHADOWS			128 //don't appear in shadows
 #define BEF_FORCECOLOURMOD		256 //q3 shaders default to 'rgbgen identity', and ignore ent colours. this forces ent colours to be considered
 #define BEF_LINES				512	//draw line pairs instead of triangles.
@@ -684,7 +704,7 @@ typedef struct
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;
 
-	void	 (*pDeleteProg)		(program_t *prog, unsigned int permu);
+	void	 (*pDeleteProg)		(program_t *prog);
 	qboolean (*pLoadBlob)		(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile);
 	qboolean (*pCreateProgram)	(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
 	qboolean (*pValidateProgram)(program_t *prog, const char *name, unsigned int permu, qboolean noerrors, vfsfile_t *blobfile);
@@ -702,6 +722,10 @@ extern sh_config_t sh_config;
 	#define gl_config_gles true
 #else
 	#define gl_config_gles gl_config.gles
+#endif
+
+#ifdef VKQUAKE
+qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name);
 #endif
 
 #ifdef GLQUAKE
@@ -725,8 +749,8 @@ void GLBE_SubmitMeshes (batch_t **worldbatches, int start, int stop);
 void GLBE_RenderToTextureUpdate2d(qboolean destchanged);
 void GLBE_VBO_Begin(vbobctx_t *ctx, size_t maxsize);
 void GLBE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);
-void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray);
-void GLBE_VBO_Destroy(vboarray_t *vearray);
+void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem);
+void GLBE_VBO_Destroy(vboarray_t *vearray, void *mem);
 
 void GLBE_FBO_Sources(texid_t sourcecolour, texid_t sourcedepth);
 int GLBE_FBO_Push(fbostate_t *state);
@@ -751,8 +775,8 @@ void D3D9BE_SelectEntity(entity_t *ent);
 qboolean D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);
 void D3D9BE_VBO_Begin(vbobctx_t *ctx, size_t maxsize);
 void D3D9BE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);
-void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray);
-void D3D9BE_VBO_Destroy(vboarray_t *vearray);
+void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem);
+void D3D9BE_VBO_Destroy(vboarray_t *vearray, void *mem);
 void D3D9BE_Scissor(srect_t *rect);
 
 void D3D9Shader_Init(void);
@@ -780,8 +804,8 @@ void D3D11BE_SetupViewCBuffer(void);
 void D3D11_UploadLightmap(lightmapinfo_t *lm);
 void D3D11BE_VBO_Begin(vbobctx_t *ctx, size_t maxsize);
 void D3D11BE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);
-void D3D11BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray);
-void D3D11BE_VBO_Destroy(vboarray_t *vearray);
+void D3D11BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem);
+void D3D11BE_VBO_Destroy(vboarray_t *vearray, void *mem);
 void D3D11BE_Scissor(srect_t *rect);
 
 enum
@@ -828,7 +852,7 @@ qboolean Sh_StencilShadowsActive(void);
 struct shader_field_names_s
 {
 	char *name;
-	enum shaderprogparmtype_e ptype;
+	int ptype;
 };
 extern struct shader_field_names_s shader_field_names[];
 extern struct shader_field_names_s shader_unif_names[];

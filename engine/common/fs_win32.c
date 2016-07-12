@@ -366,10 +366,7 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 			h = INVALID_HANDLE_VALUE;
 	}
 	if (h == INVALID_HANDLE_VALUE)
-	{
-		DWORD e = GetLastError();
 		return NULL;
-	}
 
 	if (!didexist)
 	{
@@ -614,12 +611,14 @@ static qboolean QDECL VFSW32_MkDir(searchpathfuncs_t *handle, const char *filena
 	return true;
 }
 
-searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc)
+searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc, const char *prefix)
 {
 	vfsw32path_t *np;
 	int dlen = strlen(desc);
 	if (mustbenull)
 		return NULL;
+	if (prefix && *prefix)
+		return NULL;	//don't try to support this. too risky with absolute paths etc.
 	np = Z_Malloc(sizeof(*np) + dlen);
 	if (np)
 	{

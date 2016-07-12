@@ -189,7 +189,7 @@ qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 	return false;
 }
 
-void GLVID_SetCaption(char *caption)
+void GLVID_SetCaption(const const char *caption)
 {
 }
 

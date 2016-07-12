@@ -63,6 +63,9 @@
 				<data android:scheme="http" android:host="*" android:pathPattern=".*\\.bsp" />
 				<data android:scheme="content" android:host="*" android:pathPattern=".*\\.bsp" />
 				<data android:scheme="file" android:host="*" android:pathPattern=".*\\.bsp" />
+				<data android:scheme="http" android:host="*" android:pathPattern=".*\\.fmf" />
+				<data android:scheme="content" android:host="*" android:pathPattern=".*\\.fmf" />
+				<data android:scheme="file" android:host="*" android:pathPattern=".*\\.fmf" />
 			</intent-filter>
 		</activity>
 	</application>

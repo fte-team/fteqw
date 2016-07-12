@@ -5,7 +5,6 @@ Really simple and stupid menu.
 no background tint, so the game is still visible so you can preview it.
 */
 
-
 nonstatic void(mitem_desktop desktop) M_Configs =
 {
 	local float i;

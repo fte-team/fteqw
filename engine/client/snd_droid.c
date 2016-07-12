@@ -93,9 +93,11 @@ static void *Droid_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
 	return sc->sn.buffer;
 }
 
-static void Droid_SetUnderWater(soundcardinfo_t *sc, qboolean uw)
+/*
+static void Droid_SetEnvironmentReverb(soundcardinfo_t *sc, qboolean uw)
 {
 }
+*/
 
 static void Droid_Submit(soundcardinfo_t *sc, int start, int end)
 {
@@ -120,7 +122,7 @@ static int Droid_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	sc->Lock = Droid_LockBuffer;
 	sc->Unlock = Droid_UnlockBuffer;
-	sc->SetWaterDistortion = Droid_SetUnderWater;
+//	sc->SetEnvironmentReverb = Droid_SetEnvironmentReverb;
 	sc->Submit = Droid_Submit;
 	sc->Shutdown = Droid_Shutdown;
 	sc->GetDMAPos = Droid_GetDMAPos;

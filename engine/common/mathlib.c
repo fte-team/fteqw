@@ -736,37 +736,101 @@ void VectorTransform (const vec3_t in1, const matrix3x4 in2, vec3_t out)
 	out[2] = DotProduct(in1, in2[2]) + in2[2][3];
 }
 
-void QDECL GenMatrixPosQuat4Scale(vec3_t pos, vec4_t quat, vec3_t scale, float result[12])
+void Bones_To_PosQuat4(int numbones, const float *matrix, short *result)
+{	//I ripped this function out of DP. tweaked slightly.
+	//http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
+	float origininvscale = 64;
+	float origin[3];
+	float quat[4];
+	float quatscale;
+	while (numbones --> 0)
+	{
+		float trace = matrix[0*4+0] + matrix[1*4+1] + matrix[2*4+2];
+		origin[0] = matrix[0*4+3];
+		origin[1] = matrix[1*4+3];
+		origin[2] = matrix[2*4+3];
+		if(trace > 0)
+		{
+			float r = sqrt(1.0f + trace), inv = 0.5f / r;
+			quat[0] = (matrix[2*4+1] - matrix[1*4+2]) * inv;
+			quat[1] = (matrix[0*4+2] - matrix[2*4+0]) * inv;
+			quat[2] = (matrix[1*4+0] - matrix[0*4+1]) * inv;
+			quat[3] = 0.5f * r;
+		}
+		else if(matrix[0*4+0] > matrix[1*4+1] && matrix[0*4+0] > matrix[2*4+2])
+		{
+			float r = sqrt(1.0f + matrix[0*4+0] - matrix[1*4+1] - matrix[2*4+2]), inv = 0.5f / r;
+			quat[0] = 0.5f * r;
+			quat[1] = (matrix[1*4+0] + matrix[0*4+1]) * inv;
+			quat[2] = (matrix[0*4+2] + matrix[2*4+0]) * inv;
+			quat[3] = (matrix[2*4+1] - matrix[1*4+2]) * inv;
+		}
+		else if(matrix[1*4+1] > matrix[2*4+2])
+		{
+			float r = sqrt(1.0f + matrix[1*4+1] - matrix[0*4+0] - matrix[2*4+2]), inv = 0.5f / r;
+			quat[0] = (matrix[1*4+0] + matrix[0*4+1]) * inv;
+			quat[1] = 0.5f * r;
+			quat[2] = (matrix[2*4+1] + matrix[1*4+2]) * inv;
+			quat[3] = (matrix[0*4+2] - matrix[2*4+0]) * inv;
+		}
+		else
+		{
+			float r = sqrt(1.0f + matrix[2*4+2] - matrix[0*4+0] - matrix[1*4+1]), inv = 0.5f / r;
+			quat[0] = (matrix[0*4+2] + matrix[2*4+0]) * inv;
+			quat[1] = (matrix[2*4+1] + matrix[1*4+2]) * inv;
+			quat[2] = 0.5f * r;
+			quat[3] = (matrix[1*4+0] - matrix[0*4+1]) * inv;
+		}
+		// normalize quaternion so that it is unit length
+		quatscale = quat[0]*quat[0]+quat[1]*quat[1]+quat[2]*quat[2]+quat[3]*quat[3];
+		if (quatscale)
+			quatscale = (quat[3] >= 0 ? -32767.0f : 32767.0f) / sqrt(quatscale);
+		// use a negative scale on the quat because the above function produces a
+		// positive quat[3] and canonical quaternions have negative quat[3]
+		result[0] = origin[0] * origininvscale;
+		result[1] = origin[1] * origininvscale;
+		result[2] = origin[2] * origininvscale;
+		result[3] = quat[0] * quatscale;
+		result[4] = quat[1] * quatscale;
+		result[5] = quat[2] * quatscale;
+		result[6] = quat[3] * quatscale;
+
+		matrix += 12;
+		result += 7;
+	}
+}
+
+void QDECL GenMatrixPosQuat4Scale(const vec3_t pos, const vec4_t quat, const vec3_t scale, float result[12])
 {
-	   float xx, xy, xz, xw, yy, yz, yw, zz, zw;
-	   float x2, y2, z2;
-	   float s;
-	   x2 = quat[0] + quat[0];
-	   y2 = quat[1] + quat[1];
-	   z2 = quat[2] + quat[2];
+	float xx, xy, xz, xw, yy, yz, yw, zz, zw;
+	float x2, y2, z2;
+	float s;
+	x2 = quat[0] + quat[0];
+	y2 = quat[1] + quat[1];
+	z2 = quat[2] + quat[2];
 
-	   xx = quat[0] * x2;   xy = quat[0] * y2;   xz = quat[0] * z2;
-	   yy = quat[1] * y2;   yz = quat[1] * z2;   zz = quat[2] * z2;
-	   xw = quat[3] * x2;   yw = quat[3] * y2;   zw = quat[3] * z2;
+	xx = quat[0] * x2;   xy = quat[0] * y2;   xz = quat[0] * z2;
+	yy = quat[1] * y2;   yz = quat[1] * z2;   zz = quat[2] * z2;
+	xw = quat[3] * x2;   yw = quat[3] * y2;   zw = quat[3] * z2;
 
-	   s = scale[0];
-	   result[0*4+0] = s*(1.0f - (yy + zz));
-	   result[1*4+0] = s*(xy + zw);
-	   result[2*4+0] = s*(xz - yw);
+	s = scale[0];
+	result[0*4+0] = s*(1.0f - (yy + zz));
+	result[1*4+0] = s*(xy + zw);
+	result[2*4+0] = s*(xz - yw);
 
-	   s = scale[1];
-	   result[0*4+1] = s*(xy - zw);
-	   result[1*4+1] = s*(1.0f - (xx + zz));
-	   result[2*4+1] = s*(yz + xw);
+	s = scale[1];
+	result[0*4+1] = s*(xy - zw);
+	result[1*4+1] = s*(1.0f - (xx + zz));
+	result[2*4+1] = s*(yz + xw);
 
-	   s = scale[2];
-	   result[0*4+2] = s*(xz + yw);
-	   result[1*4+2] = s*(yz - xw);
-	   result[2*4+2] = s*(1.0f - (xx + yy));
+	s = scale[2];
+	result[0*4+2] = s*(xz + yw);
+	result[1*4+2] = s*(yz - xw);
+	result[2*4+2] = s*(1.0f - (xx + yy));
 
-	   result[0*4+3]  =     pos[0];
-	   result[1*4+3]  =     pos[1];
-	   result[2*4+3]  =     pos[2];
+	result[0*4+3]  =     pos[0];
+	result[1*4+3]  =     pos[1];
+	result[2*4+3]  =     pos[2];
 }
 #ifdef HALFLIFEMODELS
 
@@ -807,7 +871,7 @@ void QuaternionMatrix( const vec4_t quaternion, float (*matrix)[4] )
 	matrix[1][2] = 2.0 * quaternion[1] * quaternion[2] - 2.0 * quaternion[3] * quaternion[0];
 	matrix[2][2] = 1.0 - 2.0 * quaternion[0] * quaternion[0] - 2.0 * quaternion[1] * quaternion[1];
 }
-
+#endif
 void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt )
 {
 	int i;
@@ -855,7 +919,6 @@ void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt )
 		}
 	}
 }
-#endif
 
 //This function is GL stylie (use as 2nd arg to ML_MultMatrix4).
 float *Matrix4x4_CM_NewRotation(float a, float x, float y, float z)

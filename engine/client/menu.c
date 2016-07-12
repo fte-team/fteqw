@@ -1017,7 +1017,6 @@ qboolean MC_SaveQuit_Key (int key, menu_t *menu)
 void M_Menu_Quit_f (void)
 {
 	menu_t *quitmenu;
-	int		i;
 	int mode;
 	extern cvar_t cfg_save_auto;
 	char *arg = Cmd_Argv(1);
@@ -1096,11 +1095,13 @@ void M_Menu_Quit_f (void)
 		quitmenu->selecteditem = (menuoption_t *)
 		MC_AddConsoleCommand    (quitmenu, 120, 0, 116,        "Oh",			       "menupop\n");
 #else
-		i = rand()&7;
-		MC_AddWhiteText(quitmenu, 64, 0, 84, quitMessage[i*4+0], false);
-		MC_AddWhiteText(quitmenu, 64, 0, 92, quitMessage[i*4+1], false);
-		MC_AddWhiteText(quitmenu, 64, 0, 100, quitMessage[i*4+2], false);
-		MC_AddWhiteText(quitmenu, 64, 0, 108, quitMessage[i*4+3], false);
+		{
+			int		i = rand()&7;
+			MC_AddWhiteText(quitmenu, 64, 0, 84, quitMessage[i*4+0], false);
+			MC_AddWhiteText(quitmenu, 64, 0, 92, quitMessage[i*4+1], false);
+			MC_AddWhiteText(quitmenu, 64, 0, 100, quitMessage[i*4+2], false);
+			MC_AddWhiteText(quitmenu, 64, 0, 108, quitMessage[i*4+3], false);
+		}
 
 		quitmenu->selecteditem = (menuoption_t *)
 		MC_AddConsoleCommand    (quitmenu, 100, 0, 116,        "Quit",			       "menu_quit force\n");

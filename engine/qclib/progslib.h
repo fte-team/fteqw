@@ -7,7 +7,11 @@
 	#define VARGS __cdecl
 #endif
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
-	#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
+	#ifdef _WIN32
+		#define LIKEPRINTF(x) __attribute__((format(ms_printf,x,x+1)))
+	#else
+		#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
+	#endif
 #endif
 #ifndef LIKEPRINTF
 	#define LIKEPRINTF(x)
@@ -45,6 +49,14 @@ struct globalvars_s;
 struct qcthread_s;
 typedef struct pubprogfuncs_s pubprogfuncs_t;
 typedef void (ASMCALL *builtin_t) (pubprogfuncs_t *prinst, struct globalvars_s *gvars);
+
+enum ereftype_e
+{
+	ER_ENTITY,
+	ER_FREE,
+	ER_OBJECT	//custom sized, no vm/engine fields.
+};
+#define isfree ereftype != ER_ENTITY
 
 //used by progs engine. All nulls is reset.
 typedef struct {
@@ -120,7 +132,7 @@ struct pubprogfuncs_s
 	char	*(PDECL *AddString)					(pubprogfuncs_t *prinst, const char *val, int minlength, pbool demarkup);	//dump a string into the progs memory (for setting globals and whatnot)
 	void	*(PDECL *Tempmem)					(pubprogfuncs_t *prinst, int ammount, char *whatfor);	//grab some mem for as long as the progs stays loaded
 
-	union eval_s	*(PDECL *GetEdictFieldValue)(pubprogfuncs_t *prinst, struct edict_s *ent, char *name, evalc_t *s); //get an entityvar (cache it) and return the possible values
+	union eval_s	*(PDECL *GetEdictFieldValue)(pubprogfuncs_t *prinst, struct edict_s *ent, char *name, etype_t type, evalc_t *s); //get an entityvar (cache it) and return the possible values
 	struct edict_s	*(PDECL *ProgsToEdict)		(pubprogfuncs_t *prinst, int progs);	//edicts are stored as ints and need to be adjusted
 	int		(PDECL *EdictToProgs)				(pubprogfuncs_t *prinst, struct edict_s *ed);		//edicts are stored as ints and need to be adjusted
 

@@ -130,7 +130,7 @@ static qintptr_t VARGS Plug_Draw_LoadImage(char *name, int type, char *script)
 	return i + 1;
 }
 
-qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname);
+qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, const char *fname);
 static qintptr_t VARGS Plug_Draw_LoadImageData(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	qintptr_t ret = 0;
@@ -996,6 +996,8 @@ static qintptr_t VARGS Plug_Con_GetConsoleFloat(void *offset, quintptr_t mask, c
 		ret = (con->flags & CONF_HIDDEN)?true:false;
 	else if (!strcmp(attrib, "iswindow"))
 		ret = (con->flags & CONF_ISWINDOW)?true:false;
+	else if (!strcmp(attrib, "maxlines"))
+		ret = con->maxlines;
 	else if (!strcmp(attrib, "wnd_x"))
 		ret = con->wnd_x;
 	else if (!strcmp(attrib, "wnd_y"))
@@ -1045,11 +1047,14 @@ static qintptr_t VARGS Plug_Con_SetConsoleFloat(void *offset, quintptr_t mask, c
 	else if (!strcmp(attrib, "iswindow"))
 	{
 		con->flags = (con->flags & ~CONF_ISWINDOW) | (val?CONF_ISWINDOW:0);
+		con->flags = (con->flags & ~CONF_NOTIFY) | (val>1?CONF_NOTIFY:0);
 		if (con_curwindow == con && !(con->flags & CONF_ISWINDOW))
 			con_curwindow = NULL;
 		else if (!con_curwindow && (con->flags & CONF_ISWINDOW))
 			con_curwindow = con;
 	}
+	else if (!strcmp(attrib, "maxlines"))
+		con->maxlines = val;
 	else if (!strcmp(attrib, "wnd_x"))
 		con->wnd_x = val;
 	else if (!strcmp(attrib, "wnd_y"))
@@ -1061,12 +1066,21 @@ static qintptr_t VARGS Plug_Con_SetConsoleFloat(void *offset, quintptr_t mask, c
 	else if (!strcmp(attrib, "linebuffered"))
 	{
 		con->userdata = currentplug;
-		con->linebuffered = val?Plug_SubConsoleCommand:0;
+		if (val == 2)
+			con->linebuffered = NULL;//Con_Navigate;
+		else if (val == 1)
+			con->linebuffered = Plug_SubConsoleCommand;
+		else
+			con->linebuffered = NULL;
 	}
 	else if (!strcmp(attrib, "linecount"))
 	{
 		if (val == 0)
+		{
+			int pfl = con->parseflags;
 			Con_ClearCon(con);
+			con->parseflags = pfl;
+		}
 		else
 			return -1;
 	}
@@ -1093,6 +1107,10 @@ static qintptr_t VARGS Plug_Con_GetConsoleString(void *offset, quintptr_t mask, 
 	else if (!strcmp(attrib, "title"))
 	{
 		Q_strncpyz(value, con->title, size);
+	}
+	else if (!strcmp(attrib, "prompt"))
+	{
+		Q_strncpyz(value, con->prompt, size);
 	}
 	else if (!strcmp(attrib, "backimage"))
 	{
@@ -1124,6 +1142,8 @@ static qintptr_t VARGS Plug_Con_SetConsoleString(void *offset, quintptr_t mask, 
 		Con_Footerf(con, false, "%s", value);
 	else if (!strcmp(attrib, "title"))
 		Q_strncpyz(con->title, value, sizeof(con->title));
+	else if (!strcmp(attrib, "prompt"))
+		Q_strncpyz(con->prompt, value, sizeof(con->prompt));
 	else if (!strcmp(attrib, "backimage"))
 	{
 		Q_strncpyz(con->backimage, value, sizeof(con->backimage));
@@ -1135,7 +1155,10 @@ static qintptr_t VARGS Plug_Con_SetConsoleString(void *offset, quintptr_t mask, 
 		Q_strncpyz(con->backimage, "", sizeof(con->backimage));
 		if (con->backshader)
 			R_UnloadShader(con->backshader);
-		con->backshader = R_RegisterCustom(va("consolevid_%s", con->name), SUF_NONE, Shader_DefaultCinematic, value);
+		if (qrenderer != QR_NONE)
+			con->backshader = R_RegisterCustom(va("consolevid_%s", con->name), SUF_NONE, Shader_DefaultCinematic, value);
+		else
+			con->backshader = NULL;
 	}
 	else
 		return -1;
@@ -1204,7 +1227,9 @@ qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, cons
 		AngleVectors,
 		GenMatrixPosQuat4Scale,
 		COM_StripExtension,
-		Alias_ForceConvertBoneData
+		Alias_ForceConvertBoneData,
+		
+		Terr_GetTerrainFuncs
 	};
 	if (VM_LONG(arg[0]) >= sizeof(funcs))
 		return (qintptr_t)&funcs;

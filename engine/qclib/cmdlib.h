@@ -40,6 +40,7 @@ int QC_strcasecmp (const char *s1, const char *s2);
 void QC_strlcat(char *dest, const char *src, size_t destsize);
 void QC_strlcpy(char *dest, const char *src, size_t destsize);
 void QC_strnlcpy(char *dest, const char *src, size_t srclen, size_t destsize);
+char *QC_strcasestr(const char *haystack, const char *needle);
 
 #ifdef _MSC_VER
 #define QC_vsnprintf _vsnprintf
@@ -94,6 +95,9 @@ void 	ExtractFileBase (char *path, char *dest);
 void	ExtractFileExtension (char *path, char *dest);
 
 long 	ParseNum (char *str);
+
+unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen, pbool *errors);
+char *QCC_SanitizeCharSet(char *mem, unsigned int *len, pbool *freeresult, int *origfmt);
 
 
 char *QCC_COM_Parse (const char *data);

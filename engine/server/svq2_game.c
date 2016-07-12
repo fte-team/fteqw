@@ -765,7 +765,7 @@ static int	VARGS SVQ2_AreaEdicts (vec3_t mins, vec3_t maxs, q2edict_t **list,	in
 	return WorldQ2_AreaEdicts(&sv.world, mins, maxs, list, maxcount, areatype);
 }
 
-static model_t *SVQ2_GetCModel(world_t *w, int modelindex)
+static model_t *QDECL SVQ2_GetCModel(world_t *w, int modelindex)
 {
 	if ((unsigned int)modelindex < MAX_PRECACHE_MODELS)
 		return sv.models[modelindex];
@@ -794,7 +794,7 @@ qboolean SVQ2_InitGameProgs(void)
 	}
 
 	// unload anything we have now
-	if (sv.world.worldmodel && (sv.world.worldmodel->fromgame == fg_quake || sv.world.worldmodel->fromgame == fg_halflife))	//we don't support q1 or hl maps yet... If ever.
+	if (!sv.world.worldmodel || (sv.world.worldmodel->fromgame == fg_quake || sv.world.worldmodel->fromgame == fg_halflife))	//we don't support q1 or hl maps yet... If ever.
 	{
 		SVQ2_ShutdownGameProgs();
 		return false;
@@ -859,11 +859,6 @@ qboolean SVQ2_InitGameProgs(void)
 	import.DebugGraph			= Q2SCR_DebugGraph;
 	import.SetAreaPortalState	= PFQ2_SetAreaPortalState;
 	import.AreasConnected		= PFQ2_AreasConnected;
-
-	if (sv.world.worldmodel && (sv.world.worldmodel->fromgame == fg_quake || sv.world.worldmodel->fromgame == fg_halflife))
-	{
-		return false;
-	}
 
 	ge = (game_export_t *)SVQ2_GetGameAPI ((game_import_t*)&import);
 

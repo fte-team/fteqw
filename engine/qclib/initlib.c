@@ -142,6 +142,10 @@ void *PRAddressableExtend(progfuncs_t *progfuncs, void *src, size_t srcsize, int
 	ptr = &prinst.addressablehunk[prinst.addressableused-ammount];
 	if (src)
 		memcpy(ptr, src, srcsize);
+#ifdef _DEBUG
+	else
+		memset(ptr, 0xcc, srcsize);
+#endif
 	memset(ptr+srcsize, 0, pad);
 	return &prinst.addressablehunk[prinst.addressableused-ammount];
 }
@@ -220,7 +224,7 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 	b = prinst.mfreelist;
 	while (b)
 	{
-		if (b < 0 || b+sizeof(qcmemfreeblock_t) >= prinst.addressableused)
+		if (/*b < 0 || */b+sizeof(qcmemfreeblock_t) >= prinst.addressableused)
 		{
 			printf("PF_memalloc: memory corruption\n");
 			PR_StackTrace(&progfuncs->funcs, false);
@@ -333,7 +337,7 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 
 	for (na = prinst.mfreelist, pa = 0; ;)
 	{
-		if (na < 0 || na >= prinst.addressableused)
+		if (/*na < 0 ||*/ na >= prinst.addressableused)
 		{
 			printf("PF_memfree: memory corruption\n");
 			PR_StackTrace(&progfuncs->funcs, false);
@@ -433,6 +437,7 @@ void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount)
 int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
+	edictrun_t *e;
 	prinst.maxedicts = max_ents;
 
 	sv_num_edicts = 0;
@@ -450,14 +455,18 @@ int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 	prinst.max_fields_size = prinst.fields_size;
 
 	prinst.edicttable = (struct edictrun_s**)(progfuncs->funcs.edicttable = PRHunkAlloc(progfuncs, prinst.maxedicts*sizeof(struct edicts_s *), "edicttable"));
-	sv_edicts = PRHunkAlloc(progfuncs, externs->edictsize, "edict0");
-	progfuncs->funcs.edicttable[0] = sv_edicts;
-	prinst.edicttable[0]->fields = PRAddressableExtend(progfuncs, NULL, prinst.fields_size, prinst.max_fields_size-prinst.fields_size);
-	QC_ClearEdict(&progfuncs->funcs, sv_edicts);
+	e = PRHunkAlloc(progfuncs, externs->edictsize, "edict0");
+	e->fieldsize = prinst.fields_size;
+	e->entnum = 0;
+	e->ereftype = ER_ENTITY;
+	sv_edicts = (struct edict_s *)e;
 	sv_num_edicts = 1;
+	progfuncs->funcs.edicttable[0] = sv_edicts;
+	e->fields = PRAddressableExtend(progfuncs, NULL, e->fieldsize, prinst.max_fields_size-e->fieldsize);
+	QC_ClearEdict(&progfuncs->funcs, sv_edicts);
 
 	if (externs->entspawn)
-		externs->entspawn((struct edict_s *)sv_edicts, false);
+		externs->entspawn(sv_edicts, false);
 
 	return prinst.max_fields_size;
 }
@@ -486,7 +495,7 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 	}
 
 	PRHunkFree(progfuncs, 0);	//clear mem - our hunk may not be a real hunk.
-	if (addressable_size<0 || addressable_size == (size_t)-1)
+	if (addressable_size == (size_t)-1)
 	{
 #if defined(_WIN64) && !defined(WINRT)
 		addressable_size = 0x80000000;	//use of virtual address space rather than physical memory means we can just go crazy and use the max of 2gb.
@@ -516,6 +525,7 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 	prinst.reorganisefields = false;
 
 	prinst.profiling = profiling;
+	prinst.profilingalert = Sys_GetClockRate();
 	prinst.maxedicts = 1;
 	prinst.edicttable = (edictrun_t**)(progfuncs->funcs.edicttable = &sv_edicts);
 	sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
@@ -775,14 +785,14 @@ int PDECL PR_QueryField (pubprogfuncs_t *ppf, unsigned int fieldoffset, etype_t 
 	return true;
 }
 
-eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *ppf, struct edict_s *ed, char *name, evalc_t *cache)
+eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *ppf, struct edict_s *ed, char *name, etype_t type, evalc_t *cache)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	fdef_t *var;
 	if (!cache)
 	{
 		var = ED_FindField(progfuncs, name);
-		if (!var)
+		if (!var || (var->type != type && type))
 			return NULL;
 		return (eval_t *) &(((int*)(((edictrun_t*)ed)->fields))[var->ofs]);
 	}
@@ -790,7 +800,7 @@ eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *ppf, struct edict_s *ed, cha
 	{
 		cache->varname = name;
 		var = ED_FindField(progfuncs, name);		
-		if (!var)
+		if (!var || (var->type != type && type))
 		{
 			cache->ofs32 = NULL;
 			return NULL;
@@ -950,7 +960,7 @@ const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 				PR_RunWarning(&progfuncs->funcs, "invalid temp string %x\n", str);
 			return "";
 		}
-		return prinst.tempstrings[i];
+		return prinst.tempstrings[i]->value;
 	}
 
 	if ((unsigned int)str >= (unsigned int)prinst.addressableused)
@@ -962,11 +972,96 @@ const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 	return progfuncs->funcs.stringtable + str;
 }
 
+eval_t *PR_GetReadTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t offset, size_t datasize)
+{
+	static vec3_t dummy;	//don't resize anything when reading.
+	if (((unsigned int)str & STRING_SPECMASK) != STRING_TEMP)
+	{
+		unsigned int i = str & ~STRING_SPECMASK;
+		if (i < prinst.numtempstrings && !prinst.tempstrings[i])
+		{
+			tempstr_t *temp = prinst.tempstrings[i];
+			if (offset + datasize < temp->size)
+				return (eval_t*)(temp->value + offset);
+			else
+				return (eval_t*)dummy;
+		}
+	}
+	return NULL;
+}
+eval_t *PR_GetWriteTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t offset, size_t datasize)
+{
+	if (((unsigned int)str & STRING_SPECMASK) != STRING_TEMP)
+	{
+		unsigned int i = str & ~STRING_SPECMASK;
+		if (i < prinst.numtempstrings && !prinst.tempstrings[i])
+		{
+			tempstr_t *temp = prinst.tempstrings[i];
+			if (offset + datasize >= temp->size)
+			{	//access is beyond the current size. expand it.
+				unsigned int newsize;
+				tempstr_t *newtemp;
+				newsize = offset + datasize;
+				if (newsize > (1u<<20u))
+					return NULL;	//gotta have a cut-off point somewhere.
+				newtemp = progfuncs->funcs.parms->memalloc(sizeof(tempstr_t) - sizeof(((tempstr_t*)NULL)->value) + newsize);
+				memcpy(newtemp->value, temp->value, temp->size);
+				memset(newtemp->value+temp->size, 0, newsize-temp->size);
+				progfuncs->funcs.parms->memfree(temp);
+				prinst.tempstrings[i] = temp = newtemp;
+
+			}
+			return (eval_t*)(temp->value + offset);
+		}
+	}
+	return NULL;
+}
+
+void QCBUILTIN PF_memgetval (pubprogfuncs_t *inst, struct globalvars_s *globals)
+{
+	progfuncs_t *progfuncs = (progfuncs_t*)inst;
+	//read 32 bits from a pointer.
+	int dst = G_INT(OFS_PARM0);
+	float ofs = G_FLOAT(OFS_PARM1);
+	int size = 4;
+	if (ofs != (float)(int)ofs)
+		PR_RunWarning(inst, "PF_memgetval: non-integer offset\n");
+	dst += ofs;
+	if (dst < 0 || dst+size >= inst->stringtablesize)
+	{
+		PR_RunError(inst, "PF_memgetval: invalid dest\n");
+		return;
+	}
+	if (dst & 3)
+		PR_RunWarning(inst, "PF_memgetval: misaligned pointer (%#x)\n", dst);
+	G_INT(OFS_RETURN) = *(int*)(inst->stringtable + dst);
+}
+void QCBUILTIN PF_memsetval (pubprogfuncs_t *inst, struct globalvars_s *globals)
+{
+	progfuncs_t *progfuncs = (progfuncs_t*)inst;
+	//write 32 bits to a pointer.
+	int dst = G_INT(OFS_PARM0);
+	float ofs = G_FLOAT(OFS_PARM1);
+	int val = G_INT(OFS_PARM2);
+	int size = 4;
+	if (ofs != (float)(int)ofs)
+		PR_RunWarning(inst, "PF_memsetval: non-integer offset\n");
+	dst += ofs;
+	if (dst < 0 || dst+size >= inst->stringtablesize)
+	{
+		PR_RunError(inst, "PF_memsetval: invalid dest\n");
+		return;
+	}
+	if (dst & 3)
+		PR_RunWarning(inst, "PF_memgetval: misaligned pointer (%#x)\n", dst);
+	*(int*)(inst->stringtable + dst) = val;
+}
+
 
 string_t PDECL PR_AllocTempStringLen			(pubprogfuncs_t *ppf, char **str, unsigned int len)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	char **ntable;
+	tempstr_t **ntable;
 	int newmax;
 	int i;
 
@@ -1005,8 +1100,9 @@ string_t PDECL PR_AllocTempStringLen			(pubprogfuncs_t *ppf, char **str, unsigne
 	prinst.numtempstrings++;
 #endif
 
-	prinst.tempstrings[i] = progfuncs->funcs.parms->memalloc(len);
-	*str = prinst.tempstrings[i];
+	prinst.tempstrings[i] = progfuncs->funcs.parms->memalloc(sizeof(tempstr_t) - sizeof(((tempstr_t*)NULL)->value) + len);
+	prinst.tempstrings[i]->size = len;
+	*str = prinst.tempstrings[i]->value;
 
 	return (string_t)((unsigned int)i | STRING_TEMP);
 }
@@ -1129,7 +1225,7 @@ pbool PR_RunGC			(progfuncs_t *progfuncs)
 	if (r_l > r_d)
 	{
 		unsigned int newmax = prinst.maxtempstrings * 2;
-		char **ntable = progfuncs->funcs.parms->memalloc(sizeof(char*) * newmax);
+		tempstr_t **ntable = progfuncs->funcs.parms->memalloc(sizeof(char*) * newmax);
 		memcpy(ntable, prinst.tempstrings, sizeof(char*) * prinst.maxtempstrings);
 		memset(ntable+prinst.maxtempstrings, 0, sizeof(char*) * (newmax-prinst.maxtempstrings));
 		prinst.maxtempstrings = newmax;

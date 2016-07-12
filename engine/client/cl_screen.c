@@ -40,6 +40,7 @@ void RSpeedShow(void)
 	char *RQntNames[RQUANT_MAX];
 	char *s;
 	static int framecount;
+	int frameinterval = 100;
 
 	if (!r_speeds.ival)
 		return;
@@ -62,8 +63,10 @@ void RSpeedShow(void)
 	RSpNames[RSPEED_STENCILSHADOWS] = "Stencil Shadows";
 
 	RSpNames[RSPEED_FULLBRIGHTS] = "World fullbrights";
+	RSpNames[RSPEED_SETUP] = "Setup";
 
-	RSpNames[RSPEED_FINISH] = "glFinish";
+	RSpNames[RSPEED_SUBMIT] = "submit/finish";
+	RSpNames[RSPEED_PRESENT] = "present";
 
 	memset(RQntNames, 0, sizeof(RQntNames));
 	RQntNames[RQUANT_MSECS] = "Microseconds";
@@ -87,23 +90,23 @@ void RSpeedShow(void)
 	{
 		for (i = 0; i < RSPEED_MAX; i++)
 		{
-			s = va("%g %-20s", samplerspeeds[i]/100.0, RSpNames[i]);
+			s = va("%g %-20s", samplerspeeds[i]/(float)frameinterval, RSpNames[i]);
 			Draw_FunString(vid.width-strlen(s)*8, i*8, s);
 		}
 	}
 	for (i = 0; i < RQUANT_MAX; i++)
 	{
-		s = va("%u.%.3u %-20s", samplerquant[i]/100, (samplerquant[i]%100), RQntNames[i]);
+		s = va("%u.%.3u %-20s", samplerquant[i]/frameinterval, (samplerquant[i]%100), RQntNames[i]);
 		Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 	}
 	if (r_speeds.ival > 1)
 	{
-		s = va("%f %-20s", 100000000.0f/(samplerspeeds[RSPEED_TOTALREFRESH]+samplerspeeds[RSPEED_FINISH]), "Framerate (refresh only)");
+		s = va("%f %-20s", (frameinterval*1000*1000.0f)/(samplerspeeds[RSPEED_TOTALREFRESH]+samplerspeeds[RSPEED_PRESENT]), "Framerate (refresh only)");
 		Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 	}
 	memcpy(rquant, savedsamplerquant, sizeof(rquant));
 
-	if (++framecount>=100)
+	if (++framecount>=frameinterval)
 	{
 		for (i = 0; i < RSPEED_MAX; i++)
 		{
@@ -402,7 +405,8 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 		if (cl.intermissionmode != IM_NONE)
 		{
 			p->flags |= CPRINT_TYPEWRITER | CPRINT_PERSIST | CPRINT_TALIGN;
-			Q_strncpyz(p->titleimage, "gfx/finale.lmp", sizeof(p->titleimage));
+			if (cl.intermissionmode != IM_NQCUTSCENE)
+				Q_strncpyz(p->titleimage, "gfx/finale.lmp", sizeof(p->titleimage));
 		}
 	}
 
@@ -442,15 +446,18 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 			str+=2;
 			switch(*str++)
 			{
-			case 'R':
+			case 'R':	//remove intermission
 				cl.intermissionmode = IM_NONE;
 				break;
-			case 'I':
-			case 'S':
+			case 'I':	//standard intermission
+			case 'S':	//score board / map stats
 				cl.intermissionmode = IM_NQSCORES;
 				break;
-			case 'F':
+			case 'F':	//finale
 				cl.intermissionmode = IM_NQFINALE;
+				break;
+			case 'f':	//finale, but with the view offset properly
+				cl.intermissionmode = IM_H2FINALE;
 				break;
 			case 0:
 				str--;
@@ -544,10 +551,13 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 
 	if (p->flags & CPRINT_BACKGROUND)
 	{	//hexen2 style plaque.
-		if (rect->width > (pic?pic->width:320))
+		int w = 320, h=200;
+		if (pic)
+			R_GetShaderSizes(pic, &w, &h, false);
+		if (rect->width > w)
 		{
-			rect->x = (rect->x + rect->width/2) - ((pic?pic->width:320) / 2);
-			rect->width = pic?pic->width:320;
+			rect->x = (rect->x + rect->width/2) - (w / 2);
+			rect->width = w;
 		}
 
 		if (rect->width < 32)
@@ -558,10 +568,10 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 		/*keep the text inside the image too*/
 		if (pic)
 		{
-			if (rect->height > (pic->height))
+			if (rect->height > h)
 			{
-				rect->y = (rect->y + rect->height/2) - (pic->height/2);
-				rect->height = pic->height;
+				rect->y = (rect->y + rect->height/2) - (h/2);
+				rect->height = h;
 			}
 			rect->y += 16;
 			rect->height -= 32;
@@ -572,6 +582,7 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 
 	if (pic)
 	{
+		//the pic is just a header
 		if (!(p->flags & CPRINT_BACKGROUND))
 		{
 			int w, h;
@@ -616,10 +627,14 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 		px = rect->x;
 		py = (     y * vid.height) / (float)vid.pixelheight;
 		pw = rect->width+8;
+		Font_EndString(font);
+
 		if (*p->titleimage)
 			R2D_ScalePic (rect->x + ((int)rect->width - pic->width)/2, rect->y + ((int)rect->height - pic->height)/2, pic->width, pic->height, pic);
 		else
 			Draw_TextBox(px-16, py-8-8, pw/8, linecount+2);
+
+		Font_BeginString(font, rect->x, y, &left, &top);
 	}
 
 	for (l = 0; l < linecount; l++, y += Font_CharHeight())
@@ -665,7 +680,7 @@ void SCR_CheckDrawCenterString (void)
 		p->time_off -= host_frametime;
 
 		if (Key_Dest_Has(~kdm_game))	//don't let progs guis/centerprints interfere with the game menu
-			continue;
+			continue;					//should probably allow the console with a scissor region or something.
 
 #ifdef QUAKEHUD
 		if (sb_showscores)	//this was annoying
@@ -1891,9 +1906,6 @@ SCR_SetUpToDrawConsole
 void SCR_SetUpToDrawConsole (void)
 {
 	extern int startuppending;	//true if we're downloading media or something and have not yet triggered the startup action (read: main menu or cinematic)
-#ifdef TEXTEDITOR
-	//extern qboolean editoractive; //unused variable
-#endif
 	if (scr_drawloading)
 		return;         // never a console with loading plaque
 
@@ -1999,11 +2011,9 @@ void SCR_DrawConsole (qboolean noback)
 		if (!Key_Dest_Has(kdm_console|kdm_gmenu|kdm_emenu))
 			Con_DrawNotify ();      // only draw notify in game
 	}
+	Con_DrawConsole (scr_con_current, noback);
 	if (scr_con_current || Key_Dest_Has(kdm_cwindows))
-	{
-		Con_DrawConsole (scr_con_current, noback);
 		clearconsole = 0;
-	}
 }
 
 
@@ -2429,6 +2439,8 @@ static void SCR_ScreenShot_Mega_f(void)
 		}
 
 		buffers[buf] = SCR_ScreenShot_Capture(fbwidth, fbheight, &fmt[buf]);
+		width[buf] = fbwidth;
+		height[buf] = fbheight;
 
 		if (width[buf] != width[0] || height[buf] != height[0] || fmt[buf] != fmt[0])
 		{	//invalid is better than unmatched.
@@ -2857,13 +2869,9 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		SCR_DrawFPS ();
 		SCR_CheckDrawCenterString ();
 	}
-	else if (cl.intermissionmode == IM_NQFINALE)
+	else if (cl.intermissionmode == IM_NQFINALE || cl.intermissionmode == IM_NQCUTSCENE || cl.intermissionmode == IM_H2FINALE)
 	{
-		Sbar_FinaleOverlay ();
 		SCR_CheckDrawCenterString ();
-	}
-	else if (cl.intermissionmode == IM_NQCUTSCENE)
-	{
 	}
 	else if (cl.intermissionmode != IM_NONE)
 	{
@@ -2882,10 +2890,10 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		SCR_CheckDrawCenterString ();
 	}
 
-#ifdef TEXTEDITOR
-	if (editoractive)
-		Editor_Draw();
-#endif
+//#ifdef TEXTEDITOR
+//	if (editoractive)
+//		Editor_Draw();
+//#endif
 
 	//if the console is not focused, show it scrolling back up behind the menu
 	if (!consolefocused)

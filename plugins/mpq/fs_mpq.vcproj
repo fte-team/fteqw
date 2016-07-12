@@ -62,7 +62,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="zlib.lib"
-				OutputFile="../../fteplug_mpqx86.dll"
+				OutputFile="../../fteplug_mpq_x86.dll"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="../..\engine\libs"
 				ModuleDefinitionFile="../plugin.def"

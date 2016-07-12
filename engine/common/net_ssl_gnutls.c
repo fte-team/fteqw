@@ -40,14 +40,14 @@ typedef enum gnutls_kx_algorithm { GNUTLS_KX_RSA=1, GNUTLS_KX_DHE_DSS,
 	GNUTLS_KX_RSA_EXPORT, GNUTLS_KX_SRP_RSA, GNUTLS_KX_SRP_DSS
 } gnutls_kx_algorithm;
 typedef enum {
-    GNUTLS_CRT_UNKNOWN = 0,
-    GNUTLS_CRT_X509 = 1,
-    GNUTLS_CRT_OPENPGP = 2,
-    GNUTLS_CRT_RAW = 3
+	GNUTLS_CRT_UNKNOWN = 0,
+	GNUTLS_CRT_X509 = 1,
+	GNUTLS_CRT_OPENPGP = 2,
+	GNUTLS_CRT_RAW = 3
 } gnutls_certificate_type_t;
 typedef enum {
-    GNUTLS_X509_FMT_DER = 0,
-    GNUTLS_X509_FMT_PEM = 1
+	GNUTLS_X509_FMT_DER = 0,
+	GNUTLS_X509_FMT_PEM = 1
 } gnutls_x509_crt_fmt_t;
 typedef enum
 {
@@ -74,6 +74,11 @@ typedef ssize_t (*gnutls_push_func) (gnutls_transport_ptr_t, const void *, size_
 #define GNUTLS_E_AGAIN -28
 #define GNUTLS_E_CERTIFICATE_ERROR -43
 #define GNUTLS_E_INTERRUPTED -52
+
+typedef enum
+{
+	GNUTLS_NAME_DNS = 1
+} gnutls_server_name_type_t;
 
 static int (VARGS *gnutls_bye)(gnutls_session_t session, gnutls_close_request how);
 static void (VARGS *gnutls_perror)(int error);
@@ -114,6 +119,7 @@ static const gnutls_datum_t *(VARGS *gnutls_certificate_get_peers)(gnutls_sessio
 #endif
 static gnutls_certificate_type_t (VARGS *gnutls_certificate_type_get)(gnutls_session_t session);
 static void (VARGS *gnutls_free)(void * ptr);
+static int (VARGS *gnutls_server_name_set)(gnutls_session_t session, gnutls_server_name_type_t type, const void * name, size_t name_length); 
 
 static qboolean Init_GNUTLS(void)
 {
@@ -160,6 +166,7 @@ static qboolean Init_GNUTLS(void)
 #endif
 		{(void**)&gnutls_certificate_type_get, "gnutls_certificate_type_get"},
 		{(void**)&gnutls_free, "gnutls_free"},
+		{(void**)&gnutls_server_name_set, "gnutls_server_name_set"},
 		{NULL, NULL}
 	};
 	
@@ -192,6 +199,7 @@ typedef struct
 	gnutls_session_t session;
 
 	qboolean handshaking;
+	qboolean datagram;
 
 	struct sslbuf outplain;
 	struct sslbuf outcrypt;
@@ -208,7 +216,7 @@ static qboolean QDECL SSL_Close(vfsfile_t *vfs)
 	file->handshaking = true;
 
 	if (file->session)
-		gnutls_bye (file->session, GNUTLS_SHUT_RDWR);
+		gnutls_bye (file->session, file->datagram?GNUTLS_SHUT_WR:GNUTLS_SHUT_RDWR);
 	file->session = NULL;
 	if (file->stream)
 		VFS_CLOSE(file->stream);
@@ -271,6 +279,8 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 					return 0;
 				}
 			}
+			else
+				Con_DPrintf("%s: certificate is for a different domain\n", file->certname);
 		}
 	}
 
@@ -415,22 +425,22 @@ static ssize_t SSL_Push(gnutls_transport_ptr_t p, const void *data, size_t size)
 }*/
 static ssize_t SSL_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
 {
-    gnutlsfile_t *file = p;
-    int done = VFS_READ(file->stream, data, size);
-    if (!done)
-    {
-        gnutls_transport_set_errno(file->session, EAGAIN);
-        return -1;
-    }
+	gnutlsfile_t *file = p;
+	int done = VFS_READ(file->stream, data, size);
+	if (!done)
+	{
+		gnutls_transport_set_errno(file->session, EAGAIN);
+		return -1;
+	}
 	if (done < 0)
 	{
 		return 0;
 	}
 	gnutls_transport_set_errno(file->session, done<0?errno:0);
-    return done;
+	return done;
 }
 
-vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server)
+vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, qboolean datagram)
 {
 	gnutlsfile_t *newf;
 	qboolean anon = false;
@@ -441,12 +451,17 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server)
 //	long _false = false;
 //	long _true = true;
 
-  /* Need to enable anonymous KX specifically. */
+	/* Need to enable anonymous KX specifically. */
 	const int kx_prio[] = {GNUTLS_KX_ANON_DH, 0};
 	const int cert_type_priority[3] = {GNUTLS_CRT_X509, 0};
 
-	if (!source)
+	if (!source || datagram)
 		return NULL;
+
+#ifdef GNUTLS_DATAGRAM
+	if (datagram)
+		return NULL;
+#endif
 
 	{
 		static qboolean needinit = true;
@@ -493,7 +508,9 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server)
 	Q_strncpyz(newf->certname, hostname, sizeof(newf->certname));
 
 	// Initialize TLS session
-	gnutls_init (&newf->session, GNUTLS_CLIENT);
+	gnutls_init (&newf->session, GNUTLS_CLIENT/*|(datagram?GNUTLS_DATAGRAM:0)*/);
+
+	gnutls_server_name_set(newf->session, GNUTLS_NAME_DNS, newf->certname, strlen(newf->certname));
 
 	gnutls_session_set_ptr(newf->session, newf);
 

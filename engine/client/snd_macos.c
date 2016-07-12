@@ -110,10 +110,6 @@ static void MacOS_Unlock(soundcardinfo_t *sc, void *buffer)
 {
 }
 
-static void MacOS_SetWaterDistortion(soundcardinfo_t *sc, qboolean isunderwater)
-{
-}
-
 static int MacOS_InitCard(soundcardinfo_t *sc, int cardnum)
 {
 	ComponentResult err = noErr;
@@ -245,7 +241,6 @@ static int MacOS_InitCard(soundcardinfo_t *sc, int cardnum)
 	sc->handle = pdata;
 	sc->Lock = MacOS_Lock;
 	sc->Unlock = MacOS_Unlock;
-	sc->SetWaterDistortion = MacOS_SetWaterDistortion;
 	sc->Submit = MacOS_Submit;
 	sc->GetDMAPos = MacOS_GetDMAPos;
 	sc->Shutdown = MacOS_Shutdown;

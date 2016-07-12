@@ -1,8 +1,12 @@
 #include "quakedef.h"
 
 //frankly, xaudio2 gives nothing over directsound, unless we're getting it to do all the mixing instead. which gets really messy and far too involved.
-//I suppose it has a use with WINRT... although that doesn't make it useful.
+//I suppose it has a use with WINRT... although that doesn't apply to any actual users.
 //we're lazy and don't do any special threading, this makes it inferior to the directsound implementation - potentially, the callback feature could allow for slightly lower latencies.
+
+//dxsdk  = 2.7 = win7+
+//w8sdk  = 2.8 = win8+
+//w10sdk = 2.9 = win10+
 
 #if defined(AVAIL_XAUDIO2) && !defined(SERVERONLY)
 #include "winquake.h"

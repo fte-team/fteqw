@@ -31,16 +31,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
-#if __STDC_VERSION__ >= 199901L
+#if __STDC_VERSION__ >= 199901L || defined(__GNUC__)
 	//C99 has a stdint header which hopefully contains an intptr_t
 	//its optional... but if its not in there then its unlikely you'll actually be able to get the engine to a stage where it *can* load anything
 	#include <stdint.h>
 	#define qintptr_t intptr_t
 	#define quintptr_t uintptr_t
-	#define qint32_t qint32_t
-	#define quint32_t quint32_t
-	#define qint64_t qint64_t
-	#define quint64_t quint64_t
+	#define qint32_t int32_t
+	#define quint32_t uint32_t
+	#define qint64_t int64_t
+	#define quint64_t uint64_t
 #else
 	#define qint32_t int
 	#define quint32_t unsigned qint32_t
@@ -81,11 +81,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifndef FTE_WORDSIZE
-#ifdef __WORDSIZE
-#define FTE_WORDSIZE __WORDSIZE
-#else
-#define FTE_WORDSIZE 32
-#endif
+	#ifdef __WORDSIZE
+		#define FTE_WORDSIZE __WORDSIZE
+	#elif defined(_WIN64)
+		#define FTE_WORDSIZE 64
+	#else
+		#define FTE_WORDSIZE 32
+	#endif
 #endif
 
 
@@ -127,9 +129,10 @@ struct netprim_s
 {
 	qbyte coordsize;
 	qbyte anglesize;
-#define NPQ2_ANG16		(1u<<0)
-#define NPQ2_SOLID32	(1u<<1)
-	qbyte q2flags;
+#define NPQ2_ANG16				(1u<<0)
+#define NPQ2_SOLID32			(1u<<1)
+
+	qbyte flags;
 	qbyte pad;
 };
 //============================================================================
@@ -272,6 +275,12 @@ void MSGQ2_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *move);
 void MSG_ReadData (void *data, int len);
 void MSG_ReadSkip (int len);
 
+
+int MSG_ReadSize16 (sizebuf_t *sb);
+void MSG_WriteSize16 (sizebuf_t *sb, int sz);
+void COM_DecodeSize(int solid, float *mins, float *maxs);
+int COM_EncodeSize(float *mins, float *maxs);
+
 //============================================================================
 
 char *Q_strcpyline(char *out, const char *in, int maxlen);	//stops at '\n' (and '\r')
@@ -359,7 +368,7 @@ void COM_InitArgv (int argc, const char **argv);
 void COM_ParsePlusSets (qboolean docbuf);
 
 typedef unsigned int conchar_t;
-char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags);
+char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags, qboolean forceutf8);
 #define PFS_KEEPMARKUP		1	//leave markup in the final string (but do parse it)
 #define PFS_FORCEUTF8		2	//force utf-8 decoding
 #define PFS_NOMARKUP		4	//strip markup completely
@@ -410,10 +419,10 @@ extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 //extern	char	*com_basedir;
 
 //qofs_Make is used to 'construct' a variable of qofs_t type. this is so the code can merge two 32bit ints on old systems and use a long long type internally without generating warnings about bit shifts when qofs_t is only 32bit instead.
-#if defined(__amd64__) || defined(_AMD64_) || __WORDSIZE == 64
+#if 1//defined(__amd64__) || defined(_AMD64_) || __WORDSIZE == 64
 	#define FS_64BIT
 #endif
-#if 1//def FS_64BIT
+#ifdef FS_64BIT
 	typedef quint64_t qofs_t;	//type to use for a file offset
 	#define qofs_Make(low,high) (low | (((qofs_t)(high))<<32))
 	#define qofs_Low(o) ((o)&0xffffffffu)
@@ -436,6 +445,7 @@ typedef struct searchpath_s
 
 	char logicalpath[MAX_OSPATH];	//printable hunam-readable location of the package. generally includes a system path, including nested packages.
 	char purepath[256];	//server tracks the path used to load them so it can tell the client
+	char prefix[MAX_QPATH];	//prefix to add to each file within the archive. may also be ".." to mean ignore the top-level path.
 	int crc_check;	//client sorts packs according to this checksum
 	int crc_reply;	//client sends a different crc back to the server, for the paks it's actually loaded.
 	int orderkey;	//used to check to see if the paths were actually changed or not.
@@ -452,18 +462,21 @@ typedef struct {
 } flocation_t;
 struct vfsfile_s;
 
-#define FSLF_IFFOUND			0		//returns true (found) / false (not found)
-#define FSLF_DEPTH_EXPLICIT		1		//retrieves relative depth (ie: lower = higher priority) for determining which gamedir a file was from
-#define FSLF_DEPTH_INEXPLICIT	2		//depth is incremented for EVERY package, not just system/explicit paths.
+#define FSLF_IFFOUND			0		//
+#define FSLF_DEEPONFAILURE		(1u<<0)	//upon failure, report that the file is so far into the filesystem as to be irrelevant
+#define FSLF_DEPTH_INEXPLICIT	(1u<<1)	//depth is incremented for EVERY package, not just system/explicit paths.
+#define FSLF_IGNOREBASEDEPTH	(1u<<3)	//depth is incremented for explicit mod paths, but not id1/qw/fte/paks/pk3s
 #define FSLF_SECUREONLY			(1u<<4)	//ignore files from downloaded packages (ie: configs)
 #define FSLF_DONTREFERENCE		(1u<<5) //don't add any reference flags to packages
 #define FSLF_IGNOREPURE			(1u<<6) //use only the client's package list, ignore any lists obtained from the server (including any reordering)
 #define FSLF_IGNORELINKS		(1u<<7) //ignore any pak/pk3 symlinks. system ones may still be followed.
 
 //if loc is valid, loc->search is always filled in, the others are filled on success.
+//standard return value is 0 on failure, or depth on success.
 int FS_FLocateFile(const char *filename, unsigned int flags, flocation_t *loc);
 struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
 char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced);
+char *FS_GetPackageDownloadFilename(flocation_t *loc);
 
 qboolean FS_GetPackageDownloadable(const char *package);
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
@@ -471,7 +484,7 @@ char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean
 qboolean FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);	//returns false if the name is invalid.
 void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags);
 
-#define COM_FDepthFile(filename,ignorepacks) FS_FLocateFile(filename,FSLF_DONTREFERENCE|(ignorepacks?FSLF_DEPTH_EXPLICIT:FSLF_DEPTH_INEXPLICIT), NULL)
+#define COM_FDepthFile(filename,ignorepacks) FS_FLocateFile(filename,FSLF_DONTREFERENCE|FSLF_DEEPONFAILURE|(ignorepacks?0:FSLF_DEPTH_INEXPLICIT), NULL)
 #define COM_FCheckExists(filename) FS_FLocateFile(filename,FSLF_IFFOUND, NULL)
 
 typedef struct vfsfile_s
@@ -510,7 +523,7 @@ enum fs_relative{
 	FS_BASEGAMEONLY,	//fte/
 	FS_PUBGAMEONLY,		//$gamedir/ or qw/ but not fte/
 	FS_PUBBASEGAMEONLY,	//qw/ (fixme: should be the last non-private basedir)
-	FS_SYSTEM		//a system path. absolute paths are explicitly allowed and expected.
+	FS_SYSTEM		//a system path. absolute paths are explicitly allowed and expected, but not required.
 };
 
 void COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len);
@@ -600,6 +613,7 @@ typedef struct
 	{
 		int type;
 		char *path;			//the 'pure' name
+		char *prefix;
 		qboolean crcknown;	//if the crc was specified
 		unsigned int crc;	//the public crc
 		char *mirrors[8];	//a randomized (prioritized-on-load) list of mirrors to use. (may be 'prompt:game,package', 'unzip:file,url', 'xz:url', 'gz:url'
@@ -618,11 +632,13 @@ struct gamepacks
 {
 	char *path;
 	char *url;
+	char *subpath;	//within the package (for zips)
 };
 void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths);
 char *FS_GetGamedir(qboolean publicpathonly);
 char *FS_GetBasedir(void);
 char *FS_GetManifestArgs(void);
+int FS_GetManifestArgv(char **argv, int maxargs);
 
 struct zonegroup_s;
 void *FS_LoadMallocGroupFile(struct zonegroup_s *ctx, char *path, size_t *fsize);
@@ -641,9 +657,9 @@ extern qboolean com_installer;	//says that the engine is running in an 'installe
 extern	struct cvar_s	registered;
 extern qboolean standard_quake;	//fixme: remove
 
-void COM_Effectinfo_Clear(void);
-unsigned int COM_Effectinfo_ForName(const char *efname);
-char *COM_Effectinfo_ForNumber(unsigned int efnum);
+#ifdef NQPROT
+void COM_Effectinfo_Enumerate(int (*cb)(const char *pname));
+#endif
 
 unsigned int COM_RemapMapChecksum(unsigned int checksum);
 

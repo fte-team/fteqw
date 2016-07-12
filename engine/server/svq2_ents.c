@@ -273,10 +273,10 @@ void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizeb
 		MSG_WriteByte (msg, to->event);
 	if (bits & Q2U_SOLID)
 	{
-		if (net_message.prim.q2flags & NPQ2_SOLID32)
-			MSG_WriteLong (msg, to->solid);
+		if (msg->prim.flags & NPQ2_SOLID32)
+			MSG_WriteLong(msg, to->solid);
 		else
-			MSG_WriteShort (msg, to->solid);
+			MSG_WriteSize16(msg, to->solid);
 	}
 }
 

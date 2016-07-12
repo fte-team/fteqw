@@ -43,7 +43,7 @@
 			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; make droid-rel PATH=C:\Cygwin\bin\ DROID_SDK_PATH=/cygdrive/c/Games/tools/android-sdk DROID_NDK_PATH=/cygdrive/c/Games/tools/android-ndk-r7 ANT=/cygdrive/c/Games/tools/apache-ant-1.8.2/bin/ant JAVATOOL=&quot;/cygdrive/c/Program\ Files/Java/jdk1.7.0_02/bin/&quot; -j8 DROID_ARCH=&quot;armeabi x86&quot;"
+				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make droid-rel ANDROID_HOME=C:/Games/tools/android-sdk ANDROID_NDK_ROOT=C:/Games/tools/android-ndk-r8e ANT=C:/Games/tools/apache-ant-1.8.2/bin/ant JAVATOOL=&quot;C:/Program\ Files/Java/jdk1.7.0_02/bin/&quot; -j8 DROID_ARCH=&quot;armeabi x86&quot;"
 				ReBuildCommandLine=""
 				CleanCommandLine=""
 				Output="$(TargetDir)\FTEDroid.apk"

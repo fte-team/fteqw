@@ -80,8 +80,6 @@ extern qboolean		scr_drawloading;
 extern qboolean		scr_con_forcedraw;
 static qboolean d3d_resized;
 
-cvar_t vid_hardwaregamma;
-
 
 //sound/error code needs this
 HWND mainwindow;
@@ -137,16 +135,18 @@ char *D3D_NameForResult(HRESULT hr)
 	case DXGI_ERROR_DEVICE_RESET:			return "DXGI_ERROR_DEVICE_RESET";
 	case DXGI_ERROR_DRIVER_INTERNAL_ERROR:	return "DXGI_ERROR_DRIVER_INTERNAL_ERROR";
 	case DXGI_ERROR_INVALID_CALL:			return "DXGI_ERROR_INVALID_CALL";
-	default:								return va("%x", hr);
+	default:								return va("%lx", hr);
 	}
 }
 
 static void D3D11_PresentOrCrash(void)
 {
 	extern cvar_t vid_vsync;
+	RSpeedMark();
 	HRESULT hr = IDXGISwapChain_Present(d3dswapchain, vid_vsync.ival, 0);
 	if (FAILED(hr))
 		Sys_Error("IDXGISwapChain_Present: %s\n", D3D_NameForResult(hr));
+	RSpeedEnd(RSPEED_PRESENT);
 }
 
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
@@ -617,7 +617,7 @@ static void released3dbackbuffer(void)
 static qboolean resetd3dbackbuffer(int width, int height)
 {
 	D3D11_TEXTURE2D_DESC t2ddesc;
-	D3D11_DEPTH_STENCIL_VIEW_DESC dsvd;
+//	D3D11_DEPTH_STENCIL_VIEW_DESC dsvd;
 	ID3D11Texture2D *backbuftex, *depthtex;
 
 	released3dbackbuffer();
@@ -644,9 +644,9 @@ static qboolean resetd3dbackbuffer(int width, int height)
 	t2ddesc.MiscFlags = 0;
 	if(FAILED(ID3D11Device_CreateTexture2D(pD3DDev11, &t2ddesc, NULL, &depthtex)))
 		return false;
-	dsvd.Format = t2ddesc.Format;
-	dsvd.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-	dsvd.Texture2D.MipSlice = 0;
+//	dsvd.Format = t2ddesc.Format;
+//	dsvd.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+//	dsvd.Texture2D.MipSlice = 0;
 	if(FAILED(ID3D11Device_CreateDepthStencilView(pD3DDev11, (ID3D11Resource*)depthtex, NULL/*&dsvd*/, &fb_backdepthstencil)))
 		return false;
 	ID3D11Texture2D_Release(depthtex);
@@ -862,11 +862,10 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 
 static void initD3D11(HWND hWnd, rendererstate_t *info)
 {
-	static dllhandle_t *d3d11dll;
 	static dllhandle_t *dxgi;
 	static PFN_D3D11_CREATE_DEVICE_AND_SWAP_CHAIN fnc;
 	static HRESULT (WINAPI *pCreateDXGIFactory1)(IID *riid, void **ppFactory);
-	static IID factiid = {0x770aae78, 0xf26f, 0x4dba, 0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87};
+	static IID factiid = {0x770aae78, 0xf26f, 0x4dba, {0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87}};
 	IDXGIFactory1 *fact = NULL;
 	IDXGIAdapter *adapt = NULL;
 	dllfunction_t d3d11funcs[] =
@@ -891,7 +890,7 @@ static void initD3D11(HWND hWnd, rendererstate_t *info)
 	if (pCreateDXGIFactory1)
 	{
 		HRESULT hr;
-		hr = pCreateDXGIFactory1(&factiid, &fact);
+		hr = pCreateDXGIFactory1(&factiid, (void**)&fact);
 		if (FAILED(hr))
 			Con_Printf("CreateDXGIFactory1 failed: %s\n", D3D_NameForResult(hr));
 		if (fact)
@@ -924,9 +923,6 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 	DWORD wstyle;
 	RECT rect;
 	MSG msg;
-
-	extern cvar_t vid_conwidth;
-	//extern cvar_t vid_conheight;
 
 	//DDGAMMARAMP gammaramp;
 	//int i;
@@ -1018,7 +1014,6 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 static void	 (D3D11_VID_DeInit)				(void)
 {
-	D3D11BE_Shutdown();
 	Image_Shutdown();
 
 	/*we cannot shut down cleanly while in fullscreen, supposedly*/
@@ -1158,7 +1153,7 @@ static char	*D3D11_VID_GetRGBInfo(int *truevidwidth, int *truevidheight, enum up
 	*fmt = TF_RGB24;
 	return r;
 }
-static void	(D3D11_VID_SetWindowCaption)		(char *msg)
+static void	(D3D11_VID_SetWindowCaption)		(const char *msg)
 {
 #ifndef WINRT
 	SetWindowText(mainwindow, msg);
@@ -1197,7 +1192,7 @@ void D3D11_Set2D (void)
 	r_refdef.pxrect.height = vid.fbpheight;
 }
 
-static void	(D3D11_SCR_UpdateScreen)			(void)
+static qboolean	(D3D11_SCR_UpdateScreen)			(void)
 {
 	//extern int keydown[];
 	//extern cvar_t vid_conheight;
@@ -1206,7 +1201,6 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 	//extern qboolean editormodal;
 #endif
 	qboolean nohud, noworld;
-	RSpeedMark();
 
 	if (r_clear.ival)
 	{
@@ -1242,15 +1236,13 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 			scr_drawloading = false;
 //			IDirect3DDevice9_EndScene(pD3DDev9);
 			D3D11_PresentOrCrash();
-			RSpeedEnd(RSPEED_TOTALREFRESH);
-			return;
+			return true;
 		}
 	}
 
 	if (!scr_initialized || !con_initialized)
 	{
-		RSpeedEnd(RSPEED_TOTALREFRESH);
-		return;                         // not initialized yet
+		return false;                         // not initialized yet
 	}
 
 	Shader_DoReload();
@@ -1288,8 +1280,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 //		R2D_BrightenScreen();
 //		IDirect3DDevice9_EndScene(pD3DDev9);
 		D3D11_PresentOrCrash();
-		RSpeedEnd(RSPEED_TOTALREFRESH);
-		return;
+		return true;
 	}
 
 //
@@ -1347,7 +1338,6 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 
 	Media_RecordFrame();
 
-	RSpeedEnd(RSPEED_TOTALREFRESH);
 	RSpeedShow();
 
 	D3D11_PresentOrCrash();
@@ -1357,6 +1347,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 
 
 	INS_UpdateGrabs(modestate != MS_WINDOWED, vid.activeapp);
+	return true;
 }
 
 
@@ -1381,6 +1372,7 @@ static void	D3D11_R_DeInit					(void)
 {
 	R_GAliasFlushSkinCache(true);
 	Surf_DeInit();
+	D3D11BE_Shutdown();
 	Shader_Shutdown();
 }
 
@@ -1389,8 +1381,7 @@ static void	D3D11_R_DeInit					(void)
 static void D3D11_SetupViewPort(void)
 {
 	extern cvar_t gl_mindist;
-	float	screenaspect;
-	int		x, x2, y2, y, w, h;
+	int		x, x2, y2, y;
 
 	float fov_x, fov_y;
 
@@ -1417,9 +1408,6 @@ static void D3D11_SetupViewPort(void)
 	if (y2 < vid.pixelheight)
 		y2++;
 
-	w = x2 - x;
-	h = y2 - y;
-
 	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
 
@@ -1428,8 +1416,6 @@ static void D3D11_SetupViewPort(void)
 		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
 	}
-
-	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
 
 	/*view matrix*/
 	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);

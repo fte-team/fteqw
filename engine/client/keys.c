@@ -27,8 +27,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 key up events are sent even if in console mode
 
 */
-void Editor_Key(int key, int unicode);
-void Key_ConsoleInsert(char *instext);
+qboolean Editor_Key(int key, int unicode);
+void Key_ConsoleInsert(const char *instext);
 void Key_ClearTyping (void);
 
 unsigned char	*key_lines[CON_EDIT_LINES_MASK+1];
@@ -325,7 +325,7 @@ void CompleteCommand (qboolean force)
 	char	*cmd, *s;
 	const char *desc;
 
-	s = key_lines[edit_line]+1;
+	s = key_lines[edit_line];
 	if (*s == '\\' || *s == '/')
 		s++;
 
@@ -339,8 +339,8 @@ void CompleteCommand (qboolean force)
 	else
 	{
 		//check for singular matches and complete if found
-		cmd = Cmd_CompleteCommand (s, true, true, 2, NULL);
-		if (!cmd || force)
+		cmd = force?NULL:Cmd_CompleteCommand (s, true, true, 2, NULL);
+		if (!cmd)
 		{
 			if (!force)
 				cmd = Cmd_CompleteCommand (s, false, true, 1, &desc);
@@ -352,7 +352,7 @@ void CompleteCommand (qboolean force)
 				Key_ClearTyping();
 				Key_ConsoleInsert("/");
 				Key_ConsoleInsert(cmd);
-				s = key_lines[edit_line]+2;
+				s = key_lines[edit_line]+1;
 
 				//if its the only match, add a space ready for arguments.
 				cmd = Cmd_CompleteCommand (s, true, true, 0, NULL);
@@ -375,14 +375,14 @@ void CompleteCommand (qboolean force)
 		cmd = Cmd_CompleteCommand (s, false, true, 0, &desc);
 		if (cmd)
 		{
-			int i = key_lines[edit_line][1] == '/'?2:1;
-			if (i != 2 || strcmp(key_lines[edit_line]+i, cmd))
+			int i = key_lines[edit_line][0] == '/'?1:0;
+			if (i != 1 || strcmp(key_lines[edit_line]+i, cmd))
 			{	//if successful, use that instead.
 				Key_ClearTyping();
 				Key_ConsoleInsert("/");
 				Key_ConsoleInsert(cmd);
 
-				s = key_lines[edit_line]+1;	//readjust to cope with the insertion of a /
+				s = key_lines[edit_line];	//readjust to cope with the insertion of a /
 				if (*s == '\\' || *s == '/')
 					s++;
 			}
@@ -418,6 +418,22 @@ void CompleteCommand (qboolean force)
 		Con_Footerf(NULL, false, "");
 		con_commandmatch = 1;
 	}
+}
+
+int Con_Navigate(console_t *con, char *line)
+{
+	if (con->backshader)
+	{
+#ifndef NOMEDIA
+		cin_t *cin = R_ShaderGetCinematic(con->backshader);
+		if (cin)
+		{
+			Media_Send_Command(cin, line);
+		}
+#endif
+	}
+	con->linebuffered = NULL;
+	return 2;
 }
 
 //lines typed at the main console enter here
@@ -483,7 +499,6 @@ int Con_ExecuteLine(console_t *con, char *line)
 		if (exec)
 		{
 #ifdef TEXTEDITOR
-			extern qboolean editormodal;
 			if (editormodal)
 			{
 				char cvarname[128];
@@ -504,11 +519,14 @@ int Con_ExecuteLine(console_t *con, char *line)
 
 	Cbuf_AddText ("\n", RESTRICT_LOCAL);
 	if (!waschat || con_echochat.value)
-		Con_Printf ("]%s\n",line);
+	{
+		Con_Printf ("%s", con->prompt);
+		Con_Printf ("%s\n",line);
+	}
 
-	if (cls.state == ca_disconnected)
-		SCR_UpdateScreen ();	// force an update, because the command
-									// may take some time
+//	if (cls.state == ca_disconnected)
+//		SCR_UpdateScreen ();	// force an update, because the command
+//									// may take some time
 
 	return true;
 }
@@ -546,7 +564,7 @@ qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, i
 		*ey = con->mousecursor[1];
 		return true;
 	}
-	else if (con->buttonsdown == CB_COPY)
+	else if (con->buttonsdown == CB_COPY || con->buttonsdown == CB_SELECT)
 	{
 		//right-mouse
 		//select. copy-to-clipboard on release.
@@ -604,7 +622,7 @@ qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, i
 }
 
 /*insert the given text at the console input line at the current cursor pos*/
-void Key_ConsoleInsert(char *instext)
+void Key_ConsoleInsert(const char *instext)
 {
 	int i;
 	int len, olen;
@@ -629,12 +647,12 @@ void Key_ConsoleInsert(char *instext)
 	}
 	key_linepos += len;
 }
-void Key_ConsoleReplace(char *instext)
+void Key_ConsoleReplace(const char *instext)
 {
 	if (!*instext)
 		return;
 
-	key_linepos = 1;
+	key_linepos = 0;
 	key_lines[edit_line][key_linepos] = 0;
 	Key_ConsoleInsert(instext);
 }
@@ -826,7 +844,13 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	c = Info_ValueForKey(info, "map");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
-		Cbuf_AddText(va("\nmap %s\n", c), RESTRICT_LOCAL);
+		Cbuf_AddText(va("\nmap \"%s\"\n", c), RESTRICT_LOCAL);
+		return;
+	}
+	c = Info_ValueForKey(info, "modelviewer");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\nmodelviewer \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
 	c = Info_ValueForKey(info, "type");
@@ -841,10 +865,16 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		Cbuf_AddText(va("\ncmd %s\n", c), RESTRICT_LOCAL);
 		return;
 	}
+	c = Info_ValueForKey(info, "dir");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\necho Contents of %s:\ndir \"%s\"\n", c, c), RESTRICT_LOCAL);
+		return;
+	}
 	c = Info_ValueForKey(info, "edit");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
-		Cbuf_AddText(va("\nedit %s\n", c), RESTRICT_LOCAL);
+		Cbuf_AddText(va("\nedit \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
 	c = Info_ValueForKey(info, "impulse");
@@ -874,10 +904,9 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	{
 		int tlen = info - text;
 		Z_Free(key_lines[edit_line]);
-		key_lines[edit_line] = BZ_Malloc(tlen + 2);
-		key_lines[edit_line][0] = ']';
-		memcpy(key_lines[edit_line]+1, text, tlen);
-		key_lines[edit_line][1+tlen] = 0;
+		key_lines[edit_line] = BZ_Malloc(tlen + 1);
+		memcpy(key_lines[edit_line], text, tlen);
+		key_lines[edit_line][tlen] = 0;
 		key_linepos = strlen(key_lines[edit_line]);
 		return;
 	}
@@ -887,6 +916,19 @@ void Key_ConsoleRelease(console_t *con, int key, int unicode)
 {
 	char *buffer;
 
+	if (key == K_MOUSE1 && con->buttonsdown == CB_SELECT)
+	{
+		if (con->selstartline)
+		{
+			if (con->selstartline == con->selendline && con->selendoffset <= con->selstartoffset+1)
+				con->flags &= ~CONF_KEEPSELECTION;
+			else
+				con->flags |= CONF_KEEPSELECTION;
+			con->userline = con->selstartline;
+			con->useroffset = con->selstartoffset;
+		}
+		con->buttonsdown = CB_NONE;
+	}
 	if (key == K_MOUSE1 && con->buttonsdown == CB_SCROLL)
 	{
 		con->buttonsdown = CB_NONE;
@@ -925,9 +967,7 @@ void Key_ConsoleRelease(console_t *con, int key, int unicode)
 					for (info = buffer + 2; *info; )
 					{
 						if (info[0] == '^' && info[1] == ']')
-						{
-							break;
-						}
+							break; //end of tag, with no actual info, apparently
 						if (*info == '\\')
 							break;
 						else if (info[0] == '^' && info[1] == '^')
@@ -942,7 +982,7 @@ void Key_ConsoleRelease(console_t *con, int key, int unicode)
 							//okay, its a valid link that they clicked
 							*end = 0;
 #ifdef PLUGINS
-							if (!Plug_ConsoleLink(buffer+2, info))
+							if (!Plug_ConsoleLink(buffer+2, info, con->name))
 #endif
 #ifdef CSQC_DAT
 							if (!CSQC_ConsoleLink(buffer+2, info))
@@ -976,8 +1016,10 @@ void Key_ConsoleRelease(console_t *con, int key, int unicode)
 	}
 	if (con->buttonsdown == CB_CLOSE)
 	{	//window X (close)
-		if (con->mousecursor[0] > con->wnd_w-8 && con->mousecursor[1] < 8)
+		if (con->mousecursor[0] > con->wnd_w-16 && con->mousecursor[1] < 8)
 		{
+			if (con->close && !con->close(con, false))
+				return;
 			Con_Destroy (con);
 			return;
 		}
@@ -1305,6 +1347,7 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 {
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 	qboolean shift = keydown[K_LSHIFT] || keydown[K_RSHIFT];
+	int rkey = key;
 
 	//weirdness for the keypad.
 	if ((unicode >= '0' && unicode <= '9') || unicode == '.')
@@ -1320,14 +1363,16 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 				return true;
 			}
 		}
-		con->redirect(con_current, key);
-		return true;
+		if (key == K_MOUSE1 || key == K_MOUSE2)
+			;
+		else if (con->redirect(con, unicode, key))
+			return true;
 	}
 
 	if ((key == K_MOUSE1 || key == K_MOUSE2))
 	{
 		if (con->flags & CONF_ISWINDOW)
-			if (con->mousecursor[0] < 0 || con->mousecursor[1] < 0 || con->mousecursor[0] > con->wnd_w || con->mousecursor[1] > con->wnd_h)
+			if (con->mousecursor[0] < -8 || con->mousecursor[1] < 0 || con->mousecursor[0] > con->wnd_w || con->mousecursor[1] > con->wnd_h)
 				return true;
 		if (con == con_mouseover)
 		{
@@ -1341,34 +1386,122 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		if (con_mouseover && con->mousedown[1] < 8)//(8.0*vid.height)/vid.pixelheight)
 		{
 			if (key == K_MOUSE2 && !(con->flags & CONF_ISWINDOW))
+			{
+				if (con->close && !con->close(con, true))
+					return true;
 				Con_Destroy (con);
+			}
 			else
 			{
 				Con_SetActive(con);
 				if ((con->flags & CONF_ISWINDOW))
-					con->buttonsdown = (con->mousedown[0] > con->wnd_w-8)?CB_CLOSE:CB_MOVE;
+					con->buttonsdown = (con->mousedown[0] > con->wnd_w-16)?CB_CLOSE:CB_MOVE;
 			}
 		}
+		else if (con_mouseover && con->mousedown[1] < 16)
+			con->buttonsdown = CB_ACTIONBAR;
 		else if (key == K_MOUSE2)
+		{
+			if (con->redirect && con->redirect(con, unicode, key))
+				return true;
 			con->buttonsdown = CB_COPY;
+			con->flags &= ~CONF_KEEPSELECTION;
+		}
 		else
 		{
 			con->buttonsdown = CB_NONE;
-			if ((con->flags & CONF_ISWINDOW) && con->mousedown[0] < 8)
+			if ((con->flags & CONF_ISWINDOW) && con->mousedown[0] < 0)
 				con->buttonsdown |= CB_SIZELEFT;
-			if ((con->flags & CONF_ISWINDOW) && con->mousedown[0] > con->wnd_w-8)
+			if ((con->flags & CONF_ISWINDOW) && con->mousedown[0] > con->wnd_w-16)
 				con->buttonsdown |= CB_SIZERIGHT;
 			if ((con->flags & CONF_ISWINDOW) && con->mousedown[1] > con->wnd_h-8)
 				con->buttonsdown |= CB_SIZEBOTTOM;
 			if (con->buttonsdown == CB_NONE)
+			{
+				if (con->redirect && con->redirect(con, unicode, key))
+					return true;
 				con->buttonsdown = CB_SCROLL;
+				con->flags &= ~CONF_KEEPSELECTION;
+			}
 		}
 
-		if ((con->buttonsdown == CB_COPY || con->buttonsdown == CB_SCROLL) && !con->linecount && !con->linebuffered)
+		if ((con->buttonsdown == CB_COPY || con->buttonsdown == CB_SCROLL) && !con->linecount && (!con->linebuffered || con->linebuffered == Con_Navigate))
 			con->buttonsdown = CB_NONE;
 		else
 			return true;
 	}
+
+	if (key == K_PGUP || key == K_KP_PGUP || key==K_MWHEELUP)
+	{
+		conline_t *l;
+		int i = 2;
+		if (ctrl)
+			i = 8;
+		if (!con->display)
+			return true;
+		if (con->display == con->current)
+			i+=2;	//skip over the blank input line, and extra so we actually move despite the addition of the ^^^^^ line
+		if (con->display->older != NULL)
+		{
+			while (i-->0)
+			{
+				if (con->display->older == NULL)
+					break;
+				con->display = con->display->older;
+				con->display->time = realtime;
+			}
+			for (l = con->display; l; l = l->older)
+				l->time = realtime;
+			return true;
+		}
+	}
+	if (key == K_PGDN || key == K_KP_PGDN || key==K_MWHEELDOWN)
+	{
+		int i = 2;
+		if (ctrl)
+			i = 8;
+		if (!con->display)
+			return true;
+		if (con->display->newer != NULL)
+		{
+			while (i-->0)
+			{
+				if (con->display->newer == NULL)
+					break;
+				con->display = con->display->newer;
+				con->display->time = realtime;
+			}
+			if (con->display->newer && con->display->newer == con->current)
+				con->display = con->current;
+			return true;
+		}
+	}
+
+	if ((key == K_HOME || key == K_KP_HOME) && ctrl)
+	{
+		if (con->display != con->oldest)
+		{
+			con->display = con->oldest;
+			return true;
+		}
+	}
+
+	if ((key == K_END || key == K_KP_END) && ctrl)
+	{
+		if (con->display != con->current)
+		{
+			con->display = con->current;
+			return true;
+		}
+	}
+
+#ifdef TEXTEDITOR
+	if (editormodal)
+	{
+		if (Editor_Key(key, unicode))
+			return true;
+	}
+#endif
 
 	//console does not have any way to accept input, so don't try giving it any.
 	if (!con->linebuffered)
@@ -1378,7 +1511,10 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		{
 			cin_t *cin = R_ShaderGetCinematic(con->backshader);
 			if (cin)
-				Media_Send_KeyEvent(cin, key, unicode, 0);
+			{
+				Media_Send_KeyEvent(cin, rkey, unicode, 0);
+				return true;
+			}
 		}
 #endif
 		return false;
@@ -1388,9 +1524,22 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 	{	// backslash text are commands, else chat
 		int oldl = edit_line;
 
+		if (con_commandmatch)
+		{	//if that isn't actually a command, and we can actually complete it to something, then lets try to complete it.
+			char *txt = key_lines[edit_line]+1;
+			if (*txt == '/')
+				txt++;
+			if (!Cmd_IsCommand(txt) && !Cmd_CompleteCommand(txt, true, true, con_commandmatch, NULL))
+			{
+				CompleteCommand (true);
+				return true;
+			}
+		}
+
+
 		if (con->linebuffered)
 		{
-			if (con->linebuffered(con, key_lines[oldl]+1) != 2)
+			if (con->linebuffered(con, key_lines[oldl]) != 2)
 			{
 				edit_line = (edit_line + 1) & (CON_EDIT_LINES_MASK);
 				history_line = edit_line;
@@ -1399,11 +1548,9 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		con_commandmatch = 0;
 
 		Z_Free(key_lines[edit_line]);
-		key_lines[edit_line] = BZ_Malloc(2);
-		key_lines[edit_line][0] = ']';
-		key_lines[edit_line][1] = '\0';
-		key_linepos = 1;
-
+		key_lines[edit_line] = BZ_Malloc(1);
+		key_lines[edit_line][0] = '\0';
+		key_linepos = 0;
 		return true;
 	}
 
@@ -1440,15 +1587,14 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		{
 			history_line = (history_line - 1) & CON_EDIT_LINES_MASK;
 		} while (history_line != edit_line
-				&& !key_lines[history_line][1]);
+				&& !key_lines[history_line][0]);
 		if (history_line == edit_line)
 			history_line = (edit_line+1)&CON_EDIT_LINES_MASK;
 		key_lines[edit_line] = BZ_Realloc(key_lines[edit_line], strlen(key_lines[history_line])+1);
 		Q_strcpy(key_lines[edit_line], key_lines[history_line]);
 		key_linepos = Q_strlen(key_lines[edit_line]);
 
-		key_lines[edit_line][0] = ']';
-		if (!key_lines[edit_line][1])
+		if (!key_lines[edit_line][0])
 			con_commandmatch = 0;
 		return true;
 	}
@@ -1457,9 +1603,8 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 	{
 		if (history_line == edit_line)
 		{
-			key_lines[edit_line][0] = ']';
-			key_lines[edit_line][1] = '\0';
-			key_linepos=1;
+			key_lines[edit_line][0] = '\0';
+			key_linepos=0;
 			con_commandmatch = 0;
 			return true;
 		}
@@ -1471,9 +1616,8 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 			&& !key_lines[history_line][1]);
 		if (history_line == edit_line)
 		{
-			key_lines[edit_line][0] = ']';
-			key_lines[edit_line][1] = '\0';
-			key_linepos = 1;
+			key_lines[edit_line][0] = '\0';
+			key_linepos = 0;
 		}
 		else
 		{
@@ -1484,54 +1628,12 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		return true;
 	}
 
-	if (key == K_PGUP || key == K_KP_PGUP || key==K_MWHEELUP)
+	if (!consolekeys[rkey])
 	{
-		int i = 2;
-		if (ctrl)
-			i = 8;
-		if (!con->display)
-			return true;
-		if (con->display == con->current)
-			i+=2;	//skip over the blank input line, and extra so we actually move despite the addition of the ^^^^^ line
-		while (i-->0)
-		{
-			if (con->display->older == NULL)
-				break;
-			con->display = con->display->older;
-		}
-		return true;
+		if (rkey != '`' || key_linepos==0)
+			return false;
 	}
-	if (key == K_PGDN || key == K_KP_PGDN || key==K_MWHEELDOWN)
-	{
-		int i = 2;
-		if (ctrl)
-			i = 8;
-		if (!con->display)
-			return true;
-		while (i-->0)
-		{
-			if (con->display->newer == NULL)
-				break;
-			con->display = con->display->newer;
-		}
-		if (con->display->newer && con->display->newer == con->current)
-			con->display = con->current;
-		return true;
-	}
-
-	if ((key == K_HOME || key == K_KP_HOME) && ctrl)
-	{
-		con->display = con->oldest;
-		return true;
-	}
-
-	if ((key == K_END || key == K_KP_END) && ctrl)
-	{
-		con->display = con->current;
-		return true;
-	}
-
-	Key_EntryLine(&key_lines[edit_line], 1, &key_linepos, key, unicode);
+	Key_EntryLine(&key_lines[edit_line], 0, &key_linepos, key, unicode);
 	return true;
 }
 
@@ -1748,7 +1850,7 @@ char *Key_KeynumToString (int keynum, int modifier)
 	case KEY_MODIFIER_SHIFT:
 		return va("Shift+%s", r);
 	default:
-		return r;
+		return r;	//no modifier or a bindmap
 	}
 }
 
@@ -2063,10 +2165,10 @@ void Key_Init (void)
 
 	for (i=0 ; i<=CON_EDIT_LINES_MASK ; i++)
 	{
-		key_lines[i] = Z_Malloc(2);
-		key_lines[i][0] = ']';
+		key_lines[i] = Z_Malloc(1);
+		key_lines[i][0] = '\0';
 	}
-	key_linepos = 1;
+	key_linepos = 0;
 
 	key_dest_mask = kdm_game;
 	key_dest_absolutemouse = kdm_console | kdm_editor | kdm_cwindows | kdm_emenu;
@@ -2209,7 +2311,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 	char	*dc, *uc;
 	char	p[16];
 	int modifierstate;
-	int conkey = consolekeys[key] || ((unicode || key == '`') && (key != '`' || key_linepos>1));	//if the input line is empty, allow ` to toggle the console, otherwise enter it as actual text.
+	int conkey = consolekeys[key] || ((unicode || key == '`') && (key != '`' || key_linepos>0));	//if the input line is empty, allow ` to toggle the console, otherwise enter it as actual text.
 
 //	Con_Printf ("%i : %i : %i\n", key, unicode, down); //@@@
 
@@ -2250,6 +2352,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 	}
 
 	if (key == K_ESCAPE)
+	{
 		if (shift_down)
 		{
 			extern cvar_t con_stayhidden;
@@ -2260,6 +2363,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 				return;
 			}
 		}
+	}
 
 	//yes, csqc is allowed to steal the escape key.
 	if (key != '`' && (!down || key != K_ESCAPE || (!Key_Dest_Has(~kdm_game) && !shift_down)) &&
@@ -2368,7 +2472,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 				con_curwindow->buttonsdown = CB_NONE;
 			if (con)
 			{
-				con->mousecursor[0] = mousecursor_x - ((con->flags & CONF_ISWINDOW)?con->wnd_x:0);
+				con->mousecursor[0] = mousecursor_x - ((con->flags & CONF_ISWINDOW)?con->wnd_x+8:0);
 				con->mousecursor[1] = mousecursor_y - ((con->flags & CONF_ISWINDOW)?con->wnd_y:0);
 				Key_ConsoleRelease(con, key, unicode);
 			}
@@ -2397,7 +2501,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 //
 // during demo playback, most keys bring up the main menu
 //
-	if (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && down && conkey && !Key_Dest_Has(~kdm_game))
+	if (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && conkey && !Key_Dest_Has(~kdm_game))
 	{
 		switch (key)
 		{	//these keys don't force the menu to appear while playing the demo reel
@@ -2422,24 +2526,14 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 //
 // if not a consolekey, send to the interpreter no matter what mode is
 //
-#ifdef VM_UI
-	if (key != '`' && key != '~')
-	if (!Key_Dest_Has(~kdm_game) || !down)
-	{
-		if (UI_KeyPress(key, unicode, down) && down)	//UI is allowed to take these keydowns. Keyups are always maintained.
-			return;
-	}
-#endif
-
-
-	if (conkey && Key_Dest_Has(kdm_console|kdm_cwindows))
+	if (/*conkey &&*/Key_Dest_Has(kdm_console|kdm_cwindows))
 	{
 		console_t *con = Key_Dest_Has(kdm_console)?con_current:con_curwindow;
 		if ((con_mouseover||!Key_Dest_Has(kdm_console)) && key >= K_MOUSE1 && key <= K_MWHEELDOWN)
 			con = con_mouseover;
 		if (con)
 		{
-			con->mousecursor[0] = mousecursor_x - ((con->flags & CONF_ISWINDOW)?con->wnd_x:0);
+			con->mousecursor[0] = mousecursor_x - ((con->flags & CONF_ISWINDOW)?con->wnd_x+8:0);
 			con->mousecursor[1] = mousecursor_y - ((con->flags & CONF_ISWINDOW)?con->wnd_y:0);
 			if (Key_Console (con, unicode, key))
 				return;
@@ -2448,6 +2542,13 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 			Key_Dest_Remove(kdm_cwindows);
 
 	}
+#ifndef NOMEDIA
+	if (Media_PlayingFullScreen())
+	{
+		Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
+		return;
+	}
+#endif
 #ifdef TEXTEDITOR
 	if (Key_Dest_Has(kdm_editor))
 	{
@@ -2455,6 +2556,14 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		return;
 	}
 #endif
+#ifdef VM_UI
+	if (!Key_Dest_Has(~kdm_game) || !down)
+	{
+		if (UI_KeyPress(key, unicode, down) && down)	//UI is allowed to take these keydowns. Keyups are always maintained.
+			return;
+	}
+#endif
+
 	if (Key_Dest_Has(kdm_emenu))
 	{
 		M_Keydown (key, unicode);
@@ -2472,13 +2581,6 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		Key_Message (key, unicode);
 		return;
 	}
-#ifndef NOMEDIA
-	if (Media_PlayingFullScreen())
-	{
-		Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
-		return;
-	}
-#endif
 
 	//anything else is a key binding.
 

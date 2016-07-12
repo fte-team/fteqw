@@ -31,6 +31,59 @@
 	#endif
 #endif
 
+
+//cpu clock stuff (glorified rdtsc), for profile timing only
+#if !defined(Sys_GetClock) && defined(_WIN32)
+	//windows has some specific functions for this (traditionally wrapping rdtsc)
+	//note: on some systems, you may need to force cpu affinity to a single core via task manager
+	static unsigned long long Sys_GetClock(void)
+	{
+		LARGE_INTEGER li;
+		QueryPerformanceCounter(&li);
+		return li.QuadPart;
+	}
+	unsigned long long Sys_GetClockRate(void)
+	{
+		LARGE_INTEGER li;
+		QueryPerformanceFrequency(&li);
+		return li.QuadPart;
+	}
+	#define Sys_GetClock Sys_GetClock
+#endif
+
+#if 0//!defined(Sys_GetClock) && defined(__unix__)
+	//linux/unix has some annoying abstraction and shows time in nanoseconds rather than cycles. lets hope we don't waste too much time  reading it.
+	#include <unistd.h>
+	#if defined(_POSIX_TIMERS) && _POSIX_TIMERS >= 0
+		#include <time.h>
+		#ifdef CLOCK_PROCESS_CPUTIME_ID
+			static unsigned long long Sys_GetClock(void)
+			{
+				struct timespec c;
+				clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &c);
+				return (c.tv_sec*1000000000ull) + c.tv_nsec;
+			}
+			#define Sys_GetClock Sys_GetClock
+			unsigned long long Sys_GetClockRate(void)
+			{
+				return 1000000000ull;
+			}
+		#endif
+	#endif
+#endif
+
+#if !defined(Sys_GetClock) && defined(__unix__)
+	#include <time.h>
+	#define Sys_GetClock() clock()
+	unsigned long long Sys_GetClockRate(void) { return CLOCKS_PER_SEC; }
+#endif
+
+#ifndef Sys_GetClock
+	//other systems have no choice but to omit this feature in some way. this is just for profiling, so we can get away with stubs.
+	#define Sys_GetClock() 0
+	unsigned long long Sys_GetClockRate(void) { return 1; }
+#endif
+
 //=============================================================================
 
 char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax);
@@ -272,12 +325,15 @@ static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
 			if (entnum >= sv_num_edicts)
 			{
 				classname = "INVALID";
-				ptr = NULL;
+				continue;
 			}
 			else
 			{
 				ed = PROG_TO_EDICT(progfuncs, entnum);
-				ptr = (eval_t *)(((int *)edvars(ed)) + ((eval_t *)&pr_globals[st16[st].b])->_int + progfuncs->funcs.fieldadjust);
+				if ((unsigned int)((eval_t *)&pr_globals[st16[st].b])->_int*4u >= ed->fieldsize)
+					continue;
+				else
+					ptr = (eval_t *)(((int *)edvars(ed)) + ((eval_t *)&pr_globals[st16[st].b])->_int + progfuncs->funcs.fieldadjust);
 
 				cnfd = ED_FindField(progfuncs, "classname");
 				if (cnfd)
@@ -293,9 +349,9 @@ static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
 			else
 				fdef = ED_FieldAtOfs(progfuncs, ((eval_t *)&pr_globals[st16[st].b])->_int);
 			if (fdef)
-				printf("    %s.%s: %s\n", ent->s_name+progfuncs->funcs.stringtable, fld->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, fdef->type, ptr, false));
+				printf("    %s.%s: %s\n", PR_StringToNative(&progfuncs->funcs, ent->s_name), PR_StringToNative(&progfuncs->funcs, fld->s_name), PR_ValueString(progfuncs, fdef->type, ptr, false));
 			else
-				printf("    %s.%s: BAD FIELD DEF - %#x\n", ent->s_name+progfuncs->funcs.stringtable, fld->s_name+progfuncs->funcs.stringtable, ptr->_int);
+				printf("    %s.%s: BAD FIELD DEF - %#x\n", PR_StringToNative(&progfuncs->funcs, ent->s_name), PR_StringToNative(&progfuncs->funcs, fld->s_name), ptr->_int);
 		}
 	}
 }
@@ -494,6 +550,8 @@ int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 	{
 		unsigned long long cycles;
 		cycles = Sys_GetClock() - pr_stack[pr_depth].timestamp;
+		if (cycles > prinst.profilingalert)
+			printf("QC call to %s took over a second\n", PR_StringToNative(&progfuncs->funcs,pr_xfunction->s_name));
 		pr_xfunction->profiletime += cycles;
 		pr_xfunction = pr_stack[pr_depth].f;
 		if (pr_depth)
@@ -1188,8 +1246,8 @@ int ShowStep(progfuncs_t *progfuncs, int statement, char *fault, pbool fatal)
 {
 //	return statement;
 //	texture realcursortex;
-static int lastline = 0;
-static int ignorestatement = 0;	//
+static unsigned int lastline = 0;
+static unsigned int ignorestatement = 0;	//
 static const char *lastfile = 0;
 
 	int pn = prinst.pr_typecurrent;
@@ -1405,7 +1463,7 @@ static pbool PR_ExecRunWarning (pubprogfuncs_t *ppf, int xstatement, char *error
 }
 
 //For debugging. Assumes classname field exists.
-const char *PR_GetEdictClassname(progfuncs_t *progfuncs, int edict)
+const char *PR_GetEdictClassname(progfuncs_t *progfuncs, unsigned int edict)
 {
 	fdef_t *cnfd = ED_FindField(progfuncs, "classname");
 	if (cnfd && edict < prinst.maxedicts)
@@ -1491,7 +1549,6 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	while (progfuncs->funcs.debug_trace || prinst.watch_ptr || prinst.profiling)
 	{
 #ifdef FTE_TARGET_WEB
-		cont16:
 		reeval16:
 		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
 		pr_xstatement = st-pr_statements16;
@@ -1666,9 +1723,9 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 	initial_progs = prinst.pr_typecurrent;
 	if (newprogs != initial_progs)
 	{
-		if (newprogs >= prinst.maxprogs || !&pr_progstate[newprogs].globals)	//can happen with hexen2...
+		if (newprogs >= prinst.maxprogs || !pr_progstate[newprogs].globals)	//can happen with hexen2...
 		{
-			printf("PR_ExecuteProgram: tried branching into invalid progs\n");
+			printf("PR_ExecuteProgram: tried branching into invalid progs (%#x)\n", fnum);
 			return;
 		}
 		PR_SwitchProgsParms(progfuncs, newprogs);

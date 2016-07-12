@@ -17,8 +17,6 @@
 #define IDI_ICON_FTEQCC MAKEINTRESOURCE(101)
 
 void AddSourceFile(const char *parentsrc, const char *filename);
-void GUI_ParseCommandLine(char *args);
-void GUI_RevealOptions(void);
 
 #ifndef TVM_SETBKCOLOR
 #define TVM_SETBKCOLOR              (TV_FIRST + 29)
@@ -50,6 +48,7 @@ void GUI_RevealOptions(void);
 #define SCI_GETLENGTH 2006
 #define SCI_GETCHARAT 2007
 #define SCI_GETCURRENTPOS 2008
+#define SCI_GETANCHOR 2009
 #define SCI_SETSAVEPOINT 2014
 #define SCI_GETCURLINE 2027
 #define SCI_SETCODEPAGE 2037
@@ -77,6 +76,7 @@ void GUI_RevealOptions(void);
 #define SCI_AUTOCACTIVE 2102
 #define SCI_AUTOCSETFILLUPS 2112
 #define SCI_GETLINE 2153
+#define SCI_SETSEL 2160
 #define SCI_LINEFROMPOSITION 2166
 #define SCI_POSITIONFROMLINE 2167
 #define SCI_REPLACESEL 2170
@@ -125,6 +125,7 @@ void GUI_RevealOptions(void);
 #define SCI_ANNOTATIONSETSTYLEOFFSET 2550
 #define SCI_ANNOTATIONGETSTYLEOFFSET 2551
 #define SCI_AUTOCSETORDER 2660
+#define SCI_SETREPRESENTATION 2665
 #define SCI_SETLEXER 4001
 #define SCI_SETPROPERTY 4004
 #define SCI_SETKEYWORDS 4005
@@ -259,6 +260,17 @@ typedef struct editor_s {
 } editor_t;
 editor_t *editors;
 
+typedef struct
+{
+	editor_t *editor;	//will need to be validated
+	unsigned int selpos;
+	unsigned int anchorpos;
+} navhistory_t;
+navhistory_t navhistory[8];
+const unsigned int navhistory_size = sizeof(navhistory)/sizeof(navhistory[0]);
+unsigned int navhistory_first;	//don't allow rewinding past this.
+unsigned int navhistory_pos;
+
 //the engine thread simply sits waiting for responses from the engine
 typedef struct
 {
@@ -269,7 +281,7 @@ typedef struct
 	HANDLE thread;
 	HANDLE pipefromengine;
 	HANDLE pipetoengine;
-	int embedtype;	//0 = not. 1 = separate. 2 = mdi child
+	size_t embedtype;	//0 = not. 1 = separate. 2 = mdi child
 } enginewindow_t;
 static pbool EngineCommandf(char *message, ...);
 static void EngineGiveFocus(void);
@@ -438,7 +450,7 @@ pbool PDECL QCC_WriteFile (const char *name, void *data, int len)
 	FILE *f;
 
 	char *ext = strrchr(name, '.');
-	if (!stricmp(ext, ".gz"))
+	if (ext && !stricmp(ext, ".gz"))
 	{
 #ifdef AVAIL_ZLIB
 		pbool okay = true;
@@ -647,7 +659,7 @@ static void FindNextScintilla(editor_t *editor, char *findtext)
 		MessageBox(editor->editpane, "No more occurences found", "FTE Editor", 0);
 	}
 }
-char *WordUnderCursor(editor_t *editor, char *word, int wordsize, char *term, int termsize, int position);
+static char *WordUnderCursor(editor_t *editor, char *word, int wordsize, char *term, int termsize, int position);
 pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize);
 
 //available in xp+
@@ -876,6 +888,7 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 	if (scintillaokay)
 	{
 		FILE *f;
+		int i;
 
 		SendMessage(newc, SCI_STYLERESETDEFAULT, 0, 0);
 		SendMessage(newc, SCI_STYLESETFONT, STYLE_DEFAULT, (LPARAM)"Consolas");
@@ -922,12 +935,16 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 		SendMessage(newc, SCI_SETKEYWORDS,	0,	(LPARAM)
 					"if else for do not while asm break case const continue "
 					"default entity enum enumflags extern "
-					"float goto int integer noref "
+					"float goto int integer __variant __in __out __inout noref "
 					"nosave shared state optional string "
 					"struct switch thinktime until loop "
 					"typedef union var vector void "
 					"accessor get set inline "
 					"virtual nonvirtual class static nonstatic local return"
+					);
+
+		SendMessage(newc, SCI_SETKEYWORDS,	5,	(LPARAM)
+					"TODO FIXME BUG"
 					);
 
 		SendMessage(newc, SCI_SETMOUSEDWELLTIME, 1000, 0);
@@ -981,6 +998,78 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDERTAIL,		FOLDBACK);
 		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDERMIDTAIL,	FOLDBACK);
 
+		//disable preprocessor tracking, because QC preprocessor is not specific to an individual file, and even if it was, includes would be messy.
+//		SendMessage(newc, SCI_SETPROPERTY,  (WPARAM)"lexer.cpp.track.preprocessor", (LPARAM)"0");
+
+		for (i = 0; i < 0x100; i++)
+		{
+			char *lowtab[32] = {"QNUL",NULL,NULL,NULL,NULL,".",NULL,NULL,NULL,NULL,NULL,"#",NULL,">",".",".",
+								"[","]","0","1","2","3","4","5","6","7","8","9",".","<-","-","->"};
+			char *hightab[32] = {"(=","=","=)","=#=","White",".","Green","Red","Yellow","Blue",NULL,"Purple",NULL,">",".",".",
+								"[","]","0","1","2","3","4","5","6","7","8","9",".","<-","-","->"};
+			char foo[4];
+			char bar[4];
+			unsigned char c = i;
+			foo[0] = i;	//these are invalid encodings or control chars.
+			foo[1] = 0;
+
+			if (c >= 0 && c < 32)
+			{
+				if (lowtab[c])
+					SendMessage(newc, SCI_SETREPRESENTATION,	(WPARAM)foo,	(LPARAM)lowtab[c]);
+			}
+			else if (c >= (128|0) && c < (128|32))
+			{
+				if (hightab[c-128])
+					SendMessage(newc, SCI_SETREPRESENTATION,	(WPARAM)foo,	(LPARAM)hightab[c-128]);
+			}
+			else if (c < 128)
+				continue;	//don't do anything weird for ascii (other than control chars)
+			else
+			{
+				int b = 0;
+				bar[b++] = c&0x7f;
+				bar[b++] = 0;
+				SendMessage(newc, SCI_SETREPRESENTATION,	(WPARAM)foo,	(LPARAM)bar);
+			}
+		}
+
+		for (i = 0xe000; i < 0xe100; i++)
+		{
+			char *lowtab[32] = {"QNUL",NULL,NULL,NULL,NULL,".",NULL,NULL,NULL,NULL,NULL,"#",NULL,">",".",".",
+								"[","]","0","1","2","3","4","5","6","7","8","9",".","<-","-","->"};
+			char *hightab[32] = {"(=","=","=)","=#=","White",".","Green","Red","Yellow","Blue",NULL,"Purple",NULL,">",".",".",
+								"[","]","^0","^1","^2","^3","^4","^5","^6","^7","^8","^9",".","^<-","^-","^->"};
+			char foo[4];
+			char bar[4];
+			unsigned char c = i;
+			foo[0] = ((i>>12) & 0xf) | 0xe0;
+			foo[1] = ((i>>6) & 0x3f) | 0x80;
+			foo[2] = ((i>>0) & 0x3f) | 0x80;
+			foo[3] = 0;
+
+			if (c >= 0 && c < 32)
+			{
+				if (lowtab[c])
+					SendMessage(newc, SCI_SETREPRESENTATION,	(WPARAM)foo,	(LPARAM)lowtab[c]);
+			}
+			else if (c >= (128|0) && c < (128|32))
+			{
+				if (hightab[c-128])
+					SendMessage(newc, SCI_SETREPRESENTATION,	(WPARAM)foo,	(LPARAM)hightab[c-128]);
+			}
+			else
+			{
+				int b = 0;
+				if (c >= 128)
+					bar[b++] = '^';
+				bar[b++] = c&0x7f;
+				bar[b++] = 0;
+				SendMessage(newc, SCI_SETREPRESENTATION,	(WPARAM)foo,	(LPARAM)bar);
+			}
+		}
+
+
 		f = fopen("scintilla.cfg", "rt");
 		if (f)
 		{
@@ -1004,25 +1093,30 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 				msg = strtoul(c, &c, 0);
 				while(*c == ' ' || *c == '\t')
 					c++;
-				wparam = strtoul(c, &c, 0);
-				while(*c == ' ' || *c == '\t')
-					c++;
-
-				//fixme: determine argument types based upon msg, to avoid crashes.
 				if (*c == '\"')
 				{
 					c++;
-					if (strrchr(c, '\"'))
-						*strrchr(c, '\"') = 0;
-
-					SendMessage(newc, msg,	wparam,	(LPARAM)c);
+					wparam = (LPARAM)c;
+					c = strrchr(c, '\"');
+					if (c)
+						*c++ = 0;
 				}
 				else
+					wparam = strtoul(c, &c, 0);
+				while(*c == ' ' || *c == '\t')
+					c++;
+				if (*c == '\"')
 				{
+					c++;
+					lparam = (LPARAM)c;
+					c = strrchr(c, '\"');
+					if (c)
+						*c++ = 0;
+				}
+				else
 					lparam = strtoul(c, &c, 0);
 
-					SendMessage(newc, msg,	wparam,	lparam);
-				}
+				SendMessage(newc, msg,	wparam,	lparam);
 			}
 			if (!ftell(f))
 			{
@@ -1101,6 +1195,7 @@ enum {
 	IDM_OPENNEW,
 	IDM_GREP,
 	IDM_GOTODEF,
+	IDM_RETURNDEF,
 	IDM_OUTPUT_WINDOW,
 	IDM_SHOWLINENUMBERS,
 	IDM_SAVE,
@@ -1120,6 +1215,8 @@ enum {
 	IDM_DEBUG_STEPINTO,
 	IDM_DEBUG_STEPOUT,
 	IDM_DEBUG_TOGGLEBREAK,
+	IDM_ENCODING_PRIVATEUSE,
+	IDM_ENCODING_DEPRIVATEUSE,
 
 	IDI_O_LEVEL0,
 	IDI_O_LEVEL1,
@@ -1242,93 +1339,7 @@ void GenericMenu(WPARAM wParam)
 	}
 }
 
-void EditorMenu(editor_t *editor, WPARAM wParam)
-{
-	switch(LOWORD(wParam))
-	{
-	case IDM_OPENDOCU:
-		{
-			char buffer[1024];
-			int total;
-			total = SendMessage(editor->editpane, EM_GETSELTEXT, (WPARAM)sizeof(buffer)-1, (LPARAM)buffer);
-			buffer[total]='\0';
-			if (!total)
-			{
-				MessageBox(NULL, "There is no name currently selected.", "Whoops", 0);
-				break;
-			}
-			else
-				EditFile(buffer, -1, false);
-		}
-		break;
-	case IDM_SAVE:
-		EditorSave(editor);
-		break;
-	case IDM_FIND:
-		SetFocus(search_name);
-		break;
-	case IDM_GREP:
-		{
-			char buffer[1024];
-			int total;
-			total = SendMessage(editor->editpane, EM_GETSELTEXT, (WPARAM)sizeof(buffer)-1, (LPARAM)buffer);
-			buffer[total]='\0';
-			if (!total)
-			{
-				MessageBox(NULL, "There is no search text specified.", "Whoops", 0);
-				break;
-			}
-			else
-				GrepAllFiles(buffer);
-		}
-		break;
-	case IDM_GOTODEF:
-		{
-			char buffer[1024];
-			int total;
-			total = SendMessage(editor->editpane, EM_GETSELTEXT, (WPARAM)sizeof(buffer)-1, (LPARAM)buffer);
-			buffer[total]='\0';
-			if (!total)
-			{
-				MessageBox(NULL, "There is no name currently selected.", "Whoops", 0);
-				break;
-			}
-			else
-				GoToDefinition(buffer);
-		}
-		break;
-
-	case IDM_UNDO:
-		Edit_Undo(editor->editpane);
-		break;
-	case IDM_REDO:
-		Edit_Redo(editor->editpane);
-		break;
-
-	case IDM_DEBUG_TOGGLEBREAK:
-		{
-			int mode;
-			if (editor->scintilla)
-			{
-				mode = !(SendMessage(editor->editpane, SCI_MARKERGET, editor->curline, 0) & 1);
-				SendMessage(editor->editpane, mode?SCI_MARKERADD:SCI_MARKERDELETE, editor->curline, 0);
-			}
-			else
-				mode = 2;
-
-			EngineCommandf("qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, editor->curline+1);
-		}
-		return;
-	case IDM_DEBUG_SETNEXT:
-		EngineCommandf("qcjump \"%s\" %i\n", editor->filename, editor->curline+1);
-		return;
-	default:
-		GenericMenu(wParam);
-		break;
-	}
-}
-
-char *WordUnderCursor(editor_t *editor, char *word, int wordsize, char *term, int termsize, int position)
+static char *WordUnderCursor(editor_t *editor, char *word, int wordsize, char *term, int termsize, int position)
 {
 	unsigned char linebuf[1024];
 	DWORD charidx;
@@ -1378,13 +1389,13 @@ char *WordUnderCursor(editor_t *editor, char *word, int wordsize, char *term, in
 		//copy the result out
 		lineidx = 0;
 		wordsize--;
-		while (wordsize && 
+		while (wordsize && (
 			(linebuf[charidx] >= 'a' && linebuf[charidx] <= 'z') ||
 			(linebuf[charidx] >= 'A' && linebuf[charidx] <= 'Z') ||
 			(linebuf[charidx] >= '0' && linebuf[charidx] <= '9') ||
 			linebuf[charidx] == '_' || linebuf[charidx] == ':' ||
 			linebuf[charidx] >= 128
-			)
+			))
 		{
 			word[lineidx++] = linebuf[charidx++];
 			wordsize--;
@@ -1409,14 +1420,14 @@ char *WordUnderCursor(editor_t *editor, char *word, int wordsize, char *term, in
 		//copy the result out
 		lineidx = 0;
 		termsize--;
-		while (termsize && 
+		while (termsize && (
 			(linebuf[charidx] >= 'a' && linebuf[charidx] <= 'z') ||
 			(linebuf[charidx] >= 'A' && linebuf[charidx] <= 'Z') ||
 			(linebuf[charidx] >= '0' && linebuf[charidx] <= '9') ||
 			linebuf[charidx] == '_' || linebuf[charidx] == ':' || linebuf[charidx] == '.' ||
 			linebuf[charidx] == '[' || linebuf[charidx] == ']' ||
 			linebuf[charidx] >= 128
-			)
+			))
 		{
 			term[lineidx++] = linebuf[charidx++];
 			termsize--;
@@ -1424,6 +1435,281 @@ char *WordUnderCursor(editor_t *editor, char *word, int wordsize, char *term, in
 		term[lineidx++] = 0;
 	}
 	return word;
+}
+
+static void GUI_Recode(editor_t *editor, int target)
+{
+	if (target == UTF8_BOM && editor->savefmt == UTF_ANSI)
+	{	//we're currently using some ansi-like format. convert it to quake's format.
+		pbool errors = false;
+		int len;
+		char *wfile, *in;
+
+		if (IDCANCEL==MessageBox(editor->window, "Really convert?", editor->filename, MB_OKCANCEL))
+			return;
+
+		if (editor->scintilla)
+		{
+			char *afile, *out;
+			len = SendMessage(editor->editpane, SCI_GETLENGTH, 0, 0);
+			wfile = malloc(len+1);
+			SendMessage(editor->editpane, SCI_GETTEXT, len, (LPARAM)wfile);
+			wfile[len] = 0;
+
+			afile = malloc((len+1)*3);
+
+			in = wfile;
+			out = afile;
+			while(*in)
+			{
+				unsigned int c = (unsigned char)*in++;
+				//fixme: do we care about ascii control codes? quake tends not to, but also abuses them...
+				if ((c >= 32 && c < 0x80) || c == '\n' || c == '\r' || c == '\t')
+					*out++ = c;	//ascii chars are still ascii
+				else if (c >= 0 && c < 0xff) //controll chars and high-value chars are not considered ascii and thus not safe
+				{
+					c |= 0xe000;	//maps to private use
+
+//					*out++ = ((c>>6) & 0x1f) | 0xc0;
+//					*out++ = ((c>>0) & 0x3f) | 0x80;
+
+					*out++ = ((c>>12) & 0xf) | 0xe0;
+					*out++ = ((c>>6) & 0x3f) | 0x80;
+					*out++ = ((c>>0) & 0x3f) | 0x80;
+				}
+				else
+				{
+					*out++ = c;
+					errors = true;
+				}
+			}
+			*out++ = 0;
+
+			if (errors)
+				errors = IDCANCEL==MessageBox(editor->window, "Encoding quake's char set to utf-8 will corrupt some characters (and cannot be displayed correctly in this editor). continue anyway?", editor->filename, MB_OKCANCEL);
+
+			if (!errors)
+			{
+				editor->savefmt = UTF8_BOM;	//always use a bom, because notepad is shite.
+				SendMessage(editor->editpane, SCI_SETTEXT, 0, (LPARAM)afile);
+				SendMessage(editor->editpane, SCI_SETCODEPAGE, SC_CP_UTF8, 0);
+			}
+			free(afile);
+		}
+		else
+		{
+			wchar_t *afile, *out;
+
+			len = GetWindowTextLengthA(editor->editpane);
+			wfile = malloc(len+1);
+			GetWindowTextA(editor->editpane, wfile, len+1);
+		
+			afile = malloc((len+1)*2);
+
+			in = wfile;
+			out = afile;
+			while(*in)
+			{
+				unsigned char c = *in++;
+				//fixme: do we care about ascii control codes? quake tends not to, but also abuses them...
+				if ((c >= 32 && c < 0x80) || c == '\n' || c == '\r' || c == '\t')
+					*out++ = c;	//ascii chars are still ascii
+				else if (c >= 0 && c < 0xff) //controll chars and high-value chars are not considered ascii and thus not safe
+					*out++ = c | 0xe000;	//maps to private use
+				else
+				{
+					*out++ = c;
+					errors = true;
+				}
+			}
+			*out++ = 0;
+
+			if (errors)
+				errors = IDCANCEL==MessageBox(editor->window, "Encoding quake's char set to utf-8 will corrupt some characters (and cannot be displayed correctly in this editor). continue anyway?", editor->filename, MB_OKCANCEL);
+
+			if (!errors)
+			{
+				editor->savefmt = UTF8_BOM;	//always use a bom, because notepad is shite.
+				SetWindowTextW(editor->editpane, afile);
+			}
+			free(afile);
+		}
+		
+		free(wfile);
+	}
+	else if (target == UTF_ANSI && editor->savefmt != UTF_ANSI)
+	{	//we're currently using some unicode format. convert it to quake's format.
+		pbool errors = false;
+		int len;
+		wchar_t *wfile, *in;
+		char *afile, *out;
+
+		if (IDCANCEL==MessageBox(editor->window, "Really convert?", editor->filename, MB_OKCANCEL))
+			return;
+
+		len = GetWindowTextLengthW(editor->editpane);
+		wfile = malloc((len+1)*2);
+		afile = malloc(len+1);
+		GetWindowTextW(editor->editpane, wfile, len+1);
+
+		in = wfile;
+		out = afile;
+		while(*in)
+		{
+			//fixme: do we care about ascii control codes? quake tends not to, but also abuses them...
+			if (*in >= 0 && *in < 0x80)
+				*out++ = *in++;	//ascii is ascii
+			else if (*in >= 0xe000 && *in < 0xe100)
+				*out++ = *in++;	//quake's charset is quake's charset
+			//FIXME: no utf-16 surrogates
+			else
+			{
+				*out++ = *in++;
+				errors = true;
+			}
+		}
+		*out++ = 0;
+
+		if (errors)
+			errors = IDCANCEL==MessageBox(editor->window, "Encoding to quake's char set will corrupt some characters (and cannot be displayed correctly in this editor). continue anyway?", editor->filename, MB_OKCANCEL);
+
+		if (!errors)
+		{
+			editor->savefmt = UTF_ANSI;
+			if (editor->scintilla)
+			{
+				SendMessage(editor->editpane, SCI_SETCODEPAGE, 28591, 0);
+				SendMessage(editor->editpane, SCI_SETTEXT, 0, (LPARAM)afile);
+			}
+			else
+				SetWindowTextA(editor->editpane, afile);
+		}
+		
+		free(wfile);
+		free(afile);
+	}
+}
+
+void EditorMenu(editor_t *editor, WPARAM wParam)
+{
+	switch(LOWORD(wParam))
+	{
+	case IDM_OPENDOCU:
+		{
+			char buffer[1024];
+			int total;
+			total = SendMessage(editor->editpane, EM_GETSELTEXT, (WPARAM)sizeof(buffer)-1, (LPARAM)buffer);
+			buffer[total]='\0';
+			if (!total && !WordUnderCursor(editor, buffer, sizeof(buffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0)))
+			{
+				MessageBox(NULL, "There is no name currently selected.", "Whoops", 0);
+				break;
+			}
+			else
+				EditFile(buffer, -1, false);
+		}
+		break;
+	case IDM_SAVE:
+		EditorSave(editor);
+		break;
+	case IDM_FIND:
+		SetFocus(search_name);
+		break;
+	case IDM_GREP:
+		{
+			char buffer[1024];
+			int total;
+			total = SendMessage(editor->editpane, EM_GETSELTEXT, (WPARAM)sizeof(buffer)-1, (LPARAM)buffer);
+			buffer[total]='\0';
+			if (!total && !WordUnderCursor(editor, buffer, sizeof(buffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0)))
+			{
+				MessageBox(NULL, "There is no search text specified.", "Whoops", 0);
+				break;
+			}
+			else
+				GrepAllFiles(buffer);
+		}
+		break;
+	case IDM_RETURNDEF:
+		if (navhistory_pos > navhistory_first)
+		{
+			editor_t *ed;
+			navhistory_pos--;
+			//search for the editor to make sure its still open
+			for (ed = editors; ed; ed = ed->next)
+			{
+				if (ed == navhistory[navhistory_pos&navhistory_size].editor)
+				{
+					SetFocus(ed->window);
+					SetFocus(ed->editpane);
+					SendMessage(ed->editpane, SCI_SETSEL, navhistory[navhistory_pos&navhistory_size].selpos, navhistory[navhistory_pos&navhistory_size].anchorpos);
+					break;
+				}
+			}
+		}
+		break;
+	case IDM_GOTODEF:
+		{
+			char buffer[1024];
+			int total;
+
+			{
+				navhistory[navhistory_pos&navhistory_size].editor = editor;
+				navhistory[navhistory_pos&navhistory_size].selpos = SendMessage(editor->editpane, SCI_GETANCHOR, 0, 0);
+				navhistory[navhistory_pos&navhistory_size].anchorpos = SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0);
+				navhistory_pos++;
+				if (navhistory_pos > navhistory_first + navhistory_size)
+					navhistory_first = navhistory_pos - navhistory_size;
+			}
+
+			total = SendMessage(editor->editpane, EM_GETSELTEXT, (WPARAM)sizeof(buffer)-1, (LPARAM)buffer);
+			buffer[total]='\0';
+			if (!total && !WordUnderCursor(editor, buffer, sizeof(buffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0)))
+			{
+				MessageBox(NULL, "There is no name currently selected.", "Whoops", 0);
+				break;
+			}
+			else
+				GoToDefinition(buffer);
+		}
+		break;
+
+	case IDM_UNDO:
+		Edit_Undo(editor->editpane);
+		break;
+	case IDM_REDO:
+		Edit_Redo(editor->editpane);
+		break;
+
+	case IDM_DEBUG_TOGGLEBREAK:
+		{
+			int mode;
+			if (editor->scintilla)
+			{
+				mode = !(SendMessage(editor->editpane, SCI_MARKERGET, editor->curline, 0) & 1);
+				SendMessage(editor->editpane, mode?SCI_MARKERADD:SCI_MARKERDELETE, editor->curline, 0);
+			}
+			else
+				mode = 2;
+
+			EngineCommandf("qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, editor->curline+1);
+		}
+		return;
+	case IDM_DEBUG_SETNEXT:
+		EngineCommandf("qcjump \"%s\" %i\n", editor->filename, editor->curline+1);
+		return;
+
+	case IDM_ENCODING_PRIVATEUSE:
+		GUI_Recode(editor, UTF8_BOM);
+		break;
+	case IDM_ENCODING_DEPRIVATEUSE:
+		GUI_Recode(editor, UTF_ANSI);
+		break;
+
+	default:
+		GenericMenu(wParam);
+		break;
+	}
 }
 
 pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize)
@@ -1706,7 +1992,7 @@ void Scin_HandleCharAdded(editor_t *editor, struct SCNotification *not, int pos)
 		int pos = SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0);
 		int lineidx = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, pos, 0);
 		int linestart = SendMessage(editor->editpane, SCI_POSITIONFROMLINE, lineidx, 0);
-		int len = SendMessage(editor->editpane, SCI_LINELENGTH, lineidx, 0);
+		//int len = SendMessage(editor->editpane, SCI_LINELENGTH, lineidx, 0);
 		if (pos == linestart)
 		{
 			scin_get_line_indent(editor->editpane, lineidx, linebuf, sizeof(linebuf));
@@ -1729,11 +2015,48 @@ void Scin_HandleCharAdded(editor_t *editor, struct SCNotification *not, int pos)
 */
 }
 
+static void UpdateEditorTitle(editor_t *editor)
+{
+	char title[2048];
+	char *encoding = "unknown";
+	switch(editor->savefmt)
+	{
+	case UTF8_RAW:
+		encoding = "utf-8(raw)";
+		break;
+	case UTF8_BOM:
+		encoding = "utf-8(bom)";
+		break;
+	case UTF_ANSI:
+		encoding = "unspecified";
+		break;
+	case UTF16LE:
+		encoding = "utf-16(le)";
+		break;
+	case UTF16BE:
+		encoding = "utf-16(be)";
+		break;
+	case UTF32LE:
+		encoding = "utf-32(le)";
+		break;
+	case UTF32BE:
+		encoding = "utf-32(be)";
+		break;
+	default:
+		encoding = "unknown";
+		break;
+	}
+	if (editor->modified)
+		sprintf(title, "*%s:%i - %s", editor->filename, 1+editor->curline, encoding);
+	else
+		sprintf(title, "%s:%i - %s", editor->filename, 1+editor->curline, encoding);
+	SetWindowText(editor->window, title);
+}
+
 static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
 	RECT rect;
-	HDC hdc;
 	PAINTSTRUCT ps;
 
 	editor_t *editor;
@@ -1816,7 +2139,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 		SetWindowPos(editor->editpane, NULL, 0, 0, rect.right-rect.left, rect.bottom-rect.top, 0);
 		goto gdefault;
 	case WM_PAINT:
-		hdc=BeginPaint(hWnd,(LPPAINTSTRUCT)&ps);
+		BeginPaint(hWnd,(LPPAINTSTRUCT)&ps);
 
 		EndPaint(hWnd,(LPPAINTSTRUCT)&ps);
 		return TRUE;
@@ -1859,7 +2182,6 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 		{
 			if (!editor->modified && !editor->scintilla)
 			{
-				char title[2048];
 				CHARRANGE chrg;
 
 				editor->modified = true;
@@ -1870,11 +2192,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 
 				SendMessage(editor->editpane, EM_EXGETSEL, 0, (LPARAM) &chrg);
 				editor->curline = Edit_LineFromChar(editor->editpane, chrg.cpMin);
-				if (editor->modified)
-					sprintf(title, "*%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
-				else
-					sprintf(title, "%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
-				SetWindowText(editor->window, title);
+				UpdateEditorTitle(editor);
 			}
 		}
 		else
@@ -1887,7 +2205,6 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 	case WM_NOTIFY:
 		{
 			NMHDR *nmhdr;
-			char title[2048];
 			nmhdr = (NMHDR *)lParam;
 			if (editor->scintilla)
 			{
@@ -1954,11 +2271,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 					SendMessage(editor->editpane, SCI_CALLTIPCANCEL, 0, 0);
 					break;
 				}
-				if (editor->modified)
-					sprintf(title, "*%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
-				else
-					sprintf(title, "%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
-				SetWindowText(editor->window, title);
+				UpdateEditorTitle(editor);
 			}
 			else
 			{
@@ -1968,11 +2281,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 				case EN_SELCHANGE:
 					sel = (SELCHANGE *)nmhdr;
 					editor->curline = Edit_LineFromChar(editor->editpane, sel->chrg.cpMin);
-					if (editor->modified)
-						sprintf(title, "*%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
-					else
-						sprintf(title, "%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
-					SetWindowText(editor->window, title);
+					UpdateEditorTitle(editor);
 					break;
 				}
 			}
@@ -1987,8 +2296,6 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 	return 0;
 }
 
-unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen);
-char *QCC_SanitizeCharSet(char *mem, unsigned int *len, pbool *freeresult, int *origfmt);
 static void EditorReload(editor_t *editor)
 {
 	struct stat sbuf;
@@ -2019,11 +2326,17 @@ static void EditorReload(editor_t *editor)
 
 	if (editor->scintilla)
 	{
+//		SendMessage(editor->editpane, SCI_SETTEXT, 0, (LPARAM)file);
 //		SendMessage(editor->editpane, SCI_SETUNDOCOLLECTION, 0, 0);
 		SendMessage(editor->editpane, SCI_SETTEXT, 0, (LPARAM)file);
 //		SendMessage(editor->editpane, SCI_SETUNDOCOLLECTION, 1, 0);
 		SendMessage(editor->editpane, EM_EMPTYUNDOBUFFER, 0, 0);
 		SendMessage(editor->editpane, SCI_SETSAVEPOINT, 0, 0);
+
+		if (editor->savefmt == UTF_ANSI)
+			SendMessage(editor->editpane, SCI_SETCODEPAGE, 28591, 0);
+		else
+			SendMessage(editor->editpane, SCI_SETCODEPAGE, SC_CP_UTF8, 0);
 	}
 	else
 	{
@@ -2035,15 +2348,19 @@ static void EditorReload(editor_t *editor)
 
 		if (file)
 		{
-//			char msg[1024];
-			wchar_t *ch = QCC_makeutf16(file, flen, NULL);
+			pbool errors;
+			wchar_t *ch = QCC_makeutf16(file, flen, NULL, &errors);
 			Edit_SetSel(editor->editpane,0,0);
 			SetWindowTextW(editor->editpane, ch);
-			/*if (errors)
+			if (errors)
 			{
-				QC_snprintfz(msg, sizeof(msg), "%s contains encoding errors. Invalid bytes have been converted to the 0xe000 private use area.", editor->filename);
-				MessageBox(editor->editpane, msg, "Encoding errors.", MB_ICONWARNING);
-			}*/
+//				char msg[1024];
+				editor->savefmt = UTF_ANSI;
+				SetWindowTextA(editor->editpane, file);
+
+//				QC_snprintfz(msg, sizeof(msg), "%s contains unicode encoding errors. File will be interpreted as ansi.", editor->filename);
+//				MessageBox(editor->editpane, msg, "Encoding errors.", MB_ICONWARNING);
+			}
 			free(ch);
 		}
 		SendMessage(editor->editpane, EM_SETEVENTMASK, 0, ENM_SELCHANGE|ENM_CHANGE);
@@ -2054,6 +2371,18 @@ static void EditorReload(editor_t *editor)
 	free(rawfile);
 
 	editor->modified = false;
+
+
+	if (editor->scintilla)
+	{
+	}
+	else
+	{
+		CHARRANGE chrg;
+		SendMessage(editor->editpane, EM_EXGETSEL, 0, (LPARAM) &chrg);
+		editor->curline = Edit_LineFromChar(editor->editpane, chrg.cpMin);
+	}
+	UpdateEditorTitle(editor);
 }
 
 //line is 0-based. use -1 for no reselection
@@ -2139,6 +2468,8 @@ void EditFile(char *name, int line, pbool setcontrol)
 		AppendMenu(menunavig, 0, IDM_OPENDOCU, "Open selected file");
 		AppendMenu(menuhelp, 0, IDM_ABOUT, "About");
 	}
+	else
+		menu = NULL;
 
 
 	
@@ -2180,7 +2511,7 @@ void EditFile(char *name, int line, pbool setcontrol)
 			0, 0, 640, 480, NULL, NULL, ghInstance, NULL);
 	}
 
-	if (!mdibox)
+	if (menu)
 		SetMenu(neweditor->window, menu);
 
 	if (!neweditor->window)
@@ -2213,8 +2544,6 @@ void EditFile(char *name, int line, pbool setcontrol)
 
 int EditorSave(editor_t *edit)
 {
-	DWORD selstart;
-	char title[2048];
 	struct stat sbuf;
 	int len;
 	wchar_t *wfile;
@@ -2225,15 +2554,35 @@ int EditorSave(editor_t *edit)
 	{
 		//wordpad will corrupt any embedded quake chars if we force a bom, because it'll re-save using the wrong char encoding by default.
 		int bomlen = 0;
+		char *bom = "";
 		if (edit->savefmt == UTF32BE || edit->savefmt == UTF32LE || edit->savefmt == UTF16BE)
 			edit->savefmt = UTF16LE;
 
 		if (edit->savefmt == UTF8_BOM)
+		{
 			bomlen = 3;
-		else if (edit->savefmt == UTF16BE || edit->savefmt == UTF16LE)
+			bom = "\xEF\xBB\xBF";
+		}
+		else if (edit->savefmt == UTF16BE)
+		{
 			bomlen = 2;
-		else if (edit->savefmt == UTF32BE || edit->savefmt == UTF32LE)
+			bom = "\xFE\xFF";
+		}
+		else if (edit->savefmt == UTF16LE)
+		{
+			bomlen = 2;
+			bom = "\xFF\xFE";
+		}
+		else if (edit->savefmt == UTF32BE)
+		{
 			bomlen = 4;
+			bom = "\x00\x00\xFE\xFF";
+		}
+		else if (edit->savefmt == UTF32LE)
+		{
+			bomlen = 4;
+			bom = "\xFF\xFE\x00\x00";
+		}
 		len = SendMessage(edit->editpane, SCI_GETLENGTH, 0, 0);
 		afile = malloc(bomlen+len+1);
 		if (!afile)
@@ -2241,10 +2590,7 @@ int EditorSave(editor_t *edit)
 			MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
 			return false;
 		}
-		if (bomlen == 3)
-			memcpy(afile, "\xEF\xBB\xBF", bomlen);
-		else
-			memcpy(afile, "\xFF\xFE\x00\x00", bomlen);	//utf-16le or utf-32le. don't bother with be
+		memcpy(afile, bom, bomlen);
 		SendMessage(edit->editpane, SCI_GETTEXT, len+1, bomlen+(LPARAM)afile);
 
 		//because wordpad saves in ansi by default instead of the format the file was originally saved in, we HAVE to use ansi without
@@ -2304,21 +2650,42 @@ int EditorSave(editor_t *edit)
 	}
 	else
 	{
-		len = GetWindowTextLengthW(edit->editpane);
-		wfile = malloc((len+1)*2);
-		if (!wfile)
+		if (edit->savefmt == UTF_ANSI)
 		{
-			MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
-			return false;
+			len = GetWindowTextLengthA(edit->editpane);
+			afile = malloc(len+1);
+			if (!afile)
+			{
+				MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
+				return false;
+			}
+			GetWindowText(edit->editpane, afile, len+1);
+			if (!QCC_WriteFile(edit->filename, afile, len))
+			{
+				free(afile);
+				MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
+				return false;
+			}
+			free(afile);
 		}
-		GetWindowTextW(edit->editpane, wfile, len+1);
-		if (!QCC_WriteFileW(edit->filename, wfile, len))
+		else
 		{
+			len = GetWindowTextLengthW(edit->editpane);
+			wfile = malloc((len+1)*2);
+			if (!wfile)
+			{
+				MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
+				return false;
+			}
+			GetWindowTextW(edit->editpane, wfile, len+1);
+			if (!QCC_WriteFileW(edit->filename, wfile, len))
+			{
+				free(wfile);
+				MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
+				return false;
+			}
 			free(wfile);
-			MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
-			return false;
 		}
-		free(wfile);
 	}
 
 	/*now whatever is on disk should have the current time*/
@@ -2327,9 +2694,7 @@ int EditorSave(editor_t *edit)
 	edit->filemodifiedtime = sbuf.st_mtime;
 
 	//remove the * in a silly way.
-	SendMessage(edit->editpane, EM_GETSEL, (WPARAM)&selstart, (LPARAM)0);
-	sprintf(title, "%s:%i - FTEQCC Editor", edit->filename, 1+Edit_LineFromChar(edit->editpane, selstart));
-	SetWindowText(edit->window, title);
+	UpdateEditorTitle(edit);
 
 	return true;
 }
@@ -2338,7 +2703,7 @@ void EditorsRun(void)
 }
 
 
-char *GUIReadFile(const char *fname, void *buffer, int blen, size_t *sz)
+unsigned char *GUIReadFile(const char *fname, void *buffer, int blen, size_t *sz)
 {
 	editor_t *e;
 	for (e = editors; e; e = e->next)
@@ -2350,6 +2715,10 @@ char *GUIReadFile(const char *fname, void *buffer, int blen, size_t *sz)
 			if (e->scintilla)
 			{
 				SendMessage(e->editpane, SCI_GETTEXT, blen, (LPARAM)buffer);
+			}
+			else if (e->savefmt == UTF_ANSI)
+			{
+				GetWindowTextA(e->editpane, buffer, blen);
 			}
 			else
 			{
@@ -2390,7 +2759,15 @@ int GUIFileSize(const char *fname)
 		{
 			int len;
 			if (e->scintilla)
+			{	//take the opportunity to grab a predefined preprocessor list for this file
+				char *deflist = QCC_PR_GetDefinesList();
+				SendMessage(e->editpane, SCI_SETKEYWORDS,	4,	(LPARAM)deflist);
+				free(deflist);
+
 				len = SendMessage(e->editpane, SCI_GETLENGTH, 0, 0);
+			}
+			else if (e->savefmt == UTF_ANSI)
+				len = GetWindowTextLengthA(e->editpane);
 			else
 				len = (GetWindowTextLengthW(e->editpane)+1)*2;
 			return len;
@@ -2626,7 +3003,11 @@ static pbool EngineCommandWndf(HWND wnd, char *message, ...)
 	return EngineCommandWnd(wnd, finalmessage);
 }
 
-unsigned int WINAPI threadwrapper(void *args)
+#ifdef _MSC_VER	//ffs
+#define strtoull _strtoui64
+#endif
+
+DWORD WINAPI threadwrapper(void *args)
 {
 	enginewindow_t *ctx = args;
 	{
@@ -2794,7 +3175,7 @@ unsigned int WINAPI threadwrapper(void *args)
 						char *l = buffer+13;
 						while(*l == ' ')
 							l++;
-						ctx->refocuswindow = (HWND)strtoul(l, &l, 0);
+						ctx->refocuswindow = (HWND)(size_t)strtoull(l, &l, 0);
 						ShowWindow(ctx->window, SW_HIDE);
 					}
 					else
@@ -2833,7 +3214,7 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 		memset(ctx, 0, sizeof(*ctx));
 		SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)ctx);
 		ctx->window = hWnd;
-		ctx->embedtype = (int)((CREATESTRUCT*)lParam)->lpCreateParams;
+		ctx->embedtype = (size_t)((CREATESTRUCT*)lParam)->lpCreateParams;
 		ctx->thread = (HANDLE)CreateThread(NULL, 0, threadwrapper, ctx, 0, &ctx->tid);
 		break;
 	case WM_SIZE:
@@ -2975,7 +3356,7 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 	case BFFM_SELCHANGED: 
 		if (SHGetPathFromIDList((LPITEMIDLIST) lp ,szDir))
 		{
-			while(foo = strchr(szDir, '\\'))
+			while((foo = strchr(szDir, '\\')))
 				*foo = '/';
 			//fixme: verify that id1 is a subdir perhaps?
 			SendMessage(hwnd,BFFM_SETSTATUSTEXT,0,(LPARAM)szDir);
@@ -3019,7 +3400,7 @@ void PromptForEngine(int force)
 			//use the relative path instead. this'll be stored in a file, and I expect people will zip+email without thinking.
 			if (!PathRelativePathToA(enginebasedir, workingdir, FILE_ATTRIBUTE_DIRECTORY, absbase, FILE_ATTRIBUTE_DIRECTORY))
 				QC_strlcpy(enginebasedir, absbase, sizeof(enginebasedir));
-			while(foo = strchr(enginebasedir, '\\'))
+			while((foo = strchr(enginebasedir, '\\')))
 				*foo = '/';
 		}
 		else
@@ -3117,7 +3498,7 @@ void PromptForEngine(int force)
 }
 void RunEngine(void)
 {
-	int embedtype = 0;	//0 has focus issues.
+	size_t embedtype = 0;	//0 has focus issues.
 	if (!gamewindow)
 	{
 		WNDCLASS wndclass;
@@ -3162,7 +3543,7 @@ void RunEngine(void)
 	}
 	else
 	{
-		enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+//		enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
 	}
 //	SendMessage(mdibox, WM_MDIACTIVATE, (WPARAM)gamewindow, 0);
 	PostMessage(mainwindow, WM_SIZE, 0, 0);
@@ -3802,7 +4183,6 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 	int width;
 	int i;
 	RECT rect;
-	HDC hdc;
 	PAINTSTRUCT ps;
 	switch (message)
 	{
@@ -3825,10 +4205,15 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					AppendMenu(m, 0, IDM_REDO,									"Redo\tCtrl+Y");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Navigation");
 					AppendMenu(m, 0, IDM_GOTODEF,								"Go to definition\tF12");
+					AppendMenu(m, 0, IDM_RETURNDEF,								"Return from definition\tF12");
 					AppendMenu(m, 0, IDM_GREP,									"Grep for selection\tCtrl+G");
 					AppendMenu(m, 0, IDM_OPENDOCU,								"Open selected file");
 					AppendMenu(m, 0, IDM_OUTPUT_WINDOW,							"Show Output Window\tF6");
 					AppendMenu(m, (fl_extramargins?MF_CHECKED:MF_UNCHECKED), IDM_SHOWLINENUMBERS, "Show Line Numbers");
+					AppendMenu(m, MF_SEPARATOR, 0, NULL);
+					AppendMenu(m, 0, IDM_ENCODING_PRIVATEUSE,					"Convert to UTF-8");
+					AppendMenu(m, 0, IDM_ENCODING_DEPRIVATEUSE,					"Convert to Quake encoding");
+
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = windowmenu = CreateMenu()),	"&Window");
 					AppendMenu(m, 0, IDM_CASCADE,								"Cascade");
 					AppendMenu(m, 0, IDM_TILE_HORIZ,							"Tile Horizontally");
@@ -3975,7 +4360,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 		break;
 //		goto gdefault;
 	case WM_PAINT:
-		hdc=BeginPaint(hWnd,(LPPAINTSTRUCT)&ps);
+		BeginPaint(hWnd,(LPPAINTSTRUCT)&ps);
 
 		EndPaint(hWnd,(LPPAINTSTRUCT)&ps);
 		return TRUE;
@@ -4058,7 +4443,6 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 			nm = (NMHDR*)lParam;
 			if (nm->hwndFrom == watches)
 			{
-				NMLISTVIEW *lnm = (NMLISTVIEW*)nm;
 				switch(nm->code)
 				{
 				case LVN_BEGINLABELEDITA:
@@ -4843,8 +5227,6 @@ void AddSourceFile(const char *parentpath, const char *filename)
 {
 	char		string[1024];
 
-	unsigned int flags = 0;
-
 	HANDLE pi;
 	TVINSERTSTRUCT item;
 	TV_ITEM parent;
@@ -4881,7 +5263,7 @@ void AddSourceFile(const char *parentpath, const char *filename)
 					break;
 				}
 			}
-		} while(item.hParent=TreeView_GetNextSibling(projecttree, item.hParent));
+		} while((item.hParent=TreeView_GetNextSibling(projecttree, item.hParent)));
 	}
 	else
 		parentpath = NULL;
@@ -4909,7 +5291,7 @@ void AddSourceFile(const char *parentpath, const char *filename)
 				if (!stricmp(parent.pszText, item.item.pszText))
 					break;
 			}
-		} while(item.hParent=TreeView_GetNextSibling(projecttree, item.hParent));
+		} while((item.hParent=TreeView_GetNextSibling(projecttree, item.hParent)));
 
 		if (!item.hParent)
 		{	//add a directory.
@@ -4999,7 +5381,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		{FVIRTKEY,			VK_F10, IDM_DEBUG_STEPOVER},
 		{FVIRTKEY,			VK_F11, IDM_DEBUG_STEPINTO},
 		{FSHIFT|FVIRTKEY,	VK_F11, IDM_DEBUG_STEPOUT},
-		{FVIRTKEY,			VK_F12, IDM_GOTODEF}
+		{FVIRTKEY,			VK_F12, IDM_GOTODEF},
+		{FSHIFT|FVIRTKEY,	VK_F12, IDM_RETURNDEF}
 	};
 	ghInstance= hInstance;
 
@@ -5036,9 +5419,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			lpCmdLine[len] = '\0';
 			fclose(f);
 
-			while(s = strchr(lpCmdLine, '\r'))
+			while((s = strchr(lpCmdLine, '\r')))
 				*s = ' ';
-			while(s = strchr(lpCmdLine, '\n'))
+			while((s = strchr(lpCmdLine, '\n')))
 				*s = ' ';
 		}
 	}

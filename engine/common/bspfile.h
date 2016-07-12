@@ -543,17 +543,37 @@ typedef struct
 
 #define	FTECONTENTS_EMPTY		0x00000000
 #define	FTECONTENTS_SOLID		0x00000001
-								//0x00000002
-								//0x00000004
+//q2window						0x00000002
+//q2aux							0x00000004
 #define	FTECONTENTS_LAVA		0x00000008
 #define	FTECONTENTS_SLIME		0x00000010
 #define	FTECONTENTS_WATER		0x00000020
-#define FTECONTENTS_LADDER		0x00004000
 #define FTECONTENTS_FLUID		(FTECONTENTS_WATER|FTECONTENTS_SLIME|FTECONTENTS_LAVA|FTECONTENTS_SKY)	//sky is a fluid for q1 code.
+//q2mist						0x00000040
+//q3notteam1					0x00000080
+//q3notteam2					0x00000100
+//q3nobotclip					0x00000200
+//								0x00000400
+//								0x00000800
+//								0x00001000
+//								0x00002000
+#define FTECONTENTS_LADDER		0x00004000
+//q2areaportal,q3areaportal		0x00008000
 #define FTECONTENTS_PLAYERCLIP	0x00010000
 #define FTECONTENTS_MONSTERCLIP	0x00020000
+//q2current0,q3teleporter		0x00040000
+//q2current90,q3jumppad			0x00080000
+//q2current180,q3clusterportal	0x00100000
+//q2current270,q3donotenter		0x00200000
+//q2currentup,q3botclip			0x00400000
+//q2currentdown,q3mover			0x00800000
+//q2origin,q3origin				0x01000000
 #define FTECONTENTS_BODY		0x02000000
 #define FTECONTENTS_CORPSE		0x04000000
+//q2detail,q3detail				0x08000000
+//q2translucent,q3structual		0x10000000
+//q2ladder,q3translucent		0x20000000
+//q3trigger						0x40000000
 #define	FTECONTENTS_SKY			0x80000000
 
 // lower bits are stronger, and will eat weaker brushes completely
@@ -593,13 +613,13 @@ typedef struct
 														//0x80000000
 
 
-#define	Q3CONTENTS_SOLID		FTECONTENTS_SOLID		//1	// should never be on a brush, only in game
-														//2
-														//4
-#define	Q3CONTENTS_LAVA			FTECONTENTS_LAVA		//8
-#define	Q3CONTENTS_SLIME		FTECONTENTS_SLIME		//16
-#define	Q3CONTENTS_WATER		FTECONTENTS_WATER		//32
-														//64
+#define	Q3CONTENTS_SOLID		FTECONTENTS_SOLID		//0x00000001	// should never be on a brush, only in game
+														//0x00000002
+														//0x00000004
+#define	Q3CONTENTS_LAVA			FTECONTENTS_LAVA		//0x00000008
+#define	Q3CONTENTS_SLIME		FTECONTENTS_SLIME		//0x00000010
+#define	Q3CONTENTS_WATER		FTECONTENTS_WATER		//0x00000020
+														//0x00000040
 #define Q3CONTENTS_NOTTEAM1								  0x00000080
 #define Q3CONTENTS_NOTTEAM2								  0x00000100
 #define Q3CONTENTS_NOBOTCLIP							  0x00000200

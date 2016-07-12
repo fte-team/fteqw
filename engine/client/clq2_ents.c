@@ -233,7 +233,7 @@ void CLQ2_WriteDemoBaselines(sizebuf_t *buf)
 		es.skinnum = base->skinnum;
 		es.effects = base->effects;
 		es.renderfx = base->u.q2.renderfx;
-		es.solid = base->solid;
+		es.solid = base->solidsize;
 		es.sound = base->u.q2.sound;
 		es.event = base->u.q2.event;
 
@@ -767,7 +767,7 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 	if (bits & Q2U_ORIGIN3)
 		to->origin[2] = MSG_ReadCoord ();
 	
-	if ((bits & Q2UX_ANGLE16) && (net_message.prim.q2flags & NPQ2_ANG16))
+	if ((bits & Q2UX_ANGLE16) && (net_message.prim.flags & NPQ2_ANG16))
 	{
 		if (bits & Q2U_ANGLE1)
 			to->angles[0] = MSG_ReadAngle16();
@@ -804,10 +804,10 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 
 	if (bits & Q2U_SOLID)
 	{
-		if (net_message.prim.q2flags & NPQ2_SOLID32)
-			to->solid = MSG_ReadLong();
+		if (net_message.prim.flags & NPQ2_SOLID32)
+			to->solidsize = MSG_ReadLong();
 		else
-			to->solid = MSG_ReadShort ();
+			to->solidsize = MSG_ReadSize16 (&net_message);
 	}
 }
 
@@ -1526,7 +1526,9 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 		ent.fatness = 0;
 		ent.topcolour = 1;
 		ent.bottomcolour = 1;
+#ifdef HEXEN2
 		ent.h2playerclass = 0;
+#endif
 		ent.playerindex = -1;
 		ent.customskin = 0;
 
@@ -2281,7 +2283,7 @@ void CLQ2_AddEntities (void)
 //		if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, r_refdef.vieworg, camorg, vec3_origin, vec3_origin, true, MASK_WORLDSOLID, &tr))
 		VectorCopy(camorg, r_refdef.vieworg);
 
-		CL_EditExternalModels(0, NULL, 0);
+		V_EditExternalModels(0, NULL, 0);
 	}
 #endif
 }

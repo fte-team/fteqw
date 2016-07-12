@@ -110,7 +110,7 @@ static skelobject_t skelobjects[MAX_SKEL_OBJECTS];
 static int numskelobjectsused;
 
 //copes with src==dst to convert rel->abs
-void skel_copy_toabs(skelobject_t *skelobjdst, skelobject_t *skelobjsrc, int startbone, int endbone)
+static void skel_copy_toabs(skelobject_t *skelobjdst, skelobject_t *skelobjsrc, int startbone, int endbone)
 {
 	int maxbones;
 	galiasbone_t *boneinfo = Mod_GetBoneInfo(skelobjsrc->model, &maxbones);
@@ -198,7 +198,7 @@ static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[
 	out[10] = vz[2];
 	out[11] = t[2];
 }
-#ifndef SERVERONLY
+#if !defined(SERVERONLY) && defined(RAGDOLL)
 static void bonemat_fromaxisorg(float *out, vec3_t axis[3], const float t[3])
 {
 	out[0] = axis[0][0];
@@ -378,7 +378,7 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 			ctx->body->bone = boneidx;
 		}
 		else if (!ctx->errors++)
-			Con_Printf("^[Unable to create body \"%s\" because bone \"%s\" does not exist in %s\\edit\\%s %i^]\n", Cmd_Argv(1), Cmd_Argv(2), d->model->name, d->name, linenum);
+			Con_Printf("^[Unable to create body \"%s\" because bone \"%s\" does not exist in %s\\edit\\%s:%i^]\n", Cmd_Argv(1), Cmd_Argv(2), d->model?d->model->name:"<NOMODEL>", d->name, linenum);
 	}
 	//create a new joint
 	else if (argc >= 2 && !stricmp(cmd, "joint"))
@@ -395,7 +395,7 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 		if (*name && ctx->joint->body1 < 0)
 		{
 			if (!ctx->errors++)
-				Con_Printf("^[Joint \"%s\" joins invalid body \"%s\"\\edit\\%s %i^]\n", ctx->joint->name, name, d->name, linenum);
+				Con_Printf("^[Joint \"%s\" joins invalid body \"%s\"\\edit\\%s:%i^]\n", ctx->joint->name, name, d->name, linenum);
 			return true;
 		}
 		name = Cmd_Argv(3);
@@ -405,9 +405,9 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 			if (!ctx->errors++)
 			{
 				if (ctx->joint->body2 == ctx->joint->body1)
-					Con_Printf("^[Joint \"%s\" joints body \"%s\" to itself\\edit\\%s %i^]\n", ctx->joint->name, name, d->name, linenum);
+					Con_Printf("^[Joint \"%s\" joints body \"%s\" to itself\\edit\\%s:%i^]\n", ctx->joint->name, name, d->name, linenum);
 				else
-					Con_Printf("^[Joint \"%s\" joints invalid body \"%s\"\\edit\\%s %i^]\n", ctx->joint->name, name, d->name, linenum);
+					Con_Printf("^[Joint \"%s\" joints invalid body \"%s\"\\edit\\%s:%i^]\n", ctx->joint->name, name, d->name, linenum);
 			}
 			return true;
 		}
@@ -416,7 +416,7 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 		if (ctx->joint->body1 >= 0 || ctx->joint->body2 >= 0)
 			d->numjoints++;
 		else if (!ctx->errors++)
-			Con_Printf("^[Joint property \"%s\" not recognised\\edit\\%s %i^]\n", ctx->joint->name, d->name, linenum);
+			Con_Printf("^[Joint property \"%s\" not recognised\\edit\\%s:%i^]\n", ctx->joint->name, d->name, linenum);
 	}
 	else if (argc == 2 && !stricmp(cmd, "updatebody"))
 	{
@@ -430,7 +430,7 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 			if (i >= 0)
 				ctx->body = &d->body[i];
 			else if (!ctx->errors++)
-				Con_Printf("^[Cannot update body \"%s\"\\edit\\%s %i^]\n", ctx->body->name, d->name, linenum);
+				Con_Printf("^[Cannot update body \"%s\"\\edit\\%s:%i^]\n", ctx->body->name, d->name, linenum);
 		}
 	}
 	else if (argc == 2 && !stricmp(cmd, "updatejoint"))
@@ -445,7 +445,7 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 			if (i >= 0)
 				ctx->joint = &d->joint[i];
 			else if (!ctx->errors++)
-				Con_Printf("^[Cannot update joint \"%s\"\\edit\\%s %i^]\n", ctx->joint->name, d->name, linenum);
+				Con_Printf("^[Cannot update joint \"%s\"\\edit\\%s:%i^]\n", ctx->joint->name, d->name, linenum);
 		}
 	}
 
@@ -461,7 +461,7 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 		else if (!stricmp(val, "capsule"))
 			ctx->body->geomshape = GEOMTYPE_CAPSULE;
 		else if (!ctx->errors++)
-			Con_Printf("^[Joint shape \"%s\" not recognised\\edit\\%s %i^]\n", val, d->name, linenum);
+			Con_Printf("^[Joint shape \"%s\" not recognised\\edit\\%s:%i^]\n", val, d->name, linenum);
 	}
 	else if (ctx->body && argc == 2 && !stricmp(cmd, "animate"))
 		ctx->body->animate = atof(val);
@@ -557,7 +557,7 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 			//Matrix3x4_Multiply(omat, bones[i].inverse, joint->orgmatrix);
 		}
 		else if (!ctx->errors++)
-			Con_Printf("^[Directive \"%s\" not understood or invalid\\edit\\%s %i^]\n", cmd, d->name, linenum);
+			Con_Printf("^[Directive \"%s\" not understood or invalid\\edit\\%s:%i^]\n", cmd, d->name, linenum);
 	}
 	else
 		return false;
@@ -613,7 +613,7 @@ doll_t *rag_createdollfromstring(model_t *mod, const char *fname, int numbones, 
 
 		if (!rag_dollline(ctx, linenum))
 			if (!ctx->errors++)
-				Con_Printf("^[Directive \"%s\" not understood or invalid\\edit\\%s %i^]\n", Cmd_Argv(0), ctx->d->name, linenum);
+				Con_Printf("^[Directive \"%s\" not understood or invalid\\edit\\%s:%i^]\n", Cmd_Argv(0), ctx->d->name, linenum);
 	}
 	return rag_finishdoll(ctx);
 }
@@ -947,7 +947,8 @@ void skel_info_f(void)
 				Con_Printf(" CSQC\n");
 #endif
 			Con_Printf(" type: %s\n", (skelobjects[i].type == SKEL_RELATIVE)?"parentspace":"modelspace");
-			Con_Printf(" model: %s\n", skelobjects[i].model->name);
+			if (skelobjects[i].model)
+				Con_Printf(" model: %s\n", skelobjects[i].model->name);
 			Con_Printf(" bone count: %i\n", skelobjects[i].numbones);
 #ifdef RAGDOLL
 			if (skelobjects[i].doll)
@@ -967,7 +968,7 @@ void skel_reset(pubprogfuncs_t *prinst)
 {
 	int i;
 
-	for (i = 0; i < numskelobjectsused; i++)
+	for (i = 0; i < countof(skelobjects); i++)
 	{
 		if (skelobjects[i].world == prinst->parms->user)
 		{
@@ -977,6 +978,7 @@ void skel_reset(pubprogfuncs_t *prinst)
 			skelobjects[i].numbones = 0;
 			skelobjects[i].inuse = false;
 			skelobjects[i].bonematrix = NULL;
+			skelobjects[i].world = NULL;
 		}
 	}
 
@@ -1106,7 +1108,7 @@ static void rag_uninstanciate(skelobject_t *sko)
 	sko->doll->uses--;
 	sko->doll = NULL;
 }
-void rag_genbodymatrix(skelobject_t *sko, rbebodyinfo_t *dollbody, float *emat, float *result)
+static void rag_genbodymatrix(skelobject_t *sko, rbebodyinfo_t *dollbody, float *emat, float *result)
 {
 	float *bmat;
 	int bone = dollbody->bone;
@@ -1124,7 +1126,7 @@ void rag_genbodymatrix(skelobject_t *sko, rbebodyinfo_t *dollbody, float *emat, 
 
 	//FIXME: handle biasing it to point away from the parent bone towards an orientation bone
 }
-qboolean rag_animate(skelobject_t *sko, doll_t *doll, float *emat)
+static qboolean rag_animate(skelobject_t *sko, doll_t *doll, float *emat)
 {
 	//drive the various animated bodies to their updated positions
 	int i;
@@ -1136,7 +1138,7 @@ qboolean rag_animate(skelobject_t *sko, doll_t *doll, float *emat)
 	}
 	return true;
 }
-qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t *ent)
+static qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t *ent)
 {
 	int i;
 	float *bmat;
@@ -1216,7 +1218,7 @@ qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t 
 void CLQ1_AddOrientedCube(shader_t *shader, vec3_t mins, vec3_t maxs, float *matrix, float r, float g, float b, float a);
 void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboolean capsule, float *matrix, float r, float g, float b, float a);
 void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, float b, float a);
-void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
+static void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 {
 	doll_t *doll = sko->doll;
 	float *bmat = sko->bonematrix;
@@ -1398,6 +1400,78 @@ void rag_removedeltaent(lerpents_t *le)
 	}
 }
 
+//we received some pos+quat data from the network
+//store it into some skeletal object associated with the entity for the renderer to use as needed
+void rag_lerpdeltaent(lerpents_t *le, unsigned int bonecount, short *newstate, float frac, short *oldstate)
+{
+	extern world_t csqc_world;
+	int i;
+	float sc;
+	vec3_t pos;
+	vec4_t quat, quat1, quat2;
+	vec3_t scale = {1,1,1};
+	skelobject_t *sko;
+	if (le->skeletalobject)
+	{
+		sko = skel_get(csqc_world.progs, le->skeletalobject);
+		if (sko->numbones != bonecount)
+		{	//unusable, discard it and create a new one.
+			sko->inuse = 2;	//2 means don't reuse yet.
+			sko->model = NULL;
+			pendingkill = true;
+			sko = NULL;
+		}
+	}
+	else
+		sko = NULL;
+
+	if (!sko || sko->inuse != 1)
+	{
+		sko = skel_create(csqc_world.progs, bonecount);
+		if (!sko)
+			return;	//couldn't get one, ran out of memory or something?
+		sko->model = NULL;
+		sko->type = SKEL_RELATIVE;
+		le->skeletalobject = (sko - skelobjects) + 1;
+	}
+
+	if (!newstate)
+	{	//shouldn't happen
+		Con_Printf("invalid networked bone state\n");
+		rag_removedeltaent(le);
+		return;
+	}
+	if (frac == 1 || !oldstate)
+	{
+		for (i = 0; i < bonecount; i++, newstate += 7)
+		{
+			sc = (newstate[6] > 0)?-1.0/32767:1.0/32767;
+			VectorScale(newstate, 1.0/64, pos);
+			Vector4Scale(newstate+3, sc, quat);
+			GenMatrixPosQuat4Scale(pos, quat, scale, sko->bonematrix+i*12);
+		}
+	}
+	else
+	{
+		for (i = 0; i < bonecount; i++, oldstate += 7, newstate += 7)
+		{	//this is annoying because of the quat sign
+			sc = 1.0/64 * (1-frac);
+			VectorScale(oldstate, sc, pos);
+			sc = (oldstate[6] > 0)?-1.0/32767:1.0/32767;
+			Vector4Scale(oldstate+3, sc, quat1);
+
+			sc = 1.0/64 * frac;
+			VectorMA(pos, sc, newstate, pos);
+			sc = (newstate[6] > 0)?-1.0/32767:1.0/32767;
+			Vector4Scale(newstate+3, sc, quat2);
+
+			QuaternionSlerp(quat1, quat2, frac, quat);
+
+			GenMatrixPosQuat4Scale(pos, quat, scale, sko->bonematrix+i*12);
+		}
+	}
+}
+
 void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 {
 	extern world_t csqc_world;
@@ -1462,6 +1536,20 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 			rag_animate(sko, sko->doll, emat);
 
 		rag_derive(sko, sko->numanimated?&skorel:NULL, emat);
+
+		ent->framestate.bonestate = sko->bonematrix;
+		ent->framestate.bonecount = sko->numbones;
+		ent->framestate.skeltype = sko->type;
+	}
+	else if (le->skeletalobject)
+	{
+		w = &csqc_world;
+		sko = skel_get(w->progs, le->skeletalobject);
+		if (!sko)
+		{
+			le->skeletalobject = 0;
+			return;	//couldn't get one, ran out of memory or something?
+		}
 
 		ent->framestate.bonestate = sko->bonematrix;
 		ent->framestate.bonecount = sko->numbones;

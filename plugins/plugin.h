@@ -74,7 +74,7 @@ void BadBuiltin(void);
 #include <math.h>
 
 #ifndef _VM_H
-	#if __STDC_VERSION__ >= 199901L
+	#if __STDC_VERSION__ >= 199901L || defined(__GNUC__)
 		//C99 has a stdint header which hopefully contains an intptr_t
 		//its optional... but if its not in there then its unlikely you'll actually be able to get the engine to a stage where it *can* load anything
 		#include <stdint.h>
@@ -129,7 +129,7 @@ extern "C" {
 	#define BUILTINR(t, n, args) qintptr_t BUILTIN_##n; t n args {qintptr_t res = plugin_syscall(BUILTIN_##n ARGNAMES); return *(t*)&res;}
 	#define BUILTIN(t, n, args) qintptr_t BUILTIN_##n; t n args {plugin_syscall(BUILTIN_##n ARGNAMES);}
 #endif
-#define CHECKBUILTIN(n) BUILTIN_##n = (qintptr_t)pPlug_GetEngineFunction(#n);
+#define CHECKBUILTIN(n) ((BUILTIN_##n = (qintptr_t)pPlug_GetEngineFunction(#n)))
 #define BUILTINISVALID(n) (BUILTIN_##n != 0)
 #ifndef QDECL
 #ifdef _WIN32
@@ -138,7 +138,7 @@ extern "C" {
 #define QDECL
 #endif
 #endif
-extern qintptr_t (*plugin_syscall)( qintptr_t arg, ... );
+extern qintptr_t (QDECL *plugin_syscall)( qintptr_t arg, ... );
 
 void Q_strlcpy(char *d, const char *s, int n);
 void Q_strlcat(char *d, const char *s, int n);
@@ -181,8 +181,8 @@ typedef struct {
 	int starttime;
 	int userid;
 	int spectator;
-	char userinfo[1024];
-	char team[8];
+	char userinfo[2048];
+	char team[64];
 } plugclientinfo_t;
 
 
@@ -194,6 +194,7 @@ EBUILTIN(funcptr_t, Plug_GetEngineFunction, (const char *funcname));	//set up in
 #else
 #ifndef Q3_VM
 EBUILTIN(qboolean, Plug_ExportNative, (const char *funcname, void *func));	//set up in vmMain, use this to get all other builtins
+EBUILTIN(void *, Plug_GetNativePointer, (const char *funcname));
 #endif
 EBUILTIN(void, Con_Print, (const char *text));	//on to main console.
 
@@ -239,6 +240,17 @@ EBUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen))
 EBUILTIN(int, GetLastInputFrame, (int seat, usercmd_t *playercmd));
 #endif
 EBUILTIN(float, GetTrackerOwnFrags, (int seat, char *text, size_t textsize));
+
+#ifndef Q3_VM
+struct pubprogfuncs_s;
+EBUILTIN(struct pubprogfuncs_s*, PR_GetVMInstance, (int vmid/*0=ss,1=cs,2=m*/));
+struct modplugfuncs_s;
+EBUILTIN(struct modplugfuncs_s*, Mod_GetPluginModelFuncs, (int version));
+#ifdef MULTITHREAD
+struct threading_s;
+EBUILTIN(struct threading_s*, Sys_GetThreadingFuncs, (int threadingsize));
+#endif
+#endif
 
 typedef struct
 {
@@ -299,7 +311,7 @@ EBUILTIN(int, GetNetworkInfo, (vmnetinfo_t *ni, unsigned int sizeofni));
 EBUILTIN(void, Menu_Control, (int mnum));
 #define MENU_CLEAR 0
 #define MENU_GRAB 1
-EBUILTIN(int, Key_GetKeyCode, (char *keyname));
+EBUILTIN(int, Key_GetKeyCode, (const char *keyname));
 
 EBUILTIN(qhandle_t, Draw_LoadImageData, (const char *name, const char *mime, const void *data, unsigned int datasize));	//load/replace a named texture
 EBUILTIN(qhandle_t, Draw_LoadImageShader, (const char *name, const char *defaultshader));	//loads a shader.
@@ -317,7 +329,7 @@ EBUILTIN(void, Draw_Colourpa, (int palcol, float a));
 EBUILTIN(void, Draw_Colourp, (int palcol));
 EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 EBUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
-EBUILTIN(void, SCR_CenterPrint, (char *s));
+EBUILTIN(void, SCR_CenterPrint, (const char *s));
 
 EBUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, int channels, int width, float volume));
 
@@ -325,13 +337,15 @@ EBUILTIN(int, ReadInputBuffer, (void *inputbuffer, int buffersize));
 EBUILTIN(int, UpdateInputBuffer, (void *inputbuffer, int bytes));
 
 #if !defined(Q3_VM) && defined(FTEPLUGIN)
-EBUILTIN(qboolean, VFS_Open, (char *name, vfsfile_t **handle, char *mode));//opens a direct vfs file. no access checks, and so can be used in threaded plugins
+EBUILTIN(qboolean, VFS_Open, (const char *name, vfsfile_t **handle, const char *mode));//opens a direct vfs file. no access checks, and so can be used in threaded plugins
+EBUILTIN(qboolean, FS_NativePath, (const char *name, enum fs_relative relativeto, char *out, int outlen));
 #endif
-EBUILTIN(int, FS_Open, (char *name, qhandle_t *handle, int mode));
+EBUILTIN(int, FS_Open, (const char *name, qhandle_t *handle, int mode));
 EBUILTIN(void, FS_Close, (qhandle_t handle));
 EBUILTIN(int, FS_Write, (qhandle_t handle, void *data, int len));
 EBUILTIN(int, FS_Read, (qhandle_t handle, void *data, int len));
 EBUILTIN(int, FS_Seek, (qhandle_t handle, unsigned int offsetlow, unsigned int offsethigh));
+EBUILTIN(qboolean, FS_GetLen, (qhandle_t handle, unsigned int *sizelow, unsigned int *sizehigh));
 
 EBUILTIN(qhandle_t, Net_TCPConnect, (char *ip, int port));
 EBUILTIN(qhandle_t, Net_TCPListen, (char *ip, int port, int maxcount));
@@ -339,6 +353,7 @@ EBUILTIN(qhandle_t, Net_Accept, (qhandle_t socket, char *address, int addresssiz
 EBUILTIN(int, Net_Recv, (qhandle_t socket, void *buffer, int len));
 EBUILTIN(int, Net_Send, (qhandle_t socket, void *buffer, int len));
 EBUILTIN(void, Net_Close, (qhandle_t socket));
+EBUILTIN(int, Net_SetTLSClient, (qhandle_t sock, const char *certhostname));
 #define N_WOULDBLOCK 0
 #define NET_CLIENTPORT -1
 #define NET_SERVERPORT -2
@@ -415,7 +430,7 @@ extern vmvideo_t pvid;
 #ifndef MAX_INFO_KEY
 #define	MAX_INFO_KEY	64
 #endif
-char *Info_ValueForKey (const char *s, const char *key);
+char *Plug_Info_ValueForKey (const char *s, const char *key, char *out, size_t outsize);
 void Info_RemoveKey (char *s, const char *key);
 void Info_RemovePrefixedKeys (char *start, char prefix);
 void Info_RemoveNonStarKeys (char *start);

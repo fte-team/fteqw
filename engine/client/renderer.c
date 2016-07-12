@@ -14,7 +14,7 @@ entity_t	*currententity;	//nnggh
 int			r_framecount;
 struct texture_s	*r_notexture_mip;
 
-qboolean	r_blockvidrestart;
+int	r_blockvidrestart;	//'block' is a bit of a misnomer. 0=filesystem, configs, cinematics, video are all okay as they are. 1=starting up, waiting for filesystem, will restart after. 2=configs execed, but still need cinematics. 3=video will be restarted without any other init needed
 int r_regsequence;
 
 int rspeeds[RSPEED_MAX];
@@ -28,6 +28,8 @@ qboolean vid_isfullscreen;
 #define GRAPHICALNICETIES "Graphical Nicaties"	//or eyecandy, which ever you prefer.
 #define GLRENDEREROPTIONS	"GL Renderer Options"
 #define SCREENOPTIONS	"Screen Options"
+
+#define VKRENDEREROPTIONS	"Vulkan-Specific Renderer Options"
 
 unsigned int	d_8to24rgbtable[256];
 unsigned int	d_8to24bgrtable[256];
@@ -113,6 +115,9 @@ cvar_t r_globalskin_first						= CVARFD  ("r_globalskin_first", "100", CVAR_REND
 cvar_t r_globalskin_count						= CVARFD  ("r_globalskin_count", "10", CVAR_RENDERERLATCH, "Specifies how many globalskins there are.");
 cvar_t r_coronas							= CVARFD ("r_coronas", "0",	CVAR_ARCHIVE, "Draw coronas on realtime lights. Overrides glquake-esque flashblends.");
 cvar_t r_coronas_occlusion					= CVARFD ("r_coronas_occlusion", "", CVAR_ARCHIVE, "Specifies that coronas should be occluded more carefully.\n0: No occlusion, at all.\n1: BSP occlusion only (simple tracelines).\n2: non-bsp occlusion also (complex tracelines).\n3: Depthbuffer reads (forces synchronisation).\n4: occlusion queries.");
+cvar_t r_coronas_mindist					= CVARFD ("r_coronas_mindist", "128", CVAR_ARCHIVE, "Coronas closer than this will be invisible, preventing near clip plane issues.");
+cvar_t r_coronas_fadedist					= CVARFD ("r_coronas_fadedist", "256", CVAR_ARCHIVE, "Coronas will fade out over this distance.");
+
 cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
 												CVAR_ARCHIVE);
 cvar_t r_flashblendscale					= SCVARF ("gl_flashblendscale", "0.35",
@@ -220,7 +225,7 @@ cvar_t vid_conwidth							= CVARF ("vid_conwidth", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
 //see R_RestartRenderer_f for the effective default 'if (newr.renderer == -1)'.
 cvar_t vid_renderer							= CVARFD ("vid_renderer", "",
-													 CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Specifies which backend is used. Values that might work are: sv (dedicated server), gl (opengl), egl (opengl es), d3d9 (direct3d 9), d3d11 (direct3d 11, with default hardware rendering), d3d11 warp (direct3d 11, with software rendering).");
+													 CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Specifies which backend is used. Values that might work are: sv (dedicated server), headless (null renderer), vk (vulkan), gl (opengl), egl (opengl es), d3d9 (direct3d 9), d3d11 (direct3d 11, with default hardware rendering), d3d11 warp (direct3d 11, with software rendering).");
 
 cvar_t vid_bpp								= CVARFD ("vid_bpp", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The number of colour bits to request from the renedering context");
@@ -257,15 +262,17 @@ cvar_t	r_stereo_method						= CVARFD("r_stereo_method", "0", CVAR_ARCHIVE, "Valu
 
 extern cvar_t r_dodgytgafiles;
 extern cvar_t r_dodgypcxfiles;
+extern cvar_t r_dodgymiptex;
 extern char *r_defaultimageextensions;
 extern cvar_t r_imageexensions;
+extern cvar_t r_image_downloadsizelimit;
 extern cvar_t r_drawentities;
 extern cvar_t r_drawviewmodel;
 extern cvar_t r_drawworld;
 extern cvar_t r_fullbright;
 cvar_t	r_mirroralpha = CVARFD("r_mirroralpha","1", CVAR_CHEAT|CVAR_SHADERSYSTEM, "Specifies how the default shader is generated for the 'window02_1' texture. Values less than 1 will turn it into a mirror.");
 extern cvar_t r_netgraph;
-extern cvar_t r_norefresh;
+cvar_t	r_norefresh = SCVAR("r_norefresh","0");
 extern cvar_t r_novis;
 extern cvar_t r_speeds;
 extern cvar_t r_waterwarp;
@@ -335,8 +342,8 @@ cvar_t gl_max_size							= CVARFD  ("gl_max_size", "8192", CVAR_RENDERERLATCH, "
 cvar_t gl_menutint_shader					= CVARD  ("gl_menutint_shader", "1", "Controls the use of GLSL to desaturate the background when drawing the menu, like quake's dos software renderer used to do before the ugly dithering of winquake.");
 
 //by setting to 64 or something, you can use this as a wallhack
-cvar_t gl_mindist							= CVARFD ("gl_mindist", "4",
-												CVAR_CHEAT, "Distance to the near clip plane. Smaller values may damage depth precision, high values can potentialy be used to see through walls...");
+cvar_t gl_mindist							= CVARAD ("gl_mindist", "1", "r_nearclip",
+												"Distance to the near clip plane. Smaller values may damage depth precision, high values can potentialy be used to see through walls...");
 
 cvar_t gl_motionblur						= SCVARF ("gl_motionblur", "0",
 												CVAR_ARCHIVE);
@@ -414,17 +421,19 @@ cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 
 cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces's default) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
 
+#ifdef VKQUAKE
+cvar_t vk_submissionthread					= CVARD	("vk_submissionthread", "0", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
+cvar_t vk_debug								= CVARD	("vk_debug",			"0", "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
+#endif
+
 extern cvar_t gl_dither;
 cvar_t	gl_screenangle = SCVAR("gl_screenangle", "0");
 
 #endif
 
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#if defined(D3DQUAKE)
 void GLD3DRenderer_Init(void)
 {
-	Cvar_Register (&gl_mindist, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_load24bit, GRAPHICALNICETIES);
-	Cvar_Register (&gl_blendsprites, GLRENDEREROPTIONS);
 }
 #endif
 
@@ -441,13 +450,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_gl_context_robustness, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_selfreset, GLRENDEREROPTIONS);
 
-	//screen
-	Cvar_Register (&vid_preservegamma, GLRENDEREROPTIONS);
-	Cvar_Register (&vid_hardwaregamma, GLRENDEREROPTIONS);
-	Cvar_Register (&vid_desktopgamma, GLRENDEREROPTIONS);
-
 //renderer
-	Cvar_Register (&r_norefresh, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nohwblend, GLRENDEREROPTIONS);
@@ -466,10 +469,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_portaldrawplanes, GLRENDEREROPTIONS);
 	Cvar_Register (&r_portalonly, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);
-	Cvar_Register (&r_shadow_bumpscale_basetexture, GLRENDEREROPTIONS);
-	Cvar_Register (&r_shadow_bumpscale_bumpmap, GLRENDEREROPTIONS);
-	Cvar_Register (&r_shadow_heightscale_basetexture, GLRENDEREROPTIONS);
-	Cvar_Register (&r_shadow_heightscale_bumpmap, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_motionblur, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_motionblurscale, GLRENDEREROPTIONS);
@@ -477,11 +476,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_deluxemapping_cvar, GRAPHICALNICETIES);
-	Cvar_Register (&r_glsl_offsetmapping, GRAPHICALNICETIES);
-	Cvar_Register (&r_glsl_offsetmapping_scale, GRAPHICALNICETIES);
-	Cvar_Register (&r_glsl_offsetmapping_reliefmapping, GRAPHICALNICETIES);
-	Cvar_Register (&r_glsl_turbscale, GRAPHICALNICETIES);
-
 
 #ifdef R_XFLIP
 	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
@@ -520,7 +514,6 @@ void GLRenderer_Init(void)
 //	Cvar_Register (&gl_schematics, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_vertexlight, GLRENDEREROPTIONS);
-	Cvar_Register (&r_forceprogramify, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_blend2d, GLRENDEREROPTIONS);
 
@@ -632,7 +625,7 @@ void Renderer_Init(void)
 	Cmd_AddCommand("r_remapshader", Shader_RemapShader_f);
 	Cmd_AddCommand("r_showshader", Shader_ShowShader_f);
 
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#if defined(D3DQUAKE)
 	GLD3DRenderer_Init();
 #endif
 #if defined(GLQUAKE)
@@ -691,17 +684,24 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_dpi_y, GLRENDEREROPTIONS);
 
 	Cvar_Register (&vid_desktopsettings, VIDCOMMANDGROUP);
+	Cvar_Register (&vid_preservegamma, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_hardwaregamma, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_desktopgamma, GLRENDEREROPTIONS);
 
+
+	Cvar_Register (&r_norefresh, GLRENDEREROPTIONS);
 	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
 	Cbuf_AddText("alias sky r_skybox\n", RESTRICT_LOCAL);	/*alternative name for users*/
 	Cvar_Register (&r_softwarebanding_cvar, GRAPHICALNICETIES);
 
-	Cvar_Register(&r_dodgytgafiles, "Bug fixes");
-	Cvar_Register(&r_dodgypcxfiles, "Bug fixes");
+	Cvar_Register(&r_dodgytgafiles, "Hacky bug workarounds");
+	Cvar_Register(&r_dodgypcxfiles, "Hacky bug workarounds");
+	Cvar_Register(&r_dodgymiptex, "Hacky bug workarounds");
 	r_imageexensions.enginevalue = r_defaultimageextensions;
 	Cvar_Register(&r_imageexensions, GRAPHICALNICETIES);
 	r_imageexensions.callback(&r_imageexensions, NULL);
+	Cvar_Register(&r_image_downloadsizelimit, GRAPHICALNICETIES);
 	Cvar_Register(&r_loadlits, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylesmooth, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylesmooth_limit, GRAPHICALNICETIES);
@@ -721,6 +721,8 @@ void Renderer_Init(void)
 	Cvar_Register(&r_lightprepass, GLRENDEREROPTIONS);
 	Cvar_Register (&r_coronas, GRAPHICALNICETIES);
 	Cvar_Register (&r_coronas_occlusion, GRAPHICALNICETIES);
+	Cvar_Register (&r_coronas_mindist, GRAPHICALNICETIES);
+	Cvar_Register (&r_coronas_fadedist, GRAPHICALNICETIES);
 	Cvar_Register (&r_flashblend, GRAPHICALNICETIES);
 	Cvar_Register (&r_flashblendscale, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
@@ -740,6 +742,16 @@ void Renderer_Init(void)
 	Cvar_Register (&r_stereo_separation, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_convergence, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_method, GRAPHICALNICETIES);
+
+	Cvar_Register (&r_shadow_bumpscale_basetexture, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_bumpscale_bumpmap, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_heightscale_basetexture, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_heightscale_bumpmap, GRAPHICALNICETIES);
+
+	Cvar_Register (&r_glsl_offsetmapping, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_offsetmapping_scale, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_offsetmapping_reliefmapping, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_turbscale, GRAPHICALNICETIES);
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);
@@ -800,6 +812,10 @@ void Renderer_Init(void)
 	Cvar_Register (&r_telealpha, GRAPHICALNICETIES);
 	Cvar_Register (&gl_shadeq1_name, GLRENDEREROPTIONS);
 
+	Cvar_Register (&gl_mindist, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_load24bit, GRAPHICALNICETIES);
+	Cvar_Register (&gl_blendsprites, GLRENDEREROPTIONS);
+
 	Cvar_Register (&r_clear, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
@@ -828,6 +844,12 @@ void Renderer_Init(void)
 	Cvar_Register (&r_polygonoffset_shadowmap_offset, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_stencil_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_stencil_offset, GLRENDEREROPTIONS);
+
+	Cvar_Register (&r_forceprogramify, GLRENDEREROPTIONS);
+#ifdef VKQUAKE
+	Cvar_Register (&vk_submissionthread,	VKRENDEREROPTIONS);
+	Cvar_Register (&vk_debug,				VKRENDEREROPTIONS);
+#endif
 
 // misc
 	Cvar_Register(&con_ocranaleds, "Console controls");
@@ -880,9 +902,9 @@ void	(*R_RenderView)				(void);		// must set r_refdef first
 qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (*VID_DeInit)				(void);
 char	*(*VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
-void	(*VID_SetWindowCaption)		(char *msg);
+void	(*VID_SetWindowCaption)		(const char *msg);
 
-void	(*SCR_UpdateScreen)			(void);
+qboolean (*SCR_UpdateScreen)			(void);
 
 r_qrenderer_t qrenderer;
 char *q_renderername = "Non-Selected renderer";
@@ -963,6 +985,9 @@ rendererinfo_t d3d11rendererinfo;
 #ifdef SWQUAKE
 rendererinfo_t swrendererinfo;
 #endif
+#ifdef VKQUAKE
+rendererinfo_t vkrendererinfo;
+#endif
 rendererinfo_t headlessrenderer;
 
 rendererinfo_t *rendererinfo[] =
@@ -982,6 +1007,9 @@ rendererinfo_t *rendererinfo[] =
 #endif
 #ifdef SWQUAKE
 	&swrendererinfo,
+#endif
+#ifdef VKQUAKE
+	&vkrendererinfo,
 #endif
 #ifndef NPQTV
 	&dedicatedrendererinfo,
@@ -1052,17 +1080,14 @@ void R_ShutdownRenderer(qboolean devicetoo)
 		TRACE(("dbg: R_ApplyRenderer: R_DeInit\n"));
 		R_DeInit();
 	}
-	R_DeInit = NULL;
 
 	if (Draw_Shutdown)
 		Draw_Shutdown();
-	Draw_Shutdown = NULL;
 
 	if (VID_DeInit && devicetoo)
 	{
 		TRACE(("dbg: R_ApplyRenderer: VID_DeInit\n"));
 		VID_DeInit();
-		VID_DeInit = NULL;
 	}
 
 	TRACE(("dbg: R_ApplyRenderer: SCR_DeInit\n"));
@@ -1113,6 +1138,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	if (!newr->renderer)
 		return false;
 
+	COM_WorkerFullSync();
+
 	time = Sys_DoubleTime();
 
 #ifndef NOBUILTINMENUS
@@ -1140,6 +1167,8 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 {
 	int i, j;
 	double start = Sys_DoubleTime();
+
+	COM_WorkerFullSync();
 
 	Cache_Flush();
 	COM_FlushFSCache(false, true);	//make sure the fs cache is built if needed. there's lots of loading here.
@@ -1330,10 +1359,17 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 #ifdef Q2SERVER
 		else if (svs.gametype == GT_QUAKE2)
 		{
-			for (i = 0; i < MAX_PRECACHE_MODELS; i++)
+			for (i = 0; i < Q2MAX_MODELS; i++)
 			{
 				if (sv.strings.configstring[Q2CS_MODELS+i] && *sv.strings.configstring[Q2CS_MODELS+i] && (!strcmp(sv.strings.configstring[Q2CS_MODELS+i] + strlen(sv.strings.configstring[Q2CS_MODELS+i]) - 4, ".bsp") || i-1 < sv.world.worldmodel->numsubmodels))
 					sv.models[i] = Mod_FindName(Mod_FixName(sv.strings.configstring[Q2CS_MODELS+i], sv.modelname));
+				else
+					sv.models[i] = NULL;
+			}
+			for (; i < MAX_PRECACHE_MODELS; i++)
+			{
+				if (sv.strings.q2_extramodels[i] && *sv.strings.q2_extramodels[i] && (!strcmp(sv.strings.q2_extramodels[i] + strlen(sv.strings.q2_extramodels[i]) - 4, ".bsp") || i-1 < sv.world.worldmodel->numsubmodels))
+					sv.models[i] = Mod_FindName(Mod_FixName(sv.strings.q2_extramodels[i], sv.modelname));
 				else
 					sv.models[i] = NULL;
 			}
@@ -1711,7 +1747,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 			for (i = 0; failed && i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 			{
 				newr->renderer = rendererinfo[i];
-				if (newr->renderer && newr->renderer != skip)
+				if (newr->renderer && newr->renderer != skip && newr->renderer->rtype != QR_HEADLESS)
 				{
 					Con_Printf(CON_NOTICE "Trying %s\n", newr->renderer->description);
 					failed = !R_ApplyRenderer(newr);
@@ -1777,7 +1813,7 @@ void R_SetRenderer_f (void)
 		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 		{
 			if (rendererinfo[i]->description)
-				Con_Printf("%s: %s\n", rendererinfo[i]->name[0], rendererinfo[i]->description);
+				Con_Printf("^1%s^7: %s%s\n", rendererinfo[i]->name[0], rendererinfo[i]->description, (currentrendererstate.renderer == rendererinfo[i])?" ^2(current)":"");
 		}
 		return;
 	}
@@ -2015,7 +2051,7 @@ mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
 int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 int r_visframecount;
 mleaf_t		*r_vischain;		// linked list of visible leafs
-static qbyte	curframevis[R_MAX_RECURSE][MAX_MAP_LEAFS/8];
+static FTE_ALIGN(4) qbyte	curframevis[R_MAX_RECURSE][MAX_MAP_LEAFS/8];
 
 /*
 ===============

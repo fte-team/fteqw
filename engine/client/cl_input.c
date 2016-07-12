@@ -76,7 +76,7 @@ int CL_TargettedSplit(qboolean nowrap)
 	if (con_splitmodifier > 0)
 		return (con_splitmodifier - 1) % mod;
 	else if (cl_forceseat.ival > 0)
-		return (cl_forceseat.ival-1) % mod;
+		return (cl_forceseat.ival-1) % cl.splitclients;
 	else
 		return 0;
 }
@@ -942,7 +942,7 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 
 void CL_UpdatePrydonCursor(usercmd_t *from, int pnum)
 {
-	unsigned int hit;
+	int hit;
 	vec3_t cursor_end;
 
 	vec3_t temp;
@@ -1004,9 +1004,11 @@ void CL_UpdatePrydonCursor(usercmd_t *from, int pnum)
 	CL_SetSolidEntities();
 	//don't bother with players, they don't exist in NQ...
 
-	hit = TraceLineN(from->cursor_start, cursor_end, from->cursor_impact, cursor_impact_normal);
-	if (hit)
-		from->cursor_entitynumber = hit-1;
+	CL_TraceLine(from->cursor_start, cursor_end, from->cursor_impact, cursor_impact_normal, &hit);
+	if (hit>0)
+		from->cursor_entitynumber = hit;
+	else if (hit < 0)
+		from->cursor_entitynumber = 0;	//FIXME: ask csqc for the entity's entnum
 	else
 		from->cursor_entitynumber = 0;
 
@@ -1016,6 +1018,7 @@ void CL_UpdatePrydonCursor(usercmd_t *from, int pnum)
 #ifdef NQPROT
 void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 {
+	static float oldgametime;
 	int i;
 
 	if (cls.demoplayback!=DPB_NONE)
@@ -1042,10 +1045,12 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	}
 
 	MSG_WriteFloat (buf, cl.gametime);	// so server can get ping times
+	cmd->msec = bound(0, cl.gametime - oldgametime, .25)*1000;
+	oldgametime = cl.gametime;
 
 	for (i=0 ; i<3 ; i++)
 	{
-		if ((cls.protocol_nq == CPNQ_FITZ666 || cls.protocol_nq == CPNQ_PROQUAKE3_4) && buf->prim.anglesize <= 1)
+		if (cls.protocol_nq == CPNQ_FITZ666 || (cls.proquake_angles_hack && buf->prim.anglesize <= 1))
 		{
 			//fitz/proquake protocols are always 16bit for this angle and 8bit elsewhere. rmq is always at least 16bit
 			//the above logic should satify everything.

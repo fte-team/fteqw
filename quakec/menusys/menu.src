@@ -34,25 +34,25 @@ void(mitem_desktop desktop) M_Pop =
 
 //define the commands.
 //cmd argments are: Name, Function, Sourcefile(may be empty)
-#define concommandslist										\
+#define concommandslist									\
 	cmd("m_main",		M_Main,			menu/main.qc)			\
-	cmd("m_pop",		M_Pop,			)					\
+	cmd("m_pop",		M_Pop,			)				\
 	cmd("m_options",	M_Options,		menu/options.qc)		\
-	cmd("m_keys",		M_Options_Keys,	menu/options_keys.qc)	\
-	cmd("m_basicopts",	M_Options_Basic,	menu/options_basic.qc)	\
-	cmd("m_video",		M_Options_Video,	menu/options_video.qc)	\
+	cmd("m_keys",		M_Options_Keys,		menu/options_keys.qc)		\
+	cmd("m_basicopts",	M_Options_Basic,	menu/options_basic.qc)		\
+	cmd("m_video",		M_Options_Video,	menu/options_video.qc)		\
 	cmd("m_effects",	M_Options_Effects,	menu/options_effects.qc)	\
-	cmd("m_audio",		M_Options_Audio,	menu/options_audio.qc)	\
+	cmd("m_audio",		M_Options_Audio,	menu/options_audio.qc)		\
 	cmd("m_particles",	M_Options_Particles,	menu/options_particles.qc)	\
-	cmd("m_hud",		M_Options_Hud,		menu/options_hud.qc)	\
+	cmd("m_hud",		M_Options_Hud,		menu/options_hud.qc)		\
 	cmd("m_load",		M_Load,			menu/loadsave.qc)		\
-	cmd("m_save",		M_Save,			)					\
+	cmd("m_save",		M_Save,			)				\
 	cmd("m_quit",		M_Quit,			menu/quit.qc)			\
 	cmd("m_newgame",	M_NewGame,		menu/newgame.qc)		\
 	cmd("m_servers",	M_Servers,		menu/servers.qc)		\
 	cmd("m_configs",	M_Configs,		menu/options_configs.qc)	\
-	cmd("m_reset",		M_Reset,			)	\
-	cmd("m_preset",	M_Preset,			menu/presets.qc)
+	cmd("m_reset",		M_Reset,		)				\
+	cmd("m_preset",		M_Preset,		menu/presets.qc)
 	
 
 #if 0
@@ -74,12 +74,21 @@ void() m_shutdown = {};
 void() m_draw = {items_draw(desktop);};
 void(float scan, float chr) m_keydown = {items_keypress(desktop, scan, chr, TRUE);};
 void(float scan, float chr) m_keyup = {items_keypress(desktop, scan, chr, FALSE);};
-void(float mode) m_toggle = 
-{
+void(float mode) m_toggle
+{	//mode is stupid. 1=enable,0=disable,-1=actually toggle.
+	if (mode < 0)
+		mode = !desktop.item_kactivechild;
 	if (mode)
 		M_Main(desktop);
-	
-	items_updategrabs();
+	else while(desktop.item_kactivechild)
+	{
+		mitem it = desktop.item_kactivechild;
+		if (it.item_flags & IF_NOKILL)
+			break;
+		it.item_remove();
+	}
+
+	items_updategrabs(TRUE);
 };
 
 var float autocvar_dp_workarounds_allow = TRUE;
@@ -129,5 +138,5 @@ void(string cstr) GameCommand =
 		print("unknown command ", cmd, "\n");
 		break;
 	}
-	items_updategrabs();
+	items_updategrabs(TRUE);
 };

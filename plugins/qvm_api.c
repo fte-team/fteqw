@@ -105,6 +105,10 @@ retry:
 				*buffer++ = _int;
 				tokens++;
 				break;
+			case 'p':
+				if (1)
+				_uint = (size_t)va_arg(vargs, void*);
+				else
 			case 'x':
 				_uint = va_arg(vargs, unsigned int);
 				i = sizeof(tempbuffer)-2;
@@ -589,4 +593,51 @@ void Q_strlcat(char *d, const char *s, int n)
 		memcpy(d+dlen, s, slen);
 		d[n - 1] = 0;
 	}
+}
+
+char *Plug_Info_ValueForKey (const char *s, const char *key, char *out, size_t outsize)
+{
+	int isvalue = 0;
+	const char *start;
+	char *oout = out;
+	*out = 0;
+	if (*s != '\\')
+		return out;	//gah, get lost with your corrupt infostrings.
+
+	start = ++s;
+	while(1)
+	{
+		while(s[0] == '\\' && s[1] == '\\')
+			s+=2;
+		if (s[0] != '\\' && *s)
+		{
+			s++;
+			continue;
+		}
+
+		//okay, it terminates here
+		isvalue = !isvalue;
+		if (isvalue)
+		{
+			if (strlen(key) == s - start && !strncmp(start, key, s - start))
+			{
+				s++;
+				while (outsize --> 1)
+				{
+					if (s[0] == '\\' && s[1] == '\\')
+						s++;
+					else if (s[0] == '\\' || !s[0])
+						break;
+					*out++ = *s++;
+				}
+				*out++ = 0;
+				return oout;
+			}
+		}
+		if (*s)
+			start = ++s;
+		else
+			break;
+	}
+	return oout;
 }

@@ -1073,7 +1073,7 @@ static texid_t Font_LoadHexen2Conchars(qboolean iso88591)
 	return r_nulltex;
 }
 
-qbyte default_conchar[/*11356*/] =
+FTE_ALIGN(4) qbyte default_conchar[/*11356*/] =
 {
 #include "lhfont.h"
 };
@@ -1614,6 +1614,16 @@ float Font_CharScaleHeight(void)
 	return curfont->charheight * curfont_scale[1];
 }
 
+int Font_TabWidth(int x)
+{
+	int tabwidth = Font_CharWidth(CON_WHITEMASK, ' ');
+	tabwidth *= 8;
+
+	x++;
+	x = x + ((tabwidth - (x % tabwidth)) % tabwidth);
+	return x;
+}
+
 /*
 This is where the character ends.
 Note: this function supports tabs - x must always be based off 0, with Font_LineDraw actually used to draw the line.
@@ -1622,11 +1632,10 @@ int Font_CharEndCoord(struct font_s *font, int x, unsigned int charflags, unsign
 {
 	struct charcache_s *c;
 
-#define TABWIDTH (8*20)
 	if (charflags&CON_HIDDEN)
 		return x;
 	if (codepoint == '\t')
-		return x + ((TABWIDTH - (x % TABWIDTH)) % TABWIDTH);
+		return Font_TabWidth(x);
 
 	if ((charflags & CON_2NDCHARSETTEXT) && font->alt)
 		font = font->alt;
@@ -1864,7 +1873,7 @@ int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint
 	nextx = px + c->advance;
 
 	if (codepoint == '\t')
-		return px + ((TABWIDTH - (px % TABWIDTH)) % TABWIDTH);
+		return Font_TabWidth(px);
 	if (codepoint == ' ')
 		return nextx;
 
@@ -1941,13 +1950,13 @@ int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint
 			rgba[0] = consolecolours[col].fr*255;
 			rgba[1] = consolecolours[col].fg*255;
 			rgba[2] = consolecolours[col].fb*255;
-			rgba[3] = (charflags & CON_HALFALPHA)?127:255;
+			rgba[3] = (charflags & CON_HALFALPHA)?0xc0:255;
 
 			col = (charflags&CON_BGMASK)>>CON_BGSHIFT;
 			font_backcolour[0] = consolecolours[col].fr*255;
 			font_backcolour[1] = consolecolours[col].fg*255;
 			font_backcolour[2] = consolecolours[col].fb*255;
-			font_backcolour[3] = (charflags & CON_NONCLEARBG)?127:0;
+			font_backcolour[3] = (charflags & CON_NONCLEARBG)?0xc0:0;
 
 			if (charflags & CON_2NDCHARSETTEXT)
 			{
@@ -2167,13 +2176,13 @@ float Font_DrawScaleChar(float px, float py, unsigned int charflags, unsigned in
 			rgba[0] = consolecolours[col].fr*255;
 			rgba[1] = consolecolours[col].fg*255;
 			rgba[2] = consolecolours[col].fb*255;
-			rgba[3] = (charflags & CON_HALFALPHA)?127:255;
+			rgba[3] = (charflags & CON_HALFALPHA)?0xc0:255;
 
 			col = (charflags&CON_BGMASK)>>CON_BGSHIFT;
 			font_backcolour[0] = consolecolours[col].fr*255;
 			font_backcolour[1] = consolecolours[col].fg*255;
 			font_backcolour[2] = consolecolours[col].fb*255;
-			font_backcolour[3] = (charflags & CON_NONCLEARBG)?127:0;
+			font_backcolour[3] = (charflags & CON_NONCLEARBG)?0xc0:0;
 
 			if (charflags & CON_2NDCHARSETTEXT)
 			{

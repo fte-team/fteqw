@@ -178,11 +178,6 @@ static void SSDL_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
 #endif
 }
 
-static void SSDL_SetUnderWater(soundcardinfo_t *sc, qboolean uw)
-{
-}
-
-
 static void SSDL_Submit(soundcardinfo_t *sc, int start, int end)
 {
 	//SDL will call SSDL_Paint to paint when it's time, and the sound buffer is always there...
@@ -251,7 +246,6 @@ static qboolean SDL_InitCard(soundcardinfo_t *sc, const char *devicename)
 
 	sc->Lock		= SSDL_LockBuffer;
 	sc->Unlock		= SSDL_UnlockBuffer;
-	sc->SetWaterDistortion	= SSDL_SetUnderWater;
 	sc->Submit		= SSDL_Submit;
 	sc->Shutdown		= SSDL_Shutdown;
 	sc->GetDMAPos		= SSDL_GetDMAPos;

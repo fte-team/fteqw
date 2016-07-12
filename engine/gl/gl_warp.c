@@ -20,18 +20,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_warp.c -- sky and water polygons
 
 #include "quakedef.h"
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#ifndef SERVERONLY
 #include "glquake.h"
 #include "shader.h"
 #include <ctype.h>
 
 static void R_CalcSkyChainBounds (batch_t *s);
-static void GL_DrawSkyGrid (texnums_t *tex);
 static void GL_DrawSkySphere (batch_t *fa, shader_t *shader);
 static void GL_SkyForceDepth(batch_t *fa);
 static void GL_DrawSkyBox (texid_t *texnums, batch_t *s);
 
-static float	speedscale;		// for top sky and bottom sky
+static void GL_DrawSkyGrid (texnums_t *tex);
 
 extern cvar_t gl_skyboxdist;
 extern cvar_t r_fastsky;
@@ -39,6 +38,7 @@ extern cvar_t r_fastskycolour;
 
 static shader_t *forcedskyshader;
 static shader_t *skyboxface;
+static shader_t *skygridface;
 
 
 
@@ -56,6 +56,21 @@ void R_SetSky(char *skyname)
 				"program default2d\n"
 				"{\n"
 					"map $diffuse\n"
+					"nodepth\n"	//don't write depth. this stuff is meant to be an infiniteish distance away.
+				"}\n"
+			"}\n"
+		);
+
+	skygridface = R_RegisterShader("skygridface", SUF_NONE,
+			"{\n"
+				"program default2d\n"
+				"{\n"
+					"map $diffuse\n"
+					"nodepth\n"	//don't write depth. this stuff is meant to be an infiniteish distance away.
+				"}\n"
+				"{\n"
+					"map $fullbright\n"
+					"blendfunc blend\n"
 					"nodepth\n"	//don't write depth. this stuff is meant to be an infiniteish distance away.
 				"}\n"
 			"}\n"
@@ -89,24 +104,22 @@ qboolean R_DrawSkyChain (batch_t *batch)
 	{
 		R_CalcSkyChainBounds(batch);
 		GL_DrawSkyBox (skyboxtex, batch);
+
+		if (skyshader->numpasses)
+			GL_DrawSkySphere(batch, skyshader);
 	}
-	if (skyshader->numpasses)
+	else if (skyshader->numpasses)
 	{
-#if defined(GLQUAKE) && !defined(ANDROID)
-		if (*r_fastsky.string && qrenderer == QR_OPENGL && !gl_config_gles && !gl_config_nofixedfunc && TEXVALID(batch->shader->defaulttextures->base) && TEXVALID(batch->shader->defaulttextures->fullbright))
+		if (*r_fastsky.string && TEXVALID(batch->shader->defaulttextures->base) && TEXVALID(batch->shader->defaulttextures->fullbright))
 		{
 			R_CalcSkyChainBounds(batch);
-
-			R_IBrokeTheArrays();
 			GL_DrawSkyGrid(skyshader->defaulttextures);
-			R_IBrokeTheArrays();
 		}
 		else
-#endif
 			GL_DrawSkySphere(batch, skyshader);
 	}
 
-	//neither skydomes nor skyboxes will have been drawn with the correct depth values for the sky.
+	//neither skydomes nor skyboxes nor skygrids will have been drawn with the correct depth values for the sky.
 	//this can result in rooms behind the sky surfaces being visible.
 	//so make sure they're correct where they're expected to be.
 	//don't do it on q3 bsp, because q3map2 can't do skyrooms without being weird about it. or something. anyway, we get different (buggy) behaviour from q3 if we don't skip this.
@@ -232,13 +245,13 @@ static void DrawSkyPolygon (int nump, vec3_t vecs)
 		else
 			t = vecs[j-1] / dv;
 
-		if (s < skymins[0][axis])
+		if (skymins[0][axis] > s)
 			skymins[0][axis] = s;
-		if (t < skymins[1][axis])
+		if (skymins[1][axis] > t)
 			skymins[1][axis] = t;
-		if (s > skymaxs[0][axis])
+		if (skymaxs[0][axis] < s)
 			skymaxs[0][axis] = s;
-		if (t > skymaxs[1][axis])
+		if (skymaxs[1][axis] < t)
 			skymaxs[1][axis] = t;
 	}
 }
@@ -347,10 +360,19 @@ static void R_CalcSkyChainBounds (batch_t *batch)
 	int		i, m;
 	vec3_t	verts[MAX_CLIP_VERTS];
 
+	if (batch->meshes == 1 && !batch->mesh[batch->firstmesh]->numindexes)
+	{	//deal with geometryless skies, like terrain/raw maps
+		for (i=0 ; i<6 ; i++)
+		{
+			skymins[0][i] = skymins[1][i] = -1;
+			skymaxs[0][i] = skymaxs[1][i] = 1;
+		}
+		return;
+	}
 	for (i=0 ; i<6 ; i++)
 	{
-		skymins[0][i] = skymins[1][i] = -1;//9999;
-		skymaxs[0][i] = skymaxs[1][i] = 1;//9999;
+		skymins[0][i] = skymins[1][i] = 1;//9999;
+		skymaxs[0][i] = skymaxs[1][i] = -1;//-9999;
 	}
 
 	// calculate vertex values for sky box
@@ -360,11 +382,11 @@ static void R_CalcSkyChainBounds (batch_t *batch)
 		if (!mesh->xyz_array)
 			continue;
 		//triangulate
-		for (i=2 ; i<mesh->numvertexes ; i++)
+		for (i = 0; i < mesh->numindexes; i+=3)
 		{
-			VectorSubtract (mesh->xyz_array[0], r_origin, verts[0]);
-			VectorSubtract (mesh->xyz_array[i-1], r_origin, verts[1]);
-			VectorSubtract (mesh->xyz_array[i], r_origin, verts[2]);
+			VectorSubtract (mesh->xyz_array[mesh->indexes[i+0]], r_origin, verts[0]);
+			VectorSubtract (mesh->xyz_array[mesh->indexes[i+1]], r_origin, verts[1]);
+			VectorSubtract (mesh->xyz_array[mesh->indexes[i+2]], r_origin, verts[2]);
 			ClipSkyPolygon (3, verts[0], 0);
 		}
 	}
@@ -548,14 +570,11 @@ static void GL_MakeSkyVec (float s, float t, int axis, float *vc, float *tc)
 }
 
 
-#ifdef GLQUAKE
-
-
-
-static void EmitSkyGridVert (vec3_t v)
+static float	speedscale1;	// for top sky
+static float	speedscale2;	// for bottom sky
+static void EmitSkyGridVert (vec3_t v, vec2_t tc1, vec2_t tc2)
 {
 	vec3_t dir;
-	float	s, t;
 	float	length;
 
 	VectorSubtract (v, r_origin, dir);
@@ -567,15 +586,15 @@ static void EmitSkyGridVert (vec3_t v)
 	dir[0] *= length;
 	dir[1] *= length;
 
-	s = (speedscale + dir[0]) * (1.0/128);
-	t = (speedscale + dir[1]) * (1.0/128);
+	tc1[0] = (speedscale1 + dir[0]) * (1.0/128);
+	tc1[1] = (speedscale1 + dir[1]) * (1.0/128);
 
-	qglTexCoord2f (s, t);
-	qglVertex3fv (v);
+	tc2[0] = (speedscale2 + dir[0]) * (1.0/128);
+	tc2[1] = (speedscale2 + dir[1]) * (1.0/128);
 }
 
 // s and t range from -1 to 1
-static void MakeSkyGridVec2 (float s, float t, int axis, vec3_t v)
+static void MakeSkyGridVec2 (float s, float t, int axis, vec3_t v, vec2_t tc1, vec2_t tc2)
 {
 	vec3_t		b;
 	int			j, k;
@@ -600,19 +619,17 @@ static void MakeSkyGridVec2 (float s, float t, int axis, vec3_t v)
 		v[j] += r_origin[j];
 	}
 
+	EmitSkyGridVert(v, tc1, tc2);
 }
 
 #define SUBDIVISIONS	10
 
-static void GL_DrawSkyGridFace (int axis)
+static void GL_DrawSkyGridFace (int axis, mesh_t *fte_restrict mesh)
 {
 	int i, j;
-	vec3_t	vecs[4];
 	float s, t;
 
 	float fstep = 2.0 / SUBDIVISIONS;
-
-	qglBegin (GL_QUADS);
 
 	for (i = 0; i < SUBDIVISIONS; i++)
 	{
@@ -628,57 +645,77 @@ static void GL_DrawSkyGridFace (int axis)
 			if (t + fstep < skymins[1][axis] || t > skymaxs[1][axis])
 				continue;
 
-			MakeSkyGridVec2 (s, t, axis, vecs[0]);
-			MakeSkyGridVec2 (s, t + fstep, axis, vecs[1]);
-			MakeSkyGridVec2 (s + fstep, t + fstep, axis, vecs[2]);
-			MakeSkyGridVec2 (s + fstep, t, axis, vecs[3]);
+			mesh->indexes[mesh->numindexes++] = mesh->numvertexes+0;
+			mesh->indexes[mesh->numindexes++] = mesh->numvertexes+1;
+			mesh->indexes[mesh->numindexes++] = mesh->numvertexes+2;
+			mesh->indexes[mesh->numindexes++] = mesh->numvertexes+0;
+			mesh->indexes[mesh->numindexes++] = mesh->numvertexes+2;
+			mesh->indexes[mesh->numindexes++] = mesh->numvertexes+3;
 
-			EmitSkyGridVert (vecs[0]);
-			EmitSkyGridVert (vecs[1]);
-			EmitSkyGridVert (vecs[2]);
-			EmitSkyGridVert (vecs[3]);
+			MakeSkyGridVec2 (s,			t,			axis, mesh->xyz_array[mesh->numvertexes], mesh->st_array[mesh->numvertexes], mesh->lmst_array[0][mesh->numvertexes]); mesh->numvertexes++;
+			MakeSkyGridVec2 (s,			t + fstep,	axis, mesh->xyz_array[mesh->numvertexes], mesh->st_array[mesh->numvertexes], mesh->lmst_array[0][mesh->numvertexes]); mesh->numvertexes++;
+			MakeSkyGridVec2 (s + fstep, t + fstep,	axis, mesh->xyz_array[mesh->numvertexes], mesh->st_array[mesh->numvertexes], mesh->lmst_array[0][mesh->numvertexes]); mesh->numvertexes++;
+			MakeSkyGridVec2 (s + fstep, t,			axis, mesh->xyz_array[mesh->numvertexes], mesh->st_array[mesh->numvertexes], mesh->lmst_array[0][mesh->numvertexes]); mesh->numvertexes++;
 		}
 	}
-
-	qglEnd ();
 }
 
 static void GL_DrawSkyGrid (texnums_t *tex)
 {
+	static entity_t skyent;
+	static batch_t b;
+	static mesh_t skymesh, *meshptr=&skymesh;
+
+	vecV_t coords[SUBDIVISIONS*SUBDIVISIONS*4*6];
+	vec2_t texcoords1[SUBDIVISIONS*SUBDIVISIONS*4*6];
+	vec2_t texcoords2[SUBDIVISIONS*SUBDIVISIONS*4*6];
+	index_t indexes[SUBDIVISIONS*SUBDIVISIONS*6*6];
+
 	int i;
 	float time = cl.gametime+realtime-cl.gametimemark;
 
-	GL_LazyBind(0, GL_TEXTURE_2D, tex->base);
+	speedscale1 = time*8;
+	speedscale1 -= (int)speedscale1 & ~127;
+	speedscale2 = time*16;
+	speedscale2 -= (int)speedscale2 & ~127;
 
-	speedscale = time*8;
-	speedscale -= (int)speedscale & ~127;
+	skymesh.indexes = indexes;
+	skymesh.st_array = texcoords1;
+	skymesh.lmst_array[0] = texcoords2;
+	skymesh.xyz_array = coords;
+	skymesh.numindexes = 0;
+	skymesh.numvertexes = 0;
 
 	for (i = 0; i < 6; i++)
 	{
 		if ((skymins[0][i] >= skymaxs[0][i]	|| skymins[1][i] >= skymaxs[1][i]))
 			continue;
-		GL_DrawSkyGridFace (i);
+		GL_DrawSkyGridFace (i, &skymesh);
 	}
 
-	if (tex->fullbright)
-	{
-		qglEnable (GL_BLEND);
-		GL_LazyBind(0, GL_TEXTURE_2D, tex->fullbright);
+	VectorCopy(r_refdef.vieworg, skyent.origin);
+	skyent.axis[0][0] = 1;
+	skyent.axis[0][1] = 0;
+	skyent.axis[0][2] = 0;
+	skyent.axis[1][0] = 0;
+	skyent.axis[1][1] = 1;
+	skyent.axis[1][2] = 0;
+	skyent.axis[2][0] = 0;
+	skyent.axis[2][1] = 0;
+	skyent.axis[2][2] = 1;
+	skyent.scale = 1;
 
-		speedscale = time*16;
-		speedscale -= (int)speedscale & ~127;
-
-		for (i = 0; i < 6; i++)
-		{
-			if ((skymins[0][i] >= skymaxs[0][i]	|| skymins[1][i] >= skymaxs[1][i]))
-				continue;
-			GL_DrawSkyGridFace (i);
-		}
-		qglDisable (GL_BLEND);
-	}
+//FIXME: We should use the skybox clipping code and split the sphere into 6 sides.
+	b.meshes = 1;
+	b.firstmesh = 0;
+	b.mesh = &meshptr;
+	b.ent = &skyent;
+	b.shader = skygridface;
+	b.skin = tex;
+	b.texture = NULL;
+	b.vbo = NULL;
+	BE_SubmitBatch(&b);
 }
-
-#endif
 
 /*
 ==============

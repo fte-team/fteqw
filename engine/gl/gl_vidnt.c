@@ -103,12 +103,12 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info);
 
 //qboolean VID_SetWindowedMode (int modenum);
 //qboolean VID_SetFullDIBMode (int modenum);
-qboolean VID_SetWindowedMode (rendererstate_t *info);	//-1 on bpp or hz for default.
-qboolean VID_SetFullDIBMode (rendererstate_t *info);	//-1 on bpp or hz for default.
+static qboolean VID_SetWindowedMode (rendererstate_t *info);	//-1 on bpp or hz for default.
+static qboolean VID_SetFullDIBMode (rendererstate_t *info);	//-1 on bpp or hz for default.
 
 qboolean		scr_skipupdate;
 
-//#define WTHREAD
+//#define WTHREAD	//While the user is resizing a window, the entire thread that owns said window becomes frozen. in order to cope with window resizing, its easiest to just create a separate thread to be microsoft's plaything. our main game thread can then just keep rendering. hopefully that won't bug out on the present.
 #ifdef WTHREAD
 static HANDLE	windowthread;
 static void		*windowmutex;
@@ -133,8 +133,6 @@ RECT		WindowRect;
 DWORD		WindowStyle, ExWindowStyle;
 
 HWND	mainwindow, dibwindow;
-
-unsigned char	vid_curpal[256*3];
 
 HGLRC	baseRC;
 HDC		maindc;
@@ -775,7 +773,7 @@ RECT centerrect(unsigned int parentleft, unsigned int parenttop, unsigned int pa
 	return r;
 }
 
-qboolean VID_SetWindowedMode (rendererstate_t *info)
+static qboolean VID_SetWindowedMode (rendererstate_t *info)
 //qboolean VID_SetWindowedMode (int modenum)
 {
 	int i;
@@ -960,7 +958,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	return true;
 }
 
-void GLVID_SetCaption(char *text)
+void GLVID_SetCaption(const char *text)
 {
 	wchar_t wide[2048];
 	widen(wide, sizeof(wide), text);
@@ -968,7 +966,7 @@ void GLVID_SetCaption(char *text)
 }
 
 
-qboolean VID_SetFullDIBMode (rendererstate_t *info)
+static qboolean VID_SetFullDIBMode (rendererstate_t *info)
 {
 	int i;
 	HDC				hdc;
@@ -1134,7 +1132,7 @@ static qboolean CreateMainWindow(rendererstate_t *info)
 		wc.lpszMenuName  = 0;
 		wc.lpszClassName = WINDOW_CLASS_NAME_W;
 		if (!RegisterClassW (&wc))	//this isn't really fatal, we'll let the CreateWindow fail instead.
-			Con_Printf("RegisterClass failed\n");
+			Con_DPrintf("RegisterClass failed\n");
 	}
 	else
 	{
@@ -1151,7 +1149,7 @@ static qboolean CreateMainWindow(rendererstate_t *info)
 		wc.lpszMenuName  = 0;
 		wc.lpszClassName = WINDOW_CLASS_NAME_A;
 		if (!RegisterClassA (&wc))	//this isn't really fatal, we'll let the CreateWindow fail instead.
-			Con_Printf("RegisterClass failed\n");
+			Con_DPrintf("RegisterClass failed\n");
 	}
 
 	if (!info->fullscreen)
@@ -2314,6 +2312,9 @@ void MainThreadWndProc(void *ctx, void *data, size_t msg, size_t ex)
 		Host_RunFile(data, ex, NULL);
 		Z_Free(data);
 		break;
+	case WM_CLOSE:
+		Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
+		break;
 	case WM_SIZE:
 	case WM_MOVE:
 		Cvar_ForceCallback(&vid_conautoscale);	//FIXME: thread
@@ -2544,13 +2545,31 @@ LONG WINAPI GLMainWndProc (
 
 		case WM_CLOSE:
 			if (!vid_initializing)
-				if (MessageBoxW (hWnd, L"Are you sure you want to quit?", L"Confirm Exit",
-							MB_YESNO | MB_SETFOREGROUND | MB_ICONQUESTION) == IDYES)
+			{
+				if (wantquit)
 				{
-					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
-					wantquit = true;
+					//urr, this would be the second time that they've told us to quit.
+					//assume the main thread has deadlocked
+					if (MessageBoxW (hWnd, L"Terminate process?", L"Confirm Exit",
+							MB_YESNO | MB_SETFOREGROUND | MB_ICONEXCLAMATION | MB_DEFBUTTON2) == IDYES)
+					{
+						//abrupt process termination is never nice, but sometimes drivers suck.
+						//or qc code runs away, or ...
+						exit(1);
+					}
 				}
 
+				else if (MessageBoxW (hWnd, L"Are you sure you want to quit?", L"Confirm Exit",
+							MB_YESNO | MB_SETFOREGROUND | MB_ICONQUESTION|MB_DEFBUTTON2) == IDYES)
+				{
+#ifdef WTHREAD
+					COM_AddWork(WG_MAIN, MainThreadWndProc, NULL, NULL, uMsg, 0);
+#else
+					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
+#endif
+					wantquit = true;
+				}
+			}
 			break;
 
 		case WM_ERASEBKGND:
@@ -2710,7 +2729,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	if (isPlugin >= 2)
 	{
-		fprintf(stdout, "refocuswindow %"PRIxPTR"\n", mainwindow);
+		fprintf(stdout, "refocuswindow %"PRIxPTR"\n", (quintptr_t)mainwindow);
 		fflush(stdout);
 	}
 

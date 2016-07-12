@@ -223,7 +223,7 @@ static void Cmd_In_f(void)
 	Cmd_ShiftArgs(1, false);
 	cmd = Cmd_Args();
 
-	if (ruleset_allow_in.ival)
+	if (ruleset_allow_in.ival || !delay)
 	{
 		n = Z_Malloc(sizeof(*n) + strlen(cmd));
 		strcpy(n->cmdtext, cmd);
@@ -1803,7 +1803,7 @@ void Cmd_EnumerateLevel(int level, char *buf, size_t bufsize)
 		{
 			if (*buf)
 				Q_strncatz(buf, "\t", bufsize);
-			Q_strncatz(buf, cmds->name, bufsize);
+			Q_strncatz(buf, a->name, bufsize);
 		}
 	}
 }
@@ -2119,7 +2119,14 @@ void Cmd_ForwardToServer_f (void)
 		if (SCR_RSShot())
 			return;
 	}
-	if (Q_strcasecmp(Cmd_Argv(1), "pext") == 0 && (cls.protocol != CP_NETQUAKE || cls.protocol_nq != CPNQ_ID || cls.netchan.remote_address.type != NA_LOOPBACK))
+#ifdef NQPROT
+	if (Q_strcasecmp(Cmd_Argv(1), "protocols") == 0 && cls.protocol == CP_NETQUAKE)
+	{
+		CL_SendClientCommand(true, "protocols %#x %#x %#x %#x %#x", PROTOCOL_VERSION_RMQ, PROTOCOL_VERSION_FITZ, PROTOCOL_VERSION_BJP3, PROTOCOL_VERSION_BJP2, PROTOCOL_VERSION_DP7);
+		return;
+	}
+#endif
+	if (Q_strcasecmp(Cmd_Argv(1), "pext") == 0 && (cls.protocol != CP_NETQUAKE || cls.protocol_nq != CPNQ_ID || cls.proquake_angles_hack || cls.netchan.remote_address.type != NA_LOOPBACK))
 	{	//don't send any extension flags this if we're using cl_loopbackprotocol nqid, purely for a compat test.
 		//if you want to record compat-demos, disable extensions instead.
 		unsigned int fp1 = Net_PextMask(1, cls.protocol == CP_NETQUAKE), fp2 = Net_PextMask(2, cls.protocol == CP_NETQUAKE);
@@ -2205,6 +2212,10 @@ void	Cmd_ExecuteString (char *text, int level)
 					break;	//server stuffed an alias for a command that it would already have received. use that instead.
 #if defined(CSQC_DAT) && !defined(SERVERONLY)
 				if (CSQC_ConsoleCommand(text))
+					return;	//let the csqc handle it if it wants.
+#endif
+#if defined(MENU_DAT) && !defined(SERVERONLY)
+				if (MP_ConsoleCommand(text))
 					return;	//let the csqc handle it if it wants.
 #endif
 				Cmd_ForwardToServer ();
@@ -2330,11 +2341,13 @@ void	Cmd_ExecuteString (char *text, int level)
 		return;
 	}
 
-#ifndef SERVERONLY
-#ifdef CSQC_DAT
+#if defined(CSQC_DAT) && !defined(SERVERONLY)
 	if (CSQC_ConsoleCommand(text))
 		return;
 #endif
+#if defined(MENU_DAT) && !defined(SERVERONLY)
+	if (MP_ConsoleCommand(text))
+		return;	//let the csqc handle it if it wants.
 #endif
 
 #ifdef PLUGINS
@@ -3334,7 +3347,7 @@ void Cmd_Condump_f(void)
 		for (l = curcon->oldest; l; l = l->newer)
 		{
 			t = (conchar_t*)(l+1);
-			COM_DeFunString(t, t + l->length, line, sizeof(line), true);
+			COM_DeFunString(t, t + l->length, line, sizeof(line), true, !!(curcon->parseflags & PFS_FORCEUTF8));
 			VFS_WRITE(f, line, strlen(line));
 			VFS_WRITE(f, "\n", 1);
 		}

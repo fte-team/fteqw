@@ -319,8 +319,9 @@ typedef union QCC_evalstorage_s
 struct QCC_typeparam_s
 {
 	struct QCC_type_s *type;
+	QCC_sref_t defltvalue;
 	pbool optional;
-	pbool out;
+	unsigned char out;	//0=in,1==inout,2=out
 	unsigned int ofs;
 	unsigned int arraysize;
 	char *paramname;
@@ -392,18 +393,19 @@ typedef struct QCC_def_s
 	int arraysize;
 	//should really use proper flags
 	pbool funccalled:1;			//was called somewhere.
-	pbool read:1;			//variable was read
-	pbool written:1;		//variable was written
-	pbool referenced:1;		//was used somewhere in the code (even if it can still be stripped). this controls warnings only.
-	pbool shared:1;			//weird multiprogs flag thing.
-	pbool saved:1;			//def may be saved to saved games.
-	pbool isstatic:1;		//global, even if scoped. also specific to the file it was seen in.
-	pbool subscoped_away:1;	//this local is no longer linked into the locals hash table. don't do remove it twice.
+	pbool read:1;				//variable was read
+	pbool written:1;			//variable was written
+	pbool referenced:1;			//was used somewhere in the code (even if it can still be stripped). this controls warnings only.
+	pbool shared:1;				//weird multiprogs flag thing.
+	pbool saved:1;				//def may be saved to saved games.
+	pbool isstatic:1;			//global, even if scoped. also specific to the file it was seen in.
+	pbool subscoped_away:1;		//this local is no longer linked into the locals hash table. don't do remove it twice.
 //	pbool followptr:1;
-	pbool strip:1;			//info about this def should be stripped. it may still consume globals space however, and its storage can still be used, its just not visible.
-	pbool allowinline:1;	//calls to this function will attempt to inline the specified function. requires const, supposedly.
-	pbool used:1;			//if it remains 0, it may be stripped. this is forced for functions and fields. commonly 0 on fields.
-	pbool localscope:1;		//is a local, as opposed to a static (which is only visible within its scope)
+	pbool strip:1;				//info about this def should be stripped. it may still consume globals space however, and its storage can still be used, its just not visible.
+	pbool allowinline:1;		//calls to this function will attempt to inline the specified function. requires const, supposedly.
+	pbool used:1;				//if it remains 0, it may be stripped. this is forced for functions and fields. commonly 0 on fields.
+	pbool localscope:1;			//is a local, as opposed to a static (which is only visible within its scope)
+	pbool arraylengthprefix:1;	//hexen2 style arrays have a length prefixed to them for auto bounds checks. this can only work reliably for simple non-struct arrays.
 
 	int	fromstatement;		//statement that it is valid from.
 	temp_t *temp;
@@ -507,7 +509,8 @@ typedef struct
 
 	int namelen;
 } CompilerConstant_t;
-extern CompilerConstant_t *CompilerConstant;
+
+char *QCC_PR_GetDefinesList(void);
 
 //============================================================================
 
@@ -591,6 +594,7 @@ extern pbool flag_noboundchecks;
 extern pbool flag_brokenarrays;
 extern pbool flag_rootconstructor;
 extern pbool flag_guiannotate;
+extern pbool flag_qccx;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;
@@ -687,6 +691,8 @@ enum {
 	WARN_TOOMANYPARAMS,
 	WARN_UNEXPECTEDPUNCT,
 	WARN_UNINITIALIZED,
+	WARN_DENORMAL,
+	WARN_OVERFLOW,		//compile time overflow or inprecision.
 	WARN_ASSIGNMENTTOCONSTANT,
 	WARN_ASSIGNMENTTOCONSTANTFUNC,
 	WARN_MISSINGRETURNVALUE,
@@ -744,7 +750,9 @@ enum {
 	WARN_STRICTTYPEMISMATCH,	//self.think = T_Damage; both are functions, but the arguments/return types/etc differ.
 	WARN_MISUSEDAUTOCVAR,		//various issues with autocvar definitions.
 	WARN_IGNORECOMMANDLINE,
+	WARN_POINTERASSIGNMENT,		//&somefloat = 5; disabled for qccx compat sanity.
 	WARN_COMPATIBILITYHACK,		//work around old defs.qc or invalid dpextensions.qc
+	WARN_REDECLARATIONMISMATCH,
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 
@@ -948,6 +956,7 @@ void QCC_Cleanup(void);
 //=============================================================================
 
 extern char	pr_immediate_string[8192];
+extern size_t	pr_immediate_strlen;
 
 extern QCC_eval_t		*qcc_pr_globals;
 extern unsigned int	numpr_globals;
@@ -1017,6 +1026,7 @@ typedef struct qcc_includechunk_s {
 extern qcc_includechunk_t *currentchunk;
 
 int	QCC_CopyString (char *str);
+int	QCC_CopyStringLength (char *str, size_t length);
 
 
 

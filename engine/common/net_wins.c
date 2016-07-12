@@ -34,7 +34,8 @@ sizebuf_t	net_message;
 
 //#define	MAX_UDP_PACKET	(MAX_MSGLEN*2)	// one more than msg + header
 #define	MAX_UDP_PACKET	8192	// one more than msg + header
-qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
+//emscripten can misalign stuff, which is a problem when the leading int is checked directly in a few places. gah.
+FTE_ALIGN(4) qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
 #if defined(_WIN32) && defined(HAVE_PACKET)
 WSADATA		winsockdata;
 #endif
@@ -454,8 +455,6 @@ void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *da
 char	*NET_AdrToString (char *s, int len, netadr_t *a)
 {
 	char *rs = s;
-	char *p;
-	int i;
 #ifdef IPPROTO_IPV6
 	qboolean doneblank;
 #endif
@@ -512,81 +511,84 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
-
-		if (!*(int*)&a->address.ip6[0] && 
-			!*(int*)&a->address.ip6[4] &&
-			!*(short*)&a->address.ip6[8] &&
-			*(short*)&a->address.ip6[10] == (short)0xffff)
 		{
-			if (a->port)
-				snprintf (s, len, "%i.%i.%i.%i:%i",
-					a->address.ip6[12],
-					a->address.ip6[13],
-					a->address.ip6[14],
-					a->address.ip6[15],
-					ntohs(a->port));
-			else
-				snprintf (s, len, "%i.%i.%i.%i",
-					a->address.ip6[12],
-					a->address.ip6[13],
-					a->address.ip6[14],
-					a->address.ip6[15]);
-			break;
-		}
-		*s = 0;
-		doneblank = false;
-		p = s;
-		if (a->port)
-		{
-			snprintf (s, len-strlen(s), "[");
-			p += strlen(p);
-		}
-
-		for (i = 0; i < 16; i+=2)
-		{
-			if (doneblank!=true && a->address.ip6[i] == 0 && a->address.ip6[i+1] == 0)
+			char *p;
+			int i;
+			if (!*(int*)&a->address.ip6[0] && 
+				!*(int*)&a->address.ip6[4] &&
+				!*(short*)&a->address.ip6[8] &&
+				*(short*)&a->address.ip6[10] == (short)0xffff)
 			{
-				if (!doneblank)
-				{
-					snprintf (p, len-strlen(s), "::");
-					p += strlen(p);
-					doneblank = 2;
-				}
+				if (a->port)
+					snprintf (s, len, "%i.%i.%i.%i:%i",
+						a->address.ip6[12],
+						a->address.ip6[13],
+						a->address.ip6[14],
+						a->address.ip6[15],
+						ntohs(a->port));
+				else
+					snprintf (s, len, "%i.%i.%i.%i",
+						a->address.ip6[12],
+						a->address.ip6[13],
+						a->address.ip6[14],
+						a->address.ip6[15]);
+				break;
 			}
-			else
+			*s = 0;
+			doneblank = false;
+			p = s;
+			if (a->port)
 			{
-				if (doneblank==2)
-					doneblank = true;
-				else if (i != 0)
+				snprintf (s, len-strlen(s), "[");
+				p += strlen(p);
+			}
+
+			for (i = 0; i < 16; i+=2)
+			{
+				if (doneblank!=true && a->address.ip6[i] == 0 && a->address.ip6[i+1] == 0)
 				{
-					snprintf (p, len-strlen(s), ":");
-					p += strlen(p);
-				}
-				if (a->address.ip6[i+0])
-				{
-					snprintf (p, len-strlen(s), "%x%02x",
-						a->address.ip6[i+0],
-						a->address.ip6[i+1]);
+					if (!doneblank)
+					{
+						snprintf (p, len-strlen(s), "::");
+						p += strlen(p);
+						doneblank = 2;
+					}
 				}
 				else
 				{
-					snprintf (p, len-strlen(s), "%x",
-						a->address.ip6[i+1]);
+					if (doneblank==2)
+						doneblank = true;
+					else if (i != 0)
+					{
+						snprintf (p, len-strlen(s), ":");
+						p += strlen(p);
+					}
+					if (a->address.ip6[i+0])
+					{
+						snprintf (p, len-strlen(s), "%x%02x",
+							a->address.ip6[i+0],
+							a->address.ip6[i+1]);
+					}
+					else
+					{
+						snprintf (p, len-strlen(s), "%x",
+							a->address.ip6[i+1]);
+					}
+					p += strlen(p);
 				}
+			}
+
+			if (a->scopeid)
+			{
+				snprintf (p, len-strlen(s), "%%%u",
+					a->scopeid);
 				p += strlen(p);
 			}
-		}
 
-		if (a->scopeid)
-		{
-			snprintf (p, len-strlen(s), "%%%u",
-				a->scopeid);
-			p += strlen(p);
+			if (a->port)
+				snprintf (p, len-strlen(s), "]:%i",
+					ntohs(a->port));
 		}
-
-		if (a->port)
-			snprintf (p, len-strlen(s), "]:%i",
-				ntohs(a->port));
 		break;
 #endif
 #ifdef USEIPX
@@ -629,9 +631,6 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 
 char	*NET_BaseAdrToString (char *s, int len, netadr_t *a)
 {
-	int i, doneblank;
-	char *p;
-
 	switch(a->type)
 	{
 	case NA_BROADCAST_IP:
@@ -665,53 +664,57 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t *a)
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
-		if (!*(int*)&a->address.ip6[0] && 
-			!*(int*)&a->address.ip6[4] &&
-			!*(short*)&a->address.ip6[8] &&
-			*(short*)&a->address.ip6[10] == (short)0xffff)
 		{
-			snprintf (s, len, "%i.%i.%i.%i",
-				a->address.ip6[12],
-				a->address.ip6[13],
-				a->address.ip6[14],
-				a->address.ip6[15]);
-			break;
-		}
-		*s = 0;
-		doneblank = false;
-		p = s;
-		for (i = 0; i < 16; i+=2)
-		{
-			if (doneblank!=true && a->address.ip6[i] == 0 && a->address.ip6[i+1] == 0)
+			char *p;
+			int i, doneblank;
+			if (!*(int*)&a->address.ip6[0] && 
+				!*(int*)&a->address.ip6[4] &&
+				!*(short*)&a->address.ip6[8] &&
+				*(short*)&a->address.ip6[10] == (short)0xffff)
 			{
-				if (!doneblank)
-				{
-					snprintf (p, len-strlen(s), "::");
-					p += strlen(p);
-					doneblank = 2;
-				}
+				snprintf (s, len, "%i.%i.%i.%i",
+					a->address.ip6[12],
+					a->address.ip6[13],
+					a->address.ip6[14],
+					a->address.ip6[15]);
+				break;
 			}
-			else
+			*s = 0;
+			doneblank = false;
+			p = s;
+			for (i = 0; i < 16; i+=2)
 			{
-				if (doneblank==2)
-					doneblank = true;
-				else if (i != 0)
+				if (doneblank!=true && a->address.ip6[i] == 0 && a->address.ip6[i+1] == 0)
 				{
-					snprintf (p, len-strlen(s), ":");
-					p += strlen(p);
-				}
-				if (a->address.ip6[i+0])
-				{
-					snprintf (p, len-strlen(s), "%x%02x",
-						a->address.ip6[i+0],
-						a->address.ip6[i+1]);
+					if (!doneblank)
+					{
+						snprintf (p, len-strlen(s), "::");
+						p += strlen(p);
+						doneblank = 2;
+					}
 				}
 				else
 				{
-					snprintf (p, len-strlen(s), "%x",
-						a->address.ip6[i+1]);
+					if (doneblank==2)
+						doneblank = true;
+					else if (i != 0)
+					{
+						snprintf (p, len-strlen(s), ":");
+						p += strlen(p);
+					}
+					if (a->address.ip6[i+0])
+					{
+						snprintf (p, len-strlen(s), "%x%02x",
+							a->address.ip6[i+0],
+							a->address.ip6[i+1]);
+					}
+					else
+					{
+						snprintf (p, len-strlen(s), "%x",
+							a->address.ip6[i+1]);
+					}
+					p += strlen(p);
 				}
-				p += strlen(p);
 			}
 		}
 		break;
@@ -761,9 +764,6 @@ any form of ipv6, including port number.
 */
 size_t NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addresses)
 {
-	struct hostent	*h;
-	char	*colon;
-	char	copy[128];
 	size_t	result = 0;
 
 	if (!(*s) || !addresses)
@@ -775,6 +775,8 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qs
 	if ((strlen(s) >= 23) && (s[8] == ':') && (s[21] == ':'))	// check for an IPX address
 	{
 		unsigned int val;
+		char	copy[128];
+
 
 		((struct sockaddr_ipx *)sadr)->sa_family = AF_IPX;
 
@@ -925,6 +927,9 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qs
 #endif
 	{
 #ifdef HAVE_IPV4
+		char	copy[128];
+		char	*colon;
+
 		((struct sockaddr_in *)sadr)->sin_family = AF_INET;
 
 		((struct sockaddr_in *)sadr)->sin_port = 0;
@@ -949,6 +954,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qs
 		}
 		else
 		{
+			struct hostent	*h;
 			if (! (h = gethostbyname(copy)) )
 				return false;
 			if (h->h_addrtype != AF_INET)
@@ -1585,7 +1591,7 @@ qboolean NET_IsClientLegal(netadr_t *adr)
 
 	NetadrToSockadr (adr, &sadr);
 
-	if ((newsocket = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
+	if ((newsocket = socket (PF_INET, SOCK_CLOEXEC|SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
 		Sys_Error ("NET_IsClientLegal: socket:", strerror(qerrno));
 
 	sadr.sin_port = 0;
@@ -1652,7 +1658,7 @@ qboolean	NET_GetLoopPacket (int sock, netadr_t *from, sizebuf_t *message)
 }
 
 
-void NET_SendLoopPacket (int sock, int length, const void *data, netadr_t *to)
+neterr_t NET_SendLoopPacket (int sock, int length, const void *data, netadr_t *to)
 {
 	int		i;
 	loopback_t	*loop;
@@ -1661,7 +1667,7 @@ void NET_SendLoopPacket (int sock, int length, const void *data, netadr_t *to)
 
 	loop = &loopbacks[sock^1];
 	if (!loop->inited)
-		return;
+		return NETERR_NOROUTE;
 
 	i = loop->send & (MAX_LOOPBACK-1);
 	if (length > loop->msgs[i].datamax)
@@ -1677,6 +1683,7 @@ void NET_SendLoopPacket (int sock, int length, const void *data, netadr_t *to)
 
 	memcpy (loop->msgs[i].data, data, length);
 	loop->msgs[i].datalen = length;
+	return NETERR_SENT;
 }
 
 int FTENET_Loop_GetLocalAddresses(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses)
@@ -1704,15 +1711,14 @@ int FTENET_Loop_SetReceiveFDSet(ftenet_generic_connection_t *gcon, fd_set *fdset
 }
 #endif
 
-qboolean FTENET_Loop_SendPacket(ftenet_generic_connection_t *con, int length, const void *data, netadr_t *to)
+neterr_t FTENET_Loop_SendPacket(ftenet_generic_connection_t *con, int length, const void *data, netadr_t *to)
 {
 	if (to->type == NA_LOOPBACK)
 	{
-		NET_SendLoopPacket(con->thesocket, length, data, to);
-		return true;
+		return NET_SendLoopPacket(con->thesocket, length, data, to);
 	}
 
-	return false;
+	return NETERR_NOROUTE;
 }
 
 void FTENET_Loop_Close(ftenet_generic_connection_t *con)
@@ -1735,10 +1741,10 @@ static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean iss
 {
 	ftenet_generic_connection_t *newcon;
 	int sock;
-	for (sock = 0; sock < 2; sock++)
+	for (sock = 0; sock < countof(loopbacks); sock++)
 		if (!loopbacks[sock].inited)
 			break;
-	if (sock == 2)
+	if (sock == countof(loopbacks))
 		return NULL;
 	newcon = Z_Malloc(sizeof(*newcon));
 	if (newcon)
@@ -1774,8 +1780,12 @@ ftenet_connections_t *FTENET_CreateCollection(qboolean listen)
 #if !defined(SERVERONLY) && !defined(CLIENTONLY)
 static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 #endif
+#ifdef HAVE_IPV4
 static ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+#endif
+#ifdef IPPROTO_IPV6
 static ftenet_generic_connection_t *FTENET_UDP6_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+#endif
 #ifdef TCPCONNECT
 static ftenet_generic_connection_t *FTENET_TCP4Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 static ftenet_generic_connection_t *FTENET_TCP6Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
@@ -2018,7 +2028,7 @@ qboolean FTENET_NATPMP_GetPacket(struct ftenet_generic_connection_s *con)
 	}
 	return false;
 }
-qboolean FTENET_NATPMP_SendPacket(struct ftenet_generic_connection_s *con, int length, const void *data, netadr_t *to)
+neterr_t FTENET_NATPMP_SendPacket(struct ftenet_generic_connection_s *con, int length, const void *data, netadr_t *to)
 {
 	return false;
 }
@@ -2069,7 +2079,7 @@ static qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char
 		for (i = 0; i < MAX_CONNECTIONS; i++)
 		{
 			if (col->conn[i])
-			if (col->conn[i]->name && !strcmp(col->conn[i]->name, name))
+			if (*col->conn[i]->name && !strcmp(col->conn[i]->name, name))
 			{
 				if (adr && adr->type != NA_INVALID && islisten)
 				if (col->conn[i]->ChangeLocalAddress)
@@ -2110,7 +2120,7 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 	unsigned int i, j;
 	qboolean success = false;
 
-	if (strchr(name, ':'))
+	if (name && strchr(name, ':'))
 		return false;
 
 	for (i = 0; addresslist && *addresslist && i < countof(adr); i++)
@@ -2197,6 +2207,7 @@ void FTENET_CloseCollection(ftenet_connections_t *col)
 		if (col->conn[i])
 		{
 			col->conn[i]->Close(col->conn[i]);
+			col->conn[i] = NULL;
 		}
 	}
 	Z_Free(col);
@@ -2539,10 +2550,10 @@ qboolean FTENET_Generic_GetPacket(ftenet_generic_connection_t *con)
 #endif
 }
 
-qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length, const void *data, netadr_t *to)
+neterr_t FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length, const void *data, netadr_t *to)
 {
 #ifndef HAVE_PACKET
-	return false;
+	return NETERR_DISCONNECTED;
 #else
 	struct sockaddr_qstorage	addr;
 	int size;
@@ -2552,7 +2563,7 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 		if (to->type == con->addrtype[size])
 			break;
 	if (size == FTENET_ADDRTYPES)
-		return false;
+		return NETERR_NOROUTE;
 
 #ifdef IPPROTO_IPV6
 	/*special code to handle sending to hybrid sockets*/
@@ -2600,15 +2611,18 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 		int ecode = neterrno();
 // wouldblock is silent
 		if (ecode == NET_EWOULDBLOCK)
-			return true;
+			return NETERR_CLOGGED;
 
 		if (ecode == NET_ECONNREFUSED)
-			return true;
+			return NETERR_DISCONNECTED;
+
+		if (ecode == NET_EMSGSIZE)
+			return NETERR_MTU;
 
 		if (ecode == NET_EACCES)
 		{
 			Con_Printf("Access denied: check firewall\n");
-			return true;
+			return NETERR_DISCONNECTED;
 		}
 
 #ifndef SERVERONLY
@@ -2622,7 +2636,9 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 			Con_TPrintf ("NET_SendPacket ERROR: %s\n", strerror(ecode));
 #endif
 	}
-	return true;
+	else if (ret < length)
+		return NETERR_MTU;
+	return NETERR_SENT;
 #endif
 }
 
@@ -2691,7 +2707,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	if (isserver && family == AF_INET && net_hybriddualstack.ival && !((struct sockaddr_in*)&qs)->sin_addr.s_addr)
 	{
 		unsigned long _false = false;
-		if ((newsocket = socket (AF_INET6, SOCK_DGRAM, protocol)) != INVALID_SOCKET)
+		if ((newsocket = socket (AF_INET6, SOCK_CLOEXEC|SOCK_DGRAM, protocol)) != INVALID_SOCKET)
 		{
 			if (0 == setsockopt(newsocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&_false, sizeof(_false)))
 			{
@@ -2727,7 +2743,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 #endif
 
 	if (newsocket == INVALID_SOCKET)
-		if ((newsocket = socket (family, SOCK_DGRAM, protocol)) == INVALID_SOCKET)
+		if ((newsocket = socket (family, SOCK_CLOEXEC|SOCK_DGRAM, protocol)) == INVALID_SOCKET)
 		{
 			return NULL;
 		}
@@ -2899,7 +2915,7 @@ void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen)
 	*out = 0;
 }
 
-qboolean FTENET_TCPConnect_WebSocket_Splurge(ftenet_tcpconnect_stream_t *st, qbyte packettype, const qbyte *data, unsigned int length)
+neterr_t FTENET_TCPConnect_WebSocket_Splurge(ftenet_tcpconnect_stream_t *st, qbyte packettype, const qbyte *data, unsigned int length)
 {
 	/*as a server, we don't need the mask stuff*/
 	unsigned short ctrl = 0x8000 | (packettype<<8);
@@ -2923,8 +2939,10 @@ qboolean FTENET_TCPConnect_WebSocket_Splurge(ftenet_tcpconnect_stream_t *st, qby
 	else
 		ctrl |= paylen;
 
-	if (payoffs + 4 + paylen > sizeof(st->outbuffer))
-		return false;
+	if (6 + paylen > sizeof(st->outbuffer))
+		return NETERR_MTU;
+	if (payoffs + 6 + paylen > sizeof(st->outbuffer))
+		return NETERR_CLOGGED;
 
 	st->outbuffer[payoffs++] = ctrl>>8;
 	st->outbuffer[payoffs++] = ctrl&0xff;
@@ -2972,7 +2990,7 @@ qboolean FTENET_TCPConnect_WebSocket_Splurge(ftenet_tcpconnect_stream_t *st, qby
 			st->outlen -= done;
 		}
 	}
-	return true;
+	return NETERR_SENT;
 }
 
 #include "fs.h"
@@ -3535,7 +3553,7 @@ handshakeerror:
 					goto closesvstream;
 				case 0x9:	/*ping*/
 					Con_Printf ("websocket ping from %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
-					if (!FTENET_TCPConnect_WebSocket_Splurge(st, 0xa, st->inbuffer+payoffs, paylen))
+					if (FTENET_TCPConnect_WebSocket_Splurge(st, 0xa, st->inbuffer+payoffs, paylen) != NETERR_SENT)
 						goto closesvstream;
 					break;
 				case 0xa: /*pong*/
@@ -3588,7 +3606,7 @@ handshakeerror:
 #ifdef HAVE_SSL
 			if (con->tls)	//if we're meant to be using tls, wrap the stream in a tls connection
 			{
-				st->clientstream = FS_OpenSSL(NULL, st->clientstream, true);
+				st->clientstream = FS_OpenSSL(NULL, st->clientstream, true, false);
 				/*sockadr doesn't contain transport info, so fix that up here*/
 				if (st->remoteaddr.type == NA_IP)
 					st->remoteaddr.type = NA_TLSV4;
@@ -3611,8 +3629,9 @@ handshakeerror:
 	return false;
 }
 
-qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int length, const void *data, netadr_t *to)
+neterr_t FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int length, const void *data, netadr_t *to)
 {
+	neterr_t e;
 	ftenet_tcpconnect_connection_t *con = (ftenet_tcpconnect_connection_t*)gcon;
 	ftenet_tcpconnect_stream_t *st;
 
@@ -3630,9 +3649,14 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 				case TCPC_QIZMO:
 					{
 						unsigned short slen = BigShort((unsigned short)length);
+						if (length > 0xffff)
+							return NETERR_MTU;
 						if (st->outlen + sizeof(slen) + length > sizeof(st->outbuffer))
 						{
+							if (length+sizeof(slen) > sizeof(st->outbuffer))
+								return NETERR_MTU;
 							Con_DPrintf("FTENET_TCPConnect_SendPacket: outgoing overflow\n");
+							return NETERR_CLOGGED;
 						}
 						else
 						{
@@ -3645,6 +3669,8 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 				case TCPC_UNFRAMED:
 					if (length > sizeof(st->outbuffer))
 					{
+						if (length > 0xffff)
+							return NETERR_MTU;
 						Con_DPrintf("FTENET_TCPConnect_SendPacket: outgoing overflow\n");
 					}
 					memcpy(st->outbuffer, data, length);
@@ -3661,7 +3687,9 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 					//fallthrough
 				case TCPC_WEBSOCKETU:
 				case TCPC_WEBSOCKETB:
-					FTENET_TCPConnect_WebSocket_Splurge(st, (st->clienttype==TCPC_WEBSOCKETU)?1:2, data, length);
+					e = FTENET_TCPConnect_WebSocket_Splurge(st, (st->clienttype==TCPC_WEBSOCKETU)?1:2, data, length);
+					if (e != NETERR_SENT)
+						return e;
 					break;
 				default:
 					break;
@@ -3681,10 +3709,10 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 
 			st->timeouttime = Sys_DoubleTime() + 20;
 
-			return true;
+			return NETERR_SENT;
 		}
 	}
-	return false;
+	return NETERR_NOROUTE;
 }
 
 void FTENET_TCPConnect_Close(ftenet_generic_connection_t *gcon)
@@ -3849,7 +3877,7 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 
 #ifdef HAVE_SSL
 			if (newcon->tls)	//if we're meant to be using tls, wrap the stream in a tls connection
-				newcon->tcpstreams->clientstream = FS_OpenSSL(address, newcon->tcpstreams->clientstream, false);
+				newcon->tcpstreams->clientstream = FS_OpenSSL(address, newcon->tcpstreams->clientstream, false, false);
 #endif
 
 #ifdef FTE_TARGET_WEB
@@ -4308,7 +4336,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 
 	return false;
 }
-qboolean FTENET_IRCConnect_SendPacket(ftenet_generic_connection_t *gcon, int length, const void *data, netadr_t *to)
+neterr_t FTENET_IRCConnect_SendPacket(ftenet_generic_connection_t *gcon, int length, const void *data, netadr_t *to)
 {
 	ftenet_ircconnect_connection_t *con = (ftenet_ircconnect_connection_t*)gcon;
 
@@ -4322,12 +4350,12 @@ qboolean FTENET_IRCConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 		if (to->type == con->generic.addrtype[packed])
 			break;
 	if (packed == FTENET_ADDRTYPES)
-		return false;
+		return NETERR_NOROUTE;
 
 	packed = 0;
 
 	if (con->generic.thesocket == INVALID_SOCKET)
-		return true;
+		return NETERR_DISCONNECTED;
 /*
 	if (*(unsigned int *)data == ~0 && !strchr(data, '\n') && !strchr(data, '\r') && strlen(data) == length)
 	{
@@ -4430,7 +4458,7 @@ qboolean FTENET_IRCConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 		memmove(con->outbuf, con->outbuf+length, con->outbufcount-length);
 		con->outbufcount -= length;
 	}
-	return true;
+	return NETERR_SENT;
 }
 void FTENET_IRCConnect_Close(ftenet_generic_connection_t *gcon)
 {
@@ -4489,20 +4517,20 @@ struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboole
 
 typedef struct
 {
-    ftenet_generic_connection_t generic;
+	ftenet_generic_connection_t generic;
 	int sock;
-    netadr_t remoteadr;
-    qboolean failed;
+	netadr_t remoteadr;
+	qboolean failed;
 } ftenet_websocket_connection_t;
 
 static void FTENET_WebSocket_Close(ftenet_generic_connection_t *gcon)
 {
-    ftenet_websocket_connection_t *wsc = (void*)gcon;
+	ftenet_websocket_connection_t *wsc = (void*)gcon;
 	emscriptenfte_ws_close(wsc->sock);
 }
 static qboolean FTENET_WebSocket_GetPacket(ftenet_generic_connection_t *gcon)
 {
-    ftenet_websocket_connection_t *wsc = (void*)gcon;
+	ftenet_websocket_connection_t *wsc = (void*)gcon;
 	net_message.cursize = emscriptenfte_ws_recv(wsc->sock, net_message_buffer, sizeof(net_message_buffer));
 	if (net_message.cursize > 0)
 	{
@@ -4512,55 +4540,52 @@ static qboolean FTENET_WebSocket_GetPacket(ftenet_generic_connection_t *gcon)
 	net_message.cursize = 0;//just incase
 	return false;
 }
-static qboolean FTENET_WebSocket_SendPacket(ftenet_generic_connection_t *gcon, int length, const void *data, netadr_t *to)
+static neterr_t FTENET_WebSocket_SendPacket(ftenet_generic_connection_t *gcon, int length, const void *data, netadr_t *to)
 {
-    ftenet_websocket_connection_t *wsc = (void*)gcon;
+	ftenet_websocket_connection_t *wsc = (void*)gcon;
 	if (NET_CompareAdr(to, &wsc->remoteadr))
 	{
 		if (emscriptenfte_ws_send(wsc->sock, data, length) < 0)
-			return false;
-    	return true;
+			return NETERR_CLOGGED;
+		return NETERR_SENT;
 	}
-	return false;
+	return NETERR_NOROUTE;
 }
 
 
-static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address)
+static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {
-    ftenet_websocket_connection_t *newcon;
+	ftenet_websocket_connection_t *newcon;
 
-    netadr_t adr;
 	int newsocket;
 
-    if (isserver)
-    {
-        return NULL;
-    }
-    if (!NET_StringToAdr(address, 80, &adr))
-        return NULL;    //couldn't resolve the name
+	if (isserver)
+	{
+		return NULL;
+	}
 	newsocket = emscriptenfte_ws_connect(address);
 	if (newsocket < 0)
 		return NULL;
-    newcon = Z_Malloc(sizeof(*newcon));
-    if (newcon)
-    {
-        Q_strncpyz(newcon->generic.name, "WebSocket", sizeof(newcon->generic.name));
-        newcon->generic.GetPacket = FTENET_WebSocket_GetPacket;
-        newcon->generic.SendPacket = FTENET_WebSocket_SendPacket;
-        newcon->generic.Close = FTENET_WebSocket_Close;
+	newcon = Z_Malloc(sizeof(*newcon));
+	if (newcon)
+	{
+		Q_strncpyz(newcon->generic.name, "WebSocket", sizeof(newcon->generic.name));
+		newcon->generic.GetPacket = FTENET_WebSocket_GetPacket;
+		newcon->generic.SendPacket = FTENET_WebSocket_SendPacket;
+		newcon->generic.Close = FTENET_WebSocket_Close;
 
-        newcon->generic.islisten = isserver;
-        newcon->generic.addrtype[0] = NA_WEBSOCKET;
-        newcon->generic.addrtype[1] = NA_INVALID;
+		newcon->generic.islisten = isserver;
+		newcon->generic.addrtype[0] = NA_WEBSOCKET;
+		newcon->generic.addrtype[1] = NA_INVALID;
 
-        newcon->generic.thesocket = INVALID_SOCKET;
-        newcon->sock = newsocket;
+		newcon->generic.thesocket = INVALID_SOCKET;
+		newcon->sock = newsocket;
 
-        newcon->remoteadr = adr;
+		newcon->remoteadr = adr;
 
-        return &newcon->generic;
-    }
-    return NULL;
+		return &newcon->generic;
+	}
+	return NULL;
 }
 
 #endif
@@ -4770,18 +4795,18 @@ static qboolean FTENET_NaClWebSocket_GetPacket(ftenet_generic_connection_t *gcon
 
 	return false;
 }
-static qboolean FTENET_NaClWebSocket_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t *to)
+static neterr_t FTENET_NaClWebSocket_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t *to)
 {
 	ftenet_websocket_connection_t *wsc = (void*)gcon;
 	int res;
 	if (wsc->failed)
-		return false;
+		return NETERR_DISCONNECTED;
 
 #if 0
 	struct PP_Var str = ppb_vararraybuffer_interface->Create(length);
 	void *out = ppb_vararraybuffer_interface->Map(wsc->incomingpacket);
 	if (!out)
-		return false;
+		return NETERR_MTU;
 	memcpy(out, data, length);
 	ppb_vararraybuffer_interface->Unmap(wsc->incomingpacket);
 #else
@@ -4812,7 +4837,7 @@ static qboolean FTENET_NaClWebSocket_SendPacket(ftenet_generic_connection_t *gco
 	res = ppb_websocket_interface->SendMessage(wsc->sock, str);
 //	Sys_Printf("FTENET_WebSocket_SendPacket: result %i\n", res);
 	ppb_var_interface->Release(str);
-	return true;
+	return NETERR_SENT;
 }
 
 /*nacl websockets implementation...*/
@@ -4859,8 +4884,24 @@ static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolea
 
 qboolean NET_GetRates(ftenet_connections_t *collection, float *pi, float *po, float *bi, float *bo)
 {
+	int ctime;
 	if (!collection)
 		return false;
+
+	ctime = Sys_Milliseconds();
+	if ((ctime - collection->timemark) > 1000)
+	{
+		float secs = (ctime - collection->timemark) / 1000.0f;
+		collection->packetsinrate = collection->packetsin * secs;
+		collection->packetsoutrate = collection->packetsout * secs;
+		collection->bytesinrate = collection->bytesin * secs;
+		collection->bytesoutrate = collection->bytesout * secs;
+		collection->packetsin = 0;
+		collection->packetsout = 0;
+		collection->bytesin = 0;
+		collection->bytesout = 0;
+		collection->timemark = ctime;
+	}
 
 	*pi = collection->packetsinrate;
 	*po = collection->packetsoutrate;
@@ -4868,6 +4909,43 @@ qboolean NET_GetRates(ftenet_connections_t *collection, float *pi, float *po, fl
 	*bo = collection->bytesoutrate;
 	return true;
 }
+
+#ifndef SERVERONLY
+//for demo playback
+qboolean NET_UpdateRates(ftenet_connections_t *collection, qboolean inbound, size_t size)
+{
+	int ctime;
+	if (!collection)
+		return false;
+	
+	if (inbound)
+	{
+		cls.sockets->bytesin += size;
+		cls.sockets->packetsin += 1;
+	}
+	else
+	{
+		cls.sockets->bytesout += size;
+		cls.sockets->packetsout += 1;
+	}
+
+	ctime = Sys_Milliseconds();
+	if ((ctime - collection->timemark) > 1000)
+	{
+		float secs = (ctime - collection->timemark) / 1000.0f;
+		collection->packetsinrate = collection->packetsin * secs;
+		collection->packetsoutrate = collection->packetsout * secs;
+		collection->bytesinrate = collection->bytesin * secs;
+		collection->bytesoutrate = collection->bytesout * secs;
+		collection->packetsin = 0;
+		collection->packetsout = 0;
+		collection->bytesin = 0;
+		collection->bytesout = 0;
+		collection->timemark = ctime;
+	}
+	return true;
+}
+#endif
 
 /*firstsock is a cookie*/
 int NET_GetPacket (netsrc_t netsrc, int firstsock)
@@ -4950,8 +5028,9 @@ int NET_LocalAddressForRemote(ftenet_connections_t *collection, netadr_t *remote
 	return collection->conn[remote->connum-1]->GetLocalAddresses(collection->conn[remote->connum-1], &adrflags, local, 1);
 }
 
-qboolean NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t *to)
+neterr_t NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t *to)
 {
+	neterr_t err;
 //	char buffer[64];
 	ftenet_connections_t *collection;
 	int i;
@@ -4960,7 +5039,7 @@ qboolean NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t
 	{
 #ifdef CLIENTONLY
 		Sys_Error("NET_GetPacket: Bad netsrc");
-		return false;
+		return NETERR_NOROUTE;
 #else
 		collection = svs.sockets;
 #endif
@@ -4969,14 +5048,14 @@ qboolean NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t
 	{
 #ifdef SERVERONLY
 		Sys_Error("NET_GetPacket: Bad netsrc");
-		return false;
+		return NETERR_NOROUTE;
 #else
 		collection = cls.sockets;
 #endif
 	}
 
 	if (!collection)
-		return false;
+		return NETERR_NOROUTE;
 
 	if (net_fakeloss.value)
 	{
@@ -4984,35 +5063,53 @@ qboolean NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t
 		{
 			collection->bytesout += length;
 			collection->packetsout += 1;
-			return true;
+			return NETERR_SENT;
 		}
 	}
 
 	if (to->connum)
 	{
 		if (collection->conn[to->connum-1])
-			if (collection->conn[to->connum-1]->SendPacket(collection->conn[to->connum-1], length, data, to))
+		{
+			err = collection->conn[to->connum-1]->SendPacket(collection->conn[to->connum-1], length, data, to);
+			if (err != NETERR_NOROUTE)
 			{
+				/*if (err == NETERR_DISCONNECTED)
+				{
+					collection->conn[i]->Close(collection->conn[i]);
+					collection->conn[i] = NULL;
+					continue;
+				}*/
+
 				collection->bytesout += length;
 				collection->packetsout += 1;
-				return true;
+				return err;
 			}
+		}
 	}
 
 	for (i = 0; i < MAX_CONNECTIONS; i++)
 	{
 		if (!collection->conn[i])
 			continue;
-		if (collection->conn[i]->SendPacket(collection->conn[i], length, data, to))
+		err = collection->conn[i]->SendPacket(collection->conn[i], length, data, to);
+		if (err != NETERR_NOROUTE)
 		{
+			/*if (err == NETERR_DISCONNECTED)
+			{
+				collection->conn[i]->Close(collection->conn[i]);
+				collection->conn[i] = NULL;
+				continue;
+			}*/
+
 			collection->bytesout += length;
 			collection->packetsout += 1;
-			return true;
+			return err;
 		}
 	}
 
 //	Con_Printf("No route to %s - try reconnecting\n", NET_AdrToString(buffer, sizeof(buffer), to));
-	return false;
+	return NETERR_NOROUTE;
 }
 
 qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host, qboolean islisten)
@@ -5111,7 +5208,7 @@ enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc)
 			scope = ASCOPE_LAN, desc = "private";
 		else if ((*(int*)adr->address.ip&BigLong(0xffff0000)) == BigLong(0xc0a80000))	//192.168.x.x/16
 			scope = ASCOPE_LAN, desc = "private";
-		else if ((*(int*)adr->address.ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//10.64.x.x/10
+		else if ((*(int*)adr->address.ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//100.64.x.x/10
 			scope = ASCOPE_LAN, desc = "CGNAT";
 		else if (*(int*)adr->address.ip == BigLong(0x00000000))	//0.0.0.0/32
 			scope = ASCOPE_LAN, desc = "any";
@@ -5176,7 +5273,7 @@ int TCP_OpenStream (netadr_t *remoteaddr)
 
 	temp = NetadrToSockadr(remoteaddr, &qs);
 
-	if ((newsocket = socket (((struct sockaddr_in*)&qs)->sin_family, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
+	if ((newsocket = socket (((struct sockaddr_in*)&qs)->sin_family, SOCK_CLOEXEC|SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 		return (int)INVALID_SOCKET;
 
 	setsockopt(newsocket, SOL_SOCKET, SO_RCVBUF, (void*)&recvbufsize, sizeof(recvbufsize));
@@ -5303,7 +5400,7 @@ int UDP_OpenSocket (int port, qboolean bcast)
 	int i;
 int maxport = port + 100;
 
-	if ((newsocket = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
+	if ((newsocket = socket (PF_INET, SOCK_CLOEXEC|SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
 		return (int)INVALID_SOCKET;
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
@@ -5362,7 +5459,7 @@ int maxport = port + 100;
 
 	memset(&address, 0, sizeof(address));
 
-	if ((newsocket = socket (PF_INET6, SOCK_DGRAM, 0)) == INVALID_SOCKET)
+	if ((newsocket = socket (PF_INET6, SOCK_CLOEXEC|SOCK_DGRAM, 0)) == INVALID_SOCKET)
 	{
 		Con_Printf("IPV6 is not supported: %s\n", strerror(neterrno()));
 		return (int)INVALID_SOCKET;
@@ -5443,7 +5540,7 @@ int IPX_OpenSocket (int port, qboolean bcast)
 	struct sockaddr_ipx	address;
 	u_long					_true = 1;
 
-	if ((newsocket = socket (PF_IPX, SOCK_DGRAM, NSPROTO_IPX)) == INVALID_SOCKET)
+	if ((newsocket = socket (PF_IPX, SOCK_CLOEXEC|SOCK_DGRAM, NSPROTO_IPX)) == INVALID_SOCKET)
 	{
 		int e = neterrno();
 		if (e != NET_EAFNOSUPPORT)
@@ -5540,16 +5637,18 @@ qboolean NET_Sleep(float seconds, qboolean stdinissocket)
 		}
 	}
 
-	if (seconds > 4000)	//realy? oh well.
-		seconds = 4000;
-	usec = seconds*1000*1000;
-	usec += 1000;	//slight extra delay, to ensure we don't wake up with nothing to do.
-	timeout.tv_sec = usec/(1000*1000);
-	timeout.tv_usec = usec;
+	if (seconds > 4.0)	//realy? oh well.
+		seconds = 4.0;
 	if (maxfd == -1)
 		Sys_Sleep(seconds);
 	else
+	{
+		usec = seconds*1000*1000;
+		usec += 1000;	//slight extra delay, to ensure we don't wake up with nothing to do.
+		timeout.tv_sec = usec/(1000*1000);
+		timeout.tv_usec = usec;
 		select(maxfd+1, &fdset, NULL, NULL, &timeout);
+	}
 
 	if (stdinissocket)
 		return FD_ISSET(0, &fdset);
@@ -5583,7 +5682,7 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 	if (getsockname (socket, (struct sockaddr *)&address, &namelen) == -1)
 	{
 		notvalid = true;
-		NET_StringToSockaddr("0.0.0.0", 0, (struct sockaddr_qstorage *)&address, NULL, NULL);
+		NET_StringToSockaddr2("0.0.0.0", 0, (struct sockaddr_qstorage *)&address, NULL, NULL, 1);
 //		Sys_Error ("NET_Init: getsockname:", strerror(qerrno));
 	}
 
@@ -6022,6 +6121,9 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 				case NET_ECONNABORTED:
 					Con_DPrintf("connection to \"%s\" aborted\n", tf->peer);
 					break;
+				case NET_ETIMEDOUT:
+					Con_Printf("connection to \"%s\" timed out\n", tf->peer);
+					break;
 				case NET_ECONNREFUSED:
 					Con_DPrintf("connection to \"%s\" refused\n", tf->peer);
 					break;
@@ -6097,6 +6199,9 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 		{
 		case NET_EWOULDBLOCK:
 			return 0;	//nothing available yet.
+		case NET_ETIMEDOUT:
+			Con_Printf("connection to \"%s\" timed out\n", tf->peer);
+			return -1;	//don't bother trying to read if we never connected.
 		case NET_ENOTCONN:
 			Con_Printf("connection to \"%s\" failed\n", tf->peer);
 			return -1;	//don't bother trying to read if we never connected.

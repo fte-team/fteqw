@@ -391,7 +391,7 @@ typedef enum
 } DSPROPERTY_EAX_BUFFERPROPERTY;
 #endif
 
-static void DSOUND_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)
+static void DSOUND_SetReverb(soundcardinfo_t *sc, size_t reverb)
 {
 #ifdef _IKsPropertySet_
 	dshandle_t *dh = sc->handle;
@@ -408,7 +408,7 @@ static void DSOUND_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)
 			DSPROPERTY_EAXLISTENER_ALLPARAMETERS, 0, 0, &ListenerProperties,
 			sizeof(ListenerProperties), &p);
 */
-		if (underwater)
+		if (reverb)
 		{
 #if 1 //phycotic.
 			ListenerProperties.flEnvironmentSize = 2.8;
@@ -855,7 +855,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 
 	sc->Lock		= DSOUND_Lock;
 	sc->Unlock		= DSOUND_Unlock;
-	sc->SetWaterDistortion	= DSOUND_SetUnderWater;
+	sc->SetEnvironmentReverb	= DSOUND_SetReverb;
 	sc->Submit		= DSOUND_Submit;
 	sc->Shutdown	= DSOUND_Shutdown;
 	sc->GetDMAPos	= DSOUND_GetDMAPos;
@@ -968,7 +968,7 @@ static qboolean QDECL DSOUND_InitCard (soundcardinfo_t *sc, const char *device)
 		return DSOUND_InitCard_Internal(sc, sc->name);
 }
 
-#define SDRVNAME "DirectSound"
+#define SDRVNAME "DSound"
 static BOOL (CALLBACK  DSound_EnumCallback)(GUID FAR *guid, LPCSTR str1, LPCSTR str2, LPVOID parm)
 {
 	char guidbuf[128];
@@ -979,7 +979,7 @@ static BOOL (CALLBACK  DSound_EnumCallback)(GUID FAR *guid, LPCSTR str1, LPCSTR 
 
 	StringFromGUID2(guid, mssuck, sizeof(mssuck)/sizeof(mssuck[0]));
 	wcstombs(guidbuf, mssuck, sizeof(guidbuf));
-	callback(SDRVNAME, guidbuf, str1);
+	callback(SDRVNAME, guidbuf, va("DS: %s", str1));
 	return TRUE;
 }
 static qboolean QDECL DSOUND_Enumerate(void (QDECL *cb) (const char *drivername, const char *devicecode, const char *readablename))

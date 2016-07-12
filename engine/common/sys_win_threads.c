@@ -108,6 +108,8 @@ unsigned int WINAPI threadwrapper(void *args)
 		dllfunction_t dbgfuncs[] = {{(void*)&pAddVectoredExceptionHandler, "AddVectoredExceptionHandler"}, {NULL,NULL}};
 		if (Sys_LoadLibrary("kernel32.dll", dbgfuncs) && pAddVectoredExceptionHandler)
 			pAddVectoredExceptionHandler(0, nonmsvc_CrashExceptionHandler);
+		free(args);
+		tw.func(tw.args);
 #endif
 	}
 	else
@@ -142,7 +144,7 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 #ifdef WIN32CRTDLL
 	ctx->handle = (HANDLE)CreateThread(NULL, stacksize, &threadwrapper, (void *)tw, 0, &ctx->threadid);
 #else
-	ctx->handle = (HANDLE)_beginthreadex(NULL, stacksize, &threadwrapper, (void *)tw, 0, &ctx->threadid);
+	ctx->handle = (HANDLE)_beginthreadex(NULL, stacksize, &threadwrapper, (void *)tw, 0, (unsigned int*)&ctx->threadid);
 #endif
 	if (!ctx->handle)
 	{
@@ -197,7 +199,22 @@ qboolean Sys_IsThread(void *thread)
 Note that a 'mutex' in win32 terminology is a cross-process/kernel object
 A critical section is a single-process object, and thus can be provided more cheaply
 */
-void *Sys_CreateMutex(void)
+#ifdef USE_MSVCRT_DEBUG
+void *Sys_CreateMutexNamed(char *file, int line)
+{
+#ifdef _DEBUG
+	//linux's pthread code doesn't like me recursively locking mutexes, so add some debug-only code to catch that on windows too so that we don't get nasty surprises.
+	CRITICAL_SECTION *mutex = _malloc_dbg(sizeof(*mutex)+sizeof(int), _NORMAL_BLOCK, file, line);
+	*(int*)(1+(CRITICAL_SECTION*)mutex) = 0;
+#else
+	CRITICAL_SECTION *mutex = _malloc_dbg(sizeof(*mutex), _NORMAL_BLOCK, file, line);
+#endif
+	InitializeCriticalSection(mutex);
+	return (void *)mutex;
+}
+#undef Sys_CreateMutex
+#endif
+void *QDECL Sys_CreateMutex(void)
 {
 #ifdef _DEBUG
 	//linux's pthread code doesn't like me recursively locking mutexes, so add some debug-only code to catch that on windows too so that we don't get nasty surprises.
@@ -231,9 +248,9 @@ void *Sys_CreateMutex(void)
 	return false;
 }*/
 
-qboolean Sys_LockMutex(void *mutex)
+qboolean QDECL Sys_LockMutex(void *mutex)
 {
-#ifdef _DEBUG
+#if 0//def _DEBUG
 	if (!mutex)
 	{
 		Con_Printf("Invalid mutex\n");
@@ -249,7 +266,7 @@ qboolean Sys_LockMutex(void *mutex)
 	return true;
 }
 
-qboolean Sys_UnlockMutex(void *mutex)
+qboolean QDECL Sys_UnlockMutex(void *mutex)
 {
 #ifdef _DEBUG
 	*(int*)(1+(CRITICAL_SECTION*)mutex)-=1;
@@ -258,7 +275,7 @@ qboolean Sys_UnlockMutex(void *mutex)
 	return true;
 }
 
-void Sys_DestroyMutex(void *mutex)
+void QDECL Sys_DestroyMutex(void *mutex)
 {
 	DeleteCriticalSection(mutex);
 	free(mutex);
@@ -368,7 +385,7 @@ qboolean Sys_ConditionWait(void *condv)
 	}
 
 	EnterCriticalSection(&cv->mainlock); // lock as per condition variable definition
-	return true;
+	return success;
 }
 
 qboolean Sys_ConditionSignal(void *condv)

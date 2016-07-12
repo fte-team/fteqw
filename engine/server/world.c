@@ -541,6 +541,14 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		VectorAdd (ent->v->origin, ent->v->maxs, ent->v->absmax);
 	}
 
+	{
+		unsigned int mdl = ent->v->modelindex;
+		if (mdl < MAX_PRECACHE_MODELS && sv.models[mdl] && sv.models[mdl]->type == mod_brush)
+			ent->solidsize = ES_SOLID_BSP;
+		else
+			ent->solidsize = COM_EncodeSize(ent->v->mins, ent->v->maxs);
+	}
+
 //
 // to make items easier to pick up and allow them to be grabbed off
 // of shelves, the abs sizes are expanded
@@ -618,7 +626,7 @@ void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent)
 	int			leafs[MAX_TOTAL_ENT_LEAFS];
 	int			clusters[MAX_TOTAL_ENT_LEAFS];
 	int			num_leafs;
-	int			i, j, k;
+	int			i, j;
 	int			area;
 	int			topnode;
 
@@ -637,6 +645,8 @@ void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent)
 	// encode the size into the entity_state for client prediction
 	if (ent->solid == Q2SOLID_BBOX && !(ent->svflags & SVF_DEADMONSTER))
 	{	// assume that x/y are equal and symetric
+		ent->s.solid = COM_EncodeSize(ent->mins, ent->maxs);
+		/*
 		i = ent->maxs[0]/8;
 		if (i<1)
 			i = 1;
@@ -657,11 +667,12 @@ void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent)
 		if (k>63)
 			k = 63;
 
-		ent->s.solid = (k<<10) | (j<<5) | i;
+		//fixme: 32bit?
+		ent->s.solid = (k<<10) | (j<<5) | i;*/
 	}
 	else if (ent->solid == Q2SOLID_BSP)
 	{
-		ent->s.solid = 31;		// a solid_bbox will never create this value
+		ent->s.solid = ES_SOLID_BSP;		// a solid_bbox will never create this value
 	}
 	else
 		ent->s.solid = 0;
@@ -1013,7 +1024,7 @@ qboolean World_TransformedTrace (struct model_s *model, int hulloverride, int fr
 
 	memset (trace, 0, sizeof(trace_t));
 	trace->fraction = 1;
-	trace->allsolid = false;
+	trace->allsolid = true;
 	trace->startsolid = false;
 	trace->inopen = true;	//probably wrong...
 	VectorCopy (end, trace->endpos);
@@ -1841,7 +1852,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 
 	memset ( &clip, 0, sizeof ( moveclip_t ) );
 
-	if (passedict && passedict->xv->hull)
+	if (passedict && passedict->xv->hull && !(type & MOVE_IGNOREHULL))
 		hullnum = passedict->xv->hull;
 #ifdef CLIENTONLY
 	else
@@ -1876,11 +1887,15 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 	}
 #endif
 
-	if (passedict->xv->hitcontentsmask)
+	if (passedict->xv->hitcontentsmaski)
+		clip.hitcontentsmask = passedict->xv->hitcontentsmaski;
+/*#ifndef NOLEGACY
+	else if (passedict->xv->hitcontentsmask)
 		clip.hitcontentsmask = passedict->xv->hitcontentsmask;
+#endif*/
 	else if (type & MOVE_NOMONSTERS)
 		clip.hitcontentsmask = MASK_WORLDSOLID; /*solid only to world*/
-	else if (maxs[0] - mins[0])
+	else if (maxs[0] - mins[0] > 0)
 		clip.hitcontentsmask = MASK_BOXSOLID;	/*impacts playerclip*/
 	else
 		clip.hitcontentsmask = MASK_POINTSOLID;		/*ignores playerclip but hits everything else*/
@@ -2104,6 +2119,7 @@ qboolean QDECL World_RegisterPhysicsEngine(const char *enginename, void(QDECL*st
 }
 void World_RBE_Shutdown(world_t *world)
 {
+#ifdef USERBE
 	unsigned int u;
 	wedict_t *ed;
 	if (!world->rbe)
@@ -2119,6 +2135,7 @@ void World_RBE_Shutdown(world_t *world)
 		}
 	}
 	world->rbe->End(world);
+#endif
 }
 void QDECL World_UnregisterPhysicsEngine(const char *enginename)
 {

@@ -112,7 +112,7 @@ static unsigned int QDECL FSPAK_FLocate(searchpathfuncs_t *handle, flocation_t *
 	{
 		for (i=0 ; i<pak->numfiles ; i++)	//look for the file
 		{
-			if (!strcmp (pak->files[i].name, filename))
+			if (!Q_strcasecmp (pak->files[i].name, filename))
 			{
 				pf = &pak->files[i];
 				break;
@@ -304,7 +304,7 @@ Loads the header and directory, adding the files at the beginning
 of the list so they override previous pack files.
 =================
 */
-searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, const char *desc)
+searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, const char *desc, const char *prefix)
 {
 	dpackheader_t	header;
 	int				i;
@@ -320,6 +320,9 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, const char *desc)
 	packhandle = file;
 	if (packhandle == NULL)
 		return NULL;
+
+	if (prefix && *prefix)
+		return NULL;	//not supported at this time
 
 	read = VFS_READ(packhandle, &header, sizeof(header));
 	if (read < sizeof(header) || header.id[0] != 'P' || header.id[1] != 'A'
@@ -402,7 +405,7 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, const char *desc)
 }
 
 #ifdef DOOMWADS
-searchpathfuncs_t *QDECL FSDWD_LoadArchive (vfsfile_t *packhandle, const char *desc)
+searchpathfuncs_t *QDECL FSDWD_LoadArchive (vfsfile_t *packhandle, const char *desc, const char *prefix)
 {
 	dwadheader_t	header;
 	int				i;
@@ -418,6 +421,9 @@ searchpathfuncs_t *QDECL FSDWD_LoadArchive (vfsfile_t *packhandle, const char *d
 
 	if (packhandle == NULL)
 		return NULL;
+
+	if (prefix && *prefix)
+		return NULL;	//not supported at this time
 
 	VFS_READ(packhandle, &header, sizeof(header));
 	if (header.id[1] != 'W'	|| header.id[2] != 'A' || header.id[3] != 'D')

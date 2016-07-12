@@ -64,8 +64,12 @@ void Sys_Error(const char *format, ...)
 	char		string[1024];
 
 	va_start (argptr, format);
+#ifdef _WIN32
 	_vsnprintf (string,sizeof(string)-1, format,argptr);
 	string[sizeof(string)-1] = 0;
+#else
+	vsnprintf (string,sizeof(string), format,argptr);
+#endif
 	va_end (argptr);
 
 	printf("%s", string);
@@ -84,8 +88,10 @@ int main(int argc, char **argv)
 {
 	int httpport = 80;
 	int arg = 1;
+#ifdef _WIN32
 	WSADATA pointlesscrap;
 	WSAStartup(2, &pointlesscrap);
+#endif
 
 	if (arg < argc && atoi(argv[arg]))
 		httpport = atoi(argv[arg++]);
@@ -105,10 +111,15 @@ int main(int argc, char **argv)
 //		FTP_ServerRun(1, 21);
 		if (httpport)
 			HTTP_ServerPoll(1, httpport);
+#ifdef _WIN32
 		Sleep(1);
+#else
+		usleep(1000000);
+#endif
 	}
 }
 
+#ifdef _WIN32
 static time_t Sys_FileTimeToTime(FILETIME ft)
 {
 	ULARGE_INTEGER ull;
@@ -156,6 +167,7 @@ void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, ti
 	while(FindNextFileA(r, &fd) && go);
 	FindClose(r);
 }
+#endif
 
 char *COM_ParseType (const char *data, char *out, int outlen, com_tokentype_t *toktype)
 {
@@ -232,7 +244,9 @@ char *COM_ParseToken (const char *data, const char *punctuation)
 {
 	int		c;
 	int		len;
-	
+#ifndef WEBSVONLY
+	COM_AssertMainThread("COM_ParseToken");
+#endif
 	len = 0;
 	com_token[0] = 0;
 	

@@ -472,7 +472,7 @@ int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projecti
 	ctx.frags = fragmentBuffer;
 	ctx.numfrags = 0;
 	ctx.maxfrags = maxFragments;
-	Mod_ClipDecal(cl.worldmodel, center, axis[0], axis[1], axis[2], radius, CG_MarkFragments_Callback, &ctx);
+	Mod_ClipDecal(cl.worldmodel, center, axis[0], axis[1], axis[2], radius, 0,0, CG_MarkFragments_Callback, &ctx);
 	return ctx.numfrags;
 }
 
@@ -918,7 +918,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_S_STARTSOUND:// ( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx )
-		S_StartSound(VM_LONG(arg[1])+1, VM_LONG(arg[2]), S_PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), 1, 1, 0, 0, 0);
+		S_StartSound(VM_LONG(arg[1])+1, VM_LONG(arg[2]), S_PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), NULL, 1, 1, 0, 0, 0);
 		break;
 
 	case CG_S_ADDLOOPINGSOUND:
@@ -956,12 +956,13 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			int inwater = VM_LONG(arg[3]);
 
 			cl.playerview[0].audio.defaulted = false;
-			//r_refdef.audio.entity = VM_LONG(arg[0]);
+			cl.playerview[0].audio.entnum = VM_LONG(arg[0]);
 			VectorCopy(org, cl.playerview[0].audio.origin);
 			VectorCopy(axis[0], cl.playerview[0].audio.forward);
 			VectorCopy(axis[1], cl.playerview[0].audio.right);
 			VectorCopy(axis[2], cl.playerview[0].audio.up);
-			cl.playerview[0].audio.inwater = inwater;
+			cl.playerview[0].audio.reverbtype = inwater?1:0;
+			VectorClear(cl.playerview[0].audio.velocity);
 		}
 		break;
 

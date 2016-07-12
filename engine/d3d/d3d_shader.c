@@ -259,10 +259,11 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 	struct programpermu_s *pp;
 	unsigned int i, p;
 	int uniformloc;
-	char tmpname[128];
 
 	static const char *defaultsamplers[] =
 	{
+		"s_shadowmap",
+		"s_projectionmap",
 		"s_diffuse",
 		"s_normalmap",
 		"s_specular",
@@ -270,8 +271,6 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 		"s_lower",
 		"s_fullbright",
 		"s_paletted",
-		"s_shadowmap",
-		"s_projectionmap",
 		"s_reflectcube",
 		"s_reflectmask",
 		"s_lightmap",
@@ -411,31 +410,35 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 	IDirect3DDevice9_SetPixelShader(pD3DDev9, NULL);
 }
 
-void D3D9Shader_DeleteProg(program_t *prog, unsigned int permu)
+void D3D9Shader_DeleteProg(program_t *prog)
 {
-	if (prog->permu[permu].h.hlsl.vert)
+	unsigned int permu;
+	for (permu = 0; permu < countof(prog->permu); permu++)
 	{
-		IDirect3DVertexShader9 *vs = prog->permu[permu].h.hlsl.vert;
-		prog->permu[permu].h.hlsl.vert = NULL;
-		IDirect3DVertexShader9_Release(vs);
-	}
-	if (prog->permu[permu].h.hlsl.frag)
-	{
-		IDirect3DPixelShader9 *fs = prog->permu[permu].h.hlsl.frag;
-		prog->permu[permu].h.hlsl.frag = NULL;
-		IDirect3DPixelShader9_Release(fs);
-	}
-	if (prog->permu[permu].h.hlsl.ctabv)
-	{
-		LPD3DXCONSTANTTABLE vct = prog->permu[permu].h.hlsl.ctabv;
-		prog->permu[permu].h.hlsl.ctabv = NULL;
-		IUnknown_Release(vct);
-	}
-	if (prog->permu[permu].h.hlsl.ctabf)
-	{
-		LPD3DXCONSTANTTABLE fct = prog->permu[permu].h.hlsl.ctabf;
-		prog->permu[permu].h.hlsl.ctabf = NULL;
-		IUnknown_Release(fct);
+		if (prog->permu[permu].h.hlsl.vert)
+		{
+			IDirect3DVertexShader9 *vs = prog->permu[permu].h.hlsl.vert;
+			prog->permu[permu].h.hlsl.vert = NULL;
+			IDirect3DVertexShader9_Release(vs);
+		}
+		if (prog->permu[permu].h.hlsl.frag)
+		{
+			IDirect3DPixelShader9 *fs = prog->permu[permu].h.hlsl.frag;
+			prog->permu[permu].h.hlsl.frag = NULL;
+			IDirect3DPixelShader9_Release(fs);
+		}
+		if (prog->permu[permu].h.hlsl.ctabv)
+		{
+			LPD3DXCONSTANTTABLE vct = prog->permu[permu].h.hlsl.ctabv;
+			prog->permu[permu].h.hlsl.ctabv = NULL;
+			IUnknown_Release(vct);
+		}
+		if (prog->permu[permu].h.hlsl.ctabf)
+		{
+			LPD3DXCONSTANTTABLE fct = prog->permu[permu].h.hlsl.ctabf;
+			prog->permu[permu].h.hlsl.ctabf = NULL;
+			IUnknown_Release(fct);
+		}
 	}
 }
 

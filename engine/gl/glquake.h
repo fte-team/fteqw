@@ -359,13 +359,6 @@ void GL_ForceDepthWritable(void);
 #endif
 
 //
-// gl_backend.c
-//
-#ifdef GLQUAKE
-void FTE_DEPRECATED R_IBrokeTheArrays(void);
-#endif
-
-//
 // gl_draw.c
 //
 #ifdef GLQUAKE
@@ -414,10 +407,10 @@ void R_SaveRTLights_f(void);
 
 //doom
 #ifdef MAP_DOOM
-void GLR_DoomWorld();
+void R_DoomWorld();
 #endif
 #ifdef MAP_PROC
-qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, char *buf, size_t bufsize);
+qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, void *buf, size_t bufsize);
 unsigned char *D3_CalcVis(model_t *mod, vec3_t org);
 void D3_GenerateAreas(model_t *mod);
 #endif
@@ -692,16 +685,6 @@ extern void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum atta
 extern GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
 extern void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 
-
-extern void (APIENTRY *qglGenQueriesARB)(GLsizei n, GLuint *ids);
-extern void (APIENTRY *qglDeleteQueriesARB)(GLsizei n, const GLuint *ids);
-//extern GLboolean (APIENTRY *qglIsQueryARB)(GLuint id);
-extern void (APIENTRY *qglBeginQueryARB)(GLenum target, GLuint id);
-extern void (APIENTRY *qglEndQueryARB)(GLenum target);
-//extern void (APIENTRY *qglGetQueryivARB)(GLenum target, GLenum pname, GLint *params);
-//extern void (APIENTRY *qglGetQueryObjectivARB)(GLuint id, GLenum pname, GLint *params);
-extern void (APIENTRY *qglGetQueryObjectuivARB)(GLuint id, GLenum pname, GLuint *params);
-
 //glslang - arb_shader_objects
 extern FTEPFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;
 extern FTEPFNGLDELETEOBJECTARBPROC         qglDeleteProgramObject_;
@@ -741,6 +724,15 @@ extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
 extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 
 #endif
+extern void (APIENTRY *qglGenQueriesARB)(GLsizei n, GLuint *ids);
+extern void (APIENTRY *qglDeleteQueriesARB)(GLsizei n, const GLuint *ids);
+//extern GLboolean (APIENTRY *qglIsQueryARB)(GLuint id);
+extern void (APIENTRY *qglBeginQueryARB)(GLenum target, GLuint id);
+extern void (APIENTRY *qglEndQueryARB)(GLenum target);
+//extern void (APIENTRY *qglGetQueryivARB)(GLenum target, GLenum pname, GLint *params);
+//extern void (APIENTRY *qglGetQueryObjectivARB)(GLuint id, GLenum pname, GLint *params);
+extern void (APIENTRY *qglGetQueryObjectuivARB)(GLuint id, GLenum pname, GLuint *params);
+
 extern void (APIENTRY *qglDrawBuffers)(GLsizei n, GLsizei *ids);	//gl2
 
 extern GLenum (APIENTRY *qglGetGraphicsResetStatus) (void);

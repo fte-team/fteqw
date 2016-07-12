@@ -27,7 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "com_mesh.h"
 #include <math.h>
 
-#if defined(GLQUAKE) && defined(MULTITHREAD)
+#if (defined(GLQUAKE) || defined(VKQUAKE)) && defined(MULTITHREAD)
 #define THREADEDWORLD
 #endif
 
@@ -37,8 +37,9 @@ static vec3_t			modelorg;	/*set before recursively entering the visible surface 
 
 model_t		*currentmodel;
 
-int		lightmap_bytes;		// 1, 3 or 4
-qboolean lightmap_bgra;
+uploadfmt_t		lightmap_fmt;	//bgra32, rgba32, rgb24, lum8
+int				lightmap_bytes;		// 1, 3 or 4
+qboolean		lightmap_bgra;
 
 size_t			maxblocksize;
 vec3_t			*blocknormals;
@@ -1169,7 +1170,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 	}
 }
 
-
+#ifdef THREADEDWORLD
 static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift, int ambient, unsigned int lmwidth, int *d_lightstylevalue)
 {
 	int			smax, tmax;
@@ -1464,7 +1465,7 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte 
 		Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, lum, stainsrc, lmwidth);
 	}
 }
-
+#endif
 
 /*
 =============================================================
@@ -1832,7 +1833,7 @@ start:
 
 		clipped = BOX_ON_PLANE_SIDE (node->minmaxs, node->minmaxs + 3, clipplane);
 		if (clipped == 2)
-			return;
+			return; 
 		else if (clipped == 1)
 			clipflags -= (1<<c);	// node is entirely on screen
 	}
@@ -2495,12 +2496,14 @@ void Surf_SetupFrame(void)
 	{
 		//first scene is the 'main' scene and audio defaults to that (unless overridden later in the frame)
 		r_refdef.playerview->audio.defaulted = false;
+		r_refdef.playerview->audio.entnum = r_refdef.playerview->viewentity;
 		VectorCopy(r_refdef.vieworg, r_refdef.playerview->audio.origin);
 		AngleVectors(r_refdef.viewangles, r_refdef.playerview->audio.forward,r_refdef.playerview->audio.right, r_refdef.playerview->audio.up);
 		if (r_viewcontents & FTECONTENTS_FLUID)
-			r_refdef.playerview->audio.inwater = true;
+			r_refdef.playerview->audio.reverbtype = 1;
 		else
-			r_refdef.playerview->audio.inwater = false;
+			r_refdef.playerview->audio.reverbtype = 0;
+		VectorCopy(r_refdef.playerview->simvel, r_refdef.playerview->audio.velocity);
 	}
 }
 
@@ -2560,7 +2563,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 		}
 
 		Surf_LightmapShift(model);
-		if ((ent->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
+		if ((ent->drawflags & MLS_MASK) == MLS_ABSLIGHT)
 		{
 			//update lightmaps.
 			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
@@ -2640,7 +2643,8 @@ struct webostate_s
 	model_t *wmodel;
 	mleaf_t *leaf[2];
 	qbyte pvs[MAX_MAP_LEAFS/8];
-	int ebo;
+	vboarray_t ebo;
+	void *ebomem;
 	size_t idxcount;
 	int numbatches;
 	int lightstylevalues[MAX_LIGHTSTYLES];	//when using workers that only reprocessing lighting at 10fps, things get too ugly when things go out of sync
@@ -2655,16 +2659,25 @@ struct webostate_s
 		batch_t b;
 		mesh_t m;
 		mesh_t *pm;
+		vbo_t vbo;
 	} batches[1];
 };
 static struct webostate_s *webostate;
 static struct webostate_s *webogenerating;
 static int webogeneratingstate;	//1 if generating, 0 if not, for waiting for sync.
-void R_DestroyWorldEBO(struct webostate_s *es)
+static void R_DestroyWorldEBO(struct webostate_s *es)
 {
 	if (!es)
 		return;
-	qglDeleteBuffersARB(1, &es->ebo);
+
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL)
+		qglDeleteBuffersARB(1, &es->ebo.gl.vbo);
+#endif
+#ifdef VKQUAKE
+	if (qrenderer == QR_VULKAN)
+		BE_VBO_Destroy(&es->ebo, es->ebomem);
+#endif
 	BZ_Free(es);
 }
 void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
@@ -2681,20 +2694,43 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 	webogeneratingstate = 0;
 	mod = webostate->wmodel;
 
-	GL_DeselectVAO();
-
-	qglGenBuffersARB(1, &webostate->ebo);
 	for (i = 0, idxcount = 0; i < webostate->numbatches; i++)
 		idxcount += webostate->batches[i].numidx;
-	GL_SelectEBO(webostate->ebo);
-	qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, idxcount*sizeof(index_t), NULL, GL_STATIC_DRAW_ARB);
-	for (i = 0, idxcount = 0; i < webostate->numbatches; i++)
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL)
 	{
-		qglBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, idxcount*sizeof(index_t), webostate->batches[i].numidx*sizeof(index_t), webostate->batches[i].idxbuffer);
-		BZ_Free(webostate->batches[i].idxbuffer);
-		webostate->batches[i].idxbuffer = (index_t*)NULL + idxcount;
-		idxcount += webostate->batches[i].numidx;
+		GL_DeselectVAO();
+
+		webostate->ebo.gl.addr = NULL;
+		qglGenBuffersARB(1, &webostate->ebo.gl.vbo);
+		GL_SelectEBO(webostate->ebo.gl.vbo);
+		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, idxcount*sizeof(index_t), NULL, GL_STATIC_DRAW_ARB);
+		for (i = 0, idxcount = 0; i < webostate->numbatches; i++)
+		{
+			qglBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, idxcount*sizeof(index_t), webostate->batches[i].numidx*sizeof(index_t), webostate->batches[i].idxbuffer);
+			BZ_Free(webostate->batches[i].idxbuffer);
+			webostate->batches[i].idxbuffer = (index_t*)NULL + idxcount;
+			idxcount += webostate->batches[i].numidx;
+		}
 	}
+#endif
+#ifdef VKQUAKE
+	if (qrenderer == QR_VULKAN)
+	{	//this malloc is stupid.
+		//with vulkan we really should be doing this on the worker instead, at least the staging part.
+		index_t *indexes = malloc(sizeof(*indexes) * idxcount);
+		webostate->ebo.vk.offs = 0;
+		for (i = 0, idxcount = 0; i < webostate->numbatches; i++)
+		{
+			memcpy(indexes + idxcount, webostate->batches[i].idxbuffer, webostate->batches[i].numidx*sizeof(index_t));
+			BZ_Free(webostate->batches[i].idxbuffer);
+			webostate->batches[i].idxbuffer = (index_t*)NULL + idxcount;
+			idxcount += webostate->batches[i].numidx;
+		}
+		BE_VBO_Finish(NULL, indexes, sizeof(*indexes) * idxcount, &webostate->ebo, NULL, &webostate->ebomem);
+		free(indexes);
+	}
+#endif
 
 	//should be doing this on the worker, but whatever
 	for (i = 0, sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
@@ -2717,8 +2753,9 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 			m->vbofirstelement = webostate->batches[i].idxbuffer - (index_t*)NULL;
 			m->vbofirstvert = 0;
 			m->indexes = NULL;
-			b->vbo->indicies.gl.vbo = webostate->ebo;
-			b->vbo->indicies.gl.addr = NULL;
+			b->vbo = &webostate->batches[i].vbo;
+			*b->vbo = *batch->vbo;
+			b->vbo->indicies = webostate->ebo;
 			b->vbo->vao = 0;
 
 			b->next = webostate->rbatches[sortid];
@@ -2943,7 +2980,7 @@ void Surf_DrawWorld (void)
 		else
 #endif
 #ifdef MAP_PROC
-		     if (cl.worldmodel->fromgame == fg_doom3)
+			if (cl.worldmodel->fromgame == fg_doom3)
 		{
 			entvis = surfvis = D3_CalcVis(cl.worldmodel, r_origin);
 		}
@@ -2953,7 +2990,7 @@ void Surf_DrawWorld (void)
 			if (currentmodel->fromgame == fg_doom)
 		{
 			entvis = surfvis = NULL;
-			GLR_DoomWorld();
+			R_DoomWorld();
 		}
 		else
 #endif
@@ -3062,8 +3099,12 @@ void Surf_Clear(model_t *mod)
 #ifdef THREADEDWORLD
 	while(webogenerating)
 		COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
-	R_DestroyWorldEBO(webostate);
-	webostate = NULL;
+
+	if (webostate && webostate->wmodel == mod)
+	{
+		R_DestroyWorldEBO(webostate);
+		webostate = NULL;
+	}
 #endif
 
 	while(mod->vbos)
@@ -3106,6 +3147,7 @@ void Surf_LightmapMode(void)
 	{
 	default:
 	case QR_SOFTWARE:
+		lightmap_fmt = TF_BGRA32;
 		lightmap_bytes = 4;
 		lightmap_bgra = true;
 		break;
@@ -3113,6 +3155,7 @@ void Surf_LightmapMode(void)
 	case QR_DIRECT3D9:
 	case QR_DIRECT3D11:
 		/*always bgra, hope your card supports it*/
+		lightmap_fmt = TF_BGRA32;
 		lightmap_bytes = 4;
 		lightmap_bgra = true;
 		break;
@@ -3124,22 +3167,28 @@ void Surf_LightmapMode(void)
 		if (gl_config.gles)
 		{
 			//rgb is a supported format, where bgr or rgbx are not.
+			lightmap_fmt = TF_RGB24;
 			lightmap_bytes = 3;
 			lightmap_bgra = false;
 		}
 		else if (gl_config.glversion >= 1.2)
 		{
 			/*the more common case*/
+			lightmap_fmt = TF_BGRA32;
 			lightmap_bytes = 4;
 			lightmap_bgra = true;
 		}
 		else if (cl.worldmodel->fromgame == fg_quake3 || (cl.worldmodel->engineflags & MDLF_RGBLIGHTING) || cl.worldmodel->deluxdata || r_loadlits.value)
 		{
+			lightmap_fmt = TF_RGB24;
 			lightmap_bgra = false;
 			lightmap_bytes = 3;
 		}
 		else
+		{
+			lightmap_fmt = TF_LUM8;
 			lightmap_bytes = 1;
+		}
 		break;
 #endif
 	}
@@ -3327,19 +3376,24 @@ void Surf_BuildModelLightmaps (model_t *m)
 	{
 		for (t = m->numtextures-1; t >= 0; t--)
 		{
+			/*FIXME: we should read the shader for the particle names here*/
+			/*FIXME: if the paticle system changes mid-map, we should be prepared to reload things*/
 			char *pn = va("tex_%s", m->textures[t]->name);
 			char *h = strchr(pn, '#');
 			if (h)
 				*h = 0;
 			ptype = P_FindParticleType(pn);
-		
+
 			if (ptype != P_INVALID)
 			{
 				for (i=0; i<m->nummodelsurfaces; i++)
 				{
 					surf = m->surfaces + i + m->firstmodelsurface;
 					if (surf->texinfo->texture == m->textures[t])
+					{
+						/*FIXME: it would be a good idea to determine the surface's (midpoint) pvs cluster so that we're not spamming for the entire map*/
 						P_EmitSkyEffectTris(m, surf, ptype);
+					}
 				}
 			}
 		}
@@ -3618,6 +3672,48 @@ void Surf_PreNewMap(void)
 	r_oldviewleaf = NULL;
 	r_viewleaf2 = NULL;
 	r_oldviewleaf2 = NULL;
+}
+
+
+
+static float sgn(float a)
+{
+    if (a > 0.0F) return (1.0F);
+    if (a < 0.0F) return (-1.0F);
+    return (0.0F);
+}
+void R_ObliqueNearClip(float *viewmat, mplane_t *wplane)
+{
+	float f;
+	vec4_t q, c;
+	vec3_t ping, pong;
+	vec4_t vplane;
+
+	//convert world plane into view space
+	Matrix4x4_CM_Transform3x3(viewmat, wplane->normal, vplane);
+	VectorScale(wplane->normal, wplane->dist, ping);
+	Matrix4x4_CM_Transform3(viewmat, ping, pong);
+	vplane[3] = -DotProduct(pong, vplane);
+
+	// Calculate the clip-space corner point opposite the clipping plane
+	// as (sgn(clipPlane.x), sgn(clipPlane.y), 1, 1) and
+	// transform it into camera space by multiplying it
+	// by the inverse of the projection matrix
+
+	q[0] = (sgn(vplane[0]) + r_refdef.m_projection[8]) / r_refdef.m_projection[0];
+	q[1] = (sgn(vplane[1]) + fabs(r_refdef.m_projection[9])) / fabs(r_refdef.m_projection[5]);
+	q[2] = -1.0F;
+	q[3] = (1.0F + r_refdef.m_projection[10]) / r_refdef.m_projection[14];
+
+	// Calculate the scaled plane vector
+	f = 2.0F / DotProduct4(vplane, q);
+	Vector4Scale(vplane, f, c);
+
+	// Replace the third row of the projection matrix
+	r_refdef.m_projection[2] = c[0];
+	r_refdef.m_projection[6] = c[1];
+	r_refdef.m_projection[10] = c[2] + 1.0F;
+	r_refdef.m_projection[14] = c[3];
 }
 
 

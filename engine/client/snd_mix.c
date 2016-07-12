@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	PAINTBUFFER_SIZE	2048
 
 float voicevolumemod = 1;
-portable_samplegroup_t paintbuffer[PAINTBUFFER_SIZE];
+portable_samplegroup_t paintbuffer[PAINTBUFFER_SIZE];	//FIXME: we really ought to be using SSE and floats or something.
 
 int 	*snd_p, snd_vol;
 short	*snd_out;
@@ -58,8 +58,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 		{
 			for (i = 0; i < numc; i++)
 			{
-				val = *p;// * snd_vol) >> 8;
-				p++;
+				val = *p++;// * snd_vol) >> 8;
 				if (val > 0x7fff)
 					val = 0x7fff;
 				else if (val < (short)0x8000)
@@ -78,13 +77,26 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 		{
 			for (i = 0; i < numc; i++)
 			{
-				val = *p;// * snd_vol) >> 8;
-				p++;
+				val = *p++;// * snd_vol) >> 8;
 				if (val > 0x7fff)
 					val = 0x7fff;
 				else if (val < (short)0x8000)
 					val = (short)0x8000;
 				out[out_idx] = (val>>8) + 128;
+				out_idx = (out_idx + 1) % outlimit;
+			}
+			p += MAXSOUNDCHANNELS - numc;
+			count -= numc;
+		}
+	}
+	else if (sc->sn.samplebits == 32)
+	{
+		float *out = (float *) pbuf;
+		while (count)
+		{
+			for (i = 0; i < numc; i++)
+			{
+				out[out_idx] = *p++ * (1.0 / 32768);
 				out_idx = (out_idx + 1) % outlimit;
 			}
 			p += MAXSOUNDCHANNELS - numc;
@@ -470,7 +482,8 @@ static void SND_PaintChannel16_O2I1 (channel_t *ch, sfxcache_t *sc, int starttim
 		sfx = (signed short *)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			data = sfx[pos>>PITCHSHIFT];
+			float frac = pos&((1<<PITCHSHIFT)-1);
+			data = sfx[pos>>PITCHSHIFT] * (1-frac) + sfx[(pos>>PITCHSHIFT)+1] * frac;
 			pos += ch->rate;
 			paintbuffer[starttime+i].s[0] += (leftvol * data)>>8;
 			paintbuffer[starttime+i].s[1] += (rightvol * data)>>8;

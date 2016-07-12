@@ -58,7 +58,16 @@ static const struct banflags_s
 	{BAN_VIP,		{"vip"}},
 	{BAN_BLIND,		{"blind"}},
 	{BAN_SPECONLY,	{"spec"}},
-	{BAN_STEALTH,	{"stealth"}}
+	{BAN_STEALTH,	{"stealth"}},
+
+	{BAN_USER1,		{"user1"}},
+	{BAN_USER2,		{"user2"}},
+	{BAN_USER3,		{"user3"}},
+	{BAN_USER4,		{"user4"}},
+	{BAN_USER5,		{"user5"}},
+	{BAN_USER6,		{"user6"}},
+	{BAN_USER7,		{"user7"}},
+	{BAN_USER8,		{"user8"}}
 };
 
 //generic helper function for naming players.
@@ -647,7 +656,8 @@ void SV_Map_f (void)
 #endif
 
 #if defined(MENU_DAT) && !defined(SERVERONLY)
-	MP_Toggle(0);
+	if (Key_Dest_Has(kdm_gmenu))
+		MP_Toggle(0);
 #endif
 
 	if (preserveplayers && svprogfuncs)
@@ -727,8 +737,8 @@ void SV_Map_f (void)
 		//make sure its all reset.
 		host_client->sentents.num_entities = 0;
 		host_client->ratetime = 0;
-		if (host_client->pendingentbits)
-			host_client->pendingentbits[0] = UF_REMOVE;
+		if (host_client->pendingdeltabits)
+			host_client->pendingdeltabits[0] = UF_REMOVE;
 
 		if (flushparms)
 		{
@@ -789,7 +799,7 @@ void SV_Map_f (void)
 		Mod_Purge(MP_MAPCHANGED);
 }
 
-void SV_KillServer_f(void)
+static void SV_KillServer_f(void)
 {
 	SV_UnspawnServer();
 }
@@ -802,13 +812,33 @@ SV_Kick_f
 Kick a user off of the server
 ==================
 */
-void SV_Kick_f (void)
+static void SV_Kick_f (void)
 {
 	client_t	*cl;
 	int clnum=-1;
 
 	if (!sv.state)
 		return;
+
+	if (!strcmp(Cmd_Argv(1), "#"))
+	{
+		clnum = atoi(Cmd_Argv(2)) - 1;
+		if (clnum >= 0 && clnum < sv.allocated_client_slots)
+		{
+			cl = &svs.clients[clnum];
+			if (cl->state >= cs_connected)
+			{
+				SV_BroadcastTPrintf (PRINT_HIGH, "%s was kicked\n", cl->name);
+				// print directly, because the dropped client won't get the
+				// SV_BroadcastPrintf message
+				SV_ClientTPrintf (cl, PRINT_HIGH, "You were kicked\n");
+
+				SV_LogPlayer(cl, "kicked");
+				SV_DropClient (cl);
+			}
+		}
+		return;
+	}
 
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
@@ -826,7 +856,7 @@ void SV_Kick_f (void)
 }
 
 /*for q3's kick bot menu*/
-void SV_KickSlot_f (void)
+static void SV_KickSlot_f (void)
 {
 	client_t	*cl;
 	int clnum=atoi(Cmd_Argv(1));
@@ -851,7 +881,7 @@ void SV_KickSlot_f (void)
 }
 
 //ipv4ify if its an ipv6 ipv4-mapped address.
-netadr_t *NET_IPV4ify(netadr_t *a, netadr_t *tmp)
+static netadr_t *NET_IPV4ify(netadr_t *a, netadr_t *tmp)
 {
 	if (a->type == NA_IPV6 &&
 		!*(int*)&a->address.ip6[0] &&
@@ -1328,7 +1358,7 @@ static void SV_Unfilter_f (void)
 
 	if (Cmd_Argc() < 2)
 	{
-		Con_Printf("%s address/mask|address/maskbits|all\n", Cmd_Argv(0));
+		Con_Printf("%s address/mask|address/maskbits|all [flags]\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -1363,7 +1393,7 @@ static void SV_Unfilter_f (void)
 	}
 	//if no flags were specified, assume all
 	if (!clearbanflags)
-		clearbanflags = BAN_ALL;
+		clearbanflags = ~0u;
 
 	for (link = &svs.bannedips ; (nb = *link) ; )
 	{
@@ -1446,6 +1476,21 @@ static void SV_PenaltyToggle (unsigned int banflag, char *penaltyname)
 	}
 	if (!found)
 		Con_Printf("%s: no clients\n", Cmd_Argv(0));
+}
+
+void SV_AutoAddPenalty (client_t *cl, unsigned int banflag, int duration, char *reason)
+{
+	bannedips_t proto;
+
+	proto.banflags = banflag;
+	proto.expiretime = SV_BanTime() + duration;
+	memset(&proto.adrmask.address, 0xff, sizeof(proto.adrmask.address));
+	proto.adr = cl->netchan.remote_address;
+	proto.adr.port = 0;
+	proto.adrmask.type = proto.adr.type;
+
+	SV_AddBanEntry(&proto, reason);
+	SV_EvaluatePenalties(cl);
 }
 
 static void SV_WriteIP_f (void)
@@ -1760,7 +1805,7 @@ static void SV_Status_f (void)
 	if (svs.gametype == GT_PROGS)
 	{
 		int count = 0;
-		Con_Printf("entities         : %i/%i (mem: %u/%u)\n", sv.world.num_edicts, sv.world.max_edicts, sv.world.progs->stringtablesize, sv.world.progs->stringtablemaxsize);
+		Con_Printf("entities         : %i/%i (mem: %.1f%%)\n", sv.world.num_edicts, sv.world.max_edicts, 100*(float)(sv.world.progs->stringtablesize/(double)sv.world.progs->stringtablemaxsize));
 		for (count = 1; count < MAX_PRECACHE_MODELS; count++)
 			if (!sv.strings.model_precache[count])
 				break;
@@ -1836,7 +1881,7 @@ static void SV_Status_f (void)
 #define C_USERID	COLUMN(1, "userid", Con_Printf("%6i ", (int)cl->userid))
 #define C_ADDRESS	COLUMN(2, "address        ", Con_Printf("%-16.16s", s))
 #define C_NAME		COLUMN(3, "name           ", Con_Printf("%-16.16s", cl->name))
-#define C_RATE		COLUMN(4, "rate", Con_Printf("%4i ", (int)(1/cl->netchan.frame_rate)))
+#define C_RATE		COLUMN(4, "rate", Con_Printf("%4i ", cl->frameunion.frames?(int)(1/cl->netchan.frame_rate):0))
 #define C_PING		COLUMN(5, "ping", Con_Printf("%4i ", (int)SV_CalcPing (cl, false)))
 #define C_DROP		COLUMN(6, "drop", Con_Printf("%4.1f ", 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence))
 #define C_DLP		COLUMN(7, "dl ", if (!cl->download)Con_Printf("    ");else Con_Printf("%3g ", (cl->downloadcount*100.0)/cl->downloadsize))
@@ -1911,13 +1956,13 @@ static void SV_Status_f (void)
 			case SCP_QUAKE2:		p = "q2"; break;
 			case SCP_QUAKE3:		p = "q3"; break;
 			case SCP_NETQUAKE:		p = "nq"; break;
-			case SCP_PROQUAKE:		p = "pq"; break;
-			case SCP_FITZ666:		p = "fq"; break;
+			case SCP_BJP3:			p = "bjp3"; break;
+			case SCP_FITZ666:		p = "fitz"; break;
 			case SCP_DARKPLACES6:	p = "dp6"; break;
 			case SCP_DARKPLACES7:	p = "dp7"; break;
 			}
-			if (cl->state == cs_connected)
-				p = "con";
+			if (cl->state == cs_connected && cl->protocol>=SCP_NETQUAKE)
+				p = "nq";
 			else if (cl->state == cs_zombie || cl->state == cs_loadzombie)
 				p = "zom";
 
@@ -2222,7 +2267,7 @@ void SV_User_f (void)
 											"fatness",		"hlbsp",	"bullet",			"hullsize",		"modeldbl",		"entitydbl",	"entitydbl2",		"floatcoords", 
 											"OLD vweap",	"q2bsp",	"q3bsp",			"colormod",		"splitscreen",	"hexen2",		"spawnstatic2",		"customtempeffects",
 											"packents",		"UNKNOWN",	"showpic",			"setattachment","UNKNOWN",		"chunkeddls",	"csqc",				"dpflags"};
-	static const char *pext2names[32] = {	"prydoncursor",	"voip",		"setangledelta",	"rplcdeltas",	"maxplayers",	"predinfo",		"UNKNOWN",			"UNKNOWN",
+	static const char *pext2names[32] = {	"prydoncursor",	"voip",		"setangledelta",	"rplcdeltas",	"maxplayers",	"predinfo",		"sizeenc",			"UNKNOWN",
 											"UNKNOWN",		"UNKNOWN",	"UNKNOWN",			"UNKNOWN",		"UNKNOWN",		"UNKNOWN",		"UNKNOWN",			"UNKNOWN", 
 											"UNKNOWN",		"UNKNOWN",	"UNKNOWN",			"UNKNOWN",		"UNKNOWN",		"UNKNOWN",		"UNKNOWN",			"UNKNOWN",
 											"UNKNOWN",		"UNKNOWN",	"UNKNOWN",			"UNKNOWN",		"UNKNOWN",		"UNKNOWN",		"UNKNOWN",			"UNKNOWN"};
@@ -2255,8 +2300,8 @@ void SV_User_f (void)
 		case SCP_NETQUAKE:
 			Con_Printf("protocol: (net)quake\n");
 			break;
-		case SCP_PROQUAKE:
-			Con_Printf("protocol: (pro)quake\n");
+		case SCP_BJP3:
+			Con_Printf("protocol: bjp3\n");
 			break;
 		case SCP_FITZ666:
 			Con_Printf("protocol: fitzquake 666\n");
@@ -2272,16 +2317,22 @@ void SV_User_f (void)
 			break;
 		}
 
-		Con_Printf("pext1:");
-		for (u = 0; u < 32; u++)
-			if (cl->fteprotocolextensions & (1u<<u))
-					Con_Printf(" %s", pext1names[u]);
-		Con_Printf("\n");
-		Con_Printf("pext2:");
-		for (u = 0; u < 32; u++)
-			if (cl->fteprotocolextensions2 & (1u<<u))
-					Con_Printf(" %s", pext2names[u]);
-		Con_Printf("\n");
+		if (cl->fteprotocolextensions)
+		{
+			Con_Printf("pext1:");
+			for (u = 0; u < 32; u++)
+				if (cl->fteprotocolextensions & (1u<<u))
+						Con_Printf(" %s", pext1names[u]);
+			Con_Printf("\n");
+		}
+		if (cl->fteprotocolextensions2)
+		{
+			Con_Printf("pext2:");
+			for (u = 0; u < 32; u++)
+				if (cl->fteprotocolextensions2 & (1u<<u))
+						Con_Printf(" %s", pext2names[u]);
+			Con_Printf("\n");
+		}
 
 		Con_Printf("ip: %s\n", NET_AdrToString(buf, sizeof(buf), &cl->netchan.remote_address));
 		switch(cl->realip_status)
@@ -2674,12 +2725,12 @@ void SV_PrecacheList_f(void)
 	}
 	for (i = 0; i < MAX_PRECACHE_SOUNDS; i++)
 	{
-		if (*sv.strings.sound_precache[i])
+		if (sv.strings.sound_precache[i])
 			Con_Printf("sound %u: %s\n", i, sv.strings.sound_precache[i]);
 	}
 	for (i = 0; i < MAX_SSPARTICLESPRE; i++)
 	{
-		if (*sv.strings.particle_precache[i])
+		if (sv.strings.particle_precache[i])
 			Con_Printf("pticl %u: %s\n", i, sv.strings.particle_precache[i]);
 	}
 }
@@ -2702,11 +2753,11 @@ void SV_MemInfo_f(void)
 				sz += lp->length;
 
 			fr = 0;
-			if (cl->pendingentbits)
+			if (cl->pendingdeltabits)
 			{
 				int maxents = cl->frameunion.frames[0].entities.max_entities;	/*this is the max number of ents updated per frame. we can't track more, so...*/
 				fr =	sizeof(cl)*UPDATE_BACKUP+
-						sizeof(*cl->pendingentbits)*cl->max_net_ents+
+						sizeof(*cl->pendingdeltabits)*cl->max_net_ents+
 						sizeof(unsigned int)*maxents*UPDATE_BACKUP+
 						sizeof(unsigned int)*maxents*UPDATE_BACKUP;
 			}
@@ -2714,13 +2765,50 @@ void SV_MemInfo_f(void)
 				fr = (sizeof(client_frame_t)+sizeof(entity_state_t)*cl->frameunion.frames[0].entities.max_entities)*UPDATE_BACKUP;
 			fr += sizeof(*cl->sentents.entities) * cl->sentents.max_entities;
 
-			csfr = sizeof(*cl->csqcentversions) * cl->max_net_ents;
+			csfr = sizeof(*cl->pendingcsqcbits) * cl->max_net_ents;
 	
 			Con_Printf("%"PRIuSIZE" minping=%i frame=%i, csqc=%i\n", sizeof(svs.clients[i]), sz, fr, csfr);
 		}
 	}
 
 	//FIXME: report vm memory
+}
+
+void SV_Download_f (void)
+{
+#ifdef WEBCLIENT
+	char *url = Cmd_Argv(1);
+	char *localname = Cmd_Argv(2);
+
+	if (!strnicmp(url, "http://", 7) || !strnicmp(url, "https://", 8) || !strnicmp(url, "ftp://", 6))
+	{
+		struct dl_download *dl;
+		if (Cmd_IsInsecure())
+			return;
+		if (!*localname)
+		{
+			localname = strrchr(url, '/');
+			if (localname)
+				localname++;
+			else
+			{
+				Con_TPrintf ("no local name specified\n");
+				return;
+			}
+		}
+
+		dl = HTTP_CL_Get(url, localname, NULL);
+#ifdef MULTITHREAD
+		if (dl)
+			DL_CreateThread(dl, NULL, NULL);
+#else
+		(void)dl;
+#endif
+
+		return;
+	}
+#endif
+	Con_Printf("scheme not supported\n");
 }
 
 /*
@@ -2746,6 +2834,8 @@ void SV_InitOperatorCommands (void)
 		Cmd_AddCommand ("give", SV_Give_f);
 #endif
 		Cmd_AddCommand ("noclip", SV_Noclip_f);
+
+		Cmd_AddCommand ("download", SV_Download_f);
 	}
 
 	Cvar_Register(&sv_cheats, "Server Permissions");

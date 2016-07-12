@@ -37,7 +37,9 @@
 	globalfloat		(true, trace_inopen)	\
 	globalfloat		(true, trace_inwater)	\
 	globalfloat		(false, trace_endcontents)	\
+	globalint		(false, trace_endcontentsi)	\
 	globalfloat		(false, trace_surfaceflags)	\
+	globalint		(false, trace_surfaceflagsi)	\
 	globalfloat		(false, cycle_wrapped)	\
 	globalentity	(false, msg_entity)	\
 	globalfunc		(false, main)	\
@@ -945,9 +947,11 @@ static void set_trace_globals(trace_t *trace)
 	pr_global_struct->trace_inwater = trace->inwater;
 	pr_global_struct->trace_inopen = trace->inopen;
 	pr_global_struct->trace_surfaceflags = trace->surface?trace->surface->flags:0;
+	pr_global_struct->trace_surfaceflagsi = trace->surface?trace->surface->flags:0;
 	if (pr_global_struct->trace_surfacename)
 		prinst->SetStringField(prinst, NULL, &pr_global_struct->trace_surfacename, tr->surface?tr->surface->name:"", true);
 	pr_global_struct->trace_endcontents = trace->contents;
+	pr_global_struct->trace_endcontentsi = trace->contents;
 //	if (trace.fraction != 1)
 //		VectorMA (trace->endpos, 4, trace->plane.normal, P_VEC(trace_endpos));
 //	else
@@ -963,7 +967,6 @@ static int bi_lua_traceline(lua_State *L)
 	trace_t	trace;
 	int		nomonsters;
 	wedict_t	*ent;
-	int savedhull;
 
 	lua_readvector(L, 1, v1);
 	lua_readvector(L, 2, v2);
@@ -971,10 +974,7 @@ static int bi_lua_traceline(lua_State *L)
 	lua.getfield(L, 4, "entnum");
 	ent = (wedict_t*)EDICT_NUM((&lua.progfuncs), lua.tointegerx(L, -1, NULL));
 
-	savedhull = ent->xv->hull;
-	ent->xv->hull = 0;
-	trace = World_Move (&sv.world, v1, vec3_origin, vec3_origin, v2, nomonsters, (wedict_t*)ent);
-	ent->xv->hull = savedhull;
+	trace = World_Move (&sv.world, v1, vec3_origin, vec3_origin, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
 	//FIXME: should we just return a table instead, and ignore the globals?
 	set_trace_globals(&trace);
@@ -987,7 +987,6 @@ static int bi_lua_tracebox(lua_State *L)
 	trace_t	trace;
 	int		nomonsters;
 	wedict_t	*ent;
-	int savedhull;
 
 	lua_readvector(L, 1, v1);
 	lua_readvector(L, 2, v2);
@@ -997,10 +996,7 @@ static int bi_lua_tracebox(lua_State *L)
 	lua.getfield(L, 6, "entnum");
 	ent = (wedict_t*)EDICT_NUM((&lua.progfuncs), lua.tointegerx(L, -1, NULL));
 
-	savedhull = ent->xv->hull;
-	ent->xv->hull = 0;
-	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
-	ent->xv->hull = savedhull;
+	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
 	//FIXME: should we just return a table instead, and ignore the globals?
 	set_trace_globals(&trace);
@@ -1785,7 +1781,7 @@ static int QDECL Lua_LoadEnts(pubprogfuncs_t *pf, char *mapstring, float spawnfl
 	return sv.world.edict_size;
 }
 
-static eval_t *QDECL Lua_GetEdictFieldValue(pubprogfuncs_t *pf, edict_t *e, char *fieldname, evalc_t *cache)
+static eval_t *QDECL Lua_GetEdictFieldValue(pubprogfuncs_t *pf, edict_t *e, char *fieldname, etype_t type, evalc_t *cache)
 {
 	eval_t *val;
 	luafld_t *fld;

@@ -39,7 +39,6 @@ hull_t *Q1BSP_ChooseHull(model_t *model, int hullnum, vec3_t mins, vec3_t maxs, 
 //this function is axial. major axis determines ground. if it switches slightly, a new axis may become the ground...
 qboolean World_CheckBottom (world_t *world, wedict_t *ent, vec3_t up)
 {
-	int savedhull;
 	vec3_t	mins, maxs, start, stop;
 	trace_t	trace;
 	int		x, y;
@@ -105,15 +104,11 @@ realcheck:
 	start[a0] = stop[a0] = (mins[a0] + maxs[a0])*0.5;
 	start[a1] = stop[a1] = (mins[a1] + maxs[a1])*0.5;
 	stop[a2] = start[a2] - 2*movevars.stepheight*sign;
-	savedhull = ent->xv->hull;
-	ent->xv->hull = 0;	//stop the hull from breaking tracelines
-	trace = World_Move (world, start, vec3_origin, vec3_origin, stop, true, ent);
+	trace = World_Move (world, start, vec3_origin, vec3_origin, stop, true|MOVE_IGNOREHULL, ent);
 
 	if (trace.fraction == 1.0)
-	{
-		ent->xv->hull = savedhull;
 		return false;
-	}
+
 	mid = trace.endpos[2];
 
 	mid = (mid-start[a2]-(movevars.stepheight*sign)) / (stop[a2]-start[a2]);
@@ -125,17 +120,13 @@ realcheck:
 			start[a0] = stop[a0] = x ? maxs[a0] : mins[a0];
 			start[a1] = stop[a1] = y ? maxs[a1] : mins[a1];
 			
-			trace = World_Move (world, start, vec3_origin, vec3_origin, stop, true, ent);
+			trace = World_Move (world, start, vec3_origin, vec3_origin, stop, true|MOVE_IGNOREHULL, ent);
 	
 			if (trace.fraction == 1.0 || trace.fraction > mid)//mid - trace.endpos[2] > movevars.stepheight)
-			{
-				ent->xv->hull = savedhull;
 				return false;
-			}
 		}
 
 	c_yes++;
-	ent->xv->hull = savedhull;
 	return true;
 }
 
@@ -532,7 +523,7 @@ void World_NewChaseDir (world_t *world, wedict_t *actor, wedict_t *enemy, float 
 	}
 
 // try other directions
-	if ( ((rand()&3) & 1) ||  abs(deltay)>abs(deltax))
+	if ( ((rand()&3) & 1) ||  fabs(deltay)>fabs(deltax))
 	{
 		tdir=d[1];
 		d[1]=d[2];

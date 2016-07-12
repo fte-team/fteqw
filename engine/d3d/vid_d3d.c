@@ -437,7 +437,7 @@ static void resetD3D9(void)
 	res = IDirect3DDevice9_Reset(pD3DDev9, &d3dpp);
 	if (FAILED(res))
 	{
-		Con_Printf("IDirect3DDevice9_Reset failed (%u)\n", res&0xffff);
+		Con_Printf("IDirect3DDevice9_Reset failed (%u)\n", (unsigned)res&0xffff);
 		return;
 	}
 
@@ -603,7 +603,6 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 {
 	int i;
 	int numadaptors;
-	int err;
 	D3DADAPTER_IDENTIFIER9 inf;
 
 	static HMODULE d3d9dll;
@@ -631,7 +630,7 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 	for (i = 0; i < numadaptors; i++)
 	{	//NVIDIA's debug app requires that we use a specific device
 		memset(&inf, 0, sizeof(inf));
-		err = IDirect3D9_GetAdapterIdentifier(pD3D, i, 0, &inf);
+		IDirect3D9_GetAdapterIdentifier(pD3D, i, 0, &inf);
 		if (strstr(inf.Description, "PerfHUD"))
 			if (initD3D9Device(hWnd, info, i, D3DDEVTYPE_REF))
 				return;
@@ -663,9 +662,6 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	DWORD wstyle;
 	RECT rect;
 	MSG msg;
-
-	extern cvar_t vid_conwidth;
-	//extern cvar_t vid_conheight;
 
 	//DDGAMMARAMP gammaramp;
 	//int i;
@@ -861,7 +857,7 @@ static char	*(D3D9_VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enu
 
 	return ret;
 }
-static void	(D3D9_VID_SetWindowCaption)		(char *msg)
+static void	(D3D9_VID_SetWindowCaption)		(const char *msg)
 {
 	SetWindowText(mainwindow, msg);
 }
@@ -908,7 +904,7 @@ static int d3d9error(int i)
 	return i;
 }
 
-static void	(D3D9_SCR_UpdateScreen)			(void)
+static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 {
 	//extern int keydown[];
 	//extern cvar_t vid_conheight;
@@ -917,7 +913,11 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	//extern qboolean editormodal;
 #endif
 	qboolean nohud, noworld;
-	RSpeedMark();
+
+	if (!scr_initialized || !con_initialized)
+	{
+		return false;                         // not initialized yet
+	}
 
 	if (d3d_resized && d3dpp.Windowed)
 	{
@@ -944,7 +944,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	case D3DERR_DEVICELOST:
 		//the user has task switched away from us or something, don't draw anything until they switch back to us
 		D3D9BE_Reset(true);
-		return;
+		return false;
 	case D3DERR_DEVICENOTRESET:
 		D3D9BE_Reset(true);
 		resetD3D9();
@@ -952,7 +952,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 		{
 			Con_Printf("Device lost, restarting video\n");
 			Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
-			return;
+			return false;
 		}
 
 		Cvar_ForceCallback(&v_gamma);
@@ -983,15 +983,8 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 			scr_drawloading = false;
 			IDirect3DDevice9_EndScene(pD3DDev9);
 			IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
-			RSpeedEnd(RSPEED_TOTALREFRESH);
-			return;
+			return true;
 		}
-	}
-
-	if (!scr_initialized || !con_initialized)
-	{
-		RSpeedEnd(RSPEED_TOTALREFRESH);
-		return;                         // not initialized yet
 	}
 
 	Shader_DoReload();
@@ -1017,7 +1010,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 		GL_EndRendering ();
 		GL_DoSwap();
 		RSpeedEnd(RSPEED_TOTALREFRESH);
-		return;
+		return true;
 	}
 #endif
 */
@@ -1029,8 +1022,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 //		R2D_BrightenScreen();
 		IDirect3DDevice9_EndScene(pD3DDev9);
 		IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
-		RSpeedEnd(RSPEED_TOTALREFRESH);
-		return;
+		return true;
 	}
 
 //
@@ -1081,20 +1073,24 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	V_UpdatePalette (false);
 	Media_RecordFrame();
 
-	RSpeedEnd(RSPEED_TOTALREFRESH);
 	RSpeedShow();
 
 	if (R2D_Flush)
 		R2D_Flush();
 
 	d3d9error(IDirect3DDevice9_EndScene(pD3DDev9));
-	d3d9error(IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL));
+	{
+		RSpeedMark();
+		d3d9error(IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL));
+		RSpeedEnd(RSPEED_PRESENT);
+	}
 
 	window_center_x = (window_rect.left + window_rect.right)/2;
 	window_center_y = (window_rect.top + window_rect.bottom)/2;
 
 
 	INS_UpdateGrabs(modestate != MS_WINDOWED, vid.activeapp);
+	return true;
 }
 
 
@@ -1128,7 +1124,6 @@ static void	(D3D9_R_DeInit)					(void)
 static void D3D9_SetupViewPortProjection(void)
 {
 	extern cvar_t gl_mindist;
-	float	screenaspect;
 	int		x, x2, y2, y, w, h;
 
 	float fov_x, fov_y;
@@ -1175,8 +1170,6 @@ static void D3D9_SetupViewPortProjection(void)
 		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
 	}
-
-	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
 
 	/*view matrix*/
 	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
@@ -1241,9 +1234,7 @@ qboolean (D3D9_VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (D3D9_VID_DeInit)				(void);
 void	(D3D9_VID_SetPalette)			(unsigned char *palette);
 void	(D3D9_VID_ShiftPalette)			(unsigned char *palette);
-void	(D3D9_VID_SetWindowCaption)		(char *msg);
-
-void	(D3D9_SCR_UpdateScreen)			(void);
+void	(D3D9_VID_SetWindowCaption)		(const char *msg);
 
 void D3D9BE_RenderToTextureUpdate2d(qboolean destchanged)
 {

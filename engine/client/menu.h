@@ -278,6 +278,7 @@ typedef struct menu_s {
 
 	void *data;	//typecast
 
+	void (*reset)		(struct menu_s *);	//called after a video mode switch / shader reload.
 	void (*remove)		(struct menu_s *);
 	qboolean (*key)		(int key, struct menu_s *);	//true if key was handled
 	void (*predraw)		(struct menu_s *);
@@ -374,6 +375,7 @@ void M_AddMenuFront (menu_t *menu);
 void M_HideMenu (menu_t *menu);
 void M_RemoveMenu (menu_t *menu);
 void M_RemoveAllMenus (qboolean leaveprompts);
+void M_ReloadMenus(void);
 
 void M_Complex_Key(int key, int unicode);
 void M_Complex_Draw(void);
@@ -470,6 +472,7 @@ void MP_RegisterCvarsAndCmds(void);
 void MP_Keydown(int key, int unicode);
 void MP_Keyup(int key, int unicode);
 int MP_BuiltinValid(char *name, int num);
+qboolean MP_ConsoleCommand(char *cmdtext);
 #endif
 
 #define MGT_BAD    ~0

@@ -172,9 +172,8 @@ qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_se
 	}
 }
 
-#if defined(WEBCLIENT) && defined(_WIN32)
-#define HAVEAUTOUPDATE
-void M_Options_Remove(menu_t *m)
+#ifdef HAVEAUTOUPDATE
+static void M_Options_Remove(menu_t *m)
 {
 	menucombo_t *c = m->data;
 	if (c)
@@ -324,7 +323,7 @@ typedef struct {
 	int cursorpos;
 	menuoption_t *cursoritem;
 
-	menutext_t *speaker[6];
+	menutext_t *speaker[MAXSOUNDCHANNELS];
 	menutext_t *testsoundsource;
 
 	soundcardinfo_t *card;
@@ -332,7 +331,7 @@ typedef struct {
 
 qboolean M_Audio_Key (int key, struct menu_s *menu)
 {
-	int i, x, y;
+	int i;
 	audiomenuinfo_t *info = menu->data;
 	soundcardinfo_t *sc;
 	for (sc = sndcardinfo; sc; sc = sc->next)
@@ -366,11 +365,12 @@ qboolean M_Audio_Key (int key, struct menu_s *menu)
 	if (key >= '0' && key <= '5')
 	{
 		i = key - '0';
-		x = info->testsoundsource->common.posx - 320/2;
-		y = info->testsoundsource->common.posy - 200/2;
-//		sc->yaw[i] = (-atan2 (y,x)*180/M_PI) - 90;
 
-		sc->dist[i] = 50/sqrt(x*x+y*y);
+		sc->speakerdir[i][0] = (info->testsoundsource->common.posy-200/2)/-50.0;
+		sc->speakerdir[i][1] = (info->testsoundsource->common.posx-320/2)/-50.0;
+		sc->speakerdir[i][2] = 0;
+
+		sc->dist[i] = VectorLength(sc->speakerdir[i]);
 	}
 
 	menu->selecteditem = NULL;
@@ -401,8 +401,8 @@ void M_Audio_StartSound (struct menu_s *menu)
 
 	for (i = 0; i < sc->sn.numchannels; i++)
 	{
-//		info->speaker[i]->common.posx = 320/2 - sin(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
-//		info->speaker[i]->common.posy = 200/2 - cos(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
+		info->speaker[i]->common.posx = 320/2 + sc->speakerdir[i][1] * 50;
+		info->speaker[i]->common.posy = 200/2 - sc->speakerdir[i][0] * 50;
 	}
 	for (; i < 6; i++)
 		info->speaker[i]->common.posy = -100;
@@ -412,10 +412,10 @@ void M_Audio_StartSound (struct menu_s *menu)
 		S_GetListenerInfo(0, mat[0], mat[1], mat[2], mat[3]);
 
 		lasttime = Sys_DoubleTime();
-		org[0] = mat[0][0] + 2*(mat[1][0]*(info->testsoundsource->common.posx-320/2) + mat[1][0]*(info->testsoundsource->common.posy-200/2));
-		org[1] = mat[0][1] + 2*(mat[1][1]*(info->testsoundsource->common.posx-320/2) + mat[1][1]*(info->testsoundsource->common.posy-200/2));
-		org[2] = mat[0][2] + 2*(mat[1][2]*(info->testsoundsource->common.posx-320/2) + mat[1][2]*(info->testsoundsource->common.posy-200/2));
-		S_StartSound(-2, 0, S_PrecacheSound("player/pain3.wav"), org, 1, 4, 0, 0, 0);
+		org[0] = mat[0][0] + 2*(mat[2][0]*(info->testsoundsource->common.posx-320/2) - mat[1][0]*(info->testsoundsource->common.posy-200/2));
+		org[1] = mat[0][1] + 2*(mat[2][1]*(info->testsoundsource->common.posx-320/2) - mat[1][1]*(info->testsoundsource->common.posy-200/2));
+		org[2] = mat[0][2] + 2*(mat[2][2]*(info->testsoundsource->common.posx-320/2) - mat[1][2]*(info->testsoundsource->common.posy-200/2));
+		S_StartSound(0, 0, S_PrecacheSound("player/pain3.wav"), org, NULL, 1, 4, 0, 0, 0);
 	}
 }
 
@@ -436,7 +436,7 @@ void M_Menu_Audio_Speakers_f (void)
 	for (i = 0; i < 6; i++)
 		info->speaker[i] = MC_AddBufferedText(menu, 0, 0, 0, va("%i", i), false, true);
 
-	info->testsoundsource = MC_AddBufferedText(menu, 0, 0, 0, "X", false, true);
+	info->testsoundsource = MC_AddBufferedText(menu, 320/2, 320/2, 200/2, "X", false, true);
 
 	info->card = sndcardinfo;
 
@@ -513,7 +513,7 @@ void M_Menu_Audio_f (void)
 	int y;
 	menu_t *menu = M_Options_Title(&y, sizeof(struct audiomenuinfo));
 	struct audiomenuinfo *info = M_Menu_Audio_Setup(menu);
-	extern cvar_t nosound, snd_leftisright, snd_device, snd_khz, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead;
+	extern cvar_t nosound, snd_leftisright, snd_device, snd_khz, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_doppler;
 //	extern cvar_t snd_noextraupdate, snd_eax, precache;
 #ifdef VOICECHAT
 	extern cvar_t snd_voip_capturedevice, snd_voip_play, snd_voip_send, snd_voip_test, snd_voip_micamp, snd_voip_vad_threshhold, snd_voip_ducking, snd_voip_noisefilter, snd_voip_codec;
@@ -582,12 +582,12 @@ void M_Menu_Audio_f (void)
 	};
 #endif
 	menubulk_t bulk[] = {
-		MB_REDTEXT("Sound Options", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Sound Options", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_SPACING(8),
 		MB_CONSOLECMD("Restart Sound", "snd_restart\n", "Restart audio systems and apply set options."),
 		MB_SPACING(4),
-		MB_COMBOCVAR("Output Device", snd_device, (const char**)info->outdevdescs, (const char**)info->outdevnames, NULL),
+		MB_COMBOCVAR("Output Device", snd_device, (const char**)info->outdevdescs, (const char**)info->outdevnames, "Choose which audio driver and device to use."),
 		MB_SLIDER("Volume", volume, 0, 1, 0.1, NULL),
 		MB_COMBOCVAR("Speaker Setup", snd_speakers, speakeroptions, speakervalues, NULL),
 		MB_COMBOCVAR("Frequency", snd_khz, soundqualityoptions, soundqualityvalues, NULL),
@@ -602,6 +602,7 @@ void M_Menu_Audio_f (void)
 		MB_SLIDER("Ambient Fade", ambient_fade, 0, 1000, 1, NULL),
 		MB_CHECKBOXCVAR("Static Sounds", cl_staticsounds, 0),
 		MB_SLIDER("Music Volume", bgmvolume, 0, 1, 0.1, NULL),
+		MB_SLIDER("Doppler Factor", snd_doppler, 0, 10, 0.1, NULL),
 		// removed music buffer
 		// removed precache
 		// removed eax2
@@ -610,8 +611,8 @@ void M_Menu_Audio_f (void)
 		MB_SPACING(4),
 
 #ifdef VOICECHAT
-		MB_REDTEXT("Voice Options", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Voice Options", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_COMBOCVAR("Microphone Device", snd_voip_capturedevice, (const char**)info->capdevdescs, (const char**)info->capdevnames, NULL),
 		MB_SLIDER("Voice Volume", snd_voip_play, 0, 2, 0.1, NULL),
 		MB_CHECKBOXCVAR("Microphone Test", snd_voip_test, 0),
@@ -701,8 +702,8 @@ void M_Menu_Particles_f (void)
 
 	int y;
 	menubulk_t bulk[] = {
-		MB_REDTEXT("Particle Options", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Particle Options", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 //		MB_COMBOCVAR("Particle System", r_particlesystem, psystemopts, psystemvals, "Selects particle system to use. Classic is standard Quake particles, script is FTE style scripted particles, and none disables particles entirely."),
 		MB_COMBOCVAR("Particle Set", r_particledesc, pdescopts, pdescvals, "Selects particle set to use with the scripted particle system."),
 		MB_SPACING(4),
@@ -752,6 +753,7 @@ const char *presetexec[] =
 	"seta r_particledesc \"\";"
 	"seta r_part_classic_square 0;"
 	"seta r_part_classic_expgrav 10;"
+	"seta r_part_classic_opaque 0;"
 	"seta r_stains 0;"
 	"seta r_drawflat 1;"
 	"seta r_nolerp 1;"
@@ -759,6 +761,8 @@ const char *presetexec[] =
 	"seta r_dynamic 0;"
 	"seta r_bloom 0;"
 	"seta r_softwarebanding 0;"
+	"seta d_mipcap 0 1000;"
+	"seta gl_affinemodels 0;"
 	"seta gl_polyblend 0;"
 	"seta gl_flashblend 0;"
 	"seta gl_specular 0;"
@@ -794,7 +798,11 @@ const char *presetexec[] =
 	, // fast options
 	"gl_texturemode ln;"
 	"gl_texturemode2d n;"
+#ifdef MINIMAL
 	"r_particlesystem classic;"
+#else
+	"r_particlesystem script;"
+#endif
 	"r_particledesc classic;"
 	"r_drawflat 0;"
 	"r_nolerp 0;"
@@ -811,7 +819,7 @@ const char *presetexec[] =
 	"gl_polyblend 1;"
 	"r_dynamic 1;"
 	"gl_flashblend 0;"
-	"cl_nolerp 0;"
+	"cl_nolerp 0;"	//projectiles lerped at least.
 	"r_waterwarp 1;"
 	"r_drawflame 1;"
 	"v_gunkick 1;"
@@ -819,12 +827,16 @@ const char *presetexec[] =
 	"cl_bob 0.02;"
 	//these things are perhaps a little extreme
 	"r_loadlit 0;"
+	"r_nolerp 1;"
 	"r_softwarebanding 1;"		//ugly software banding.
+	"d_mipcap 0 2;"				//gl without anisotropic filtering favours too-distant mips too often, so lets just pretend it doesn't exist. should probably mess with lod instead or something
+	"gl_affinemodels 1;"
 	"gl_texturemode nnl;"		//yup, we went there.
 	"gl_texturemode2d n.l;"		//yeah, 2d too.
 	"r_part_classic_square 1;"	//blocky baby!
 	"r_part_classic_expgrav 1;"	//vanillaery
-	"r_particlesystem script;"	//q2 or hexen2 particle effects need to be loadable
+	"r_part_classic_opaque 1;"
+//	"r_particlesystem script;"	//q2 or hexen2 particle effects need to be loadable
 	"cl_sbar 1;"				//its a style thing
 	"sv_nqplayerphysics 1;"		//gb wanted this
 	"cl_demoreel 1;"			//yup, arcadey
@@ -833,18 +845,21 @@ const char *presetexec[] =
 	"seta cl_deadbodyfilter 0;"
 
 	, // normal (faithful) options, but with content replacement thrown in
-#ifdef MINIMAL
-	"r_particlesystem classic;"
-#else
-	"r_particlesystem script;"
-	"r_particledesc classic;"
-#endif
+//#ifdef MINIMAL
+//	"r_particlesystem classic;"
+//#else
+//	"r_particlesystem script;"
+//	"r_particledesc classic;"
+//#endif
 	"r_part_classic_square 0;"
 	"r_part_classic_expgrav 10;"	//gives a slightly more dynamic feel to them
+	"r_part_classic_opaque 0;"
 	"gl_load24bit 1;"
 	"r_replacemodels \"md3 md2\";"
 	"r_coronas 1;"
 	"r_softwarebanding 0;"
+	"d_mipcap 0 1000;"
+	"gl_affinemodels 0;"
 	"r_lerpmuzzlehack 1;"
 	"gl_texturemode ln;"
 	"gl_texturemode2d l;"
@@ -852,12 +867,13 @@ const char *presetexec[] =
 	"sv_nqplayerphysics 0;"
 	"cl_demoreel 0;"
 	"r_loadlit 1;"
+	"r_nolerp 0;"
 
 	, // nice options
 	"r_stains 0.75;"
 	"gl_texturemode ll;"
 #ifndef MINIMAL
-	"r_particlesystem script;"
+//	"r_particlesystem script;"
 	"r_particledesc \"high tsshaft\";"
 #endif
 	"gl_specular 1;"
@@ -906,8 +922,8 @@ void M_Menu_Preset_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Please Choose Preset", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Please Choose Preset", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_CONSOLECMD("simple  (untextured)",	"fps_preset 286;menupop\n",			"Lacks textures, particles, pretty much everything."),
 		MB_CONSOLECMD("fast    (deathmatch)",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
 		MB_CONSOLECMD("vanilla  (softwarey)",	"fps_preset vanilla;menupop\n",		"This is for purists! Party like its 1995! No sanity spared!"),
@@ -1051,8 +1067,8 @@ void M_Menu_FPS_f (void)
 	{
 		menubulk_t bulk[] =
 		{
-			MB_REDTEXT("FPS Options", false),
-			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+			MB_REDTEXT("FPS Options", true),
+			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 			MB_COMBORETURN("Preset", presetname, 2, info->preset, "Select a builtin configuration of graphical settings."),
 			MB_CMD("Apply", M_PresetApply, "Applies selected preset."),
 			MB_SPACING(4),
@@ -1100,8 +1116,8 @@ void M_Menu_Render_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Rendering Options", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Rendering Options", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_CHECKBOXCVAR("Disable VIS", r_novis, 0),
 		MB_CHECKBOXCVAR("Fast Sky", r_fastsky, 0),
 		MB_CHECKBOXCVAR("Disable Model Lerp", r_nolerp, 0),
@@ -1195,8 +1211,8 @@ void M_Menu_Textures_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Texture Options", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Texture Options", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_CHECKBOXCVAR("Load Replacements", gl_load24bit, 0),
 		MB_CHECKBOXCVAR("Simple Texturing", r_drawflat, 0),
 		MB_COMBOCVAR("3D Filter Mode", gl_texturemode, texturefilternames, texturefiltervalues, "Chooses the texture filtering method used for 3D objects."),
@@ -1311,12 +1327,15 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,
 void M_Menu_Lighting_f (void)
 {
 #ifndef MINIMAL
-	extern cvar_t r_vertexlight, r_vertexdlights;
+	extern cvar_t r_vertexlight;
 #endif
 	extern cvar_t r_stains, r_shadows, r_loadlits;
 	extern cvar_t r_lightstylesmooth, r_nolightdir;
 #ifdef RTLIGHTS
 	extern cvar_t r_dynamic, r_shadow_realtime_world, r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
+#ifndef MINIMAL
+	extern cvar_t r_vertexdlights;
+#endif
 #endif
 	extern cvar_t r_fb_models, r_rocketlight, r_powerupglow;
 	extern cvar_t v_powerupshell, r_explosionlight;
@@ -1456,8 +1475,8 @@ void M_Menu_Lighting_f (void)
 		lightingmenuinfo_t *info = menu->data;
 		menubulk_t bulk[] =
 		{
-			MB_REDTEXT("Lighting Options", false),
-			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+			MB_REDTEXT("Lighting Options", true),
+			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 			MB_COMBORETURN("Lighting Mode", lightingopts, lightselect, info->lightcombo, "Selects method used for world lighting. Realtime lighting requires appropriate realtime lighting files for maps."),
 			MB_COMBORETURN("Dynamic Lighting Mode", dlightopts, dlightselect, info->dlightcombo, "Selects method used for dynamic lighting such as explosion lights and muzzle flashes."),
 #ifdef RTLIGHTS
@@ -2483,24 +2502,30 @@ void M_Menu_Video_f (void)
 	extern cvar_t vid_fullscreen, vid_desktopsettings, vid_conautoscale;
 	extern cvar_t vid_bpp, vid_refreshrate, vid_multisample;
 
-#if defined(GLQUAKE) && (defined(D3DQUAKE) || defined(SWQUAKE))
-#define MULTIRENDERER
-#endif
-#ifdef MULTIRENDERER
 	extern cvar_t vid_renderer;
 	static const char *rendererops[] =
 	{
 #ifdef GLQUAKE
 		"OpenGL",
 #endif
+#ifdef VKQUAKE
+		"Vulkan (Experimental)",
+#endif
 #ifdef D3D9QUAKE
-		"Direct3D 9",
+		"Direct3D 9 (limited)",
 #endif
 #ifdef D3D11QUAKE
-		"Direct3D 11",
+		"Direct3D 11 Hardware (Experimental)",
+		"Direct3D 11 Software (Experimental)",
 #endif
 #ifdef SWQUAKE
-		"Software Rendering",
+		"Software Rendering (unusable)",
+#endif
+#if defined(_WIN32) && !defined(CLIENTONLY)	//win32 because other systems probably won't display a console if started via some shortcut
+		"Dedicated Server",
+#endif
+#if 0
+		"Headless",
 #endif
 		NULL
 	};
@@ -2509,18 +2534,27 @@ void M_Menu_Video_f (void)
 #ifdef GLQUAKE
 		"gl",
 #endif
+#ifdef VKQUAKE
+		"vk",
+#endif
 #ifdef D3D9QUAKE
 		"d3d9",
 #endif
 #ifdef D3D11QUAKE
 		"d3d11",
+		"d3d11 warp",
 #endif
 #ifdef SWQUAKE
 		"sw",
 #endif
+#if defined(_WIN32) && !defined(CLIENTONLY)
+		"sv",
+#endif
+#if 0
+		"headless",
+#endif
 		NULL
 	};
-#endif
 
 	static const char *fullscreenopts[] = {
 		"Windowed",
@@ -2627,14 +2661,12 @@ void M_Menu_Video_f (void)
 	{
 		menubulk_t bulk[] =
 		{
-			MB_REDTEXT("Video Options", false),
-			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
-#ifdef MULTIRENDERER
+			MB_REDTEXT("Video Options", true),
+			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 			MB_COMBOCVAR("Renderer", vid_renderer, rendererops, renderervalues, NULL),
-#endif
 			MB_COMBOCVARRETURN("Display Mode", vid_fullscreen, fullscreenopts, fullscreenvalues, info->dispmode, vid_fullscreen.description),
 			MB_COMBOCVAR("Anti-aliasing", vid_multisample, aaopts, aavalues, NULL),
-			MB_REDTEXT(current3dres, false),
+			MB_REDTEXT(current3dres, true),
 			MB_COMBORETURN("Aspect", resmodeopts, resmodechoice, info->resmode, "Select method for determining or configuring display options. The desktop option will attempt to use the width, height, color depth, and refresh from your operating system's desktop environment."),
 			// aspect entries
 			MB_COMBORETURN("Size", resaspects[0], reschoices[0], info->ressize[0], "Select resolution for display."),
@@ -2725,7 +2757,8 @@ typedef struct
 	enum {
 		MV_NONE,
 		MV_BONES,
-		MV_SHADER
+		MV_SHADER,
+		MV_TEXTURE
 	} mode;
 	int surfaceidx;
 	int skingroup;
@@ -2738,6 +2771,7 @@ typedef struct
 	char modelname[MAX_QPATH];
 	char forceshader[MAX_QPATH];
 
+	char shaderfile[MAX_QPATH];
 	char *shadertext;
 } modelview_t;
 
@@ -2875,7 +2909,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		qboolean loop = false;
 		if (!Mod_FrameInfoForNum(ent.model, mods->surfaceidx, mods->framegroup, &fname, &numframes, &duration, &loop))
 			fname = "Unknown Frame";
-		Draw_FunString(0, y, va("Frame%i: %s (%i poses, %f secs, %s)", mods->framegroup, fname, numframes, duration, loop?"looped":"unlooped"));
+		Draw_FunString(0, y, va("Frame%i: %s (%i poses, %f/%f secs, %s)", mods->framegroup, fname, numframes, ent.framestate.g[FS_REG].frametime[0], duration, loop?"looped":"unlooped"));
 		y+=8;
 	}
 	fname = Mod_SkinNameForNum(ent.model, mods->surfaceidx, mods->skingroup);
@@ -2921,14 +2955,29 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		{
 			if (!mods->shadertext)
 			{
-				char *body = Shader_GetShaderBody(Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup));
+				char *body = Shader_GetShaderBody(Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup), mods->shaderfile, sizeof(mods->shaderfile));
 				if (!body)
 					break;
-				mods->shadertext = Z_StrDup(body);
+				if (*mods->shaderfile)
+					mods->shadertext = Z_StrDup(va("\n\nPress space to view+edit the shader\n\n%s", body));
+				else
+					mods->shadertext = Z_StrDup(body);
 			}
 			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+16, r_refdef.grect.width, r_refdef.grect.height-16, mods->shadertext, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 
 			//fixme: draw the shader's textures.
+		}
+		break;
+	case MV_TEXTURE:
+		{
+			shader_t *shader = Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup);
+			if (shader)
+			{
+				texnums_t *skin = shader->defaulttextures;
+				shader = R_RegisterShader("modelviewertexturepreview", SUF_2D, "{\nprogram default2d\n{\nmap $diffuse\n}\n}\n");
+				shader->defaulttextures->base = skin->base;
+				R2D_Image(0, y, shader->defaulttextures->base->width, shader->defaulttextures->base->height, 0, 0, 1, 1, shader);
+			}
 		}
 		break;
 	}
@@ -2953,7 +3002,8 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 		{
 		case MV_NONE:	mods->mode = MV_BONES;	break; 
 		case MV_BONES:	mods->mode = MV_SHADER;	break;
-		case MV_SHADER: mods->mode = MV_NONE;	break;
+		case MV_SHADER:	mods->mode = MV_TEXTURE;break;
+		case MV_TEXTURE: mods->mode = MV_NONE;	break;
 		}
 	}
 	else if (key == 'r')
@@ -2973,6 +3023,8 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 	{
 		mods->skingroup = max(0, mods->skingroup-1);
 		mods->skinchangetime = realtime;
+		Z_Free(mods->shadertext);
+		mods->shadertext = NULL;
 	}
 	else if (key == K_END)
 	{
@@ -3004,6 +3056,12 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 		mods->surfaceidx += 1;
 		Z_Free(mods->shadertext);
 		mods->shadertext = NULL;
+	}
+	else if (key == K_SPACE)
+	{
+		if (*mods->shaderfile)
+			Cbuf_AddText(va("\nedit %s\n", mods->shaderfile), RESTRICT_LOCAL);
+		return true;
 	}
 	else
 		return false;

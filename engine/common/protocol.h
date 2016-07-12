@@ -76,6 +76,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT2_REPLACEMENTDELTAS		0x00000008	//weaponframe was part of the entity state. that flag is now the player's v_angle.
 #define PEXT2_MAXPLAYERS			0x00000010	//Client is able to cope with more players than 32. abs max becomes 255, due to colormap issues.
 #define PEXT2_PREDINFO				0x00000020	//movevar stats, NQ input sequences+acks.
+#define PEXT2_NEWSIZEENCODING		0x00000040	//richer size encoding.
 
 //ZQuake transparent protocol extensions.
 #define Z_EXT_PM_TYPE		(1<<0)	// basic PM_TYPE functionality (reliable jump_held)
@@ -628,7 +629,7 @@ enum clcq2_ops_e
 /*the rest is optional extensions*/
 #define UF_ALPHA		(1u<<16)
 #define UF_SCALE		(1u<<17)
-#define UF_UNUSED3		(1u<<18)
+#define UF_BONEDATA		(1u<<18)
 #define UF_DRAWFLAGS	(1u<<19)
 #define UF_TAGINFO		(1u<<20)
 #define UF_LIGHT		(1u<<21)
@@ -831,19 +832,20 @@ enum clcq2_ops_e
 
 // a sound with no channel is a local only sound
 // the sound field has bits 0-2: channel, 3-12: entity, 13: unused, 14-15: flags
-#define	SND_VOLUME		(1<<15)		// a qbyte
-#define	SND_ATTENUATION	(1<<14)		// a qbyte
+#define	QWSND_VOLUME		(1<<15)		// a qbyte
+#define	QWSND_ATTENUATION	(1<<14)		// a qbyte
 
 #define	NQSND_VOLUME		(1<<0)		// a qbyte
 #define	NQSND_ATTENUATION	(1<<1)		// a qbyte
 //#define DPSND_LOOPING		(1<<2)		// a long, supposedly
 #define FTESND_MOREFLAGS	(1<<2)		// actually, chan flags
-#define DPSND_LARGEENTITY	(1<<3)
-
-#define DPSND_LARGESOUND	(1<<4)
+#define NQSND_LARGEENTITY	(1<<3)		//both dp+fitz
+#define NQSND_LARGESOUND	(1<<4)		//both dp+fitz
 //#define	DPSND_SPEEDUSHORT4000	(1<<5)		// ushort speed*4000 (speed is usually 1.0, a value of 0.0 is the same as 1.0)
 #define FTESND_TIMEOFS		(1<<6)		//signed short, in milliseconds.
-#define FTESND_PITCHADJ		(1<<7)		//a byte (speed percent (0=100%))
+#define FTESND_PITCHADJ		(1<<7)			//a byte (speed percent (0=100%))
+//more flags are weird.
+#define FTESND_VELOCITY		(CF_RELIABLE<<8)	//borrowed.
 
 #define DEFAULT_SOUND_PACKET_VOLUME 255
 #define DEFAULT_SOUND_PACKET_ATTENUATION 1.0
@@ -889,9 +891,12 @@ enum {
 	TE_BULLET				= 14,
 	TE_SUPERBULLET			= 15,
 #endif
-
+	TENEH_RAILTRAIL			= 15,	//gah	[vector] origin [coord] red [coord] green [coord] blue
+	TENEH_EXPLOSION3		= 16,	//gah	[vector] origin [coord] red [coord] green [coord] blue
 	TE_RAILTRAIL			= 17,	//use the builtin, luke.
+	TENEH_LIGHTNING4		= 17,	//gah	[string] model [entity] entity [vector] start [vector] end
 	TEQW_BEAM				= 18,	//use the builtin, luke.
+	TENEH_SMOKE				= 18,	//gah	[vector] origin [byte] palette
 	TEQW_EXPLOSION2			= 19,	//use the builtin, luke.
 	TEQW_EXPLOSIONNOSPRITE	= 20,
 	TE_GUNSHOT_NQCOMPAT		= 21,	//nq has count byte, qw does not
@@ -938,6 +943,7 @@ enum {
 #define CTE_CUSTOMVELOCITY	32
 #define CTE_PERSISTANT		64
 #define CTE_ISBEAM			128
+//CTE_ISBEAM && (CTE_CUSTOMVELOCITY||CTE_CUSTOMDIRECTION) = BOX particles.
 
 //FTE's version of TEI_SHOWLMP2. tei's values and coding scheme which makes no sense to anyone but him.
 #define SL_ORG_NW	0
@@ -992,9 +998,12 @@ enum {
 typedef struct entity_state_s
 {
 	unsigned int		number;			// edict index
+	unsigned int		sequence;
 
 	unsigned short		modelindex;
-	unsigned short		inactiveflag;
+	qbyte				inactiveflag;
+	qbyte				bonecount;		//for networked bones
+	unsigned int		boneoffset;		//offset into the frame (not a pointer, to avoid issues with reallocing extra storage)
 
 //	unsigned int		eflags;			// nolerp, etc
 
@@ -1010,10 +1019,10 @@ typedef struct entity_state_s
 			int		renderfx;		//q2
 			vec3_t	old_origin;		//q2/q3
 
-			qbyte		modelindex3;	//q2
-			qbyte		modelindex4;	//q2
-			qbyte		sound;			//q2
-			qbyte		event;			//q2
+			unsigned short		modelindex3;	//q2
+			unsigned short		modelindex4;	//q2
+			unsigned short		sound;			//q2
+			qbyte				event;			//q2
 		} q2;
 #endif
 		struct
@@ -1021,6 +1030,9 @@ typedef struct entity_state_s
 			/*info to predict other players, so I don't get yelled at if fte were to stop supporting it*/
 			qbyte pmovetype;
 			qbyte msec;
+			qbyte pad2;
+			qbyte pad1;
+
 			short vangle[3];
 			unsigned short weaponframe;
 
@@ -1036,6 +1048,10 @@ typedef struct entity_state_s
 
 	unsigned short		modelindex2;	//q2/vweps
 	unsigned short		frame;
+
+	unsigned short		baseframe;
+	qbyte				basebone;
+	qbyte				pad;
 
 	unsigned int		skinnum; /*q2 needs 32 bits, which is quite impressive*/
 
@@ -1059,8 +1075,12 @@ typedef struct entity_state_s
 	unsigned short tagindex;
 	unsigned int tagentity;
 
-	unsigned int solid;
+	unsigned int solidsize;
+#define ES_SOLID_NOT 0
 #define ES_SOLID_BSP 31
+#define ES_SOLID_HULL1 0x80201810
+#define ES_SOLID_HULL2 0x80401820
+#define ES_SOLID_HAS_EXTRA_BITS(solid) ((solid&0x0707) || (((solid>>16)-32768+32) & 7))
 
 	unsigned short light[4];
 } entity_state_t;
@@ -1076,8 +1096,12 @@ typedef struct
 	int				num_entities;
 	int				max_entities;
 	entity_state_t	*entities;
-	qboolean		fixangles[MAX_SPLITS];	//these should not be in here
+	int				fixangles[MAX_SPLITS];	//these should not be in here
 	vec3_t			fixedangles[MAX_SPLITS];
+
+	qbyte			*bonedata;
+	size_t			bonedatacur;
+	size_t			bonedatamax;
 } packet_entities_t;
 
 typedef struct usercmd_s
@@ -1248,6 +1272,7 @@ typedef struct q1usercmd_s
 #define RF_NOSHADOW				(1u<<20)	//disables shadow casting
 #define RF_NODEPTHTEST			(1u<<21)	//forces shader sort order and BEF_FORCENODEPTH
 #define RF_FORCECOLOURMOD		(1u<<22)	//forces BEF_FORCECOLOURMOD
+#define RF_WEAPONMODELNOBOB		(1u<<23)	//
 
 // player_state_t->refdef flags
 #define	RDF_UNDERWATER			(1u<<0)		// warp the screen as apropriate (fov trick)
@@ -1565,25 +1590,23 @@ typedef struct q1usercmd_s
 #define MAX_MAP_AREA_BYTES		32
 
 // edict->drawflags (hexen2 stuff)
-#define MLS_MASKIN				7	// Model Light Style
-#define MLS_MASKOUT				248
+#define MLS_MASK				7	// Model Light Style
 #define MLS_NONE				0
 #define MLS_FULLBRIGHT			1
 #define MLS_POWERMODE			2
 #define MLS_TORCH				3
 #define MLS_TOTALDARK			4
-#define MLS_ABSLIGHT			7
-#define SCALE_TYPE_MASKIN		24
-#define SCALE_TYPE_MASKOUT		231
+#define MLS_ABSLIGHT			(MLS_MASK)
+#define SCALE_TYPE_MASK			(SCALE_TYPE_UNIFORM|SCALE_TYPE_XYONLY|SCALE_TYPE_ZONLY)
 #define SCALE_TYPE_UNIFORM		0	// Scale X, Y, and Z
 #define SCALE_TYPE_XYONLY		8	// Scale X and Y
 #define SCALE_TYPE_ZONLY		16	// Scale Z
-#define SCALE_ORIGIN_MASKIN		96
-#define SCALE_ORIGIN_MASKOUT	159
+#define SCALE_TYPE_UNUSED		(SCALE_TYPE_XYONLY|SCALE_TYPE_ZONLY)
+#define SCALE_ORIGIN_MASK		(SCALE_ORIGIN_TOP|SCALE_ORIGIN_BOTTOM|SCALE_ORIGIN_CENTER)
 #define SCALE_ORIGIN_CENTER		0	// Scaling origin at object center
 #define SCALE_ORIGIN_BOTTOM		32	// Scaling origin at object bottom
 #define SCALE_ORIGIN_TOP		64	// Scaling origin at object top
-#define SCALE_ORIGIN_ORIGIN		(64|32)	// Scaling origin at object origin
+#define SCALE_ORIGIN_ORIGIN		(SCALE_ORIGIN_TOP|SCALE_ORIGIN_BOTTOM)	// Scaling origin at object origin
 #define DRF_TRANSLUCENT			128
 
 
@@ -1599,7 +1622,7 @@ typedef struct q1usercmd_s
 #define RENDER_LOWPRECISION 16 // send as low precision coordinates to save bandwidth
 #define RENDER_COLORMAPPED 32
 //#define RENDER_WORLDOBJECT 64
-//#define RENDER_COMPLEXANIMATION 128
+#define RENDER_COMPLEXANIMATION 128
 
 //darkplaces protocols 5 to 7 use these
 // reset all entity fields (typically used if status changed)
@@ -1681,4 +1704,4 @@ typedef struct q1usercmd_s
 // bits2 > 0
 #define E5_EXTEND4 (1<<31)
 
-#define E5_ALLUNUSED (E5_COMPLEXANIMATION|E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)
+#define E5_ALLUNUSED (E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)

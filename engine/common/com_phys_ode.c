@@ -43,6 +43,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #undef USERBE
 #endif
 
+#define DEG2RAD(d) (d * M_PI * (1/180.0f))
+#define RAD2DEG(d) ((d*180) / M_PI)
+
 #ifdef USERBE
 
 #include "pr_common.h"
@@ -51,7 +54,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define BZ_Malloc malloc
 #define BZ_Free free
 #define Z_Free BZ_Free
-static vec3_t vec3_origin;
+vec3_t vec3_origin;
+#define VectorCompare VectorComparestatic
 static int VectorCompare (const vec3_t v1, const vec3_t v2)
 {
 	int		i;
@@ -91,6 +95,8 @@ static rbeplugfuncs_t *rbefuncs;
 // include files.
 
 #ifdef ODE_STATIC
+#undef ODE_DYNAMIC
+#define dDOUBLE
 #include "ode/ode.h"
 #else
 #ifdef WINAPI
@@ -1194,8 +1200,6 @@ static dllfunction_t odefuncs[] =
 static dllhandle_t *ode_dll = NULL;
 #endif
 
-
-static cvar_t *physics_ode_enable;
 static cvar_t *physics_ode_quadtree_depth;
 static cvar_t *physics_ode_contactsurfacelayer;
 static cvar_t *physics_ode_worldquickstep;
@@ -1242,7 +1246,28 @@ struct odectx_s
 
 static void World_ODE_RunCmd(world_t *world, rbecommandqueue_t *cmd);
 
-static void World_ODE_Init(void)
+#ifdef _WIN32
+	#undef vsnprintf
+	#undef _vsnprintf
+	#define vsnprintf(s,l,f,a) _vsnprintf(s,l,f,a);string[sizeof(string)-1] = 0;
+#endif
+
+void MyODEErrorHandler (int errnum, const char *msg, va_list ap)
+{
+	char		string[1024];
+	vsnprintf (string,sizeof(string), msg, ap);
+	string[sizeof(string)-1] = 0;
+	Sys_Errorf("ODE ERROR %i: %s", errnum, string);
+}
+void MyODEMessageHandler (int errnum, const char *msg, va_list ap)
+{
+	char		string[1024];
+	vsnprintf (string,sizeof(string), msg, ap);
+	string[sizeof(string)-1] = 0;
+	Con_Printf("ODE Message %i: %s\n", errnum, string);
+}
+
+static qboolean World_ODE_Init(void)
 {
 #ifdef ODE_DYNAMIC
 	const char* dllname =
@@ -1259,8 +1284,6 @@ static void World_ODE_Init(void)
 	};
 #endif
 
-
-	physics_ode_enable							= pCvar_GetNVFDG("physics_ode_enable",							"1",	0,	"Enables the use of ODE physics, but only if the mod supports it.",	"ODE Physics Library");
 	physics_ode_quadtree_depth					= pCvar_GetNVFDG("physics_ode_quadtree_depth",					"5",	0,	"desired subdivision level of quadtree culling space",				"ODE Physics Library");
 	physics_ode_contactsurfacelayer				= pCvar_GetNVFDG("physics_ode_contactsurfacelayer",				"0",	0,	"allows objects to overlap this many units to reduce jitter",		"ODE Physics Library");
 	physics_ode_worldquickstep					= pCvar_GetNVFDG("physics_ode_worldquickstep",					"1",	0,	"use dWorldQuickStep rather than dWorldStep",						"ODE Physics Library");
@@ -1314,8 +1337,14 @@ static void World_ODE_Init(void)
 #ifdef ODE_DYNAMIC
 	if (!ode_dll)
 	{
+		return false;
 	}
 #endif
+
+	dSetErrorHandler(MyODEErrorHandler);	//ode will display a messagebox (which probably won't have focus/grabs) and then crash, which messes up all sorts of things like gamma.
+	dSetDebugHandler(MyODEErrorHandler);	//both are fatal.
+	dSetMessageHandler(MyODEMessageHandler);//merely a print.
+	return true;
 }
 
 static void World_ODE_Shutdown(void)
@@ -2043,6 +2072,8 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		}
 		else
 		{
+			VectorClear(entmins);
+			VectorClear(entmaxs);
 			modelindex = 0;
 			massval = 1.0f;
 		}
@@ -2509,6 +2540,12 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 	if(!ed2 || ed2->isfree)
 		ed2 = world->edicts;
 
+	//non-solid things can still interact with pushers, but not other stuff.
+	if (!ed1->v->solid && ed2->v->solid != SOLID_BSP)
+		return;
+	if (!ed2->v->solid && ed1->v->solid != SOLID_BSP)
+		return;
+
 	// generate contact points between the two non-space geoms
 	numcontacts = dCollide(o1, o2, MAX_CONTACTS, &(contact[0].geom), sizeof(contact[0]));
 	if (numcontacts)
@@ -2828,8 +2865,13 @@ qintptr_t Plug_Init(qintptr_t *args)
 		Con_Printf("ODE plugin failed: Engine already has a physics plugin active.\n");
 	else
 	{
+		if (!World_ODE_Init())
+		{
+			Con_Printf("ODE plugin failed: ODE library missing.\n");
+			rbefuncs->UnregisterPhysicsEngine("ODE");
+			return false;
+		}
 		Plug_Export("Shutdown", Plug_ODE_Shutdown);
-		World_ODE_Init();
 		return true;
 	}
 	return false;

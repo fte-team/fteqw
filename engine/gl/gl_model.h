@@ -66,6 +66,7 @@ struct world_s;
 void rag_doallanimations(struct world_s *world);
 void rag_removedeltaent(lerpents_t *le);
 void rag_updatedeltaent(entity_t *ent, lerpents_t *le);
+void rag_lerpdeltaent(lerpents_t *le, unsigned int bonecount, short *newstate, float frac, short *oldstate);
 
 typedef struct mesh_s
 {
@@ -166,24 +167,24 @@ m*_t structures are in-memory
 #define	EF_BRIGHTLIGHT 			(1<<2)
 #define	EF_DIMLIGHT 			(1<<3)
 #define	QWEF_FLAG1	 			(1<<4)	//only applies to qw player entities
-#define NQEF_NODRAW				(1<<4)	//so packet entities are free to get this instead
+#define	NQEF_NODRAW				(1<<4)	//so packet entities are free to get this instead
 #define	QWEF_FLAG2	 			(1<<5)	//only applies to qw player entities
-#define NQEF_ADDITIVE			(1<<5)	//so packet entities are free to get this instead
-#define EF_BLUE					(1<<6)
-#define EF_RED					(1<<7)
+#define	NQEF_ADDITIVE			(1<<5)	//so packet entities are free to get this instead
+#define	EF_BLUE					(1<<6)
+#define	EF_RED					(1<<7)
 #define	H2EF_NODRAW				(1<<7)	//this is going to get complicated... emulated server side.
-#define		DPEF_NOGUNBOB_			(1<<8)	//viewmodel attachment does not bob
-#define EF_FULLBRIGHT			(1<<9)	//abslight=1
-#define DPEF_FLAME				(1<<10)	//'onfire'
-#define DPEF_STARDUST			(1<<11)	//'showering sparks'
-#define EF_NOSHADOW		 		(1<<12)	//doesn't cast a shadow
-#define EF_NODEPTHTEST			(1<<13)	//shows through walls.
+#define	DPEF_NOGUNBOB			(1<<8)	//viewmodel attachment does not bob
+#define	EF_FULLBRIGHT			(1<<9)	//abslight=1
+#define	DPEF_FLAME				(1<<10)	//'onfire'
+#define	DPEF_STARDUST			(1<<11)	//'showering sparks'
+#define	EF_NOSHADOW		 		(1<<12)	//doesn't cast a shadow
+#define	EF_NODEPTHTEST			(1<<13)	//shows through walls.
 #define		DPEF_SELECTABLE_		(1<<14)	//highlights when prydoncursored
 #define		DPEF_DOUBLESIDED_		(1<<15)	//disables culling
 #define		DPEF_NOSELFSHADOW_		(1<<16)	//doesn't cast shadows on any noselfshadow entities.
 #define		DPEF_DYNAMICMODELLIGHT_	(1<<17)	//forces dynamic lights... I have no idea what this is actually needed for.
-#define EF_GREEN				(1<<18)
-#define EF_UNUSED19				(1<<19)
+#define	EF_GREEN				(1<<18)
+#define	EF_UNUSED19				(1<<19)
 #define	EF_RESTARTANIM_BIT		(1<<20)	//restarts the anim when toggled between states
 #define	EF_TELEPORT_BIT			(1<<21)	//disable lerping when toggled between states
 #define DPEF_LOWPRECISION		(1<<22) //part of the protocol/server, not the client itself.
@@ -279,6 +280,9 @@ typedef struct vbo_s
 	vboarray_t bonenums;
 
 	vboarray_t boneweights;
+
+	void *vbomem;
+	void *ebomem;
 
 	unsigned int vbobones;
 	const float *bones;
@@ -512,7 +516,8 @@ void Q1BSPX_Setup(struct model_s *mod, char *filebase, unsigned int filelen, lum
 
 typedef struct fragmentdecal_s fragmentdecal_t;
 void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts, shader_t *surfshader);
-void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader), void *ctx);
+size_t Fragment_ClipPlaneToBrush(vecV_t *points, size_t maxpoints, void *planes, size_t planestride, size_t numplanes, vec4_t face);
+void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, unsigned int surfflagmask, unsigned int surflagmatch, void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader), void *ctx);
 
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLQ1BSP_LightPointValues(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
@@ -962,6 +967,7 @@ typedef struct model_s
 	{
 		int first;				//once built...
 		int count;				//num lightmaps
+		int	merge;				//merge this many source lightmaps together. woo.
 		int width;				//x size of lightmaps
 		int height;				//y size of lightmaps
 		int surfstyles;			//numbers of style per surface.
@@ -1006,6 +1012,8 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 //
 #ifdef TERRAIN
 void Terr_Init(void);
+struct terrainfuncs_s;
+struct terrainfuncs_s *QDECL Terr_GetTerrainFuncs(void);
 void Terr_DrawTerrainModel (batch_t **batch, entity_t *e);
 void Terr_FreeModel(model_t *mod);
 void Terr_FinishTerrain(model_t *model);

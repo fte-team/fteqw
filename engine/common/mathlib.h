@@ -28,19 +28,9 @@ typedef vec_t vec5_t[5];
 /*16-byte aligned vectors, for auto-vectorising, should propogate to structs
 sse and altivec can unroll loops using aligned reads, which should be faster... 4 at once.
 */
-#if _MSC_VER >= 1300
-typedef __declspec(align(16)) vec3_t avec3_t;
-typedef __declspec(align(16)) vec4_t avec4_t;
-typedef __declspec(align(4)) qbyte byte_vec4_t[4];
-#elif __GNUC__ >= 3
-typedef __attribute__((aligned(16))) vec3_t avec3_t;
-typedef __attribute__((aligned(16))) vec4_t avec4_t;
-typedef __attribute__((aligned(4))) qbyte byte_vec4_t[4];
-#else
-typedef vec3_t avec3_t;
-typedef vec4_t avec4_t;
-typedef qbyte byte_vec4_t[4];
-#endif
+typedef FTE_ALIGN(16) vec3_t avec3_t;
+typedef FTE_ALIGN(16) vec4_t avec4_t;
+typedef FTE_ALIGN(4) qbyte byte_vec4_t[4];
 
 //VECV_STRIDE is used only as an argument for opengl.
 #ifdef FTE_TARGET_WEB
@@ -98,6 +88,7 @@ extern vec3_t vec3_origin;
 #define Vector4Add(a,b,c)		((c)[0]=(((a[0])+(b[0]))),(c)[1]=(((a[1])+(b[1]))),(c)[2]=(((a[2])+(b[2]))),(c)[3]=(((a[3])+(b[3]))))
 #define Vector4Set(r,x,y,z,w) {(r)[0] = x; (r)[1] = y;(r)[2] = z;(r)[3]=w;}
 #define Vector4Interpolate(a, bness, b, c) FloatInterpolate((a)[0], bness, (b)[0], (c)[0]),FloatInterpolate((a)[1], bness, (b)[1], (c)[1]),FloatInterpolate((a)[2], bness, (b)[2], (c)[2]),FloatInterpolate((a)[3], bness, (b)[3], (c)[3])
+#define Vector4MA(a,s,b,c) do{(c)[0] = (a)[0] + (s)*(b)[0];(c)[1] = (a)[1] + (s)*(b)[1];(c)[2] = (a)[2] + (s)*(b)[2];(c)[3] = (a)[3] + (s)*(b)[3];}while(0)
 
 typedef float matrix3x4[3][4];
 typedef float matrix3x3[3][3];
@@ -184,7 +175,9 @@ void		Matrix3x4_RM_Transform3(const float *matrix, const float *vector, float *p
 float		*Matrix4x4_CM_NewRotation(float a, float x, float y, float z);
 float		*Matrix4x4_CM_NewTranslation(float x, float y, float z);
 
-void QDECL GenMatrixPosQuat4Scale(vec3_t pos, vec4_t quat, vec3_t scale, float result[12]);
+void Bones_To_PosQuat4(int numbones, const float *matrix, short *result);
+void QDECL GenMatrixPosQuat4Scale(const vec3_t pos, const vec4_t quat, const vec3_t scale, float result[12]);
+void QuaternionSlerp(const vec4_t p, vec4_t q, float t, vec4_t qt);
 
 #define AngleVectorsFLU(a,f,l,u) do{AngleVectors(a,f,l,u);VectorNegate(l,l);}while(0)
 

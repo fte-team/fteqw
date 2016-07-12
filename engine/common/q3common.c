@@ -23,7 +23,7 @@ int VM_fopen (char *name, int *handle, int fmode, int owner)
 	size_t insize;
 
 	if (!handle)
-		return FS_FLocateFile(name, FSLF_IFFOUND, NULL);
+		return !!FS_FLocateFile(name, FSLF_IFFOUND, NULL);
 
 	*handle = 0;
 
@@ -179,7 +179,7 @@ void VM_FSeek (int fnum, int offset, int seektype, int owner)
 		break;
 	default:
 	case 2:
-		offset = offset;
+		//offset = 0 + offset;
 		break;
 	}
 	if (offset < 0)

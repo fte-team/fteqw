@@ -136,7 +136,7 @@ typedef struct cvar_group_s
 #define CVAR_NOUNSAFEEXPAND	(1<<14) //cvar cannot be read by gamecode. do not expand cvar value when command is from gamecode.
 #define CVAR_RULESETLATCH	(1<<15)	//latched by the ruleset
 #define CVAR_SHADERSYSTEM	(1<<16)	//change flushes shaders.
-#define CVAR_TELLGAMECODE   (1<<17) //tells the gamecode when it has changed, does not prevent changing, added as an optimisation
+#define CVAR_TELLGAMECODE	(1<<17) //tells the gamecode when it has changed, does not prevent changing, added as an optimisation
 
 #define CVAR_CONFIGDEFAULT	(1<<18)	//this cvar's default value has been changed to match a config.
 #define CVAR_NOSAVE			(1<<19) //this cvar should never be saved. ever.

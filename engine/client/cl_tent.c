@@ -168,7 +168,6 @@ int
 	rt_slightblood=P_INVALID,
 	rt_knightspike=P_INVALID,
 	rt_vorespike=P_INVALID,
-	rtdp_neharasmoke=P_INVALID,
 	rtdp_nexuizplasma=P_INVALID,
 	rtdp_glowtrail=P_INVALID,
 
@@ -232,6 +231,7 @@ typedef struct
 	float	gravity;
 	float	startalpha;
 	float	endalpha;
+	float	scale;
 	float	start;
 	float	framerate;
 	model_t	*model;
@@ -506,7 +506,7 @@ void CL_RegisterParticles(void)
 	rt_slightblood			= P_FindParticleType("TR_SLIGHTBLOOD");
 	rt_knightspike			= P_FindParticleType("TR_KNIGHTSPIKE");
 	rt_vorespike			= P_FindParticleType("TR_VORESPIKE");
-	rtdp_neharasmoke		= P_FindParticleType("TR_NEHAHRASMOKE");
+	//rtdp_neharasmoke		= P_FindParticleType("TR_NEHAHRASMOKE");
 	rtdp_nexuizplasma		= P_FindParticleType("TR_NEXUIZPLASMA");
 	rtdp_glowtrail			= P_FindParticleType("TR_GLOWTRAIL");
 	/*internal to psystem*/   P_FindParticleType("SVC_PARTICLE");
@@ -607,6 +607,7 @@ static void CL_ClearExplosion(explosion_t *exp, vec3_t org)
 {
 	exp->endalpha = 0;
 	exp->startalpha = 1;
+	exp->scale = 1;
 	exp->gravity = 0;
 	exp->flags = 0;
 	exp->model = NULL;
@@ -813,7 +814,7 @@ beam_t *CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//f
 			VectorSubtract(end, start, normal);
 			VectorNormalize(normal);
 			VectorMA(end, 4, normal, extra);	//extend the end-point by four
-			if (!TraceLineN(start, extra, impact, normal))
+			if (CL_TraceLine(start, extra, impact, normal, NULL)>=1)
 				etype = -1;
 		}
 		else
@@ -1119,7 +1120,7 @@ void CL_ParseTEnt (void)
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
 			P_RunParticleEffect (pos, vec3_origin, 20, 30);
 
-		S_StartSound (0, 0, cl_sfx_wizhit, pos, 1, 1, 0, 0, 0);
+		S_StartSound (0, 0, cl_sfx_wizhit, pos, NULL, 1, 1, 0, 0, 0);
 		break;
 
 	case TE_KNIGHTSPIKE:			// spike hitting wall
@@ -1132,7 +1133,7 @@ void CL_ParseTEnt (void)
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
 			P_RunParticleEffect (pos, vec3_origin, 226, 20);
 
-		S_StartSound (0, 0, cl_sfx_knighthit, pos, 1, 1, 0, 0, 0);
+		S_StartSound (0, 0, cl_sfx_knighthit, pos, NULL, 1, 1, 0, 0, 0);
 		break;
 
 	case TEDP_SPIKEQUAD:
@@ -1148,16 +1149,16 @@ void CL_ParseTEnt (void)
 					P_RunParticleEffect (pos, vec3_origin, 0, 10);
 
 		if ( rand() % 5 )
-			S_StartSound (0, 0, cl_sfx_tink1, pos, 1, 1, 0, 0, 0);
+			S_StartSound (0, 0, cl_sfx_tink1, pos, NULL, 1, 1, 0, 0, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (0, 0, cl_sfx_ric1, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric1, pos, NULL, 1, 1, 0, 0, 0);
 			else if (rnd == 2)
-				S_StartSound (0, 0, cl_sfx_ric2, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric2, pos, NULL, 1, 1, 0, 0, 0);
 			else
-				S_StartSound (0, 0, cl_sfx_ric3, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric3, pos, NULL, 1, 1, 0, 0, 0);
 		}
 		break;
 	case TE_SPIKE:			// spike hitting wall
@@ -1172,16 +1173,16 @@ void CL_ParseTEnt (void)
 				P_RunParticleEffect (pos, vec3_origin, 0, 10);
 
 		if ( rand() % 5 )
-			S_StartSound (0, 0, cl_sfx_tink1, pos, 1, 1, 0, 0, 0);
+			S_StartSound (0, 0, cl_sfx_tink1, pos, NULL, 1, 1, 0, 0, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (0, 0, cl_sfx_ric1, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric1, pos, NULL, 1, 1, 0, 0, 0);
 			else if (rnd == 2)
-				S_StartSound (0, 0, cl_sfx_ric2, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric2, pos, NULL, 1, 1, 0, 0, 0);
 			else
-				S_StartSound (0, 0, cl_sfx_ric3, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric3, pos, NULL, 1, 1, 0, 0, 0);
 		}
 		break;
 	case TEDP_SUPERSPIKEQUAD:			// super spike hitting wall
@@ -1198,16 +1199,16 @@ void CL_ParseTEnt (void)
 						P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		if ( rand() % 5 )
-			S_StartSound (0, 0, cl_sfx_tink1, pos, 1, 1, 0, 0, 0);
+			S_StartSound (0, 0, cl_sfx_tink1, pos, NULL, 1, 1, 0, 0, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (0, 0, cl_sfx_ric1, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric1, pos, NULL, 1, 1, 0, 0, 0);
 			else if (rnd == 2)
-				S_StartSound (0, 0, cl_sfx_ric2, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric2, pos, NULL, 1, 1, 0, 0, 0);
 			else
-				S_StartSound (0, 0, cl_sfx_ric3, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric3, pos, NULL, 1, 1, 0, 0, 0);
 		}
 		break;
 	case TE_SUPERSPIKE:			// super spike hitting wall
@@ -1223,16 +1224,16 @@ void CL_ParseTEnt (void)
 					P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		if ( rand() % 5 )
-			S_StartSound (0, 0, cl_sfx_tink1, pos, 1, 1, 0, 0, 0);
+			S_StartSound (0, 0, cl_sfx_tink1, pos, NULL, 1, 1, 0, 0, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (0, 0, cl_sfx_ric1, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric1, pos, NULL, 1, 1, 0, 0, 0);
 			else if (rnd == 2)
-				S_StartSound (0, 0, cl_sfx_ric2, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric2, pos, NULL, 1, 1, 0, 0, 0);
 			else
-				S_StartSound (0, 0, cl_sfx_ric3, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric3, pos, NULL, 1, 1, 0, 0, 0);
 		}
 		break;
 
@@ -1251,16 +1252,16 @@ void CL_ParseTEnt (void)
 				P_RunParticleEffect (pos, vec3_origin, 0, 10);
 
 		if ( rand() % 5 )
-			S_StartSound (0, 0, cl_sfx_tink1, pos, 1, 1, 0, 0, 0);
+			S_StartSound (0, 0, cl_sfx_tink1, pos, NULL, 1, 1, 0, 0, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (0, 0, cl_sfx_ric1, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric1, pos, NULL, 1, 1, 0, 0, 0);
 			else if (rnd == 2)
-				S_StartSound (0, 0, cl_sfx_ric2, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric2, pos, NULL, 1, 1, 0, 0, 0);
 			else
-				S_StartSound (0, 0, cl_sfx_ric3, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric3, pos, NULL, 1, 1, 0, 0, 0);
 		}
 		break;
 	case TE_SUPERBULLET:
@@ -1276,16 +1277,16 @@ void CL_ParseTEnt (void)
 					P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		if ( rand() % 5 )
-			S_StartSound (0, 0, cl_sfx_tink1, pos, 1, 1, 0, 0, 0);
+			S_StartSound (0, 0, cl_sfx_tink1, pos, NULL, 1, 1, 0, 0, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (0, 0, cl_sfx_ric1, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric1, pos, NULL, 1, 1, 0, 0, 0);
 			else if (rnd == 2)
-				S_StartSound (0, 0, cl_sfx_ric2, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric2, pos, NULL, 1, 1, 0, 0, 0);
 			else
-				S_StartSound (0, 0, cl_sfx_ric3, pos, 1, 1, 0, 0, 0);
+				S_StartSound (0, 0, cl_sfx_ric3, pos, NULL, 1, 1, 0, 0, 0);
 		}
 		break;
 #endif
@@ -1320,7 +1321,7 @@ void CL_ParseTEnt (void)
 
 
 	// sound
-		S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
+		S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 
 	// sprite
 		if (cl_expsprite.ival) // temp hopefully
@@ -1361,7 +1362,7 @@ void CL_ParseTEnt (void)
 
 
 	// sound
-		S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
+		S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 
 	// sprite
 		if (type == TE_EXPLOSION && cl_expsprite.ival) // temp hopefully
@@ -1395,7 +1396,7 @@ void CL_ParseTEnt (void)
 				dl->die = cl.time + 0.5;
 				dl->decay = 300;
 			}
-			S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
+			S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 		}
 		break;
 
@@ -1426,7 +1427,7 @@ void CL_ParseTEnt (void)
 			dl->channelfade[2] = 0;
 		}
 
-		S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
+		S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 		break;
 
 	case TEDP_TEI_BIGEXPLOSION:
@@ -1457,7 +1458,7 @@ void CL_ParseTEnt (void)
 			dl->channelfade[2] = 0;
 		}
 
-		S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
+		S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 		break;
 
 	case TE_TAREXPLOSION:			// tarbaby explosion
@@ -1466,7 +1467,7 @@ void CL_ParseTEnt (void)
 		pos[2] = MSG_ReadCoord ();
 		P_RunParticleEffectType(pos, NULL, 1, pt_tarexplosion);
 
-		S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
+		S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 		break;
 
 	case TE_LIGHTNING1:				// lightning bolts
@@ -1956,6 +1957,46 @@ void CL_RunPCustomTEnts(void)
 }
 
 clcustomtents_t customtenttype[255];	//network based.
+
+qboolean CL_WriteCustomTEnt(sizebuf_t *buf, int id)
+{
+	clcustomtents_t *t;
+	if ((unsigned)id >= 255u)
+		return false;
+	t = &customtenttype[id];
+	if (*t->name)
+	{
+		MSG_WriteByte(buf, svcfte_customtempent);
+		MSG_WriteByte(buf, 255);
+		MSG_WriteByte(buf, id);
+		MSG_WriteByte(buf, t->netstyle);
+		MSG_WriteString(buf, t->name);
+
+		if (t->netstyle & CTE_STAINS)
+		{
+			MSG_WriteChar(buf, t->stain[0]);
+			MSG_WriteChar(buf, t->stain[1]);
+			MSG_WriteChar(buf, t->stain[2]);
+			MSG_WriteByte(buf, t->radius);
+		}
+		if (t->netstyle & CTE_GLOWS)
+		{
+			MSG_WriteByte(buf, t->dlightrgb[0]*255);
+			MSG_WriteByte(buf, t->dlightrgb[1]*255);
+			MSG_WriteByte(buf, t->dlightrgb[2]*255);
+			MSG_WriteByte(buf, t->dlightradius);
+			MSG_WriteByte(buf, t->dlighttime*16);
+			if (t->netstyle & CTE_CHANNELFADE)
+			{
+				MSG_WriteByte(buf, t->dlightcfade[0]*64);
+				MSG_WriteByte(buf, t->dlightcfade[1]*64);
+				MSG_WriteByte(buf, t->dlightcfade[2]*64);
+			}
+		}
+	}
+	return true;
+}
+
 void CL_ParseCustomTEnt(void)
 {
 	char *str;
@@ -1974,6 +2015,8 @@ void CL_ParseCustomTEnt(void)
 		str = MSG_ReadString();
 		Q_strncpyz(t->name, str, sizeof(t->name));
 		t->particleeffecttype = P_FindParticleType(str);
+		if (cl_shownet.ival >= 3)
+			Con_Printf("\tdefine \"%s\" (%x)\n", t->name, t->netstyle);
 
 		if (t->netstyle & CTE_STAINS)
 		{
@@ -2004,6 +2047,9 @@ void CL_ParseCustomTEnt(void)
 	}
 
 	t = &customtenttype[type];
+
+	if (cl_shownet.ival >= 3)
+		Con_Printf("\tspawn \"%s\" (%x)\n", t->name, t->netstyle);
 
 	info.type = t;
 	if (t->netstyle & CTE_PERSISTANT)
@@ -2141,12 +2187,6 @@ int CL_TranslateParticleFromServer(int qceffect)
 	}
 	else
 		return P_INVALID;
-
-//	else
-//	{
-		/*server and client must share an identical effectinfo list file (just "effect $name\n" lines)*/
-//		return P_FindParticleType(COM_Effectinfo_ForNumber(qceffect));
-//	}
 }
 
 void CL_ParseTrailParticles(void)
@@ -2274,7 +2314,7 @@ void CL_ParseParticleEffect4 (void)
 	P_RunParticleEffect4 (org, radius, color, effect, msgcount);
 }
 
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum)
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t *model, int startframe, int framecount, float framerate, float alpha, float scale, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum)
 {
 	explosion_t	*ex;
 
@@ -2286,6 +2326,7 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t 
 	ex->framerate = framerate;
 	ex->skinnum = skinnum;
 	ex->traileffect = traileffect;
+	ex->scale = scale;
 
 	ex->flags |= renderflags;
 
@@ -2367,7 +2408,7 @@ void CL_ParseEffect (qboolean effect2)
 	framerate = MSG_ReadByte();
 
 	mod = cl.model_precache[modelindex];
-	CL_SpawnSpriteEffect(org, NULL, NULL, mod, startframe, framecount, framerate, mod->type==mod_sprite?-1:1, 0, 0, P_INVALID, 0, 0);
+	CL_SpawnSpriteEffect(org, NULL, NULL, mod, startframe, framecount, framerate, mod->type==mod_sprite?-1:1, 1, 0, 0, P_INVALID, 0, 0);
 }
 
 #ifdef Q2CLIENT
@@ -2448,7 +2489,7 @@ static struct{
 #define ATTN_STATIC 1
 void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float delay)
 {
-	S_StartSound(entnum, entchannel, sfx, origin, fvol, attenuation, -delay, 0, 0);
+	S_StartSound(entnum, entchannel, sfx, origin, NULL, fvol, attenuation, -delay, 0, 0);
 }
 void CLQ2_ParseTEnt (void)
 {
@@ -2665,7 +2706,7 @@ fixme:
 		else
 			P_RunParticleEffect (pos, dir, 0xb0, 40);
 		//FIXME : replace or remove this sound
-		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1, 0, 0, 0);
+		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, NULL, 1, 1, 0, 0, 0);
 		break;
 
 	case Q2TE_SHOTGUN:			// bullet hitting wall
@@ -2742,7 +2783,7 @@ fixme:
 			ex->angles[1] = 0;
 		ex->angles[0]*=-1;
 
-		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1, 0, 0, 0);
+		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, NULL, 1, 1, 0, 0, 0);
 
 	// light
 		if (r_explosionlight.value)
@@ -2800,9 +2841,9 @@ fixme:
 
 	// sound
 		if (type == Q2TE_GRENADE_EXPLOSION_WATER)
-			S_StartSound (0, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, 1, 1, 0, 0, 0);
+			S_StartSound (0, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, NULL, 1, 1, 0, 0, 0);
 		else
-			S_StartSound (0, 0, S_PrecacheSound ("weapons/grenlx1a.wav"), pos, 1, 1, 0, 0, 0);
+			S_StartSound (0, 0, S_PrecacheSound ("weapons/grenlx1a.wav"), pos, NULL, 1, 1, 0, 0, 0);
 
 	// sprite
 
@@ -2895,9 +2936,9 @@ fixme:
 
 	// sound
 		if (type == Q2TE_ROCKET_EXPLOSION_WATER)
-			S_StartSound (0, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, 1, 1, 0, 0, 0);
+			S_StartSound (0, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, NULL, 1, 1, 0, 0, 0);
 		else
-			S_StartSound (0, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1, 0, 0, 0);
+			S_StartSound (0, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, NULL, 1, 1, 0, 0, 0);
 
 	// sprite
 //		if (!R_ParticleExplosionHeart(pos))
@@ -3069,7 +3110,7 @@ fixme:
 			ex->angles[1] = 0;
 		ex->angles[0]*=-1;
 
-		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1, 0, 0, 0);
+		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, NULL, 1, 1, 0, 0, 0);
 
 	// light
 		if (r_explosionlight.value)
@@ -3118,7 +3159,7 @@ fixme:
 			ex->angles[1] = 0;
 		ex->angles[0]*=-1;
 
-		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1, 0, 0, 0);
+		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, NULL, 1, 1, 0, 0, 0);
 
 	// light
 		if (r_explosionlight.value)
@@ -3548,7 +3589,7 @@ void CL_UpdateBeams (void)
 						{
 							vec3_t normal;
 							VectorMA(org, len+4, ang, fwd);
-							if (TraceLineN(org, fwd, ang, normal))
+							if (CL_TraceLine(org, fwd, ang, normal, NULL) < 1)
 								VectorCopy (ang, b->end);
 						}
 						break;
@@ -3745,12 +3786,12 @@ void CL_UpdateExplosions (void)
 			if (ex->velocity[0] || ex->velocity[1] || ex->velocity[2])
 			{
 				VectorClear(norm);
-				if (TraceLineN(ex->origin, pos, ent->origin, norm))
+				if (CL_TraceLine(ex->origin, pos, ent->origin, norm, NULL) < 1)
 				{
 					float sc = DotProduct(ex->velocity, norm) * -1.5;
 					VectorMA(ex->velocity, sc, norm, ex->velocity);
 					VectorScale(ex->velocity, 0.9, ex->velocity);
-					if (norm[2] > 0.7 && DotProduct(ex->velocity, ex->velocity) < 10)
+					if (norm[2] > 0.7 && DotProduct(ex->velocity, ex->velocity) < 100)
 					{
 						VectorClear(ex->velocity);
 						VectorClear(ex->avel);
@@ -3782,7 +3823,7 @@ void CL_UpdateExplosions (void)
 		ent->framestate.g[FS_REG].lerpweight[0] = 1-ent->framestate.g[FS_REG].lerpweight[1];
 		ent->shaderRGBAf[3] = (1.0 - f/(numframes))*(ex->startalpha-ex->endalpha) + ex->endalpha;
 		ent->flags = ex->flags;
-		ent->scale = scale;
+		ent->scale = scale*ex->scale;
 		ent->drawflags = SCALE_ORIGIN_ORIGIN; 
 
 		if (ex->traileffect != P_INVALID)

@@ -48,7 +48,7 @@ static qofs_t QDECL VFSWEB_Tell (struct vfsfile_s *file)
 }
 static void QDECL VFSWEB_Flush(struct vfsfile_s *file)
 {
-	vfswebfile_t *intfile = (vfswebfile_t*)file;
+//	vfswebfile_t *intfile = (vfswebfile_t*)file;
 }
 static qofs_t QDECL VFSWEB_GetSize (struct vfsfile_s *file)
 {
@@ -261,7 +261,7 @@ static int QDECL FSWEB_EnumerateFiles (searchpathfuncs_t *handle, const char *ma
 }
 
 
-searchpathfuncs_t *QDECL FSWEB_OpenPath(vfsfile_t *mustbenull, const char *desc)
+searchpathfuncs_t *QDECL FSWEB_OpenPath(vfsfile_t *mustbenull, const char *desc, const char *prefix)
 {
 	webpath_t *np;
 	int dlen = strlen(desc);

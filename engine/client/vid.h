@@ -25,7 +25,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // a pixel can be one, two, or four bytes
 typedef qbyte pixel_t;
 
-typedef enum {QR_NONE, QR_HEADLESS, QR_OPENGL, QR_DIRECT3D9, QR_DIRECT3D11, QR_SOFTWARE} r_qrenderer_t;
+typedef enum
+{
+	QR_NONE,		//server-style operation (no rendering).
+	QR_HEADLESS,	//no window/rendering at all (system tray only)
+	QR_OPENGL,		//gl+gles+etc.
+	QR_DIRECT3D9,	//
+	QR_DIRECT3D11,	//
+	QR_SOFTWARE,	//not worth using
+	QR_VULKAN,		//
+	QR_DIRECT3D12,	//no implementation
+	QR_METAL		//no implementation
+} r_qrenderer_t;
 
 typedef struct {
 	//you are not allowed to make anything not work if it's not based on these vars...
@@ -116,5 +127,5 @@ qboolean GLVID_Is8bit(void);
 void GLVID_SwapBuffers(void);
 enum uploadfmt;
 char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt);
-void GLVID_SetCaption(char *caption);
+void GLVID_SetCaption(const char *caption);
 #endif

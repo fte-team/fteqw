@@ -58,6 +58,7 @@ struct galiasbone_s
 typedef struct FTE_DEPRECATED
 {
 	//DEPRECATED
+	//use of this prevents the use of glsl acceleration. the framerate loss is of the order of 90%
 	//skeletal poses refer to this.
 	int vertexindex;
 	int boneindex;
@@ -76,7 +77,7 @@ typedef struct
 {
 	shader_t *shader;
 	qbyte *texels;	//this is 8bit for frame 0 only. only valid in q1 models without replacement textures, used for colourising player skins.
-	char *defaultshader;
+	const char *defaultshader;
 	char shadername[MAX_QPATH];
 	texnums_t texnums;
 } skinframe_t;
@@ -166,6 +167,8 @@ typedef struct galiasinfo_s
 	vboarray_t vboindicies;
 	vboarray_t vbotexcoords;
 	vboarray_t vborgba;	//yeah, just you try reading THAT as an actual word.
+	void *vbomem;
+	void *ebomem;
 
 //these exist only in the root mesh.
 	int numtagframes;
@@ -174,7 +177,8 @@ typedef struct galiasinfo_s
 	unsigned int warned;	//passed around at load time, so we don't spam warnings
 } galiasinfo_t;
 
-typedef struct
+struct terrainfuncs_s;
+typedef struct modplugfuncs_s
 {
 	int version;
 	int (QDECL *RegisterModelFormatText)(const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
@@ -188,12 +192,12 @@ typedef struct
 	void (QDECL *M3x4_Invert) (const float *in1, float *out);
 	void (QDECL *VectorAngles)(float *forward, float *up, float *result);
 	void (QDECL *AngleVectors)(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
-	void (QDECL *GenMatrixPosQuat4Scale)(vec3_t pos, vec4_t quat, vec3_t scale, float result[12]);
+	void (QDECL *GenMatrixPosQuat4Scale)(const vec3_t pos, const vec4_t quat, const vec3_t scale, float result[12]);
 
 	void (QDECL *StripExtension) (const char *in, char *out, int outlen);
 	void (QDECL *ForceConvertBoneData)(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
 
-	void *unused1;
+	struct terrainfuncs_s *(QDECL *GetTerrainFuncs)(void);
 	void *reserved2;
 	void *unused3;
 	void *unused4;

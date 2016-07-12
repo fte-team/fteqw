@@ -32,7 +32,7 @@ void SV_MVDStop_f (void);
 
 static void QDECL SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
 
-cvar_t	sv_demoUseCache = CVARD("sv_demoUseCache", "0", "If set, demo data will be flushed only periodically");
+cvar_t	sv_demoUseCache = CVARD("sv_demoUseCache", "", "If set, demo data will be flushed only periodically");
 cvar_t	sv_demoCacheSize = CVAR("sv_demoCacheSize", "0x80000"); //half a meg
 cvar_t	sv_demoMaxDirSize = CVAR("sv_demoMaxDirSize", "102400");	//so ktpro autorecords.
 cvar_t	sv_demoDir = CVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
@@ -64,42 +64,78 @@ int demomsgtype;
 int demomsgto;
 static char demomsgbuf[MAX_OVERALLMSGLEN];
 
-mvddest_t *singledest;
+static mvddest_t *singledest;	//used when a stream is starting up so redundant data doesn't get dumped into other streams
 
-mvddest_t *SV_InitStream(int socket);
+#ifdef HAVE_TCP
+static mvddest_t *SV_MVD_InitStream(int socket);
+#endif
 qboolean SV_MVD_Record (mvddest_t *dest);
 char *SV_MVDName2Txt(char *name);
 extern cvar_t qtv_password;
 
 //does not unlink.
-void DestClose(mvddest_t *d, qboolean destroyfiles)
+static void DestClose(mvddest_t *d, enum mvdclosereason_e reason)
 {
 	char path[MAX_OSPATH];
+
+	if (d->desttype == DEST_THREADEDFILE)
+	{
+		while(d->flushing == true)
+			COM_WorkerPartialSync(d, &d->flushing, true);
+	}
 
 	if (d->cache)
 		BZ_Free(d->cache);
 	if (d->file)
 		VFS_CLOSE(d->file);
 #ifdef HAVE_TCP
-	if (d->socket)
+	if (d->socket != INVALID_SOCKET)
 		closesocket(d->socket);
 #endif
 
-	if (destroyfiles)
+	if (reason == MVD_CLOSE_CANCEL)
 	{
 		snprintf(path, MAX_OSPATH, "%s/%s", d->path, d->name);
 		FS_Remove(path, FS_GAMEONLY);
 
 		FS_Remove(SV_MVDName2Txt(path), FS_GAMEONLY);
+
+		//SV_BroadcastPrintf (PRINT_CHAT, "Server recording canceled, demo removed\n");
+	}
+	else if (d->desttype != DEST_STREAM)
+	{
+		char buf[512];
+		SV_BroadcastPrintf (PRINT_CHAT, "Server recording complete\n/download demos/%s", COM_QuotedString(d->name, buf, sizeof(buf), false));
 	}
 
 	Z_Free(d);
+}
+
+static void MVD_FlushDest_Flushed(void *ctx, void *data, size_t a, size_t b)
+{
+	mvddest_t *d = ctx;
+	d->flushing = false;
+}
+static void MVD_FlushDest_Worker(void *ctx, void *data, size_t datasize, size_t b)
+{
+	mvddest_t *d = ctx;
+	int len = VFS_WRITE(d->file, data, datasize);
+	VFS_FLUSH(d->file);
+
+	if (len != datasize)
+		d->error = true;
+
+	d->altcache = data;
+	COM_AddWork(WG_MAIN, MVD_FlushDest_Flushed, d, NULL, 0, 0);
 }
 
 void DestFlush(qboolean compleate)
 {
 	int len;
 	mvddest_t *d, *t;
+
+	//make sure everything is flushed.
+	MVDWrite_Begin(255, -1, 0);
 
 	if (!demo.dest)
 		return;
@@ -108,11 +144,11 @@ void DestFlush(qboolean compleate)
 		d = demo.dest;
 		demo.dest = d->nextdest;
 
-		DestClose(d, false);
+		DestClose(d, MVD_CLOSE_FSERROR);
 
 		if (!demo.dest)
 		{
-			SV_MVDStop(3, false);
+			SV_MVDStop(MVD_CLOSE_DISCONNECTED, false);
 			return;
 		}
 	}
@@ -131,6 +167,19 @@ void DestFlush(qboolean compleate)
 					d->error = true;
 				VFS_FLUSH(d->file);
 
+				d->cacheused = 0;
+			}
+			break;
+		case DEST_THREADEDFILE:
+			if (d->cacheused+demo_size_padding > d->maxcachesize || compleate)
+			{
+				void *data = d->cache;
+				while(d->flushing == true)
+					COM_WorkerPartialSync(d, &d->flushing, true);
+				d->cache = d->altcache;
+				d->altcache = NULL;
+				d->flushing = true;
+				COM_AddWork(WG_LOADER, MVD_FlushDest_Worker, d, data, d->cacheused, 0);
 				d->cacheused = 0;
 			}
 			break;
@@ -172,7 +221,7 @@ void DestFlush(qboolean compleate)
 			t = d->nextdest;
 			d->nextdest = t->nextdest;
 
-			DestClose(t, false);
+			DestClose(t, MVD_CLOSE_FSERROR);
 		}
 	}
 }
@@ -511,7 +560,7 @@ void SV_MVD_RunPendingConnections(void)
 						}
 						else
 						{
-							SV_MVD_Record(SV_InitStream(p->socket));
+							SV_MVD_Record(SV_MVD_InitStream(p->socket));
 							p->socket = INVALID_SOCKET;	//so it's not cleared wrongly.
 						}
 						p->error = true;
@@ -526,7 +575,7 @@ void SV_MVD_RunPendingConnections(void)
 								 "\n");
 							send(p->socket, e, strlen(e), 0);
 							e = NULL;
-							dst = SV_InitStream(p->socket);
+							dst = SV_MVD_InitStream(p->socket);
 							dst->droponmapchange = p->isreverse;
 							SV_MVD_Record(dst);
 							p->socket = INVALID_SOCKET;	//so it's not cleared wrongly.
@@ -559,7 +608,7 @@ void SV_MVD_RunPendingConnections(void)
 #endif
 }
 
-int DestCloseAllFlush(qboolean destroyfiles, qboolean mvdonly)
+static int DestCloseAllFlush(enum mvdclosereason_e reason, qboolean mvdonly)
 {
 	int numclosed = 0;
 	mvddest_t *d, **prev, *next;
@@ -573,7 +622,7 @@ int DestCloseAllFlush(qboolean destroyfiles, qboolean mvdonly)
 		if (!mvdonly || d->droponmapchange)
 		{
 			*prev = d->nextdest;
-			DestClose(d, destroyfiles);
+			DestClose(d, reason);
 			numclosed++;
 		}
 		else
@@ -586,7 +635,7 @@ int DestCloseAllFlush(qboolean destroyfiles, qboolean mvdonly)
 }
 
 
-int DemoWriteDest(void *data, int len, mvddest_t *d)
+static int DemoWriteDest(void *data, int len, mvddest_t *d)
 {
 	if (d->error)
 		return 0;
@@ -597,6 +646,7 @@ int DemoWriteDest(void *data, int len, mvddest_t *d)
 		VFS_WRITE(d->file, data, len);
 		break;
 	case DEST_BUFFEREDFILE:	//these write to a cache, which is flushed later
+	case DEST_THREADEDFILE:
 	case DEST_STREAM:
 		if (d->cacheused+len > d->maxcachesize)
 		{
@@ -606,13 +656,14 @@ int DemoWriteDest(void *data, int len, mvddest_t *d)
 		memcpy(d->cache+d->cacheused, data, len);
 		d->cacheused += len;
 		break;
+	default:
 	case DEST_NONE:
 		Sys_Error("DemoWriteDest encoundered bad dest.");
 	}
 	return len;
 }
 
-int DemoWrite(void *data, int len)	//broadcast to all proxies/mvds
+static int DemoWrite(void *data, int len)	//broadcast to all proxies/mvds
 {
 	mvddest_t *d;
 	for (d = demo.dest; d; d = d->nextdest)
@@ -682,7 +733,7 @@ typedef struct
 #define SORT_NO 0
 #define SORT_BY_DATE 1
 
-int QDECL Sys_listdirFound(const char *fname, qofs_t fsize, time_t mtime, void *uptr, searchpathfuncs_t *spath)
+static int QDECL Sys_listdirFound(const char *fname, qofs_t fsize, time_t mtime, void *uptr, searchpathfuncs_t *spath)
 {
 	file_t *f;
 	dir_t *dir = uptr;
@@ -702,7 +753,7 @@ int QDECL Sys_listdirFound(const char *fname, qofs_t fsize, time_t mtime, void *
 	return true;
 }
 
-dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
+static dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
 {
 	char searchterm[MAX_QPATH];
 
@@ -717,7 +768,7 @@ dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
 
 	return dir;
 }
-void Sys_freedir(dir_t *dir)
+static void Sys_freedir(dir_t *dir)
 {
 	free(dir);
 }
@@ -884,15 +935,19 @@ static void SV_MVDWriteToDisk(int type, int to, float time)
 
 sizebuf_t *MVDWrite_Begin(qbyte type, int to, int size)
 {
-	if (demomsg.cursize)
+	if (demomsg.cursize && demomsgtype != type && demomsgto != to && demomsg.cursize+size > sizeof(demomsgbuf))
+	{
 		SV_WriteMVDMessage(&demomsg, demomsgtype, demomsgto, demo_prevtime);
+		demomsg.cursize = 0;
+	}
 
 	demomsgtype = type;
 	demomsgto = to;
 
-	demomsg.maxsize = size;
+	demomsg.maxsize = demomsg.cursize+size;
 	demomsg.cursize = 0;
 	demomsg.data = demomsgbuf;
+	demomsg.prim = demo.recorder.netchan.netprim;
 	return &demomsg;
 #if 0
 	qbyte *p;
@@ -1085,6 +1140,9 @@ qboolean SV_MVDWritePackets (int num)
 	if (!sv.mvdrecording)
 		return false;
 
+	//flush any intermediate data
+	MVDWrite_Begin(255, -1, 0);
+
 	msg.prim = svs.netprim;
 	msg.data = msg_buf;
 	msg.maxsize = sizeof(msg_buf);
@@ -1213,8 +1271,6 @@ qboolean SV_MVDWritePackets (int num)
 			demoinfo->model = cl->info.model;
 		}
 
-		//flush any intermediate data
-		MVDWrite_Begin(255, -1, 0);
 		if (msg.cursize)
 			SV_WriteMVDMessage(&msg, dem_all, 0, (float)time);
 
@@ -1349,7 +1405,7 @@ mvddest_t *SV_FindRecordFile(char *match, mvddest_t ***link_out)
 	for (link = &demo.dest; *link; link = &(*link)->nextdest)
 	{
 		f = *link;
-		if (f->desttype == DEST_FILE || f->desttype == DEST_BUFFEREDFILE)
+		if (f->desttype == DEST_FILE || f->desttype == DEST_BUFFEREDFILE || f->desttype == DEST_THREADEDFILE)
 		{
 			if (!match || !strcmp(match, f->name))
 			{
@@ -1367,7 +1423,7 @@ SV_InitRecord
 ====================
 */
 
-mvddest_t *SV_InitRecordFile (char *name)
+mvddest_t *SV_MVD_InitRecordFile (char *name)
 {
 	char *s;
 	mvddest_t *dst;
@@ -1383,22 +1439,36 @@ mvddest_t *SV_InitRecordFile (char *name)
 	}
 
 	dst = Z_Malloc(sizeof(mvddest_t));
+	dst->socket = INVALID_SOCKET;
 
-	if (!sv_demoUseCache.value)
+#ifdef LOADERTHREAD
+	if (!*sv_demoUseCache.string)
+		dst->desttype = DEST_THREADEDFILE;
+	else
+#endif
+		if (sv_demoUseCache.value <= 0)
+		dst->desttype = DEST_FILE;
+	else
+		dst->desttype = DEST_BUFFEREDFILE;
+
+	if (dst->desttype == DEST_FILE)
 	{
 		dst->desttype = DEST_FILE;
 		dst->file = file;
 		dst->maxcachesize = 0;
 	}
 	else
-	{
-		dst->desttype = DEST_BUFFEREDFILE;
+	{	//cached or threaded
 		dst->file = file;
 		if (sv_demoCacheSize.ival < 0x8000)
 			dst->maxcachesize = 0x8000;
 		else
 			dst->maxcachesize = sv_demoCacheSize.ival;
 		dst->cache = BZ_Malloc(dst->maxcachesize);
+		if (dst->desttype == DEST_THREADEDFILE)
+			dst->altcache = BZ_Malloc(dst->maxcachesize);
+		else
+			dst->altcache = NULL;
 	}
 	dst->droponmapchange = true;
 
@@ -1410,7 +1480,25 @@ mvddest_t *SV_InitRecordFile (char *name)
 	if (!*dst->path)
 		Q_strncpyz(dst->path, ".", MAX_OSPATH);
 
-	SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", (dst->desttype == DEST_BUFFEREDFILE) ? "memory" : "disk", name);
+	switch(dst->desttype)
+	{
+	default:
+	case DEST_NONE:
+		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", "ERROR", name);
+		break;
+	case DEST_STREAM:
+		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", "ERROR: STREAM", name);
+		break;
+	case DEST_BUFFEREDFILE:
+		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", "memory", name);
+		break;
+	case DEST_THREADEDFILE:
+		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", "worker thread", name);
+		break;
+	case DEST_FILE:
+		SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", "disk", name);
+		break;
+	}
 	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), SV_Demo_CurrentOutput());
 
 	Q_strncpyz(path, name, MAX_OSPATH);
@@ -1448,13 +1536,14 @@ char *SV_Demo_CurrentOutput(void)
 	mvddest_t *d;
 	for (d = demo.dest; d; d = d->nextdest)
 	{
-		if (d->desttype == DEST_FILE || d->desttype == DEST_BUFFEREDFILE)
+		if (d->desttype == DEST_FILE || d->desttype == DEST_BUFFEREDFILE || d->desttype == DEST_THREADEDFILE)
 			return d->name;
 	}
 	return "QTV";
 }
 
-mvddest_t *SV_InitStream(int socket)
+#ifdef HAVE_TCP
+static mvddest_t *SV_MVD_InitStream(int socket)
 {
 	mvddest_t *dst;
 
@@ -1471,7 +1560,7 @@ mvddest_t *SV_InitStream(int socket)
 	return dst;
 }
 
-mvdpendingdest_t *SV_MVD_InitPendingStream(int socket, char *ip)
+static mvdpendingdest_t *SV_MVD_InitPendingStream(int socket, char *ip)
 {
 	mvdpendingdest_t *dst;
 	int i;
@@ -1487,6 +1576,7 @@ mvdpendingdest_t *SV_MVD_InitPendingStream(int socket, char *ip)
 
 	return dst;
 }
+#endif
 
 /*
 ====================
@@ -1495,25 +1585,24 @@ SV_Stop
 stop recording a demo
 ====================
 */
-void SV_MVDStop (int reason, qboolean mvdonly)
+void SV_MVDStop (enum mvdclosereason_e reason, qboolean mvdonly)
 {
 	sizebuf_t *msg;
-	int numclosed;
 	if (!sv.mvdrecording)
 	{
 		Con_Printf ("Not recording a demo.\n");
 		return;
 	}
 
-	if (reason == 2 || reason == 3)
+	if (reason == MVD_CLOSE_CANCEL || reason == MVD_CLOSE_DISCONNECTED)
 	{
-		DestCloseAllFlush(true, mvdonly);
+		DestCloseAllFlush(reason, mvdonly);
 		// stop and remove
 
 		if (!demo.dest)
 			sv.mvdrecording = false;
 
-		if (reason == 3)
+		if (reason == MVD_CLOSE_DISCONNECTED)
 			SV_BroadcastPrintf (PRINT_CHAT, "QTV disconnected\n");
 		else
 			SV_BroadcastPrintf (PRINT_CHAT, "Server recording canceled, demo removed\n");
@@ -1531,17 +1620,10 @@ void SV_MVDStop (int reason, qboolean mvdonly)
 	SV_MVDWritePackets(demo.parsecount - demo.lastwritten + 1);
 // finish up
 
-	numclosed = DestCloseAllFlush(false, mvdonly);
+	DestCloseAllFlush(reason, mvdonly);
 
-	if (!demo.dest)
+	if (!demo.dest)	//might still be streaming qtv.
 		sv.mvdrecording = false;
-	if (numclosed)
-	{
-		if (!reason)
-			SV_BroadcastPrintf (PRINT_CHAT, "Server recording completed\n");
-		else
-			SV_BroadcastPrintf (PRINT_CHAT, "Server recording stoped\nMax demo size exceeded\n");
-	}
 
 	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), "");
 }
@@ -1553,7 +1635,7 @@ SV_Stop_f
 */
 void SV_MVDStop_f (void)
 {
-	SV_MVDStop(0, true);
+	SV_MVDStop(MVD_CLOSE_STOPPED, true);
 }
 
 /*
@@ -1565,7 +1647,7 @@ Stops recording, and removes the demo
 */
 void SV_MVD_Cancel_f (void)
 {
-	SV_MVDStop(2, true);
+	SV_MVDStop(MVD_CLOSE_CANCEL, true);
 }
 
 /*
@@ -2106,7 +2188,7 @@ void SV_MVD_Record_f (void)
 	//
 	// open the demo file and start recording
 	//
-	SV_MVD_Record (SV_InitRecordFile(name));
+	SV_MVD_Record (SV_MVD_InitRecordFile(name));
 }
 
 void SV_MVD_QTVReverse_f (void)
@@ -2405,7 +2487,7 @@ void SV_MVDEasyRecord_f (void)
 		} while (f);
 	}
 
-	SV_MVD_Record (SV_InitRecordFile(name2));
+	SV_MVD_Record (SV_MVD_InitRecordFile(name2));
 }
 
 #ifdef HAVE_TCP

@@ -171,7 +171,7 @@ qboolean GLVID_IsLocked(void)
 	return 0;
 }
 
-void GLVID_SetCaption(char *text)
+void GLVID_SetCaption(const char *text)
 {
 }
 

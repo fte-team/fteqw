@@ -597,8 +597,8 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 		s = R_RegisterSkin(va("gfx/skin%d.lmp", e->skinnum), NULL);
 		if (s)
 		{
-//			if (!TEXVALID(s->defaulttextures.base))
-//				s->defaulttextures.base = R_LoadHiResTexture(va("gfx/skin%d.lmp", e->skinnum), NULL, 0);
+			if (!TEXVALID(s->defaulttextures->base))
+				R_BuildDefaultTexnums(NULL, s);
 			return s;
 		}
 	}
@@ -711,7 +711,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 						(tex->upperoverlay && (tex->upperoverlay->status == TEX_LOADING || tex->upperoverlay->status == TEX_LOADED)))
 						return shader;
 				}
-				if (shader->prog && shader->prog->permu[PERMUTATION_UPPERLOWER].h.loaded && !h2playertranslations)
+				if (shader->prog && (shader->prog->supportedpermutations & PERMUTATION_UPPERLOWER) && !h2playertranslations)
 				{	//this shader can do permutations. this means we can generate only a black image, with separate top+bottom textures.
 					tc = 0xfe000000;
 					bc = 0xfe000000;
@@ -1218,7 +1218,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		e->light_known = 2;
 		return e->light_known-1;
 	}
-	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT || (e->flags & Q2RF_FULLBRIGHT))
+	if ((e->drawflags & MLS_MASK) == MLS_FULLBRIGHT || (e->flags & Q2RF_FULLBRIGHT))
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
 		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
@@ -1369,7 +1369,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		shadelight[0] = shadelight[1] = shadelight[2] =
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = 128+sin(cl.servertime*4)*64;
 	}
-	if ((e->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
+	if ((e->drawflags & MLS_MASK) == MLS_ABSLIGHT)
 	{
 		shadelight[0] = shadelight[1] = shadelight[2] = e->abslight;
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = e->abslight;
@@ -1443,7 +1443,7 @@ void R_GAlias_DrawBatch(batch_t *batch)
 		{
 			if (batch->surf_first == surfnum)
 			{
-				/*needrecolour =*/ Alias_GAliasBuildMesh(&mesh, &batch->vbo, inf, surfnum, e, batch->shader->prog && batch->shader->prog->permu[PERMUTATION_SKELETAL].h.loaded);
+				/*needrecolour =*/ Alias_GAliasBuildMesh(&mesh, &batch->vbo, inf, surfnum, e, batch->shader->prog && (batch->shader->prog->supportedpermutations & PERMUTATION_SKELETAL));
 				batch->mesh = &meshl;
 				if (!mesh.numindexes)
 				{
@@ -1736,7 +1736,7 @@ static void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float r
 */
 
 //courtesy of DP
-static void R_BuildBumpVectors(const float *v0, const float *v1, const float *v2, const float *tc0, const float *tc1, const float *tc2, float *svector3f, float *tvector3f, float *normal3f)
+static void R_BuildBumpVectors(const float *v0, const float *v1, const float *v2, const float *tc0, const float *tc1, const float *tc2, float *fte_restrict svector3f, float *fte_restrict tvector3f, float *fte_restrict normal3f)
 {
 	float f, tangentcross[3], v10[3], v20[3], tc10[2], tc20[2];
 	// 79 add/sub/negate/multiply (1 cycle), 1 compare (3 cycle?), total cycles not counting load/store/exchange roughly 82 cycles
@@ -1780,8 +1780,9 @@ static void R_BuildBumpVectors(const float *v0, const float *v1, const float *v2
 	}
 }
 
+#if 0
 //courtesy of DP
-void R_AliasGenerateTextureVectors(mesh_t *mesh, float *normal3f, float *svector3f, float *tvector3f)
+void R_AliasGenerateTextureVectors(mesh_t *mesh, float *fte_restrict normal3f, float *fte_restrict svector3f, float *fte_restrict tvector3f)
 {
 	int i;
 	float sdir[3], tdir[3], normal[3], *v;
@@ -1829,20 +1830,47 @@ void R_AliasGenerateTextureVectors(mesh_t *mesh, float *normal3f, float *svector
 	if (normal3f)
 		for (i = 0, v = normal3f;i < mesh->numvertexes;i++, v += 3)
 			VectorNormalize(v);
-
 }
+#endif
 
-
-void R_AliasGenerateVertexLightDirs(mesh_t *mesh, vec3_t lightdir, vec3_t *results, vec3_t *normal3f, vec3_t *svector3f, vec3_t *tvector3f)
+//calculate S+T vectors without also breaking the normals
+void R_Generate_Mesh_ST_Vectors(mesh_t *mesh)
 {
 	int i;
-	R_AliasGenerateTextureVectors(mesh, (float*)normal3f, (float*)svector3f, (float*)tvector3f);
-
-	for (i = 0; i < mesh->numvertexes; i++)
+	vec3_t sdir, tdir, normal, *s, *t, *n;
+	index_t *e;
+	vecV_t *vertex3f = mesh->xyz_array;
+	vec2_t *texcoord2f = mesh->st_array;
+	vec3_t *normal3f = mesh->normals_array;
+	vec3_t *fte_restrict svector3f = mesh->snormals_array;
+	vec3_t *fte_restrict tvector3f = mesh->tnormals_array;
+	float frac;
+	// clear the vectors
+	memset(svector3f, 0, mesh->numvertexes * sizeof(float[3]));
+	memset(tvector3f, 0, mesh->numvertexes * sizeof(float[3]));
+	// process each vertex of each triangle and accumulate the results
+	for (e = mesh->indexes; e < mesh->indexes+mesh->numindexes; e += 3)
 	{
-		results[i][0] = -DotProduct(lightdir, tvector3f[i]);
-		results[i][1] = -DotProduct(lightdir, svector3f[i]);
-		results[i][2] = -DotProduct(lightdir, normal3f[i]);
+		R_BuildBumpVectors(vertex3f[e[0]], vertex3f[e[1]], vertex3f[e[2]], texcoord2f[e[0]], texcoord2f[e[1]], texcoord2f[e[2]], sdir, tdir, normal);
+//		if (!areaweighting)
+//		{
+//			VectorNormalize(sdir);
+//			VectorNormalize(tdir);
+//		}
+		for (i = 0;i < 3;i++)
+			VectorAdd(svector3f[e[i]], sdir, svector3f[e[i]]);
+		for (i = 0;i < 3;i++)
+			VectorAdd(tvector3f[e[i]], tdir, tvector3f[e[i]]);
+	}
+	for (i = 0, s = svector3f, t = tvector3f, n = normal3f;i < mesh->numvertexes;i++, s++, t++, n++)
+	{
+		frac = -DotProduct(*s, *n);
+		VectorMA(*s, frac, *n, *s);
+		VectorNormalize(*s);
+
+		frac = -DotProduct(*t, *n);
+		VectorMA(*t, frac, *n, *t);
+		VectorNormalize(*t);
 	}
 }
 
@@ -2071,9 +2099,9 @@ static void R_Beam_GenerateTrisoup(entity_t *e, int bemode)
 	}
 	else
 	{
+#ifdef RTLIGHTS
 		extern cvar_t r_shadow_realtime_world_lightmaps;
 		//lit sprites need to sample the world lighting. with rtlights that generally means they're 0.
-#ifdef RTLIGHTS
 		if (r_shadow_realtime_world.ival)
 			lightmap = r_shadow_realtime_world_lightmaps.value;
 		else
@@ -2533,15 +2561,19 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 		if (!r_refdef.externalview && (ent->flags & RF_EXTERNALMODEL))
 			continue;
 
+#ifdef RTLIGHTS
 		if (bemode == BEM_STENCIL || bemode == BEM_DEPTHONLY)
 		{
 			if (ent->flags & (RF_NOSHADOW | RF_ADDITIVE | RF_NODEPTHTEST | RF_TRANSLUCENT))	//noshadow often isn't enough for legacy content.
+				continue;
+			if (ent->flags & RF_EXTERNALMODEL && !r_shadow_playershadows.ival)	//noshadow often isn't enough for legacy content.
 				continue;
 			if (ent->keynum == dl->key && ent->keynum)	//shadows are not cast from the entity that owns the light. it is expected to be inside.
 				continue;
 			if (ent->model && ent->model->engineflags & MDLF_FLAME)
 				continue;
 		}
+#endif
 
 		switch(ent->rtype)
 		{

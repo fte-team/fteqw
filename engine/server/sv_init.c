@@ -222,8 +222,6 @@ baseline will be transmitted
 }
 */
 
-void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *client);
-
 void SVQ1_CreateBaseline (void)
 {
 	edict_t			*svent;
@@ -249,7 +247,7 @@ void SVQ1_CreateBaseline (void)
 	//
 	// create entity baseline
 	//
-		SV_Snapshot_BuildStateQ1(&svent->baseline, svent, NULL);
+		SV_Snapshot_BuildStateQ1(&svent->baseline, svent, NULL, NULL);
 
 		if (entnum > 0 && entnum <= sv.allocated_client_slots)
 		{
@@ -258,8 +256,8 @@ void SVQ1_CreateBaseline (void)
 			else
 				svent->baseline.colormap = 0;	//this would crash NQ.
 
-			if (!svent->baseline.solid)
-				svent->baseline.solid = (2 | (3<<5) | (4<<10));
+			if (!svent->baseline.solidsize)
+				svent->baseline.solidsize = ES_SOLID_HULL1;
 			if (!svent->baseline.modelindex)
 				svent->baseline.modelindex = playermodel;
 		}
@@ -588,7 +586,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		SV_FinalMessage("Server unspawned\n");
 
 		if (sv.mvdrecording)
-			SV_MVDStop (0, false);
+			SV_MVDStop (MVD_CLOSE_STOPPED, false);
 
 		for (i = 0; i < sv.allocated_client_slots; i++)
 		{
@@ -622,7 +620,8 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		if (svs.clients[i].frameunion.frames)
 			Z_Free(svs.clients[i].frameunion.frames);
 		svs.clients[i].frameunion.frames = NULL;
-		svs.clients[i].pendingentbits = NULL;
+		svs.clients[i].pendingdeltabits = NULL;
+		svs.clients[i].pendingcsqcbits = NULL;
 		svs.clients[i].state = 0;
 		*svs.clients[i].namebuf = '\0';
 		svs.clients[i].name = NULL;
@@ -1253,7 +1252,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	case GT_Q1QVM:
 	case GT_PROGS:
 		ent = EDICT_NUM(svprogfuncs, 0);
-		ent->isfree = false;
+		ent->ereftype = ER_ENTITY;
 
 #ifndef SERVERONLY
 		/*force coop 1 if splitscreen and not deathmatch*/
@@ -1286,7 +1285,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 
 			ent = ED_Alloc(svprogfuncs, false, 0);//EDICT_NUM(i+1);
 			svs.clients[i].edict = ent;
-			ent->isfree = false;
+			ent->ereftype = ER_ENTITY;
 	//ZOID - make sure we update frags right
 			svs.clients[i].old_frags = 0;
 
@@ -1305,13 +1304,6 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 				svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf), false);
 				svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf), false);
 			}
-
-#ifdef PEXT_CSQC
-			if (svs.clients[i].csqcentsequence)
-				memset(svs.clients[i].csqcentsequence, 0, sizeof(*svs.clients[i].csqcentsequence) * svs.clients[i].max_net_ents);
-			if (svs.clients[i].csqcentversions)
-				memset(svs.clients[i].csqcentversions, 0, sizeof(*svs.clients[i].csqcentversions) * svs.clients[i].max_net_ents);
-#endif
 		}
 		break;
 #ifdef Q2SERVER
@@ -1363,9 +1355,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		//world entity is hackily spawned
 		extern cvar_t coop, pr_imitatemvdsv;
-		eval_t *eval;
 		ent = EDICT_NUM(svprogfuncs, 0);
-		ent->isfree = false;
+		ent->ereftype = ER_ENTITY;
 #ifdef VM_Q1
 		if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
 #endif
@@ -1402,6 +1393,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 #ifdef HEXEN2
 		if (progstype == PROG_H2)
 		{
+			eval_t *eval;
 			cvar_t *cv;
 			if (coop.value)
 			{
@@ -1545,16 +1537,14 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		eval_t *val;
 		ent = EDICT_NUM(svprogfuncs, 0);
 		ent->v->angles[0] = ent->v->angles[1] = ent->v->angles[2] = 0;
-		val = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "message", NULL);
-		if (val)
-		{
+		if ((val = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "message", ev_string, NULL)))
+			snprintf(sv.mapname, sizeof(sv.mapname), "%s", PR_GetString(svprogfuncs, val->string));
 #ifdef HEXEN2
-			if (progstype == PROG_H2)
-				snprintf(sv.mapname, sizeof(sv.mapname), "%s", T_GetString(val->_float-1));
-			else
-#endif
-				snprintf(sv.mapname, sizeof(sv.mapname), "%s", PR_GetString(svprogfuncs, val->string));
+		else if (progstype == PROG_H2 && (val = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "message", ev_float, NULL)))
+		{
+			snprintf(sv.mapname, sizeof(sv.mapname), "%s", T_GetString(val->_float-1));
 		}
+#endif
 		else
 			snprintf(sv.mapname, sizeof(sv.mapname), "%s", svs.name);
 		if (Cvar_Get("sv_readonlyworld", "1", 0, "DP compatability")->value)
@@ -1578,6 +1568,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	// run two frames to allow everything to settle
 	//these frames must be at 1.0 then 1.1 (and 0.1 frametime)
 	//(bug: starting less than that gives time for the scrag to fall on end)
+	//hexen2: if you're looking here for the coop-invincible-riders bug, then that's a hexenc bug, not an fte one, and is also present in vanilla hexen2.
 	realtime += 0.1;
 	sv.world.physicstime = 1.0;
 	sv.time = 1.1;
@@ -1702,7 +1693,9 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 				}
 
 				SV_SetUpClientEdict(host_client, sv_player);
+#ifndef NOLEGACY
 				sv_player->xv->clientcolors = atoi(Info_ValueForKey(host_client->userinfo, "topcolor"))*16 + atoi(Info_ValueForKey(host_client->userinfo, "bottomcolor"));
+#endif
 
 				// call the spawn function
 				sv.skipbprintclient = host_client;

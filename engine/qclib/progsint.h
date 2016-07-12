@@ -68,10 +68,16 @@ typedef struct
 	unsigned long long	timestamp;
 } prstack_t;
 
+typedef struct
+{
+	unsigned int size;
+	char value[4];
+} tempstr_t;
+
 //FIXME: the defines hidden inside this structure are evil.
 typedef struct prinst_s
  {
-	char **tempstrings;
+	tempstr_t **tempstrings;
 	unsigned int maxtempstrings;
 	unsigned int numtempstrings;
 #ifdef QCGC
@@ -128,6 +134,7 @@ typedef struct prinst_s
 	int exitdepth;
 
 	pbool profiling;
+	unsigned long long profilingalert;
 	mfunction_t	*pr_xfunction;
 #define pr_xfunction prinst.pr_xfunction
 	int pr_xstatement;
@@ -254,21 +261,14 @@ typedef union eval_s
 } eval_t;
 #endif
 */
-enum ereftype_e
-{
-	ER_ENTITY,
-	ER_FREE,
-	ER_OBJECT	//custom sized, no vm/engine fields.
-};
 typedef struct edictrun_s
 {
-	pbool	ereftype;
-
-	float		freetime;			// realtime when the object was freed
-	unsigned int entnum;
-	unsigned int fieldsize;
-	pbool	readonly;	//causes error when QC tries writing to it. (quake's world entity)
-	void	*fields;
+	enum ereftype_e	ereftype;
+	float			freetime;			// realtime when the object was freed
+	unsigned int	entnum;
+	unsigned int	fieldsize;
+	pbool			readonly;	//causes error when QC tries writing to it. (quake's world entity)
+	void			*fields;
 
 // other fields from progs come immediately after
 } edictrun_t;
@@ -284,6 +284,9 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *progfuncs, const char *file, float killons
 char *PDECL PR_SaveEnt (pubprogfuncs_t *progfuncs, char *buf, size_t *size, size_t maxsize, struct edict_s *ed);
 struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *progfuncs, const char *buf, size_t *size, struct edict_s *ed);
 void PDECL PR_StackTrace (pubprogfuncs_t *progfuncs, int showlocals);
+
+eval_t *PR_GetReadTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t offset, size_t datasize);
+eval_t *PR_GetWriteTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t offset, size_t datasize);
 
 extern int noextensions;
 
@@ -440,63 +443,13 @@ pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newprogs);
 
 
 
-eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *progfuncs, struct edict_s *ed, char *name, evalc_t *cache);
+eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *progfuncs, struct edict_s *ed, char *name, etype_t type, evalc_t *cache);
 void PDECL PR_GenerateStatementString (pubprogfuncs_t *progfuncs, int statementnum, char *out, int outlen);
 fdef_t *PDECL ED_FieldInfo (pubprogfuncs_t *progfuncs, unsigned int *count);
 char *PDECL PR_UglyValueString (pubprogfuncs_t *progfuncs, etype_t type, eval_t *val);
 pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, const char *s);
 
-
-//cpu clock stuff (glorified rdtsc), for profile timing only
-#if !defined(Sys_GetClock) && defined(_WIN32)
-	//windows has some specific functions for this (traditionally wrapping rdtsc)
-	//note: on some systems, you may need to force cpu affinity to a single core via task manager
-	static unsigned long long Sys_GetClock(void)
-	{
-		LARGE_INTEGER li;
-		QueryPerformanceCounter(&li);
-		return li.QuadPart;
-	}
-	static unsigned long long Sys_GetClockRate(void)
-	{
-		LARGE_INTEGER li;
-		QueryPerformanceFrequency(&li);
-		return li.QuadPart;
-	}
-	#define Sys_GetClock Sys_GetClock
-#endif
-
-#if 0//!defined(Sys_GetClock) && defined(__unix__)
-	//linux/unix has some annoying abstraction and shows time in nanoseconds rather than cycles. lets hope we don't waste too much time  reading it.
-	#include <unistd.h>
-	#if defined(_POSIX_TIMERS) && _POSIX_TIMERS >= 0
-		#include <time.h>
-		#ifdef CLOCK_PROCESS_CPUTIME_ID
-			static unsigned long long Sys_GetClock(void)
-			{
-				struct timespec c;
-				clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &c);
-				return (c.tv_sec*1000000000ull) + c.tv_nsec;
-			}
-			#define Sys_GetClock Sys_GetClock
-			#define Sys_GetClockRate() 1000000000ull
-		#endif
-	#endif
-#endif
-
-#if !defined(Sys_GetClock) && defined(__unix__)
-	#include <time.h>
-	#define Sys_GetClock() clock()
-	#define Sys_GetClockRate() CLOCKS_PER_SEC
-#endif
-
-#ifndef Sys_GetClock
-	//other systems have no choice but to omit this feature in some way. this is just for profiling, so we can get away with stubs.
-	#define Sys_GetClock() 0
-	#define Sys_GetClockRate() 1
-#endif
-
-
+unsigned long long Sys_GetClockRate(void);
 #endif
 
 

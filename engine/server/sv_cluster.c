@@ -199,14 +199,6 @@ void SV_SetupNetworkBuffers(qboolean bigcoords);
 
 void MSV_MapCluster_f(void)
 {
-	char *sqlparams[] =
-	{
-		"",
-		"",
-		"",
-		"login",
-	};
-	
 	//this command will likely be used in configs. don't ever allow subservers to act as entire new clusters
 	if (SSV_IsSubServer())
 		return;
@@ -227,6 +219,14 @@ void MSV_MapCluster_f(void)
 	if (atoi(Cmd_Argv(2)))
 	{
 #ifdef SQL
+		const char *sqlparams[] =
+		{
+			"",
+			"",
+			"",
+			"login",
+		};
+
 		Con_Printf("Opening database \"%s\"\n", sqlparams[3]);
 		sv.logindatabase = SQL_NewServer("sqlite", sqlparams);
 		if (sv.logindatabase == -1)
@@ -492,21 +492,33 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 		}
 		break;
 	case ccmd_serveraddress:
-		s->addrv4.type = NA_INVALID;
-		s->addrv6.type = NA_INVALID;
-		str = MSG_ReadString();
-		Q_strncpyz(s->name, str, sizeof(s->name));
-		for (;;)
 		{
+			enum addressscope_e v4class=ASCOPE_PROCESS, v6class=ASCOPE_PROCESS, nclass;
+			s->addrv4.type = NA_INVALID;
+			s->addrv6.type = NA_INVALID;
 			str = MSG_ReadString();
-			if (!*str)
-				break;
-			if (NET_StringToAdr(str, 0, &adr))
+			Q_strncpyz(s->name, str, sizeof(s->name));
+			for (;;)
 			{
-				if (adr.type == NA_IP && s->addrv4.type == NA_INVALID)
-					s->addrv4 = adr;
-				if (adr.type == NA_IPV6 && s->addrv6.type == NA_INVALID)
-					s->addrv6 = adr;
+				str = MSG_ReadString();
+				if (!*str)
+					break;
+				if (NET_StringToAdr(str, 0, &adr))
+				{
+					nclass = NET_ClassifyAddress(&adr, NULL);
+
+					//for each address type, pick the network address with the widest scope. hopefully an internet routable one rather than a lan address. I hope your router forwards properly.
+					if (adr.type == NA_IP && nclass > v4class)
+					{
+						s->addrv4 = adr;
+						v4class = nclass;
+					}
+					if (adr.type == NA_IPV6 && nclass > v6class)
+					{
+						s->addrv6 = adr;
+						v6class = nclass;
+					}
+				}
 			}
 		}
 		Con_Printf("%i:%s: restarted\n", s->id, s->name);
@@ -607,6 +619,8 @@ void SSV_ReadFromControlServer(void)
 	default:
 		SV_Error("Invalid message from cluster (%i)\n", c);
 		break;
+	
+	//console command (entered via the cluster host, either broadcast or uni)
 	case ccmd_stuffcmd:
 		s = MSG_ReadString();
 		SV_BeginRedirect(RD_MASTER, 0);
@@ -614,6 +628,7 @@ void SSV_ReadFromControlServer(void)
 		SV_EndRedirect();
 		break;
 
+	//cluster has 'accepted' us as an allowed server. this is where it tells us who we're meant to be, which needs to be set up ready for the players that are (probably) about to join us
 	case ccmd_acceptserver:
 		svs.clusterserverid	= MSG_ReadLong();
 		s = MSG_ReadString();
@@ -623,65 +638,7 @@ void SSV_ReadFromControlServer(void)
 			*pr_global_ptrs->serverid = svs.clusterserverid;
 		break;
 
-	case ccmd_tookplayer:
-		{
-			client_t *cl = NULL;
-			int to = MSG_ReadLong();
-			int plid = MSG_ReadLong();
-			char *addr = MSG_ReadString();
-			int i;
-
-			Con_Printf("%s: got tookplayer\n", sv.modelname);
-
-			for (i = 0; i < svs.allocated_client_slots; i++)
-			{
-				if (svs.clients[i].state && svs.clients[i].userid == plid)
-				{
-					cl = &svs.clients[i];
-					break;
-				}
-			}
-			if (cl)
-			{
-				if (!*addr)
-				{
-					Con_Printf("%s: tookplayer: failed\n", sv.modelname);
-					Z_Free(cl->transfer);
-					cl->transfer = NULL;
-				}
-				else
-				{
-					Con_Printf("%s: tookplayer: do transfer\n", sv.modelname);
-//					SV_StuffcmdToClient(cl, va("connect \"%s\"\n", addr));
-					SV_StuffcmdToClient(cl, va("cl_transfer \"%s\"\n", addr));
-					cl->redirect = 2;
-				}
-			}
-			else
-				Con_Printf("%s: tookplayer: invalid player.\n", sv.modelname);
-		}
-		break;
-
-	case ccmd_transferedplayer:
-		{
-			client_t *cl;
-			int toserver = MSG_ReadLong();
-			int playerid = MSG_ReadLong();
-			int i;
-
-			for (i = 0; i < svs.allocated_client_slots; i++)
-			{
-				if (svs.clients[i].userid == playerid && svs.clients[i].state >= cs_loadzombie)
-				{
-					cl = &svs.clients[i];
-					cl->drop = true;
-					Con_Printf("%s transfered to %s\n", cl->name, cl->transfer);
-					break;
-				}
-			}
-		}
-		break;
-
+	//another server wants us to reserve a player slot for an inbound player.
 	case ccmd_takeplayer:
 		{
 			client_t *cl = NULL;
@@ -759,6 +716,73 @@ void SSV_ReadFromControlServer(void)
 			}
 		}
 		break;
+
+	//a server has acknowledged a transfer request, and we now know where to actually send them to.
+	case ccmd_tookplayer:
+		{
+			client_t *cl = NULL;
+			int to = MSG_ReadLong();
+			int plid = MSG_ReadLong();
+			char *addr = MSG_ReadString();
+			int i;
+
+			(void)to;
+
+			Con_Printf("%s: got tookplayer\n", sv.modelname);
+
+			for (i = 0; i < svs.allocated_client_slots; i++)
+			{
+				if (svs.clients[i].state && svs.clients[i].userid == plid)
+				{
+					cl = &svs.clients[i];
+					break;
+				}
+			}
+			if (cl)
+			{
+				if (!*addr)
+				{
+					Con_Printf("%s: tookplayer: failed\n", sv.modelname);
+					Z_Free(cl->transfer);
+					cl->transfer = NULL;
+				}
+				else
+				{
+					Con_Printf("%s: tookplayer: do transfer\n", sv.modelname);
+//					SV_StuffcmdToClient(cl, va("connect \"%s\"\n", addr));
+					SV_StuffcmdToClient(cl, va("cl_transfer \"%s\"\n", addr));
+					cl->redirect = 2;
+				}
+			}
+			else
+				Con_Printf("%s: tookplayer: invalid player.\n", sv.modelname);
+		}
+		break;
+
+	//another server has successfully taken a player from us (100% complete). we can drop the player now, they're not going to respond to us anyway.
+	case ccmd_transferedplayer:
+		{
+			client_t *cl;
+			int toserver = MSG_ReadLong();
+			int playerid = MSG_ReadLong();
+			int i;
+
+			(void)toserver;
+
+			for (i = 0; i < svs.allocated_client_slots; i++)
+			{
+				if (svs.clients[i].userid == playerid && svs.clients[i].state >= cs_loadzombie)
+				{
+					cl = &svs.clients[i];
+					cl->drop = true;
+					Con_Printf("%s transfered to %s\n", cl->name, cl->transfer);
+					break;
+				}
+			}
+		}
+		break;
+
+	//qc-based string command sent from gamecode of node to the gamecode of another.
 	case ccmd_stringcmd:
 		{
 			char dest[1024];
@@ -778,7 +802,7 @@ void SSV_ReadFromControlServer(void)
 				for (i = 0; i < sv.allocated_client_slots; i++)
 				{
 					cl = &svs.clients[i];
-					if (cl->state >= ca_connected)
+					if (cl->state >= cs_connected)
 					if (!*dest || !strcmp(dest, cl->name))
 					{
 						if (!strcmp(cmd, "say"))

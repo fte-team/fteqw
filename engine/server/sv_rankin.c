@@ -20,7 +20,7 @@ rankfileheader_t rankfileheader;
 vfsfile_t *rankfile;
 
 cvar_t rank_autoadd = CVARD("rank_autoadd", "1", "Automatically register players into the ranking system");
-cvar_t rank_needlogin = CVARD("rank_needlogin", "0", "If set to 1, prohibits players from joining if they're not already registered.");
+cvar_t rank_needlogin = CVARD("rank_needlogin", "0", "If set to 1, prohibits players from joining if they're not yet registered. This will require an external mechanism to register users, presumably via rcon.");
 cvar_t rank_filename = CVARD("rank_filename", "", "Specifies which file to use as a rankings database. Enables the ranking system if set.");
 cvar_t rank_parms_first = CVARD("rank_parms_first", "0", "Mod setting: first parm saved");
 cvar_t rank_parms_last = CVARD("rank_parms_last", "31", "Mod setting: the index of the last parm to be saved. Clamped to 32.");

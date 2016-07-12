@@ -676,7 +676,7 @@ struct decompressstate
 	qboolean encrypted;
 	unsigned int cryptkey[3];
 	unsigned int initialkey[3];
-	const int * crctable;
+	const z_crc_t * crctable;
 #endif
 
 	z_stream strm;
@@ -983,7 +983,7 @@ static qboolean QDECL VFSZIP_Seek (struct vfsfile_s *file, qofs_t pos)
 		return false;
 	}
 
-	if (pos < 0 || pos > vfsz->length)
+	if (pos > vfsz->length)
 		return false;
 	vfsz->pos = pos;
 
@@ -1493,7 +1493,7 @@ unsigned short ibmtounicode[256] =
 	0x2261,0x00B1,0x2265,0x2264,0x2320,0x2321,0x00F7,0x2248,0x00B0,0x2219,0x00B7,0x221A,0x207F,0x00B2,0x25A0,0x00A0,	//0xf0(maths, printable)
 };
 
-static qboolean FSZIP_EnumerateCentralDirectory(zipfile_t *zip, struct zipinfo *info)
+static qboolean FSZIP_EnumerateCentralDirectory(zipfile_t *zip, struct zipinfo *info, const char *prefix)
 {
 	qboolean success = false;
 	zpackfile_t		*f;
@@ -1519,14 +1519,14 @@ static qboolean FSZIP_EnumerateCentralDirectory(zipfile_t *zip, struct zipinfo *
 
 				//copy out the filename and lowercase it
 				if (entry.gflags & (1u<<11))
-				{	//unicode encoding
+				{	//already utf-8 encoding
 					if (entry.fnane_len > sizeof(f->name)-1)
 						entry.fnane_len = sizeof(f->name)-1;
 					memcpy(f->name, entry.fname, entry.fnane_len);
 					f->name[entry.fnane_len] = 0;
 				}
 				else
-				{
+				{	//legacy charset
 					int i;
 					int nlen = 0;
 					int cl;
@@ -1540,9 +1540,36 @@ static qboolean FSZIP_EnumerateCentralDirectory(zipfile_t *zip, struct zipinfo *
 					f->name[nlen] = 0;
 
 				}
+
+				if (prefix && *prefix)
+				{
+					if (!strcmp(prefix, ".."))
+					{
+						char *c; 
+						for (c = f->name; *c; )
+						{
+							if (*c++ == '/')
+								break;
+						}
+						memmove(f->name, c, strlen(c)+1);
+					}
+					else
+					{
+						size_t prelen = strlen(prefix);
+						size_t oldlen = strlen(f->name);
+						if (prelen+1+oldlen+1 > sizeof(f->name))
+							*f->name = 0;
+						else
+						{
+							memmove(f->name+prelen+1, f->name, oldlen);
+							f->name[prelen] = '/';
+							memmove(f->name, prefix, prelen);
+						}
+					}
+				}
 				Q_strlwr(f->name);
 
-				f->filelen = entry.usize;
+				f->filelen = *f->name?entry.usize:0;
 				f->localpos = entry.localheaderoffset+info->zipoffset;
 				f->flags = entry.flags;
 				f->mtime = entry.mtime;
@@ -1693,7 +1720,7 @@ Loads the header and directory, adding the files at the beginning
 of the list so they override previous pack files.
 =================
 */
-searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *desc)
+searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *desc, const char *prefix)
 {
 	zipfile_t *zip;
 	struct zipinfo info;
@@ -1723,12 +1750,12 @@ searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *d
 	}
 
 	//now read it.
-	if (!FSZIP_EnumerateCentralDirectory(zip, &info) && !info.zip64_diskcount)
+	if (!FSZIP_EnumerateCentralDirectory(zip, &info, prefix) && !info.zip64_diskcount)
 	{
 		//uh oh... the central directory wasn't where it was meant to be!
 		//assuming that the endofcentraldir is packed at the true end of the centraldir (and that we're not zip64 and thus don't have an extra block), then we can guess based upon the offset difference
 		info.zipoffset = info.centraldir_end - (info.centraldir_offset+info.centraldir_size);
-		if (FSZIP_EnumerateCentralDirectory(zip, &info))
+		if (!FSZIP_EnumerateCentralDirectory(zip, &info, prefix))
 		{
 			Z_Free(zip);
 			Con_TPrintf ("zipfile \"%s\" appears to be missing its central directory\n", desc);

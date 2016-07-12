@@ -57,6 +57,8 @@ qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean
 qboolean Mod_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
 qboolean Mod_LoadSurfedges (model_t *loadmodel, qbyte *mod_base, lump_t *l);
 
+extern void BuildLightMapGammaTable (float g, float c);
+
 #ifdef Q2BSPS
 static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
 static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
@@ -248,10 +250,12 @@ typedef struct
 
 typedef struct
 {
+	int			checkcount;		// to avoid repeated testings
 	int			contents;
+	vec3_t		absmins;
+	vec3_t		absmaxs;
 	int			numsides;
 	q2cbrushside_t *brushside;
-	int			checkcount;		// to avoid repeated testings
 } q2cbrush_t;
 
 typedef struct
@@ -390,6 +394,7 @@ cvar_t		r_subdivisions		= SCVAR("r_subdivisions", "2");
 static int		CM_NumInlineModels (model_t *model);
 static cmodel_t	*CM_InlineModel (model_t *model, char *name);
 void	CM_InitBoxHull (void);
+static void CM_FinalizeBrush(q2cbrush_t *brush);
 static void	FloodAreaConnections (cminfo_t	*prv);
 
 static int			numvertexes;
@@ -1695,6 +1700,7 @@ qboolean CModQ2_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 		out->brushside = &prv->brushsides[LittleLong(in->firstside)];
 		out->numsides = LittleLong(in->numsides);
 		out->contents = LittleLong(in->contents);
+		CM_FinalizeBrush(out);
 	}
 
 	return true;
@@ -2167,6 +2173,7 @@ qboolean CModQ3_LoadShaders (model_t *mod, qbyte *mod_base, lump_t *l)
 	dq3shader_t	*in;
 	q2mapsurface_t	*out;
 	int				i, count;
+	texture_t *tex;
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -2187,28 +2194,32 @@ qboolean CModQ3_LoadShaders (model_t *mod, qbyte *mod_base, lump_t *l)
 	mod->numtexinfo = count;
 	out = prv->surfaces = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
 
-	mod->texinfo = ZG_Malloc(&mod->memgroup, sizeof(mtexinfo_t)*(count*2+1));	//+1 is 'noshader' for flares.
+	mod->textures = ZG_Malloc(&mod->memgroup, (sizeof(texture_t*)+sizeof(mtexinfo_t)+sizeof(texture_t))*(count*2+1));	//+1 is 'noshader' for flares.
+	mod->texinfo = (mtexinfo_t*)(mod->textures+(count*2+1));
+	tex = (texture_t*)(mod->texinfo+(count*2+1));
 	mod->numtextures = count*2+1;
-	mod->textures = ZG_Malloc(&mod->memgroup, sizeof(texture_t*)*(count*2+1));
 
 	for ( i=0 ; i<count ; i++, in++, out++ )
 	{
-		mod->texinfo[i].texture = ZG_Malloc(&mod->memgroup, sizeof(texture_t));
-		Q_strncpyz(mod->texinfo[i].texture->name, in->shadername, sizeof(mod->texinfo[i].texture->name));
-		mod->textures[i] = mod->texinfo[i].texture;
-
 		out->c.flags = LittleLong ( in->surfflags );
 		out->c.value = LittleLong ( in->contents );
+
+		mod->texinfo[i].texture = tex+i;
+		mod->texinfo[i].flags = prv->surfaces[i].c.flags;
+		Q_strncpyz(mod->texinfo[i].texture->name, in->shadername, sizeof(mod->texinfo[i].texture->name));
+		mod->textures[i] = mod->texinfo[i].texture;
 	}
 	for ( i=0, in-=count ; i<count ; i++, in++ )
 	{
-		mod->texinfo[i+count].texture = ZG_Malloc(&mod->memgroup, sizeof(texture_t));
+		mod->texinfo[i+count].texture = tex+i+count;
+		mod->texinfo[i+count].flags = prv->surfaces[i].c.flags;
 		Q_strncpyz(mod->texinfo[i+count].texture->name, in->shadername, sizeof(mod->texinfo[i+count].texture->name));
 		mod->textures[i+count] = mod->texinfo[i+count].texture;
 	}
 
 	//and for flares, which are not supported at this time.
-	mod->texinfo[count*2].texture = ZG_Malloc(&mod->memgroup, sizeof(texture_t));
+	mod->texinfo[count*2].texture = tex+count*2;
+	mod->texinfo[i+count].flags = 0;
 	Q_strncpyz(mod->texinfo[count*2].texture->name, "noshader", sizeof(mod->texinfo[count*2].texture->name));
 	mod->textures[count*2] = mod->texinfo[count*2].texture;
 
@@ -2224,6 +2235,7 @@ qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 	int			i, count, j;
 	vec2_t		*lmout, *stout;
 	vec4_t *cout;
+	extern qbyte lmgamma[256];
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -2270,11 +2282,14 @@ qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 			stout[i][j] = LittleFloat ( ((float *)in->texcoords)[j] );
 			lmout[i][j] = LittleFloat ( ((float *)in->texcoords)[j+2] );
 		}
-		for ( j=0 ; j < 4 ; j++)
-		{
-			cout[i][j] = in->color[j]/255.0f;
-		}
+		cout[i][0] = lmgamma[in->color[0]]/255.0f;
+		cout[i][1] = lmgamma[in->color[1]]/255.0f;
+		cout[i][2] = lmgamma[in->color[2]]/255.0f;
+		cout[i][3] = in->color[3]/255.0f;
 	}
+
+//	if (r_lightmap_saturation.value != 1.0f)
+//		SaturateR8G8B8(cout, count*4, r_lightmap_saturation.value);
 
 	return true;
 }
@@ -2883,12 +2898,12 @@ qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		
 		facetype = LittleLong(in->facetype);
 		out->texinfo = mod->texinfo + LittleLong(in->shadernum);
-		if (in->facetype == MST_FLARE)
-			out->texinfo = mod->texinfo + mod->numtexinfo*2;
-		else if (in->facetype == MST_TRIANGLE_SOUP || r_vertexlight.value)
-			out->texinfo += mod->numtexinfo;	//soup/vertex light uses a different version of the same shader (with all the lightmaps collapsed)
-
 		out->lightmaptexturenums[0] = LittleLong(in->lightmapnum);
+		if (facetype == MST_FLARE)
+			out->texinfo = mod->texinfo + mod->numtexinfo*2;
+		else if (out->lightmaptexturenums[0] < 0 /*|| facetype == MST_TRIANGLE_SOUP*/ || r_vertexlight.value)
+			out->texinfo += mod->numtexinfo;	//various surfaces use a different version of the same shader (with all the lightmaps collapsed)
+
 		out->light_s[0] = LittleLong(in->lightmap_x);
 		out->light_t[0] = LittleLong(in->lightmap_y);
 		out->styles[0] = 255;
@@ -3166,6 +3181,7 @@ qboolean CModQ3_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 		out->contents = prv->surfaces[shaderref].c.value;
 		out->brushside = &prv->brushsides[LittleLong ( in->firstside )];
 		out->numsides = LittleLong ( in->num_sides );
+		CM_FinalizeBrush(out);
 	}
 
 	return true;
@@ -3454,7 +3470,6 @@ void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 
 	extern cvar_t gl_overbright;
 	extern qbyte lmgamma[256];
-	extern void BuildLightMapGammaTable (float g, float c);
 	loadmodel->engineflags &= ~MDLF_RGBLIGHTING;
 
 	//round up the samples, in case the last one is partial.
@@ -3462,11 +3477,14 @@ void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 
 	//q3 maps have built in 4-fold overbright.
 	//if we're not rendering with that, we need to brighten the lightmaps in order to keep the darker parts the same brightness. we loose the 2 upper bits. those bright areas become uniform and indistinct.
-	gl_overbright.flags |= CVAR_LATCH;
+	gl_overbright.flags |= CVAR_RENDERERLATCH;
 	BuildLightMapGammaTable(1, (1<<(2-gl_overbright.ival)));
 
+	loadmodel->lightmaps.merge = 0;
 	if (!samples)
 		return;
+
+	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
 
 	loadmodel->engineflags |= MDLF_RGBLIGHTING;
 	loadmodel->lightdata = out = ZG_Malloc(&loadmodel->memgroup, samples);
@@ -3496,6 +3514,14 @@ void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 			if (r_lightmap_saturation.value != 1.0f)
 				SaturateR8G8B8(out - mapsize, mapsize, r_lightmap_saturation.value);
 		}
+	}
+
+	if (loadmodel->lightdata)
+	{
+		int limit = min(sh_config.texture_maxsize / loadmodel->lightmaps.height, 16);//mod_mergeq3lightmaps.ival);
+		loadmodel->lightmaps.merge = 1;
+		while (loadmodel->lightmaps.merge*2 <= limit)
+			loadmodel->lightmaps.merge *= 2;
 	}
 }
 
@@ -3875,6 +3901,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	model_t			*wmod = mod;
 	char			loadname[32];
 	qbyte			*mod_base = (qbyte *)filein;
+	extern cvar_t	gl_overbright;
 
 #ifndef SERVERONLY
 	void (*buildmeshes)(model_t *mod, msurface_t *surf, builddata_t *cookie) = NULL;
@@ -3997,6 +4024,12 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		map_faces = NULL;
 
 		Q1BSPX_Setup(mod, mod_base, filelen, header.lumps, Q3LUMPS_TOTAL);
+
+		//q3 maps have built in 4-fold overbright.
+		//if we're not rendering with that, we need to brighten the lightmaps in order to keep the darker parts the same brightness. we loose the 2 upper bits. those bright areas become uniform and indistinct.
+		//this is used for both the lightmap AND vertex lighting
+		gl_overbright.flags |= CVAR_RENDERERLATCH;
+		BuildLightMapGammaTable(1, (1<<(2-gl_overbright.ival)));
 
 		prv->mapisq3 = true;
 		noerrors = noerrors && CModQ3_LoadShaders				(mod, mod_base, &header.lumps[Q3LUMP_SHADERS]);
@@ -4235,8 +4268,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 #endif
 		}
 	}
-
-	CM_InitBoxHull ();
 
 	if (map_autoopenportals.value)
 		memset (prv->portalopen, 1, sizeof(prv->portalopen));	//open them all. Used for progs that havn't got a clue.
@@ -4494,8 +4525,6 @@ void CM_SetTempboxSize (vec3_t mins, vec3_t maxs)
 
 model_t *CM_TempBoxModel(vec3_t mins, vec3_t maxs)
 {
-	if (box_planes == NULL)
-		CM_InitBoxHull();
 	CM_SetTempboxSize(mins, maxs);
 	return &box_model;
 }
@@ -4794,6 +4823,26 @@ static enum
 	shape_iscapsule,
 	shape_ispoint
 } trace_shape;		// optimized case
+
+
+static void CM_FinalizeBrush(q2cbrush_t *brush)
+{
+	vecV_t verts[256];
+	vec4_t planes[256];
+	int i, j;
+	ClearBounds(brush->absmins, brush->absmaxs);
+	for (i = 0; i < brush->numsides; i++)
+	{
+		VectorCopy(brush->brushside[i].plane->normal, planes[i]);
+		planes[i][3] = brush->brushside[i].plane->dist;
+	}
+	for (i = 0; i < brush->numsides; i++)
+	{
+		j = Fragment_ClipPlaneToBrush(verts, countof(verts), planes, sizeof(planes[0]), brush->numsides, planes[i]);
+		while (j-- > 0)
+			AddPointToBounds(verts[j], brush->absmins, brush->absmaxs);
+	}
+}
 
 /*
 ================
@@ -5415,6 +5464,8 @@ static void CM_TraceToLeaf (cminfo_t	*prv, mleaf_t		*leaf)
 
 		if ( !(b->contents & trace_contents))
 			continue;
+		if (!BoundsIntersect(b->absmins, b->absmaxs, trace_absmins, trace_absmaxs))
+			continue;
 		CM_ClipBoxToBrush (trace_mins, trace_maxs, trace_start, trace_end, &trace_trace, b);
 		if (trace_nearfraction <= 0)
 			return;
@@ -5486,7 +5537,9 @@ static void CM_TestInLeaf (cminfo_t *prv, mleaf_t *leaf)
 			continue;	// already checked this brush in another leaf
 		b->checkcount = checkcount;
 
-		if ( !(b->contents & trace_contents))
+		if (!(b->contents & trace_contents))
+			continue;
+		if (!BoundsIntersect(b->absmins, b->absmaxs, trace_absmins, trace_absmaxs))
 			continue;
 		CM_TestBoxInBrush (trace_mins, trace_maxs, trace_start, &trace_trace, b);
 		if (!trace_trace.fraction)
@@ -6032,8 +6085,8 @@ static void CM_DecompressVis (model_t *mod, qbyte *in, qbyte *out)
 	} while (out_p - out < row);
 }
 
-static qbyte	pvsrow[MAX_MAP_LEAFS/8];
-static qbyte	phsrow[MAX_MAP_LEAFS/8];
+static FTE_ALIGN(4) qbyte	pvsrow[MAX_MAP_LEAFS/8];
+static FTE_ALIGN(4) qbyte	phsrow[MAX_MAP_LEAFS/8];
 
 
 
@@ -6359,6 +6412,8 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&q3bsp_surf_meshcollision_flag, MAPOPTIONS);
 	Cvar_Register(&q3bsp_surf_meshcollision_force, MAPOPTIONS);
 	Cvar_Register(&r_subdivisions, MAPOPTIONS);
+
+	CM_InitBoxHull ();
 }
 void CM_Shutdown(void)
 {

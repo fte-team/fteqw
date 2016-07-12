@@ -303,6 +303,14 @@ void Sys_Printf (char *fmt, ...)
 		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 		va_end (argptr);
 
+#ifdef SUBSERVERS
+		if (SSV_IsSubServer())
+		{
+			SSV_PrintToMaster(msg);
+			return;
+		}
+#endif
+
 		//if we're not linebuffered, kill the currently displayed input line, add the new text, and add more output.
 		if (!sys_linebuffer.value)
 		{
@@ -320,7 +328,7 @@ void Sys_Printf (char *fmt, ...)
 		}
 
 
-        if (sys_colorconsole.value)
+		if (sys_colorconsole.value)
 		{
 			wchar_t w;
 			conchar_t *e, *c;
@@ -430,15 +438,15 @@ void Sys_Printf (char *fmt, ...)
 	static char		text[2048];
 	unsigned char		*p;
 
+	if (sys_nostdout.value || SSV_IsSubServer())
+		return;
+
 	va_start (argptr,fmt);
 	vsnprintf (text,sizeof(text)-1, fmt,argptr);
 	va_end (argptr);
 
 	if (strlen(text) > sizeof(text))
 		Sys_Error("memory overwrite in Sys_Printf");
-
-	if (sys_nostdout.value)
-		return;
 
 	for (p = (unsigned char *)text; *p; p++) {
 		*p &= 0x7f;
@@ -552,6 +560,12 @@ char *Sys_ConsoleInput (void)
 	static char	text[256];
 	int	len;
 
+	if (SSV_IsSubServer())
+	{
+		SSV_CheckFromMaster();
+		return NULL;
+	}
+
 	if (!stdin_ready || !do_stdin)
 		return NULL;		// the select didn't say it was ready
 	stdin_ready = false;
@@ -630,7 +644,7 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 #if defined(__i386__)
 	//x86 signals don't leave the stack in a clean state, so replace the signal handler with the real crash address, and hide this function
 	ucontext_t *uc = vcontext;
-	array[1] = uc->uc_mcontext.gregs[REG_EIP];
+	array[1] = (void*)uc->uc_mcontext.gregs[REG_EIP];
 	firstframe = 1;
 #elif defined(__amd64__)
 	//amd64 is sane enough, but this function and the libc signal handler are on the stack, and should be ignored.
@@ -713,6 +727,12 @@ int main(int argc, char *argv[])
 		sigaction(SIGABRT, &act, NULL);
 		sigaction(SIGBUS, &act, NULL);
 	}
+#endif
+
+
+#ifdef SUBSERVERS
+	if (COM_CheckParm("-clusterslave"))
+		isClusterSlave = true;
 #endif
 
 	parms.basedir = "./";

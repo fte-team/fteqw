@@ -23,12 +23,16 @@ varying mat3 invsurface;
 #endif
 
 varying vec2 tc;
-#ifdef LIGHTSTYLED
-//we could use an offset, but that would still need to be per-surface which would break batches
-//fixme: merge attributes?
-varying vec2 lm0, lm1, lm2, lm3;
+#ifdef VERTEXLIT
+	varying vec4 vc;
 #else
-varying vec2 lm0;
+	#ifdef LIGHTSTYLED
+		//we could use an offset, but that would still need to be per-surface which would break batches
+		//fixme: merge attributes?
+		varying vec2 lm0, lm1, lm2, lm3;
+	#else
+		varying vec2 lm0;
+	#endif
 #endif
 
 #ifdef VERTEX_SHADER
@@ -46,11 +50,20 @@ void main ()
 	invsurface[2] = v_normal;
 #endif
 	tc = v_texcoord;
+#ifdef VERTEXLIT
+	#ifdef LIGHTSTYLED
+	//FIXME, only one colour.
+	vc = v_colour * e_lmscale[0];
+	#else
+	vc = v_colour * e_lmscale;
+	#endif
+#else
 	lm0 = v_lmcoord;
 #ifdef LIGHTSTYLED
 	lm1 = v_lmcoord2;
 	lm2 = v_lmcoord3;
 	lm3 = v_lmcoord4;
+#endif
 #endif
 	gl_Position = ftetransform();
 }
@@ -81,7 +94,7 @@ void main ()
 	//optional: round the lightmap coords to ensure all pixels within a texel have different lighting values either. it just looks wrong otherwise.
 	//don't bother if its lightstyled, such cases will have unpredictable correlations anyway.
 	//FIXME: this rounding is likely not correct with respect to software rendering. oh well.
-	vec2 lmcoord0 = floor(lm0 * 256.0*8.0)/(256.0*8.0);
+	vec2 lmcoord0 = floor(lm0 * 512.0*16.0)/(512.0*16.0);
 #define lm0 lmcoord0
 #endif
 
@@ -96,33 +109,41 @@ void main ()
 #endif
 
 //modulate that by the lightmap(s) including deluxemap(s)
-#ifdef LIGHTSTYLED
-	vec3 lightmaps;
-	#ifdef DELUXE
-		lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb * dot(norm, 2.0*texture2D(s_deluxmap0, lm0).rgb-0.5);
-		lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb * dot(norm, 2.0*texture2D(s_deluxmap1, lm1).rgb-0.5);
-		lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb * dot(norm, 2.0*texture2D(s_deluxmap2, lm2).rgb-0.5);
-		lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb * dot(norm, 2.0*texture2D(s_deluxmap3, lm3).rgb-0.5);
+#ifdef VERTEXLIT
+	#ifdef LIGHTSTYLED
+	vec3 lightmaps = vc.rgb;
 	#else
-		lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb;
-		lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb;
-		lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb;
-		lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb;
+	vec3 lightmaps = vc.rgb;
 	#endif
 #else
-	vec3 lightmaps = (texture2D(s_lightmap, lm0) * e_lmscale).rgb;
-	//modulate by the  bumpmap dot light
-	#ifdef DELUXE
-		vec3 delux = 2.0*(texture2D(s_deluxmap, lm0).rgb-0.5);
-		lightmaps *= 1.0 / max(0.25, delux.z);	//counter the darkening from deluxmaps
-		lightmaps *= dot(norm, delux);
+	#ifdef LIGHTSTYLED
+		vec3 lightmaps;
+		#ifdef DELUXE
+			lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb * dot(norm, 2.0*texture2D(s_deluxmap0, lm0).rgb-0.5);
+			lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb * dot(norm, 2.0*texture2D(s_deluxmap1, lm1).rgb-0.5);
+			lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb * dot(norm, 2.0*texture2D(s_deluxmap2, lm2).rgb-0.5);
+			lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb * dot(norm, 2.0*texture2D(s_deluxmap3, lm3).rgb-0.5);
+		#else
+			lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb;
+			lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb;
+			lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb;
+			lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb;
+		#endif
+	#else
+		vec3 lightmaps = (texture2D(s_lightmap, lm0) * e_lmscale).rgb;
+		//modulate by the  bumpmap dot light
+		#ifdef DELUXE
+			vec3 delux = 2.0*(texture2D(s_deluxmap, lm0).rgb-0.5);
+			lightmaps *= 1.0 / max(0.25, delux.z);	//counter the darkening from deluxmaps
+			lightmaps *= dot(norm, delux);
+		#endif
 	#endif
 #endif
 
 //add in specular, if applicable.
 #ifdef SPECULAR
 	vec4 specs = texture2D(s_specular, tc);
-	#ifdef DELUXE
+	#if defined(DELUXE) && !defined(VERTEXLIT)
 //not lightstyled...
 		vec3 halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_deluxmap0, lm0).rgb-0.5));	//this norm should be the deluxemap info instead
 	#else

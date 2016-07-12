@@ -28,32 +28,18 @@ int Grep(char *filename, char *string)
 	char *last, *found, *linestart;
 	int line = 1;
 	int sz;
-	int caseinsens = 0;
-	int szlen = caseinsens?strlen(string)+1:0;
 	char *buf;
 	if (!filename)
 		return foundcount;
 	sz = GUIFileSize(filename);
 	if (sz <= 0)
 		return foundcount;
-	buf = malloc(sz+1 + szlen);
+	buf = malloc(sz+1);
 	buf[sz] = 0;
 	GUIReadFile(filename, buf, sz, NULL);
 
-	if (caseinsens)
-	{
-		memcpy(buf+sz+1, string, szlen);
-		string = buf+sz+1+szlen;
-		for (found = buf; found < string; found++)
-		{
-			if (*found >= 'A' && *found <= 'Z')
-				*found = *found-'A' + 'a';
-		}
-		string = buf+sz+1;
-	}
-
 	linestart = last = found = buf;
-	while ((found = strstr(found, string)))
+	while ((found = QC_strcasestr(found, string)))
 	{
 		while (last < found)
 		{
@@ -121,12 +107,20 @@ void GoToDefinition(char *name)
 			}
 		}
 		if (!def->s_file)
-			GUI_DialogPrint("Not found", "Global definition of var was not specified.");
+		{
+			char msgbuffer[2048];
+			QC_snprintfz(msgbuffer, sizeof(msgbuffer), "Global definition of \"%s\" was not specified.", name);		
+			GUI_DialogPrint("Not found", msgbuffer);
+		}
 		else
 			EditFile(def->s_file+strings, def->s_line-1, false);
 	}
 	else
-		GUI_DialogPrint("Not found", "Global instance of var was not found.");
+	{
+		char msgbuffer[2048];
+		QC_snprintfz(msgbuffer, sizeof(msgbuffer), "Global instance of \"%s\" was not found.", name); 
+		GUI_DialogPrint("Not found", msgbuffer);
+	}
 }
 
 static void GUI_WriteConfigLine(FILE *file, char *part1, char *part2, char *part3, char *desc)

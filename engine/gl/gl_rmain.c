@@ -49,8 +49,6 @@ extern int			r_framecount;		// used for dlight push checking
 //vec3_t	vright;
 //vec3_t	r_origin;
 
-cvar_t	r_norefresh = SCVAR("r_norefresh","0");
-
 extern cvar_t	gl_part_flame;
 extern cvar_t	r_bloom;
 extern cvar_t	r_wireframe_smooth;
@@ -258,25 +256,50 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 		float em[16];
 		float vm[16];
 
-		vm[0] = r_refdef.playerview->vw_axis[0][0];
-		vm[1] = r_refdef.playerview->vw_axis[0][1];
-		vm[2] = r_refdef.playerview->vw_axis[0][2];
-		vm[3] = 0;
+		if (e->flags & RF_WEAPONMODELNOBOB)
+		{
+			vm[0] = vpn[0];
+			vm[1] = vpn[1];
+			vm[2] = vpn[2];
+			vm[3] = 0;
 
-		vm[4] = r_refdef.playerview->vw_axis[1][0];
-		vm[5] = r_refdef.playerview->vw_axis[1][1];
-		vm[6] = r_refdef.playerview->vw_axis[1][2];
-		vm[7] = 0;
+			vm[4] = -vright[0];
+			vm[5] = -vright[1];
+			vm[6] = -vright[2];
+			vm[7] = 0;
 
-		vm[8] = r_refdef.playerview->vw_axis[2][0];
-		vm[9] = r_refdef.playerview->vw_axis[2][1];
-		vm[10] = r_refdef.playerview->vw_axis[2][2];
-		vm[11] = 0;
+			vm[8] = vup[0];
+			vm[9] = vup[1];
+			vm[10] = vup[2];
+			vm[11] = 0;
 
-		vm[12] = r_refdef.playerview->vw_origin[0];
-		vm[13] = r_refdef.playerview->vw_origin[1];
-		vm[14] = r_refdef.playerview->vw_origin[2];
-		vm[15] = 1;
+			vm[12] = r_refdef.vieworg[0];
+			vm[13] = r_refdef.vieworg[1];
+			vm[14] = r_refdef.vieworg[2];
+			vm[15] = 1;
+		}
+		else
+		{
+			vm[0] = r_refdef.playerview->vw_axis[0][0];
+			vm[1] = r_refdef.playerview->vw_axis[0][1];
+			vm[2] = r_refdef.playerview->vw_axis[0][2];
+			vm[3] = 0;
+
+			vm[4] = r_refdef.playerview->vw_axis[1][0];
+			vm[5] = r_refdef.playerview->vw_axis[1][1];
+			vm[6] = r_refdef.playerview->vw_axis[1][2];
+			vm[7] = 0;
+
+			vm[8] = r_refdef.playerview->vw_axis[2][0];
+			vm[9] = r_refdef.playerview->vw_axis[2][1];
+			vm[10] = r_refdef.playerview->vw_axis[2][2];
+			vm[11] = 0;
+
+			vm[12] = r_refdef.playerview->vw_origin[0];
+			vm[13] = r_refdef.playerview->vw_origin[1];
+			vm[14] = r_refdef.playerview->vw_origin[2];
+			vm[15] = 1;
+		}
 
 		em[0] = e->axis[0][0];
 		em[1] = e->axis[0][1];
@@ -329,7 +352,7 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 		float z;
 		float escale;
 		escale = e->scale;
-		switch(e->drawflags&SCALE_TYPE_MASKIN)
+		switch(e->drawflags&SCALE_TYPE_MASK)
 		{
 		default:
 		case SCALE_TYPE_UNIFORM:
@@ -345,9 +368,9 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 			VectorScale((m+8), escale, (m+8));
 			break;
 		}
-		if (mod && (e->drawflags&SCALE_TYPE_MASKIN) != SCALE_TYPE_XYONLY)
+		if (mod && (e->drawflags&SCALE_TYPE_MASK) != SCALE_TYPE_XYONLY)
 		{
-			switch(e->drawflags&SCALE_ORIGIN_MASKIN)
+			switch(e->drawflags&SCALE_ORIGIN_MASK)
 			{
 			case SCALE_ORIGIN_CENTER:
 				z = ((mod->maxs[2] + mod->mins[2]) * (1-escale))/2;
@@ -859,46 +882,8 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 		VectorMA(result, d, viewa[i], result);
 	}
 }
-static float sgn(float a)
-{
-    if (a > 0.0F) return (1.0F);
-    if (a < 0.0F) return (-1.0F);
-    return (0.0F);
-}
-void R_ObliqueNearClip(float *viewmat, mplane_t *wplane)
-{
-	float f;
-	vec4_t q, c;
-	vec3_t ping, pong;
-	vec4_t vplane;
 
-	//convert world plane into view space
-	Matrix4x4_CM_Transform3x3(viewmat, wplane->normal, vplane);
-	VectorScale(wplane->normal, wplane->dist, ping);
-	Matrix4x4_CM_Transform3(viewmat, ping, pong);
-	vplane[3] = -DotProduct(pong, vplane);
-
-	// Calculate the clip-space corner point opposite the clipping plane
-	// as (sgn(clipPlane.x), sgn(clipPlane.y), 1, 1) and
-	// transform it into camera space by multiplying it
-	// by the inverse of the projection matrix
-
-	q[0] = (sgn(vplane[0]) + r_refdef.m_projection[8]) / r_refdef.m_projection[0];
-	q[1] = (sgn(vplane[1]) + fabs(r_refdef.m_projection[9])) / fabs(r_refdef.m_projection[5]);
-	q[2] = -1.0F;
-	q[3] = (1.0F + r_refdef.m_projection[10]) / r_refdef.m_projection[14];
-
-	// Calculate the scaled plane vector
-	f = 2.0F / DotProduct4(vplane, q);
-	Vector4Scale(vplane, f, c);
-
-	// Replace the third row of the projection matrix
-	r_refdef.m_projection[2] = c[0];
-	r_refdef.m_projection[6] = c[1];
-	r_refdef.m_projection[10] = c[2] + 1.0F;
-	r_refdef.m_projection[14] = c[3];
-}
-
+void R_ObliqueNearClip(float *viewmat, mplane_t *wplane);
 void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue);
 void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], int portaltype)
 {
@@ -1441,8 +1426,6 @@ qboolean R_RenderScene_Cubemap(void)
 	/*needs glsl*/
 	if (!gl_config.arb_shader_objects)
 		return false;
-	if (!cls.allow_postproc)
-		return false;
 
 	if (!*ffov.string || !strcmp(ffov.string, "0"))
 		ffov.value = scr_fov.value;
@@ -1717,6 +1700,9 @@ qboolean R_RenderScene_Cubemap(void)
 		R2D_Image(vrect.x, vrect.y, vrect.width, vrect.height, -aspect, 0.5, aspect, -0.5, shader);
 	}
 
+	if (R2D_Flush)
+		R2D_Flush();
+
 	//revert the matricies
 /*	qglMatrixMode(GL_PROJECTION);
 	qglPopMatrix();
@@ -1960,7 +1946,7 @@ void GLR_RenderView (void)
 	{
 		RSpeedMark();
 		qglFinish ();
-		RSpeedEnd(RSPEED_FINISH);
+		RSpeedEnd(RSPEED_SUBMIT);
 	}
 
 	if (r_speeds.ival)

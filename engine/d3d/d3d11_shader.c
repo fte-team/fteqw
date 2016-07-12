@@ -105,7 +105,7 @@ extern ID3D11Device *pD3DDev11;
 #include <d3d11shader.h>
 #endif
 
-const GUID IID_ID3D11ShaderReflection = {0x8d536ca1, 0x0cca, 0x4956, 0xa8, 0x37, 0x78, 0x69, 0x63, 0x75, 0x55, 0x84};
+const GUID IID_ID3D11ShaderReflection = {0x8d536ca1, 0x0cca, 0x4956, {0xa8, 0x37, 0x78, 0x69, 0x63, 0x75, 0x55, 0x84}};
 #define ID3DBlob_GetBufferPointer(b) b->lpVtbl->GetBufferPointer(b)
 #define ID3DBlob_Release(b) b->lpVtbl->Release(b)
 #define ID3DBlob_GetBufferSize(b) b->lpVtbl->GetBufferSize(b)
@@ -205,20 +205,24 @@ ID3DInclude myd3dinclude =
 	&myd3dincludetab
 };
 
-void D3D11Shader_DeleteProg(program_t *prog, unsigned int permu)
+void D3D11Shader_DeleteProg(program_t *prog)
 {
 	ID3D11InputLayout *layout;
 	ID3D11PixelShader *frag;
 	ID3D11VertexShader *vert;
-	vert = prog->permu[permu].h.hlsl.vert;
-	frag = prog->permu[permu].h.hlsl.frag;
-	layout = prog->permu[permu].h.hlsl.layout;
-	if (vert)
-		ID3D11VertexShader_Release(vert);
-	if (frag)
-		ID3D11PixelShader_Release(frag);
-	if (layout)
-		ID3D11InputLayout_Release(layout);
+	unsigned int permu;
+	for (permu = 0; permu < countof(prog->permu); permu++)
+	{
+		vert = prog->permu[permu].h.hlsl.vert;
+		frag = prog->permu[permu].h.hlsl.frag;
+		layout = prog->permu[permu].h.hlsl.layout;
+		if (vert)
+			ID3D11VertexShader_Release(vert);
+		if (frag)
+			ID3D11PixelShader_Release(frag);
+		if (layout)
+			ID3D11InputLayout_Release(layout);
+	}
 }
 
 //create a program from two blobs.
@@ -403,6 +407,8 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 {
 	static const char *defaultsamplers[] =
 	{
+		"s_shadowmap",
+		"s_projectionmap",
 		"s_diffuse",
 		"s_normalmap",
 		"s_specular",
@@ -410,8 +416,6 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 		"s_lower",
 		"s_fullbright",
 		"s_paletted",
-		"s_shadowmap",
-		"s_projectionmap",
 		"s_reflectcube",
 		"s_reflectmask",
 		"s_lightmap",

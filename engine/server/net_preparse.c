@@ -588,7 +588,8 @@ qboolean ssqc_deprecated_warned;
 #define svc_setfrags 14
 #define svc_updatecolors 17
 
-#define svc_clearviewflags 41	//hexen2.
+#define svch2_clearviewflags 41	//hexen2.
+#define svch2_setangles_lerp 50
 
 //these are present in the darkplaces engine.
 //I wanna knick their mods.
@@ -597,9 +598,10 @@ qboolean ssqc_deprecated_warned;
 #define	svcdp_showlmp			35		// [string] slotname [string] lmpfilename [short] x [short] y
 #define	svcdp_hidelmp			36		// [string] slotname
 
-
+#define	TE_RAILTRAIL_NEH		15 // [vector] origin [coord] red [coord] green [coord] blue	(fixme: ignored)
 #define	TE_EXPLOSION3_NEH		16 // [vector] origin [coord] red [coord] green [coord] blue	(fixme: ignored)
 #define TE_LIGHTNING4_NEH		17 // [string] model [entity] entity [vector] start [vector] end
+#define TE_SMOKE_NEH			18
 #define TE_EXPLOSIONSMALL2		20	//	org.
 
 client_t *Write_GetClient(void);
@@ -611,6 +613,41 @@ sizebuf_t *NQWriteDest (int dest);
 void NPP_SetInfo(client_t *cl, char *key, char *value)
 {
 	int i;
+
+	//its common for bots to be set up by renaming players randomly etc
+	//such bots should appear that way in server browsers.
+	//on the other hand, players might end up with postfixes on their names.
+	//this will break clientside name/stats parsing of course... not much we can do about that other than fixing the mods.
+	
+	if (cl->netchan.remote_address.type != NA_INVALID)
+	{
+		int vlen = strlen(value);
+		if (!strcmp(key, "name") && 7+vlen+1 <= sizeof(buffer))
+		{
+			if (progstype != PROG_QW)
+			{
+				memmove(buffer+7, value, vlen+1);
+				buffer[0] = svc_setinfo;
+				buffer[1] = cl - svs.clients;
+				buffer[2] = 'n';
+				buffer[3] = 'a';
+				buffer[4] = 'm';
+				buffer[5] = 'e';
+				buffer[6] = 0;
+				bufferlen = 7+ vlen+1;
+				return;
+			}
+		}
+	}
+
+	bufferlen = 0;
+
+	if (!strcmp(key, "colours"))
+	{
+		i = atoi(value);
+		Info_SetValueForKey (cl->userinfo, "bottomcolor", va("%i", i&15), sizeof(cl->userinfo));
+		Info_SetValueForKey (cl->userinfo, "topcolor", va("%i", i>>4), sizeof(cl->userinfo));
+	}
 	Info_SetValueForKey (cl->userinfo, key, value, sizeof(cl->userinfo));
 	if (!*Info_ValueForKey (cl->userinfo, "name"))
 		cl->name[0] = '\0';
@@ -618,10 +655,25 @@ void NPP_SetInfo(client_t *cl, char *key, char *value)
 		SV_ExtractFromUserinfo (cl, false);
 
 	i = cl - svs.clients;
-	MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-	MSG_WriteByte (&sv.reliable_datagram, i);
-	MSG_WriteString (&sv.reliable_datagram, key);
-	MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(cl->userinfo, key));
+	if (!strcmp(key, "colours"))
+	{
+		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
+		MSG_WriteByte (&sv.reliable_datagram, i);
+		MSG_WriteString (&sv.reliable_datagram, "bottomcolor");
+		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(cl->userinfo, "bottomcolor"));
+
+		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
+		MSG_WriteByte (&sv.reliable_datagram, i);
+		MSG_WriteString (&sv.reliable_datagram, "topcolor");
+		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(cl->userinfo, "topcolor"));
+	}
+	else
+	{
+		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
+		MSG_WriteByte (&sv.reliable_datagram, i);
+		MSG_WriteString (&sv.reliable_datagram, key);
+		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(cl->userinfo, key));
+	}
 }
 
 void NPP_NQFlush(void)
@@ -644,13 +696,10 @@ void NPP_NQFlush(void)
 		bufferlen = 0;
 		break;
 	case svc_updatename:
-		bufferlen = 0;
 		NPP_SetInfo(&svs.clients[buffer[1]], "name", buffer+2);
 		break;
 	case svc_updatecolors:
-		bufferlen = 0;
-		NPP_SetInfo(&svs.clients[buffer[1]], "bottomcolor", va("%i", buffer[2]&15));
-		NPP_SetInfo(&svs.clients[buffer[1]], "topcolor", va("%i", buffer[2]/16));
+		NPP_SetInfo(&svs.clients[buffer[1]], "colours", va("%i", buffer[2]));
 		break;
 	case svc_intermission:
 //		if (writedest == &sv.reliable_datagram)
@@ -662,6 +711,7 @@ void NPP_NQFlush(void)
 #ifdef HEXEN2
 			if (progstype == PROG_H2)
 			{
+				/*FIXME: hexen2 intermission+finale includes the viewheight. NQ does not, and QW has explicit position with scores but no finale*/
 				/*hexen2 does something like this in the client, but we don't support those protocols, so translate to something usable*/
 				char *title[13] = {"gfx/finale.lmp", "gfx/meso.lmp", "gfx/egypt.lmp", "gfx/roman.lmp", "gfx/castle.lmp", "gfx/castle.lmp", "gfx/end-1.lmp", "gfx/end-2.lmp", "gfx/end-3.lmp", "gfx/castle.lmp", "gfx/mpend.lmp", "gfx/mpmid.lmp", "gfx/end-3.lmp"};
 				int lookup[13] = {394, 395, 396, 397, 358, strcmp(T_GetString(400+5*2+1), "BAD STRING")?400+5*2+1:400+4*2, 386+6, 386+7, 386+8, 391, 538, 545, 561};
@@ -680,16 +730,20 @@ void NPP_NQFlush(void)
 				{
 					if (h2finale)
 					{
-						ClientReliableCheckBlock(cl, 3 + strlen(h2title) + 3 + strlen(h2finale) + 1);
+						ClientReliableCheckBlock(cl, 6 + strlen(h2title) + 3 + strlen(h2finale) + 1);
 						ClientReliableWrite_Byte(cl, svc_finale);
+
+						ClientReliableWrite_Byte(cl, '/');
+						ClientReliableWrite_Byte(cl, 'F');
+						ClientReliableWrite_Byte(cl, 'f');	//hexen2-style finale
 
 						ClientReliableWrite_Byte(cl, '/');
 						ClientReliableWrite_Byte(cl, 'I');
 						ClientReliableWrite_SZ(cl, h2title, strlen(h2title));
-						ClientReliableWrite_Byte(cl, ':');
+						ClientReliableWrite_Byte(cl, ':');	//image
 
 						ClientReliableWrite_Byte(cl, '/');
-						ClientReliableWrite_Byte(cl, 'P');
+						ClientReliableWrite_Byte(cl, 'P');	//image should be a background.
 
 						ClientReliableWrite_String(cl, h2finale);
 					}
@@ -1045,14 +1099,34 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svc_centerprint:
 			nullterms = 1;
 			break;
-		case svc_clearviewflags:
-			protocollen = 2;
-			ignoreprotocol = true;
+		case svch2_clearviewflags:
+			if (progstype == PROG_H2)
+			{
+				protocollen = 2;
+				ignoreprotocol = true;
+			}
+			else
+			{
+				Con_DPrintf("NQWriteByte: bad protocol %i\n", (int)data);
+				protocollen = sizeof(buffer);
+			}
+			break;
+		case svch2_setangles_lerp:
+			if (progstype == PROG_H2)
+			{
+				majortype = data = svc_setangle;
+				protocollen = sizeof(qbyte) + destprim->anglesize*3;
+			}
+			else
+			{
+				Con_DPrintf("NQWriteByte: bad protocol %i\n", (int)data);
+				protocollen = sizeof(buffer);
+			}
 			break;
 		case svc_cutscene:
 			nullterms = 1;
 			break;
-		case 51:
+		case svcdp_updatestatbyte:
 			protocollen = 3;
 			ignoreprotocol = true;
 			break;
@@ -1134,9 +1208,9 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				protocollen++;
 			if (data & NQSND_ATTENUATION)
 				protocollen++;
-			if (data & DPSND_LARGEENTITY)
+			if (data & NQSND_LARGEENTITY)//extension
 				protocollen++;
-			if (data & DPSND_LARGESOUND)
+			if (data & NQSND_LARGESOUND)//extension
 				protocollen++;
 #ifdef warningmsg
 #pragma warningmsg("NPP_NQWriteByte: this ignores SVC_SOUND from nq mods (nexuiz)")
@@ -1423,7 +1497,10 @@ void NPP_NQWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 #endif
 
 	if (!bufferlen)
-		Con_Printf("NQWriteAngle: Messages should start with WriteByte\n");
+	{
+		Con_Printf("NQWriteAngle: Messages should start with WriteByte (last was %i)\n", majortype);
+		PR_StackTrace(svprogfuncs, false);
+	}
 
 	if (destprim->anglesize==2)
 	{
@@ -1437,8 +1514,6 @@ void NPP_NQWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 {
 	NPP_NQCheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("NQWriteCoord: Messages should start with WriteByte\n");
 
 #ifdef NQPROT
 	if (dest == MSG_ONE)
@@ -1465,6 +1540,12 @@ void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 		MSG_WriteCoord (NQWriteDest(dest), in);
 #endif
 
+	if (!bufferlen)
+	{
+		Con_Printf("NQWriteCoord: Messages should start with WriteByte\n");
+		PR_StackTrace(svprogfuncs, false);
+	}
+
 	if (destprim->coordsize==4)
 	{
 		float dataf = in;
@@ -1484,10 +1565,6 @@ void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 void NPP_NQWriteString(int dest, const char *data)	//replacement write func (nq to qw)
 {
 	NPP_NQCheckDest(dest);
-	if (!bufferlen)
-	{
-		Con_Printf("NQWriteString: Messages should start with WriteByte\n");
-	}
 
 #ifdef NQPROT
 	if (dest == MSG_ONE)
@@ -1514,6 +1591,12 @@ void NPP_NQWriteString(int dest, const char *data)	//replacement write func (nq 
 		MSG_WriteString (NQWriteDest(dest), data);
 #endif
 
+	if (!bufferlen)
+	{
+		Con_Printf("NQWriteString: Messages should start with WriteByte\n");
+		PR_StackTrace(svprogfuncs, false);
+	}
+
 	NPP_AddData(data, strlen(data)+1);
 
 	if (!protocollen)	//these protocols take strings, and are thus dynamically sized.
@@ -1536,8 +1619,6 @@ void NPP_NQWriteString(int dest, const char *data)	//replacement write func (nq 
 void NPP_NQWriteEntity(int dest, int data)	//replacement write func (nq to qw)
 {
 	NPP_NQCheckDest(dest);
-	if (!bufferlen)
-		Con_Printf("NQWriteEntity: Messages should start with WriteByte\n");
 
 	if (majortype == svc_temp_entity && data > 0 && data <= sv.allocated_client_slots)
 		if (svs.clients[data-1].viewent)
@@ -1567,6 +1648,13 @@ void NPP_NQWriteEntity(int dest, int data)	//replacement write func (nq to qw)
 	else
 		MSG_WriteEntity (NQWriteDest(dest), data);
 #endif
+
+	if (!bufferlen)
+	{
+		Con_Printf("NQWriteEntity: Messages should start with WriteByte\n");
+		PR_StackTrace(svprogfuncs, false);
+	}
+
 
 	NPP_AddData(&data, sizeof(short));
 	NPP_NQCheckFlush();
@@ -1631,13 +1719,10 @@ void NPP_QWFlush(void)
 	switch(majortype)
 	{
 	case svc_updatename:	//not a standard feature, but hey, if a progs wants bots.
-		bufferlen = 0;
 		NPP_SetInfo(&svs.clients[buffer[1]], "name", buffer+2);
 		break;
 	case svc_updatecolors:
-		bufferlen = 0;
-		NPP_SetInfo(&svs.clients[buffer[1]], "bottomcolor", va("%i", buffer[2]&15));
-		NPP_SetInfo(&svs.clients[buffer[1]], "topcolor", va("%i", buffer[2]/16));
+		NPP_SetInfo(&svs.clients[buffer[1]], "colours", va("%i", buffer[2]));
 		break;
 	case svc_cdtrack:
 		if (bufferlen!=protocollen)
@@ -2244,7 +2329,10 @@ void NPP_QWWriteString(int dest, const char *data)	//replacement write func (nq 
 #endif
 
 	if (!bufferlen)
+	{
 		Con_Printf("QWWriteString: Messages should start with WriteByte (last was %i)\n", majortype);
+		PR_StackTrace(svprogfuncs, false);
+	}
 
 	NPP_AddData(data, strlen(data)+1);
 	if (nullterms)

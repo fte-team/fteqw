@@ -4,6 +4,7 @@
 #include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libswscale/swscale.h"
+#include "libavutil/imgutils.h"
 
 //between av 52.31 and 54.35, lots of constants etc got renamed to gain an extra AV_ prefix.
 /*
@@ -44,18 +45,18 @@ struct decctx
 	AVCodecContext  *pVCodecCtx;
 	AVFrame         *pVFrame;
 	int64_t num, denum;
+	int64_t lasttime;
 
-	AVPicture        pFrameRGB;
+	uint8_t *rgb_data;
+	int rgb_linesize;
 	struct SwsContext		*pScaleCtx;
-
-	unsigned int	starttime;
-	unsigned int	lastframe;
 };
 
 static qboolean AVDec_SetSize (void *vctx, int width, int height)
 {
 	struct decctx	*ctx = (struct decctx*)vctx;
-	AVPicture		newscaled;
+	uint8_t *rgb_data[1];
+	int rgb_linesize[1];
 
 	//colourspace conversions will be fastest if we
 //	if (width > ctx->pCodecCtx->width)
@@ -67,15 +68,16 @@ static qboolean AVDec_SetSize (void *vctx, int width, int height)
 	if (width == ctx->width && height == ctx->height && ctx->pScaleCtx)
 		return true;
 
-	if (avpicture_alloc(&newscaled, AV_PIX_FMT_BGRA, width, height) >= 0)
+	if (av_image_alloc(rgb_data, rgb_linesize, width, height, AV_PIX_FMT_BGRA, 16) >= 0)
 	{
 		//update the scale context as required
 		//clear the old stuff out
-		avpicture_free(&ctx->pFrameRGB);
+		av_free(ctx->rgb_data);
 
 		ctx->width = width;
 		ctx->height = height;
-		ctx->pFrameRGB = newscaled;
+		ctx->rgb_data = rgb_data[0];
+		ctx->rgb_linesize = rgb_linesize[0];
 		return qtrue;
 	}
 	return qfalse;	//unsupported
@@ -93,12 +95,12 @@ static int AVIO_Read(void *opaque, uint8_t *buf, int buf_size)
 static int64_t AVIO_Seek(void *opaque, int64_t offset, int whence)
 {
 	struct decctx *ctx = opaque;
-	int64_t ret = ctx->fileofs;
 	whence &= ~AVSEEK_FORCE;
 	switch(whence)
 	{
-	case SEEK_SET:
 	default:
+		return -1;
+	case SEEK_SET:
 		ctx->fileofs = offset;
 		break;
 	case SEEK_CUR:
@@ -119,7 +121,7 @@ static void AVDec_Destroy(void *vctx)
 	struct decctx *ctx = (struct decctx*)vctx;
 
 	// Free the video stuff
-	avpicture_free(&ctx->pFrameRGB);
+	av_free(ctx->rgb_data);
 	if (ctx->pVCodecCtx)
 		avcodec_close(ctx->pVCodecCtx);
 	av_free(ctx->pVFrame);
@@ -138,7 +140,7 @@ static void AVDec_Destroy(void *vctx)
 	free(ctx);
 }
 
-static void *AVDec_Create(char *medianame)
+static void *AVDec_Create(const char *medianame)
 {
 	struct decctx *ctx;
 
@@ -163,16 +165,13 @@ static void *AVDec_Create(char *medianame)
 	ctx = malloc(sizeof(*ctx));
 	memset(ctx, 0, sizeof(*ctx));
 
-	//so we always decode the first frame instantly.
-
-	ctx->starttime = pSys_Milliseconds();
-
+	ctx->lasttime = -1;
 	ctx->file = -1;
 	if (useioctx)
 	{
 		// Create internal Buffer for FFmpeg:
 		const int iBufSize = 32 * 1024;
-		char *pBuffer = malloc(iBufSize);
+		char *pBuffer = av_malloc(iBufSize);
 		AVIOContext *ioctx;
 
 		ctx->filelen = pFS_Open(medianame, &ctx->file, 1);
@@ -180,7 +179,7 @@ static void *AVDec_Create(char *medianame)
 		{
 			Con_Printf("Unable to open %s\n", medianame);
 			free(ctx);
-			free(pBuffer);
+			av_free(pBuffer);
 			return NULL;
 		}
 
@@ -230,7 +229,7 @@ having them tied to the libavformat network IO.
 				ctx->pACodecCtx=ctx->pFormatCtx->streams[ctx->audioStream]->codec;
 				pCodec=avcodec_find_decoder(ctx->pACodecCtx->codec_id);
 
-				ctx->pAFrame=avcodec_alloc_frame();
+				ctx->pAFrame=av_frame_alloc();
 				if(pCodec!=NULL && ctx->pAFrame && avcodec_open2(ctx->pACodecCtx, pCodec, NULL) >= 0)
 				{
 
@@ -260,7 +259,7 @@ having them tied to the libavformat network IO.
 				if(pCodec!=NULL && avcodec_open2(ctx->pVCodecCtx, pCodec, NULL) >= 0)
 				{
 					// Allocate video frame
-					ctx->pVFrame=avcodec_alloc_frame();
+					ctx->pVFrame=av_frame_alloc();
 					if(ctx->pVFrame!=NULL)
 					{
 						if (AVDec_SetSize(ctx, ctx->pVCodecCtx->width, ctx->pVCodecCtx->height))
@@ -276,30 +275,27 @@ having them tied to the libavformat network IO.
 	return NULL;
 }
 
-static void *AVDec_DisplayFrame(void *vctx, qboolean nosound, uploadfmt_t *fmt, int *width, int *height)
+static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean forcevideo, double mediatime, void (QDECL *uploadtexture)(void *ectx, uploadfmt_t fmt, int width, int height, void *data, void *palette), void *ectx)
 {
 	struct decctx *ctx = (struct decctx*)vctx;
 	AVPacket        packet;
 	int             frameFinished;
 	qboolean		repainted = false;
-	int64_t curtime, lasttime;
+	int64_t curtime;
 
-	curtime = ((pSys_Milliseconds() - ctx->starttime) * ctx->denum);
-	curtime /= (ctx->num * 1000);
+	curtime = (mediatime * ctx->denum) / ctx->num;
 	
-	*fmt = TF_BGRA32;
 	while (1)
 	{
-		lasttime = av_frame_get_best_effort_timestamp(ctx->pVFrame);
-
-		if (lasttime > curtime)
+		if (ctx->lasttime > curtime)
 			break;
 
 		// We're ahead of the previous frame. try and read the next.
 		if (av_read_frame(ctx->pFormatCtx, &packet) < 0)
 		{
-			*fmt = TF_INVALID;
-			break;
+			if (repainted)
+				break;
+			return false;
 		}
 
 		// Is this a packet from the video stream?
@@ -314,10 +310,11 @@ static void *AVDec_DisplayFrame(void *vctx, qboolean nosound, uploadfmt_t *fmt, 
 				ctx->pScaleCtx = sws_getCachedContext(ctx->pScaleCtx, ctx->pVCodecCtx->width, ctx->pVCodecCtx->height, ctx->pVCodecCtx->pix_fmt, ctx->width, ctx->height, AV_PIX_FMT_BGRA, SWS_POINT, 0, 0, 0);
 
 				// Convert the image from its native format to RGB
-				sws_scale(ctx->pScaleCtx, (void*)ctx->pVFrame->data, ctx->pVFrame->linesize, 0, ctx->pVCodecCtx->height, ctx->pFrameRGB.data, ctx->pFrameRGB.linesize);
+				sws_scale(ctx->pScaleCtx, (void*)ctx->pVFrame->data, ctx->pVFrame->linesize, 0, ctx->pVCodecCtx->height, &ctx->rgb_data, &ctx->rgb_linesize);
 
 				repainted = true;
 			}
+			ctx->lasttime = av_frame_get_best_effort_timestamp(ctx->pVFrame);
 		}
 		else if(packet.stream_index==ctx->audioStream && !nosound)
 		{
@@ -335,6 +332,7 @@ static void *AVDec_DisplayFrame(void *vctx, qboolean nosound, uploadfmt_t *fmt, 
 				if (okay)
 				{
 					int width = 2;
+					int channels = ctx->pACodecCtx->channels;
 					unsigned int auddatasize = av_samples_get_buffer_size(NULL, ctx->pACodecCtx->channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
 					void *auddata = ctx->pAFrame->data[0];
 					switch(ctx->pACodecCtx->sample_fmt)
@@ -342,13 +340,24 @@ static void *AVDec_DisplayFrame(void *vctx, qboolean nosound, uploadfmt_t *fmt, 
 					default:
 						auddatasize = 0;
 						break;
+					case AV_SAMPLE_FMT_U8P:
+						auddatasize /= channels;
+						channels = 1;
 					case AV_SAMPLE_FMT_U8:
 						width = 1;
 						break;
+					case AV_SAMPLE_FMT_S16P:
+						auddatasize /= channels;
+						channels = 1;
 					case AV_SAMPLE_FMT_S16:
 						width = 2;
 						break;
+
+					case AV_SAMPLE_FMT_FLTP:
+						auddatasize /= channels;
+						channels = 1;
 					case AV_SAMPLE_FMT_FLT:
+						//FIXME: support float audio internally.
 						{
 							float *in = (void*)auddata;
 							signed short *out = (void*)auddata;
@@ -366,23 +375,43 @@ static void *AVDec_DisplayFrame(void *vctx, qboolean nosound, uploadfmt_t *fmt, 
 							auddatasize/=2;
 							width = 2;
 						}
+
+					case AV_SAMPLE_FMT_DBLP:
+						auddatasize /= channels;
+						channels = 1;
+					case AV_SAMPLE_FMT_DBL:
+						{
+							double *in = (double*)auddata;
+							signed short *out = (void*)auddata;
+							int v;
+							unsigned int i;
+							for (i = 0; i < auddatasize/sizeof(*in); i++)
+							{
+								v = (short)(in[i]*32767);
+								if (v < -32767)
+									v = -32767;
+								else if (v > 32767)
+									v = 32767;
+								out[i] = v;
+							}
+							auddatasize/=4;
+							width = 2;
+						}
 						break;
 					}
-					pS_RawAudio(-1, auddata, ctx->pACodecCtx->sample_rate, auddatasize/(ctx->pACodecCtx->channels*width), ctx->pACodecCtx->channels, width, 1);
+					pS_RawAudio(-1, auddata, ctx->pACodecCtx->sample_rate, auddatasize/(channels*width), channels, width, 1);
 				}
 			}
 			packet.data = odata;
 		}
 
 		// Free the packet that was allocated by av_read_frame
-		av_free_packet(&packet);
+		av_packet_unref(&packet);
 	}
 
-	*width = ctx->width;
-	*height = ctx->height;
-	if (!repainted)
-		return NULL;
-	return ctx->pFrameRGB.data[0];
+	if (forcevideo || repainted)
+		uploadtexture(ectx, TF_BGRA32, ctx->width, ctx->height, ctx->rgb_data, NULL);
+	return true;
 }
 static void AVDec_GetSize (void *vctx, int *width, int *height)
 {
@@ -407,11 +436,16 @@ static void AVDec_Rewind(void *vctx)
 {
 	struct decctx *ctx = (struct decctx*)vctx;
 	if (ctx->videoStream >= 0)
-		av_seek_frame(ctx->pFormatCtx, ctx->videoStream, 0, AVSEEK_FLAG_BACKWARD);
+	{
+		av_seek_frame(ctx->pFormatCtx, ctx->videoStream, 0, AVSEEK_FLAG_FRAME|AVSEEK_FLAG_BACKWARD);
+		avcodec_flush_buffers(ctx->pVCodecCtx);
+	}
 	if (ctx->audioStream >= 0)
-		av_seek_frame(ctx->pFormatCtx, ctx->audioStream, 0, AVSEEK_FLAG_BACKWARD);
-
-	ctx->starttime = pSys_Milliseconds();
+	{
+		av_seek_frame(ctx->pFormatCtx, ctx->audioStream, 0, AVSEEK_FLAG_FRAME|AVSEEK_FLAG_BACKWARD);
+		avcodec_flush_buffers(ctx->pACodecCtx);
+	}
+	ctx->lasttime = -1;
 }
 
 /*
@@ -424,10 +458,10 @@ static qintptr_t AVDec_Shutdown(qintptr_t *args)
 
 static media_decoder_funcs_t decoderfuncs =
 {
+	sizeof(media_decoder_funcs_t),
 	"avplug",
 	AVDec_Create,
 	AVDec_DisplayFrame,
-	NULL,//doneframe
 	AVDec_Destroy,
 	AVDec_Rewind,
 
@@ -452,6 +486,15 @@ static qboolean AVDec_Init(void)
 	return true;
 }
 
+static void AVLogCallback(void *avcl, int level, const char *fmt, va_list vl)
+{	//needs to be reenterant
+#ifdef _DEBUG
+	char		string[1024];
+	Q_vsnprintf (string, sizeof(string), fmt, vl);
+	pCon_Print(string);
+#endif
+}
+
 //get the encoder/decoders to register themselves with the engine, then make sure avformat/avcodec have registered all they have to give.
 qboolean AVEnc_Init(void);
 qintptr_t Plug_Init(qintptr_t *args)
@@ -464,6 +507,9 @@ qintptr_t Plug_Init(qintptr_t *args)
 	{
 		av_register_all();
 		avcodec_register_all();
+
+		av_log_set_level(AV_LOG_WARNING);
+		av_log_set_callback(AVLogCallback);
 	}
 	return okay;
 }

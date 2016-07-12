@@ -4,9 +4,22 @@
 #define cltime time
 #endif
 
+#ifdef CSQC
+#define csqconly
+#else
+#define csqconly __strip
+#endif
+#ifdef MENU
+#define menuonly
+#else
+#define menuonly __strip
+#endif
+
+
+
 //#include "mitems.qh"
 
-var float dp_workarounds;
+__strip var float dp_workarounds;
 
 #define IF_SELECTABLE		(1<<0)	//can accept KFOCUSED/MFOCUSED and key events etc. cannot be selected otherwise.
 #define IF_INTERACT		(1<<1)	//generic interaction flag for use by the widgets themselves.

@@ -18,11 +18,8 @@ F11 will step into.
 #ifdef TEXTEDITOR
 #include "pr_common.h"
 
-#ifdef _WIN32
-#define editaddcr_default "1"
-#else
-#define editaddcr_default "0"
-#endif
+#include "shader.h"
+
 //#if defined(ANDROID) || defined(SERVERONLY)
 #define debugger_default "0"
 //#else
@@ -30,580 +27,527 @@ F11 will step into.
 //#endif
 
 static cvar_t editstripcr = CVARD("edit_stripcr", "1", "remove \\r from eols (on load)");
-static cvar_t editaddcr = CVARD("edit_addcr", editaddcr_default, "make sure that each line ends with a \\r (on save)");
-static cvar_t edittabspacing = CVARD("edit_tabsize", "4", "How wide tab alignment is");
+static cvar_t editaddcr = CVARD("edit_addcr", "", "make sure that each line ends with a \\r (on save). Empty will be assumed to be 1 on windows and 0 otherwise.");
+//static cvar_t edittabspacing = CVARD("edit_tabsize", "4", "How wide tab alignment is");
 cvar_t pr_debugger = CVARAFD("pr_debugger", debugger_default, "debugger", CVAR_SAVE, "When enabled, QC errors and debug events will enable step-by-step tracing.");
 extern cvar_t pr_sourcedir;
 
 static pubprogfuncs_t *editprogfuncs;
 
-typedef struct fileblock_s {
-	struct fileblock_s *next;
-	struct fileblock_s *prev;
-	int allocatedlength;
-	int datalength;
-	int flags;
-	char *data;
-} fileblock_t;
-#define FB_BREAK 1
+qboolean editoractive;			//(export)
+console_t *editormodal;			//doesn't return. (export)
+int editorstep;					//execution resumption type
+static qboolean stepasm;		//debugging with (generated) asm.
+static int executionlinenum;	//debugging execution line.
 
-static fileblock_t *cursorblock, *firstblock, *executionblock, *viewportystartblock;
+#if defined(CSQC_DAT) && !defined(SERVERONLY)
+extern world_t csqc_world;
+#endif
+#if defined(MENU_DAT) && !defined(SERVERONLY)
+extern world_t menu_world;
+#endif
 
-static void *E_Malloc(int size)
+
+
+void Editor_Draw(void)
 {
-	char *mem;
-	mem = Z_Malloc(size);
-	if (!mem)
-		Sys_Error("Failed to allocate enough mem for editor\n");
-	return mem;
+	R2D_EditorBackground();
+	Key_Dest_Add(kdm_cwindows);
 }
-static void E_Free(void *mem)
+qboolean Editor_Key(int key, int unicode)
 {
-	Z_Free(mem);
-}
-
-#define GETBLOCK(s, ret) ret = (void *)E_Malloc(sizeof(fileblock_t) + s);ret->allocatedlength = s;ret->data = (char *)ret + sizeof(fileblock_t)
-
-fileblock_t *GenAsm(int statement)
-{
-	char linebuf[256];
-	fileblock_t *b;
-	int l;
-	if (!editprogfuncs)
-		return NULL;
-	editprogfuncs->GenerateStatementString(editprogfuncs, statement, linebuf, sizeof(linebuf));
-	l = strlen(linebuf);
-	b = E_Malloc(sizeof(fileblock_t) + l);
-	b->allocatedlength = l;
-	b->datalength = l;
-	b->data = (char *)b + sizeof(fileblock_t);
-	memcpy(b->data, linebuf, l);
-	return b;
-}
-
-static char OpenEditorFile[256];
-
-
-qboolean editoractive;	//(export)
-qboolean editormodal;	//doesn't return. (export)
-int editorstep;
-static qboolean madechanges;
-static qboolean editenabled;
-static qboolean insertkeyhit=true;
-static qboolean useeval;
-static qboolean stepasm;
-
-static char evalstring[256];
-
-static int executionlinenum;	//step by step debugger
-static int cursorlinenum, cursorx;
-
-static int viewportx;
-static int viewporty;
-
-
-static int VFS_GETC(vfsfile_t *fp)
-{
-	unsigned char c;
-	VFS_READ(fp, &c, 1);
-	return c;
-}
-
-									//newsize = number of chars, EXCLUDING terminator.
-static void MakeNewSize(fileblock_t *block, int newsize)	//this is used to resize a block. It allocates a new one, copys the data frees the old one and links it into the right place
-													//it is called when the user is typing
-{
-	fileblock_t *newblock;
-
-	newsize = (newsize + 4)&~3;	//We allocate a bit extra, so we don't need to keep finding a new block for each and every character.
-
-	if (block->allocatedlength >= newsize)
-		return;	//Ignore. This block is too large already. Don't bother resizeing, cos that's pretty much pointless.
-
-	GETBLOCK(newsize, newblock);
-	memcpy(newblock->data, block->data, block->datalength);
-	newblock->prev = block->prev;
-	newblock->next = block->next;
-	if (newblock->prev)
-		newblock->prev->next = newblock;
-	if (newblock->next)
-		newblock->next->prev = newblock;
-
-	newblock->datalength = block->datalength;
-	newblock->flags = block->flags;
-
-	E_Free(block);
-
-	if (firstblock == block)
-		firstblock = newblock;
-
-	if (cursorblock == block)
-		cursorblock = newblock;
-}
-
-static int positionacross;
-static void GetCursorpos(void)
-{
-	int a;
-	char *s;
-	int ts = edittabspacing.value;
-	if (ts < 1)
-		ts = 4;
-	for (a=0,positionacross=0,s=cursorblock->data;a < cursorx && *s;s++,a++)
+	if (editormodal)
 	{
-		if (*s == '\t')
+		if (key >= K_F1 && key <= K_F12)
+			return editormodal->redirect(editormodal, unicode, key);
+	}
+	return false;
+}
+
+void Editor_Demodalize(void)
+{
+	if (editormodal && editormodal->highlightline)
+	{
+		editormodal->highlightline->flags &= ~CONL_EXECUTION;
+		editormodal->highlightline = NULL;
+	}
+	editormodal = NULL;
+}
+
+
+int Con_Editor_GetLine(console_t *con, conline_t *line)
+{
+	int linenum = 1;
+	conline_t *l;
+	for (l = con->oldest; l; l = l->newer, linenum++)
+	{
+		if (l == line)
+			return linenum;
+	}
+	return 0;
+}
+conline_t *Con_Editor_FindLine(console_t *con, int line)
+{
+	conline_t *l;
+	for (l = con->oldest; l; l = l->newer)
+	{
+		if (--line == 0)
+			return l;
+	}
+	return NULL;
+}
+
+int Con_Editor_Evaluate(console_t *con, char *evalstring)
+{
+	char *eq, *term;
+
+	eq = strchr(evalstring, '=');
+	if (eq)
+	{
+		term = strchr(eq, ';');
+		if (!term)
+			term = strchr(eq, '\n');
+		if (!term)
+			term = strchr(eq, '\r');
+		if (term)
 		{
-			positionacross += ts;
-			positionacross -= cursorx%ts;
+			*term = '\0';
+			eq = NULL;
 		}
 		else
-			positionacross++;
+			*eq = '\0';
 	}
-//	positionacross = cursorofs;
-}
-static void SetCursorpos(void)
-{
-	int a=0;
-	char *s;
-	int ts = edittabspacing.value;
-	if (ts < 1)
-		ts = 4;
-	for (cursorx=0,s=cursorblock->data;cursorx < positionacross && *s;s++,a++)
+	Con_Footerf(con, false, "%s", evalstring);
+	if (eq)
 	{
-		if (*s == '\t')
-		{
-			cursorx += ts;
-			cursorx -= cursorx%ts;
-		}
-		else
-			cursorx++;
+		*eq = '=';
+		Con_Footerf(con, true, " = %s", editprogfuncs->EvaluateDebugString(editprogfuncs, evalstring));
 	}
-	cursorx=a;
-
-//just in case
-	if (cursorx > cursorblock->datalength)
-		cursorx = cursorblock->datalength;
-}
-
-
-static void CloseEditor(void)
-{
-	fileblock_t *b;
-
-	Key_Dest_Remove(kdm_editor);
-	editoractive = false;
-	editprogfuncs = NULL;
-	cursorblock = NULL;
-
-	if (!firstblock)
-		return;
-	OpenEditorFile[0] = '\0';
-
-	while(firstblock)
-	{
-		b = firstblock;
-		firstblock=firstblock->next;
-		E_Free(b);
-	}
-
-	madechanges = false;
-	editormodal = false;
-	editorstep = DEBUG_TRACE_OFF;
-
-	firstblock = NULL;
-
-	executionlinenum = 0;
-}
-
-static qboolean EditorSaveFile(char *s)	//returns true if succesful
-{
-
-//	FILE *F;
-	fileblock_t *b;
-
-	int len=0;
-	int pos=0;
-	char *data;
-	char native[MAX_OSPATH];
-
-	if (!FS_NativePath(s, FS_GAMEONLY, native, sizeof(native)))
-		Con_Printf("Not saving.\n");
-
-	Con_Printf("Saving to \"%s\"\n", native);
-
-	for (b = firstblock; b; b = b->next)	//find total length required.
-	{
-		len += b->datalength;
-		len+=2;	//extra for \n
-	}
-
-	data = Hunk_TempAlloc(len);
-
-	for (b = firstblock; b; b = b->next)	//find total length required.
-	{
-		memcpy(data + pos, b->data, b->datalength);
-		pos += b->datalength;
-		if (editaddcr.ival)
-		{
-			data[pos]='\r';
-			pos++;
-		}
-		data[pos]='\n';
-		pos++;
-	}
-
-	COM_WriteFile(s, FS_GAMEONLY, data, len);
-
-	madechanges = false;
-	editenabled = true;
-	executionlinenum = 0;
-
+	else
+		Con_Footerf(con, true, " == %s", editprogfuncs->EvaluateDebugString(editprogfuncs, evalstring));
+	con->linebuffered = NULL;
 	return true;
 }
 
-
-
-static void EditorNewFile(void)
+//creates a new line following an existing line by splitting the previous
+conline_t *Con_EditorSplit(console_t *con, conline_t *orig, int offset)
 {
-	fileblock_t *b;
-	while(firstblock)
-	{
-		b = firstblock;
-		firstblock=firstblock->next;
-		E_Free(b);
-	}
+	conline_t *l;
+	l = BZ_Malloc(sizeof(*l)+(orig->length-offset)*sizeof(conchar_t));
+	*l = *orig;
+	l->length = l->maxlength = orig->length-con->useroffset;
+	memcpy(l+1, (conchar_t*)(orig+1)+offset, l->length*sizeof(conchar_t));
+	orig->length = offset;	//truncate the old line
+	l->older = orig;
+	l->flags &= ~(CONL_EXECUTION|CONL_BREAKPOINT);
+	orig->newer = l;
+	if (con->current == orig)
+		con->current = l;
+	else
+		l->newer->older = l;
+	if (con->display == orig)
+		con->display = l;
+	con->linecount++;
 
-	GETBLOCK(64, firstblock);
-	GETBLOCK(64, firstblock->next);
-	firstblock->next->prev = firstblock;
-	cursorblock = firstblock;
-	cursorlinenum = 0;
-	cursorx = 0;
-
-	viewportystartblock = NULL;
-
-	madechanges = true;
-	executionlinenum = 0;
-
-	Key_Dest_Add(kdm_editor);
-	editoractive = true;
-	editenabled = true;
+	con->selendline = con->selstartline = NULL;
+	return l;
 }
-
-static void EditorOpenFile(const char *name, qboolean readonly)
+conline_t *Con_EditorMerge(console_t *con, conline_t *first, conline_t *second)
 {
-	int i;
-	char line[8192];
-	int len, flen, pos=0;
-	vfsfile_t *F;
-	fileblock_t *b;
-	char *prname;
-	pubprogfuncs_t *epf = editprogfuncs;
-	CloseEditor();
+	conline_t *l;
+	l = Con_ResizeLineBuffer(con, first, first->length+second->length);
 
-	strcpy(OpenEditorFile, name);
+	//unlink the second line
+	l->newer = second->newer;
+	if (l->newer)
+		l->newer->older = l;
 
-	if (!(F = FS_OpenVFS(OpenEditorFile, "rb", FS_GAME)))
+	//heal references to the second to point to the first
+	if (con->selstartline == second)
 	{
-		Q_snprintfz(OpenEditorFile, sizeof(OpenEditorFile), "%s/%s", pr_sourcedir.string, name);
-		if (!(F = FS_OpenVFS(OpenEditorFile, "rb", FS_GAME)))
-		{
-			Con_Printf("Couldn't open file \"%s\"\nA new file will be created\n", name);
-			strcpy(OpenEditorFile, name);
-			Key_Dest_Add(kdm_console);
-			EditorNewFile();
-			return;
-		}
+		con->selstartline = l;
+		con->selstartoffset += l->length;
 	}
-	i=1;
-
-	prname = OpenEditorFile;
-	if (!strncmp(prname, "src/", 4))
-		prname += 4;
-	if (!strncmp(prname, "source/", 7))
-		prname += 7;
-
-	flen = VFS_GETLEN(F);
-
-	while(pos < flen)
+	if (con->selendline == second)
 	{
-		len = 0;
-		for(;;)
-		{
-			if (pos+len >= flen || len > sizeof(line) - 16)
-				break;
-			line[len] = VFS_GETC(F);
-
-			if (line[len] == '\n')
-				break;
-			len++;
-		}
-		pos+=len;
-		pos++;	//and a \n
-
-		if (editstripcr.ival)
-		{
-			if (line[len-1] == '\r')
-				len--;
-		}
-
-		b = firstblock;
-
-		GETBLOCK(len+1, firstblock);
-		firstblock->prev = b;
-		if (b)
-			b->next = firstblock;
-
-		firstblock->datalength = len;
-
-		memcpy(firstblock->data, line, len);
-		if (epf)
-		{
-			if (epf->ToggleBreak(epf, prname, i, 3))
-			{
-				firstblock->flags |= FB_BREAK;
-			}
-		}
-#ifndef CLIENTONLY
-		else
-		{
-			if (svprogfuncs)
-			{
-				if (svprogfuncs->ToggleBreak(svprogfuncs, prname, i, 3))
-				{
-					firstblock->flags |= FB_BREAK;
-				}
-			}
-		}
-#endif
-
-		i++;
+		con->selendline = l;
+		con->selendoffset += l->length;
 	}
-	if (firstblock == NULL)
+	if (con->display == second)
+		con->display = l;
+	if (con->oldest == second)
+		con->oldest = l;
+	if (con->current == second)
+		con->current = l;
+	if (con->userline == second)
 	{
-		GETBLOCK(10, firstblock);
+		con->userline = l;
+		con->useroffset += l->length;
+	}
+	if (con->highlightline == second)
+	{
+		con->highlightline = l;
+		con->highlightline->flags |= CONL_EXECUTION;
+	}
+	
+	//copy over the chars
+	memcpy((conchar_t*)(l+1)+l->length, (conchar_t*)(second+1), second->length*sizeof(conchar_t));
+	l->length += second->length;
+
+	//and that line is now dead.
+	con->linecount--;
+	BZ_Free(second);
+
+	return l;
+}
+static void Con_Editor_DeleteSelection(console_t *con)
+{
+	conline_t *n;
+	con->flags &= ~CONF_KEEPSELECTION;
+	if (con->selstartline == con->selendline)
+	{
+		memmove((conchar_t*)(con->selstartline+1)+con->selstartoffset, (conchar_t*)(con->selendline+1)+con->selendoffset, sizeof(conchar_t)*(con->selendline->length - con->selendoffset));
+		con->selendline->length = con->selstartoffset + (con->selendline->length - con->selendoffset);
 	}
 	else
-		for (; firstblock->prev; firstblock=firstblock->prev);
-	VFS_CLOSE(F);
-
-	cursorblock = firstblock;
-	cursorx = 0;
-
-	viewportystartblock = NULL;
-
-	madechanges = false;
-	executionlinenum = 0;
-	editenabled = !readonly;
-
-	Key_Dest_Add(kdm_editor);
-	editoractive = true;
-	editprogfuncs = epf;
+	{
+		con->selstartline->length = con->selstartoffset;
+		for(n = con->selstartline;;)
+		{
+			n = n->newer;
+			if (!n)
+				break;	//shouldn't happen
+			if (n == con->selendline)
+			{
+				//this is the last line, we need to keep the end of the string but not the start.
+				memmove(n+1, (conchar_t*)(n+1)+con->selendoffset, sizeof(conchar_t)*(n->length - con->selendoffset));
+				n->length = n->length - con->selendoffset;
+				n = Con_EditorMerge(con, con->selstartline, n);
+				break;
+			}
+			//truncate and merge
+			n->length = 0;
+			n = Con_EditorMerge(con, con->selstartline, n);
+		}
+	}
+	con->userline = con->selstartline;
+	con->useroffset = con->selstartoffset;
 }
-
-extern qboolean	keydown[K_MAX];
-void Editor_Key(int key, int unicode)
+static void Con_Editor_Paste(console_t *con)
 {
-	int i;
-	fileblock_t *nb;
-	if (keybindings[key][0])
-		if (!strcmp(keybindings[key][0], "toggleconsole"))
-		{
-			Key_Dest_Add(kdm_console);
-			return;
-		}
-
-/*	if (CmdAfterSave)
+	char *clipText = Sys_GetClipboard();
+	if (clipText)
 	{
-		switch (key)
+		conchar_t buffer[8192], *end;
+		char *s, *nl;
+		if (*clipText && (con->flags & CONF_KEEPSELECTION))
+			Con_Editor_DeleteSelection(con);
+		for(s = clipText; ; )
 		{
-		case 'Y':
-		case 'y':
-			if (!EditorSaveFile(OpenEditorFile))
-			{
-				Con_Printf("Couldn't save file \"%s\"\n", OpenEditorFile);
-				key_dest = key_console;
-			}
-			else if (!CmdAfterSaveCalled)
-			{
-				CmdAfterSaveCalled=true;
-				(*CmdAfterSave)();
-				CmdAfterSaveCalled=false;
-			}
-			CmdAfterSave = NULL;
-			break;
+			nl = strchr(s, '\n');
+			if (nl)
+				*nl = 0;
+			end = COM_ParseFunString(CON_WHITEMASK, s, buffer, sizeof(buffer), PFS_FORCEUTF8);
+			if (Con_InsertConChars(con, con->userline, con->useroffset, buffer, end-buffer))
+				con->useroffset += end-buffer;
 
-		case 'N':
-		case 'n':
-			(*CmdAfterSave)();
-			CmdAfterSave = NULL;
-			break;
-
-		case 'C':
-		case 'c':
-			CmdAfterSave = NULL;
-			break;
+			if (nl)
+			{
+				con->userline = Con_EditorSplit(con, con->userline, con->useroffset);
+				con->useroffset = 0;
+				s = nl+1;
+			}
+			else
+				break;
 		}
-
-		return;
+		Sys_CloseClipboard(clipText);
 	}
-*/
-	if (key == K_SHIFT)
-		return;
+}
+static void Con_Editor_Save(console_t *con)
+{
+	vfsfile_t *file;
+	conline_t *line;
 
-	if (useeval)
+	FS_CreatePath(con->name, FS_GAMEONLY);
+	file = FS_OpenVFS(con->name, "wb", FS_GAMEONLY);
+	if (file)
 	{
-		switch(key)
+		for (line = con->oldest; line; line = line->newer)
 		{
-		case K_ESCAPE:
-			if (editprogfuncs)
-				editprogfuncs->debug_trace = DEBUG_TRACE_OFF;
-			useeval = false;
-			return;
-		case K_F3:
-			useeval = false;
-			return;
-		case K_DEL:
-			evalstring[0] = '\0';
-			return;
-		case K_BACKSPACE:
-			i = strlen(evalstring);
-			if (i < 1)
-				return;
-			evalstring[i-1] = '\0';
-			return;
-		default:
-			if (unicode)
-			{
-				i = strlen(evalstring);
-				evalstring[i] = unicode;
-				evalstring[i+1] = '\0';
-			}
-			return;
-		case K_F5:
-		case K_F9:
-		case K_F11:
-		case K_MWHEELUP:
-		case K_UPARROW:
-		case K_PGUP:
-		case K_MWHEELDOWN:
-		case K_DOWNARROW:
-		case K_PGDN:
-		case K_LEFTARROW:
-		case K_RIGHTARROW:
-			break;
+			conchar_t *cl = (conchar_t*)(line+1);
+			conchar_t *el = cl + line->length;
+			char buffer[65536];
+			char *bend = COM_DeFunString(cl, el, buffer, sizeof(buffer)-2, true, !!(con->parseflags & PFS_FORCEUTF8));
+			if (editaddcr.ival 
+#ifdef _WIN32
+				|| !*editaddcr.string
+#endif
+				)
+				*bend++ = '\r';
+			*bend++ = '\n';
+			VFS_WRITE(file, buffer, bend-buffer);
 		}
+		VFS_CLOSE(file);
+	
+
+		Q_snprintfz(con->title, sizeof(con->title), "SAVED: %s", con->name);
+
+		if (!Q_strncasecmp(con->name, "scripts/", 8))
+			Shader_NeedReload(true);
+	}
+}
+qboolean	Con_Editor_MouseOver(struct console_s *con, char **out_tiptext, shader_t **out_shader)
+{
+	char *mouseover = Con_CopyConsole(con, true, false);
+
+	if (mouseover)
+	{
+		if (editprogfuncs && editprogfuncs->EvaluateDebugString)
+			*out_tiptext = editprogfuncs->EvaluateDebugString(editprogfuncs, mouseover);
+		else
+		{
+#ifndef SERVERONLY
+#ifdef CSQC_DAT
+			if (csqc_world.progs && csqc_world.progs->EvaluateDebugString && !*out_tiptext)
+				*out_tiptext = csqc_world.progs->EvaluateDebugString(csqc_world.progs, mouseover);
+#endif
+#ifdef MENU_DAT
+			if (menu_world.progs && menu_world.progs->EvaluateDebugString && !*out_tiptext)
+				*out_tiptext = menu_world.progs->EvaluateDebugString(menu_world.progs, mouseover);
+#endif
+#endif
+#ifndef CLIENTONLY
+			if (sv.world.progs && sv.world.progs->EvaluateDebugString && !*out_tiptext)
+				*out_tiptext = sv.world.progs->EvaluateDebugString(sv.world.progs, mouseover);
+#endif
+		}
+		Z_Free(mouseover);
 	}
 
-/*	if (ctrl_down && (key == 'c' || key == K_INS))
-		key = K_F9;
-	if ((ctrl_down && key == 'v') || (shift_down && key == K_INS))
-		key = K_F10;
-*/
-	switch (key)
+	return true;
+}
+void Con_EditorMoveCursor(console_t *con, conline_t *newline, int newoffset, qboolean shiftheld, qboolean moveprior)
+{
+	if (!shiftheld)
+		con->flags &= ~CONF_KEEPSELECTION;
+	else
 	{
-	case K_LSHIFT:
-	case K_RSHIFT:
-		break;
-	case K_LALT:
-	case K_RALT:
-		break;
-	case K_LCTRL:
-	case K_RCTRL:
-		break;
-	case K_MWHEELUP:
-	case K_UPARROW:
-	case K_PGUP:
-		if (!cursorblock)
-			break;
-		GetCursorpos();
+		if (!(con->flags & CONF_KEEPSELECTION) || (con->selendline == con->selstartline && con->selendoffset == con->selstartoffset))
 		{
-			int a;
-			if (key == K_PGUP)
-				a =(vid.height/8)/2;
-			else if (key == K_MWHEELUP)
-				a = 5;
-			else
-				a = 1;
-			while(a)
+			con->flags |= CONF_KEEPSELECTION;
+			if (moveprior)
 			{
-				a--;
-				if (cursorblock->prev)
-				{
-					cursorblock = cursorblock->prev;
-					cursorlinenum--;
-				}
-				else if (cursorlinenum>1)
-				{
-					cursorlinenum--;
-					nb = GenAsm(cursorlinenum);
-					nb->next = cursorblock;
-					cursorblock->prev = nb;
-					firstblock = cursorblock = nb;
-				}
+				con->selstartline = newline;
+				con->selstartoffset = newoffset;
+				con->selendline = con->userline;
+				con->selendoffset = con->useroffset;
+			}
+			else
+			{
+				con->selstartline = con->userline;
+				con->selstartoffset = con->useroffset;
+				con->selendline = newline;
+				con->selendoffset = newoffset;
 			}
 		}
-		SetCursorpos();
-		break;
-	case K_MWHEELDOWN:
-	case K_DOWNARROW:
-	case K_PGDN:
-		GetCursorpos();
+		else
 		{
-			int a;
-			if (key == K_PGDN)
-				a =(vid.height/8)/2;
-			else if (key == K_MWHEELDOWN)
-				a = 5;
-			else
-				a = 1;
-			while(a)
+			if (con->selendline == con->userline && con->selendoffset == con->useroffset)
 			{
-				a--;
-				if (cursorblock->next)
-				{
-					cursorblock = cursorblock->next;
-					cursorlinenum++;
+				if (con->selstartline != con->selendline && con->selstartline == newline && moveprior)
+				{	//inverted
+					con->selendline = con->selstartline;
+					con->selendoffset = con->selstartoffset;
+
+					con->selstartline = newline;
+					con->selstartoffset = newoffset;
 				}
 				else
 				{
-					nb = GenAsm(cursorlinenum+1);
-					if (nb)
-					{
-						cursorlinenum++;
-						nb->prev = cursorblock;
-						cursorblock->next = nb;
-						cursorblock = nb;
-					}
+					con->selendline = newline;
+					con->selendoffset = newoffset;
+				}
+			}
+			else if (con->selstartline == con->userline && con->selstartoffset == con->useroffset)
+			{
+				if (con->selstartline == con->selendline && con->selstartline != newline && !moveprior)
+				{	//inverted
+					con->selstartline = con->selendline;
+					con->selstartoffset = con->selendoffset;
+
+					con->selendline = newline;
+					con->selendoffset = newoffset;
+				}
+				else
+				{
+					con->selstartline = newline;
+					con->selstartoffset = newoffset;
 				}
 			}
 		}
-		SetCursorpos();
-		break;
+	}
 
-//	case K_BACK:
+	if (con->userline == con->display && !moveprior)
+		con->display = newline;
+
+	con->userline = newline;
+	con->useroffset = newoffset;
+}
+qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
+{
+	extern qboolean	keydown[K_MAX];
+	qboolean altdown = keydown[K_LALT] || keydown[K_RALT];
+	qboolean ctrldown = keydown[K_LCTRL] || keydown[K_RCTRL];
+	qboolean shiftdown = keydown[K_LSHIFT] || keydown[K_RSHIFT];
+	if (key == K_MOUSE1)
+	{
+		con->flags &= ~CONF_KEEPSELECTION;
+		con->buttonsdown = CB_SELECT;
+		return true;
+	}
+	if (key == K_MOUSE2)
+	{
+		con->flags &= ~CONF_KEEPSELECTION;
+		con->buttonsdown = CB_SCROLL;
+		return true;
+	}
+	if (!con->userline)
+		return false;
+	if (con->linebuffered)
+		return false;
+	switch(key)
+	{
+	case K_BACKSPACE:
+		if (con->flags & CONF_KEEPSELECTION)
+			Con_Editor_DeleteSelection(con);
+		else if (con->useroffset == 0)
+		{
+			if (con->userline->older)
+				Con_EditorMerge(con, con->userline->older, con->userline);
+		}
+		else
+		{
+			con->useroffset--;
+			memmove((conchar_t*)(con->userline+1)+con->useroffset, (conchar_t*)(con->userline+1)+con->useroffset+1, (con->userline->length - con->useroffset)*sizeof(conchar_t));
+			con->userline->length -= 1;
+		}
+		return true;
+	case K_DEL:
+		if (con->flags & CONF_KEEPSELECTION)
+			Con_Editor_DeleteSelection(con);
+		else if (con->useroffset == con->userline->length)
+		{
+			if (con->userline->newer)
+				Con_EditorMerge(con, con->userline, con->userline->newer);
+		}
+		else
+		{
+			memmove((conchar_t*)(con->userline+1)+con->useroffset, (conchar_t*)(con->userline+1)+con->useroffset+1, (con->userline->length - con->useroffset)*sizeof(conchar_t));
+			con->userline->length -= 1;
+		}
+		break;
+	case K_ENTER:	/*split the line into two, selecting the new line*/
+		if (con->flags & CONF_KEEPSELECTION)
+			Con_Editor_DeleteSelection(con);
+		con->userline = Con_EditorSplit(con, con->userline, con->useroffset);
+		con->useroffset = 0;
+		break;
+	case K_HOME:
+		if (ctrldown)
+			con->display = con->oldest;
+		else
+			Con_EditorMoveCursor(con, con->userline, 0, shiftdown, true);
+		return true;
+	case K_END:
+		if (ctrldown)
+			con->display = con->current;
+		else
+			Con_EditorMoveCursor(con, con->userline, con->userline->length, shiftdown, false);
+		return true;
+	case K_UPARROW:
+		if (con->userline->older)
+		{
+			if (con->useroffset > con->userline->older->length)
+				Con_EditorMoveCursor(con, con->userline->older, con->userline->older->length, shiftdown, true);
+			else
+				Con_EditorMoveCursor(con, con->userline->older, con->useroffset, shiftdown, true);
+		}
+		return true;
+	case K_DOWNARROW:
+		if (con->userline->newer)
+		{
+			if (con->useroffset > con->userline->newer->length)
+				Con_EditorMoveCursor(con, con->userline->newer, con->userline->newer->length, shiftdown, false);
+			else
+				Con_EditorMoveCursor(con, con->userline->newer, con->useroffset, shiftdown, false);
+		}
+		return true;
+	case K_LEFTARROW:
+		if (con->useroffset == 0)
+		{
+			if (con->userline->older)
+				Con_EditorMoveCursor(con, con->userline->older, con->userline->older->length, shiftdown, true);
+		}
+		else
+			Con_EditorMoveCursor(con, con->userline, con->useroffset-1, shiftdown, true);
+		return true;
+	case K_RIGHTARROW:
+		if (con->useroffset == con->userline->length)
+		{
+			if (con->userline->newer)
+				Con_EditorMoveCursor(con, con->userline->newer, 0, shiftdown, false);
+		}
+		else
+			Con_EditorMoveCursor(con, con->userline, con->useroffset+1, shiftdown, false);
+		return true;
+	case K_INS:
+		if (shiftdown)
+		{
+			if (con->flags & CONF_KEEPSELECTION)
+				Con_Editor_DeleteSelection(con);
+			Con_Editor_Paste(con);
+			break;
+		}
+		if (ctrldown && (con->flags & CONF_KEEPSELECTION))
+		{
+			char *buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+			if (buffer)
+			{
+				Sys_SaveClipboard(buffer);
+				Z_Free(buffer);
+			}
+			break;
+		}
+		return false;
+	case K_LSHIFT:
+	case K_RSHIFT:
+	case K_LCTRL:
+	case K_RCTRL:
+	case K_LALT:
+	case K_RALT:
+		return true;	//these non-printable chars generally should not be allowed to trigger bindings.
+
 	case K_F1:
 		Con_Printf(
 			"Editor help:\n"
 			"F1: Show help\n"
 			"F2: Open file named on cursor line\n"
 			"F3: Toggle expression evaluator\n"
-			"F4: Save file\n"
-			"F5: Stop tracing (resume)\n"
+			"CTRL+S: Save file\n"
+			"F5: Stop tracing (continue running)\n"
 			"F6: Print stack trace\n"
-			"F7: Save file and recompile\n"
 			"F8: Change current point of execution\n"
 			"F9: Set breakpoint\n"
-			"F10: Save file, recompile, reload vm\n"
-			"F11: Single step\n"
-			"F12: \n"
-			"Escape: Abort call, close editor\n"
+			"ALT+F10: save+recompile\n"
+			"F10: Step Over (skipping children)\n"
+			"SHIFT+F11: Step Out\n"
+			"F11: Step Into\n"
+//			"F12: Go to definition\n"
 			);
 		Cbuf_AddText("toggleconsole\n", RESTRICT_LOCAL);
 		break;
-//	case K_FORWARD:
 	case K_F2:
-		{
+		/*{
 			char file[1024];
 			char *s;
 			Q_strncpyz(file, cursorblock->data, sizeof(file));
@@ -619,596 +563,303 @@ void Editor_Key(int key, int unicode)
 			}
 			if (*file)
 				EditorOpenFile(file, false);
-		}
-		break;
+		}*/
+		return true;
 	case K_F3:
 		if (editprogfuncs)
-			useeval = true;
-		break;
-	case K_F4:
-		EditorSaveFile(OpenEditorFile);
-		break;
-	case K_F5:	/*stop debugging*/
-		editormodal = false;
-		editorstep = DEBUG_TRACE_OFF;
-		break;
+		{
+			con->linebuffered = Con_Editor_Evaluate;
+		}
+		return true;
+	case K_F5:	//stop debugging
+		if (editormodal)
+		{
+			Editor_Demodalize();
+			editorstep = DEBUG_TRACE_OFF;
+		}
+		return true;
 	case K_F6:
 		if (editprogfuncs)
+		{
 			PR_StackTrace(editprogfuncs, 2);
-		break;
-	case K_F7: /*save+recompile*/
-		EditorSaveFile(OpenEditorFile);
-		if (!editprogfuncs)
-			Cbuf_AddText("compile; toggleconsole\n", RESTRICT_LOCAL);
-		break;
-	case K_F8:	/*move execution point to here - I hope you move to the same function!*/
-		executionlinenum = cursorlinenum;
-		executionblock = cursorblock;
-		break;
+			Key_Dest_Add(kdm_console);
+			return true;
+		}
+		return false;
+	case K_F8:	//move execution point to here - I hope you move to the same function!
+		if (editprogfuncs && con->userline)
+		{
+			int l = Con_Editor_GetLine(con, con->userline);
+			if (l)
+			{
+				conline_t *n = Con_Editor_FindLine(con, l);
+				if (n)
+				{
+					if (con->highlightline)
+					{
+						con->highlightline->flags &= ~CONL_EXECUTION;
+						con->highlightline = NULL;
+					}
+
+					executionlinenum = l;
+					con->highlightline = n;
+					n->flags |= CONL_EXECUTION;
+				}
+			}
+		}
+		return true;
 	case K_F9: /*set breakpoint*/
 		{
-			int f = 0;
-			char *fname = OpenEditorFile;
-			if (!strncmp(fname, "src/", 4))
+			conline_t *cl;
+			char *fname = con->name;
+			int mode;
+			int line;
+			if (!strncmp(fname, pr_sourcedir.string, strlen(pr_sourcedir.string)) && fname[strlen(pr_sourcedir.string)] == '/')
+				fname += strlen(pr_sourcedir.string)+1;
+			else if (!strncmp(fname, "src/", 4))
 				fname += 4;
-			if (!strncmp(fname, "source/", 7))
+			else if (!strncmp(fname, "source/", 7))
+				fname += 7;
+			else if (!strncmp(fname, "qcsrc/", 7))
 				fname += 7;
 
-			if (editprogfuncs)
-			{
-				if (editprogfuncs->ToggleBreak(editprogfuncs, fname, cursorlinenum, 2))
-					f |= 1;
-				else
-					f |= 2;
-			}
+
+			cl = con->userline;
+			line = Con_Editor_GetLine(con, cl);
+
+			if (cl->flags & CONL_BREAKPOINT)
+				mode = 0;
+			else
+				mode = 1;
+
+#ifndef SERVERONLY
+#ifdef CSQC_DAT
+			if (csqc_world.progs && csqc_world.progs->ToggleBreak)
+				csqc_world.progs->ToggleBreak(csqc_world.progs, fname, line, mode);
+#endif
+#ifdef MENU_DAT
+			if (menu_world.progs && menu_world.progs->ToggleBreak)
+				menu_world.progs->ToggleBreak(menu_world.progs, fname, line, mode);
+#endif
+#endif
 #ifndef CLIENTONLY
-			else if (svprogfuncs)
-			{
-				if (svprogfuncs->ToggleBreak(svprogfuncs, fname, cursorlinenum, 2))
-					f |= 1;
-				else
-					f |= 2;
-			}
+			if (sv.world.progs && sv.world.progs->ToggleBreak)
+				sv.world.progs->ToggleBreak(sv.world.progs, fname, line, mode);
 #endif
 
-			if (f & 1)
-				cursorblock->flags |= FB_BREAK;
+			if (mode)
+				cl->flags |= CONL_BREAKPOINT;
 			else
-				cursorblock->flags &= ~FB_BREAK;
+				cl->flags &= ~CONL_BREAKPOINT;
 		}
-		break;
+		return true;
 	case K_F10:
-		editormodal = false;
-		editorstep = DEBUG_TRACE_OVER;
-		break;
+		if (altdown)
+		{
+			Con_Editor_Save(con);
+			if (!editprogfuncs)
+				Cbuf_AddText("compile; toggleconsole\n", RESTRICT_LOCAL);
+			return true;
+		}
+		//if (editormodal)	//careful of autorepeat
+		{
+			Editor_Demodalize();
+			editorstep = DEBUG_TRACE_OVER;
+			return true;
+		}
+		return false;
 	case K_F11: //single step
-		editormodal = false;
-		editorstep = DEBUG_TRACE_INTO;
-		break;
-	case K_F12: //save+apply changes, supposedly
-		EditorSaveFile(OpenEditorFile);
-		Cbuf_AddText("applycompile\n", RESTRICT_LOCAL);
-		break;
-//	case K_STOP:
-	case K_ESCAPE:
-		if (editprogfuncs && editormodal)
+		//if (editormodal)	//careful of auto-repeat
 		{
-			editprogfuncs->AbortStack(editprogfuncs);
-			CloseEditor();
-			executionlinenum = 0;
-			stepasm = true;
+			Editor_Demodalize();
+			editorstep = shiftdown?DEBUG_TRACE_OUT:DEBUG_TRACE_INTO;
+			return true;
 		}
-		else
-			CloseEditor();
-		editormodal = false;
-		editorstep = DEBUG_TRACE_ABORT;
-		break;
+		return false;
 
-	case K_HOME:
-		cursorx = 0;
-		break;
-	case K_END:
-		cursorx = cursorblock->datalength;
-		break;
 
-	case K_LEFTARROW:
-		cursorx--;
-		if (keydown[K_LCTRL] || keydown[K_RCTRL])
-		{
-			//skip additional whitespace
-			while(cursorx > 0 && (cursorblock->data[cursorx-1] == ' ' || cursorblock->data[cursorx-1] <= '\t'))
-				cursorx--;
-			//skip over the word, to the start of it
-			while(cursorx > 0 && ((cursorblock->data[cursorx-1] >= 'a' && cursorblock->data[cursorx-1] <= 'z') ||
-								  (cursorblock->data[cursorx-1] >= 'A' && cursorblock->data[cursorx-1] <= 'Z') ||
-								  (cursorblock->data[cursorx-1] >= '0' && cursorblock->data[cursorx-1] <= '9')))
-				cursorx--;
-		}
-		if (cursorx < 0)
-			cursorx = 0;
-		break;
-
-	case K_RIGHTARROW:
-		if (keydown[K_LCTRL] || keydown[K_RCTRL])
-		{
-			while(cursorx+1 < cursorblock->datalength && ((cursorblock->data[cursorx] >= 'a' && cursorblock->data[cursorx] <= 'z') ||
-														  (cursorblock->data[cursorx] >= 'A' && cursorblock->data[cursorx] <= 'Z') ||
-														  (cursorblock->data[cursorx] >= '0' && cursorblock->data[cursorx] <= '9')))
-				cursorx++;
-			cursorx++;
-			while(cursorx+1 < cursorblock->datalength && (cursorblock->data[cursorx] == ' ' || cursorblock->data[cursorx] <= '\t'))
-				cursorx++;
-		}
-		else
-		{
-			cursorx++;
-			if (cursorx > cursorblock->datalength)
-				cursorx = cursorblock->datalength;
-		}
-
-		break;
-
-	case K_BACKSPACE:
-		cursorx--;
-		if (cursorx < 0)
-		{
-			fileblock_t *b = cursorblock;
-
-			if (b == firstblock)	//no line above to remove to
-			{
-				cursorx=0;
-				break;
-			}
-
-			if (editenabled)
-			{
-				cursorlinenum-=1;
-				madechanges = true;
-
-				cursorblock = b->prev;
-
-				MakeNewSize(cursorblock, b->datalength + cursorblock->datalength+5);
-
-				cursorx = cursorblock->datalength;
-				memcpy(cursorblock->data + cursorblock->datalength, b->data, b->datalength);
-				cursorblock->datalength += b->datalength;
-
-				cursorblock->next = b->next;
-				if (b->next)
-					b->next->prev = cursorblock;
-	//			cursorblock->prev->next = cursorblock->next;
-	//			cursorblock->next->prev = cursorblock->prev;
-
-				E_Free(b);
-	//			cursorblock = b;
-			}
-			else
-			{
-				cursorblock = cursorblock->prev;
-				cursorx = cursorblock->datalength;
-			}
-
-			break;
-		}
-	case K_DEL:	//bksp falls through.
-		if (editenabled)
-		{
-			int a;
-			fileblock_t *b;
-
-			cursorlinenum=-1;
-			madechanges = true;
-//FIXME: does this work right?
-			if (!cursorblock->datalength && cursorblock->next && cursorblock->prev)	//blank line
-			{
-				b = cursorblock;
-				if (b->next)
-					b->next->prev = b->prev;
-				if (b->prev)
-					b->prev->next = b->next;
-
-				if (cursorblock->next)
-					cursorblock = cursorblock->next;
-				else
-					cursorblock = cursorblock->prev;
-
-				E_Free(b);
-			}
-			else
-			{
-				for (a = cursorx; a < cursorblock->datalength;a++)
-					cursorblock->data[a] = cursorblock->data[a+1];
-				cursorblock->datalength--;
-			}
-
-			if (cursorx > cursorblock->datalength)
-				cursorx = cursorblock->datalength;
-		}
-		break;
-
-	case K_ENTER:
-	case K_KP_ENTER:
-		if (editenabled)
-		{
-			fileblock_t *b = cursorblock;
-
-			cursorlinenum=-1;
-
-			madechanges = true;
-
-			GETBLOCK(b->datalength - cursorx, cursorblock);
-			cursorblock->next = b->next;
-			cursorblock->prev = b;
-			b->next = cursorblock;
-			if (cursorblock->next)
-				cursorblock->next->prev = cursorblock;
-			if (cursorblock->prev)
-				cursorblock->prev->next = cursorblock;
-
-			cursorblock->datalength = b->datalength - cursorx;
-			memcpy(cursorblock->data, b->data+cursorx, cursorblock->datalength);
-			b->datalength = cursorx;
-
-			cursorx = 0;
-		}
-		else if (cursorblock->next)
-		{
-			cursorblock = cursorblock->next;
-			cursorlinenum++;
-			cursorx = 0;
-		}
-		break;
-
-	case K_INS:
-		insertkeyhit = insertkeyhit?false:true;
-		break;
 	default:
-		if (!editenabled)
-			break;
-		if (unicode < ' ' && unicode != '\t')	//we deem these as unprintable
-			break;
-
-		if (insertkeyhit)	//insert a char
+		if (ctrldown && key =='s')
 		{
-			char *s;
-
-			madechanges = true;
-
-			MakeNewSize(cursorblock, cursorblock->datalength+5);	//allocate a bit extra, so we don't need to keep resizing it and shifting loads a data about
-
-			s = cursorblock->data + cursorblock->datalength;
-			while (s >= cursorblock->data + cursorx)
+			Con_Editor_Save(con);
+			return true;
+		}
+		if (ctrldown && key =='v')
+		{
+			if (con->flags & CONF_KEEPSELECTION)
+				Con_Editor_DeleteSelection(con);
+			Con_Editor_Paste(con);
+			break;
+		}
+		if (ctrldown && key =='c' && (con->flags & CONF_KEEPSELECTION))
+		{
+			char *buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
+			if (buffer)
 			{
-				s[1] = s[0];
-				s--;
+				Sys_SaveClipboard(buffer);
+				Z_Free(buffer);
 			}
-			cursorx++;
-			cursorblock->datalength++;
-			*(s+1) = unicode;
+			break;
 		}
-		else	//over write a char
+		if (unicode)
 		{
-			MakeNewSize(cursorblock, cursorblock->datalength+5);	//not really needed
-
-			cursorblock->data[cursorx] = unicode;
-			cursorx++;
-			if (cursorx > cursorblock->datalength)
-				cursorblock->datalength = cursorx;
+			conchar_t c[2];
+			int l = 0;
+			if (unicode > 0xffff)
+				c[l++] = CON_LONGCHAR | (unicode>>16);
+			c[l++] = CON_WHITEMASK | (unicode&0xffff);
+			if (con->flags & CONF_KEEPSELECTION)
+				Con_Editor_DeleteSelection(con);
+			if (Con_InsertConChars(con, con->userline, con->useroffset, c, l))
+				con->useroffset += l;
+			break;
 		}
-		break;
+		return false;
+	}
+	Q_snprintfz(con->title, sizeof(con->title), "MODIFIED: %s", con->name);
+	return true;
+}
+void Con_Editor_CloseCallback(void *ctx, int op)
+{
+	console_t *con = ctx;
+
+	if (con != con_curwindow)	//ensure that it still exists (lame only-active-window check)
+		return;
+	
+	if (op == 0)
+		Con_Editor_Save(con);
+	if (op != -1)	//-1 == cancel
+		Con_Destroy(con);
+}
+qboolean Con_Editor_Close(console_t *con, qboolean force)
+{
+	if (!force)
+	{
+		if (!strncmp(con->title, "MODIFIED: ", 10))
+		{
+			M_Menu_Prompt(Con_Editor_CloseCallback, con, "Save changes?", con->name, "", "Yes", "No", "Cancel");
+			return false;
+		}
+	}
+	if (con == editormodal)
+	{
+		Editor_Demodalize();
+		editorstep = DEBUG_TRACE_OFF;
+	}
+	return true;
+}
+void Con_Editor_GoToLine(console_t *con, int line)
+{
+	con->userline = con->oldest;
+	while (line --> 1)
+	{
+		if (!con->userline->newer)
+			break;
+		con->userline = con->userline->newer;
+	}
+	con->useroffset = 0;
+	con->display = con->userline;
+
+	//FIXME: we REALLY need to support top-down style consoles.
+	line = con->wnd_h / 8;
+	line /= 2;
+	while (con->display->newer && line --> 0)
+	{
+		con->display = con->display->newer;
 	}
 }
-
-static void Draw_Line(int vy, fileblock_t *b, int cursorx)
+console_t *Con_TextEditor(const char *fname, const char *line, qboolean newfile)
 {
-	int nx = 0;
-	int y;
-	char *tooltip = NULL, *t;
-	int nnx;
-	qbyte *d = b->data;
-	qbyte *c;
-	int i;
-	int smx = (mousecursor_x * vid.pixelwidth) / vid.width, smy = (mousecursor_y * vid.pixelheight) / vid.height;
-	unsigned int colour;
-
-	int ts = edittabspacing.value;
-			char linebuf[128];
-
-	if (cursorx >= 0)
-		c = d + cursorx;
-	else
-		c = NULL;
-
-	Font_BeginString(font_default, nx, vy, &nx, &y);
-
-	if (ts < 1)
-		ts = 4;
-	ts*=8;
-
-	//figure out the colour
-	if (b->flags & (FB_BREAK))
+	static int editorcascade;
+	console_t *con;
+	con = Con_FindConsole(fname);
+	if (con)
 	{
-		if (executionblock == b)
-			colour = COLOR_MAGENTA<<CON_FGSHIFT;
-		else
-			colour = COLOR_RED<<CON_FGSHIFT;
+		Con_SetActive(con);
+		if (line && con->redirect == Con_Editor_Key)
+			Con_Editor_GoToLine(con, atoi(line));
+
+		if (con->close != Con_Editor_Close)
+			con = NULL;
 	}
 	else
 	{
-		if (executionblock == b)
-			colour = COLOR_YELLOW<<CON_FGSHIFT;	//yellow
-		else
-			colour = COLOR_WHITE<<CON_FGSHIFT;
-	}
-
-	//if this line currently holds the mouse cursor, figure out the word that is highighted, and evaluate that word for debugging.
-	//self.ammo_shells is just 'self' if you highlight 'self', but if you highlight ammo_shells, it'll include the self, for easy debugging.
-	//use the f3 evaulator for more explicit debugging.
-	if (editprogfuncs && smy >= y && smy < y + Font_CharHeight())
-	{
-		int e, s;
-		nx = -viewportx;
-		for (i = 0; i < b->datalength; i++)
+		con = Con_Create(fname, 0);
+		if (con)
 		{
-			if (d[i] == '\t')
-			{
-				nnx=nx+ts;
-				nnx-=(nnx - -viewportx)%ts;
-			}
-			else
-				nnx = Font_CharEndCoord(font_default, nx, colour, (int)d[i]);
+			vfsfile_t *file;
+			Q_snprintfz(con->title, sizeof(con->title), "EDIT: %s", con->name);
 
-			if (smx >= nx && smx <= nnx)
-			{
-				for(s = i; s > 0; )
-				{
-					if ((d[s-1] >= 'a' && d[s-1] <= 'z') ||
-						(d[s-1] >= 'A' && d[s-1] <= 'Z') || 
-						(d[s-1] >= '0' && d[s-1] <= '9') ||
-						d[s-1] == '.' || d[s-1] == '_')
-						s--;
-					else
-						break;
-				}
-				for (e = i; e < b->datalength; )
-				{
-					if ((d[e] >= 'a' && d[e] <= 'z') ||
-						(d[e] >= 'A' && d[e] <= 'Z') || 
-						(d[e] >= '0' && d[e] <= '9') ||
-						/*d[e] == '.' ||*/ d[e] == '_')
-						e++;
-					else
-						break;
-				}
-				if (e >= s+sizeof(linebuf))
-					e = s+sizeof(linebuf) - 1;
-				memcpy(linebuf, d+s, e - s);
-				linebuf[e-s] = 0;
-				if (*linebuf)
-					tooltip = editprogfuncs->EvaluateDebugString(editprogfuncs, linebuf);
-				break;
-			}
-			nx = nnx;
-		}
-	}
-	nx = -viewportx;
+			/*make it a console window thing*/
+			con->flags |= CONF_ISWINDOW;
+			con->wnd_x = (editorcascade & 1)?vid.width/2:0;
+#ifdef ANDROID
+			con->wnd_y = 0;
+#else
+			con->wnd_y = (editorcascade & 2)?vid.height/2:0;
+#endif
+			con->wnd_w = vid.width/2;
+			con->wnd_h = vid.height/2;
+			editorcascade++;
 
-	for (i = 0; i < b->datalength; i++)
-	{
-		if (*d == '\t')
-		{
-			if (d == c)
+			con->flags |= CONF_NOWRAP;	//disable line wrapping. yay editors.
+			con->flags |= CONF_KEEPSELECTION;	//only change the selection if we ask for it.
+			con->parseflags = PFS_FORCEUTF8;
+			con->userdata = NULL;
+			con->linebuffered = NULL;
+			con->redirect = Con_Editor_Key;
+			con->mouseover = Con_Editor_MouseOver;
+			con->close = Con_Editor_Close;
+			con->maxlines = 0x7fffffff;	//line limit is effectively unbounded.
+			
+			if (!newfile)
 			{
-				int e = Font_DrawChar(nx, y, CON_WHITEMASK|CON_BLINKTEXT, (int)0xe00b);
-				if (e >= vid.pixelwidth)
-					viewportx += e - vid.pixelwidth;
-				if (nx < 0)
+				file = FS_OpenVFS(fname, "rb", FS_GAME);
+				if (file)
 				{
-					viewportx -= -nx;
-					if (viewportx < 0)
-						viewportx = 0;
+					char buffer[65536];
+					while (VFS_GETS(file, buffer, sizeof(buffer)))
+					{
+						Con_PrintCon(con, buffer, PFS_FORCEUTF8|PFS_KEEPMARKUP|PFS_NONOTIFY);
+						Con_PrintCon(con, "\n", PFS_FORCEUTF8|PFS_KEEPMARKUP|PFS_NONOTIFY);
+					}
+					VFS_CLOSE(file);
 				}
 			}
-			nx+=ts;
-			nx-=(nx - -viewportx)%ts;
-			d++;
-			continue;
-		}
-		if (nx <= (int)vid.pixelwidth || cursorx>=0)
-			nnx = Font_DrawChar(nx, y, colour, (int)*d);
-		else nnx = vid.pixelwidth;
 
-		if (d == c)
-		{
-			int e = Font_DrawChar(nx, y, CON_WHITEMASK|CON_BLINKTEXT, (int)0xe00b);
-			if (e >= vid.pixelwidth)
-				viewportx += e - vid.pixelwidth;
-			if (nx < 0)
-			{
-				viewportx -= -nx;
-				if (viewportx < 0)
-					viewportx = 0;
-			}
-		}
-		nx = nnx;
+			con->display = con->oldest;
+			con->selstartline = con->selendline = con->oldest;	//put the cursor at the start of the file
+			con->selstartoffset = con->selendoffset = 0;
 
-		d++;
-	}
+			if (line)
+				Con_Editor_GoToLine(con, atoi(line));
 
-	/*we didn't do the cursor! stick it at the end*/
-	if (c && c >= d)
-	{
-		int e = Font_DrawChar(nx, y, CON_WHITEMASK|CON_BLINKTEXT, (int)0xe00b);
-		if (e >= vid.pixelwidth)
-			viewportx += e - vid.pixelwidth;
-		if (nx < 0)
-		{
-			viewportx -= -nx;
-			if (viewportx < 0)
-				viewportx = 0;
+			Con_Footerf(con, false, "    ^2%i lines", con->linecount);
+
+			Con_SetActive(con);
 		}
 	}
-
-	if (tooltip)
-	{
-		nx = ((mousecursor_x+16) * vid.pixelwidth) / vid.width;
-		while(*tooltip)
-		{
-			for (t = tooltip, smx = nx; *tooltip; tooltip++)
-			{
-				if (*tooltip == '\n')
-					break;
-				smx = Font_CharEndCoord(font_default, smx, (COLOR_CYAN<<CON_FGSHIFT), *tooltip);
-			}
-			y = Font_CharHeight();
-			Font_EndString(font_default);
-			R2D_ImageColours(0, 0, 0, 1);
-			R2D_FillBlock(((nx)*vid.width) / vid.pixelwidth, ((smy)*vid.height) / vid.pixelheight, ((smx - nx)*vid.width) / vid.pixelwidth, (y*vid.height) / vid.pixelheight);
-			R2D_ImageColours(1, 1, 1, 1);
-			Font_BeginString(font_default, nx, vy, &y, &y);
-			for(smx = nx; t < tooltip; t++)
-			{
-				smx = Font_DrawChar(smx, smy, (COLOR_CYAN<<CON_FGSHIFT), *t);
-			}
-			if (*tooltip == '\n')
-				tooltip++;
-			smy += Font_CharHeight();
-		}
-	}
-	Font_EndString(font_default);
+	return con;
 }
 
-static fileblock_t *firstline(void)
+void Con_TextEditor_f(void)
 {
-	int lines;
-	fileblock_t *b;
-	lines = (vid.height/8)/2-1;
-	b = cursorblock;
-	if (!b)
-		return NULL;
-	while (1)
+	char *fname = Cmd_Argv(1);
+	char *line = strrchr(fname, ':');
+	if (line)
+		*line++ = 0;
+	if (!*fname)
 	{
-		if (!b->prev)
-			return b;
-		b = b->prev;
-		lines--;
-		if (lines <= 0)
-			return b;
+		Con_Printf("%s [filename[:line]]: edit a file\n", Cmd_Argv(0));
+		return;
 	}
-	return NULL;
-}
-
-void Editor_Draw(void)
-{
-	int y;
-	int c;
-	fileblock_t *b;
-
-	if ((editoractive && cls.state == ca_disconnected) || editormodal)
-		R2D_EditorBackground();
-
-	if (cursorlinenum < 0)	//look for the cursor line num
-	{
-		cursorlinenum = 0;
-		for (b = firstblock; b; b=b->next)
-		{
-			cursorlinenum++;
-			if (b == cursorblock)
-				break;
-		}
-	}
-
-	if (!viewportystartblock)	//look for the cursor line num
-	{
-		y = 0;
-		for (viewportystartblock = firstblock; viewportystartblock; viewportystartblock=viewportystartblock->prev)
-		{
-			y++;
-			if (y == viewporty)
-				break;
-		}
-	}
-
-	if (madechanges)
-		Draw_FunString (vid.width - 8, 0, "!");
-	if (!insertkeyhit)
-		Draw_FunString (vid.width - 16, 0, "O");
-	if (!editenabled)
-		Draw_FunString (vid.width - 24, 0, "R");
-	Draw_FunString(0, 0, va("%6i:%4i:%s", cursorlinenum, cursorx+1, OpenEditorFile));
-
-	if (useeval)
-	{
-		if (!editprogfuncs)
-			useeval = false;
-		else
-		{
-			char *eq, *term;
-			Draw_FunString(0, 8, evalstring);
-
-			eq = strchr(evalstring, '=');
-			if (eq)
-			{
-				term = strchr(eq, ';');
-				if (!term)
-					term = strchr(eq, '\n');
-				if (!term)
-					term = strchr(eq, '\r');
-				if (term)
-				{
-					*term = '\0';
-					eq = NULL;
-				}
-				else
-					*eq = '\0';
-			}
-			Draw_FunString(vid.width/2, 8, editprogfuncs->EvaluateDebugString(editprogfuncs, evalstring));
-			if (eq)
-				*eq = '=';
-		}
-		y = 16;
-	}
-	else
-		y=8;
-	b = firstline();
-	for (; b; b=b->next)
-	{
-		c = -1;
-		if (b == cursorblock)
-			c = cursorx;
-		Draw_Line(y, b, c);
-		y+=8;
-
-		if (y > vid.height)
-			break;
-	}
-
-/*	if (CmdAfterSave)
-	{
-		if (madechanges)
-		{
-			M_DrawTextBox (0, 0, 36, 5);
-			M_PrintWhite (16, 12, OpenEditorFile);
-			M_PrintWhite (16, 28, "Do you want to save the open file?");
-			M_PrintWhite (16, 36, "[Y]es/[N]o/[C]ancel");
-		}
-		else
-		{
-			if (!CmdAfterSaveCalled)
-			{
-				CmdAfterSaveCalled = true;
-				(*CmdAfterSave) ();
-				CmdAfterSaveCalled = false;
-			}
-			CmdAfterSave = NULL;
-		}
-	}
-	*/
+	Con_TextEditor(fname, line, false);
 }
 
 int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *statement, char *reason, pbool fatal)
 {
-	const char *f1, *f2;
+	char newname[MAX_QPATH];
+	console_t *edit;
 	if (!pr_debugger.ival)
 	{
 		Con_Printf("Set %s to trace\n", pr_debugger.name);
@@ -1216,8 +867,11 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 			return DEBUG_TRACE_ABORT;
 		return DEBUG_TRACE_OFF;	//get lost
 	}
+
 	//we can cope with no line info by displaying asm
-	if (editormodal || !statement)
+	if (editormodal || !statement
+		|| !line || *line == -1	//FIXME
+		)
 	{
 		if (fatal)
 			return DEBUG_TRACE_ABORT;
@@ -1225,11 +879,18 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 	}
 
 	if (qrenderer == QR_NONE)
-	{
+	{	//just dump the line of code that's being execed onto the console.
 		int i;
 		char buffer[8192];
 		char *r;
 		vfsfile_t *f;
+
+		if (!line)
+		{	//please don't crash
+			if (fatal)
+				return DEBUG_TRACE_ABORT;
+			return DEBUG_TRACE_OFF;	//whoops
+		}
 
 		f = FS_OpenVFS(filename, "rb", FS_GAME);
 		if (!f)
@@ -1245,81 +906,88 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 			Con_Printf("%s", buffer);
 			VFS_CLOSE(f);
 		}
-	//PF_break(NULL);
-		return DEBUG_TRACE_OUT;
+		return DEBUG_TRACE_OUT;	//only display the line itself.
 	}
 
+	stepasm = !line;
 	editprogfuncs = prfncs;
 
-	f1 = OpenEditorFile;
-	f2 = filename;
-	if (!strncmp(f1, "src/", 4))
-		f1 += 4;
-	if (!strncmp(f2, "src/", 4))
-		f2 += 4;
-	if (!strncmp(f1, "source/", 7))
-		f1 += 7;
-	if (!strncmp(f2, "source/", 7))
-		f2 += 7;
-
-	stepasm = !line;
+	if (!COM_FCheckExists(filename))
+	{
+		//people generally run their qcc from $mod/src/ or so, so paths are usually relative to that instead of the mod directory.
+		//this means we now need to try and guess what the user used.
+		if (filename != newname && *pr_sourcedir.string)
+		{
+			Q_snprintfz(newname, sizeof(newname), "%s/%s", pr_sourcedir.string, filename);
+			if (COM_FCheckExists(newname))
+				filename = newname;
+		}
+		if (filename != newname)
+		{
+			Q_snprintfz(newname, sizeof(newname), "src/%s", filename);
+			if (COM_FCheckExists(newname))
+				filename = newname;
+		}
+		if (filename != newname)
+		{
+			Q_snprintfz(newname, sizeof(newname), "source/%s", filename);
+			if (COM_FCheckExists(newname))
+				filename = newname;
+		}
+		if (filename != newname)
+		{
+			Q_snprintfz(newname, sizeof(newname), "qcsrc/%s", filename);
+			if (COM_FCheckExists(newname))
+				filename = newname;
+		}
+		if (filename != newname)
+		{	//some people are fucked in the head
+			Q_snprintfz(newname, sizeof(newname), "progs/%s", filename);
+			if (COM_FCheckExists(newname))
+				filename = newname;
+		}
+		if (filename != newname)
+		{
+			if (fatal)
+			{
+				Con_Printf(CON_ERROR "Unable to find %s\n", filename);
+				return DEBUG_TRACE_ABORT;
+			}
+			Con_Printf(CON_WARNING "Unable to find %s\n", filename);
+			return DEBUG_TRACE_OFF;	//whoops
+		}
+	}
 
 	if (stepasm)
 	{
-		fileblock_t *nb, *lb;
-		int i;
-		EditorNewFile();
-		E_Free(firstblock->next);
-		E_Free(firstblock);
-		
-		cursorlinenum = *statement;
-		firstblock = GenAsm(cursorlinenum);
-		cursorblock = firstblock;
-
-		for (i = cursorlinenum; i > 0 && i > cursorlinenum - 20; )
-		{
-			i--;
-			firstblock->prev = GenAsm(i);
-			firstblock->prev->next = firstblock;
-			firstblock = firstblock->prev;
-		}
-		lb = cursorblock;
-		for (i = cursorlinenum; i < cursorlinenum+20; )
-		{
-			i++;
-			nb = GenAsm(i);
-			lb->next = nb;
-			nb->prev = lb;
-			lb = nb;
-		}
+		return DEBUG_TRACE_OFF;
 	}
 	else
 	{
-		if (!editoractive || strcmp(f1, f2))
-		{
-			if (editoractive && madechanges)
-				EditorSaveFile(OpenEditorFile);
-
-			EditorOpenFile(filename, true);
-		}
-
-		for (cursorlinenum = 1, cursorblock = firstblock; cursorlinenum < *line && cursorblock->next; cursorlinenum++)
-			cursorblock=cursorblock->next;
+		edit = Con_TextEditor(filename, NULL, false);
+		if (!edit)
+			return DEBUG_TRACE_OFF;
+		Con_Editor_GoToLine(edit, *line);
 	}
 
-	executionlinenum = cursorlinenum;
-
-	executionblock = cursorblock;
+	executionlinenum = *line;
 
 	{
 		double oldrealtime = realtime;
-		editormodal = true;
+
+		Editor_Demodalize();
+		editormodal = edit;
 		editorstep = DEBUG_TRACE_OFF;
 
-		while(editormodal && editoractive && editprogfuncs)
+		if (edit->userline)
+		{
+			edit->highlightline = edit->userline;
+			edit->highlightline->flags |= CONL_EXECUTION;
+		}
+
+		while(editormodal && editprogfuncs)
 		{
 			realtime = Sys_DoubleTime();
-//			key_dest = key_editor;
 			scr_disabled_for_loading=false;
 			SCR_UpdateScreen();
 			Sys_SendKeyEvents();
@@ -1330,7 +998,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		}
 		realtime = oldrealtime;
 
-		editormodal = false;
+		Editor_Demodalize();
 	}
 
 	if (stepasm)
@@ -1343,49 +1011,27 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		*line = executionlinenum;
 	return editorstep;
 }
-
 void Editor_ProgsKilled(pubprogfuncs_t *dead)
 {
 	if (editprogfuncs == dead)
 	{
 		editprogfuncs = NULL;
-		editormodal = false;
+		Editor_Demodalize();
 		editorstep = DEBUG_TRACE_OFF;
 	}
 }
 
-static void Editor_f(void)
-{
-	int argc = Cmd_Argc();
-	if (argc != 2 && argc != 3)
-	{
-		Con_Printf("edit <filename> [line]\n");
-		return;
-	}
 
-	editprogfuncs = NULL;
-	useeval = false;
 
-	if (editoractive && madechanges)
-		EditorSaveFile(OpenEditorFile);
-	EditorOpenFile(Cmd_Argv(1), false);
-//	EditorNewFile();
-
-	if (argc == 3)
-	{
-		int line = atoi(Cmd_Argv(2));
-		for (cursorlinenum = 1, cursorblock = firstblock; cursorlinenum < line && cursorblock->next; cursorlinenum++)
-			cursorblock=cursorblock->next;
-	}
-}
 
 void Editor_Init(void)
 {
-	Cmd_AddCommand("edit", Editor_f);
+	Cmd_AddCommand("edit", Con_TextEditor_f);
 
 	Cvar_Register(&editstripcr, "Text editor");
 	Cvar_Register(&editaddcr, "Text editor");
-	Cvar_Register(&edittabspacing, "Text editor");
+//	Cvar_Register(&edittabspacing, "Text editor");
 	Cvar_Register(&pr_debugger, "Text editor");
 }
+
 #endif

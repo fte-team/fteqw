@@ -2,6 +2,9 @@
 
 #include "pr_common.h"
 
+#include "shader.h"
+
+extern cvar_t r_decal_noperpendicular;
 /*
 
 ============================================================================
@@ -73,7 +76,7 @@ static int Q1_ModelPointContents (mnode_t *node, vec3_t p)
 
 
 #define	DIST_EPSILON	(0.03125)
-#if 0
+#if 1
 enum
 {
 	rht_solid,
@@ -168,7 +171,7 @@ reenter:
 	VectorInterpolate(ctx->start, midf, ctx->end, mid);
 
 	rht = Q1BSP_RecursiveHullTrace(ctx, node->children[side], p1f, midf, p1, mid, trace);
-	if (rht != rht_empty)
+	if (rht != rht_empty && !trace->allsolid)
 		return rht;
 	rht = Q1BSP_RecursiveHullTrace(ctx, node->children[side^1], midf, p2f, mid, p2, trace);
 	if (rht != rht_solid)
@@ -1088,6 +1091,100 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 	return outcount;
 }
 
+//the plane itself must be a vec4_t, but can have other data packed between
+size_t Fragment_ClipPlaneToBrush(vecV_t *points, size_t maxpoints, void *planes, size_t planestride, size_t numplanes, vec4_t face)
+{
+	int p, a;
+	vec4_t verts[MAXFRAGMENTVERTS];
+	vec4_t verts2[MAXFRAGMENTVERTS];
+	vec4_t *cverts;
+	int flip;
+//	vec3_t d1, d2, n;
+	size_t numverts;
+
+	//generate some huge quad/poly aligned with the plane
+	vec3_t tmp;
+	vec3_t right, forward;
+	double t;
+	float *plane;
+	
+//	if (face[2] != 1)
+//		return 0;
+
+	t = fabs(face[2]);
+	if (t > fabs(face[0]) && t > fabs(face[1]))
+		VectorSet(tmp, 1, 0, 0);
+	else
+		VectorSet(tmp, 0, 0, 1);
+
+	CrossProduct(face, tmp, right);
+	VectorNormalize(right);
+	CrossProduct(face, right, forward);
+	VectorNormalize(forward);
+
+	VectorScale(face, face[3],			verts[0]);
+	VectorMA(verts[0], 32767, right,		verts[0]);
+	VectorMA(verts[0], 32767, forward,	verts[0]);
+
+	VectorScale(face, face[3],			verts[1]);
+	VectorMA(verts[1], 32767, right,		verts[1]);
+	VectorMA(verts[1], -32767, forward,	verts[1]);
+
+	VectorScale(face, face[3],			verts[2]);
+	VectorMA(verts[2], -32767, right,	verts[2]);
+	VectorMA(verts[2], -32767, forward,	verts[2]);
+
+	VectorScale(face, face[3],			verts[3]);
+	VectorMA(verts[3], -32767, right,	verts[3]);
+	VectorMA(verts[3], 32767, forward,	verts[3]);
+
+	numverts = 4;
+
+
+	//clip the quad to the various other planes
+	flip = 0;
+	for (p = 0; p < numplanes; p++)
+	{
+		plane = (float*)((qbyte*)planes + p*planestride);
+		if (plane != face)
+		{
+			vec3_t norm;
+			flip^=1;
+			VectorNegate(plane, norm);
+			if (flip)
+				numverts = Fragment_ClipPolyToPlane((float*)verts, (float*)verts2, numverts, norm, -plane[3]);
+			else
+				numverts = Fragment_ClipPolyToPlane((float*)verts2, (float*)verts, numverts, norm, -plane[3]);
+	
+			if (numverts < 3)	//totally clipped.
+				return 0;
+		}
+	}
+
+	if (numverts > maxpoints)
+		return 0;
+
+	if (flip)
+		cverts = verts2;
+	else
+		cverts = verts;
+	for (p = 0; p < numverts; p++)
+	{
+		for (a = 0; a < 3; a++)
+		{
+			float f = cverts[p][a];
+			int rounded = floor(f + 0.5);
+			//if its within 1/1000th of a qu, just round it.
+			if (fabs(f - rounded) < 0.001)
+				points[p][a] = rounded;
+			else
+				points[p][a] = f;
+		}
+	}
+
+	return numverts;
+}
+
 /*
 ========================
 
@@ -1179,6 +1276,10 @@ struct fragmentdecal_s
 	int numplanes;
 
 	vec_t radius;
+
+	//will only appear on surfaces with the matching surfaceflag
+	unsigned int surfflagmask;
+	unsigned int surfflagmatch;
 
 	void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader);
 	void *ctx;
@@ -1367,12 +1468,22 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts, shade
 	if (numverts > MAXFRAGMENTTRIS)
 		return;
 
-	VectorSubtract(inverts+C*1, inverts+C*0, d1);
-	VectorSubtract(inverts+C*2, inverts+C*0, d2);
-	CrossProduct(d1, d2, n);
-	VectorNormalizeFast(n);
-	if (DotProduct(n, dec->normal) < 0.1)
-		return;	//faces too far way from the normal
+	if (r_decal_noperpendicular.ival)
+	{
+		VectorSubtract(inverts+C*1, inverts+C*0, d1);
+		for (p = 2; ; p++)
+		{
+			if (p >= numverts)
+				return;
+			VectorSubtract(inverts+C*p, inverts+C*0, d2);
+			CrossProduct(d1, d2, n);
+			if (DotProduct(n,n)>.1)
+				break;
+		}
+		VectorNormalizeFast(n);
+		if (DotProduct(n, dec->normal) < 0.1)
+			return;	//faces too far way from the normal
+	}
 
 	//clip to the first plane specially, so we don't have extra copys
 	numverts = Fragment_ClipPolyToPlane(inverts, verts, numverts, dec->planenorm[0], dec->planedist[0]);
@@ -1420,11 +1531,20 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts, shade
 #endif
 
 //this could be inlined, but I'm lazy.
-static void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh, shader_t *surfshader)
+static void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh, mtexinfo_t *texinfo)
 {
 	int i;
-
 	vecV_t verts[3];
+	shader_t *surfshader = texinfo->texture->shader;
+
+	if (surfshader->flags & SHADER_NOMARKS)
+		return;
+
+	if (dec->surfflagmask)
+	{
+		if ((texinfo->flags & dec->surfflagmask) != dec->surfflagmatch)
+			return;
+	}
 
 	/*if its a triangle fan/poly/quad then we can just submit the entire thing without generating extra fragments*/
 	if (mesh->istrifan)
@@ -1471,19 +1591,27 @@ static void Q1BSP_ClipDecalToNodes (model_t *mod, fragmentdecal_t *dec, mnode_t 
 
 // mark the polygons
 	surf = mod->surfaces + node->firstsurface;
-	for (i=0 ; i<node->numsurfaces ; i++, surf++)
+	if (r_decal_noperpendicular.ival)
 	{
-		if (surf->flags & SURF_PLANEBACK)
+		for (i=0 ; i<node->numsurfaces ; i++, surf++)
 		{
-			if (-DotProduct(surf->plane->normal, dec->normal) > -0.5)
-				continue;
+			if (surf->flags & SURF_PLANEBACK)
+			{
+				if (-DotProduct(surf->plane->normal, dec->normal) > -0.5)
+					continue;
+			}
+			else
+			{
+				if (DotProduct(surf->plane->normal, dec->normal) > -0.5)
+					continue;
+			}
+			Fragment_Mesh(dec, surf->mesh, surf->texinfo);
 		}
-		else
-		{
-			if (DotProduct(surf->plane->normal, dec->normal) > -0.5)
-				continue;
-		}
-		Fragment_Mesh(dec, surf->mesh, surf->texinfo->texture->shader);
+	}
+	else
+	{
+		for (i=0 ; i<node->numsurfaces ; i++, surf++)
+			Fragment_Mesh(dec, surf->mesh, surf->texinfo);
 	}
 
 	Q1BSP_ClipDecalToNodes (mod, dec, node->children[0]);
@@ -1519,7 +1647,7 @@ static void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 				continue;
 			surf->shadowframe = sh_shadowframe;
 
-			Fragment_Mesh(dec, surf->mesh, surf->texinfo->texture->shader);
+			Fragment_Mesh(dec, surf->mesh, surf->texinfo);
 		}
 		return;
 	}
@@ -1542,7 +1670,7 @@ static void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 }
 #endif
 
-void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader), void *ctx)
+void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, unsigned int surfflagmask, unsigned int surfflagmatch, void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader), void *ctx)
 {	//quad marks a full, independant quad
 	int p;
 	float r;
@@ -1553,6 +1681,8 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 	dec.radius = 0;
 	dec.callback = callback;
 	dec.ctx = ctx;
+	dec.surfflagmask = surfflagmask;
+	dec.surfflagmatch = surfflagmatch;
 
 	VectorCopy(tangent1,	dec.planenorm[0]);
 	VectorNegate(tangent1,	dec.planenorm[1]);
@@ -1573,14 +1703,14 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 
 	sh_shadowframe++;
 
-	if (!mod || mod->type != mod_brush)
+	if (!mod || mod->loadstate != MLS_LOADED || mod->type != mod_brush)
 	{
 	}
 	else if (mod->fromgame == fg_quake)
-		Q1BSP_ClipDecalToNodes(mod, &dec, mod->nodes);
+		Q1BSP_ClipDecalToNodes(mod, &dec, mod->rootnode);
 #ifdef Q3BSPS
 	else if (cl.worldmodel->fromgame == fg_quake3)
-		Q3BSP_ClipDecalToNodes(&dec, mod->nodes);
+		Q3BSP_ClipDecalToNodes(&dec, mod->rootnode);
 #endif
 
 #ifdef TERRAIN
@@ -1784,11 +1914,11 @@ static qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompresse
 	return decompressed;
 }
 
-static qbyte	mod_novis[MAX_MAP_LEAFS/8];
+static FTE_ALIGN(4) qbyte	mod_novis[MAX_MAP_LEAFS/8];
 
 qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer, unsigned int buffersize)
 {
-	static qbyte	decompressed[MAX_MAP_LEAFS/8];
+	static FTE_ALIGN(4) qbyte	decompressed[MAX_MAP_LEAFS/8];
 
 	if (leaf == model->leafs)
 		return mod_novis;
@@ -1805,7 +1935,7 @@ qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer, unsigned int
 //pvs is 1-based. clusters are 0-based. otherwise, q1bsp has a 1:1 mapping.
 static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, qbyte *buffer, unsigned int buffersize)
 {
-	static qbyte	decompressed[MAX_MAP_LEAFS/8];
+	static FTE_ALIGN(4) qbyte	decompressed[MAX_MAP_LEAFS/8];
 
 	if (cluster == -1)
 		return mod_novis;

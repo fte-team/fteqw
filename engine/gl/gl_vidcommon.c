@@ -61,16 +61,6 @@ void (APIENTRY *qglGetVertexAttribPointerv) (GLuint index, GLenum pname, GLvoid*
 //quick hack that made quake work on both 1+ext and 1.1 gl implementations.
 BINDTEXFUNCPTR qglBindTexture;
 
-
-void (APIENTRY *qglGenQueriesARB)(GLsizei n, GLuint *ids);
-void (APIENTRY *qglDeleteQueriesARB)(GLsizei n, const GLuint *ids);
-//extern GLboolean (APIENTRY *qglIsQueryARB)(GLuint id);
-void (APIENTRY *qglBeginQueryARB)(GLenum target, GLuint id);
-void (APIENTRY *qglEndQueryARB)(GLenum target);
-//extern void (APIENTRY *qglGetQueryivARB)(GLenum target, GLenum pname, GLint *params);
-//extern void (APIENTRY *qglGetQueryObjectivARB)(GLuint id, GLenum pname, GLint *params);
-void (APIENTRY *qglGetQueryObjectuivARB)(GLuint id, GLenum pname, GLuint *params);
-
 /*glslang - arb_shader_objects
 gl core uses different names/distinctions from the extension
 */
@@ -102,6 +92,18 @@ FTEPFNGLGETSHADERSOURCEARBPROC		qglGetShaderSource;
 #endif
 FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix3x4fv;
 FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4x3fv;
+
+
+//GL_ARB_occlusion_query
+void (APIENTRY *qglGenQueriesARB)(GLsizei n, GLuint *ids);
+void (APIENTRY *qglDeleteQueriesARB)(GLsizei n, const GLuint *ids);
+//extern GLboolean (APIENTRY *qglIsQueryARB)(GLuint id);
+void (APIENTRY *qglBeginQueryARB)(GLenum target, GLuint id);
+void (APIENTRY *qglEndQueryARB)(GLenum target);
+//extern void (APIENTRY *qglGetQueryivARB)(GLenum target, GLenum pname, GLint *params);
+//extern void (APIENTRY *qglGetQueryObjectivARB)(GLuint id, GLenum pname, GLint *params);
+void (APIENTRY *qglGetQueryObjectuivARB)(GLuint id, GLenum pname, GLuint *params);
+
 
 //GL_OES_get_program_binary
 void (APIENTRY *qglGetProgramBinary)(GLuint program, GLsizei bufSize, GLsizei *length, GLenum *binaryFormat, GLvoid *binary);
@@ -1153,7 +1155,25 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	}
 #endif
 
-	if (!gl_config.gles && gl_config.glversion >= 1.5)
+	if (!gl_config.nofixedfunc)
+	{	//clamping breaks overbrights. so if this isn't deprecated, try to use it.
+		//part of GL_ARB_color_buffer_float, made core with gl3, and then deprecated in gl3.1. *sigh*
+#define GL_CLAMP_VERTEX_COLOR		0x891A
+#define GL_CLAMP_FRAGMENT_COLOR		0x891B
+#define GL_CLAMP_READ_COLOR			0x891C
+		void (APIENTRY *qglClampColor)(GLenum target,GLenum clamp);
+		qglClampColor	= (void *)getglext("glClampColor");
+		if (!qglClampColor)
+			qglClampColor	= (void *)getglext("glClampColorARB");
+		if (qglClampColor)
+		{
+			qglClampColor(GL_CLAMP_VERTEX_COLOR,	GL_FALSE);
+			qglClampColor(GL_CLAMP_FRAGMENT_COLOR,	GL_FALSE);
+			qglClampColor(GL_CLAMP_READ_COLOR,		GL_FALSE);
+		}
+	}
+
+	if ((!gl_config.gles && gl_config.glversion >= 1.5) || (gl_config.gles && gl_config.glversion >= 3.0))
 	{
 		qglGenQueriesARB		= (void *)getglext("glGenQueries");
 		qglDeleteQueriesARB		= (void *)getglext("glDeleteQueries");
@@ -1180,6 +1200,15 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	if (!gl_config.gles && gl_config_nofixedfunc)
 		qglDisableClientState(GL_VERTEX_ARRAY);
+
+	if (qglGenVertexArrays)
+	{
+		GLuint vao;
+		qglGenVertexArrays(1, &vao);
+		qglBindVertexArray(vao);
+		qglGenVertexArrays = NULL;
+		qglBindVertexArray = NULL;
+	}
 }
 
 static const char *glsl_hdrs[] =
@@ -1208,6 +1237,8 @@ static const char *glsl_hdrs[] =
 				"attribute vec4 v_colour4;\n"
 #endif
 			"#endif\n"
+			"uniform sampler2D s_shadowmap;\n"
+			"uniform samplerCube s_projectionmap;\n"
 			"uniform sampler2D s_diffuse;\n"
 			"uniform sampler2D s_normalmap;\n"
 			"uniform sampler2D s_specular;\n"
@@ -1215,8 +1246,6 @@ static const char *glsl_hdrs[] =
 			"uniform sampler2D s_lower;\n"
 			"uniform sampler2D s_fullbright;\n"
 			"uniform sampler2D s_paletted;\n"
-			"uniform sampler2D s_shadowmap;\n"
-			"uniform samplerCube s_projectionmap;\n"
 			"uniform samplerCube s_reflectcube;\n"
 			"uniform sampler2D s_reflectmask;\n"
 			"uniform sampler2D s_lightmap;\n"
@@ -2321,16 +2350,20 @@ static qboolean GLSlang_LoadBlob(program_t *prog, const char *name, unsigned int
 	return !!success;
 }
 
-static void GLSlang_DeleteProg(program_t *prog, unsigned int permu)
+static void GLSlang_DeleteProg(program_t *prog)
 {
-	if (prog->permu[permu].h.loaded)
+	unsigned int permu;
+	for (permu = 0; permu < countof(prog->permu); permu++)
 	{
-		qglDeleteProgramObject_(prog->permu[permu].h.glsl.handle);
-		prog->permu[permu].h.glsl.handle = 0;
+		if (prog->permu[permu].h.loaded)
+		{
+			qglDeleteProgramObject_(prog->permu[permu].h.glsl.handle);
+			prog->permu[permu].h.glsl.handle = 0;
 
-		BZ_Free(prog->permu[permu].parm);
-		prog->permu[permu].parm = NULL;
-		prog->permu[permu].numparms = 0;
+			BZ_Free(prog->permu[permu].parm);
+			prog->permu[permu].parm = NULL;
+			prog->permu[permu].numparms = 0;
+		}
 	}
 }
 
@@ -2338,6 +2371,8 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t
 {
 	static const char *defaultsamplers[] =
 	{
+		"s_shadowmap",
+		"s_projectionmap",
 		"s_diffuse",
 		"s_normalmap",
 		"s_specular",
@@ -2345,8 +2380,6 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t
 		"s_lower",
 		"s_fullbright",
 		"s_paletted",
-		"s_shadowmap",
-		"s_projectionmap",
 		"s_reflectcube",
 		"s_reflectmask",
 		"s_lightmap",
@@ -2716,7 +2749,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 		sh_config.texfmt[PTI_BGRX8] = sh_config.texfmt[PTI_BGRA8];
 
 		sh_config.minver = 100;
-		sh_config.maxver = 110;
+		sh_config.maxver = 100;
 		sh_config.blobpath = "gles/%s.blob";
 		sh_config.progpath = "glsl/%s.glsl";
 		sh_config.shadernamefmt = "%s_gles";
@@ -2994,7 +3027,11 @@ void DumpGLState(void)
 
 
 rendererinfo_t openglrendererinfo = {
+#ifdef FTE_TARGET_WEB
+	"WebGL",
+#else
 	"OpenGL",
+#endif
 	{
 		"gl",
 		"opengl",

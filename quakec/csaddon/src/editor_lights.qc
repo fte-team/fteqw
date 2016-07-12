@@ -188,7 +188,7 @@ void(vector m) editor_lights_overlay =
 
 
 	fldname[NUMLFIELDS+2] = strcat("realtime world: ", cvar("r_shadow_realtime_world")?"on":"off");
-	fldname[NUMLFIELDS+3] = strcat("realtime dlight: ", cvar("r_shadow_realtime_dynamic")?"on":"off");
+	fldname[NUMLFIELDS+3] = strcat("realtime dlight: ", cvar("r_shadow_realtime_dlight")?"on":"off");
 
 	for (i = 1; i <= NUMLFIELDS; i++)
 	{
@@ -302,7 +302,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 				localcmd("toggle r_shadow_realtime_world\n");
 				break;
 			case 2:
-				localcmd("toggle r_shadow_realtime_dynamic\n");
+				localcmd("toggle r_shadow_realtime_dlight\n");
 				break;
 			case 3:
 				helphidden = !helphidden;
@@ -377,7 +377,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 
 		/*if we're pointing the light at something, it should probably have a fov*/
 		if (!(float)dynamiclight_get(selectedlight, LFIELD_FOV))
-			dynamiclight_set(selectedlight, LFIELD_FOV, 90);
+			dynamiclight_set(selectedlight, LFIELD_FOV, 90f);
 	}
 	else if (unic == 'i' || unic == 'I')
 	{

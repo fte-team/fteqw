@@ -1,7 +1,7 @@
 //very very basic server browser.
 //this was written as an example for the api, rather than a truely usable server browser.
 
-//WARNING: make sure you only create one server browser widgit otherwise they'll fight each other
+//WARNING: make sure you only create one server browser widget otherwise they'll fight each other
 
 #ifndef MOD_GAMEDIR
 //look up what its meant to be.

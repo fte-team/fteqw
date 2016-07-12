@@ -10,8 +10,6 @@
 #include <unistd.h>
 #endif
 
-static texid_tf dummytex;
-
 static void Headless_Draw_Init(void)
 {
 	R2D_Init();
@@ -156,7 +154,7 @@ static qboolean Headless_VID_ApplyGammaRamps		(unsigned short *ramps)
 {
 	return false;
 }
-static void	Headless_VID_SetWindowCaption		(char *msg)
+static void	Headless_VID_SetWindowCaption		(const char *msg)
 {
 }
 static char	*Headless_VID_GetRGBInfo			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
@@ -165,7 +163,7 @@ static char	*Headless_VID_GetRGBInfo			(int *truevidwidth, int *truevidheight, e
 	*truevidwidth = *truevidheight = 0;
 	return NULL;
 }
-static void	Headless_SCR_UpdateScreen			(void)
+static qboolean	Headless_SCR_UpdateScreen			(void)
 {
 	if (!cls.timedemo)
 	{
@@ -175,6 +173,7 @@ static void	Headless_SCR_UpdateScreen			(void)
 		usleep(100*1000);
 #endif
 	}
+	return true;
 }
 static void	Headless_BE_SelectMode	(backendmode_t mode)
 {
@@ -227,10 +226,10 @@ static void Headless_BE_VBO_Begin	(vbobctx_t *ctx, size_t maxsize)
 static void Headless_BE_VBO_Data	(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray)
 {
 }
-static void Headless_BE_VBO_Finish	(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray)
+static void Headless_BE_VBO_Finish	(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem)
 {
 }
-static void Headless_BE_VBO_Destroy	(vboarray_t *vearray)
+static void Headless_BE_VBO_Destroy	(vboarray_t *vearray, void *mem)
 {
 }
 static void Headless_BE_RenderToTextureUpdate2d	(qboolean destchanged)

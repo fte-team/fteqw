@@ -10,6 +10,10 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
+#ifndef ANDROID
+#error ANDROID wasnt defined
+#endif
+
 #ifndef isDedicated
 #ifdef SERVERONLY
 qboolean isDedicated = true;
@@ -20,7 +24,7 @@ qboolean isDedicated = false;
 void *sys_window; /*public so the renderer can attach to the correct place*/
 static int sys_running = false;
 int sys_glesversion;
-extern qboolean r_blockvidrestart;
+extern int r_blockvidrestart;
 float sys_dpi_x, sys_dpi_y;
 int sys_soundflags;	/*1 means active. 2 means reset (so claim that its not active for one frame to force a reset)*/
 static void *sys_memheap;

@@ -713,10 +713,10 @@ the resulting string is not intended to be visible to humans, but this functions
 void deleetstring(char *result, const char *leet)
 {
 	char *s = result;
-	const char *s2 = leet;
+	const unsigned char *s2 = (const unsigned char*)leet;
 	while(*s2)
 	{
-		if (*s2 == (char)0xff)
+		if (*s2 == 0xff)
 		{
 			s2++;
 			continue;
@@ -1035,6 +1035,69 @@ void MSG_WriteAngle (sizebuf_t *sb, float f)
 		MSG_WriteFloat(sb, f);
 	else
 		MSG_WriteAngle8 (sb, f);
+}
+
+
+int MSG_ReadSize16 (sizebuf_t *sb)
+{
+	unsigned short ssolid = MSG_ReadShort();
+	if (ssolid == ES_SOLID_BSP)
+		return ssolid;
+	else
+	{
+		int solid = (((ssolid>>7) & 0x1F8) - 32+32768)<<16;	/*up can be negative*/
+		solid|= ((ssolid & 0x1F)<<3);
+		solid|= ((ssolid & 0x3E0)<<10);
+		return solid;
+	}
+}
+void MSG_WriteSize16 (sizebuf_t *sb, int sz)
+{
+	if (sz == ES_SOLID_BSP)
+		MSG_WriteShort(sb, ES_SOLID_BSP);
+	else if (sz)
+	{
+		//decode the 32bit version and recode it.
+		int x = sz & 255;
+		int zd = (sz >> 8) & 255;
+		int zu = ((sz >> 16) & 65535) - 32768;
+		MSG_WriteShort(sb, 
+			((x>>3)<<0) |
+			((zd>>3)<<5) |
+			(((zu+32)>>3)<<10));
+	}
+	else
+		MSG_WriteShort(sb, 0);
+}
+void COM_DecodeSize(int solid, vec3_t mins, vec3_t maxs)
+{
+#if 1
+	maxs[0] = maxs[1] = solid & 255;
+	mins[0] = mins[1] = -maxs[0];
+	mins[2] = -((solid>>8) & 255);
+	maxs[2] = ((solid>>16) & 65535) - 32768;
+#else
+	maxs[0] = maxs[1] = 8*(solid & 31);
+	mins[0] = mins[1] = -maxs[0];
+	mins[2] = -8*((solid>>5) & 31);
+	maxs[2] = 8*((solid>>10) & 63) - 32;
+#endif
+}
+int COM_EncodeSize(vec3_t mins, vec3_t maxs)
+{
+	int solid;
+#if 1
+	solid = bound(0, (int)-mins[0], 255);
+	solid |= bound(0, (int)-mins[2], 255)<<8;
+	solid |= bound(0, (int)((maxs[2]+32768)), 65535)<<16;	/*up can be negative*/;
+#else
+	solid = bound(0, (int)-mins[0]/8, 31);
+	solid |= bound(0, (int)-mins[2]/8, 31)<<5;
+	solid |= bound(0, (int)((maxs[2]+32)/8), 63)<<10;	/*up can be negative*/;
+#endif
+	if (solid == 4096)
+		solid = 0;	//point sized stuff should just be non-solid. you'll thank me for splitscreens.
+	return solid;
 }
 
 static unsigned int MSG_ReadEntity(void)
@@ -1754,9 +1817,6 @@ void *SZ_GetSpace (sizebuf_t *buf, int length)
 		if (!buf->allowoverflow)
 			Sys_Error ("SZ_GetSpace: overflow without allowoverflow set (%d)", buf->maxsize);
 
-		if (length > buf->maxsize)
-			Sys_Error ("SZ_GetSpace: %i is > full buffer size", length);
-
 		Sys_Printf ("SZ_GetSpace: overflow (%i+%i bytes of %i)\n", buf->cursize, length, buf->maxsize);	// because Con_Printf may be redirected
 		SZ_Clear (buf);
 		buf->overflowed = true;
@@ -1906,52 +1966,52 @@ void COM_CleanUpPath(char *str)
 {
 	char *dots;
 	char *slash;
-	int critisize = 0;
+	int criticize = 0;
 	for (dots = str; *dots; dots++)
 	{
 		if (*dots >= 'A' && *dots <= 'Z')
 		{
 			*dots = *dots - 'A' + 'a';
-			critisize = 1;
+			criticize = 1;
 		}
 		else if (*dots == '\\')
 		{
 			*dots = '/';
-			critisize = 2;
+			criticize = 2;
 		}
 	}
 	while ((dots = strstr(str, "..")))
 	{
-		critisize = 0;
+		criticize = 0;
 		for (slash = dots-2; slash >= str; slash--)
 		{
 			if (*slash == '/')
 			{
 				memmove(slash, dots+2, strlen(dots+2)+1);
-				critisize = 3;
+				criticize = 3;
 				break;
 			}
 		}
-		if (critisize != 3)
+		if (criticize != 3)
 		{
 			memmove(dots, dots+2, strlen(dots+2)+1);
-			critisize = 3;
+			criticize = 3;
 		}
 	}
 	while(*str == '/')
 	{
 		memmove(str, str+1, strlen(str+1)+1);
-		critisize = 4;
+		criticize = 4;
 	}
-/*	if(critisize)
+/*	if(criticize)
 	{
-		if (critisize == 1)	//not a biggy, so not red.
+		if (criticize == 1)	//not a biggy, so not red.
 			Con_Printf("Please fix file case on your files\n");
-		else if (critisize == 2)	//you're evil.
+		else if (criticize == 2)	//you're evil.
 			Con_Printf("^1NEVER use backslash in a quake filename (we like portability)\n");
-		else if (critisize == 3)	//compleatly stupid. The main reason why this function exists. Quake2 does it!
+		else if (criticize == 3)	//compleatly stupid. The main reason why this function exists. Quake2 does it!
 			Con_Printf("You realise that relative paths are a waste of space?\n");
-		else if (critisize == 4)	//AAAAHHHHH! (consider sys_error instead)
+		else if (criticize == 4)	//AAAAHHHHH! (consider sys_error instead)
 			Con_Printf("^1AAAAAAAHHHH! An absolute path!\n");
 	}
 */
@@ -2574,7 +2634,7 @@ conchar_t q3codemasks[MAXQ3COLOURS] = {
 };
 
 //Converts a conchar_t string into a char string. returns the null terminator. pass NULL for stop to calc it
-char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags)
+char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags, qboolean forceutf8)
 {
 	unsigned int codeflags, codepoint;
 	if (!stop)
@@ -2610,7 +2670,6 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 			str = Font_Decode(str, &codeflags, &codepoint);
 			if ((codeflags & CON_HIDDEN) && ignoreflags)
 			{
-				str++;
 				continue;
 			}
 			if (codeflags == (CON_LINKSPECIAL | CON_HIDDEN) && codepoint == '[')
@@ -2625,7 +2684,6 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 				}
 				prelinkflags = fl;
 				fl = COLOR_RED << CON_FGSHIFT;
-				str++;
 				continue;
 			}
 			else if (codeflags == (CON_LINKSPECIAL | CON_HIDDEN) && codepoint == ']')
@@ -2639,7 +2697,6 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 					*out++ = ']';
 				}
 				fl = prelinkflags;
-				str++;
 				continue;
 			}
 			else if (codeflags != fl && !ignoreflags)
@@ -2716,7 +2773,10 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 			if (ignoreflags && (codeflags & CON_HIDDEN))
 				continue;
 
-			c = unicode_encode(out, codepoint, outsize-1, !ignoreflags);
+			if (forceutf8)
+				c = utf8_encode(out, codepoint, outsize-1);
+			else
+				c = unicode_encode(out, codepoint, outsize-1, !ignoreflags);
 			if (!c)
 				break;
 			outsize -= c;
@@ -2780,6 +2840,8 @@ char *COM_ParseStringSetSep (const char *data, char sep)
 	int	c;
 	size_t	len;
 
+	COM_AssertMainThread("COM_ParseStringSetSep");
+
 	len = 0;
 	com_token[0] = 0;
 
@@ -2814,6 +2876,8 @@ static void COM_BiDi_Setup(void)
 	char *tok;
 	unsigned int c;
 	qofs_t size;
+
+	COM_AssertMainThread("COM_ParseToken");
 
 	file = FS_MallocFile("bidi.dat", FS_ROOT, &size);
 	if (file)
@@ -3694,6 +3758,9 @@ char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qbo
 	int		len;
 	char *s;
 
+	if (token == com_token)
+		COM_AssertMainThread("COM_StringParse: com_token");
+
 	len = 0;
 	token[0] = 0;
 
@@ -4023,8 +4090,10 @@ const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean
 		{
 			*buf++ = '\\';	//prefix so the reader knows its a quoted string.
 			*buf++ = '\"';	//opening quote
+			buflen -= 4;
 		}
-		buflen -= 4;
+		else
+			buflen -= 1;
 		while(*string && buflen >= 2)
 		{
 			switch(*string)
@@ -4058,9 +4127,11 @@ const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean
 				*buf++ = '$';
 				break;
 			default:
-				*buf++ = *string;
-				break;
+				*buf++ = *string++;
+				buflen--;
+				continue;
 			}
+			buflen -= 2;
 			string++;
 		}
 		if (!omitquotes)
@@ -4071,11 +4142,16 @@ const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean
 	else
 	{
 		if (!omitquotes)
+		{
 			*buf++ = '\"';	//opening quote
-		buflen -= 3;
-		while(*string && buflen >= 0)
+			buflen -= 3;
+		}
+		else
+			buflen -= 1;
+		while(*string && buflen >= 1)
 		{
 			*buf++ = *string++;
+			buflen--;
 		}
 		if (!omitquotes)
 			*buf++ = '\"';	//closing quote
@@ -4340,7 +4416,6 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 {
 	qboolean	safe;
 	int			i;
-	size_t result;
 
 #if !defined(NACL) && !defined(FTE_TARGET_WEB)
 	FILE *f;
@@ -4351,6 +4426,7 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 		f = NULL;
 	if (f)
 	{
+		size_t result;
 		char *buffer;
 		int len;
 		fseek(f, 0, SEEK_END);
@@ -4848,7 +4924,7 @@ void COM_PrintWork(void)
 		work = com_work_head[tg];
 		while (work)
 		{
-			Sys_Printf("thread%i: %s\n", tg, (char*)work->ctx);
+			Sys_Printf("group%i: %s\n", tg, (char*)work->ctx);
 			work = work->next;
 		}
 		Sys_UnlockConditional(com_workercondition[tg]);
@@ -5210,6 +5286,23 @@ static void COM_WorkerTest_f(void)
 	*timestamp = Sys_DoubleTime();
 	COM_AddWork(WG_LOADER, COM_WorkerPing, NULL, timestamp, 0, 0);
 }
+static void COM_WorkerStatus_f(void)
+{
+	struct com_work_s *work;
+	int i, count;
+	for (i = 0, count = 0; i < WORKERTHREADS; i++)
+	{
+		if (com_worker[i].thread)
+			count++;
+	}
+	Con_Printf("%i workers live\n", count);
+
+	Sys_LockConditional(com_workercondition[WG_LOADER]);
+	for (count = 0, work = com_work_head[WG_LOADER]; work; work = work->next)
+		count++;
+	Sys_UnlockConditional(com_workercondition[WG_LOADER]);
+	Con_Printf("%i pending tasks\n", count);
+}
 
 static void QDECL COM_WorkerCount_Change(cvar_t *var, char *oldvalue)
 {
@@ -5265,6 +5358,7 @@ static void COM_InitWorkerThread(void)
 	Cvar_Register(&worker_count, NULL);
 
 	Cmd_AddCommand ("worker_test", COM_WorkerTest_f);
+	Cmd_AddCommand ("worker_status", COM_WorkerStatus_f);
 	Cvar_Register(&worker_flush, NULL);
 	Cvar_Register(&worker_sleeptime, NULL);
 	Cvar_ForceCallback(&worker_count);
@@ -5348,7 +5442,7 @@ void COM_Init (void)
 	nullentitystate.glowmod[2] = 32;
 	nullentitystate.trans = 255;
 	nullentitystate.scale = 16;
-	nullentitystate.solid = 0;//ES_SOLID_BSP;
+	nullentitystate.solidsize = 0;//ES_SOLID_BSP;
 }
 
 
@@ -5364,8 +5458,9 @@ FIXME: make this buffer size safe someday
 char	*VARGS va(const char *format, ...)
 {
 #define VA_BUFFERS 2 //power of two
+#define VA_BUFFER_SIZE 8192
 	va_list		argptr;
-	static char		string[VA_BUFFERS][1024];
+	static char		string[VA_BUFFERS][VA_BUFFER_SIZE];
 	static int bufnum;
 
 	COM_AssertMainThread("va");
@@ -5392,49 +5487,9 @@ int	memsearch (qbyte *start, int count, int search)
 	return -1;
 }
 
-/*
-struct effectinfo_s
-{
-	struct effectinfo_s *next;
-	int index;
-
-	char name[1];
-};
-static struct effectinfo_s *effectinfo;
-static unsigned int lasteffectinfoid;
-
-void COM_Effectinfo_Clear(void)
-{
-	struct effectinfo_s *n;
-	while(effectinfo)
-	{
-		n = effectinfo->next;
-		Z_Free(effectinfo);
-		effectinfo = n;
-	}
-	lasteffectinfoid = 0;
-}
-
-int COM_Effectinfo_Add(const char *effectname)
-{
-	struct effectinfo_s *n;
-	for (n = effectinfo; n; n = n->next)
-	{
-		if (!strcmp(effectname, n->name))
-			return 0;	//already known
-	}
-
-
-	n = Z_Malloc(sizeof(*n) + strlen(effectname));
-	n->next = effectinfo;
-	n->index = ++lasteffectinfoid;
-	effectinfo = n;
-	strcpy(n->name, effectname);
-
-	return n->index;
-}
-
-void COM_Effectinfo_Reload(void)
+#ifdef NQPROT
+//for compat with dpp7 protocols
+void COM_Effectinfo_Enumerate(int (*cb)(const char *pname))
 {
 	int i;
 	char *f, *buf;
@@ -5478,15 +5533,13 @@ void COM_Effectinfo_Reload(void)
 		NULL
 	};
 
-	COM_Effectinfo_Clear();
-
-	for (i = 0; dpnames[i]; i++)
-		COM_Effectinfo_Add(dpnames[i]);
-
-
 	FS_LoadFile("effectinfo.txt", (void **)&f);
 	if (!f)
 		return;
+
+	for (i = 0; dpnames[i]; i++)
+		cb(dpnames[i]);
+
 	buf = f;
 	while (f && *f)
 	{
@@ -5496,8 +5549,7 @@ void COM_Effectinfo_Reload(void)
 			if (!strcmp(com_token, "effect"))
 			{
 				f = COM_ParseToken(f, NULL);
-
-				COM_Effectinfo_Add(com_token);
+				cb(com_token);
 			}
 
 			do
@@ -5508,37 +5560,8 @@ void COM_Effectinfo_Reload(void)
 	}
 	FS_FreeFile(buf);
 }
+#endif
 
-unsigned int COM_Effectinfo_ForName(const char *efname)
-{
-	struct effectinfo_s *e;
-
-	if (!effectinfo)
-		COM_Effectinfo_Reload();
-
-	for (e = effectinfo; e; e = e->next)
-	{
-		if (!strcmp(efname, e->name))
-			return e->index;
-	}
-	return COM_Effectinfo_Add(efname);
-}
-
-char *COM_Effectinfo_ForNumber(unsigned int efnum)
-{
-	struct effectinfo_s *e;
-
-	if (!effectinfo)
-		COM_Effectinfo_Reload();
-
-	for (e = effectinfo; e; e = e->next)
-	{
-		if (e->index == efnum)
-			return e->name;
-	}
-	return "";
-}
-*/
 /*************************************************************************/
 
 /*remaps map checksums from known non-cheat GPL maps to authentic id1 maps*/

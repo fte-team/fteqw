@@ -13,7 +13,7 @@
 int mousecursor_x, mousecursor_y;
 
 static xclient_t *xclients;
-static qhandle_t xlistensocket=NULL;
+static qhandle_t xlistensocket;
 
 xwindow_t *xfocusedwindow;
 
@@ -479,7 +479,7 @@ qboolean XWindows_TendToClient(xclient_t *cl)	//true says drop
 			}
 			len = cl->inbuffermaxlen - cl->inbufferlen;
 //Con_Printf("recving\n");
-			len = Net_Recv(cl->socket, cl->inbuffer + cl->inbufferlen, len);
+			len = pNet_Recv(cl->socket, cl->inbuffer + cl->inbufferlen, len);
 //Con_Printf("recved %i\n", len);
 			if (len == 0)	//connection was closed. bummer.
 			{
@@ -632,7 +632,7 @@ nextmessage:
 			len = cl->outbufferlen;
 			if (len > 8000)
 				len = 8000;
-			len = Net_Send(cl->socket, cl->outbuffer, len);
+			len = pNet_Send(cl->socket, cl->outbuffer, len);
 			if (len>0)
 			{
 				memmove(cl->outbuffer, cl->outbuffer+len, cl->outbufferlen - len);
@@ -768,9 +768,9 @@ void XWindows_TendToClients(void)
 	unsigned int _false = 0;
 #endif
 
-	if (xlistensocket != NULL)
+	if (xlistensocket)
 	{
-		newclient = Net_Accept(xlistensocket, NULL, 0);
+		newclient = pNet_Accept(xlistensocket, NULL, 0);
 		if ((int)newclient != -1)
 		{
 			cl = malloc(sizeof(xclient_t));
@@ -816,7 +816,7 @@ void XWindows_TendToClients(void)
 				break;
 			}
 #endif
-			Net_Close(cl->socket);
+			pNet_Close(cl->socket);
 			if (cl->inbuffer)
 				free(cl->inbuffer);
 			if (cl->outbuffer)
@@ -835,15 +835,15 @@ void XWindows_Startup(void)	//initialise the server socket and do any initial se
 
 	int port = 6000;
 
-	Cmd_Argv(1, buffer, sizeof(buffer));
+	pCmd_Argv(1, buffer, sizeof(buffer));
 	port += atoi(buffer);
 
-	if (xlistensocket == NULL)
+	if (!xlistensocket)
 	{
-		xlistensocket = Net_TCPListen(NULL, port, 3);
-		if ((int)xlistensocket < 0)
+		xlistensocket = pNet_TCPListen(NULL, port, 3);
+		if (xlistensocket < 0)
 		{
-			xlistensocket = NULL;
+			xlistensocket = 0;
 			Con_Printf("Failed to create tcp listen socket\n");
 			return;
 		}
@@ -1055,7 +1055,7 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 	xwindow_t *nw = ew;
 	xwindow_t *oc[MAX_WINDOW_CHAIN];
 	xwindow_t *nc[MAX_WINDOW_CHAIN];
-	unsigned int curtime = Sys_Milliseconds();
+	unsigned int curtime = pSys_Milliseconds();
 
 
 	if (!nw)
@@ -1101,7 +1101,7 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 		//LeaveNotify with detail Inferior is generated on A.
 		ev.u.u.type					= LeaveNotify;
 		ev.u.u.detail				= NotifyInferior;
-		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.time		= pSys_Milliseconds();
 		ev.u.enterLeave.root		= rootwindow->res.id;
 		ev.u.enterLeave.event		= oc[0]->res.id;
 		ev.u.enterLeave.child		= None;
@@ -1119,7 +1119,7 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 		{
 			ev.u.u.type					= EnterNotify;
 			ev.u.u.detail				= NotifyVirtual;
-			ev.u.enterLeave.time		= Sys_Milliseconds();
+			ev.u.enterLeave.time		= pSys_Milliseconds();
 			ev.u.enterLeave.root		= rootwindow->res.id;
 			ev.u.enterLeave.event		= oc[i]->res.id;
 			ev.u.enterLeave.child		= oc[i-1]->res.id;
@@ -1136,7 +1136,7 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 		//EnterNotify with detail Ancestor is generated on B.
 		ev.u.u.type					= EnterNotify;
 		ev.u.u.detail				= NotifyInferior;
-		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.time		= pSys_Milliseconds();
 		ev.u.enterLeave.root		= rootwindow->res.id;
 		ev.u.enterLeave.event		= nc[0]->res.id;
 		ev.u.enterLeave.child		= None;
@@ -1155,7 +1155,7 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 		//LeaveNotify with detail Ancestor is generated on A.
 		ev.u.u.type					= LeaveNotify;
 		ev.u.u.detail				= NotifyAncestor;
-		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.time		= pSys_Milliseconds();
 		ev.u.enterLeave.root		= rootwindow->res.id;
 		ev.u.enterLeave.event		= oc[0]->res.id;
 		ev.u.enterLeave.child		= None;
@@ -1173,7 +1173,7 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 		{
 			ev.u.u.type					= LeaveNotify;
 			ev.u.u.detail				= NotifyVirtual;
-			ev.u.enterLeave.time		= Sys_Milliseconds();
+			ev.u.enterLeave.time		= pSys_Milliseconds();
 			ev.u.enterLeave.root		= rootwindow->res.id;
 			ev.u.enterLeave.event		= nc[i]->res.id;
 			ev.u.enterLeave.child		= nc[i-1]->res.id;
@@ -1190,7 +1190,7 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 		//EnterNotify with detail Inferior is generated on B.
 		ev.u.u.type					= EnterNotify;
 		ev.u.u.detail				= NotifyInferior;
-		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.time		= pSys_Milliseconds();
 		ev.u.enterLeave.root		= rootwindow->res.id;
 		ev.u.enterLeave.event		= nc[0]->res.id;
 		ev.u.enterLeave.child		= None;
@@ -1210,7 +1210,7 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 		//LeaveNotify with detail Nonlinear is generated on A.
 		ev.u.u.type					= LeaveNotify;
 		ev.u.u.detail				= NotifyNonlinear;
-		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.time		= pSys_Milliseconds();
 		ev.u.enterLeave.root		= rootwindow->res.id;
 		ev.u.enterLeave.event		= oc[0]->res.id;
 		ev.u.enterLeave.child		= None;
@@ -1228,7 +1228,7 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 		{
 			ev.u.u.type					= LeaveNotify;
 			ev.u.u.detail				= NotifyNonlinearVirtual;
-			ev.u.enterLeave.time		= Sys_Milliseconds();
+			ev.u.enterLeave.time		= pSys_Milliseconds();
 			ev.u.enterLeave.root		= rootwindow->res.id;
 			ev.u.enterLeave.event		= nc[i]->res.id;
 			ev.u.enterLeave.child		= nc[i-1]->res.id;
@@ -1246,7 +1246,7 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 		{
 			ev.u.u.type					= EnterNotify;
 			ev.u.u.detail				= NotifyNonlinearVirtual;
-			ev.u.enterLeave.time		= Sys_Milliseconds();
+			ev.u.enterLeave.time		= pSys_Milliseconds();
 			ev.u.enterLeave.root		= rootwindow->res.id;
 			ev.u.enterLeave.event		= oc[i]->res.id;
 			ev.u.enterLeave.child		= oc[i-1]->res.id;
@@ -1263,7 +1263,7 @@ void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
 		//EnterNotify with detail Nonlinear is generated on B.
 		ev.u.u.type					= EnterNotify;
 		ev.u.u.detail				= NotifyNonlinear;
-		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.time		= pSys_Milliseconds();
 		ev.u.enterLeave.root		= rootwindow->res.id;
 		ev.u.enterLeave.event		= nc[0]->res.id;
 		ev.u.enterLeave.child		= None;
@@ -1394,7 +1394,7 @@ void X_EvalutateCursorOwner(int movemode)
 				ev.u.u.type						= MotionNotify;
 				ev.u.u.detail					= 0;
 				ev.u.u.sequenceNumber			= 0;
-				ev.u.keyButtonPointer.time		= Sys_Milliseconds();
+				ev.u.keyButtonPointer.time		= pSys_Milliseconds();
 				ev.u.keyButtonPointer.root		= rootwindow->res.id;
 				ev.u.keyButtonPointer.event		= cursorowner->res.id;
 				ev.u.keyButtonPointer.child		= (x_windowwithcursor == cursorowner->res.id)?None:x_windowwithcursor;
@@ -1767,7 +1767,7 @@ void XWindows_KeyDown(int key)
 			ev.u.keyButtonPointer.child		= x_windowwithfocus;
 		}
 		ev.u.u.sequenceNumber			= 0;
-		ev.u.keyButtonPointer.time		= Sys_Milliseconds();
+		ev.u.keyButtonPointer.time		= pSys_Milliseconds();
 		ev.u.keyButtonPointer.rootX		= x_mousex;
 		ev.u.keyButtonPointer.rootY		= x_mousey;
 		ev.u.keyButtonPointer.sameScreen= true;
@@ -1865,7 +1865,7 @@ void XWindows_Keyup(int key)
 			ev.u.keyButtonPointer.child		= x_windowwithfocus;
 		}
 		ev.u.u.sequenceNumber			= 0;
-		ev.u.keyButtonPointer.time		= Sys_Milliseconds();
+		ev.u.keyButtonPointer.time		= pSys_Milliseconds();
 		ev.u.keyButtonPointer.rootX		= x_mousex;
 		ev.u.keyButtonPointer.rootY		= x_mousey;
 		ev.u.keyButtonPointer.state		= 0;
@@ -1924,7 +1924,7 @@ int Plug_MenuEvent(int *args)
 qintptr_t Plug_ExecuteCommand(qintptr_t *args)
 {
 	char cmd[256];
-	Cmd_Argv(0, cmd, sizeof(cmd));
+	pCmd_Argv(0, cmd, sizeof(cmd));
 	if (!strcmp("startx", cmd))
 	{
 		XWindows_Startup();
@@ -1939,7 +1939,7 @@ qintptr_t Plug_Tick(qintptr_t *args)
 	return 0;
 }
 
-static void *XWindows_Create(char *medianame)	//initialise the server socket and do any initial setup as required.
+static void *XWindows_Create(const char *medianame)	//initialise the server socket and do any initial setup as required.
 {
 	if (!strcmp(medianame, "x11"))
 	{
@@ -1949,24 +1949,21 @@ static void *XWindows_Create(char *medianame)	//initialise the server socket and
 	return NULL;
 }
 
-qbyte *XWindows_DisplayFrame(void *ctx, qboolean nosound, enum uploadfmt *fmt, int *width, int *height)
+static qboolean VARGS XWindows_DisplayFrame(void *ctx, qboolean nosound, qboolean forcevideo, double mediatime, void (QDECL *uploadtexture)(void *ectx, uploadfmt_t fmt, int width, int height, void *data, void *palette), void *ectx)
 {
 	XWindows_Draw();
 
-	*fmt = TF_BGRX32;
-	*width = xscreenwidth;
-	*height = xscreenheight;
-
-	if (!xscreenmodified)
-		return NULL;
+	if (forcevideo || xscreenmodified)
+		uploadtexture(ectx, TF_BGRX32, xscreenwidth, xscreenheight, xscreen, NULL);
 	xscreenmodified = false;
-	return xscreen;
+
+	return true;
 }
 
 static void XWindows_Shutdown(void *ctx)
 {
-	Net_Close(xlistensocket);
-	xlistensocket = NULL;
+	pNet_Close(xlistensocket);
+	xlistensocket = 0;
 }
 
 static qboolean XWindows_SetSize (void *ctx, int width, int height)
@@ -2012,9 +2009,10 @@ static void XWindows_Key (void *ctx, int code, int unicode, int isup)
 
 media_decoder_funcs_t decoderfuncs =
 {
+	sizeof(media_decoder_funcs_t),
+	"x11",
 	XWindows_Create,
 	XWindows_DisplayFrame,
-	NULL,//doneframe
 	XWindows_Shutdown,
 	NULL,//rewind
 
@@ -2036,7 +2034,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 		return false;
 	}
 
-	if (!Plug_ExportNative("Media_VideoDecoder", &decoderfuncs))
+	if (!pPlug_ExportNative("Media_VideoDecoder", &decoderfuncs))
 	{
 		Con_Printf("XServer plugin failed: Engine doesn't support media decoder plugins\n");
 		return false;
@@ -2044,17 +2042,17 @@ qintptr_t Plug_Init(qintptr_t *args)
 
 	Con_Printf("XServer plugin started\n");
 
-	Cmd_AddCommand("startx");
+	pCmd_AddCommand("startx");
 
 
-	K_CTRL			= Key_GetKeyCode("ctrl");
-	K_ALT			= Key_GetKeyCode("alt");
-	K_MOUSE1		= Key_GetKeyCode("mouse1");
-	K_MOUSE2		= Key_GetKeyCode("mouse2");
-	K_MOUSE3		= Key_GetKeyCode("mouse3");
-	K_MOUSE4		= Key_GetKeyCode("mouse4");
-	K_MOUSE5		= Key_GetKeyCode("mouse5");
-	K_BACKSPACE		= Key_GetKeyCode("backspace");
+	K_CTRL			= pKey_GetKeyCode("ctrl");
+	K_ALT			= pKey_GetKeyCode("alt");
+	K_MOUSE1		= pKey_GetKeyCode("mouse1");
+	K_MOUSE2		= pKey_GetKeyCode("mouse2");
+	K_MOUSE3		= pKey_GetKeyCode("mouse3");
+	K_MOUSE4		= pKey_GetKeyCode("mouse4");
+	K_MOUSE5		= pKey_GetKeyCode("mouse5");
+	K_BACKSPACE		= pKey_GetKeyCode("backspace");
 /*
 	K_UPARROW		= Key_GetKeyCode("uparrow");
 	K_DOWNARROW		= Key_GetKeyCode("downarrow");

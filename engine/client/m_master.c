@@ -405,7 +405,7 @@ static void SL_PreDraw	(menu_t *menu)
 	}
 
 	info->numslots = Master_NumSorted();
-	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u/%u/%u\n", info->numslots, Master_NumPolled(), Master_TotalCount());
+	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u/%u/%u\n", info->numslots, Master_NumAlive(), Master_TotalCount());
 }
 static void SL_PostDraw	(menu_t *menu)
 {
@@ -442,6 +442,7 @@ static void SL_PostDraw	(menu_t *menu)
 		if (server && server->moreinfo)
 		{
 			int lx, x, y, i;
+			int skins = 0;
 			if (serverpreview == 4)
 			{
 				//count the number of proxies the best route will need
@@ -466,7 +467,19 @@ static void SL_PostDraw	(menu_t *menu)
 				}
 			}
 			else
+			{
 				h += server->moreinfo->numplayers+2;
+
+				for (i = 0; i < server->moreinfo->numplayers; i++)
+				{
+					if (*server->moreinfo->players[i].skin && strcmp(server->moreinfo->players[i].skin, "base"))
+					{
+						skins = true;
+						w += 8*8+8;
+						break;
+					}
+				}
+			}
 			h += 4;
 			h *= 8;
 
@@ -540,19 +553,22 @@ static void SL_PostDraw	(menu_t *menu)
 					Draw_FunStringWidth (x, y, "^mTeam", 4*8, false, false);
 					x += 4*8+8;
 					Draw_FunStringWidth (x, y, "^mName", 12*8, false, false);
-					x += 12*8+8;
 				}
 				else
 				{
 					Draw_FunStringWidth (x, y, "^mName", 16*8, false, false);
-					x += 16*8+8;
+				}
+				if (skins)
+				{
+					Draw_FunStringWidth (lx+w-(8*8+8), y, "^mSkin", 8*8, false, false);
+					x = lx+w;
 				}
 
 				y+=8;
 				for (i = 0; i < server->moreinfo->numplayers; i++)
 				{
 					x = lx;
-					if (server->moreinfo->players[i].isspec)
+					if (server->moreinfo->players[i].isspec&1)
 						Draw_FunStringWidth (x, y, "spec", 32, true, false);
 					else
 					{
@@ -564,7 +580,10 @@ static void SL_PostDraw	(menu_t *menu)
 						Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].frags), 32-4, true, false);
 					}
 					x += 32+8;
-					Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].ping), 28, true, false);
+					if (server->moreinfo->players[i].isspec&2)
+						Draw_FunStringWidth (x-8, y, "bot", 3*8+8, true, false);
+					else
+						Draw_FunStringWidth (x-8, y, va("%3i", server->moreinfo->players[i].ping), 3*8+8, true, false);
 					x += 3*8+8;
 
 					if (teamplay)
@@ -573,7 +592,14 @@ static void SL_PostDraw	(menu_t *menu)
 						x += 4*8+8;
 					}
 
-					Draw_FunStringWidth (x, y, server->moreinfo->players[i].name, lx+w-x, false, false);
+					if (skins)
+					{
+						Draw_FunStringWidth (x, y, server->moreinfo->players[i].name, lx+w-(8*8+8)-x, false, false);
+						x += lx+w-(8*8+8)-x;
+						Draw_FunStringWidth (x, y, server->moreinfo->players[i].skin, 8*8, false, false);
+					}
+					else
+						Draw_FunStringWidth (x, y, server->moreinfo->players[i].name, lx+w-x, false, false);
 
 					y += 8;
 				}
@@ -659,6 +685,11 @@ static void SL_PostDraw	(menu_t *menu)
 		{
 			Draw_FunStringWidth(0, vid.height/2 - 8, "No servers found", vid.width, 2, false);
 			Draw_FunStringWidth(0, vid.height/2 + 0, "Check internet connection", vid.width, 2, false);
+		}
+		else if (!Master_NumAlive())
+		{
+			Draw_FunStringWidth(0, vid.height/2 - 8, "No servers responding", vid.width, 2, false);
+			Draw_FunStringWidth(0, vid.height/2 + 0, "Check udp internet connection", vid.width, 2, false);
 		}
 		else
 		{
@@ -866,7 +897,7 @@ static void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
 			if (ths->dint < selectedserver.detail->numplayers)
 			{
 				int i = ths->dint;
-				if (selectedserver.detail->players[i].isspec)
+				if (selectedserver.detail->players[i].isspec&1)
 					Draw_FunStringWidth (x, y, "spectator", 32, false, false);
 				else
 				{

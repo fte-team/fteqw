@@ -121,9 +121,9 @@ static apic_t      *hsb_items[2];
 qboolean	sb_showscores;
 qboolean	sb_showteamscores;
 
-qboolean	sbarfailed;
+static qboolean	sbarfailed;
 #ifdef HEXEN2
-qboolean	sbar_hexen2;
+static qboolean	sbar_hexen2;
 #endif
 
 vrect_t		sbar_rect;	//screen area that the sbar must fit.
@@ -136,7 +136,7 @@ void Sbar_TeamOverlay (void);
 static void Sbar_MiniDeathmatchOverlay (playerview_t *pv);
 void Sbar_ChatModeOverlay(playerview_t *pv);
 
-int Sbar_PlayerNum(playerview_t *pv)
+static int Sbar_PlayerNum(playerview_t *pv)
 {
 	int num;
 	num = cl.spectator?Cam_TrackNum(pv):-1;
@@ -145,7 +145,7 @@ int Sbar_PlayerNum(playerview_t *pv)
 	return num;
 }
 
-int Sbar_TopColour(player_info_t *p)
+static int Sbar_TopColour(player_info_t *p)
 {
 	if (cl.teamfortress)
 	{
@@ -160,7 +160,7 @@ int Sbar_TopColour(player_info_t *p)
 		return p->rtopcolor;
 }
 
-int Sbar_BottomColour(player_info_t *p)
+static int Sbar_BottomColour(player_info_t *p)
 {
 	if (cl.teamfortress)
 	{
@@ -218,7 +218,10 @@ void Draw_FunStringWidth(float x, float y, const void *str, int width, int right
 
 	width = (width*vid.rotpixelwidth)/vid.width;
 
-	COM_ParseFunString(highlight?CON_ALTMASK:CON_WHITEMASK, str, buffer, sizeof(buffer), false);
+	codeflags = (highlight&1)?CON_ALTMASK:CON_WHITEMASK;
+	if (highlight&2)
+		codeflags |= CON_BLINKTEXT;
+	COM_ParseFunString(codeflags, str, buffer, sizeof(buffer), false);
 
 	Font_BeginString(font_default, x, y, &px, &py);
 	if (rightalign)
@@ -769,7 +772,8 @@ void Sbar_ShowScores (void)
 	sb_updates = 0;
 }
 
-void Sbar_Hexen2InvLeft_f(void)
+#ifdef HEXEN2
+static void Sbar_Hexen2InvLeft_f(void)
 {
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
@@ -796,7 +800,7 @@ void Sbar_Hexen2InvLeft_f(void)
 		}
 	}
 }
-void Sbar_Hexen2InvRight_f(void)
+static void Sbar_Hexen2InvRight_f(void)
 {
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
@@ -823,7 +827,7 @@ void Sbar_Hexen2InvRight_f(void)
 		}
 	}
 }
-void Sbar_Hexen2InvUse_f(void)
+static void Sbar_Hexen2InvUse_f(void)
 {
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
@@ -841,7 +845,7 @@ void Sbar_Hexen2InvUse_f(void)
 		Cmd_ExecuteString(va("impulse %d\n", 100+pv->sb_hexen2_cur_item), Cmd_ExecLevel);
 	}
 }
-void Sbar_Hexen2ShowInfo_f(void)
+static void Sbar_Hexen2ShowInfo_f(void)
 {
 	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
 #ifdef CSQC_DAT
@@ -850,7 +854,7 @@ void Sbar_Hexen2ShowInfo_f(void)
 #endif
 	pv->sb_hexen2_extra_info = true;
 }
-void Sbar_Hexen2DontShowInfo_f(void)
+static void Sbar_Hexen2DontShowInfo_f(void)
 {
 	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
 #ifdef CSQC_DAT
@@ -859,7 +863,7 @@ void Sbar_Hexen2DontShowInfo_f(void)
 #endif
 	pv->sb_hexen2_extra_info = false;
 }
-void Sbar_Hexen2PInfoPlaque_f(void)
+static void Sbar_Hexen2PInfoPlaque_f(void)
 {
 	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
 #ifdef CSQC_DAT
@@ -868,7 +872,7 @@ void Sbar_Hexen2PInfoPlaque_f(void)
 #endif
 	pv->sb_hexen2_infoplaque = true;
 }
-void Sbar_Hexen2MInfoPlaque_f(void)
+static void Sbar_Hexen2MInfoPlaque_f(void)
 {
 	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
 #ifdef CSQC_DAT
@@ -877,6 +881,7 @@ void Sbar_Hexen2MInfoPlaque_f(void)
 #endif
 	pv->sb_hexen2_infoplaque = false;
 }
+#endif
 
 /*
 ===============
@@ -1111,18 +1116,22 @@ void Sbar_Init (void)
 	Cmd_AddCommand ("+showteamscores", Sbar_ShowTeamScores);
 	Cmd_AddCommand ("-showteamscores", Sbar_DontShowTeamScores);
 
+#ifdef HEXEN2
 	//stuff to get hexen2 working out-of-the-box
 	Cmd_AddCommand ("invleft", Sbar_Hexen2InvLeft_f);
 	Cmd_AddCommand ("invright", Sbar_Hexen2InvRight_f);
 	Cmd_AddCommand ("invprev", Sbar_Hexen2InvLeft_f);
 	Cmd_AddCommand ("invnext", Sbar_Hexen2InvRight_f);
 	Cmd_AddCommand ("invuse", Sbar_Hexen2InvUse_f);
-	Cmd_AddCommand ("+showinfo", Sbar_Hexen2ShowInfo_f);
-	Cmd_AddCommand ("-showinfo", Sbar_Hexen2DontShowInfo_f);
-	Cmd_AddCommand ("+infoplaque", Sbar_Hexen2PInfoPlaque_f);
-	Cmd_AddCommand ("-infoplaque", Sbar_Hexen2MInfoPlaque_f);
+	Cmd_AddCommandD ("+showinfo", Sbar_Hexen2ShowInfo_f, "Hexen2 Compat");
+	Cmd_AddCommandD ("-showinfo", Sbar_Hexen2DontShowInfo_f, "Hexen2 Compat");
+	Cmd_AddCommandD ("+infoplaque", Sbar_Hexen2PInfoPlaque_f, "Hexen2 Compat");
+	Cmd_AddCommandD ("-infoplaque", Sbar_Hexen2MInfoPlaque_f, "Hexen2 Compat");
+	Cmd_AddCommandD ("+showdm", Sbar_ShowScores, "Hexen2 Compat");
+	Cmd_AddCommandD ("-showdm", Sbar_DontShowScores, "Hexen2 Compat");
 	Cbuf_AddText("alias +crouch \"impulse 22\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("alias -crouch \"impulse 22\"\n", RESTRICT_LOCAL);
+#endif
 }
 
 
@@ -1359,7 +1368,8 @@ void Sbar_DrawNum (float x, float y, int num, int digits, int color)
 	}
 }
 
-void Sbar_Hexen2DrawNum (float x, float y, int num, int digits)
+#ifdef HEXEN2
+static void Sbar_Hexen2DrawNum (float x, float y, int num, int digits)
 {
 	char			str[12];
 	char			*ptr;
@@ -1386,6 +1396,7 @@ void Sbar_Hexen2DrawNum (float x, float y, int num, int digits)
 		ptr++;
 	}
 }
+#endif
 
 //=============================================================================
 
@@ -1432,7 +1443,7 @@ unsigned int	Sbar_ColorForMap (unsigned int m)
 	if (m >= 16)
 		return m;
 
-	m = (m < 0) ? 0 : ((m > 13) ? 13 : m);
+	m = (m > 13) ? 13 : m;
 
 	m *= 16;
 	return m < 128 ? m + 8 : m + 8;
@@ -3252,17 +3263,17 @@ ping time frags name
 		Draw_FunStringWidth(x, y, s->team, 4*8, false, false);			\
 	}													\
 },)
-#define COLUMN_NAME COLUMN(name, (cl.teamplay ? 12*8 : 16*8),	{Draw_FunStringWidth(x, y, s->name, (cl.teamplay ? 12*8 : 16*8), false, false);},)
+#define COLUMN_NAME COLUMN(name, namesize,	{Draw_FunStringWidth(x, y, s->name, namesize, false, false);},)
 #define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8, false, false);},)
 #define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8, false, false);},)
 #define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8, false, false);},)
 #define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8, false, false);},)
 #define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8, false, false);},)
-
+#define COLUMN_AFK COLUMN(, 0, {int cs = atoi(Info_ValueForKey(s->userinfo, "chat")); if (cs)Draw_FunStringWidth(x+4, y, (cs&2)?"afk":"msg", 4*8, false, false);},)
 
 
 //columns are listed here in display order
-#define ALLCOLUMNS COLUMN_PING COLUMN_PL COLUMN_TIME COLUMN_FRAGS COLUMN_TEAMNAME COLUMN_NAME COLUMN_KILLS COLUMN_TKILLS COLUMN_DEATHS COLUMN_TOUCHES COLUMN_CAPS
+#define ALLCOLUMNS COLUMN_PING COLUMN_PL COLUMN_TIME COLUMN_FRAGS COLUMN_TEAMNAME COLUMN_NAME COLUMN_KILLS COLUMN_TKILLS COLUMN_DEATHS COLUMN_TOUCHES COLUMN_CAPS COLUMN_AFK
 
 enum
 {
@@ -3288,6 +3299,7 @@ void Sbar_DeathmatchOverlay (int start)
 	playerview_t *pv = r_refdef.playerview;
 
 	vrect_t		gr = r_refdef.grect;
+	int namesize = (cl.teamplay ? 12*8 : 16*8);
 
 	if (!pv)
 		return;
@@ -3383,7 +3395,17 @@ void Sbar_DeathmatchOverlay (int start)
 	{
 		COLUMN_TOUCHES
 	}
+	COLUMN_AFK
 #undef COLUMN
+
+	rank_width -= namesize;
+	if (rank_width < 320)
+	{
+		namesize += 320-rank_width;
+		if (namesize > 32*8)
+			namesize = 32*8;
+	}
+	rank_width += namesize;
 
 	startx = (gr.width-rank_width)/2;
 	startx += gr.x;
@@ -3837,20 +3859,5 @@ void Sbar_IntermissionOverlay (void)
 		Sbar_TeamOverlay ();
 	else
 		Sbar_DeathmatchOverlay (0);
-}
-
-
-/*
-==================
-Sbar_FinaleOverlay
-
-==================
-*/
-void Sbar_FinaleOverlay (void)
-{
-#ifdef VM_UI
-	if (UI_DrawFinale()>0)
-		return;
-#endif
 }
 #endif

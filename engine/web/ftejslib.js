@@ -541,7 +541,7 @@ mergeInto(LibraryManager.library,
 		{
 			delete FTEH.f[name];
 			f.n = null;
-			emscriptenfte_buf_release(f.h);
+			_emscriptenfte_buf_release(f.h);
 			return 1;
 		}
 		return 0;
@@ -696,7 +696,16 @@ mergeInto(LibraryManager.library,
 		var _url = Pointer_stringify(url);
 		console.log("Attempting download of " + _url);
 		var http = new XMLHttpRequest();
-		http.open('GET', _url, true);
+		try
+		{
+			http.open('GET', _url, true);
+		}
+		catch(e)
+		{
+			if (onerror)
+				Runtime.dynCall('vii', onerror, [ctx, 404]);
+			return;
+		}
 		http.responseType = 'arraybuffer';
 
 		http.onload = function(e)
@@ -730,7 +739,15 @@ console.log("onerror: " + _url + " status " + http.status);
 				Runtime.dynCall('viii', onprogress, [ctx, e.loaded, e.total]);
 		};
 
-		http.send(null);
+		try	//ffs
+		{
+			http.send(null);
+		}
+		catch(e)
+		{
+			console.log(e);
+			http.onerror(e);
+		}
 	},
 
 	emscriptenfte_al_loadaudiofile : function(buf, dataptr, datasize)

@@ -11,6 +11,14 @@
 //http://www.zezula.net/en/mpq/main.html
 //http://www.wc3c.net/tools/specs/QuantamMPQFormat.txt
 
+#ifdef MULTITHREAD
+threading_t *threading;
+#define Sys_CreateMutex threading->CreateMutex
+#define Sys_LockMutex threading->LockMutex
+#define Sys_UnlockMutex threading->UnlockMutex
+#define Sys_DestroyMutex threading->DestroyMutex
+#endif
+
 typedef unsigned long long ofs_t;
 
 typedef struct
@@ -49,11 +57,11 @@ typedef struct
 
 typedef struct
 {
-    unsigned int hash_a;
-    unsigned int hash_b;
-    unsigned short locale;
-    unsigned short platform;
-    unsigned int block_table_index;
+	unsigned int hash_a;
+	unsigned int hash_b;
+	unsigned short locale;
+	unsigned short platform;
+	unsigned int block_table_index;
 } mpqhash_t;
 
 typedef struct 
@@ -61,9 +69,12 @@ typedef struct
 	searchpathfuncs_t pub;
 
 	char desc[MAX_OSPATH];
+	void *mutex;
 	vfsfile_t *file;
 	ofs_t filestart;
 	ofs_t fileend;
+
+	unsigned int references;
 
 	unsigned int sectorsize;
 
@@ -78,7 +89,7 @@ typedef struct
 	mpqheader_t header_0;
 	struct
 	{
-	    unsigned long long extended_block_offset_table_offset;
+		unsigned long long extended_block_offset_table_offset;
 		unsigned short hash_table_offset_high;
 		unsigned short block_table_offset_high;
 	} header_1;
@@ -108,32 +119,32 @@ static unsigned int crypt_table[0x500];
 
 static void mpq_init_cryptography(void)
 {
-    // prepare crypt_table
-    unsigned int seed   = 0x00100001;
-    unsigned int index1 = 0;
-    unsigned int index2 = 0;
-    unsigned int i;
-       
-    if (!crypt_table_initialized)
+	// prepare crypt_table
+	unsigned int seed   = 0x00100001;
+	unsigned int index1 = 0;
+	unsigned int index2 = 0;
+	unsigned int i;
+
+	if (!crypt_table_initialized)
 	{
-         crypt_table_initialized = true;
-         
-         for (index1 = 0; index1 < 0x100; index1++)
-		 {
-              for (index2 = index1, i = 0; i < 5; i++, index2 += 0x100)
-			  {
-                    unsigned int temp1, temp2;
-        
-                    seed  = (seed * 125 + 3) % 0x2AAAAB;
-                    temp1 = (seed & 0xFFFF) << 0x10;
-        
-                    seed  = (seed * 125 + 3) % 0x2AAAAB;
-                    temp2 = (seed & 0xFFFF);
-        
-                    crypt_table[index2] = (temp1 | temp2);
-              }
-         }
-    }
+		crypt_table_initialized = true;
+
+		for (index1 = 0; index1 < 0x100; index1++)
+		{
+			for (index2 = index1, i = 0; i < 5; i++, index2 += 0x100)
+			{
+				unsigned int temp1, temp2;
+
+				seed  = (seed * 125 + 3) % 0x2AAAAB;
+				temp1 = (seed & 0xFFFF) << 0x10;
+
+				seed  = (seed * 125 + 3) % 0x2AAAAB;
+				temp2 = (seed & 0xFFFF);
+
+				crypt_table[index2] = (temp1 | temp2);
+			}
+		}
+	}
 }
 
 #define HASH_POSITION 0
@@ -249,13 +260,21 @@ static vfsfile_t *MPQ_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const
 static void	MPQ_ClosePath(searchpathfuncs_t *handle)
 {
 	mpqarchive_t *mpq = (void*)handle;
+	Sys_LockMutex(mpq->mutex);
+	if (--mpq->references)
+	{
+		Sys_UnlockMutex(mpq->mutex);
+		return;
+	}
+	Sys_UnlockMutex(mpq->mutex);
+	Sys_DestroyMutex(mpq->mutex);
 	VFS_CLOSE(mpq->file);
 	free(mpq->blockdata);
 	free(mpq->hashdata);
 	free(mpq->listfile);
 	free(mpq);
 }
-static int MPQ_FindFile(searchpathfuncs_t *handle, flocation_t *loc, const char *name, void *hashedresult)
+static unsigned int MPQ_FindFile(searchpathfuncs_t *handle, flocation_t *loc, const char *name, void *hashedresult)
 {
 	mpqarchive_t *mpq = (void*)handle;
 	unsigned int blockentry;
@@ -354,7 +373,7 @@ static int mpqwildcmp(const char *wild, const char *string, char **end)
 	}
 	return !*wild;
 }
-static int MPQ_EnumerateFiles(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm)
+static int MPQ_EnumerateFiles(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm)
 {
 	int ok = 1;
 	char *s, *n;
@@ -373,7 +392,7 @@ static int MPQ_EnumerateFiles(searchpathfuncs_t *handle, const char *match, int 
 
 				if (!MPQ_FindFile(handle, &loc, name, NULL))
 					loc.len = 0;
-				ok = func(name, loc.len, parm, handle);
+				ok = func(name, loc.len, 0, parm, handle);
 			}
 
 			while (*n == '\n' || *n == '\r' || *n == ';')
@@ -424,7 +443,7 @@ static qboolean	MPQ_PollChanges(searchpathfuncs_t *handle)
 	return false;
 }
 
-static searchpathfuncs_t	*MPQ_OpenArchive(vfsfile_t *file, const char *desc)
+static searchpathfuncs_t	*MPQ_OpenArchive(vfsfile_t *file, const char *desc, const char *prefix)
 {
 	flocation_t lloc;
 	mpqarchive_t *mpq;
@@ -433,6 +452,9 @@ static searchpathfuncs_t	*MPQ_OpenArchive(vfsfile_t *file, const char *desc)
 	ofs_t hash_ofs;
 
 	VFS_SEEK(file, 0);
+
+	if (prefix && *prefix)
+		return NULL;	//not supported at this time
 
 	if (VFS_READ(file, &header, sizeof(header)) != sizeof(header))
 		return NULL;
@@ -495,6 +517,10 @@ static searchpathfuncs_t	*MPQ_OpenArchive(vfsfile_t *file, const char *desc)
 			);
 	}*/
 
+	
+	mpq->references = 1;
+	mpq->mutex = Sys_CreateMutex();
+
 	if (MPQ_FindFile(&mpq->pub, &lloc, "(listfile)", NULL))
 	{
 		char *bs;
@@ -513,7 +539,7 @@ static searchpathfuncs_t	*MPQ_OpenArchive(vfsfile_t *file, const char *desc)
 				break;
 		}
 	}
-	
+
 	mpq->pub.fsver				= FSVER;
 	mpq->pub.ClosePath			= MPQ_ClosePath;
 	mpq->pub.BuildHash			= MPQ_BuildHash;
@@ -643,8 +669,10 @@ static int MPQF_readbytes (struct vfsfile_s *file, void *buffer, int bytestoread
 	if (!(f->flags & (MPQFileCompressed|MPQFileDiabloCompressed)))
 	{
 		//no compression, just a raw file.
+		Sys_LockMutex(f->archive->mutex);
 		VFS_SEEK(f->archive->file, f->archiveoffset + f->foffset);
 		bytesread = VFS_READ(f->archive->file, buffer, bytestoread);
+		Sys_UnlockMutex(f->archive->mutex);
 		f->foffset += bytesread;
 	}
 	else if (f->flags & MPQFileOneSector)
@@ -654,8 +682,10 @@ static int MPQF_readbytes (struct vfsfile_s *file, void *buffer, int bytestoread
 		{
 			char *cdata = malloc(f->alength);
 			f->buffer = malloc(f->flength);
+			Sys_LockMutex(f->archive->mutex);
 			VFS_SEEK(f->archive->file, f->archiveoffset);
 			VFS_READ(f->archive->file, cdata, f->alength);
+			Sys_UnlockMutex(f->archive->mutex);
 
 			if (f->flags & MPQFileEncrypted)
 			{
@@ -704,8 +734,10 @@ static int MPQF_readbytes (struct vfsfile_s *file, void *buffer, int bytestoread
 					f->sectortab = malloc((numsects+1) * sizeof(*f->sectortab));
 					if (!f->sectortab)
 						pSys_Error("out of memory");
+					Sys_LockMutex(f->archive->mutex);
 					VFS_SEEK(f->archive->file, f->archiveoffset);
 					VFS_READ(f->archive->file, f->sectortab, (numsects+1) * sizeof(*f->sectortab));
+					Sys_UnlockMutex(f->archive->mutex);
 
 					if (f->flags & MPQFileEncrypted)
 						mpq_decrypt(f->sectortab, (numsects+1) * sizeof(*f->sectortab), f->encryptkey-1, true);
@@ -720,8 +752,10 @@ static int MPQF_readbytes (struct vfsfile_s *file, void *buffer, int bytestoread
 					f->buffer = malloc(f->archive->sectorsize);
 				if (!f->buffer)
 					pSys_Error("out of memory");
+				Sys_LockMutex(f->archive->mutex);
 				VFS_SEEK(f->archive->file, f->archiveoffset + f->sectortab[sectidx]);
 				VFS_READ(f->archive->file, cdata, rawsize);
+				Sys_UnlockMutex(f->archive->mutex);
 
 				if (lastsect)
 					f->bufferlength = f->flength - ((numsects-1)*f->archive->sectorsize);
@@ -788,6 +822,9 @@ static qboolean MPQF_close (struct vfsfile_s *file)
 		free(f->buffer);
 	if (f->sectortab)
 		free(f->sectortab);
+
+	MPQ_ClosePath(&f->archive->pub);
+
 	free(f);
 
 	return true;
@@ -842,6 +879,10 @@ static vfsfile_t *MPQ_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const
 	f->funcs.Close = MPQF_close;
 	f->funcs.Flush = MPQF_flush;
 
+	Sys_LockMutex(mpq->mutex);
+	mpq->references++;
+	Sys_UnlockMutex(mpq->mutex);
+
 	return &f->funcs;
 }
 
@@ -849,18 +890,28 @@ qintptr_t Plug_Init(qintptr_t *args)
 {
 	mpq_init_cryptography();
 
+#ifdef MULTITHREAD
+	if (CHECKBUILTIN(Sys_GetThreadingFuncs))
+		threading = pSys_GetThreadingFuncs(sizeof(*threading));
+	if (!threading)
+	{
+		Con_Printf("mpq: Engine doesn't support threading\n");
+		return false;
+	}
+#endif
+
 	//we can't cope with being closed randomly. files cannot be orphaned safely.
 	//so ask the engine to ensure we don't get closed before everything else is.
 	pPlug_ExportNative("UnsafeClose", NULL);
 
 	if (!pPlug_ExportNative("FS_RegisterArchiveType_mpq", MPQ_OpenArchive))
 	{
-		Con_Printf("avplug: Engine doesn't support media decoder plugins\n");
+		Con_Printf("mpq: Engine doesn't support filesystem plugins\n");
 		return false;
 	}
 	if (!pPlug_ExportNative("FS_RegisterArchiveType_MPQ", MPQ_OpenArchive))
 	{
-		Con_Printf("avplug: Engine doesn't support media decoder plugins\n");
+		Con_Printf("mpq: Engine doesn't support filesystem plugins\n");
 		return false;
 	}
 

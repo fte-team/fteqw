@@ -130,13 +130,6 @@ static void WAV_Shutdown (soundcardinfo_t *sc)
 	Z_Free(wh);
 }
 
-
-
-static void WAV_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)
-{
-
-}
-
 /*
 ==============
 SNDDMA_GetDMAPos
@@ -360,7 +353,6 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	sc->Lock		= WAV_Lock;
 	sc->Unlock		= WAV_Unlock;
-	sc->SetWaterDistortion = WAV_SetUnderWater;
 	sc->Submit		= WAV_Submit;
 	sc->Shutdown	= WAV_Shutdown;
 	sc->GetDMAPos	= WAV_GetDMAPos;

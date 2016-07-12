@@ -810,7 +810,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	var->string = (char*)Z_Malloc (Q_strlen(value)+1);
 	Q_strcpy (var->string, value);
 	var->value = Q_atof (var->string);
-	var->ival = Q_atoi (var->string);
+ 	var->ival = Q_atoi (var->string);
 
 	var->flags &= ~CVAR_TEAMPLAYTAINT;
 
@@ -837,6 +837,21 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 			var->modified++;	//only modified if it changed.
 			if (var->callback)
 				var->callback(var, latch);
+
+			if (var->flags & CVAR_TELLGAMECODE)
+			{
+#ifndef CLIENTONLY
+				SVQ1_CvarChanged(var);
+#endif
+#ifndef SERVERONLY
+#ifdef MENU_DAT
+				MP_CvarChanged(var);
+#endif
+#ifdef CSQC_DAT
+				CSQC_CvarChanged(var);
+#endif
+#endif
+			}
 		}
 		if ((var->flags & CVAR_ARCHIVE) && !(var->flags & CVAR_SERVEROVERRIDE) && cl_warncmd.ival)
 		{
@@ -860,21 +875,6 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	{
 		Z_Free(var->latched_string);
 		var->latched_string = NULL;
-	}
-
-	if (var->flags & CVAR_TELLGAMECODE)
-	{
-#ifndef CLIENTONLY
-		SVQ1_CvarChanged(var);
-#endif
-#ifndef SERVERONLY
-#ifdef MENU_DAT
-		MP_CvarChanged(var);
-#endif
-#ifdef CSQC_DAT
-		CSQC_CvarChanged(var);
-#endif
-#endif
 	}
 
 	return var;
@@ -1097,7 +1097,7 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 	old = Cvar_FindVar (variable->name);
 	if (old)
 	{
-		if (old->flags & CVAR_POINTER)
+		if ((old->flags & CVAR_POINTER) && !(variable->flags & CVAR_POINTER))
 		{
 			group = Cvar_GetGroup(groupname);
 
@@ -1130,7 +1130,7 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 			if (variable->name2)
 				Hash_AddInsensitive(&cvar_hash, variable->name2, variable, &variable->hbn2);
 
-			return false;
+			return true;
 		}
 
 		Con_Printf ("Can't register variable %s, already defined\n", variable->name);
@@ -1206,7 +1206,10 @@ cvar_t *Cvar_Get2(const char *name, const char *defaultvalue, int flags, const c
 	}
 
 	if (!Cvar_Register(var, group))
+	{
+		Z_Free(var);
 		return NULL;
+	}
 
 	return var;
 }

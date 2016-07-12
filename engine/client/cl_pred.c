@@ -112,7 +112,7 @@ CL_ClipMoveToEntities
 int predignoreentitynum;
 void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, trace_t *tr )
 {
-	int			i, x, zd, zu;
+	int			i;
 	trace_t		trace;
 	float		*angles;
 	entity_state_t	*ent;
@@ -125,13 +125,13 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 		num = (cl.q2frame.parse_entities + i)&(MAX_PARSE_ENTITIES-1);
 		ent = &clq2_parse_entities[num];
 
-		if (!ent->solid)
+		if (ent->solidsize == ES_SOLID_NOT)
 			continue;
 
 		if (ent->number == predignoreentitynum)
 			continue;
 
-		if (ent->solid == ES_SOLID_BSP)
+		if (ent->solidsize == ES_SOLID_BSP)
 		{	// special value for bmodel
 			cmodel = cl.model_precache[ent->modelindex];
 			if (!cmodel)
@@ -140,24 +140,7 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 		}
 		else
 		{	// encoded bbox
-			if (cls.netchan.netprim.q2flags & NPQ2_SOLID32)
-			{
-				x = ent->solid & 255;
-				zd = (ent->solid >> 8) & 255;
-				zu = ((ent->solid >> 16) & 65535) - 32768;
-			}
-			else
-			{
-				x = 8*(ent->solid & 31);
-				zd = 8*((ent->solid>>5) & 31);
-				zu = 8*((ent->solid>>10) & 63) - 32;
-			}
-
-			bmins[0] = bmins[1] = -x;
-			bmaxs[0] = bmaxs[1] = x;
-			bmins[2] = -zd;
-			bmaxs[2] = zu;
-
+			COM_DecodeSize(ent->solidsize, bmins, bmaxs);
 			cmodel = CM_TempBoxModel (bmins, bmaxs);
 			angles = vec3_origin;	// boxes don't rotate
 		}
@@ -221,7 +204,7 @@ int		VARGS CLQ2_PMpointcontents (vec3_t point)
 		num = (cl.q2frame.parse_entities + i)&(MAX_PARSE_ENTITIES-1);
 		ent = &clq2_parse_entities[num];
 
-		if (ent->solid != 31) // special value for bmodel
+		if (ent->solidsize != ES_SOLID_BSP) // special value for bmodel
 			continue;
 
 		cmodel = cl.model_precache[ent->modelindex];
@@ -340,6 +323,7 @@ static void CLQ2_PredictMovement (int seat)	//q2 doesn't support split clients.
 	pv->predicted_origin[1] = pm.s.origin[1]*0.125;
 	pv->predicted_origin[2] = pm.s.origin[2]*0.125;
 
+	VectorScale (pm.s.velocity, 0.125, pv->simvel);
 	VectorCopy (pm.viewangles, pv->predicted_angles);
 #endif
 }
@@ -708,7 +692,7 @@ void CL_CalcClientTime(void)
 #endif
 }
 
-static void CL_DecodeStateSize(unsigned short solid, int modelindex, vec3_t mins, vec3_t maxs)
+static void CL_DecodeStateSize(unsigned int solid, int modelindex, vec3_t mins, vec3_t maxs)
 {
 	if (solid == ES_SOLID_BSP)
 	{
@@ -724,14 +708,7 @@ static void CL_DecodeStateSize(unsigned short solid, int modelindex, vec3_t mins
 		}
 	}
 	else if (solid)
-	{
-		mins[0] = -8*(solid&31);
-		mins[1] = -8*(solid&31);
-		mins[2] = -8*((solid>>5)&31);
-		maxs[0] = 8*(solid&31);
-		maxs[1] = 8*(solid&31);
-		maxs[2] = 8*((solid>>10)&63) - 32;
-	}
+		COM_DecodeSize(solid, mins, maxs);
 	else
 	{
 		VectorClear(mins);
@@ -749,6 +726,7 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 	vec3_t vel;
 	VectorCopy(plstate->velocity, vel);
 	memset(plstate, 0, sizeof(*plstate));
+
 	switch(state->u.q1.pmovetype)
 	{
 	case MOVETYPE_NOCLIP:
@@ -779,32 +757,38 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 		break;
 	}
 
-	plstate->pm_type = pmtype;
 	VectorCopy(state->origin, plstate->origin);
 	if (cls.protocol == CP_NETQUAKE && !(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 	{	//nq is annoying, this stuff wasn't part of the entity state, so don't break it
 		VectorCopy(vel, plstate->velocity);
+		pmtype = PM_NORMAL;
 		plstate->onground = onground;
 	}
 	else
 		VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
+	plstate->pm_type = pmtype;
 
 	plstate->viewangles[0] = SHORT2ANGLE(state->u.q1.vangle[0]);
 	plstate->viewangles[1] = SHORT2ANGLE(state->u.q1.vangle[1]);
 	plstate->viewangles[2] = SHORT2ANGLE(state->u.q1.vangle[2]);
 
-	a[0] = ((-192-state->u.q1.gravitydir[0])/256.0f) * 360;
-	a[1] = (state->u.q1.gravitydir[1]/256.0f) * 360;
-	a[2] = 0;
-	AngleVectors(a, plstate->gravitydir, NULL, NULL);
+	if (!state->u.q1.gravitydir[0] && !state->u.q1.gravitydir[1])
+		VectorSet(plstate->gravitydir, 0, 0, -1);
+	else
+	{
+		a[0] = ((-192-state->u.q1.gravitydir[0])/256.0f) * 360;
+		a[1] = (state->u.q1.gravitydir[1]/256.0f) * 360;
+		a[2] = 0;
+		AngleVectors(a, plstate->gravitydir, NULL, NULL);
+	}
 
-	if (!state->solid)
+	if (!state->solidsize || !(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 	{
 		VectorSet(plstate->szmins, -16, -16, -24);
 		VectorSet(plstate->szmaxs, 16, 16, 32);
 	}
 	else
-		CL_DecodeStateSize(state->solid, state->modelindex, plstate->szmins, plstate->szmaxs);
+		CL_DecodeStateSize(state->solidsize, state->modelindex, plstate->szmins, plstate->szmaxs);
 }
 static void CL_EntStateToPlayerCommand(usercmd_t *cmd, entity_state_t *state, float age)
 {

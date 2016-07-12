@@ -210,10 +210,13 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 		if (mask & PEXT2_PREDINFO)
 			mask |= PEXT2_REPLACEMENTDELTAS;
 
+		if (mask & PEXT2_REPLACEMENTDELTAS)
+			mask |= PEXT2_NEWSIZEENCODING;
+
 		if (fornq)
 		{
 			//only ones that are tested
-			mask &= PEXT2_VOICECHAT | PEXT2_REPLACEMENTDELTAS | PEXT2_PREDINFO;
+			mask &= PEXT2_VOICECHAT | PEXT2_REPLACEMENTDELTAS | PEXT2_NEWSIZEENCODING | PEXT2_PREDINFO;
 		}
 //		else
 //			mask &= ~PEXT2_PREDINFO;
@@ -560,6 +563,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	char		remote_adr[MAX_ADR_SIZE];
 	unsigned	w1, w2;
 	int			i;
+	neterr_t e;
 
 #ifdef NQPROT
 	if (chan->isnqprotocol)
@@ -744,6 +748,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	}
 #endif
 
+	e = NETERR_SENT;
 	//zoid, no input in demo playback mode
 #ifndef SERVERONLY
 	if (!cls.demoplayback)
@@ -753,18 +758,37 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 		if ((!chan->fragmentsize) || send.cursize-hsz < ((chan->fragmentsize - hsz)&~7))
 		{
-			for (i = -1; i < chan->dupe; i++)
-				NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
-			send.cursize += send.cursize * chan->dupe;
+			for (i = -1; i < chan->dupe && e == NETERR_SENT; i++)
+				e = NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
+			send.cursize += send.cursize * i;
+
+			if (e == NETERR_MTU && chan->fragmentsize > 560)
+			{
+				Con_Printf("Reducing MSS to %i\n", chan->fragmentsize);
+				chan->fragmentsize -= 10;
+			}
 		}
 		else
 		{
-			int offset = chan->fragmentsize - hsz, no;
+			int offset, no;
 			qboolean more;
 			/*switch on the 'more flags' bit, and send the first part*/
 			send.data[hsz - 2] |= 0x1;
-			offset &= ~7;
-			NET_SendPacket (chan->sock, offset + hsz, send.data, &chan->remote_address);
+			for(;;)
+			{
+				offset = chan->fragmentsize - hsz;
+				offset &= ~7;
+				e = NET_SendPacket (chan->sock, offset + hsz, send.data, &chan->remote_address);
+				if (e == NETERR_MTU && chan->fragmentsize > 560)
+				{
+					chan->fragmentsize -= 10;
+					Con_Printf("Reducing MSS to %i\n", chan->fragmentsize);
+					continue;
+				}
+				break;
+			}
+
+			/*FIXME: splurge over a number of frames, if we have an outgoing reliable*/
 
 			/*send the additional parts, adding new headers within the previous packet*/
 			while(offset < send.cursize-hsz)
@@ -794,28 +818,45 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 #endif
 				*(short*)&send.data[offset + hsz-2] = LittleShort((offset>>2) | (more?1:0));
 
-				NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset, &chan->remote_address);
+				if (e == NETERR_SENT)
+					e = NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset, &chan->remote_address);
 				offset = no;
 			}
 		}
 	}
 
-	chan->bytesout += send.cursize;
-	Netchan_Block(chan, send.cursize, rate);
+	if (e == NETERR_SENT)
+	{
+		chan->bytesout += send.cursize;
+		Netchan_Block(chan, send.cursize, rate);
+	}
 #ifdef SERVERONLY
 	if (ServerPaused())
 		chan->cleartime = realtime;
 #endif
 
 	if (showpackets.value)
-		Con_Printf ("%f %s --> s=%i(%i) a=%i(%i) %i\n"
+	{
+		char *errtext;
+		switch(e)
+		{
+		case NETERR_SENT: errtext = ""; break;
+		case NETERR_NOROUTE: errtext = " unroutable"; break;
+		case NETERR_DISCONNECTED: errtext = " disconnected"; break;
+		case NETERR_MTU: errtext = " mss exceeded"; break;
+		case NETERR_CLOGGED: errtext = " conjestion"; break;
+		default: errtext = " unk error"; break;
+		}
+		Con_Printf ("%f %s --> s=%i(%i) a=%i(%i) %i%s\n"
 			, Sys_DoubleTime()
 			, chan->sock == NS_SERVER?"s2c":"c2s"
 			, chan->outgoing_sequence
 			, send_reliable
 			, chan->incoming_sequence
 			, chan->incoming_reliable_sequence
-			, send.cursize);
+			, send.cursize,
+			errtext);
+	}
 	return send.cursize;
 
 }

@@ -74,19 +74,23 @@ nonstatic void(mitem_desktop desktop) M_Main =
 #define menuitemtext_cladd16(m,t,c,y) m.addm(spawn(mitem_text, item_text:t, item_command:c, item_scale:16, item_flags:IF_CENTERALIGN), [0, y], [160, y+16])
 
 #ifdef CSQC
-	if (serverkey("constate") != "disconnected")		{menuitemtext_cladd16(m, _("Return To Game"), 		"m_pop",			y); y += 16;}
-	if (serverkey("constate") != "disconnected")		{menuitemtext_cladd16(m, isserver?_("End Game"):_("Disconnect"), 		"m_pop;disconnect",	y); y += 16;} else
+	if (serverkey("constate") != "disconnected")				{menuitemtext_cladd16(m, _("Return To Game"), 			"m_pop",			y); y += 16;}
+	if (serverkey("constate") != "disconnected")				{menuitemtext_cladd16(m, isserver?_("End Game"):_("Disconnect"),"m_pop;disconnect",	y); y += 16;} else
 #endif
 #ifdef CSQC
 	if (checkextension("FTE_CSQC_SERVERBROWSER"))
 #endif
- 											{menuitemtext_cladd16(m, _("Join Server"),		"m_pop;m_servers",	y); y += 16;}
-	if (assumetruecheckcommand("map"))				{menuitemtext_cladd16(m, _("New Game"),		"m_pop;m_newgame",	y); y += 16;}
-	if (assumetruecheckcommand("save") && (isserver()||dp_workarounds))	{menuitemtext_cladd16(m, _("Save"),			"m_pop;m_save",		y); y += 16;}
-	if (assumetruecheckcommand("load"))				{menuitemtext_cladd16(m, _("Load"),			"m_pop;m_load",		y); y += 16;}
-	if (assumefalsecheckcommand("xmpp"))				{menuitemtext_cladd16(m, _("Social"),			"m_pop;xmpp",		y); y += 16;}
-											{menuitemtext_cladd16(m, _("Options"),		"m_pop;m_options",	y); y += 16;}
-											{menuitemtext_cladd16(m, _("Quit"), 			"m_pop;m_quit",		y); y += 16;}
+ 										{menuitemtext_cladd16(m, _("Join Server"),			"m_pop;m_servers",	y); y += 16;}
+	if (assumetruecheckcommand("map"))					{menuitemtext_cladd16(m, _("New Game"),				"m_pop;m_newgame",	y); y += 16;}
+	if (assumetruecheckcommand("menu_demo"))				{menuitemtext_cladd16(m, _("Demos"),				"m_pop;menu_demo",	y); y += 16;}
+	if (assumetruecheckcommand("save") && (isserver()||dp_workarounds))	{menuitemtext_cladd16(m, _("Save"),				"m_pop;m_save",		y); y += 16;}
+	if (assumetruecheckcommand("load"))					{menuitemtext_cladd16(m, _("Load"),				"m_pop;m_load",		y); y += 16;}
+	if (assumefalsecheckcommand("cef"))					{menuitemtext_cladd16(m, _("Browser"),				"m_pop;cef google.com",	y); y += 16;}
+	if (assumefalsecheckcommand("xmpp"))					{menuitemtext_cladd16(m, _("Social"),				"m_pop;xmpp",		y); y += 16;}
+	if (assumefalsecheckcommand("irc"))					{menuitemtext_cladd16(m, _("IRC"),				"m_pop;irc /info",	y); y += 16;}
+	if (assumefalsecheckcommand("qi"))					{menuitemtext_cladd16(m, _("Quake Injector"),			"m_pop;qi",		y); y += 16;}
+										{menuitemtext_cladd16(m, _("Options"),				"m_pop;m_options",	y); y += 16;}
+										{menuitemtext_cladd16(m, _("Quit"), 				"m_pop;m_quit",		y); y += 16;}
 
 #if 1//def CSQC
 	//spinny quad/pent, for the luls

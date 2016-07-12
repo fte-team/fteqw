@@ -21,6 +21,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+#ifdef CSQC_DAT
+//for sounds following csqc ents
+	#include "pr_common.h"
+	extern world_t csqc_world;
+#endif
+
 static void S_Play(void);
 static void S_PlayVol(void);
 static void S_SoundList_f(void);
@@ -77,8 +83,9 @@ cvar_t precache					= CVARAF(	"s_precache", "1",
 cvar_t loadas8bit				= CVARAFD(	"s_loadas8bit", "0",
 											"loadas8bit", CVAR_ARCHIVE,
 											"Downsample sounds on load as lower quality 8-bit sound.");
-cvar_t ambient_level			= CVARAF(	"s_ambientlevel", "0.3",
-											"ambient_level", CVAR_ARCHIVE);
+cvar_t ambient_level			= CVARAFD(	"s_ambientlevel", "0.3",
+											"ambient_level", CVAR_ARCHIVE,
+											"This controls the volume levels of automatic area-based sounds (like water or sky), and is quite annoying. If you're playing deathmatch you'll definitely want this OFF.");
 cvar_t ambient_fade				= CVARAF(	"s_ambientfade", "100",
 											"ambient_fade", CVAR_ARCHIVE);
 cvar_t snd_noextraupdate		= CVARAF(	"s_noextraupdate", "0",
@@ -92,7 +99,7 @@ cvar_t	snd_inactive			= CVARAFD(	"s_inactive", "1",
 											"Play sound while application is inactive (ex. tabbed out). Needs a snd_restart if changed."
 											);	//set if you want sound even when tabbed out.
 cvar_t _snd_mixahead			= CVARAFD(	"s_mixahead", "0.1",
-											"_snd_mixahead", CVAR_ARCHIVE, "Specifies how many seconds to prebuffer audio. Lower values give less latency, but might result in crackling. Different hardware/drivers have different tolerances.");
+											"_snd_mixahead", CVAR_ARCHIVE, "Specifies how many seconds to prebuffer audio. Lower values give less latency, but might result in crackling. Different hardware/drivers have different tolerances, and this setting may be ignored completely where drivers are expected to provide their own tolerances.");
 cvar_t snd_leftisright			= CVARAF(	"s_swapstereo", "0",
 											"snd_leftisright", CVAR_ARCHIVE);
 cvar_t snd_eax					= CVARAF(	"s_eax", "0",
@@ -106,7 +113,15 @@ cvar_t snd_samplebits			= CVARAF(	"s_bits", "16",
 cvar_t snd_playersoundvolume	= CVARAFD(	"s_localvolume", "1",
 											"snd_localvolume", CVAR_ARCHIVE,
 											"Sound level for sounds local or originating from the player such as firing and pain sounds.");	//sugested by crunch
-
+cvar_t snd_doppler				= CVARAFD(	"s_doppler", "0",
+											"snd_doppler", CVAR_ARCHIVE,
+											"Enables doppler, with a multiplier for the scale.");
+cvar_t snd_doppler_min			= CVARAFD(	"s_doppler_min", "0.5",
+											"snd_doppler_min", CVAR_ARCHIVE,
+											"Slowest allowed doppler scale.");
+cvar_t snd_doppler_max			= CVARAFD(	"s_doppler_max", "2",
+											"snd_doppler", CVAR_ARCHIVE,
+											"Highest allowed doppler scale, to avoid things getting too weird.");
 cvar_t snd_playbackrate			= CVARFD(	"snd_playbackrate", "1", CVAR_CHEAT, "Debugging cvar that changes the playback rate of all new sounds.");
 
 cvar_t snd_linearresample		= CVARAF(	"s_linearresample", "1",
@@ -720,8 +735,8 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			if (r > 0)
 			{
 				decodesamps += r;
-				s_voip.decseq[sender] += 1;//r / s_voip.decframesize[sender];
-				seq += 1;//r / s_voip.decframesize[sender];
+				s_voip.decseq[sender] = (s_voip.decseq[sender] + 1) & 0xff;//r / s_voip.decframesize[sender];
+				seq = (seq+1)&0xff;//r / s_voip.decframesize[sender];
 			}
 			else if (r < 0)
 				Con_Printf("Opus decoding error %i\n", r);
@@ -757,15 +772,15 @@ qboolean S_Voip_RTP_CodecOkay(const char *codec)
 void S_Voip_RTP_Parse(unsigned short sequence, char *codec, unsigned char *data, unsigned int datalen)
 {
 	if (!strcmp(codec, "speex@8000"))
-		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_NARROW, 0, sequence, datalen, data);
+		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_NARROW, 0, sequence&0xff, datalen, data);
 	if (!strcmp(codec, "speex@11025"))
-		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_OLD, 0, sequence, datalen, data);	//very much non-standard rtp
+		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_OLD, 0, sequence&0xff, datalen, data);	//very much non-standard rtp
 	if (!strcmp(codec, "speex@16000"))
 		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_WIDE, 0, sequence&0xff, datalen, data);
 	if (!strcmp(codec, "speex@32000"))
-		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_ULTRAWIDE, 0, sequence, datalen, data);
+		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_ULTRAWIDE, 0, sequence&0xff, datalen, data);
 	if (!strcmp(codec, "opus") || !strcmp(codec, "opus@48000"))
-		S_Voip_Decode(MAX_CLIENTS-1, VOIP_OPUS, 0, sequence, datalen, data);
+		S_Voip_Decode(MAX_CLIENTS-1, VOIP_OPUS, 0, sequence&0xff, datalen, data);
 }
 qboolean NET_RTP_Transmit(unsigned int sequence, unsigned int timestamp, const char *codec, char *cdata, int clength);
 qboolean NET_RTP_Active(void);
@@ -1292,7 +1307,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		{
 			MSG_WriteByte(buf, clc);
 			MSG_WriteByte(buf, (s_voip.enccodec<<4) | (s_voip.generation & 0x0f)); /*gonna leave that nibble clear here... in this version, the client will ignore packets with those bits set. can use them for codec or something*/
-			MSG_WriteByte(buf, initseq);
+			MSG_WriteByte(buf, initseq&0xff);
 			MSG_WriteShort(buf, outpos);
 			SZ_Write(buf, outbuf, outpos);
 		}
@@ -1316,7 +1331,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 #endif
 
 		if (snd_voip_test.ival)
-			S_Voip_Decode(cl.playerview[0].playernum, s_voip.enccodec, s_voip.generation & 0x0f, initseq, outpos, outbuf);
+			S_Voip_Decode(cl.playerview[0].playernum, s_voip.enccodec, s_voip.generation & 0x0f, initseq&0xff, outpos, outbuf);
 
 		//update our own lastspoke, so queries shows that we're speaking when we're speaking in a generic way, even if we can't hear ourselves.
 		//but don't update general lastspoke, so ducking applies only when others speak. use capturingvol for yourself. they're more explicit that way.
@@ -1381,24 +1396,6 @@ qboolean S_Voip_Speaking(unsigned int plno)
 	return s_voip.lastspoke[plno] > realtime;
 }
 
-void QDECL S_Voip_EnumeratedCaptureDevice(const char *driver, const char *devicecode, const char *readabledevice)
-{
-	const char *fullintname;
-	char opts[8192];
-	char nbuf[1024];
-	char dbuf[1024];
-	
-	if (devicecode && (	strchr(devicecode, ' ') ||
-						strchr(devicecode, '\"')))
-		fullintname = va("\"%s:%s\"", driver, devicecode);	//it'll all get escaped anyway. but yeah, needs to be a single token or our multi-device stuff won't work properly. yes, this is a bit of a hack.
-	else if (devicecode)
-		fullintname = va("%s:%s", driver, devicecode);
-	else
-		fullintname = driver;
-
-	Q_snprintfz(opts, sizeof(opts), "%s%s%s %s", snd_voip_capturedevice_opts.string, *snd_voip_capturedevice_opts.string?" ":"", COM_QuotedString(fullintname, nbuf, sizeof(nbuf), false), COM_QuotedString(readabledevice, dbuf, sizeof(dbuf), false));
-	Cvar_ForceSet(&snd_voip_capturedevice_opts, opts);
-}
 void S_Voip_Init(void)
 {
 	int i;
@@ -1423,17 +1420,6 @@ void S_Voip_Init(void)
 	Cmd_AddCommand("+voip", S_Voip_Enable_f);
 	Cmd_AddCommand("-voip", S_Voip_Disable_f);
 	Cmd_AddCommand("voip", S_Voip_f);
-
-
-	Cvar_ForceSet(&snd_voip_capturedevice_opts, "");
-	S_Voip_EnumeratedCaptureDevice("", NULL, "Default");
-	for (i = 0; capturedrivers[i]; i++)
-	{
-		if (!capturedrivers[i]->Init)
-			continue;
-		if (!capturedrivers[i]->Enumerate || !capturedrivers[i]->Enumerate(S_Voip_EnumeratedCaptureDevice))
-			S_Voip_EnumeratedCaptureDevice(capturedrivers[i]->drivername, NULL, va("Default %s", capturedrivers[i]->drivername));
-	}
 }
 #else
 void S_Voip_Parse(void)
@@ -1480,12 +1466,12 @@ void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc)
 		break;
 	case 6: // 5.1
 	case 7:
-		VectorSet(sc->speakerdir[0], 0.7, -0.7, 0);
-		VectorSet(sc->speakerdir[1], 0.7, 0.7, 0);
-		VectorSet(sc->speakerdir[2], 1, 0, 0);
-		VectorSet(sc->speakerdir[3], 0, 0, 0);
-		VectorSet(sc->speakerdir[4], -0.7, -0.7, 0);
-		VectorSet(sc->speakerdir[5], -0.7, 0.7, 0);
+		VectorSet(sc->speakerdir[0], 0.7, -0.7, 0);	//front-left
+		VectorSet(sc->speakerdir[1], 0.7, 0.7, 0);	//front-right
+		VectorSet(sc->speakerdir[2], 1, 0, 0);		//center
+		VectorSet(sc->speakerdir[3], 0, 0, 0);		//bass
+		VectorSet(sc->speakerdir[4], -0.7, -0.7, 0);//back-left
+		VectorSet(sc->speakerdir[5], -0.7, 0.7, 0);	//back-right
 		VectorSet(sc->speakerdir[6], 0, 0, 0);
 		break;
 	case 8: // 7.1
@@ -1502,7 +1488,9 @@ void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc)
 	}
 }
 
-
+#ifdef AVAIL_WASAPI
+extern sounddriver_t WASAPI_Output;
+#endif
 #ifdef AVAIL_XAUDIO2
 extern sounddriver_t XAUDIO2_Output;
 #endif
@@ -1528,7 +1516,7 @@ extern sounddriver pPPAPI_InitCard;
 #endif
 
 //in order of preference
-sounddriver_t *outputdrivers[] =
+static sounddriver_t *outputdrivers[] =
 {
 #ifdef AVAIL_OPENAL
 	&OPENAL_Output,	//refuses to run as the default device, at least until its perfected.
@@ -1539,6 +1527,9 @@ sounddriver_t *outputdrivers[] =
 #endif
 #ifdef AVAIL_XAUDIO2
 	&XAUDIO2_Output,
+#endif
+#ifdef AVAIL_WASAPI
+	&WASAPI_Output,	//this is last, so that we can default to exclusive. woot.
 #endif
 
 	&SDL_Output,		//prefered on linux
@@ -1552,7 +1543,7 @@ typedef struct {
 	char *name;
 	sounddriver *ptr;
 } sdriver_t;
-sdriver_t olddrivers[] = {
+static sdriver_t olddrivers[] = {
 //in order of preference
 	{"MacOS", &pMacOS_InitCard},	//prefered on mac
 	{"Droid", &pDroid_InitCard},	//prefered on android (java thread)
@@ -1707,7 +1698,7 @@ soundcardinfo_t *S_SetupDeviceSeat(char *driver, char *device, int seat)
 	}*/
 }
 
-void QDECL S_EnumeratedOutDevice(const char *driver, const char *devicecode, const char *readabledevice)
+static void QDECL S_EnumeratedOutDevice(const char *driver, const char *devicecode, const char *readabledevice)
 {
 	const char *fullintname;
 	char opts[8192];
@@ -1725,12 +1716,33 @@ void QDECL S_EnumeratedOutDevice(const char *driver, const char *devicecode, con
 	Q_snprintfz(opts, sizeof(opts), "%s%s%s %s", snd_device_opts.string, *snd_device_opts.string?" ":"", COM_QuotedString(fullintname, nbuf, sizeof(nbuf), false), COM_QuotedString(readabledevice, dbuf, sizeof(dbuf), false));
 	Cvar_ForceSet(&snd_device_opts, opts);
 }
+#ifdef VOICECHAT
+static void QDECL S_Voip_EnumeratedCaptureDevice(const char *driver, const char *devicecode, const char *readabledevice)
+{
+	const char *fullintname;
+	char opts[8192];
+	char nbuf[1024];
+	char dbuf[1024];
+
+	if (devicecode && (	strchr(devicecode, ' ') ||
+						strchr(devicecode, '\"')))
+		fullintname = va("\"%s:%s\"", driver, devicecode);	//it'll all get escaped anyway. but yeah, needs to be a single token or our multi-device stuff won't work properly. yes, this is a bit of a hack.
+	else if (devicecode)
+		fullintname = va("%s:%s", driver, devicecode);
+	else
+		fullintname = driver;
+
+	Q_snprintfz(opts, sizeof(opts), "%s%s%s %s", snd_voip_capturedevice_opts.string, *snd_voip_capturedevice_opts.string?" ":"", COM_QuotedString(fullintname, nbuf, sizeof(nbuf), false), COM_QuotedString(readabledevice, dbuf, sizeof(dbuf), false));
+	Cvar_ForceSet(&snd_voip_capturedevice_opts, opts);
+}
+#endif
 void S_EnumerateDevices(void)
 {
 	int i;
 	sounddriver_t *sd;
 	Cvar_ForceSet(&snd_device_opts, "");
 	S_EnumeratedOutDevice("", NULL, "Default");
+	S_EnumeratedOutDevice("none", NULL, "None");
 
 	for (i = 0; outputdrivers[i]; i++)
 	{
@@ -1741,6 +1753,18 @@ void S_EnumerateDevices(void)
 				S_EnumeratedOutDevice(sd->name, "", va("Default %s", sd->name));
 		}
 	}
+
+#ifdef VOICECHAT
+	Cvar_ForceSet(&snd_voip_capturedevice_opts, "");
+	S_Voip_EnumeratedCaptureDevice("", NULL, "Default");
+	for (i = 0; capturedrivers[i]; i++)
+	{
+		if (!capturedrivers[i]->Init)
+			continue;
+		if (!capturedrivers[i]->Enumerate || !capturedrivers[i]->Enumerate(S_Voip_EnumeratedCaptureDevice))
+			S_Voip_EnumeratedCaptureDevice(capturedrivers[i]->drivername, NULL, va("Default %s", capturedrivers[i]->drivername));
+	}
+#endif
 }
 
 /*
@@ -1763,6 +1787,13 @@ void S_Startup (void)
 
 	snd_blocked = 0;
 	snd_speed = 0;
+
+	S_UpdateReverb(0, NULL, 0);
+	{	//we can actually use underwater hints automatically easily enough. q3 also does this.
+		//its other things that are more awkward.
+		struct reverbproperties_s underwater = REVERB_PRESET_UNDERWATER;
+		S_UpdateReverb(1, &underwater, sizeof(underwater));
+	}
 
 	for (s = snd_device.string; ; )
 	{
@@ -1965,6 +1996,9 @@ void S_Init (void)
 	Cvar_Register(&snd_buffersize,		"Sound controls");
 	Cvar_Register(&snd_samplebits,		"Sound controls");
 	Cvar_Register(&snd_playbackrate,	"Sound controls");
+	Cvar_Register(&snd_doppler,			"Sound controls");
+	Cvar_Register(&snd_doppler_min,		"Sound controls");
+	Cvar_Register(&snd_doppler_max,		"Sound controls");
 
 	Cvar_Register(&snd_inactive,		"Sound controls");
 
@@ -2060,6 +2094,13 @@ void S_Shutdown(qboolean final)
 	Z_Free(known_sfx);
 	known_sfx = NULL;
 	num_sfx = 0;
+
+	if (final)
+	{
+		Z_Free(reverbproperties);
+		reverbproperties = NULL;
+		numreverbproperties = 0;
+	}
 
 #ifdef MULTITHREAD
 	if (final && mixermutex)
@@ -2364,7 +2405,7 @@ SND_Spatialize
 */
 static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 {
-	vec3_t listener_vec;
+	vec3_t listener_vec, sound_vel;
 	vec_t dist;
 	vec_t scale;
 	vec3_t world_vec;
@@ -2372,17 +2413,50 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	float volscale;
 	int seat;
 
-/*
-	if ((ch->flags & CF_FOLLOW) && ch->entnum > 0 && ch->entnum < cl.maxlerpents)
-	{	//sounds following ents should update their position to match that ent's position.
+	if (ch->flags & CF_FOLLOW)
+	{
+		//sounds following ents should update their position to match that ent's position.
 		//its important that they do not snap back to where they were if the entity vanishes, so we just overwrite the channel origin for that. its simpler.
-		lerpents_t *le = cl.lerpents+ch->entnum;
-		if (le->sequence == cl.lerpentssequence)
-			VectorCopy(le->origin, ch->origin);	//fixme: bmodels should use their center rather than their origin. check le->state->solid?
+#ifdef CSQC_DAT
+		if (ch->entnum < 0 && -ch->entnum < csqc_world.num_edicts)
+		{
+			wedict_t *ed = &csqc_world.edicts[-ch->entnum];
+			if (ed->ereftype == ER_ENTITY)
+			{
+				VectorCopy(ed->v->origin, ch->origin);
+				VectorCopy(ed->v->velocity, ch->velocity);
 
+				if (ed->v->solid == SOLID_BSP)
+				{
+					VectorMA(ch->origin, 0.5, ed->v->absmin, ch->origin);
+					VectorMA(ch->origin, 0.5, ed->v->absmax, ch->origin);
+				}
+			}
+		}
+		else
+#endif
+		if (ch->entnum > 0 && ch->entnum < cl.maxlerpents && cl.lerpents[ch->entnum].sequence == cl.lerpentssequence)
+		{
+			lerpents_t *le = cl.lerpents+ch->entnum;
+			int midx = le->entstate->modelindex;
+			
+			VectorCopy(le->origin, ch->origin);
+			//VectorCopy(le->velocity, ch->velocity);	//fixme: bmodels should use their center rather than their origin. check le->state->solid?
+
+			//bmodels should report the center of the entity rather than the origin (which is frequently at 0 0 0 or merely used as a pivot)
+			if (le->entstate->solidsize == ES_SOLID_BSP && midx > 0 && midx < countof(cl.model_precache))
+			{
+				if (cl.model_precache[midx] && cl.model_precache[midx]->loadstate == MLS_LOADED && cl.model_precache[midx]->type == mod_brush)
+				{
+					//fixme: should probably deal with rotations.
+					VectorMA(ch->origin, 0.5, cl.model_precache[midx]->mins, ch->origin);
+					VectorMA(ch->origin, 0.5, cl.model_precache[midx]->maxs, ch->origin);
+				}
+			}
+		}
 		//FIXME: update rate to provide doppler
 	}
-*/
+
 	//sounds with absvolume ignore all volume etc cvars+settings
 	if (ch->flags & CF_ABSVOLUME)
 		volscale = 1;
@@ -2412,7 +2486,7 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 
 	// anything coming from the view entity will always be full volume
 	// (no, I don't like this hack)
-	if (ch->entnum == listener[seat].entnum)
+	if (ch->entnum == listener[seat].entnum && ch->entnum)
 	{
 		v = ch->master_vol * (ruleset_allow_localvolume.value ? snd_playersoundvolume.value : 1) * volscale;
 		v = bound(0, v, 255);
@@ -2436,6 +2510,21 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 		return;
 	}
 
+	//an attempt at doppler.
+	if (snd_doppler.value)
+	{
+		//according to feh, the speed of sound is about 9000 qu/s.
+		VectorAdd(listener[seat].velocity, ch->velocity, sound_vel);
+		scale = 1 + snd_doppler.value * DotProduct(world_vec, sound_vel) / (9000.0);
+		if (scale > snd_doppler_max.value)
+			scale = snd_doppler_max.value;
+		if (scale < snd_doppler_min.value)
+			scale = snd_doppler_min.value;
+		ch->rate = (1<<PITCHSHIFT) * scale + 0.5;
+		if (ch->rate < 1)	//too small values result in crashes.
+			ch->rate = 1;
+	}
+
 	//rotate the world_vec into listener space, so that the audio direction stored in the speakerdir array can be used directly.
 	listener_vec[0] = DotProduct(listener[seat].forward, world_vec);
 	listener_vec[1] = DotProduct(listener[seat].right, world_vec);
@@ -2456,13 +2545,15 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 // =======================================================================
 // Start a sound effect
 // =======================================================================
-static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_t *target_chan, int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeoffset, float pitchadj, unsigned int flags)
+static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_t *target_chan, int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t velocity, float fvol, float attenuation, float timeoffset, float pitchadj, unsigned int flags)
 {
 	channel_t *check;
 	int		vol;
 	int		ch_idx;
 	int		skip;
 	int		absstartpos = updateonly?target_chan->pos:0;
+	extern cvar_t cl_demospeed;
+	int chanupdatetype = true;
 
 	if (fvol < 0)
 	{	//stopsound, apparently.
@@ -2476,7 +2567,7 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	if (pitchadj <= 0)
 		pitchadj = 100;
 
-	pitchadj *= snd_playbackrate.value * (cls.state?cl.gamespeed:1);
+	pitchadj *= snd_playbackrate.value * (cls.state?cl.gamespeed:1) * (cls.demoplayback?cl_demospeed.value:1);
 
 	vol = fvol*255;
 
@@ -2497,6 +2588,10 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	{
 		VectorCopy(origin, target_chan->origin);
 	}
+	if (velocity)
+		VectorCopy(velocity, target_chan->velocity);
+	else
+		VectorClear(target_chan->velocity);
 	target_chan->flags = flags;
 	target_chan->dist_mult = attenuation / sound_nominal_clip_dist;
 	target_chan->master_vol = vol;
@@ -2518,7 +2613,15 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 			return;		// couldn't load the sound's data
 		}
 
+		if (target_chan->sfx != sfx)
+			chanupdatetype = true;
 		target_chan->sfx = sfx;
+	}
+
+	if (updateonly && sc->ChannelUpdate)
+	{
+		chanupdatetype = 2;
+		absstartpos = 0;
 	}
 
 	target_chan->rate = ((1<<PITCHSHIFT) * pitchadj) / 100;	/*pitchadj is a percentage*/
@@ -2545,10 +2648,10 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	}
 
 	if (sc->ChannelUpdate)
-		sc->ChannelUpdate(sc, target_chan, true);
+		sc->ChannelUpdate(sc, target_chan, chanupdatetype);
 }
 
-float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags)
+float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t velocity, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags)
 {
 	int i;
 	int result = 0;
@@ -2565,7 +2668,7 @@ float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float
 		{
 			if (sc->channel[i].entnum == entnum && sc->channel[i].entchannel == entchannel && sc->channel[i].sfx)
 			{
-				S_UpdateSoundCard(sc, true, &sc->channel[i], entnum, entchannel, sfx, origin, fvol, attenuation, timeofs, pitchadj, flags);
+				S_UpdateSoundCard(sc, true, &sc->channel[i], entnum, entchannel, sfx, origin, velocity, fvol, attenuation, timeofs, pitchadj, flags);
 				result++;
 				break;
 			}
@@ -2577,7 +2680,7 @@ float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float
 	return result / (float)cards;
 }
 
-void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags)
+void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t velocity, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags)
 {
 	soundcardinfo_t *sc;
 	channel_t *target_chan;
@@ -2602,7 +2705,7 @@ void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float f
 		if (!target_chan)
 			break;
 
-		S_UpdateSoundCard(sc, false, target_chan, entnum, entchannel, sfx, origin, fvol, attenuation, timeofs, pitchadj, flags);
+		S_UpdateSoundCard(sc, false, target_chan, entnum, entchannel, sfx, origin, velocity, fvol, attenuation, timeofs, pitchadj, flags);
 	}
 	S_UnlockMixer();
 }
@@ -2913,9 +3016,33 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 	{
 		qboolean changed = false;
 		chan = &sc->channel[i];
+		if (!chan->sfx)
+		{
+			float time = 0;
+			char *nexttrack = Media_NextTrack(i-MUSIC_FIRST, &time);
+			sfx_t *newmusic;
+
+			if (nexttrack && *nexttrack)
+			{
+				newmusic = S_PrecacheSound(nexttrack);
+
+				if (newmusic && newmusic->loadstate != SLS_FAILED)
+				{
+					chan->sfx = newmusic;
+					chan->rate = 1<<PITCHSHIFT;
+					chan->pos = (int)(time * sc->sn.speed) * chan->rate;
+					changed = true;
+
+					chan->master_vol = bound(0, 1, 255);
+					chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
+					if (sc->ChannelUpdate)
+						sc->ChannelUpdate(sc, chan, changed);
+				}
+			}
+		}
 		if (chan->sfx)
 		{
-			chan->flags = CF_ABSVOLUME;	//bypasses volume cvar completely.
+			chan->flags = CF_ABSVOLUME|CF_NOSPACIALISE|CF_NOREVERB;	//bypasses volume cvar completely.
 			vol = 255*bgmvolume.value*voicevolumemod;
 			vol = bound(0, vol, 255);
 			vol = Media_CrossFade(i-MUSIC_FIRST, vol, (chan->pos>>PITCHSHIFT) / (float)snd_speed);
@@ -2943,60 +3070,36 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 					sc->ChannelUpdate(sc, chan, changed);
 			}
 		}
-		if (!chan->sfx)
-		{
-			float time = 0;
-			char *nexttrack = Media_NextTrack(i-MUSIC_FIRST, &time);
-			sfx_t *newmusic;
-
-			if (nexttrack && *nexttrack)
-			{
-				newmusic = S_PrecacheSound(nexttrack);
-
-				if (newmusic && newmusic->loadstate != SLS_FAILED)
-				{
-					chan->sfx = newmusic;
-					chan->rate = 1<<PITCHSHIFT;
-					chan->pos = (int)(time * sc->sn.speed) * chan->rate;
-					changed = true;
-
-					chan->master_vol = bound(0, 1, 255);
-					chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
-					if (sc->ChannelUpdate)
-						sc->ChannelUpdate(sc, chan, changed);
-				}
-			}
-		}
 	}
 
 
 // calc ambient sound levels
-	if (!cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame != fg_quake || cl.worldmodel->loadstate != MLS_LOADED)
-		return;
-
 	for (i = 0; i < NUM_AMBIENTS; i++)
 		ambientlevel[i] = 0;
-	if (ambient_level.value)
+	if (cl.worldmodel && cl.worldmodel->type == mod_brush && cl.worldmodel->fromgame == fg_quake && cl.worldmodel->loadstate == MLS_LOADED)
 	{
-		if (sc->seat < 0)
+		if (ambient_level.value)
 		{
-			int seat = max(1,cl.splitclients);
-			while(seat --> 0)
+			if (sc->seat < 0)
 			{
-				l = Q1BSP_LeafForPoint(cl.worldmodel, listener[seat].origin);
-				if (!l)
-					continue;
+				int seat = max(1,cl.splitclients);
+				while(seat --> 0)
+				{
+					l = Q1BSP_LeafForPoint(cl.worldmodel, listener[seat].origin);
+					if (!l)
+						continue;
 
-				for (i = 0; i < NUM_AMBIENTS; i++)
-					ambientlevel[i] = max(ambientlevel[i], l->ambient_sound_level[i]);
+					for (i = 0; i < NUM_AMBIENTS; i++)
+						ambientlevel[i] = max(ambientlevel[i], l->ambient_sound_level[i]);
+				}
 			}
-		}
-		else
-		{
-			l = Q1BSP_LeafForPoint(cl.worldmodel, listener[sc->seat].origin);
-			if (l)
-				for (i = 0; i < NUM_AMBIENTS; i++)
-					ambientlevel[i] = l->ambient_sound_level[i];
+			else
+			{
+				l = Q1BSP_LeafForPoint(cl.worldmodel, listener[sc->seat].origin);
+				if (l)
+					for (i = 0; i < NUM_AMBIENTS; i++)
+						ambientlevel[i] = l->ambient_sound_level[i];
+			}
 		}
 	}
 
@@ -3038,6 +3141,42 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 	}
 }
 
+struct sndreverbproperties_s *reverbproperties;
+size_t numreverbproperties;
+qboolean S_UpdateReverb(size_t slot, void *reverb, size_t reverbsize)
+{
+	struct reverbproperties_s newprops;
+	if (slot >= 1024)
+		return false;
+
+	if (slot >= numreverbproperties)
+	{
+		int slots = slot+1;
+		void *n = BZ_Realloc(reverbproperties, sizeof(*reverbproperties)*slots);
+		if (!n)
+			return false;
+		reverbproperties = n;
+		memset(reverbproperties+numreverbproperties, 0, sizeof(*reverbproperties) * (slots-numreverbproperties));
+		numreverbproperties = slots;
+	}
+
+	memset(&newprops, 0, sizeof(newprops));
+	if (reverb)
+	{
+		//clamp the size for possible future extensibility
+		if (reverbsize > sizeof(newprops))
+			reverbsize = sizeof(newprops);
+		memcpy(&newprops, reverb, reverbsize);
+	}
+
+	if (memcmp(&newprops, &reverbproperties[slot].props, sizeof(newprops)))
+	{
+		reverbproperties[slot].props = newprops;
+		reverbproperties[slot].modificationcount++;
+	}
+	return true;
+}
+
 /*
 ============
 S_Update
@@ -3045,18 +3184,19 @@ S_Update
 Called once each time through the main loop
 ============
 */
-void S_UpdateListener(int seat, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, qboolean underwater)
+void S_UpdateListener(int seat, int entnum, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, size_t reverbtype, vec3_t velocity)
 {
 	soundcardinfo_t *sc;
-	listener[seat].entnum = cl.playerview[seat].viewentity;
+	listener[seat].entnum = entnum;
 	VectorCopy(origin, listener[seat].origin);
 	VectorCopy(forward, listener[seat].forward);
 	VectorCopy(right, listener[seat].right);
 	VectorCopy(up, listener[seat].up);
+	VectorCopy(velocity, listener[seat].velocity);
 
 	for (sc = sndcardinfo; sc; sc=sc->next)
-		if (sc->SetWaterDistortion && (sc->seat == seat || (sc->seat == -1 && seat == 0)))
-			sc->SetWaterDistortion(sc, underwater);
+		if (sc->SetEnvironmentReverb && (sc->seat == seat || (sc->seat == -1 && seat == 0)))
+			sc->SetEnvironmentReverb(sc, reverbtype);
 }
 
 void S_GetListenerInfo(int seat, float *origin, float *forward, float *right, float *up)
@@ -3166,7 +3306,6 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 static void S_UpdateCard(soundcardinfo_t *sc)
 {
 	int			i, j;
-	int			total;
 	channel_t	*ch;
 	channel_t	*combine;
 
@@ -3181,7 +3320,7 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 #ifdef AVAIL_OPENAL
 	if (sc->ListenerUpdate)
 	{
-		sc->ListenerUpdate(sc, listener[sc->seat].origin, listener[sc->seat].forward, listener[sc->seat].right, listener[sc->seat].up, listener[sc->seat].velocity);
+		sc->ListenerUpdate(sc, listener[sc->seat].entnum, listener[sc->seat].origin, listener[sc->seat].forward, listener[sc->seat].right, listener[sc->seat].up, listener[sc->seat].velocity);
 	}
 #endif
 
@@ -3269,17 +3408,23 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 //
 	if (snd_show.ival)
 	{
-		total = 0;
+		int			active, mute;
+		active = 0;
+		mute = 0;
 		ch = sc->channel;
 		for (i=0 ; i<sc->total_chans; i++, ch++)
+		{
 			if (ch->sfx && (ch->vol[0] || ch->vol[1]) )
 			{
 				if (snd_show.ival > 1)
 					Con_Printf ("%i, %i %i %i %i %i %i %s\n", i, ch->vol[0], ch->vol[1], ch->vol[2], ch->vol[3], ch->vol[4], ch->vol[5], ch->sfx->name);
-				total++;
+				active++;
 			}
+			else if (ch->sfx)
+				mute++;
+		}
 
-		Con_Printf ("----(%i)----\n", total);
+		Con_Printf ("----(%i+%i)----\n", active, mute);
 	}
 
 // mix some sound
@@ -3393,7 +3538,7 @@ static void S_Update_(soundcardinfo_t *sc)
 		samps = sc->samplequeue / sc->sn.numchannels;
 	}
 	else if (sc->samplequeue < 0)
-	{
+	{	/*device is telling us the exact point that we should be mixing to*/
 		endtime = soundtime;
 		soundtime = sc->paintedtime;
 		samps = sc->sn.samples / sc->sn.numchannels;
@@ -3462,7 +3607,7 @@ void S_Play(void)
 		else
 			Q_strncpyz(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
-		S_StartSound(0, -1, sfx, NULL, 1.0, 0.0, 0, 0, CF_NOSPACIALISE);
+		S_StartSound(0, -1, sfx, NULL, NULL, 1.0, 0.0, 0, 0, CF_NOSPACIALISE);
 		i++;
 	}
 }
@@ -3486,7 +3631,7 @@ void S_PlayVol(void)
 			Q_strncpy(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
 		vol = Q_atof(Cmd_Argv(i+1));
-		S_StartSound(0, -1, sfx, NULL, vol, 0.0, 0, 0, CF_NOSPACIALISE);
+		S_StartSound(0, -1, sfx, NULL, NULL, vol, 0.0, 0, 0, CF_NOSPACIALISE);
 		i+=2;
 	}
 }
@@ -3542,7 +3687,7 @@ void S_SoundList_f(void)
 }
 
 
-void S_LocalSound (const char *sound)
+void S_LocalSound2 (const char *sound, int channel, float volume)
 {
 	sfx_t	*sfx;
 
@@ -3557,7 +3702,11 @@ void S_LocalSound (const char *sound)
 		Con_Printf ("S_LocalSound: can't cache %s\n", sound);
 		return;
 	}
-	S_StartSound (0, -1, sfx, NULL, 1, 0, 0, 0, CF_NOSPACIALISE);
+	S_StartSound (0, channel, sfx, NULL, NULL, volume, 0, 0, 0, CF_NOSPACIALISE|CF_NOREVERB);
+}
+void S_LocalSound (const char *sound)
+{
+	S_LocalSound2(sound, 256, 1);
 }
 
 
@@ -3660,6 +3809,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		}
 		s->sfx.decoder.buf = s;
 		s->sfx.decoder.decodedata = S_Raw_Locate;
+		s->sfx.loadstate = SLS_LOADED;
 		s->numchannels = channels;
 		s->width = width;
 		s->data = NULL;

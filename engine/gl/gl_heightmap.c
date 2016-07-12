@@ -1,3 +1,7 @@
+/*
+See gl_terrain.h for terminology, networking notes, etc.
+*/
+
 #include "quakedef.h"
 
 #ifdef TERRAIN
@@ -6,385 +10,65 @@
 
 #include "pr_common.h"
 
-//#define STRICTEDGES	//strict (ugly) grid
-#define TERRAINTHICKNESS 16
-#define TERRAINACTIVESECTIONS 3000
+#include "gl_terrain.h"
 
-/*
-a note on networking:
-By default terrain is NOT networked. This means content is loaded without networking delays.
-If you wish to edit the terrain collaboratively, you can enable the mod_terrain_networked cvar.
-When set, changes on the server will notify clients that a section has changed, and the client will reload it as needed.
-Changes on the client WILL NOT notify the server, and will get clobbered if the change is also made on the server.
-This means for editing purposes, you MUST funnel it via ssqc with your own permission checks.
-It also means for explosions and local stuff, the server will merely restate changes from impacts if you do them early. BUT DO NOT CALL THE EDIT FUNCTION IF THE SERVER HAS ALREADY APPLIED THE CHANGE.
-*/
+static terrainfuncs_t terrainfuncs;
+
 cvar_t mod_terrain_networked = CVARD("mod_terrain_networked", "0", "Terrain edits are networked. Clients will download sections on demand, and servers will notify clients of changes.");
 cvar_t mod_terrain_defaulttexture = CVARD("mod_terrain_defaulttexture", "", "Newly created terrain tiles will use this texture. This should generally be updated by the terrain editor.");
 cvar_t mod_terrain_savever = CVARD("mod_terrain_savever", "", "Which terrain section version to write if terrain was edited.");
 
-/*
-terminology:
-tile:
-	a single grid tile of 2*2 height samples.
-	iterrated for collisions but otherwise unused.
-section:
-	16*16 tiles, with a single texture spread over them.
-	samples have an overlap with the neighbouring section (so 17*17 height samples). texture samples do not quite match height frequency (63*63 vs 16*16).
-	smallest unit for culling.
-block:
-	16*16 sections. forms a single disk file. used only to avoid 16777216 files in a single directory, instead getting 65536 files for a single fully populated map... much smaller...
-	each block file is about 4mb each. larger can be detrimental to automatic downloads.
-cluster:
-	64*64 sections
-	internal concept to avoid a single pointer array of 16 million entries per terrain.
-*/
+void validatelinks(link_t *firstnode)
+{
+/*	link_t *node;
 
+	COM_AssertMainThread("foo");
+
+	for (node = firstnode->next; node; node = node->next)
+		if (firstnode == node)
+			break;
+
+	for (node = firstnode->prev; node; node = node->prev)
+		if (firstnode == node)
+			break;
+
+	return;*/
+}
+
+void validatelinks2(link_t *firstnode, link_t *panic)
+{
+/*	link_t *node;
+
+	COM_AssertMainThread("foo");
+
+	for (node = firstnode->next; node; node = node->next)
+	{
+		if (node == panic)
+			Sys_Error("Panic\n");
+		if (firstnode == node)
+			break;
+	}
+
+	for (node = firstnode->prev; node; node = node->prev)
+	{
+		if (node == panic)
+			Sys_Error("Panic\n");
+		if (firstnode == node)
+			break;
+	}
+
+	return;*/
+}
+
+//FIXME
 int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe);
-static size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *planes, size_t numplanes, vec4_t face);
-
-#define MAXCLUSTERS 64
-#define MAXSECTIONS 64	//this many sections within each cluster in each direction
-#define SECTHEIGHTSIZE 17 //this many height samples per section
-#define SECTTEXSIZE 64	//this many texture samples per section
-#define SECTIONSPERBLOCK 16
-
-//each section is this many sections higher in world space, to keep the middle centered at '0 0'
-#define CHUNKBIAS	(MAXCLUSTERS*MAXSECTIONS/2)
-#define CHUNKLIMIT	(MAXCLUSTERS*MAXSECTIONS)
-
-#define LMCHUNKS 8//(LMBLOCK_WIDTH/SECTTEXSIZE)
-
-#define HMLMSTRIDE (LMCHUNKS*SECTTEXSIZE)
-
-#define SECTION_MAGIC (*(int*)"HMMS")
-#define SECTION_VER_DEFAULT	1
-/*simple version history:
-ver=0
-	SECTHEIGHTSIZE=16
-ver=1
-	SECTHEIGHTSIZE=17 (oops, makes holes more usable)
-	(holes in this format are no longer supported)
-ver=2
-	uses deltas instead of absolute values
-	variable length image names
-*/
-
-#define TGS_NOLOAD			0
-#define TGS_LAZYLOAD		1	//see if its available, if not, queue it. don't create too much work at once. peace man
-#define TGS_TRYLOAD			2	//try and get it, but don't stress if its not available yet
-#define TGS_WAITLOAD		4	//load it, wait for it if needed.
-#define TGS_ANYSTATE		8	//returns the section regardless of its current state, even if its loading.
-#define TGS_NODOWNLOAD		16	//don't queue it for download
-#define TGS_NORENDER		32	//don't upload any textures or whatever
-#define TGS_DEFAULTONFAIL	64	//if it failed to load, generate a default anyway
-
-enum
-{
-	//these flags can be found on disk
-	TSF_HASWATER_V0	= 1u<<0,	//no longer flagged.
-	TSF_HASCOLOURS	= 1u<<1,
-	TSF_HASHEIGHTS	= 1u<<2,
-	TSF_HASSHADOW	= 1u<<3,
-
-	//these flags are found only on disk
-	TSF_COMPRESSED	= 1u<<31,
-
-	//these flags should not be found on disk
-	TSF_NOTIFY		= 1u<<28,	//modified on server, waiting for clients to be told about the change.
-	TSF_RELIGHT		= 1u<<29,	//height edited, needs relighting.
-	TSF_DIRTY		= 1u<<30,	//its heightmap has changed, the mesh needs rebuilding
-	TSF_EDITED		= 1u<<31	//says it needs to be written if saved
-
-#define TSF_INTERNAL	(TSF_RELIGHT|TSF_DIRTY|TSF_EDITED|TSF_NOTIFY)
-};
-enum
-{
-	TMF_SCALE	= 1u<<0,
-	//what else do we want? alpha? colormod perhaps?
-};
-
-typedef struct
-{
-	int size;
-	vec3_t axisorg[4];
-	float scale;
-	int reserved3;
-	int reserved2;
-	int reserved1;
-	//char modelname[1+];
-} dsmesh_v1_t;
-
-typedef struct
-{
-	unsigned int flags;
-	char texname[4][32];
-	unsigned int texmap[SECTTEXSIZE][SECTTEXSIZE];
-	float heights[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
-	unsigned short holes;
-	unsigned short reserved0;
-	float waterheight;
-	float minh;
-	float maxh;
-	int ents_num;
-	int reserved1;
-	int reserved4;
-	int reserved3;
-	int reserved2;
-} dsection_v1_t;
-
-//file header for a single section
-typedef struct
-{
-	int magic;
-	int ver;
-} dsection_t;
-
-//file header for a block of sections.
-//(because 16777216 files in a single directory is a bad plan. windows really doesn't like it.)
-typedef struct
-{
-	//a block is a X*Y group of sections
-	//if offset==0, the section isn't present.
-	//the data length of the section preceeds the actual data.
-	int magic;
-	int ver;
-	unsigned int offset[SECTIONSPERBLOCK*SECTIONSPERBLOCK];
-} dblock_t;
-
-typedef struct hmpolyset_s
-{
-	struct hmpolyset_s *next;
-	shader_t *shader;
-	mesh_t mesh;
-	mesh_t *amesh;
-	vbo_t vbo;
-} hmpolyset_t;
-struct hmwater_s
-{
-	struct hmwater_s *next;
-	unsigned int contentmask;
-	qboolean simple;	//no holes, one height
-	float minheight;
-	float maxheight;
-	char shadername[MAX_QPATH];
-	shader_t *shader;
-	qbyte holes[8];
-	float heights[9*9];
-
-/*
-	qboolean facesdown;
-	unsigned int contentmask;
-	float		heights[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
-#ifndef SERVERONLY
-	byte_vec4_t	colours[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
-	char texname[4][MAX_QPATH];
-	int lightmap;
-	int lmx, lmy;
-
-	texnums_t textures;
-	vbo_t vbo;
-	mesh_t mesh;
-	mesh_t *amesh;
-#endif
-*/
-};
-enum
-{
-	TSLS_NOTLOADED,
-	TSLS_LOADING1,	//section is queued to the worker (and may be loaded as part of another section)
-	TSLS_LOADING2,	//waiting for main thread to finish, worker will ignore
-	TSLS_LOADED,
-	TSLS_FAILED
-};
-typedef struct
-{
-	link_t recycle;
-	int sx, sy;
-
-	int loadstate;
-
-	float heights[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
-	unsigned char holes[8];
-	unsigned int flags;
-	float maxh_cull;	//includes water+mesh heights
-	float minh, maxh;
-	struct heightmap_s *hmmod;
-
-	//FIXME: make layers, each with their own holes+heights+contents+textures+shader+mixes. water will presumably have specific values set for each part.
-	struct hmwater_s *water;
-
-	size_t traceseq;
-
-#ifndef SERVERONLY
-	pvscache_t pvscache;
-	vec4_t colours[SECTHEIGHTSIZE*SECTHEIGHTSIZE];	//FIXME: make bytes
-	char texname[4][MAX_QPATH];
-	int lightmap;
-	int lmx, lmy;
-
-	texnums_t textures;
-	vbo_t vbo;
-	mesh_t mesh;
-	mesh_t *amesh;
-
-	hmpolyset_t *polys;
-#endif
-	int numents;
-	int maxents;
-	struct hmentity_s **ents;
-} hmsection_t;
-typedef struct
-{
-	hmsection_t *section[MAXSECTIONS*MAXSECTIONS];
-} hmcluster_t;
-
-#ifndef SERVERONLY
-typedef struct brushbatch_s
-{
-	vbo_t vbo;
-	mesh_t mesh;
-	mesh_t *pmesh;
-	int lightmap;
-	struct brushbatch_s *next;
-	avec4_t align;	//meh, cos we can.
-} brushbatch_t;
-#endif
-typedef struct brushtex_s
-{
-	char shadername[MAX_QPATH];
-#ifndef SERVERONLY
-	shader_t *shader;
-
-	//for rebuild performance
-	int firstlm;
-	int lmcount;
-
-	struct brushbatch_s *batches;
-#endif
-	qboolean rebuild;
-	struct brushtex_s *next;
-} brushtex_t;
-
-typedef struct
-{
-	unsigned int	contents;
-	unsigned int	id;			//networked/gamecode id.
-	unsigned int	axialplanes;	//+x,+y,+z,-x,-y,-z. used for bevel stuff.
-	unsigned int	numplanes;
-	qboolean		selected;	//different shader stuff
-	vec4_t			*planes;
-	vec3_t			mins, maxs;	//for optimisation and stuff
-	struct brushface_s
-	{
-		brushtex_t *tex;
-		vec4_t stdir[2];
-		vec3_t *points;
-		unsigned short numpoints;
-		unsigned short lmscale;
-		int	lightmap;
-		unsigned short lmbase[2];	//min st coord of the lightmap atlas, in texels.
-		unsigned int relight:1;
-		unsigned int relit:1;
-		int lmbias[2];
-		unsigned short lmextents[2];
-		qbyte *lightdata;
-	} *faces;
-} brushes_t;
-typedef struct heightmap_s
-{
-	char path[MAX_QPATH];
-	char skyname[MAX_QPATH];
-	char groundshadername[MAX_QPATH];
-	char defaultwatershader[MAX_QPATH];	//typically the name of the ocean or whatever.
-	unsigned int culldistance;
-	qboolean forcedefault;
-	float defaultwaterheight;
-	float defaultgroundheight;
-	char defaultgroundtexture[MAX_QPATH];
-	int firstsegx, firstsegy;
-	int maxsegx, maxsegy; //tex/cull sections
-	float sectionsize;	//each section is this big, in world coords
-	hmcluster_t *cluster[MAXCLUSTERS*MAXCLUSTERS];
-	shader_t *skyshader;
-	shader_t *shader;
-	mesh_t skymesh;
-	mesh_t *askymesh;
-	unsigned int exteriorcontents;
-	unsigned int loadingsections;	//number of sections currently being loaded. avoid loading extras while non-zero.
-	size_t traceseq;
-	size_t drawnframe;
-	enum
-	{
-		DGT_SOLID,	//invalid/new areas should be completely solid until painted.
-		DGT_HOLES,	//invalid/new sections should be non-solid+invisible
-		DGT_FLAT	//invalid/new sections should be filled with ground by default
-	} defaultgroundtype;
-	enum
-	{
-		HMM_TERRAIN,
-		HMM_BLOCKS
-	} mode;
-	int tilecount[2];
-	int tilepixcount[2];
-
-	int activesections;
-	link_t recycle;		//section list in lru order
-//	link_t collected;	//memory that may be reused, to avoid excess reallocs.
-
-	struct hmentity_s
-	{
-		size_t drawnframe;	//don't add it to the scene multiple times.
-		size_t traceseq;	//don't trace through this entity multiple times if its in different sections.
-		int refs;		//entity is free/reusable when its no longer referenced by any sections
-		entity_t ent;	//note: only model+modelmatrix info is relevant. fixme: implement instancing.
-
-		struct hmentity_s *next;	//used for freeing/allocating an entity
-	} *entities;
-	void *entitylock;	//lock this if you're going to read/write entities of any kind.
-
-#ifndef SERVERONLY
-	unsigned int numusedlmsects;	//to track leaks and stats
-	unsigned int numunusedlmsects;
-	struct lmsect_s
-	{
-		struct lmsect_s *next;
-		int lm, x, y;
-	} *unusedlmsects;
-#endif
-
-#ifndef SERVERONLY
-	//I'm putting this here because we might have some quite expensive lighting routines going on
-	//and that'll make editing the terrain jerky as fook, so relighting it a few texels at a time will help maintain a framerate while editing
-	hmsection_t *relight;
-	unsigned int relightidx;
-	vec2_t relightmin;
-#endif
-
-
-	
-	char *texmask;	//for editing - visually masks off the areas which CANNOT accept this texture
-	qboolean entsdirty;	//ents were edited, so we need to reload all lighting...
-	struct relight_ctx_s *relightcontext;
-	struct llightinfo_s *lightthreadmem;
-	qboolean inheritedlightthreadmem;
-	qboolean recalculatebrushlighting;
-	lmalloc_t brushlmalloc;
-	float brushlmscale;
-	unsigned int *brushlmremaps;
-	unsigned int brushmaxlms;
-	brushtex_t *brushtextures;
-	brushes_t *wbrushes;
-	unsigned int numbrushes;
-	unsigned int brushidseq;
-} heightmap_t;
 
 #ifndef SERVERONLY
 static void ted_dorelight(heightmap_t *hm);
 static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, size_t b);
 static qboolean Terr_Collect(heightmap_t *hm);
 #endif
-static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int flags);
+static hmsection_t *QDECL Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int flags);
 static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b);
 static void Terr_WorkerLoadedSection(void *ctx, void *data, size_t a, size_t b);
 static void Terr_WorkerFailedSection(void *ctx, void *data, size_t a, size_t b);
@@ -414,7 +98,7 @@ static texid_t Terr_LoadTexture(char *name)
 }
 #endif
 
-static void Terr_LoadSectionTextures(hmsection_t *s)
+static void QDECL Terr_LoadSectionTextures(hmsection_t *s)
 {
 #ifndef SERVERONLY
 	extern texid_t missing_texture;
@@ -452,9 +136,11 @@ static void Terr_LoadSectionTextures(hmsection_t *s)
 #endif
 }
 
-#ifndef SERVERONLY
-static qboolean Terr_InitLightmap(hmsection_t *s, qboolean initialise)
+static qboolean QDECL Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 {
+#ifdef SERVERONLY
+	return false;
+#else
 	heightmap_t *hm = s->hmmod;
 
 	if (s->lightmap < 0)
@@ -520,8 +206,8 @@ static qboolean Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 	}
 
 	return s->lightmap>=0;
-}
 #endif
+}
 
 static char *genextendedhex(int n, char *buf)
 {
@@ -645,7 +331,64 @@ static qboolean Terr_IsSectionFName(heightmap_t *hm, char *fname, int *sx, int *
 	return true;
 }
 
-static hmsection_t *Terr_GenerateSection(heightmap_t *hm, int sx, int sy, qboolean scheduleload)
+static int QDECL Terr_GenerateSections(heightmap_t *hm, int sx, int sy, int count, hmsection_t **sects)
+{
+	//a worker is trying to load multiple sections at once.
+	//lock ALL of them atomically, so that we don't end up with too many workers all doing stuff at once.
+	int x, y;
+	
+	hmsection_t *s;
+	hmcluster_t *cluster;
+	int numgen = 0;
+
+	Sys_LockMutex(com_resourcemutex);
+	for (y = 0; y < count; y++)
+		for (x = 0; x < count; x++)
+		{
+			int clusternum = ((sx+x)/MAXSECTIONS) + ((sy+y)/MAXSECTIONS)*MAXCLUSTERS;
+			cluster = hm->cluster[clusternum];
+			if (!cluster)
+				cluster = hm->cluster[clusternum] = Z_Malloc(sizeof(*cluster));
+			s = cluster->section[((sx+x)%MAXSECTIONS) + ((sy+y)%MAXSECTIONS)*MAXSECTIONS];
+			if (!s)
+			{
+				s = Z_Malloc(sizeof(*s));
+				s->loadstate = TSLS_LOADING0;
+#ifndef SERVERONLY
+				s->lightmap = -1;
+#endif
+				s->numents = 0;
+				s->sx = sx + x;
+				s->sy = sy + y;
+				cluster->section[(s->sx%MAXSECTIONS) + (s->sy%MAXSECTIONS)*MAXSECTIONS] = s;
+				hm->activesections++;
+				s->hmmod = hm;
+
+				s->flags = TSF_DIRTY;
+
+				hm->loadingsections+=1;
+			}
+#ifndef SERVERONLY
+			else if (s->loadstate == TSLS_LOADED && s->lightmap < 0)
+				;	//it lost its lightmap. the main thread won't be drawing with it, nor do any loaders.
+					//FIXME: might be used by tracelines on a worker (eg lightmap generation)
+#endif
+			else if (s->loadstate != TSLS_LOADING0)
+			{
+				//this one is already active.
+				sects[x + y*count] = NULL;
+				continue;
+			}
+
+			s->loadstate = TSLS_LOADING1;
+
+			sects[x + y*count] = s;
+			numgen++;
+		}
+	Sys_UnlockMutex(com_resourcemutex);
+	return numgen;
+}
+static hmsection_t *QDECL Terr_GenerateSection(heightmap_t *hm, int sx, int sy, qboolean scheduleload)
 {
 	hmsection_t *s;
 	hmcluster_t *cluster;
@@ -686,10 +429,15 @@ static hmsection_t *Terr_GenerateSection(heightmap_t *hm, int sx, int sy, qboole
 
 		hm->loadingsections+=1;
 
-		s->loadstate = TSLS_LOADING1;
-
 		if (!scheduleload)
+		{	//no scheduling means that we're loading it NOW, on this thread.
+			s->loadstate = TSLS_LOADING1;
+#ifdef LOADERTHREAD
+			Sys_UnlockMutex(com_resourcemutex);
+#endif
 			return s;
+		}
+		s->loadstate = TSLS_LOADING0;
 
 #ifdef LOADERTHREAD
 		Sys_UnlockMutex(com_resourcemutex);
@@ -697,15 +445,21 @@ static hmsection_t *Terr_GenerateSection(heightmap_t *hm, int sx, int sy, qboole
 		COM_AddWork(WG_LOADER, Terr_LoadSectionWorker, s, hm, sx, sy);
 		return s;
 	}
-	if (scheduleload)
+	if (!scheduleload)
+	{
+		if (s->loadstate == TSLS_LOADING0)
+			s->loadstate = TSLS_LOADING1;
+		else
+			s = NULL;
+	}
 #ifdef LOADERTHREAD
-		Sys_UnlockMutex(com_resourcemutex);
+	Sys_UnlockMutex(com_resourcemutex);
 #endif
 	return s;
 }
 
 //generates some water
-static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
+static void *QDECL Terr_GenerateWater(hmsection_t *s, float maxheight)
 {
 	int i;
 	struct hmwater_s *w;
@@ -724,21 +478,30 @@ static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
 	return w;
 }
 
-#ifndef SERVERONLY
 //embeds a mesh
-static void Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, vec3_t epos, vec3_t axis[3], float scale)
+static void QDECL Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, const char *modelname, vec3_t epos, vec3_t axis[3], float scale)
 {
+#ifndef SERVERONLY
 	struct hmentity_s *e, *f = NULL;
 	hmsection_t *s;
 	int min[2], max[2], coord[2];
 	int i;
 
 	if (!mod)
-		return;
+	{
+		if (modelname)
+			mod = Mod_ForName(modelname, MLV_WARN);
+		if (!mod)
+			return;
+	}
 
 	if (!scale)
 		scale = 1;
 
+	if (mod->loadstate != MLS_LOADED)
+		Con_DPrintf("Terr_AddMesh: model is not loaded yet\n");
+
+	//I do NOT like that this depends on the size of the model.
 	if (axis[0][0] != 1 || axis[0][1] != 0 || axis[0][2] != 0 ||
 		axis[1][0] != 0 || axis[1][1] != 1 || axis[1][2] != 0 ||
 		axis[2][0] != 0 || axis[2][1] != 0 || axis[2][2] != 1)
@@ -842,8 +605,8 @@ static void Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, vec3_t ep
 		}
 	}
 	Sys_UnlockMutex(hm->entitylock);
-}
 #endif
+}
 
 static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 {
@@ -920,7 +683,7 @@ static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 		org[0] = dm->axisorg[3][0] + (s->sx-CHUNKBIAS)*hm->sectionsize;
 		org[1] = dm->axisorg[3][1] + (s->sy-CHUNKBIAS)*hm->sectionsize;
 		org[2] = dm->axisorg[3][2];
-		Terr_AddMesh(hm, TGS_NOLOAD, Mod_ForName((char*)(dm + 1), MLV_WARN), org, dm->axisorg, dm->scale); 
+		Terr_AddMesh(hm, TGS_NOLOAD, NULL, (char*)(dm + 1), org, dm->axisorg, dm->scale); 
 	}
 #endif
 	return ptr;
@@ -1263,7 +1026,7 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 		for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
 			s->heights[i] = f;
 	}
-	
+
 	for (i = 0; i < sizeof(s->holes); i++)
 		s->holes[i] = Terr_Read_Byte(&strm);
 
@@ -1400,13 +1163,11 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 		org[0] += (s->sx-CHUNKBIAS)*hm->sectionsize;
 		org[1] += (s->sy-CHUNKBIAS)*hm->sectionsize;
 
-		Terr_AddMesh(hm, TGS_NOLOAD, mod, org, axis, scale);
+		Terr_AddMesh(hm, TGS_NOLOAD, mod, NULL, org, axis, scale);
 	}
 #endif
 	return ptr;
 }
-
-//#include "gl_adt.inc"
 
 static void Terr_ClearSection(hmsection_t *s)
 {
@@ -1485,7 +1246,7 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 		//temp
 		int vx, vy;
 		int x, y;
-		extern qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname);
+		extern qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, const char *fname);
 		int sw, sh;
 		qboolean hasalpha;
 		unsigned char *splatter = Read32BitImageFile(f, com_filesize, &sw, &sh, &hasalpha, "splattermap");
@@ -1529,7 +1290,7 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 		//temp
 		int vx, vy;
 		int x, y;
-		extern qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname);
+		extern qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, const char *fname);
 		int sw, sh;
 		float *h;
 		qboolean hasalpha;
@@ -1567,12 +1328,18 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 static void Terr_WorkerLoadedSection(void *ctx, void *data, size_t a, size_t b)
 {
 	hmsection_t *s = ctx;
+	validatelinks(&s->hmmod->recycle);
+
 	Terr_LoadSectionTextures(s);
-	COM_AssertMainThread("foo");
+	validatelinks2(&s->hmmod->recycle, &s->recycle);
 	InsertLinkBefore(&s->recycle, &s->hmmod->recycle);
+	validatelinks(&s->hmmod->recycle);
 	s->hmmod->loadingsections-=1;
 	s->flags &= ~TSF_EDITED;
 	s->loadstate = TSLS_LOADED;
+	s->timestamp = realtime;
+
+	validatelinks(&s->hmmod->recycle);
 }
 static void Terr_WorkerFailedSection(void *ctx, void *data, size_t a, size_t b)
 {
@@ -1580,6 +1347,19 @@ static void Terr_WorkerFailedSection(void *ctx, void *data, size_t a, size_t b)
 	Terr_WorkerLoadedSection(ctx, data, a, b);
 	s->flags &= ~TSF_EDITED;
 	s->loadstate = TSLS_FAILED;
+
+	validatelinks(&s->hmmod->recycle);
+}
+
+void QDECL Terr_FinishedSection(hmsection_t *s, qboolean success)
+{
+	s->flags &= ~TSF_EDITED;	//its just been loaded (and was probably edited by the loader), make sure it doesn't get saved or whatever
+
+	s->loadstate = TSLS_LOADING2;
+	if (!success)
+		COM_AddWork(WG_MAIN, Terr_WorkerFailedSection, s, NULL, s->sx, s->sy);
+	else
+		COM_AddWork(WG_MAIN, Terr_WorkerLoadedSection, s, NULL, s->sx, s->sy);
 }
 
 static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int ver, void *filebase, unsigned int filelen)
@@ -1599,13 +1379,7 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int ver, v
 		failed = true;
 	}
 
-	s->flags &= ~TSF_EDITED;	//its just been loaded (and was probably edited by the loader), make sure it doesn't get saved or whatever
-
-	s->loadstate = TSLS_LOADING2;
-	if (failed)
-		COM_AddWork(WG_MAIN, Terr_WorkerFailedSection, s, NULL, s->sx, s->sy);
-	else
-		COM_AddWork(WG_MAIN, Terr_WorkerLoadedSection, s, NULL, s->sx, s->sy);
+	Terr_FinishedSection(s, !failed);
 
 	return s;
 }
@@ -1677,7 +1451,7 @@ static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b)
 	char fname[MAX_QPATH];
 
 	//already processed, or not otherwise valid
-	if (s->loadstate != TSLS_LOADING1)
+	if (s->loadstate != TSLS_LOADING0)
 		return;
 
 #if SECTIONSPERBLOCK > 1
@@ -1690,40 +1464,36 @@ static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b)
 		dblock_t *block = diskimage;
 		if (block->magic != SECTION_MAGIC || !(block->ver & 0x80000000))
 		{
+			s = Terr_GenerateSection(hm, sx, sy, false);
+
 			//give it a dummy so we don't constantly hit the disk
 			Terr_ReadSection(hm, s, 0, NULL, 0);
 		}
 		else
 		{
+			hmsection_t *sects[SECTIONSPERBLOCK*SECTIONSPERBLOCK];
+
 			sx&=~(SECTIONSPERBLOCK-1);
 			sy&=~(SECTIONSPERBLOCK-1);
 
 			ver = block->ver & ~0x80000000;
-			for (y = 0; y < SECTIONSPERBLOCK; y++)
-				for (x = 0; x < SECTIONSPERBLOCK; x++)
-				{
-					//noload avoids recursion.
-					s = Terr_GenerateSection(hm, sx+x, sy+y, false);
-					if (s)
+			if (Terr_GenerateSections(hm, sx, sy, SECTIONSPERBLOCK, sects))
+			{
+				for (y = 0; y < SECTIONSPERBLOCK; y++)
+					for (x = 0; x < SECTIONSPERBLOCK; x++)
 					{
-						if (s->loadstate == TSLS_LOADING1)
+						//noload avoids recursion.
+						s = sects[x+y*SECTIONSPERBLOCK];
+						if (s)
 						{
-							s->loadstate = TSLS_LOADING1;
-#ifdef LOADERTHREAD
-							Sys_UnlockMutex(com_resourcemutex);
-#endif
 							offset = block->offset[x + y*SECTIONSPERBLOCK];
 							if (!offset)
 								Terr_ReadSection(hm, s, ver, NULL, 0);	//no data in the file for this section
 							else
 								Terr_ReadSection(hm, s, ver, (char*)diskimage + offset, len - offset);
 						}
-#ifdef LOADERTHREAD
-						else
-							Sys_UnlockMutex(com_resourcemutex);
-#endif
 					}
-				}
+			}
 		}
 		FS_FreeFile(diskimage);
 		return;
@@ -1737,6 +1507,9 @@ static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b)
 		dsection_t *h = diskimage;
 		if (len >= sizeof(*h) && h->magic == SECTION_MAGIC)
 		{
+			s = Terr_GenerateSection(hm, sx, sy, false);
+			if (!s)
+				return;
 			Terr_ReadSection(hm, s, h->ver, h+1, len-sizeof(*h));
 			FS_FreeFile(diskimage);
 			return;
@@ -1745,10 +1518,12 @@ static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b)
 			FS_FreeFile(diskimage);
 	}
 
-#ifdef ADT
-	if (Terr_ImportADT(hm, sx, sy, flags))
+	if (terrainfuncs.AutogenerateSection && terrainfuncs.AutogenerateSection(hm, sx, sy, 0))
 		return;
-#endif
+
+	s = Terr_GenerateSection(hm, sx, sy, false);
+	if (!s)
+		return;
 
 	//generate a dummy one
 	Terr_ReadSection(hm, s, 0, NULL, 0);
@@ -1971,7 +1746,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 }
 
 /*convienience function*/
-static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int flags)
+static hmsection_t *QDECL Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int flags)
 {
 	hmcluster_t *cluster;
 	hmsection_t *section;
@@ -2010,16 +1785,19 @@ static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int 
 	}
 #endif
 
-	if (section)
+	if (section && section->loadstate != TSLS_LOADED)
 	{
 		//wait for it to load if we're meant to be doing that.
-		if (section->loadstate == TSLS_LOADING1 && (flags & TGS_WAITLOAD))
+		if (flags & TGS_WAITLOAD)
 		{
-			//process the load
-			COM_WorkerPartialSync(section, &section->loadstate, TSLS_LOADING1);
+			//wait for it to load if we're meant to be doing that.
+			if (section->loadstate == TSLS_LOADING0)
+				COM_WorkerPartialSync(section, &section->loadstate, TSLS_LOADING0);
+			if (section->loadstate == TSLS_LOADING1)
+				COM_WorkerPartialSync(section, &section->loadstate, TSLS_LOADING1);
+			if (section->loadstate == TSLS_LOADING2)
+				COM_MainThreadFlush();	//make sure any associated lightmaps also got read+handled
 		}
-		if (section->loadstate == TSLS_LOADING2 && (flags & TGS_WAITLOAD))
-			COM_MainThreadFlush();	//make sure any associated lightmaps also got read+handled
 
 		//if it failed, generate a default (for editing)
 		if (section->loadstate == TSLS_FAILED && ((flags & TGS_DEFAULTONFAIL) || hm->forcedefault))
@@ -2034,6 +1812,8 @@ static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int 
 		if ((section->loadstate != TSLS_LOADED) && !(flags & TGS_ANYSTATE))
 			section = NULL;
 	}
+	if (section)
+		section->timestamp = realtime;
 
 	return section;
 }
@@ -2113,12 +1893,20 @@ qboolean Terrain_LocateSection(char *name, flocation_t *loc)
 
 void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusable)
 {
+	if (s && s->loadstate == TSLS_LOADING0)
+		COM_WorkerPartialSync(s, &s->loadstate, TSLS_LOADING0);
 	if (s && s->loadstate == TSLS_LOADING1)
 		COM_WorkerPartialSync(s, &s->loadstate, TSLS_LOADING1);
 	if (s && s->loadstate == TSLS_LOADING2)
 		COM_MainThreadFlush();	//make sure any associated lightmaps also got read+handled
 
+	if (!s || s->loadstate < TSLS_LOADING2)
+		return;
+
+	validatelinks(&hm->recycle);
+
 	RemoveLink(&s->recycle);
+	validatelinks(&s->hmmod->recycle);
 
 	Terr_ClearSection(s);
 
@@ -2147,9 +1935,12 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 	if (qrenderer == QR_OPENGL && qglDeleteBuffersARB)
 	{
 		qglDeleteBuffersARB(1, &s->vbo.coord.gl.vbo);
+		s->vbo.coord.gl.vbo = 0;
 		qglDeleteBuffersARB(1, &s->vbo.indicies.gl.vbo);
+		s->vbo.indicies.gl.vbo = 0;
 	}
 #endif
+	//FIXME: BE_ClearVBO(&s->vbo);
 
 	Z_Free(s->ents);
 	Z_Free(s->mesh.xyz_array);
@@ -2159,6 +1950,8 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 	Z_Free(s);
 
 	hm->activesections--;
+
+	validatelinks(&hm->recycle);
 }
 
 #ifndef SERVERONLY
@@ -2212,12 +2005,14 @@ static qboolean Terr_Collect(heightmap_t *hm)
 	hmsection_t *s;
 	int cx, cy;
 	int sx, sy;
+	float timeout = realtime-2;	//must used no later than 2 seconds in the past
 
 	link_t *ln = &hm->recycle;
+	validatelinks(&hm->recycle);
 	for (ln = &hm->recycle; ln->next != &hm->recycle; )
 	{
 		s = (hmsection_t*)ln->next;
-		if ((s->flags & TSF_EDITED) || s->loadstate == TSLS_LOADING1 || s->loadstate == TSLS_LOADING2)
+		if ((s->flags & TSF_EDITED) || s->loadstate <= TSLS_LOADING2 || s->timestamp > timeout)
 			ln = &s->recycle;
 		else
 		{
@@ -2239,6 +2034,7 @@ static qboolean Terr_Collect(heightmap_t *hm)
 #else
 			Terr_DestroySection(hm, s, true);
 #endif
+			validatelinks(&hm->recycle);
 			return true;
 		}
 	}
@@ -2259,6 +2055,8 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean light
 	hmsection_t *s;
 	int cx, cy;
 	int sx, sy;
+
+validatelinks(&hm->recycle);
 
 //	Con_Printf("PrePurge: %i lm chunks used, %i unused\n", hm->numusedlmsects, hm->numunusedlmsects);
 
@@ -2288,15 +2086,19 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean light
 			{
 				c->section[sx+sy*MAXSECTIONS] = NULL;
 
+				validatelinks(&hm->recycle);
 				Terr_DestroySection(hm, s, lightmapreusable);
+				validatelinks(&hm->recycle);
 			}
 		}
 		if (!numremaining)
 		{
 			hm->cluster[cx + cy*MAXSECTIONS] = NULL;
 			BZ_Free(c);
+			validatelinks(&hm->recycle);
 		}
 	}
+	validatelinks(&hm->recycle);
 #ifndef SERVERONLY
 	if (!lightmapreusable)
 	{
@@ -2317,6 +2119,7 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean light
 		hm->brushmaxlms = 0;
 	}
 #endif
+	validatelinks(&hm->recycle);
 
 //	Con_Printf("PostPurge: %i lm chunks used, %i unused\n", hm->numusedlmsects, hm->numunusedlmsects);
 }
@@ -2326,6 +2129,7 @@ void Terr_FreeModel(model_t *mod)
 	heightmap_t *hm = mod->terrain;
 	if (hm)
 	{
+		validatelinks(&hm->recycle);
 		while(hm->numbrushes)
 			Terr_Brush_DeleteIdx(hm, hm->numbrushes-1);
 		while(hm->brushtextures)
@@ -2336,8 +2140,8 @@ void Terr_FreeModel(model_t *mod)
 			while((bb = bt->batches))
 			{
 				bt->batches = bb->next;
-				BE_VBO_Destroy(&bb->vbo.coord);
-				BE_VBO_Destroy(&bb->vbo.indicies);
+				BE_VBO_Destroy(&bb->vbo.coord, bb->vbo.vbomem);
+				BE_VBO_Destroy(&bb->vbo.indicies, bb->vbo.ebomem);
 				BZ_Free(bb);
 			}
 #endif
@@ -2871,6 +2675,20 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 #endif
 	}
 #endif
+#ifdef VKQUAKE
+	if (qrenderer == QR_VULKAN)
+	{
+		void VKBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch);
+		batch_t batch = {0};
+		mesh_t *meshes = &s->mesh;
+		vbo_t *vbo = NULL;
+		batch.maxmeshes = 1;
+		batch.mesh = &meshes;
+
+		VKBE_GenBatchVBOs(&vbo, &batch, NULL);
+		s->vbo = *vbo;
+	}
+#endif
 #ifdef D3D11QUAKE
 	if (qrenderer == QR_DIRECT3D11)
 	{
@@ -2915,18 +2733,22 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 
 	mins[2] = r_origin[2]-999999;
 	maxs[2] = r_origin[2]+999999;
-	if (R_CullBox(mins, maxs))
-		return;
 
 	if (w == 1 && h == 1)
 	{
+//		if (R_CullBox(mins, maxs))
+//			return;
+
 		s = Terr_GetSection(hm, x, y, TGS_LAZYLOAD);
 		if (!s)
 			return;
 
 		/*move to head*/
+		validatelinks(&hm->recycle);
 		RemoveLink(&s->recycle);
+		validatelinks(&hm->recycle);
 		InsertLinkBefore(&s->recycle, &hm->recycle);
+		validatelinks(&hm->recycle);
 
 		if (s->lightmap < 0)
 			Terr_LoadSection(hm, s, x, y, TGS_NODOWNLOAD);
@@ -2958,15 +2780,16 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 			//chuck out any batches for models in this section
 			for (i = 0; i < s->numents; i++)
 			{
+				struct hmentity_s *e = s->ents[i];
 				vec3_t dist;
 				float a, dmin, dmax;
 				model_t *model;
 				//skip the entity if its already been added to some batch this frame.
-				if (s->ents[i]->drawnframe == hm->drawnframe)
+				if (e->drawnframe == hm->drawnframe)
 					continue;
-				s->ents[i]->drawnframe = hm->drawnframe;
+				e->drawnframe = hm->drawnframe;
 
-				model = s->ents[i]->ent.model;
+				model = e->ent.model;
 				if (!model)
 					continue;
 
@@ -2980,7 +2803,7 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 				if (model->loadstate != MLS_LOADED)
 					continue;
 
-				VectorSubtract(s->ents[i]->ent.origin, r_origin, dist);
+				VectorSubtract(e->ent.origin, r_origin, dist);
 				a = VectorLength(dist);
 				dmin = 1024 + model->radius*160;
 				dmax = dmin + 1024;
@@ -2988,21 +2811,25 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 				a = 1-a;
 				if (a < 0)
 					continue;
+
+				if (R_CullSphere(e->ent.origin, model->radius))
+					continue;
+
 				if (a >= 1)
 				{
 					a = 1;
-					s->ents[i]->ent.flags &= ~RF_TRANSLUCENT;
+					e->ent.flags &= ~RF_TRANSLUCENT;
 				}
 				else
-					s->ents[i]->ent.flags |= RF_TRANSLUCENT;
-				s->ents[i]->ent.shaderRGBAf[3] = a;
+					e->ent.flags |= RF_TRANSLUCENT;
+				e->ent.shaderRGBAf[3] = a;
 				switch(model->type)
 				{
 				case mod_alias:
-					R_GAlias_GenerateBatches(&s->ents[i]->ent, ctx->batches);
+					R_GAlias_GenerateBatches(&e->ent, ctx->batches);
 					break;
 				case mod_brush:
-					Surf_GenBrushBatches(ctx->batches, &s->ents[i]->ent);
+					Surf_GenBrushBatches(ctx->batches, &e->ent);
 					break;
 				default:	//FIXME: no sprites! oh noes!
 					break;
@@ -3189,6 +3016,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 		bounds[2] = hm->firstsegy;
 		bounds[3] = hm->maxsegy;
 	}
+	//FIXME: project the near+far clip planes onto the screen, generate bounds from those, instead of the above overkill code.
 
 	hm->drawnframe+=1;
 	tdibctx.hm = hm;
@@ -3198,9 +3026,10 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 	tdibctx.vy = (r_refdef.vieworg[1] + CHUNKBIAS*hm->sectionsize) / hm->sectionsize;
 	tdibctx.wmodel = e->model;
 	tdibctx.pvs = (e->model == cl.worldmodel)?frustumvis:NULL;
+validatelinks(&hm->recycle);
 	Terr_DrawInBounds(&tdibctx, bounds[0], bounds[2], bounds[1]-bounds[0], bounds[3]-bounds[2]);
 
-
+validatelinks(&hm->recycle);
 	/*{
 	trace_t trace;
 	vec3_t player_mins = {-16, -16, -24};
@@ -3511,7 +3340,9 @@ typedef struct {
 	vec3_t up;
 	vec3_t capsulesize;
 	enum {ispoint, iscapsule, isbox} shape;
-	float frac;
+	qboolean startsolid;
+	double nearfrac;
+	float truefrac;
 	float htilesize;
 	heightmap_t *hm;
 	int contents;
@@ -3579,7 +3410,7 @@ static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes, b
 			startout = true;
 
 		//if we're fully inside the plane, then whatever is happening is not relevent for this plane
-		if (d1 <= 0 && d2 <= 0)
+		if (d1 < 0 && d2 <= 0)
 			continue;
 
 		f = (d1) / (d1-d2);
@@ -3742,17 +3573,18 @@ static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes, b
 #endif
 
 
-		tr->frac = -1;
+		tr->startsolid = true;
 		return false;
 	}
 	if (enterfrac != -1 && enterfrac < exitfrac)
 	{
 		//impact!
-		if (enterfrac < tr->frac)
+		if (enterfrac < tr->truefrac)
 		{
 			if (nearfrac < 0)
 				nearfrac = 0;
-			tr->frac = nearfrac;//enterfrac;
+			tr->nearfrac = nearfrac;
+			tr->truefrac = enterfrac;
 			tr->plane[3] = enterdist;
 			VectorCopy(enterplane, tr->plane);
 
@@ -3915,10 +3747,11 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 			{
 				tr->result->startsolid |= etr.startsolid;
 				tr->result->allsolid |= etr.allsolid;
-				if (etr.fraction < tr->frac)
+				if (etr.fraction < tr->nearfrac)
 				{
 					tr->contents = etr.contents;
-					tr->frac = etr.fraction;
+					tr->truefrac = etr.truefraction;
+					tr->nearfrac = etr.fraction;
 					tr->plane[3] = etr.plane.dist;
 					tr->plane[0] = etr.plane.normal[0];
 					tr->plane[1] = etr.plane.normal[1];
@@ -4092,23 +3925,21 @@ Obviously, we don't care all that much about 1
 */
 qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec3_t mataxis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
 {
-	vec2_t pos, npos;
-	qboolean nudge[2];
-	vec2_t dir;
+	vec2_t pos;
 	vec2_t frac;
 	vec2_t emins;
 	vec2_t emaxs;
 	vec3_t tmp;
-	int x, y;
+	int ipos[2], npos[2];
+	int x, y, e;
 	int axis;
 	int breaklimit = 1000;
-	float wbias;
 	float zbias;
 	hmtrace_t hmtrace;
 	hmtrace.hm = model->terrain;
 	hmtrace.hm->traceseq++;
 	hmtrace.htilesize = hmtrace.hm->sectionsize / (SECTHEIGHTSIZE-1);
-	hmtrace.frac = 1;
+	hmtrace.nearfrac = hmtrace.truefrac = 1;
 	hmtrace.contents = 0;
 	hmtrace.hitcontentsmask = against;
 
@@ -4148,8 +3979,8 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	}
 
 	memset(trace, 0, sizeof(*trace));
-	trace->fraction = 1;
 	hmtrace.result = trace;
+	hmtrace.startsolid = false;
 
 	//to tile space
 	hmtrace.start[0] = (start[0]);
@@ -4159,16 +3990,8 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	hmtrace.end[1] = (end[1]);
 	hmtrace.end[2] = (end[2] + zbias);
 
-	dir[0] = (hmtrace.end[0] - hmtrace.start[0])/hmtrace.htilesize;
-	dir[1] = (hmtrace.end[1] - hmtrace.start[1])/hmtrace.htilesize;
-	pos[0] = (hmtrace.start[0]+CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
-	pos[1] = (hmtrace.start[1]+CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
-	wbias = CHUNKBIAS*hmtrace.hm->sectionsize;
-
-	emins[0] = (mins[0]-1.5)/hmtrace.htilesize;
-	emins[1] = (mins[1]-1.5)/hmtrace.htilesize;
-	emaxs[0] = (maxs[0]+1.5)/hmtrace.htilesize;
-	emaxs[1] = (maxs[1]+1.5)/hmtrace.htilesize;
+//	mins = vec3_origin;
+//	maxs = vec3_origin;
 
 	VectorCopy(mins, hmtrace.mins);
 	VectorCopy(maxs, hmtrace.maxs);
@@ -4189,66 +4012,143 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	hmtrace.absmins[1] -= 1;
 	hmtrace.absmins[2] -= 1;
 
-	/*fixme:
-	set pos to the leading corner instead
-	on boundary changes, scan across multiple blocks
-	*/
+	//figure out where we are in terms of tiles
+	pos[0] = (hmtrace.start[0]+CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
+	pos[1] = (hmtrace.start[1]+CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
 
-	//make sure the start tile is valid
-	for (y = pos[1] + emins[1]; y <= (int)(pos[1] + emaxs[1]); y++)
-		for (x = pos[0] + emins[0]; x <= (int)(pos[0] + emaxs[0]); x++)
-			Heightmap_Trace_Square(&hmtrace, x, y);
-	for(;;)
+	emins[0] = (mins[0]-1.5)/hmtrace.htilesize;
+	emins[1] = (mins[1]-1.5)/hmtrace.htilesize;
+	emaxs[0] = (maxs[0]+1.5)/hmtrace.htilesize;
+	emaxs[1] = (maxs[1]+1.5)/hmtrace.htilesize;
+
+	//Test code
+	if (0)
 	{
-		if (breaklimit--< 0)
-			break;
-		for (axis = 0; axis < 2; axis++)
-		{
-			if (dir[axis] > 0)
-			{
-				nudge[axis] = false;
-				npos[axis] = pos[axis] + 1-(pos[axis]-(int)pos[axis]);
-				frac[axis] = (npos[axis]*hmtrace.htilesize-wbias - hmtrace.start[axis])/(hmtrace.end[axis]-hmtrace.start[axis]);
-			}
-			else if (dir[axis] < 0)
-			{
-				npos[axis] = pos[axis];
-				nudge[axis] = (float)(int)pos[axis] == pos[axis];
-				npos[axis] = (int)npos[axis];
-				frac[axis] = (npos[axis]*hmtrace.htilesize-wbias - hmtrace.start[axis])/(hmtrace.end[axis]-hmtrace.start[axis]);
-				npos[axis] -= nudge[axis];
-			}
-			else
-				frac[axis] = 1000000000000000.0;
-		}
-
-		//which side are we going down?
-		if (frac[0] < frac[1])
-			axis = 0;
+		vec2_t minb, maxb;
+		Vector2Copy(pos, minb);
+		Vector2Copy(pos, maxb);
+		npos[0] = (hmtrace.end[0]+CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
+		npos[1] = (hmtrace.end[1]+CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
+		if (npos[0] > pos[0])
+			maxb[0] = pos[0];
 		else
-			axis = 1;
-
-		if (frac[axis] >= 1)
-			break;
-
-		//touch the neighbour(s)
-		if (dir[axis] > 0)
-		{
-			pos[axis] = (int)pos[axis] + 1;
-			pos[axis] = npos[axis];
-			Heightmap_Trace_Square(&hmtrace, pos[0], pos[1]);
-		}
+			minb[0] = pos[0];
+		if (npos[1] > pos[1])
+			maxb[1] = pos[1];
 		else
-		{
-			pos[axis] = npos[axis];
-			Heightmap_Trace_Square(&hmtrace, pos[0], pos[1]);
-		}
-		//and make sure our position on the other axis is correct, for the next time around the loop
-		if (frac[axis] > hmtrace.frac)
-			break;
-		pos[!axis] = ((hmtrace.end[!axis] * frac[axis]) + (hmtrace.start[!axis] * (1-frac[axis])) + CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
+			minb[1] = pos[1];
+
+		minb[0] += emins[0];
+		minb[1] += emins[1];
+		maxb[0] += emaxs[0];
+		maxb[1] += emaxs[1];
+
+		for (y = floor(minb[1]); y <= ceil(maxb[1]); y++)
+			for (x = floor(minb[0]); x <= ceil(maxb[0]); x++)
+				Heightmap_Trace_Square(&hmtrace, x, y);
 	}
 
+	//make sure the start tile is valid
+	for (y = floor(pos[1] + emins[1]); y <= ceil(pos[1] + emaxs[1]); y++)
+		for (x = floor(pos[0] + emins[0]); x <= ceil(pos[0] + emaxs[0]); x++)
+			Heightmap_Trace_Square(&hmtrace, x, y);
+
+	//now walk over the terrain
+	if (hmtrace.end[0] != hmtrace.start[0] || hmtrace.end[1] != hmtrace.start[1])
+	{
+		vec2_t dir, trstart, trdist;
+
+		//figure out the leading point
+		for (axis = 0; axis < 2; axis++)
+		{
+			trdist[axis] = hmtrace.end[axis]-hmtrace.start[axis];
+			dir[axis] = (hmtrace.end[axis] - hmtrace.start[axis])/hmtrace.htilesize;
+
+			if (dir[axis] > 0)
+			{
+				ipos[axis] = pos[axis] + emins[axis];
+				trstart[axis] = CHUNKBIAS*hmtrace.hm->sectionsize + (maxs[axis]) + hmtrace.start[axis];
+			}
+			else
+			{
+				ipos[axis] = pos[axis] + emaxs[axis];
+				trstart[axis] = CHUNKBIAS*hmtrace.hm->sectionsize + (mins[axis]) + hmtrace.start[axis];
+			}
+			trstart[axis] /= hmtrace.htilesize;
+			trdist[axis] /= hmtrace.htilesize;
+		}
+		for(;;)
+		{
+			if (breaklimit--< 0)
+				break;
+			for (axis = 0; axis < 2; axis++)
+			{
+				if (dir[axis] > 0)
+				{
+					npos[axis] = ipos[axis]+1;
+					frac[axis] = (npos[axis]-trstart[axis])/trdist[axis];
+				}
+				else if (dir[axis] < 0)
+				{
+					npos[axis] = ipos[axis];
+					frac[axis] = (ipos[axis]-trstart[axis])/trdist[axis];
+				}
+				else
+					frac[axis] = 1000000000000000.0;
+			}
+
+			//which side are we going down?
+			if (frac[0] < frac[1])
+				axis = 0;
+			else
+				axis = 1;
+
+			if (frac[axis] >= 1)
+				break;
+
+			//progress to the crossed boundary
+			if (dir[axis] < 0)
+				ipos[axis] = ipos[axis]-1;
+			else
+				ipos[axis] = ipos[axis]+1;
+
+			axis = !axis;
+			if (dir[axis] > 0)
+			{	//leading edge is on the right, so start on the left and keep going until we hit the leading edge
+				npos[0] = ipos[0];
+				npos[1] = ipos[1];
+
+				npos[axis] -= ceil(emins[axis]-emaxs[axis]);
+				e = ipos[axis];
+
+				npos[axis] -= 1;
+				e++;
+
+				for (; npos[axis] <= e; npos[axis]++)
+					Heightmap_Trace_Square(&hmtrace, npos[0], npos[1]);
+			}
+			else
+			{
+				//leading edge is on the left
+				npos[0] = ipos[0];
+				npos[1] = ipos[1];
+				e = ipos[axis] + ceil(emaxs[axis]-emins[axis]);
+
+				npos[axis] -= 1;
+				e++;
+
+				for (; npos[axis] <= e; npos[axis]++)
+					Heightmap_Trace_Square(&hmtrace, npos[0], npos[1]);
+			}
+
+//			axis = !axis;
+			//and make sure our position on the other axis is correct, for the next time around the loop
+//			if (frac[axis] > hmtrace.truefrac)
+//				break;
+		}
+	}
+
+	//FIXME: optimise into the section grid
 	{
 		brushes_t *brushes = hmtrace.hm->wbrushes;
 		int count = hmtrace.hm->numbrushes;
@@ -4280,21 +4180,33 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	trace->plane.normal[1] = hmtrace.plane[1];
 	trace->plane.normal[2] = hmtrace.plane[2];
 
-	if (hmtrace.frac == -1)
-	{
-		trace->fraction = 0;
-		trace->startsolid = true;
-		trace->allsolid = true;
-		VectorCopy(start, trace->endpos);
-	}
-	else
-	{
-		if (hmtrace.frac < 0)
-			hmtrace.frac = 0;
-		trace->fraction = hmtrace.frac;
-		VectorInterpolate(start, hmtrace.frac, end, trace->endpos);
-	}
+	trace->startsolid = trace->allsolid = hmtrace.startsolid;
+	if (hmtrace.nearfrac < 0)
+		hmtrace.nearfrac = 0;
+	trace->fraction = hmtrace.nearfrac;
+	trace->truefraction = hmtrace.truefrac;
+	VectorInterpolate(start, hmtrace.nearfrac, end, trace->endpos);
 	return trace->fraction < 1;
+}
+
+qboolean Heightmap_Trace_Test(struct model_s *model, int hulloverride, int frame, vec3_t mataxis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
+{
+	qboolean ret = Heightmap_Trace(model, hulloverride, frame, mataxis, start, end, mins, maxs, capsule, against, trace);
+	
+	if (!trace->startsolid)
+	{
+		trace_t testtrace;
+		Heightmap_Trace(model, hulloverride, frame, mataxis, trace->endpos, trace->endpos, mins, maxs, capsule, against, &testtrace);
+		if (testtrace.startsolid)
+		{
+			Con_DPrintf("Trace became solid\n");
+			trace->fraction = 0;
+			VectorCopy(start, trace->endpos);
+			trace->startsolid = trace->allsolid = true;
+		}
+	}
+
+	return ret;
 }
 
 typedef struct
@@ -4382,30 +4294,35 @@ int	Heightmap_ClusterForPoint	(model_t *model, vec3_t point)
 }
 
 #ifndef SERVERONLY
-static unsigned char *ted_getlightmap(hmsection_t *s, int idx)
+static unsigned char *QDECL Terr_GetLightmap(hmsection_t *s, int idx, qboolean edit)
 {
 	unsigned char *lm;
 	int x = idx % SECTTEXSIZE, y = idx / SECTTEXSIZE;
 	if (s->lightmap < 0)
 	{
-		Terr_LoadSection(s->hmmod, s, x, y, true);
+		Terr_LoadSection(s->hmmod, s, s->sx, s->sy, true);
 		Terr_InitLightmap(s, true);
 	}
+	if (s->lightmap < 0)
+		return NULL;
 
-	s->flags |= TSF_EDITED;
+	if (edit)
+	{
+		s->flags |= TSF_EDITED;
 
-	lightmap[s->lightmap]->modified = true;
-	lightmap[s->lightmap]->rectchange.l = 0;
-	lightmap[s->lightmap]->rectchange.t = 0;
-	lightmap[s->lightmap]->rectchange.r = HMLMSTRIDE;
-	lightmap[s->lightmap]->rectchange.b = HMLMSTRIDE;
+		lightmap[s->lightmap]->modified = true;
+		lightmap[s->lightmap]->rectchange.l = 0;
+		lightmap[s->lightmap]->rectchange.t = 0;
+		lightmap[s->lightmap]->rectchange.r = HMLMSTRIDE;
+		lightmap[s->lightmap]->rectchange.b = HMLMSTRIDE;
+	}
 	lm = lightmap[s->lightmap]->lightmaps;
 	lm += ((s->lmy+y) * HMLMSTRIDE + (s->lmx+x)) * lightmap_bytes;
 	return lm;
 }
 static void ted_dorelight(heightmap_t *hm)
 {
-	unsigned char *lm = ted_getlightmap(hm->relight, 0);
+	unsigned char *lm = Terr_GetLightmap(hm->relight, 0, true);
 	int x, y;
 #define EXPAND 2
 	vec3_t surfnorms[(SECTTEXSIZE+EXPAND*2)*(SECTTEXSIZE+EXPAND*2)];
@@ -4546,7 +4463,7 @@ static void ted_waterset(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 
 static void ted_texconcentrate(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
-	unsigned char *lm = ted_getlightmap(s, idx);
+	unsigned char *lm = Terr_GetLightmap(s, idx, true);
 	s->flags |= TSF_NOTIFY|TSF_EDITED;
 
 	/*concentrate the lightmap values to a single channel*/
@@ -4578,7 +4495,7 @@ static void ted_texconcentrate(void *ctx, hmsection_t *s, int idx, float wx, flo
 
 static void ted_texnoise(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
-	unsigned char *lm = ted_getlightmap(s, idx);
+	unsigned char *lm = Terr_GetLightmap(s, idx, true);
 	vec4_t v;
 	float sc;
 
@@ -4599,7 +4516,7 @@ static void ted_texnoise(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 
 static void ted_texpaint(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
-	unsigned char *lm = ted_getlightmap(s, idx);
+	unsigned char *lm = Terr_GetLightmap(s, idx, true);
 	const char *texname = ctx;
 	int t;
 	vec4_t newval;
@@ -4639,7 +4556,7 @@ static void ted_texpaint(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 
 		for (idx = 0; idx < SECTTEXSIZE*SECTTEXSIZE; idx++)
 		{
-			lm = ted_getlightmap(s, idx);
+			lm = Terr_GetLightmap(s, idx, true);
 			lm[2] = 0;
 			lm[1] = 0;
 			lm[0] = 0;
@@ -4711,7 +4628,7 @@ static void ted_texlight(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 */
 static void ted_texset(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
-	unsigned char *lm = ted_getlightmap(s, idx);
+	unsigned char *lm = Terr_GetLightmap(s, idx, true);
 	if (w > 1)
 		w = 1;
 	s->flags |= TSF_NOTIFY|TSF_EDITED;
@@ -4723,7 +4640,7 @@ static void ted_texset(void *ctx, hmsection_t *s, int idx, float wx, float wy, f
 
 static void ted_textally(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
-	unsigned char *lm = ted_getlightmap(s, idx);
+	unsigned char *lm = Terr_GetLightmap(s, idx, false);
 	((float*)ctx)[0] += lm[0]*w;
 	((float*)ctx)[1] += lm[1]*w;
 	((float*)ctx)[2] += lm[2]*w;
@@ -4845,7 +4762,7 @@ void ted_texkill(hmsection_t *s, const char *killtex)
 	{
 		if (!strcmp(s->texname[t], killtex))
 		{
-			unsigned char *lm = ted_getlightmap(s, 0);
+			unsigned char *lm = Terr_GetLightmap(s, 0, true);
 			s->flags |= TSF_EDITED;
 			s->texname[t][0] = 0;
 			for (to = 0; to < 4; to++)
@@ -5126,7 +5043,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			wedict_t *ed = G_WEDICT(prinst, OFS_PARM1);
 			//FIXME: modeltype pitch inversion
 			AngleVectorsFLU(ed->v->angles, axis[0], axis[1], axis[2]);
-			Terr_AddMesh(hm, TGS_WAITLOAD|TGS_DEFAULTONFAIL, vmw->Get_CModel(vmw, ed->v->modelindex), ed->v->origin, axis, ed->xv->scale);
+			Terr_AddMesh(hm, TGS_WAITLOAD|TGS_DEFAULTONFAIL, vmw->Get_CModel(vmw, ed->v->modelindex), NULL, ed->v->origin, axis, ed->xv->scale);
 		}
 		break;
 	case ter_mesh_kill:
@@ -5160,6 +5077,10 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 }
 #else
+static unsigned char *QDECL Terr_GetLightmap(hmsection_t *s, int idx, qboolean edit)
+{
+	return NULL;
+}
 void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = 0;
@@ -5347,98 +5268,6 @@ void Terr_FinishTerrain(model_t *mod)
 		}
 	}
 #endif
-}
-
-int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist);
-static size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *planes, size_t numplanes, vec4_t face)
-{
-	int p, a;
-	vec4_t verts[128];
-	vec4_t verts2[128];
-	vec4_t *cverts;
-	int flip;
-//	vec3_t d1, d2, n;
-	size_t numverts;
-
-	//generate some huge quad/poly aligned with the plane
-	vec3_t tmp;
-	vec3_t right, forward;
-	double t;
-	
-//	if (face[2] != 1)
-//		return 0;
-
-	t = fabs(face[2]);
-	if (t > fabs(face[0]) && t > fabs(face[1]))
-		VectorSet(tmp, 1, 0, 0);
-	else
-		VectorSet(tmp, 0, 0, 1);
-
-	CrossProduct(face, tmp, right);
-	VectorNormalize(right);
-	CrossProduct(face, right, forward);
-	VectorNormalize(forward);
-
-	VectorScale(face, face[3],			verts[0]);
-	VectorMA(verts[0], 8192, right,		verts[0]);
-	VectorMA(verts[0], 8192, forward,	verts[0]);
-
-	VectorScale(face, face[3],			verts[1]);
-	VectorMA(verts[1], 8192, right,		verts[1]);
-	VectorMA(verts[1], -8192, forward,	verts[1]);
-
-	VectorScale(face, face[3],			verts[2]);
-	VectorMA(verts[2], -8192, right,	verts[2]);
-	VectorMA(verts[2], -8192, forward,	verts[2]);
-
-	VectorScale(face, face[3],			verts[3]);
-	VectorMA(verts[3], -8192, right,	verts[3]);
-	VectorMA(verts[3], 8192, forward,	verts[3]);
-
-	numverts = 4;
-
-
-	//clip the quad to the various other planes
-	flip = 0;
-	for (p = 0; p < numplanes; p++)
-	{
-		if (planes[p] != face)
-		{
-			vec3_t norm;
-			flip^=1;
-			VectorNegate(planes[p], norm);
-			if (flip)
-				numverts = Fragment_ClipPolyToPlane((float*)verts, (float*)verts2, numverts, norm, -planes[p][3]);
-			else
-				numverts = Fragment_ClipPolyToPlane((float*)verts2, (float*)verts, numverts, norm, -planes[p][3]);
-	
-			if (numverts < 3)	//totally clipped.
-				return 0;
-		}
-	}
-
-	if (numverts > maxpoints)
-		return 0;
-
-	if (flip)
-		cverts = verts2;
-	else
-		cverts = verts;
-	for (p = 0; p < numverts; p++)
-	{
-		for (a = 0; a < 3; a++)
-		{
-			float f = cverts[p][a];
-			int rounded = floor(f + 0.5);
-			//if its within 1/1000th of a qu, just round it.
-			if (fabs(f - rounded) < 0.001)
-				points[p][a] = rounded;
-			else
-				points[p][a] = f;
-		}
-	}
-
-	return numverts;
 }
 
 #ifndef SERVERONLY
@@ -5709,7 +5538,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 			{
 				qbyte *mips[4] = {(qbyte*)tx + tx->offsets[0], (qbyte*)tx + tx->offsets[1], (qbyte*)tx + tx->offsets[2], (qbyte*)tx + tx->offsets[3]};
 				unsigned int mapflags = SHADER_HASPALETTED | SHADER_HASDIFFUSE | SHADER_HASFULLBRIGHT | SHADER_HASNORMALMAP | SHADER_HASGLOSS;
-				R_BuildLegacyTexnums(bt->shader, tx->name, NULL, mapflags, TF_BGRA32, tx->width, tx->height, mips, NULL); 
+				R_BuildLegacyTexnums(bt->shader, tx->name, NULL, mapflags, 0, TF_BGRA32, tx->width, tx->height, mips, NULL); 
 			}
 			else
 				R_BuildDefaultTexnums(NULL, bt->shader);
@@ -5741,8 +5570,8 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 				bb = bt->batches;
 				bt->batches = bb->next;
 
-				BE_VBO_Destroy(&bb->vbo.coord);
-				BE_VBO_Destroy(&bb->vbo.indicies);
+				BE_VBO_Destroy(&bb->vbo.coord, bb->vbo.vbomem);
+				BE_VBO_Destroy(&bb->vbo.indicies, bb->vbo.ebomem);
 				BZ_Free(bb);
 			}
 
@@ -5807,7 +5636,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 					BE_VBO_Data(&ctx, arrays->normal,	sizeof(arrays->normal	[0])*numverts,		&bb->vbo.normals);
 					BE_VBO_Data(&ctx, arrays->svector,	sizeof(arrays->svector	[0])*numverts,		&bb->vbo.svector);
 					BE_VBO_Data(&ctx, arrays->tvector,	sizeof(arrays->tvector	[0])*numverts,		&bb->vbo.tvector);
-					BE_VBO_Finish(&ctx, arrays->index,	sizeof(arrays->index	[0])*numindicies,	&bb->vbo.indicies);
+					BE_VBO_Finish(&ctx, arrays->index,	sizeof(arrays->index	[0])*numindicies,	&bb->vbo.indicies, &bb->vbo.vbomem, &bb->vbo.ebomem);
 
 					bb->mesh.xyz_array = (vecV_t*)(bb+1);
 					memcpy(bb->mesh.xyz_array, arrays->coord, sizeof(*bb->mesh.xyz_array) * numverts);
@@ -5931,7 +5760,7 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 		}
 
 		//generate points now (so we know the correct mins+maxs for the brush, and whether the plane is relevent)
-		numpoints = Terr_GenerateBrushFace(facepoints, sizeof(facepoints)/sizeof(facepoints[0]), brush->planes, brush->numplanes, brush->planes[iface]);
+		numpoints = Fragment_ClipPlaneToBrush(facepoints, sizeof(facepoints)/sizeof(facepoints[0]), brush->planes, sizeof(*brush->planes), brush->numplanes, brush->planes[iface]);
 		if (!numpoints)
 		{
 			Con_DPrintf("redundant face\n");
@@ -6535,7 +6364,7 @@ void QCBUILTIN PF_brush_calcfacepoints(pubprogfuncs_t *prinst, struct globalvars
 	}
 
 	//generate points now (so we know the correct mins+maxs for the brush, and whether the plane is relevent)
-	numpoints = Terr_GenerateBrushFace(facepoints, countof(facepoints), planes, numfaces, planes[faceid]);
+	numpoints = Fragment_ClipPlaneToBrush(facepoints, countof(facepoints), planes, sizeof(*planes), numfaces, planes[faceid]);
 	G_INT(OFS_RETURN) = numpoints;
 	if (numpoints > maxpoints)
 		numpoints = maxpoints;
@@ -6913,7 +6742,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 
 							ClearBounds(submod->mins, submod->maxs);
 
-							submod->funcs.NativeTrace			= Heightmap_Trace;
+							submod->funcs.NativeTrace			= Heightmap_Trace_Test;
 							submod->funcs.PointContents			= Heightmap_PointContents;
 							submod->funcs.NativeContents		= Heightmap_NativeBoxContents;
 							submod->funcs.LightPointValues		= Heightmap_LightPointValues;
@@ -7215,7 +7044,7 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 		AddPointToBounds(point, mod->mins, mod->maxs);
 	}
 
-	mod->funcs.NativeTrace			= Heightmap_Trace;
+	mod->funcs.NativeTrace			= Heightmap_Trace_Test;
 	mod->funcs.PointContents		= Heightmap_PointContents;
 
 	mod->funcs.NativeContents		= Heightmap_NativeBoxContents;
@@ -7248,6 +7077,7 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 	}
 #endif
 
+	validatelinks(&hm->recycle);
 	return true;
 }
 
@@ -7514,8 +7344,21 @@ void Mod_Terrain_Reload_f(void)
 		Terr_PurgeTerrainModel(mod, false, true);
 }
 
+terrainfuncs_t *QDECL Terr_GetTerrainFuncs(void)
+{
+	return &terrainfuncs;
+}
+
 void Terr_Init(void)
 {
+	terrainfuncs.GenerateWater = Terr_GenerateWater;
+	terrainfuncs.InitLightmap = Terr_InitLightmap;
+	terrainfuncs.AddMesh = Terr_AddMesh;
+	terrainfuncs.GetLightmap = Terr_GetLightmap;
+	terrainfuncs.GetSection = Terr_GetSection;
+	terrainfuncs.GenerateSections = Terr_GenerateSections;
+	terrainfuncs.FinishedSection = Terr_FinishedSection;
+
 	Cvar_Register(&mod_terrain_networked, "Terrain");
 	Cvar_Register(&mod_terrain_defaulttexture, "Terrain");
 	Cvar_Register(&mod_terrain_savever, "Terrain");

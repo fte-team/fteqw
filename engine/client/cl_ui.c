@@ -1449,17 +1449,6 @@ qboolean UI_DrawStatusBar(int scores)
 */
 }
 
-qboolean UI_DrawFinale(void)
-{
-	return false;
-/*
-	if (!uivm)
-		return false;
-
-	return VM_Call(uivm, UI_FINALE);
-*/
-}
-
 qboolean UI_DrawIntermission(void)
 {
 	return false;

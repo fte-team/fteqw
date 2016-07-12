@@ -5,7 +5,12 @@ class mitem_playerpreview : mitem_spinnymodel
 	virtual void(vector pos) item_draw =
 	{
 		//if you wanted to get more advanced, you could use q3 skins here.
-		setcustomskin(self, "", sprintf("q1upper \"%s\"\nq1lower \"%s\"\nqwskin \"%s\"\n", cvar_string("topcolor"), cvar_string("bottomcolor"), cvar_string("skin")));
+		if (cvar("noskins"))
+			setcustomskin(self, "", sprintf("q1upper \"%s\"\nq1lower \"%s\"\n\n", cvar_string("topcolor"), cvar_string("bottomcolor")));
+		else if (cvar_string("cl_teamskin") != "")
+			setcustomskin(self, "", sprintf("q1upper \"%s\"\nq1lower \"%s\"\nqwskin \"%s\"\n", cvar_string("topcolor"), cvar_string("bottomcolor"), cvar_string("cl_teamskin")));
+		else
+			setcustomskin(self, "", sprintf("q1upper \"%s\"\nq1lower \"%s\"\nqwskin \"%s\"\n", cvar_string("topcolor"), cvar_string("bottomcolor"), cvar_string("skin")));
 	
 		super::item_draw(pos);
 	};

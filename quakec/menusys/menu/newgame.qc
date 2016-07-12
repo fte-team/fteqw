@@ -23,7 +23,7 @@ nonstatic void(mitem_desktop desktop) M_NewGame =
 	if (gametype == "sp")
 	{
 		//single player has no options. the start map itself gives skill+episode options.
-		localcmd("\ndeathmatch 0; coop 0; maxplayers 0; timelimit 0; fraglimit 0; teamplay 0; samelevel 0; map start\n");
+		localcmd("\ndeathmatch 0; coop 0; maxplayers 0; timelimit 0; fraglimit 0; teamplay 0; samelevel 0; startmap_sp\n");
 		return;
 	}
 	if (gametype == "begin")

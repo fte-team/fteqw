@@ -10,6 +10,11 @@ int QCC_RawFileSize (const char *fname);
 pbool QCC_WriteFile (const char *name, void *data, int len);
 void GUI_DialogPrint(char *title, char *text);
 
+void GUI_ParseCommandLine(char *args);
+void GUI_SaveConfig(void);
+void GUI_RevealOptions(void);
+int GUIprintf(const char *msg, ...);
+
 extern char parameters[16384];
 
 extern char progssrcname[256];

@@ -354,7 +354,7 @@ void R_Clutter_Emit(batch_t **batches)
 	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED || r_clutter_density.value <= 0 || (r_refdef.flags & RDF_NOWORLDMODEL))
 		return;
 
-	if (qrenderer != QR_OPENGL)	//vbo only!
+	if (qrenderer != QR_OPENGL && qrenderer != QR_VULKAN)	//vbo only!
 		return;
 
 	//rebuild if any of the cvars changes.
@@ -404,8 +404,8 @@ void R_Clutter_Emit(batch_t **batches)
 			//make sure any old state is gone
 			for (i = 0; i < sect->numsoups; i++)
 			{
-				BE_VBO_Destroy(&sect->soups[i].vbo.coord);
-				BE_VBO_Destroy(&sect->soups[i].vbo.indicies);
+				BE_VBO_Destroy(&sect->soups[i].vbo.coord, sect->soups[i].vbo.vbomem);
+				BE_VBO_Destroy(&sect->soups[i].vbo.indicies, sect->soups[i].vbo.ebomem);
 			}
 			sect->numsoups = 0;
 			memset(&cctx, 0, sizeof(cctx));
@@ -413,7 +413,7 @@ void R_Clutter_Emit(batch_t **batches)
 			cctx.y = y;
 			cctx.z = z;
 			cctx.w = (sect-cluttersector)+1;
-			Mod_ClipDecal(cl.worldmodel, org, down, forward, right, cluttersize, R_Clutter_Insert, &cctx);
+			Mod_ClipDecal(cl.worldmodel, org, down, forward, right, cluttersize, 0, 0, R_Clutter_Insert, &cctx);
 			sect->loadingmodel = cctx.loadingmodel;
 
 			for (i = 0; i < cctx.numsoups; i++)
@@ -430,7 +430,7 @@ void R_Clutter_Emit(batch_t **batches)
 					BE_VBO_Data(&vctx, cctx.soups[i].normal, sizeof(cctx.soups[i].normal[0])*cctx.soups[i].numverts, &sect->soups[sect->numsoups].vbo.normals);
 					BE_VBO_Data(&vctx, cctx.soups[i].sdir, sizeof(cctx.soups[i].sdir[0])*cctx.soups[i].numverts, &sect->soups[sect->numsoups].vbo.svector);
 					BE_VBO_Data(&vctx, cctx.soups[i].tdir, sizeof(cctx.soups[i].tdir[0])*cctx.soups[i].numverts, &sect->soups[sect->numsoups].vbo.tvector);
-					BE_VBO_Finish(&vctx, cctx.soups[i].idx, sizeof(cctx.soups[i].idx[0])*cctx.soups[i].numidx, &sect->soups[sect->numsoups].vbo.indicies);
+					BE_VBO_Finish(&vctx, cctx.soups[i].idx, sizeof(cctx.soups[i].idx[0])*cctx.soups[i].numidx, &sect->soups[sect->numsoups].vbo.indicies, &sect->soups[sect->numsoups].vbo.vbomem, &sect->soups[sect->numsoups].vbo.ebomem);
 					sect->soups[sect->numsoups].vbo.colours_bytes = false;
 
 					sect->soups[sect->numsoups].mesh.numindexes = sect->soups[sect->numsoups].vbo.indexcount = cctx.soups[i].numidx;
@@ -478,8 +478,8 @@ void R_Clutter_Purge(void)
 		sect = &cluttersector[i];
 		for (j = 0; j < sect->numsoups; j++)
 		{
-			BE_VBO_Destroy(&sect->soups[j].vbo.coord);
-			BE_VBO_Destroy(&sect->soups[j].vbo.indicies);
+			BE_VBO_Destroy(&sect->soups[j].vbo.coord, sect->soups[j].vbo.vbomem);
+			BE_VBO_Destroy(&sect->soups[j].vbo.indicies, sect->soups[j].vbo.ebomem);
 		}
 		memset(sect, 0, sizeof(*sect));
 	}
@@ -595,6 +595,7 @@ static void QDECL R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 	CL_RegisterParticles();
 }
 
+cvar_t r_decal_noperpendicular = CVARD("r_decal_noperpendicular", "1", "When enabled, decals will not be generated on planes at a steep angle from clipped decal orientation.");
 cvar_t r_rockettrail = CVARFC("r_rockettrail", "1", CVAR_SEMICHEAT, R_Rockettrail_Callback);
 cvar_t r_grenadetrail = CVARFC("r_grenadetrail", "1", CVAR_SEMICHEAT, R_Grenadetrail_Callback);
 #ifdef NOLEGACY
@@ -618,6 +619,10 @@ cvar_t r_part_beams = CVAR("r_part_beams", "1");
 cvar_t r_part_contentswitch = CVARFD("r_part_contentswitch", "1", CVAR_ARCHIVE, "Enable particle effects to change based on content (ex. water).");
 cvar_t r_part_density = CVARF("r_part_density", "1", CVAR_ARCHIVE);
 cvar_t r_part_classic_expgrav = CVARFD("r_part_classic_expgrav", "10", CVAR_ARCHIVE, "Scaler for how fast classic explosion particles should accelerate due to gravity. 1 for like vanilla, 10 for like zquake.");
+cvar_t r_part_classic_opaque = CVARFD("r_part_classic_opaque", "0", CVAR_ARCHIVE, "Disables transparency on classic particles, for the oldskool look.");
+
+cvar_t r_part_maxparticles = CVAR("r_part_maxparticles", "8192");
+cvar_t r_part_maxdecals = CVAR("r_part_maxdecals", "8192");
 
 
 particleengine_t *pe;
@@ -629,7 +634,9 @@ void P_InitParticleSystem(void)
 {
 	char *particlecvargroupname = "Particle effects";
 
-	Cvar_Register(&r_particlesystem, "Particles");
+	Cvar_Register(&r_decal_noperpendicular, particlecvargroupname);	//decals might actually be used for more than just particles, but oh well.
+
+	Cvar_Register(&r_particlesystem, particlecvargroupname);
 
 	//particles
 	Cvar_Register(&r_particledesc, particlecvargroupname);
@@ -640,6 +647,9 @@ void P_InitParticleSystem(void)
 
 	Cvar_Register(&r_particle_tracelimit, particlecvargroupname);
 
+	Cvar_Register(&r_part_maxparticles, particlecvargroupname);
+	Cvar_Register(&r_part_maxdecals, particlecvargroupname);
+
 	Cvar_Register(&r_part_sparks, particlecvargroupname);
 	Cvar_Register(&r_part_sparks_trifan, particlecvargroupname);
 	Cvar_Register(&r_part_sparks_textured, particlecvargroupname);
@@ -647,6 +657,7 @@ void P_InitParticleSystem(void)
 	Cvar_Register(&r_part_contentswitch, particlecvargroupname);
 	Cvar_Register(&r_part_density, particlecvargroupname);
 	Cvar_Register(&r_part_classic_expgrav, particlecvargroupname);
+	Cvar_Register(&r_part_classic_opaque, particlecvargroupname);
 
 	Cvar_Register (&gl_part_flame, particlecvargroupname);
 
@@ -755,6 +766,7 @@ void P_Shutdown(void)
 	R_Clutter_Purge();
 }
 
+//traces against renderable entities
 //0 says hit nothing.
 //1 says hit world
 //>1 says hit some entity
@@ -824,7 +836,7 @@ entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 			if (trace.fraction<1)
 			{
 				VectorSubtract(trace.endpos, ts, delta);
-				len = Length(delta);
+				len = DotProduct(delta,delta);
 				if (len < bestlen)
 				{
 					bestlen = len;
@@ -853,25 +865,25 @@ entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 	return result;
 }
 
+//traces against networked entities only.
 //0 says hit nothing.
 //1 says hit world
 //>1 says hit some entity
-unsigned int TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
+float CL_TraceLine (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, int *ent)
 {
 	trace_t		trace;
-	float len, bestlen;
+	float bestfrac=1;
 	int i;
-	vec3_t delta, ts, te;
+	vec3_t ts, te;
 	physent_t *pe;
 	int result=0;
 	vec3_t axis[3];
 
 	memset (&trace, 0, sizeof(trace));
 
-	VectorSubtract(end, start, delta);
-	bestlen = Length(delta);
-
 	VectorCopy (end, impact);
+	if (normal)
+		VectorClear(normal);
 
 	for (i=0 ; i < pmove.numphysent ; i++)
 	{
@@ -892,35 +904,37 @@ unsigned int TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 				pe->model->funcs.NativeTrace(pe->model, 0, 0, NULL, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
 			if (trace.fraction<1)
 			{
-				VectorSubtract(trace.endpos, ts, delta);
-				len = Length(delta);
-				if (len < bestlen)
+				if (bestfrac > trace.fraction)
 				{
-					bestlen = len;
+					bestfrac = trace.fraction;
 					if (normal)
 						VectorCopy (trace.plane.normal, normal);
 					VectorAdd (pe->origin, trace.endpos, impact);
 				}
 
-				result = pe->info+1;
+				result = pe->info;
 			}
 			if (trace.startsolid)
 			{
-				VectorNormalize(delta);
 				if (normal)
 				{
-					normal[0] = -delta[0];
-					normal[1] = -delta[1];
-					normal[2] = -delta[2];
+					VectorSubtract(start, end, normal);
+					VectorNormalize(normal);
 				}
 				VectorCopy (end, impact);
-				return false;
+
+				//hit nothing 
+				if (ent)
+					*ent = 0;
+				return 1;
 			}
 
 		}
 	}
 
-	return result;
+	if (ent)
+		*ent = result;
+	return bestfrac;
 }
 
 //handy utility...

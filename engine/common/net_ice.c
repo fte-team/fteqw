@@ -234,7 +234,7 @@ ftenet_connections_t *ICE_PickConnection(struct icestate_s *con)
 	}
 	return NULL;
 }
-struct icestate_s *QDECL ICE_Create(void *module, char *conname, char *peername, enum icemode_e mode, enum iceproto_e proto)
+struct icestate_s *QDECL ICE_Create(void *module, const char *conname, const char *peername, enum icemode_e mode, enum iceproto_e proto)
 {
 	ftenet_connections_t *collection;
 	struct icestate_s *con;
@@ -255,11 +255,13 @@ struct icestate_s *QDECL ICE_Create(void *module, char *conname, char *peername,
 	case ICEP_VOICE:
 	case ICEP_VIDEO:
 		collection = cls.sockets;
+		NET_InitClient(false);
 		break;
 #endif
 #ifndef SERVERONLY
 	case ICEP_QWCLIENT:
 		collection = cls.sockets;
+		NET_InitClient(false);
 		break;
 #endif
 #ifndef CLIENTONLY
@@ -601,6 +603,11 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 
 		con->retries = 0;
 
+#ifndef SERVERONLY
+		if (con->state == ICE_CONNECTING && (con->proto == ICEP_QWCLIENT || con->proto == ICEP_VOICE))
+			NET_InitClient(false);
+#endif
+
 		if (oldstate != con->state && con->state == ICE_CONNECTED)
 		{
 			if (con->chosenpeer.type == NA_INVALID)
@@ -620,9 +627,9 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 #ifndef CLIENTONLY
 			else if (con->proto == ICEP_QWSERVER)
 			{
-				extern void SVC_GetChallenge();
+				extern void SVC_GetChallenge(qboolean nodpresponse);
 				net_from = con->chosenpeer;
-				SVC_GetChallenge();
+				SVC_GetChallenge(true);
 			}
 #endif
 			if (con->state == ICE_CONNECTED)

@@ -1,3 +1,17 @@
+#ifdef VKQUAKE
+#if defined(__LP64__) || defined(_WIN64)
+#define VulkanWasDesignedByARetard void*
+#else
+#define VulkanWasDesignedByARetard long long
+#endif
+#define VkRetardedDescriptorSet VulkanWasDesignedByARetard
+#define VkRetardedShaderModule VulkanWasDesignedByARetard
+#define VkRetardedPipelineLayout VulkanWasDesignedByARetard
+#define VkRetardedDescriptorSetLayout VulkanWasDesignedByARetard
+#define VkRetardedBuffer VulkanWasDesignedByARetard
+#define VkRetardedDeviceMemory VulkanWasDesignedByARetard
+#endif
+
 //These are defined later in the source tree. This file should probably be moved to a later spot.
 struct pubprogfuncs_s;
 struct globalvars_s;
@@ -18,7 +32,8 @@ typedef enum
 	SKEL_ABSOLUTE,	//relative to model. doesn't blend very well.
 	SKEL_INVERSE_RELATIVE,	//pre-inverted. faster than regular relative but has weirdness with skeletal objects. blends okay.
 	SKEL_INVERSE_ABSOLUTE,	//final renderable type.
-	SKEL_IDENTITY	//PANIC
+	SKEL_IDENTITY,	//PANIC
+	SKEL_QUATS		//quat+org, 7 floats rather than 12. better lerping.
 } skeltype_t;
 
 #ifdef HALFLIFEMODELS
@@ -102,11 +117,11 @@ extern void	(*R_RenderView)							(void);		// must set r_refdef first
 extern qboolean	(*VID_Init)							(rendererstate_t *info, unsigned char *palette);
 extern void	(*VID_DeInit)							(void);
 extern char *(*VID_GetRGBInfo)						(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
-extern void	(*VID_SetWindowCaption)					(char *msg);
+extern void	(*VID_SetWindowCaption)					(const char *msg);
 
 extern void SCR_Init								(void);
 extern void SCR_DeInit								(void);
-extern void (*SCR_UpdateScreen)						(void);
+extern qboolean (*SCR_UpdateScreen)					(void);
 extern void SCR_BeginLoadingPlaque					(void);
 extern void SCR_EndLoadingPlaque					(void);
 extern void SCR_DrawConsole							(qboolean noback);
@@ -180,31 +195,31 @@ extern int r_regsequence;
 
 typedef enum uploadfmt
 {
-        TF_INVALID,
-        TF_RGBA32,              /*rgba byte order*/
-        TF_BGRA32,              /*bgra byte order*/
-        TF_RGBX32,              /*rgb byte order, with extra wasted byte after blue*/
+		TF_INVALID,
+		TF_RGBA32,              /*rgba byte order*/
+		TF_BGRA32,              /*bgra byte order*/
+		TF_RGBX32,              /*rgb byte order, with extra wasted byte after blue*/
 		TF_BGRX32,              /*rgb byte order, with extra wasted byte after blue*/
-        TF_RGB24,               /*rgb byte order, no alpha channel nor pad, and regular top down*/
+		TF_RGB24,               /*rgb byte order, no alpha channel nor pad, and regular top down*/
 		TF_BGR24,               /*bgr byte order, no alpha channel nor pad, and regular top down*/
-        TF_BGR24_FLIP,  /*bgr byte order, no alpha channel nor pad, and bottom up*/
+		TF_BGR24_FLIP,  /*bgr byte order, no alpha channel nor pad, and bottom up*/
 		TF_LUM8,		/*8bit greyscale image*/
 		TF_MIP4_LUM8,	/*8bit 4-mip greyscale image*/
 		TF_MIP4_SOLID8,	/*8bit 4-mip image*/
 		TF_MIP4_8PAL24,	/*8bit 4-mip image*/
-        TF_SOLID8,      /*8bit quake-palette image*/
-        TF_TRANS8,      /*8bit quake-palette image, index 255=transparent*/
-        TF_TRANS8_FULLBRIGHT,   /*fullbright 8 - fullbright texels have alpha 255, everything else 0*/
-        TF_HEIGHT8,     /*image data is greyscale, convert to a normalmap and load that, uploaded alpha contains the original heights*/
-        TF_HEIGHT8PAL, /*source data is palette values rather than actual heights, generate a fallback heightmap*/
-        TF_H2_T7G1, /*8bit data, odd indexes give greyscale transparence*/
-        TF_H2_TRANS8_0, /*8bit data, 0 is transparent, not 255*/
-        TF_H2_T4A4,     /*8bit data, weird packing*/
+		TF_SOLID8,      /*8bit quake-palette image*/
+		TF_TRANS8,      /*8bit quake-palette image, index 255=transparent*/
+		TF_TRANS8_FULLBRIGHT,   /*fullbright 8 - fullbright texels have alpha 255, everything else 0*/
+		TF_HEIGHT8,     /*image data is greyscale, convert to a normalmap and load that, uploaded alpha contains the original heights*/
+		TF_HEIGHT8PAL, /*source data is palette values rather than actual heights, generate a fallback heightmap*/
+		TF_H2_T7G1, /*8bit data, odd indexes give greyscale transparence*/
+		TF_H2_TRANS8_0, /*8bit data, 0 is transparent, not 255*/
+		TF_H2_T4A4,     /*8bit data, weird packing*/
 
-        /*this block requires a palette*/
-        TF_PALETTES,
-        TF_8PAL24,
-        TF_8PAL32,
+		/*this block requires a palette*/
+		TF_PALETTES,
+		TF_8PAL24,
+		TF_8PAL32,
 
 		/*for render targets*/
 		TF_DEPTH16,
@@ -239,13 +254,27 @@ typedef struct image_s
 	struct image_s *next;
 	struct image_s *prev;
 	struct image_s *aliasof;
+	union
+	{
+		int nosyntaxerror;
 #if defined(D3DQUAKE) || defined(SWQUAKE)
-	void *ptr;	//texture
-	void *ptr2;	//view
+		struct
+		{
+			void *ptr;	//texture
+			void *ptr2;	//view
+		};
 #endif
 #ifdef GLQUAKE
-	int num;
+		int num;
 #endif
+#ifdef VKQUAKE
+		struct
+		{
+			VkRetardedDescriptorSet vkdescriptor;
+			struct vk_image_s *vkimage;
+		};
+#endif
+	};
 
 	void *fallbackdata;
 	int fallbackwidth;
@@ -260,7 +289,7 @@ typedef image_t *texid_t;
 #define TEXASSIGNF(d,s) d=s
 #define TEXVALID(t) ((t))
 #define TEXLOADED(tex) ((tex) && (tex)->status == TEX_LOADED)
-#define TEXDOWAIT(tex)	if ((tex) && (tex)->status == TEX_LOADING)	COM_WorkerPartialSync((tex), &(tex)->status, TEX_LOADING)
+#define TEXDOWAIT(tex)	do{if ((tex) && (tex)->status == TEX_LOADING)	COM_WorkerPartialSync((tex), &(tex)->status, TEX_LOADING);}while(0)
 #else
 typedef struct texid_s texid_t[1];
 typedef struct texid_s texid_tf;
@@ -332,26 +361,30 @@ typedef struct
 	void *fallback;
 } vbobctx_t;
 
-typedef struct vboarray_s
+typedef union vboarray_s
 {
-	union
-	{
-		void *sysptr;
+	void *sysptr;
 #ifdef GLQUAKE
-		struct
-		{
-			int vbo;
-			void *addr;
-		} gl;
+	struct
+	{
+		int vbo;
+		void *addr;
+	} gl;
 #endif
 #if defined(D3D9QUAKE) || defined(D3D11QUAKE)
-		struct
-		{
-			void *buff;
-			unsigned int offs;
-		} d3d;
+	struct
+	{
+		void *buff;
+		unsigned int offs;
+	} d3d;
 #endif
-	};
+#ifdef VKQUAKE
+	struct
+	{
+		VkRetardedBuffer buff;
+		unsigned int offs;
+	} vk;
+#endif
 } vboarray_t;
 
 //scissor rects
@@ -396,6 +429,7 @@ typedef struct rendererinfo_s {
 	char *description;
 	char *name[4];
 	r_qrenderer_t rtype;
+	//FIXME: all but the vid stuff really should be filled in by the video code, simplifying system-specific stuff.
 
 	void	(*Draw_Init)				(void);
 	void	(*Draw_Shutdown)			(void);
@@ -413,14 +447,14 @@ typedef struct rendererinfo_s {
 	void	(*VID_SwapBuffers)			(void);	//force a buffer swap, regardless of what's displayed.
 	qboolean (*VID_ApplyGammaRamps)		(unsigned short *ramps);
 
-	void *(*VID_CreateCursor)			(char *filename, float hotx, float hoty, float scale);	//may be null, stub returns null
+	void *(*VID_CreateCursor)			(const char *filename, float hotx, float hoty, float scale);	//may be null, stub returns null
 	qboolean (*VID_SetCursor)			(void *cursor);	//may be null
 	void (*VID_DestroyCursor)			(void *cursor);	//may be null
 
-	void	(*VID_SetWindowCaption)		(char *msg);
+	void	(*VID_SetWindowCaption)		(const char *msg);
 	char	*(*VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
 
-	void	(*SCR_UpdateScreen)			(void);
+	qboolean (*SCR_UpdateScreen)			(void);
 
 	
 	//Select the current render mode and modifier flags
@@ -448,8 +482,8 @@ typedef struct rendererinfo_s {
 	qboolean (*BE_LightCullModel)(vec3_t org, struct model_s *model);
 	void (*BE_VBO_Begin)(vbobctx_t *ctx, size_t maxsize);
 	void (*BE_VBO_Data)(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);
-	void (*BE_VBO_Finish)(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray);
-	void (*BE_VBO_Destroy)(vboarray_t *vearray);
+	void (*BE_VBO_Finish)(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem);
+	void (*BE_VBO_Destroy)(vboarray_t *vearray, void *mem);
 	void (*BE_RenderToTextureUpdate2d)(qboolean destchanged);
 	char *alignment;
 } rendererinfo_t;

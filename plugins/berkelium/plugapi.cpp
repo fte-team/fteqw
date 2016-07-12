@@ -181,7 +181,7 @@ public:
 	MyDelegate(decctx *_ctx) : ctx(_ctx) {};
 };
 
-static void *Dec_Create(char *medianame)
+static void *Dec_Create(const char *medianame)
 {
 	/*only respond to berkelium: media prefixes*/
 	if (!strncmp(medianame, "berkelium:", 10))
@@ -220,19 +220,17 @@ static void *Dec_Create(char *medianame)
 	return ctx;
 }
 
-static void *Dec_DisplayFrame(void *vctx, qboolean nosound, enum uploadfmt_e *fmt, int *width, int *height)
+static qboolean VARGS Dec_DisplayFrame(void *vctx, qboolean nosound, qboolean forcevideo, double mediatime, void (QDECL *uploadtexture)(void *ectx, uploadfmt_t fmt, int width, int height, void *data, void *palette), void *ectx)
 {
 	decctx *ctx = (decctx*)vctx;
-	*fmt = TF_BGRA32;
-	*width = ctx->width;
-	*height = ctx->height;
-
-	if (!ctx->repainted)
-		return NULL;
-	ctx->paintedwidth = ctx->width;
-	ctx->paintedheight = ctx->height;
-	ctx->repainted = false;
-	return ctx->buffer;
+	if (forcevideo || ctx->repainted)
+	{
+		uploadtexture(ectx, TF_BGRA32, ctx->width, ctx->height, ctx->buffer, NULL);
+		ctx->paintedwidth = ctx->width;
+		ctx->paintedheight = ctx->height;
+		ctx->repainted = false;
+	}
+	return qtrue;
 }
 static void Dec_Destroy(void *vctx)
 {
@@ -340,7 +338,7 @@ static void Dec_Key (void *vctx, int code, int unicode, int isup)
 	}
 }
 
-static void Dec_ChangeStream(void *vctx, char *newstream)
+static void Dec_ChangeStream(void *vctx, const char *newstream)
 {
 	decctx *ctx = (decctx*)vctx;
 
@@ -413,10 +411,11 @@ static qintptr_t Dec_Shutdown(qintptr_t *args)
 
 static media_decoder_funcs_t decoderfuncs =
 {
+	sizeof(media_decoder_funcs_t),
+
 	"berkelium",
 	Dec_Create,
 	Dec_DisplayFrame,
-	NULL,//doneframe
 	Dec_Destroy,
 	NULL,//rewind
 

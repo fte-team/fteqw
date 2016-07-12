@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // screen.c -- master for refresh, status bar, console, chat, notify, etc
 
 #include "quakedef.h"
+qboolean gammaworks;
 #ifdef GLQUAKE
 #include "glquake.h"
 #include "shader.h"
@@ -28,7 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <time.h>
 
-void GLSCR_UpdateScreen (void);
+qboolean GLSCR_UpdateScreen (void);
 
 
 extern qboolean	scr_drawdialog;
@@ -58,21 +59,22 @@ needs almost the entire 256k of stack space!
 ==================
 */
 void SCR_DrawCursor(void);
-void GLSCR_UpdateScreen (void)
+qboolean GLSCR_UpdateScreen (void)
 {
 	int uimenu;
-#ifdef TEXTEDITOR
-	extern qboolean editormodal;
-#endif
 	qboolean nohud;
 	qboolean noworld;
-	RSpeedMark();
 
 	r_refdef.pxrect.maxheight = vid.pixelheight;
 
 	vid.numpages = 2 + vid_triplebuffer.value;
 
 	R2D_Font_Changed();
+
+	if (!scr_initialized || !con_initialized)
+	{
+		return false;                         // not initialized yet
+	}
 
 	if (scr_disabled_for_loading)
 	{
@@ -90,15 +92,8 @@ void GLSCR_UpdateScreen (void)
 			if (R2D_Flush)
 				R2D_Flush();
 			VID_SwapBuffers();
-			RSpeedEnd(RSPEED_TOTALREFRESH);
-			return;
+			return true;
 		}
-	}
-
-	if (!scr_initialized || !con_initialized)
-	{
-		RSpeedEnd(RSPEED_TOTALREFRESH);
-		return;                         // not initialized yet
 	}
 
 
@@ -123,12 +118,13 @@ void GLSCR_UpdateScreen (void)
 
 		if (key_dest_mask & kdm_console)
 			Con_DrawConsole(vid.height/2, false);
+		else
+			Con_DrawConsole(0, false);
 		SCR_DrawCursor();
 		if (R2D_Flush)
 			R2D_Flush();
 		VID_SwapBuffers();
-		RSpeedEnd(RSPEED_TOTALREFRESH);
-		return;
+		return true;
 	}
 #endif
 	if (Media_ShowFilm())
@@ -143,8 +139,7 @@ void GLSCR_UpdateScreen (void)
 			R2D_Flush();
 		GL_Set2D (false);
 		VID_SwapBuffers();
-		RSpeedEnd(RSPEED_TOTALREFRESH);
-		return;
+		return true;
 	}
 
 //
@@ -216,11 +211,12 @@ void GLSCR_UpdateScreen (void)
 
 	if (R2D_Flush)
 		R2D_Flush();
-	RSpeedEnd(RSPEED_TOTALREFRESH);
 
-	RSpeedRemark();
-	VID_SwapBuffers();
-	RSpeedEnd(RSPEED_FINISH);
+	{
+		RSpeedMark();
+		VID_SwapBuffers();
+		RSpeedEnd(RSPEED_PRESENT);
+	}
 
 	//gl 4.5 / GL_ARB_robustness / GL_KHR_robustness
 	if (qglGetGraphicsResetStatus)
@@ -240,6 +236,7 @@ void GLSCR_UpdateScreen (void)
 			break;
 		}
 	}
+	return true;
 }
 
 

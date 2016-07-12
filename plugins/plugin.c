@@ -49,6 +49,10 @@ BUILTINR(int, Plug_ExportToEngine, (const char *funcname, int expnum));
 #define ARGNAMES ,funcname,func
 BUILTINR(qboolean, Plug_ExportNative, (const char *funcname, void *func));
 #undef ARGNAMES
+
+#define ARGNAMES ,funcname
+BUILTINR(void *, Plug_GetNativePointer, (const char *funcname));
+#undef ARGNAMES
 #endif
 
 #define ARGNAMES ,text
@@ -159,6 +163,20 @@ BUILTINR(int, GetLastInputFrame, (int seat, usercmd_t *playercmd));
 BUILTINR(float, GetTrackerOwnFrags, (int seat, char *text, size_t textsize));
 #undef ARGNAMES
 
+#ifndef Q3_VM
+#define ARGNAMES ,vmid
+BUILTINR(struct pubprogfuncs_s*, PR_GetVMInstance, (int vmid/*0=ss,1=cs,2=m*/));
+#undef ARGNAMES
+#ifdef MULTITHREAD
+#define ARGNAMES ,threadingsize
+BUILTINR(struct threading_s*, Sys_GetThreadingFuncs, (int threadingsize));
+#undef ARGNAMES
+#endif
+#define ARGNAMES ,version
+BUILTINR(struct modplugfuncs_s*, Mod_GetPluginModelFuncs, (int version));
+#undef ARGNAMES
+#endif
+
 
 #define ARGNAMES ,pos,buffer,bufferlen
 BUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen));
@@ -233,7 +251,7 @@ BUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
 #undef ARGNAMES
 
 #define ARGNAMES ,s
-BUILTIN(void, SCR_CenterPrint, (char *s));
+BUILTIN(void, SCR_CenterPrint, (const char *s));
 #undef ARGNAMES
 
 #define ARGNAMES ,mnum
@@ -241,16 +259,19 @@ BUILTIN(void, Menu_Control, (int mnum));
 #undef ARGNAMES
 
 #define ARGNAMES ,keyname
-BUILTINR(int, Key_GetKeyCode, (char *keyname));
+BUILTINR(int, Key_GetKeyCode, (const char *keyname));
 #undef ARGNAMES
 
 #if !defined(Q3_VM) && defined(FTEPLUGIN)
 #define ARGNAMES ,name,handle,mode
-BUILTINR(qboolean, VFS_Open, (char *name, vfsfile_t **handle, char *mode));//opens a direct vfs file. no access checks, and so can be used in threaded plugins
+BUILTINR(qboolean, VFS_Open, (const char *name, vfsfile_t **handle, const char *mode));//opens a direct vfs file. no access checks, and so can be used in threaded plugins
+#undef ARGNAMES
+#define ARGNAMES ,name,relativeto,out,outlen
+BUILTINR(qboolean, FS_NativePath, (const char *name, enum fs_relative relativeto, char *out, int outlen));
 #undef ARGNAMES
 #endif
 #define ARGNAMES ,name,handle,mode
-BUILTINR(int, FS_Open, (char *name, qhandle_t *handle, int mode));
+BUILTINR(int, FS_Open, (const char *name, qhandle_t *handle, int mode));
 #undef ARGNAMES
 #define ARGNAMES ,handle
 BUILTIN(void, FS_Close, (qhandle_t handle));
@@ -264,7 +285,9 @@ BUILTINR(int, FS_Read, (qhandle_t handle, void *data, int len));
 #define ARGNAMES ,handle,offsetlow,offsethigh
 BUILTINR(int, FS_Seek, (qhandle_t handle, unsigned int offsetlow, unsigned int offsethigh));
 #undef ARGNAMES
-
+#define ARGNAMES ,handle,sizelow,sizehigh
+BUILTINR(qboolean, FS_GetLen, (qhandle_t handle, unsigned int *sizelow, unsigned int *sizehigh));
+#undef ARGNAMES
 
 #define ARGNAMES ,ip,port
 BUILTINR(qhandle_t, Net_TCPConnect, (char *ip, int port));
@@ -283,6 +306,9 @@ BUILTINR(int, Net_Send, (qhandle_t socket, void *buffer, int len));
 #undef ARGNAMES
 #define ARGNAMES ,socket
 BUILTIN(void, Net_Close, (qhandle_t socket));
+#undef ARGNAMES
+#define ARGNAMES ,sock,certhostname
+BUILTINR(int, Net_SetTLSClient, (qhandle_t sock, const char *certhostname));
 #undef ARGNAMES
 
 #define ARGNAMES ,inputbuffer,buffersize
@@ -382,6 +408,7 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Plug_ExportToEngine);
 #ifndef Q3_VM
 	CHECKBUILTIN(Plug_ExportNative);
+	CHECKBUILTIN(Plug_GetNativePointer);
 #endif
 	CHECKBUILTIN(Sys_Error);
 
@@ -422,6 +449,8 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(FS_Read);
 	CHECKBUILTIN(FS_Write);
 	CHECKBUILTIN(FS_Close);
+	CHECKBUILTIN(FS_Seek);
+	CHECKBUILTIN(FS_GetLen);
 
 	//networking
 	CHECKBUILTIN(Net_TCPConnect);
@@ -430,6 +459,7 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Net_Recv);
 	CHECKBUILTIN(Net_Send);
 	CHECKBUILTIN(Net_Close);
+	CHECKBUILTIN(Net_SetTLSClient);
 
 	//random things
 	CHECKBUILTIN(CL_GetStats);
@@ -449,6 +479,10 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(GetTeamInfo);
 	CHECKBUILTIN(GetWeaponStats);
 	CHECKBUILTIN(GetNetworkInfo);
+
+#ifndef Q3_VM
+	CHECKBUILTIN(PR_GetVMInstance);
+#endif
 
 	//drawing routines
 	CHECKBUILTIN(Draw_LoadImageData);

@@ -103,6 +103,7 @@ struct {
 		int fbo_current;	//the one currently being rendered to
 		texid_t tex_sourcecol; /*this is used by $sourcecolour tgen*/
 		texid_t tex_sourcedepth;
+		texid_t tex_reflectcube;/*used where $reflectcube was invalid or failed*/
 		fbostate_t fbo_2dfbo;
 		fbostate_t fbo_reflectrefrac;
 		fbostate_t fbo_lprepass;
@@ -1040,11 +1041,6 @@ void PPL_RevertToKnownState(void)
 	RevertToKnownState();
 }
 
-void R_IBrokeTheArrays(void)
-{
-	RevertToKnownState();
-}
-
 #ifdef RTLIGHTS
 //called from gl_shadow
 int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale)
@@ -1193,7 +1189,8 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		t = shaderstate.curtexnums->fullbright;
 		break;
 	case T_GEN_REFLECTCUBE:
-		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, shaderstate.curtexnums->reflectcube);
+		t = (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->reflectcube))?shaderstate.curtexnums->reflectcube:shaderstate.tex_reflectcube;
+		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t);
 		return;
 	case T_GEN_REFLECTMASK:
 		t = shaderstate.curtexnums->reflectmask;
@@ -1566,6 +1563,7 @@ static void tcgen_environment(float *st, unsigned int numverts, float *xyz, floa
 	}
 }
 
+#ifndef GLSLONLY
 static void tcgen_fog(float *st, unsigned int numverts, float *xyz, mfog_t *fog)
 {
 	int			i;
@@ -1606,21 +1604,36 @@ static void tcgen_fog(float *st, unsigned int numverts, float *xyz, mfog_t *fog)
 			st[1] = 31/32.0;
 	}
 }
+static void GenerateTCFog(int passnum, mfog_t *fog)
+{
+	int m;
+	mesh_t *mesh;
+	for (m = 0; m < shaderstate.meshcount; m++)
+	{
+		mesh = shaderstate.meshes[m];
+		tcgen_fog(texcoordarray[passnum]+mesh->vbofirstvert*2, mesh->numvertexes, (float*)mesh->xyz_array, fog);
+	}
 
-static float *tcgen(unsigned int tcgen, int cnt, float *dst, const mesh_t *mesh)
+	shaderstate.pendingtexcoordparts[passnum] = 2;
+	shaderstate.pendingtexcoordvbo[passnum] = 0;
+	shaderstate.pendingtexcoordpointer[passnum] = texcoordarray[passnum];
+}
+#endif
+
+static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t *mesh)
 {
 	int i;
 	vecV_t *src;
-	switch (tcgen)
+	switch (pass->tcgen)
 	{
 	default:
 	case TC_GEN_BASE:
 		return (float*)mesh->st_array;
 	case TC_GEN_LIGHTMAP:
-		if (!mesh->lmst_array)
+		if (!mesh->lmst_array[0])
 			return (float*)mesh->st_array;
 		else
-			return (float*)mesh->lmst_array;
+			return (float*)mesh->lmst_array[0];
 	case TC_GEN_NORMAL:
 		return (float*)mesh->normals_array;
 	case TC_GEN_SVECTOR:
@@ -1639,11 +1652,8 @@ static float *tcgen(unsigned int tcgen, int cnt, float *dst, const mesh_t *mesh)
 		src = mesh->xyz_array;
 		for (i = 0; i < cnt; i++, dst += 2)
 		{
-			static vec3_t tc_gen_s = { 1.0f, 0.0f, 0.0f };
-			static vec3_t tc_gen_t = { 0.0f, 1.0f, 0.0f };
-
-			dst[0] = DotProduct(tc_gen_s, src[i]);
-			dst[1] = DotProduct(tc_gen_t, src[i]);
+			dst[0] = DotProduct(pass->tcgenvec[0], src[i]);
+			dst[1] = DotProduct(pass->tcgenvec[1], src[i]);
 		}
 		return dst;
 
@@ -1738,20 +1748,6 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 	}
 }
 
-static void GenerateTCFog(int passnum, mfog_t *fog)
-{
-	int m;
-	mesh_t *mesh;
-	for (m = 0; m < shaderstate.meshcount; m++)
-	{
-		mesh = shaderstate.meshes[m];
-		tcgen_fog(texcoordarray[passnum]+mesh->vbofirstvert*2, mesh->numvertexes, (float*)mesh->xyz_array, fog);
-	}
-
-	shaderstate.pendingtexcoordparts[passnum] = 2;
-	shaderstate.pendingtexcoordvbo[passnum] = 0;
-	shaderstate.pendingtexcoordpointer[passnum] = texcoordarray[passnum];
-}
 static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 {
 #if 1
@@ -1762,7 +1758,7 @@ static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 	{
 		mesh = shaderstate.meshes[m];
 
-		src = tcgen(pass->tcgen, mesh->numvertexes, texcoordarray[passnum]+mesh->vbofirstvert*2, mesh);
+		src = tcgen(pass, mesh->numvertexes, texcoordarray[passnum]+mesh->vbofirstvert*2, mesh);
 		//tcgen might return unmodified info
 		if (pass->numtcmods)
 		{
@@ -2088,6 +2084,12 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 		break;
 
 	case DEFORMV_BULGE:
+		if (!mesh->normals_array)
+		{
+			if (src != dst)
+				memcpy(dst, src, sizeof(*src)*cnt);
+			break;
+		}
 		args[0] = deformv->args[0]/(2*M_PI);
 		args[1] = deformv->args[1];
 		args[2] = shaderstate.curtime * deformv->args[2]/(2*M_PI);
@@ -2394,6 +2396,12 @@ static void alphagen(const shaderpass_t *pass, int cnt, avec4_t *const src, avec
 
 
 	case ALPHA_GEN_SPECULAR:
+		if (!mesh->normals_array)
+		{
+			while(cnt--)
+				dst[cnt][3] = 0.2;
+		}
+		else
 		{
 			VectorSubtract(r_origin, shaderstate.curentity->origin, v1);
 
@@ -2567,7 +2575,7 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 						| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE);
 		else if (shaderstate.flags & BEF_FORCETRANSPARENT)
 		{
-			if ((sbits & SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ONE| SBITS_DSTBLEND_ZERO) || !(sbits & SBITS_BLEND_BITS)) 	/*if transparency is forced, clear alpha test bits*/
+			if ((sbits & SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ONE| SBITS_DSTBLEND_ZERO) || !(sbits & SBITS_BLEND_BITS) || (sbits & SBITS_ATEST_GE128)) 	/*if transparency is forced, clear alpha test bits*/
 				sbits = (sbits & ~(SBITS_BLEND_BITS|SBITS_ATEST_BITS))
 							| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_ATEST_GT0);
 		}
@@ -2675,6 +2683,12 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 		{
 		case SBITS_MISC_DEPTHEQUALONLY:
 			qglDepthFunc(GL_EQUAL);
+			break;
+		case SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY:
+			if (gldepthfunc == GL_LEQUAL)
+				qglDepthFunc(GL_GREATER);
+			else
+				qglDepthFunc(GL_LESS);
 			break;
 		case SBITS_MISC_DEPTHCLOSERONLY:
 			if (gldepthfunc == GL_LEQUAL)
@@ -3182,7 +3196,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 						}
 						break;
 					}
-					if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
+					if (shaderstate.curentity->model && (shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT) && !shaderstate.force2d)
 					{
 						float sc = (1<<bound(0, gl_overbright.ival, 2)) * shaderstate.identitylighting;
 						VectorSet(colscale[j], sc, sc, sc);
@@ -3203,7 +3217,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 #endif
 			{
 				vec4_t colscale[4];
-				if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
+				if (shaderstate.curentity->model && (shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT) && !shaderstate.force2d)
 				{
 					float sc = (1<<bound(0, gl_overbright.ival, 2)) * shaderstate.identitylighting;
 					VectorSet(colscale[0], sc, sc, sc);
@@ -3428,7 +3442,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		perm |= PERMUTATION_FOG;
 //	if (p->permu[perm|PERMUTATION_DELUXE].handle.glsl.handle && TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
-	if (TEXLOADED(shaderstate.curtexnums->reflectcube) && p->permu[perm|PERMUTATION_REFLECTCUBEMASK].h.loaded)
+	if ((TEXLOADED(shaderstate.curtexnums->reflectcube) || TEXLOADED(shaderstate.curtexnums->reflectmask)) && p->permu[perm|PERMUTATION_REFLECTCUBEMASK].h.loaded)
 		perm |= PERMUTATION_REFLECTCUBEMASK;
 #if MAXRLIGHTMAPS > 1
 	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].h.loaded)
@@ -5022,6 +5036,11 @@ void GLBE_RenderToTextureUpdate2d(qboolean destchanged)
 	{
 		shaderstate.tex_sourcecol = R2D_RT_GetTexture(r_refdef.rt_sourcecolour.texname, &width, &height);
 		shaderstate.tex_sourcedepth = R2D_RT_GetTexture(r_refdef.rt_depth.texname, &width, &height);
+
+		if (*r_refdef.nearenvmap.texname)
+			shaderstate.tex_reflectcube = Image_GetTexture(r_refdef.nearenvmap.texname, NULL, IF_CUBEMAP, NULL, NULL, 0, 0, TF_INVALID);
+		else
+			shaderstate.tex_reflectcube = r_nulltex;
 	}
 }
 void GLBE_FBO_Sources(texid_t sourcecolour, texid_t sourcedepth)
@@ -5507,10 +5526,9 @@ void GLBE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 		else
 #endif
 			shaderstate.identitylighting = 1;
-
 		shaderstate.identitylighting *= r_refdef.hdr_value;
-
-		shaderstate.identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
+		shaderstate.identitylightmap = shaderstate.identitylighting;
+//		shaderstate.identitylightmap *= 1<<gl_overbright.ival;
 
 #ifdef RTLIGHTS
 		if (r_lightprepass.ival)
@@ -5628,11 +5646,11 @@ void GLBE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray)
 	ctx->pos += size;
 }
 
-void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray)
+void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem)
 {
 	if (ctx->pos > ctx->maxsize)
 		Sys_Error("BE_VBO_Finish: too much data given\n");
-    if (ctx->fallback)
+	if (ctx->fallback)
 	{
 		void *d = BZ_Malloc(esize);
 		memcpy(d, edata, esize);
@@ -5647,7 +5665,7 @@ void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earr
 		earray->gl.addr = NULL;
 	}
 }
-void GLBE_VBO_Destroy(vboarray_t *vearray)
+void GLBE_VBO_Destroy(vboarray_t *vearray, void *vbomem)
 {
 	if (vearray->gl.vbo)
 	{

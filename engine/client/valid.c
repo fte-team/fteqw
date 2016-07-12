@@ -371,6 +371,7 @@ typedef struct {
 
 rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_shaders", "0"},	/*users can potentially create all sorts of wallhacks or spiked models with this*/
+	{"ruleset_allow_watervis", "0"}, /*oh noes! users might be able to see underwater if they're already in said water. oh wait. what? why do we care, dude*/
 	{"r_vertexlight", "0"},
 	{"ruleset_allow_playercount", "0"},
 	{"ruleset_allow_frj", "0"},

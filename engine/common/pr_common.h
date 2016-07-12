@@ -6,23 +6,22 @@ extern "C" {
 
 #ifdef CLIENTONLY
 typedef struct edict_s {
-	pbool	isfree;
-
-	float		freetime;			// realtime when the object was freed
-	unsigned int entnum;
-	unsigned int fieldsize;
-	pbool	readonly;	//causes error when QC tries writing to it. (quake's world entity)
-	void	*v;
+	enum ereftype_e		ereftype;
+	float				freetime;			// realtime when the object was freed
+	unsigned int		entnum;
+	unsigned int		fieldsize;
+	pbool				readonly;	//causes error when QC tries writing to it. (quake's world entity)
+	void				*v;
 } edict_t;
 #endif
 
 struct wedict_s
 {
-	qboolean	isfree;
-	float		freetime; // sv.time when the object was freed
-	int			entnum;
-	unsigned int fieldsize;
-	qboolean	readonly;	//world
+	enum ereftype_e	ereftype;
+	float			freetime; // sv.time when the object was freed
+	int				entnum;
+	unsigned int	fieldsize;
+	pbool			readonly;	//world
 #ifdef VM_Q1
 	comentvars_t	*v;
 	comextentvars_t	*xv;
@@ -36,6 +35,7 @@ struct wedict_s
 	link_t	area;
 	pvscache_t pvsinfo;
 	int lastruntime;
+	int solidsize;
 
 #ifdef USERBE
 	entityode_t ode;
@@ -43,19 +43,7 @@ struct wedict_s
 	/*the above is shared with ssqc*/
 };
 
-#define PF_cin_open PF_Fixme
-#define PF_cin_close PF_Fixme
-#define PF_cin_setstate PF_Fixme
-#define PF_cin_getstate PF_Fixme
-#define PF_cin_restart PF_Fixme
 #define PF_drawline PF_Fixme
-#define PF_media_create_http PF_Fixme
-#define PF_media_destroy PF_Fixme
-#define PF_media_command PF_Fixme
-#define PF_media_keyevent PF_Fixme
-#define PF_media_movemouse PF_Fixme
-#define PF_media_resize PF_Fixme
-#define PF_media_get_texture_extent PF_Fixme
 
 #define PF_WritePicture PF_Fixme
 #define PF_ReadPicture PF_Fixme
@@ -153,6 +141,8 @@ void QCBUILTIN PF_random (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 void QCBUILTIN PF_fclose (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_fputs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_fgets (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fwrite (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fread (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_normalize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_vlen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_vhlen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -180,6 +170,7 @@ void QCBUILTIN PF_writetofile(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 void QCBUILTIN PF_loadfromfile (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_loadfromdata (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_parseentitydata(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_generateentitydata(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_WasFreed (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_break (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_crc16 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -351,6 +342,8 @@ void QCBUILTIN PF_SubConInput (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void QCBUILTIN PF_CL_is_cached_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_free_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_uploadimage (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_CL_readimage (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -402,9 +395,10 @@ void QCBUILTIN PF_cl_setmousetarget (pubprogfuncs_t *prinst, struct globalvars_s
 void QCBUILTIN PF_cl_getmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_setcursormode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getcursormode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_setwindowcaption (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_playingdemo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_cs_media_create_http (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cs_media_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_destroy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_command (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_keyevent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -412,6 +406,11 @@ void QCBUILTIN PF_cs_media_mousemove (pubprogfuncs_t *prinst, struct globalvars_
 void QCBUILTIN PF_cs_media_resize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_get_texture_extent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_getposition (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cs_media_getproperty (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cs_media_setstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cs_media_getstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cs_media_restart (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+
 typedef enum{
 	SLIST_HOSTCACHEVIEWCOUNT,
 	SLIST_HOSTCACHETOTALCOUNT,
@@ -427,6 +426,7 @@ void QCBUILTIN PF_shaderforname (pubprogfuncs_t *prinst, struct globalvars_s *pr
 void QCBUILTIN PF_cl_sprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_bprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_clientcount (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_localsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void search_close_progs(pubprogfuncs_t *prinst, qboolean complain);
 
@@ -475,9 +475,10 @@ pbool PR_RunWarning (pubprogfuncs_t *ppf, char *error, ...);
 
 
 /*these are server ones, provided by pr_cmds.c, as required by pr_q1qvm.c*/
+int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *value);
 #ifdef VM_Q1
 void PR_SV_FillWorldGlobals(world_t *w);
-model_t *SVPR_GetCModel(world_t *w, int modelindex);
+model_t *QDECL SVPR_GetCModel(world_t *w, int modelindex);
 void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -496,7 +497,6 @@ void QCBUILTIN PF_logfrag (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 void QCBUILTIN PF_ExecuteCommand  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_setspawnparms (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_precache_vwep_model(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *value);
 int PF_checkclient_Internal (pubprogfuncs_t *prinst);
 int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s);
 int PF_precache_model_Internal (pubprogfuncs_t *prinst, const char *s, qboolean queryonly);
@@ -570,7 +570,7 @@ typedef struct
 {
 	int version;
 
-	qboolean (QDECL *RegisterPhysicsEngine)(const char *enginename, void(QDECL*World_Bullet_Start)(world_t*world));	//returns false if there's already one active.
+	qboolean (QDECL *RegisterPhysicsEngine)(const char *enginename, void(QDECL*start_physics)(world_t*world));	//returns false if there's already one active.
 	void (QDECL *UnregisterPhysicsEngine)(const char *enginename);	//returns false if there's already one active.
 	qboolean (QDECL *GenerateCollisionMesh)(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter);
 	void (QDECL *ReleaseCollisionMesh) (wedict_t *ed);
@@ -666,6 +666,7 @@ typedef enum
 	VF_RT_DESTCOLOUR5	= 217,
 	VF_RT_DESTCOLOUR6	= 218,
 	VF_RT_DESTCOLOUR7	= 219,
+	VF_ENVMAP			= 220,	//cubemap image for reflectcube
 } viewflags;
 
 /*FIXME: this should be changed*/

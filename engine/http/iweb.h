@@ -131,13 +131,15 @@ struct dl_download
 		DL_ACTIVE,		/*receiving data*/
 		DL_FINISHED		/*its complete*/
 	} status;
-	unsigned int replycode;
-	unsigned int totalsize;	/*max size (can be 0 for unknown)*/
-	unsigned int completed; /*ammount correctly received so far*/
+	unsigned int	replycode;
+	size_t			totalsize;	/*max size (can be 0 for unknown)*/
+	size_t			completed; /*ammount correctly received so far*/
+
+	size_t			sizelimit;
 
 	/*internals*/
 #ifdef MULTITHREAD
-	qboolean threaddie;
+	qboolean threadenable;
 	void *threadctx;
 #endif
 	void *ctx;	/*internal context, depending on http/ftp/etc protocol*/
@@ -153,12 +155,14 @@ struct dl_download
 vfsfile_t *VFSPIPE_Open(void);
 void HTTP_CL_Think(void);
 void HTTP_CL_Terminate(void);	//kills all active downloads
+unsigned int HTTP_CL_GetActiveDownloads(void);
 struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*NotifyFunction)(struct dl_download *dl));
 struct dl_download *HTTP_CL_Put(const char *url, const char *mime, const char *data, size_t datalen, void (*NotifyFunction)(struct dl_download *dl));
 
 struct dl_download *DL_Create(const char *url);
 qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyFunction)(struct dl_download *dl));
 void DL_Close(struct dl_download *dl);
+void DL_DeThread(void);
 #endif
 
 #endif

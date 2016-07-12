@@ -70,7 +70,7 @@ void INS_Init(void){}							//safe. should be xinput2 I guess. nothing else is a
 void INS_ReInit(void){}							//safe
 void INS_Shutdown(void){}						//safe
 void INS_UpdateGrabs(int fullscreen, int activeapp){}	//safe
-void *RT_GetCoreWindow(int *width, int *height){return NULL;}	//I already wrote the d3d code, but it needs a window to attach to. you can override width+height by writing to them
+void *RT_GetCoreWindow(int *width, int *height){return NULL;}	//I already wrote the d3d11 code, but it needs a window to attach to. you can override width+height by writing to them
 void D3D11_DoResize(int newwidth, int newheight);	//already written, call if resized since getcorewindow
 
 static char *clippy;
@@ -550,13 +550,7 @@ void DumpGLState(void);
 void *watchdogthread;
 DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
 {
-	char dumpPath[1024];
-	char msg[1024];
 	HANDLE hProc = GetCurrentProcess();
-	DWORD procid = GetCurrentProcessId();
-	HANDLE dumpfile;
-	HMODULE hDbgHelp;
-	MINIDUMPWRITEDUMP fnMiniDumpWriteDump;
 	HMODULE hKernel;
 	BOOL (WINAPI *pIsDebuggerPresent)(void);
 	DWORD (WINAPI *pSymSetOptions)(DWORD SymOptions);
@@ -724,10 +718,12 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 #else
 	#define BUILDMINIMAL ""
 #endif
-#if defined(GLQUAKE) && !defined(D3DQUAKE)
+#if defined(GLQUAKE) && !defined(D3DQUAKE) && !defined(VKQUAKE)
 	#define BUILDTYPE "GL"
-#elif !defined(GLQUAKE) && defined(D3DQUAKE)
+#elif !defined(GLQUAKE) && defined(D3DQUAKE) && !defined(VKQUAKE)
 	#define BUILDTYPE "D3D"
+#elif !defined(GLQUAKE) && !defined(D3DQUAKE) && defined(VKQUAKE)
+	#define BUILDTYPE "VK"
 #else
 	#define BUILDTYPE "Merged"
 #endif
@@ -791,59 +787,68 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 
 	//generate a minidump, but only if we were compiled by something that used usable debugging info. its a bit pointless otherwise.
 #ifdef _MSC_VER
-	hDbgHelp = LoadLibraryA ("DBGHELP");
-	if (hDbgHelp)
-		fnMiniDumpWriteDump = (MINIDUMPWRITEDUMP)GetProcAddress (hDbgHelp, "MiniDumpWriteDump");
-	else
-		fnMiniDumpWriteDump = NULL;
-
-	if (fnMiniDumpWriteDump)
 	{
-		if (iswatchdog)
-		{
-			switch (MessageBoxA(NULL, "Fizzle... We hit an infinite loop! Or something is just really slow.\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?\n(click cancel to wait a bit longer)", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNOCANCEL|MB_DEFBUTTON3))
-			{
-			case IDYES:
-				break;	//take a dump.
-			case IDNO:
-				exit(0);
-			default:	//cancel = run the exception handler, which means we reset the watchdog.
-				return EXCEPTION_EXECUTE_HANDLER;
-			}
-		}
+		char dumpPath[1024];
+		char msg[1024];
+		DWORD procid = GetCurrentProcessId();
+		HANDLE dumpfile;
+		HMODULE hDbgHelp;
+		MINIDUMPWRITEDUMP fnMiniDumpWriteDump;
 
-		/*take a dump*/
-		if (*com_homepath)
-			Q_strncpyz(dumpPath, com_homepath, sizeof(dumpPath));
-		else if (*com_gamepath)
-			Q_strncpyz(dumpPath, com_gamepath, sizeof(dumpPath));
+		hDbgHelp = LoadLibraryA ("DBGHELP");
+		if (hDbgHelp)
+			fnMiniDumpWriteDump = (MINIDUMPWRITEDUMP)GetProcAddress (hDbgHelp, "MiniDumpWriteDump");
 		else
-			GetTempPathA (sizeof(dumpPath)-16, dumpPath);
-		Q_strncatz(dumpPath, DISTRIBUTION"CrashDump.dmp", sizeof(dumpPath));
-		dumpfile = CreateFileA (dumpPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-		if (dumpfile)
+			fnMiniDumpWriteDump = NULL;
+
+		if (fnMiniDumpWriteDump)
 		{
-			MINIDUMP_EXCEPTION_INFORMATION crashinfo;
-			crashinfo.ClientPointers = TRUE;
-			crashinfo.ExceptionPointers = exceptionInfo;
-			crashinfo.ThreadId = GetCurrentThreadId ();
-			if (fnMiniDumpWriteDump(hProc, procid, dumpfile, MiniDumpWithIndirectlyReferencedMemory|MiniDumpWithDataSegs, &crashinfo, NULL, NULL))
+			if (iswatchdog)
 			{
-				CloseHandle(dumpfile);
-				Q_snprintfz(msg, sizeof(msg), "You can find the crashdump at:\n%s\nPlease send this file to someone.\n\nWarning: sensitive information (like your current user name) might be present in the dump.\nYou will probably want to compress it.", dumpPath);
-				MessageBoxA(NULL, msg, DISTRIBUTION " Sucks", 0);
+				switch (MessageBoxA(NULL, "Fizzle... We hit an infinite loop! Or something is just really slow.\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?\n(click cancel to wait a bit longer)", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNOCANCEL|MB_DEFBUTTON3))
+				{
+				case IDYES:
+					break;	//take a dump.
+				case IDNO:
+					exit(0);
+				default:	//cancel = run the exception handler, which means we reset the watchdog.
+					return EXCEPTION_EXECUTE_HANDLER;
+				}
+			}
+
+			/*take a dump*/
+			if (*com_homepath)
+				Q_strncpyz(dumpPath, com_homepath, sizeof(dumpPath));
+			else if (*com_gamepath)
+				Q_strncpyz(dumpPath, com_gamepath, sizeof(dumpPath));
+			else
+				GetTempPathA (sizeof(dumpPath)-16, dumpPath);
+			Q_strncatz(dumpPath, DISTRIBUTION"CrashDump.dmp", sizeof(dumpPath));
+			dumpfile = CreateFileA (dumpPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (dumpfile)
+			{
+				MINIDUMP_EXCEPTION_INFORMATION crashinfo;
+				crashinfo.ClientPointers = TRUE;
+				crashinfo.ExceptionPointers = exceptionInfo;
+				crashinfo.ThreadId = GetCurrentThreadId ();
+				if (fnMiniDumpWriteDump(hProc, procid, dumpfile, MiniDumpWithIndirectlyReferencedMemory|MiniDumpWithDataSegs, &crashinfo, NULL, NULL))
+				{
+					CloseHandle(dumpfile);
+					Q_snprintfz(msg, sizeof(msg), "You can find the crashdump at:\n%s\nPlease send this file to someone.\n\nWarning: sensitive information (like your current user name) might be present in the dump.\nYou will probably want to compress it.", dumpPath);
+					MessageBoxA(NULL, msg, DISTRIBUTION " Sucks", 0);
+				}
+				else
+					MessageBoxA(NULL, "MiniDumpWriteDump failed", "oh noes", 0);
 			}
 			else
-				MessageBoxA(NULL, "MiniDumpWriteDump failed", "oh noes", 0);
+			{
+				Q_snprintfz(msg, sizeof(msg), "unable to open %s\nno dump created.", dumpPath);
+				MessageBoxA(NULL, msg, "oh noes", 0);
+			}
 		}
 		else
-		{
-			Q_snprintfz(msg, sizeof(msg), "unable to open %s\nno dump created.", dumpPath);
-			MessageBoxA(NULL, msg, "oh noes", 0);
-		}
+			MessageBoxA(NULL, "Kaboom! Sorry. No MiniDumpWriteDump function.", DISTRIBUTION " Sucks", 0);
 	}
-	else
-		MessageBoxA(NULL, "Kaboom! Sorry. No MiniDumpWriteDump function.", DISTRIBUTION " Sucks", 0);
 #endif
 	return EXCEPTION_EXECUTE_HANDLER;
 }
@@ -1064,227 +1069,231 @@ static time_t Sys_FileTimeToTime(FILETIME ft)
    return ull.QuadPart / 10000000ULL - 11644473600ULL;
 }
 
-static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+static int Sys_EnumerateFiles_9x (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	qboolean go;
-	if (!WinNT)
+	HANDLE r;
+	WIN32_FIND_DATAA fd;
+	int nest = neststart;	//neststart refers to just after a /
+	qboolean wild = false;
+
+	while(match[nest] && match[nest] != '/')
 	{
-		HANDLE r;
-		WIN32_FIND_DATAA fd;
-		int nest = neststart;	//neststart refers to just after a /
-		qboolean wild = false;
+		if (match[nest] == '?' || match[nest] == '*')
+			wild = true;
+		nest++;
+	}
+	if (match[nest] == '/')
+	{
+		char submatch[MAX_OSPATH];
+		char tmproot[MAX_OSPATH];
+		char file[MAX_OSPATH];
 
-		while(match[nest] && match[nest] != '/')
+		if (!wild)
+			return Sys_EnumerateFiles_9x(match, matchstart, nest+1, func, parm, spath);
+
+		if (nest-neststart+1> MAX_OSPATH)
+			return 1;
+		memcpy(submatch, match+neststart, nest - neststart);
+		submatch[nest - neststart] = 0;
+		nest++;
+
+		if (neststart+4 > MAX_OSPATH)
+			return 1;
+		memcpy(tmproot, match, neststart);
+		strcpy(tmproot+neststart, "*.*");
+
+		r = FindFirstFileA(tmproot, &fd);
+		strcpy(tmproot+neststart, "");
+		if (r==(HANDLE)-1)
+			return 1;
+		go = true;
+		do
 		{
-			if (match[nest] == '?' || match[nest] == '*')
-				wild = true;
-			nest++;
-		}
-		if (match[nest] == '/')
-		{
-			char submatch[MAX_OSPATH];
-			char tmproot[MAX_OSPATH];
-			char file[MAX_OSPATH];
-
-			if (!wild)
-				return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm, spath);
-
-			if (nest-neststart+1> MAX_OSPATH)
-				return 1;
-			memcpy(submatch, match+neststart, nest - neststart);
-			submatch[nest - neststart] = 0;
-			nest++;
-
-			if (neststart+4 > MAX_OSPATH)
-				return 1;
-			memcpy(tmproot, match, neststart);
-			strcpy(tmproot+neststart, "*.*");
-
-			r = FindFirstFileA(tmproot, &fd);
-			strcpy(tmproot+neststart, "");
-			if (r==(HANDLE)-1)
-				return 1;
-			go = true;
-			do
+			if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
+			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
 			{
-				if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
-				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+				if (wildcmp(submatch, fd.cFileName))
 				{
-					if (wildcmp(submatch, fd.cFileName))
+					int newnest;
+					if (strlen(tmproot) + strlen(fd.cFileName) + strlen(match+nest) + 2 < MAX_OSPATH)
 					{
-						int newnest;
-						if (strlen(tmproot) + strlen(fd.cFileName) + strlen(match+nest) + 2 < MAX_OSPATH)
-						{
-							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, fd.cFileName);
-							newnest = strlen(file);
-							strcpy(file+newnest, match+nest);
-							go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm, spath);
-						}
+						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, fd.cFileName);
+						newnest = strlen(file);
+						strcpy(file+newnest, match+nest);
+						go = Sys_EnumerateFiles_9x(file, matchstart, newnest, func, parm, spath);
 					}
 				}
-			} while(FindNextFileA(r, &fd) && go);
-			FindClose(r);
-		}
-		else
-		{
-			const char *submatch = match + neststart;
-			char tmproot[MAX_OSPATH];
-			char file[MAX_OSPATH];
-
-			if (neststart+4 > MAX_OSPATH)
-				return 1;
-			memcpy(tmproot, match, neststart);
-			strcpy(tmproot+neststart, "*.*");
-
-			r = FindFirstFileA(tmproot, &fd);
-			strcpy(tmproot+neststart, "");
-			if (r==(HANDLE)-1)
-				return 1;
-			go = true;
-			do
-			{
-				if (*fd.cFileName == '.')
-					;	//don't ever find files with a name starting with '.' (includes .. and . directories, and unix hidden files)
-				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
-				{
-					if (wildcmp(submatch, fd.cFileName))
-					{
-						if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 2 < MAX_OSPATH)
-						{
-							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, fd.cFileName);
-							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
-						}
-					}
-				}
-				else
-				{
-					if (wildcmp(submatch, fd.cFileName))
-					{
-						if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 1 < MAX_OSPATH)
-						{
-							Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, fd.cFileName);
-							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
-						}
-					}
-				}
-			} while(FindNextFileA(r, &fd) && go);
-			FindClose(r);
-		}
+			}
+		} while(FindNextFileA(r, &fd) && go);
+		FindClose(r);
 	}
 	else
 	{
-		HANDLE r;
-		WIN32_FIND_DATAW fd;
-		int nest = neststart;	//neststart refers to just after a /
-		qboolean wild = false;
+		const char *submatch = match + neststart;
+		char tmproot[MAX_OSPATH];
+		char file[MAX_OSPATH];
 
+		if (neststart+4 > MAX_OSPATH)
+			return 1;
+		memcpy(tmproot, match, neststart);
+		strcpy(tmproot+neststart, "*.*");
+
+		r = FindFirstFileA(tmproot, &fd);
+		strcpy(tmproot+neststart, "");
+		if (r==(HANDLE)-1)
+			return 1;
+		go = true;
+		do
+		{
+			if (*fd.cFileName == '.')
+				;	//don't ever find files with a name starting with '.' (includes .. and . directories, and unix hidden files)
+			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+			{
+				if (wildcmp(submatch, fd.cFileName))
+				{
+					if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 2 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, fd.cFileName);
+						go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
+					}
+				}
+			}
+			else
+			{
+				if (wildcmp(submatch, fd.cFileName))
+				{
+					if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 1 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, fd.cFileName);
+						go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
+					}
+				}
+			}
+		} while(FindNextFileA(r, &fd) && go);
+		FindClose(r);
+	}
+	return go;
+}
+static int Sys_EnumerateFiles_NT (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+{
+	qboolean go;
+	HANDLE r;
+	WIN32_FIND_DATAW fd;
+	int nest = neststart;	//neststart refers to just after a /
+	qboolean wild = false;
+	char tmproot[MAX_OSPATH];
+	char utf8[MAX_OSPATH];
+	char file[MAX_OSPATH];
+
+	for(;;)
+	{
 		while(match[nest] && match[nest] != '/')
 		{
 			if (match[nest] == '?' || match[nest] == '*')
 				wild = true;
 			nest++;
 		}
-		if (match[nest] == '/')
+
+		if (match[nest] == '/' && !wild)
 		{
-			char submatch[MAX_OSPATH];
-			char tmproot[MAX_OSPATH];
-
-			if (!wild)
-				return Sys_EnumerateFiles2(match, matchstart, nest+1, func, parm, spath);
-
-			if (nest-neststart+1> MAX_OSPATH)
-				return 1;
-			memcpy(submatch, match+neststart, nest - neststart);
-			submatch[nest - neststart] = 0;
-			nest++;
-
-			if (neststart+4 > MAX_OSPATH)
-				return 1;
-			memcpy(tmproot, match, neststart);
-			strcpy(tmproot+neststart, "*.*");
-
-			{
-				wchar_t wroot[MAX_OSPATH];
-				r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
-			}
-			strcpy(tmproot+neststart, "");
-			if (r==(HANDLE)-1)
-				return 1;
-			go = true;
-			do
-			{
-				char utf8[MAX_OSPATH];
-				char file[MAX_OSPATH];
-				narrowen(utf8, sizeof(utf8), fd.cFileName);
-				if (*utf8 == '.');	//don't ever find files with a name starting with '.'
-				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
-				{
-					if (wildcmp(submatch, utf8))
-					{
-						int newnest;
-						if (strlen(tmproot) + strlen(utf8) + strlen(match+nest) + 2 < MAX_OSPATH)
-						{
-							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, utf8);
-							newnest = strlen(file);
-							strcpy(file+newnest, match+nest);
-							go = Sys_EnumerateFiles2(file, matchstart, newnest, func, parm, spath);
-						}
-					}
-				}
-			} while(FindNextFileW(r, &fd) && go);
-			FindClose(r);
+			nest = neststart = nest+1;
+			wild = false;
 		}
 		else
+			break;
+	}
+	if (match[nest] == '/')
+	{
+		char submatch[MAX_OSPATH];
+
+		if (nest-neststart+1> MAX_OSPATH)
+			return 1;
+		memcpy(submatch, match+neststart, nest - neststart);
+		submatch[nest - neststart] = 0;
+		nest++;
+
+		if (neststart+4 > MAX_OSPATH)
+			return 1;
+		memcpy(tmproot, match, neststart);
+		strcpy(tmproot+neststart, "*.*");
+
 		{
-			const char *submatch = match + neststart;
-			char tmproot[MAX_OSPATH];
-
-			if (neststart+4 > MAX_OSPATH)
-				return 1;
-			memcpy(tmproot, match, neststart);
-			strcpy(tmproot+neststart, "*.*");
-
-			{
-				wchar_t wroot[MAX_OSPATH];
-				r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
-			}
-			strcpy(tmproot+neststart, "");
-			if (r==(HANDLE)-1)
-				return 1;
-			go = true;
-			do
-			{
-				char utf8[MAX_OSPATH];
-				char file[MAX_OSPATH];
-
-				narrowen(utf8, sizeof(utf8), fd.cFileName);
-				if (*utf8 == '.')
-					;	//don't ever find files with a name starting with '.' (includes .. and . directories, and unix hidden files)
-				else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
-				{
-					if (wildcmp(submatch, utf8))
-					{
-						if (strlen(tmproot+matchstart) + strlen(utf8) + 2 < MAX_OSPATH)
-						{
-							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, utf8);
-							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
-						}
-					}
-				}
-				else
-				{
-					if (wildcmp(submatch, utf8))
-					{
-						if (strlen(tmproot+matchstart) + strlen(utf8) + 1 < MAX_OSPATH)
-						{
-							Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, utf8);
-							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
-						}
-					}
-				}
-			} while(FindNextFileW(r, &fd) && go);
-			FindClose(r);
+			wchar_t wroot[MAX_OSPATH];
+			r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
 		}
+		strcpy(tmproot+neststart, "");
+		if (r==(HANDLE)-1)
+			return 1;
+		go = true;
+		do
+		{
+			narrowen(utf8, sizeof(utf8), fd.cFileName);
+			if (*utf8 == '.');	//don't ever find files with a name starting with '.'
+			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+			{
+				if (wildcmp(submatch, utf8))
+				{
+					int newnest;
+					if (strlen(tmproot) + strlen(utf8) + strlen(match+nest) + 2 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot, utf8);
+						newnest = strlen(file);
+						strcpy(file+newnest, match+nest);
+						go = Sys_EnumerateFiles_NT(file, matchstart, newnest, func, parm, spath);
+					}
+				}
+			}
+		} while(FindNextFileW(r, &fd) && go);
+		FindClose(r);
+	}
+	else
+	{
+		const char *submatch = match + neststart;
+		char tmproot[MAX_OSPATH];
+
+		if (neststart+4 > MAX_OSPATH)
+			return 1;
+		memcpy(tmproot, match, neststart);
+		strcpy(tmproot+neststart, "*.*");
+
+		{
+			wchar_t wroot[MAX_OSPATH];
+			r = FindFirstFileW(widen(wroot, sizeof(wroot), tmproot), &fd);
+		}
+		strcpy(tmproot+neststart, "");
+		if (r==(HANDLE)-1)
+			return 1;
+		go = true;
+		do
+		{
+			narrowen(utf8, sizeof(utf8), fd.cFileName);
+			if (*utf8 == '.')
+				;	//don't ever find files with a name starting with '.' (includes .. and . directories, and unix hidden files)
+			else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+			{
+				if (wildcmp(submatch, utf8))
+				{
+					if (strlen(tmproot+matchstart) + strlen(utf8) + 2 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, utf8);
+						go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
+					}
+				}
+			}
+			else
+			{
+				if (wildcmp(submatch, utf8))
+				{
+					if (strlen(tmproot+matchstart) + strlen(utf8) + 1 < MAX_OSPATH)
+					{
+						Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, utf8);
+						go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
+					}
+				}
+			}
+		} while(FindNextFileW(r, &fd) && go);
+		FindClose(r);
 	}
 	return go;
 }
@@ -1301,7 +1310,10 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(
 		fullmatch[start++] = '/';
 	fullmatch[start] = 0;
 	strcat(fullmatch, match);
-	return Sys_EnumerateFiles2(fullmatch, start, start, func, parm, spath);
+	if (WinNT)
+		return Sys_EnumerateFiles_NT(fullmatch, start, start, func, parm, spath);
+	else
+		return Sys_EnumerateFiles_9x(fullmatch, start, start, func, parm, spath);
 }
 
 //wide only. we let the windows api sort out the mess of file urls. system-wide consistancy.
@@ -1526,11 +1538,11 @@ void VARGS Sys_Error (const char *error, ...)
 void VARGS Sys_Printf (char *fmt, ...)
 {
 	va_list		argptr;
-	char		text[1024];
+	char		text[4096];
 	DWORD		dummy;
 
-	conchar_t msg[1024], *end, *in;
-	wchar_t wide[1024], *out;
+	conchar_t msg[4096], *end, *in;
+	wchar_t wide[4096], *out;
 	int wlen;
 
 	if (!houtput && !debugout && !SSV_IsSubServer())
@@ -1887,7 +1899,7 @@ char *Sys_ConsoleInput (void)
 	if (SSV_IsSubServer())
 	{
 		DWORD avail;
-		static char	text[1024], *nl;
+		static char	text[1024];
 		static int textpos = 0;
 
 		HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
@@ -2854,8 +2866,6 @@ int Sys_GetAutoUpdateSetting(void)
 }
 void Sys_SetAutoUpdateSetting(int newval)
 {
-	static qboolean doneupdatecheck;
-
 	if (sys_autoupdatesetting == newval)
 		return;
 	sys_autoupdatesetting = newval;
@@ -2971,6 +2981,7 @@ qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 	return false;
 }
 #else
+#ifdef HAVEAUTOUPDATE
 int Sys_GetAutoUpdateSetting(void)
 {
 	return -1;
@@ -2978,6 +2989,7 @@ int Sys_GetAutoUpdateSetting(void)
 void Sys_SetAutoUpdateSetting(int newval)
 {
 }
+#endif
 qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 {
 	return false;
@@ -3404,7 +3416,7 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 				FS_Directorize(pData->parentdir, sizeof(pData->parentdir));
 
 				//this'll make microsoft happy.
-				while(foo = strchr(pData->parentdir, '/'))
+				while((foo = strchr(pData->parentdir, '/')))
 					*foo = '\\';
 
 				if (edit)
@@ -3975,12 +3987,16 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (c)
 		{
 			int (QDECL *thefunc) (void);
-			void *dummy;
-			dllhandle_t *QVM_LoadDLL(const char *name, qboolean binroot, void **vmMain, sys_calldll_t syscall);
-			dllhandle_t *lib = QVM_LoadDLL(com_argv[c+1], true, &dummy, NULL);
-			thefunc = Sys_GetAddressForName(lib, com_argv[c+2]);
-			if (thefunc)
-				return thefunc();
+			dllhandle_t *lib;
+			host_parms = parms;//not really initialising, but the filesystem needs it
+			lib = Sys_LoadLibrary(com_argv[c+1], NULL);
+			if (lib)
+			{
+				thefunc = Sys_GetAddressForName(lib, com_argv[c+2]);
+				if (thefunc)
+					return thefunc();
+			}
+			MessageBox(NULL, "Unable to start up plugin wrapper", FULLENGINENAME, 0);
 			return 0;
 		}
 #endif
@@ -4139,7 +4155,12 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			isDedicated = true;
 	#ifdef SUBSERVERS
 		if (COM_CheckParm("-clusterslave"))
+		{
 			isDedicated = isClusterSlave = true;
+#ifdef _DEBUG
+			MessageBox(0, "Cluster slave", "gah", 0);
+#endif
+		}
 	#endif
 #endif
 
@@ -4331,7 +4352,7 @@ void Sys_Sleep (double seconds)
 
 
 HCURSOR	hArrowCursor, hCustomCursor;
-void *WIN_CreateCursor(char *filename, float hotx, float hoty, float scale)
+void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale)
 {
 	int width, height;
 	BITMAPV5HEADER bi;

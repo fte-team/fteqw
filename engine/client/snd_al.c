@@ -7,7 +7,6 @@ Much of it is stripped, to try and get it clean/compliant.
 Missing features:
 FIXME: listener velocity calculations (currently ugly).
 FIXME: does not track entity velocities, so no dopler (awkward, quake doesn't move playing sounds at all).
-FIXME: no eax / efx (underwater reverb etc).
 FIXME: a capture device would be useful (voice chat).
 */
 
@@ -23,9 +22,11 @@ FIXME: a capture device would be useful (voice chat).
 	#define SDRVNAME "OpenAL"
 #endif
 
+#define USEEFX
+
 #ifdef OPENAL_STATIC
 #include <AL/al.h>	//output
-#include <AL/alc.h>	//input
+#include <AL/alc.h>	//context+input
 
 #ifndef AL_API
 #define AL_API
@@ -69,6 +70,8 @@ FIXME: a capture device would be useful (voice chat).
 #define palcGetString			alcGetString
 #define palcIsExtensionPresent	alcIsExtensionPresent
 
+#define palGetProcAddress alGetProcAddress
+
 #ifdef FTE_TARGET_WEB	//emscripten sucks.
 AL_API void (AL_APIENTRY alSpeedOfSound)( ALfloat value ) {}
 #define alGetError() alGetError(NULL)
@@ -91,6 +94,7 @@ typedef char ALchar;
 typedef char ALboolean;
 typedef int ALsizei;
 typedef void ALvoid;
+typedef unsigned char ALubyte;
 
 static dllhandle_t *openallib;
 static qboolean openallib_tried;
@@ -125,6 +129,9 @@ static AL_API void (AL_APIENTRY *palGetSourcei)(ALuint source, ALenum pname, ALi
 static AL_API void (AL_APIENTRY *palSourceQueueBuffers)(ALuint source, ALsizei n, ALuint* buffers);
 static AL_API void (AL_APIENTRY *palSourceUnqueueBuffers)(ALuint source, ALsizei n, ALuint* buffers);
 
+//for extensions like efx
+static AL_API void*(AL_APIENTRY *palGetProcAddress)(const ALchar *fname);
+
 #define AL_NONE                                   0
 #define AL_FALSE                                  0
 #define AL_TRUE                                   1
@@ -136,15 +143,16 @@ static AL_API void (AL_APIENTRY *palSourceUnqueueBuffers)(ALuint source, ALsizei
 #define AL_BUFFER                                 0x1009
 #define AL_GAIN                                   0x100A
 #define AL_ORIENTATION                            0x100F
-#define	AL_SOURCE_STATE							  0x1010
-#define	AL_PLAYING								  0x1012	
-#define	AL_BUFFERS_QUEUED						  0x1015
-#define	AL_BUFFERS_PROCESSED					  0x1016
+#define	AL_SOURCE_STATE                           0x1010
+#define	AL_PLAYING                                0x1012	
+#define	AL_BUFFERS_QUEUED                         0x1015
+#define	AL_BUFFERS_PROCESSED                      0x1016
 #define AL_REFERENCE_DISTANCE                     0x1020
 #define AL_ROLLOFF_FACTOR                         0x1021
 #define AL_MAX_DISTANCE                           0x1023
-#define	AL_SOURCE_TYPE							  0x1027
-#define	AL_STREAMING							  0x1029
+#define AL_SAMPLE_OFFSET                          0x1025
+#define	AL_SOURCE_TYPE                            0x1027
+#define	AL_STREAMING                              0x1029
 #define AL_FORMAT_MONO8                           0x1100
 #define AL_FORMAT_MONO16                          0x1101
 #define AL_FORMAT_STEREO8                         0x1102
@@ -222,7 +230,6 @@ static ALC_API void           (ALC_APIENTRY *palcCaptureSamples)( ALCdevice *dev
 #endif
 
 
-
 //efx
 #ifdef USEEFX
 #define AL_AUXILIARY_SEND_FILTER                 0x20006
@@ -270,7 +277,6 @@ static ALC_API void           (ALC_APIENTRY *palcCaptureSamples)( ALCdevice *dev
 #define AL_EAXREVERB_LFREFERENCE                 0x0015
 #define AL_EAXREVERB_ROOM_ROLLOFF_FACTOR         0x0016
 #define AL_EAXREVERB_DECAY_HFLIMIT               0x0017
-static AL_API void*(AL_APIENTRY *palGetProcAddress)(const ALchar *fname);
 static AL_API void (AL_APIENTRY *palSource3i)(ALuint source, ALenum param, ALint value1, ALint value2, ALint value3);
 
 static AL_API void (AL_APIENTRY *palAuxiliaryEffectSloti)(ALuint effectslot, ALenum param, ALint iValue);
@@ -292,11 +298,9 @@ extern sfx_t *known_sfx;
 extern int loaded_sfx;
 extern int num_sfx;
 
-
-static void QDECL OnChangeALMaxDistance (cvar_t *var, char *value);
-static void QDECL OnChangeALSpeedOfSound (cvar_t *var, char *value);
-static void QDECL OnChangeALDopplerFactor (cvar_t *var, char *value);
-static void QDECL OnChangeALDistanceModel (cvar_t *var, char *value);
+static ALuint OpenAL_LoadEffect(const struct reverbproperties_s *reverb);
+static void OpenAL_Shutdown (soundcardinfo_t *sc);
+static void QDECL OnChangeALSettings (cvar_t *var, char *value);
 /*
 static void S_Init_f(void);
 static void S_Info(void);
@@ -304,14 +308,16 @@ static void S_Info(void);
 static void S_Shutdown_f(void);
 */
 static cvar_t s_al_debug = CVAR("s_al_debug", "0");
-static cvar_t s_al_max_distance = CVARFC("s_al_max_distance", "1000",0,OnChangeALMaxDistance);
-static cvar_t s_al_speedofsound = CVARFC("s_al_speedofsound", "343.3",0,OnChangeALSpeedOfSound);
-static cvar_t s_al_dopplerfactor = CVARFC("s_al_dopplerfactor", "3.0",0,OnChangeALDopplerFactor);
-static cvar_t s_al_distancemodel = CVARFC("s_al_distancemodel", "2",0,OnChangeALDistanceModel);
+static cvar_t s_al_use_reverb = CVAR("s_al_use_reverb", "1");
+static cvar_t s_al_max_distance = CVARFC("s_al_max_distance", "1000",0,OnChangeALSettings);
+static cvar_t s_al_speedofsound = CVARFC("s_al_speedofsound", "343.3",0,OnChangeALSettings);
+static cvar_t s_al_dopplerfactor = CVARFC("s_al_dopplerfactor", "3.0",0,OnChangeALSettings);
+static cvar_t s_al_distancemodel = CVARFC("s_al_distancemodel", "2",0,OnChangeALSettings);
 static cvar_t s_al_rolloff_factor = CVAR("s_al_rolloff_factor", "1");
 static cvar_t s_al_reference_distance = CVAR("s_al_reference_distance", "120");
 static cvar_t s_al_velocityscale = CVAR("s_al_velocityscale", "1");
 static cvar_t s_al_static_listener = CVAR("s_al_static_listener", "0");	//cheat
+extern cvar_t snd_doppler;
 
 typedef struct
 {
@@ -321,17 +327,19 @@ typedef struct
 	ALCdevice *OpenAL_Device;
 	ALCcontext *OpenAL_Context;
 
-	ALfloat ListenPos[3];// = { 0.0, 0.0, 0.0 };
-
-	// Velocity of the listener.
-	ALfloat ListenVel[3];// = { 0.0, 0.0, 0.0 };
-
-	// Orientation of the listener. (first 3 elements are "at", second 3 are "up")
-	ALfloat ListenOri[6];// = { 0.0, 0.0, -1.0, 0.0, 1.0, 0.0 };
+	int ListenEnt;			//listener's entity number, so we don't get weird sound displacements
+	ALfloat ListenPos[3];	//their origin.
+	ALfloat ListenVel[3];	// Velocity of the listener.
+	ALfloat ListenOri[6];	// Orientation of the listener. (first 3 elements are "at", second 3 are "up")
 
 	int cureffect;
 	ALuint effectslot;			//the global reverb slot
-	ALuint effecttype[2];	//effect used when underwater
+	size_t numeffecttypes;
+	struct
+	{
+		ALuint effect;
+		unsigned int modificationcount;	//so we know if reverb state needs to get rebuilt
+	} *effecttype;
 } oalinfo_t;
 static void PrintALError(char *string)
 {
@@ -409,7 +417,15 @@ qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
 	PrintALError("pre Buffer Data");
 	palGenBuffers(1, bufptr);
 	/*openal is inconsistant and supports only 8bit unsigned or 16bit signed*/
-	if (volume != 1)
+	if (!sc->data)
+	{
+		//buffer some silence.
+		short *tmp = malloc(size);
+		memset(tmp, 0, size);
+		palBufferData(*bufptr, fmt, tmp, size, sc->speed);
+		free(tmp);
+	}
+	else if (volume != 1)
 	{
 		if (sc->width == 1)
 		{
@@ -423,7 +439,7 @@ qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
 			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
 			free(tmp);
 		}
-		else
+		else if (sc->width == 2)
 		{
 			short *tmp = malloc(size);
 			short *src = (short*)sc->data;
@@ -450,7 +466,7 @@ qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
 			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
 			free(tmp);
 		}
-		else
+		else if (sc->width == 2)
 		{
 #if 0
 			short *tmp = malloc(size);
@@ -472,6 +488,7 @@ qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
 void OpenAL_CvarInit(void)
 {
 	Cvar_Register(&s_al_debug, SOUNDVARS);
+	Cvar_Register(&s_al_use_reverb, SOUNDVARS);
 	Cvar_Register(&s_al_max_distance, SOUNDVARS);
 	Cvar_Register(&s_al_dopplerfactor, SOUNDVARS);
 	Cvar_Register(&s_al_distancemodel, SOUNDVARS);
@@ -483,13 +500,14 @@ void OpenAL_CvarInit(void)
 }
 
 extern float voicevolumemod;
-static void OpenAL_ListenerUpdate(soundcardinfo_t *sc, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity)
+static void OpenAL_ListenerUpdate(soundcardinfo_t *sc, int entnum, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity)
 {
 	oalinfo_t *oali = sc->handle;
 
-	VectorScale(velocity, s_al_velocityscale.value, oali->ListenVel);
+	VectorScale(velocity, (snd_doppler.value?snd_doppler.value:s_al_velocityscale.value)/35.0, oali->ListenVel);
 	VectorCopy(origin, oali->ListenPos);
 
+	oali->ListenEnt = entnum;
 	oali->ListenOri[0] = forward[0];
 	oali->ListenOri[1] = forward[1];
 	oali->ListenOri[2] = forward[2];
@@ -507,6 +525,47 @@ static void OpenAL_ListenerUpdate(soundcardinfo_t *sc, vec3_t origin, vec3_t for
 	}
 }
 
+static qboolean OpenAL_ReclaimASource(soundcardinfo_t *sc)
+{
+	oalinfo_t *oali = sc->handle;
+	ALuint src;
+	ALuint buf;
+	int i;
+	int success = 0;
+	for (i = 0; i < sc->total_chans; i++)
+	{
+//		channel_t *chan = &sc->channel[i];
+		src = oali->source[i];
+		if (src)
+		{
+			palGetSourcei(src, AL_SOURCE_STATE, &buf);
+			if (buf != AL_PLAYING)
+			{
+				palDeleteSources(1, &src);
+				oali->source[i] = 0;
+				success++;
+			}
+		}
+	}
+
+	if (!success)
+	{
+		for (i = DYNAMIC_STOP; i < sc->total_chans; i++)
+		{	//FIXME: prioritize the furthest
+			src = oali->source[i];
+			if (src)
+			{
+				palDeleteSources(1, &src);
+				oali->source[i] = 0;
+				success++;
+				break;
+			}
+		}
+	}
+
+	return success;
+}
+
 //schanged says the sample has changed, otherwise its merely moved around a little, maybe changed in volume, but nothing that will restart it.
 static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned int schanged)
 {
@@ -519,6 +578,8 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 
 	if (chnum >= NUM_SOURCES)
 		return;
+
+	//alcMakeContextCurrent
 
 #ifdef FTE_TARGET_WEB
 	if (firefoxstaticsounds && chan->dist_mult >= 3.0 / sound_nominal_clip_dist)
@@ -535,9 +596,13 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 		//unable to start a new sound source, give up.
 		if (!src)
 		{
-			//FIXME: find one which has already stopped and steal it.
-			Con_Printf("Out of OpenAL sources!\n");
-			return;
+			if (OpenAL_ReclaimASource(sc))
+				palGenSources(1, &src);
+			if (!src)
+			{
+				PrintALError("alGenSources");
+				return;
+			}
 		}
 		oali->source[chnum] = src;
 		schanged = true;	//should normally be true anyway, but hey
@@ -545,7 +610,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 
 	PrintALError("pre start sound");
 
-	if (schanged && src)
+	if (schanged==true && src)
 		palSourceStop(src);
 
 	//reclaim any queued buffers
@@ -618,7 +683,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 				int offset;
 				sfxcache_t sbuf, *sc;
 				palGetSourcei(src, AL_BUFFERS_QUEUED, &buf);
-				if (buf <= 2)
+				if (buf <= 3)
 				{	//decode periodically instead of all at the start.
 					sc = sfx->decoder.decodedata(sfx, &sbuf, chan->pos>>PITCHSHIFT, 65536);
 					if (sc)
@@ -632,6 +697,15 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 
 
 						sbuf.soundoffset = 0;
+
+						if (!buf)
+						{	//queue 124 samples if we're starting/resetting a new stream this is to try to cover up discintinuities caused by low samle rates
+							sfxcache_t silence = sbuf;
+							silence.data = NULL;
+							silence.length = 0.1 * sbuf.speed;
+							OpenAL_LoadCache(&buf, &silence, 1);
+							palSourceQueueBuffers(src, 1, &buf);
+						}
 
 						//build a buffer with it and queue it up.
 						//buffer will be purged later on when its unqueued
@@ -687,7 +761,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	}
 
 	palSourcef(src, AL_GAIN, min(cvolume, 1));	//openal only supports a max volume of 1. anything above is an error and will be clamped.
-	if ((chan->flags & CF_NOSPACIALISE) || chan->entnum == cl.playerview[0].viewentity || !chan->dist_mult)
+	if ((chan->flags & CF_NOSPACIALISE) || (chan->entnum && chan->entnum == oali->ListenEnt) || !chan->dist_mult)
 	{
 		palSourcefv(src, AL_POSITION, vec3_origin);
 		palSourcefv(src, AL_VELOCITY, vec3_origin);
@@ -695,23 +769,33 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	else
 	{
 		palSourcefv(src, AL_POSITION, chan->origin);
-		palSourcefv(src, AL_VELOCITY, vec3_origin);	//FIXME
+		palSourcefv(src, AL_VELOCITY, chan->velocity);
 	}
 
 	if (schanged)
 	{
+		if (schanged == 2 && chan->pos)
+		{	//complex update, but not restart. pos contains an offset, rather than an absolute time.
+			int cursample;
+			palGetSourcei(src, AL_SAMPLE_OFFSET, &cursample);
+			palSourcei(src, AL_SAMPLE_OFFSET, cursample + (chan->pos>>PITCHSHIFT));
+		}
+
 		pitch = (float)chan->rate/(1<<PITCHSHIFT);
 		palSourcef(src, AL_PITCH, pitch);
 
 #ifdef USEEFX
-		if (chan->entnum == -2)	//don't do the underwater thing on static sounds. it sounds like arse with all those sources.
-			palSource3i(src, AL_AUXILIARY_SEND_FILTER, 0, 0, AL_FILTER_NULL);
-		else
-			palSource3i(src, AL_AUXILIARY_SEND_FILTER, oali->effectslot, 0, AL_FILTER_NULL);
+		if (palSource3i)
+		{
+			if (chan->flags & CF_NOREVERB)	//don't do the underwater thing on static sounds. it sounds like arse with all those sources.
+				palSource3i(src, AL_AUXILIARY_SEND_FILTER, 0, 0, AL_FILTER_NULL);
+			else
+				palSource3i(src, AL_AUXILIARY_SEND_FILTER, oali->effectslot, 0, AL_FILTER_NULL);
+		}
 #endif
 
 		palSourcei(src, AL_LOOPING, (chan->flags & CF_FORCELOOP)?AL_TRUE:AL_FALSE);
-		if ((chan->flags & CF_NOSPACIALISE) || chan->entnum == cl.playerview[0].viewentity || !chan->dist_mult)
+		if ((chan->flags & CF_NOSPACIALISE) || chan->entnum == oali->ListenEnt || !chan->dist_mult)
 		{
 			palSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
 //			palSourcef(src, AL_ROLLOFF_FACTOR, 0.0f);
@@ -808,9 +892,7 @@ static qboolean OpenAL_InitLibrary(void)
 		{(void*)&palSpeedOfSound, "alSpeedOfSound"},
 		{(void*)&palDistanceModel, "alDistanceModel"},
 
-#ifdef USEEFX
 		{(void*)&palGetProcAddress, "alGetProcAddress"},
-#endif
 		{(void*)&palGetSourcei, "alGetSourcei"},
 		{(void*)&palSourceQueueBuffers, "alSourceQueueBuffers"},
 		{(void*)&palSourceUnqueueBuffers, "alSourceUnqueueBuffers"},
@@ -848,7 +930,10 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 
 	if (!OpenAL_InitLibrary())
 	{
-		Con_Printf(SDRVNAME" is not installed\n");
+		if (devname)
+			Con_Printf(SDRVNAME" library is not installed\n");
+		else 
+			Con_DPrintf(SDRVNAME" library is not installed\n");
 		return false;
 	}
 
@@ -857,6 +942,11 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 		Con_Printf(SDRVNAME": only able to load one device at a time\n");
 		return false;
 	}
+
+	if (!devname || !*devname)
+		devname = palcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
+	Q_snprintfz(sc->name, sizeof(sc->name), "%s", devname);
+	Con_Printf("Initiating "SDRVNAME": %s.\n", devname);
 
 	oali->OpenAL_Device = palcOpenDevice(devname);
 	if (oali->OpenAL_Device == NULL)
@@ -867,7 +957,10 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 
 	oali->OpenAL_Context = palcCreateContext(oali->OpenAL_Device, NULL);
 	if (!oali->OpenAL_Context)
+	{
+		PrintALError("Could not init a sound context\n");
 		return false;
+	}
 
 	palcMakeContextCurrent(oali->OpenAL_Context);
 //	palcProcessContext(oali->OpenAL_Context);
@@ -886,50 +979,53 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 	return true;
 }
 
-static void QDECL OnChangeALMaxDistance (cvar_t *var, char *oldvalue)
+//called when some al-specific cvar has changed that is linked to openal state.
+static void QDECL OnChangeALSettings (cvar_t *var, char *value)
 {
-}
-static void QDECL OnChangeALSpeedOfSound (cvar_t *var, char *value)
-{
-	if (palSpeedOfSound)
-		palSpeedOfSound(var->value);
-}
-static void QDECL OnChangeALDopplerFactor (cvar_t *var, char *oldvalue)
-{
-	if (palDopplerFactor)
-		palDopplerFactor(var->value);
-}
-static void QDECL OnChangeALDistanceModel (cvar_t *var, char *oldvalue)
-{
-	if (!palDistanceModel)
-		return;
-
-	switch (var->ival)
+	soundcardinfo_t *sc;
+	for (sc = sndcardinfo; sc; sc = sc->next)
 	{
-		case 0:
-			palDistanceModel(AL_INVERSE_DISTANCE);
-			break;
-		case 1:
-			palDistanceModel(AL_INVERSE_DISTANCE_CLAMPED);
-			break;
-		case 2:
-			palDistanceModel(AL_LINEAR_DISTANCE);
-			break;
-		case 3:
-			palDistanceModel(AL_LINEAR_DISTANCE_CLAMPED);
-			break;
-		case 4:
-			palDistanceModel(AL_EXPONENT_DISTANCE);
-			break;
-		case 5:
-			palDistanceModel(AL_EXPONENT_DISTANCE_CLAMPED);
-			break;
-		case 6:
-			palDistanceModel(AL_NONE);
-			break;
-		default:
-			Cvar_ForceSet(var, "0");
-	}	
+		//we only want openal devices.
+		if (sc->Shutdown != OpenAL_Shutdown)
+			continue;
+		//alcMakeContextCurrent
+
+		if (palSpeedOfSound)
+			palSpeedOfSound(s_al_speedofsound.value);
+
+		if (palDopplerFactor)
+			palDopplerFactor(s_al_dopplerfactor.value);
+
+		if (palDistanceModel)
+		{
+			switch (s_al_distancemodel.ival)
+			{
+				case 0:
+					palDistanceModel(AL_INVERSE_DISTANCE);
+					break;
+				case 1:
+					palDistanceModel(AL_INVERSE_DISTANCE_CLAMPED);
+					break;
+				case 2:
+					palDistanceModel(AL_LINEAR_DISTANCE);
+					break;
+				case 3:
+					palDistanceModel(AL_LINEAR_DISTANCE_CLAMPED);
+					break;
+				case 4:
+					palDistanceModel(AL_EXPONENT_DISTANCE);
+					break;
+				case 5:
+					palDistanceModel(AL_EXPONENT_DISTANCE_CLAMPED);
+					break;
+				case 6:
+					palDistanceModel(AL_NONE);
+					break;
+				default:
+					Cvar_ForceSet(&s_al_distancemodel, "0");
+			}
+		}
+	}
 }
 
 /*stub should not be called*/
@@ -945,24 +1041,6 @@ static void OpenAL_UnlockBuffer (soundcardinfo_t *sc, void *buffer)
 	//Con_Printf("OpenAL: UnlockBuffer\n");
 }
 
-static void OpenAL_SetUnderWater (soundcardinfo_t *sc, qboolean underwater)
-{
-#ifdef USEEFX
-	oalinfo_t *oali = sc->handle;
-
-	if (!oali->effectslot)
-		return;
-	//don't spam it
-	if (oali->cureffect == underwater)
-		return;
-	oali->cureffect = underwater;
-	PrintALError("preunderwater");
-	palAuxiliaryEffectSloti(oali->effectslot, AL_EFFECTSLOT_EFFECT, oali->effecttype[oali->cureffect]);
-	PrintALError("postunderwater");
-	//Con_Printf("OpenAL: SetUnderWater %i\n", underwater);
-#endif
-}
-
 /*stub should not be called*/
 static void OpenAL_Submit (soundcardinfo_t *sc, int start, int end)
 {
@@ -976,10 +1054,56 @@ static unsigned int OpenAL_GetDMAPos (soundcardinfo_t *sc)
 	return 0;
 }
 
+static void OpenAL_SetReverb (soundcardinfo_t *sc, size_t reverbeffect)
+{
+#ifdef USEEFX
+	oalinfo_t *oali = sc->handle;
+
+	if (!oali->effectslot)
+		return;
+
+	if (reverbeffect >= numreverbproperties)
+		return;	//err... you're doing it wrong.
+
+	//alcMakeContextCurrent
+
+	if (reverbeffect >= oali->numeffecttypes)
+	{
+		void *n = BZ_Realloc(oali->effecttype, sizeof(*oali->effecttype)*numreverbproperties);
+		if (!n)
+			return;	//erk?
+		oali->effecttype = n;
+		memset(oali->effecttype + oali->numeffecttypes, 0, sizeof(*oali->effecttype)*(numreverbproperties-oali->numeffecttypes));
+		oali->numeffecttypes = numreverbproperties;
+	}
+	if (oali->effecttype[reverbeffect].modificationcount != reverbproperties[reverbeffect].modificationcount)
+	{	//the desired effect was modified
+		oali->cureffect = ~0;
+		oali->effecttype[reverbeffect].modificationcount = reverbproperties[reverbeffect].modificationcount;
+
+		palDeleteEffects(1, &oali->effecttype[reverbeffect].effect);
+		oali->effecttype[reverbeffect].effect = OpenAL_LoadEffect(&reverbproperties[reverbeffect].props);
+	}
+	else
+	{
+		//don't spam it
+		if (oali->cureffect == reverbeffect)
+			return;
+	}
+	oali->cureffect = reverbeffect;
+	PrintALError("preunderwater");
+	palAuxiliaryEffectSloti(oali->effectslot, AL_EFFECTSLOT_EFFECT, oali->effecttype[oali->cureffect].effect);
+	PrintALError("postunderwater");
+	//Con_Printf("OpenAL: SetUnderWater %i\n", underwater);
+#endif
+}
+
 static void OpenAL_Shutdown (soundcardinfo_t *sc)
 {
 	oalinfo_t *oali = sc->handle;
 	int i;
+
+	//alcMakeContextCurrent
 
 	palDeleteSources(NUM_SOURCES, oali->source);
 
@@ -994,8 +1118,16 @@ static void OpenAL_Shutdown (soundcardinfo_t *sc)
 	}
 
 #ifdef USEEFX
-	palDeleteAuxiliaryEffectSlots(1, &oali->effectslot);
-	palDeleteEffects(1, &oali->effecttype[1]);
+	if (palDeleteAuxiliaryEffectSlots)
+	{
+		palDeleteAuxiliaryEffectSlots(1, &oali->effectslot);
+		for (i = 0; i < oali->numeffecttypes; i++)
+		{
+			if (oali->effecttype[i].effect)
+				palDeleteEffects(1, &oali->effecttype[i].effect);
+		}
+	}
+	Z_Free(oali->effecttype);
 #endif
 
 	palcDestroyContext(oali->OpenAL_Context);
@@ -1003,45 +1135,18 @@ static void OpenAL_Shutdown (soundcardinfo_t *sc)
 	Z_Free(oali);
 }
 
-typedef struct {
-    float flDensity;
-    float flDiffusion;
-    float flGain;
-    float flGainHF;
-    float flGainLF;
-    float flDecayTime;
-    float flDecayHFRatio;
-    float flDecayLFRatio;
-    float flReflectionsGain;
-    float flReflectionsDelay;
-    float flReflectionsPan[3];
-    float flLateReverbGain;
-    float flLateReverbDelay;
-    float flLateReverbPan[3];
-    float flEchoTime;
-    float flEchoDepth;
-    float flModulationTime;
-    float flModulationDepth;
-    float flAirAbsorptionGainHF;
-    float flHFReference;
-    float flLFReference;
-    float flRoomRolloffFactor;
-    int   iDecayHFLimit;
-} EFXEAXREVERBPROPERTIES, *LPEFXEAXREVERBPROPERTIES;
-#define EFX_REVERB_PRESET_PSYCHOTIC \
-    { 0.0625f, 0.5000f, 0.3162f, 0.8404f, 1.0000f, 7.5600f, 0.9100f, 1.0000f, 0.4864f, 0.0200f, { 0.0000f, 0.0000f, 0.0000f }, 2.4378f, 0.0300f, { 0.0000f, 0.0000f, 0.0000f }, 0.2500f, 0.0000f, 4.0000f, 1.0000f, 0.9943f, 5000.0000f, 250.0000f, 0.0000f, 0x0 }
-#define EFX_REVERB_PRESET_UNDERWATER \
-    { 0.3645f, 1.0000f, 0.3162f, 0.0100f, 1.0000f, 1.4900f, 0.1000f, 1.0000f, 0.5963f, 0.0070f, { 0.0000f, 0.0000f, 0.0000f }, 7.0795f, 0.0110f, { 0.0000f, 0.0000f, 0.0000f }, 0.2500f, 0.0000f, 1.1800f, 0.3480f, 0.9943f, 5000.0000f, 250.0000f, 0.0000f, 0x1 }
-ALuint OpenAL_LoadEffect(const EFXEAXREVERBPROPERTIES *reverb)
+static ALuint OpenAL_LoadEffect(const struct reverbproperties_s *reverb)
 {
 	ALuint effect = 0;
 #ifdef AL_EFFECT_EAXREVERB
 	palGenEffects(1, &effect);
-	if(alGetEnumValue("AL_EFFECT_EAXREVERB") != 0)
+
+	//try eax reverb for more settings
+	palEffecti(effect, AL_EFFECT_TYPE, AL_EFFECT_EAXREVERB);
+	if (!palGetError())
 	{
 		/* EAX Reverb is available. Set the EAX effect type then load the
 		 * reverb properties. */
-		palEffecti(effect, AL_EFFECT_TYPE, AL_EFFECT_EAXREVERB);
 
 		palEffectf(effect, AL_EAXREVERB_DENSITY, reverb->flDensity);
 		palEffectf(effect, AL_EAXREVERB_DIFFUSION, reverb->flDiffusion);
@@ -1094,45 +1199,46 @@ ALuint OpenAL_LoadEffect(const EFXEAXREVERBPROPERTIES *reverb)
 static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 {
 	oalinfo_t *oali;
-#ifndef OPENAL_STATIC
-	//no default support, because we're buggy as fuck
-	if (!devname)
-		return false;
-#endif
 
-	if (!devname || !*devname)
-		devname = palcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
+	soundcardinfo_t *old;
+//	extern soundcardinfo_t *sndcardinfo;
 
-	Con_Printf("Initiating "SDRVNAME": %s.\n", devname);
+	//
+	for (old = sndcardinfo; old; old = old->next)
+	{
+		if (old->Shutdown == OpenAL_Shutdown)
+		{
+			//in theory, we could relax this by using alcMakeContextCurrent lots, but we'd also need to do something about the per-sound audio buffer handle hack
+			Con_Printf(CON_ERROR SDRVNAME ": only a single device may be active at once\n");
+			return false;
+		}
+	}
+
 
 	if (OpenAL_Init(sc, devname) == false)
-	{
-		Con_Printf(CON_ERROR SDRVNAME " init failed\n");
 		return false;
-	}
 	oali = sc->handle;
 
 	Con_DPrintf(SDRVNAME" AL Extension   : %s\n",palGetString(AL_EXTENSIONS));
 	Con_DPrintf(SDRVNAME" ALC Extension  : %s\n",palcGetString(oali->OpenAL_Device,ALC_EXTENSIONS));
 
-	sc->Lock = OpenAL_LockBuffer;
-	sc->Unlock = OpenAL_UnlockBuffer;
-	sc->SetWaterDistortion = OpenAL_SetUnderWater;
-	sc->Submit = OpenAL_Submit;
 	sc->Shutdown = OpenAL_Shutdown;
-	sc->GetDMAPos = OpenAL_GetDMAPos;
+#ifdef USEEFX
+	sc->SetEnvironmentReverb = OpenAL_SetReverb;
+#endif
 	sc->ChannelUpdate = OpenAL_ChannelUpdate;
 	sc->ListenerUpdate = OpenAL_ListenerUpdate;
+	//these are stubs for our software mixer, and are not used with hardware mixing.
+	sc->Lock = OpenAL_LockBuffer;
+	sc->Unlock = OpenAL_UnlockBuffer;
+	sc->Submit = OpenAL_Submit;
+	sc->GetDMAPos = OpenAL_GetDMAPos;
 
-	Q_snprintfz(sc->name, sizeof(sc->name), "%s", devname);
 
 	sc->inactive_sound = true;
 	sc->selfpainting = true;
 
-	Cvar_ForceCallback(&s_al_distancemodel);
-	Cvar_ForceCallback(&s_al_speedofsound);
-	Cvar_ForceCallback(&s_al_dopplerfactor);
-	Cvar_ForceCallback(&s_al_max_distance);
+	OnChangeALSettings(NULL, NULL);
 
 #ifdef USEEFX
 	PrintALError("preeffects");
@@ -1147,14 +1253,10 @@ static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 	palEffectf = palGetProcAddress("alEffectf");
 	palEffectfv = palGetProcAddress("alEffectfv");
 
-	palGenAuxiliaryEffectSlots(1, &oali->effectslot);
+	if (palGenAuxiliaryEffectSlots && s_al_use_reverb.ival)
+		palGenAuxiliaryEffectSlots(1, &oali->effectslot);
 
-	oali->cureffect = 0;
-	oali->effecttype[0] = 0;
-	{
-		EFXEAXREVERBPROPERTIES uw = EFX_REVERB_PRESET_UNDERWATER;
-		oali->effecttype[1] = OpenAL_LoadEffect(&uw);
-	}
+	oali->cureffect = ~0;
 	PrintALError("posteffects");
 #endif
 	return true;

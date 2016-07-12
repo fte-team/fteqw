@@ -194,6 +194,7 @@ typedef struct blendstates_s
 	unsigned int bits;
 } blendstates_t;
 
+/*
 typedef struct d3d11renderqueue_s
 {
 	ID3D11SamplerState *cursamplerstate[MAX_TMUS];
@@ -203,7 +204,8 @@ typedef struct d3d11renderqueue_s
 	ID3D11Buffer		*stream_buffer[D3D11_BUFF_MAX];
 	unsigned int		stream_stride[D3D11_BUFF_MAX];
 	unsigned int		stream_offset[D3D11_BUFF_MAX];
-};
+} d3d11renderqueue_t;
+*/
 
 typedef struct
 {
@@ -864,6 +866,7 @@ void D3D11BE_Init(void)
 
 void D3D11BE_Shutdown(void)
 {
+	unsigned int i;
 	shaderstate.inited = false;
 #ifdef RTLIGHTS
 	D3D11_TerminateShadowMap();
@@ -871,6 +874,9 @@ void D3D11BE_Shutdown(void)
 	BE_DestroyVariousStates();
 	Z_Free(shaderstate.wbatches);
 	shaderstate.wbatches = NULL;
+
+	for (i = 0; i < countof(shaderstate.programfixedemu); i++)
+		Shader_ReleaseGeneric(shaderstate.programfixedemu[i]);
 }
 
 static void allocvertexbuffer(ID3D11Buffer **buf, unsigned int *offset, void **dest, unsigned int sz)
@@ -907,7 +913,7 @@ static void allocvertexbuffer(ID3D11Buffer **buf, unsigned int *offset, void **d
 	return;
 }
 
-static unsigned int allocindexbuffer(void **dest, void **buf, unsigned int entries)
+static unsigned int allocindexbuffer(index_t **dest, ID3D11Buffer **buf, unsigned int entries)
 {
 	D3D11_MAPPED_SUBRESOURCE msr;
 	unsigned int sz = sizeof(index_t) * entries;
@@ -970,9 +976,9 @@ const GUID DECLSPEC_SELECTANY IID_ID3D11Texture2D = { 0x6f15aaf2, 0xd208, 0x4e89
 
 static texid_t T_Gen_CurrentRender(void)
 {
-	int vwidth, vheight;
-	int pwidth = vid.fbpwidth;
-	int pheight = vid.fbpheight;
+//	int vwidth, vheight;
+//	int pwidth = vid.fbpwidth;
+//	int pheight = vid.fbpheight;
 
 	ID3D11Texture2D *backbuf;
 #ifdef WINRT
@@ -1511,11 +1517,8 @@ static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t 
 		src = mesh->xyz_array;
 		for (i = 0; i < cnt; i++, dst += 2)
 		{
-			static vec3_t tc_gen_s = { 1.0f, 0.0f, 0.0f };
-			static vec3_t tc_gen_t = { 0.0f, 1.0f, 0.0f };
-
-			dst[0] = DotProduct(tc_gen_s, src[i]);
-			dst[1] = DotProduct(tc_gen_t, src[i]);
+			dst[0] = DotProduct(pass->tcgenvec[0], src[i]);
+			dst[1] = DotProduct(pass->tcgenvec[1], src[i]);
 		}
 		return dst;
 	}
@@ -2034,7 +2037,7 @@ static void BE_DrawMeshChain_Internal(void)
 //	int i;
 	unsigned int mno;
 	unsigned int passno;
-	extern cvar_t r_polygonoffset_submodel_factor;
+//	extern cvar_t r_polygonoffset_submodel_factor;
 //	float pushdepth;
 //	float pushfactor;
 
@@ -2805,25 +2808,50 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		float em[16];
 		float vm[16];
 
-		vm[0] = r_refdef.playerview->vw_axis[0][0];
-		vm[1] = r_refdef.playerview->vw_axis[0][1];
-		vm[2] = r_refdef.playerview->vw_axis[0][2];
-		vm[3] = 0;
+		if (e->flags & RF_WEAPONMODELNOBOB)
+		{
+			vm[0] = vpn[0];
+			vm[1] = vpn[1];
+			vm[2] = vpn[2];
+			vm[3] = 0;
 
-		vm[4] = r_refdef.playerview->vw_axis[1][0];
-		vm[5] = r_refdef.playerview->vw_axis[1][1];
-		vm[6] = r_refdef.playerview->vw_axis[1][2];
-		vm[7] = 0;
+			vm[4] = -vright[0];
+			vm[5] = -vright[1];
+			vm[6] = -vright[2];
+			vm[7] = 0;
 
-		vm[8] = r_refdef.playerview->vw_axis[2][0];
-		vm[9] = r_refdef.playerview->vw_axis[2][1];
-		vm[10] = r_refdef.playerview->vw_axis[2][2];
-		vm[11] = 0;
+			vm[8] = vup[0];
+			vm[9] = vup[1];
+			vm[10] = vup[2];
+			vm[11] = 0;
 
-		vm[12] = r_refdef.playerview->vw_origin[0];
-		vm[13] = r_refdef.playerview->vw_origin[1];
-		vm[14] = r_refdef.playerview->vw_origin[2];
-		vm[15] = 1;
+			vm[12] = r_refdef.vieworg[0];
+			vm[13] = r_refdef.vieworg[1];
+			vm[14] = r_refdef.vieworg[2];
+			vm[15] = 1;
+		}
+		else
+		{
+			vm[0] = r_refdef.playerview->vw_axis[0][0];
+			vm[1] = r_refdef.playerview->vw_axis[0][1];
+			vm[2] = r_refdef.playerview->vw_axis[0][2];
+			vm[3] = 0;
+
+			vm[4] = r_refdef.playerview->vw_axis[1][0];
+			vm[5] = r_refdef.playerview->vw_axis[1][1];
+			vm[6] = r_refdef.playerview->vw_axis[1][2];
+			vm[7] = 0;
+
+			vm[8] = r_refdef.playerview->vw_axis[2][0];
+			vm[9] = r_refdef.playerview->vw_axis[2][1];
+			vm[10] = r_refdef.playerview->vw_axis[2][2];
+			vm[11] = 0;
+
+			vm[12] = r_refdef.playerview->vw_origin[0];
+			vm[13] = r_refdef.playerview->vw_origin[1];
+			vm[14] = r_refdef.playerview->vw_origin[2];
+			vm[15] = 1;
+		}
 
 		em[0] = e->axis[0][0];
 		em[1] = e->axis[0][1];
@@ -2876,7 +2904,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		float z;
 		float escale;
 		escale = e->scale;
-		switch(e->drawflags&SCALE_TYPE_MASKIN)
+		switch(e->drawflags&SCALE_TYPE_MASK)
 		{
 		default:
 		case SCALE_TYPE_UNIFORM:
@@ -2892,9 +2920,9 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 			VectorScale((m+8), escale, (m+8));
 			break;
 		}
-		if (mod && (e->drawflags&SCALE_TYPE_MASKIN) != SCALE_TYPE_XYONLY)
+		if (mod && (e->drawflags&SCALE_TYPE_MASK) != SCALE_TYPE_XYONLY)
 		{
-			switch(e->drawflags&SCALE_ORIGIN_MASKIN)
+			switch(e->drawflags&SCALE_ORIGIN_MASK)
 			{
 			case SCALE_ORIGIN_CENTER:
 				z = ((mod->maxs[2] + mod->mins[2]) * (1-escale))/2;
@@ -3219,7 +3247,7 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 static void R_DrawPortal(batch_t *batch, batch_t **blist)
 {
 	entity_t *view;
-	float glplane[4];
+//	float glplane[4];
 	plane_t plane;
 	refdef_t oldrefdef;
 	mesh_t *mesh = batch->mesh[batch->firstmesh];
@@ -3586,10 +3614,10 @@ void D3D11BE_VBO_Begin(vbobctx_t *ctx, size_t maxsize)
 void D3D11BE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray)
 {
 }
-void D3D11BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray)
+void D3D11BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem)
 {
 }
-void D3D11BE_VBO_Destroy(vboarray_t *vearray)
+void D3D11BE_VBO_Destroy(vboarray_t *vearray, void *mem)
 {
 }
 

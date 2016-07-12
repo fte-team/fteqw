@@ -127,7 +127,8 @@ char *TP_ItemName(unsigned int itbit);
 #define Util_SkipEZColors(src,dst,dstlen) strlcpy(dst,src,dstlen)
 
 void Replace_In_String(char *string, size_t strsize, char leadchar, int patterns, ...);
-static qbool Utils_RegExpMatch(char *regexp, char *term) {return true;}
+//static qbool Utils_RegExpMatch(char *regexp, char *term) {return true;}
+#define Utils_RegExpMatch(regexp,term) (true)
 
 #define clamp(v,min,max) v=bound(min,v,max)
 #define strlen_color(line) (pDraw_StringWidth(8, 0, line)/8.0)

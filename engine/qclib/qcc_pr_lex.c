@@ -38,13 +38,11 @@ QCC_type_t		*pr_immediate_type;
 QCC_evalstorage_t		pr_immediate;
 
 char	pr_immediate_string[8192];
+size_t	pr_immediate_strlen;
 
 int		pr_error_count;
 int		pr_warning_count;
 
-
-CompilerConstant_t *CompilerConstant;
-int numCompilerConstants;
 extern pbool expandedemptymacro;
 
 //really these should not be in here
@@ -421,6 +419,65 @@ int ParsePrecompilerIf(int level)
 	return eval;
 }
 
+struct deflist_s
+{
+	char *buffer;
+	size_t length;
+	size_t buffersize;
+};
+static void QCC_PR_GetDefinesListEnumerate(void *vctx, void *data)
+{
+	struct deflist_s *ctx = vctx;
+	CompilerConstant_t *def = data;
+	char term[8192];
+	size_t termsize;
+
+	QC_snprintfz(term, sizeof(term), "\n%s", def->name);
+	if (def->numparams >= 0)
+	{
+		unsigned int i;
+		QC_strlcat(term, "(", sizeof(term));
+		for (i = 0; i < def->numparams; i++)
+		{
+			if (i)
+				QC_strlcat(term, ",", sizeof(term));
+			QC_strlcat(term, def->params[i], sizeof(term));
+		}
+		QC_strlcat(term, ")", sizeof(term));
+	}
+	if (def->value && *def->value)
+	{
+		char *o, *i;
+		QC_strlcat(term, "=", sizeof(term));
+
+		//annoying logic to skip whitespace... hopefully it won't fuck stuff up too much.
+		for (o = term+strlen(term), i = def->value; o < term + sizeof(term)-1 && *i; )
+		{
+			if (*i == ' ' || *i == '\t' || *i == '\n' || *i == '\r')
+				i++;
+			else
+				*o++ = *i++;
+		}
+		*o = 0;
+	}
+
+	termsize = strlen(term);
+	if (ctx->length + termsize+1 > ctx->buffersize)
+	{
+		ctx->buffersize = (ctx->length + termsize+1)*2;
+		ctx->buffer = realloc(ctx->buffer, ctx->buffersize);
+	}
+	memcpy(ctx->buffer+ctx->length, term, termsize);
+	ctx->length += termsize;
+	ctx->buffer[ctx->length] = 0;
+}
+char *QCC_PR_GetDefinesList(void)
+{
+	struct deflist_s ctx = {NULL};
+	Hash_Enumerate(&compconstantstable, QCC_PR_GetDefinesListEnumerate, &ctx);
+	return ctx.buffer;
+}
+
 //returns true if it was white/comments only. false if there was actual text that was skipped.
 static void QCC_PR_SkipToEndOfLine(pbool errorifnonwhite)
 {
@@ -733,7 +790,7 @@ pbool QCC_PR_Precompiler(void)
 
 			QCC_PR_SkipToEndOfLine(false);
 
-			QCC_PR_ParseWarning(WARN_PRECOMPILERMESSAGE, "#warning: %s\n", msg);
+			QCC_PR_ParseWarning(WARN_PRECOMPILERMESSAGE, "#warning: %s", msg);
 		}
 		else if (!strncmp(directive, "message", 7))
 		{
@@ -1373,6 +1430,7 @@ void QCC_PR_LexString (void)
 	pr_token_type = tt_immediate;
 	pr_immediate_type = &type_string;
 	strcpy (pr_immediate_string, pr_token);
+	pr_immediate_strlen = strlen(pr_immediate_string);
 
 //	print("Found \"%s\"\n", pr_immediate_string);
 }
@@ -1395,6 +1453,13 @@ void QCC_PR_LexString (void)
 		texttype = 0;
 
 		QCC_PR_LexWhitespace(false);
+
+		if (flag_qccx && *pr_file_p == ':')
+		{
+			pr_file_p++;
+			pr_token[len++] = 0;
+			continue;
+		}
 
 		if (*pr_file_p == 'R' && pr_file_p[1] == '\"')
 		{
@@ -1547,6 +1612,12 @@ void QCC_PR_LexString (void)
 						c = 30;
 					else if (c == '>')
 						c = 31;
+					else if (c == '(')
+						c = 128;
+					else if (c == '=')
+						c = 129;
+					else if (c == ')')
+						c = 130;
 					else if (c == 'u' || c == 'U')
 					{
 						//lower case u specifies exactly 4 nibbles.
@@ -1596,8 +1667,7 @@ void QCC_PR_LexString (void)
 							{
 								c = c-6;
 								pr_token[len++] = (unsigned char)((unicode>>c)&0x3f) | 0x80;
-							}
-							while(c);
+							} while(c);
 						}
 						continue;
 					}
@@ -1723,18 +1793,20 @@ void QCC_PR_LexString (void)
 	pr_token[len] = 0;
 	pr_token_type = tt_immediate;
 	pr_immediate_type = type_string;
-	strcpy (pr_immediate_string, pr_token);
+	memcpy(pr_immediate_string, pr_token, len+1);
+	pr_immediate_strlen = len;
 
 	if (qccwarningaction[WARN_NOTUTF8])
 	{
-		for (c = 0; pr_token[c]; c++)
+		for (c = 0; c < pr_immediate_strlen; )
 		{
 			len = utf8_check(&pr_token[c], &code);
-			if (!len)
+			if (!len || c+len>pr_immediate_strlen)
 			{
 				QCC_PR_ParseWarning(WARN_NOTUTF8, "String constant is not valid utf-8");
 				break;
 			}
+			c += len;
 		}
 	}
 }
@@ -1752,7 +1824,7 @@ int QCC_PR_LexInteger (void)
 
 	len = 0;
 	c = *pr_file_p;
-	if (pr_file_p[0] == '0' && pr_file_p[1] == 'x')
+	if (pr_file_p[0] == '0' && (pr_file_p[1] == 'x' || pr_file_p[1] == 'X'))
 	{
 		pr_token[0] = '0';
 		pr_token[1] = 'x';
@@ -1773,7 +1845,7 @@ int QCC_PR_LexInteger (void)
 void QCC_PR_LexNumber (void)
 {
 	int tokenlen = 0;
-	int num=0;
+	long long num=0;
 	int base=0;
 	int c;
 	int sign=1;
@@ -1784,7 +1856,7 @@ void QCC_PR_LexNumber (void)
 
 		pr_token[tokenlen++] = '-';
 	}
-	if (pr_file_p[0] == '0' && pr_file_p[1] == 'x')
+	if (pr_file_p[0] == '0' && (pr_file_p[1] == 'x' || pr_file_p[1] == 'X'))
 	{
 		pr_file_p+=2;
 		base = 16;
@@ -1852,15 +1924,26 @@ void QCC_PR_LexNumber (void)
 			pr_file_p++;
 			pr_immediate_type = type_float;
 			pr_immediate._float = num*sign;
+
+			num*=sign;
+			if ((long long)pr_immediate._float != (long long)num)
+				QCC_PR_ParseWarning(WARN_OVERFLOW, "numerical overflow");
 			return;
 		}
-		else if (c == 'i')
+		else if (c == 'i' || c == 'u')
 		{
 			pr_token[tokenlen++] = c;
 			pr_token[tokenlen++] = 0;
 			pr_file_p++;
 			pr_immediate_type = type_integer;
 			pr_immediate._int = num*sign;
+
+			num*=sign;
+			if ((long long)pr_immediate._int != (long long)num)
+			{
+				if (((long long)pr_immediate._int & 0xffffffff80000000ll) != 0xffffffff80000000ll)
+						QCC_PR_ParseWarning(WARN_OVERFLOW, "numerical overflow");
+			}
 			return;
 		}
 		else
@@ -1871,8 +1954,14 @@ void QCC_PR_LexNumber (void)
 
 	if (!pr_immediate_type)
 	{
-		if (flag_assume_integer)
+		//float f = num;
+		if (flag_assume_integer)// || (base != 10 && sign > 0 && (long long)f != (long long)num))
 			pr_immediate_type = type_integer;
+		else if (flag_qccx && base == 16)
+		{
+			pr_immediate_type = type_float;
+			goto qccxhex;
+		}
 		else
 			pr_immediate_type = type_float;
 	}
@@ -1880,7 +1969,15 @@ void QCC_PR_LexNumber (void)
 	if (pr_immediate_type == type_integer)
 	{
 		pr_immediate_type = type_integer;
+qccxhex:
 		pr_immediate._int = num*sign;
+
+		num*=sign;
+		if ((long long)pr_immediate._int != (long long)num)
+		{
+			if (((long long)pr_immediate._int & 0xffffffff80000000ll) != 0xffffffff80000000ll)
+					QCC_PR_ParseWarning(WARN_OVERFLOW, "numerical overflow");
+		}
 	}
 	else
 	{
@@ -1889,6 +1986,10 @@ void QCC_PR_LexNumber (void)
 		// and we cannot use atof on tokens like 0xabc, so use num*sign, it SHOULD be safe
 		//pr_immediate._float = atof(pr_token);
 		pr_immediate._float = (float)(num*sign);
+
+		num*=sign;
+		if ((long long)pr_immediate._float != (long long)num && base == 16)
+			QCC_PR_ParseWarning(WARN_OVERFLOW, "numerical overflow %lld will be rounded to %f", num, pr_immediate._float);
 	}
 }
 
@@ -1964,7 +2065,13 @@ void QCC_PR_LexVector (void)
 	{//character constant
 		pr_token_type = tt_immediate;
 		pr_immediate_type = type_float;
-		pr_immediate._float = pr_file_p[0];
+		if (flag_qccx)
+		{
+			QCC_PR_ParseWarning(WARN_DENORMAL, "char constant: denormal");
+			pr_immediate._int = pr_file_p[0];
+		}
+		else
+			pr_immediate._float = pr_file_p[0];
 		pr_file_p+=2;
 		return;
 	}
@@ -2075,7 +2182,7 @@ void QCC_PR_LexPunctuation (void)
 	}
 
 	if ((unsigned char)*pr_file_p == (unsigned char)0xa0)
-		QCC_PR_ParseWarning (ERR_UNKNOWNPUCTUATION, "Unknown punctuation: '\\x%x' - non-breaking space", (unsigned char)*pr_file_p);
+		QCC_PR_ParseWarning (ERR_UNKNOWNPUCTUATION, "Unsupported punctuation: '\\x%x' - non-breaking space", (unsigned char)*pr_file_p);
 	else
 		QCC_PR_ParseWarning (ERR_UNKNOWNPUCTUATION, "Unknown punctuation: '\\x%x'", *pr_file_p);
 	pr_file_p++;
@@ -2433,9 +2540,6 @@ CompilerConstant_t *QCC_PR_DefineName(char *name)
 {
 	int i;
 	CompilerConstant_t *cnst;
-
-//	if (numCompilerConstants >= MAX_CONSTANTS)
-//		QCC_PR_ParseError("Too many compiler constants - %i >= %i", numCompilerConstants, MAX_CONSTANTS);
 
 	if (strlen(name) >= MAXCONSTANTNAMELENGTH || !*name)
 		QCC_PR_ParseError(ERR_NAMETOOLONG, "Compiler constant name length is too long or short");
@@ -3207,13 +3311,24 @@ void QCC_PR_Lex (void)
 
 // if the first character is a valid identifier, parse until a non-id
 // character is reached
-	if ((c == '%') && pr_file_p[1] >= '0' && pr_file_p[1] <= '9')
+	if ((c == '%') && (pr_file_p[1] == '-' || (pr_file_p[1] >= '0' && pr_file_p[1] <= '9')))
 	{
-		QCC_PR_ParseWarning(0, "%% prefixes to denote integers are deprecated. Please use a postfix of 'i'");
-		pr_file_p++;
-		pr_token_type = tt_immediate;
-		pr_immediate_type = type_integer;
-		pr_immediate._int = QCC_PR_LexInteger ();
+		if (flag_qccx)
+		{	//with qccx, %5 is a denormalized float.
+			pr_file_p++;
+			pr_token_type = tt_immediate;
+			pr_immediate_type = type_float;
+			QCC_PR_ParseWarning(WARN_DENORMAL, "denormalized immediate");
+			pr_immediate._int = QCC_PR_LexInteger ();
+		}
+		else
+		{
+			QCC_PR_ParseWarning(0, "%% prefixes to denote integers are deprecated. Please use a postfix of 'i'");
+			pr_file_p++;
+			pr_token_type = tt_immediate;
+			pr_immediate_type = type_integer;
+			pr_immediate._int = QCC_PR_LexInteger ();
+		}
 		return;
 	}
 	if ( c == '0' && pr_file_p[1] == 'x')
@@ -3229,7 +3344,7 @@ void QCC_PR_Lex (void)
 		return;
 	}
 
-	if (c == '#' && !(pr_file_p[1]=='\"' || pr_file_p[1]=='-' || (pr_file_p[1]>='0' && pr_file_p[1] <='9')))	//hash and not number
+	if (!flag_qccx && c == '#' && !(pr_file_p[1]=='\"' || pr_file_p[1]=='-' || (pr_file_p[1]>='0' && pr_file_p[1] <='9')))	//hash and not number
 	{
 		pr_file_p++;
 		if (!QCC_PR_CheckCompConst())
@@ -3290,16 +3405,22 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 	{
 		char tybuffer[512];
 		char tmbuffer[512];
+		char *modifiers;
 		if (QCC_Temp_Describe(def, tmbuffer, sizeof(tmbuffer)))
 		{
 			printf ("%s:%i:    (%s)(%s)\n", strings + def->s_file, def->s_line, TypeName(def->type, tybuffer, sizeof(tybuffer)), tmbuffer);
 		}
 		else
 		{
+			modifiers = "";
+			if (def->constant)
+				modifiers = "const ";
+			else if (def->isstatic)
+				modifiers = "static ";
 			if (flag_msvcstyle)
-				printf ("%s(%i) :    %s %s  is defined here\n", strings + def->s_file, def->s_line, TypeName(def->type, tybuffer, sizeof(tybuffer)), def->name);
+				printf ("%s(%i) :    %s%s %s  is defined here\n", strings + def->s_file, def->s_line, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), def->name);
 			else
-				printf ("%s:%i:    %s %s  is defined here\n", strings + def->s_file, def->s_line, TypeName(def->type, tybuffer, sizeof(tybuffer)), def->name);
+				printf ("%s:%i:    %s%s %s  is defined here\n", strings + def->s_file, def->s_line, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), def->name);
 		}
 	}
 }
@@ -4183,8 +4304,12 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 
 			if (QCC_PR_CheckKeyword(keyword_inout, "inout"))
 				paramlist[numparms].out = true;
-			else
+			else if (QCC_PR_CheckKeyword(keyword_inout, "out"))
+				paramlist[numparms].out = 2;	//not really supported, but parsed for readability.
+			else if (QCC_PR_CheckKeyword(keyword_inout, "in"))
 				paramlist[numparms].out = false;
+			else
+				paramlist[numparms].out = false;	//the default
 
 			if (QCC_PR_CheckKeyword(keyword_optional, "optional"))
 			{
@@ -4252,6 +4377,10 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 	ftype->params = qccHunkAlloc(sizeof(*ftype->params) * numparms);
 	memcpy(ftype->params, paramlist, sizeof(*ftype->params) * numparms);
 	recursivefunctiontype--;
+
+	if (returntype->size > 3 && !autoprototype)	//fixme: handle properly, without breaking __out
+		QCC_PR_ParseWarning(WARN_UNDESIRABLECONVENTION, "Unable to handle functions returning structures larger than a vector. Will truncate.");
+
 	if (newtype)
 		return ftype;
 	return QCC_PR_FindType (ftype);
@@ -4365,7 +4494,7 @@ QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto)
 	ptype->size = ptype->aux_type->size;
 	return QCC_PR_FindType (ptype);
 }
-QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, QCC_type_t **args, char **argnames, int numargs)
+QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s *args, int numargs)
 {
 	int i;
 	struct QCC_typeparam_s *p;
@@ -4378,13 +4507,13 @@ QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, QCC_type_t **args, char
 	ftype->vargcount = false;
 	for (i = 0; i < numargs; i++, p++)
 	{
-		p->paramname = qccHunkAlloc(strlen(argnames[i])+1);
-		strcpy(p->paramname, argnames[i]);
-		p->type = args[i];
-		p->out = 0;
-		p->optional = false;
-		p->ofs = 0;
-		p->arraysize = 0;
+		p->paramname = qccHunkAlloc(strlen(args[i].paramname)+1);
+		strcpy(p->paramname, args[i].paramname);
+		p->type = args[i].type;
+		p->out = args[i].out;
+		p->optional = args[i].optional;
+		p->ofs = args[i].ofs;
+		p->arraysize = args[i].arraysize;
 	}
 	return QCC_PR_FindType (ftype);
 }
@@ -4524,8 +4653,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			QCC_type_t *indextype;
 			QCC_sref_t def;
 			QCC_type_t *functype;
-			char *argname[3];
-			QCC_type_t *arg[3];
+			struct QCC_typeparam_s arg[3];
 			int args;
 			char *indexname;
 			pbool isref;
@@ -4542,7 +4670,10 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					setnotget = false;
 				else
 					break;
-				isref = QCC_PR_CheckToken("*");
+				if (QCC_PR_CheckToken("&"))
+					isref = 2;
+				else
+					isref = QCC_PR_CheckToken("*");
 
 				fieldtypename = QCC_PR_ParseName();
 				fieldtype = QCC_TypeForName(fieldtypename);
@@ -4577,25 +4708,32 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				QCC_PR_Expect("=");
 
 				args = 0;
+				memset(arg, 0, sizeof(arg));
 				strcpy (pr_parm_names[args], "this");
-				argname[args] = "this";
-				if (isref)
-					arg[args++] = QCC_PointerTypeTo(newt);
+				arg[args].paramname = "this";
+				if (isref == 2)
+				{
+					arg[args].type = newt;
+					arg[args].out = 1;	//inout
+				}
+				else if (isref)
+					arg[args].type = QCC_PointerTypeTo(newt);
 				else
-					arg[args++] = newt;
+					arg[args].type = newt;
+				args++;
 				if (indextype)
 				{
 					strcpy (pr_parm_names[args], indexname);
-					argname[args] = indexname;
-					arg[args++] = indextype;
+					arg[args].paramname = indexname;
+					arg[args++].type = indextype;
 				}
 				if (setnotget)
 				{
 					strcpy (pr_parm_names[args], "value");
-					argname[args] = "value";
-					arg[args++] = fieldtype;
+					arg[args].paramname = "value";
+					arg[args++].type = fieldtype;
 				}
-				functype = QCC_PR_GenFunctionType(setnotget?type_void:fieldtype, arg, argname, args);
+				functype = QCC_PR_GenFunctionType(setnotget?type_void:fieldtype, arg, args);
 
 				if (pr_token_type != tt_name)
 				{
@@ -4930,7 +5068,15 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 						if (fdef && fdef->type->type == ev_field)
 						{
 							QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s is virtual inside parent class 'entity'. Did you forget the 'virtual' keyword?", newt->name, parmname);
+							QCC_PR_ParsePrintDef(0, fdef);
 						}
+						else if (fdef)
+						{
+							QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s shadows a global", newt->name, parmname);
+							QCC_PR_ParsePrintDef(0, fdef);
+						}
+						if (fdef)
+							QCC_FreeDef(fdef);
 					}
 				}
 			}

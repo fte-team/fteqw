@@ -22,8 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "pr_common.h"
 #ifndef CLIENTONLY
 
-void SV_CleanupEnts(void);
-
 extern cvar_t sv_nailhack;
 extern cvar_t sv_cullentities_trace;
 extern cvar_t sv_cullplayers_trace;
@@ -39,6 +37,20 @@ typedef struct
 	qbyte pvs[(MAX_MAP_LEAFS+7)>>3];
 } pvscamera_t;
 
+static void *AllocateBoneSpace(packet_entities_t *pack, unsigned char bonecount, unsigned int *allocationpos)
+{
+	size_t space = bonecount * sizeof(short)*7;
+	void *r;
+	if (pack->bonedatacur + space > pack->bonedatamax)
+	{	//expand the storage as needed. messy, but whatever.
+		pack->bonedatamax = pack->bonedatacur + space;
+		pack->bonedata = BZ_Realloc(pack->bonedata, pack->bonedatamax);
+	}
+	r = pack->bonedata + pack->bonedatacur;
+	*allocationpos = pack->bonedatacur;
+	pack->bonedatacur += space;
+	return r;
+}
 
 /*
 =============================================================================
@@ -115,6 +127,39 @@ unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsig
 	return longs*sizeof(long);
 }
 #endif
+
+
+void SVFTE_ExpandFrames(client_t *client, int require)
+{
+	client_frame_t *newframes;
+	char *ptr;
+	int i;
+	int maxents = require * 2;	/*this is the max number of ents updated per frame. we can't track more, so...*/
+	if (maxents > client->max_net_ents)
+		maxents = client->max_net_ents;
+	ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
+					sizeof(*client->pendingdeltabits)*client->max_net_ents+
+					sizeof(*client->pendingcsqcbits)*client->max_net_ents+
+					sizeof(newframes[i].resend)*maxents*UPDATE_BACKUP);
+	newframes = (void*)ptr;
+	memcpy(newframes, client->frameunion.frames, sizeof(client_frame_t)*UPDATE_BACKUP);
+	ptr += sizeof(client_frame_t)*UPDATE_BACKUP;
+	memcpy(ptr, client->pendingdeltabits, sizeof(*client->pendingdeltabits)*client->max_net_ents);
+	client->pendingdeltabits = (void*)ptr;
+	ptr += sizeof(*client->pendingdeltabits)*client->max_net_ents;
+	memcpy(ptr, client->pendingcsqcbits, sizeof(*client->pendingcsqcbits)*client->max_net_ents);
+	client->pendingcsqcbits = (void*)ptr;
+	ptr += sizeof(*client->pendingcsqcbits)*client->max_net_ents;
+	for (i = 0; i < UPDATE_BACKUP; i++)
+	{
+		newframes[i].entities.max_entities = maxents;
+		newframes[i].resend = (void*)ptr;
+		memcpy(newframes[i].resend, client->frameunion.frames[i].resend, sizeof(newframes[i].resend)*client->frameunion.frames[i].entities.num_entities);
+		newframes[i].senttime = realtime;
+	}
+	Z_Free(client->frameunion.frames);
+	client->frameunion.frames = newframes;
+}
 
 //=============================================================================
 
@@ -301,10 +346,15 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 	edict_t *ent;
 	qboolean writtenheader = false;
 	int viewerent;
+	int entnum;
+	int lognum = client->frameunion.frames[currentsequence & UPDATE_MASK].entities.num_entities;
+
+	struct resendinfo_s *resend = client->frameunion.frames[currentsequence & UPDATE_MASK].resend;
+	int maxlog = client->frameunion.frames[currentsequence & UPDATE_MASK].entities.max_entities;
 
 	//we don't check that we got some already - because this is delta compressed!
 
-	if (!(client->csqcactive) || !svprogfuncs)
+	if (!client->csqcactive || !svprogfuncs || !client->pendingcsqcbits)
 		return;
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
@@ -321,50 +371,65 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 	csqcmsgbuffer.packing = msg->packing;
 	csqcmsgbuffer.prim = msg->prim;
 
-	for (en = 0; en < csqcnuments; en++)
+	for (en = 0, entnum = 0; en < csqcnuments; en++, entnum++)
 	{
 		ent = csqcent[en];
 
-#if 0
-		if ((int)ent->xv->Version != sv.csqcentversion[ent->entnum])
+		//add any entity removes on ents leading up to this entity
+		for (; entnum < ent->entnum; entnum++)
 		{
-			sv.csqcentversion[ent->entnum] = (int)ent->xv->Version;
-			for (j = 0; j < sv.allocated_client_slots; j++)
-				svs.client[j].pendingentbits[j] = 0xffffffff;
+			if (client->pendingcsqcbits[entnum] & (SENDFLAGS_PRESENT|SENDFLAGS_REMOVED))
+			{
+				if (!(client->pendingcsqcbits[entnum] & SENDFLAGS_REMOVED))
+				{	//while the entity has NOREMOVE, only remove it if the remove is a resend
+					if ((int)EDICT_NUM(svprogfuncs, en)->xv->pvsflags & PVSF_NOREMOVE)
+						continue;
+				}
+				if (msg->cursize + 5 >= msg->maxsize)
+					break;	//we're overflowing, try removing next frame instead.
+
+				if (lognum > maxlog)
+				{
+					SVFTE_ExpandFrames(client, lognum+1);
+					break;
+				}
+				resend[lognum].entnum = entnum;
+				resend[lognum].bits = 0;
+				resend[lognum].flags = SENDFLAGS_REMOVED;
+				lognum++;
+			
+				if (!writtenheader)
+				{
+					writtenheader=true;
+					MSG_WriteByte(msg, svcnumber);
+				}
+
+				SV_EmitDeltaEntIndex(msg, entnum, true, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
+//				Con_Printf("Sending remove 2 packet\n");
+
+				client->pendingcsqcbits[entnum] = 0;
+			}
 		}
 
-		if (!client->pendingentbits[j])
-			continue;
+		if (client->pendingcsqcbits[entnum] == SENDFLAGS_PRESENT)
+			continue;	//nothing changed
+
+		if (client->pendingcsqcbits[entnum] & SENDFLAGS_REMOVED)
+		{
+			//we lost a remove, but it got readded since.
+			//make sure all is resent
+			client->pendingcsqcbits[entnum] = SENDFLAGS_USABLE;
+		}
+
+		if (!(client->pendingcsqcbits[entnum] & SENDFLAGS_PRESENT))
+			client->pendingcsqcbits[entnum] = SENDFLAGS_USABLE;	//this entity appears new. make sure its fully transmitted.
 
 		csqcmsgbuffer.cursize = 0;
 		csqcmsgbuffer.currentbit = 0;
 		//Ask CSQC to write a buffer for it.
 		G_INT(OFS_PARM0) = viewerent;
-		G_FLOAT(OFS_PARM1) = client->pendingentbits[j];	//psudo compatibility with SendFlags (fte doesn't support properly)
-		client->pendingentbits[j] = 0;
-#else
-		if (ent->xv->SendFlags)
-		{
-			ent->xv->SendFlags = 0;
-			ent->xv->Version+=1;
-		}
+		G_FLOAT(OFS_PARM1) = (int)(client->pendingcsqcbits[entnum] & 0xffffff);
 
-		//prevent mishaps with entities being respawned and things.
-		if ((int)ent->xv->Version < sv.csqcentversion[ent->entnum])
-			ent->xv->Version = sv.csqcentversion[ent->entnum];
-		else
-			sv.csqcentversion[ent->entnum] = (int)ent->xv->Version;
-
-		//If it's not changed, don't send
-		if (client->csqcentversions[ent->entnum] == sv.csqcentversion[ent->entnum])
-			continue;
-
-		csqcmsgbuffer.cursize = 0;
-		csqcmsgbuffer.currentbit = 0;
-		//Ask CSQC to write a buffer for it.
-		G_INT(OFS_PARM0) = pr_global_struct->other = viewerent;
-		G_FLOAT(OFS_PARM1) = 0xffffff;	//psudo compatibility with SendFlags (fte doesn't support properly)
-#endif
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 		PR_ExecuteProgram(svprogfuncs, ent->xv->SendEntity);
 		if (G_INT(OFS_RETURN))	//0 means not to tell the client about it.
@@ -375,71 +440,106 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 					break;
 				continue;
 			}
+
+			if (lognum > maxlog)
+			{
+				SVFTE_ExpandFrames(client, lognum+1);
+				break;
+			}
+			resend[lognum].entnum = entnum;
+			resend[lognum].bits = 0;
+			resend[lognum].flags = SENDFLAGS_PRESENT|client->pendingcsqcbits[entnum];
+			lognum++;
+
 			if (!writtenheader)
 			{
 				writtenheader=true;
 				MSG_WriteByte(msg, svcnumber);
 			}
-			SV_EmitDeltaEntIndex(msg, ent->entnum, false, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
-			if (sv.csqcdebug)	//optional extra.
+			SV_EmitDeltaEntIndex(msg, entnum, false, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
+			if (sv.csqcdebug)	//optional extra length prefix.
 			{
 				if (!csqcmsgbuffer.cursize)
-					Con_Printf("Warning: empty csqc packet on %s\n", svprogfuncs->stringtable+ent->v->classname);
+					Con_Printf("Warning: empty csqc packet on %s\n", PR_GetString(svprogfuncs, ent->v->classname));
 				MSG_WriteShort(msg, csqcmsgbuffer.cursize);
 			}
-			//FIXME: Add a developer mode to write the length of each entity.
 			SZ_Write(msg, csqcmsgbuffer.data, csqcmsgbuffer.cursize);
 
+			client->pendingcsqcbits[entnum] = SENDFLAGS_PRESENT;
 //			Con_Printf("Sending update packet %i\n", ent->entnum);
 		}
-		else if (sv.csqcentversion[ent->entnum] && !((int)ent->xv->pvsflags & PVSF_NOREMOVE))
+		else if ((client->pendingcsqcbits[entnum] & SENDFLAGS_PRESENT) && !((int)ent->xv->pvsflags & PVSF_NOREMOVE))
 		{	//Don't want to send, but they have it already
+
+
+			if (msg->cursize + 5 >= msg->maxsize)
+				break;	//we're overflowing, try removing next frame instead.
+
+			if (lognum > maxlog)
+			{
+				SVFTE_ExpandFrames(client, lognum+1);
+				break;
+			}
+			resend[lognum].entnum = entnum;
+			resend[lognum].bits = 0;
+			resend[lognum].flags = SENDFLAGS_REMOVED;
+			lognum++;
+		
 			if (!writtenheader)
 			{
 				writtenheader=true;
-				MSG_WriteByte(msg, ISDPCLIENT(client)?svcdp_csqcentities:svcfte_csqcentities);
+				MSG_WriteByte(msg, svcnumber);
 			}
 
-			SV_EmitDeltaEntIndex(msg, ent->entnum, true, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
-//			Con_Printf("Sending remove 2 packet\n");
+			SV_EmitDeltaEntIndex(msg, entnum, true, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
+//				Con_Printf("Sending remove 2 packet\n");
+
+			client->pendingcsqcbits[entnum] = 0;
 		}
-		client->csqcentversions[ent->entnum] = sv.csqcentversion[ent->entnum];
-		client->csqcentsequence[ent->entnum] = currentsequence;
 	}
-	//now remove any out dated ones
-	for (en = 1; en < sv.world.num_edicts && en < client->max_net_ents; en++)
+
+	//and now tail entities
+	for(; entnum < client->max_net_ents && entnum < sv.world.num_edicts; entnum++)
 	{
-		ent = EDICT_NUM(svprogfuncs, en);
-		if (client->csqcentversions[en] > 0 && client->csqcentversions[en] != ent->xv->Version)
+		if (client->pendingcsqcbits[entnum] & (SENDFLAGS_PRESENT|SENDFLAGS_REMOVED))
 		{
-			if (((int)ent->xv->pvsflags & PVSF_NOREMOVE))
-				continue;
-
-			if (msg->cursize + 5 >= msg->maxsize)	//try removing next frame instead.
-			{
+			if (!(client->pendingcsqcbits[entnum] & SENDFLAGS_REMOVED))
+			{	//while the entity has NOREMOVE, only remove it if the remove is a resend
+				if ((int)EDICT_NUM(svprogfuncs, en)->xv->pvsflags & PVSF_NOREMOVE)
+					continue;
 			}
-			else
+			if (msg->cursize + 5 >= msg->maxsize)
+				break;	//we're overflowing, try removing next frame instead.
+
+			if (lognum > maxlog)
 			{
-				if (!writtenheader)
-				{
-					writtenheader=true;
-					MSG_WriteByte(msg, ISDPCLIENT(client)?svcdp_csqcentities:svcfte_csqcentities);
-				}
-
-//				Con_Printf("Sending remove packet %i\n", en);
-
-
-				SV_EmitDeltaEntIndex(msg, en, true, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
-
-				client->csqcentversions[en] = 0;
-				client->csqcentsequence[en] = currentsequence;
+				SVFTE_ExpandFrames(client, lognum+1);
+				break;
 			}
+			resend[lognum].entnum = entnum;
+			resend[lognum].bits = 0;
+			resend[lognum].flags = SENDFLAGS_REMOVED;
+			lognum++;
+
+			if (!writtenheader)
+			{
+				writtenheader=true;
+				MSG_WriteByte(msg, svcnumber);
+			}
+
+			SV_EmitDeltaEntIndex(msg, entnum, true, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
+//				Con_Printf("Sending remove 2 packet\n");
+
+			client->pendingcsqcbits[entnum] = 0;
 		}
 	}
+
 	if (writtenheader)
 		MSG_WriteShort(msg, 0);	//a 0 means no more.
 
 	csqcnuments = 0;
+
+	client->frameunion.frames[currentsequence & UPDATE_MASK].entities.num_entities = lognum;
 
 	//prevent the qc from trying to use it at inopertune times.
 	csqcmsgbuffer.maxsize = 0;
@@ -450,7 +550,6 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 {
 	int i;
-	int m;
 	if (!client->frameunion.frames)
 	{
 		Con_Printf("Server bug: No frames!\n");
@@ -467,8 +566,7 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 	//lost entities need flagging for a resend
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
-		unsigned int *f = client->frameunion.frames[sequence & UPDATE_MASK].resendentbits;
-		unsigned int *n = client->frameunion.frames[sequence & UPDATE_MASK].resendentnum;
+		struct resendinfo_s *resend = client->frameunion.frames[sequence & UPDATE_MASK].resend;
 //		Con_Printf("SV: Resend %i\n", sequence);
 		i = client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities;
 		while (i > 0)
@@ -479,7 +577,8 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 //				Con_Printf("Resend %i @ %i\n", i, sequence);
 //			if (f[i] & UF_REMOVE)
 //				Con_Printf("Remove %i @ %i\n", i, sequence);
-			client->pendingentbits[n[i]] |= f[i];
+			client->pendingdeltabits[resend[i].entnum] |= resend[i].bits;
+			client->pendingcsqcbits[resend[i].entnum] |= resend[i].flags;
 		}
 		client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities = 0;
 	}
@@ -507,15 +606,43 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 		}
 		client->frameunion.frames[sequence & UPDATE_MASK].numresendstats = 0;
 	}
-
-	if (!(client->csqcactive))	//we don't need this, but it might be a little faster.
-		return;
-
-	m = min(sv.world.num_edicts, client->max_net_ents);
-	for (i = 0; i < m; i++)
-		if (client->csqcentsequence[i] == sequence)
-			client->csqcentversions[i]--;	//do that update thang (but later).
 }
+
+void SV_AckEntityFrame(client_t *cl, int framenum)
+{
+	//any not acked yet are assumed to be lost.
+	//this may result in packetloss if the client received multiple packets between sending two outgoing packets.
+	int frame = cl->lastsequence_acknowledged+1;
+	if (framenum > cl->lastsequence_acknowledged)
+		cl->lastsequence_acknowledged = framenum;
+	if (framenum > frame + UPDATE_BACKUP)
+		framenum = frame + UPDATE_BACKUP;
+
+#ifdef PEXT_CSQC
+	for (; frame < framenum; frame++)
+		SV_CSQC_DroppedPacket(cl, frame);
+#endif
+}
+
+void SV_ReplaceEntityFrame(client_t *cl, int framenum)
+{
+	//this packet is about to be overwritten, we can't track more.
+	//we might as well pretend that it got acked, we can't track pings that far back anyway, just make sure it gets flagged as dropped.
+	//due to how qw sequences are controlled by the client, the server may have skipped some frames. try to handle those too.
+	int frame = cl->lastsequence_acknowledged+1;
+	framenum -= UPDATE_BACKUP;
+	if (framenum > cl->lastsequence_acknowledged)
+		cl->lastsequence_acknowledged = framenum;
+	if (framenum > frame + UPDATE_BACKUP)
+		framenum = frame + UPDATE_BACKUP;
+
+#ifdef PEXT_CSQC
+	for (; frame <= framenum; frame++)
+		SV_CSQC_DroppedPacket(cl, frame);
+#endif
+}
+
+/*
 void SV_CSQC_DropAll(client_t *client)
 {
 	int i;
@@ -523,19 +650,20 @@ void SV_CSQC_DropAll(client_t *client)
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
 //		Con_Printf("Reset all\n");
-		client->pendingentbits[0] = UF_REMOVE;
+		client->pendingdeltabits[0] = UF_REMOVE;
 	}
 
-	if (!(client->csqcactive))	//we don't need this, but it might be a little faster.
-		return;
-
-	for (i = 0; i < sv.world.num_edicts; i++)
-		client->csqcentversions[i]--;	//do that update thang (but later).
+	if (client->csqcactive)	//we don't need this, but it might be a little faster.
+	{
+		//FIXME: handle any needed removes
+		for (i = 0; i < sv.world.num_edicts; i++)
+			client->pendingcsqcbits[i] |= SENDFLAGS_USABLE;	//resend all
+	}
 
 	//we don't know which stats were on the wire, resend all. :(
 	memset(client->pendingstats, 0xff, sizeof(client->pendingstats));
 }
-
+*/
 //=============================================================================
 
 
@@ -835,7 +963,7 @@ static unsigned int SVFTE_DeltaPredCalcBits(entity_state_t *from, entity_state_t
 	return bits;
 }
 
-static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to)
+static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, qbyte *frombonedata, entity_state_t *to, qbyte *tobonedata)
 {
 	unsigned int bits = 0;
 
@@ -886,7 +1014,7 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 		bits |= UF_EFFECTS;
 	if (to->dpflags != from->dpflags)
 		bits |= UF_FLAGS;
-	if (to->solid != from->solid)
+	if (to->solidsize != from->solidsize)
 		bits |= UF_SOLID;
 
 	if (to->scale != from->scale)
@@ -896,10 +1024,13 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 	if (to->fatness != from->fatness)
 		bits |= UF_FATNESS;
 
-	if (to->hexen2flags != from->hexen2flags)
+	if (to->hexen2flags != from->hexen2flags || to->abslight != from->abslight)
 		bits |= UF_DRAWFLAGS;
-	if (to->abslight != from->abslight)
-		bits |= UF_DRAWFLAGS;
+
+	if (to->bonecount != from->bonecount || (to->bonecount && memcmp(frombonedata+from->boneoffset, tobonedata+to->boneoffset, to->bonecount*sizeof(short)*7)))
+		bits |= UF_BONEDATA;
+	if (!to->bonecount && (to->basebone != from->basebone || to->baseframe != from->baseframe))
+		bits |= UF_BONEDATA;
 
 	if (to->colormod[0]!=from->colormod[0]||to->colormod[1]!=from->colormod[1]||to->colormod[2]!=from->colormod[2])
 		bits |= UF_COLORMOD;
@@ -925,7 +1056,7 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 	return bits;
 }
 
-static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_t *msg, unsigned int pext2)
+static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_t *msg, unsigned int pext2, qbyte *boneptr)
 {
 	unsigned int predbits = 0;
 	if (bits & UF_MOVETYPE)
@@ -955,6 +1086,9 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 			predbits |= UFP_WEAPONFRAME_OLD;
 		}
 	}
+
+	if (!(pext2 & PEXT2_NEWSIZEENCODING))	//was added at the same time
+		bits &= ~UF_BONEDATA;
 
 	/*check if we need more precision*/
 	if ((bits & UF_MODEL) && state->modelindex > 255)
@@ -1099,7 +1233,31 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 		MSG_WriteByte(msg, state->colormap & 0xff);
 
 	if (bits & UF_SOLID)
-		MSG_WriteShort(msg, state->solid);
+	{
+		if (pext2 & PEXT2_NEWSIZEENCODING)
+		{
+			if (!state->solidsize)
+				MSG_WriteByte(msg, 0);
+			else if (state->solidsize == ES_SOLID_BSP)
+				MSG_WriteByte(msg, 1);
+			else if (state->solidsize == ES_SOLID_HULL1)
+				MSG_WriteByte(msg, 2);
+			else if (state->solidsize == ES_SOLID_HULL2)
+				MSG_WriteByte(msg, 3);
+			else if (!ES_SOLID_HAS_EXTRA_BITS(state->solidsize))
+			{
+				MSG_WriteByte(msg, 16);
+				MSG_WriteSize16(msg, state->solidsize);
+			}
+			else
+			{
+				MSG_WriteByte(msg, 32);
+				MSG_WriteLong(msg, state->solidsize);
+			}
+		}
+		else
+			MSG_WriteSize16(msg, state->solidsize);
+	}
 
 	if (bits & UF_FLAGS)
 		MSG_WriteByte(msg, state->dpflags);
@@ -1108,14 +1266,34 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 		MSG_WriteByte(msg, state->trans);
 	if (bits & UF_SCALE)
 		MSG_WriteByte(msg, state->scale);
-	if (bits & UF_UNUSED3)
+	if (bits & UF_BONEDATA)
 	{
-//		MSG_WriteByte(msg, );
+		short *bonedata;
+		int i;
+		qbyte bfl = 0;
+		if (state->bonecount && boneptr)
+			bfl |= 0x80;
+		if (state->basebone || state->baseframe)
+			bfl |= 0x40;
+		MSG_WriteByte(msg, bfl);
+		if (bfl & 0x80)
+		{
+			//this is NOT finalized
+			MSG_WriteByte(msg, state->bonecount);
+			bonedata = (short*)(boneptr + state->boneoffset);
+			for (i = 0; i < state->bonecount*7; i++)
+				MSG_WriteShort(msg, bonedata[i]);
+		}
+		if (bfl & 0x40)
+		{
+			MSG_WriteByte(msg, state->basebone);
+			MSG_WriteShort(msg, state->baseframe);
+		}
 	}
 	if (bits & UF_DRAWFLAGS)
 	{
 		MSG_WriteByte(msg, state->hexen2flags);
-		if ((state->hexen2flags & MLS_MASKIN) == MLS_ABSLIGHT)
+		if ((state->hexen2flags & MLS_MASK) == MLS_ABSLIGHT)
 			MSG_WriteByte(msg, state->abslight);
 	}
 	if (bits & UF_TAGINFO)
@@ -1172,8 +1350,8 @@ void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_
 	unsigned int bits;
 	if (numberisimportant)
 		MSG_WriteEntity(msg, to->number);
-	bits = UF_RESET | SVFTE_DeltaCalcBits(&nullentitystate, to);
-	SVFTE_WriteUpdate(bits, to, msg, pext2);
+	bits = UF_RESET | SVFTE_DeltaCalcBits(&nullentitystate, NULL, to, NULL);
+	SVFTE_WriteUpdate(bits, to, msg, pext2, NULL);
 }
 
 /*SVFTE_EmitPacketEntities
@@ -1188,31 +1366,32 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 	unsigned int i;
 	unsigned int j;
 	unsigned int bits;
-	unsigned int *resendbits;
-	unsigned int *resendnum;
+	struct resendinfo_s *resend;
 	unsigned int outno, outmax;
 	int sequence;
+	qbyte *oldbonedata;
+	unsigned int maxbonedatasize;
 
 	if (ISNQCLIENT(client))
 		sequence = client->netchan.outgoing_unreliable;
 	else
 		sequence = client->netchan.incoming_sequence;
 
-	if (!client->pendingentbits)
+	if (!client->pendingdeltabits)
 		return;
 	
 	if (client->delta_sequence < 0)
-		client->pendingentbits[0] = UF_REMOVE;
+		client->pendingdeltabits[0] = UF_REMOVE;
 
 	//if we're clearing the list and starting from scratch, just wipe all lingering state
-	if (client->pendingentbits[0] & UF_REMOVE)
+	if (client->pendingdeltabits[0] & UF_REMOVE)
 	{
 		for (j = 0; j < client->sentents.num_entities; j++)
 		{
 			client->sentents.entities[j].number = 0;
-			client->pendingentbits[j] = 0;
+			client->pendingdeltabits[j] = 0;
 		}
-		client->pendingentbits[0] = UF_REMOVE;
+		client->pendingdeltabits[0] = UF_REMOVE;
 	}
 
 	//expand client's entstate list
@@ -1232,6 +1411,22 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 		}
 	}
 
+	//orphan and regenerate
+	oldbonedata = client->sentents.bonedata;
+	maxbonedatasize = client->sentents.bonedatamax;
+	if (client->sentents.bonedatacur)
+	{
+		client->sentents.bonedata = BZ_Malloc(maxbonedatasize);
+		client->sentents.bonedatacur = 0;
+		client->sentents.bonedatamax = maxbonedatasize;
+	}
+	else
+	{
+		client->sentents.bonedata = NULL;
+		client->sentents.bonedatacur = 0;
+		client->sentents.bonedatamax = 0;
+	}
+
 	/*figure out the entitys+bits that changed (removed and active)*/
 	for (i = 0, j = 0; i < to->num_entities; i++)
 	{
@@ -1245,8 +1440,15 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 				e = EDICT_NUM(svprogfuncs, o->number);
 				if (!((int)e->xv->pvsflags & PVSF_NOREMOVE))
 				{
-					client->pendingentbits[j] = UF_REMOVE;
+					client->pendingdeltabits[j] = UF_REMOVE;
 					o->number = 0; /*dead*/
+					o->bonecount = 0; /*don't waste cycles*/
+				}
+				else if (o->bonecount)
+				{
+					short *srcbdata = (short*)(oldbonedata + o->boneoffset);
+					short *bonedata = AllocateBoneSpace(&client->sentents, o->bonecount, &o->boneoffset);
+					memcpy(bonedata, srcbdata, sizeof(short)*7*o->bonecount);
 				}
 			}
 		}
@@ -1255,30 +1457,36 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 		if (!o->number)
 		{
 			/*flag it for reset, we can add the extra bits later once we get around to sending it*/
-			client->pendingentbits[j] = UF_RESET | UF_RESET2;
+			client->pendingdeltabits[j] = UF_RESET | UF_RESET2;
 		}
 		else
 		{
 			//its valid, make sure we don't have a stale/resent remove, and do a cheap reset due to uncertainty.
-			if (client->pendingentbits[j] & UF_REMOVE)
-				client->pendingentbits[j] = (client->pendingentbits[j] & ~UF_REMOVE) | UF_RESET2;
-			client->pendingentbits[j] |= SVFTE_DeltaCalcBits(o, n);
+			if (client->pendingdeltabits[j] & UF_REMOVE)
+				client->pendingdeltabits[j] = (client->pendingdeltabits[j] & ~UF_REMOVE) | UF_RESET2;
+			client->pendingdeltabits[j] |= SVFTE_DeltaCalcBits(o, oldbonedata, n, to->bonedata);
 			//even if prediction is disabled, we want to force velocity info to be sent for the local player. This is used by view bob and things.
 			if (client->edict && j == client->edict->entnum && (n->u.q1.velocity[0] || n->u.q1.velocity[1] || n->u.q1.velocity[2]))
-				client->pendingentbits[j] |= UF_PREDINFO;
+				client->pendingdeltabits[j] |= UF_PREDINFO;
 
 			//spectators(and mvds) should be told the actual view angles of the person they're trying to track
 			if (j <= sv.allocated_client_slots && (!client->edict || j == client->spec_track))
 //				if (client->pendingentbits[j])
 				{
 					if (o->u.q1.vangle[0] != n->u.q1.vangle[0] || o->u.q1.vangle[2] != n->u.q1.vangle[2])
-						client->pendingentbits[j] |= UF_ANGLESXZ;
+						client->pendingdeltabits[j] |= UF_ANGLESXZ;
 					if (o->u.q1.vangle[1] != n->u.q1.vangle[1])
-						client->pendingentbits[j] |= UF_ANGLESY;
-					client->pendingentbits[j] |= UF_VIEWANGLES;
+						client->pendingdeltabits[j] |= UF_ANGLESY;
+					client->pendingdeltabits[j] |= UF_VIEWANGLES;
 				}
 		}
 		*o = *n;
+		if (o->bonecount)
+		{
+			short *bonedata = AllocateBoneSpace(&client->sentents, o->bonecount, &o->boneoffset);
+			short *srcbdata = (short*)(to->bonedata + n->boneoffset);
+			memcpy(bonedata, srcbdata, sizeof(short)*7*o->bonecount);
+		}
 		j++;
 	}
 
@@ -1291,15 +1499,23 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 			e = EDICT_NUM(svprogfuncs, o->number);
 			if (!((int)e->xv->pvsflags & PVSF_NOREMOVE))
 			{
-				client->pendingentbits[j] = UF_REMOVE;
+				client->pendingdeltabits[j] = UF_REMOVE;
 				o->number = 0; /*dead*/
+				o->bonecount = 0; /*don't waste cycles*/
+			}
+			else if (o->bonecount)
+			{
+				short *srcbdata = (short*)(oldbonedata + o->boneoffset);
+				short *bonedata = AllocateBoneSpace(&client->sentents, o->bonecount, &o->boneoffset);
+				memcpy(bonedata, srcbdata, sizeof(short)*7*o->bonecount);
 			}
 		}
 	}
 
+	Z_Free(oldbonedata);
+
 	/*cache frame info*/
-	resendbits = client->frameunion.frames[sequence & UPDATE_MASK].resendentbits;
-	resendnum = client->frameunion.frames[sequence & UPDATE_MASK].resendentnum;
+	resend = client->frameunion.frames[sequence & UPDATE_MASK].resend;
 	outno = 0;
 	outmax = client->frameunion.frames[sequence & UPDATE_MASK].entities.max_entities;
 
@@ -1312,59 +1528,33 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 //	Con_Printf("Gen sequence %i\n", sequence);
 	MSG_WriteFloat(msg, sv.world.physicstime);
 
-	if (client->pendingentbits[0] & UF_REMOVE)
+	if (client->pendingdeltabits[0] & UF_REMOVE)
 	{
 		SV_EmitDeltaEntIndex(msg, 0, true, true);
-		resendbits[outno] = UF_REMOVE;
-		resendnum[outno++] = 0;
+		resend[outno].bits = UF_REMOVE;
+		resend[outno].flags = 0;
+		resend[outno++].entnum = 0;
 
-		client->pendingentbits[0] &= ~UF_REMOVE;
+		client->pendingdeltabits[0] &= ~UF_REMOVE;
 	}
 	for(j = 1; j < client->sentents.num_entities; j++)
 	{
-		bits = client->pendingentbits[j];
+		bits = client->pendingdeltabits[j];
 		if (!(bits & ~UF_RESET2))	//skip while there's nothing to send (skip reset2 if there's no other changes, its only to reduce chances of the client getting 'new' entities containing just an origin)*/
 			continue;
 		if (msg->cursize + 50 > msg->maxsize)
-			break; /*give up if it gets full*/
+			break; /*give up if it gets full. FIXME: bone data is HUGE.*/
 		if (outno >= outmax)
 		{	//expand the frames. may need some copying...
-			client_frame_t *newframes;
-			char *ptr;
-			int maxents = outmax * 2;	/*this is the max number of ents updated per frame. we can't track more, so...*/
-			if (maxents > client->max_net_ents)
-				maxents = client->max_net_ents;
-			ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
-							sizeof(*client->pendingentbits)*client->max_net_ents+
-							sizeof(unsigned int)*maxents*UPDATE_BACKUP+
-							sizeof(unsigned int)*maxents*UPDATE_BACKUP);
-			newframes = (void*)ptr;
-			memcpy(newframes, client->frameunion.frames, sizeof(client_frame_t)*UPDATE_BACKUP);
-			ptr += sizeof(client_frame_t)*UPDATE_BACKUP;
-			memcpy(ptr, client->pendingentbits, sizeof(*client->pendingentbits)*client->max_net_ents);
-			client->pendingentbits = (void*)ptr;
-			ptr += sizeof(*client->pendingentbits)*client->max_net_ents;
-			for (i = 0; i < UPDATE_BACKUP; i++)
-			{
-				newframes[i].entities.max_entities = maxents;
-				newframes[i].resendentnum = (void*)ptr;
-				memcpy(newframes[i].resendentnum, client->frameunion.frames[i].resendentnum, sizeof(unsigned int)*client->frameunion.frames[i].entities.num_entities);
-				ptr += sizeof(*newframes[i].resendentnum)*maxents;
-				newframes[i].resendentbits = (void*)ptr;
-				memcpy(newframes[i].resendentbits, client->frameunion.frames[i].resendentbits, sizeof(unsigned int)*client->frameunion.frames[i].entities.num_entities);
-				ptr += sizeof(*newframes[i].resendentbits)*maxents;
-				newframes[i].senttime = realtime;
-			}
-			Z_Free(client->frameunion.frames);
-			client->frameunion.frames = newframes;
+			SVFTE_ExpandFrames(client, outno+1);
 			break;
 		}
-		client->pendingentbits[j] = 0;
+		client->pendingdeltabits[j] = 0;
 
 		if (bits & UF_REMOVE)
 		{	//if reset is set, then reset was set eroneously.
 			SV_EmitDeltaEntIndex(msg, j, true, true);
-			resendbits[outno] = UF_REMOVE;
+			resend[outno].bits = UF_REMOVE;
 //			Con_Printf("REMOVE %i @ %i\n", j, sequence);
 		}
 		else if (client->sentents.entities[j].number) /*only send a new copy of the ent if they actually have one already*/
@@ -1372,25 +1562,26 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 			if (bits & UF_RESET2)
 			{
 				/*if reset2, then this is the second packet sent to the client and should have a forced reset (but which isn't tracked)*/
-				resendbits[outno] = bits & ~UF_RESET2;
-				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM(svprogfuncs, j)->baseline, &client->sentents.entities[j]);
+				resend[outno].bits = bits & ~UF_RESET2;
+				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM(svprogfuncs, j)->baseline, NULL, &client->sentents.entities[j], client->sentents.bonedata);
 //				Con_Printf("RESET2 %i @ %i\n", j, sequence);
 			}
 			else if (bits & UF_RESET)
 			{
 				/*flag the entity for the next packet, so we always get two resets when it appears, to reduce the effects of packetloss on seeing rockets etc*/
-				client->pendingentbits[j] = UF_RESET2;
-				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM(svprogfuncs, j)->baseline, &client->sentents.entities[j]);
-				resendbits[outno] = UF_RESET;
+				client->pendingdeltabits[j] = UF_RESET2;
+				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM(svprogfuncs, j)->baseline, NULL, &client->sentents.entities[j], client->sentents.bonedata);
+				resend[outno].bits = UF_RESET;
 //				Con_Printf("RESET %i @ %i\n", j, sequence);
 			}
 			else
-				resendbits[outno] = bits;
+				resend[outno].bits = bits;
 
 			SV_EmitDeltaEntIndex(msg, j, false, true);
-			SVFTE_WriteUpdate(bits, &client->sentents.entities[j], msg, client->fteprotocolextensions2);
+			SVFTE_WriteUpdate(bits, &client->sentents.entities[j], msg, client->fteprotocolextensions2, client->sentents.bonedata);
 		}
-		resendnum[outno++] = j;
+		resend[outno].flags = 0;
+		resend[outno++].entnum = j;
 	}
 	MSG_WriteShort(msg, 0);
 
@@ -1504,94 +1695,11 @@ void SVQW_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t
 	MSG_WriteShort (msg, 0);	// end of packetentities
 }
 #ifdef NQPROT
-
-// reset all entity fields (typically used if status changed)
-#define E5_FULLUPDATE (1<<0)
-// E5_ORIGIN32=0: short[3] = s->origin[0] * 8, s->origin[1] * 8, s->origin[2] * 8
-// E5_ORIGIN32=1: float[3] = s->origin[0], s->origin[1], s->origin[2]
-#define E5_ORIGIN (1<<1)
-// E5_ANGLES16=0: byte[3] = s->angle[0] * 256 / 360, s->angle[1] * 256 / 360, s->angle[2] * 256 / 360
-// E5_ANGLES16=1: short[3] = s->angle[0] * 65536 / 360, s->angle[1] * 65536 / 360, s->angle[2] * 65536 / 360
-#define E5_ANGLES (1<<2)
-// E5_MODEL16=0: byte = s->modelindex
-// E5_MODEL16=1: short = s->modelindex
-#define E5_MODEL (1<<3)
-// E5_FRAME16=0: byte = s->frame
-// E5_FRAME16=1: short = s->frame
-#define E5_FRAME (1<<4)
-// byte = s->skin
-#define E5_SKIN (1<<5)
-// E5_EFFECTS16=0 && E5_EFFECTS32=0: byte = s->effects
-// E5_EFFECTS16=1 && E5_EFFECTS32=0: short = s->effects
-// E5_EFFECTS16=0 && E5_EFFECTS32=1: int = s->effects
-// E5_EFFECTS16=1 && E5_EFFECTS32=1: int = s->effects
-#define E5_EFFECTS (1<<6)
-// bits >= (1<<8)
-#define E5_EXTEND1 (1<<7)
-
-// byte = s->renderflags
-#define E5_FLAGS (1<<8)
-// byte = bound(0, s->alpha * 255, 255)
-#define E5_ALPHA (1<<9)
-// byte = bound(0, s->scale * 16, 255)
-#define E5_SCALE (1<<10)
-// flag
-#define E5_ORIGIN32 (1<<11)
-// flag
-#define E5_ANGLES16 (1<<12)
-// flag
-#define E5_MODEL16 (1<<13)
-// byte = s->colormap
-#define E5_COLORMAP (1<<14)
-// bits >= (1<<16)
-#define E5_EXTEND2 (1<<15)
-
-// short = s->tagentity
-// byte = s->tagindex
-#define E5_ATTACHMENT (1<<16)
-// short[4] = s->light[0], s->light[1], s->light[2], s->light[3]
-// byte = s->lightstyle
-// byte = s->lightpflags
-#define E5_LIGHT (1<<17)
-// byte = s->glowsize
-// byte = s->glowcolor
-#define E5_GLOW (1<<18)
-// short = s->effects
-#define E5_EFFECTS16 (1<<19)
-// int = s->effects
-#define E5_EFFECTS32 (1<<20)
-// flag
-#define E5_FRAME16 (1<<21)
-// unused
-#define E5_COLORMOD (1<<22)
-// bits >= (1<<24)
-#define E5_EXTEND3 (1<<23)
-
-// unused
-#define E5_UNUSED24 (1<<24)
-// unused
-#define E5_UNUSED25 (1<<25)
-// unused
-#define E5_UNUSED26 (1<<26)
-// unused
-#define E5_UNUSED27 (1<<27)
-// unused
-#define E5_UNUSED28 (1<<28)
-// unused
-#define E5_UNUSED29 (1<<29)
-// unused
-#define E5_UNUSED30 (1<<30)
-// bits2 > 0
-#define E5_EXTEND4 (1<<31)
-
-void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean isnew)
+unsigned int SVDP_CalcDelta(entity_state_t *from, qbyte *frombonedatabase, entity_state_t *to, qbyte *tobonedatabase)
 {
-	int bits;
-
-	bits = 0;
-	if (isnew)
-		bits |= E5_FULLUPDATE;
-
+	unsigned int bits = 0;
+	//E5_FULLUPDATE is handled elsewhere
+	//E5_EXTEND* is handled elsewhere
 	if (!VectorEquals(from->origin, to->origin))
 		bits |= E5_ORIGIN;
 	if (!VectorEquals(from->angles, to->angles))
@@ -1620,6 +1728,13 @@ void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *m
 		bits |= E5_GLOW;
 	if (from->colormod[0] != to->colormod[0] || from->colormod[1] != to->colormod[1] || from->colormod[2] != to->colormod[2])
 		bits |= E5_COLORMOD;
+	if (from->glowmod[0] != to->glowmod[0] || from->glowmod[1] != to->glowmod[1] || from->glowmod[2] != to->glowmod[2])
+		bits |= E5_GLOWMOD;
+	if (to->bonecount != from->bonecount || (to->bonecount && (!frombonedatabase || memcmp(frombonedatabase+from->boneoffset, tobonedatabase+to->boneoffset, to->bonecount*sizeof(short)*7))))
+		if (to->bonecount)
+			bits |= E5_COMPLEXANIMATION;
+	if (to->u.q1.traileffectnum != from->u.q1.traileffectnum)
+		bits |= E5_TRAILEFFECTNUM;
 
 	if ((bits & E5_ORIGIN) && (!(to->dpflags & RENDER_LOWPRECISION) || to->origin[0] < -4096 || to->origin[0] >= 4096 || to->origin[1] < -4096 || to->origin[1] >= 4096 || to->origin[2] < -4096 || to->origin[2] >= 4096))
 		bits |= E5_ORIGIN32;
@@ -1636,6 +1751,21 @@ void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *m
 		else if (to->effects >= 256)
 			bits |= E5_EFFECTS16;
 	}
+
+	return bits;
+}
+
+void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean isnew, qbyte *bonedatabase)
+{
+	int bits;
+
+	bits = 0;
+	if (isnew)
+		bits |= E5_FULLUPDATE;
+
+	//FIXME: this stuff should be outside of this function
+	//with the whole nack stuff
+	bits = SVDP_CalcDelta(from, NULL, to, bonedatabase);
 
 	if (bits >= 256)
 		bits |= E5_EXTEND1;
@@ -1717,7 +1847,7 @@ void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *m
 	if (bits & E5_SCALE)
 		MSG_WriteByte(msg, to->scale);
 	if (bits & E5_COLORMAP)
-		MSG_WriteByte(msg, to->colormap);
+		MSG_WriteByte(msg, to->colormap&0xff);
 	if (bits & E5_ATTACHMENT)
 	{
 		MSG_WriteEntity(msg, to->tagentity);
@@ -1743,6 +1873,24 @@ void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *m
 		MSG_WriteByte(msg, to->colormod[1]);
 		MSG_WriteByte(msg, to->colormod[2]);
 	}
+	if (bits & E5_GLOWMOD)
+	{
+		MSG_WriteByte(msg, to->glowmod[0]);
+		MSG_WriteByte(msg, to->glowmod[1]);
+		MSG_WriteByte(msg, to->glowmod[2]);
+	}
+	if (bits & E5_COMPLEXANIMATION)
+	{
+		short *bonedata = (short*)(bonedatabase+to->boneoffset);
+		int i;
+		MSG_WriteByte(msg, 4);
+		MSG_WriteShort(msg, to->modelindex);
+		MSG_WriteByte(msg, to->bonecount);
+		for (i = 0; i < to->bonecount*7; i++)
+			MSG_WriteShort(msg, bonedata[i]);
+	}
+	if (bits & E5_TRAILEFFECTNUM)
+		MSG_WriteShort(msg, to->u.q1.traileffectnum);
 }
 
 void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t *msg)
@@ -1788,7 +1936,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 		if (newnum == oldnum)
 		{	// delta update from old position
 //Con_Printf ("delta %i\n", newnum);
-			SVDP_EmitEntityDelta (&from->entities[oldindex], &to->entities[newindex], msg, false);
+			SVDP_EmitEntityDelta (&from->entities[oldindex], &to->entities[newindex], msg, false, to->bonedata);
 			oldindex++;
 			newindex++;
 			continue;
@@ -1797,7 +1945,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 		if (newnum < oldnum)
 		{	// this is a new entity, send it from the baseline... as far as dp understands it...
 //Con_Printf ("baseline %i\n", newnum);
-			SVDP_EmitEntityDelta (&nullentitystate, &to->entities[newindex], msg, true);
+			SVDP_EmitEntityDelta (&nullentitystate, &to->entities[newindex], msg, true, to->bonedata);
 			newindex++;
 			continue;
 		}
@@ -2643,6 +2791,9 @@ int glowsize=0, glowcolor=0, colourmod=0;
 		if (baseline->dpflags & RENDER_STEP)
 			bits |= FITZU_LERPFINISH;
 	}
+	else if (host_client->protocol == SCP_BJP3)
+	{
+	}
 	else if (0)
 	{
 #if 0
@@ -2712,7 +2863,13 @@ int glowsize=0, glowcolor=0, colourmod=0;
 	else
 		MSG_WriteByte (msg,ent->number);
 
-	if (bits & NQU_MODEL)		MSG_WriteByte (msg,	ent->modelindex & 0xff);
+	if (bits & NQU_MODEL)
+	{
+		if (host_client->protocol == SCP_BJP3)
+			MSG_WriteShort(msg,	ent->modelindex & 0xffff);
+		else
+			MSG_WriteByte (msg,	ent->modelindex & 0xff);
+	}
 	if (bits & NQU_FRAME)		MSG_WriteByte (msg, ent->frame & 0xff);
 	if (bits & NQU_COLORMAP)	MSG_WriteByte (msg, ent->colormap & 0xff);
 	if (bits & NQU_SKIN)		MSG_WriteByte (msg, ent->skinnum & 0xff);
@@ -2731,6 +2888,9 @@ int glowsize=0, glowcolor=0, colourmod=0;
 		if (bits & FITZU_FRAME2)	MSG_WriteByte(msg, ent->frame>>8);
 		if (bits & FITZU_MODEL2)	MSG_WriteByte(msg, ent->modelindex>>8);
 		if (bits & FITZU_LERPFINISH)MSG_WriteByte(msg, bound(0, (int)((ed->v->nextthink - sv.world.physicstime) * 255), 255));
+	}
+	else if (host_client->protocol == SCP_BJP3)
+	{
 	}
 	else
 	{
@@ -2959,7 +3119,7 @@ static void SV_Snapshot_Build_Playback(client_t *client, packet_entities_t *pack
 }
 #endif
 
-void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *client)
+void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *client, packet_entities_t *pack)
 {
 //builds an entity_state from an entity
 //note that client can be null, for building baselines.
@@ -3028,28 +3188,13 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	}
 
 	if (client && client->edict && (ent->v->owner == client->edict->entnum))
-		state->solid = 0;
+		state->solidsize = 0;
 	else if (ent->v->solid == SOLID_BSP || (ent->v->skin < 0 && ent->v->modelindex))
-		state->solid = ES_SOLID_BSP;
+		state->solidsize = ES_SOLID_BSP;
 	else if (ent->v->solid == SOLID_BBOX || ent->v->solid == SOLID_SLIDEBOX || ent->v->skin < 0)
-	{
-		unsigned int mdl = ent->v->modelindex;
-		if (mdl < MAX_PRECACHE_MODELS && sv.models[mdl] && sv.models[mdl]->type == mod_brush)
-			state->solid = ES_SOLID_BSP;
-		else
-		{
-			i = bound(0, -ent->v->mins[0]/8, 31);
-			state->solid = i;
-			i = bound(0, -ent->v->mins[2]/8, 31);
-			state->solid |= i<<5;
-			i = bound(0, ((ent->v->maxs[2]+32)/8), 63);	/*up can be negative*/
-			state->solid |= i<<10;
-			if (state->solid == 4096)
-				state->solid = 0;	//point sized stuff should just be non-solid. you'll thank me for splitscreens.
-		}
-	}
+		state->solidsize = ent->solidsize;
 	else
-		state->solid = 0;
+		state->solidsize = 0;
 
 	state->dpflags = 0;
 	if (ent->xv->viewmodelforclient)
@@ -3070,7 +3215,28 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 		//everyone else sees it normally.
 	}
 
-	if (ent->v->movetype == MOVETYPE_STEP)
+	if (0)//ent->xv->basebone < 0)
+	{
+		if (ent->xv->skeletonindex && pack)
+		{
+			framestate_t fs;
+			fs.skeltype = SKEL_IDENTITY;
+			fs.bonecount = 0;
+			skel_lookup(sv.world.progs, ent->xv->skeletonindex, &fs);
+			if (fs.skeltype == SKEL_RELATIVE && fs.bonecount)
+			{
+				Bones_To_PosQuat4(fs.bonecount, fs.bonestate, AllocateBoneSpace(pack, state->bonecount = fs.bonecount, &state->boneoffset));
+				state->dpflags |= RENDER_COMPLEXANIMATION;
+			}
+		}
+	}
+	else
+	{
+		state->basebone = ent->xv->basebone;
+		state->baseframe = ent->xv->baseframe;
+	}
+
+	if (!ent->v->movetype || ent->v->movetype == MOVETYPE_STEP)
 		state->dpflags |= RENDER_STEP;
 
 	state->modelindex = ent->v->modelindex;
@@ -3156,11 +3322,11 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			}
 
 			if (!strcmp (sv.strings.model_precache[state->modelindex], "progs/lavaball.mdl"))
-            {
+			{
 				state->lightpflags |= PFLAGS_FULLDYNAMIC;
-                state->skinnum = 17;
+				state->skinnum = 17;
 				state->light[3] = 270;
-            }
+			}
 		}
 		if (state->effects && client && ISQWCLIENT(client))	//don't send extra nq effects to a qw client.
 		{
@@ -3309,7 +3475,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 		state = &pack->entities[pack->num_entities];
 		pack->num_entities++;
 
-		SV_Snapshot_BuildStateQ1(state, clent, client);
+		SV_Snapshot_BuildStateQ1(state, clent, client, pack);
 
 		state->number = client - svs.clients + 1;
 
@@ -3591,7 +3757,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 		}
 
 		//its not a nail or anything, pack it up and ship it on
-		SV_Snapshot_BuildStateQ1(state, ent, client);
+		SV_Snapshot_BuildStateQ1(state, ent, client, pack);
 	}
 }
 
@@ -3754,7 +3920,15 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		{
 			for (e = 0; e < pack->num_entities; e++)
 			{
+				if (pack->entities[e].number > sv.allocated_client_slots)
+					break;
 				if (msg->cursize + 32 > msg->maxsize)
+					break;
+				SVNQ_EmitEntityState(msg, &pack->entities[e]);
+			}
+			for (; e < pack->num_entities; e++)
+			{
+				if (msg->cursize + 32 + client->datagram.cursize > msg->maxsize)
 					break;
 				SVNQ_EmitEntityState(msg, &pack->entities[e]);
 			}
@@ -3817,6 +3991,26 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	SV_EmitNailUpdate (msg, ignorepvs);
 }
 
+//just goes and makes sure each client tracks all the right SendFlags.
+void SV_ProcessSendFlags(client_t *c)
+{
+	edict_t *ent;
+	unsigned int e, h = 0;
+	if (!c->csqcactive || !c->pendingcsqcbits)
+		return;
+	for (e=1 ; e<sv.world.num_edicts && e < c->max_net_ents; e++)
+	{
+		ent = EDICT_NUM(svprogfuncs, e);
+		if (ent->isfree)
+			continue;
+		if (ent->xv->SendFlags)
+		{
+			c->pendingcsqcbits[e] |= (int)ent->xv->SendFlags & SENDFLAGS_USABLE;
+			h = e;
+		}
+	}
+	needcleanup = max(needcleanup, h);
+}
 void SV_CleanupEnts(void)
 {
 	int		e;
@@ -3840,6 +4034,17 @@ void SV_CleanupEnts(void)
 				org[2] += 24;
 			SV_Multicast(org, MULTICAST_PVS);
 		}
+		ent->xv->SendFlags = 0;
+
+#ifndef NOLEGACY
+		//this is legacy code. we'll just have to live with the slight delay.
+		//FIXME: check if Version exists and do it earlier.
+		if ((int)ent->xv->Version != sv.csqcentversion[ent->entnum])
+		{
+			ent->xv->SendFlags = SENDFLAGS_USABLE;
+			sv.csqcentversion[ent->entnum] = (int)ent->xv->Version;
+		}
+#endif
 	}
 	needcleanup=0;
 }

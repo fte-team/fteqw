@@ -15,10 +15,12 @@ qbyte mpkeysdown[K_MAX/8];
 extern qboolean csqc_dp_lastwas3d;
 
 extern unsigned int r2d_be_flags;
-#define DRAWFLAG_NORMAL 0
-#define DRAWFLAG_ADD 1
-#define DRAWFLAG_MODULATE 2
-#define DRAWFLAG_MODULATE2 3
+#define DRAWFLAG_NORMAL		0
+#define DRAWFLAG_ADD		1
+#define DRAWFLAG_MODULATE	2
+#define DRAWFLAG_MODULATE2	3
+#define DRAWFLAG_2D			(1u<<2)
+#define DRAWFLAG_TWOSIDED	0x400
 static unsigned int PF_SelectDPDrawFlag(int flag)
 {
 	csqc_dp_lastwas3d = false;	//for compat with dp's stupid beginpolygon
@@ -94,7 +96,7 @@ struct {
 	struct font_s *font[FONT_SIZES];
 } fontslot[FONT_SLOTS];
 
-struct font_s *PR_CL_ChooseFont(float *fontsel, float szx, float szy)
+static struct font_s *PR_CL_ChooseFont(float *fontsel, int szx, int szy)
 {
 	int fontidx = 0;	//default by default...
 	struct font_s *font = font_default;
@@ -676,6 +678,82 @@ void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *
 		G_INT(OFS_RETURN) = 0;
 }
 
+//warning: not threaded.
+void QCBUILTIN PF_CL_uploadimage (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *imagename = PR_GetStringOfs(prinst, OFS_PARM0);
+	int width = G_INT(OFS_PARM1);
+	int height = G_INT(OFS_PARM2);
+	int src = G_INT(OFS_PARM3);	//ptr
+	int size = width * height * 4;
+	void *imgptr;
+	texid_t tid;
+
+	G_INT(OFS_RETURN) = 0;	//assume the worst
+
+#define RT_IMAGEFLAGS IF_NOMIPMAP|IF_CLAMP|IF_LINEAR|IF_RENDERTARGET
+
+	if (width < 0 || height < 0 || width > 16384 || height > 16384)
+	{	//this is actually kinda likely when everyone assumes everything is a float.
+		PR_BIError(prinst, "PF_CL_uploadimage: dimensions are out of range\n");
+		return;
+	}
+	//FIXME: this should use a proper qclib function to validate more reliably / reusably
+	if (src <= 0 || src+size >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_CL_uploadimage: invalid source\n");
+		return;
+	}
+	imgptr = prinst->stringtable + src;
+
+
+	tid = Image_FindTexture(imagename, NULL, RT_IMAGEFLAGS);
+	if (!TEXVALID(tid))
+		tid = Image_CreateTexture(imagename, NULL, RT_IMAGEFLAGS);
+
+	Image_Upload(tid, TF_RGBA32, imgptr, NULL, width, height, RT_IMAGEFLAGS);
+	tid->width = width;
+	tid->height = height;
+
+	G_INT(OFS_RETURN) = 1;
+}
+
+//warning: not threadable. hopefully noone abuses it.
+void QCBUILTIN PF_CL_readimage (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	size_t filesize;
+	const char *filename = PR_GetStringOfs(prinst, OFS_PARM0);
+
+	int imagewidth, imageheight;
+	qboolean hasalpha;
+	void *filedata;
+
+	G_INT(OFS_RETURN) = 0;	//assume the worst
+	G_INT(OFS_PARM1) = 0;	//out width
+	G_INT(OFS_PARM2) = 0;	//out height
+
+	filedata = FS_LoadMallocFile(filename, &filesize);
+
+	if (filedata)
+	{
+		qbyte *imagedata = Read32BitImageFile(filedata, filesize, &imagewidth, &imageheight, &hasalpha, filename);
+		Z_Free(filedata);
+
+		if (imagedata)
+		{
+			void *ptr = prinst->AddressableAlloc(prinst, imagewidth*imageheight*4);
+			if (ptr)
+			{
+				memcpy(ptr, imagedata, imagewidth*imageheight*4);
+				G_INT(OFS_RETURN) = (char*)ptr - prinst->stringtable;
+				G_INT(OFS_PARM1) = imagewidth;	//out width
+				G_INT(OFS_PARM2) = imageheight;	//out height
+			}
+			BZ_Free(imagedata);
+		}
+	}
+}
+
 void QCBUILTIN PF_CL_free_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	//we don't support this, as the shader could be used elsewhere also, and we have pointers to things.
@@ -936,7 +1014,11 @@ void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	{
 		RETURN_TSTRING("0");	//meant to return the old state...
 		if (value && atoi(value))
+		{
+			if (con->close && atoi(value) != 2 && !con->close(con, true))
+				return;
 			Con_Destroy(con);
+		}
 	}
 	else if (!strcmp(field, "clear"))
 	{
@@ -1006,7 +1088,7 @@ void QCBUILTIN PF_SubConDraw (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		fontsize *= world->g.drawfontscale[1];
 	}
 
-	Con_DrawOneConsole(con, con->flags & CONF_KEYFOCUSED, PR_CL_ChooseFont(world->g.drawfont, fontsize, fontsize), pos[0], pos[1], size[0], size[1]);
+	Con_DrawOneConsole(con, con->flags & CONF_KEYFOCUSED, PR_CL_ChooseFont(world->g.drawfont, fontsize, fontsize), pos[0], pos[1], size[0], size[1], 0);
 }
 qboolean Key_Console (console_t *con, unsigned int unicode, int key);
 void Key_ConsoleRelease (console_t *con, unsigned int unicode, int key);
@@ -1065,12 +1147,13 @@ void QCBUILTIN PF_SubConInput (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 typedef struct menuedict_s
 {
-	qboolean	isfree;
-	float		freetime; // sv.time when the object was freed
-	int			entnum;
-	unsigned int fieldsize;
-	qboolean	readonly;	//world
-	void		*fields;
+	enum ereftype_e	ereftype;
+	float			freetime; // sv.time when the object was freed
+	int				entnum;
+	unsigned int	fieldsize;
+	pbool			readonly;	//world
+
+	void			*fields;
 } menuedict_t;
 
 
@@ -1363,7 +1446,7 @@ static void QCBUILTIN PF_Remove_ (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	ed = (void*)G_EDICT(prinst, OFS_PARM0);
 
-	if (ed->isfree)
+	if (ed->ereftype == ER_FREE)
 	{
 		Con_DPrintf("Tried removing free entity\n");
 		PR_StackTrace(prinst, false);
@@ -1381,12 +1464,6 @@ static void QCBUILTIN PF_CopyEntity (pubprogfuncs_t *prinst, struct globalvars_s
 	out = (menuedict_t*)G_EDICT(prinst, OFS_PARM1);
 
 	memcpy(out->fields, in->fields, menuentsize);
-}
-
-void QCBUILTIN PF_localsound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	const char *soundname = PR_GetStringOfs(prinst, OFS_PARM0);
-	S_LocalSound (soundname);
 }
 
 void QCBUILTIN PF_menu_checkextension (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1429,7 +1506,7 @@ void QCBUILTIN PF_menu_findchain (pubprogfuncs_t *prinst, struct globalvars_s *p
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
 		ent = (menuedict_t *)EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		if (ent->ereftype == ER_FREE)
 			continue;
 		t = *(string_t *)&((float*)ent->fields)[f];
 		if (!t)
@@ -1437,7 +1514,7 @@ void QCBUILTIN PF_menu_findchain (pubprogfuncs_t *prinst, struct globalvars_s *p
 		if (strcmp(PR_GetString(prinst, t), s))
 			continue;
 
-		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", &menuc_eval.chain);
+		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", ev_entity, &menuc_eval.chain);
 		if (val)
 			val->edict = EDICT_TO_PROG(prinst, (void*)chain);
 		chain = ent;
@@ -1461,12 +1538,12 @@ void QCBUILTIN PF_menu_findchainfloat (pubprogfuncs_t *prinst, struct globalvars
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
 		ent = (menuedict_t*)EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		if (ent->ereftype == ER_FREE)
 			continue;
 		if (((float *)ent->fields)[f] != s)
 			continue;
 
-		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", &menuc_eval.chain);
+		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", ev_entity, &menuc_eval.chain);
 		if (val)
 			val->edict = EDICT_TO_PROG(prinst, (void*)chain);
 		chain = ent;
@@ -1490,12 +1567,12 @@ void QCBUILTIN PF_menu_findchainflags (pubprogfuncs_t *prinst, struct globalvars
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
 		ent = (menuedict_t*)EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		if (ent->ereftype == ER_FREE)
 			continue;
 		if ((int)((float *)ent->fields)[f] & s)
 			continue;
 
-		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", &menuc_eval.chain);
+		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", ev_entity, &menuc_eval.chain);
 		if (val)
 			val->edict = EDICT_TO_PROG(prinst, (void*)chain);
 		chain = ent;
@@ -1706,9 +1783,9 @@ static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s 
 {
 	menuedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	const char *modelname = PR_GetStringOfs(prinst, OFS_PARM1);
-	eval_t *modelval = prinst->GetEdictFieldValue(prinst, (void*)ent, "model", &menuc_eval.model);
-	eval_t *minsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "mins", &menuc_eval.mins);
-	eval_t *maxsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "maxs", &menuc_eval.maxs);
+	eval_t *modelval = prinst->GetEdictFieldValue(prinst, (void*)ent, "model", ev_string, &menuc_eval.model);
+	eval_t *minsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "mins", ev_vector, &menuc_eval.mins);
+	eval_t *maxsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "maxs", ev_vector, &menuc_eval.maxs);
 	model_t *mod = Mod_ForName(modelname, MLV_WARN);
 	if (modelval)
 		modelval->string = G_INT(OFS_PARM1);	//lets hope garbage collection is enough.
@@ -1727,7 +1804,7 @@ static void QCBUILTIN PF_m_setcustomskin(pubprogfuncs_t *prinst, struct globalva
 	menuedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	const char *fname = PR_GetStringOfs(prinst, OFS_PARM1);
 	const char *skindata = PF_VarString(prinst, 2, pr_globals);
-	eval_t *val = prinst->GetEdictFieldValue(prinst, (void*)ent, "skinobject", &menuc_eval.skinobject);
+	eval_t *val = prinst->GetEdictFieldValue(prinst, (void*)ent, "skinobject", ev_string, &menuc_eval.skinobject);
 	if (!val)
 		return;
 
@@ -1750,7 +1827,7 @@ static void QCBUILTIN PF_m_setorigin(pubprogfuncs_t *prinst, struct globalvars_s
 {
 	menuedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	float *org = G_VECTOR(OFS_PARM1);
-	eval_t *val = prinst->GetEdictFieldValue(prinst, (void*)ent, "origin", &menuc_eval.origin);
+	eval_t *val = prinst->GetEdictFieldValue(prinst, (void*)ent, "origin", ev_vector, &menuc_eval.origin);
 	if (val)
 		VectorCopy(org, val->_vector);
 }
@@ -1771,18 +1848,18 @@ static void QCBUILTIN PF_m_clearscene(pubprogfuncs_t *prinst, struct globalvars_
 }
 static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, entity_t *out)
 {
-	eval_t *modelval = prinst->GetEdictFieldValue(prinst, (void*)in, "model", &menuc_eval.model);
-	eval_t *originval = prinst->GetEdictFieldValue(prinst, (void*)in, "origin", &menuc_eval.origin);
-	eval_t *anglesval = prinst->GetEdictFieldValue(prinst, (void*)in, "angles", &menuc_eval.angles);
-	eval_t *skinval = prinst->GetEdictFieldValue(prinst, (void*)in, "skin", &menuc_eval.skin);
-	eval_t *frame1val = prinst->GetEdictFieldValue(prinst, (void*)in, "frame", &menuc_eval.frame1);
-	eval_t *frame2val = prinst->GetEdictFieldValue(prinst, (void*)in, "frame2", &menuc_eval.frame2);
-	eval_t *lerpfracval = prinst->GetEdictFieldValue(prinst, (void*)in, "lerpfrac", &menuc_eval.lerpfrac);
-	eval_t *frame1timeval = prinst->GetEdictFieldValue(prinst, (void*)in, "frame1time", &menuc_eval.frame1time);
-	eval_t *frame2timeval = prinst->GetEdictFieldValue(prinst, (void*)in, "frame2time", &menuc_eval.frame2time);
-	eval_t *colormapval = prinst->GetEdictFieldValue(prinst, (void*)in, "colormap", &menuc_eval.colormap);
-	eval_t *renderflagsval = prinst->GetEdictFieldValue(prinst, (void*)in, "renderflags", &menuc_eval.renderflags);
-	eval_t *skinobjectval = prinst->GetEdictFieldValue(prinst, (void*)in, "skinobject", &menuc_eval.skinobject);
+	eval_t *modelval = prinst->GetEdictFieldValue(prinst, (void*)in, "model", ev_string, &menuc_eval.model);
+	eval_t *originval = prinst->GetEdictFieldValue(prinst, (void*)in, "origin", ev_vector, &menuc_eval.origin);
+	eval_t *anglesval = prinst->GetEdictFieldValue(prinst, (void*)in, "angles", ev_vector, &menuc_eval.angles);
+	eval_t *skinval = prinst->GetEdictFieldValue(prinst, (void*)in, "skin", ev_float, &menuc_eval.skin);
+	eval_t *frame1val = prinst->GetEdictFieldValue(prinst, (void*)in, "frame", ev_float, &menuc_eval.frame1);
+	eval_t *frame2val = prinst->GetEdictFieldValue(prinst, (void*)in, "frame2", ev_float, &menuc_eval.frame2);
+	eval_t *lerpfracval = prinst->GetEdictFieldValue(prinst, (void*)in, "lerpfrac", ev_float, &menuc_eval.lerpfrac);
+	eval_t *frame1timeval = prinst->GetEdictFieldValue(prinst, (void*)in, "frame1time", ev_float, &menuc_eval.frame1time);
+	eval_t *frame2timeval = prinst->GetEdictFieldValue(prinst, (void*)in, "frame2time", ev_float, &menuc_eval.frame2time);
+	eval_t *colormapval = prinst->GetEdictFieldValue(prinst, (void*)in, "colormap", ev_float, &menuc_eval.colormap);
+	eval_t *renderflagsval = prinst->GetEdictFieldValue(prinst, (void*)in, "renderflags", ev_float, &menuc_eval.renderflags);
+	eval_t *skinobjectval = prinst->GetEdictFieldValue(prinst, (void*)in, "skinobject", ev_float, &menuc_eval.skinobject);
 	int ival;
 	int rflags;
 
@@ -1842,7 +1919,7 @@ static void QCBUILTIN PF_m_addentity(pubprogfuncs_t *prinst, struct globalvars_s
 {
 	menuedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
 	entity_t ent;
-	if (in->isfree || in->entnum == 0)
+	if (in->ereftype == ER_FREE || in->entnum == 0)
 	{
 		Con_Printf("Tried drawing a free/removed/world entity\n");
 		return;
@@ -1895,6 +1972,20 @@ static void QCBUILTIN PF_stackdump (pubprogfuncs_t *prinst, struct globalvars_s 
 }
 #define PF_cl_clientcommand PF_Fixme
 #define PF_altstr_ins PF_Fixme	//insert after, apparently
+
+static void MP_ConsoleCommand_f(void)
+{
+	char cmd[2048];
+	Q_snprintfz(cmd, sizeof(cmd), "%s %s", Cmd_Argv(0), Cmd_Args());
+	MP_ConsoleCommand(cmd);
+}
+static void QCBUILTIN PF_menu_registercommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *str = PF_VarString(prinst, 0, pr_globals);
+	if (!Cmd_Exists(str))
+		Cmd_AddCommand(str, MP_ConsoleCommand_f);
+}
+
 
 static struct {
 	char *name;
@@ -1964,6 +2055,8 @@ static struct {
 	{"fclose",					PF_fclose,					49},
 	{"fgets",					PF_fgets,					50},
 	{"fputs",					PF_fputs,					51},
+	{"fread",					PF_fread,					0},
+	{"fwrite",					PF_fwrite,					0},
 	{"strlen",					PF_strlen,					52},
 	{"strcat",					PF_strcat,					53},
 	{"substring",				PF_substring,				54},
@@ -1977,7 +2070,7 @@ static struct {
 	{"clientstate",				PF_clientstate,				62},
 	{"clientcommand",			PF_cl_clientcommand,		63},						//void	clientcommand(float client, string s)  = #63;
 	{"changelevel",				PF_cl_changelevel,			64},						//void	changelevel(string map)  = #64;
-	{"localsound",				PF_localsound,				65},
+	{"localsound",				PF_cl_localsound,			65},
 	{"getmousepos",				PF_cl_getmousepos,			66},
 	{"gettime",					PF_gettime,					67},
 	{"loadfromdata",			PF_loadfromdata,			68},
@@ -2057,6 +2150,7 @@ static struct {
 	{"getcursormode",			PF_cl_getcursormode,		0},	
 															//gap
 	{"isdemo",					PF_isdemo,					349},
+	{"registercommand",			PF_menu_registercommand,	352},
 															//gap
 	{"findfont",				PF_CL_findfont,				356},
 	{"loadfont",				PF_CL_loadfont,				357},
@@ -2101,11 +2195,13 @@ static struct {
 	{"drawsetcliparea",			PF_CL_drawsetcliparea,		458},
 	{"drawresetcliparea",		PF_CL_drawresetcliparea,	459},
 	{"drawgetimagesize",		PF_CL_drawgetimagesize,		460},
-	{"cin_open",				PF_cin_open,				461},
-	{"cin_close",				PF_cin_close,				462},
-	{"cin_setstate",			PF_cin_setstate,			463},
-	{"cin_getstate",			PF_cin_getstate,			464},
-	{"cin_restart",				PF_cin_restart, 			465},
+#ifndef NOMEDIA
+	{"cin_open",				PF_cs_media_create,			461},
+	{"cin_close",				PF_cs_media_destroy,		462},
+	{"cin_setstate",			PF_cs_media_setstate,		463},
+	{"cin_getstate",			PF_cs_media_getstate,		464},
+	{"cin_restart",				PF_cs_media_restart, 		465},
+#endif
 	{"drawline",				PF_drawline,				466},
 	{"drawstring",				PF_CL_drawcolouredstring,	467},
 	{"stringwidth",				PF_CL_stringwidth,			468},
@@ -2130,14 +2226,16 @@ static struct {
 	{"strreplace",				PF_strreplace,				484},
 	{"strireplace",				PF_strireplace,				485},
 															//486
-	{"gecko_create",			PF_cs_media_create_http,	487},
+#ifndef NOMEDIA
+	{"gecko_create",			PF_cs_media_create,			487},
 	{"gecko_destroy",			PF_cs_media_destroy,		488},
 	{"gecko_navigate",			PF_cs_media_command,		489},
 	{"gecko_keyevent",			PF_cs_media_keyevent,		490},
 	{"gecko_mousemove",			PF_cs_media_mousemove,		491},
 	{"gecko_resize",			PF_cs_media_resize,			492},
 	{"gecko_get_texture_extent",PF_cs_media_get_texture_extent,493},
-	{"media_getposition",		PF_cs_media_getposition},
+	{"gecko_getproperty",		PF_cs_media_getproperty},
+#endif
 	{"crc16",					PF_crc16,					494},
 	{"cvar_type",				PF_cvar_type,				495},
 	{"numentityfields",			PF_numentityfields,			496},
@@ -2179,6 +2277,7 @@ static struct {
 	{"gethostcachevalue",		PF_cl_gethostcachevalue,	611},
 	{"gethostcachestring",		PF_cl_gethostcachestring,	612},
 	{"parseentitydata",			PF_parseentitydata,			613},
+	{"generateentitydata",		PF_generateentitydata,		0},
 
 	{"stringtokeynum",			PF_cl_stringtokeynum,		614},
 
@@ -2281,6 +2380,7 @@ func_t mp_draw_function;
 func_t mp_keydown_function;
 func_t mp_keyup_function;
 func_t mp_toggle_function;
+func_t mp_consolecommand_function;
 
 jmp_buf mp_abort;
 
@@ -2313,6 +2413,8 @@ void MP_Shutdown (void)
 #ifdef CL_MASTER
 	Master_ClearMasks();
 #endif
+
+	Cmd_RemoveCommands(MP_ConsoleCommand_f);
 
 	Key_Dest_Remove(kdm_gmenu);
 	key_dest_absolutemouse &= ~kdm_gmenu;
@@ -2363,7 +2465,10 @@ void MP_CvarChanged(cvar_t *var)
 
 pbool PDECL Menu_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc)
 {
-	return crc == 10020;
+	if (crc == 10020)
+		return true;	//its okay
+	Con_Printf("progs crc is invalid for menuqc\n");
+	return false;
 }
 
 static int QDECL MP_PRFileSize (const char *path)
@@ -2468,6 +2573,7 @@ qboolean MP_Init (void)
 
 		PF_InitTempStrings(menu_world.progs);
 
+		menu_world.g.self = (int*)PR_FindGlobal(menu_world.progs, "self", 0, NULL);
 		menu_world.g.time = (float*)PR_FindGlobal(menu_world.progs, "time", 0, NULL);
 		if (menu_world.g.time)
 			*menu_world.g.time = Sys_DoubleTime();
@@ -2483,7 +2589,7 @@ qboolean MP_Init (void)
 
 		//'world' edict
 //		EDICT_NUM(menu_world.progs, 0)->readonly = true;
-		EDICT_NUM(menu_world.progs, 0)->isfree = false;
+		EDICT_NUM(menu_world.progs, 0)->ereftype = ER_ENTITY;
 
 
 		mp_init_function = PR_FindFunction(menu_world.progs, "m_init", PR_ANY);
@@ -2492,6 +2598,7 @@ qboolean MP_Init (void)
 		mp_keydown_function = PR_FindFunction(menu_world.progs, "m_keydown", PR_ANY);
 		mp_keyup_function = PR_FindFunction(menu_world.progs, "m_keyup", PR_ANY);
 		mp_toggle_function = PR_FindFunction(menu_world.progs, "m_toggle", PR_ANY);
+		mp_consolecommand_function = PR_FindFunction(menu_world.progs, "m_consolecommand", PR_ANY);
 		if (mp_init_function)
 			PR_ExecuteProgram(menu_world.progs, mp_init_function);
 		inmenuprogs--;
@@ -2521,6 +2628,24 @@ static void MP_GameCommand_f(void)
 	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(menu_world.progs, Cmd_Args()));
 	PR_ExecuteProgram (menu_world.progs, gamecommand);
 	inmenuprogs--;
+}
+
+qboolean MP_ConsoleCommand(char *cmdtext)
+{
+	void *pr_globals;
+	if (!menu_world.progs)
+		return false;
+	if (!mp_consolecommand_function)
+		return false;
+
+	if (setjmp(mp_abort))
+		return true;
+	inmenuprogs++;
+	pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(menu_world.progs, cmdtext));
+	PR_ExecuteProgram (menu_world.progs, mp_consolecommand_function);
+	inmenuprogs--;
+	return G_FLOAT(OFS_RETURN);
 }
 
 void MP_CoreDump_f(void)
@@ -2614,7 +2739,13 @@ void MP_Draw(void)
 
 	inmenuprogs++;
 	if (mp_draw_function)
+	{
+		globalvars_t *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+		((float *)pr_globals)[OFS_PARM0+0] = vid.width;
+		((float *)pr_globals)[OFS_PARM0+1] = vid.height;
+		((float *)pr_globals)[OFS_PARM0+2] = 0;
 		PR_ExecuteProgram(menu_world.progs, mp_draw_function);
+	}
 	inmenuprogs--;
 }
 

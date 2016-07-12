@@ -227,6 +227,7 @@ void Key_WriteBindings (struct vfsfile_s *f);
 void Key_SetBinding (int keynum, int modifier, char *binding, int cmdlevel);
 void Key_ClearStates (void);
 void Key_Unbindall_f (void);	//aka: Key_Shutdown
+void Key_ConsoleReplace(const char *instext);
 
 struct console_s;
 qboolean Key_GetConsoleSelectionBox(struct console_s *con, int *sx, int *sy, int *ex, int *ey);

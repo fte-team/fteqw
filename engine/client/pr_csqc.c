@@ -87,8 +87,6 @@ cvar_t  pr_csqc_formenus = CVARF("pr_csqc_formenus", "1", CVAR_NOSET);
 cvar_t  pr_csqc_formenus = CVAR("pr_csqc_formenus", "0");
 #endif
 extern cvar_t dpcompat_stats;
-cvar_t  dpcompat_corruptglobals = CVAR("dpcompat_corruptglobals", "0");
-
 
 // standard effect cvars/sounds
 extern cvar_t r_explosionlight;
@@ -156,9 +154,11 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalvector(trace_plane_normal,	"trace_plane_normal");	/*vector	written by traceline*/	\
 	globalfloat(trace_plane_dist,		"trace_plane_dist");	/*float		written by traceline*/	\
 	globalentity(trace_ent,				"trace_ent");			/*entity	written by traceline*/	\
-	globalfloat(trace_surfaceflags,		"trace_surfaceflags");	/*float		written by traceline*/	\
+	globalfloat(trace_surfaceflagsf,	"trace_surfaceflags");	/*float		written by traceline*/	\
+	globalint(trace_surfaceflagsi,		"trace_surfaceflags");	/*int		written by traceline*/	\
 	globalstring(trace_surfacename,		"trace_surfacename");	/*string	written by traceline*/	\
 	globalfloat(trace_endcontents,		"trace_endcontents");	/*float		written by traceline EXT_CSQC_1*/	\
+	globalint(trace_endcontentsi,		"trace_endcontentsi");	/*int		written by traceline EXT_CSQC_1*/	\
 	globalint(trace_brush_id,			"trace_brush_id");		/*int		written by traceline*/	\
 	globalint(trace_brush_faceid,		"trace_brush_faceid");	/*int		written by traceline*/	\
 	\
@@ -195,6 +195,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfloat(dimension_default,		"dimension_default");	/*float		default value for dimension_hit+dimension_solid*/ \
 	globalfloat(autocvar_vid_conwidth,	"autocvar_vid_conwidth");	/*float		hackfix for dp mods*/	\
 	globalfloat(autocvar_vid_conheight,	"autocvar_vid_conheight");	/*float		hackfix for dp mods*/	\
+	globalfloat(cycle_wrapped,			"cycle_wrapped");	\
 
 
 typedef struct {
@@ -219,7 +220,7 @@ static csqcglobals_t csqcg;
 
 playerview_t csqc_nullview;
 
-void VARGS CSQC_Abort (char *format, ...);	//an error occured.
+static void VARGS CSQC_Abort (char *format, ...);	//an error occured.
 static void cs_set_input_state (usercmd_t *cmd);
 
 //fixme: we should be using entity numbers, not view numbers.
@@ -255,17 +256,18 @@ static void CSQC_ChangeLocalPlayer(int seat)
 		csqcg.view_angles[1] = csqc_playerview->viewangles[1];
 		csqcg.view_angles[2] = csqc_playerview->viewangles[2];
 	}
-	if ((dpcompat_corruptglobals.ival || csqc_isdarkplaces) && (unsigned int)seat < MAX_SPLITS)
+	if ((unsigned int)seat < MAX_SPLITS)
 	{
 		extern usercmd_t independantphysics[MAX_SPLITS];
 		int i;
 		usercmd_t *cmd = &independantphysics[seat];
-		usercmd_t tmp = *cmd;
-		cmd = &tmp;
+		usercmd_t tmp;
 		for (i=0 ; i<3 ; i++)
 			cmd->angles[i] = ((int)(csqc_playerview->viewangles[i]*65536.0/360)&65535);
 		if (!cmd->msec)
 			CL_BaseMove (cmd, seat, 0, 72);
+		tmp = *cmd;
+		cmd = &tmp;
 		cmd->msec = (realtime - cl.outframes[(cl.movesequence-1)&UPDATE_MASK].senttime)*1000;
 		cs_set_input_state(cmd);
 
@@ -365,6 +367,7 @@ typedef struct {
 #endif
 
 #define comfieldfloat(name,desc) float name;
+#define comfieldint(name,desc) int name;
 #define comfieldvector(name,desc) vec3_t name;
 #define comfieldentity(name,desc) int name;
 #define comfieldstring(name,desc) string_t name;
@@ -372,6 +375,7 @@ typedef struct {
 comextqcfields
 csqcextfields
 #undef comfieldfloat
+#undef comfieldint
 #undef comfieldvector
 #undef comfieldentity
 #undef comfieldstring
@@ -385,11 +389,11 @@ csqcextfields
 
 typedef struct csqcedict_s
 {
-	qboolean	isfree;
-	float		freetime; // sv.time when the object was freed
-	int			entnum;
-	unsigned int fieldsize;
-	qboolean	readonly;	//world
+	enum ereftype_e	ereftype;
+	float			freetime; // sv.time when the object was freed
+	int				entnum;
+	unsigned int	fieldsize;
+	pbool			readonly;	//world
 #ifdef VM_Q1
 	csqcentvars_t	*v;
 	csqcextentvars_t	*xv;
@@ -402,10 +406,11 @@ typedef struct csqcedict_s
 	/*the above is shared with qclib*/
 	link_t	area;
 	pvscache_t pvsinfo;
+	int lastruntime;
+	int solidsize;
 #ifdef USERBE
 	entityode_t ode;
 #endif
-	qbyte solidtype;
 	/*the above is shared with ssqc*/
 
 	//add whatever you wish here
@@ -417,12 +422,14 @@ typedef struct csqcedict_s
 static void CSQC_InitFields(void)
 {	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
 #define comfieldfloat(name,desc) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldint(name,desc) PR_RegisterFieldVar(csqcprogs, ev_integer, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 #define comfieldvector(name,desc) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 #define comfieldentity(name,desc) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 #define comfieldstring(name,desc) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 #define comfieldfunction(name, typestr,desc) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 comqcfields
 #undef comfieldfloat
+#undef comfieldint
 #undef comfieldvector
 #undef comfieldentity
 #undef comfieldstring
@@ -430,12 +437,14 @@ comqcfields
 
 #ifdef VM_Q1
 #define comfieldfloat(name,desc) PR_RegisterFieldVar(csqcprogs, ev_float, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
+#define comfieldint(name,desc) PR_RegisterFieldVar(csqcprogs, ev_integer, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
 #define comfieldvector(name,desc) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
 #define comfieldentity(name,desc) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
 #define comfieldstring(name,desc) PR_RegisterFieldVar(csqcprogs, ev_string, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
 #define comfieldfunction(name, typestr,desc) PR_RegisterFieldVar(csqcprogs, ev_function, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
 #else
 #define comfieldfloat(name,desc) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldint(name,desc) PR_RegisterFieldVar(csqcprogs, ev_integer, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 #define comfieldvector(name,desc) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 #define comfieldentity(name,desc) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 #define comfieldstring(name,desc) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
@@ -444,6 +453,7 @@ comqcfields
 comextqcfields
 csqcextfields
 #undef fieldfloat
+#undef fieldint
 #undef fieldvector
 #undef fieldentity
 #undef fieldstring
@@ -735,6 +745,8 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		out->flags |= RF_NOSHADOW;
 	if (effects & EF_NODEPTHTEST)
 		out->flags |= RF_NODEPTHTEST;
+	if ((effects & DPEF_NOGUNBOB) && (out->flags & RF_WEAPONMODEL))
+		out->flags |= RF_WEAPONMODELNOBOB;
 
 	cs_getframestate(in, rflags, &out->framestate);
 
@@ -843,6 +855,8 @@ static void QCBUILTIN PF_cs_makestatic (pubprogfuncs_t *prinst, struct globalvar
 	ent = &cl_static_entities[cl.num_statics].ent;
 	if (CopyCSQCEdictToEntity(in, ent))
 	{
+		entity_state_t *state = &cl_static_entities[cl.num_statics].state;
+		memset(state, 0, sizeof(*state));
 		cl_static_entities[cl.num_statics].emit = NULL;
 		cl_static_entities[cl.num_statics].mdlidx = in->v->modelindex;
 		if (cl.worldmodel && cl.worldmodel->funcs.FindTouchedLeafs)
@@ -850,6 +864,16 @@ static void QCBUILTIN PF_cs_makestatic (pubprogfuncs_t *prinst, struct globalvar
 		else
 			memset(&cl_static_entities[cl.num_statics].pvscache, 0, sizeof(cl_static_entities[cl.num_statics].pvscache));
 		cl.num_statics++;
+
+		//rtlights kinda need all this junk
+		VectorCopy(ent->origin, state->origin);
+		VectorCopy(ent->angles, state->angles);
+		state->modelindex = in->v->modelindex;
+		state->light[3] = in->xv->light_lev;
+		VectorCopy(in->xv->color, state->light);
+		state->lightpflags = in->xv->pflags;
+		state->lightstyle = in->xv->style;
+		state->skinnum = in->v->skin;
 	}
 
 	PF_cs_remove(prinst, pr_globals);
@@ -1217,6 +1241,13 @@ static int csqc_poly_startidx;
 static int csqc_poly_flags;
 static int csqc_poly_2d;
 
+#define DRAWFLAG_NORMAL		0
+#define DRAWFLAG_ADD		1
+#define DRAWFLAG_MODULATE	2
+#define DRAWFLAG_MODULATE2	3
+#define DRAWFLAG_2D			(1u<<2)
+#define DRAWFLAG_TWOSIDED	0x400
+
 static void CSQC_PolyFlush(void)
 {
 	mesh_t mesh;
@@ -1271,7 +1302,8 @@ static void CSQC_PolyFlush(void)
 void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	shader_t *shader;
-	int flags = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
+	int qcflags = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
+	int beflags;
 	qboolean twod;
 
 	if (prinst->callargc > 2)
@@ -1282,21 +1314,21 @@ void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr
 		csqc_deprecated("guessing 2d mode based upon random builtin calls");
 	}
 	else
-		twod = flags & 4;
+		twod = qcflags & DRAWFLAG_2D;
 	
-	if ((flags & 3) == 1)
-		flags = BEF_FORCEADDITIVE;
+	if ((qcflags & 3) == DRAWFLAG_ADD)
+		beflags = BEF_NOSHADOWS|BEF_FORCEADDITIVE;
 	else
-		flags = BEF_NOSHADOWS;
-	if (csqc_isdarkplaces || (flags & 0x400))
-		flags |= BEF_FORCETWOSIDED;
+		beflags = BEF_NOSHADOWS;
+	if (csqc_isdarkplaces || (qcflags & DRAWFLAG_TWOSIDED))
+		beflags |= BEF_FORCETWOSIDED;
 
 	if (twod)
 		shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0));
 	else
 		shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
 
-	if (R2D_Flush && (R2D_Flush != CSQC_PolyFlush || csqc_poly_shader != shader || csqc_poly_flags != flags || csqc_poly_2d != twod))
+	if (R2D_Flush && (R2D_Flush != CSQC_PolyFlush || csqc_poly_shader != shader || csqc_poly_flags != beflags || csqc_poly_2d != twod))
 		R2D_Flush();
 	if (!R2D_Flush)
 	{	//this is where our current (2d) batch starts
@@ -1305,7 +1337,7 @@ void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	}
 	R2D_Flush = CSQC_PolyFlush;
 	csqc_poly_shader = shader;
-	csqc_poly_flags = flags;
+	csqc_poly_flags = beflags;
 	csqc_poly_2d = twod;
 
 	//this is where our current poly starts
@@ -1404,6 +1436,122 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 
 	/*set up ready for the next poly*/
+	csqc_poly_startvert = cl_numstrisvert;
+	csqc_poly_startidx = cl_numstrisidx;
+}
+
+typedef struct
+{
+	vec3_t xyz;
+	vec2_t st;
+	vec4_t rgba;
+//	vec3_t norm;
+//	vec3_t sdir;
+//	vec3_t tdir;
+} qcvertex_t;
+void QCBUILTIN PF_R_AddTrisoup(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	shader_t *shader;		//parm 0
+	unsigned int qcflags	= G_INT(OFS_PARM1);
+	unsigned int vertsptr	= G_INT(OFS_PARM2);
+	unsigned int indexesptr	= G_INT(OFS_PARM3);
+	unsigned int numindexes	= G_INT(OFS_PARM4);
+	qboolean twod = qcflags & 4;
+	unsigned int beflags;
+	unsigned int numverts;
+	qcvertex_t *vert;
+	unsigned int *idx;
+	unsigned int i, j, first;
+
+	
+	if ((qcflags & 3) == DRAWFLAG_ADD)
+		beflags = BEF_NOSHADOWS|BEF_FORCEADDITIVE;
+	else if ((qcflags & 3) == DRAWFLAG_MODULATE)
+		beflags = BEF_NOSHADOWS|BEF_FORCETRANSPARENT;
+	else
+		beflags = BEF_NOSHADOWS;
+	if (qcflags & DRAWFLAG_TWOSIDED)
+		beflags |= BEF_FORCETWOSIDED;
+
+	if (twod)
+		shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0));
+	else
+		shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
+
+	if (R2D_Flush && (R2D_Flush != CSQC_PolyFlush || csqc_poly_shader != shader || csqc_poly_flags != beflags || csqc_poly_2d != twod))
+		R2D_Flush();
+	if (!R2D_Flush)
+	{	//this is where our current (2d) batch starts
+		csqc_poly_origvert = cl_numstrisvert;
+		csqc_poly_origidx = cl_numstrisidx;
+	}
+
+	//validates the pointer.
+	numverts = (prinst->stringtablesize - vertsptr) / sizeof(qcvertex_t);
+	if (numverts < 1)
+		numverts = 1;
+	if (vertsptr <= 0 || vertsptr+numverts*sizeof(qcvertex_t) >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_R_AddTrisoup: invalid vertexes pointer\n");
+		return;
+	}
+	vert = (qcvertex_t*)(prinst->stringtable + vertsptr);
+	if (indexesptr <= 0 || indexesptr+numindexes*sizeof(int) >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_R_AddTrisoup: invalid indexes pointer\n");
+		return;
+	}
+	idx = (int*)(prinst->stringtable + indexesptr);
+
+	first = csqc_poly_startvert - csqc_poly_origvert;
+	if (first + numindexes > MAX_INDICIES)
+	{
+		if (numindexes > MAX_INDICIES)
+		{
+			PR_BIError(prinst, "PF_R_AddTrisoup: single batch exceeds MAX_INDICIES\n");
+			return;
+		}
+		else if (R2D_Flush)	//should always be true
+		{
+			R2D_Flush();
+			first = 0;
+		}
+	}
+
+	R2D_Flush = CSQC_PolyFlush;
+	csqc_poly_shader = shader;
+	csqc_poly_flags = beflags;
+	csqc_poly_2d = twod;
+
+	//hacky crappy solution - make a copy of each used vert rather than copying the entire data out.
+
+	if (cl_numstrisidx+numindexes > cl_maxstrisidx)
+	{
+		cl_maxstrisidx=cl_numstrisidx+numindexes;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+	if (cl_numstrisvert+numindexes > cl_maxstrisvert)
+	{
+		cl_maxstrisvert=cl_numstrisvert+numindexes;
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+	}
+	for (i = 0; i < numindexes; i++)
+	{
+		j = *idx++;
+		if (j >= numverts)
+			j = 0;	//out of bounds.
+
+		VectorCopy(vert[j].xyz, cl_strisvertv[cl_numstrisvert]);
+		Vector2Copy(vert[j].st, cl_strisvertt[cl_numstrisvert]);
+		Vector4Copy(vert[j].rgba, cl_strisvertc[cl_numstrisvert]);
+		cl_numstrisvert++;
+
+		cl_strisidx[cl_numstrisidx++] = first++;
+	}
+
+	//this is where our current poly starts, so verts+end can still work properly afterwards.
 	csqc_poly_startvert = cl_numstrisvert;
 	csqc_poly_startidx = cl_numstrisidx;
 }
@@ -1709,7 +1857,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	case VF_VIEWENTITY:
 		//switches over EXTERNALMODEL flags and clears WEAPONMODEL flagged entities.
 		//FIXME: make affect addentities(MASK_ENGINE) calls too.
-		CL_EditExternalModels(*p, NULL, 0);
+		V_EditExternalModels(*p, NULL, 0);
 		break;
 	case VF_FOV:
 		//explicit fov overrides aproximate fov
@@ -1875,6 +2023,11 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		BE_RenderToTextureUpdate2d(false);
 		break;
 
+	case VF_ENVMAP:
+		Q_strncpyz(r_refdef.nearenvmap.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_sourcecolour));
+		BE_RenderToTextureUpdate2d(false);
+		break;
+
 	default:
 		Con_DPrintf("SetViewFlag: %i not recognised\n", parametertype);
 		G_FLOAT(OFS_RETURN) = 0;
@@ -1945,6 +2098,19 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 		else
 			SCR_TileClear (0);
 #endif
+
+		if (!Key_Dest_Has(kdm_emenu|kdm_gmenu|kdm_cwindows))
+		{
+			if (cl.intermissionmode == IM_NQFINALE || cl.intermissionmode == IM_NQCUTSCENE || cl.intermissionmode == IM_H2FINALE)
+			{
+				SCR_CheckDrawCenterString ();
+			}
+			else if (cl.intermissionmode != IM_NONE)
+			{
+				Sbar_IntermissionOverlay ();
+			}
+		}
+
 		SCR_ShowPics_Draw();
 	}
 
@@ -2087,12 +2253,16 @@ static void cs_settracevars(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	VectorCopy (tr->endpos, csqcg.trace_endpos);
 	VectorCopy (tr->plane.normal, csqcg.trace_plane_normal);
 	*csqcg.trace_plane_dist =  tr->plane.dist;
-	if (csqcg.trace_surfaceflags)
-		*csqcg.trace_surfaceflags = tr->surface?tr->surface->flags:0;
+	if (csqcg.trace_surfaceflagsf)
+		*csqcg.trace_surfaceflagsf = tr->surface?tr->surface->flags:0;
+	if (csqcg.trace_surfaceflagsi)
+		*csqcg.trace_surfaceflagsi = tr->surface?tr->surface->flags:0;
 	if (csqcg.trace_surfacename)
 		prinst->SetStringField(prinst, NULL, csqcg.trace_surfacename, tr->surface?tr->surface->name:NULL, true);
 	if (csqcg.trace_endcontents)
 		*csqcg.trace_endcontents = tr->contents;
+	if (csqcg.trace_endcontentsi)
+		*csqcg.trace_endcontentsi = tr->contents;
 	if (csqcg.trace_brush_id)
 		*csqcg.trace_brush_id = tr->brush_id;
 	if (csqcg.trace_brush_faceid)
@@ -2109,7 +2279,6 @@ static void QCBUILTIN PF_cs_traceline(pubprogfuncs_t *prinst, struct globalvars_
 	trace_t	trace;
 	int		nomonsters;
 	csqcedict_t	*ent;
-	int savedhull;
 
 	v1 = G_VECTOR(OFS_PARM0);
 	v2 = G_VECTOR(OFS_PARM1);
@@ -2127,10 +2296,7 @@ static void QCBUILTIN PF_cs_traceline(pubprogfuncs_t *prinst, struct globalvars_
 		maxs = vec3_origin;
 	}
 
-	savedhull = ent->xv->hull;
-	ent->xv->hull = 0;
-	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
-	ent->xv->hull = savedhull;
+	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
 	cs_settracevars(prinst, pr_globals, &trace);
 }
@@ -2140,7 +2306,6 @@ static void QCBUILTIN PF_cs_tracebox(pubprogfuncs_t *prinst, struct globalvars_s
 	trace_t	trace;
 	int		nomonsters;
 	csqcedict_t	*ent;
-	int savedhull;
 
 	v1 = G_VECTOR(OFS_PARM0);
 	mins = G_VECTOR(OFS_PARM1);
@@ -2149,10 +2314,7 @@ static void QCBUILTIN PF_cs_tracebox(pubprogfuncs_t *prinst, struct globalvars_s
 	nomonsters = G_FLOAT(OFS_PARM4);
 	ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM5);
 
-	savedhull = ent->xv->hull;
-	ent->xv->hull = 0;
-	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
-	ent->xv->hull = savedhull;
+	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
 	cs_settracevars(prinst, pr_globals, &trace);
 }
@@ -2160,7 +2322,6 @@ static void QCBUILTIN PF_cs_tracebox(pubprogfuncs_t *prinst, struct globalvars_s
 static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
 {
 	int i;
-	int savedhull;
 	float gravity;
 	vec3_t move, end;
 	trace_t trace;
@@ -2179,14 +2340,12 @@ static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
 
 	CS_CheckVelocity (tossent);
 
-	savedhull = tossent->xv->hull;
-	tossent->xv->hull = 0;
 	for (i = 0;i < 200;i++) // LordHavoc: sanity check; never trace more than 10 seconds
 	{
 		velocity[2] -= gravity;
 		VectorScale (velocity, 0.05, move);
 		VectorAdd (origin, move, end);
-		trace = World_Move (&csqc_world, origin, tossent->v->mins, tossent->v->maxs, end, MOVE_NORMAL, (wedict_t*)tossent);
+		trace = World_Move (&csqc_world, origin, tossent->v->mins, tossent->v->maxs, end, MOVE_NORMAL|MOVE_IGNOREHULL, (wedict_t*)tossent);
 		VectorCopy (trace.endpos, origin);
 
 		CS_CheckVelocity (tossent);
@@ -2194,7 +2353,6 @@ static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
 		if (trace.fraction < 1 && trace.ent && (void*)trace.ent != ignore)
 			break;
 	}
-	tossent->xv->hull = savedhull;
 
 	trace.fraction = 0; // not relevant
 	return trace;
@@ -2675,6 +2833,7 @@ static void QCBUILTIN PF_cs_particleeffectnum (pubprogfuncs_t *prinst, struct gl
 			return;
 		}
 	}
+
 	//then look for an existing client id
 	for (i = 1; i < MAX_CSPARTICLESPRE && cl.particle_csname[i]; i++)
 	{
@@ -2687,6 +2846,7 @@ static void QCBUILTIN PF_cs_particleeffectnum (pubprogfuncs_t *prinst, struct gl
 			return;
 		}
 	}
+	//create if new
 	if (i < MAX_CSPARTICLESPRE)
 	{
 		free(cl.particle_csname[i]);
@@ -2700,9 +2860,6 @@ static void QCBUILTIN PF_cs_particleeffectnum (pubprogfuncs_t *prinst, struct gl
 		}
 		cl.particle_csprecaches = true;
 	}
-
-	//if we're using dp network protocols, we should use the effectinfo.txt file as a lookup table instead.
-	//G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(effectname);
 }
 
 static void QCBUILTIN PF_cs_particleeffectquery (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3155,7 +3312,7 @@ static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars
 	else
 	{
 #ifndef CLIENTONLY
-		if (cls.state < ca_onserver)
+		if (sv.state >= ss_loading)
 		{
 			ret = Info_ValueForKey(svs.info, keyname);
 			if (!*ret)
@@ -3337,7 +3494,7 @@ void QCBUILTIN PF_soundupdate (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		VectorMA(org, 0.5, entity->v->maxs, org);
 	}
 
-	G_FLOAT(OFS_RETURN) = S_UpdateSound(-entity->entnum, channel, sfx, org, volume, attenuation, startoffset, pitchpct, flags);
+	G_FLOAT(OFS_RETURN) = S_UpdateSound(-entity->entnum, channel, sfx, org, entity->v->velocity, volume, attenuation, startoffset, pitchpct, flags);
 }
 void QCBUILTIN PF_stopsound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3386,7 +3543,7 @@ static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *p
 	}
 
 	if (sfx)
-		S_StartSound(-entity->entnum, channel, sfx, org, volume, attenuation, startoffset, pitchpct, flags);
+		S_StartSound(-entity->entnum, channel, sfx, org, entity->v->velocity, volume, attenuation, startoffset, pitchpct, flags);
 };
 
 static void QCBUILTIN PF_cs_pointsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3410,7 +3567,7 @@ static void QCBUILTIN PF_cs_pointsound(pubprogfuncs_t *prinst, struct globalvars
 
 	sfx = S_PrecacheSound(sample);
 	if (sfx)
-		S_StartSound(0, 0, sfx, origin, volume, attenuation, 0, pitchpct, 0);
+		S_StartSound(0, 0, sfx, origin, NULL, volume, attenuation, 0, pitchpct, 0);
 }
 
 static void QCBUILTIN PF_cs_particle(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3484,7 +3641,7 @@ void QCBUILTIN PF_cl_effect(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	mdl = Mod_ForName(name, MLV_WARN);
 	if (mdl)
-		CL_SpawnSpriteEffect(org, NULL, NULL, mdl, startframe, endframe, framerate, mdl->type==mod_sprite?-1:1, 0, 0, P_INVALID, 0, 0);
+		CL_SpawnSpriteEffect(org, NULL, NULL, mdl, startframe, endframe, framerate, mdl->type==mod_sprite?-1:1, 1, 0, 0, P_INVALID, 0, 0);
 	else
 		Con_Printf("PF_cl_effect: Couldn't load model %s\n", name);
 }
@@ -3685,14 +3842,14 @@ static void QCBUILTIN PF_cl_te_explosion (pubprogfuncs_t *prinst, struct globalv
 
 	Surf_AddStain(pos, -1, -1, -1, 100);
 
-	S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
+	S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_tarexplosion (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	P_RunParticleEffectType(pos, NULL, 1, pt_tarexplosion);
 
-	S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
+	S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_wizspike (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3700,7 +3857,7 @@ static void QCBUILTIN PF_cl_te_wizspike (pubprogfuncs_t *prinst, struct globalva
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
 		P_RunParticleEffect (pos, vec3_origin, 20, 30);
 
-	S_StartSound (0, 0, cl_sfx_knighthit, pos, 1, 1, 0, 0, 0);
+	S_StartSound (0, 0, cl_sfx_knighthit, pos, NULL, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_knightspike (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3708,7 +3865,7 @@ static void QCBUILTIN PF_cl_te_knightspike (pubprogfuncs_t *prinst, struct globa
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
 		P_RunParticleEffect (pos, vec3_origin, 226, 20);
 
-	S_StartSound (0, 0, cl_sfx_knighthit, pos, 1, 1, 0, 0, 0);
+	S_StartSound (0, 0, cl_sfx_knighthit, pos, NULL, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_lavasplash (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3771,7 +3928,7 @@ static void QCBUILTIN PF_cl_te_explosionquad (pubprogfuncs_t *prinst, struct glo
 		dl->channelfade[2] = 0.12;
 	}
 
-	S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
+	S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 }
 
 //void(vector org, float radius, float lifetime, vector color) te_customflash
@@ -3851,7 +4008,7 @@ static void QCBUILTIN PF_cl_te_explosion2 (pubprogfuncs_t *prinst, struct global
 		dl->die = cl.time + 0.5;
 		dl->decay = 300;
 	}
-	S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
+	S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_lightning1 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3921,7 +4078,7 @@ static void QCBUILTIN PF_cl_te_explosionrgb (pubprogfuncs_t *prinst, struct glob
 		dl->channelfade[2] = 0;
 	}
 
-	S_StartSound (0, 0, cl_sfx_r_exp3, org, 1, 1, 0, 0, 0);
+	S_StartSound (0, 0, cl_sfx_r_exp3, org, NULL, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_particlerain (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4047,8 +4204,13 @@ static void QCBUILTIN PF_cs_droptofloor (pubprogfuncs_t *prinst, struct globalva
 static void QCBUILTIN PF_cl_getlight (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	vec3_t ambient, diffuse, dir;
-	cl.worldmodel->funcs.LightPointValues(cl.worldmodel, G_VECTOR(OFS_PARM0), ambient, diffuse, dir);
-	VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
+	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED || !cl.worldmodel->funcs.LightPointValues)
+		VectorSet(G_VECTOR(OFS_RETURN), 0, 0, 0);
+	else
+	{
+		cl.worldmodel->funcs.LightPointValues(cl.worldmodel, G_VECTOR(OFS_PARM0), ambient, diffuse, dir);
+		VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
+	}
 }
 
 /*
@@ -4197,17 +4359,40 @@ static void QCBUILTIN PF_cs_setlistener (pubprogfuncs_t *prinst, struct globalva
 	float *forward = G_VECTOR(OFS_PARM1);
 	float *right = G_VECTOR(OFS_PARM2);
 	float *up = G_VECTOR(OFS_PARM3);
-	int inwater = (prinst->callargc>4)?G_FLOAT(OFS_PARM4):false;
+	size_t reverbtype = (prinst->callargc>4)?G_FLOAT(OFS_PARM4):0;
+	float *velocity = (prinst->callargc>5)?G_VECTOR(OFS_PARM5):NULL;
 
 	int i = (csqc_playerseat>=0)?csqc_playerseat:0;
 
 	cl.playerview[i].audio.defaulted = false;
-//	r_refdef.audio.entity = 0;
+	cl.playerview[i].audio.entnum = csqcg.player_localentnum?*csqcg.player_localentnum:cl.playerview[i].viewentity;
 	VectorCopy(origin, cl.playerview[i].audio.origin);
 	VectorCopy(forward, cl.playerview[i].audio.forward);
 	VectorCopy(right, cl.playerview[i].audio.right);
 	VectorCopy(up, cl.playerview[i].audio.up);
-	cl.playerview[i].audio.inwater = inwater;
+	cl.playerview[i].audio.reverbtype = reverbtype;
+	if (velocity)
+		VectorCopy(velocity, cl.playerview[i].audio.velocity);
+	else
+		VectorClear(cl.playerview[i].audio.velocity);
+}
+static void QCBUILTIN PF_cs_setupreverb (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int reverbslot = G_FLOAT(OFS_PARM0);
+	int qcptr = G_INT(OFS_PARM1);
+	int size = G_INT(OFS_PARM2);
+	struct reverbproperties_s *ptr;
+
+	//validates the pointer.
+	if (qcptr < 0 || qcptr+size >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_cs_setupreverb: invalid reverb pointer\n");
+		return;
+	}
+	ptr = (struct reverbproperties_s*)(prinst->stringtable + qcptr);
+
+	//let the sound system do its thing.
+	S_UpdateReverb(reverbslot, ptr, size);
 }
 
 #define RSES_NOLERP 1
@@ -4217,12 +4402,17 @@ static void QCBUILTIN PF_cs_setlistener (pubprogfuncs_t *prinst, struct globalva
 
 static void CSQC_LerpStateToCSQC(lerpents_t *le, csqcedict_t *ent, qboolean nolerp)
 {
-	ent->v->frame = le->newframe;
-	ent->xv->frame1time = max(0, cl.servertime - le->newframestarttime);
-	ent->xv->frame2 = le->oldframe;
-	ent->xv->frame2time = max(0, cl.servertime - le->oldframestarttime);
+	ent->v->frame = le->newframe[FS_REG];
+	ent->xv->frame1time = max(0, cl.servertime - le->newframestarttime[FS_REG]);
+	ent->xv->frame2 = le->oldframe[FS_REG];
+	ent->xv->frame2time = max(0, cl.servertime - le->oldframestarttime[FS_REG]);
+	ent->xv->lerpfrac = bound(0, 1-(ent->xv->frame1time) / le->framelerpdeltatime[FS_REG], 1);
 
-	ent->xv->lerpfrac = bound(0, 1-(ent->xv->frame1time) / le->framelerpdeltatime, 1);
+	ent->xv->baseframe = le->newframe[FST_BASE];
+	ent->xv->baseframe1time = max(0, cl.servertime - le->newframestarttime[FST_BASE]);
+	ent->xv->baseframe2 = le->oldframe[FST_BASE];
+	ent->xv->baseframe2time = max(0, cl.servertime - le->oldframestarttime[FST_BASE]);
+	ent->xv->baselerpfrac = bound(0, 1-(ent->xv->baseframe1time) / le->framelerpdeltatime[FST_BASE], 1);
 
 
 	if (nolerp)
@@ -4303,21 +4493,16 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 	ent->xv->tag_entity = src->tagentity;
 	ent->xv->tag_index = src->tagindex;
 
-	if (src->solid == ES_SOLID_BSP)
+	if (src->solidsize == ES_SOLID_BSP)
 	{
 		ent->v->solid = SOLID_BSP;
 		VectorCopy(model->mins, ent->v->mins);
 		VectorCopy(model->maxs, ent->v->maxs);
 	}
-	else if (src->solid)
+	else if (src->solidsize)
 	{
 		ent->v->solid = SOLID_BBOX;
-		ent->v->mins[0] = -8*(src->solid & 31);
-		ent->v->maxs[0] = 8*(src->solid & 31);
-		ent->v->mins[1] = ent->v->mins[0];
-		ent->v->maxs[1] = ent->v->maxs[0];
-		ent->v->mins[2] = -8*((src->solid>>5) & 31);
-		ent->v->maxs[2] = 8*((src->solid>>10) & 63) - 32;
+		COM_DecodeSize(src->solidsize, ent->v->mins, ent->v->maxs);
 	}
 	else
 		ent->v->solid = SOLID_NOT;
@@ -4346,7 +4531,7 @@ void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 	ent->v->skin = srcp->skinnum;
 
 	CSQC_LerpStateToCSQC(&cl.lerpplayers[pnum], ent, true);
-	ent->xv->lerpfrac = 1-(ent->xv->frame1time) / cl.lerpplayers[pnum].framelerpdeltatime;
+	ent->xv->lerpfrac = 1-(ent->xv->frame1time) / cl.lerpplayers[pnum].framelerpdeltatime[FS_REG];
 	ent->xv->lerpfrac = bound(0, ent->xv->lerpfrac, 1);
 
 
@@ -4621,24 +4806,31 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 		G_FLOAT(OFS_RETURN) = es->skinnum;
 		break;
 	case GE_MINS:
-		G_FLOAT(OFS_RETURN+0) = -(int)(es->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = -(int)(es->solid & 31);
-		G_FLOAT(OFS_RETURN+2) = -(int)((es->solid>>5) & 31);
+		{
+			vec3_t maxs;
+			COM_DecodeSize(es->solidsize, G_VECTOR(OFS_RETURN), maxs);
+		}
 		break;
 	case GE_MAXS:
-		G_FLOAT(OFS_RETURN+0) = (es->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = (es->solid & 31);
-		G_FLOAT(OFS_RETURN+2) = ((es->solid>>10) & 63) - 32;
+		{
+			vec3_t mins;
+			COM_DecodeSize(es->solidsize, mins, G_VECTOR(OFS_RETURN));
+		}
 		break;
+
 	case GE_ABSMIN:
-		G_FLOAT(OFS_RETURN+0) = le->origin[0] + -(int)(es->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = le->origin[1] + -(int)(es->solid & 31);
-		G_FLOAT(OFS_RETURN+2) = le->origin[2] + -(int)((es->solid>>5) & 31);
+		{
+			vec3_t maxs;
+			COM_DecodeSize(es->solidsize, G_VECTOR(OFS_RETURN), maxs);
+			VectorAdd(G_VECTOR(OFS_RETURN), le->origin, G_VECTOR(OFS_RETURN));
+		}
 		break;
 	case GE_ABSMAX:
-		G_FLOAT(OFS_RETURN+0) = le->origin[0] + (es->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = le->origin[1] + (es->solid & 31);
-		G_FLOAT(OFS_RETURN+2) = le->origin[2] + ((es->solid>>10) & 63) - 32;
+		{
+			vec3_t mins;
+			COM_DecodeSize(es->solidsize, mins, G_VECTOR(OFS_RETURN));
+			VectorAdd(G_VECTOR(OFS_RETURN), le->origin, G_VECTOR(OFS_RETURN));
+		}
 		break;
 	case GE_ORIGINANDVECTORS:
 		VectorCopy(le->origin, G_VECTOR(OFS_RETURN));
@@ -5251,6 +5443,8 @@ static struct {
 	{"fclose",					PF_fclose,	111},				// #111 void(float fnum) fclose (FRIK_FILE)
 	{"fgets",					PF_fgets,	112},				// #112 string(float fnum) fgets (FRIK_FILE)
 	{"fputs",					PF_fputs,	113},				// #113 void(float fnum, string str) fputs (FRIK_FILE)
+	{"fread",					PF_fread,	0},
+	{"fwrite",					PF_fwrite,	0},
 	{"strlen",					PF_strlen,	114},				// #114 float(string str) strlen (FRIK_FILE)
 
 	{"strcat",					PF_strcat,		115},			// #115 string(string str1, string str2, ...) strcat (FRIK_FILE)
@@ -5258,6 +5452,8 @@ static struct {
 	{"stov",					PF_stov,		117},			// #117 vector(string str) stov (FRIK_FILE)
 	{"strzone",					PF_strzone,		118},			// #118 string(string str) dupstring (FRIK_FILE)
 	{"strunzone",				PF_strunzone,	119},			// #119 void(string str) freestring (FRIK_FILE)
+
+	{"localsound",				PF_cl_localsound,	177},
 
 //200
 	{"getmodelindex",			PF_cs_PrecacheModel,	200},
@@ -5396,6 +5592,7 @@ static struct {
 	{"R_BeginPolygon",			PF_R_PolygonBegin,	306},				// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
 	{"R_PolygonVertex",			PF_R_PolygonVertex,	307},				// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
 	{"R_EndPolygon",			PF_R_PolygonEnd,	308},				// #308 void() R_EndPolygon (EXT_CSQC_???)
+	{"addtrisoup_1",			PF_R_AddTrisoup,	0},
 
 	{"getproperty",				PF_R_GetViewFlag,	309},				// #309 vector/float(float property) getproperty (EXT_CSQC_1)
 
@@ -5409,9 +5606,11 @@ static struct {
 
 //2d (immediate) operations
 	{"drawtextfield",			PF_CL_DrawTextField,  0/*314*/},
-	{"drawline",				PF_CL_drawline,			315},			// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
+	{"drawline",				PF_CL_drawline,				315},			// #315 void(float width, vector pos1, vector pos2) drawline (EXT_CSQC)
 	{"iscachedpic",				PF_CL_is_cached_pic,		316},		// #316 float(string name) iscachedpic (EXT_CSQC)
 	{"precache_pic",			PF_CL_precache_pic,			317},		// #317 string(string name, float trywad) precache_pic (EXT_CSQC)
+	{"r_uploadimage",			PF_CL_uploadimage,			0},
+	{"r_readimage",				PF_CL_readimage,			0},
 	{"drawgetimagesize",		PF_CL_drawgetimagesize,		318},		// #318 vector(string picname) draw_getimagesize (EXT_CSQC)
 	{"freepic",					PF_CL_free_pic,				319},		// #319 void(string name) freepic (EXT_CSQC)
 //320
@@ -5466,6 +5665,7 @@ static struct {
 	{"isserver",				PF_cl_runningserver,			350},	// #350 float() isserver (EXT_CSQC)
 
 	{"SetListener",				PF_cs_setlistener, 				351},	// #351 void(vector origin, vector forward, vector right, vector up) SetListener (EXT_CSQC)
+	{"setup_reverb",			PF_cs_setupreverb, 				0},
 	{"registercommand",			PF_cs_registercommand,			352},	// #352 void(string cmdname) registercommand (EXT_CSQC)
 	{"wasfreed",				PF_WasFreed,					353},	// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
 
@@ -5512,6 +5712,8 @@ static struct {
 	{"con_printf",				PF_SubConPrintf,			392},
 	{"con_draw",				PF_SubConDraw,				393},
 	{"con_input",				PF_SubConInput,				394},
+
+	{"setwindowcaption",		PF_cl_setwindowcaption,		0},
 
 	{"cvars_haveunsaved",		PF_cvars_haveunsaved,		0},
 	{"entityprotection",		PF_entityprotection,		0},
@@ -5649,14 +5851,19 @@ static struct {
 
 #ifndef NOMEDIA
 //DP_GECKO_SUPPORT
-	{"gecko_create",			PF_cs_media_create_http,	487},	// #487 float(string name) gecko_create( string name )
-	{"gecko_destroy",			PF_cs_media_destroy,		488},	// #488 void(string name) gecko_destroy( string name )
-	{"gecko_navigate",			PF_cs_media_command,		489},	// #489 void(string name) gecko_navigate( string name, string URI )
-	{"gecko_keyevent",			PF_cs_media_keyevent,		490},	// #490 float(string name) gecko_keyevent( string name, float key, float eventtype )
-	{"gecko_mousemove",			PF_cs_media_mousemove,		491},	// #491 void gecko_mousemove( string name, float x, float y )
-	{"gecko_resize",			PF_cs_media_resize,			492},	// #492 void gecko_resize( string name, float w, float h )
-	{"gecko_get_texture_extent",PF_cs_media_get_texture_extent,	493},	// #493 vector gecko_get_texture_extent( string name )
-	{"media_getposition",		PF_cs_media_getposition},
+	{"gecko_create",			PF_cs_media_create,				487},	// #487 float(string name)
+	{"gecko_destroy",			PF_cs_media_destroy,			488},	// #488 void(string name)
+	{"gecko_navigate",			PF_cs_media_command,			489},	// #489 void(string name, string URI)
+	{"gecko_keyevent",			PF_cs_media_keyevent,			490},	// #490 float(string name, float key, float eventtype)
+	{"gecko_mousemove",			PF_cs_media_mousemove,			491},	// #491 void(string name, float x, float y)
+	{"gecko_resize",			PF_cs_media_resize,				492},	// #492 void(string name, float w, float h)
+	{"gecko_get_texture_extent",PF_cs_media_get_texture_extent,	493},	// #493 vector(string name)
+	{"gecko_getproperty",		PF_cs_media_getproperty},
+	{"cin_open",				PF_cs_media_create},
+	{"cin_close",				PF_cs_media_destroy},
+	{"cin_setstate",			PF_cs_media_setstate},
+	{"cin_getstate",			PF_cs_media_getstate},
+	{"cin_restart",				PF_cs_media_restart},
 #endif
 
 //DP_QC_CRC16
@@ -5741,6 +5948,7 @@ static struct {
 	{"gethostcachevalue",		PF_cl_gethostcachevalue,	611},
 	{"gethostcachestring",		PF_cl_gethostcachestring,	612},
 	{"parseentitydata",			PF_parseentitydata,			613},
+	{"generateentitydata",		PF_generateentitydata,		0},
 	{"stringtokeynum_menu",		PF_cl_stringtokeynum,		614},
 
 	{"resethostcachemasks",		PF_cl_resethostcachemasks,	615},
@@ -5822,7 +6030,7 @@ static progparms_t csqcprogparms;
 
 
 //Any menu builtin error or anything like that will come here.
-void VARGS CSQC_Abort (char *format, ...)	//an error occured.
+static void VARGS CSQC_Abort (char *format, ...)	//an error occured.
 {
 	va_list		argptr;
 	char		string[1024];
@@ -5845,7 +6053,7 @@ void VARGS CSQC_Abort (char *format, ...)	//an error occured.
 	Host_EndGame("csqc error");
 }
 
-void CSQC_ForgetThreads(void)
+static void CSQC_ForgetThreads(void)
 {
 	csqctreadstate_t *state = csqcthreads, *next;
 	csqcthreads = NULL;
@@ -5860,7 +6068,7 @@ void CSQC_ForgetThreads(void)
 	}
 }
 
-void PDECL CSQC_EntSpawn (struct edict_s *e, int loading)
+static void PDECL CSQC_EntSpawn (struct edict_s *e, int loading)
 {
 	struct csqcedict_s *ent = (csqcedict_t*)e;
 #ifdef VM_Q1
@@ -5878,7 +6086,7 @@ void PDECL CSQC_EntSpawn (struct edict_s *e, int loading)
 	}
 }
 
-pbool QDECL CSQC_EntFree (struct edict_s *e)
+static pbool QDECL CSQC_EntFree (struct edict_s *e)
 {
 	struct csqcedict_s *ent = (csqcedict_t*)e;
 	ent->v->solid = SOLID_NOT;
@@ -5905,7 +6113,7 @@ pbool QDECL CSQC_EntFree (struct edict_s *e)
 	return true;
 }
 
-void CSQC_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
+static void QDECL CSQC_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
 {
 	int oself = *csqcg.self;
 	int oother = *csqcg.other;
@@ -5920,7 +6128,7 @@ void CSQC_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
 	*csqcg.other = oother;
 }
 
-void CSQC_Event_Think(world_t *w, wedict_t *s)
+static void QDECL CSQC_Event_Think(world_t *w, wedict_t *s)
 {
 	*csqcg.self = EDICT_TO_PROG(w->progs, (edict_t*)s);
 	*csqcg.other = EDICT_TO_PROG(w->progs, (edict_t*)w->edicts);
@@ -5932,7 +6140,7 @@ void CSQC_Event_Think(world_t *w, wedict_t *s)
 		PR_ExecuteProgram (w->progs, s->v->think);
 }
 
-void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeoffset, unsigned int flags)
+static void QDECL CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeoffset, unsigned int flags)
 {
 	int i;
 	vec3_t originbuf;
@@ -5948,10 +6156,10 @@ void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char
 			origin = wentity->v->origin;
 	}
 
-	S_StartSound(NUM_FOR_EDICT(csqcprogs, (edict_t*)wentity), channel, S_PrecacheSound(sample), origin, volume/255.0, attenuation, timeoffset, pitchadj, flags);
+	S_StartSound(NUM_FOR_EDICT(csqcprogs, (edict_t*)wentity), channel, S_PrecacheSound(sample), origin, NULL, volume/255.0, attenuation, timeoffset, pitchadj, flags);
 }
 
-qboolean CSQC_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
+static qboolean QDECL CSQC_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
 {
 	if (ent->xv->contentstransition)
 	{
@@ -5966,11 +6174,11 @@ qboolean CSQC_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwaterty
 	return false;	//do legacy behaviour
 }
 
-model_t *CSQC_World_ModelForIndex(world_t *w, int modelindex)
+static model_t *QDECL CSQC_World_ModelForIndex(world_t *w, int modelindex)
 {
 	return CSQC_GetModelForIndex(modelindex);
 }
-void CSQC_World_GetFrameState(world_t *w, wedict_t *win, framestate_t *out)
+static void QDECL CSQC_World_GetFrameState(world_t *w, wedict_t *win, framestate_t *out)
 {
 	csqcedict_t *in = (csqcedict_t *)win;
 	cs_getframestate(in, in->xv->renderflags, out);
@@ -6018,6 +6226,7 @@ void CSQC_Shutdown(void)
 
 	in_sensitivityscale = 1;
 	csqc_world.num_edicts = 0;
+	memset(&csqc_world, 0, sizeof(csqc_world));
 
 	if (csqc_deprecated_warned>1)
 	{
@@ -6177,13 +6386,91 @@ void ASMCALL CSQC_StateOp(pubprogfuncs_t *prinst, float var, func_t func)
 	vars->think = func;
 	vars->frame = var;
 }
-void ASMCALL CSQC_CStateOp(pubprogfuncs_t *progs, float min, float max, func_t func)
+void ASMCALL CSQC_CStateOp(pubprogfuncs_t *progs, float first, float last, func_t currentfunc)
 {
-	Con_Printf("CSQC_CStateOp: not implemented\n");
+	float min, max;
+	float step;
+	world_t *w = progs->parms->user;
+	wedict_t *e = PROG_TO_WEDICT(progs, *w->g.self);
+	float frame = e->v->frame;
+
+//	if (progstype == PROG_H2)
+//		e->v->nextthink = *w->g.time+0.05;
+//	else
+		e->v->nextthink = *w->g.time+0.1;
+	e->v->think = currentfunc;
+
+	if (csqcg.cycle_wrapped)
+		*csqcg.cycle_wrapped = false;
+
+	if (first > last)
+	{	//going backwards
+		min = last;
+		max = first;
+		step = -1.0;
+	}
+	else
+	{	//forwards
+		min = first;
+		max = last;
+		step = 1.0;
+	}
+	if (frame < min || frame > max)
+		frame = first;	//started out of range, must have been a different animation
+	else
+	{
+		frame += step;
+		if (frame < min || frame > max)
+		{	//became out of range, must have wrapped
+			if (csqcg.cycle_wrapped)
+				*csqcg.cycle_wrapped = true;
+			frame = first;
+		}
+	}
+	e->v->frame = frame;
 }
-void ASMCALL CSQC_CWStateOp(pubprogfuncs_t *progs, float min, float max, func_t func)
+static void ASMCALL CSQC_CWStateOp (pubprogfuncs_t *prinst, float first, float last, func_t currentfunc)
 {
-	Con_Printf("CSQC_CWStateOp: not implemented\n");
+	float min, max;
+	float step;
+	world_t *w = prinst->parms->user;
+	wedict_t *e = PROG_TO_WEDICT(prinst, *w->g.self);
+	float frame = e->v->weaponframe;
+
+//	if (progstype == PROG_H2)
+//		e->v->nextthink = *w->g.time+0.05;
+//	else
+		e->v->nextthink = *w->g.time+0.1;
+	e->v->think = currentfunc;
+
+	if (csqcg.cycle_wrapped)
+		*csqcg.cycle_wrapped = false;
+
+	if (first > last)
+	{	//going backwards
+		min = last;
+		max = first;
+		step = -1.0;
+	}
+	else
+	{	//forwards
+		min = first;
+		max = last;
+		step = 1.0;
+	}
+	if (frame < min || frame > max)
+		frame = first;	//started out of range, must have been a different animation
+	else
+	{
+		frame += step;
+		if (frame < min || frame > max)
+		{	//became out of range, must have wrapped
+			if (csqcg.cycle_wrapped)
+				*csqcg.cycle_wrapped = true;
+			frame = first;
+		}
+	}
+	e->v->weaponframe = frame;
 }
 void ASMCALL CSQC_ThinkTimeOp(pubprogfuncs_t *progs, edict_t *ed, float var)
 {
@@ -6398,7 +6685,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 
 		//world edict becomes readonly
 		worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
-		worldent->isfree = false;
+		worldent->ereftype = ER_ENTITY;
 
 		for (i = 0; i < csqcprogs->numprogs; i++)
 		{
@@ -6412,7 +6699,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		}
 
 		/*DP compat*/
-		str = (string_t*)csqcprogs->GetEdictFieldValue(csqcprogs, (edict_t*)worldent, "message", NULL);
+		str = (string_t*)csqcprogs->GetEdictFieldValue(csqcprogs, (edict_t*)worldent, "message", ev_string, NULL);
 		if (str)
 			*str = PR_NewString(csqcprogs, cl.levelname);
 
@@ -6728,7 +7015,6 @@ void CSQC_RegisterCvarsAndThings(void)
 	Cvar_Register(&cl_csqcdebug, CSQCPROGSGROUP);
 	Cvar_Register(&cl_nocsqc, CSQCPROGSGROUP);
 	Cvar_Register(&pr_csqc_coreonerror, CSQCPROGSGROUP);
-	Cvar_Register(&dpcompat_corruptglobals, "Darkplaces compatibility");
 }
 
 void CSQC_CvarChanged(cvar_t *var)
@@ -6748,7 +7034,6 @@ qboolean CSQC_UseGamecodeLoadingScreen(void)
 qboolean CSQC_SetupToRenderPortal(int entkeynum)
 {
 #ifdef TEXTEDITOR
-	extern qboolean editormodal;
 	if (editormodal)
 		return false;
 #endif
@@ -6945,9 +7230,6 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 {
 	static qbyte csqckeysdown[K_MAX];
 	void *pr_globals;
-#ifdef TEXTEDITOR
-	extern qboolean editormodal;
-#endif
 
 	if (!csqcprogs || !csqcg.input_event)
 		return false;
@@ -7450,7 +7732,7 @@ void CSQC_ParseEntities(void)
 			entnum &= ~0x8000;
 		}
 
-		if (!entnum || msg_badread)
+		if ((!entnum && !removeflag) || msg_badread)
 			break;
 
 		if (removeflag)

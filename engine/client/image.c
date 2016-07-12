@@ -15,6 +15,7 @@ texid_t GL_FindTextureFallback (const char *identifier, unsigned int flags, void
 #else
 cvar_t r_dodgytgafiles = CVARD("r_dodgytgafiles", "0", "Many old glquake engines had a buggy tga loader that ignored bottom-up flags. Naturally people worked around this and the world was plagued with buggy images. Most engines have now fixed the bug, but you can reenable it if you have bugged tga files.");
 cvar_t r_dodgypcxfiles = CVARD("r_dodgypcxfiles", "0", "When enabled, this will ignore the palette stored within pcx files, for compatibility with quake2.");
+cvar_t r_dodgymiptex = CVARD("r_dodgymiptex", "0", "When enabled, this will force regeneration of mipmaps, discarding mips1-4 like glquake did. This may eg solve fullbright issues with some maps, but may reduce distant detail levels.");
 
 char *r_defaultimageextensions =
 #ifdef IMAGEFMT_DDS
@@ -33,7 +34,8 @@ char *r_defaultimageextensions =
 #endif
 	;
 static void QDECL R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue);
-cvar_t r_imageexensions = CVARCD("r_imageexensions", NULL, R_ImageExtensions_Callback, "The list of image file extensions which fte should attempt to load.");
+cvar_t r_imageexensions				= CVARCD("r_imageexensions", NULL, R_ImageExtensions_Callback, "The list of image file extensions which fte should attempt to load.");
+cvar_t r_image_downloadsizelimit	= CVARFD("r_image_downloadsizelimit", "64000", CVAR_NOTFROMSERVER, "The maximum allowed file size of images loaded from a web-based url. 0 disables completely, while empty imposes no limit.");
 extern cvar_t gl_lerpimages;
 extern cvar_t gl_picmip2d;
 extern cvar_t gl_picmip;
@@ -700,12 +702,16 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 	#define png_const_infop png_infop
 	#define png_const_structp png_structp
 	#define png_const_bytep png_bytep
+	#define png_const_unknown_chunkp png_unknown_chunkp
 #endif
 #if PNG_LIBPNG_VER < 10600
+	#define png_inforp png_infop
 	#define png_const_inforp png_const_infop
+	#define png_structrp png_structp
+	#define png_const_structrp png_const_structp
 #endif
 
-void (PNGAPI *qpng_error) PNGARG((png_structp png_ptr, png_const_charp error_message)) PSTATIC(png_error);
+void (PNGAPI *qpng_error) PNGARG((png_const_structrp png_ptr, png_const_charp error_message)) PSTATIC(png_error);
 void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_end);
 void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
 png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_bit_depth);
@@ -725,29 +731,29 @@ void (PNGAPI *qpng_set_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(pn
 void (PNGAPI *qpng_set_bgr) PNGARG((png_structp png_ptr)) PSTATIC(png_set_bgr);
 void (PNGAPI *qpng_set_filler) PNGARG((png_structp png_ptr, png_uint_32 filler, int flags)) PSTATIC(png_set_filler);
 void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_palette_to_rgb);
-png_uint_32 (PNGAPI *qpng_get_IHDR) PNGARG((png_structp png_ptr, png_infop info_ptr, png_uint_32 *width, png_uint_32 *height,
+png_uint_32 (PNGAPI *qpng_get_IHDR) PNGARG((png_const_structrp png_ptr, png_const_inforp info_ptr, png_uint_32 *width, png_uint_32 *height,
 			int *bit_depth, int *color_type, int *interlace_method, int *compression_method, int *filter_method)) PSTATIC(png_get_IHDR);
 void (PNGAPI *qpng_read_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_info);
 void (PNGAPI *qpng_set_sig_bytes) PNGARG((png_structp png_ptr, int num_bytes)) PSTATIC(png_set_sig_bytes);
 void (PNGAPI *qpng_set_read_fn) PNGARG((png_structp png_ptr, png_voidp io_ptr, png_rw_ptr read_data_fn)) PSTATIC(png_set_read_fn);
 void (PNGAPI *qpng_destroy_read_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr, png_infopp end_info_ptr_ptr)) PSTATIC(png_destroy_read_struct);
-png_infop (PNGAPI *qpng_create_info_struct) PNGARG((png_structp png_ptr)) PSTATIC(png_create_info_struct);
+png_infop (PNGAPI *qpng_create_info_struct) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_create_info_struct);
 png_structp (PNGAPI *qpng_create_read_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_read_struct);
 int (PNGAPI *qpng_sig_cmp) PNGARG((png_const_bytep sig, png_size_t start, png_size_t num_to_check)) PSTATIC(png_sig_cmp);
 
-void (PNGAPI *qpng_write_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_write_end);
-void (PNGAPI *qpng_write_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_write_image);
-void (PNGAPI *qpng_write_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_write_info);
-void (PNGAPI *qpng_set_IHDR) PNGARG((png_structp png_ptr, png_infop info_ptr, png_uint_32 width, png_uint_32 height,
+void (PNGAPI *qpng_write_end) PNGARG((png_structrp png_ptr, png_inforp info_ptr)) PSTATIC(png_write_end);
+void (PNGAPI *qpng_write_image) PNGARG((png_structrp png_ptr, png_bytepp image)) PSTATIC(png_write_image);
+void (PNGAPI *qpng_write_info) PNGARG((png_structrp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_write_info);
+void (PNGAPI *qpng_set_IHDR) PNGARG((png_const_structrp png_ptr, png_infop info_ptr, png_uint_32 width, png_uint_32 height,
 			int bit_depth, int color_type, int interlace_method, int compression_method, int filter_method)) PSTATIC(png_set_IHDR);
-void (PNGAPI *qpng_set_compression_level) PNGARG((png_structp png_ptr, int level)) PSTATIC(png_set_compression_level);
+void (PNGAPI *qpng_set_compression_level) PNGARG((png_structrp png_ptr, int level)) PSTATIC(png_set_compression_level);
 void (PNGAPI *qpng_init_io) PNGARG((png_structp png_ptr, png_FILE_p fp)) PSTATIC(png_init_io);
-png_voidp (PNGAPI *qpng_get_io_ptr) PNGARG((png_structp png_ptr)) PSTATIC(png_get_io_ptr);
+png_voidp (PNGAPI *qpng_get_io_ptr) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_get_io_ptr);
 void (PNGAPI *qpng_destroy_write_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr)) PSTATIC(png_destroy_write_struct);
 png_structp (PNGAPI *qpng_create_write_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_write_struct);
-void (PNGAPI *qpng_set_unknown_chunks) PNGARG((png_structp png_ptr, png_infop info_ptr, png_unknown_chunkp unknowns, int num_unknowns)) PSTATIC(png_set_unknown_chunks);
+void (PNGAPI *qpng_set_unknown_chunks) PNGARG((png_const_structrp png_ptr, png_inforp info_ptr, png_const_unknown_chunkp unknowns, int num_unknowns)) PSTATIC(png_set_unknown_chunks);
 
-png_voidp (PNGAPI *qpng_get_error_ptr) PNGARG((png_structp png_ptr)) PSTATIC(png_get_error_ptr);
+png_voidp (PNGAPI *qpng_get_error_ptr) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_get_error_ptr);
 
 qboolean LibPNG_Init(void)
 {
@@ -2371,12 +2377,9 @@ void SaturateR8G8B8(qbyte *data, int size, float sat)
 
 void BoostGamma(qbyte *rgba, int width, int height)
 {
-#if defined(GLQUAKE)
+	//note: should not be used where hardware gamma is supported.
 	int i;
 	extern qbyte gammatable[256];
-
-	if (qrenderer != QR_OPENGL)
-		return;//don't brighten in SW.
 
 	for (i=0 ; i<width*height*4 ; i+=4)
 	{
@@ -2385,7 +2388,6 @@ void BoostGamma(qbyte *rgba, int width, int height)
 		rgba[i+2] = gammatable[rgba[i+2]];
 		//and not alpha
 	}
-#endif
 }
 
 
@@ -2428,13 +2430,6 @@ static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 	}
 	//FIXME: check loaded wad files too.
 }
-
-#ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
-#define GL_COMPRESSED_RGB_S3TC_DXT1_EXT                   0x83F0
-#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT                  0x83F1
-#define GL_COMPRESSED_RGBA_S3TC_DXT3_EXT                  0x83F2
-#define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT                  0x83F3
-#endif
 
 #ifdef IMAGEFMT_DDS
 typedef struct {
@@ -2546,9 +2541,12 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 	h = fmtheader.dwHeight;
 	for (mipnum = 0; mipnum < nummips; mipnum++)
 	{
+		if (nummips >= countof(mips->mip))
+			break;
+
 		if (datasize < pad)
 			datasize = pad;
-		datasize = max(divsize, w)/divsize * max(divsize, h)/divsize * blocksize;
+		datasize = ((w+divsize-1)/divsize) * ((h+divsize-1)/divsize) * blocksize;
 
 		mips->mip[mipnum].data = filedata;
 		mips->mip[mipnum].datasize = datasize;
@@ -2561,7 +2559,10 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 
 	mips->mipcount = mipnum;
 
-	COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
+	if (flags & IF_NOWORKER)
+		Image_LoadTextureMips(tex, mips, 0, 0);
+	else
+		COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
 	return true;
 }
 #endif
@@ -2737,7 +2738,7 @@ static qboolean Image_ReadBLPFile(texid_t tex, unsigned int flags, char *fname, 
 #endif
 
 //returns r8g8b8a8
-qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname)
+qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, const char *fname)
 {
 	qbyte *data;
 	if ((data = ReadTargaFile(buf, len, width, height, hasalpha, false)))
@@ -3458,6 +3459,20 @@ static void Image_8888toARGB4444(qbyte *in, unsigned short *out, unsigned int w,
 	}
 }
 
+//may operate in place
+static void Image_8_BGR_RGB_Swap(qbyte *data, unsigned int w, unsigned int h)
+{
+	unsigned int p = w*h;
+	qbyte tmp;
+	while(p-->0)
+	{
+		tmp = data[0];
+		data[0] = data[2];
+		data[2] = tmp;
+		data += 4;
+	}
+}
+
 static void Image_ChangeFormat(struct pendingtextureinfo *mips, uploadfmt_t origfmt)
 {
 	int mip;
@@ -3499,8 +3514,24 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, uploadfmt_t orig
 			return;
 	}
 
+	if ((mips->encoding == PTI_RGBX8 && sh_config.texfmt[PTI_BGRX8]) ||
+		(mips->encoding == PTI_BGRX8 && sh_config.texfmt[PTI_RGBX8]) ||
+		(mips->encoding == PTI_RGBA8 && sh_config.texfmt[PTI_BGRA8]) ||
+		(mips->encoding == PTI_BGRA8 && sh_config.texfmt[PTI_RGBA8]))
+	{
+		for (mip = 0; mip < mips->mipcount; mip++)
+			Image_8_BGR_RGB_Swap(mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height);
+		if (mips->encoding == PTI_RGBA8)
+			mips->encoding = PTI_BGRA8;
+		else if (mips->encoding == PTI_BGRA8)
+			mips->encoding = PTI_RGBA8;
+		else if (mips->encoding == PTI_RGBX8)
+			mips->encoding = PTI_BGRX8;
+		else// if (mips->encoding == PTI_BGRX8)
+			mips->encoding = PTI_RGBX8;
+	}
 	//should we just use 5551 always?
-	if (mips->encoding == PTI_RGBX8 || mips->encoding == PTI_BGRX8)
+	else if (mips->encoding == PTI_RGBX8 || mips->encoding == PTI_BGRX8)
 	{
 		/*if (0)
 		{	//prevent discolouration.
@@ -3616,7 +3647,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		//8bit opaque data
 		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 		flags |= IF_NOPICMIP;
-		if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
+		if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
 		{
 			unsigned int pixels =
 				(imgwidth>>0) * (imgheight>>0) + 
@@ -3654,8 +3685,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		//8bit opaque data
 		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 		flags |= IF_NOPICMIP;
-		if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && sh_config.texfmt[PTI_RGBX8])
-		{
+		if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && sh_config.texfmt[PTI_RGBX8])
+		{	//special hack required to preserve the hand-drawn lower mips.
 			unsigned int pixels =
 				(imgwidth>>0) * (imgheight>>0) + 
 				(imgwidth>>1) * (imgheight>>1) +
@@ -3822,7 +3853,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 			palettedata = (qbyte*)rawdata + pixels;
 			Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 			flags |= IF_NOPICMIP;
-			if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && sh_config.texfmt[PTI_RGBX8])
+			if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && sh_config.texfmt[PTI_RGBX8])
 			{
 				unsigned int pixels =
 					(imgwidth>>0) * (imgheight>>0) + 
@@ -4251,7 +4282,7 @@ static qboolean Image_LoadCubemapTexture(texid_t tex, char *nicename)
 	return true;
 }
 
-void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
+static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
 {
 	image_t *tex = ctx;
 	char fname[MAX_QPATH], iname[MAX_QPATH], nicename[MAX_QPATH];
@@ -4554,8 +4585,9 @@ image_t *Image_CreateTexture (const char *identifier, const char *subdir, unsign
 	return image;
 }
 
+#ifdef WEBCLIENT
 //called on main thread. oh well.
-void Image_Downloaded(struct dl_download *dl)
+static void Image_Downloaded(struct dl_download *dl)
 {
 	qboolean success = false;
 	image_t *tex = dl->user_ctx;
@@ -4579,6 +4611,7 @@ void Image_Downloaded(struct dl_download *dl)
 			Image_LoadTexture_Failed(tex, NULL, 0, 0);
 	}
 }
+#endif
 
 //find a texture. will try to load it from disk, using the fallback if it would fail.
 image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt)
@@ -4682,10 +4715,23 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 #ifdef WEBCLIENT
 		if (!strncmp(tex->ident, "http://", 7) || !strncmp(tex->ident, "https://", 8))
 		{
-			struct dl_download *dl = HTTP_CL_Get(tex->ident, NULL, Image_Downloaded);
-			dl->user_ctx = tex;
-			dl->file = VFSPIPE_Open();
-			dl->isquery = true;
+			struct dl_download *dl;
+			size_t sizelimit = max(0,r_image_downloadsizelimit.ival);
+			if (sizelimit>0 || !*r_image_downloadsizelimit.string)
+				dl = HTTP_CL_Get(tex->ident, NULL, Image_Downloaded);
+			else
+			{
+				Con_Printf("r_image_downloadsizelimit: image downloading is blocked\n");
+				dl = NULL;
+			}
+			if (dl)
+			{
+				if (sizelimit)
+					dl->sizelimit = sizelimit;
+				dl->user_ctx = tex;
+				dl->file = VFSPIPE_Open();
+				dl->isquery = true;
+			}
 #ifdef MULTITHREAD
 			DL_CreateThread(dl, NULL, NULL);
 #else

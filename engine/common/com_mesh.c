@@ -1464,14 +1464,32 @@ static void Alias_BuildSkeletalVPositionsPose(float *xyzout, skeltype_t bonetype
 }
 
 #ifndef SERVERONLY
-#ifdef GLQUAKE
-#include "glquake.h"
 static void Alias_DrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bonecount, int basebone)
 {
-#ifndef GLQUAKE
 	scenetris_t *t;
 	int flags = BEF_NODLIGHT|BEF_NOSHADOWS|BEF_LINES;
-	int first;
+	shader_t *shader;
+	int i, p;
+	extern	entity_t	*currententity;
+	index_t *indexes;
+	vecV_t *verts;
+	vec4_t *colours;
+	vec2_t *texcoords;
+	int numindexes = 0;
+	mesh_t bonemesh, *m;
+	batch_t b;
+
+	//this shader lookup might get pricy.
+	shader = R_RegisterShader("shader_draw_line", SUF_NONE,
+		"{\n"
+			"program defaultfill\n"
+			"{\n"
+				"map $whiteimage\n"
+				"rgbgen exactvertex\n"
+				"alphagen vertex\n"
+				"blendfunc blend\n"
+			"}\n"
+		"}\n");
 
 	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == flags)
 		t = &cl_stris[cl_numstris-1];
@@ -1504,98 +1522,55 @@ static void Alias_DrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bo
 		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 	}
 
-	first = cl_numstrisvert-t->firstvert;
+	verts = alloca(sizeof(*verts)*bonecount);
+	colours = alloca(sizeof(*colours)*bonecount);
+	texcoords = alloca(sizeof(*texcoords)*bonecount);
+	indexes = alloca(sizeof(*indexes)*bonecount*2);
+	numindexes = 0;
+
 	for (i = 0; i < bonecount; i++)
 	{
 		//fixme: transform by model matrix
-		cl_strisvertv[cl_numstrisvert][0] = bonepose[i*12+3];
-		cl_strisvertv[cl_numstrisvert][1] = bonepose[i*12+7];
-		cl_strisvertv[cl_numstrisvert][2] = bonepose[i*12+11];
-		cl_strisvertt[cl_numstrisvert][0] = 0;
-		cl_strisvertt[cl_numstrisvert][1] = 0;
-		cl_strisvertc[cl_numstrisvert][0] = (i < basebone)?0:1;
-		cl_strisvertc[cl_numstrisvert][1] = (i < basebone)?0:0;
-		cl_strisvertc[cl_numstrisvert][2] = (i < basebone)?1:0;
-		cl_strisvertc[cl_numstrisvert][3] = 1;
-		cl_numstrisvert++;
+		verts[i][0] = bonepose[i*12+3];
+		verts[i][1] = bonepose[i*12+7];
+		verts[i][2] = bonepose[i*12+11];
+		texcoords[i][0] = 0;
+		texcoords[i][1] = 0;
+		colours[i][0] = (i < basebone)?0:1;
+		colours[i][1] = (i < basebone)?0:0;
+		colours[i][2] = (i < basebone)?1:0;
+		colours[i][3] = 1;
 
 		p = bones[i].parent;
 		if (p < 0)
-			p = 0;
-		cl_strisidx[cl_numstrisidx++] = first+i;
-		cl_strisidx[cl_numstrisidx++] = first+p;
+			p = i;
+		indexes[numindexes++] = i;
+		indexes[numindexes++] = p;
 	}
 
-	t->numvert += bonecount;
-	t->numidx = cl_numstrisidx - t->firstidx;
-#else
-	PPL_RevertToKnownState();
-	BE_SelectEntity(currententity);
-	qglColor4f(1, 0, 0, 1);
-	{
-		int i;
-		int p;
-//		vec3_t org, dest;
+	memset(&bonemesh, 0, sizeof(bonemesh));
+	bonemesh.indexes = indexes;
+	bonemesh.st_array = texcoords;
+	bonemesh.lmst_array[0] = texcoords;
+	bonemesh.xyz_array = verts;
+	bonemesh.colors4f_array[0] = colours;
+	bonemesh.numindexes = numindexes;
+	bonemesh.numvertexes = bonecount;
+	m = &bonemesh;
 
-		qglBegin(GL_LINES);
-		qglColor4f(0, 0, 1, 1);
-		for (i = 0; i < basebone; i++)
-		{
-			p = bones[i].parent;
-			if (p < 0)
-				p = 0;
-			qglVertex3f(bonepose[i*12+3], bonepose[i*12+7], bonepose[i*12+11]);
-			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
-		}
-		qglColor4f(1, 0, 0, 1);
-		for (; i < bonecount; i++)
-		{
-			p = bones[i].parent;
-			if (p < 0)
-				p = 0;
-			qglVertex3f(bonepose[i*12+3], bonepose[i*12+7], bonepose[i*12+11]);
-			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
-		}
-		qglEnd();
-		qglColor4f(1, 1, 1, 1);
-/*		qglBegin(GL_LINES);
-		for (i = 0; i < bonecount; i++)
-		{
-			p = bones[i].parent;
-			if (p < 0)
-				p = 0;
-			org[0] = bonepose[i*12+3]; org[1] = bonepose[i*12+7]; org[2] = bonepose[i*12+11];
-			qglVertex3fv(org);
-			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
-
-			dest[0] = org[0]+bonepose[i*12+0];dest[1] = org[1]+bonepose[i*12+1];dest[2] = org[2]+bonepose[i*12+2];
-			qglVertex3fv(org);
-			qglVertex3fv(dest);
-
-			qglVertex3fv(dest);
-			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
-
-			dest[0] = org[0]+bonepose[i*12+4];dest[1] = org[1]+bonepose[i*12+5];dest[2] = org[2]+bonepose[i*12+6];
-			qglVertex3fv(org);
-			qglVertex3fv(dest);
-
-			qglVertex3fv(dest);
-			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
-
-			dest[0] = org[0]+bonepose[i*12+8];dest[1] = org[1]+bonepose[i*12+9];dest[2] = org[2]+bonepose[i*12+10];
-			qglVertex3fv(org);
-			qglVertex3fv(dest);
-
-			qglVertex3fv(dest);
-			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
-		}
-		qglEnd();
-*/
-//		mesh->numindexes = 0;	//don't draw this mesh, as that would obscure the bones. :(
-	}
-#endif
+//FIXME: We should use the skybox clipping code and split the sphere into 6 sides.
+	memset(&b, 0, sizeof(b));
+	b.flags = flags;
+	b.meshes = 1;
+	b.firstmesh = 0;
+	b.mesh = &m;
+	b.ent = currententity;
+	b.shader = shader;
+	b.skin = NULL;
+	b.texture = NULL;
+	b.vbo = NULL;
+	BE_SubmitBatch(&b);
 }
-#endif
 #endif	//!SERVERONLY
 #endif	//SKELETALMODELS
 
@@ -1807,13 +1782,11 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			}
 			else
 			{
-#ifdef GLQUAKE
 				if (meshcache.bonecachetype != SKEL_ABSOLUTE)
 					meshcache.usebonepose = Alias_GetBoneInformation(inf, &e->framestate, meshcache.bonecachetype=SKEL_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES);
-				if (qrenderer == QR_OPENGL)
-				{
+#ifndef SERVERONLY
+				if (inf->shares_bones != surfnum && qrenderer)
 					Alias_DrawSkeletalBones(inf->ofsbones, (float *)meshcache.usebonepose, inf->numbones, e->framestate.g[0].endbone);
-				}
 #endif
 			}
 		}
@@ -1927,7 +1900,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 #ifndef SERVERONLY
 		lerpcutoff = inf->lerpcutoff * r_lerpmuzzlehack.value;
-		if (/*qrenderer != QR_OPENGL ||*/ Sh_StencilShadowsActive() || e->fatness || lerpcutoff)
+		if (Sh_StencilShadowsActive() || e->fatness || lerpcutoff)
 		{
 			mesh->xyz2_array = NULL;
 			mesh->xyz_blendw[0] = 1;
@@ -2471,12 +2444,12 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 void Mod_DestroyMesh(galiasinfo_t *galias)
 {
 #ifndef SERVERONLY
-	if (!BE_VBO_Destroy)
+	if (!qrenderer || !BE_VBO_Destroy)
 		return;
 	while(galias)
 	{
-		BE_VBO_Destroy(&galias->vbotexcoords);
-		BE_VBO_Destroy(&galias->vboindicies);
+		BE_VBO_Destroy(&galias->vbotexcoords, galias->vbomem);
+		BE_VBO_Destroy(&galias->vboindicies, galias->ebomem);
 		galias = galias->nextsurf;
 	}
 #endif
@@ -2560,7 +2533,7 @@ void Mod_GenerateMeshVBO(galiasinfo_t *galias)
 				BE_VBO_Data(&vboctx, pose->ofstvector, sizeof(*pose->ofstvector) * galias->numverts, &pose->vbotvector);
 		}
 	}
-	BE_VBO_Finish(&vboctx, galias->ofs_indexes, sizeof(*galias->ofs_indexes) * galias->numindexes, &galias->vboindicies);
+	BE_VBO_Finish(&vboctx, galias->ofs_indexes, sizeof(*galias->ofs_indexes) * galias->numindexes, &galias->vboindicies, &galias->vbomem, &galias->ebomem);
 #endif
 }
 
@@ -2579,7 +2552,7 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 	index_t *idx;
 
 	//don't fail on dedicated servers
-	if (!BE_VBO_Begin)
+	if (!qrenderer || !BE_VBO_Begin)
 		return;
 
 	idx = galias->ofs_indexes;
@@ -2750,10 +2723,58 @@ shader_t *Mod_ShaderFromQ3SkinFile(galiasinfo_t *surf, char *modelname, int skin
 
 void Mod_LoadAliasShaders(model_t *mod)
 {
+	qbyte *mipdata[4];
 	galiasinfo_t *ai = mod->meshinfo;
 	galiasskin_t *s;
 	skinframe_t *f;
 	int i, j;
+
+	unsigned int loadflags;
+	unsigned int imageflags;
+	char basename[32];
+	char alttexpath[MAX_QPATH];
+	uploadfmt_t skintranstype;
+	char *slash;
+#ifdef HEXEN2
+	if( mod->flags & MFH2_TRANSPARENT )
+		skintranstype = TF_H2_T7G1;	//hexen2
+	else
+#endif
+	 if(mod->flags & MFH2_HOLEY)
+		skintranstype = TF_H2_TRANS8_0;	//hexen2
+#ifdef HEXEN2
+	else if(mod->flags & MFH2_SPECIAL_TRANS)
+		skintranstype = TF_H2_T4A4;	//hexen2
+#endif
+	else
+		skintranstype = TF_SOLID8;
+
+	COM_FileBase(mod->name, basename, sizeof(basename));
+
+	imageflags = 0;
+	if (mod->engineflags & MDLF_NOTREPLACEMENTS)
+	{
+		ruleset_allow_sensitive_texture_replacements.flags |= CVAR_RENDERERLATCH;
+		if (!ruleset_allow_sensitive_texture_replacements.ival)
+			imageflags |= IF_NOREPLACE;
+	}
+
+	slash = COM_SkipPath(mod->name);
+	if (slash != mod->name && slash-mod->name < sizeof(alttexpath))
+	{
+		slash--;
+		memcpy(alttexpath, mod->name, slash-mod->name);
+		Q_strncpyz(alttexpath+(slash-mod->name), ":models", sizeof(alttexpath)-(slash-mod->name));	//fuhquake compat
+		slash++;
+	}
+	else
+	{
+		slash = mod->name;
+		strcpy(alttexpath, "models");	//fuhquake compat
+	}
+
+
+
 	for (ai = mod->meshinfo; ai; ai = ai->nextsurf)
 	{
 		Mod_GenerateMeshVBO(ai);	//FIXME: shares verts
@@ -2772,7 +2793,19 @@ void Mod_LoadAliasShaders(model_t *mod)
 					else
 						f->shader = R_RegisterShader(f->shadername, SUF_NONE, f->defaultshader);
 				}
-				R_BuildDefaultTexnums(&f->texnums, f->shader);
+
+				if (f->texels)
+				{
+					loadflags = SHADER_HASPALETTED | SHADER_HASDIFFUSE | SHADER_HASGLOSS | SHADER_HASTOPBOTTOM;
+					if (r_fb_models.ival)
+						loadflags |= SHADER_HASFULLBRIGHT;
+					if (r_loadbumpmapping)
+						loadflags |= SHADER_HASNORMALMAP;
+					mipdata[0] = f->texels;
+					R_BuildLegacyTexnums(f->shader, basename, alttexpath, loadflags, imageflags, skintranstype, s->skinwidth, s->skinheight, mipdata, host_basepal);
+				}
+				else
+					R_BuildDefaultTexnums(&f->texnums, f->shader);
 			}
 		}
 	}
@@ -2941,10 +2974,10 @@ static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, mod
 			if ((bbox[3] > frameinfo->bboxmax.v[0] || bbox[4] > frameinfo->bboxmax.v[1] || bbox[5] > frameinfo->bboxmax.v[2] ||
 				bbox[0] < frameinfo->bboxmin.v[0] || bbox[1] < frameinfo->bboxmin.v[1] || bbox[2] < frameinfo->bboxmin.v[2]) && !galias->warned)
 #else
-			if (pinframe[0].v[2] > frameinfo->bboxmax.v[2] && !galias->warned)
+			if (galias->numverts && pinframe[0].v[2] > frameinfo->bboxmax.v[2] && !galias->warned)
 #endif
 			{
-				Con_Printf(CON_WARNING"%s has incorrect frame bounds\n", loadmodel->name);
+				Con_DPrintf(CON_WARNING"%s has incorrect frame bounds\n", loadmodel->name);
 				galias->warned = true;
 			}
 
@@ -3015,12 +3048,12 @@ static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, mod
 				if ((bbox[3] > frameinfo->bboxmax.v[0] || bbox[4] > frameinfo->bboxmax.v[1] || bbox[5] > frameinfo->bboxmax.v[2] ||
 					bbox[0] < frameinfo->bboxmin.v[0] || bbox[1] < frameinfo->bboxmin.v[1] || bbox[2] < frameinfo->bboxmin.v[2] ||
 #else
-				if ((pinframe[0].v[2] > frameinfo->bboxmax.v[2] ||
+				if (galias->numverts && (pinframe[0].v[2] > frameinfo->bboxmax.v[2] ||
 #endif
 					frameinfo->bboxmin.v[0] < ingroup->bboxmin.v[0] || frameinfo->bboxmin.v[1] < ingroup->bboxmin.v[1] || frameinfo->bboxmin.v[2] < ingroup->bboxmin.v[2] ||
 					frameinfo->bboxmax.v[0] > ingroup->bboxmax.v[0] || frameinfo->bboxmax.v[1] > ingroup->bboxmax.v[1] || frameinfo->bboxmax.v[2] > ingroup->bboxmax.v[2]) && !galias->warned)
 				{
-					Con_Printf(CON_WARNING"%s has incorrect frame bounds\n", loadmodel->name);
+					Con_DPrintf(CON_WARNING"%s has incorrect frame bounds\n", loadmodel->name);
 					galias->warned = true;
 				}
 
@@ -3095,28 +3128,22 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 	galiasskin_t *outskin = galias->ofsskins;
 	const char *slash;
 	unsigned int texflags;
+	const char *defaultshader;
 
-	char basename[32];
-	COM_FileBase(loadmodel->name, basename, sizeof(basename));
-
-	if (loadmodel->engineflags & MDLF_NOTREPLACEMENTS)
-		texflags = IF_NOREPLACE;
-	else
-		texflags = 0;
-
-	slash = COM_SkipPath(loadmodel->name);
-	if (slash != loadmodel->name && slash-loadmodel->name < sizeof(alttexpath))
+	if (r_softwarebanding && qrenderer == QR_OPENGL && sh_config.progs_supported)
 	{
-		slash--;
-		memcpy(alttexpath, loadmodel->name, slash-loadmodel->name);
-		Q_strncpyz(alttexpath+(slash-loadmodel->name), ":models", sizeof(alttexpath)-(slash-loadmodel->name));	//fuhquake compat
-		slash++;
+		defaultshader = 
+			"{\n"
+				"program defaultskin#EIGHTBIT\n"
+				"affine\n"
+				"{\n"
+					"map $colourmap\n"
+				"}\n"
+			"}\n"
+			;
 	}
 	else
-	{
-		slash = loadmodel->name;
-		strcpy(alttexpath, "models");	//fuhquake compat
-	}
+		defaultshader = NULL;
 
 	s = pq1inmodel->skinwidth*pq1inmodel->skinheight;
 	for (i = 0; i < pq1inmodel->numskins; i++)
@@ -3127,46 +3154,8 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 			outskin->skinwidth = pq1inmodel->skinwidth;
 			outskin->skinheight = pq1inmodel->skinheight;
 
-			//LH's naming scheme ("models" is likly to be ignored)
-/*			fbtexture = r_nulltex;
-			bumptexture = r_nulltex;
-			snprintf(skinname, sizeof(skinname), "%s_%i.", loadmodel->name, i);
-			texture = R_LoadReplacementTexture(skinname, "models", IF_NOALPHA);
-			if (TEXVALID(texture))
-			{
-				if (r_fb_models.ival)
-				{
-					snprintf(skinname, sizeof(skinname), "%s_%i_luma.", loadmodel->name, i);
-					fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
-				}
-				if (r_loadbumpmapping)
-				{
-					snprintf(skinname, sizeof(skinname), "%s_%i_bump.", loadmodel->name, i);
-					bumptexture = R_LoadBumpmapTexture(skinname, "models");
-				}
-			}
-			else
-			{
-				//try with a stripped model name
-				snprintf(skinname, sizeof(skinname), "%s_%i.", basename, i);
-				texture = R_LoadReplacementTexture(skinname, "models", IF_NOALPHA);
-				if (TEXVALID(texture))
-				{
-					if (r_fb_models.ival)
-					{
-						snprintf(skinname, sizeof(skinname), "%s_%i_luma.", basename, i);
-						fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
-					}
-					if (r_loadbumpmapping)
-					{
-						snprintf(skinname, sizeof(skinname), "%s_%i_bump.", basename, i);
-						bumptexture = R_LoadBumpmapTexture(skinname, "models");
-					}
-				}
-				//else ...
-			}
-*/
 //but only preload it if we have no replacement.
+			outskin->numframes=1;
 			if (1 || /*!TEXVALID(texture) ||*/ (loadmodel->engineflags & MDLF_NOTREPLACEMENTS))
 			{
 				//we're not using 24bits
@@ -3177,37 +3166,36 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 				Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 			}
 			else
+			{
 				frames = ZG_Malloc(&loadmodel->memgroup, sizeof(*frames));
-			outskin->numframes=1;
 
-			outskin->frame = frames;
-
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i.lmp", slash, i);
+				frames[0].texnums.base = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[0].texels, outskin->skinwidth, outskin->skinheight, skintranstype);
+				if (r_fb_models.ival)
+				{
+					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_luma.lmp", slash, i);
+					frames[0].texnums.fullbright = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_TRANS8_FULLBRIGHT);
+				}
+				if (r_loadbumpmapping)
+				{
+					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_norm.lmp", slash, i);
+					frames[0].texnums.bump = R_LoadReplacementTexture(skinname, alttexpath, texflags|IF_TRYBUMP, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_HEIGHT8PAL);
+				}
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_shirt.lmp", slash, i);
+				frames[0].texnums.upperoverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_pants.lmp", slash, i);
+				frames[0].texnums.loweroverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
+			}
+			Q_snprintfz(frames[0].shadername, sizeof(frames[0].shadername), "%s_%i.lmp", loadmodel->name, i);
 			frames[0].shader = NULL;
 			frames[0].defaultshader = NULL;
-			Q_snprintfz(frames[0].shadername, sizeof(frames[0].shadername), "%s_%i.lmp", loadmodel->name, i);
-
-			Q_snprintfz(skinname, sizeof(skinname), "%s_%i.lmp", slash, i);
-			frames[0].texnums.base = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[0].texels, outskin->skinwidth, outskin->skinheight, skintranstype);
-			if (r_fb_models.ival)
-			{
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_luma.lmp", slash, i);
-				frames[0].texnums.fullbright = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_TRANS8_FULLBRIGHT);
-			}
-			if (r_loadbumpmapping)
-			{
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_norm.lmp", slash, i);
-				frames[0].texnums.bump = R_LoadReplacementTexture(skinname, alttexpath, texflags|IF_TRYBUMP, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_HEIGHT8PAL);
-			}
-			Q_snprintfz(skinname, sizeof(skinname), "%s_%i_shirt.lmp", slash, i);
-			frames[0].texnums.upperoverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
-			Q_snprintfz(skinname, sizeof(skinname), "%s_%i_pants.lmp", slash, i);
-			frames[0].texnums.loweroverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
+			outskin->frame = frames;
 
 			switch(skintranstype)
 			{
 			default:	//urk
 			case TF_SOLID8:
-				frames[0].defaultshader = NULL;
+				frames[0].defaultshader = defaultshader;
 				break;
 			case TF_H2_T7G1:
 				frames[0].defaultshader =
@@ -3249,17 +3237,7 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 					"}\n";
 				break;
 			}
-	
-/*			//13/4/08 IMPLEMENTME
-			if (r_skin_overlays.ival)
-			{
-				snprintf(skinname, sizeof(skinname), "%s_%i_pants.", loadname, i);
-				shaders[0]->defaulttextures.loweroverlay = R_LoadReplacementTexture(skinname, "models", 0);
 
-				snprintf(skinname, sizeof(skinname), "%s_%i_shirt.", loadname, i);
-				shaders[0]->defaulttextures.upperoverlay = R_LoadReplacementTexture(skinname, "models", 0);
-			}
-*/
 			pskintype = (daliasskintype_t *)((char *)(pskintype+1)+s);
 			break;
 
@@ -3283,23 +3261,6 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 				memcpy(frames[t].texels, data, s);
 				//other engines apparently don't flood fill. because flood filling is horrible, we won't either.
 				//Mod_FloodFillSkin(frames[t].texels, outskin->skinwidth, outskin->skinheight);
-
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i.lmp", slash, i, t);
-				frames[t].texnums.base = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[t].texels, outskin->skinwidth, outskin->skinheight, skintranstype);
-				if (r_fb_models.ival)
-				{
-					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_luma.lmp", slash, i, t);
-					frames[t].texnums.fullbright = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[t].texels, outskin->skinwidth, outskin->skinheight, TF_TRANS8_FULLBRIGHT);
-				}
-				if (r_loadbumpmapping)
-				{
-					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_norm.lmp", slash, i, t);
-					frames[t].texnums.bump = R_LoadReplacementTexture(skinname, alttexpath, texflags|IF_TRYBUMP, frames[t].texels, outskin->skinwidth, outskin->skinheight, TF_HEIGHT8PAL);
-				}
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_shirt.lmp", slash, i, t);
-				frames[t].texnums.upperoverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_pants.lmp", slash, i, t);
-				frames[t].texnums.loweroverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
 
 				Q_snprintfz(frames[t].shadername, sizeof(frames[t].shadername), "%s_%i_%i.lmp", loadmodel->name, i, t);
 				frames[t].defaultshader = NULL;
@@ -4438,7 +4399,11 @@ shader_t *Mod_ShaderForSkin(model_t *model, int surfaceidx, int num)
 	galiasskin_t *skin;
 
 	if (!model || model->type != mod_alias)
+	{
+		if (model->type == mod_brush && surfaceidx < model->numtextures && !num)
+			return model->textures[surfaceidx]->shader;
 		return NULL;
+	}
 	inf = Mod_Extradata(model);
 
 	while(surfaceidx-->0 && inf)
@@ -4459,7 +4424,11 @@ const char *Mod_SkinNameForNum(model_t *model, int surfaceidx, int num)
 	galiasskin_t *skin;
 
 	if (!model || model->type != mod_alias)
+	{
+		if (model->type == mod_brush && surfaceidx < model->numtextures && !num)
+			return "";
 		return NULL;
+	}
 	inf = Mod_Extradata(model);
 
 	while(surfaceidx-->0 && inf)
@@ -4482,7 +4451,11 @@ const char *Mod_SurfaceNameForNum(model_t *model, int num)
 	galiasinfo_t *inf;
 
 	if (!model || model->type != mod_alias)
+	{
+		if (model->type == mod_brush && num < model->numtextures)
+			return model->textures[num]->name;
 		return NULL;
+	}
 	inf = Mod_Extradata(model);
 
 	while(num-->0 && inf)
@@ -6029,6 +6002,8 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 		}
 
 		m = &root[i];
+		m->shares_verts = i;
+		m->shares_bones = 0;
 #ifdef SERVERONLY
 		transforms = ZG_Malloc(&mod->memgroup, numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
 #else
@@ -6060,8 +6035,13 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 				transforms->org[1] = BigFloat(bonevert->origin[1]);
 				transforms->org[2] = BigFloat(bonevert->origin[2]);
 				transforms->org[3] = BigFloat(bonevert->influence);
-				//do nothing with the normals. :(
+#ifndef SERVERONLY
+				transforms->normal[0] = BigFloat(bonevert->normal[0]);
+				transforms->normal[1] = BigFloat(bonevert->normal[1]);
+				transforms->normal[2] = BigFloat(bonevert->normal[2]);
+#endif
 			}
+			//FIXME: transform these verts into the base pose, prioritise the weights, clamp to 4 weights, and then generate per-vertex arrays that are simple enough for the gpu to be happy.
 			vert = (dpmvertex_t*)bonevert;
 		}
 
@@ -6069,9 +6049,11 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 		outdex = (index_t *)transforms;
 		m->ofs_indexes = outdex;
 		m->numindexes = mesh->num_tris*3;
-		for (j = 0; j < m->numindexes; j++)
+		for (j = 0; j < mesh->num_tris; j++, index += 3, outdex += 3)
 		{
-			*outdex++ = BigLong(*index++);
+			outdex[0] = BigLong(index[2]);
+			outdex[1] = BigLong(index[1]);
+			outdex[2] = BigLong(index[0]);
 		}
 	}
 
@@ -6152,6 +6134,21 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 		{
 			skin[j].numframes = 1;	//non-sequenced skins.
 			skin[j].frame = skinframe;
+			skin[j].skinwidth = 1;
+			skin[j].skinheight = 1;
+			skin[j].skinspeed = 10; /*something to avoid div by 0*/
+
+			if (!j)
+			{
+				Q_strncpyz(skin[j].name, mesh->shadername, sizeof(skin[j].name));
+				Q_strncpyz(skinframe->shadername, mesh->shadername, sizeof(skin[j].name));
+			}
+			else
+			{
+				Q_strncpyz(skin[j].name, "", sizeof(skin[j].name));
+				Q_strncpyz(skinframe->shadername, "", sizeof(skin[j].name));
+			}
+
 		}
 
 		m->ofsskins = skin;
@@ -6904,7 +6901,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 			skin->frame = skinframe;
 			skin++;
 
-			Q_strncpyz(skinframe[j].shadername, strings+mesh[i].material, sizeof(skinframe[j].shadername));
+			Q_strncpyz(skinframe->shadername, strings+mesh[i].material, sizeof(skinframe->shadername));
 			skinframe++;
 		}
 #endif
@@ -7809,7 +7806,7 @@ void Alias_Register(void)
 	Mod_RegisterModelFormatMagic(NULL, "Zymotic Model (zym)",				(('O'<<24)+('M'<<16)+('Y'<<8)+'Z'),		Mod_LoadZymoticModel);
 #endif
 #ifdef DPMMODELS
-//	Mod_RegisterModelFormatMagic(NULL, "DarkPlaces Model (dpm)",			(('K'<<24)+('R'<<16)+('A'<<8)+'D'),		Mod_LoadDarkPlacesModel);
+	Mod_RegisterModelFormatMagic(NULL, "DarkPlaces Model (dpm)",			(('K'<<24)+('R'<<16)+('A'<<8)+'D'),		Mod_LoadDarkPlacesModel);
 #endif
 #ifdef PSKMODELS
 	Mod_RegisterModelFormatMagic(NULL, "Unreal Interchange Model (psk)",	('A'<<0)+('C'<<8)+('T'<<16)+('R'<<24),	Mod_LoadPSKModel);

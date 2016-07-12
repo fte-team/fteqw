@@ -2315,7 +2315,12 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 	if (!flags)
 	{
 		char *qtv = NULL;
-		if (!strncmp(s, "#0:qtv_say_game:#", 17))
+		if (!strncmp(s, "#0:qtv_say:#", 12))
+		{
+			qtv = s+11;
+			flags = TPM_QTV|TPM_SPECTATOR;
+		}
+		else if (!strncmp(s, "#0:qtv_say_game:#", 17))
 		{
 			qtv = s+16;
 			flags = TPM_QTV|TPM_SPECTATOR;
@@ -3830,6 +3835,8 @@ void CL_Say (qboolean team, char *extra)
 #endif
 	{
 		int split = CL_TargettedSplit(true);
+		if (split >= cl.splitclients)
+			return;
 		CL_SendClientCommand(true, "%s%s \"%s%s\"", split?va("%i ", split+1):"", team ? "say_team" : "say", extra?extra:"", sendtext);
 	}
 }

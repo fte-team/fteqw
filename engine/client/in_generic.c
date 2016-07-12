@@ -55,7 +55,7 @@ void QDECL joyaxiscallback(cvar_t *var, char *oldvalue)
 	else if (!Q_strcasecmp(end, "right") || !Q_strcasecmp(end, "turnright"))
 		var->ival = 4*sign;
 	else if (!Q_strcasecmp(end, "left") || !Q_strcasecmp(end, "turnleft"))
-		var->ival = 4*sign;
+		var->ival = 4*sign*1;
 	else if (!Q_strcasecmp(end, "up") || !Q_strcasecmp(end, "moveup"))
 		var->ival = 5*sign;
 	else if (!Q_strcasecmp(end, "down") || !Q_strcasecmp(end, "movedown"))
@@ -116,7 +116,7 @@ static cvar_t joy_radialdeadzone = CVARD("joyradialdeadzone", "1", "Treat contro
 extern cvar_t _windowed_mouse;
 
 
-#define EVENTQUEUELENGTH 128
+#define EVENTQUEUELENGTH 512
 struct eventlist_s
 {
 	enum
@@ -227,8 +227,6 @@ struct remapctx
 static void IN_DeviceIDs_DoRemap(void *vctx, const char *type, const char *devicename, int *qdevid)
 {
 	struct remapctx *ctx = vctx;
-	if (!qdevid)
-		return;
 
 	if (!strcmp(ctx->type, type))
 		if (!strcmp(ctx->devicename, devicename))
@@ -236,7 +234,7 @@ static void IN_DeviceIDs_DoRemap(void *vctx, const char *type, const char *devic
 			if (qdevid)
 				*qdevid = ctx->newdevid;
 			else
-				ctx->failed++;
+				ctx->failed = true;
 			ctx->found++;
 		}
 }
@@ -258,6 +256,7 @@ void IN_DeviceIDs_f(void)
 
 	if (Cmd_Argc() > 3)
 	{
+		ctx.failed = false;
 		ctx.found = 0;
 		ctx.type = Cmd_Argv(1);
 		ctx.newdevid = atoi(Cmd_Argv(2));
@@ -315,6 +314,8 @@ void IN_Init(void)
 	{
 		Cvar_Register (&joy_advaxis[i], "input controls");
 		Cvar_Register (&joy_advaxisscale[i], "input controls");
+
+		Cvar_ForceCallback(&joy_advaxis[i]);
 	}
 	for (i = 0; i < 3; i++)
 	{
@@ -633,7 +634,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 			if (m_touchmajoraxis.ival)
 			{
 				//major axis only
-				if (fabs(mx) > fabs(my))
+				if (abs(mx) > abs(my))
 					my = 0;
 				else
 					mx = 0;

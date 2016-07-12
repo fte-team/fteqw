@@ -915,7 +915,7 @@ char *Sys_ConsoleInput (void)
 	if (SSV_IsSubServer())
 	{
 		DWORD avail;
-		static char	text[1024], *nl;
+		static char	text[1024];
 		static int textpos = 0;
 
 		HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
@@ -1434,20 +1434,15 @@ int servicecontrol;
 #endif
 void ServerMainLoop(void)
 {
-	double			newtime, time, oldtime;
 	float delay = 0.001;
 //
 // main loop
 //
-	oldtime = Sys_DoubleTime () - 0.1;
 	while (1)
 	{
 		NET_Sleep(delay, false);
 
 	// find time passed since last cycle
-		newtime = Sys_DoubleTime ();
-		time = newtime - oldtime;
-		oldtime = newtime;
 		delay = SV_Frame();
 
 

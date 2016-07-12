@@ -41,7 +41,6 @@ the whole thing is bloody retarded.
 none of these issues will be fixed by a compositing window manager, because there's still a window manager there.
 */
 
-
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -57,12 +56,19 @@ none of these issues will be fixed by a compositing window manager, because ther
 #include "quakedef.h"
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
+#include <X11/Xutil.h>
 
+#ifdef VKQUAKE
+#include "vk/vkrenderer.h"
+static qboolean XVK_SetupSurface(void);
+#endif
+#ifdef GLQUAKE
 #include <GL/glx.h>
 #ifdef USE_EGL
 #include "gl_videgl.h"
 #endif
 #include "glquake.h"
+#endif
 
 #include <X11/keysym.h>
 #include <X11/cursorfont.h>
@@ -72,16 +78,23 @@ static Cursor vid_nullcursor;
 static Window vid_window;
 static Window vid_decoywindow;	//for legacy mode, this is a boring window that we can reparent into as needed
 static Window vid_root;
+#ifdef GLQUAKE
 static GLXContext ctx = NULL;
+#endif
 static int scrnum;
 static long vid_x_eventmask;
 static enum
 {
 	PSL_NONE,
+#ifdef GLQUAKE
 #ifdef USE_EGL
 	PSL_EGL,
 #endif
-	PSL_GLX
+	PSL_GLX,
+#endif
+#ifdef VKQUAKE
+	PSL_VULKAN,
+#endif
 } currentpsl;
 
 extern cvar_t vid_conautoscale;
@@ -521,6 +534,7 @@ char clipboard_buffer[SYS_CLIPBOARD_SIZE];
 
 /*-----------------------------------------------------------------------*/
 
+#ifdef GLQUAKE
 static dllhandle_t *gllibrary;
 
 XVisualInfo* (*qglXChooseVisual) (Display *dpy, int screen, int *attribList);
@@ -583,6 +597,7 @@ void *GLX_GetSymbol(char *name)
 		symb = Sys_GetAddressForName(gllibrary, name);
 	return symb;
 }
+#endif
 
 static void X_ShutdownUnicode(void)
 {
@@ -1244,7 +1259,6 @@ static void GetEvent(void)
 
 void GLVID_Shutdown(void)
 {
-	printf("GLVID_Shutdown\n");
 	if (!vid_dpy)
 		return;
 
@@ -1259,6 +1273,7 @@ void GLVID_Shutdown(void)
 
 	switch(currentpsl)
 	{
+#ifdef GLQUAKE
 #ifdef USE_EGL
 	case PSL_EGL:
 		EGL_Shutdown();
@@ -1271,6 +1286,12 @@ void GLVID_Shutdown(void)
 			ctx = NULL;
 		}
 		break;
+#endif
+#ifdef VKQUAKE
+	case PSL_VULKAN:
+		VK_Shutdown();
+		break;
+#endif
 	case PSL_NONE:
 		break;
 	}
@@ -1361,6 +1382,7 @@ void GLVID_SwapBuffers (void)
 {
 	switch(currentpsl)
 	{
+#ifdef GLQUAKE
 #ifdef USE_EGL
 	case PSL_EGL:
 		EGL_BeginRendering();
@@ -1371,6 +1393,11 @@ void GLVID_SwapBuffers (void)
 		//chances are, it's version is more suitable anyway. At least there's the chance that it might be.
 		qglXSwapBuffers(vid_dpy, vid_window);
 		break;
+#endif
+#ifdef VKQUAKE
+	case PSL_VULKAN:
+		break;
+#endif
 	default:
 	case PSL_NONE:
 		break;
@@ -1588,17 +1615,19 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	int height = info->height;
 	int rate = info->rate;
 	int i;
+#ifdef GLQUAKE
 	int attrib[] = {
 		GLX_RGBA,
-		GLX_RED_SIZE, 1,
-		GLX_GREEN_SIZE, 1,
-		GLX_BLUE_SIZE, 1,
+		GLX_RED_SIZE, 4,
+		GLX_GREEN_SIZE, 4,
+		GLX_BLUE_SIZE, 4,
 		GLX_DOUBLEBUFFER,
-		GLX_DEPTH_SIZE, 1,
-		GLX_STENCIL_SIZE, 8,
+		GLX_DEPTH_SIZE, 16,
+		GLX_STENCIL_SIZE, 4,
 		None
 	};
-#ifdef USE_EGL
+#endif
+#if defined(USE_EGL) || defined(VKQUAKE)
 	XVisualInfo vinfodef;
 #endif
 	XVisualInfo *visinfo;
@@ -1614,6 +1643,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 
 	switch(currentpsl)
 	{
+#ifdef GLQUAKE
 #ifdef USE_EGL
 	case PSL_EGL:
 		if (!EGL_LoadLibrary(info->subrenderer))
@@ -1630,6 +1660,27 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			return false;
 		}
 		break;
+#endif
+#ifdef VKQUAKE
+	case PSL_VULKAN:
+		{
+			dllfunction_t func[] =
+			{
+				{(void*)&vkGetInstanceProcAddr,		"vkGetInstanceProcAddr"},
+				{NULL,							NULL}
+			};
+
+			if (!Sys_LoadLibrary("libvulkan.so.1", func))
+			{
+				if (!Sys_LoadLibrary("libvulkan.so", func))
+				{
+					Con_Printf("Couldn't intialise libvulkan.so\nvulkan loader is not installed\n");
+					return false;
+				}
+			}
+		}
+		break;
+#endif
 	case PSL_NONE:
 		return false;
 	}
@@ -1727,6 +1778,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 
 	switch(currentpsl)
 	{
+#ifdef GLQUAKE
 #ifdef USE_EGL
 	case PSL_EGL:
 		visinfo = &vinfodef;
@@ -1741,9 +1793,20 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		visinfo = qglXChooseVisual(vid_dpy, scrnum, attrib);
 		if (!visinfo)
 		{
-			Sys_Error("qkHack: Error couldn't get an RGB, Double-buffered, Depth visual\n");
+			Sys_Error("X11VID_Init: Error couldn't get an RGB, Double-buffered, Depth visual\n");
 		}
 		break;
+#endif
+#ifdef VKQUAKE
+	case PSL_VULKAN:
+		visinfo = &vinfodef;
+		if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, info->bpp, TrueColor, visinfo))
+	//	if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, DefaultDepth(vid_dpy, scrnum), TrueColor, &visinfo))
+		{
+			Sys_Error("Couldn't choose visual for vulkan\n");
+		}
+		break;
+#endif
 	default:
 	case PSL_NONE:
 		visinfo = NULL;
@@ -1795,6 +1858,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 
 	switch(currentpsl)
 	{
+#ifdef GLQUAKE
 	case PSL_GLX:
 		ctx = qglXCreateContext(vid_dpy, visinfo, NULL, True);
 		if (!ctx)
@@ -1822,6 +1886,16 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			return false;
 		}
 		GL_Init(&EGL_Proc);
+		break;
+#endif
+#endif
+#ifdef VKQUAKE
+	case PSL_VULKAN:
+		if (!VK_Init(info, VK_KHR_XLIB_SURFACE_EXTENSION_NAME, XVK_SetupSurface))
+		{
+			Con_Printf("Failed to create vulkan context.\n");
+			GLVID_Shutdown();
+		}
 		break;
 #endif
 	case PSL_NONE:
@@ -1872,6 +1946,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 
 	return true;
 }
+#ifdef GLQUAKE
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
 	return X11VID_Init(info, palette, PSL_GLX);
@@ -1880,6 +1955,13 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 qboolean EGLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
 	return X11VID_Init(info, palette, PSL_EGL);
+}
+#endif
+#endif
+#ifdef VKQUAKE
+static qboolean VKVID_Init (rendererstate_t *info, unsigned char *palette)
+{
+	return X11VID_Init(info, palette, PSL_VULKAN);
 }
 #endif
 
@@ -2030,9 +2112,9 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 {
 }
 
-void GLVID_SetCaption(char *text)
+void GLVID_SetCaption(const char *text)
 {
-	x11.pXStoreName(vid_dpy, vid_window, text);
+	x11.pXStoreName(vid_dpy, vid_window, (char*)text);
 }
 
 #ifdef USE_EGL
@@ -2092,6 +2174,79 @@ rendererinfo_t eglrendererinfo =
 	GLBE_VBO_Destroy,
 
 	GLBE_RenderToTextureUpdate2d,
+
+	""
+};
+#endif
+
+#ifdef VKQUAKE
+static qboolean XVK_SetupSurface(void)
+{
+	VkXlibSurfaceCreateInfoKHR inf = {VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR};
+	inf.flags = 0;
+	inf.dpy = vid_dpy;
+	inf.window = vid_window;
+
+	if (VK_SUCCESS == vkCreateXlibSurfaceKHR(vk.instance, &inf, vkallocationcb, &vk.surface))
+		return true;
+	return false;
+}
+rendererinfo_t vkrendererinfo =
+{
+	"Vulkan(X11)",
+	{
+		"vk",
+		"xvk",
+		"vulkan"
+	},
+	QR_VULKAN,
+
+	VK_Draw_Init,
+	VK_Draw_Shutdown,
+
+	VK_UpdateFiltering,
+	VK_LoadTextureMips,
+	VK_DestroyTexture,
+
+	VK_R_Init,
+	VK_R_DeInit,
+	VK_R_RenderView,
+
+	VKVID_Init,
+	GLVID_DeInit,
+	GLVID_SwapBuffers,
+	GLVID_ApplyGammaRamps,
+
+	NULL,
+	NULL,
+	NULL,
+	GLVID_SetCaption,       //setcaption
+	VKVID_GetRGBInfo,
+
+
+	VK_SCR_UpdateScreen,
+
+	VKBE_SelectMode,
+	VKBE_DrawMesh_List,
+	VKBE_DrawMesh_Single,
+	VKBE_SubmitBatch,
+	VKBE_GetTempBatch,
+	VKBE_DrawWorld,
+	VKBE_Init,
+	VKBE_GenBrushModelVBO,
+	VKBE_ClearVBO,
+	VKBE_UploadAllLightmaps,
+	VKBE_SelectEntity,
+	VKBE_SelectDLight,
+	VKBE_Scissor,
+	VKBE_LightCullModel,
+
+	VKBE_VBO_Begin,
+	VKBE_VBO_Data,
+	VKBE_VBO_Finish,
+	VKBE_VBO_Destroy,
+
+	VKBE_RenderToTextureUpdate2d,
 
 	""
 };

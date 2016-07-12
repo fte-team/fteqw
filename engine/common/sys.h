@@ -112,11 +112,11 @@ void Sys_ThreadAbort(void);
 #define THREADP_NORMAL 0
 #define THREADP_HIGHEST 5
 
-void *Sys_CreateMutex(void);
+void *QDECL Sys_CreateMutex(void);
 qboolean Sys_TryLockMutex(void *mutex);
-qboolean Sys_LockMutex(void *mutex);
-qboolean Sys_UnlockMutex(void *mutex);
-void Sys_DestroyMutex(void *mutex);
+qboolean QDECL Sys_LockMutex(void *mutex);
+qboolean QDECL Sys_UnlockMutex(void *mutex);
+void QDECL Sys_DestroyMutex(void *mutex);
 
 /* Conditional wait calls */
 void *Sys_CreateConditional(void);
@@ -126,6 +126,21 @@ qboolean Sys_ConditionWait(void *condv);		//lock first
 qboolean Sys_ConditionSignal(void *condv);		//lock first
 qboolean Sys_ConditionBroadcast(void *condv);	//lock first
 void Sys_DestroyConditional(void *condv);
+
+typedef struct threading_s
+{
+	void *(QDECL *CreateMutex)(void);
+	qboolean (QDECL *LockMutex)(void *mutex);
+	qboolean (QDECL *UnlockMutex)(void *mutex);
+	void (QDECL *DestroyMutex)(void *mutex);
+} threading_t;
+
+//to try to catch leaks more easily.
+#ifdef USE_MSVCRT_DEBUG
+void *Sys_CreateMutexNamed(char *file, int line);
+#define Sys_CreateMutex() Sys_CreateMutexNamed(__FILE__, __LINE__)
+#endif
+
 #else
 	#ifdef __GNUC__	//gcc complains about if (true) when these are maros. msvc complains about static not being called in headers. gah.
 		static inline qboolean Sys_MutexStub(void) {return true;}
@@ -153,7 +168,7 @@ qboolean NPQTV_Sys_Startup(int argc, char *argv[]);
 void NPQTV_Sys_MainLoop(void);
 #endif
 
-#ifdef _WIN32
+#if defined(WEBCLIENT) && defined(_WIN32)
 int StartLocalServer(int close);
 
 #define HAVEAUTOUPDATE

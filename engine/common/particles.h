@@ -33,7 +33,6 @@ extern int
 	rt_slightblood,
 	rt_knightspike,
 	rt_vorespike,
-	rtdp_neharasmoke,
 	rtdp_nexuizplasma,
 	rtdp_glowtrail,
 

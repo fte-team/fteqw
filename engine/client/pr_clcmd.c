@@ -314,6 +314,8 @@ void QCBUILTIN PF_cl_findkeysforcommandex (pubprogfuncs_t *prinst, struct global
 
 	for (i = 0; i < count; i++)
 	{
+		if (i)
+			Q_strncatz (keyname, " ", sizeof(keyname));
 		Q_strncatz (keyname, Key_KeynumToString(keynums[i], keymods[i]), sizeof(keyname));
 	}
 
@@ -353,6 +355,19 @@ void QCBUILTIN PF_cl_keynumtostring (pubprogfuncs_t *prinst, struct globalvars_s
 	code = MP_TranslateQCtoFTECodes (code);
 
 	RETURN_TSTRING(Key_KeynumToString(code, 0));
+}
+
+void QCBUILTIN PF_cl_setwindowcaption(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *newcaption = PR_GetStringOfs(prinst, OFS_PARM0);
+	if (!cl.windowtitle || strcmp(cl.windowtitle, newcaption))
+	{
+		Z_Free(cl.windowtitle);
+		cl.windowtitle = NULL;
+		if (*newcaption)
+			cl.windowtitle = Z_StrDup(newcaption);
+		CL_UpdateWindowTitle();
+	}
 }
 
 //#343
@@ -426,23 +441,24 @@ void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s 
 
 #ifndef NOMEDIA
 
-// #487 float(string name) gecko_create
-void QCBUILTIN PF_cs_media_create_http (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+// #487 float(string name, string video="http:") gecko_create
+void QCBUILTIN PF_cs_media_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shadername = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *videoname = (prinst->callargc > 1)?PR_GetStringOfs(prinst, OFS_PARM1):"http:";
 	cin_t *cin;
-	cin = R_ShaderGetCinematic(R_RegisterShader(shadername, SUF_2D,
+	cin = R_ShaderGetCinematic(R_RegisterShader(shadername, SUF_2D, va(
 				"{\n"
 					"program default2d\n"
 					"{\n"
-						"videomap http:\n"
+						"videomap %s\n"
 						"rgbgen vertex\n"
 						"alphagen vertex\n"
 						"blendfunc blend\n"
 						"nodepth\n"
 					"}\n"
-				"}\n"
-			));
+				"}\n",		
+			videoname)));
 
 	if (cin)
 	{
@@ -530,20 +546,46 @@ void QCBUILTIN PF_cs_media_get_texture_extent (pubprogfuncs_t *prinst, struct gl
 	ret[1] = sy;
 	ret[2] = aspect;
 }
-void QCBUILTIN PF_cs_media_getposition (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cs_media_getproperty (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
-	float *ret = G_VECTOR(OFS_RETURN);
-	qboolean active = false;
-	float curtime = 0;
-	float duration = 0;
+	const char *propname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *ret = NULL;
 	cin_t *cin;
 	cin = R_ShaderFindCinematic(shader);
 	if (cin)
-		Media_Send_GetPositions(cin, &active, &curtime, &duration);
-	ret[0] = active;
-	ret[1] = curtime;
-	ret[2] = duration;
+		ret = Media_Send_GetProperty(cin, propname);
+
+	G_INT(OFS_RETURN) = ret?PR_TempString(prinst, ret):0;
+}
+void QCBUILTIN PF_cs_media_getstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	cinstates_t ret = CINSTATE_INVALID;
+	cin_t *cin;
+	cin = R_ShaderFindCinematic(shader);
+	if (cin)
+		ret = Media_GetState(cin);
+
+	G_FLOAT(OFS_RETURN) = ret;
+}
+void QCBUILTIN PF_cs_media_setstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	cinstates_t state = G_FLOAT(OFS_PARM1);
+	cin_t *cin;
+	cin = R_ShaderFindCinematic(shader);
+	if (cin)
+		Media_SetState(cin, state);
+}
+
+void QCBUILTIN PF_cs_media_restart (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	cin_t *cin;
+	cin = R_ShaderFindCinematic(shader);
+	if (cin)
+		Media_Send_Reset(cin);
 }
 #endif
 
@@ -833,6 +875,15 @@ void QCBUILTIN PF_cl_clientcount (pubprogfuncs_t *prinst, struct globalvars_s *p
 	else
 		G_FLOAT(OFS_RETURN) = 0;
 #endif
+}
+
+void QCBUILTIN PF_cl_localsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char * s = PR_GetStringOfs(prinst, OFS_PARM0);
+	float chan = (prinst->callargc>=1)?G_FLOAT(OFS_PARM1):0;
+	float vol = (prinst->callargc>=2)?G_FLOAT(OFS_PARM2):1;
+
+	S_LocalSound2(s, chan, vol);
 }
 
 #endif

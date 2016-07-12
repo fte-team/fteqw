@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_light.c
 
 #include "quakedef.h"
-#if defined(GLQUAKE) || defined(D3DQUAKE)
+#ifndef SERVERONLY
 #include "glquake.h"
 #include "shader.h"
 
@@ -402,11 +402,11 @@ void R_RenderDlights (void)
 		//prevent the corona from intersecting with the near clip plane by just fading it away if its too close
 		VectorSubtract(l->origin, r_refdef.vieworg, waste1);
 		dist = VectorLength(waste1);
-		if (dist < 128+256)
+		if (dist < r_coronas_mindist.value+r_coronas_fadedist.value)
 		{
-			if (dist <= 128)
+			if (dist <= r_coronas_mindist.value)
 				continue;
-			intensity *= (dist-128) / 256;
+			intensity *= (dist-r_coronas_mindist.value) / r_coronas_fadedist.value;
 		}
 
 		/*coronas use depth testing to compute visibility*/
@@ -414,17 +414,9 @@ void R_RenderDlights (void)
 		{
 			int method;
 			if (!*r_coronas_occlusion.string)
-				method = 4;
+				method = 4;	//default to using hardware queries where possible.
 			else
 				method = r_coronas_occlusion.ival;
-			if (method == 3 && qrenderer != QR_OPENGL)
-				method = 1;
-			if (method == 4
-#ifdef GLQUAKE
-				&& (qrenderer != QR_OPENGL || !qglGenQueriesARB)
-#endif
-				)
-				method = 1;
 
 			switch(method)
 			{
@@ -432,15 +424,11 @@ void R_RenderDlights (void)
 				if (TraceLineR(r_refdef.vieworg, l->origin, waste1, waste2))
 					continue;
 				break;
-			default:
-			case 1:
-				if (TraceLineN(r_refdef.vieworg, l->origin, waste1, waste2))
-					continue;
-				break;
 			case 0:
 				break;
-#ifdef GLQUAKE
 			case 3:
+#ifdef GLQUAKE
+				if (qrenderer == QR_OPENGL)
 				{
 					float depth;
 					vec3_t out;
@@ -472,11 +460,17 @@ void R_RenderDlights (void)
 						continue;
 
 					//FIXME: in terms of performance, mixing reads+draws is BAD BAD BAD. SERIOUSLY BAD
+					//it would be an improvement to calculate all of these at once.
 					qglReadPixels(out[0], out[1], 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
 					if (depth < out[2])
 						continue;
+					break;
 				}
+#endif
+				//other renderers fall through
 			case 4:
+#ifdef GLQUAKE
+				if (qrenderer == QR_OPENGL && qglGenQueriesARB)
 				{
 					GLuint res;
 					qboolean requery = true;
@@ -498,15 +492,22 @@ void R_RenderDlights (void)
 					if (requery)
 					{
 						qglBeginQueryARB(GL_SAMPLES_PASSED_ARB, l->coronaocclusionquery);
-						R_BuildDlightMesh (l, intensity*10, 0.01, coronastyle);
+						R_BuildDlightMesh (l, intensity*10, cscale*.1, coronastyle);
 						BE_DrawMesh_Single(occluded_shader, &flashblend_mesh, NULL, beflags);
 						qglEndQueryARB(GL_SAMPLES_PASSED_ARB);
 					}
 
 					if (!l->coronaocclusionresult)
 						continue;
+					break;
 				}
 #endif
+				//other renderers fall through
+			default:
+			case 1:
+				if (CL_TraceLine(r_refdef.vieworg, l->origin, waste1, NULL, NULL) < 1)
+					continue;
+				break;
 			}
 		}
 
@@ -658,7 +659,7 @@ qboolean R_ImportRTLights(char *entlump)
 	/*I'm using the DP code so I know I'll get the DP results*/
 	int entnum, style, islight, skin, pflags, n;
 	lighttype_t type;
-	float origin[3], angles[3], radius, color[3], light[4], fadescale, lightscale, originhack[3], overridecolor[3], vec[4];
+	float origin[3], angles[3], radius, color[3], light[4], fadescale, lightscale, originhack[3], overridecolor[3], colourscales[3], vec[4];
 	char key[256], value[8192];
 	int nest;
 	qboolean okay = false;
@@ -688,6 +689,7 @@ qboolean R_ImportRTLights(char *entlump)
 		style = 0;
 		skin = 0;
 		pflags = 0;
+		VectorSet(colourscales, r_editlights_import_ambient.value, r_editlights_import_diffuse.value, r_editlights_import_specular.value);
 		//effects = 0;
 		islight = false;
 		nest = 1;
@@ -838,6 +840,26 @@ qboolean R_ImportRTLights(char *entlump)
 			else if (!strcmp("fade", key))
 				fadescale = atof(value);
 
+#ifdef MAP_PROC
+			else if (!strcmp("nodynamicshadows", key))	//doom3
+				;
+			else if (!strcmp("noshadows", key))	//doom3
+			{
+				if (atof(value))
+					pflags |= PFLAGS_NOSHADOW;
+			}
+			else if (!strcmp("nospecular", key))//doom3
+			{
+				if (atof(value))
+					colourscales[2] = 0;
+			}
+			else if (!strcmp("nodiffuse", key))	//doom3
+			{
+				if (atof(value))
+					colourscales[1] = 0;
+			}
+#endif
+
 			else if (!strcmp("light_radius", key))
 			{
 				light[0] = 1;
@@ -907,9 +929,7 @@ qboolean R_ImportRTLights(char *entlump)
 			dl->flags |= (pflags & PFLAGS_CORONA)?LFLAG_FLASHBLEND:0;
 			dl->flags |= (pflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
 			dl->style = style+1;
-			dl->lightcolourscales[0] = r_editlights_import_ambient.value;
-			dl->lightcolourscales[1] = r_editlights_import_diffuse.value;
-			dl->lightcolourscales[2] = r_editlights_import_specular.value;
+			VectorCopy(colourscales, dl->lightcolourscales);
 			if (skin >= 16)
 				R_LoadNumberedLightTexture(dl, skin);
 

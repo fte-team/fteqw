@@ -90,15 +90,6 @@ enum
 
 #define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
 
-
-#define ARGNAMES ,sock,certhostname
-BUILTINR(int, Net_SetTLSClient, (qhandle_t sock, const char *certhostname));
-#undef ARGNAMES
-
-#define ARGNAMES ,funcname
-BUILTINR(void *, Plug_GetNativePointer, (const char *funcname));
-#undef ARGNAMES
-
 void (*Con_TrySubPrint)(const char *conname, const char *message);
 void Fallback_ConPrint(const char *conname, const char *message)
 {
@@ -252,7 +243,6 @@ static VOID (WINAPI *pDnsRecordListFree)(PDNS_RECORD pRecordList, DNS_FREE_TYPE 
 static HMODULE dnsapi_lib;
 qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
 {
-	HRESULT hr;
 	DNS_RECORD *result = NULL;
 	if (!dnsapi_lib)
 	{
@@ -264,7 +254,7 @@ qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
 	if (!pDnsQuery_UTF8 || !pDnsRecordListFree)
 		return false;
 	//do lookup
-	hr = pDnsQuery_UTF8(host, DNS_TYPE_SRV, DNS_QUERY_STANDARD, NULL, &result, NULL);
+	pDnsQuery_UTF8(host, DNS_TYPE_SRV, DNS_QUERY_STANDARD, NULL, &result, NULL);
 	if (result)
 	{
 		Q_snprintf(out, outlen, "[%s]:%i", result->Data.SRV.pNameTarget, result->Data.SRV.wPort);
@@ -283,10 +273,9 @@ qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
 	qbyte answer[512];
 	qbyte dname[512];
 	int len, i;
-	static qboolean inited;
-	qbyte *msg, *eom, *cp;
+	qbyte *msg, *eom;
 
-	len = res_query(host, C_IN, T_SRV, &answer, sizeof(answer));
+	len = res_query(host, C_IN, T_SRV, answer, sizeof(answer));
 	if (len < 12)
 	{
 		Con_Printf("srv lookup failed for %s\n", host);
@@ -569,7 +558,6 @@ qintptr_t Plug_Init(qintptr_t *args)
 		Plug_Export("Shutdown", JCL_Shutdown) &&
 		Plug_Export("ExecuteCommand", JCL_ExecuteCommand))
 	{
-		CHECKBUILTIN(Net_SetTLSClient);
 		if (!BUILTINISVALID(Net_SetTLSClient))
 			Con_Printf("XMPP Plugin Loaded ^1without^7 TLS\n");	//most servers REQUIRE tls now
 		else
@@ -609,7 +597,6 @@ qintptr_t Plug_Init(qintptr_t *args)
 		pCvar_Register("xmpp_debug",				"0", 0, "xmpp");
 
 #ifdef JINGLE
-		CHECKBUILTIN(Plug_GetNativePointer);
 		if (BUILTINISVALID(Plug_GetNativePointer))
 			piceapi = pPlug_GetNativePointer(ICE_API_CURRENT);
 #endif
@@ -1345,7 +1332,7 @@ qintptr_t JCL_ConsoleLinkMouseOver(qintptr_t *args)
 	char which[256];
 	char *actiontext;
 	int i;
-	buddy_t *b, *me;
+	buddy_t *b, *me = NULL;
 	bresource_t *br;
 	float x = *(float*)&args[0];
 	float y = *(float*)&args[1];
@@ -1750,6 +1737,16 @@ qintptr_t JCL_ConExecuteCommand(qintptr_t *args)
 		switch(jclient_action)
 		{
 		case ACT_NONE:
+			break;
+		case ACT_OAUTH:
+			jcl = jclient_action_cl;
+			if (jcl)
+			{
+				free(jcl->oauth2.authtoken);
+				jcl->oauth2.authtoken = strdup(args);
+				if (jcl->status == JCL_INACTIVE)
+					jcl->status = JCL_DEAD;
+			}
 			break;
 		case ACT_NEWACCOUNT:
 			if (!*args)
@@ -2789,7 +2786,7 @@ static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s
 	const char *nickname;
 	const char *photomime;
 
-	buddy_t *b;
+	buddy_t *b = NULL;
 	char *from = iq->to;
 
 	if (!*from)
@@ -2923,11 +2920,8 @@ static qboolean JCL_MyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *i
 	}
 	else
 	{
-		char *hex = "0123456789abcdef";
-		int photosize;
-		int digestsize;
-		photosize = Base64_Decode(photodata, sizeof(photodata), photobinval->body, strlen(photobinval->body));
-		digestsize = SHA1(digest, sizeof(digest), photodata, photosize);
+		int photosize = Base64_Decode(photodata, sizeof(photodata), photobinval->body, strlen(photobinval->body));
+		SHA1(digest, sizeof(digest), photodata, photosize);
 		if (jcl->vcardphotohashstatus != VCP_KNOWN || memcmp(jcl->vcardphotohash, digest, sizeof(jcl->vcardphotohash)))
 		{
 			memcpy(jcl->vcardphotohash, digest, sizeof(jcl->vcardphotohash));
@@ -3148,13 +3142,13 @@ char *buildcapsvcardpresence(jclient_t *jcl, char *caps, size_t sizeofcaps)
 	}
 	else if (jcl->vcardphotohashstatus == VCP_KNOWN)
 	{
-		char *hex = "0123456789abcdef";
+		unsigned char *hex = "0123456789abcdef";
 		char inhex[41];
 		int i, o;
 		for (i = 0, o = 0; i < sizeof(jcl->vcardphotohash); i++)
 		{
-			inhex[o++] = hex[jcl->vcardphotohash[(i>>4) & 0xf]];
-			inhex[o++] = hex[jcl->vcardphotohash[(i>>0) & 0xf]];
+			inhex[o++] = hex[(jcl->vcardphotohash[i]>>4) & 0xf];
+			inhex[o++] = hex[(jcl->vcardphotohash[i]>>0) & 0xf];
 		}
 		inhex[o] = 0;
 
@@ -4857,8 +4851,8 @@ static void JCL_RegenerateBuddyList(qboolean force)
 
 					for (c2c = jcl->c2c; c2c; c2c = c2c->next)
 					{
-						buddy_t *peer;
-						qboolean voice = false, video = false, server = false, client = false;
+						buddy_t *peer = NULL;
+						qboolean voice = false, video = false, server = false;
 						int c;
 						JCL_FindBuddy(jcl, c2c->with, &peer, NULL, true);
 						if (peer == b)
@@ -4867,10 +4861,11 @@ static void JCL_RegenerateBuddyList(qboolean force)
 							{
 								switch(c2c->content[c].mediatype)
 								{
+								case ICEP_INVALID:					break;
 								case ICEP_VOICE:	voice = true; 	break;
 								case ICEP_VIDEO:	video = true; 	break;
 								case ICEP_QWSERVER: server = true; 	break;
-								case ICEP_QWCLIENT: client = true; 	break;
+								case ICEP_QWCLIENT: /*client = true;*/ 	break;
 								}
 							}
 							if (server)
@@ -4883,7 +4878,7 @@ static void JCL_RegenerateBuddyList(qboolean force)
 								JCL_GenLink(jcl, convolink, sizeof(convolink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Hang Up");
 								voiceres = NULL;
 							}
-							else
+							else /*if (client)*/
 							{
 								JCL_GenLink(jcl, convolink, sizeof(convolink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Disconnect");
 								gameres = NULL;
@@ -4979,6 +4974,7 @@ static void JCL_PrintBuddyList(char *console, jclient_t *jcl, qboolean all)
 		{
 			switch(c2c->content[c].mediatype)
 			{
+			case ICEP_INVALID:					break;
 			case ICEP_VOICE:	voice = true; 	break;
 			case ICEP_VIDEO:	video = true; 	break;
 			case ICEP_QWSERVER: server = true; 	break;
@@ -5588,7 +5584,7 @@ void JCL_Command(int accid, char *console)
 			msg = JCL_ParseOut(msg, arg[0], sizeof(arg[0]));
 			msg = JCL_ParseOut(msg, arg[1], sizeof(arg[1]));
 			while(*msg == ' ')
-				*msg++;
+				msg++;
 
 			JCL_SendMessage(jcl, jcl->defaultdest, msg);
 		}

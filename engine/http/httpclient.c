@@ -7,6 +7,10 @@
 
 vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefile);
 
+#ifndef NPFTE
+static struct dl_download *activedownloads;
+#endif
+
 #if defined(WEBCLIENT)
 
 #if defined(FTE_TARGET_WEB)
@@ -422,7 +426,8 @@ struct http_dl_ctx_s {
 //	struct dl_download *dlctx;
 
 #ifndef NPFTE
-	vfsfile_t *sock;
+	vfsfile_t *stream;
+	SOCKET sock;	//so we can wait on it when multithreaded.
 #else
 	SOCKET sock;	//FIXME: support https.
 #endif
@@ -454,9 +459,9 @@ void HTTP_Cleanup(struct dl_download *dl)
 	dl->ctx = NULL;
 
 #ifndef NPFTE
-	if (con->sock)
-		VFS_CLOSE(con->sock);
-	con->sock = NULL;
+	if (con->stream)
+		VFS_CLOSE(con->stream);
+	con->stream = NULL;
 #else
 	if (con->sock != INVALID_SOCKET)
 		closesocket(con->sock);
@@ -488,11 +493,32 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 	char *nl;
 	char *msg;
 	int ammount;
+
+#ifdef MULTITHREAD
+	//if we're running in a thread, wait for some actual activity instead of busylooping like an moron.
+	if (dl->threadctx)
+	{
+		struct timeval timeout;
+		fd_set	rdset, wrset;
+		FD_ZERO(&wrset);
+		FD_ZERO(&rdset);
+		FD_SET(con->sock, &wrset); // network socket
+		FD_SET(con->sock, &rdset); // network socket
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 0.1*1000*1000;
+		if (con->state == HC_REQUESTING)
+			select(con->sock+1, &rdset, &wrset, NULL, &timeout);	//wake up when we can read OR write
+		else
+			select(con->sock+1, &rdset, NULL, NULL, &timeout);	//wake when we can read.
+		//note that https should wake up more often, but we don't want to wake up because we *can* write when we're reading without any need to write.
+	}
+#endif
+
 	switch(con->state)
 	{
 	case HC_REQUESTING:
 #ifndef NPFTE
-		ammount = VFS_WRITE(con->sock, con->buffer, con->bufferused);
+		ammount = VFS_WRITE(con->stream, con->buffer, con->bufferused);
 		if (!ammount)
 			return true;
 		if (ammount < 0)
@@ -522,7 +548,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			ExpandBuffer(con, 1530);
 
 #ifndef NPFTE
-		ammount = VFS_READ(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-15);
+		ammount = VFS_READ(con->stream, con->buffer+con->bufferused, con->bufferlen-con->bufferused-15);
 		if (!ammount)
 			return true;
 		if (ammount < 0)
@@ -545,7 +571,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 		msg = con->buffer;
 		con->chunking = false;
-		con->contentlength = -1;
+		con->contentlength = -1;	//means unspecified
 		con->gzip = false;
 		*mimetype = 0;
 		*Location = 0;
@@ -553,7 +579,6 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		{	//pre version 1 (lame servers). no response headers at all.
 			con->state = HC_GETTING;
 			dl->status = DL_ACTIVE;
-			con->contentlength = -1;	//meaning end of stream.
 			dl->replycode = 200;
 		}
 		else
@@ -715,6 +740,13 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				return false;	//something went wrong.
 			}
 
+			if (con->contentlength != -1 && con->contentlength > dl->sizelimit)
+			{
+				dl->replycode = 413;	//413 Payload Too Large 
+				Con_Printf("HTTP: request exceeds size limit\n");
+				return false;	//something went wrong.
+			}
+
 			con->bufferused -= ammount;
 
 			dl->totalsize = con->contentlength;
@@ -779,7 +811,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			ExpandBuffer(con, 1530);
 
 #ifndef NPFTE
-		ammount = VFS_READ(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-1);
+		ammount = VFS_READ(con->stream, con->buffer+con->bufferused, con->bufferlen-con->bufferused-1);
 		if (ammount == 0)
 			return true;	//no data yet
 		else if (ammount < 0)
@@ -838,6 +870,12 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			}
 
 			con->totalreceived+=con->chunked;
+			if (con->totalreceived > dl->sizelimit)
+			{
+				dl->replycode = 413;	//413 Payload Too Large 
+				Con_Printf("HTTP: request exceeds size limit\n");
+				return false;	//something went wrong.
+			}
 			if (con->file && con->chunked)	//we've got a chunk in the buffer
 			{	//write it
 				if (VFS_WRITE(con->file, con->buffer, con->chunked) != con->chunked)
@@ -854,15 +892,28 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		}
 		else
 		{
-			con->totalreceived+=con->bufferused;
+			int chunk = con->bufferused;
+			if (con->contentlength != -1 && chunk > con->contentlength-con->totalreceived)
+				chunk = con->contentlength-con->totalreceived;
+
+			con->totalreceived+=chunk;
+			if (con->totalreceived > dl->sizelimit)
+			{
+				dl->replycode = 413;	//413 Payload Too Large 
+				Con_Printf("HTTP: request exceeds size limit\n");
+				return false;	//something went wrong.
+			}
 			if (con->file)	//we've got a chunk in the buffer
 			{	//write it
-				if (VFS_WRITE(con->file, con->buffer, con->bufferused) != con->bufferused)
+				if (VFS_WRITE(con->file, con->buffer, chunk) != chunk)
 				{
 					Con_Printf("Write error whilst downloading %s\nDisk full?\n", dl->localname);
 					return false;
 				}
-				con->bufferused = 0;
+
+				//and move the unparsed chunk to the front.
+				memmove(con->buffer, con->buffer+con->bufferused, con->bufferused-chunk);
+				con->bufferused -= chunk;
 			}
 			if (con->totalreceived == con->contentlength)
 				ammount = 0;
@@ -957,24 +1008,29 @@ void HTTPDL_Establish(struct dl_download *dl)
 	dl->status = DL_RESOLVING;
 
 #ifndef NPFTE
+	con->sock = INVALID_SOCKET;
+	con->stream = NULL;
+	con->secure = false;
+#ifndef HAVE_SSL
+	if (!https)
+#endif
+	{
+		netadr_t adr = {0};
+		//fixme: support more than one address possibility?
+		//https uses a different default port
+		if (NET_StringToAdr2(con->server, https?443:80, &adr, 1))
+			con->sock = TCP_OpenStream(&adr);
+		con->stream = FS_OpenTCPSocket(con->sock, true, con->server);
+	}
+#ifdef HAVE_SSL
 	if (https)
 	{
-#ifdef HAVE_SSL
-		//https uses port 443 instead of 80 by default
-		con->sock = FS_OpenTCP(con->server, 443);
-		//and with an extra ssl/tls layer between tcp and http.
-		con->sock = FS_OpenSSL(con->server, con->sock, false);
-#else
-		con->sock = NULL;
-#endif
+		//https has an extra ssl/tls layer between tcp and http.
+		con->stream = FS_OpenSSL(con->server, con->stream, false, false);
 		con->secure = true;
 	}
-	else
-	{
-		con->sock = FS_OpenTCP(con->server, 80);
-		con->secure = false;
-	}
-	if (!con->sock)
+#endif
+	if (!con->stream)
 	{
 		dl->status = DL_FAILED;
 		return;
@@ -1299,9 +1355,12 @@ qboolean DL_Decide(struct dl_download *dl)
 #endif	/*!defined(NACL)*/
 
 #ifdef MULTITHREAD
+static unsigned int dlthreads = 0;
+#define MAXDOWNLOADTHREADS 4
 #if defined(LOADERTHREAD) && !defined(NPFTE)
 static void HTTP_Wake_Think(void *ctx, void *data, size_t a, size_t b)
 {
+	dlthreads--;
 	HTTP_CL_Think();
 }
 #endif
@@ -1309,7 +1368,7 @@ static int DL_Thread_Work(void *arg)
 {
 	struct dl_download *dl = arg;
 
-	while (!dl->threaddie)
+	while (dl->threadenable)
 	{
 		if (!dl->poll(dl))
 		{
@@ -1326,6 +1385,7 @@ static int DL_Thread_Work(void *arg)
 			break;
 		}
 	}
+	dl->threadenable = false;
 
 #if defined(LOADERTHREAD) && !defined(NPFTE)
 	COM_AddWork(WG_MAIN, HTTP_Wake_Think, NULL, NULL, 0, 0);
@@ -1348,9 +1408,16 @@ qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyF
 	if (NotifyFunction)
 		dl->notifycomplete = NotifyFunction;
 
-	dl->threadctx = Sys_CreateThread("download", DL_Thread_Work, dl, THREADP_NORMAL, 0);
-	if (!dl->threadctx)
-		return false;
+	dl->threadenable = true;
+#if defined(LOADERTHREAD) && !defined(NPFTE)
+	if (dlthreads < 0)
+#endif
+	{
+		dl->threadctx = Sys_CreateThread("download", DL_Thread_Work, dl, THREADP_NORMAL, 0);
+		if (!dl->threadctx)
+			return false;
+		dlthreads++;
+	}
 
 	return true;
 }
@@ -1367,6 +1434,7 @@ struct dl_download *DL_Create(const char *url)
 	newdl->url = (char*)(newdl+1);
 	strcpy(newdl->url, url);
 	newdl->poll = DL_Decide;
+	newdl->sizelimit = 0x80000000u;	//some sanity limit.
 
 	if (!newdl->poll(newdl))
 	{
@@ -1380,13 +1448,26 @@ struct dl_download *DL_Create(const char *url)
 /*destroys an entire download context*/
 void DL_Close(struct dl_download *dl)
 {
+	struct dl_download **link = NULL;
+
+#ifndef NPFTE
+	for (link = &activedownloads; *link; link = &(*link)->next)
+	{
+		if (*link == dl)
+		{
+			*link = dl->next;
+			break;
+		}
+	}
+#endif
+
 #if !defined(NPFTE) && !defined(SERVERONLY)
 	if (cls.download == &dl->qdownload)
 		cls.download = NULL;
 #endif
 
 #ifdef MULTITHREAD
-	dl->threaddie = true;
+	dl->threadenable = false;
 	if (dl->threadctx)
 		Sys_WaitOnThread(dl->threadctx);
 #endif
@@ -1399,11 +1480,32 @@ void DL_Close(struct dl_download *dl)
 	free(dl);
 }
 
+void DL_DeThread(void)
+{
+#ifdef MULTITHREAD
+	//if we're about to fork, ensure that any downloads are properly parked so that there's no workers in an unknown state.
+	struct dl_download *dl;
+	for (dl = activedownloads; dl; dl = dl->next)
+	{
+		dl->threadenable = false;
+		if (dl->threadctx)
+			Sys_WaitOnThread(dl->threadctx);
+	}
+#endif
+}
 
 /*updates pending downloads*/
 #ifndef NPFTE
+unsigned int HTTP_CL_GetActiveDownloads(void)
+{
+	struct dl_download *dl;
+	unsigned int count = 0;
 
-static struct dl_download *activedownloads;
+	for (dl = activedownloads; dl; dl = dl->next)
+		count++;
+	return count;
+}
+
 /*create a download context and add it to the list, for lazy people. not threaded*/
 struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*NotifyFunction)(struct dl_download *dl))
 {
@@ -1443,10 +1545,13 @@ struct dl_download *HTTP_CL_Put(const char *url, const char *mime, const char *d
 		return NULL;
 
 	dl = HTTP_CL_Get(url, NULL, NotifyFunction);
-	Q_strncpyz(dl->postmimetype, mime, sizeof(dl->postmimetype));
-	dl->postdata = BZ_Malloc(datalen);
-	memcpy(dl->postdata, data, datalen);
-	dl->postlen = datalen;
+	if (dl)
+	{
+		Q_strncpyz(dl->postmimetype, mime, sizeof(dl->postmimetype));
+		dl->postdata = BZ_Malloc(datalen);
+		memcpy(dl->postdata, data, datalen);
+		dl->postlen = datalen;
+	}
 	return dl;
 }
 
@@ -1454,6 +1559,12 @@ void HTTP_CL_Think(void)
 {
 	struct dl_download *dl = activedownloads;
 	struct dl_download **link = NULL;
+#ifndef SERVERONLY
+	float currenttime;
+	if (!activedownloads)
+		return;
+	currenttime = Sys_DoubleTime();
+#endif
 
 	link = &activedownloads;
 	while (*link)
@@ -1469,22 +1580,38 @@ void HTTP_CL_Think(void)
 				continue;
 			}
 		}
-		else 
-#endif
-		if (!dl->poll(dl))
+		else if (dl->threadenable)
 		{
-			*link = dl->next;
-			if (dl->file && dl->file->Seek)
-				VFS_SEEK(dl->file, 0);
-			if (dl->notifycomplete)
-				dl->notifycomplete(dl);
-			DL_Close(dl);
-			continue;
+			if (dlthreads < MAXDOWNLOADTHREADS)
+			{
+				dl->threadctx = Sys_CreateThread("download", DL_Thread_Work, dl, THREADP_NORMAL, 0);
+				if (dl->threadctx)
+					dlthreads++;
+				else
+					dl->threadenable = false;
+			}
+		}
+		else
+#endif
+		{
+			if (!dl->poll(dl))
+			{
+				*link = dl->next;
+				if (dl->file && dl->file->Seek)
+					VFS_SEEK(dl->file, 0);
+				if (dl->notifycomplete)
+					dl->notifycomplete(dl);
+				DL_Close(dl);
+				continue;
+			}
 		}
 		link = &dl->next;
 
 #ifndef SERVERONLY
 		if (!cls.download && !dl->isquery)
+#ifdef MULTITHREAD
+		if (!dl->threadenable || dl->threadctx)	//don't show pending downloads in preference to active ones.
+#endif
 		{
 			cls.download = &dl->qdownload;
 			dl->qdownload.method = DL_HTTP;
@@ -1509,9 +1636,9 @@ void HTTP_CL_Think(void)
 			dl->qdownload.percent = dl->completed*100.0f/dl->totalsize;
 		dl->qdownload.completedbytes = dl->completed;
 
-		if (dl->qdownload.ratetime < Sys_DoubleTime())
+		if (dl->qdownload.ratetime < currenttime)
 		{
-			dl->qdownload.ratetime = Sys_DoubleTime()+1;
+			dl->qdownload.ratetime = currenttime+1;
 			dl->qdownload.rate = (dl->qdownload.completedbytes - dl->qdownload.ratebytes) / 1;
 			dl->qdownload.ratebytes = dl->qdownload.completedbytes;
 		}
@@ -1549,12 +1676,14 @@ typedef struct
 	int maxlen;
 	int writepos;
 	int readpos;
+	void *mutex;
 } vfspipe_t;
 
 static qboolean QDECL VFSPIPE_Close(vfsfile_t *f)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
 	free(p->data);
+	Sys_DestroyMutex(p->mutex);
 	free(p);
 	return true;
 }
@@ -1575,6 +1704,7 @@ static qofs_t QDECL VFSPIPE_GetLen(vfsfile_t *f)
 static int QDECL VFSPIPE_ReadBytes(vfsfile_t *f, void *buffer, int len)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
+	Sys_LockMutex(p->mutex);
 	if (len > p->writepos - p->readpos)
 		len = p->writepos - p->readpos;
 	memcpy(buffer, p->data+p->readpos, len);
@@ -1589,18 +1719,23 @@ static int QDECL VFSPIPE_ReadBytes(vfsfile_t *f, void *buffer, int len)
 		p->writepos -= p->readpos;
 		p->readpos = 0;
 	}
+	Sys_UnlockMutex(p->mutex);
 	return len;
 }
 static int QDECL VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
+	Sys_LockMutex(p->mutex);
 	if (p->writepos + len > p->maxlen)
 	{
 		p->maxlen = p->writepos + len;
+		if (p->maxlen < (p->writepos-p->readpos)*2)	//over-allocate a little
+			p->maxlen = (p->writepos-p->readpos)*2;
 		p->data = realloc(p->data, p->maxlen);
 	}
 	memcpy(p->data+p->writepos, buffer, len);
 	p->writepos += len;
+	Sys_UnlockMutex(p->mutex);
 	return len;
 }
 
@@ -1608,6 +1743,7 @@ vfsfile_t *VFSPIPE_Open(void)
 {
 	vfspipe_t *newf;
 	newf = malloc(sizeof(*newf));
+	newf->mutex = Sys_CreateMutex();
 	newf->data = NULL;
 	newf->maxlen = 0;
 	newf->readpos = 0;

@@ -2,8 +2,24 @@
 #define LOADSAVE_QC
 
 //I'm feeling lazy, so I'm going to only provide X slots, like quake's menu.
-#define NUMSAVESLOTS 10
-float selectedsaveslot;
+static string savenames[] =
+{
+	"a0",
+	"a1",
+	"a2",
+	"quick",
+	"s0",
+	"s1",
+	"s2",
+	"s3",
+	"s4",
+	"s5",
+	"s6",
+	"s7",
+	"s8",
+	"s9",
+};
+#define NUMSAVESLOTS savenames.length
 
 /*
 class mitem_savescreeny : mitem
@@ -19,13 +35,19 @@ class mitem_savescreeny : mitem
 */
 class mitem_saveoption : mitem_text
 {
-	float slot;
+	string slot;
 	float mode;
 	
+	virtual void() mitem_saveoption =
+	{
+		if (mode)
+			item_flags |= IF_SELECTABLE;
+	};
+
 	virtual void(vector pos) item_draw =
 	{
 		//some sort of pulsing if its active.
-		if (selectedsaveslot == slot)
+		if (item_flags & IF_KFOCUSED)
 			ui.drawfill(pos, item_size, '1 0 0', sin(cltime)*0.125+0.150, 0);
 		float w = stringwidth(item_text, TRUE, '1 1 0'*item_scale);
 		ui.drawstring(pos + [(item_size_x-w)/2, 0], item_text, '1 1 0' * item_scale, menuitem_textcolour(this), item_alpha, 0);
@@ -37,26 +59,45 @@ class mitem_saveoption : mitem_text
 			return FALSE;
 		if (scan == K_ENTER || (scan == K_MOUSE1 && mouseinbox(pos, this.item_size)))
 		{
-			if (selectedsaveslot == slot)
+			if (item_flags & IF_KFOCUSED)
 			{
 				switch(mode)
 				{
 				case 0:
 					break;	//can't load a slot which is empty.
 				case 1:
-					localcmd(sprintf("m_pop;load s%g\n", slot));
+					localcmd(sprintf("m_pop;load %s\n", slot));
 					break;
 				case 2:
 					//FTE has a savegame_legacy command if you want compatibility with other engines.
-					localcmd(sprintf("m_pop;wait;echo \"%s\";save s%g\n", _("Saving Game"), slot));
+					localcmd(sprintf("m_pop;wait;echo \"%s\";save %s\n", _("Saving Game"), slot));
 					//localcmd(sprintf("m_pop;wait;screenshot saves/s%g/screeny.png;echo \"%s\";save s%g\n", slot, _("Saving Game"), slot));
 					break;
 				}
 			}
-			selectedsaveslot = slot;
+			else
+			{
+				item_parent.item_focuschange(this, IF_KFOCUSED);
+			}
 			return TRUE;
 		}
 		return FALSE;
+	};
+};
+
+class mitem_savepreview : mitem
+{
+	//assumption: the only selectable children in the parent are save options.
+	virtual void(vector pos) item_draw =
+	{
+		mitem_saveoption sel;
+		sel = (mitem_saveoption)item_parent.item_kactivechild;
+		if (sel)
+		{
+			string s = sprintf("saves/%s/screeny.tga", sel.slot);
+			if (drawgetimagesize(s) != '0 0 0')
+				ui.drawpic(pos, s, item_size, item_rgb, item_alpha, 0);
+		}
 	};
 };
 
@@ -94,7 +135,7 @@ void(mitem_desktop desktop, float mode) M_LoadSave =
 
 	for (i = 0; i < NUMSAVESLOTS; i++)
 	{
-		l = scansave(sprintf("s%g", i));
+		l = scansave(savenames[i]);
 		smode = mode;
 		if (l=="")
 		{
@@ -102,10 +143,10 @@ void(mitem_desktop desktop, float mode) M_LoadSave =
 			if (mode==1)
 				smode = 0;
 		}
-		m.addm(spawn (mitem_saveoption, item_scale:16, slot:i, mode:smode, item_text:l), [-320, pos+i*16], [320, pos+(i+1)*16]);
+		m.addm(spawn (mitem_saveoption, item_scale:16, slot:savenames[i], mode:smode, item_text:l), [-320, pos+i*16], [320, pos+(i+1)*16]);
 	}
 
-//	m.addm(spawn (mitem_savescreeny), [-320, -240], [320, 240]);
+	m.addm(spawn(mitem_savepreview), [-320, -240], [320, 240]);
 	addmenuback(m);
 };
 

@@ -596,7 +596,11 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 
 	if (activeapp)
 	{
-		if (!SCR_HardwareCursorIsActive() && (fullscreen || in_simulatemultitouch.ival || _windowed_mouse.value) && (fullscreen || (current_mouse_pos.x >= window_rect.left && current_mouse_pos.y >= window_rect.top && current_mouse_pos.x <= window_rect.right && current_mouse_pos.y <= window_rect.bottom)))
+		if (
+#ifdef TEXTEDITOR
+			!editormodal &&
+#endif
+			!SCR_HardwareCursorIsActive() && (fullscreen || in_simulatemultitouch.ival || _windowed_mouse.value) && (fullscreen || (current_mouse_pos.x >= window_rect.left && current_mouse_pos.y >= window_rect.top && current_mouse_pos.x <= window_rect.right && current_mouse_pos.y <= window_rect.bottom)))
 		{
 			INS_HideMouse();
 		}
@@ -684,7 +688,7 @@ int INS_InitDInput (void)
 	if (pDirectInputCreateEx) // use DirectInput 7
 	{
 		// register with DirectInput and get an IDirectInput to play with.
-		hr = iDirectInputCreateEx(global_hInstance, DINPUT_VERSION_DX7, &fIID_IDirectInput7A, &g_pdi7, NULL);
+		hr = iDirectInputCreateEx(global_hInstance, DINPUT_VERSION_DX7, &fIID_IDirectInput7A, (void**)&g_pdi7, NULL);
 
 		if (FAILED(hr))
 			return 0;
@@ -692,7 +696,7 @@ int INS_InitDInput (void)
 		IDirectInput7_EnumDevices(g_pdi7, 0, &INS_EnumerateDI7Devices, NULL, DIEDFL_ATTACHEDONLY);
 
 		// obtain an interface to the system mouse device.
-		hr = IDirectInput7_CreateDeviceEx(g_pdi7, &fGUID_SysMouse, &fIID_IDirectInputDevice7A, &g_pMouse7, NULL);
+		hr = IDirectInput7_CreateDeviceEx(g_pdi7, &fGUID_SysMouse, &fIID_IDirectInputDevice7A, (void**)&g_pMouse7, NULL);
 
 		if (FAILED(hr)) {
 			Con_SafePrintf ("Couldn't open DI7 mouse device\n");
@@ -1419,7 +1423,8 @@ void INS_Accumulate (void)
 			GetCursorPos (&current_mouse_pos);
 			SetCursorPos (window_center_x, window_center_y);
 
-			IN_MouseMove(sysmouse.qdeviceid, false, current_mouse_pos.x - window_center_x, current_mouse_pos.y - window_center_y, 0, 0);
+			if (current_mouse_pos.x - window_center_x || current_mouse_pos.y - window_center_y)
+				IN_MouseMove(sysmouse.qdeviceid, false, current_mouse_pos.x - window_center_x, current_mouse_pos.y - window_center_y, 0, 0);
 		}
 		else
 		{
@@ -1742,7 +1747,7 @@ void INS_StartupJoystick (void)
 				wjoy[joy_count].isxinput = true;
 				wjoy[joy_count].id = id;
 				wjoy[joy_count].devid = DEVID_UNSET;//id;
-				wjoy[joy_count].numbuttons = 16;
+				wjoy[joy_count].numbuttons = 18;	//xinput supports 16 buttons, we emulate two more with the two triggers.
 				joy_count++;
 			}
 			Con_Printf("XInput is enabled (max %i controllers)\n", id);
@@ -1806,12 +1811,17 @@ void INS_Commands (void)
 		K_AUX6, //XINPUT_GAMEPAD_BACK
 		K_AUX3, //XINPUT_GAMEPAD_LEFT_THUMB
 		K_AUX4, //XINPUT_GAMEPAD_RIGHT_THUMB
+
 		K_AUX1, //XINPUT_GAMEPAD_LEFT_SHOULDER
 		K_AUX2,	//XINPUT_GAMEPAD_RIGHT_SHOULDER
+		K_AUX7,	//unused
+		K_AUX8,	//unused
 		K_JOY2,	//XINPUT_GAMEPAD_A
 		K_JOY4,	//XINPUT_GAMEPAD_B
 		K_JOY1,	//XINPUT_GAMEPAD_X
-		K_JOY3	//XINPUT_GAMEPAD_Y
+		K_JOY3,	//XINPUT_GAMEPAD_Y
+		K_AUX9,	//left trigger
+		K_AUX10	//right trigger
 	};
 	static const int dinputjbuttons[32] =
 	{
@@ -1946,16 +1956,24 @@ qboolean INS_ReadJoystick (struct wjoy_s *joy)
 	{
 		XINPUT_STATE xistate;
 		XINPUT_VIBRATION vibrator;
-		HRESULT hr = pXInputGetState(joy->id, &xistate);
+		HRESULT hr;
+		memset(&xistate, 0, sizeof(xistate));
+		hr = pXInputGetState(joy->id, &xistate);
 
-#if 0//def _DEBUG
-		//I don't have a controller to test this with, so we fake stuff.
-		if (joy->id == 3)
+		if (in_xinput.ival == 2)
 		{
+			Con_Printf("xi%i %s, b:%#x r:%u,%u l:%u,%u t:%u,%u\n", joy->id, (hr==ERROR_SUCCESS)?"success":va("%lx", hr), xistate.Gamepad.wButtons,
+				xistate.Gamepad.sThumbRX, xistate.Gamepad.sThumbRY, 
+				xistate.Gamepad.sThumbLX,xistate.Gamepad.sThumbLY,
+				xistate.Gamepad.bLeftTrigger,xistate.Gamepad.bRightTrigger);
+		}
+		else if (in_xinput.ival == 3 && joy->id == 0)
+		{
+		//I don't have a controller to test this with, so we fake stuff.
 			POINT p;
 			GetCursorPos(&p);
 			hr = ERROR_SUCCESS;
-			xistate.Gamepad.wButtons = 0;//rand() & 0xfff0;
+			xistate.Gamepad.wButtons = rand() & 0xfff0;
 			xistate.Gamepad.sThumbRX = 0;//(p.x/1920.0)*0xffff - 0x8000;
 			xistate.Gamepad.sThumbRY = 0;//(p.y/1080.0)*0xffff - 0x8000;
 			xistate.Gamepad.sThumbLX = (p.x/1920.0)*0xffff - 0x8000;
@@ -1963,12 +1981,16 @@ qboolean INS_ReadJoystick (struct wjoy_s *joy)
 			xistate.Gamepad.bLeftTrigger = 0;
 			xistate.Gamepad.bRightTrigger = 0;
 		}
-#endif
 
 		if (hr == ERROR_SUCCESS)
 		{	//ERROR_SUCCESS
 			//do we care about the dwPacketNumber?
 			joy->buttonstate = xistate.Gamepad.wButtons & 0xffff;
+
+			if (xistate.Gamepad.bLeftTrigger >= 128)
+				joy->buttonstate |= 0x10000;
+			if (xistate.Gamepad.bRightTrigger >= 128)
+				joy->buttonstate |= 0x20000;
 
 			if (joy->devid != DEVID_UNSET)
 			{

@@ -195,10 +195,6 @@ static void ALSA_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
 {
 }
 
-static void ALSA_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)
-{
-}
-
 static qboolean Alsa_InitAlsa(void)
 {
 	static qboolean tried;
@@ -486,7 +482,6 @@ static qboolean QDECL ALSA_InitCard (soundcardinfo_t *sc, const char *pcmname)
 
 	sc->Lock		= ALSA_LockBuffer;
 	sc->Unlock		= ALSA_UnlockBuffer;
-	sc->SetWaterDistortion	= ALSA_SetUnderWater;
 	sc->Shutdown		= ALSA_Shutdown;
 	if (mmap)
 	{

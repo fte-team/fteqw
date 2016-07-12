@@ -2,9 +2,8 @@
 #include "glquake.h"
 #include "web/ftejslib.h"
 
-extern cvar_t vid_hardwaregamma;
 extern cvar_t gl_lateswap;
-extern int gammaworks;
+extern qboolean gammaworks;
 
 extern qboolean vid_isfullscreen;
 
@@ -275,7 +274,7 @@ qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 	return gammaworks;
 }
 
-void GLVID_SetCaption(char *text)
+void GLVID_SetCaption(const char *text)
 {
 	emscriptenfte_settitle(text);
 }

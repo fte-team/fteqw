@@ -1263,11 +1263,8 @@ static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t 
 		src = mesh->xyz_array;
 		for (i = 0; i < cnt; i++, dst += 2)
 		{
-			static vec3_t tc_gen_s = { 1.0f, 0.0f, 0.0f };
-			static vec3_t tc_gen_t = { 0.0f, 1.0f, 0.0f };
-
-			dst[0] = DotProduct(tc_gen_s, src[i]);
-			dst[1] = DotProduct(tc_gen_t, src[i]);
+			dst[0] = DotProduct(pass->tcgenvec[0], src[i]);
+			dst[1] = DotProduct(pass->tcgenvec[1], src[i]);
 		}
 		return dst;
 	}
@@ -1872,6 +1869,20 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 
 		case SP_M_ENTBONES:
 		case SP_M_MODELVIEW:
+		case SP_E_LMSCALE:
+		case SP_E_VLSCALE:
+		case SP_E_ORIGIN:
+		case SP_E_GLOWMOD:
+		case SP_W_FOG:
+		case SP_M_INVVIEWPROJECTION:
+		case SP_M_INVMODELVIEWPROJECTION:
+		case SP_SOURCESIZE:
+		case SP_S_COLOUR:
+		case SP_LIGHTCOLOURSCALE:
+		case SP_LIGHTSCREEN:
+		case SP_LIGHTCUBEMATRIX:
+		case SP_LIGHTSHADOWMAPPROJ:
+		case SP_LIGHTSHADOWMAPSCALE:
 
 		case SP_RENDERTEXTURESCALE:
 
@@ -1882,6 +1893,7 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 		case SP_CVARF:
 		case SP_CVAR3F:
 		case SP_TEXTURE:
+		case SP_BAD:
 			Con_Printf("shader property %i not implemented\n", pp->type);
 			break;
 		}
@@ -2457,8 +2469,8 @@ static void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *
 	vbo->indicies.d3d.buff = ebuff;
 	vbo->indicies.d3d.offs = 0;
 
-	IDirect3DIndexBuffer9_Lock(ebuff, 0, sizeof(index_t) * maxvboelements, &vboedata, D3DLOCK_DISCARD);
-	IDirect3DVertexBuffer9_Lock(vbuff, 0, sizeof(*vbovdata) * maxvboverts, &vbovdata, D3DLOCK_DISCARD);
+	IDirect3DIndexBuffer9_Lock(ebuff, 0, sizeof(index_t) * maxvboelements, (void**)&vboedata, D3DLOCK_DISCARD);
+	IDirect3DVertexBuffer9_Lock(vbuff, 0, sizeof(*vbovdata) * maxvboverts, (void**)&vbovdata, D3DLOCK_DISCARD);
 
 	for(batch = firstbatch; batch != stopbatch; batch = batch->next)
 	{
@@ -2827,7 +2839,7 @@ batch_t *D3D9BE_GetTempBatch(void)
 
 static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 {
-	float mv[16];
+//	float mv[16];
 	float *m = shaderstate.m_model;
 
 	shaderstate.curentity = e;
@@ -2837,25 +2849,50 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		float em[16];
 		float vm[16];
 
-		vm[0] = r_refdef.playerview->vw_axis[0][0];
-		vm[1] = r_refdef.playerview->vw_axis[0][1];
-		vm[2] = r_refdef.playerview->vw_axis[0][2];
-		vm[3] = 0;
+		if (e->flags & RF_WEAPONMODELNOBOB)
+		{
+			vm[0] = vpn[0];
+			vm[1] = vpn[1];
+			vm[2] = vpn[2];
+			vm[3] = 0;
 
-		vm[4] = r_refdef.playerview->vw_axis[1][0];
-		vm[5] = r_refdef.playerview->vw_axis[1][1];
-		vm[6] = r_refdef.playerview->vw_axis[1][2];
-		vm[7] = 0;
+			vm[4] = -vright[0];
+			vm[5] = -vright[1];
+			vm[6] = -vright[2];
+			vm[7] = 0;
 
-		vm[8] = r_refdef.playerview->vw_axis[2][0];
-		vm[9] = r_refdef.playerview->vw_axis[2][1];
-		vm[10] = r_refdef.playerview->vw_axis[2][2];
-		vm[11] = 0;
+			vm[8] = vup[0];
+			vm[9] = vup[1];
+			vm[10] = vup[2];
+			vm[11] = 0;
 
-		vm[12] = r_refdef.playerview->vw_origin[0];
-		vm[13] = r_refdef.playerview->vw_origin[1];
-		vm[14] = r_refdef.playerview->vw_origin[2];
-		vm[15] = 1;
+			vm[12] = r_refdef.vieworg[0];
+			vm[13] = r_refdef.vieworg[1];
+			vm[14] = r_refdef.vieworg[2];
+			vm[15] = 1;
+		}
+		else
+		{
+			vm[0] = r_refdef.playerview->vw_axis[0][0];
+			vm[1] = r_refdef.playerview->vw_axis[0][1];
+			vm[2] = r_refdef.playerview->vw_axis[0][2];
+			vm[3] = 0;
+
+			vm[4] = r_refdef.playerview->vw_axis[1][0];
+			vm[5] = r_refdef.playerview->vw_axis[1][1];
+			vm[6] = r_refdef.playerview->vw_axis[1][2];
+			vm[7] = 0;
+
+			vm[8] = r_refdef.playerview->vw_axis[2][0];
+			vm[9] = r_refdef.playerview->vw_axis[2][1];
+			vm[10] = r_refdef.playerview->vw_axis[2][2];
+			vm[11] = 0;
+
+			vm[12] = r_refdef.playerview->vw_origin[0];
+			vm[13] = r_refdef.playerview->vw_origin[1];
+			vm[14] = r_refdef.playerview->vw_origin[2];
+			vm[15] = 1;
+		}
 
 		em[0] = e->axis[0][0];
 		em[1] = e->axis[0][1];
@@ -2908,7 +2945,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		float z;
 		float escale;
 		escale = e->scale;
-		switch(e->drawflags&SCALE_TYPE_MASKIN)
+		switch(e->drawflags&SCALE_TYPE_MASK)
 		{
 		default:
 		case SCALE_TYPE_UNIFORM:
@@ -2924,9 +2961,9 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 			VectorScale((m+8), escale, (m+8));
 			break;
 		}
-		if (mod && (e->drawflags&SCALE_TYPE_MASKIN) != SCALE_TYPE_XYONLY)
+		if (mod && (e->drawflags&SCALE_TYPE_MASK) != SCALE_TYPE_XYONLY)
 		{
-			switch(e->drawflags&SCALE_ORIGIN_MASKIN)
+			switch(e->drawflags&SCALE_ORIGIN_MASK)
 			{
 			case SCALE_ORIGIN_CENTER:
 				z = ((mod->maxs[2] + mod->mins[2]) * (1-escale))/2;
@@ -3506,7 +3543,7 @@ void D3D9BE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray
 	varray->d3d.offs = ctx->pos;
 	ctx->pos += size;
 }
-void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray)
+void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem)
 {
 	IDirect3DIndexBuffer9 *buf;
 	IDirect3DVertexBuffer9 *vbuf = ctx->vboptr[0];
@@ -3523,7 +3560,7 @@ void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *ea
 	earray->d3d.buff = buf;
 	earray->d3d.offs = 0;
 }
-void D3D9BE_VBO_Destroy(vboarray_t *vearray)
+void D3D9BE_VBO_Destroy(vboarray_t *vearray, void *mem)
 {
 	IUnknown *ebuf = vearray->d3d.buff;
 	if (ebuf)

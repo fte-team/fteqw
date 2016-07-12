@@ -135,6 +135,7 @@ void R2D_Shutdown(void)
 	cl_numstris = 0;
 	cl_maxstris = 0;
 
+	Con_FlushBackgrounds();
 
 	if (font_console == font_default)
 		font_console = NULL;
@@ -148,6 +149,8 @@ void R2D_Shutdown(void)
 	if (font_tiny)
 		Font_Free(font_tiny);
 	font_tiny = NULL; 
+
+	M_ReloadMenus();
 
 #if defined(MENU_DAT) || defined(CSQC_DAT)
 	PR_ReloadFonts(false);
@@ -178,9 +181,6 @@ void R2D_Init(void)
 	extern cvar_t gl_specular_fallback, gl_specular_fallbackexp, gl_texturemode;
 	conback = NULL;
 
-	Shader_Init();
-
-	BE_Init();
 	draw_mesh.istrifan = true;
 	draw_mesh.numvertexes = 4;
 	draw_mesh.numindexes = 6;
@@ -199,8 +199,6 @@ void R2D_Init(void)
 		r_quad_indexes[i+5] = j+0;
 	}
 
-
-	Font_Init();
 
 #ifdef warningmsg
 #pragma warningmsg("Fixme: move conwidth handling into here")
@@ -222,6 +220,10 @@ void R2D_Init(void)
 	missing_texture_normal = R_LoadTexture("no_texture_normal", 4, 4, TF_RGBA32, (unsigned char*)nonorm, IF_NOGAMMA|IF_NOPURGE);
 	translate_texture = r_nulltex;
 	ch_int_texture = r_nulltex;
+
+	Shader_Init();
+	BE_Init();
+	Font_Init();
 
 	draw_backtile = R_RegisterShader("gfx/backtile.lmp", SUF_NONE,
 		"{\n"
@@ -301,7 +303,6 @@ void R2D_Init(void)
 		"{\n"
 			"program defaultgammacb\n"
 			"affine\n"
-			"cull back\n"
 			"{\n"
 				"map $currentrender\n"
 				"nodepthtest\n"
@@ -1218,7 +1219,10 @@ void R2D_BrightenScreen (void)
 	{
 		//this should really be done properly, with render-to-texture
 		R2D_ImageColours (v_gamma.value, v_contrast.value, v_brightness.value, 1);
-		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, shader_gammacb);
+		if (qrenderer == QR_OPENGL)
+			R2D_Image(0, 0, vid.width, vid.height, 0, 1, 1, 0, shader_gammacb);
+		else
+			R2D_Image(0, 0, vid.width, vid.height, 0, 0, 1, 1, shader_gammacb);
 	}
 	else
 	{

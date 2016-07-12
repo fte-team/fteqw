@@ -128,7 +128,7 @@ cvar_t	model		= CVARF("model",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	topcolor	= CVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	bottomcolor	= CVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	rate		= CVARFD("rate",		"30000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while playing. Too high a value may result in 'buffer bloat'.");
-cvar_t	drate		= CVARFD("drate",		"100000",	CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while downloading.");		// :)
+cvar_t	drate		= CVARFD("drate",		"3000000",	CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while downloading (in bytes per second).");		// :)
 cvar_t	noaim		= CVARF("noaim",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	msg			= CVARFD("msg",			"1",		CVAR_ARCHIVE | CVAR_USERINFO, "Filter console prints/messages. Only functions on QuakeWorld servers. 0=pickup messages. 1=death messages. 2=critical messages. 3=chat.");
 cvar_t	b_switch	= CVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
@@ -192,6 +192,7 @@ cvar_t	ruleset_allow_modified_eyes			= CVAR("ruleset_allow_modified_eyes", "0");
 cvar_t	ruleset_allow_sensitive_texture_replacements = CVAR("ruleset_allow_sensitive_texture_replacements", "1");
 cvar_t	ruleset_allow_localvolume			= CVAR("ruleset_allow_localvolume", "1");
 cvar_t  ruleset_allow_shaders				= CVARF("ruleset_allow_shaders", "1", CVAR_SHADERSYSTEM);
+cvar_t  ruleset_allow_watervis				= CVARF("ruleset_allow_watervis", "1", CVAR_SHADERSYSTEM);
 cvar_t  ruleset_allow_fbmodels				= CVARF("ruleset_allow_fbmodels", "1", CVAR_SHADERSYSTEM);
 
 extern cvar_t cl_hightrack;
@@ -241,7 +242,7 @@ static struct
 {
 	qboolean		trying;
 	qboolean		istransfer;		//ignore the user's desired server (don't change connect.adr).
-	netadr_t		adr;			//address that we're trying to transfer to.
+	netadr_t		adr;			//address that we're trying to transfer to. FIXME: support multiple resolved addresses, eg both ::1 AND 127.0.0.1
 	int				mtu;
 	unsigned int	compresscrc;
 	int				protocol;		//nq/qw/q2/q3. guessed based upon server replies
@@ -303,32 +304,39 @@ void CL_UpdateWindowTitle(void)
 {
 	if (VID_SetWindowCaption)
 	{
-		char title[2048];
-		switch (cls.state)
-		{
-		default:
-#ifndef CLIENTONLY
-			if (sv.state)
-				Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, svs.name);
-			else
-#endif
-			if (cls.demoplayback)
-			{
-				extern char lastdemoname[];
-				Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, lastdemoname);
-			}
-			else
-				Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, cls.servername);
-			break;
-		case ca_disconnected:
-			if (cl.worldmodel)	//pure csqc mods can have a world model and yet be disconnected. we don't really know what the current map should be called though.
-				Q_snprintfz(title, sizeof(title), "%s", fs_gamename.string);
-			else
-				Q_snprintfz(title, sizeof(title), "%s: disconnected", fs_gamename.string);
-			break;
+		if (cl.windowtitle)
+		{	//gamecode wanted some explicit title.
+			VID_SetWindowCaption(cl.windowtitle);
+			return;
 		}
-
-		VID_SetWindowCaption(title);
+		else
+		{
+			char title[2048];
+			switch (cls.state)
+			{
+			default:
+#ifndef CLIENTONLY
+				if (sv.state)
+					Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, svs.name);
+				else
+#endif
+				if (cls.demoplayback)
+				{
+					extern char lastdemoname[];
+					Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, lastdemoname);
+				}
+				else
+					Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, cls.servername);
+				break;
+			case ca_disconnected:
+				if (CSQC_UnconnectedOkay(false))	//pure csqc mods can have a world model and yet be disconnected. we don't really know what the current map should be called though.
+					Q_snprintfz(title, sizeof(title), "%s", fs_gamename.string);
+				else
+					Q_snprintfz(title, sizeof(title), "%s: disconnected", fs_gamename.string);
+				break;
+			}
+			VID_SetWindowCaption(title);
+		}
 	}
 }
 
@@ -408,7 +416,7 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 
 	connectinfo.time = realtime;	// for retransmit requests
 
-	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5\\challenge\\%s", 255, 255, 255, 255, challenge);
+	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5 FITZ NEHAHRABJP NEHAHRABJP2 NEHAHRABJP3 QUAKE\\challenge\\%s", 255, 255, 255, 255, challenge);
 
 	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 
@@ -601,6 +609,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 //	Info_SetValueForStarKey (cls.userinfo, "*ip", NET_AdrToString(adr), MAX_INFO_STRING);
 
 	clients = 1;
+/*
 	if (cl_splitscreen.value && (fteprotextsupported & PEXT_SPLITSCREEN))
 	{
 //		if (adr.type == NA_LOOPBACK)
@@ -618,6 +627,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	if (connectinfo.protocol == CP_QUAKE2)	//q2 only supports after-connect seats
 		clients = 1;
 #endif
+*/
 
 #ifdef Q3CLIENT
 	if (connectinfo.protocol == CP_QUAKE3)
@@ -730,6 +740,7 @@ void CL_CheckForResend (void)
 #ifndef CLIENTONLY
 	if (!cls.state && (!connectinfo.trying || sv.state != ss_clustermode) && sv.state)
 	{
+		qboolean proquakeangles = false;
 		extern cvar_t dpcompat_nopreparse;
 		memset(&connectinfo, 0, sizeof(connectinfo));
 		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
@@ -759,7 +770,7 @@ void CL_CheckForResend (void)
 #endif
 		default:
 			cl.movesequence = 0;
-			if (!strcmp(cl_loopbackprotocol.string, "qw"))
+			if (!strcmp(cl_loopbackprotocol.string, "qw") || progstype == PROG_H2)
 			{	//qw with all supported extensions -default
 				connectinfo.fteext1 = Net_PextMask(1, false);
 				connectinfo.fteext2 = Net_PextMask(2, false);
@@ -796,10 +807,16 @@ void CL_CheckForResend (void)
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "nq"))	//actually proquake, because we might as well use the extra angles
+			else if (!strcmp(cl_loopbackprotocol.string, "bjp3") || !strcmp(cl_loopbackprotocol.string, "bjp"))
 			{
 				connectinfo.protocol = CP_NETQUAKE;
-				connectinfo.subprotocol = CPNQ_PROQUAKE3_4;
+				connectinfo.subprotocol = CPNQ_BJP3;
+			}
+			else if (!strcmp(cl_loopbackprotocol.string, "nq"))
+			{
+				connectinfo.protocol = CP_NETQUAKE;
+				connectinfo.subprotocol = CPNQ_ID;
+				proquakeangles = true;
 			}
 			else if (!strcmp(cl_loopbackprotocol.string, "nqid") || !strcmp(cl_loopbackprotocol.string, "idnq"))
 			{
@@ -908,14 +925,21 @@ void CL_CheckForResend (void)
 
 				SVC_DirectConnect();
 			}
-			else if (connectinfo.subprotocol == CPNQ_FITZ666)
+			else if (connectinfo.subprotocol == CPNQ_BJP3)
 			{
 				net_from = connectinfo.adr;
-				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\666\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
+				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge(), PROTOCOL_VERSION_BJP3), false, false);
 
 				SVC_DirectConnect();
 			}
-			else if (connectinfo.subprotocol == CPNQ_PROQUAKE3_4)
+			else if (connectinfo.subprotocol == CPNQ_FITZ666)
+			{
+				net_from = connectinfo.adr;
+				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge(), PROTOCOL_VERSION_FITZ), false, false);
+
+				SVC_DirectConnect();
+			}
+			else if (proquakeangles)
 			{
 				net_from = connectinfo.adr;
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\1\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
@@ -933,6 +957,7 @@ void CL_CheckForResend (void)
 				connectinfo.challenge = rand();
 			CL_SendConnectPacket (NULL, 8192-16, connectinfo.fteext1, connectinfo.fteext2, false);
 		}
+
 		return;
 	}
 #endif
@@ -1023,7 +1048,7 @@ void CL_CheckForResend (void)
 	if (contype & 1)
 	{
 		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
-		keeptrying &= NET_SendPacket (NS_CLIENT, strlen(data), data, &connectinfo.adr);
+		keeptrying &= NET_SendPacket (NS_CLIENT, strlen(data), data, &connectinfo.adr)==NETERR_SENT;
 	}
 	/*NQ*/
 #ifdef NQPROT
@@ -1055,7 +1080,7 @@ void CL_CheckForResend (void)
 			MSG_WriteString(&sb, "getchallenge");
 
 		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
-		keeptrying &= NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, &connectinfo.adr);
+		keeptrying &= NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, &connectinfo.adr)==NETERR_SENT;
 	}
 #endif
 
@@ -1530,6 +1555,8 @@ void CL_ClearState (void)
 				Z_Free(cl.playerview[i].statsstr[j]);
 	}
 
+	Z_Free(cl.windowtitle);
+
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
 
@@ -1870,7 +1897,7 @@ void CL_Color_f (void)
 	if (top == 0)
 		*num = '\0';
 	if (Cmd_ExecLevel>RESTRICT_SERVER) //colour command came from server for a split client
-		Cbuf_AddText(va("cmd %i setinfo topcolor \"%s\"\n", Cmd_ExecLevel-RESTRICT_SERVER-1, num), Cmd_ExecLevel);
+		Cbuf_AddText(va("p%i cmd setinfo topcolor \"%s\"\n", Cmd_ExecLevel-RESTRICT_SERVER-1, num), Cmd_ExecLevel);
 //	else if (server_owns_colour)
 //		Cvar_LockFromServer(&topcolor, num);
 	else
@@ -1879,7 +1906,7 @@ void CL_Color_f (void)
 	if (bottom == 0)
 		*num = '\0';
 	if (Cmd_ExecLevel>RESTRICT_SERVER) //colour command came from server for a split client
-		Cbuf_AddText(va("cmd %i setinfo bottomcolor \"%s\"\n", Cmd_ExecLevel-RESTRICT_SERVER-1, num), Cmd_ExecLevel);
+		Cbuf_AddText(va("p%i cmd setinfo bottomcolor \"%s\"\n", Cmd_ExecLevel-RESTRICT_SERVER-1, num), Cmd_ExecLevel);
 	else if (server_owns_colour)
 		Cvar_LockFromServer(&bottomcolor, num);
 	else
@@ -1974,32 +2001,20 @@ void CL_CheckServerInfo(void)
 
 	cls.allow_cheats = false;
 	cls.allow_semicheats=true;
-	cls.allow_rearview=false;
 	cls.allow_watervis=false;
 	cls.allow_skyboxes=false;
-	cls.allow_mirrors=false;
-	cls.allow_postproc=false;
 	cls.allow_fbskins = 1;
 //	cls.allow_fbskins = 0;
 //	cls.allow_overbrightlight;
-	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "rearview")))
-		cls.allow_rearview=true;
+
+
+	cls.allow_csqc = atoi(Info_ValueForKey(cl.serverinfo, "anycsqc")) || *Info_ValueForKey(cl.serverinfo, "*csprogs");
 
 	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "watervis")))
 		cls.allow_watervis=true;
 
 	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_skybox")) || atoi(Info_ValueForKey(cl.serverinfo, "allow_skyboxes")))
-		cls.allow_skyboxes=true;
-
-	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "mirrors")))
-		cls.allow_mirrors=true;
-
-	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_lmgamma")))
-		cls.allow_lightmapgamma=true;
-
-	s = Info_ValueForKey(cl.serverinfo, "allow_postproc");
-	if (cl.spectator || cls.demoplayback || !*s || atoi(s))
-		cls.allow_postproc=true;
+		cls.allow_skyboxes=true;	//mostly obsolete.
 
 	s = Info_ValueForKey(cl.serverinfo, "fbskins");
 	if (*s)
@@ -2068,18 +2083,18 @@ void CL_CheckServerInfo(void)
 	allowed = atoi(Info_ValueForKey(cl.serverinfo, "allow"));
 	if (allowed & 1)
 		cls.allow_watervis = true;
-	if (allowed & 2)
-		cls.allow_rearview = true;
+//	if (allowed & 2)
+//		cls.allow_rearview = true;
 	if (allowed & 4)
 		cls.allow_skyboxes = true;
-	if (allowed & 8)
-		cls.allow_mirrors = true;
+//	if (allowed & 8)
+//		cls.allow_mirrors = true;
 	//16
 	//32
-	if (allowed & 128)
-		cls.allow_postproc = true;
-	if (allowed & 256)
-		cls.allow_lightmapgamma = true;
+//	if (allowed & 128)
+//		cls.allow_postproc = true;
+//	if (allowed & 256)
+//		cls.allow_lightmapgamma = true;
 	if (allowed & 512)
 		cls.allow_cheats = true;
 
@@ -2833,7 +2848,12 @@ void CL_ConnectionlessPacket (void)
 				if ((*s2 < '0' || *s2 > '9') && *s2 != '-')
 					break;
 			}
-			if (*s2 && *s2 != ' ')
+			if (!strncmp(s2, "FTE", 3) || !strncmp(s2, "QW", 2))
+			{	//hack to work around NQ+QW+DP servers that reply with both qw and dp challenge requests.
+				//we DON'T want to treat it as a dp server. because then we end up with nq-based protocols.
+				return;
+			}
+			else if (*s2 && *s2 != ' ')
 			{//and if it's not, we're unlikly to be compatible with whatever it is that's talking at us.
 #ifdef NQPROT
 				if (connectinfo.protocol == CP_NETQUAKE || connectinfo.protocol == CP_UNKNOWN)
@@ -3004,6 +3024,16 @@ void CL_ConnectionlessPacket (void)
 		if (!strcmp(com_token, "ccept"))
 		{
 			Con_Printf ("accept\n");
+			if (cls.state == ca_connected)
+				return;	//we're already connected. don't do it again!
+
+			if (!NET_CompareAdr(&connectinfo.adr, &net_from))
+			{
+				//if (net_from.type != NA_LOOPBACK)
+				Con_TPrintf ("ignoring connection\n");
+				return;
+			}
+
 			Validation_Apply_Ruleset();
 			Netchan_Setup(NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
 			CL_ParseEstablished();
@@ -3013,6 +3043,7 @@ void CL_ConnectionlessPacket (void)
 			cls.netchan.isnqprotocol = true;
 			cls.protocol = CP_NETQUAKE;
 			cls.protocol_nq = CPNQ_ID;
+			cls.proquake_angles_hack = false;
 			cls.challenge = connectinfo.challenge;
 			connectinfo.trying = false;
 
@@ -3109,6 +3140,7 @@ client_connect:	//fixme: make function
 		connectinfo.trying = false;
 		cl.splitclients = 0;
 		cls.protocol = connectinfo.protocol;
+		cls.proquake_angles_hack = false;
 		cls.fteprotocolextensions = connectinfo.fteext1;
 		cls.fteprotocolextensions2 = connectinfo.fteext2;
 		cls.challenge = connectinfo.challenge;
@@ -3144,6 +3176,8 @@ client_connect:	//fixme: make function
 		SCR_SetLoadingStage(LS_CLIENT);
 
 		Validation_Apply_Ruleset();
+
+		CL_WriteSetDemoMessage();
 
 		return;
 	}
@@ -3183,7 +3217,7 @@ client_connect:	//fixme: make function
 				Con_TPrintf ("^&C0Command packet received from local host, but no localid has been set.  You may need to upgrade your server browser.\n");
 				return;
 			}
-			Con_TPrintf ("^&C0Invalid localid on command packet received from local host. \n|%s| != |%s|\nYou may need to reload your server browser and QuakeWorld.\n",
+			Con_TPrintf ("^&C0Invalid localid on command packet received from local host. \n|%s| != |%s|\nYou may need to reload your server browser and game.\n",
 				s, localid.string);
 			Cvar_Set(&localid, "");
 			return;
@@ -3264,6 +3298,7 @@ void CLNQ_ConnectionlessPacket(void)
 			Con_DPrintf("redirecting to port %s\n", NET_AdrToString(buf, sizeof(buf), &net_from));
 		}
 
+		cls.proquake_angles_hack = false;
 		cls.protocol_nq = CPNQ_ID;
 		if (MSG_ReadByte() == 1)	//a proquake server adds a little extra info
 		{
@@ -3271,7 +3306,7 @@ void CLNQ_ConnectionlessPacket(void)
 			Con_DPrintf("ProQuake server %i.%i\n", ver/10, ver%10);
 
 //			if (ver >= 34)
-			cls.protocol_nq = CPNQ_PROQUAKE3_4;
+			cls.proquake_angles_hack = true;
 			if (MSG_ReadByte() == 1)
 			{
 				//its a 'pure' server.
@@ -3301,7 +3336,7 @@ void CLNQ_ConnectionlessPacket(void)
 #endif
 
 		//send a dummy packet.
-		//this makes our local nat think we initialised the conversation.
+		//this makes our local nat think we initialised the conversation, so that we can receive the.
 		Netchan_Transmit(&cls.netchan, 1, "\x01", 2500);
 		return;
 
@@ -3491,7 +3526,7 @@ qboolean CL_AllowArbitaryDownload(char *localfile)
 	{
 		char ext[8];
 		COM_FileExtension(localfile, ext, sizeof(ext));
-		if (!strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4") || (!strncmp(localfile, "demos/", 6) && !strcmp(ext, "mvd")))
+		if (!strncmp(localfile, "package/", 8) || !strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4") || (!strncmp(localfile, "demos/", 6) && !strcmp(ext, "mvd")))
 			return true;
 		else
 		{
@@ -3725,9 +3760,12 @@ void CL_FTP_f(void)
 //fixme: make a cvar
 void CL_Fog_f(void)
 {
-	int ftype = strcmp(Cmd_Argv(0), "fog");
+	int ftype = Q_strcasecmp(Cmd_Argv(0), "fog");
 	if ((cl.fog_locked && !Cmd_FromGamecode()) || Cmd_Argc() <= 1)
-		Con_Printf("Current fog %f (r:%f g:%f b:%f, a:%f bias:%f)\n", cl.fog[ftype].density, cl.fog[ftype].colour[0], cl.fog[ftype].colour[1], cl.fog[ftype].colour[2], cl.fog[ftype].alpha, cl.fog[ftype].depthbias);
+	{
+		if (Cmd_ExecLevel != RESTRICT_INSECURE)
+			Con_Printf("Current fog %f (r:%f g:%f b:%f, a:%f bias:%f)\n", cl.fog[ftype].density, cl.fog[ftype].colour[0], cl.fog[ftype].colour[1], cl.fog[ftype].colour[2], cl.fog[ftype].alpha, cl.fog[ftype].depthbias);
+	}
 	else
 	{
 		CL_ResetFog(ftype);
@@ -3997,6 +4035,7 @@ void CL_Init (void)
 	Cvar_Register (&ruleset_allow_sensitive_texture_replacements,	cl_controlgroup);
 	Cvar_Register (&ruleset_allow_localvolume,			cl_controlgroup);
 	Cvar_Register (&ruleset_allow_shaders,			cl_controlgroup);
+	Cvar_Register (&ruleset_allow_watervis,			cl_controlgroup);
 	Cvar_Register (&ruleset_allow_fbmodels,			cl_controlgroup);
 
 	Cvar_Register (&qtvcl_forceversion1,				cl_controlgroup);
@@ -4137,7 +4176,7 @@ Host_EndGame
 Call this to drop to a console without exiting the qwcl
 ================
 */
-void VARGS Host_EndGame (char *message, ...)
+NORETURN void VARGS Host_EndGame (char *message, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -4552,7 +4591,8 @@ void Host_DoRunFile(hrf_t *f)
 		else if (!Q_strcasecmp(ext, "pak") || !Q_strcasecmp(ext, "pk3") || !Q_strcasecmp(ext, "pk4") || !Q_strcasecmp(ext, "wad"))
 			f->flags |= HRF_PACKAGE;
 		else if (!Q_strcasecmp(ext, "mdl") || !Q_strcasecmp(ext, "md2") || !Q_strcasecmp(ext, "md3") || !Q_strcasecmp(ext, "iqm")
-			|| !Q_strcasecmp(ext, "psk") || !Q_strcasecmp(ext, "zym") || !Q_strcasecmp(ext, "dpm") || !Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "spr2"))
+			|| !Q_strcasecmp(ext, "psk") || !Q_strcasecmp(ext, "zym") || !Q_strcasecmp(ext, "dpm") || !Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "spr2")
+			|| !Q_strcasecmp(ext, "obj") || !Q_strcasecmp(ext, "lwo") || !Q_strcasecmp(ext, "ase"))
 			f->flags |= HRF_MODEL;
 
 		//if we still don't know what it is, give up.
@@ -4657,6 +4697,7 @@ void Host_DoRunFile(hrf_t *f)
 	}
 	else if (f->flags & HRF_ARCHIVE)
 	{
+		char cachename[MAX_QPATH];
 		struct gamepacks packagespaths[2];
 		if (f->srcfile)
 			VFS_CLOSE(f->srcfile);
@@ -4664,8 +4705,11 @@ void Host_DoRunFile(hrf_t *f)
 
 		memset(packagespaths, 0, sizeof(packagespaths));
 		packagespaths[0].url = f->fname;
-
-		COM_Gamedir("", packagespaths);
+		packagespaths[0].path = cachename;
+		if (FS_PathURLCache(f->fname, cachename, sizeof(cachename)))
+		{
+			COM_Gamedir("", packagespaths);
+		}
 		f->flags |= HRF_ABORT;
 		Host_DoRunFile(f);
 		return;
@@ -4909,7 +4953,7 @@ double Host_Frame (double time)
 	float maxfps;
 	qboolean maxfpsignoreserver;
 	qboolean idle;
-	extern qboolean r_blockvidrestart;
+	extern int r_blockvidrestart;
 	static qboolean hadwork;
 
 	RSpeedLocals();
@@ -5173,11 +5217,13 @@ double Host_Frame (double time)
 	for (i = 0; i < MAX_SPLITS; i++)
 	{
 		cl.playerview[i].audio.defaulted = true;
+		cl.playerview[i].audio.entnum = cl.playerview[i].viewentity;
 		VectorClear(cl.playerview[i].audio.origin);
 		VectorSet(cl.playerview[i].audio.forward, 1, 0, 0);
 		VectorSet(cl.playerview[i].audio.right, 0, 1, 0);
 		VectorSet(cl.playerview[i].audio.up, 0, 0, 1);
-		cl.playerview[i].audio.inwater = false;
+		cl.playerview[i].audio.reverbtype = 0;
+		VectorClear(cl.playerview[i].audio.velocity);
 	}
 
 	if (SCR_UpdateScreen && !vid.isminimized)
@@ -5192,11 +5238,17 @@ double Host_Frame (double time)
 		r_refdef.stereomethod = r_stereo_method.ival;
 		CL_UpdateHeadAngles();
 
-		SCR_UpdateScreen ();
-
-		if (R2D_Flush)
-			R2D_Flush();
+		{
+			RSpeedMark();
+			if (SCR_UpdateScreen())
+				fps_count++;
+			if (R2D_Flush)
+				Sys_Error("update didn't flush 2d cache\n");
+			RSpeedEnd(RSPEED_TOTALREFRESH);
+		}
 	}
+	else
+		fps_count++;
 
 	if (host_speeds.ival)
 		time2 = Sys_DoubleTime ();
@@ -5205,7 +5257,7 @@ double Host_Frame (double time)
 	for (i = 0 ; i < MAX_SPLITS; i++)
 	{
 		playerview_t *pv = &cl.playerview[cl.splitclients?i % cl.splitclients:0];
-		S_UpdateListener (i, pv->audio.origin, pv->audio.forward, pv->audio.right, pv->audio.up, pv->audio.inwater);
+		S_UpdateListener (i, pv->audio.entnum, pv->audio.origin, pv->audio.forward, pv->audio.right, pv->audio.up, pv->audio.reverbtype, pv->audio.velocity);
 	}
 
 	S_Update ();
@@ -5236,7 +5288,6 @@ double Host_Frame (double time)
 
 	TP_UpdateAutoStatus();
 
-	fps_count++;
 	host_framecount++;
 	return 0;
 }
@@ -5428,6 +5479,9 @@ void CL_ArgumentOverrides(void)
 
 	if (COM_CheckParm("-condebug"))
 		Cvar_Set(Cvar_FindVar("log_enable"), "1");
+
+	if ((i = COM_CheckParm ("-particles")))
+		Cvar_Set(Cvar_FindVar("r_part_maxparticles"), com_argv[i+1]);
 }
 
 //note that this does NOT include commandline.
@@ -5475,19 +5529,26 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	}
 	else
 	{	//they didn't give us an rc file!
+		int cfg = COM_FDepthFile ("config.cfg", true);
+		int q3cfg = COM_FDepthFile ("q3config.cfg", true);
 	//	Cbuf_AddText ("bind ` toggleconsole\n", RESTRICT_LOCAL);	//in case default.cfg does not exist. :(
-		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
-		if (COM_FDepthFile ("config.cfg", true) <= def)
+		if (def!=0x7fffffff)
+			Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
+		if (cfg <= def && cfg!=0x7fffffff)
 			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
-		if (COM_FDepthFile ("q3config.cfg", true) <= def)
+		if (q3cfg <= def && q3cfg!=0x7fffffff)
 			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
-		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
+		if (def!=0x7fffffff)
+			Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 	}
 	qrc = COM_FDepthFile("fte.cfg", true);
-	if (qrc <= def)	//don't use it if we're running a mod with a default.cfg that is in a stronger path than fte.cfg, as this indicates that fte.cfg is from fte/ and not $currentmod/.
-		Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
-	else if (qrc != 0x7fffffff)
-		Cbuf_AddText ("echo skipping fte.cfg from wrong gamedir\n", RESTRICT_LOCAL);
+	if (qrc != 0x7fffffff)
+	{
+		if (qrc <= def)	//don't use it if we're running a mod with a default.cfg that is in a stronger path than fte.cfg, as this indicates that fte.cfg is from fte/ and not $currentmod/.
+			Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
+		else
+			Cbuf_AddText ("echo skipping fte.cfg from wrong gamedir\n", RESTRICT_LOCAL);
+	}
 #endif
 #ifdef QUAKESPYAPI
 	if (COM_FCheckExists ("frontend.cfg"))
@@ -5521,7 +5582,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 
 void Host_FinishLoading(void)
 {
-	extern qboolean	r_blockvidrestart;
+	extern int	r_blockvidrestart;
 	if (r_blockvidrestart == true)
 	{
 		//1 means we need to init the filesystem
@@ -5626,6 +5687,13 @@ void Host_Init (quakeparms_t *parms)
 	Renderer_Init();
 	Mod_Init(true);
 
+#if defined(CSQC_DAT) || defined(MENU_DAT)
+	PF_Common_RegisterCvars();
+#endif
+#ifndef CLIENTONLY
+	SV_Init(parms);
+#endif
+
 //	W_LoadWadFile ("gfx.wad");
 	Key_Init ();
 	M_Init ();
@@ -5635,13 +5703,7 @@ void Host_Init (quakeparms_t *parms)
 	CDAudio_Init ();
 	Sbar_Init ();
 	CL_Init ();
-#if defined(CSQC_DAT) || defined(MENU_DAT)
-	PF_Common_RegisterCvars();
-#endif
 
-#ifndef CLIENTONLY
-	SV_Init(parms);
-#endif
 #ifdef TEXTEDITOR
 	Editor_Init();
 #endif

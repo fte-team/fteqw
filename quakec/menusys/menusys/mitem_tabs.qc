@@ -1,7 +1,7 @@
 /***************************************************************************
-tabs/tab widgits.
-the 'tabs' widgit is simply a tab-selection control. horizontal multiple choice. it draws only its currently active child.
-the 'tab' widgit is merely a container of other widgits, no different from a standard frame object, just has a name and a specific size.
+tabs/tab widgets.
+the 'tabs' widget is simply a tab-selection control. horizontal multiple choice. it draws only its currently active child.
+the 'tab' widget is merely a container of other widgets, no different from a standard frame object, just has a name and a specific size.
 */
 class mitem_tabs : mitem_frame	/*frame... but not really*/
 {

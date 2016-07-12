@@ -320,8 +320,8 @@ int readdemobytes(int *readpos, void *data, int len)
 
 	if (*readpos+len > demobuffersize)
 	{
-		if (i < 0)
-		{	//0 means no data available yet, don't error on that.
+		if (i < 0 || (i == 0 && len && !cls.demoinfile->seekingisabadplan))
+		{	//0 means no data available yet, don't error on that (unless we can seek, in which case its not a stream and we won't get any more data later on).
 			endofdemo = true;
 			return 0;
 		}
@@ -493,6 +493,9 @@ qboolean CL_GetDemoMessage (void)
 		if (cls.td_startframe == -1 && cls.state == ca_active)
 		{	//start the timer only once we are connected.
 			//make sure everything is loaded, to avoid stalls
+
+			if (Key_Dest_Has(kdm_gmenu))
+				MP_Toggle(0);
 			COM_WorkerFullSync();
 
 			cls.td_starttime = Sys_DoubleTime();
@@ -500,7 +503,6 @@ qboolean CL_GetDemoMessage (void)
 
 			//force the console up, we're done loading.
 			Key_Dest_Remove(kdm_console);
-			Key_Dest_Remove(kdm_gmenu);
 			Key_Dest_Remove(kdm_emenu);
 			scr_con_current = 0;
 		}
@@ -594,6 +596,7 @@ qboolean CL_GetDemoMessage (void)
 			return 0;
 		}
 		demo_flushbytes(demopos);
+		NET_UpdateRates(cls.sockets, true, msglength);	//keep any rate calcs sane
 		net_message.cursize = msglength;
 
 		return 1;
@@ -795,6 +798,7 @@ readit:
 			olddemotime = demtime+1;
 			return 0;
 		}
+		NET_UpdateRates(cls.sockets, true, msglength);	//keep any rate calcs sane
 		net_message.cursize = msglength;
 
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
@@ -869,6 +873,8 @@ readit:
 		cls.netchan.outgoing_sequence = LittleLong(j);
 		cls.netchan.incoming_sequence = LittleLong(i);
 		cl.movesequence = cls.netchan.outgoing_sequence;
+
+		NET_UpdateRates(cls.sockets, false, demopos);	//keep any rate calcs sane
 
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			cls.netchan.incoming_acknowledged = cls.netchan.incoming_sequence;
@@ -1053,7 +1059,7 @@ void CL_WriteSetDemoMessage (void)
 record a single player game.
 */
 #ifndef CLIENTONLY
-mvddest_t *SV_InitRecordFile (char *name);
+mvddest_t *SV_MVD_InitRecordFile (char *name);
 qboolean SV_MVD_Record (mvddest_t *dest);
 void CL_RecordMap_f (void)
 {
@@ -1077,7 +1083,7 @@ void CL_RecordMap_f (void)
 
 	if (!strcmp(demoext, "mvd"))
 	{
-		if (!SV_MVD_Record (SV_InitRecordFile(demoname)))
+		if (!SV_MVD_Record (SV_MVD_InitRecordFile(demoname)))
 			CL_Disconnect_f();
 //		char buf[512];
 //		Cbuf_AddText(va("mvdrecord %s\n", COM_QuotedString(demoname, buf, sizeof(buf))), RESTRICT_LOCAL);
@@ -1477,7 +1483,18 @@ void CL_Record_f (void)
 			}
 		}
 
-		//FIXME: custom tents (needed for hexen2)
+		//custom tents (needed for hexen2, if nothing else)
+		for (i = 0; ; i++)
+		{
+			if (!CL_WriteCustomTEnt(&buf, i))
+				break;
+
+			if (buf.cursize > buf.maxsize/2)
+			{
+				CL_WriteRecordDemoMessage (&buf, seq++);
+				SZ_Clear (&buf);
+			}
+		}
 
 	// spawnstatic
 

@@ -111,10 +111,6 @@ static void *AHI_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
 	return sc->sn.buffer;
 }
 
-static void AHI_SetUnderWater(soundcardinfo_t *sc, qboolean uw)
-{
-}
-
 static void AHI_Submit(soundcardinfo_t *sc)
 {
 }
@@ -233,7 +229,6 @@ static int AHI_InitCard(soundcardinfo_t *sc, int cardnum)
 
 										sc->Lock = AHI_LockBuffer;
 										sc->Unlock = AHI_UnlockBuffer;
-										sc->SetWaterDistortion = AHI_SetUnderWater;
 										sc->Submit = AHI_Submit;
 										sc->Shutdown = AHI_Shutdown;
 										sc->GetDMAPos = AHI_GetDMAPos;

@@ -120,7 +120,7 @@ typedef struct serverinfo_s
 	qbyte players;
 	qbyte maxplayers;
 	qbyte sends;
-	qbyte insortedlist;
+	qbyte status; //1=alive, 2=displayed
 
 	qbyte numspectators;
 	qbyte numhumans;
@@ -205,7 +205,8 @@ void MasterInfo_Request(master_t *mast);
 serverinfo_t *Master_InfoForServer (netadr_t *addr);
 serverinfo_t *Master_InfoForNum (int num);
 unsigned int Master_TotalCount(void);
-unsigned int Master_NumPolled(void);
+unsigned int Master_NumPolled(void);	//progress indicator
+unsigned int Master_NumAlive(void);
 void Master_SetupSockets(void);
 void MasterInfo_Refresh(void);
 void Master_QueryServer(serverinfo_t *server);

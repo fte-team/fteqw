@@ -2481,7 +2481,7 @@ void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3)
 	q3->origin[0] = q1->origin[0];
 	q3->origin[1] = q1->origin[1];
 	q3->origin[2] = q1->origin[2];
-	q3->solid = q1->solid;
+	q3->solid = q1->solidsize;
 	q3->powerups = q1->effects;
 	q3->modelindex = q1->modelindex;
 	q3->otherEntityNum2 = 0;

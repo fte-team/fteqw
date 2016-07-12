@@ -99,6 +99,8 @@ cvar_t	v_gunkick_q2 = SCVAR("v_gunkick_q2", "1");
 cvar_t	v_viewheight = SCVAR("v_viewheight", "0");
 cvar_t	v_projectionmode = SCVAR("v_projectionmode", "0");
 
+cvar_t	v_depthsortentities = CVARAD("v_depthsortentities", "0", "v_reorderentitiesrandomly", "Reorder entities for transparency such that the furthest entities are drawn first, allowing nearer transparent entities to draw over the top of them.");
+
 cvar_t	scr_autoid				= CVARD("scr_autoid", "1", "Display nametags above all players while spectating.");
 cvar_t	scr_autoid_team			= CVARD("scr_autoid_team", "1", "Display nametags above team members. 0: off. 1: display with half-alpha if occluded. 2: hide when occluded.");
 cvar_t	scr_autoid_health		= CVARD("scr_autoid_health", "1", "Display health as part of nametags (when known).");
@@ -1125,6 +1127,9 @@ void V_CalcIntermissionRefdef (playerview_t *pv)
 	VectorCopy (pv->simorg, r_refdef.vieworg);
 	VectorCopy (pv->simangles, r_refdef.viewangles);
 
+	if (cl.intermissionmode == IM_H2FINALE)
+		VectorMA(r_refdef.vieworg, -pv->viewheight, pv->gravitydir, r_refdef.vieworg);
+
 // always idle in intermission
 	old = v_idlescale.value;
 	v_idlescale.value = 1;
@@ -1134,21 +1139,21 @@ void V_CalcIntermissionRefdef (playerview_t *pv)
 
 float CalcFov (float fov_x, float width, float height)
 {
-    float   a;
-    float   x;
+	float	a;
+	float	x;
 
-    if (fov_x < 1 || fov_x > 179)
-            Sys_Error ("Bad fov: %f", fov_x);
+	if (fov_x <= 0 || fov_x > 179)
+		Sys_Error ("Bad fov: %f", fov_x);
 
 	x = fov_x/360*M_PI;
 	x = tan(x);
-    x = width/x;
+	x = width/x;
 
-    a = atan (height/x);
+	a = atan (height/x);
 
-    a = a*360/M_PI;
+	a = a*360/M_PI;
 
-    return a;
+	return a;
 }
 void V_ApplyAFov(playerview_t *pv)
 {
@@ -1166,7 +1171,7 @@ void V_ApplyAFov(playerview_t *pv)
 		if (pv && pv->stats[STAT_VIEWZOOM])
 			afov *= pv->stats[STAT_VIEWZOOM]/255.0f;
 #endif
-		afov = min(afov, 170);
+		afov = bound(0.001, afov, 170);
 
 		ws = 1;
 		if (r_refdef.stereomethod == STEREO_CROSSEYED && r_stereo_separation.value)
@@ -1294,12 +1299,14 @@ void V_ApplyRefdef (void)
 	r_refdef.dirty = 0;
 
 	if (chase_active.ival && cls.allow_cheats)
-		CL_EditExternalModels(0, NULL, 0);
+		V_EditExternalModels(0, NULL, 0);
+	if (v_depthsortentities.ival)
+		V_DepthSortEntities(r_refdef.vieworg);
 }
 
 //if the view entities differ, removes all externalmodel flags except for adding it to the new entity, and removes weaponmodels.
 //returns the number of view entities that were stripped out
-int CL_EditExternalModels(int newviewentity, entity_t *viewentities, int maxviewenties)
+int V_EditExternalModels(int newviewentity, entity_t *viewentities, int maxviewenties)
 {
 	int i;
 	int viewents = 0;
@@ -1321,6 +1328,46 @@ int CL_EditExternalModels(int newviewentity, entity_t *viewentities, int maxview
 			i++;
 	}
 	return viewents;
+}
+
+//this is for transparency effects, so we actually want the furthest first
+//this is contrary for overdraw performance, but transparency doesn't work like that
+//we use angles[0] to hold distance. the renderer shouldn't be using it anyway.
+static int QDECL V_DepthSortTwoEntities(const void *p1,const void *p2)
+{
+	const entity_t *a = p1;
+	const entity_t *b = p2;
+
+	if (a->angles[0] < b->angles[0])
+		return -1;
+	if (a->angles[0] > b->angles[0])
+		return 1;
+	return 0;
+}
+void V_DepthSortEntities(float *vieworg)
+{
+	int i;
+	vec3_t disp;
+	for (i = 0; i < cl_numvisedicts; i++)
+	{
+		if (cl_visedicts[i].flags & RF_WEAPONMODEL)
+		{	//weapon models have their own extra matrix thing going on. don't mess up because of it.
+			cl_visedicts[i].angles[0] = 0;
+			continue;
+		}
+		if (cl_visedicts[i].rtype == RT_MODEL && cl_visedicts[i].model && cl_visedicts[i].model->type == mod_brush)
+		{
+			VectorAdd(cl_visedicts[i].model->maxs, cl_visedicts[i].model->mins, disp);
+			VectorMA(cl_visedicts[i].origin, 0.5, disp, disp);
+			VectorSubtract(disp, vieworg, disp);
+		}
+		else
+		{
+			VectorSubtract(cl_visedicts[i].origin, vieworg, disp);
+		}
+		cl_visedicts[i].angles[0] = DotProduct(disp,disp);	//don't bother with sqrts
+	}
+	qsort(cl_visedicts, cl_numvisedicts, sizeof(cl_visedicts[0]), V_DepthSortTwoEntities);
 }
 
 /*
@@ -1365,6 +1412,7 @@ void V_CalcRefdef (playerview_t *pv)
 
 	memset(&r_refdef.globalfog, 0, sizeof(r_refdef.globalfog));
 
+	r_refdef.time = cl.servertime;
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
@@ -1431,8 +1479,6 @@ void V_CalcRefdef (playerview_t *pv)
 // set up the refresh position
 	if (v_gunkick.value)
 		r_refdef.viewangles[PITCH] += pv->punchangle*v_gunkick.value;
-
-	r_refdef.time = cl.servertime;
 
 
 	if (chase_active.ival && cls.allow_cheats)	//cheat restriction might be lifted some time when any wallhacks are solved.
@@ -1872,7 +1918,7 @@ void R_DrawNameTags(void)
 				if (score > bestscore)
 				{
 					vec3_t imp;
-					if (!TraceLineN(r_refdef.vieworg, org, imp, NULL))
+					if (CL_TraceLine(r_refdef.vieworg, org, imp, NULL, NULL)>=1)
 					{
 						best = i;
 						bestscore = score;
@@ -2036,7 +2082,7 @@ void V_RenderPlayerViews(playerview_t *pv)
 */
 	for (viewnum = 0; viewnum < SIDEVIEWS; viewnum++)
 	if (vsec_scalex[viewnum].value>0&&vsec_scaley[viewnum].value>0
-		&& ((vsec_enabled[viewnum].value && vsec_enabled[viewnum].value != 2 && cls.allow_rearview) 	//rearview if v2_enabled = 1 and not 2
+		&& ((vsec_enabled[viewnum].value && vsec_enabled[viewnum].value != 2) 	//rearview if v2_enabled = 1 and not 2
 		|| (vsec_enabled[viewnum].value && pv->stats[STAT_VIEW2]&&viewnum==0)))			//v2 enabled if v2_enabled is non-zero
 	{
 		vrect_t oldrect;
@@ -2091,7 +2137,6 @@ void V_RenderPlayerViews(playerview_t *pv)
 			r_refdef.viewangles[0]=e->angles[0];//*s+(1-s)*e->msg_angles[1][0];
 			r_refdef.viewangles[1]=e->angles[1];//*s+(1-s)*e->msg_angles[1][1];
 			r_refdef.viewangles[2]=e->angles[2];//*s+(1-s)*e->msg_angles[1][2];
-			r_refdef.viewangles[PITCH] *= -1;
 
 			if (e->keynum >= 1 && e->keynum <= cl.allocated_client_slots)
 			{
@@ -2100,7 +2145,7 @@ void V_RenderPlayerViews(playerview_t *pv)
 			}
 
 
-			CL_EditExternalModels(e->keynum, NULL, 0);
+			V_EditExternalModels(e->keynum, NULL, 0);
 
 			R_RenderView ();
 //				r_framecount = old_framecount;
@@ -2114,7 +2159,7 @@ void V_RenderPlayerViews(playerview_t *pv)
 			r_refdef.viewangles[PITCH] *= -cos((vsec_yaw[viewnum].value / 180 * 3.14)+3.14);
 			if (vsec_enabled[viewnum].value!=2)
 			{
-				CL_EditExternalModels(0, NULL, 0);
+				V_EditExternalModels(pv->viewentity, NULL, 0);
 				R_RenderView ();
 			}
 		}
@@ -2151,7 +2196,7 @@ void V_RenderView (void)
 		if (viewnum)
 		{
 			//should be enough to just hack a few things.
-			CL_EditExternalModels(cl.playerview[viewnum].viewentity, NULL, 0);
+			V_EditExternalModels(cl.playerview[viewnum].viewentity, NULL, 0);
 		}
 		else
 		{
@@ -2236,6 +2281,7 @@ void V_Init (void)
 	Cvar_Register (&v_bonusflash, VIEWVARS);
 
 	Cvar_Register (&v_viewheight, VIEWVARS);
+	Cvar_Register (&v_depthsortentities, VIEWVARS);
 
 	Cvar_Register (&crosshaircolor, VIEWVARS);
 	Cvar_Register (&crosshair, VIEWVARS);

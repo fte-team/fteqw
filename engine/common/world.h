@@ -120,12 +120,13 @@ typedef struct q2trace_s
 #define	MOVE_NOMONSTERS	1
 #define	MOVE_MISSILE	2
 #define	MOVE_HITMODEL	4
-#define MOVE_RESERVED	8	//so we are less likly to get into tricky situations when we want to steal annother future DP extension.
-#define MOVE_TRIGGERS	16	//triggers must be marked with FINDABLE_NONSOLID	(an alternative to solid-corpse)
-#define MOVE_EVERYTHING	32	//can return triggers and non-solid items if they're marked with FINDABLE_NONSOLID (works even if the items are not properly linked)
-#define MOVE_LAGGED		64	//trace touches current last-known-state, instead of actual ents (just affects players for now)
-#define MOVE_ENTCHAIN	128 //chain of impacted ents, otherwise result shows only world
-#define MOVE_ONLYENT	256 //test the trace against a single entity, ignoring non-solid/owner/etc flags (but respecting contents).
+#define MOVE_RESERVED	8			//so we are less likly to get into tricky situations when we want to steal annother future DP extension.
+#define MOVE_TRIGGERS	16			//triggers must be marked with FINDABLE_NONSOLID	(an alternative to solid-corpse)
+#define MOVE_EVERYTHING	32			//can return triggers and non-solid items if they're marked with FINDABLE_NONSOLID (works even if the items are not properly linked)
+#define MOVE_LAGGED		64			//trace touches current last-known-state, instead of actual ents (just affects players for now)
+#define MOVE_ENTCHAIN	128			//chain of impacted ents, otherwise result shows only world
+#define MOVE_ONLYENT	256			//test the trace against a single entity, ignoring non-solid/owner/etc flags (but respecting contents).
+#define MOVE_IGNOREHULL	(1u<<31)	//used on tracelines etc to simplify the code a little
 
 typedef struct areanode_s
 {
@@ -169,12 +170,12 @@ typedef struct
 
 struct world_s
 {
-	void (*Event_Touch)(struct world_s *w, wedict_t *s, wedict_t *o);
-	void (*Event_Think)(struct world_s *w, wedict_t *s);
-	void (*Event_Sound) (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeoffset, unsigned int flags);
-	qboolean (*Event_ContentsTransition) (struct world_s *w, wedict_t *ent, int oldwatertype, int newwatertype);
-	model_t *(*Get_CModel)(struct world_s *w, int modelindex);
-	void (*Get_FrameState)(struct world_s *w, wedict_t *s, framestate_t *fstate);
+	void (QDECL *Event_Touch)(struct world_s *w, wedict_t *s, wedict_t *o);
+	void (QDECL *Event_Think)(struct world_s *w, wedict_t *s);
+	void (QDECL *Event_Sound) (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeoffset, unsigned int flags);
+	qboolean (QDECL *Event_ContentsTransition) (struct world_s *w, wedict_t *ent, int oldwatertype, int newwatertype);
+	model_t *(QDECL *Get_CModel)(struct world_s *w, int modelindex);
+	void (QDECL *Get_FrameState)(struct world_s *w, wedict_t *s, framestate_t *fstate);
 
 	unsigned int	keydestmask;	//menu:kdm_menu, csqc:kdm_game, server:0
 	unsigned int	max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.

@@ -98,7 +98,10 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define isextendedcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || x == '-')
 #define ishexcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || (x >= 'a' && x <= 'f'))
 
-#define CONL_CENTERED (1u<<0)
+#define CONL_CENTERED	(1u<<0)
+#define CONL_NONOTIFY	(1u<<1)
+#define CONL_BREAKPOINT	(1u<<2)	//red
+#define CONL_EXECUTION	(1u<<3)	//yellow
 typedef struct conline_s {
 	struct conline_s *older;
 	struct conline_s *newer;
@@ -116,6 +119,8 @@ typedef struct conline_s {
 #define CB_COPY			2
 #define CB_CLOSE		3
 #define CB_MOVE			4
+#define CB_ACTIONBAR	5
+#define CB_SELECT		6
 #define CB_SIZELEFT		(1u<<29)
 #define CB_SIZERIGHT	(1u<<30)
 #define CB_SIZEBOTTOM	(1u<<31)
@@ -123,15 +128,18 @@ typedef struct conline_s {
 #define CONF_NOTIFY			2	/*text printed to console also appears as notify lines*/
 #define CONF_NOTIFY_BOTTOM	4	/*align the bottom*/
 #define CONF_NOTIFY_RIGHT	8
-#define CONF_NOTIMES		16
+//#define CONF_NOTIMES		16
 #define CONF_KEYFOCUSED		32
 #define CONF_ISWINDOW		64
+#define CONF_NOWRAP			128
+#define CONF_KEEPSELECTION	256
 typedef struct console_s
 {
 	int id;
 	int nextlineid;	//the current line being written to. so we can rewrite links etc.
 	char name[128];
 	char title[128];
+	char prompt[128];
 	char backimage[MAX_QPATH];
 	shader_t *backshader;
 	float wnd_x;
@@ -145,23 +153,30 @@ typedef struct console_s
 	float notif_w;
 	int notif_l;
 	float notif_fade;		// will be transparent for this long when fading
-	int maxlines;
 	float notif_t;
+	int maxlines;
 	conline_t *oldest;
 	conline_t *current;		// line where next message will be printed
 	int		x;				// offset in current line for next print
 	int		cr;
 	conline_t *display;		// bottom of console displays this line
+	int		displayoffset;	// horizontal offset
 	int		vislines;		// pixel lines
 	int		linesprinted;	// for notify times
 	qboolean unseentext;
 	unsigned parseflags;
 	conchar_t defaultcharbits;
 	int		commandcompletion;	//allows tab completion of quake console commands
-	int	(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear. return 2 to not save the line in history.
-	void	(*redirect) (struct console_s *con, int key);	//if present, called every character.
-	void	*userdata;
 
+	int				(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear. return 2 to not save the line in history.
+	qboolean		(*redirect) (struct console_s *con, unsigned int unicode, int key);	//if present, called every character.
+	qboolean		(*mouseover)(struct console_s *con, char **out_tiptext, shader_t **out_shader);
+	qboolean		(*close) (struct console_s *con, qboolean force);
+	void			*userdata;		//user context
+	conline_t		*userline;	//editor cursor line
+	unsigned int	useroffset;	//editor cursor offset
+
+	conline_t		*highlightline;	//used for highlights (this line gets flagged)
 	conline_t	*completionline;	//temp text at the bottom of the console
 	conline_t	*footerline;	//temp text at the bottom of the console
 	conline_t	*selstartline, *selendline;
@@ -203,7 +218,7 @@ void Con_Shutdown (void);
 void Con_History_Save(void);
 void Con_History_Load(void);
 struct font_s;
-void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, float fx, float fy, float fsx, float fsy);
+void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, float fx, float fy, float fsx, float fsy, float lineagelimit);
 void Con_DrawConsole (int lines, qboolean noback);
 char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink);
 void Con_Print (const char *txt);
@@ -221,6 +236,7 @@ void Con_ToggleConsole_f (void);//note: allows csqc to intercept the toggleconso
 void Con_ToggleConsole_Force(void);
 
 int Con_ExecuteLine(console_t *con, char *line);	//takes normal console commands
+int Con_Navigate(console_t *con, char *line);		//special webbrowser hacks
 
 
 void Con_CycleConsole (void);
@@ -233,6 +249,9 @@ console_t *Con_FindConsole(const char *name);
 console_t *Con_Create(const char *name, unsigned int flags);
 void Con_SetVisible (console_t *con);
 void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags);
+qboolean Con_InsertConChars (console_t *con, conline_t *line, int offset, conchar_t *c, int len);
+conline_t *Con_ResizeLineBuffer(console_t *con, conline_t *old, unsigned int length);
+void Con_FlushBackgrounds(void);
 
 void Con_NotifyBox (char *text);	// during startup for sound / cd warnings
 

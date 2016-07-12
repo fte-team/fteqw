@@ -22,6 +22,7 @@ typedef struct vm_s vm_t;
 void VM_PrintInfo(vm_t *vm);
 vm_t *VM_CreateBuiltin(const char *name, sys_calldll_t syscalldll, qintptr_t (*init)(qintptr_t *args));
 vm_t *VM_Create(const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscallqvm);
+const char *VM_GetFilename(vm_t *vm);
 void VM_Destroy(vm_t *vm);
 //qboolean VM_Restart(vm_t *vm);
 qintptr_t VARGS VM_Call(vm_t *vm, qintptr_t instruction, ...);
@@ -37,7 +38,7 @@ qboolean	Plug_CenterPrintMessage(char *buffer, int clientnum);
 qboolean	Plug_ChatMessage(char *buffer, int talkernum, int tpflags);
 void		Plug_Command_f(void);
 int			Plug_ConnectionlessClientPacket(char *buffer, int size);
-qboolean	Plug_ConsoleLink(char *text, char *info);
+qboolean	Plug_ConsoleLink(char *text, char *info, const char *consolename);
 qboolean	Plug_ConsoleLinkMouseOver(float x, float y, char *text, char *info);
 void		Plug_DrawReloadImages(void);
 void		Plug_Initialise(qboolean fromgamedir);
@@ -73,7 +74,6 @@ void UI_Reset(void);
 void UI_DrawMenu(void);
 qboolean UI_DrawStatusBar(int scores);
 qboolean UI_DrawIntermission(void);
-qboolean UI_DrawFinale(void);
 int UI_MenuState(void);
 
 //sans botlib

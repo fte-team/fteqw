@@ -197,6 +197,9 @@ struct {
 	{" F309", WARN_IGNORECOMMANDLINE},
 	{" F310", WARN_MISUSEDAUTOCVAR},
 	{" F311", WARN_FTE_SPECIFIC},
+	{" F312", WARN_OVERFLOW},
+	{" F313", WARN_DENORMAL},
+	{" F314", WARN_LAXCAST},
 
 	{" F208", WARN_NOTREFERENCEDCONST},
 	{" F209", WARN_EXTRAPRECACHE},	
@@ -345,6 +348,7 @@ compiler_flag_t compiler_flag[] = {
 	{&verbose,				FLAG_MIDCOMPILE,"verbose",		"Verbose",				"Lots of extra compiler messages."},
 	{&flag_typeexplicit,	FLAG_MIDCOMPILE,"typeexplicit",	"Explicit types",		"All type conversions must be explicit or directly supported by instruction set."},
 	{&flag_noboundchecks,	FLAG_MIDCOMPILE,"noboundchecks","Disable Bound Checks",	"Disable array index checks, speeding up array access but can result in your code misbehaving."},
+	{&flag_qccx,			FLAG_MIDCOMPILE,"qccx",			"QCCX syntax",			"WARNING: This syntax makes mods inherantly engine specific.\nDo NOT use unless you know what you're doing.This is provided for compatibility only\nAny entity hacks will be unsupported in FTEQW, DP, and others, resulting in engine crashes if the code in question is executed."},
 //	{&flag_noreflection,	FLAG_MIDCOMPILE,"omitinternals","Omit Reflection Info",	"Keeps internal symbols private (equivelent to unix's hidden visibility). This has the effect of reducing filesize, thwarting debuggers, and breaking saved games. This allows you to use arrays without massively bloating the size of your progs.\nWARNING: The bit about breaking saved games was NOT a joke, but does not apply to menuqc or csqc. It also interferes with FTE_MULTIPROGS."},
 	{NULL}
 };
@@ -477,6 +481,21 @@ int	QCC_CopyString (char *str)
 	old = strofs;
 	strcpy (strings+strofs, str);
 	strofs += strlen(str)+1;
+	return old;
+}
+
+int	QCC_CopyStringLength (char *str, size_t length)
+{
+	int		old;
+
+	if (!str)
+		return 0;
+	if (!*str && length == 1)
+		return !flag_nullemptystr;
+
+	old = strofs;
+	memcpy (strings+strofs, str, length);
+	strofs += length;
 	return old;
 }
 
@@ -827,11 +846,11 @@ void QCC_FinaliseDef(QCC_def_t *def)
 				if (sub->referenced)
 					def->referenced=true;	//if one child is referenced, the composite is referenced
 				else if (!sub->referenced && ignoreone)
-					ignoreone = false;
+					ignoreone = false;	//this is the one we're going to warn about
 				else
 					sub->referenced |= def->referenced;			
 			}
-			if (!def->referenced)	//okay, at least one child was refrenced, lets just flag all as referenced to silence warnings about vec_z being unused
+			if (!def->referenced)	//no child defs were referenced at all. if we're going to be warning about this then at least mute warnings for any other fields
 				for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
 					sub->referenced = true;
 		}
@@ -856,7 +875,7 @@ void QCC_FinaliseDef(QCC_def_t *def)
 		def->ofs += def->symbolheader->ofs;
 	else
 	{
-		if (def->arraysize)
+		if (def->arraylengthprefix)
 		{
 			if (numpr_globals+1+def->symbolsize >= MAX_REGS)
 			{
@@ -910,14 +929,23 @@ void QCC_UnmarshalLocals(void)
 	{
 		if (functions[i].privatelocals)
 		{
+			onum = numpr_globals;
 #ifdef DEBUG_DUMP
 			printf("function %s locals:\n", functions[i].name);
 #endif
 			for (d = functions[i].firstlocal; d; d = d->nextlocal)
 				QCC_FinaliseDef(d);
+			if (verbose >= 3)
+			{
+				if (onum == numpr_globals)
+					printf("code: %s:%i: function %s no private locals\n", functions[i].file, functions[i].line, functions[i].name);
+				else 
+					printf("code: %s:%i: function %s private locals %i-%i\n", functions[i].file, functions[i].line, functions[i].name, onum, numpr_globals);
+			}
 		}
 	}
 
+	//these functions don't have any initialisation issues, allowing us to merge them
 	onum = biggest = numpr_globals;
 	for (i=0 ; i<numfunctions ; i++)
 	{
@@ -928,6 +956,21 @@ void QCC_UnmarshalLocals(void)
 				QCC_FinaliseDef(d);
 			if (biggest < numpr_globals)
 				biggest = numpr_globals;
+
+			if (verbose >= 3)
+			{
+				if (onum == numpr_globals)
+					printf("code: %s:%i: function %s no locals\n", functions[i].file, functions[i].line, functions[i].name);
+				else
+				{
+					printf("code: %s:%i: function %s overlapped locals %i-%i\n", functions[i].file, functions[i].line, functions[i].name, onum, numpr_globals);
+
+					for (d = functions[i].firstlocal; d; d = d->nextlocal)
+					{
+						printf("code: %s:%i: %s @%i\n", functions[i].file, functions[i].line, d->name, d->ofs);
+					}
+				}
+			}
 		}
 	}
 	numpr_globals = biggest;
@@ -993,7 +1036,7 @@ pbool QCC_WriteData (int crc)
 	pbool debugtarget = false;
 	pbool types = false;
 	int outputsttype = PST_DEFAULT;
-	int dupewarncount = 0;
+	int dupewarncount = 0, extwarncount = 0;
 	int			*statement_linenums;
 	void		*funcdata;
 	size_t		funcdatasize;
@@ -1164,7 +1207,7 @@ pbool QCC_WriteData (int crc)
 			for (i=0 ; i<numfunctions ; i++)
 			{
 				QCC_def_t *local;
-				unsigned int p;
+				unsigned int p, a;
 				if (functions[i].code == -1)
 					funcs[i].first_statement = PRLittleLong (-functions[i].builtin);
 				else
@@ -1190,8 +1233,9 @@ pbool QCC_WriteData (int crc)
 				}
 				else if (functions[i].firstlocal)
 				{
+					unsigned int size;
 					funcs[i].parm_start = 0;
-					for (local = functions[i].firstlocal, p = 0; local && p < MAX_PARMS && p < functions[i].type->num_parms; local = local->deftail->nextlocal)
+					for (local = functions[i].firstlocal, a = 0, p = 0; local && a < MAX_PARMS && a < functions[i].type->num_parms; local = local->deftail->nextlocal)
 					{
 						if (!local->used)
 						{	//all params should have been assigned space. logically we could have safely omitted the last ones, but blurgh.
@@ -1201,16 +1245,31 @@ pbool QCC_WriteData (int crc)
 
 						if (!p)
 							funcs[i].parm_start = local->ofs;
-						funcs[i].locals += local->type->size;
-						funcs[i].parm_size[p++] = local->type->size;
+
+						size = local->type->size;
+						if (local->arraysize)	//arrays are annoying
+							size = local->arraylengthprefix+size*local->arraysize;
+
+						funcs[i].locals += size;
+						for (; size > 3 && p < MAX_PARMS; size -= 3)
+							funcs[i].parm_size[p++] = 3;	//the engine will copy PARMi over, it can't cope with larger types, the following args would be wrong.
+						if (p < MAX_PARMS)
+							funcs[i].parm_size[p++] = size;
+						a++;
 					}
 					for (; local && !local->used; local = local->nextlocal)
 						;
 					if (!p && local)
 						funcs[i].parm_start = local->ofs;
 					for (; local; local = local->nextlocal)
+					{
+						size = local->type->size;
+						if (local->arraysize)	//arrays are annoying
+							size = local->arraylengthprefix+size*local->arraysize;
+
 						if (local->used)
-							funcs[i].locals += local->type->size;
+							funcs[i].locals += size;
+					}
 					funcs[i].numparms = p;
 				}
 				else
@@ -1228,10 +1287,10 @@ pbool QCC_WriteData (int crc)
 				funcs[i].numparms = PRLittleLong(funcs[i].numparms);
 
 				if (funcs[i].locals && !funcs[i].parm_start)
-					QCC_PR_Warning(0, strings + funcs[i].s_file, functions[i].line, "%s:%i: func %s @%i locals@%i+%i, %i parms\n", strings+funcs[i].s_file, 0, strings+funcs[i].s_name, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
+					QCC_PR_Warning(0, strings + funcs[i].s_file, functions[i].line, "%s:%i: func %s @%i locals@%i+%i, %i parms\n", functions[i].file, functions[i].line, strings+funcs[i].s_name, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
 
 #ifdef DEBUG_DUMP
-				printf("code: %s:%i: func %s @%i locals@%i+%i, %i parms\n", strings+funcs[i].s_file, 0, strings+funcs[i].s_name, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
+				printf("code: %s:%i: func %s @%i locals@%i+%i, %i parms\n", functions[i].file, functions[i].line, strings+funcs[i].s_name, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
 #endif
 			}
 			funcdata = funcs;
@@ -1244,14 +1303,6 @@ pbool QCC_WriteData (int crc)
 
 	for (dupewarncount = 0, def = pr.def_head.next ; def ; def = def->next)
 	{
-		if ((def->type->type == ev_struct || def->type->type == ev_union || def->arraysize) && def->deftail)
-		{
-#ifdef DEBUG_DUMP
-			printf("code: %s:%i: strip struct %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
-#endif
-			//the head of an array/struct is never written. only, its member fields are.
-			continue;
-		}
 /*		if (def->type->type == ev_vector || (def->type->type == ev_field && def->type->aux_type->type == ev_vector))
 		{	//do the references, so we don't get loadsa not referenced VEC_HULL_MINS_x
 			s_file = def->s_file;
@@ -1296,7 +1347,15 @@ pbool QCC_WriteData (int crc)
 			else if (strcmp(def->name, "IMMEDIATE") && qccwarningaction[wt] && !(def->type->type == ev_function && def->symbolheader->timescalled) && !def->symbolheader->used)
 			{
 				char typestr[256];
-				QCC_PR_Warning(wt, strings + def->s_file, def->s_line, (dupewarncount++ >= 10 && !verbose)?NULL:"%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name);
+				if (QC_strcasestr(strings + def->s_file, "extensions") && !verbose)
+				{	//try to avoid annoying warnings from dpextensions.qc
+					extwarncount++;
+					QCC_PR_Warning(wt, strings + def->s_file, def->s_line, NULL);
+				}
+				else if (def->arraysize)
+					QCC_PR_Warning(wt, strings + def->s_file, def->s_line, (dupewarncount++ >= 10 && !verbose)?NULL:"%s %s[%i]  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name, def->arraysize);
+				else
+					QCC_PR_Warning(wt, strings + def->s_file, def->s_line, (dupewarncount++ >= 10 && !verbose)?NULL:"%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name);
 			}
 			pr_scope = NULL;
 
@@ -1308,6 +1367,14 @@ pbool QCC_WriteData (int crc)
 #endif
 				continue;
 			}
+		}
+		if ((def->type->type == ev_struct || def->type->type == ev_union || def->arraysize) && def->deftail)
+		{
+#ifdef DEBUG_DUMP
+			printf("code: %s:%i: strip struct %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
+#endif
+			//the head of an array/struct is never written. only, its member fields are.
+			continue;
 		}
 
 		if (def->strip || !def->symbolheader->used)
@@ -1417,6 +1484,8 @@ pbool QCC_WriteData (int crc)
 
 	if (dupewarncount > 10 && !verbose)
 		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i more warnings about unreferenced variables, as you clearly don't care about the first 10.", dupewarncount-10);
+	if (extwarncount)
+		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i warnings about unused extensions.", extwarncount);
 
 	for (i = 0; i < numglobaldefs; i++)
 	{
@@ -1963,14 +2032,44 @@ strofs = (strofs+3)&~3;
 
 	progs.crc = crc;
 
-// qbyte swap the header and write it out
+	def = QCC_PR_GetDef(NULL, "progs", NULL, false, 0, 0);	//this is for qccx support
+	if (def && (def->type->type == ev_entity || (def->type->type == ev_accessor && def->type->parentclass->type == ev_entity)))
+	{
+		int size = SafeSeek (h, 0, SEEK_CUR);
+		size += 1;	//the engine will add a null terminator
+		size = (size+15)&(~15);	//and will allocate it on the hunk with 16-byte alignment
 
+		//this global receives the offset from world to the start of the progs def _IN VANILLA QUAKE_.
+		//this is a negative index due to allocation ordering
+		//this will NOT work in FTE, DP, QuakeForge due to entity indexes. Various other engines will likely mess up too, if they change the allocation order or sizes etc. 64bit is screwed.
+		if (progs.blockscompressed&32)
+			printf("unable to write value for 'entity progs'\n");	//would not work anyway
+		else
+		{
+			QCC_PR_Warning(WARN_DENORMAL, strings + def->s_file, def->s_line, "'entity progs' is non-portable and will not work across engines nor cpus.");
+
+			if (def->initialized)
+				i = PRLittleLong(qcc_pr_globals[def->ofs]._int);
+			else
+			{
+				if (verbose)
+					printf("qccx hack - 'entity progs' uninitialised. Assuming 112.\n");
+				i = 112;	//match qccx.
+			}
+			i = -(size + i);
+			i = PRLittleLong(i);
+			SafeSeek (h, progs.ofs_globals + 4 * def->ofs, SEEK_SET);
+			SafeWrite (h, &i, 4);
+		}
+	}
+
+	// qbyte swap the header and write it out
 	for (i=0 ; i<sizeof(progs)/4 ; i++)
 		((int *)&progs)[i] = PRLittleLong ( ((int *)&progs)[i] );
-
-
 	SafeSeek (h, 0, SEEK_SET);
 	SafeWrite (h, &progs, sizeof(progs));
+
+
 	if (!SafeClose (h))
 	{
 		printf("Error while writing output %s\n", destfile);
@@ -3521,6 +3620,12 @@ void QCC_SetDefaultProperties (void)
 
 	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)
 		qccwarningaction[WARN_CASEINSENSITIVEFRAMEMACRO] = WA_IGNORE;	//hexenc consides these fair game.
+
+	if (QCC_CheckParm ("-Fqccx"))
+	{
+		qccwarningaction[WARN_DENORMAL] = WA_IGNORE;	//this is just too spammy
+		qccwarningaction[WARN_LAXCAST] = WA_IGNORE;	//more plausable, but still too spammy. easier to fix at least.
+	}
 
 	//Check the command line
 	QCC_PR_CommandLinePrecompilerOptions();

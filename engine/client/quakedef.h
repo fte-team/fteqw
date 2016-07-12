@@ -201,18 +201,23 @@ extern "C" {
 #endif
 
 //msvcrt lacks any and all c99 support.
-#ifdef _WIN32
-	#define PRIxPTR "p"
-	//totally different from any other system
-	#define PRIx64 "I64x"
-	#define PRIu64 "I64u"
-	#define PRIi64 "I64i"
+#if defined(_WIN32)
+	#ifdef __GNUC__
+		#include <inttypes.h>
+	#else
+		#define PRIxPTR "p"
+		//totally different from any other system
+		#define PRIx64 "I64x"
+		#define PRIu64 "I64u"
+		#define PRIi64 "I64i"
+	#endif
 
 	#ifdef _WIN64
 		#define PRIxSIZE "Ix"
 		#define PRIuSIZE "Iu"
 		#define PRIiSIZE "Ii"
 	#else
+		//don't use I, for the sake of older libcs
 		#define PRIxSIZE "x"
 		#define PRIuSIZE "u"
 		#define PRIiSIZE "i"
@@ -220,40 +225,40 @@ extern "C" {
 #else
 	#include <inttypes.h>
 	//these are non-standard. c99 would expect people to just use %zx etc
-	#if FTE_WORDSIZE != 32
+	#if FTE_WORDSIZE != 32 || __STDC_VERSION__ >= 199901L || defined(__GNUC__)
 		//64bit systems are expected to have an awareness of c99
 		#define PRIxSIZE "zx"
 		#define PRIuSIZE "zu"
 		#define PRIiSIZE "zi"
 	#else
 		//regular old c89 for 32bit platforms.
-		#define PRIxSIZE "x"
-		#define PRIuSIZE "u"
-		#define PRIiSIZE "i"
+		#define PRIxSIZE PRIxPTR
+		#define PRIuSIZE PRIuPTR
+		#define PRIiSIZE PRIiPTR
 	#endif
 #endif
 
 
 #ifdef _WIN32
-#if (_MSC_VER >= 1400)
-//with MSVC 8, use MS extensions
-#define snprintf linuxlike_snprintf_vc8
-int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
-#define vsnprintf(a, b, c, d) vsnprintf_s(a, b, _TRUNCATE, c, d)
-#else
-//msvc crap
-#define snprintf linuxlike_snprintf
-int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
-#define vsnprintf linuxlike_vsnprintf
-int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
-#endif
+	#if (_MSC_VER >= 1400)
+		//with MSVC 8, use MS extensions
+		#define snprintf linuxlike_snprintf_vc8
+		int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+		#define vsnprintf(a, b, c, d) vsnprintf_s(a, b, _TRUNCATE, c, d)
+	#else
+		//msvc crap
+		#define snprintf linuxlike_snprintf
+		int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+		#define vsnprintf linuxlike_vsnprintf
+		int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
+	#endif
 
-#ifdef _MSC_VER
-//these are provided so we don't use them
-//but mingw has some defines elsewhere and makes gcc moan
-#define _vsnprintf unsafe_vsnprintf
-#define _snprintf unsafe_snprintf
-#endif
+	#ifdef _MSC_VER
+		//these are provided so we don't use them
+		//but mingw has some defines elsewhere and makes gcc moan
+		#define _vsnprintf unsafe_vsnprintf
+		#define _snprintf unsafe_snprintf
+	#endif
 #endif
 
 //=============================================================================

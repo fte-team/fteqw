@@ -941,7 +941,7 @@ void SW_R_RenderView(void)
 
 	cl_numvisedicts = tmpvisents;
 }
-void SW_SCR_UpdateScreen(void)
+qboolean SW_SCR_UpdateScreen(void)
 {
 	wqcom_t *com;
 
@@ -1002,10 +1002,10 @@ void SW_VBO_Begin(vbobctx_t *ctx, size_t maxsize)
 void SW_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray)
 {
 }
-void SW_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray)
+void SW_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem)
 {
 }
-void SW_VBO_Destroy(vboarray_t *vearray)
+void SW_VBO_Destroy(vboarray_t *vearray, void *mem)
 {
 }
 void SWBE_Scissor(srect_t *rect)

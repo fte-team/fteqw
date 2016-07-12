@@ -24,6 +24,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 #include "fs.h"
 
+typedef struct
+{
+	int		rate;
+	int		width;
+	int		numchannels;
+	int		loopstart;
+	int		samples;
+	int		dataofs;		// chunk starts this many bytes from file start
+} wavinfo_t;
+
+static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength);
+
 int			cache_full_cycle;
 
 qbyte *S_Alloc (int size);
@@ -543,7 +555,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 ResampleSfx
 ================
 */
-qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data)
+static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data)
 {
 	extern cvar_t snd_linearresample;
 	double scale;
@@ -676,7 +688,7 @@ sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int snds
 	return sc;
 }
 */
-qboolean S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+static qboolean S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	// format data from Unofficial Doom Specs v1.6
 	unsigned short *dataus;
@@ -705,7 +717,7 @@ qboolean S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 }
 #endif
 
-qboolean S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+static qboolean S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	wavinfo_t	info;
 
@@ -732,7 +744,7 @@ qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
 
 #ifdef FTE_TARGET_WEB
 //web browsers contain their own decoding libraries that our openal stuff can use.
-qboolean S_LoadBrowserFile (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+static qboolean S_LoadBrowserFile (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	sfxcache_t *sc;
 	s->decoder.buf = sc = BZ_Malloc(sizeof(sfxcache_t) + datalen);
@@ -750,7 +762,7 @@ qboolean S_LoadBrowserFile (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 #endif
 
 //highest priority is last.
-S_LoadSound_t AudioInputPlugins[10] =
+static S_LoadSound_t AudioInputPlugins[10] =
 {
 #ifdef FTE_TARGET_WEB
 	S_LoadBrowserFile,
@@ -779,7 +791,7 @@ qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc)
 	return false;
 }
 
-void S_LoadedOrFailed (void *ctx, void *ctxdata, size_t a, size_t b)
+static void S_LoadedOrFailed (void *ctx, void *ctxdata, size_t a, size_t b)
 {
 	sfx_t *s = ctx;
 	s->loadstate = a;
@@ -790,7 +802,7 @@ S_LoadSound
 ==============
 */
 
-void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
+static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 {
 	sfx_t *s = ctx;
 	char	namebuffer[256];
@@ -937,7 +949,7 @@ typedef struct
 	int 	iff_chunk_len;
 } wavctx_t;
 
-short GetLittleShort(wavctx_t *ctx)
+static short GetLittleShort(wavctx_t *ctx)
 {
 	short val = 0;
 	val = *ctx->data_p;
@@ -946,7 +958,7 @@ short GetLittleShort(wavctx_t *ctx)
 	return val;
 }
 
-int GetLittleLong(wavctx_t *ctx)
+static int GetLittleLong(wavctx_t *ctx)
 {
 	int val = 0;
 	val = *ctx->data_p;
@@ -957,7 +969,7 @@ int GetLittleLong(wavctx_t *ctx)
 	return val;
 }
 
-unsigned int FindNextChunk(wavctx_t *ctx, char *name)
+static unsigned int FindNextChunk(wavctx_t *ctx, char *name)
 {
 	unsigned int dataleft;
 
@@ -1002,7 +1014,7 @@ unsigned int FindNextChunk(wavctx_t *ctx, char *name)
 	}
 }
 
-unsigned int FindChunk(wavctx_t *ctx, char *name)
+static unsigned int FindChunk(wavctx_t *ctx, char *name)
 {
 	ctx->last_chunk = ctx->iff_data;
 	return FindNextChunk (ctx, name);
@@ -1010,7 +1022,7 @@ unsigned int FindChunk(wavctx_t *ctx, char *name)
 
 
 #if 0
-void DumpChunks(void)
+static void DumpChunks(void)
 {
 	char	str[5];
 
@@ -1032,7 +1044,7 @@ void DumpChunks(void)
 GetWavinfo
 ============
 */
-wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
+static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 {
 	wavinfo_t	info;
 	int		i;

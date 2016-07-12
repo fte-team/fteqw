@@ -24,10 +24,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define MAXSOUNDCHANNELS 8	//on a per device basis
 
-//pitch shifting can 
+//pitch/rate changes require that we track stuff with subsample precision.
+//this can result in some awkward overflows.
 #define ssamplepos_t qintptr_t
 #define usamplepos_t quintptr_t
-#define PITCHSHIFT 6	/*max audio file length = (1<<32>>PITCHSHIFT)/KHZ*/
+#define PITCHSHIFT 6	/*max audio file length = ((1<<32)>>PITCHSHIFT)/KHZ*/
 
 struct sfx_s;
 typedef struct
@@ -94,47 +95,84 @@ typedef struct
 #define CF_NOSPACIALISE 4	// these sounds are played at a fixed volume in both speakers, but still gets quieter with distance.
 //#define CF_PAUSED		8	// rate = 0. or something.
 #define CF_ABSVOLUME	16	// ignores volume cvar.
+#define CF_NOREVERB		32	// disables reverb on this channel, if possible.
+#define CF_FOLLOW		64	// follows the owning entity (stops moving if we lose track)
 
 #define CF_UNICAST		256 // serverside only. the sound is sent to msg_entity only.
-#define CF_AUTOSOUND	512	// generated from q2 entities, which avoids breaking regular sounds, using it outside the sound system will probably break things.
+#define CF_SENDVELOCITY	512	// serverside hint that velocity is important
+#define CF_AUTOSOUND	1024	// generated from q2 entities, which avoids breaking regular sounds, using it outside the sound system will probably break things.
 
 typedef struct
 {
 	sfx_t	*sfx;			// sfx number
 	int		vol[MAXSOUNDCHANNELS];		// volume, .8 fixed point.
-	ssamplepos_t pos;		// sample position in sfx, <0 means delay sound start (shifted up by 8)
-	int     rate;			// 24.8 fixed point rate scaling
+	ssamplepos_t pos;		// sample position in sfx, <0 means delay sound start (shifted up by PITCHSHIFT)
+	int		rate;			// fixed point rate scaling
 	int		flags;			// cf_ flags
 	int		entnum;			// to allow overriding a specific sound
 	int		entchannel;		// to avoid overriding a specific sound too easily
 	vec3_t	origin;			// origin of sound effect
+	vec3_t	velocity;		// velocity of sound effect
 	vec_t	dist_mult;		// distance multiplier (attenuation/clipK)
 	int		master_vol;		// 0-255 master volume
 } channel_t;
 
-typedef struct
-{
-	int		rate;
-	int		width;
-	int		numchannels;
-	int		loopstart;
-	int		samples;
-	int		dataofs;		// chunk starts this many bytes from file start
-} wavinfo_t;
-
 struct soundcardinfo_s;
 typedef struct soundcardinfo_s soundcardinfo_t;
 
+extern struct sndreverbproperties_s
+{
+	int modificationcount;
+	struct reverbproperties_s 
+	{	//note: this struct originally comes from openal's eaxreverb
+		//it is shared with gamecode
+		float flDensity;
+		float flDiffusion;
+		float flGain;
+		float flGainHF;
+		float flGainLF;
+		float flDecayTime;
+		float flDecayHFRatio;
+		float flDecayLFRatio;
+		float flReflectionsGain;
+		float flReflectionsDelay;
+		float flReflectionsPan[3];
+		float flLateReverbGain;
+		float flLateReverbDelay;
+		float flLateReverbPan[3];
+		float flEchoTime;	
+		float flEchoDepth;
+		float flModulationTime;
+		float flModulationDepth;
+		float flAirAbsorptionGainHF;
+		float flHFReference;
+		float flLFReference;
+		float flRoomRolloffFactor;
+		int   iDecayHFLimit;
+	} props;
+} *reverbproperties;
+extern size_t numreverbproperties;
+
+//reverbproperties_s presets, from efx-presets.h
+//mostly for testing
+#define REVERB_PRESET_PSYCHOTIC \
+    { 0.0625f, 0.5000f, 0.3162f, 0.8404f, 1.0000f, 7.5600f, 0.9100f, 1.0000f, 0.4864f, 0.0200f, { 0.0000f, 0.0000f, 0.0000f }, 2.4378f, 0.0300f, { 0.0000f, 0.0000f, 0.0000f }, 0.2500f, 0.0000f, 4.0000f, 1.0000f, 0.9943f, 5000.0000f, 250.0000f, 0.0000f, 0x0 }
+//default reverb 1
+#define REVERB_PRESET_UNDERWATER \
+ { 0.3645f, 1.0000f, 0.3162f, 0.0100f, 1.0000f, 1.4900f, 0.1000f, 1.0000f, 0.5963f, 0.0070f, { 0.0000f, 0.0000f, 0.0000f }, 7.0795f, 0.0110f, { 0.0000f, 0.0000f, 0.0000f }, 0.2500f, 0.0000f, 1.1800f, 0.3480f, 0.9943f, 5000.0000f, 250.0000f, 0.0000f, 0x1 }
+
 void S_Init (void);
 void S_Startup (void);
+void S_EnumerateDevices(void);
 void S_Shutdown (qboolean final);
 float S_GetSoundTime(int entnum, int entchannel);
-void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags);
-float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags);
+void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t velocity, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags);
+float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t velocity, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags);
 void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);
 void S_StopAllSounds(qboolean clear);
-void S_UpdateListener(int seat, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, qboolean underwater);
+void S_UpdateListener(int seat, int entnum, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, size_t reverbtype, vec3_t velocity);
+qboolean S_UpdateReverb(size_t reverbtype, void *reverb, size_t reverbsize);
 void S_GetListenerInfo(int seat, float *origin, float *forward, float *right, float *up);
 void S_Update (void);
 void S_ExtraUpdate (void);
@@ -187,7 +225,7 @@ void S_Voip_Ignore(unsigned int plno, qboolean ignore);
 #endif
 
 qboolean S_IsPlayingSomewhere(sfx_t *s);
-qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data);
+//qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data);
 
 // picks a channel based on priorities, empty slots, number of channels
 channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel);
@@ -253,12 +291,11 @@ extern cvar_t snd_mixerthread;
 extern int		snd_blocked;
 
 void S_LocalSound (const char *s);
+void S_LocalSound2 (const char *sound, int channel, float volume);
 qboolean S_LoadSound (sfx_t *s);
 
 typedef qboolean (*S_LoadSound_t) (sfx_t *s, qbyte *data, int datalen, int sndspeed);
 qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc);	//called to register additional sound input plugins
-
-wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength);
 
 void S_AmbientOff (void);
 void S_AmbientOn (void);
@@ -315,10 +352,10 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	void (*Submit) (soundcardinfo_t *sc, int start, int end);		//if the ringbuffer is emulated, this is where you should push it to the device.
 	void (*Shutdown) (soundcardinfo_t *sc);							//kill the device
 	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);				//get the current point that the hardware is reading from (the return value should not wrap, at least not very often)
-	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);	//if you have eax enabled, change the environment. fixme. generally this is a stub. optional.
+	void (*SetEnvironmentReverb) (soundcardinfo_t *sc, size_t reverb);	//if you have eax enabled, change the environment. fixme. generally this is a stub. optional.
 	void (*Restore) (soundcardinfo_t *sc);							//called before lock/unlock/lock/unlock/submit. optional
 	void (*ChannelUpdate) (soundcardinfo_t *sc, channel_t *channel, unsigned int schanged);	//properties of a sound effect changed. this is to notify hardware mixers. optional.
-	void (*ListenerUpdate) (soundcardinfo_t *sc, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity);	//player moved or something. this is to notify hardware mixers. optional.
+	void (*ListenerUpdate) (soundcardinfo_t *sc, int entnum, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity);	//player moved or something. this is to notify hardware mixers. optional.
 
 //driver-specific - if you need more stuff, you should just shove it in the handle pointer
 	void *thread;

@@ -85,17 +85,19 @@ xmltree_t *XML_CreateNode(xmltree_t *parent, char *name, char *xmlns, char *body
 
 const struct
 {
-	char code;
+	int codelen;
+	char *code;
 	int namelen;
 	char *name;
 } xmlchars[] =
 {
-	{'<',	2, "lt"},
-	{'>',	2, "gt"},
-	{'&',	3, "amp"},
-	{'\'',	4, "apos"},
-	{'\"',	4, "quot"},
-	{0, 0, NULL}
+	{1, "<",		2, "lt"},
+	{1, ">",		2, "gt"},
+	{1, "&",		3, "amp"},
+	{1, "\'",		4, "apos"},
+	{1, "\"",		4, "quot"},
+	{2, "\xC3\x96",	4, "ouml"},
+	{0, NULL,		0, NULL}
 };
 //converts < to &lt; etc.
 //returns the end of d.
@@ -105,12 +107,12 @@ char *XML_Markup(char *s, char *d, int dlen)
 	dlen--;
 	while(*s)
 	{
-		for(i = 0; xmlchars[i].name; i++)
+		for(i = 0; xmlchars[i].code; i++)
 		{
-			if (*s == xmlchars[i].code)
+			if (!strncmp(s, xmlchars[i].code, xmlchars[i].codelen))
 				break;
 		}
-		if (xmlchars[i].name)
+		if (xmlchars[i].code)
 		{
 			if (dlen < xmlchars[i].namelen+2)
 				break;
@@ -118,7 +120,7 @@ char *XML_Markup(char *s, char *d, int dlen)
 			memcpy(d, xmlchars[i].name, xmlchars[i].namelen);
 			d+=xmlchars[i].namelen;
 			*d++ = ';';
-			s++;
+			s+=xmlchars[i].codelen;
 			dlen -= xmlchars[i].namelen+2;
 		}
 		else
@@ -152,7 +154,9 @@ void XML_Unmark(char *s)
 			if (xmlchars[i].name)
 			{
 				s += xmlchars[i].namelen+1;
-				*d++ = xmlchars[i].code;
+
+				memcpy(d, xmlchars[i].code, xmlchars[i].codelen);
+				d+=xmlchars[i].codelen;
 			}
 			else
 			{
@@ -248,6 +252,7 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 {
 	xmlparams_t *p;
 	xmltree_t *child;
+	xmltree_t **childlink;	//to add at end, retaining order
 	xmltree_t *ret;
 	int bodypos;
 	int bodymax = 0;
@@ -270,6 +275,8 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 		return NULL;	//nothing anyway.
 	}
 
+skippedcomment:
+
 	//expect a <
 
 	if (buffer[pos] != '<')
@@ -284,6 +291,23 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 		return NULL;	//err, terminating a parent tag
 	}
 
+	if (pos+4 < maxpos && buffer[pos+1] == '!' && buffer[pos+2] == '-' && buffer[pos+3] == '-')
+	{
+		//this looks like a comment. scan forwards until we find the -->
+		pos += 4;
+		while (pos+3 < maxpos)
+		{
+			if (buffer[pos+0] == '-' && buffer[pos+1] == '-' && buffer[pos+2] == '>')
+			{
+				pos+=3;
+				goto skippedcomment;
+			}
+			pos++;
+		}
+		Con_Printf("Missing comment end\n");
+		return NULL;	//should never happen
+	}
+
 	tagend = strchr(buffer+pos, '>');
 	if (!tagend)
 	{
@@ -292,7 +316,6 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 	}
 	*tagend = '\0';
 	tagend++;
-
 
 	//assume no nulls in the tag header.
 	tagstart = buffer+pos+1;
@@ -439,6 +462,7 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 
 	//does it have a body, or is it child tags?
 
+	childlink = &ret->child;
 	bodypos = 0;
 	while(1)
 	{
@@ -467,15 +491,52 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 				break;
 			}
 
-			child = XML_Parse(buffer, &pos, maxpos, false, ret->xmlns_dflt);
-			if (!child)
+			if (!strncmp(&buffer[pos], "<![CDATA[", 9))
 			{
-				Con_Printf("Child block is unparsable\n");
-				XML_Destroy(ret);
-				return NULL;
+				pos += 9;
+				while(1)
+				{
+					char c;
+					if (pos == maxpos)
+					{	//malformed
+						Con_Printf("CDATA is malfored (inside %s)\n", ret->name);
+						XML_Destroy(ret);
+						return NULL;
+					}
+
+					if (buffer[pos+0] == ']' && buffer[pos+1] == ']' && buffer[pos+2] == '>')
+					{
+						pos += 3;
+						break;
+					}
+
+					c = buffer[pos++];
+					if (bodypos == bodymax)
+					{
+						int nlen = bodypos*2 + 64;
+						char *nb = malloc(nlen);
+						memcpy(nb, ret->body, bodypos);
+						free(ret->body);
+						ret->body = nb;
+						bodymax = nlen;
+					}
+					ret->body[bodypos++] = c;
+				}
 			}
-			child->sibling = ret->child;
-			ret->child = child;
+			else
+			{
+				child = XML_Parse(buffer, &pos, maxpos, false, ret->xmlns_dflt);
+				if (!child)
+				{
+					Con_Printf("Child block is unparsable (within %s)\n", ret->name);
+					XML_Destroy(ret);
+					return NULL;
+				}
+
+				child->sibling = *childlink;
+				*childlink = child;
+				childlink = &child->sibling;
+			}
 		}
 		else 
 		{

@@ -380,7 +380,7 @@ void XR_GetProperty (xclient_t *cl, xReq *request)
 		ev.u.u.sequenceNumber			= 0;
 		ev.u.property.window			= req->window;
 		ev.u.property.atom				= req->property;
-		ev.u.property.time				= Sys_Milliseconds();
+		ev.u.property.time				= pSys_Milliseconds();
 		ev.u.property.state				= PropertyDelete;
 
 		ev.u.property.pad1				= 0;
@@ -485,7 +485,7 @@ void XR_ChangeProperty (xclient_t *cl, xReq *request)
 		ev.u.u.sequenceNumber			= 0;
 		ev.u.property.window			= req->window;
 		ev.u.property.atom				= req->property;
-		ev.u.property.time				= Sys_Milliseconds();
+		ev.u.property.time				= pSys_Milliseconds();
 		ev.u.property.state				= PropertyNewValue;
 
 		ev.u.property.pad1				= 0;
@@ -523,7 +523,7 @@ void XR_DeleteProperty(xclient_t *cl, xReq *request)
 		ev.u.u.sequenceNumber			= 0;
 		ev.u.property.window			= req->window;
 		ev.u.property.atom				= req->property;
-		ev.u.property.time				= Sys_Milliseconds();
+		ev.u.property.time				= pSys_Milliseconds();
 		ev.u.property.state				= PropertyDelete;
 
 		ev.u.property.pad1				= 0;

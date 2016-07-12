@@ -340,10 +340,13 @@ void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 {
 	setupmenu_t *info = menu->data;
 	mpic_t	*p;
+	int w, h;
 
+	Draw_FunStringWidth(x, y, "Skin", 160-64, true, !menu->cursoritem && menu->selecteditem == (menuoption_t*)option);
+	x += 160-40;//172-16
 
 	p = R2D_SafeCachePic (va("players/%s_i", skin.string));
-	if (!p)
+	if (!R_GetShaderSizes(p, &w, &h, false))
 	{
 		q2skinsearch_t *s = Z_Malloc(sizeof(*s));
 		COM_EnumerateFiles(va("players/%s/*_i.*", info->modeledit->values[info->modeledit->selectedoption]), q2skin_enumerate, s);
@@ -353,8 +356,8 @@ void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 
 		p = R2D_SafeCachePic (va("players/%s_i", skin.string));
 	}
-	if (p)
-		R2D_ScalePic (x-12, y-8, p->width, p->height, p);
+	if (R_GetShaderSizes(p, &w, &h, false)>0)
+		R2D_ScalePic (x, y-8, w, h, p);
 }
 
 void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
@@ -456,7 +459,7 @@ void M_Menu_Setup_f (void)
 			(info->nameedit = MC_AddEdit(menu, 64, 160, 40, "Your name", name.string));
 			(info->modeledit = MC_AddCvarCombo(menu, 64, 160,72, "model", &skin, (const char **)modeloptions, (const char **)modeloptions));
 			info->modeledit->selectedoption = !strncmp(skin.string, "female", 6);
-			cu = MC_AddCustom(menu, 172-16, 88+16, NULL, 0);
+			cu = MC_AddCustom(menu, 64, 88+16, NULL, 0);
 			cu->draw = MSetupQ2_TransDraw;
 			cu->key = MSetupQ2_ChangeSkin;
 
@@ -733,8 +736,8 @@ void M_Menu_Teamplay_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Teamplay Options", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Teamplay Options", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_COMBOCVAR("Skins", noskins, noskinsoptions, noskinsvalues, "Enable or disable player skin usage. No download will use skins but will not download them from the server."),
 		MB_EDITCVARTIP("Enemy Skin", "cl_enemyskin", "Override enemy skin with this."),
 		MB_EDITCVARTIP("Team Skin", "cl_teamskin", "Override teammate skin with this."),
@@ -764,8 +767,8 @@ void M_Menu_Teamplay_Locations_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Teamplay Location Names", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Teamplay Location Names", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_EDITCVARSLIM("Separator", "loc_name_separator", "Location name seperator character(s)"),
 		MB_SPACING(4),
 		MB_EDITCVARSLIM("Super Shotgun", "loc_name_ssg", "Short name for Super Shotgun in teamplay location 'reports'"),
@@ -799,8 +802,8 @@ void M_Menu_Teamplay_Needs_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Teamplay Needed Items", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Teamplay Needed Items", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_EDITCVARSLIM("Shells", "tp_need_shells", "Short name for Shotgun Shells in teamplay 'need' reports"),
 		MB_EDITCVARSLIM("Nails", "tp_need_nails", "Short name for Nails in teamplay 'need' reports"),
 		MB_EDITCVARSLIM("Rockets", "tp_need_rockets", "Short name for Rockets/Grenades in teamplay 'need' reports"),
@@ -826,8 +829,8 @@ void M_Menu_Teamplay_Items_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Teamplay Item Names", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Teamplay Item Names", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_CONSOLECMD("Armor", "menu_teamplay_armor\n", "Modify team play macro armor names."),
 		MB_CONSOLECMD("Weapon", "menu_teamplay_weapons\n", "Modify team play macro weapon names."),
 		MB_CONSOLECMD("Powerups", "menu_teamplay_powerups\n", "Modify team play macro powerup names."),
@@ -847,8 +850,8 @@ void M_Menu_Teamplay_Items_Armor_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Teamplay Armor Names", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Teamplay Armor Names", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_EDITCVARSLIM("Armor", "tp_name_armor", "Short name for Armor type"),
 		MB_EDITCVARSLIM("Green Type -", "tp_name_armortype_ga", "Short name for Green Armor type"),
 		MB_EDITCVARSLIM("Yellow Type -", "tp_name_armortype_ya", "Short name for Yellow Armor type"),
@@ -870,8 +873,8 @@ void M_Menu_Teamplay_Items_Weapons_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Teamplay Weapon Names", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Teamplay Weapon Names", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_EDITCVARSLIM("Weapon", "tp_name_weapon", "Short name for Weapon"),
 		MB_SPACING(4),
 		MB_EDITCVARSLIM("Axe", "tp_name_axe", "Short name for Weapon"),
@@ -895,8 +898,8 @@ void M_Menu_Teamplay_Items_Powerups_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Teamplay Powerup Names", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Teamplay Powerup Names", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_EDITCVARSLIM("Quad Damage", "tp_name_quad", "Short name for Quad Damage"),
 		MB_EDITCVARSLIM("Pentagram", "tp_name_pent", "Short name for Pentgram of Protection"),
 		MB_EDITCVARSLIM("Ring of Invis", "tp_name_ring", "Short name for Ring Of Invisibilty"),
@@ -923,8 +926,8 @@ void M_Menu_Teamplay_Items_Ammo_Health_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Teamplay Ammo/Health", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Teamplay Ammo/Health", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_EDITCVARSLIM("Shells", "tp_name_shells", "Short name for Shells"),
 		MB_EDITCVARSLIM("Nails", "tp_name_nails", "Short name for Nails"),
 		MB_EDITCVARSLIM("Rockets", "tp_name_rockets", "Short name for Rockets"),
@@ -946,8 +949,8 @@ void M_Menu_Teamplay_Items_Team_Fortress_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Teamplay Team Fortress", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Teamplay Team Fortress", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_EDITCVARSLIM("Sentry Gun", "tp_name_sentry", "Short name for the Engineer's Sentry Gun"),
 		MB_EDITCVARSLIM("Dispenser", "tp_name_disp", "Short name for the Engineer's Ammo Dispenser"),
 		MB_EDITCVARSLIM("Flag", "tp_name_flag", "Short name for Flag"),
@@ -964,8 +967,8 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Teamplay Misc", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Teamplay Misc", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_EDITCVARSLIM("Enemy", "tp_name_enemy", "Short for Enemy in teamplay 'status' & 'location' reports"),
 		MB_EDITCVARSLIM("Teammate", "tp_name_teammate", "Short for Enemy in teamplay 'status' & 'location' reports"),
 		MB_SPACING(4),
@@ -1010,8 +1013,8 @@ void M_Menu_Network_f (void)
 	int y;
 	menubulk_t bulk[] =
 	{
-		MB_REDTEXT("Network Settings", false),
-		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
+		MB_REDTEXT("Network Settings", true),
+		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_EDITCVARSLIM("Network FPS", "cl_netfps", "Sets ammount of FPS used to communicate with server (sent and received)"),
 		MB_EDITCVARSLIM("Rate", "rate", "Maximum bytes per second that the server should send to the client"),
 		MB_EDITCVARSLIM("Download Rate", "drate", "Maximum bytes per second that the server should send maps and demos to the client"),

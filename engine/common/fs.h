@@ -55,14 +55,14 @@ struct searchpathfuncs_s
 
 //the stdio filesystem is special as that's the starting point of the entire filesystem
 //warning: the handle is known to be a string pointer to the dir name
-extern searchpathfuncs_t *(QDECL VFSOS_OpenPath) (vfsfile_t *file, const char *desc);
-extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *packhandle, const char *desc);
-extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *packhandle, const char *desc);
-extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *packhandle, const char *desc);
+extern searchpathfuncs_t *(QDECL VFSOS_OpenPath) (vfsfile_t *file, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
 vfsfile_t *QDECL VFSOS_Open(const char *osname, const char *mode);
 vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, vfsfile_t *outfile);
 
-int FS_RegisterFileSystemType(void *module, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc), qboolean loadscan);
+int FS_RegisterFileSystemType(void *module, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc, const char *prefix), qboolean loadscan);
 void FS_UnRegisterFileSystemType(int idx);
 void FS_UnRegisterFileSystemModule(void *module);
 
@@ -75,4 +75,5 @@ void FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man),
 #define SPF_UNTRUSTED		16	//has been downloaded from somewhere. configs inside it should never be execed with local access rights.
 #define SPF_PRIVATE			32	//private to the client. ie: the fte dir.
 #define SPF_WRITABLE		64	//safe to write here. lots of weird rules etc.
+#define SPF_BASEPATH		128	//part of the basegames, and not the mod gamedir(s).
 qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, unsigned int flags);

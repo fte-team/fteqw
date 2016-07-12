@@ -1,6 +1,16 @@
 This directory contains my menusys mod (with menusys qc library).
 This mod is provided to serve as a base mod for menuqc or menus within csqc.
 
+
+License:
+There is no explicit license attached to this code. This means you're free to do what you want with it, however...
+1) there is absolutely no warrenty at all. it works for me, but might not even compile for you.
+2) I make no assurances that small sections of code, comments, or constants, or really anything, wasn't inadvertantly copied from a GPL source. I'm not aware of anything not otherwise obvious from looking at a config or just running the game (ie: cvar/setting names). Really I'm just trying to cover my arse here.
+3) people that don't share their code are selfish, and deserve their inevitable HD crashes! yay backups :)
+
+
+
+Quick Start:
 To add a new item onto the menus, you can open up the relavent menu/*.qc file, find an item of the same widget type, and dupe then edit that line for your new item, following the example given.
 There's often a little extra logic used to center the menu vertically, so you may also need to tweak some numbers before anything is added.
 You should NOT need to edit menusys/*.qc - you can if you want, but I wouldn't recommend it to beginners.

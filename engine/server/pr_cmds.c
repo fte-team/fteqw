@@ -98,6 +98,7 @@ cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", 
 #endif
 cvar_t sv_gameplayfix_setmodelsize_qw = CVARD("sv_gameplayfix_setmodelsize_qw", "0", "The setmodel builtin will act as a setsize for QuakeWorld mods also.");
 cvar_t dpcompat_nopreparse = CVARD("dpcompat_nopreparse", "0", "Xonotic uses svc_tempentity with unknowable lengths mixed with other data that needs to be translated. This cvar disables any attempt to translate or pre-parse network messages, including disabling nq/qw cross compatibility. NOTE: because preparsing will be disabled, messages might not get backbuffered correctly if too much reliable data is written.");
+extern cvar_t sv_listen_dp;
 
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
@@ -215,7 +216,7 @@ void PDECL ED_Spawned (struct edict_s *ent, int loading)
 		ent->xv = (extentvars_t *)(ent->v+1);
 #endif
 
-	if (!loading || !ent->xv->Version)
+	if (!loading || !ent->xv->uniquespawnid)
 	{
 		ent->xv->dimension_see = pr_global_struct->dimension_default;
 		ent->xv->dimension_seen = pr_global_struct->dimension_default;
@@ -225,7 +226,9 @@ void PDECL ED_Spawned (struct edict_s *ent, int loading)
 		if (progstype != PROG_H2)
 			ent->xv->drawflags = SCALE_ORIGIN_ORIGIN;	//if not running hexen2, default the scale origin to the actual origin.
 
+#ifndef NOLEGACY
 		ent->xv->Version = sv.csqcentversion[ent->entnum];
+#endif
 		ent->xv->uniquespawnid = sv.csqcentversion[ent->entnum];
 
 		if (!ent->baseline.number)
@@ -277,7 +280,6 @@ pbool PDECL ED_CanFree (edict_t *ed)
 		ed->v->think = 0;
 	}
 
-	ed->xv->Version+=1;
 	ed->xv->SendEntity = 0;
 	sv.csqcentversion[ed->entnum] += 1;
 
@@ -359,7 +361,8 @@ static void ASMCALL CWStateOp (pubprogfuncs_t *prinst, float first, float last, 
 		e->v->nextthink = pr_global_struct->time+0.1;
 	e->v->think = currentfunc;
 
-	pr_global_struct->cycle_wrapped = false;
+	if (pr_global_ptrs->cycle_wrapped)
+		pr_global_struct->cycle_wrapped = false;
 
 	if (first > last)
 	{	//going backwards
@@ -380,7 +383,8 @@ static void ASMCALL CWStateOp (pubprogfuncs_t *prinst, float first, float last, 
 		frame += step;
 		if (frame < min || frame > max)
 		{	//became out of range, must have wrapped
-			pr_global_struct->cycle_wrapped = true;
+			if (pr_global_ptrs->cycle_wrapped)
+				pr_global_struct->cycle_wrapped = true;
 			frame = first;
 		}
 	}
@@ -483,7 +487,7 @@ void QC_Clear(void);
 builtin_t pr_builtin[];
 extern int pr_numbuiltins;
 
-model_t *SVPR_GetCModel(world_t *w, int modelindex)
+model_t *QDECL SVPR_GetCModel(world_t *w, int modelindex)
 {
 	if ((unsigned int)modelindex < MAX_PRECACHE_MODELS)
 	{
@@ -494,14 +498,20 @@ model_t *SVPR_GetCModel(world_t *w, int modelindex)
 	else
 		return NULL;
 }
-static void SVPR_Get_FrameState(world_t *w, wedict_t *ent, framestate_t *fstate)
+static void QDECL SVPR_Get_FrameState(world_t *w, wedict_t *ent, framestate_t *fstate)
 {
 	memset(fstate, 0, sizeof(*fstate));
 	fstate->g[FS_REG].frame[0] = ent->v->frame;
+	fstate->g[FS_REG].frametime[0] = ent->xv->frame1time;
 	fstate->g[FS_REG].lerpweight[0] = 1;
+
+#if defined(SKELETALOBJECTS) || defined(RAGDOLL)
+	if (ent->xv->skeletonindex)
+		skel_lookup(w->progs, ent->xv->skeletonindex, fstate);
+#endif
 }
 
-static void SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
+static void QDECL SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
 {
 	int oself = pr_global_struct->self;
 	int oother = pr_global_struct->other;
@@ -515,7 +525,7 @@ static void SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
 	pr_global_struct->other = oother;
 }
 
-static void SVPR_Event_Think(world_t *w, wedict_t *s)
+static void QDECL SVPR_Event_Think(world_t *w, wedict_t *s)
 {
 	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
 	pr_global_struct->other = EDICT_TO_PROG(w->progs, w->edicts);
@@ -525,7 +535,7 @@ static void SVPR_Event_Think(world_t *w, wedict_t *s)
 		PR_ExecuteProgram (w->progs, s->v->think);
 }
 
-static qboolean SVPR_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
+static qboolean QDECL SVPR_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
 {
 	if (ent->xv->contentstransition)
 	{
@@ -648,6 +658,14 @@ void PR_Deinit(void)
 #endif
 	if (svprogfuncs)
 	{
+		for (i = 0; i < svs.allocated_client_slots; i++)
+		{
+			if (svs.clients[i].name != svs.clients[i].namebuf)
+				Q_strncpyz(svs.clients[i].namebuf, svs.clients[i].name, sizeof(svs.clients[i].namebuf));
+			svs.clients[i].name = svs.clients[i].namebuf;
+			svs.clients[i].team = svs.clients[i].teambuf;
+		}
+
 		PR_Common_Shutdown(svprogfuncs, false);
 		World_Destroy(&sv.world);
 		if (svprogfuncs->CloseProgs)
@@ -659,12 +677,6 @@ void PR_Deinit(void)
 		{
 			BZ_Free((void*)sv.strings.lightstyles[i]);
 			sv.strings.lightstyles[i] = NULL;
-		}
-
-		for (i = 0; i < svs.allocated_client_slots; i++)
-		{
-			svs.clients[i].name = svs.clients[i].namebuf;
-			svs.clients[i].team = svs.clients[i].teambuf;
 		}
 	}
 
@@ -741,7 +753,9 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalfloat		(false, trace_inopen);
 	globalfloat		(false, trace_inwater);
 	globalfloat		(false, trace_endcontents);
+	globalint		(false, trace_endcontentsi);
 	globalfloat		(false, trace_surfaceflags);
+	globalint		(false, trace_surfaceflagsi);
 	globalstring	(false, trace_surfacename);
 	globalint		(false, trace_brush_id);
 	globalint		(false, trace_brush_faceid);
@@ -785,7 +799,9 @@ void PR_LoadGlabalStruct(qboolean muted)
 	ensureglobal(dimension_send, dimension_send_default);
 	ensureglobal(dimension_default, dimension_default);
 	ensureglobal(trace_endcontents, writeonly);
+	ensureglobal(trace_endcontentsi, writeonly_int);
 	ensureglobal(trace_surfaceflags, writeonly);
+	ensureglobal(trace_surfaceflagsi, writeonly_int);
 	ensureglobal(trace_brush_id, writeonly_int);
 	ensureglobal(trace_brush_faceid, writeonly_int);
 
@@ -963,6 +979,8 @@ progsnum_t AddProgs(const char *name)
 	func_t f;
 	globalvars_t *pr_globals;
 	progsnum_t num;
+	flocation_t loc;
+	char gamedir[MAX_QPATH];
 	int i;
 	if (strlen(name) >= sizeof(svs.progsnames[0]))
 		return -1;
@@ -1013,7 +1031,13 @@ progsnum_t AddProgs(const char *name)
 	if (num == 0)
 		PR_LoadGlabalStruct(false);
 
-	Con_TPrintf("Loaded progs %s\n", name);
+	*gamedir = 0;
+	if (FS_FLocateFile(name, FSLF_IFFOUND, &loc))
+	{
+		Q_strncpyz(gamedir, loc.search->purepath, sizeof(gamedir));
+		*COM_SkipPath(gamedir) = 0;
+	}
+	Con_TPrintf("Loaded progs %s%s\n", gamedir, name);
 
 	PR_ProgsAdded(svprogfuncs, num, name);
 
@@ -1138,7 +1162,7 @@ void PR_ApplyCompilation_f (void)
 
 	PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS, pr_enable_profiling.ival);
 	PR_RegisterFields();
-	PR_InitEnts(svprogfuncs, sv.world.max_edicts);
+	sv.world.edict_size=PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
 	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, s, 0);
 
@@ -1389,10 +1413,9 @@ void Q_InitProgs(void)
 
 	svs.numprogs=0;
 
-	d1 = COM_FDepthFile("progs.dat", true);
-	d2 = COM_FDepthFile("qwprogs.dat", true);
-	if (d2 != 0x7fffffff)
-		d2 += (!deathmatch.value * 3);
+	d1 = FS_FLocateFile("progs.dat",	FSLF_DONTREFERENCE|FSLF_DEEPONFAILURE|FSLF_IGNOREBASEDEPTH, NULL);
+	d2 = FS_FLocateFile("qwprogs.dat",	FSLF_DONTREFERENCE|FSLF_DEEPONFAILURE|FSLF_IGNOREBASEDEPTH, NULL);
+	//FIXME id1/progs.dat vs qw/qwprogs.dat - these should be considered to have the same priority.
 	if (d1 < d2)	//progs.dat is closer to the gamedir
 		strcpy(addons, "progs.dat");
 	else if (d1 > d2)	//qwprogs.dat is closest
@@ -1400,7 +1423,7 @@ void Q_InitProgs(void)
 		strcpy(addons, "qwprogs.dat");
 		d1 = d2;
 	}
-	//both are an equal distance - same path.
+	//both are an equal depth - same path.
 	else if (deathmatch.value && !COM_CheckParm("-game"))	//if deathmatch, default to qw
 	{
 		strcpy(addons, "qwprogs.dat");
@@ -2334,13 +2357,13 @@ static void QCBUILTIN PF_setsize (pubprogfuncs_t *prinst, struct globalvars_s *p
 	e = G_EDICT(prinst, OFS_PARM0);
 	if (e->isfree)
 	{
-		if (progstype != PROG_H2)
-			PR_RunWarning(prinst, "%s edict was free\n", "setsize");
+		if (progstype != PROG_H2 || developer.ival)
+			PR_RunWarning(prinst, "%s edict %i was free\n", "setsize", e->entnum);
 		return;
 	}
 	if (e->readonly)
 	{
-		Con_TPrintf("setsize on entity %i\n", e->entnum);
+		Con_TPrintf("setsize on readonly entity %i\n", e->entnum);
 		return;
 	}
 	min = G_VECTOR(OFS_PARM1);
@@ -2365,12 +2388,19 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m)
 	int		i;
 	model_t	*mod;
 
-	if (!e || e->readonly)
+	if (!e)
 	{
-		if (!e)
-			Con_Printf("setmodel on invalid entity\n");
-		else
-			Con_Printf("setmodel on entity %i\n", e->entnum);
+		PR_RunWarning(prinst, "%s on invalid entity\n", "setmodel");
+		return;
+	}
+	if (e->readonly)
+	{
+		PR_RunWarning(prinst, "%s edict %i is read-only\n", "setmodel", e->entnum);
+		return;
+	}
+	if (e->isfree)
+	{
+		PR_RunWarning(prinst, "%s edict %i was free\n", "setmodel", e->entnum);
 		return;
 	}
 
@@ -3072,8 +3102,8 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	edict_t		*entity;
 	int 		volume;
 	float attenuation;
-	int			pitchadj;
-	unsigned int flags;
+	float			pitchadj;
+	unsigned int chflags;
 	float	timeofs;
 
 	entity = G_EDICT(prinst, OFS_PARM0);
@@ -3087,14 +3117,14 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		pitchadj = 0;
 	if (svprogfuncs->callargc > 6)
 	{
-		flags = G_FLOAT(OFS_PARM6);
+		chflags = G_FLOAT(OFS_PARM6);
 		if (channel < 0)
 			channel = 0;
 	}
 	else
 	{
 		//QW uses channel&8 to mean reliable.
-		flags = (channel & 8)?CF_RELIABLE:0;
+		chflags = (channel & 8)?CF_RELIABLE:0;
 		//demangle it so the upper bits are still useful.
 		channel = (channel & 7) | ((channel & ~15) >> 1);
 	}
@@ -3106,7 +3136,7 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	if (volume > 255)
 		volume = 255;
 
-	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, sample, volume, attenuation, pitchadj, timeofs, flags);
+	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, sample, volume, attenuation, pitchadj, timeofs, chflags);
 }
 
 static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3131,22 +3161,22 @@ static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s 
 
 //an evil one from telejano.
 #ifndef SERVERONLY
-static void QCBUILTIN PF_LocalSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_ss_LocalSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sfx_t	*sfx;
 
 	const char * s = PR_GetStringOfs(prinst, OFS_PARM0);
-	float chan = G_FLOAT(OFS_PARM1);
-	float vol = G_FLOAT(OFS_PARM2);
+	float chan = (prinst->callargc>=1)?G_FLOAT(OFS_PARM1):0;
+	float vol = (prinst->callargc>=2)?G_FLOAT(OFS_PARM2):1;
 
 	if (!isDedicated)
 	{
 		if ((sfx = S_PrecacheSound(s)))
-			S_StartSound(cl.playerview[0].playernum, chan, sfx, cl.playerview[0].simorg, vol, 0.0, 0, 0, CF_NOSPACIALISE);
+			S_StartSound(cl.playerview[0].playernum, chan, sfx, cl.playerview[0].simorg, NULL, vol, 0.0, 0, 0, CF_NOSPACIALISE);
 	}
 };
 #else
-#define PF_LocalSound PF_Fixme
+#define PF_ss_LocalSound PF_Fixme
 #endif
 
 static void set_trace_globals(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, trace_t *trace)
@@ -3157,9 +3187,11 @@ static void set_trace_globals(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	pr_global_struct->trace_inwater = trace->inwater;
 	pr_global_struct->trace_inopen = trace->inopen;
 	pr_global_struct->trace_surfaceflags = trace->surface?trace->surface->flags:0;
+	pr_global_struct->trace_surfaceflagsi = trace->surface?trace->surface->flags:0;
 	if (pr_global_ptrs->trace_surfacename)
 		prinst->SetStringField(prinst, NULL, &pr_global_struct->trace_surfacename, trace->surface?trace->surface->name:NULL, true);
 	pr_global_struct->trace_endcontents = trace->contents;
+	pr_global_struct->trace_endcontentsi = trace->contents;
 	pr_global_struct->trace_brush_id = trace->brush_id;
 	pr_global_struct->trace_brush_faceid = trace->brush_face;
 //	if (trace.fraction != 1)
@@ -3195,7 +3227,6 @@ void QCBUILTIN PF_svtraceline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	trace_t	trace;
 	int		nomonsters;
 	edict_t	*ent;
-	int savedhull;
 
 	v1 = G_VECTOR(OFS_PARM0);
 	v2 = G_VECTOR(OFS_PARM1);
@@ -3219,10 +3250,7 @@ void QCBUILTIN PF_svtraceline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		maxs = vec3_origin;
 	}
 
-	savedhull = ent->xv->hull;
-	ent->xv->hull = 0;
-	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
-	ent->xv->hull = savedhull;
+	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
 	set_trace_globals(prinst, pr_globals, &trace);
 }
@@ -3234,7 +3262,6 @@ static void QCBUILTIN PF_traceboxh2 (pubprogfuncs_t *prinst, struct globalvars_s
 	trace_t	trace;
 	int		nomonsters;
 	edict_t	*ent;
-	int savedhull;
 
 	v1 = G_VECTOR(OFS_PARM0);
 	v2 = G_VECTOR(OFS_PARM1);
@@ -3243,10 +3270,7 @@ static void QCBUILTIN PF_traceboxh2 (pubprogfuncs_t *prinst, struct globalvars_s
 	nomonsters = G_FLOAT(OFS_PARM4);
 	ent = G_EDICT(prinst, OFS_PARM5);
 
-	savedhull = ent->xv->hull;
-	ent->xv->hull = 0;
-	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
-	ent->xv->hull = savedhull;
+	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
 	set_trace_globals(prinst, pr_globals, &trace);
 }
@@ -3258,7 +3282,6 @@ static void QCBUILTIN PF_traceboxdp (pubprogfuncs_t *prinst, struct globalvars_s
 	trace_t	trace;
 	int		nomonsters;
 	edict_t	*ent;
-	int savedhull;
 
 	v1 = G_VECTOR(OFS_PARM0);
 	mins = G_VECTOR(OFS_PARM1);
@@ -3267,10 +3290,7 @@ static void QCBUILTIN PF_traceboxdp (pubprogfuncs_t *prinst, struct globalvars_s
 	nomonsters = G_FLOAT(OFS_PARM4);
 	ent = G_EDICT(prinst, OFS_PARM5);
 
-	savedhull = ent->xv->hull;
-	ent->xv->hull = 0;
-	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
-	ent->xv->hull = savedhull;
+	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
 	set_trace_globals(prinst, pr_globals, &trace);
 }
@@ -3440,15 +3460,15 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 		return;
 	}
 
-
+#ifndef NOLEGACY
 	//this block is a hack to 'fix' nq mods that expect all clients to support nq commands - but we're a qw engine.
 	//FIXME: should buffer the entire command instead.
 	if (progstype != PROG_QW)
 	{
-		if (!strncmp(str, "color ", 6))	//okay, so this is a hack, but it fixes the qw scoreboard
+		if (!strncmp(str, "color ", 6)||!strncmp(str, ";color ", 7))	//okay, so this is a hack, but it fixes the qw scoreboard
 		{
 			expectingcolour = true;
-			if (!strcmp(str, "color "))
+			if (!strcmp(str, "color ")||!strcmp(str, ";color "))
 				return;
 			else
 				str += 6;
@@ -3467,14 +3487,13 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 			case 13:	tname = "blue";	break;
 			default:	tname = va("t%i", team);	break;	//good job our va has multiple buffers
 			}
-
-			ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen("team \n")+strlen(tname));
-			ClientReliableWrite_String (cl, va("team %s\n", tname));
+			PF_ForceInfoKey_Internal(entnum, "team", tname);
 
 			ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen("color "));
 			ClientReliableWrite_String (cl, "color ");
 		}
 	}
+#endif
 
 	slen = strlen(str);
 
@@ -3752,21 +3771,42 @@ void PR_CheckEmptyString (char *s)
 }
 */
 
+static int SV_ParticlePrecache_Add(const char *pname)
+{
+	int i;
+	for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
+	{
+		if (!sv.strings.particle_precache[i])
+		{
+			sv.strings.particle_precache[i] = PR_AddString(sv.world.progs, pname, 0, false);
+
+			if (sv.state != ss_loading)
+			{
+				Con_DPrintf("Delayed particle precache: %s\n", pname);
+				MSG_WriteByte(&sv.multicast, svcfte_precache);
+				MSG_WriteShort(&sv.multicast, i|PC_PARTICLE);
+				MSG_WriteString(&sv.multicast, pname);
+#ifdef NQPROT
+				MSG_WriteByte(&sv.nqmulticast, svcdp_precache);
+				MSG_WriteShort(&sv.nqmulticast, i|PC_PARTICLE);
+				MSG_WriteString(&sv.nqmulticast, pname);
+#endif
+
+				SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, pr_global_struct->dimension_send, PEXT_CSQC, 0);
+			}
+		}
+		if (!strcmp(sv.strings.particle_precache[i], pname))
+		{
+			return i;
+		}
+	}
+	return 0;
+}
+
 //float(string effectname) particleeffectnum (EXT_CSQC)
 void QCBUILTIN PF_sv_particleeffectnum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *s = PR_GetStringOfs(prinst, OFS_PARM0);
-/*
-#ifdef PEXT_CSQC
-#ifdef warningmsg
-#pragma warningmsg("PF_sv_particleeffectnum: which effect index values to use?")
-#endif
-	char *efname = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(efname);
-#else
-	G_FLOAT(OFS_RETURN) = -1;
-#endif
-*/
 	int		i;
 
 	G_FLOAT(OFS_RETURN) = 0;
@@ -3781,34 +3821,16 @@ void QCBUILTIN PF_sv_particleeffectnum(pubprogfuncs_t *prinst, struct globalvars
 		return;
 	}
 
-	for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
-	{
-		if (!sv.strings.particle_precache[i])
-		{
-			sv.strings.particle_precache[i] = PR_AddString(prinst, s, 0, false);
-
-			if (sv.state != ss_loading)
-			{
-				Con_DPrintf("Delayed particle precache: %s\n", s);
-				MSG_WriteByte(&sv.multicast, svcfte_precache);
-				MSG_WriteShort(&sv.multicast, i|PC_PARTICLE);
-				MSG_WriteString(&sv.multicast, s);
 #ifdef NQPROT
-				MSG_WriteByte(&sv.nqmulticast, svcdp_precache);
-				MSG_WriteShort(&sv.nqmulticast, i|PC_PARTICLE);
-				MSG_WriteString(&sv.nqmulticast, s);
+	//DPP7's network protocol depends upon the ordering of these from an external file. unreliable, but if we're meant to be compatible then we need to at least pretend.
+	if (!sv.strings.particle_precache[1] && sv_listen_dp.ival)
+		COM_Effectinfo_Enumerate(SV_ParticlePrecache_Add);
 #endif
 
-				SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, pr_global_struct->dimension_send, PEXT_CSQC, 0);
-			}
-		}
-		if (!strcmp(sv.strings.particle_precache[i], s))
-		{
-			G_FLOAT(OFS_RETURN) = i;
-			return;
-		}
-	}
-	PR_BIError (prinst, "PF_precache_particles: overflow");
+	i = SV_ParticlePrecache_Add(s);
+	G_FLOAT(OFS_RETURN) = i;
+	if (!i)
+		PR_BIError (prinst, "PF_precache_particles: overflow");
 }
 
 static void QCBUILTIN PF_precache_file (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5050,9 +5072,6 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		return;
 #endif
 
-	if (type > TE_SUPERBULLET)	//pick a new effect, cos this one we don't know about.
-		type = TE_SPIKE;
-
 //this is for lamers with old (or unsupported) clients
 	MSG_WriteByte (&sv.multicast, svc_temp_entity);
 #ifdef NQPROT
@@ -5182,7 +5201,6 @@ void PF_tempentity (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 //=============================================================================
 
 int SV_ModelIndex (const char *name);
-void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *client);
 
 void QCBUILTIN PF_makestatic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -5200,7 +5218,7 @@ void QCBUILTIN PF_makestatic (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	state = &sv_staticentities[sv.num_static_entities++];
 	memset(state, 0, sizeof(*state));
 
-	SV_Snapshot_BuildStateQ1(state, ent, NULL);
+	SV_Snapshot_BuildStateQ1(state, ent, NULL, NULL);
 	state->number = sv.num_static_entities;
 
 // throw the entity away now
@@ -5460,8 +5478,8 @@ char *PF_infokey_Internal (int entnum, const char *key)
 			case SCP_NETQUAKE:
 				value = "quake";
 				break;
-			case SCP_PROQUAKE:
-				value = "proquake";
+			case SCP_BJP3:
+				value = "bjp3";
 				break;
 			case SCP_FITZ666:
 				if (svs.clients[entnum-1].netchan.netprim.coordsize != 2)
@@ -5522,6 +5540,16 @@ static void QCBUILTIN PF_infokey (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	value = PF_infokey_Internal (e1, key);
 
+	G_INT(OFS_RETURN) = PR_TempString(prinst, value);
+}
+
+static void QCBUILTIN PF_sv_serverkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*value;
+	const char	*key;
+
+	key = PR_GetStringOfs(prinst, OFS_PARM1);
+	value = Info_ValueForKey (svs.info, key);
 	G_INT(OFS_RETURN) = PR_TempString(prinst, value);
 }
 
@@ -6296,7 +6324,7 @@ string readmcmd (string str)
 static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *s;
-	extern char outputbuf[];
+	extern char sv_redirected_buf[];
 	extern redirect_t sv_redirected;
 	extern int sv_redirectedlang;
 	redirect_t old;
@@ -6314,8 +6342,8 @@ static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	SV_BeginRedirect(RD_OBLIVION, TL_FindLanguage(""));
 	Cbuf_Execute();
-	Con_Printf("PF_readcmd: %s\n%s", s, outputbuf);
-	G_INT(OFS_RETURN) = (int)PR_TempString(prinst, outputbuf);
+	Con_Printf("PF_readcmd: %s\n%s", s, sv_redirected_buf);
+	G_INT(OFS_RETURN) = (int)PR_TempString(prinst, sv_redirected_buf);
 	SV_EndRedirect();
 
 	if (old != RD_NONE)
@@ -6381,11 +6409,11 @@ FIXME: check for null pointers first?
 
 static void QCBUILTIN PF_MVDSV_strcpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int dst = G_INT(OFS_PARM0);
+	unsigned int dst = G_INT(OFS_PARM0);
 	const char *src = PR_GetStringOfs(prinst, OFS_PARM1);
-	int size = strlen(src)+1;
+	unsigned int size = strlen(src)+1;
 
-	if (dst < 0 || dst+size >= prinst->stringtablesize)
+	if (dst <= 0 || dst+size >= prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "PF_strcpy: invalid dest\n");
 		return;
@@ -6405,11 +6433,11 @@ FIXME: check for null pointers first?
 
 static void QCBUILTIN PF_MVDSV_strncpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int dst = G_INT(OFS_PARM0);
+	unsigned int dst = G_INT(OFS_PARM0);
 	const char *src = PR_GetStringOfs(prinst, OFS_PARM1);
-	int size = G_FLOAT(OFS_PARM2);
+	unsigned int size = G_FLOAT(OFS_PARM2);
 
-	if (dst < 0 || dst+size >= prinst->stringtablesize)
+	if (dst <= 0 || dst+size >= prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "PF_strncpy: invalid dest\n");
 		return;
@@ -6440,7 +6468,10 @@ static void QCBUILTIN PF_strstr (pubprogfuncs_t *prinst, struct globalvars_s *pr
 		return;
 	}
 
-	RETURN_TSTRING(p);
+	if (p > prinst->stringtable && p-prinst->stringtable < prinst->stringtablesize)
+		G_INT(OFS_RETURN) = p-prinst->stringtable;
+	else
+		RETURN_TSTRING(p);
 }
 
 char readable2[256] =
@@ -6738,7 +6769,7 @@ const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned 
 		case SCP_QUAKE2:		bp = "q2";			break;
 		case SCP_QUAKE3:		bp = "q3";			break;
 		case SCP_NETQUAKE:		bp = "nq";			break;
-		case SCP_PROQUAKE:		bp = "nq";			break;	//not nuff difference for it to be meaningful
+		case SCP_BJP3:			bp = "bjp3";		break;
 		case SCP_FITZ666:		bp = "fitz666";		break;
 		case SCP_DARKPLACES6:	bp = "dp6";			break;
 		case SCP_DARKPLACES7:	bp = "dp7";			break;
@@ -6750,19 +6781,19 @@ const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned 
 
 		//this is not the limits of the client itself, but the limits that the server is able and willing to send to them.
 
-		if ((pext1 & PEXT_SOUNDDBL) || (protocol == SCP_FITZ666 || protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
+		if ((pext1 & PEXT_SOUNDDBL) || (protocol == SCP_BJP3 || protocol == SCP_FITZ666 || protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
 			Info_SetValueForKey(clfeatures, "maxsounds", va("%i", MAX_PRECACHE_SOUNDS), sizeof(clfeatures));
 		else
 			Info_SetValueForKey(clfeatures, "maxsounds", "256", sizeof(clfeatures));
 
-		if ((pext1 & PEXT_MODELDBL) || (protocol == SCP_FITZ666 || protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
+		if ((pext1 & PEXT_MODELDBL) || (protocol == SCP_BJP3 || protocol == SCP_FITZ666 || protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
 			Info_SetValueForKey(clfeatures, "maxmodels", va("%i", MAX_PRECACHE_MODELS), sizeof(clfeatures));
 		else
 			Info_SetValueForKey(clfeatures, "maxmodels", "256", sizeof(clfeatures));
 
 		if (pext2 & PEXT2_REPLACEMENTDELTAS)
 			Info_SetValueForKey(clfeatures, "maxentities", va("%i", MAX_EDICTS), sizeof(clfeatures));
-		else if (protocol == SCP_FITZ666)
+		else if (protocol == SCP_BJP3 || protocol == SCP_FITZ666)
 //			Info_SetValueForKey(clfeatures, "maxentities", "65535", sizeof(clfeatures));
 			Info_SetValueForKey(clfeatures, "maxentities", "32767", sizeof(clfeatures));
 		else if (protocol == SCP_DARKPLACES6 || protocol == SCP_DARKPLACES7)
@@ -7752,7 +7783,7 @@ static void QCBUILTIN PF_h2StopSound(pubprogfuncs_t *prinst, struct globalvars_s
 	entity = G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 
-	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, "", 1, 0, 0, 0, 0);
+	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, NULL, 1, 0, 0, 0, CF_RELIABLE);
 }
 
 static void QCBUILTIN PF_h2updatesoundpos(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7766,7 +7797,9 @@ static void QCBUILTIN PF_h2whiteflash(pubprogfuncs_t *prinst, struct globalvars_
 	broadcast a stuffcmd, I guess, to flash the screen white
 	Only seen this occur once: after killing pravus.
 	*/
-	Con_DPrintf("FTE-H2 FIXME: whiteflash not implemented\n");
+	MSG_WriteByte(&sv.multicast, svc_stufftext);
+	MSG_WriteString(&sv.multicast, "wf\n");
+	SV_MulticastProtExt (vec3_origin, MULTICAST_ALL_R, pr_global_struct->dimension_send, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
 }
 
 static void QCBUILTIN PF_h2getstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8347,7 +8380,7 @@ static void QCBUILTIN PF_te_customflash(pubprogfuncs_t *prinst, struct globalvar
 {
 	float *org = G_VECTOR(OFS_PARM0);
 
-	if (G_FLOAT(OFS_PARM1) < 8 || G_FLOAT(OFS_PARM2) < (1.0 / 256.0))
+	if (G_FLOAT(OFS_PARM1) <= 0 || G_FLOAT(OFS_PARM2) < (1.0 / 256.0))
 		return;
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
 	MSG_WriteByte(&sv.multicast, TEDP_CUSTOMFLASH);
@@ -8356,9 +8389,9 @@ static void QCBUILTIN PF_te_customflash(pubprogfuncs_t *prinst, struct globalvar
 	MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0)[1]);
 	MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0)[2]);
 	// radius
-	MSG_WriteByte(&sv.multicast, bound(0, G_FLOAT(OFS_PARM1) / 8 - 1, 255));
+	MSG_WriteByte(&sv.multicast, bound(1, G_FLOAT(OFS_PARM1) / 8 - 1, 255));
 	// lifetime
-	MSG_WriteByte(&sv.multicast, bound(0, G_FLOAT(OFS_PARM2) / 256 - 1, 255));
+	MSG_WriteByte(&sv.multicast, bound(0, G_FLOAT(OFS_PARM2) * 256 - 1, 255));
 	// color
 	MSG_WriteByte(&sv.multicast, bound(0, G_VECTOR(OFS_PARM3)[0] * 255, 255));
 	MSG_WriteByte(&sv.multicast, bound(0, G_VECTOR(OFS_PARM3)[1] * 255, 255));
@@ -8374,7 +8407,7 @@ static void QCBUILTIN PF_te_customflash(pubprogfuncs_t *prinst, struct globalvar
 	// radius
 	MSG_WriteByte(&sv.nqmulticast, bound(0, G_FLOAT(OFS_PARM1) / 8 - 1, 255));
 	// lifetime
-	MSG_WriteByte(&sv.nqmulticast, bound(0, G_FLOAT(OFS_PARM2) / 256 - 1, 255));
+	MSG_WriteByte(&sv.nqmulticast, bound(0, G_FLOAT(OFS_PARM2) * 256 - 1, 255));
 	// color
 	MSG_WriteByte(&sv.nqmulticast, bound(0, G_VECTOR(OFS_PARM3)[0] * 255, 255));
 	MSG_WriteByte(&sv.nqmulticast, bound(0, G_VECTOR(OFS_PARM3)[1] * 255, 255));
@@ -8644,7 +8677,7 @@ static void QCBUILTIN PF_effect(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 static void QCBUILTIN PF_te_plasmaburn(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
-	SV_point_tempentity(org, 75, 0);
+	SV_point_tempentity(org, TEDP_PLASMABURN, 0);
 }
 
 
@@ -9144,8 +9177,10 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		}
 		VectorCopy(sv_player->v->v_angle, startangle);
 
+#ifdef HEXEN2
 		if (progstype == PROG_H2)
 			sv_player->xv->light_level = 128;	//hmm... HACK!!!
+#endif
 
 		sv_player->v->button0 = ucmd->buttons & 1;
 		sv_player->v->button2 = (ucmd->buttons >> 1) & 1;
@@ -9395,7 +9430,7 @@ static void QCBUILTIN PF_clustertransfer(pubprogfuncs_t *prinst, struct globalva
 	{
 		if (!SSV_IsSubServer())
 		{
-			Con_DPrintf("PF_clustertransfer: not running in mapcluster mode\n", svs.clients[p].transfer, dest);
+			Con_DPrintf("PF_clustertransfer: not running in mapcluster mode, ignoring transfer to %s\n", dest);
 			return;
 		}
 		if (svs.clients[p].transfer)
@@ -9497,7 +9532,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"clientstate",		PF_Fixme,			0,		0,		0,		62,	"float()"},
 	{"clientcommand",	PF_Fixme,			0,		0,		0,		63,	"void(float client, string s)"},
 	{"changelevel",		PF_Fixme,			0,		0,		0,		64,	"void(string map)"},
-	{"localsound",		PF_Fixme,			0,		0,		0,		65,	"void(string sample)"},
+	{"localsound",		PF_Fixme,			0,		0,		0,		65,	"void(string sample, optional float channel, optional float volume)"},
 	{"getmousepos",		PF_Fixme,			0,		0,		0,		66,	"vector()"},
 	{"gettime",			PF_Fixme,			0,		0,		0,		67,	"float(optional float timetype)"},
 	{"loadfromdata",	PF_Fixme,			0,		0,		0,		68,	"void(string data)"},
@@ -9773,10 +9808,12 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //End TEU_SHOWLMP2
 
 //frik file
-	{"fopen",			PF_fopen,			0,		0,		0,		110, "filestream(string filename, float mode, optional float mmapminsize)"},	// (FRIK_FILE)
+	{"fopen",			PF_fopen,			0,		0,		0,		110, D("filestream(string filename, float mode, optional float mmapminsize)", "Opens a file, typically prefixed with \"data/\", for either read or write access.")},	// (FRIK_FILE)
 	{"fclose",			PF_fclose,			0,		0,		0,		111, "void(filestream fhandle)"},	// (FRIK_FILE)
-	{"fgets",			PF_fgets,			0,		0,		0,		112, "string(filestream fhandle)"},	// (FRIK_FILE)
-	{"fputs",			PF_fputs,			0,		0,		0,		113, "void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},	// (FRIK_FILE)
+	{"fgets",			PF_fgets,			0,		0,		0,		112, D("string(filestream fhandle)", "Reads a single line out of the file. The new line character is not returned as part of the string. Returns the null string on EOF (use if not(string) to easily test for this, which distinguishes it from the empty string which is returned if the line being read is blank")},	// (FRIK_FILE)
+	{"fputs",			PF_fputs,			0,		0,		0,		113, D("void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "Writes the given string(s) into the file. For compatibility with fgets, you should ensure that the string is terminated with a \\n - this will not otherwise be done for you. It is up to the engine whether dos or unix line endings are actually written.")},	// (FRIK_FILE)
+	{"fread",			PF_fread,			0,		0,		0,		0,	 D("int(filestream fhandle, void *ptr, int size)", "Reads binary data out of the file. Returns truncated lengths if the read exceeds the length of the file.")},
+	{"fwrite",			PF_fwrite,			0,		0,		0,		0,	 D("int(filestream fhandle, void *ptr, int size)", "Writes binary data out of the file.")},
 	{"strlen",			PF_strlen,			0,		0,		0,		114, "float(string s)"},	// (FRIK_FILE)
 	{"strcat",			PF_strcat,			0,		0,		0,		115, "string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)"},	// (FRIK_FILE)
 	{"substring",		PF_substring,		0,		0,		0,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
@@ -9792,7 +9829,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //these are telejano's
 	{"cvar_setf",		PF_cvar_setf,		0,		0,		0,		176,	"void(string cvar, float val)"},
-	{"localsound",		PF_LocalSound,		0,		0,		0,		177,	D("", "Plays a sound... on the server."),	true},//	#177
+	{"localsound",		PF_ss_LocalSound,	0,		0,		0,		177,	D("void(string soundname, optional float channel, optional float volume)", "Plays a sound... locally... probably best not to call this from ssqc. Also disables reverb.")},//	#177
 //end telejano
 
 //fte extras
@@ -9964,8 +10001,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 
 	{"clearscene",		PF_Fixme,	0,		0,		0,		300,	D("void()", "Forgets all rentities, polygons, and temporary dlights. Resets all view properties to their default values.")},// (EXT_CSQC)
-	{"addentities",		PF_Fixme,	0,		0,		0,		301,	D("void(float mask)", "Walks through all entities effectively doing this:\n if (ent.drawmask&mask){ ent.predaw(); if (wasremoved(ent)||(ent.renderflags&RF_NOAUTOADD))continue; addentity(ent); }\nIf mask&MASK_DELTA, non-csqc entities, particles, and related effects will also be added to the rentity list.\n If mask&MASK_STDVIEWMODEL then the default view model will also be added.")},// (EXT_CSQC)
+	{"addentities",		PF_Fixme,	0,		0,		0,		301,	D("void(float mask)", "Walks through all entities effectively doing this:\n if (ent.drawmask&mask){ if (!ent.predaw()) addentity(ent); }\nIf mask&MASK_DELTA, non-csqc entities, particles, and related effects will also be added to the rentity list.\n If mask&MASK_STDVIEWMODEL then the default view model will also be added.")},// (EXT_CSQC)
 	{"addentity",		PF_Fixme,	0,		0,		0,		302,	D("void(entity ent)", "Copies the entity fields into a new rentity for later rendering via addscene.")},// (EXT_CSQC)
+	{"addtrisoup_1",	PF_Fixme,	0,		0,		0,		0,		D("void(string texturename, float flags, void *verts, int *indexes, int numindexes)", "Adds the specified trisoup into the scene as additional geometry. This permits caching geometry to reduce builtin spam. Indexes are a triangle list (so eg quads will need 6 indicies to form two triangles). NOTE: this is not going to be a speedup over polygons if you're still generating lots of new data every frame.")},
 	{"setproperty",		PF_Fixme,	0,		0,		0,		303,	D("#define setviewprop setproperty\nfloat(float property, ...)", "Allows you to override default view properties like viewport, fov, and whether the engine hud will be drawn. Different VF_ values have slightly different arguments, some are vectors, some floats.")},// (EXT_CSQC)
 	{"renderscene",		PF_Fixme,	0,		0,		0,		304,	D("void()", "Draws all entities, polygons, and particles on the rentity list (which were added via addentities or addentity), using the various view properties set via setproperty. There is no ordering dependancy.\nThe scene must generally be cleared again before more entities are added, as entities will persist even over to the next frame.\nYou may call this builtin multiple times per frame, but should only be called from CSQC_UpdateView.")},// (EXT_CSQC)
 
@@ -9989,6 +10027,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"drawline",		PF_Fixme,	0,		0,		0,		315,	D("void(float width, vector pos1, vector pos2, vector rgb, float alpha, optional float drawflag)", "Draws a 2d line between the two 2d points.")},// (EXT_CSQC)
 	{"iscachedpic",		PF_Fixme,	0,		0,		0,		316,	D("float(string name)", "Checks to see if the image is currently loaded. Engines might lie, or cache between maps.")},// (EXT_CSQC)
 	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	D("string(string name, optional float trywad)", "Forces the engine to load the named image. If trywad is specified, the specified name must any lack path and extension.")},// (EXT_CSQC)
+	{"r_uploadimage",	PF_Fixme,	0,		0,		0,		0,		D("void(string imagename, int width, int height, int *pixeldata)", "Updates a texture with the specified rgba data. Will be created if needed.")},
+	{"r_readimage",		PF_Fixme,	0,		0,		0,		0,		D("int*(string filename, __out int width, __out int height)", "Reads and decodes an image from disk, providing raw pixel data. Returns __NULL__ if the image could not be read for any reason. Use memfree to free the data once you're done with it.")},
 	{"drawgetimagesize",PF_Fixme,	0,		0,		0,		318,	D("#define draw_getimagesize drawgetimagesize\nvector(string picname)", "Returns the dimensions of the named image. Images specified with .lmp should give the original .lmp's dimensions even if texture replacements use a different resolution.")},// (EXT_CSQC)
 	{"freepic",			PF_Fixme,	0,		0,		0,		319,	D("void(string name)", "Tells the engine that the image is no longer needed. The image will appear to be new the next time its needed.")},// (EXT_CSQC)
 //320
@@ -10043,10 +10083,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"isdemo",			PF_Fixme,	0,		0,		0,		349,	D("float()", "Returns if the client is currently playing a demo or not")},// (EXT_CSQC)
 	{"isserver",		PF_Fixme,	0,		0,		0,		350,	D("float()", "Returns if the client is acting as the server (aka: listen server)")},//(EXT_CSQC)
-	{"SetListener",		PF_Fixme, 	0,		0,		0,		351,	D("void(vector origin, vector forward, vector right, vector up, optional float inwater)", "Sets the position of the view, as far as the audio subsystem is concerned. This should be called once per CSQC_UpdateView as it will otherwise revert to default.")},// (EXT_CSQC)
+	{"SetListener",		PF_Fixme, 	0,		0,		0,		351,	D("void(vector origin, vector forward, vector right, vector up, optional float reverbtype)", "Sets the position of the view, as far as the audio subsystem is concerned. This should be called once per CSQC_UpdateView as it will otherwise revert to default. For reverbtype, see setup_reverb or treat as 'underwater'.")},// (EXT_CSQC)
+	{"setup_reverb",	PF_Fixme, 	0,		0,		0,		0,		D("typedef struct {\n\tfloat flDensity;\n\tfloat flDiffusion;\n\tfloat flGain;\n\tfloat flGainHF;\n\tfloat flGainLF;\n\tfloat flDecayTime;\n\tfloat flDecayHFRatio;\n\tfloat flDecayLFRatio;\n\tfloat flReflectionsGain;\n\tfloat flReflectionsDelay;\n\tvector flReflectionsPan;\n\tfloat flLateReverbGain;\n\tfloat flLateReverbDelay;\n\tvector flLateReverbPan;\n\tfloat flEchoTime;\n\tfloat flEchoDepth;\n\tfloat flModulationTime;\n\tfloat flModulationDepth;\n\tfloat flAirAbsorptionGainHF;\n\tfloat flHFReference;\n\tfloat flLFReference;\n\tfloat flRoomRolloffFactor;\n\tint   iDecayHFLimit;\n} reverbinfo_t;\nvoid(float reverbslot, reverbinfo_t *reverbinfo, int sizeofreverinfo_t)", "Reconfigures a reverb slot for weird effects. Slot 0 is reserved for no effects. Slot 1 is reserved for underwater effects. Reserved slots will be reinitialised on snd_restart, but can otherwise be changed. These reverb slots can be activated with SetListener. Note that reverb will currently only work when using OpenAL.")},
 	{"registercommand",	PF_Fixme,	0,		0,		0,		352,	D("void(string cmdname)", "Register the given console command, for easy console use.\nConsole commands that are later used will invoke CSQC_ConsoleCommand.")},//(EXT_CSQC)
 	{"wasfreed",		PF_WasFreed,0,		0,		0,		353,	D("float(entity ent)", "Quickly check to see if the entity is currently free. This function is only valid during the two-second non-reuse window, after that it may give bad results. Try one second to make it more robust.")},//(EXT_CSQC) (should be availabe on server too)
-	{"serverkey",		PF_Fixme,	0,		0,		0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string")},//
+	{"serverkey",		PF_sv_serverkey,0,	0,		0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string")},//
 	{"getentitytoken",	PF_Fixme,	0,		0,		0,		355,	D("string(optional string resetstring)", "Grab the next token in the map's entity lump.\nIf resetstring is not specified, the next token will be returned with no other sideeffects.\nIf empty, will reset from the map before returning the first token, probably {.\nIf not empty, will tokenize from that string instead.\nAlways returns tempstrings.")},//;
 	{"findfont",		PF_Fixme,	0,		0,		0,		356,	D("float(string s)", "Looks up a named font slot. Matches the actual font name as a last resort.")},//;
 	{"loadfont",		PF_Fixme,	0,		0,		0,		357,	D("float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset)", "too convoluted for me to even try to explain correct usage. Try drawfont = loadfont(\"\", \"cour\", \"16\", -1, 0, 0); to switch to the courier font (optimised for 16 virtual pixels high), if you have the freetype2 library in windows..")},
@@ -10088,6 +10129,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"con_printf",		PF_Fixme,			0,		0,		0,		392,	D("void(string conname, string messagefmt, ...)", "Prints onto a named console.")},
 	{"con_draw",		PF_Fixme,			0,		0,		0,		393,	D("void(string conname, vector pos, vector size, float fontsize)", "Draws the named console.")},
 	{"con_input",		PF_Fixme,			0,		0,		0,		394,	D("float(string conname, float inevtype, float parama, float paramb, float paramc)", "Forwards input events to the named console. Mouse updates should be absolute only.")},
+	{"setwindowcaption",PF_Fixme,			0,		0,		0,		0,		D("void(string newcaption)", "Replaces the title of the game window, as seen when task switching or just running in windowed mode.")},
 	{"cvars_haveunsaved",PF_Fixme,			0,		0,		0,		0,		D("float()", "Returns true if any archived cvar has an unsaved value.")},
 
 	{"entityprotection",PF_entityprotection,0,		0,		0,		0,		D("float(entity e, float nowreadonly)", "Changes the protection on the specified entity to protect it from further edits from QC. The return value is the previous setting. Note that this can be used to unprotect the world, but doing so long term is not advised as you will no longer be able to detect invalid entity references. Also, world is not networked, so results might not be seen by clients (or in other words, world.avelocity_y=64 is a bad idea).")},
@@ -10239,14 +10281,20 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strreplace",		PF_strreplace,		0,		0,		0,		484,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
 	{"strireplace",		PF_strireplace,		0,		0,		0,		485,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
 	{"getsurfacepointattribute",PF_getsurfacepointattribute,0,0,0,	486,	"vector(entity e, float s, float n, float a)"},//DP_QC_GETSURFACEPOINTATTRIBUTE
-	{"gecko_create",	PF_Fixme,			0,		0,		0,		487,	D("float(string name)", "Create a new 'browser tab' shader with the specified name that can then be drawn via drawpic. In order to function correctly, this builtin depends upon external plugins being available. Use gecko_navigate to navigate it to a page of your choosing.")},//DP_GECKO_SUPPORT
+	{"gecko_create",	PF_Fixme,			0,		0,		0,		487,	D("float(string name)", "Create a new 'browser tab' shader with the specified name that can then be drawn via drawpic (shader should not already exist - including from map/model textures or disk). In order to function correctly, this builtin depends upon external plugins being available. Use gecko_navigate to navigate it to a page of your choosing.")},//DP_GECKO_SUPPORT
 	{"gecko_destroy",	PF_Fixme,			0,		0,		0,		488,	D("void(string name)", "Destroy a shader.")},//DP_GECKO_SUPPORT
 	{"gecko_navigate",	PF_Fixme,			0,		0,		0,		489,	D("void(string name, string URI)", "Sends a command to the media decoder attached to the specified shader. In the case of a browser decoder, this changes the url that the browser displays. 'cmd:[un]focus' will tell the decoder that it has focus.")},//DP_GECKO_SUPPORT
 	{"gecko_keyevent",	PF_Fixme,			0,		0,		0,		490,	D("float(string name, float key, float eventtype)", "Send a key event to a media decoder. This applies only to interactive decoders like browsers.")},//DP_GECKO_SUPPORT
 	{"gecko_mousemove",	PF_Fixme,			0,		0,		0,		491,	D("void(string name, float x, float y)", "Sets a media decoder shader's mouse position. Values should be 0-1.")},//DP_GECKO_SUPPORT
 	{"gecko_resize",	PF_Fixme,			0,		0,		0,		492,	D("void(string name, float w, float h)", "Request to resize a media decoder.")},//DP_GECKO_SUPPORT
-	{"gecko_get_texture_extent",PF_Fixme,	0,		0,		0,		493,	D("vector(string name)", "Query a media decoder for its current pixel size.")},//DP_GECKO_SUPPORT
-//	{"media_getposition",PF_Fixme,			0,		0,		0,		0,		D("vector(string name)", "Query a media decoder to for if its loaded, its time, and its duration.")},
+	{"gecko_get_texture_extent",PF_Fixme,	0,		0,		0,		493,	D("vector(string name)", "Retrieves a media decoder current image pixel sizes.")},//DP_GECKO_SUPPORT
+	{"gecko_getproperty",PF_Fixme,			0,		0,		0,		0,		D("string(string shadname, string propname)", "Queries the media decoder (especially browser ones) for decoder-specific properties. The cef plugin recognises url, title, status.")},
+	{"cin_open",		PF_Fixme,			0,		0,		0,		0,		D("float(string file, string id)", NULL)},
+	{"cin_close",		PF_Fixme,			0,		0,		0,		0,		D("void(string id)", NULL)},
+	{"cin_setstate",	PF_Fixme,			0,		0,		0,		0,		D("void(string id, float newstate)", NULL)},
+	{"cin_getstate",	PF_Fixme,			0,		0,		0,		0,		D("float(string id)", NULL)},
+	{"cin_restart",		PF_Fixme,			0,		0,		0, 		0,		D("void(string file)", NULL)},
+
 	{"crc16",			PF_crc16,			0,		0,		0,		494,	"float(float caseinsensitive, string s, ...)"},//DP_QC_CRC16
 	{"cvar_type",		PF_cvar_type,		0,		0,		0,		495,	"float(string name)"},//DP_QC_CVAR_TYPE
 	{"numentityfields",	PF_numentityfields,	0,		0,		0,		496,	D("float()", "Gives the number of named entity fields. Note that this is not the size of an entity, but rather just the number of unique names (ie: vectors use 4 names rather than 3).")},//DP_QC_ENTITYDATA
@@ -10325,7 +10373,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		610,	"string(string command, optional float bindmap)"},
 	{"gethostcachevalue",PF_Fixme,			0,		0,		0,		611,	"float(float type)"},
 	{"gethostcachestring",PF_Fixme,			0,		0,		0,		612,	"string(float type, float hostnr)"},
-	{"parseentitydata",	PF_parseentitydata,	0,		0,		0,		613,	D("void(entity e, string s)", "Reads a single entity's fields into an already-spawned entity. s should contain field pairs like in a saved game: {\"foo1\" \"bar\" \"foo2\" \"5\"} ")},
+	{"parseentitydata",	PF_parseentitydata,	0,		0,		0,		613,	D("float(entity e, string s, optional float offset)", "Reads a single entity's fields into an already-spawned entity. s should contain field pairs like in a saved game: {\"foo1\" \"bar\" \"foo2\" \"5\"}. Returns <=0 on failure, otherwise returns the offset in the string that was read to.")},
+	{"generateentitydata",PF_generateentitydata,0,	0,		0,		0,		D("string(entity e)", "Dumps the entities fields into a string which can later be parsed with parseentitydata."}),
 	{"stringtokeynum",	PF_Fixme,			0,		0,		0,		614,	D("float(string key)", "Returns the qscancode of a key from its name. Names are identical to the bind command. ctrl/shift/alt modifiers are ignored.")},
 	{"stringtokeynum_menu",	PF_Fixme,		0,		0,		0,		614,	"float(string key)"},
 	{"resethostcachemasks",PF_Fixme,		0,		0,		0,		615,	"void()"},
@@ -10744,24 +10793,28 @@ int pr_numbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 void PR_RegisterFields(void)	//it's just easier to do it this way.
 {
 #define comfieldfloat(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, (size_t)&((stdentvars_t*)0)->name, -1);
+#define comfieldint(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_integer, #name, (size_t)&((stdentvars_t*)0)->name, -1);
 #define comfieldvector(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, (size_t)&((stdentvars_t*)0)->name, -1);
 #define comfieldentity(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, (size_t)&((stdentvars_t*)0)->name, -1);
 #define comfieldstring(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_string, (((size_t)&((stdentvars_t*)0)->name==(size_t)&((stdentvars_t*)0)->message)?"_"#name:#name), (size_t)&((stdentvars_t*)0)->name, -1);
 #define comfieldfunction(name, typestr,desc) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, (size_t)&((stdentvars_t*)0)->name, -1);
 comqcfields
 #undef comfieldfloat
+#undef comfieldint
 #undef comfieldvector
 #undef comfieldentity
 #undef comfieldstring
 #undef comfieldfunction
 #ifdef VM_Q1
 #define comfieldfloat(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
+#define comfieldint(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_integer, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
 #define comfieldvector(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
 #define comfieldentity(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
 #define comfieldstring(name,desc) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
 #define comfieldfunction(name, typestr,desc) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
 #else
 #define comfieldfloat(ssqcname,desc) PR_RegisterFieldVar(svprogfuncs, ev_float, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
+#define comfieldint(ssqcname,desc) PR_RegisterFieldVar(svprogfuncs, ev_integer, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
 #define comfieldvector(ssqcname,desc) PR_RegisterFieldVar(svprogfuncs, ev_vector, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
 #define comfieldentity(ssqcname,desc) PR_RegisterFieldVar(svprogfuncs, ev_entity, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
 #define comfieldstring(ssqcname,desc) PR_RegisterFieldVar(svprogfuncs, ev_string, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
@@ -10772,6 +10825,7 @@ comextqcfields
 svextqcfields
 
 #undef comfieldfloat
+#undef comfieldint
 #undef comfieldvector
 #undef comfieldentity
 #undef comfieldstring
@@ -10995,6 +11049,7 @@ void PR_DumpPlatform_f(void)
 		{"serverid",			"int", QW|NQ|CS,	"The unique id of this server within the server cluster."},
 
 #define comfieldfloat(name,desc) {#name, ".float", FL, desc},
+#define comfieldint(name,desc) {#name, ".int", FL, desc},
 #define comfieldvector(name,desc) {#name, ".vector", FL, desc},
 #define comfieldentity(name,desc) {#name, ".entity", FL, desc},
 #define comfieldstring(name,desc) {#name, ".string", FL, desc},
@@ -11012,6 +11067,7 @@ void PR_DumpPlatform_f(void)
 		csqcextfields
 #undef FL
 #undef comfieldfloat
+#undef comfieldint
 #undef comfieldvector
 #undef comfieldentity
 #undef comfieldstring
@@ -11071,10 +11127,11 @@ void PR_DumpPlatform_f(void)
 
 		{"m_init",					"void()", MENU},
 		{"m_shutdown",				"void()", MENU},
-		{"m_draw",					"void()", MENU},
+		{"m_draw",					"void(vector screensize)", MENU, "Provides the menuqc with a chance to draw. Will be called even if the menu does not have focus, so be sure to avoid that. COMPAT: screensize is not provided in DP."},
 		{"m_keydown",				"void(float scan, float chr)", MENU},
 		{"m_keyup",					"void(float scan, float chr)", MENU},
 		{"m_toggle",				"void(float wantmode)", MENU},
+		{"m_consolecommand",		"float(string cmd)", MENU},
 
 		{"parm17, parm18, parm19, parm20, parm21, parm22, parm23, parm24, parm25, parm26, parm27, parm28, parm29, parm30, parm31, parm32", "float", QW|NQ},
 		{"parm33, parm34, parm35, parm36, parm37, parm38, parm39, parm40, parm41, parm42, parm43, parm44, parm45, parm46, parm47, parm48", "float", QW|NQ},
@@ -11195,6 +11252,22 @@ void PR_DumpPlatform_f(void)
 		{"CONTENT_SKY",		"const float", QW|NQ|CS, NULL, Q1CONTENTS_SKY},
 		{"CONTENT_LADDER",	"const float", QW|NQ|CS, "If this value is assigned to a solid_bsp's .skin field, the entity will become a ladder volume.", Q1CONTENTS_LADDER},
 
+		{"CONTENTBIT_NONE",			"const int", QW|NQ|CS, NULL, FTECONTENTS_EMPTY},
+		{"CONTENTBIT_SOLID",		"const int", QW|NQ|CS, NULL, FTECONTENTS_SOLID},
+		{"CONTENTBIT_LAVA",			"const int", QW|NQ|CS, NULL, FTECONTENTS_LAVA},
+		{"CONTENTBIT_SLIME",		"const int", QW|NQ|CS, NULL, FTECONTENTS_SLIME},
+		{"CONTENTBIT_WATER",		"const int", QW|NQ|CS, NULL, FTECONTENTS_WATER},
+		{"CONTENTBIT_FTELADDER",	"const int", QW|NQ|CS, NULL, FTECONTENTS_LADDER},
+		{"CONTENTBIT_PLAYERCLIP",	"const int", QW|NQ|CS, NULL, FTECONTENTS_PLAYERCLIP},
+		{"CONTENTBIT_MONSTERCLIP",	"const int", QW|NQ|CS, NULL, FTECONTENTS_MONSTERCLIP},
+		{"CONTENTBIT_BODY",			"const int", QW|NQ|CS, NULL, FTECONTENTS_BODY},
+		{"CONTENTBIT_CORPSE",		"const int", QW|NQ|CS, NULL, FTECONTENTS_CORPSE},
+		{"CONTENTBIT_Q2LADDER",		"const int", QW|NQ|CS, NULL, Q2CONTENTS_LADDER},
+		{"CONTENTBIT_SKY",			"const int", QW|NQ|CS, NULL, FTECONTENTS_SKY},
+		{"CONTENTBITS_POINTSOLID",	"const int", QW|NQ|CS, NULL, MASK_POINTSOLID},
+		{"CONTENTBITS_BOXSOLID",	"const int", QW|NQ|CS, NULL, MASK_BOXSOLID},
+		{"CONTENTBITS_FLUID",		"const int", QW|NQ|CS, NULL, FTECONTENTS_FLUID},
+
 		{"CHAN_AUTO",		"const float", QW|NQ|CS, "The automatic channel, play as many sounds on this channel as you want, and they'll all play, however the other channels will replace each other.", CHAN_AUTO},
 		{"CHAN_WEAPON",		"const float", QW|NQ|CS, NULL, CHAN_WEAPON},
 		{"CHAN_VOICE",		"const float", QW|NQ|CS, NULL, CHAN_VOICE},
@@ -11202,11 +11275,14 @@ void PR_DumpPlatform_f(void)
 		{"CHAN_BODY",		"const float", QW|NQ|CS, NULL, CHAN_BODY},
 		{"CHANF_RELIABLE",	"const float", QW,		 "Only valid if the flags argument is not specified. The sound will be sent reliably, which is important if it is intended to replace looping sounds on doors etc.", 8},
 
-		{"SOUNDFLAG_RELIABLE",		"const float",	QW|NQ,	 "The sound will be sent reliably, and without regard to phs.", CF_RELIABLE},
+		{"SOUNDFLAG_RELIABLE",		"const float",	QW|NQ,		"The sound will be sent reliably, and without regard to phs.", CF_RELIABLE},
 		{"SOUNDFLAG_ABSVOLUME",		"const float",	/*QW|NQ|*/CS,"The sample's volume is not scaled by the volume cvar. Use with caution", CF_ABSVOLUME},
-		{"SOUNDFLAG_FORCELOOP",		"const float",	QW|NQ|CS,"The sound will restart once it reaches the end of the sample.", CF_FORCELOOP},
+		{"SOUNDFLAG_FORCELOOP",		"const float",	QW|NQ|CS,	"The sound will restart once it reaches the end of the sample.", CF_FORCELOOP},
 		{"SOUNDFLAG_NOSPACIALISE",	"const float",	/*QW|NQ|*/CS,"The different audio channels are played at the same volume regardless of which way the player is facing, without needing to use 0 attenuation.", CF_NOSPACIALISE},
-		{"SOUNDFLAG_UNICAST",		"const float",	QW|NQ,	"The sound will be heard only by the player specified by msg_entity.", CF_UNICAST},
+		{"SOUNDFLAG_NOREVERB",		"const float",	QW|NQ|CS,	"Disables the use of underwater/reverb effects on this sound effect.", CF_NOREVERB},
+		{"SOUNDFLAG_UNICAST",		"const float",	QW|NQ,		"The sound will be heard only by the player specified by msg_entity.", CF_UNICAST},
+		{"SOUNDFLAG_FOLLOW",		"const float",	QW|NQ|CS,	"The sound's origin will updated to follow the emitting entity.", CF_FOLLOW},
+		{"SOUNDFLAG_SENDVELOCITY",	"const float",	QW|NQ,		"The entity's current velocity will be sent to the client, only useful if doppler is enabled.", CF_SENDVELOCITY},
 
 		{"ATTN_NONE",		"const float", QW|NQ|CS, "Sounds with this attenuation can be heard throughout the map", ATTN_NONE},
 		{"ATTN_NORM",		"const float", QW|NQ|CS, "Standard attenuation", ATTN_NORM},
@@ -11460,6 +11536,7 @@ void PR_DumpPlatform_f(void)
 		{"VF_RT_SOURCECOLOUR",	"const float", CS|MENU, "The texture name to use with shaders that specify a $sourcecolour map.", VF_RT_SOURCECOLOUR},
 		{"VF_RT_DEPTH",			"const float", CS|MENU, "The texture name to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (16bit=4,24bit=5,32bit=6), sizexy.", VF_RT_DEPTH},
 		{"VF_RT_RIPPLE",		"const float", CS|MENU, "The texture name to use as a ripplemap (target for shaders with 'sort ripple'). Also used for shaders that specify $ripplemap. 1-based. Additional arguments are: format, sizexy.", VF_RT_RIPPLE},
+		{"VF_ENVMAP",			"const float", CS|MENU, "The cubemap name to use as a fallback for $reflectcube, if a shader was unable to load one. Note that this doesn't automatically change shader permutations or anything.", VF_ENVMAP},
 
 		{"RF_VIEWMODEL",		"const float", CS, "Specifies that the entity is a view model, and that its origin is relative to the current view position. These entities are also subject to viewweapon bob.", CSQCRF_VIEWMODEL},
 		{"RF_EXTERNALMODEL",	"const float", CS, "Specifies that this entity should be displayed in mirrors (and may still cast shadows), but will not otherwise be visible.", CSQCRF_EXTERNALMODEL},
@@ -12022,7 +12099,7 @@ void PR_DumpPlatform_f(void)
 		if (idx)
 			VFS_PRINTF(f, "%s%s %s = #%u;", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx);
 		else
-			VFS_PRINTF(f, "%s%s %s = #%u/*:%s*/;", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx, BuiltinList[i].name);
+			VFS_PRINTF(f, "%s%s %s = #%u:%s;", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx, BuiltinList[i].name);
 		nd = 0;
 		for (j = 0; j < QSG_Extensions_count; j++)
 		{

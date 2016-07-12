@@ -13,10 +13,12 @@ qboolean httpserverfailed = false;
 static int	httpserversocket;
 static int	httpserverport;
 
-#ifdef WEBSVONLY
+#if 0//def WEBSVONLY
 static int natpmpsocket = INVALID_SOCKET;
 static int natpmptime;
+#ifdef _WIN32
 #include <mmsystem.h>
+#endif
 static void sendnatpmp(int port)
 {
 	struct sockaddr_in router;
@@ -33,7 +35,7 @@ static void sendnatpmp(int port)
 	if (natpmpsocket == INVALID_SOCKET)
 	{
 		unsigned long _true = true;
-		natpmpsocket = socket(AF_INET, SOCK_DGRAM, 0);
+		natpmpsocket = socket(AF_INET, SOCK_CLOEXEC|SOCK_DGRAM, 0);
 		if (natpmpsocket == INVALID_SOCKET)
 			return;
 		ioctlsocket (natpmpsocket, FIONBIO, &_true);

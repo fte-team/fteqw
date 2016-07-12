@@ -652,7 +652,7 @@ void Master_HideServer(serverinfo_t *server)
 		else
 			 i++;
 	}
-	server->insortedlist = false;
+	server->status &= ~2u;
 }
 
 void Master_InsertAt(serverinfo_t *server, int pos)
@@ -670,7 +670,7 @@ void Master_InsertAt(serverinfo_t *server, int pos)
 	visibleservers[pos] = server;
 	numvisibleservers++;
 
-	server->insortedlist = true;
+	server->status |= 2u;
 }
 
 qboolean Master_CompareInteger(int a, int b, slist_test_t rule)
@@ -978,7 +978,7 @@ void Master_ShowServer(serverinfo_t *server)
 
 void Master_ResortServer(serverinfo_t *server)
 {
-	if (server->insortedlist)
+	if (server->status&2u)
 	{
 		if (!Master_PassesMasks(server))
 			Master_HideServer(server);
@@ -1004,7 +1004,7 @@ void Master_SortServers(void)
 	{
 		numvisibleservers = 0;
 		for (server = firstserver; server; server = server->next)
-			server->insortedlist = false;
+			server->status &= ~2u;
 	}
 
 	for (server = firstserver; server; server = server->next)
@@ -2437,7 +2437,7 @@ void MasterInfo_Refresh(void)
 		Master_LoadMasterList("servers.txt", false, MT_MASTERUDP, MP_QUAKEWORLD, 1);
 
 		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quakeworld",	MT_MASTERHTTP,		MP_QUAKEWORLD, "gameaholic's QW master");
-		Master_AddMasterHTTP("http://www.quakeservers.net/lists/servers/global.txt",MT_MASTERHTTP,		MP_QUAKEWORLD, "QuakeServers.net (http)");
+		Master_AddMasterHTTP("https://www.quakeservers.net/lists/servers/global.txt",MT_MASTERHTTP,		MP_QUAKEWORLD, "QuakeServers.net (http)");
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_QWSERVER),				MT_BCAST,			MP_QUAKEWORLD, "Nearby QuakeWorld UDP servers.");
 		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake",		MT_MASTERHTTP,		MP_NETQUAKE, "gameaholic's NQ master");
 		Master_AddMasterHTTP("http://servers.quakeone.com/index.php?format=json",	MT_MASTERHTTPJSON,	MP_NETQUAKE, "quakeone's server listing");
@@ -2643,6 +2643,18 @@ unsigned int Master_NumPolled(void)
 	}
 	return count;
 }
+unsigned int Master_NumAlive(void)
+{
+	unsigned int count=0;
+	serverinfo_t *info;
+
+	for (info = firstserver; info; info = info->next)
+	{
+		if (info->status&1u)
+			count++;
+	}
+	return count;
+}
 
 //true if server is on a different master's list.
 serverinfo_t *Master_InfoForServer (netadr_t *addr)
@@ -2765,6 +2777,8 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 		}
 		info->refreshtime = 0;
 	}
+
+	info->status |= 1u;
 
 	nl = strchr(msg, '\n');
 	if (nl)
@@ -2939,7 +2953,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 				break;
 			*nl = '\0';
 
-			details.players[clnum].isspec = false;
+			details.players[clnum].isspec = 0;
 			details.players[clnum].team[0] = 0;
 			details.players[clnum].skin[0] = 0;
 
@@ -3000,7 +3014,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 					len = sizeof(details.players[clnum].name);
 				if (!strncmp(token, "\"\\s\\", 4))
 				{
-					details.players[clnum].isspec = true;
+					details.players[clnum].isspec |= 1;
 					Q_strncpyz(details.players[clnum].name, token+4, len-3);
 				}
 				else
@@ -3046,13 +3060,24 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 
 			MasterInfo_AddPlayer(&info->adr, details.players[clnum].name, details.players[clnum].ping, details.players[clnum].frags, details.players[clnum].topc*4 | details.players[clnum].botc, details.players[clnum].skin, details.players[clnum].team);
 
+			//WallFly is some q2 bot
+			//[ServeMe] is some qw bot
+			if (!strncmp(details.players[clnum].name, "WallFly", 7) || !strcmp(details.players[clnum].name, "[ServeMe]"))
+			{
+				//not players nor real people. they don't count towards any metric
+				details.players[clnum].isspec |= 3;
+			}
 			//807 excludes the numerous bot names on some annoying qwtf server
 			//BOT: excludes fte's botclients (which always have a bot: prefix)
-			//WallFly is some q2 bot
-			if (details.players[clnum].ping == 807 || !strncmp(details.players[clnum].name, "BOT:", 4) || !strncmp(details.players[clnum].name, "WallFly", 7))
+			else if (details.players[clnum].ping == 807 || !strncmp(details.players[clnum].name, "BOT:", 4))
+			{
 				info->numbots++;
-			else if (details.players[clnum].isspec)
+				details.players[clnum].isspec |= 2;
+			}
+			else if (details.players[clnum].isspec & 1)
+			{
 				info->numspectators++;
+			}
 			else
 				info->numhumans++;
 

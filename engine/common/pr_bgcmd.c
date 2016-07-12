@@ -459,7 +459,7 @@ int PR_Printf (const char *fmt, ...)
 		}
 
 		if (*file)
-			Con_Printf ("^[%s\\edit\\%s %i^]", msg, file, line);
+			Con_Printf ("^[%s\\edit\\%s:%i^]", msg, file, line);
 		else
 			Con_Printf ("%s", msg);
 
@@ -1460,7 +1460,7 @@ void QCBUILTIN PF_memcpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 		PR_BIError(prinst, "PF_memcpy: invalid source\n");
 		return;
 	}
-	memcpy(prinst->stringtable + dst, prinst->stringtable + src, size);
+	memmove(prinst->stringtable + dst, prinst->stringtable + src, size);
 }
 void QCBUILTIN PF_memfill8 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1473,45 +1473,6 @@ void QCBUILTIN PF_memfill8 (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		return;
 	}
 	memset(prinst->stringtable + dst, val, size);
-}
-
-void QCBUILTIN PF_memgetval (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	//read 32 bits from a pointer.
-	int dst = G_INT(OFS_PARM0);
-	float ofs = G_FLOAT(OFS_PARM1);
-	int size = 4;
-	if (ofs != (float)(int)ofs)
-		PR_BIError(prinst, "PF_memgetval: non-integer offset\n");
-	dst += ofs;
-	if (dst < 0 || dst+size >= prinst->stringtablesize)
-	{
-		PR_BIError(prinst, "PF_memgetval: invalid dest\n");
-		return;
-	}
-	if (dst & 3)
-		PF_Warningf(prinst, "PF_memgetval: misaligned pointer (%#x)\n", dst);
-	G_INT(OFS_RETURN) = *(int*)(prinst->stringtable + dst);
-}
-
-void QCBUILTIN PF_memsetval (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	//write 32 bits to a pointer.
-	int dst = G_INT(OFS_PARM0);
-	float ofs = G_FLOAT(OFS_PARM1);
-	int val = G_INT(OFS_PARM2);
-	int size = 4;
-	if (ofs != (float)(int)ofs)
-		PR_BIError(prinst, "PF_memsetval: non-integer offset\n");
-	dst += ofs;
-	if (dst < 0 || dst+size >= prinst->stringtablesize)
-	{
-		PR_BIError(prinst, "PF_memsetval: invalid dest\n");
-		return;
-	}
-	if (dst & 3)
-		PF_Warningf(prinst, "PF_memgetval: misaligned pointer (%#x)\n", dst);
-	*(int*)(prinst->stringtable + dst) = val;
 }
 
 void QCBUILTIN PF_memptradd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1815,7 +1776,9 @@ qboolean QC_FixFileName(const char *name, const char **result, const char **fall
 
 	*fallbackread = name;
 	//if its a user config, ban any fallback locations so that csqc can't read passwords or whatever.
-	if ((!strchr(name, '/') || strnicmp(name, "configs/", 8)) && !stricmp(COM_FileExtension(name, ext, sizeof(ext)), "cfg") && strnicmp(name, "particles/", 10) && strnicmp(name, "models/", 7))
+	if ((!strchr(name, '/') || strnicmp(name, "configs/", 8)) 
+		&& !stricmp(COM_FileExtension(name, ext, sizeof(ext)), "cfg")
+		&& strnicmp(name, "particles/", 10) && strnicmp(name, "huds/", 5) && strnicmp(name, "models/", 7))
 		*fallbackread = NULL;
 	*result = va("data/%s", name);
 	return true;
@@ -2080,30 +2043,30 @@ void QCBUILTIN PF_fgets (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	}
 }
 
-static void PF_fwrite (pubprogfuncs_t *prinst, int fnum, char *msg, int len)
+static int PF_fwrite_internal (pubprogfuncs_t *prinst, int fnum, char *msg, int len)
 {
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
 		PF_Warningf(prinst, "PF_fwrite: File out of range\n");
-		return;	//out of range
+		return 0;	//out of range
 	}
 
 	if (!pf_fopen_files[fnum].data)
 	{
 		PF_Warningf(prinst, "PF_fwrite: File is not open\n");
-		return;	//not open
+		return 0;	//not open
 	}
 
 	if (pf_fopen_files[fnum].prinst != prinst)
 	{
 		PF_Warningf(prinst, "PF_fwrite: File is from wrong instance\n");
-		return;	//this just isn't ours.
+		return 0;	//this just isn't ours.
 	}
 
 	switch(pf_fopen_files[fnum].accessmode)
 	{
 	default:
-		break;
+		return 0;
 	case FRIK_FILE_APPEND:
 	case FRIK_FILE_WRITE:
 		//UTF-8-FIXME: de-modify utf-8
@@ -2121,7 +2084,42 @@ static void PF_fwrite (pubprogfuncs_t *prinst, int fnum, char *msg, int len)
 		if (pf_fopen_files[fnum].len < pf_fopen_files[fnum].ofs + len)
 			pf_fopen_files[fnum].len = pf_fopen_files[fnum].ofs + len;
 		pf_fopen_files[fnum].ofs+=len;
-		break;
+		return len;
+	}
+}
+
+static int PF_fread_internal (pubprogfuncs_t *prinst, int fnum, char *msg, int len)
+{
+	if (fnum < 0 || fnum >= MAX_QC_FILES)
+	{
+		PF_Warningf(prinst, "PF_fread: File out of range\n");
+		return 0;	//out of range
+	}
+
+	if (!pf_fopen_files[fnum].data)
+	{
+		PF_Warningf(prinst, "PF_fread: File is not open\n");
+		return 0;	//not open
+	}
+
+	if (pf_fopen_files[fnum].prinst != prinst)
+	{
+		PF_Warningf(prinst, "PF_fread: File is from wrong instance\n");
+		return 0;	//this just isn't ours.
+	}
+
+	switch(pf_fopen_files[fnum].accessmode)
+	{
+	default:
+		return 0;
+	case FRIK_FILE_READ:
+		//UTF-8-FIXME: de-modify utf-8
+		if (pf_fopen_files[fnum].ofs + len > pf_fopen_files[fnum].len)
+			len = pf_fopen_files[fnum].len - pf_fopen_files[fnum].ofs;
+
+		memcpy(msg, pf_fopen_files[fnum].data + pf_fopen_files[fnum].ofs, len);
+		pf_fopen_files[fnum].ofs+=len;
+		return len;
 	}
 }
 
@@ -2131,7 +2129,34 @@ void QCBUILTIN PF_fputs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	char *msg = PF_VarString(prinst, 1, pr_globals);
 	int len = strlen(msg);
 
-	PF_fwrite (prinst, fnum, msg, len);
+	PF_fwrite_internal (prinst, fnum, msg, len);
+}
+
+void QCBUILTIN PF_fwrite (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
+	int ptr = G_INT(OFS_PARM1);
+	int size = G_INT(OFS_PARM2);
+	if (ptr < 0 || size < 0 || ptr+size >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_fwrite: invalid ptr / size\n");
+		return;
+	}
+
+	G_INT(OFS_PARM1) = PF_fwrite_internal (prinst, fnum, prinst->stringtable + ptr, size);
+}
+void QCBUILTIN PF_fread (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
+	int ptr = G_INT(OFS_PARM1);
+	int size = G_INT(OFS_PARM2);
+	if (ptr < 0 || size < 0 || ptr+size >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_fread: invalid ptr / size\n");
+		return;
+	}
+
+	G_INT(OFS_PARM1) = PF_fread_internal (prinst, fnum, prinst->stringtable + ptr, size);
 }
 
 void PF_fcloseall (pubprogfuncs_t *prinst)
@@ -2492,10 +2517,11 @@ void QCBUILTIN PF_writetofile(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	entstr = prinst->saveent(prinst, buffer, &buflen, sizeof(buffer), ed);	//will save just one entities vars
 	if (entstr)
 	{
-		PF_fwrite (prinst, fnum, entstr, buflen);
+		PF_fwrite_internal (prinst, fnum, entstr, buflen);
 	}
 }
 
+//read (multiple) {entity data} into new entities, with no real indication of how much was read.
 void QCBUILTIN PF_loadfromdata (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char	*file = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -2516,22 +2542,59 @@ void QCBUILTIN PF_loadfromdata (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
+void QCBUILTIN PF_generateentitydata(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	void *ed = G_EDICT(prinst, OFS_PARM0);
+
+	char buffer[65536];
+	char *entstr;
+	size_t buflen;
+
+	buflen = 0;
+	entstr = prinst->saveent(prinst, buffer, &buflen, sizeof(buffer), ed);
+
+	if (entstr)
+		RETURN_TSTRING(entstr);
+	else
+		G_INT(OFS_RETURN) = 0;
+}
+
 void QCBUILTIN PF_parseentitydata(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	void	*ed = G_EDICT(prinst, OFS_PARM0);
 	const char	*file = PR_GetStringOfs(prinst, OFS_PARM1);
+	int offset = (prinst->callargc>=3)?G_FLOAT(OFS_PARM2):0;
 
 	size_t size;
 
+	if (offset)
+	{
+		int boffset = offset;
+		if (VMUTF8)
+			boffset = unicode_byteofsfromcharofs(file, offset, VMUTF8MARKUP);
+		else
+		{
+			int l = strlen(file);
+			if (boffset > l)
+				boffset = l;
+		}
+		file += boffset;
+	}
+
 	if (!*file)
 	{
-		G_FLOAT(OFS_RETURN) = -1;
+		G_FLOAT(OFS_RETURN) = 0;
 		return;
 	}
 
 	if (!prinst->restoreent(prinst, file, &size, ed))
-		PF_Warningf(prinst, "parseentitydata: missing opening data\n");
-	else
+	{
+		if (prinst->callargc<3)
+			PF_Warningf(prinst, "parseentitydata: missing opening data\n");
+		G_FLOAT(OFS_RETURN) = 0;
+		return;
+	}
+	else if (prinst->callargc<3)
 	{
 		file += size;
 		while(*file < ' ' && *file)
@@ -2540,7 +2603,10 @@ void QCBUILTIN PF_parseentitydata(pubprogfuncs_t *prinst, struct globalvars_s *p
 			PF_Warningf(prinst, "parseentitydata: too much data\n");
 	}
 
-	G_FLOAT(OFS_RETURN) = 0;
+	if (VMUTF8)
+		size = unicode_charofsfrombyteofs(file, size, VMUTF8MARKUP);
+
+	G_FLOAT(OFS_RETURN) = offset + size;
 }
 //reflection
 ////////////////////////////////////////////////////
@@ -3440,7 +3506,7 @@ void QCBUILTIN PF_strlennocol (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	conchar_t flagged[8192];
 	unsigned int len = 0;
 	COM_ParseFunString(CON_WHITEMASK, in, flagged, sizeof(flagged), false);
-	COM_DeFunString(flagged, NULL, result, sizeof(result), true);
+	COM_DeFunString(flagged, NULL, result, sizeof(result), true, false);
 
 	for (len = 0; result[len]; len++)
 		;
@@ -3455,7 +3521,7 @@ void QCBUILTIN PF_strdecolorize (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	char result[8192];
 	conchar_t flagged[8192];
 	COM_ParseFunString(CON_WHITEMASK, in, flagged, sizeof(flagged), false);
-	COM_DeFunString(flagged, NULL, result, sizeof(result), true);
+	COM_DeFunString(flagged, NULL, result, sizeof(result), true, false);
 
 	RETURN_TSTRING(result);
 }
@@ -3962,7 +4028,7 @@ void QCBUILTIN PF_buf_writefile  (pubprogfuncs_t *prinst, struct globalvars_s *p
 	midx = min(midx, strbuflist[bufno].used);
 	for(strings = strbuflist[bufno].strings; idx < midx; idx++)
 	{
-		PF_fwrite (prinst, fnum, strings[idx], strlen(strings[idx]));
+		PF_fwrite_internal (prinst, fnum, strings[idx], strlen(strings[idx]));
 	}
 	G_FLOAT(OFS_RETURN) = 1;
 }
@@ -4162,6 +4228,14 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		return;
 	}
 
+	if (HTTP_CL_GetActiveDownloads() > 32)
+	{
+		//don't spam. I don't like it when you spam.
+		Con_Printf("PF_uri_get(\"%s\",%g): too many pending downloads\n", url, id);
+		G_FLOAT(OFS_RETURN) = 0;
+		return;
+	}
+
 	if (*mimetype)
 	{
 		const char *data;
@@ -4192,6 +4266,10 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		dl->user_num = *w->g.self;
 		dl->user_sequence = svs.spawncount;
 		dl->isquery = true;
+
+#ifdef MULTITHREAD
+		DL_CreateThread(dl, NULL, NULL);
+#endif
 		G_FLOAT(OFS_RETURN) = 1;
 	}
 	else
@@ -5766,6 +5844,7 @@ void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename)
 	QCLoadBreakpoints("", modulename);
 }
 
+#define NOBI 0,	NULL, {NULL},
 lh_extension_t QSG_Extensions[] = {
 
 //as a special hack, the first 32 entries are PEXT features.
@@ -5831,12 +5910,13 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
 	{"DP_EF_NODEPTHTEST"},				//for cheats
 	{"DP_EF_NODRAW"},					//implemented by sending it with no modelindex
+	{"DP_EF_NOGUNBOB"},					//nogunbob. sane people should use csqc instead.
 	{"DP_EF_NOSHADOW"},
 	{"DP_EF_RED"},
 //	{"DP_ENT_COLORMOD"},
 	{"DP_ENT_CUSTOMCOLORMAP"},
 	{"DP_ENT_EXTERIORMODELTOCLIENT"},
-	{"DP_ENT_TRAILEFFECTNUM",			1,	NULL, {"particleeffectnum"}, "self.traileffectnum=particleeffectnum(\"myeffectname\n\"); can be used to attach a particle trail to the given server entity. This is equivelent to calling trailparticles each frame."},
+	{"DP_ENT_TRAILEFFECTNUM",			1,	NULL, {"particleeffectnum"}, "self.traileffectnum=particleeffectnum(\"myeffectname\"); can be used to attach a particle trail to the given server entity. This is equivelent to calling trailparticles each frame."},
 	//only in dp6 currently {"DP_ENT_GLOW"},
 	{"DP_ENT_VIEWMODEL"},
 	{"DP_GECKO_SUPPORT",				7,	NULL, {"gecko_create", "gecko_destroy", "gecko_navigate", "gecko_keyevent", "gecko_mousemove", "gecko_resize", "gecko_get_texture_extent"}},
@@ -5939,9 +6019,10 @@ lh_extension_t QSG_Extensions[] = {
 	{"EXT_DIMENSION_PHYSICS"},
 	{"EXT_DIMENSION_GHOST"},
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
-	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
+	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}, "Replication of mvdsv functionality (call calltimeofday to cause 'timeofday' to be called, with arguments that can be saved off to a global). Generally strftime is simpler to use."},
 	{"FTE_CSQC_ALTCONSOLES",			4,	NULL, {"con_getset", "con_printf", "con_draw", "con_input"}, "The engine tracks multiple consoles. These may or may not be directly visible to the user."},
-	{"FTE_CSQC_BASEFRAME",				0,  NULL, {NULL}, "Specifies that .basebone, .baseframe, .baselerpfrac, etc exist. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations."},
+	{"FTE_CSQC_BASEFRAME",				0,  NULL, {NULL}, "Specifies that .basebone, .baseframe2, .baselerpfrac, baseframe1time, etc exist in csqc. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations."},
+	{"FTE_QC_BASEFRAME",				0,  NULL, {NULL}, "Specifies that .basebone and .baseframe exist in ssqc. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations, from ssqc."},
 #ifdef HALFLIFEMODELS
 	{"FTE_CSQC_HALFLIFE_MODELS"},		//hl-specific skeletal model control
 #endif
@@ -5950,13 +6031,13 @@ lh_extension_t QSG_Extensions[] = {
 													"addwantedhostcachekey", "getextresponse"}},	//normally only available to the menu. this also adds them to csqc.
 	{"FTE_CSQC_SKELETONOBJECTS",		15,	NULL, {	"skel_create", "skel_build", "skel_get_numbones", "skel_get_bonename", "skel_get_boneparent", "skel_find_bone",
 													"skel_get_bonerel", "skel_get_boneabs", "skel_set_bone", "skel_mul_bone", "skel_mul_bones", "skel_copybones",
-													"skel_delete", "frameforname", "frameduration"}},
-	{"FTE_CSQC_RENDERTARGETS",			0,	NULL, {NULL}, "VF_DESTCOLOUR etc exist and are supported"},
+													"skel_delete", "frameforname", "frameduration"}, "Provides container objects for skeletal bone data, which can be modified on a per bone basis if needed. This allows you to dynamically generate animations (or just blend them with greater customisation) instead of being limited to a single animation or two."},
+	{"FTE_CSQC_RENDERTARGETS",			0,	NULL, {NULL}, "VF_RT_DESTCOLOUR exists and can be used to redirect any rendering to a texture instead of the screen."},
 	{"FTE_ENT_SKIN_CONTENTS",			0,	NULL, {NULL}, "self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder."},
 	{"FTE_ENT_UNIQUESPAWNID"},
 	{"FTE_EXTENDEDTEXTCODES"},
-	{"FTE_FORCESHADER",					1,	NULL, {"shaderforname"}},	//I'd rename this to _CSQC_ but it does technically provide this builtin to menuqc too, not that the forceshader entity field exists there... but whatever.
-	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
+	{"FTE_FORCESHADER",					1,	NULL, {"shaderforname"}, "Allows csqc to override shaders on models with an explicitly named replacement. Also allows you to define shaders with a fallback if it does not exist on disk."},	//I'd rename this to _CSQC_ but it does technically provide this builtin to menuqc too, not that the forceshader entity field exists there... but whatever.
+	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"},	"Provides an easy way to change a user's userinfo from the server."},
 	{"FTE_GFX_QUAKE3SHADERS",			0,	NULL, {NULL},	"specifies that the engine has full support for vanilla quake3 shaders"},
 	{"FTE_GFX_REMAPSHADER",				0,	NULL, {NULL},	"With the raw power of stuffcmds, the r_remapshader console command is exposed! This mystical command can be used to remap any shader to another. Remapped shaders that specify $diffuse etc in some form will inherit the textures implied by the surface."},
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}, "Allows you to check if a client has too many reliable messages pending."},
@@ -5965,14 +6046,18 @@ lh_extension_t QSG_Extensions[] = {
 	#if defined(_WIN32) && !defined(WINRT)
 	{"FTE_MEDIA_AVI",					0,	NULL, {NULL}, "playfilm command supports avi files."},
 	#endif
+	#ifdef Q2CLIENT
 	{"FTE_MEDIA_CIN",					0,	NULL, {NULL}, "playfilm command supports q2 cin files."},
+	#endif
+	#ifdef Q3CLIENT
 	{"FTE_MEDIA_ROQ",					0,	NULL, {NULL}, "playfilm command supports q3 roq files."},
+	#endif
 #endif
-	{"FTE_MULTIPROGS",					5,	NULL, {"externcall", "addprogs", "externvalue", "externset", "instr"}, "Multiple progs.dat files can be loaded inside the same qcvm."},	//multiprogs functions are available.
-	{"FTE_MULTITHREADED",				3,	NULL, {"sleep", "fork", "abort"}},
+	{"FTE_MULTIPROGS",					5,	NULL, {"externcall", "addprogs", "externvalue", "externset", "instr"}, "Multiple progs.dat files can be loaded inside the same qcvm. Insert new ones with addprogs inside the 'init' function, and use externvalue+externset to rewrite globals (and hook functions) to link them together. Note that the result is generally not very clean unless you carefully design for it beforehand."},	//multiprogs functions are available.
+	{"FTE_MULTITHREADED",				3,	NULL, {"sleep", "fork", "abort"}, "Faux multithreading, allowing multiple contexts to run in sequence."},
 	{"FTE_MVD_PLAYERSTATS",				0,	NULL, {NULL}, "In csqc, getplayerstat can be used to query any player's stats when playing back MVDs. isdemo will return 2 in this case."},
 #ifdef SERVER_DEMO_PLAYBACK
-	{"FTE_MVD_PLAYBACK"},
+	{"FTE_MVD_PLAYBACK",				NOBI	"The server itself is able to play back MVDs."},
 #endif
 #ifdef SVCHAT
 	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
@@ -5987,15 +6072,15 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_CHECKCOMMAND",				1,	NULL, {"checkcommand"}, "Provides a way to test if a console command exists, and whether its a command/alias/cvar. Does not say anything about the expected meanings of any arguments or values."},
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
 	{"FTE_QC_HARDWARECURSORS",			0,	NULL, {NULL}, "setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits, it will be emulated using regular draws - this at least still avoids conflicting cursors."},
-	{"FTE_QC_HASHTABLES",				6,	NULL, {"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}},
-	{"FTE_QC_INTCONV",					4,	NULL, {"stoi", "itos", "stoh", "htos"}},
+	{"FTE_QC_HASHTABLES",				6,	NULL, {"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}, "Provides efficient string-based lookups."},
+	{"FTE_QC_INTCONV",					4,	NULL, {"stoi", "itos", "stoh", "htos"}, "Provides string<>int conversions, including hex representations."},
 	{"FTE_QC_MATCHCLIENTNAME",			1,	NULL, {"matchclientname"}},
 	{"FTE_QC_PAUSED"},
 #ifdef QCGC
-	{"FTE_QC_PERSISTENTTEMPSTRINGS",	0,	NULL, {NULL}, "Supersedes DP_QC_MULTIPLETEMPSTRINGS. Temp strings are garbage collected automatically, and do not expire while they're still in use. This makes strzone redundant."},
+	{"FTE_QC_PERSISTENTTEMPSTRINGS",	NOBI	 "Supersedes DP_QC_MULTIPLETEMPSTRINGS. Temp strings are garbage collected automatically, and do not expire while they're still in use. This makes strzone redundant."},
 #endif
 	{"FTE_QC_RAGDOLL_WIP",				1,	NULL, {"ragupdate", "skel_set_bone_world", "skel_mmap"}},
-	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}},	//includes the SV_ParseConnectionlessPacket event.
+	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}, "Allows the use of out-of-band udp packets to/from other hosts. Includes the SV_ParseConnectionlessPacket event."},
 	{"FTE_QC_TRACETRIGGER"},
 #ifdef Q2CLIENT
 	{"FTE_QUAKE2_CLIENT",				0,	NULL, {NULL}, "This engine is able to act as a quake2 client"},
@@ -6009,45 +6094,51 @@ lh_extension_t QSG_Extensions[] = {
 #ifdef Q3SERVER
 	{"FTE_QUAKE3_SERVER",				0,	NULL, {NULL}, "This engine is able to act as a quake3 server"},
 #endif
-	{"FTE_SOLID_LADDER"},	//Allows a simple trigger to remove effects of gravity (solid 20). obsolete. will prolly be removed at some point as it is not networked properly. Use FTE_ENT_SKIN_CONTENTS
+	{"FTE_SOLID_LADDER",				NOBI			"Allows a simple trigger to remove effects of gravity (solid 20). obsolete. will prolly be removed at some point as it is not networked properly. Use FTE_ENT_SKIN_CONTENTS"},
 
 #ifdef SQL
 	// serverside SQL functions for managing an SQL database connection
 	{"FTE_SQL",							9, NULL, {"sqlconnect","sqldisconnect","sqlopenquery","sqlclosequery","sqlreadfield","sqlerror","sqlescape","sqlversion",
-												  "sqlreadfloat"}},
+												  "sqlreadfloat"}, "Provides sql* builtins which can be used for sql database access"},
+#ifdef USE_MYSQL
+	{"FTE_SQL_MYSQL",					0, NULL, {NULL}, "SQL functionality is able to utilise mysql"},
+#endif
+#ifdef USE_SQLITE
+	{"FTE_SQL_SQLITE",					0, NULL, {NULL}, "SQL functionality is able to utilise sqlite databases"},
+#endif
 #endif
 
 	//eperimental advanced strings functions.
 	//reuses the FRIK_FILE builtins (with substring extension)
 	{"FTE_STRINGS",						17, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
-												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp", "strpad"}},
+												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp", "strpad"}, "Extra builtins (and additional behaviour) to make string manipulation easier"},
 	{"FTE_SV_POINTPARTICLES",			3,	NULL, {"particleeffectnum", "pointparticles", "trailparticles"}, "Specifies that particleeffectnum, pointparticles, and trailparticles exist in ssqc as well as csqc. particleeffectnum acts as a precache, allowing ssqc values to be networked up with csqc for use. Use in combination with FTE_PART_SCRIPT+FTE_PART_NAMESPACES to use custom effects. This extension is functionally identical to the DP version, but avoids any misplaced assumptions about the format of the client's particle descriptions."},
 	{"FTE_SV_REENTER"},
 	{"FTE_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
-												   "te_teleport", "te_lightning1", "te_lightning2", "te_lightning3", "te_lightningblood", "te_bloodqw"}},
+												   "te_teleport", "te_lightning1", "te_lightning2", "te_lightning3", "te_lightningblood", "te_bloodqw"}, "Provides builtins to replace writebytes, with a QW compatible twist."},
 #ifdef TERRAIN
 	{"FTE_TERRAIN_MAP",					0,	NULL, {NULL}, "This engine supports .hmp files, as well as terrain embedded within bsp files."},
 	{"FTE_RAW_MAP",						0,	NULL, {NULL}, "This engine supports directly loading .map files, as well as realtime editing of the various brushes."},
 #endif
 
-	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}},	//very very similar to the mvdsv system.
+	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}, "SSQC's SV_ParseClientCommand function is able to handle client 'cmd' commands. The tokenizing parts also work in csqc."},	//very very similar to the mvdsv system.
 	{"NEH_CMD_PLAY2"},
 	{"NEH_RESTOREGAME"},
 	//{"PRYDON_CLIENTCURSOR"},
 	{"QSG_CVARSTRING",					1,	NULL, {"qsg_cvar_string"}},
 	{"QW_ENGINE",						3,	NULL, {"infokey", "stof", "logfrag"}},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
-	{"QWE_MVD_RECORD"},	//Quakeworld extended get the credit for this one. (mvdsv)
+	{"QWE_MVD_RECORD",					NOBI	"You can use the easyrecord command to record MVD demos serverside."},	//Quakeworld extended get the credit for this one. (mvdsv)
 	{"TEI_MD3_MODEL"},
 	{"TENEBRAE_GFX_DLIGHTS",			0, NULL,{NULL}, "Allows ssqc to attach rtlights to entities with various special properties."},
 //	{"TQ_RAILTRAIL"},	//treat this as the ZQ style railtrails which the client already supports, okay so the preparse stuff needs strengthening.
-	{"ZQ_MOVETYPE_FLY"},
-	{"ZQ_MOVETYPE_NOCLIP"},
-	{"ZQ_MOVETYPE_NONE"},
+	{"ZQ_MOVETYPE_FLY",					NOBI	"MOVETYPE_FLY works on players."},
+	{"ZQ_MOVETYPE_NOCLIP",				NOBI	"MOVETYPE_NOCLIP works on players."},
+	{"ZQ_MOVETYPE_NONE",				NOBI	"MOVETYPE_NONE works on players."},
 //	{"ZQ_QC_PARTICLE"},	//particle builtin works in QW ( we don't mimic ZQ fully though)
 	{"ZQ_VWEP",							1,	NULL, {"precache_vwep_model"}},
 
 
-	{"ZQ_QC_STRINGS",					7, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone"}}	//a trimmed down FRIK_FILE.
+	{"ZQ_QC_STRINGS",					7, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone"}, "The strings-only subset of FRIK_FILE is supported."}	//a trimmed down FRIK_FILE.
 };
 unsigned int QSG_Extensions_count = sizeof(QSG_Extensions)/sizeof(QSG_Extensions[0]);
 #endif

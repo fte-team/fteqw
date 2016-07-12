@@ -177,6 +177,24 @@ void QC_strnlcpy(char *dest, const char *src, size_t srclen, size_t destsize)
 	*dest = 0;
 }
 
+char *QC_strcasestr(const char *haystack, const char *needle)
+{
+	int i;
+	int matchamt=0;
+	for(i=0;haystack[i];i++)
+	{
+		if (tolower(haystack[i]) != tolower(needle[matchamt]))
+			matchamt = 0;
+		if (tolower(haystack[i]) == tolower(needle[matchamt]))
+		{
+			matchamt++;
+			if (needle[matchamt]==0)
+				return (char *)&haystack[i-(matchamt-1)];
+		}
+	}
+	return 0;
+}
+
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
 /*
 ================
@@ -1069,11 +1087,12 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, un
 //the gui is a windows program.
 //this means that its fucked.
 //on the plus side, its okay with a bom...
-unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen)
+unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen, pbool *errors)
 {
 	unsigned int code;
 	int l;
 	unsigned short *out, *outstart;
+	pbool nonascii = false;
 	//sanitise the input.
 	if (len >= 4 && mem[0] == '\xff' && mem[1] == '\xfe' && mem[2] == '\x00' && mem[3] == '\x00')
 		mem = decodeUTF(UTF32LE, (unsigned char*)mem+4, len-4, &len, true);
@@ -1103,7 +1122,7 @@ unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen)
 	{
 		l = utf8_check(mem, &code);
 		if (!l)
-		{l = 1; code = 0xe000|(unsigned char)*mem;}//fucked up. convert to 0xe000 private-use range.
+		{l = 1; code = 0xe000|(unsigned char)*mem; nonascii = true;}//fucked up. convert to 0xe000 private-use range.
 		len -= l;
 		mem += l;
 
@@ -1119,6 +1138,9 @@ unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen)
 	if (outlen)
 		*outlen = out - outstart;
 	*out++ = 0;
+
+	if (errors)
+		*errors = nonascii;
 	return outstart;
 }
 
@@ -1147,7 +1169,19 @@ char *QCC_SanitizeCharSet(char *mem, unsigned int *len, pbool *freeresult, int *
 	}
 	else
 	{
+		unsigned int ch, cl;
+		char *p, *e=mem+*len;
+
 		*origfmt=UTF8_RAW;
+		for (p = mem; p < e; p += cl)	//validate it, so we're sure what format it actually is
+		{
+			cl = utf8_check(p, &ch);
+			if (!cl)
+			{
+				*origfmt = UTF_ANSI;
+				break;
+			}
+		}
 		if (freeresult)
 			*freeresult = false;
 /*

@@ -1,7 +1,5 @@
 /***************************************************************************
 desktop and top-level functions.
-the 'tabs' widgit is simply a tab-selection control. horizontal multiple choice. it draws only its currently active child.
-the 'tab' widgit is merely a container of other widgits, no different from a standard menu, except not exclusive or anything.
 */
 
 #ifdef USEPOINTERS
@@ -260,13 +258,13 @@ var string autocvar_cl_cursor = "gfx/cursor.lmp";
 var float autocvar_cl_cursorsize = 32;
 var float autocvar_cl_cursorbias = 4;
 
-var static float oldgrabstate;	//to work around a DP bug (as well as unnecessary spam)
+static var float oldgrabstate;	//to work around a DP bug (as well as unnecessary spam)
 
-void() items_updategrabs =
+void(float force) items_updategrabs =
 {
 	if (!ui.mgrabs || !(ui.mgrabs.item_flags & IF_NOCURSOR))
 	{
-		if (!oldgrabstate)
+		if (!oldgrabstate || force)
 		{
 			oldgrabstate = TRUE;
 #ifdef MENU
@@ -278,7 +276,7 @@ void() items_updategrabs =
 #endif
 		}
 	}
-	else if (oldgrabstate)
+	else if (oldgrabstate || force)
 	{
 		oldgrabstate = FALSE;
 #ifdef MENU
@@ -311,7 +309,7 @@ void(mitem_desktop desktop) items_draw =
 	desktop.item_draw(desktop.item_position);
 	drawresetcliparea();
 
-	items_updategrabs();
+	items_updategrabs(FALSE);
 	if (dp_workarounds && oldgrabstate)
 	{
 		if (drawgetimagesize(autocvar_cl_cursor) == '0 0')
@@ -328,8 +326,7 @@ void(mitem_desktop desktop) items_draw =
 };
 
 //items_keypress has quite strong dimorphism. These are meant to tailored to the target's available event notifications, rather than being really rather annoying.
-#ifdef CSQC
-float(mitem_desktop desktop, float evtype, float scanx, float chary, float devid) items_keypress =
+csqconly float(mitem_desktop desktop, float evtype, float scanx, float chary, float devid) items_keypress_ =
 {
 	local float result = FALSE;
 	vector pos;
@@ -400,9 +397,12 @@ float(mitem_desktop desktop, float evtype, float scanx, float chary, float devid
 	}
 	return result;
 };
-#endif
-#ifdef MENU
-float(mitem_desktop desktop, float scan, float char, float down) items_keypress =
+void() gah = 
+{
+	items_keypress_(0, 0,0,0,0);
+};
+
+menuonly float(mitem_desktop desktop, float scan, float char, float down) items_keypress =
 {
 	local float result = FALSE;
 	local vector pos;
@@ -450,5 +450,5 @@ float(mitem_desktop desktop, float scan, float char, float down) items_keypress 
 
 	return result;
 };
-#endif
+
 

@@ -103,13 +103,18 @@ typedef struct
 
 	q2pmtype_t	pm_type;
 
-	short		origin[3];		// 12.3
+#if 0
+	int		origin[3];		// 12.3
+#else
+	short		origin[3];		// 20.3
+#endif
 	short		velocity[3];	// 12.3
 	qbyte		pm_flags;		// ducked, jump_held, etc
 	qbyte		pm_time;		// each unit = 8 ms
 	short		gravity;
 	short		delta_angles[3];	// add to command angles to get view direction
 									// changed by spawns, rotating objects, and teleporters
+//	short		pad;
 } q2pmove_state_t;
 
 typedef struct
@@ -443,7 +448,6 @@ typedef struct
 	enum
 	{
 		CPNQ_ID,
-		CPNQ_PROQUAKE3_4,
 		CPNQ_BJP1,	//16bit models, strict 8bit sounds
 		CPNQ_BJP2,	//16bit models, strict 16bit sounds
 		CPNQ_BJP3,	//16bit models, flagged 16bit sounds
@@ -454,6 +458,7 @@ typedef struct
 	} protocol_nq;
 	#define CPNQ_IS_DP (cls.protocol_nq >= CPNQ_DP5)
 	#define CPNQ_IS_BJP (cls.protocol_nq >= CPNQ_BJP1 && cls.protocol_nq <= CPNQ_BJP3)
+	qboolean proquake_angles_hack;	//angles are always 16bit
 
 	int protocol_q2;
 
@@ -511,15 +516,12 @@ typedef struct
 	float		latency;		// rolling average
 
 	qboolean	allow_anyparticles;
-	qboolean	allow_lightmapgamma;
-	qboolean	allow_rearview;
 	qboolean	allow_skyboxes;
-	qboolean	allow_mirrors;
 	qboolean	allow_watervis;	//fixme: not checked any more
 	float		allow_fbskins;	//fraction of allowance
-	qboolean	allow_postproc;
 	qboolean	allow_cheats;
 	qboolean	allow_semicheats;	//defaults to true, but this allows a server to enforce a strict ruleset (smackdown type rules).
+	qboolean	allow_csqc;			//disables some legacy/compat things, like proquake parsing.
 	float		maxfps;	//server capped
 	int			deathmatch;
 
@@ -567,13 +569,16 @@ typedef struct {
 	qboolean isplayer;
 
 	//intermediate values for frame lerping
-	float framelerpdeltatime;
-	float newframestarttime;
-	int newframe;
-	float oldframestarttime;
-	int oldframe;
+	//separate upper+lower lerps
+	float framelerpdeltatime[FS_COUNT];
+	float newframestarttime[FS_COUNT];
+	int newframe[FS_COUNT];
+	float oldframestarttime[FS_COUNT];
+	int oldframe[FS_COUNT];
+	qbyte basebone;
 
 	//intermediate values for origin lerping of stepping things
+	int newsequence;
 	float orglerpdeltatime;
 	float orglerpstarttime;
 	vec3_t neworigin; /*origin that we're lerping towards*/
@@ -583,7 +588,7 @@ typedef struct {
 
 	//for further info
 	int skeletalobject;
-	int sequence;	/*so csqc code knows that the ent is still valid*/
+	int sequence;	/*so we know if the ent is still valid*/
 	entity_state_t *entstate;
 } lerpents_t;
 
@@ -603,10 +608,13 @@ struct playerview_s
 	char		*statsstr[MAX_CL_STATS];	// health, etc
 	float		item_gettime[32];	// cl.time of aquiring item, for blinking
 	float		faceanimtime;		// use anim frame if cl.time < this
+
+#ifdef HEXEN2
 	int			sb_hexen2_cur_item;//hexen2 hud
 	float		sb_hexen2_item_time;
 	qboolean	sb_hexen2_extra_info;//show the extra stuff
 	qboolean	sb_hexen2_infoplaque;
+#endif
 
 
 // the client maintains its own idea of view angles, which are
@@ -699,11 +707,13 @@ struct playerview_s
 	struct
 	{
 		qboolean defaulted;
+		int entnum;
 		vec3_t origin;
 		vec3_t forward;
 		vec3_t right;
 		vec3_t up;
-		int inwater;
+		size_t reverbtype;
+		vec3_t velocity;
 	} audio;
 };
 
@@ -792,8 +802,9 @@ typedef struct
 	{
 		IM_NONE,		//off.
 		IM_NQSCORES,	//+showscores forced, view still attached to regular view
-		IM_NQFINALE,	//slow centerprint text etc, view still attached to regular view
-		IM_NQCUTSCENE,	//no overlay at all, nor hud.
+		IM_NQFINALE,	//slow centerprint text etc, view still attached to regular view. no hud
+		IM_NQCUTSCENE,	//IM_NQFINALE, but without the 'finale' header on centerprints.
+		IM_H2FINALE,	//IM_NQFINALE, but with the view offset by the player's viewheight.
 
 		IM_QWSCORES		//intermission, view locked at a specific point
 	} intermissionmode;	// don't change view angle, full screen, etc
@@ -841,6 +852,7 @@ typedef struct
 	fogstate_t	oldfog[2];
 
 	char		levelname[40];	// for display on solo scoreboard
+	char		*windowtitle;	// fully overrides the window caption.
 
 // refresh related state
 	struct model_s	*worldmodel;	// cl_entitites[0].model
@@ -965,6 +977,7 @@ extern cvar_t ruleset_allow_modified_eyes;
 extern cvar_t ruleset_allow_sensitive_texture_replacements;
 extern cvar_t ruleset_allow_localvolume;
 extern cvar_t ruleset_allow_shaders;
+extern cvar_t ruleset_allow_watervis;
 
 #ifndef SERVERONLY
 extern	client_state_t	cl;
@@ -982,7 +995,7 @@ typedef struct
 // FIXME, allocate dynamically
 extern	entity_state_t *cl_baselines;
 extern	static_entity_t		*cl_static_entities;
-extern  unsigned int    cl_max_static_entities;
+extern	unsigned int	cl_max_static_entities;
 extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 extern	dlight_t		*cl_dlights;
 extern	unsigned int	cl_maxdlights;
@@ -1007,7 +1020,7 @@ dlight_t *CL_NewDlight (int key, const vec3_t origin, float radius, float time, 
 dlight_t *CL_NewDlightCube (int key, const vec3_t origin, vec3_t angles, float radius, float time, vec3_t colours);
 void	CL_DecayLights (void);
 
-void CLQW_ParseDelta (struct entity_state_s *from, struct entity_state_s *to, int bits, qboolean);
+void CLQW_ParseDelta (struct entity_state_s *from, struct entity_state_s *to, int bits);
 
 void CL_Init (void);
 void Host_WriteConfiguration (void);
@@ -1063,7 +1076,8 @@ extern unsigned int cl_maxstris;
 
 extern char emodel_name[], pmodel_name[], prespawn_name[], modellist_name[], soundlist_name[];
 
-unsigned int TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
+//CL_TraceLine traces against network(positive)+csqc(negative) ents. returns frac(1 on failure), and impact, normal, ent values
+float CL_TraceLine (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, int *ent);
 entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 
 //
@@ -1155,6 +1169,7 @@ qboolean CL_GetMessage (void);
 void CL_WriteDemoCmd (usercmd_t *pcmd);
 void CL_Demo_ClientCommand(char *commandtext);	//for QTV.
 
+void CL_WriteSetDemoMessage (void);	//'restarts' a qwd, when we have reloads/map changes in them
 void CL_WriteRecordQ2DemoMessage(sizebuf_t *msg);
 void CL_Stop_f (void);
 void CL_Record_f (void);
@@ -1248,6 +1263,9 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob);
 float V_CalcBob (playerview_t *pv, qboolean queryold);
 void DropPunchAngle (playerview_t *pv);
 
+int V_EditExternalModels(int newviewentity, entity_t *viewentities, int maxviewenties);
+void V_DepthSortEntities(float *vieworg);
+
 
 //
 // cl_tent
@@ -1259,6 +1277,7 @@ void CL_ClearTEnts (void);
 void CL_ClearTEntParticleState (void);
 void CL_ClearCustomTEnts(void);
 void CL_ParseCustomTEnt(void);
+qboolean CL_WriteCustomTEnt(sizebuf_t *buf, int id);
 void CL_ParseEffect (qboolean effect2);
 
 void CLNQ_ParseParticleEffect (void);
@@ -1269,7 +1288,7 @@ void CL_ParseParticleEffect4 (void);
 int CL_TranslateParticleFromServer(int sveffect);
 void CL_ParseTrailParticles(void);
 void CL_ParsePointParticles(qboolean compact);
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum);	/*called from the particlesystem*/
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float scale, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum);	/*called from the particlesystem*/
 
 //
 // cl_ents.c
@@ -1289,7 +1308,6 @@ void CL_ParsePlayerinfo (void);
 void CL_ParseClientPersist(void);
 //these last ones are needed for csqc handling of engine-bound ents.
 void CL_ClearEntityLists(void);
-int CL_EditExternalModels(int newviewentity, entity_t *viewentities, int maxviewenties);
 void CL_FreeVisEdicts(void);
 void CL_LinkViewModel(void);
 void CL_LinkPlayers (void);
@@ -1531,8 +1549,7 @@ void SV_ConSay_f(void);
 
 
 #ifdef TEXTEDITOR
-extern qboolean editoractive;
-extern qboolean editormodal;
+extern console_t *editormodal;
 void Editor_Draw(void);
 void Editor_Init(void);
 struct pubprogfuncs_s;
@@ -1548,8 +1565,18 @@ void CL_AddVWeapModel(entity_t *player, struct model_s *model);
 struct cinematics_s;
 void CIN_StopCinematic (struct cinematics_s *cin);
 struct cinematics_s *CIN_PlayCinematic (char *arg);
-int CIN_RunCinematic (struct cinematics_s *cin, qbyte **outdata, int *outwidth, int *outheight, qbyte **outpalette);
+int CIN_RunCinematic (struct cinematics_s *cin, float playbacktime, qbyte **outdata, int *outwidth, int *outheight, qbyte **outpalette);
+void CIN_Rewind(struct cinematics_s *cin);
 
+typedef enum
+{
+	CINSTATE_INVALID,	//also reported for not playing
+	CINSTATE_PLAY,
+	CINSTATE_LOOP,
+	CINSTATE_PAUSE,
+	CINSTATE_ENDED,
+	CINSTATE_FLUSHED,	//video will restart from beginning
+} cinstates_t;
 typedef struct cin_s cin_t;
 #ifdef NOMEDIA
 #define Media_Playing() false
@@ -1578,7 +1605,9 @@ void Media_Send_Resize(cin_t *cin, int x, int y);
 void Media_Send_GetSize(cin_t *cin, int *x, int *y, float *aspect);
 void Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event);
 void Media_Send_Reset(cin_t *cin);
-void Media_Send_GetPositions(cin_t *cin, qboolean *active, float *curtime, float *duration);
+void Media_SetState(cin_t *cin, cinstates_t newstate);
+cinstates_t Media_GetState(cin_t *cin);
+const char *Media_Send_GetProperty(cin_t *cin, const char *key);
 
 void MVD_Interpolate(void);
 
@@ -1599,10 +1628,10 @@ void Stats_Init(void);
 enum uploadfmt;
 typedef struct
 {
-	char *drivername;
-	void *(VARGS *createdecoder)(char *name);
-	void *(VARGS *decodeframe)(void *ctx, qboolean nosound, enum uploadfmt *fmt, int *width, int *height);
-	void (VARGS *doneframe)(void *ctx, void *img);
+	size_t structsize;
+	const char *drivername;
+	void *(VARGS *createdecoder)(const char *name);
+	qboolean (VARGS *decodeframe)(void *ctx, qboolean nosound, qboolean forcevideo, double mediatime, void (QDECL *uploadtexture)(void *ectx, uploadfmt_t fmt, int width, int height, void *data, void *palette), void *ectx);
 	void (VARGS *shutdown)(void *ctx);
 	void (VARGS *rewind)(void *ctx);
 
@@ -1612,9 +1641,15 @@ typedef struct
 	qboolean (VARGS *setsize) (void *ctx, int width, int height);
 	void (VARGS *getsize) (void *ctx, int *width, int *height);
 	void (VARGS *changestream) (void *ctx, const char *streamname);
+
+	qboolean (VARGS *getproperty) (void *ctx, const char *field, char *out, size_t *outsize);	//if out is null, returns required buffer size. returns 0 on failure / buffer too small
 } media_decoder_funcs_t;
-typedef struct {
-	char *drivername;
+typedef struct
+{
+	size_t structsize;
+	const char *drivername;
+	const char *description;
+	const char *defaultextension;
 	void *(VARGS *capture_begin) (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits);
 	void (VARGS *capture_video) (void *ctx, void *data, int frame, int width, int height, enum uploadfmt fmt);
 	void (VARGS *capture_audio) (void *ctx, void *data, int bytes);

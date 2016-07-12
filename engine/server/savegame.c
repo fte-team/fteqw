@@ -360,10 +360,12 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		cl->name = PR_AddString(svprogfuncs, cl->namebuf, sizeof(cl->namebuf), false);
 		cl->team = PR_AddString(svprogfuncs, cl->teambuf, sizeof(cl->teambuf), false);
 
+#ifdef HEXEN2
 		if (ent)
 			cl->playerclass = ent->xv->playerclass;
 		else
 			cl->playerclass = 0;
+#endif
 	}
 }
 
@@ -608,10 +610,9 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	}
 
 	if (savename)
-		Q_snprintfz (name, sizeof(name), "saves/%s/%s", savename, level);
+		Q_snprintfz (name, sizeof(name), "saves/%s/%s.lvc", savename, level);
 	else
-		Q_snprintfz (name, sizeof(name), "saves/%s", level);
-	COM_DefaultExtension (name, ".lvc", sizeof(name));
+		Q_snprintfz (name, sizeof(name), "saves/%s.lvc", level);
 
 //	Con_TPrintf ("Loading game from %s...\n", name);
 
@@ -782,14 +783,17 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 		else
 			ent = NULL;
 		svs.clients[i].edict = ent;
+		ent->ereftype = ER_ENTITY;	//should have already been allocated.
 
 		svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf), false);
 		svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf), false);
 
+#ifdef HEXEN2
 		if (ent)
 			svs.clients[i].playerclass = ent->xv->playerclass;
 		else
 			svs.clients[i].playerclass = 0;
+#endif
 	}
 
 	if (!isloadgame)
@@ -808,7 +812,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 				j = strlen(svs.clients[i].spawninfo);
 				svprogfuncs->restoreent(svprogfuncs, svs.clients[i].spawninfo, &j, ent);
 
-				e2 = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "stats_restored", NULL);
+				e2 = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "stats_restored", ev_float, NULL);
 				if (e2)
 					e2->_float = 1;
 				for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
@@ -821,10 +825,17 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 				ent->area.next = ent->area.prev = NULL;
 				G_FLOAT(OFS_PARM0) = sv.time-host_client->spawninfotime;
 				PR_ExecuteProgram(svprogfuncs, eval->function);
+
+//				if (svs.clients[i].state == cs_loadzombie)
+//					svs.clients[i].istobeloaded = 1;
+//				else
+//					svs.clients[i].state = cs_spawned;	//don't do a separate ClientConnect.
 			}
 		}
+		pr_global_struct->serverflags = svs.serverflags;
 	}
 
+	pr_global_struct->time = sv.world.physicstime;
 	for (i=0 ; i<sv.world.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);
@@ -861,7 +872,6 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 				PR_ExecuteProgram(svprogfuncs, f);
 		}
 	}
-	pr_global_struct->time = sv.world.physicstime;
 
 	return true;	//yay
 }
@@ -954,8 +964,10 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		//probably this should happen elsewhere.
 		for (cl = svs.clients, clnum=0; clnum < sv.allocated_client_slots; cl++,clnum++)//fake dropping
 		{
-			if (progstype == PROG_H2)
-				cl->edict->isfree = true;	//hexen2 has some annoying prints. it never formally dropped clients on map changes.
+			if (cl->state < cs_connected)
+				continue;
+			else if (progstype == PROG_H2)
+				cl->edict->ereftype = ER_FREE;	//hexen2 has some annoying prints. it never formally dropped clients on map changes (we'll reset this later, so they'll just not appear in the saved game).
 			else if (cl->state < cs_spawned && !cl->istobeloaded)	//don't drop if they are still connecting
 			{
 				cl->edict->v->solid = 0;
@@ -1074,8 +1086,11 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 
 	if (!dontharmgame)
 	{
-		for (cl = svs.clients, clnum=0; clnum < sv.allocated_client_slots; cl++,clnum++)
-			cl->edict->isfree = false;
+		for (clnum=0; clnum < sv.allocated_client_slots; clnum++)
+		{
+			edict_t *ed = EDICT_NUM(svprogfuncs, clnum+1);
+			ed->ereftype = ER_ENTITY;
+		}
 	}
 }
 
@@ -1225,7 +1240,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 	Q_snprintfz(comment, sizeof(comment), "saves/%s/screeny.%s", savename, "tga");//scr_sshot_type.string);
 	savefilename = comment;
 	FS_Remove(savefilename, FS_GAMEONLY);
-	if (cls.state == ca_active && qrenderer > QR_NONE)
+	if (cls.state == ca_active && qrenderer > QR_NONE && qrenderer != QR_VULKAN/*FIXME*/)
 	{
 		int width;
 		int height;
@@ -1304,7 +1319,7 @@ void SV_Savegame_f (void)
 		Con_Printf("%s: invalid number of arguments\n", Cmd_Argv(0));
 }
 
-cvar_t sv_autosave = CVARD("sv_autosave", "1", "Interval for autosaves, in minutes.");
+cvar_t sv_autosave = CVARD("sv_autosave", "5", "Interval for autosaves, in minutes. Set to 0 to disable autosave.");
 void SV_AutoSave(void)
 {
 #ifndef NOBUILTINMENUS
@@ -1398,10 +1413,6 @@ void SV_Loadgame_f (void)
 		SV_Loadgame_Legacy(filename, f, version);
 		return;
 	}
-#ifndef SERVERONLY
-	if (cls.state)
-		CL_Disconnect_f();
-#endif
 
 	gametype = version - FTESAVEGAME_VERSION;
 	VFS_GETS(f, str, sizeof(str)-1);
@@ -1419,7 +1430,10 @@ void SV_Loadgame_f (void)
 
 #ifndef SERVERONLY
 		if (cl->netchan.remote_address.type == NA_LOOPBACK)
-			CL_Disconnect();
+		{
+//			CL_Disconnect();
+			cl->state = cs_zombie;
+		}
 		else
 #endif
 		{
@@ -1431,6 +1445,16 @@ void SV_Loadgame_f (void)
 		}
 		cl->istobeloaded = false;
 	}
+
+#ifndef SERVERONLY
+	if (cls.state)
+	{
+		unsigned int rec = cls.demorecording;
+		cls.demorecording = DPB_NONE;
+		CL_Disconnect_f();
+		cls.demorecording = rec;
+	}
+#endif
 
 	SV_SendMessagesToAll();
 

@@ -16,10 +16,6 @@
 
 static int tryrates[] = { 11025, 22051, 44100, 8000, 48000 };
 
-static void OSS_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)	//simply a stub. Any ideas how to actually implement this properly?
-{
-}
-
 static unsigned int OSS_MMap_GetDMAPos(soundcardinfo_t *sc)
 {
 	struct count_info count;
@@ -354,7 +350,6 @@ static qboolean OSS_InitCard(soundcardinfo_t *sc, const char *snddev)
 
 	sc->Lock		= OSS_Lock;
 	sc->Unlock		= OSS_Unlock;
-	sc->SetWaterDistortion = OSS_SetUnderWater;
 	sc->Shutdown	= OSS_Shutdown;
 
 	return true;

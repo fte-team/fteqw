@@ -52,23 +52,17 @@ extern int compileactive;
 
 typedef enum {PROG_NONE, PROG_QW, PROG_NQ, PROG_H2, PROG_PREREL, PROG_TENEBRAE, PROG_UNKNOWN} progstype_t;	//unknown obtains NQ behaviour
 extern progstype_t progstype;
-                                 
 
-//extern globalvars_t *glob0;
-
-
-//extern progparms_t progparms;
-
-//extern progsnum_t mainprogs;
+#include "progslib.h"
 
 typedef struct edict_s
 {
 	//these 5 shared with qclib
-	qboolean	isfree;
-	float		freetime; // sv.time when the object was freed
-	int			entnum;
-	unsigned int fieldsize;
-	qboolean	readonly;	//world
+	enum ereftype_e	ereftype;
+	float			freetime; // sv.time when the object was freed
+	int				entnum;
+	unsigned int	fieldsize;
+	pbool			readonly;	//world
 #ifdef VM_Q1
 	stdentvars_t	*v;
 	extentvars_t	*xv;
@@ -83,10 +77,11 @@ typedef struct edict_s
 	/*these are shared with csqc*/
 	link_t	area;
 	pvscache_t pvsinfo;
+	int lastruntime;
+	int solidsize;
 #ifdef USERBE
 	entityode_t ode;
 #endif
-	qbyte solidtype;
 	/*csqc doesn't reference the rest*/
 
 	entity_state_t	baseline;
@@ -95,7 +90,7 @@ typedef struct edict_s
   
 
 
-#include "progslib.h"
+
 
 #undef pr_global_struct
 #define pr_global_struct *pr_global_ptrs

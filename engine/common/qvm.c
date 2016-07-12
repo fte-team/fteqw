@@ -56,7 +56,7 @@ typedef enum vm_type_e
 struct vm_s {
 // common
 	vm_type_t type;
-	char name[MAX_QPATH];
+	char filename[MAX_OSPATH];
 	sys_calldll_t syscalldll;
 	sys_callqvm_t syscallqvm;
 
@@ -70,12 +70,16 @@ struct vm_s {
 //this is a bit weird. qvm plugins always come from $basedir/$mod/plugins/$foo.qvm
 //but native plugins never come from $basedir/$mod/ - too many other engines blindly allow dll downloads etc. Its simply far too insecure if people use other engines.
 //q3 gamecode allows it however. yes you could probably get fte to connect via q3 instead and get such a dll.
-dllhandle_t *QVM_LoadDLL(const char *name, qboolean binroot, void **vmMain, sys_calldll_t syscall)
+qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain, sys_calldll_t syscall)
 {
 	void (EXPORT_FN *dllEntry)(sys_calldll_t syscall);
 	char dllname_arch[MAX_OSPATH];	//id compatible
 	char dllname_anycpu[MAX_OSPATH];//simple
 	dllhandle_t *hVM;
+
+	char fname[MAX_OSPATH];
+	char gpath[MAX_OSPATH];
+	void *iterator;
 
 	dllfunction_t funcs[] =
 	{
@@ -88,63 +92,62 @@ dllhandle_t *QVM_LoadDLL(const char *name, qboolean binroot, void **vmMain, sys_
 	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s" ARCH_DL_POSTFIX, name);
 
 	hVM=NULL;
+	*fname = 0;
+
+	if (binroot)
 	{
-		char fname[MAX_OSPATH];
-		char gpath[MAX_OSPATH];
-		void *iterator;
+		if (!hVM && FS_NativePath(dllname_arch, FS_BINARYPATH, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
+		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
 
-		if (binroot)
+		// run through the search paths
+		iterator = NULL;
+		while (!hVM && COM_IteratePaths(&iterator, NULL, 0, gpath, sizeof(gpath)))
 		{
-			if (!hVM && FS_NativePath(dllname_arch, FS_BINARYPATH, fname, sizeof(fname)))
-				hVM = Sys_LoadLibrary(fname, funcs);
-			if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
-				hVM = Sys_LoadLibrary(fname, funcs);
-
-			// run through the search paths
-			iterator = NULL;
-			while (!hVM && COM_IteratePaths(&iterator, NULL, 0, gpath, sizeof(gpath)))
+			if (!hVM && FS_NativePath(va("%s_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
 			{
-				if (!hVM && FS_NativePath(va("%s_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
-				{
-					Con_DPrintf("Loading native: %s\n", fname);
-					hVM = Sys_LoadLibrary(fname, funcs);
-				}
+				Con_DPrintf("Loading native: %s\n", fname);
+				hVM = Sys_LoadLibrary(fname, funcs);
+			}
 
-				if (!hVM && FS_NativePath(va("%s_%s"ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
-				{
-					Con_DPrintf("Loading native: %s\n", fname);
-					hVM = Sys_LoadLibrary(fname, funcs);
-				}
+			if (!hVM && FS_NativePath(va("%s_%s"ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
+			{
+				Con_DPrintf("Loading native: %s\n", fname);
+				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 		}
-		else
+	}
+	else
+	{
+		// run through the search paths
+		iterator = NULL;
+		while (!hVM && COM_IteratePaths(&iterator, gpath, sizeof(gpath), NULL, 0))
 		{
-			// run through the search paths
-			iterator = NULL;
-			while (!hVM && COM_IteratePaths(&iterator, gpath, sizeof(gpath), NULL, 0))
+			if (!hVM)
 			{
-				if (!hVM)
-				{
-					snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_arch);
-					Con_DPrintf("Loading native: %s\n", fname);
-					hVM = Sys_LoadLibrary(fname, funcs);
-				}
+				snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_arch);
+				Con_DPrintf("Loading native: %s\n", fname);
+				hVM = Sys_LoadLibrary(fname, funcs);
+			}
 
-				if (!hVM)
-				{
-					snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_anycpu);
-					Con_DPrintf("Loading native: %s\n", fname);
-					hVM = Sys_LoadLibrary(fname, funcs);
-				}
+			if (!hVM)
+			{
+				snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_anycpu);
+				Con_DPrintf("Loading native: %s\n", fname);
+				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 		}
 	}
 
-	if(!hVM) return NULL;
+	if(!hVM) return false;
+
+	Q_strncpyz(vm->filename, fname, sizeof(vm->filename));
+	vm->hInst = hVM;
 
 	(*dllEntry)(syscall);
 
-	return hVM;
+	return true;
 }
 
 /*
@@ -224,7 +227,7 @@ typedef struct qvm_s
 	sys_callqvm_t syscall;
 } qvm_t;
 
-qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall);
+qboolean QVM_LoadVM(vm_t *vm, const char *name, sys_callqvm_t syscall);
 void QVM_UnLoadVM(qvm_t *qvm);
 int QVM_ExecVM(qvm_t *qvm, int command, int arg0, int arg1, int arg2, int arg3, int arg4, int arg5, int arg6, int arg7);
 
@@ -329,7 +332,7 @@ typedef enum qvm_op_e
 /*
 ** QVM_Load
 */
-qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
+qboolean QVM_LoadVM(vm_t *vm, const char *name, sys_callqvm_t syscall)
 {
 	char path[MAX_QPATH];
 	vmHeader_t header, *srcheader;
@@ -341,7 +344,7 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 	Q_snprintfz(path, sizeof(path), "%s.qvm", name);
 	FS_LoadFile(path, (void **)&raw);
 // file not found
-	if(!raw) return NULL;
+	if(!raw) return false;
 	srcheader=(vmHeader_t*)raw;
 
 	header.vmMagic = LittleLong(srcheader->vmMagic);
@@ -365,7 +368,7 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 	{
 		Con_Printf("%s: invalid qvm file\n", name);
 		FS_FreeFile(raw);
-		return NULL;
+		return false;
 	}
 
 // create vitrual machine
@@ -472,7 +475,9 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 }
 
 	FS_FreeFile(raw);
-	return qvm;
+	Q_strncpyz(vm->filename, path, sizeof(vm->filename));
+	vm->hInst = qvm;
+	return true;
 }
 
 /*
@@ -918,7 +923,7 @@ void VM_PrintInfo(vm_t *vm)
 	qvm_t *qvm;
 
 //	Con_Printf("%s (%p): ", vm->name, vm->hInst);
-	Con_Printf("%s: ", vm->name);
+	Con_Printf("%s: ", vm->filename);
 
 	switch(vm->type)
 	{
@@ -945,10 +950,15 @@ void VM_PrintInfo(vm_t *vm)
 	}
 }
 
+const char *VM_GetFilename(vm_t *vm)
+{
+	return vm->filename;
+}
+
 vm_t *VM_CreateBuiltin(const char *name, sys_calldll_t syscalldll, qintptr_t (*init)(qintptr_t *args))
 {
 	vm_t *vm = Z_Malloc(sizeof(vm_t));
-	Q_strncpyz(vm->name, name, sizeof(vm->name));
+	Q_strncpyz(vm->filename, name, sizeof(vm->filename));
 	vm->syscalldll	= syscalldll;
 	vm->syscallqvm	= NULL;
 	vm->hInst		= init;
@@ -969,7 +979,7 @@ vm_t *VM_Create(const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscal
 
 // prepare vm struct
 	memset(vm, 0, sizeof(vm_t));
-	Q_strncpyz(vm->name, name, sizeof(vm->name));
+	Q_strncpyz(vm->filename, name, sizeof(vm->filename));
 	vm->syscalldll=syscalldll;
 	vm->syscallqvm=syscallqvm;
 
@@ -979,7 +989,7 @@ vm_t *VM_Create(const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscal
 	{
 		if (!COM_CheckParm("-nodlls") && !COM_CheckParm("-nosos"))	//:)
 		{
-			if((vm->hInst=QVM_LoadDLL(name, !syscallqvm, (void**)&vm->vmMain, syscalldll)))
+			if(QVM_LoadDLL(vm, name, !syscallqvm, (void**)&vm->vmMain, syscalldll))
 			{
 				Con_DPrintf("Creating native machine \"%s\"\n", name);
 				vm->type=VM_NATIVE;
@@ -991,7 +1001,7 @@ vm_t *VM_Create(const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscal
 
 	if (syscallqvm)
 	{
-		if((vm->hInst=QVM_LoadVM(name, syscallqvm)))
+		if(QVM_LoadVM(vm, name, syscallqvm))
 		{
 			Con_DPrintf("Creating virtual machine \"%s\"\n", name);
 			vm->type=VM_BYTECODE;
@@ -1128,7 +1138,7 @@ qintptr_t VARGS VM_Call(vm_t *vm, qintptr_t instruction, ...)
 		return vm->vmMain(instruction, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6]);
 
 	case VM_BYTECODE:
-		return QVM_ExecVM(vm->hInst, instruction, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
+		return QVM_ExecVM(vm->hInst, instruction, arg[0]&0xffffffff, arg[1]&0xffffffff, arg[2]&0xffffffff, arg[3]&0xffffffff, arg[4]&0xffffffff, arg[5]&0xffffffff, arg[6]&0xffffffff, arg[7]&0xffffffff);
 
 	case VM_BUILTIN:
 		if (!instruction)

@@ -24,8 +24,8 @@ struct
 } staticplugins[] = 
 {
 #if defined(USERBE) && !defined(QUAKETC)
-//	{"Bullet", Plug_Bullet_Init},
-	{"ODE", Plug_ODE_Init},
+//	{"Bullet_internal", Plug_Bullet_Init},
+//	{"ODE_internal", Plug_ODE_Init},
 #endif
 	{NULL}
 };
@@ -374,6 +374,57 @@ static qintptr_t VARGS Plug_Sys_CloseLibrary(void *offset, quintptr_t mask, cons
 	Sys_CloseLibrary(VM_POINTER(arg[0]));
 	return 1;
 }
+
+#ifdef MULTITHREAD
+#ifdef Sys_CreateMutex
+#undef Sys_CreateMutex
+#endif
+static qintptr_t VARGS Plug_Sys_GetThreadingFuncs(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int threadingsize = VM_LONG(arg[0]);
+	static threading_t funcs =
+	{
+		Sys_CreateMutex,
+		Sys_LockMutex,
+		Sys_UnlockMutex,
+		Sys_DestroyMutex
+	};
+	if (offset)
+		return 0;
+	if (threadingsize != sizeof(threading_t))
+		return 0;
+	return (qintptr_t)&funcs;
+}
+#endif
+static qintptr_t VARGS Plug_PR_GetVMInstance(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int vmid = VM_LONG(arg[0]);
+	struct pubprogfuncs_s *pr = NULL;
+	if (offset)
+		return 0;
+#ifndef CLIENTONLY
+	else if (vmid == 0)
+		pr = sv.world.progs;
+#endif
+#if defined(CSQC_DAT) && !defined(SERVERONLY)
+	else if (vmid == 1)
+	{
+		extern world_t csqc_world;
+		pr = csqc_world.progs;
+	}
+#endif
+#if defined(MENU_DAT) && !defined(SERVERONLY)
+	else if (vmid == 2)
+	{
+		extern world_t menu_world;
+		pr = menu_world.progs;
+	}
+#endif
+	else
+		pr = NULL;	//unknown vmid / not present in this build.
+	return (qintptr_t)pr;
+}
+
 static qintptr_t VARGS Plug_ExportToEngine(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = (char*)VM_POINTER(arg[0]);
@@ -430,7 +481,12 @@ static qintptr_t VARGS Plug_GetPluginName(void *offset, quintptr_t mask, const q
 
 	if (plugnum <= 0)
 	{
-		Q_strncpyz(VM_POINTER(arg[1]), currentplug->name, VM_LONG(arg[2]));
+		if (!currentplug)
+			return false;
+		else if (plugnum == -1 && currentplug->vm)	//plugin file name
+			Q_strncpyz(VM_POINTER(arg[1]), VM_GetFilename(currentplug->vm), VM_LONG(arg[2]));
+		else	//plugin name
+			Q_strncpyz(VM_POINTER(arg[1]), currentplug->name, VM_LONG(arg[2]));
 		return true;
 	}
 
@@ -591,10 +647,17 @@ static qintptr_t VARGS Plug_Cvar_Update(void *offset, quintptr_t mask, const qin
 static qintptr_t VARGS Plug_Cmd_Args(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *buffer = (char*)VM_POINTER(arg[0]);
+	size_t maxsize = VM_LONG(arg[1]);
 	char *args;
 	args = Cmd_Args();
-	if (strlen(args)+1>arg[1])
+	if (VM_OOB(arg[0], arg[1]))
+		return false;
+	if (strlen(args)+1>maxsize)
+	{
+		if (maxsize)
+			*buffer = 0;
 		return 0;
+	}
 	strcpy(buffer, args);
 	return 1;
 }
@@ -602,10 +665,18 @@ static qintptr_t VARGS Plug_Cmd_Args(void *offset, quintptr_t mask, const qintpt
 static qintptr_t VARGS Plug_Cmd_Argv(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *buffer = (char*)VM_POINTER(arg[1]);
+	size_t maxsize = VM_LONG(arg[2]);
 	char *args;
 	args = Cmd_Argv(arg[0]);
-	if (strlen(args)+1>arg[2])
+	
+	if (VM_OOB(arg[1], arg[2]))
+		return false;
+	if (strlen(args)+1>maxsize)
+	{
+		if (maxsize)
+			*buffer = 0;
 		return 0;
+	}
 	strcpy(buffer, args);
 	return 1;
 }
@@ -706,10 +777,11 @@ static qintptr_t VARGS Plug_Cvar_GetString(void *offset, quintptr_t mask, const 
 //void Cmd_AddText (char *text, qboolean insert);	//abort the entire engine.
 static qintptr_t VARGS Plug_Cmd_AddText(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
+	int level = offset?RESTRICT_INSECURE:RESTRICT_LOCAL;
 	if (VM_LONG(arg[1]))
-		Cbuf_InsertText(VM_POINTER(arg[0]), RESTRICT_LOCAL, false);
+		Cbuf_InsertText(VM_POINTER(arg[0]), level, false);
 	else
-		Cbuf_AddText(VM_POINTER(arg[0]), RESTRICT_LOCAL);
+		Cbuf_AddText(VM_POINTER(arg[0]), level);
 
 	return 1;
 }
@@ -785,7 +857,8 @@ static void VARGS Plug_FreeConCommands(plugin_t *plug)
 typedef enum{
 	STREAM_NONE,
 	STREAM_SOCKET,
-	STREAM_VFS
+	STREAM_VFS,
+	STREAM_WEB,
 } plugstream_e;
 
 typedef struct {
@@ -793,6 +866,7 @@ typedef struct {
 	plugstream_e type;
 	int socket;
 	vfsfile_t *vfs;
+	struct dl_download *dl;
 	struct {
 		char filename[MAX_QPATH];
 		qbyte *buffer;
@@ -802,7 +876,7 @@ typedef struct {
 	} file;
 } pluginstream_t;
 pluginstream_t *pluginstreamarray;
-int pluginstreamarraylen;
+unsigned int pluginstreamarraylen;
 
 static int Plug_NewStreamHandle(plugstream_e type)
 {
@@ -956,12 +1030,11 @@ qintptr_t VARGS Plug_Net_TCPConnect(void *offset, quintptr_t mask, const qintptr
 
 
 void Plug_Net_Close_Internal(int handle);
-vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server);
 #ifdef HAVE_SSL
 qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	pluginstream_t *stream;
-	int handle = VM_LONG(arg[0]);
+	unsigned int handle = VM_LONG(arg[0]);
 	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
 	{
 		Con_Printf("Plug_Net_SetTLSClient: socket does not belong to you (or is invalid)\n");
@@ -974,7 +1047,7 @@ qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, quintptr_t mask, const qintp
 		return -2;
 	}
 
-	stream->vfs = FS_OpenSSL(VM_POINTER(arg[1]), stream->vfs, false);
+	stream->vfs = FS_OpenSSL(VM_POINTER(arg[1]), stream->vfs, false, false);
 	if (!stream->vfs)
 	{
 		Plug_Net_Close_Internal(handle);
@@ -995,6 +1068,24 @@ qintptr_t VARGS Plug_VFS_Open(void *offset, quintptr_t mask, const qintptr_t *ar
 		return true;
 	return false;
 }
+qintptr_t VARGS Plug_FS_NativePath(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	const char *fname = VM_POINTER(arg[0]);
+	enum fs_relative relativeto = VM_LONG(arg[1]);
+	char *out = VM_POINTER(arg[2]);
+	size_t outlen = VM_LONG(arg[3]);
+	return offset?false:FS_NativePath(fname, relativeto, out, outlen);
+}
+
+#ifdef WEBCLIENT
+static void Plug_DownloadComplete(struct dl_download *dl)
+{
+	int handle = dl->user_num;
+	dl->file = NULL;
+	pluginstreamarray[handle].dl = NULL;			//download no longer needs to be canceled.
+	pluginstreamarray[handle].type = STREAM_VFS;	//getlen should start working now.
+}
+#endif
 
 qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -1033,6 +1124,23 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 	}
 	if (!strcmp(fname, "**plugconfig"))
 		f = FS_OpenVFS(va("%s.cfg", currentplug->name), mode, FS_ROOT);
+	else if (!strncmp(fname, "http://", 7) || !strncmp(fname, "https://", 8))
+	{
+#ifndef WEBCLIENT
+		f = NULL;
+#else
+		handle = Plug_NewStreamHandle(STREAM_WEB);
+		pluginstreamarray[handle].dl = HTTP_CL_Get(fname, NULL, Plug_DownloadComplete);
+		pluginstreamarray[handle].dl->user_num = handle;
+		pluginstreamarray[handle].dl->file = pluginstreamarray[handle].vfs = VFSPIPE_Open();
+		pluginstreamarray[handle].dl->isquery = true;
+#ifdef MULTITHREAD
+		DL_CreateThread(pluginstreamarray[handle].dl, NULL, NULL);
+#endif
+		*ret = handle;
+		return VFS_GETLEN(pluginstreamarray[handle].vfs);
+#endif
+	}
 	else if (arg[2] == 2)
 		f = FS_OpenVFS(fname, mode, FS_GAMEONLY);
 	else
@@ -1046,15 +1154,49 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 }
 qintptr_t VARGS Plug_FS_Seek(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int handle = arg[0];
+	unsigned int handle = arg[0];
 	unsigned int low = arg[1], high = arg[2];
 	pluginstream_t *stream;
 
+	if (handle >= pluginstreamarraylen)
+		return -1;
 	stream = &pluginstreamarray[handle];
 	if (stream->type != STREAM_VFS)
 		return -1;
 	VFS_SEEK(stream->vfs, low | ((unsigned long long)high<<32));
 	return VFS_TELL(stream->vfs);
+}
+
+qintptr_t VARGS Plug_FS_GetLength(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	unsigned int handle = arg[0];
+	unsigned int *low = VM_POINTER(arg[1]), *high = VM_POINTER(arg[2]);
+	pluginstream_t *stream;
+	qofs_t size;
+
+	if (handle >= pluginstreamarraylen)
+		return false;
+	if (VM_OOB(arg[1], sizeof(*low)))
+		return false;
+	if (VM_OOB(arg[2], sizeof(*high)))
+		return false;
+
+	stream = &pluginstreamarray[handle];
+	if (stream->type == STREAM_VFS)
+	if (stream->vfs->GetLen)
+	{
+		size = VFS_GETLEN(stream->vfs);
+		if (low)
+			*low = qofs_Low(size);
+		if (high)
+			*high = qofs_High(size);
+		return true;
+	}
+	if (low)
+		*low = 0;
+	if (high)
+		*high = 0;
+	return false;
 }
 
 qintptr_t VARGS Plug_memset(void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -1133,9 +1275,26 @@ void Plug_Net_Close_Internal(int handle)
 	{
 	case STREAM_NONE:
 		break;
+	case STREAM_WEB:
+#ifdef WEBCLIENT
+		if (pluginstreamarray[handle].dl)
+		{
+			pluginstreamarray[handle].dl->file = NULL;
+			DL_Close(pluginstreamarray[handle].dl);
+		}
+#endif
+		//fall through
 	case STREAM_VFS:
 		if (pluginstreamarray[handle].vfs)
-			VFS_CLOSE(pluginstreamarray[handle].vfs);
+		{
+			if (!pluginstreamarray[handle].vfs->seekingisabadplan && pluginstreamarray[handle].vfs->WriteBytes)
+			{
+				VFS_CLOSE(pluginstreamarray[handle].vfs);
+				FS_FlushFSHashWritten();
+			}
+			else
+				VFS_CLOSE(pluginstreamarray[handle].vfs);
+		}
 		pluginstreamarray[handle].vfs = NULL;
 		break;
 	case STREAM_SOCKET:
@@ -1145,6 +1304,7 @@ void Plug_Net_Close_Internal(int handle)
 		break;
 	}
 
+	pluginstreamarray[handle].type = STREAM_NONE;
 	pluginstreamarray[handle].plugin = NULL;
 }
 qintptr_t VARGS Plug_Net_Recv(void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -1176,6 +1336,7 @@ qintptr_t VARGS Plug_Net_Recv(void *offset, quintptr_t mask, const qintptr_t *ar
 		return read;
 #endif
 
+	case STREAM_WEB:
 	case STREAM_VFS:
 		return VFS_READ(pluginstreamarray[handle].vfs, dest, destlen);
 	default:
@@ -1415,11 +1576,13 @@ void Plug_Initialise(qboolean fromgamedir)
 
 
 		Plug_RegisterBuiltin("VFS_Open",				Plug_VFS_Open, PLUG_BIF_DLLONLY);
+		Plug_RegisterBuiltin("FS_NativePath",			Plug_FS_NativePath, PLUG_BIF_DLLONLY);
 		Plug_RegisterBuiltin("FS_Open",					Plug_FS_Open, 0);
 		Plug_RegisterBuiltin("FS_Read",					Plug_Net_Recv, 0);
 		Plug_RegisterBuiltin("FS_Write",				Plug_Net_Send, 0);
 		Plug_RegisterBuiltin("FS_Close",				Plug_Net_Close, 0);
 		Plug_RegisterBuiltin("FS_Seek",					Plug_FS_Seek, 0);
+		Plug_RegisterBuiltin("FS_GetLen",				Plug_FS_GetLength, 0);
 
 
 		Plug_RegisterBuiltin("memset",					Plug_memset, 0);
@@ -1439,6 +1602,10 @@ void Plug_Initialise(qboolean fromgamedir)
 #ifdef USERBE
 		Plug_RegisterBuiltin("RBE_GetPluginFuncs",		Plug_RBE_GetPluginFuncs, PLUG_BIF_DLLONLY);
 #endif
+#ifdef MULTITHREAD
+		Plug_RegisterBuiltin("Sys_GetThreadingFuncs",	Plug_Sys_GetThreadingFuncs, PLUG_BIF_DLLONLY);
+#endif
+		Plug_RegisterBuiltin("PR_GetVMInstance",		Plug_PR_GetVMInstance, PLUG_BIF_DLLONLY);
 
 		Plug_Client_Init();
 	}
@@ -1528,8 +1695,13 @@ qboolean Plug_ConsoleLinkMouseOver(float x, float y, char *text, char *info)
 	{
 		if (currentplug->consolelinkmouseover)
 		{
-			char buffer[2048];
-			Q_strncpyz(buffer, va("\"%s\" \"%s\"", text, info), sizeof(buffer));
+			char buffer[8192];
+			char *ptr;
+			ptr = (char*)COM_QuotedString(text, buffer, sizeof(buffer)-10, false);
+			ptr += strlen(ptr);
+			*ptr = ' ';
+			COM_QuotedString(info, ptr, sizeof(buffer)-(ptr-buffer), false);
+
 			Cmd_TokenizeString(buffer, false, false);
 			result = VM_Call(currentplug->vm, currentplug->consolelinkmouseover, *(int*)&(x), *(int*)&(y));
 			if (result)
@@ -1539,7 +1711,7 @@ qboolean Plug_ConsoleLinkMouseOver(float x, float y, char *text, char *info)
 	currentplug = oldplug;
 	return result;
 }
-qboolean Plug_ConsoleLink(char *text, char *info)
+qboolean Plug_ConsoleLink(char *text, char *info, const char *consolename)
 {
 	qboolean result = false;
 	plugin_t *oldplug = currentplug;
@@ -1547,8 +1719,18 @@ qboolean Plug_ConsoleLink(char *text, char *info)
 	{
 		if (currentplug->consolelink)
 		{
-			char buffer[2048];
-			Q_strncpyz(buffer, va("\"%s\" \"%s\"", text, info), sizeof(buffer));
+			char buffer[8192];
+			char *ptr, oinfo = *info;
+			*info = 0;
+			ptr = (char*)COM_QuotedString(text, buffer, sizeof(buffer)-10, false);
+			ptr += strlen(ptr);
+			*ptr++ = ' ';
+			*info = oinfo;
+			ptr = (char*)COM_QuotedString(info, ptr, sizeof(buffer)-(ptr-buffer)-5, false);
+			ptr += strlen(ptr);
+			*ptr++ = ' ';
+			COM_QuotedString(consolename, ptr, sizeof(buffer)-(ptr-buffer), false);
+
 			Cmd_TokenizeString(buffer, false, false);
 			result = VM_Call(currentplug->vm, currentplug->consolelink);
 			if (result)

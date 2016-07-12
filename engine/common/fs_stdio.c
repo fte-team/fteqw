@@ -137,7 +137,7 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsfl
 	qboolean write = !!strchr(mode, 'w');
 	qboolean append = !!strchr(mode, 'a');
 	qboolean text = !!strchr(mode, 't');
-	char newmode[3];
+	char newmode[5];
 	int modec = 0;
 
 	if (needsflush)
@@ -158,10 +158,15 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsfl
 		newmode[modec++] = 'w';
 	if (append)
 		newmode[modec++] = 'a';
+//	if (append)
+//		newmode[modec++] = '+';
 	if (text)
 		newmode[modec++] = 't';
 	else
 		newmode[modec++] = 'b';
+#ifdef __linux__
+	newmode[modec++] = 'e';	//otherwise forks get messy.
+#endif
 	newmode[modec++] = '\0';
 
 	f = fopen(osname, newmode);
@@ -190,6 +195,7 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsfl
 	return (vfsfile_t*)file;
 }
 
+#ifndef WEBSVONLY
 #if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT)
 vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 {
@@ -202,7 +208,6 @@ vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 }
 #endif
 
-#ifndef WEBSVONLY
 static vfsfile_t *QDECL FSSTDIO_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {
 	vfsfile_t *f;
@@ -317,12 +322,14 @@ static int QDECL FSSTDIO_EnumerateFiles (searchpathfuncs_t *handle, const char *
 }
 
 
-searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)
+searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc, const char *prefix)
 {
 	stdiopath_t *np;
 	int dlen = strlen(desc);
 	if (mustbenull)
 		return NULL;
+	if (prefix && *prefix)
+		return NULL;	//don't try to support this. too risky with absolute paths etc.
 	np = Z_Malloc(sizeof(*np) + dlen);
 	if (np)
 	{

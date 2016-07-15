@@ -1901,11 +1901,10 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		clip.hitcontentsmask = MASK_POINTSOLID;		/*ignores playerclip but hits everything else*/
 	clip.capsule = (passedict->xv->geomtype == GEOMTYPE_CAPSULE);
 
-	if (type & MOVE_ONLYENT)
+	if (type & MOVE_OTHERONLY)
 	{
-		if (!passedict)
-			passedict = w->edicts;
-		return World_ClipMoveToEntity (w, passedict, passedict->v->origin, start, mins, maxs, end, hullnum, type & MOVE_HITMODEL, clip.capsule, clip.hitcontentsmask);
+		wedict_t *other = WEDICT_NUM(w->progs, *w->g.other);
+		return World_ClipMoveToEntity (w, other, other->v->origin, start, mins, maxs, end, hullnum, type & MOVE_HITMODEL, clip.capsule, clip.hitcontentsmask);
 	}
 
 // clip to world

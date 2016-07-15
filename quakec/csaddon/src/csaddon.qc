@@ -77,7 +77,7 @@ void() wrap_renderscene =
 
 		renderscene();
 
-		if (autocvar_ca_colourtint)
+		if (autocvar_ca_colourtint != "")
 		{
 			local string shdrname = strcat("tint_", autocvar_ca_colourtint);
 			/*make sure the shader exist*/
@@ -185,7 +185,7 @@ void() wrap_renderscene =
 
 	for (i = 0, x = 0; i < editornames.length; i+=1)
 	{
-		if (editornames[i])
+		if (editornames[i] != "")
 		{
 			float w = stringwidth(editornames[i], TRUE, '8 8 0') + 8;
 			if (autocvar_ca_editormode == i)

@@ -155,7 +155,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_FREETYPE
 #endif
 
-#if defined(_MSC_VER) && (_MSC_VER < 1500)
+#if (defined(_MSC_VER) && (_MSC_VER < 1500)) || defined(FTE_SDL)
 	#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
 #endif
 
@@ -220,7 +220,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#endif
 		#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) 
 			#define SUBSERVERS	//use subserver code.
-		#elif defined(__linux__) && !defined(ANDROID)
+		#elif defined(__linux__) && !defined(ANDROID) && !defined(FTE_SDL)
 			#define SUBSERVERS	//use subserver code.
 		#endif
 

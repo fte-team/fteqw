@@ -4028,7 +4028,9 @@ qboolean SV_ReadPackets (float *delay)
 
 			if (cl->delay > 0)
 			{
+#ifdef NQPROT
 dominping:
+#endif
 				if (cl->state < cs_connected)
 					break;
 				if (net_message.cursize > sizeof(svs.free_lagged_packet->data))

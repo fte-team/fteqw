@@ -4496,7 +4496,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 //					maps |= SHADER_HASNORMALMAP;
 				if (gl_specular.ival)
 					maps |= SHADER_HASGLOSS;
-				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, 0, maps, TF_MIP4_SOLID8, mod->textures[a]->width, mod->textures[a]->height, mod->textures[a]->mips, mod->textures[a]->palette);
+				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, 0, TF_MIP4_SOLID8, mod->textures[a]->width, mod->textures[a]->height, mod->textures[a]->mips, mod->textures[a]->palette);
 				BZ_Free(mod->textures[a]->mips[0]);
 			}
 		}
@@ -4926,7 +4926,6 @@ SPRITES
 void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspriteframe_t *frameinfo)
 {
 #ifndef SERVERONLY
-	int i;
 	char *shadertext;
 	char name[MAX_QPATH];
 	qboolean litsprite = false;
@@ -4944,6 +4943,7 @@ void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspritefra
 #ifndef NOLEGACY
 	else
 	{
+		int i;
 		/*
 		A quick note on tenebrae and sprites: In tenebrae, sprites are always lit, unless the light_lev field is set (which makes it fullbright).
 		While its generally preferable and more consistent to assume lit sprites, this is incompatible with vanilla quake and thus unacceptable to us, but you can set the mod_assumelitsprites cvar if you want it.

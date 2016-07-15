@@ -294,7 +294,7 @@ static int WASAPI_Thread(void *arg)
 
 	//extra crap to get the OS to favour waking us up on demand.
 	{
-		HANDLE WINAPI (*pAvSetMmThreadCharacteristics)(LPCTSTR TaskName, LPDWORD TaskIndex);
+		HANDLE (WINAPI *pAvSetMmThreadCharacteristics)(LPCTSTR TaskName, LPDWORD TaskIndex);
 		dllfunction_t funcs[] = {{(void*)&pAvSetMmThreadCharacteristics, "AvSetMmThreadCharacteristics"}, {NULL}};
 		DWORD taskIndex = 0;
 

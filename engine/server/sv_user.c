@@ -938,7 +938,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 	//much of this function is written to fill packets enough to overflow them (assuming max packet sizes are large enough), but some bits are lazy and just backbuffer as needed.
 	//FIXME: have per-stage indicies, to allow returning to a previous stage when new precaches or whatever get added
 
-	if (client->num_backbuf || client->prespawn_stage == PRESPAWN_DONE)
+	if (client->num_backbuf || client->prespawn_stage == PRESPAWN_COMPLETED)
 	{
 		//don't spam too much.
 		return;
@@ -1368,6 +1368,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			{
 				client->prespawn_stage++;
 				client->prespawn_idx = 0;
+				client->prespawn_idx2 = 0;
 				break;
 			}
 
@@ -1513,24 +1514,37 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			client->prespawn_idx++;
 		}
 	}
-	if (client->prespawn_stage == PRESPAWN_DONE)
+	if (client->prespawn_stage == PRESPAWN_SPAWN)
 	{
-		if (!client->prespawn_idx)
+		//we'll spawn the client and then send all the updating stuff only when we know the channel is clear, by pinging the client for it.
+		if (ISNQCLIENT(client))
 		{
-			//we'll spawn the client and then send all the updating stuff only when we know the channel is clear, by pinging the client for it.
-			if (ISNQCLIENT(client))
+			//effectively a cmd spawn... but also causes the client to actually send the player's name too.
+			ClientReliableWrite_Begin (client, svc_signonnum, 2);
+			ClientReliableWrite_Byte (client, 2);
+		}
+		else
+		{
+			char *cmd = va("cmd spawn %i\n",svs.spawncount);
+			ClientReliableWrite_Begin(client, svc_stufftext, 2+strlen(cmd));
+			ClientReliableWrite_String(client, cmd);
+		}
+		client->prespawn_stage++;
+	}
+
+	//this is extra stuff that will happen after we're on the server
+
+	if (client->prespawn_stage == PRESPAWN_BRUSHES)
+	{	//when brush editing, connecting clients need a copy of all the brushes.
+		while (client->netchan.message.cursize < maxsize)
+		{
+			if (!SV_Prespawn_Brushes(&client->netchan.message, &client->prespawn_idx, &client->prespawn_idx2))
 			{
-				//effectively a cmd spawn... but also causes the client to actually send the player's name too.
-				ClientReliableWrite_Begin (client, svc_signonnum, 2);
-				ClientReliableWrite_Byte (client, 2);
+				client->prespawn_stage++;
+				client->prespawn_idx = 0;
+				client->prespawn_idx2 = 0;
+				break;
 			}
-			else
-			{
-				char *cmd = va("cmd spawn %i\n",svs.spawncount);
-				ClientReliableWrite_Begin(client, svc_stufftext, 2+strlen(cmd));
-				ClientReliableWrite_String(client, cmd);
-			}
-			client->prespawn_idx++;
 		}
 	}
 }
@@ -1615,7 +1629,7 @@ void SVQW_Spawn_f (void)
 		Con_Printf ("Spawn not valid -- already spawned\n");
 		return;
 	}
-	if (host_client->prespawn_stage != PRESPAWN_DONE)
+	if (host_client->prespawn_stage <= PRESPAWN_SPAWN)
 	{
 		Con_Printf ("%s sent spawn without prespawn!\n", host_client->name);
 		SV_New_f ();
@@ -3497,8 +3511,10 @@ void SV_Say (qboolean team)
 
 	if (*p == '"')
 	{
-		p++;
-		p[Q_strlen(p)-1] = 0;
+		char *e = p + strlen(p)-1;
+		*p++ = 0;
+		if (*e == '\"')
+			*e = 0;
 	}
 
 	if (strlen(text)+strlen(p)+2 >= sizeof(text)-10)

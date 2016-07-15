@@ -46,7 +46,7 @@ static void *GLVID_getsdlglfunction(char *functionname)
 }
 
 #if SDL_MAJOR_VERSION >= 2
-void *GLVID_CreateCursor			(char *filename, float hotx, float hoty, float scale)
+void *GLVID_CreateCursor			(const char *filename, float hotx, float hoty, float scale)
 {
 	int width;
 	int height;

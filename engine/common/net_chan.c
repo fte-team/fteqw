@@ -756,7 +756,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	{
 		int hsz = 10 + ((chan->sock == NS_CLIENT)?chan->qportsize:0); /*header size, if fragmentation is in use*/
 
-		if ((!chan->fragmentsize) || send.cursize-hsz < ((chan->fragmentsize - hsz)&~7))
+		if ((!chan->fragmentsize))// || send.cursize < ((chan->fragmentsize - hsz)&~7))
 		{
 			for (i = -1; i < chan->dupe && e == NETERR_SENT; i++)
 				e = NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
@@ -770,28 +770,13 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		}
 		else
 		{
-			int offset, no;
+			int offset = 0, no;
 			qboolean more;
-			/*switch on the 'more flags' bit, and send the first part*/
-			send.data[hsz - 2] |= 0x1;
-			for(;;)
-			{
-				offset = chan->fragmentsize - hsz;
-				offset &= ~7;
-				e = NET_SendPacket (chan->sock, offset + hsz, send.data, &chan->remote_address);
-				if (e == NETERR_MTU && chan->fragmentsize > 560)
-				{
-					chan->fragmentsize -= 10;
-					Con_Printf("Reducing MSS to %i\n", chan->fragmentsize);
-					continue;
-				}
-				break;
-			}
 
 			/*FIXME: splurge over a number of frames, if we have an outgoing reliable*/
 
 			/*send the additional parts, adding new headers within the previous packet*/
-			while(offset < send.cursize-hsz)
+			do
 			{
 				no = offset + chan->fragmentsize - hsz;
 				if (no < send.cursize-hsz)
@@ -819,9 +804,22 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				*(short*)&send.data[offset + hsz-2] = LittleShort((offset>>2) | (more?1:0));
 
 				if (e == NETERR_SENT)
-					e = NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset, &chan->remote_address);
+				{
+					for (i = -1; i < chan->dupe && e == NETERR_SENT; i++)
+					{
+						e = NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset, &chan->remote_address);
+						if (e == NETERR_MTU && !offset && chan->fragmentsize > 560)
+						{
+							chan->fragmentsize -= 10;
+							Con_Printf("Reducing MSS to %i\n", chan->fragmentsize);
+							no = offset;
+							more = true;
+							break;
+						}
+					}
+				}
 				offset = no;
-			}
+			} while(more);
 		}
 	}
 

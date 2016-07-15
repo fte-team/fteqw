@@ -61,7 +61,7 @@ cvar_t	cl_idlefps	= CVARFD("cl_idlefps", "0", CVAR_ARCHIVE, "This is the maximum
 cvar_t	cl_yieldcpu = CVARFD("cl_yieldcpu", "0", CVAR_ARCHIVE, "Attempt to yield between frames. This can resolve issues with certain drivers and background software, but can mean less consistant frame times. Will reduce power consumption/heat generation so should be set on laptops or similar (over-hot/battery powered) devices.");
 cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
-cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be smoother, but they may be more laggy. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
+cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be show exactly what was last received, which will be jerky. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
 cvar_t	*hud_tracking_show;
 cvar_t	*hud_miniscores_show;
@@ -1992,7 +1992,9 @@ void CL_CheckServerInfo(void)
 {
 	char *s;
 	unsigned int allowed;
+#ifdef QUAKESTATS
 	int oldstate;
+#endif
 	int oldteamplay;
 
 	oldteamplay = cl.teamplay;
@@ -5487,7 +5489,10 @@ void CL_ArgumentOverrides(void)
 //note that this does NOT include commandline.
 void CL_ExecInitialConfigs(char *resetcommand)
 {
-	int qrc, hrc, def;
+#ifdef QUAKESTATS
+	int qrc, hrc;
+#endif
+	int def;
 
 	Cbuf_Execute ();	//make sure any pending console commands are done with. mostly, anyway...
 	SCR_ShowPic_Clear(true);

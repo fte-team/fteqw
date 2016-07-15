@@ -98,7 +98,6 @@ int PPAPI_InitCard (soundcardinfo_t *sc, int cardnum)
 	sc->GetDMAPos	= PPAPI_GetDMAPos;
 	sc->Lock		= PPAPI_LockBuffer;
 	sc->Unlock		= PPAPI_UnlockBuffer;
-	sc->SetWaterDistortion = PPAPI_SetUnderWater;
 	sc->Shutdown	= PPAPI_Shutdown;
 
 

@@ -1,6 +1,12 @@
 #ifdef VERTEX_SHADER
 #define attribute in
 #define varying out
+
+out gl_PerVertex
+{
+  vec4 gl_Position;
+};
+
 #else
 #define varying in
 #endif

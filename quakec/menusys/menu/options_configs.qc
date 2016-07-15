@@ -33,7 +33,7 @@ nonstatic void(mitem_desktop desktop) M_Configs =
 	for (i = 0; i < c; i++)
 	{
 		string fname = search_getfilename(fs, i);
-		string iname = substring(fname, 10, -5);
+		string iname = substring(fname, 13, -5);
 		string dname = GetFirstLineComment(fname, iname);
 		iname = sprintf("exec \"%s\"", iname);
 		if (dname && !fr.findchildcmd(iname))

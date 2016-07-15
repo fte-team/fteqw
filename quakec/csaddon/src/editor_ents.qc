@@ -189,7 +189,7 @@ void() updatemodelents =
 		{
 			string key, value;
 			key = hash_getkey(ent->fields, i);
-			if not (key)
+			if isnull(key)
 				break;
 			value = ent->fields[key];
 			//inject markup into the value so that it doesn't get too corrupted
@@ -291,7 +291,7 @@ entedit_t*(entedit_t *o) editor_ents_clone =
 	{
 		string key, value;
 		key = hash_getkey(o->fields, i);
-		if not (key)
+		if isnull(key)
 			break;
 		value = o->fields[key];
 		n->fields[key] = value;
@@ -312,7 +312,7 @@ void() editor_ents_reload =
 	for(;;)
 	{
 		field = getentitytoken();
-		if not (field)
+		if isnull(field)
 		{
 			break;
 		}
@@ -324,7 +324,7 @@ void() editor_ents_reload =
 			for(;;)
 			{
 				field = getentitytoken();
-				if not (field)
+				if isnull(field)
 				{
 					print("Truncated ent lump\n");
 					return;
@@ -372,6 +372,7 @@ void(string shadername, vector min, vector max, vector col) editor_ents_drawbbox
 void() editor_ents_add =
 {
 	int e;
+	string shadername;
 	if (!tempent)
 	{
 		tempent = spawn();
@@ -410,25 +411,27 @@ void() editor_ents_add =
 			if ((gettime(0)*5f) & 1)
 				continue;
 			tempent.effects |= EF_NODEPTHTEST;
-			editor_ents_drawbbox("entboxsel", editents[e].org+editents[e].mins, editents[e].org+editents[e].maxs, editents[e].colourmod);
+			shadername = "entboxsel";
 		}
 		else
 		{
 			tempent.effects &= ~EF_NODEPTHTEST;
-			editor_ents_drawbbox("entbox", editents[e].org+editents[e].mins, editents[e].org+editents[e].maxs, editents[e].colourmod);
+			shadername = "entbox";
 		}
 
-		if (!editents[e].modelindex)
-			continue;
+		if (editents[e].modelindex)
+		{
+			tempent.modelindex = editents[e].modelindex;
+			tempent.alpha = editents[e].alpha;
+			tempent.scale = editents[e].scale;
+			tempent.angles = editents[e].ang;
+			tempent.colormod = editents[e].colourmod;
 
-		tempent.modelindex = editents[e].modelindex;
-		tempent.alpha = editents[e].alpha;
-		tempent.scale = editents[e].scale;
-		tempent.angles = editents[e].ang;
-		tempent.colormod = editents[e].colourmod;
-
-		setorigin(tempent, editents[e].org);
-		addentity(tempent);
+			setorigin(tempent, editents[e].org);
+			addentity(tempent);
+		}
+		else
+			editor_ents_drawbbox("entbox", editents[e].org+editents[e].mins, editents[e].org+editents[e].maxs, editents[e].colourmod);
 	}
 };
 
@@ -447,7 +450,7 @@ float(float key, float unic, vector mousepos) editor_ents_key =
 		
 		if (mousepos_x < 128)
 		{
-			editfieldtype = editkey?2:1;
+			editfieldtype = isnull(editkey)?1:2;
 			return TRUE;
 		}
 		editfieldtype = 0;
@@ -455,6 +458,7 @@ float(float key, float unic, vector mousepos) editor_ents_key =
 		if (vlen(o - t) > 8192)
 			t = o + normalize(t)*8192;
 
+		other = tempent;
 		for (e = 1; e < numents; e++)
 		{
 			if (editents[e].isbsp)
@@ -604,7 +608,7 @@ void(vector mousepos) editor_ents_overlay =
 	{
 		string key, value;
 		key = hash_getkey(ent->fields, i);
-		if not (key)
+		if isnull(key)
 			break;
 		value = ent->fields[key];
 		col = '1 1 1';

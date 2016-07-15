@@ -553,7 +553,7 @@ qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
 		pipeLayoutCreateInfo.flags = 0;
 		pipeLayoutCreateInfo.setLayoutCount = countof(sets);
 		pipeLayoutCreateInfo.pSetLayouts = sets;
-		pipeLayoutCreateInfo.pushConstantRangeCount = !strncmp(name, "fixedemu#CONSTCOLOUR", 12);
+		pipeLayoutCreateInfo.pushConstantRangeCount = !strncmp(name, "fixedemu", 8);
 		pipeLayoutCreateInfo.pPushConstantRanges = push;
 		VkAssert(vkCreatePipelineLayout(vk.device, &pipeLayoutCreateInfo, vkallocationcb, &layout));
 		prog->layout = layout;
@@ -727,10 +727,10 @@ static struct descpool *VKBE_CreateDescriptorPool(void)
 	dpi.pPoolSizes = dpisz;
 
 	dpisz[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	dpisz[0].descriptorCount = 2;
+	dpisz[0].descriptorCount = 2*dpi.maxSets;
 
 	dpisz[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	dpisz[1].descriptorCount = MAX_TMUS;
+	dpisz[1].descriptorCount = MAX_TMUS*dpi.maxSets;
 
 	VkAssert(vkCreateDescriptorPool(vk.device, &dpi, NULL, &np->pool));
 

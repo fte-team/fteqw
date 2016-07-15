@@ -370,6 +370,7 @@ typedef struct heightmap_s
 	brushes_t *wbrushes;
 	unsigned int numbrushes;
 	unsigned int brushidseq;
+	qboolean brushesedited;
 } heightmap_t;
 
 typedef struct terrainfuncs_s

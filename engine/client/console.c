@@ -1600,7 +1600,7 @@ static int Con_DrawProgress(int left, int right, int y)
 {
 #ifdef RUNTIMELIGHTING
 	extern model_t *lightmodel;
-	extern int relitsurface;
+	extern long relitsurface;
 #endif
 
 	conchar_t			dlbar[1024], *chr;

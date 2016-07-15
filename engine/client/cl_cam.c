@@ -107,7 +107,9 @@ static void Cam_AutoTrack_f(void)
 
 static float CL_TrackScoreProp(player_info_t *pl, char rule, float *weights)
 {
+#ifdef QUAKESTATS
 	float r;
+#endif
 	switch(rule)
 	{
 	case '.':	//currently being tracked. combine with currently alive or something

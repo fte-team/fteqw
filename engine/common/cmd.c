@@ -1199,7 +1199,7 @@ Returns a single string containing argv(1) to argv(argc()-1)
 char *VARGS Cmd_Args (void)
 {
 	if (!cmd_args)
-		return "";
+		return "\0\0";	//fucking hell gcc, I shouldn't need this shit.
 	return cmd_args;
 }
 

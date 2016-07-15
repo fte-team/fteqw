@@ -142,7 +142,10 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 
 
 
-
+void Sys_BrowserRedirect_f(void)
+{
+	emscriptenfte_window_location(Cmd_Argv(1));
+}
 
 void Sys_Init(void)
 {
@@ -152,6 +155,8 @@ void Sys_Init(void)
 	//these are not really supported. so silence any spam that suggests we do something about something not even supported.
 	vid_width.flags &= ~CVAR_RENDERERLATCH;
 	vid_height.flags &= ~CVAR_RENDERERLATCH;
+
+	Cmd_AddCommand("sys_browserredirect", Sys_BrowserRedirect_f);
 }
 void Sys_Shutdown(void)
 {

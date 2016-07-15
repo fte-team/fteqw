@@ -1864,7 +1864,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	demo.recorder.prespawn_stage = PRESPAWN_SERVERINFO;
 	demo.recorder.prespawn_idx = 0;
 	demo.recorder.netchan.message = buf;
-	while (demo.recorder.prespawn_stage != PRESPAWN_DONE)
+	while (demo.recorder.prespawn_stage != PRESPAWN_COMPLETED)
 	{
 		if (demo.recorder.prespawn_stage == PRESPAWN_MAPCHECK)
 		{

@@ -500,12 +500,14 @@ static void FSPPAPI_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *
 	VFS_CLOSE(f);
 }
 
-searchpathfuncs_t *QDECL FSPPAPI_OpenPath(vfsfile_t *mustbenull, const char *desc)
+searchpathfuncs_t *QDECL FSPPAPI_OpenPath(vfsfile_t *mustbenull, const char *desc, const char *prefix)
 {
 	pppath_t *np;
 	int dlen = strlen(desc);
 	if (mustbenull)
 		return NULL;
+	if (prefix && *prefix)
+		return NULL;	//don't try to support this. too risky with absolute paths etc.
 	np = Z_Malloc(sizeof(*np) + dlen);
 	if (np)
 	{

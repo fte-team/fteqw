@@ -295,6 +295,7 @@ void TP_ExecTrigger (char *s, qboolean indemos)
 #define MAX_MACRO_VALUE	256
 static char	macro_buf[MAX_MACRO_VALUE] = "";
 
+#ifndef QUAKETC
 // buffer-size-safe helper functions
 //static void MacroBuf_strcat (char *str) {
 //	strlcat (macro_buf, str, sizeof(macro_buf));
@@ -304,6 +305,7 @@ static void MacroBuf_strcat_with_separator (char *str) {
 		strlcat (macro_buf, tp_name_separator.string, sizeof(macro_buf));
 	strlcat (macro_buf, str, sizeof(macro_buf));
 }
+#endif
 
 
 static char *Macro_Latency (void)
@@ -2708,7 +2710,7 @@ static void TP_FindModelNumbers (void)
 	}
 }
 
-
+#ifndef QUAKETC
 // on success, result is non-zero
 // on failure, result is zero
 // for armors, returns skinnum+1 on success
@@ -2781,7 +2783,6 @@ static int FindNearestItem (vec3_t org, int flags, item_t **pitem)
 
 	return bestidx;
 }
-
 
 static int CountTeammates (void)
 {
@@ -2882,9 +2883,11 @@ static void TP_ItemTaken (char *s, int flag, vec3_t org, int entnum, item_t *ite
 	}
 */
 }
+#endif
 
 void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info)
 {
+#ifndef QUAKETC
 //	if (TP_NeedRefreshSkins())
 //	{
 //		if ((state->effects & (EF_BLUE|EF_RED) ) != (oldstate->effects & (EF_BLUE|EF_RED)))
@@ -2922,6 +2925,7 @@ void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_
 			strcpy (vars.lastdroploc, Macro_Location());
 		}
 	}
+#endif
 }
 
 void TP_CheckPickupSound (char *s, vec3_t org, int seat)
@@ -3420,8 +3424,8 @@ void TP_UpdateAutoStatus(void)
 
 void TP_StatChanged (int stat, int value)
 {
-	int		i;
 #ifdef QUAKESTATS
+	int		i;
 	if (stat == STAT_HEALTH)
 	{
 		if (value > 0)

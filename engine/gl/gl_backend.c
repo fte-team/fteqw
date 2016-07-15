@@ -215,6 +215,7 @@ static void BE_PolyOffset(qboolean pushdepth)
 	po.factor = shaderstate.curshader->polyoffset.factor;
 	po.unit = shaderstate.curshader->polyoffset.unit;
 
+#ifndef NOLEGACY
 	if (pushdepth)
 	{
 		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
@@ -223,6 +224,7 @@ static void BE_PolyOffset(qboolean pushdepth)
 		po.factor += r_polygonoffset_submodel_factor.value;
 		po.unit += r_polygonoffset_submodel_offset.value;
 	}
+#endif
 	if (shaderstate.mode == BEM_DEPTHONLY)
 	{
 		extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
@@ -252,6 +254,7 @@ void GLBE_PolyOffsetStencilShadow(qboolean pushdepth)
 	po.factor = r_polygonoffset_stencil_factor.value;
 	po.unit = r_polygonoffset_stencil_offset.value;
 
+#ifndef NOLEGACY
 	if (pushdepth)
 	{
 		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
@@ -260,6 +263,7 @@ void GLBE_PolyOffsetStencilShadow(qboolean pushdepth)
 		po.factor += r_polygonoffset_submodel_factor.value;
 		po.unit += r_polygonoffset_submodel_offset.value;
 	}
+#endif
 
 #ifndef FORCESTATE
 	if (shaderstate.curpolyoffset.factor != po.factor || shaderstate.curpolyoffset.unit != po.unit)
@@ -279,6 +283,7 @@ static void GLBE_PolyOffsetShadowMap(qboolean pushdepth)
 {
 	extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
 	polyoffset_t po;
+#ifndef NOLEGACY
 	if (pushdepth)
 	{
 		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
@@ -288,6 +293,7 @@ static void GLBE_PolyOffsetShadowMap(qboolean pushdepth)
 		po.unit = r_polygonoffset_submodel_offset.value + r_polygonoffset_shadowmap_offset.value;
 	}
 	else
+#endif
 	{
 		po.factor = r_polygonoffset_shadowmap_factor.value;
 		po.unit = r_polygonoffset_shadowmap_offset.value;
@@ -1840,26 +1846,24 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 		}
 		break;
 	case RGB_GEN_VERTEX_LIGHTING:
+#if MAXRLIGHTMAPS > 1
 		if (mesh->colors4f_array[1])
 		{
 			float lm[MAXRLIGHTMAPS];
 			lm[0] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[0]]/256.0f*shaderstate.identitylighting;
-#if MAXRLIGHTMAPS > 1
 			lm[1] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[1]]/256.0f*shaderstate.identitylighting;
 			lm[2] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[2]]/256.0f*shaderstate.identitylighting;
 			lm[3] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[3]]/256.0f*shaderstate.identitylighting;
-#endif
 			while((cnt)--)
 			{
 				VectorScale(		mesh->colors4f_array[0][cnt], lm[0], dst[cnt]);
-#if MAXRLIGHTMAPS > 1
 				VectorMA(dst[cnt],	lm[1], mesh->colors4f_array[1][cnt], dst[cnt]);
 				VectorMA(dst[cnt],	lm[2], mesh->colors4f_array[2][cnt], dst[cnt]);
 				VectorMA(dst[cnt],	lm[3], mesh->colors4f_array[3][cnt], dst[cnt]);
-#endif
 			}
 			break;
 		}
+#endif
 
 		if (shaderstate.identitylighting != 1)
 		{

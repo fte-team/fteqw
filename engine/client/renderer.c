@@ -277,6 +277,7 @@ extern cvar_t r_novis;
 extern cvar_t r_speeds;
 extern cvar_t r_waterwarp;
 
+#ifndef NOLEGACY
 #if defined(ANDROID)
 //on android, these numbers seem to be generating major weirdness, so disable these.
 cvar_t	r_polygonoffset_submodel_factor = CVAR("r_polygonoffset_submodel_factor", "0");
@@ -288,6 +289,7 @@ cvar_t	r_polygonoffset_submodel_offset = CVAR("r_polygonoffset_submodel_offset",
 #else
 cvar_t	r_polygonoffset_submodel_factor = CVAR("r_polygonoffset_submodel_factor", "0.05");
 cvar_t	r_polygonoffset_submodel_offset = CVAR("r_polygonoffset_submodel_offset", "25");
+#endif
 #endif
 cvar_t	r_polygonoffset_shadowmap_offset = CVAR("r_polygonoffset_shadowmap_factor", "0.05");
 cvar_t	r_polygonoffset_shadowmap_factor = CVAR("r_polygonoffset_shadowmap_offset", "0");
@@ -838,8 +840,10 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_showbboxes, GLRENDEREROPTIONS);
 	Cvar_Register (&r_showfields, GLRENDEREROPTIONS);
+#ifndef NOLEGACY
 	Cvar_Register (&r_polygonoffset_submodel_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_offset, GLRENDEREROPTIONS);
+#endif
 	Cvar_Register (&r_polygonoffset_shadowmap_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_shadowmap_offset, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_stencil_factor, GLRENDEREROPTIONS);
@@ -1661,7 +1665,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	// use desktop settings if set to 0 and not dedicated
 	if (newr->renderer && newr->renderer->rtype != QR_NONE)
 	{
-		extern qboolean isPlugin;
+		extern int isPlugin;
 
 		if (vid_desktopsettings.value)
 		{

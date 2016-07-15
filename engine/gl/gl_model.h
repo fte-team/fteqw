@@ -1028,6 +1028,7 @@ qboolean Terr_DownloadedSection(char *fname);
 
 void CL_Parse_BrushEdit(void);
 qboolean SV_Parse_BrushEdit(void);
+qboolean SV_Prespawn_Brushes(sizebuf_t *msg, unsigned int *modelindex, unsigned int *lastid);
 #endif
 
 

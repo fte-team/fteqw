@@ -5862,10 +5862,28 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 	if (brush->id)
 		out->id = brush->id;
 	else
-		out->id = ++hm->brushidseq;
+	{
+		unsigned int i;
+		//loop to avoid creating two brushes with the same id
+		do
+		{
+			out->id = (++hm->brushidseq)&0x00ffffff;
+#ifndef SERVERONLY
+			if (cls.state)	//avoid networking conflicts by having each node generating its own private ids
+				out->id |= (cl.playerview[0].playernum+1)<<24;
+#endif
+
+			for (i = 0; i < hm->numbrushes; i++)
+			{
+				if (hm->wbrushes[i].id == out->id)
+					break;
+			}
+		} while (i != hm->numbrushes);
+	}
 //	Con_Printf("brush %u (%i faces)\n", out->id, oface);
 
 	hm->numbrushes+=1;
+	hm->brushesedited = true;
 
 	hm->recalculatebrushlighting = true;	//lightmaps need to be reallocated
 
@@ -5892,8 +5910,9 @@ static void Terr_Brush_DeleteIdx(heightmap_t *hm, size_t idx)
 
 	BZ_Free(br->planes);
 	hm->numbrushes--;
+	hm->brushesedited = true;
 	//plug the hole with some other brush.
-	if (hm->numbrushes)
+	if (idx < hm->numbrushes)
 		hm->wbrushes[idx] = hm->wbrushes[hm->numbrushes];
 }
 static void Terr_Brush_DeleteId(heightmap_t *hm, unsigned int brushid)
@@ -5982,17 +6001,45 @@ static qboolean Brush_Deserialise(heightmap_t *hm, brushes_t *br)
 	return true;
 }
 #ifndef SERVERONLY
+heightmap_t	*CL_BrushEdit_ForceContext(model_t *mod)
+{
+	heightmap_t *hm = mod?mod->terrain:NULL;
+	if (!hm)
+	{
+		if (mod && mod->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+		if (mod && mod->loadstate == MLS_LOADED)
+		{
+			char basename[MAX_QPATH];
+			COM_FileBase(mod->name, basename, sizeof(basename));
+			mod->terrain = Mod_LoadTerrainInfo(mod, basename, true);
+			hm = mod->terrain;
+			if (!hm)
+				return NULL;
+			Terr_FinishTerrain(mod);
+		}
+		else
+			return NULL;
+	}
+	return hm;
+}
+
 void CL_Parse_BrushEdit(void)
 {
-	model_t			*mod			= cl.model_precache[1];
+	unsigned int	modelindex		= MSG_ReadShort();
+	int				cmd				= MSG_ReadByte();
+
+	model_t			*mod			= (modelindex<countof(cl.model_precache))?cl.model_precache[modelindex]:NULL;
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 
-	int cmd = MSG_ReadByte();
 	if (cmd == 0)
 		Terr_Brush_DeleteId(hm, MSG_ReadLong());
 	else if (cmd == 1)
 	{
 		brushes_t brush;
+
+		hm = CL_BrushEdit_ForceContext(mod);	//do this early, to ensure that the textures are correct
+
 		memset(&brush, 0, sizeof(brush));
 		brush.numplanes = 128;
 		brush.planes = alloca(sizeof(*brush.planes) * brush.numplanes);
@@ -6016,18 +6063,93 @@ void CL_Parse_BrushEdit(void)
 		}
 		Terr_Brush_Insert(mod, hm, &brush);
 	}
+	else if (cmd == 2)
+	{
+		hm = CL_BrushEdit_ForceContext(mod);	//make sure we don't end up with any loaded brushes.
+		if (hm)
+		{
+			while(hm->numbrushes)
+				Terr_Brush_DeleteIdx(hm, hm->numbrushes-1);
+		}
+	}
+	else if (cmd == 3)
+	{
+		//follows edits after a 2
+	}
 	else
 		Host_EndGame("CL_Parse_BrushEdit: unknown command %i\n", cmd);
 }
 #endif
 #ifndef CLIENTONLY
+qboolean SV_Prespawn_Brushes(sizebuf_t *msg, unsigned int *modelindex, unsigned int *lastid)
+{
+	//lastid starts at 0
+	unsigned int bestid, i;
+	brushes_t *best;
+	model_t *mod;
+	heightmap_t *hm;
+	while(1)
+	{
+		if (*modelindex < MAX_PRECACHE_MODELS)
+			mod = sv.models[*modelindex];
+		else
+			mod = NULL;
+		if (!mod)
+		{
+			if (!(*modelindex)++)
+				continue;
+			return false;
+		}
+		hm = mod->terrain;
+		if (!hm || !hm->brushesedited)
+		{
+			*modelindex+=1;
+			*lastid = 0;
+			continue;
+		}
+
+		if (!*lastid)
+		{	//make sure the client starts with a clean slate.
+			MSG_WriteByte(msg, svcfte_brushedit);
+			MSG_WriteShort(msg, *modelindex);
+			MSG_WriteByte(msg, 2);
+		}
+
+		//weird loop to try to ensure we never miss any brushes.
+		//get the lowest index that is 1 higher than our previous.
+		for (best = NULL, bestid = ~0u, i = 0; i < hm->numbrushes; i++)
+		{
+			unsigned int bid = hm->wbrushes[i].id;
+			if (bid > *lastid && bid <= bestid)
+			{
+				best = &hm->wbrushes[i];
+				bestid = best->id;
+				if (bestid == *lastid+1)
+					break;
+			}
+		}
+
+		if (best)
+		{
+			MSG_WriteByte(msg, svcfte_brushedit);
+			MSG_WriteShort(msg, *modelindex);
+			MSG_WriteByte(msg, 1);
+			Brush_Serialise(msg, best);
+			*lastid = bestid;
+			return true;
+		}
+		
+		*modelindex+=1;
+		*lastid = 0;
+	}
+}
 qboolean SV_Parse_BrushEdit(void)
 {
-	model_t			*mod			= sv.models[1];
-	heightmap_t		*hm				= mod?mod->terrain:NULL;
-
 	qboolean authorise = SV_MayCheat() || (host_client->penalties & BAN_VIP);
-	int cmd = MSG_ReadByte();
+	unsigned int	modelindex		= MSG_ReadShort();
+	int				cmd				= MSG_ReadByte();
+	model_t			*mod			= (modelindex<countof(sv.models))?sv.models[modelindex]:NULL;
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
 	if (cmd == 0)
 	{
 		unsigned int brushid = MSG_ReadLong();
@@ -6036,6 +6158,7 @@ qboolean SV_Parse_BrushEdit(void)
 		Terr_Brush_DeleteId(hm, brushid);
 
 		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+		MSG_WriteShort(&sv.multicast, modelindex);
 		MSG_WriteByte(&sv.multicast, 0);
 		MSG_WriteLong(&sv.multicast, brushid);
 		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
@@ -6063,6 +6186,7 @@ qboolean SV_Parse_BrushEdit(void)
 		//FIXME: expand the world entity's sizes if needed?
 
 		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+		MSG_WriteShort(&sv.multicast, modelindex);
 		MSG_WriteByte(&sv.multicast, 1);
 		Brush_Serialise(&sv.multicast, &brush);
 		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
@@ -6167,7 +6291,8 @@ void QCBUILTIN PF_brush_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *vmw = prinst->parms->user;
-	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
+	int				modelindex		= G_FLOAT(OFS_PARM0);
+	model_t			*mod			= vmw->Get_CModel(vmw, modelindex);
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 	unsigned int	numfaces		= G_INT(OFS_PARM2);
 	qcbrushface_t	*in_faces		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_faces), numfaces, false);
@@ -6226,9 +6351,10 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		{
 			G_INT(OFS_RETURN) = nb->id;
 #ifndef CLIENTONLY
-			if (sv.state)
+			if (sv.state && modelindex > 0)
 			{
 				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+				MSG_WriteShort(&sv.multicast, modelindex);
 				MSG_WriteByte(&sv.multicast, 1);
 				Brush_Serialise(&sv.multicast, nb);
 				SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
@@ -6236,9 +6362,10 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			}
 #endif
 #ifndef SERVERONLY
-			if (cls.state)
+			if (cls.state && modelindex > 0)
 			{
 				MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
+				MSG_WriteShort(&cls.netchan.message, modelindex);
 				MSG_WriteByte(&cls.netchan.message, 1);
 				Brush_Serialise(&cls.netchan.message, nb);
 				return;
@@ -6251,7 +6378,8 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void QCBUILTIN PF_brush_delete(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *vmw = prinst->parms->user;
-	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
+	int				modelindex		= G_FLOAT(OFS_PARM0);
+	model_t			*mod			= vmw->Get_CModel(vmw, modelindex);
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 	unsigned int	brushid			= G_INT(OFS_PARM1);
 
@@ -6261,9 +6389,10 @@ void QCBUILTIN PF_brush_delete(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	Terr_Brush_DeleteId(hm, brushid);
 
 #ifndef CLIENTONLY
-	if (sv.state)
+	if (sv.state && modelindex > 0)
 	{
 		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+		MSG_WriteShort(&sv.multicast, modelindex);
 		MSG_WriteByte(&sv.multicast, 0);
 		MSG_WriteLong(&sv.multicast, brushid);
 		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
@@ -6271,9 +6400,10 @@ void QCBUILTIN PF_brush_delete(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 #endif
 #ifndef SERVERONLY
-	if (cls.state)
+	if (cls.state && modelindex > 0)
 	{
 		MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
+		MSG_WriteShort(&cls.netchan.message, modelindex);
 		MSG_WriteByte(&cls.netchan.message, 0);
 		MSG_WriteLong(&cls.netchan.message, brushid);
 		return;
@@ -6689,8 +6819,12 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				brush.planes = planes;
 				brush.faces = faces;
 				brush.id = 0;
-				if (numplanes)
+				if (numplanes && subhm)
+				{
+					qboolean oe = subhm->brushesedited;
 					Terr_Brush_Insert(submod, subhm, &brush);
+					subhm->brushesedited = oe;
+				}
 				numplanes = 0;
 				inbrush = false;
 				continue;

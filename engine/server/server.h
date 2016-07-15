@@ -378,7 +378,9 @@ enum
 	PRESPAWN_SPAWNSTATIC,
 	PRESPAWN_AMBIENTSOUND,
 	PRESPAWN_BASELINES,
-	PRESPAWN_DONE
+	PRESPAWN_SPAWN,
+	PRESPAWN_BRUSHES,
+	PRESPAWN_COMPLETED
 };
 
 enum
@@ -402,6 +404,7 @@ typedef struct client_s
 
 	unsigned int	prespawn_stage;
 	unsigned int	prespawn_idx;
+	unsigned int	prespawn_idx2;
 	qboolean		prespawn_allow_modellist;
 	qboolean		prespawn_allow_soundlist;
 

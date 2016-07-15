@@ -7,11 +7,10 @@
 
 vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefile);
 
+#if defined(WEBCLIENT)
 #ifndef NPFTE
 static struct dl_download *activedownloads;
 #endif
-
-#if defined(WEBCLIENT)
 
 #if defined(FTE_TARGET_WEB)
 

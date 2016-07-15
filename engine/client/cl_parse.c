@@ -27,7 +27,9 @@ void CLDP_ParseDarkPlaces5Entities(void);
 static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue);
 #define CL_SetStatInt(pnum,stat,ival) do{int thevalue=ival; CL_SetStatNumeric(pnum,stat,thevalue,thevalue);}while(0)
 static qboolean CL_CheckModelResources (char *name);
+#ifdef NQPROT
 static char *CLNQ_ParseProQuakeMessage (char *s);
+#endif
 
 char cl_dp_csqc_progsname[128];
 int cl_dp_csqc_progssize;
@@ -141,8 +143,8 @@ char *svc_qwstrings[] =
 	"svcfte_voicechat",
 	"svcfte_setangledelta",
 	"svcfte_updateentities",
-	"???",
-	"???",
+	"svcfte_brushedit",
+	"svcfte_updateseats",
 	"???",
 	"???",
 	"???",
@@ -4984,13 +4986,13 @@ CL_SetStat
 */
 static void CL_SetStat_Internal (int pnum, int stat, int ivalue, float fvalue)
 {
-	int	j;
 	if (cl.playerview[pnum].stats[stat] != ivalue)
 		Sbar_Changed ();
 
 #ifdef QUAKESTATS
 	if (stat == STAT_ITEMS)
 	{	// set flash times
+		int	j;
 		for (j=0 ; j<32 ; j++)
 			if ( (ivalue & (1<<j)) && !(cl.playerview[pnum].stats[stat] & (1<<j)))
 				cl.playerview[pnum].item_gettime[j] = cl.time;

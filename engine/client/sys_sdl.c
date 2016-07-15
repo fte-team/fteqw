@@ -455,7 +455,6 @@ int QDECL main(int argc, char **argv)
 {
 	float time, newtime, oldtime;
 	quakeparms_t	parms;
-	float delay = 0.001;
 
 	memset(&parms, 0, sizeof(parms));
 
@@ -485,14 +484,14 @@ int QDECL main(int argc, char **argv)
 #ifndef CLIENTONLY
 		if (isDedicated)
 		{
-			NET_Sleep(delay, false);
-
+			float delay;
 		// find time passed since last cycle
 			newtime = Sys_DoubleTime ();
 			time = newtime - oldtime;
 			oldtime = newtime;
 			
 			delay = SV_Frame();
+			NET_Sleep(delay, false);
 		}
 		else
 #endif

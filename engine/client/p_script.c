@@ -2558,6 +2558,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 	return false;
 }
 
+#ifndef NOLEGACY
 static void P_ExportAllEffects_f(void)
 {
 	char effect[8192];
@@ -2599,6 +2600,7 @@ static void P_ExportAllEffects_f(void)
 	FS_NativePath(fname, FS_GAMEONLY, effect, sizeof(effect));
 	Con_Printf("Written %s\n", effect);
 }
+#endif
 
 #if 1//_DEBUG
 // R_BeamInfo_f - debug junk
@@ -3457,6 +3459,7 @@ static void PScript_ClearParticles (void)
 	}
 }
 
+#ifndef NOLEGACY
 static void P_ExportBuiltinSet_f(void)
 {
 	char *efname = Cmd_Argv(1);
@@ -3487,6 +3490,7 @@ static void P_ExportBuiltinSet_f(void)
 
 	Con_Printf("'%s' is not a built in particle set\n", efname);
 }
+#endif
 
 static qboolean P_LoadParticleSet(char *name, qboolean implicit)
 {

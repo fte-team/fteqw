@@ -6,9 +6,9 @@ const static struct
 {
 	{_("Forwards"), 		"+forward"},
 	{_("Back"),	 		"+back"},
-	{_("Move Left"),			"+moveleft"},
+	{_("Move Left"),		"+moveleft"},
 	{_("Move Right"),		"+moveright"},
-	{_("Turn Left"),			"+left"},
+	{_("Turn Left"),		"+left"},
 	{_("Turn Right"),		"+right"},
 	{_("Look Up"),			"+lookup"},
 	{_("Look Down"),		"+lookdown"},
@@ -26,17 +26,21 @@ const static struct
 //	{_("Mouse Look"),		"+mlook"},
 	{_("Keyboard Look"),		"+klook"},
 	{_("Strafe"),			"+strafe"},
-	{_("Run"),				"+speed"},
-	{0,					0},
-	{_("Axe"),				"impulse 1"},
+	{_("Run"),			"+speed"},
+	{0,				0},
+	{_("Axe"),			"impulse 1"},
 	{_("Shotgun"),			"impulse 2"},
 	{_("Super Shotgun"),		"impulse 3"},
 	{_("Nailgun"),			"impulse 4"},
 	{_("Super Nailgun"),		"impulse 5"},
-	{_("Grenade Launcher"),	"impulse 6"},
-	{_("Rocket Launcher"),	"impulse 7"},
+	{_("Grenade Launcher"),		"impulse 6"},
+	{_("Rocket Launcher"),		"impulse 7"},
 	{_("Lightning Gun"),		"impulse 8"},
 //	{_("Railgun"),			"impulse 9"},
+
+	{0,				0},
+	{_("Ready Up"),			"ready"},
+	{_("Break Match"),		"break"},
 };
 void(mitem_desktop desktop) M_Options_Keys =
 {

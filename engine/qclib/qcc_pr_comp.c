@@ -7411,6 +7411,22 @@ QCC_sref_t QCC_EvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit)
 {
 	QCC_type_t *tmp;
 	int totype;
+
+	if (	(cast->type == ev_accessor && cast->parentclass == src.cast)
+		||	(src.cast->type == ev_accessor && src.cast->parentclass == cast))
+	{
+		if (implicit)
+		{
+			char typea[256];
+			char typeb[256];
+			TypeName(src.cast, typea, sizeof(typea));
+			TypeName(cast, typeb, sizeof(typeb));
+			QCC_PR_ParseWarning(0, "Implicit cast from %s to %s", typea, typeb);
+		}
+		src.cast = cast;
+		return src;
+	}
+
 //casting from an accessor uses the base type of that accessor (this allows us to properly read void* accessors)
 	while (src.cast->type == ev_accessor)
 		src.cast = src.cast->parentclass;
@@ -7570,6 +7586,8 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 		{
 			e = QCC_PR_Expression (NOT_PRIORITY, EXPR_DISALLOW_COMMA|EXPR_WARN_ABOVE_1);
 			t = e.cast->type;
+			if (t == ev_accessor)
+				t = e.cast->parentclass->type;
 			if (t == ev_float)
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_F], e, nullsref, NULL);
 			else if (t == ev_integer)
@@ -7726,6 +7744,9 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 
 int QCC_canConv(QCC_sref_t from, etype_t to)
 {
+	while(from.cast->type == ev_accessor)
+		from.cast = from.cast->parentclass;
+
 	if (from.cast->type == to)
 		return 0;
 
@@ -9951,12 +9972,30 @@ void QCC_PR_ParseStatement (void)
 		pbool striptruth = false;
 		pbool stripfalse = false;
 		const QCC_eval_t *eval;
-		pbool negate = QCC_PR_CheckKeyword(keyword_not, "not");
+		int negate = QCC_PR_CheckKeyword(keyword_not, "not")/*hexenc*/;
+		if (!negate && QCC_PR_CheckToken("!"))
+		{
+			QCC_PR_ParseWarning (WARN_FTE_SPECIFIC, "if !() is specific to fteqcc");
+			negate = 2;
+		}
+		else if (negate && qcc_targetformat != QCF_HEXEN2 && qcc_targetformat != QCF_FTEH2)
+			QCC_PR_ParseWarning (WARN_FTE_SPECIFIC, "if not() is specific to fteqcc or hexen2");
 
 		QCC_PR_Expect ("(");
 		conditional = 1;
 		e = QCC_PR_Expression (TOP_PRIORITY, 0);
 		conditional = 0;
+
+		if (negate == 2)
+		{
+			if (e.cast->type == ev_string/*deal with empty properly*/
+				|| e.cast->type == ev_float/*deal with -0.0*/
+				|| e.cast->type == ev_accessor/*its complicated*/ ) 
+			{
+				e = QCC_PR_GenerateLogicalNot(e, "Type mismatch: !%s");
+				negate = 0;
+			}
+		}
 
 		eval = QCC_SRef_EvalConst(e);
 

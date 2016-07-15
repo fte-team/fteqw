@@ -304,8 +304,8 @@ void M_Menu_SinglePlayer_f (void)
 	menubutton_t *b;
 	mpic_t *p;
 	static menuresel_t resel;
-#endif
 	extern cvar_t cl_splitscreen;
+#endif
 
 	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;

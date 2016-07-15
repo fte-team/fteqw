@@ -4,13 +4,16 @@ ifeq ($(FTE_TARGET),win32)
 PLUG_NATIVE_EXT=_x86.dll
 PLUG_LDFLAGS=-L../engine/libs/mingw-libs -lzlib
 BITS=32
+PLUG_LDFLAGS_DL=
 endif
 ifeq ($(FTE_TARGET),win64)
 PLUG_NATIVE_EXT=_x64.dll
 PLUG_LDFLAGS=-L../engine/libs/mingw64-libs -lz -Wl,--support-old-code
 BITS=64
+PLUG_LDFLAGS_DL=
 endif
 
+PLUG_LDFLAGS_DL?=-ldl
 PLUG_LDFLAGS?=-L/usr/local/lib -Wl,-R/usr/local/lib -lz -lm
 
 ifneq ($(PLUG_NATIVE_EXT),)
@@ -150,7 +153,7 @@ $(ODE_LIB): $(OUT_DIR)/../ode-$(ODE_VER).tar.gz
 
 ODE_FILES=../engine/common/com_phys_ode.c ../engine/common/mathlib.c plugin.c qvm_api.c $(ODE_LIB)
 $(OUT_DIR)/fteplug_ode$(PLUG_NATIVE_EXT): $(ODE_FILES)
-	$(CC) -s $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -DODE_STATIC -o $@ -shared $(PLUG_CFLAGS) -I$(ODE_BASE)ode-$(ODE_VER)/include $(ODE_FILES) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -lstdc++ -lpthread
+	$(CC) -flto -s $(BASE_CFLAGS) $(CFLAGS) -Os -DFTEPLUGIN -DODE_STATIC -o $@ -shared $(PLUG_CFLAGS) -I$(ODE_BASE)ode-$(ODE_VER)/include $(ODE_FILES) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -static-libgcc `$(CC) -print-file-name=libstdc++.a` -lpthread
 #NATIVE_PLUGINS+=ode
 
 
@@ -186,7 +189,7 @@ $(OUT_DIR)/fteplug_qi$(PLUG_NATIVE_EXT): qi/qi.c jabber/xml.c plugin.c qvm_api.c
 NATIVE_PLUGINS+=qi
 
 $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT): cef/cef.c plugin.c qvm_api.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Icef/2623 $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -Wl,-rpath,. -ldl
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Icef/2623 $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -Wl,-rpath,. $(PLUG_LDFLAGS_DL)
 #NATIVE_PLUGINS+=cef
 
 #irc plugin can still be built as a qvm.

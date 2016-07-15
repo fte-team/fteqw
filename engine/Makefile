@@ -728,6 +728,10 @@ ifeq ($(FTE_TARGET),SDL2)
 	SDLCONFIG?=sdl2-config
 	FTE_FULLTARGET?=sdl2$(BITS)
 endif
+ifeq ($(FTE_TARGET),SDL1)
+	SDLCONFIG?=sdl-config
+	FTE_FULLTARGET?=sdl1$(BITS)
+endif
 ifeq ($(FTE_TARGET),SDL)
 	FTE_FULLTARGET?=sdl$(BITS)
 endif
@@ -742,18 +746,20 @@ GLCL_EXE_NAME=../fteqwcl_gl$(FTE_FULLTARGET)
 ifdef windir
 	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+	SV_LDFLAGS=`$(SDLCONFIG) --static-libs`
 else
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) `$(SDLCONFIG) --static-libs`
 	M_LDFLAGS=$(MLDFLAGS) `$(SDLCONFIG) --static-libs` $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
+	SV_LDFLAGS=`$(SDLCONFIG) --static-libs`
 endif
 GL_CFLAGS=-DFTE_SDL $(GLCFLAGS) `$(SDLCONFIG) --cflags`
 GLB_DIR=gl_$(FTE_FULLTARGET)
 GLCL_DIR=glcl_$(FTE_FULLTARGET)
+SV_DIR?=sv_$(FTE_FULLTARGET)
 
 SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 SV_EXE_NAME=../fteqw_sv$(FTE_FULLTARGET)
-SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
-SV_LDFLAGS=
+SV_CFLAGS=-DFTE_SDL `$(SDLCONFIG) --cflags` $(SERVER_ONLY_CFLAGS)
 
 MINGL_DIR=mingl_$(FTE_FULLTARGET)
 MINGL_EXE_NAME=../fteqw_mingl$(FTE_FULLTARGET)
@@ -761,8 +767,7 @@ MINGL_EXE_NAME=../fteqw_mingl$(FTE_FULLTARGET)
 MB_DIR=m_$(FTE_FULLTARGET)
 M_EXE_NAME=../fteqw_$(FTE_FULLTARGET)
 MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
-M_CFLAGS=$(GLCFLAGS) `$(SDLCONFIG) --cflags`
-M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
+M_CFLAGS=-DFTE_SDL $(GLCFLAGS) `$(SDLCONFIG) --cflags`
 
 QCC_DIR=qcc$(BITS)
 
@@ -1044,15 +1049,14 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	endif
 
 	BASELDFLAGS+=-lcomctl32
-
 	EXEPOSTFIX=.exe
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 
 	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../fteqwsv$(BITS)$(EXEPOSTFIX)
 	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lws2_32 -lwinmm
 	SV_DIR=sv_mingw$(BITS)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(BOTLIB_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
@@ -1069,11 +1073,11 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	NPFTE_CFLAGS=$(NPFTECFLAGS) $(W32_CFLAGS) -DMULTITHREAD
 	NPFTEB_DIR=npfte_mgw$(BITS)
 
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidnt.o vk_win32.o $(WINDOWS_OBJS)
 	M_EXE_NAME=../fteqw$(BITS)$(EXEPOSTFIX)
 	MCL_EXE_NAME=../fteqwcl$(BITS)$(EXEPOSTFIX)
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
-	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) $(DX7SDK) -DMULTITHREAD -DLIBVORBISFILE_STATIC $(SPEEXCFLAGS)
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) $(DX7SDK) $(VKCFLAGS) -DMULTITHREAD -DLIBVORBISFILE_STATIC $(SPEEXCFLAGS)
 	MB_DIR=m_mgw$(BITS)
 	MCL_DIR=mcl_mgw$(BITS)
 
@@ -1112,6 +1116,7 @@ ifeq ($(FTE_TARGET),bsd)
 
 	SV_DIR=sv_linux
 	SV_LDFLAGS=-lz -ldl
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../fteqw.gl
@@ -1166,7 +1171,7 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	M_EXE_NAME=../fteqw$(BITS)
 	MCL_EXE_NAME=../fteqwcl$(BITS)
 	M_LDFLAGS=$(GL_LDFLAGS)
-	M_CFLAGS=$(GL_CFLAGS)
+	M_CFLAGS=$(VKCFLAGS) $(GL_CFLAGS)
 	MB_DIR=m_linux$(BITS)
 	MCL_DIR=mcl_linux$(BITS)
 
@@ -1271,6 +1276,7 @@ endif
 ifeq ($(FTE_TARGET),cyg)
 	SV_DIR=sv_cygwin
 	SV_LDFLAGS=-lz
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 
 	EXEPOSTFIX=.exe
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
@@ -1298,7 +1304,7 @@ endif
 ifeq ($(FTE_TARGET),droid)
 	BASELDFLAGS=
 
-	SV_CFLAGS=
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 	SV_LDFLAGS=
 	SV_DIR=sv_droid-$(DROID_ARCH)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(BOTLIB_OBJS) sys_droid.o 
@@ -1341,6 +1347,7 @@ ifeq ($(FTE_TARGET),web)
 	#SV_LDFLAGS=-lz
 	#SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS)
 	SV_EXE_NAME=../libftesv.js
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 
 	#SV_LDFLAGS=
 
@@ -1774,15 +1781,17 @@ EMSCRIPTENROOT?=C:/Games/tools/Emscripten
 #EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/e1.22.0_64bit):$(realpath $(EMSCRIPTENROOT)/node/0.10.17_64bit):$(realpath $(EMSCRIPTENROOT)/python/2.7.5.3_64bit):$(realpath $(EMSCRIPTENROOT)/emscripten/1.22.0):$(PATH)
 EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/e1.35.0_64bit):$(realpath $(EMSCRIPTENROOT)/node/4.1.1_64bit/bin):$(realpath $(EMSCRIPTENROOT)/python/2.7.5.3_64bit):$(realpath $(EMSCRIPTENROOT)/emscripten/1.35.0):$(PATH)
 
+#EMCC?=/opt/emsdk_portable/emscripten/master/emcc
+EMCC?=emcc.bat --em-config $(shell cygpath -m $(USERPROFILE))/.emscripten
 web-rel:
-	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-rel FTE_TARGET=web CC="emcc.bat --em-config $(shell cygpath -m $(USERPROFILE))/.emscripten"
+	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-rel FTE_TARGET=web CC="$(EMCC)"
 	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.js
 	@gzip -f $(RELEASE_DIR)/ftewebgl.js.mem
 
 web-dbg:
-	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-dbg FTE_TARGET=web CC="emcc.bat --em-config $(shell cygpath -m $(USERPROFILE))/.emscripten"
+	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-dbg FTE_TARGET=web CC="$(EMCC)"
 	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.js

@@ -65,7 +65,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 int noconinput = 0;
 int nostdout = 0;
 
-qboolean isPlugin;
+int isPlugin;
 int sys_parentleft;
 int sys_parenttop;
 int sys_parentwidth;
@@ -710,11 +710,13 @@ char *Sys_ConsoleInput(void)
 	static char text[256];
 	int len;
 
+#ifdef SUBSERVERS
 	if (SSV_IsSubServer())
 	{
 		SSV_CheckFromMaster();
 		return NULL;
 	}
+#endif
 
 	if (noconinput)
 		return NULL;

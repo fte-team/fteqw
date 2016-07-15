@@ -78,14 +78,10 @@ glibc SUCKS. 64bit glibc is depending upon glibc 2.14 because of some implementa
 or something.
 anyway, the actual interface is the same. the old version might be slower, but when updating glibc generally results in also installing systemd, requiring the new version is NOT an option.
 */
-#if defined(__GNUC__) && defined(__LP64__) && defined(__linux__)
+#if defined(__GNUC__) && defined(__LP64__) && defined(__linux__) && !defined(FTE_SDL)
 	#include <features.h>       /* for glibc version */
-		#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 14)
-		__asm__(".symver oldmemcpy,memcpy@GLIBC_2.2.5"); void *oldmemcpy(void *__restrict dst, const void *__restrict src, size_t len);
-		__attribute__ ((visibility ("hidden"))) void *memcpy(void *__restrict dst, const void *__restrict src, size_t len)
-		{
-			return oldmemcpy(dst,src,len);
-		}
+	#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 14)
+		__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
 	#endif
 #endif
 /*end glibc workaround*/

@@ -207,10 +207,10 @@ static void() updateloadedparticles =
 
 static void(string descname) loadparticles =
 {
-	float f;
+	filestream f;
 
 	/*kill old string*/
-	if (particlesfile)
+	if notnull(particlesfile)
 		strunzone(particlesfile);
 	particlesfile = (string)0;
 	cureffect = 0;
@@ -235,7 +235,7 @@ static void(string descname) loadparticles =
 
 static void(string descname) saveparticle =
 {
-	float f;
+	filestream f;
 	string newfile;
 
 	/*only do this if there's something to save*/

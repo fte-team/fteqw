@@ -54,3 +54,7 @@ enum
 var string editornames[MODE_COUNT] = {"OPTIONS","LIGHTS","SPLINES", "TERRAIN", "BRUSHES", "PARTICLES", "ENTITIES"};
 
 var float(float vismode) ca_checksave;
+
+
+#define isnull(v) (!(int)(v))
+#define notnull(v) ((int)(v))

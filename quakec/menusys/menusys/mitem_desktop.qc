@@ -23,18 +23,19 @@ float sb_showscores;
 
 void() mitem_desktop::mitem_desktop =
 {
-#define menu_font_win 	autocvar(menu_font_win, "")
-#define menu_font	autocvar(menu_font, "")
+#define menu_font_win 		autocvar(menu_font_win, "")
+#define menu_font		autocvar(menu_font, "")
+#define menu_font_fallback	autocvar(gl_font, "")
 	queryscreensize();
 
 	//make sure we have a font that can cope with slightly up-scaled stuff.
 	//windows is special because we can load from the system fonts
+	string fontname = menu_font_fallback;
 	if (menu_font_win != "" && !strncmp(cvar_string("sys_platform"), "Win", 3))
-		drawfont = loadfont("", menu_font_win, "8 12 16", -1);
+		fontname = menu_font_win;
 	else if (menu_font != "")
-		drawfont = loadfont("", menu_font, "8 12 16", -1);
-	else
-		drawfont = 0;
+		fontname = menu_font;		
+	drawfont = loadfont("", fontname, "8 12 16", -1);
 
 	item_text = "desktop";
 	if (!item_flags)

@@ -385,7 +385,6 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all)
 void IN_Impulse (void)
 {
 	int newimp;
-	int best, i, imp, items;
 	int pnum = CL_TargettedSplit(false);
 
 	newimp = Q_atoi(Cmd_Argv(1));
@@ -393,6 +392,7 @@ void IN_Impulse (void)
 #ifdef QUAKESTATS
 	if (Cmd_Argc() > 2)
 	{
+		int best, i, imp, items;
 		items = cl.playerview[pnum].stats[STAT_ITEMS];
 		best = 0;
 

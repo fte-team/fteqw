@@ -1,6 +1,9 @@
 //emscripten's download mechanism lacks usable progress indicators.
 void emscriptenfte_async_wget_data2(const char *url, void *ctx, void (*onload)(void*ctx,void*buf,int sz), void (*onerror)(void*ctx,int code), void (*onprogress)(void*ctx,int prog,int total));
 
+//changes the page away from quake (oh noes!) or downloads something.
+void emscriptenfte_window_location(const char *url);
+
 //filesystem buffers are implemented in javascript so that we are not bound by power-of-two heap limitations quite so much.
 //also, we can't use emscripten's stdio because it reserves 16m file handles or something.
 //these buffers do not track file offsets nor file access permissions.

@@ -176,10 +176,18 @@ static void VK_DestroySwapChain(void)
 		VK_DestroyVkTexture(&vk.backbufs[i].depth);
 	}
 
+	
 #ifdef THREADACQUIRE
+	while (vk.aquirenext < vk.aquirelast)
+	{
+		VkAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
+		vk.aquirenext++;
+	}
 	for (i = 0; i < ACQUIRELIMIT; i++)
 	{
-		vkDestroyFence(vk.device, vk.acquirefences[i], vkallocationcb);
+		if (vk.acquirefences[i])
+			vkDestroyFence(vk.device, vk.acquirefences[i], vkallocationcb);
+		vk.acquirefences[i] = VK_NULL_HANDLE;
 	}
 #endif
 
@@ -201,7 +209,10 @@ static void VK_DestroySwapChain(void)
 	}
 
 	if (vk.swapchain)
+	{
 		vkDestroySwapchainKHR(vk.device, vk.swapchain, vkallocationcb);
+		vk.swapchain = VK_NULL_HANDLE;
+	}
 
 	if (vk.backbufs)
 		free(vk.backbufs);
@@ -1048,6 +1059,7 @@ void	VK_R_DeInit					(void)
 {
 	R_GAliasFlushSkinCache(true);
 	Surf_DeInit();
+	VK_DestroySwapChain();
 	VKBE_Shutdown();
 	Shader_Shutdown();
 	Image_Shutdown();
@@ -2065,11 +2077,11 @@ void	VKBE_RenderToTextureUpdate2d(qboolean destchanged)
 static void VK_CreateRenderPass(void)
 {
 	int pass;
-	VkAttachmentReference color_reference;
-	VkAttachmentReference depth_reference;
-	VkAttachmentDescription attachments[2] = {{0}};
-	VkSubpassDescription subpass = {0};
-	VkRenderPassCreateInfo rp_info = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+static	VkAttachmentReference color_reference;
+static	VkAttachmentReference depth_reference;
+static	VkAttachmentDescription attachments[2] = {{0}};
+static	VkSubpassDescription subpass = {0};
+static 	VkRenderPassCreateInfo rp_info = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
 
 	for (pass = 0; pass < 3; pass++)
 	{
@@ -2673,7 +2685,10 @@ void VK_Shutdown(void)
 
 	vkDestroyDevice(vk.device, vkallocationcb);
 	if (vk_debugcallback)
+	{
 		vkDestroyDebugReportCallbackEXT(vk.instance, vk_debugcallback, vkallocationcb);
+		vk_debugcallback = VK_NULL_HANDLE;
+	}
 	vkDestroyInstance(vk.instance, vkallocationcb);
 	Sys_DestroyMutex(vk.swapchain_mutex);
 	Sys_DestroyConditional(vk.submitcondition);

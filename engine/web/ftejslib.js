@@ -28,6 +28,13 @@ mergeInto(LibraryManager.library,
 		console.log(msg);
 		alert(msg);
 	},
+	
+	emscriptenfte_window_location : function(msg)
+	{
+		msg = Pointer_stringify(msg);
+		console.log("Redirecting page to " + msg);
+		window.location = msg;
+	},
 
 	emscriptenfte_handle_alloc__deps : ['$FTEH'],
 	emscriptenfte_handle_alloc : function(h)

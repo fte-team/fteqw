@@ -55,7 +55,7 @@ static var float lasttool = ter_blank;
 static int painttex;
 static float mautorepeattime;
 static entity tempent;
-static var float texturesearch = -1;
+static var searchhandle texturesearch = -1;
 static float texturesearchfirst;
 static string texturesearchhighlighted;
 
@@ -581,7 +581,7 @@ void(vector mousepos) editor_terrain_overlay =
 		pos_y += 8;
 	}
 
-	if (texturesearchhighlighted)
+	if notnull(texturesearchhighlighted)
 	{
 		strunzone(texturesearchhighlighted);
 		texturesearchhighlighted = __NULL__;
@@ -617,7 +617,7 @@ void(vector mousepos) editor_terrain_overlay =
 
 			if (mousepos_x > pos_x+x*128 && mousepos_y > pos_y && mousepos_x < pos_x+(x+1)*128 && mousepos_y < pos_y+(128+8))
 			{
-				if (texturesearchhighlighted)
+				if notnull(texturesearchhighlighted)
 					strunzone(texturesearchhighlighted);
 				texturesearchhighlighted = strzone(fname);
 			}

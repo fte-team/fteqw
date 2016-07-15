@@ -445,7 +445,7 @@ static qboolean browser_handle_query(const char *req, char *buffer, size_t buffe
 static int CEF_CALLBACK browser_on_process_message_received(cef_client_t* self, cef_browser_t* browser, cef_process_id_t source_process, cef_process_message_t* message)
 {
 	int handled = false;
-	browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, request_handler));
+//	browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, request_handler));
 	cef_string_userfree_t msgnameunusable = message->get_name(message);
 	cef_string_utf8_t name = {NULL};
 	cef_string_to_utf8(msgnameunusable->str, msgnameunusable->length, &name);
@@ -637,7 +637,7 @@ static void CEF_CALLBACK browser_on_status_message(cef_display_handler_t* self, 
 //request_handler methods
 static int CEF_CALLBACK browser_on_before_browse(cef_request_handler_t* self, cef_browser_t* browser, cef_frame_t* frame, cef_request_t* request, int is_redirect)
 {
-	browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, request_handler));
+//	browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, request_handler));
 
 	cef_release(browser);
 	cef_release(frame);
@@ -903,7 +903,7 @@ static int CEF_CALLBACK fsfunc_execute(cef_v8handler_t* self, const cef_string_t
 	cef_v8context_t *v8ctx = cef_v8context_get_current_context();
 	cef_browser_t *browser = v8ctx->get_browser(v8ctx);
 	cef_frame_t *frame = v8ctx->get_frame(v8ctx);
-	int64 frame_id = frame->get_identifier(frame);
+//	int64 frame_id = frame->get_identifier(frame);
 	
 //	cef_string_t key = {L"omgwtfitkindaworks"};
 //	key.length = wcslen(key.str);
@@ -954,7 +954,7 @@ static int CEF_CALLBACK fsfunc_execute(cef_v8handler_t* self, const cef_string_t
 static int CEF_CALLBACK render_process_handler_on_process_message_received(cef_render_process_handler_t* self,cef_browser_t* browser, cef_process_id_t source_process,cef_process_message_t* message)
 {
 	int handled = false;
-	browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, request_handler));
+//	browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, request_handler));
 	cef_string_userfree_t msgnameunusable = message->get_name(message);
 	cef_string_utf8_t name = {NULL};
 	cef_string_to_utf8(msgnameunusable->str, msgnameunusable->length, &name);

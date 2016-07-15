@@ -402,26 +402,33 @@ static qintptr_t VARGS Plug_PR_GetVMInstance(void *offset, quintptr_t mask, cons
 	struct pubprogfuncs_s *pr = NULL;
 	if (offset)
 		return 0;
+	switch(vmid)
+	{
 #ifndef CLIENTONLY
-	else if (vmid == 0)
+	case 0:
 		pr = sv.world.progs;
+		break;
 #endif
 #if defined(CSQC_DAT) && !defined(SERVERONLY)
-	else if (vmid == 1)
-	{
-		extern world_t csqc_world;
-		pr = csqc_world.progs;
-	}
+	case 1:
+		{
+			extern world_t csqc_world;
+			pr = csqc_world.progs;
+		}
+		break;
 #endif
 #if defined(MENU_DAT) && !defined(SERVERONLY)
-	else if (vmid == 2)
-	{
-		extern world_t menu_world;
-		pr = menu_world.progs;
-	}
+	case 2:
+		{
+			extern world_t menu_world;
+			pr = menu_world.progs;
+		}
+		break;
 #endif
-	else
+	default:
 		pr = NULL;	//unknown vmid / not present in this build.
+		break;
+	}
 	return (qintptr_t)pr;
 }
 
@@ -1841,7 +1848,9 @@ void Plug_SBar(playerview_t *pv)
 		hudmode = 1;
 	else
 		hudmode = 2;
-	if (!(plug_sbar.ival & hudmode))
+	if (!(plug_sbar.ival&4) && ((cls.protocol != CP_QUAKEWORLD && cls.protocol != CP_NETQUAKE) || M_GameType()!=MGT_QUAKE1))
+		currentplug = NULL;	//disable the hud if we're not running quake. q2/q3/h2 must not display the hud, allowing for a simpler install-anywhere installer that can include it.
+	else if (!(plug_sbar.ival & hudmode))
 		currentplug = NULL;
 	else
 	{

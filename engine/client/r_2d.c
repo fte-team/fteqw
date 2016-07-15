@@ -150,7 +150,9 @@ void R2D_Shutdown(void)
 		Font_Free(font_tiny);
 	font_tiny = NULL; 
 
+#ifndef NOBUILTINMENUS
 	M_ReloadMenus();
+#endif
 
 #if defined(MENU_DAT) || defined(CSQC_DAT)
 	PR_ReloadFonts(false);

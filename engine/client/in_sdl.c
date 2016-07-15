@@ -832,10 +832,11 @@ void Sys_SendKeyEvents(void)
 #if SDL_MAJOR_VERSION >= 2
 		//actually, joysticks *should* work with sdl1 as well, but there are some differences (like no hot plugging, I think).
 		case SDL_JOYAXISMOTION:
+			J_JoystickAxis(event.jaxis.which, event.jaxis.axis, event.jaxis.value);
 			break;
 //		case SDL_JOYBALLMOTION:
 //		case SDL_JOYHATMOTION:
-			break;
+//			break;
 		case SDL_JOYBUTTONDOWN:
 		case SDL_JOYBUTTONUP:
 			J_JoystickButton(event.jbutton.which, event.jbutton.button, event.type==SDL_CONTROLLERBUTTONDOWN);

@@ -301,7 +301,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(
 #if !defined(CLIENTONLY) && !defined(SERVERONLY)
 qboolean isDedicated = false;
 #endif
-extern qboolean isPlugin;
+extern int isPlugin;
 qboolean debugout;
 float gammapending;	//to cope with ATI. When it times out, v_gamma is reforced in order to correct/update gamma now the drivers think that they have won.
 
@@ -3876,7 +3876,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	double			time, oldtime, newtime;
 	char	cwd[1024], bindir[1024];
 	const char *qtvfile = NULL;
-	float delay = 0;
 	char lang[32];
 	char ctry[32];
 	int c;
@@ -4245,7 +4244,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			if (isDedicated)
 			{
 	#ifndef CLIENTONLY
-				NET_Sleep(delay, false);
+				float delay;
 
 			// find time passed since last cycle
 				newtime = Sys_DoubleTime ();
@@ -4253,6 +4252,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				oldtime = newtime;
 
 				delay = SV_Frame ();
+
+				NET_Sleep(delay, false);
 	#else
 				Sys_Error("wut?");
 	#endif

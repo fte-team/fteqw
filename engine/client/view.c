@@ -1199,8 +1199,10 @@ called to apply any dirty refdef bits and recalculates pending data.
 */
 void V_ApplyRefdef (void)
 {
+#ifdef QUAKEHUD
 	float           size;
 	int             h;
+#endif
 	qboolean		full = false;
 
 // force the status bar to redraw

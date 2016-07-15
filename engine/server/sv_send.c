@@ -3138,12 +3138,11 @@ void SV_SendClientMessages (void)
 		}
 
 		SV_ReplaceEntityFrame(c, c->netchan.outgoing_sequence);
+		SV_SendClientPrespawnInfo(c);
 		if (c->state == cs_spawned)
 			SV_SendClientDatagram (c);
 		else
 		{
-			SV_SendClientPrespawnInfo(c);
-
 			SV_DarkPlacesDownloadChunk(c, &c->datagram);
 			fnum = c->netchan.outgoing_sequence;
 			sentbytes = Netchan_Transmit (&c->netchan, c->datagram.cursize, c->datagram.data, SV_RateForClient(c));	// just update reliable

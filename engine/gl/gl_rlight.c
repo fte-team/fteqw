@@ -474,7 +474,9 @@ void R_RenderDlights (void)
 				{
 					GLuint res;
 					qboolean requery = true;
-					if (l->coronaocclusionquery)
+					if (r_refdef.recurse)
+						requery = false;
+					else if (l->coronaocclusionquery)
 					{
 						qglGetQueryObjectuivARB(l->coronaocclusionquery, GL_QUERY_RESULT_AVAILABLE_ARB, &res);
 						if (res)

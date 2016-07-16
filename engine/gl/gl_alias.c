@@ -627,7 +627,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				else
 					plskin = NULL;
 
-				if (plskin && plskin->loadstate != SKIN_LOADED)
+				if (plskin && plskin->loadstate < SKIN_LOADED)
 				{
 					Skin_Cache8(plskin);	//we're not going to use it, but make sure its status is updated when it is finally loaded..
 					plskin = cl.players[e->playerindex].lastskin;

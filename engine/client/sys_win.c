@@ -1376,7 +1376,7 @@ void Sys_MakeCodeWriteable (void *startaddr, unsigned long length)
 }
 #endif
 
-void Sys_DoFileAssociations(qboolean elevated);
+void Sys_DoFileAssociations(int elevated);
 void Sys_Register_File_Associations_f(void)
 {
 	Sys_DoFileAssociations(0);

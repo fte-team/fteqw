@@ -589,12 +589,12 @@ typedef struct client_s
 
 	qboolean		csqcactive;
 #ifdef PROTOCOL_VERSION_FTE
-	qboolean        pextknown;
+	qboolean		pextknown;
 	unsigned int	fteprotocolextensions;
 	unsigned int	fteprotocolextensions2;
 #endif
 	unsigned int	zquake_extensions;
-	unsigned int    max_net_ents; /*highest entity number the client can receive (limited by either protocol or client's buffer size)*/
+	unsigned int	max_net_ents; /*highest entity number the client can receive (limited by either protocol or client's buffer size)*/
 	unsigned int	max_net_clients; /*max number of player slots supported by the client */
 	unsigned int	maxmodels; /*max models supported by whatever the protocol is*/
 
@@ -1043,6 +1043,7 @@ void SV_AutoAddPenalty (client_t *cl, unsigned int banflag, int duration, char *
 #define BAN_USER6		(1u<<16)//mod-specified
 #define BAN_USER7		(1u<<17)//mod-specified
 #define BAN_USER8		(1u<<18)//mod-specified
+#define BAN_MAPPER		(1u<<19)//mod-specified
 
 //
 // sv_main.c

@@ -4841,19 +4841,17 @@ static neterr_t FTENET_NaClWebSocket_SendPacket(ftenet_generic_connection_t *gco
 }
 
 /*nacl websockets implementation...*/
-static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address)
+static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {
 	ftenet_websocket_connection_t *newcon;
 
-	netadr_t adr;
 	PP_Resource newsocket;
 
 	if (isserver || !ppb_websocket_interface)
 	{
 		return NULL;
 	}
-	if (!NET_StringToAdr(address, 80, &adr))
-		return NULL;	//couldn't resolve the name
+
 	newcon = Z_Malloc(sizeof(*newcon));
 	if (newcon)
 	{

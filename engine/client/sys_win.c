@@ -3014,7 +3014,7 @@ typedef struct qIApplicationAssociationRegistrationUI
 	} *lpVtbl;
 } qIApplicationAssociationRegistrationUI;
 
-void Sys_DoFileAssociations(qboolean elevated)
+void Sys_DoFileAssociations(int elevated)
 {
 	char command[1024];
 	qboolean ok = true;	

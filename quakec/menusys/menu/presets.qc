@@ -71,7 +71,7 @@ nonstatic void(mitem_desktop desktop) M_Preset =
 		string fname = search_getfilename(fs, i);
 		string iname = substring(fname, 15, -5);
 		string dname = GetFirstLineComment(fname, iname);
-		iname = sprintf("exec \"%s\";vid_reload", iname);
+		iname = sprintf("exec \"configs/preset_%s.cfg\";vid_reload", iname);
 		if (dname && !fr.findchildcmd(iname))
 		{
 			fr.add(spawn(mitem_text, item_text:dname, item_command:iname, item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, y], '100 16');

@@ -2266,27 +2266,32 @@ static void FS_AddManifestPackages(searchpath_t **oldpaths, const char *purepath
 				if (!oldp)
 				{
 					handle = FS_GetOldPath(oldpaths, lname2, &keptflags);
-					if (!handle)
-						handle = FS_GetOldPath(oldpaths, lname, &keptflags);
-					if (!handle)
+					if (handle)
+						snprintf (lname, sizeof(lname), "%s", lname2);
+					else
 					{
-						vfs = NULL;
-						if (search)
-						{
-							if (search->handle->FindFile(search->handle, &loc, pname+ptlen+1, NULL))
-								vfs = search->handle->OpenVFS(search->handle, &loc, "r");
-						}
-						else
-						{
-							vfs = FS_OpenVFS(fs_manifest->package[i].path, "rb", FS_ROOT);
-							if (vfs)
-								snprintf (lname, sizeof(lname), "%s", lname2);
-							else
-								vfs = FS_OpenVFS(pname, "rb", FS_ROOT);
-						}
+						handle = FS_GetOldPath(oldpaths, lname, &keptflags);
 
-						if (vfs)
-							handle = OpenNew (vfs, lname, fs_manifest->package[i].prefix?fs_manifest->package[i].prefix:"");
+						if (!handle)
+						{
+							vfs = NULL;
+							if (search)
+							{
+								if (search->handle->FindFile(search->handle, &loc, pname+ptlen+1, NULL))
+									vfs = search->handle->OpenVFS(search->handle, &loc, "r");
+							}
+							else
+							{
+								vfs = FS_OpenVFS(fs_manifest->package[i].path, "rb", FS_ROOT);
+								if (vfs)
+									snprintf (lname, sizeof(lname), "%s", lname2);
+								else
+									vfs = FS_OpenVFS(pname, "rb", FS_ROOT);
+							}
+
+							if (vfs)
+								handle = OpenNew (vfs, lname, fs_manifest->package[i].prefix?fs_manifest->package[i].prefix:"");
+						}
 					}
 					if (handle && fs_manifest->package[i].crcknown)
 					{
@@ -2326,6 +2331,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 {
 	//search is the parent
 	int				i, j;
+	searchpath_t	*existing;
 	searchpathfuncs_t	*handle;
 	char			pakfile[MAX_OSPATH];
 	char			logicalpaths[MAX_OSPATH];	//with a slash
@@ -2341,40 +2347,6 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 	wp.puredesc = purepath;
 	wp.oldpaths = oldpaths;
 	wp.inheritflags = pflags;
-
-	for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
-	{
-		if (!searchpathformats[j].extension || !searchpathformats[j].OpenNew || !searchpathformats[j].loadscan)
-			continue;
-		if (loadstuff & (1<<j))
-		{
-			const char *extension = searchpathformats[j].extension;
-
-			//first load all the numbered pak files
-			for (i=0 ; ; i++)
-			{
-				snprintf (pakfile, sizeof(pakfile), "pak%i.%s", i, extension);
-				fs_finds++;
-				if (!search->handle->FindFile(search->handle, &loc, pakfile, NULL))
-					break;	//not found..
-
-				snprintf (pakfile, sizeof(pakfile), "%spak%i.%s", logicalpaths, i, extension);
-				snprintf (purefile, sizeof(purefile), "%s/pak%i.%s", purepath, i, extension);
-
-				handle = FS_GetOldPath(oldpaths, pakfile, &keptflags);
-				if (!handle)
-				{
-					vfs = search->handle->OpenVFS(search->handle, &loc, "r");
-					if (!vfs)
-						break;
-					handle = searchpathformats[j].OpenNew (vfs, pakfile, "");
-					if (!handle)
-						break;
-				}
-				FS_AddPathHandle(oldpaths, purefile, pakfile, handle, "", SPF_COPYPROTECTED|pflags|keptflags, (unsigned int)-1);
-			}
-		}
-	}
 
 	//read pak.lst to get some sort of official ordering of pak files
 	if (search->handle->FindFile(search->handle, &loc, "pak.lst", NULL) == FF_FOUND)
@@ -2413,6 +2385,62 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 		BZ_Free(buffer);
 	}
 
+	for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
+	{
+		if (!searchpathformats[j].extension || !searchpathformats[j].OpenNew || !searchpathformats[j].loadscan)
+			continue;
+		if (loadstuff & (1<<j))
+		{
+			const char *extension = searchpathformats[j].extension;
+
+			//first load all the numbered pak files
+			for (i=0 ; ; i++)
+			{
+				snprintf (pakfile, sizeof(pakfile), "pak%i.%s", i, extension);
+				fs_finds++;
+				if (!search->handle->FindFile(search->handle, &loc, pakfile, NULL))
+					break;	//not found..
+
+				snprintf (pakfile, sizeof(pakfile), "%spak%i.%s", logicalpaths, i, extension);
+				snprintf (purefile, sizeof(purefile), "%s/pak%i.%s", purepath, i, extension);
+
+				for (existing = com_searchpaths; existing; existing = existing->next)
+				{
+					if (!Q_strcasecmp(existing->logicalpath, pakfile))	//assumption: first member of structure is a char array
+						break; //already loaded (base paths?)
+				}
+				if (!existing)
+				{
+					handle = FS_GetOldPath(oldpaths, pakfile, &keptflags);
+					if (!handle)
+					{
+						vfs = search->handle->OpenVFS(search->handle, &loc, "r");
+						if (!vfs)
+							break;
+						handle = searchpathformats[j].OpenNew (vfs, pakfile, "");
+						if (!handle)
+							break;
+					}
+					FS_AddPathHandle(oldpaths, purefile, pakfile, handle, "", SPF_COPYPROTECTED|pflags|keptflags, (unsigned int)-1);
+				}
+			}
+		}
+	}
+
+	//now load ones from the manifest
+	for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
+	{
+		if (!searchpathformats[j].extension || !searchpathformats[j].OpenNew || !searchpathformats[j].loadscan)
+			continue;
+		if (loadstuff & (1<<j))
+		{
+			const char *extension = searchpathformats[j].extension;
+			wp.OpenNew = searchpathformats[j].OpenNew;
+
+			FS_AddManifestPackages(oldpaths, purepath, logicalpaths, search, extension, wp.OpenNew);
+		}
+	}
+
 	//now load the random ones
 	for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
 	{
@@ -2422,10 +2450,9 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 		{
 			const char *extension = searchpathformats[j].extension;
 			wp.OpenNew = searchpathformats[j].OpenNew;
+
 			Q_snprintfz (pakfile, sizeof(pakfile), "*.%s", extension);
 			search->handle->EnumerateFiles(search->handle, pakfile, FS_AddWildDataFiles, &wp);
-
-			FS_AddManifestPackages(oldpaths, purepath, logicalpaths, search, extension, wp.OpenNew);
 		}
 	}
 }

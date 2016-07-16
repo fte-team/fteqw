@@ -6145,7 +6145,7 @@ qboolean SV_Prespawn_Brushes(sizebuf_t *msg, unsigned int *modelindex, unsigned 
 }
 qboolean SV_Parse_BrushEdit(void)
 {
-	qboolean authorise = SV_MayCheat() || (host_client->penalties & BAN_VIP);
+	qboolean authorise = (host_client->penalties & BAN_MAPPER) || (host_client->netchan.remote_address.type == NA_LOOPBACK);
 	unsigned int	modelindex		= MSG_ReadShort();
 	int				cmd				= MSG_ReadByte();
 	model_t			*mod			= (modelindex<countof(sv.models))?sv.models[modelindex]:NULL;
@@ -6154,7 +6154,10 @@ qboolean SV_Parse_BrushEdit(void)
 	{
 		unsigned int brushid = MSG_ReadLong();
 		if (!authorise)
+		{
+			SV_PrintToClient(host_client, PRINT_MEDIUM, "Brush editing ignored: you are not a mapper\n");
 			return true;
+		}
 		Terr_Brush_DeleteId(hm, brushid);
 
 		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
@@ -6177,7 +6180,10 @@ qboolean SV_Parse_BrushEdit(void)
 			return false;
 		}
 		if (!authorise)
+		{
+			SV_PrintToClient(host_client, PRINT_MEDIUM, "Brush editing ignored: you are not a mapper\n");
 			return true;
+		}
 
 		Terr_Brush_DeleteId(hm, brush.id);
 		if (!Terr_Brush_Insert(mod, hm, &brush))

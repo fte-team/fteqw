@@ -1021,6 +1021,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			{
 				client->prespawn_stage++;
 				client->prespawn_idx = 0;
+				client->prespawn_idx2 = 0;
 				break;
 			}
 			client->prespawn_idx++;
@@ -1530,6 +1531,8 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			ClientReliableWrite_String(client, cmd);
 		}
 		client->prespawn_stage++;
+		client->prespawn_idx = 0;
+		client->prespawn_idx2 = 0;
 	}
 
 	//this is extra stuff that will happen after we're on the server
@@ -1538,7 +1541,9 @@ void SV_SendClientPrespawnInfo(client_t *client)
 	{	//when brush editing, connecting clients need a copy of all the brushes.
 		while (client->netchan.message.cursize < maxsize)
 		{
+#ifdef TERRAIN
 			if (!SV_Prespawn_Brushes(&client->netchan.message, &client->prespawn_idx, &client->prespawn_idx2))
+#endif
 			{
 				client->prespawn_stage++;
 				client->prespawn_idx = 0;

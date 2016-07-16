@@ -59,6 +59,7 @@ static const struct banflags_s
 	{BAN_BLIND,		{"blind"}},
 	{BAN_SPECONLY,	{"spec"}},
 	{BAN_STEALTH,	{"stealth"}},
+	{BAN_MAPPER,	{"mapper"}},
 
 	{BAN_USER1,		{"user1"}},
 	{BAN_USER2,		{"user2"}},

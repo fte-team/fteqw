@@ -325,7 +325,7 @@ qbyte		gammatable[256];	// palette is sent through this
 
 
 unsigned short		ramps[3][256];
-//extern qboolean		gammaworks;
+qboolean		gammaworks;
 float		hw_blend[4];		// rgba 0.0 - 1.0
 /*
 void BuildGammaTable (float g)

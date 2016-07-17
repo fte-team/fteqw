@@ -376,7 +376,7 @@ void CL_CalcNet2 (float *pings, float *pings_min, float *pings_max, float *pingm
 
 	*pings = 0;
 	*pings_max = 0;
-	*pings_min = 1000000000000;
+	*pings_min = FLT_MAX;
 	*pingfr = 0;
 	*pingfr_max = 0;
 	*pingfr_min = 0x7fffffff;

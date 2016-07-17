@@ -726,6 +726,8 @@ static int CEF_CALLBACK request_context_handler_on_before_plugin_load(cef_reques
 	*plugin_policy = PLUGIN_POLICY_BLOCK;	//block by default (user can manually override supposedly). most plugins are unlikely to cope well with our offscreen rendering stuff, and flash sucks.
 
 	cef_release(plugin_info);
+
+	Cvar_Update(&cef_allowplugins);
 	if (!cef_allowplugins.value)
 	{
 		*plugin_policy = PLUGIN_POLICY_DISABLE;

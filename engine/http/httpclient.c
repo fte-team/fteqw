@@ -293,6 +293,11 @@ typedef struct cookie_s
 } cookie_t;
 cookie_t *cookies;
 
+#ifdef NPFTE
+#define Z_Malloc malloc
+#define Z_Free free
+#endif
+
 //set a specific cookie.
 void Cookie_Feed(char *domain, int secure, char *name, char *value)
 {
@@ -1479,6 +1484,7 @@ void DL_Close(struct dl_download *dl)
 	free(dl);
 }
 
+#ifndef NPFTE
 void DL_DeThread(void)
 {
 #ifdef MULTITHREAD
@@ -1494,7 +1500,6 @@ void DL_DeThread(void)
 }
 
 /*updates pending downloads*/
-#ifndef NPFTE
 unsigned int HTTP_CL_GetActiveDownloads(void)
 {
 	struct dl_download *dl;

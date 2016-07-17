@@ -80,7 +80,47 @@ void SCR_ShowPic_Remove_f(void);
 //a header is better than none...
 void Draw_TextBox (int x, int y, int width, int lines);
 enum fs_relative;
-enum uploadfmt;
+
+
+typedef enum uploadfmt
+{
+		TF_INVALID,
+		TF_RGBA32,              /*rgba byte order*/
+		TF_BGRA32,              /*bgra byte order*/
+		TF_RGBX32,              /*rgb byte order, with extra wasted byte after blue*/
+		TF_BGRX32,              /*rgb byte order, with extra wasted byte after blue*/
+		TF_RGB24,               /*rgb byte order, no alpha channel nor pad, and regular top down*/
+		TF_BGR24,               /*bgr byte order, no alpha channel nor pad, and regular top down*/
+		TF_BGR24_FLIP,  /*bgr byte order, no alpha channel nor pad, and bottom up*/
+		TF_LUM8,		/*8bit greyscale image*/
+		TF_MIP4_LUM8,	/*8bit 4-mip greyscale image*/
+		TF_MIP4_SOLID8,	/*8bit 4-mip image*/
+		TF_MIP4_8PAL24,	/*8bit 4-mip image*/
+		TF_SOLID8,      /*8bit quake-palette image*/
+		TF_TRANS8,      /*8bit quake-palette image, index 255=transparent*/
+		TF_TRANS8_FULLBRIGHT,   /*fullbright 8 - fullbright texels have alpha 255, everything else 0*/
+		TF_HEIGHT8,     /*image data is greyscale, convert to a normalmap and load that, uploaded alpha contains the original heights*/
+		TF_HEIGHT8PAL, /*source data is palette values rather than actual heights, generate a fallback heightmap*/
+		TF_H2_T7G1, /*8bit data, odd indexes give greyscale transparence*/
+		TF_H2_TRANS8_0, /*8bit data, 0 is transparent, not 255*/
+		TF_H2_T4A4,     /*8bit data, weird packing*/
+
+		/*this block requires a palette*/
+		TF_PALETTES,
+		TF_8PAL24,
+		TF_8PAL32,
+
+		/*for render targets*/
+		TF_DEPTH16,
+		TF_DEPTH24,
+		TF_DEPTH32,
+		TF_RGBA16F,
+		TF_RGBA32F,
+
+		/*for weird systems where the gl driver needs to do the decode (read: webgl)*/
+		TF_SYSTEMDECODE
+} uploadfmt_t;
+
 qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int width, int height, enum uploadfmt fmt);
 
 void SCR_DrawTwoDimensional(int uimenu, qboolean nohud);

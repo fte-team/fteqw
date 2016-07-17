@@ -246,6 +246,8 @@ extern struct vulkaninfo_s
 	struct descpool
 	{
 		VkDescriptorPool pool;
+		int availsets;
+		int totalsets;
 		struct descpool *next;
 	} *descpool;
 	struct dynbuffer

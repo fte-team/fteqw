@@ -20,7 +20,7 @@ void main ()
 void main ()
 {
 	//must always draw something, supposedly. It might as well be black.
-	gl_FragColor = vec4(0, 0, 0, 1);
+	//in gl anyway, vulkan doesn't need it. gl_FragColor = vec4(0, 0, 0, 1);
 }
 #endif
 

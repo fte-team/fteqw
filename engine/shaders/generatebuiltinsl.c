@@ -372,6 +372,34 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, char *fname
 						u[i].u = (cb[0]<<24)|(cb[1]<<16)|(cb[2]<<8)|(cb[3]<<0);
 						cb+=4;
 					}
+#if 0 //all is well
+					if (size == 1 && type == 'b')
+						fprintf(temp, "layout(constant_id=%u) const bool cvar_%s = %s;\n", id, name, (int)u[0].u?"true":"false");
+					else if (size == 1 && type == 'i')
+						fprintf(temp, "layout(constant_id=%u) const int cvar_%s = %i;\n", id, name, (int)u[0].u);
+					else if (size == 1 && type == 'f')
+						fprintf(temp, "layout(constant_id=%u) const float cvar_%s = %f;\n", id, name, u[0].f);
+					else if (size == 3 && type == 'f')
+					{
+						fprintf(temp, "layout(constant_id=%u) const float cvar_%s_x = %f;\n", id+0, name, u[0].f);
+						fprintf(temp, "layout(constant_id=%u) const float cvar_%s_y = %f;\n", id+1, name, u[1].f);
+						fprintf(temp, "layout(constant_id=%u) const float cvar_%s_z = %f;\n", id+2, name, u[2].f);
+						fprintf(temp, "vec3 cvar_%s = vec3(cvar_%s_x, cvar_%s_y, cvar_%s_z);\n", name, name, name, name);
+					}
+					else 	if (size == 1 && type == 'B')
+						fprintf(temp, "layout(constant_id=%u) const bool arg_%s = %s;\n", id, name, (int)u[0].u?"true":"false");
+					else 	if (size == 1 && type == 'I')
+						fprintf(temp, "layout(constant_id=%u) const int arg_%s = %i;\n", id, name, (int)u[0].u);
+					else if (size == 1 && type == 'F')
+						fprintf(temp, "layout(constant_id=%u) const float arg_%s = %i;\n", id, name, u[0].f);
+					else if (size == 3 && type == 'F')
+					{
+						fprintf(temp, "layout(constant_id=%u) const float arg_%s_x = %f;\n", id+0, name, u[0].f);
+						fprintf(temp, "layout(constant_id=%u) const float arg_%s_y = %f;\n", id+1, name, u[1].f);
+						fprintf(temp, "layout(constant_id=%u) const float arg_%s_z = %f;\n", id+2, name, u[2].f);
+						fprintf(temp, "vec3 arg_%s = vec3(arg_%s_x, arg_%s_y, arg_%s_z);\n", name, name, name, name);
+					}
+#else
 					//these initialised values are fucked up because glslangvalidator's spirv generator is fucked up and folds specialisation constants.
 					//we get around this by ensuring that all such constants are given unique values to prevent them being folded, with the engine overriding everything explicitly.
 					if (size == 1 && type == 'b')
@@ -406,6 +434,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, char *fname
 						fprintf(temp, "layout(constant_id=%u) const float arg_%s_z = %i;\n", id+2, name, id+2);//u[2].f);
 						fprintf(temp, "vec3 arg_%s = vec3(arg_%s_x, arg_%s_y, arg_%s_z);\n", name, name, name, name);
 					}
+#endif
 				}
 			}
 			//permutation stuff
@@ -413,8 +442,12 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, char *fname
 			{
 				if (blob->permutations & (1<<i))
 				{
+#if 0 //all is well
+					fprintf(temp, "layout(constant_id=%u) const bool %s = %s;\n", 16+i, permutationnames[i], "false");
+#else
 					fprintf(temp, "layout(constant_id=%u) const int _%s = %i;\n", 16+i, permutationnames[i], 16+i);
 					fprintf(temp, "#define %s (_%s!=0)\n", permutationnames[i], permutationnames[i]);
+#endif
 				}
 			}
 		}

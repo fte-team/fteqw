@@ -191,7 +191,6 @@ typedef struct {
 	int ef_impact;
 } tentmodels_t;
 
-typedef struct beam_s beam_t;
 struct beam_s {
 	tentmodels_t *info;
 	int		entity;

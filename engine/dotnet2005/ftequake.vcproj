@@ -1211,6 +1211,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				LinkLibraryDependencies="false"
 				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
 				OutputFile="../../fteqw64.exe"
 				LinkIncremental="1"

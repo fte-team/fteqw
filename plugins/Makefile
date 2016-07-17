@@ -188,9 +188,32 @@ $(OUT_DIR)/fteplug_qi$(PLUG_NATIVE_EXT): qi/qi.c jabber/xml.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 NATIVE_PLUGINS+=qi
 
-$(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT): cef/cef.c plugin.c qvm_api.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Icef/2623 $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -Wl,-rpath,. $(PLUG_LDFLAGS_DL)
+ifeq ($(FTE_TARGET),win32)
+#Yes, this is old, but it actually works without the gpu process crashing all the fucking time.
+#multiple more recent versions are defective. and they don't support WinXP either.
+CEF_VER=win32_2526
+endif
+ifeq ($(FTE_TARGET),win64)
+#I'm just too lazy to test this minor platform.
+#CEF_VER=win64_2704
+endif
+
+ifneq ($(CEF_VER),)
+.PHONEY: $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT)
+$(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT): $(OUT_DIR)/fteplug_cef_$(BITS).zip
+
+$(OUT_DIR)/fteplug_cef_$(BITS).zip: cef/cef.c plugin.c qvm_api.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Icef/2623 $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -Wl,-rpath,. $(PLUG_LDFLAGS_DL)
+	cp cef/2623/libcef_$(BITS).zip $@
+	chmod 644 $@
+	zip -9 -j $@ $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT)
+	rm $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT)
 #NATIVE_PLUGINS+=cef
+else
+.PHONEY: $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT)
+$(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT):
+	echo cef plugin not supported on this arch
+endif
 
 #irc plugin can still be built as a qvm.
 $(OUT_DIR)/fteplug_irc$(PLUG_NATIVE_EXT): irc/ircclient.c plugin.c qvm_api.c

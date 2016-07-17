@@ -37,7 +37,7 @@ extern cvar_t r_portalrecursion;
 extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
 extern cvar_t r_wireframe;
 
-void VK_TerminateShadowMap(void);
+static void VK_TerminateShadowMap(void);
 void VKBE_BeginShadowmapFace(void);
 
 static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], int portaltype);
@@ -722,7 +722,7 @@ static struct descpool *VKBE_CreateDescriptorPool(void)
 	VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
 	VkDescriptorPoolSize dpisz[2];
 	dpi.flags = 0;
-	dpi.maxSets = 512;
+	dpi.maxSets = np->totalsets = 512;
 	dpi.poolSizeCount = countof(dpisz);
 	dpi.pPoolSizes = dpisz;
 
@@ -740,20 +740,22 @@ static VkDescriptorSet VKBE_TempDescriptorSet(VkDescriptorSetLayout layout)
 {
 	VkDescriptorSet ret;
 	VkDescriptorSetAllocateInfo setinfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-	setinfo.descriptorPool = vk.descpool->pool;
-	setinfo.descriptorSetCount = 1;
-	setinfo.pSetLayouts = &layout;
 
-	if (VK_SUCCESS != vkAllocateDescriptorSets(vk.device, &setinfo, &ret))
+	if (vk.descpool->availsets == 0)
 	{
 		if (vk.descpool->next)
 			vk.descpool = vk.descpool->next;
 		else
 			vk.descpool = vk.descpool->next = VKBE_CreateDescriptorPool();
 		vkResetDescriptorPool(vk.device, vk.descpool->pool, 0);
-		setinfo.descriptorPool = vk.descpool->pool;
-		VkAssert(vkAllocateDescriptorSets(vk.device, &setinfo, &ret));
+		vk.descpool->availsets = vk.descpool->totalsets;
 	}
+	vk.descpool->availsets--;
+
+	setinfo.descriptorPool = vk.descpool->pool;
+	setinfo.descriptorSetCount = 1;
+	setinfo.pSetLayouts = &layout;
+	vkAllocateDescriptorSets(vk.device, &setinfo, &ret);
 
 	return ret;
 }
@@ -948,6 +950,7 @@ void VKBE_RestartFrame(void)
 	shaderstate.activepipeline = VK_NULL_HANDLE;
 	vk.descpool = vk.frame->descpools;
 	vkResetDescriptorPool(vk.device, vk.descpool->pool, 0);
+	vk.descpool->availsets = vk.descpool->totalsets;
 }
 
 void VKBE_ShutdownFramePools(struct vkframe *frame)
@@ -995,7 +998,7 @@ void VKBE_Shutdown(void)
 
 	shaderstate.inited = false;
 #ifdef RTLIGHTS
-//	VK_TerminateShadowMap();
+	VK_TerminateShadowMap();
 #endif
 	Z_Free(shaderstate.wbatches);
 	shaderstate.wbatches = NULL;
@@ -2008,6 +2011,344 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 	}
 }
 
+static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned int blendflags, unsigned int permu)
+{
+	struct pipeline_s *pipe;
+	VkDynamicState dynamicStateEnables[VK_DYNAMIC_STATE_RANGE_SIZE]={0};
+	VkPipelineDynamicStateCreateInfo dyn = {VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
+	VkVertexInputBindingDescription vbinds[VK_BUFF_MAX] = {{0}};
+	VkVertexInputAttributeDescription vattrs[VK_BUFF_MAX] = {{0}};
+	VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+	VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+	VkPipelineViewportStateCreateInfo vp = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+	VkPipelineRasterizationStateCreateInfo rs = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+	VkPipelineMultisampleStateCreateInfo ms = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+	VkPipelineDepthStencilStateCreateInfo ds = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+	VkPipelineColorBlendStateCreateInfo cb = {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+	VkPipelineColorBlendAttachmentState att_state[1];
+	VkGraphicsPipelineCreateInfo pipeCreateInfo = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+	VkPipelineShaderStageCreateInfo shaderStages[2] = {{0}};
+	struct specdata_s
+	{
+		int alphamode;
+		int permu[16];
+		union
+		{
+			float f;
+			int i;
+		} cvars[64];
+	} specdata;
+	VkSpecializationMapEntry specentries[256] = {{0}};
+	VkSpecializationInfo specInfo = {0}, *bugsbeware;
+	VkResult err;
+	uint32_t i, s;
+	unsigned char *cvardata;
+
+	if (!p->vert || !p->frag)
+		Sys_Error("program missing required shader\n");	//PANIC
+
+
+	pipe = Z_Malloc(sizeof(*pipe));
+	pipe->next = p->pipelines;
+	p->pipelines = pipe;
+
+	pipe->flags = shaderflags;
+	pipe->blendbits = blendflags;
+	pipe->permu = permu;
+
+	if (permu&PERMUTATION_BEM_WIREFRAME)
+	{
+		blendflags |= SBITS_MISC_NODEPTHTEST;
+		blendflags &= ~SBITS_MISC_DEPTHWRITE;
+
+		blendflags &= ~(SHADER_CULL_FRONT|SHADER_CULL_BACK);
+	}
+
+	dyn.flags = 0;
+	dyn.dynamicStateCount = 0;
+	dyn.pDynamicStates = dynamicStateEnables;
+
+	//it wasn't supposed to be like this!
+	//this stuff gets messy with tcmods and rgbgen/alphagen stuff
+	vbinds[VK_BUFF_POS].binding = VK_BUFF_POS;
+	vbinds[VK_BUFF_POS].stride = sizeof(vecV_t);
+	vbinds[VK_BUFF_POS].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	vattrs[VK_BUFF_POS].binding = vbinds[VK_BUFF_POS].binding;
+	vattrs[VK_BUFF_POS].location = VK_BUFF_POS;
+	vattrs[VK_BUFF_POS].format = VK_FORMAT_R32G32B32_SFLOAT;
+	vattrs[VK_BUFF_POS].offset = 0;
+	vbinds[VK_BUFF_TC].binding = VK_BUFF_TC;
+	vbinds[VK_BUFF_TC].stride = sizeof(vec2_t);
+	vbinds[VK_BUFF_TC].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	vattrs[VK_BUFF_TC].binding = vbinds[VK_BUFF_TC].binding;
+	vattrs[VK_BUFF_TC].location = VK_BUFF_TC;
+	vattrs[VK_BUFF_TC].format = VK_FORMAT_R32G32_SFLOAT;
+	vattrs[VK_BUFF_TC].offset = 0;
+	vbinds[VK_BUFF_COL].binding = VK_BUFF_COL;
+	vbinds[VK_BUFF_COL].stride = sizeof(vec4_t);
+	vbinds[VK_BUFF_COL].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	vattrs[VK_BUFF_COL].binding = vbinds[VK_BUFF_COL].binding;
+	vattrs[VK_BUFF_COL].location = VK_BUFF_COL;
+	vattrs[VK_BUFF_COL].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	vattrs[VK_BUFF_COL].offset = 0;
+	vbinds[VK_BUFF_LMTC].binding = VK_BUFF_LMTC;
+	vbinds[VK_BUFF_LMTC].stride = sizeof(vec2_t);
+	vbinds[VK_BUFF_LMTC].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	vattrs[VK_BUFF_LMTC].binding = vbinds[VK_BUFF_LMTC].binding;
+	vattrs[VK_BUFF_LMTC].location = VK_BUFF_LMTC;
+	vattrs[VK_BUFF_LMTC].format = VK_FORMAT_R32G32_SFLOAT;
+	vattrs[VK_BUFF_LMTC].offset = 0;
+
+	//fixme: in all seriousness, why is this not a single buffer?
+	vbinds[VK_BUFF_NORM].binding = VK_BUFF_NORM;
+	vbinds[VK_BUFF_NORM].stride = sizeof(vec3_t);
+	vbinds[VK_BUFF_NORM].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	vattrs[VK_BUFF_NORM].binding = vbinds[VK_BUFF_NORM].binding;
+	vattrs[VK_BUFF_NORM].location = VK_BUFF_NORM;
+	vattrs[VK_BUFF_NORM].format = VK_FORMAT_R32G32B32_SFLOAT;
+	vattrs[VK_BUFF_NORM].offset = 0;
+	vbinds[VK_BUFF_SDIR].binding = VK_BUFF_SDIR;
+	vbinds[VK_BUFF_SDIR].stride = sizeof(vec3_t);
+	vbinds[VK_BUFF_SDIR].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	vattrs[VK_BUFF_SDIR].binding = vbinds[VK_BUFF_SDIR].binding;
+	vattrs[VK_BUFF_SDIR].location = VK_BUFF_SDIR;
+	vattrs[VK_BUFF_SDIR].format = VK_FORMAT_R32G32B32_SFLOAT;
+	vattrs[VK_BUFF_SDIR].offset = 0;
+	vbinds[VK_BUFF_TDIR].binding = VK_BUFF_TDIR;
+	vbinds[VK_BUFF_TDIR].stride = sizeof(vec3_t);
+	vbinds[VK_BUFF_TDIR].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	vattrs[VK_BUFF_TDIR].binding = vbinds[VK_BUFF_TDIR].binding;
+	vattrs[VK_BUFF_TDIR].location = VK_BUFF_TDIR;
+	vattrs[VK_BUFF_TDIR].format = VK_FORMAT_R32G32B32_SFLOAT;
+	vattrs[VK_BUFF_TDIR].offset = 0;
+
+	vi.vertexBindingDescriptionCount = countof(vbinds);
+	vi.pVertexBindingDescriptions = vbinds;
+	vi.vertexAttributeDescriptionCount = countof(vattrs);
+	vi.pVertexAttributeDescriptions = vattrs;
+
+	ia.topology = (blendflags&SBITS_LINES)?VK_PRIMITIVE_TOPOLOGY_LINE_LIST:VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	vp.viewportCount = 1;
+	dynamicStateEnables[dyn.dynamicStateCount++] =	VK_DYNAMIC_STATE_VIEWPORT;
+	vp.scissorCount = 1;
+	dynamicStateEnables[dyn.dynamicStateCount++] =	VK_DYNAMIC_STATE_SCISSOR;
+	//FIXME: fillModeNonSolid might mean mode_line is not supported.
+	rs.polygonMode = (permu&PERMUTATION_BEM_WIREFRAME)?VK_POLYGON_MODE_LINE:VK_POLYGON_MODE_FILL;
+	rs.lineWidth = 1;
+	rs.cullMode = ((shaderflags&SHADER_CULL_FRONT)?VK_CULL_MODE_FRONT_BIT:0) | ((shaderflags&SHADER_CULL_BACK)?VK_CULL_MODE_BACK_BIT:0);
+	rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rs.depthClampEnable = VK_FALSE;
+	rs.rasterizerDiscardEnable = VK_FALSE;
+	if (shaderflags & SHADER_POLYGONOFFSET)
+	{
+		rs.depthBiasEnable = VK_TRUE;
+		rs.depthBiasConstantFactor = -25;//shader->polyoffset.unit;
+		rs.depthBiasClamp = 0;
+		rs.depthBiasSlopeFactor = -0.05;//shader->polyoffset.factor;
+	}
+	else
+		rs.depthBiasEnable = VK_FALSE;
+
+	ms.pSampleMask = NULL;
+	ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	ds.depthTestEnable = (blendflags&SBITS_MISC_NODEPTHTEST)?VK_FALSE:VK_TRUE;
+	ds.depthWriteEnable = (blendflags&SBITS_MISC_DEPTHWRITE)?VK_TRUE:VK_FALSE;
+	if (blendflags & SBITS_MISC_DEPTHEQUALONLY)
+		ds.depthCompareOp = VK_COMPARE_OP_EQUAL;
+	else if (blendflags & SBITS_MISC_DEPTHCLOSERONLY)
+		ds.depthCompareOp = VK_COMPARE_OP_LESS;
+	else
+		ds.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+	ds.depthBoundsTestEnable = VK_FALSE;
+	ds.back.failOp = VK_STENCIL_OP_KEEP;
+	ds.back.passOp = VK_STENCIL_OP_KEEP;
+	ds.back.compareOp = VK_COMPARE_OP_NEVER;//VK_COMPARE_OP_ALWAYS;
+	ds.stencilTestEnable = VK_FALSE;
+	ds.front = ds.back;
+	memset(att_state, 0, sizeof(att_state));
+	att_state[0].colorWriteMask =
+		((blendflags&SBITS_MASK_RED)?0:VK_COLOR_COMPONENT_R_BIT) |
+		((blendflags&SBITS_MASK_GREEN)?0:VK_COLOR_COMPONENT_G_BIT) |
+		((blendflags&SBITS_MASK_BLUE)?0:VK_COLOR_COMPONENT_B_BIT) |
+		((blendflags&SBITS_MASK_ALPHA)?0:VK_COLOR_COMPONENT_A_BIT);
+
+	if (blendflags & SBITS_BLEND_BITS)
+	{
+		switch(blendflags & SBITS_SRCBLEND_BITS)
+		{
+		case SBITS_SRCBLEND_ZERO:					att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;				att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;				break;
+		case SBITS_SRCBLEND_ONE:					att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE;					att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;					break;
+		case SBITS_SRCBLEND_DST_COLOR:				att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;			att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			break;
+		case SBITS_SRCBLEND_ONE_MINUS_DST_COLOR:	att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	break;
+		case SBITS_SRCBLEND_SRC_ALPHA:				att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			break;
+		case SBITS_SRCBLEND_ONE_MINUS_SRC_ALPHA:	att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	break;
+		case SBITS_SRCBLEND_DST_ALPHA:				att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			break;
+		case SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA:	att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	break;
+		case SBITS_SRCBLEND_ALPHA_SATURATE:			att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;	break;
+		default:	Sys_Error("Bad shader blend src\n"); return;
+		}
+		switch(blendflags & SBITS_DSTBLEND_BITS)
+		{
+		case SBITS_DSTBLEND_ZERO:					att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;				att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;				break;
+		case SBITS_DSTBLEND_ONE:					att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;					att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;					break;
+		case SBITS_DSTBLEND_SRC_ALPHA:				att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			break;
+		case SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA:	att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	break;
+		case SBITS_DSTBLEND_DST_ALPHA:				att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			break;
+		case SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA:	att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	break;
+		case SBITS_DSTBLEND_SRC_COLOR:				att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;			att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			break;
+		case SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR:	att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;	att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	break;
+		default:	Sys_Error("Bad shader blend dst\n"); return;
+		}
+		att_state[0].colorBlendOp = VK_BLEND_OP_ADD;
+		att_state[0].alphaBlendOp = VK_BLEND_OP_ADD;
+		att_state[0].blendEnable = VK_TRUE;
+	}
+	else
+	{
+		att_state[0].blendEnable = VK_FALSE;
+	}
+	if (permu&PERMUTATION_BEM_DEPTHONLY)
+		cb.attachmentCount = 0;
+	else
+		cb.attachmentCount = 1;
+	cb.pAttachments = att_state;
+
+
+	s = 0;
+	specentries[s].constantID = 0;
+	specentries[s].offset = offsetof(struct specdata_s, alphamode);
+	specentries[s].size = sizeof(specdata.alphamode);
+	s++;
+	if (blendflags & SBITS_ATEST_GE128)
+		specdata.alphamode = 3;
+	else if (blendflags & SBITS_ATEST_GT0)
+		specdata.alphamode = 2;
+	else if (blendflags & SBITS_ATEST_LT128)
+		specdata.alphamode = 1;
+	else //if (blendflags & SBITS_ATEST_NONE)
+		specdata.alphamode = 0;
+
+	for (i = 0; i < countof(specdata.permu); i++)
+	{
+		specentries[s].constantID = 16+i;
+		specentries[s].offset = offsetof(struct specdata_s, permu[i]);
+		specentries[s].size = sizeof(specdata.permu[i]);
+		s++;
+		specdata.permu[i] = !!(permu & (1u<<i));
+	}
+
+	//cvars
+	for (cvardata = p->cvardata, i = 0; cvardata < p->cvardata + p->cvardatasize; )
+	{
+		unsigned short id = (cvardata[0]<<8)|cvardata[1];
+		unsigned char type = cvardata[2], size = cvardata[3]-'0';
+		char *name;
+		cvar_t *var;
+		unsigned int u;
+
+		cvardata += 4;
+		name = cvardata;
+		cvardata += strlen(name)+1;
+
+		if (i + size > countof(specdata.cvars))
+			break;	//error
+
+		if (type >= 'A' && type <= 'Z')
+		{	//args will be handled by the blob loader.
+			for (u = 0; u < size && u < 4; u++)
+			{
+				specentries[s].constantID = id;
+				specentries[s].offset = offsetof(struct specdata_s, cvars[i]);
+				specentries[s].size = sizeof(specdata.cvars[i]);
+
+				specdata.cvars[i].i = (cvardata[u*4+0]<<24)|(cvardata[u*4+1]<<16)|(cvardata[u*4+2]<<8)|(cvardata[u*4+3]<<0);
+				s++;
+				i++;
+				id++;
+			}
+		}
+		else
+		{
+			var = Cvar_FindVar(name);
+			if (var)
+			{
+				for (u = 0; u < size && u < 4; u++)
+				{
+					specentries[s].constantID = id;
+					specentries[s].offset = offsetof(struct specdata_s, cvars[i]);
+					specentries[s].size = sizeof(specdata.cvars[i]);
+
+					if (type == 'i')
+						specdata.cvars[i].i = var->ival;
+					else
+						specdata.cvars[i].f = var->vec4[u];
+					s++;
+					i++;
+					id++;
+				}
+			}
+		}
+		cvardata += 4*size;
+	}
+
+	specInfo.mapEntryCount = s;
+	specInfo.pMapEntries = specentries;
+	specInfo.dataSize = sizeof(specdata);
+	specInfo.pData = &specdata;
+
+#if 0//def _DEBUG
+	//vk_layer_lunarg_drawstate fucks up and pokes invalid bits of stack.
+	bugsbeware = Z_Malloc(sizeof(*bugsbeware) + sizeof(*specentries)*s + sizeof(specdata));
+	*bugsbeware = specInfo;
+	bugsbeware->pData = bugsbeware+1;
+	bugsbeware->pMapEntries = (VkSpecializationMapEntry*)((char*)bugsbeware->pData + specInfo.dataSize);
+	memcpy((void*)bugsbeware->pData, specInfo.pData, specInfo.dataSize);
+	memcpy((void*)bugsbeware->pMapEntries, specInfo.pMapEntries, sizeof(*specInfo.pMapEntries)*specInfo.mapEntryCount);
+#else
+	bugsbeware = &specInfo;
+#endif
+	//fixme: add more specialisations for custom cvars (yes, this'll flush+reload pipelines if they're changed)
+	//fixme: add specialisations for permutations I guess
+	//fixme: add geometry+tesselation support. because we can.
+
+	shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+	shaderStages[0].module = p->vert;
+	shaderStages[0].pName = "main";
+	shaderStages[0].pSpecializationInfo = bugsbeware;
+	shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	shaderStages[1].module = p->frag;
+	shaderStages[1].pName = "main";
+	shaderStages[1].pSpecializationInfo = bugsbeware;
+
+	pipeCreateInfo.flags				= 0;
+	pipeCreateInfo.stageCount			= countof(shaderStages);
+	pipeCreateInfo.pStages				= shaderStages;
+	pipeCreateInfo.pVertexInputState	= &vi;
+	pipeCreateInfo.pInputAssemblyState	= &ia;
+	pipeCreateInfo.pTessellationState	= NULL;	//null is okay!
+	pipeCreateInfo.pViewportState		= &vp;
+	pipeCreateInfo.pRasterizationState	= &rs;
+	pipeCreateInfo.pMultisampleState	= &ms;
+	pipeCreateInfo.pDepthStencilState	= &ds;
+	pipeCreateInfo.pColorBlendState		= &cb;
+	pipeCreateInfo.pDynamicState		= &dyn;
+	pipeCreateInfo.layout				= p->layout;
+	pipeCreateInfo.renderPass			= (permu&PERMUTATION_BEM_DEPTHONLY)?vk.shadow_renderpass:vk.renderpass[0];
+	pipeCreateInfo.subpass				= 0;
+	pipeCreateInfo.basePipelineHandle	= VK_NULL_HANDLE;
+	pipeCreateInfo.basePipelineIndex	= -1;	//not sure what this is about.
+
+//				pipeCreateInfo.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT;
+
+	err = vkCreateGraphicsPipelines(vk.device, vk.pipelinecache, 1, &pipeCreateInfo, vkallocationcb, &pipe->pipeline);
+
+	if (err)
+		Sys_Error("Error %i creating pipeline for %s. Check spir-v modules / drivers.\n", err, shaderstate.curshader->name);
+
+	vkCmdBindPipeline(vk.frame->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderstate.activepipeline=pipe->pipeline);
+}
 static void BE_BindPipeline(program_t *p, unsigned int shaderflags, unsigned int blendflags, unsigned int permu)
 {
 	struct pipeline_s *pipe;
@@ -2032,346 +2373,17 @@ static void BE_BindPipeline(program_t *p, unsigned int shaderflags, unsigned int
 				if (pipe->permu == permu)
 				{
 					if (pipe->pipeline != shaderstate.activepipeline)
-						vkCmdBindPipeline(vk.frame->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderstate.activepipeline=pipe->pipeline);
+					{
+						shaderstate.activepipeline = pipe->pipeline;
+						vkCmdBindPipeline(vk.frame->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderstate.activepipeline);
+					}
 					return;
 				}
 	}
 
 	//oh look. we need to build an entirely new pipeline object. hurrah... not.
-
-	if (!p->vert || !p->frag)
-		Sys_Error("program missing required shader\n");	//PANIC
-
-
-	{
-		VkDynamicState dynamicStateEnables[VK_DYNAMIC_STATE_RANGE_SIZE]={0};
-		VkPipelineDynamicStateCreateInfo dyn = {VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
-		VkVertexInputBindingDescription vbinds[VK_BUFF_MAX] = {{0}};
-		VkVertexInputAttributeDescription vattrs[VK_BUFF_MAX] = {{0}};
-		VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
-		VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
-		VkPipelineViewportStateCreateInfo vp = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
-		VkPipelineRasterizationStateCreateInfo rs = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
-		VkPipelineMultisampleStateCreateInfo ms = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
-		VkPipelineDepthStencilStateCreateInfo ds = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
-		VkPipelineColorBlendStateCreateInfo cb = {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
-		VkPipelineColorBlendAttachmentState att_state[1];
-		VkGraphicsPipelineCreateInfo pipeCreateInfo = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
-		VkPipelineShaderStageCreateInfo shaderStages[2] = {{0}};
-		struct specdata_s
-		{
-			int alphamode;
-			int permu[16];
-			union
-			{
-				float f;
-				int i;
-			} cvars[64];
-		} specdata;
-		VkSpecializationMapEntry specentries[256] = {{0}};
-		VkSpecializationInfo specInfo = {0}, *bugsbeware;
-		VkResult err;
-		uint32_t i, s;
-		unsigned char *cvardata;
-
-		pipe = Z_Malloc(sizeof(*pipe));
-		pipe->next = p->pipelines;
-		p->pipelines = pipe;
-
-		pipe->flags = shaderflags;
-		pipe->blendbits = blendflags;
-		pipe->permu = permu;
-
-		if (permu&PERMUTATION_BEM_WIREFRAME)
-		{
-			blendflags |= SBITS_MISC_NODEPTHTEST;
-			blendflags &= ~SBITS_MISC_DEPTHWRITE;
-
-			blendflags &= ~(SHADER_CULL_FRONT|SHADER_CULL_BACK);
-		}
-
-		dyn.flags = 0;
-		dyn.dynamicStateCount = 0;
-		dyn.pDynamicStates = dynamicStateEnables;
-
-		//it wasn't supposed to be like this!
-		//this stuff gets messy with tcmods and rgbgen/alphagen stuff
-		vbinds[VK_BUFF_POS].binding = VK_BUFF_POS;
-		vbinds[VK_BUFF_POS].stride = sizeof(vecV_t);
-		vbinds[VK_BUFF_POS].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		vattrs[VK_BUFF_POS].binding = vbinds[VK_BUFF_POS].binding;
-		vattrs[VK_BUFF_POS].location = VK_BUFF_POS;
-		vattrs[VK_BUFF_POS].format = VK_FORMAT_R32G32B32_SFLOAT;
-		vattrs[VK_BUFF_POS].offset = 0;
-		vbinds[VK_BUFF_TC].binding = VK_BUFF_TC;
-		vbinds[VK_BUFF_TC].stride = sizeof(vec2_t);
-		vbinds[VK_BUFF_TC].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		vattrs[VK_BUFF_TC].binding = vbinds[VK_BUFF_TC].binding;
-		vattrs[VK_BUFF_TC].location = VK_BUFF_TC;
-		vattrs[VK_BUFF_TC].format = VK_FORMAT_R32G32_SFLOAT;
-		vattrs[VK_BUFF_TC].offset = 0;
-		vbinds[VK_BUFF_COL].binding = VK_BUFF_COL;
-		vbinds[VK_BUFF_COL].stride = sizeof(vec4_t);
-		vbinds[VK_BUFF_COL].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		vattrs[VK_BUFF_COL].binding = vbinds[VK_BUFF_COL].binding;
-		vattrs[VK_BUFF_COL].location = VK_BUFF_COL;
-		vattrs[VK_BUFF_COL].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		vattrs[VK_BUFF_COL].offset = 0;
-		vbinds[VK_BUFF_LMTC].binding = VK_BUFF_LMTC;
-		vbinds[VK_BUFF_LMTC].stride = sizeof(vec2_t);
-		vbinds[VK_BUFF_LMTC].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		vattrs[VK_BUFF_LMTC].binding = vbinds[VK_BUFF_LMTC].binding;
-		vattrs[VK_BUFF_LMTC].location = VK_BUFF_LMTC;
-		vattrs[VK_BUFF_LMTC].format = VK_FORMAT_R32G32_SFLOAT;
-		vattrs[VK_BUFF_LMTC].offset = 0;
-
-		//fixme: in all seriousness, why is this not a single buffer?
-		vbinds[VK_BUFF_NORM].binding = VK_BUFF_NORM;
-		vbinds[VK_BUFF_NORM].stride = sizeof(vec3_t);
-		vbinds[VK_BUFF_NORM].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		vattrs[VK_BUFF_NORM].binding = vbinds[VK_BUFF_NORM].binding;
-		vattrs[VK_BUFF_NORM].location = VK_BUFF_NORM;
-		vattrs[VK_BUFF_NORM].format = VK_FORMAT_R32G32B32_SFLOAT;
-		vattrs[VK_BUFF_NORM].offset = 0;
-		vbinds[VK_BUFF_SDIR].binding = VK_BUFF_SDIR;
-		vbinds[VK_BUFF_SDIR].stride = sizeof(vec3_t);
-		vbinds[VK_BUFF_SDIR].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		vattrs[VK_BUFF_SDIR].binding = vbinds[VK_BUFF_SDIR].binding;
-		vattrs[VK_BUFF_SDIR].location = VK_BUFF_SDIR;
-		vattrs[VK_BUFF_SDIR].format = VK_FORMAT_R32G32B32_SFLOAT;
-		vattrs[VK_BUFF_SDIR].offset = 0;
-		vbinds[VK_BUFF_TDIR].binding = VK_BUFF_TDIR;
-		vbinds[VK_BUFF_TDIR].stride = sizeof(vec3_t);
-		vbinds[VK_BUFF_TDIR].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-		vattrs[VK_BUFF_TDIR].binding = vbinds[VK_BUFF_TDIR].binding;
-		vattrs[VK_BUFF_TDIR].location = VK_BUFF_TDIR;
-		vattrs[VK_BUFF_TDIR].format = VK_FORMAT_R32G32B32_SFLOAT;
-		vattrs[VK_BUFF_TDIR].offset = 0;
-
-		vi.vertexBindingDescriptionCount = countof(vbinds);
-		vi.pVertexBindingDescriptions = vbinds;
-		vi.vertexAttributeDescriptionCount = countof(vattrs);
-		vi.pVertexAttributeDescriptions = vattrs;
-
-		ia.topology = (blendflags&SBITS_LINES)?VK_PRIMITIVE_TOPOLOGY_LINE_LIST:VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		vp.viewportCount = 1;
-		dynamicStateEnables[dyn.dynamicStateCount++] =	VK_DYNAMIC_STATE_VIEWPORT;
-		vp.scissorCount = 1;
-		dynamicStateEnables[dyn.dynamicStateCount++] =	VK_DYNAMIC_STATE_SCISSOR;
-		//FIXME: fillModeNonSolid might mean mode_line is not supported.
-		rs.polygonMode = (permu&PERMUTATION_BEM_WIREFRAME)?VK_POLYGON_MODE_LINE:VK_POLYGON_MODE_FILL;
-		rs.lineWidth = 1;
-		rs.cullMode = ((shaderflags&SHADER_CULL_FRONT)?VK_CULL_MODE_FRONT_BIT:0) | ((shaderflags&SHADER_CULL_BACK)?VK_CULL_MODE_BACK_BIT:0);
-		rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-		rs.depthClampEnable = VK_FALSE;
-		rs.rasterizerDiscardEnable = VK_FALSE;
-		if (shaderflags & SHADER_POLYGONOFFSET)
-		{
-			rs.depthBiasEnable = VK_TRUE;
-			rs.depthBiasConstantFactor = -25;//shader->polyoffset.unit;
-			rs.depthBiasClamp = 0;
-			rs.depthBiasSlopeFactor = -0.05;//shader->polyoffset.factor;
-		}
-		else
-			rs.depthBiasEnable = VK_FALSE;
-
-		ms.pSampleMask = NULL;
-		ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-		ds.depthTestEnable = (blendflags&SBITS_MISC_NODEPTHTEST)?VK_FALSE:VK_TRUE;
-		ds.depthWriteEnable = (blendflags&SBITS_MISC_DEPTHWRITE)?VK_TRUE:VK_FALSE;
-		if (blendflags & SBITS_MISC_DEPTHEQUALONLY)
-			ds.depthCompareOp = VK_COMPARE_OP_EQUAL;
-		else if (blendflags & SBITS_MISC_DEPTHCLOSERONLY)
-			ds.depthCompareOp = VK_COMPARE_OP_LESS;
-		else
-			ds.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-		ds.depthBoundsTestEnable = VK_FALSE;
-		ds.back.failOp = VK_STENCIL_OP_KEEP;
-		ds.back.passOp = VK_STENCIL_OP_KEEP;
-		ds.back.compareOp = VK_COMPARE_OP_NEVER;//VK_COMPARE_OP_ALWAYS;
-		ds.stencilTestEnable = VK_FALSE;
-		ds.front = ds.back;
-		memset(att_state, 0, sizeof(att_state));
-		att_state[0].colorWriteMask =
-			((blendflags&SBITS_MASK_RED)?0:VK_COLOR_COMPONENT_R_BIT) |
-			((blendflags&SBITS_MASK_GREEN)?0:VK_COLOR_COMPONENT_G_BIT) |
-			((blendflags&SBITS_MASK_BLUE)?0:VK_COLOR_COMPONENT_B_BIT) |
-			((blendflags&SBITS_MASK_ALPHA)?0:VK_COLOR_COMPONENT_A_BIT);
-
-		if (blendflags & SBITS_BLEND_BITS)
-		{
-			switch(blendflags & SBITS_SRCBLEND_BITS)
-			{
-			case SBITS_SRCBLEND_ZERO:					att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;				att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;				break;
-			case SBITS_SRCBLEND_ONE:					att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE;					att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;					break;
-			case SBITS_SRCBLEND_DST_COLOR:				att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;			att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			break;
-			case SBITS_SRCBLEND_ONE_MINUS_DST_COLOR:	att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	break;
-			case SBITS_SRCBLEND_SRC_ALPHA:				att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			break;
-			case SBITS_SRCBLEND_ONE_MINUS_SRC_ALPHA:	att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	break;
-			case SBITS_SRCBLEND_DST_ALPHA:				att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			break;
-			case SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA:	att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	break;
-			case SBITS_SRCBLEND_ALPHA_SATURATE:			att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;	break;
-			default:	Sys_Error("Bad shader blend src\n"); return;
-			}
-			switch(blendflags & SBITS_DSTBLEND_BITS)
-			{
-			case SBITS_DSTBLEND_ZERO:					att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;				att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;				break;
-			case SBITS_DSTBLEND_ONE:					att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;					att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;					break;
-			case SBITS_DSTBLEND_SRC_ALPHA:				att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			break;
-			case SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA:	att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	break;
-			case SBITS_DSTBLEND_DST_ALPHA:				att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			break;
-			case SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA:	att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	break;
-			case SBITS_DSTBLEND_SRC_COLOR:				att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;			att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			break;
-			case SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR:	att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;	att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	break;
-			default:	Sys_Error("Bad shader blend dst\n"); return;
-			}
-			att_state[0].colorBlendOp = VK_BLEND_OP_ADD;
-			att_state[0].alphaBlendOp = VK_BLEND_OP_ADD;
-			att_state[0].blendEnable = VK_TRUE;
-		}
-		else
-		{
-			att_state[0].blendEnable = VK_FALSE;
-		}
-		cb.attachmentCount = 1;
-		cb.pAttachments = att_state;
-
-
-		s = 0;
-		specentries[s].constantID = 0;
-		specentries[s].offset = offsetof(struct specdata_s, alphamode);
-		specentries[s].size = sizeof(specdata.alphamode);
-		s++;
-		if (blendflags & SBITS_ATEST_GE128)
-			specdata.alphamode = 3;
-		else if (blendflags & SBITS_ATEST_GT0)
-			specdata.alphamode = 2;
-		else if (blendflags & SBITS_ATEST_LT128)
-			specdata.alphamode = 1;
-		else //if (blendflags & SBITS_ATEST_NONE)
-			specdata.alphamode = 0;
-
-		for (i = 0; i < countof(specdata.permu); i++)
-		{
-			specentries[s].constantID = 16+i;
-			specentries[s].offset = offsetof(struct specdata_s, permu[i]);
-			specentries[s].size = sizeof(specdata.permu[i]);
-			s++;
-			specdata.permu[i] = !!(permu & (1u<<i));
-		}
-
-		//cvars
-		for (cvardata = p->cvardata, i = 0; cvardata < p->cvardata + p->cvardatasize; )
-		{
-			unsigned short id = (cvardata[0]<<8)|cvardata[1];
-			unsigned char type = cvardata[2], size = cvardata[3]-'0';
-			char *name;
-			cvar_t *var;
-			unsigned int u;
-
-			cvardata += 4;
-			name = cvardata;
-			cvardata += strlen(name)+1;
-
-			if (i + size > countof(specdata.cvars))
-				break;	//error
-
-			if (type >= 'A' && type <= 'Z')
-			{	//args will be handled by the blob loader.
-				for (u = 0; u < size && u < 4; u++)
-				{
-					specentries[s].constantID = id;
-					specentries[s].offset = offsetof(struct specdata_s, cvars[i]);
-					specentries[s].size = sizeof(specdata.cvars[i]);
-
-					specdata.cvars[i].i = (cvardata[u*4+0]<<24)|(cvardata[u*4+1]<<16)|(cvardata[u*4+2]<<8)|(cvardata[u*4+3]<<0);
-					s++;
-					i++;
-					id++;
-				}
-			}
-			else
-			{
-				var = Cvar_FindVar(name);
-				if (var)
-				{
-					for (u = 0; u < size && u < 4; u++)
-					{
-						specentries[s].constantID = id;
-						specentries[s].offset = offsetof(struct specdata_s, cvars[i]);
-						specentries[s].size = sizeof(specdata.cvars[i]);
-
-						if (type == 'i')
-							specdata.cvars[i].i = var->ival;
-						else
-							specdata.cvars[i].f = var->vec4[u];
-						s++;
-						i++;
-						id++;
-					}
-				}
-			}
-			cvardata += 4*size;
-		}
-
-		specInfo.mapEntryCount = s;
-		specInfo.pMapEntries = specentries;
-		specInfo.dataSize = sizeof(specdata);
-		specInfo.pData = &specdata;
-
-#if 0//def _DEBUG
-		//vk_layer_lunarg_drawstate fucks up and pokes invalid bits of stack.
-		bugsbeware = Z_Malloc(sizeof(*bugsbeware) + sizeof(*specentries)*s + sizeof(specdata));
-		*bugsbeware = specInfo;
-		bugsbeware->pData = bugsbeware+1;
-		bugsbeware->pMapEntries = (VkSpecializationMapEntry*)((char*)bugsbeware->pData + specInfo.dataSize);
-		memcpy((void*)bugsbeware->pData, specInfo.pData, specInfo.dataSize);
-		memcpy((void*)bugsbeware->pMapEntries, specInfo.pMapEntries, sizeof(*specInfo.pMapEntries)*specInfo.mapEntryCount);
-#else
-		bugsbeware = &specInfo;
-#endif
-		//fixme: add more specialisations for custom cvars (yes, this'll flush+reload pipelines if they're changed)
-		//fixme: add specialisations for permutations I guess
-		//fixme: add geometry+tesselation support. because we can.
-
-		shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-		shaderStages[0].module = p->vert;
-		shaderStages[0].pName = "main";
-		shaderStages[0].pSpecializationInfo = bugsbeware;
-		shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		shaderStages[1].module = p->frag;
-		shaderStages[1].pName = "main";
-		shaderStages[1].pSpecializationInfo = bugsbeware;
-	
-		pipeCreateInfo.flags				= 0;
-		pipeCreateInfo.stageCount			= countof(shaderStages);
-		pipeCreateInfo.pStages				= shaderStages;
-		pipeCreateInfo.pVertexInputState	= &vi;
-		pipeCreateInfo.pInputAssemblyState	= &ia;
-		pipeCreateInfo.pTessellationState	= NULL;	//null is okay!
-		pipeCreateInfo.pViewportState		= &vp;
-		pipeCreateInfo.pRasterizationState	= &rs;
-		pipeCreateInfo.pMultisampleState	= &ms;
-		pipeCreateInfo.pDepthStencilState	= &ds;
-		pipeCreateInfo.pColorBlendState		= &cb;
-		pipeCreateInfo.pDynamicState		= &dyn;
-		pipeCreateInfo.layout				= p->layout;
-		pipeCreateInfo.renderPass			= (permu&PERMUTATION_BEM_DEPTHONLY)?vk.shadow_renderpass:vk.renderpass[0];
-		pipeCreateInfo.subpass				= 0;
-		pipeCreateInfo.basePipelineHandle	= VK_NULL_HANDLE;
-		pipeCreateInfo.basePipelineIndex	= -1;	//not sure what this is about.
-
-//				pipeCreateInfo.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT;
-
-		err = vkCreateGraphicsPipelines(vk.device, vk.pipelinecache, 1, &pipeCreateInfo, vkallocationcb, &pipe->pipeline);
-
-		if (err)
-			Sys_Error("Error %i creating pipeline for %s. Check spir-v modules / drivers.\n", err, shaderstate.curshader->name);
-	}
-
-	vkCmdBindPipeline(vk.frame->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderstate.activepipeline=pipe->pipeline);
+	//split into a different function because of abusive stack combined with windows stack probes.
+	BE_CreatePipeline(p, shaderflags, blendflags, permu);
 }
 
 static void BE_SetupTextureDescriptor(texid_t tex, texid_t fallbacktex, VkDescriptorSet set, VkWriteDescriptorSet *firstdesc, VkWriteDescriptorSet *desc, VkDescriptorImageInfo *img)
@@ -3261,6 +3273,9 @@ void VKBE_ClearVBO(vbo_t *vbo)
 {
 	//FIXME: may still be in use by an active commandbuffer.
 	VkDeviceMemory *retarded;
+
+	if (vbo->indicies.vk.buff || vbo->coord.vk.buff)
+		vkDeviceWaitIdle(vk.device); //just in case
 
 	if (vbo->indicies.vk.buff)
 	{
@@ -4809,6 +4824,35 @@ void VKBE_RenderShadowBuffer(struct vk_shadowbuffer *buf)
 	vkCmdDrawIndexed(vk.frame->cbuf, buf->numindicies, 1, 0, 0, 0);
 }
 
+
+static void VK_TerminateShadowMap(void)
+{
+	struct shadowmaps_s *shad;
+	unsigned int sbuf, i;
+
+	if (vk.shadow_renderpass != VK_NULL_HANDLE)
+		vkDestroyRenderPass(vk.device, vk.shadow_renderpass, vkallocationcb);
+
+	for (sbuf = 0; sbuf < countof(shaderstate.shadow); sbuf++)
+	{
+		shad = &shaderstate.shadow[sbuf];
+		if (!shad->image)
+			continue;
+
+		for (i = 0; i < countof(shad->buf); i++)
+		{
+			vkDestroyImageView(vk.device, shad->buf[i].vimage.view, vkallocationcb);
+			vkDestroySampler(vk.device, shad->buf[i].vimage.sampler, vkallocationcb);
+			vkDestroyFramebuffer(vk.device, shad->buf[i].framebuffer, vkallocationcb);
+		}
+		vkDestroyImage(vk.device, shad->image, vkallocationcb);
+		vkFreeMemory(vk.device, shad->memory, vkallocationcb);
+
+		shad->width = 0;
+		shad->height = 0;
+	}
+}
+
 qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 {
 	struct shadowmaps_s *shad = &shaderstate.shadow[isspot];
@@ -4818,7 +4862,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 
 	if (shad->width != width || shad->height != height)
 	{
-		//actually, this will really only happen the first time.
+		//actually, this will really only happen once per.
 		//so we can be lazy and not free here... check out validation/leak warnings if this changes...
 
 		unsigned int i;
@@ -4829,6 +4873,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 		imginfo.imageType = VK_IMAGE_TYPE_2D;
 		imginfo.extent.width = width;
 		imginfo.extent.height = height;
+		imginfo.extent.depth = 1;
 		imginfo.mipLevels = 1;
 		imginfo.arrayLayers = countof(shad->buf);
 		imginfo.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -4850,6 +4895,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 			VkAssert(vkBindImageMemory(vk.device, shad->image, shad->memory, 0));
 		}
 
+		if (vk.shadow_renderpass == VK_NULL_HANDLE)
 		{
 			VkAttachmentReference depth_reference;
 			VkAttachmentDescription attachments[1] = {{0}};
@@ -4865,7 +4911,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 			attachments[depth_reference.attachment].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 			attachments[depth_reference.attachment].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 			attachments[depth_reference.attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-			attachments[depth_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			attachments[depth_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 			attachments[depth_reference.attachment].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
 			subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;

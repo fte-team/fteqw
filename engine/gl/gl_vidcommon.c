@@ -345,7 +345,7 @@ int gl_mtexarbable=0;	//max texture units
 qboolean gl_mtexable = false;
 
 
-qboolean gammaworks;	//if the gl drivers can set proper gamma.
+extern qboolean gammaworks;	//if the gl drivers can set proper gamma.
 
 
 gl_config_t gl_config;

@@ -36,6 +36,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Audio =
 												"96000	\"96000hz\" "
 												"192000	\"192000hz\" "
 																)),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcheck_spawn(_("Doppler"),	"s_doppler", 						'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("8bit audio"),	"s_loadas8bit", 					'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("Swap Speakers"),	"s_swapstereo", 					'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Latency"),	"s_mixahead",			'0.1 0.3 0.01',		'280 8'),		fl, [0, pos], [0, 8]); pos += 8;

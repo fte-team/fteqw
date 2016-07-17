@@ -6202,6 +6202,8 @@ void Shader_DoReload(void)
 	//don't spam shader reloads while we're connecting, as that's just wasteful.
 	if (cls.state && cls.state < ca_active)
 		return;
+	if (!r_shaders)
+		return;	//err, not ready yet
 
 	if (shader_rescan_needed)
 	{

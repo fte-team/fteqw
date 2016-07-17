@@ -47,6 +47,9 @@ const char *vklayerlist[] =
 void VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStageFlags semwaitstagemask, VkSemaphore semsignal, VkFence fencesignal, struct vkframe *presentframe, struct vk_fencework *fencedwork);
 static int VK_Submit_Thread(void *arg);
 static void VK_Submit_DoWork(void);
+
+static void VK_DestroyRenderPass(void);
+static void VK_CreateRenderPass(void);
 		
 struct vulkaninfo_s vk;
 static struct vk_rendertarg postproc[2];
@@ -143,6 +146,13 @@ static void VK_DestroySwapChain(void)
 		Sys_WaitOnThread(vk.submitthread);
 		vk.submitthread = NULL;
 	}
+#ifdef THREADACQUIRE
+	while (vk.aquirenext < vk.aquirelast)
+	{
+		VkAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
+		vk.aquirenext++;
+	}
+#endif
 	while (vk.work)
 	{
 		Sys_LockConditional(vk.submitcondition);
@@ -171,12 +181,15 @@ static void VK_DestroySwapChain(void)
 	for (i = 0; i < vk.backbuf_count; i++)
 	{
 		//swapchain stuff
-		vkDestroyFramebuffer(vk.device, vk.backbufs[i].framebuffer, vkallocationcb);
-		vkDestroyImageView(vk.device, vk.backbufs[i].colour.view, vkallocationcb);
+		if (vk.backbufs[i].framebuffer)
+			vkDestroyFramebuffer(vk.device, vk.backbufs[i].framebuffer, vkallocationcb);
+		vk.backbufs[i].framebuffer = VK_NULL_HANDLE;
+		if (vk.backbufs[i].colour.view)
+			vkDestroyImageView(vk.device, vk.backbufs[i].colour.view, vkallocationcb);
+		vk.backbufs[i].colour.view = VK_NULL_HANDLE;
 		VK_DestroyVkTexture(&vk.backbufs[i].depth);
 	}
 
-	
 #ifdef THREADACQUIRE
 	while (vk.aquirenext < vk.aquirelast)
 	{
@@ -222,6 +235,7 @@ static void VK_DestroySwapChain(void)
 
 static qboolean VK_CreateSwapChain(void)
 {
+	qboolean reloadshaders = false;
 	uint32_t fmtcount;
 	VkSurfaceFormatKHR *surffmts;
 	uint32_t presentmodes;
@@ -333,7 +347,8 @@ static qboolean VK_CreateSwapChain(void)
 
 	if (vk.backbufformat != swapinfo.imageFormat)
 	{
-		//FIXME: need to change the renderpasses.
+		VK_DestroyRenderPass();
+		reloadshaders = true;
 	}
 	vk.backbufformat = swapinfo.imageFormat;
 
@@ -367,6 +382,13 @@ static qboolean VK_CreateSwapChain(void)
 		vk.aquirelast++;
 	}
 #endif
+
+	VK_CreateRenderPass();
+	if (reloadshaders)
+	{
+		Shader_NeedReload(true);
+		Shader_DoReload();
+	}
 
 	attachments[1] = VK_NULL_HANDLE;
 	attachments[0] = VK_NULL_HANDLE;
@@ -2073,7 +2095,18 @@ void	VKBE_RenderToTextureUpdate2d(qboolean destchanged)
 {
 }
 
-
+static void VK_DestroyRenderPass(void)
+{
+	int i;
+	for (i = 0; i < countof(vk.renderpass); i++)
+	{
+		if (vk.renderpass[i] != VK_NULL_HANDLE)
+		{
+			vkDestroyRenderPass(vk.device, vk.renderpass[i], vkallocationcb);
+			vk.renderpass[i] = VK_NULL_HANDLE;
+		}
+	}
+}
 static void VK_CreateRenderPass(void)
 {
 	int pass;
@@ -2085,6 +2118,8 @@ static 	VkRenderPassCreateInfo rp_info = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_I
 
 	for (pass = 0; pass < 3; pass++)
 	{
+		if (vk.renderpass[pass] != VK_NULL_HANDLE)
+			continue;
 		color_reference.attachment = 0;
 		color_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		
@@ -2558,9 +2593,6 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 
 	vk.depthformat = VK_FORMAT_D32_SFLOAT;//VK_FORMAT_D32_SFLOAT_S8_UINT;//VK_FORMAT_D24_UNORM_S8_UINT;//VK_FORMAT_D16_UNORM;
 
-	//this needs to be done before we have a swapchain.
-	VK_CreateRenderPass();
-
 #ifndef THREADACQUIRE
 	{
 		VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
@@ -2665,8 +2697,7 @@ void VK_Shutdown(void)
 		VKBE_RT_Destroy(&postproc[i]);
 
 	vkDestroyCommandPool(vk.device, vk.cmdpool, vkallocationcb);
-	for (i = 0; i < countof(vk.renderpass); i++)
-		vkDestroyRenderPass(vk.device, vk.renderpass[i], vkallocationcb);
+	VK_DestroyRenderPass();
 #ifndef THREADACQUIRE
 	vkDestroyFence(vk.device, vk.acquirefence, vkallocationcb);
 #endif
@@ -2689,6 +2720,7 @@ void VK_Shutdown(void)
 		vkDestroyDebugReportCallbackEXT(vk.instance, vk_debugcallback, vkallocationcb);
 		vk_debugcallback = VK_NULL_HANDLE;
 	}
+	vkDestroySurfaceKHR(vk.instance, vk.surface, vkallocationcb);
 	vkDestroyInstance(vk.instance, vkallocationcb);
 	Sys_DestroyMutex(vk.swapchain_mutex);
 	Sys_DestroyConditional(vk.submitcondition);

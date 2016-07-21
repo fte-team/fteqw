@@ -2248,6 +2248,7 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 		{
 			trace->surface_id = 1+surfnum;
 			trace->bone_id = 0;
+#ifdef SKELETALMODELS
 			if (mod->ofs_skel_weight)
 			{	//fixme: would be better to consider the distance to the vertex too. cartesian coord stuff etc.
 				unsigned int best = 0, v, w, i;
@@ -2264,6 +2265,7 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 					}
 				}
 			}
+#endif
 			if (axis)
 			{
 				vec3_t iaxis[3];

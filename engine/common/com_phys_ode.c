@@ -1547,10 +1547,10 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		jointtype = 0; // can't have both
 
 	o = (wedict_t*)PROG_TO_EDICT(world->progs, enemy);
-	if(o->isfree || o->ode.ode_body == 0)
+	if(ED_ISFREE(o) || o->ode.ode_body == 0)
 		enemy = 0;
 	o = (wedict_t*)PROG_TO_EDICT(world->progs, aiment);
-	if(o->isfree || o->ode.ode_body == 0)
+	if(ED_ISFREE(o) || o->ode.ode_body == 0)
 		aiment = 0;
 	// see http://www.ode.org/old_list_archives/2006-January/017614.html
 	// we want to set ERP? make it fps independent and work like a spring constant
@@ -2535,9 +2535,9 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 		if (ed1->ode.ode_body == b1 || ed2->ode.ode_body == b2)
 			return;
 	}
-	if(!ed1 || ed1->isfree)
+	if(!ed1 || ED_ISFREE(ed1))
 		ed1 = world->edicts;
-	if(!ed2 || ed2->isfree)
+	if(!ed2 || ED_ISFREE(ed2))
 		ed2 = world->edicts;
 
 	//non-solid things can still interact with pushers, but not other stuff.
@@ -2560,7 +2560,7 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 		}
 
 		/* if either ent killed itself, don't collide */
-		if ((ed1&&ed1->isfree) || (ed2&&ed2->isfree))
+		if ((ed1&&ED_ISFREE(ed1)) || (ed2&&ED_ISFREE(ed2)))
 			return;
 	}
 
@@ -2647,14 +2647,14 @@ static void QDECL World_ODE_Frame(world_t *world, double frametime, double gravi
 			for (i = 0;i < world->num_edicts;i++)
 			{
 				ed = (wedict_t*)EDICT_NUM(world->progs, i);
-				if (!ed->isfree)
+				if (!ED_ISFREE(ed))
 					World_ODE_Frame_BodyFromEntity(world, ed);
 			}
 			// oh, and it must be called after all bodies were created
 			for (i = 0;i < world->num_edicts;i++)
 			{
 				ed = (wedict_t*)EDICT_NUM(world->progs, i);
-				if (!ed->isfree)
+				if (!ED_ISFREE(ed))
 					World_ODE_Frame_JointFromEntity(world, ed);
 			}
 			while(ctx->cmdqueuehead)
@@ -2697,7 +2697,7 @@ static void QDECL World_ODE_Frame(world_t *world, double frametime, double gravi
 			for (i = 1;i < world->num_edicts;i++)
 			{
 				ed = (wedict_t*)EDICT_NUM(world->progs, i);
-				if (!ed->isfree)
+				if (!ED_ISFREE(ed))
 					World_ODE_Frame_BodyToEntity(world, ed);
 			}
 		}

@@ -127,7 +127,7 @@ struct eventlist_s
 		IEV_MOUSEDELTA,
 		IEV_JOYAXIS
 	} type;
-	int devid;
+	unsigned int devid;
 
 	union
 	{
@@ -171,7 +171,7 @@ struct mouse_s
 		M_MOUSE,	//using deltas
 		M_TOUCH		//using absolutes
 	} type;
-	int qdeviceid;	//so we can just use pointers.
+	unsigned int qdeviceid;	//so we can just use pointers.
 	vec2_t oldpos;
 	vec2_t downpos;
 	float moveddist;	//how far it has moved while held. this provides us with our emulated mouse1 when they release the press
@@ -187,7 +187,7 @@ int touchcursor;	//the cursor follows whichever finger was most recently pressed
 #define MAXJOYSTICKS 8
 struct joy_s
 {
-	int qdeviceid;
+	unsigned int qdeviceid;
 	float axis[MAXJOYAXIS];
 } joy[MAXJOYSTICKS];
 
@@ -220,11 +220,11 @@ struct remapctx
 {
 	char *type;
 	char *devicename;
-	int newdevid;
+	unsigned int newdevid;
 	unsigned int found;
 	unsigned int failed;
 };
-static void IN_DeviceIDs_DoRemap(void *vctx, const char *type, const char *devicename, int *qdevid)
+static void IN_DeviceIDs_DoRemap(void *vctx, const char *type, const char *devicename, unsigned int *qdevid)
 {
 	struct remapctx *ctx = vctx;
 
@@ -238,7 +238,7 @@ static void IN_DeviceIDs_DoRemap(void *vctx, const char *type, const char *devic
 			ctx->found++;
 		}
 }
-void IN_DeviceIDs_Enumerate(void *ctx, const char *type, const char *devicename, int *qdevid)
+void IN_DeviceIDs_Enumerate(void *ctx, const char *type, const char *devicename, unsigned int *qdevid)
 {
 	char buf[8192];
 	devicename = COM_QuotedString(devicename, buf, sizeof(buf), false);
@@ -247,7 +247,7 @@ void IN_DeviceIDs_Enumerate(void *ctx, const char *type, const char *devicename,
 	else if (*qdevid == DEVID_UNSET)
 		Con_Printf("%s\t%s\t%s\n", type, "Unset", devicename);
 	else
-		Con_Printf("%s\t%i\t%s\n", type, *qdevid, devicename);
+		Con_Printf("%s\t%u\t%s\n", type, *qdevid, devicename);
 }
 
 void IN_DeviceIDs_f(void)
@@ -259,7 +259,7 @@ void IN_DeviceIDs_f(void)
 		ctx.failed = false;
 		ctx.found = 0;
 		ctx.type = Cmd_Argv(1);
-		ctx.newdevid = atoi(Cmd_Argv(2));
+		ctx.newdevid = strtoul(Cmd_Argv(2), NULL, 0);
 		ctx.devicename = Cmd_Argv(3);
 		INS_EnumerateDevices(&ctx, IN_DeviceIDs_DoRemap);
 
@@ -333,7 +333,7 @@ void IN_Init(void)
 }
 
 //tells the keys.c code whether the cursor is currently active, causing mouse clicks instead of binds.
-qboolean IN_MouseDevIsTouch(int devid)
+qboolean IN_MouseDevIsTouch(unsigned int devid)
 {
 	if (devid < MAXPOINTERS)
 		return ptr[devid].type == M_TOUCH;
@@ -343,7 +343,7 @@ qboolean IN_MouseDevIsTouch(int devid)
 //translates MOUSE1 press events into begin-look-or-strafe events.
 //translates to MOUSE2 accordingly
 //returns 0 if it ate it completely.
-int IN_TranslateMButtonPress(int devid)
+int IN_TranslateMButtonPress(unsigned int devid)
 {
 	int ret;
 	if (!ptr[devid].down)
@@ -919,7 +919,7 @@ void IN_Move (float *movements, int pnum, float frametime)
 		IN_MoveJoystick(&joy[i], movements, pnum, frametime);
 }
 
-void IN_JoystickAxisEvent(int devid, int axis, float value)
+void IN_JoystickAxisEvent(unsigned int devid, int axis, float value)
 {
 	struct eventlist_s *ev = in_newevent();
 	if (!ev)	
@@ -931,7 +931,7 @@ void IN_JoystickAxisEvent(int devid, int axis, float value)
 	in_finishevent();
 }
 
-void IN_KeyEvent(int devid, int down, int keycode, int unicode)
+void IN_KeyEvent(unsigned int devid, int down, int keycode, int unicode)
 {
 	struct eventlist_s *ev = in_newevent();
 	if (!ev)	
@@ -949,7 +949,7 @@ for multitouch, devid might be the touch identifier, which will persist until re
 x is horizontal, y is vertical.
 z is height... generally its used as a mousewheel instead, but there are some '3d' mice out there, so its provided in this api.
 */
-void IN_MouseMove(int devid, int abs, float x, float y, float z, float size)
+void IN_MouseMove(unsigned int devid, int abs, float x, float y, float z, float size)
 {
 	struct eventlist_s *ev = in_newevent();
 	if (!ev)

@@ -67,6 +67,7 @@ void RSpeedShow(void)
 
 	RSpNames[RSPEED_SUBMIT] = "submit/finish";
 	RSpNames[RSPEED_PRESENT] = "present";
+	RSpNames[RSPEED_ACQUIRE] = "acquire";
 
 	memset(RQntNames, 0, sizeof(RQntNames));
 	RQntNames[RQUANT_MSECS] = "Microseconds";
@@ -294,7 +295,8 @@ CENTER PRINTING
 typedef struct {
 	unsigned int	flags;
 
-	conchar_t		string[1024];
+	conchar_t		*string;
+	size_t			stringbytes;
 	char			titleimage[MAX_QPATH];
 	unsigned int charcount;
 	float			time_start;   // for slow victory printing
@@ -493,7 +495,20 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 		}
 	}
 
-	p->charcount = COM_ParseFunString(CON_WHITEMASK, str, p->string, sizeof(p->string), false) - p->string;
+	for (;;)
+	{
+		p->charcount = COM_ParseFunString(CON_WHITEMASK, str, p->string, p->stringbytes, false) - p->string;
+
+		if ((p->charcount+1)*sizeof(*p->string) < p->stringbytes)
+			break;
+		else
+		{
+			p->stringbytes=p->stringbytes*2+sizeof(*p->string);
+			Z_Free(p->string);
+			p->string = Z_Malloc(p->stringbytes);
+		}
+	}
+
 	p->time_off = scr_centertime.value;
 	p->time_start = cl.time;
 }
@@ -514,7 +529,21 @@ void VARGS Stats_Message(char *msg, ...)
 
 	p->flags = CPRINT_OBITUARTY;
 	p->titleimage[0] = 0;
-	p->charcount = COM_ParseFunString(CON_WHITEMASK, str, p->string, sizeof(p->string), false) - p->string;
+
+	for (;;)
+	{
+		p->charcount = COM_ParseFunString(CON_WHITEMASK, str, p->string, p->stringbytes, false) - p->string;
+
+		if ((p->charcount+1)*sizeof(*p->string) < p->stringbytes)
+			break;
+		else
+		{
+			p->stringbytes=p->stringbytes*2+sizeof(*p->string);
+			Z_Free(p->string);
+			p->string = Z_Malloc(p->stringbytes);
+		}
+	}
+
 	p->time_off = scr_centertime.value;
 	p->time_start = cl.time;
 }
@@ -696,14 +725,17 @@ void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int 
 {
 	cprint_t p;
 	vrect_t r;
+	conchar_t buffer[16384];	//FIXME: make dynamic.
 
+	p.string = buffer;
+	p.stringbytes = sizeof(buffer);
 	r.x = x;
 	r.y = y;
 	r.width = w;
 	r.height = h;
 
 	p.flags = fieldflags;
-	p.charcount = COM_ParseFunString(defaultmask, text, p.string, sizeof(p.string), false) - p.string;
+	p.charcount = COM_ParseFunString(defaultmask, text, p.string, p.stringbytes, false) - p.string;
 	p.time_off = scr_centertime.value;
 	p.time_start = cl.time;
 	*p.titleimage = 0;
@@ -2962,6 +2994,12 @@ void SCR_DeInit (void)
 			key_customcursor[i].handle = NULL;
 		}
 		key_customcursor[i].dirty = true;
+	}
+	for (i = 0; i < countof(scr_centerprint); i++)
+	{
+		Z_Free(scr_centerprint[i].string);
+		scr_centerprint[i].string = NULL;
+		scr_centerprint[i].stringbytes = 0;
 	}
 	if (scr_initialized)
 	{

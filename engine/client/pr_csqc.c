@@ -154,13 +154,16 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalvector(trace_plane_normal,	"trace_plane_normal");	/*vector	written by traceline*/	\
 	globalfloat(trace_plane_dist,		"trace_plane_dist");	/*float		written by traceline*/	\
 	globalentity(trace_ent,				"trace_ent");			/*entity	written by traceline*/	\
-	globalfloat(trace_surfaceflagsf,	"trace_surfaceflags");	/*float		written by traceline*/	\
-	globalint(trace_surfaceflagsi,		"trace_surfaceflags");	/*int		written by traceline*/	\
+	globalfloat(trace_surfaceflagsf,	"trace_surfaceflagsf");	/*float		written by traceline*/	\
+	globalint(trace_surfaceflagsi,		"trace_surfaceflagsi");	/*int		written by traceline*/	\
 	globalstring(trace_surfacename,		"trace_surfacename");	/*string	written by traceline*/	\
-	globalfloat(trace_endcontents,		"trace_endcontents");	/*float		written by traceline EXT_CSQC_1*/	\
+	globalfloat(trace_endcontentsf,		"trace_endcontentsf");	/*float		written by traceline EXT_CSQC_1*/	\
 	globalint(trace_endcontentsi,		"trace_endcontentsi");	/*int		written by traceline EXT_CSQC_1*/	\
 	globalint(trace_brush_id,			"trace_brush_id");		/*int		written by traceline*/	\
 	globalint(trace_brush_faceid,		"trace_brush_faceid");	/*int		written by traceline*/	\
+	globalint(trace_surface_id,			"trace_surface_id");	/*int		written by traceline*/	\
+	globalint(trace_bone_id,			"trace_bone_id");		/*int		written by traceline*/	\
+	globalint(trace_triangle_id,		"trace_triangle_id");	/*int		written by traceline*/	\
 	\
 	globalfloat(clientcommandframe,		"clientcommandframe");	/*float		the next frame that will be sent*/ \
 	globalfloat(servercommandframe,		"servercommandframe");	/*float		the most recent frame received from the server*/ \
@@ -288,6 +291,7 @@ static void CSQC_ChangeLocalPlayer(int seat)
 
 static void CSQC_FindGlobals(qboolean nofuncs)
 {
+	static eval_t junk;
 	static float csphysicsmode = 0;
 	static float dimension_default = 255;
 	static vec3_t defaultgravity = {0, 0, -1};
@@ -306,6 +310,50 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 #undef globalentity
 #undef globalstring
 #undef globalfunction
+
+#define ensurefloat(name)	if (!csqcg.name) csqcg.name = &junk._float;
+#define ensureint(name)		if (!csqcg.name) csqcg.name = &junk._int;
+#define ensurevector(name)	if (!csqcg.name) csqcg.name = junk._vector;
+#define ensureentity(name)	if (!csqcg.name) csqcg.name = &junk.edict;
+
+	if (!csqcg.trace_surfaceflagsf && !csqcg.trace_surfaceflagsi)
+	{
+		etype_t etype;
+		eval_t *v = PR_FindGlobal(csqcprogs, "trace_surfaceflags", 0, &etype);
+		if (etype == ev_float)
+			csqcg.trace_surfaceflagsf = &v->_float;
+		else if (etype == ev_integer)
+			csqcg.trace_surfaceflagsi = &v->_int;
+	}
+	if (!csqcg.trace_endcontentsf && !csqcg.trace_endcontentsi)
+	{
+		etype_t etype;
+		eval_t *v = PR_FindGlobal(csqcprogs, "trace_endcontents", 0, &etype);
+		if (etype == ev_float)
+			csqcg.trace_endcontentsf = &v->_float;
+		else if (etype == ev_integer)
+			csqcg.trace_endcontentsi = &v->_int;
+	}
+
+	ensurefloat(trace_allsolid);
+	ensurefloat(trace_startsolid);
+	ensurefloat(trace_fraction);
+	ensurefloat(trace_inwater);
+	ensurefloat(trace_inopen);
+	ensurevector(trace_endpos);
+	ensurevector(trace_plane_normal);
+	ensurefloat(trace_plane_dist);
+	ensurefloat(trace_surfaceflagsf);
+	ensureint(trace_surfaceflagsi);
+	ensurefloat(trace_endcontentsf);
+	ensureint(trace_endcontentsi);
+	ensureint(trace_brush_id);
+	ensureint(trace_brush_faceid);
+	ensureint(trace_surface_id);
+	ensureint(trace_bone_id);
+	ensureint(trace_triangle_id);
+	ensureentity(trace_ent);
+
 
 	if (csqcg.simtime)
 		*csqcg.simtime = cl.servertime;
@@ -561,7 +609,7 @@ static void QCBUILTIN PF_cs_remove (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	ed = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 
-	if (ed->isfree)
+	if (ED_ISFREE(ed))
 	{
 		csqc_deprecated("Tried removing free entity");
 		return;
@@ -883,7 +931,7 @@ static void QCBUILTIN PF_R_AddEntity(pubprogfuncs_t *prinst, struct globalvars_s
 {
 	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
 	entity_t ent;
-	if (in->isfree || in->entnum == 0)
+	if (ED_ISFREE(in) || in->entnum == 0)
 	{
 		csqc_deprecated("Tried drawing a free/removed/world entity\n");
 		return;
@@ -1158,19 +1206,19 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 		for (e=1; e < maxe; e++)
 		{
 			ent = (void*)EDICT_NUM(prinst, e);
-			if (ent->isfree)
+			if (ED_ISFREE(ent))
 				continue;
 			if (ent->v->think)
 			{
 				WPhys_RunThink (&csqc_world, (wedict_t*)ent);
-				if (ent->isfree)
+				if (ED_ISFREE(ent))
 					continue;
 			}
 			if (ent->xv->predraw)
 			{
 				*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
 				PR_ExecuteProgram(prinst, ent->xv->predraw);
-				if (ent->isfree)
+				if (ED_ISFREE(ent))
 					continue;	//bummer...
 			}
 			if ((int)ent->xv->drawmask & mask)
@@ -1189,7 +1237,7 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 		for (e=1; e < maxe; e++)
 		{
 			ent = (void*)EDICT_NUM(prinst, e);
-			if (ent->isfree)
+			if (ED_ISFREE(ent))
 				continue;
 
 			if ((int)ent->xv->drawmask & mask)
@@ -1199,7 +1247,7 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 					*csqcg.self = EDICT_TO_PROG(prinst, (void*)ent);
 					PR_ExecuteProgram(prinst, ent->xv->predraw);
 
-					if (ent->isfree || G_FLOAT(OFS_RETURN))
+					if (ED_ISFREE(ent) || G_FLOAT(OFS_RETURN))
 						continue;	//bummer...
 				}
 				if (CopyCSQCEdictToEntity(ent, &rent))
@@ -2225,7 +2273,7 @@ static void QCBUILTIN PF_cs_SetSize (pubprogfuncs_t *prinst, struct globalvars_s
 	float	*min, *max;
 
 	e = G_WEDICT(prinst, OFS_PARM0);
-	if (e->isfree)
+	if (ED_ISFREE(e))
 	{
 		PR_RunWarning(prinst, "%s edict was free\n", "setsize");
 		return;
@@ -2253,20 +2301,17 @@ static void cs_settracevars(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	VectorCopy (tr->endpos, csqcg.trace_endpos);
 	VectorCopy (tr->plane.normal, csqcg.trace_plane_normal);
 	*csqcg.trace_plane_dist =  tr->plane.dist;
-	if (csqcg.trace_surfaceflagsf)
-		*csqcg.trace_surfaceflagsf = tr->surface?tr->surface->flags:0;
-	if (csqcg.trace_surfaceflagsi)
-		*csqcg.trace_surfaceflagsi = tr->surface?tr->surface->flags:0;
+	*csqcg.trace_surfaceflagsf = tr->surface?tr->surface->flags:0;
+	*csqcg.trace_surfaceflagsi = tr->surface?tr->surface->flags:0;
 	if (csqcg.trace_surfacename)
 		prinst->SetStringField(prinst, NULL, csqcg.trace_surfacename, tr->surface?tr->surface->name:NULL, true);
-	if (csqcg.trace_endcontents)
-		*csqcg.trace_endcontents = tr->contents;
-	if (csqcg.trace_endcontentsi)
-		*csqcg.trace_endcontentsi = tr->contents;
-	if (csqcg.trace_brush_id)
-		*csqcg.trace_brush_id = tr->brush_id;
-	if (csqcg.trace_brush_faceid)
-		*csqcg.trace_brush_faceid = tr->brush_face;
+	*csqcg.trace_endcontentsf = tr->contents;
+	*csqcg.trace_endcontentsi = tr->contents;
+	*csqcg.trace_brush_id = tr->brush_id;
+	*csqcg.trace_brush_faceid = tr->brush_face;
+	*csqcg.trace_surface_id = tr->surface_id;
+	*csqcg.trace_bone_id = tr->bone_id;
+	*csqcg.trace_triangle_id = tr->triangle_id;
 	if (tr->ent)
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)tr->ent);
 	else
@@ -3693,7 +3738,7 @@ static void QCBUILTIN PF_cs_findchainflags (pubprogfuncs_t *prinst, struct globa
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
 		ent = (csqcedict_t*)EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 		if (!((int)((float *)ent->v)[f] & s))
 			continue;
@@ -3720,7 +3765,7 @@ static void QCBUILTIN PF_cs_findchainfloat (pubprogfuncs_t *prinst, struct globa
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
 		ent = (csqcedict_t*)EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 		if (((float *)ent->v)[f] != s)
 			continue;
@@ -3750,7 +3795,7 @@ static void QCBUILTIN PF_cs_findchain (pubprogfuncs_t *prinst, struct globalvars
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
 		ent = (csqcedict_t*)EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 		t = *(string_t *)&((float*)ent->v)[f];
 		if (!t)
@@ -7226,7 +7271,7 @@ qboolean CSQC_DrawView(void)
 	return true;
 }
 
-qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
+qboolean CSQC_KeyPress(int key, int unicode, qboolean down, unsigned int devid)
 {
 	static qbyte csqckeysdown[K_MAX];
 	void *pr_globals;
@@ -7269,7 +7314,7 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 
 	return G_FLOAT(OFS_RETURN);
 }
-qboolean CSQC_MousePosition(float xabs, float yabs, int devid)
+qboolean CSQC_MousePosition(float xabs, float yabs, unsigned int devid)
 {
 	void *pr_globals;
 
@@ -7286,7 +7331,7 @@ qboolean CSQC_MousePosition(float xabs, float yabs, int devid)
 
 	return G_FLOAT(OFS_RETURN);
 }
-qboolean CSQC_MouseMove(float xdelta, float ydelta, int devid)
+qboolean CSQC_MouseMove(float xdelta, float ydelta, unsigned int devid)
 {
 	void *pr_globals;
 
@@ -7304,7 +7349,7 @@ qboolean CSQC_MouseMove(float xdelta, float ydelta, int devid)
 	return G_FLOAT(OFS_RETURN);
 }
 
-qboolean CSQC_JoystickAxis(int axis, float value, int devid)
+qboolean CSQC_JoystickAxis(int axis, float value, unsigned int devid)
 {
 	void *pr_globals;
 	if (!csqcprogs || !csqcg.input_event)

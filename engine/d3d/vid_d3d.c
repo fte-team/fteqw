@@ -1184,42 +1184,44 @@ static void D3D9_SetupViewPortProjection(void)
 
 static void	(D3D9_R_RenderView)				(void)
 {
-	Surf_SetupFrame();
-
-	//check if we can do underwater warp
-	if (cls.protocol != CP_QUAKE2)	//quake2 tells us directly
+	if (!r_norefresh.value)
 	{
-		if (r_viewcontents & FTECONTENTS_FLUID)
-			r_refdef.flags |= RDF_UNDERWATER;
-		else
-			r_refdef.flags &= ~RDF_UNDERWATER;
-	}
-	if (r_refdef.flags & RDF_UNDERWATER)
-	{
-		extern cvar_t r_projection;
-		if (!r_waterwarp.value || r_projection.ival)
-			r_refdef.flags &= ~RDF_UNDERWATER;	//no warp at all
-//		else if (r_waterwarp.value > 0 && scenepp_waterwarp)
-//			r_refdef.flags |= RDF_WATERWARP;	//try fullscreen warp instead if we can
-	}
+		Surf_SetupFrame();
 
-	D3D9_SetupViewPortProjection();
+		//check if we can do underwater warp
+		if (cls.protocol != CP_QUAKE2)	//quake2 tells us directly
+		{
+			if (r_viewcontents & FTECONTENTS_FLUID)
+				r_refdef.flags |= RDF_UNDERWATER;
+			else
+				r_refdef.flags &= ~RDF_UNDERWATER;
+		}
+		if (r_refdef.flags & RDF_UNDERWATER)
+		{
+			extern cvar_t r_projection;
+			if (!r_waterwarp.value || r_projection.ival)
+				r_refdef.flags &= ~RDF_UNDERWATER;	//no warp at all
+	//		else if (r_waterwarp.value > 0 && scenepp_waterwarp)
+	//			r_refdef.flags |= RDF_WATERWARP;	//try fullscreen warp instead if we can
+		}
 
-//	if (r_clear.ival && !(r_refdef.flags & RDF_NOWORLDMODEL))
-//		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(255,0,0), 1, 0));
-//	else
-		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
+		D3D9_SetupViewPortProjection();
 
-	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
-	RQ_BeginFrame();
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
-	{
-		if (cl.worldmodel)
-			P_DrawParticles ();
+	//	if (r_clear.ival && !(r_refdef.flags & RDF_NOWORLDMODEL))
+	//		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(255,0,0), 1, 0));
+	//	else
+			d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
+
+		R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+		RQ_BeginFrame();
+		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+		{
+			if (cl.worldmodel)
+				P_DrawParticles ();
+		}
+		Surf_DrawWorld();
+		RQ_RenderBatchClear();
 	}
-	Surf_DrawWorld();
-	RQ_RenderBatchClear();
-	
 	D3D9_Set2D ();
 }
 

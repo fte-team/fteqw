@@ -18,8 +18,7 @@
 #define UINT64_MAX _UI64_MAX
 #endif
 
-//#define USE_DYNAMIC_STAGING	//seems faster to not bother on nvidia. plus all other vendors seem to have host|device heaps
-#define THREADACQUIRE			//should be better controlled
+#define THREADACQUIRE			//should be better behaved, with no extra locks needed.
 
 
 
@@ -48,6 +47,7 @@
 	VKFunc(GetPhysicalDeviceSurfacePresentModesKHR)	\
 	VKFunc(GetPhysicalDeviceSurfaceCapabilitiesKHR)	\
 	VKFunc(GetPhysicalDeviceMemoryProperties)		\
+	VKFunc(GetPhysicalDeviceFormatProperties)		\
 	VKFunc(DestroySurfaceKHR)						\
 	VKFunc(CreateDevice)							\
 	VKFunc(DestroyInstance)							\
@@ -257,10 +257,9 @@ extern struct vulkaninfo_s
 		size_t align;
 		VkBuffer stagingbuf;
 		VkDeviceMemory stagingmemory;
-#ifdef USE_DYNAMIC_STAGING
 		VkBuffer devicebuf;
 		VkDeviceMemory devicememory;
-#endif
+		VkBuffer renderbuf;	//either staging or device.
 		void *ptr;
 
 		struct dynbuffer *next;
@@ -337,11 +336,7 @@ void VK_Shutdown(void);
 void VKBE_Init(void);
 void VKBE_InitFramePools(struct vkframe *frame);
 void VKBE_RestartFrame(void);
-#ifdef USE_DYNAMIC_STAGING
-void VKBE_FlushDynamicBuffers(VkCommandBuffer buf);
-#else
 void VKBE_FlushDynamicBuffers(void);
-#endif
 void VKBE_Set2D(qboolean twodee);
 void VKBE_ShutdownFramePools(struct vkframe *frame);
 void VKBE_Shutdown(void);

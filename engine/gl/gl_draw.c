@@ -332,7 +332,7 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 	//note that some drivers will just ignore levels that are not valid.
 	//this means that we can't make this setting dynamic, so we might as well let the drivers know BEFORE we do the uploads, to be kind to those that are buggy..
 	//this is available in gles3
-	if (!gl_config.gles || gl_config.glversion >= 3.0)
+	if (sh_config.can_mipcap)
 	{
 		if (targ != GL_TEXTURE_CUBE_MAP_ARB)
 		{

@@ -205,6 +205,7 @@ void FS_Manifest_Free(ftemanifest_t *man)
 	Z_Free(man->updatefile);
 	Z_Free(man->installation);
 	Z_Free(man->formalname);
+	Z_Free(man->downloadsurl);
 	Z_Free(man->protocolname);
 	Z_Free(man->eula);
 	Z_Free(man->defaultexec);
@@ -235,6 +236,8 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 		newm->installation = Z_StrDup(oldm->installation);
 	if (oldm->formalname)
 		newm->formalname = Z_StrDup(oldm->formalname);
+	if (oldm->downloadsurl)
+		newm->downloadsurl = Z_StrDup(oldm->downloadsurl);
 	if (oldm->protocolname)
 		newm->protocolname = Z_StrDup(oldm->protocolname);
 	if (oldm->eula)
@@ -277,6 +280,8 @@ void FS_Manifest_Print(ftemanifest_t *man)
 		Con_Printf("game %s\n", COM_QuotedString(man->installation, buffer, sizeof(buffer), false));
 	if (man->formalname)
 		Con_Printf("name %s\n", COM_QuotedString(man->formalname, buffer, sizeof(buffer), false));
+	if (man->downloadsurl)
+		Con_Printf("downloadsurl %s\n", COM_QuotedString(man->downloadsurl, buffer, sizeof(buffer), false));
 	if (man->protocolname)
 		Con_Printf("protocolname %s\n", COM_QuotedString(man->protocolname, buffer, sizeof(buffer), false));
 	if (man->defaultexec)
@@ -500,6 +505,11 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 	{
 		Z_Free(man->eula);
 		man->eula = Z_StrDup(Cmd_Argv(1));
+	}
+	else if (!Q_strcasecmp(cmd, "downloadsurl"))
+	{
+		Z_Free(man->downloadsurl);
+		man->downloadsurl = Z_StrDup(Cmd_Argv(1));
 	}
 	else if (!Q_strcasecmp(cmd, "protocolname"))
 	{
@@ -1705,6 +1715,26 @@ vfsfile_t *FS_OpenWithFriends(const char *fname, char *sysname, size_t sysnamesi
 	return NULL;
 }
 
+//returns false if the string didn't fit. we're not trying to be clever and reallocate the buffer
+qboolean try_snprintf(char *buffer, size_t size, const char *format, ...)
+{
+	size_t ret;
+	va_list		argptr;
+
+	va_start (argptr, format);
+#ifdef _WIN32
+#undef _vsnprintf
+	ret = _vsnprintf(buffer, size, format, argptr);
+#define _vsnprintf unsafe_vsnprintf
+#else
+	ret = vsnprintf (buffer, size, format,argptr);
+#endif
+	va_end (argptr);
+	if (ret > size-1)	//should cope with microsoft's -1s and linuxes total-length return values.
+		return false;
+	return true;
+}
+
 /*locates and opens a file
 modes:
 r = read
@@ -1747,7 +1777,8 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 	case FS_GAMEONLY:	//OS access only, no paks
 		if (com_homepathenabled)
 		{
-			snprintf(fullname, sizeof(fullname), "%s%s/%s", com_homepath, gamedirfile, filename);
+			if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_homepath, gamedirfile, filename))
+				return NULL;
 			if (*mode == 'w')
 				COM_CreatePath(fullname);
 			vfs = VFSOS_Open(fullname, mode);
@@ -1756,23 +1787,27 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 		}
 		if (*gamedirfile)
 		{
-			snprintf(fullname, sizeof(fullname), "%s%s/%s", com_gamepath, gamedirfile, filename);
+			if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_gamepath, gamedirfile, filename))
+				return NULL;
 			if (*mode == 'w')
 				COM_CreatePath(fullname);
 			return VFSOS_Open(fullname, mode);
 		}
 		return NULL;
 	case FS_PUBGAMEONLY:
-		FS_NativePath(filename, relativeto, fullname, sizeof(fullname));
+		if (!FS_NativePath(filename, relativeto, fullname, sizeof(fullname)))
+			return NULL;
 		if (*mode == 'w')
 			COM_CreatePath(fullname);
 		return VFSOS_Open(fullname, mode);
 	case FS_GAME:	//load from paks in preference to system paths. overwriting be damned.
 	case FS_PUBBASEGAMEONLY:	//load from paks in preference to system paths. overwriting be damned.
-		FS_NativePath(filename, relativeto, fullname, sizeof(fullname));
+		if (!FS_NativePath(filename, relativeto, fullname, sizeof(fullname)))
+			return NULL;
 		break;
 	case FS_BINARYPATH:
-		FS_NativePath(filename, relativeto, fullname, sizeof(fullname));
+		if (!FS_NativePath(filename, relativeto, fullname, sizeof(fullname)))
+			return NULL;
 		if (*mode == 'w')
 			COM_CreatePath(fullname);
 		return VFSOS_Open(fullname, mode);
@@ -1781,22 +1816,26 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 			return NULL;
 		if (com_homepathenabled)
 		{
-			snprintf(fullname, sizeof(fullname), "%s%s", com_homepath, filename);
+			if (!try_snprintf(fullname, sizeof(fullname), "%s%s", com_homepath, filename))
+				return NULL;
 			vfs = VFSOS_Open(fullname, mode);
 			if (vfs)
 				return vfs;
 		}
-		snprintf(fullname, sizeof(fullname), "%s%s", com_gamepath, filename);
+		if (!try_snprintf(fullname, sizeof(fullname), "%s%s", com_gamepath, filename))
+			return NULL;
 		return VFSOS_Open(fullname, mode);
 	case FS_BASEGAMEONLY:		//always bypass packs+pure.
 		if (com_homepathenabled)
 		{
-			snprintf(fullname, sizeof(fullname), "%sfte/%s", com_homepath, filename);
+			if (!try_snprintf(fullname, sizeof(fullname), "%sfte/%s", com_homepath, filename))
+				return NULL;
 			vfs = VFSOS_Open(fullname, mode);
 			if (vfs)
 				return vfs;
 		}
-		snprintf(fullname, sizeof(fullname), "%sfte/%s", com_gamepath, filename);
+		if (!try_snprintf(fullname, sizeof(fullname), "%sfte/%s", com_gamepath, filename))
+			return NULL;
 		return VFSOS_Open(fullname, mode);
 	default:
 		Sys_Error("FS_OpenVFS: Bad relative path (%i)", relativeto);
@@ -2855,6 +2894,7 @@ typedef struct {
 
 	const char *dir[4];
 	const char *poshname;	//Full name for the game.
+	const char *downloadsurl;
 	const char *manifestfile;
 } gamemode_info_t;
 const gamemode_info_t gamemode_info[] = {
@@ -2867,7 +2907,7 @@ const gamemode_info_t gamemode_info[] = {
 //for quake, we also allow extracting all files from paks. some people think it loads faster that way or something.
 
 	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
-	{"-quake",		"q1",		MASTER_PREFIX"Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},		"Quake"/*,    "id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-quake",		"q1",		MASTER_PREFIX"Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},		"Quake", "https://fte.triptohell.info/downloadables.txt" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//quake's mission packs should not be favoured over the base game nor autodetected
 	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
 	//and q2 also has a rogue/pak0.pak file that we don't want to find and cause quake2 to look like dissolution of eternity
@@ -3795,14 +3835,14 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	return false;
 }
 #else
-#ifdef __linux__
+#if defined(__linux__) || defined(__unix__) || defined(__apple__)
 #include <sys/stat.h>
 #endif
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
 {
-#ifdef __linux__
+#if defined(__linux__) || defined(__unix__) || defined(__apple__)
 	struct stat sb;
-        if (!strcmp(gamename, "quake"))
+	if (!strcmp(gamename, "quake"))
 	{
 		if (stat("/usr/share/quake/", &sb) == 0)
 		{
@@ -3859,6 +3899,7 @@ void FS_Shutdown(void)
 	fs_thread_mutex = NULL;
 
 	Cvar_SetEngineDefault(&fs_gamename, NULL);
+	Cvar_SetEngineDefault(&fs_downloads_url, NULL);
 	Cvar_SetEngineDefault(&com_protocolname, NULL);
 }
 
@@ -3930,7 +3971,8 @@ static int FS_IdentifyDefaultGameFromDir(char *basedir)
 //3: if we are ftequake3.exe then we always try to run quake3.
 //4: identify characteristic files within the working directory (like id1/pak0.pak implies we're running quake)
 //5: check where the exe actually is instead of simply where we're being run from.
-//6: fallback to prompting. just returns -1 here.
+//6: try the homedir, just in case.
+//7: fallback to prompting. just returns -1 here.
 //if autobasedir is not set, block gamedir changes/prompts.
 static int FS_IdentifyDefaultGame(char *newbase, int sizeof_newbase, qboolean fixedbase)
 {
@@ -3960,6 +4002,12 @@ static int FS_IdentifyDefaultGame(char *newbase, int sizeof_newbase, qboolean fi
 		gamenum = FS_IdentifyDefaultGameFromDir(host_parms.binarydir);
 		if (gamenum != -1)
 			Q_strncpyz(newbase, host_parms.binarydir, sizeof_newbase);
+	}
+	if (gamenum == -1 && *com_homepath && !fixedbase)
+	{
+		gamenum = FS_IdentifyDefaultGameFromDir(com_homepath);
+		if (gamenum != -1)
+			Q_strncpyz(newbase, com_homepath, sizeof_newbase);
 	}
 	return gamenum;
 }
@@ -4828,6 +4876,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 						}
 				}
 
+				if (!man->downloadsurl)
+				{
+					Cmd_TokenizeString(va("downloadsurl \"%s\"", gamemode_info[i].downloadsurl), false, false);
+					FS_Manifest_ParseTokens(man);
+				}
 				if (!man->protocolname)
 				{
 					Cmd_TokenizeString(va("protocolname \"%s\"", gamemode_info[i].protocolname), false, false);
@@ -4954,9 +5007,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 			if (reloadconfigs)
 			{
 				Cvar_SetEngineDefault(&fs_gamename, man->formalname?man->formalname:"FTE");
+				Cvar_SetEngineDefault(&fs_downloads_url, man->downloadsurl?man->downloadsurl:"");
 				Cvar_SetEngineDefault(&com_protocolname, man->protocolname?man->protocolname:"FTE");
 				//FIXME: flag this instead and do it after a delay?
 				Cvar_ForceSet(&fs_gamename, fs_gamename.enginevalue);
+				Cvar_ForceSet(&fs_downloads_url, fs_downloads_url.enginevalue);
 				Cvar_ForceSet(&com_protocolname, com_protocolname.enginevalue);
 				vidrestart = false;
 
@@ -5398,7 +5453,7 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&cfg_reload_on_gamedir, "Filesystem");
 	Cvar_Register(&com_fs_cache, "Filesystem");
 	Cvar_Register(&fs_gamename, "Filesystem");
-	Cvar_Register(&fs_gamemanifest, "Filesystem");
+	Cvar_Register(&fs_downloads_url, "Filesystem");
 	Cvar_Register(&com_protocolname, "Server Info");
 	Cvar_Register(&fs_game, "Filesystem");
 #ifdef Q2SERVER

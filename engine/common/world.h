@@ -74,6 +74,9 @@ typedef struct trace_s
 	float truefraction;	//can be negative, also has floating point precision issues, etc.
 	int			brush_id;
 	int			brush_face;
+	int			surface_id;
+	int			triangle_id;
+	int			bone_id;
 } trace_t;
 
 typedef struct q2trace_s

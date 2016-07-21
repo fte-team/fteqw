@@ -5,6 +5,7 @@
 #include "shader.h"
 #include "renderque.h"	//is anything still using this?
 
+extern qboolean vid_isfullscreen;
 extern cvar_t vk_submissionthread;
 extern cvar_t vk_debug;
 extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method;
@@ -281,7 +282,7 @@ static qboolean VK_CreateSwapChain(void)
 	swapinfo.queueFamilyIndexCount = 0;
 	swapinfo.pQueueFamilyIndices = NULL;
 	swapinfo.oldSwapchain = vk.swapchain;
-	swapinfo.clipped = VK_TRUE;	//allow fragment shaders to be skipped on parts that are obscured by another window. screenshots might get weird, so use proper captures if required/automagic.
+	swapinfo.clipped = vid_isfullscreen?VK_FALSE:VK_TRUE;	//allow fragment shaders to be skipped on parts that are obscured by another window. screenshots might get weird, so use proper captures if required/automagic.
 
 	swapinfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;	//supposed to be guarenteed support.
 	for (i = 0, curpri = 0; i < presentmodes; i++)
@@ -376,7 +377,7 @@ static qboolean VK_CreateSwapChain(void)
 		VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefences[i]));
 	}
 	/*-1 to hide any weird thread issues*/
-	while (vk.aquirelast < ACQUIRELIMIT-1 && vk.aquirelast < vk.backbuf_count && vk.aquirelast <= vk.backbuf_count-surfcaps.minImageCount)
+	while (vk.aquirelast < ACQUIRELIMIT-1 && vk.aquirelast < vk.backbuf_count && vk.aquirelast < 2 && vk.aquirelast <= vk.backbuf_count-surfcaps.minImageCount)
 	{
 		VkAssert(vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, VK_NULL_HANDLE, vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]));
 		vk.aquirelast++;
@@ -591,8 +592,6 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 		format = VK_FORMAT_B4G4R4A4_UNORM_PACK16;	//fixme: this seems wrong.
 	else if (encoding == PTI_RGBA5551) 
 		format = VK_FORMAT_R5G5B5A1_UNORM_PACK16;
-	else if (encoding == PTI_ARGB1555) 
-		format = VK_FORMAT_A1R5G5B5_UNORM_PACK16;
 	else if (encoding == PTI_ARGB1555) 
 		format = VK_FORMAT_A1R5G5B5_UNORM_PACK16;
 	//float formats
@@ -893,6 +892,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 		blocksize = 1;
 		blockbytes = 2;
 		break;
+
 	default:
 		return false;
 	}
@@ -1746,7 +1746,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 	}
 
 	//wait for the queued acquire to actually finish
-	if (1)//vk.vsync)
+	if (vk.vsync)
 	{
 		//friendly wait
 		VkAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
@@ -2033,14 +2033,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 
 	{
 		RSpeedRemark();
-
-#ifdef USE_DYNAMIC_STAGING
-		bufs[0] = VK_FencedBegin();
-		VKBE_FlushDynamicBuffers(bufs[0]);
-		VK_FencedSubmit(bufs[0], NULL, 0);
-#else
 		VKBE_FlushDynamicBuffers();
-#endif
 		RSpeedEnd(RSPEED_SUBMIT);
 	}
 
@@ -2255,6 +2248,8 @@ static void VK_Submit_DoWork(void)
 			Sys_LockMutex(vk.swapchain_mutex);
 			err = vkQueuePresentKHR(vk.queue_present, &presinfo);
 			Sys_UnlockMutex(vk.swapchain_mutex);
+			RSpeedEnd(RSPEED_PRESENT);
+			RSpeedRemark();
 			if (err)
 			{
 				Con_Printf("ERROR: vkQueuePresentKHR: %x\n", err);
@@ -2263,7 +2258,7 @@ static void VK_Submit_DoWork(void)
 #ifdef THREADACQUIRE
 			else
 			{
-				err = vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, VK_NULL_HANDLE, vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]);
+				err = vkAcquireNextImageKHR(vk.device, vk.swapchain, 0, VK_NULL_HANDLE, vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]);
 				if (err)
 				{
 					Con_Printf("ERROR: vkAcquireNextImageKHR: %x\n", err);
@@ -2272,7 +2267,7 @@ static void VK_Submit_DoWork(void)
 				vk.aquirelast++;
 			}
 #endif
-			RSpeedEnd(RSPEED_PRESENT);
+			RSpeedEnd(RSPEED_ACQUIRE);
 		}
 	}
 	
@@ -2336,6 +2331,56 @@ void VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStage
 	Sys_UnlockConditional(vk.submitcondition);
 }
 
+void VK_CheckTextureFormats(void)
+{
+	struct {
+		unsigned int pti;
+		VkFormat vulkan;
+		unsigned int needextra;
+	} texfmt[] =
+	{
+		{PTI_RGBA8,		VK_FORMAT_R8G8B8A8_UNORM},
+		{PTI_RGBX8,		VK_FORMAT_R8G8B8A8_UNORM},
+		{PTI_BGRA8,		VK_FORMAT_B8G8R8A8_UNORM},
+		{PTI_BGRX8,		VK_FORMAT_B8G8R8A8_UNORM},
+		{PTI_RGB565,	VK_FORMAT_R5G6B5_UNORM_PACK16},
+		{PTI_RGBA4444,	VK_FORMAT_R4G4B4A4_UNORM_PACK16},
+		{PTI_ARGB4444,	VK_FORMAT_B4G4R4A4_UNORM_PACK16},
+		{PTI_RGBA5551,	VK_FORMAT_R5G5B5A1_UNORM_PACK16},
+		{PTI_ARGB1555,	VK_FORMAT_A1R5G5B5_UNORM_PACK16},
+		{PTI_RGBA16F,	VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
+		{PTI_RGBA32F,	VK_FORMAT_R32G32B32A32_SFLOAT, VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
+		{PTI_R8,		VK_FORMAT_R8_UNORM},
+		{PTI_RG8,		VK_FORMAT_R8G8_UNORM},
+
+		{PTI_DEPTH16,	VK_FORMAT_D16_UNORM,			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+		{PTI_DEPTH24,	VK_FORMAT_X8_D24_UNORM_PACK32,	VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+		{PTI_DEPTH32,	VK_FORMAT_D32_SFLOAT,			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+		{PTI_DEPTH24_8,	VK_FORMAT_D24_UNORM_S8_UINT,	VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+
+		{PTI_S3RGB1,	VK_FORMAT_BC1_RGB_UNORM_BLOCK},
+		{PTI_S3RGBA1,	VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
+		{PTI_S3RGBA3,	VK_FORMAT_BC2_UNORM_BLOCK},
+		{PTI_S3RGBA5,	VK_FORMAT_BC3_UNORM_BLOCK},
+	};
+	unsigned int i;
+	VkPhysicalDeviceProperties props;
+
+	vkGetPhysicalDeviceProperties(vk.gpu, &props);
+
+	sh_config.texture_maxsize = props.limits.maxImageDimension2D;
+
+	for (i = 0; i < countof(texfmt); i++)
+	{
+		unsigned int need = VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT | texfmt[i].needextra;
+		VkFormatProperties fmt;
+		vkGetPhysicalDeviceFormatProperties(vk.gpu, texfmt[i].vulkan, &fmt);
+
+		if ((fmt.optimalTilingFeatures & need) == need)
+			sh_config.texfmt[texfmt[i].pti] = true;
+	}
+}
+
 //initialise the vulkan instance, context, device, etc.
 qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*createSurface)(void))
 {
@@ -2356,6 +2401,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	vk.neednewswapchain = true;
 	vk.triplebuffer = info->triplebuffer;
 	vk.vsync = info->wait;
+	memset(&sh_config, 0, sizeof(sh_config));
 
 
 	//get second set of pointers...
@@ -2492,6 +2538,58 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		}
 	}
 
+	{
+		char *vendor, *type;
+		VkPhysicalDeviceProperties props;
+		vkGetPhysicalDeviceProperties(vk.gpu, &props);
+	
+		switch(props.vendorID)
+		{
+		//explicit vendors
+		case 0x10001: vendor = "Vivante";		break;
+		case 0x10002: vendor = "VeriSilicon";	break;
+
+		//pci vendor ids
+		//there's a lot of pci vendors, some even still exist, but not all of them actually have 3d hardware.
+		//many of these probably won't even be used... Oh well.
+		//anyway, here's some of the ones that are listed
+		case 0x1002: vendor = "AMD";		break;
+		case 0x10DE: vendor = "NVIDIA";		break;
+		case 0x8086: vendor = "Intel";		break; //cute
+		case 0x13B5: vendor = "ARM";		break;
+		case 0x5143: vendor = "Qualcomm";	break;
+		case 0x1AEE: vendor = "Imagination";break;
+		case 0x1957: vendor = "Freescale";	break;
+
+		case 0x1AE0: vendor = "Google";		break;
+		case 0x5333: vendor = "S3";			break;
+		case 0xA200: vendor = "NEC";		break;
+		case 0x0A5C: vendor = "Broadcom";	break;
+		case 0x1131: vendor = "NXP";		break;
+		case 0x1099: vendor = "Samsung";	break;
+		case 0x10C3: vendor = "Samsung";	break;
+		case 0x11E2: vendor = "Samsung";	break;
+		case 0x1249: vendor = "Samsung";	break;
+		
+		default:	vendor = va("VEND_%x", props.vendorID); break;
+		}
+
+		switch(props.deviceType)
+		{
+		default:
+		case VK_PHYSICAL_DEVICE_TYPE_OTHER:				type = "(other)"; break;
+		case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:	type = "integrated"; break;
+		case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:		type = "discrete"; break;
+		case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:		type = "virtual"; break;
+		case VK_PHYSICAL_DEVICE_TYPE_CPU:				type = "software"; break;
+		}
+
+		Con_Printf("Vulkan %u.%u.%u: %s %s %s (%u.%u.%u)\n", VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion), VK_VERSION_PATCH(props.apiVersion),
+			type, vendor, props.deviceName,
+			VK_VERSION_MAJOR(props.driverVersion), VK_VERSION_MINOR(props.driverVersion), VK_VERSION_PATCH(props.driverVersion)
+			);
+	}
+
 	//create the platform-specific surface
 	createSurface();
 
@@ -2591,17 +2689,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		VkAssert(vkCreateCommandPool(vk.device, &cpci, vkallocationcb, &vk.cmdpool));
 	}
 
-	vk.depthformat = VK_FORMAT_D32_SFLOAT;//VK_FORMAT_D32_SFLOAT_S8_UINT;//VK_FORMAT_D24_UNORM_S8_UINT;//VK_FORMAT_D16_UNORM;
-
-#ifndef THREADACQUIRE
-	{
-		VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-		VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefence));
-	}
-#endif
-
-
-	memset(&sh_config, 0, sizeof(sh_config));
+	
 	sh_config.progpath = NULL;//"vulkan";
 	sh_config.blobpath = "spirv";
 	sh_config.shadernamefmt = NULL;//".spv";
@@ -2611,35 +2699,6 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	sh_config.minver = -1;
 	sh_config.maxver = -1;
 
-	//depth formats need to support attachments
-	//other formats might be supported for staging
-	sh_config.texfmt[PTI_RGBA8] = true;
-	sh_config.texfmt[PTI_RGBX8] = true;
-	sh_config.texfmt[PTI_BGRA8] = true;
-	sh_config.texfmt[PTI_BGRX8] = true;
-	sh_config.texfmt[PTI_RGB565] = true;
-//	sh_config.texfmt[PTI_RGBA4444] = true;	//FIXME: other formats
-//	sh_config.texfmt[PTI_ARGB4444] = true;	//FIXME: other formats
-//	sh_config.texfmt[PTI_RGBA5551] = true;	//FIXME: other formats
-//	sh_config.texfmt[PTI_ARGB1555] = true;	//FIXME: other formats
-	sh_config.texfmt[PTI_RGBA16F] = true;
-//	sh_config.texfmt[PTI_RGBA32F] = true;
-	sh_config.texfmt[PTI_R8] = true;		//FIXME: other formats
-	sh_config.texfmt[PTI_RG8] = true;		//FIXME: other formats
-//	sh_config.texfmt[PTI_S3RGB1] = true;	//FIXME: other formats
-//	sh_config.texfmt[PTI_S3RGBA1] = true;	//FIXME: other formats
-//	sh_config.texfmt[PTI_S3RGBA3] = true;	//FIXME: other formats
-//	sh_config.texfmt[PTI_S3RGBA5] = true;	//FIXME: other formats
-	sh_config.texfmt[PTI_DEPTH16] = true;	//guarenteed, supposedly.
-//	sh_config.texfmt[PTI_DEPTH24] = true;	//FIXME: other formats
-//	sh_config.texfmt[PTI_DEPTH32] = true;	//FIXME: other formats
-//	sh_config.texfmt[PTI_DEPTH24_8] = true;	//FIXME: other formats
-
-	sh_config.texfmt[PTI_S3RGB1] = true;
-	sh_config.texfmt[PTI_S3RGBA1] = true;
-	sh_config.texfmt[PTI_S3RGBA3] = true;
-	sh_config.texfmt[PTI_S3RGBA5] = true;
-
 	sh_config.texture_maxsize = 4096;		//must be at least 4096, FIXME: query this properly
 	sh_config.texture_non_power_of_two = true;	//is this always true?
 	sh_config.texture_non_power_of_two_pic = true;	//probably true...
@@ -2648,12 +2707,33 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	sh_config.nv_tex_env_combine4 = false;	//fixme: figure out what this means...
 	sh_config.env_add = false;				//fixme: figure out what this means...
 
+	sh_config.can_mipcap = true;
+
+	VK_CheckTextureFormats();
+
 
 	sh_config.pDeleteProg = NULL;
 	sh_config.pLoadBlob = NULL;
 	sh_config.pCreateProgram = NULL;
 	sh_config.pValidateProgram = NULL;
 	sh_config.pProgAutoFields = NULL;
+
+	if (sh_config.texfmt[PTI_DEPTH32])
+		vk.depthformat = VK_FORMAT_D32_SFLOAT;
+	else if (sh_config.texfmt[PTI_DEPTH24])
+		vk.depthformat = VK_FORMAT_X8_D24_UNORM_PACK32;
+	else if (sh_config.texfmt[PTI_DEPTH24_8])
+		vk.depthformat = VK_FORMAT_D24_UNORM_S8_UINT;
+	else	//16bit depth is guarenteed in vulkan
+		vk.depthformat = VK_FORMAT_D16_UNORM;
+
+#ifndef THREADACQUIRE
+	{
+		VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+		VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefence));
+	}
+#endif
+
 /*
 	void	 (*pDeleteProg)		(program_t *prog, unsigned int permu);
 	qboolean (*pLoadBlob)		(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile);

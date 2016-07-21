@@ -355,7 +355,7 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 		touch = nodelinks[ln];
 
 		//make sure nothing moved it away
-		if (touch->isfree)
+		if (ED_ISFREE(touch))
 			continue;
 		if (!touch->v->touch || touch->v->solid != SOLID_TRIGGER)
 			continue;
@@ -373,13 +373,13 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 
 		w->Event_Touch(w, touch, ent);
 
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			break;
 	}
 
 
 // recurse down both sides
-	if (node->axis == -1 || ent->isfree)
+	if (node->axis == -1 || ED_ISFREE(ent))
 		return;
 	
 	if (ent->v->absmax[node->axis] > node->dist)
@@ -474,7 +474,7 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	if (ent == w->edicts)
 		return;		// don't add the world
 
-	if (ent->isfree)
+	if (ED_ISFREE(ent))
 		return;
 
 // set the abs box
@@ -1538,8 +1538,8 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 	{
 		touch = (wedict_t*)EDICT_NUM(w->progs, e);
 
-		if (touch->isfree)
-			continue;                 
+		if (ED_ISFREE(touch))
+			continue;
 		if (touch->v->solid == SOLID_NOT && !((int)touch->v->flags & FL_FINDABLE_NONSOLID))
 			continue;
 		if (touch->v->solid == SOLID_TRIGGER && !((int)touch->v->flags & FL_FINDABLE_NONSOLID))
@@ -2139,7 +2139,7 @@ void World_RBE_Shutdown(world_t *world)
 void QDECL World_UnregisterPhysicsEngine(const char *enginename)
 {
 #ifdef RAGDOLL
-//	rag_uninstanciateall();
+	rag_uninstanciateall();
 #endif
 
 #if defined(CSQC_DAT) && !defined(SERVERONLY)

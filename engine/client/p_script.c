@@ -685,10 +685,24 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 	for (i = 0; i < ptype->nummodels; i++)
 		ptype->models[i].model = NULL;
 
-	if (*ptype->texname && ptype->looks.blendmode == BM_BLEND)
+	if (*ptype->texname)
 	{
+		char *bmpostfix;
+		switch(ptype->looks.blendmode)
+		{	//we typically need the blendmode as part of the shader name, so that we don't end up with collisions with default shaders and different particle blend modes.
+			//shader blend modes still override, although I guess this way the shader itself can contain conditionals to use different blend modes... if needed.
+		default:			bmpostfix = "#BLEND"; break;
+		case BM_BLEND:		bmpostfix = ""; break;
+		case BM_BLENDCOLOUR:bmpostfix = "#BLENDCOLOUR"; break;
+		case BM_ADDA:		bmpostfix = "#ADDA"; break;
+		case BM_ADDC:		bmpostfix = "#ADDC"; break;
+		case BM_SUBTRACT:	bmpostfix = "#SUBTRACT"; break;
+		case BM_INVMODA:	bmpostfix = "#INVMODA"; break;
+		case BM_INVMODC:	bmpostfix = "#INVMODC"; break;
+		case BM_PREMUL:		bmpostfix = "#PREMUL"; break;
+		}
 		/*try and load the shader, fail if we would need to generate one*/
-		ptype->looks.shader = R_RegisterCustom(ptype->texname, SUF_NONE, NULL, NULL);
+		ptype->looks.shader = R_RegisterCustom(va("%s%s", ptype->texname, bmpostfix), SUF_NONE, NULL, NULL);
 	}
 	else
 		ptype->looks.shader = NULL;

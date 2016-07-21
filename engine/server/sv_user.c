@@ -6309,7 +6309,7 @@ void AddAllEntsToPmove (edict_t *player)
 	for (e=1 ; e<sv.world.num_edicts ; e++)
 	{
 		check = EDICT_NUM(svprogfuncs, e);
-		if (check->isfree)
+		if (ED_ISFREE(check))
 			continue;
 		if (check->v->owner == pl)
 			continue;
@@ -6993,7 +6993,7 @@ if (sv_player->v->health > 0 && before && !after )
 				sv.world.Event_Touch(&sv.world, (wedict_t*)ent, (wedict_t*)sv_player);
 			}
 
-			if (sv_player->v->touch && !ent->isfree)
+			if (sv_player->v->touch && !ED_ISFREE(ent))
 				sv.world.Event_Touch(&sv.world, (wedict_t*)sv_player, (wedict_t*)ent);
 		}
 	}
@@ -7095,7 +7095,7 @@ void SV_ReadPrydonCursor(void)
 	}
 	// as requested by FrikaC, cursor_trace_ent is reset to world if the
 	// entity is free at time of receipt
-	if (!svprogfuncs || EDICT_NUM(svprogfuncs, entnum)->isfree)
+	if (!svprogfuncs || ED_ISFREE(EDICT_NUM(svprogfuncs, entnum)))
 		entnum = 0;
 	if (msg_badread) Con_Printf("SV_ReadPrydonCursor: badread at %s:%i\n", __FILE__, __LINE__);
 

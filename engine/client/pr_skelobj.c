@@ -671,17 +671,19 @@ void rag_freedoll(doll_t *doll)
 	BZ_Free(doll);
 }
 
+void rag_uninstanciateall(void)
+{
+	int i;
+	for (i = 0; i < numskelobjectsused; i++)
+	{
+		rag_uninstanciate(&skelobjects[i]);
+	}
+}
 void rag_flushdolls(qboolean force)
 {
 	doll_t *d, **link;
-	int i;
 	if (force)
-	{
-		for (i = 0; i < numskelobjectsused; i++)
-		{
-			rag_uninstanciate(&skelobjects[i]);
-		}
-	}
+		rag_uninstanciateall();
 	for (link = &dolllist; *link; )
 	{
 		d = *link;
@@ -1088,6 +1090,12 @@ static void rag_uninstanciate(skelobject_t *sko)
 	int i;
 	if (!sko->doll)
 		return;
+
+	if (!sko->world || !sko->world->rbe)
+	{
+		sko->numbodies = sko->numjoints = 0;
+		Con_Printf(CON_ERROR "ERROR: Uninstanciating ragdoll from invalid world\n");
+	}
 
 	for (i = 0; i < sko->numbodies; i++)
 	{

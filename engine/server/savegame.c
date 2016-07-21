@@ -337,7 +337,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 
 		if (!ent)
 			break;
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 
 		World_LinkEdict (&sv.world, (wedict_t*)ent, false);
@@ -839,7 +839,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	for (i=0 ; i<sv.world.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 
 		World_LinkEdict (&sv.world, (wedict_t*)ent, false);
@@ -847,7 +847,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	for (i=0 ; i<sv.world.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 
 		/*hexen2 instead overwrites ents, which can theoretically be unreliable (ents with this flag are not saved in the first place, and thus are effectively reset instead of reloaded).

@@ -36,9 +36,9 @@
 	globalentity	(true, trace_ent)	\
 	globalfloat		(true, trace_inopen)	\
 	globalfloat		(true, trace_inwater)	\
-	globalfloat		(false, trace_endcontents)	\
+	globalfloat		(false, trace_endcontentsf)	\
 	globalint		(false, trace_endcontentsi)	\
-	globalfloat		(false, trace_surfaceflags)	\
+	globalfloat		(false, trace_surfaceflagsf)	\
 	globalint		(false, trace_surfaceflagsi)	\
 	globalfloat		(false, cycle_wrapped)	\
 	globalentity	(false, msg_entity)	\

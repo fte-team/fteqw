@@ -2088,7 +2088,7 @@ void INS_JoyMove (float *movements, int pnum)
 	}
 }
 
-void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, int *qdevid))
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid))
 {
 	int idx;
 

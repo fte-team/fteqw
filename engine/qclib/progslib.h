@@ -56,7 +56,7 @@ enum ereftype_e
 	ER_FREE,
 	ER_OBJECT	//custom sized, no vm/engine fields.
 };
-#define isfree ereftype != ER_ENTITY
+#define ED_ISFREE(e) ((e)->ereftype != ER_ENTITY)
 
 //used by progs engine. All nulls is reset.
 typedef struct {

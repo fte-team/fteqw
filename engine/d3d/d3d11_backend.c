@@ -2096,7 +2096,7 @@ static void BE_DrawMeshChain_Internal(void)
 	{
 		m = shaderstate.meshlist[0];
 
-		ID3D11DeviceContext_IASetIndexBuffer(d3ddevctx, shaderstate.batchvbo->indicies.d3d.buff, DXGI_FORMAT_R16_UINT, shaderstate.batchvbo->indicies.d3d.offs);
+		ID3D11DeviceContext_IASetIndexBuffer(d3ddevctx, shaderstate.batchvbo->indicies.d3d.buff, DXGI_FORMAT_INDEX_UINT, shaderstate.batchvbo->indicies.d3d.offs);
 		idxfirst = m->vbofirstelement;
 
 		vertcount = m->vbofirstvert + m->numvertexes;
@@ -2123,7 +2123,7 @@ static void BE_DrawMeshChain_Internal(void)
 			map += m->numindexes;
 		}
 		ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)buf, 0);
-		ID3D11DeviceContext_IASetIndexBuffer(d3ddevctx, buf, DXGI_FORMAT_R16_UINT, byteofs);
+		ID3D11DeviceContext_IASetIndexBuffer(d3ddevctx, buf, DXGI_FORMAT_INDEX_UINT, byteofs);
 		idxfirst = 0;
 	}
 	else
@@ -2149,7 +2149,7 @@ static void BE_DrawMeshChain_Internal(void)
 			vertcount += m->numvertexes;
 		}
 		ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)buf, 0);
-		ID3D11DeviceContext_IASetIndexBuffer(d3ddevctx, buf, DXGI_FORMAT_R16_UINT, byteofs);
+		ID3D11DeviceContext_IASetIndexBuffer(d3ddevctx, buf, DXGI_FORMAT_INDEX_UINT, byteofs);
 		idxfirst = 0;
 	}
 
@@ -3517,7 +3517,7 @@ void D3D11BE_RenderShadowBuffer(unsigned int numverts, void *vbuf, unsigned int 
 	shaderstate.lastpasscount = 0;
 
 	ID3D11DeviceContext_IASetVertexBuffers(d3ddevctx, 0, 1, vbufs, vstrides, voffsets);
-	ID3D11DeviceContext_IASetIndexBuffer(d3ddevctx, ibuf, DXGI_FORMAT_R16_UINT, 0);
+	ID3D11DeviceContext_IASetIndexBuffer(d3ddevctx, ibuf, DXGI_FORMAT_INDEX_UINT, 0);
 
 	BE_ApplyUniforms(shaderstate.depthonly->prog, 0);
 

@@ -444,7 +444,7 @@ static void M_CheckMouseMove(void)
 							{
 								if (menu->selecteditem != option)
 								{
-									if (!option->common.noselectionsound)
+									if (!option->common.noselectionsound && vid.activeapp)
 									{
 #ifdef HEXEN2
 										if (M_GameType() == MGT_HEXEN2)

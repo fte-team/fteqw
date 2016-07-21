@@ -2240,7 +2240,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 #ifndef SERVERONLY	//an emergency escape mechansim, to avoid infinatly recursing aliases.
 			extern qboolean keydown[];
-			extern int con_splitmodifier;
+			extern unsigned int con_splitmodifier;
 
 			if (keydown[K_SHIFT] && (keydown[K_LCTRL]||keydown[K_RCTRL]) && (keydown[K_LALT]||keydown[K_RALT]))
 				return;
@@ -3125,7 +3125,7 @@ void Cmd_set_f(void)
 				end--;
 				while (end >= text)
 				{
-					if (*end == ' ')
+					if (*end == ' ' || *end == '\t' || *end == '\r')
 						end--;
 					else
 						break;

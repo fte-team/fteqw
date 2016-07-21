@@ -1026,7 +1026,7 @@ void M_Menu_Demos_f (void)
 	info->ext[info->numext++] = ".pak";
 
 	MC_AddWhiteText(menu, 24, 170, 8, "Choose a Demo", false);
-	MC_AddWhiteText(menu, 16, 170, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
+	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
 
 	info->list = MC_AddCustom(menu, 0, 32, NULL, 0);
 	info->list->draw = M_DemoDraw;
@@ -1081,7 +1081,7 @@ void M_Menu_MediaFiles_f (void)
 #endif
 
 	MC_AddWhiteText(menu, 24, 170, 8, "Media List", false);
-	MC_AddWhiteText(menu, 16, 170, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
+	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
 
 	info->list = MC_AddCustom(menu, 0, 32, NULL, 0);
 	info->list->draw = M_DemoDraw;

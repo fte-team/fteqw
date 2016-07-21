@@ -1908,7 +1908,7 @@ void R_DrawNameTags(void)
 			for (i = 1; i < w->num_edicts; i++)
 			{
 				e = WEDICT_NUM(w->progs, i);
-				if (e->isfree)
+				if (ED_ISFREE(e))
 					continue;
 				VectorInterpolate(e->v->mins, 0.5, e->v->maxs, org);
 				VectorAdd(org, e->v->origin, org);

@@ -2688,7 +2688,7 @@ void CLQ1_AddVisibleBBoxes(void)
 	for (i = 1; i < w->num_edicts; i++)
 	{
 		e = WEDICT_NUM(w->progs, i);
-		if (e->isfree)
+		if (ED_ISFREE(e))
 			continue;
 
 		if (r_showbboxes.ival & 4)

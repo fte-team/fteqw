@@ -126,6 +126,7 @@ static void Mod_ComposeSkin(char *texture, struct cctx_s *cctx)
 	float x=0, y=0;
 	float w, h;
 	int iw=0, ih=0;
+	float s1 = 0, t1 = 0, s2 = 1, t2 = 1;
 	float r=1,g=1,b=1,a=1;
 	int l;
 	char *s, tname[MAX_QPATH];
@@ -173,6 +174,18 @@ static void Mod_ComposeSkin(char *texture, struct cctx_s *cctx)
 				s++;
 			h = strtod(s, &s); 
 			break;
+		case '$':
+			s1 = strtod(s+1, &s); 
+			if (*s == ',')
+				s++;
+			t1 = strtod(s, &s);
+			if (*s == ',')
+				s++;
+			s2 = strtod(s, &s); 
+			if (*s == ',')
+				s++;
+			t2 = strtod(s, &s); 
+			break;
 		case '?':
 			r = strtod(s+1, &s); 
 			if (*s == ',')
@@ -210,7 +223,7 @@ static void Mod_ComposeSkin(char *texture, struct cctx_s *cctx)
 		return;
 
 	R2D_ImageColours(r,g,b,a);
-	R2D_Image(x, 512-(y+h), w, h, 0, 1, 1, 0, sourceimg);
+	R2D_Image(x, cctx->height-(y+h), w, h, s1, t2, s2, t1, sourceimg);
 	R_UnloadShader(sourceimg);	//we're done with it now
 }
 //create a new skin with explicit name and text. even if its already loaded. this means you can free it safely.

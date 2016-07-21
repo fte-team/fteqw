@@ -601,6 +601,7 @@ typedef struct
 	char *updatefile;	//this is the file that needs to be written to update the manifest.
 	char *installation;	//optional hardcoded commercial name, used for scanning the registry to find existing installs.
 	char *formalname;	//the commercial name of the game. you'll get FULLENGINENAME otherwise.
+	char *downloadsurl;	//optional installable files (menu)
 	char *protocolname;	//the name used for purposes of dpmaster
 	char *defaultexec;	//execed after cvars are reset, to give game-specific defaults.
 	char *eula;			//when running as an installer, the user will be presented with this as a prompt

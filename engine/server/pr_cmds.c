@@ -752,13 +752,16 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalint		(true, trace_ent);
 	globalfloat		(false, trace_inopen);
 	globalfloat		(false, trace_inwater);
-	globalfloat		(false, trace_endcontents);
+	globalfloat		(false, trace_endcontentsf);
 	globalint		(false, trace_endcontentsi);
-	globalfloat		(false, trace_surfaceflags);
+	globalfloat		(false, trace_surfaceflagsf);
 	globalint		(false, trace_surfaceflagsi);
 	globalstring	(false, trace_surfacename);
 	globalint		(false, trace_brush_id);
 	globalint		(false, trace_brush_faceid);
+	globalint		(false, trace_surface_id);
+	globalint		(false, trace_bone_id);
+	globalint		(false, trace_triangle_id);
 	globalfloat		(false, cycle_wrapped);
 	globalint		(false, msg_entity);
 	globalfunc		(false, main);
@@ -795,15 +798,37 @@ void PR_LoadGlabalStruct(qboolean muted)
 
 #define ensureglobal(name,var) if (!(pr_globals)->name) (pr_globals)->name = &var;
 
+	if (!(pr_globals)->trace_surfaceflagsf && !(pr_globals)->trace_surfaceflagsi)
+	{
+		etype_t etype;
+		eval_t *v = PR_FindGlobal(svprogfuncs, "trace_surfaceflags", 0, &etype);
+		if (etype == ev_float)
+			(pr_globals)->trace_surfaceflagsf = (float*)v;
+		else if (etype == ev_integer)
+			(pr_globals)->trace_surfaceflagsi = (int*)v;
+	}
+	if (!(pr_globals)->trace_endcontentsf && !(pr_globals)->trace_endcontentsi)
+	{
+		etype_t etype;
+		eval_t *v = PR_FindGlobal(svprogfuncs, "trace_endcontents", 0, &etype);
+		if (etype == ev_float)
+			(pr_globals)->trace_endcontentsf = (float*)v;
+		else if (etype == ev_integer)
+			(pr_globals)->trace_endcontentsi = (int*)v;
+	}
+
 	// make sure these entries are always valid pointers
 	ensureglobal(dimension_send, dimension_send_default);
 	ensureglobal(dimension_default, dimension_default);
-	ensureglobal(trace_endcontents, writeonly);
+	ensureglobal(trace_endcontentsf, writeonly);
 	ensureglobal(trace_endcontentsi, writeonly_int);
-	ensureglobal(trace_surfaceflags, writeonly);
+	ensureglobal(trace_surfaceflagsf, writeonly);
 	ensureglobal(trace_surfaceflagsi, writeonly_int);
 	ensureglobal(trace_brush_id, writeonly_int);
 	ensureglobal(trace_brush_faceid, writeonly_int);
+	ensureglobal(trace_surface_id, writeonly_int);
+	ensureglobal(trace_bone_id, writeonly_int);
+	ensureglobal(trace_triangle_id, writeonly_int);
 
 	ensureglobal(input_timelength, input_timelength_default);
 	ensureglobal(input_impulse, input_impulse_default);
@@ -1185,7 +1210,7 @@ void PR_ApplyCompilation_f (void)
 	for (i=0 ; i<sv.world.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 
 		World_LinkEdict (&sv.world, (wedict_t*)ent, false);	// force retouch even for stationary
@@ -2355,7 +2380,7 @@ static void QCBUILTIN PF_setsize (pubprogfuncs_t *prinst, struct globalvars_s *p
 	float	*min, *max;
 
 	e = G_EDICT(prinst, OFS_PARM0);
-	if (e->isfree)
+	if (ED_ISFREE(e))
 	{
 		if (progstype != PROG_H2 || developer.ival)
 			PR_RunWarning(prinst, "%s edict %i was free\n", "setsize", e->entnum);
@@ -2398,7 +2423,7 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m)
 		PR_RunWarning(prinst, "%s edict %i is read-only\n", "setmodel", e->entnum);
 		return;
 	}
-	if (e->isfree)
+	if (ED_ISFREE(e))
 	{
 		PR_RunWarning(prinst, "%s edict %i was free\n", "setmodel", e->entnum);
 		return;
@@ -3186,14 +3211,18 @@ static void set_trace_globals(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	pr_global_struct->trace_fraction = trace->fraction;
 	pr_global_struct->trace_inwater = trace->inwater;
 	pr_global_struct->trace_inopen = trace->inopen;
-	pr_global_struct->trace_surfaceflags = trace->surface?trace->surface->flags:0;
+	pr_global_struct->trace_surfaceflagsf = trace->surface?trace->surface->flags:0;
 	pr_global_struct->trace_surfaceflagsi = trace->surface?trace->surface->flags:0;
 	if (pr_global_ptrs->trace_surfacename)
 		prinst->SetStringField(prinst, NULL, &pr_global_struct->trace_surfacename, trace->surface?trace->surface->name:NULL, true);
-	pr_global_struct->trace_endcontents = trace->contents;
+	pr_global_struct->trace_endcontentsf = trace->contents;
 	pr_global_struct->trace_endcontentsi = trace->contents;
 	pr_global_struct->trace_brush_id = trace->brush_id;
 	pr_global_struct->trace_brush_faceid = trace->brush_face;
+	pr_global_struct->trace_surface_id = trace->surface_id;
+	pr_global_struct->trace_bone_id = trace->bone_id;
+	pr_global_struct->trace_triangle_id = trace->triangle_id;
+
 //	if (trace.fraction != 1)
 //		VectorMA (trace->endpos, 4, trace->plane.normal, P_VEC(trace_endpos));
 //	else
@@ -3347,7 +3376,7 @@ int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
 		if (i == check)
 			break;	// didn't find anything else
 
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 		if (ent->v->health <= 0)
 			continue;
@@ -3405,7 +3434,7 @@ int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 
 // return check if it might be visible
 	ent = EDICT_NUM(prinst, w->lastcheck);
-	if (ent->isfree || ent->v->health <= 0)
+	if (ED_ISFREE(ent) || ent->v->health <= 0)
 	{
 		return 0;
 	}
@@ -3747,7 +3776,7 @@ static void QCBUILTIN PF_Remove (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 	ed = G_EDICT(prinst, OFS_PARM0);
 
-	if (ed->isfree)
+	if (ED_ISFREE(ed))
 	{
 		ED_CanFree(ed);	//fake it
 		if (developer.value)
@@ -5735,12 +5764,12 @@ static qboolean PR_SQLResultAvailable(queryrequest_t *req, int firstrow, int num
 
 		// recall self and other references
 		ent = PROG_TO_EDICT(prinst, req->user.selfent);
-		if (ent->isfree || ent->xv->uniquespawnid != req->user.selfid)
+		if (ED_ISFREE(ent) || ent->xv->uniquespawnid != req->user.selfid)
 			pr_global_struct->self = pr_global_struct->world;
 		else
 			pr_global_struct->self = req->user.selfent;
 		ent = PROG_TO_EDICT(prinst, req->user.otherent);
-		if (ent->isfree || ent->xv->uniquespawnid != req->user.otherid)
+		if (ED_ISFREE(ent) || ent->xv->uniquespawnid != req->user.otherid)
 			pr_global_struct->other = pr_global_struct->world;
 		else
 			pr_global_struct->other = req->user.otherent;
@@ -5783,9 +5812,9 @@ void QCBUILTIN PF_sqlopenquery (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 				qreq->user.qccallback = callfunc;
 
 				// save self and other references
-				qreq->user.selfent = PROG_TO_EDICT(prinst, pr_global_struct->self)->isfree?pr_global_struct->world:pr_global_struct->self;
+				qreq->user.selfent = ED_ISFREE(PROG_TO_EDICT(prinst, pr_global_struct->self))?pr_global_struct->world:pr_global_struct->self;
 				qreq->user.selfid = PROG_TO_EDICT(prinst, qreq->user.selfent)->xv->uniquespawnid;
-				qreq->user.otherent = PROG_TO_EDICT(prinst, pr_global_struct->other)->isfree?pr_global_struct->world:pr_global_struct->other;
+				qreq->user.otherent = ED_ISFREE(PROG_TO_EDICT(prinst, pr_global_struct->other))?pr_global_struct->world:pr_global_struct->other;
 				qreq->user.otherid = PROG_TO_EDICT(prinst, qreq->user.otherent)->xv->uniquespawnid;
 
 				if (querytype & 2)
@@ -6640,7 +6669,7 @@ static void QCBUILTIN PF_sv_findchain (pubprogfuncs_t *prinst, struct globalvars
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
 		ent = EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 		t = *(string_t *)&((float*)ent->v)[f];
 		if (!t)
@@ -6673,7 +6702,7 @@ static void QCBUILTIN PF_sv_findchainfloat (pubprogfuncs_t *prinst, struct globa
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
 		ent = EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 		if (((float *)ent->v)[f] != s)
 			continue;
@@ -6703,7 +6732,7 @@ static void QCBUILTIN PF_sv_findchainflags (pubprogfuncs_t *prinst, struct globa
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
 		ent = EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 		if (!((int)((float *)ent->v)[f] & s))
 			continue;
@@ -10113,7 +10142,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"particleeffectquery",PF_Fixme,0,		0,		0,		374,	D("string(float efnum, float body)", "Retrieves either the name or the body of the effect with the given number. The effect body is regenerated from internal state, and can be changed before being reapplied via the localcmd builtin.")},
 
 	{"adddecal",		PF_Fixme,	0,		0,		0,		375,	D("void(string shadername, vector origin, vector up, vector side, vector rgb, float alpha)", "Adds a temporary clipped decal shader to the scene, centered at the given point with given orientation. Will be drawn by the next renderscene call, and freed by the next clearscene call.")},
-	{"setcustomskin",	PF_Fixme,	0,		0,		0,		376,	D("void(entity e, string skinfilename, optional string skindata)", "Sets an entity's skin overrides. These are custom per-entity surface->shader lookups. The skinfilename/data should be in .skin format:\nsurfacename,shadername - makes the named surface use the named shader\nreplace \"surfacename\" \"shadername\" - same.\nqwskin \"foo\" - use an unmodified quakeworld player skin (including crop+repalette rules)\nq1lower 0xff0000 - specify an override for the entity's lower colour, in this case to red\nq1upper 0x0000ff - specify an override for the entity's lower colour, in this case to blue\ncompose \"surfacename\" \"shader\" \"imagename@x,y:w,h?r,g,b,a\" - compose a skin texture from multiple images.\n  The texture is determined to be sufficient to hold the first named image, additional images can be named as extra tokens on the same line.\n  Use a + at the end of the line to continue reading image tokens from the next line also, the named shader must use 'map $diffuse' to read the composed texture (compatible with the defaultskin shader).")},
+	{"setcustomskin",	PF_Fixme,	0,		0,		0,		376,	D("void(entity e, string skinfilename, optional string skindata)", "Sets an entity's skin overrides. These are custom per-entity surface->shader lookups. The skinfilename/data should be in .skin format:\nsurfacename,shadername - makes the named surface use the named shader\nreplace \"surfacename\" \"shadername\" - same.\nqwskin \"foo\" - use an unmodified quakeworld player skin (including crop+repalette rules)\nq1lower 0xff0000 - specify an override for the entity's lower colour, in this case to red\nq1upper 0x0000ff - specify an override for the entity's lower colour, in this case to blue\ncompose \"surfacename\" \"shader\" \"imagename@x,y:w,h$s,t,s2,t2?r,g,b,a\" - compose a skin texture from multiple images.\n  The texture is determined to be sufficient to hold the first named image, additional images can be named as extra tokens on the same line.\n  Use a + at the end of the line to continue reading image tokens from the next line also, the named shader must use 'map $diffuse' to read the composed texture (compatible with the defaultskin shader).")},
 //END EXT_CSQC
 
 	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	D("__variant*(int size)", "Allocate an arbitary block of memory")},
@@ -11042,8 +11071,14 @@ void PR_DumpPlatform_f(void)
 		{"input_cursor_trace_endpos",	"vector",	CS/*|QW|NQ*/},
 		{"input_cursor_trace_entnum",	"float",	CS/*|QW|NQ*/},
 
+		{"trace_endcontents",		"int", QW|NQ|CS},
+		{"trace_surfaceflags",		"int", QW|NQ|CS},
+//		{"trace_surfacename",		"string", QW|NQ|CS},
 		{"trace_brush_id",		"int", QW|NQ|CS},
 		{"trace_brush_faceid",	"int", QW|NQ|CS},
+		{"trace_surface_id",	"int", QW|NQ|CS, "1-based. 0 if not known."},
+		{"trace_bone_id",		"int", QW|NQ|CS, "1-based. 0 if not known. typically needs MOVE_HITMODEL."},
+		{"trace_triangle_id",	"int", QW|NQ|CS, "1-based. 0 if not known."},
 
 		{"global_gravitydir",	"vector", QW|NQ|CS,	"The direction gravity should act in if not otherwise specified per entity.", 0,"'0 0 -1'"},
 		{"serverid",			"int", QW|NQ|CS,	"The unique id of this server within the server cluster."},

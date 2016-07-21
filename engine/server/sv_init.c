@@ -237,7 +237,7 @@ void SVQ1_CreateBaseline (void)
 		memcpy(&svent->baseline, &nullentitystate, sizeof(entity_state_t));
 		svent->baseline.number = entnum;
 
-		if (svent->isfree)
+		if (ED_ISFREE(svent))
 			continue;
 		// create baselines for all player slots,
 		// and any other edict that has a visible model

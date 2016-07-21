@@ -703,6 +703,7 @@ typedef struct
 	qboolean tex_env_combine;
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;
+	qboolean can_mipcap;		//
 
 	void	 (*pDeleteProg)		(program_t *prog);
 	qboolean (*pLoadBlob)		(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile);

@@ -49,12 +49,14 @@ static const texid_t r_nulltex = NULL;
 #if sizeof_index_t == 2
 	#define GL_INDEX_TYPE GL_UNSIGNED_SHORT
 	#define D3DFMT_QINDEX D3DFMT_INDEX16
+	#define DXGI_FORMAT_INDEX_UINT DXGI_FORMAT_R16_UINT
 	#define VK_INDEX_TYPE VK_INDEX_TYPE_UINT16
 	typedef unsigned short index_t;
 	#define MAX_INDICIES 0xffffu
 #else
 	#define GL_INDEX_TYPE GL_UNSIGNED_INT
 	#define D3DFMT_QINDEX D3DFMT_INDEX32
+	#define DXGI_FORMAT_INDEX_UINT DXGI_FORMAT_R32_UINT
 	#define VK_INDEX_TYPE VK_INDEX_TYPE_UINT32
 	typedef unsigned int index_t;
 	#define MAX_INDICIES 0x00ffffffu
@@ -636,6 +638,7 @@ enum {
 	RSPEED_SETUP,
 	RSPEED_SUBMIT,
 	RSPEED_PRESENT,
+	RSPEED_ACQUIRE,
 
 	RSPEED_MAX
 };

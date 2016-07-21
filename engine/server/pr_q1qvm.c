@@ -454,7 +454,7 @@ static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf, pbool object, size_t 
 		e = (edict_t*)EDICT_NUM(pf, i);
 		// the first couple seconds of server time can involve a lot of
 		// freeing and allocating, so relax the replacement policy
-		if (!e || (e->isfree && ( e->freetime < 2 || sv.time - e->freetime > 0.5 ) ))
+		if (!e || (ED_ISFREE(e) && ( e->freetime < 2 || sv.time - e->freetime > 0.5 ) ))
 		{
 			Q1QVMED_ClearEdict (e, true);
 
@@ -470,7 +470,7 @@ static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf, pbool object, size_t 
 			e = (edict_t*)EDICT_NUM(pf, i);
 			// the first couple seconds of server time can involve a lot of
 			// freeing and allocating, so relax the replacement policy
-			if (!e || (e->isfree))
+			if (!e || ED_ISFREE(e))
 			{
 				Q1QVMED_ClearEdict (e, true);
 
@@ -669,7 +669,7 @@ static qintptr_t QVM_LightStyle (void *offset, quintptr_t mask, const qintptr_t 
 static qintptr_t QVM_SetOrigin (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	edict_t *e = Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0]));
-	if (!e || e->isfree)
+	if (!e || ED_ISFREE(e))
 		return false;
 
 	e->v->origin[0] = VM_FLOAT(arg[1]);
@@ -681,7 +681,7 @@ static qintptr_t QVM_SetOrigin (void *offset, quintptr_t mask, const qintptr_t *
 static qintptr_t QVM_SetSize (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	edict_t *e = Q1QVMPF_EdictNum(svprogfuncs, arg[0]);
-	if (!e || e->isfree)
+	if (!e || ED_ISFREE(e))
 		return false;
 
 	e->v->mins[0] = VM_FLOAT(arg[1]);
@@ -793,7 +793,7 @@ static qintptr_t QVM_FindRadius (void *offset, quintptr_t mask, const qintptr_t 
 	for(start++; start < sv.world.num_edicts; start++)
 	{
 		ed = EDICT_NUM(svprogfuncs, start);
-		if (ed->isfree)
+		if (ED_ISFREE(ed))
 			continue;
 		VectorSubtract(ed->v->origin, org, diff);
 		if (rad > DotProduct(diff, diff))
@@ -875,7 +875,7 @@ static qintptr_t QVM_NextEnt (void *offset, quintptr_t mask, const qintptr_t *ar
 			return 0;
 		}
 		ent = EDICT_NUM(svprogfuncs, i);
-		if (!ent->isfree)
+		if (!ED_ISFREE(ent))
 		{
 			return i;
 		}
@@ -2034,9 +2034,9 @@ qboolean PR_LoadQ1QVM(void)
 	globalint		(true, trace_ent);
 	globalfloat		(true, trace_inopen);
 	globalfloat		(true, trace_inwater);
-	globalnull		(false, trace_endcontents);
+	globalnull		(false, trace_endcontentsf);
 	globalnull		(false, trace_endcontentsi);
-	globalnull		(false, trace_surfaceflags);
+	globalnull		(false, trace_surfaceflagsf);
 	globalnull		(false, trace_surfaceflagsi);
 	globalnull		(false, cycle_wrapped);
 	globalint		(false, msg_entity);
@@ -2051,9 +2051,9 @@ qboolean PR_LoadQ1QVM(void)
 	globalfunc		(false, SetNewParms);
 	globalfunc		(false, SetChangeParms);
 
-	pr_global_ptrs->trace_surfaceflags = &writable;
+	pr_global_ptrs->trace_surfaceflagsf = &writable;
 	pr_global_ptrs->trace_surfaceflagsi = &writable_int;
-	pr_global_ptrs->trace_endcontents = &writable;
+	pr_global_ptrs->trace_endcontentsf = &writable;
 	pr_global_ptrs->trace_endcontentsi = &writable_int;
 	pr_global_ptrs->dimension_default = &dimensiondefault;
 	pr_global_ptrs->dimension_send = &dimensionsend;

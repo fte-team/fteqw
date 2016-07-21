@@ -2753,9 +2753,13 @@ void GL_Init(void *(*getglfunction) (char *name))
 		sh_config.blobpath = "gles/%s.blob";
 		sh_config.progpath = "glsl/%s.glsl";
 		sh_config.shadernamefmt = "%s_gles";
+
+		sh_config.can_mipcap = gl_config.glversion >= 3.0;
 	}
 	else
 	{
+		sh_config.can_mipcap = gl_config.glversion >= 1.2;
+
 		sh_config.texfmt[PTI_RGBX8] = true;	//proper support
 
 		//these require stuff like GL_UNSIGNED_SHORT_5_5_5_1 etc, which needs gl 1.2+

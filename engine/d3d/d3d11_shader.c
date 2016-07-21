@@ -105,7 +105,8 @@ extern ID3D11Device *pD3DDev11;
 #include <d3d11shader.h>
 #endif
 
-const GUID IID_ID3D11ShaderReflection = {0x8d536ca1, 0x0cca, 0x4956, {0xa8, 0x37, 0x78, 0x69, 0x63, 0x75, 0x55, 0x84}};
+//const GUID IID_ID3D11ShaderReflection = {0x8d536ca1, 0x0cca, 0x4956, {0xa8, 0x37, 0x78, 0x69, 0x63, 0x75, 0x55, 0x84}};
+const GUID IID_ID3D11ShaderReflection = {0x0a233719, 0x3960, 0x4578, {0x9d, 0x7c, 0x20, 0x3b, 0x8b, 0x1d, 0x9c, 0xc1}};
 #define ID3DBlob_GetBufferPointer(b) b->lpVtbl->GetBufferPointer(b)
 #define ID3DBlob_Release(b) b->lpVtbl->Release(b)
 #define ID3DBlob_GetBufferSize(b) b->lpVtbl->GetBufferSize(b)
@@ -678,6 +679,8 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 				}
 				ID3D11ShaderReflection_Release(freflect);
 			}
+			else
+				Con_Printf("%s: D3DReflect failed, unable to get reflection info\n", name);
 		}
 
 		if (vcode)
@@ -738,6 +741,8 @@ qboolean D3D11Shader_Init(unsigned int flevel)
 	sh_config.pLoadBlob			= D3D11Shader_LoadBlob;
 	sh_config.pCreateProgram	= D3D11Shader_CreateProgram;
 	sh_config.pProgAutoFields	= NULL;
+
+	sh_config.can_mipcap		= true;	//at creation time
 
 //	sh_config.tex_env_combine		= 1;
 //	sh_config.nv_tex_env_combine4	= 1;

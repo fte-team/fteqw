@@ -424,7 +424,8 @@ cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces's default) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
 
 #ifdef VKQUAKE
-cvar_t vk_submissionthread					= CVARD	("vk_submissionthread", "0", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
+cvar_t vk_stagingbuffers					= CVARD ("vk_stagingbuffers", "", "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u, e, v, 0.");
+cvar_t vk_submissionthread					= CVARD	("vk_submissionthread", "1", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
 cvar_t vk_debug								= CVARD	("vk_debug",			"0", "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
 #endif
 
@@ -851,6 +852,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_forceprogramify, GLRENDEREROPTIONS);
 #ifdef VKQUAKE
+	Cvar_Register (&vk_stagingbuffers,	VKRENDEREROPTIONS);
 	Cvar_Register (&vk_submissionthread,	VKRENDEREROPTIONS);
 	Cvar_Register (&vk_debug,				VKRENDEREROPTIONS);
 #endif
@@ -1350,7 +1352,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 				ent = (wedict_t*)EDICT_NUM(svprogfuncs, i);
 				if (!ent)
 					continue;
-				if (ent->isfree)
+				if (ED_ISFREE(ent))
 					continue;
 
 				if (ent->area.prev)

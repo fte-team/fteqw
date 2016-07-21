@@ -192,7 +192,7 @@ qboolean WPhys_RunThink (world_t *w, wedict_t *ent)
 		ent->v->nextthink = 0;
 		*w->g.time = thinktime;
 		w->Event_Think(w, ent);
-		return !ent->isfree;
+		return !ED_ISFREE(ent);
 	}
 
 	do
@@ -212,7 +212,7 @@ qboolean WPhys_RunThink (world_t *w, wedict_t *ent)
 		*w->g.time = thinktime;
 		w->Event_Think(w, ent);
 
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			return false;
 
 		if (ent->v->nextthink <= thinktime)	//hmm... infinate loop was possible here.. Quite a few non-QW mods do this.
@@ -465,7 +465,7 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 // run the impact function
 //
 		WPhys_Impact (w, ent, &trace);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			break;		// removed by the impact function
 
 
@@ -698,7 +698,7 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 	for (e = 1; e < w->num_edicts; e++)
 	{
 		check = WEDICT_NUM(w->progs, e);
-		if (check->isfree)
+		if (ED_ISFREE(check))
 			continue;
 
 		if (check->v->movetype == MOVETYPE_PUSH
@@ -891,7 +891,7 @@ static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t am
 	for (e=1 ; e<w->num_edicts ; e++)
 	{
 		check = WEDICT_NUM(w->progs, e);
-		if (check->isfree)
+		if (ED_ISFREE(check))
 			continue;
 		if (check->v->movetype == MOVETYPE_PUSH
 		|| check->v->movetype == MOVETYPE_NONE
@@ -1109,7 +1109,7 @@ VectorCopy (ent->v->angles, oldang);
 #endif
 			PR_ExecuteProgram (svprogfuncs, ent->v->think);
 #endif
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			return;
 VectorSubtract (ent->v->origin, oldorg, move);
 VectorSubtract (ent->v->angles, oldang, amove);
@@ -1316,7 +1316,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 			{
 				wedict_t *onent;
 				onent = PROG_TO_WEDICT(w->progs, ent->v->groundentity);
-				if (!onent->isfree)
+				if (!ED_ISFREE(onent))
 					return;	//don't drop if our fround is still valid
 			}
 			else
@@ -1365,7 +1365,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	}
 	if (trace.fraction == 1)
 		return;
-	if (ent->isfree)
+	if (ED_ISFREE(ent))
 		return;
 
 	VectorCopy(trace.endpos, move);
@@ -2017,7 +2017,7 @@ void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *init
 		VectorSubtract(ent->v->angles, initial_angle, moveang);
 		VectorSubtract(ent->v->origin, initial_origin, moveorg);
 
-		for(i=16;i && movechain != w->edicts && !movechain->isfree;i--, movechain = PROG_TO_WEDICT(w->progs, movechain->xv->movechain))
+		for(i=16;i && movechain != w->edicts && !ED_ISFREE(movechain);i--, movechain = PROG_TO_WEDICT(w->progs, movechain->xv->movechain))
 		{
 			if ((int)movechain->v->flags & FL_MOVECHAIN_ANGLE)
 				VectorAdd(movechain->v->angles, moveang, movechain->v->angles);	//FIXME: axial only
@@ -2319,7 +2319,7 @@ void World_Physics_Frame(world_t *w)
 		for (i=0 ; i<w->num_edicts ; i++)
 		{
 			ent = (wedict_t*)EDICT_NUM(w->progs, i);
-			if (ent->isfree)
+			if (ED_ISFREE(ent))
 				continue;
 
 			WPhys_RunThink (w, ent);
@@ -2337,7 +2337,7 @@ void World_Physics_Frame(world_t *w)
 	for (i=0 ; i<w->num_edicts ; i++)
 	{
 		ent = (wedict_t*)EDICT_NUM(w->progs, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 
 		if (retouch)

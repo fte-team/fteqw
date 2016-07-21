@@ -2145,6 +2145,7 @@ qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, v
 		}
 		VectorCopy(normal, trace->plane.normal);
 		trace->plane.dist = planedist;
+		trace->triangle_id = 1+i/3;
 		impacted = true;
 
 //		if (fabs(normal[0]) != 1 && fabs(normal[1]) != 1 && fabs(normal[2]) != 1)
@@ -2243,8 +2244,26 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 		}
 
 		trace->truefraction = 1;
-		if (Mod_Trace_Trisoup(posedata, indexes, mod->numindexes, start_l, end_l, mins, maxs, trace) && axis)
+		if (Mod_Trace_Trisoup(posedata, indexes, mod->numindexes, start_l, end_l, mins, maxs, trace))
 		{
+			trace->surface_id = 1+surfnum;
+			trace->bone_id = 0;
+			if (mod->ofs_skel_weight)
+			{	//fixme: would be better to consider the distance to the vertex too. cartesian coord stuff etc.
+				unsigned int best = 0, v, w, i;
+				float bw = 0;
+				for (i = 0; i < 3; i++)
+				{
+					for (v = indexes[(trace->triangle_id-1)*3+i], w = 0; w < 4; w++)
+					{
+						if (bw < mod->ofs_skel_weight[v][w])
+						{
+							bw = mod->ofs_skel_weight[v][w];
+							trace->bone_id = 1 + mod->ofs_skel_idx[v][w];
+						}
+					}
+				}
+			}
 			if (axis)
 			{
 				vec3_t iaxis[3];
@@ -2254,27 +2273,27 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 				trace->plane.normal[0] = DotProduct(norm, iaxis[0]);
 				trace->plane.normal[1] = DotProduct(norm, iaxis[1]);
 				trace->plane.normal[2] = DotProduct(norm, iaxis[2]);
-			}
 
-//			frac = traceinfo.truefraction;
-			/*
-			diststart = DotProduct(traceinfo.start, trace->plane.normal);
-			distend = DotProduct(traceinfo.end, trace->plane.normal);
-			if (diststart == distend)
-				frac = 0;
-			else
-			{
-				frac = (diststart - trace->plane.dist) / (diststart-distend);
-				if (frac < 0)
+//				frac = traceinfo.truefraction;
+				/*
+				diststart = DotProduct(traceinfo.start, trace->plane.normal);
+				distend = DotProduct(traceinfo.end, trace->plane.normal);
+				if (diststart == distend)
 					frac = 0;
-				else if (frac > 1)
-					frac = 1;
-			}*/
+				else
+				{
+					frac = (diststart - trace->plane.dist) / (diststart-distend);
+					if (frac < 0)
+						frac = 0;
+					else if (frac > 1)
+						frac = 1;
+				}*/
 
-			/*okay, this is where it hits this plane*/
-			trace->endpos[0] = start[0] + trace->fraction*(end[0] - start[0]);
-			trace->endpos[1] = start[1] + trace->fraction*(end[1] - start[1]);
-			trace->endpos[2] = start[2] + trace->fraction*(end[2] - start[2]);
+				/*okay, this is where it hits this plane*/
+				trace->endpos[0] = start[0] + trace->fraction*(end[0] - start[0]);
+				trace->endpos[1] = start[1] + trace->fraction*(end[1] - start[1]);
+				trace->endpos[2] = start[2] + trace->fraction*(end[2] - start[2]);
+			}
 		}
 	}
 

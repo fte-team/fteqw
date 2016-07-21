@@ -485,6 +485,8 @@ void D3D9Shader_Init(void)
 	sh_config.texfmt[PTI_ARGB1555] = true;
 	sh_config.texfmt[PTI_ARGB4444] = true;
 
+	sh_config.can_mipcap		= true;	//at creation time, I think.
+
 	IDirect3DDevice9_GetDeviceCaps(pD3DDev9, &caps);
 
 	if (caps.TextureCaps & D3DPTEXTURECAPS_POW2)

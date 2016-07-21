@@ -52,7 +52,7 @@ usercmd_t independantphysics[MAX_SPLITS];
 vec3_t mousemovements[MAX_SPLITS];
 
 /*kinda a hack...*/
-int		con_splitmodifier;
+unsigned int		con_splitmodifier;
 cvar_t	cl_forceseat = CVARAD("in_forceseat", "0", "in_forcesplitclient", "Overrides the device identifiers to control a specific client from any device. This can be used for debugging mods, where you only have one keyboard/mouse.");
 extern cvar_t cl_splitscreen;
 int CL_TargettedSplit(qboolean nowrap)

@@ -60,13 +60,16 @@ typedef struct nqglobalvars_s
 	float	*trace_allsolid;
 	float	*trace_startsolid;
 	float	*trace_fraction;
-	float	*trace_surfaceflags;
+	float	*trace_surfaceflagsf;
 	int		*trace_surfaceflagsi;
 	string_t*trace_surfacename;
-	float	*trace_endcontents;
+	float	*trace_endcontentsf;
 	int		*trace_endcontentsi;
 	int		*trace_brush_id;
 	int		*trace_brush_faceid;
+	int		*trace_surface_id;
+	int		*trace_bone_id;
+	int		*trace_triangle_id;
 	vec3_t	*trace_endpos;
 	vec3_t	*trace_plane_normal;
 	float	*trace_plane_dist;

@@ -2961,6 +2961,47 @@ static void Image_MipMap8888 (qbyte *in, int inwidth, int inheight, qbyte *out, 
 	}
 }
 
+static qbyte Image_BlendPalette_2(qbyte a, qbyte b)
+{
+	return a;
+}
+static qbyte Image_BlendPalette_4(qbyte a, qbyte b, qbyte c, qbyte d)
+{
+	return a;
+}
+//this is expected to be slow, thanks to those two expensive helpers.
+static void Image_MipMap8Pal (qbyte *in, int inwidth, int inheight, qbyte *out, int outwidth, int outheight)
+{
+	int		i, j;
+	qbyte	*inrow;
+
+	int rowwidth = inwidth;	//rowwidth is the byte width of the input
+	inrow = in;
+
+	//mips round down, except for when the input is 1. which bugs out.
+	if (inwidth <= 1 && inheight <= 1)
+		out[0] = in[0];
+	else if (inheight <= 1)
+	{
+		//single row, don't peek at the next
+		for (in = inrow, j=0 ; j<outwidth ; j++, out+=1, in+=2)
+			out[0] = Image_BlendPalette_2(in[0], in[1]);
+	}
+	else if (inwidth <= 1)
+	{
+		//single colum, peek only at this pixel
+		for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
+			for (in = inrow, j=0 ; j<outwidth ; j++, out+=1, in+=2)
+				out[0] = Image_BlendPalette_2(in[0], in[rowwidth]);
+	}
+	else
+	{
+		for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
+			for (in = inrow, j=0 ; j<outwidth ; j++, out+=1, in+=2)
+				out[0] = Image_BlendPalette_4(in[0], in[1], in[rowwidth+0], in[rowwidth+1]);
+	}
+}
+
 static void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int flags)
 {
 	int mip;
@@ -2974,6 +3015,25 @@ static void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int fla
 	switch(mips->encoding)
 	{
 	case PTI_R8:
+		if (sh_config.can_mipcap)
+			return;	//if we can cap mips, do that. it'll save lots of expensive lookups and uglyness.
+		for (mip = mips->mipcount; mip < 32; mip++)
+		{
+			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
+			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
+			if (mips->mip[mip].width < 1 && mips->mip[mip].height < 1)
+				break;
+			if (mips->mip[mip].width < 1)
+				mips->mip[mip].width = 1;
+			if (mips->mip[mip].height < 1)
+				mips->mip[mip].height = 1;
+			mips->mip[mip].datasize = ((mips->mip[mip].width+3)&~3) * mips->mip[mip].height*4;
+			mips->mip[mip].data = BZ_Malloc(mips->mip[mip].datasize);
+			mips->mip[mip].needfree = true;
+
+			Image_MipMap8Pal(mips->mip[mip-1].data, mips->mip[mip-1].width, mips->mip[mip-1].height, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height);
+			mips->mipcount = mip+1;
+		}
 		return;
 	case PTI_RGBA8:
 	case PTI_RGBX8:

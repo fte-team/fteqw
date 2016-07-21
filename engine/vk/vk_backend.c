@@ -36,6 +36,9 @@ extern cvar_t r_portalrecursion;
 
 extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
 extern cvar_t r_wireframe;
+extern cvar_t vk_stagingbuffers;
+
+unsigned int vk_usedynamicstaging;
 
 static void VK_TerminateShadowMap(void);
 void VKBE_BeginShadowmapFace(void);
@@ -629,6 +632,7 @@ static const char LIGHTPASS_SHADER[] = "\
 void VKBE_Init(void)
 {
 	int i;
+	char *c;
 
 	sh_config.pDeleteProg = VKBE_DeleteProg;
 
@@ -713,6 +717,29 @@ void VKBE_Init(void)
 		}
 		shaderstate.staticbuf = VKBE_FinishStaging(&lazybuf, &shaderstate.staticbufmem);
 	}
+
+
+	c = vk_stagingbuffers.string;
+	if (*c)
+	{
+		vk_usedynamicstaging = 0;
+		while (*c)
+		{
+			if (*c == 'u')
+				vk_usedynamicstaging |= 1u<<DB_UBO;
+			else if (*c == 'e' || *c == 'i')
+				vk_usedynamicstaging |= 1u<<DB_EBO;
+			else if (*c == 'v')
+				vk_usedynamicstaging |= 1u<<DB_VBO;
+			else if (*c == '0')
+				vk_usedynamicstaging |= 0;	//for explicly none.
+			else
+				Con_Printf("%s: unknown char %c\n", vk_stagingbuffers.string, *c);
+			c++;
+		}
+	}
+	else
+		vk_usedynamicstaging = ~0u;
 }
 
 static struct descpool *VKBE_CreateDescriptorPool(void)
@@ -769,29 +796,37 @@ static struct dynbuffer *VKBE_AllocNewBuffer(struct dynbuffer **link, enum dynbu
 	VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
 	struct dynbuffer *n = Z_Malloc(sizeof(*n));
 
-    bufinf.flags = 0;
-    bufinf.size = n->size = (1u<<20);
-    bufinf.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    bufinf.queueFamilyIndexCount = 0;
-    bufinf.pQueueFamilyIndices = NULL;
-#ifdef USE_DYNAMIC_STAGING
-	bufinf.usage = ufl[type]|VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	vkCreateBuffer(vk.device, &bufinf, vkallocationcb, &n->devicebuf);
-	bufinf.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-	vkCreateBuffer(vk.device, &bufinf, vkallocationcb, &n->stagingbuf);
+	bufinf.flags = 0;
+	bufinf.size = n->size = (1u<<20);
+	bufinf.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bufinf.queueFamilyIndexCount = 0;
+	bufinf.pQueueFamilyIndices = NULL;
 
-	vkGetBufferMemoryRequirements(vk.device, n->devicebuf, &mem_reqs);
-	n->align = mem_reqs.alignment-1;
-	memAllocInfo.allocationSize = mem_reqs.size;
-	memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	if (memAllocInfo.memoryTypeIndex == ~0)
-		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);	//device will still be okay with this usage...
-	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &n->devicememory));
-	VkAssert(vkBindBufferMemory(vk.device, n->devicebuf, n->devicememory, 0));
-#else
-	bufinf.usage = ufl[type];
-	vkCreateBuffer(vk.device, &bufinf, vkallocationcb, &n->stagingbuf);
-#endif
+	if (vk_usedynamicstaging & (1u<<type))
+	{
+		bufinf.usage = ufl[type]|VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		vkCreateBuffer(vk.device, &bufinf, vkallocationcb, &n->devicebuf);
+		bufinf.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		vkCreateBuffer(vk.device, &bufinf, vkallocationcb, &n->stagingbuf);
+
+		vkGetBufferMemoryRequirements(vk.device, n->devicebuf, &mem_reqs);
+		n->align = mem_reqs.alignment-1;
+		memAllocInfo.allocationSize = mem_reqs.size;
+		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		if (memAllocInfo.memoryTypeIndex == ~0)
+			memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);	//device will still be okay with this usage...
+		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &n->devicememory));
+		VkAssert(vkBindBufferMemory(vk.device, n->devicebuf, n->devicememory, 0));
+
+		n->renderbuf = n->devicebuf;
+	}
+	else
+	{
+		bufinf.usage = ufl[type];
+		vkCreateBuffer(vk.device, &bufinf, vkallocationcb, &n->stagingbuf);
+
+		n->renderbuf = n->stagingbuf;
+	}
 
 	vkGetBufferMemoryRequirements(vk.device, n->stagingbuf, &mem_reqs);
 	n->align = mem_reqs.alignment-1;
@@ -827,17 +862,16 @@ static void *fte_restrict VKBE_AllocateBufferSpace(enum dynbuf_e type, size_t da
 		range.memory = b->stagingmemory;
 		vkFlushMappedMemoryRanges(vk.device, 1, &range);
 
-#ifdef USE_DYNAMIC_STAGING
+		if (b->devicebuf != VK_NULL_HANDLE)
 		{
-			VkCommandBuffer cb = VK_FencedBegin();
+			struct vk_fencework *fence = VK_FencedBegin(NULL, 0);
 			VkBufferCopy bcr = {0};
 			bcr.srcOffset = 0;
 			bcr.dstOffset = 0;
 			bcr.size = b->offset;
-			vkCmdCopyBuffer(cb, b->stagingbuf, b->devicebuf, 1, &bcr);
-			VK_FencedSubmit(cb, NULL, 0);
+			vkCmdCopyBuffer(fence->cbuf, b->stagingbuf, b->devicebuf, 1, &bcr);
+			VK_FencedSubmit(fence);
 		}
-#endif
 
 		if (!b->next)
 			VKBE_AllocNewBuffer(&b->next, type);
@@ -845,11 +879,7 @@ static void *fte_restrict VKBE_AllocateBufferSpace(enum dynbuf_e type, size_t da
 		b->offset = 0;
 	}
 
-#ifdef USE_DYNAMIC_STAGING
-	*buf = b->devicebuf;
-#else
-	*buf = b->stagingbuf;
-#endif
+	*buf = b->renderbuf;
 	*offset = b->offset;
 
 	ret = (qbyte*)b->ptr + b->offset;
@@ -895,12 +925,9 @@ void VKBE_InitFramePools(struct vkframe *frame)
 
 //called just before submits
 //makes sure that our persistent-mapped memory writes can actually be seen by the hardware.
-#ifdef USE_DYNAMIC_STAGING
-void VKBE_FlushDynamicBuffers(VkCommandBuffer cb)
-#else
 void VKBE_FlushDynamicBuffers(void)
-#endif
 {
+	struct vk_fencework *fence = NULL;
 	uint32_t i;
 	struct dynbuffer *d;
 	VkMappedMemoryRange range = {VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
@@ -916,16 +943,20 @@ void VKBE_FlushDynamicBuffers(void)
 		range.memory = d->stagingmemory;
 		vkFlushMappedMemoryRanges(vk.device, 1, &range);
 
-#ifdef USE_DYNAMIC_STAGING
+		if (d->devicebuf != VK_NULL_HANDLE)
 		{	
 			VkBufferCopy bcr = {0};
 			bcr.srcOffset = 0;
 			bcr.dstOffset = 0;
 			bcr.size = d->offset;
-			vkCmdCopyBuffer(cb, d->stagingbuf, d->devicebuf, 1, &bcr);
+			if (!fence)
+				fence = VK_FencedBegin(NULL, 0);
+			vkCmdCopyBuffer(fence->cbuf, d->stagingbuf, d->devicebuf, 1, &bcr);
 		}
-#endif
 	}
+
+	if (fence)
+		VK_FencedSubmit(fence);
 }
 
 void VKBE_Set2D(qboolean twodee)
@@ -966,10 +997,11 @@ void VKBE_ShutdownFramePools(struct vkframe *frame)
 			db = frame->dynbufs[i];
 			vkDestroyBuffer(vk.device, db->stagingbuf, vkallocationcb);
 			vkFreeMemory(vk.device, db->stagingmemory, vkallocationcb);
-#ifdef USE_DYNAMIC_STAGING
-			vkDestroyBuffer(vk.device, db->devicebuf, vkallocationcb);
-			vkFreeMemory(vk.device, db->devicememory, vkallocationcb);
-#endif
+			if (db->devicebuf != VK_NULL_HANDLE)
+			{
+				vkDestroyBuffer(vk.device, db->devicebuf, vkallocationcb);
+				vkFreeMemory(vk.device, db->devicememory, vkallocationcb);
+			}
 			frame->dynbufs[i] = db->next;
 			Z_Free(db);
 		}
@@ -2049,8 +2081,17 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 
 
 	pipe = Z_Malloc(sizeof(*pipe));
-	pipe->next = p->pipelines;
-	p->pipelines = pipe;
+	if (!p->pipelines)
+		p->pipelines = pipe;
+	else
+	{	//insert at end. if it took us a while to realise that we needed it, chances are its not that common.
+		//so don't cause the other pipelines to waste cycles for it.
+		struct pipeline_s *prev;
+		for (prev = p->pipelines; ; prev = prev->next)
+			if (!prev->next)
+				break;
+		prev->next = pipe;
+	}
 
 	pipe->flags = shaderflags;
 	pipe->blendbits = blendflags;

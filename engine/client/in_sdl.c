@@ -520,7 +520,7 @@ static unsigned int tbl_sdltoquake[] =
 	0,0,
 	0,				//SDLK_CLEAR		= 12,
 	K_ENTER,		//SDLK_RETURN		= 13,
-    0,0,0,0,0,
+	0,0,0,0,0,
 	K_PAUSE,		//SDLK_PAUSE		= 19,
 	0,0,0,0,0,0,0,
 	K_ESCAPE,		//SDLK_ESCAPE		= 27,
@@ -913,7 +913,7 @@ void INS_Accumulate(void)	//input polling
 void INS_Commands (void)	//used to Cbuf_AddText joystick button events in windows.
 {
 }
-void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, int *qdevid))
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid))
 {
 }
 

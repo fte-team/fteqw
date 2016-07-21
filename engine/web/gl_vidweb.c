@@ -305,7 +305,7 @@ void INS_Accumulate(void)
 void INS_Commands (void)
 {
 }
-void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, int *qdevid))
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid))
 {
 }
 

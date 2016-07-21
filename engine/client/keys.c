@@ -2305,7 +2305,7 @@ Called by the system between frames for both key up and key down events
 Should NOT be called during an interrupt!
 ===================
 */
-void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
+void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down)
 {
 	int bl, bkey;
 	char	*dc, *uc;

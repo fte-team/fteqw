@@ -544,7 +544,7 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
 				}
 
-	        break;
+			break;
 
 		case WM_ACTIVATE:
 			fActive = LOWORD(wParam);
@@ -557,8 +557,11 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 
 			if (modestate == MS_FULLSCREEN)
 			{
-				IDXGISwapChain_SetFullscreenState(d3dswapchain, vid.activeapp, d3dscreen);
-				D3D11_DoResize();
+				if (d3dswapchain)
+				{
+					IDXGISwapChain_SetFullscreenState(d3dswapchain, vid.activeapp, d3dscreen);
+					D3D11_DoResize();
+				}
 			}
 			Cvar_ForceCallback(&v_gamma);
 
@@ -1429,81 +1432,83 @@ static void	(D3D11_R_RenderView)				(void)
 	qboolean dofbo = *r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname;
 //	texid_t colourrt[1];
 
-	if (r_speeds.ival)
-		time1 = Sys_DoubleTime();
-
-	if (dofbo)
-		D3D11_ApplyRenderTargets(true);
-	else
-		ID3D11DeviceContext_ClearDepthStencilView(d3ddevctx, fb_backdepthstencil, D3D11_CLEAR_DEPTH, 1, 0);	//is it faster to clear the stencil too?
-
-	//check if we can do underwater warp
-	if (cls.protocol != CP_QUAKE2)	//quake2 tells us directly
+	if (!r_norefresh.value)
 	{
-		if (r_viewcontents & FTECONTENTS_FLUID)
-			r_refdef.flags |= RDF_UNDERWATER;
+		if (r_speeds.ival)
+			time1 = Sys_DoubleTime();
+
+		if (dofbo)
+			D3D11_ApplyRenderTargets(true);
 		else
-			r_refdef.flags &= ~RDF_UNDERWATER;
-	}
-	if (r_refdef.flags & RDF_UNDERWATER)
-	{
-		extern cvar_t r_projection;
-		if (!r_waterwarp.value || r_projection.ival)
-			r_refdef.flags &= ~RDF_UNDERWATER;	//no warp at all
-//		else if (r_waterwarp.value > 0 && scenepp_waterwarp)
-//			r_refdef.flags |= RDF_WATERWARP;	//try fullscreen warp instead if we can
-	}
+			ID3D11DeviceContext_ClearDepthStencilView(d3ddevctx, fb_backdepthstencil, D3D11_CLEAR_DEPTH, 1, 0);	//is it faster to clear the stencil too?
 
-	D3D11_SetupViewPort();
-	//unlike gl, we clear colour beforehand, because that seems more sane.
-	//always clear depth
-
-	x = (r_refdef.vrect.x * (int)vid.pixelwidth)/(int)vid.width;
-	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * (int)vid.pixelwidth/(int)vid.width;
-	y = (r_refdef.vrect.y * (int)vid.pixelheight)/(int)vid.height;
-	y2 = (r_refdef.vrect.y + r_refdef.vrect.height) * (int)vid.pixelheight/(int)vid.height;
-	r_refdef.pxrect.x = floor(x);
-	r_refdef.pxrect.y = floor(y);
-	r_refdef.pxrect.width = (int)ceil(x2) - r_refdef.pxrect.x;
-	r_refdef.pxrect.height = (int)ceil(y2) - r_refdef.pxrect.y;
-
-	Surf_SetupFrame();
-
-	//fixme: waterwarp fov
-
-	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
-	RQ_BeginFrame();
-//	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-//	{
-//		if (cl.worldmodel)
-//			P_DrawParticles ();
-//	}
-	
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
-		if (!r_worldentity.model || r_worldentity.model->loadstate != MLS_LOADED || !cl.worldmodel)
+		//check if we can do underwater warp
+		if (cls.protocol != CP_QUAKE2)	//quake2 tells us directly
 		{
-			D3D11_Set2D ();
-			R2D_ImageColours(0, 0, 0, 1);
-			R2D_FillBlock(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
-			R2D_ImageColours(1, 1, 1, 1);
-
-			if (dofbo)
-				D3D11_ApplyRenderTargets(false);
-			return;
+			if (r_viewcontents & FTECONTENTS_FLUID)
+				r_refdef.flags |= RDF_UNDERWATER;
+			else
+				r_refdef.flags &= ~RDF_UNDERWATER;
 		}
-	Surf_DrawWorld();
-	RQ_RenderBatchClear();
+		if (r_refdef.flags & RDF_UNDERWATER)
+		{
+			extern cvar_t r_projection;
+			if (!r_waterwarp.value || r_projection.ival)
+				r_refdef.flags &= ~RDF_UNDERWATER;	//no warp at all
+	//		else if (r_waterwarp.value > 0 && scenepp_waterwarp)
+	//			r_refdef.flags |= RDF_WATERWARP;	//try fullscreen warp instead if we can
+		}
 
-	D3D11_Set2D ();
+		D3D11_SetupViewPort();
+		//unlike gl, we clear colour beforehand, because that seems more sane.
+		//always clear depth
 
-	if (r_speeds.ival)
-	{
-		time2 = Sys_DoubleTime();
-		RQuantAdd(RQUANT_MSECS, (int)((time2-time1)*1000000));
+		x = (r_refdef.vrect.x * (int)vid.pixelwidth)/(int)vid.width;
+		x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * (int)vid.pixelwidth/(int)vid.width;
+		y = (r_refdef.vrect.y * (int)vid.pixelheight)/(int)vid.height;
+		y2 = (r_refdef.vrect.y + r_refdef.vrect.height) * (int)vid.pixelheight/(int)vid.height;
+		r_refdef.pxrect.x = floor(x);
+		r_refdef.pxrect.y = floor(y);
+		r_refdef.pxrect.width = (int)ceil(x2) - r_refdef.pxrect.x;
+		r_refdef.pxrect.height = (int)ceil(y2) - r_refdef.pxrect.y;
+
+		Surf_SetupFrame();
+
+		//fixme: waterwarp fov
+
+		R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+		RQ_BeginFrame();
+	//	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+	//	{
+	//		if (cl.worldmodel)
+	//			P_DrawParticles ();
+	//	}
+		
+		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+			if (!r_worldentity.model || r_worldentity.model->loadstate != MLS_LOADED || !cl.worldmodel)
+			{
+				D3D11_Set2D ();
+				R2D_ImageColours(0, 0, 0, 1);
+				R2D_FillBlock(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
+				R2D_ImageColours(1, 1, 1, 1);
+
+				if (dofbo)
+					D3D11_ApplyRenderTargets(false);
+				return;
+			}
+		Surf_DrawWorld();
+		RQ_RenderBatchClear();
+
+		if (r_speeds.ival)
+		{
+			time2 = Sys_DoubleTime();
+			RQuantAdd(RQUANT_MSECS, (int)((time2-time1)*1000000));
+		}
+
+		if (dofbo)
+			D3D11_ApplyRenderTargets(false);
 	}
-
-	if (dofbo)
-		D3D11_ApplyRenderTargets(false);
+	D3D11_Set2D ();
 }
 
 void D3D11BE_RenderToTextureUpdate2d(qboolean destchanged)

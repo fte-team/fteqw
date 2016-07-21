@@ -3532,7 +3532,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 	for ( ; e<limit ; e++)
 	{
 		ent = EDICT_NUM(svprogfuncs, e);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 
 		if (ent->xv->customizeentityforclient)
@@ -4001,7 +4001,7 @@ void SV_ProcessSendFlags(client_t *c)
 	for (e=1 ; e<sv.world.num_edicts && e < c->max_net_ents; e++)
 	{
 		ent = EDICT_NUM(svprogfuncs, e);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 		if (ent->xv->SendFlags)
 		{

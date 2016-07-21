@@ -1205,7 +1205,7 @@ void QCBUILTIN PF_FindFlags (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	for (e++; e < *prinst->parms->sv_num_edicts; e++)
 	{
 		ed = WEDICT_NUM(prinst, e);
-		if (ed->isfree)
+		if (ED_ISFREE(ed))
 			continue;
 		if ((int)((float *)ed->v)[f] & s)
 		{
@@ -1237,7 +1237,7 @@ void QCBUILTIN PF_FindFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	for (e++; e < *prinst->parms->sv_num_edicts; e++)
 	{
 		ed = WEDICT_NUM(prinst, e);
-		if (ed->isfree)
+		if (ED_ISFREE(ed))
 			continue;
 		if (((int *)ed->v)[f] == s)
 		{
@@ -1270,7 +1270,7 @@ void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	for (e++ ; e < *prinst->parms->sv_num_edicts ; e++)
 	{
 		ed = WEDICT_NUM(prinst, e);
-		if (ed->isfree)
+		if (ED_ISFREE(ed))
 			continue;
 		t = ((string_t *)ed->v)[f];
 		if (!t)
@@ -2616,7 +2616,7 @@ void QCBUILTIN PF_WasFreed (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	wedict_t	*ent;
 	ent = G_WEDICT(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = ent->isfree;
+	G_FLOAT(OFS_RETURN) = ED_ISFREE(ent);
 }
 
 void QCBUILTIN PF_num_for_edict (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2666,7 +2666,7 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	for (i=1 ; i<w->num_edicts ; i++)
 	{
 		ent = WEDICT_NUM(prinst, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 		if (ent->v->solid == SOLID_NOT && (!((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
 			continue;
@@ -2698,7 +2698,7 @@ void QCBUILTIN PF_nextent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 			return;
 		}
 		ent = WEDICT_NUM(prinst, i);
-		if (!ent->isfree)
+		if (!ED_ISFREE(ent))
 		{
 			RETURN_EDICT(prinst, ent);
 			return;
@@ -2740,9 +2740,9 @@ void QCBUILTIN PF_copyentity (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	else
 		out = G_WEDICT(prinst, OFS_PARM1);
 
-	if (in->isfree)
+	if (ED_ISFREE(in))
 		PR_BIError(prinst, "PF_copyentity: source is free");
-	if (!out || out->isfree)
+	if (!out || ED_ISFREE(out))
 		PR_BIError(prinst, "PF_copyentity: destination is free");
 	if (out->readonly)
 		PR_BIError(prinst, "PF_copyentity: destination is read-only");
@@ -2760,7 +2760,7 @@ void QCBUILTIN PF_entityprotection (pubprogfuncs_t *prinst, struct globalvars_s 
 	wedict_t *e = G_WEDICT(prinst, OFS_PARM0);
 	int prot = G_FLOAT(OFS_PARM1);
 
-	if (e->isfree)
+	if (ED_ISFREE(e))
 		PR_BIError(prinst, "PF_entityprotection: entity is free");
 
 	G_FLOAT(OFS_RETURN) = prot;

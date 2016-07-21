@@ -103,7 +103,7 @@ cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version
 cvar_t	gameversion_min = CVARD("gameversion_min","", "gamecode version for server browsers");
 cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for server browsers");
 cvar_t	fs_gamename = CVARAFD("com_fullgamename", NULL, "fs_gamename", CVAR_NOSET, "The filesystem is trying to run this game");
-cvar_t	fs_gamemanifest = CVARFD("fs_gamemanifest", "", CVAR_NOSET, "A small updatable file containing a description of the game, including download mirrors.");
+cvar_t	fs_downloads_url = CVARFD("fs_downloads_url", NULL, CVAR_NOSET, "The URL of a package updates list.");
 cvar_t	com_protocolname = CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
 cvar_t	com_parseezquake = CVARD("com_parseezquake", "0", "Treat chevron chars from configs as a per-character flag. You should use this only for compat with nquake's configs.");
@@ -205,7 +205,12 @@ void QDECL Q_strncpyz(char *d, const char *s, int n)
 //size is the total size of the buffer
 void VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list argptr)
 {
+#ifdef _DEBUG
+	if ((size_t)vsnprintf (dest, size, fmt, argptr) > size-1)
+		Sys_Error("Q_vsnprintfz: truncation");
+#else
 	vsnprintf (dest, size, fmt, argptr);
+#endif
 	dest[size-1] = 0;
 }
 
@@ -1583,18 +1588,20 @@ char *MSG_ReadStringBuffer (char *out, size_t outsize)
 }
 char *MSG_ReadString (void)
 {
-	static char	string[8192];
+	static char	string[65536];
 	int		l,c;
 
 	l = 0;
-	do
+	for(;;)
 	{
 		c = MSG_ReadChar ();
 		if (msg_badread || c == 0)
 			break;
-		string[l] = c;
-		l++;
-	} while (l < sizeof(string)-1);
+		if (l < sizeof(string)-1)
+			string[l++] = c;
+		else
+			msg_badread = true;
+	}
 
 	string[l] = 0;
 

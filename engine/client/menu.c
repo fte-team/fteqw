@@ -1197,10 +1197,6 @@ void M_Init_Internal (void)
 	Cmd_AddCommand ("menu_particles", M_Menu_Particles_f);
 	Cmd_AddCommand ("menu_network", M_Menu_Network_f);
 
-#ifdef WEBCLIENT
-	Cmd_AddCommand ("menu_download", Menu_DownloadStuff_f);
-#endif
-
 #ifdef CL_MASTER
 	Cmd_AddCommand ("quickconnect", M_QuickConnect_f);
 #endif
@@ -1253,8 +1249,6 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_textures");
 	Cmd_RemoveCommand ("menu_particles");
 
-	Cmd_RemoveCommand ("menu_download");
-
 
 	Cmd_RemoveCommand ("menu_main");	//I've moved main to last because that way tab gives us main and not quit.
 	Cmd_RemoveCommand ("quickconnect");
@@ -1296,6 +1290,10 @@ void M_Init (void)
 	//server browser is kinda complex, and has clipboard integration which we need to sandbox a little
 #ifdef CL_MASTER
 	Cmd_AddCommand ("menu_servers", M_Menu_ServerList2_f);
+#endif
+	//downloads menu needs sandboxing, so cannot be provided by qc.
+#ifdef WEBCLIENT
+	Cmd_AddCommand ("menu_download", Menu_DownloadStuff_f);
 #endif
 	//demo menu is allowed to see outside of the quakedir. you can't replicate that in qc's sandbox.
 	Cmd_AddCommand ("menu_demo", M_Menu_Demos_f);

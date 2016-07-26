@@ -796,7 +796,7 @@ qboolean Stats_ParsePickups(const char *line)
 	return false;
 }
 
-qboolean Stats_ParsePrintLine(char *line)
+qboolean Stats_ParsePrintLine(const char *line)
 {
 	statmessage_t *ms;
 	int p1;

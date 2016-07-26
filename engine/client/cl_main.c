@@ -173,6 +173,7 @@ cvar_t	cl_countpendingpl		= CVARD("cl_countpendingpl", "0", "If set to 1, packet
 cvar_t	cl_standardchat			= CVARFD("cl_standardchat", "0", CVAR_ARCHIVE, "Disables auto colour coding in chat messages.");
 cvar_t	msg_filter				= CVARD("msg_filter", "0", "Filter out chat messages: 0=neither. 1=broadcast chat. 2=team chat. 3=all chat.");
 cvar_t	msg_filter_frags		= CVARD("msg_filter_frags", "0", "Prevents frag messages from appearing on the console.");
+cvar_t	msg_filter_pickups		= CVARD("msg_filter_pickups", "0", "Prevents pickup messages from appearing on the console. This would normally be filtered by 'msg 1', but nq servers cannot respect that (nor nq mods running in qw servers).");
 cvar_t  cl_standardmsg			= CVARFD("cl_standardmsg", "0", CVAR_ARCHIVE, "Disables auto colour coding in console prints.");
 cvar_t  cl_parsewhitetext		= CVARD("cl_parsewhitetext", "1", "When parsing chat messages, enable support for messages like: red{white}red");
 

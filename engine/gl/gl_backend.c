@@ -3569,7 +3569,7 @@ void GLBE_SelectMode(backendmode_t mode)
 				if (!shaderstate.allblackshader.glsl.handle)
 			{
 				const char *defs[] = {NULL};
-				shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", NULL, NULL, NULL, "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
+				shaderstate.allblackshader = GLSlang_CreateProgram(NULL, "allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", NULL, NULL, NULL, "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
 				shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader.glsl.handle, "m_modelviewprojection");
 			}
 			/*BEM_DEPTHONLY does support mesh writing, but its not the only way its used... FIXME!*/
@@ -3594,7 +3594,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			if (gl_config_nofixedfunc && !shaderstate.allblackshader.glsl.handle)
 			{
 				const char *defs[] = {NULL};
-				shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", NULL, NULL, NULL, "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
+				shaderstate.allblackshader = GLSlang_CreateProgram(NULL, "allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", NULL, NULL, NULL, "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
 				shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader.glsl.handle, "m_modelviewprojection");
 			}
 
@@ -4147,7 +4147,7 @@ static void DrawMeshes(void)
 				if (!shaderstate.allblackshader.glsl.handle)
 				{
 					const char *defs[] = {NULL};
-					shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", NULL, NULL, NULL, "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
+					shaderstate.allblackshader = GLSlang_CreateProgram(NULL, "allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", NULL, NULL, NULL, "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
 					shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader.glsl.handle, "m_modelviewprojection");
 				}
 

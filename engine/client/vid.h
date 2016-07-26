@@ -76,10 +76,10 @@ typedef struct
 	qboolean		isminimized;	//can omit rendering as it won't be seen anyway.
 	int				fullbright;		// index of first fullbright color
 
-	unsigned		fbvwidth; /*virtual 2d width*/
+	unsigned		fbvwidth; /*virtual 2d width of the current framebuffer image*/
 	unsigned		fbvheight; /*virtual 2d height*/
-	unsigned		fbpwidth; /*virtual 2d width*/
-	unsigned		fbpheight; /*virtual 2d height*/
+	unsigned		fbpwidth; /*physical 2d width of the current framebuffer image*/
+	unsigned		fbpheight; /*physical 2d height*/
 	struct image_s	*framebuffer; /*the framebuffer fbo (set by democapture)*/
 
 	unsigned		width; /*virtual 2d screen width*/

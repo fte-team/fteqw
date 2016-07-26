@@ -713,6 +713,7 @@ typedef struct
 } sh_config_t;
 extern sh_config_t sh_config;
 #endif
+extern const char *sh_defaultsamplers[];
 
 #ifdef GLSLONLY
 	#define gl_config_nofixedfunc true

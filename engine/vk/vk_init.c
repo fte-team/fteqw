@@ -8,6 +8,7 @@
 extern qboolean vid_isfullscreen;
 extern cvar_t vk_submissionthread;
 extern cvar_t vk_debug;
+extern cvar_t vk_loadglsl;
 extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method;
 void R2D_Console_Resize(void);
 
@@ -138,10 +139,13 @@ static void VK_DestroySwapChain(void)
 {
 	uint32_t i;
 
-	Sys_LockConditional(vk.submitcondition);
-	vk.neednewswapchain = true;
-	Sys_ConditionSignal(vk.submitcondition);
-	Sys_UnlockConditional(vk.submitcondition);
+	if (vk.submitcondition)
+	{
+		Sys_LockConditional(vk.submitcondition);
+		vk.neednewswapchain = true;
+		Sys_ConditionSignal(vk.submitcondition);
+		Sys_UnlockConditional(vk.submitcondition);
+	}
 	if (vk.submitthread)
 	{
 		Sys_WaitOnThread(vk.submitthread);
@@ -160,7 +164,8 @@ static void VK_DestroySwapChain(void)
 		VK_Submit_DoWork();
 		Sys_UnlockConditional(vk.submitcondition);
 	}
-	vkDeviceWaitIdle(vk.device);
+	if (vk.device)
+		vkDeviceWaitIdle(vk.device);
 	VK_FencedCheck();
 	while(vk.frameendjobs)
 	{	//we've fully synced the gpu now, we can clean up any resources that were pending but not assigned yet.
@@ -377,7 +382,7 @@ static qboolean VK_CreateSwapChain(void)
 		VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefences[i]));
 	}
 	/*-1 to hide any weird thread issues*/
-	while (vk.aquirelast < ACQUIRELIMIT-1 && vk.aquirelast < vk.backbuf_count && vk.aquirelast < 2 && vk.aquirelast <= vk.backbuf_count-surfcaps.minImageCount)
+	while (vk.aquirelast < ACQUIRELIMIT-1 && vk.aquirelast < vk.backbuf_count && vk.aquirelast <= vk.backbuf_count-surfcaps.minImageCount)
 	{
 		VkAssert(vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, VK_NULL_HANDLE, vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]));
 		vk.aquirelast++;
@@ -805,7 +810,6 @@ void VK_FencedSync(void *work)
 //the command buffer in question may even have not yet been submitted yet.
 void *VK_AtFrameEnd(void (*passed)(void *work), size_t worksize)
 {
-	//FIXME: OMG! BIG LEAK!
 	struct vk_fencework *w = Z_Malloc(worksize?worksize:sizeof(*w));
 
 	w->Passed = passed;
@@ -1090,38 +1094,11 @@ void	VK_R_DeInit					(void)
 void VK_SetupViewPortProjection(void)
 {
 	extern cvar_t gl_mindist;
-	int		x, x2, y2, y, w, h;
 
 	float fov_x, fov_y;
 
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
-
-	//
-	// set up viewpoint
-	//
-	x = r_refdef.vrect.x * vid.pixelwidth/(int)vid.width;
-	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * vid.pixelwidth/(int)vid.width;
-	y = (r_refdef.vrect.y) * vid.pixelheight/(int)vid.height;
-	y2 = ((int)(r_refdef.vrect.y + r_refdef.vrect.height)) * vid.pixelheight/(int)vid.height;
-
-	// fudge around because of frac screen scale
-	if (x > 0)
-		x--;
-	if (x2 < vid.pixelwidth)
-		x2++;
-	if (y < 0)
-		y--;
-	if (y2 < vid.pixelheight)
-		y2++;
-
-	w = x2 - x;
-	h = y2 - y;
-
-	r_refdef.pxrect.x = x;
-	r_refdef.pxrect.y = y;
-	r_refdef.pxrect.width = w;
-	r_refdef.pxrect.height = h;
 
 	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
@@ -1315,6 +1292,15 @@ void VK_Init_PostProc(void)
 		);
 	vk.scenepp_waterwarp->defaulttextures->upperoverlay = scenepp_texture_warp;
 	vk.scenepp_waterwarp->defaulttextures->loweroverlay = scenepp_texture_edge;
+
+	vk.scenepp_antialias = R_RegisterShader("fte_ppantialias", 0, 
+		"{\n"
+			"program fxaa\n"
+			"{\n"
+				"map $sourcecolour\n"
+			"}\n"
+		"}\n"
+		);
 }
 
 
@@ -1322,6 +1308,10 @@ void	VK_R_RenderView				(void)
 {
 	extern unsigned int r_viewcontents;
 	struct vk_rendertarg *rt;
+	extern cvar_t r_fxaa;
+	extern	cvar_t r_renderscale, r_postprocshader;
+	float renderscale = r_renderscale.value;
+	shader_t *custompostproc;
 
 	if (r_norefresh.value || !vid.fbpwidth || !vid.fbpwidth)
 	{
@@ -1357,12 +1347,59 @@ void	VK_R_RenderView				(void)
 		r_refdef.globalfog.density /= 64;	//FIXME
 	}
 
-	VK_SetupViewPortProjection();
-
-	//FIXME: RDF_BLOOM|RDF_FISHEYE|RDF_CUSTOMPOSTPROC|RDF_ANTIALIAS|RDF_RENDERSCALE
-
-	if (r_refdef.flags & RDF_ALLPOSTPROC)
+	custompostproc = NULL;
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && (*r_postprocshader.string))
 	{
+		custompostproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);
+		if (custompostproc)
+			r_refdef.flags |= RDF_CUSTOMPOSTPROC;
+	}
+
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && r_fxaa.ival) //overlays will have problems.
+		r_refdef.flags |= RDF_ANTIALIAS;
+
+	//
+	// figure out the viewport
+	//
+	{
+		int x = r_refdef.vrect.x * vid.pixelwidth/(int)vid.width;
+		int x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * vid.pixelwidth/(int)vid.width;
+		int y = (r_refdef.vrect.y) * vid.pixelheight/(int)vid.height;
+		int y2 = ((int)(r_refdef.vrect.y + r_refdef.vrect.height)) * vid.pixelheight/(int)vid.height;
+
+		// fudge around because of frac screen scale
+		if (x > 0)
+			x--;
+		if (x2 < vid.pixelwidth)
+			x2++;
+		if (y < 0)
+			y--;
+		if (y2 < vid.pixelheight)
+			y2++;
+
+		r_refdef.pxrect.x = x;
+		r_refdef.pxrect.y = y;
+		r_refdef.pxrect.width = x2 - x;
+		r_refdef.pxrect.height = y2 - y;
+	}
+
+	if (renderscale != 1.0)
+	{
+		r_refdef.flags |= RDF_RENDERSCALE;
+		r_refdef.pxrect.width *= renderscale;
+		r_refdef.pxrect.height *= renderscale;
+	}
+
+	if (r_refdef.pxrect.width <= 0 || r_refdef.pxrect.height <= 0)
+		return;	//you're not allowed to do that, dude.
+
+	//FIXME: RDF_BLOOM|RDF_FISHEYE
+	//FIXME: VF_RT_*
+
+	if (r_refdef.flags & (RDF_ALLPOSTPROC|RDF_RENDERSCALE))
+	{
+		r_refdef.pxrect.x = 0;
+		r_refdef.pxrect.y = 0;
 		rt = &postproc[postproc_buf++%countof(postproc)];
 		if (rt->width != r_refdef.pxrect.width || rt->height != r_refdef.pxrect.height)
 			VKBE_RT_Gen(rt, r_refdef.pxrect.width, r_refdef.pxrect.height);
@@ -1371,39 +1408,8 @@ void	VK_R_RenderView				(void)
 	else
 		rt = NULL;
 
-	/*
-	{
-		VkClearDepthStencilValue val;
-		VkImageSubresourceRange range;
-		val.depth = 1;
-		val.stencil = 0;
-		range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		range.baseArrayLayer = 0;
-		range.baseMipLevel = 0;
-		range.layerCount = 1;
-		range.levelCount = 1;
-		vkCmdClearDepthStencilImage(vk.frame->cbuf, vk.depthbuf.image, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, &val, 1, &range);
-	}
-*/
-/*
-	vkCmdEndRenderPass(vk.frame->cbuf);
-	{
-		VkRenderPassBeginInfo rpiinfo = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-		VkClearValue	clearvalues[1];
-		clearvalues[0].depthStencil.depth = 1.0;
-		clearvalues[0].depthStencil.stencil = 0;
+	VK_SetupViewPortProjection();
 
-		rpiinfo.renderPass = vk.renderpass[1];
-		rpiinfo.renderArea.offset.x = r_refdef.pxrect.x;
-		rpiinfo.renderArea.offset.y = r_refdef.pxrect.y;
-		rpiinfo.renderArea.extent.width = r_refdef.pxrect.width;
-		rpiinfo.renderArea.extent.height = r_refdef.pxrect.height;
-		rpiinfo.framebuffer = vk.frame->backbuf->framebuffer;
-		rpiinfo.clearValueCount = 1;
-		rpiinfo.pClearValues = clearvalues;
-		vkCmdBeginRenderPass(vk.frame->cbuf, &rpiinfo, VK_SUBPASS_CONTENTS_INLINE);
-	}
-*/
 	{
 		VkViewport vp[1];
 		VkRect2D scissor[1];
@@ -1465,7 +1471,6 @@ void	VK_R_RenderView				(void)
 			r_refdef.flags &= ~RDF_WATERWARP;
 			VKBE_RT_End();	//WARNING: redundant begin+end renderpasses.
 			vk.sourcecolour = &rt->q_colour;
-			vk.sourcecolour = &rt->q_colour;
 			if (r_refdef.flags & RDF_ALLPOSTPROC)
 			{
 				rt = &postproc[postproc_buf++];
@@ -1475,6 +1480,51 @@ void	VK_R_RenderView				(void)
 			R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 0, 1, 1, vk.scenepp_waterwarp);
 			R2D_Flush();
 		}
+		if (r_refdef.flags & RDF_CUSTOMPOSTPROC)
+		{
+			r_refdef.flags &= ~RDF_CUSTOMPOSTPROC;
+			VKBE_RT_End();	//WARNING: redundant begin+end renderpasses.
+			vk.sourcecolour = &rt->q_colour;
+			if (r_refdef.flags & RDF_ALLPOSTPROC)
+			{
+				rt = &postproc[postproc_buf++];
+				VKBE_RT_Begin(rt, 320, 240);
+			}
+
+			R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 1, 1, 0, custompostproc);
+			R2D_Flush();
+		}
+		if (r_refdef.flags & RDF_ANTIALIAS)
+		{
+			r_refdef.flags &= ~RDF_ANTIALIAS;
+			VKBE_RT_End();	//WARNING: redundant begin+end renderpasses.
+			vk.sourcecolour = &rt->q_colour;
+			if (r_refdef.flags & RDF_ALLPOSTPROC)
+			{
+				rt = &postproc[postproc_buf++];
+				VKBE_RT_Begin(rt, 320, 240);
+			}
+
+			R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 1, 1, 0, vk.scenepp_antialias);
+			R2D_Flush();
+		}
+		//FIXME: bloom
+	}
+	else if (r_refdef.flags & RDF_RENDERSCALE)
+	{
+		if (!vk.scenepp_rescale)
+			vk.scenepp_rescale = R_RegisterShader("fte_rescaler", 0, 
+				"{\n"
+					"program default2d\n"
+					"{\n"
+						"map $sourcecolour\n"
+					"}\n"
+				"}\n"
+				);
+		VKBE_RT_End();	//WARNING: redundant begin+end renderpasses.
+		vk.sourcecolour = &rt->q_colour;
+		R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 0, 1, 1, vk.scenepp_rescale);
+		R2D_Flush();
 	}
 
 	vk.sourcecolour = r_nulltex;
@@ -1741,12 +1791,11 @@ qboolean VK_SCR_GrabBackBuffer(void)
 #ifdef THREADACQUIRE
 	while (vk.aquirenext == vk.aquirelast)
 	{	//we're still waiting for the render thread to increment acquirelast.
-		if (vk.vsync)
-			Sys_Sleep(0);	//o.O
+		Sys_Sleep(0);	//o.O
 	}
 
 	//wait for the queued acquire to actually finish
-	if (vk.vsync)
+	if (1)//vk.vsync)
 	{
 		//friendly wait
 		VkAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
@@ -1880,7 +1929,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		if (r_clear.ival)
 			rpbi.renderPass = vk.renderpass[2];
 		else
-			rpbi.renderPass = vk.renderpass[1];
+			rpbi.renderPass = vk.renderpass[1];	//may still clear
 		rpbi.framebuffer = vk.frame->backbuf->framebuffer;
 		rpbi.renderArea.offset.x = 0;
 		rpbi.renderArea.offset.y = 0;
@@ -1951,7 +2000,6 @@ void VK_DebugFramerate(void)
 
 qboolean	VK_SCR_UpdateScreen			(void)
 {
-	RSpeedLocals();
 	VkCommandBuffer bufs[1];
 
 	VK_FencedCheck();
@@ -1991,7 +2039,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		VK_CreateSwapChain();
 		vk.neednewswapchain = false;
 
-		if (vk_submissionthread.ival)
+		if (vk_submissionthread.ival || !*vk_submissionthread.string)
 		{
 			vk.submitthread = Sys_CreateThread("vksubmission", VK_Submit_Thread, NULL, THREADP_HIGHEST, 0);
 		}
@@ -2031,11 +2079,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 //	vkCmdWriteTimestamp(vk.frame->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, querypool, vk.bufferidx*2+1);
 	vkEndCommandBuffer(vk.frame->cbuf);
 
-	{
-		RSpeedRemark();
-		VKBE_FlushDynamicBuffers();
-		RSpeedEnd(RSPEED_SUBMIT);
-	}
+	VKBE_FlushDynamicBuffers();
 
 	bufs[0] = vk.frame->cbuf;
 
@@ -2387,16 +2431,13 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	VkResult err;
 	VkApplicationInfo app;
 	VkInstanceCreateInfo inst_info;
-	const char *extensions[] = {	sysextname,
-									VK_KHR_SURFACE_EXTENSION_NAME,
-									VK_EXT_DEBUG_REPORT_EXTENSION_NAME
-		};
-	uint32_t extensions_count;
-
+	const char *extensions[8];
+	qboolean nvglsl = false;
+	uint32_t extensions_count = 0;
+	extensions[extensions_count++] = sysextname;
+	extensions[extensions_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
 	if (vk_debug.ival)
-		extensions_count = 3;
-	else
-		extensions_count = 2;
+		extensions[extensions_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
 
 	vk.neednewswapchain = true;
 	vk.triplebuffer = info->triplebuffer;
@@ -2629,12 +2670,31 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		}
 	}
 
-
 	{
-		const char *devextensions[] = {	VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+		uint32_t extcount = 0;
+		VkExtensionProperties *ext;
+		vkEnumerateDeviceExtensionProperties(vk.gpu, NULL, &extcount, NULL);
+		ext = malloc(sizeof(*ext)*extcount);
+		vkEnumerateDeviceExtensionProperties(vk.gpu, NULL, &extcount, ext);
+		while (extcount --> 0)
+		{
+			if (!strcmp(ext[extcount].extensionName, VK_NV_GLSL_SHADER_EXTENSION_NAME))
+				nvglsl = !!vk_loadglsl.ival;
+		}
+		free(ext);
+	}
+	{
+		const char *devextensions[8];
+		size_t numdevextensions = 0;
 		float queue_priorities[1] = {1.0};
 		VkDeviceQueueCreateInfo queueinf[2] = {{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO},{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO}};
 		VkDeviceCreateInfo devinf = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+
+		devextensions[numdevextensions++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+		if (nvglsl)
+			devextensions[numdevextensions++] = VK_NV_GLSL_SHADER_EXTENSION_NAME;
+
+
 		queueinf[0].pNext = NULL;
 		queueinf[0].queueFamilyIndex = vk.queueidx[0];
 		queueinf[0].queueCount = countof(queue_priorities);
@@ -2648,7 +2708,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		devinf.pQueueCreateInfos = queueinf;
 		devinf.enabledLayerCount = vklayercount;
 		devinf.ppEnabledLayerNames = vklayerlist;
-		devinf.enabledExtensionCount = countof(devextensions);
+		devinf.enabledExtensionCount = numdevextensions;
 		devinf.ppEnabledExtensionNames = devextensions;
 		devinf.pEnabledFeatures = NULL;
 
@@ -2690,12 +2750,18 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	}
 
 	
-	sh_config.progpath = NULL;//"vulkan";
+	sh_config.progpath = NULL;
 	sh_config.blobpath = "spirv";
 	sh_config.shadernamefmt = NULL;//".spv";
 
+	if (nvglsl)
+	{
+		sh_config.progpath = "glsl/%s.glsl";
+		sh_config.shadernamefmt = "%s_glsl";
+	}
+
 	sh_config.progs_supported = true;
-	sh_config.progs_required = false;//true;
+	sh_config.progs_required = true;
 	sh_config.minver = -1;
 	sh_config.maxver = -1;
 
@@ -2714,7 +2780,10 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 
 	sh_config.pDeleteProg = NULL;
 	sh_config.pLoadBlob = NULL;
-	sh_config.pCreateProgram = NULL;
+	if (nvglsl)
+		sh_config.pCreateProgram = VK_LoadGLSL;
+	else
+		sh_config.pCreateProgram = NULL;
 	sh_config.pValidateProgram = NULL;
 	sh_config.pProgAutoFields = NULL;
 
@@ -2760,7 +2829,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	{
 		vk.neednewswapchain = false;
 
-		if (vk_submissionthread.ival)
+		if (vk_submissionthread.ival || !*vk_submissionthread.string)
 		{
 			vk.submitthread = Sys_CreateThread("vksubmission", VK_Submit_Thread, NULL, THREADP_HIGHEST, 0);
 		}

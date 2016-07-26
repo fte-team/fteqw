@@ -1028,6 +1028,32 @@ static qboolean Shader_ParseProgramCvar(char *script, cvar_t **cvarrefs, char **
 }
 #endif
 
+const char *sh_defaultsamplers[] =
+{
+	"s_shadowmap",
+	"s_projectionmap",
+	"s_diffuse",
+	"s_normalmap",
+	"s_specular",
+	"s_upper",
+	"s_lower",
+	"s_fullbright",
+	"s_paletted",
+	"s_reflectcube",
+	"s_reflectmask",
+	"s_lightmap",
+	"s_deluxmap",
+#if MAXRLIGHTMAPS > 1
+	"s_lightmap1",
+	"s_lightmap2",
+	"s_lightmap3",
+	"s_deluxmap1",
+	"s_deluxmap2",
+	"s_deluxmap3",
+#endif
+	NULL
+};
+
 /*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
 static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *script, int qrtype, int ver, char *blobfilename)
 {
@@ -1067,14 +1093,18 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	extern cvar_t gl_specular;
 #endif
 
+#ifdef VKQUAKE
+	if (qrenderer == QR_VULKAN && (qrtype == QR_VULKAN || qrtype == QR_OPENGL))
+	{
+		if (qrtype == QR_VULKAN && VK_LoadBlob(prog, script, name))
+			return true;
+	}
+	else
+#endif
 	if (qrenderer != qrtype)
 	{
 		return false;
 	}
-#ifdef VKQUAKE
-	if (qrenderer == QR_VULKAN)
-		return VK_LoadBlob(prog, script, name);
-#endif
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 	ver = 0;
@@ -1105,6 +1135,37 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		{
 			tess = true;
 			script += 6;
+		}
+		else if (!strncmp(script, "!!samps", 7))
+		{
+			script += 7;
+			while (*script != '\n' && *script != '\r')
+			{
+				int i;
+				char *start;
+				while (*script == ' ' || *script == '\t')
+					script++;
+				start = script;
+				while (*script != ' ' && *script != '\t' && *script != '\r' && *script != '\n')
+					script++;
+
+				for (i = 0; sh_defaultsamplers[i]; i++)
+				{
+					if (!strncmp(start, sh_defaultsamplers[i]+2, script-start) && sh_defaultsamplers[i][2+script-start] == 0)
+					{
+						prog->defaulttextures |= (1u<<i);
+						break;
+					}
+				}
+				if (!sh_defaultsamplers[i])
+				{
+					i = atoi(start);
+					if (i)
+						prog->numsamplers = i;
+					else
+						Con_Printf("Unknown texture name in %s\n", name);
+				}
+			}
 		}
 		else if (!strncmp(script, "!!cvardf", 8))
 		{
@@ -1593,12 +1654,12 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 		*h = '\0';
 
 	if (strchr(basicname, '/') || strchr(basicname, '.'))
-	{
+	{	//explicit path
 		FS_LoadFile(basicname, &file);
 		*blobname = 0;
 	}
 	else
-	{
+	{	//renderer-specific files
 		if (sh_config.progpath)
 		{
 			Q_snprintfz(blobname, sizeof(blobname), sh_config.progpath, basicname);
@@ -4867,7 +4928,7 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 		}
 	}
 #endif
-	if (!builtin && ((sh_config.progs_supported && qrenderer == QR_OPENGL) || sh_config.progs_required || qrenderer == QR_VULKAN))
+	if (!builtin && ((sh_config.progs_supported && qrenderer == QR_OPENGL) || sh_config.progs_required))
 	{
 			builtin = (
 					"{\n"

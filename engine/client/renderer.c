@@ -163,6 +163,7 @@ cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
 cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0.75"),
 												CVAR_ARCHIVE,
 												Cvar_Limiter_ZeroToOne_Callback);
+cvar_t r_renderscale						= CVARD("r_renderscale", "1", "Provides a way to enable subsampling or super-sampling");
 cvar_t r_fxaa								= CVARD("r_fxaa", "0", "Runs a post-procesing pass to strip the jaggies.");
 cvar_t r_postprocshader						= CVARD("r_postprocshader", "", "Specifies a custom shader to use as a post-processing shader");
 cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "128 128 128",
@@ -425,8 +426,9 @@ cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades wit
 
 #ifdef VKQUAKE
 cvar_t vk_stagingbuffers					= CVARD ("vk_stagingbuffers", "", "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u, e, v, 0.");
-cvar_t vk_submissionthread					= CVARD	("vk_submissionthread", "1", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
+cvar_t vk_submissionthread					= CVARD	("vk_submissionthread", "", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
 cvar_t vk_debug								= CVARD	("vk_debug",			"0", "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
+cvar_t vk_loadglsl							= CVARD	("vk_loadglsl",			"", "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any errors). Don't forget to do a vid_restart after.");
 #endif
 
 extern cvar_t gl_dither;
@@ -461,9 +463,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_finish, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lateswap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lerpimages, GLRENDEREROPTIONS);
-	Cvar_Register (&r_postprocshader, GLRENDEREROPTIONS);
-	Cvar_Register (&r_fxaa, GLRENDEREROPTIONS);
-	Cvar_Register (&r_renderscale, GLRENDEREROPTIONS);
 
 	Cvar_Register (&dpcompat_psa_ungroup, GLRENDEREROPTIONS);
 	Cvar_Register (&r_lerpmuzzlehack, GLRENDEREROPTIONS);
@@ -742,6 +741,9 @@ void Renderer_Init(void)
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe_smooth, GRAPHICALNICETIES);
 	Cvar_Register (&r_refract_fbo, GRAPHICALNICETIES);
+	Cvar_Register (&r_postprocshader, GRAPHICALNICETIES);
+	Cvar_Register (&r_fxaa, GRAPHICALNICETIES);
+	Cvar_Register (&r_renderscale, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_separation, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_convergence, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_method, GRAPHICALNICETIES);
@@ -855,6 +857,7 @@ void Renderer_Init(void)
 	Cvar_Register (&vk_stagingbuffers,	VKRENDEREROPTIONS);
 	Cvar_Register (&vk_submissionthread,	VKRENDEREROPTIONS);
 	Cvar_Register (&vk_debug,				VKRENDEREROPTIONS);
+	Cvar_Register (&vk_loadglsl,			VKRENDEREROPTIONS);
 #endif
 
 // misc

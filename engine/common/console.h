@@ -247,7 +247,6 @@ void Con_SetActive (console_t *con);
 qboolean Con_NameForNum(int num, char *buffer, int buffersize);
 console_t *Con_FindConsole(const char *name);
 console_t *Con_Create(const char *name, unsigned int flags);
-void Con_SetVisible (console_t *con);
 void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags);
 qboolean Con_InsertConChars (console_t *con, conline_t *line, int offset, conchar_t *c, int len);
 conline_t *Con_ResizeLineBuffer(console_t *con, conline_t *old, unsigned int length);

@@ -994,6 +994,7 @@ qboolean SW_SCR_UpdateScreen(void)
 	SCR_DrawTwoDimensional(0, 0);
 
 	V_UpdatePalette (false);
+	return true;
 }
 
 void SW_VBO_Begin(vbobctx_t *ctx, size_t maxsize)

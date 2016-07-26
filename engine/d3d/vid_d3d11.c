@@ -1237,6 +1237,8 @@ static qboolean	(D3D11_SCR_UpdateScreen)			(void)
 			scr_drawloading = true;
 			SCR_DrawLoading (true);
 			scr_drawloading = false;
+			if (R2D_Flush)
+				R2D_Flush();
 //			IDirect3DDevice9_EndScene(pD3DDev9);
 			D3D11_PresentOrCrash();
 			return true;

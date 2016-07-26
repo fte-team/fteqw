@@ -275,60 +275,76 @@ qboolean Con_NameForNum(int num, char *buffer, int buffersize)
 }
 
 #ifdef QTERM
+void QT_Kill(qterm_t *qt, qboolean killconsole)
+{
+	qterm_t **link;
+	qt->console->close = NULL;
+	qt->console->userdata = NULL;
+	qt->console->redirect = NULL;
+	if (killconsole)
+		Con_Destroy(qt->console);
+
+	//yes this loop will crash if you're not careful. it makes it easier to debug.
+	for (link = &qterms; ; link = &(*link)->next)
+	{
+		if (*link == qt)
+		{
+			*link = qt->next;
+			break;
+		}
+	}
+
+	CloseHandle(qt->pipein);
+	CloseHandle(qt->pipeout);
+
+	CloseHandle(qt->pipeinih);
+	CloseHandle(qt->pipeoutih);
+	CloseHandle(qt->process);
+
+	Z_Free(qt);
+}
 void QT_Update(void)
 {
 	char buffer[2048];
 	DWORD ret;
-	qterm_t *qt;
-	qterm_t *prev = NULL;
-	for (qt = qterms; qt; qt = (prev=qt)->next)
+	qterm_t *qt, *n;
+	for (qt = qterms; qt; )
 	{
-		if (!qt->running)
+		if (qt->running)
 		{
-			if (Con_IsActive(qt->console))
-				continue;
-
-			Con_Destroy(qt->console);
-
-			if (prev)
-				prev->next = qt->next;
-			else
-				qterms = qt->next;
-
-			CloseHandle(qt->pipein);
-			CloseHandle(qt->pipeout);
-
-			CloseHandle(qt->pipeinih);
-			CloseHandle(qt->pipeoutih);
-			CloseHandle(qt->process);
-
-			Z_Free(qt);
-			break;	//be lazy.
-		}
-		if (WaitForSingleObject(qt->process, 0) == WAIT_TIMEOUT)
-		{
-			if ((ret=GetFileSize(qt->pipeout, NULL)))
+			if (WaitForSingleObject(qt->process, 0) == WAIT_TIMEOUT)
 			{
-				if (ret!=INVALID_FILE_SIZE)
+				if ((ret=GetFileSize(qt->pipeout, NULL)))
 				{
-					ReadFile(qt->pipeout, buffer, sizeof(buffer)-32, &ret, NULL);
-					buffer[ret] = '\0';
-					Con_PrintCon(qt->console, buffer);
+					if (ret!=INVALID_FILE_SIZE)
+					{
+						ReadFile(qt->pipeout, buffer, sizeof(buffer)-32, &ret, NULL);
+						buffer[ret] = '\0';
+						Con_PrintCon(qt->console, buffer, PFS_NOMARKUP);
+					}
 				}
 			}
+			else
+			{
+				Con_PrintCon(qt->console, "Process ended\n", PFS_NOMARKUP);
+				qt->running = false;
+			}
 		}
-		else
+
+		n = qt->next;
+		if (!qt->running)
 		{
-			Con_PrintCon(qt->console, "Process ended\n");
-			qt->running = false;
+			if (!Con_IsActive(qt->console))
+				QT_Kill(qt, true);
 		}
+		qt = n;
 	}
 }
 
-void QT_KeyPress(void *user, int key)
+qboolean QT_KeyPress(console_t *con, unsigned int unicode, int key)
 {
 	qbyte k[2];
-	qterm_t *qt = user;
+	qterm_t *qt = con->userdata;
 	DWORD send = key;	//get around a gcc warning
 
 
@@ -341,16 +357,24 @@ void QT_KeyPress(void *user, int key)
 		{
 //					*k = '\r';
 //					WriteFile(qt->pipein, k, 1, &key, NULL);
-//					Con_PrintCon(k, &qt->console);
+//					Con_PrintCon(k, &qt->console, PFS_NOMARKUP);
 			*k = '\n';
 		}
-		if (GetFileSize(qt->pipein, NULL)<512)
+//		if (GetFileSize(qt->pipein, NULL)<512)
 		{
 			WriteFile(qt->pipein, k, 1, &send, NULL);
-			Con_PrintCon(qt->console, k);
+			Con_PrintCon(qt->console, k, PFS_NOMARKUP);
 		}
 	}
-	return;
+	return true;
+}
+
+qboolean	QT_Close(struct console_s *con, qboolean force)
+{
+	qterm_t *qt = con->userdata;
+	QT_Kill(qt, false);
+
+	return true;
 }
 
 void QT_Create(char *command)
@@ -419,8 +443,10 @@ void QT_Create(char *command)
 
 	qt->console = Con_Create("QTerm", 0);
 	qt->console->redirect = QT_KeyPress;
-	Con_PrintCon(qt->console, "Started Process\n");
-	Con_SetVisible(qt->console);
+	qt->console->close = QT_Close;
+	qt->console->userdata = qt;
+	Con_PrintCon(qt->console, "Started Process\n", PFS_NOMARKUP);
+	Con_SetActive(qt->console);
 
 	qt->next = qterms;
 	qterms = activeqterm = qt;

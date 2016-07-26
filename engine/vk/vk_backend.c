@@ -289,6 +289,7 @@ extern int be_maxpasses;
 
 struct blobheader
 {
+	unsigned char blobmagic[4];
 	unsigned int blobversion;
 	unsigned int defaulttextures;	//s_diffuse etc flags
 	unsigned int numtextures;		//s_t0 count
@@ -404,97 +405,9 @@ static VkSampler VK_GetSampler(unsigned int flags)
 }
 #endif
 
-qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
+//creates the layout stuff for the prog.
+static VK_FinishProg(program_t *prog, const char *name)
 {
-	//fixme: should validate that the offset+lengths are within the blobdata.
-	struct blobheader *blob = blobdata;
-	VkShaderModuleCreateInfo info = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-	VkShaderModule vert, frag;
-	unsigned char *cvardata;
-
-	if (blob->blobversion != 1)
-	{
-		Con_Printf("Blob %s is outdated\n", name);
-		return false;
-	}
-
-	info.flags = 0;
-	info.codeSize = blob->vertlength;
-	info.pCode = (uint32_t*)((char*)blob+blob->vertoffset);
-	VkAssert(vkCreateShaderModule(vk.device, &info, vkallocationcb, &vert));
-
-	info.flags = 0;
-	info.codeSize = blob->fraglength;
-	info.pCode = (uint32_t*)((char*)blob+blob->fragoffset);
-	VkAssert(vkCreateShaderModule(vk.device, &info, vkallocationcb, &frag));
-
-	prog->vert = vert;
-	prog->frag = frag;
-	prog->nofixedcompat = true;
-	prog->numsamplers = blob->numtextures;
-	prog->defaulttextures = blob->defaulttextures;
-	prog->supportedpermutations = blob->permutations;
-
-	if (blob->cvarslength)
-	{
-		prog->cvardata = BZ_Malloc(blob->cvarslength);
-		prog->cvardatasize = blob->cvarslength;
-		memcpy(prog->cvardata, (char*)blob+blob->cvarsoffset, blob->cvarslength);
-	}
-	else
-	{
-		prog->cvardata = NULL;
-		prog->cvardatasize = 0;
-	}
-
-	//go through the cvars and a) validate them. b) create them with the right defaults.
-	//FIXME: validate
-	for (cvardata = prog->cvardata; cvardata < prog->cvardata + prog->cvardatasize; )
-	{
-		unsigned char type = cvardata[2], size = cvardata[3]-'0';
-		char *cvarname;
-		cvar_t *var;
-
-		cvardata += 4;
-		cvarname = cvardata;
-		cvardata += strlen(cvarname)+1;
-
-		if (type >= 'A' && type <= 'Z')
-		{	//args will be handled by the blob loader.
-			VK_ShaderReadArgument(name, cvarname, type, size, cvardata);
-		}
-		else
-		{
-			var = Cvar_FindVar(cvarname);
-			if (var)
-				var->flags |= CVAR_SHADERSYSTEM;	//just in case
-			else
-			{
-				union
-				{
-					int i;
-					float f;
-				} u;
-				char value[128];
-				uint32_t i;
-				for (i = 0; i < size; i++)
-				{
-					u.i = (cvardata[i*4+0]<<24)|(cvardata[i*4+0]<<16)|(cvardata[i*4+0]<<8)|(cvardata[i*4+0]<<0);
-					if (i)
-						Q_strncatz(value, " ", sizeof(value));
-					if (type == 'i' || type == 'b')
-						Q_strncatz(value, va("%i", u.i), sizeof(value));
-					else
-						Q_strncatz(value, va("%f", u.f), sizeof(value));
-				}
-				Cvar_Get(cvarname, value, CVAR_SHADERSYSTEM, "GLSL Settings");
-			}
-		}
-		cvardata += 4*size;
-	}
-
-
-
 	{
 		VkDescriptorSetLayout desclayout;
 		VkDescriptorSetLayoutCreateInfo descSetLayoutCreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
@@ -561,6 +474,663 @@ qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
 		VkAssert(vkCreatePipelineLayout(vk.device, &pipeLayoutCreateInfo, vkallocationcb, &layout));
 		prog->layout = layout;
 	}
+}
+
+
+static const char *vulkan_glsl_hdrs[] =
+{
+	"sys/defs.h",
+			"#define DEFS_DEFINED\n"
+			"#undef texture2D\n"	//nvidia is fucking us over
+			"#undef textureCube\n"	//nvidia is fucking us over
+			"#define texture2D texture\n"
+			"#define textureCube texture\n"
+			"#define e_lmscale e_lmscales[0]\n"
+		,
+	"sys/skeletal.h",
+			"#ifdef SKELETAL\n"
+				"vec4 skeletaltransform()"
+				"{"
+					"mat3x4 wmat;\n"
+					"wmat = m_bones[int(v_bone.x)] * v_weight.x;\n"
+					"wmat += m_bones[int(v_bone.y)] * v_weight.y;\n"
+					"wmat += m_bones[int(v_bone.z)] * v_weight.z;\n"
+					"wmat += m_bones[int(v_bone.w)] * v_weight.w;\n"
+					"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
+				"}\n"
+				"vec4 skeletaltransform_nst(out vec3 n, out vec3 t, out vec3 b)"
+				"{"
+					"mat3x4 wmat;\n"
+					"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
+					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
+					"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
+					"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
+					"n = vec4(v_normal.xyz, 0.0) * wmat;"
+					"t = vec4(v_svector.xyz, 0.0) * wmat;"
+					"b = vec4(v_tvector.xyz, 0.0) * wmat;"
+					"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
+				"}\n"
+				"vec4 skeletaltransform_wnst(out vec3 w, out vec3 n, out vec3 t, out vec3 b)"
+				"{"
+					"mat3x4 wmat;\n"
+					"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
+					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
+					"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
+					"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
+					"n = vec4(v_normal.xyz, 0.0) * wmat;"
+					"t = vec4(v_svector.xyz, 0.0) * wmat;"
+					"b = vec4(v_tvector.xyz, 0.0) * wmat;"
+					"w = vec4(v_position.xyz, 1.0) * wmat;"
+					"return m_modelviewprojection * vec4(w, 1.0);"
+				"}\n"
+				"vec4 skeletaltransform_n(out vec3 n)"
+				"{"
+					"mat3x4 wmat;\n"
+					"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
+					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
+					"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
+					"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
+					"n = vec4(v_normal.xyz, 0.0) * wmat;"
+					"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
+				"}\n"
+			"#else\n"
+				"#define skeletaltransform ftetransform\n"
+				"vec4 skeletaltransform_wnst(out vec3 w, out vec3 n, out vec3 t, out vec3 b)"
+				"{"
+					"n = v_normal;"
+					"t = v_svector;"
+					"b = v_tvector;"
+					"w = v_position.xyz;"
+					"return ftetransform();"
+				"}\n"
+				"vec4 skeletaltransform_nst(out vec3 n, out vec3 t, out vec3 b)"
+				"{"
+					"n = v_normal;"
+					"t = v_svector;"
+					"b = v_tvector;"
+					"return ftetransform();"
+				"}\n"
+				"vec4 skeletaltransform_n(out vec3 n)"
+				"{"
+					"n = v_normal;"
+					"return ftetransform();"
+				"}\n"
+			"#endif\n"
+		,
+	"sys/fog.h",
+			"#ifdef FRAGMENT_SHADER\n"
+				"#ifdef FOG\n"
+					"vec3 fog3(in vec3 regularcolour)"
+					"{"
+						"float z = w_fogdensity * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
+						"#if #include \"cvar/r_fog_exp2\"\n"
+						"z *= z;\n"
+						"#endif\n"
+						"float fac = exp2(-(z * 1.442695));\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
+						"return mix(w_fogcolour, regularcolour, fac);\n"
+					"}\n"
+					"vec3 fog3additive(in vec3 regularcolour)"
+					"{"
+						"float z = w_fogdensity * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
+						"#if #include \"cvar/r_fog_exp2\"\n"
+						"z *= z;\n"
+						"#endif\n"
+						"float fac = exp2(-(z * 1.442695));\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
+						"return regularcolour * fac;\n"
+					"}\n"
+					"vec4 fog4(in vec4 regularcolour)"
+					"{"
+						"return vec4(fog3(regularcolour.rgb), 1.0) * regularcolour.a;\n"
+					"}\n"
+					"vec4 fog4additive(in vec4 regularcolour)"
+					"{"
+						"float z = w_fogdensity * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
+						"#if #include \"cvar/r_fog_exp2\"\n"
+						"z *= z;\n"
+						"#endif\n"
+						"float fac = exp2(-(z * 1.442695));\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
+						"return regularcolour * vec4(fac, fac, fac, 1.0);\n"
+					"}\n"
+					"vec4 fog4blend(in vec4 regularcolour)"
+					"{"
+						"float z = w_fogdensity * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
+						"#if #include \"cvar/r_fog_exp2\"\n"
+						"z *= z;\n"
+						"#endif\n"
+						"float fac = exp2(-(z * 1.442695));\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
+						"return regularcolour * vec4(1.0, 1.0, 1.0, fac);\n"
+					"}\n"
+				"#else\n"
+					/*don't use macros for this - mesa bugs out*/
+					"vec3 fog3(in vec3 regularcolour) { return regularcolour; }\n"
+					"vec3 fog3additive(in vec3 regularcolour) { return regularcolour; }\n"
+					"vec4 fog4(in vec4 regularcolour) { return regularcolour; }\n"
+					"vec4 fog4additive(in vec4 regularcolour) { return regularcolour; }\n"
+					"vec4 fog4blend(in vec4 regularcolour) { return regularcolour; }\n"
+				"#endif\n"
+			"#endif\n"
+		,
+	"sys/offsetmapping.h",
+			"uniform float cvar_r_glsl_offsetmapping_scale;\n"
+			"vec2 offsetmap(sampler2D normtex, vec2 base, vec3 eyevector)\n"
+			"{\n"
+			"#if !defined(OFFSETMAPPING_SCALE)\n"
+				"#define OFFSETMAPPING_SCALE 1.0\n"
+			"#endif\n"
+			"#if defined(RELIEFMAPPING) && !defined(GL_ES)\n"
+				"float i, f;\n"
+				"vec3 OffsetVector = vec3(normalize(eyevector.xyz).xy * cvar_r_glsl_offsetmapping_scale * OFFSETMAPPING_SCALE * vec2(-1.0, 1.0), -1.0);\n"
+				"vec3 RT = vec3(vec2(base.xy"/* - OffsetVector.xy*OffsetMapping_Bias*/"), 1.0);\n"
+				"OffsetVector /= 10.0;\n"
+				"for(i = 1.0; i < 10.0; ++i)\n"
+					"RT += OffsetVector *  step(texture2D(normtex, RT.xy).a, RT.z);\n"
+				"for(i = 0.0, f = 1.0; i < 5.0; ++i, f *= 0.5)\n"
+					"RT += OffsetVector * (step(texture2D(normtex, RT.xy).a, RT.z) * f - 0.5 * f);\n"
+				"return RT.xy;\n"
+			"#elif defined(OFFSETMAPPING)\n"
+				"vec2 OffsetVector = normalize(eyevector).xy * cvar_r_glsl_offsetmapping_scale * OFFSETMAPPING_SCALE * vec2(-1.0, 1.0);\n"
+				"vec2 tc = base;\n"
+				"tc += OffsetVector;\n"
+				"OffsetVector *= 0.333;\n"
+				"tc -= OffsetVector * texture2D(normtex, tc).w;\n"
+				"tc -= OffsetVector * texture2D(normtex, tc).w;\n"
+				"tc -= OffsetVector * texture2D(normtex, tc).w;\n"
+				"return tc;\n"
+			"#else\n"
+				"return base;\n"
+			"#endif\n"
+			"}\n"
+		,
+	"sys/pcf.h",
+			"#ifndef r_glsl_pcf\n"
+				"#define r_glsl_pcf 9\n"
+			"#endif\n"
+			"#if r_glsl_pcf < 1\n"
+				"#undef r_glsl_pcf\n"
+				"#define r_glsl_pcf 9\n"
+			"#endif\n"
+			"vec3 ShadowmapCoord(void)\n"
+			"{\n"
+			"#ifdef SPOT\n"
+				//bias it. don't bother figuring out which side or anything, its not needed
+				//l_projmatrix contains the light's projection matrix so no other magic needed
+				"return ((vtexprojcoord.xyz-vec3(0.0,0.0,0.015))/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
+			//"#elif defined(CUBESHADOW)\n"
+			//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
+			//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
+			"#else\n"
+				//figure out which axis to use
+				//texture is arranged thusly:
+				//forward left  up
+				//back    right down
+				"vec3 dir = abs(vtexprojcoord.xyz);\n"
+				//assume z is the major axis (ie: forward from the light)
+				"vec3 t = vtexprojcoord.xyz;\n"
+				"float ma = dir.z;\n"
+				"vec3 axis = vec3(0.5/3.0, 0.5/2.0, 0.5);\n"
+				"if (dir.x > ma)\n"
+				"{\n"
+					"ma = dir.x;\n"
+					"t = vtexprojcoord.zyx;\n"
+					"axis.x = 0.5;\n"
+				"}\n"
+				"if (dir.y > ma)\n"
+				"{\n"
+					"ma = dir.y;\n"
+					"t = vtexprojcoord.xzy;\n"
+					"axis.x = 2.5/3.0;\n"
+				"}\n"
+				//if the axis is negative, flip it.
+				"if (t.z > 0.0)\n"
+				"{\n"
+					"axis.y = 1.5/2.0;\n"
+					"t.z = -t.z;\n"
+				"}\n"
+
+				//we also need to pass the result through the light's projection matrix too
+				//the 'matrix' we need only contains 5 actual values. and one of them is a -1. So we might as well just use a vec4.
+				//note: the projection matrix also includes scalers to pinch the image inwards to avoid sampling over borders, as well as to cope with non-square source image
+				//the resulting z is prescaled to result in a value between -0.5 and 0.5.
+				//also make sure we're in the right quadrant type thing
+				"return axis + ((l_shadowmapproj.xyz*t.xyz + vec3(0.0, 0.0, l_shadowmapproj.w)) / -t.z);\n"
+			"#endif\n"
+			"}\n"
+
+			"float ShadowmapFilter(sampler2DShadow smap)\n"
+			"{\n"
+				"vec3 shadowcoord = ShadowmapCoord();\n"
+
+				"#if 0\n"//def GL_ARB_texture_gather
+					"vec2 ipart, fpart;\n"
+					"#define dosamp(x,y) textureGatherOffset(smap, ipart.xy, vec2(x,y)))\n"
+					"vec4 tl = step(shadowcoord.z, dosamp(-1.0, -1.0));\n"
+					"vec4 bl = step(shadowcoord.z, dosamp(-1.0, 1.0));\n"
+					"vec4 tr = step(shadowcoord.z, dosamp(1.0, -1.0));\n"
+					"vec4 br = step(shadowcoord.z, dosamp(1.0, 1.0));\n"
+					//we now have 4*4 results, woo
+					//we can just average them for 1/16th precision, but that's still limited graduations
+					//the middle four pixels are 'full strength', but we interpolate the sides to effectively give 3*3
+					"vec4 col =     vec4(tl.ba, tr.ba) + vec4(bl.rg, br.rg) + " //middle two rows are full strength
+							"mix(vec4(tl.rg, tr.rg), vec4(bl.ba, br.ba), fpart.y);\n" //top+bottom rows
+					"return dot(mix(col.rgb, col.agb, fpart.x), vec3(1.0/9.0));\n"	//blend r+a, gb are mixed because its pretty much free and gives a nicer dot instruction instead of lots of adds.
+				"#else\n"
+					"#define dosamp(x,y) shadow2D(smap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r\n"
+					"float s = 0.0;\n"
+					"#if r_glsl_pcf >= 1 && r_glsl_pcf < 5\n"
+						"s += dosamp(0.0, 0.0);\n"
+						"return s;\n"
+					"#elif r_glsl_pcf >= 5 && r_glsl_pcf < 9\n"
+						"s += dosamp(-1.0, 0.0);\n"
+						"s += dosamp(0.0, -1.0);\n"
+						"s += dosamp(0.0, 0.0);\n"
+						"s += dosamp(0.0, 1.0);\n"
+						"s += dosamp(1.0, 0.0);\n"
+						"return s/5.0;\n"
+					"#else\n"
+						"s += dosamp(-1.0, -1.0);\n"
+						"s += dosamp(-1.0, 0.0);\n"
+						"s += dosamp(-1.0, 1.0);\n"
+						"s += dosamp(0.0, -1.0);\n"
+						"s += dosamp(0.0, 0.0);\n"
+						"s += dosamp(0.0, 1.0);\n"
+						"s += dosamp(1.0, -1.0);\n"
+						"s += dosamp(1.0, 0.0);\n"
+						"s += dosamp(1.0, 1.0);\n"
+						"return s/9.0;\n"
+					"#endif\n"
+				"#endif\n"
+			"}\n"
+		,
+	NULL
+};
+
+//glsl doesn't officially support #include, this might be vulkan, but don't push things.
+qboolean Vulkan_GenerateIncludes(int maxstrings, int *strings, const char *prstrings[], int length[], const char *shadersource)
+{
+	int i;
+	char *incline, *inc;
+	char incname[256];
+	while((incline=strstr(shadersource, "#include")))
+	{
+		if (*strings == maxstrings)
+			return false;
+
+		/*emit up to the include*/
+		if (incline - shadersource)
+		{
+			prstrings[*strings] = shadersource;
+			length[*strings] = incline - shadersource;
+			*strings += 1;
+		}
+
+		incline += 8;
+		incline = COM_ParseOut (incline, incname, sizeof(incname));
+
+		if (!strncmp(incname, "cvar/", 5))
+		{
+			cvar_t *var = Cvar_Get(incname+5, "0", 0, "shader cvars");
+			if (var)
+			{
+				var->flags |= CVAR_SHADERSYSTEM;
+				if (!Vulkan_GenerateIncludes(maxstrings, strings, prstrings, length, var->string))
+					return false;
+			}
+			else
+			{
+				/*dump something if the cvar doesn't exist*/
+				if (*strings == maxstrings)
+					return false;
+				prstrings[*strings] = "0";
+				length[*strings] = strlen("0");
+				*strings += 1;
+			}
+		}
+		else
+		{
+			for (i = 0; vulkan_glsl_hdrs[i]; i += 2)
+			{
+				if (!strcmp(incname, vulkan_glsl_hdrs[i]))
+				{
+					if (!Vulkan_GenerateIncludes(maxstrings, strings, prstrings, length, vulkan_glsl_hdrs[i+1]))
+						return false;
+					break;
+				}
+			}
+			if (!vulkan_glsl_hdrs[i])
+			{
+				if (FS_LoadFile(incname, (void**)&inc) != (qofs_t)-1)
+				{
+					if (!Vulkan_GenerateIncludes(maxstrings, strings, prstrings, length, inc))
+					{
+						FS_FreeFile(inc);
+						return false;
+					}
+					FS_FreeFile(inc);
+				}
+			}
+		}
+
+		/*move the pointer past the include*/
+		shadersource = incline;
+	}
+	if (*shadersource)
+	{
+		if (*strings == maxstrings)
+			return false;
+
+		/*dump the remaining shader string*/
+		prstrings[*strings] = shadersource;
+		length[*strings] = strlen(prstrings[*strings]);
+		*strings += 1;
+	}
+	return true;
+}
+
+//assumes VK_NV_glsl_shader for raw glsl
+VkShaderModule VK_CreateGLSLModule(program_t *prog, const char *name, int ver, const char **precompilerconstants, const char *body, int isfrag)
+{
+	VkShaderModuleCreateInfo info = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+	VkShaderModule mod;
+	const char *strings[256];
+	int lengths[256];
+	unsigned int numstrings = 0;
+	char *blob;
+	size_t blobsize;
+	unsigned int i;
+
+	strings[numstrings++] = "#version 450 core\n";
+	strings[numstrings++] = "#define ENGINE_"DISTRIBUTION"\n";
+
+	strings[numstrings++] = 
+"layout(std140, binding=0) uniform entityblock"
+"{\n"
+	"mat4 m_modelviewproj;"
+	"mat4 m_model;"
+	"mat4 m_modelinv;"
+	"vec3 e_eyepos;"
+	"float e_time;"
+	"vec3 e_light_ambient;	float epad1;"
+	"vec3 e_light_dir;	float epad2;"
+	"vec3 e_light_mul;	float epad3;"
+	"vec4 e_lmscales[4];"
+	"vec3 e_uppercolour;	float epad4;"
+	"vec3 e_lowercolour;	float epad5;"
+	"vec4 e_colourident;"
+	"vec4 w_fogcolours;"
+	"float w_fogdensity;	float w_fogdepthbias;	 vec2 epad6;"
+"};\n"
+
+"layout(std140, binding=1) uniform lightblock"
+"{\n"
+	"mat4 l_cubematrix;"
+	"vec3 l_lightposition; 	float lpad1;"
+	"vec3 l_lightcolour; 		float lpad2;"
+	"vec3 l_lightcolourscale; 	float l_lightradius;"
+	"vec4 l_shadowmapproj;"
+	"vec2 l_shadowmapscale;	vec2 lpad3;"
+"};\n"
+;
+
+	if (isfrag)
+	{
+		int bindloc = 0;
+		const char *bindlocations[] =
+		{
+			"layout(set=0, binding=2) ",
+			"layout(set=0, binding=3) ",
+			"layout(set=0, binding=4) ",
+			"layout(set=0, binding=5) ",
+			"layout(set=0, binding=6) ",
+			"layout(set=0, binding=7) ",
+			"layout(set=0, binding=8) ",
+			"layout(set=0, binding=9) ",
+			"layout(set=0, binding=10) ",
+			"layout(set=0, binding=11) ",
+			"layout(set=0, binding=12) ",
+			"layout(set=0, binding=13) ",
+			"layout(set=0, binding=14) ",
+			"layout(set=0, binding=15) ",
+			"layout(set=0, binding=16) ",
+			"layout(set=0, binding=17) ",
+			"layout(set=0, binding=18) ",
+			"layout(set=0, binding=19) ",
+			"layout(set=0, binding=20) ",
+			"layout(set=0, binding=21) ",
+			"layout(set=0, binding=22) ",
+			"layout(set=0, binding=23) ",
+			"layout(set=0, binding=24) ",
+			"layout(set=0, binding=25) ",
+		};
+		const char *numberedsamplernames[] =
+		{
+			"uniform sampler2D s_t0;\n",
+			"uniform sampler2D s_t1;\n",
+			"uniform sampler2D s_t2;\n",
+			"uniform sampler2D s_t3;\n",
+			"uniform sampler2D s_t4;\n",
+			"uniform sampler2D s_t5;\n",
+			"uniform sampler2D s_t6;\n",
+			"uniform sampler2D s_t7;\n",
+		};
+		const char *defaultsamplernames[] =
+		{
+			"uniform sampler2D s_shadowmap;\n",
+			"uniform samplerCube s_projectionmap;\n",
+			"uniform sampler2D s_diffuse;\n",
+			"uniform sampler2D s_normalmap;\n",
+			"uniform sampler2D s_specular;\n",
+			"uniform sampler2D s_upper;\n",
+			"uniform sampler2D s_lower;\n",
+			"uniform sampler2D s_fullbright;\n",
+			"uniform sampler2D s_paletted;\n",
+			"uniform samplerCube s_reflectcube;\n",
+			"uniform sampler2D s_reflectmask;\n",
+			"uniform sampler2D s_lightmap;\n#define s_lightmap0 s_lightmap\n",
+			"uniform sampler2D s_deluxmap;\n#define s_deluxmap0 s_deluxmap\n",
+
+			"uniform sampler2D s_lightmap1;\n",
+			"uniform sampler2D s_lightmap2;\n",
+			"uniform sampler2D s_lightmap3;\n",
+			"uniform sampler2D s_deluxmap1;\n",
+			"uniform sampler2D s_deluxmap2;\n",
+			"uniform sampler2D s_deluxmap3;\n",
+		};
+
+		strings[numstrings++] = "#define FRAGMENT_SHADER\n"
+"#define varying in\n"
+"layout(location=0) out vec4 outcolour;\n"
+"#define gl_FragColor outcolour\n"
+;
+
+		for (i = 0; i < countof(defaultsamplernames); i++)
+		{
+			if (prog->defaulttextures & (1u<<i))
+			{
+				strings[numstrings++] = bindlocations[bindloc++];
+				strings[numstrings++] = defaultsamplernames[i];
+			}
+		}
+		for (i = 0; i < prog->numsamplers && i < countof(numberedsamplernames); i++)
+		{
+			strings[numstrings++] = bindlocations[bindloc++];
+			strings[numstrings++] = numberedsamplernames[i];
+		}
+	}
+	else
+	{
+		strings[numstrings++] = "#define VERTEX_SHADER\n"
+"#define attribute in\n"
+"#define varying out\n"
+"out gl_PerVertex"
+"{"
+  "vec4 gl_Position;"
+"};"
+
+
+"layout(location=0) attribute vec3 v_position;"
+"layout(location=1) attribute vec2 v_texcoord;"
+"layout(location=2) attribute vec4 v_colour;"
+"layout(location=3) attribute vec2 v_lmcoord;"
+"layout(location=4) attribute vec3 v_normal;"
+"layout(location=5) attribute vec3 v_svector;"
+"layout(location=6) attribute vec3 v_tvector;"
+//"layout(location=7) attribute vec4 v_boneweights;"
+//"layout(location=8) attribute ivec4 v_bonenums;"
+
+"\n"
+
+"vec4 ftetransform()"
+"{"
+	"vec4 proj = (m_modelviewproj*vec4(v_position,1.0));"
+	"proj.y *= -1;"
+	"proj.z = (proj.z + proj.w) / 2.0;"
+	"return proj;"
+"}\n"
+;
+	}
+
+	while (*precompilerconstants)
+		strings[numstrings++] = *precompilerconstants++;
+
+	for (i = 0, blobsize = 0; i < numstrings; i++)
+		lengths[i] = strlen(strings[i]);
+	Vulkan_GenerateIncludes(countof(strings), &numstrings, strings, lengths, body);
+
+	//now glue it all together into a single blob
+	for (i = 0, blobsize = 0; i < numstrings; i++)
+		blobsize += lengths[i];
+	blobsize++;
+	blob = malloc(blobsize);
+	for (i = 0, blobsize = 0; i < numstrings; i++)
+	{
+		memcpy(blob+blobsize, strings[i], lengths[i]);
+		blobsize += lengths[i];
+	}
+	blob[blobsize] = 0;
+
+	//and submit it.
+	info.flags = 0;
+	info.codeSize = blobsize;
+	info.pCode = (void*)blob;
+	VkAssert(vkCreateShaderModule(vk.device, &info, vkallocationcb, &mod));
+	return mod;
+}
+
+qboolean VK_LoadGLSL(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
+{
+	if (permu)	//FIXME...
+		return false;
+
+	prog->pipelines = NULL;
+	prog->vert = VK_CreateGLSLModule(prog, name, ver, precompilerconstants, vert, false);
+	prog->frag = VK_CreateGLSLModule(prog, name, ver, precompilerconstants, frag, true);
+
+	VK_FinishProg(prog, name);
+
+	return true;
+}
+
+qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
+{
+	//fixme: should validate that the offset+lengths are within the blobdata.
+	struct blobheader *blob = blobdata;
+	VkShaderModuleCreateInfo info = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+	VkShaderModule vert, frag;
+	unsigned char *cvardata;
+
+	if (blob->blobmagic[0] != 0xff || blob->blobmagic[1] != 'S' || blob->blobmagic[2] != 'P' || blob->blobmagic[3] != 'V')
+		return false;	//assume its glsl. this is going to be 'fun'.
+	if (blob->blobversion != 1)
+	{
+		Con_Printf("Blob %s is outdated\n", name);
+		return false;
+	}
+
+	info.flags = 0;
+	info.codeSize = blob->vertlength;
+	info.pCode = (uint32_t*)((char*)blob+blob->vertoffset);
+	VkAssert(vkCreateShaderModule(vk.device, &info, vkallocationcb, &vert));
+
+	info.flags = 0;
+	info.codeSize = blob->fraglength;
+	info.pCode = (uint32_t*)((char*)blob+blob->fragoffset);
+	VkAssert(vkCreateShaderModule(vk.device, &info, vkallocationcb, &frag));
+
+	prog->vert = vert;
+	prog->frag = frag;
+	prog->nofixedcompat = true;
+	prog->numsamplers = blob->numtextures;
+	prog->defaulttextures = blob->defaulttextures;
+	prog->supportedpermutations = blob->permutations;
+
+	if (blob->cvarslength)
+	{
+		prog->cvardata = BZ_Malloc(blob->cvarslength);
+		prog->cvardatasize = blob->cvarslength;
+		memcpy(prog->cvardata, (char*)blob+blob->cvarsoffset, blob->cvarslength);
+	}
+	else
+	{
+		prog->cvardata = NULL;
+		prog->cvardatasize = 0;
+	}
+
+	//go through the cvars and a) validate them. b) create them with the right defaults.
+	//FIXME: validate
+	for (cvardata = prog->cvardata; cvardata < prog->cvardata + prog->cvardatasize; )
+	{
+		unsigned char type = cvardata[2], size = cvardata[3]-'0';
+		char *cvarname;
+		cvar_t *var;
+
+		cvardata += 4;
+		cvarname = cvardata;
+		cvardata += strlen(cvarname)+1;
+
+		if (type >= 'A' && type <= 'Z')
+		{	//args will be handled by the blob loader.
+			VK_ShaderReadArgument(name, cvarname, type, size, cvardata);
+		}
+		else
+		{
+			var = Cvar_FindVar(cvarname);
+			if (var)
+				var->flags |= CVAR_SHADERSYSTEM;	//just in case
+			else
+			{
+				union
+				{
+					int i;
+					float f;
+				} u;
+				char value[128];
+				uint32_t i;
+				*value = 0;
+				for (i = 0; i < size; i++)
+				{
+					u.i = (cvardata[i*4+0]<<24)|(cvardata[i*4+1]<<16)|(cvardata[i*4+2]<<8)|(cvardata[i*4+3]<<0);
+					if (i)
+						Q_strncatz(value, " ", sizeof(value));
+					if (type == 'i' || type == 'b')
+						Q_strncatz(value, va("%i", u.i), sizeof(value));
+					else
+						Q_strncatz(value, va("%f", u.f), sizeof(value));
+				}
+				Cvar_Get(cvarname, value, CVAR_SHADERSYSTEM, "GLSL Settings");
+			}
+		}
+		cvardata += 4*size;
+	}
+
+	VK_FinishProg(prog, name);
 
 	prog->pipelines = NULL;	//generated as needed, depending on blend states etc.
 	return true;
@@ -574,7 +1144,8 @@ void VKBE_DeleteProg(program_t *prog)
 		pipe = prog->pipelines;
 		prog->pipelines = pipe->next;
 
-		vkDestroyPipeline(vk.device, pipe->pipeline, vkallocationcb);
+		if (pipe->pipeline)
+			vkDestroyPipeline(vk.device, pipe->pipeline, vkallocationcb);
 		Z_Free(pipe);
 	}
 	if (prog->layout)
@@ -2386,7 +2957,14 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 	err = vkCreateGraphicsPipelines(vk.device, vk.pipelinecache, 1, &pipeCreateInfo, vkallocationcb, &pipe->pipeline);
 
 	if (err)
-		Sys_Error("Error %i creating pipeline for %s. Check spir-v modules / drivers.\n", err, shaderstate.curshader->name);
+	{
+		shaderstate.activepipeline = VK_NULL_HANDLE;
+		if (err != VK_ERROR_INVALID_SHADER_NV)
+			Sys_Error("Error %i creating pipeline for %s. Check spir-v modules / drivers.\n", err, shaderstate.curshader->name);
+		else
+			Con_Printf("Error creating pipeline for %s. Check glsl / spir-v modules / drivers.\n", shaderstate.curshader->name);
+		return;
+	}
 
 	vkCmdBindPipeline(vk.frame->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderstate.activepipeline=pipe->pipeline);
 }
@@ -2416,7 +2994,8 @@ static void BE_BindPipeline(program_t *p, unsigned int shaderflags, unsigned int
 					if (pipe->pipeline != shaderstate.activepipeline)
 					{
 						shaderstate.activepipeline = pipe->pipeline;
-						vkCmdBindPipeline(vk.frame->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderstate.activepipeline);
+						if (shaderstate.activepipeline)
+							vkCmdBindPipeline(vk.frame->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderstate.activepipeline);
 					}
 					return;
 				}
@@ -2460,9 +3039,11 @@ static void BE_SetupUBODescriptor(VkDescriptorSet set, VkWriteDescriptorSet *fir
 	desc->pTexelBufferView = NULL;
 }
 
-static void BE_RenderMeshProgram(program_t *p, shaderpass_t *pass, unsigned int shaderbits, unsigned int idxfirst, unsigned int idxcount)
+static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned int shaderbits, unsigned int idxcount)
 {
 	int perm = 0;
+	if (!p)
+		return false;
 
 	if (TEXLOADED(shaderstate.curtexnums->bump))
 		perm |= PERMUTATION_BUMPMAP;
@@ -2477,6 +3058,8 @@ static void BE_RenderMeshProgram(program_t *p, shaderpass_t *pass, unsigned int 
 	perm &= p->supportedpermutations;
 
 	BE_BindPipeline(p, shaderbits, VKBE_ApplyShaderBits(pass->shaderbits), perm);
+	if (!shaderstate.activepipeline)
+		return false;	//err, something bad happened.
 
 	//most gpus will have a fairly low descriptor set limit of 4 (this is the minimum required)
 	//that isn't enough for all our textures, so we need to make stuff up as required.
@@ -2567,6 +3150,8 @@ static void BE_RenderMeshProgram(program_t *p, shaderpass_t *pass, unsigned int 
 
 	RQuantAdd(RQUANT_PRIMITIVEINDICIES, idxcount);
 	RQuantAdd(RQUANT_DRAWS, 1);
+
+	return true;
 }
 
 static void BE_DrawMeshChain_Internal(void)
@@ -2933,8 +3518,8 @@ static void BE_DrawMeshChain_Internal(void)
 		}
 
 		vkCmdBindVertexBuffers(vk.frame->cbuf, 0, VK_BUFF_MAX, vertexbuffers, vertexoffsets);
-		BE_RenderMeshProgram(altshader->prog, altshader->passes, altshader->flags, idxfirst, idxcount);
-		vkCmdDrawIndexed(vk.frame->cbuf, idxcount, 1, idxfirst, 0, 0);
+		if (BE_SetupMeshProgram(altshader->prog, altshader->passes, altshader->flags, idxcount))
+			vkCmdDrawIndexed(vk.frame->cbuf, idxcount, 1, idxfirst, 0, 0);
 	}
 	else if (1)
 	{
@@ -2998,16 +3583,18 @@ static void BE_DrawMeshChain_Internal(void)
 				vertexoffsets[VK_BUFF_COL] = 0;
 
 				vkCmdBindVertexBuffers(vk.frame->cbuf, 0, VK_BUFF_MAX, vertexbuffers, vertexoffsets);
-				BE_RenderMeshProgram(shaderstate.programfixedemu[1], p, altshader->flags, idxfirst, idxcount);
-				vkCmdPushConstants(vk.frame->cbuf, shaderstate.programfixedemu[1]->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(passcolour), passcolour);
-				vkCmdDrawIndexed(vk.frame->cbuf, idxcount, 1, idxfirst, 0, 0);
+				if (BE_SetupMeshProgram(shaderstate.programfixedemu[1], p, altshader->flags, idxcount))
+				{
+					vkCmdPushConstants(vk.frame->cbuf, shaderstate.programfixedemu[1]->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(passcolour), passcolour);
+					vkCmdDrawIndexed(vk.frame->cbuf, idxcount, 1, idxfirst, 0, 0);
+				}
 			}
 			else
 			{
 				BE_GenerateColourMods(vertcount, p, &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
 				vkCmdBindVertexBuffers(vk.frame->cbuf, 0, VK_BUFF_MAX, vertexbuffers, vertexoffsets);
-				BE_RenderMeshProgram(shaderstate.programfixedemu[0], p, altshader->flags, idxfirst, idxcount);
-				vkCmdDrawIndexed(vk.frame->cbuf, idxcount, 1, idxfirst, 0, 0);
+				if (BE_SetupMeshProgram(shaderstate.programfixedemu[0], p, altshader->flags, idxcount))
+					vkCmdDrawIndexed(vk.frame->cbuf, idxcount, 1, idxfirst, 0, 0);
 			}
 		}
 	}
@@ -3060,7 +3647,10 @@ qboolean VKBE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned
 	{
 		lmode &= ~(LSHADER_SMAP|LSHADER_CUBE);
 		if (!VKBE_GenerateRTLightShader(lmode))
+		{
+			VKBE_SetupLightCBuffer(NULL, colour);
 			return false;
+		}
 	}
 	shaderstate.curdlight = dl;
 	shaderstate.curlmode = lmode;
@@ -3835,10 +4425,13 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height)
 		return;	//no work to do.
 	if (targ->framebuffer)
 	{	//schedule the old one to be destroyed at the end of the current frame. DIE OLD ONE, DIE!
-		purge = VK_AtFrameEnd(VKBE_RT_Purge, sizeof(purge));
+		purge = VK_AtFrameEnd(VKBE_RT_Purge, sizeof(*purge));
 		purge->framebuffer = targ->framebuffer; 
 		purge->colour = targ->colour;
 		purge->depth = targ->depth;
+		memset(&targ->colour, 0, sizeof(targ->colour));
+		memset(&targ->depth, 0, sizeof(targ->depth));
+		targ->framebuffer = VK_NULL_HANDLE;
 	}
 
 	targ->q_colour.vkimage = &targ->colour;
@@ -4861,8 +5454,8 @@ void VKBE_RenderShadowBuffer(struct vk_shadowbuffer *buf)
 
 	vkCmdBindVertexBuffers(vk.frame->cbuf, 0, 1, &buf->vbuffer, &buf->voffset);
 	vkCmdBindIndexBuffer(vk.frame->cbuf, buf->ibuffer, buf->ioffset, VK_INDEX_TYPE);
-	BE_RenderMeshProgram(depthonlyshader->prog, depthonlyshader->passes, 0, 0, buf->numindicies);
-	vkCmdDrawIndexed(vk.frame->cbuf, buf->numindicies, 1, 0, 0, 0);
+	if (BE_SetupMeshProgram(depthonlyshader->prog, depthonlyshader->passes, 0, buf->numindicies))
+		vkCmdDrawIndexed(vk.frame->cbuf, buf->numindicies, 1, 0, 0, 0);
 }
 
 

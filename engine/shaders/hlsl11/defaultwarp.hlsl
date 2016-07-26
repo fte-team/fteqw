@@ -1,3 +1,4 @@
+!!samps diffuse
 !!cvarf r_wateralpha
 
 struct a2v

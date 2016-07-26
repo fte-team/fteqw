@@ -1078,7 +1078,8 @@ extern void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
 
 
 //glslang helper api
-union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *geom, const char *frag, qboolean silent, vfsfile_t *blobfile);
+struct programshared_s;
+union programhandle_u GLSlang_CreateProgram(struct programshared_s *prog, const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *geom, const char *frag, qboolean silent, vfsfile_t *blobfile);
 GLint GLSlang_GetUniformLocation (int prog, char *name);
 void GL_SelectProgram(int program);
 #define GLSlang_UseProgram(prog) GL_SelectProgram(prog)
@@ -1087,7 +1088,7 @@ void GL_SelectProgram(int program);
 
 
 #ifdef _DEBUG
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(NACL)
 #define checkglerror() do {int i=qglGetError(); if (i) Sys_Printf("GL Error %i detected at line %s:%i (caller %p)\n", i, __FILE__, __LINE__, __builtin_return_address(0));}while(0)
 #else
 #define checkglerror() do {int i=qglGetError(); if (i) Con_Printf("GL Error %i detected at line %s:%i\n", i, __FILE__, __LINE__);}while(0)

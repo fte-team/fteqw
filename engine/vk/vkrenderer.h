@@ -40,6 +40,7 @@
 //funcs specific to an instance
 #define VKInst2Funcs \
 	VKFunc(EnumeratePhysicalDevices)				\
+	VKFunc(EnumerateDeviceExtensionProperties)		\
 	VKFunc(GetPhysicalDeviceProperties)				\
 	VKFunc(GetPhysicalDeviceQueueFamilyProperties)	\
 	VKFunc(GetPhysicalDeviceSurfaceSupportKHR)		\
@@ -314,6 +315,8 @@ extern struct vulkaninfo_s
 	texid_t sourcedepth;
 
 	shader_t *scenepp_waterwarp;
+	shader_t *scenepp_antialias;
+	shader_t *scenepp_rescale;
 } vk;
 
 struct pipeline_s
@@ -332,6 +335,9 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips);
 
 qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*createSurface)(void));
 void VK_Shutdown(void);
+
+struct programshared_s;
+qboolean VK_LoadGLSL(struct programshared_s *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
 
 void VKBE_Init(void);
 void VKBE_InitFramePools(struct vkframe *frame);

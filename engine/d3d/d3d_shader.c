@@ -260,30 +260,6 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 	unsigned int i, p;
 	int uniformloc;
 
-	static const char *defaultsamplers[] =
-	{
-		"s_shadowmap",
-		"s_projectionmap",
-		"s_diffuse",
-		"s_normalmap",
-		"s_specular",
-		"s_upper",
-		"s_lower",
-		"s_fullbright",
-		"s_paletted",
-		"s_reflectcube",
-		"s_reflectmask",
-		"s_lightmap",
-		"s_deluxmap"
-#if MAXRLIGHTMAPS > 1
-		,"s_lightmap1"
-		,"s_lightmap2"
-		,"s_lightmap3"
-		,"s_deluxmap1"
-		,"s_deluxmap2"
-		,"s_deluxmap3"
-#endif
-	};
 #define ALTLIGHTMAPSAMP 13
 #define ALTDELUXMAPSAMP 16
 
@@ -364,12 +340,12 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 			}
 		}
 
-		for (i = 0; i < sizeof(defaultsamplers)/sizeof(defaultsamplers[0]); i++)
+		for (i = 0; sh_defaultsamplers[i]; i++)
 		{
 			//figure out which ones are needed.
 			if (prog->defaulttextures & (1u<<i))
 				continue;	//don't spam
-			uniformloc = D3D9Shader_FindUniform(&pp->h, 2, defaultsamplers[i]);
+			uniformloc = D3D9Shader_FindUniform(&pp->h, 2, sh_defaultsamplers[i]);
 			if (uniformloc != -1)
 				prog->defaulttextures |= (1u<<i);
 		}
@@ -390,11 +366,11 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 			if (!prog->permu[p].h.loaded)
 				continue;
 			sampnum = prog->numsamplers;
-			for (i = 0; i < sizeof(defaultsamplers)/sizeof(defaultsamplers[0]); i++)
+			for (i = 0; sh_defaultsamplers[i]; i++)
 			{
 				if (prog->defaulttextures & (1u<<i))
 				{
-					uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 2, defaultsamplers[i]);
+					uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 2, sh_defaultsamplers[i]);
 					if (uniformloc != -1)
 					{
 						int v[4] = {sampnum};

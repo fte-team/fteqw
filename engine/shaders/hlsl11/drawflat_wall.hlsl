@@ -1,3 +1,5 @@
+!!samps lightmap
+
 struct a2v
 {
 	float4 pos: POSITION;

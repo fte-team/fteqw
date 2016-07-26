@@ -43,7 +43,7 @@ extern ID3D11Device *pD3DDev11;
 		STDMETHOD_(SIZE_T, GetBufferSize)(THIS) PURE;
 	};
 	#undef INTERFACE
-
+/*
 	#define D3D11_SHADER_VARIABLE_DESC void
 	typedef unsigned int D3D_SHADER_INPUT_TYPE;
 	typedef unsigned int D3D_RESOURCE_RETURN_TYPE;
@@ -101,16 +101,17 @@ extern ID3D11Device *pD3DDev11;
 	};
 	#define ID3D11ShaderReflection_GetVariableByName(r,v) r->lpVtbl->GetVariableByName(r,v)
 	#undef INTERFACE
+	*/
 #else
 #include <d3d11shader.h>
 #endif
 
 //const GUID IID_ID3D11ShaderReflection = {0x8d536ca1, 0x0cca, 0x4956, {0xa8, 0x37, 0x78, 0x69, 0x63, 0x75, 0x55, 0x84}};
-const GUID IID_ID3D11ShaderReflection = {0x0a233719, 0x3960, 0x4578, {0x9d, 0x7c, 0x20, 0x3b, 0x8b, 0x1d, 0x9c, 0xc1}};
+//const GUID IID_ID3D11ShaderReflection = {0x0a233719, 0x3960, 0x4578, {0x9d, 0x7c, 0x20, 0x3b, 0x8b, 0x1d, 0x9c, 0xc1}};
 #define ID3DBlob_GetBufferPointer(b) b->lpVtbl->GetBufferPointer(b)
 #define ID3DBlob_Release(b) b->lpVtbl->Release(b)
 #define ID3DBlob_GetBufferSize(b) b->lpVtbl->GetBufferSize(b)
-#define ID3D11ShaderReflection_Release IUnknown_Release
+//#define ID3D11ShaderReflection_Release IUnknown_Release
 
 HRESULT (WINAPI *pD3DCompile) (
 	LPCVOID pSrcData,
@@ -124,13 +125,6 @@ HRESULT (WINAPI *pD3DCompile) (
 	UINT Flags2,
 	ID3DBlob **ppCode,
 	ID3DBlob **ppErrorMsgs
-);
-
-HRESULT (WINAPI *pD3DReflect)(
-	LPCVOID pSrcData,
-	SIZE_T SrcDataSize,
-	REFIID pInterface,
-	void **ppReflector
 );
 
 static dllhandle_t *shaderlib;
@@ -148,7 +142,7 @@ HRESULT STDMETHODCALLTYPE d3dinclude_Open(ID3DInclude *this, D3D_INCLUDE_TYPE In
 {
 	if (IncludeType == D3D_INCLUDE_SYSTEM)
 	{
-		if (!strcmp(pFileName, "ftedefs.h"))
+		if (!strcmp(pFileName, "ftedefs.h") || !strcmp(pFileName, "sys/defs.h"))
 		{
 			static const char *defstruct =
 				"cbuffer ftemodeldefs : register(b0)\n"
@@ -189,6 +183,7 @@ HRESULT STDMETHODCALLTYPE d3dinclude_Open(ID3DInclude *this, D3D_INCLUDE_TYPE In
 			*pBytes = strlen(*ppData);
 			return S_OK;
 		}
+		//fog
 	}
 	else
 	{
@@ -406,31 +401,6 @@ static qboolean D3D11Shader_LoadBlob(program_t *prog, const char *name, unsigned
 
 qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *hull, const char *domain, const char *geom, const char *frag, qboolean silenterrors, vfsfile_t *blobfile)
 {
-	static const char *defaultsamplers[] =
-	{
-		"s_shadowmap",
-		"s_projectionmap",
-		"s_diffuse",
-		"s_normalmap",
-		"s_specular",
-		"s_upper",
-		"s_lower",
-		"s_fullbright",
-		"s_paletted",
-		"s_reflectcube",
-		"s_reflectmask",
-		"s_lightmap",
-		"s_deluxmap"
-#if MAXRLIGHTMAPS > 1
-		,"s_lightmap1"
-		,"s_lightmap2"
-		,"s_lightmap3"
-		,"s_deluxmap1"
-		,"s_deluxmap2"
-		,"s_deluxmap3"
-#endif
-	};
-
 	char *vsformat;
 	char *hsformat = NULL;
 	char *dsformat = NULL;
@@ -439,8 +409,8 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 	D3D_SHADER_MACRO defines[64];
 	ID3DBlob *vcode = NULL, *hcode = NULL, *dcode = NULL, *gcode = NULL, *fcode = NULL, *errors = NULL;
 	qboolean success = false;
-	ID3D11ShaderReflection *freflect;
-	int i;
+//	ID3D11ShaderReflection *freflect;
+//	int i;
 
 	if (d3dfeaturelevel >= D3D_FEATURE_LEVEL_11_0)	//and 11.1
 	{
@@ -653,7 +623,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 		}
 
 
-		if (fcode)
+/*		if (fcode)
 		{
 			pD3DReflect(ID3DBlob_GetBufferPointer(fcode), ID3DBlob_GetBufferSize(fcode), &IID_ID3D11ShaderReflection, (void**)&freflect);
 			if (freflect)
@@ -667,11 +637,11 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 				}
 
 				tmu = prog->numsamplers;
-				for (i = 0; i < sizeof(defaultsamplers)/sizeof(defaultsamplers[0]); i++)
+				for (i = 0; sh_defaultsamplers[i]; i++)
 				{
 //					if (prog->defaulttextures & (1u<<i))
 //						continue;
-					if (SUCCEEDED(freflect->lpVtbl->GetResourceBindingDescByName(freflect, va("t%s", defaultsamplers[i]+1), &bdesc)))
+					if (SUCCEEDED(freflect->lpVtbl->GetResourceBindingDescByName(freflect, va("t%s", sh_defaultsamplers[i]+1), &bdesc)))
 						prog->defaulttextures |= (1u<<i);
 					if (!(prog->defaulttextures & (1u<<i)))
 						continue;
@@ -682,7 +652,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 			else
 				Con_Printf("%s: D3DReflect failed, unable to get reflection info\n", name);
 		}
-
+*/
 		if (vcode)
 			ID3DBlob_Release(vcode);
 		if (hcode)
@@ -704,13 +674,11 @@ qboolean D3D11Shader_Init(unsigned int flevel)
 	dllfunction_t funcsold[] =
 	{
 		{(void**)&pD3DCompile, "D3DCompileFromMemory"},
-		{(void**)&pD3DReflect, "D3DReflect"},
 		{NULL,NULL}
 	};
 	dllfunction_t funcsnew[] =
 	{
 		{(void**)&pD3DCompile, "D3DCompile"},
-		{(void**)&pD3DReflect, "D3DReflect"},
 		{NULL,NULL}
 	};
 

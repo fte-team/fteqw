@@ -120,7 +120,7 @@ cvar_t snd_doppler_min			= CVARAFD(	"s_doppler_min", "0.5",
 											"snd_doppler_min", CVAR_ARCHIVE,
 											"Slowest allowed doppler scale.");
 cvar_t snd_doppler_max			= CVARAFD(	"s_doppler_max", "2",
-											"snd_doppler", CVAR_ARCHIVE,
+											"snd_doppler_max", CVAR_ARCHIVE,
 											"Highest allowed doppler scale, to avoid things getting too weird.");
 cvar_t snd_playbackrate			= CVARFD(	"snd_playbackrate", "1", CVAR_CHEAT, "Debugging cvar that changes the playback rate of all new sounds.");
 

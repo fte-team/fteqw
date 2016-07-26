@@ -1,10 +1,11 @@
+!!samps diffuse normalmap specular upper lower shadowmap projectionmap
 !!permu BUMP
 !!permu FRAMEBLEND
 !!permu SKELETAL
 !!permu UPPERLOWER
 !!permu FOG
 !!cvarf r_glsl_offsetmapping_scale
-!!cvardf r_glsl_pcf
+!!cvardf r_glsl_pcf=5
 
 
 //this is the main shader responsible for realtime dlights.
@@ -77,21 +78,21 @@ struct v2f
 
 #ifdef FRAGMENT_SHADER
 
-	Texture2D t_diffuse : register(t0);
-	Texture2D t_normalmap : register(t1);
-	Texture2D t_specular : register(t2);
-	Texture2D t_upper : register(t3);
-	Texture2D t_lower : register(t4);
-	Texture2D t_shadowmap : register(t5);
-	TextureCube t_projectionmap : register(t6);
+	Texture2D t_shadowmap : register(t0);
+	TextureCube t_projectionmap : register(t1);
+	Texture2D t_diffuse : register(t2);
+	Texture2D t_normalmap : register(t3);
+	Texture2D t_specular : register(t4);
+	Texture2D t_upper : register(t5);
+	Texture2D t_lower : register(t6);
 
-	SamplerState s_diffuse : register(s0);
-	SamplerState s_normalmap : register(s1);
-	SamplerState s_specular : register(s2);
-	SamplerState s_upper : register(s3);
-	SamplerState s_lower : register(s4);
-	SamplerComparisonState s_shadowmap : register(s5);
-	SamplerState s_projectionmap	 : register(s6);
+	SamplerComparisonState s_shadowmap : register(s0);
+	SamplerState s_projectionmap	 : register(s1);
+	SamplerState s_diffuse : register(s2);
+	SamplerState s_normalmap : register(s3);
+	SamplerState s_specular : register(s4);
+	SamplerState s_upper : register(s5);
+	SamplerState s_lower : register(s6);
 
 
 #ifdef PCF

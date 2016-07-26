@@ -82,6 +82,7 @@ anyway, the actual interface is the same. the old version might be slower, but w
 	#include <features.h>       /* for glibc version */
 	#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 14)
 		__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
+		__asm__(".symver memmove,memmove@GLIBC_2.2.5");
 	#endif
 #endif
 /*end glibc workaround*/

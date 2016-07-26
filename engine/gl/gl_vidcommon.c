@@ -1237,6 +1237,7 @@ static const char *glsl_hdrs[] =
 				"attribute vec4 v_colour4;\n"
 #endif
 			"#endif\n"
+#ifndef NOLEGACY
 			"uniform sampler2D s_shadowmap;\n"
 			"uniform samplerCube s_projectionmap;\n"
 			"uniform sampler2D s_diffuse;\n"
@@ -1259,6 +1260,7 @@ static const char *glsl_hdrs[] =
 			"uniform sampler2D s_deluxmap1;\n"
 			"uniform sampler2D s_deluxmap2;\n"
 			"uniform sampler2D s_deluxmap3;\n"
+#endif
 #endif
 
 			"#ifdef USEUBOS\n"
@@ -1822,7 +1824,7 @@ qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *pr
 // glslang helper api function definitions
 // type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
 //doesn't check to see if it was okay. use FinishShader for that.
-static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char **precompilerconstants, const char *shadersource, GLenum shadertype, qboolean silent)
+static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int ver, const char **precompilerconstants, const char *shadersource, GLenum shadertype, qboolean silent)
 {
 	GLhandleARB shader;
 	int i;
@@ -1887,6 +1889,61 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 			;
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
+		}
+
+		if (prog)
+		{	//for compat with vulkan, that injects samplers...
+			const char *numberedsamplernames[] =
+			{
+				"uniform sampler2D s_t0;\n",
+				"uniform sampler2D s_t1;\n",
+				"uniform sampler2D s_t2;\n",
+				"uniform sampler2D s_t3;\n",
+				"uniform sampler2D s_t4;\n",
+				"uniform sampler2D s_t5;\n",
+				"uniform sampler2D s_t6;\n",
+				"uniform sampler2D s_t7;\n",
+			};
+#ifdef NOLEGACY
+			const char *defaultsamplernames[] =
+			{
+				"uniform sampler2D s_shadowmap;\n",
+				"uniform samplerCube s_projectionmap;\n",
+				"uniform sampler2D s_diffuse;\n",
+				"uniform sampler2D s_normalmap;\n",
+				"uniform sampler2D s_specular;\n",
+				"uniform sampler2D s_upper;\n",
+				"uniform sampler2D s_lower;\n",
+				"uniform sampler2D s_fullbright;\n",
+				"uniform sampler2D s_paletted;\n",
+				"uniform samplerCube s_reflectcube;\n",
+				"uniform sampler2D s_reflectmask;\n",
+				"uniform sampler2D s_lightmap;\n#define s_lightmap0 s_lightmap\n",
+				"uniform sampler2D s_deluxmap;\n#define s_deluxmap0 s_deluxmap\n",
+
+				"uniform sampler2D s_lightmap1;\n",
+				"uniform sampler2D s_lightmap2;\n",
+				"uniform sampler2D s_lightmap3;\n",
+				"uniform sampler2D s_deluxmap1;\n",
+				"uniform sampler2D s_deluxmap2;\n",
+				"uniform sampler2D s_deluxmap3;\n",
+			};
+			for (i = 0; i < countof(defaultsamplernames); i++)
+			{
+				if (prog->defaulttextures & (1u<<i))
+				{
+					prstrings[strings] = defaultsamplernames[i];
+					length[strings] = strlen(prstrings[strings]);
+					strings++;
+				}
+			}
+#endif
+			for (i = 0; i < prog->numsamplers && i < countof(numberedsamplernames); i++)
+			{
+				prstrings[strings] = numberedsamplernames[i];
+				length[strings] = strlen(prstrings[strings]);
+				strings++;
+			}
 		}
 		break;
 	case GL_GEOMETRY_SHADER_ARB:
@@ -2199,7 +2256,7 @@ qboolean GLSlang_ValidateProgram(union programhandle_u *h, const char *name, qbo
 	return true;
 }
 
-union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *geom, const char *frag, qboolean silent, vfsfile_t *blobfile)
+union programhandle_u GLSlang_CreateProgram(program_t *prog, const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *geom, const char *frag, qboolean silent, vfsfile_t *blobfile)
 {
 	union programhandle_u ret;
 	GLhandleARB vs;
@@ -2227,11 +2284,11 @@ union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const cha
 	if (!precompilerconstants)
 		precompilerconstants = &nullconstants;
 
-	fs = GLSlang_CreateShader(name, ver, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB, silent);
-	gs = GLSlang_CreateShader(name, ver, precompilerconstants, geom, GL_GEOMETRY_SHADER_ARB, silent);
-	vs = GLSlang_CreateShader(name, ver, precompilerconstants, vert, GL_VERTEX_SHADER_ARB, silent);
-	cs = GLSlang_CreateShader(name, ver, precompilerconstants, cont, GL_TESS_CONTROL_SHADER_ARB, silent);
-	es = GLSlang_CreateShader(name, ver, precompilerconstants, eval, GL_TESS_EVALUATION_SHADER_ARB, silent);
+	fs = GLSlang_CreateShader(prog, name, ver, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB, silent);
+	gs = GLSlang_CreateShader(prog, name, ver, precompilerconstants, geom, GL_GEOMETRY_SHADER_ARB, silent);
+	vs = GLSlang_CreateShader(prog, name, ver, precompilerconstants, vert, GL_VERTEX_SHADER_ARB, silent);
+	cs = GLSlang_CreateShader(prog, name, ver, precompilerconstants, cont, GL_TESS_CONTROL_SHADER_ARB, silent);
+	es = GLSlang_CreateShader(prog, name, ver, precompilerconstants, eval, GL_TESS_EVALUATION_SHADER_ARB, silent);
 
 	fs = GLSlang_FinishShader(fs, name, GL_FRAGMENT_SHADER_ARB, silent);
 	gs = GLSlang_FinishShader(gs, name, GL_GEOMETRY_SHADER_ARB, silent);
@@ -2307,7 +2364,7 @@ qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned 
 		return false;	//can happen in gles2
 #endif
 
-	prog->permu[permu].h = GLSlang_CreateProgram(name, ver, precompilerconstants, vert, tcs, tes, geom, frag, noerrors, blobfile);
+	prog->permu[permu].h = GLSlang_CreateProgram(prog, name, ver, precompilerconstants, vert, tcs, tes, geom, frag, noerrors, blobfile);
 	if (prog->permu[permu].h.glsl.handle)
 		return true;
 	return false;
@@ -2369,30 +2426,6 @@ static void GLSlang_DeleteProg(program_t *prog)
 
 static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t **cvars, char **cvarnames, int *cvartypes)
 {
-	static const char *defaultsamplers[] =
-	{
-		"s_shadowmap",
-		"s_projectionmap",
-		"s_diffuse",
-		"s_normalmap",
-		"s_specular",
-		"s_upper",
-		"s_lower",
-		"s_fullbright",
-		"s_paletted",
-		"s_reflectcube",
-		"s_reflectmask",
-		"s_lightmap",
-		"s_deluxmap"
-#if MAXRLIGHTMAPS > 1
-		,"s_lightmap1"
-		,"s_lightmap2"
-		,"s_lightmap3"
-		,"s_deluxmap1"
-		,"s_deluxmap2"
-		,"s_deluxmap3"
-#endif
-	};
 #define ALTLIGHTMAPSAMP 13
 #define ALTDELUXMAPSAMP 16
 
@@ -2485,12 +2518,12 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t
 					prog->numsamplers = i+1;
 			}
 		}
-		for (i = 0; i < sizeof(defaultsamplers)/sizeof(defaultsamplers[0]); i++)
+		for (i = 0; sh_defaultsamplers[i]; i++)
 		{
 			//figure out which ones are needed.
 			if (prog->defaulttextures & (1u<<i))
 				continue;	//don't spam
-			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, defaultsamplers[i]);
+			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, sh_defaultsamplers[i]);
 			if (uniformloc != -1)
 				prog->defaulttextures |= (1u<<i);
 		}
@@ -2512,11 +2545,11 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t
 				continue;
 			sampnum = prog->numsamplers;
 			GLSlang_UseProgram(prog->permu[p].h.glsl.handle);
-			for (i = 0; i < sizeof(defaultsamplers)/sizeof(defaultsamplers[0]); i++)
+			for (i = 0; sh_defaultsamplers[i]; i++)
 			{
 				if (prog->defaulttextures & (1u<<i))
 				{
-					uniformloc = qglGetUniformLocationARB(prog->permu[p].h.glsl.handle, defaultsamplers[i]);
+					uniformloc = qglGetUniformLocationARB(prog->permu[p].h.glsl.handle, sh_defaultsamplers[i]);
 					if (uniformloc != -1)
 						qglUniform1iARB(uniformloc, sampnum);
 					sampnum++;

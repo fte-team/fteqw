@@ -268,7 +268,7 @@ char *svc_nqstrings[] =
 	"NEW PROTOCOL(88)"	//88
 };
 
-extern cvar_t requiredownloads, cl_standardchat, msg_filter, msg_filter_frags, cl_countpendingpl, cl_download_mapsrc;
+extern cvar_t requiredownloads, cl_standardchat, msg_filter, msg_filter_frags, msg_filter_pickups, cl_countpendingpl, cl_download_mapsrc;
 int	oldparsecountmod;
 int	parsecountmod;
 double	parsecounttime;
@@ -5948,14 +5948,15 @@ void CL_ParsePrint(char *msg, int level)
 			}
 			else
 			{
-#ifdef PLUGINS
-				if (Plug_ServerMessage(printtext, level))
-#endif
 #ifdef CSQC_DAT
 				if (!CSQC_ParsePrint(printtext, level))
 #endif
-					if (!Stats_ParsePrintLine(printtext) || !msg_filter_frags.ival)
-						CL_PrintStandardMessage(printtext, level);
+#ifdef PLUGINS
+				if (Plug_ServerMessage(printtext, level))
+#endif
+					if (!Stats_ParsePickups(printtext) || !msg_filter_pickups.ival)
+						if (!Stats_ParsePrintLine(printtext) || !msg_filter_frags.ival)
+							CL_PrintStandardMessage(printtext, level);
 			}
 		}
 
@@ -7293,7 +7294,10 @@ void CLNQ_ParseServerMessage (void)
 			s = MSG_ReadString ();
 
 			if (*s == 1 || *s == 2)
+			{
+				//FIXME: should be using the first char of the line, not the first char of the last segment.
 				CL_ParsePrint(s+1, PRINT_CHAT);
+			}
 			else if (CLNQ_ParseNQPrints(s))
 				break;
 			else

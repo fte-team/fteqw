@@ -311,7 +311,7 @@ static cvar_t s_al_debug = CVAR("s_al_debug", "0");
 static cvar_t s_al_use_reverb = CVAR("s_al_use_reverb", "1");
 static cvar_t s_al_max_distance = CVARFC("s_al_max_distance", "1000",0,OnChangeALSettings);
 static cvar_t s_al_speedofsound = CVARFC("s_al_speedofsound", "343.3",0,OnChangeALSettings);
-static cvar_t s_al_dopplerfactor = CVARFC("s_al_dopplerfactor", "3.0",0,OnChangeALSettings);
+static cvar_t s_al_dopplerfactor = CVARFC("s_al_dopplerfactor", "1.0",0,OnChangeALSettings);
 static cvar_t s_al_distancemodel = CVARFC("s_al_distancemodel", "2",0,OnChangeALSettings);
 static cvar_t s_al_rolloff_factor = CVAR("s_al_rolloff_factor", "1");
 static cvar_t s_al_reference_distance = CVAR("s_al_reference_distance", "120");
@@ -504,7 +504,13 @@ static void OpenAL_ListenerUpdate(soundcardinfo_t *sc, int entnum, vec3_t origin
 {
 	oalinfo_t *oali = sc->handle;
 
-	VectorScale(velocity, (snd_doppler.value?snd_doppler.value:s_al_velocityscale.value)/35.0, oali->ListenVel);
+	if (snd_doppler.modified)
+	{
+		snd_doppler.modified = false;
+		OnChangeALSettings(NULL,NULL);
+	}
+
+	VectorScale(velocity, s_al_velocityscale.value/35.0, oali->ListenVel);
 	VectorCopy(origin, oali->ListenPos);
 
 	oali->ListenEnt = entnum;
@@ -994,7 +1000,7 @@ static void QDECL OnChangeALSettings (cvar_t *var, char *value)
 			palSpeedOfSound(s_al_speedofsound.value);
 
 		if (palDopplerFactor)
-			palDopplerFactor(s_al_dopplerfactor.value);
+			palDopplerFactor(s_al_dopplerfactor.value * snd_doppler.value);
 
 		if (palDistanceModel)
 		{

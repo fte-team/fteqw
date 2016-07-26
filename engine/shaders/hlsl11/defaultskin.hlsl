@@ -1,3 +1,5 @@
+!!samps diffuse upper lower fullbright
+
 struct a2v
 {
 	float4 pos: POSITION;

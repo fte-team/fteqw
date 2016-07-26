@@ -1,3 +1,5 @@
+!!samps 1
+
 struct a2v
 {
 	float4 pos: POSITION;

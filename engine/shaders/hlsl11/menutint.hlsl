@@ -1,3 +1,4 @@
+!!samps 1
 !!cvard3 r_menutint=0.2 0.2 0.2
 !!cvardf r_menutint_inverse=0.0
 

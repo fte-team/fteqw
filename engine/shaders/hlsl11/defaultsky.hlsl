@@ -1,3 +1,5 @@
+!!samps diffuse fullbright
+
 //regular sky shader for scrolling q1 skies
 //the sky surfaces are thrown through this as-is.
 

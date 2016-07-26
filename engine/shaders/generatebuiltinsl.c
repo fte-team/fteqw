@@ -95,6 +95,7 @@ void dumpprogblob(FILE *out, unsigned char *buf, unsigned int size)
 
 struct blobheader
 {
+	unsigned char blobmagic[4];	//\xffSPV
 	unsigned int blobversion;
 	unsigned int defaulttextures;	//s_diffuse etc flags
 	unsigned int numtextures;		//s_t0 count
@@ -164,6 +165,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, char *fname
 //	snprintf(vertname, sizeof(vertname), "vulkan/%s.vert", fname);
 //	snprintf(fragname, sizeof(fragname), "vulkan/%s.frag", fname);
 
+	memcpy(blob->blobmagic, "\xffSPV", 4);
 	blob->blobversion = 1;
 	blob->defaulttextures = 0;
 	blob->numtextures = 0;
@@ -332,7 +334,6 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, char *fname
 			};
 			int binding = 2;
 			inheader = 0;
-			printf("%s %u+%#x samplers\n", fname, blob->numtextures, blob->defaulttextures);
 			fprintf(temp, "#define OFFSETMAPPING (cvar_r_glsl_offsetmapping>0)\n");
 			fprintf(temp, "#define SPECULAR (cvar_gl_specular>0)\n");
 			fprintf(temp, "#ifdef FRAGMENT_SHADER\n");

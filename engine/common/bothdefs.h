@@ -531,15 +531,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#elif defined(NACL)
 		#define PLATFORM		"Nacl"
 	#elif defined(_WIN32_WCE)
-		#define PLATFORM	"WinCE"
+		#define PLATFORM		"WinCE"
 		#define ARCH_DL_POSTFIX ".dll"
 	#elif defined(_WIN32)
 		#if defined(WINRT)
 			#define PLATFORM	"WinRT"		/*those poor poor souls. maybe just maybe I'll actually get the tools for a port, its just a shame that I won't be able to release said port*/
-		#elif defined(__amd64__)
-			#define PLATFORM	"Win64"
 		#else
-			#define PLATFORM	"Win32"
+			#define PLATFORM	"Win"
 		#endif
 		#define ARCH_DL_POSTFIX ".dll"
 	#elif defined(_WIN16)
@@ -551,13 +549,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#elif defined(ANDROID) || defined(__ANDROID__)
 		#define PLATFORM		"Android"	/*technically also linux*/
 	#elif defined(__linux__)
-		#if defined(__amd64__)
-			#define PLATFORM	"Linux64"
-		#else
-			#define PLATFORM	"Linux"
-		#endif
+		#define PLATFORM		"Linux"
 	#elif defined(__APPLE__)
-	    #include "TargetConditionals.h"
+		#include "TargetConditionals.h"
 		#if TARGET_IPHONE_SIMULATOR
 			 #define PLATFORM	"iOSSim"
 		#elif TARGET_OS_IPHONE
@@ -602,6 +596,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define ARCH_CPU_POSTFIX "x86"
 #elif defined(__powerpc__) || defined(__ppc__)
 	#define ARCH_CPU_POSTFIX "ppc"
+#elif defined(__aarch64__)
+	#define ARCH_CPU_POSTFIX "arm64"
 #elif defined(__arm__)
 	#define ARCH_CPU_POSTFIX "arm"
 #else

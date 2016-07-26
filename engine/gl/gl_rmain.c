@@ -53,7 +53,6 @@ extern cvar_t	gl_part_flame;
 extern cvar_t	r_bloom;
 extern cvar_t	r_wireframe_smooth;
 
-cvar_t	r_renderscale = CVARD("r_renderscale", "1", "Provides a way to enable subsampling or super-sampling");
 cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");

@@ -99,6 +99,7 @@ int scenepp_postproc_cube_size;
 
 fbostate_t fbo_gameview;
 fbostate_t fbo_postproc;
+fbostate_t fbo_postproc_cube;
 
 // KrimZon - init post processing - called in GL_CheckExtensions, when they're called
 // I put it here so that only this file need be changed when messing with the post
@@ -131,6 +132,7 @@ void GL_ShutdownPostProcessing(void)
 {
 	GLBE_FBO_Destroy(&fbo_gameview);
 	GLBE_FBO_Destroy(&fbo_postproc);
+	GLBE_FBO_Destroy(&fbo_postproc_cube);
 	R_BloomShutdown();
 }
 
@@ -1418,7 +1420,6 @@ qboolean R_RenderScene_Cubemap(void)
 	extern cvar_t r_projection;
 	int oldfbo = -1;
 	qboolean usefbo = true;		//this appears to be a 20% speedup in my tests.
-	static fbostate_t fbostate;	//FIXME
 	qboolean fboreset = false;
 	int osm = r_refdef.stereomethod;
 
@@ -1629,7 +1630,7 @@ qboolean R_RenderScene_Cubemap(void)
 
 		if (usefbo)
 		{
-			int r = GLBE_FBO_Update(&fbostate, FBO_RB_DEPTH|(fboreset?FBO_RESET:0), &scenepp_postproc_cube, 1, r_nulltex,  cmapsize, cmapsize, i);
+			int r = GLBE_FBO_Update(&fbo_postproc_cube, FBO_RB_DEPTH|(fboreset?FBO_RESET:0), &scenepp_postproc_cube, 1, r_nulltex,  cmapsize, cmapsize, i);
 			fboreset = false;
 			if (oldfbo < 0)
 				oldfbo = r;

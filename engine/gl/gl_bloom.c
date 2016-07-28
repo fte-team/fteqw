@@ -41,7 +41,7 @@ http://prideout.net/archive/bloom/ contains some sample code
 
 #include "quakedef.h"
 
-#ifdef GLQUAKE
+#if defined(GLQUAKE) || defined(VKQUAKE)
 #include "shader.h"
 #include "glquake.h"
 #include "gl_draw.h"
@@ -173,16 +173,130 @@ qboolean R_CanBloom(void)
 {
 	if (!r_bloom.value)
 		return false;
-	if (!gl_config.ext_framebuffer_objects)
+	switch(qrenderer)
+	{
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		if (!gl_config.ext_framebuffer_objects)
+			return false;
+		if (!gl_config.arb_shader_objects)
+			return false;
+		if (!sh_config.texture_non_power_of_two_pic)
+			return false;
+		break;
+#endif
+#ifdef VKQUAKE
+	case QR_VULKAN:
+		break;
+#endif
+	default:
 		return false;
-	if (!gl_config.arb_shader_objects)
-		return false;
-	if (!sh_config.texture_non_power_of_two_pic)
-		return false;
+	}
 
 	return true;
 }
 
+#ifdef VKQUAKE
+#include "../vk/vkrenderer.h"
+struct vk_rendertarg vk_rt_bloom[2][MAXLEVELS], vk_rt_filter;
+void VK_R_BloomBlend (texid_t source, int x, int y, int w, int h)
+{
+	int i;
+	struct vk_rendertarg *oldfbo = vk.rendertarg;
+	texid_t intex;
+	int pixels = 1;
+	int targetpixels = r_bloom_size.value * vid.pixelwidth / 320;
+
+	targetpixels *= r_bloom_initialscale.value;
+
+	/*whu?*/
+	if (!w || !h)
+		return;
+
+	/*update textures if we need to resize them*/
+	R_SetupBloomTextures(w, h);
+
+	if (R2D_Flush)
+		R2D_Flush();
+#if 1
+	/*filter the screen into a downscaled image*/
+	VKBE_RT_Gen(&vk_rt_filter, texwidth[0], texheight[0], false);
+	VKBE_RT_Begin(&vk_rt_filter);
+	vk.sourcecolour = source;
+	R2D_ScalePic(0, 0, vid.width, vid.height, bloomfilter);
+	R2D_Flush();
+	intex = &vk_rt_filter.q_colour;
+#else
+	intex = source;
+#endif
+
+	for (pixels = 1, i = 0; pixels < targetpixels && i < MAXLEVELS; i++, pixels <<= 1)
+	{
+		//downsize the blur, for added accuracy
+		/*if (i > 0 && r_bloom_downsize.ival)
+		{
+			//simple downscale that multiple times
+			VKBE_RT_Gen(&vk_rt_bloom[0][i], texwidth[i], texheight[i], false);
+			VKBE_RT_Begin(&vk_rt_bloom[0][i]);
+			vk.sourcecolour = source;
+
+			R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomrescale);
+			if (R2D_Flush)
+				R2D_Flush();
+			intex = &vk_rt_bloom[0][i];
+			r_worldentity.glowmod[0] = 1.0 / intex->width;
+		}
+		else*/
+			r_worldentity.glowmod[0] = 2.0 / intex->width;
+
+		r_worldentity.glowmod[1] = 0;
+
+		VKBE_RT_Gen(&vk_rt_bloom[1][i], texwidth[i], texheight[i], false);
+		VKBE_RT_Begin(&vk_rt_bloom[1][i]);
+		vk.sourcecolour = intex;
+		BE_SelectEntity(&r_worldentity);
+		R2D_ScalePic(0, 0, vid.width, vid.height, bloomblur);
+		R2D_Flush();
+
+		r_worldentity.glowmod[0] = 0;
+		r_worldentity.glowmod[1] = 1.0 / texheight[i];
+
+		VKBE_RT_Gen(&vk_rt_bloom[0][i], texwidth[i], texheight[i], false);
+		VKBE_RT_Begin(&vk_rt_bloom[0][i]);
+		vk.sourcecolour = &vk_rt_bloom[1][i].q_colour;
+		BE_SelectEntity(&r_worldentity);
+		R2D_ScalePic(0, 0, vid.width, vid.height, bloomblur);
+		R2D_Flush();
+
+		intex = &vk_rt_bloom[0][i].q_colour;
+	}
+	r_worldentity.glowmod[0] = 0;
+	r_worldentity.glowmod[1] = 0;
+	VKBE_RT_Begin(oldfbo);
+	//go back to the screen fbo
+
+	/*combine them onto the screen*/
+	bloomfinal->defaulttextures->base			= intex;
+	bloomfinal->defaulttextures->loweroverlay	= (i >= 2)?&vk_rt_bloom[0][i-2].q_colour:0;
+	bloomfinal->defaulttextures->upperoverlay	= (i >= 3)?&vk_rt_bloom[0][i-3].q_colour:0;
+	vk.sourcecolour = source;
+	R2D_ScalePic(x, y, w, h, bloomfinal);
+	R2D_Flush();
+}
+void VK_R_BloomShutdown(void)
+{
+	int i;
+	for (i = 0; i < MAXLEVELS; i++)
+	{
+		VKBE_RT_Gen(&vk_rt_bloom[0][i], 0, 0, false);
+		VKBE_RT_Gen(&vk_rt_bloom[1][i], 0, 0, false);
+	}
+	VKBE_RT_Gen(&vk_rt_filter, 0, 0, false);
+
+	R_InitBloomTextures();
+}
+#endif
+#ifdef GLQUAKE
 void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 {
 	int i;
@@ -298,5 +412,6 @@ void R_BloomShutdown(void)
 
 	R_InitBloomTextures();
 }
+#endif
 
 #endif

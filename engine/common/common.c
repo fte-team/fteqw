@@ -5069,7 +5069,7 @@ static int COM_WorkerThread(void *arg)
 static void Sys_ErrorThread(void *ctx, void *data, size_t a, size_t b)
 {
 	//posted to main thread from a worker.
-	Sys_Error(data);
+	Sys_Error("%s", data);
 }
 void COM_WorkerAbort(char *message)
 {

@@ -128,28 +128,28 @@ cvar_t r_floorcolour						= CVARAF ("r_floorcolour", "64 64 128",
 //												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fullbright							= CVARFD ("r_fullbright", "0",
 												CVAR_CHEAT|CVAR_SHADERSYSTEM, "Ignore world lightmaps, drawing everything fully lit.");
-cvar_t r_fullbrightSkins					= SCVARF ("r_fullbrightSkins", "0.8", /*don't default to 1, as it looks a little ugly (too bright), but don't default to 0 either because then you're handicapped in the dark*/
+cvar_t r_fullbrightSkins					= CVARF	("r_fullbrightSkins", "0.8", /*don't default to 1, as it looks a little ugly (too bright), but don't default to 0 either because then you're handicapped in the dark*/
 												CVAR_SEMICHEAT|CVAR_SHADERSYSTEM);
-cvar_t r_lightmap_saturation				= SCVAR  ("r_lightmap_saturation", "1");
-cvar_t r_lightstylesmooth					= CVARF  ("r_lightstylesmooth", "0", CVAR_ARCHIVE);
-cvar_t r_lightstylesmooth_limit				= SCVAR  ("r_lightstylesmooth_limit", "2");
-cvar_t r_lightstylespeed					= SCVAR  ("r_lightstylespeed", "10");
-cvar_t r_lightstylescale					= SCVAR  ("r_lightstylescale", "1");
-cvar_t r_hdr_irisadaptation					= CVARF  ("r_hdr_irisadaptation", "0", CVAR_ARCHIVE);
-cvar_t r_hdr_irisadaptation_multiplier		= CVAR  ("r_hdr_irisadaptation_multiplier", "2");
-cvar_t r_hdr_irisadaptation_minvalue		= CVAR  ("r_hdr_irisadaptation_minvalue", "0.5");
-cvar_t r_hdr_irisadaptation_maxvalue		= CVAR  ("r_hdr_irisadaptation_maxvalue", "4");
-cvar_t r_hdr_irisadaptation_fade_down		= CVAR  ("r_hdr_irisadaptation_fade_down", "0.5");
-cvar_t r_hdr_irisadaptation_fade_up			= CVAR  ("r_hdr_irisadaptation_fade_up", "0.1");
-cvar_t r_loadlits							= CVARF  ("r_loadlit", "1", CVAR_ARCHIVE);
-cvar_t r_menutint							= SCVARF ("r_menutint", "0.68 0.4 0.13",
+cvar_t r_lightmap_saturation				= SCVAR	("r_lightmap_saturation", "1");
+cvar_t r_lightstylesmooth					= CVARF	("r_lightstylesmooth", "0", CVAR_ARCHIVE);
+cvar_t r_lightstylesmooth_limit				= SCVAR	("r_lightstylesmooth_limit", "2");
+cvar_t r_lightstylespeed					= SCVAR	("r_lightstylespeed", "10");
+cvar_t r_lightstylescale					= SCVAR	("r_lightstylescale", "1");
+cvar_t r_hdr_irisadaptation					= CVARF	("r_hdr_irisadaptation", "0", CVAR_ARCHIVE);
+cvar_t r_hdr_irisadaptation_multiplier		= CVAR	("r_hdr_irisadaptation_multiplier", "2");
+cvar_t r_hdr_irisadaptation_minvalue		= CVAR	("r_hdr_irisadaptation_minvalue", "0.5");
+cvar_t r_hdr_irisadaptation_maxvalue		= CVAR	("r_hdr_irisadaptation_maxvalue", "4");
+cvar_t r_hdr_irisadaptation_fade_down		= CVAR	("r_hdr_irisadaptation_fade_down", "0.5");
+cvar_t r_hdr_irisadaptation_fade_up			= CVAR	("r_hdr_irisadaptation_fade_up", "0.1");
+cvar_t r_loadlits							= CVARF	("r_loadlit", "1", CVAR_ARCHIVE);
+cvar_t r_menutint							= CVARF	("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
-cvar_t r_netgraph							= SCVAR  ("r_netgraph", "0");
+cvar_t r_netgraph							= CVAR	("r_netgraph", "0");
 extern cvar_t r_lerpmuzzlehack;
-cvar_t r_nolerp								= CVARF  ("r_nolerp", "0", CVAR_ARCHIVE);
-cvar_t r_noframegrouplerp					= CVARF  ("r_noframegrouplerp", "0", CVAR_ARCHIVE);
-cvar_t r_nolightdir							= CVARF  ("r_nolightdir", "0", CVAR_ARCHIVE);
-cvar_t r_novis								= CVARF ("r_novis", "0", CVAR_ARCHIVE);
+cvar_t r_nolerp								= CVARF	("r_nolerp", "0", CVAR_ARCHIVE);
+cvar_t r_noframegrouplerp					= CVARF	("r_noframegrouplerp", "0", CVAR_ARCHIVE);
+cvar_t r_nolightdir							= CVARF	("r_nolightdir", "0", CVAR_ARCHIVE);
+cvar_t r_novis								= CVARF	("r_novis", "0", CVAR_ARCHIVE);
 cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
 												CVAR_ARCHIVE,
 												"Enable particle effects to emit off of surfaces. Mainly used for weather or lava/slime effects.");
@@ -523,8 +523,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_lightmap_nearest, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lightmap_average, GLRENDEREROPTIONS);
-
-	R_BloomRegister();
 }
 #endif
 
@@ -632,6 +630,10 @@ void Renderer_Init(void)
 #endif
 #if defined(GLQUAKE)
 	GLRenderer_Init();
+#endif
+
+#if defined(GLQUAKE) || defined(VKQUAKE)
+	R_BloomRegister();
 #endif
 
 #ifdef SWQUAKE

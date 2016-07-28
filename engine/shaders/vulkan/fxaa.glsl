@@ -5,17 +5,19 @@
 //
 
 varying vec2 texcoord;
+varying vec2 e_sourcesize;
 
 #ifdef VERTEX_SHADER
 void main()
 {
 	texcoord = v_texcoord.xy;
 	texcoord.y = 1.0 - texcoord.y;
+	e_sourcesize = v_colour.rg;
 	gl_Position = ftetransform();
 }
 #endif
 #ifdef FRAGMENT_SHADER
-uniform vec2 e_sourcesize;
+//uniform vec2 e_sourcesize;
 
 void main( void )
 {

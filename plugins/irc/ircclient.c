@@ -2248,15 +2248,11 @@ qintptr_t IRC_Frame(qintptr_t *args)
 				{
 					memmove(ircclient->bufferedoutmessage, ircclient->bufferedoutmessage+flushed, ircclient->bufferedoutammount - flushed);
 					ircclient->bufferedoutammount -= flushed;
-
-					if (!ircclient->bufferedoutammount)
-					{
-						pNet_Close(ircclient->socket);
-						ircclient->socket = 0;
-					}
 				}
 			}
 		}
+		if (ircclient->quitting && !ircclient->bufferedoutammount)
+			stat = IRC_KILL;
 		if (stat == IRC_KILL)
 		{
 			pNet_Close(ircclient->socket);

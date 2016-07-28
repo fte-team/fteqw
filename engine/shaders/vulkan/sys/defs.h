@@ -21,13 +21,15 @@ layout(std140, binding=0) uniform entityblock
 	vec3 e_light_ambient;	float epad1;
 	vec3 e_light_dir;	float epad2;
 	vec3 e_light_mul;	float epad3;
-	vec4 e_lmscale[4];
+	vec4 e_lmscales[4];
 	vec3 e_uppercolour;	float epad4;
 	vec3 e_lowercolour;	float epad5;
+	vec3 e_glowmod;		float epad6;
 	vec4 e_colourident;
 	vec4 w_fogcolours;
-	float w_fogdensity;	float w_fogdepthbias;	 vec2 epad6;
+	float w_fogdensity;	float w_fogdepthbias;	 vec2 epad7;
 };
+#define e_lmscale (e_lmscales[0])
 
 layout(std140, binding=1) uniform lightblock
 {

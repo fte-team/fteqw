@@ -92,7 +92,7 @@ void main ()
 
 	vec3 lightmaps;
 	if (arg_vertexlit)
-		lightmaps = vc.rgb * e_lmscale[0].rgb;
+		lightmaps = vc.rgb * e_lmscale.rgb;
 	else
 	{
 		//modulate that by the lightmap(s) including deluxemap(s)
@@ -118,10 +118,10 @@ void main ()
 			//don't bother if its lightstyled, such cases will have unpredictable correlations anyway.
 			//FIXME: this rounding is likely not correct with respect to software rendering. oh well.
 			vec2 nearestlm0 = floor(lm0 * 256.0*8.0)/(256.0*8.0);
-			lightmaps = (texture2D(s_lightmap, nearestlm0) * e_lmscale[0]).rgb;
+			lightmaps = (texture2D(s_lightmap, nearestlm0) * e_lmscale).rgb;
 		}
 		else
-			lightmaps = (texture2D(s_lightmap, lm0) * e_lmscale[0]).rgb;
+			lightmaps = (texture2D(s_lightmap, lm0) * e_lmscale).rgb;
 		//modulate by the  bumpmap dot light
 		if (DELUXE)
 		{

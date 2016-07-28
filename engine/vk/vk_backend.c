@@ -174,9 +174,10 @@ typedef struct
 	vec4_t e_lmscale[4];
 	vec3_t e_uppercolour;	float pad4;
 	vec3_t e_lowercolour;	float pad5;
+	vec3_t e_glowmod;		float pad6;
 	vec4_t e_colourident;
 	vec4_t w_fogcolours;
-	float w_fogdensity;		float w_fogdepthbias;	vec2_t pad6;
+	float w_fogdensity;		float w_fogdepthbias;	vec2_t pad7;
 } cbuf_entity_t;
 
 enum 
@@ -1029,6 +1030,10 @@ qboolean VK_LoadGLSL(program_t *prog, const char *name, unsigned int permu, int 
 	if (permu)	//FIXME...
 		return false;
 
+	prog->nofixedcompat = false;
+//	prog->supportedpermutations = 0;
+	prog->cvardata = NULL;
+	prog->cvardatasize = 0;
 	prog->pipelines = NULL;
 	prog->vert = VK_CreateGLSLModule(prog, name, ver, precompilerconstants, vert, false);
 	prog->frag = VK_CreateGLSLModule(prog, name, ver, precompilerconstants, frag, true);
@@ -1310,7 +1315,7 @@ void VKBE_Init(void)
 		}
 	}
 	else
-		vk_usedynamicstaging = ~0u;
+		vk_usedynamicstaging = 0u;
 }
 
 static struct descpool *VKBE_CreateDescriptorPool(void)
@@ -4245,36 +4250,20 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		VectorScale((m+8), mod->clampscale, (m+8));
 	}
 
-	memcpy(cbe->m_model, m, sizeof(cbe->m_model));
-
-	Matrix4_Invert(modelmatrix, cbe->m_modelinv);
-
 	{
 		float modelview[16];
 		Matrix4_Multiply(r_refdef.m_view, m, modelview);
 		Matrix4_Multiply(r_refdef.m_projection, modelview, cbe->m_modelviewproj);
 	}
+	memcpy(cbe->m_model, m, sizeof(cbe->m_model));
+	Matrix4_Invert(modelmatrix, cbe->m_modelinv);
+	Matrix4x4_CM_Transform3(cbe->m_modelinv, r_origin, cbe->e_eyepos);
 
 	cbe->e_time = shaderstate.curtime = r_refdef.time - shaderstate.curentity->shaderTime;
 
-	VectorCopy(e->light_avg, cbe->e_light_ambient);
-	VectorCopy(e->light_dir, cbe->e_light_dir);
-	VectorCopy(e->light_range, cbe->e_light_mul);
-
-	R_FetchPlayerColour(e->topcolour, cbe->e_uppercolour);
-	R_FetchPlayerColour(e->bottomcolour, cbe->e_lowercolour);
-	if (shaderstate.flags & BEF_FORCECOLOURMOD)
-		Vector4Copy(e->shaderRGBAf, cbe->e_colourident);
-	else
-		Vector4Set(cbe->e_colourident, 1, 1, 1, e->shaderRGBAf[3]);
-
-	VectorCopy(r_refdef.globalfog.colour, cbe->w_fogcolours);
-	cbe->w_fogcolours[3] = r_refdef.globalfog.alpha;
-	cbe->w_fogdensity = r_refdef.globalfog.density;
-	cbe->w_fogdepthbias = r_refdef.globalfog.depthbias;
-
-	//various stuff in modelspace
-	Matrix4x4_CM_Transform3(cbe->m_modelinv, r_origin, cbe->e_eyepos);
+	VectorCopy(e->light_avg, cbe->e_light_ambient);	cbe->pad1 = 0;
+	VectorCopy(e->light_dir, cbe->e_light_dir);		cbe->pad2 = 0;
+	VectorCopy(e->light_range, cbe->e_light_mul);	cbe->pad3 = 0;
 
 	for (i = 0; i < MAXRLIGHTMAPS ; i++)
 	{
@@ -4311,6 +4300,21 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		sc *= d_lightstylevalue[s]/256.0f;
 		Vector4Set(cbe->e_lmscale[i], sc, sc, sc, 1);
 	}
+
+	R_FetchPlayerColour(e->topcolour, cbe->e_uppercolour);		cbe->pad4 = 0;
+	R_FetchPlayerColour(e->bottomcolour, cbe->e_lowercolour);	cbe->pad5 = 0;
+	VectorCopy(e->glowmod, cbe->e_glowmod);						cbe->pad6 = 0;
+	if (shaderstate.flags & BEF_FORCECOLOURMOD)
+		Vector4Copy(e->shaderRGBAf, cbe->e_colourident);
+	else
+		Vector4Set(cbe->e_colourident, 1, 1, 1, e->shaderRGBAf[3]);
+
+	VectorCopy(r_refdef.globalfog.colour, cbe->w_fogcolours);
+	cbe->w_fogcolours[3] = r_refdef.globalfog.alpha;
+
+	cbe->w_fogdensity = r_refdef.globalfog.density;
+	cbe->w_fogdepthbias = r_refdef.globalfog.depthbias;
+	Vector2Set(cbe->pad7, 0, 0);
 
 	ndr = (e->flags & RF_DEPTHHACK)?0.333:1;
 	if (ndr != shaderstate.depthrange)
@@ -4400,6 +4404,7 @@ void VKBE_RT_Destroy(struct vk_rendertarg *targ)
 	memset(targ, 0, sizeof(*targ));
 }
 
+
 struct vkbe_rtpurge
 {
 	struct vk_fencework fw;
@@ -4414,15 +4419,24 @@ static void VKBE_RT_Purge(void *ptr)
 	VK_DestroyVkTexture(&ctx->depth);
 	VK_DestroyVkTexture(&ctx->colour);
 }
-void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height)
+void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qboolean clear)
 {
 	//sooooo much work...
 	VkImageCreateInfo colour_imginfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
 	VkImageCreateInfo depth_imginfo;
 	struct vkbe_rtpurge *purge;
+	static VkClearValue clearvalues[2];
+
+	if (clear)
+		targ->restartinfo.renderPass = vk.renderpass[2];
+	else
+		targ->restartinfo.renderPass = vk.renderpass[1];	//don't care
+	targ->restartinfo.clearValueCount = 2;
+	targ->depthcleared = true;	//will be once its activated.
 
 	if (targ->width == width && targ->height == height)
 		return;	//no work to do.
+
 	if (targ->framebuffer)
 	{	//schedule the old one to be destroyed at the end of the current frame. DIE OLD ONE, DIE!
 		purge = VK_AtFrameEnd(VKBE_RT_Purge, sizeof(*purge));
@@ -4436,15 +4450,22 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height)
 
 	targ->q_colour.vkimage = &targ->colour;
 	targ->q_depth.vkimage = &targ->depth;
+	targ->q_colour.status = TEX_LOADED;
+	targ->q_colour.width = width;
+	targ->q_colour.height = height;
 
 	targ->width = width;
 	targ->height = height;
+
+	if (width == 0 && height == 0)
+		return;	//destroyed
 
 	colour_imginfo.format = VK_FORMAT_R8G8B8A8_UNORM;
 	colour_imginfo.flags = 0;
 	colour_imginfo.imageType = VK_IMAGE_TYPE_2D;
 	colour_imginfo.extent.width = width;
 	colour_imginfo.extent.height = height;
+	colour_imginfo.extent.depth = 1;
 	colour_imginfo.mipLevels = 1;
 	colour_imginfo.arrayLayers = 1;
 	colour_imginfo.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -4547,69 +4568,265 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height)
 		fbinfo.layers = 1;
 		VkAssert(vkCreateFramebuffer(vk.device, &fbinfo, vkallocationcb, &targ->framebuffer));
 	}
+
+	targ->restartinfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	targ->restartinfo.pNext = NULL;
+	targ->restartinfo.framebuffer = targ->framebuffer;
+	targ->restartinfo.renderArea.offset.x = 0;
+	targ->restartinfo.renderArea.offset.y = 0;
+	targ->restartinfo.renderArea.extent.width = width;
+	targ->restartinfo.renderArea.extent.height = height;
+	targ->restartinfo.pClearValues = clearvalues;
+	clearvalues[1].depthStencil.depth = 1;
 }
 
-void VKBE_RT_Begin(struct vk_rendertarg *targ, uint32_t width, uint32_t height)
+struct vkbe_rtpurge_cube
 {
-	vkCmdEndRenderPass(vk.frame->cbuf);
+	struct vk_fencework fw;
+	vk_image_t colour;
+	vk_image_t depth;
+	struct
+	{
+		VkFramebuffer framebuffer;
+		VkImageView iv[2];
+	} face[6];
+};
+static void VKBE_RT_Purge_Cube(void *ptr)
+{
+	uint32_t f;
+	struct vkbe_rtpurge_cube *ctx = ptr;
+	for (f = 0; f < 6; f++)
+	{
+		vkDestroyFramebuffer(vk.device, ctx->face[f].framebuffer, vkallocationcb);
+		vkDestroyImageView(vk.device, ctx->face[f].iv[0], vkallocationcb);
+		vkDestroyImageView(vk.device, ctx->face[f].iv[1], vkallocationcb);
+	}
+	VK_DestroyVkTexture(&ctx->depth);
+	VK_DestroyVkTexture(&ctx->colour);
+}
+//generate a cubemap-compatible 2d array, set up 6 render targets that render to their own views
+void VKBE_RT_Gen_Cube(struct vk_rendertarg_cube *targ, uint32_t size, qboolean clear)
+{
+	VkImageCreateInfo colour_imginfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+	VkImageCreateInfo depth_imginfo;
+	struct vkbe_rtpurge_cube *purge;
+	uint32_t f;
+	static VkClearValue clearvalues[2];
 
-	if (width != targ->width || height != targ->height)
-		VKBE_RT_Gen(targ, width, height);
+	for (f = 0; f < 6; f++)
+	{
+		if (clear)
+			targ->face[f].restartinfo.renderPass = vk.renderpass[2];
+		else
+			targ->face[f].restartinfo.renderPass = vk.renderpass[1];	//don't care
+		targ->face[f].restartinfo.clearValueCount = 2;
+	}
+
+	if (targ->size == size)
+		return;	//no work to do.
+
+	if (targ->size)
+	{	//schedule the old one to be destroyed at the end of the current frame. DIE OLD ONE, DIE!
+		purge = VK_AtFrameEnd(VKBE_RT_Purge_Cube, sizeof(*purge));
+		for (f = 0; f < 6; f++)
+		{
+			purge->face[f].framebuffer = targ->face[f].framebuffer;
+			targ->face[f].framebuffer = VK_NULL_HANDLE;
+			purge->face[f].iv[0] = targ->face[f].colour.view;
+			purge->face[f].iv[1] = targ->face[f].depth.view;
+			targ->face[f].colour.view = VK_NULL_HANDLE;
+			targ->face[f].depth.view = VK_NULL_HANDLE;
+		}
+		purge->colour = targ->colour;
+		purge->depth = targ->depth;
+		memset(&targ->colour, 0, sizeof(targ->colour));
+		memset(&targ->depth, 0, sizeof(targ->depth));
+	}
+
+	targ->size = size;
+	if (!size)
+		return;
+
+	targ->q_colour.vkimage = &targ->colour;
+	targ->q_depth.vkimage = &targ->depth;
+
+	colour_imginfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+	colour_imginfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+	colour_imginfo.imageType = VK_IMAGE_TYPE_2D;
+	colour_imginfo.extent.width = size;
+	colour_imginfo.extent.height = size;
+	colour_imginfo.mipLevels = 1;
+	colour_imginfo.arrayLayers = 6;
+	colour_imginfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	colour_imginfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	colour_imginfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_SAMPLED_BIT;
+	colour_imginfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	colour_imginfo.queueFamilyIndexCount = 0;
+	colour_imginfo.pQueueFamilyIndices = NULL;
+	colour_imginfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	VkAssert(vkCreateImage(vk.device, &colour_imginfo, vkallocationcb, &targ->colour.image));
+
+	depth_imginfo = colour_imginfo;
+	depth_imginfo.format = vk.depthformat;
+	depth_imginfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT|VK_IMAGE_USAGE_SAMPLED_BIT;
+	VkAssert(vkCreateImage(vk.device, &depth_imginfo, vkallocationcb, &targ->depth.image));
+
+
+	{
+		VkMemoryRequirements mem_reqs;
+		VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+		vkGetImageMemoryRequirements(vk.device, targ->colour.image, &mem_reqs);
+		memAllocInfo.allocationSize = mem_reqs.size;
+		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
+		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &targ->colour.memory));
+		VkAssert(vkBindImageMemory(vk.device, targ->colour.image, targ->colour.memory, 0));
+	}
+
+	{
+		VkMemoryRequirements mem_reqs;
+		VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+		vkGetImageMemoryRequirements(vk.device, targ->depth.image, &mem_reqs);
+		memAllocInfo.allocationSize = mem_reqs.size;
+		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
+		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &targ->depth.memory));
+		VkAssert(vkBindImageMemory(vk.device, targ->depth.image, targ->depth.memory, 0));
+	}
+
+//		set_image_layout(vk.frame->cbuf, targ->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+//		set_image_layout(vk.frame->cbuf, targ->depth.image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+	//public sampler
+	{
+		VkSamplerCreateInfo lmsampinfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+		lmsampinfo.minFilter = lmsampinfo.magFilter = VK_FILTER_LINEAR;
+		lmsampinfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		lmsampinfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		lmsampinfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		lmsampinfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		lmsampinfo.mipLodBias = 0.0;
+		lmsampinfo.anisotropyEnable = VK_FALSE;
+		lmsampinfo.maxAnisotropy = 0;
+		lmsampinfo.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+		lmsampinfo.minLod = 0;
+		lmsampinfo.maxLod = 0;
+		lmsampinfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		lmsampinfo.unnormalizedCoordinates = VK_FALSE;
+
+		lmsampinfo.compareEnable = VK_FALSE;
+		VkAssert(vkCreateSampler(vk.device, &lmsampinfo, NULL, &targ->colour.sampler));
+
+		lmsampinfo.compareEnable = VK_TRUE;
+		VkAssert(vkCreateSampler(vk.device, &lmsampinfo, NULL, &targ->depth.sampler));
+	}
+
+	//public cubemap views
+	{
+		VkImageViewCreateInfo ivci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+		ivci.components.r = VK_COMPONENT_SWIZZLE_R;
+		ivci.components.g = VK_COMPONENT_SWIZZLE_G;
+		ivci.components.b = VK_COMPONENT_SWIZZLE_B;
+		ivci.components.a = VK_COMPONENT_SWIZZLE_A;
+		ivci.subresourceRange.baseMipLevel = 0;
+		ivci.subresourceRange.levelCount = 1;
+		ivci.subresourceRange.baseArrayLayer = 0;
+		ivci.subresourceRange.layerCount = 6;
+		ivci.viewType = VK_IMAGE_VIEW_TYPE_CUBE;
+		ivci.flags = 0;
+
+		ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		ivci.format = colour_imginfo.format;
+		ivci.image = targ->colour.image;
+		VkAssert(vkCreateImageView(vk.device, &ivci, vkallocationcb, &targ->colour.view));
+
+		ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		ivci.format = depth_imginfo.format;
+		ivci.image = targ->depth.image;
+		VkAssert(vkCreateImageView(vk.device, &ivci, vkallocationcb, &targ->depth.view));
+	}
+
+	for (f = 0; f < 6; f++)
+	{
+		targ->face[f].width = targ->face[f].height = size;
+
+		//per-face view for the framebuffer
+		{
+			VkImageViewCreateInfo ivci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+			ivci.components.r = VK_COMPONENT_SWIZZLE_R;
+			ivci.components.g = VK_COMPONENT_SWIZZLE_G;
+			ivci.components.b = VK_COMPONENT_SWIZZLE_B;
+			ivci.components.a = VK_COMPONENT_SWIZZLE_A;
+			ivci.subresourceRange.baseMipLevel = 0;
+			ivci.subresourceRange.levelCount = 1;
+			ivci.subresourceRange.baseArrayLayer = f;
+			ivci.subresourceRange.layerCount = 1;
+			ivci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			ivci.flags = 0;
+
+			ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			ivci.format = colour_imginfo.format;
+			ivci.image = targ->colour.image;
+			VkAssert(vkCreateImageView(vk.device, &ivci, vkallocationcb, &targ->face[f].colour.view));
+
+			ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			ivci.format = depth_imginfo.format;
+			ivci.image = targ->depth.image;
+			VkAssert(vkCreateImageView(vk.device, &ivci, vkallocationcb, &targ->face[f].depth.view));
+		}
+
+		targ->colour.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		targ->depth.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+		{
+			VkFramebufferCreateInfo fbinfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+			VkImageView attachments[2] = {targ->face[f].colour.view, targ->face[f].depth.view};
+			fbinfo.flags = 0;
+			fbinfo.renderPass = vk.renderpass[2];
+			fbinfo.attachmentCount = countof(attachments);
+			fbinfo.pAttachments = attachments;
+			fbinfo.width = size;
+			fbinfo.height = size;
+			fbinfo.layers = 1;
+			VkAssert(vkCreateFramebuffer(vk.device, &fbinfo, vkallocationcb, &targ->face[f].framebuffer));
+		}
+
+		targ->face[f].restartinfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		targ->face[f].restartinfo.pNext = NULL;
+		targ->face[f].restartinfo.framebuffer = targ->face[f].framebuffer;
+		targ->face[f].restartinfo.renderArea.offset.x = 0;
+		targ->face[f].restartinfo.renderArea.offset.y = 0;
+		targ->face[f].restartinfo.renderArea.extent.width = size;
+		targ->face[f].restartinfo.renderArea.extent.height = size;
+		targ->face[f].restartinfo.pClearValues = clearvalues;
+	}
+	clearvalues[1].depthStencil.depth = 1;
+}
+
+void VKBE_RT_Begin(struct vk_rendertarg *targ)
+{
+	if (vk.rendertarg == targ)
+		return;
+
+	if (vk.rendertarg)
+		vkCmdEndRenderPass(vk.frame->cbuf);
 
 	r_refdef.pxrect.x = 0;
 	r_refdef.pxrect.y = 0;
 	r_refdef.pxrect.width = targ->width;
 	r_refdef.pxrect.height = targ->height;
+	r_refdef.pxrect.maxheight = targ->height;
 
+	vid.fbpwidth = targ->width;
+	vid.fbpheight = targ->height;
+
+	vkCmdBeginRenderPass(vk.frame->cbuf, &targ->restartinfo, VK_SUBPASS_CONTENTS_INLINE);
+	//future reuse shouldn't clear stuff
+	if (targ->restartinfo.clearValueCount)
 	{
-		VkClearValue clearvalues[2];
-		VkRenderPassBeginInfo rpass = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
-		rpass.renderPass = vk.renderpass[2];
-		rpass.framebuffer = targ->framebuffer;
-		rpass.renderArea.offset.x = 0;
-		rpass.renderArea.offset.y = 0;
-		rpass.renderArea.extent.width = targ->width;
-		rpass.renderArea.extent.height = targ->height;
-		rpass.clearValueCount = 2;
-		rpass.pClearValues = clearvalues;
-
-		Vector4Set(clearvalues[0].color.float32, 0, 0, 0, 0);
-		clearvalues[1].depthStencil.depth = 1;
-		clearvalues[1].depthStencil.stencil = 0;
-		vkCmdBeginRenderPass(vk.frame->cbuf, &rpass, VK_SUBPASS_CONTENTS_INLINE);
-
-		rpass.renderPass = vk.renderpass[0];
-		rpass.pClearValues = NULL;
-		rpass.clearValueCount = 0;
-		targ->restartinfo = rpass;
-		targ->prev = vk.rendertarg;
-		vk.rendertarg = targ;
+		targ->depthcleared = true;
+		targ->restartinfo.renderPass = vk.renderpass[0];
+		targ->restartinfo.clearValueCount = 0;
 	}
-
-	{
-		VkRect2D wrekt;
-		VkViewport viewport;
-		viewport.x = r_refdef.pxrect.x;
-		viewport.y = r_refdef.pxrect.y;
-		viewport.width = r_refdef.pxrect.width;
-		viewport.height = r_refdef.pxrect.height;
-		viewport.minDepth = 0;
-		viewport.maxDepth = shaderstate.depthrange;
-		vkCmdSetViewport(vk.frame->cbuf, 0, 1, &viewport);
-		wrekt.offset.x = viewport.x;
-		wrekt.offset.y = viewport.y;
-		wrekt.extent.width = viewport.width;
-		wrekt.extent.height = viewport.height;
-		vkCmdSetScissor(vk.frame->cbuf, 0, 1, &wrekt);
-	}
-}
-void VKBE_RT_End(void)
-{
-	vkCmdEndRenderPass(vk.frame->cbuf);
-
-	vk.rendertarg = vk.rendertarg->prev;
-
-	vkCmdBeginRenderPass(vk.frame->cbuf, &vk.rendertarg->restartinfo, VK_SUBPASS_CONTENTS_INLINE);
+	vk.rendertarg = targ;
 
 	{
 		VkRect2D wrekt;
@@ -4633,6 +4850,7 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 {
 	float oldil;
 	int oldbem;
+	struct vk_rendertarg *targ;
 	//these flags require rendering some view as an fbo
 	if (r_refdef.recurse)
 		return false;
@@ -4640,9 +4858,11 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 		return false;
 	oldbem = shaderstate.mode;
 	oldil = shaderstate.identitylighting;
+	targ = vk.rendertarg;
 
 	if (bs->flags & SHADER_HASREFLECT)
 	{
+		struct vk_rendertarg *targ = vk.rendertarg;
 		vrect_t orect = r_refdef.vrect;
 		pxrect_t oprect = r_refdef.pxrect;
 
@@ -4650,11 +4870,11 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 		r_refdef.vrect.y = 0;
 		r_refdef.vrect.width = vid.fbvwidth/2;
 		r_refdef.vrect.height = vid.fbvheight/2;
-		VKBE_RT_Begin(&shaderstate.rt_reflection, vid.fbpwidth/2, vid.fbpheight/2);
+		VKBE_RT_Gen(&shaderstate.rt_reflection, vid.fbpwidth/2, vid.fbpheight/2, false);
+		VKBE_RT_Begin(&shaderstate.rt_reflection);
 		R_DrawPortal(batch, cl.worldmodel->batches, NULL, 1);
 		r_refdef.vrect = orect;
 		r_refdef.pxrect = oprect;
-		VKBE_RT_End();
 	}
 	if (bs->flags & (SHADER_HASREFRACT|SHADER_HASREFRACTDEPTH))
 	{
@@ -4668,16 +4888,18 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 			r_refdef.vrect.y = 0;
 			r_refdef.vrect.width = vid.fbvwidth/2;
 			r_refdef.vrect.height = vid.fbvheight/2;
-			VKBE_RT_Begin(&shaderstate.rt_refraction, vid.fbpwidth/2, vid.fbpheight/2);
+			VKBE_RT_Gen(&shaderstate.rt_refraction, vid.fbpwidth/2, vid.fbpheight/2, false);
+			VKBE_RT_Begin(&shaderstate.rt_refraction);
 			R_DrawPortal(batch, cl.worldmodel->batches, NULL, ((bs->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
 			r_refdef.vrect = ovrect;
 			r_refdef.pxrect = oprect;
-			VKBE_RT_End();
 
 			shaderstate.tex_refraction = &shaderstate.rt_refraction.q_colour;
+			VKBE_RT_Begin(targ);
 		}
 		else
 		{
+			VKBE_RT_Begin(targ);
 			R_DrawPortal(batch, cl.worldmodel->batches, NULL, 3);
 			T_Gen_CurrentRender();
 			shaderstate.tex_refraction = shaderstate.tex_currentrender;
@@ -4737,6 +4959,7 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 		BE_RT_End();
 	}
 	*/
+	VKBE_RT_Begin(targ);
 	VKBE_SelectMode(oldbem);
 	shaderstate.identitylighting = oldil;
 
@@ -5698,7 +5921,7 @@ void VKBE_DoneShadows(void)
 	vkCmdBeginRenderPass(vk.frame->cbuf, &vk.rendertarg->restartinfo, VK_SUBPASS_CONTENTS_INLINE);
 
 	viewport.x = r_refdef.pxrect.x;
-	viewport.y = r_refdef.pxrect.maxheight - (r_refdef.pxrect.y+r_refdef.pxrect.height);	//silly GL...
+	viewport.y = r_refdef.pxrect.y;//r_refdef.pxrect.maxheight - (r_refdef.pxrect.y+r_refdef.pxrect.height);	//silly GL...
 	viewport.width = r_refdef.pxrect.width;
 	viewport.height = r_refdef.pxrect.height;
 	viewport.minDepth = 0;
@@ -5798,6 +6021,7 @@ void VKBE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 		else
 #endif
 			shaderstate.identitylighting = 1;
+		shaderstate.identitylighting *= r_refdef.hdr_value;
 		shaderstate.identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
 
 		VKBE_SelectMode(BEM_STANDARD);

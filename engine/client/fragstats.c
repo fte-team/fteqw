@@ -726,7 +726,7 @@ static void Stats_LoadFragFile(char *name)
 }
 
 
-static int qm_strcmp(char *s1, char *s2)//not like strcmp at all...
+static int qm_strcmp(const char *s1, const char *s2)//not like strcmp at all...
 {
 	while(*s1)
 	{
@@ -757,7 +757,7 @@ static int qm_stricmp(char *s1, char *s2)//not like strcmp at all...
 }
 */
 
-static int Stats_ExtractName(char **line)
+static int Stats_ExtractName(const char **line)
 {
 	int i;
 	int bm;
@@ -801,7 +801,7 @@ qboolean Stats_ParsePrintLine(const char *line)
 	statmessage_t *ms;
 	int p1;
 	int p2;
-	char *m2;
+	const char *m2;
 
 	p1 = Stats_ExtractName(&line);
 	if (p1<0)	//reject it.

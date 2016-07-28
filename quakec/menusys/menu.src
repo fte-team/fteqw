@@ -71,7 +71,7 @@ void(mitem_desktop desktop) M_Pop =
 
 mitem_desktop desktop;
 void() m_shutdown = {};
-void() m_draw = {items_draw(desktop);};
+void(vector screensize) m_draw = {items_draw(desktop);};
 void(float scan, float chr) m_keydown = {items_keypress(desktop, scan, chr, TRUE);};
 void(float scan, float chr) m_keyup = {items_keypress(desktop, scan, chr, FALSE);};
 void(float mode) m_toggle

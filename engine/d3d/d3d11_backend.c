@@ -3578,6 +3578,7 @@ void D3D11BE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 		else
 #endif
 			shaderstate.identitylighting = 1;
+		shaderstate.identitylighting *= r_refdef.hdr_value;
 //		shaderstate.identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
 
 		BE_SelectMode(BEM_STANDARD);

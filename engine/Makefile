@@ -1944,6 +1944,6 @@ INSTALL ?= install
 INSTALL_PROGRAM ?= $(INSTALL)
 INSTALL_DATA ?= ${INSTALL} -m 644
 install: sv-rel gl-rel mingl-rel qcc-rel
-	$(INSTALL_PROGRAM) $(RELEASE_DIR)fteqw $(DESTDIR)$(bindir)/fteqw
-	$(INSTALL_PROGRAM) $(RELEASE_DIR)fteqwsv $(DESTDIR)$(bindir)/fteqwsv
-	$(INSTALL_PROGRAM) $(RELEASE_DIR)fteqcc $(DESTDIR)$(bindir)/fteqcc
+	$(INSTALL_PROGRAM) $(RELEASE_DIR)/fteqw $(DESTDIR)$(bindir)/fteqw
+	$(INSTALL_PROGRAM) $(RELEASE_DIR)/fteqwsv $(DESTDIR)$(bindir)/fteqwsv
+	$(INSTALL_PROGRAM) $(RELEASE_DIR)/fteqcc $(DESTDIR)$(bindir)/fteqcc

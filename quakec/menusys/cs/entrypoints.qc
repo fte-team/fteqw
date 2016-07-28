@@ -93,7 +93,7 @@ float (float event, float parama, float paramb, float devid) CSQC_InputEvent =
 {
 	if (!thedesktop)
 		return event!=IE_KEYUP;
-	if (items_keypress(thedesktop, event, parama, paramb, devid))
+	if (items_keypress_(thedesktop, event, parama, paramb, devid))
 		return TRUE;
 
 	return FALSE;

@@ -54,8 +54,9 @@ static void VK_DestroyRenderPass(void);
 static void VK_CreateRenderPass(void);
 		
 struct vulkaninfo_s vk;
-static struct vk_rendertarg postproc[2];
+static struct vk_rendertarg postproc[4];
 static unsigned int postproc_buf;
+static struct vk_rendertarg_cube vk_rt_cubemap;
 
 qboolean VK_SCR_GrabBackBuffer(void);
 
@@ -1091,7 +1092,7 @@ void	VK_R_DeInit					(void)
 	Image_Shutdown();
 }
 
-void VK_SetupViewPortProjection(void)
+void VK_SetupViewPortProjection(qboolean flipy)
 {
 	extern cvar_t gl_mindist;
 
@@ -1112,7 +1113,19 @@ void VK_SetupViewPortProjection(void)
 //	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
 
 	/*view matrix*/
-	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
+	if (flipy)	//mimic gl and give bottom-up
+	{
+		vec3_t down;
+		VectorNegate(vup, down);
+		VectorCopy(down, vup);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, down, r_refdef.vieworg);
+		r_refdef.flipcull = SHADER_CULL_FRONT | SHADER_CULL_BACK;
+	}
+	else
+	{
+		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
+		r_refdef.flipcull = 0;
+	}
 	Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, bound(0.1, gl_mindist.value, 4));
 }
 
@@ -1304,10 +1317,292 @@ void VK_Init_PostProc(void)
 }
 
 
+
+static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
+{
+	int cmapsize = 512;
+	int i;
+	static vec3_t ang[6] =
+				{	{0, -90, 0}, {0, 90, 0},
+					{90, 0, 0}, {-90, 0, 0},
+					{0, 0, 0}, {0, -180, 0}	};
+	vec3_t saveang;
+	vec3_t saveorg;
+
+	vrect_t vrect;
+	pxrect_t prect;
+	extern cvar_t ffov;
+
+	shader_t *shader;
+	int facemask;
+	extern cvar_t r_projection;
+	int oldfbo = -1;
+	qboolean fboreset = false;
+	int osm = r_refdef.stereomethod;
+	struct vk_rendertarg_cube *rtc = &vk_rt_cubemap;
+
+	if (!*ffov.string || !strcmp(ffov.string, "0"))
+	{
+		if (ffov.vec4[0] != scr_fov.value)
+		{
+			ffov.value = ffov.vec4[0] = scr_fov.value;
+			Shader_NeedReload(false);	//gah!
+		}
+	}
+
+	facemask = 0;
+	switch(r_projection.ival)
+	{
+	default:	//invalid.
+		return false;
+	case PROJ_STEREOGRAPHIC:
+		shader = R_RegisterShader("postproc_stereographic", SUF_NONE,
+				"{\n"
+					"program postproc_stereographic\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value > 70)
+		{
+			facemask |= (1<<0) | (1<<1); /*side/top*/
+			if (ffov.value > 85)
+				facemask |= (1<<2) | (1<<3); /*bottom views*/
+			if (ffov.value > 300)
+				facemask |= 1<<5; /*back view*/
+		}
+		break;
+	case PROJ_FISHEYE:
+		shader = R_RegisterShader("postproc_fisheye", SUF_NONE,
+				"{\n"
+					"program postproc_fisheye\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		//fisheye view sees up to a full sphere
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value > 77)
+			facemask |= (1<<0) | (1<<1) | (1<<2) | (1<<3); /*side/top/bottom views*/
+		if (ffov.value > 270)
+			facemask |= 1<<5; /*back view*/
+		break;
+	case PROJ_PANORAMA:
+		shader = R_RegisterShader("postproc_panorama", SUF_NONE,
+				"{\n"
+					"program postproc_panorama\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		//panoramic view needs at most the four sides
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value > 90)
+		{
+			facemask |= (1<<0) | (1<<1); /*side views*/
+			if (ffov.value > 270)
+				facemask |= 1<<5; /*back view*/
+		}
+		facemask = 0x3f;
+		break;
+	case PROJ_LAEA:
+		shader = R_RegisterShader("postproc_laea", SUF_NONE,
+				"{\n"
+					"program postproc_laea\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value > 90)
+		{
+			facemask |= (1<<0) | (1<<1) | (1<<2) | (1<<3); /*side/top/bottom views*/
+			if (ffov.value > 270)
+				facemask |= 1<<5; /*back view*/
+		}
+		break;
+
+	case PROJ_EQUIRECTANGULAR:
+		shader = R_RegisterShader("postproc_equirectangular", SUF_NONE,
+				"{\n"
+					"program postproc_equirectangular\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		facemask = 0x3f;
+#if 0
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value > 90)
+		{
+			facemask |= (1<<0) | (1<<1) | (1<<2) | (1<<3); /*side/top/bottom views*/
+			if (ffov.value > 270)
+				facemask |= 1<<5; /*back view*/
+		}
+#endif
+		break;
+	}
+
+	if (!shader || !shader->prog)
+		return false;	//erk. shader failed.
+
+	//FIXME: we should be able to rotate the view
+
+	vrect = r_refdef.vrect;
+	prect = r_refdef.pxrect;
+//	prect.x = (vrect.x * vid.pixelwidth)/vid.width;
+//	prect.width = (vrect.width * vid.pixelwidth)/vid.width;
+//	prect.y = (vrect.y * vid.pixelheight)/vid.height;
+//	prect.height = (vrect.height * vid.pixelheight)/vid.height;
+
+	if (sh_config.texture_non_power_of_two_pic)
+	{
+		cmapsize = prect.width > prect.height?prect.width:prect.height;
+		if (cmapsize > 4096)//sh_config.texture_maxsize)
+			cmapsize = 4096;//sh_config.texture_maxsize;
+	}
+
+
+	r_refdef.flags |= RDF_FISHEYE;
+	vid.fbpwidth = vid.fbpheight = cmapsize;
+
+	//FIXME: gl_max_size
+
+	VectorCopy(r_refdef.vieworg, saveorg);
+	VectorCopy(r_refdef.viewangles, saveang);
+	saveang[2] = 0;
+
+	r_refdef.stereomethod = STEREO_OFF;
+
+	VKBE_RT_Gen_Cube(rtc, cmapsize, r_clear.ival?true:false);
+
+	vrect = r_refdef.vrect;	//save off the old vrect
+
+	r_refdef.vrect.width = (cmapsize * vid.fbvwidth) / vid.fbpwidth;
+	r_refdef.vrect.height = (cmapsize * vid.fbvheight) / vid.fbpheight;
+	r_refdef.vrect.x = 0;
+	r_refdef.vrect.y = prect.y;
+
+	ang[0][0] = -saveang[0];
+	ang[0][1] = -90;
+	ang[0][2] = -saveang[0];
+
+	ang[1][0] = -saveang[0];
+	ang[1][1] = 90;
+	ang[1][2] = saveang[0];
+	ang[5][0] = -saveang[0]*2;
+
+	//in theory, we could use a geometry shader to duplicate the polygons to each face.
+	//that would of course require that every bit of glsl had such a geometry shader.
+	//it would at least reduce cpu load quite a bit.
+	for (i = 0; i < 6; i++)
+	{
+		if (!(facemask & (1<<i)))
+			continue;
+
+		VKBE_RT_Begin(&rtc->face[i]);
+
+		r_refdef.fov_x = 90;
+		r_refdef.fov_y = 90;
+		r_refdef.viewangles[0] = saveang[0]+ang[i][0];
+		r_refdef.viewangles[1] = saveang[1]+ang[i][1];
+		r_refdef.viewangles[2] = saveang[2]+ang[i][2];
+
+
+		VK_SetupViewPortProjection(true);
+
+		/*if (!vk.rendertarg->depthcleared)
+		{
+			VkClearAttachment clr;
+			VkClearRect rect;
+			clr.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			clr.clearValue.depthStencil.depth = 1;
+			clr.clearValue.depthStencil.stencil = 0;
+			clr.colorAttachment = 1;
+			rect.rect.offset.x = r_refdef.pxrect.x;
+			rect.rect.offset.y = r_refdef.pxrect.y;
+			rect.rect.extent.width = r_refdef.pxrect.width;
+			rect.rect.extent.height = r_refdef.pxrect.height;
+			rect.layerCount = 1;
+			rect.baseArrayLayer = 0;
+			vkCmdClearAttachments(vk.frame->cbuf, 1, &clr, 1, &rect);
+			vk.rendertarg->depthcleared = true;
+		}*/
+
+		VKBE_SelectEntity(&r_worldentity);
+
+		R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+		RQ_BeginFrame();
+		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+		{
+			if (cl.worldmodel)
+				P_DrawParticles ();
+		}
+		Surf_DrawWorld();
+		RQ_RenderBatchClear();
+
+		vk.rendertarg->depthcleared = false;
+
+		if (R2D_Flush)
+			Con_Printf("no flush\n");
+	}
+
+	r_refdef.vrect = vrect;
+	r_refdef.pxrect = prect;
+	VectorCopy(saveorg, r_refdef.vieworg);
+	r_refdef.stereomethod = osm;
+
+	VKBE_RT_Begin(fb);
+
+	r_refdef.flipcull = 0;
+	VK_Set2D();
+
+	shader->defaulttextures->reflectcube = &rtc->q_colour;
+
+	// draw it through the shader
+	if (r_projection.ival == PROJ_EQUIRECTANGULAR)
+	{
+		//note vr screenshots have requirements here
+		R2D_Image(vrect.x, vrect.y, vrect.width, vrect.height, 0, 1, 1, 0, shader);
+	}
+	else if (r_projection.ival == PROJ_PANORAMA)
+	{
+		float saspect = .5;
+		float taspect = vrect.height / vrect.width * ffov.value / 90;//(0.5 * vrect.width) / vrect.height;
+		R2D_Image(vrect.x, vrect.y, vrect.width, vrect.height, -saspect, taspect, saspect, -taspect, shader);
+	}
+	else if (vrect.width > vrect.height)
+	{
+		float aspect = (0.5 * vrect.height) / vrect.width;
+		R2D_Image(vrect.x, vrect.y, vrect.width, vrect.height, -0.5, aspect, 0.5, -aspect, shader);
+	}
+	else
+	{
+		float aspect = (0.5 * vrect.width) / vrect.height;
+		R2D_Image(vrect.x, vrect.y, vrect.width, vrect.height, -aspect, 0.5, aspect, -0.5, shader);
+	}
+
+	if (R2D_Flush)
+		R2D_Flush();
+
+	return true;
+}
+
 void	VK_R_RenderView				(void)
 {
 	extern unsigned int r_viewcontents;
-	struct vk_rendertarg *rt;
+	struct vk_rendertarg *rt, *rtscreen = vk.rendertarg;
 	extern cvar_t r_fxaa;
 	extern	cvar_t r_renderscale, r_postprocshader;
 	float renderscale = r_renderscale.value;
@@ -1381,6 +1676,7 @@ void	VK_R_RenderView				(void)
 		r_refdef.pxrect.y = y;
 		r_refdef.pxrect.width = x2 - x;
 		r_refdef.pxrect.height = y2 - y;
+		r_refdef.pxrect.maxheight = vid.pixelheight;
 	}
 
 	if (renderscale != 1.0)
@@ -1388,78 +1684,89 @@ void	VK_R_RenderView				(void)
 		r_refdef.flags |= RDF_RENDERSCALE;
 		r_refdef.pxrect.width *= renderscale;
 		r_refdef.pxrect.height *= renderscale;
+		r_refdef.pxrect.maxheight = r_refdef.pxrect.height;
 	}
 
 	if (r_refdef.pxrect.width <= 0 || r_refdef.pxrect.height <= 0)
 		return;	//you're not allowed to do that, dude.
 
-	//FIXME: RDF_BLOOM|RDF_FISHEYE
 	//FIXME: VF_RT_*
+	//FIXME: if we're meant to be using msaa, render the scene to an msaa target and then resolve.
 
+	if (R_CanBloom())
+		r_refdef.flags |= RDF_BLOOM;
+
+	postproc_buf = 0;
 	if (r_refdef.flags & (RDF_ALLPOSTPROC|RDF_RENDERSCALE))
 	{
 		r_refdef.pxrect.x = 0;
 		r_refdef.pxrect.y = 0;
 		rt = &postproc[postproc_buf++%countof(postproc)];
-		if (rt->width != r_refdef.pxrect.width || rt->height != r_refdef.pxrect.height)
-			VKBE_RT_Gen(rt, r_refdef.pxrect.width, r_refdef.pxrect.height);
-		VKBE_RT_Begin(rt, rt->width, rt->height);
+		VKBE_RT_Gen(rt, r_refdef.pxrect.width, r_refdef.pxrect.height, false);
 	}
 	else
-		rt = NULL;
+		rt = rtscreen;
 
-	VK_SetupViewPortProjection();
-
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && VK_R_RenderScene_Cubemap(rt))
 	{
-		VkViewport vp[1];
-		VkRect2D scissor[1];
-		vp[0].x = r_refdef.pxrect.x;
-		vp[0].y = r_refdef.pxrect.y;
-		vp[0].width = r_refdef.pxrect.width;
-		vp[0].height = r_refdef.pxrect.height;
-		vp[0].minDepth = 0.0;
-		vp[0].maxDepth = 1.0;
-		scissor[0].offset.x = r_refdef.pxrect.x;
-		scissor[0].offset.y = r_refdef.pxrect.y;
-		scissor[0].extent.width = r_refdef.pxrect.width;
-		scissor[0].extent.height = r_refdef.pxrect.height;
-		vkCmdSetViewport(vk.frame->cbuf, 0, countof(vp), vp);
-		vkCmdSetScissor(vk.frame->cbuf, 0, countof(scissor), scissor);
 	}
-
-	if (!vk.rendertarg->depthcleared)
+	else
 	{
-		VkClearAttachment clr;
-		VkClearRect rect;
-		clr.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		clr.clearValue.depthStencil.depth = 1;
-		clr.clearValue.depthStencil.stencil = 0;
-		clr.colorAttachment = 1;
-		rect.rect.offset.x = r_refdef.pxrect.x;
-		rect.rect.offset.y = r_refdef.pxrect.y;
-		rect.rect.extent.width = r_refdef.pxrect.width;
-		rect.rect.extent.height = r_refdef.pxrect.height;
-		rect.layerCount = 1;
-		rect.baseArrayLayer = 0;
-		vkCmdClearAttachments(vk.frame->cbuf, 1, &clr, 1, &rect);
-		vk.rendertarg->depthcleared = true;
+		VKBE_RT_Begin(rt);
+
+		VK_SetupViewPortProjection(false);
+
+		{
+			VkViewport vp[1];
+			VkRect2D scissor[1];
+			vp[0].x = r_refdef.pxrect.x;
+			vp[0].y = r_refdef.pxrect.y;
+			vp[0].width = r_refdef.pxrect.width;
+			vp[0].height = r_refdef.pxrect.height;
+			vp[0].minDepth = 0.0;
+			vp[0].maxDepth = 1.0;
+			scissor[0].offset.x = r_refdef.pxrect.x;
+			scissor[0].offset.y = r_refdef.pxrect.y;
+			scissor[0].extent.width = r_refdef.pxrect.width;
+			scissor[0].extent.height = r_refdef.pxrect.height;
+			vkCmdSetViewport(vk.frame->cbuf, 0, countof(vp), vp);
+			vkCmdSetScissor(vk.frame->cbuf, 0, countof(scissor), scissor);
+		}
+
+		if (!vk.rendertarg->depthcleared)
+		{
+			VkClearAttachment clr;
+			VkClearRect rect;
+			clr.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			clr.clearValue.depthStencil.depth = 1;
+			clr.clearValue.depthStencil.stencil = 0;
+			clr.colorAttachment = 1;
+			rect.rect.offset.x = r_refdef.pxrect.x;
+			rect.rect.offset.y = r_refdef.pxrect.y;
+			rect.rect.extent.width = r_refdef.pxrect.width;
+			rect.rect.extent.height = r_refdef.pxrect.height;
+			rect.layerCount = 1;
+			rect.baseArrayLayer = 0;
+			vkCmdClearAttachments(vk.frame->cbuf, 1, &clr, 1, &rect);
+			vk.rendertarg->depthcleared = true;
+		}
+
+		VKBE_SelectEntity(&r_worldentity);
+
+		R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+		RQ_BeginFrame();
+		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+		{
+			if (cl.worldmodel)
+				P_DrawParticles ();
+		}
+		Surf_DrawWorld();
+		RQ_RenderBatchClear();
+
+		vk.rendertarg->depthcleared = false;
+
+		VK_Set2D ();
 	}
-
-	VKBE_SelectEntity(&r_worldentity);
-
-	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
-	RQ_BeginFrame();
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
-	{
-		if (cl.worldmodel)
-			P_DrawParticles ();
-	}
-	Surf_DrawWorld();
-	RQ_RenderBatchClear();
-
-	vk.rendertarg->depthcleared = false;
-
-	VK_Set2D ();
 
 	if (r_refdef.flags & RDF_ALLPOSTPROC)
 	{
@@ -1469,46 +1776,56 @@ void	VK_R_RenderView				(void)
 		if (r_refdef.flags & RDF_WATERWARP)
 		{
 			r_refdef.flags &= ~RDF_WATERWARP;
-			VKBE_RT_End();	//WARNING: redundant begin+end renderpasses.
 			vk.sourcecolour = &rt->q_colour;
 			if (r_refdef.flags & RDF_ALLPOSTPROC)
 			{
 				rt = &postproc[postproc_buf++];
-				VKBE_RT_Begin(rt, 320, 240);
+				VKBE_RT_Gen(rt, 320, 200, false);
 			}
-
+			else
+				rt = rtscreen;
+			VKBE_RT_Begin(rt);
 			R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 0, 1, 1, vk.scenepp_waterwarp);
 			R2D_Flush();
 		}
 		if (r_refdef.flags & RDF_CUSTOMPOSTPROC)
 		{
 			r_refdef.flags &= ~RDF_CUSTOMPOSTPROC;
-			VKBE_RT_End();	//WARNING: redundant begin+end renderpasses.
 			vk.sourcecolour = &rt->q_colour;
 			if (r_refdef.flags & RDF_ALLPOSTPROC)
 			{
 				rt = &postproc[postproc_buf++];
-				VKBE_RT_Begin(rt, 320, 240);
+				VKBE_RT_Gen(rt, 320, 200, false);
 			}
-
+			else
+				rt = rtscreen;
+			VKBE_RT_Begin(rt);
 			R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 1, 1, 0, custompostproc);
 			R2D_Flush();
 		}
 		if (r_refdef.flags & RDF_ANTIALIAS)
 		{
 			r_refdef.flags &= ~RDF_ANTIALIAS;
-			VKBE_RT_End();	//WARNING: redundant begin+end renderpasses.
+			R2D_ImageColours(rt->width, rt->height, 1, 1);
 			vk.sourcecolour = &rt->q_colour;
 			if (r_refdef.flags & RDF_ALLPOSTPROC)
 			{
 				rt = &postproc[postproc_buf++];
-				VKBE_RT_Begin(rt, 320, 240);
+				VKBE_RT_Gen(rt, 320, 200, false);
 			}
-
+			else
+				rt = rtscreen;
+			VKBE_RT_Begin(rt);
 			R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 1, 1, 0, vk.scenepp_antialias);
+			R2D_ImageColours(1, 1, 1, 1);
 			R2D_Flush();
 		}
-		//FIXME: bloom
+		if (r_refdef.flags & RDF_BLOOM)
+		{
+			VKBE_RT_Begin(rtscreen);
+			VK_R_BloomBlend(&rt->q_colour, r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
+			rt = rtscreen;
+		}
 	}
 	else if (r_refdef.flags & RDF_RENDERSCALE)
 	{
@@ -1521,8 +1838,9 @@ void	VK_R_RenderView				(void)
 					"}\n"
 				"}\n"
 				);
-		VKBE_RT_End();	//WARNING: redundant begin+end renderpasses.
 		vk.sourcecolour = &rt->q_colour;
+		rt = rtscreen;
+		VKBE_RT_Begin(rt);
 		R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 0, 1, 1, vk.scenepp_rescale);
 		R2D_Flush();
 	}
@@ -1752,7 +2070,7 @@ static void VK_PaintScreen(void)
 //			scr_con_forcedraw = true;
 
 		nohud = true;
-	}		
+	}
 
 	SCR_DrawTwoDimensional(uimenu, nohud);
 
@@ -1937,6 +2255,9 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		rpbi.renderArea.extent.height = vid.pixelheight;
 		rpbi.pClearValues = clearvalues;
 		vkCmdBeginRenderPass(vk.frame->cbuf, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
+
+		vk.frame->backbuf->width = vid.pixelwidth;
+		vk.frame->backbuf->height = vid.pixelheight;
 
 		rpbi.clearValueCount = 0;
 		rpbi.pClearValues = NULL;
@@ -2843,7 +3164,9 @@ void VK_Shutdown(void)
 	VK_DestroySwapChain();
 
 	for (i = 0; i < countof(postproc); i++)
-		VKBE_RT_Destroy(&postproc[i]);
+		VKBE_RT_Gen(&postproc[i], 0, 0, false);
+	VKBE_RT_Gen_Cube(&vk_rt_cubemap, 0, false);
+	VK_R_BloomShutdown();
 
 	vkDestroyCommandPool(vk.device, vk.cmdpool, vkallocationcb);
 	VK_DestroyRenderPass();

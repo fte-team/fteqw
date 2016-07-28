@@ -201,7 +201,13 @@ struct vk_rendertarg
 	qboolean depthcleared;	//starting a new gameview needs cleared depth relative to other views, but the first probably won't.
 
 	VkRenderPassBeginInfo restartinfo;
-	struct vk_rendertarg *prev;
+};
+struct vk_rendertarg_cube
+{
+	uint32_t size;
+	image_t q_colour, q_depth;	//extra sillyness...
+	vk_image_t colour, depth;
+	struct vk_rendertarg face[6];
 };
 
 extern struct vulkaninfo_s
@@ -336,6 +342,10 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips);
 qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*createSurface)(void));
 void VK_Shutdown(void);
 
+void VK_R_BloomBlend (texid_t source, int x, int y, int w, int h);
+void VK_R_BloomShutdown(void);
+qboolean R_CanBloom(void);
+
 struct programshared_s;
 qboolean VK_LoadGLSL(struct programshared_s *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
 
@@ -374,9 +384,9 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height);
 void VKBE_BeginShadowmapFace(void);
 void VKBE_DoneShadows(void);
 
-void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height);
-void VKBE_RT_Begin(struct vk_rendertarg *targ, uint32_t width, uint32_t height);
-void VKBE_RT_End(void);
+void VKBE_RT_Gen_Cube(struct vk_rendertarg_cube *targ, uint32_t size, qboolean clear);
+void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qboolean clear);
+void VKBE_RT_Begin(struct vk_rendertarg *targ);
 void VKBE_RT_Destroy(struct vk_rendertarg *targ);
 
 

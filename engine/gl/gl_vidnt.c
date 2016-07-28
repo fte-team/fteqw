@@ -1831,11 +1831,11 @@ void OblitterateOldGamma(void)
 	}
 }
 
-qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
+qboolean GLVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramps)
 {
 	if (ramps)
 	{
-		if (!gammaworks)
+		if (!gammaworks || gammarampsize != 256)
 			return false;
 
 		if (vid_hardwaregamma.value == 1 && modestate == MS_WINDOWED)

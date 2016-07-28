@@ -1336,8 +1336,6 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 	shader_t *shader;
 	int facemask;
 	extern cvar_t r_projection;
-	int oldfbo = -1;
-	qboolean fboreset = false;
 	int osm = r_refdef.stereomethod;
 	struct vk_rendertarg_cube *rtc = &vk_rt_cubemap;
 
@@ -3178,10 +3176,10 @@ void VK_Shutdown(void)
 		size_t size;
 		if (VK_SUCCESS == vkGetPipelineCacheData(vk.device, vk.pipelinecache, &size, NULL))
 		{
-			void *ptr = BZ_Malloc(size);
+			void *ptr = Z_Malloc(size);	//valgrind says nvidia isn't initialising this.
 			if (VK_SUCCESS == vkGetPipelineCacheData(vk.device, vk.pipelinecache, &size, ptr))
 				FS_WriteFile("vulkan.pcache", ptr, size, FS_ROOT);
-			BZ_Free(ptr);
+			Z_Free(ptr);
 		}
 		vkDestroyPipelineCache(vk.device, vk.pipelinecache, vkallocationcb);
 	}

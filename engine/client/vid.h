@@ -75,6 +75,7 @@ typedef struct
 	qboolean		activeapp;
 	qboolean		isminimized;	//can omit rendering as it won't be seen anyway.
 	int				fullbright;		// index of first fullbright color
+	int				gammarampsize;		//typically 256. but can be up to 1024 (yay 10-bit hardware that's crippled to only actually use 8)
 
 	unsigned		fbvwidth; /*virtual 2d width of the current framebuffer image*/
 	unsigned		fbvheight; /*virtual 2d height*/
@@ -103,7 +104,7 @@ extern unsigned int	d_8to24bgrtable[256];
 
 #ifdef GLQUAKE
 //called when gamma ramps need to be reapplied
-qboolean GLVID_ApplyGammaRamps (unsigned short *ramps);
+qboolean GLVID_ApplyGammaRamps (unsigned int size, unsigned short *ramps);
 
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette);
 // Called at startup to set up translation tables, takes 256 8 bit RGB values

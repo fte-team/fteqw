@@ -618,79 +618,80 @@ void DumpGLState(void);
 #endif
 static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 {
-    int fd;
-    void *array[64];
-    size_t size;
-    int firstframe = 0;
-    char signame[32];
+	int fd;
+	void *array[64];
+	size_t size;
+	int firstframe = 0;
+	char signame[32];
 
-    switch(sig)
-    {
+	switch(sig)
+	{
 	case SIGINT:    strcpy(signame, "SIGINT");  break;
-    case SIGILL:    strcpy(signame, "SIGILL");  break;
-    case SIGFPE:    strcpy(signame, "SIGFPE");  break;
-    case SIGBUS:    strcpy(signame, "SIGBUS");  break;
-    case SIGSEGV:   Q_snprintfz(signame, sizeof(signame), "SIGSEGV (%p)", info->si_addr);   break;
-    default:    Q_snprintfz(signame, sizeof(signame), "%i", sig);   break;
-    }
+	case SIGILL:    strcpy(signame, "SIGILL");  break;
+	case SIGFPE:    strcpy(signame, "SIGFPE");  break;
+	case SIGBUS:    strcpy(signame, "SIGBUS");  break;
+	case SIGSEGV:   Q_snprintfz(signame, sizeof(signame), "SIGSEGV (%p)", info->si_addr);   break;
+	default:    Q_snprintfz(signame, sizeof(signame), "%i", sig);   break;
+	}
 
-    // get void*'s for all entries on the stack
-    size = backtrace(array, sizeof(array)/sizeof(array[0]));
+	// get void*'s for all entries on the stack
+	size = backtrace(array, sizeof(array)/sizeof(array[0]));
 
 #if defined(__i386__)
-    //x86 signals don't leave the stack in a clean state, so replace the signal handler with the real crash address, and hide this function
-    ucontext_t *uc = vcontext;
-    array[1] = (void*)uc->uc_mcontext.gregs[REG_EIP];
-    firstframe = 1;
+	//x86 signals don't leave the stack in a clean state, so replace the signal handler with the real crash address, and hide this function
+	ucontext_t *uc = vcontext;
+	array[1] = (void*)uc->uc_mcontext.gregs[REG_EIP];
+	firstframe = 1;
 #elif defined(__amd64__)
-    //amd64 is sane enough, but this function and the libc signal handler are on the stack, and should be ignored.
-    firstframe = 2;
+	//amd64 is sane enough, but this function and the libc signal handler are on the stack, and should be ignored.
+	firstframe = 2;
 #endif
 
-    // print out all the frames to stderr
-    fprintf(stderr, "Error: signal %s:\n", signame);
-    backtrace_symbols_fd(array+firstframe, size-firstframe, 2);
+	// print out all the frames to stderr
+	fprintf(stderr, "Error: signal %s:\n", signame);
+	backtrace_symbols_fd(array+firstframe, size-firstframe, 2);
 
 	if (sig == SIGINT)
 		fd = -1;	//don't write out crash logs on ctrl+c
 	else
 		fd = open("crash.log", O_WRONLY|O_CREAT|O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP);
-    if (fd != -1)
-    {
-        time_t rawtime;
-        struct tm * timeinfo;
-        char buffer [80];
+	if (fd != -1)
+	{
+		time_t rawtime;
+		struct tm * timeinfo;
+		char buffer [80];
 
-        time (&rawtime);
-        timeinfo = localtime (&rawtime);
-        strftime (buffer, sizeof(buffer), "Time: %Y-%m-%d %H:%M:%S\n",timeinfo);
-        write(fd, buffer, strlen(buffer));
+		time (&rawtime);
+		timeinfo = localtime (&rawtime);
+		strftime (buffer, sizeof(buffer), "Time: %Y-%m-%d %H:%M:%S\n",timeinfo);
+		write(fd, buffer, strlen(buffer));
 
-        Q_snprintfz(buffer, sizeof(buffer), "Binary: "__DATE__" "__TIME__"\n");
-        write(fd, buffer, strlen(buffer));
-        Q_snprintfz(buffer, sizeof(buffer), "Ver: %i.%02i%s\n", FTE_VER_MAJOR, FTE_VER_MINOR,
+		Q_snprintfz(buffer, sizeof(buffer), "Binary: "__DATE__" "__TIME__"\n");
+		write(fd, buffer, strlen(buffer));
+		Q_snprintfz(buffer, sizeof(buffer), "Ver: %i.%02i%s\n", FTE_VER_MAJOR, FTE_VER_MINOR,
 #ifdef OFFICIAL_RELEASE
-            " (official)");
+			" (official)");
 #else
-            "");
+			"");
 #endif
-        write(fd, buffer, strlen(buffer));
+		write(fd, buffer, strlen(buffer));
 #ifdef SVNREVISION
-        if (strcmp(STRINGIFY(SVNREVISION), "-"))
-        {
-            Q_snprintfz(buffer, sizeof(buffer), "Revision: %s\n", STRINGIFY(SVNREVISION));
-            write(fd, buffer, strlen(buffer));
-        }
+		if (strcmp(STRINGIFY(SVNREVISION), "-"))
+		{
+			Q_snprintfz(buffer, sizeof(buffer), "Revision: %s\n", STRINGIFY(SVNREVISION));
+			write(fd, buffer, strlen(buffer));
+		}
 #endif
 
-        backtrace_symbols_fd(array + firstframe, size - firstframe, fd);
-        write(fd, "\n", 1);
-        close(fd);
-    }
+		backtrace_symbols_fd(array + firstframe, size - firstframe, fd);
+		write(fd, "\n", 1);
+		close(fd);
+	}
 #if defined(DEBUG) && defined(GLQUAKE)
-	DumpGLState();
+	if (qrenderer == QR_OPENGL)
+		DumpGLState();
 #endif
-    exit(1);
+	exit(1);
 }
 #endif
 // =======================================================================

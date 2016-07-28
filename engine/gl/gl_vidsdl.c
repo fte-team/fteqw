@@ -328,10 +328,10 @@ void GLVID_SwapBuffers (void)
 	}
 }
 
-qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
+qboolean GLVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramps)
 {
 #if SDL_MAJOR_VERSION >= 2
-	if (ramps)
+	if (ramps && gammarampsize == 256)
 	{
 		if (vid_hardwaregamma.value)
 		{
@@ -353,7 +353,7 @@ qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 		return true;
 	}
 #else
-	if (ramps)
+	if (ramps && gammarampsize == 256)
 	{
 		if (vid_hardwaregamma.value)
 		{

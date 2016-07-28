@@ -1130,7 +1130,7 @@ ifeq ($(FTE_TARGET),bsd)
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
 	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) -lpthread
-	M_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
+	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -I/usr/X11R6/include
 	MB_DIR=m_bsd
 	MCL_DIR=mcl_bsd
 

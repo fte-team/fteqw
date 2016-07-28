@@ -1263,10 +1263,13 @@ q2colormap:
 TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 
 		if (newr)
+		{
+			vid.gammarampsize = 256;	//make a guess.
 			if (!VID_Init(newr, host_basepal))
 			{
 				return false;
 			}
+		}
 TRACE(("dbg: R_ApplyRenderer: vid applied\n"));
 
 		W_LoadWadFile("gfx.wad");

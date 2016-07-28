@@ -4548,6 +4548,9 @@ void COM_Version_f (void)
 	Con_Printf("(GLSL)");
 #endif
 #endif
+#ifdef VKQUAKE
+	Con_Printf(" Vulkan");
+#endif
 #ifdef D3D9QUAKE
 	Con_Printf(" Direct3D9");
 #endif
@@ -5069,7 +5072,7 @@ static int COM_WorkerThread(void *arg)
 static void Sys_ErrorThread(void *ctx, void *data, size_t a, size_t b)
 {
 	//posted to main thread from a worker.
-	Sys_Error("%s", data);
+	Sys_Error("%s", (const char*)data);
 }
 void COM_WorkerAbort(char *message)
 {

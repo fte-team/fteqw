@@ -396,7 +396,7 @@ static void WL_DeInit(void)
 	EGL_Shutdown();
 	wl_egl_window_destroy(w.enwindow);
 }
-static qboolean WL_ApplyGammaRamps(unsigned short *ramps)
+static qboolean WL_ApplyGammaRamps(unsigned int gammarampsize, unsigned short *ramps)
 {
 	//not supported
 	return false;

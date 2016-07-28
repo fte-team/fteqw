@@ -56,7 +56,7 @@ void GLVID_SwapBuffers(void)
 	}
 }
 
-qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
+qboolean GLVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramps)
 {
 	return false;
 }

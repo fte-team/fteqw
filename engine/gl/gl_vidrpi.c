@@ -68,7 +68,7 @@ void RPI_DeInit(void)
 {
 	EGL_Shutdown();
 }
-qboolean RPI_ApplyGammaRamps(unsigned short *ramps)
+qboolean RPI_ApplyGammaRamps(unsigned int gammarampsize, unsigned short *ramps)
 {
 	//not supported
 	return false;

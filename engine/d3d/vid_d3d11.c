@@ -1058,6 +1058,7 @@ extern float		hw_blend[4];		// rgba 0.0 - 1.0
 
 static void D3D11_BuildRamps(int points, DXGI_RGB *out)
 {
+//FIXME: repack input rather than recalculating.
 	int i;
 	vec3_t cshift;
 	vec3_t c;
@@ -1076,7 +1077,7 @@ static void D3D11_BuildRamps(int points, DXGI_RGB *out)
 	}
 }
 
-static qboolean	D3D11_VID_ApplyGammaRamps(unsigned short *ramps)
+static qboolean	D3D11_VID_ApplyGammaRamps(unsigned int gammarampsize, unsigned short *ramps)
 {
 	HRESULT hr;
 	DXGI_GAMMA_CONTROL_CAPABILITIES caps;

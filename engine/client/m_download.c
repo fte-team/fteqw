@@ -323,9 +323,9 @@ static package_t *BuildPackageList(vfsfile_t *f, int flags, const char *url, con
 				}
 
 				if (*prefix)
-					Q_snprintfz(p->fullname, sizeof(p->fullname), "%s/%s", prefix, Cmd_Argv(0));
+					Q_snprintfz(p->fullname, sizeof(p->fullname), "%s/%s", prefix, fullname);
 				else
-					Q_snprintfz(p->fullname, sizeof(p->fullname), "%s", Cmd_Argv(0));
+					Q_snprintfz(p->fullname, sizeof(p->fullname), "%s", fullname);
 				p->name = COM_SkipPath(p->fullname);
 
 				if (!gamedir)
@@ -483,7 +483,6 @@ static package_t *BuildPackageList(vfsfile_t *f, int flags, const char *url, con
 
 static void COM_QuotedConcat(const char *cat, char *buf, size_t bufsize)
 {
-	qboolean haswhite = false;
 	const unsigned char *gah;
 	for (gah = (const unsigned char*)cat; *gah; gah++)
 	{

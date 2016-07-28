@@ -324,7 +324,6 @@ cvar_t		v_brightness = CVARFDC("brightness", "0.0", CVAR_ARCHIVE, "Brightness is
 qbyte		gammatable[256];	// palette is sent through this
 
 
-unsigned short		ramps[3][256];
 qboolean		gammaworks;
 float		hw_blend[4];		// rgba 0.0 - 1.0
 /*
@@ -849,6 +848,9 @@ void V_UpdatePalette (qboolean force)
 	if (hw_blend[0] != newhw_blend[0] || hw_blend[1] != newhw_blend[1] || hw_blend[2] != newhw_blend[2] || hw_blend[3] != newhw_blend[3] || force)
 	{
 		float r,g,b,a;
+		static unsigned short		allramps[3*2048];
+		unsigned int rampsize = min(vid.gammarampsize, countof(allramps)/3);
+		unsigned short *ramps[3] = {&allramps[0],&allramps[rampsize],&allramps[rampsize*2]};
 		Vector4Copy(newhw_blend, hw_blend);
 
 		a = hw_blend[3];
@@ -857,7 +859,8 @@ void V_UpdatePalette (qboolean force)
 		b = 255*hw_blend[2]*a;
 
 		a = 1-a;
-		for (i=0 ; i<256 ; i++)
+		a *= 256.0/rampsize;
+		for (i=0 ; i < rampsize; i++)
 		{
 			ir = i*a + r;
 			ig = i*a + g;
@@ -869,6 +872,7 @@ void V_UpdatePalette (qboolean force)
 			if (ib > 255)
 				ib = 255;
 
+			//FIXME: shit precision
 			ramps[0][i] = gammatable[ir]<<8;
 			ramps[1][i] = gammatable[ig]<<8;
 			ramps[2][i] = gammatable[ib]<<8;
@@ -876,9 +880,9 @@ void V_UpdatePalette (qboolean force)
 
 		if (qrenderer)
 		{
-			applied = rf->VID_ApplyGammaRamps ((unsigned short*)ramps);
+			applied = rf->VID_ApplyGammaRamps (rampsize, allramps);
 			if (!applied && r2d_canhwgamma)
-				rf->VID_ApplyGammaRamps (NULL);
+				rf->VID_ApplyGammaRamps (0, NULL);
 			r2d_canhwgamma = applied;
 		}
 	}

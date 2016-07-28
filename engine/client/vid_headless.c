@@ -150,7 +150,7 @@ static void	 Headless_VID_DeInit				(void)
 static void	Headless_VID_SwapBuffers			(void)
 {
 }
-static qboolean Headless_VID_ApplyGammaRamps		(unsigned short *ramps)
+static qboolean Headless_VID_ApplyGammaRamps		(unsigned int gammarampsize, unsigned short *ramps)
 {
 	return false;
 }

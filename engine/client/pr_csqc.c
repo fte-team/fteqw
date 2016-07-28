@@ -318,7 +318,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 
 	if (!csqcg.trace_surfaceflagsf && !csqcg.trace_surfaceflagsi)
 	{
-		etype_t etype;
+		etype_t etype = ev_void;
 		eval_t *v = PR_FindGlobal(csqcprogs, "trace_surfaceflags", 0, &etype);
 		if (etype == ev_float)
 			csqcg.trace_surfaceflagsf = &v->_float;
@@ -327,7 +327,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	}
 	if (!csqcg.trace_endcontentsf && !csqcg.trace_endcontentsi)
 	{
-		etype_t etype;
+		etype_t etype = ev_void;
 		eval_t *v = PR_FindGlobal(csqcprogs, "trace_endcontents", 0, &etype);
 		if (etype == ev_float)
 			csqcg.trace_endcontentsf = &v->_float;

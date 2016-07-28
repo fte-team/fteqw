@@ -768,7 +768,7 @@ void SW_VID_DeInit(void)
 
 	ChangeDisplaySettings (NULL, 0);
 }
-qboolean SW_VID_ApplyGammaRamps		(unsigned short *ramps)
+qboolean SW_VID_ApplyGammaRamps		(unsigned int gammarampsize, unsigned short *ramps)
 {
 	return false;
 }

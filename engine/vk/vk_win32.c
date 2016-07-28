@@ -953,11 +953,11 @@ static void OblitterateOldGamma(void)
 	}
 }
 
-static qboolean VKVID_ApplyGammaRamps (unsigned short *ramps)
+static qboolean VKVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramps)
 {
 	if (ramps)
 	{
-		if (!gammaworks)
+		if (!gammaworks || gammarampsize != 256)
 			return false;
 
 		if (vid_hardwaregamma.value == 1 && modestate == MS_WINDOWED)

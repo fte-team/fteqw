@@ -327,8 +327,9 @@ static struct
 	XF86VidModeModeInfo **modes;
 	int num_modes;
 	int usemode;
-	unsigned short originalramps[3][256];
+	unsigned short originalramps[3][2048];
 	qboolean originalapplied;	//states that the origionalramps arrays are valid, and contain stuff that we should revert to on close
+	int originalrampsize;
 } vm;
 static qboolean VMODE_Init(void)
 {
@@ -1017,6 +1018,9 @@ static void GetEvent(void)
 		x11.pXFreeEventData(vid_dpy, &event.xcookie);
 		break;
 	case ResizeRequest:
+#ifdef VKQUAKE
+		vk.neednewswapchain = true;
+#endif
 		vid.pixelwidth = event.xresizerequest.width;
 		vid.pixelheight = event.xresizerequest.height;
 		Cvar_ForceCallback(&vid_conautoscale);
@@ -1026,6 +1030,9 @@ static void GetEvent(void)
 	case ConfigureNotify:
 		if (event.xconfigurerequest.window == vid_window)
 		{
+#ifdef VKQUAKE
+			vk.neednewswapchain = true;
+#endif
 			vid.pixelwidth = event.xconfigurerequest.width;
 			vid.pixelheight = event.xconfigurerequest.height;
 			Cvar_ForceCallback(&vid_conautoscale);
@@ -1179,7 +1186,7 @@ static void GetEvent(void)
 		}
 
 		if (vm.originalapplied)
-			vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
+			vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 
 		mw = vid_window;
 		if ((fullscreenflags & FULLSCREEN_LEGACY) && (fullscreenflags & FULLSCREEN_ACTIVE))
@@ -1267,7 +1274,7 @@ void GLVID_Shutdown(void)
 		uninstall_grabs();
 
 	if (vm.originalapplied)
-		vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
+		vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 
 	X_ShutdownUnicode();
 
@@ -1344,7 +1351,7 @@ static Cursor CreateNullCursor(Display *display, Window root)
 	return cursor;
 }
 
-qboolean GLVID_ApplyGammaRamps(unsigned short *ramps)
+qboolean GLVID_ApplyGammaRamps(unsigned int rampcount, unsigned short *ramps)
 {
 	extern qboolean gammaworks;
 	//extern cvar_t vid_hardwaregamma;
@@ -1353,7 +1360,7 @@ qboolean GLVID_ApplyGammaRamps(unsigned short *ramps)
 	if (!vm.originalapplied)
 		return false;
 
-	if (ramps)
+	if (ramps || rampcount != vm.originalrampsize)
 	{
 		//hardwaregamma==1 skips hardware gamma when we're not fullscreen, in favour of software glsl based gamma.
 //		if (vid_hardwaregamma.value == 1 && !vid.activeapp && !(fullscreenflags & FULLSCREEN_ACTIVE))
@@ -1365,15 +1372,15 @@ qboolean GLVID_ApplyGammaRamps(unsigned short *ramps)
 	
 		//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma if it randomly fails (yuck)
 		if (gammaworks)
-			vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, &ramps[0], &ramps[256], &ramps[512]);
+			vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, rampcount, &ramps[0], &ramps[rampcount], &ramps[rampcount*2]);
 		else
-			gammaworks = !!vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, 256, &ramps[0], &ramps[256], &ramps[512]);
+			gammaworks = !!vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, rampcount, &ramps[0], &ramps[rampcount], &ramps[rampcount*2]);
 
 		return gammaworks;
 	}
 	else
 	{
-		vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
+		vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 		return true;
 	}
 }
@@ -1845,13 +1852,16 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	{
 		int rampsize = 256;
 		vm.pXF86VidModeGetGammaRampSize(vid_dpy, scrnum, &rampsize);
-		if (rampsize != 256)
+		if (rampsize > countof(vm.originalramps[0]))
 		{
 			vm.originalapplied = false;
 			Con_Printf("Gamma ramps are not of 256 components (but %i).\n", rampsize);
 		}
 		else
-			vm.originalapplied = vm.pXF86VidModeGetGammaRamp(vid_dpy, scrnum, 256, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
+		{
+			vm.originalrampsize = vid.gammarampsize = rampsize;
+			vm.originalapplied = vm.pXF86VidModeGetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
+		}
 	}
 	else
 		vm.originalapplied = false;
@@ -2033,7 +2043,7 @@ void Sys_SendKeyEvents(void)
 					if (fullscreenflags & FULLSCREEN_VMODE)
 					{
 	 					if (vm.originalapplied)
-							vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, 256, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
+							vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 						if (fullscreenflags & FULLSCREEN_VMODEACTIVE)
 						{
 							vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[0]);

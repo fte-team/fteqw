@@ -407,7 +407,7 @@ static VkSampler VK_GetSampler(unsigned int flags)
 #endif
 
 //creates the layout stuff for the prog.
-static VK_FinishProg(program_t *prog, const char *name)
+static void VK_FinishProg(program_t *prog, const char *name)
 {
 	{
 		VkDescriptorSetLayout desclayout;
@@ -4862,7 +4862,6 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 
 	if (bs->flags & SHADER_HASREFLECT)
 	{
-		struct vk_rendertarg *targ = vk.rendertarg;
 		vrect_t orect = r_refdef.vrect;
 		pxrect_t oprect = r_refdef.pxrect;
 

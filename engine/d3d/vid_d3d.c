@@ -790,11 +790,11 @@ static void	 (D3D9_VID_DeInit)				(void)
 //	Cvar_Unhook(&v_brightness);
 }
 
-qboolean D3D9_VID_ApplyGammaRamps		(unsigned short *ramps)
+qboolean D3D9_VID_ApplyGammaRamps		(unsigned int gammarampsize, unsigned short *ramps)
 {
 	if (d3dpp.Windowed)
 		return false;
-	if (pD3DDev9 && ramps)
+	if (pD3DDev9 && ramps && gammarampsize == 256)
 		IDirect3DDevice9_SetGammaRamp(pD3DDev9, 0, D3DSGR_NO_CALIBRATION, (D3DGAMMARAMP *)ramps);
 	return true;
 }

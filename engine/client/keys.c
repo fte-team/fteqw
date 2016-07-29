@@ -914,7 +914,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 
 void Key_ConsoleRelease(console_t *con, int key, int unicode)
 {
-	char *buffer;
+	char *buffer;	
 
 	if (key == K_MOUSE1 && con->buttonsdown == CB_SELECT)
 	{
@@ -1628,7 +1628,7 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		return true;
 	}
 
-	if (!consolekeys[rkey])
+	if (rkey && !consolekeys[rkey])
 	{
 		if (rkey != '`' || key_linepos==0)
 			return false;
@@ -2303,6 +2303,8 @@ Key_Event
 
 Called by the system between frames for both key up and key down events
 Should NOT be called during an interrupt!
+
+On some systems, keys and (uni)char codes will be entirely separate events.
 ===================
 */
 void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down)

@@ -14,6 +14,7 @@ extern qboolean vid_isfullscreen;
 
 #if SDL_MAJOR_VERSION > 1 || (SDL_MAJOR_VERSION == 1 && SDL_MINOR_VERSION >= 3)
 #define HAVE_SDL_TEXTINPUT
+cvar_t sys_osk = CVARD("sys_osk", "1", "Enables support for text input. This will be ignored when the console has focus, but gamecode may end up with composition boxes appearing.");
 #endif
 
 void IN_ActivateMouse(void)
@@ -48,6 +49,44 @@ void IN_DeactivateMouse(void)
 }
 
 #if SDL_MAJOR_VERSION >= 2
+#define MAX_FINGERS 16 //zomg! mutant!
+static struct sdlfinger_s
+{
+	qboolean active;
+	SDL_TouchID tid;
+	SDL_FingerID fid;
+} sdlfinger[MAX_FINGERS];
+//sanitizes sdl fingers into touch events that our engine can eat.
+//we don't really deal with different devices, we just munge the lot into a single thing (allowing fingers to be tracked, at least if splitscreen isn't active).
+static uint32_t SDL_GiveFinger(SDL_TouchID tid, SDL_FingerID fid, qboolean fingerraised)
+{
+	uint32_t f;
+	for (f = 0; f < countof(sdlfinger); f++)
+	{
+		if (sdlfinger[f].active)
+		{
+			if (sdlfinger[f].tid == tid && sdlfinger[f].fid == fid)
+			{
+				sdlfinger[f].active = !fingerraised;
+				return f;
+			}
+		}
+	}
+	for (f = 0; f < countof(sdlfinger); f++)
+	{
+		if (!sdlfinger[f].active)
+		{
+			sdlfinger[f].active = !fingerraised;
+			sdlfinger[f].tid = tid;
+			sdlfinger[f].fid = fid;
+			return f;
+		}
+	}
+	return f;
+}
+#endif
+
+#if SDL_MAJOR_VERSION >= 2
 #define MAX_JOYSTICKS 4
 static struct sdljoy_s
 {
@@ -57,14 +96,29 @@ static struct sdljoy_s
 	SDL_Joystick *joystick;
 	SDL_GameController *controller;
 	SDL_JoystickID id;
+	unsigned int qdevid;
 } sdljoy[MAX_JOYSTICKS]; 
 //the enumid is the value for the open function rather than the working id.
+static unsigned int J_AllocateDevID(void)
+{
+	unsigned int id = 0, j;
+	for (j = 0; j < MAX_JOYSTICKS;)
+	{
+		if (sdljoy[j++].qdevid == id)
+		{
+			j = 0;
+			id++;
+		}
+	}
+
+	return id;
+}
 static void J_ControllerAdded(int enumid)
 {
 	const char *cname;
 	int i;
 	for (i = 0; i < MAX_JOYSTICKS; i++)
-		if (sdljoy[i].controller == NULL)
+		if (sdljoy[i].controller == NULL && sdljoy[i].joystick == NULL)
 			break;
 	if (i == MAX_JOYSTICKS)
 		return;
@@ -80,13 +134,14 @@ static void J_ControllerAdded(int enumid)
 		cname = "Unknown Controller";
 	Con_Printf("Found new controller (%i): %s\n", i, cname);
 	sdljoy[i].devname = Z_StrDup(cname);
+	sdljoy[i].qdevid = DEVID_UNSET;
 }
 static void J_JoystickAdded(int enumid)
 {
 	const char *cname;
 	int i;
 	for (i = 0; i < MAX_JOYSTICKS; i++)
-		if (sdljoy[i].joystick == NULL)
+		if (sdljoy[i].joystick == NULL && sdljoy[i].controller == NULL)
 			break;
 	if (i == MAX_JOYSTICKS)
 		return;
@@ -100,8 +155,9 @@ static void J_JoystickAdded(int enumid)
 	if (!cname)
 		cname = "Unknown Joystick";
 	Con_Printf("Found new joystick (%i): %s\n", i, cname);
+	sdljoy[i].qdevid = DEVID_UNSET;
 }
-static struct sdljoy_s *J_DevId(int jid)
+static struct sdljoy_s *J_DevId(SDL_JoystickID jid)
 {
 	int i;
 	for (i = 0; i < MAX_JOYSTICKS; i++)
@@ -109,24 +165,24 @@ static struct sdljoy_s *J_DevId(int jid)
 			return &sdljoy[i];
 	return NULL;
 }
-static void J_ControllerAxis(int jid, int axis, int value)
+static void J_ControllerAxis(SDL_JoystickID jid, int axis, int value)
 {
 	int axismap[] = {0,1,3,4,2,5};
 
 	struct sdljoy_s *joy = J_DevId(jid);
-	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]))
-		IN_JoystickAxisEvent(joy - sdljoy, axismap[axis], value / 32767.0);
+	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]) && joy->qdevid != DEVID_UNSET)
+		IN_JoystickAxisEvent(joy->qdevid, axismap[axis], value / 32767.0);
 }
-static void J_JoystickAxis(int jid, int axis, int value)
+static void J_JoystickAxis(SDL_JoystickID jid, int axis, int value)
 {
 	int axismap[] = {0,1,3,4,2,5};
 
 	struct sdljoy_s *joy = J_DevId(jid);
-	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]))
-		IN_JoystickAxisEvent(joy - sdljoy, axismap[axis], value / 32767.0);
+	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]) && joy->qdevid != DEVID_UNSET)
+		IN_JoystickAxisEvent(joy->qdevid, axismap[axis], value / 32767.0);
 }
 //we don't do hats and balls and stuff.
-static void J_ControllerButton(int jid, int button, qboolean pressed)
+static void J_ControllerButton(SDL_JoystickID jid, int button, qboolean pressed)
 {
 	//controllers have reliable button maps.
 	//but that doesn't meant that fte has specific k_ names for those buttons, but the mapping should be reliable, at least until they get mapped to proper k_ values.
@@ -169,9 +225,17 @@ static void J_ControllerButton(int jid, int button, qboolean pressed)
 
 	struct sdljoy_s *joy = J_DevId(jid);
 	if (joy && button < sizeof(buttonmap)/sizeof(buttonmap[0]))
-		IN_KeyEvent(joy - sdljoy, pressed, buttonmap[button], 0);
+	{
+		if (joy->qdevid == DEVID_UNSET)
+		{
+			if (!pressed)
+				return;
+			joy->qdevid = J_AllocateDevID();
+		}
+		IN_KeyEvent(joy->qdevid, pressed, buttonmap[button], 0);
+	}
 }
-static void J_JoystickButton(int jid, int button, qboolean pressed)
+static void J_JoystickButton(SDL_JoystickID jid, int button, qboolean pressed)
 {
 	//generic joysticks have no specific mappings. they're really random like that.
 	int buttonmap[] = {
@@ -215,9 +279,17 @@ static void J_JoystickButton(int jid, int button, qboolean pressed)
 
 	struct sdljoy_s *joy = J_DevId(jid);
 	if (joy && button < sizeof(buttonmap)/sizeof(buttonmap[0]))
-		IN_KeyEvent(joy - sdljoy, pressed, buttonmap[button], 0);
+	{
+		if (joy->qdevid == DEVID_UNSET)
+		{
+			if (!pressed)
+				return;
+			joy->qdevid = J_AllocateDevID();
+		}
+		IN_KeyEvent(joy->qdevid, pressed, buttonmap[button], 0);
+	}
 }
-static void J_Kill(int jid, qboolean verbose)
+static void J_Kill(SDL_JoystickID jid, qboolean verbose)
 {
 	int i;
 	struct sdljoy_s *joy = J_DevId(jid);
@@ -226,20 +298,29 @@ static void J_Kill(int jid, qboolean verbose)
 		return;
 
 	//make sure all the axis are nulled out, to avoid surprises.
-	for (i = 0; i < 6; i++)
-		IN_JoystickAxisEvent(joy - sdljoy, i, 0);
+	if (joy->qdevid != DEVID_UNSET)
+	{
+		for (i = 0; i < 6; i++)
+			IN_JoystickAxisEvent(joy->qdevid, i, 0);
+		if (joy->controller)
+		{
+			for (i = 0; i < 32; i++)
+				J_ControllerButton(jid, i, false);
+		}
+		else
+		{
+			for (i = 0; i < 32; i++)
+				J_JoystickButton(jid, i, false);
+		}
+	}
 
 	if (joy->controller)
 	{
-		for (i = 0; i < 32; i++)
-			J_ControllerButton(jid, i, false);
 		Con_Printf("Controller unplugged(%i): %s\n", (int)(joy - sdljoy), joy->devname);
 		SDL_GameControllerClose(joy->controller);
 	}
 	else
 	{
-		for (i = 0; i < 32; i++)
-			J_JoystickButton(jid, i, false);
 		Con_Printf("Joystick unplugged(%i): %s\n", (int)(joy - sdljoy), joy->devname);
 		SDL_JoystickClose(joy->joystick);
 	}
@@ -247,6 +328,7 @@ static void J_Kill(int jid, qboolean verbose)
 	joy->joystick = NULL;
 	Z_Free(joy->devname);
 	joy->devname = NULL;
+	joy->qdevid = DEVID_UNSET;
 }
 static void J_KillAll(void)
 {
@@ -681,6 +763,22 @@ static unsigned int tbl_sdltoquakemouse[] =
 void Sys_SendKeyEvents(void)
 {
 	SDL_Event event;
+
+#ifdef HAVE_SDL_TEXTINPUT
+	SDL_bool active = SDL_IsTextInputActive();
+	if (Key_Dest_Has(kdm_console|kdm_message) || (!Key_Dest_Has(~kdm_game) && cls.state == ca_disconnected) || sys_osk.ival)
+	{
+		if (!active)
+			SDL_StartTextInput();
+	}
+	else
+	{
+		if (active)
+			SDL_StopTextInput();
+	}
+#endif
+
+
 	while(SDL_PollEvent(&event))
 	{
 		switch(event.type)
@@ -784,11 +882,17 @@ void Sys_SendKeyEvents(void)
 #if SDL_MAJOR_VERSION >= 2
 		case SDL_FINGERDOWN:
 		case SDL_FINGERUP:
-			IN_MouseMove(event.tfinger.fingerId, true, event.tfinger.x * vid.pixelwidth, event.tfinger.y * vid.pixelheight, 0, event.tfinger.pressure);
-			IN_KeyEvent(event.tfinger.fingerId, event.type==SDL_FINGERDOWN, K_MOUSE1, 0);
+			{
+				uint32_t thefinger = SDL_GiveFinger(event.tfinger.touchId, event.tfinger.fingerId, event.type==SDL_FINGERUP);
+				IN_MouseMove(thefinger, true, event.tfinger.x * vid.pixelwidth, event.tfinger.y * vid.pixelheight, 0, event.tfinger.pressure);
+				IN_KeyEvent(thefinger, event.type==SDL_FINGERDOWN, K_MOUSE1, 0);
+			}
 			break;
 		case SDL_FINGERMOTION:
-			IN_MouseMove(event.tfinger.fingerId, true, event.tfinger.x * vid.pixelwidth, event.tfinger.y * vid.pixelheight, 0, event.tfinger.pressure);
+			{
+				uint32_t thefinger = SDL_GiveFinger(event.tfinger.touchId, event.tfinger.fingerId, false);
+				IN_MouseMove(thefinger, true, event.tfinger.x * vid.pixelwidth, event.tfinger.y * vid.pixelheight, 0, event.tfinger.pressure);
+			}
 			break;
 
 		case SDL_DROPFILE:
@@ -885,11 +989,17 @@ void INS_Shutdown (void)
 
 void INS_ReInit (void)
 {
+#if SDL_MAJOR_VERSION >= 2
+	unsigned int i;
+	memset(sdljoy, sizeof(sdljoy), 0);
+	for (i = 0; i < MAX_JOYSTICKS; i++)
+		sdljoy[i].qdevid = DEVID_UNSET;
+	SDL_InitSubSystem(SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER);
+#endif
+
 	IN_ActivateMouse();
 
-#ifdef HAVE_SDL_TEXTINPUT
-	SDL_StartTextInput();
-#else
+#ifndef HAVE_SDL_TEXTINPUT
 	SDL_EnableUNICODE(SDL_ENABLE);
 #endif
 #if SDL_MAJOR_VERSION >= 2
@@ -903,8 +1013,8 @@ void INS_Move(float *movements, int pnum)
 }
 void INS_Init (void)
 {
-#if SDL_MAJOR_VERSION >= 2
-	SDL_InitSubSystem(SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER);
+#ifdef HAVE_SDL_TEXTINPUT
+	Cvar_Register(&sys_osk, "input controls");
 #endif
 }
 void INS_Accumulate(void)	//input polling
@@ -915,6 +1025,10 @@ void INS_Commands (void)	//used to Cbuf_AddText joystick button events in window
 }
 void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid))
 {
+	unsigned int i;
+	for (i = 0; i < MAX_JOYSTICKS; i++)
+		if (sdljoy[i].controller || sdljoy[i].joystick)
+			callback(ctx, "joy", sdljoy[i].devname, &sdljoy[i].qdevid);
 }
 
 

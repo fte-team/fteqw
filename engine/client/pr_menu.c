@@ -2004,6 +2004,7 @@ static struct {
 	{"vlen",					PF_vlen,					9},
 	{"vectoyaw",				PF_vectoyaw,				10},
 	{"vectoangles",				PF_vectoangles,				11},
+	{"crossproduct",			PF_crossproduct,			0},
 	{"random",					PF_random,					12},
 	{"localcmd",				PF_localcmd,				13},
 	{"cvar",					PF_menu_cvar,				14},

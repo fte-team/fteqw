@@ -9982,6 +9982,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"frameforname",	PF_frameforname,	0,		0,		0,		276,	D("float(float modidx, string framename)", "Looks up a framegroup from a model by name, avoiding the need for hardcoding. Returns -1 on error.")},// (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",	PF_frameduration,	0,		0,		0,		277,	D("float(float modidx, float framenum)", "Retrieves the duration (in seconds) of the specified framegroup.")},// (FTE_CSQC_SKELETONOBJECTS)
 
+	{"crossproduct",	PF_crossproduct,	0,		0,		0,		0,		D("#define dotproduct(v1,v2) ((vector)(v1)*(vector)(v2))\nvector(vector v1, vector v2)", "Small helper function to calculate the crossproduct of two vectors.")},
+
 #ifdef TERRAIN
 	{"terrain_edit",	PF_terrain_edit,	0,		0,		0,		278,	D("void(float action, optional vector pos, optional float radius, optional float quant, ...)", "Realtime terrain editing. Actions are the TEREDIT_ constants.")},// (??FTE_TERRAIN_EDIT??
 

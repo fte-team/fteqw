@@ -5597,6 +5597,8 @@ static struct {
 	{"frameforname",			PF_frameforname,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",			PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
+	{"crossproduct",			PF_crossproduct,		0},
+
 #ifdef TERRAIN
 	{"terrain_edit",			PF_terrain_edit,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??)
 	{"brush_get",				PF_brush_get,			0},

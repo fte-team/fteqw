@@ -4659,6 +4659,11 @@ void QCBUILTIN PF_vectorvectors (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	VectorVectors(world->g.v_forward, world->g.v_right, world->g.v_up);
 }
 
+void QCBUILTIN PF_crossproduct (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	CrossProduct(G_VECTOR(OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_RETURN));
+}
+
 //Maths functions
 ////////////////////////////////////////////////////
 /*

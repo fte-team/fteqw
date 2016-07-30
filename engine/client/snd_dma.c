@@ -2015,7 +2015,6 @@ void S_Init (void)
 #ifdef VOICECHAT
 	S_Voip_Init();
 #endif
-	S_EnumerateDevices();
 
 #ifdef MULTITHREAD
 	mixermutex = Sys_CreateMutex();
@@ -2031,6 +2030,8 @@ void S_Init (void)
 		nosound.flags |= CVAR_NOSET;
 		return;
 	}
+
+	S_EnumerateDevices();
 
 	p = COM_CheckParm ("-soundspeed");
 	if (!p)

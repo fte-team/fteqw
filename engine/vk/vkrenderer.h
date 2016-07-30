@@ -9,6 +9,9 @@
 #ifdef __linux__
 #define VK_USE_PLATFORM_XLIB_KHR
 #define VKInstXLibFuncs VKFunc(CreateXlibSurfaceKHR)
+
+#define VK_USE_PLATFORM_XCB_KHR
+#define VKInstXCBFuncs VKFunc(CreateXcbSurfaceKHR)
 #endif
 
 #define VK_NO_PROTOTYPES
@@ -28,14 +31,17 @@
 #ifndef VKInstXLibFuncs
 #define VKInstXLibFuncs
 #endif
+#ifndef VKInstXCBFuncs
+#define VKInstXCBFuncs
+#endif
+#define VKInstArchFuncs VKInstWin32Funcs VKInstXLibFuncs VKInstXCBFuncs
+
 
 //funcs needed for creating an instance
 #define VKInstFuncs \
 	VKFunc(EnumerateInstanceLayerProperties)		\
 	VKFunc(EnumerateInstanceExtensionProperties)	\
 	VKFunc(CreateInstance)
-
-#define VKInstArchFuncs VKInstWin32Funcs VKInstXLibFuncs
 
 //funcs specific to an instance
 #define VKInst2Funcs \

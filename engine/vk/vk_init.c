@@ -2803,6 +2803,24 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		return false;
 	case VK_ERROR_EXTENSION_NOT_PRESENT:
 		Con_Printf("VK_ERROR_EXTENSION_NOT_PRESENT: something on a system level is probably misconfigured\n");
+		{
+			uint32_t count, i, j;
+			VkExtensionProperties *ext;
+			vkEnumerateInstanceExtensionProperties(NULL, &count, NULL);
+			ext = malloc(sizeof(*ext)*count);
+			vkEnumerateInstanceExtensionProperties(NULL, &count, ext);
+			for (i = 0; i < extensions_count; i++)
+			{
+				for (j = 0; j < count; j++)
+				{
+					if (!strcmp(ext[j].extensionName, extensions[i]))
+						break;
+				}
+				if (j == count)
+					Con_Printf("Missing extension: %s\n", extensions[i]);
+			}
+			free(ext);
+		}
 		return false;
 	case VK_ERROR_LAYER_NOT_PRESENT:
 		Con_Printf("VK_ERROR_LAYER_NOT_PRESENT: requested layer is not known/usable\n");
@@ -3166,12 +3184,15 @@ void VK_Shutdown(void)
 	VKBE_RT_Gen_Cube(&vk_rt_cubemap, 0, false);
 	VK_R_BloomShutdown();
 
-	vkDestroyCommandPool(vk.device, vk.cmdpool, vkallocationcb);
+	if (vk.cmdpool)
+		vkDestroyCommandPool(vk.device, vk.cmdpool, vkallocationcb);
 	VK_DestroyRenderPass();
 #ifndef THREADACQUIRE
-	vkDestroyFence(vk.device, vk.acquirefence, vkallocationcb);
+	if (vk.acquirefence)
+		vkDestroyFence(vk.device, vk.acquirefence, vkallocationcb);
 #endif
 
+	if (vk.pipelinecache)
 	{
 		size_t size;
 		if (VK_SUCCESS == vkGetPipelineCacheData(vk.device, vk.pipelinecache, &size, NULL))
@@ -3184,17 +3205,23 @@ void VK_Shutdown(void)
 		vkDestroyPipelineCache(vk.device, vk.pipelinecache, vkallocationcb);
 	}
 
-	vkDestroyDevice(vk.device, vkallocationcb);
+	if (vk.device)
+		vkDestroyDevice(vk.device, vkallocationcb);
 	if (vk_debugcallback)
 	{
 		vkDestroyDebugReportCallbackEXT(vk.instance, vk_debugcallback, vkallocationcb);
 		vk_debugcallback = VK_NULL_HANDLE;
 	}
-	vkDestroySurfaceKHR(vk.instance, vk.surface, vkallocationcb);
-	vkDestroyInstance(vk.instance, vkallocationcb);
-	Sys_DestroyMutex(vk.swapchain_mutex);
-	Sys_DestroyConditional(vk.submitcondition);
-	Sys_DestroyConditional(vk.acquirecondition);
+	if (vk.surface)
+		vkDestroySurfaceKHR(vk.instance, vk.surface, vkallocationcb);
+	if (vk.instance)
+		vkDestroyInstance(vk.instance, vkallocationcb);
+	if (vk.swapchain_mutex)
+		Sys_DestroyMutex(vk.swapchain_mutex);
+	if (vk.submitcondition)
+		Sys_DestroyConditional(vk.submitcondition);
+	if (vk.acquirecondition)
+		Sys_DestroyConditional(vk.acquirecondition);
 	memset(&vk, 0, sizeof(vk));
 	qrenderer = QR_NONE;
 

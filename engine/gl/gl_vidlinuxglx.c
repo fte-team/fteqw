@@ -60,7 +60,8 @@ none of these issues will be fixed by a compositing window manager, because ther
 
 #ifdef VKQUAKE
 #include "vk/vkrenderer.h"
-static qboolean XVK_SetupSurface(void);
+static qboolean XVK_SetupSurface_XLib(void);
+static qboolean XVK_SetupSurface_XCB(void);
 #endif
 #ifdef GLQUAKE
 #include <GL/glx.h>
@@ -184,9 +185,10 @@ static struct
 	XIC			unicodecontext;
 	XIM			inputmethod;
 } x11;
+
 static qboolean x11_initlib(void)
 {
-	dllfunction_t x11_functable[] =
+	static dllfunction_t x11_functable[] =
 	{
 		{(void**)&x11.pXChangeProperty,		"XChangeProperty"},
 		{(void**)&x11.pXCloseDisplay,		"XCloseDisplay"},
@@ -281,6 +283,35 @@ static qboolean x11_initlib(void)
 	return !!x11.lib;
 }
 
+#ifdef VK_USE_PLATFORM_XCB_KHR
+static struct
+{
+	void *lib;
+	xcb_connection_t *(*pXGetXCBConnection)(Display *dpy);
+} x11xcb;
+static qboolean x11xcb_initlib(void)
+{
+	static dllfunction_t x11xcb_functable[] =
+	{
+		{(void**)&x11xcb.pXGetXCBConnection,		"XGetXCBConnection"},
+		{NULL, NULL}
+	};
+
+	if (!x11xcb.lib)
+	{
+		x11xcb.lib = Sys_LoadLibrary("libX11-xcb.so.1", x11xcb_functable);
+		if (!x11xcb.lib)
+			x11xcb.lib = Sys_LoadLibrary("libX11-xcb", x11xcb_functable);
+
+		if (!x11xcb.lib)
+			Con_Printf("Unable to load libX11-xcb\n");
+	}
+	
+	return !!x11xcb.lib;
+}
+#endif
+
+
 #define FULLSCREEN_VMODE	1	//using xf86 vidmode (we can actually change modes)
 #define FULLSCREEN_VMODEACTIVE	2	//xf86 vidmode currently forced
 #define FULLSCREEN_LEGACY	4	//override redirect used
@@ -333,7 +364,7 @@ static struct
 } vm;
 static qboolean VMODE_Init(void)
 {
-	dllfunction_t vm_functable[] =
+	static dllfunction_t vm_functable[] =
 	{
 		{(void**)&vm.pXF86VidModeQueryVersion, "XF86VidModeQueryVersion"},
 		{(void**)&vm.pXF86VidModeGetGammaRampSize, "XF86VidModeGetGammaRampSize"},
@@ -401,7 +432,7 @@ static struct
 } dgam;
 static qboolean DGAM_Init(void)
 {
-	dllfunction_t dgam_functable[] =
+	static dllfunction_t dgam_functable[] =
 	{
 		{(void**)&dgam.pXF86DGADirectVideo, "XF86DGADirectVideo"},
 		{NULL, NULL}
@@ -467,7 +498,7 @@ static struct
 } xi2;
 static qboolean XI2_Init(void)
 {
-	dllfunction_t xi2_functable[] =
+	static dllfunction_t xi2_functable[] =
 	{
 		{(void**)&xi2.pXIQueryVersion, "XIQueryVersion"},
 		{(void**)&xi2.pXISelectEvents, "XISelectEvents"},
@@ -1901,12 +1932,17 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 #endif
 #ifdef VKQUAKE
 	case PSL_VULKAN:
-		if (!VK_Init(info, VK_KHR_XLIB_SURFACE_EXTENSION_NAME, XVK_SetupSurface))
-		{
-			Con_Printf("Failed to create vulkan context.\n");
-			GLVID_Shutdown();
-		}
-		break;
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+		if (VK_Init(info, VK_KHR_XLIB_SURFACE_EXTENSION_NAME, XVK_SetupSurface_XLib))
+			break;
+#endif
+#ifdef VK_USE_PLATFORM_XCB_KHR
+		if (x11xcb_initlib() && VK_Init(info, VK_KHR_XCB_SURFACE_EXTENSION_NAME, XVK_SetupSurface_XCB))
+			break;
+#endif
+		Con_Printf("Failed to create a vulkan context.\n");
+		GLVID_Shutdown();
+		return false;
 #endif
 	case PSL_NONE:
 		break;
@@ -2190,7 +2226,8 @@ rendererinfo_t eglrendererinfo =
 #endif
 
 #ifdef VKQUAKE
-static qboolean XVK_SetupSurface(void)
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+static qboolean XVK_SetupSurface_XLib(void)
 {
 	VkXlibSurfaceCreateInfoKHR inf = {VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR};
 	inf.flags = 0;
@@ -2201,6 +2238,20 @@ static qboolean XVK_SetupSurface(void)
 		return true;
 	return false;
 }
+#endif
+#ifdef VK_USE_PLATFORM_XCB_KHR
+static qboolean XVK_SetupSurface_XCB(void)
+{
+	VkXcbSurfaceCreateInfoKHR inf = {VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR};
+	inf.flags = 0;
+	inf.connection = x11xcb.pXGetXCBConnection(vid_dpy);
+	inf.window = vid_window;
+
+	if (VK_SUCCESS == vkCreateXcbSurfaceKHR(vk.instance, &inf, vkallocationcb, &vk.surface))
+		return true;
+	return false;
+}
+#endif
 rendererinfo_t vkrendererinfo =
 {
 	"Vulkan(X11)",
@@ -2323,3 +2374,4 @@ qboolean X11_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 
 	return true;
 }
+

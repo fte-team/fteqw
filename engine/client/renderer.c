@@ -1163,7 +1163,10 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 	if (qrenderer == QR_NONE)
 	{
 		if (newr->renderer->rtype == qrenderer && currentrendererstate.renderer)
+		{
+		        R_SetRenderer(newr->renderer);
 			return true;	//no point
+		}
 
 		Sys_CloseTerminal ();
 	}

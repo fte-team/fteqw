@@ -548,16 +548,16 @@ void VARGS Stats_Message(char *msg, ...)
 	p->time_start = cl.time;
 }
 
-#define MAX_CPRINT_LINES 128
+#define MAX_CPRINT_LINES 256
 void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 {
-	int             l;
-	int             y, x;
+	int				l;
+	int				y, x;
 	int				left;
 	int				right;
 	int				top;
 	int				bottom;
-	int             remaining;
+	int				remaining;
 	shader_t		*pic;
 
 	conchar_t *line_start[MAX_CPRINT_LINES];
@@ -1609,6 +1609,11 @@ void SCR_DrawPause (void)
 	if (!cl.paused)
 		return;
 
+#ifndef CLIENTONLY
+	if (sv.active && sv.paused == PAUSE_AUTO)
+		return;
+#endif
+
 	if (Key_Dest_Has(kdm_emenu) || Key_Dest_Has(kdm_gmenu))
 		return;
 
@@ -2337,7 +2342,7 @@ static void SCR_ScreenShot_f (void)
 		}
 		BZ_Free(rgbbuffer);
 	}
-	Con_Printf ("Couldn't write %s\n", sysname);
+	Con_Printf (CON_ERROR "Couldn't write %s\n", sysname);
 }
 
 void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, enum uploadfmt *fmt)
@@ -2667,8 +2672,9 @@ static void SCR_DrawCharToSnap (int num, qbyte *dest, int width)
 
 	if (!draw_chars)
 	{
-		draw_chars = W_SafeGetLumpName("conchars");
-		if (!draw_chars)
+		size_t lumpsize;
+		draw_chars = W_SafeGetLumpName("conchars", &lumpsize);
+		if (!draw_chars || lumpsize != 128*128)
 			return;
 	}
 
@@ -2681,7 +2687,7 @@ static void SCR_DrawCharToSnap (int num, qbyte *dest, int width)
 	while (drawline--)
 	{
 		for (x=0 ; x<8 ; x++)
-			if (source[x]!=255)
+			if (source[x] && source[x]!=255)
 				dest[x] = source[x];
 		source += 128;
 		dest -= width;

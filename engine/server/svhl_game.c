@@ -23,12 +23,12 @@ I think globals.maxentities is the hard cap, rather than current max like in q1.
  //I hope you're c99 and have a __func__
 #endif
 
-extern cvar_t temp1;
+//extern cvar_t temp1;
 #define ignore(s) Con_DPrintf("Fixme: " s "\n")
 #define notimpl(l) Con_Printf("halflife sv builtin not implemented on line %i\n", l)
 #define notimpf(f) Con_Printf("halflife sv builtin %s not implemented\n", f)
-#define bi_begin() if (temp1.ival)Con_Printf("enter %s\n", __func__)
-#define bi_end() if (temp1.ival)Con_Printf("leave %s\n", __func__)
+#define bi_begin() //if (temp1.ival)Con_Printf("enter %s\n", __func__)
+#define bi_end() //if (temp1.ival)Con_Printf("leave %s\n", __func__)
 #define bi_trace() bi_begin(); bi_end()
 
 
@@ -2055,7 +2055,6 @@ static void SVHL_RunCmdR(hledict_t *ed, usercmd_t *ucmd)
 {
 	int i;
 	hledict_t *other;
-extern cvar_t temp1;
 
 	// chop up very long commands
 	if (ucmd->msec > 50)

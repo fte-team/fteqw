@@ -16,7 +16,7 @@ static void *GLVID_getsdlglfunction(char *functionname)
 	return NULL;
 }
 
-static void IN_JoystickButtonEvent(int joydevid, int button, int ispressed)
+static void IN_JoystickButtonEvent(unsigned int joydevid, int button, int ispressed)
 {
 	if (button >= 32+4)
 		return;
@@ -103,7 +103,7 @@ static unsigned int domkeytoshift(unsigned int code)
 //	Con_DPrintf("You just pressed dom key %u, which is quake key %u\n", code, tab[code]);
 	return tab[code];
 }
-static int DOM_KeyEvent(int devid, int down, int scan, int uni)
+static int DOM_KeyEvent(unsigned int devid, int down, int scan, int uni)
 {
 	extern int		shift_down;
 //	Con_Printf("Key %s %i %i:%c\n", down?"down":"up", scan, uni, uni?(char)uni:' ');
@@ -129,7 +129,7 @@ static int DOM_KeyEvent(int devid, int down, int scan, int uni)
 		return true;
 //	return false;
 }
-static void DOM_ButtonEvent(int devid, int down, int button)
+static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 {
 	if (down == 2)
 	{

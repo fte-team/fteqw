@@ -1170,7 +1170,7 @@ qintptr_t VARGS Plug_FS_Seek(void *offset, quintptr_t mask, const qintptr_t *arg
 	stream = &pluginstreamarray[handle];
 	if (stream->type != STREAM_VFS)
 		return -1;
-	VFS_SEEK(stream->vfs, low | ((unsigned long long)high<<32));
+	VFS_SEEK(stream->vfs, low | ((quint64_t)high<<32));
 	return VFS_TELL(stream->vfs);
 }
 

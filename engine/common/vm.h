@@ -88,14 +88,14 @@ void Script_Get_File_And_Line(int handle, char *filename, int *line);
 #define VM_FS_WRITE 1
 #define VM_FS_APPEND 2
 #define VM_FS_APPEND2 3	//I don't know, don't ask me. look at q3 source
-int VM_fopen (char *name, int *handle, int fmode, int owner);
+qofs_t VM_fopen (const char *name, int *handle, int fmode, int owner);
 int VM_FRead (char *dest, int quantity, int fnum, int owner);
-int VM_FWrite (char *dest, int quantity, int fnum, int owner);
-void VM_FSeek (int fnum, int offset, int seektype, int owner);
-int VM_FTell (int fnum, int owner);
+int VM_FWrite (const char *dest, int quantity, int fnum, int owner);
+qboolean VM_FSeek (int fnum, qofs_t offset, int seektype, int owner);
+qofs_t VM_FTell (int fnum, int owner);
 void VM_fclose (int fnum, int owner);
 void VM_fcloseall (int owner);
-int VM_GetFileList(char *path, char *ext, char *output, int buffersize);
+int VM_GetFileList(const char *path, const char *ext, char *output, int buffersize);
 
 #ifdef VM_CG
 void CG_Stop (void);

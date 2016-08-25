@@ -4,7 +4,7 @@
 
 #if __STDC_VERSION__ >= 199901L
 	#define fte_restrict restrict
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && _MSC_VER >= 1400
 	#define fte_restrict __restrict
 #else
 	#define fte_restrict
@@ -36,13 +36,13 @@
 #if !defined(Sys_GetClock) && defined(_WIN32)
 	//windows has some specific functions for this (traditionally wrapping rdtsc)
 	//note: on some systems, you may need to force cpu affinity to a single core via task manager
-	static unsigned long long Sys_GetClock(void)
+	static prclocks_t Sys_GetClock(void)
 	{
 		LARGE_INTEGER li;
 		QueryPerformanceCounter(&li);
 		return li.QuadPart;
 	}
-	unsigned long long Sys_GetClockRate(void)
+	prclocks_t Sys_GetClockRate(void)
 	{
 		LARGE_INTEGER li;
 		QueryPerformanceFrequency(&li);
@@ -57,14 +57,14 @@
 	#if defined(_POSIX_TIMERS) && _POSIX_TIMERS >= 0
 		#include <time.h>
 		#ifdef CLOCK_PROCESS_CPUTIME_ID
-			static unsigned long long Sys_GetClock(void)
+			static prclocks_t Sys_GetClock(void)
 			{
 				struct timespec c;
 				clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &c);
 				return (c.tv_sec*1000000000ull) + c.tv_nsec;
 			}
 			#define Sys_GetClock Sys_GetClock
-			unsigned long long Sys_GetClockRate(void)
+			prclocks_t Sys_GetClockRate(void)
 			{
 				return 1000000000ull;
 			}
@@ -75,13 +75,13 @@
 #if !defined(Sys_GetClock) && defined(__unix__)
 	#include <time.h>
 	#define Sys_GetClock() clock()
-	unsigned long long Sys_GetClockRate(void) { return CLOCKS_PER_SEC; }
+	prclocks_t Sys_GetClockRate(void) { return CLOCKS_PER_SEC; }
 #endif
 
 #ifndef Sys_GetClock
 	//other systems have no choice but to omit this feature in some way. this is just for profiling, so we can get away with stubs.
 	#define Sys_GetClock() 0
-	unsigned long long Sys_GetClockRate(void) { return 1; }
+	prclocks_t Sys_GetClockRate(void) { return 1; }
 #endif
 
 //=============================================================================
@@ -157,7 +157,7 @@ static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...)
 {
 	va_list args;
 	va_start (args, fmt);
-	vsnprintf (dest, size-1, fmt, args);
+	_vsnprintf (dest, size-1, fmt, args);
 	va_end (args);
 	//make sure its terminated.
 	dest[size-1] = 0;
@@ -548,7 +548,7 @@ int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 
 	if (prinst.profiling)
 	{
-		unsigned long long cycles;
+		prclocks_t cycles;
 		cycles = Sys_GetClock() - pr_stack[pr_depth].timestamp;
 		if (cycles > prinst.profilingalert)
 			printf("QC call to %s took over a second\n", PR_StringToNative(&progfuncs->funcs,pr_xfunction->s_name));

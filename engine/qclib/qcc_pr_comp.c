@@ -7451,10 +7451,10 @@ QCC_sref_t QCC_EvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit)
 		src.cast = cast;
 	}
 	/*cast from int->float will convert*/
-	else if (totype == ev_float && src.cast->type == ev_integer)
+	else if (totype == ev_float && (src.cast->type == ev_integer || (src.cast->type == ev_entity && !implicit)))
 		src = QCC_PR_Statement (&pr_opcodes[OP_CONV_ITOF], src, nullsref, NULL);
 	/*cast from float->int will convert*/
-	else if (totype == ev_integer && src.cast->type == ev_float)
+	else if ((totype == ev_integer || (totype == ev_entity && !implicit)) && src.cast->type == ev_float)
 		src = QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], src, nullsref, NULL);
 	else if (totype == ev_entity && src.cast->type == ev_entity)
 	{

@@ -23,6 +23,14 @@ void BZ_Free(void *data);
 typedef int dstring_t;
 #define QCC_string_t dstring_t
 
+#if defined(_MSC_VER) && _MSC_VER < 1300
+#define prclocks_t unsigned __int64
+#define ull2dbl(x)	((double)(__int64)x)
+#else
+#define prclocks_t unsigned long long
+#define ull2dbl(x) ((double)x)
+#endif
+
 //typedef enum {ev_void, ev_string, ev_float, ev_vector, ev_entity, ev_field, ev_function, ev_pointer, ev_integer, ev_struct, ev_union} etype_t;
 //				0			1		2			3			4		5			6				7			8		9			10
 
@@ -531,8 +539,8 @@ typedef struct
 	int		locals;				// total ints of parms + locals
 	
 	int		profile;						//number of qc instructions executed.
-	unsigned long long profiletime;			//total time inside (cpu cycles)
-	unsigned long long profilechildtime;	//time inside children (excluding builtins, cpu cycles)
+	prclocks_t profiletime;			//total time inside (cpu cycles)
+	prclocks_t profilechildtime;	//time inside children (excluding builtins, cpu cycles)
 	
 	string_t	s_name;
 	string_t	s_file;			// source file defined in

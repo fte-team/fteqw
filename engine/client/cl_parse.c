@@ -1752,10 +1752,6 @@ int CL_DownloadRate(void)
 	return 0;
 }
 
-#ifdef _MSC_VER
-#define strtoull _strtoui64
-#endif
-
 //called when the server acks the download. opens the local file and stuff. returns false on failure
 qboolean DL_Begun(qdownload_t *dl)
 {

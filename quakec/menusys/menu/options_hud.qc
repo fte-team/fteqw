@@ -53,9 +53,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Hud =
 		}
 	}
 	search_end(fs);
-	
-	if (!i)
-		fr.add(spawn(mitem_text, item_text:"NO HUDS FOUND", item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, 0], [0, 16]);
+
 
 	//random art for style
 #if 1//def CSQC

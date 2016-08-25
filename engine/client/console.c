@@ -1257,7 +1257,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 					textstart[p+cmdstart] = (unsigned int)fname[p] | (COLOR_GREEN<<CON_FGSHIFT);
 				if (p < key_linepos-cmdstart)
 					p = key_linepos-cmdstart;
-				p = min(p+cmdstart, sizeof(maskedtext)/sizeof(maskedtext[0]) - 2);
+				p = min(p+cmdstart, sizeof(maskedtext)/sizeof(maskedtext[0]) - 3);
 				textstart[p] = 0;
 				textstart[p+1] = 0;
 			}
@@ -2401,13 +2401,16 @@ void Con_DrawConsole (int lines, qboolean noback)
 		srect.y = (1-srect.y) - srect.height;
 		if (srect.width && srect.height)
 		{
-			R2D_ImageColours(0, 0.1, 0.2, 1.0);
-			if ((w->buttonsdown & CB_SIZELEFT) || (con_curwindow==w && w->mousecursor[0] >= -8 && w->mousecursor[0] < 0 && w->mousecursor[1] >= 8 && w->mousecursor[1] < w->wnd_h))
-				R2D_FillBlock(w->wnd_x, w->wnd_y+8, 8, w->wnd_h-8);
-			if ((w->buttonsdown & CB_SIZERIGHT) || (con_curwindow==w && w->mousecursor[0] >= w->wnd_w-16 && w->mousecursor[0] < w->wnd_w-8 && w->mousecursor[1] >= 8 && w->mousecursor[1] < w->wnd_h))
-				R2D_FillBlock(w->wnd_x+w->wnd_w-8, w->wnd_y+8, 8, w->wnd_h-8);
-			if ((w->buttonsdown & CB_SIZEBOTTOM) || (con_curwindow==w && w->mousecursor[0] >= -8 && w->mousecursor[0] < w->wnd_w-8 && w->mousecursor[1] >= w->wnd_h-8 && w->mousecursor[1] < w->wnd_h))
-				R2D_FillBlock(w->wnd_x, w->wnd_y+w->wnd_h-8, w->wnd_w, 8);
+			if (!fadetime)
+			{
+				R2D_ImageColours(0, 0.1, 0.2, 1.0);
+				if ((w->buttonsdown & CB_SIZELEFT) || (con_curwindow==w && w->mousecursor[0] >= -8 && w->mousecursor[0] < 0 && w->mousecursor[1] >= 8 && w->mousecursor[1] < w->wnd_h))
+					R2D_FillBlock(w->wnd_x, w->wnd_y+8, 8, w->wnd_h-8);
+				if ((w->buttonsdown & CB_SIZERIGHT) || (con_curwindow==w && w->mousecursor[0] >= w->wnd_w-16 && w->mousecursor[0] < w->wnd_w-8 && w->mousecursor[1] >= 8 && w->mousecursor[1] < w->wnd_h))
+					R2D_FillBlock(w->wnd_x+w->wnd_w-8, w->wnd_y+8, 8, w->wnd_h-8);
+				if ((w->buttonsdown & CB_SIZEBOTTOM) || (con_curwindow==w && w->mousecursor[0] >= -8 && w->mousecursor[0] < w->wnd_w-8 && w->mousecursor[1] >= w->wnd_h-8 && w->mousecursor[1] < w->wnd_h))
+					R2D_FillBlock(w->wnd_x, w->wnd_y+w->wnd_h-8, w->wnd_w, 8);
+			}
 			if (R2D_Flush)
 				R2D_Flush();
 			BE_Scissor(&srect);

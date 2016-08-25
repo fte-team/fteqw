@@ -25,7 +25,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <conio.h>
 
 #if (defined(_DEBUG) || defined(DEBUG)) && !defined(NPFTE)
+#if !defined(_MSC_VER) || _MSC_VER > 1200
 #define CATCHCRASH
+#endif
 #ifdef _MSC_VER
 #define MSVC_SEH
 DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo);

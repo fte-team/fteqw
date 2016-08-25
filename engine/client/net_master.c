@@ -2324,7 +2324,7 @@ void MasterInfo_WriteServers(void)
 	mf = FS_OpenVFS("masters.txt", "wt", FS_ROOT);
 	if (!mf)
 	{
-		Con_Printf("Couldn't write masters.txt");
+		Con_Printf(CON_ERROR "Couldn't write masters.txt");
 		return;
 	}
 

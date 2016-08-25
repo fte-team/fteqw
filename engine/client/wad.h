@@ -88,10 +88,10 @@ extern	qbyte		*wad_base;
 void W_Shutdown (void);
 void	W_LoadWadFile (char *filename);
 void	W_CleanupName (const char *in, char *out);
-lumpinfo_t	*W_GetLumpinfo (char *name);
-void	*W_GetLumpName (char *name);
-void	*W_SafeGetLumpName (const char *name);
-void	*W_GetLumpNum (int num);
+//lumpinfo_t	*W_GetLumpinfo (char *name);
+//void	*W_GetLumpName (char *name);
+void	*W_SafeGetLumpName (const char *name, size_t *size);
+//void	*W_GetLumpNum (int num);
 void Wads_Flush (void);
 extern void *wadmutex;
 

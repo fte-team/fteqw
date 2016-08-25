@@ -16,7 +16,15 @@
 #else
 
 #	include <stddef.h>
+
+#if __STDC_VERSION__ >= 199901L || defined(__GNUC__)
 #	include <stdint.h>
+#else
+#define uint8_t unsigned char
+#define uint16_t unsigned short
+#define uint32_t unsigned int
+#define uint64_t quint64_t
+#endif
 
 
 //BEGIN xz.h
@@ -38,7 +46,7 @@
 #	include <linux/types.h>
 #else
 #	include <stddef.h>
-#	include <stdint.h>
+//#	include <stdint.h>
 #endif
 
 #ifdef __cplusplus

@@ -106,7 +106,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #if !defined(MINIMAL) && !defined(NPFTE) && !defined(NPQTV)
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
-	#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
+	#if !defined(_MSC_VER) || _MSC_VER > 1200
+		#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
+	#endif
 #elif defined(__linux__) || defined(__CYGWIN__)
 	#define HAVE_GNUTLS		//currently disabled as it does not validate the server's certificate, beware the mitm attack.
 #endif
@@ -130,8 +132,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define D3DQUAKE
 #endif
 
-#if defined(_MSC_VER) //too lazy to fix up the makefile
-//#define BOTLIB_STATIC
+#if defined(_MSC_VER) && !defined(BOTLIB_STATIC) //too lazy to fix up the makefile
+#define BOTLIB_STATIC
 #endif
 
 #ifdef NO_OPENAL
@@ -633,7 +635,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //I'm making my own restrict, because msvc's headers can't cope if I #define restrict to __restrict, and quite possibly other platforms too
 #if __STDC_VERSION__ >= 199901L
 	#define fte_restrict restrict
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && _MSC_VER >= 1400
 	#define fte_restrict __restrict
 #else
 	#define fte_restrict

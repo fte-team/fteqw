@@ -931,8 +931,7 @@ static qboolean OpenAL_InitLibrary(void)
 
 static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 {
-	oalinfo_t *oali = Z_Malloc(sizeof(oalinfo_t));
-	sc->handle = oali;
+	oalinfo_t *oali;
 
 	if (!OpenAL_InitLibrary())
 	{
@@ -943,46 +942,43 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 		return false;
 	}
 
-	if (oali->OpenAL_Context)
-	{
-		Con_Printf(SDRVNAME": only able to load one device at a time\n");
-		return false;
-	}
-
 	if (!devname || !*devname)
 		devname = palcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
 	Q_snprintfz(sc->name, sizeof(sc->name), "%s", devname);
 	Con_Printf("Initiating "SDRVNAME": %s.\n", devname);
 
+	oali = Z_Malloc(sizeof(oalinfo_t));
+	sc->handle = oali;
+
 	oali->OpenAL_Device = palcOpenDevice(devname);
 	if (oali->OpenAL_Device == NULL)
-	{
 		PrintALError("Could not init a sound device\n");
-		return false;
-	}
-
-	oali->OpenAL_Context = palcCreateContext(oali->OpenAL_Device, NULL);
-	if (!oali->OpenAL_Context)
+	else
 	{
-		PrintALError("Could not init a sound context\n");
-		return false;
+		oali->OpenAL_Context = palcCreateContext(oali->OpenAL_Device, NULL);
+		if (!oali->OpenAL_Context)
+			PrintALError("Could not init a sound context\n");
+		else
+		{
+			palcMakeContextCurrent(oali->OpenAL_Context);
+		//	palcProcessContext(oali->OpenAL_Context);
+
+			//S_Info();
+
+			//fixme...
+			memset(oali->source, 0, sizeof(oali->source));
+			PrintALError("alGensources for normal sources");
+
+			palListenerfv(AL_POSITION, oali->ListenPos);
+			palListenerfv(AL_VELOCITY, oali->ListenVel);
+			palListenerfv(AL_ORIENTATION, oali->ListenOri);
+
+			return true;
+		}
+		palcCloseDevice(oali->OpenAL_Device);
 	}
-
-	palcMakeContextCurrent(oali->OpenAL_Context);
-//	palcProcessContext(oali->OpenAL_Context);
-
-	//S_Info();
-
-	//fixme...
-	memset(oali->source, 0, sizeof(oali->source));
-	PrintALError("alGensources for normal sources");
-
-
-	palListenerfv(AL_POSITION, oali->ListenPos);
-	palListenerfv(AL_VELOCITY, oali->ListenVel);
-	palListenerfv(AL_ORIENTATION, oali->ListenOri);
-
-	return true;
+	Z_Free(oali);
+	return false;
 }
 
 //called when some al-specific cvar has changed that is linked to openal state.

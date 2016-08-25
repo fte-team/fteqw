@@ -867,7 +867,7 @@ void PM_CategorizePosition (void)
 //		VectorMA(point, 48, forward, point);
 //		trace = PM_TraceLine(pmove.origin, point);
 //		trace.fraction = 1;
-		if (1)//trace.fraction == 1)
+//		if (1)//trace.fraction == 1)
 		{	//getting desparate
 			VectorMA(pmove.origin, -48, up, point);
 			VectorMA(point, 48, forward, point);

@@ -859,7 +859,7 @@ unsigned int WINAPI BlockingClient(FTPclient_t *cl)
 	unsigned long _false = false;
 	if (ioctlsocket (cl->controlsock, FIONBIO, &_false) == -1)
 	{
-		IWebPrintf ("FTP_ServerRun: blocking error: %s\n", strerror(qerrno));
+		IWebPrintf ("FTP_ServerRun: blocking error: %s\n", strerror(neterrno()));
 		return 0;
 	}
 

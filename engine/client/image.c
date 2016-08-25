@@ -2421,8 +2421,9 @@ static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 	//ezhud breaks without this. I assume other things will too. this is why you shouldn't depend upon querying an image's size.
 	if (!strncmp(tex->ident, "gfx/", 4))
 	{
-		qpic_t *pic = W_SafeGetLumpName(tex->ident+4);
-		if (pic)
+		size_t lumpsize;
+		qpic_t *pic = W_SafeGetLumpName(tex->ident+4, &lumpsize);
+		if (pic && lumpsize == 8 + pic->width*pic->height)
 		{
 			tex->width = pic->width;
 			tex->height = pic->height;
@@ -4350,204 +4351,220 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 	char *buf;
 	size_t fsize;
 	int firstex = (tex->flags & IF_EXACTEXTENSION)?tex_extensions_count-1:0;
+	char *altname;
+	char *nextalt;
 
 //	Sys_Sleep(0.3);
 
-	//see if we recognise the extension, and only strip it if we do.
-	COM_FileExtension(tex->ident, nicename, sizeof(nicename));
-	e = 0;
-	if (strcmp(nicename, "lmp") && strcmp(nicename, "wal"))
-		for (; e < tex_extensions_count; e++)
-		{
-			if (!strcmp(nicename, (*tex_extensions[e].name=='.')?tex_extensions[e].name+1:tex_extensions[e].name))
-				break;
-		}
-
-	//strip it and try replacements if we do, otherwise assume that we're meant to be loading progs/foo.mdl_0.tga or whatever
-	if (e == tex_extensions_count || (tex->flags & IF_EXACTEXTENSION))
-		Q_strncpyz(nicename, tex->ident, sizeof(nicename));
-	else
-		COM_StripExtension(tex->ident, nicename, sizeof(nicename));
-
-	if ((tex->flags & IF_TEXTYPE) == IF_CUBEMAP)
-	{	//cubemaps require special handling because they are (normally) 6 files instead of 1.
-		//the exception is single-file dds cubemaps, but we don't support those.
-		if (!Image_LoadCubemapTexture(tex, nicename))
-		{
-			if (tex->flags & IF_NOWORKER)
-				Image_LoadTexture_Failed(tex, NULL, 0, 0);
-			else
-				COM_AddWork(WG_MAIN, Image_LoadTexture_Failed, tex, NULL, 0, 0);
-		}
-		return;
-	}
-
-	if (!tex->fallbackdata || (gl_load24bit.ival && !(tex->flags & IF_NOREPLACE)))
+	for(altname = tex->ident;altname;altname = nextalt)
 	{
-		Q_snprintfz(fname, sizeof(fname), "dds/%s.dds", nicename);
-		if ((buf = COM_LoadFile (fname, 5, &fsize)))
+		nextalt = strchr(altname, ':');
+		if (nextalt)
 		{
-			Q_snprintfz(iname, sizeof(iname), "dds/%s", nicename); /*should be safe if its null*/
-			if (Image_LoadTextureFromMemory(tex, tex->flags, iname, fname, buf, fsize))
-				return;
+			nextalt++;
+			if (nextalt-altname >= sizeof(fname))
+				continue;	//too long...
+			memcpy(fname, altname, nextalt-altname-1);
+			fname[nextalt-altname-1] = 0;
+			altname = fname;
 		}
 
+		//see if we recognise the extension, and only strip it if we do.
+		COM_FileExtension(altname, nicename, sizeof(nicename));
+		e = 0;
+		if (strcmp(nicename, "lmp") && strcmp(nicename, "wal"))
+			for (; e < tex_extensions_count; e++)
+			{
+				if (!strcmp(nicename, (*tex_extensions[e].name=='.')?tex_extensions[e].name+1:tex_extensions[e].name))
+					break;
+			}
 
-		if (strchr(nicename, '/') || strchr(nicename, '\\'))	//never look in a root dir for the pic
-			i = 0;
+		//strip it and try replacements if we do, otherwise assume that we're meant to be loading progs/foo.mdl_0.tga or whatever
+		if (e == tex_extensions_count || (tex->flags & IF_EXACTEXTENSION))
+			Q_strncpyz(nicename, altname, sizeof(nicename));
 		else
-			i = 1;
+			COM_StripExtension(altname, nicename, sizeof(nicename));
 
-		for (; i < sizeof(tex_path)/sizeof(tex_path[0]); i++)
+		if ((tex->flags & IF_TEXTYPE) == IF_CUBEMAP)
+		{	//cubemaps require special handling because they are (normally) 6 files instead of 1.
+			//the exception is single-file dds cubemaps, but we don't support those.
+			if (!Image_LoadCubemapTexture(tex, nicename))
+			{
+				if (tex->flags & IF_NOWORKER)
+					Image_LoadTexture_Failed(tex, NULL, 0, 0);
+				else
+					COM_AddWork(WG_MAIN, Image_LoadTexture_Failed, tex, NULL, 0, 0);
+			}
+			return;
+		}
+
+		if (!tex->fallbackdata || (gl_load24bit.ival && !(tex->flags & IF_NOREPLACE)))
 		{
-			if (!tex_path[i].enabled)
-				continue;
-			if (tex_path[i].args >= 3)
-			{	//this is a path that needs subpaths
-				char subpath[MAX_QPATH];
-				char basename[MAX_QPATH];
-				char *s, *n;
-				if (!tex->subpath || !*nicename)
+			Q_snprintfz(fname, sizeof(fname), "dds/%s.dds", nicename);
+			if ((buf = COM_LoadFile (fname, 5, &fsize)))
+			{
+				Q_snprintfz(iname, sizeof(iname), "dds/%s", nicename); /*should be safe if its null*/
+				if (Image_LoadTextureFromMemory(tex, tex->flags, iname, fname, buf, fsize))
+					return;
+			}
+
+
+			if (strchr(nicename, '/') || strchr(nicename, '\\'))	//never look in a root dir for the pic
+				i = 0;
+			else
+				i = 1;
+
+			for (; i < sizeof(tex_path)/sizeof(tex_path[0]); i++)
+			{
+				if (!tex_path[i].enabled)
 					continue;
+				if (tex_path[i].args >= 3)
+				{	//this is a path that needs subpaths
+					char subpath[MAX_QPATH];
+					char basename[MAX_QPATH];
+					char *s, *n;
+					if (!tex->subpath || !*nicename)
+						continue;
 
-				s = COM_SkipPath(nicename);
-				n = basename;
-				while (*s && *s != '.' && n < basename+sizeof(basename)-5)
-					*n++ = *s++;
-				s = strchr(s, '_');
-				if (s)
-				{
-					while (*s && n < basename+sizeof(basename)-5)
+					s = COM_SkipPath(nicename);
+					n = basename;
+					while (*s && *s != '.' && n < basename+sizeof(basename)-5)
 						*n++ = *s++;
-				}
-				*n = 0;
-
-				for(s = tex->subpath; s; s = n)
-				{
-					//subpath a:b:c tries multiple possible sub paths, for compatibility
-					n = strchr(s, ':');
-					if (n)
+					s = strchr(s, '_');
+					if (s)
 					{
-						if (n-s >= sizeof(subpath))
-							*subpath = 0;
-						else
-						{
-							memcpy(subpath, s, n-s);
-							subpath[n-s] = 0;
-						}
-						n++;
+						while (*s && n < basename+sizeof(basename)-5)
+							*n++ = *s++;
 					}
-					else
-						Q_strncpyz(subpath, s, sizeof(subpath));
+					*n = 0;
+
+					for(s = tex->subpath; s; s = n)
+					{
+						//subpath a:b:c tries multiple possible sub paths, for compatibility
+						n = strchr(s, ':');
+						if (n)
+						{
+							if (n-s >= sizeof(subpath))
+								*subpath = 0;
+							else
+							{
+								memcpy(subpath, s, n-s);
+								subpath[n-s] = 0;
+							}
+							n++;
+						}
+						else
+							Q_strncpyz(subpath, s, sizeof(subpath));
+						for (e = firstex; e < tex_extensions_count; e++)
+						{
+							if (tex->flags & IF_NOPCX)
+								if (!strcmp(tex_extensions[e].name, ".pcx"))
+									continue;
+							Q_snprintfz(fname, sizeof(fname), tex_path[i].path, subpath, basename, tex_extensions[e].name);
+							if ((buf = COM_LoadFile (fname, 5, &fsize)))
+							{
+								Q_snprintfz(iname, sizeof(iname), "%s/%s", subpath, nicename); /*should be safe if its null*/
+								if (Image_LoadTextureFromMemory(tex, tex->flags, iname, fname, buf, fsize))
+									return;
+							}
+						}
+					}
+				}
+				else
+				{
 					for (e = firstex; e < tex_extensions_count; e++)
 					{
 						if (tex->flags & IF_NOPCX)
 							if (!strcmp(tex_extensions[e].name, ".pcx"))
 								continue;
-						Q_snprintfz(fname, sizeof(fname), tex_path[i].path, subpath, basename, tex_extensions[e].name);
+						Q_snprintfz(fname, sizeof(fname), tex_path[i].path, nicename, tex_extensions[e].name);
 						if ((buf = COM_LoadFile (fname, 5, &fsize)))
-						{
-							Q_snprintfz(iname, sizeof(iname), "%s/%s", subpath, nicename); /*should be safe if its null*/
-							if (Image_LoadTextureFromMemory(tex, tex->flags, iname, fname, buf, fsize))
+							if (Image_LoadTextureFromMemory(tex, tex->flags, nicename, fname, buf, fsize))
 								return;
-						}
 					}
 				}
-			}
-			else
-			{
-				for (e = firstex; e < tex_extensions_count; e++)
-				{
-					if (tex->flags & IF_NOPCX)
-						if (!strcmp(tex_extensions[e].name, ".pcx"))
-							continue;
-					Q_snprintfz(fname, sizeof(fname), tex_path[i].path, nicename, tex_extensions[e].name);
-					if ((buf = COM_LoadFile (fname, 5, &fsize)))
-						if (Image_LoadTextureFromMemory(tex, tex->flags, nicename, fname, buf, fsize))
-							return;
-				}
-			}
 
-			//support expansion of _bump textures to _norm textures.
-			if (tex->flags & IF_TRYBUMP)
-			{
-				if (tex_path[i].args >= 3)
+				//support expansion of _bump textures to _norm textures.
+				if (tex->flags & IF_TRYBUMP)
 				{
-					/*no legacy compat needed, hopefully*/
-				}
-				else
-				{
-					char bumpname[MAX_QPATH], *n, *b;
-					b = bumpname;
-					n = nicename;
-					while(*n)
+					if (tex_path[i].args >= 3)
 					{
-						if (*n == '_' && !strcmp(n, "_norm"))
-						{
-							strcpy(b, "_bump");
-							b += 5;
-							n += 5;
-							break;
-						}
-						*b++ = *n++;
+						/*no legacy compat needed, hopefully*/
 					}
-					if (*n)	//no _norm, give up with that
-						continue;
-					*b = 0;
-					for (e = firstex; e < tex_extensions_count; e++)
+					else
 					{
-						if (!strcmp(tex_extensions[e].name, ".tga"))
+						char bumpname[MAX_QPATH], *n, *b;
+						b = bumpname;
+						n = nicename;
+						while(*n)
 						{
-							Q_snprintfz(fname, sizeof(fname), tex_path[i].path, bumpname, tex_extensions[e].name);
-							if ((buf = COM_LoadFile (fname, 5, &fsize)))
+							if (*n == '_' && !strcmp(n, "_norm"))
 							{
-								int w, h;
-								qboolean a;
-								qbyte *d;
-								if ((d = ReadTargaFile(buf, fsize, &w, &h, &a, 2)))	//Only load a greyscale image.
+								strcpy(b, "_bump");
+								b += 5;
+								n += 5;
+								break;
+							}
+							*b++ = *n++;
+						}
+						if (*n)	//no _norm, give up with that
+							continue;
+						*b = 0;
+						for (e = firstex; e < tex_extensions_count; e++)
+						{
+							if (!strcmp(tex_extensions[e].name, ".tga"))
+							{
+								Q_snprintfz(fname, sizeof(fname), tex_path[i].path, bumpname, tex_extensions[e].name);
+								if ((buf = COM_LoadFile (fname, 5, &fsize)))
 								{
-									BZ_Free(buf);
-									if (Image_LoadRawTexture(tex, tex->flags, d, NULL, w, h, TF_HEIGHT8))
+									int w, h;
+									qboolean a;
+									qbyte *d;
+									if ((d = ReadTargaFile(buf, fsize, &w, &h, &a, 2)))	//Only load a greyscale image.
 									{
-										BZ_Free(tex->fallbackdata);
-										tex->fallbackdata = NULL;	
-										return;
+										BZ_Free(buf);
+										if (Image_LoadRawTexture(tex, tex->flags, d, NULL, w, h, TF_HEIGHT8))
+										{
+											BZ_Free(tex->fallbackdata);
+											tex->fallbackdata = NULL;	
+											return;
+										}
 									}
+									else
+										BZ_Free(buf);
 								}
-								else
-									BZ_Free(buf);
 							}
 						}
 					}
 				}
 			}
-		}
 
 
-		/*still failed? attempt to load quake lmp files, which have no real format id (hence why they're not above)*/
-		Q_strncpyz(fname, nicename, sizeof(fname));
-		COM_DefaultExtension(fname, ".lmp", sizeof(fname));
-		if (!(tex->flags & IF_NOPCX) && (buf = COM_LoadFile (fname, 5, &fsize)))
-		{
-			if (Image_LoadTextureFromMemory(tex, tex->flags, nicename, fname, buf, fsize))
-				return;
-		}
-		else
-		{
-			int imgwidth;
-			int imgheight;
-			qboolean alphaed;
-			//now look in wad files. (halflife compatability)
-			buf = W_GetTexture(nicename, &imgwidth, &imgheight, &alphaed);
-			if (buf)
+			/*still failed? attempt to load quake lmp files, which have no real format id (hence why they're not above)*/
+			Q_strncpyz(fname, nicename, sizeof(fname));
+			COM_DefaultExtension(fname, ".lmp", sizeof(fname));
+			if (!(tex->flags & IF_NOPCX) && (buf = COM_LoadFile (fname, 5, &fsize)))
 			{
-				if (Image_LoadRawTexture(tex, tex->flags, buf, NULL, imgwidth, imgheight, TF_RGBA32))
-				{
-					BZ_Free(tex->fallbackdata);
-					tex->fallbackdata = NULL;					
+				if (Image_LoadTextureFromMemory(tex, tex->flags, nicename, fname, buf, fsize))
 					return;
+			}
+			else
+			{
+				int imgwidth;
+				int imgheight;
+				qboolean alphaed;
+				//now look in wad files. (halflife compatability)
+				buf = W_GetTexture(nicename, &imgwidth, &imgheight, &alphaed);
+				if (buf)
+				{
+					if (Image_LoadRawTexture(tex, tex->flags, buf, NULL, imgwidth, imgheight, TF_RGBA32))
+					{
+						BZ_Free(tex->fallbackdata);
+						tex->fallbackdata = NULL;					
+						return;
+					}
+					BZ_Free(buf);
 				}
-				BZ_Free(buf);
 			}
 		}
 	}

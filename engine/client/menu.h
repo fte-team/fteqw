@@ -254,9 +254,8 @@ typedef union menuoption_s {
 } menuoption_t;
 
 typedef struct menutooltip_s {
-	char **lines;
-	int rows;
-	int columns;
+	conchar_t *end;
+	conchar_t text[1];
 } menutooltip_t;
 
 typedef struct menuresel_s	//THIS STRUCT MUST BE STATICALLY ALLOCATED.

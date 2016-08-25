@@ -1,6 +1,8 @@
 #ifdef VKQUAKE
 #if defined(__LP64__) || defined(_WIN64)
 #define VulkanWasDesignedByARetard void*
+#elif defined(_MSC_VER) && _MSC_VER < 1300
+#define VulkanWasDesignedByARetard __int64
 #else
 #define VulkanWasDesignedByARetard long long
 #endif
@@ -375,15 +377,15 @@ typedef struct texnums_s {
 //not all modes accept meshes - STENCIL(intentional) and DEPTHONLY(not implemented)
 typedef enum backendmode_e
 {
-        BEM_STANDARD,			//regular mode to draw surfaces akin to q3 (aka: legacy mode). lightmaps+delux+ambient
-        BEM_DEPTHONLY,			//just a quick depth pass. textures used only for alpha test (shadowmaps).
-		BEM_WIREFRAME,			//for debugging or something
-        BEM_STENCIL,			//used for drawing shadow volumes to the stencil buffer.
-        BEM_DEPTHDARK,			//a quick depth pass. textures used only for alpha test. additive textures still shown as normal.
-		BEM_CREPUSCULAR,		//sky is special, everything else completely black
-		BEM_DEPTHNORM,			//all opaque stuff drawn using 'depthnorm' shader
-		BEM_FOG,				//drawing a fog volume
-        BEM_LIGHT,				//we have a valid light
+	BEM_STANDARD,			//regular mode to draw surfaces akin to q3 (aka: legacy mode). lightmaps+delux+ambient
+	BEM_DEPTHONLY,			//just a quick depth pass. textures used only for alpha test (shadowmaps).
+	BEM_WIREFRAME,			//for debugging or something
+	BEM_STENCIL,			//used for drawing shadow volumes to the stencil buffer.
+	BEM_DEPTHDARK,			//a quick depth pass. textures used only for alpha test. additive textures still shown as normal.
+	BEM_CREPUSCULAR,		//sky is special, everything else completely black
+	BEM_DEPTHNORM,			//all opaque stuff drawn using 'depthnorm' shader
+	BEM_FOG,				//drawing a fog volume
+	BEM_LIGHT,				//we have a valid light
 } backendmode_t;
 
 typedef struct rendererinfo_s {
@@ -395,24 +397,24 @@ typedef struct rendererinfo_s {
 	void	(*Draw_Init)				(void);
 	void	(*Draw_Shutdown)			(void);
 
-	void	(*IMG_UpdateFiltering)		(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
+	void	 (*IMG_UpdateFiltering)		(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
 	qboolean (*IMG_LoadTextureMips)		(texid_t tex, struct pendingtextureinfo *mips);
-	void    (*IMG_DestroyTexture)		(texid_t tex);
+	void	 (*IMG_DestroyTexture)		(texid_t tex);
 
-	void	(*R_Init)					(void); //FIXME - merge implementations
-	void	(*R_DeInit)					(void);	//FIXME - merge implementations
-	void	(*R_RenderView)				(void);	// must set r_refdef first
+	void	 (*R_Init)					(void); //FIXME - merge implementations
+	void	 (*R_DeInit)					(void);	//FIXME - merge implementations
+	void	 (*R_RenderView)				(void);	// must set r_refdef first
 
 	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 	void	 (*VID_DeInit)				(void);
-	void	(*VID_SwapBuffers)			(void);	//force a buffer swap, regardless of what's displayed.
+	void	 (*VID_SwapBuffers)			(void);	//force a buffer swap, regardless of what's displayed.
 	qboolean (*VID_ApplyGammaRamps)		(unsigned int size, unsigned short *ramps);
 
-	void *(*VID_CreateCursor)			(const char *filename, float hotx, float hoty, float scale);	//may be null, stub returns null
+	void	*(*VID_CreateCursor)			(const char *filename, float hotx, float hoty, float scale);	//may be null, stub returns null
 	qboolean (*VID_SetCursor)			(void *cursor);	//may be null
-	void (*VID_DestroyCursor)			(void *cursor);	//may be null
+	void	 (*VID_DestroyCursor)			(void *cursor);	//may be null
 
-	void	(*VID_SetWindowCaption)		(const char *msg);
+	void	 (*VID_SetWindowCaption)		(const char *msg);
 	char	*(*VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
 
 	qboolean (*SCR_UpdateScreen)			(void);
@@ -431,22 +433,23 @@ typedef struct rendererinfo_s {
 	//called at init, force the display to the right defaults etc
 	void	(*BE_Init)(void);
 	//Generates an optimised VBO, one for each texture on the map
-	void (*BE_GenBrushModelVBO)(struct model_s *mod);
+	void	(*BE_GenBrushModelVBO)(struct model_s *mod);
 	//Destroys the given vbo
-	void (*BE_ClearVBO)(struct vbo_s *vbo);
+	void	(*BE_ClearVBO)(struct vbo_s *vbo);
 	//Uploads all modified lightmaps
-	void (*BE_UploadAllLightmaps)(void);
-	void (*BE_SelectEntity)(struct entity_s *ent);
+	void	(*BE_UploadAllLightmaps)(void);
+	void	(*BE_SelectEntity)(struct entity_s *ent);
 	qboolean (*BE_SelectDLight)(struct dlight_s *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);
-	void (*BE_Scissor)(srect_t *rect);
+	void	(*BE_Scissor)(srect_t *rect);
 	/*check to see if an ent should be drawn for the selected light*/
 	qboolean (*BE_LightCullModel)(vec3_t org, struct model_s *model);
-	void (*BE_VBO_Begin)(vbobctx_t *ctx, size_t maxsize);
-	void (*BE_VBO_Data)(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);
-	void (*BE_VBO_Finish)(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem);
-	void (*BE_VBO_Destroy)(vboarray_t *vearray, void *mem);
-	void (*BE_RenderToTextureUpdate2d)(qboolean destchanged);
-	char *alignment;
+	void	(*BE_VBO_Begin)(vbobctx_t *ctx, size_t maxsize);
+	void	(*BE_VBO_Data)(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);
+	void	(*BE_VBO_Finish)(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem);
+	void	(*BE_VBO_Destroy)(vboarray_t *vearray, void *mem);
+	void	(*BE_RenderToTextureUpdate2d)(qboolean destchanged);
+
+	char *alignment;	//just to make sure that added functions cause compile warnings.
 } rendererinfo_t;
 
 #define rf currentrendererstate.renderer

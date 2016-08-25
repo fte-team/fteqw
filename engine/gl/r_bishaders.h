@@ -352,16 +352,36 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "altwater",
-"!!cvarf r_glsl_turbscale\n"
-//modifier: REFLECT (s_t2 is a reflection instead of diffusemap)
-//modifier: STRENGTH (0.1 = fairly gentle, 0.2 = big waves)
-//modifier: FRESNEL (5=water)
-//modifier: TXSCALE (0.2 - wave strength)
-//modifier: RIPPLEMAP (s_t3 contains a ripplemap
-//modifier: TINT    (some colour value)
+"!!cvardf r_glsl_turbscale_reflect=1 //simpler scaler\n"
+"!!cvardf r_glsl_turbscale_refract=1 //simpler scaler\n"
+"!!samps 4 diffuse\n"
 
+"#include \"sys/defs.h\"\n"
+
+//modifier: REFLECT		(s_t2 is a reflection instead of diffusemap)
+//modifier: STRENGTH_REFL	(distortion strength - 0.1 = fairly gentle, 0.2 = big waves)
+//modifier: STRENGTH_REFL	(distortion strength - 0.1 = fairly gentle, 0.2 = big waves)
+//modifier: FRESNEL_EXP	(5=water)
+//modifier: TXSCALE		(wave size - 0.2)
+//modifier: RIPPLEMAP		(s_t3 contains a ripplemap
+//modifier: TINT_REFR		(some colour value)
+//modifier: TINT_REFL		(some colour value)
+//modifier: ALPHA		(mix in the normal water texture over the top)
+//modifier: USEMODS		(use single-texture scrolling via tcmods - note, also forces the engine to actually use tcmod etc)
+
+//a few notes on DP compat:
+//'dpwater' makes numerous assumptions about DP internals
+//by default there is a single pass that uses the pass's normal tcmods
+//the fresnel has a user-supplied min+max rather than an exponent
+//both parts are tinted individually
+//if alpha is enabled, the regular water texture is blended over the top, again using the same crappy tcmods...
+
+//legacy crap
 "#ifndef FRESNEL\n"
 "#define FRESNEL 5.0\n"
+"#endif\n"
+"#ifndef TINT\n"
+"#define TINT 0.7,0.8,0.7\n"
 "#endif\n"
 "#ifndef STRENGTH\n"
 "#define STRENGTH 0.1\n"
@@ -369,11 +389,37 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifndef TXSCALE\n"
 "#define TXSCALE 0.2\n"
 "#endif\n"
-"#ifndef TINT\n"
-"#define TINT vec3(0.7, 0.8, 0.7)\n"
+
+//current values (referring to legacy defaults where needed)
+"#ifndef FRESNEL_EXP\n"
+"#define FRESNEL_EXP 5.0\n"
+"#endif\n"
+"#ifndef FRESNEL_MIN\n"
+"#define FRESNEL_MIN 0.0\n"
+"#endif\n"
+"#ifndef FRESNEL_RANGE\n"
+"#define FRESNEL_RANGE 1.0\n"
+"#endif\n"
+"#ifndef STRENGTH_REFL\n"
+"#define STRENGTH_REFL STRENGTH\n"
+"#endif\n"
+"#ifndef STRENGTH_REFR\n"
+"#define STRENGTH_REFR STRENGTH\n"
+"#endif\n"
+"#ifndef TXSCALE1\n"
+"#define TXSCALE1 TXSCALE\n"
+"#endif\n"
+"#ifndef TXSCALE2\n"
+"#define TXSCALE2 TXSCALE\n"
+"#endif\n"
+"#ifndef TINT_REFR\n"
+"#define TINT_REFR TINT\n"
+"#endif\n"
+"#ifndef TINT_REFL\n"
+"#define TINT_REFL 1.0,1.0,1.0\n"
 "#endif\n"
 "#ifndef FOGTINT\n"
-"#define FOGTINT vec3(0.2, 0.3, 0.2)\n"
+"#define FOGTINT 0.2,0.3,0.2\n"
 "#endif\n"
 
 "varying vec2 tc;\n"
@@ -381,9 +427,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "varying vec3 norm;\n"
 "varying vec3 eye;\n"
 "#ifdef VERTEX_SHADER\n"
-"attribute vec2 v_texcoord;\n"
-"attribute vec3 v_normal;\n"
-"uniform vec3 e_eyepos;\n"
 "void main (void)\n"
 "{\n"
 "tc = v_texcoord.st;\n"
@@ -394,45 +437,48 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
+"#ifdef ALPHA\n"
+"#include \"sys/fog.h\"\n"
+"#endif\n"
+
+
 "#define s_refract s_t0\n"
 "#define s_reflect s_t1\n"
 "#define s_ripplemap s_t2\n"
 "#define s_refractdepth s_t3\n"
 
-"uniform float cvar_r_glsl_turbscale;\n"
-"uniform sampler2D s_normalmap;\n"
-"uniform sampler2D s_diffuse;\n"
-"uniform sampler2D s_refract; //refract\n"
-"uniform sampler2D s_reflect; //reflection\n"
-"uniform sampler2D s_refractdepth;  //refraction depth\n"
-"uniform sampler2D s_ripplemap;  //ripplemap\n"
-
-"uniform float e_time;\n"
 "void main (void)\n"
 "{\n"
-"vec2 stc, ntc;\n"
+"vec2 stc; //screen tex coords\n"
+"vec2 ntc; //normalmap/diffuse tex coords\n"
 "vec3 n, refr, refl;\n"
 "float fres;\n"
 "float depth;\n"
 "stc = (1.0 + (tf.xy / tf.w)) * 0.5;\n"
-//hack the texture coords slightly so that there are no obvious gaps
+//hack the texture coords slightly so that there are less obvious gaps
 "stc.t -= 1.5*norm.z/1080.0;\n"
 
+"#if 0//def USEMODS\n"
+"ntc = tc;\n"
+"n = texture2D(s_normalmap, ntc).xyz - 0.5;\n"
+"#else\n"
 //apply q1-style warp, just for kicks
 "ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
 "ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
 
 //generate the two wave patterns from the normalmap
-"n = (texture2D(s_normalmap, TXSCALE*tc + vec2(e_time*0.1, 0.0)).xyz);\n"
-"n += (texture2D(s_normalmap, TXSCALE*tc - vec2(0, e_time*0.097)).xyz);\n"
+"n = (texture2D(s_normalmap, vec2(TXSCALE1)*tc + vec2(e_time*0.1, 0.0)).xyz);\n"
+"n += (texture2D(s_normalmap, vec2(TXSCALE2)*tc - vec2(0, e_time*0.097)).xyz);\n"
 "n -= 1.0 - 4.0/256.0;\n"
+"#endif\n"
 
 "#ifdef RIPPLEMAP\n"
 "n += texture2D(s_ripplemap, stc).rgb*3.0;\n"
 "#endif\n"
+"n = normalize(n);\n"
 
 //the fresnel term decides how transparent the water should be
-"fres = pow(1.0-abs(dot(normalize(n), normalize(eye))), float(FRESNEL));\n"
+"fres = pow(1.0-abs(dot(n, normalize(eye))), float(FRESNEL_EXP)) * float(FRESNEL_RANGE) + float(FRESNEL_MIN);\n"
 
 "#ifdef DEPTH\n"
 "float far = #include \"cvar/gl_maxdist\";\n"
@@ -465,21 +511,29 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 
 //refraction image (and water fog, if possible)
-"refr = texture2D(s_refract, stc + n.st*STRENGTH*cvar_r_glsl_turbscale).rgb * TINT;\n"
+"refr = texture2D(s_refract, stc + n.st*float(STRENGTH_REFR)*float(r_glsl_turbscale_refract)).rgb * vec3(TINT_REFR);\n"
 "#ifdef DEPTH\n"
-"refr = mix(refr, FOGTINT, min(depth/4096.0, 1.0));\n"
+"refr = mix(refr, vec3(FOGTINT), min(depth/4096.0, 1.0));\n"
 "#endif\n"
 
 //reflection/diffuse
 "#ifdef REFLECT\n"
-"refl = texture2D(s_reflect, stc - n.st*STRENGTH*cvar_r_glsl_turbscale).rgb;\n"
+"refl = texture2D(s_reflect, stc - n.st*float(STRENGTH_REFL)*float(r_glsl_turbscale_reflect)).rgb * vec3(TINT_REFL);\n"
 "#else\n"
-"refl = texture2D(s_diffuse, ntc).xyz;\n"
+"refl = texture2D(s_diffuse, ntc).xyz * vec3(TINT_REFL);\n"
 "#endif\n"
-//FIXME: add specular
-
 //interplate by fresnel
 "refr = mix(refr, refl, fres);\n"
+
+
+
+
+
+"#ifdef ALPHA\n"
+"vec4 ts = texture2D(s_diffuse, ntc);\n"
+"vec4 surf = fog4blend(vec4(ts.rgb, float(ALPHA)*ts.a));\n"
+"refr = mix(refr, surf.rgb, surf.a);\n"
+"#endif\n"
 
 //done
 "gl_FragColor = vec4(refr, 1.0);\n"

@@ -169,8 +169,8 @@ void Log_String (logtype_t lognum, char *s)
 
 		if (x > (int)log_rotate_size.value)
 		{
-			char newf[MAX_OSPATH];
-			char oldf[MAX_OSPATH];
+			char newf[MAX_QPATH];
+			char oldf[MAX_QPATH];
 
 			i = log_rotate_files.value;
 
@@ -289,7 +289,7 @@ void Log_Logfile_f (void)
 /*
 void SV_Fraglogfile_f (void)
 {
-	char	name[MAX_OSPATH];
+	char	name[MAX_QPATH];
 	int		i;
 
 	if (sv_fraglogfile)

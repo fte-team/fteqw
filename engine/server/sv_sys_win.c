@@ -1456,7 +1456,7 @@ void ServerMainLoop(void)
 			MyServiceStatus.dwWaitHint           = 0;
 
 			SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus);
-			sv.paused |= 2;
+			sv.paused |= PAUSE_SERVICE;
 			break;
 		case SERVICE_CONTROL_CONTINUE:
 			// Initialization complete - report running status.
@@ -1466,7 +1466,7 @@ void ServerMainLoop(void)
 
 			SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus);
 
-			sv.paused &= ~2;
+			sv.paused &= ~PAUSE_SERVICE;
 			break;
 		case SERVICE_CONTROL_STOP:	//leave the loop
 			return;

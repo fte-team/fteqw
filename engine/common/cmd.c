@@ -417,8 +417,9 @@ void Cbuf_ExecuteLevel (int level)
 {
 	int		i;
 	char	*text;
-	char	line[1024];
-	qboolean	quotes, comment;
+	char	line[65536];
+	qboolean	comment;
+	int		quotes;
 
 	while (cmd_text[level].buf.cursize)
 	{
@@ -437,13 +438,37 @@ void Cbuf_ExecuteLevel (int level)
 		{
 			if (text[i] == '\n')
 				break;
-			if (text[i] == '"')
+
+			if (quotes)
 			{
-				quotes++;
+				if (text[i] == '"')
+				{
+					quotes=false;
+				}
+				if (text[i] == '\\' && quotes==2)
+				{
+					//skip over both chars if its something embedded.
+					if (text[i+1] == '\"' || text[i+1] == '\\')
+					{
+						i++;
+						continue;
+					}
+				}
+				continue;
+			}
+			else if (text[i] == '"')
+			{	//simple quoted string
+				quotes = true;
+				continue;
+			}
+			else if (text[i] == '\\' && text[i+1] == '\"')
+			{	//escaped quoted string.
+				quotes = 2;
+				i++;
 				continue;
 			}
 
-			if (comment || (quotes&1))
+			if (comment)
 				continue;
 
 			if (text[i] == '/' && i+1 < cmd_text[level].buf.cursize && text[i+1] == '/')
@@ -541,7 +566,7 @@ void Cmd_StuffCmds (void)
 	{
 		if (!com_argv[i])
 			continue;		// NEXTSTEP nulls out -NXHost
-		if (strchr(com_argv[i], ' ') || strchr(com_argv[i], '\t') || strchr(com_argv[i], '@'))
+		if (strchr(com_argv[i], ' ') || strchr(com_argv[i], '\t') || strchr(com_argv[i], '@') || strchr(com_argv[i], '/') || strchr(com_argv[i], '\\'))
 		{
 			Q_strcat (text,"\"");
 			Q_strcat (text,com_argv[i]);
@@ -593,10 +618,12 @@ void Cmd_Exec_f (void)
 {
 	char	*f, *s;
 	char	name[256];
+	char	buf[512];
 	flocation_t loc;
 	qboolean untrusted;
 	vfsfile_t *file;
 	size_t l;
+	unsigned int level;
 
 	if (Cmd_Argc () != 2)
 	{
@@ -636,7 +663,7 @@ void Cmd_Exec_f (void)
 		Con_TPrintf ("couldn't exec %s. check permissions.\n", name);
 		return;
 	}
-	if (cl_warncmd.ival || developer.ival)
+	if (cl_warncmd.ival || developer.ival || cvar_watched)
 		Con_TPrintf ("execing %s\n",name);
 
 	l = VFS_GETLEN(file);
@@ -644,7 +671,9 @@ void Cmd_Exec_f (void)
 	f[l] = 0;
 	VFS_READ(file, f, l);
 	VFS_CLOSE(file);
+
 	untrusted = !!(loc.search->flags&SPF_UNTRUSTED);
+	level = ((Cmd_FromGamecode() || untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel);
 
 	s = f;
 	if (s[0] == '\xef' && s[1] == '\xbb' && s[2] == '\xbf')
@@ -660,7 +689,7 @@ void Cmd_Exec_f (void)
 		int cfgdepth = COM_FDepthFile(name, true);
 		int defdepth = COM_FDepthFile("default.cfg", true);
 		if (defdepth < cfgdepth)
-			Cbuf_InsertText("exec default.cfg\n", ((Cmd_FromGamecode() || untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), false);
+			Cbuf_InsertText("exec default.cfg\n", level, false);
 
 		//hack to work around the more insideous hacks of other engines.
 		//namely: vid_restart at the end of config.cfg is evil, and NOT desired in FTE as it generally means any saved video settings are wrong.
@@ -676,10 +705,20 @@ void Cmd_Exec_f (void)
 		}
 		f[l] = 0;
 	}
+
+	if (*loc.rawname)
+		COM_QuotedString(loc.rawname, buf, sizeof(buf), false);
+	else
+		COM_QuotedString(va("%s/%s", loc.search->logicalpath, name), buf, sizeof(buf), false);
+
+	if (cvar_watched)
+		Cbuf_InsertText (va("echo END %s", buf), level, true);
 	// don't execute anything if it was from server (either the stuffcmd/localcmd, or the file)
 	if (!strcmp(name, "default.cfg") && !(Cmd_FromGamecode() || untrusted))
-		Cbuf_InsertText ("\ncvar_lockdefaults 1\n", ((Cmd_FromGamecode() || untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), false);
-	Cbuf_InsertText (s, ((Cmd_FromGamecode() || untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), true);
+		Cbuf_InsertText ("\ncvar_lockdefaults 1\n", level, false);
+	Cbuf_InsertText (s, level, true);
+	if (cvar_watched)
+		Cbuf_InsertText (va("echo BEGIN %s", buf), level, true);
 	BZ_Free(f);
 }
 
@@ -786,7 +825,7 @@ Creates a new command that executes a command string (possibly ; seperated)
 void Cmd_Alias_f (void)
 {
 	cmdalias_t	*a, *b;
-	char		cmd[1024];
+	char		cmd[65536];
 	int			i, c;
 	char		*s;
 	qboolean multiline;
@@ -914,39 +953,41 @@ void Cmd_Alias_f (void)
 	if (multiline)
 	{	//fun! MULTILINE ALIASES!!!!
 		a->value = Cmd_ParseMultiline(false);
-		return;
 	}
-
+	else
+	{
 // copy the rest of the command line
-	cmd[0] = 0;		// start out with a null string
-	c = Cmd_Argc();
-	for (i=2 ; i< c ; i++)
-	{
-		strcat (cmd, Cmd_Argv(i));
-		if (i != c-1)
-			strcat (cmd, " ");
-	}
-
-	if (!*cmd)	//someone wants to wipe it. let them
-	{
-		if (a == cmd_alias)
+		cmd[0] = 0;		// start out with a null string
+		c = Cmd_Argc();
+		for (i=2 ; i< c ; i++)
 		{
-			cmd_alias = a->next;
-			Z_Free(a);
-			return;
+			strcat (cmd, Cmd_Argv(i));
+			if (i != c-1)
+				strcat (cmd, " ");
 		}
-		else
+
+		if (!*cmd)	//someone wants to wipe it. let them
 		{
-			for (b = cmd_alias ; b ; b=b->next)
+			if (a == cmd_alias)
 			{
-				if (b->next == a)
+				cmd_alias = a->next;
+				Z_Free(a);
+				return;
+			}
+			else
+			{
+				for (b = cmd_alias ; b ; b=b->next)
 				{
-					b->next = a->next;
-					Z_Free(a);
-					return;
+					if (b->next == a)
+					{
+						b->next = a->next;
+						Z_Free(a);
+						return;
+					}
 				}
 			}
 		}
+		a->value = Z_StrDup (cmd);
 	}
 	if (Cmd_FromGamecode())
 	{
@@ -958,7 +999,6 @@ void Cmd_Alias_f (void)
 		a->execlevel = 0;	//run at users exec level
 		a->restriction = 1;	//this is possibly a security risk if the admin also changes execlevel
 	}
-	a->value = Z_StrDup (cmd);
 }
 
 void Cmd_DeleteAlias(char *name)
@@ -1084,10 +1124,10 @@ void Cmd_AliasList_f (void)
 
 void Alias_WriteAliases (vfsfile_t *f)
 {
-	char *s;
+	const char *s;
 	cmdalias_t	*cmd;
 	int num=0;
-	char buf[2048];
+	char buf[65536];
 	for (cmd=cmd_alias ; cmd ; cmd=cmd->next)
 	{
 //		if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
@@ -1099,8 +1139,11 @@ void Alias_WriteAliases (vfsfile_t *f)
 			s = va("\n//////////////////\n//Aliases\n");
 			VFS_WRITE(f, s, strlen(s));
 		}
-		s = va("alias %s %s\n", cmd->name, COM_QuotedString(cmd->value, buf, sizeof(buf), false));
+		s = va("alias %s ", cmd->name);
 		VFS_WRITE(f, s, strlen(s));
+		s = COM_QuotedString(cmd->value, buf, sizeof(buf), false);
+		VFS_WRITE(f, s, strlen(s));
+		VFS_WRITE(f, "\n", 1);
 		if (cmd->restriction != 1)	//1 is default
 		{
 			s = va("restrict %s %i\n", cmd->name, cmd->restriction);
@@ -2296,6 +2339,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 	if (!level)
 	{
+		//teamplay macros run at level 0, and are restricted to much fewer commands
 		char *tpcmds[] =
 		{
 			"if", "wait",						/*would be nice to include alias in here*/
@@ -2310,6 +2354,13 @@ void	Cmd_ExecuteString (char *text, int level)
 				if (!strcmp(cmd_argv[0], tpcmds[level]))
 				{
 					int olev = Cmd_ExecLevel;
+					if (cmd->restriction && cmd->restriction > 0)
+					{	//warning, these commands would normally be considered to be run at restrict_local, but they're running at a much lower level
+						//which means that if there's ANY restriction on them then they'll fail.
+						//this means we have to ignore the default restriction levels and just do it anyway.
+						Con_TPrintf("'%s' was restricted.\n", cmd_argv[0]);
+						return;
+					}
 					Cmd_ExecLevel = 0;
 					if (!cmd->function)
 						Cmd_ForwardToServer ();
@@ -3231,11 +3282,82 @@ void Cvar_Inc_f (void)
 		Cvar_SetValue (var, var->value + delta);
 }
 
+void Cvar_ParseWatches(void)
+{
+	const char *cvarname;
+	int i;
+	cvar_t *var;
+	for (i=1 ; i<com_argc-1 ; i++)
+	{
+		if (!com_argv[i] || strcmp(com_argv[i], "-watch"))
+			continue;		// NEXTSTEP sometimes clears appkit vars.
+		cvarname = com_argv[i+1];
+		if (!cvarname)
+			continue;
+
+		var = Cvar_FindVar (cvarname);
+		if (!var)
+		{
+			Con_Printf ("cvar \"%s\" is not defined yet\n", cvarname);
+			continue;
+		}
+		var->flags |= CVAR_WATCHED;
+		cvar_watched = true;
+
+		i++;
+	}
+}
+
+void Cvar_Watch_f(void)
+{
+	char *cvarname = Cmd_Argv(1);
+	cvar_t *var;
+	cvar_group_t *grp;
+	extern cvar_group_t *cvar_groups;
+
+	if (!strcmp(cvarname, ""))
+	{
+		for (grp=cvar_groups ; grp ; grp=grp->next)
+		for (var=grp->cvars ; var ; var=var->next)
+		{
+			if (var->flags & CVAR_WATCHED)
+				Con_Printf("Watching %s\n", var->name);
+		}
+		return;
+	}
+	else if (!strcmp(cvarname, "off"))
+	{
+		cvar_watched = false;
+		Con_Printf("Disabling all cvar watches\n");
+		for (grp=cvar_groups ; grp ; grp=grp->next)
+		for (var=grp->cvars ; var ; var=var->next)
+			var->flags &= ~CVAR_WATCHED;
+		return;
+	}
+	else if (!strcmp(cvarname, "all"))
+	{
+		cvar_watched = 2;
+		Con_Printf("Notifying for ALL cvar changes\n");
+		return;
+	}
+	else
+	{
+		var = Cvar_FindVar (cvarname);
+		if (!var)
+		{
+			Con_Printf ("cvar \"%s\" is not defined yet\n", cvarname);
+			return;
+		}
+		var->flags |= CVAR_WATCHED;
+		cvar_watched |= true;
+	}
+}
+
 void Cmd_WriteConfig_f(void)
 {
 	vfsfile_t *f;
 	char *filename;
-	char fname[MAX_OSPATH];
+	char fname[MAX_QPATH];
 	char sysname[MAX_OSPATH];
 	qboolean all = true;
 	extern cvar_t cfg_save_all;
@@ -3263,7 +3385,7 @@ void Cmd_WriteConfig_f(void)
 	{
 		if (strstr(filename, ".."))
 		{
-			Con_Printf ("Couldn't write config %s\n",filename);
+			Con_Printf (CON_ERROR "Couldn't write config %s\n",filename);
 			return;
 		}
 		snprintf(fname, sizeof(fname), "configs/%s", filename);
@@ -3277,7 +3399,7 @@ void Cmd_WriteConfig_f(void)
 	}
 	if (!f)
 	{
-		Con_Printf ("Couldn't write config %s\n", sysname);
+		Con_Printf (CON_ERROR "Couldn't write config %s\n", sysname);
 		return;
 	}
 
@@ -3334,7 +3456,7 @@ void Cmd_Condump_f(void)
 	f = FS_OpenVFS (filename, "wb", FS_GAME);
 	if (!f)
 	{
-		Con_Printf ("Couldn't write console dump %s\n",filename);
+		Con_Printf (CON_ERROR "Couldn't write console dump %s\n",filename);
 		return;
 	}
 
@@ -3516,6 +3638,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("macrolist", Cmd_MacroList_f);
 	Cmd_AddCommand ("cvarlist", Cvar_List_f);
 	Cmd_AddCommand ("cvarreset", Cvar_Reset_f);
+	Cmd_AddCommandD ("cvarwatch", Cvar_Watch_f, "Prints a notification when the named cvar is changed. Also displays the start/end of configs. Alternatively, use '-watch foo' on the commandline.");
 	Cmd_AddCommand ("cvar_lockdefaults", Cvar_LockDefaults_f);
 	Cmd_AddCommand ("cvar_purgedefaults", Cvar_PurgeDefaults_f);
 	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);

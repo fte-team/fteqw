@@ -271,6 +271,28 @@ void IRC_SetFooter(ircclient_t *irc, const char *subname, const char *format, ..
 			pCon_SetConsoleString(lwr, "footer", string);
 	}
 }
+qboolean IRC_WindowShown(ircclient_t *irc, const char *subname)
+{
+	char lwr[128];
+	int i;
+	if (irc)
+	{
+		Q_strlcpy(lwr, irc->id, sizeof(lwr));
+		for (i = strlen(lwr); *subname && i < sizeof(lwr)-2; i++, subname++)
+		{
+			if (*subname >= 'A' && *subname <= 'Z')
+				lwr[i] = *subname - 'A' + 'a';
+			else
+				lwr[i] = *subname;
+		}
+	
+		lwr[i] = '\0';
+
+		if (BUILTINISVALID(Con_SetConsoleFloat) && pCon_GetConsoleFloat(lwr, "iswindow") < true)
+			return false;
+	}
+	return true;
+}
 void IRC_Printf(ircclient_t *irc, const char *subname, const char *format, ...)
 {
 	va_list		argptr;
@@ -1052,7 +1074,7 @@ void numbered_command(int comm, char *msg, ircclient_t *irc) // move vars up 1 m
 			IRC_Printf(irc, DEFAULTCONSOLE, "%s\n", motdmessage);
 
 		if (*irc->autochannels)
-			IRC_JoinChannels(irc, irc->autochannels); // note to self... "" needs to be the channel key.. so autochannels needs a recoded
+			IRC_JoinChannels(irc, irc->autochannels);
 
 		return;
 	}
@@ -1732,7 +1754,6 @@ int IRC_ClientFrame(ircclient_t *irc)
 	char prefix[64];
 	int ret;
 	char *nextmsg, *msg;
-	char *raw;
 	char *temp;
 	char token[1024];
 	char var[9][1000];
@@ -1782,8 +1803,6 @@ int IRC_ClientFrame(ircclient_t *irc)
 	}
 
 	IRC_CvarUpdate(); // is this the right place for it?
-
-	raw = strtok(var[2], " ");
 
 //	if (irc_debug.value == 1) { IRC_Printf(irc, DEFAULTCONSOLE,COLOURRED "!!!!! ^11: %s ^22: %s ^33: %s ^44: %s ^55: %s ^66: %s ^77: %s ^88: %s\n",var[1],var[2],var[3],var[4],var[5],var[6],var[7],var[8]); }
 	if (irc_debug.value == 1) { IRC_Printf(irc, DEFAULTCONSOLE,COLOURRED "%s\n",var[1]); }
@@ -1881,32 +1900,29 @@ int IRC_ClientFrame(ircclient_t *irc)
 		}
 		else
 		{
+			etghack = strtok(var[1],"\n");
 
-		etghack = strtok(var[1],"\n");
+			if (!irc->connecting || IRC_WindowShown(irc, DEFAULTCONSOLE))
+				IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, etghack);
 
-		IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, etghack);
+//			strcpy(servername,prefix);
 
-//		strcpy(servername,prefix);
-
-		while (1)
-		{
-			etghack = strtok(NULL, "\n");
-
-			if (etghack == NULL)
+			while (1)
 			{
-				break;
-				break;
+				etghack = strtok(NULL, "\n");
+
+				if (etghack == NULL)
+					break;
+
+				magic_etghack(etghack);
+
+				if (atoi(subvar[2]) != 0)
+					numbered_command(atoi(subvar[2]), etghack, irc);
+				else
+					IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, subvar[4]);
+
 			}
-
-			magic_etghack(etghack);
-
-			if (atoi(subvar[2]) != 0)
-				numbered_command(atoi(subvar[2]), etghack, irc);
-			else
-				IRC_Printf(irc, DEFAULTCONSOLE, COLOURGREEN "SERVER NOTICE: <%s> %s\n", prefix, subvar[4]);
-
 		}
-	}
 
 	}
 	else if (!strncmp(var[2], "PRIVMSG ", 7))	//no autoresponses to notice please, and any autoresponses should be in the form of a notice
@@ -2036,7 +2052,8 @@ int IRC_ClientFrame(ircclient_t *irc)
 		}
 		else
 		{
-			IRC_Printf(irc, channel,COLOURGREEN "%s sets mode %s\n",username,mode);
+			if (IRC_WindowShown(irc, channel))
+				IRC_Printf(irc, channel, COLOURGREEN "%s sets mode %s\n",username,mode);
 		}
 
 	}
@@ -2209,13 +2226,13 @@ int IRC_ClientFrame(ircclient_t *irc)
 
 	}
 	// would be great to convert the above to work better
-	else if (atoi(raw) != 0)
+	else if (atoi(var[2]) != 0)
 	{
 //		char *rawparameter = strtok(var[4], " ");
 //		char *rawmessage = var[5];
 //		char *wholerawmessage = var[4];
 
-		numbered_command(atoi(raw), msg, irc);
+		numbered_command(atoi(var[2]), msg, irc);
 
 		IRC_CvarUpdate();
 
@@ -2569,7 +2586,7 @@ void IRC_Command(ircclient_t *ircclient, char *dest)
 				if(*msg <= ' ' && *msg)
 					msg++;
 				IRC_AddClientMessage(ircclient, va("PRIVMSG %s :\001ACTION %s\001", dest, msg));
-				IRC_Printf(ircclient, ircclient->defaultdest, "***%s %s\n", ircclient->nick, msg);
+				IRC_Printf(ircclient, ircclient->defaultdest, "***^3%s^7 %s\n", ircclient->nick, msg);
 			}
 		}
 	}
@@ -2593,7 +2610,7 @@ void IRC_Command(ircclient_t *ircclient, char *dest)
 				if (!*msg)
 					return;	//this is apparently an error. certainly wasteful.
 				IRC_AddClientMessage(ircclient, va("PRIVMSG %s :%s", dest, msg));
-				IRC_Printf(ircclient, dest, "%s: %s\n", ircclient->nick, msg);
+				IRC_Printf(ircclient, dest, "^3%s^7: %s\n", ircclient->nick, msg);
 			}
 		}
 		else

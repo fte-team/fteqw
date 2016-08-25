@@ -2960,13 +2960,13 @@ void SCR_HUD_Group9(hud_t *hud)
 // for frags and players
 typedef struct sort_teams_info_s
 {
-    char *name;
-    int  frags;
-    int  min_ping;
-    int  avg_ping;
-    int  max_ping;
-    int  nplayers;
-    int  top, bottom;   // leader colours
+	char *name;
+	int  frags;
+	int  min_ping;
+	int  avg_ping;
+	int  max_ping;
+	int  nplayers;
+	int  top, bottom;   // leader colours
 	int  rlcount;		// Number of RL's present in the team. (Cokeman 2006-05-27)
 }
 sort_teams_info_t;

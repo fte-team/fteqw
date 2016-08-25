@@ -295,7 +295,9 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(
 #endif
 
 #if defined(_DEBUG) || defined(DEBUG)
+#if !defined(_MSC_VER) || _MSC_VER > 1200
 #define CATCHCRASH
+#endif
 #endif
 
 #if !defined(CLIENTONLY) && !defined(SERVERONLY)
@@ -1061,12 +1063,18 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 		return !rename(oldfname, newfname);
 }
 
+#ifdef _MSC_VER
+#define ULL(x) x##ui64
+#else
+#define ULL(x) x##ull
+#endif
+
 static time_t Sys_FileTimeToTime(FILETIME ft)
 {
-   ULARGE_INTEGER ull;
-   ull.LowPart = ft.dwLowDateTime;
-   ull.HighPart = ft.dwHighDateTime;
-   return ull.QuadPart / 10000000ULL - 11644473600ULL;
+	ULARGE_INTEGER ull;
+	ull.LowPart = ft.dwLowDateTime;
+	ull.HighPart = ft.dwHighDateTime;
+	return ull.QuadPart / ULL(10000000) - ULL(11644473600);
 }
 
 static int Sys_EnumerateFiles_9x (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
@@ -2123,10 +2131,6 @@ void Sys_SendKeyEvents (void)
 {
     MSG        msg;
 
-#ifdef _MSC_VER
-#define strtoull _strtoui64
-#endif
-
 	if (isPlugin)
 	{
 		DWORD avail;
@@ -2164,7 +2168,7 @@ void Sys_SendKeyEvents (void)
 					sys_parenttop = strtoul(Cmd_Argv(2), NULL, 0);
 					sys_parentwidth = strtoul(Cmd_Argv(3), NULL, 0);
 					sys_parentheight = strtoul(Cmd_Argv(4), NULL, 0); 
-					sys_parentwindow = (HWND)(intptr_t)strtoull(Cmd_Argv(5), NULL, 16);
+					sys_parentwindow = (HWND)(qintptr_t)strtoull(Cmd_Argv(5), NULL, 16);
 				}
 #if !defined(CLIENTONLY) || defined(CSQC_DAT) || defined(MENU_DAT)
 				else if (QCExternalDebuggerCommand(text))
@@ -2261,9 +2265,19 @@ HINSTANCE	global_hInstance;
 int			global_nCmdShow;
 HWND		hwnd_dialog;
 
-
+static const IID qIID_IShellLinkW	= {0x000214F9L, 0, 0, {0xc0,0,0,0,0,0,0,0x46}};
+static const IID qIID_IPersistFile	= {0x0000010BL, 0, 0, {0xc0,0,0,0,0,0,0,0x46}};
 
 #include <shlobj.h>
+#if defined(_MSC_VER) && _MSC_VER <= 1200
+#define pSHBrowseForFolderW SHBrowseForFolderW
+#define pSHGetPathFromIDListW SHGetPathFromIDListW
+#define pSHGetSpecialFolderPathW SHGetSpecialFolderPathW
+#define pShell_NotifyIconW Shell_NotifyIconW
+void Win7_Init(void)
+{
+}
+#else
 
 typedef struct qSHARDAPPIDINFOLINK {
   IShellLinkW *psl;
@@ -2424,9 +2438,6 @@ typedef struct qICustomDestinationList
 
 static const IID qIID_ICustomDestinationList = {0x6332debf, 0x87b5, 0x4670, {0x90,0xc0,0x5e,0x57,0xb4,0x08,0xa4,0x9e}};
 static const CLSID qCLSID_DestinationList = {0x77f10cf0, 0x3db5, 0x4966, {0xb5,0x20,0xb7,0xc5,0x4f,0xd3,0x5e,0xd6}};
-
-static const IID qIID_IShellLinkW	= {0x000214F9L, 0, 0, {0xc0,0,0,0,0,0,0,0x46}};
-static const IID qIID_IPersistFile	= {0x0000010BL, 0, 0, {0xc0,0,0,0,0,0,0,0x46}};
 
 #define WIN7_APPNAME L"FTEQuake"
 
@@ -2604,6 +2615,7 @@ void Win7_TaskListInit(void)
 		cdl->lpVtbl->Release(cdl);
 	}
 }
+#endif
 
 BOOL CopyFileU(const char *src, const char *dst, BOOL bFailIfExists)
 {
@@ -2843,12 +2855,12 @@ void Update_Check(void)
 	static qboolean doneupdatecheck;	//once per run
 	struct dl_download *dl;
 
-	if (sys_autoupdatesetting < 2)	//not if disabled (do it once it does get enabled)
+	if (sys_autoupdatesetting <= UPD_OFF)	//not if disabled (do it once it does get enabled)
 		return;
 
 	if (!doneupdatecheck)
 	{
-		char *updateroot = (sys_autoupdatesetting>=3)?UPDATE_URL_NIGHTLY:UPDATE_URL_TESTED;
+		char *updateroot = (sys_autoupdatesetting>=UPD_TESTING)?UPDATE_URL_NIGHTLY:UPDATE_URL_TESTED;
 		doneupdatecheck = true;
 		dl = HTTP_CL_Get(va(UPDATE_URL_VERSION, updateroot), NULL, Update_Versioninfo_Available);
 		dl->file = FS_OpenTemp();
@@ -2883,7 +2895,13 @@ BOOL MoveFileU(const char *src, const char *dst)
 {
 	wchar_t wide1[2048];
 	wchar_t wide2[2048];
-	return MoveFileW(widen(wide1, sizeof(wide1), src), widen(wide2, sizeof(wide2), dst));
+	return MoveFileExW(widen(wide1, sizeof(wide1), src), widen(wide2, sizeof(wide2), dst), MOVEFILE_COPY_ALLOWED);
+}
+
+void Sys_SetUpdatedBinary(const char *binary)
+{
+	//downloads menu has provided a new binary to use
+	MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, REG_SZ, binary, strlen(binary)+1);
 }
 
 qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
@@ -2896,11 +2914,11 @@ qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 	char *e;
 	strtoul(SVNREVISIONSTR, &e, 10);
 	if (!*SVNREVISIONSTR || *e)	//svn revision didn't parse as an exact number.	this implies it has an 'M' in it to mark it as modified, or a - to mean unknown. either way, its bad and autoupdates when we don't know what we're updating from is a bad idea.
-		sys_autoupdatesetting = -1;
+		sys_autoupdatesetting = UPD_UNSUPPORTED;
 	else if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate") || COM_CheckParm("-noautoupdate") || COM_CheckParm("--noautoupdate"))
-		sys_autoupdatesetting = 0;
+		sys_autoupdatesetting = UPD_REVERT;
 	else if (COM_CheckParm("-autoupdate") || COM_CheckParm("--autoupdate"))
-		sys_autoupdatesetting = 3;
+		sys_autoupdatesetting = UPD_TESTING;
 	else
 	{
 		//favour 'tested'
@@ -2909,7 +2927,7 @@ qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 
 	if (!strcmp(SVNREVISIONSTR, "-"))
 		return false;	//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
-	else if (sys_autoupdatesetting == 0)
+	else if (sys_autoupdatesetting == UPD_REVERT || sys_autoupdatesetting == UPD_UNSUPPORTED)
 		return false;
 	else if (isPlugin == 1)
 	{
@@ -2987,6 +3005,9 @@ int Sys_GetAutoUpdateSetting(void)
 	return -1;
 }
 void Sys_SetAutoUpdateSetting(int newval)
+{
+}
+void Sys_SetUpdatedBinary(const char *binary)
 {
 }
 #endif
@@ -3094,7 +3115,7 @@ void Sys_DoFileAssociations(int elevated)
 	if (!ok && elevated < 2)
 	{
 		HINSTANCE ch = ShellExecute(mainwindow, "runas", com_argv[0], va("-register_types %i", elevated+1), NULL, SW_SHOWNORMAL);
-		if ((intptr_t)ch <= 32)
+		if ((qintptr_t)ch <= 32)
 			Sys_DoFileAssociations(2);
 		return;
 	}
@@ -3277,7 +3298,16 @@ static BOOL microsoft_accessU(LPCSTR pszFolder, DWORD dwAccessDesired)
 	return microsoft_accessW(widen(wpath, sizeof(wpath), pszFolder), dwAccessDesired);
 }
 
-
+#ifndef GWLP_WNDPROC
+#define GWLP_WNDPROC GWL_WNDPROC
+#define SetWindowLongPtr SetWindowLong
+#define LONG_PTR LONG
+#endif
+#ifndef BIF_NEWDIALOGSTYLE
+#define BIF_NEWDIALOGSTYLE	0x00000040		//v5
+#define BFFM_SETOKTEXT		(WM_USER + 105)	//v6
+#define BFFM_SETEXPANDED	(WM_USER + 106)	//v6
+#endif
 
 static WNDPROC omgwtfwhyohwhy;
 static LRESULT CALLBACK stoopidstoopidstoopid(HWND w, UINT m, WPARAM wp, LPARAM lp)
@@ -3632,7 +3662,7 @@ qboolean Sys_RunInstaller(void)
 	{
 		GetModuleFileName(NULL, exepath, sizeof(exepath));
 		ch = ShellExecute(mainwindow, "runas", com_argv[0], va("%s -doinstall", COM_Parse(GetCommandLine())), NULL, SW_SHOWNORMAL);
-		if ((intptr_t)ch > 32)
+		if ((qintptr_t)ch > 32)
 			return true;	//succeeded. should quit out.
 		return Sys_DoInstall();	//if it failed, try doing it with the current privileges
 	}
@@ -3898,11 +3928,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	memset(&parms, 0, sizeof(parms));
 
-//	#ifndef MINGW
-//	#if _MSC_VER > 1200
-		Win7_Init();
-//	#endif
-//	#endif
+	Win7_Init();
 
 #ifdef _MSC_VER
 #if _M_IX86_FP >= 1
@@ -4356,7 +4382,7 @@ HCURSOR	hArrowCursor, hCustomCursor;
 void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale)
 {
 	int width, height;
-	BITMAPV5HEADER bi;
+	BITMAPV4HEADER bi;
 	DWORD x,y;
 	HCURSOR hAlphaCursor = NULL;
 	ICONINFO ii;
@@ -4393,20 +4419,20 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 		rgbadata_start = nd;
 	}
 
-	memset(&bi,0, sizeof(BITMAPV5HEADER));
-	bi.bV5Size			= sizeof(BITMAPV5HEADER);
-	bi.bV5Width			= width;
-	bi.bV5Height		= height;
-	bi.bV5Planes		= 1;
-	bi.bV5BitCount		= 32;
-	bi.bV5Compression	= BI_BITFIELDS;
+	memset(&bi,0, sizeof(bi));
+	bi.bV4Size			= sizeof(bi);
+	bi.bV4Width			= width;
+	bi.bV4Height		= height;
+	bi.bV4Planes		= 1;
+	bi.bV4BitCount		= 32;
+	bi.bV4V4Compression	= BI_BITFIELDS;
 	// The following mask specification specifies a supported 32 BPP
 	// alpha format for Windows XP.
 	//FIXME: can we not just specify it as RGBA? meh.
-	bi.bV5RedMask		= 0x00FF0000;
-	bi.bV5GreenMask		= 0x0000FF00;
-	bi.bV5BlueMask		= 0x000000FF;
-	bi.bV5AlphaMask		= 0xFF000000; 
+	bi.bV4RedMask		= 0x00FF0000;
+	bi.bV4GreenMask		= 0x0000FF00;
+	bi.bV4BlueMask		= 0x000000FF;
+	bi.bV4AlphaMask		= 0xFF000000; 
 
 	// Create the DIB section with an alpha channel.
 	maindc = GetDC(mainwindow);

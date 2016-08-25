@@ -1667,11 +1667,8 @@ static qboolean Sh_ScissorForSphere(vec3_t center, float radius, vrect_t *rect)
 	/*return false to say that its fully offscreen*/
 
 	float v[4], tempv[4];
-	extern cvar_t temp1;
 	int i;
 	vrect_t r;
-	
-	radius *= temp1.value;
 
 	rect->x = 0;
 	rect->y = 0;

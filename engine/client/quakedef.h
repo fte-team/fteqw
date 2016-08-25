@@ -110,7 +110,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PNG_SUCKS_WITH_SETJMP	//cos it does.
 #endif
 
-#define	QUAKE_GAME			// as opposed to utilities
 //define	PARANOID			// speed sapping error checking
 
 #include <float.h>

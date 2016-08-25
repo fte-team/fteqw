@@ -8,6 +8,12 @@
 
 qboolean SV_AllowDownload (const char *name)
 {
+	if (strstr(name, ".."))
+		return false;
+	if (strchr(name, ':'))
+		return false;
+	if (*name == '/' || *name == '\\')
+		return false;
 	return true;
 }
 char		com_token[sizeof(com_token)];
@@ -120,12 +126,18 @@ int main(int argc, char **argv)
 }
 
 #ifdef _WIN32
+#ifdef _MSC_VER
+#define ULL(x) x##ui64
+#else
+#define ULL(x) x##ull
+#endif
+
 static time_t Sys_FileTimeToTime(FILETIME ft)
 {
 	ULARGE_INTEGER ull;
 	ull.LowPart = ft.dwLowDateTime;
 	ull.HighPart = ft.dwHighDateTime;
-	return ull.QuadPart / 10000000ULL - 11644473600ULL;
+	return ull.QuadPart / ULL(10000000) - ULL(11644473600);
 }
 void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *f), void *parm)
 {

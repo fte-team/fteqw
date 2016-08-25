@@ -944,6 +944,7 @@ void Sbar_Flush (void)
 void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 {
 	int		i;
+	size_t	lumpsize;
 	if (sbar_loaded)
 		return;
 
@@ -967,7 +968,7 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 
 #ifdef HEXEN2
 	sbar_hexen2 = false;
-	if (W_SafeGetLumpName("tinyfont"))
+	if (W_SafeGetLumpName("tinyfont", &lumpsize))
 		sbar_hexen2 = true;
 //	if (sb_nums[0][0] && sb_nums[0][0]->width < 13)
 //		sbar_hexen2 = true;
@@ -1048,7 +1049,7 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 	sb_scorebar = Sbar_PicFromWad ("scorebar");
 
 	//try to detect rogue wads, and thus the stats we will be getting from the server.
-	sbar_rogue = COM_CheckParm("-rogue") || !!W_SafeGetLumpName("r_lava");
+	sbar_rogue = COM_CheckParm("-rogue") || !!W_SafeGetLumpName("r_lava", &lumpsize);
 	if (sbar_rogue)
 	{
 		rsb_invbar[0] = Sbar_PicFromWad ("r_invbar1");
@@ -1070,7 +1071,7 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 		rsb_ammo[2] = Sbar_PicFromWad ("r_ammoplasma");
 	}
 
-	sbar_hipnotic = COM_CheckParm("-hipnotic") || !!W_SafeGetLumpName("inv_mjolnir");
+	sbar_hipnotic = COM_CheckParm("-hipnotic") || !!W_SafeGetLumpName("inv_mjolnir", &lumpsize);
 	if (sbar_hipnotic)
 	{
 		hsb_weapons[0][0] = Sbar_PicFromWad ("inv_laser");
@@ -3193,6 +3194,7 @@ ping time frags name
 ==================
 */
 
+#define NOFILL
 //for reference:
 //define COLUMN(title, width, code)
 
@@ -3202,21 +3204,21 @@ ping time frags name
 	if (p < 0 || p > 999) p = 999;						\
 	sprintf(num, "%4i", p);								\
 	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
-},)
+},NOFILL)
 
 #define COLUMN_PL COLUMN(pl, 2*8,						\
 {														\
 	int p = s->pl;										\
 	sprintf(num, "%2i", p);								\
 	Draw_FunStringWidth(x, y, num, 2*8, false, false);	\
-},)
+},NOFILL)
 #define COLUMN_TIME COLUMN(time, 4*8,					\
 {														\
 	total = realtime - s->realentertime;				\
 	minutes = (int)total/60;							\
 	sprintf (num, "%4i", minutes);						\
 	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
-},)
+},NOFILL)
 #define COLUMN_FRAGS COLUMN(frags, 5*8,					\
 {	\
 	int cx; int cy;										\
@@ -3262,14 +3264,14 @@ ping time frags name
 	{													\
 		Draw_FunStringWidth(x, y, s->team, 4*8, false, false);			\
 	}													\
-},)
-#define COLUMN_NAME COLUMN(name, namesize,	{Draw_FunStringWidth(x, y, s->name, namesize, false, false);},)
-#define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8, false, false);},)
-#define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8, false, false);},)
-#define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8, false, false);},)
-#define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8, false, false);},)
-#define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8, false, false);},)
-#define COLUMN_AFK COLUMN(, 0, {int cs = atoi(Info_ValueForKey(s->userinfo, "chat")); if (cs)Draw_FunStringWidth(x+4, y, (cs&2)?"afk":"msg", 4*8, false, false);},)
+},NOFILL)
+#define COLUMN_NAME COLUMN(name, namesize,	{Draw_FunStringWidth(x, y, s->name, namesize, false, false);},NOFILL)
+#define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_AFK COLUMN(afk, 0, {int cs = atoi(Info_ValueForKey(s->userinfo, "chat")); if (cs)Draw_FunStringWidth(x+4, y, (cs&2)?"afk":"msg", 4*8, false, false);},NOFILL)
 
 
 //columns are listed here in display order

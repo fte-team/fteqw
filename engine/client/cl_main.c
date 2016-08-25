@@ -57,7 +57,7 @@ cvar_t	cl_pure		= CVARD("cl_pure", "0", "0=standard quake rules.\n1=clients shou
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
 cvar_t	cl_maxfps	= CVARF("cl_maxfps", "500", CVAR_ARCHIVE);
-cvar_t	cl_idlefps	= CVARFD("cl_idlefps", "0", CVAR_ARCHIVE, "This is the maximum framerate to attain while idle/paused.");
+cvar_t	cl_idlefps	= CVARFD("cl_idlefps", "0", CVAR_ARCHIVE, "This is the maximum framerate to attain while idle/paused/unfocused.");
 cvar_t	cl_yieldcpu = CVARFD("cl_yieldcpu", "0", CVAR_ARCHIVE, "Attempt to yield between frames. This can resolve issues with certain drivers and background software, but can mean less consistant frame times. Will reduce power consumption/heat generation so should be set on laptops or similar (over-hot/battery powered) devices.");
 cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
@@ -2070,6 +2070,13 @@ void CL_CheckServerInfo(void)
 		cl.maxpitch = *s ? Q_atof(s) : 80.0f;
 		s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "minpitch") : "";
 		cl.minpitch = *s ? Q_atof(s) : -70.0f;
+
+		if (cls.protocol == CP_NETQUAKE)
+		{	//proquake likes spamming us with fixangles
+			float div = cls.proquake_angles_hack?65536:256;
+			cl.maxpitch -= 1.0/2048;
+			cl.minpitch -= 0.5/div;
+		}
 	}
 	else
 	{
@@ -4257,7 +4264,7 @@ void Host_WriteConfiguration (void)
 	{
 		if (strchr(cfg_save_name.string, '.'))
 		{
-			Con_TPrintf ("Couldn't write config.cfg.\n");
+			Con_TPrintf (CON_ERROR "Couldn't write config.cfg.\n");
 			return;
 		}
 
@@ -4266,7 +4273,7 @@ void Host_WriteConfiguration (void)
 		f = FS_OpenVFS(savename, "wb", FS_GAMEONLY);
 		if (!f)
 		{
-			Con_TPrintf ("Couldn't write config.cfg.\n");
+			Con_TPrintf (CON_ERROR "Couldn't write config.cfg.\n");
 			return;
 		}
 
@@ -5507,6 +5514,9 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
 	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.
 	Cbuf_AddText("cvarreset *\n", RESTRICT_LOCAL);			//reset all cvars to their current (engine) defaults
+#ifndef CLIENTONLY
+	Cbuf_AddText(va("sv_gamedir \"%s\"\n", FS_GetGamedir(true)), RESTRICT_LOCAL);
+#endif
 	Cbuf_AddText(resetcommand, RESTRICT_LOCAL);
 	Cbuf_AddText("\n", RESTRICT_LOCAL);
 	COM_ParsePlusSets(true);
@@ -5630,6 +5640,8 @@ void Host_FinishLoading(void)
 	#endif
 
 		r_blockvidrestart = 2;
+
+		Menu_Download_Update();
 	}
 
 #ifdef ANDROID
@@ -5734,6 +5746,7 @@ void Host_Init (quakeparms_t *parms)
 
 	R_SetRenderer(NULL);//set the renderer stuff to unset...
 
+	Cvar_ParseWatches();
 	host_initialized = true;
 	forcesaveprompt = false;
 
@@ -5816,6 +5829,7 @@ void Host_Shutdown(void)
 	Validation_FlushFileList();
 
 	Cmd_Shutdown();
+	PM_Shutdown();
 	Key_Unbindall_f();
 
 #ifdef PLUGINS

@@ -260,6 +260,7 @@ void SV_Shutdown (void)
 #endif
 	Cvar_Shutdown();
 	Cmd_Shutdown();
+	PM_Shutdown();
 
 #ifdef WEBSERVER
 	IWebShutdown();
@@ -764,7 +765,7 @@ void PIN_SaveMessages(void)
 	f = FS_OpenVFS("pinned.txt", "wb", FS_GAMEONLY);
 	if (!f)
 	{
-		Con_TPrintf("couldn't write to %s\n", "pinned.txt");
+		Con_TPrintf(CON_ERROR "couldn't write to %s\n", "pinned.txt");
 		return;
 	}
 
@@ -4203,7 +4204,7 @@ void SV_CheckTimeouts (void)
 			cl->netchan.remote_address.type = NA_INVALID;	//don't mess up from not knowing their address.
 		}
 	}
-	if ((sv.paused&1) && !nclients)
+	if ((sv.paused&PAUSE_EXPLICIT) && !nclients)
 	{
 		// nobody left, unpause the server
 		if (SV_TogglePause(NULL))
@@ -4454,8 +4455,8 @@ float SV_Frame (void)
 	/*server is effectively paused if there are no clients*/
 //	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && (cls.state != ca_connected))
 //		isidle = true;
-	if ((sv.paused & 4) != ((isidle||(sv.spawned_client_slots==0&&!deathmatch.ival))?4:0))
-		sv.paused ^= 4;
+	if ((sv.paused & PAUSE_AUTO) != ((isidle||(sv.spawned_client_slots==0&&!deathmatch.ival))?PAUSE_AUTO:0))
+		sv.paused ^= PAUSE_AUTO;
 #endif
 
 	if (oldpaused != sv.paused)
@@ -5269,6 +5270,9 @@ void SV_ExecInitialConfigs(char *defaultexec)
 	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.
 	Cbuf_AddText("cvarreset *\n", RESTRICT_LOCAL);			//reset all cvars to their current (engine) defaults
 	Cbuf_AddText("alias restart \"changelevel .\"\n",RESTRICT_LOCAL);
+
+	Cbuf_AddText(va("sv_gamedir \"%s\"\n", FS_GetGamedir(true)), RESTRICT_LOCAL);
+
 	Cbuf_AddText(defaultexec, RESTRICT_LOCAL);
 	Cbuf_AddText("\n", RESTRICT_LOCAL);
 
@@ -5360,6 +5364,7 @@ void SV_Init (quakeparms_t *parms)
 		Plug_Initialise(true);
 #endif
 
+		Cvar_ParseWatches();
 		host_initialized = true;
 
 

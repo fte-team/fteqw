@@ -460,7 +460,7 @@ static qintptr_t VARGS Plug_LocalSound(void *offset, quintptr_t mask, const qint
 
 static qintptr_t VARGS Plug_CL_GetStats(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int i;
+	int i = 0;
 	int pnum = VM_LONG(arg[0]);
 	unsigned int *stats = VM_POINTER(arg[1]);
 	int pluginstats = VM_LONG(arg[2]);
@@ -475,10 +475,24 @@ static qintptr_t VARGS Plug_CL_GetStats(void *offset, quintptr_t mask, const qin
 	max = pluginstats;
 	if (max > MAX_CL_STATS)
 		max = MAX_CL_STATS;
-	for (i = 0; i < max; i++)
-	{	//fill stats with the right player's stats
-		stats[i] = cl.playerview[pnum].stats[i];
+	if (pnum < 0)
+	{
+		pnum = -pnum-1;
+		if (pnum < MAX_CLIENTS)
+		{
+			for (i = 0; i < max; i++)
+				stats[i] = cl.players[pnum].stats[i];
+		}
 	}
+	else if (pnum < cl.splitclients)
+	{
+		for (i = 0; i < max; i++)
+		{	//fill stats with the right player's stats
+			stats[i] = cl.playerview[pnum].stats[i];
+		}
+	}
+
+	max = i;
 	for (; i < pluginstats; i++)	//plugin has too many stats (wow)
 		stats[i] = 0;					//fill the rest.
 	return max;
@@ -837,8 +851,6 @@ static qintptr_t VARGS Plug_GetWeaponStats(void *offset, quintptr_t mask, const 
 	struct wstats_s *result = VM_POINTER(arg[1]);
 	size_t maxresults = VM_LONG(arg[2]);
 
-	int i;
-
 	if (VM_OOB(arg[0], maxresults*sizeof(*result)))
 		return 0;
 	
@@ -855,8 +867,8 @@ static qintptr_t VARGS Plug_GetWeaponStats(void *offset, quintptr_t mask, const 
 	if (self < 0)
 		return 0;
 
-	if (maxresults > countof(cl.players[i].weaponstats))
-		maxresults = countof(cl.players[i].weaponstats);
+	if (maxresults > countof(cl.players[self].weaponstats))
+		maxresults = countof(cl.players[self].weaponstats);
 	memcpy(result, cl.players[self].weaponstats, sizeof(*result) * maxresults);
 	return VM_LONG(maxresults);
 }

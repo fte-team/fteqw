@@ -1933,11 +1933,11 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 #ifdef VKQUAKE
 	case PSL_VULKAN:
 #ifdef VK_USE_PLATFORM_XLIB_KHR
-		if (VK_Init(info, VK_KHR_XLIB_SURFACE_EXTENSION_NAME, XVK_SetupSurface_XLib))
+		if (VK_Init(info, VK_KHR_XLIB_SURFACE_EXTENSION_NAME, XVK_SetupSurface_XLib, NULL))
 			break;
 #endif
 #ifdef VK_USE_PLATFORM_XCB_KHR
-		if (x11xcb_initlib() && VK_Init(info, VK_KHR_XCB_SURFACE_EXTENSION_NAME, XVK_SetupSurface_XCB))
+		if (x11xcb_initlib() && VK_Init(info, VK_KHR_XCB_SURFACE_EXTENSION_NAME, XVK_SetupSurface_XCB, NULL))
 			break;
 #endif
 		Con_Printf("Failed to create a vulkan context.\n");

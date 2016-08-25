@@ -18,7 +18,7 @@
 
 #define Z_TAG_BOTLIB 221726
 
-botlib_export_t *FTE_GetBotLibAPI(int apiVersion, botlib_import_t *import)
+static botlib_export_t *FTE_GetBotLibAPI(int apiVersion, botlib_import_t *import)
 {	//a stub that will prevent botlib from loading.
 #ifdef BOTLIB_STATIC
 	return GetBotLibAPI(apiVersion, import);
@@ -1598,22 +1598,22 @@ static int QDECL BL_FOpenFile(const char *name, fileHandle_t *handle, fsMode_t m
 {
 	return VM_fopen((char*)name, (int*)handle, mode, Z_TAG_BOTLIB);
 }
-static int QDECL BL_FRead( void *buffer, int len, fileHandle_t f )
+static int QDECL BL_FRead(void *buffer, int len, fileHandle_t f)
 {
 	return VM_FRead(buffer, len, (int)f, Z_TAG_BOTLIB);
 }
-//int BL_FWrite( const void *buffer, int len, fileHandle_t f )
-//{
-//	return VM_FWrite(buffer, len, f, Z_TAG_BOTLIB);
-//}
-static void QDECL BL_FCloseFile( fileHandle_t f )
+static int QDECL BL_FWrite(const void *buffer, int len, fileHandle_t f)
+{
+	return VM_FWrite(buffer, len, (int)f, Z_TAG_BOTLIB);
+}
+static void QDECL BL_FCloseFile(fileHandle_t f)
 {
 	VM_fclose((int)f, Z_TAG_BOTLIB);
 }
-//int BL_Seek( fileHandle_t f )
-//{
-//	VM_fseek(f, Z_TAG_BOTLIB)
-//}
+static int QDECL BL_Seek(fileHandle_t f, long offset, int seektype)
+{	// on success, apparently returns 0
+	return VM_FSeek((int)f, offset, seektype, Z_TAG_BOTLIB)?0:-1;
+}
 static char *QDECL BL_BSPEntityData(void)
 {
 	return sv.world.worldmodel->entities;
@@ -1705,6 +1705,12 @@ static void QDECL BL_BotClientCommand(int clientnum, char *command)
 	VM_Call(q3gamevm, GAME_CLIENT_COMMAND, clientnum);
 }
 
+static int QDECL BL_DebugLineCreate(void) {return 0;}
+static void QDECL BL_DebugLineDelete(int line) {}
+static void QDECL BL_DebugLineShow(int line, vec3_t start, vec3_t end, int color) {}
+static int QDECL BL_DebugPolygonCreate(int color, int numPoints, vec3_t *points) {return 0;}
+static void QDECL BL_DebugPolygonDelete(int id) {}
+
 #endif
 
 static void SV_InitBotLib(void)
@@ -1731,15 +1737,15 @@ static void SV_InitBotLib(void)
 	import.HunkAlloc = BL_HunkMalloc;
 	import.FS_FOpenFile = BL_FOpenFile;
 	import.FS_Read = BL_FRead;
-//	import.FS_Write = BL_FWrite;
+	import.FS_Write = BL_FWrite;
 	import.FS_FCloseFile = BL_FCloseFile;
-//	import.FS_Seek = BL_Seek;
-//	import.DebugLineCreate
-//	import.DebugLineDelete
-//	import.DebugLineShow
-//
-//	import.DebugPolygonCreate
-//	import.DebugPolygonDelete
+	import.FS_Seek = BL_Seek;
+
+	import.DebugLineCreate = BL_DebugLineCreate;
+	import.DebugLineDelete = BL_DebugLineDelete;
+	import.DebugLineShow = BL_DebugLineShow;
+	import.DebugPolygonCreate= BL_DebugPolygonCreate;
+	import.DebugPolygonDelete = BL_DebugPolygonDelete;
 
 //	Z_FreeTags(Z_TAG_BOTLIB);
 	botlibmemoryavailable = 1024*1024*16;

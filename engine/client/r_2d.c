@@ -431,8 +431,9 @@ apic_t *R2D_LoadAtlasedPic(const char *name)
 
 	if (!gl_load24bit.ival)
 	{
-		qp = W_SafeGetLumpName(name);
-		if (qp)
+		size_t lumpsize;
+		qp = W_SafeGetLumpName(name, &lumpsize);
+		if (qp && lumpsize == 8+qp->width*qp->height)
 		{
 			apic->width = qp->width;
 			apic->height = qp->height;

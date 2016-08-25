@@ -1272,13 +1272,13 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf, pbool resetprofiles)
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	struct progstate_s *ps;
 	unsigned int i, f, j, s;
-	unsigned long long cpufrequency;
+	prclocks_t cpufrequency;
 	struct
 	{
 		char *fname;
 		int profile;
-		unsigned long long profiletime;
-		unsigned long long totaltime;
+		prclocks_t profiletime;
+		prclocks_t totaltime;
 	} *sorted, t;
 	if (!prinst.profiling)
 	{
@@ -1329,7 +1329,7 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf, pbool resetprofiles)
 		//print it out
 		printf("%8s %9s %10s: %s\n", "ops", "self-time", "total-time", "function");
 		for (f = 0; f < s; f++)
-			printf("%8u %9f %10f: %s\n", sorted[f].profile, (float)(((double)sorted[f].profiletime) / cpufrequency), (float)(((double)sorted[f].totaltime) / cpufrequency), sorted[f].fname);
+			printf("%8u %9f %10f: %s\n", sorted[f].profile, ull2dbl(sorted[f].profiletime) / ull2dbl(cpufrequency), ull2dbl(sorted[f].totaltime) / ull2dbl(cpufrequency), sorted[f].fname);
 		free(sorted);
 	}
 	return true;

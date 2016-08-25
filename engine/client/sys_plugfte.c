@@ -18,6 +18,10 @@ void *globalmutex;
 # endif
 #endif
 
+#ifndef INVALID_FILE_ATTRIBUTES
+#define INVALID_FILE_ATTRIBUTES ~0
+#endif
+
 #ifdef _WIN32
 dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {

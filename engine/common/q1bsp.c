@@ -507,7 +507,7 @@ nextbrush:
 }
 static void Q1BSP_InsertBrush(mnode_t *node, mbrush_t *brush, vec3_t bmins, vec3_t bmaxs)
 {
-	vec3_t near, far;
+	vec3_t nearp, farp;
 	float nd, fd;
 	int i;
 	while(1)
@@ -523,18 +523,18 @@ static void Q1BSP_InsertBrush(mnode_t *node, mbrush_t *brush, vec3_t bmins, vec3
 		{
 			if (node->plane->normal[i] > 0)
 			{
-				near[i] = bmins[i];
-				far[i] = bmaxs[i];
+				nearp[i] = bmins[i];
+				farp[i] = bmaxs[i];
 			}
 			else
 			{
-				near[i] = bmaxs[i];
-				far[i] = bmins[i];
+				nearp[i] = bmaxs[i];
+				farp[i] = bmins[i];
 			}
 		}
 
-		nd = DotProduct(node->plane->normal, near) - node->plane->dist;
-		fd = DotProduct(node->plane->normal, far) - node->plane->dist;
+		nd = DotProduct(node->plane->normal, nearp) - node->plane->dist;
+		fd = DotProduct(node->plane->normal, farp) - node->plane->dist;
 
 		/*if its fully on either side, continue walking*/
 		if (nd < 0 && fd < 0)

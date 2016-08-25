@@ -878,6 +878,10 @@ qboolean R_ImportRTLights(char *entlump)
 					return okay;
 				}
 			}
+			else if (entnum == 0 && !strcmp("lightmapbright", key))
+			{
+				//tenebrae compat. this overrides r_shadow_realtime_world_lightmap
+			}
 		}
 		if (!islight)
 			continue;
@@ -983,7 +987,23 @@ qboolean R_LoadRTLights(void)
 
 		while(*file == ' ' || *file == '\t')
 			file++;
-		if (*file == '!')
+		if (*file == '#')
+		{
+			file++;
+			while(*file == ' ' || *file == '\t')
+				file++;
+			file = COM_Parse(file);
+			if (!Q_strcasecmp(com_token, "lightmaps"))
+			{
+				file = COM_Parse(file);
+				//foo = atoi(com_token);
+			}
+			else
+				Con_DPrintf("Unknown directive: %s\n", com_token);
+			file = end+1;
+			continue;
+		}
+		else if (*file == '!')
 		{
 			flags = LFLAG_NOSHADOWS;
 			file++;
@@ -1110,6 +1130,9 @@ void R_SaveRTLights_f(void)
 		Con_Printf("couldn't open %s\n", fname);
 		return;
 	}
+
+//	VFS_PUTS(f, va("#lightmap %f\n", foo));
+
 	for (light = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, light++)
 	{
 		if (light->die)

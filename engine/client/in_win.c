@@ -1415,6 +1415,20 @@ void INS_Accumulate (void)
 {
 	if (mouseactive && !dinput)
 	{
+		//if you have two programs side by side that both think that they own the mouse cursor then there are certain race conditions when switching between them
+		//when alt+tabbing, windows won't wait for a response, so we may have already lost focus by the time we get here, and none of our internal state will know about it.
+		//fte won't grab the mouse until its actually inside the window, but other programs don't have similar delays.
+		//so when switching to other quake ports, expect fte to detect the oter engine's setcursorpos as a really big mouse move.
+
+		RECT cliprect;
+		if (GetClipCursor (&cliprect) && !(
+			cliprect.left >= window_rect.left && 
+			cliprect.right <= window_rect.right && 
+			cliprect.top >= window_rect.top && 
+			cliprect.bottom <= window_rect.bottom
+			))
+			;	//cliprect now covers some area outside of where we asked for.
+		else
 #ifdef USINGRAWINPUT
 		//raw input disables the system mouse, to avoid dupes
 		if (!rawmicecount)

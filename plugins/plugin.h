@@ -85,7 +85,7 @@ void BadBuiltin(void);
 			typedef long long qintptr_t;
 			typedef unsigned long long quintptr_t;
 		#else
-			#ifndef _MSC_VER
+			#if !defined(_MSC_VER) || _MSC_VER < 1300
 				#define __w64
 			#endif
 			typedef long __w64 qintptr_t;

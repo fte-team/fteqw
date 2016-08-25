@@ -1485,14 +1485,6 @@ void VKBE_InitFramePools(struct vkframe *frame)
 	}
 
 	{
-		VkSemaphoreCreateInfo seminfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-#ifndef THREADACQUIRE
-		VkAssert(vkCreateSemaphore(vk.device, &seminfo, vkallocationcb, &frame->vsyncsemaphore));
-#endif
-		VkAssert(vkCreateSemaphore(vk.device, &seminfo, vkallocationcb, &frame->presentsemaphore));
-	}
-
-	{
 		VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
 		fci.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 		VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&frame->finishedfence));
@@ -3299,8 +3291,13 @@ static void BE_DrawMeshChain_Internal(void)
 		for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
 		{
 			m = shaderstate.meshlist[mno];
-			for (i = 0; i < m->numindexes; i++)
-				map[i] = m->indexes[i]+vertcount;
+			if (!vertcount)
+				memcpy(map, m->indexes, sizeof(index_t)*m->numindexes);
+			else
+			{
+				for (i = 0; i < m->numindexes; i++)
+					map[i] = m->indexes[i]+vertcount;
+			}
 			map += m->numindexes;
 			vertcount += m->numvertexes;
 		}
@@ -3801,6 +3798,9 @@ void VKBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 			maxvboverts += m->numvertexes;
 		}
 	}
+
+	if (!maxvboverts || !maxvboelements)
+		return;
 
 	//determine array offsets.
 	vbovdatastart = vbovdata = NULL;
@@ -5687,7 +5687,10 @@ static void VK_TerminateShadowMap(void)
 	unsigned int sbuf, i;
 
 	if (vk.shadow_renderpass != VK_NULL_HANDLE)
+	{
 		vkDestroyRenderPass(vk.device, vk.shadow_renderpass, vkallocationcb);
+		vk.shadow_renderpass = VK_NULL_HANDLE;
+	}
 
 	for (sbuf = 0; sbuf < countof(shaderstate.shadow); sbuf++)
 	{

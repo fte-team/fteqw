@@ -2642,6 +2642,7 @@ struct webostate_s
 	char dbgid[12];
 	model_t *wmodel;
 	mleaf_t *leaf[2];
+	int cluster[2];
 	qbyte pvs[MAX_MAP_LEAFS/8];
 	vboarray_t ebo;
 	void *ebomem;
@@ -2727,7 +2728,13 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 			webostate->batches[i].idxbuffer = (index_t*)NULL + idxcount;
 			idxcount += webostate->batches[i].numidx;
 		}
-		BE_VBO_Finish(NULL, indexes, sizeof(*indexes) * idxcount, &webostate->ebo, NULL, &webostate->ebomem);
+		if (idxcount)
+			BE_VBO_Finish(NULL, indexes, sizeof(*indexes) * idxcount, &webostate->ebo, NULL, &webostate->ebomem);
+		else
+		{
+			memset(&webostate->ebo, 0, sizeof(webostate->ebo));
+			webostate->ebomem = NULL;
+		}
 		free(indexes);
 	}
 #endif
@@ -2741,11 +2748,22 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 			if (!webostate->batches[i].numidx)
 				continue;
 
+			if (batch->shader->flags & SHADER_NODRAW)
+				continue;
+
 			m = &webostate->batches[i].m;
 			webostate->batches[i].pm = m;
 			b = &webostate->batches[i].b;
 			memcpy(b, batch, sizeof(*b));
 			memset(m, 0, sizeof(*m));
+
+			if (b->shader->flags & SHADER_NEEDSARRAYS)
+			{
+				if (b->shader->flags & SHADER_SKY)
+					continue;
+				b->shader = R_RegisterShader_Vertex("unsupported");
+			}
+
 			m->numvertexes = webostate->batches[i].b.vbo->vertcount;
 			b->mesh = &webostate->batches[i].pm;
 			b->meshes = 1;
@@ -2763,15 +2781,15 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 		}
 	}
 }
-static void Surf_SimpleWorld(struct webostate_s *es, qbyte *pvs)
+static void Surf_SimpleWorld_Q1BSP(struct webostate_s *es, qbyte *pvs)
 {
 	mleaf_t		*leaf;
 	msurface_t	*surf, **mark, **end;
 	mesh_t		*mesh;
-	int l;
-	int fc = -r_framecount;
 	model_t *wmodel = es->wmodel;
-	for (leaf = wmodel->leafs+wmodel->numclusters, l = wmodel->numclusters; l-- > 0; leaf--)
+	int l = wmodel->numclusters;
+	int fc = -r_framecount;
+	for (leaf = wmodel->leafs+l; l-- > 0; leaf--)
 	{
 		if ((pvs[l>>3] & (1u<<(l&7))) && leaf->nummarksurfaces)
 		{
@@ -2792,7 +2810,6 @@ static void Surf_SimpleWorld(struct webostate_s *es, qbyte *pvs)
 					if (eb->maxidx < eb->numidx + mesh->numindexes)
 					{
 						//FIXME: pre-allocate
-//						continue;
 						eb->maxidx = eb->numidx + surf->mesh->numindexes + 512;
 						eb->idxbuffer = BZ_Realloc(eb->idxbuffer, eb->maxidx * sizeof(index_t));
 					}
@@ -2804,6 +2821,51 @@ static void Surf_SimpleWorld(struct webostate_s *es, qbyte *pvs)
 		}
 	}
 }
+#if defined(Q2BSP) || defined(Q3BSP)
+static void Surf_SimpleWorld_Q3BSP(struct webostate_s *es, qbyte *pvs)
+{
+	mleaf_t		*leaf;
+	msurface_t	*surf, **mark, **end;
+	mesh_t		*mesh;
+	model_t *wmodel = es->wmodel;
+	int l = wmodel->numleafs;	//is this doing submodels too?
+	int c;
+	int fc = -r_framecount;
+	for (leaf = wmodel->leafs; l-- > 0; leaf++)
+	{
+		c = leaf->cluster;
+		if (c < 0)
+			continue;	//o.O
+		if ((pvs[c>>3] & (1u<<(c&7))) && leaf->nummarksurfaces)
+		{
+			mark = leaf->firstmarksurface;
+			end = mark+leaf->nummarksurfaces;
+			while(mark < end)
+			{
+				surf = *mark++;
+				if (surf->visframe != fc)
+				{
+					int i;
+					struct wesbatch_s *eb;
+					surf->visframe = fc;
+
+					mesh = surf->mesh;
+					eb = &es->batches[surf->sbatch->ebobatch];
+					if (eb->maxidx < eb->numidx + mesh->numindexes)
+					{
+						//FIXME: pre-allocate
+						eb->maxidx = eb->numidx + surf->mesh->numindexes + 512;
+						eb->idxbuffer = BZ_Realloc(eb->idxbuffer, eb->maxidx * sizeof(index_t));
+					}
+					for (i = 0; i < mesh->numindexes; i++)
+						eb->idxbuffer[eb->numidx+i] = mesh->indexes[i] + mesh->vbofirstvert;
+					eb->numidx += mesh->numindexes;
+				}
+			}
+		}
+	}
+}
+#endif
 void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 {
 	int i;
@@ -2812,23 +2874,6 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 
 	es->numbatches = es->wmodel->numbatches;
 
-	//maybe we should just use fatpvs instead, and wait for completion when outside?
-	if (es->leaf[1])
-	{	//view is near to a water boundary. this implies the water crosses the near clip plane.
-		qbyte tmppvs[MAX_MAP_LEAFS/8];
-		int c;
-		Q1BSP_LeafPVS (es->wmodel, es->leaf[0], es->pvs, sizeof(es->pvs));
-		Q1BSP_LeafPVS (es->wmodel, es->leaf[1], tmppvs, sizeof(tmppvs));
-		c = (es->wmodel->numclusters+31)/32;
-		for (i=0 ; i<c ; i++)
-			((int *)es->pvs)[i] |= ((int *)tmppvs)[i];
-		pvs = es->pvs;
-	}
-	else
-	{
-		pvs = Q1BSP_LeafPVS (es->wmodel, es->leaf[0], es->pvs, sizeof(es->pvs));
-	}
-
 	for (i = 0; i < es->numbatches; i++)
 	{
 		es->batches[i].numidx = 0;
@@ -2836,7 +2881,46 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 		es->batches[i].idxbuffer = NULL;
 	}
 
-	Surf_SimpleWorld(es, pvs);
+#if defined(Q2BSP) || defined(Q3BSP)
+	if (es->wmodel->fromgame == fg_quake2 || es->wmodel->fromgame == fg_quake3)
+	{
+		if (es->cluster[1] != -1 && es->cluster[0] != es->cluster[1])
+		{	//view is near to a water boundary. this implies the water crosses the near clip plane.
+			qbyte tmppvs[MAX_MAP_LEAFS/8], *pvs2;
+			int c;
+			pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], es->pvs, sizeof(es->pvs));
+			pvs2 = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[1], tmppvs, sizeof(tmppvs));
+			c = (es->wmodel->numclusters+31)/32;
+			for (i=0 ; i<c ; i++)
+				((int *)es->pvs)[i] = ((int *)pvs)[i] | ((int *)pvs2)[i];
+			pvs = es->pvs;
+		}
+		else
+			pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], es->pvs, sizeof(es->pvs));
+
+		Surf_SimpleWorld_Q3BSP(es, pvs);
+	}
+	else
+#endif
+	{
+		//maybe we should just use fatpvs instead, and wait for completion when outside?
+		if (es->leaf[1])
+		{	//view is near to a water boundary. this implies the water crosses the near clip plane.
+			qbyte tmppvs[MAX_MAP_LEAFS/8];
+			int c;
+			Q1BSP_LeafPVS (es->wmodel, es->leaf[0], es->pvs, sizeof(es->pvs));
+			Q1BSP_LeafPVS (es->wmodel, es->leaf[1], tmppvs, sizeof(tmppvs));
+			c = (es->wmodel->numclusters+31)/32;
+			for (i=0 ; i<c ; i++)
+				((int *)es->pvs)[i] |= ((int *)tmppvs)[i];
+			pvs = es->pvs;
+		}
+		else
+		{
+			pvs = Q1BSP_LeafPVS (es->wmodel, es->leaf[0], es->pvs, sizeof(es->pvs));
+		}
+		Surf_SimpleWorld_Q1BSP(es, pvs);
+	}
 
 	COM_AddWork(WG_MAIN, R_GeneratedWorldEBO, es, NULL, 0, 0);
 }
@@ -2876,52 +2960,89 @@ void Surf_DrawWorld (void)
 		Surf_LightmapShift(cl.worldmodel);
 
 #ifdef THREADEDWORLD
-		if ((r_dynamic.ival < 0 || cl.worldmodel->numbatches) && !r_refdef.recurse && cl.worldmodel->type == mod_brush && cl.worldmodel->fromgame == fg_quake)
+		if ((r_dynamic.ival < 0 || cl.worldmodel->numbatches) && !r_refdef.recurse && cl.worldmodel->type == mod_brush)
 		{
-			int i = MAX_LIGHTSTYLES;
 			if (webostate && webostate->wmodel != cl.worldmodel)
 			{
 				R_DestroyWorldEBO(webostate);
 				webostate = NULL;
 			}
 
-			if (webostate && !webogenerating)
-				for (i = 0; i < MAX_LIGHTSTYLES; i++)
-				{
-					if (webostate->lightstylevalues[i] != d_lightstylevalue[i])
-						break;
-				}
-			if (webostate && webostate->leaf[0] == r_viewleaf && webostate->leaf[1] == r_viewleaf2 && i == MAX_LIGHTSTYLES)
+			if (qrenderer != QR_OPENGL && qrenderer != QR_VULKAN)
+				;
+			else if (cl.worldmodel->fromgame == fg_quake)
 			{
-			}
-			else
-			{
-				if (!webogenerating)
-				{
-					int i;
-					if (!cl.worldmodel->numbatches)
-					{
-						int sortid;
-						batch_t *batch;
-						cl.worldmodel->numbatches = 0;
-						for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
-							for (batch = cl.worldmodel->batches[sortid]; batch != NULL; batch = batch->next)
-							{
-								batch->ebobatch = cl.worldmodel->numbatches;
-								cl.worldmodel->numbatches++;
-							}
-					}
-					webogeneratingstate = true;
-					webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (cl.worldmodel->numbatches-1));
-					webogenerating->wmodel = cl.worldmodel;
-					webogenerating->leaf[0] = r_viewleaf;
-					webogenerating->leaf[1] = r_viewleaf2;
+				int i = MAX_LIGHTSTYLES;
+				if (webostate && !webogenerating)
 					for (i = 0; i < MAX_LIGHTSTYLES; i++)
-						webogenerating->lightstylevalues[i] = d_lightstylevalue[i];
-					Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
-					COM_AddWork(WG_LOADER, R_GenWorldEBO, webogenerating, NULL, 0, 0);
+					{
+						if (webostate->lightstylevalues[i] != d_lightstylevalue[i])
+							break;
+					}
+				if (webostate && webostate->leaf[0] == r_viewleaf && webostate->leaf[1] == r_viewleaf2 && i == MAX_LIGHTSTYLES)
+				{
+				}
+				else
+				{
+					if (!webogenerating)
+					{
+						int i;
+						if (!cl.worldmodel->numbatches)
+						{
+							int sortid;
+							batch_t *batch;
+							cl.worldmodel->numbatches = 0;
+							for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+								for (batch = cl.worldmodel->batches[sortid]; batch != NULL; batch = batch->next)
+								{
+									batch->ebobatch = cl.worldmodel->numbatches;
+									cl.worldmodel->numbatches++;
+								}
+						}
+						webogeneratingstate = true;
+						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (cl.worldmodel->numbatches-1));
+						webogenerating->wmodel = cl.worldmodel;
+						webogenerating->leaf[0] = r_viewleaf;
+						webogenerating->leaf[1] = r_viewleaf2;
+						for (i = 0; i < MAX_LIGHTSTYLES; i++)
+							webogenerating->lightstylevalues[i] = d_lightstylevalue[i];
+						Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
+						COM_AddWork(WG_LOADER, R_GenWorldEBO, webogenerating, NULL, 0, 0);
+					}
 				}
 			}
+			else if (cl.worldmodel->fromgame == fg_quake3)
+			{
+				if (webostate && webostate->cluster[0] == r_viewcluster && webostate->cluster[1] == r_viewcluster2)
+				{
+				}
+				else
+				{
+					if (!webogenerating)
+					{
+						if (!cl.worldmodel->numbatches)
+						{
+							int sortid;
+							batch_t *batch;
+							cl.worldmodel->numbatches = 0;
+							for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+								for (batch = cl.worldmodel->batches[sortid]; batch != NULL; batch = batch->next)
+								{
+									batch->ebobatch = cl.worldmodel->numbatches;
+									cl.worldmodel->numbatches++;
+								}
+						}
+						webogeneratingstate = true;
+						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (cl.worldmodel->numbatches-1));
+						webogenerating->wmodel = cl.worldmodel;
+						webogenerating->cluster[0] = r_viewcluster;
+						webogenerating->cluster[1] = r_viewcluster2;
+						Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
+						COM_AddWork(WG_LOADER, R_GenWorldEBO, webogenerating, NULL, 0, 0);
+					}
+				}
+			}
+
 			if (webostate)
 			{
 				entvis = surfvis = webostate->pvs;

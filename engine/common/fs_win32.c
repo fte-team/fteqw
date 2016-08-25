@@ -544,7 +544,9 @@ static unsigned int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t 
 			if (f)
 			{
 				LARGE_INTEGER wsize;
-				GetFileSizeEx(f, &wsize);
+				wsize.LowPart = GetFileSize(f, &wsize.HighPart);
+				if (wsize.LowPart == INVALID_FILE_SIZE && GetLastError()!=NO_ERROR)
+					wsize.LowPart = wsize.HighPart = 0;
 				CloseHandle(f);
 				len = qofs_Make(wsize.LowPart, wsize.HighPart);
 			}

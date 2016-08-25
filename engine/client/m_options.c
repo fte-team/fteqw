@@ -2883,7 +2883,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 //	ent.fatness = sin(realtime)*5;
 	ent.playerindex = -1;
 	ent.skinnum = mods->skingroup;
-	ent.shaderTime = realtime;
+	ent.shaderTime = 0;//realtime;
 	ent.framestate.g[FS_REG].lerpweight[0] = 1;
 	ent.framestate.g[FS_REG].frame[0] = mods->framegroup;
 	ent.framestate.g[FS_REG].frametime[0] = realtime - mods->framechangetime;
@@ -3112,7 +3112,10 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 	mods->y = y;
 
 	if (!mods->nummanifests)
-		Draw_FunString(x, y, "No games or mods known");
+	{
+		Draw_FunString(x, y+0, "No games or mods known");
+		Draw_FunString(x, y+8, "Consider using -basedir $PATHTOGAME on the commandline");
+	}
 
 	for (i = 0; y+8 <= ym && i < mods->nummanifests; y+=8, i++)
 	{

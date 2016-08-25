@@ -687,11 +687,24 @@ static int VARGS SVQ2_PointContents (vec3_t p)
 
 static cvar_t *VARGS Q2Cvar_Get (const char *var_name, const char *value, int flags)
 {
-	cvar_t *var = Cvar_Get(var_name, value, flags, "Quake2 game variables");
+	cvar_t *var;
+	//q2 gamecode knows about these flags. anything else is probably a bug, or 3rd-party extension.
+	flags &= (CVAR_NOSET|CVAR_SERVERINFO|CVAR_USERINFO|CVAR_ARCHIVE|CVAR_LATCH);
+
+	var = Cvar_Get(var_name, value, flags, "Quake2 game variables");
 	if (!var)
 	{
 		Con_Printf("Q2Cvar_Get: variable %s not creatable\n", var_name);
 		return NULL;
+	}
+
+	//allow this to change all < cvar_latch values.
+	//this allows q2 dlls to apply different flags to a cvar without destroying our important ones (like cheat).
+	flags |= var->flags;
+	if (flags != var->flags)
+	{
+		var->flags = flags;
+		Cvar_Set(var, var->string);
 	}
 	return var;
 }

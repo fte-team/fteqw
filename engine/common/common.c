@@ -4346,11 +4346,12 @@ void COM_ParsePlusSets (qboolean docbuf)
 		{
 			if (!strcmp(com_argv[i], "+set") || !strcmp(com_argv[i], "+seta"))
 			{
+				char buf[8192];
 				Cbuf_AddText(com_argv[i]+1, RESTRICT_LOCAL);
 				Cbuf_AddText(" ", RESTRICT_LOCAL);
-				Cbuf_AddText(com_argv[i+1], RESTRICT_LOCAL);
+				Cbuf_AddText(COM_QuotedString(com_argv[i+1], buf, sizeof(buf), false), RESTRICT_LOCAL);
 				Cbuf_AddText(" ", RESTRICT_LOCAL);
-				Cbuf_AddText(com_argv[i+2], RESTRICT_LOCAL);
+				Cbuf_AddText(COM_QuotedString(com_argv[i+2], buf, sizeof(buf), false), RESTRICT_LOCAL);
 				Cbuf_AddText("\n", RESTRICT_LOCAL);
 			}
 		}

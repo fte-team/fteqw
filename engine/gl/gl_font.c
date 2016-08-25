@@ -613,12 +613,13 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 		int x, y;
 		unsigned int stepx, stepy;
 		unsigned int srcx, srcy;
+		size_t lumpsize = 0;
 
 		if (charidx-0xe100 >= sizeof(imgs)/sizeof(imgs[0]))
 			wadimg = NULL;
 		else
-			wadimg = W_SafeGetLumpName(imgs[charidx-0xe100]);
-		if (wadimg)
+			wadimg = W_SafeGetLumpName(imgs[charidx-0xe100], &lumpsize);
+		if (wadimg && lumpsize == 8+wadimg->height*wadimg->width)
 		{
 			nh = wadimg->height;
 			nw = wadimg->width;
@@ -964,7 +965,7 @@ static texid_t Font_LoadReplacementConchars(void)
 }
 static texid_t Font_LoadQuakeConchars(void)
 {
-	unsigned int i;
+	/*unsigned int i;
 	qbyte *lump;
 	lump = W_SafeGetLumpName ("conchars");
 	if (lump)
@@ -981,7 +982,7 @@ static texid_t Font_LoadQuakeConchars(void)
 				lump[i] = 255;	// proper transparent color
 
 		return R_LoadTexture8("charset", 128, 128, (void*)lump, IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, 1);
-	}
+	}*/
 	return r_nulltex;
 }
 
@@ -1330,8 +1331,9 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 	{
 		unsigned int *img;
 		int x, y;
-		unsigned char *w = W_SafeGetLumpName(fontfilename+4);
-		if (!w)
+		size_t lumpsize;
+		unsigned char *w = W_SafeGetLumpName(fontfilename+4, &lumpsize);
+		if (!w || lumpsize != 5)
 		{
 			Z_Free(f);
 			return NULL;

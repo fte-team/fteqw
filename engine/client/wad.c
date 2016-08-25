@@ -124,7 +124,7 @@ void W_LoadWadFile (char *filename)
 W_GetLumpinfo
 =============
 */
-lumpinfo_t	*W_GetLumpinfo (char *name)
+/*lumpinfo_t	*W_GetLumpinfo (char *name)
 {
 	int		i;
 	lumpinfo_t	*lump_p;
@@ -140,9 +140,9 @@ lumpinfo_t	*W_GetLumpinfo (char *name)
 	
 	Sys_Error ("W_GetLumpinfo: %s not found", name);
 	return NULL;
-}
+}*/
 
-void *W_SafeGetLumpName (const char *name)
+void *W_SafeGetLumpName (const char *name, size_t *size)
 {
 	int		i;
 	lumpinfo_t	*lump_p;
@@ -153,21 +153,24 @@ void *W_SafeGetLumpName (const char *name)
 	for (lump_p=wad_lumps, i=0 ; i<wad_numlumps ; i++,lump_p++)
 	{
 		if (!strcmp(clean, lump_p->name))
+		{
+			*size = lump_p->disksize;
 			return (void *)(wad_base+lump_p->filepos);
+		}
 	}
 	return NULL;
 }
 
-void *W_GetLumpName (char *name)
+/*void *W_GetLumpName (char *name)
 {
 	lumpinfo_t	*lump;
 	
 	lump = W_GetLumpinfo (name);
 	
 	return (void *)(wad_base + lump->filepos);
-}
+}*/
 
-void *W_GetLumpNum (int num)
+/*void *W_GetLumpNum (int num)
 {
 	lumpinfo_t	*lump;
 	
@@ -177,7 +180,7 @@ void *W_GetLumpNum (int num)
 	lump = wad_lumps + num;
 	
 	return (void *)(wad_base + lump->filepos);
-}
+}*/
 
 /*
 =============================================================================
@@ -470,22 +473,53 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 	miptex_t *tex;
 	qbyte *data;
 
-	if ((!strncmp(name, "gfx/", 4) || !strncmp(name, "wad/", 4)) && strcmp(name, "gfx/conchars"))
+	if (!strncmp(name, "gfx/", 4) || !strncmp(name, "wad/", 4))
 	{
 		qpic_t *p;
-		p = W_SafeGetLumpName(name+4);
+		size_t lumpsize;
+		p = W_SafeGetLumpName(name+4, &lumpsize);
 		if (p)
 		{
-			*width = p->width;
-			*height = p->height;
-			*usesalpha = false;
+			if (!strcmp(name+4, "conchars") && lumpsize==128*128)
+			{	//conchars has no header.
+				qbyte *lump = (qbyte*)p;
+				extern cvar_t con_ocranaleds;
 
-			data = BZ_Malloc(p->width * p->height * 4);
-			for (i = 0; i < p->width * p->height; i++)
-			{
-				((unsigned int*)data)[i] = d_8to24rgbtable[p->data[i]];
+				if (con_ocranaleds.ival)
+				{
+					if (con_ocranaleds.ival != 2 || QCRC_Block(lump, 128*128) == 798)
+						AddOcranaLEDsIndexed (lump, 128, 128);
+				}
+
+				*width = 128;
+				*height = 128;
+				*usesalpha = false;
+
+				data = BZ_Malloc(128 * 128 * 4);
+				for (i = 0; i < 128 * 128; i++)
+				{
+					qbyte b = lump[i];
+					if (b == 0)
+						((unsigned int*)data)[i] = 0;
+					else
+						((unsigned int*)data)[i] = d_8to24rgbtable[lump[i]] | 0xff000000;
+				}
+
+				return data;
 			}
-			return data;
+			else if (lumpsize == 8+p->width*p->height)
+			{
+				*width = p->width;
+				*height = p->height;
+				*usesalpha = false;
+
+				data = BZ_Malloc(p->width * p->height * 4);
+				for (i = 0; i < p->width * p->height; i++)
+				{
+					((unsigned int*)data)[i] = d_8to24rgbtable[p->data[i]];
+				}
+				return data;
+			}
 		}
 	}
 

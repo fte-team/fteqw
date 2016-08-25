@@ -2058,6 +2058,8 @@ static struct {
 	{"fputs",					PF_fputs,					51},
 	{"fread",					PF_fread,					0},
 	{"fwrite",					PF_fwrite,					0},
+	{"fseek",					PF_fseek,					0},
+	{"fsize",					PF_fsize,					0},
 	{"strlen",					PF_strlen,					52},
 	{"strcat",					PF_strcat,					53},
 	{"substring",				PF_substring,				54},

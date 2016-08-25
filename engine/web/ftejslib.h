@@ -45,12 +45,12 @@ int emscriptenfte_setupcanvas(
 	int width,
 	int height,
 	void(*Resized)(int newwidth, int newheight),
-	void(*Mouse)(int devid,int abs,float x,float y,float z,float size),
-	void(*Button)(int devid, int down, int mbutton),
-	int(*Keyboard)(int devid, int down, int keycode, int unicode),
+	void(*Mouse)(unsigned int devid,int abs,float x,float y,float z,float size),
+	void(*Button)(unsigned int devid, int down, int mbutton),
+	int(*Keyboard)(unsigned int devid, int down, int keycode, int unicode),
 	void(*LoadFile)(char *url, char *mime, int filehandle),
-	void(*buttonevent)(int joydev, int button, int ispressed),
-	void(*axisevent)(int joydev, int axis, float value),
+	void(*buttonevent)(unsigned int joydev, int button, int ispressed),
+	void(*axisevent)(unsigned int joydev, int axis, float value),
 	int (*ShouldSwitchToFullscreen)(void)
 	);
 

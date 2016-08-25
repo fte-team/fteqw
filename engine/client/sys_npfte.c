@@ -13,7 +13,7 @@
 #include <X11/Intrinsic.h>
 #endif
 
-#include "libs/npapi/npupp.h"
+#include "../libs/npapi/npupp.h"
 #include "sys_plugfte.h"
 
 /*work around absolute crapness in the npapi headers*/

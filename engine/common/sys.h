@@ -168,15 +168,23 @@ qboolean NPQTV_Sys_Startup(int argc, char *argv[]);
 void NPQTV_Sys_MainLoop(void);
 #endif
 
+#define UPD_UNSUPPORTED -1
+#define UPD_REVERT 0
+#define UPD_OFF 1
+#define UPD_STABLE 2
+#define UPD_TESTING 3
+
 #if defined(WEBCLIENT) && defined(_WIN32)
 int StartLocalServer(int close);
 
 #define HAVEAUTOUPDATE
 int Sys_GetAutoUpdateSetting(void);
 void Sys_SetAutoUpdateSetting(int newval);
+void Sys_SetUpdatedBinary(const char *fname);
 #else
-#define Sys_GetAutoUpdateSetting() -1
+#define Sys_GetAutoUpdateSetting() UPD_UNSUPPORTED
 #define Sys_SetAutoUpdateSetting(n)
+#define Sys_SetUpdatedBinary(n)
 #endif
 
 void Sys_Init (void);

@@ -12,22 +12,22 @@ struct hlcvar_s *QDECL GHL_CVarGetPointer(char *varname);
 
 
 #if defined(_MSC_VER)
- #if _MSC_VER >= 1300
-  #define __func__ __FUNCTION__
- #else
-  #define __func__ "unknown"
- #endif
+#	if _MSC_VER >= 1300
+#		define __func__ __FUNCTION__
+#	else
+#		define __func__ "unknown"
+#	endif
 #else
- //I hope you're c99 and have a __func__
+	//I hope you're c99 and have a __func__
 #endif
 
-extern cvar_t temp1;
+//extern cvar_t temp1;
 #define ignore(s) Con_Printf("Fixme: " s "\n")
 #define notimpl(l) Con_Printf("halflife cl builtin not implemented on line %i\n", l)
 #define notimpf(f) Con_Printf("halflife cl builtin %s not implemented\n", f)
 #define notimp() Con_Printf("halflife cl builtin %s not implemented\n", __func__)
-#define bi_begin() if (temp1.ival)Con_Printf("enter %s\n", __func__)
-#define bi_end() if (temp1.ival)Con_Printf("leave %s\n", __func__)
+#define bi_begin() //if (temp1.ival)Con_Printf("enter %s\n", __func__)
+#define bi_end() //if (temp1.ival)Con_Printf("leave %s\n", __func__)
 #define bi_trace() bi_begin(); bi_end()
 
 #if HLCLIENT >= 1
@@ -1443,12 +1443,9 @@ int CLHL_ParseGamePacket(void)
 			int flags;
 			int lifetime;
 			explosion_t *ef;
-			extern cvar_t temp1;
 
 			subcode = MSG_ReadByte();
 
-			if (temp1.value)
-				Con_Printf("Temp ent %i\n", subcode);
 			switch(subcode)
 			{
 			case 3:

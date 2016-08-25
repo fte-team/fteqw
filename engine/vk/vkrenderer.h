@@ -15,15 +15,14 @@
 #endif
 
 #define VK_NO_PROTOTYPES
-#include <vulkan/vulkan.h>
+#include "../vulkan/vulkan.h"
 
 #if defined(_MSC_VER) && !defined(UINT64_MAX)
 #define UINT64_MAX _UI64_MAX
+#ifndef _UI64_MAX
+#define _UI64_MAX 0xffffffffffffffffui64
 #endif
-
-#define THREADACQUIRE			//should be better behaved, with no extra locks needed.
-
-
+#endif
 
 #ifndef VKInstWin32Funcs
 #define VKInstWin32Funcs
@@ -168,8 +167,10 @@
 #define vkallocationcb NULL
 #ifdef _DEBUG
 #define VkAssert(f) do {VkResult err = f; if (err) Sys_Error("%s == %i", #f, err); } while(0)
+#define VkWarnAssert(f) do {VkResult err = f; if (err) Con_Printf("%s == %i\n", #f, err); } while(0)
 #else
 #define VkAssert(f) f
+#define VkWarnAssert(f) f
 #endif
 
 typedef struct vk_image_s
@@ -207,6 +208,8 @@ struct vk_rendertarg
 	qboolean depthcleared;	//starting a new gameview needs cleared depth relative to other views, but the first probably won't.
 
 	VkRenderPassBeginInfo restartinfo;
+	VkSemaphore presentsemaphore;
+	qboolean firstuse;
 };
 struct vk_rendertarg_cube
 {
@@ -225,21 +228,18 @@ extern struct vulkaninfo_s
 	VkDevice device;
 	VkPhysicalDevice gpu;
 	VkSurfaceKHR surface;
-	uint32_t queueidx[2];	//queue families, render+present
+	uint32_t queuefam[2];	//queue families, render+present
+	uint32_t queuenum[2];	//queue families, render+present
 	VkQueue queue_render;
 	VkQueue queue_present;
 	VkPhysicalDeviceMemoryProperties memory_properties;
 	VkCommandPool cmdpool;
 
-#ifdef THREADACQUIRE
 #define ACQUIRELIMIT 8
 	VkFence acquirefences[ACQUIRELIMIT];
 	uint32_t acquirebufferidx[ACQUIRELIMIT];
 	unsigned int aquirenext;
 	volatile unsigned int aquirelast;	//set inside the submission thread
-#else
-	VkFence acquirefence;
-#endif
 
 	VkPipelineCache pipelinecache;
 
@@ -281,10 +281,6 @@ extern struct vulkaninfo_s
 	struct vk_rendertarg *rendertarg;
 	struct vkframe {
 		struct vkframe *next;
-#ifndef THREADACQUIRE
-		VkSemaphore vsyncsemaphore;
-#endif
-		VkSemaphore presentsemaphore;
 		VkCommandBuffer cbuf;
 		struct dynbuffer *dynbufs[DB_MAX];
 		struct descpool *descpools;
@@ -299,7 +295,6 @@ extern struct vulkaninfo_s
 	VkRenderPass shadow_renderpass;	//clears depth etc.
 	VkRenderPass renderpass[3];	//initial, resume
 	VkSwapchainKHR swapchain;
-	void *swapchain_mutex;	//acquire+present need some syncronisation.
 	uint32_t bufferidx;
 
 	VkFormat depthformat;
@@ -321,7 +316,7 @@ extern struct vulkaninfo_s
 	} *work;
 	void *submitthread;
 	void *submitcondition;
-	void *acquirecondition;
+	void (*dopresent)(struct vkframe *theframe);
 
 	texid_t sourcecolour;
 	texid_t sourcedepth;
@@ -344,8 +339,9 @@ uint32_t vk_find_memory_try(uint32_t typeBits, VkFlags requirements_mask);
 uint32_t vk_find_memory_require(uint32_t typeBits, VkFlags requirements_mask);
 
 qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips);
+void VK_DoPresent(struct vkframe *theframe);
 
-qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*createSurface)(void));
+qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*createSurface)(void), void (*dopresent)(struct vkframe *theframe));
 void VK_Shutdown(void);
 
 void VK_R_BloomBlend (texid_t source, int x, int y, int w, int h);

@@ -513,7 +513,7 @@ static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...)
 {
 	va_list args;
 	va_start (args, fmt);
-	vsnprintf (dest, size-1, fmt, args);
+	_vsnprintf (dest, size-1, fmt, args);
 	va_end (args);
 	//make sure its terminated.
 	dest[size-1] = 0;

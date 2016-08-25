@@ -10,14 +10,14 @@ typedef struct {
 	char name[256];
 	char *data;
 	int bufferlen;
-	int len;
-	int ofs;
+	qofs_t len;
+	qofs_t ofs;
 	int accessmode;
 	int owner;
 } vm_fopen_files_t;
 vm_fopen_files_t vm_fopen_files[MAX_VM_FILES];
 //FIXME: why does this not use the VFS system?
-int VM_fopen (char *name, int *handle, int fmode, int owner)
+qofs_t VM_fopen (const char *name, int *handle, int fmode, int owner)
 {
 	int i;
 	size_t insize;
@@ -128,7 +128,7 @@ int VM_FRead (char *dest, int quantity, int fnum, int owner)
 
 	return quantity;
 }
-int VM_FWrite (char *dest, int quantity, int fnum, int owner)
+int VM_FWrite (const char *dest, int quantity, int fnum, int owner)
 {
 /*
 	int fnum = G_FLOAT(OFS_PARM0);
@@ -160,15 +160,15 @@ int VM_FWrite (char *dest, int quantity, int fnum, int owner)
 */
 	return 0;
 }
-void VM_FSeek (int fnum, int offset, int seektype, int owner)
+qboolean VM_FSeek (int fnum, qofs_t offset, int seektype, int owner)
 {
 	fnum--;
 	if (fnum < 0 || fnum >= MAX_VM_FILES)
-		return;	//out of range
+		return false;	//out of range
 	if (vm_fopen_files[fnum].owner != owner)
-		return;	//cgs?
+		return false;	//cgs?
 	if (!vm_fopen_files[fnum].data)
-		return;	//not open
+		return false;	//not open
 
 	switch(seektype)
 	{
@@ -182,13 +182,14 @@ void VM_FSeek (int fnum, int offset, int seektype, int owner)
 		//offset = 0 + offset;
 		break;
 	}
-	if (offset < 0)
-		offset = 0;
+//	if (offset < 0)
+//		offset = 0;
 	if (offset > vm_fopen_files[fnum].len)
 		offset = vm_fopen_files[fnum].len;
 	vm_fopen_files[fnum].ofs = offset;
+	return true;
 }
-int VM_FTell (int fnum, int owner)
+qofs_t VM_FTell (int fnum, int owner)
 {
 	fnum--;
 	if (fnum < 0 || fnum >= MAX_VM_FILES)
@@ -318,7 +319,7 @@ static int QDECL VMEnumMods(const char *match, qofs_t size, time_t modtime, void
 	return true;
 }
 
-int VM_GetFileList(char *path, char *ext, char *output, int buffersize)
+int VM_GetFileList(const char *path, const char *ext, char *output, int buffersize)
 {
 	vmsearch_t vms;
 	vms.initialbuffer = vms.buffer = output;

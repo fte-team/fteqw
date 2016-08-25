@@ -1777,7 +1777,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 		bits |= SU_EXTEND1;
 	if (bits >= (1u<<24))
 		bits |= SU_EXTEND2;
-	if (bits >= (1ull<<32))
+	if (bits >= ((quint64_t)1u<<32))
 		bits |= SU_EXTEND3;
 
 // send the data

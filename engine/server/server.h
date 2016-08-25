@@ -122,8 +122,13 @@ typedef struct
 	int framenum;
 	int logindatabase;
 
-	qboolean	paused;				// are we paused?
-	float		pausedstart;
+	enum
+	{
+		PAUSE_EXPLICIT	= 1, //someone hit pause
+		PAUSE_SERVICE	= 2, //we're running as a service and someone paused us rather than killing us.
+		PAUSE_AUTO		= 4	//console is down in a singleplayer game.
+	} paused;
+	float			pausedstart;
 
 	//check player/eyes models for hacks
 	unsigned	model_player_checksum;

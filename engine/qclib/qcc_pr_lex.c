@@ -1842,10 +1842,18 @@ int QCC_PR_LexInteger (void)
 	return atoi (pr_token);
 }
 
+#ifdef _MSC_VER
+#define longlong __int64
+#define LL(x) x##i64
+#else
+#define longlong long long
+#define LL(x) x##ll
+#endif
+
 void QCC_PR_LexNumber (void)
 {
 	int tokenlen = 0;
-	long long num=0;
+	longlong num=0;
 	int base=0;
 	int c;
 	int sign=1;
@@ -1926,7 +1934,7 @@ void QCC_PR_LexNumber (void)
 			pr_immediate._float = num*sign;
 
 			num*=sign;
-			if ((long long)pr_immediate._float != (long long)num)
+			if ((longlong)pr_immediate._float != (longlong)num)
 				QCC_PR_ParseWarning(WARN_OVERFLOW, "numerical overflow");
 			return;
 		}
@@ -1939,9 +1947,9 @@ void QCC_PR_LexNumber (void)
 			pr_immediate._int = num*sign;
 
 			num*=sign;
-			if ((long long)pr_immediate._int != (long long)num)
+			if ((longlong)pr_immediate._int != (longlong)num)
 			{
-				if (((long long)pr_immediate._int & 0xffffffff80000000ll) != 0xffffffff80000000ll)
+				if (((longlong)pr_immediate._int & LL(0xffffffff80000000)) != LL(0xffffffff80000000))
 						QCC_PR_ParseWarning(WARN_OVERFLOW, "numerical overflow");
 			}
 			return;
@@ -1973,9 +1981,9 @@ qccxhex:
 		pr_immediate._int = num*sign;
 
 		num*=sign;
-		if ((long long)pr_immediate._int != (long long)num)
+		if ((longlong)pr_immediate._int != (longlong)num)
 		{
-			if (((long long)pr_immediate._int & 0xffffffff80000000ll) != 0xffffffff80000000ll)
+			if (((longlong)pr_immediate._int & LL(0xffffffff80000000)) != LL(0xffffffff80000000))
 					QCC_PR_ParseWarning(WARN_OVERFLOW, "numerical overflow");
 		}
 	}
@@ -1988,7 +1996,7 @@ qccxhex:
 		pr_immediate._float = (float)(num*sign);
 
 		num*=sign;
-		if ((long long)pr_immediate._float != (long long)num && base == 16)
+		if ((longlong)pr_immediate._float != (longlong)num && base == 16)
 			QCC_PR_ParseWarning(WARN_OVERFLOW, "numerical overflow %lld will be rounded to %f", num, pr_immediate._float);
 	}
 }

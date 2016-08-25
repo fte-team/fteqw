@@ -440,16 +440,18 @@ int Con_Navigate(console_t *con, char *line)
 int Con_ExecuteLine(console_t *con, char *line)
 {
 	qboolean waschat = false;
-	char deutf8[8192];
+	char *deutf8 = NULL;
 	if (com_parseutf8.ival <= 0)
 	{
 		unsigned int unicode;
 		int err;
 		int len = 0;
+		int maxlen = strlen(line)*6+1;
+		deutf8 = malloc(maxlen);
 		while(*line)
 		{
 			unicode = utf8_decode(&err, line, &line);
-			len += unicode_encode(deutf8+len, unicode, sizeof(deutf8)-1 - len, true);
+			len += unicode_encode(deutf8+len, unicode, maxlen-1 - len, true);
 		}
 		deutf8[len] = 0;
 		line = deutf8;
@@ -507,6 +509,7 @@ int Con_ExecuteLine(console_t *con, char *line)
 				{
 					Con_Printf ("]%s\n",line);
 					Cmd_ExecuteString(exec, RESTRICT_SERVER);
+					free(deutf8);
 					return true;
 				}
 
@@ -528,6 +531,7 @@ int Con_ExecuteLine(console_t *con, char *line)
 //		SCR_UpdateScreen ();	// force an update, because the command
 //									// may take some time
 
+	free(deutf8);
 	return true;
 }
 
@@ -1523,6 +1527,11 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 	if (key == K_ENTER || key == K_KP_ENTER)
 	{	// backslash text are commands, else chat
 		int oldl = edit_line;
+
+#ifndef FTE_TARGET_WEB
+		if (keydown[K_LALT] || keydown[K_RALT])
+			Cbuf_AddText("\nvid_toggle\n", RESTRICT_LOCAL);
+#endif
 
 		if (con_commandmatch)
 		{	//if that isn't actually a command, and we can actually complete it to something, then lets try to complete it.

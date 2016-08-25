@@ -4055,6 +4055,29 @@ static void QCBUILTIN PF_cl_te_explosion2 (pubprogfuncs_t *prinst, struct global
 	}
 	S_StartSound (0, 0, cl_sfx_r_exp3, pos, NULL, 1, 1, 0, 0, 0);
 }
+
+static void QCBUILTIN PF_cl_te_flamejet (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	vec3_t pos, vel;
+	int count;
+
+	// origin
+	pos[0] = MSG_ReadCoord ();
+	pos[1] = MSG_ReadCoord ();
+	pos[2] = MSG_ReadCoord ();
+
+	// velocity
+	vel[0] = MSG_ReadCoord ();
+	vel[1] = MSG_ReadCoord ();
+	vel[2] = MSG_ReadCoord ();
+
+	// count
+	count = MSG_ReadByte ();
+
+	if (P_RunParticleEffectType(pos, vel, count, P_FindParticleType("TE_FLAMEJET")))
+		P_RunParticleEffect (pos, vel, 232, count);
+}
+
 static void QCBUILTIN PF_cl_te_lightning1 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
@@ -5490,6 +5513,8 @@ static struct {
 	{"fputs",					PF_fputs,	113},				// #113 void(float fnum, string str) fputs (FRIK_FILE)
 	{"fread",					PF_fread,	0},
 	{"fwrite",					PF_fwrite,	0},
+	{"fseek",					PF_fseek,	0},
+	{"fsize",					PF_fsize,	0},
 	{"strlen",					PF_strlen,	114},				// #114 float(string str) strlen (FRIK_FILE)
 
 	{"strcat",					PF_strcat,		115},			// #115 string(string str1, string str2, ...) strcat (FRIK_FILE)
@@ -5839,7 +5864,7 @@ static struct {
 //	{"WriteUnterminatedString",PF_WriteString2,		456},	//writestring but without the null terminator. makes things a little nicer.
 
 //DP_TE_FLAMEJET
-//	{"te_flamejet",				PF_te_flamejet,			457},	// #457 void(vector org, vector vel, float howmany) te_flamejet
+	{"te_flamejet",				PF_cl_te_flamejet,			457},	// #457 void(vector org, vector vel, float howmany) te_flamejet
 
 	//no 458 documented.
 
@@ -7292,7 +7317,7 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down, unsigned int devid)
 	G_FLOAT(OFS_PARM3) = devid;
 
 	//small sanity check, so things don't break too much if things get big.
-	if (devid < 0 || (unsigned)devid >= sizeof(csqckeysdown[0])*8)
+	if ((unsigned)devid >= sizeof(csqckeysdown[0])*8)
 		devid = sizeof(csqckeysdown[0])*8-1;
 	if (key < 0 || key >= K_MAX)
 		key = 0;	//panic. everyone panic.

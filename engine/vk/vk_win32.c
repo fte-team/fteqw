@@ -401,12 +401,15 @@ static qboolean VID_SetFullDIBMode (rendererstate_t *info)
 			gdevmode.dmFields |= DM_BITSPERPEL;
 		if (info->rate)
 			gdevmode.dmFields |= DM_DISPLAYFREQUENCY;
-		gdevmode.dmBitsPerPel = info->bpp;
-		if (info->bpp && (gdevmode.dmBitsPerPel < 15))
-		{
+		if (info->bpp && (info->bpp < 15))
+		{	//low values get you a warning. otherwise only 16 and 32bit are allowed.
 			Con_Printf("Forcing at least 15bpp\n");
 			gdevmode.dmBitsPerPel = 16;
 		}
+		else if (info->bpp == 16)
+			gdevmode.dmBitsPerPel = 16;
+		else
+			gdevmode.dmBitsPerPel = 32;
 		gdevmode.dmDisplayFrequency = info->rate;
 		gdevmode.dmPelsWidth = info->width;
 		gdevmode.dmPelsHeight = info->height;
@@ -632,6 +635,18 @@ static qboolean VK_CreateSurface(void)
 	return true;
 }
 
+#ifdef WTHREAD
+static void VK_Win32_Present(struct vkframe *theframe)
+{
+//	if (theframe)
+//		PostMessage(mainwindow, WM_USER+7, 0, (LPARAM)theframe);
+//	else
+		SendMessage(mainwindow, WM_USER+7, 0, (LPARAM)theframe);
+}
+#else
+#define VK_Present NULL
+#endif
+
 static qboolean VID_AttachVulkan (rendererstate_t *info)
 {	//make sure we can get a valid renderer.
 #ifdef VK_NO_PROTOTYPES
@@ -648,7 +663,7 @@ static qboolean VID_AttachVulkan (rendererstate_t *info)
 	vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr) GetProcAddress(hInstVulkan, "vkGetInstanceProcAddr");
 #endif
 
-	return VK_Init(info, VK_KHR_WIN32_SURFACE_EXTENSION_NAME, VK_CreateSurface);
+	return VK_Init(info, VK_KHR_WIN32_SURFACE_EXTENSION_NAME, VK_CreateSurface, VK_Win32_Present);
 }
 
 
@@ -840,10 +855,6 @@ static void VKVID_Recenter_f(void)
 	//int nh = vid_height.value;
 	//int nx = 0;
 	//int ny = 0;
-
-#ifdef _MSC_VER
-#define strtoull _strtoui64
-#endif
 
 	if (Cmd_Argc() > 1)
 		sys_parentleft = atoi(Cmd_Argv(1));
@@ -1437,6 +1448,9 @@ static LONG WINAPI VKMainWndProc (
 #ifndef NOMEDIA
 			STT_Event();
 #endif
+			break;
+		case WM_USER+7:
+			VK_DoPresent((struct vkframe*)lParam);
 			break;
 
 		case WM_GETMINMAXINFO:

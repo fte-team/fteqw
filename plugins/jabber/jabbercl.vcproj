@@ -125,7 +125,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="../../fteplug_$(ProjectName)x86.dll"
+				OutputFile="../../fteplug_xmpp_x86.dll"
 				GenerateManifest="false"
 				ModuleDefinitionFile="..\plugin.def"
 			/>

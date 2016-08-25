@@ -51,7 +51,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define qint64_t __int64
 		#define quint64_t unsigned __int64
 	#elif defined(_WIN32)
-		#ifndef _MSC_VER
+		#if !defined(_MSC_VER) || _MSC_VER < 1300
 			#define __w64
 		#endif
 		typedef __int32 __w64 qintptr_t;	//add __w64 if you need msvc to shut up about unsafe type conversions
@@ -87,6 +87,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define FTE_WORDSIZE 64
 	#else
 		#define FTE_WORDSIZE 32
+	#endif
+#endif
+
+#ifdef _MSC_VER
+	#if _MSC_VER >= 1310
+		#define strtoull _strtoui64
+	#else
+		#define strtoull strtoul	//hopefully this won't cause too many issues
+		#define DWORD_PTR DWORD		//32bit only
+		#define ULONG_PTR ULONG
 	#endif
 #endif
 
@@ -420,14 +430,16 @@ extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 
 //qofs_Make is used to 'construct' a variable of qofs_t type. this is so the code can merge two 32bit ints on old systems and use a long long type internally without generating warnings about bit shifts when qofs_t is only 32bit instead.
 #if 1//defined(__amd64__) || defined(_AMD64_) || __WORDSIZE == 64
-	#define FS_64BIT
+	#if !defined(_MSC_VER) || _MSC_VER > 1200
+		#define FS_64BIT
+	#endif
 #endif
 #ifdef FS_64BIT
 	typedef quint64_t qofs_t;	//type to use for a file offset
 	#define qofs_Make(low,high) (low | (((qofs_t)(high))<<32))
 	#define qofs_Low(o) ((o)&0xffffffffu)
 	#define qofs_High(o) ((o)>>32)
-	#define qofs_Error(o) ((o) == ~0ull)
+	#define qofs_Error(o) ((o) == ~(quint64_t)0u)
 #else
 	typedef quint32_t qofs_t;	//type to use for a file offset
 	#define qofs_Make(low,high) (low)
@@ -481,7 +493,7 @@ char *FS_GetPackageDownloadFilename(flocation_t *loc);
 qboolean FS_GetPackageDownloadable(const char *package);
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
 char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean ext);
-qboolean FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);	//returns false if the name is invalid.
+qboolean FS_GenCachedPakName(const char *pname, const char *crc, char *local, int llen);	//returns false if the name is invalid.
 void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags);
 
 #define COM_FDepthFile(filename,ignorepacks) FS_FLocateFile(filename,FSLF_DONTREFERENCE|FSLF_DEEPONFAILURE|(ignorepacks?0:FSLF_DEPTH_INEXPLICIT), NULL)
@@ -602,6 +614,7 @@ typedef struct
 	char *installation;	//optional hardcoded commercial name, used for scanning the registry to find existing installs.
 	char *formalname;	//the commercial name of the game. you'll get FULLENGINENAME otherwise.
 	char *downloadsurl;	//optional installable files (menu)
+	char *installupd;	//which download/updated package to install.
 	char *protocolname;	//the name used for purposes of dpmaster
 	char *defaultexec;	//execed after cvars are reset, to give game-specific defaults.
 	char *eula;			//when running as an installer, the user will be presented with this as a prompt
@@ -624,6 +637,7 @@ typedef struct
 } ftemanifest_t;
 void FS_Manifest_Free(ftemanifest_t *man);
 ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data);
+void PM_Shutdown(void);
 
 void COM_InitFilesystem (void);	//does not set up any gamedirs.
 qboolean FS_DownloadingPackage(void);

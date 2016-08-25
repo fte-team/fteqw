@@ -1436,11 +1436,11 @@ static qintptr_t QVM_NextClient (void *offset, quintptr_t mask, const qintptr_t 
 static qintptr_t QVM_SetPause (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int pause = VM_LONG(arg[0]);
-	if ((sv.paused&1) == (pause&1))
-		return sv.paused&1;	//nothing changed, ignore it.
+	if ((sv.paused&PAUSE_EXPLICIT) == (pause&PAUSE_EXPLICIT))
+		return !!(sv.paused&PAUSE_EXPLICIT);	//nothing changed, ignore it.
 	sv.paused = pause;
 	sv.pausedstart = Sys_DoubleTime();
-	return sv.paused&1;
+	return !!(sv.paused&PAUSE_EXPLICIT);
 }
 static qintptr_t QVM_NotYetImplemented (void *offset, quintptr_t mask, const qintptr_t *arg)
 {

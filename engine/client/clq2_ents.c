@@ -4,6 +4,11 @@
 #ifdef Q2CLIENT
 #include "shader.h"
 
+//q2pro's framerate scaling runs the entire server at a higher rate (including gamecode).
+//this allows lower latency on player movements without breaking things too much
+//animations are still assumed to run at 10fps, so those need some fixup too
+//events are keyed to not renew twice within the same 10fps window, unless the entity was actually updated.
+
 extern cvar_t r_drawviewmodel;
 
 extern cvar_t cl_nopred;

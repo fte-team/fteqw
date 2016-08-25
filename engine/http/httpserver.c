@@ -523,19 +523,26 @@ cont:
 					cl->file = IWebGenerateFile(resource+1, content, contentlen);
 				else
 				{
+					char filename[MAX_OSPATH], *q;
 					cl->file = NULL;
-					if (SV_AllowDownload(resource+1))
+					Q_strncpyz(filename, resource+1, sizeof(filename));
+					q = strchr(filename, '?');
+					if (q) *q = 0;
+
+					if (SV_AllowDownload(filename))
 					{
 						char nbuf[MAX_OSPATH];
-						if (cl->acceptgzip && strlen(resource+1) < sizeof(nbuf)-4)
+
+						if (cl->acceptgzip && strlen(filename) < sizeof(nbuf)-4)
 						{
-							sprintf(nbuf, "%s.gz", resource+1);
+							Q_strncpyz(nbuf, filename, sizeof(nbuf));
+							Q_strncatz(nbuf, ".gz", sizeof(nbuf));
 							cl->file = FS_OpenVFS(nbuf, "rb", FS_GAME);
 						}
 						if (cl->file)
 							gzipped = true;
 						else
-							cl->file = FS_OpenVFS(resource+1, "rb", FS_GAME);
+							cl->file = FS_OpenVFS(filename, "rb", FS_GAME);
 					}
 
 					if (!cl->file)
@@ -695,7 +702,12 @@ void VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
 {
 	va_list args;
 	va_start (args, fmt);
+#ifdef _WIN32
+#undef _vsnprintf
+	_vsnprintf (dest, size-1, fmt, args);
+#else
 	vsnprintf (dest, size-1, fmt, args);
+#endif
 	va_end (args);
 	//make sure its terminated.
 	dest[size-1] = 0;

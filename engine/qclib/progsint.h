@@ -65,7 +65,7 @@ typedef struct
 	unsigned char	progsnum;
 	int				s;
 	int				pushed;
-	unsigned long long	timestamp;
+	prclocks_t		timestamp;
 } prstack_t;
 
 typedef struct
@@ -134,7 +134,7 @@ typedef struct prinst_s
 	int exitdepth;
 
 	pbool profiling;
-	unsigned long long profilingalert;
+	prclocks_t profilingalert;
 	mfunction_t	*pr_xfunction;
 #define pr_xfunction prinst.pr_xfunction
 	int pr_xstatement;
@@ -449,7 +449,8 @@ fdef_t *PDECL ED_FieldInfo (pubprogfuncs_t *progfuncs, unsigned int *count);
 char *PDECL PR_UglyValueString (pubprogfuncs_t *progfuncs, etype_t type, eval_t *val);
 pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, const char *s);
 
-unsigned long long Sys_GetClockRate(void);
+
+prclocks_t Sys_GetClockRate(void);
 #endif
 
 

@@ -9,6 +9,7 @@ extern qboolean vid_isfullscreen;
 extern cvar_t vk_submissionthread;
 extern cvar_t vk_debug;
 extern cvar_t vk_loadglsl;
+extern cvar_t vk_dualqueue;
 extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method;
 void R2D_Console_Resize(void);
 
@@ -17,6 +18,7 @@ const char *vklayerlist[] =
 #if 1
 	"VK_LAYER_LUNARG_standard_validation"
 #else
+		//older versions of the sdk were crashing out on me,
 //	"VK_LAYER_LUNARG_api_dump",
 "VK_LAYER_LUNARG_device_limits",
 //"VK_LAYER_LUNARG_draw_state",
@@ -52,6 +54,7 @@ static void VK_Submit_DoWork(void);
 
 static void VK_DestroyRenderPass(void);
 static void VK_CreateRenderPass(void);
+static void VK_Shutdown_PostProc(void);
 		
 struct vulkaninfo_s vk;
 static struct vk_rendertarg postproc[4];
@@ -152,13 +155,12 @@ static void VK_DestroySwapChain(void)
 		Sys_WaitOnThread(vk.submitthread);
 		vk.submitthread = NULL;
 	}
-#ifdef THREADACQUIRE
+	vk.dopresent(NULL);
 	while (vk.aquirenext < vk.aquirelast)
 	{
-		VkAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
+		VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
 		vk.aquirenext++;
 	}
-#endif
 	while (vk.work)
 	{
 		Sys_LockConditional(vk.submitcondition);
@@ -197,10 +199,10 @@ static void VK_DestroySwapChain(void)
 		VK_DestroyVkTexture(&vk.backbufs[i].depth);
 	}
 
-#ifdef THREADACQUIRE
+	vk.dopresent(NULL);
 	while (vk.aquirenext < vk.aquirelast)
 	{
-		VkAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
+		VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
 		vk.aquirenext++;
 	}
 	for (i = 0; i < ACQUIRELIMIT; i++)
@@ -209,7 +211,6 @@ static void VK_DestroySwapChain(void)
 			vkDestroyFence(vk.device, vk.acquirefences[i], vkallocationcb);
 		vk.acquirefences[i] = VK_NULL_HANDLE;
 	}
-#endif
 
 	while(vk.unusedframes)
 	{
@@ -220,10 +221,6 @@ static void VK_DestroySwapChain(void)
 
 		vkResetCommandBuffer(frame->cbuf, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
 		vkFreeCommandBuffers(vk.device, vk.cmdpool, 1, &frame->cbuf);
-#ifndef THREADACQUIRE
-		vkDestroySemaphore(vk.device, frame->vsyncsemaphore, vkallocationcb);
-#endif
-		vkDestroySemaphore(vk.device, frame->presentsemaphore, vkallocationcb);
 		vkDestroyFence(vk.device, frame->finishedfence, vkallocationcb);
 		Z_Free(frame);
 	}
@@ -254,6 +251,8 @@ static qboolean VK_CreateSwapChain(void)
 	VkImage *images;
 	VkImageView attachments[2];
 	VkFramebufferCreateInfo fb_info = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+
+	vk.dopresent(NULL);	//make sure they're all pushed through.
 
 	VkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.gpu, vk.surface, &fmtcount, NULL));
 	surffmts = malloc(sizeof(VkSurfaceFormatKHR)*fmtcount);
@@ -375,7 +374,6 @@ static qboolean VK_CreateSwapChain(void)
 	images = malloc(sizeof(VkImage)*vk.backbuf_count);
 	VkAssert(vkGetSwapchainImagesKHR(vk.device, vk.swapchain, &vk.backbuf_count, images));
 
-#ifdef THREADACQUIRE
 	vk.aquirelast = vk.aquirenext = 0;
 	for (i = 0; i < ACQUIRELIMIT; i++)
 	{
@@ -388,7 +386,6 @@ static qboolean VK_CreateSwapChain(void)
 		VkAssert(vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, VK_NULL_HANDLE, vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]));
 		vk.aquirelast++;
 	}
-#endif
 
 	VK_CreateRenderPass();
 	if (reloadshaders)
@@ -428,6 +425,8 @@ static qboolean VK_CreateSwapChain(void)
 		ivci.image = images[i];
 		vk.backbufs[i].colour.image = images[i];
 		VkAssert(vkCreateImageView(vk.device, &ivci, vkallocationcb, &vk.backbufs[i].colour.view));
+
+		vk.backbufs[i].firstuse = true;
 
 		{
 			VkImageCreateInfo depthinfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
@@ -481,6 +480,11 @@ static qboolean VK_CreateSwapChain(void)
 
 		attachments[0] = vk.backbufs[i].colour.view;
 		VkAssert(vkCreateFramebuffer(vk.device, &fb_info, vkallocationcb, &vk.backbufs[i].framebuffer));
+
+		{
+			VkSemaphoreCreateInfo seminfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+			VkAssert(vkCreateSemaphore(vk.device, &seminfo, vkallocationcb, &vk.backbufs[i].presentsemaphore));
+		}
 	}
 	free(images);
 
@@ -1086,6 +1090,7 @@ void	VK_R_DeInit					(void)
 {
 	R_GAliasFlushSkinCache(true);
 	Surf_DeInit();
+	VK_Shutdown_PostProc();
 	VK_DestroySwapChain();
 	VKBE_Shutdown();
 	Shader_Shutdown();
@@ -1203,7 +1208,17 @@ void VK_Set2D(void)
 	BE_SelectEntity(&r_worldentity);
 }
 
-void VK_Init_PostProc(void)
+static void VK_Shutdown_PostProc(void)
+{
+	unsigned int i;
+	for (i = 0; i < countof(postproc); i++)
+		VKBE_RT_Gen(&postproc[i], 0, 0, true);
+
+	vk.scenepp_waterwarp = NULL;
+	vk.scenepp_antialias = NULL;
+	VK_R_BloomShutdown();
+}
+static void VK_Init_PostProc(void)
 {
 	texid_t scenepp_texture_warp, scenepp_texture_edge;
 	//this block liberated from the opengl code
@@ -1641,15 +1656,23 @@ void	VK_R_RenderView				(void)
 	}
 
 	custompostproc = NULL;
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && (*r_postprocshader.string))
+	if (r_refdef.flags & RDF_NOWORLDMODEL)
+		renderscale = 1;	//with no worldmodel, this is probably meant to be transparent so make sure that there's no post-proc stuff messing up transparencies.
+	else
 	{
-		custompostproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);
-		if (custompostproc)
-			r_refdef.flags |= RDF_CUSTOMPOSTPROC;
-	}
+		if (*r_postprocshader.string)
+		{
+			custompostproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);
+			if (custompostproc)
+				r_refdef.flags |= RDF_CUSTOMPOSTPROC;
+		}
 
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && r_fxaa.ival) //overlays will have problems.
-		r_refdef.flags |= RDF_ANTIALIAS;
+		if (r_fxaa.ival) //overlays will have problems.
+			r_refdef.flags |= RDF_ANTIALIAS;
+
+		if (R_CanBloom())
+			r_refdef.flags |= RDF_BLOOM;
+	}
 
 	//
 	// figure out the viewport
@@ -1690,9 +1713,6 @@ void	VK_R_RenderView				(void)
 
 	//FIXME: VF_RT_*
 	//FIXME: if we're meant to be using msaa, render the scene to an msaa target and then resolve.
-
-	if (R_CanBloom())
-		r_refdef.flags |= RDF_BLOOM;
 
 	postproc_buf = 0;
 	if (r_refdef.flags & (RDF_ALLPOSTPROC|RDF_RENDERSCALE))
@@ -2085,9 +2105,6 @@ static void VK_PaintScreen(void)
 qboolean VK_SCR_GrabBackBuffer(void)
 {
 	RSpeedLocals();
-#ifndef THREADACQUIRE
-	VkResult err;
-#endif
 
 	if (vk.frame)	//erk, we already have one...
 		return true;
@@ -2104,7 +2121,6 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		vk.unusedframes = newframe;
 	}
 
-#ifdef THREADACQUIRE
 	while (vk.aquirenext == vk.aquirelast)
 	{	//we're still waiting for the render thread to increment acquirelast.
 		Sys_Sleep(0);	//o.O
@@ -2114,7 +2130,13 @@ qboolean VK_SCR_GrabBackBuffer(void)
 	if (1)//vk.vsync)
 	{
 		//friendly wait
-		VkAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
+		VkResult err = vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX);
+		if (err)
+		{
+			if (err == VK_ERROR_DEVICE_LOST)
+				Sys_Error("Vulkan device lost");
+			return false;
+		}
 	}
 	else
 	{	//busy wait, to try to get the highest fps possible
@@ -2124,37 +2146,6 @@ qboolean VK_SCR_GrabBackBuffer(void)
 	vk.bufferidx = vk.acquirebufferidx[vk.aquirenext%ACQUIRELIMIT];
 	VkAssert(vkResetFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]));
 	vk.aquirenext++;
-#else
-	Sys_LockMutex(vk.swapchain_mutex);
-	err = vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, vk.unusedframes->vsyncsemaphore, vk.acquirefence, &vk.bufferidx);
-	Sys_UnlockMutex(vk.swapchain_mutex);
-	switch(err)
-	{
-	case VK_ERROR_OUT_OF_DATE_KHR:
-		vk.neednewswapchain = true;
-		return false;
-	case VK_SUBOPTIMAL_KHR:
-		vk.neednewswapchain = true;
-		break;	//this is still a success
-	case VK_SUCCESS:
-		break;	//yay
-	case VK_ERROR_SURFACE_LOST_KHR:
-		//window was destroyed.
-		//shouldn't really happen...
-		return false;
-	case VK_NOT_READY:	//VK_NOT_READY is returned if timeout is zero and no image was available. (timeout is not 0)
-		RSpeedEnd(RSPEED_SETUP);
-		Con_DPrintf("vkAcquireNextImageKHR: unexpected VK_NOT_READY\n");
-		return false;	//timed out
-	case VK_TIMEOUT:	//VK_TIMEOUT is returned if timeout is greater than zero and less than UINT64_MAX, and no image became available within the time allowed. 
-		RSpeedEnd(RSPEED_SETUP);
-		Con_DPrintf("vkAcquireNextImageKHR: unexpected VK_TIMEOUT\n");
-		return false;	//timed out
-	default:
-		Sys_Error("vkAcquireNextImageKHR == %i", err);
-		break;
-	}
-#endif
 
 	//grab the first unused
 	Sys_LockConditional(vk.submitcondition);
@@ -2199,7 +2190,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		imgbarrier.pNext = NULL;
 		imgbarrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 		imgbarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		imgbarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;// VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;	//'Alternately, oldLayout can be VK_IMAGE_LAYOUT_UNDEFINED, if the image’s contents need not be preserved.'
+		imgbarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;	//'Alternately, oldLayout can be VK_IMAGE_LAYOUT_UNDEFINED, if the image’s contents need not be preserved.'
 		imgbarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		imgbarrier.image = vk.frame->backbuf->colour.image;
 		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -2207,8 +2198,15 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		imgbarrier.subresourceRange.levelCount = 1;
 		imgbarrier.subresourceRange.baseArrayLayer = 0;
 		imgbarrier.subresourceRange.layerCount = 1;
-		imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imgbarrier.srcQueueFamilyIndex = vk.queuefam[1];
+		imgbarrier.dstQueueFamilyIndex = vk.queuefam[0];
+		if (vk.frame->backbuf->firstuse)
+		{
+			imgbarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			vk.frame->backbuf->firstuse = false;
+		}
 		vkCmdPipelineBarrier(vk.frame->cbuf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 	}
 	{
@@ -2390,8 +2388,8 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		imgbarrier.subresourceRange.levelCount = 1;
 		imgbarrier.subresourceRange.baseArrayLayer = 0;
 		imgbarrier.subresourceRange.layerCount = 1;
-		imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imgbarrier.srcQueueFamilyIndex = vk.queuefam[0];
+		imgbarrier.dstQueueFamilyIndex = vk.queuefam[1];
 		vkCmdPipelineBarrier(vk.frame->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 	}
 
@@ -2402,16 +2400,6 @@ qboolean	VK_SCR_UpdateScreen			(void)
 
 	bufs[0] = vk.frame->cbuf;
 
-#ifndef THREADACQUIRE
-	{
-		RSpeedRemark();
-		//make sure we actually got a buffer. required for vsync
-		VkAssert(vkWaitForFences(vk.device, 1, &vk.acquirefence, VK_FALSE, UINT64_MAX));
-		VkAssert(vkResetFences(vk.device, 1, &vk.acquirefence));
-		RSpeedEnd(RSPEED_SETUP);
-	}
-#endif
-
 	{
 		struct vk_presented *fw = Z_Malloc(sizeof(*fw));
 		fw->fw.Passed = VK_Presented;
@@ -2421,13 +2409,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		vk.frame->frameendjobs = vk.frameendjobs;
 		vk.frameendjobs = NULL;
 
-		VK_Submit_Work(bufs[0],
-#ifndef THREADACQUIRE
-			vk.frame->vsyncsemaphore
-#else
-			VK_NULL_HANDLE
-#endif
-			, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, vk.frame->presentsemaphore, vk.frame->finishedfence, vk.frame, &fw->fw);
+		VK_Submit_Work(bufs[0], VK_NULL_HANDLE, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, vk.frame->backbuf->presentsemaphore, vk.frame->finishedfence, vk.frame, &fw->fw);
 	}
 
 	//now would be a good time to do any compute work or lightmap updates...
@@ -2538,6 +2520,46 @@ static 	VkRenderPassCreateInfo rp_info = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_I
 	}
 }
 
+void VK_DoPresent(struct vkframe *theframe)
+{
+	VkResult err;
+	uint32_t framenum;
+	VkPresentInfoKHR presinfo = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
+	if (!theframe)
+		return;	//used to ensure that the queue is flushed at shutdown
+	framenum = theframe->backbuf - vk.backbufs;
+	presinfo.waitSemaphoreCount = 1;
+	presinfo.pWaitSemaphores = &theframe->backbuf->presentsemaphore;
+	presinfo.swapchainCount = 1;
+	presinfo.pSwapchains = &vk.swapchain;
+	presinfo.pImageIndices = &framenum;
+
+	{
+		RSpeedMark();
+		err = vkQueuePresentKHR(vk.queue_present, &presinfo);
+		RSpeedEnd(RSPEED_PRESENT);
+	}
+	{
+		RSpeedMark();
+		if (err)
+		{
+			Con_Printf("ERROR: vkQueuePresentKHR: %x\n", err);
+			vk.neednewswapchain = true;
+		}
+		else
+		{
+			err = vkAcquireNextImageKHR(vk.device, vk.swapchain, 0, VK_NULL_HANDLE, vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]);
+			if (err)
+			{
+				Con_Printf("ERROR: vkAcquireNextImageKHR: %x\n", err);
+				vk.neednewswapchain = true;
+			}
+			vk.aquirelast++;
+		}
+		RSpeedEnd(RSPEED_ACQUIRE);
+	}
+}
+
 static void VK_Submit_DoWork(void)
 {
 	VkCommandBuffer cbuf[64];
@@ -2588,50 +2610,15 @@ static void VK_Submit_DoWork(void)
 		err = vkQueueSubmit(vk.queue_render, subcount, subinfo, waitfence);
 		if (err)
 		{
-			Con_Printf("ERROR: vkQueueSubmit: %x\n", err);
+			Con_Printf("ERROR: vkQueueSubmit: %i\n", err);
 			errored = vk.neednewswapchain = true;
 		}
 		RSpeedEnd(RSPEED_SUBMIT);
 	}
 
-	if (present)
+	if (present && !errored)
 	{
-//		struct vkframe **link;
-		uint32_t framenum = present->backbuf - vk.backbufs;
-		VkPresentInfoKHR presinfo = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
-		presinfo.waitSemaphoreCount = 1;
-		presinfo.pWaitSemaphores = &present->presentsemaphore;
-		presinfo.swapchainCount = 1;
-		presinfo.pSwapchains = &vk.swapchain;
-		presinfo.pImageIndices = &framenum;
-
-		if (!errored)
-		{
-			RSpeedMark();
-			Sys_LockMutex(vk.swapchain_mutex);
-			err = vkQueuePresentKHR(vk.queue_present, &presinfo);
-			Sys_UnlockMutex(vk.swapchain_mutex);
-			RSpeedEnd(RSPEED_PRESENT);
-			RSpeedRemark();
-			if (err)
-			{
-				Con_Printf("ERROR: vkQueuePresentKHR: %x\n", err);
-				errored = vk.neednewswapchain = true;
-			}
-#ifdef THREADACQUIRE
-			else
-			{
-				err = vkAcquireNextImageKHR(vk.device, vk.swapchain, 0, VK_NULL_HANDLE, vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]);
-				if (err)
-				{
-					Con_Printf("ERROR: vkAcquireNextImageKHR: %x\n", err);
-					errored = vk.neednewswapchain = true;
-				}
-				vk.aquirelast++;
-			}
-#endif
-			RSpeedEnd(RSPEED_ACQUIRE);
-		}
+		vk.dopresent(present);
 	}
 	
 	Sys_LockConditional(vk.submitcondition);
@@ -2660,9 +2647,6 @@ int VK_Submit_Thread(void *arg)
 			Sys_ConditionWait(vk.submitcondition);
 
 		VK_Submit_DoWork();
-		
-		//Sys_ConditionSignal(vk.acquirecondition);
-	
 	}
 	Sys_UnlockConditional(vk.submitcondition);
 	return true;
@@ -2745,8 +2729,9 @@ void VK_CheckTextureFormats(void)
 }
 
 //initialise the vulkan instance, context, device, etc.
-qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*createSurface)(void))
+qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*createSurface)(void), void (*dopresent)(struct vkframe *theframe))
 {
+	VkQueueFamilyProperties *queueprops;
 	VkResult err;
 	VkApplicationInfo app;
 	VkInstanceCreateInfo inst_info;
@@ -2761,6 +2746,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	vk.neednewswapchain = true;
 	vk.triplebuffer = info->triplebuffer;
 	vk.vsync = info->wait;
+	vk.dopresent = dopresent?dopresent:VK_DoPresent;
 	memset(&sh_config, 0, sizeof(sh_config));
 
 
@@ -2974,34 +2960,64 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	//figure out which of the device's queue's we're going to use
 	{
 		uint32_t queue_count, i;
-		VkQueueFamilyProperties *queueprops;
 		vkGetPhysicalDeviceQueueFamilyProperties(vk.gpu, &queue_count, NULL);
 		queueprops = malloc(sizeof(VkQueueFamilyProperties)*queue_count);	//Oh how I wish I was able to use C99.
 		vkGetPhysicalDeviceQueueFamilyProperties(vk.gpu, &queue_count, queueprops);
 
-		vk.queueidx[0] = ~0u;
-		vk.queueidx[1] = ~0u;
+		vk.queuefam[0] = ~0u;
+		vk.queuefam[1] = ~0u;
+		vk.queuenum[0] = 0;
+		vk.queuenum[1] = 0;
+
+		/*
+		//try to find a 'dedicated' present queue
 		for (i = 0; i < queue_count; i++)
 		{
-			VkBool32 supportsPresent;
+			VkBool32 supportsPresent = FALSE;
 			VkAssert(vkGetPhysicalDeviceSurfaceSupportKHR(vk.gpu, i, vk.surface, &supportsPresent));
 
-			if ((queueprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && supportsPresent)
+			if (supportsPresent && !(queueprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT))
 			{
-				vk.queueidx[0] = i;
-				vk.queueidx[1] = i;
+				vk.queuefam[1] = i;
 				break;
 			}
-			else if (vk.queueidx[0] == ~0u && (queueprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT))
-				vk.queueidx[0] = i;
-			else if (vk.queueidx[1] == ~0u && supportsPresent)
-				vk.queueidx[1] = i;
 		}
 
-		free(queueprops);
-
-		if (vk.queueidx[0] == ~0u || vk.queueidx[1] == ~0u)
+		if (vk.queuefam[1] != ~0u)
+		{	//try to find a good graphics queue
+			for (i = 0; i < queue_count; i++)
+			{
+				if (queueprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+				{
+					vk.queuefam[0] = i;
+					break;
+				}
+			}
+		}
+		else*/
 		{
+			for (i = 0; i < queue_count; i++)
+			{
+				VkBool32 supportsPresent;
+				VkAssert(vkGetPhysicalDeviceSurfaceSupportKHR(vk.gpu, i, vk.surface, &supportsPresent));
+
+				if ((queueprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && supportsPresent)
+				{
+					vk.queuefam[0] = i;
+					vk.queuefam[1] = i;
+					break;
+				}
+				else if (vk.queuefam[0] == ~0u && (queueprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT))
+					vk.queuefam[0] = i;
+				else if (vk.queuefam[1] == ~0u && supportsPresent)
+					vk.queuefam[1] = i;
+			}
+		}
+
+
+		if (vk.queuefam[0] == ~0u || vk.queuefam[1] == ~0u)
+		{
+			free(queueprops);
 			Con_Printf("unable to find suitable queues\n");
 			return false;
 		}
@@ -3023,7 +3039,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	{
 		const char *devextensions[8];
 		size_t numdevextensions = 0;
-		float queue_priorities[1] = {1.0};
+		float queue_priorities[2] = {0.8, 1.0};
 		VkDeviceQueueCreateInfo queueinf[2] = {{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO},{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO}};
 		VkDeviceCreateInfo devinf = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
 
@@ -3033,15 +3049,39 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 
 
 		queueinf[0].pNext = NULL;
-		queueinf[0].queueFamilyIndex = vk.queueidx[0];
-		queueinf[0].queueCount = countof(queue_priorities);
+		queueinf[0].queueFamilyIndex = vk.queuefam[0];
+		queueinf[0].queueCount = 1;
 		queueinf[0].pQueuePriorities = queue_priorities;
 		queueinf[1].pNext = NULL;
-		queueinf[1].queueFamilyIndex = vk.queueidx[1];
-		queueinf[1].queueCount = countof(queue_priorities);
-		queueinf[1].pQueuePriorities = queue_priorities;
+		queueinf[1].queueFamilyIndex = vk.queuefam[1];
+		queueinf[1].queueCount = 1;
+		queueinf[1].pQueuePriorities = &queue_priorities[1];
 
-		devinf.queueCreateInfoCount = (vk.queueidx[0]==vk.queueidx[0])?1:2;
+		if (vk.queuefam[0] == vk.queuefam[1])
+		{
+			devinf.queueCreateInfoCount = 1;
+			
+			if (queueprops[queueinf[0].queueFamilyIndex].queueCount >= 2 && vk_dualqueue.ival)
+			{
+				queueinf[0].queueCount = 2;
+				vk.queuenum[1] = 1; 
+				Con_DPrintf("Using duel queue\n");
+			}
+			else
+			{
+				queueinf[0].queueCount = 1;
+				vk.dopresent = VK_DoPresent;	//can't split submit+present onto different queues, so do these on a single thread.
+				Con_DPrintf("Using single queue\n");
+			}
+		}
+		else
+		{
+			devinf.queueCreateInfoCount = 2;
+			Con_DPrintf("Using separate queue families\n");
+		}
+
+		free(queueprops);
+
 		devinf.pQueueCreateInfos = queueinf;
 		devinf.enabledLayerCount = vklayercount;
 		devinf.ppEnabledLayerNames = vklayerlist;
@@ -3073,15 +3113,15 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 #undef VKFunc
 #endif
 
-	vkGetDeviceQueue(vk.device, vk.queueidx[0], 0, &vk.queue_render);
-	vkGetDeviceQueue(vk.device, vk.queueidx[1], 0, &vk.queue_present);
+	vkGetDeviceQueue(vk.device, vk.queuefam[0], vk.queuenum[0], &vk.queue_render);
+	vkGetDeviceQueue(vk.device, vk.queuefam[1], vk.queuenum[1], &vk.queue_present);
 
 
 	vkGetPhysicalDeviceMemoryProperties(vk.gpu, &vk.memory_properties);
 
 	{
 		VkCommandPoolCreateInfo cpci = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
-		cpci.queueFamilyIndex = vk.queueidx[0];
+		cpci.queueFamilyIndex = vk.queuefam[0];
 		cpci.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT|VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 		VkAssert(vkCreateCommandPool(vk.device, &cpci, vkallocationcb, &vk.cmdpool));
 	}
@@ -3133,25 +3173,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	else	//16bit depth is guarenteed in vulkan
 		vk.depthformat = VK_FORMAT_D16_UNORM;
 
-#ifndef THREADACQUIRE
-	{
-		VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-		VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefence));
-	}
-#endif
-
-/*
-	void	 (*pDeleteProg)		(program_t *prog, unsigned int permu);
-	qboolean (*pLoadBlob)		(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile);
-	qboolean (*pCreateProgram)	(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
-	qboolean (*pValidateProgram)(program_t *prog, const char *name, unsigned int permu, qboolean noerrors, vfsfile_t *blobfile);
-	void	 (*pProgAutoFields)	(program_t *prog, const char *name, cvar_t **cvars, char **cvarnames, int *cvartypes);
-*/
-
-
-	vk.swapchain_mutex = Sys_CreateMutex();
 	vk.submitcondition = Sys_CreateConditional();
-	vk.acquirecondition = Sys_CreateConditional();
 
 	{
 		VkPipelineCacheCreateInfo pci = {VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
@@ -3187,10 +3209,6 @@ void VK_Shutdown(void)
 	if (vk.cmdpool)
 		vkDestroyCommandPool(vk.device, vk.cmdpool, vkallocationcb);
 	VK_DestroyRenderPass();
-#ifndef THREADACQUIRE
-	if (vk.acquirefence)
-		vkDestroyFence(vk.device, vk.acquirefence, vkallocationcb);
-#endif
 
 	if (vk.pipelinecache)
 	{
@@ -3212,16 +3230,14 @@ void VK_Shutdown(void)
 		vkDestroyDebugReportCallbackEXT(vk.instance, vk_debugcallback, vkallocationcb);
 		vk_debugcallback = VK_NULL_HANDLE;
 	}
+
 	if (vk.surface)
 		vkDestroySurfaceKHR(vk.instance, vk.surface, vkallocationcb);
 	if (vk.instance)
 		vkDestroyInstance(vk.instance, vkallocationcb);
-	if (vk.swapchain_mutex)
-		Sys_DestroyMutex(vk.swapchain_mutex);
 	if (vk.submitcondition)
 		Sys_DestroyConditional(vk.submitcondition);
-	if (vk.acquirecondition)
-		Sys_DestroyConditional(vk.acquirecondition);
+
 	memset(&vk, 0, sizeof(vk));
 	qrenderer = QR_NONE;
 

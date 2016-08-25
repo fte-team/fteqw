@@ -1069,15 +1069,17 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 				if (client->prespawn_idx >= maxclientsupportedsounds || !sv.strings.sound_precache[client->prespawn_idx])
 				{
+					//write final-end-of-list
+					MSG_WriteByte (&client->netchan.message, 0);
+					MSG_WriteByte (&client->netchan.message, 0);
+					started = 0;
+
 					if (sv.strings.sound_precache[client->prespawn_idx] && !(client->plimitwarned & PLIMIT_SOUNDS))
 					{
 						client->plimitwarned |= PLIMIT_SOUNDS;
 						SV_ClientPrintf(client, PRINT_HIGH, "WARNING: Your client's network protocol only supports %i sounds. Please upgrade or enable extensions.\n", client->prespawn_idx);
 					}
-					//write final-end-of-list
-					MSG_WriteByte (&client->netchan.message, 0);
-					MSG_WriteByte (&client->netchan.message, 0);
-					started = 0;
+
 					client->prespawn_stage++;
 					client->prespawn_idx = 0;
 					break;
@@ -1171,15 +1173,16 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 				if (client->prespawn_idx >= client->maxmodels || !sv.strings.model_precache[client->prespawn_idx])
 				{
+					//write final-end-of-list
+					MSG_WriteByte (&client->netchan.message, 0);
+					MSG_WriteByte (&client->netchan.message, 0);
+					started = 0;
+
 					if (sv.strings.model_precache[client->prespawn_idx] && !(client->plimitwarned & PLIMIT_MODELS))
 					{
 						client->plimitwarned |= PLIMIT_MODELS;
 						SV_ClientPrintf(client, PRINT_HIGH, "WARNING: Your client's network protocol only supports %i models. Please upgrade or enable extensions.\n", client->prespawn_idx);
 					}
-					//write final-end-of-list
-					MSG_WriteByte (&client->netchan.message, 0);
-					MSG_WriteByte (&client->netchan.message, 0);
-					started = 0;
 
 					client->prespawn_stage++;
 					client->prespawn_idx = 0;
@@ -2045,7 +2048,7 @@ void SV_Begin_f (void)
 			ClientReliableWrite_Begin (host_client, svc_setpause, 2);
 			ClientReliableWrite_Byte (host_client, sv.paused!=0);
 		}
-		if (sv.paused&~4)
+		if (sv.paused&~PAUSE_AUTO)
 			SV_ClientTPrintf(host_client, PRINT_HIGH, "server is paused\n");
 	}
 
@@ -3781,7 +3784,7 @@ qboolean SV_TogglePause (client_t *initiator)
 {
 	int newv;
 
-	newv = sv.paused^1;
+	newv = sv.paused^PAUSE_EXPLICIT;
 
 	if (!PR_ShouldTogglePause(initiator, newv))
 		return false;
@@ -3815,7 +3818,7 @@ void SV_Pause_f (void)
 
 	if (SV_TogglePause(host_client))
 	{
-		if (sv.paused & 1)
+		if (sv.paused & PAUSE_EXPLICIT)
 			SV_BroadcastTPrintf (PRINT_HIGH, "%s paused the game\n", host_client->name);
 		else
 			SV_BroadcastTPrintf (PRINT_HIGH, "%s unpaused the game\n", host_client->name);
@@ -5420,7 +5423,7 @@ void SVNQ_Begin_f (void)
 			ClientReliableWrite_Begin (host_client, svc_setpause, 2);
 			ClientReliableWrite_Byte (host_client, sv.paused!=0);
 		}
-		if (sv.paused&~4)
+		if (sv.paused&~PAUSE_AUTO)
 			SV_ClientTPrintf(host_client, PRINT_HIGH, "server is paused\n");
 	}
 
@@ -7238,11 +7241,6 @@ void SV_ExecuteClientMessage (client_t *cl)
 
 		if (sv_antilag.ival || !*sv_antilag.string)
 		{
-			/*
-			extern cvar_t temp1;
-			if (temp1.ival)
-			frame = &cl->frameunion.frames[(cl->netchan.incoming_acknowledged+temp1.ival) & UPDATE_MASK];
-			*/
 #ifdef warningmsg
 #pragma warningmsg("FIXME: make antilag optionally support non-player ents too")
 #endif

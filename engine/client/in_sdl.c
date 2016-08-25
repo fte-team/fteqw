@@ -991,7 +991,7 @@ void INS_ReInit (void)
 {
 #if SDL_MAJOR_VERSION >= 2
 	unsigned int i;
-	memset(sdljoy, sizeof(sdljoy), 0);
+	memset(sdljoy, 0, sizeof(sdljoy));
 	for (i = 0; i < MAX_JOYSTICKS; i++)
 		sdljoy[i].qdevid = DEVID_UNSET;
 	SDL_InitSubSystem(SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER);

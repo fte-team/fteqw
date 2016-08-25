@@ -1380,6 +1380,7 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 					extra += 4;
 				}
 				break;
+#if !defined(_MSC_VER) || _MSC_VER > 1200
 			case 0x000a:	//NTFS extra field
 				//0+4: reserved
 				//4+2: subtag(must be 1, for times)
@@ -1393,6 +1394,7 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 					Con_Printf("zip: unsupported ntfs subchunk %x\n", extrachunk_tag);
 				extra += extrachunk_len;
 				break;
+#endif
 			case 0x5455:
 				if (extra[0] & 1)
 					entry->mtime = LittleU4FromPtr(extra+1);

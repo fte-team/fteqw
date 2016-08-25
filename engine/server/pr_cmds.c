@@ -6101,8 +6101,6 @@ void QCBUILTIN PF_sqlversion (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 void PR_SQLCycle(void)
 {
-	if (!SQL_Available())
-		return;
 	SQL_ServerCycle();
 }
 #endif
@@ -8313,6 +8311,36 @@ static void QCBUILTIN PF_te_explosion2(pubprogfuncs_t *prinst, struct globalvars
 	SV_MulticastProtExt(org, MULTICAST_PHS, pr_global_struct->dimension_send, 0, 0);
 }
 
+//DP_TE_FLAMEJET
+static void QCBUILTIN PF_te_flamejet(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *org = G_VECTOR(OFS_PARM0);
+	float *vel = G_VECTOR(OFS_PARM1);
+	float howmany = bound(0,G_FLOAT(OFS_PARM2),255);
+
+	MSG_WriteByte (&sv.multicast, svc_temp_entity);
+	MSG_WriteByte (&sv.multicast, TEDP_FLAMEJET);
+	MSG_WriteCoord (&sv.multicast, org[0]);
+	MSG_WriteCoord (&sv.multicast, org[1]);
+	MSG_WriteCoord (&sv.multicast, org[2]);
+	MSG_WriteCoord (&sv.multicast, vel[0]);
+	MSG_WriteCoord (&sv.multicast, vel[1]);
+	MSG_WriteCoord (&sv.multicast, vel[2]);
+	MSG_WriteByte (&sv.multicast, howmany);
+#ifdef NQPROT
+	MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
+	MSG_WriteByte (&sv.nqmulticast, TEDP_FLAMEJET);
+	MSG_WriteCoord (&sv.nqmulticast, org[0]);
+	MSG_WriteCoord (&sv.nqmulticast, org[1]);
+	MSG_WriteCoord (&sv.nqmulticast, org[2]);
+	MSG_WriteCoord (&sv.nqmulticast, vel[0]);
+	MSG_WriteCoord (&sv.nqmulticast, vel[1]);
+	MSG_WriteCoord (&sv.nqmulticast, vel[2]);
+	MSG_WriteByte (&sv.nqmulticast, howmany);
+#endif
+	SV_MulticastProtExt(org, MULTICAST_PHS, pr_global_struct->dimension_send, 0, 0);
+}
+
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(entity own, vector start, vector end) te_lightning1 = #428;
 static void QCBUILTIN PF_te_lightning1(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -9843,6 +9871,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fputs",			PF_fputs,			0,		0,		0,		113, D("void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "Writes the given string(s) into the file. For compatibility with fgets, you should ensure that the string is terminated with a \\n - this will not otherwise be done for you. It is up to the engine whether dos or unix line endings are actually written.")},	// (FRIK_FILE)
 	{"fread",			PF_fread,			0,		0,		0,		0,	 D("int(filestream fhandle, void *ptr, int size)", "Reads binary data out of the file. Returns truncated lengths if the read exceeds the length of the file.")},
 	{"fwrite",			PF_fwrite,			0,		0,		0,		0,	 D("int(filestream fhandle, void *ptr, int size)", "Writes binary data out of the file.")},
+	{"fseek",			PF_fseek,			0,		0,		0,		0,	 D("#define ftell fseek //c compat\nint(filestream fhandle, optional int newoffset)", "Changes the current position of the file, if specified. Returns prior position, in bytes.")},
+	{"fsize",			PF_fsize,			0,		0,		0,		0,	 D("int(filestream fhandle, optional int newsize)", "Reports the total size of the file, in bytes. Can also be used to truncate/extend the file")},
 	{"strlen",			PF_strlen,			0,		0,		0,		114, "float(string s)"},	// (FRIK_FILE)
 	{"strcat",			PF_strcat,			0,		0,		0,		115, "string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)"},	// (FRIK_FILE)
 	{"substring",		PF_substring,		0,		0,		0,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
@@ -10279,7 +10309,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"spawnclient",		PF_spawnclient,		0,		0,		0,		454,	"entity()"},//DP_SV_BOTCLIENT
 	{"clienttype",		PF_clienttype,		0,		0,		0,		455,	"float(entity client)"},//botclient
 	{"WriteUnterminatedString",PF_WriteString2,0,	0,		0,		456,	"void(float target, string str)"},	//writestring but without the null terminator. makes things a little nicer.
-//	{"te_flamejet",		PF_te_flamejet,		0,		0,		0,		457,	"void(vector org, vector vel, float howmany)"},//DP_TE_FLAMEJET
+	{"te_flamejet",		PF_te_flamejet,		0,		0,		0,		457,	"void(vector org, vector vel, float howmany)"},//DP_TE_FLAMEJET
 //	{"undefined",		PF_Fixme,			0,		0,		0,		458,	""},
 	{"edict_num",		PF_edict_for_num,	0,		0,		0,		459,	"entity(float entnum)"},//DP_QC_EDICT_NUM
 	{"buf_create",		PF_buf_create,		0,		0,		0,		460,	"strbuf()"},//DP_QC_STRINGBUFFERS

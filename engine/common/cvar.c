@@ -26,6 +26,7 @@ cvar_group_t *cvar_groups;
 
 hashtable_t cvar_hash;
 bucket_t *cvar_buckets[1024];
+int cvar_watched;
 
 //cvar_t	*cvar_vars;
 static char	*cvar_null_string = "";
@@ -709,6 +710,9 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	if (!var)
 		return NULL;
 
+	if ((var->flags & CVAR_WATCHED) || cvar_watched == 2)
+		Con_Printf("Cvar Set: %s to %s\n", var->name, value);
+
 	if ((var->flags & CVAR_NOSET) && !force)
 	{
 		Con_Printf ("variable %s is readonly\n", var->name);
@@ -1171,21 +1175,10 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 cvar_t *Cvar_Get2(const char *name, const char *defaultvalue, int flags, const char *description, const char *group)
 {
 	cvar_t *var;
-	int old;
 	var = Cvar_FindVar(name);
 
 	if (var)
-	{
-		//allow this to change all < cvar_latch values.
-		//this allows q2 dlls to apply different flags to a cvar without destroying our important ones (like cheat).
-		old = var->flags;
-		var->flags = (var->flags & ~(CVAR_NOSET)) | (flags & (CVAR_NOSET|CVAR_SERVERINFO|CVAR_USERINFO|CVAR_ARCHIVE));
-		if (old != var->flags)
-		{
-			Cvar_Set(var, var->string);
-		}
 		return var;
-	}
 	if (!description)
 		description = "";
 

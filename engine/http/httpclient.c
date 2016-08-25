@@ -1425,6 +1425,19 @@ qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyF
 
 	return true;
 }
+#else
+qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyFunction)(struct dl_download *dl))
+{
+	if (!dl)
+		return false;
+
+	if (file)
+		dl->file = file;
+	if (NotifyFunction)
+		dl->notifycomplete = NotifyFunction;
+
+	return false;
+}
 #endif
 
 /*create a standalone download context*/

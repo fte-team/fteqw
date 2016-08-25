@@ -2132,7 +2132,7 @@ static void TP_EnemyColor_f (void)
 void TP_NewMap (void)
 {
 	static char last_map[MAX_QPATH];
-	char locname[MAX_OSPATH];
+	char locname[MAX_QPATH];
 
 	memset (&vars, 0, sizeof(vars));
 	TP_FindModelNumbers ();
@@ -3509,7 +3509,7 @@ qbool TP_CheckSoundTrigger (char *str)
 {
 	int		i, j;
 	int		start, length;
-	char	soundname[MAX_OSPATH];
+	char	soundname[MAX_QPATH];
 
 	if (!*str)
 		return false;

@@ -7,6 +7,10 @@
 #include <string.h>
 
 
+#define DEFAULT_WIDTH 640
+#define DEFAULT_HEIGHT 480
+#define DEFAULT_BPP 32
+
 refdef_t	r_refdef;
 vec3_t		r_origin, vpn, vright, vup;
 entity_t	r_worldentity;
@@ -21,6 +25,7 @@ int rspeeds[RSPEED_MAX];
 int rquant[RQUANT_MAX];
 
 void R_InitParticleTexture (void);
+void R_RestartRenderer (rendererstate_t *newr);
 
 qboolean vid_isfullscreen;
 
@@ -406,7 +411,8 @@ cvar_t r_shadow_heightscale_bumpmap			= CVARD  ("r_shadow_heightscale_bumpmap", 
 cvar_t r_glsl_offsetmapping					= CVARFD  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Enables the use of paralax mapping, adding fake depth to textures.");
 cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
 cvar_t r_glsl_offsetmapping_reliefmapping	= CVARFD("r_glsl_offsetmapping_reliefmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer, but noticably more expensive at high resolutions. r_glsl_offsetmapping must be set.");
-cvar_t r_glsl_turbscale						= CVARFD  ("r_glsl_turbscale", "1", CVAR_ARCHIVE, "Controls the strength of water ripples (used by the altwater glsl code).");
+cvar_t r_glsl_turbscale_reflect				= CVARFD  ("r_glsl_turbscale_reflect", "1", CVAR_ARCHIVE, "Controls the strength of the water reflection ripples (used by the altwater glsl code).");
+cvar_t r_glsl_turbscale_refract				= CVARFD  ("r_glsl_turbscale_refract", "1", CVAR_ARCHIVE, "Controls the strength of the underwater ripples (used by the altwater glsl code).");
 
 cvar_t r_fastturbcolour						= CVARFD ("r_fastturbcolour", "0.1 0.2 0.3", CVAR_ARCHIVE, "The colour to use for water surfaces draw with r_waterstyle 0.\n");
 cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
@@ -424,16 +430,16 @@ cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 
 cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces's default) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
 
-#ifdef VKQUAKE
-cvar_t vk_stagingbuffers					= CVARD ("vk_stagingbuffers", "", "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u, e, v, 0.");
-cvar_t vk_submissionthread					= CVARD	("vk_submissionthread", "", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
-cvar_t vk_debug								= CVARD	("vk_debug",			"0", "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
-cvar_t vk_loadglsl							= CVARD	("vk_loadglsl",			"", "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any errors). Don't forget to do a vid_restart after.");
-#endif
-
 extern cvar_t gl_dither;
 cvar_t	gl_screenangle = SCVAR("gl_screenangle", "0");
+#endif
 
+#ifdef VKQUAKE
+cvar_t vk_stagingbuffers					= CVARD ("vk_stagingbuffers",	"", "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u, e, v, 0.");
+cvar_t vk_submissionthread					= CVARD	("vk_submissionthread",	"", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
+cvar_t vk_debug								= CVARD	("vk_debug",			"0", "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
+cvar_t vk_loadglsl							= CVARD	("vk_loadglsl",			"", "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
+cvar_t vk_dualqueue							= CVARD ("vk_dualqueue",		"", "Attempt to use a separate queue for presentation. Blank for default.");
 #endif
 
 #if defined(D3DQUAKE)
@@ -595,6 +601,51 @@ void R_ListSkyBoxes_f(void)
 void R_SetRenderer_f (void);
 void R_ReloadRenderer_f (void);
 
+void R_ToggleFullscreen_f(void)
+{
+	double time;
+	rendererstate_t newr;
+
+	if (currentrendererstate.renderer == NULL)
+	{
+		Con_Printf("vid_toggle: no renderer currently set\n");
+		return;
+	}
+	//vid toggle makes no sense with these two...
+	if (currentrendererstate.renderer->rtype == QR_HEADLESS || currentrendererstate.renderer->rtype == QR_NONE)
+		return;
+
+	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
+
+	newr = currentrendererstate;
+	newr.fullscreen = newr.fullscreen?0:2;
+	if (newr.fullscreen)
+	{
+		int dbpp, dheight, dwidth, drate;
+		if (!Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
+		{
+			dwidth = DEFAULT_WIDTH;
+			dheight = DEFAULT_HEIGHT;
+			dbpp = DEFAULT_BPP;
+			drate = 0;
+		}
+
+		newr.width = dwidth;
+		newr.height = dheight;
+	}
+	else
+	{
+		newr.width = DEFAULT_WIDTH;
+		newr.height = DEFAULT_HEIGHT;
+	}
+
+	time = Sys_DoubleTime();
+	R_RestartRenderer(&newr);
+	Con_DPrintf("main thread video restart took %f secs\n", Sys_DoubleTime() - time);
+//	COM_WorkerFullSync();
+//	Con_Printf("full video restart took %f secs\n", Sys_DoubleTime() - time);
+}
+
 void Renderer_Init(void)
 {
 	#ifdef AVAIL_JPEGLIB
@@ -611,6 +662,7 @@ void Renderer_Init(void)
 	Cmd_AddCommand("setrenderer", R_SetRenderer_f);
 	Cmd_AddCommand("vid_restart", R_RestartRenderer_f);
 	Cmd_AddCommand("vid_reload", R_ReloadRenderer_f);
+	Cmd_AddCommand("vid_toggle", R_ToggleFullscreen_f);
 
 #ifdef RTLIGHTS
 	Cmd_AddCommand ("r_editlights_reload", R_ReloadRTLights_f);
@@ -758,7 +810,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_glsl_offsetmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_reliefmapping, GRAPHICALNICETIES);
-	Cvar_Register (&r_glsl_turbscale, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_turbscale_reflect, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_turbscale_refract, GRAPHICALNICETIES);
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);
@@ -860,6 +913,7 @@ void Renderer_Init(void)
 	Cvar_Register (&vk_submissionthread,	VKRENDEREROPTIONS);
 	Cvar_Register (&vk_debug,				VKRENDEREROPTIONS);
 	Cvar_Register (&vk_loadglsl,			VKRENDEREROPTIONS);
+	Cvar_Register (&vk_dualqueue,			VKRENDEREROPTIONS);
 #endif
 
 // misc
@@ -1571,10 +1625,6 @@ void R_ReloadRenderer_f (void)
 	//reloads textures without destroying video context.
 	R_ApplyRenderer_Load(NULL);
 }
-
-#define DEFAULT_WIDTH 640
-#define DEFAULT_HEIGHT 480
-#define DEFAULT_BPP 32
 
 //use Cvar_ApplyLatches(CVAR_RENDERERLATCH) beforehand.
 qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)

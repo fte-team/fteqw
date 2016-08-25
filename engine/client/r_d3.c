@@ -133,9 +133,9 @@ static void R_BuildDefaultTexnums_Doom3(shader_t *shader)
 			if ((shader->flags & SHADER_HASFULLBRIGHT) && r_fb_bmodels.value && gl_load24bit.value)
 			{
 				if (!TEXVALID(tex->fullbright) && *mapname)
-					tex->fullbright = R_LoadHiResTexture(va("%s_luma", mapname), NULL, imageflags);
+					tex->fullbright = R_LoadHiResTexture(va("%s_luma:%s_glow", mapname, mapname), NULL, imageflags);
 				if (!TEXVALID(tex->fullbright))
-					tex->fullbright = R_LoadHiResTexture(va("%s_luma", imagename), subpath, imageflags);
+					tex->fullbright = R_LoadHiResTexture(va("%s_luma:%s_glow", imagename, imagename), subpath, imageflags);
 			}
 		}
 	}

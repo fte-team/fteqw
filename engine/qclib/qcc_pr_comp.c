@@ -108,6 +108,7 @@ pbool flag_guiannotate;
 pbool flag_brokenarrays;	//return array; returns array[0] instead of &array;
 pbool flag_rootconstructor; //if true, class constructors are ordered to call the super constructor first, rather than the child constructor
 pbool flag_qccx;
+pbool flag_embedsrc;
 
 pbool opt_overlaptemps;		//reduce numpr_globals by reuse of temps. When they are not needed they are freed for reuse. The way this is implemented is better than frikqcc's. (This is the single most important optimisation)
 pbool opt_assignments;		//STORE_F isn't used if an operation wrote to a temp.
@@ -5054,6 +5055,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 						{
 							fparm.sym = &def_parms[parm+ofs/3];
 							fparm.cast = type_vector;
+							QCC_ForceUnFreeDef(fparm.sym);
 						}
 						fparm.ofs = ofs - (ofs%3);
 						if (!fparm.ofs)
@@ -5122,6 +5124,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 		{
 			if (args[i].ref.sym != d.sym || args[i].ref.ofs != d.ofs)
 			{
+				QCC_ForceUnFreeDef(d.sym);
 				if (args[i].ref.cast->size == 3)
 					QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_V], args[i].ref, d, NULL, 0));
 				else
@@ -5238,6 +5241,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 					d.sym = &def_parms[parm];
 					d.ofs = 0;
 					d.cast = type_vector;
+					QCC_ForceUnFreeDef(d.sym);
 				}
 				d.cast = arglist[i]->cast;
 
@@ -9545,6 +9549,145 @@ void PR_GenerateReturnOuts(void)
 		local = local->deftail->nextlocal;
 	}
 }
+
+
+
+/*
+============
+QCC_PR_ParseStatement_For
+
+pulled out of QCC_PR_ParseStatement because of stack use.
+============
+*/
+void QCC_PR_ParseStatement (void);
+void QCC_PR_ParseStatement_For(void)
+{
+	int continues;
+	int breaks;
+	int i;
+	QCC_sref_t				e;
+	QCC_def_t	*d;
+	QCC_statement_t		*patch1, *patch2, *patch3, *patch4;
+
+
+	int old_numstatements;
+	int numtemp;
+	QCC_def_t *subscopestop;
+	QCC_def_t *subscopestart = pr.local_tail;
+
+	QCC_statement_t		temp[256];
+
+	continues = num_continues;
+	breaks = num_breaks;
+
+	QCC_PR_Expect("(");
+	if (!QCC_PR_CheckToken(";"))
+	{
+		do
+		{
+			QCC_type_t *type = QCC_PR_ParseType (false, true);
+			if (type)
+			{
+				d = QCC_PR_GetDef (type, QCC_PR_ParseName(), pr_scope, true, 0, 0);
+				QCC_PR_Expect("=");
+				QCC_PR_ParseInitializerDef(d);
+				QCC_FreeDef(d);
+				QCC_FreeDef(d);
+			}
+			else
+				QCC_PR_DiscardExpression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+		} while(QCC_PR_CheckToken(","));
+		QCC_PR_Expect(";");
+	}
+	subscopestop = pr_subscopedlocals?NULL:pr.local_tail->nextlocal;
+
+	QCC_ClobberDef(NULL);
+
+	patch2 = &statements[numstatements];	//restart of the loop
+	if (!QCC_PR_CheckToken(";"))
+	{
+		conditional = 1;
+		e = QCC_PR_Expression(TOP_PRIORITY, 0);
+		conditional = 0;
+		QCC_PR_Expect(";");
+	}
+	else
+		e = nullsref;
+
+	if (e.cast)	//final condition+jump
+		QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_IFNOT_I], e, nullsref, &patch1, STFL_DISCARDRESULT));
+	else
+		patch1 = NULL;
+
+	if (!QCC_PR_CheckToken(")"))
+	{
+		old_numstatements = numstatements;
+		QCC_PR_DiscardExpression(TOP_PRIORITY, 0);
+
+		numtemp = numstatements - old_numstatements;
+		if (numtemp > sizeof(temp)/sizeof(temp[0]))
+			QCC_PR_ParseError(ERR_TOOCOMPLEX, "Update expression too large");
+		numstatements = old_numstatements;
+		for (i = 0 ; i < numtemp ; i++)
+		{
+			temp[i] = statements[numstatements + i];
+		}
+
+		QCC_PR_Expect(")");
+	}
+	else
+		numtemp = 0;
+
+	//parse the statement block
+	if (!QCC_PR_CheckToken(";"))
+		QCC_PR_ParseStatement();	//don't give the hanging ';' warning.
+	patch3 = &statements[numstatements];	//location for continues
+	//reinsert the 'increment' statements. lets hope they didn't have any gotos...
+	for (i = 0 ; i < numtemp ; i++)
+	{
+		statements[numstatements] = temp[i];
+		statements[numstatements].linenum = pr_token_line_last;
+		numstatements++;
+	}
+	patch4 = QCC_Generate_OP_GOTO();
+	patch4->a.ofs = patch2 - patch4;
+	if (patch1)
+		patch1->b.ofs = &statements[numstatements] - patch1;	//condition failure jumps here
+
+	//fix up breaks+continues
+	if (breaks != num_breaks)
+	{
+		for(i = breaks; i < num_breaks; i++)
+		{
+			patch1 = &statements[pr_breaks[i]];
+			statements[pr_breaks[i]].a.ofs = &statements[numstatements] - patch1;
+		}
+		num_breaks = breaks;
+	}
+	if (continues != num_continues)
+	{
+		for(i = continues; i < num_continues; i++)
+		{
+			patch1 = &statements[pr_continues[i]];
+			statements[pr_continues[i]].a.ofs = patch3 - patch1;
+		}
+		num_continues = continues;
+	}
+
+
+	//remove any new locals from the hashtable.
+	//typically this is just the stuff inside the for(here;;)
+	for (d = subscopestart->nextlocal; d != subscopestop; d = d->nextlocal)
+	{
+		if (!d->subscoped_away)
+		{
+			pHash_RemoveData(&localstable, d->name, d);
+			d->subscoped_away = true;
+		}
+	}
+
+	return;
+}
 /*
 ============
 PR_ParseStatement
@@ -9559,7 +9702,7 @@ void QCC_PR_ParseStatement (void)
 	int i;
 	QCC_sref_t				e, e2;
 	QCC_def_t	*d;
-	QCC_statement_t		*patch1, *patch2, *patch3, *patch4;
+	QCC_statement_t		*patch1, *patch2, *patch3;
 	int statementstart = pr_source_line;
 	pbool wasuntil;
 
@@ -9733,122 +9876,7 @@ void QCC_PR_ParseStatement (void)
 	}
 	if (QCC_PR_CheckKeyword(keyword_for, "for"))
 	{
-		int old_numstatements;
-		int numtemp, i;
-		QCC_def_t *subscopestop;
-		QCC_def_t *subscopestart = pr.local_tail;
-
-		QCC_statement_t		temp[256];
-
-		continues = num_continues;
-		breaks = num_breaks;
-
-		QCC_PR_Expect("(");
-		if (!QCC_PR_CheckToken(";"))
-		{
-			do
-			{
-				QCC_type_t *type = QCC_PR_ParseType (false, true);
-				if (type)
-				{
-					d = QCC_PR_GetDef (type, QCC_PR_ParseName(), pr_scope, true, 0, 0);
-					QCC_PR_Expect("=");
-					QCC_PR_ParseInitializerDef(d);
-					QCC_FreeDef(d);
-					QCC_FreeDef(d);
-				}
-				else
-					QCC_PR_DiscardExpression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
-			} while(QCC_PR_CheckToken(","));
-			QCC_PR_Expect(";");
-		}
-		subscopestop = pr_subscopedlocals?NULL:pr.local_tail->nextlocal;
-
-		QCC_ClobberDef(NULL);
-
-		patch2 = &statements[numstatements];	//restart of the loop
-		if (!QCC_PR_CheckToken(";"))
-		{
-			conditional = 1;
-			e = QCC_PR_Expression(TOP_PRIORITY, 0);
-			conditional = 0;
-			QCC_PR_Expect(";");
-		}
-		else
-			e = nullsref;
-
-		if (e.cast)	//final condition+jump
-			QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_IFNOT_I], e, nullsref, &patch1, STFL_DISCARDRESULT));
-		else
-			patch1 = NULL;
-
-		if (!QCC_PR_CheckToken(")"))
-		{
-			old_numstatements = numstatements;
-			QCC_PR_DiscardExpression(TOP_PRIORITY, 0);
-
-			numtemp = numstatements - old_numstatements;
-			if (numtemp > sizeof(temp)/sizeof(temp[0]))
-				QCC_PR_ParseError(ERR_TOOCOMPLEX, "Update expression too large");
-			numstatements = old_numstatements;
-			for (i = 0 ; i < numtemp ; i++)
-			{
-				temp[i] = statements[numstatements + i];
-			}
-
-			QCC_PR_Expect(")");
-		}
-		else
-			numtemp = 0;
-
-		//parse the statement block
-		if (!QCC_PR_CheckToken(";"))
-			QCC_PR_ParseStatement();	//don't give the hanging ';' warning.
-		patch3 = &statements[numstatements];	//location for continues
-		//reinsert the 'increment' statements. lets hope they didn't have any gotos...
-		for (i = 0 ; i < numtemp ; i++)
-		{
-			statements[numstatements] = temp[i];
-			statements[numstatements].linenum = pr_token_line_last;
-			numstatements++;
-		}
-		patch4 = QCC_Generate_OP_GOTO();
-		patch4->a.ofs = patch2 - patch4;
-		if (patch1)
-			patch1->b.ofs = &statements[numstatements] - patch1;	//condition failure jumps here
-
-		//fix up breaks+continues
-		if (breaks != num_breaks)
-		{
-			for(i = breaks; i < num_breaks; i++)
-			{
-				patch1 = &statements[pr_breaks[i]];
-				statements[pr_breaks[i]].a.ofs = &statements[numstatements] - patch1;
-			}
-			num_breaks = breaks;
-		}
-		if (continues != num_continues)
-		{
-			for(i = continues; i < num_continues; i++)
-			{
-				patch1 = &statements[pr_continues[i]];
-				statements[pr_continues[i]].a.ofs = patch3 - patch1;
-			}
-			num_continues = continues;
-		}
-
-
-		//remove any new locals from the hashtable.
-		//typically this is just the stuff inside the for(here;;)
-		for (d = subscopestart->nextlocal; d != subscopestop; d = d->nextlocal)
-		{
-			if (!d->subscoped_away)
-			{
-				pHash_RemoveData(&localstable, d->name, d);
-				d->subscoped_away = true;
-			}
-		}
-
+		QCC_PR_ParseStatement_For();
 		return;
 	}
 	if (QCC_PR_CheckKeyword(keyword_do, "do"))
@@ -14178,6 +14206,19 @@ pbool	QCC_PR_CompileFile (char *string, char *filename)
 		{
 			QCC_def_t *d;
 			unsigned int i;
+			for (i = 0; i < MAX_PARMS; i++)
+			{
+				d = &def_parms[i];
+				if (d->refcount)
+				{
+					QCC_sref_t sr;
+					sr.sym = d;
+					sr.cast = d->type;
+					sr.ofs = 0;
+					QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: %i references still held on %s (%s)", d->refcount, d->name, QCC_VarAtOffset(sr, 1));
+					d->refcount = 0;
+				}
+			}
 			for (d = pr.def_head.next; d; d = d->next)
 			{
 				if (d->refcount)

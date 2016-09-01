@@ -947,7 +947,7 @@ static texid_t Font_LoadReplacementConchars(void)
 {
 	texid_t tex;
 	//q1 replacement
-	tex = R_LoadReplacementTexture("gfx/conchars.lmp", NULL, IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, NULL, 0, 0, TF_INVALID);
+	tex = R_LoadHiResTexture("gfx/conchars.lmp", NULL, IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);//, NULL, 0, 0, TF_INVALID);
 	TEXDOWAIT(tex);
 	if (TEXLOADED(tex))
 		return tex;

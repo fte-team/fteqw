@@ -2746,6 +2746,38 @@ static void QCBUILTIN PF_ReadAngle(pubprogfuncs_t *prinst, struct globalvars_s *
 	G_FLOAT(OFS_RETURN) = MSG_ReadAngle();
 }
 
+//basically acts as a readstring, but with added precache (and download)
+static void QCBUILTIN PF_ReadPicture(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *imagename;
+	unsigned short size;
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadPicture is not valid at this time");
+		G_INT(OFS_RETURN) = 0;
+		return;
+	}
+	imagename = MSG_ReadString();
+	size = MSG_ReadShort();
+	MSG_ReadSkip(size);
+
+	//do the precache+download thing
+	{
+		shader_t *pic = R2D_SafeCachePic(imagename);
+		char ext[8];
+
+		//fixme: probably shouldn't block here.
+		if ((!pic || !R_GetShaderSizes(pic, NULL, NULL, true)) && cls.state
+#ifndef CLIENTONLY
+			&& !sv.active
+#endif
+			&& *COM_FileExtension(imagename, ext, sizeof(ext)))	//only try to download it if it looks as though it contains a path.
+			CL_CheckOrEnqueDownloadFile(imagename, imagename, 0);
+	}
+
+	RETURN_TSTRING(imagename);
+}
+
 
 static void QCBUILTIN PF_objerror (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

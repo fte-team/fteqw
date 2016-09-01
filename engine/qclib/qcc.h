@@ -595,6 +595,7 @@ extern pbool flag_brokenarrays;
 extern pbool flag_rootconstructor;
 extern pbool flag_guiannotate;
 extern pbool flag_qccx;
+extern pbool flag_embedsrc;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;
@@ -1033,7 +1034,9 @@ int	QCC_CopyStringLength (char *str, size_t length);
 
 typedef struct qcc_cachedsourcefile_s {
 	char filename[128];
-	int size;
+	size_t size;
+	size_t zhdrofs;
+	int zcrc;
 	char *file;
 	enum{FT_CODE, FT_DATA} type;	//quakec source file or not.
 	struct qcc_cachedsourcefile_s *next;

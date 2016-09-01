@@ -3114,7 +3114,8 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 	if (!mods->nummanifests)
 	{
 		Draw_FunString(x, y+0, "No games or mods known");
-		Draw_FunString(x, y+8, "Consider using -basedir $PATHTOGAME on the commandline");
+		Draw_FunString(x, y+8, "You may need to use -basedir $PATHTOGAME on the commandline");
+		return;
 	}
 
 	for (i = 0; y+8 <= ym && i < mods->nummanifests; y+=8, i++)
@@ -3132,18 +3133,27 @@ static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key, unsi
 	ftemanifest_t *man;
 	if (key == K_MOUSE1)
 	{
+		qboolean wasgameless = !*FS_GetGamedir(false);
 		i = (mousecursor_y - mods->y)/8;
 		if (i < 0 || i > mods->nummanifests)
 			return false;
 		man = mods->manifests[i];
-		mods->manifests[i] = NULL;
+		mods->manifests[i] = NULL;	//make sure the manifest survives the menu being closed.
 		M_RemoveMenu(m);
 		FS_ChangeGame(man, true, true);
 
-		//starting to a blank state generally means that the current config settings are utterly useless and windowed by default.
-		//so generally when switching to a *real* game, we want to restart video just so things like fullscreen etc are saved+used properly.
-		//if we're already running a game, this should probably just be a vid_reload instead to ensure that the conback etc is reloaded.
-		Cbuf_AddText("\nvid_restart\n", RESTRICT_LOCAL);
+		if (wasgameless && !!*FS_GetGamedir(false))
+		{
+			//starting to a blank state generally means that the current(engine-default) config settings are utterly useless and windowed by default.
+			//so generally when switching to a *real* game, we want to restart video just so things like fullscreen etc are saved+used properly.
+			Cbuf_AddText("\nvid_restart\n", RESTRICT_LOCAL);
+		}
+		else
+		{
+			//if we're already running a game, this should probably just be a vid_reload instead to ensure that the conback etc is reloaded.
+			//(a full restart is annoying)
+			Cbuf_AddText("\nvid_reload\n", RESTRICT_LOCAL);
+		}
 		return true;
 	}
 
@@ -3184,29 +3194,21 @@ void M_Menu_Mods_f (void)
 	memset(&mods, 0, sizeof(mods));
 	FS_EnumerateKnownGames(Mods_AddMod, &mods);
 
-	if (mods.nummanifests == 1)
-	{
-		FS_ChangeGame(mods.manifests[0], true, true);
-		Z_Free(mods.manifests);
-	}
-	else
-	{
-		Key_Dest_Add(kdm_emenu);
+	Key_Dest_Add(kdm_emenu);
 
-		menu = M_CreateMenu(sizeof(modmenu_t));
-		*(modmenu_t*)menu->data = mods;
-		if (COM_FCheckExists("gfx/p_option.lmp"))
-		{
-			MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
-			MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
-		}
-
-		c = MC_AddCustom(menu, 64, 32, menu->data, 0);
-		menu->cursoritem = (menuoption_t*)c;
-		c->draw = Mods_Draw;
-		c->key = Mods_Key;
-		menu->remove = Mods_Remove;
+	menu = M_CreateMenu(sizeof(modmenu_t));
+	*(modmenu_t*)menu->data = mods;
+	if (COM_FCheckExists("gfx/p_option.lmp"))
+	{
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
 	}
+
+	c = MC_AddCustom(menu, 64, 32, menu->data, 0);
+	menu->cursoritem = (menuoption_t*)c;
+	c->draw = Mods_Draw;
+	c->key = Mods_Key;
+	menu->remove = Mods_Remove;
 }
 
 #if 0

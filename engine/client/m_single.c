@@ -473,7 +473,7 @@ void M_Menu_SinglePlayer_f (void)
 		{
 			menu = M_CreateMenu(0);
 			MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
-			MC_AddCenterPicture(menu, 0, 24, "gfx/ttl_sgl.lmp");
+			MC_AddCenterPicture(menu, 4, 24, "gfx/ttl_sgl.lmp");
 
 			menu->selecteditem = (menuoption_t*)
 			MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",		va("closemenu;disconnect;maxclients 1;deathmatch 0;coop %i;startmap_sp\n", cl_splitscreen.ival>0));

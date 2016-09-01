@@ -1688,6 +1688,7 @@ void SV_AcceptMessage(client_t *newcl)
 			{
 				MSG_WriteByte(&sb, 1/*MOD_PROQUAKE*/);
 				MSG_WriteByte(&sb, 10 * 3.50/*MOD_PROQUAKE_VERSION*/);
+				MSG_WriteByte(&sb, 0/*flags*/);
 			}
 			*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
 			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
@@ -1796,7 +1797,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 		client->max_net_clients = NQMAX_CLIENTS;
 		client->max_net_ents = bound(512, pr_maxedicts.ival, 32768);	//fitzquake supports 65535, but our writeentity builtin works differently, which causes problems.
 		client->maxmodels = MAX_PRECACHE_MODELS;
-		maxpacketentities = 65535;
+		maxpacketentities = client->max_net_ents;
 
 		client->datagram.maxsize = sizeof(host_client->datagram_buf);
 	}
@@ -1872,6 +1873,16 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 
 			//make sure the reset is sent.
 			client->pendingdeltabits[0] = UF_REMOVE;
+		}
+		else if (ISNQCLIENT(client))
+		{
+			client->frameunion.frames = Z_Malloc((sizeof(client_frame_t))*UPDATE_BACKUP);
+			for (i = 0; i < UPDATE_BACKUP; i++)
+			{
+				client->frameunion.frames[i].entities.max_entities = 0;
+				client->frameunion.frames[i].entities.entities = NULL;
+				client->frameunion.frames[i].senttime = realtime;
+			}
 		}
 		else
 		{

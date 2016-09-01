@@ -5095,6 +5095,7 @@ static void * Mod_LoadSpriteGroup (model_t *mod, void * pin, void *pend, msprite
 	dspriteinterval_t	*pin_intervals;
 	float				*poutintervals;
 	void				*ptemp;
+	float				prevtime;
 
 	pingroup = (dspritegroup_t *)pin;
 
@@ -5112,7 +5113,7 @@ static void * Mod_LoadSpriteGroup (model_t *mod, void * pin, void *pend, msprite
 
 	pspritegroup->intervals = poutintervals;
 
-	for (i=0 ; i<numframes ; i++)
+	for (i=0, prevtime=0 ; i<numframes ; i++)
 	{
 		*poutintervals = LittleFloat (pin_intervals->interval);
 		if (*poutintervals <= 0.0)
@@ -5120,6 +5121,7 @@ static void * Mod_LoadSpriteGroup (model_t *mod, void * pin, void *pend, msprite
 			Con_Printf (CON_ERROR "Mod_LoadSpriteGroup: interval<=0\n");
 			return NULL;
 		}
+		prevtime = *poutintervals = prevtime+*poutintervals;
 
 		poutintervals++;
 		pin_intervals++;

@@ -4861,9 +4861,21 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 		man = FS_ReadDefaultManifest(newbasedir, sizeof(newbasedir), fixedbasedir);
 
-		if (!man && isDedicated)
-		{	//dedicated servers have no menu code, so just pick the first fmf we could find.
-			FS_EnumerateKnownGames(FS_FoundManifest, &man);
+		if (!man)
+		{
+			int found = FS_EnumerateKnownGames(FS_FoundManifest, &man);
+			if (found != 1)
+			{
+				//we found more than 1 (or none)
+				//if we're a client, display a menu to pick between them (or display an error)
+				//servers can just use the first they find, they'd effectively just crash otherwise, but still give a warning.
+				if (!isDedicated)
+					man = NULL;
+				else if (found)
+					Con_Printf(CON_WARNING "Warning: found multiple possible games. Using the first found.\n");
+				else
+					Con_Printf(CON_ERROR "Error: unable to determine correct game/basedir.\n");
+			}
 		}
 		if (!man)
 		{
@@ -5183,7 +5195,7 @@ static int QDECL FS_EnumerateFMFs(const char *fname, qofs_t fsize, time_t mtime,
 	return true;
 }
 
-void FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr)
+int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr)
 {
 	int i;
 	char basedir[MAX_OSPATH];
@@ -5230,6 +5242,7 @@ void FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man),
 			}
 		}
 	}
+	return e.found;
 }
 
 //attempts to find a new basedir for 'input', changing to it as appropriate

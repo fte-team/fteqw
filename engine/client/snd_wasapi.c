@@ -99,6 +99,12 @@ static qboolean WASAPI_DetermineFormat(soundcardinfo_t *sc, IAudioClient *dev, q
 	{
 		Con_Printf("WASAPI: overriding channels\n");
 
+		if (sc->sn.numchannels >= 8)
+		{
+			pwfx->nChannels = 8;
+			if (pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE)
+				((WAVEFORMATEXTENSIBLE*)pwfx)->dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT | SPEAKER_FRONT_LEFT_OF_CENTER | SPEAKER_FRONT_RIGHT_OF_CENTER;
+		}
 		if (sc->sn.numchannels >= 6)
 		{
 			pwfx->nChannels = 6;

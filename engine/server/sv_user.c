@@ -7391,7 +7391,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 				}
 				else
 #endif
-				if (!sv.paused)
+					if (!sv.paused && sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
 				{
 					if (sv_nqplayerphysics.ival || split->state < cs_spawned)
 					{

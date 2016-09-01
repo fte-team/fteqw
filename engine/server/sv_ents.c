@@ -3872,7 +3872,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	}
 
 	host_client = client;
-	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+	if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || !frame->entities.entities)
 	{
 		pack = &svs.entstatebuffer;
 		if (pack->max_entities < client->max_net_ents)

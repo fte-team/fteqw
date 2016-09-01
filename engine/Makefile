@@ -775,6 +775,7 @@ ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
 	SV_LDFLAGS+=-lz
 	GL_LDFLAGS+=-lz
 	M_LDFLAGS+=-lz
+	QCC_LDFLAGS+=-lz
 endif
 
 
@@ -868,10 +869,12 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 		SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --static-libs`
+		QCC_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a
 	else
 		GL_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
 		M_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDL_CONFIG) --libs` $(IMAGELDFLAGS)
 		SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --libs`
+		QCC_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a
 	endif
 	
 	GL_CFLAGS=-DFTE_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC $(DX7SDK) $(SPEEXCFLAGS)
@@ -1039,6 +1042,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 		BITS=64
 	endif
 	QCC_DIR=winqcc$(BITS)
+	QCC_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a
 
 	BASELDFLAGS=
 
@@ -1625,7 +1629,7 @@ m-profile:
 
 
 _qcc-tmp: $(REQDIR)
-	@$(MAKE) $(TYPE) EXE_NAME="$(EXE_NAME)$(EXEPOSTFIX)" PRECOMPHEADERS="" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" OBJS="QCC_OBJS SOBJS"
+	@$(MAKE) $(TYPE) EXE_NAME="$(EXE_NAME)$(EXEPOSTFIX)" PRECOMPHEADERS="" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS) $(QCC_LDFLAGS)" OBJS="QCC_OBJS SOBJS"
 qcc-rel:
 	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-rel:

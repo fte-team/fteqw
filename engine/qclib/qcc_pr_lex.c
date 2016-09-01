@@ -3319,24 +3319,14 @@ void QCC_PR_Lex (void)
 
 // if the first character is a valid identifier, parse until a non-id
 // character is reached
-	if ((c == '%') && (pr_file_p[1] == '-' || (pr_file_p[1] >= '0' && pr_file_p[1] <= '9')))
+	if ((c == '%') && flag_qccx && (pr_file_p[1] == '-' || (pr_file_p[1] >= '0' && pr_file_p[1] <= '9')))
 	{
-		if (flag_qccx)
-		{	//with qccx, %5 is a denormalized float.
-			pr_file_p++;
-			pr_token_type = tt_immediate;
-			pr_immediate_type = type_float;
-			QCC_PR_ParseWarning(WARN_DENORMAL, "denormalized immediate");
-			pr_immediate._int = QCC_PR_LexInteger ();
-		}
-		else
-		{
-			QCC_PR_ParseWarning(0, "%% prefixes to denote integers are deprecated. Please use a postfix of 'i'");
-			pr_file_p++;
-			pr_token_type = tt_immediate;
-			pr_immediate_type = type_integer;
-			pr_immediate._int = QCC_PR_LexInteger ();
-		}
+		//with qccx, %5 is a denormalized float.
+		pr_file_p++;
+		pr_token_type = tt_immediate;
+		pr_immediate_type = type_float;
+		QCC_PR_ParseWarning(WARN_DENORMAL, "denormalized immediate");
+		pr_immediate._int = QCC_PR_LexInteger ();
 		return;
 	}
 	if ( c == '0' && pr_file_p[1] == 'x')

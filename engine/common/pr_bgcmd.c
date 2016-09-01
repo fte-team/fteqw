@@ -2655,7 +2655,9 @@ void QCBUILTIN PF_parseentitydata(pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	size_t size;
 
-	if (offset)
+	if (offset < 0)
+		offset = 0;
+	else if (offset)
 	{
 		int boffset = offset;
 		if (VMUTF8)
@@ -2979,12 +2981,12 @@ void QCBUILTIN PF_strpad (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	if (pad < 0)
 	{	//pad left
 		pad = -pad - strlen(src);
-		if (pad>=MAXTEMPBUFFERLEN)
-			pad = MAXTEMPBUFFERLEN-1;
+		if (pad>=sizeof(destbuf))
+			pad = sizeof(destbuf)-1;
 		if (pad < 0)
 			pad = 0;
 
-		Q_strncpyz(dest+pad, src, MAXTEMPBUFFERLEN-pad);
+		Q_strncpyz(dest+pad, src, sizeof(destbuf)-pad);
 		while(pad)
 		{
 			dest[--pad] = ' ';
@@ -2992,13 +2994,13 @@ void QCBUILTIN PF_strpad (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	}
 	else
 	{	//pad right
-		if (pad>=MAXTEMPBUFFERLEN)
-			pad = MAXTEMPBUFFERLEN-1;
+		if (pad>=sizeof(destbuf))
+			pad = sizeof(destbuf)-1;
 		pad -= strlen(src);
 		if (pad < 0)
 			pad = 0;
 
-		Q_strncpyz(dest, src, MAXTEMPBUFFERLEN);
+		Q_strncpyz(dest, src, sizeof(destbuf));
 		dest+=strlen(dest);
 
 		while(pad-->0)
@@ -4116,7 +4118,11 @@ void QCBUILTIN PF_buf_writefile  (pubprogfuncs_t *prinst, struct globalvars_s *p
 	midx = min(midx, strbuflist[bufno].used);
 	for(strings = strbuflist[bufno].strings; idx < midx; idx++)
 	{
-		PF_fwrite_internal (prinst, fnum, strings[idx], strlen(strings[idx]));
+		if (strings[idx])
+		{
+			PF_fwrite_internal (prinst, fnum, strings[idx], strlen(strings[idx]));
+			PF_fwrite_internal (prinst, fnum, "\n", 1);
+		}
 	}
 	G_FLOAT(OFS_RETURN) = 1;
 }
@@ -4211,7 +4217,7 @@ void QCBUILTIN PF_uri_unescape  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	unsigned char *i, *o;
 	unsigned char hex;
 	i = s; o = resultbuf;
-	while (*i)
+	while (*i && o < resultbuf+sizeof(resultbuf)-2)
 	{
 		if (*i == '%')
 		{

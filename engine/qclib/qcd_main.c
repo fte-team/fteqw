@@ -1,7 +1,9 @@
 #include "progsint.h"
 //#include "qcc.h"
 
-//#define AVAIL_ZLIB
+#ifndef NO_ZLIB
+#define AVAIL_ZLIB
+#endif
 
 #ifdef AVAIL_ZLIB
 #ifdef _WIN32
@@ -86,6 +88,14 @@ char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, char *
 }
 
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
+int QC_encodecrc(int len, char *in)
+{
+#ifdef AVAIL_ZLIB
+	return crc32(0, in, len);
+#else
+	return 0;
+#endif
+}
 void SafeWrite(int hand, void *buf, long count);
 int SafeSeek(int hand, int ofs, int mode);
 //we are allowed to trash our input here.
@@ -104,7 +114,7 @@ int QC_encode(progfuncs_t *progfuncs, int len, int method, char *in, int handle)
 		SafeWrite(handle, in, len);
 		return len;
 	}
-	else if (method == 2)	//compression (ZLIB)
+	else if (method == 2 || method == 8)	//compression (ZLIB)
 	{
 #ifdef AVAIL_ZLIB
 		char out[8192];
@@ -131,7 +141,10 @@ int QC_encode(progfuncs_t *progfuncs, int len, int method, char *in, int handle)
 		};
 		i=0;
 
-		deflateInit(&strm, Z_BEST_COMPRESSION);
+		if (method == 8)
+			deflateInit2(&strm, 9, Z_DEFLATED, -MAX_WBITS, 9, Z_DEFAULT_STRATEGY);		//zip deflate compression
+		else
+			deflateInit(&strm, Z_BEST_COMPRESSION);	//zlib compression
 		while(deflate(&strm, Z_FINISH) == Z_OK)
 		{
 			SafeWrite(handle, out, sizeof(out) - strm.avail_out);	//compress in chunks of 8192. Saves having to allocate a huge-mega-big buffer
@@ -170,7 +183,7 @@ char *PDECL filefromprogs(pubprogfuncs_t *ppf, progsnum_t prnum, char *fname, si
 	if (!pr_progstate[prnum].progs->secondaryversion != PROG_SECONDARYVERSION16 &&
 		!pr_progstate[prnum].progs->secondaryversion != PROG_SECONDARYVERSION32)
 		return NULL;
-	
+
 	num = *(int*)((char *)pr_progstate[prnum].progs + pr_progstate[prnum].progs->ofsfiles);
 	s = (includeddatafile_t *)((char *)pr_progstate[prnum].progs + pr_progstate[prnum].progs->ofsfiles+4);	
 	while(num>0)

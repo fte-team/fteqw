@@ -2105,34 +2105,28 @@ void M_Menu_Main_f (void)
 		y = 32;
 		mainm->selecteditem = (menuoption_t *)
 #ifndef CLIENTONLY
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Single       ", "menu_single\n");	y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Single        ", "menu_single\n");		y += 20;
 #endif
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Multiplayer  ", "menu_multi\n");	y += 20;
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Options      ", "menu_options\n");	y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Multiplayer   ", "menu_multi\n");		y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Options       ", "menu_options\n");	y += 20;
 		if (m_helpismedia.value)
-		{
-			MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Media        ", "menu_media\n");	y += 20;
-		}
+			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Media         ", "menu_media\n");		y += 20;}
 		else
-		{
-			MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Help         ", "help\n");			y += 20;
-		}
+			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Help          ", "help\n");			y += 20;}
 		if (Cmd_AliasExist("mod_menu", RESTRICT_LOCAL))
-		{
-			MC_AddConsoleCommandQBigFont(mainm, 72, y,	va("%-13s", Cvar_Get("mod_menu", "Mod Menu", 0, NULL)->string), "mod_menu\n");			y += 20;
-		}
+			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	va("%-14s", Cvar_Get("mod_menu", "Mod Menu", 0, NULL)->string), "mod_menu\n");			y += 20;}
 		if (Cmd_Exists("xmpp"))
-		{
-			MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Social       ", "xmpp\n");			y += 20;
-		}
+			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Social        ", "xmpp\n");			y += 20;}
 		if (Cmd_Exists("irc"))
-		{
-			MC_AddConsoleCommandQBigFont(mainm, 72, y,	"IRC          ", "irc\n");			y += 20;
-		}
+			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"IRC           ", "irc\n");				y += 20;}
+		if (Cmd_Exists("qi"))
+			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Quake Injector", "qi\n");				y += 20;}
+		if (Cmd_Exists("menu_download"))
+			{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Updates       ", "menu_download\n");	y += 20;}
 #ifdef FTE_TARGET_WEB
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Save Settings", "menu_quit\n");	y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Save Settings ", "menu_quit\n");		y += 20;
 #else
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit         ", "menu_quit\n");	y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit          ", "menu_quit\n");		y += 20;
 #endif
 
 		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);

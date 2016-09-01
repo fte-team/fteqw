@@ -1552,7 +1552,10 @@ void SCR_DrawClock(void)
 
 	time( &long_time );
 	newtime = localtime( &long_time );
-	strftime( str, sizeof(str)-1, "%H:%M    ", newtime);
+	if (show_clock.ival == 2)
+		strftime( str, sizeof(str)-1, "%I:%M %p   ", newtime);
+	else
+		strftime( str, sizeof(str)-1, "%H:%M    ", newtime);
 
 	SCR_StringXY(str, show_clock_x.value, show_clock_y.value);
 }

@@ -4944,6 +4944,22 @@ static void QCBUILTIN PF_WriteString (pubprogfuncs_t *prinst, struct globalvars_
 	PF_WriteString_Internal(G_FLOAT(OFS_PARM0), str);
 }
 
+static void QCBUILTIN PF_WritePicture (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//name size data
+	//this is basically a stub, so we write a size of 0. the client will have to just deal with it.
+	int target = G_FLOAT(OFS_PARM0);
+	string_t o = G_INT(OFS_PARM1);
+	float sizelimit = G_INT(OFS_PARM2);
+
+	(void)sizelimit;	//we don't use this, because we don't bother trying to re-compress the thing here.
+
+	PF_WriteString_Internal(target, PR_GetString(prinst, o));
+	G_FLOAT(OFS_PARM1) = 0;
+	PF_WriteShort(prinst, pr_globals);
+
+	G_INT(OFS_PARM1) = o;
+}
 
 void QCBUILTIN PF_WriteEntity (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -9783,7 +9799,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		97, D("void(string dst, string src)",NULL), true},
 	{"strstr",			PF_strstr,			0,		0,		0,		98, D("string(string str, string sub)",NULL), true},
 	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		99, D("void(string dst, string src, float count)",NULL), true},
-	{"log",				PF_logtext,			0,		0,		0,		100, D("void(string name, float console, string text)",NULL), true},
+	{"logtext",			PF_logtext,			0,		0,		0,		100, D("void(string name, float console, string text)",NULL), true},
 //	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101, D("void(entity to, string str)",NULL), true},
 	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102, D("void()",NULL), true},
 	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, D("void(float now)",NULL), true},
@@ -10404,7 +10420,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532,	"float(string mname)"},
 	//end mvdsv extras
 	//restart dp extras
-//	{"log",				PF_Logarithm,		0,		0,		0,		532,	"float(float v, float base)", true},
+	{"log",				PF_Logarithm,		0,		0,		0,		532,	D("float(float v, optional float base)", "Determines the logarithm of the input value according to the specified base. This can be used to calculate how much something was shifted by.")},
 	{"soundupdate",		PF_Fixme,			0,		0,		0,		0,		D("float(entity e, float channel, string newsample, float volume, float attenuation, float pitchpct, float flags, float timeoffset)", "Changes the properties of the current sound being played on the given entity channel. newsample may be empty, and will be ignored in this case. timeoffset is relative to the current position (subtract the result of getsoundtime for absolute positions). Negative volume can be used to stop the sound. Return value is a fractional value based upon the number of audio devices that could be updated - test against TRUE rather than non-zero.")},
 	{"getsoundtime",	PF_Ignore,			0,		0,		0,		533,	D("float(entity e, float channel)", "Returns the current playback time of the sample on the given entity's channel. Beware CHAN_AUTO (in csqc, channels are not limited by network protocol).")},
 	{"soundlength",		PF_Ignore,			0,		0,		0,		534,	D("float(string sample)", "Provides a way to query the duration of a sound sample, allowing you to set up a timer to chain samples.")},
@@ -10718,7 +10734,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 			PR_EnableEBFSBuiltin("mvdstrcpy",		97) != 97 ||
 			PR_EnableEBFSBuiltin("strstr",			98) != 98 ||
 			PR_EnableEBFSBuiltin("mvdstrncpy",		99) != 99 ||
-			PR_EnableEBFSBuiltin("log",				100)!= 100 ||
+			PR_EnableEBFSBuiltin("logtext",			100)!= 100 ||
 //			PR_EnableEBFSBuiltin("redirectcmd",		101)!= 101 ||
 			PR_EnableEBFSBuiltin("mvdcalltimeofday",102)!= 102 ||
 			PR_EnableEBFSBuiltin("forcedemoframe",	103)!= 103)
@@ -11407,6 +11423,7 @@ void PR_DumpPlatform_f(void)
 		{"INFOKEY_P_ISLAGGED",	"const string", QW|NQ, "1 if the player has the fakelag penalty and has an extra 200ms of lag.", 0, "\"*ismuted\""},
 		{"INFOKEY_P_PING",		"const string", CS|QW|NQ, "The player's ping time, in milliseconds.", 0, "\"ping\""},
 		{"INFOKEY_P_NAME",		"const string", CS|QW|NQ, "The player's name.", 0, "\"name\""},
+		{"INFOKEY_P_SPECTATOR",	"const string", CS|QW|NQ, "Whether the player is a spectator or not.", 0, "\"*spectator\""},
 		{"INFOKEY_P_TOPCOLOR",	"const string", CS|QW|NQ, "The player's upper/shirt colour (palette index).", 0, "\"topcolor\""},
 		{"INFOKEY_P_BOTTOMCOLOR","const string", CS|QW|NQ, "The player's lower/pants/trouser colour (palette index).", 0, "\"bottomcolor\""},
 		{"INFOKEY_P_TOPCOLOR_RGB","const string", CS, "The player's upper/shirt colour as an rgb value in a format usable with stov.", 0, "\"topcolor_rgb\""},

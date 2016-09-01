@@ -349,6 +349,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_typeexplicit,	FLAG_MIDCOMPILE,"typeexplicit",	"Explicit types",		"All type conversions must be explicit or directly supported by instruction set."},
 	{&flag_noboundchecks,	FLAG_MIDCOMPILE,"noboundchecks","Disable Bound Checks",	"Disable array index checks, speeding up array access but can result in your code misbehaving."},
 	{&flag_qccx,			FLAG_MIDCOMPILE,"qccx",			"QCCX syntax",			"WARNING: This syntax makes mods inherantly engine specific.\nDo NOT use unless you know what you're doing.This is provided for compatibility only\nAny entity hacks will be unsupported in FTEQW, DP, and others, resulting in engine crashes if the code in question is executed."},
+	{&flag_embedsrc,		FLAG_MIDCOMPILE,"embedsrc",		"Embed Sources",		"Write the sourcecode into the output file."},
 //	{&flag_noreflection,	FLAG_MIDCOMPILE,"omitinternals","Omit Reflection Info",	"Keeps internal symbols private (equivelent to unix's hidden visibility). This has the effect of reducing filesize, thwarting debuggers, and breaking saved games. This allows you to use arrays without massively bloating the size of your progs.\nWARNING: The bit about breaking saved games was NOT a joke, but does not apply to menuqc or csqc. It also interferes with FTE_MULTIPROGS."},
 	{NULL}
 };
@@ -657,7 +658,7 @@ void QCC_PrintFiles (void)
 						continue;	//*-prefixed models are not real, and shouldn't be included in file lists.
 					if (!header)
 					{
-						printf("pak%i:\n", b);
+						printf("pak%i:\n", b-1);
 						header=true;
 					}
 					printf("%s\n", precaches[g].list[i].name);
@@ -670,65 +671,168 @@ void QCC_PrintFiles (void)
 }
 
 int encode(int len, int method, char *in, int handle);
-int WriteSourceFiles(int h, dprograms_t *progs, pbool sourceaswell)
+int WriteSourceFiles(int h, pbool sourceaswell, pbool legacyembed)
 {
+	//helpers to deal with misaligned data. writes little-endian.
+#define misbyte(ptr,ofs,data) ((unsigned char*)(ptr))[ofs] = (data)&0xff;
+#define misshort(ptr,ofs,data) misbyte((ptr),(ofs),(data));misbyte((ptr),(ofs)+1,(data)>>8);
+#define misint(ptr,ofs,data) misshort((ptr),(ofs),(data));misshort((ptr),(ofs)+2,(data)>>16);
 	includeddatafile_t *idf;
 	qcc_cachedsourcefile_t *f;
 	int num=0;
 	int ofs;
-
-	/*
-	for (f = qcc_sourcefile; f ; f=f->next)
-	{
-		if (f->type == FT_CODE && !sourceaswell)
-			continue;
-
-		SafeWrite(h, f->filename, strlen(f->filename)+1);
-		i = PRLittleLong(f->size);
-		SafeWrite(h, &i, sizeof(int));
-
-		i = PRLittleLong(encrpytmode);
-		SafeWrite(h, &i, sizeof(int));
-
-		if (encrpytmode)
-			for (i = 0; i < f->size; i++)
-				f->file[i] ^= 0xA5;
-
-		SafeWrite(h, f->file, f->size);
-	}*/
+	pbool zipembed = true;
+	int startofs;
+	sourceaswell |= flag_embedsrc;
 
 	for (f = qcc_sourcefile,num=0; f ; f=f->next)
 	{
 		if (f->type == FT_CODE && !sourceaswell)
 			continue;
-
 		num++;
 	}
 	if (!num)
+	{
+		if (zipembed)
+		{	//zips are found by scanning. so make sure something can be found so noone will erroneously find something
+			char centralheader[22];
+			int centraldirofs = SafeSeek(h, 0, SEEK_CUR);
+			misint  (centralheader, 0, 0x06054b50);
+			misshort(centralheader, 4, 0);	//this disk number
+			misshort(centralheader, 6, 0);	//centraldir first disk
+			misshort(centralheader, 8, 0);	//centraldir entries
+			misshort(centralheader, 10, 0);	//total centraldir entries
+			misint  (centralheader, 12, 0);	//centraldir size
+			misint  (centralheader, 16, centraldirofs);	//centraldir offset
+			misshort(centralheader, 20, 0);	//comment length
+			SafeWrite(h, centralheader, 22);
+		}
 		return 0;
+	}
+	startofs = SafeSeek(h, 0, SEEK_CUR);
 	idf = qccHunkAlloc(sizeof(includeddatafile_t)*num);
 	for (f = qcc_sourcefile,num=0; f ; f=f->next)
 	{
 		if (f->type == FT_CODE && !sourceaswell)
 			continue;
 
-		strcpy(idf[num].filename, f->filename);
-		idf[num].size = f->size;
-#ifdef AVAIL_ZLIB
-		idf[num].compmethod = 2;
-#else
-		idf[num].compmethod = 1;
-#endif
-		idf[num].ofs = SafeSeek(h, 0, SEEK_CUR);
-		idf[num].compsize = QC_encode(progfuncs, f->size, idf[num].compmethod, f->file, h);
+		if (zipembed)
+		{
+			size_t end;
+			char header[32+sizeof(f->filename)];
+			size_t fnamelen = strlen(f->filename);
+			f->zcrc = QC_encodecrc(f->size, f->file);
+			misint  (header, 0, 0x04034b50);
+			misshort(header, 4, 0);//minver
+			misshort(header, 6, 0);//general purpose flags
+			misshort(header, 8, 0);//compression method, 0=store, 8=deflate
+			misshort(header, 10, 0);//lastmodfiletime
+			misshort(header, 12, 0);//lastmodfiledate
+			misint  (header, 14, f->zcrc);//crc32
+			misint  (header, 18, f->size);//compressed size
+			misint  (header, 22, f->size);//uncompressed size
+			misshort(header, 26, fnamelen);//filename length
+			misshort(header, 28, 0);//extradata length
+			strcpy(header+30, f->filename);
+
+			f->zhdrofs = SafeSeek(h, 0, SEEK_CUR);
+			SafeWrite(h, header, 30+fnamelen);
+
+			strcpy(idf[num].filename, f->filename);
+			idf[num].size = f->size;
+			idf[num].compmethod = 8;	//must be 0(raw) or 8(raw deflate) for zips to work
+			idf[num].ofs = SafeSeek(h, 0, SEEK_CUR);
+			if (idf[num].compmethod==0)
+				SafeWrite(h, f->file, f->size);
+			else
+			{
+				idf[num].compsize = QC_encode(progfuncs, f->size, idf[num].compmethod, f->file, h);
+
+				misshort(header, 8, idf[num].compmethod);//compression method, 0=store, 8=deflate
+				misint  (header, 18, idf[num].compsize);
+
+				end = SafeSeek(h, 0, SEEK_CUR);
+				SafeSeek(h, f->zhdrofs, SEEK_SET);
+				SafeWrite(h, header, 30+strlen(f->filename));
+				SafeSeek(h, end, SEEK_SET);
+			}
+		}
+		else
+		{
+			if (f->type == FT_CODE && !sourceaswell)
+				continue;
+
+			strcpy(idf[num].filename, f->filename);
+			idf[num].size = f->size;
+	#ifdef AVAIL_ZLIB
+			idf[num].compmethod = 2;
+	#else
+			idf[num].compmethod = 1;
+	#endif
+			idf[num].ofs = SafeSeek(h, 0, SEEK_CUR);
+			idf[num].compsize = QC_encode(progfuncs, f->size, idf[num].compmethod, f->file, h);
+		}
 		num++;
 	}
 
-	ofs = SafeSeek(h, 0, SEEK_CUR);
-	SafeWrite(h, &num, sizeof(int));
-	SafeWrite(h, idf, sizeof(includeddatafile_t)*num);
+	if (zipembed)
+	{
+		char centralheader[46+sizeof(f->filename)];
+		int centraldirsize;
+		ofs = SafeSeek(h, 0, SEEK_CUR);
+		for (f = qcc_sourcefile,num=0; f ; f=f->next)
+		{
+			size_t fnamelen;
+			if (f->type == FT_CODE && !sourceaswell)
+				continue;
+			fnamelen = strlen(f->filename);
+			misint  (centralheader, 0, 0x02014b50);
+			misshort(centralheader, 4, 0);//ourver
+			misshort(centralheader, 6, 0);//minver
+			misshort(centralheader, 8, 0);//general purpose flags
+			misshort(centralheader, 10, idf[num].compmethod);//compression method, 0=store, 8=deflate
+			misshort(centralheader, 12, 0);//lastmodfiletime
+			misshort(centralheader, 14, 0);//lastmodfiledate
+			misint  (centralheader, 16, f->zcrc);//crc32
+			misint  (centralheader, 20, idf[num].compsize);//compressed size
+			misint  (centralheader, 24, f->size);//uncompressed size
+			misshort(centralheader, 28, fnamelen);//filename length
+			misshort(centralheader, 30, 0);//extradata length
+			misshort(centralheader, 32, 0);//comment length
+			misshort(centralheader, 34, 0);//first disk number
+			misshort(centralheader, 36, 0);//internal file attribs
+			misint  (centralheader, 38, 0);//external file attribs
+			misint  (centralheader, 42, f->zhdrofs);//local header offset
+			strcpy(centralheader+46, f->filename);
+			SafeWrite(h, centralheader, 46 + fnamelen);
+			num++;
+		}
+
+		centraldirsize = SafeSeek(h, 0, SEEK_CUR)-ofs;
+		misint  (centralheader, 0, 0x06054b50);
+		misshort(centralheader, 4, 0);	//this disk number
+		misshort(centralheader, 6, 0);	//centraldir first disk
+		misshort(centralheader, 8, num);	//centraldir entries
+		misshort(centralheader, 10, num);	//total centraldir entries
+		misint  (centralheader, 12, centraldirsize);	//centraldir size
+		misint  (centralheader, 16, ofs);	//centraldir offset
+		misshort(centralheader, 20, 0);	//comment length
+		SafeWrite(h, centralheader, 22);
+
+		ofs = 0;
+	}
+	else if (legacyembed)
+	{
+		ofs = SafeSeek(h, 0, SEEK_CUR);
+		SafeWrite(h, &num, sizeof(int));
+		SafeWrite(h, idf, sizeof(includeddatafile_t)*num);
+	}
+	else
+		ofs = 0;
 
 	qcc_sourcefile = NULL;
+
+	printf("Embedded files take %u bytes\n",  SafeSeek(h, 0, SEEK_CUR) - startofs);
 
 	return ofs;
 }
@@ -760,6 +864,7 @@ void QCC_InitData (void)
 	def_ret.symbolheader = &def_ret;
 	for (i=0 ; i<MAX_PARMS ; i++)
 	{
+		def_parms[i].symbolheader = &def_parms[i];
 		def_parms[i].temp = NULL;
 		def_parms[i].type = NULL;
 		def_parms[i].ofs = OFS_PARM0 + 3*i;
@@ -1043,6 +1148,8 @@ pbool QCC_WriteData (int crc)
 
 
 	extern char *basictypenames[];
+
+	memset(&progs, 0, sizeof(progs));
 
 	if (numstatements==1 && numfunctions==1 && numglobaldefs==1 && numfielddefs==1)
 	{
@@ -1955,13 +2062,17 @@ strofs = (strofs+3)&~3;
 	{
 	case QCF_QTEST:
 		progs.version = PROG_QTESTVERSION;
+		progs.ofsfiles = WriteSourceFiles(h, debugtarget, false);
 		break;
 	case QCF_KK7:
 		progs.version = PROG_KKQWSVVERSION;
+		progs.ofsfiles = WriteSourceFiles(h, debugtarget, false);
 		break;
+	default:
 	case QCF_STANDARD:
 	case QCF_HEXEN2:	//urgh
 		progs.version = PROG_VERSION;
+		progs.ofsfiles = WriteSourceFiles(h, debugtarget, false);
 		break;
 	case QCF_DARKPLACES:
 	case QCF_FTE:
@@ -2017,7 +2128,7 @@ strofs = (strofs+3)&~3;
 			progs.numtypes = 0;
 		}
 
-		progs.ofsfiles = WriteSourceFiles(h, &progs, debugtarget);
+		progs.ofsfiles = WriteSourceFiles(h, debugtarget, true);
 		break;
 	}
 

@@ -2073,9 +2073,8 @@ void CL_CheckServerInfo(void)
 
 		if (cls.protocol == CP_NETQUAKE)
 		{	//proquake likes spamming us with fixangles
-			float div = cls.proquake_angles_hack?65536:256;
+			//should be about 0.5/65536, but there's some precision issues with such small numbers around 80, so we need to bias it more than we ought
 			cl.maxpitch -= 1.0/2048;
-			cl.minpitch -= 0.5/div;
 		}
 	}
 	else

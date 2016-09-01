@@ -70,7 +70,7 @@ void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parent_pure, const
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri);
 void Menu_Download_Update(void);
 
-void FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr);
+int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr);
 
 #define SPF_REFERENCED		1	//something has been loaded from this path. should filter out client references...
 #define SPF_COPYPROTECTED	2	//downloads are not allowed fom here.

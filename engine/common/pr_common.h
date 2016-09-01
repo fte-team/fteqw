@@ -45,9 +45,6 @@ struct wedict_s
 
 #define PF_drawline PF_Fixme
 
-#define PF_WritePicture PF_Fixme
-#define PF_ReadPicture PF_Fixme
-
 #define G_PROG G_FLOAT
 
 //the lh extension system asks for a name for the extension.

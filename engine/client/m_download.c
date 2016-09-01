@@ -373,8 +373,8 @@ static qboolean PM_MergePackage(package_t *oldp, package_t *newp)
 			;
 		for (nm = 0; nm < countof(newp->mirror) && newp->mirror[nm]; nm++)
 			;
-		if (oldp->priority != newp->priority)
-			return false;
+//		if (oldp->priority != newp->priority)
+//			return false;
 
 		ignorefiles = (oldp->extract==EXTRACT_ZIP);	//zips ignore the remote file list, its only important if its already installed (so just keep the old file list and its fine).
 		if (oldp->extract != newp->extract)
@@ -415,6 +415,7 @@ static qboolean PM_MergePackage(package_t *oldp, package_t *newp)
 		if (newp->license){Z_Free(oldp->license); oldp->license = Z_StrDup(newp->license);}
 		if (newp->author){Z_Free(oldp->author); oldp->author = Z_StrDup(newp->author);}
 		if (newp->previewimage){Z_Free(oldp->previewimage); oldp->previewimage = Z_StrDup(newp->previewimage);}
+		oldp->priority = newp->priority;
 
 		if (nm)
 		{	//copy over the mirrors

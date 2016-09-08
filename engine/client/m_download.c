@@ -213,6 +213,10 @@ static void PM_FreePackage(package_t *p)
 	for (i = 0; i < countof(p->mirror); i++)
 		Z_Free(p->mirror[i]);
 
+	Z_Free(p->description);
+	Z_Free(p->author);
+	Z_Free(p->license);
+	Z_Free(p->previewimage);
 	Z_Free(p->qhash);
 	Z_Free(p->arch);
 	Z_Free(p);

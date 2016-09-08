@@ -2847,6 +2847,9 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		}
 	}
 
+	//create the platform-specific surface
+	createSurface();
+
 	//figure out which gpu we're going to use
 	{
 		uint32_t gpucount = 0, i;
@@ -2863,7 +2866,24 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		for (i = 0; i < gpucount; i++)
 		{
 			VkPhysicalDeviceProperties props;
+			uint32_t j, queue_count;
 			vkGetPhysicalDeviceProperties(devs[i], &props);
+			vkGetPhysicalDeviceQueueFamilyProperties(devs[i], &queue_count, NULL);
+
+			for (j = 0; j < queue_count; j++)
+			{
+				VkBool32 supportsPresent;
+				VkAssert(vkGetPhysicalDeviceSurfaceSupportKHR(devs[i], j, vk.surface, &supportsPresent));
+				if (supportsPresent)
+					break;	//okay, this one should be usable
+			}
+			if (j == queue_count)
+			{
+				//no queues can present to that surface, so I guess we can't use that device
+				Con_DPrintf("vulkan: ignoring device %s as it can't present to window\n", props.deviceName);
+				continue;
+			}
+
 			if (!vk.gpu)
 				vk.gpu = devs[i];
 			switch(props.deviceType)
@@ -2953,9 +2973,6 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 			VK_VERSION_MAJOR(props.driverVersion), VK_VERSION_MINOR(props.driverVersion), VK_VERSION_PATCH(props.driverVersion)
 			);
 	}
-
-	//create the platform-specific surface
-	createSurface();
 
 	//figure out which of the device's queue's we're going to use
 	{

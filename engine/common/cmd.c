@@ -22,10 +22,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "fs.h"
 
-cvar_t ruleset_allow_in		= SCVAR("ruleset_allow_in", "1");
-cvar_t rcon_level			= SCVAR("rcon_level", "20");
-cvar_t cmd_maxbuffersize	= SCVAR("cmd_maxbuffersize", "65536");
-cvar_t dpcompat_set         = SCVAR("dpcompat_set", "0");
+cvar_t ruleset_allow_in		= CVAR("ruleset_allow_in", "1");
+cvar_t rcon_level			= CVAR("rcon_level", "20");
+cvar_t cmd_maxbuffersize	= CVAR("cmd_maxbuffersize", "65536");
+cvar_t dpcompat_set         = CVAR("dpcompat_set", "0");
 int	Cmd_ExecLevel;
 qboolean cmd_didwait;
 qboolean cmd_blockwait;
@@ -2614,28 +2614,33 @@ static const char *If_Token_Term(const char *func, const char **end)
 	}
 	else if (*com_token == '!')
 	{
-		func = If_Token(s, end, 0);
+		func = If_Token(s, &s, 0);
 		s2 = retbool(!is_true(func));
 	}
 	else if (*com_token == '~')
 	{
-		func = If_Token(s, end, 0);
+		func = If_Token(s, &s, 0);
 		s2 = retbool(~atoi(func));
+	}
+	else if (*com_token == '-')
+	{
+		func = If_Token(s, &s, 0);
+		s2 = retfloat(-atof(func));
 	}
 	else if (!strcmp(com_token, "int"))
 	{
-		func = If_Token(s, end, 0);
+		func = If_Token(s, &s, 0);
 		s2 = retint(atoi(func));
 	}
 	else if (!strcmp(com_token, "strlen"))
 	{
-		func = If_Token(s, end, 0);
+		func = If_Token(s, &s, 0);
 		s2 = retfloat(strlen(func));
 	}
 	else if (!strcmp(com_token, "eval"))
 	{
 		//read the stuff to the right
-		func = If_Token(s, end, IF_PRI_MAX);
+		func = If_Token(s, &s, IF_PRI_MAX);
 		//and evaluate it
 		s2 = If_Token(func, &func, IF_PRI_MAX);
 	}
@@ -2824,19 +2829,22 @@ static const char *If_Token(const char *func, const char **end, int pri)
 		s2 = If_Token_Term(func, &s);
 	*end = s;
 
-	while (*s == ' ' || *s == '\t')
-		s++;
-
-	for (i = 0; i < countof(ifops); i++)
+	if (s)
 	{
-		if (!strncmp(s, ifops[i].opname, ifops[i].opnamelen))
+		while (*s == ' ' || *s == '\t')
+			s++;
+
+		for (i = 0; i < countof(ifops); i++)
 		{
-			if (pri == ifops[i].pri)
+			if (!strncmp(s, ifops[i].opname, ifops[i].opnamelen))
 			{
-				s = If_Token(s + ifops[i].opnamelen, end, pri);
-				s2 = If_Operator(ifops[i].op, s2, s);
+				if (pri == ifops[i].pri)
+				{
+					s = If_Token(s + ifops[i].opnamelen, end, pri);
+					s2 = If_Operator(ifops[i].op, s2, s);
+				}
+				break;
 			}
-			break;
 		}
 	}
 	return s2;

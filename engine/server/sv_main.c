@@ -46,32 +46,32 @@ client_t	*host_client;			// current client
 
 // bound the size of the physics time tic
 #ifdef SERVERONLY
-cvar_t	sv_mintic = CVARD("sv_mintic","0.013", "The minimum interval between running physics frames.");
+cvar_t	sv_mintic					= CVARD("sv_mintic","0.013", "The minimum interval between running physics frames.");
 #else
-cvar_t	sv_mintic = CVARD("sv_mintic","0", "The minimum interval between running physics frames.");	//client builds can think as often as they want.
+cvar_t	sv_mintic					= CVARD("sv_mintic","0", "The minimum interval between running physics frames.");	//client builds can think as often as they want.
 #endif
-cvar_t	sv_maxtic = CVARD("sv_maxtic","0.1", "The maximum interval between running physics frames. If the value is too low, multiple physics interations might be run at a time (based upon sv_limittics). Set identical to sv_mintic for fixed-interval ticks, which may be required if ODE is used.");//never run a tick slower than this
-cvar_t	sv_limittics = CVARD("sv_limittics","3", "The maximum number of ticks that may be run within a frame, to allow the server to catch up if it stalled or if sv_maxtic is too low.");//
+cvar_t	sv_maxtic					= CVARD("sv_maxtic","0.1", "The maximum interval between running physics frames. If the value is too low, multiple physics interations might be run at a time (based upon sv_limittics). Set identical to sv_mintic for fixed-interval ticks, which may be required if ODE is used.");//never run a tick slower than this
+cvar_t	sv_limittics				= CVARD("sv_limittics","3", "The maximum number of ticks that may be run within a frame, to allow the server to catch up if it stalled or if sv_maxtic is too low.");//
 
-cvar_t	sv_nailhack = CVARD("sv_nailhack","0", "If set to 1, disables the nail entity networking optimisation. This hack was popularised by qizmo which recommends it for better compression. Also allows clients to interplate nail positions and add trails.");
-cvar_t	sv_nopvs	= CVARD("sv_nopvs", "0", "Set to 1 to ignore pvs on the server. This can make wallhacks more dangerous, so should only be used for debugging.");
-cvar_t	fraglog_public = CVARD("fraglog_public", "1", "Enables support for connectionless fraglog requests");
-cvar_t	fraglog_details = CVARD("fraglog_details", "1", "Bitmask\n1: killer+killee names.\n2: killer+killee teams\n4:timestamp.\n8:killer weapon\n16:killer+killee guid.\nFor compatibility, use 1(vanilla) or 7(mvdsv).");
+cvar_t	sv_nailhack					= CVARD("sv_nailhack","0", "If set to 1, disables the nail entity networking optimisation. This hack was popularised by qizmo which recommends it for better compression. Also allows clients to interplate nail positions and add trails.");
+cvar_t	sv_nopvs					= CVARD("sv_nopvs", "0", "Set to 1 to ignore pvs on the server. This can make wallhacks more dangerous, so should only be used for debugging.");
+cvar_t	fraglog_public				= CVARD("fraglog_public", "1", "Enables support for connectionless fraglog requests");
+cvar_t	fraglog_details				= CVARD("fraglog_details", "1", "Bitmask\n1: killer+killee names.\n2: killer+killee teams\n4:timestamp.\n8:killer weapon\n16:killer+killee guid.\nFor compatibility, use 1(vanilla) or 7(mvdsv).");
 
-cvar_t	timeout = SCVAR("timeout","65");		// seconds without any message
-cvar_t	zombietime = SCVAR("zombietime", "2");	// seconds to sink messages
+cvar_t	timeout						= CVAR("timeout","65");		// seconds without any message
+cvar_t	zombietime					= CVAR("zombietime", "2");	// seconds to sink messages
 											// after disconnect
 #ifdef SERVERONLY
-cvar_t	developer = SCVAR("developer","0");		// show extra messages
+cvar_t	developer					= CVAR("developer","0");		// show extra messages
 
-cvar_t	rcon_password = SCVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);	// password for remote server commands
-cvar_t	password = SCVARF("password", "", CVAR_NOUNSAFEEXPAND);	// password for entering the game
+cvar_t	rcon_password				= CVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);	// password for remote server commands
+cvar_t	password					= CVARF("password", "", CVAR_NOUNSAFEEXPAND);	// password for entering the game
 #else
 extern cvar_t	developer;
 extern cvar_t	rcon_password;
 extern cvar_t	password;
 #endif
-cvar_t	spectator_password = CVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
+cvar_t	spectator_password			= CVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
 
 cvar_t	allow_download				= CVARD("allow_download", "1", "If 1, permits downloading. Set to 0 to unconditionally block *ALL* downloads.");
 cvar_t	allow_download_skins		= CVARD("allow_download_skins", "1", "0 blocks downloading of any file in the skins/ directory");
@@ -88,46 +88,46 @@ cvar_t	allow_download_packages		= CVARD("allow_download_packages", "1", "if 1, p
 cvar_t	allow_download_refpackages	= CVARD("allow_download_refpackages", "1", "If set to 1, packages that contain files needed during spawn functions will be become 'referenced' and automatically downloaded to clients.\nThis cvar should probably not be set if you have large packages that provide replacement pickup models on public servers.\nThe path command will show a '(ref)' tag next to packages which clients will automatically attempt to download.");
 cvar_t	allow_download_wads			= CVARD("allow_download_wads", "1", "0 blocks downloading of any file in the wads/ directory, or is in the root directory with the extension .wad");
 cvar_t	allow_download_configs		= CVARD("allow_download_configs", "0", "1 allows downloading of config files, either with the extension .cfg or in the subdir configs/.\n"CON_ERROR"THIS IS DANGEROUS AS IT CAN ALLOW PEOPLE TO READ YOUR RCON PASSWORD.");
-cvar_t	allow_download_locs		= CVARD("allow_download_locs", "1", "0 blocks downloading of any file in the locs/ directory");
+cvar_t	allow_download_locs			= CVARD("allow_download_locs", "1", "0 blocks downloading of any file in the locs/ directory");
 cvar_t	allow_download_copyrighted	= CVARD("allow_download_copyrighted", "0", "0 blocks download of packages that are considered copyrighted. Specifically, this means packages with a leading 'pak' prefix on the filename.\nIf you take your copyrights seriously, you should also set allow_download_pakmaps 0 and allow_download_pakcontents 0.");
 cvar_t	allow_download_other		= CVARD("allow_download_other", "0", "0 blocks downloading of any file that was not covered by any of the directory download blocks.");
 
 extern cvar_t sv_allow_splitscreen;
 
-cvar_t sv_serverip = CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
-cvar_t sv_public = CVAR("sv_public", "0");
-cvar_t sv_listen_qw = CVARAF("sv_listen_qw", "1", "sv_listen", 0);
-cvar_t sv_listen_nq = CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server.\n0 = don't let them in.\n1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks).\n2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
-cvar_t sv_listen_dp = CVARD("sv_listen_dp", "0", "Allows the server to respond with the DP-specific handshake protocol.\nWarning: this can potentially get confused with quake2, and results in race conditions with both vanilla netquake and quakeworld protocols.\nOn the plus side, DP clients can usually be identified correctly, enabling a model+sound limit boost.");
-cvar_t sv_listen_q3 = CVAR("sv_listen_q3", "0");
-cvar_t sv_reportheartbeats = CVAR("sv_reportheartbeats", "1");
-cvar_t sv_highchars = CVAR("sv_highchars", "1");
-cvar_t sv_maxrate = CVAR("sv_maxrate", "30000");
-cvar_t sv_maxdrate = CVARAF("sv_maxdrate", "500000",
-							"sv_maxdownloadrate", 0);
-cvar_t sv_minping = CVARF("sv_minping", "", CVAR_SERVERINFO);
+cvar_t sv_serverip			= CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
+cvar_t sv_public			= CVAR("sv_public", "0");
+cvar_t sv_listen_qw			= CVARAF("sv_listen_qw", "1", "sv_listen", 0);
+cvar_t sv_listen_nq			= CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server.\n0 = don't let them in.\n1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks).\n2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
+cvar_t sv_listen_dp			= CVARD("sv_listen_dp", "0", "Allows the server to respond with the DP-specific handshake protocol.\nWarning: this can potentially get confused with quake2, and results in race conditions with both vanilla netquake and quakeworld protocols.\nOn the plus side, DP clients can usually be identified correctly, enabling a model+sound limit boost.");
+cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
+cvar_t sv_reportheartbeats	= CVAR("sv_reportheartbeats", "1");
+cvar_t sv_highchars			= CVAR("sv_highchars", "1");
+cvar_t sv_maxrate			= CVAR("sv_maxrate", "30000");
+cvar_t sv_maxdrate			= CVARAF("sv_maxdrate", "500000",
+									"sv_maxdownloadrate", 0);
+cvar_t sv_minping			= CVARF("sv_minping", "", CVAR_SERVERINFO);
 
-cvar_t sv_bigcoords = CVARFD("sv_bigcoords", "1", 0, "Uses floats for coordinates instead of 16bit values.\nAlso boosts angle precision, so can be useful even on small maps.\nAffects clients thusly:\nQW: enforces a mandatory protocol extension\nDP: enables DPP7 protocol support\nNQ: uses RMQ protocol (protocol 999).");
-cvar_t sv_calcphs = CVARFD("sv_calcphs", "2", CVAR_LATCH, "Enables culling of sound effects. 0=always skip phs. Sounds are globally broadcast. 1=always generate phs. Sounds are always culled. On large maps the phs will be dumped to disk. 2=On large single-player maps, generation of phs is skipped. Otherwise like option 1.");
+cvar_t sv_bigcoords			= CVARFD("sv_bigcoords", "1", 0, "Uses floats for coordinates instead of 16bit values.\nAlso boosts angle precision, so can be useful even on small maps.\nAffects clients thusly:\nQW: enforces a mandatory protocol extension\nDP: enables DPP7 protocol support\nNQ: uses RMQ protocol (protocol 999).");
+cvar_t sv_calcphs			= CVARFD("sv_calcphs", "2", CVAR_LATCH, "Enables culling of sound effects. 0=always skip phs. Sounds are globally broadcast. 1=always generate phs. Sounds are always culled. On large maps the phs will be dumped to disk. 2=On large single-player maps, generation of phs is skipped. Otherwise like option 1.");
 
-cvar_t sv_showconnectionlessmessages = CVARD("sv_showconnectionlessmessages", "0", "Display a line describing each connectionless message that arrives on the server. Primarily a debugging feature, but also potentially useful to admins.");
-cvar_t sv_cullplayers_trace = CVARFD("sv_cullplayers_trace", "", CVAR_SERVERINFO, "Attempt to cull player entities using tracelines as an anti-wallhack.");
-cvar_t sv_cullentities_trace = CVARFD("sv_cullentities_trace", "", CVAR_SERVERINFO, "Attempt to cull non-player entities using tracelines as an extreeme anti-wallhack.");
-cvar_t sv_phs = CVARD("sv_phs", "1", "If 1, do not use the phs. It is generally better to use sv_calcphs instead, and leave this as 1.");
-cvar_t sv_resetparms = CVAR("sv_resetparms", "0");
-cvar_t sv_pupglow = CVARFD("sv_pupglow", "", CVAR_SERVERINFO, "Instructs clients to enable hexen2-style powerup pulsing.");
+cvar_t sv_showconnectionlessmessages	= CVARD("sv_showconnectionlessmessages", "0", "Display a line describing each connectionless message that arrives on the server. Primarily a debugging feature, but also potentially useful to admins.");
+cvar_t sv_cullplayers_trace		= CVARFD("sv_cullplayers_trace", "", CVAR_SERVERINFO, "Attempt to cull player entities using tracelines as an anti-wallhack.");
+cvar_t sv_cullentities_trace	= CVARFD("sv_cullentities_trace", "", CVAR_SERVERINFO, "Attempt to cull non-player entities using tracelines as an extreeme anti-wallhack.");
+cvar_t sv_phs					= CVARD("sv_phs", "1", "If 1, do not use the phs. It is generally better to use sv_calcphs instead, and leave this as 1.");
+cvar_t sv_resetparms			= CVAR("sv_resetparms", "0");
+cvar_t sv_pupglow				= CVARFD("sv_pupglow", "", CVAR_SERVERINFO, "Instructs clients to enable hexen2-style powerup pulsing.");
 
-cvar_t sv_master = CVAR("sv_master", "0");
-cvar_t sv_masterport = CVAR("sv_masterport", "0");
+cvar_t sv_master				= CVAR("sv_master", "0");
+cvar_t sv_masterport			= CVAR("sv_masterport", "0");
 
-cvar_t pext_ezquake_nochunks = CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
+cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
 
-cvar_t	sv_gamespeed = CVARAF("sv_gamespeed", "1", "slowmo", 0);
-cvar_t	sv_csqcdebug = CVAR("sv_csqcdebug", "0");
-cvar_t	sv_csqc_progname = CVAR("sv_csqc_progname", "csprogs.dat");
-cvar_t pausable	= CVAR("pausable", "1");
-cvar_t sv_banproxies = CVARD("sv_banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
-cvar_t	sv_specprint = CVARD("sv_specprint", "3",	"Bitfield that controls which player events spectators see when tracking that player.\n&1: spectators will see centerprints.\n&2: spectators will see sprints (pickup messages etc).\n&4: spectators will receive console commands, this is potentially risky.\nIndividual spectators can use 'setinfo sp foo' to limit this setting.");
+cvar_t	sv_gamespeed		= CVARAF("sv_gamespeed", "1", "slowmo", 0);
+cvar_t	sv_csqcdebug		= CVAR("sv_csqcdebug", "0");
+cvar_t	sv_csqc_progname	= CVAR("sv_csqc_progname", "csprogs.dat");
+cvar_t pausable				= CVAR("pausable", "1");
+cvar_t sv_banproxies		= CVARD("sv_banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
+cvar_t	sv_specprint		= CVARD("sv_specprint", "3",	"Bitfield that controls which player events spectators see when tracking that player.\n&1: spectators will see centerprints.\n&2: spectators will see sprints (pickup messages etc).\n&4: spectators will receive console commands, this is potentially risky.\nIndividual spectators can use 'setinfo sp foo' to limit this setting.");
 
 
 //
@@ -4414,6 +4414,11 @@ static void SV_PauseChanged(void)
 			ClientReliableWrite_Begin (cl, svc_setpause, 2);
 			ClientReliableWrite_Byte (cl, sv.paused!=0);
 		}
+	}
+	if (sv.mvdrecording)
+	{
+		ClientReliableWrite_Begin (&demo.recorder, svc_setpause, 2);
+		ClientReliableWrite_Byte (&demo.recorder, sv.paused!=0);
 	}
 }
 

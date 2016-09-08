@@ -1,5 +1,8 @@
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
 
+//decompiling a progs should normally be done by walking the function table and emitting each def leading up to the one that refers to the function in question.
+//this of course assumes strict ordering
+
 //#include "qcc.h"
 #include "progsint.h"
 #include "setjmp.h"
@@ -861,7 +864,7 @@ pbool PDECL QC_Decompile(pubprogfuncs_t *ppf, char *fname)
 
 	f=SafeOpenWrite("qcdtest/defs.qc", 1024*512);
 
-	writes(f, "//Decompiled code can contain little type info.\r\n#define NOWARNINGS\r\n");
+	writes(f, "//Decompiled code can contain little type info.\r\n");
 
 	FigureOutTypes(progfuncs);
 

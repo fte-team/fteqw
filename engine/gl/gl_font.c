@@ -31,10 +31,6 @@ struct font_s *font_tiny;
 static int font_be_flags;
 extern unsigned int r2d_be_flags;
 
-//by adding 'extern' to one definition of a function in a translation unit, then the definition in that TU is NOT considered an inline definition. meaning non-inlined references in other TUs can link to it instead of their own if needed.
-fte_inlinebody conchar_t *Font_Decode(conchar_t *start, unsigned int *codeflags, unsigned int *codepoint);
-
-
 #ifdef AVAIL_FREETYPE
 #include <ft2build.h>
 #include FT_FREETYPE_H 

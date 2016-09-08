@@ -786,17 +786,18 @@ static void GL_DrawSkyBox (texid_t *texnums, batch_t *s)
 =============
 R_InitSky
 
-A sky texture is 256*128, with the right side being a masked overlay
+A sky image is 256*128 and comprises two logical textures.
+the left is the transparent/blended part. the right is the opaque/background part.
 ==============
 */
 void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int width, unsigned int height)
 {
 	int			i, j, p;
-	unsigned	trans[128*128];
+	unsigned	*temp;
 	unsigned	transpix, alphamask;
 	int			r, g, b;
 	unsigned	*rgba;
-	char name[MAX_QPATH];
+	char name[MAX_QPATH*2];
 
 	unsigned int stride = width;
 	width /= 2;
@@ -804,14 +805,63 @@ void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int 
 	if (width < 1 || height < 1 || stride != width*2 || !src)
 		return;
 
-	if (width*height > countof(trans))
+	//try to load dual-layer-single-image skies.
+	//this is always going to be lame special case crap
 	{
-		unsigned int wibuf[16] = {0};
-		shader->defaulttextures->base = R_LoadTexture("$blackimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
-		shader->defaulttextures->base = R_LoadReplacementTexture(skyname, NULL, 0, src, stride, height, TF_SOLID8);
-		shader->defaulttextures->fullbright = shader->defaulttextures->base;
-		return;
+		size_t filesize = 0;
+		qbyte *filedata = NULL;
+		if (!filedata)
+		{
+			Q_snprintfz(name, sizeof(name), "textures/%s.tga", skyname);
+			filedata = FS_LoadMallocFile(name, &filesize);
+		}
+		if (!filedata)
+		{
+			Q_snprintfz(name, sizeof(name), "textures/%s.png", skyname);
+			filedata = FS_LoadMallocFile(name, &filesize);
+		}
+
+		if (filedata)
+		{
+			int imagewidth, imageheight;
+			qboolean hasalpha;	//fixme, if this is false, is it worth all this code?
+			unsigned int *imagedata = (unsigned int*)Read32BitImageFile(filedata, filesize, &imagewidth, &imageheight, &hasalpha, name);
+			Z_Free(filedata);
+
+			if (imagedata && !(imagewidth&1))
+			{
+				imagewidth>>=1;
+
+				temp = BZF_Malloc(imagewidth*imageheight*sizeof(*temp));
+				if (temp)
+				{
+					for (i=0 ; i<height ; i++)
+						for (j=0 ; j<width ; j++)
+						{
+							temp[i*width+j] = imagedata[i*(width<<1)+j+width];
+						}
+					Q_snprintfz(name, sizeof(name), "%s_solid", skyname);
+					Q_strlwr(name);
+					shader->defaulttextures->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA, temp, imagewidth, imageheight, TF_RGBX32);
+
+					for (i=0 ; i<height ; i++)
+						for (j=0 ; j<width ; j++)
+						{
+							temp[i*width+j] = imagedata[i*(width<<1)+j];
+						}
+					BZ_Free(imagedata);
+					Q_snprintfz(name, sizeof(name), "%s_alpha:%s_trans", skyname, skyname);
+					Q_strlwr(name);
+					shader->defaulttextures->fullbright = R_LoadReplacementTexture(name, NULL, 0, temp, imagewidth, imageheight, TF_RGBA32);
+					BZ_Free(temp);
+					return;
+				}
+			}
+			BZ_Free(imagedata);
+		}
 	}
+
+	temp = BZ_Malloc(width*height*sizeof(*temp));
 
 	// make an average value for the back to avoid
 	// a fringe on the top level
@@ -822,7 +872,7 @@ void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int 
 		{
 			p = src[i*stride + j + width];
 			rgba = &d_8to24rgbtable[p];
-			trans[(i*width) + j] = *rgba;
+			temp[(i*width) + j] = *rgba;
 			r += ((qbyte *)rgba)[0];
 			g += ((qbyte *)rgba)[1];
 			b += ((qbyte *)rgba)[2];
@@ -832,11 +882,12 @@ void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int 
 	{
 		Q_snprintfz(name, sizeof(name), "%s_solid", skyname);
 		Q_strlwr(name);
-		shader->defaulttextures->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA, trans, width, height, TF_RGBX32);
+		shader->defaulttextures->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA, temp, width, height, TF_RGBX32);
 	}
 
 	if (!shader->defaulttextures->fullbright)
 	{
+		//fixme: use premultiplied alpha here.
 		((qbyte *)&transpix)[0] = r/(width*height);
 		((qbyte *)&transpix)[1] = g/(width*height);
 		((qbyte *)&transpix)[2] = b/(width*height);
@@ -847,15 +898,16 @@ void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int 
 			{
 				p = src[i*stride + j];
 				if (p == 0)
-					trans[(i*width) + j] = transpix;
+					temp[(i*width) + j] = transpix;
 				else
-					trans[(i*width) + j] = d_8to24rgbtable[p] & alphamask;
+					temp[(i*width) + j] = d_8to24rgbtable[p] & alphamask;
 			}
 
 		//FIXME: support _trans
-		Q_snprintfz(name, sizeof(name), "%s_alpha", skyname);
+		Q_snprintfz(name, sizeof(name), "%s_alpha:%s_trans", skyname, skyname);
 		Q_strlwr(name);
-		shader->defaulttextures->fullbright = R_LoadReplacementTexture(name, NULL, 0, trans, width, height, TF_RGBA32);
+		shader->defaulttextures->fullbright = R_LoadReplacementTexture(name, NULL, 0, temp, width, height, TF_RGBA32);
 	}
+	BZ_Free(temp);
 }
 #endif

@@ -37,7 +37,7 @@ qboolean SV_MayCheat(void)
 }
 
 extern cvar_t cl_warncmd;
-cvar_t sv_cheats = SCVARF("sv_cheats", "0", CVAR_LATCH);
+cvar_t sv_cheats = CVARF("sv_cheats", "0", CVAR_LATCH);
 	extern		redirect_t	sv_redirected;
 
 extern cvar_t sv_public;

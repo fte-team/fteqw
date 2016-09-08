@@ -377,17 +377,18 @@ typedef struct QCC_def_s
 	struct QCC_function_s	*scope;		// function the var was defined in, or NULL
 	struct QCC_def_s	*deftail;	// arrays and structs create multiple globaldef objects providing different types at the different parts of the single object (struct), or alternative names (vectors). this allows us to correctly set the const type based upon how its initialised.
 	struct QCC_def_s	*generatedfor;
-	int			initialized;	// 1 when a declaration included "= immediate". 2 = extern. 3 = don't warn (unless actually called)
+	int			initialized;	// 1 when a declaration included "= immediate". 2 = extern. 3 = don't warn (unless actually used)
 	int			constant;		// 1 says we can use the value over and over again
 
 	struct QCC_def_s	*symbolheader;	//this is the original symbol within which the def is stored.
-	union QCC_eval_s	*symboldata;	//null if uninitialised.
+	union QCC_eval_s	*symboldata;	//null if uninitialised. use sym->symboldata[sym->ofs] to index.
 	unsigned int		symbolsize;		//total byte size of symbol
 
 	int refcount;			//if 0, temp can be reused. tracked on globals too in order to catch bugs that would otherwise be a little too obscure.
 	int timescalled;	//part of the opt_stripfunctions optimisation.
 
-	int s_file;
+	const char *filen;
+	int s_filed;
 	int s_line;
 
 	int arraysize;
@@ -406,6 +407,8 @@ typedef struct QCC_def_s
 	pbool used:1;				//if it remains 0, it may be stripped. this is forced for functions and fields. commonly 0 on fields.
 	pbool localscope:1;			//is a local, as opposed to a static (which is only visible within its scope)
 	pbool arraylengthprefix:1;	//hexen2 style arrays have a length prefixed to them for auto bounds checks. this can only work reliably for simple non-struct arrays.
+	pbool assumedtype:1;		//#merged. the type is not reliable.
+	pbool weak:1;				//ignore any initialiser value (only permitted on functions)
 
 	int	fromstatement;		//statement that it is valid from.
 	temp_t *temp;
@@ -462,8 +465,9 @@ struct QCC_function_s
 {
 	int					builtin;	// the builtin number. >= 0
 	int					code;		// first statement. if -1, is a builtin.
-	string_t			s_file;		// source file with definition
-	const char			*file;
+	dfunction_t			*merged;	// this function was merged. this is the index to use to ensure that the parms are sized correctly..
+	string_t			s_filed;	// source file with definition
+	const char			*filen;
 	int					line;
 	char				*name;		//internal name of function
 	struct QCC_function_s *parentscope;	//for nested functions
@@ -568,6 +572,8 @@ extern pbool keyword_nosave;	//don't write the def to the output.
 extern pbool keyword_inline;	//don't write the def to the output.
 extern pbool keyword_strip;	//don't write the def to the output.
 extern pbool keyword_union;	//you surly know what a union is!
+extern pbool keyword_wrap;
+extern pbool keyword_weak;
 
 extern pbool keyword_unused;
 extern pbool keyword_used;
@@ -885,6 +891,8 @@ extern compiler_flag_t compiler_flag[];
 extern unsigned char qccwarningaction[WARN_MAX];
 
 extern	jmp_buf		pr_parse_abort;		// longjump with this on parse error
+extern const char	*s_filen;			//name of the file we're currently compiling.
+extern QCC_string_t	s_filed;			//name of the file we're currently compiling, as seen by whoever reads the .dat
 extern	int			pr_source_line;
 extern	char		*pr_file_p;
 
@@ -906,16 +914,18 @@ extern	int		pr_error_count, pr_warning_count;
 
 void QCC_PR_NewLine (pbool incomment);
 #define GDF_NONE		0
-#define GDF_SAVED	1
-#define GDF_STATIC	2
-#define GDF_CONST	4
-#define GDF_STRIP	8	//always stripped, regardless of optimisations. used for class member fields
-#define GDF_SILENT	16	//used by the gui, to suppress ALL warnings associated with querying the def.
-#define GDF_INLINE	32	//attempt to inline calls to this function
-#define GDF_USED	64	//don't strip this, ever.
+#define GDF_SAVED		1
+#define GDF_STATIC		2
+#define GDF_CONST		4
+#define GDF_STRIP		8	//always stripped, regardless of optimisations. used for class member fields
+#define GDF_SILENT		16	//used by the gui, to suppress ALL warnings associated with querying the def.
+#define GDF_INLINE		32	//attempt to inline calls to this function
+#define GDF_USED		64	//don't strip this, ever.
+#define GDF_BASICTYPE	128	//don't care about #merge types not being known correctly.
 QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
 QCC_sref_t QCC_PR_GetSRef (QCC_type_t *type, char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
 void QCC_FreeTemp(QCC_sref_t t);
+void QCC_FreeDef(QCC_def_t *def);
 char *QCC_PR_CheckCompConstTooltip(char *word, char *outstart, char *outend);
 
 void QCC_PR_PrintDefs (void);
@@ -939,8 +949,6 @@ pbool	QCC_PR_CompileFile (char *string, char *filename);
 void QCC_PR_ResetErrorScope(void);
 
 extern	pbool	pr_dumpasm;
-
-extern	QCC_string_t	s_file;			// filename for function definition
 
 extern	QCC_def_t	def_ret, def_parms[MAX_PARMS];
 
@@ -1006,7 +1014,7 @@ typedef struct
 	int block;
 	int used;
 	int fileline;
-	char *filename;
+	const char *filename;
 } precache_t;
 extern precache_t	*precache_sound;
 extern int			numsounds;
@@ -1060,7 +1068,7 @@ static bool inline QCC_PR_CheckToken (char *string)
 	return true;
 }
 
-static void inline QCC_PR_Expect (char *string)
+static void inline QCC_PR_Expect (const char *string)
 {
 	if (strcmp (string, pr_token))
 		QCC_PR_ParseError ("expected %s, found %s",string, pr_token);
@@ -1068,12 +1076,13 @@ static void inline QCC_PR_Expect (char *string)
 }
 #endif
 
-void editbadfile(char *fname, int line);
+void editbadfile(const char *fname, int line);
 char *TypeName(QCC_type_t *type, char *buffer, int buffersize);
 void QCC_PR_AddIncludePath(const char *newinc);
 void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename);
 void QCC_PR_IncludeChunkEx(char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst);
 void QCC_PR_CloseProcessor(void);
+void QCC_FindBestInclude(char *newfile, char *currentfile, pbool verbose);
 pbool QCC_PR_UnInclude(void);
 extern void *(*pHash_Get)(hashtable_t *table, const char *name);
 extern void *(*pHash_GetNext)(hashtable_t *table, const char *name, void *old);

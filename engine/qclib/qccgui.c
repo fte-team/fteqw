@@ -321,6 +321,57 @@ static pbool QCC_RegSetValue(HKEY base, char *keyname, char *valuename, int type
 }
 */
 
+typedef struct vfile_s
+{	//when originally running from a .dat, we load up all the functions and work from those rather than actual files.
+	//(these get re-written into the resulting .dat)
+	struct vfile_s *next;
+	void *fdata;
+	size_t fsize;
+	char name[1];
+} vfile_t;
+static vfile_t *qcc_vfiles;
+vfile_t *QCC_FindVFile(const char *name)
+{
+	vfile_t *f;
+	for (f = qcc_vfiles; f; f = f->next)
+	{
+		if (!strcmp(f->name, name))
+			return f;
+	}
+	//give it another go, for case
+	for (f = qcc_vfiles; f; f = f->next)
+	{
+		if (!QC_strcasecmp(f->name, name))
+			return f;
+	}
+	return NULL;
+}
+pbool QCC_AddVFile(const char *name, void *data, size_t size)
+{
+	vfile_t *f = QCC_FindVFile(name);
+	if (!f)
+	{
+		f = malloc(sizeof(vfile_t) + strlen(name));
+		f->next = qcc_vfiles;
+		strcpy(f->name, name);
+		qcc_vfiles = f;
+	}
+	else
+		free(f->fdata);
+	f->fdata = malloc(size);
+	memcpy(f->fdata, data, size);
+	f->fsize = size;
+	return true;
+}
+
+void QCC_EnumerateFilesResult(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize)
+{
+	void *buffer = malloc(plainsize);
+	if (QC_decode(NULL, compsize, plainsize, method, compdata, buffer))
+		QCC_AddVFile(name, buffer, plainsize);
+	free(buffer);
+}
+
 /*
 ==============
 LoadFile
@@ -330,6 +381,17 @@ unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, siz
 {
 	long    length;
 	FILE *f;
+	vfile_t *v = QCC_FindVFile(fname);
+	if (v)
+	{
+		if (len > v->fsize)
+			len = v->fsize;
+		memcpy(buffer, v->fdata, len);
+		if (sz)
+			*sz = len;
+		return buffer;
+	}
+
 	f = fopen(fname, "rb");
 	if (!f)
 		return NULL;
@@ -347,6 +409,11 @@ int PDECL QCC_RawFileSize (const char *fname)
 {
 	long    length;
 	FILE *f;
+
+	vfile_t *v = QCC_FindVFile(fname);
+	if (v)
+		return v->fsize;
+
 	f = fopen(fname, "rb");
 	if (!f)
 		return -1;
@@ -499,7 +566,10 @@ pbool PDECL QCC_WriteFile (const char *name, void *data, int len)
 		return false;
 #endif
 	}
-		
+
+	if (QCC_FindVFile(name))
+		return QCC_AddVFile(name, data, len);
+
 	f = fopen(name, "wb");
 	if (!f)
 		return false;
@@ -1241,7 +1311,7 @@ enum {
 
 static void EditorReload(editor_t *editor);
 int EditorSave(editor_t *edit);
-void EditFile(char *name, int line, pbool setcontrol);
+void EditFile(const char *name, int line, pbool setcontrol);
 pbool EditorModified(editor_t *e);
 
 void QueryOpenFile(void)
@@ -1786,7 +1856,7 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 		{
 			if (line > functions[fno].line && bestline < functions[fno].line)
 			{
-				if (!strcmp(editor->filename, functions[fno].file))
+				if (!strcmp(editor->filename, functions[fno].filen))
 				{
 					best = fno;
 					bestline = functions[fno].line;
@@ -2046,7 +2116,9 @@ static void UpdateEditorTitle(editor_t *editor)
 		encoding = "unknown";
 		break;
 	}
-	if (editor->modified)
+	if (QCC_FindVFile(editor->filename))
+		sprintf(title, "%s:%i - Virtual", editor->filename, 1+editor->curline);
+	else if (editor->modified)
 		sprintf(title, "*%s:%i - %s", editor->filename, 1+editor->curline, encoding);
 	else
 		sprintf(title, "%s:%i - %s", editor->filename, 1+editor->curline, encoding);
@@ -2386,7 +2458,7 @@ static void EditorReload(editor_t *editor)
 }
 
 //line is 0-based. use -1 for no reselection
-void EditFile(char *name, int line, pbool setcontrol)
+void EditFile(const char *name, int line, pbool setcontrol)
 {
 	char title[1024];
 	editor_t *neweditor;
@@ -2714,7 +2786,7 @@ unsigned char *GUIReadFile(const char *fname, void *buffer, int blen, size_t *sz
 			//our qcc itself is fine with utf-16, so long as it has a BOM.
 			if (e->scintilla)
 			{
-				SendMessage(e->editpane, SCI_GETTEXT, blen, (LPARAM)buffer);
+				blen = SendMessage(e->editpane, SCI_GETTEXT, blen, (LPARAM)buffer);
 			}
 			else if (e->savefmt == UTF_ANSI)
 			{
@@ -2738,7 +2810,9 @@ unsigned char *GUIReadFile(const char *fname, void *buffer, int blen, size_t *sz
 							SendMessage(e->editpane, SCI_SETSAVEPOINT, 0, 0);	//tell the control that it was saved.
 						}
 						else
+						{
 							QCC_WriteFileW(e->filename, (wchar_t*)buffer+1, blen);
+						}
 					}
 				}
 			}
@@ -5323,6 +5397,8 @@ void UpdateFileList(void)
 		int size;
 		char *buffer;
 
+		AddSourceFile(NULL, progssrcname);
+
 		f = fopen (progssrcname, "rb");
 		if (!f)
 			return;
@@ -5343,14 +5419,15 @@ void UpdateFileList(void)
 		if (*qcc_token == '#')
 		{
 			//aaaahhh! newstyle!
-			AddSourceFile(NULL, progssrcname);
 		}
 		else
 		{
 			pr_file_p = QCC_COM_Parse(pr_file_p);	//we dont care about the produced progs.dat
-			AddSourceFile(NULL, progssrcname);
 			while(pr_file_p)
 			{
+				if (*qcc_token == '#')	//panic if there's preprocessor in there.
+					break;
+
 				AddSourceFile(progssrcname, qcc_token);
 				pr_file_p = QCC_COM_Parse(pr_file_p);	//we dont care about the produced progs.dat
 			}
@@ -5551,6 +5628,38 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	}
 
 	ShowWindow(mainwindow, SW_SHOWDEFAULT);
+
+	{
+		char *ext = strrchr(progssrcname, '.');
+		if (ext && !QC_strcasecmp(ext, ".dat"))
+		{
+			FILE *f = fopen(progssrcname, "rb");
+			if (f)
+			{
+				char *buf;
+				size_t size;
+
+				fseek(f, 0, SEEK_END);
+				size = ftell(f);
+				fseek(f, 0, SEEK_SET);
+				buf = malloc(size);
+				fread(buf, 1, size, f);
+				fclose(f);
+				QC_EnumerateFilesFromBlob(buf, size, QCC_EnumerateFilesResult);
+				free(buf);
+			}
+			strcpy(progssrcname, "progs.src");
+
+			for (i = 0; ; i++)
+			{
+				if (!strcmp("embedsrc", compiler_flag[i].abbrev))
+				{
+					compiler_flag[i].flags |= FLAG_SETINGUI;
+					break;
+				}
+			}
+		}
+	}
 
 	if (fl_compileonstart)
 	{

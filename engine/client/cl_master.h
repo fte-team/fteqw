@@ -173,6 +173,8 @@ extern struct selectedserver_s
 	qboolean inuse;
 	netadr_t adr;
 	float	refreshtime;
+	int		lastplayer;
+	char	lastrule[64];
 
 	serverdetailedinfo_t *detail;
 

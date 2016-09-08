@@ -40,7 +40,7 @@ cvar_t	sv_demofps = CVAR("sv_demofps", "30");
 cvar_t	sv_demoPings = CVARD("sv_demoPings", "10", "Interval between ping updates in mvds");
 cvar_t	sv_demoMaxSize = CVARD("sv_demoMaxSize", "", "Demos will be truncated to be no larger than this size.");
 cvar_t	sv_demoExtraNames = CVAR("sv_demoExtraNames", "");
-cvar_t	sv_demoExtensions = CVARD("sv_demoExtensions", "0", "Enables protocol extensions within MVDs. This will cause older/non-fte clients to error upon playback");
+cvar_t	sv_demoExtensions = CVARD("sv_demoExtensions", "", "Enables protocol extensions within MVDs. This will cause older/non-fte clients to error upon playback.\n0: off.\n1: all extensions.\n2: extensions also supported by a certain other engine.");
 
 cvar_t qtv_password		= CVAR(		"qtv_password", "");
 cvar_t qtv_streamport	= CVARAF(	"qtv_streamport", "0",
@@ -105,7 +105,7 @@ static void DestClose(mvddest_t *d, enum mvdclosereason_e reason)
 	else if (d->desttype != DEST_STREAM)
 	{
 		char buf[512];
-		SV_BroadcastPrintf (PRINT_CHAT, "Server recording complete\n/download demos/%s", COM_QuotedString(d->name, buf, sizeof(buf), false));
+		SV_BroadcastPrintf (PRINT_CHAT, "Server recording complete\n^[/download %s^]\n", COM_QuotedString(va("demos/%s",d->name), buf, sizeof(buf), false));
 	}
 
 	Z_Free(d);
@@ -134,8 +134,11 @@ void DestFlush(qboolean compleate)
 	int len;
 	mvddest_t *d, *t;
 
-	//make sure everything is flushed.
-	MVDWrite_Begin(255, -1, 0);
+	if (compleate)
+	{
+		//make sure everything is flushed.
+		MVDWrite_Begin(255, -1, 0);
+	}
 
 	if (!demo.dest)
 		return;
@@ -380,7 +383,7 @@ void SV_MVD_RunPendingConnections(void)
 							start = start+1;
 							while(*start == ' ' || *start == '\t')
 								start++;
-							Con_Printf("qtv, got (%s) (%s)\n", com_token, start);
+							Con_DPrintf("qtv, got (%s) (%s)\n", com_token, start);
 							if (!strcmp(com_token, "VERSION"))
 							{
 								start = COM_ParseToken(start, NULL);
@@ -428,6 +431,14 @@ void SV_MVD_RunPendingConnections(void)
 							else if (!strcmp(com_token, "COMPRESSION"))
 							{
 								//compression not supported yet
+							}
+							else if (!strcmp(com_token, "QTV_EZQUAKE_EXT"))
+							{
+								//if we were treating this as a regular client over tcp (qizmo...)
+							}
+							else if (!strcmp(com_token, "USERINFO"))
+							{
+								//if we were treating this as a regular client over tcp (qizmo...)
 							}
 							else
 							{
@@ -865,77 +876,9 @@ void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player)
 	MSG_WriteString (msg, info);
 }
 
-#if 0
-/*
-==============
-DemoWriteToDisk
-
-Writes to disk a message meant for specifc client
-or all messages if type == 0
-Message is cleared from demobuf after that
-==============
-*/
-
-static void SV_MVDWriteToDisk(int type, int to, float time)
-{
-	int pos = 0, oldm, oldd;
-	header_t *p;
-	int	size;
-	sizebuf_t msg;
-
-	p = (header_t *)demo.dbuf->sb.data;
-	demo.dbuf->h = NULL;
-
-	oldm = demo.dbuf->bufsize;
-	oldd = demobuffer->start;
-	while (pos < demo.dbuf->bufsize)
-	{
-		size = p->size;
-		pos += header + size;
-
-		// no type means we are writing to disk everything
-		if (!type || (p->type == type && p->to == to))
-		{
-			if (size)
-			{
-				msg.data = p->data;
-				msg.cursize = size;
-
-				SV_WriteMVDMessage(&msg, p->type, p->to, time);
-			}
-
-			// data is written so it need to be cleard from demobuf
-			if (demo.dbuf->sb.data != (qbyte*)p)
-				memmove(demo.dbuf->sb.data + size + header, demo.dbuf->sb.data, (qbyte*)p - demo.dbuf->sb.data);
-
-			demo.dbuf->bufsize -= size + header;
-			demo.dbuf->sb.data += size + header;
-			pos -= size + header;
-			demo.dbuf->sb.maxsize -= size + header;
-			demobuffer->start += size + header;
-		}
-		// move along
-		p = (header_t *)(p->data + size);
-	}
-
-	if (demobuffer->start == demobuffer->last)
-	{
-		if (demobuffer->start == demobuffer->end)
-		{
-			demobuffer->end = 0; // demobuffer is empty
-			demo.dbuf->sb.data = demobuffer->data;
-		}
-
-		// go back to begining of the buffer
-		demobuffer->last = demobuffer->end;
-		demobuffer->start = 0;
-	}
-}
-#endif
-
 sizebuf_t *MVDWrite_Begin(qbyte type, int to, int size)
 {
-	if (demomsg.cursize && demomsgtype != type && demomsgto != to && demomsg.cursize+size > sizeof(demomsgbuf))
+	if (demomsg.cursize && (demomsgtype != type || demomsgto != to || demomsg.cursize+size > sizeof(demomsgbuf)))
 	{
 		SV_WriteMVDMessage(&demomsg, demomsgtype, demomsgto, demo_prevtime);
 		demomsg.cursize = 0;
@@ -945,51 +888,9 @@ sizebuf_t *MVDWrite_Begin(qbyte type, int to, int size)
 	demomsgto = to;
 
 	demomsg.maxsize = demomsg.cursize+size;
-	demomsg.cursize = 0;
 	demomsg.data = demomsgbuf;
 	demomsg.prim = demo.recorder.netchan.netprim;
 	return &demomsg;
-#if 0
-	qbyte *p;
-	qboolean move = false;
-
-	// will it fit?
-	while (demo.dbuf->bufsize + size + header > demo.dbuf->sb.maxsize)
-	{
-		// if we reached the end of buffer move msgbuf to the begining
-		if (!move && demobuffer->end > demobuffer->start)
-			move = true;
-
-		if (!SV_MVDWritePackets(1))
-			return false;
-
-		if (move && demobuffer->start > demo.dbuf->bufsize + header + size)
-			MVDMoveBuf();
-	}
-
-	if (demo.dbuf->h == NULL || demo.dbuf->h->type != type || demo.dbuf->h->to != to || demo.dbuf->h->full) {
-		MVDSetBuf(type, to);
-	}
-
-	if (demo.dbuf->h->size + size > MAX_QWMSGLEN)
-	{
-		demo.dbuf->h->full = 1;
-		MVDSetBuf(type, to);
-	}
-
-	// we have to make room for new data
-	if (demo.dbuf->sb.cursize != demo.dbuf->bufsize) {
-		p = demo.dbuf->sb.data + demo.dbuf->sb.cursize;
-		memmove(p+size, p, demo.dbuf->bufsize - demo.dbuf->sb.cursize);
-	}
-
-	demo.dbuf->bufsize += size;
-	demo.dbuf->h->size += size;
-	if ((demobuffer->end += size) > demobuffer->last)
-		demobuffer->last = demobuffer->end;
-
-	return true;
-#endif
 }
 
 /*
@@ -1007,19 +908,30 @@ void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time)
 	if (!sv.mvdrecording)
 		return;
 
+	if (msg->overflowed)
+	{
+		msg->overflowed = false;
+		Con_Printf("SV_WriteMVDMessage: message overflowed\n");
+		return;
+	}
+
 	msec = (time - demo_prevtime)*1000;
 	if (abs(msec) > 1000)
 	{
 		//catastoptic slip. debugging? reset any sync
-		msec = 0;
+		msec = 1;
 		demo_prevtime = time;
 	}
-	else
-	{
-		if (msec > 255) msec = 255;
-		if (msec < 2) msec = 0;
+	else if (msec > 0)
+	{	//if there was any progress, make sure we write msecs >0
+		if (msec > 255)
+			msec = 255;
+		if (msec < 1)
+			msec = 1;
 		demo_prevtime += msec*0.001;
 	}
+	else
+		msec = 0;
 
 	c = msec;
 	DemoWrite(&c, sizeof(c));
@@ -1065,20 +977,23 @@ void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time)
 }
 
 //if you use ClientReliable to write to demo.recorder's message buffer (for code reuse) call this function to ensure its flushed.
-void SV_MVD_WriteReliables(void)
+void SV_MVD_WriteReliables(qboolean writebroadcasts)
 {
 	int i;
 
-	//chuck in the broadcast reliables
-	ClientReliableCheckBlock(&demo.recorder, sv.reliable_datagram.cursize);
-	ClientReliableWrite_SZ(&demo.recorder, sv.reliable_datagram.data, sv.reliable_datagram.cursize);
-	//and the broadcast unreliables. everything is reliables when it comes to mvds
-	ClientReliableCheckBlock(&demo.recorder, sv.datagram.cursize);
-	ClientReliableWrite_SZ(&demo.recorder, sv.datagram.data, sv.datagram.cursize);
+	if (writebroadcasts)
+	{
+		//chuck in the broadcast reliables
+		ClientReliableCheckBlock(&demo.recorder, sv.reliable_datagram.cursize);
+		ClientReliableWrite_SZ(&demo.recorder, sv.reliable_datagram.data, sv.reliable_datagram.cursize);
+		//and the broadcast unreliables. everything is reliables when it comes to mvds
+		ClientReliableCheckBlock(&demo.recorder, sv.datagram.cursize);
+		ClientReliableWrite_SZ(&demo.recorder, sv.datagram.data, sv.datagram.cursize);
+	}
 
 	if (demo.recorder.netchan.message.cursize)
 	{
-		SV_WriteMVDMessage(&demo.recorder.netchan.message, dem_all, 0, sv.time);
+		SV_WriteMVDMessage(&demo.recorder.netchan.message, dem_all, 0, demo_prevtime);
 		demo.recorder.netchan.message.cursize = 0;
 	}
 	for (i = 0; i < demo.recorder.num_backbuf; i++)
@@ -1086,7 +1001,7 @@ void SV_MVD_WriteReliables(void)
 		demo.recorder.backbuf.data = demo.recorder.backbuf_data[i];
 		demo.recorder.backbuf.cursize = demo.recorder.backbuf_size[i];
 		if (demo.recorder.backbuf.cursize)
-			SV_WriteMVDMessage(&demo.recorder.backbuf, dem_all, 0, sv.time);
+			SV_WriteMVDMessage(&demo.recorder.backbuf, dem_all, 0, demo_prevtime);
 		demo.recorder.backbuf_size[i] = 0;
 	}
 	demo.recorder.num_backbuf = 0;
@@ -1143,6 +1058,8 @@ qboolean SV_MVDWritePackets (int num)
 	//flush any intermediate data
 	MVDWrite_Begin(255, -1, 0);
 
+	msg.allowoverflow = true;	//fixme
+	msg.overflowed = false;
 	msg.prim = svs.netprim;
 	msg.data = msg_buf;
 	msg.maxsize = sizeof(msg_buf);
@@ -1714,6 +1631,7 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 	if (!dest)
 		return false;
 
+	SV_MVD_WriteReliables(false);
 	DestFlush(true);
 
 	if (!sv.mvdrecording)
@@ -1726,7 +1644,7 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 		demo.datagram.data = demo.datagram_data;
 		demo.datagram.prim = demo.recorder.netchan.netprim;
 
-		if (sv_demoExtensions.ival == 2)
+		if (sv_demoExtensions.ival == 2 || !*sv_demoExtensions.string)
 		{	/*more limited subset supported by ezquake*/
 			demo.recorder.fteprotocolextensions = PEXT_CHUNKEDDOWNLOADS|PEXT_256PACKETENTITIES|PEXT_FLOATCOORDS|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SPAWNSTATIC2;
 //			demo.recorder.fteprotocolextensions |= PEXT_HLBSP;	/*ezquake DOES have this, but it is pointless and should have been in some feature mask rather than protocol extensions*/
@@ -1773,6 +1691,7 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 	SV_MVD_SendInitialGamestate(dest);
 	return true;
 }
+
 void SV_EnableClientsCSQC(void);
 void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 {
@@ -1788,7 +1707,10 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	if (!demo.dest)
 		return;
 
+	SV_MVD_WriteReliables(false);
+
 	sv.mvdrecording = true;
+	demo.resetdeltas = true;
 
 	host_client = &demo.recorder;
 	if (host_client->fteprotocolextensions & PEXT_CSQC)
@@ -1860,7 +1782,6 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	SV_WriteRecordMVDMessage (&buf);
 	SZ_Clear (&buf);
 
-#if 1
 	demo.recorder.prespawn_stage = PRESPAWN_SERVERINFO;
 	demo.recorder.prespawn_idx = 0;
 	demo.recorder.netchan.message = buf;
@@ -1875,181 +1796,10 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 		demo.recorder.prespawn_allow_modellist = true;	//normally set for the server to wait for ack. we don't want to wait.
 
 		SV_SendClientPrespawnInfo(&demo.recorder);
-		SV_WriteRecordMVDMessage (&demo.recorder.netchan.message);
-		SZ_Clear (&demo.recorder.netchan.message);
+		SV_MVD_WriteReliables(false);
 	}
 	memset(&demo.recorder.netchan.message, 0, sizeof(demo.recorder.netchan.message));
-#else
-	// send music
-	MSG_WriteByte (&buf, svc_cdtrack);
-	MSG_WriteByte (&buf, 0); // none in demos
 
-	// send server info string
-	MSG_WriteByte (&buf, svc_stufftext);
-	MSG_WriteString (&buf, va("fullserverinfo \"%s\"\n", svs.info) );
-
-	// flush packet
-	SV_WriteRecordMVDMessage (&buf);
-	SZ_Clear (&buf);
-
-// soundlist
-	MSG_WriteByte (&buf, svc_soundlist); /*FIXME: soundlist2*/
-	MSG_WriteByte (&buf, 0);
-
-	n = 0;
-	s = sv.strings.sound_precache[n+1];
-	while (*s)
-	{
-		MSG_WriteString (&buf, s);
-		if (buf.cursize > MAX_QWMSGLEN/2)
-		{
-			MSG_WriteByte (&buf, 0);
-			MSG_WriteByte (&buf, n);
-			SV_WriteRecordMVDMessage (&buf);
-			SZ_Clear (&buf);
-			MSG_WriteByte (&buf, svc_soundlist);
-			MSG_WriteByte (&buf, n + 1);
-		}
-		n++;
-		s = sv.strings.sound_precache[n+1];
-	}
-
-	if (buf.cursize)
-	{
-		MSG_WriteByte (&buf, 0);
-		MSG_WriteByte (&buf, 0);
-		SV_WriteRecordMVDMessage (&buf);
-		SZ_Clear (&buf);
-	}
-
-// modellist
-	MSG_WriteByte (&buf, svc_modellist); /*FIXME: modellist2*/
-	MSG_WriteByte (&buf, 0);
-
-	n = 0;
-	s = sv.strings.model_precache[n+1];
-	while (s)
-	{
-		MSG_WriteString (&buf, s);
-		if (buf.cursize > MAX_QWMSGLEN/2)
-		{
-			MSG_WriteByte (&buf, 0);
-			MSG_WriteByte (&buf, n);
-			SV_WriteRecordMVDMessage (&buf);
-			SZ_Clear (&buf);
-			MSG_WriteByte (&buf, svc_modellist);
-			MSG_WriteByte (&buf, n + 1);
-		}
-		n++;
-		s = sv.strings.model_precache[n+1];
-	}
-	if (buf.cursize)
-	{
-		MSG_WriteByte (&buf, 0);
-		MSG_WriteByte (&buf, 0);
-		SV_WriteRecordMVDMessage (&buf);
-		SZ_Clear (&buf);
-	}
-
-// baselines
-	{
-		entity_state_t from;
-		edict_t *ent;
-		entity_state_t *state;
-
-		memset(&from, 0, sizeof(from));
-
-		for (n = 0; n < sv.world.num_edicts; n++)
-		{
-			ent = EDICT_NUM(svprogfuncs, n);
-			state = &ent->baseline;
-
-			if (!state->number || !state->modelindex)
-			{	//ent doesn't have a baseline
-				continue;
-			}
-
-			if (demo.recorder.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-			{
-				MSG_WriteByte(&buf, svcfte_spawnbaseline2);
-				SVFTE_EmitBaseline(state, true, &buf);
-			}
-			else if (!ent)
-			{
-				MSG_WriteByte(&buf, svc_spawnbaseline);
-
-				MSG_WriteShort (&buf, n);
-
-				MSG_WriteByte (&buf, 0);
-
-				MSG_WriteByte (&buf, 0);
-				MSG_WriteByte (&buf, 0);
-				MSG_WriteByte (&buf, 0);
-				for (i=0 ; i<3 ; i++)
-				{
-					MSG_WriteCoord(&buf, 0);
-					MSG_WriteAngle(&buf, 0);
-				}
-			}
-			else if (demo.recorder.fteprotocolextensions & PEXT_SPAWNSTATIC2)
-			{
-				MSG_WriteByte(&buf, svcfte_spawnbaseline2);
-				SVQW_WriteDelta(&from, state, &buf, true, demo.recorder.fteprotocolextensions);
-			}
-			else
-			{
-				MSG_WriteByte(&buf, svc_spawnbaseline);
-
-				MSG_WriteShort (&buf, n);
-
-				MSG_WriteByte (&buf, state->modelindex&255);
-
-				MSG_WriteByte (&buf, state->frame);
-				MSG_WriteByte (&buf, (int)state->colormap);
-				MSG_WriteByte (&buf, (int)state->skinnum);
-				for (i=0 ; i<3 ; i++)
-				{
-					MSG_WriteCoord(&buf, state->origin[i]);
-					MSG_WriteAngle(&buf, state->angles[i]);
-				}
-			}
-			if (buf.cursize > MAX_QWMSGLEN/2)
-			{
-				SV_WriteRecordMVDMessage (&buf);
-				SZ_Clear (&buf);
-			}
-		}
-	}
-
-	//prespawn
-
-	for (n = 0; n < sv.num_signon_buffers; n++)
-	{
-		if (buf.cursize+sv.signon_buffer_size[n] > MAX_QWMSGLEN/2)
-		{
-			SV_WriteRecordMVDMessage (&buf);
-			SZ_Clear (&buf);
-		}
-		SZ_Write (&buf,
-			sv.signon_buffers[n],
-			sv.signon_buffer_size[n]);
-	}
-
-	if (buf.cursize > MAX_QWMSGLEN/2)
-	{
-		SV_WriteRecordMVDMessage (&buf);
-		SZ_Clear (&buf);
-	}
-
-	MSG_WriteByte (&buf, svc_stufftext);
-	MSG_WriteString (&buf, va("cmd spawn %i\n",svs.spawncount) );
-
-	if (buf.cursize)
-	{
-		SV_WriteRecordMVDMessage (&buf);
-		SZ_Clear (&buf);
-	}
-#endif
 // send current status of all other players
 
 	for (i = 0; i < demo.recorder.max_net_clients && i < svs.allocated_client_slots; i++)
@@ -2060,6 +1810,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 		if (buf.cursize > MAX_QWMSGLEN/2)
 		{
+			//flush backbuffer
 			SV_WriteRecordMVDMessage (&buf);
 			SZ_Clear (&buf);
 		}
@@ -2096,8 +1847,8 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	{
 		for (j = 0; j < MAX_CL_STATS; j++)
 		{
-			demo.statsi[i][j] ^= -1;
-			demo.statsf[i][j] *= -0.41426712;	//randomish value
+			demo.statsi[i][j] = 0x7fffffff;
+			demo.statsf[i][j] = -0x7fffffff;
 		}
 		demo.playerreset[i] = true;
 	}
@@ -2108,7 +1859,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	MSG_WriteString (&buf, "skins\n");
 
 	SV_WriteRecordMVDMessage (&buf);
-
+	SV_MVD_WriteReliables(false);
 	SV_WriteSetMVDMessage();
 
 	singledest = NULL;

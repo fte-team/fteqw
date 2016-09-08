@@ -33,7 +33,7 @@ cvar_t	cl_nodelta = CVAR("cl_nodelta","0");
 
 cvar_t	cl_c2sdupe = CVAR("cl_c2sdupe", "0");
 cvar_t	cl_c2spps = CVAR("cl_c2spps", "0");
-cvar_t	cl_c2sImpulseBackup = SCVAR("cl_c2sImpulseBackup","3");
+cvar_t	cl_c2sImpulseBackup = CVAR("cl_c2sImpulseBackup","3");
 cvar_t	cl_netfps = CVAR("cl_netfps", "150");
 cvar_t	cl_sparemsec = CVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
 cvar_t  cl_queueimpulses = CVAR("cl_queueimpulses", "0");
@@ -555,17 +555,17 @@ void CL_ProxyMenuHooks(void)
 
 //==========================================================================
 
-cvar_t	cl_upspeed = SCVARF("cl_upspeed","400", CVAR_ARCHIVE);
-cvar_t	cl_forwardspeed = SCVARF("cl_forwardspeed","400", CVAR_ARCHIVE);
+cvar_t	cl_upspeed = CVARF("cl_upspeed","400", CVAR_ARCHIVE);
+cvar_t	cl_forwardspeed = CVARF("cl_forwardspeed","400", CVAR_ARCHIVE);
 cvar_t	cl_backspeed = CVARFD("cl_backspeed","", CVAR_ARCHIVE, "The base speed that you move backwards at. If empty, uses the value of cl_forwardspeed instead.");
-cvar_t	cl_sidespeed = SCVARF("cl_sidespeed","400", CVAR_ARCHIVE);
+cvar_t	cl_sidespeed = CVARF("cl_sidespeed","400", CVAR_ARCHIVE);
 
-cvar_t	cl_movespeedkey = SCVAR("cl_movespeedkey","2.0");
+cvar_t	cl_movespeedkey = CVAR("cl_movespeedkey","2.0");
 
-cvar_t	cl_yawspeed = SCVAR("cl_yawspeed","140");
-cvar_t	cl_pitchspeed = SCVAR("cl_pitchspeed","150");
+cvar_t	cl_yawspeed = CVAR("cl_yawspeed","140");
+cvar_t	cl_pitchspeed = CVAR("cl_pitchspeed","150");
 
-cvar_t	cl_anglespeedkey = SCVAR("cl_anglespeedkey","1.5");
+cvar_t	cl_anglespeedkey = CVAR("cl_anglespeedkey","1.5");
 
 
 void CL_GatherButtons (usercmd_t *cmd, int pnum)

@@ -2785,6 +2785,19 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
 		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(neterrno()));
 
+	//ipv6 sockets need to add themselves to a multicast group, so that we can receive broadcasts on a lan
+#if defined(IPPROTO_IPV6)
+	if (family == AF_INET6 || hybrid || isserver)
+	{
+		struct ipv6_mreq req;
+		memset(&req, 0, sizeof(req));
+		req.ipv6mr_multiaddr.s6_addr[0] = 0xff;
+		req.ipv6mr_multiaddr.s6_addr[1] = 0x02;
+		req.ipv6mr_multiaddr.s6_addr[15]= 0x01;
+		req.ipv6mr_interface = 0;
+		setsockopt(newsocket, IPPROTO_IPV6, IPV6_JOIN_GROUP, (char *)&req, sizeof(req));
+	}
+#endif
 
 	//
 	// determine my name & address if we don't already know it

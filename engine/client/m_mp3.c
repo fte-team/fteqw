@@ -256,10 +256,10 @@ qboolean Media_EvaluateNextTrack(void);
 
 int lasttrackplayed;
 
-cvar_t media_shuffle = SCVAR("media_shuffle", "1");
-cvar_t media_repeat = SCVAR("media_repeat", "1");
+cvar_t media_shuffle = CVAR("media_shuffle", "1");
+cvar_t media_repeat = CVAR("media_repeat", "1");
 #ifdef WINAMP
-cvar_t media_hijackwinamp = SCVAR("media_hijackwinamp", "0");
+cvar_t media_hijackwinamp = CVAR("media_hijackwinamp", "0");
 #endif
 
 int selectedoption=-1;

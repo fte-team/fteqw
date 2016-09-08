@@ -102,11 +102,11 @@ static dllfunction_t sqlitefuncs[] =
 dllhandle_t *sqlitehandle;
 #endif
 
-cvar_t sql_driver = SCVARF("sv_sql_driver", "", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_host = SCVARF("sv_sql_host", "127.0.0.1", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_username = SCVARF("sv_sql_username", "", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_password = SCVARF("sv_sql_password", "", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_defaultdb = SCVARF("sv_sql_defaultdb", "", CVAR_NOUNSAFEEXPAND);
+cvar_t sql_driver = CVARF("sv_sql_driver", "", CVAR_NOUNSAFEEXPAND);
+cvar_t sql_host = CVARF("sv_sql_host", "127.0.0.1", CVAR_NOUNSAFEEXPAND);
+cvar_t sql_username = CVARF("sv_sql_username", "", CVAR_NOUNSAFEEXPAND);
+cvar_t sql_password = CVARF("sv_sql_password", "", CVAR_NOUNSAFEEXPAND);
+cvar_t sql_defaultdb = CVARF("sv_sql_defaultdb", "", CVAR_NOUNSAFEEXPAND);
 
 void SQL_PushResult(sqlserver_t *server, queryresult_t *qres)
 {

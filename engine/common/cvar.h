@@ -103,8 +103,6 @@ typedef struct cvar_s
 #define CVARD(ConsoleName,Value,Description)					CVARAFDC(ConsoleName, Value, NULL, 0, Description, NULL)
 #define CVAR(ConsoleName,Value)									CVARD(ConsoleName, Value, NULL)
 
-#define SCVAR(ConsoleName,Value) CVAR(ConsoleName,Value)
-#define SCVARF(ConsoleName,Value,Flags) CVARF(ConsoleName,Value,Flags)
 #define CVARDP4(Flags,ConsoleName,Value,Description) CVARFD(ConsoleName, Value, Flags,Description)
 
 typedef struct cvar_group_s

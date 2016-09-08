@@ -738,7 +738,7 @@ typedef struct {
 	int		maxsize;
 } dbuffer_t;
 
-#define DEMO_FRAMES 64
+#define DEMO_FRAMES 64	//why is this not just 2?
 #define DEMO_FRAMES_MASK (DEMO_FRAMES - 1)
 
 typedef struct
@@ -758,6 +758,7 @@ typedef struct
 	qboolean	fixangle[MAX_CLIENTS];
 	float		fixangletime[MAX_CLIENTS];
 	vec3_t		angles[MAX_CLIENTS];
+	qboolean	resetdeltas;
 	int			parsecount;
 	int			lastwritten;
 	demo_frame_t	frames[DEMO_FRAMES];
@@ -1486,7 +1487,7 @@ char *SV_Demo_CurrentOutput(void);
 void SV_MVDInit(void);
 char *SV_MVDNum(char *buffer, int bufferlen, int num);
 void SV_SendMVDMessage(void);
-void SV_MVD_WriteReliables(void);
+void SV_MVD_WriteReliables(qboolean writebroadcasts);
 qboolean SV_ReadMVD (void);
 void SV_FlushDemoSignon (void);
 void DestFlush(qboolean compleate);

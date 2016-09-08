@@ -407,6 +407,7 @@ static void SL_PreDraw	(menu_t *menu)
 	info->numslots = Master_NumSorted();
 	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u/%u/%u\n", info->numslots, Master_NumAlive(), Master_TotalCount());
 }
+void NET_SendPollPacket(int len, void *data, netadr_t to);
 static void SL_PostDraw	(menu_t *menu)
 {
 	static char *helpstrings[] =
@@ -436,7 +437,32 @@ static void SL_PostDraw	(menu_t *menu)
 		{
 			selectedserver.refreshtime = realtime + 4;
 			server->sends++;
-			Master_QueryServer(server);
+#ifdef NQPROT
+			//we might have gotten stuck. reset the poll
+			if ((server->special&SS_PROTOCOLMASK) == SS_NETQUAKE)
+			{	//start spamming the server to get all of its details. silly protocols.
+				selectedserver.lastplayer = 0;
+				*selectedserver.lastrule = 0;
+
+				SZ_Clear(&net_message);
+				net_message.packing = SZ_RAWBYTES;
+				net_message.currentbit = 0;
+				MSG_WriteLong(&net_message, 0);// save space for the header, filled in later
+				MSG_WriteByte(&net_message, CCREQ_PLAYER_INFO);
+				MSG_WriteByte(&net_message, selectedserver.lastplayer);
+				*((int *)net_message.data) = BigLong(NETFLAG_CTL | (net_message.cursize & NETFLAG_LENGTH_MASK));
+				NET_SendPollPacket(net_message.cursize, net_message.data, server->adr);
+				SZ_Clear(&net_message);
+				MSG_WriteLong(&net_message, 0);// save space for the header, filled in later
+				MSG_WriteByte(&net_message, CCREQ_RULE_INFO);
+				MSG_WriteString(&net_message, selectedserver.lastrule);
+				*((int *)net_message.data) = BigLong(NETFLAG_CTL | (net_message.cursize & NETFLAG_LENGTH_MASK));
+				NET_SendPollPacket(net_message.cursize, net_message.data, server->adr);
+				SZ_Clear(&net_message);
+			}
+			else
+#endif
+				Master_QueryServer(server);
 		}
 		R2D_ImageColours(1,1,1,1);
 		if (server && server->moreinfo)

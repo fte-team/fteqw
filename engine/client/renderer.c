@@ -87,46 +87,48 @@ extern cvar_t r_forceprogramify;
 cvar_t mod_md3flags							= CVARD  ("mod_md3flags", "1", "The flags field of md3s was never officially defined. If this is set to 1, the flags will be treated identically to mdl files. Otherwise they will be ignored. Naturally, this is required to provide rotating pickups in quake.");
 
 cvar_t r_ambient							= CVARF ("r_ambient", "0",
-												CVAR_CHEAT);
+													CVAR_CHEAT);
 cvar_t r_bloodstains						= CVARF  ("r_bloodstains", "1", CVAR_ARCHIVE);
 cvar_t r_bouncysparks						= CVARFD ("r_bouncysparks", "1",
-												CVAR_ARCHIVE,
-												"Enables particle interaction with world surfaces, allowing for bouncy particles, stains, and decals.");
+													CVAR_ARCHIVE,
+													"Enables particle interaction with world surfaces, allowing for bouncy particles, stains, and decals.");
 cvar_t r_drawentities						= CVAR  ("r_drawentities", "1");
 cvar_t r_drawflat							= CVARAF ("r_drawflat", "0", "gl_textureless",
-												CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
+													CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
+cvar_t r_lightmap							= CVARF ("r_lightmap", "0",
+													CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
 cvar_t r_wireframe							= CVARFD ("r_wireframe", "0",
-												CVAR_CHEAT, "Developer feature where everything is drawn with wireframe over the top. Only active where cheats are permitted.");
+													CVAR_CHEAT, "Developer feature where everything is drawn with wireframe over the top. Only active where cheats are permitted.");
 cvar_t r_wireframe_smooth					= CVAR ("r_wireframe_smooth", "0");
 cvar_t r_refract_fbo						= CVARD ("r_refract_fbo", "1", "Use an fbo for refraction. If 0, just renders as a portal and uses a copy of the current framebuffer.");
 cvar_t gl_miptexLevel						= CVAR  ("gl_miptexLevel", "0");
 cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
 cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
 cvar_t r_dynamic							= CVARF ("r_dynamic", IFMINIMAL("0","1"),
-												CVAR_ARCHIVE);
+													CVAR_ARCHIVE);
 cvar_t r_fastturb							= CVARF ("r_fastturb", "0",
-												CVAR_SHADERSYSTEM);
+													CVAR_SHADERSYSTEM);
 cvar_t r_fastsky							= CVARF ("r_fastsky", "0",
-												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
+													CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
 cvar_t r_fastskycolour						= CVARF ("r_fastskycolour", "0",
-												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
+													CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fb_bmodels							= CVARAF("r_fb_bmodels", "1",
 													"gl_fb_bmodels", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_fb_models							= CVARAFD  ("r_fb_models", "1",
 													"gl_fb_models", CVAR_SEMICHEAT, "Force all non-player models to be fullbright in deathmatch. Because if you don't enable these cheats then you'll go splat because everone else uses them. QuakeWorld players suck.");
-cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
-												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
-cvar_t r_globalskin_first						= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. Entities within this range will use the shader/image called 'gfx/skinSKIN.lmp' instead of their regular skin. See also: r_globalskin_count.");
-cvar_t r_globalskin_count						= CVARFD  ("r_globalskin_count", "10", CVAR_RENDERERLATCH, "Specifies how many globalskins there are.");
+cvar_t r_skin_overlays						= CVARF  ("r_skin_overlays", "1",
+													CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t r_globalskin_first					= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. Entities within this range will use the shader/image called 'gfx/skinSKIN.lmp' instead of their regular skin. See also: r_globalskin_count.");
+cvar_t r_globalskin_count					= CVARFD  ("r_globalskin_count", "10", CVAR_RENDERERLATCH, "Specifies how many globalskins there are.");
 cvar_t r_coronas							= CVARFD ("r_coronas", "0",	CVAR_ARCHIVE, "Draw coronas on realtime lights. Overrides glquake-esque flashblends.");
 cvar_t r_coronas_occlusion					= CVARFD ("r_coronas_occlusion", "", CVAR_ARCHIVE, "Specifies that coronas should be occluded more carefully.\n0: No occlusion, at all.\n1: BSP occlusion only (simple tracelines).\n2: non-bsp occlusion also (complex tracelines).\n3: Depthbuffer reads (forces synchronisation).\n4: occlusion queries.");
 cvar_t r_coronas_mindist					= CVARFD ("r_coronas_mindist", "128", CVAR_ARCHIVE, "Coronas closer than this will be invisible, preventing near clip plane issues.");
 cvar_t r_coronas_fadedist					= CVARFD ("r_coronas_fadedist", "256", CVAR_ARCHIVE, "Coronas will fade out over this distance.");
 
-cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
-												CVAR_ARCHIVE);
-cvar_t r_flashblendscale					= SCVARF ("gl_flashblendscale", "0.35",
-												CVAR_ARCHIVE);
+cvar_t r_flashblend							= CVARF ("gl_flashblend", "0",
+													CVAR_ARCHIVE);
+cvar_t r_flashblendscale					= CVARF ("gl_flashblendscale", "0.35",
+													CVAR_ARCHIVE);
 cvar_t r_floorcolour						= CVARAF ("r_floorcolour", "64 64 128",
 													"r_floorcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 //cvar_t r_floortexture						= SCVARF ("r_floortexture", "",
@@ -135,11 +137,11 @@ cvar_t r_fullbright							= CVARFD ("r_fullbright", "0",
 												CVAR_CHEAT|CVAR_SHADERSYSTEM, "Ignore world lightmaps, drawing everything fully lit.");
 cvar_t r_fullbrightSkins					= CVARF	("r_fullbrightSkins", "0.8", /*don't default to 1, as it looks a little ugly (too bright), but don't default to 0 either because then you're handicapped in the dark*/
 												CVAR_SEMICHEAT|CVAR_SHADERSYSTEM);
-cvar_t r_lightmap_saturation				= SCVAR	("r_lightmap_saturation", "1");
+cvar_t r_lightmap_saturation				= CVAR	("r_lightmap_saturation", "1");
 cvar_t r_lightstylesmooth					= CVARF	("r_lightstylesmooth", "0", CVAR_ARCHIVE);
-cvar_t r_lightstylesmooth_limit				= SCVAR	("r_lightstylesmooth_limit", "2");
-cvar_t r_lightstylespeed					= SCVAR	("r_lightstylespeed", "10");
-cvar_t r_lightstylescale					= SCVAR	("r_lightstylescale", "1");
+cvar_t r_lightstylesmooth_limit				= CVAR	("r_lightstylesmooth_limit", "2");
+cvar_t r_lightstylespeed					= CVAR	("r_lightstylespeed", "10");
+cvar_t r_lightstylescale					= CVAR	("r_lightstylescale", "1");
 cvar_t r_hdr_irisadaptation					= CVARF	("r_hdr_irisadaptation", "0", CVAR_ARCHIVE);
 cvar_t r_hdr_irisadaptation_multiplier		= CVAR	("r_hdr_irisadaptation_multiplier", "2");
 cvar_t r_hdr_irisadaptation_minvalue		= CVAR	("r_hdr_irisadaptation_minvalue", "0.5");
@@ -162,9 +164,9 @@ cvar_t r_skyboxname							= CVARFC ("r_skybox", "",
 												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM, R_SkyBox_Changed);
 cvar_t r_softwarebanding_cvar				= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
 qboolean r_softwarebanding;
-cvar_t r_speeds								= SCVAR ("r_speeds", "0");
-cvar_t r_stainfadeammount					= SCVAR  ("r_stainfadeammount", "1");
-cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
+cvar_t r_speeds								= CVAR ("r_speeds", "0");
+cvar_t r_stainfadeammount					= CVAR  ("r_stainfadeammount", "1");
+cvar_t r_stainfadetime						= CVAR  ("r_stainfadetime", "1");
 cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0.75"),
 												CVAR_ARCHIVE,
 												Cvar_Limiter_ZeroToOne_Callback);
@@ -207,13 +209,13 @@ cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
 cvar_t scr_fov								= CVARFDC("fov", "90",
 												CVAR_ARCHIVE, "field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.",
 												SCR_Fov_Callback);
-cvar_t scr_printspeed						= SCVAR  ("scr_printspeed", "16");
-cvar_t scr_showpause						= SCVAR  ("showpause", "1");
-cvar_t scr_showturtle						= SCVAR  ("showturtle", "0");
-cvar_t scr_turtlefps						= SCVAR  ("scr_turtlefps", "10");
-cvar_t scr_sshot_compression				= SCVAR  ("scr_sshot_compression", "75");
-cvar_t scr_sshot_type						= SCVAR  ("scr_sshot_type", "png");
-cvar_t scr_sshot_prefix						= SCVAR  ("scr_sshot_prefix", "screenshots/fte-"); 
+cvar_t scr_printspeed						= CVAR  ("scr_printspeed", "16");
+cvar_t scr_showpause						= CVAR  ("showpause", "1");
+cvar_t scr_showturtle						= CVAR  ("showturtle", "0");
+cvar_t scr_turtlefps						= CVAR  ("scr_turtlefps", "10");
+cvar_t scr_sshot_compression				= CVAR  ("scr_sshot_compression", "75");
+cvar_t scr_sshot_type						= CVAR  ("scr_sshot_type", "png");
+cvar_t scr_sshot_prefix						= CVAR  ("scr_sshot_prefix", "screenshots/fte-"); 
 cvar_t scr_viewsize							= CVARFC("viewsize", "100",
 												CVAR_ARCHIVE,
 												SCR_Viewsize_Callback);
@@ -278,7 +280,7 @@ extern cvar_t r_drawworld;
 extern cvar_t r_fullbright;
 cvar_t	r_mirroralpha = CVARFD("r_mirroralpha","1", CVAR_CHEAT|CVAR_SHADERSYSTEM, "Specifies how the default shader is generated for the 'window02_1' texture. Values less than 1 will turn it into a mirror.");
 extern cvar_t r_netgraph;
-cvar_t	r_norefresh = SCVAR("r_norefresh","0");
+cvar_t	r_norefresh = CVAR("r_norefresh","0");
 extern cvar_t r_novis;
 extern cvar_t r_speeds;
 extern cvar_t r_waterwarp;
@@ -341,7 +343,7 @@ cvar_t gl_lateswap							= CVAR  ("gl_lateswap", "0");
 cvar_t gl_lerpimages						= CVARFD  ("gl_lerpimages", "1", CVAR_ARCHIVE, "Enables smoother resampling for images which are not power-of-two, when the drivers do not support non-power-of-two textures.");
 //cvar_t gl_lightmapmode						= SCVARF("gl_lightmapmode", "",
 //												CVAR_ARCHIVE);
-cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
+cvar_t gl_load24bit							= CVARF ("gl_load24bit", "1",
 												CVAR_ARCHIVE);
 
 cvar_t	r_clear								= CVARAF("r_clear","0",
@@ -353,13 +355,13 @@ cvar_t gl_menutint_shader					= CVARD  ("gl_menutint_shader", "1", "Controls the
 cvar_t gl_mindist							= CVARAD ("gl_mindist", "1", "r_nearclip",
 												"Distance to the near clip plane. Smaller values may damage depth precision, high values can potentialy be used to see through walls...");
 
-cvar_t gl_motionblur						= SCVARF ("gl_motionblur", "0",
+cvar_t gl_motionblur						= CVARF ("gl_motionblur", "0",
 												CVAR_ARCHIVE);
-cvar_t gl_motionblurscale					= SCVAR  ("gl_motionblurscale", "1");
+cvar_t gl_motionblurscale					= CVAR  ("gl_motionblurscale", "1");
 cvar_t gl_overbright						= CVARFC ("gl_overbright", "1",
 												CVAR_ARCHIVE,
 												Surf_RebuildLightmap_Callback);
-cvar_t gl_overbright_all					= SCVARF ("gl_overbright_all", "0",
+cvar_t gl_overbright_all					= CVARF ("gl_overbright_all", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_picmip							= CVARFD  ("gl_picmip", "0", CVAR_ARCHIVE, "Reduce world/model texture sizes by some exponential factor.");
 cvar_t gl_picmip2d							= CVARFD  ("gl_picmip2d", "0", CVAR_ARCHIVE, "Reduce hud/menu texture sizes by some exponential factor.");
@@ -367,7 +369,7 @@ cvar_t gl_nohwblend							= CVARD  ("gl_nohwblend","1", "If 1, don't use hardwar
 cvar_t gl_savecompressedtex					= CVARD  ("gl_savecompressedtex", "0", "Write out a copy of textures in a compressed format. The driver will do the compression on the fly, thus this setting is likely inferior to software which does not care so much about compression times.");
 //cvar_t gl_schematics						= CVARD  ("gl_schematics", "0", "Gimmick rendering mode that draws the length of various world edges.");
 cvar_t gl_skyboxdist						= CVARD  ("gl_skyboxdist", "0", "The distance of the skybox. If 0, the engine will determine it based upon the far clip plane distance.");	//0 = guess.
-cvar_t gl_smoothcrosshair					= SCVAR  ("gl_smoothcrosshair", "1");
+cvar_t gl_smoothcrosshair					= CVAR  ("gl_smoothcrosshair", "1");
 cvar_t	gl_maxdist							= CVARD	("gl_maxdist", "0", "The distance of the far clip plane. If set to 0, some fancy maths will be used to place it at an infinite distance.");
 
 #ifdef SPECULAR
@@ -395,8 +397,8 @@ cvar_t vid_triplebuffer						= CVARAFD ("vid_triplebuffer", "1", "gl_triplebuffe
 cvar_t r_portalrecursion					= CVARD  ("r_portalrecursion", "1", "The number of portals the camera is allowed to recurse through.");
 cvar_t r_portaldrawplanes					= CVARD  ("r_portaldrawplanes", "0", "Draw front and back planes in portals. Debug feature.");
 cvar_t r_portalonly							= CVARD  ("r_portalonly", "0", "Don't draw things which are not portals. Debug feature.");
-cvar_t dpcompat_psa_ungroup					= SCVAR  ("dpcompat_psa_ungroup", "0");
-cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0", CVAR_ARCHIVE);
+cvar_t dpcompat_psa_ungroup					= CVAR  ("dpcompat_psa_ungroup", "0");
+cvar_t r_noaliasshadows						= CVARF ("r_noaliasshadows", "0", CVAR_ARCHIVE);
 cvar_t r_shadows							= CVARFD ("r_shadows", "0",	CVAR_ARCHIVE, "Draw basic blob shadows underneath entities without using realtime lighting.");
 cvar_t r_showbboxes							= CVARD("r_showbboxes", "0", "Debugging. Shows bounding boxes. 1=ssqc, 2=csqc. Red=solid, Green=stepping/toss/bounce, Blue=onground.");
 cvar_t r_showfields							= CVARD("r_showfields", "0", "Debugging. Shows entity fields boxes (entity closest to crosshair). 1=ssqc, 2=csqc.");
@@ -431,7 +433,7 @@ cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces's default) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
 
 extern cvar_t gl_dither;
-cvar_t	gl_screenangle = SCVAR("gl_screenangle", "0");
+cvar_t	gl_screenangle = CVAR("gl_screenangle", "0");
 #endif
 
 #ifdef VKQUAKE
@@ -885,6 +887,7 @@ void Renderer_Init(void)
 	Cvar_Register (&gl_mipcap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
+	Cvar_Register (&r_lightmap, GRAPHICALNICETIES);
 	Cvar_Register (&r_menutint, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);

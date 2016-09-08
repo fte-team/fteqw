@@ -51,14 +51,14 @@ static void QDECL CL_AutoTrackChanged(cvar_t *v, char *oldval)
 	Cam_AutoTrack_Update(v->string);
 }
 // track high fragger
-cvar_t cl_autotrack_team = CVARD("cl_autotrack_team", "", "Specifies a team name that should be auto-tracked (players on other teams will not be candidates for autotracking). Accepts * and ? wildcards for awkward chars.");
-cvar_t cl_autotrack = CVARCD("cl_autotrack", "auto", CL_AutoTrackChanged, "Specifies the default tracking mode at the start of the map. Use the 'autotrack' command to reset/apply an auto-tracking mode without changing the default.\nValid values are: high, ^hkiller^h, mod, user. Other values are treated as weighting scripts for mvd playback, where available.");
-cvar_t cl_hightrack = CVARD("cl_hightrack", "0", "Obsolete. If you want hightrack, use '[cl_]autotrack high' instead.");
+cvar_t cl_autotrack_team	= CVARD("cl_autotrack_team", "", "Specifies a team name that should be auto-tracked (players on other teams will not be candidates for autotracking). Accepts * and ? wildcards for awkward chars.");
+cvar_t cl_autotrack			= CVARCD("cl_autotrack", "auto", CL_AutoTrackChanged, "Specifies the default tracking mode at the start of the map. Use the 'autotrack' command to reset/apply an auto-tracking mode without changing the default.\nValid values are: high, ^hkiller^h, mod, user. Other values are treated as weighting scripts for mvd playback, where available.");
+cvar_t cl_hightrack			= CVARD("cl_hightrack", "0", "Obsolete. If you want hightrack, use '[cl_]autotrack high' instead.");
 
 //cvar_t cl_camera_maxpitch = {"cl_camera_maxpitch", "10" };
 //cvar_t cl_camera_maxyaw = {"cl_camera_maxyaw", "30" };
-cvar_t cl_chasecam = SCVAR("cl_chasecam", "1");
-cvar_t cl_selfcam = SCVAR("cl_selfcam", "1");
+cvar_t cl_chasecam			= CVAR("cl_chasecam", "1");
+cvar_t cl_selfcam			= CVAR("cl_selfcam", "1");
 
 void Cam_AutoTrack_Update(const char *mode)
 {

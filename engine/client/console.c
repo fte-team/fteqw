@@ -58,14 +58,14 @@ qterm_t *activeqterm;
 float		con_cursorspeed = 4;
 
 
-cvar_t		con_numnotifylines = SCVAR("con_notifylines","4");		//max lines to show
-cvar_t		con_notifytime = SCVAR("con_notifytime","3");		//seconds
-cvar_t		con_notify_x = SCVAR("con_notify_x","0");
-cvar_t		con_notify_y = SCVAR("con_notify_y","0");
-cvar_t		con_notify_w = SCVAR("con_notify_w","1");
-cvar_t		con_centernotify = SCVAR("con_centernotify", "0");
-cvar_t		con_displaypossibilities = SCVAR("con_displaypossibilities", "1");
-cvar_t		con_maxlines = SCVAR("con_maxlines", "1024");
+cvar_t		con_numnotifylines = CVAR("con_notifylines","4");		//max lines to show
+cvar_t		con_notifytime = CVAR("con_notifytime","3");		//seconds
+cvar_t		con_notify_x = CVAR("con_notify_x","0");
+cvar_t		con_notify_y = CVAR("con_notify_y","0");
+cvar_t		con_notify_w = CVAR("con_notify_w","1");
+cvar_t		con_centernotify = CVAR("con_centernotify", "0");
+cvar_t		con_displaypossibilities = CVAR("con_displaypossibilities", "1");
+cvar_t		con_maxlines = CVAR("con_maxlines", "1024");
 cvar_t		cl_chatmode = CVARD("cl_chatmode", "2", "0(nq) - everything is assumed to be a console command. prefix with 'say', or just use a messagemode bind\n1(q3) - everything is assumed to be chat, unless its prefixed with a /\n2(qw) - anything explicitly recognised as a command will be used as a command, anything unrecognised will be a chat message.\n/ prefix is supported in all cases.\nctrl held when pressing enter always makes any implicit chat into team chat instead.");
 cvar_t		con_numnotifylines_chat = CVAR("con_numnotifylines_chat", "8");
 cvar_t		con_notifytime_chat = CVAR("con_notifytime_chat", "8");

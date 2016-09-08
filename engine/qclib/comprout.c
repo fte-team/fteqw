@@ -242,7 +242,7 @@ int QC_strncasecmp(const char *s1, const char *s2, int n)
 	return -1;
 }
 
-void editbadfile(char *fname, int line)
+void editbadfile(const char *fname, int line)
 {
 	if (!*errorfile)
 	{

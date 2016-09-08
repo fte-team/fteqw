@@ -627,6 +627,13 @@ cvar_t r_part_maxdecals = CVAR("r_part_maxdecals", "8192");
 
 particleengine_t *pe;
 
+static struct partalias_s
+{
+	struct partalias_s *next;
+	const char *from;
+	const char *to;
+} *partaliaslist;
+
 void P_ParticleEffect_f(void);
 static void P_ParticleEffectAlias_f(void);
 
@@ -673,12 +680,18 @@ void P_InitParticleSystem(void)
 	R_Clutter_Init();
 }
 
-static struct partalias_s
+void P_ShutdownParticleSystem(void)
 {
-	struct partalias_s *next;
-	const char *from;
-	const char *to;
-} *partaliaslist;
+	struct partalias_s *l;
+
+	while (partaliaslist)
+	{
+		l = partaliaslist;
+		partaliaslist = l->next;
+		Z_Free(l);
+	}
+}
+
 static void P_ParticleEffectAlias_f(void)
 {
 	struct partalias_s **link, *l;

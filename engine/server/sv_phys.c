@@ -42,18 +42,18 @@ solid_edge items only clip against bsp models.
 
 */
 
-cvar_t	sv_maxvelocity = SCVAR("sv_maxvelocity","10000");
+cvar_t	sv_maxvelocity = CVAR("sv_maxvelocity","10000");
 
-cvar_t	sv_gravity			 = SCVAR( "sv_gravity", "800");
-cvar_t	sv_stopspeed		 = SCVAR( "sv_stopspeed", "100");
-cvar_t	sv_maxspeed			 = SCVAR( "sv_maxspeed", "320");
-cvar_t	sv_spectatormaxspeed = SCVAR( "sv_spectatormaxspeed", "500");
-cvar_t	sv_accelerate		 = SCVAR( "sv_accelerate", "10");
-cvar_t	sv_airaccelerate	 = SCVAR( "sv_airaccelerate", "0.7");
-cvar_t	sv_wateraccelerate	 = SCVAR( "sv_wateraccelerate", "10");
-cvar_t	sv_friction			 = SCVAR( "sv_friction", "4");
-cvar_t	sv_waterfriction	 = SCVAR( "sv_waterfriction", "4");
-cvar_t	sv_gameplayfix_noairborncorpse		= SCVAR( "sv_gameplayfix_noairborncorpse", "0");
+cvar_t	sv_gravity			 = CVAR( "sv_gravity", "800");
+cvar_t	sv_stopspeed		 = CVAR( "sv_stopspeed", "100");
+cvar_t	sv_maxspeed			 = CVAR( "sv_maxspeed", "320");
+cvar_t	sv_spectatormaxspeed = CVAR( "sv_spectatormaxspeed", "500");
+cvar_t	sv_accelerate		 = CVAR( "sv_accelerate", "10");
+cvar_t	sv_airaccelerate	 = CVAR( "sv_airaccelerate", "0.7");
+cvar_t	sv_wateraccelerate	 = CVAR( "sv_wateraccelerate", "10");
+cvar_t	sv_friction			 = CVAR( "sv_friction", "4");
+cvar_t	sv_waterfriction	 = CVAR( "sv_waterfriction", "4");
+cvar_t	sv_gameplayfix_noairborncorpse		= CVAR( "sv_gameplayfix_noairborncorpse", "0");
 cvar_t	sv_gameplayfix_multiplethinks		= CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1.");
 cvar_t	sv_gameplayfix_stepdown				= CVARD( "sv_gameplayfix_stepdown", "0", "Attempt to step down steps, instead of only up them. Affects non-predicted movetype_walk.");
 #if !defined(CLIENTONLY) && defined(NQPROT) && !defined(NOLEGACY)

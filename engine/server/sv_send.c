@@ -2634,7 +2634,7 @@ void SV_FlushBroadcasts (void)
 		}
 	}
 
-	SV_MVD_WriteReliables();
+	SV_MVD_WriteReliables(true);
 
 	SZ_Clear (&sv.reliable_datagram);
 	SZ_Clear (&sv.datagram);
@@ -3322,8 +3322,6 @@ void SV_SendMVDMessage(void)
 	// possibly a nails update
 	msg.cursize = 0;
 	msg.prim = demo.recorder.netchan.netprim;
-	if (!demo.recorder.delta_sequence)
-		demo.recorder.delta_sequence = -1;
 
 	// copy the accumulated multicast datagram
 	// for this client out to the message
@@ -3339,7 +3337,13 @@ void SV_SendMVDMessage(void)
 		SV_MVDWritePackets(1);
 	}
 
-	demo.recorder.delta_sequence = demo.recorder.netchan.incoming_sequence&255;
+	if (demo.resetdeltas)
+	{
+		demo.resetdeltas = false;
+		demo.recorder.delta_sequence = -1;
+	}
+	else
+		demo.recorder.delta_sequence = demo.recorder.netchan.incoming_sequence&255;
 	demo.recorder.netchan.incoming_sequence++;
 	demo.frames[demo.parsecount&DEMO_FRAMES_MASK].time = demo.time = sv.time;
 

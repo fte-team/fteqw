@@ -76,7 +76,7 @@ int		CheckParm (char *check);
 int 	SafeOpenWrite (char *filename, int maxsize);
 int 	SafeOpenRead (char *filename);
 void 	SafeRead (int handle, void *buffer, long count);
-void 	SafeWrite (int handle, void *buffer, long count);
+void 	SafeWrite (int handle, const void *buffer, long count);
 pbool	SafeClose(int hand);
 int SafeSeek(int hand, int ofs, int mode);
 void 	*SafeMalloc (long size);

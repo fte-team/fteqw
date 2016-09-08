@@ -585,7 +585,7 @@ qboolean CL_GetDemoMessage (void)
 
 		olddemotime = demtime;
 
-		if (msglength > MAX_NQMSGLEN)
+		if (msglength > net_message.maxsize)
 		{
 			Con_Printf ("Demo message > MAX_MSGLEN");
 			CL_StopPlayback ();
@@ -684,7 +684,7 @@ readnext:
 			cls.td_starttime = Sys_DoubleTime();
 		demtime = demotime; // warp
 	}
-	else if (!cl.paused && cls.state >= ca_onserver)
+	else if (!(cl.paused&~4) && cls.state >= ca_onserver)
 	{	// always grab until fully connected
 		if (demtime + 1.0 < demotime)
 		{
@@ -993,7 +993,7 @@ void CL_WriteRecordQ2DemoMessage(sizebuf_t *msg)
 ====================
 CL_WriteDemoMessage
 
-Dumps the current net message, prefixed by the length and view angles
+Dumps the specified net message as part of initial mid-map demo writing.
 ====================
 */
 void CL_WriteRecordDemoMessage (sizebuf_t *msg, int seq)
@@ -1008,20 +1008,34 @@ void CL_WriteRecordDemoMessage (sizebuf_t *msg, int seq)
 	if (!cls.demorecording)
 		return;
 
-	fl = LittleFloat(Sys_DoubleTime()-recdemostart);
-	VFS_WRITE (cls.demooutfile, &fl, sizeof(fl));
+	if (cls.demorecording == DPB_NETQUAKE)
+	{
+		len = LittleLong (msg->cursize);
+		VFS_WRITE(cls.demooutfile, &len, sizeof(len));
+		for (i=0 ; i<3 ; i++)
+		{
+			float f = LittleFloat (cl.playerview[0].viewangles[i]);
+			VFS_WRITE(cls.demooutfile, &f, sizeof(f));
+		}
+	}
+	else
+	{
+		fl = LittleFloat(Sys_DoubleTime()-recdemostart);
+		VFS_WRITE (cls.demooutfile, &fl, sizeof(fl));
 
-	c = dem_read;
-	VFS_WRITE (cls.demooutfile, &c, sizeof(c));
+		c = dem_read;
+		VFS_WRITE (cls.demooutfile, &c, sizeof(c));
 
-	len = LittleLong (msg->cursize + 8);
-	VFS_WRITE (cls.demooutfile, &len, 4);
+		len = LittleLong (msg->cursize + 8);
+		VFS_WRITE (cls.demooutfile, &len, 4);
 
-	i = LittleLong(seq);
-	VFS_WRITE (cls.demooutfile, &i, 4);
-	VFS_WRITE (cls.demooutfile, &i, 4);
-
+		i = LittleLong(seq);
+		VFS_WRITE (cls.demooutfile, &i, 4);
+		VFS_WRITE (cls.demooutfile, &i, 4);
+	}
 	VFS_WRITE (cls.demooutfile, msg->data, msg->cursize);
+
+	SZ_Clear(msg);
 
 	if (record_flush.ival)
 		VFS_FLUSH (cls.demooutfile);
@@ -1110,6 +1124,353 @@ void CL_RecordMap_f (void)
 }
 #endif
 
+//qw-specific serverdata
+static void CLQW_RecordServerData(sizebuf_t *buf)
+{
+	extern	char gamedirfile[];
+	unsigned int i;
+
+// send the serverdata
+	MSG_WriteByte (buf, svc_serverdata);
+#ifdef PROTOCOL_VERSION_FTE
+	if (cls.fteprotocolextensions)	//maintain demo compatability
+	{
+		MSG_WriteLong (buf, PROTOCOL_VERSION_FTE);
+		MSG_WriteLong (buf, cls.fteprotocolextensions);
+	}
+	if (cls.fteprotocolextensions2)	//maintain demo compatability
+	{
+		MSG_WriteLong (buf, PROTOCOL_VERSION_FTE2);
+		MSG_WriteLong (buf, cls.fteprotocolextensions2);
+	}
+#endif
+	MSG_WriteLong (buf, PROTOCOL_VERSION_QW);
+	MSG_WriteLong (buf, cl.servercount);
+	MSG_WriteString (buf, gamedirfile);
+
+	if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
+	{
+		MSG_WriteByte (buf, cl.allocated_client_slots);
+		MSG_WriteByte (buf, cl.splitclients | (cl.spectator?128:0));
+		for (i = 0; i < cl.splitclients; i++)
+			MSG_WriteByte (buf, cl.playerview[i].playernum);
+	}
+	else
+	{
+		for (i = 0; i < cl.splitclients; i++)
+		{
+			if (cl.spectator)
+				MSG_WriteByte (buf, cl.playerview[i].playernum | 128);
+			else
+				MSG_WriteByte (buf, cl.playerview[i].playernum);
+		}
+		if (cls.fteprotocolextensions & PEXT_SPLITSCREEN)
+			MSG_WriteByte (buf, 128);
+	}
+
+	// send full levelname
+	MSG_WriteString (buf, cl.levelname);
+
+	// send the movevars
+	MSG_WriteFloat(buf, movevars.gravity);
+	MSG_WriteFloat(buf, movevars.stopspeed);
+	MSG_WriteFloat(buf, movevars.maxspeed);
+	MSG_WriteFloat(buf, movevars.spectatormaxspeed);
+	MSG_WriteFloat(buf, movevars.accelerate);
+	MSG_WriteFloat(buf, movevars.airaccelerate);
+	MSG_WriteFloat(buf, movevars.wateraccelerate);
+	MSG_WriteFloat(buf, movevars.friction);
+	MSG_WriteFloat(buf, movevars.waterfriction);
+	MSG_WriteFloat(buf, movevars.entgravity);
+
+	// send server info string
+	MSG_WriteByte (buf, svc_stufftext);
+	MSG_WriteString (buf, va("fullserverinfo \"%s\"\n", cl.serverinfo) );
+}
+
+void CLNQ_WriteServerData(sizebuf_t *buf)
+{
+	unsigned int protmain;
+	unsigned int protfl = 0;
+	unsigned int i;
+	const char *val;
+
+	val = Info_ValueForKey(cl.serverinfo, "*csprogs");
+	if (*val)
+	{
+		MSG_WriteByte(buf, svc_stufftext);
+		MSG_WriteString(buf, va("csqc_progcrc \"%s\"\n", val));
+	}
+	val = Info_ValueForKey(cl.serverinfo, "*csprogssize");
+	if (*val)
+	{
+		MSG_WriteByte(buf, svc_stufftext);
+		MSG_WriteString(buf, va("csqc_progsize \"%s\"\n", val));
+	}
+	val = Info_ValueForKey(cl.serverinfo, "*csprogsname");
+	if (*val)
+	{
+		MSG_WriteByte(buf, svc_stufftext);
+		MSG_WriteString(buf, va("csqc_progname \"%s\"\n", val));
+	}
+
+	MSG_WriteByte(buf, svc_serverdata);
+	if (cls.fteprotocolextensions)
+	{
+		MSG_WriteLong (buf, PROTOCOL_VERSION_FTE);
+		MSG_WriteLong (buf, cls.fteprotocolextensions);
+	}
+	if (cls.fteprotocolextensions2)
+	{
+		MSG_WriteLong (buf, PROTOCOL_VERSION_FTE2);
+		MSG_WriteLong (buf, cls.fteprotocolextensions2);
+	}
+
+	if (cls.netchan.message.prim.anglesize == 2)
+		protfl |= RMQFL_SHORTANGLE;
+	if (cls.netchan.message.prim.anglesize == 4)
+		protfl |= RMQFL_FLOATANGLE;
+	if (cls.netchan.message.prim.coordsize == 3)
+		protfl |= RMQFL_24BITCOORD;
+	if (cls.netchan.message.prim.coordsize == 4)
+		protfl |= RMQFL_FLOATCOORD;
+	switch(cls.protocol_nq)
+	{
+	default:
+	case CPNQ_ID:		protmain = PROTOCOL_VERSION_NQ;		break;
+	case CPNQ_BJP1:		protmain = PROTOCOL_VERSION_BJP1;	break;
+	case CPNQ_BJP2:		protmain = PROTOCOL_VERSION_BJP2;	break;
+	case CPNQ_BJP3:		protmain = PROTOCOL_VERSION_BJP3;	break;
+	case CPNQ_FITZ666:	protmain = protfl?PROTOCOL_VERSION_RMQ:PROTOCOL_VERSION_FITZ;	break;	//this might break .scale, fte doesn't care, other engines might.
+	case CPNQ_DP5:		protmain = PROTOCOL_VERSION_DP5;	break;
+	case CPNQ_DP6:		protmain = PROTOCOL_VERSION_DP6;	break;
+	case CPNQ_DP7:		protmain = PROTOCOL_VERSION_DP7;	break;
+	}
+
+	MSG_WriteLong (buf, protmain);
+	if (protmain == PROTOCOL_VERSION_RMQ)
+		MSG_WriteLong (buf, protfl);
+
+	MSG_WriteByte (buf, cl.allocated_client_slots);
+	MSG_WriteByte (buf, cl.deathmatch?GAME_DEATHMATCH:GAME_COOP);
+	MSG_WriteString (buf, cl.levelname);
+
+	for (i = 1; *cl.model_name[i] && i < MAX_PRECACHE_MODELS; i++)
+		MSG_WriteString (buf, cl.model_name[i]);
+	MSG_WriteByte (buf, 0);
+
+	for (i = 1; *cl.sound_name[i] && i < MAX_PRECACHE_SOUNDS ; i++)
+		MSG_WriteString (buf, cl.sound_name[i]);
+	MSG_WriteByte (buf, 0);
+}
+
+void CL_Record_Baseline(sizebuf_t *buf, entity_state_t *state, unsigned int bits)
+{
+	unsigned int j;
+	if (bits & FITZ_B_LARGEMODEL)
+		MSG_WriteShort (buf, state->modelindex);
+	else
+		MSG_WriteByte (buf, state->modelindex);
+	if (bits & FITZ_B_LARGEFRAME)
+		MSG_WriteShort (buf, state->frame);
+	else
+		MSG_WriteByte (buf, state->frame);
+	MSG_WriteByte (buf, state->colormap);
+	MSG_WriteByte (buf, state->skinnum);
+	for (j=0 ; j<3 ; j++)
+	{
+		MSG_WriteCoord (buf, state->origin[j]);
+		MSG_WriteAngle (buf, state->angles[j]);
+	}
+	
+	if (bits & FITZ_B_ALPHA)
+		MSG_WriteByte(buf, state->trans);
+	if (bits & RMQFITZ_B_SCALE)
+		MSG_WriteByte(buf, state->scale);
+}
+
+//nq+qw generic stuff.
+static int CL_Record_ParticlesStaticsBaselines(sizebuf_t *buf, int seq)
+{
+	unsigned int i;
+	entity_state_t *es;
+
+	//particleeffectnum stuff
+	for (i = 1; i < MAX_SSPARTICLESPRE; i++)
+	{
+		if (!cl.particle_ssname[i])
+			break;
+		MSG_WriteByte(buf, svcfte_precache);
+		MSG_WriteShort(buf, PC_PARTICLE | i);
+		MSG_WriteString(buf, cl.particle_ssname[i]);
+
+		if (buf->cursize > buf->maxsize/2)
+			CL_WriteRecordDemoMessage (buf, seq++);
+	}
+
+	//custom tents (needed for hexen2, if nothing else)
+	for (i = 0; ; i++)
+	{
+		if (!CL_WriteCustomTEnt(buf, i))
+			break;
+
+		if (buf->cursize > buf->maxsize/2)
+			CL_WriteRecordDemoMessage (buf, seq++);
+	}
+
+// spawnstatic
+
+	for (i = 0; i < cl.num_statics; i++)
+	{
+		es = &cl_static_entities[i].state;
+
+#ifndef CLIENTONLY	//FIXME
+		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+		{
+			MSG_WriteByte(buf, svcfte_spawnstatic2);
+			SVFTE_EmitBaseline(es, false, buf, cls.fteprotocolextensions2);
+		}
+		//else if (cls.fteprotocolextensions & PEXT_SPAWNSTATIC2) //qw deltas
+		else
+#endif
+		{
+			unsigned int bits = 0;
+#ifdef NQPROT
+			if (es->modelindex > 255)
+				bits |= FITZ_B_LARGEMODEL;
+			if (es->frame > 255)
+				bits |= FITZ_B_LARGEFRAME;
+			if (es->trans != 255)
+				bits |= FITZ_B_ALPHA;
+			if (es->scale != 16)
+				bits |= RMQFITZ_B_SCALE;
+			if (cls.protocol == CP_NETQUAKE && CPNQ_IS_BJP)
+			{
+				MSG_WriteByte (buf, svc_spawnstatic);
+				bits = FITZ_B_LARGEMODEL;	//bjp always uses shorts for models.
+			}
+			else if (cls.protocol == CP_NETQUAKE && cls.protocol_nq == CPNQ_FITZ666 && bits)
+			{
+				MSG_WriteByte (buf, svcfitz_spawnstatic2);
+				MSG_WriteByte (buf, bits);
+			}
+//			else if (baselinetype2 >= CPNQ_DP5 && baselinetype2 <= CPNQ_DP7 && (bits & (FITZ_B_LARGEMODEL|FITZ_B_LARGEFRAME)))
+//			{
+//				MSG_WriteByte (buf, svcdp_spawnstatic2);
+//				bits = FITZ_B_LARGEMODEL|FITZ_B_LARGEFRAME;	//dp's baseline2 always has these (regular baseline is unmodified)
+//			}
+			else
+#endif
+			{
+				//classic protocol
+				MSG_WriteByte (buf, svc_spawnstatic);
+				bits = 0;
+			}
+			CL_Record_Baseline(buf, es, bits);
+		}
+
+		if (buf->cursize > buf->maxsize/2)
+			CL_WriteRecordDemoMessage (buf, seq++);
+	}
+
+// FIXME: static sounds
+	// static sounds are skipped in demos, life is hard
+
+// baselines
+
+	for (i = 0; i < cl_baselines_count; i++)
+	{
+		es = cl_baselines + i;
+
+		if (memcmp(es, &nullentitystate, sizeof(nullentitystate)))
+		{
+#ifndef CLIENTONLY	//FIXME
+			if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			{
+				MSG_WriteByte(buf, svcfte_spawnbaseline2);
+				SVFTE_EmitBaseline(es, true, buf, cls.fteprotocolextensions2);
+			}
+			//else if (cls.fteprotocolextensions & PEXT_SPAWNSTATIC2) //qw deltas
+			else
+#endif
+			{
+				unsigned int bits = 0;
+#ifdef NQPROT
+				if (es->modelindex > 255)
+					bits |= FITZ_B_LARGEMODEL;
+				if (es->frame > 255)
+					bits |= FITZ_B_LARGEFRAME;
+				if (es->trans != 255)
+					bits |= FITZ_B_ALPHA;
+				if (es->scale != 16)
+					bits |= RMQFITZ_B_SCALE;
+				if (cls.protocol == CP_NETQUAKE && CPNQ_IS_BJP)
+				{
+					MSG_WriteByte (buf, svc_spawnbaseline);
+					bits = FITZ_B_LARGEMODEL;	//bjp always uses shorts for models.
+				}
+				else if (cls.protocol == CP_NETQUAKE && cls.protocol_nq == CPNQ_FITZ666 && bits)
+				{
+					MSG_WriteByte (buf, svcfitz_spawnbaseline2);
+					MSG_WriteByte (buf, bits);
+				}
+				else if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP && (bits & (FITZ_B_LARGEMODEL|FITZ_B_LARGEFRAME)))
+				{
+					MSG_WriteByte (buf, svcdp_spawnbaseline2);
+					bits = FITZ_B_LARGEMODEL|FITZ_B_LARGEFRAME;	//dp's baseline2 always has these (regular baseline is unmodified)
+				}
+				else
+#endif
+				{
+					MSG_WriteByte (buf,svc_spawnbaseline);
+					bits = 0;
+				}
+				MSG_WriteEntity (buf, i);
+
+				CL_Record_Baseline(buf, es, bits);
+			}
+			if (buf->cursize > buf->maxsize/2)
+				CL_WriteRecordDemoMessage (buf, seq++);
+		}
+	}
+
+	return seq;
+}
+static int CL_Record_Lightstyles(sizebuf_t *buf, int seq)
+{
+	unsigned int i;
+// send all current light styles
+	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+	{
+		if (i >= MAX_STANDARDLIGHTSTYLES)
+			if (!*cl_lightstyle[i].map)
+				continue;
+
+#ifdef PEXT_LIGHTSTYLECOL
+		if ((cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (cl_lightstyle[i].colours[0]!=1||cl_lightstyle[i].colours[1]!=1||cl_lightstyle[i].colours[2]!=1) && *cl_lightstyle[i].map)
+		{
+			MSG_WriteByte (buf, svcfte_lightstylecol);
+			MSG_WriteByte (buf, (unsigned char)i);
+			MSG_WriteByte (buf, 0x87);
+			MSG_WriteShort (buf, cl_lightstyle[i].colours[0]*1024);
+			MSG_WriteShort (buf, cl_lightstyle[i].colours[1]*1024);
+			MSG_WriteShort (buf, cl_lightstyle[i].colours[2]*1024);
+			MSG_WriteString (buf, cl_lightstyle[i].map);
+		}
+		else
+#endif
+		{
+			MSG_WriteByte (buf, svc_lightstyle);
+			MSG_WriteByte (buf, (unsigned char)i);
+			MSG_WriteString (buf, cl_lightstyle[i].map);
+		}
+
+		if (buf->cursize > buf->maxsize/2)
+			CL_WriteRecordDemoMessage (buf, seq++);
+	}
+	return seq;
+}
+
 const char *Get_Q2ConfigString(int i);
 
 /*
@@ -1124,11 +1485,9 @@ void CL_Record_f (void)
 	int		c;
 	char	name[MAX_OSPATH];
 	sizebuf_t	buf;
-	char	buf_data[MAX_QWMSGLEN];
-	int n, i, j, seat;
+	char	buf_data[MAX_OVERALLMSGLEN];
+	int n, i, seat;
 	char *s, *p, *fname;
-	entity_t *ent;
-	entity_state_t *es;
 	player_info_t *player;
 	extern	char gamedirfile[];
 	int seq = 1;
@@ -1153,8 +1512,8 @@ void CL_Record_f (void)
 
 	if (cls.protocol == CP_QUAKE2)
 		defaultext = ".dm2";
-//	else if (cls.protocol == CP_NETQUAKE)
-//		defaultext = ".dem";
+	else if (cls.protocol == CP_NETQUAKE && !CPNQ_IS_DP)
+		defaultext = ".dem";
 	else if (cls.protocol == CP_QUAKEWORLD)
 		defaultext = ".qwd";
 	else
@@ -1169,6 +1528,9 @@ void CL_Record_f (void)
 	if (c == 2)	//user supplied a name
 	{
 		fname = Cmd_Argv(1);
+		s = strrchr(fname, '.');
+		if (!Q_strcasecmp(s, defaultext))
+			*s = 0;	//hack away that extension that they added.
 	}
 	else
 	{	//automagically generate a name
@@ -1230,8 +1592,7 @@ void CL_Record_f (void)
 			|| c=='<' || c=='>' || c=='"' || c=='.')
 			*p = '_';
 	}
-	strncpy(name, fname, sizeof(name)-1-8);
-	name[sizeof(name)-1-8] = '\0';
+	Q_strncpyz(name, fname, sizeof(name)-8);
 
 //make a unique name (unless the user specified it).
 	strcat (name, defaultext);	//we have the space
@@ -1242,9 +1603,11 @@ void CL_Record_f (void)
 		f = FS_OpenVFS (name, "rb", FS_GAME);
 		if (f)
 		{
-			COM_StripExtension(name, name, sizeof(name));
+			//remove the extension again
+			Q_strncpyz(name, fname, sizeof(name)-8);
 			p = name + strlen(name);
-			strcat(p, "_XX.qwd");
+			strcat(p, "_XX");
+			strcat(p, defaultext);
 			p++;
 			i = 0;
 			do
@@ -1282,67 +1645,12 @@ void CL_Record_f (void)
 	switch(cls.protocol)
 	{
 	case CP_QUAKEWORLD:
+		if (!cls.fteprotocolextensions && !cls.fteprotocolextensions2)
+			buf.maxsize = MAX_QWMSGLEN;	//poo compatibility... :P
+
 		cls.demorecording = DPB_QUAKEWORLD;
 
-	// serverdata
-		// send the info about the new client to all connected clients
-
-	// send the serverdata
-		MSG_WriteByte (&buf, svc_serverdata);
-#ifdef PROTOCOL_VERSION_FTE
-		if (cls.fteprotocolextensions)	//maintain demo compatability
-		{
-			MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE);
-			MSG_WriteLong (&buf, cls.fteprotocolextensions);
-		}
-		if (cls.fteprotocolextensions2)	//maintain demo compatability
-		{
-			MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE2);
-			MSG_WriteLong (&buf, cls.fteprotocolextensions2);
-		}
-#endif
-		MSG_WriteLong (&buf, PROTOCOL_VERSION_QW);
-		MSG_WriteLong (&buf, cl.servercount);
-		MSG_WriteString (&buf, gamedirfile);
-
-		if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
-		{
-			MSG_WriteByte (&buf, cl.allocated_client_slots);
-			MSG_WriteByte (&buf, cl.splitclients | (cl.spectator?128:0));
-			for (i = 0; i < cl.splitclients; i++)
-				MSG_WriteByte (&buf, cl.playerview[i].playernum);
-		}
-		else
-		{
-			for (i = 0; i < cl.splitclients; i++)
-			{
-				if (cl.spectator)
-					MSG_WriteByte (&buf, cl.playerview[i].playernum | 128);
-				else
-					MSG_WriteByte (&buf, cl.playerview[i].playernum);
-			}
-			if (cls.fteprotocolextensions & PEXT_SPLITSCREEN)
-				MSG_WriteByte (&buf, 128);
-		}
-
-		// send full levelname
-		MSG_WriteString (&buf, cl.levelname);
-
-		// send the movevars
-		MSG_WriteFloat(&buf, movevars.gravity);
-		MSG_WriteFloat(&buf, movevars.stopspeed);
-		MSG_WriteFloat(&buf, movevars.maxspeed);
-		MSG_WriteFloat(&buf, movevars.spectatormaxspeed);
-		MSG_WriteFloat(&buf, movevars.accelerate);
-		MSG_WriteFloat(&buf, movevars.airaccelerate);
-		MSG_WriteFloat(&buf, movevars.wateraccelerate);
-		MSG_WriteFloat(&buf, movevars.friction);
-		MSG_WriteFloat(&buf, movevars.waterfriction);
-		MSG_WriteFloat(&buf, movevars.entgravity);
-
-		// send server info string
-		MSG_WriteByte (&buf, svc_stufftext);
-		MSG_WriteString (&buf, va("fullserverinfo \"%s\"\n", cl.serverinfo) );
+		CLQW_RecordServerData(&buf);
 
 		// send music
 		Media_WriteCurrentTrack(&buf);
@@ -1378,7 +1686,7 @@ void CL_Record_f (void)
 
 
 		MSG_WriteByte (&buf, svc_setpause);
-		MSG_WriteByte (&buf, cl.paused);
+		MSG_WriteByte (&buf, !!cl.paused);
 
 #ifdef PEXT_SETVIEW
 		if (cl.playerview[0].viewentity != cl.playerview[0].playernum+1)	//tell the player if we have a different view entity
@@ -1389,7 +1697,6 @@ void CL_Record_f (void)
 #endif
 		// flush packet
 		CL_WriteRecordDemoMessage (&buf, seq++);
-		SZ_Clear (&buf);
 
 	// soundlist
 		MSG_WriteByte (&buf, svc_soundlist);
@@ -1405,7 +1712,7 @@ void CL_Record_f (void)
 				MSG_WriteByte (&buf, 0);
 				MSG_WriteByte (&buf, n);
 				CL_WriteRecordDemoMessage (&buf, seq++);
-				SZ_Clear (&buf);
+			
 				if (n + 1 > 0xff)
 				{
 					MSG_WriteByte (&buf, svcfte_soundlistshort);
@@ -1425,7 +1732,6 @@ void CL_Record_f (void)
 			MSG_WriteByte (&buf, 0);
 			MSG_WriteByte (&buf, 0);
 			CL_WriteRecordDemoMessage (&buf, seq++);
-			SZ_Clear (&buf);
 		}
 
 		//FIXME: vweps
@@ -1444,7 +1750,7 @@ void CL_Record_f (void)
 				MSG_WriteByte (&buf, 0);
 				MSG_WriteByte (&buf, n);
 				CL_WriteRecordDemoMessage (&buf, seq++);
-				SZ_Clear (&buf);
+
 				if (n + 1 > 0xff)
 				{
 					MSG_WriteByte (&buf, svcfte_modellistshort);
@@ -1464,131 +1770,15 @@ void CL_Record_f (void)
 			MSG_WriteByte (&buf, 0);
 			MSG_WriteByte (&buf, 0);
 			CL_WriteRecordDemoMessage (&buf, seq++);
-			SZ_Clear (&buf);
 		}
 
-		//particleeffectnum stuff
-		for (i = 1; i < MAX_SSPARTICLESPRE; i++)
-		{
-			if (!cl.particle_ssname[i])
-				break;
-			MSG_WriteByte(&buf, svcfte_precache);
-			MSG_WriteShort(&buf, PC_PARTICLE | i);
-			MSG_WriteString(&buf, cl.particle_ssname[i]);
-
-			if (buf.cursize > buf.maxsize/2)
-			{
-				CL_WriteRecordDemoMessage (&buf, seq++);
-				SZ_Clear (&buf);
-			}
-		}
-
-		//custom tents (needed for hexen2, if nothing else)
-		for (i = 0; ; i++)
-		{
-			if (!CL_WriteCustomTEnt(&buf, i))
-				break;
-
-			if (buf.cursize > buf.maxsize/2)
-			{
-				CL_WriteRecordDemoMessage (&buf, seq++);
-				SZ_Clear (&buf);
-			}
-		}
-
-	// spawnstatic
-
-		for (i = 0; i < cl.num_statics; i++)
-		{
-			ent = &cl_static_entities[i].ent;
-
-#ifndef CLIENTONLY	//FIXME
-			if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-			{
-				MSG_WriteByte(&buf, svcfte_spawnstatic2);
-				SVFTE_EmitBaseline(&cl_static_entities[i].state, false, &buf, cls.fteprotocolextensions2);
-			}
-			//else if (cls.fteprotocolextensions & PEXT_SPAWNSTATIC2) //qw deltas
-			else
-#endif
-			{
-				MSG_WriteByte (&buf, svc_spawnstatic);
-
-				for (j = 1; j < MAX_PRECACHE_MODELS; j++)
-					if (ent->model == cl.model_precache[j])
-						break;
-				if (j == MAX_PRECACHE_MODELS)
-					MSG_WriteByte (&buf, 0);
-				else
-					MSG_WriteByte (&buf, j);
-
-				MSG_WriteByte (&buf, ent->framestate.g[FS_REG].frame[0]);
-				MSG_WriteByte (&buf, 0);
-				MSG_WriteByte (&buf, ent->skinnum);
-				for (j=0 ; j<3 ; j++)
-				{
-					MSG_WriteCoord (&buf, ent->origin[j]);
-					MSG_WriteAngle (&buf, ent->angles[j]);
-				}
-			}
-
-			if (buf.cursize > buf.maxsize/2)
-			{
-				CL_WriteRecordDemoMessage (&buf, seq++);
-				SZ_Clear (&buf);
-			}
-		}
-
-	// FIXME: static sounds
-		// static sounds are skipped in demos, life is hard
-
-	// baselines
-
-		for (i = 0; i < cl_baselines_count; i++)
-		{
-			es = cl_baselines + i;
-
-			if (memcmp(es, &nullentitystate, sizeof(nullentitystate)))
-			{
-#ifndef CLIENTONLY	//FIXME
-				if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-				{
-					MSG_WriteByte(&buf, svcfte_spawnbaseline2);
-					SVFTE_EmitBaseline(es, true, &buf, cls.fteprotocolextensions2);
-				}
-				//else if (cls.fteprotocolextensions & PEXT_SPAWNSTATIC2) //qw deltas
-				else
-#endif
-				{
-					MSG_WriteByte (&buf,svc_spawnbaseline);
-					MSG_WriteEntity (&buf, i);
-
-					MSG_WriteByte (&buf, es->modelindex);
-					MSG_WriteByte (&buf, es->frame);
-					MSG_WriteByte (&buf, es->colormap);
-					MSG_WriteByte (&buf, es->skinnum);
-					for (j=0 ; j<3 ; j++)
-					{
-						MSG_WriteCoord(&buf, es->origin[j]);
-						MSG_WriteAngle(&buf, es->angles[j]);
-					}
-				}
-				if (buf.cursize > buf.maxsize/2)
-				{
-					CL_WriteRecordDemoMessage (&buf, seq++);
-					SZ_Clear (&buf);
-				}
-			}
-		}
+		seq = CL_Record_ParticlesStaticsBaselines(&buf, seq);
 
 		MSG_WriteByte (&buf, svc_stufftext);
 		MSG_WriteString (&buf, va("cmd spawn %i\n", cl.servercount) );
 
 		if (buf.cursize)
-		{
 			CL_WriteRecordDemoMessage (&buf, seq++);
-			SZ_Clear (&buf);
-		}
 
 	// send current status of all other players
 
@@ -1633,44 +1823,10 @@ void CL_Record_f (void)
 			}
 
 			if (buf.cursize > buf.maxsize/2)
-			{
 				CL_WriteRecordDemoMessage (&buf, seq++);
-				SZ_Clear (&buf);
-			}
 		}
 
-	// send all current light styles
-		for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
-		{
-			if (i >= MAX_STANDARDLIGHTSTYLES)
-				if (!*cl_lightstyle[i].map)
-					continue;
-
-#ifdef PEXT_LIGHTSTYLECOL
-			if ((cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (cl_lightstyle[i].colours[0]!=1||cl_lightstyle[i].colours[1]!=1||cl_lightstyle[i].colours[2]!=1) && *cl_lightstyle[i].map)
-			{
-				MSG_WriteByte (&buf, svcfte_lightstylecol);
-				MSG_WriteByte (&buf, (unsigned char)i);
-				MSG_WriteByte (&buf, 0x87);
-				MSG_WriteShort (&buf, cl_lightstyle[i].colours[0]*1024);
-				MSG_WriteShort (&buf, cl_lightstyle[i].colours[1]*1024);
-				MSG_WriteShort (&buf, cl_lightstyle[i].colours[2]*1024);
-				MSG_WriteString (&buf, cl_lightstyle[i].map);
-			}
-			else
-#endif
-			{
-				MSG_WriteByte (&buf, svc_lightstyle);
-				MSG_WriteByte (&buf, (unsigned char)i);
-				MSG_WriteString (&buf, cl_lightstyle[i].map);
-			}
-
-			if (buf.cursize > buf.maxsize/2)
-			{
-				CL_WriteRecordDemoMessage (&buf, seq++);
-				SZ_Clear (&buf);
-			}
-		}
+		seq = CL_Record_Lightstyles(&buf, seq);
 
 		for (seat = 0; seat < cl.splitclients; seat++)
 		{
@@ -1712,10 +1868,7 @@ void CL_Record_f (void)
 				}
 
 				if (buf.cursize > buf.maxsize/2)
-				{
 					CL_WriteRecordDemoMessage (&buf, seq++);
-					SZ_Clear (&buf);
-				}
 			}
 		}
 
@@ -1775,8 +1928,37 @@ void CL_Record_f (void)
 		CL_WriteRecordQ2DemoMessage (&buf);
 		break;
 #endif
-	case CP_NETQUAKE:	//FIXME
+#ifdef NQPROT
+	case CP_NETQUAKE:
+		//csqc stuff
+		cls.demorecording = DPB_NETQUAKE;
+		VFS_WRITE(cls.demooutfile, "-1\n", 3);	//stupid lame header thing.
+
+		CLNQ_WriteServerData(&buf);
+		MSG_WriteByte (&buf, svc_setpause);
+		MSG_WriteByte (&buf, !!cl.paused);
+		MSG_WriteByte (&buf, svc_setview);
+		MSG_WriteEntity (&buf, cl.playerview[0].viewentity);
+
+		MSG_WriteByte (&buf, svc_signonnum);
+		MSG_WriteByte (&buf, 1);
+		CL_WriteRecordDemoMessage (&buf, seq++);
+
+		seq = CL_Record_ParticlesStaticsBaselines(&buf, seq);
+		//fixme: brushes...
+		MSG_WriteByte (&buf, svc_signonnum);
+		MSG_WriteByte (&buf, 2);
+		CL_WriteRecordDemoMessage (&buf, seq++);
+		//fixme: clients
+		seq = CL_Record_Lightstyles(&buf, seq);
+		//fixme: stats
+		MSG_WriteByte (&buf, svc_signonnum);
+		MSG_WriteByte (&buf, 3);
+		CL_WriteRecordDemoMessage (&buf, seq++);
+		break;
+#endif
 	default:
+		//this should have been caught earlier
 		Con_Printf("Unable to begin demo recording with this network protocol\n");
 		CL_Stop_f();
 		break;
@@ -1820,6 +2002,8 @@ void CL_ReRecord_f (void)
 
 	Q_snprintfz (name, sizeof(name), "%s", s);
 
+	CL_Disconnect();
+
 //
 // open the demo file
 //
@@ -1854,7 +2038,9 @@ void CL_ReRecord_f (void)
 
 	Con_Printf ("recording to %s.\n", name);
 
-	CL_Disconnect();
+	if (cls.demorecording == DPB_NETQUAKE)	//nq demos have some silly header.
+		VFS_WRITE(cls.demooutfile, "-1\n", 3);
+
 	CL_BeginServerReconnect();
 }
 

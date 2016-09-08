@@ -594,8 +594,6 @@ typedef struct
 } dprograms_t;
 #define standard_dprograms_t_size ((size_t)&((dprograms_t*)NULL)->ofsfiles)
 
-#endif
-
 
 
 
@@ -623,3 +621,5 @@ typedef struct typeinfo_s
 	int		size;
 	string_t	name;
 } typeinfo_t;
+
+#endif

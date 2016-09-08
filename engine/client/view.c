@@ -44,62 +44,62 @@ when crossing a water boudnary.
 */
 
 #ifdef SIDEVIEWS
-cvar_t	vsec_enabled[SIDEVIEWS] = {SCVAR("v2_enabled", "2"),	SCVAR("v3_enabled", "0"),	SCVAR("v4_enabled", "0"),	SCVAR("v5_enabled", "0")};
-cvar_t	vsec_x[SIDEVIEWS]		= {SCVAR("v2_x", "0"),			SCVAR("v3_x", "0.25"),		SCVAR("v4_x", "0.5"),		SCVAR("v5_x", "0.75")};
-cvar_t	vsec_y[SIDEVIEWS]		= {SCVAR("v2_y", "0"),			SCVAR("v3_y", "0"),			SCVAR("v4_y", "0"),			SCVAR("v5_y", "0")};
-cvar_t	vsec_scalex[SIDEVIEWS]	= {SCVAR("v2_scalex", "0.25"),	SCVAR("v3_scalex", "0.25"),	SCVAR("v4_scalex", "0.25"),	SCVAR("v5_scalex", "0.25")};
-cvar_t	vsec_scaley[SIDEVIEWS]	= {SCVAR("v2_scaley", "0.25"),	SCVAR("v3_scaley", "0.25"),	SCVAR("v4_scaley", "0.25"),	SCVAR("v5_scaley", "0.25")};
-cvar_t	vsec_yaw[SIDEVIEWS]		= {SCVAR("v2_yaw", "180"),		SCVAR("v3_yaw", "90"),		SCVAR("v4_yaw", "270"),		SCVAR("v5_yaw", "0")};
+cvar_t	vsec_enabled[SIDEVIEWS] = {CVAR("v2_enabled", "2"),		CVAR("v3_enabled", "0"),	CVAR("v4_enabled", "0"),	CVAR("v5_enabled", "0")};
+cvar_t	vsec_x[SIDEVIEWS]		= {CVAR("v2_x", "0"),			CVAR("v3_x", "0.25"),		CVAR("v4_x", "0.5"),		CVAR("v5_x", "0.75")};
+cvar_t	vsec_y[SIDEVIEWS]		= {CVAR("v2_y", "0"),			CVAR("v3_y", "0"),			CVAR("v4_y", "0"),			CVAR("v5_y", "0")};
+cvar_t	vsec_scalex[SIDEVIEWS]	= {CVAR("v2_scalex", "0.25"),	CVAR("v3_scalex", "0.25"),	CVAR("v4_scalex", "0.25"),	CVAR("v5_scalex", "0.25")};
+cvar_t	vsec_scaley[SIDEVIEWS]	= {CVAR("v2_scaley", "0.25"),	CVAR("v3_scaley", "0.25"),	CVAR("v4_scaley", "0.25"),	CVAR("v5_scaley", "0.25")};
+cvar_t	vsec_yaw[SIDEVIEWS]		= {CVAR("v2_yaw", "180"),		CVAR("v3_yaw", "90"),		CVAR("v4_yaw", "270"),		CVAR("v5_yaw", "0")};
 #endif
 
-cvar_t	cl_rollspeed = SCVAR("cl_rollspeed", "200");
-cvar_t	cl_rollangle = SCVAR("cl_rollangle", "2.0");
-cvar_t	v_deathtilt = SCVAR("v_deathtilt", "1");
+cvar_t	cl_rollspeed			= CVAR("cl_rollspeed", "200");
+cvar_t	cl_rollangle			= CVAR("cl_rollangle", "2.0");
+cvar_t	v_deathtilt				= CVAR("v_deathtilt", "1");
 
-cvar_t	cl_bob = SCVAR("cl_bob","0.02");
-cvar_t	cl_bobcycle = SCVAR("cl_bobcycle","0.6");
-cvar_t	cl_bobup = SCVAR("cl_bobup","0.5");
+cvar_t	cl_bob					= CVAR("cl_bob","0.02");
+cvar_t	cl_bobcycle				= CVAR("cl_bobcycle","0.6");
+cvar_t	cl_bobup				= CVAR("cl_bobup","0.5");
 
-cvar_t	v_kicktime = SCVAR("v_kicktime", "0.5");
-cvar_t	v_kickroll = SCVAR("v_kickroll", "0.6");
-cvar_t	v_kickpitch = SCVAR("v_kickpitch", "0.6");
+cvar_t	v_kicktime				= CVAR("v_kicktime", "0.5");
+cvar_t	v_kickroll				= CVAR("v_kickroll", "0.6");
+cvar_t	v_kickpitch				= CVAR("v_kickpitch", "0.6");
 
-cvar_t	v_iyaw_cycle = SCVAR("v_iyaw_cycle", "2");
-cvar_t	v_iroll_cycle = SCVAR("v_iroll_cycle", "0.5");
-cvar_t	v_ipitch_cycle = SCVAR("v_ipitch_cycle", "1");
-cvar_t	v_iyaw_level = SCVAR("v_iyaw_level", "0.3");
-cvar_t	v_iroll_level = SCVAR("v_iroll_level", "0.1");
-cvar_t	v_ipitch_level = SCVAR("v_ipitch_level", "0.3");
-cvar_t	v_idlescale = SCVAR("v_idlescale", "0");
+cvar_t	v_iyaw_cycle			= CVAR("v_iyaw_cycle", "2");
+cvar_t	v_iroll_cycle			= CVAR("v_iroll_cycle", "0.5");
+cvar_t	v_ipitch_cycle			= CVAR("v_ipitch_cycle", "1");
+cvar_t	v_iyaw_level			= CVAR("v_iyaw_level", "0.3");
+cvar_t	v_iroll_level			= CVAR("v_iroll_level", "0.1");
+cvar_t	v_ipitch_level			= CVAR("v_ipitch_level", "0.3");
+cvar_t	v_idlescale				= CVAR("v_idlescale", "0");
 
-cvar_t	crosshair = SCVARF("crosshair", "1", CVAR_ARCHIVE);
-cvar_t	crosshaircolor = SCVARF("crosshaircolor", "255 255 255", CVAR_ARCHIVE);
-cvar_t	crosshairsize = SCVARF("crosshairsize", "8", CVAR_ARCHIVE);
+cvar_t	crosshair				= CVARF("crosshair", "1", CVAR_ARCHIVE);
+cvar_t	crosshaircolor			= CVARF("crosshaircolor", "255 255 255", CVAR_ARCHIVE);
+cvar_t	crosshairsize			= CVARF("crosshairsize", "8", CVAR_ARCHIVE);
 
-cvar_t  cl_crossx = SCVARF("cl_crossx", "0", CVAR_ARCHIVE);
-cvar_t  cl_crossy = SCVARF("cl_crossy", "0", CVAR_ARCHIVE);
-cvar_t	crosshaircorrect = SCVARF("crosshaircorrect", "0", CVAR_SEMICHEAT);
-cvar_t	crosshairimage = SCVAR("crosshairimage", "");
-cvar_t	crosshairalpha = SCVAR("crosshairalpha", "1");
+cvar_t  cl_crossx				= CVARF("cl_crossx", "0", CVAR_ARCHIVE);
+cvar_t  cl_crossy				= CVARF("cl_crossy", "0", CVAR_ARCHIVE);
+cvar_t	crosshaircorrect		= CVARF("crosshaircorrect", "0", CVAR_SEMICHEAT);
+cvar_t	crosshairimage			= CVAR("crosshairimage", "");
+cvar_t	crosshairalpha			= CVAR("crosshairalpha", "1");
 
-cvar_t	gl_cshiftpercent = SCVAR("gl_cshiftpercent", "100");
-cvar_t	gl_cshiftenabled = CVARF("gl_polyblend", "1", CVAR_ARCHIVE);
+cvar_t	gl_cshiftpercent		= CVAR("gl_cshiftpercent", "100");
+cvar_t	gl_cshiftenabled		= CVARF("gl_polyblend", "1", CVAR_ARCHIVE);
 
-cvar_t	v_bonusflash = SCVAR("v_bonusflash", "1");
+cvar_t	v_bonusflash			= CVAR("v_bonusflash", "1");
 
-cvar_t  v_contentblend = SCVARF("v_contentblend", "1", CVAR_ARCHIVE);
-cvar_t	v_damagecshift = SCVAR("v_damagecshift", "1");
-cvar_t	v_quadcshift = SCVAR("v_quadcshift", "1");
-cvar_t	v_suitcshift = SCVAR("v_suitcshift", "1");
-cvar_t	v_ringcshift = SCVAR("v_ringcshift", "1");
-cvar_t	v_pentcshift = SCVAR("v_pentcshift", "1");
-cvar_t	v_gunkick = SCVAR("v_gunkick", "0");
-cvar_t	v_gunkick_q2 = SCVAR("v_gunkick_q2", "1");
+cvar_t  v_contentblend			= CVARF("v_contentblend", "1", CVAR_ARCHIVE);
+cvar_t	v_damagecshift			= CVAR("v_damagecshift", "1");
+cvar_t	v_quadcshift			= CVAR("v_quadcshift", "1");
+cvar_t	v_suitcshift			= CVAR("v_suitcshift", "1");
+cvar_t	v_ringcshift			= CVAR("v_ringcshift", "1");
+cvar_t	v_pentcshift			= CVAR("v_pentcshift", "1");
+cvar_t	v_gunkick				= CVAR("v_gunkick", "0");
+cvar_t	v_gunkick_q2			= CVAR("v_gunkick_q2", "1");
 
-cvar_t	v_viewheight = SCVAR("v_viewheight", "0");
-cvar_t	v_projectionmode = SCVAR("v_projectionmode", "0");
+cvar_t	v_viewheight			= CVAR("v_viewheight", "0");
+cvar_t	v_projectionmode		= CVAR("v_projectionmode", "0");
 
-cvar_t	v_depthsortentities = CVARAD("v_depthsortentities", "0", "v_reorderentitiesrandomly", "Reorder entities for transparency such that the furthest entities are drawn first, allowing nearer transparent entities to draw over the top of them.");
+cvar_t	v_depthsortentities		= CVARAD("v_depthsortentities", "0", "v_reorderentitiesrandomly", "Reorder entities for transparency such that the furthest entities are drawn first, allowing nearer transparent entities to draw over the top of them.");
 
 cvar_t	scr_autoid				= CVARD("scr_autoid", "1", "Display nametags above all players while spectating.");
 cvar_t	scr_autoid_team			= CVARD("scr_autoid_team", "1", "Display nametags above team members. 0: off. 1: display with half-alpha if occluded. 2: hide when occluded.");
@@ -109,9 +109,9 @@ cvar_t	scr_autoid_weapon		= CVARD("scr_autoid_weapon", "1", "Display the player'
 cvar_t	scr_autoid_teamcolour	= CVARD("scr_autoid_teamcolour", STRINGIFY(COLOR_BLUE), "The colour for the text on the nametags of team members.");
 cvar_t	scr_autoid_enemycolour	= CVARD("scr_autoid_enemycolour", STRINGIFY(COLOR_WHITE), "The colour for the text on the nametags of non-team members.");
 
-cvar_t	chase_active = CVAR("chase_active", "0");
-cvar_t	chase_back = CVAR("chase_back", "48");
-cvar_t	chase_up = CVAR("chase_up", "24");
+cvar_t	chase_active			= CVAR("chase_active", "0");
+cvar_t	chase_back				= CVAR("chase_back", "48");
+cvar_t	chase_up				= CVAR("chase_up", "24");
 
 
 extern cvar_t cl_chasecam;
@@ -197,8 +197,8 @@ float V_CalcBob (playerview_t *pv, qboolean queryold)
 //=============================================================================
 
 
-cvar_t	v_centermove = SCVAR("v_centermove", "0.15");
-cvar_t	v_centerspeed = SCVAR("v_centerspeed","500");
+cvar_t	v_centermove = CVAR("v_centermove", "0.15");
+cvar_t	v_centerspeed = CVAR("v_centerspeed","500");
 
 
 void V_StartPitchDrift (playerview_t *pv)

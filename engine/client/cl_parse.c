@@ -2842,7 +2842,7 @@ void CLQW_ParseServerData (void)
 		CL_DownloadFailed(cls.download->remotename, cls.download);
 	}
 
-	Con_DPrintf ("Serverdata packet received.\n");
+	Con_DPrintf ("Serverdata packet %s.\n", cls.demoplayback?"read":"received");
 //
 // wipe the client_state_t struct
 //
@@ -3132,7 +3132,7 @@ void CLQ2_ParseServerData (void)
 	cls.fteprotocolextensions2 = 0;
 	cls.demohadkeyframe = true;	//assume that it did, so this stuff all gets recorded.
 
-	Con_DPrintf ("Serverdata packet received.\n");
+	Con_DPrintf ("Serverdata packet %s.\n", cls.demoplayback?"read":"received");
 //
 // wipe the client_state_t struct
 //
@@ -3427,8 +3427,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	int	nummodels, numsounds;
 	char	*str;
 	int gametype;
-	if (developer.ival)
-		Con_TPrintf ("Serverdata packet received.\n");
+	Con_DPrintf ("Serverdata packet %s.\n", cls.demoplayback?"read":"received");
 	SCR_SetLoadingStage(LS_CLIENT);
 	CL_ClearState ();
 	Stats_NewMap();
@@ -3436,8 +3435,10 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 	CLNQ_ParseProtoVersion();
 
-	if (MSG_ReadByte() > MAX_CLIENTS)
+	cl.allocated_client_slots = MSG_ReadByte();
+	if (cl.allocated_client_slots > MAX_CLIENTS)
 	{
+		cl.allocated_client_slots = MAX_CLIENTS;
 		Con_Printf ("\nWarning, this server supports more than %i clients, additional clients will do bad things\n", MAX_CLIENTS);
 	}
 

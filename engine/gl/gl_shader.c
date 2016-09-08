@@ -4985,6 +4985,19 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 	char *builtin = NULL;
 	if (Shader_ParseShader("defaultwall", s))
 		return;
+
+	if (!builtin && r_lightmap.ival)
+		builtin = (
+				"{\n"
+					"program drawflat_wall\n"
+					"{\n"
+						"map $lightmap\n"
+						"tcgen lightmap\n"
+						"rgbgen const 255 255 255\n"
+					"}\n"
+				"}\n"
+			);
+
 	if (!builtin && r_drawflat.ival)
 		builtin = (
 				"{\n"

@@ -209,7 +209,7 @@ qboolean	m_recursiveDraw;
 
 void M_ConfigureNetSubsystem(void);
 
-cvar_t m_helpismedia = SCVAR("m_helpismedia", "0");
+cvar_t m_helpismedia = CVAR("m_helpismedia", "0");
 cvar_t m_preset_chosen = CVARF("m_preset_chosen", "0", CVAR_ARCHIVE);
 
 //=============================================================================

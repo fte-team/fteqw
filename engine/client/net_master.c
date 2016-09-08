@@ -123,7 +123,7 @@ net_masterlist_t net_masterlist[] = {
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"telefrag.me:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"telefrag.me"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"master.teamdamage.com:27000",				CVAR_NOSAVE, Net_Masterlist_Callback),	"master.teamdamage.com"},
 
-	{MP_DPMASTER,	CVARFC("net_masterextra1",		"ghdigital.com:27950 69.59.212.88:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
+	{MP_DPMASTER,	CVARFC("net_masterextra1",		"ghdigital.com:27950 207.55.114.154:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //207.55.114.154 (was 69.59.212.88 (admin: LordHavoc)
 	{MP_DPMASTER,	CVARFC("net_masterextra2",		"dpmaster.deathmask.net:27950 107.161.23.68:27950 [2604:180::4ac:98c1]:27950",	CVAR_NOSAVE, Net_Masterlist_Callback)}, //107.161.23.68 (admin: Willis)
 	{MP_DPMASTER,	CVARFC("net_masterextra3",		"dpmaster.tchr.no:27950 92.62.40.73:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //92.62.40.73 (admin: tChr)
 
@@ -560,8 +560,8 @@ typedef int SOCKET;
 
 //the number of servers should be limited only by memory.
 
-cvar_t slist_cacheinfo = SCVAR("slist_cacheinfo", "0");	//this proves dangerous, memory wise.
-cvar_t slist_writeserverstxt = SCVAR("slist_writeservers", "0");
+cvar_t slist_cacheinfo = CVAR("slist_cacheinfo", "0");	//this proves dangerous, memory wise.
+cvar_t slist_writeserverstxt = CVAR("slist_writeservers", "0");
 
 void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad);
 int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favorite);
@@ -1904,6 +1904,7 @@ int Master_CheckPollSockets(void)
 			int users, maxusers;
 
 			int control;
+			int ccrep;
 
 			MSG_BeginReading (msg_nullnetprim);
 			control = BigLong(*((int *)net_message.data));
@@ -1915,23 +1916,94 @@ int Master_CheckPollSockets(void)
 			if ((control & NETFLAG_LENGTH_MASK) != ret)
 				continue;
 
-			if (MSG_ReadByte() != CCREP_SERVER_INFO)
-				continue;
+			ccrep = MSG_ReadByte();
 
-			/*this is an address string sent from the server. its not usable. if its replying to serverinfos, its possible to send it connect requests, while the address that it claims is 50% bugged*/
-			MSG_ReadString();
-
-			Q_strncpyz(name, MSG_ReadString(), sizeof(name));
-			Q_strncpyz(map, MSG_ReadString(), sizeof(map));
-			users = MSG_ReadByte();
-			maxusers = MSG_ReadByte();
-			if (MSG_ReadByte() != NQ_NETCHAN_VERSION)
+			if (ccrep == CCREP_PLAYER_INFO)
 			{
-//				Q_strcpy(name, "*");
-//				Q_strcat(name, name);
-			}
+				serverinfo_t *selserver = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr):NULL;
+				serverinfo_t *info = Master_InfoForServer(&net_from);
+				info = Master_InfoForServer(&net_from);
+				if (selserver == info)
+				{
+					int playernum = MSG_ReadByte();
+					char *playername = MSG_ReadString();
+					int playercolor = MSG_ReadLong();
+					int playerfrags = MSG_ReadLong();
+					int secsonserver = MSG_ReadLong();
+					//char *playeraddr = MSG_ReadString();
+					if (msg_badread)
+						continue;
 
-			CL_ReadServerInfo(va("\\hostname\\%s\\map\\%s\\maxclients\\%i\\clients\\%i", name, map, maxusers, users), MP_NETQUAKE, false);
+					selectedserver.lastplayer = playernum+1;
+
+					memset(&info->moreinfo->players[playernum], 0, sizeof(info->moreinfo->players[playernum]));
+					info->moreinfo->players[playernum].userid = 0;
+					info->moreinfo->players[playernum].frags = playerfrags;
+					info->moreinfo->players[playernum].time = secsonserver;
+					info->moreinfo->players[playernum].ping = 0;	//*sigh*
+					Q_strncpyz(info->moreinfo->players[playernum].name, playername, sizeof(info->moreinfo->players[playernum].name));
+					Q_strncpyz(info->moreinfo->players[playernum].skin, "", sizeof(info->moreinfo->players[playernum].skin));
+					Q_strncpyz(info->moreinfo->players[playernum].team, "", sizeof(info->moreinfo->players[playernum].team));
+					info->moreinfo->players[playernum].topc = playercolor>>4;
+					info->moreinfo->players[playernum].botc = playercolor&15;
+					info->moreinfo->players[playernum].isspec = false;
+					info->moreinfo->numplayers = max(info->moreinfo->numplayers, playernum+1);
+
+					//... and now try to query the next one... because everyone gives up after the first, right?... dude... I hate this shit.
+					SZ_Clear(&net_message);
+					MSG_WriteLong(&net_message, 0);// save space for the header, filled in later
+					MSG_WriteByte(&net_message, CCREQ_PLAYER_INFO);
+					MSG_WriteByte(&net_message, selectedserver.lastplayer);
+					*((int *)net_message.data) = BigLong(NETFLAG_CTL | (net_message.cursize & NETFLAG_LENGTH_MASK));
+					NET_SendPollPacket(net_message.cursize, net_message.data, info->adr);
+					SZ_Clear(&net_message);
+				}
+			}
+			else if (ccrep == CCREP_RULE_INFO)
+			{
+				serverinfo_t *selserver = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr):NULL;
+				serverinfo_t *info = Master_InfoForServer(&net_from);
+				char *s, *old;
+				info = Master_InfoForServer(&net_from);
+				if (selserver == info)
+				{
+					s = MSG_ReadString();
+					if (msg_badread)
+						continue;
+					Q_strncpyz(selectedserver.lastrule, s, sizeof(selectedserver.lastrule));
+					s = MSG_ReadString();
+					
+					old = Info_ValueForKey(info->moreinfo->info, selectedserver.lastrule);
+					if (strcmp(s, old))
+						Info_SetValueForStarKey(info->moreinfo->info, selectedserver.lastrule, s, sizeof(info->moreinfo->info));
+
+					//... and now try to query the next one... because everyone gives up after the first, right?... dude... I hate this shit.
+					SZ_Clear(&net_message);
+					MSG_WriteLong(&net_message, 0);// save space for the header, filled in later
+					MSG_WriteByte(&net_message, CCREQ_RULE_INFO);
+					MSG_WriteString(&net_message, selectedserver.lastrule);
+					*((int *)net_message.data) = BigLong(NETFLAG_CTL | (net_message.cursize & NETFLAG_LENGTH_MASK));
+					NET_SendPollPacket(net_message.cursize, net_message.data, info->adr);
+					SZ_Clear(&net_message);
+				}
+			}
+			else if (ccrep == CCREP_SERVER_INFO)
+			{
+				/*this is an address string sent from the server. its not usable. if its replying to serverinfos, its possible to send it connect requests, while the address that it claims is 50% bugged*/
+				MSG_ReadString();
+
+				Q_strncpyz(name, MSG_ReadString(), sizeof(name));
+				Q_strncpyz(map, MSG_ReadString(), sizeof(map));
+				users = MSG_ReadByte();
+				maxusers = MSG_ReadByte();
+				if (MSG_ReadByte() != NQ_NETCHAN_VERSION)
+				{
+//					Q_strcpy(name, "*");
+//					Q_strcat(name, name);
+				}
+
+				CL_ReadServerInfo(va("\\hostname\\%s\\map\\%s\\maxclients\\%i\\clients\\%i", name, map, maxusers, users), MP_NETQUAKE, false);
+			}
 		}
 #endif
 		continue;
@@ -1994,6 +2066,29 @@ void SListOptionChanged(serverinfo_t *newserver)
 		selectedserver.refreshtime = realtime+4;
 		newserver->sends++;
 		Master_QueryServer(newserver);
+
+#ifdef NQPROT
+		selectedserver.lastplayer = 0;
+		*selectedserver.lastrule = 0;
+		if ((newserver->special&SS_PROTOCOLMASK) == SS_NETQUAKE)
+		{	//start spamming the server to get all of its details. silly protocols.
+			SZ_Clear(&net_message);
+			net_message.packing = SZ_RAWBYTES;
+			net_message.currentbit = 0;
+			MSG_WriteLong(&net_message, 0);// save space for the header, filled in later
+			MSG_WriteByte(&net_message, CCREQ_PLAYER_INFO);
+			MSG_WriteByte(&net_message, selectedserver.lastplayer);
+			*((int *)net_message.data) = BigLong(NETFLAG_CTL | (net_message.cursize & NETFLAG_LENGTH_MASK));
+			NET_SendPollPacket(net_message.cursize, net_message.data, newserver->adr);
+			SZ_Clear(&net_message);
+			MSG_WriteLong(&net_message, 0);// save space for the header, filled in later
+			MSG_WriteByte(&net_message, CCREQ_RULE_INFO);
+			MSG_WriteString(&net_message, selectedserver.lastrule);
+			*((int *)net_message.data) = BigLong(NETFLAG_CTL | (net_message.cursize & NETFLAG_LENGTH_MASK));
+			NET_SendPollPacket(net_message.cursize, net_message.data, newserver->adr);
+			SZ_Clear(&net_message);
+		}
+#endif
 	}
 }
 
@@ -2475,7 +2570,10 @@ void Master_QueryServer(serverinfo_t *server)
 		Q_snprintfz(data, sizeof(data), "%c%c%c%cgetstatus", 255, 255, 255, 255);
 		break;
 	case SS_DARKPLACES:
-		Q_snprintfz(data, sizeof(data), "%c%c%c%cgetinfo", 255, 255, 255, 255);
+		if (server->moreinfo)
+			Q_snprintfz(data, sizeof(data), "%c%c%c%cgetstatus", 255, 255, 255, 255);
+		else
+			Q_snprintfz(data, sizeof(data), "%c%c%c%cgetinfo", 255, 255, 255, 255);
 		break;
 #ifdef NQPROT
 	case SS_NETQUAKE:
@@ -2841,8 +2939,6 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 		}
 	}
 
-	MasterInfo_RemovePlayers(&info->adr);
-
 	name = Info_ValueForKey(msg, "hostname");
 	if (!*name)
 		name = Info_ValueForKey(msg, "sv_hostname");
@@ -2939,178 +3035,189 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 	strcpy(details.info, msg);
 	msg = msg+strlen(msg)+1;
 
-	info->players=details.numplayers = 0;
-	if (!strchr(msg, '\n'))
+	//clear player info. unless its an NQ server, which have some really annoying protocol to find out the players.
+	if ((info->special & SS_PROTOCOLMASK) == SS_NETQUAKE)
+	{
+		if (!info->moreinfo && ((slist_cacheinfo.value == 2 || NET_CompareAdr(&info->adr, &selectedserver.adr)) || (info->special & SS_KEEPINFO)))
+			info->moreinfo = Z_Malloc(sizeof(serverdetailedinfo_t));
 		info->numhumans = info->players = atoi(Info_ValueForKey(details.info, "clients"));
+	}
 	else
 	{
-		int clnum;
-
-		for (clnum=0; clnum < MAX_CLIENTS; clnum++)
+		MasterInfo_RemovePlayers(&info->adr);
+		info->players=details.numplayers = 0;
+		if (!strchr(msg, '\n'))
+			info->numhumans = info->players = atoi(Info_ValueForKey(details.info, "clients"));
+		else
 		{
-			nl = strchr(msg, '\n');
-			if (!nl)
-				break;
-			*nl = '\0';
+			int clnum;
 
-			details.players[clnum].isspec = 0;
-			details.players[clnum].team[0] = 0;
-			details.players[clnum].skin[0] = 0;
-
-			token = msg;
-			if (!token)
-				break;
-			details.players[clnum].userid = atoi(token);
-			token = strchr(token+1, ' ');
-			if (!token)
-				break;
-			details.players[clnum].frags = atoi(token);
-			token = strchr(token+1, ' ');
-			if (!token)
-				break;
-			details.players[clnum].time = atoi(token);
-			msg = token;
-			token = strchr(msg+1, ' ');
-			if (!token)	//probably q2 response
+			for (clnum=0; clnum < MAX_CLIENTS; clnum++)
 			{
-				//see if this is actually a Quake2 server.
-				token = strchr(msg+1, '\"');
-				if (!token)	//it wasn't.
+				nl = strchr(msg, '\n');
+				if (!nl)
 					break;
+				*nl = '\0';
 
-				details.players[clnum].ping = details.players[clnum].frags;
-				details.players[clnum].frags = details.players[clnum].userid;
+				details.players[clnum].isspec = 0;
+				details.players[clnum].team[0] = 0;
+				details.players[clnum].skin[0] = 0;
 
-				msg = strchr(token+1, '\"');
-				if (!msg)
-					break;
-				len = msg - token;
-				if (len >= sizeof(details.players[clnum].name))
-					len = sizeof(details.players[clnum].name);
-				Q_strncpyz(details.players[clnum].name, token+1, len);
-
-				details.players[clnum].skin[0] = '\0';
-
-				details.players[clnum].topc = 0;
-				details.players[clnum].botc = 0;
-				details.players[clnum].time = 0;
-			}
-			else	//qw response
-			{
-				details.players[clnum].ping = atoi(token);
-				msg = token;
-				token = strchr(msg+1, ' ');
+				token = msg;
 				if (!token)
 					break;
-
-				token = strchr(token+1, '\"');
-				if (!token)
-					break;
-				msg = strchr(token+1, '\"');
-				if (!msg)
-					break;
-				len = msg - token;
-				if (len >= sizeof(details.players[clnum].name))
-					len = sizeof(details.players[clnum].name);
-				if (!strncmp(token, "\"\\s\\", 4))
-				{
-					details.players[clnum].isspec |= 1;
-					Q_strncpyz(details.players[clnum].name, token+4, len-3);
-				}
-				else
-					Q_strncpyz(details.players[clnum].name, token+1, len);
-				details.players[clnum].name[len] = '\0';
-
-				token = strchr(msg+1, '\"');
-				if (!token)
-					break;
-				msg = strchr(token+1, '\"');
-				if (!msg)
-					break;
-				len = msg - token;
-				if (len >= sizeof(details.players[clnum].skin))
-					len = sizeof(details.players[clnum].skin);
-				Q_strncpyz(details.players[clnum].skin, token+1, len);
-				details.players[clnum].skin[len] = '\0';
-
-				token = strchr(msg+1, ' ');
-				if (!token)
-					break;
-				details.players[clnum].topc = atoi(token);
+				details.players[clnum].userid = atoi(token);
 				token = strchr(token+1, ' ');
 				if (!token)
 					break;
-				details.players[clnum].botc = atoi(token);
-
-				token = strchr(msg+1, '\"');
-				Q_strncpyz(details.players[clnum].team, "", sizeof(details.players[clnum].team));
-				if (token)
+				details.players[clnum].frags = atoi(token);
+				token = strchr(token+1, ' ');
+				if (!token)
+					break;
+				details.players[clnum].time = atoi(token);
+				msg = token;
+				token = strchr(msg+1, ' ');
+				if (!token)	//probably q2 response
 				{
+					//see if this is actually a Quake2 server.
+					token = strchr(msg+1, '\"');
+					if (!token)	//it wasn't.
+						break;
+
+					details.players[clnum].ping = details.players[clnum].frags;
+					details.players[clnum].frags = details.players[clnum].userid;
+
 					msg = strchr(token+1, '\"');
-					if (msg)
+					if (!msg)
+						break;
+					len = msg - token;
+					if (len >= sizeof(details.players[clnum].name))
+						len = sizeof(details.players[clnum].name);
+					Q_strncpyz(details.players[clnum].name, token+1, len);
+
+					details.players[clnum].skin[0] = '\0';
+
+					details.players[clnum].topc = 0;
+					details.players[clnum].botc = 0;
+					details.players[clnum].time = 0;
+				}
+				else	//qw response
+				{
+					details.players[clnum].ping = atoi(token);
+					msg = token;
+					token = strchr(msg+1, ' ');
+					if (!token)
+						break;
+
+					token = strchr(token+1, '\"');
+					if (!token)
+						break;
+					msg = strchr(token+1, '\"');
+					if (!msg)
+						break;
+					len = msg - token;
+					if (len >= sizeof(details.players[clnum].name))
+						len = sizeof(details.players[clnum].name);
+					if (!strncmp(token, "\"\\s\\", 4))
 					{
-						len = msg - token;
-						if (len >= sizeof(details.players[clnum].team))
-							len = sizeof(details.players[clnum].team);
-						Q_strncpyz(details.players[clnum].team, token+1, len);
-						details.players[clnum].team[len] = '\0';
+						details.players[clnum].isspec |= 1;
+						Q_strncpyz(details.players[clnum].name, token+4, len-3);
+					}
+					else
+						Q_strncpyz(details.players[clnum].name, token+1, len);
+					details.players[clnum].name[len] = '\0';
+
+					token = strchr(msg+1, '\"');
+					if (!token)
+						break;
+					msg = strchr(token+1, '\"');
+					if (!msg)
+						break;
+					len = msg - token;
+					if (len >= sizeof(details.players[clnum].skin))
+						len = sizeof(details.players[clnum].skin);
+					Q_strncpyz(details.players[clnum].skin, token+1, len);
+					details.players[clnum].skin[len] = '\0';
+
+					token = strchr(msg+1, ' ');
+					if (!token)
+						break;
+					details.players[clnum].topc = atoi(token);
+					token = strchr(token+1, ' ');
+					if (!token)
+						break;
+					details.players[clnum].botc = atoi(token);
+
+					token = strchr(msg+1, '\"');
+					Q_strncpyz(details.players[clnum].team, "", sizeof(details.players[clnum].team));
+					if (token)
+					{
+						msg = strchr(token+1, '\"');
+						if (msg)
+						{
+							len = msg - token;
+							if (len >= sizeof(details.players[clnum].team))
+								len = sizeof(details.players[clnum].team);
+							Q_strncpyz(details.players[clnum].team, token+1, len);
+							details.players[clnum].team[len] = '\0';
+						}
 					}
 				}
-			}
 
-			MasterInfo_AddPlayer(&info->adr, details.players[clnum].name, details.players[clnum].ping, details.players[clnum].frags, details.players[clnum].topc*4 | details.players[clnum].botc, details.players[clnum].skin, details.players[clnum].team);
+				MasterInfo_AddPlayer(&info->adr, details.players[clnum].name, details.players[clnum].ping, details.players[clnum].frags, details.players[clnum].topc*4 | details.players[clnum].botc, details.players[clnum].skin, details.players[clnum].team);
 
-			//WallFly is some q2 bot
-			//[ServeMe] is some qw bot
-			if (!strncmp(details.players[clnum].name, "WallFly", 7) || !strcmp(details.players[clnum].name, "[ServeMe]"))
-			{
-				//not players nor real people. they don't count towards any metric
-				details.players[clnum].isspec |= 3;
-			}
-			//807 excludes the numerous bot names on some annoying qwtf server
-			//BOT: excludes fte's botclients (which always have a bot: prefix)
-			else if (details.players[clnum].ping == 807 || !strncmp(details.players[clnum].name, "BOT:", 4))
-			{
-				info->numbots++;
-				details.players[clnum].isspec |= 2;
-			}
-			else if (details.players[clnum].isspec & 1)
-			{
-				info->numspectators++;
-			}
-			else
-				info->numhumans++;
-
-			for (k = clnum, j = clnum-1; j >= 0; j--)
-			{
-				if ((details.players[k].isspec != details.players[j].isspec && !details.players[k].isspec) ||
-					details.players[k].frags > details.players[j].frags)
+				//WallFly is some q2 bot
+				//[ServeMe] is some qw bot
+				if (!strncmp(details.players[clnum].name, "WallFly", 7) || !strcmp(details.players[clnum].name, "[ServeMe]"))
 				{
-					struct serverdetailedplayerinfo_s t = details.players[j];
-					details.players[j] = details.players[k];
-					details.players[k] = t;
-					k = j;
+					//not players nor real people. they don't count towards any metric
+					details.players[clnum].isspec |= 3;
+				}
+				//807 excludes the numerous bot names on some annoying qwtf server
+				//BOT: excludes fte's botclients (which always have a bot: prefix)
+				else if (details.players[clnum].ping == 807 || !strncmp(details.players[clnum].name, "BOT:", 4))
+				{
+					info->numbots++;
+					details.players[clnum].isspec |= 2;
+				}
+				else if (details.players[clnum].isspec & 1)
+				{
+					info->numspectators++;
 				}
 				else
-					break;
+					info->numhumans++;
+
+				for (k = clnum, j = clnum-1; j >= 0; j--)
+				{
+					if ((details.players[k].isspec != details.players[j].isspec && !details.players[k].isspec) ||
+						details.players[k].frags > details.players[j].frags)
+					{
+						struct serverdetailedplayerinfo_s t = details.players[j];
+						details.players[j] = details.players[k];
+						details.players[k] = t;
+						k = j;
+					}
+					else
+						break;
+				}
+				details.numplayers++;
+
+				info->players++;
+
+				msg = nl;
+				if (!msg)
+					break;	//erm...
+				msg++;
 			}
-			details.numplayers++;
-
-			info->players++;
-
-			msg = nl;
-			if (!msg)
-				break;	//erm...
-			msg++;
 		}
-	}
-	if (!info->moreinfo && ((slist_cacheinfo.value == 2 || NET_CompareAdr(&info->adr, &selectedserver.adr)) || (info->special & SS_KEEPINFO)))
-		info->moreinfo = Z_Malloc(sizeof(serverdetailedinfo_t));
-	if (NET_CompareAdr(&info->adr, &selectedserver.adr))
-		selectedserver.detail = info->moreinfo;
+		if (!info->moreinfo && ((slist_cacheinfo.value == 2 || NET_CompareAdr(&info->adr, &selectedserver.adr)) || (info->special & SS_KEEPINFO)))
+			info->moreinfo = Z_Malloc(sizeof(serverdetailedinfo_t));
+		if (NET_CompareAdr(&info->adr, &selectedserver.adr))
+			selectedserver.detail = info->moreinfo;
 
-	if (info->moreinfo)
-		memcpy(info->moreinfo, &details, sizeof(serverdetailedinfo_t));
+		if (info->moreinfo)
+			memcpy(info->moreinfo, &details, sizeof(serverdetailedinfo_t));
+	}
 
 	return true;
 }

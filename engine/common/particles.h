@@ -201,6 +201,7 @@ struct model_s;
 struct msurface_s;
 
 void P_InitParticleSystem(void);
+void P_ShutdownParticleSystem(void);
 void P_Shutdown(void);
 void P_LoadedModel(struct model_s *mod);	/*checks a model's various effects*/
 void P_DefaultTrail (unsigned int entityeffects, unsigned int modelflags, int *trailid, int *trailpalidx);

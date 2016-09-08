@@ -1182,8 +1182,8 @@ int menuentsize;
 
 // cvars
 #define MENUPROGSGROUP "Menu progs control"
-cvar_t forceqmenu = SCVAR("forceqmenu", "0");
-cvar_t pr_menuqc_coreonerror = SCVAR("pr_menuqc_coreonerror", "1");
+cvar_t forceqmenu = CVAR("forceqmenu", "0");
+cvar_t pr_menuqc_coreonerror = CVAR("pr_menuqc_coreonerror", "1");
 
 
 //new generic functions.

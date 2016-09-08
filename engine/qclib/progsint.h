@@ -1,3 +1,6 @@
+#ifndef PROGSINT_H_INCLUDED
+#define PROGSINT_H_INCLUDED
+
 #ifdef _WIN32
 	#ifndef _CRT_SECURE_NO_WARNINGS
 		#define _CRT_SECURE_NO_WARNINGS
@@ -517,4 +520,6 @@ void PR_CloseJit(struct jitstate *jit);
 char *QCC_COM_Parse (const char *data);
 extern char	qcc_token[1024];
 extern char *basictypenames[];
+#endif
+
 #endif

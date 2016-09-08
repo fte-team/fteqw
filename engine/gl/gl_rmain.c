@@ -53,9 +53,9 @@ extern cvar_t	gl_part_flame;
 extern cvar_t	r_bloom;
 extern cvar_t	r_wireframe_smooth;
 
-cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
-cvar_t	gl_finish = SCVAR("gl_finish","0");
-cvar_t	gl_dither = SCVAR("gl_dither", "1");
+cvar_t	gl_affinemodels = CVAR("gl_affinemodels","0");
+cvar_t	gl_finish = CVAR("gl_finish","0");
+cvar_t	gl_dither = CVAR("gl_dither", "1");
 extern cvar_t	r_stereo_separation;
 extern cvar_t	r_stereo_convergence;
 extern cvar_t	r_stereo_method;
@@ -80,7 +80,7 @@ extern cvar_t r_portaldrawplanes;
 extern cvar_t r_portalonly;
 
 #ifdef R_XFLIP
-cvar_t	r_xflip = SCVAR("leftisright", "0");
+cvar_t	r_xflip = CVAR("leftisright", "0");
 #endif
 
 extern	cvar_t	scr_fov;

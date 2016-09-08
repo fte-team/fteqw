@@ -2070,28 +2070,6 @@ void QC_Clear(void)
 {
 }
 
-int prnumforfile;
-int PR_SizeOfFile(char *filename)
-{
-	size_t sz;
-//	int size;
-	if (!svprogfuncs)
-		return -1;
-	prnumforfile=svs.numprogs-1;
-	while(prnumforfile>=0)
-	{
-		if ((qbyte *)svprogfuncs->filefromprogs(svprogfuncs, prnumforfile, filename, &sz, NULL)==(qbyte *)-1)
-			return sz;
-		prnumforfile--;
-	}
-	return -1;
-}
-qbyte *PR_OpenFile(char *filename, qbyte *buffer)
-{
-	return svprogfuncs->filefromprogs(svprogfuncs, prnumforfile, filename, NULL, buffer);
-}
-
-
 
 //#define	RETURN_EDICT(pf, e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(pf, e))
 #define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
@@ -4314,7 +4292,7 @@ vector aim(entity, missilespeed)
 =============
 */
 //cvar_t	sv_aim = {"sv_aim", "0.93"};
-cvar_t	sv_aim = SCVAR("sv_aim", "2");
+cvar_t	sv_aim = CVAR("sv_aim", "2");
 static void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent, *check, *bestent;
@@ -10951,6 +10929,26 @@ void PR_DumpPlatform_f(void)
 #else
 	//eg: pr_dumpplatform -FFTE -TCS -O csplat
 
+	const char *keywords[] =
+	{
+		"ignore"		//0
+		"qwqc",			//qw
+		"nqqc",			//nq
+		"ssqc"			//qw|nq
+		"csqc"			//cs
+		"csqwqc",		//cs|qw
+		"csnqqc",		//cs|nq
+		"gameqc"		//cs|nq|qw
+		"menuonly"			//mn
+		"mnqwqc",		//mn|qw
+		"mnnqqc",		//mn|nq
+		"mnssqc"		//mn|qw|nq
+		"mncsqc"		//mn|cs
+		"mncsqwqc",		//mn|cs|qw
+		"mncsnqqc",		//mn|cs|nq
+		""		//mn|cs|nq|qw
+	};
+
 	int idx;
 	int i, j;
 	int d = 0, nd, k;
@@ -11345,11 +11343,11 @@ void PR_DumpPlatform_f(void)
 		{"CONTENTBIT_MONSTERCLIP",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_MONSTERCLIP)},
 		{"CONTENTBIT_BODY",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_BODY)},
 		{"CONTENTBIT_CORPSE",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_CORPSE)},
-		{"CONTENTBIT_Q2LADDER",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(Q2CONTENTS_LADDER)},
-		{"CONTENTBIT_SKY",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_SKY)},
-		{"CONTENTBITS_POINTSOLID",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(MASK_POINTSOLID)},
-		{"CONTENTBITS_BOXSOLID",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(MASK_BOXSOLID)},
-		{"CONTENTBITS_FLUID",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_FLUID)},
+		{"CONTENTBIT_Q2LADDER",		"const int", QW|NQ|CS, "Content bit specific to q2bsp", 0,STRINGIFY(Q2CONTENTS_LADDER)},
+		{"CONTENTBIT_SKY",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_SKY)"i"},
+		{"CONTENTBITS_POINTSOLID",	"const int", QW|NQ|CS, "Bits that traceline would normally consider solid", 0,"CONTENTBIT_SOLID|"STRINGIFY(Q2CONTENTS_WINDOW)"|CONTENTBIT_BODY"},
+		{"CONTENTBITS_BOXSOLID",	"const int", QW|NQ|CS, "Bits that tracebox would normally consider solid", 0,"CONTENTBIT_SOLID|"STRINGIFY(Q2CONTENTS_WINDOW)"|CONTENTBIT_BODY|CONTENTBIT_PLAYERCLIP"},
+		{"CONTENTBITS_FLUID",		"const int", QW|NQ|CS, NULL, 0,"CONTENTBIT_WATER|CONTENTBIT_SLIME|CONTENTBIT_LAVA|CONTENTBIT_SKY"},
 
 		{"CHAN_AUTO",		"const float", QW|NQ|CS, "The automatic channel, play as many sounds on this channel as you want, and they'll all play, however the other channels will replace each other.", CHAN_AUTO},
 		{"CHAN_WEAPON",		"const float", QW|NQ|CS, NULL, CHAN_WEAPON},
@@ -11889,22 +11887,28 @@ void PR_DumpPlatform_f(void)
 			VFS_PRINTF(f, "#define %s\n", QSG_Extensions[i].name);
 	}
 
+	VFS_PRINTF(f, "\n");
+
 	if (accessors)
-	{
-		VFS_PRINTF(f, "accessor strbuf : float;\n");
-		VFS_PRINTF(f, "accessor searchhandle : float;\n");
-		VFS_PRINTF(f, "accessor hashtable : float;\n");
-		VFS_PRINTF(f, "accessor infostring : string;\n");
-		VFS_PRINTF(f, "accessor filestream : float;\n");
-	}
-	else
-	{
-		VFS_PRINTF(f, "#define strbuf float\n");
-		VFS_PRINTF(f, "#define searchhandle float\n");
-		VFS_PRINTF(f, "#define hashtable float\n");
-		VFS_PRINTF(f, "#define infostring string\n");
-		VFS_PRINTF(f, "#define filestream float\n");
-	}
+		VFS_PRINTF(f, "#define _ACCESSORS;\n");
+	
+	VFS_PRINTF(f, 
+			"#ifdef _ACCESSORS\n"
+				"accessor strbuf : float;\n"
+				"accessor searchhandle : float;\n"
+				"accessor hashtable : float;\n"
+				"accessor infostring : string;\n"
+				"accessor filestream : float;\n"
+				"accessor filestream : float;\n"
+			"#else\n"
+				"#define strbuf float\n"
+				"#define searchhandle float\n"
+				"#define hashtable float\n"
+				"#define infostring string\n"
+				"#define filestream float\n"
+			"#endif\n"
+		);
+	VFS_PRINTF(f, "\n");
 
 
 	for (i = 0; knowndefs[i].name; i++)
@@ -12238,6 +12242,7 @@ void PR_DumpPlatform_f(void)
 
 	if (accessors)
 	{
+		VFS_PRINTF(f, "#ifdef _ACCESSORS\n");
 		VFS_PRINTF(f,
 			"accessor strbuf : float\n{\n"
 				"\tinline get float asfloat[float idx] = {return stof(bufstr_get(this, idx));};\n"
@@ -12274,6 +12279,7 @@ void PR_DumpPlatform_f(void)
 				"\tget string = fgets;\n"
 				"\tinline set string = {fputs(this,value);};\n"
 			"};\n");
+		VFS_PRINTF(f, "#endif\n");
 	}
 
 	VFS_PRINTF(f, "#pragma noref 0\n");

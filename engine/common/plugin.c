@@ -13,7 +13,7 @@
 #ifdef PLUGINS
 
 cvar_t plug_sbar = CVARD("plug_sbar", "3", "Controls whether plugins are allowed to draw the hud, rather than the engine (when allowed by csqc). This is typically used to permit the ezhud plugin without needing to bother unloading it.\n=0: never use hud plugins.\n&1: Use hud plugins in deathmatch.\n&2: Use hud plugins in singleplayer/coop.\n=3: Always use hud plugins (when loaded).");
-cvar_t plug_loaddefault = SCVAR("plug_loaddefault", "1");
+cvar_t plug_loaddefault = CVAR("plug_loaddefault", "1");
 
 qintptr_t Plug_Bullet_Init(qintptr_t *args);
 qintptr_t Plug_ODE_Init(qintptr_t *args);

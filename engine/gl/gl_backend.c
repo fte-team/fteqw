@@ -1337,7 +1337,7 @@ void Shader_LightPass(const char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
 	extern cvar_t r_drawflat;
-	sprintf(shadertext, LIGHTPASS_SHADER, r_drawflat.ival?"#FLAT":"");
+	sprintf(shadertext, LIGHTPASS_SHADER, (r_lightmap.ival||r_drawflat.ival)?"#FLAT":"");
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 

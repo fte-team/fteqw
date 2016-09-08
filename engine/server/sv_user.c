@@ -42,9 +42,9 @@ cvar_t	cl_rollangle = SCVAR("cl_rollangle", "2.0");
 extern cvar_t	cl_rollspeed;
 extern cvar_t	cl_rollangle;
 #endif
-cvar_t	sv_spectalk	= SCVAR("sv_spectalk", "1");
+cvar_t	sv_spectalk	= CVAR("sv_spectalk", "1");
 
-cvar_t	sv_mapcheck	= SCVAR("sv_mapcheck", "1");
+cvar_t	sv_mapcheck	= CVAR("sv_mapcheck", "1");
 
 cvar_t	sv_fullredirect = CVARD("sv_fullredirect", "", "This is the ip:port to redirect players to when the server is full");
 cvar_t	sv_antilag			= CVARFD("sv_antilag", "", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag. 0=completely off. 1=mod-controlled. 2=forced, which might break certain uses of traceline.");
@@ -60,9 +60,9 @@ cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "", "Specifies the default prot
 cvar_t	sv_minpitch		 = CVARAFD("minpitch", "",	"sv_minpitch", CVAR_SERVERINFO, "Assumed to be -70");
 cvar_t	sv_maxpitch		 = CVARAFD("maxpitch", "",	"sv_maxpitch", CVAR_SERVERINFO, "Assumed to be 80");
 
-cvar_t	sv_cmdlikercon	= SCVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
-cvar_t cmd_allowaccess	= SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
-cvar_t cmd_gamecodelevel	= SCVAR("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL));	//execution level which gamecode is told about (for unrecognised commands)
+cvar_t	sv_cmdlikercon	= CVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
+cvar_t cmd_allowaccess	= CVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
+cvar_t cmd_gamecodelevel	= CVAR("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL));	//execution level which gamecode is told about (for unrecognised commands)
 
 cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world, many clients will ignore this.\n0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 only works in total conversions.");
 cvar_t	sv_nqplayerphysics	= CVARAD("sv_nqplayerphysics", "0", "sv_nomsec", "Disable player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
@@ -98,14 +98,14 @@ extern cvar_t	pm_airstep;
 extern cvar_t	pm_walljump;
 extern cvar_t	pm_watersinkspeed;
 extern cvar_t	pm_flyfriction;
-cvar_t sv_pushplayers = SCVAR("sv_pushplayers", "0");
+cvar_t sv_pushplayers = CVAR("sv_pushplayers", "0");
 
 //yes, realip cvars need to be fully initialised or realip will be disabled
 cvar_t sv_getrealip = CVARD("sv_getrealip", "0", "Attempt to obtain a more reliable IP for clients, rather than just their proxy.");
-cvar_t sv_realip_kick = SCVAR("sv_realip_kick", "0");
+cvar_t sv_realip_kick = CVAR("sv_realip_kick", "0");
 cvar_t sv_realiphostname_ipv4 = CVARD("sv_realiphostname_ipv4", "", "This is the server's public ip:port. This is needed for realip to work when the autodetected/local ip is not globally routable");
 cvar_t sv_realiphostname_ipv6 = CVARD("sv_realiphostname_ipv6", "", "This is the server's public ip:port. This is needed for realip to work when the autodetected/local ip is not globally routable");
-cvar_t sv_realip_timeout = SCVAR("sv_realip_timeout", "10");
+cvar_t sv_realip_timeout = CVAR("sv_realip_timeout", "10");
 
 #ifdef VOICECHAT
 cvar_t sv_voip = CVARD("sv_voip", "1", "Enable reception of voice packets.");
@@ -1015,7 +1015,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			else if (client->prespawn_idx == 4)
 			{
 				ClientReliableWrite_Begin(client, svc_setpause, 2);
-				ClientReliableWrite_Byte (client, sv.paused);
+				ClientReliableWrite_Byte (client, sv.paused!=0);
 			}
 			else
 			{

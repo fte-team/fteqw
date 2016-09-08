@@ -37,7 +37,7 @@ cvar_t scr_scoreboard_showflags = CVARD("scr_scoreboard_showflags", "2", "Displa
 cvar_t scr_scoreboard_fillalpha = CVARD("scr_scoreboard_fillalpha", "0.7", "Transparency amount for newstyle scoreboard.");
 cvar_t scr_scoreboard_teamscores = CVARD("scr_scoreboard_teamscores", "1", "Makes +showscores act as +showteamscores. Because reasons.");
 cvar_t scr_scoreboard_teamsort = CVARD("scr_scoreboard_teamsort", "0", "On the scoreboard, sort players by their team BEFORE their personal score.");
-cvar_t scr_scoreboard_titleseperator = SCVAR("scr_scoreboard_titleseperator", "1");
+cvar_t scr_scoreboard_titleseperator = CVAR("scr_scoreboard_titleseperator", "1");
 cvar_t sbar_teamstatus = CVARD("sbar_teamstatus", "1", "Display the last team say from each of your team members just above the sbar area.");
 
 //===========================================
@@ -3426,7 +3426,7 @@ void Sbar_DeathmatchOverlay (int start)
 	}
 
 	x = startx;
-#define COLUMN(title, width, code, fill) if (showcolumns & (1<<COLUMN##title)) {Draw_FunString(x, y, #title); x += width+8;}
+#define COLUMN(title, width, code, fill) if (width && (showcolumns & (1<<COLUMN##title))) {Draw_FunString(x, y, #title); x += width+8;}
 	ALLCOLUMNS
 #undef COLUMN
 

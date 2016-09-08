@@ -45,11 +45,11 @@ qboolean	noclip_anglehack;		// remnant from old quake
 void Host_FinishLoading(void);
 
 
-cvar_t	rcon_password = SCVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);
+cvar_t	rcon_password = CVARF("rcon_password", "", CVAR_NOUNSAFEEXPAND);
 
-cvar_t	rcon_address = SCVARF("rcon_address", "", CVAR_NOUNSAFEEXPAND);
+cvar_t	rcon_address = CVARF("rcon_address", "", CVAR_NOUNSAFEEXPAND);
 
-cvar_t	cl_timeout = SCVAR("cl_timeout", "60");
+cvar_t	cl_timeout = CVAR("cl_timeout", "60");
 
 cvar_t	cl_shownet = CVARD("cl_shownet","0", "Debugging var. 0 shows nothing. 1 shows incoming packet sizes. 2 shows individual messages. 3 shows entities too.");	// can be 0, 1, or 2
 
@@ -271,11 +271,11 @@ int			host_framecount;
 qbyte		*host_basepal;
 qbyte		*h2playertranslations;
 
-cvar_t	host_speeds = SCVAR("host_speeds","0");		// set for running times
+cvar_t	host_speeds = CVAR("host_speeds","0");		// set for running times
 #ifdef CRAZYDEBUGGING
-cvar_t	developer = SCVAR("developer","1");
+cvar_t	developer = CVAR("developer","1");
 #else
-cvar_t	developer = SCVAR("developer","0");
+cvar_t	developer = CVAR("developer","0");
 #endif
 
 int			fps_count;
@@ -5824,6 +5824,7 @@ void Host_Shutdown(void)
 
 	COM_DestroyWorkerThread();
 
+	P_ShutdownParticleSystem();
 	Cvar_Shutdown();
 	Validation_FlushFileList();
 

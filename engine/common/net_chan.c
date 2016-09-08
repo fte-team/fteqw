@@ -81,8 +81,8 @@ fragmentation works like IP, offset and morefrags. offset is *8 (decode: (offset
 */
 
 int		net_drop;
-cvar_t	showpackets = SCVAR("showpackets", "0");
-cvar_t	showdrop = SCVAR("showdrop", "0");
+cvar_t	showpackets = CVAR("showpackets", "0");
+cvar_t	showdrop = CVAR("showdrop", "0");
 cvar_t	qport = CVARF("qport_", "0", CVAR_NOSAVE);
 cvar_t	net_mtu = CVARD("net_mtu", "1440", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
 cvar_t	net_compress = CVARD("net_compress", "0", "Enables huffman compression of network packets.");

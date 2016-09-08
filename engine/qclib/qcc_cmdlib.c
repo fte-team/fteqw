@@ -568,7 +568,7 @@ void VARGS QCC_Error (int errortype, const char *error, ...)
 	printf ("\n************ ERROR ************\n%s\n", msg);
 
 
-	editbadfile(strings+s_file, pr_source_line);
+	editbadfile(s_filen, pr_source_line);
 
 	numsourcefiles = 0;
 
@@ -890,7 +890,7 @@ void ResizeBuf(int hand, int newsize)
 	qccfile[hand].buff = nb;
 	qccfile[hand].buffsize = newsize;
 }
-void SafeWrite(int hand, void *buf, long count)
+void SafeWrite(int hand, const void *buf, long count)
 {
 	if (qccfile[hand].ofs +count >= qccfile[hand].buffsize)
 		ResizeBuf(hand, qccfile[hand].ofs + count+(64*1024));
@@ -1242,6 +1242,7 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 	mem += sizeof(qcc_cachedsourcefile_t);
 
 	externs->ReadFile(filename, mem, len+2, NULL);
+	mem[len] = 0;
 
 	mem = QCC_SanitizeCharSet(mem, &len, NULL, &orig);
 

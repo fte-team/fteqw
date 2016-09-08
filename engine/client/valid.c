@@ -20,16 +20,16 @@ static void QDECL rulesetcallback(cvar_t *var, char *oldval)
 	Validation_Apply_Ruleset();
 }
 
-cvar_t allow_f_version		= SCVAR("allow_f_version", "1");
-cvar_t allow_f_server		= SCVAR("allow_f_server", "1");
-cvar_t allow_f_modified		= SCVAR("allow_f_modified", "1");
-cvar_t allow_f_skins		= SCVAR("allow_f_skins", "1");
-cvar_t allow_f_ruleset		= SCVAR("allow_f_ruleset", "1");
-cvar_t allow_f_scripts		= SCVAR("allow_f_scripts", "1");
-cvar_t allow_f_fakeshaft	= SCVAR("allow_f_fakeshaft", "1");
-cvar_t allow_f_system		= SCVAR("allow_f_system", "0");
-cvar_t allow_f_cmdline		= SCVAR("allow_f_cmdline", "0");
-cvar_t auth_validateclients	= SCVAR("auth_validateclients", "1");
+cvar_t allow_f_version		= CVAR("allow_f_version", "1");
+cvar_t allow_f_server		= CVAR("allow_f_server", "1");
+cvar_t allow_f_modified		= CVAR("allow_f_modified", "1");
+cvar_t allow_f_skins		= CVAR("allow_f_skins", "1");
+cvar_t allow_f_ruleset		= CVAR("allow_f_ruleset", "1");
+cvar_t allow_f_scripts		= CVAR("allow_f_scripts", "1");
+cvar_t allow_f_fakeshaft	= CVAR("allow_f_fakeshaft", "1");
+cvar_t allow_f_system		= CVAR("allow_f_system", "0");
+cvar_t allow_f_cmdline		= CVAR("allow_f_cmdline", "0");
+cvar_t auth_validateclients	= CVAR("auth_validateclients", "1");
 cvar_t ruleset			= CVARC("ruleset", "none", rulesetcallback);
 
 
@@ -82,7 +82,7 @@ static void Validation_Version(void)
 	else if (r_shadow_realtime_dlight.ival)
 		*s++ = 'S';
 #endif
-	if (r_drawflat.ival)
+	if (r_drawflat.ival || r_lightmap.ival)
 		*s++ = 'F';
 	if (gl_load24bit.ival)
 		*s++ = 'H';

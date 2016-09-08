@@ -1,6 +1,6 @@
 void GoToDefinition(char *name);
 int Grep(char *filename, char *string);
-void EditFile(char *name, int line, pbool setcontrol);
+void EditFile(const char *name, int line, pbool setcontrol);
 
 void GUI_SetDefaultOpts(void);
 int GUI_BuildParms(char *args, char **argv, pbool quick);

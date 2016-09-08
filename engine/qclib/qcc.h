@@ -945,6 +945,7 @@ char *QCC_PR_ValueString (etype_t type, void *val);
 
 void QCC_PR_ClearGrabMacros (pbool newfile);
 
+void QCC_ImportProgs(const char *filename);
 pbool	QCC_PR_CompileFile (char *string, char *filename);
 void QCC_PR_ResetErrorScope(void);
 

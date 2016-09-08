@@ -36,8 +36,8 @@ usercmd_t	cmd;
 
 extern cvar_t dpcompat_nopreparse;
 #ifdef SERVERONLY
-cvar_t	cl_rollspeed = SCVAR("cl_rollspeed", "200");
-cvar_t	cl_rollangle = SCVAR("cl_rollangle", "2.0");
+cvar_t	cl_rollspeed = CVAR("cl_rollspeed", "200");
+cvar_t	cl_rollangle = CVAR("cl_rollangle", "2.0");
 #else
 extern cvar_t	cl_rollspeed;
 extern cvar_t	cl_rollangle;

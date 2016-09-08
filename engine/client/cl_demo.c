@@ -1008,6 +1008,7 @@ void CL_WriteRecordDemoMessage (sizebuf_t *msg, int seq)
 	if (!cls.demorecording)
 		return;
 
+#ifdef NQPROT
 	if (cls.demorecording == DPB_NETQUAKE)
 	{
 		len = LittleLong (msg->cursize);
@@ -1019,6 +1020,7 @@ void CL_WriteRecordDemoMessage (sizebuf_t *msg, int seq)
 		}
 	}
 	else
+#endif
 	{
 		fl = LittleFloat(Sys_DoubleTime()-recdemostart);
 		VFS_WRITE (cls.demooutfile, &fl, sizeof(fl));
@@ -1188,6 +1190,7 @@ static void CLQW_RecordServerData(sizebuf_t *buf)
 	MSG_WriteString (buf, va("fullserverinfo \"%s\"\n", cl.serverinfo) );
 }
 
+#ifdef NQPROT
 void CLNQ_WriteServerData(sizebuf_t *buf)
 {
 	unsigned int protmain;
@@ -1263,6 +1266,7 @@ void CLNQ_WriteServerData(sizebuf_t *buf)
 		MSG_WriteString (buf, cl.sound_name[i]);
 	MSG_WriteByte (buf, 0);
 }
+#endif
 
 void CL_Record_Baseline(sizebuf_t *buf, entity_state_t *state, unsigned int bits)
 {
@@ -2038,8 +2042,10 @@ void CL_ReRecord_f (void)
 
 	Con_Printf ("recording to %s.\n", name);
 
+#ifdef NQPROT
 	if (cls.demorecording == DPB_NETQUAKE)	//nq demos have some silly header.
 		VFS_WRITE(cls.demooutfile, "-1\n", 3);
+#endif
 
 	CL_BeginServerReconnect();
 }

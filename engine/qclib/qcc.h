@@ -1081,7 +1081,6 @@ void editbadfile(const char *fname, int line);
 char *TypeName(QCC_type_t *type, char *buffer, int buffersize);
 void QCC_PR_AddIncludePath(const char *newinc);
 void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename);
-void QCC_PR_IncludeChunkEx(char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst);
 void QCC_PR_CloseProcessor(void);
 void QCC_FindBestInclude(char *newfile, char *currentfile, pbool verbose);
 pbool QCC_PR_UnInclude(void);

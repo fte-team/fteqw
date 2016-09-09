@@ -1437,6 +1437,11 @@ const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen)
 
 	s = pattern;
 	seg = o = outbuf;
+	if (!pattern)
+	{
+		Con_Printf("Error: Empty filename\n");
+		return NULL;
+	}
 	for(;;)
 	{
 		if (o == end)
@@ -1474,6 +1479,11 @@ const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen)
 			//it should just make more stuff invalid
 			while (*seg == ' ')
 				seg++;
+			if (!seg[0])
+			{
+				Con_Printf("Error: No filename (%s)\n", pattern);
+				return NULL;
+			}
 			if (seg[0] == '.')
 			{
 				if (o == seg+1)

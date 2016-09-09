@@ -10929,7 +10929,7 @@ void PR_DumpPlatform_f(void)
 #else
 	//eg: pr_dumpplatform -FFTE -TCS -O csplat
 
-	const char *keywords[] =
+	/*const char *keywords[] =
 	{
 		"ignore"		//0
 		"qwqc",			//qw
@@ -10947,7 +10947,7 @@ void PR_DumpPlatform_f(void)
 		"mncsqwqc",		//mn|cs|qw
 		"mncsnqqc",		//mn|cs|nq
 		""		//mn|cs|nq|qw
-	};
+	};*/
 
 	int idx;
 	int i, j;

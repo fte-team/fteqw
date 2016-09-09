@@ -2392,6 +2392,13 @@ int QDECL search_enumerate(const char *name, qofs_t fsize, time_t mtime, void *p
 {
 	prvmsearch_t *s = parm;
 
+	size_t i;
+	for (i = 0; i < s->entries; i++)
+	{
+		if (!Q_strcasecmp(name, s->entry[i].name))
+			return true;	//already in the list, apparently. try to avoid dupes.
+	}
+
 	s->entry = BZ_Realloc(s->entry, ((s->entries+64)&~63) * sizeof(*s->entry));
 	s->entry[s->entries].name = BZ_Malloc(strlen(name)+1);
 	strcpy(s->entry[s->entries].name, name);

@@ -1035,7 +1035,11 @@ qboolean SQL_Available(void)
 #endif
 #ifdef USE_SQLITE
 		//our sqlite implementation is sandboxed. we block database attachments, and restrict the master database name.
+#ifdef _WIN32
 		sqlitehandle = Sys_LoadLibrary("sqlite3", sqlitefuncs);
+#else	
+		sqlitehandle = Sys_LoadLibrary("libsqlite3.so.0", sqlitefuncs);	//at least on debian.
+#endif
 		if (sqlitehandle)
 		{
 			sqlavailable |= 1u<<SQLDRV_SQLITE;

@@ -1025,10 +1025,12 @@ void INS_Commands (void)	//used to Cbuf_AddText joystick button events in window
 }
 void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid))
 {
+#if SDL_MAJOR_VERSION >= 2
 	unsigned int i;
 	for (i = 0; i < MAX_JOYSTICKS; i++)
 		if (sdljoy[i].controller || sdljoy[i].joystick)
 			callback(ctx, "joy", sdljoy[i].devname, &sdljoy[i].qdevid);
+#endif
 }
 
 

@@ -1109,13 +1109,21 @@ void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		}
 		if (!buf)
 			continue;
-	
+		if (filesize < 4)
+		{
+			BZ_Free(buf);
+			continue;
+		}
+
 //
 // fill it in
 //
 		Mod_DoCRC(mod, (char*)buf, filesize);
 
-		magic = LittleLong(*(unsigned *)buf);
+		if (filesize < 4)
+			magic = 0;
+		else
+			magic = LittleLong(*(unsigned *)buf);
 		for(i = 0; i < sizeof(modelloaders) / sizeof(modelloaders[0]); i++)
 		{
 			if (modelloaders[i].load && modelloaders[i].magic == magic && !modelloaders[i].ident)
@@ -1147,7 +1155,7 @@ void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 			}
 			else
 			{
-				Con_Printf(CON_WARNING "Unrecognised model format 0x%x (%c%c%c%c)\n", LittleLong(*(unsigned *)buf), ((char*)buf)[0], ((char*)buf)[1], ((char*)buf)[2], ((char*)buf)[3]);
+				Con_Printf(CON_WARNING "Unrecognised model format 0x%x (%c%c%c%c)\n", magic, ((char*)buf)[0], ((char*)buf)[1], ((char*)buf)[2], ((char*)buf)[3]);
 				BZ_Free(buf);
 				continue;
 			}

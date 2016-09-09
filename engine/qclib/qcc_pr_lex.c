@@ -181,22 +181,6 @@ pbool QCC_PR_UnInclude(void)
 	return true;
 }
 
-
-/*
-==============
-PR_PrintNextLine
-==============
-*/
-static void QCC_PR_PrintNextLine (void)
-{
-	char	*t;
-
-	printf ("%3i:",pr_source_line);
-	for (t=pr_line_start ; *t && *t != '\n' ; t++)
-		printf ("%c",*t);
-	printf ("\n");
-}
-
 static void QCC_Canonicalize(char *fullname, size_t fullnamesize, char *newfile, char *base)
 {
 	int doubledots;

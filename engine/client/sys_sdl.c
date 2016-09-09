@@ -722,4 +722,7 @@ int Sys_GetAutoUpdateSetting(void)
 void Sys_SetAutoUpdateSetting(int newval)
 {
 }
+void Sys_SetUpdatedBinary(const char *fname)
+{
+}
 #endif

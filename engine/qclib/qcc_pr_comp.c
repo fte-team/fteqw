@@ -11686,7 +11686,10 @@ QCC_function_t *QCC_PR_GenerateQCFunction (QCC_def_t *def, QCC_type_t *type, pbo
 		}
 	}
 	else if (dowrap)
+	{
 		QCC_PR_ParseError(ERR_INTERNAL, "cannot wrap bodyless function %s", def->name);
+		return NULL;
+	}
 	else
 		func = &functions[numfunctions++];
 	func->filen = s_filen;
@@ -11828,7 +11831,6 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 	{	//if we're wrapping, then we moved the old function entry to the end and reused it for our function.
 		//so we need to define some local that refers to the prior def.
 		QCC_sref_t priorim = QCC_MakeIntConst(numfunctions-1);
-		prior;
 		prior = QCC_PR_DummyDef(f->type, "prior", f, 0, priorim.sym, 0, true, GDF_CONST);	//create a union into it
 		prior->initialized = true;
 		prior->filen = functions[numfunctions-1].filen;
@@ -14095,7 +14097,7 @@ void QCC_PR_ParseDefs (char *classname)
 			//if weak, only use the first non-weak version of the function
 			if (autoprototype || dostrip || (def->initialized && doweak) || (!def->initialized && doweak && dowrap))
 			{	//ignore the code and stuff
-				if ((dostrip || doweak && dowrap) && !def->initialized)
+				if ((dostrip || (doweak && dowrap)) && !def->initialized)
 					def->initialized = 3;
 				if (dostrip)
 					def->referenced = true;

@@ -18,7 +18,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 #ifdef __i386__
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE	//we need this in order to fix up broken backtraces. make sure its defined only where needed so we still some posixy conformance test on one plat.
+#endif
 #endif
 
 #include <signal.h>

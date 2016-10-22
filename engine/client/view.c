@@ -1193,6 +1193,13 @@ void V_ApplyAFov(playerview_t *pv)
 			r_refdef.fov_x = CalcFov(r_refdef.fov_y, r_refdef.vrect.height, r_refdef.vrect.width*ws);
 		}
 	}
+	if (r_refdef.useperspective)
+	{
+		if (r_refdef.mindist < 1)
+			r_refdef.mindist = 1;
+		if (r_refdef.maxdist && r_refdef.maxdist < 100)
+			r_refdef.maxdist = 0;	//small values should just use infinite.
+	}
 }
 /*
 =================
@@ -1206,8 +1213,8 @@ void V_ApplyRefdef (void)
 #ifdef QUAKEHUD
 	float           size;
 	int             h;
-#endif
 	qboolean		full = false;
+#endif
 
 // force the status bar to redraw
 	Sbar_Changed ();
@@ -1441,6 +1448,8 @@ void V_CalcRefdef (playerview_t *pv)
 	VectorCopy (pv->simorg, r_refdef.vieworg);
 
 	r_refdef.useperspective = true;
+	r_refdef.mindist = bound(0.1, gl_mindist.value, 4);
+	r_refdef.maxdist = gl_maxdist.value;
 
 // never let it sit exactly on a node line, because a water plane can
 // dissapear when viewed with the eye exactly on it.
@@ -1646,8 +1655,6 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	vec3_t tagcenter;
 	float alpha;
 	qboolean obscured;
-	int health, armour;
-	unsigned int items;
 	int x, y;
 	int r;
 	float barwidth;
@@ -1656,6 +1663,9 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	int h;
 	char *pname;
 
+	int health;
+	int armour;
+	unsigned int items;
 	static vec4_t healthcolours[] =
 	{
 		{0.7, 0.45, 0.45, 1},
@@ -1664,6 +1674,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		{1, 0.4, 0, 1},
 		{1, 1, 1, 1}
 	};
+#ifdef QUAKESTATS
 	static vec4_t armourcolours[] =
 	{
 		{25, 170, 0, 0.2},
@@ -1674,7 +1685,6 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		{255, 0, 0, 1}
 	};
 
-#ifdef QUAKESTATS
 	extern cvar_t tp_name_sg,tp_name_ssg,tp_name_ng,tp_name_sng,tp_name_gl,tp_name_rl,tp_name_lg;
 	static cvar_t *wbitnames[] =
 	{
@@ -1827,6 +1837,9 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 				Draw_ExpandedString(x + barwidth*0.5 + 4, y, buffer);
 		}
 	}
+#else
+	(void)items;
+	(void)armour;
 #endif
 }
 

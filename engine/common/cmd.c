@@ -2173,6 +2173,12 @@ void Cmd_ForwardToServer_f (void)
 	{	//don't send any extension flags this if we're using cl_loopbackprotocol nqid, purely for a compat test.
 		//if you want to record compat-demos, disable extensions instead.
 		unsigned int fp1 = Net_PextMask(1, cls.protocol == CP_NETQUAKE), fp2 = Net_PextMask(2, cls.protocol == CP_NETQUAKE);
+		extern cvar_t cl_nopext;
+		if (cl_nopext.ival)
+		{
+			fp1 = 0;
+			fp2 = 0;
+		}
 		CL_SendClientCommand(true, "pext %#x %#x %#x %#x", PROTOCOL_VERSION_FTE, fp1, PROTOCOL_VERSION_FTE2, fp2);
 		return;
 	}

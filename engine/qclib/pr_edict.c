@@ -45,6 +45,8 @@ edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num, pbool object, un
 		if (e->fields)
 			progfuncs->funcs.AddressableFree(&progfuncs->funcs, e->fields);
 		e->fields = progfuncs->funcs.AddressableAlloc(&progfuncs->funcs, fields_size);
+		if (!e->fields)
+			Sys_Error ("ED_Alloc: Unable to allocate more field space");
 		e->fieldsize = fields_size;
 
 //		e->fields = PRAddressableExtend(progfuncs, NULL, fields_size, 0);
@@ -1870,22 +1872,20 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t b
 int header_crc;
 
 //if 'general' block is found, this is a compleate state, otherwise, we should spawn entities like
-int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnflags)
+int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PDECL *callback) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend))
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	eval_t *fulldata;	//this is part of FTE_FULLSPAWNDATA
 	const char *datastart;
 
-	eval_t *selfvar = NULL;
-	eval_t *var;
-	const char *spawnwarned[20] = {NULL};
+//	eval_t *selfvar = NULL;
+//	eval_t *var;
+//	const char *spawnwarned[20] = {NULL};
 
 	char filename[128];
 	int num;
 	edictrun_t *ed=NULL;
 	ddef16_t *d16;
 	ddef32_t *d32;
-	func_t CheckSpawn=0;
 	void *oldglobals = NULL;
 	int oldglobalssize = 0;
 
@@ -1902,14 +1902,9 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 		isloadgame = true;
 		numents = -1;
 		file+=8;
-		fulldata = NULL;
 	}
 	else
-	{
 		isloadgame = false;
-
-		fulldata = PR_FindGlobal(&progfuncs->funcs, "__fullspawndata", PR_ANY, NULL);
-	}
 
 	while(1)
 	{
@@ -1945,6 +1940,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 			file = QCC_COM_Parse(file);
 			num = atoi(qcc_token);
+			datastart = file;
 			file = QCC_COM_Parse(file);
 			if (qcc_token[0] != '{')
 				Sys_Error("Progs loading found %s, not '{'", qcc_token);
@@ -1965,33 +1961,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 				externs->entspawn((struct edict_s *) ed, true);
 			file = ED_ParseEdict(progfuncs, file, ed);
 
-			if (killonspawnflags)
-			{
-				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)&ed, "spawnflags", ev_float, &prinst.spawnflagscache);
-				if (var)
-				{
-					if ((int)var->_float & (int)killonspawnflags)
-					{
-						ed->ereftype = ER_FREE;
-						continue;
-					}
-				}
-			}
-
-			if (!resethunk)
-			{
-				mfunction_t *f;
-				if ((var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "classname", ev_string, NULL)))
-				{
-					f = ED_FindFunction(progfuncs, PR_StringToNative(&progfuncs->funcs, var->string), NULL, -1);
-					if (f)
-					{
-						var = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
-						var->edict = EDICT_TO_PROG(progfuncs, ed);
-						PR_ExecuteProgram(&progfuncs->funcs, f-pr_cp_functions);
-					}
-				}
-			}
+			callback(ppf, (struct edict_s *)ed, ctx, datastart, file);
 		}
 		else if (!strcmp(qcc_token, "progs"))
 		{
@@ -2263,103 +2233,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 				externs->entspawn((struct edict_s *) ed, true);
 			file = ED_ParseEdict(progfuncs, file, ed);
 
-			if (killonspawnflags)
-			{
-				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "spawnflags", ev_float, &prinst.spawnflagscache);
-				if (var)
-				{
-					if ((int)var->_float & (int)killonspawnflags)
-					{
-						ed->ereftype = ER_FREE;
-						ed->freetime = 0;
-						continue;
-					}
-				}
-			}
-
-			if (!resethunk)
-			{
-				const char *eclassname;
-				func_t f;
-				if (!CheckSpawn)
-					CheckSpawn = PR_FindFunc(&progfuncs->funcs, "CheckSpawn", -2);
-
-				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "classname", ev_string, NULL);
-				if (!var || !var->string || !*PR_StringToNative(&progfuncs->funcs, var->string))
-				{
-					printf("No classname\n");
-					ED_Free(&progfuncs->funcs, (struct edict_s *)ed);
-				}
-				else
-				{
-					//added by request of Mercury.
-					if (fulldata)	//this is a vital part of HL map support!!!
-					{	//essentually, it passes the ent's spawn info to the ent.
-						char *nl;	//otherwise it sees only the named fields of
-						char *spawndata;//a standard quake ent.
-						spawndata = PRHunkAlloc(progfuncs, file - datastart +1, "fullspawndata");
-						strncpy(spawndata, datastart, file - datastart);
-						spawndata[file - datastart] = '\0';
-						for (nl = spawndata; *nl; nl++)
-							if (*nl == '\n')
-								*nl = '\t';
-						fulldata->string = PR_StringToProgs(&progfuncs->funcs, spawndata);
-					}
-
-					if (!selfvar)
-						selfvar = PR_FindGlobal(&progfuncs->funcs, "self", PR_ANY, NULL);
-					if (selfvar)
-						selfvar->edict = EDICT_TO_PROG(progfuncs, ed);
-
-					//DP_SV_SPAWNFUNC_PREFIX support
-					eclassname = PR_StringToNative(&progfuncs->funcs, var->string);
-#ifdef _WIN32
-					_snprintf(filename, sizeof(filename), "spawnfunc_%s", eclassname);
-					filename[sizeof(filename)-1] = 0;
-#else
-					snprintf(filename, sizeof(filename), "spawnfunc_%s", eclassname);
-#endif
-					f = PR_FindFunc(&progfuncs->funcs, filename, PR_ANYBACK);
-					if (!f)
-						f = PR_FindFunc(&progfuncs->funcs, eclassname, PR_ANYBACK);
-					if (f)
-					{
-						if (CheckSpawn)
-						{
-							G_INT(OFS_PARM0) = f;
-							PR_ExecuteProgram(&progfuncs->funcs, CheckSpawn);
-							//call the spawn func or remove.
-						}
-						else
-							PR_ExecuteProgram(&progfuncs->funcs, f);
-					}
-					else if (CheckSpawn)
-					{
-						G_INT(OFS_PARM0) = 0;
-						PR_ExecuteProgram(&progfuncs->funcs, CheckSpawn);
-						//the mod is responsible for freeing unrecognised ents.
-					}
-					else
-					{
-						//only warn on the first occurence of the classname, don't spam.
-						int i;
-						const char *fnc = PR_StringToNative(&progfuncs->funcs, var->string);
-						if (prinst.pr_typecurrent >= 0)
-						for (i = 0; i < sizeof(spawnwarned)/sizeof(spawnwarned[0]); i++)
-						{
-							if (!spawnwarned[i])
-							{
-								printf("Couldn't find spawn function %s\n", fnc);
-								spawnwarned[i] = fnc;
-								break;
-							}
-							else if (!strcmp(spawnwarned[i], fnc))
-								break;
-						}
-						ED_Free(&progfuncs->funcs, (struct edict_s *)ed);
-					}
-				}
-			}
+			callback(ppf, (struct edict_s *)ed, ctx, datastart, file);
 		}
 		else
 			Sys_Error("Bad entity lump: '%s' not recognised (last ent was %i)", qcc_token, ed?ed->entnum:0);

@@ -600,6 +600,8 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	r_refdef.vrect.height = ref->height;
 	r_refdef.time = ref->time/1000.0f;
 	r_refdef.useperspective = true;
+	r_refdef.mindist = bound(0.1, gl_mindist.value, 4);
+	r_refdef.maxdist = gl_maxdist.value;
 	r_refdef.playerview = &cl.playerview[0];
 
 	if (r_torch.ival)

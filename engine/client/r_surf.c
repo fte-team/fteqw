@@ -3430,12 +3430,11 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 
 void Surf_BuildModelLightmaps (model_t *m)
 {
-	int		i, t;
+	int		i;
 	int shift;
 	msurface_t *surf;
 	batch_t *batch;
 	int sortid;
-	int ptype;
 	int newfirst;
 
 	if (m->loadstate != MLS_LOADED)
@@ -3490,36 +3489,6 @@ void Surf_BuildModelLightmaps (model_t *m)
 			batch->lightmap[i] = batch->lightmap[i] - m->lightmaps.first + newfirst;
 		}
 	}
-
-	
-	/*particle emision based upon texture. this is lazy code*/
-	if (m == cl.worldmodel)
-	{
-		for (t = m->numtextures-1; t >= 0; t--)
-		{
-			/*FIXME: we should read the shader for the particle names here*/
-			/*FIXME: if the paticle system changes mid-map, we should be prepared to reload things*/
-			char *pn = va("tex_%s", m->textures[t]->name);
-			char *h = strchr(pn, '#');
-			if (h)
-				*h = 0;
-			ptype = P_FindParticleType(pn);
-
-			if (ptype != P_INVALID)
-			{
-				for (i=0; i<m->nummodelsurfaces; i++)
-				{
-					surf = m->surfaces + i + m->firstmodelsurface;
-					if (surf->texinfo->texture == m->textures[t])
-					{
-						/*FIXME: it would be a good idea to determine the surface's (midpoint) pvs cluster so that we're not spamming for the entire map*/
-						P_EmitSkyEffectTris(m, surf, ptype);
-					}
-				}
-			}
-		}
-	}
-
 
 	if (m->fromgame == fg_quake3)
 	{

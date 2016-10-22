@@ -2546,6 +2546,13 @@ void CL_QTVPoll (void)
 					MC_AddConsoleCommand(sourcesmenu, 42, 170, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %i@%s\n", streamid, qtvhostname));
 				//else
 				//	FIXME: add error message here
+#else
+				(void)init_numviewers;
+				(void)numviewers;
+				(void)init_numplayers;
+				(void)numplayers;
+				(void)streamid;
+				(void)sourcenum;
 #endif
 			}
 			//end of sourcelist entry

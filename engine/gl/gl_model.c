@@ -541,6 +541,10 @@ void Mod_Purge(enum mod_purge_e ptype)
 			Z_Free(mod->entities);
 			mod->entities = NULL;
 
+#ifdef PSET_SCRIPT
+			PScript_ClearSurfaceParticles(mod);
+#endif
+
 			//and obliterate anything else remaining in memory.
 			ZG_FreeGroup(&mod->memgroup);
 			mod->meshinfo = NULL;
@@ -1055,6 +1059,8 @@ void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		!strcmp(mod->name, "progs/h_player.mdl") ||
 		!strncmp(mod->name, "progs/v_", 8))
 		mod->engineflags &= ~MDLF_EZQUAKEFBCHEAT;
+
+	mod->engineflags |= MDLF_RECALCULATERAIN;
 
 	// get string used for replacement tokens
 	COM_FileExtension(mod->name, ext, sizeof(ext));
@@ -2081,6 +2087,7 @@ void Mod_LoadVisibility (model_t *loadmodel, qbyte *mod_base, lump_t *l, qbyte *
 	memcpy (loadmodel->visdata, ptr, len);
 }
 
+//scans through the worldspawn for a single specific key.
 char *Mod_ParseWorldspawnKey(const char *ents, const char *key, char *buffer, size_t sizeofbuffer)
 {
 	char keyname[64];
@@ -2160,6 +2167,11 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	char fname[MAX_QPATH];
 	size_t sz;
+	char keyname[64];
+	char value[1024];
+	char *ents, *k;
+	int t;
+
 	loadmodel->entitiescrc = 0;
 	loadmodel->entities = NULL;
 	if (!l->filelen)
@@ -2195,6 +2207,37 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	}
 	else
 		loadmodel->entitiescrc = QCRC_Block(loadmodel->entities, strlen(loadmodel->entities));
+
+	ents = loadmodel->entities;
+	while(ents && *ents)
+	{
+		ents = COM_ParseOut(ents, keyname, sizeof(keyname));
+		if (*keyname == '{')	//an entity
+		{
+			while (ents && *ents)
+			{
+				ents = COM_ParseOut(ents, keyname, sizeof(keyname));
+				if (*keyname == '}')
+					break;
+				ents = COM_ParseOut(ents, value, sizeof(value));
+				if (!strncmp(keyname, "_texpart_", 9) || !strncmp(keyname, "texpart_", 8))
+				{
+					k = keyname + ((*keyname=='_')?9:8);
+					for (t = 0; t < loadmodel->numtextures; t++)
+					{
+						if (!strcmp(k, loadmodel->textures[t]->name))
+						{
+							loadmodel->textures[t]->partname = ZG_Malloc(&loadmodel->memgroup, strlen(value)+1);
+							strcpy(loadmodel->textures[t]->partname, value);
+							break;
+						}
+					}
+					if (t == loadmodel->numtextures)
+						Con_Printf("\"%s\" is not valid for %s\n", keyname, loadmodel->name);
+				}
+			}
+		}
+	}
 }
 
 

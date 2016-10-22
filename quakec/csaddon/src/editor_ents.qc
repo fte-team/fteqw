@@ -369,7 +369,7 @@ void(string shadername, vector min, vector max, vector col) editor_ents_drawbbox
 #undef line
 };
 
-void() editor_ents_add =
+void() editor_ents_addentities =
 {
 	int e;
 	string shadername;

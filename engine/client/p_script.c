@@ -82,7 +82,7 @@ static qboolean pe_script_enabled;
 
 static float psintable[256];
 
-static qboolean P_LoadParticleSet(char *name, qboolean implicit);
+static qboolean P_LoadParticleSet(char *name, qboolean implicit, qboolean showwarning);
 static void R_Particles_KillAllEffects(void);
 
 static void buildsintable(void)
@@ -149,13 +149,14 @@ typedef struct beamseg_s
 
 
 typedef struct skytris_s {
-	struct skytris_s *next;
-	vec3_t org;
-	vec3_t x;
-	vec3_t y;
-	float area;
-	float nexttime;
-	struct msurface_s *face;
+	struct skytris_s	*next;
+	vec3_t	org;
+	vec3_t	x;
+	vec3_t	y;
+	float	area;
+	float	nexttime;
+	int		ptype;
+	struct msurface_s	*face;
 } skytris_t;
 
 typedef struct skytriblock_s
@@ -262,6 +263,7 @@ typedef struct part_type_s {
 	int countextra;
 	float count;
 	float countrand;
+	float rainfrequency;
 
 	int assoc;
 	int cliptype;
@@ -318,8 +320,8 @@ typedef struct part_type_s {
 	particle_t	*particles;
 	clippeddecal_t *clippeddecals;
 	beamseg_t *beams;
-	skytris_t *skytris;
 	struct part_type_s *nexttorun;
+	struct part_type_s **runlink;
 
 	unsigned int flags;
 #define PT_VELOCITY			0x0001	// has velocity modifiers
@@ -357,7 +359,9 @@ static pcfg_t *loadedconfigs;
 #define crand() (rand()%32767/16383.5f-1)
 
 static void P_ReadPointFile_f (void);
+#ifndef NOLEGACY
 static void P_ExportBuiltinSet_f(void);
+#endif
 
 #define MAX_BEAMSEGS			(1<<11)	// default max # of beam segments
 #define MAX_PARTICLES			(1<<18)	// max # of particles at one time
@@ -377,8 +381,6 @@ beamseg_t   *free_beams;
 beamseg_t   *beams;
 int			r_numbeams;
 
-skytriblock_t *skytrimem;
-
 clippeddecal_t	*free_decals;
 clippeddecal_t	*decals;
 int			r_numdecals;
@@ -396,6 +398,7 @@ extern cvar_t r_bloodstains;
 extern cvar_t gl_part_flame;
 extern cvar_t r_decal_noperpendicular;
 
+static void PScript_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa, int ptype);
 static void FinishParticleType(part_type_t *ptype);
 // callbacks
 static void QDECL R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue);
@@ -489,12 +492,21 @@ static part_type_t *P_GetParticleType(const char *config, const char *name)
 
 	if (oldlist)
 	{
+		part_type_t **link;
 		if (part_run_list)
 			part_run_list = (part_type_t*)((char*)part_run_list - (char*)oldlist + (char*)part_type);
 
 		for (i = 0; i < numparticletypes; i++)
+		{
 			if (part_type[i].nexttorun)
 				part_type[i].nexttorun = (part_type_t*)((char*)part_type[i].nexttorun - (char*)oldlist + (char*)part_type);
+			part_type[i].runlink = NULL;
+		}
+		for (link = &part_run_list; *link;)
+		{
+			(*link)->runlink = link;
+			link = &(*link)->nexttorun;
+		}
 	}
 
 	ptype->loaded = 0;
@@ -546,10 +558,10 @@ static void PScript_RetintEffect(part_type_t *to, part_type_t *from, const char 
 
 	//'from' might still have some links so we need to clear those out.
 	to->nexttorun = NULL;
+	to->runlink = NULL;
 	to->particles = NULL;
 	to->clippeddecals = NULL;
 	to->beams = NULL;
-	to->skytris = NULL;
 	to->slooks = &to->looks;
 	r_plooksdirty = true;
 
@@ -620,13 +632,13 @@ static int PScript_FindParticleType(const char *fullname)
 			int from = PScript_FindParticleType(va("%s.te_explosion2", cfg));
 			if (from != P_INVALID)
 			{
-				int to = P_AllocateParticleType(cfg, name);
+				int to = P_AllocateParticleType(part_type[from].config, name);
 				PScript_RetintEffect(&part_type[to], &part_type[from], name+14);
 				return to;
 			}
 		}
 		if (*cfg)
-			P_LoadParticleSet(cfg, true);
+			P_LoadParticleSet(cfg, true, true);
 
 		if (fallback)
 		{
@@ -935,8 +947,6 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 static void P_ResetToDefaults(part_type_t *ptype)
 {
 	particle_t *parts;
-	skytris_t *st;
-	part_type_t *torun;
 	char tnamebuf[sizeof(ptype->name)];
 	char tconfbuf[sizeof(ptype->config)];
 
@@ -961,21 +971,13 @@ static void P_ResetToDefaults(part_type_t *ptype)
 	// if we're in the runstate loop through and remove from linked list
 	if (ptype->state & PS_INRUNLIST)
 	{
-		if (part_run_list == ptype)
-			part_run_list = part_run_list->nexttorun;
-		else
-		{
-			for (torun = part_run_list; torun != NULL; torun = torun->nexttorun)
-			{
-				if (torun->nexttorun == ptype)
-					torun->nexttorun = torun->nexttorun->nexttorun;
-			}
-		}
+		*ptype->runlink = ptype->nexttorun;
+		if (ptype->nexttorun)
+			ptype->nexttorun->runlink = ptype->runlink;
 	}
 
 	//some things need to be preserved before we clear everything.
 	beamsegs = ptype->beams;
-	st = ptype->skytris;
 	strcpy(tnamebuf, ptype->name);
 	strcpy(tconfbuf, ptype->config);
 
@@ -993,7 +995,7 @@ static void P_ResetToDefaults(part_type_t *ptype)
 	//now set any non-0 defaults.
 
 	ptype->beams = beamsegs;
-	ptype->skytris = st;
+	ptype->rainfrequency = 1;
 	strcpy(ptype->name, tnamebuf);
 	strcpy(ptype->config, tconfbuf);
 	ptype->assoc=P_INVALID;
@@ -1336,6 +1338,10 @@ void P_ParticleEffect_f(void)
 			if (Cmd_Argc()>3)
 				ptype->countextra = atof(Cmd_Argv(3));
 		}
+		else if (!strcmp(var, "rainfrequency"))
+		{	//multiplier to ramp up the effect or whatever (without affecting spawn patterns).
+			ptype->rainfrequency = atof(value);
+		}
 
 		else if (!strcmp(var, "alpha"))
 			ptype->alpha = atof(value);
@@ -1377,7 +1383,7 @@ void P_ParticleEffect_f(void)
 #endif
 
 		else if (!strcmp(var, "randomvel"))
-		{
+		{	//shortcut for velwrand (and velbias for z bias)
 			ptype->velbias[0] = ptype->velbias[1] = 0;
 			ptype->velwrand[0] = ptype->velwrand[1] = atof(value);
 			if (Cmd_Argc()>3)
@@ -1825,7 +1831,10 @@ parsefluid:
 				ptype->looks.blendmode = BM_PREMUL;
 			}
 			else
+			{
+				Con_DPrintf("%s.%s: uses unknown blend type '%s', assuming legacy 'blendalpha'\n", ptype->config, ptype->name, value);
 				ptype->looks.blendmode = BM_BLEND;	//fallback
+			}
 		}
 		else if (!strcmp(var, "spawnmode"))
 		{
@@ -1853,8 +1862,13 @@ parsefluid:
 			}
 			else if (!strcmp(value, "distball"))
 				ptype->spawnmode = SM_DISTBALL;
-			else
+			else if (!strcmp(value, "box"))
 				ptype->spawnmode = SM_BOX;
+			else
+			{
+				Con_DPrintf("%s.%s: uses unknown spawn type '%s', assuming 'box'\n", ptype->config, ptype->name, value);
+				ptype->spawnmode = SM_BOX;	//fallback
+			}
 
 			if (Cmd_Argc()>2)
 			{
@@ -1877,8 +1891,13 @@ parsefluid:
 				ptype->looks.type = PT_CDECAL;
 			else if (!strcmp(value, "udecal"))
 				ptype->looks.type = PT_UDECAL;
-			else
+			else if (!strcmp(value, "normal"))
 				ptype->looks.type = PT_NORMAL;
+			else
+			{
+				Con_DPrintf("%s.%s: uses unknown (render) type '%s', assuming 'normal'\n", ptype->config, ptype->name, value);
+				ptype->looks.type = PT_NORMAL;	//fallback
+			}
 			settype = true;
 		}
 		else if (!strcmp(var, "clippeddecal"))	//mask, match
@@ -2010,8 +2029,13 @@ parsefluid:
 				ptype->rampmode = RAMP_NEAREST;
 			else if (!strcmp(value, "lerp"))	//don't use the name 'linear'. ramps are there to avoid linear...
 				ptype->rampmode = RAMP_LERP;
-			else //if (!strcmp(value, "delta"))
+			else if (!strcmp(value, "delta"))
 				ptype->rampmode = RAMP_DELTA;
+			else
+			{
+				Con_DPrintf("%s.%s: uses unknown ramp mode '%s', assuming 'delta'\n", ptype->config, ptype->name, value);
+				ptype->rampmode = RAMP_DELTA;
+			}
 		}
 		else if (!strcmp(var, "rampindexlist"))
 		{ // better not use this with delta ramps...
@@ -2153,7 +2177,7 @@ parsefluid:
 			ptype->stain_rgb[1] = atof(Cmd_Argv(3));
 			ptype->stain_rgb[2] = atof(Cmd_Argv(4));
 		}
-		else
+		else if (Cmd_Argc())
 			Con_DPrintf("%s.%s: %s is not a recognised particle type field\n", ptype->config, ptype->name, var);
 	}
 	ptype->loaded = part_parseweak?1:2;
@@ -2314,7 +2338,9 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 		}
 
 		if (ptype->count || all)
-			Q_strncatz(outstr, va("count %g\n", ptype->count), outstrlen);
+			Q_strncatz(outstr, va("count %g %g %i\n", ptype->count, ptype->countrand, ptype->countextra), outstrlen);
+		if (ptype->rainfrequency != 1 || all)
+			Q_strncatz(outstr, va("rainfrequency %g\n", ptype->rainfrequency), outstrlen);
 
 		if (ptype->rgb[0] || ptype->rgb[1] || ptype->rgb[2] || all)
 			Q_strncatz(outstr, va("rgbf %g %g %g\n", ptype->rgb[0], ptype->rgb[1], ptype->rgb[2]), outstrlen);
@@ -2432,7 +2458,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 			Q_strncatz(outstr, va("orgbias %g %g %g\n", ptype->orgbias[0], ptype->orgbias[1], ptype->orgbias[2]), outstrlen);
 		if (DotProduct(ptype->orgwrand,ptype->orgwrand) || all)
 			Q_strncatz(outstr, va("orgwrand %g %g %g\n", ptype->orgwrand[0], ptype->orgwrand[1], ptype->orgwrand[2]), outstrlen);
-		if (ptype->velbias[0] == 0 && ptype->velbias[1] == 0 && ptype->velwrand[0] == ptype->velwrand[1])
+		if (ptype->velbias[0] == 0 && ptype->velbias[1] == 0 && ptype->velwrand[0] == ptype->velwrand[1] && !all)
 			Q_strncatz(outstr, va("randomvel %g %g %g\n", ptype->velwrand[0], ptype->velbias[2] - ptype->velwrand[2], ptype->velbias[2]*2-(ptype->velbias[2]- ptype->velwrand[2])), outstrlen);
 		else
 		{
@@ -2499,74 +2525,6 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 			Q_strncatz(outstr, va("stains %g\n", ptype->stainonimpact), outstrlen);
 
 		return true;
-
-#if 0
-	plooks_t *slooks;	//shared looks, so state switches don't apply between particles so much
-	plooks_t looks;
-
-	float spawntime;	//time limit for trails
-	float spawnchance;	//if < 0, particles might not spawn so many
-
-	float scaledelta;
-	int countextra;
-	float count;
-	float countrand;
-
-	int cliptype;
-	int inwater;
-	float clipcount;
-	int emit;
-	float emittime;
-	float emitrand;
-	float emitstart;
-
-	float areaspread;
-	float areaspreadvert;
-
-	float spawnparam1;
-	float spawnparam2;
-/*	float spawnparam3; */
-
-	enum {
-		SM_BOX, //box = even spread within the area
-		SM_CIRCLE, //circle = around edge of a circle
-		SM_BALL, //ball = filled sphere
-		SM_SPIRAL, //spiral = spiral trail
-		SM_TRACER, //tracer = tracer trail
-		SM_TELEBOX, //telebox = q1-style telebox
-		SM_LAVASPLASH, //lavasplash = q1-style lavasplash
-		SM_UNICIRCLE, //unicircle = uniform circle
-		SM_FIELD, //field = synced field (brightfield, etc)
-		SM_DISTBALL // uneven distributed ball
-	} spawnmode;
-
-	float gravity;
-	vec3_t friction;
-	float clipbounce;
-	int stainonimpact;
-
-	vec3_t stain_rgb;
-	float stain_radius;
-
-	enum {RAMP_NONE, RAMP_DELTA, RAMP_ABSOLUTE} rampmode;
-	int rampindexes;
-	ramp_t *ramp;
-
-	int loaded;
-	particle_t	*particles;
-	clippeddecal_t *clippeddecals;
-	beamseg_t *beams;
-	skytris_t *skytris;
-	struct part_type_s *nexttorun;
-
-	unsigned int flags;
-#define PT_CITRACER      0x008 // Q1-style tracer behavior for colorindex
-#define PT_INVFRAMETIME  0x010 // apply inverse frametime to count (causes emits to be per frame)
-#define PT_AVERAGETRAIL  0x020 // average trail points from start to end, useful with t_lightning, etc
-#define PT_NOSTATE       0x040 // don't use trailstate for this emitter (careful with assoc...)
-#define PT_NOSPREADFIRST 0x080 // don't randomize org/vel for first generated particle
-#define PT_NOSPREADLAST  0x100 // don't randomize org/vel for last generated particle
-#endif
 	}
 
 	return false;
@@ -2788,12 +2746,24 @@ static void FinishEffectinfoParticleType(part_type_t *ptype, qboolean blooddecal
 			ptype->die = 20;
 		ptype->alphachange = -(ptype->alpha / ptype->die);
 	}
+	else if (ptype->looks.type == PT_UDECAL)
+	{
+		//dp's decals have a size as a radius. fte's udecals are 'just' quads.
+		//also, dp uses 'stretch'.
+		ptype->looks.stretch *= 1/1.414213562373095;
+		ptype->scale *= ptype->looks.stretch;
+		ptype->scalerand *= ptype->looks.stretch;
+		ptype->scaledelta *= ptype->looks.stretch;
+		ptype->looks.stretch = 1;
+	}
 	else if (ptype->looks.type == PT_NORMAL)
 	{
 		//fte's textured particles are *0.25 for some reason.
-		ptype->scale *= 4;
-		ptype->scalerand *= 4;
-		ptype->scaledelta *= 4;
+		//but fte also uses radiuses, while dp uses total size so we only need to double it here..
+		ptype->scale *= 2*ptype->looks.stretch;
+		ptype->scalerand *= 2*ptype->looks.stretch;
+		ptype->scaledelta *= 2*2*ptype->looks.stretch;	//fixme: this feels wrong, the results look correct though. hrmph.
+		ptype->looks.stretch = 1;
 	}
 	if (blooddecalonimpact)	//DP blood particles generate decals unconditionally (and prevent blood from bouncing)
 		ptype->clipbounce = -2;
@@ -2833,8 +2803,8 @@ static void P_ImportEffectInfo(char *config, char *line)
 		{
 			teximages[i][0] = 1/8.0 * (i & 7);
 			teximages[i][1] = 1/8.0 * (1+(i & 7));
-			teximages[i][2] = 1/8.0 * (i>>3);
-			teximages[i][3] = 1/8.0 * (1+(i>>3));
+			teximages[i][2] = 1/8.0 * (1+(i>>3));
+			teximages[i][3] = 1/8.0 * (i>>3);
 		}
 
 		file = FS_OpenVFS("particles/particlefont.txt", "rb", FS_GAME);
@@ -2853,8 +2823,8 @@ static void P_ImportEffectInfo(char *config, char *line)
 					i = atoi(arg[0]);
 					teximages[i][0] = atof(arg[1]);
 					teximages[i][1] = atof(arg[3]);
-					teximages[i][2] = atof(arg[2]);
-					teximages[i][3] = atof(arg[4]);
+					teximages[i][2] = atof(arg[4]);
+					teximages[i][3] = atof(arg[2]);
 				}
 			}
 			VFS_CLOSE(file);
@@ -3059,8 +3029,16 @@ static void P_ImportEffectInfo(char *config, char *line)
 		else if (!strcmp(arg[0], "alpha") && args == 4)
 		{
 			float a1 = atof(arg[1]), a2 = atof(arg[2]), f = atof(arg[3]);
-			ptype->alpha = a1/256;
-			ptype->alpharand = (a2-a1)/256;
+			if (a1 > a2)
+			{	//backwards
+				ptype->alpha = a2/256;
+				ptype->alpharand = (a1-a2)/256;
+			}
+			else
+			{
+				ptype->alpha = a1/256;
+				ptype->alpharand = (a2-a1)/256;
+			}
 			ptype->alphachange = -f/256;
 		}
 		else if (!strcmp(arg[0], "velocityoffset") && args == 4)
@@ -3203,6 +3181,7 @@ static void P_ImportEffectInfo(char *config, char *line)
 			ptype->rotationstartrand	*= M_PI/180;
 			ptype->rotationmin			*= M_PI/180;
 			ptype->rotationrand			*= M_PI/180;
+			ptype->rotationstartmin += M_PI/4;
 		}
 		else
 			Con_Printf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
@@ -3374,6 +3353,9 @@ static void PScript_Shutdown (void)
 
 	Cmd_RemoveCommand("pointfile");	//load the leak info produced from qbsp into the particle system to show a line. :)
 
+	
+	Cmd_RemoveCommand("r_converteffectinfo");
+	Cmd_RemoveCommand("r_exportalleffects");
 	Cmd_RemoveCommand("r_exportbuiltinparticles");
 	Cmd_RemoveCommand("r_importeffectinfo");
 
@@ -3414,13 +3396,6 @@ static void PScript_Shutdown (void)
 	BZ_Free (beams);
 	BZ_Free (decals);
 	BZ_Free (trailstates);
-
-	while(skytrimem)
-	{
-		void *f = skytrimem;
-		skytrimem = skytrimem->next;
-		BZ_Free(f);
-	}
 
 	r_numparticles = 0;
 }
@@ -3469,7 +3444,6 @@ static void PScript_ClearParticles (void)
 		part_type[i].clippeddecals = NULL;
 		part_type[i].particles = NULL;
 		part_type[i].beams = NULL;
-		part_type[i].skytris = NULL;
 	}
 }
 
@@ -3506,7 +3480,7 @@ static void P_ExportBuiltinSet_f(void)
 }
 #endif
 
-static qboolean P_LoadParticleSet(char *name, qboolean implicit)
+static qboolean P_LoadParticleSet(char *name, qboolean implicit, qboolean showwarning)
 {
 	char *file;
 	int i;
@@ -3527,6 +3501,7 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit)
 	strcpy(cfg->name, name);
 	cfg->next = loadedconfigs;
 	loadedconfigs = cfg;
+	name = cfg->name;
 
 #ifdef PSET_CLASSIC
 	if (!strcmp(name, "classic"))
@@ -3577,15 +3552,10 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit)
 			P_ImportEffectInfo_Name(name);
 			return true;
 		}
-
-		if (P_LoadParticleSet("high", true))
-			Con_Printf(CON_WARNING "Couldn't find particle description %s, loading 'high' instead\n", name);
-		else
 #endif
-		{
+		if (showwarning)
 			Con_Printf(CON_WARNING "Couldn't find particle description %s\n", name);
-			return false;
-		}
+		return false;
 	}
 	return true;
 }
@@ -3627,7 +3597,8 @@ static void R_Particles_KillAllEffects(void)
 static void QDECL R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
 {
 	char token[256];
-	qboolean		first;
+	int count;
+	qboolean		failure;
 
 	char *c;
 
@@ -3636,14 +3607,33 @@ static void QDECL R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
 
 	R_Particles_KillAllEffects();
 
-	first = true;
-	for (c = COM_ParseStringSet(var->string, token, sizeof(token)); token[0]; c = COM_ParseStringSet(c, token, sizeof(token)))
+	if (cls.state != ca_connected)
 	{
-		/*set up a default*/
-		if (first && !*token)
-			strcpy(token, "classic");
-		P_LoadParticleSet(token, false);
-		first = false;
+		failure = false;
+		count = 0;
+		for (c = COM_ParseStringSet(var->string, token, sizeof(token)); token[0]; c = COM_ParseStringSet(c, token, sizeof(token)))
+		{
+			if (*token)
+			{
+				if (!P_LoadParticleSet(token, false, false))
+					failure = true;
+				count++;
+			}
+		}
+
+		//if we didn't manage to load any, make sure SOMETHING got loaded...
+		if (!count)
+			P_LoadParticleSet("classic", true, true);
+		else if (failure)
+			P_LoadParticleSet("high", true, true);
+
+		if (cls.state)
+		{
+			//per-map configs. because we can.
+			memcpy(token, "map_", 4);
+			COM_FileBase(cl.model_name[1], token+4, sizeof(token)-4);
+			P_LoadParticleSet(token, false, false);
+		}
 	}
 
 //	Cbuf_AddText("r_effect\n", RESTRICT_LOCAL);
@@ -3734,95 +3724,21 @@ static void P_ReadPointFile_f (void)
 	Con_Printf ("spawned %i of %i points\n", spawned, c);
 }
 
-static void P_AddRainParticles(void)
+void PScript_ClearSurfaceParticles(model_t *mod)
 {
-	float x;
-	float y;
-	static float skipped;
-	static float lastrendered;
-	int ptype;
-
-	vec3_t org, vdist;
-
-	skytris_t *st;
-
-	if (!r_part_rain.ival || !r_part_rain_quantity.ival)
+	mod->skytime = 0;
+	mod->skytris = NULL;
+	while(mod->skytrimem)
 	{
-		skipped = true;
-		return;
+		void *f = mod->skytrimem;
+		mod->skytrimem = mod->skytrimem->next;
+		Z_Free(f);
 	}
-
-	if (lastrendered < particletime - 0.5)
-		skipped = true;	//we've gone for half a sec without any new rain. This would cause some strange effects, so reset times.
-
-	if (skipped)
-	{
-		for (ptype = 0; ptype<numparticletypes; ptype++)
-		{
-			for (st = part_type[ptype].skytris; st; st = st->next)
-			{
-				st->nexttime = particletime;
-			}
-		}
-	}
-	skipped = false;
-
-	lastrendered = particletime;
-
-	for (ptype = 0; ptype<numparticletypes; ptype++)
-	{
-		if (!part_type[ptype].loaded)	//woo, batch skipping.
-			continue;
-
-		for (st = part_type[ptype].skytris; st; st = st->next)
-		{
-			if (st->face->visframe != r_framecount)
-			{
-				st->nexttime = particletime;
-				continue;
-			}
-
-			while (st->nexttime < particletime)
-			{
-				if (!free_particles)
-					return;
-
-				st->nexttime += 10000/(st->area*r_part_rain_quantity.value);
-
-				x = frandom()*frandom();
-				y = frandom() * (1-x);
-				VectorMA(st->org, x, st->x, org);
-				VectorMA(org, y, st->y, org);
-
-
-				VectorSubtract(org, r_refdef.vieworg, vdist);
-
-				if (Length(vdist) > (1024+512)*frandom())
-					continue;
-
-				if (st->face->flags & SURF_PLANEBACK)
-					VectorMA(org, -0.5, st->face->plane->normal, org);
-				else
-					VectorMA(org, 0.5, st->face->plane->normal, org);
-
-				if (!(cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, org) & FTECONTENTS_SOLID))
-				{
-					if (st->face->flags & SURF_PLANEBACK)
-					{
-						vdist[0] = -st->face->plane->normal[0];
-						vdist[1] = -st->face->plane->normal[1];
-						vdist[2] = -st->face->plane->normal[2];
-						P_RunParticleEffectType(org, vdist, 1, ptype);
-					}
-					else
-						P_RunParticleEffectType(org, st->face->plane->normal, 1, ptype);
-				}
-			}
-		}
-	}
+	mod->skytime = 0;
+	mod->engineflags |= MDLF_RECALCULATERAIN;
 }
 
-static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf, int ptype)
+static void R_Part_SkyTri(model_t *mod, float *v1, float *v2, float *v3, msurface_t *surf, int ptype)
 {
 	float dot;
 	float xm;
@@ -3833,17 +3749,16 @@ static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf, int
 
 	skytris_t *st;
 
-	skytriblock_t *mem = skytrimem;
+	skytriblock_t *mem = mod->skytrimem;
 	if (!mem || mem->count >= sizeof(mem->tris)/sizeof(mem->tris[0]))
 	{
-		skytrimem = BZ_Malloc(sizeof(*skytrimem));
-		skytrimem->next = mem;
-		skytrimem->count = 0;
-		mem = skytrimem;
+		mod->skytrimem = BZ_Malloc(sizeof(*mod->skytrimem));
+		mod->skytrimem->next = mem;
+		mod->skytrimem->count = 0;
+		mem = mod->skytrimem;
 	}
 
-	st = &mem->tris[mem->count++];
-	st->next = part_type[ptype].skytris;
+	st = &mem->tris[mem->count];
 	VectorCopy(v1, st->org);
 	VectorSubtract(v2, st->org, st->x);
 	VectorSubtract(v3, st->org, st->y);
@@ -3862,11 +3777,14 @@ static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf, int
 	st->area = sin(theta)*xm*ym;
 	st->nexttime = particletime;
 	st->face = surf;
+	st->ptype = ptype;
 
 	if (st->area<=0)
 		return;//bummer.
 
-	part_type[ptype].skytris = st;
+	mem->count++;
+	st->next = mod->skytris;
+	mod->skytris = st;
 }
 
 
@@ -3910,9 +3828,129 @@ static void PScript_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa, int ptype)
 	v2 = 1;
 	for (v3 = 2; v3 < numverts; v3++)
 	{
-		R_Part_SkyTri(verts[v1], verts[v2], verts[v3], fa, ptype);
+		R_Part_SkyTri(mod, verts[v1], verts[v2], verts[v3], fa, ptype);
 
 		v2 = v3;
+	}
+}
+static void P_AddRainParticles(model_t *mod, vec3_t axis[3], vec3_t eorg, int visframe, float contribution)
+{
+	float x;
+	float y;
+	part_type_t *type;
+
+	vec3_t org, vdist, worg, wnorm;
+
+	skytris_t *st;
+	size_t nc,oc;
+	float ot;
+
+	if (mod->engineflags & MDLF_RECALCULATERAIN)
+	{
+		PScript_ClearSurfaceParticles(mod);
+		mod->engineflags &= ~MDLF_RECALCULATERAIN;
+
+		if (mod->type == mod_brush)
+		{
+			int t, i;
+			int ptype;
+			msurface_t *surf;
+
+			/*particle emision based upon texture. this is lazy code*/
+			for (t = mod->numtextures-1; t >= 0; t--)
+			{
+				/*FIXME: we should read the shader for the particle names here*/
+				/*FIXME: if the paticle system changes mid-map, we should be prepared to reload things*/
+				char *pn;
+				char *h;
+				if (mod->textures[t]->partname)
+					pn = mod->textures[t]->partname;
+				else
+				{
+					pn = va("tex_%s", mod->textures[t]->name);
+					//strip any trailing data after #, so textures can have shader args
+					h = strchr(pn, '#');
+					if (h)
+						*h = 0;
+				}
+				ptype = P_FindParticleType(pn);
+
+				if (ptype != P_INVALID)
+				{
+					for (i=0; i<mod->nummodelsurfaces; i++)
+					{
+						surf = mod->surfaces + i + mod->firstmodelsurface;
+						if (surf->texinfo->texture == mod->textures[t])
+						{
+							/*FIXME: it would be a good idea to determine the surface's (midpoint) pvs cluster so that we're not spamming for the entire map*/
+							PScript_EmitSkyEffectTris(mod, surf, ptype);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (!mod->skytris)
+		return;
+
+	ot = mod->skytime;
+	mod->skytime += contribution;
+
+	for (st = mod->skytris; st; st = st->next)
+	{
+		if (st->face->visframe != visframe)
+		{
+			st->nexttime = mod->skytime;
+			continue;
+		}
+
+		if ((unsigned int)st->ptype >= (unsigned int)numparticletypes)
+			continue;
+		type = &part_type[st->ptype];
+		if (!type->loaded)	//woo, batch skipping.
+			continue;
+
+		nc = (mod->skytime*st->area*r_part_rain_quantity.value*type->rainfrequency)/10000.0;
+		oc = (ot*st->area*r_part_rain_quantity.value*type->rainfrequency)/10000.0;
+
+		while (oc < nc)
+		{
+			oc++;
+			if (!free_particles)
+				return;
+
+//			st->nexttime += 10000.0/(st->area*r_part_rain_quantity.value*type->rainfrequency);
+
+			x = frandom()*frandom();
+			y = frandom() * (1-x);
+			VectorMA(st->org, x, st->x, org);
+			VectorMA(org, y, st->y, org);
+
+			worg[0] = DotProduct(org, axis[0]) + eorg[0];
+			worg[1] = DotProduct(org, axis[1]) + eorg[1];
+			worg[2] = DotProduct(org, axis[2]) + eorg[2];
+
+			//ignore it if its too far away
+			VectorSubtract(worg, r_refdef.vieworg, vdist);
+			if (VectorLength(vdist) > (1024+512)*frandom())
+				continue;
+
+			if (st->face->flags & SURF_PLANEBACK)
+				VectorScale(st->face->plane->normal, -1, vdist);
+			else
+				VectorCopy(st->face->plane->normal, vdist);
+
+			wnorm[0] = DotProduct(vdist, axis[0]);
+			wnorm[1] = DotProduct(vdist, axis[1]);
+			wnorm[2] = DotProduct(vdist, axis[2]);
+
+			VectorMA(worg, 0.5, wnorm, worg);
+			if (!(cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, worg) & FTECONTENTS_SOLID))	//should be paranoia, at least for the world.
+			{
+				P_RunParticleEffectType(worg, wnorm, 1, st->ptype);
+			}
+		}
 	}
 }
 
@@ -4425,8 +4463,11 @@ static void PScript_AddDecals(void *vctx, vec3_t *fte_restrict points, size_t nu
 		// maintain run list
 		if (!(ptype->state & PS_INRUNLIST))
 		{
+			ptype->runlink = &part_run_list;
 			ptype->nexttorun = part_run_list;
-			part_run_list = ptype;
+			if (part_run_list)
+				part_run_list->runlink = &ptype->nexttorun;
+			*ptype->runlink = ptype;
 			ptype->state |= PS_INRUNLIST;
 		}
 	}
@@ -5038,8 +5079,11 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		// maintain run list
 		if (!(ptype->state & PS_INRUNLIST) && (ptype->particles || ptype->clippeddecals))
 		{
+			ptype->runlink = &part_run_list;
 			ptype->nexttorun = part_run_list;
-			part_run_list = ptype;
+			if (part_run_list)
+				part_run_list->runlink = &ptype->nexttorun;
+			*ptype->runlink = ptype;
 			ptype->state |= PS_INRUNLIST;
 		}
 
@@ -5859,8 +5903,11 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	// maintain run list
 	if (!(ptype->state & PS_INRUNLIST))
 	{
+		ptype->runlink = &part_run_list;
 		ptype->nexttorun = part_run_list;
-		part_run_list = ptype;
+		if (part_run_list)
+			part_run_list->runlink = &ptype->nexttorun;
+		*ptype->runlink = ptype;
 		ptype->state |= PS_INRUNLIST;
 	}
 
@@ -6625,7 +6672,7 @@ static void PScript_DrawParticleTypes (void)
 
 	vec3_t oldorg;
 	vec3_t stop, normal;
-	part_type_t *type, *lastvalidtype;
+	part_type_t *type;
 	particle_t		*p, *kill;
 	clippeddecal_t *d, *dkill;
 	ramp_t *ramp;
@@ -6725,7 +6772,7 @@ static void PScript_DrawParticleTypes (void)
 		memcpy(lastviewmatrix, r_refdef.m_view, sizeof(tmp));
 	}
 
-	for (type = part_run_list, lastvalidtype = NULL; type != NULL; type = type->nexttorun)
+	for (type = part_run_list; type != NULL; type = type->nexttorun)
 	{
 		if (type->clippeddecals)
 		{
@@ -7215,7 +7262,7 @@ static void PScript_DrawParticleTypes (void)
 								ctx.bias1 = type->s1 + ctx.scale1/2;
 								ctx.scale2 = type->t2 - type->t1;
 								ctx.bias2 = type->t1 + ctx.scale2/2;
-								m = p->scale*(1.5+frandom()*0.5);	//decals should be a little bigger, for some reason.
+								m = p->scale*(0.5+frandom()*0.5);	//decals should be a little bigger, for some reason.
 								ctx.scale0 = 2.0 / m;
 								ctx.scale1 /= m;
 								ctx.scale2 /= m;
@@ -7389,14 +7436,12 @@ endtype:
 		// delete from run list if necessary
 		if (!type->particles && !type->beams && !type->clippeddecals)
 		{
-			if (!lastvalidtype)
-				part_run_list = type->nexttorun;
-			else
-				lastvalidtype->nexttorun = type->nexttorun;
+			if (type->nexttorun)
+				type->nexttorun->runlink = type->runlink;
+			*type->runlink = type->nexttorun;
+			type->runlink = NULL;
 			type->state &= ~PS_INRUNLIST;
 		}
-		else
-			lastvalidtype = type;
 	}
 
 	RSpeedEnd(RSPEED_PARTICLES);
@@ -7418,7 +7463,24 @@ R_DrawParticles
 */
 static void PScript_DrawParticles (void)
 {
-	P_AddRainParticles();
+	if (r_part_rain.value)
+	{
+		entity_t *ent;
+		int i;
+		
+		P_AddRainParticles(cl.worldmodel, r_worldentity.axis, r_worldentity.origin, r_framecount, pframetime);
+
+		for (i = 0; i < cl_numvisedicts ; i++)
+		{
+			ent = &cl_visedicts[i];
+			if (!ent->model || ent->model->loadstate != MLS_LOADED)
+				continue;
+
+			//this timer, as well as the per-tri timer, are unable to deal with certain rates+sizes. it would be good to fix that...
+			//it would also be nice to do mdls too...
+			P_AddRainParticles(ent->model, ent->axis, ent->origin, 0, pframetime);
+		}
+	}
 
 	PScript_DrawParticleTypes();
 
@@ -7447,7 +7509,6 @@ particleengine_t pe_script =
 	PScript_RunParticleEffectPalette,
 
 	PScript_ParticleTrailIndex,
-	PScript_EmitSkyEffectTris,
 	PScript_InitParticles,
 	PScript_Shutdown,
 	PScript_DelinkTrailstate,

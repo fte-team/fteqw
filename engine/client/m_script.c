@@ -8,17 +8,27 @@
 int selectitem;
 menu_t *menu_script;
 
-void M_Script_Option (menu_t *menu, char *optionvalue)
+void M_Script_Option (menu_t *menu, char *optionvalue, qboolean isexplicit)
 {
 	menuoption_t *mo;
+	char *scriptname = menu->data;
 
 	char buf[8192];
-	int level;
+	//FIXME: not sure about these, as the user typically can't see what they'll do.
+	int expandlevel = RESTRICT_SERVER;
+	int execlevel = RESTRICT_LOCAL;
 
-	Cbuf_AddText("wait\n", RESTRICT_LOCAL);
+	Cbuf_AddText("wait\n", execlevel);
+
+	if (!*scriptname)
+	{
+		if (isexplicit)
+			Cbuf_AddText(va("%s\n", optionvalue), execlevel);
+		return;
+	}
 
 	//update the option
-	Cbuf_AddText(va("set option %s\n", COM_QuotedString(optionvalue, buf, sizeof(buf), false)), RESTRICT_LOCAL);
+	Cbuf_AddText(va("set option %s\n", COM_QuotedString(optionvalue, buf, sizeof(buf), false)), execlevel);
 
 	//expand private arguments
 	for (mo = menu->options, *buf = 0; mo; mo = mo->common.next)
@@ -33,12 +43,11 @@ void M_Script_Option (menu_t *menu, char *optionvalue)
 		}
 	}
 	Cmd_TokenizeString(buf, false, false);
-	level = RESTRICT_SERVER;
-	Cmd_ExpandString(menu->data, buf, sizeof(buf), &level, true, true);
+	Cmd_ExpandString(scriptname, buf, sizeof(buf), &expandlevel, true, true);
 
 	//and execute it as-is
-	Cbuf_AddText(buf, RESTRICT_LOCAL);
-	Cbuf_AddText("\n", RESTRICT_LOCAL);
+	Cbuf_AddText(buf, execlevel);
+	Cbuf_AddText("\n", execlevel);
 }
 
 void M_Script_Remove (menu_t *menu)
@@ -46,7 +55,7 @@ void M_Script_Remove (menu_t *menu)
 	if (menu == menu_script)
 		menu_script = NULL;
 
-	M_Script_Option(menu, "cancel");
+	M_Script_Option(menu, "cancel", false);
 }
 qboolean M_Script_Key (int key, menu_t *menu)
 {
@@ -55,9 +64,9 @@ qboolean M_Script_Key (int key, menu_t *menu)
 	if (key >= '0' && key <= '9' && menu->data)
 	{
 		if (key == '0')	//specal case so that "hello" < "0"... (plus matches common impulses)
-			M_Script_Option(menu, "10");
+			M_Script_Option(menu, "10", false);
 		else
-			M_Script_Option(menu, va("%i", key-'0'));
+			M_Script_Option(menu, va("%i", key-'0'), false);
 		return true;
 	}
 	return false;
@@ -67,7 +76,7 @@ void M_MenuS_Callback_f (void)
 {
 	if (menu_script)
 	{
-		M_Script_Option(menu_script, Cmd_Argv(1));
+		M_Script_Option(menu_script, Cmd_Argv(1), true);
 	}
 }
 void M_MenuS_Clear_f (void)
@@ -253,7 +262,7 @@ void M_MenuS_Text_f (void)
 		MC_AddBufferedText(menu_script, x, 0, y, text, false, false);
 	else
 	{
-		option = (menuoption_t *)MC_AddConsoleCommand(menu_script, x, 0, y, text, va("menucallback %s\n", command));
+		option = (menuoption_t *)MC_AddConsoleCommand(menu_script, x, 0, y, text, va("menucallback \"%s\"\n", command));
 		if (selectitem-- == 0)
 			menu_script->selecteditem = option;
 	}

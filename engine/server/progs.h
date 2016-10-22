@@ -33,6 +33,7 @@ void PR_Deinit(void);	//server shutting down
 void PR_Shutdown(void);	//server quitting
 void PR_LoadGlabalStruct(qboolean muted);
 void Q_InitProgs(void);
+void PR_SpawnInitialEntities(const char *file);
 void PR_RegisterFields(void);
 void PR_Init(void);
 void QDECL ED_Spawned (struct edict_s *ent, int loading);

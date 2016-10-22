@@ -28,15 +28,19 @@ int Grep(char *filename, char *string)
 	char *last, *found, *linestart;
 	int line = 1;
 	int sz;
-	char *buf;
+	char *raw, *buf;
+	pbool dofree;
+	int origfmt;
 	if (!filename)
 		return foundcount;
 	sz = GUIFileSize(filename);
 	if (sz <= 0)
 		return foundcount;
-	buf = malloc(sz+1);
-	buf[sz] = 0;
-	GUIReadFile(filename, buf, sz, NULL);
+	raw = malloc(sz+2);
+	raw[sz] = 0;
+	GUIReadFile(filename, raw, sz, NULL);
+
+	buf = QCC_SanitizeCharSet(raw, &sz, &dofree, &origfmt);
 
 	linestart = last = found = buf;
 	while ((found = QC_strcasestr(found, string)))
@@ -60,7 +64,9 @@ int Grep(char *filename, char *string)
 		linestart = found;
 		foundcount++;
 	}
-	free(buf);
+	if (dofree)
+		free(buf);
+	free(raw);
 
 	return foundcount;
 }

@@ -141,6 +141,7 @@ struct netprim_s
 	qbyte anglesize;
 #define NPQ2_ANG16				(1u<<0)
 #define NPQ2_SOLID32			(1u<<1)
+#define NPQ2_R1Q2_UCMD			(1u<<2)
 
 	qbyte flags;
 	qbyte pad;

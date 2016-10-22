@@ -2982,7 +2982,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 
 	Terr_Brush_Draw(hm, batches, e);
 
-	if (r_refdef.globalfog.density || gl_maxdist.value>0)
+	if (r_refdef.globalfog.density || r_refdef.maxdist>0)
 	{
 		float culldist;
 		extern cvar_t r_fog_exp2;
@@ -3001,8 +3001,8 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 		else
 			culldist = 999999999999999.f;
 
-		if (culldist > gl_maxdist.value && gl_maxdist.value>0)
-			culldist = gl_maxdist.value;
+		if (culldist > r_refdef.maxdist && r_refdef.maxdist>0)
+			culldist = r_refdef.maxdist;
 
 		bounds[0] = bound(hm->firstsegx, (r_refdef.vieworg[0] + (CHUNKBIAS + 0)*hm->sectionsize - culldist) / hm->sectionsize,  hm->maxsegx);
 		bounds[1] = bound(hm->firstsegx, (r_refdef.vieworg[0] + (CHUNKBIAS + 1)*hm->sectionsize + culldist) / hm->sectionsize,  hm->maxsegx);
@@ -5538,7 +5538,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 			{
 				qbyte *mips[4] = {(qbyte*)tx + tx->offsets[0], (qbyte*)tx + tx->offsets[1], (qbyte*)tx + tx->offsets[2], (qbyte*)tx + tx->offsets[3]};
 				unsigned int mapflags = SHADER_HASPALETTED | SHADER_HASDIFFUSE | SHADER_HASFULLBRIGHT | SHADER_HASNORMALMAP | SHADER_HASGLOSS;
-				R_BuildLegacyTexnums(bt->shader, tx->name, NULL, mapflags, 0, TF_BGRA32, tx->width, tx->height, mips, NULL); 
+				R_BuildLegacyTexnums(bt->shader, tx->name, NULL, mapflags, 0, TF_MIP4_SOLID8, tx->width, tx->height, mips, NULL); 
 			}
 			else
 				R_BuildDefaultTexnums(NULL, bt->shader);
@@ -5915,12 +5915,12 @@ static void Terr_Brush_DeleteIdx(heightmap_t *hm, size_t idx)
 	if (idx < hm->numbrushes)
 		hm->wbrushes[idx] = hm->wbrushes[hm->numbrushes];
 }
-static void Terr_Brush_DeleteId(heightmap_t *hm, unsigned int brushid)
+static qboolean Terr_Brush_DeleteId(heightmap_t *hm, unsigned int brushid)
 {
 	size_t i;
 	brushes_t *br;
 	if (!hm)
-		return;
+		return false;
 
 	for (i = 0; i < hm->numbrushes; i++)
 	{
@@ -5928,9 +5928,10 @@ static void Terr_Brush_DeleteId(heightmap_t *hm, unsigned int brushid)
 		if (br->id == brushid)
 		{
 			Terr_Brush_DeleteIdx(hm, i);
-			break;
+			return true;
 		}
 	}
+	return false;
 }
 
 
@@ -6033,7 +6034,12 @@ void CL_Parse_BrushEdit(void)
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 
 	if (cmd == 0)
-		Terr_Brush_DeleteId(hm, MSG_ReadLong());
+	{
+		int id = MSG_ReadLong();
+		if (sv.state >= ss_loading)
+			return;	//ignore if we're the server, we should already have it anyway.
+		Terr_Brush_DeleteId(hm, id);
+	}
 	else if (cmd == 1)
 	{
 		brushes_t brush;
@@ -6046,6 +6052,8 @@ void CL_Parse_BrushEdit(void)
 		brush.faces = alloca(sizeof(*brush.faces) * brush.numplanes);
 		if (!Brush_Deserialise(hm, &brush))
 			Host_EndGame("CL_Parse_BrushEdit: unparsable brush\n");
+		if (sv.state >= ss_loading)
+			return;	//ignore if we're the server, we should already have it anyway (but might need it for demos, hence why its still sent).
 		if (brush.id)
 		{
 			int i;
@@ -6065,6 +6073,9 @@ void CL_Parse_BrushEdit(void)
 	}
 	else if (cmd == 2)
 	{
+		if (sv.state >= ss_loading)
+			return;	//ignore if we're the server, we should already have it anyway.
+
 		hm = CL_BrushEdit_ForceContext(mod);	//make sure we don't end up with any loaded brushes.
 		if (hm)
 		{
@@ -6303,6 +6314,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	unsigned int	numfaces		= G_INT(OFS_PARM2);
 	qcbrushface_t	*in_faces		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_faces), numfaces, false);
 	unsigned int	contents		= G_INT(OFS_PARM3);
+	unsigned int	brushid			= (prinst->callargc > 4)?G_INT(OFS_PARM4):0;	//to simplify edits
 
 	unsigned int			i;
 	brushes_t				brush, *nb;
@@ -6327,6 +6339,34 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		}
 		else
 			return;
+	}
+
+	//if we're creating one that already exists, then assume that its a move.
+	if (brushid && Terr_Brush_DeleteId(hm, brushid))
+	{
+#ifndef CLIENTONLY
+		if (sv.state && modelindex > 0)
+		{
+			MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+			MSG_WriteShort(&sv.multicast, modelindex);
+			MSG_WriteByte(&sv.multicast, 0);
+			MSG_WriteLong(&sv.multicast, brushid);
+			SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
+		}
+		else
+#endif
+#ifndef SERVERONLY
+		if (cls.state && modelindex > 0)
+		{
+			MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
+			MSG_WriteShort(&cls.netchan.message, modelindex);
+			MSG_WriteByte(&cls.netchan.message, 0);
+			MSG_WriteLong(&cls.netchan.message, brushid);
+		}
+#else
+		{
+		}
+#endif
 	}
 
 	planes = alloca(sizeof(*planes) * numfaces);

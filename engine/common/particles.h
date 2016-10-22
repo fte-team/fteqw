@@ -205,8 +205,11 @@ void P_ShutdownParticleSystem(void);
 void P_Shutdown(void);
 void P_LoadedModel(struct model_s *mod);	/*checks a model's various effects*/
 void P_DefaultTrail (unsigned int entityeffects, unsigned int modelflags, int *trailid, int *trailpalidx);
-void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk);//this is just a wrapper
+void P_EmitEffect (vec3_t pos, vec3_t orientation[3], unsigned int modeleflags, int type, trailstate_t **tsk);//this is just a wrapper
 int P_FindParticleType(const char *efname);
+#ifdef PSET_SCRIPT
+void PScript_ClearSurfaceParticles(struct model_s *mod);
+#endif
 
 #define P_RunParticleEffectTypeString pe->RunParticleEffectTypeString
 #define P_ParticleTrail pe->ParticleTrail
@@ -220,7 +223,6 @@ int P_FindParticleType(const char *efname);
 #define P_RunParticleEffectPalette pe->RunParticleEffectPalette
 
 #define P_ParticleTrailIndex pe->ParticleTrailIndex
-#define P_EmitSkyEffectTris pe->EmitSkyEffectTris
 #define P_InitParticles pe->InitParticles
 #define P_DelinkTrailstate pe->DelinkTrailstate
 #define P_ClearParticles pe->ClearParticles
@@ -245,7 +247,6 @@ typedef struct {
 	void (*RunParticleEffectPalette) (const char *nameprefix, vec3_t org, vec3_t dir, int color, int count);
 
 	void (*ParticleTrailIndex) (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk);
-	void (*EmitSkyEffectTris) (struct model_s *mod, struct msurface_s *fa, int ptype);
 	qboolean (*InitParticles) (void);
 	void (*ShutdownParticles) (void);
 	void (*DelinkTrailstate) (trailstate_t **tsk);

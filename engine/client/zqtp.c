@@ -1246,7 +1246,9 @@ static char *TP_ParseMacroString (char *s)
 		// check %[P], etc
 		if (*s == '%' && s[1]=='[' && s[2] && s[3]==']')
 		{
+#ifdef QUAKESTATS
 			static char mbuf[MAX_MACRO_VALUE];
+#endif
 			switch (s[2]) {
 #ifdef QUAKESTATS
 			case 'a':

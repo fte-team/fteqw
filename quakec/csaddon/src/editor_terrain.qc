@@ -441,7 +441,7 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 	return TRUE;
 };
 
-void(vector mousepos) editor_terrain_add =
+void(vector mousepos) editor_terrain_addentities =
 {
 	float s,c;
 	float r;

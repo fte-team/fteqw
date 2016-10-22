@@ -770,6 +770,7 @@ STAT_ITEMS			= 15,
 STAT_VIEWHEIGHT		= 16,	//same as zquake
 STAT_TIME			= 17,	//zquake
 STAT_MATCHSTARTTIME = 18,
+STAT_IDEALPITCH		= 19,
 #ifdef SIDEVIEWS
 STAT_VIEW2			= 20,
 #endif

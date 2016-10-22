@@ -1117,7 +1117,7 @@ void CL_PredictMovePNum (int seat)
 				if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 				{
 #ifdef QUAKESTATS
-					//putting weapon frames in there was probably a stupid idea.
+					//putting weapon frames in there was a stupid idea. qwisms I guess.
 					if (!(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
 					{
 						pv->stats[STAT_WEAPONFRAME] = cl.players[pv->playernum].stats[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;

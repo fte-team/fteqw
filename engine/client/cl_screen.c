@@ -695,7 +695,9 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 
 void SCR_CheckDrawCenterString (void)
 {
+#ifdef QUAKEHUD
 	extern qboolean sb_showscores;
+#endif
 	int pnum;
 	cprint_t *p;
 
@@ -1035,7 +1037,7 @@ char *SCR_ShowPics_ClickCommand(int cx, int cy)
 }
 
 //all=false clears only server pics, not ones from configs.
-void SCR_ShowPic_Clear(qboolean persistflag)
+void SCR_ShowPic_ClearAll(qboolean persistflag)
 {
 	showpic_t **link, *sp;
 	int pnum;
@@ -1048,7 +1050,7 @@ void SCR_ShowPic_Clear(qboolean persistflag)
 
 	for (link = &showpics; (sp=*link); )
 	{
-		if (sp->persist == persistflag)
+		if (sp->persist != persistflag)
 		{
 			link = &sp->next;
 			continue;
@@ -1252,7 +1254,7 @@ void SCR_ShowPic_Script_f(void)
 
 void SCR_ShowPic_Remove_f(void)
 {
-	SCR_ShowPic_Clear(!Cmd_FromGamecode());
+	SCR_ShowPic_ClearAll(!Cmd_FromGamecode());
 }
 
 //=============================================================================
@@ -2355,7 +2357,7 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, enum uploadfmt *fmt)
 	qboolean okay = false;
 
 	Q_strncpyz(r_refdef.rt_destcolour[0].texname, "megascreeny", sizeof(r_refdef.rt_destcolour[0].texname));
-	R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, fbwidth, fbheight, 1);
+	R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, fbwidth, fbheight, 1, RT_IMAGEFLAGS);
 	BE_RenderToTextureUpdate2d(true);
 
 	R2D_FillBlock(0, 0, vid.fbvwidth, vid.fbvheight);
@@ -2388,7 +2390,7 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, enum uploadfmt *fmt)
 	else
 		buf = VID_GetRGBInfo(&width, &height, fmt);
 
-	R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, 0, 0, 0);
+	R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, 0, 0, 0, RT_IMAGEFLAGS);
 	Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));
 	BE_RenderToTextureUpdate2d(true);
 
@@ -3007,8 +3009,7 @@ void SCR_DeInit (void)
 	for (i = 0; i < countof(scr_centerprint); i++)
 	{
 		Z_Free(scr_centerprint[i].string);
-		scr_centerprint[i].string = NULL;
-		scr_centerprint[i].stringbytes = 0;
+		memset(&scr_centerprint[i], 0, sizeof(scr_centerprint[i]));
 	}
 	if (scr_initialized)
 	{

@@ -478,7 +478,8 @@ typedef struct rendererinfo_s {
 
 #define BE_RenderToTextureUpdate2d rf->BE_RenderToTextureUpdate2d
 
-texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfmt);
+#define RT_IMAGEFLAGS IF_NOMIPMAP|IF_CLAMP|IF_LINEAR|IF_RENDERTARGET
+texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfmt, unsigned int imageflags);
 texid_t R2D_RT_GetTexture(const char *id, unsigned int *width, unsigned int *height);
 
 

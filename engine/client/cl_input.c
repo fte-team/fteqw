@@ -1035,7 +1035,7 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 
 	MSG_WriteByte (buf, clc_move);
 
-	if (cls.protocol_nq >= CPNQ_DP7 || (cls.fteprotocolextensions2 & PEXT2_PREDINFO))
+	if (cls.protocol_nq >= CPNQ_DP7)
 	{
 		extern cvar_t cl_nopred;
 		if (cl_nopred.ival)
@@ -1043,6 +1043,8 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 		else
 			MSG_WriteLong(buf, cl.movesequence);
 	}
+	else if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
+		MSG_WriteShort(buf, cl.movesequence&0xffff);
 
 	MSG_WriteFloat (buf, cl.gametime);	// so server can get ping times
 	cmd->msec = bound(0, cl.gametime - oldgametime, .25)*1000;

@@ -215,7 +215,7 @@ static void Mod_ComposeSkin(char *texture, struct cctx_s *cctx)
 		strcpy(r_refdef.rt_destcolour[0].texname, "-");
 		cctx->width = x+w;
 		cctx->height = y+h;
-		cctx->diffuse = R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, cctx->width, cctx->height, TF_RGBA32);
+		cctx->diffuse = R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, cctx->width, cctx->height, TF_RGBA32, RT_IMAGEFLAGS);
 		BE_RenderToTextureUpdate2d(true);
 	}
 
@@ -2607,7 +2607,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 			{
 				if (gl_part_flame.value)
 				{
-					if (ent->model->engineflags & MDLF_ENGULPHS)
+					if (ent->model->engineflags & MDLF_EMITREPLACE)
 						continue;
 				}
 			}

@@ -195,6 +195,16 @@ void Con_TPrintf (translation_t stringnum, ...)
 	char		msg[MAXPRINTMSG];
 	const char *fmt;
  
+	if (!Sys_IsMainThread())
+	{	//shouldn't be redirected anyway...
+		fmt = langtext(stringnum,svs.language);
+		va_start (argptr,stringnum);
+		vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+		va_end (argptr);
+		COM_AddWork(WG_MAIN, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+		return;
+	}
+
 	// add to redirected message
 	if (sv_redirected)
 	{
@@ -225,6 +235,11 @@ Con_DPrintf
 A Con_Printf that only shows up if the "developer" cvar is set
 ================
 */
+static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
+{
+	Con_DPrintf("%s", (char*)data);
+	BZ_Free(data);
+}
 void Con_DPrintf (const char *fmt, ...)
 {
 	va_list		argptr;
@@ -237,6 +252,12 @@ void Con_DPrintf (const char *fmt, ...)
 	va_start (argptr,fmt);
 	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
+
+	if (!Sys_IsMainThread())
+	{
+		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+		return;
+	}
 
 	// add to redirected message
 	if (sv_redirected)
@@ -1392,7 +1413,7 @@ void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int c
 		}
 	}
 
-	if (reliable || !sv_phs.value)	// no PHS flag
+	if (reliable || !sv_phs.value || !attenuation)	// no PHS flag
 		use_phs = false;
 	else
 		use_phs = attenuation!=0;
@@ -1598,11 +1619,11 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	int		i;
 	int bits, items;
 	edict_t	*ent;
+	qboolean nqjunk = true;
+	int weaponmodelindex = 0;
 #endif
 	client_t *split;
 	int pnum=0;
-	int weaponmodelindex = 0;
-	qboolean nqjunk = true;
 
 	// send the chokecount for r_netgraph
 	if (ISQWCLIENT(client))
@@ -1685,7 +1706,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 		MSG_WriteFloat(msg, sv.world.physicstime);
 
 		if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
-			MSG_WriteLong(msg, client->last_sequence);
+			MSG_WriteShort(msg, client->last_sequence);
 
 //		Con_Printf("%f\n", sv.world.physicstime);
 	}
@@ -1695,10 +1716,12 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 		return;
 
 
+#ifdef NQPROT
 	if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
 		nqjunk = false;
 	else
 		nqjunk = true;
+#endif
 
 	bits = 0;
 
@@ -1810,7 +1833,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 			if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
 				MSG_WriteCoord(msg, ent->v->velocity[i]);
 			else
-				MSG_WriteChar (msg, ent->v->velocity[i]/16);
+				MSG_WriteChar (msg, bound(-128, ent->v->velocity[i]/16, 127));
 		}
 	}
 
@@ -2481,7 +2504,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 		client->edict->v->goalentity = 0;
 	}
 
-	if (client->protocol != SCP_FITZ666 && !client->netchan.fragmentsize)
+//	if (client->protocol != SCP_FITZ666 && !client->netchan.fragmentsize)
 		msg.maxsize = MAX_DATAGRAM;
 
 	if (sv.world.worldmodel && !client->controller)
@@ -2525,11 +2548,11 @@ qboolean SV_SendClientDatagram (client_t *client)
 
 	// copy the accumulated multicast datagram
 	// for this client out to the message
-	if (client->datagram.overflowed || msg.cursize + client->datagram.cursize > msg.maxsize)
-		Con_Printf ("WARNING: datagram overflowed for %s\n", client->name);
-	else
+	if (!client->datagram.overflowed && msg.cursize + client->datagram.cursize <= msg.maxsize)
+	{
 		SZ_Write (&msg, client->datagram.data, client->datagram.cursize);
-	SZ_Clear (&client->datagram);
+		SZ_Clear (&client->datagram);
+	}
 
 	if (msg.overflowed)
 	{
@@ -2541,11 +2564,33 @@ qboolean SV_SendClientDatagram (client_t *client)
 
 	// send the datagram
 	sentbytes = Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
-
 	if (ISQWCLIENT(client) || ISNQCLIENT(client))
 	{
 		client_frame_t *frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
 		frame->packetsizeout += sentbytes;
+	}
+
+	if (ISNQCLIENT(client) && (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+	{
+		if (!client->datagram.overflowed && client->datagram.cursize)
+		{
+			SZ_Clear (&msg);
+			SZ_Write (&msg, client->datagram.data, client->datagram.cursize);
+			SZ_Clear (&client->datagram);
+
+			sentbytes = Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
+			if (ISQWCLIENT(client) || ISNQCLIENT(client))
+			{
+				client_frame_t *frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
+				frame->packetsizeout += sentbytes;
+			}
+		}
+	}
+
+	if (client->datagram.cursize)
+	{
+		Con_Printf ("WARNING: datagram overflowed for %s\n", client->name);
+		SZ_Clear (&client->datagram);
 	}
 	return true;
 }
@@ -2893,7 +2938,9 @@ void SV_SendClientMessages (void)
 	int			i, j;
 	client_t	*c;
 	int sentbytes, fnum;
+#ifdef NQPROT
 	float pt = sv.paused?realtime:sv.world.physicstime;
+#endif
 
 #ifdef NEWSPEEDCHEATPROT
 	static unsigned int lasttime;

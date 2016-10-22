@@ -3662,7 +3662,7 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 	if (demo && capturewidth.ival && captureheight.ival && qrenderer == QR_OPENGL && gl_config.ext_framebuffer_objects)
 	{
 		capturingfbo = true;
-		capturetexture = R2D_RT_Configure("$democapture", capturewidth.ival, captureheight.ival, TF_BGRA32);
+		capturetexture = R2D_RT_Configure("$democapture", capturewidth.ival, captureheight.ival, TF_BGRA32, RT_IMAGEFLAGS);
 		captureoldfbo = GLBE_FBO_Update(&capturefbo, FBO_RB_DEPTH|(Sh_StencilShadowsActive()?FBO_RB_STENCIL:0), &capturetexture, 1, r_nulltex, capturewidth.ival, captureheight.ival, 0);
 		vid.fbpwidth = capturewidth.ival;
 		vid.fbpheight = captureheight.ival;

@@ -550,6 +550,9 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 {
 	int i;
+	if (!ISQWCLIENT(client) && !ISNQCLIENT(client))
+		return;
+
 	if (!client->frameunion.frames)
 	{
 		Con_Printf("Server bug: No frames!\n");
@@ -1044,7 +1047,7 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, qbyte *frombonedat
 	if (to->light[0] != from->light[0] || to->light[1] != from->light[1] || to->light[2] != from->light[2] || to->light[3] != from->light[3] || to->lightstyle != from->lightstyle || to->lightpflags != from->lightpflags)
 		bits |= UF_LIGHT;
 
-	if (to->u.q1.traileffectnum != from->u.q1.traileffectnum)
+	if (to->u.q1.traileffectnum != from->u.q1.traileffectnum || to->u.q1.emiteffectnum != from->u.q1.emiteffectnum)
 		bits |= UF_TRAILEFFECT;
 
 	if (to->modelindex2 != from->modelindex2)
@@ -1311,7 +1314,15 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 		MSG_WriteByte (msg, state->lightpflags);
 	}
 	if (bits & UF_TRAILEFFECT)
-		MSG_WriteShort(msg, state->u.q1.traileffectnum);
+	{
+		if (state->u.q1.emiteffectnum)
+		{
+			MSG_WriteShort(msg, (state->u.q1.traileffectnum & 0x3fff) | 0x8000);
+			MSG_WriteShort(msg, (state->u.q1.emiteffectnum & 0x3fff));
+		}
+		else
+			MSG_WriteShort(msg, (state->u.q1.traileffectnum & 0x3fff));
+	}
 
 	if (bits & UF_COLORMOD)
 	{
@@ -1359,7 +1370,7 @@ Writes changed entities to the client.
 Changed ent states will be tracked, even if they're not sent just yet, dropped packets will also re-flag dropped delta bits
 Only what changed is tracked, via bitmask, its previous value is never tracked.
 */
-void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t *msg)
+qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t *msg)
 {
 	edict_t *e;
 	entity_state_t *o, *n;
@@ -1371,14 +1382,10 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 	int sequence;
 	qbyte *oldbonedata;
 	unsigned int maxbonedatasize;
-
-	if (ISNQCLIENT(client))
-		sequence = client->netchan.outgoing_unreliable;
-	else
-		sequence = client->netchan.incoming_sequence;
+	qboolean overflow = false;
 
 	if (!client->pendingdeltabits)
-		return;
+		return false;
 	
 	if (client->delta_sequence < 0)
 		client->pendingdeltabits[0] = UF_REMOVE;
@@ -1514,6 +1521,13 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 
 	Z_Free(oldbonedata);
 
+
+
+	if (ISNQCLIENT(client))
+		sequence = client->netchan.outgoing_unreliable;
+	else
+		sequence = client->netchan.incoming_sequence;
+
 	/*cache frame info*/
 	resend = client->frameunion.frames[sequence & UPDATE_MASK].resend;
 	outno = 0;
@@ -1523,7 +1537,7 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 	MSG_WriteByte (msg, svcfte_updateentities);
 	if (ISNQCLIENT(client) && (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 	{
-		MSG_WriteLong(msg, client->last_sequence);
+		MSG_WriteShort(msg, client->last_sequence);
 	}
 //	Con_Printf("Gen sequence %i\n", sequence);
 	MSG_WriteFloat(msg, sv.world.physicstime);
@@ -1543,7 +1557,10 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 		if (!(bits & ~UF_RESET2))	//skip while there's nothing to send (skip reset2 if there's no other changes, its only to reduce chances of the client getting 'new' entities containing just an origin)*/
 			continue;
 		if (msg->cursize + 50 > msg->maxsize)
+		{
+			overflow = true;
 			break; /*give up if it gets full. FIXME: bone data is HUGE.*/
+		}
 		if (outno >= outmax)
 		{	//expand the frames. may need some copying...
 			SVFTE_ExpandFrames(client, outno+1);
@@ -1587,6 +1604,7 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 
 	client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities = outno;
 	client->frameunion.frames[sequence & UPDATE_MASK].sequence = sequence;
+	return overflow;
 }
 
 /*
@@ -2883,7 +2901,7 @@ int glowsize=0, glowcolor=0, colourmod=0;
 
 	if (host_client->protocol == SCP_FITZ666)
 	{
-		if (bits & FITZU_ALPHA)		MSG_WriteByte(msg, ent->trans);
+		if (bits & FITZU_ALPHA)		MSG_WriteByte(msg, (ent->trans+1)&0xff);
 		if (bits & RMQU_SCALE)		MSG_WriteByte(msg, ent->scale);
 		if (bits & FITZU_FRAME2)	MSG_WriteByte(msg, ent->frame>>8);
 		if (bits & FITZU_MODEL2)	MSG_WriteByte(msg, ent->modelindex>>8);
@@ -3215,7 +3233,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 		//everyone else sees it normally.
 	}
 
-	if (0)//ent->xv->basebone < 0)
+	if (ent->xv->basebone < 0)
 	{
 		if (ent->xv->skeletonindex && pack)
 		{
@@ -3226,7 +3244,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			if (fs.skeltype == SKEL_RELATIVE && fs.bonecount)
 			{
 				Bones_To_PosQuat4(fs.bonecount, fs.bonestate, AllocateBoneSpace(pack, state->bonecount = fs.bonecount, &state->boneoffset));
-				state->dpflags |= RENDER_COMPLEXANIMATION;
+				//state->dpflags |= RENDER_COMPLEXANIMATION;
 			}
 		}
 	}
@@ -3257,6 +3275,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->lightstyle = ent->xv->style;
 	state->lightpflags = ent->xv->pflags;
 	state->u.q1.traileffectnum = ent->xv->traileffectnum;
+	state->u.q1.emiteffectnum = ent->xv->emiteffectnum;
 
 	if (ent->xv->gravitydir[2] == -1)
 	{
@@ -3426,7 +3445,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	if (!ent->xv->alpha)
 		state->trans = 255;
 	else
-		state->trans = bound(1, ent->xv->alpha*255, 255);
+		state->trans = bound(1, ent->xv->alpha*254, 254);
 
 	//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
 	if (client && client->edict)
@@ -3841,7 +3860,9 @@ svc_playerinfo messages
 */
 void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignorepvs)
 {
+#ifdef NQPROT
 	int		e;
+#endif
 	packet_entities_t	*pack;
 	edict_t	*clent;
 	client_frame_t	*frame;
@@ -3911,8 +3932,24 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	{
 		if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 		{
-			SVFTE_EmitPacketEntities(client, pack, msg);
-			client->netchan.incoming_sequence++;
+			qboolean overflow;
+			for (;;)
+			{
+				overflow = SVFTE_EmitPacketEntities(client, pack, msg);
+				client->netchan.incoming_sequence++;
+
+				if (overflow && pack == &svs.entstatebuffer)
+				{
+					if (!Netchan_CanPacket(&client->netchan, SV_RateForClient(client)/2))
+						break;
+					Netchan_Transmit (&client->netchan, msg->cursize, msg->data, SV_RateForClient(client));
+					SZ_Clear(msg);
+					if (!Netchan_CanPacket(&client->netchan, SV_RateForClient(client)/2))
+						break;
+				}
+				else
+					break;
+			}
 		}
 		else if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
 			SVDP_EmitEntitiesUpdate(client, pack, msg);

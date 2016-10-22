@@ -1398,6 +1398,11 @@ void VID_UnSetMode (void)
 		mainwindow = NULL;
 	}
 
+	if (WinNT)
+		UnregisterClassW(WINDOW_CLASS_NAME_W, global_hInstance);
+	else
+		UnregisterClassA(WINDOW_CLASS_NAME_A, global_hInstance);
+
 #if 0
 	//Logically this code should be active. However...
 	//1: vid_restarts are slightly slower if we don't reuse the old dll
@@ -2689,11 +2694,6 @@ void GLVID_DeInit (void)
 	Cvar_Unhook(&vid_vsync);
 	Cvar_Unhook(&vid_wndalpha);
 	Cmd_RemoveCommand("vid_recenter");
-
-	if (WinNT)
-		UnregisterClassW(WINDOW_CLASS_NAME_W, global_hInstance);
-	else
-		UnregisterClassA(WINDOW_CLASS_NAME_A, global_hInstance);
 }
 
 /*

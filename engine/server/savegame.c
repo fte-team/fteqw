@@ -317,7 +317,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	strcpy(file, "loadgame");
 	clnum=VFS_READ(f, file+8, filelen);
 	file[filelen+8]='\0';
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, 0);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL);
 	BZ_Free(file);
 
 	PR_LoadGlabalStruct(false);
@@ -757,7 +757,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	memset(file, 0, filelen+1);
 	VFS_READ(f, file, filelen);
 	file[filelen]='\0';
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, 0);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL);
 	BZ_Free(file);
 
 	progstype = pt;
@@ -1319,7 +1319,7 @@ void SV_Savegame_f (void)
 		Con_Printf("%s: invalid number of arguments\n", Cmd_Argv(0));
 }
 
-cvar_t sv_autosave = CVARD("sv_autosave", "5", "Interval for autosaves, in minutes. Set to 0 to disable autosave.");
+cvar_t sv_autosave = CVARFD("sv_autosave", "5", CVAR_SAVE, "Interval for autosaves, in minutes. Set to 0 to disable autosave.");
 void SV_AutoSave(void)
 {
 #ifndef NOBUILTINMENUS

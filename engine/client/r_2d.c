@@ -1578,27 +1578,26 @@ void R2D_DrawCrosshair(void)
 	R2D_ImageColours(1, 1, 1, 1);
 }
 
-#define RT_IMAGEFLAGS IF_NOMIPMAP|IF_CLAMP|IF_LINEAR|IF_RENDERTARGET
 static texid_t internalrt;
 //resize a texture for a render target and specify the format of it.
 //pass TF_INVALID and sizes=0 to get without configuring (shaders that hardcode an $rt1 etc).
-texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfmt)
+texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfmt, unsigned int imageflags)
 {
 	texid_t tid;
 	if (!strcmp(id, "-"))
 	{
-		internalrt = tid = Image_CreateTexture("", NULL, RT_IMAGEFLAGS);
+		internalrt = tid = Image_CreateTexture("", NULL, imageflags);
 	}
 	else
 	{
-		tid = Image_FindTexture(id, NULL, RT_IMAGEFLAGS);
+		tid = Image_FindTexture(id, NULL, imageflags);
 		if (!TEXVALID(tid))
-			tid = Image_CreateTexture(id, NULL, RT_IMAGEFLAGS);
+			tid = Image_CreateTexture(id, NULL, imageflags);
 	}
 
 	if (rtfmt)
 	{
-		Image_Upload(tid, rtfmt, NULL, NULL, width, height, RT_IMAGEFLAGS);
+		Image_Upload(tid, rtfmt, NULL, NULL, width, height, imageflags);
 		tid->width = width;
 		tid->height = height;
 	}

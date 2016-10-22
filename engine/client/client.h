@@ -874,6 +874,7 @@ typedef struct
 	char		q2layout[MAX_SPLITS][1024];
 	int parse_entities;
 	float lerpfrac;
+	float q2svnetrate; //number of frames we expect to receive per second (required to calculate the server time correctly).
 #endif
 
 	char lastcenterprint[1024];	//prevents too much spam with console centerprint logging.
@@ -1511,6 +1512,7 @@ void CLQ2_ParseTEnt (void);
 void CLQ2_AddEntities (void);
 void CLQ2_ParseBaseline (void);
 void CLQ2_ClearParticleState(void);
+void CLR1Q2_ParsePlayerUpdate(void);
 void CLQ2_ParseFrame (int extrabits);
 void CLQ2_RunMuzzleFlash2 (int ent, int flash_number);
 int CLQ2_RegisterTEntModels (void);

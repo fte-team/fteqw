@@ -261,11 +261,6 @@ static void PClassic_ParticleTrailIndex (vec3_t start, vec3_t end, int color, in
 {
 }
 
-//this function is called to tell the particle system about surfaces that might emit particles at map startup.
-static void PClassic_EmitSkyEffectTris(model_t *mod, msurface_t *fa, int ptype)
-{
-}
-
 //the one-time initialisation function, called no mater which renderer is active.
 static qboolean PClassic_InitParticles (void)
 {
@@ -1154,7 +1149,6 @@ particleengine_t pe_classic =
 	PClassic_RunParticleEffectPalette,
 
 	PClassic_ParticleTrailIndex,
-	PClassic_EmitSkyEffectTris,
 	PClassic_InitParticles,
 	PClassic_ShutdownParticles,
 	PClassic_DelinkTrailstate,

@@ -252,6 +252,7 @@ typedef struct
 	vec3_t		eyeoffset;			/*world space, for vr screenies*/
 
 	float		fov_x, fov_y, afov;
+	float		mindist, maxdist;	//maxdist may be 0, for 'infinite', in which case mindist probably isn't valid either.
 
 	qboolean	drawsbar;
 	qboolean	drawcrosshair;
@@ -600,7 +601,7 @@ extern cvar_t	r_xflip;
 #endif
 
 extern cvar_t r_lightprepass;
-extern cvar_t gl_maxdist;
+extern cvar_t gl_mindist, gl_maxdist;
 extern	cvar_t	r_clear;
 extern	cvar_t	gl_poly;
 extern	cvar_t	gl_affinemodels;

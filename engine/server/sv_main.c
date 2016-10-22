@@ -1904,6 +1904,8 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 		seat->max_net_ents = client->max_net_ents;
 		seat->maxmodels = client->maxmodels;
 	}
+
+	client->lastsequence_acknowledged = -2000000000;
 }
 
 
@@ -2089,7 +2091,10 @@ client_t *SVC_DirectConnect(void)
 	int			qport;
 	int			version;
 	int			challenge;
+#ifdef HUFFNETWORK
 	int			huffcrc = 0;
+	extern cvar_t net_compress;
+#endif
 	int			mtu = 0;
 	char guid[128] = "";
 	char basic[80];
@@ -2104,7 +2109,9 @@ client_t *SVC_DirectConnect(void)
 
 	unsigned int protextsupported=0;
 	unsigned int protextsupported2=0;
-	extern cvar_t sv_protocol_nq, net_compress;
+#ifdef NQPROT
+	extern cvar_t sv_protocol_nq;
+#endif
 
 
 	char *name;
@@ -4248,7 +4255,7 @@ void SV_GetConsoleCommands (void)
 	}
 }
 
-#define MINDRATE 500
+#define MINDRATE 4096
 #define MINRATE 500
 int SV_RateForClient(client_t *cl)
 {
@@ -4263,7 +4270,7 @@ int SV_RateForClient(client_t *cl)
 			else if (rate < MINDRATE)
 				rate = MINDRATE;
 		}
-		else if (rate >= 1 && rate < MINDRATE)
+		else if (rate != 0 && rate < MINDRATE)
 			rate = MINDRATE;
 	}
 	else
@@ -4276,7 +4283,7 @@ int SV_RateForClient(client_t *cl)
 			else if (rate < MINRATE)
 				rate = MINRATE;
 		}
-		else if (rate >= 1 && rate < MINRATE)
+		else if (rate != 0 && rate < MINRATE)
 			rate = MINRATE;
 	}
 
@@ -5044,7 +5051,9 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	client_t	*client;
 	int		dupc = 1;
 	char	newname[80], basic[80];
+#ifdef SVRANKING
 	extern cvar_t rank_filename;
+#endif
 
 	int bottom = atoi(Info_ValueForKey(cl->userinfo, "bottomcolor"));
 
@@ -5114,7 +5123,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			break;
 	}
 
-	if (strncmp(newname, cl->name, sizeof(cl->namebuf)-1))
+	if (!cl->drop && strncmp(newname, cl->name, sizeof(cl->namebuf)-1))
 	{
 		if ((cl->penalties & BAN_MUTE) && *cl->name && verbose)	//!verbose is a gamecode-forced update, where the gamecode is expected to know what its doing.
 		{
@@ -5150,7 +5159,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			}
 		}
 
-		if (strncmp(val, cl->name, sizeof(cl->namebuf)-1))
+		if (!cl->drop && strncmp(val, cl->name, sizeof(cl->namebuf)-1))
 		{
 			if (*cl->name && cl->state >= cs_spawned && !cl->spectator && verbose)
 			{
@@ -5191,7 +5200,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	if (strlen(val))
 		cl->drate = atoi(val);
 	else
-		cl->drate = cl->rate;	//0 disables the downloading check
+		cl->drate = 0;	//0 disables rate limiting while downloading
 
 #ifdef HEXEN2
 	val = Info_ValueForKey (cl->userinfo, "cl_playerclass");

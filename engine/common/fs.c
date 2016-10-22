@@ -3885,16 +3885,27 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 {
 #if defined(__linux__) || defined(__unix__) || defined(__apple__)
 	struct stat sb;
+	char *s;
+	if (!*gamename)
+		gamename = "quake";	//just a paranoia fallback, shouldn't be needed.
 	if (!strcmp(gamename, "quake"))
 	{
 		if (stat("/usr/share/quake/", &sb) == 0)
 		{
-			// /usr/share/quake
 			if (S_ISDIR(sb.st_mode))
 			{
 				Q_strncpyz(basepath, "/usr/share/quake/", basepathlen);
 				return true;
 			}
+		}
+	}
+	s = va("/usr/share/games/%s/", gamename);
+	if (stat(s, &sb) == 0)
+	{
+		if (S_ISDIR(sb.st_mode))
+		{
+			Q_strncpyz(basepath, s, basepathlen);
+			return true;
 		}
 	}
 #endif

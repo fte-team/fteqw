@@ -1614,7 +1614,6 @@ void buildmatricies(void)
 	float modelview[16];
 	float proj[16];
 	float ofovx = r_refdef.fov_x,ofovy=r_refdef.fov_y;
-	extern cvar_t gl_mindist, gl_maxdist;
 
 	V_ApplyAFov(csqc_playerview);
 
@@ -1623,7 +1622,7 @@ void buildmatricies(void)
 	if (r_refdef.useperspective)
 		Matrix4x4_CM_Projection2(proj, r_refdef.fov_x, r_refdef.fov_y, 4);
 	else
-		Matrix4x4_CM_Orthographic(proj, -r_refdef.fov_x/2, r_refdef.fov_x/2, -r_refdef.fov_y/2, r_refdef.fov_y/2, gl_mindist.value, gl_maxdist.value>=1?gl_maxdist.value:9999);
+		Matrix4x4_CM_Orthographic(proj, -r_refdef.fov_x/2, r_refdef.fov_x/2, -r_refdef.fov_y/2, r_refdef.fov_y/2, r_refdef.mindist, r_refdef.maxdist>=1?r_refdef.maxdist:9999);
 
 	/*build the vp matrix*/
 	Matrix4_Multiply(proj, modelview, csqc_proj_matrix);
@@ -1830,6 +1829,13 @@ void QCBUILTIN PF_R_GetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		r[1] = r_refdef.grect.y;
 		break;
 
+	case VF_MINDIST:
+		*r = r_refdef.mindist;
+		break;
+	case VF_MAXDIST:
+		*r = r_refdef.maxdist;
+		break;
+
 	case VF_DRAWWORLD:
 		*r = !(r_refdef.flags&RDF_NOWORLDMODEL);
 		break;
@@ -2005,6 +2011,12 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		r_refdef.grect.x = p[0];
 		r_refdef.grect.y = p[1];
 		break;
+	case VF_MINDIST:
+		r_refdef.mindist = *p;
+		break;
+	case VF_MAXDIST:
+		r_refdef.maxdist = *p;
+		break;
 
 	case VF_DRAWWORLD:
 		r_refdef.flags = (r_refdef.flags&~RDF_NOWORLDMODEL) | (*p?0:RDF_NOWORLDMODEL);
@@ -2035,7 +2047,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 			{
 				float fmt = G_FLOAT(OFS_PARM2);
 				float *size = G_VECTOR(OFS_PARM3);
-				R2D_RT_Configure(r_refdef.rt_destcolour[i].texname, size[0], size[1], PR_TranslateTextureFormat(fmt));
+				R2D_RT_Configure(r_refdef.rt_destcolour[i].texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
 			}
 			BE_RenderToTextureUpdate2d(true);
 		}
@@ -2046,7 +2058,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(r_refdef.rt_sourcecolour.texname, size[0], size[1], PR_TranslateTextureFormat(fmt));
+			R2D_RT_Configure(r_refdef.rt_sourcecolour.texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
 		}
 		BE_RenderToTextureUpdate2d(false);
 		break;
@@ -2056,7 +2068,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(r_refdef.rt_depth.texname, size[0], size[1], PR_TranslateTextureFormat(fmt));
+			R2D_RT_Configure(r_refdef.rt_depth.texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
 		}
 		BE_RenderToTextureUpdate2d(false);
 		break;
@@ -2066,7 +2078,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(r_refdef.rt_ripplemap.texname, size[0], size[1], PR_TranslateTextureFormat(fmt));
+			R2D_RT_Configure(r_refdef.rt_ripplemap.texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
 		}
 		BE_RenderToTextureUpdate2d(false);
 		break;
@@ -3267,11 +3279,10 @@ static void CheckSendPings(void)
 	}
 }
 
-static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static const char *PF_cs_serverkey_internal(const char *keyname)
 {
-	char *keyname = PF_VarString(prinst, 0, pr_globals);
 	char *ret;
-	char adr[MAX_ADR_SIZE];
+	static char adr[MAX_ADR_SIZE];
 
 	if (!strcmp(keyname, "ip"))
 	{
@@ -3399,32 +3410,12 @@ static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars
 #endif
 			ret = Info_ValueForKey(cl.serverinfo, keyname);
 	}
-
-	if (*ret)
-		RETURN_TSTRING(ret);
-	else
-		G_INT(OFS_RETURN) = 0;
+	return ret;
 }
-
-//string(float pnum, string keyname)
-static void QCBUILTIN PF_cs_getplayerkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *keyname)
 {
-	char buffer[64];
+	static char buffer[64];
 	char *ret;
-	int pnum = G_FLOAT(OFS_PARM0);
-	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM1);
-	if (pnum < 0)
-	{
-		if (csqc_resortfrags)
-		{
-			Sbar_SortFrags(true, false);
-			csqc_resortfrags = false;
-		}
-		if (pnum >= -scoreboardlines)
-		{//sort by
-			pnum = fragsort[-(pnum+1)];
-		}
-	}
 
 	if (pnum < 0 || pnum >= cl.allocated_client_slots)
 		ret = "";
@@ -3521,6 +3512,68 @@ static void QCBUILTIN PF_cs_getplayerkey (pubprogfuncs_t *prinst, struct globalv
 	else
 	{
 		ret = Info_ValueForKey(cl.players[pnum].userinfo, keyname);
+	}
+	return ret;
+}
+
+//string(string keyname)
+static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *keyname = PF_VarString(prinst, 0, pr_globals);
+	const char *ret = PF_cs_serverkey_internal(keyname);
+	if (*ret)
+		RETURN_TSTRING(ret);
+	else
+		G_INT(OFS_RETURN) = 0;
+}
+//string(float pnum, string keyname)
+static void QCBUILTIN PF_cs_getplayerkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int pnum = G_FLOAT(OFS_PARM0);
+	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *ret;
+	if (pnum < 0)
+	{
+		if (csqc_resortfrags)
+		{
+			Sbar_SortFrags(true, false);
+			csqc_resortfrags = false;
+		}
+		if (pnum >= -scoreboardlines)
+		{//sort by
+			pnum = fragsort[-(pnum+1)];
+		}
+	}
+
+	ret = PF_cs_getplayerkey_internal(pnum, keyname);
+	if (*ret)
+		RETURN_TSTRING(ret);
+	else
+		G_INT(OFS_RETURN) = 0;
+}
+
+static void QCBUILTIN PF_cs_infokey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *ret;
+	if (!ent->entnum)
+		ret = PF_cs_serverkey_internal(keyname);
+	else
+	{
+		int pnum = ent->xv->entnum-1;	//figure out which ssqc entity this is meant to be
+		if (pnum < 0)
+		{
+			csqc_deprecated("infokey: entity does not correlate to an ssqc entity\n");
+			ret = "";
+		}
+		else if (pnum >= cl.allocated_client_slots)
+		{
+			csqc_deprecated("infokey: entity does not correlate to an ssqc player entity\n");
+			ret = "";
+		}
+		else
+			ret = PF_cs_getplayerkey_internal(pnum, keyname);
 	}
 	if (*ret)
 		RETURN_TSTRING(ret);
@@ -4581,7 +4634,7 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 //	ent->xv->glow_size = src->glowsize*4;
 //	ent->xv->glow_color = src->glowcolour;
 //	ent->xv->glow_trail = !!(state->dpflags & RENDER_GLOWTRAIL);
-	ent->xv->alpha = src->trans/255.0f;
+	ent->xv->alpha = (src->trans==255)?0:src->trans/254.0f;
 //	ent->v->solid = src->solid;
 //	ent->v->color[0] = src->light[0]/255.0;
 //	ent->v->color[1] = src->light[1]/255.0;
@@ -4643,7 +4696,7 @@ void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 	ent->v->colormap = pnum+1;
 	ent->xv->scale = srcp->scale;
 	//ent->v->fatness = srcp->fatness;
-	ent->xv->alpha = srcp->alpha/255.0f;
+	ent->xv->alpha = (srcp->alpha==255)?0:(srcp->alpha/254.0f);
 
 //	ent->v->colormod[0] = srcp->colormod[0]*(8/256.0f);
 //	ent->v->colormod[1] = srcp->colormod[1]*(8/256.0f);
@@ -5516,7 +5569,7 @@ static struct {
 	{"logfrag",					PF_NoCSQC,	79},				// #79 void(entity killer, entity killee) logfrag (QW_ENGINE) (don't support)
 
 //80
-	{"infokey",					PF_NoCSQC,	80},				// #80 string(entity e, string keyname) infokey (QW_ENGINE) (don't support)
+	{"infokey",					PF_cs_infokey,	80},			// #80 string(entity e, string keyname) infokey (QW_ENGINE) (don't support)
 	{"stof",					PF_stof,	81},				// #81 float(string s) stof (FRIK_FILE or QW_ENGINE)
 	{"multicast",				PF_NoCSQC,	82},				// #82 void(vector where, float set) multicast (QW_ENGINE) (don't support)
 
@@ -6830,6 +6883,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 
 		csqc_world.physicstime = 0.1;
 
+		CSQC_RendererRestarted();
 
 		if (cls.state == ca_disconnected)
 			CSQC_WorldLoaded();
@@ -6855,7 +6909,11 @@ void CSQC_RendererRestarted(void)
 
 	//let the csqc know that its rendertargets got purged
 	if (csqcg.rendererrestarted)
+	{
+		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+		(((string_t *)pr_globals)[OFS_PARM1] = PR_TempString(csqcprogs, rf->description));
 		PR_ExecuteProgram(csqcprogs, csqcg.rendererrestarted);
+	}
 	//in case it drew to any render targets.
 	if (R2D_Flush)
 		R2D_Flush();

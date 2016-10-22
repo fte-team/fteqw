@@ -311,24 +311,35 @@ typedef struct associatedeffect_s
 	{
 		AE_TRAIL,
 		AE_EMIT,
-		AE_REPLACE
 	} type;
+	unsigned int meflags;
 } associatedeffect_t;
 associatedeffect_t *associatedeffect;
 void CL_AssociateEffect_f(void)
 {
 	char *modelname = Cmd_Argv(1);
 	char *effectname = Cmd_Argv(2);
-	int type = atoi(Cmd_Argv(3));
+	int type, i;
+	unsigned int flags = 0;
 	struct associatedeffect_s *ae;
 	if (!strcmp(Cmd_Argv(0), "r_trail"))
 		type = AE_TRAIL;
 	else
 	{
-		if (type)
-			type = AE_REPLACE;
-		else
-			type = AE_EMIT;
+		type = AE_EMIT;
+
+		for (i = 3; i < Cmd_Argc(); i++)
+		{
+			const char *fn = Cmd_Argv(i);
+			if (!strcmp(fn, "replace") || !strcmp(fn, "1"))
+				flags |= MDLF_EMITREPLACE;
+			else if (!strcmp(fn, "forwards") || !strcmp(fn, "forward"))
+				flags |= MDLF_EMITFORWARDS;
+			else if (!strcmp(fn, "0"))
+				;	//1 or 0 are legacy, meaning replace or not
+			else
+				Con_DPrintf("%s %s: unknown flag %s\n", Cmd_Argv(0), modelname, fn);
+		}
 	}
 
 	if (
@@ -351,20 +362,18 @@ void CL_AssociateEffect_f(void)
 	{
 		if (!strcmp(ae->mname, modelname))
 			if ((ae->type==AE_TRAIL) == (type==AE_TRAIL))
-			{
-				strcpy(ae->pname, effectname);
 				break;
-			}
 	}
 	if (!ae)
 	{
 		ae = Z_Malloc(sizeof(*ae));
-		ae->type = type;
 		strcpy(ae->mname, modelname);
-		strcpy(ae->pname, effectname);
 		ae->next = associatedeffect;
 		associatedeffect = ae;
 	}
+	ae->type = type;
+	ae->meflags = flags;
+	strcpy(ae->pname, effectname);
 
 	if (pe)
 		CL_RegisterParticles();
@@ -433,7 +442,8 @@ void P_LoadedModel(model_t *mod)
 
 	mod->particleeffect = P_INVALID;
 	mod->particletrail = P_INVALID;
-	mod->engineflags &= ~MDLF_ENGULPHS;
+	mod->engineflags &= ~(MDLF_EMITREPLACE|MDLF_EMITFORWARDS);
+	mod->engineflags |= MDLF_RECALCULATERAIN;
 	for(ae = associatedeffect; ae; ae = ae->next)
 	{
 		if (!strcmp(ae->mname, mod->name))
@@ -445,11 +455,7 @@ void P_LoadedModel(model_t *mod)
 				break;
 			case AE_EMIT:
 				mod->particleeffect = P_FindParticleType(ae->pname);
-				mod->engineflags &= ~MDLF_ENGULPHS;
-				break;
-			case AE_REPLACE:
-				mod->particleeffect = P_FindParticleType(ae->pname);
-				mod->engineflags |= MDLF_ENGULPHS;
+				mod->engineflags |= ae->meflags;
 				break;
 			}
 		}

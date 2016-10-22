@@ -636,6 +636,8 @@ typedef enum
 	VF_ENGINESBAR = 20,
 	VF_DRAWCROSSHAIR = 21,
 	VF_CARTESIAN_ANGLES = 22,
+	VF_MINDIST = 23,
+	VF_MAXDIST = 24,
 
 	//this is a DP-compatibility hack.
 	VF_CL_VIEWANGLES_V = 33,

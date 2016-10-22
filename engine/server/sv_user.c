@@ -482,8 +482,8 @@ void SVNQ_New_f (void)
 
 	if (!host_client->pextknown && sv_listen_nq.ival != 1)	//1 acts as a legacy mode, used for clients that can't cope with cmd before serverdata (either because they crash out or because they refuse to send reliables until after they got the first serverdata)
 	{
-		if (!host_client->supportedprotocols)
-		{
+		if (!host_client->supportedprotocols && host_client->netchan.remote_address.type != NA_LOOPBACK)
+		{	//don't override cl_loopbackprotocol's choice
 			char *msg = "cmd protocols\n";
 			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(msg));
 			ClientReliableWrite_String (host_client, msg);
@@ -696,6 +696,10 @@ void SVNQ_New_f (void)
 	MSG_WriteLong (&host_client->netchan.message, protmain);
 	if (protmain == PROTOCOL_VERSION_RMQ)
 		MSG_WriteLong (&host_client->netchan.message, protfl);
+
+	if (protext2 & PEXT2_PREDINFO)
+		MSG_WriteString(&host_client->netchan.message, gamedir);
+
 	MSG_WriteByte (&host_client->netchan.message, (sv.allocated_client_slots>host_client->max_net_clients)?host_client->max_net_clients:sv.allocated_client_slots);
 
 	if (!coop.value && deathmatch.value)
@@ -4424,9 +4428,6 @@ void Cmd_God_f (void)
 
 void Cmd_Give_f (void)
 {
-	char *t;
-	int v;
-
 #ifdef HLSERVER
 	if (svs.gametype == GT_HALFLIFE)
 	{
@@ -4444,48 +4445,49 @@ void Cmd_Give_f (void)
 	if (!svprogfuncs)
 		return;
 
-	t = Cmd_Argv(1);
-	v = atoi (Cmd_Argv(2));
-
 	SV_LogPlayer(host_client, "give cheat");
 #ifdef QUAKESTATS
-	if (strlen(t) == 1 && (Cmd_Argc() == 3 || (*t>='0' && *t <= '9')))
 	{
-		switch (t[0])
+		char *t = Cmd_Argv(1);
+		if (strlen(t) == 1 && (Cmd_Argc() == 3 || (*t>='0' && *t <= '9')))
 		{
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-			sv_player->v->items = (int) sv_player->v->items | IT_SHOTGUN<< (t[0] - '2');
-			break;
+			int v = atoi (Cmd_Argv(2));
+			switch (t[0])
+			{
+			case '2':
+			case '3':
+			case '4':
+			case '5':
+			case '6':
+			case '7':
+			case '8':
+			case '9':
+				sv_player->v->items = (int) sv_player->v->items | IT_SHOTGUN<< (t[0] - '2');
+				break;
 
-		case 's':
-			sv_player->v->ammo_shells = v;
-			break;
-		case 'n':
-			sv_player->v->ammo_nails = v;
-			break;
-		case 'r':
-			sv_player->v->ammo_rockets = v;
-			break;
-		case 'h':
-			sv_player->v->health = v;
-			break;
-		case 'c':
-			sv_player->v->ammo_cells = v;
-			break;
-		default:
-			SV_TPrintToClient(host_client, PRINT_HIGH, "give: unknown item\n");
+			case 's':
+				sv_player->v->ammo_shells = v;
+				break;
+			case 'n':
+				sv_player->v->ammo_nails = v;
+				break;
+			case 'r':
+				sv_player->v->ammo_rockets = v;
+				break;
+			case 'h':
+				sv_player->v->health = v;
+				break;
+			case 'c':
+				sv_player->v->ammo_cells = v;
+				break;
+			default:
+				SV_TPrintToClient(host_client, PRINT_HIGH, "give: unknown item\n");
+			}
+			return;
 		}
 	}
-	else
 #endif
-		if (svprogfuncs->EvaluateDebugString)
+	if (svprogfuncs->EvaluateDebugString)
 	{
 		if (developer.value < 2 && host_client->netchan.remote_address.type != NA_LOOPBACK)	//we don't want clients doing nasty things... like setting movetype 3123
 		{
@@ -5486,7 +5488,7 @@ void SVNQ_PreSpawn_f (void)
 				prot = " (dpp7)";
 				break;
 			}
-			Con_Printf("Warning: %s cannot be enforced on player %s%s.\n", sv_mapcheck.name, host_client->name, prot);	//as you can fake it in a client anyway, this is hardly a significant issue.
+			Con_DPrintf("Warning: %s cannot be enforced on player %s%s.\n", sv_mapcheck.name, host_client->name, prot);	//as you can fake it in a client anyway, this is hardly a significant issue.
 		}
 	}
 
@@ -7737,8 +7739,15 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 
 	frame = &host_client->frameunion.frames[host_client->netchan.incoming_acknowledged & UPDATE_MASK];
 
-	if (host_client->protocol == SCP_DARKPLACES7 || (host_client->fteprotocolextensions2 & PEXT2_PREDINFO))
+	if (host_client->protocol == SCP_DARKPLACES7)
 		host_client->last_sequence = MSG_ReadLong ();
+	else if (host_client->fteprotocolextensions2 & PEXT2_PREDINFO)
+	{
+		int seq = (unsigned short)MSG_ReadShort ();
+		if (seq < (host_client->last_sequence&0xffff))
+			host_client->last_sequence += 0x10000;	//wrapped
+		host_client->last_sequence = (host_client->last_sequence&0xffff0000) | seq;
+	}
 	else
 		host_client->last_sequence = 0;
 	cltime = MSG_ReadFloat ();
@@ -7805,9 +7814,9 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 		SV_ReadPrydonCursor();
 	}
 
-	host_client->msecs -= move->msec;
 	if (SV_RunFullQCMovement(host_client, move))
 	{
+		host_client->msecs -= move->msec;
 		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 #ifdef VM_Q1
@@ -7946,6 +7955,8 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 
 		case clcdp_ackframe:
 			cl->delta_sequence = MSG_ReadLong();
+			if (cl->delta_sequence == -1 && cl->pendingdeltabits)
+				cl->pendingdeltabits[0] = UF_REMOVE;
 			SV_AckEntityFrame(cl, cl->delta_sequence);
 			break;
 		case clcdp_ackdownloaddata:

@@ -741,8 +741,12 @@ void CL_CheckForResend (void)
 #ifndef CLIENTONLY
 	if (!cls.state && (!connectinfo.trying || sv.state != ss_clustermode) && sv.state)
 	{
+#ifdef NQPROT
 		qboolean proquakeangles = false;
+#endif
+#ifdef NETPREPARSE
 		extern cvar_t dpcompat_nopreparse;
+#endif
 		memset(&connectinfo, 0, sizeof(connectinfo));
 		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
 		Cvar_ForceSet(&cl_servername, cls.servername);
@@ -918,8 +922,9 @@ void CL_CheckForResend (void)
 			}
 			net_message.packing = SZ_RAWBYTES;
 			net_message.cursize = 0;
+			MSG_BeginReading(net_message.prim);
 
-			if (connectinfo.subprotocol == CPNQ_ID)
+			if (connectinfo.subprotocol == CPNQ_ID && !proquakeangles)
 			{
 				net_from = connectinfo.adr;
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
@@ -1486,7 +1491,7 @@ void CL_ClearState (void)
 #ifdef HEXEN2
 	T_FreeInfoStrings();
 #endif
-	SCR_ShowPic_Clear(false);
+	SCR_ShowPic_ClearAll(false);
 
 	if (cl.playerview[0].playernum == -1)
 	{	//left over from q2 connect.
@@ -2932,8 +2937,10 @@ void CL_ConnectionlessPacket (void)
 					switch(strtoul(p, &p, 0))
 					{
 					case PROTOCOL_VERSION_R1Q2:
+#ifdef AVAIL_ZLIB		//r1q2 will typically send us compressed data, which is a problem if we can't handle that (q2pro has a way to disable it).
 						if (connectinfo.subprotocol < PROTOCOL_VERSION_R1Q2)
 							connectinfo.subprotocol = PROTOCOL_VERSION_R1Q2;
+#endif
 						break;
 					case PROTOCOL_VERSION_Q2PRO:
 						if (connectinfo.subprotocol < PROTOCOL_VERSION_Q2PRO)
@@ -5191,7 +5198,11 @@ double Host_Frame (double time)
 			{
 				//nq can send 'frames' without any entities before we're on the server, leading to short periods where the local player's position is not known. this is bad. so be more cautious with nq. this might break csqc.
 				CL_TransitionEntities();
-				if (cl.currentpackentities->num_entities)
+				if (cl.currentpackentities->num_entities
+#ifdef CSQC_DAT
+					|| (cls.fteprotocolextensions & PEXT_CSQC)
+#endif
+					)
 					CL_MakeActive("Quake");
 			}
 			else
@@ -5502,7 +5513,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	int def;
 
 	Cbuf_Execute ();	//make sure any pending console commands are done with. mostly, anyway...
-	SCR_ShowPic_Clear(true);
+	SCR_ShowPic_ClearAll(true);
 
 	Cbuf_AddText("unbindall\n", RESTRICT_LOCAL);
 	Cbuf_AddText("bind volup \"inc volume 0.1\"\n", RESTRICT_LOCAL);

@@ -34,6 +34,7 @@ float mousedown;
 float shiftdown;
 float ctrldown;
 float altdown;
+vector curmousepos;
 
 
 

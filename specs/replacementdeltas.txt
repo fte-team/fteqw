@@ -109,7 +109,7 @@ Updated network primitives:
 			16 = reserved: low precision.
 			32 = specific colourmap. UF_COLORMAP byte's low 4 bits are pants. high 4 bits are shirt.
 			64 = reserved: act as if part of world.
-			128 = complex animation. If set, there are more bytes following. This is not implemented by FTE at this time.
+			128 = onground, this hint is for nq engines.
 		UF_EXTEND2(15): nothing here - already sent. listed for completeness.
 
 		UF_ALPHA(16): byte - 0-255 expresses effective range of 0-1. 0 is invisible. 255 is fully visible and default.
@@ -154,7 +154,7 @@ Updated network primitives:
 		
 		FIXME weirdness:
 			predicting non-players? yes please.
-			player angles are a huge wtf. this protocol uses view angles then divides the angle by 1/3rd post-prediction for MOVETYPE_WALK/STEP entities.
+			player angles are a huge wtf. this protocol uses view angles then divides the angle by 1/3rd post-prediction for MOVETYPE_WALK entities, see PEXT2_PREDINFO for a fix.
 			there is no information regarding the nextthink of entities. It *should* be possible to guess well enough without it.
 				Either way it is rare enough that engines already need to interpolate well enough without this info, making it somewhat redundant, imho.
 
@@ -247,3 +247,17 @@ Hack Zone:
 	FTE servers will not wait for modellist/soundlist/prespawn commands to be acked before sending the next part of data, other than to correctly parse the map checksum. FTE servers will only burst all this information if ReplacementDeltas is supported. It was found that certain clients (namely FTE) was triggering some code to detect messed up ordering - messed up ordering that is fixed having the server track progress instead of relying on echos.
 This extension is simply a handy check to see if the client can cope and without spamming the console.
 Vanilla QuakeWorld clients appeared to be able to cope with this, but there are indeed certain ways it can fail, like if the client tries to pause for downloads.
+
+
+
+PredInfo Extension:
+	#define PEXT2_PREDINFO			0x00000020
+	Purpose:
+		This extra extension was to fix up some issues with the NQ protocol, but some parts also apply to QW too.
+	Protocol changes:
+		stats are sent semi-unreliably using the same nack mechanism. some extra stats are added to ensure that clc_clientdata is fully redundant.
+		weaponframe is moved out of entity deltas and back into a stat, the bit is reused for the client's v_angle to allow spectating without assumptions about angles.
+		there is an added 16-bit movement sequence number added directly after both clc_move and svcfte_updateentities bytes, allowing the server to ack the client's input sequence, allowing for prediction in NQ.
+		nq's clc_move's timestamp is no longer used to calculate pings. the server calculates pings based upon acks instead. this is harder to spoof.
+		guarentees that clc_move has at least 16bit precision.
+		

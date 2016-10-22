@@ -3771,7 +3771,6 @@ char *particle_set_q2part =
 
 "r_part teq2_bubbletrail\n"
 "{\n"
-/*blue spiral*/
 "texture \"classicparticle\"\n"
 "tcoords 0 0 16 16 32\n"
 "scale 0.5\n"
@@ -3786,7 +3785,7 @@ char *particle_set_q2part =
 
 "r_part TEQ2_RAILTRAIL\n"
 "{\n"
-/*blue spiral*/
+//blue spiral
 "texture \"classicparticle\"\n"
 "tcoords 0 0 16 16 32\n"
 "scale 0.5\n"
@@ -3803,7 +3802,7 @@ char *particle_set_q2part =
 "}\n"
 "r_part +TEQ2_RAILTRAIL\n"
 "{\n"
-/*grey filler*/
+//grey filler
 "texture \"classicparticle\"\n"
 "tcoords 0 0 16 16 32\n"
 "scale 0.5\n"

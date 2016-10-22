@@ -301,6 +301,7 @@ typedef struct texture_s
 	unsigned	width, height;
 
 	struct shader_s	*shader;
+	char		*partname;				//parsed from the worldspawn entity
 
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
@@ -870,7 +871,7 @@ typedef struct model_s
 
 	modtype_t	type;
 	fromgame_t	fromgame;
-     
+
 	int			numframes;
 	synctype_t	synctype;
 	
@@ -879,6 +880,9 @@ typedef struct model_s
 	int			particleeffect;
 	int			particletrail;
 	int			traildefaultindex;
+	struct skytris_s		*skytris;	//for surface emittance
+	float					skytime;	//for surface emittance
+	struct skytriblock_s	*skytrimem;
 
 //
 // volume occupied by the model graphics
@@ -989,17 +993,19 @@ typedef struct model_s
 	zonegroup_t memgroup;
 } model_t;
 
-#define MDLF_ENGULPHS        0x001 // particle effect engulphs model (don't draw)
-#define MDLF_NODEFAULTTRAIL  0x002
-#define MDLF_RGBLIGHTING     0x004
-#define MDLF_PLAYER          0x008 // players have specific lighting values
-#define MDLF_FLAME           0x010 // can be excluded with r_drawflame, fullbright render hack
-#define MDLF_DOCRC           0x020 // model needs CRC built
-#define MDLF_NEEDOVERBRIGHT  0x040 // only overbright these models with gl_overbright_all set
-#define MDLF_BOLT            0x080 // doesn't produce shadows
-#define	MDLF_NOTREPLACEMENTS 0x100 // can be considered a cheat, disable texture replacements
-#define MDLF_EZQUAKEFBCHEAT  0x200 // this is a blatent cheat, one that can disadvantage us fairly significantly if we don't support it.
-#define MDLF_HASBRUSHES		 0x400 // q1bsp has brush info for more precise traceboxes
+#define MDLF_EMITREPLACE     0x0001 // particle effect engulphs model (don't draw)
+#define MDLF_EMITFORWARDS    0x0002
+#define MDLF_NODEFAULTTRAIL  0x0004
+#define MDLF_RGBLIGHTING     0x0008
+#define MDLF_PLAYER          0x0010 // players have specific lighting values
+#define MDLF_FLAME           0x0020 // can be excluded with r_drawflame, fullbright render hack
+#define MDLF_DOCRC           0x0040 // model needs CRC built
+#define MDLF_NEEDOVERBRIGHT  0x0080 // only overbright these models with gl_overbright_all set
+#define MDLF_BOLT            0x0100 // doesn't produce shadows
+#define	MDLF_NOTREPLACEMENTS 0x0200 // can be considered a cheat, disable texture replacements
+#define MDLF_EZQUAKEFBCHEAT  0x0400 // this is a blatent cheat, one that can disadvantage us fairly significantly if we don't support it.
+#define MDLF_HASBRUSHES		 0x0800 // q1bsp has brush info for more precise traceboxes
+#define MDLF_RECALCULATERAIN 0x1000 // particles changed, recalculate any sky polys
 
 //============================================================================
 #endif	// __MODEL__

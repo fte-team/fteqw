@@ -2661,14 +2661,35 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					}
 					break;
 				case OP_BITAND_F:
-				case OP_AND_F:
-					if (QCC_PR_RoundFloatConst(eval_a) != 0)
+				case OP_BITAND_FI:
+					if (QCC_PR_RoundFloatConst(eval_a) == 0)
 					{
-						optres_constantarithmatic++;
-						QCC_FreeTemp(var_a);
-						return var_b;
+						QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
+						return QCC_MakeFloatConst(0);
 					}
 					break;
+				case OP_BITAND_I:
+				case OP_BITAND_IF:
+					if (eval_a->_int == 0)
+					{
+						QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
+						return QCC_MakeIntConst(0);
+					}
+					break;
+				case OP_AND_F:
+					optres_constantarithmatic++;
+					QCC_FreeTemp(var_a);
+					if (eval_a->_float != 0)
+						return var_b;
+					QCC_FreeTemp(var_b);
+					return QCC_MakeFloatConst(0);
+				case OP_AND_I:
+					optres_constantarithmatic++;
+					QCC_FreeTemp(var_a);
+					if (eval_a->_int != 0)
+						return var_b;
+					QCC_FreeTemp(var_b);
+					return QCC_MakeIntConst(0);
 
 				case OP_BITOR_I:
 				case OP_OR_I:
@@ -2682,15 +2703,6 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					break;
 				case OP_MUL_I:
 					if (eval_a->_int == 1)
-					{
-						optres_constantarithmatic++;
-						QCC_FreeTemp(var_a);
-						return var_b;
-					}
-					break;
-				case OP_BITAND_I:
-				case OP_AND_I:
-					if (eval_a->_int != 0)
 					{
 						optres_constantarithmatic++;
 						QCC_FreeTemp(var_a);
@@ -5209,15 +5221,15 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 				{	//gah, this is messy
 					if (arglist[i]->base.ofs == oself.ofs && arglist[i]->base.sym == oself.sym)
 					{
+						QCC_UnFreeTemp(self);
 						QCC_FreeTemp(arglist[i]->base);
 						arglist[i]->base = self;
-						QCC_UnFreeTemp(arglist[i]->base);
 					}
 					if (arglist[i]->index.ofs == oself.ofs && arglist[i]->index.sym == oself.sym)
 					{
+						QCC_UnFreeTemp(self);
 						QCC_FreeTemp(arglist[i]->index);
 						arglist[i]->index = self;
-						QCC_UnFreeTemp(arglist[i]->index);
 					}
 				}
 
@@ -5250,7 +5262,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 
 				//FIXME: this may need to generate function calls, which can potentially clobber parms. This would be bad. we may need to copy them all out first THEN do the assignments.
 				//FIXME: this can't cope with splitting return values over different extra_parms.
-				QCC_StoreSRefToRef(arglist[i], d, true, false);
+				QCC_StoreSRefToRef(arglist[i], d, false, false);
 			}
 			parm += (func.cast->params[i].type->size+2)/3;
 		}
@@ -9548,6 +9560,7 @@ void PR_GenerateReturnOuts(void)
 				p.ofs = 0;
 				p.cast = type_vector;
 			}
+			QCC_ForceUnFreeDef(p.sym);
 			QCC_StoreToSRef(p, QCC_MakeSRefForce(local, 0, local->type), local->type, false, false);
 		}
 		parm += (pr_scope->type->params[i].type->size+2)/3;

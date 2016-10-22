@@ -1,4 +1,4 @@
-float autocvar_ca_show;
+var float autocvar_ca_show = 0;
 var float autocvar_ca_editormode = MODE_LIGHTEDIT;
 string autocvar_ca_colourtint;
 
@@ -24,19 +24,27 @@ float editorrsd[editornames.length];
 float(float key, float unic, vector mouse) editor_options_key =
 {
 	if (key == K_MOUSE1)
-		if (mouse_y >= 16 && mouse_y < 16+8)
+	{
+		int sel = (mouse_y - 16) / 8;
+		if (sel == 0)
 		{
 			cvar_set("ca_show", "0");
 			return TRUE;
 		}
+		else if (sel == 1)
+		{
+			localcmd("brushedit_binds\n");
+			return TRUE;
+		}
+	}
 	return FALSE;
 };
 void(vector mouse) editor_options_overlay =
 {
-	if (mouse_y >= 16 && mouse_y < 16+8)
-		drawstring('0 16', "Close", '8 8', '0 0 1', 1, 0);
-	else
-		drawstring('0 16', "Close", '8 8', '1 1 1', 1, 0);
+	vector pos = '0 16';
+	int sel = (mouse_y - pos_y) / 8;
+	drawstring(pos, "Close", '8 8', (sel==0)?'0 0 1':'1 1 1', 1, 0); pos_y += 8;
+	drawstring(pos, "Brush Editor Bindings", '8 8', (sel==1)?'0 0 1':'1 1 1', 1, 0);
 };
 
 /*the renderscene builtin in the parent progs is redirected to here*/
@@ -169,17 +177,17 @@ void() wrap_renderscene =
 	}
 
 	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
-		editor_lights_add();
+		editor_lights_addentities();
 	else if (autocvar_ca_editormode == MODE_ENTSEDIT)
-		editor_ents_add();
+		editor_ents_addentities();
 #ifdef CAMQUAKE
 	else if (autocvar_ca_editormode == MODE_SPLINEEDIT)
-		editor_spline_add();
+		editor_spline_addentities();
 #endif
 	else if (autocvar_ca_editormode == MODE_TERRAINEDIT)
-		editor_terrain_add(curmousepos);
+		editor_terrain_addentities(curmousepos);
 	else if (autocvar_ca_editormode == MODE_BRUSHEDIT)
-		editor_brushes_add(curmousepos);
+		editor_brushes_addentities(curmousepos);
 
 	renderscene();
 

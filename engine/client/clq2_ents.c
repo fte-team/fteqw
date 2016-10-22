@@ -159,11 +159,11 @@ void CLQ2_TeleporterParticles(entity_state_t *es){};
 /*these are emissive effects (ie: emitted each frame), but they're also mutually exclusive, so sharing emitstate is fine*/
 void CLQ2_Tracker_Shell(q2centity_t *ent, vec3_t org)
 {
-	P_EmitEffect (org, pt_q2[Q2PT_TRACKERSHELL], &(ent->emitstate));
+	P_EmitEffect (org, NULL, 0, pt_q2[Q2PT_TRACKERSHELL], &(ent->emitstate));
 };
 void CLQ2_BfgParticles(q2centity_t *ent, vec3_t org)
 {
-	P_EmitEffect (org, pt_q2[Q2PT_BFGPARTICLES], &(ent->emitstate));
+	P_EmitEffect (org, NULL, 0, pt_q2[Q2PT_BFGPARTICLES], &(ent->emitstate));
 };
 void CLQ2_FlyEffect(q2centity_t *ent, vec3_t org)
 {
@@ -1230,6 +1230,51 @@ void CLQ2_FireEntityEvents (q2frame_t *frame)
 	}
 }
 
+void CLR1Q2_ParsePlayerUpdate(void)
+{
+	unsigned int framenum = MSG_ReadLong();
+	q2frame_t	*frame = &cl.q2frames[framenum & Q2UPDATE_MASK];
+	int seat;
+	if (frame->serverframe != framenum)
+		Con_DPrintf("svcr1q2_playerupdate: stale frame\n");
+	else if (!frame->valid)
+		Con_DPrintf("svcr1q2_playerupdate: invalid frame\n");	//excrement happens.
+	else
+	{
+		int pnum;
+		vec3_t neworg;
+		entity_state_t *st;
+		for (pnum = 0; pnum < frame->num_entities; pnum++)
+		{
+			st = &clq2_parse_entities[(frame->parse_entities+pnum) & (MAX_PARSE_ENTITIES-1)];
+
+			//I don't like how r1q2 does its maxclients, so I'm just going to go on message size instead
+			if (msg_readcount == net_message.cursize)
+				break;
+
+			//the local client(s) is not included, thanks to prediction covering that.
+			for (seat = 0; seat < cl.splitclients; seat++)
+			{
+				if (st->number == cl.playerview[0].playernum+1)
+					break;
+			}
+			if (seat != cl.splitclients)
+				continue;
+
+			if (st->number != 1)
+				continue;
+
+			//FIXME: handle this, with lerping and stuff.
+			MSG_ReadPos(neworg);
+		}
+
+		//just for sanity's sake
+		if (msg_readcount != net_message.cursize)
+			msg_badread = true;
+	}
+	//this should be the only/last thing in these packets, because if it isn't then we're screwed when a packet got lost
+	msg_readcount = net_message.cursize;
+}
 
 /*
 ================
@@ -1274,7 +1319,7 @@ void CLQ2_ParseFrame (int extrabits)
 		extrabits = Q2PSX_OLD;
 	}
 
-	cl.q2frame.servertime = cl.q2frame.serverframe*100;
+	cl.q2frame.servertime = cl.q2frame.serverframe*(1000/cl.q2svnetrate);
 
 	cl.oldgametime = cl.gametime;
 	cl.oldgametimemark = cl.gametimemark;
@@ -2151,6 +2196,8 @@ void CLQ2_CalcViewValues (int seat)
 	memcpy(r_refdef.areabits, cl.q2frame.areabits, sizeof(r_refdef.areabits));
 
 	r_refdef.useperspective = true;
+	r_refdef.mindist = bound(0.1, gl_mindist.value, 4);
+	r_refdef.maxdist = gl_maxdist.value;
 
 	// find the previous frame to interpolate from
 	ps = &cl.q2frame.playerstate[seat];
@@ -2246,27 +2293,10 @@ void CLQ2_AddEntities (void)
 	if (cls.state != ca_active)
 		return;
 
-	cl.lerpfrac = 1.0 - (cl.q2frame.servertime - cl.time*1000) * 0.01;
+	cl.lerpfrac = 1.0 - (cl.q2frame.servertime/1000.0 - cl.time) * cl.q2svnetrate;
 //	Con_Printf("%g: %g\n", cl.q2frame.servertime - (cl.time*1000), cl.lerpfrac);
 	cl.lerpfrac = bound(0, cl.lerpfrac, 1);
 
-/*	if (cl.time*1000 > cl.q2frame.servertime)
-	{
-//		if (cl_showclamp.value)
-//			Con_Printf ("high clamp %f\n", cl.time - cl.q2frame.servertime);
-		cl.time = (cl.q2frame.servertime)/1000.0;
-		cl.lerpfrac = 1.0;
-	}
-	else if (cl.time*1000 < cl.q2frame.servertime - 100)
-	{
-//		if (cl_showclamp.value)
-//			Con_Printf ("low clamp %f\n", cl.q2frame.servertime-100 - cl.time);
-		cl.time = (cl.q2frame.servertime - 100)/1000.0;
-		cl.lerpfrac = 0;
-	}
-	else
-		cl.lerpfrac = 1.0 - (cl.q2frame.servertime - cl.time*1000) * 0.01;
-*/
 	for (seat = 0; seat < cl.splitclients; seat++)
 		CLQ2_CalcViewValues (seat);
 	CLQ2_AddPacketEntities (&cl.q2frame);

@@ -791,7 +791,6 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	q2edict_t		*q2ent;
 #endif
 	int			i, j;
-	int spawnflagmask;
 	extern int sv_allow_cheats;
 	size_t fsz;
 
@@ -1442,53 +1441,6 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	SCR_SetLoadingFile("entities");
 	if (!deathmatch.value && !*skill.string)	//skill was left blank so it doesn't polute serverinfo on deathmatch servers. in single player, we ensure that it gets a proper value.
 		Cvar_Set(&skill, "1");
-#ifdef HEXEN2
-	if (progstype == PROG_H2)
-	{
-		extern cvar_t coop;
-		spawnflagmask = 0;
-		if (deathmatch.value)
-			spawnflagmask |= SPAWNFLAG_NOT_H2DEATHMATCH;
-		else if (coop.value)
-			spawnflagmask |= SPAWNFLAG_NOT_H2COOP;
-		else
-		{
-			cvar_t *cl_playerclass = Cvar_Get("cl_playerclass", "0", CVAR_USERINFO, 0);
-			spawnflagmask |= SPAWNFLAG_NOT_H2SINGLE;
-
-			if (cl_playerclass && cl_playerclass->ival == 1)
-				spawnflagmask |= SPAWNFLAG_NOT_H2PALADIN;
-			else if (cl_playerclass && cl_playerclass->ival == 2)
-				spawnflagmask |= SPAWNFLAG_NOT_H2CLERIC;
-			else if (cl_playerclass && cl_playerclass->ival == 3)
-				spawnflagmask |= SPAWNFLAG_NOT_H2NECROMANCER;
-			else if (cl_playerclass && cl_playerclass->ival == 4)
-				spawnflagmask |= SPAWNFLAG_NOT_H2THEIF;
-			else if (cl_playerclass && cl_playerclass->ival == 5)
-				spawnflagmask |= SPAWNFLAG_NOT_H2NECROMANCER;	/*yes, I know.,. makes no sense*/
-		}
-		if (skill.value < 0.5)
-			spawnflagmask |= SPAWNFLAG_NOT_H2EASY;
-		else if (skill.value > 1.5)
-			spawnflagmask |= SPAWNFLAG_NOT_H2HARD;
-		else
-			spawnflagmask |= SPAWNFLAG_NOT_H2MEDIUM;
-
-		//don't filter based on player class. we're lame and don't have any real concept of player classes.
-	}
-	else
-#endif
-		if (!deathmatch.value)	//decide if we are to inhibit single player game ents instead
-	{
-		if (skill.value < 0.5)
-			spawnflagmask = SPAWNFLAG_NOT_EASY;
-		else if (skill.value > 1.5)
-			spawnflagmask = SPAWNFLAG_NOT_HARD;
-		else
-			spawnflagmask = SPAWNFLAG_NOT_MEDIUM;
-	}
-	else
-		spawnflagmask = SPAWNFLAG_NOT_DEATHMATCH;
 //do this and get the precaches/start up the game
 	if (sv.world.worldmodel->entitiescrc)
 	{
@@ -1506,10 +1458,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	switch(svs.gametype)
 	{
 	default:
-		if (svprogfuncs)
-			sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, spawnflagmask);
-		else
-			sv.world.edict_size = 0;
+		PR_SpawnInitialEntities(file);
 		break;
 #ifdef Q2SERVER
 	case GT_QUAKE2:

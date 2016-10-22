@@ -498,7 +498,7 @@ static void R_DrawSkyMesh(batch_t *batch, mesh_t *m, shader_t *shader)
 
 	float skydist = gl_skyboxdist.value;
 	if (skydist<1)
-		skydist=gl_maxdist.value * 0.577;
+		skydist=r_refdef.maxdist * 0.577;
 	if (skydist<1)
 		skydist = 10000000;
 
@@ -524,6 +524,7 @@ static void R_DrawSkyMesh(batch_t *batch, mesh_t *m, shader_t *shader)
 	b.skin = NULL;
 	b.texture = NULL;
 	b.vbo = NULL;
+	Vector4Set(skyent.shaderRGBAf, 1, 1, 1, 1);
 	BE_SubmitBatch(&b);
 }
 
@@ -601,7 +602,7 @@ static void MakeSkyGridVec2 (float s, float t, int axis, vec3_t v, vec2_t tc1, v
 
 	float skydist = gl_skyboxdist.value;
 	if (skydist<1)
-		skydist=gl_maxdist.value * 0.577;
+		skydist=r_refdef.maxdist * 0.577;
 	if (skydist<1)
 		skydist = 10000000;
 
@@ -835,19 +836,19 @@ void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int 
 				temp = BZF_Malloc(imagewidth*imageheight*sizeof(*temp));
 				if (temp)
 				{
-					for (i=0 ; i<height ; i++)
-						for (j=0 ; j<width ; j++)
+					for (i=0 ; i<imageheight ; i++)
+						for (j=0 ; j<imagewidth ; j++)
 						{
-							temp[i*width+j] = imagedata[i*(width<<1)+j+width];
+							temp[i*imagewidth+j] = imagedata[i*(imagewidth<<1)+j+imagewidth];
 						}
 					Q_snprintfz(name, sizeof(name), "%s_solid", skyname);
 					Q_strlwr(name);
 					shader->defaulttextures->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA, temp, imagewidth, imageheight, TF_RGBX32);
 
-					for (i=0 ; i<height ; i++)
-						for (j=0 ; j<width ; j++)
+					for (i=0 ; i<imageheight ; i++)
+						for (j=0 ; j<imagewidth ; j++)
 						{
-							temp[i*width+j] = imagedata[i*(width<<1)+j];
+							temp[i*imagewidth+j] = imagedata[i*(imagewidth<<1)+j];
 						}
 					BZ_Free(imagedata);
 					Q_snprintfz(name, sizeof(name), "%s_alpha:%s_trans", skyname, skyname);

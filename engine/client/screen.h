@@ -72,7 +72,7 @@ void SCR_ShowPic_Create(void);
 void SCR_ShowPic_Hide(void);
 void SCR_ShowPic_Move(void);
 void SCR_ShowPic_Update(void);
-void SCR_ShowPic_Clear(qboolean persistflag);
+void SCR_ShowPic_ClearAll(qboolean persistflag);
 char *SCR_ShowPics_ClickCommand(int cx, int cy);
 void SCR_ShowPic_Script_f(void);
 void SCR_ShowPic_Remove_f(void);

@@ -23,7 +23,6 @@ static void PNULL_RunParticleEffect4 (vec3_t org, float radius, int color, int e
 static void PNULL_RunParticleEffectPalette (const char *nameprefix, vec3_t org, vec3_t dir, int color, int count){}
 
 static void PNULL_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk){}
-static void PNULL_EmitSkyEffectTris(model_t *mod, msurface_t *fa, int ptype){}
 
 static qboolean PNULL_InitParticles (void)
 {
@@ -69,7 +68,6 @@ particleengine_t pe_null =
 	PNULL_RunParticleEffectPalette,
 
 	PNULL_ParticleTrailIndex,
-	PNULL_EmitSkyEffectTris,
 	PNULL_InitParticles,
 	PNULL_ShutdownParticles,
 	PNULL_DelinkTrailstate,

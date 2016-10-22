@@ -401,22 +401,38 @@ enum svcq2_ops_e
 
 	svcr1q2_zpacket = 21,
 	svcr1q2_zdownload = 22,
-	svcq2pro_gamestate = 23, // q2pro specific, means svc_playerupdate in r1q2
+	svcr1q2_playerupdate = 23,
+	svcr1q2_setting = 24,
+	svcq2pro_gamestate = 23,
 	svcq2pro_setting = 24,
 };
 
 enum clcq2_ops_e
 {
-	clcq2_bad,
-	clcq2_nop,
-	clcq2_move,				// [[usercmd_t]
-	clcq2_userinfo,				// [[userinfo string]
-	clcq2_stringcmd,			// [string] message
+	clcq2_bad = 0,
+	clcq2_nop = 1,
+	clcq2_move = 2,			// [[usercmd_t]
+	clcq2_userinfo = 3,		// [[userinfo string]
+	clcq2_stringcmd = 4,	// [string] message
+
+	clcr1q2_setting = 5,	// [setting][value] R1Q2 settings support.
+	clcr1q2_multimoves = 6,	// for crappy clients that can't lerp
 
 	//fte-extended
-	clcq2_voicechat
+	clcq2_voicechat = 31
 };
 
+enum {
+	R1Q2_CLSET_NOGUN			= 0,
+	R1Q2_CLSET_NOBLEND			= 1,
+	R1Q2_CLSET_RECORDING		= 2,
+	R1Q2_CLSET_PLAYERUPDATES	= 3,
+	R1Q2_CLSET_FPS				= 4
+};
+enum {
+	R1Q2_SVSET_PLAYERUPDATES	= 0,
+	R1Q2_SVSET_FPS				= 1
+};
 
 //==============================================
 
@@ -540,6 +556,12 @@ enum clcq2_ops_e
 #define	Q2CM_UP			(1<<5)
 #define	Q2CM_BUTTONS	(1<<6)
 #define	Q2CM_IMPULSE	(1<<7)
+
+#define R1Q2_BUTTON_BYTE_FORWARD  4
+#define R1Q2_BUTTON_BYTE_SIDE     8
+#define R1Q2_BUTTON_BYTE_UP       16
+#define R1Q2_BUTTON_BYTE_ANGLE1   32
+#define R1Q2_BUTTON_BYTE_ANGLE2   64
 
 //==============================================
 
@@ -1030,17 +1052,16 @@ typedef struct entity_state_s
 			/*info to predict other players, so I don't get yelled at if fte were to stop supporting it*/
 			qbyte pmovetype;
 			qbyte msec;
-			qbyte pad2;
-			qbyte pad1;
-
 			short vangle[3];
-			unsigned short weaponframe;
 
 			short movement[3];
 			short velocity[3]; // 1/8th
 
+			unsigned short weaponframe;
 			unsigned char gravitydir[2];	//pitch/yaw, no roll
+
 			unsigned short traileffectnum;
+			unsigned short emiteffectnum;
 
 			vec3_t predorg;
 		} q1;
@@ -1070,9 +1091,12 @@ typedef struct entity_state_s
 	qbyte	glowmod[3];
 	qbyte	trans;
 
+	unsigned short light[4];
+
 	qbyte lightstyle;
 	qbyte lightpflags;
 	unsigned short tagindex;
+
 	unsigned int tagentity;
 
 	unsigned int solidsize;
@@ -1081,8 +1105,6 @@ typedef struct entity_state_s
 #define ES_SOLID_HULL1 0x80201810
 #define ES_SOLID_HULL2 0x80401820
 #define ES_SOLID_HAS_EXTRA_BITS(solid) ((solid&0x0707) || (((solid>>16)-32768+32) & 7))
-
-	unsigned short light[4];
 } entity_state_t;
 extern entity_state_t nullentitystate;
 

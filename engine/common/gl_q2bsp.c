@@ -1308,7 +1308,7 @@ qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *map
 	q2texinfo_t *in;
 	mtexinfo_t *out;
 	int 	i, j, count;
-	char	name[MAX_QPATH], *lwr;
+	char	*lwr;
 	char	sname[MAX_QPATH];
 	int texcount;
 
@@ -1393,7 +1393,7 @@ qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *map
 			{
 				out->texture = ZG_Malloc(&mod->memgroup, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 
-				Con_Printf (CON_WARNING "Couldn't load %s\n", name);
+				Con_Printf (CON_WARNING "Couldn't load \"%s.wal\"\n", in->texture);
 				memcpy(out->texture, r_notexture_mip, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 			}
 

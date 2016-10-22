@@ -542,23 +542,23 @@ void R_SetupGL (float stereooffset)
 		{
 			int stencilshadows = Sh_StencilShadowsActive();
 
-			if ((!stencilshadows || !gl_stencilbits) && gl_maxdist.value>=100)//gl_nv_range_clamp)
+			if ((!stencilshadows || !gl_stencilbits) && r_refdef.maxdist)//gl_nv_range_clamp)
 			{
 		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
 		//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
 		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
 		//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
 
-				Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, bound(0.1, gl_mindist.value, 4), gl_maxdist.value);
+				Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
 			}
 			else
 			{
-				Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, bound(0.1, gl_mindist.value, 4));
+				Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist);
 			}
 		}
 		else
 		{
-			Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, gl_mindist.value, gl_maxdist.value>=1?gl_maxdist.value:9999);
+			Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, r_refdef.mindist, r_refdef.maxdist?r_refdef.maxdist:9999);
 		}
 
 		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
@@ -944,7 +944,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			return;
 	}
 	//if we're behind it, then also don't draw anything. for our purposes, behind is when the entire near clipplane is behind.
-	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < -gl_mindist.value)
+	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < -r_refdef.mindist)
 		return;
 
 	TRACE(("GLR_DrawPortal: portal type %i\n", portaltype));
@@ -1727,7 +1727,7 @@ texid_t R_RenderPostProcess (texid_t sourcetex, int type, shader_t *shader, char
 			if (R2D_Flush)
 				R2D_Flush();
 			GLBE_FBO_Sources(sourcetex, r_nulltex);
-			sourcetex = R2D_RT_Configure(restexname, w, h, TF_RGBA32);
+			sourcetex = R2D_RT_Configure(restexname, w, h, TF_RGBA32, RT_IMAGEFLAGS);
 			GLBE_FBO_Update(&fbo_postproc, 0, &sourcetex, 1, r_nulltex, w, h, 0);
 			R2D_ScalePic(0, 0, r_refdef.vrect.width, r_refdef.vrect.height, shader);
 			if (R2D_Flush)
@@ -1906,7 +1906,7 @@ void GLR_RenderView (void)
 		vid.fbvwidth = vid.fbpwidth;
 		vid.fbvheight = vid.fbpheight;
 
-		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, /*(r_refdef.flags&RDF_BLOOM)?TF_RGBA16F:*/TF_RGBA32);
+		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, /*(r_refdef.flags&RDF_BLOOM)?TF_RGBA16F:*/TF_RGBA32, RT_IMAGEFLAGS);
 
 		oldfbo = GLBE_FBO_Update(&fbo_gameview, FBO_RB_DEPTH, &sourcetex, 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
 		dofbo = true;

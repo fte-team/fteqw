@@ -12,7 +12,7 @@ static float editfield;
 static string editvalue;
 static entity tempent;
 static float helphidden;
-void() editor_lights_add =
+void() editor_lights_addentities =
 {
 	float l;
 	if (!tempent)

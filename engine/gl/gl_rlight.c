@@ -286,7 +286,6 @@ static qboolean R_BuildDlightMesh(dlight_t *light, float colscale, float radscal
 	float	rad;
 	float	*bub_sin, *bub_cos;
 	vec3_t colour;
-	extern cvar_t gl_mindist;
 
 	bub_sin = bubble_sintable;
 	bub_cos = bubble_costable;
@@ -309,7 +308,7 @@ static qboolean R_BuildDlightMesh(dlight_t *light, float colscale, float radscal
 	}
 
 	VectorSubtract (light->origin, r_origin, v);
-	if (dtype != 1 && Length (v) < rad + gl_mindist.value*2)
+	if (dtype != 1 && Length (v) < rad + r_refdef.mindist*2)
 	{	// view is inside the dlight
 		return false;
 	}

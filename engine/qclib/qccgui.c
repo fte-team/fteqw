@@ -793,7 +793,7 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 						if (editor->editpane == hWnd)
 							break;
 					}
-					if (editor->scintilla)
+					if (editor && editor->scintilla)
 					{
 						FindNextScintilla(editor, buffer);
 					}
@@ -2795,7 +2795,7 @@ unsigned char *GUIReadFile(const char *fname, void *buffer, int blen, size_t *sz
 			else
 			{
 				*(wchar_t*)buffer = 0xfeff;
-				GetWindowTextW(e->editpane, (wchar_t*)buffer+1, blen);
+				GetWindowTextW(e->editpane, (wchar_t*)buffer+1, blen-sizeof(wchar_t));
 			}
 
 			if (e->modified)
@@ -3083,6 +3083,7 @@ static pbool EngineCommandWndf(HWND wnd, char *message, ...)
 
 DWORD WINAPI threadwrapper(void *args)
 {
+	pbool hadstatus = false;
 	enginewindow_t *ctx = args;
 	{
 		char workingdir[MAX_PATH+10];
@@ -3156,6 +3157,7 @@ DWORD WINAPI threadwrapper(void *args)
 				MessageBox(mainwindow, qcva("gla: %x", hr), "Cannot Start Engine", 0);
 				break;
 			}
+			hadstatus = true;	//don't warn about other stuff
 		}
 
 		//these ends of the pipes were inherited by now, so we can discard them in the caller.
@@ -3192,10 +3194,12 @@ DWORD WINAPI threadwrapper(void *args)
 					if (!strncmp(buffer, "status ", 7))
 					{
 						//SetWindowText(ctx->window, buffer+7);
+						hadstatus = true;
 					}
 					else if (!strcmp(buffer, "status"))
 					{
 						//SetWindowText(ctx->window, "Engine");
+						hadstatus = true;
 					}
 					else if (!strcmp(buffer, "curserver"))
 					{
@@ -3243,6 +3247,7 @@ DWORD WINAPI threadwrapper(void *args)
 							SetWindowText(ctx->window, caption);
 						}
 						PostMessage(ctx->window, WM_USER+1, 0, 0);	//and tell the owning window to try to close it again
+						hadstatus = true;
 					}
 					else if (!strncmp(buffer, "refocuswindow", 13) && (buffer[13] == ' ' || !buffer[13]))
 					{
@@ -3251,6 +3256,7 @@ DWORD WINAPI threadwrapper(void *args)
 							l++;
 						ctx->refocuswindow = (HWND)(size_t)strtoull(l, &l, 0);
 						ShowWindow(ctx->window, SW_HIDE);
+						hadstatus = true;
 					}
 					else
 					{
@@ -3269,6 +3275,9 @@ DWORD WINAPI threadwrapper(void *args)
 		ctx->pipefromengine = NULL;
 		CloseHandle(ctx->pipetoengine);
 		ctx->pipetoengine = NULL;
+
+		if (!hadstatus)
+			MessageBox(mainwindow, "Engine terminated without acknowledging debug session.\nCurrently only FTE supports debugging.", "Debugging Failed", MB_OK);
 	}
 
 	ctx->pipeclosed = true;

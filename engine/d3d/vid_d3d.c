@@ -707,7 +707,7 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 
-
+	CL_UpdateWindowTitle();
 
 	while (PeekMessage(&msg, NULL,  0, 0, PM_REMOVE))
 	{
@@ -1123,7 +1123,6 @@ static void	(D3D9_R_DeInit)					(void)
 
 static void D3D9_SetupViewPortProjection(void)
 {
-	extern cvar_t gl_mindist;
 	int		x, x2, y2, y, w, h;
 
 	float fov_x, fov_y;
@@ -1175,11 +1174,22 @@ static void D3D9_SetupViewPortProjection(void)
 	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 	d3d9error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view));
 
-	/*d3d projection matricies scale depth to 0 to 1*/
-	Matrix4x4_CM_Projection_Inf(d3d_trueprojection, fov_x, fov_y, bound(0.1, gl_mindist.value, 4)/2);
+	if (r_refdef.maxdist)
+	{
+		/*d3d projection matricies scale depth to 0 to 1*/
+		Matrix4x4_CM_Projection_Far(d3d_trueprojection, fov_x, fov_y, r_refdef.mindist/2, r_refdef.maxdist);
+		/*ogl projection matricies scale depth to -1 to 1, and I would rather my code used consistant culling*/
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+	}
+	else
+	{
+		/*d3d projection matricies scale depth to 0 to 1*/
+		Matrix4x4_CM_Projection_Inf(d3d_trueprojection, fov_x, fov_y, r_refdef.mindist/2);
+		/*ogl projection matricies scale depth to -1 to 1, and I would rather my code used consistant culling*/
+		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist);
+	}
+
 	d3d9error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection));
-	/*ogl projection matricies scale depth to -1 to 1, and I would rather my code used consistant culling*/
-	Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, bound(0.1, gl_mindist.value, 4));
 }
 
 static void	(D3D9_R_RenderView)				(void)

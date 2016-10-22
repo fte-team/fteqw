@@ -2924,6 +2924,9 @@ int QCC_PR_FinishCompilation (void)
 
 	errors = false;
 
+	if (pr_error_count)
+		return false;
+
 	if (qcc_targetformat == QCF_FTE || qcc_targetformat == QCF_FTEDEBUG || qcc_targetformat == QCF_FTEH2)
 		externokay = true;
 
@@ -4738,7 +4741,14 @@ void QCC_ContinueCompile(void)
 		return;
 	}
 
-	QCC_FindBestInclude(qcc_token, compilingrootfile, 2);
+	if(setjmp(pr_parse_abort))
+	{
+		if (++pr_error_count > MAX_ERRORS)
+			QCC_Error (ERR_PARSEERRORS, "Errors have occured\n");
+		return;	//just try move onto the next file, gather errors.
+	}
+	else
+		QCC_FindBestInclude(qcc_token, compilingrootfile, 2);
 /*
 	{
 		int includepath = 0;

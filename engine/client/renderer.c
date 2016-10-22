@@ -1576,19 +1576,7 @@ TRACE(("dbg: R_ApplyRenderer: checking any wad textures\n"));
 		Mod_NowLoadExternal(cl.worldmodel);
 
 		for (i = 0; i < cl.num_statics; i++)	//make the static entities reappear.
-		{
 			cl_static_entities[i].ent.model = NULL;
-			if (cl_static_entities[i].mdlidx < 0)
-			{
-				if (cl_static_entities[i].mdlidx > -MAX_CSMODELS)
-					cl_static_entities[i].ent.model = cl.model_csqcprecache[-cl_static_entities[i].mdlidx];
-			}
-			else
-			{
-				if (cl_static_entities[i].mdlidx < MAX_PRECACHE_MODELS)
-					cl_static_entities[i].ent.model = cl.model_precache[cl_static_entities[i].mdlidx];
-			}
-		}
 
 TRACE(("dbg: R_ApplyRenderer: Surf_NewMap\n"));
 		Surf_NewMap();

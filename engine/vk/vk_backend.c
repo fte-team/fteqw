@@ -4267,6 +4267,8 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 
 	for (i = 0; i < MAXRLIGHTMAPS ; i++)
 	{
+		//FIXME: this is fucked
+		/*
 		extern cvar_t gl_overbright;
 		unsigned char s = shaderstate.curbatch?shaderstate.curbatch->lmlightstyle[i]:0;
 		float sc;
@@ -4298,6 +4300,8 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		else
 			sc = shaderstate.identitylighting;
 		sc *= d_lightstylevalue[s]/256.0f;
+		*/
+		float sc = 1;
 		Vector4Set(cbe->e_lmscale[i], sc, sc, sc, 1);
 	}
 
@@ -5128,9 +5132,8 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 
 void R_ObliqueNearClip(float *viewmat, mplane_t *wplane);
 void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue);
-void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], int portaltype)
+static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], int portaltype)
 {
-	extern cvar_t gl_mindist;
 	entity_t *view;
 	plane_t plane, oplane;
 	float vmat[16];
@@ -5186,7 +5189,7 @@ void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], in
 			return;
 	}
 	//if we're behind it, then also don't draw anything. for our purposes, behind is when the entire near clipplane is behind.
-	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < -gl_mindist.value)
+	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < -r_refdef.mindist)
 		return;
 
 	TRACE(("R_DrawPortal: portal type %i\n", portaltype));

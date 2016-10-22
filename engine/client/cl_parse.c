@@ -36,6 +36,13 @@ int cl_dp_csqc_progssize;
 int cl_dp_csqc_progscrc;
 int cl_dp_serverextension_download;
 
+#ifdef AVAIL_ZLIB
+#ifndef ZEXPORT
+	#define ZEXPORT VARGS
+#endif
+#include <zlib.h>
+#endif
+
 
 char *svc_qwstrings[] =
 {
@@ -714,7 +721,12 @@ void CL_SendDownloadStartRequest(char *filename, char *localname, unsigned int f
 	COM_StripExtension (localname, dl->tempname, sizeof(dl->tempname)-5);
 	Q_strncatz (dl->tempname, ".tmp", sizeof(dl->tempname));
 
-	CL_SendClientCommand(true, "download %s", filename);
+#ifdef AVAIL_ZLIB
+	if (cls.protocol == CP_QUAKE2 && cls.protocol_q2 == PROTOCOL_VERSION_R1Q2)
+		CL_SendClientCommand(true, "download %s 0 udp-zlib", filename);
+	else
+#endif
+		CL_SendClientCommand(true, "download %s", filename);
 
 	dl->method = DL_QWPENDING;
 	dl->percent = 0;
@@ -1594,9 +1606,26 @@ void CL_RequestNextDownload (void)
 			return;
 		}
 
+		Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
+
 #ifdef Q2CLIENT
 		if (cls.protocol == CP_QUAKE2)
 		{
+			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2)
+			{	//fixme: make dynamic...
+//				MSG_WriteByte (&cls.netchan.message, clcr1q2_setting);
+//				MSG_WriteShort (&cls.netchan.message, R1Q2_CLSET_NOGUN);
+//				MSG_WriteShort (&cls.netchan.message, r_drawviewmodel.value <= 0);
+
+//				MSG_WriteByte (&cls.netchan.message, clcr1q2_setting);
+//				MSG_WriteShort (&cls.netchan.message, R1Q2_CLSET_PLAYERUPDATES);
+//				MSG_WriteShort (&cls.netchan.message, 1);
+
+//				MSG_WriteByte (&cls.netchan.message, clcr1q2_setting);
+//				MSG_WriteShort (&cls.netchan.message, R1Q2_CLSET_FPS);
+//				MSG_WriteShort (&cls.netchan.message, 30);
+			}
+
 			Skin_NextDownload();
 			SCR_SetLoadingStage(LS_NONE);
 			CL_SendClientCommand(true, "begin %i\n", cl.servercount);
@@ -2395,7 +2424,7 @@ CL_ParseDownload
 A download message has been received from the server
 =====================
 */
-void CL_ParseDownload (void)
+void CL_ParseDownload (qboolean zlib)
 {
 	extern cvar_t cl_dlemptyterminate;
 	int		size, percent;
@@ -2474,6 +2503,47 @@ void CL_ParseDownload (void)
 		SCR_EndLoadingPlaque();
 	}
 
+	if (zlib)
+	{
+#ifdef AVAIL_ZLIB
+		z_stream s;
+		unsigned short clen = size;
+		unsigned short ulen = MSG_ReadShort();
+		char cdata[8192];
+		unsigned int done = 0;
+		memset(&s, 0, sizeof(s));
+		s.next_in = net_message.data + msg_readcount;
+		s.avail_in = clen;
+		if (inflateInit2(&s, -15) != Z_OK)
+			Host_EndGame ("CL_ParseZDownload: unable to initialise zlib");
+		for(;;)
+		{
+			int zerr;
+			s.next_out = cdata;
+			s.avail_out = sizeof(cdata);
+			zerr = inflate(&s, Z_FULL_FLUSH);
+			VFS_WRITE (dl->file, cdata, s.total_out - done);
+			done = s.total_out;
+			if (zerr == Z_STREAM_END)
+				break;
+			else if (zerr == Z_OK)
+				continue;
+			else
+				Host_EndGame ("CL_ParseZDownload: stream truncated");
+		}
+		if (inflateEnd(&s) != Z_OK)
+			Host_EndGame ("CL_ParseZDownload: stream truncated");
+		VFS_WRITE (dl->file, cdata, s.total_out - done);
+		done = s.total_out;
+		if (s.total_out != ulen || s.total_in != clen)
+			Host_EndGame ("CL_ParseZDownload: stream truncated");
+
+#else
+		Host_EndGame("Unable to handle zlib downloads, zlib is not supported in this build");
+#endif
+		msg_readcount += size;
+	}
+	else
 #ifdef PEXT_ZLIBDL
 	if (percent >= 101 && percent <= 201)// && cls.fteprotocolextensions & PEXT_ZLIBDL)
 	{
@@ -2534,7 +2604,7 @@ qboolean CL_ParseOOBDownload(void)
 	if (MSG_ReadChar() != svc_download)
 		return false;
 
-	CL_ParseDownload();
+	CL_ParseDownload(false);
 	return true;
 }
 
@@ -3204,6 +3274,7 @@ void CLQ2_ParseServerData (void)
 
 	cl.numq2visibleweapons = 1;	//give it a default.
 	cl.q2visibleweapons[0] = "weapon.md2";
+	cl.q2svnetrate = 10;
 
 	// get the full level name
 	str = MSG_ReadString ();
@@ -3217,11 +3288,16 @@ void CLQ2_ParseServerData (void)
 		if (isenhanced)
 			Host_EndGame ("R1Q2 server is running an unsupported mod");
 		r1q2ver = MSG_ReadShort();	//protocol version... limit... yeah, buggy.
-		if (r1q2ver < 1903 || r1q2ver > 1905)
+		if (r1q2ver > 1905)
 			Host_EndGame ("R1Q2 server version %i not supported", r1q2ver);
-		MSG_ReadByte();	//'used to be advanced deltas'
-		MSG_ReadByte(); //strafejump hack
 
+		if (r1q2ver >= 1903)
+		{
+			MSG_ReadByte();	//'used to be advanced deltas'
+			MSG_ReadByte(); //strafejump hack
+		}
+		if (r1q2ver >= 1904)
+			cls.netchan.netprim.flags |= NPQ2_R1Q2_UCMD;
 		if (r1q2ver >= 1905)
 			cls.netchan.netprim.flags |= NPQ2_SOLID32;
 	}
@@ -3241,6 +3317,7 @@ void CLQ2_ParseServerData (void)
 			MSG_ReadByte();	//some kind of waterjump hack enable
 	}
 
+	cls.netchan.message.prim = cls.netchan.netprim;
 	MSG_ChangePrimitives(cls.netchan.netprim);
 
 	if (cl.playerview[0].playernum == -1)
@@ -3435,6 +3512,21 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 	CLNQ_ParseProtoVersion();
 
+	if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
+	{
+		str = MSG_ReadString();
+#ifndef CLIENTONLY
+		if (!sv.state)
+#endif
+		{
+			COM_FlushTempoaryPacks();
+			COM_Gamedir(str, NULL);
+#ifndef CLIENTONLY
+			Info_SetValueForStarKey (svs.info, "*gamedir", str, MAX_SERVERINFO_STRING);
+#endif
+		}
+	}
+
 	cl.allocated_client_slots = MSG_ReadByte();
 	if (cl.allocated_client_slots > MAX_CLIENTS)
 	{
@@ -3623,9 +3715,9 @@ void CLNQ_ParseClientdata (void)
 		CL_SetStatInt(0, STAT_VIEWHEIGHT, DEFAULT_VIEWHEIGHT);
 
 	if (bits & SU_IDEALPITCH)
-		/*cl.idealpitch =*/ MSG_ReadChar ();
-	/*else
-		cl.idealpitch = 0;*/
+		CL_SetStatInt(0, STAT_IDEALPITCH, MSG_ReadChar ());
+	else
+		CL_SetStatInt(0, STAT_IDEALPITCH, 0);
 
 	for (i=0 ; i<3 ; i++)
 	{
@@ -4325,8 +4417,14 @@ void CL_ParseStatic (int version)
 
 	VectorCopy (es.origin, ent->origin);
 	VectorCopy (es.angles, ent->angles);
-	es.angles[0]*=-1;
-	AngleVectors(es.angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+	if (ent->model && ent->model->type == mod_alias)
+	{
+		es.angles[0]*=-1;
+		AngleVectors(es.angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+		es.angles[0]*=-1;
+	}
+	else
+		AngleVectors(es.angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 	VectorInverse(ent->axis[1]);
 
 	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
@@ -6782,7 +6880,7 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_download:
-			CL_ParseDownload ();
+			CL_ParseDownload (false);
 			break;
 
 		case svc_playerinfo:
@@ -6906,6 +7004,63 @@ void CLQW_ParseServerMessage (void)
 }
 
 #ifdef Q2CLIENT
+void CLQ2_ParseZPacket(void)
+{
+#ifndef AVAIL_ZLIB
+	Host_EndGame ("CLQ2_ParseZPacket: zlib not supported in this build");
+#else
+	z_stream s;
+	char *indata, *outdata;	//we're hacking stuff onto the end of the current buffer, to avoid issues if something errors out and doesn't leave net_message in a clean state
+	unsigned short clen = MSG_ReadShort();
+	unsigned short ulen = MSG_ReadShort();
+	sizebuf_t restoremsg;
+	int restorereadcount;
+	if (clen > net_message.cursize-msg_readcount)
+		Host_EndGame ("CLQ2_ParseZPacket: svcr1q2_zpacket truncated");
+	if (ulen > net_message.maxsize-net_message.cursize)
+		Host_EndGame ("CLQ2_ParseZPacket: svcr1q2_zpacket overflow");
+	indata = net_message.data + msg_readcount;
+	outdata = net_message.data + net_message.cursize;
+	MSG_ReadSkip(clen);
+	restoremsg = net_message;
+	restorereadcount = msg_readcount;
+	msg_readcount = net_message.cursize;
+	net_message.cursize += ulen;
+
+	memset(&s, 0, sizeof(s));
+	s.next_in = indata;
+	s.avail_in = clen;
+	s.total_in = 0;
+	s.next_out = outdata;
+	s.avail_out = ulen;
+	s.total_out = 0;
+	if (inflateInit2(&s, -15) != Z_OK)
+		Host_EndGame ("CLQ2_ParseZPacket: unable to initialise zlib");
+	if (inflate(&s, Z_FINISH) != Z_STREAM_END)
+		Host_EndGame ("CLQ2_ParseZPacket: stream truncated");
+	if (inflateEnd(&s) != Z_OK)
+		Host_EndGame ("CLQ2_ParseZPacket: stream truncated");
+	if (s.total_out != ulen || s.total_in != clen)
+		Host_EndGame ("CLQ2_ParseZPacket: stream truncated");
+
+	CLQ2_ParseServerMessage();
+	net_message = restoremsg;
+	msg_readcount = restorereadcount;
+	msg_badread = false;
+#endif
+}
+void CLR1Q2_ParseSetting(void)
+{
+	int setting = MSG_ReadLong();
+	int value = MSG_ReadLong();
+
+	if (setting == R1Q2_SVSET_FPS)
+	{
+		cl.q2svnetrate = value;
+		if (cl.validsequence)
+			Con_Printf("warning: fps rate changed mid-game\n");	//fixme: we need to clean up lerping stuff. if its now lower, we might have a whole load of things waiting ages for a timeout.
+	}
+}
 void CL_WriteDemoMessage (sizebuf_t *msg, int payloadoffset);
 void CLQ2_ParseServerMessage (void)
 {
@@ -6968,6 +7123,7 @@ void CLQ2_ParseServerMessage (void)
 		switch (cmd)
 		{
 		default:
+isilegible:
 			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
 			{
 				switch(cmd & 0x1f)
@@ -7064,7 +7220,7 @@ void CLQ2_ParseServerMessage (void)
 				SCR_CenterPrint (seat, s, false);
 			break;
 		case svcq2_download:		//16		// [short] size [size bytes]
-			CL_ParseDownload();
+			CL_ParseDownload(false);
 			break;
 		case svcq2_playerinfo:	//17			// variable
 			Host_EndGame ("CL_ParseServerMessage: svcq2_playerinfo not as part of svcq2_frame");
@@ -7077,6 +7233,31 @@ void CLQ2_ParseServerMessage (void)
 			return;
 		case svcq2_frame:			//20 (the bastard to implement.)
 			CLQ2_ParseFrame(0);
+			break;
+
+		case svcr1q2_zpacket:	//r1q2, just try to ignore it.
+			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+				CLQ2_ParseZPacket();
+			else
+				goto isilegible;
+			break;
+		case svcr1q2_zdownload:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+				CL_ParseDownload(true);
+			else
+				goto isilegible;
+			break;
+		case svcr1q2_playerupdate:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2)
+				CLR1Q2_ParsePlayerUpdate();
+			else
+				goto isilegible;
+			break;
+		case svcr1q2_setting:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2)
+				CLR1Q2_ParseSetting();
+			else
+				goto isilegible;
 			break;
 		}
 	}
@@ -7479,6 +7660,14 @@ void CLNQ_ParseServerMessage (void)
 			cl.oldgametimemark = cl.gametimemark;
 			cl.gametime = MSG_ReadFloat();
 			cl.gametimemark = realtime;
+
+			if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
+			{
+				unsigned int seq = (cl.ackedmovesequence&0xffff0000) | MSG_ReadShort();
+				if (seq > cl.ackedmovesequence)
+					seq -= 0x10000;	//protect against wraps.
+				cl.ackedmovesequence = seq;
+			}
 
 			{
 				extern vec3_t demoangles;

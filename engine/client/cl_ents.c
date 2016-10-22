@@ -786,7 +786,19 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		news->lightpflags = MSG_ReadByte();
 	}
 	if (bits & UF_TRAILEFFECT)
-		news->u.q1.traileffectnum = MSG_ReadShort();
+	{
+		unsigned short s;
+		s = MSG_ReadShort();
+		news->u.q1.traileffectnum = s & 0x3fff;
+		if (news->u.q1.traileffectnum >= countof(cl.particle_ssprecache))
+			news->u.q1.traileffectnum = 0;
+		if (s & 0x8000)
+			news->u.q1.emiteffectnum = MSG_ReadShort() & 0x3fff;
+		else
+			news->u.q1.emiteffectnum = 0;
+		if (news->u.q1.emiteffectnum >= countof(cl.particle_ssprecache))
+			news->u.q1.emiteffectnum = 0;
+	}
 
 	if (bits & UF_COLORMOD)
 	{
@@ -870,7 +882,12 @@ void CLFTE_ParseEntities(void)
 		cls.netchan.incoming_sequence++;
 		cl.last_servermessage = realtime;
 		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
-			inputframe = MSG_ReadLong();
+		{
+			inputframe = (unsigned short)MSG_ReadShort();
+			inputframe = (cl.movesequence&0xffff0000) | inputframe;
+			if (inputframe > cl.movesequence)
+				inputframe -= 0x00010000;	//err, if its in the future then cl.movesequence must have wrapped.
+		}
 		else
 			inputframe = cl.movesequence;
 
@@ -1781,7 +1798,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 	else if (cls.protocol_nq == CPNQ_FITZ666)
 	{
 		if (bits & FITZU_ALPHA)
-			state->trans = MSG_ReadByte();
+			state->trans = (MSG_ReadByte()-1)&0xff;
 
 		if (bits & RMQU_SCALE)
 			state->scale = MSG_ReadByte();
@@ -3125,9 +3142,11 @@ void CL_ClearLerpEntsParticleState(void)
 void CL_LinkStaticEntities(void *pvs)
 {
 	int i;
-	entity_t *ent, *stat;
+	entity_t *ent;
 	model_t		*clmodel;
+	static_entity_t *stat;
 	extern cvar_t r_drawflame, gl_part_flame;
+	vec3_t mins, maxs;
 
 	if (r_drawflame.ival < 0 || r_drawentities.ival == 0)
 		return;
@@ -3139,32 +3158,82 @@ void CL_LinkStaticEntities(void *pvs)
 	{
 		if (cl_numvisedicts == cl_maxvisedicts)
 			break;
-		stat = &cl_static_entities[i].ent;
+		stat = &cl_static_entities[i];
 
-		clmodel = stat->model;
-		if (!clmodel || clmodel->loadstate != MLS_LOADED)
-			continue;
+		clmodel = stat->ent.model;
 
-		if ((!r_drawflame.ival) && (clmodel->engineflags & MDLF_FLAME))
-			continue;
+		if (!clmodel)
+		{
+			if (stat->mdlidx < 0)
+			{
+				if (stat->mdlidx > -MAX_CSMODELS)
+					clmodel = cl.model_csqcprecache[-stat->mdlidx];
+			}
+			else
+			{
+				if (stat->mdlidx < MAX_PRECACHE_MODELS)
+					clmodel = cl.model_precache[stat->mdlidx];
+			}
+			if (!clmodel || clmodel->loadstate == MLS_LOADING)
+				continue;
+			if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
+				continue;
+
+			stat->ent.model = clmodel;
+
+			//figure out the correct axis for the model
+			if (clmodel && clmodel->type == mod_alias && (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE))
+			{
+				stat->state.angles[0]*=-1;
+				AngleVectors(stat->state.angles, stat->ent.axis[0], stat->ent.axis[1], stat->ent.axis[2]);
+				stat->state.angles[0]*=-1;
+			}
+			else
+				AngleVectors(stat->state.angles, stat->ent.axis[0], stat->ent.axis[1], stat->ent.axis[2]);
+			VectorInverse(stat->ent.axis[1]);
+
+
+			if (clmodel)
+			{
+				//FIXME: wait for model to load so we know the correct size?
+				/*FIXME: compensate for angle*/
+				VectorAdd(stat->state.origin, clmodel->mins, mins);
+				VectorAdd(stat->state.origin, clmodel->maxs, maxs);
+			}
+			else
+			{
+				VectorCopy(stat->state.origin, mins);
+				VectorCopy(stat->state.origin, maxs);
+			}
+			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &stat->pvscache, mins, maxs);
+		}
 
 		/*pvs test*/
-		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &cl_static_entities[i].pvscache, pvs))
+		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &stat->pvscache, pvs))
 			continue;
 
-		ent = &cl_visedicts[cl_numvisedicts++];
-		*ent = *stat;
-		ent->framestate.g[FS_REG].frametime[0] = cl.time;
-		ent->framestate.g[FS_REG].frametime[1] = cl.time;
-
-	// emit particles for statics (we don't need to cheat check statics)
-		if (clmodel->particleeffect >= 0 && gl_part_flame.ival)
+		// emit particles for statics (we don't need to cheat check statics)
+		if (stat->state.u.q1.emiteffectnum)
+			P_EmitEffect (stat->ent.origin, stat->ent.axis, MDLF_EMITFORWARDS, CL_TranslateParticleFromServer(stat->state.u.q1.emiteffectnum), &(stat->emit));
+		else if (clmodel && clmodel->particleeffect >= 0 && gl_part_flame.ival)
 		{
 			// TODO: this is ugly.. assumes ent is in static entities, and subtracts
 			// pointer math to get an index to use in cl_static emit
 			// there needs to be a cleaner method for this
-			P_EmitEffect(ent->origin, clmodel->particleeffect, &cl_static_entities[i].emit);
+			P_EmitEffect(stat->ent.origin, stat->ent.axis, clmodel->engineflags, clmodel->particleeffect, &stat->emit);
+
+			if ((!r_drawflame.ival) && (clmodel->engineflags & MDLF_FLAME))
+				continue;
 		}
+
+		//prepare to draw it
+		if (!clmodel || clmodel->loadstate != MLS_LOADED)
+			continue;
+
+		ent = &cl_visedicts[cl_numvisedicts++];
+		*ent = stat->ent;
+		ent->framestate.g[FS_REG].frametime[0] = cl.time;
+		ent->framestate.g[FS_REG].frametime[1] = cl.time;
 
 //  FIXME: no effects on static ents
 //		CLQ1_AddPowerupShell(ent, false, stat->effects);
@@ -4034,6 +4103,11 @@ void CL_LinkPacketEntities (void)
 		if (state->u.q1.traileffectnum)
 			trailef = CL_TranslateParticleFromServer(state->u.q1.traileffectnum);
 
+		if (state->u.q1.emiteffectnum)
+			P_EmitEffect (ent->origin, ent->axis, MDLF_EMITFORWARDS, CL_TranslateParticleFromServer(state->u.q1.emiteffectnum), &(le->emitstate));
+		else if (model->particleeffect != P_INVALID && cls.allow_anyparticles && gl_part_flame.ival)
+			P_EmitEffect (ent->origin, ent->axis, model->engineflags, model->particleeffect, &(le->emitstate));
+
 		// add automatic particle trails
 		if (!model || (!(modelflags&~MF_ROTATE) && trailef < 0))
 			continue;
@@ -4065,8 +4139,6 @@ void CL_LinkPacketEntities (void)
 			if (trailef == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, trailef, ent->keynum, ent->axis, &(le->trailstate)))
 				if (model->traildefaultindex >= 0)
 					pe->ParticleTrailIndex(old_origin, ent->origin, trailidx, 0, &(le->trailstate));
-			if (model->particleeffect != P_INVALID && cls.allow_anyparticles && gl_part_flame.ival)
-				P_EmitEffect (ent->origin, model->particleeffect, &(le->emitstate));
 
 			//dlights are not so customisable.
 			if (r_rocketlight.value && (modelflags & MF_ROCKET) && !(state->lightpflags & (PFLAGS_FULLDYNAMIC|PFLAGS_CORONA)))

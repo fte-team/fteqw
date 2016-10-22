@@ -322,7 +322,11 @@ PROGS_DIR=$(BASE_DIR)/qclib
 NACL_DIR=$(BASE_DIR)/nacl
 BOTLIB_DIR=$(BASE_DIR)/botlib
 
-ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(BRANDFLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS) $(ARCH_CFLAGS)
+ifeq ($(NOCOMPAT),1)
+	NCCFLAGS=-DNOLEGACY -DOMIT_QCC
+	NCDIRPREFIX=nc
+endif
+ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(BRANDFLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS) $(ARCH_CFLAGS) $(NCCFLAGS)
 
 #cheap compile-everything-in-one-unit (compile becomes preprocess only)
 ifneq ($(WPO),)
@@ -1192,6 +1196,14 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	MINGL_EXE_NAME=../fteqw-mingl$(BITS)
 	MINGL_DIR=mingl_linux$(BITS)
 
+	ifeq ($(NOCOMPAT),1)
+		SV_EXE_NAME=../engine-sv$(BITS)$(EXEPOSTFIX)
+		GL_EXE_NAME=../engine-gl$(BITS)$(EXEPOSTFIX)
+		VK_EXE_NAME=../engine-vk$(BITS)$(EXEPOSTFIX)
+		M_EXE_NAME=../engine$(BITS)$(EXEPOSTFIX)
+		D3D_EXE_NAME=../engine-d3d$(BITS)$(EXEPOSTFIX)
+		MINGL_EXE_NAME=../engine-mingl$(BITS)$(EXEPOSTFIX)
+	endif
 endif
 ifneq (,$(findstring rpi,$(FTE_TARGET)))
 	#These next two lines enable cross compiling. If you're compiling natively you can just kill the two.
@@ -1533,11 +1545,11 @@ _clsv-profile: reldir
 sv-tmp: reldir debugdir
 	@$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SV_EXE_NAME)" WCFLAGS="$(SV_CFLAGS)" LDFLAGS="$(SV_LDFLAGS) $(LDFLAGS)" OBJS="SV_OBJS"
 sv-rel:
-	@$(MAKE) sv-tmp TYPE=_out-rel OUT_DIR="$(RELEASE_DIR)/$(SV_DIR)"
+	@$(MAKE) sv-tmp TYPE=_out-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(SV_DIR)"
 sv-dbg:
-	@$(MAKE) sv-tmp TYPE=_out-dbg OUT_DIR="$(DEBUG_DIR)/$(SV_DIR)"
+	@$(MAKE) sv-tmp TYPE=_out-dbg OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(SV_DIR)"
 sv-profile:
-	@$(MAKE) sv-tmp TYPE=_out-profile OUT_DIR="$(PROFILE_DIR)/$(SV_DIR)"
+	@$(MAKE) sv-tmp TYPE=_out-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(SV_DIR)"
 
 d3dcl-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(D3DCL_EXE_NAME)" WCFLAGS="$(D3D_CFLAGS)" LDFLAGS="$(D3D_LDFLAGS) $(LDFLAGS)" SOBJS="$(D3DCL_OBJS)"
@@ -1545,18 +1557,18 @@ d3d-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(D3D_EXE_NAME)" WCFLAGS="$(D3D_CFLAGS)" LDFLAGS="$(D3D_LDFLAGS) $(LDFLAGS)" SOBJS="$(D3DCL_OBJS)"
 
 d3dcl-rel:
-	@$(MAKE) d3dcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(D3DCL_DIR)"
+	@$(MAKE) d3dcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(D3DCL_DIR)"
 d3dcl-dbg:
-	@$(MAKE) d3dcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(D3DCL_DIR)"
+	@$(MAKE) d3dcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(D3DCL_DIR)"
 d3dcl-profile:
-	@$(MAKE) d3dcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(D3DCL_DIR)"
+	@$(MAKE) d3dcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(D3DCL_DIR)"
 
 d3d-rel:
-	@$(MAKE) d3d-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(D3DB_DIR)"
+	@$(MAKE) d3d-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(D3DB_DIR)"
 d3d-dbg:
-	@$(MAKE) d3d-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(D3DB_DIR)"
+	@$(MAKE) d3d-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(D3DB_DIR)"
 d3d-profile:
-	@$(MAKE) d3d-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(D3DB_DIR)"
+	@$(MAKE) d3d-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(D3DB_DIR)"
 
 
 
@@ -1566,18 +1578,18 @@ vk-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(VK_EXE_NAME)" WCFLAGS="$(VK_CFLAGS)" LDFLAGS="$(VK_LDFLAGS) $(LDFLAGS)" SOBJS="$(VKCL_OBJS)"
 
 vkcl-rel:
-	@$(MAKE) vkcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(VKCL_DIR)"
+	@$(MAKE) vkcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(VKCL_DIR)"
 vkcl-dbg:
-	@$(MAKE) vkcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(VKCL_DIR)"
+	@$(MAKE) vkcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(VKCL_DIR)"
 vkcl-profile:
-	@$(MAKE) vkcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(VKCL_DIR)"
+	@$(MAKE) vkcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(VKCL_DIR)"
 
 vk-rel:
-	@$(MAKE) vk-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(VKB_DIR)"
+	@$(MAKE) vk-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(VKB_DIR)"
 vk-dbg:
-	@$(MAKE) vk-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(VKB_DIR)"
+	@$(MAKE) vk-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(VKB_DIR)"
 vk-profile:
-	@$(MAKE) vk-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(VKB_DIR)"
+	@$(MAKE) vk-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(VKB_DIR)"
 
 
 glcl-tmp:
@@ -1586,26 +1598,26 @@ gl-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
 
 glcl-rel:
-	@$(MAKE) glcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(GLCL_DIR)"
+	@$(MAKE) glcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(GLCL_DIR)"
 glcl-dbg:
-	@$(MAKE) glcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(GLCL_DIR)"
+	@$(MAKE) glcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(GLCL_DIR)"
 glcl-profile:
-	@$(MAKE) glcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(GLCL_DIR)"
+	@$(MAKE) glcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(GLCL_DIR)"
 gl-rel:
-	@$(MAKE) gl-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(GLB_DIR)"
+	@$(MAKE) gl-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(GLB_DIR)"
 gl-dbg:
-	@$(MAKE) gl-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(GLB_DIR)"
+	@$(MAKE) gl-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(GLB_DIR)"
 gl-profile:
-	@$(MAKE) gl-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(GLB_DIR)"
+	@$(MAKE) gl-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(GLB_DIR)"
 
 mingl-tmp: reldir
 	@$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MINGL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS) -DMINIMAL" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
 mingl-rel:
-	@$(MAKE) mingl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(MINGL_DIR)"
+	@$(MAKE) mingl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(MINGL_DIR)"
 mingl-dbg:
-	@$(MAKE) mingl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(MINGL_DIR)"
+	@$(MAKE) mingl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(MINGL_DIR)"
 mingl-profile:
-	@$(MAKE) mingl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(MINGL_DIR)"
+	@$(MAKE) mingl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(MINGL_DIR)"
 
 mcl-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(MCL_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS) $(LDFLAGS)" SOBJS="$(MCL_OBJS)"
@@ -1613,17 +1625,17 @@ m-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(M_EXE_NAME)" WCFLAGS="$(M_CFLAGS)" LDFLAGS="$(M_LDFLAGS) $(LDFLAGS)" SOBJS="$(MCL_OBJS)"
 
 mcl-rel:
-	@$(MAKE) mcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(MCL_DIR)"
+	@$(MAKE) mcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(MCL_DIR)"
 mcl-dbg:
-	@$(MAKE) mcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(MCL_DIR)"
+	@$(MAKE) mcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(MCL_DIR)"
 mcl-profile:
-	@$(MAKE) mcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(MCL_DIR)"
+	@$(MAKE) mcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(MCL_DIR)"
 m-rel:
-	@$(MAKE) m-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(MB_DIR)"
+	@$(MAKE) m-tmp TYPE=_clsv-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(MB_DIR)"
 m-dbg:
-	@$(MAKE) m-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(MB_DIR)"
+	@$(MAKE) m-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(MB_DIR)"
 m-profile:
-	@$(MAKE) m-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(MB_DIR)"
+	@$(MAKE) m-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(MB_DIR)"
 
 .PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir makelibs
 
@@ -1631,13 +1643,13 @@ m-profile:
 _qcc-tmp: $(REQDIR)
 	@$(MAKE) $(TYPE) EXE_NAME="$(EXE_NAME)$(EXEPOSTFIX)" PRECOMPHEADERS="" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS) $(QCC_LDFLAGS)" OBJS="QCC_OBJS SOBJS"
 qcc-rel:
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-rel:
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 qcc-dbg:
-	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(QCC_DIR)" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(QCC_DIR)" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-dbg:
-	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 
 #scintilla is messy as fuck when building statically. but at least we can strip out the lexers we don't use this way.

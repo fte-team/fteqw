@@ -274,6 +274,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(glow_color,NULL)\
 	comfieldfloat(glow_trail,NULL)\
 	comfieldfloat(traileffectnum,"This should be set to the result of particleeffectnum, in order to attach a custom trail effect to an entity as it moves.")/*DP_ENT_TRAILEFFECTNUM*/\
+	comfieldfloat(emiteffectnum,"This should be set to the result of particleeffectnum, in order to continually spawn particles in the direction that this entity faces.")/*DP_ENT_TRAILEFFECTNUM*/\
 	/*comfieldfloat(baseframe,"Specifies the current frame(group) to use for the lower (numerically) bones of a skeletal model. The basebone field specifies the bone where the regular frame field takes over.")*/	/*FTESS_QC_BASEFRAME*/\
 	/*comfieldfloat(basebone,"Specifies the bone at which the baseframe* fields stop being effective.")*/	/*FTE_SSQC_BASEFRAME*/\
 	comfieldfloat(dimension_see,"This is the dimension mask (bitfield) that the client is allowed to see. Entities and events not in this dimension mask will be invisible.")/*EXT_DIMENSION_VISIBLE*/\

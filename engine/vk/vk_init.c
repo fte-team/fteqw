@@ -1099,8 +1099,6 @@ void	VK_R_DeInit					(void)
 
 void VK_SetupViewPortProjection(qboolean flipy)
 {
-	extern cvar_t gl_mindist;
-
 	float fov_x, fov_y;
 
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
@@ -1131,7 +1129,10 @@ void VK_SetupViewPortProjection(qboolean flipy)
 		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 		r_refdef.flipcull = 0;
 	}
-	Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, bound(0.1, gl_mindist.value, 4));
+	if (r_refdef.maxdist)
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+	else
+		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist);
 }
 
 void VK_Set2D(void)
@@ -3052,6 +3053,11 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 				nvglsl = !!vk_loadglsl.ival;
 		}
 		free(ext);
+
+		if (nvglsl)
+			Con_Printf("Using %s.\n", VK_NV_GLSL_SHADER_EXTENSION_NAME);
+		else if (vk_loadglsl.ival)
+			Con_Printf("unable to enable %s extension. direct use of glsl is not supported.\n", VK_NV_GLSL_SHADER_EXTENSION_NAME);
 	}
 	{
 		const char *devextensions[8];

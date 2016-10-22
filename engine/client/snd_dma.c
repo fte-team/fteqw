@@ -2421,7 +2421,7 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 #ifdef CSQC_DAT
 		if (ch->entnum < 0 && -ch->entnum < csqc_world.num_edicts)
 		{
-			wedict_t *ed = &csqc_world.edicts[-ch->entnum];
+			wedict_t *ed = WEDICT_NUM(csqc_world.progs, -ch->entnum);
 			if (ed->ereftype == ER_ENTITY)
 			{
 				VectorCopy(ed->v->origin, ch->origin);
@@ -3350,6 +3350,8 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 
 		if (sc->ChannelUpdate)
 		{
+			if (ch->flags & CF_FOLLOW)
+				SND_Spatialize(sc, ch);	//update it a little
 			sc->ChannelUpdate(sc, ch, false);
 			continue;
 		}

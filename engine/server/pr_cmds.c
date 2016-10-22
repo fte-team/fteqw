@@ -398,6 +398,7 @@ static void ASMCALL ThinkTimeOp (pubprogfuncs_t *prinst, edict_t *ed, float var)
 }
 #endif
 
+static int SV_ParticlePrecache_Add(const char *pname);
 static pbool PDECL SV_BadField(pubprogfuncs_t *inst, edict_t *foo, const char *keyname, const char *value)
 {
 #ifdef HEXEN2
@@ -418,6 +419,20 @@ static pbool PDECL SV_BadField(pubprogfuncs_t *inst, edict_t *foo, const char *k
 		}
 	}
 #endif
+
+	if (!strcmp(keyname, "traileffect"))
+	{
+		foo->xv->traileffectnum = SV_ParticlePrecache_Add(value);
+		return true;
+	}
+	if (!strcmp(keyname, "emiteffect"))
+	{
+		foo->xv->emiteffectnum = SV_ParticlePrecache_Add(value);
+		return true;
+	}
+
+	if (!strcmp(keyname, "sky") || !strcmp(keyname, "fog"))
+		return true;	//these things are handled in the client, so don't warn if they're used.
 
 	//don't spam warnings about missing fields if we failed to load the progs.
 	if (!svs.numprogs)
@@ -1189,7 +1204,7 @@ void PR_ApplyCompilation_f (void)
 	PR_RegisterFields();
 	sv.world.edict_size=PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, s, 0);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, s, NULL, NULL);
 
 
 	PR_LoadGlabalStruct(false);
@@ -1410,6 +1425,207 @@ void SVQ1_CvarChanged(cvar_t *var)
 	{
 		PR_AutoCvar(svprogfuncs, var);
 	}
+}
+
+static void QCBUILTIN PF_precache_model (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+static void QCBUILTIN PF_setmodel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_makestatic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+static void PR_FallbackSpawn_Misc_Model(pubprogfuncs_t *progfuncs, edict_t *self)
+{
+	void *pr_globals;
+	eval_t *val;
+
+	if (!self->v->model && (val = progfuncs->GetEdictFieldValue(progfuncs, self, "mdl", ev_string, NULL)))
+		self->v->model = val->string;
+	if (!*PR_GetString(progfuncs, self->v->model)) //must have a model, because otherwise various things will assume its not valid at all.
+		progfuncs->SetStringField(progfuncs, self, &self->v->model, "*null", true);
+
+	if (self->v->angles[1] < 0)	//mimic AD. shame there's no avelocity clientside.
+		self->v->angles[1] = (rand()*(360.0f/RAND_MAX));
+
+	//make sure the model is precached, to avoid errors.
+	pr_globals = PR_globals(progfuncs, PR_CURRENT);
+	G_INT(OFS_PARM0) = self->v->model;
+	PF_precache_model(progfuncs, pr_globals);
+
+	pr_globals = PR_globals(progfuncs, PR_CURRENT);
+	G_INT(OFS_PARM0) = EDICT_TO_PROG(progfuncs, self);
+	G_INT(OFS_PARM1) = self->v->model;
+	PF_setmodel(progfuncs, pr_globals);
+
+	//and lets just call makestatic instead of worrying if it'll interfere with the rest of the qc.
+	pr_globals = PR_globals(progfuncs, PR_CURRENT);
+	G_INT(OFS_PARM0) = EDICT_TO_PROG(progfuncs, self);
+	PF_makestatic(progfuncs, pr_globals);
+}
+struct spawnents_s
+{
+	int killonspawnflags;
+	eval_t *fulldata;
+	func_t CheckSpawn;
+	const char *spawnwarned[32];
+};
+static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edict_s *ed, void *vctx, const char *start, const char *end)
+{
+	struct spawnents_s *ctx = vctx;
+	const char *eclassname;
+	func_t f;
+	char spawnfuncname[256];
+
+	if ((int)ed->v->spawnflags & ctx->killonspawnflags)
+	{
+		ED_Free(progfuncs, (struct edict_s *)ed);
+		return;
+	}
+
+	if (!ctx->CheckSpawn)
+		ctx->CheckSpawn = PR_FindFunction(progfuncs, "CheckSpawn", -2);
+
+	eclassname = PR_GetString(progfuncs, ed->v->classname);
+	if (!*eclassname)
+	{
+		printf("No classname\n");
+		ED_Free(progfuncs, ed);
+	}
+	else
+	{
+		//added by request of Mercury.
+		if (ctx->fulldata)	//this is a vital part of HL map support!!!
+		{	//essentually, it passes the ent's spawn info to the ent.
+			char *spawndata;//a standard quake ent.
+#ifdef QCGC
+			const char *in;
+			ctx->fulldata->string = progfuncs->AllocTempString(progfuncs, &spawndata, end-start+1);
+			for (in = start; in < end; in++)
+			{
+				if (*in == '\n')
+				{
+					in++;
+					*spawndata++ = '\t';
+				}
+				else
+					*spawndata++ = *in++;
+			}
+			*spawndata = 0;
+#else
+			char *nl;	//otherwise it sees only the named fields of
+			spawndata = PRHunkAlloc(progfuncs, file - datastart +1, "fullspawndata");
+			strncpy(spawndata, datastart, file - datastart);
+			spawndata[file - datastart] = '\0';
+			for (nl = spawndata; *nl; nl++)
+				if (*nl == '\n')
+					*nl = '\t';
+			ctx->fulldata->string = PR_StringToProgs(&progfuncs->funcs, spawndata);
+#endif
+		}
+
+		*sv.world.g.self = EDICT_TO_PROG(progfuncs, ed);
+
+		//DP_SV_SPAWNFUNC_PREFIX support
+		Q_snprintfz(spawnfuncname, sizeof(spawnfuncname), "spawnfunc_%s", eclassname);
+		f = PR_FindFunction(progfuncs, spawnfuncname, PR_ANYBACK);
+		if (!f)
+			f = PR_FindFunction(progfuncs, eclassname, PR_ANYBACK);
+		if (f)
+		{
+			if (ctx->CheckSpawn)
+			{
+				void *pr_globals = PR_globals(progfuncs, PR_CURRENT);
+				G_INT(OFS_PARM0) = f;
+				PR_ExecuteProgram(progfuncs, ctx->CheckSpawn);
+				//call the spawn func or remove.
+			}
+			else
+				PR_ExecuteProgram(progfuncs, f);
+		}
+		else if (ctx->CheckSpawn)
+		{
+			void *pr_globals = PR_globals(progfuncs, PR_CURRENT);
+			G_INT(OFS_PARM0) = 0;
+			PR_ExecuteProgram(progfuncs, ctx->CheckSpawn);
+			//the mod is responsible for freeing unrecognised ents.
+		}
+		else if (!strcmp(eclassname, "misc_model"))
+			PR_FallbackSpawn_Misc_Model(progfuncs, ed);
+		else
+		{
+			//only warn on the first occurence of the classname, don't spam.
+			int i;
+			if (svs.numprogs)
+				for (i = 0; i < countof(ctx->spawnwarned); i++)
+				{
+					if (!ctx->spawnwarned[i])
+					{
+						printf("Couldn't find spawn function for %s\n", eclassname);
+						ctx->spawnwarned[i] = eclassname;
+						break;
+					}
+					else if (!strcmp(ctx->spawnwarned[i], eclassname))
+						break;
+				}
+			ED_Free(progfuncs, ed);
+		}
+	}
+}
+void PR_SpawnInitialEntities(const char *file)
+{
+	extern cvar_t skill;
+	struct spawnents_s ctx;
+	memset(&ctx, 0, sizeof(ctx));
+
+#ifdef HEXEN2
+	if (progstype == PROG_H2)
+	{
+		extern cvar_t coop;
+		if (deathmatch.value)
+			ctx.killonspawnflags = SPAWNFLAG_NOT_H2DEATHMATCH;
+		else if (coop.value)
+			ctx.killonspawnflags = SPAWNFLAG_NOT_H2COOP;
+		else
+		{
+			cvar_t *cl_playerclass = Cvar_Get("cl_playerclass", "0", CVAR_USERINFO, 0);
+			ctx.killonspawnflags = SPAWNFLAG_NOT_H2SINGLE;
+
+			if (cl_playerclass && cl_playerclass->ival == 1)
+				ctx.killonspawnflags |= SPAWNFLAG_NOT_H2PALADIN;
+			else if (cl_playerclass && cl_playerclass->ival == 2)
+				ctx.killonspawnflags |= SPAWNFLAG_NOT_H2CLERIC;
+			else if (cl_playerclass && cl_playerclass->ival == 3)
+				ctx.killonspawnflags |= SPAWNFLAG_NOT_H2NECROMANCER;
+			else if (cl_playerclass && cl_playerclass->ival == 4)
+				ctx.killonspawnflags |= SPAWNFLAG_NOT_H2THEIF;
+			else if (cl_playerclass && cl_playerclass->ival == 5)
+				ctx.killonspawnflags |= SPAWNFLAG_NOT_H2NECROMANCER;	/*yes, I know.,. makes no sense*/
+		}
+		if (skill.value < 0.5)
+			ctx.killonspawnflags |= SPAWNFLAG_NOT_H2EASY;
+		else if (skill.value > 1.5)
+			ctx.killonspawnflags |= SPAWNFLAG_NOT_H2HARD;
+		else
+			ctx.killonspawnflags |= SPAWNFLAG_NOT_H2MEDIUM;
+
+		//don't filter based on player class. we're lame and don't have any real concept of player classes.
+	}
+	else
+#endif
+		if (!deathmatch.value)	//decide if we are to inhibit single player game ents instead
+	{
+		if (skill.value < 0.5)
+			ctx.killonspawnflags = SPAWNFLAG_NOT_EASY;
+		else if (skill.value > 1.5)
+			ctx.killonspawnflags = SPAWNFLAG_NOT_HARD;
+		else
+			ctx.killonspawnflags = SPAWNFLAG_NOT_MEDIUM;
+	}
+	else
+		ctx.killonspawnflags = SPAWNFLAG_NOT_DEATHMATCH;
+
+	ctx.fulldata = PR_FindGlobal(svprogfuncs, "__fullspawndata", PR_ANY, NULL);
+
+	if (svprogfuncs)
+		sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, &ctx, PR_DoSpawnInitialEntity);
+	else
+		sv.world.edict_size = 0;
 }
 
 void SV_RegisterH2CustomTents(void);
@@ -2888,6 +3104,7 @@ static void QCBUILTIN PF_te_blooddp (pubprogfuncs_t *prinst, globalvars_t *pr_gl
 	MSG_WriteByte (&sv.nqmulticast, 73);
 #endif
 
+	(void)dir; //FIXME: sould be sending TEDP_BLOOD
 	MSG_WriteByte (&sv.multicast, svc_temp_entity);
 	MSG_WriteByte (&sv.multicast, TEQW_BLOOD);
 	MSG_WriteByte (&sv.multicast, count<10?1:(count+10)/20);
@@ -3450,7 +3667,6 @@ static void QCBUILTIN PF_checkclient (pubprogfuncs_t *prinst, struct globalvars_
 void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 {
 	client_t	*cl;
-	static qboolean expectingcolour;
 	int		slen;
 
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
@@ -3472,6 +3688,7 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 	//FIXME: should buffer the entire command instead.
 	if (progstype != PROG_QW)
 	{
+		static qboolean expectingcolour;
 		if (!strncmp(str, "color ", 6)||!strncmp(str, ";color ", 7))	//okay, so this is a hack, but it fixes the qw scoreboard
 		{
 			expectingcolour = true;
@@ -9531,7 +9748,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"vectoyaw",		PF_Fixme,			0,		0,		0,		10,	"float(vector)"},
 	{"vectoangles",		PF_Fixme,			0,		0,		0,		11,	"vector(vector)"},
 	{"random",			PF_Fixme,			0,		0,		0,		12,	"float()"},
-	{"localcmd",		PF_Fixme,			0,		0,		0,		13,	"void(string)"},
+	{"localcmd",		PF_Fixme,			0,		0,		0,		13,	"void(string,...)"},
 	{"cvar",			PF_Fixme,			0,		0,		0,		14,	"float(string name)"},
 	{"cvar_set",		PF_Fixme,			0,		0,		0,		15,	"void(string name, string value)"},
 	{"dprint",			PF_Fixme,			0,		0,		0,		16,	"void(string text)"},
@@ -9630,7 +9847,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"vectoyaw",		PF_vectoyaw,		13,		13,		13,		0,	D("float(vector v, optional entity reference)", "Given a direction vector, returns the yaw angle in which that direction vector points. If an entity is passed, the yaw angle will be relative to that entity's gravity direction.")},
 	{"spawn",			PF_Spawn,			14,		14,		14,		0,	D("entity()", "Adds a brand new entity into the world! Hurrah, you're now a parent!")},
 	{"remove",			PF_Remove,			15,		15,		15,		0,	D("void(entity e)", "Destroys the given entity and clears some limited fields (including model, modelindex, solid, classname). Any references to the entity following the call are an error. After two seconds, the entity will be reused, in the interim you can unfortunatly still read its fields to see if the reference is no longer valid.")},
-	{"traceline",		PF_svtraceline,		16,		16,		16,		0,	D("void(vector v1, vector v2, float flags, entity ent)", "Traces an infinitely thin line through the world from v1 towards v2.\nWill not collide with ent, ent.owner, or any entity who's owner field refers to ent.\nThe passed entity will also be used to determine whether to use a capsule trace, the contents that the trace should impact, and a couple of other extra fields that define the trace.\nThere are no side effects beyond the trace_* globals being written.\nflags&MOVE_NOMONSTERS will not impact on non-bsp entities.\nflags&MOVE_MISSILE will impact with increased size.\nflags&MOVE_HITMODEL will impact upon model meshes, instead of their bounding boxes.\nflags&MOVE_TRIGGERS will also stop on triggers\nflags&MOVE_EVERYTHING will stop if it hits anything, even non-solid entities.\nflags&MOVE_LAGGED will backdate entity positions for the purposes of this builtin according to the indicated player ent's latency, to provide lag compensation.")},
+	{"traceline",		PF_svtraceline,		16,		16,		16,		0,	D("void(vector v1, vector v2, float flags, entity ent)", "Traces a thin line through the world from v1 towards v2.\nWill not collide with ent, ent.owner, or any entity who's owner field refers to ent.\nThe passed entity will also be used to determine whether to use a capsule trace, the contents that the trace should impact, and a couple of other extra fields that define the trace.\nThere are no side effects beyond the trace_* globals being written.\nflags&MOVE_NOMONSTERS will not impact on non-bsp entities.\nflags&MOVE_MISSILE will impact with increased size.\nflags&MOVE_HITMODEL will impact upon model meshes, instead of their bounding boxes.\nflags&MOVE_TRIGGERS will also stop on triggers\nflags&MOVE_EVERYTHING will stop if it hits anything, even non-solid entities.\nflags&MOVE_LAGGED will backdate entity positions for the purposes of this builtin according to the indicated player ent's latency, to provide lag compensation.")},
 	{"checkclient",		PF_checkclient,		17,		17,		17,		0,	D("entity()", "Returns one of the player entities. The returned player will change periodically.")},
 	{"find",			PF_FindString,		18,		18,		18,		0,	D("entity(entity start, .string fld, string match)", "Scan for the next entity with a given field set to the given 'match' value. start should be either world, or the previous entity that was found. Returns world on failure/if there are no more.")},
 	{"precache_sound",	PF_precache_sound,	19,		19,		19,		0,	D("string(string s)", "Precaches a sound, making it known to clients and loading it from disk. This builtin (strongly) should be called during spawn functions. This builtin must be called for the sound before the sound builtin is called, or it might not even be heard.")},
@@ -10022,7 +10239,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	"\tfloat\ttbias;\n"		\
 	"} brushface_t;\n"
 	{"brush_get",		PF_brush_get,		0,		0,		0,		0,		D(qcbrushface "int(float modelidx, int brushid, brushface_t *out_faces, int maxfaces, int *out_contents)", "Queries a brush's information. You must pre-allocate the face array for the builtin to write to. Return value is the number of faces retrieved, 0 on error.")},
-	{"brush_create",	PF_brush_create,	0,		0,		0,		0,		D("int(float modelidx, brushface_t *in_faces, int numfaces, int contents)", "Inserts a new brush into the model. Return value is the new brush's id.")},
+	{"brush_create",	PF_brush_create,	0,		0,		0,		0,		D("int(float modelidx, brushface_t *in_faces, int numfaces, int contents, optional int brushid)", "Inserts a new brush into the model. Return value is the new brush's id.")},
 	{"brush_delete",	PF_brush_delete,	0,		0,		0,		0,		D("void(float modelidx, int brushid)", "Destroys the specified brush.")},
 	{"brush_selected",	PF_brush_selected,	0,		0,		0,		0,		D("float(float modelid, int brushid, int faceid, float selectedstate)", "Allows you to easily set transient visual properties of a brush. returns old value. selectedstate=-1 changes nothing (called for its return value).")},
 	{"brush_getfacepoints",PF_brush_getfacepoints,0,0,		0,		0,		D("int(float modelid, int brushid, int faceid, vector *points, int maxpoints)", "Returns the list of verticies surrounding the given face. If face is 0, returns the center of the brush (if space for 1 point) or the mins+maxs (if space for 2 points).")},
@@ -10692,33 +10909,39 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 			*QSG_Extensions[i].queried = false;
 	}
 
-	if (type == PROG_QW && pr_imitatemvdsv.value>0)	//pretend to be mvdsv for a bit.
+	if (type == PROG_QW)
 	{
-		if (
-			PR_EnableEBFSBuiltin("executecommand",	83) != 83 ||
-			PR_EnableEBFSBuiltin("mvdtokenize",		84) != 84 ||
-			PR_EnableEBFSBuiltin("mvdargc",			85) != 85 ||
-			PR_EnableEBFSBuiltin("mvdargv",			86) != 86 ||
-			PR_EnableEBFSBuiltin("teamfield",		87) != 87 ||
-			PR_EnableEBFSBuiltin("substr",			88) != 88 ||
-			PR_EnableEBFSBuiltin("mvdstrcat",		89) != 89 ||
-			PR_EnableEBFSBuiltin("mvdstrlen",		90) != 90 ||
-			PR_EnableEBFSBuiltin("str2byte",		91) != 91 ||
-			PR_EnableEBFSBuiltin("str2short",		92) != 92 ||
-			PR_EnableEBFSBuiltin("mvdnewstr",		93) != 93 ||
-			PR_EnableEBFSBuiltin("mvdfreestr",		94) != 94 ||
-			PR_EnableEBFSBuiltin("conprint",		95) != 95 ||
-			PR_EnableEBFSBuiltin("readcmd",			96) != 96 ||
-			PR_EnableEBFSBuiltin("mvdstrcpy",		97) != 97 ||
-			PR_EnableEBFSBuiltin("strstr",			98) != 98 ||
-			PR_EnableEBFSBuiltin("mvdstrncpy",		99) != 99 ||
-			PR_EnableEBFSBuiltin("logtext",			100)!= 100 ||
-//			PR_EnableEBFSBuiltin("redirectcmd",		101)!= 101 ||
-			PR_EnableEBFSBuiltin("mvdcalltimeofday",102)!= 102 ||
-			PR_EnableEBFSBuiltin("forcedemoframe",	103)!= 103)
-			Con_Printf("Failed to register all MVDSV builtins\n");
-		else
-			Con_Printf("Be aware that MVDSV does not follow standards. Please encourage mod developers to not require pr_imitatemvdsv to be set.\n");
+		//this conflicts with dp's logarithm builtin.
+		PR_EnableEBFSBuiltin("precache_vwep_model",	532);
+
+		if (pr_imitatemvdsv.value>0)	//pretend to be mvdsv for a bit.
+		{
+			if (
+				PR_EnableEBFSBuiltin("executecommand",	83) != 83 ||
+				PR_EnableEBFSBuiltin("mvdtokenize",		84) != 84 ||
+				PR_EnableEBFSBuiltin("mvdargc",			85) != 85 ||
+				PR_EnableEBFSBuiltin("mvdargv",			86) != 86 ||
+				PR_EnableEBFSBuiltin("teamfield",		87) != 87 ||
+				PR_EnableEBFSBuiltin("substr",			88) != 88 ||
+				PR_EnableEBFSBuiltin("mvdstrcat",		89) != 89 ||
+				PR_EnableEBFSBuiltin("mvdstrlen",		90) != 90 ||
+				PR_EnableEBFSBuiltin("str2byte",		91) != 91 ||
+				PR_EnableEBFSBuiltin("str2short",		92) != 92 ||
+				PR_EnableEBFSBuiltin("mvdnewstr",		93) != 93 ||
+				PR_EnableEBFSBuiltin("mvdfreestr",		94) != 94 ||
+				PR_EnableEBFSBuiltin("conprint",		95) != 95 ||
+				PR_EnableEBFSBuiltin("readcmd",			96) != 96 ||
+				PR_EnableEBFSBuiltin("mvdstrcpy",		97) != 97 ||
+				PR_EnableEBFSBuiltin("strstr",			98) != 98 ||
+				PR_EnableEBFSBuiltin("mvdstrncpy",		99) != 99 ||
+				PR_EnableEBFSBuiltin("logtext",			100)!= 100 ||
+	//			PR_EnableEBFSBuiltin("redirectcmd",		101)!= 101 ||
+				PR_EnableEBFSBuiltin("mvdcalltimeofday",102)!= 102 ||
+				PR_EnableEBFSBuiltin("forcedemoframe",	103)!= 103)
+				Con_Printf("Failed to register all MVDSV builtins\n");
+			else
+				Con_Printf("Be aware that MVDSV does not follow standards. Please encourage mod developers to not require pr_imitatemvdsv to be set.\n");
+		}
 	}
 }
 
@@ -11191,7 +11414,7 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_Parse_Event",		"void()", CS, "Called when the client receives an SVC_CGAMEPACKET. The csqc should read the data or call the error builtin if it does not recognise the message."},
 		{"CSQC_InputEvent",			"float(float evtype, float scanx, float chary, float devid)", CS, "Called whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time."},
 		{"CSQC_Input_Frame",		"__used void()", CS, "Called just before each time clientcommandframe is updated. You can edit the input_* globals in order to apply your own player inputs within csqc, which may allow you a convienient way to pass certain info to ssqc."},
-		{"CSQC_RendererRestarted",	"void(void)", CS, "Called by the engine after the video was restarted. This serves to notify the CSQC that any render targets that it may have cached were purged, and will need to be regenerated."},
+		{"CSQC_RendererRestarted",	"void(string rendererdescription)", CS, "Called by the engine after the video was restarted. This serves to notify the CSQC that any render targets that it may have cached were purged, and will need to be regenerated."},
 		{"CSQC_ConsoleCommand",		"float(string cmd)", CS, "Called if the user uses any console command registed via registercommand."},
 		{"CSQC_ConsoleLink",		"float(string text, string info)", CS, "Called if the user clicks a ^[text\\infokey\\infovalue^] link. Use infoget to read/check each supported key. Return true if you wish the engine to not attempt to handle the link itself."},
 		{"CSQC_Ent_Update",			"void(float isnew)", CS},
@@ -11348,6 +11571,14 @@ void PR_DumpPlatform_f(void)
 		{"CONTENTBITS_POINTSOLID",	"const int", QW|NQ|CS, "Bits that traceline would normally consider solid", 0,"CONTENTBIT_SOLID|"STRINGIFY(Q2CONTENTS_WINDOW)"|CONTENTBIT_BODY"},
 		{"CONTENTBITS_BOXSOLID",	"const int", QW|NQ|CS, "Bits that tracebox would normally consider solid", 0,"CONTENTBIT_SOLID|"STRINGIFY(Q2CONTENTS_WINDOW)"|CONTENTBIT_BODY|CONTENTBIT_PLAYERCLIP"},
 		{"CONTENTBITS_FLUID",		"const int", QW|NQ|CS, NULL, 0,"CONTENTBIT_WATER|CONTENTBIT_SLIME|CONTENTBIT_LAVA|CONTENTBIT_SKY"},
+
+		{"SPA_POSITION",			"const int", QW|NQ|CS, "These SPA_* constants are to specify which attribute is returned by the getsurfacepointattribute builtin", 0},
+		{"SPA_S_AXIS",				"const int", QW|NQ|CS, NULL, 1},
+		{"SPA_T_AXIS",				"const int", QW|NQ|CS, NULL, 2},
+		{"SPA_R_AXIS",				"const int", QW|NQ|CS, "aka: SPA_NORMAL", 3},
+		{"SPA_TEXCOORDS0",			"const int", QW|NQ|CS, NULL, 4},
+		{"SPA_LIGHTMAP0_TEXCOORDS",	"const int", QW|NQ|CS, NULL, 5},
+		{"SPA_LIGHTMAP0_COLOR",		"const int", QW|NQ|CS, NULL, 6},
 
 		{"CHAN_AUTO",		"const float", QW|NQ|CS, "The automatic channel, play as many sounds on this channel as you want, and they'll all play, however the other channels will replace each other.", CHAN_AUTO},
 		{"CHAN_WEAPON",		"const float", QW|NQ|CS, NULL, CHAN_WEAPON},
@@ -11595,12 +11826,15 @@ void PR_DumpPlatform_f(void)
 		{"VF_DRAWENGINESBAR",	"const float", CS, "boolean. If set to 1, the sbar will be drawn, and viewsize will be honoured automatically.", VF_ENGINESBAR},
 		{"VF_DRAWCROSSHAIR",	"const float", CS, "boolean. If set to 1, the engine will draw its default crosshair.", VF_DRAWCROSSHAIR},
 
+		{"VF_MINDIST",			"const float", CS|MENU, "The distance of the near clip plane from the view position. Should generally not be <=0, as this would introduce NANs.", VF_MINDIST},
+		{"VF_MAXDIST",			"const float", CS|MENU, "The distance of the far clip plane from the view position. If 0, will be considered infinite.", VF_MAXDIST},
+
 		{"VF_CL_VIEWANGLES",	"const float", CS, NULL, VF_CL_VIEWANGLES_V},
 		{"VF_CL_VIEWANGLES_X",	"const float", CS, NULL, VF_CL_VIEWANGLES_X},
 		{"VF_CL_VIEWANGLES_Y",	"const float", CS, NULL, VF_CL_VIEWANGLES_Y},
 		{"VF_CL_VIEWANGLES_Z",	"const float", CS, NULL, VF_CL_VIEWANGLES_Z},
 
-		{"VF_PERSPECTIVE",		"const float", CS|MENU, "1: regular rendering. Fov specifies the angle. 0: isometric-style. Fov specifies the number of Quake Units each side of the viewport.", VF_PERSPECTIVE},
+		{"VF_PERSPECTIVE",		"const float", CS|MENU, "1: regular rendering. Fov specifies the angle. 0: isometric-style. Fov specifies the number of Quake Units each side of the viewport, and mindist restrictions are removed, pvs culling should be disabled.", VF_PERSPECTIVE},
 		{"VF_ACTIVESEAT",		"#define VF_LPLAYER VF_ACTIVESEAT\nconst float", CS, "The 'seat' number, used when running splitscreen.", VF_ACTIVESEAT},
 		{"VF_AFOV",				"const float", CS|MENU, "Aproximate fov. Matches the 'fov' cvar. The engine handles the aspect ratio for you.", VF_AFOV},
 		{"VF_SCREENVSIZE",		"const float", CS|MENU, "Provides a reliable way to retrieve the current virtual screen size (even if the screen is automatically scaled to retain aspect).", VF_SCREENVSIZE},

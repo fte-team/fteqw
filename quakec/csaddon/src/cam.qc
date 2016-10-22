@@ -479,7 +479,7 @@ void(float attime) spline_overrides =
 	setviewprop(VF_ANGLES, vectoangles(view - position));
 };
 
-void() editor_spline_add =
+void() editor_spline_addentities =
 {
 	local int i;
 	local float ctime;

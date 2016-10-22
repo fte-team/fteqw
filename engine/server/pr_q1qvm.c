@@ -496,8 +496,10 @@ static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf, pbool object, size_t 
 	return (struct edict_s *)e;
 }
 
-static int QDECL Q1QVMPF_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, float spawnflags)
+static int QDECL Q1QVMPF_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, void *ctx, void (PDECL *callback) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend))
 {
+	//the qvm calls the spawn functions itself.
+	//no saved-games.
 	q1qvmentstring = mapstring;
 	VM_Call(q1qvm, GAME_LOADENTS, 0, 0, 0);
 	q1qvmentstring = NULL;

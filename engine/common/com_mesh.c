@@ -225,6 +225,7 @@ static void GenMatrixPosQuat3Scale(vec3_t pos, vec3_t quat3, vec3_t scale, float
 	GenMatrixPosQuat4Scale(pos, quat4, scale, result);
 }
 
+#ifdef MD5MODELS
 static void GenMatrix(float x, float y, float z, float qx, float qy, float qz, float result[12])
 {
 	float qw;
@@ -288,7 +289,9 @@ static void GenMatrix(float x, float y, float z, float qx, float qy, float qz, f
 		   result[2*4+3]  =     z;
 	}
 }
+#endif
 
+#ifdef PSKMODELS
 static void PSKGenMatrix(float x, float y, float z, float qx, float qy, float qz, float qw, float result[12])
 {
 	float xx, xy, xz, xw, yy, yz, yw, zz, zw;
@@ -317,6 +320,7 @@ static void PSKGenMatrix(float x, float y, float z, float qx, float qy, float qz
 	result[1*4+3]  =     y;
 	result[2*4+3]  =     z;
 }
+#endif
 
 /*transforms some skeletal vecV_t values*/
 static void Alias_TransformVerticies_V(const float *bonepose, int vertcount, qbyte *bidx, float *weights, float *xyzin, float *fte_restrict xyzout)
@@ -659,6 +663,7 @@ void QDECL Alias_ForceConvertBoneData(skeltype_t sourcetype, const float *source
 	}
 }
 
+#ifndef NOLEGACY
 static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 {
 #ifndef SERVERONLY
@@ -845,6 +850,7 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 	return 0;
 #endif
 }
+#endif
 #endif
 
 
@@ -3567,7 +3573,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 			{
 				if (pinstverts[i].onseam != 0x20 && !galias->warned)
 				{
-					Con_Printf(CON_WARNING "Model %s has an invalid seam flag, which may crash software-rendered engines\n", mod->name);
+					Con_DPrintf(CON_WARNING "Model %s has an invalid seam flag, which may crash software-rendered engines\n", mod->name);
 					//1 == ALIAS_LEFT_CLIP
 					galias->warned = true;
 				}
@@ -3599,7 +3605,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 			unsigned int v3 = LittleLong(pinq1triangles[i].vertindex[2]);
 			if (v1 >= pq1inmodel->numverts || v2 >= pq1inmodel->numverts || v3 >= pq1inmodel->numverts)
 			{
-				Con_Printf(CON_ERROR"%s has invalid triangle (%u %u %u > %u)\n", mod->name, v1, v2, v3, pq1inmodel->numverts);
+				Con_DPrintf(CON_ERROR"%s has invalid triangle (%u %u %u > %u)\n", mod->name, v1, v2, v3, pq1inmodel->numverts);
 				v1 = v2 = v3 = 0;
 			}
 			if (!pinq1triangles[i].facesfront)

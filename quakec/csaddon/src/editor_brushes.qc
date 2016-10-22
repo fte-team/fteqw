@@ -1,26 +1,3 @@
-#if 0
-typedef struct
-{
-	string	shadername;	//aka: texture name
-	vector	planenormal;
-	float	planedist;
-	vector	sdir;
-	float	sbias;
-	vector	tdir;
-	float	tbias;
-} brushface_t;
-#define out //for annotation only
-#define in //for annotation only
-#define inout //for annotation only
-int brush_get(float modelid, int brushid, out brushface_t *faces, int maxfaces, int *contents) = #0; //returns number of faces, or 0 on error. 
-int brush_create(float modelid, in brushface_t *faces, int numfaces, int contents) = #0; //returns newly created brushid.
-void brush_delete(float modelid, int brushid) = #0; //destroys brush
-//float brush_editplane(float modelid, int brushid, int faceid, in brushface_t *face) = #0; //allows changing shader/s/t info, but ignores plane changes. returns success
-float brush_selected(float modelid, int brushid, int faceid, float selectedstate) = #0; //allows you to easily set visual properties of a brush. if brush/face is -1, applies to all. returns old value. selectedstate=-1 changes nothing (called for its return value).
-int(float modelid, int brushid, int faceid, vector *points, int maxpoints) brush_getfacepoints = #0;
-int(float modelid, vector *planes, float *dists, int numplanes, int *out_brushes, int *out_faces, int maxresults) brush_findinvolume = #0;
-#endif
-
 /*traceline/tracebox returns trace_brush_id and trace_brush_faceid
 
 
@@ -29,10 +6,16 @@ to move 50 brushes, mod needs to get+delete+transform+create
 brush ids are ints. this allows different clients to use different ranges without float problems.
 */
 
+int *selectedbrushes;
+int selectedbrushcount;
+
 int selectedbrush;
 int selectedbrushface;
 int selectedbrushmodel;
 vector facepoints[64];
+
+var float autocvar_ca_brush_view = 0;		//0=normal, 1=x, 2=y, 3=z
+var float autocvar_ca_brush_viewsize = 1024;	//for different views.
 
 #define EPSILON (1.0 / 32)	//inprecision sucks.
 
@@ -52,6 +35,58 @@ int history_min;	//oldest we can go
 int history;		//updated on each change
 int history_max;	//max value for redo
 
+int(int brushid) brush_isselected =
+{
+	for (int i = 0; i < selectedbrushcount; i++)
+		if (selectedbrushes[i] == brushid)
+			return i+1;
+	return 0;
+};
+int(int brushid) brush_deselect =
+{
+	int i = brush_isselected(brushid);
+	if (!i)
+		return FALSE;
+	brush_selected(selectedbrushmodel, brushid, -1, FALSE);
+	memcpy(&selectedbrushes[i-1], &selectedbrushes[i], sizeof(int)*(selectedbrushcount-i));
+	selectedbrushcount--;
+	return TRUE;
+};
+void() brush_deselectall =
+{
+	brush_selected(selectedbrushmodel, selectedbrush, -1, FALSE);
+	selectedbrush = 0;
+	selectedbrushface = 0;
+	selectedbrushcount = 0;
+};
+void(int brushid) brush_select =
+{
+	if (!brush_isselected(brushid))
+	{
+		int *n = memalloc(sizeof(int) * (selectedbrushcount+1));
+		memcpy(n, selectedbrushes, sizeof(int)*selectedbrushcount);
+		memfree(selectedbrushes);
+		selectedbrushes = n;
+		n[selectedbrushcount++] = brushid;
+		brush_selected(selectedbrushmodel, brushid, -1, TRUE);
+	}
+	if (!selectedbrush)
+		selectedbrush = brushid;
+};
+
+//when replaying history, ids get changed, which makes 
+static void(int old, int new) history_remap =
+{
+	if (selectedbrush == old)
+		selectedbrush = new;
+	for (int i = history_min; i < history_max; i++)
+	{
+		history_t *h = &historyring[i & (historyring.length-1)];
+		if (h->id == old)
+			h->id = new;
+	}
+};
+
 void() brush_undo =
 {
 	do
@@ -64,11 +99,10 @@ void() brush_undo =
 
 		//we're undoing, so deletes create and creates delete. weird, yes.
 		if (h->wasdelete)
-			h->id = brush_create(h->brushmodel, h->brushdata, h->numfaces, h->contents);
+			history_remap(h->id, brush_create(h->brushmodel, h->brushdata, h->numfaces, h->contents));
 		else
 		{
 			brush_delete(h->brushmodel, h->id);
-			h->id = 0;
 		}
 	} while (historyring[(history-1) & (historyring.length-1)].timestamp == h->timestamp);
 };
@@ -81,15 +115,14 @@ void() brush_redo =
 
 		history_t *h = &historyring[history & (historyring.length-1)];
 
-		//we're redoing stuff that has previously been doing. yay.
+		//we're redoing stuff that has previously been done. yay.
 		if (h->wasdelete)
 		{
 			brush_delete(h->brushmodel, h->id);
-			h->id = 0;
 		}
 		else
 		{
-			h->id = brush_create(h->brushmodel, h->brushdata, h->numfaces, h->contents);
+			history_remap(h->id, brush_create(h->brushmodel, h->brushdata, h->numfaces, h->contents));
 		}
 		history++;
 	} while (historyring[history & (historyring.length-1)].timestamp == h->timestamp);
@@ -127,7 +160,7 @@ void(int mod, int id) brush_history_delete =
 
 	h->timestamp = time;
 	h->brushmodel = mod;
-	h->id = 0;
+	h->id = id;
 	h->contents = 0;
 	h->wasdelete = TRUE;
 
@@ -144,19 +177,17 @@ void(int mod, int id) brush_history_delete =
 
 int(int mod, int id, brushface_t *faces, int numfaces, int contents) brush_history_edit =
 {
+	int wasselected = brush_isselected(id);
+	int wasmainselected = selectedbrush == id;
+	
 	brush_history_delete(mod, id);
-	return brush_history_create(mod, faces, numfaces, contents);
+	id = brush_history_create(mod, faces, numfaces, contents);
+	if (wasselected)
+		selectedbrushes[wasselected-1] = id;
+	if (wasmainselected)
+		selectedbrush = id;
+	return id;
 };
-
-
-
-vector(vector a, vector b) cross =
-{
-    return [	a_y * b_z - a_z * b_y,
-    			a_z * b_x - a_x * b_z, 
-    			a_x * b_y - a_y * b_x];
-};
-#define dot(a,b) ((a)*(b))
 
 typedef struct
 {
@@ -174,7 +205,7 @@ int tmp_numfaces;
 int tmp_contents;
 
 //int selected;
-int brushlist[64];
+int brushlist[2048];
 
 var string	autocvar_ca_newbrushtexture = "metal4_2";
 var float	autocvar_ca_newbrushheight = 64;
@@ -236,13 +267,13 @@ static int(brushface_t *fa, int famax, vector *points, int numpoints, float heig
 {
 	int count = 0;
 	
-	fa->planenormal = normalize(cross(points[2] - points[0], points[1] - points[0]));
+	fa->planenormal = normalize(crossproduct(points[2] - points[0], points[1] - points[0]));
 	fa->planedist = bt_point[0] * fa->planenormal + height;
 	fa->shadername = autocvar_ca_newbrushtexture;
 	reset_texturecoords(fa);
 	fa++;
 
-	fa->planenormal = -normalize(cross(points[2] - points[0], points[1] - points[0]));
+	fa->planenormal = -normalize(crossproduct(points[2] - points[0], points[1] - points[0]));
 	fa->planedist = (bt_point[0] * fa->planenormal);
 	fa->shadername = autocvar_ca_newbrushtexture;
 	reset_texturecoords(fa);
@@ -254,7 +285,7 @@ static int(brushface_t *fa, int famax, vector *points, int numpoints, float heig
 		int n = p + 1;
 		if (n == numpoints)
 			n = 0;
-		fa->planenormal = normalize(cross(points[p] - bt_point[n], tmp_faces[0].planenormal));
+		fa->planenormal = normalize(crossproduct(points[p] - bt_point[n], tmp_faces[0].planenormal));
 		fa->planedist = points[p] * fa->planenormal;
 		fa->shadername = autocvar_ca_newbrushtexture;
 		reset_texturecoords(fa);
@@ -389,7 +420,7 @@ vector(vector in) channelizeangle =
 		in_y -= 360;
 	if (in_z > 180)
 		in_z -= 360;
-		
+
 	float fx = fabs(in_x);
 	float fy = fabs(in_y);
 	float fz = fabs(in_z);
@@ -406,7 +437,7 @@ vector(vector p1, vector p2, vector norm, float dist) planelinepoint =
 	float d1 = p1*norm - dist;
 	float d2 = p2*norm - dist;
 	float frac = d1 / (d2-d1);
-	
+
 //	frac = bound(0, frac, 1);
 
 	return p2 + (p1-p2)*frac;	//convert that frac into an actual position
@@ -514,7 +545,7 @@ int(int model, int brush1, int brush2, int face1, int face2) mergebrushes =
 			//FIXME: determine volume and reject it if we shrink?
 			tmp_faces[bestface].planenormal = -infa->planenormal;
 			tmp_faces[bestface].planedist = -infa->planedist;
-			
+
 		//	if (isconcave(tmp_faces, tmp_numfaces))
 		//	{
 		//		print("Resulting brush would be concave\n");
@@ -536,7 +567,7 @@ int(int model, int brush1, int brush2, int face1, int face2) mergebrushes =
 			numpoints += i;
 		for(f = 0; (i = brush_getfacepoints(model, brush2, ++f, points+numpoints, 64*64-numpoints)); )
 			numpoints += i;
-				
+
 		if (isconcave(tmp_faces, tmp_numfaces, points, numpoints))
 		{
 			print("Resulting brush would be concave\n");
@@ -544,12 +575,34 @@ int(int model, int brush1, int brush2, int face1, int face2) mergebrushes =
 			return 0;
 		}
 		memfree(points);
-			
+
 	//FIXME: verify that no planes got dropped, as this indicates that the region wasn't convex, and we probably just destroyed the entire thing.
 		brush_history_delete(model, brush1);
 		brush_history_delete(model, brush2);
 
 		return brush_history_create(model, tmp_faces, tmp_numfaces, tmp_contents);
+	}
+};
+
+void(int id) DrawEngineBrushWireframe =
+{
+	const vector col = '1 0 0';
+	for(int facenum = 0;;)
+	{
+		int points = brush_getfacepoints(selectedbrushmodel, id, ++facenum, &facepoints[0], facepoints.length);
+		if (!points)
+			break;	//end of face list, I guess
+
+		R_BeginPolygon("chop");
+		R_PolygonVertex(facepoints[0], '0 0', col, 1);
+		for (int point = 1; point < points; point++)
+		{
+			R_PolygonVertex(facepoints[point], '0 0', col, 1);
+			R_EndPolygon();
+			R_PolygonVertex(facepoints[point], '0 0', col, 1);
+		}
+		R_PolygonVertex(facepoints[0], '0 0', col, 1);
+		R_EndPolygon();
 	}
 };
 
@@ -610,7 +663,7 @@ void(brushface_t *faces, int numfaces, vector col, float alpha) DrawQCBrushTextu
 						"alphagen vertex\n"
 					"}\n"
 				"}", faces[f].shadername));
-	
+
 			vector sz = drawgetimagesize(faces[f].shadername);
 			R_BeginPolygon(faces[f].shadername);
 			for (point = 0; point < points; point++)
@@ -645,7 +698,7 @@ static float(vertsoup_t *soup, int *idx, __inout vector norm, __inout float dist
 	vector d1 = v3 - v1;
 	vector d2 = v2 - v1;
 	vector d3 = v3 - v2;
-	norm = normalize(cross(d1, d2));
+	norm = normalize(crossproduct(d1, d2));
 	dist = norm * v1;
 
 	if (!d1 || !d2 || !d3 || !norm)
@@ -813,7 +866,7 @@ p3p1edge:
 			}
 		}
 	}
-	cprint(sprintf("%i internal splits, %i faces\n", internals, numfaces));
+//	cprint(sprintf("%i internal splits, %i faces\n", internals, numfaces));
 	
 	if (numfaces <= 3)
 		return;	//can't possibly be valid.
@@ -1007,11 +1060,35 @@ void() brushedit_resettextures =
 	for (int i = 0; i < planecount; i++)
 		reset_texturecoords(&tmp_faces[i]);
 
-	brush_history_delete(selectedbrushmodel, selectedbrush);
-	selectedbrush = brush_history_create(selectedbrushmodel, tmp_faces, planecount, tmp_contents);
+	selectedbrush = brush_history_edit(selectedbrushmodel, selectedbrush, tmp_faces, planecount, tmp_contents);
 };
 
-void(vector mousepos) editor_brushes_add =
+//when we're drawing sideviews, we normally need them wireframe in order to actually see anything
+static void(vector sizes) drawwireframeview =
+{
+	//figure out the planes that we care about.
+	vector org = getviewprop(VF_ORIGIN);
+	vector vaxis[6];
+	vaxis[0] = v_right;
+	vaxis[1] = v_up;
+	vaxis[2] = v_forward;
+	for (int i = 0; i < 3; i++)
+		dists[i] = (org*vaxis[i]) + sizes[i];
+	for (int i = 0; i < 3; i++)
+	{
+		vaxis[i+3] = -vaxis[i];
+		dists[i+3] = (org*vaxis[i+3]) + sizes[i];
+	}
+		
+	int numbrushes = brush_findinvolume(selectedbrushmodel, vaxis, dists, dists.length, &brushlist[0], __NULL__, brushlist.length);
+	
+	//this can be a bit slow with lots of brushes. would be nice to batch them a bit better.
+	while(numbrushes --> 0)
+		DrawEngineBrushWireframe(brushlist[numbrushes]);
+	setviewprop(VF_DRAWWORLD, FALSE);
+};
+
+void(vector mousepos) editor_brushes_addentities =
 {
 	vector col = '0 0 0';
 	int points, point;
@@ -1021,9 +1098,42 @@ void(vector mousepos) editor_brushes_add =
 	float bestdist, dist;
 	vector mid;
 	
+	autocvar_ca_brush_view = fabs(autocvar_ca_brush_view) % 4f;
+	if (autocvar_ca_brush_view)
+	{
+		vector vmn = (vector)getproperty(VF_MIN);
+		vector vsz = (vector)getproperty(VF_SIZE);
+		vector ang = vectoangles([autocvar_ca_brush_view==1,autocvar_ca_brush_view==2,autocvar_ca_brush_view==3]);
+		vector fov;
+		if (vsz_x > vsz_y)
+			fov = [autocvar_ca_brush_viewsize, autocvar_ca_brush_viewsize * (vsz_y/vsz_x), 8192];
+		else
+			fov = [autocvar_ca_brush_viewsize * (vsz_x/vsz_y), autocvar_ca_brush_viewsize, 8192];
+		makevectors(ang);
+		drawfill(vmn, vsz, '0 0 0', 1, 0);
+		setviewprop(VF_VIEWENTITY, 0);
+		setviewprop(VF_PERSPECTIVE, FALSE);
+		setviewprop(VF_ANGLES, ang);
+		setviewprop(VF_MAXDIST, fov_z*0.5);
+		setviewprop(VF_MINDIST, -fov_z*0.5);	//I'm not entirely sure where the near clip plane should be. oh well.
+		if (vsz_x > vsz_y)
+			setviewprop(VF_FOV, fov);
+		else
+			setviewprop(VF_FOV, fov);
+
+		if (curmousepos_x >= vmn_x && curmousepos_x <= vmn_x+vsz_x && curmousepos_y >= vmn_y && curmousepos_y <= vmn_y+vsz_y)
+		{
+			mousefar = unproject(curmousepos + '0 0 1');
+			mousenear = unproject(curmousepos);
+		}
+
+		drawwireframeview(fov*0.5);
+	}
+	else
+		makevectors(input_angles);
+	
 	if ((mousetool == BT_VERTEXEDIT || mousetool == BT_CREATEDRAG || brushtool == BT_PUSHFACE || brushtool == BT_CLONEDISPLACE || brushtool == BT_MOVE || brushtool == BT_MOVETEXTURE) && bt_points)
 	{
-		makevectors(input_angles);
 		vector dir = v_forward;
 		if (!altdown)	//if alt is pressed, we'll axialize later.
 			dir = axialize(dir);
@@ -1179,7 +1289,6 @@ void(vector mousepos) editor_brushes_add =
 
 			if (!mousedown)
 			{
-				brush_selected(selectedbrushmodel, selectedbrush, -1, FALSE);
 				selectedbrush = brush_history_create(selectedbrushmodel, tmp_faces, tmp_numfaces, tmp_contents);
 				brush_selected(selectedbrushmodel, selectedbrush, selectedbrushface, TRUE);
 				bt_points = 0;
@@ -1191,117 +1300,129 @@ void(vector mousepos) editor_brushes_add =
 	}
 	else if ((mousetool == BT_PUSHFACE || mousetool == BT_MOVETEXTURE || mousetool == BT_MOVE || mousetool == BT_CLONEDISPLACE || mousetool == BT_ROTATE) && bt_points)
 	{
-		tmp_numfaces = brush_get(selectedbrushmodel, selectedbrush, tmp_faces, tmp_faces.length, &tmp_contents);
-		
-		if (mousetool == BT_PUSHFACE)
-			tmp_faces[selectedbrushface-1].planedist += tmp_faces[selectedbrushface-1].planenormal * displace;
-		else if (mousetool == BT_MOVETEXTURE)
+		int oldselectedbrushcount = selectedbrushcount;
+		int *oldselectedbrushes = memalloc(sizeof(int)*selectedbrushcount);
+		memcpy(oldselectedbrushes, selectedbrushes, selectedbrushcount*sizeof(int));
+		for (int sb = 0; sb < oldselectedbrushcount; sb++)
 		{
-			tmp_faces[selectedbrushface-1].sbias -= tmp_faces[selectedbrushface-1].sdir * displace;
-			tmp_faces[selectedbrushface-1].tbias -= tmp_faces[selectedbrushface-1].tdir * displace;
-		}
-		else if (mousetool == BT_MOVE || mousetool == BT_CLONEDISPLACE)
-			brushface_translate(tmp_faces, tmp_numfaces, displace);
-		else if (mousetool == BT_ROTATE)
-		{
-			//find the brush's middle (based on its bbox)
-			brush_getfacepoints(selectedbrushmodel, selectedbrush, 0, &tmp, 1);
-			
-			makevectors(col);
+			int brush = oldselectedbrushes[sb];
+			if (!brush)
+				continue;
 
-			//move it so its pivot is at the origin
-			brushface_translate(tmp_faces, tmp_numfaces, -tmp);
-			//rotate it
-			brushface_rotate(tmp_faces, tmp_numfaces);
-			//reposition it around its pivot again
-			brushface_translate(tmp_faces, tmp_numfaces, tmp);
-		}
+			tmp_numfaces = brush_get(selectedbrushmodel, brush, tmp_faces, tmp_faces.length, &tmp_contents);
 
-		if (mousetool == BT_MOVETEXTURE)
-		{
-			points = brush_calcfacepoints(selectedbrushface, tmp_faces, tmp_numfaces, facepoints, facepoints.length);
-			if (points)
+			if (mousetool == BT_PUSHFACE && brush == selectedbrush)
+				tmp_faces[selectedbrushface-1].planedist += tmp_faces[selectedbrushface-1].planenormal * displace;
+			else if (mousetool == BT_MOVETEXTURE && brush == selectedbrush)
 			{
-				//this is unfortunate. the built in shaders expect to use lightmaps. we don't have those.
-				//because lightmaps are special things, we end up in a real mess. so lets just make sure there's a shader now, because we can.
-				shaderforname(tmp_faces[selectedbrushface-1].shadername,
-					sprintf("{"
-						"{\n"
-							"map \"%s.lmp\"\n"
-							"rgbgen vertex\n"
-							"alphagen vertex\n"
-						"}\n"
-					"}", tmp_faces[selectedbrushface-1].shadername));
-		
-				col = '0.7 0.7 0.7'; //fullbright is typically TOO bright. overbrights? meh!
-				vector sz = drawgetimagesize(tmp_faces[selectedbrushface-1].shadername);
-				R_BeginPolygon(tmp_faces[selectedbrushface-1].shadername);
-				for (point = 0; point < points; point++)
-					R_PolygonVertex(facepoints[point] + tmp_faces[selectedbrushface-1].planenormal*0.1, [(facepoints[point] * tmp_faces[selectedbrushface-1].sdir + tmp_faces[selectedbrushface-1].sbias)/sz_x, (facepoints[point] * tmp_faces[selectedbrushface-1].tdir + tmp_faces[selectedbrushface-1].tbias)/sz_y], col, 1);
-				R_EndPolygon();
+				tmp_faces[selectedbrushface-1].sbias -= tmp_faces[selectedbrushface-1].sdir * displace;
+				tmp_faces[selectedbrushface-1].tbias -= tmp_faces[selectedbrushface-1].tdir * displace;
 			}
-		}
-		else
-		{
-			//draw it wireframe
-			for(facenum = 0; facenum < tmp_numfaces;)
+			else if (mousetool == BT_MOVE || mousetool == BT_CLONEDISPLACE)
+				brushface_translate(tmp_faces, tmp_numfaces, displace);
+			else if (mousetool == BT_ROTATE)
 			{
-				points = brush_calcfacepoints(++facenum, tmp_faces, tmp_numfaces, facepoints, facepoints.length);
-				if (!points)
-					continue;	//should probably warn somehow about this
-				//should we use two colour channels? one depth one not?
-				if (facenum == selectedbrushface)
-					col = '1 0 0';
-				else
-					col = '0 0.5 0';
-				R_BeginPolygon("chop");
-				R_PolygonVertex(facepoints[0], '0 0', col, 1);
-				for (point = 0; point < points-1; )
-				{
-					point++;
-					R_PolygonVertex(facepoints[point], '0 0', col, 1);
-					R_EndPolygon();
-					R_PolygonVertex(facepoints[point], '0 0', col, 1);
-				}
-				R_PolygonVertex(facepoints[0], '0 0', col, 1);
-				R_EndPolygon();
-			}
-		}
-		
-		//draw it wireframe WITH depth testing
-		DrawQCBrushWireframe(tmp_faces, tmp_numfaces, "terrainedit", '0 0 1', 1);
-		
-		DebrushifyLite(tmp_faces, tmp_numfaces);
-		DrawAxisExtensions(vertedit.p, vertedit.numverts, "terrainedit", '0 0 0.3', 1);
+				//find the brush's middle (based on its bbox)
+				brush_getfacepoints(selectedbrushmodel, brush, 0, &tmp, 1);
 
-		if (!mousedown)
-		{
-			brush_selected(selectedbrushmodel, selectedbrush, -1, FALSE);
-			if (mousetool == BT_CLONEDISPLACE)	//doesn't affect the original brush.
-			{
-				if (displace*displace > 1)
-					selectedbrush = brush_history_create(selectedbrushmodel, tmp_faces, tmp_numfaces, tmp_contents);
+				makevectors(col);
+
+				//move it so its pivot is at the origin
+				brushface_translate(tmp_faces, tmp_numfaces, -tmp);
+				//rotate it
+				brushface_rotate(tmp_faces, tmp_numfaces);
+				//reposition it around its pivot again
+				brushface_translate(tmp_faces, tmp_numfaces, tmp);
 			}
 			else
-				selectedbrush = brush_history_edit(selectedbrushmodel, selectedbrush, tmp_faces, tmp_numfaces, tmp_contents);
-			brush_selected(selectedbrushmodel, selectedbrush, selectedbrushface, TRUE);
-			bt_points = 0;
-			mousetool = BT_NONE;
+				continue;
+
+			if (mousetool == BT_MOVETEXTURE)
+			{
+				points = brush_calcfacepoints(selectedbrushface, tmp_faces, tmp_numfaces, facepoints, facepoints.length);
+				if (points)
+				{
+					//this is unfortunate. the built in shaders expect to use lightmaps. we don't have those.
+					//because lightmaps are special things, we end up in a real mess. so lets just make sure there's a shader now, because we can.
+					shaderforname(tmp_faces[selectedbrushface-1].shadername,
+						sprintf("{"
+							"{\n"
+								"map \"%s.lmp\"\n"
+								"rgbgen vertex\n"
+								"alphagen vertex\n"
+							"}\n"
+						"}", tmp_faces[selectedbrushface-1].shadername));
+
+					col = '0.7 0.7 0.7'; //fullbright is typically TOO bright. overbrights? meh!
+					vector sz = drawgetimagesize(tmp_faces[selectedbrushface-1].shadername);
+					R_BeginPolygon(tmp_faces[selectedbrushface-1].shadername);
+					for (point = 0; point < points; point++)
+						R_PolygonVertex(facepoints[point] + tmp_faces[selectedbrushface-1].planenormal*0.1, [(facepoints[point] * tmp_faces[selectedbrushface-1].sdir + tmp_faces[selectedbrushface-1].sbias)/sz_x, (facepoints[point] * tmp_faces[selectedbrushface-1].tdir + tmp_faces[selectedbrushface-1].tbias)/sz_y], col, 1);
+					R_EndPolygon();
+				}
+			}
+			else
+			{
+				//draw it wireframe
+				for(facenum = 0; facenum < tmp_numfaces;)
+				{
+					points = brush_calcfacepoints(++facenum, tmp_faces, tmp_numfaces, facepoints, facepoints.length);
+					if (!points)
+						continue;	//should probably warn somehow about this
+					//should we use two colour channels? one depth one not?
+					if (facenum == selectedbrushface)
+						col = '1 0 0';
+					else
+						col = '0 0.5 0';
+					R_BeginPolygon("chop");
+					R_PolygonVertex(facepoints[0], '0 0', col, 1);
+					for (point = 0; point < points-1; )
+					{
+						point++;
+						R_PolygonVertex(facepoints[point], '0 0', col, 1);
+						R_EndPolygon();
+						R_PolygonVertex(facepoints[point], '0 0', col, 1);
+					}
+					R_PolygonVertex(facepoints[0], '0 0', col, 1);
+					R_EndPolygon();
+				}
+			}
+
+			//draw it wireframe WITH depth testing
+			DrawQCBrushWireframe(tmp_faces, tmp_numfaces, "terrainedit", '0 0 1', 1);
+
+			DebrushifyLite(tmp_faces, tmp_numfaces);
+			DrawAxisExtensions(vertedit.p, vertedit.numverts, "terrainedit", '0 0 0.3', 1);
+
+			if (!mousedown)
+			{
+				if (mousetool == BT_CLONEDISPLACE)	//doesn't affect the original brush.
+				{
+					if (displace*displace > 1)
+						selectedbrush = brush_history_create(selectedbrushmodel, tmp_faces, tmp_numfaces, tmp_contents);
+				}
+				else
+					selectedbrush = brush_history_edit(selectedbrushmodel, brush, tmp_faces, tmp_numfaces, tmp_contents);
+				brush_selected(selectedbrushmodel, brush, selectedbrushface, TRUE);
+				bt_points = 0;
+				mousetool = BT_NONE;
+			}
 		}
+		memfree(oldselectedbrushes);
 	}
 	else if (brushtool == BT_SLICE && bt_points == 3)
 	{
 		tmp_numfaces = brush_get(selectedbrushmodel, selectedbrush, tmp_faces, tmp_faces.length, &tmp_contents);
-		tmp_faces[tmp_numfaces].planenormal = normalize(cross(bt_point[2] - bt_point[0], bt_point[1] - bt_point[0]));
+		tmp_faces[tmp_numfaces].planenormal = normalize(crossproduct(bt_point[2] - bt_point[0], bt_point[1] - bt_point[0]));
 		tmp_faces[tmp_numfaces].planedist = bt_point[0] * tmp_faces[tmp_numfaces].planenormal;
-		
+
 		//draw it wireframe
 		DrawQCBrushWireframe(tmp_faces, tmp_numfaces+1, "chop", '1 0 0', 1);
-		
+
 		//flip the split
 		tmp_faces[tmp_numfaces].planenormal *= -1;
 		tmp_faces[tmp_numfaces].planedist *= -1;
-		
+
 		//draw the other side wireframe
 		DrawQCBrushWireframe(tmp_faces, tmp_numfaces+1, "chop", '0 1 0', 1);
 	}
@@ -1328,42 +1449,29 @@ void(vector mousepos) editor_brushes_add =
 			}
 		}
 		
-		//draw the selected brush faces.
-		for(facenum = 0;;)
+		//draw all selected brush faces.
+		for (int sb = 0; sb < selectedbrushcount; sb++)
 		{
-			points = brush_getfacepoints(selectedbrushmodel, selectedbrush, ++facenum, facepoints, facepoints.length);
-			if (!points)
-				break;	//end of face list, I guess
+			int brush = selectedbrushes[sb];
+			for(facenum = 0;;)
+			{
+				points = brush_getfacepoints(selectedbrushmodel, brush, ++facenum, facepoints, facepoints.length);
+				if (!points)
+					break;	//end of face list, I guess
 
-			if (facenum == selectedbrushface)
-				col = [0,intensity,0];
-			else
-				col = [intensity,0,0];
+				if (facenum == selectedbrushface && brush == selectedbrush)
+					col = [0,intensity,0];
+				else
+					col = [intensity,0,0];
 
-			R_BeginPolygon("terrainedit");
-			for (point = 0; point < points; point++)
-				R_PolygonVertex(facepoints[point], '0 0', col, 1);
-			R_EndPolygon();
+				R_BeginPolygon("terrainedit");
+				for (point = 0; point < points; point++)
+					R_PolygonVertex(facepoints[point], '0 0', col, 1);
+				R_EndPolygon();
+			}
 		}
 		//now draw wireframe
-		for(facenum = 0;;)
-		{
-			points = brush_getfacepoints(selectedbrushmodel, selectedbrush, ++facenum, &facepoints[0], facepoints.length);
-			if (!points)
-				break;	//end of face list, I guess
-
-			col = '1 0 0';
-			R_BeginPolygon("chop");
-			R_PolygonVertex(facepoints[0], '0 0', col, 1);
-			for (point = 1; point < points; point++)
-			{
-				R_PolygonVertex(facepoints[point], '0 0', col, 1);
-				R_EndPolygon();
-				R_PolygonVertex(facepoints[point], '0 0', col, 1);
-			}
-			R_PolygonVertex(facepoints[0], '0 0', col, 1);
-			R_EndPolygon();
-		}
+		DrawEngineBrushWireframe(selectedbrush);
 		
 		tmp_numfaces = brush_get(selectedbrushmodel, selectedbrush, tmp_faces, tmp_faces.length, &tmp_contents);
 		DebrushifyLite(tmp_faces, tmp_numfaces);
@@ -1373,7 +1481,7 @@ void(vector mousepos) editor_brushes_add =
 
 	vector t = mousefar;
 	vector o = mousenear;
-	if (vlen(o - t) > 8192)
+	if (vlen(o - t) > 8192 && !autocvar_ca_brush_view)
 		t = o + normalize(t)*8192;
 	traceline(o, t, TRUE, world);
 
@@ -1554,6 +1662,7 @@ brusheditormodes
 	registercommand("brushedit_settexture");
 	registercommand("brushedit_subtract");
 	registercommand("brushedit_binds");
+	registercommand("brushedit_binds_default");
 	registercommand("+brushedit_nogrid");
 	registercommand("-brushedit_nogrid");
 };
@@ -1585,9 +1694,28 @@ brusheditormodes
 	case "-brushedit_nogrid": nogrid = FALSE; break;
 
 	case "brushedit_matchface":
-		//IMPLEMENTME
 		brushtool = BT_NONE;
 		bt_points = 0;
+		
+		
+		{
+			vector t = mousefar;
+			vector o = mousenear;
+			int i;
+			if (vlen(o - t) > 8192 && !autocvar_ca_brush_view)
+				t = o + normalize(t)*8192;
+		
+			traceline(o, t, TRUE, world);
+			
+			i = mergebrushes(selectedbrushmodel, selectedbrush, trace_brush_id, selectedbrushface, trace_brush_faceid);
+			if (i)
+			{
+				brush_selected(selectedbrushmodel, selectedbrush, -1, FALSE);
+				selectedbrush = i;
+				selectedbrushface = 0;
+				brush_selected(selectedbrushmodel, selectedbrush, selectedbrushface, TRUE);
+			}
+		}
 		break;
 	case "brushedit_resettexcoords":
 		brushedit_resettextures();
@@ -1605,9 +1733,27 @@ brusheditormodes
 			brush_history_delete(selectedbrushmodel, selectedbrush);
 		selectedbrush = 0;
 		break;
+	case "brushedit_binds_default":
+		localcmd("echo Setting default brusheditor bindings\n");
+		localcmd("bind ctrl+z		brushedit_undo\n");
+		localcmd("bind ctrl+y		brushedit_redo\n");
+		localcmd("bind ctrl+i		brushedit_create\n");
+		localcmd("bind ctrl+s		brushedit_slice\n");
+		localcmd("bind ctrl+m		brushedit_matchface\n");
+		localcmd("bind ctrl+delete	brushedit_delete\n");
+		localcmd("bind ctrl+backspace	brushedit_subtract\n");
+		localcmd("bind ctrl+c		+brushedit_clone\n");
+		localcmd("bind ctrl+d		+brushedit_draw\n");
+		localcmd("bind ctrl+r		+brushedit_rotate\n");
+		localcmd("bind ctrl+f		+brushedit_pushface\n");
+		localcmd("bind ctrl+t		+brushedit_scrolltex\n");
+		localcmd("bind ctrl+v		+brushedit_vertex\n");
+		break;
 	case "brushedit_binds":
 		localcmd("conmenu \"\"\n");
 		float foo = 0;
+		localcmd(sprintf("menutext 0 %g \"Set Default Bindings\" \"brushedit_binds_default\"\n", foo+=8));
+		foo+=8;
 		localcmd(sprintf("menubind 0 %g \"brushedit_create\" \"Creation Tool\"\n", foo+=8));
 		localcmd(sprintf("menubind 0 %g \"brushedit_slice\" \"Slice Tool\"\n", foo+=8));
 		localcmd(sprintf("menubind 0 %g \"brushedit_delete\" \"Delete\"\n", foo+=8));
@@ -1642,7 +1788,7 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 	vector o = mousenear;
 	int i, p;
 
-	if (vlen(o - t) > 8192)
+	if (vlen(o - t) > 8192 && !autocvar_ca_brush_view)
 		t = o + normalize(t)*8192;
 	if (key == K_ESCAPE)
 	{
@@ -1652,9 +1798,7 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 			brushtool = BT_NONE;
 		else
 		{
-			brush_selected(selectedbrushmodel, selectedbrush, -1, FALSE);
-			selectedbrush = 0;
-			selectedbrushface = 0;
+			brush_deselectall();
 		}
 		return TRUE;
 	}
@@ -1739,6 +1883,14 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 		else if (trace_brush_id != selectedbrush || selectedbrushface != trace_brush_faceid || selectedbrushmodel != tracemodel)
 		{
 			brush_selected(selectedbrushmodel, selectedbrush, -1, FALSE);
+			if (!shiftdown)
+			{
+				if (!brush_isselected(trace_brush_id))
+					brush_deselectall();
+			}
+			else if (brush_deselect(trace_brush_id))
+				return TRUE;
+			brush_select(trace_brush_id);
 			selectedbrush = trace_brush_id;
 			selectedbrushface = trace_brush_faceid;
 			selectedbrushmodel = tracemodel;
@@ -1794,13 +1946,12 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 		{
 			if (bt_points >= 3)
 			{
-				brush_selected(selectedbrushmodel, selectedbrush, -1, FALSE);
-				
 				tmp_numfaces = BrushFromPoints(tmp_faces, tmp_faces.length, bt_point, bt_points, autocvar_ca_newbrushheight);
 				bt_points = 0;
-				selectedbrush = brush_history_create(selectedbrushmodel, tmp_faces, tmp_numfaces, 1i);
+				int newbr = brush_history_create(selectedbrushmodel, tmp_faces, tmp_numfaces, 1i);
 				
-				brush_selected(selectedbrushmodel, selectedbrush, selectedbrushface, TRUE);
+				brush_deselectall();
+				brush_select(newbr);
 			}
 			return TRUE;
 		}
@@ -1811,7 +1962,7 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 
 			//generate a new face plane
 			fa = &tmp_faces[tmp_numfaces];
-			fa->planenormal = normalize(cross(bt_point[2] - bt_point[0], bt_point[1] - bt_point[0]));
+			fa->planenormal = normalize(crossproduct(bt_point[2] - bt_point[0], bt_point[1] - bt_point[0]));
 			fa->planedist = bt_point[0] * fa->planenormal;
 			fa->shadername = tmp_faces[0].shadername;	//find a neighbour?
 
@@ -1830,34 +1981,19 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 			reset_texturecoords(fa);		
 
 			//delete the old one and insert the new
-			brush_history_delete(selectedbrushmodel, selectedbrush);
-			selectedbrush = brush_history_create(selectedbrushmodel, tmp_faces, tmp_numfaces, tmp_contents);
+			int newbr1 = brush_history_edit(selectedbrushmodel, selectedbrush, tmp_faces, tmp_numfaces, tmp_contents);
 
 			//and insert another new one too, because inserting a plane like this generates two fragments and I'm too lazy to work out which is the front and which is the back.
 			fa->planenormal *= -1;
 			fa->planedist *= -1;
-			selectedbrush = brush_history_create(selectedbrushmodel, tmp_faces, tmp_numfaces, tmp_contents);
-			selectedbrushface = 0;
+			int newbr2 = brush_history_create(selectedbrushmodel, tmp_faces, tmp_numfaces, tmp_contents);
+
+			brush_deselectall();
+			brush_select(newbr2);
 			return TRUE;
 		}
 		else return FALSE;
 	}
-
-	if (key == 'm') //I'd use #, but that would cause a problem for americans
-	{
-		traceline(o, t, TRUE, world);
-		
-		i = mergebrushes(selectedbrushmodel, selectedbrush, trace_brush_id, selectedbrushface, trace_brush_faceid);
-		if (i)
-		{
-			brush_selected(selectedbrushmodel, selectedbrush, -1, FALSE);
-			selectedbrush = i;
-			selectedbrushface = 0;
-			brush_selected(selectedbrushmodel, selectedbrush, selectedbrushface, TRUE);
-		}
-
-		return TRUE;
-	}	
 
 	return FALSE;
 };

@@ -87,8 +87,8 @@ cvar_t	qport = CVARF("qport_", "0", CVAR_NOSAVE);
 cvar_t	net_mtu = CVARD("net_mtu", "1440", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
 cvar_t	net_compress = CVARD("net_compress", "0", "Enables huffman compression of network packets.");
 
-cvar_t	pext_replacementdeltas = CVAR("pext_replacementdeltas", "1");
-cvar_t	pext_predinfo = CVAR("debug_pext_predinfo", "0");
+cvar_t	pext_replacementdeltas = CVARD("pext_replacementdeltas", "1", "Enables the use of alternative nack-based entity deltas");
+cvar_t	pext_predinfo = CVARD("pext_predinfo", "1", "Enables some extra things to support prediction over NQ protocols.");
 
 /*returns the entire bitmask of supported+enabled extensions*/
 unsigned int Net_PextMask(int maskset, qboolean fornq)
@@ -211,7 +211,7 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 			mask |= PEXT2_REPLACEMENTDELTAS;
 
 		if (mask & PEXT2_REPLACEMENTDELTAS)
-			mask |= PEXT2_NEWSIZEENCODING;
+			mask |= PEXT2_NEWSIZEENCODING;	//use if we can
 
 		if (fornq)
 		{
@@ -339,6 +339,7 @@ void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport)
 #ifdef NQPROT
 	chan->nqreliable_allowed = true;
 #endif
+	chan->incoming_unreliable = -1;
 	
 	chan->message.data = chan->message_buf;
 	chan->message.allowoverflow = true;

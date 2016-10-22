@@ -439,7 +439,9 @@ void SV_Map_f (void)
 	qboolean flushparms		= false;	//flush parms+serverflags
 	qboolean cinematic		= false;	//new map is .cin / .roq or something
 	qboolean q2savetos0		= false;
+#ifdef Q3SERVER
 	qboolean q3singleplayer	= false;	//forces g_gametype to 2 (otherwise clears if it was 2).
+#endif
 
 	qboolean waschangelevel	= false;
 	int i;
@@ -471,7 +473,9 @@ void SV_Map_f (void)
 	startspot = ((Cmd_Argc() == 2)?NULL:Cmd_Argv(2));
 
 	q2savetos0 = !strcmp(Cmd_Argv(0), "gamemap") && !isDedicated;	//q2
+#ifdef Q3SERVER
 	q3singleplayer = !strcmp(Cmd_Argv(0), "spmap");
+#endif
 	flushparms = !strcmp(Cmd_Argv(0), "map") || !strcmp(Cmd_Argv(0), "spmap");
 	newunit = flushparms || (!strcmp(Cmd_Argv(0), "changelevel") && !startspot);
 

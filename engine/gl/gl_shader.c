@@ -617,17 +617,17 @@ static void Shader_ParseFunc (shader_t *shader, char **ptr, shaderfunc_t *func)
 
 	token = Shader_ParseString (ptr);
 	if (!Q_stricmp (token, "sin"))
-	    func->type = SHADER_FUNC_SIN;
+		func->type = SHADER_FUNC_SIN;
 	else if (!Q_stricmp (token, "triangle"))
-	    func->type = SHADER_FUNC_TRIANGLE;
+		func->type = SHADER_FUNC_TRIANGLE;
 	else if (!Q_stricmp (token, "square"))
-	    func->type = SHADER_FUNC_SQUARE;
+		func->type = SHADER_FUNC_SQUARE;
 	else if (!Q_stricmp (token, "sawtooth"))
-	    func->type = SHADER_FUNC_SAWTOOTH;
+		func->type = SHADER_FUNC_SAWTOOTH;
 	else if (!Q_stricmp (token, "inversesawtooth"))
-	    func->type = SHADER_FUNC_INVERSESAWTOOTH;
+		func->type = SHADER_FUNC_INVERSESAWTOOTH;
 	else if (!Q_stricmp (token, "noise"))
-	    func->type = SHADER_FUNC_NOISE;
+		func->type = SHADER_FUNC_NOISE;
 
 	func->args[0] = Shader_ParseFloat (shader, ptr, 0);
 	func->args[1] = Shader_ParseFloat (shader, ptr, 0);
@@ -639,6 +639,7 @@ static void Shader_ParseFunc (shader_t *shader, char **ptr, shaderfunc_t *func)
 
 static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **name)
 {
+	//fixme: pass flags should be handled elsewhere.
 	int flags = 0;
 
 	for(;name;)
@@ -646,7 +647,13 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 		if (!Q_strnicmp(*name, "$rt:", 4))
 		{
 			*name += 4;
-			flags |= IF_NOMIPMAP|IF_CLAMP|IF_LINEAR|IF_RENDERTARGET;
+			flags |= IF_NOMIPMAP|IF_CLAMP|IF_RENDERTARGET;
+			if (!(flags & (IF_NEAREST|IF_LINEAR)))
+			{
+				flags |= IF_LINEAR;
+				if (pass)
+					pass->flags |= SHADER_PASS_LINEAR;
+			}
 		}
 		else if (!Q_strnicmp(*name, "$clamp:", 7))
 		{
@@ -666,16 +673,24 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 		else if (!Q_strnicmp(*name, "$nearest:", 9))
 		{
 			*name+=9;
-			flags|= IF_NEAREST;
+			flags &= ~IF_LINEAR;
+			flags |= IF_NEAREST;
 			if (pass)
+			{
+				pass->flags &= ~SHADER_PASS_LINEAR;
 				pass->flags |= SHADER_PASS_NEAREST;
+			}
 		}
 		else if (!Q_strnicmp(*name, "$linear:", 8))
 		{
 			*name+=8;
-			flags|= IF_LINEAR;
+			flags &= ~IF_NEAREST;
+			flags |= IF_LINEAR;
 			if (pass)
+			{
+				pass->flags &= ~SHADER_PASS_NEAREST;
 				pass->flags |= SHADER_PASS_LINEAR;
+			}
 		}
 		else
 			break;
@@ -751,7 +766,7 @@ static texid_t Shader_FindImage ( char *name, int flags )
 			return R_LoadColourmapImage();
 	}
 	if (flags & IF_RENDERTARGET)
-		return R2D_RT_Configure(name, 0, 0, TF_INVALID);
+		return R2D_RT_Configure(name, 0, 0, TF_INVALID, flags);
 	return R_LoadHiResTexture(name, NULL, flags);
 }
 
@@ -5481,15 +5496,19 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 				"{\n"
 					"map $diffuse\n"
 					"tcgen base\n"
-						"alphamask\n"
+					"alphamask\n"
 				"}\n"
-				"if $lightmap\n"
+//				"if $lightmap\n"
 					"{\n"
 						"map $lightmap\n"
+						"if gl_overbright > 1\n"
+						"blendfunc gl_dst_color gl_src_color\n"	//scale it up twice. will probably still get clamped, but what can you do
+						"else\n"
 						"blendfunc gl_dst_color gl_zero\n"
+						"endif\n"
 						"depthfunc equal\n"
 					"}\n"
-				"endif\n"
+//				"endif\n"
 				"{\n"
 					"map $fullbright\n"
 					"blendfunc add\n"

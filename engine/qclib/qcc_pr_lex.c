@@ -48,7 +48,7 @@ extern pbool expandedemptymacro;
 //really these should not be in here
 extern unsigned int locals_end, locals_start;
 extern QCC_type_t *pr_classtype;
-QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *type);
+QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *type, pbool dowrap);
 
 
 static void Q_strlcpy(char *dest, const char *src, int sizeofdest)
@@ -4605,10 +4605,6 @@ QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s 
 
 extern char *basictypenames[];
 extern QCC_type_t **basictypes[];
-QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_function_t *scope, int arraysize, QCC_def_t *rootsymbol, unsigned int ofs, int referable, unsigned int flags);
-
-void QCC_PR_ParseInitializerDef(QCC_def_t *def);
-
 pbool type_inlinefunction;
 /*newtype=true: creates a new type always
   silentfail=true: function is permitted to return NULL if it was not given a type, otherwise never returns NULL
@@ -4831,7 +4827,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					def = QCC_PR_GetSRef(functype, funcname, NULL, true, 0, GDF_CONST | (isinline?GDF_INLINE:0));
 
 					//pr_classtype = newt;
-					f = QCC_PR_ParseImmediateStatements (def.sym, functype);
+					f = QCC_PR_ParseImmediateStatements (def.sym, functype, false);
 					pr_classtype = NULL;
 					pr_scope = NULL;
 					def.sym->symboldata[def.ofs].function = f - functions;
@@ -5114,7 +5110,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 						else
 						{
 							pr_classtype = newt;
-							QCC_PR_ParseInitializerDef(def);
+							QCC_PR_ParseInitializerDef(def, 0);
 							QCC_FreeDef(def);
 							pr_classtype = NULL;
 							/*

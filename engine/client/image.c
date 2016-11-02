@@ -772,11 +772,11 @@ qboolean LibPNG_Init(void)
 		{(void **) &qpng_set_gray_to_rgb,				"png_set_gray_to_rgb"},
 		{(void **) &qpng_set_tRNS_to_alpha,				"png_set_tRNS_to_alpha"},
 		{(void **) &qpng_get_valid,						"png_get_valid"},
-		#if PNG_LIBPNG_VER > 10400
+#if PNG_LIBPNG_VER > 10400
 		{(void **) &qpng_set_expand_gray_1_2_4_to_8,	"png_set_expand_gray_1_2_4_to_8"},
-                #else
+#else
 		{(void **) &qpng_set_gray_1_2_4_to_8,	"png_set_gray_1_2_4_to_8"},
-                #endif
+#endif
 		{(void **) &qpng_set_bgr,						"png_set_bgr"},
 		{(void **) &qpng_set_filler,					"png_set_filler"},
 		{(void **) &qpng_set_palette_to_rgb,			"png_set_palette_to_rgb"},
@@ -810,18 +810,31 @@ qboolean LibPNG_Init(void)
 
 		if (!LIBPNG_LOADED())
 		{
-			char *libname;
+			char *libnames[] =
+			{
 			#ifdef _WIN32
-				libname = va("libpng%i", PNG_LIBPNG_VER_DLLNUM);
+				va("libpng%i", PNG_LIBPNG_VER_DLLNUM);
 			#else
-				if (PNG_LIBPNG_VER_SONUM == 0)
-					libname = "libpng.so";
-				else
-					libname = va("libpng.so.%i", PNG_LIBPNG_VER_SONUM);
+				//linux...
+				//lsb uses 'libpng12.so' specifically, so make sure that works.
+				"libpng" STRINGIFY(PNG_LIBPNG_VER_MAJOR) STRINGIFY(PNG_LIBPNG_VER_MINOR) ".so." STRINGIFY(PNG_LIBPNG_VER_SONUM),
+				"libpng" STRINGIFY(PNG_LIBPNG_VER_MAJOR) STRINGIFY(PNG_LIBPNG_VER_MINOR) ".so",
+				"libpng.so." STRINGIFY(PNG_LIBPNG_VER_SONUM)
+				"libpng.so",
 			#endif
-			libpng_handle = Sys_LoadLibrary(libname, pngfuncs);
+			};
+			size_t i;
+			for (i = 0; i < countof(libnames); i++)
+			{
+				if (libnames[i])
+				{
+					libpng_handle = Sys_LoadLibrary(libnames[i], pngfuncs);
+					if (libpng_handle)
+						break;
+				}
+			}
 			if (!libpng_handle)
-				Con_Printf("Unable to load %s\n", libname);
+				Con_Printf("Unable to load %s\n", libnames[0]);
 		}
 
 //		if (!LIBPNG_LOADED())
@@ -881,8 +894,8 @@ qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *
 	png_uint_32 pngwidth, pngheight;
 	struct pngerr errctx;
 
-    if (!LibPNG_Init())
-        return NULL;
+	if (!LibPNG_Init())
+		return NULL;
 
 	memcpy(header, buf, 8);
 

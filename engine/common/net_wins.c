@@ -3617,7 +3617,7 @@ handshakeerror:
 			st->inlen = 0;
 
 #ifdef HAVE_SSL
-			if (con->tls)	//if we're meant to be using tls, wrap the stream in a tls connection
+			if (con->tls && st->clientstream)	//if we're meant to be using tls, wrap the stream in a tls connection
 			{
 				st->clientstream = FS_OpenSSL(NULL, st->clientstream, true, false);
 				/*sockadr doesn't contain transport info, so fix that up here*/

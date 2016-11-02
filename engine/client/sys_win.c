@@ -3672,9 +3672,12 @@ qboolean Sys_RunInstaller(void)
 #define RESLANG MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_UK)
 static const char *Sys_FindManifest(void)
 {
+	const char *fmf;
 	HRSRC hdl = FindResource(NULL, MAKEINTRESOURCE(1), RT_RCDATA);
 	HGLOBAL hgl = LoadResource(NULL, hdl);
-	return LockResource(hgl);
+	fmf = LockResource(hgl);
+//	MessageBox(NULL, fmf, "Embedded manifest", 0);
+	return fmf;
 }
 
 //size info that microsoft recommends
@@ -3685,9 +3688,9 @@ static const struct
 	int bpp;
 } icosizes[] = {
 //	{96, 96, 32},
-	{48, 48, 32},
-	{32, 32, 32},
-	{16, 16, 32},
+//	{48, 48, 32},
+//	{32, 32, 32},
+//	{16, 16, 32},
 //	{16, 16, 4},
 //	{48, 48, 4},
 //	{32, 32, 4},

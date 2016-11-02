@@ -2421,7 +2421,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		{
 #ifdef MENU_DAT
 			if (Key_Dest_Has(kdm_gmenu) && !Key_Dest_Has(kdm_editor|kdm_console|kdm_cwindows))
-				MP_Keyup (key, unicode);
+				MP_Keyup (key, unicode, devid);
 #endif
 			return;
 		}
@@ -2447,7 +2447,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			M_Keydown (key, unicode);
 #ifdef MENU_DAT
 		else if (Key_Dest_Has(kdm_gmenu))
-			MP_Keydown (key, unicode);
+			MP_Keydown (key, unicode, devid);
 #endif
 		else if (Key_Dest_Has(kdm_message))
 			Key_Dest_Remove(kdm_message);
@@ -2492,7 +2492,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			M_Keyup (key, unicode);
 #ifdef MENU_DAT
 		if (Key_Dest_Has(kdm_gmenu))
-			MP_Keyup (key, unicode);
+			MP_Keyup (key, unicode, devid);
 #endif
 #ifndef NOMEDIA
 		if (Media_PlayingFullScreen())
@@ -2583,8 +2583,8 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 #ifdef MENU_DAT
 	if (Key_Dest_Has(kdm_gmenu))
 	{
-		MP_Keydown (key, unicode);
-		return;
+		if (MP_Keydown (key, unicode, devid))
+			return;
 	}
 #endif
 	if (Key_Dest_Has(kdm_message))

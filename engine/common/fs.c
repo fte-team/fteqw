@@ -4830,6 +4830,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	int i, j;
 	char realpath[MAX_OSPATH-1];
 	char newbasedir[MAX_OSPATH];
+	char *olddownloadsurl;
 	qboolean fixedbasedir;
 	qboolean reloadconfigs = false;
 	qboolean builtingame = false;
@@ -4911,6 +4912,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 			Sys_Error("couldn't generate dataless manifest\n");
 	}
 
+	if (fs_manifest && fs_manifest->downloadsurl)
+		olddownloadsurl = Z_StrDup(fs_manifest->downloadsurl);
+	else
+		olddownloadsurl = NULL;
+
 	if (man == fs_manifest)
 	{
 		//don't close anything. theoretically nothing is changing, and we don't want to load new defaults either.
@@ -4928,6 +4934,14 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		reloadconfigs = true;
 	}
 	fs_manifest = man;
+
+	if (!man->doinstall)
+	{	//make sure we only fuck over the user if this is a 'secure' manifest, and not hacked in some way.
+		Z_Free(man->downloadsurl);
+		man->downloadsurl = olddownloadsurl;
+	}
+	else
+		Z_Free(olddownloadsurl);
 
 	if (man->installation && *man->installation)
 	{

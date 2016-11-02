@@ -120,7 +120,7 @@ int main(int argc, char **argv)
 #ifdef _WIN32
 		Sleep(1);
 #else
-		usleep(1000000);
+		usleep(10000);
 #endif
 	}
 }

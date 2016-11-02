@@ -417,7 +417,9 @@ static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdec
 	}
 #else
 	{
-		oggvorbislibrary = Sys_LoadLibrary("libvorbisfile", funcs);
+		oggvorbislibrary = Sys_LoadLibrary("libvorbisfile.so.3", funcs);
+		if (!oggvorbislibrary)
+			oggvorbislibrary = Sys_LoadLibrary("libvorbisfile", funcs);
 		if (!oggvorbislibrary)
 			Con_Printf("Couldn't load library: \"libvorbisfile\".\n");
 	}

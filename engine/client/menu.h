@@ -468,8 +468,11 @@ void MP_Shutdown (void);
 qboolean MP_Toggle(int mode);
 void MP_Draw(void);
 void MP_RegisterCvarsAndCmds(void);
-void MP_Keydown(int key, int unicode);
-void MP_Keyup(int key, int unicode);
+qboolean MP_Keydown(int key, int unicode, unsigned int devid);
+void MP_Keyup(int key, int unicode, unsigned int devid);
+qboolean MP_MouseMove(float x, float y, unsigned int devid);
+qboolean MP_MousePosition(float x, float y, unsigned int devid);
+qboolean MP_JoystickAxis(int axis, float value, unsigned int devid);
 int MP_BuiltinValid(char *name, int num);
 qboolean MP_ConsoleCommand(char *cmdtext);
 #endif

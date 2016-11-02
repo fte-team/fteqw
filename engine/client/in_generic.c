@@ -421,6 +421,11 @@ void IN_Commands(void)
 		case IEV_JOYAXIS:
 			if (ev->devid < MAXJOYSTICKS && ev->joy.axis < MAXJOYAXIS)
 			{
+#ifdef MENU_DAT
+				if (MP_JoystickAxis(ev->joy.axis, ev->joy.value, ev->devid))
+					joy[ev->devid].axis[ev->joy.axis] = 0;
+				else
+#endif
 #ifdef CSQC_DAT
 				if (CSQC_JoystickAxis(ev->joy.axis, ev->joy.value, ev->devid))
 					joy[ev->devid].axis[ev->joy.axis] = 0;
@@ -659,23 +664,43 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 		strafe_y = !((in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1));
 	}
 
-#ifdef PEXT_CSQC
 	if (mouse->type == M_TOUCH)
 	{
+#ifdef MENU_DAT
+		if (!runningindepphys && MP_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
+		{
+			mx = 0;
+			my = 0;
+		}
+#endif
+#ifdef PEXT_CSQC
 		if (!runningindepphys && CSQC_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
 		{
 			mx = 0;
 			my = 0;
 		}
+#endif
 	}
 	else
 	{
+#ifdef MENU_DAT
+		if (Key_Dest_Has(kdm_gmenu))
+		if (mx || my)
+		if (!runningindepphys && MP_MouseMove(mx, my, mouse->qdeviceid))
+		{
+			mx = 0;
+			my = 0;
+		}
+#endif
+
+#ifdef PEXT_CSQC
 		if (mx || my)
 		if (!runningindepphys && CSQC_MouseMove(mx, my, mouse->qdeviceid))
 		{
 			mx = 0;
 			my = 0;
 		}
+#endif
 
 		//if game is not focused, kill any mouse look
 		if (Key_Dest_Has(~kdm_game))
@@ -684,7 +709,6 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 			my = 0;
 		}
 	}
-#endif
 
 	if (m_filter.value)
 	{

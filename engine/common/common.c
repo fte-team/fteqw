@@ -4450,10 +4450,15 @@ void COM_ParsePlusSets (qboolean docbuf)
 		}
 		else
 		{
-			if (!strcmp(com_argv[i], "+set"))
-				Cvar_Get(com_argv[i+1], com_argv[i+2], 0, "Cvars set on commandline");
-			else if (!strcmp(com_argv[i], "+seta"))
-				Cvar_Get(com_argv[i+1], com_argv[i+2], CVAR_ARCHIVE, "Cvars set on commandline");
+			if (!strcmp(com_argv[i], "+set") || !strcmp(com_argv[i], "+seta"))
+			{
+#if defined(Q2CLIENT) || defined(Q2SERVER)
+				if (!strcmp("basedir", com_argv[i+1]))
+					host_parms.basedir = com_argv[i];
+				else
+#endif
+					Cvar_Get(com_argv[i+1], com_argv[i+2], (!strcmp(com_argv[i], "+seta"))?CVAR_ARCHIVE:0, "Cvars set on commandline");
+			}
 		}
 		i+=2;
 	}

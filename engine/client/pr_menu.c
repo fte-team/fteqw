@@ -2382,6 +2382,7 @@ func_t mp_shutdown_function;
 func_t mp_draw_function;
 func_t mp_keydown_function;
 func_t mp_keyup_function;
+func_t mp_inputevent_function;
 func_t mp_toggle_function;
 func_t mp_consolecommand_function;
 
@@ -2598,6 +2599,7 @@ qboolean MP_Init (void)
 		mp_init_function = PR_FindFunction(menu_world.progs, "m_init", PR_ANY);
 		mp_shutdown_function = PR_FindFunction(menu_world.progs, "m_shutdown", PR_ANY);
 		mp_draw_function = PR_FindFunction(menu_world.progs, "m_draw", PR_ANY);
+		mp_inputevent_function = PR_FindFunction(menu_world.progs, "Menu_InputEvent", PR_ANY);
 		mp_keydown_function = PR_FindFunction(menu_world.progs, "m_keydown", PR_ANY);
 		mp_keyup_function = PR_FindFunction(menu_world.progs, "m_keyup", PR_ANY);
 		mp_toggle_function = PR_FindFunction(menu_world.progs, "m_toggle", PR_ANY);
@@ -2753,17 +2755,18 @@ void MP_Draw(void)
 }
 
 
-void MP_Keydown(int key, int unicode)
+qboolean MP_Keydown(int key, int unicode, unsigned int devid)
 {
+	qboolean result = false;
 	extern qboolean	keydown[K_MAX];
 
 #ifdef TEXTEDITOR
 	if (editormodal)
-		return;
+		return true;
 #endif
 
 	if (setjmp(mp_abort))
-		return;
+		return true;
 
 	if (key == 'c')
 	{
@@ -2771,7 +2774,7 @@ void MP_Keydown(int key, int unicode)
 		{
 			MP_Shutdown();
 			M_Init_Internal();
-			return;
+			return true;
 		}
 	}
 
@@ -2782,7 +2785,17 @@ void MP_Keydown(int key, int unicode)
 		*menu_world.g.time = menutime;
 
 	inmenuprogs++;
-	if (mp_keydown_function)
+	if (mp_inputevent_function)
+	{
+		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+		G_FLOAT(OFS_PARM0) = CSIE_KEYDOWN;
+		G_FLOAT(OFS_PARM1) = MP_TranslateFTEtoQCCodes(key);
+		G_FLOAT(OFS_PARM2) = unicode;
+		G_FLOAT(OFS_PARM3) = devid;
+		PR_ExecuteProgram(menu_world.progs, mp_inputevent_function);
+		result = G_FLOAT(OFS_RETURN);
+	}
+	else if (mp_keydown_function)
 	{
 		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoQCCodes(key);
@@ -2790,9 +2803,10 @@ void MP_Keydown(int key, int unicode)
 		PR_ExecuteProgram(menu_world.progs, mp_keydown_function);
 	}
 	inmenuprogs--;
+	return result;
 }
 
-void MP_Keyup(int key, int unicode)
+void MP_Keyup(int key, int unicode, unsigned int devid)
 {
 #ifdef TEXTEDITOR
 	if (editormodal)
@@ -2811,7 +2825,16 @@ void MP_Keyup(int key, int unicode)
 		*menu_world.g.time = menutime;
 
 	inmenuprogs++;
-	if (mp_keyup_function)
+	if (mp_inputevent_function)
+	{
+		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+		G_FLOAT(OFS_PARM0) = CSIE_KEYUP;
+		G_FLOAT(OFS_PARM1) = MP_TranslateFTEtoQCCodes(key);
+		G_FLOAT(OFS_PARM2) = unicode;
+		G_FLOAT(OFS_PARM3) = devid;
+		PR_ExecuteProgram(menu_world.progs, mp_inputevent_function);
+	}
+	else if (mp_keyup_function)
 	{
 		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoQCCodes(key);
@@ -2819,6 +2842,63 @@ void MP_Keyup(int key, int unicode)
 		PR_ExecuteProgram(menu_world.progs, mp_keyup_function);
 	}
 	inmenuprogs--;
+}
+
+qboolean MP_MousePosition(float xabs, float yabs, unsigned int devid)
+{
+	void *pr_globals;
+
+	if (!menu_world.progs || !mp_inputevent_function)
+		return false;
+
+	if (setjmp(mp_abort))
+		return false;
+	inmenuprogs++;
+	pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+	G_FLOAT(OFS_PARM0) = CSIE_MOUSEABS;
+	G_FLOAT(OFS_PARM1) = (xabs * vid.width) / vid.pixelwidth;
+	G_FLOAT(OFS_PARM2) = (yabs * vid.height) / vid.pixelheight;
+	G_FLOAT(OFS_PARM3) = devid;
+	PR_ExecuteProgram (menu_world.progs, mp_inputevent_function);
+	inmenuprogs--;
+	return G_FLOAT(OFS_RETURN);
+}
+qboolean MP_MouseMove(float xdelta, float ydelta, unsigned int devid)
+{
+	void *pr_globals;
+
+	if (!menu_world.progs || !mp_inputevent_function)
+		return false;
+
+	if (setjmp(mp_abort))
+		return false;
+	inmenuprogs++;
+	pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+	G_FLOAT(OFS_PARM0) = CSIE_MOUSEDELTA;
+	G_FLOAT(OFS_PARM1) = (xdelta * vid.width) / vid.pixelwidth;
+	G_FLOAT(OFS_PARM2) = (ydelta * vid.height) / vid.pixelheight;
+	G_FLOAT(OFS_PARM3) = devid;
+	PR_ExecuteProgram (menu_world.progs, mp_inputevent_function);
+	inmenuprogs--;
+	return G_FLOAT(OFS_RETURN);
+}
+
+qboolean MP_JoystickAxis(int axis, float value, unsigned int devid)
+{
+	void *pr_globals;
+	if (!menu_world.progs || !mp_inputevent_function)
+		return false;
+	if (setjmp(mp_abort))
+		return false;
+	inmenuprogs++;
+	pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+	G_FLOAT(OFS_PARM0) = CSIE_JOYAXIS;
+	G_FLOAT(OFS_PARM1) = axis;
+	G_FLOAT(OFS_PARM2) = value;
+	G_FLOAT(OFS_PARM3) = devid;
+	PR_ExecuteProgram (menu_world.progs, mp_inputevent_function);
+	inmenuprogs--;
+	return G_FLOAT(OFS_RETURN);
 }
 
 qboolean MP_Toggle(int mode)

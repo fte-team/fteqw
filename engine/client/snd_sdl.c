@@ -79,7 +79,9 @@ static qboolean SSDL_InitAudio(void)
 	static dllhandle_t *libsdl;
 	if (!libsdl)
 	{
-		libsdl = Sys_LoadLibrary("libSDL2.so", funcs);
+		libsdl = Sys_LoadLibrary("libSDL2-2.0.so.0", funcs);
+		if (!libsdl)
+			libsdl = Sys_LoadLibrary("libSDL2.so", funcs);	//maybe they have a dev package installed that fixes this mess.
 		if (libsdl)
 			SDL_Init(SDL_INIT_NOPARACHUTE);
 		else

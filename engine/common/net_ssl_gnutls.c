@@ -3,7 +3,10 @@
 //named functions, this makes it *really* easy to port plugins from one engine to annother.
 
 #include "quakedef.h"
- 
+
+#define GNUTLS_DYNAMIC 	//statically linking is bad, because that just dynamically links to a .so that probably won't exist.
+						//on the other hand, it does validate that the function types are correct.
+
 #ifdef HAVE_GNUTLS
 
 #if defined(_WIN32) && !defined(MINGW)
@@ -116,11 +119,12 @@ typedef int (VARGS gnutls_certificate_verify_function)(gnutls_session_t session)
 #endif
 
 #if GNUTLS_VERSION_MAJOR >= 3
-	#define GNUTLS_VERSION_3_0_0_PLUS
+	#define GNUTLS_HAVE_SYSTEMTRUST
 #endif
 #if GNUTLS_VERSION_MAJOR >= 4 || (GNUTLS_VERSION_MAJOR == 3 && (GNUTLS_VERSION_MINOR > 1 || (GNUTLS_VERSION_MINOR == 1 && GNUTLS_VERSION_PATCH >= 1)))
-	#define GNUTLS_VERSION_3_1_4_PLUS
+	#define GNUTLS_HAVE_VERIFY3
 #endif
+
 
 static int (VARGS *qgnutls_bye)(gnutls_session_t session, gnutls_close_request_t how);
 static void (VARGS *qgnutls_perror)(int error);
@@ -138,18 +142,18 @@ static int (VARGS *qgnutls_certificate_allocate_credentials)(gnutls_certificate_
 static int (VARGS *qgnutls_certificate_type_set_priority)(gnutls_session_t session, const int*);
 static int (VARGS *qgnutls_anon_allocate_client_credentials)(gnutls_anon_client_credentials_t *sc);
 static int (VARGS *qgnutls_global_init)(void);
-static int (VARGS *qgnutls_record_send)(gnutls_session_t session, const void *data, size_t sizeofdata);
-static int (VARGS *qgnutls_record_recv)(gnutls_session_t session, void *data, size_t sizeofdata);
+static ssize_t (VARGS *qgnutls_record_send)(gnutls_session_t session, const void *data, size_t sizeofdata);
+static ssize_t (VARGS *qgnutls_record_recv)(gnutls_session_t session, void *data, size_t sizeofdata);
 
-static int (VARGS *qgnutls_certificate_set_verify_function)(gnutls_certificate_credentials_t cred, gnutls_certificate_verify_function *func);
+static void (VARGS *qgnutls_certificate_set_verify_function)(gnutls_certificate_credentials_t cred, gnutls_certificate_verify_function *func);
 static void *(VARGS *qgnutls_session_get_ptr)(gnutls_session_t session);
 static void (VARGS *qgnutls_session_set_ptr)(gnutls_session_t session, void *ptr);
-#ifdef GNUTLS_VERSION_3_0_0_PLUS
+#ifdef GNUTLS_HAVE_SYSTEMTRUST
 static int (VARGS *qgnutls_certificate_set_x509_system_trust)(gnutls_certificate_credentials_t cred);
 #else
 static int (VARGS *qgnutls_certificate_set_x509_trust_file)(gnutls_certificate_credentials_t cred, const char * cafile, gnutls_x509_crt_fmt_t type);
 #endif
-#ifdef GNUTLS_VERSION_3_1_4_PLUS
+#ifdef GNUTLS_HAVE_VERIFY3
 static int (VARGS *qgnutls_certificate_verify_peers3)(gnutls_session_t session, const char* hostname, unsigned int * status);
 static int (VARGS *qgnutls_certificate_verification_status_print)(unsigned int status, gnutls_certificate_type_t type, gnutls_datum_t * out, unsigned int flags);
 #else
@@ -165,12 +169,12 @@ static int (VARGS *qgnutls_server_name_set)(gnutls_session_t session, gnutls_ser
 
 static qboolean Init_GNUTLS(void)
 {
-#ifdef GNUTLS_VERSION_3_0_0_PLUS
+#ifdef GNUTLS_HAVE_SYSTEMTRUST
 	#define GNUTLS_TRUSTFUNCS GNUTLS_FUNC(gnutls_certificate_set_x509_system_trust)
 #else
 	#define GNUTLS_TRUSTFUNCS GNUTLS_FUNC(gnutls_certificate_set_x509_trust_file)
 #endif
-#ifdef GNUTLS_VERSION_3_1_4_PLUS
+#ifdef GNUTLS_HAVE_VERIFY3
 	#define GNUTLS_VERIFYFUNCS \
 		GNUTLS_FUNC(gnutls_certificate_verify_peers3) \
 		GNUTLS_FUNC(gnutls_certificate_verification_status_print)
@@ -212,7 +216,7 @@ static qboolean Init_GNUTLS(void)
 	GNUTLS_FUNC(gnutls_free)	\
 	GNUTLS_FUNC(gnutls_server_name_set)	\
 
-#if 1	//GNUTLS_DYNAMIC
+#ifdef GNUTLS_DYNAMIC
 	dllhandle_t *hmod;
 
 	dllfunction_t functable[] =
@@ -242,12 +246,12 @@ static qboolean Init_GNUTLS(void)
 		{(void**)&qgnutls_certificate_set_verify_function, "gnutls_certificate_set_verify_function"},
 		{(void**)&qgnutls_session_get_ptr, "gnutls_session_get_ptr"},
 		{(void**)&qgnutls_session_set_ptr, "gnutls_session_set_ptr"},
-#ifdef GNUTLS_VERSION_3_0_0_PLUS
+#ifdef GNUTLS_HAVE_SYSTEMTRUST
 		{(void**)&qgnutls_certificate_set_x509_system_trust, "gnutls_certificate_set_x509_system_trust"},
 #else
 		{(void**)&qgnutls_certificate_set_x509_trust_file, "gnutls_certificate_set_x509_trust_file"},
 #endif
-#ifdef GNUTLS_VERSION_3_1_4_PLUS
+#ifdef GNUTLS_HAVE_VERIFY3
 		{(void**)&qgnutls_certificate_verify_peers3, "gnutls_certificate_verify_peers3"},
 		{(void**)&qgnutls_certificate_verification_status_print, "gnutls_certificate_verification_status_print"},
 #else
@@ -326,7 +330,7 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 	unsigned int certstatus;
 	cvar_t *tls_ignorecertificateerrors;
 
-#ifdef GNUTLS_VERSION_3_1_4_PLUS
+#ifdef GNUTLS_HAVE_VERIFY3
 	if (qgnutls_certificate_verify_peers3(session, file->certname, &certstatus) >= 0)
 	{
 		{
@@ -339,7 +343,7 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 			if (qgnutls_certificate_verification_status_print(certstatus, type, &out, 0) >= 0)
 			{
 				Con_Printf("%s: %s\n", file->certname, out.data);
-				qgnutls_free(out.data);
+//looks like its static anyway.				qgnutls_free(out.data);
 
 #else
 	if (qgnutls_certificate_verify_peers2(session, &certstatus) >= 0)
@@ -591,7 +595,7 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, 
 			qgnutls_anon_allocate_client_credentials (&anoncred);
 			qgnutls_certificate_allocate_credentials (&xcred);
 
-#ifdef GNUTLS_VERSION_3_0_0_PLUS
+#ifdef GNUTLS_HAVE_SYSTEMTRUST
 			qgnutls_certificate_set_x509_system_trust (xcred);
 #else
 			qgnutls_certificate_set_x509_trust_file (xcred, CAFILE, GNUTLS_X509_FMT_PEM);

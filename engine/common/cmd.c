@@ -3130,6 +3130,7 @@ void Cmd_set_f(void)
 	int forceflags = 0;
 	qboolean docalc;
 	char name[256];
+	const char *desc = NULL;
 
 	if (Cmd_Argc()<3)
 	{
@@ -3147,7 +3148,7 @@ void Cmd_set_f(void)
 
 	Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
-	if (!strcmp(Cmd_Argv(0), "setfl") || Cmd_FromGamecode())	//AAHHHH!!! Q2 set command is different
+	if (!strcmp(Cmd_Argv(0), "setfl") || Cmd_FromGamecode())	//AARGHHHH!!! Q2 set command is different
 	{
 		text = Cmd_Argv(3);
 		while(*text)
@@ -3169,41 +3170,81 @@ void Cmd_set_f(void)
 		}
 		text = Cmd_Argv(2);
 
-		/*desc = Cmd_Argv(4)*/
+		if (Cmd_Argc()>=5)
+			desc = Cmd_Argv(4);
 	}
 	else if (dpcompat_set.ival && !docalc)
 	{
 		text = Cmd_Argv(2);
-		/*desc = Cmd_Argv(3)*/
+		if (Cmd_Argc()>=4)
+			desc = Cmd_Argv(3);
 	}
 	else
 	{
 		Cmd_ShiftArgs(1, false);
 		text = Cmd_Args();
-		if (!docalc && (*text == '\"' || (*text == '\\' && text[1] == '\"')))	//if it's already quoted, dequote it, and ignore trailing stuff, for q2/q3 compatability
-			text = Cmd_Argv(1);
-		else
+		if (!docalc && Cmd_Argc()==2 && (*text == '\"' || (*text == '\\' && text[1] == '\"')))	//if it's already quoted, dequote it, and ignore trailing stuff, for q2/q3 compatability
 		{
-			end = strstr(text, "//");
-			if (end)
+			desc = COM_StringParse (text, com_token, sizeof(com_token), false, false);
+			while (*desc == ' ' || *desc == '\t')
+				desc++;
+			if (desc[0] == '/' && desc[1] == '/')
 			{
-				end--;
-				while (end >= text)
+				desc+=2;
+				while (*desc == ' ' || *desc == '\t')
+					desc++;
+				end = desc + strlen(desc);
+				while (end > desc)
 				{
+					end--;
 					if (*end == ' ' || *end == '\t' || *end == '\r')
-						end--;
+						*(char*)end = 0;
 					else
 						break;
 				}
-				end++;
-				*(char*)end = 0;
-
+			}
+			else
+				desc = NULL;
+			text = Cmd_Argv(1);
+		}
+		else
+		{
+			desc = strstr(text, "//");
+			if (desc)
+				end = desc;
+			else
+				end = text+strlen(text);
+			end--;
+			while (end >= text)
+			{
+				if (*end == ' ' || *end == '\t' || *end == '\r')
+					end--;
+				else
+					break;
+			}
+			end++;
+			*(char*)end = 0;
+			if (desc)
+			{
+				desc+=2;
+				while(*desc == ' ' || *desc == '\t')
+					desc++;
+				end = desc + strlen(desc);
+				while (end > desc)
+				{
+					end--;
+					if (*end == ' ' || *end == '\t' || *end == '\r')
+						*(char*)end = 0;
+					else
+						break;
+				}
 			}
 		}
+		//fixme: should peek onto the next line to see if that's an indented // too, or something.
 		forceflags |= 0;
 	}
 
-	var = Cvar_Get (name, text, CVAR_TEAMPLAYTAINT, "Custom variables");
+	var = Cvar_Get2 (name, text, CVAR_TEAMPLAYTAINT, desc, "Custom variables");
 
 	mark = If_Token_GetMark();
 

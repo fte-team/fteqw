@@ -851,6 +851,11 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 	{
 	//Con_Printf ("S_LoadSound: %x\n", (int)stackbuf);
 	// load it in
+		const char *prefixes[] = {"sound/", ""};
+		const char *extensions[] = {".wav", ".ogg"};
+		char altname[sizeof(namebuffer)];
+		char orig[16];
+		size_t pre, ex;
 
 		data = NULL;
 		filesize = 0;
@@ -860,38 +865,46 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 			s->loadstate = SLS_FAILED;
 			return;
 		}
-		else if (name[0] == '.' && name[1] == '.' && name[2] == '/')
+
+		for (pre = 0; !data && pre < countof(prefixes); pre++)
 		{
-			//not relative to sound/
-			Q_strcpy(namebuffer, name+3);
-		}
-		else
-		{
-			//q1 behaviour, relative to sound/
-			Q_strcpy(namebuffer, "sound/");
-			Q_strcat(namebuffer, name);
+			if (name[0] == '.' && name[1] == '.' && name[2] == '/')
+			{	//someone's being specific. disable prefixes entirely.
+				if (pre)
+					break;
+				//not relative to sound/
+				Q_snprintfz(namebuffer, sizeof(namebuffer), "%s", name+3);
+			}
+			else
+				Q_snprintfz(namebuffer, sizeof(namebuffer), "%s%s", prefixes[pre], name);
+
 			data = COM_LoadFile(namebuffer, 5, &filesize);
-		}
-
-	//	Con_Printf ("loading %s\n",namebuffer);
-
-		if (!data)
-			data = COM_LoadFile(name, 5, &filesize);
-		if (!data)
-		{
-			char altname[sizeof(namebuffer)];
-			COM_StripExtension(namebuffer, altname, sizeof(altname));
-			COM_DefaultExtension(altname, ".ogg", sizeof(altname));
-			data = COM_LoadFile(altname, 5, &filesize);
 			if (data)
-				Con_DPrintf("found a mangled name\n");
+				break;
+			COM_FileExtension(namebuffer, orig, sizeof(orig));
+			COM_StripExtension(namebuffer, altname, sizeof(altname));
+			for (ex = 0; ex < countof(extensions); ex++)
+			{
+				if (!strcmp(orig, extensions[ex]+1))
+					continue;
+				Q_snprintfz(namebuffer, sizeof(namebuffer), "%s%s", altname, extensions[ex]);
+				data = COM_LoadFile(namebuffer, 5, &filesize);
+				if (data)
+				{
+					Con_DPrintf("found a mangled name: %s\n", namebuffer);
+					break;
+				}
+			}
 		}
 	}
 
 	if (!data)
 	{
 		//FIXME: check to see if queued for download.
-		Con_DPrintf ("Couldn't load %s\n", namebuffer);
+		if (name[0] == '.' && name[1] == '.' && name[2] == '/')
+			Con_DPrintf ("Couldn't load %s\n", name+3);
+		else
+			Con_DPrintf ("Couldn't load sound/%s\n", name);
 		COM_AddWork(WG_MAIN, S_LoadedOrFailed, s, NULL, SLS_FAILED, 0);
 		return;
 	}

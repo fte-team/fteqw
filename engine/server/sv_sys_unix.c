@@ -769,48 +769,65 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-
-
-
-
-
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *match, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
-	char apath[MAX_OSPATH];
 	char file[MAX_OSPATH];
-	char truepath[MAX_OSPATH];
-	char *s;
+	const char *s;
 	struct dirent *ent;
 	struct stat st;
+	const char *wild;
+	const char *apath = truepath+apathofs;
 
-//printf("path = %s\n", gpath);
-//printf("match = %s\n", match);
-
-	if (!gpath)
-		gpath = "";
-	*apath = '\0';
-
-	Q_strncpyz(apath, match, sizeof(apath));
-	for (s = apath+strlen(apath)-1; s >= apath; s--)
+	//if there's a * in a system path, then we need to scan its parent directory to figure out what the * expands to.
+	//we can just recurse quicklyish to try to handle it.
+	wild = strchr(apath, '*');
+	if (!wild)
+		wild = strchr(apath, '?');
+	if (wild)
 	{
-		if (*s == '/')
+		char subdir[MAX_OSPATH];
+		for (s = wild+1; *s && *s != '/'; s++)
+			;
+		while (wild > truepath)
 		{
-			s[1] = '\0';
-			match += s - apath+1;
-			break;
+			if (*(wild-1) == '/')
+				break;
+			wild--;
 		}
+		memcpy(file, truepath, wild-truepath);
+		file[wild-truepath] = 0;
+
+		dir = opendir(file);
+		memcpy(subdir, wild, s-wild);
+		subdir[s-wild] = 0;
+		if (dir)
+		{
+			do
+			{
+				ent = readdir(dir);
+				if (!ent)
+					break;
+				if (*ent->d_name != '.')
+				{
+					if (wildcmp(subdir, ent->d_name))
+					{
+						memcpy(file, truepath, wild-truepath);
+						Q_snprintfz(file+(wild-truepath), sizeof(file)-(wild-truepath), "%s%s", ent->d_name, s);
+						if (!Sys_EnumerateFiles2(file, apathofs, match, func, parm, spath))
+						{
+							closedir(dir);
+							return false;
+						}
+					}
+				}
+			} while(1);
+			closedir(dir);
+		}
+		return true;
 	}
-	if (s < apath)	//didn't find a '/'
-		*apath = '\0';
-
-	Q_snprintfz(truepath, sizeof(truepath), "%s/%s", gpath, apath);
 
 
-//printf("truepath = %s\n", truepath);
-//printf("gamepath = %s\n", gpath);
-//printf("apppath = %s\n", apath);
-//printf("match = %s\n", match);
 	dir = opendir(truepath);
 	if (!dir)
 	{
@@ -834,6 +851,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 
 					if (!func(file, st.st_size, st.st_mtime, parm, spath))
 					{
+						Con_DPrintf("giving up on search after finding %s\n", file);
 						closedir(dir);
 						return false;
 					}
@@ -844,8 +862,33 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 		}
 	} while(1);
 	closedir(dir);
-
 	return true;
+}
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+{
+	char apath[MAX_OSPATH];
+	char truepath[MAX_OSPATH];
+	char *s;
+
+	if (!gpath)
+		gpath = "";
+	*apath = '\0';
+
+	Q_strncpyz(apath, match, sizeof(apath));
+	for (s = apath+strlen(apath)-1; s >= apath; s--)
+	{
+		if (*s == '/')
+		{
+			s[1] = '\0';
+			match += s - apath+1;
+			break;
+		}
+	}
+	if (s < apath)	//didn't find a '/'
+		*apath = '\0';
+
+	Q_snprintfz(truepath, sizeof(truepath), "%s/%s", gpath, apath);
+	return Sys_EnumerateFiles2(truepath, strlen(gpath)+1, match, func, parm, spath);
 }
 
 

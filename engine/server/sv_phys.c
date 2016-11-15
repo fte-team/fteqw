@@ -148,12 +148,12 @@ void WPhys_CheckVelocity (world_t *w, wedict_t *ent)
 	{
 		if (IS_NAN(ent->v->velocity[i]))
 		{
-			Con_DPrintf ("Got a NaN velocity on %s\n", PR_GetString(w->progs, ent->v->classname));
+			Con_DPrintf ("Got a NaN velocity on entity %i (%s)\n", ent->entnum, PR_GetString(w->progs, ent->v->classname));
 			ent->v->velocity[i] = 0;
 		}
 		if (IS_NAN(ent->v->origin[i]))
 		{
-			Con_Printf ("Got a NaN origin on %s\n", PR_GetString(w->progs, ent->v->classname));
+			Con_Printf ("Got a NaN origin on entity %i (%s)\n", ent->entnum, PR_GetString(w->progs, ent->v->classname));
 			ent->v->origin[i] = 0;
 		}
 	}

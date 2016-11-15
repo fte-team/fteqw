@@ -38,6 +38,7 @@
 
 
 #define QCFAULT return (pr_xstatement=(st-pr_statements)-1),PR_HandleFault
+#define EVAL_FLOATISTRUE(ev) ((ev)->_int & 0x7fffffff) //mask away sign bit. This avoids using denormalized floats.
 
 #ifdef __GNUC__
 #define errorif(x) if(__builtin_expect(x,0))
@@ -223,14 +224,18 @@ reeval:
 		break;
 
 	case OP_AND_F:
-		OPC->_float = (float)(OPA->_float && OPB->_float);
+		//original logic
+		//OPC->_float = (float)(OPA->_float && OPB->_float);
+		//deal with denormalized floats by ensuring that they're not 0 (ignoring sign bit).
+		//this avoids issues where the fpu treats denormalised floats as 0, or fpus that don't support denormals.
+		OPC->_float = (float)(EVAL_FLOATISTRUE(OPA) && EVAL_FLOATISTRUE(OPB));
 		break;
 	case OP_OR_F:
-		OPC->_float = (float)(OPA->_float || OPB->_float);
+		OPC->_float = (float)(EVAL_FLOATISTRUE(OPA) || EVAL_FLOATISTRUE(OPB));
 		break;
 
 	case OP_NOT_F:
-		OPC->_float = (float)(!OPA->_float);
+		OPC->_float = (float)(!EVAL_FLOATISTRUE(OPA));
 		break;
 	case OP_NOT_V:
 		OPC->_float = (float)(!OPA->_vector[0] && !OPA->_vector[1] && !OPA->_vector[2]);
@@ -549,7 +554,7 @@ reeval:
 			OPC->_vector[2] = ptr->_vector[2];
 		}
 		break;	
-		
+
 //==================
 
 	case OP_IFNOT_S:
@@ -560,10 +565,11 @@ reeval:
 
 	case OP_IFNOT_F:
 		RUNAWAYCHECK();
-		if (!OPA->_float)
+		if (!EVAL_FLOATISTRUE(OPA))
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
 
+	//WARNING: vanilla uses this for floats too, which results in a discrepancy with -0
 	case OP_IFNOT_I:
 		RUNAWAYCHECK();
 		if (!OPA->_int)
@@ -578,16 +584,17 @@ reeval:
 
 	case OP_IF_F:
 		RUNAWAYCHECK();
-		if (OPA->_float)
+		if (EVAL_FLOATISTRUE(OPA))
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
 
+	//WARNING: vanilla uses this for floats too, which results in a discrepancy with -0
 	case OP_IF_I:
 		RUNAWAYCHECK();
 		if (OPA->_int)
 			st += (sofs)st->b - 1;	// offset the s++
 		break;
-		
+
 	case OP_GOTO:
 		RUNAWAYCHECK();
 		st += (sofs)st->a - 1;	// offset the s++

@@ -30,6 +30,17 @@ void skel_info_f(void);
 void skel_generateragdoll_f(void);
 void PF_Common_RegisterCvars(void)
 {
+	volatile union
+	{
+		int i;
+		float f;
+	} a, b;
+	a.i = 1;
+	b.i = 1;
+	if (!(a.f && b.f))
+		Con_Printf("WARNING: denormalised floats are disabled. Mods may malfunction\n");
+
+
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
 	Cvar_Register (&pr_droptofloorunits, cvargroup_progs);
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
@@ -1429,7 +1440,11 @@ void QCBUILTIN PF_registercvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 void QCBUILTIN PF_memalloc (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int size = G_INT(OFS_PARM0);
-	void *ptr = prinst->AddressableAlloc(prinst, size);
+	void *ptr;
+	if (size <= 0 || size > 0x01000000)
+		ptr = NULL;	//don't let them abuse things too much. values that are too large might overflow.
+	else
+		ptr = prinst->AddressableAlloc(prinst, size);
 	if (ptr)
 	{
 		memset(ptr, 0, size);
@@ -2411,11 +2426,19 @@ int QDECL search_enumerate(const char *name, qofs_t fsize, time_t mtime, void *p
 
 //float	search_begin(string pattern, float caseinsensitive, float quiet) = #74;
 void QCBUILTIN PF_search_begin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{	//< 0 for error, > 0 for handle.
+{	//< 0 for error, >= 0 for handle.
+	//error includes bad search patterns, but not no files
 	const char *pattern = PR_GetStringOfs(prinst, OFS_PARM0);
 //	qboolean caseinsensitive = G_FLOAT(OFS_PARM1);
 //	qboolean quiet = G_FLOAT(OFS_PARM2);
 	prvmsearch_t *s;
+
+	if (!*pattern || (*pattern == '.' && pattern[1] == '.') || *pattern == '/' || *pattern == '\\' || strchr(pattern, ':'))
+	{
+		PF_Warningf(prinst, "PF_search_begin: bad search pattern \"%s\"\n", pattern);
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
 
 	s = Z_Malloc(sizeof(*s));
 	s->fromprogs = prinst;
@@ -2423,12 +2446,6 @@ void QCBUILTIN PF_search_begin (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	COM_EnumerateFiles(pattern, search_enumerate, s);
 
-	if (s->entries==0)
-	{
-		BZ_Free(s);
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
 	s->next = prvmsearches;
 	prvmsearches = s;
 	G_FLOAT(OFS_RETURN) = s->handle;
@@ -2444,7 +2461,7 @@ void QCBUILTIN PF_search_getsize (pubprogfuncs_t *prinst, struct globalvars_s *p
 {
 	int handle = G_FLOAT(OFS_PARM0);
 	prvmsearch_t *s;
-	G_FLOAT(OFS_RETURN) = -1;
+	G_FLOAT(OFS_RETURN) = 0;
 	for (s = prvmsearches; s; s = s->next)
 	{
 		if (s->handle == handle)
@@ -6022,6 +6039,7 @@ lh_extension_t QSG_Extensions[] = {
 //	{"DP_ENT_COLORMOD"},
 	{"DP_ENT_CUSTOMCOLORMAP"},
 	{"DP_ENT_EXTERIORMODELTOCLIENT"},
+	{"DP_ENT_SCALE"},
 	{"DP_ENT_TRAILEFFECTNUM",			1,	NULL, {"particleeffectnum"}, "self.traileffectnum=particleeffectnum(\"myeffectname\"); can be used to attach a particle trail to the given server entity. This is equivelent to calling trailparticles each frame."},
 	//only in dp6 currently {"DP_ENT_GLOW"},
 	{"DP_ENT_VIEWMODEL"},
@@ -6111,8 +6129,8 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_TE_EXPLOSIONRGB",				1,	NULL, {"te_explosionrgb"}},
 	{"_DP_TE_FLAMEJET",					1,	NULL, {"te_flamejet"}},
 	{"DP_TE_PARTICLECUBE",				1,	NULL, {"te_particlecube"}},
-	{"_DP_TE_PARTICLERAIN",				1,	NULL, {"te_particlerain"}},
-	{"_DP_TE_PARTICLESNOW",				1,	NULL, {"te_particlesnow"}},
+	{"DP_TE_PARTICLERAIN",				1,	NULL, {"te_particlerain"}},
+	{"DP_TE_PARTICLESNOW",				1,	NULL, {"te_particlesnow"}},
 	{"_DP_TE_PLASMABURN",				1,	NULL, {"te_plasmaburn"}},
 	{"_DP_TE_QUADEFFECTS1",				4,	NULL, {"te_gunshotquad", "te_spikequad", "te_superspikequad", "te_explosionquad"}},
 	{"DP_TE_SMALLFLASH",				1,	NULL, {"te_smallflash"}},
@@ -6128,7 +6146,6 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}, "Replication of mvdsv functionality (call calltimeofday to cause 'timeofday' to be called, with arguments that can be saved off to a global). Generally strftime is simpler to use."},
 	{"FTE_CSQC_ALTCONSOLES",			4,	NULL, {"con_getset", "con_printf", "con_draw", "con_input"}, "The engine tracks multiple consoles. These may or may not be directly visible to the user."},
 	{"FTE_CSQC_BASEFRAME",				0,  NULL, {NULL}, "Specifies that .basebone, .baseframe2, .baselerpfrac, baseframe1time, etc exist in csqc. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations."},
-	{"FTE_QC_BASEFRAME",				0,  NULL, {NULL}, "Specifies that .basebone and .baseframe exist in ssqc. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations, from ssqc."},
 #ifdef HALFLIFEMODELS
 	{"FTE_CSQC_HALFLIFE_MODELS"},		//hl-specific skeletal model control
 #endif
@@ -6138,7 +6155,10 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_CSQC_SKELETONOBJECTS",		15,	NULL, {	"skel_create", "skel_build", "skel_get_numbones", "skel_get_bonename", "skel_get_boneparent", "skel_find_bone",
 													"skel_get_bonerel", "skel_get_boneabs", "skel_set_bone", "skel_mul_bone", "skel_mul_bones", "skel_copybones",
 													"skel_delete", "frameforname", "frameduration"}, "Provides container objects for skeletal bone data, which can be modified on a per bone basis if needed. This allows you to dynamically generate animations (or just blend them with greater customisation) instead of being limited to a single animation or two."},
+	{"FTE_CSQC_RAWIMAGES",				2,	NULL, {"r_uploadimage","r_readimage"}, "Provides raw rgba image access to csqc. With this, the csprogs can read textures into qc-accessible memory, modify it, and then upload it to the renderer."},
 	{"FTE_CSQC_RENDERTARGETS",			0,	NULL, {NULL}, "VF_RT_DESTCOLOUR exists and can be used to redirect any rendering to a texture instead of the screen."},
+	{"FTE_CSQC_REVERB",					1,	NULL, {"setup_reverb"}, "Specifies that the mod can create custom reverb effects. Whether they will actually be used or not depends upon the sound driver."},
+	{"FTE_CSQC_WINDOWCAPTION",			1,	NULL, {"setwindowcaption"}, "Provides csqc with the ability to change the window caption as displayed when running windowed or in the task bar when switched out."},
 	{"FTE_ENT_SKIN_CONTENTS",			0,	NULL, {NULL}, "self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder."},
 	{"FTE_ENT_UNIQUESPAWNID"},
 	{"FTE_EXTENDEDTEXTCODES"},
@@ -6175,18 +6195,25 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_PART_NAMESPACE_EFFECTINFO",	0,	NULL, {NULL}, "Specifies that effectinfo.bar can load effects from effectinfo.txt for DP compatibility."},
 #endif
 #endif
+	{"FTE_QC_BASEFRAME",				0,  NULL, {NULL}, "Specifies that .basebone and .baseframe exist in ssqc. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations, from ssqc."},
+	{"FTE_QC_FILE_BINARY",				4,	NULL, {"fread","fwrite","fseek","fsize"}, "Extends FRIK_FILE with binary read+write, as well as allowing seeking. Requires pointers."},
+	{"FTE_QC_CHANGELEVEL_HUB",			0,	NULL, {NULL}, "Adds an extra argument to changelevel which is carried over to the next map in the 'spawnspot' global. Maps will be saved+reloaded until the extra argument is omitted again, purging all saved maps. Saved games will contain a copy of each preserved map. parm1-parm64 globals can be used, giving more space to transfer more player data."},
 	{"FTE_QC_CHECKCOMMAND",				1,	NULL, {"checkcommand"}, "Provides a way to test if a console command exists, and whether its a command/alias/cvar. Does not say anything about the expected meanings of any arguments or values."},
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
-	{"FTE_QC_HARDWARECURSORS",			0,	NULL, {NULL}, "setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits, it will be emulated using regular draws - this at least still avoids conflicting cursors."},
+	{"FTE_QC_CROSSPRODUCT",				1,	NULL, {"crossproduct"}},
+	{"FTE_QC_FS_SEARCH_SIZEMTIME",		2,	NULL, {"search_getfilesize", "search_getfilemtime"}},
+	{"FTE_QC_HARDWARECURSORS",			0,	NULL, {NULL}, "setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits (or hardware cursors are unsupported), it will be emulated using regular draws - this at least still avoids conflicting cursors as only one will ever be used, even if console+menu+csqc are all overlayed."},
 	{"FTE_QC_HASHTABLES",				6,	NULL, {"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}, "Provides efficient string-based lookups."},
-	{"FTE_QC_INTCONV",					4,	NULL, {"stoi", "itos", "stoh", "htos"}, "Provides string<>int conversions, including hex representations."},
+	{"FTE_QC_INTCONV",					6,	NULL, {"stoi", "itos", "stoh", "htos", "itof", "ftoi"}, "Provides string<>int conversions, including hex representations."},
 	{"FTE_QC_MATCHCLIENTNAME",			1,	NULL, {"matchclientname"}},
+//	{"FTE_QC_MESHOBJECTS",				0,	NULL, {"mesh_create", "mesh_build", "mesh_getvertex", "mesh_getindex", "mesh_setvertex", "mesh_setindex", "mesh_destroy"}, "Provides qc with the ability to create its own meshes."},
 	{"FTE_QC_PAUSED"},
 #ifdef QCGC
 	{"FTE_QC_PERSISTENTTEMPSTRINGS",	NOBI	 "Supersedes DP_QC_MULTIPLETEMPSTRINGS. Temp strings are garbage collected automatically, and do not expire while they're still in use. This makes strzone redundant."},
 #endif
 	{"FTE_QC_RAGDOLL_WIP",				1,	NULL, {"ragupdate", "skel_set_bone_world", "skel_mmap"}},
 	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}, "Allows the use of out-of-band udp packets to/from other hosts. Includes the SV_ParseConnectionlessPacket event."},
+	{"FTE_QC_STUFFCMDFLAGS",			1,	NULL, {"stuffcmdflags"}, "Variation on regular stuffcmd that gives control over how spectators/mvds should be treated."},
 	{"FTE_QC_TRACETRIGGER"},
 #ifdef Q2CLIENT
 	{"FTE_QUAKE2_CLIENT",				0,	NULL, {NULL}, "This engine is able to act as a quake2 client"},
@@ -6223,9 +6250,10 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
 												   "te_teleport", "te_lightning1", "te_lightning2", "te_lightning3", "te_lightningblood", "te_bloodqw"}, "Provides builtins to replace writebytes, with a QW compatible twist."},
 #ifdef TERRAIN
-	{"FTE_TERRAIN_MAP",					0,	NULL, {NULL}, "This engine supports .hmp files, as well as terrain embedded within bsp files."},
-	{"FTE_RAW_MAP",						0,	NULL, {NULL}, "This engine supports directly loading .map files, as well as realtime editing of the various brushes."},
+	{"FTE_TERRAIN_MAP",					1,	NULL, {"terrain_edit"}, "This engine supports .hmp files, as well as terrain embedded within bsp files."},
+	{"FTE_RAW_MAP",						7,	NULL, {"brush_get","brush_create","brush_delete","brush_selected","brush_getfacepoints","brush_calcfacepoints","brush_findinvolume"}, "This engine supports directly loading .map files, as well as realtime editing of the various brushes."},
 #endif
+
 
 	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}, "SSQC's SV_ParseClientCommand function is able to handle client 'cmd' commands. The tokenizing parts also work in csqc."},	//very very similar to the mvdsv system.
 	{"NEH_CMD_PLAY2"},

@@ -1344,8 +1344,6 @@ typedef struct {
 	qboolean populated;
 } dlmenu_t;
 
-static int autoupdatesetting = UPD_UNSUPPORTED;
-
 static void COM_QuotedConcat(const char *cat, char *buf, size_t bufsize)
 {
 	const unsigned char *gah;
@@ -2192,6 +2190,7 @@ void PM_Shutdown(void)
 #endif
 
 #ifdef DOWNLOADMENU
+static int autoupdatesetting = UPD_UNSUPPORTED;
 static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
 	package_t *p;

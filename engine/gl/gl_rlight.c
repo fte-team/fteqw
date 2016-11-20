@@ -529,6 +529,7 @@ void R_GenDlightMesh(struct batch_s *batch)
 	int lightflags = batch->surf_count;
 
 	BE_SelectDLight(l, l->color, l->axis, lightflags);
+#ifdef RTLIGHTS
 	if (lightflags & LSHADER_SMAP)
 	{
 		if (!Sh_GenerateShadowMap(l))
@@ -539,6 +540,7 @@ void R_GenDlightMesh(struct batch_s *batch)
 		BE_SelectEntity(&r_worldentity);
 		BE_SelectMode(BEM_STANDARD);
 	}
+#endif
 
 	if (!R_BuildDlightMesh (l, 2, 1, 2))
 	{
@@ -582,6 +584,7 @@ void R_GenDlightBatches(batch_t *batches[])
 							"lpp_light\n"
 						"}\n"
 					);
+#ifdef RTLIGHTS
 		lpplight_shader[LSHADER_SMAP] = R_RegisterShader("lpp_light#PCF", SUF_NONE,
 						"{\n"
 							"program lpp_light\n"
@@ -594,6 +597,7 @@ void R_GenDlightBatches(batch_t *batches[])
 							"lpp_light\n"
 						"}\n"
 					);
+#endif
 	}
 
 	l = cl_dlights+rtlights_first;
@@ -606,8 +610,10 @@ void R_GenDlightBatches(batch_t *batches[])
 			continue;
 
 		lmode = 0;
+#ifdef RTLIGHTS
 		if (!(((i >= RTL_FIRST)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || l->flags & LFLAG_NOSHADOWS))
 			lmode |= LSHADER_SMAP;
+#endif
 //		if (TEXLOADED(l->cubetexture))
 //			lmode |= LSHADER_CUBE;
 

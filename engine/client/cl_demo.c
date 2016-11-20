@@ -2272,7 +2272,7 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 				break;
 			len--;
 			VFS_READ(f, &type, sizeof(type));
-			while (len >= 2 && (type == svcq2_stufftext) || (type == svcq2_print))
+			while (len >= 2 && (type == svcq2_stufftext || type == svcq2_print))
 			{
 				while (len > 0)
 				{

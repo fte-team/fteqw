@@ -1,8 +1,15 @@
 !!permu BUMP
 !!permu SKELETAL
+!!cvarf r_glsl_offsetmapping_scale
 
 //light pre-pass rendering (defered lighting)
 //this is the initial pass, that draws the surface normals and depth to the initial colour buffer
+
+#include "sys/defs.h"
+
+#if defined(OFFSETMAPPING)
+varying vec3 eyevector;
+#endif
 
 varying vec3 norm, tang, bitang;
 #if defined(BUMP)
@@ -10,7 +17,7 @@ varying vec2 tc;
 #endif
 #ifdef VERTEX_SHADER
 #include "sys/skeletal.h"
-attribute vec2 v_texcoord;
+
 void main()
 {
 #if defined(BUMP)
@@ -19,21 +26,34 @@ void main()
 #else
 	gl_Position = skeletaltransform_n(norm);
 #endif
+
+#if defined(OFFSETMAPPING)
+	vec3 eyeminusvertex = e_eyepos - v_position.xyz;
+	eyevector.x = dot(eyeminusvertex, v_svector.xyz);
+	eyevector.y = dot(eyeminusvertex, v_tvector.xyz);
+	eyevector.z = dot(eyeminusvertex, v_normal.xyz);
+#endif
 }
 #endif
 #ifdef FRAGMENT_SHADER
-#if defined(BUMP)
-uniform sampler2D s_t0;
+#ifdef OFFSETMAPPING
+#include "sys/offsetmapping.h"
 #endif
 void main()
 {
+//adjust texture coords for offsetmapping
+#ifdef OFFSETMAPPING
+	vec2 tcoffsetmap = offsetmap(s_normalmap, tc, eyevector);
+#define tc tcoffsetmap
+#endif
+
 	vec3 onorm;
 #if defined(BUMP)
-	vec3 bm = 2.0*texture2D(s_t0, tc).xyz - 1.0;
+	vec3 bm = 2.0*texture2D(s_normalmap, tc).xyz - 1.0;
 	onorm = normalize(bm.x * tang + bm.y * bitang + bm.z * norm);
 #else
 	onorm = norm;
 #endif
-	gl_FragColor = vec4(onorm.xyz, gl_FragCoord.z / gl_FragCoord.w);
+	gl_FragColor = vec4(onorm.xyz, gl_FragCoord.z);
 }
 #endif

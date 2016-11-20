@@ -2482,7 +2482,8 @@ void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qbo
 	{
 //		int oldents = cl_numvisedicts;
 //		cl_numvisedicts = 0;
-		BE_DrawWorld(NULL, NULL);
+		r_refdef.scenevis  = NULL;
+		BE_DrawWorld(NULL);
 		cl_numstris = 0;
 //		cl_numvisedicts = oldents;
 	}
@@ -2891,7 +2892,7 @@ void R_AddItemTimer(vec3_t shadoworg, float yaw, float radius, float percent)
 	s = R_RegisterShader("timershader", SUF_NONE,
 		"{\n"
 			"polygonoffset\n"
-			"program itemtimer\n"
+			"fte_program itemtimer\n"
 			"{\n"
 				"map $diffuse\n"
 				"blendfunc src_alpha one\n"

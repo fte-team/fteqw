@@ -268,8 +268,8 @@ extern "C" {
 
 typedef struct quakeparms_s
 {
-	char		*basedir;	//working directory
-	char		*binarydir;	//exe directory
+	const char	*basedir;	//working directory
+	const char	*binarydir;	//exe directory
 	const char	*manifest;	//linked manifest data (for installer functionality etc)
 	int			argc;
 	const char	**argv;

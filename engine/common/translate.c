@@ -89,7 +89,7 @@ int TL_FindLanguage(const char *lang)
 }
 
 //need to set up default languages for any early prints before cvars are inited.
-void TL_InitLanguages(char *newlangpath)
+void TL_InitLanguages(const char *newlangpath)
 {
 	int i;
 	char *lang;

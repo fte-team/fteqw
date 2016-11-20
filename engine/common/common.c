@@ -5511,10 +5511,11 @@ void COM_Init (void)
 	COM_InitWorkerThread();
 #endif
 
-	Cmd_AddCommand ("path", COM_Path_f);		//prints a list of current search paths.
-	Cmd_AddCommand ("dir", COM_Dir_f);			//q3 like
-	Cmd_AddCommand ("flocate", COM_Locate_f);	//prints the pak or whatever where this file can be found.
-	Cmd_AddCommand ("version", COM_Version_f);	//prints the pak or whatever where this file can be found.
+	Cmd_AddCommandD("pkg", PM_Command_f,		"Provides a way to install / list / disable / purge packages via the console.");
+	Cmd_AddCommandD("path", COM_Path_f,			"prints a list of current search paths.");
+	Cmd_AddCommandD("dir", COM_Dir_f,			"Displays filesystem listings. Accepts wildcards."); //q3 like
+	Cmd_AddCommandD("flocate", COM_Locate_f,	"Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.
+	Cmd_AddCommandD("version", COM_Version_f,	"Reports engine revision and optional compile-time settings.");	//prints the pak or whatever where this file can be found.
 
 #ifdef _DEBUG
 	Cmd_AddCommand ("loopme", COM_LoopMe_f);

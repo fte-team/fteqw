@@ -383,7 +383,7 @@ typedef enum backendmode_e
 	BEM_STENCIL,			//used for drawing shadow volumes to the stencil buffer.
 	BEM_DEPTHDARK,			//a quick depth pass. textures used only for alpha test. additive textures still shown as normal.
 	BEM_CREPUSCULAR,		//sky is special, everything else completely black
-	BEM_DEPTHNORM,			//all opaque stuff drawn using 'depthnorm' shader
+	BEM_GBUFFER,			//
 	BEM_FOG,				//drawing a fog volume
 	BEM_LIGHT,				//we have a valid light
 } backendmode_t;
@@ -429,7 +429,7 @@ typedef struct rendererinfo_s {
 	void	(*BE_SubmitBatch)(struct batch_s *batch);
 	struct batch_s *(*BE_GetTempBatch)(void);
 	//Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required
-	void	(*BE_DrawWorld) (struct batch_s **worldbatches, qbyte *vis);
+	void	(*BE_DrawWorld) (struct batch_s **worldbatches);
 	//called at init, force the display to the right defaults etc
 	void	(*BE_Init)(void);
 	//Generates an optimised VBO, one for each texture on the map

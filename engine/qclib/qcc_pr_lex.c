@@ -2287,17 +2287,20 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor)
 
 #define	MAX_FRAMES	8192
 char	pr_framemodelname[64];
-char	pr_framemacros[MAX_FRAMES][64];
-int		pr_framemacrovalue[MAX_FRAMES];
-int		pr_nummacros, pr_oldmacros;
-int		pr_macrovalue;
-int		pr_savedmacro;
+struct
+{
+	char name[64];
+	int value;
+	const char *file;	//compare to s_filen to see if its current or not
+} pr_framemacro[MAX_FRAMES];
+int		pr_nummacros;
+int		pr_macrovalue;	//next value to use
+int		pr_savedmacro;	//for sub-groups.
 
 void QCC_PR_ClearGrabMacros (pbool newfile)
 {
 	if (!newfile)
 		pr_nummacros = 0;
-	pr_oldmacros = pr_nummacros;
 	pr_macrovalue = 0;
 	pr_savedmacro = -1;
 }
@@ -2308,17 +2311,21 @@ int QCC_PR_FindMacro (char *name)
 
 	for (i=pr_nummacros-1 ; i>=0 ; i--)
 	{
-		if (!STRCMP (name, pr_framemacros[i]))
+		if (!STRCMP (name, pr_framemacro[i].name))
 		{
-			return pr_framemacrovalue[i];
+			if (pr_framemacro[i].file != s_filen)
+				QCC_PR_ParseWarning(WARN_DUPLICATEMACRO, "Stale macro used (%s, defined in %s)", pr_token, pr_framemacro[i].file);
+			return pr_framemacro[i].value;
 		}
 	}
 	for (i=pr_nummacros-1 ; i>=0 ; i--)
 	{
-		if (!stricmp (name, pr_framemacros[i]))
+		if (!stricmp (name, pr_framemacro[i].name))
 		{
-			QCC_PR_ParseWarning(WARN_CASEINSENSITIVEFRAMEMACRO, "Case insensitive frame macro");
-			return pr_framemacrovalue[i];
+			QCC_PR_ParseWarning(WARN_CASEINSENSITIVEFRAMEMACRO, "Case insensitive frame macro (using %s)", pr_framemacro[i].name);
+			if (pr_framemacro[i].file != s_filen)
+				QCC_PR_ParseWarning(WARN_DUPLICATEMACRO, "Stale macro used (%s, defined in %s)", pr_token, pr_framemacro[i].file);
+			return pr_framemacro[i].value;
 		}
 	}
 	return -1;
@@ -2497,27 +2504,34 @@ pbool QCC_PR_LexMacroName(void)
 	return i!=0;
 }
 
-void QCC_PR_MacroFrame(char *name, int value)
+void QCC_PR_MacroFrame(char *name, int value, pbool force)
 {
 	int i;
 	for (i=pr_nummacros-1 ; i>=0 ; i--)
 	{
-		if (!STRCMP (name, pr_framemacros[i]))
+		if (!STRCMP (name, pr_framemacro[i].name))
 		{
-			pr_framemacrovalue[i] = value;
-			if (i>=pr_oldmacros)
+			//vanilla macro behaviour is to not realise that there's dupes. lookups find the first, so dupes end up as dead gaps.
+			//our caller incremented the value externally
+			//so warn+ignore if its from the same file
+			if (pr_framemacro[i].file == s_filen && !force)
 				QCC_PR_ParseWarning(WARN_DUPLICATEMACRO, "Duplicate macro defined (%s)", pr_token);
-			//else it's from an old file, and shouldn't be mentioned.
+			else
+			{
+				pr_framemacro[i].value = value;	//old file, override it, whatever the old value was is redundant now
+				pr_framemacro[i].file = s_filen;
+			}
 			return;
 		}
 	}
 
-	if (strlen(name)+1 > sizeof(pr_framemacros[0]))
+	if (strlen(name)+1 > sizeof(pr_framemacro[0].name))
 		QCC_PR_ParseWarning(ERR_TOOMANYFRAMEMACROS, "Name for frame macro %s is too long", name);
 	else
 	{
-		strcpy (pr_framemacros[pr_nummacros], name);
-		pr_framemacrovalue[pr_nummacros] = value;
+		strcpy (pr_framemacro[pr_nummacros].name, name);
+		pr_framemacro[pr_nummacros].value = value;
+		pr_framemacro[pr_nummacros].file = s_filen;
 		pr_nummacros++;
 		if (pr_nummacros >= MAX_FRAMES)
 			QCC_PR_ParseError(ERR_TOOMANYFRAMEMACROS, "Too many frame macros defined");
@@ -2528,7 +2542,7 @@ void QCC_PR_ParseFrame (void)
 {
 	while (QCC_PR_LexMacroName ())
 	{
-		QCC_PR_MacroFrame(pr_token, pr_macrovalue++);
+		QCC_PR_MacroFrame(pr_token, pr_macrovalue++, false);
 	}
 }
 
@@ -2596,7 +2610,7 @@ void QCC_PR_LexGrab (void)
 		QCC_PR_LexMacroName ();
 
 		if (*pr_framemodelname)
-			QCC_PR_MacroFrame(pr_framemodelname, pr_macrovalue);
+			QCC_PR_MacroFrame(pr_framemodelname, pr_macrovalue, true);
 
 		QC_strlcpy(pr_framemodelname, pr_token, sizeof(pr_framemodelname));
 

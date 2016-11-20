@@ -2568,6 +2568,7 @@ static void VK_Submit_DoWork(void)
 	VkPipelineStageFlags wsemstageflags[64];
 	VkSemaphore ssem[64];
 
+	VkQueue	subqueue = NULL;
 	VkSubmitInfo subinfo[64];
 	unsigned int subcount = 0;
 	struct vkwork_s *work;
@@ -2580,6 +2581,8 @@ static void VK_Submit_DoWork(void)
 	while(vk.work && !present && !waitfence && !fencedwork && subcount < countof(subinfo))
 	{
 		work = vk.work;
+		if (subcount && subqueue != work->queue)
+			break;
 		subinfo[subcount].sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 		subinfo[subcount].pNext = NULL;
 		subinfo[subcount].waitSemaphoreCount = work->semwait?1:0;
@@ -2595,6 +2598,7 @@ static void VK_Submit_DoWork(void)
 		ssem[subcount] = work->semsignal;
 		waitfence = work->fencesignal;
 		fencedwork = work->fencedwork;
+		subqueue = work->queue;
 
 		subcount++;
 
@@ -2608,7 +2612,7 @@ static void VK_Submit_DoWork(void)
 	if (subcount || waitfence)
 	{
 		RSpeedMark();
-		err = vkQueueSubmit(vk.queue_render, subcount, subinfo, waitfence);
+		err = vkQueueSubmit(subqueue, subcount, subinfo, waitfence);
 		if (err)
 		{
 			Con_Printf("ERROR: vkQueueSubmit: %i\n", err);
@@ -2658,6 +2662,7 @@ void VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStage
 	struct vkwork_s *work = Z_Malloc(sizeof(*work));
 	struct vkwork_s **link;
 
+	work->queue = vk.queue_render;
 	work->cmdbuf = cmdbuf;
 	work->semwait = semwait;
 	work->semwaitstagemask = semwaitstagemask;
@@ -3074,7 +3079,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		queueinf[0].pNext = NULL;
 		queueinf[0].queueFamilyIndex = vk.queuefam[0];
 		queueinf[0].queueCount = 1;
-		queueinf[0].pQueuePriorities = queue_priorities;
+		queueinf[0].pQueuePriorities = &queue_priorities[0];
 		queueinf[1].pNext = NULL;
 		queueinf[1].queueFamilyIndex = vk.queuefam[1];
 		queueinf[1].queueCount = 1;
@@ -3083,7 +3088,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		if (vk.queuefam[0] == vk.queuefam[1])
 		{
 			devinf.queueCreateInfoCount = 1;
-			
+
 			if (queueprops[queueinf[0].queueFamilyIndex].queueCount >= 2 && vk_dualqueue.ival)
 			{
 				queueinf[0].queueCount = 2;

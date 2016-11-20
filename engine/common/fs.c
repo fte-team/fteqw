@@ -3989,7 +3989,7 @@ static qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
 }
 
 //just check each possible file, see if one is there.
-static qboolean FS_DirHasGame(char *basedir, int gameidx)
+static qboolean FS_DirHasGame(const char *basedir, int gameidx)
 {
 	int j;
 	vfsfile_t *f;
@@ -4008,7 +4008,7 @@ static qboolean FS_DirHasGame(char *basedir, int gameidx)
 }
 
 //check em all
-static int FS_IdentifyDefaultGameFromDir(char *basedir)
+static int FS_IdentifyDefaultGameFromDir(const char *basedir)
 {
 	int i;
 	for (i = 0; gamemode_info[i].argname; i++)
@@ -5411,6 +5411,7 @@ void FS_ChangeGame_f(void)
 			if (!Q_strcasecmp(gamemode_info[i].argname+1, arg))
 			{
 				Con_Printf("Switching to %s\n", gamemode_info[i].argname+1);
+				PM_Shutdown();
 				FS_ChangeGame(FS_GenerateLegacyManifest(NULL, 0, true, i), true, true);
 				return;
 			}
@@ -5450,15 +5451,15 @@ void FS_ChangeMod_f(void)
 		arg = Cmd_Argv(i++);
 		if (!strcmp(arg, "package"))
 		{
-			if (packages >= countof(packagespaths)-1)	//must leave space for one, as a terminator.
-				break;
-
 			arg = Cmd_Argv(i++);
-			packagespaths[packages].url = Z_StrDup(arg);
-			if (!FS_PathURLCache(packagespaths[packages].url, cachename, sizeof(cachename)))
-				break;
-			packagespaths[packages].path = Z_StrDup(cachename);
-			packages++;
+			if (packages == countof(packagespaths))	//must leave space for one, as a terminator.
+				continue;
+			if (FS_PathURLCache(arg, cachename, sizeof(cachename)))
+			{
+				packagespaths[packages].url = Z_StrDup(arg);
+				packagespaths[packages].path = Z_StrDup(cachename);
+				packages++;
+			}
 		}
 		else if (!strcmp(arg, "prefix"))
 		{

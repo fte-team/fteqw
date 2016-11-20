@@ -2208,25 +2208,28 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 	}
 
 #ifdef Q2CLIENT
+	//just assume if it has a known extension
+	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "dm2") ||
+		!Q_strcasecmp(demoname + strlen(demoname) - 6, "dm2.gz"))
 	{
-		int len;
-		char type;
-		int protocol;
-		//check if its a quake2 demo.
-		VFS_READ(f, &len, sizeof(len));
-		VFS_READ(f, &type, sizeof(type));
-		VFS_READ(f, &protocol, sizeof(protocol));
-		VFS_SEEK(f, start);
-		len = LittleLong(len);
-		protocol = LittleLong(protocol);
-		if (len > 5 && type == svcq2_serverdata && protocol != 0)
-		{
-			CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKE2, 0);
-			return;
-		}
-		VFS_SEEK(f, start);
+		CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKE2, 0);
+		return;
 	}
 #endif
+	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "mvd") ||
+		!Q_strcasecmp(demoname + strlen(demoname) - 6, "mvd.gz"))
+	{
+		CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_MVD, 0);
+		return;
+	}
+	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "qwd") ||
+		!Q_strcasecmp(demoname + strlen(demoname) - 6, "qwd.gz"))
+	{
+		CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKEWORLD, 0);
+		return;
+	}
+
+
 
 #ifdef NQPROT
 	{
@@ -2256,15 +2259,57 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 	}
 #endif
 
-	//its not NQ then. must be QuakeWorld, either .qwd or .mvd
+#ifdef Q2CLIENT
+	{
+		int len;
+		char type;
+		int protocol;
+		//check if its a quake2 demo.
+		while(VFS_READ(f, &len, sizeof(len)) == sizeof(len))
+		{
+			len = LittleLong(len);
+			if (len > MAX_OVERALLMSGLEN)
+				break;
+			len--;
+			VFS_READ(f, &type, sizeof(type));
+			while (len >= 2 && (type == svcq2_stufftext) || (type == svcq2_print))
+			{
+				while (len > 0)
+				{
+					len--;
+					VFS_READ(f, &type, sizeof(type));
+					if (!type)
+						break;
+				}
+				if (len == 0)
+					continue;
+				len--;
+				VFS_READ(f, &type, sizeof(type));
+			}
+			if (len > 4 && type == svcq2_serverdata)
+			{
+				VFS_READ(f, &protocol, sizeof(protocol));
+				protocol = LittleLong(protocol);
+				if (protocol >= PROTOCOL_VERSION_Q2_DEMO_MIN && protocol <= PROTOCOL_VERSION_Q2_DEMO_MAX)
+				{
+					VFS_SEEK(f, start);
+					CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKE2, 0);
+					return;
+				}
+				break;
+			}
+			if (len)
+				VFS_SEEK(f, VFS_TELL(f)+len);
+		}
+		VFS_SEEK(f, start);
+	}
+#endif
+
+	//it doesn't have a assumable extension, isn't q2, nor NQ. then it must be a QuakeWorld demo
 	//could also be .qwz or .dmz or whatever that nq extension is. we don't support either.
 
 	//mvd and qwd have no identifying markers, other than the extension.
-	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "mvd") ||
-		!Q_strcasecmp(demoname + strlen(demoname) - 6, "mvd.gz"))
-		CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_MVD, 0);
-	else
-		CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKEWORLD, 0);
+	CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKEWORLD, 0);
 }
 #ifdef WEBCLIENT
 void CL_PlayDownloadedDemo(struct dl_download *dl)

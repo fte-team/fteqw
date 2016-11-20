@@ -16,6 +16,8 @@
 
 #define IDI_ICON_FTEQCC MAKEINTRESOURCE(101)
 
+static void GUI_CreateInstaller_Windows(void);
+static void GUI_CreateInstaller_Android(void);
 void AddSourceFile(const char *parentsrc, const char *filename);
 
 #ifndef TVM_SETBKCOLOR
@@ -384,6 +386,12 @@ unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, siz
 	vfile_t *v = QCC_FindVFile(fname);
 	if (v)
 	{
+		if (!buffer)
+		{
+			len = v->fsize;
+			buffer = malloc(len+1);
+			((char*)buffer)[len] = 0;
+		}
 		if (len > v->fsize)
 			len = v->fsize;
 		memcpy(buffer, v->fdata, len);
@@ -394,12 +402,33 @@ unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, siz
 
 	f = fopen(fname, "rb");
 	if (!f)
+	{
+		if (sz)
+			*sz = 0;
 		return NULL;
-	length = fread(buffer, 1, len, f);
-	fclose(f);
+	}
 
-	if (length != len)
-		return NULL;
+	if (!buffer)
+	{
+		fseek(f, 0, SEEK_END);
+		len = ftell(f);
+		fseek(f, 0, SEEK_SET);
+		buffer = malloc(len+1);
+		((char*)buffer)[len] = 0;
+		length = fread(buffer, 1, len, f);
+		if (length != len)
+		{
+			free(buffer);
+			buffer = NULL;
+		}
+	}
+	else
+	{
+		length = fread(buffer, 1, len, f);
+		if (length != len)
+			buffer = NULL;
+	}
+	fclose(f);
 
 	if (sz)
 		*sz = length;
@@ -1287,6 +1316,8 @@ enum {
 	IDM_DEBUG_TOGGLEBREAK,
 	IDM_ENCODING_PRIVATEUSE,
 	IDM_ENCODING_DEPRIVATEUSE,
+	IDM_CREATEINSTALLER_WINDOWS,
+	IDM_CREATEINSTALLER_ANDROID,
 
 	IDI_O_LEVEL0,
 	IDI_O_LEVEL1,
@@ -1342,6 +1373,13 @@ void GenericMenu(WPARAM wParam)
 
 	case IDM_RECOMPILE:
 		buttons[ID_COMPILE].washit = true;
+		break;
+
+	case IDM_CREATEINSTALLER_WINDOWS:
+		GUI_CreateInstaller_Windows();
+		break;
+	case IDM_CREATEINSTALLER_ANDROID:
+		GUI_CreateInstaller_Android();
 		break;
 
 	case IDM_ABOUT:
@@ -2371,25 +2409,12 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 static void EditorReload(editor_t *editor)
 {
 	struct stat sbuf;
-	int flen;
+	size_t flen;
 	char *rawfile;
 	char *file;
 	pbool dofree;
 
-	flen = QCC_RawFileSize(editor->filename);
-	if (flen >= 0)
-	{
-		rawfile = malloc(flen+1);
-
-		QCC_ReadFile(editor->filename, rawfile, flen, NULL);
-
-		rawfile[flen] = 0;
-	}
-	else
-	{
-		rawfile = NULL;
-		flen = 0;
-	}
+	rawfile = QCC_ReadFile(editor->filename, NULL, 0, &flen);
 
 	file = QCC_SanitizeCharSet(rawfile, &flen, &dofree, &editor->savefmt);
 
@@ -3448,12 +3473,69 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 	}
 	return 0;
 }
-void PromptForEngine(int force)
+
+pbool PromptForFile(const char *prompt, const char *filter, const char *basepath, const char *defaultfile, char outname[], size_t outsize, pbool create)
 {
+	char oldworkingdir[MAX_PATH+10];	//cmdlg changes it...
+	char workingdir[MAX_PATH+10];
+
 #ifndef OFN_DONTADDTORECENT
 #define OFN_DONTADDTORECENT 0x02000000
 #endif
 
+	char *s;
+	char initialdir[MAX_PATH+10];
+	char absengine[MAX_PATH+10];
+	OPENFILENAME ofn;
+	pbool okay;
+	memset(&ofn, 0, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = mainwindow;
+	ofn.hInstance = ghInstance;
+	ofn.lpstrFile = absengine;
+	ofn.Flags = OFN_EXPLORER|(create?OFN_PATHMUSTEXIST|OFN_CREATEPROMPT:OFN_FILEMUSTEXIST)|OFN_DONTADDTORECENT;
+	ofn.lpstrTitle = prompt;
+	ofn.nMaxFile = outsize-1;
+	ofn.lpstrFilter = filter;
+	GetCurrentDirectory(sizeof(oldworkingdir)-1, oldworkingdir);
+	memcpy(workingdir, oldworkingdir, sizeof(workingdir));
+	_snprintf(absengine, sizeof(absengine), "%s/%s", basepath, defaultfile);
+	for (s = absengine; *s; s++)
+		if (*s == '/')
+			*s = '\\';
+	strrchr(absengine, '\\')[1] = 0;
+	PathCombine(initialdir, workingdir, absengine);
+	if (strchr(defaultfile, '/'))
+		strcpy(absengine, strrchr(defaultfile, '/')+1);
+	else
+		strcpy(absengine, defaultfile);
+	//and the fuck-you-microsoft loop
+	for (s = initialdir; *s; s++)
+		if (*s == '/')
+			*s = '\\';
+	ofn.lpstrInitialDir = initialdir;
+	okay = GetOpenFileName(&ofn);
+	while (!okay)
+	{
+		switch(CommDlgExtendedError())
+		{
+		case FNERR_INVALIDFILENAME:
+			*outname = 0;
+			okay = GetOpenFileName(&ofn);
+			continue;
+		}
+		break;
+	}
+	if (!PathRelativePathToA(outname, initialdir, FILE_ATTRIBUTE_DIRECTORY, absengine, FILE_ATTRIBUTE_DIRECTORY))
+		QC_strlcpy(outname, absengine, sizeof(outsize));
+	if (!strncmp(outname, ".\\", 2))
+		memmove(outname, outname+2, strlen(outname+2)+1);
+	//undo any damage caused by microsoft's stupidity
+	SetCurrentDirectory(oldworkingdir);
+	return okay;
+}
+void PromptForEngine(int force)
+{
 	char oldworkingdir[MAX_PATH+10];	//cmdlg changes it...
 	char workingdir[MAX_PATH+10];
 	GetCurrentDirectory(sizeof(oldworkingdir)-1, oldworkingdir);
@@ -3496,51 +3578,7 @@ void PromptForEngine(int force)
 
 	if (!*enginebinary || force==2)
 	{
-		char *s;
-		char initialdir[MAX_PATH+10];
-		char absengine[MAX_PATH+10];
-		OPENFILENAME ofn;
-		pbool okay;
-		memset(&ofn, 0, sizeof(ofn));
-		ofn.lStructSize = sizeof(ofn);
-		ofn.hwndOwner = mainwindow;
-		ofn.hInstance = ghInstance;
-		ofn.lpstrFile = absengine;
-		ofn.Flags = OFN_EXPLORER|OFN_FILEMUSTEXIST|OFN_DONTADDTORECENT;
-		ofn.lpstrTitle = "Please choose an engine";
-		ofn.nMaxFile = sizeof(enginebinary)-1;
-		ofn.lpstrFilter = "Executables\0*.exe\0All files\0*.*\0";
-		GetCurrentDirectory(sizeof(workingdir)-1, workingdir);
-		_snprintf(absengine, sizeof(absengine), "%s/", enginebasedir);
-		for (s = absengine; *s; s++)
-			if (*s == '/')
-				*s = '\\';
-		PathCombine(initialdir, workingdir, absengine);
-		strcpy(absengine, "fteglqw.exe");
-		//and the fuck-you-microsoft loop
-		for (s = initialdir; *s; s++)
-			if (*s == '/')
-				*s = '\\';
-		ofn.lpstrInitialDir = initialdir;
-		okay = GetOpenFileName(&ofn);
-		while (!okay)
-		{
-			switch(CommDlgExtendedError())
-			{
-			case FNERR_INVALIDFILENAME:
-				*enginebinary = 0;
-				okay = GetOpenFileName(&ofn);
-				continue;
-			}
-			break;
-		}
-		if (!PathRelativePathToA(enginebinary, initialdir, FILE_ATTRIBUTE_DIRECTORY, absengine, FILE_ATTRIBUTE_DIRECTORY))
-			QC_strlcpy(enginebinary, absengine, sizeof(enginebasedir));
-		if (!strncmp(enginebinary, ".\\", 2))
-			memmove(enginebinary, enginebinary+2, strlen(enginebinary+2)+1);
-		//undo any damage caused by microsoft's stupidity
-		SetCurrentDirectory(oldworkingdir);
-		if (!okay)
+		if (!PromptForFile("Please choose an engine", "Executables\0*.exe\0All files\0*.*\0", enginebasedir, "fteglqw.exe", enginebinary, sizeof(enginebinary), false))
 			return;
 
 		if (optionsmenu)
@@ -3554,9 +3592,9 @@ void PromptForEngine(int force)
 			char *slash;
 			GetCurrentDirectory(sizeof(workingdir)-1, workingdir);
 			_snprintf(guessdir, sizeof(guessdir), "%s/", enginebasedir);
-			for (s = guessdir; *s; s++)
-				if (*s == '/')
-					*s = '\\';
+			for (slash = guessdir; *slash; slash++)
+				if (*slash == '/')
+					*slash = '\\';
 			PathCombine(absbase, workingdir, guessdir);
 			if (PathRelativePathToA(guessdir, absbase, FILE_ATTRIBUTE_DIRECTORY, workingdir, FILE_ATTRIBUTE_DIRECTORY))
 			{
@@ -3653,6 +3691,977 @@ static void SetProgsSrcFileAndPath(char *filename)
 
 	SetCurrentDirectory(progssrcdir);
 	*progssrcdir = '\0';
+}
+
+qcc_cachedsourcefile_t *androidfiles;
+static void Android_FreeFiles(void)
+{
+	qcc_cachedsourcefile_t *f;
+	while((f = androidfiles))
+	{
+		androidfiles = f->next;
+		free(f);
+	}
+}
+static void Android_CopyFile(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize)
+{
+	qcc_cachedsourcefile_t *nf, **link;
+	if (!strncmp(name, "META-INF", 8))
+		return;	//ignore any existing signatures.
+	for (link = &androidfiles; *link; link = &(*link)->next)
+	{
+		nf = *link;
+		if (!stricmp(name, nf->filename))
+		{	//nuke the old file if we have a dupe.
+			*link = nf->next;
+			free(nf);
+			break;
+		}
+	}
+
+	nf = malloc(sizeof(*nf) + plainsize);
+	if (!nf)
+	{
+		GUIprintf("Error: out of memory\n", name, plainsize);
+		return;
+	}
+	QC_strlcpy(nf->filename, name, sizeof(nf->filename));
+	nf->file = (char*)(nf+1);
+	nf->size = plainsize;
+	nf->type = FT_DATA;
+
+	if (QC_decode(NULL, compsize, nf->size, method, compdata, nf->file))
+	{
+		GUIprintf("Android: Including %s (%i bytes)\n", name, plainsize);
+		nf->next = androidfiles;
+		androidfiles = nf;
+	}
+	else
+	{
+		GUIprintf("Android: Unable to read %s from source apk\n", name, plainsize);
+		free(nf);
+	}
+}
+static pbool Android_PrepareAPK(FILE *f)
+{
+	if (f)
+	{
+		char *buf;
+		size_t size;
+
+		fseek(f, 0, SEEK_END);
+		size = ftell(f);
+		fseek(f, 0, SEEK_SET);
+		buf = malloc(size);
+		fread(buf, 1, size, f);
+		fclose(f);
+		QC_EnumerateFilesFromBlob(buf, size, Android_CopyFile);
+		free(buf);
+		return true;
+	}
+	return false;
+}
+void GUI_CreateInstaller_Android(void)
+{
+	FILE *f;
+	char inputapkname[MAX_PATH];
+	//files
+	char *keystore = "my-release-key.keystore";
+	char targetapk[MAX_PATH];
+	//other stuff
+	char *storepass = "fte123";
+	char *alias = "FTEDroid";
+	char tmp[MAX_PATH];
+	char *mandata = NULL;
+	char *pngdata = NULL;
+	char *modname = "my_application";
+	size_t manlen, pnglen;
+	int h;
+	char cmdline[2048];
+	FILE *inputapk;
+
+	if (MessageBox(mainwindow, "The 'Create Installer' option is still experimental.\nIt's probably still defective.\nSo be sure to test stuff extensively.", "Create Installer", MB_OKCANCEL|MB_DEFBUTTON2) != IDOK)
+		return;
+
+	if (!mandata)
+	{
+		QC_snprintfz(tmp, sizeof(tmp), "default.fmf", modname);
+		mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
+	}
+	if (!mandata)
+	{
+		QC_snprintfz(tmp, sizeof(tmp), "%s.fmf", modname);
+		mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
+	}
+	if (!mandata)
+	{
+		QC_snprintfz(tmp, sizeof(tmp), "../default.fmf", modname);
+		mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
+	}
+	if (!mandata)
+	{
+		QC_snprintfz(tmp, sizeof(tmp), "../%s.fmf", modname);
+		mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
+	}
+	if (!mandata)
+	{
+		QC_snprintfz(tmp, sizeof(tmp), "%s.fmf", modname);
+		if (PromptForFile("Please Select Manifest File", "FTE Manifests\0*.fmf\0All files\0*.*\0", ".", tmp, tmp, sizeof(tmp), false))
+			mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
+	}
+	if (!mandata)
+	{
+		MessageBox(mainwindow, "No manifest selected.\n", "Create Installer", MB_OK|MB_ICONERROR);
+		return;
+	}
+
+	PathCombine(inputapkname, enginebasedir, "FTEDroid.apk");
+	inputapk = fopen(inputapkname, "rb");
+	if (!inputapk)
+	{
+		if (PromptForFile("Please find base FTE android package", "The FTE Android Package\0*.apk\0All files\0*.*\0", enginebasedir, "FTEDroid.apk", tmp, sizeof(tmp), false))
+		{
+			PathCombine(inputapkname, enginebasedir, tmp);
+			inputapk = fopen(inputapkname, "rb");
+		}
+	}
+
+	if (inputapk)
+	{
+		QC_snprintfz(tmp, sizeof(tmp), "%s.apk", modname);
+		if (PromptForFile("Please output apk", "Android Packages\0*.apk\0All files\0*.*\0", ".", tmp, tmp, sizeof(tmp), true))
+			PathCombine(targetapk, enginebasedir, tmp);
+
+		GUIprintf("");
+
+		//read the files from an existing apk
+		if (!Android_PrepareAPK(inputapk))
+			MessageBox(mainwindow, "Unable to read source package", "Create Installer", MB_OK|MB_ICONERROR);
+		else
+		{
+			//add/replace some existing files
+			pngdata = QCC_ReadFile ("../droid_72.png", NULL, 0, &pnglen);
+			if (!pngdata)
+				GUIprintf("Could not open ../droid_72.png launcher icon\n");
+			Android_CopyFile("res/drawable-hdpi/icon.png", pngdata, pnglen, 0, pnglen);
+			free(pngdata);
+
+			pngdata = QCC_ReadFile ("../droid_48.png", NULL, 0, &pnglen);
+			if (!pngdata)
+				GUIprintf("Could not open ../droid_48.png launcher icon\n");
+			Android_CopyFile("res/drawable-mdpi/icon.png", NULL, 0, 0, 0);
+			free(pngdata);
+
+			Android_CopyFile("default.fmf", mandata, manlen, 0, manlen);
+
+			//write out the new zip... err... apk... :)
+			h = SafeOpenWrite (targetapk, 2*1024*1024);
+			if (h < 0)
+			{
+				GUIprintf("Unable to open %s\n", targetapk);
+			}
+			else
+			{
+				progfuncs_t funcs;
+				progexterns_t ext;
+				memset(&funcs, 0, sizeof(funcs));
+				funcs.funcs.parms = &ext;
+				memset(&ext, 0, sizeof(ext));
+				ext.ReadFile = GUIReadFile;
+				ext.FileSize = GUIFileSize;
+				ext.WriteFile = QCC_WriteFile;
+				ext.Sys_Error = Sys_Error;
+				ext.Printf = GUIprintf;
+				qccprogfuncs = &funcs;
+				WriteSourceFiles(androidfiles, h, true, false);
+				if (!SafeClose(h))
+					GUIprintf("Error: Unable to write output android package %s\n", targetapk);
+				else
+				{
+					f = fopen(keystore, "rb");
+					if (f)
+						fclose(f);
+					else
+					{
+						GUIprintf("Key store does not exist. Trying to create\n");
+						//try to create a keystore for them, as this is their first time.
+						QC_snprintfz(cmdline, sizeof(cmdline), "keytool -genkey -keystore %s -storepass %s -keypass %s -alias %s -keyalg RSA -keysize 2048 -validity 10000", keystore, storepass, storepass, alias);
+						system(cmdline);
+					}
+
+					f = fopen(keystore, "rb");
+					if (f)
+					{
+						fclose(f);
+						//we now need to invoke the jarsigner program, so I hope you have java installed.
+						QC_snprintfz(cmdline, sizeof(cmdline), "jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore %s -storepass %s %s %s", keystore, storepass, targetapk, alias);
+						if (EXIT_SUCCESS == system(cmdline))
+							GUIprintf("Android Package Complete. Go ahead and test it!\n");
+						else
+							GUIprintf("Failed to sign package.\n");
+					}
+					else
+						GUIprintf("Keystore creation failed or was aborted.\n");
+				}
+			}
+		}
+	}
+	Android_FreeFiles();
+
+	free(mandata);
+}
+
+//size info that microsoft recommends
+static const struct
+{
+	int width;
+	int height;
+	int bpp;
+} icosizes[] = {
+//	{96, 96, 32},
+	{48, 48, 32},
+	{32, 32, 32},
+	{16, 16, 32},
+//	{16, 16, 4},
+//	{48, 48, 4},
+//	{32, 32, 4},
+//	{16, 16, 1},
+//	{48, 48, 1},
+//	{32, 32, 1},
+	{256, 256, 32}	//vista!
+};
+//dates back to 16bit windows. bah.
+#pragma pack(push)
+#pragma pack(2)
+typedef struct
+{
+	WORD idReserved;
+	WORD idType;
+	WORD idCount;
+	struct
+	{
+		BYTE  bWidth;
+		BYTE  bHeight;
+		BYTE  bColorCount;
+		BYTE  bReserved;
+		WORD  wPlanes;
+		WORD  wBitCount;
+		DWORD dwBytesInRes;
+		WORD  nId;
+	} idEntries[256];
+} icon_group_t;
+#pragma pack(pop)
+
+
+static void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,  int outwidth, int outheight)
+{
+	int		i, j;
+	unsigned	*inrow;
+	unsigned	frac, fracstep;
+
+	/*if (gl_lerpimages.ival)
+	{
+		Image_Resample32Lerp(in, inwidth, inheight, out, outwidth, outheight);
+		return;
+	}*/
+
+	fracstep = inwidth*0x10000/outwidth;
+	for (i=0 ; i<outheight ; i++, out += outwidth)
+	{
+		inrow = in + inwidth*(i*inheight/outheight);
+		frac = outwidth*fracstep;
+		j=outwidth;
+		while ((j)&3)
+		{
+			j--;
+			frac -= fracstep;
+			out[j] = inrow[frac>>16];
+		}
+		for ( ; j>=4 ;)
+		{
+			j-=4;
+			frac -= fracstep;
+			out[j+3] = inrow[frac>>16];
+			frac -= fracstep;
+			out[j+2] = inrow[frac>>16];
+			frac -= fracstep;
+			out[j+1] = inrow[frac>>16];
+			frac -= fracstep;
+			out[j+0] = inrow[frac>>16];
+		}
+	}
+}
+
+#define AVAIL_PNGLIB
+#define AVAIL_ZLIB
+#ifndef MSVCLIBSPATH
+#ifdef MSVCLIBPATH
+	#define MSVCLIBSPATH STRINGIFY(MSVCLIBPATH)
+#elif _MSC_VER == 1200
+	#define MSVCLIBSPATH "../" "../libs/vc6-libs/"
+#else
+	#define MSVCLIBSPATH "../" "../libs/"
+#endif
+#endif
+
+#ifdef AVAIL_PNGLIB
+	#ifndef AVAIL_ZLIB
+		#error PNGLIB requires ZLIB
+	#endif
+
+	#undef channels
+
+	#ifndef PNG_SUCKS_WITH_SETJMP
+		#if defined(MINGW)
+			#include "./mingw-libs/png.h"
+		#elif defined(_WIN32)
+			#include "../png.h"
+		#else
+			#include <png.h>
+		#endif
+	#endif
+
+	#ifdef DYNAMIC_LIBPNG
+		#define PSTATIC(n)
+		static dllhandle_t *libpng_handle;
+		#define LIBPNG_LOADED() (libpng_handle != NULL)
+	#else
+		#define LIBPNG_LOADED() 1
+		#define PSTATIC(n) = &n
+		#ifdef _MSC_VER
+			#ifdef _WIN64
+				#pragma comment(lib, MSVCLIBSPATH "libpng64.lib")
+			#else
+				#pragma comment(lib, MSVCLIBSPATH "libpng.lib")
+			#endif
+		#endif
+	#endif
+
+#ifndef PNG_NORETURN
+#define PNG_NORETURN
+#endif
+#ifndef PNG_ALLOCATED
+#define PNG_ALLOCATED
+#endif
+
+#if PNG_LIBPNG_VER < 10500
+	#define png_const_infop png_infop
+	#define png_const_structp png_structp
+	#define png_const_bytep png_bytep
+	#define png_const_unknown_chunkp png_unknown_chunkp
+#endif
+#if PNG_LIBPNG_VER < 10600
+	#define png_inforp png_infop
+	#define png_const_inforp png_const_infop
+	#define png_structrp png_structp
+	#define png_const_structrp png_const_structp
+#endif
+
+void (PNGAPI *qpng_error) PNGARG((png_const_structrp png_ptr, png_const_charp error_message)) PSTATIC(png_error);
+void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_end);
+void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
+png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_bit_depth);
+png_byte (PNGAPI *qpng_get_channels) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_channels);
+png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
+void (PNGAPI *qpng_read_update_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_update_info);
+void (PNGAPI *qpng_set_strip_16) PNGARG((png_structp png_ptr)) PSTATIC(png_set_strip_16);
+void (PNGAPI *qpng_set_expand) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand);
+void (PNGAPI *qpng_set_gray_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_to_rgb);
+void (PNGAPI *qpng_set_tRNS_to_alpha) PNGARG((png_structp png_ptr)) PSTATIC(png_set_tRNS_to_alpha);
+png_uint_32 (PNGAPI *qpng_get_valid) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr, png_uint_32 flag)) PSTATIC(png_get_valid);
+#if PNG_LIBPNG_VER > 10400
+void (PNGAPI *qpng_set_expand_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand_gray_1_2_4_to_8);
+#else
+void (PNGAPI *qpng_set_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_1_2_4_to_8);
+#endif
+void (PNGAPI *qpng_set_bgr) PNGARG((png_structp png_ptr)) PSTATIC(png_set_bgr);
+void (PNGAPI *qpng_set_filler) PNGARG((png_structp png_ptr, png_uint_32 filler, int flags)) PSTATIC(png_set_filler);
+void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_palette_to_rgb);
+png_uint_32 (PNGAPI *qpng_get_IHDR) PNGARG((png_const_structrp png_ptr, png_const_inforp info_ptr, png_uint_32 *width, png_uint_32 *height,
+			int *bit_depth, int *color_type, int *interlace_method, int *compression_method, int *filter_method)) PSTATIC(png_get_IHDR);
+void (PNGAPI *qpng_read_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_info);
+void (PNGAPI *qpng_set_sig_bytes) PNGARG((png_structp png_ptr, int num_bytes)) PSTATIC(png_set_sig_bytes);
+void (PNGAPI *qpng_set_read_fn) PNGARG((png_structp png_ptr, png_voidp io_ptr, png_rw_ptr read_data_fn)) PSTATIC(png_set_read_fn);
+void (PNGAPI *qpng_destroy_read_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr, png_infopp end_info_ptr_ptr)) PSTATIC(png_destroy_read_struct);
+png_infop (PNGAPI *qpng_create_info_struct) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_create_info_struct);
+png_structp (PNGAPI *qpng_create_read_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_read_struct);
+int (PNGAPI *qpng_sig_cmp) PNGARG((png_const_bytep sig, png_size_t start, png_size_t num_to_check)) PSTATIC(png_sig_cmp);
+
+void (PNGAPI *qpng_write_end) PNGARG((png_structrp png_ptr, png_inforp info_ptr)) PSTATIC(png_write_end);
+void (PNGAPI *qpng_write_image) PNGARG((png_structrp png_ptr, png_bytepp image)) PSTATIC(png_write_image);
+void (PNGAPI *qpng_write_info) PNGARG((png_structrp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_write_info);
+void (PNGAPI *qpng_set_IHDR) PNGARG((png_const_structrp png_ptr, png_infop info_ptr, png_uint_32 width, png_uint_32 height,
+			int bit_depth, int color_type, int interlace_method, int compression_method, int filter_method)) PSTATIC(png_set_IHDR);
+void (PNGAPI *qpng_set_compression_level) PNGARG((png_structrp png_ptr, int level)) PSTATIC(png_set_compression_level);
+void (PNGAPI *qpng_init_io) PNGARG((png_structp png_ptr, png_FILE_p fp)) PSTATIC(png_init_io);
+png_voidp (PNGAPI *qpng_get_io_ptr) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_get_io_ptr);
+void (PNGAPI *qpng_destroy_write_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr)) PSTATIC(png_destroy_write_struct);
+png_structp (PNGAPI *qpng_create_write_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_write_struct);
+void (PNGAPI *qpng_set_unknown_chunks) PNGARG((png_const_structrp png_ptr, png_inforp info_ptr, png_const_unknown_chunkp unknowns, int num_unknowns)) PSTATIC(png_set_unknown_chunks);
+
+png_voidp (PNGAPI *qpng_get_error_ptr) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_get_error_ptr);
+
+pbool LibPNG_Init(void)
+{
+#ifdef DYNAMIC_LIBPNG
+	static dllfunction_t pngfuncs[] =
+	{
+		{(void **) &qpng_error,							"png_error"},
+		{(void **) &qpng_read_end,						"png_read_end"},
+		{(void **) &qpng_read_image,					"png_read_image"},
+		{(void **) &qpng_get_bit_depth,					"png_get_bit_depth"},
+		{(void **) &qpng_get_channels,					"png_get_channels"},
+		{(void **) &qpng_get_rowbytes,					"png_get_rowbytes"},
+		{(void **) &qpng_read_update_info,				"png_read_update_info"},
+		{(void **) &qpng_set_strip_16,					"png_set_strip_16"},
+		{(void **) &qpng_set_expand,					"png_set_expand"},
+		{(void **) &qpng_set_gray_to_rgb,				"png_set_gray_to_rgb"},
+		{(void **) &qpng_set_tRNS_to_alpha,				"png_set_tRNS_to_alpha"},
+		{(void **) &qpng_get_valid,						"png_get_valid"},
+#if PNG_LIBPNG_VER > 10400
+		{(void **) &qpng_set_expand_gray_1_2_4_to_8,	"png_set_expand_gray_1_2_4_to_8"},
+#else
+		{(void **) &qpng_set_gray_1_2_4_to_8,	"png_set_gray_1_2_4_to_8"},
+#endif
+		{(void **) &qpng_set_bgr,						"png_set_bgr"},
+		{(void **) &qpng_set_filler,					"png_set_filler"},
+		{(void **) &qpng_set_palette_to_rgb,			"png_set_palette_to_rgb"},
+		{(void **) &qpng_get_IHDR,						"png_get_IHDR"},
+		{(void **) &qpng_read_info,						"png_read_info"},
+		{(void **) &qpng_set_sig_bytes,					"png_set_sig_bytes"},
+		{(void **) &qpng_set_read_fn,					"png_set_read_fn"},
+		{(void **) &qpng_destroy_read_struct,			"png_destroy_read_struct"},
+		{(void **) &qpng_create_info_struct,			"png_create_info_struct"},
+		{(void **) &qpng_create_read_struct,			"png_create_read_struct"},
+		{(void **) &qpng_sig_cmp,						"png_sig_cmp"},
+
+		{(void **) &qpng_write_end,						"png_write_end"},
+		{(void **) &qpng_write_image,					"png_write_image"},
+		{(void **) &qpng_write_info,					"png_write_info"},
+		{(void **) &qpng_set_IHDR,						"png_set_IHDR"},
+		{(void **) &qpng_set_compression_level,			"png_set_compression_level"},
+		{(void **) &qpng_init_io,						"png_init_io"},
+		{(void **) &qpng_get_io_ptr,					"png_get_io_ptr"},
+		{(void **) &qpng_destroy_write_struct,			"png_destroy_write_struct"},
+		{(void **) &qpng_create_write_struct,			"png_create_write_struct"},
+		{(void **) &qpng_set_unknown_chunks,			"png_set_unknown_chunks"},
+
+		{(void **) &qpng_get_error_ptr,					"png_get_error_ptr"},
+		{NULL, NULL}
+	};
+	static qboolean tried;
+	if (!tried)
+	{
+		tried = true;
+
+		if (!LIBPNG_LOADED())
+		{
+			char *libnames[] =
+			{
+			#ifdef _WIN32
+				va("libpng%i", PNG_LIBPNG_VER_DLLNUM);
+			#else
+				//linux...
+				//lsb uses 'libpng12.so' specifically, so make sure that works.
+				"libpng" STRINGIFY(PNG_LIBPNG_VER_MAJOR) STRINGIFY(PNG_LIBPNG_VER_MINOR) ".so." STRINGIFY(PNG_LIBPNG_VER_SONUM),
+				"libpng" STRINGIFY(PNG_LIBPNG_VER_MAJOR) STRINGIFY(PNG_LIBPNG_VER_MINOR) ".so",
+				"libpng.so." STRINGIFY(PNG_LIBPNG_VER_SONUM)
+				"libpng.so",
+			#endif
+			};
+			size_t i;
+			for (i = 0; i < countof(libnames); i++)
+			{
+				libpng_handle = Sys_LoadLibrary(libnames[i], pngfuncs);
+				if (libpng_handle)
+					break;
+			}
+			if (!libpng_handle)
+				Con_Printf("Unable to load %s\n", libnames[0]);
+		}
+
+//		if (!LIBPNG_LOADED())
+//			libpng_handle = Sys_LoadLibrary("libpng", pngfuncs);
+	}
+#endif
+	return LIBPNG_LOADED();
+}
+
+typedef struct {
+	char *data;
+	int readposition;
+	int filelen;
+} pngreadinfo_t;
+
+static void VARGS readpngdata(png_structp png_ptr,png_bytep data,png_size_t len)
+{
+	pngreadinfo_t *ri = (pngreadinfo_t*)qpng_get_io_ptr(png_ptr);
+	if (ri->readposition+len > ri->filelen)
+	{
+		qpng_error(png_ptr, "unexpected eof");
+		return;
+	}
+	memcpy(data, &ri->data[ri->readposition], len);
+	ri->readposition+=len;
+}
+
+struct pngerr
+{
+	const char *fname;
+	jmp_buf jbuf;
+};
+static void VARGS png_onerror(png_structp png_ptr, png_const_charp error_msg)
+{
+	struct pngerr *err = qpng_get_error_ptr(png_ptr);
+//	Con_Printf("libpng %s: %s\n", err->fname, error_msg);
+	longjmp(err->jbuf, 1);
+	abort();
+}
+
+static void VARGS png_onwarning(png_structp png_ptr, png_const_charp warning_msg)
+{
+	struct pngerr *err = qpng_get_error_ptr(png_ptr);
+//	Con_DPrintf("libpng %s: %s\n", err->fname, warning_msg);
+}
+
+qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *fname)
+{
+	qbyte header[8], **rowpointers = NULL, *data = NULL;
+	png_structp png;
+	png_infop pnginfo;
+	int y, bitdepth, colortype, interlace, compression, filter, bytesperpixel;
+	unsigned long rowbytes;
+	pngreadinfo_t ri;
+	png_uint_32 pngwidth, pngheight;
+	struct pngerr errctx;
+
+	if (!LibPNG_Init())
+		return NULL;
+
+	memcpy(header, buf, 8);
+
+	errctx.fname = fname;
+	if (setjmp(errctx.jbuf))
+	{
+error:
+		if (data)
+			free(data);
+		if (rowpointers)
+			free(rowpointers);
+		qpng_destroy_read_struct(&png, &pnginfo, NULL);
+		return NULL;
+	}
+
+	if (qpng_sig_cmp(header, 0, 8))
+	{
+		return NULL;
+	}
+
+	if (!(png = qpng_create_read_struct(PNG_LIBPNG_VER_STRING, &errctx, png_onerror, png_onwarning)))
+	{
+		return NULL;
+	}
+
+	if (!(pnginfo = qpng_create_info_struct(png)))
+	{
+		qpng_destroy_read_struct(&png, &pnginfo, NULL);
+		return NULL;
+	}
+
+	ri.data=buf;
+	ri.readposition=8;
+	ri.filelen=length;
+	qpng_set_read_fn(png, &ri, readpngdata);
+
+	qpng_set_sig_bytes(png, 8);
+	qpng_read_info(png, pnginfo);
+	qpng_get_IHDR(png, pnginfo, &pngwidth, &pngheight, &bitdepth, &colortype, &interlace, &compression, &filter);
+
+	*width = pngwidth;
+	*height = pngheight;
+
+	if (colortype == PNG_COLOR_TYPE_PALETTE)
+	{
+		qpng_set_palette_to_rgb(png);
+		qpng_set_filler(png, 255, PNG_FILLER_AFTER);
+	}
+
+	if (colortype == PNG_COLOR_TYPE_GRAY && bitdepth < 8)
+	{
+		#if PNG_LIBPNG_VER > 10400
+			qpng_set_expand_gray_1_2_4_to_8(png);
+		#else
+			qpng_set_gray_1_2_4_to_8(png);
+		#endif
+	}
+
+	if (qpng_get_valid( png, pnginfo, PNG_INFO_tRNS))
+		qpng_set_tRNS_to_alpha(png);
+
+	if (bitdepth >= 8 && colortype == PNG_COLOR_TYPE_RGB)
+		qpng_set_filler(png, 255, PNG_FILLER_AFTER);
+
+	if (colortype == PNG_COLOR_TYPE_GRAY || colortype == PNG_COLOR_TYPE_GRAY_ALPHA)
+	{
+		qpng_set_gray_to_rgb( png );
+		qpng_set_filler(png, 255, PNG_FILLER_AFTER);
+	}
+
+	if (bitdepth < 8)
+		qpng_set_expand (png);
+	else if (bitdepth == 16)
+		qpng_set_strip_16(png);
+
+
+	qpng_read_update_info(png, pnginfo);
+	rowbytes = qpng_get_rowbytes(png, pnginfo);
+	bytesperpixel = qpng_get_channels(png, pnginfo);
+	bitdepth = qpng_get_bit_depth(png, pnginfo);
+
+	if (bitdepth != 8 || bytesperpixel != 4)
+	{
+//		Con_Printf ("Bad PNG color depth and/or bpp (%s)\n", fname);
+		qpng_destroy_read_struct(&png, &pnginfo, NULL);
+		return NULL;
+	}
+
+	data = malloc(*height * rowbytes);
+	rowpointers = malloc(*height * sizeof(*rowpointers));
+
+	if (!data || !rowpointers)
+		goto error;
+
+	for (y = 0; y < *height; y++)
+		rowpointers[y] = data + y * rowbytes;
+
+	qpng_read_image(png, rowpointers);
+	qpng_read_end(png, NULL);
+
+	qpng_destroy_read_struct(&png, &pnginfo, NULL);
+	free(rowpointers);
+	return data;
+}
+#endif
+
+static void GUI_CreateInstaller_Windows(void)
+{
+#define RESLANG MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_UK)
+	unsigned char *mandata = NULL;
+	unsigned int manlen;
+	unsigned char *pngdata = NULL;
+	unsigned int pnglen;
+	char *error = NULL;
+	char *warn = NULL;
+	HANDLE bin;
+	char ourname[MAX_PATH];
+	char *basedir = enginebasedir;
+	char newname[MAX_PATH];
+	char modname[MAX_PATH+10] = "unknownmod";
+	char tmpname[MAX_PATH];
+	char tmp[MAX_PATH];
+
+	if (MessageBox(mainwindow, "The 'Create Installer' option is still experimental.\nIt's probably still defective.\nSo be sure to test stuff extensively.", "Create Installer", MB_OKCANCEL|MB_DEFBUTTON2) != IDOK)
+		return;
+
+	PromptForEngine(0);
+
+
+	{
+		char workingdir[MAX_PATH];
+		char absbase[MAX_PATH];
+		char *slash;
+		GetCurrentDirectory(sizeof(workingdir)-1, workingdir);
+		_snprintf(modname, sizeof(modname), "%s/", enginebasedir);
+		for (slash = modname; *slash; slash++)
+			if (*slash == '/')
+				*slash = '\\';
+		PathCombine(absbase, workingdir, modname);
+		if (PathRelativePathToA(modname, absbase, FILE_ATTRIBUTE_DIRECTORY, workingdir, FILE_ATTRIBUTE_DIRECTORY))
+		{
+			if (!strncmp(modname, ".\\", 2))
+				memmove(modname, modname+2, strlen(modname+2)+1);
+			slash = strchr(modname, '/');
+			if (slash)
+				*slash = 0;
+			slash = strchr(modname, '\\');
+			if (slash)
+				*slash = 0;
+			if (!*modname)
+				_snprintf(modname, sizeof(modname), "unknownmod");
+		}
+	}
+
+	QC_snprintfz(tmp, sizeof(tmp), "default.fmf", modname);
+	mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
+	if (!mandata)
+	{
+		QC_snprintfz(tmp, sizeof(tmp), "%s.fmf", modname);
+		mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
+	}
+	if (!mandata)
+	{
+		QC_snprintfz(tmp, sizeof(tmp), "../default.fmf", modname);
+		mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
+	}
+	if (!mandata)
+	{
+		QC_snprintfz(tmp, sizeof(tmp), "../%s.fmf", modname);
+		mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
+	}
+	if (!mandata)
+	{
+		QC_snprintfz(tmp, sizeof(tmp), "%s.fmf", modname);
+		if (!PromptForFile("Please Select Manifest File", "FTE Manifests\0*.fmf\0All files\0*.*\0", ".", tmp, tmp, sizeof(tmp), true))
+			mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
+	}
+	
+	if (!mandata)
+	{
+		FILE *f;
+		if (MessageBox(mainwindow, "Creating an installer requires a manifest.\nCreate+edit one now?", "Create Installer", MB_OKCANCEL) != IDOK)
+			return;
+
+		f = fopen(tmp, "wb");
+		fprintf(f, "FTEManifestVer 1\n");
+		fprintf(f, "///basic information\n");
+		fprintf(f, "game \"quake\" ///change this to isolate your mod from quake. if the game is known to the engine itself then other settings will receive default values unless overriden. Should be safe to use as a filename, so should have no spaces or full stops.\n");
+		fprintf(f, "name \"Quake\" ///this is the full name of your game that you wish the engine to display. Use spaces.\n");
+		fprintf(f, "//protocolname \"FTE-Quake\" ///allows isolation from other games using the same engine. Should only be changed for standalone total conversions.\n");
+		fprintf(f, "///filesystem\n");
+		fprintf(f, "//basegame \"id1\"\n");
+		fprintf(f, "//basegame \"qw\"\n");
+		fprintf(f, "//basegame \"*fte\" ///* prefix means its never networked\n");
+		fprintf(f, "gamedir \"%s\"\n", modname);
+		fprintf(f, "//disablehomedir 0\n");
+		fprintf(f, "///required packages. add more as needed. these will be downloaded+installed from the get-go\n");
+		fprintf(f, "///the engine will tell you the correct crc if you get it wrong/don't know it. Its not mandatory, but allows for autoupdates if the fmf changes.\n");
+		fprintf(f, "//package id1/example.pk3\tmirror \"https://example.com/example.pak\"\t//crc 0xdeadbeef\n");
+		fprintf(f, "///updateurl points to an (updated) copy of this manifest file, so you can update basic stuff easily. should always be https\n");
+		fprintf(f, "//updateurl \"https://example.com/example.fmf\"\n");
+		fprintf(f, "///downloadsurl is a list of optional updates, including engine updates, displayed via the updates menu. should always be https\n");
+		fprintf(f, "//downloadsurl \"https://fte.triptohell.info/downloadables.php\"\n");
+		fprintf(f, "///eula displayed when first installing\n");
+		fprintf(f, "//eula \"By using this game software, you assign your eternal soul to me for me to do as I wish, including but not limited to trading it for a pint of beer.\"\n");
+		fclose(f);
+		EditFile(tmp, -1, false);
+		return;
+	}
+	else
+	{
+
+
+		
+
+		QC_snprintfz(newname, sizeof(newname), "%s_setup.exe", modname);
+
+		if (!PromptForFile("Please Select Output Executable", "Executables\0*.exe\0All files\0*.*\0", basedir, newname, tmpname, sizeof(tmpname), true))
+			return;
+
+		PathCombine(newname, basedir, tmpname);
+		PathCombine(tmpname, basedir, "tmp.exe");
+		PathCombine(ourname, enginebasedir, enginebinary);
+
+		if (!CopyFile(ourname, tmpname, FALSE))
+			error = "output already exists or cannot be written";
+
+		if (!(bin = BeginUpdateResource(tmpname, FALSE)))
+			error = "BeginUpdateResource failed";
+		else
+		{
+			QC_snprintfz(tmp, sizeof(tmp), "%s.ico", modname);
+			pngdata = QCC_ReadFile (tmp, NULL, 0, &pnglen);
+			if (!pngdata)
+			{
+				QC_snprintfz(tmp, sizeof(tmp), "%s.png", modname);
+				pngdata = QCC_ReadFile (tmp, NULL, 0, &pnglen);
+			}
+			if (!pngdata)
+				pngdata = QCC_ReadFile ("default.png", NULL, 0, &pnglen);
+
+			if (!pngdata)
+				if (PromptForFile("Please Select Icon", "Icons\0*.ico;*.png\0All files\0*.*\0", ".", tmp, tmp, sizeof(tmp), false))
+					pngdata = QCC_ReadFile (tmp, NULL, 0, &pnglen);
+
+			if (pngdata && pngdata[0] == 0 && pngdata[1] == 0 && pngdata[2] == 1 && pngdata[3] == 0)
+			{
+				unsigned int iconid = 1, img;
+				unsigned short images;
+				struct {
+					BYTE  bWidth;
+					BYTE  bHeight;
+					BYTE  bColorCount;
+					BYTE  bReserved;
+					WORD  wPlanes;
+					WORD  wBitCount;
+					DWORD dwBytesInRes;
+					DWORD dwOffset;
+				} *iconinfo;
+				icon_group_t icondata;
+				memset(&icondata, 0, sizeof(icondata));
+				icondata.idType = 1;
+
+				images = pngdata[4] | (pngdata[5]<<8);
+
+				UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(1), RESLANG, NULL, 0);
+				UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(2), RESLANG, NULL, 0);
+
+				for (iconinfo = (void*)(pngdata+6), img = 0; img < images; iconinfo++, img++)
+				{
+					if (!error && !UpdateResource(bin, RT_ICON, MAKEINTRESOURCE(iconid), 0, pngdata+iconinfo->dwOffset, iconinfo->dwBytesInRes))
+						error = "UpdateResource failed (icon data)";
+
+					//and make a copy of it in the icon list
+					icondata.idEntries[icondata.idCount].bWidth = iconinfo->bWidth;
+					icondata.idEntries[icondata.idCount].bHeight = iconinfo->bHeight;
+					icondata.idEntries[icondata.idCount].wBitCount = iconinfo->wBitCount;
+					icondata.idEntries[icondata.idCount].wPlanes = iconinfo->wPlanes;
+					icondata.idEntries[icondata.idCount].bColorCount = iconinfo->bColorCount;
+					icondata.idEntries[icondata.idCount].dwBytesInRes = iconinfo->dwBytesInRes;
+					icondata.idEntries[icondata.idCount].nId = iconid++;
+					icondata.idCount++;
+				}
+
+				if (!error && !UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(1), RESLANG, &icondata, (qbyte*)&icondata.idEntries[icondata.idCount] - (qbyte*)&icondata))
+					error = "UpdateResource failed (icon group)";
+			}
+			else if (pngdata)
+			{
+				icon_group_t icondata;
+				qbyte *rgbadata;
+				int imgwidth, imgheight;
+				int iconid = 1;
+				memset(&icondata, 0, sizeof(icondata));
+				icondata.idType = 1;
+
+				if (MessageBox(mainwindow, error, "Embedding PNGs is probably buggy/suboptimal. You should consider using an .ico instead.\nContinue anyway?", MB_OKCANCEL) != IDOK)
+					error = "User aborted";
+
+				UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(1), RESLANG, NULL, 0);
+				UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(2), RESLANG, NULL, 0);
+	//			UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(3), RESLANG, NULL, 0);
+
+				rgbadata = ReadPNGFile(pngdata, pnglen, &imgwidth, &imgheight, "default.png");
+				if (!rgbadata)
+					error = "unable to read icon image";
+				else
+				{
+					void *data = NULL;
+					unsigned int datalen = 0;
+					unsigned int i;
+
+//					extern cvar_t gl_lerpimages;
+//					gl_lerpimages.ival = 1;
+					for (i = 0; i < sizeof(icosizes)/sizeof(icosizes[0]); i++)
+					{
+						unsigned int x,y;
+						unsigned int pixels;
+						if (icosizes[i].width > imgwidth || icosizes[i].height > imgheight)
+							continue;	//ignore icons if they're bigger than the original icon.
+
+						if (icosizes[i].bpp == 32 && icosizes[i].width >= 128 && icosizes[i].height >= 128 && icosizes[i].width == imgwidth && icosizes[i].height == imgheight)
+						{	//png compression. oh look. we originally loaded a png!
+							data = pngdata;
+							datalen = pnglen;
+						}
+						else
+						{
+							//generate the bitmap info
+							BITMAPV4HEADER *bi;
+							qbyte *out, *outmask;
+							qbyte *in, *inrow;
+							unsigned int outidx;
+
+							pixels = icosizes[i].width * icosizes[i].height;
+
+							bi = data = malloc(sizeof(*bi) + icosizes[i].width * icosizes[i].height * 5 + icosizes[i].height*4);
+							memset(bi,0, sizeof(BITMAPINFOHEADER));
+							bi->bV4Size				= sizeof(BITMAPINFOHEADER);
+							bi->bV4Width			= icosizes[i].width;
+							bi->bV4Height			= icosizes[i].height * 2;	//icons are logically double-height, with the second half being a silly alpha mask.
+							bi->bV4Planes			= 1;
+							bi->bV4BitCount			= icosizes[i].bpp;
+							bi->bV4V4Compression	= BI_RGB;
+							bi->bV4ClrUsed			= (icosizes[i].bpp>=32?0:(1u<<icosizes[i].bpp));
+
+							datalen = bi->bV4Size;
+							out = (qbyte*)data + datalen;
+							datalen += ((icosizes[i].width*icosizes[i].bpp/8+3)&~3) * icosizes[i].height;
+							outmask = (qbyte*)data + datalen;
+							datalen += ((icosizes[i].width+31)&~31)/8 * icosizes[i].height;
+
+							in = malloc(pixels*4);
+							Image_ResampleTexture((unsigned int*)rgbadata, imgwidth, imgheight, (unsigned int*)in, icosizes[i].width, icosizes[i].height);
+
+							inrow = in;
+							outidx = 0;
+							if (icosizes[i].bpp == 32)
+							{
+								for (y = 0; y < icosizes[i].height; y++)
+								{
+									inrow = in + 4*icosizes[i].width*(icosizes[i].height-1-y);
+									for (x = 0; x < icosizes[i].width; x++)
+									{
+										if (inrow[3] == 0)	//transparent
+											outmask[outidx>>3] |= 1u<<(outidx&7);
+										else
+										{
+											out[0] = inrow[2];
+											out[1] = inrow[1];
+											out[2] = inrow[0];
+										}
+										out += 4;
+										outidx++;
+										inrow += 4;
+									}
+									if (x & 3)
+										out += 4 - (x&3);
+									outidx = (outidx + 31)&~31;
+								}
+							}
+						}
+
+						if (!error && !UpdateResource(bin, RT_ICON, MAKEINTRESOURCE(iconid), 0, data, datalen))
+							error = "UpdateResource failed (icon data)";
+
+						//and make a copy of it in the icon list
+						icondata.idEntries[icondata.idCount].bWidth = (icosizes[i].width<256)?icosizes[i].width:0;
+						icondata.idEntries[icondata.idCount].bHeight = (icosizes[i].height<256)?icosizes[i].height:0;
+						icondata.idEntries[icondata.idCount].wBitCount = icosizes[i].bpp;
+						icondata.idEntries[icondata.idCount].wPlanes = 1;
+						icondata.idEntries[icondata.idCount].bColorCount = (icosizes[i].bpp>=8)?0:(1u<<icosizes[i].bpp);
+						icondata.idEntries[icondata.idCount].dwBytesInRes = datalen;
+						icondata.idEntries[icondata.idCount].nId = iconid++;
+						icondata.idCount++;
+					}
+				}
+
+				if (!error && !UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(1), RESLANG, &icondata, (qbyte*)&icondata.idEntries[icondata.idCount] - (qbyte*)&icondata))
+					error = "UpdateResource failed (icon group)";
+			}
+
+			if (mandata)
+			{
+				if (!error && !UpdateResource(bin, RT_RCDATA, MAKEINTRESOURCE(1), 0, mandata, manlen+1))
+					error = "UpdateResource failed (manicfest)";
+			}
+			else
+				error = "fmf not found in working directory";
+
+			if (!EndUpdateResource(bin, !!error) && !error)
+				error = "EndUpdateResource failed. Check access permissions.";
+
+			DeleteFile(newname);
+			MoveFile(tmpname, newname);
+		}
+	}
+
+	free(pngdata);
+	free(mandata);
+
+	if (error)
+		MessageBox(mainwindow, error, "Create Installer Error", MB_ICONERROR);
+	else
+		MessageBox(mainwindow, "Installer Created!\nNow go and upload it somewhere!\n\nBe sure to flush windows' icon cache if you changed the icon.", "Create Installer", MB_OK);
 }
 
 HWND targitem_hexen2;
@@ -3901,15 +4910,15 @@ void OptionsDialog(void)
 
 	memset(&wndclass, 0, sizeof(wndclass));
 	wndclass.style      = 0;
-    wndclass.lpfnWndProc   = OptionsWndProc;
-    wndclass.cbClsExtra    = 0;
-    wndclass.cbWndExtra    = 0;
-    wndclass.hInstance     = ghInstance;
-    wndclass.hIcon         = LoadIcon(ghInstance, IDI_ICON_FTEQCC);
-    wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
+	wndclass.lpfnWndProc   = OptionsWndProc;
+	wndclass.cbClsExtra    = 0;
+	wndclass.cbWndExtra    = 0;
+	wndclass.hInstance     = ghInstance;
+	wndclass.hIcon         = LoadIcon(ghInstance, IDI_ICON_FTEQCC);
+	wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
 	wndclass.hbrBackground = (void *)COLOR_WINDOW;
-    wndclass.lpszMenuName  = 0;
-    wndclass.lpszClassName = OPTIONS_WINDOW_CLASS_NAME;
+	wndclass.lpszMenuName  = 0;
+	wndclass.lpszClassName = OPTIONS_WINDOW_CLASS_NAME;
 	RegisterClass(&wndclass);
 
 	height = 0;
@@ -4286,6 +5295,11 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 				//	AppendMenu(m, 0, IDM_FIND,									"&Find");
 					AppendMenu(m, 0, IDM_UNDO,									"Undo\tCtrl+Z");
 					AppendMenu(m, 0, IDM_REDO,									"Redo\tCtrl+Y");
+					AppendMenu(m, MF_SEPARATOR, 0, NULL);
+					AppendMenu(m, 0, IDM_CREATEINSTALLER_WINDOWS,				"Create Windows Installer");
+					AppendMenu(m, 0, IDM_CREATEINSTALLER_ANDROID,				"Create Android Installer");
+					AppendMenu(m, MF_SEPARATOR, 0, NULL);
+					AppendMenu(m, 0, IDM_QUIT,									"Exit");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Navigation");
 					AppendMenu(m, 0, IDM_GOTODEF,								"Go to definition\tF12");
 					AppendMenu(m, 0, IDM_RETURNDEF,								"Return from definition\tF12");

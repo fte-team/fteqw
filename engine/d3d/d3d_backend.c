@@ -3459,7 +3459,7 @@ void D3D9BE_RenderShadowBuffer(unsigned int numverts, IDirect3DVertexBuffer9 *vb
 }
 #endif
 
-void D3D9BE_DrawWorld (batch_t **worldbatches, qbyte *vis)
+void D3D9BE_DrawWorld (batch_t **worldbatches)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();
@@ -3514,11 +3514,11 @@ void D3D9BE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 		RSpeedEnd(RSPEED_WORLD);
 
 #ifdef RTLIGHTS
-		if (vis)
+		if (r_refdef.scenevis)
 		{
 			RSpeedRemark();
 			D3D9BE_SelectEntity(&r_worldentity);
-			Sh_DrawLights(vis);
+			Sh_DrawLights(r_refdef.scenevis);
 			RSpeedEnd(RSPEED_STENCILSHADOWS);
 		}
 #endif

@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 cvar_t	cl_predict_extrapolate = CVARD("cl_predict_extrapolate", "", "If 1, enables prediction based upon partial input frames which can change over time resulting in a swimmy feel but does not need to interpolate. If 0, prediction will stay in the past and thus use only completed frames. Interpolation will then be used to smooth movement.\nThis cvar only applies when video and input frames are independant (ie: cl_netfps is set).");
 cvar_t	cl_predict_timenudge = CVARD("cl_predict_timenudge", "0", "A debug feature. You should normally leave this as 0. Nudges local player prediction into the future if positive (resulting in extrapolation), or into the past if negative (resulting in laggy interpolation). Value is in seconds, so small decimals are required. This cvar applies even if input frames are tied to video frames.");
-cvar_t	cl_predict_smooth = CVARD("cl_lerp_smooth", "2", "If 2, will act as 1 when playing demos and otherwise act as if set to 0.\nIf 1, interpolation will run in the past, resulting in really smooth movement at the cost of latency (even on bunchy german ISDNs).\nIf 0, interpolation will be based upon packet arrival times and may judder due to packet loss.");
+cvar_t	cl_predict_smooth = CVARD("cl_lerp_smooth", "2", "If 2, will act as 1 when playing demos/singleplayer and otherwise act as if set to 0 (ie: deathmatch).\nIf 1, interpolation will run in the past, resulting in really smooth movement at the cost of latency (even on bunchy german ISDNs).\nIf 0, interpolation will be based upon packet arrival times and may judder due to packet loss.");
 cvar_t	cl_nopred = CVAR("cl_nopred","0");
 cvar_t	cl_pushlatency = CVAR("pushlatency","-999");
 
@@ -577,8 +577,8 @@ void CL_CalcClientTime(void)
 		//q2 has no drifting.
 		//q3 always drifts.
 		//nq+qw code can drift
-		//default is to drift in demos but not live (oh noes! added latency!)
-		if (cls.protocol == CP_QUAKE2 || (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !cls.demoplayback)) && cls.demoplayback != DPB_MVD))
+		//default is to drift in demos+SP but not live (oh noes! added latency!)
+		if (cls.protocol == CP_QUAKE2 || (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1))) && cls.demoplayback != DPB_MVD))
 		{	//no drift logic
 			float f;
 			f = cl.gametime - cl.oldgametime;

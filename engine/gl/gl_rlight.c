@@ -195,7 +195,7 @@ mesh_t flashblend_mesh;
 mesh_t flashblend_fsmesh;
 shader_t *occluded_shader;
 shader_t *flashblend_shader;
-shader_t *lpplight_shader;
+shader_t *lpplight_shader[LSHADER_MODES];
 
 void R_GenerateFlashblendTexture(void)
 {
@@ -275,7 +275,7 @@ void R_InitFlashblends(void)
 			"}\n"
 		"}\n"
 		);
-	lpplight_shader = NULL;
+	memset(lpplight_shader, 0, sizeof(lpplight_shader));
 }
 
 static qboolean R_BuildDlightMesh(dlight_t *light, float colscale, float radscale, int dtype)
@@ -520,18 +520,30 @@ void R_RenderDlights (void)
 }
 
 
+qboolean Sh_GenerateShadowMap(dlight_t *l);
 void R_GenDlightMesh(struct batch_s *batch)
 {
 	static mesh_t *meshptr;
 	dlight_t	*l = cl_dlights + batch->surf_first;
 
-	BE_SelectDLight(l, l->color, l->axis, 0);
+	int lightflags = batch->surf_count;
+
+	BE_SelectDLight(l, l->color, l->axis, lightflags);
+	if (lightflags & LSHADER_SMAP)
+	{
+		if (!Sh_GenerateShadowMap(l))
+		{
+			batch->meshes = 0;
+			return;
+		}
+		BE_SelectEntity(&r_worldentity);
+		BE_SelectMode(BEM_STANDARD);
+	}
 
 	if (!R_BuildDlightMesh (l, 2, 1, 2))
 	{
 		int i;
 		static vec2_t s[4] = {{1, -1}, {-1, -1}, {-1, 1}, {1, 1}};
-		batch->flags |= BEF_FORCENODEPTH;
 		for (i = 0; i < 4; i++)
 		{
 			VectorMA(r_origin, 32, vpn, flashblend_vcoords[i]);
@@ -552,21 +564,37 @@ void R_GenDlightBatches(batch_t *batches[])
 	int i, j, sort;
 	dlight_t	*l;
 	batch_t		*b;
-	if (!r_lightprepass.ival)
+	int lmode;
+	if (!r_lightprepass)
 		return;
 
-	if (!lpplight_shader)
-		lpplight_shader = R_RegisterShader("lpp_light", SUF_NONE,
+	if (!lpplight_shader[0])
+	{
+		lpplight_shader[0] = R_RegisterShader("lpp_light", SUF_NONE,
 						"{\n"
 							"program lpp_light\n"
 							"{\n"
 								"map $sourcecolour\n"
 								"blendfunc gl_one gl_one\n"
+								"nodepthtest\n"
 							"}\n"
 							"surfaceparm nodlight\n"
 							"lpp_light\n"
 						"}\n"
 					);
+		lpplight_shader[LSHADER_SMAP] = R_RegisterShader("lpp_light#PCF", SUF_NONE,
+						"{\n"
+							"program lpp_light\n"
+							"{\n"
+								"map $sourcecolour\n"
+								"blendfunc gl_one gl_one\n"
+								"nodepthtest\n"
+							"}\n"
+							"surfaceparm nodlight\n"
+							"lpp_light\n"
+						"}\n"
+					);
+	}
 
 	l = cl_dlights+rtlights_first;
 	for (i=rtlights_first; i<rtlights_max; i++, l++)
@@ -577,12 +605,19 @@ void R_GenDlightBatches(batch_t *batches[])
 		if (R_CullSphere(l->origin, l->radius))
 			continue;
 
+		lmode = 0;
+		if (!(((i >= RTL_FIRST)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || l->flags & LFLAG_NOSHADOWS))
+			lmode |= LSHADER_SMAP;
+//		if (TEXLOADED(l->cubetexture))
+//			lmode |= LSHADER_CUBE;
+
 		b = BE_GetTempBatch();
 		if (!b)
 			return;
 
 		b->flags = 0;
-		sort = lpplight_shader->sort;
+		b->shader = lpplight_shader[lmode];
+		sort = b->shader->sort;
 		b->buildmeshes = R_GenDlightMesh;
 		b->ent = &r_worldentity;
 		b->mesh = NULL;
@@ -590,10 +625,10 @@ void R_GenDlightBatches(batch_t *batches[])
 		b->meshes = 1;
 		b->skin = NULL;
 		b->texture = NULL;
-		b->shader = lpplight_shader;
 		for (j = 0; j < MAXRLIGHTMAPS; j++)
 			b->lightmap[j] = -1;
 		b->surf_first = i;
+		b->surf_count = lmode;
 		b->flags |= BEF_NOSHADOWS;
 		b->vbo = NULL;
 		b->next = batches[sort];

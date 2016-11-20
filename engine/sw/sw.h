@@ -167,7 +167,7 @@ void SWBE_DrawMesh_List(shader_t *shader, int nummeshes, struct mesh_s **mesh, s
 void SWBE_DrawMesh_Single(shader_t *shader, struct mesh_s *meshchain, struct vbo_s *vbo, unsigned int be_flags);
 void SWBE_SubmitBatch(struct batch_s *batch);
 struct batch_s *SWBE_GetTempBatch(void);
-void SWBE_DrawWorld(batch_t **worldbatches, qbyte *vis);
+void SWBE_DrawWorld(batch_t **worldbatches);
 void SWBE_Init(void);
 void SWBE_GenBrushModelVBO(struct model_s *mod);
 void SWBE_ClearVBO(struct vbo_s *vbo);

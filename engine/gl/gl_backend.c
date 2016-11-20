@@ -96,10 +96,8 @@ struct {
 
 		program_t *programfixedemu[8];
 
-		qboolean initeddepthnorm;
-		const shader_t *depthnormshader;
-		texid_t tex_normals;
-		texid_t tex_diffuse;
+		texid_t tex_gbuf_normals;
+		texid_t tex_gbuf_diffuse;
 		int fbo_current;	//the one currently being rendered to
 		texid_t tex_sourcecol; /*this is used by $sourcecolour tgen*/
 		texid_t tex_sourcedepth;
@@ -1408,6 +1406,19 @@ void GLBE_DestroyFBOs(void)
 	{
 		Image_DestroyTexture(shaderstate.temptexture);
 		shaderstate.temptexture = r_nulltex;
+	}
+
+
+	//nuke deferred rendering stuff
+	if (shaderstate.tex_gbuf_diffuse)
+	{
+		Image_DestroyTexture(shaderstate.tex_gbuf_diffuse);
+		shaderstate.tex_gbuf_diffuse = r_nulltex;
+	}
+	if (shaderstate.tex_gbuf_normals)
+	{
+		Image_DestroyTexture(shaderstate.tex_gbuf_normals);
+		shaderstate.tex_gbuf_normals = r_nulltex;
 	}
 }
 
@@ -4042,10 +4053,8 @@ static void DrawMeshes(void)
 			BE_LegacyLighting();
 #endif
 		break;
-	case BEM_DEPTHNORM:
-		altshader = shaderstate.curshader->bemoverrides[bemoverride_prelight];
-		if (!altshader)
-			altshader = shaderstate.depthnormshader;
+	case BEM_GBUFFER:
+		altshader = shaderstate.curshader->bemoverrides[bemoverride_gbuffer];
 		if (altshader && altshader->prog)
 		{
 			shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
@@ -4276,7 +4285,6 @@ static void DrawMeshes(void)
 #ifndef GLSLONLY
 		else
 		{
-			GL_DeSelectProgram();
 			while (passno < shaderstate.curshader->numpasses)
 			{
 				p = &shaderstate.curshader->passes[passno];
@@ -4284,7 +4292,23 @@ static void DrawMeshes(void)
 		//		if (p->flags & SHADER_PASS_DETAIL)
 		//			continue;
 
-				DrawPass(p);
+				if (p->prog)
+				{
+					shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
+					shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
+					shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
+
+					shaderstate.pendingtexcoordparts[0] = 2;
+					shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+					shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+
+					BE_RenderMeshProgram(shaderstate.curshader, p, p->prog);
+				}
+				else
+				{
+					GL_DeSelectProgram();
+					DrawPass(p);
+				}
 			}
 		}
 		if (shaderstate.curbatch->fog && shaderstate.curbatch->fog->shader)
@@ -5339,8 +5363,9 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 }
 */
 
-void GLBE_DrawLightPrePass(qbyte *vis)
+void GLBE_DrawLightPrePass(void)
 {
+	qboolean redefine = false;
 	/*
 	walls(bumps) -> normalbuffer
 	lights+normalbuffer -> lightlevelbuffer
@@ -5349,69 +5374,50 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	normalbuffer contains depth in the alpha channel. an actual depthbuffer is also generated at this time, which is used for depth test stuff but not as a shader input.
 	*/
 	int oldfbo;
-	if (!shaderstate.initeddepthnorm)
-	{
-		shaderstate.initeddepthnorm = true;
-		shaderstate.depthnormshader = R_RegisterShader("lpp_depthnorm", SUF_NONE,
-					"{\n"
-						"program lpp_depthnorm\n"
-						"{\n"
-							"map $normalmap\n"
-							"tcgen base\n"
-						"}\n"
-					"}\n"
-				);
-	}
-	if (!shaderstate.depthnormshader)
-	{
-		Con_Printf("%s requires content support\n", r_lightprepass.name);
-		r_lightprepass.ival = 0;
-		return;
-	}
 	/*do portals*/
 	BE_SelectMode(BEM_STANDARD);
 	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_PORTAL, SHADER_SORT_PORTAL);
 
-	BE_SelectMode(BEM_DEPTHNORM);
-	if (!shaderstate.depthnormshader)
+	BE_SelectMode(BEM_GBUFFER);
+	if (!TEXVALID(shaderstate.tex_gbuf_normals) || vid.fbpwidth != shaderstate.tex_gbuf_normals->width || vid.fbpheight != shaderstate.tex_gbuf_normals->height)
 	{
-		BE_SelectMode(BEM_STANDARD);
-		return;
+		if (!shaderstate.tex_gbuf_normals)
+		{
+			shaderstate.tex_gbuf_normals = Image_CreateTexture("***prepass normals***", NULL, 0);
+			qglGenTextures(1, &shaderstate.tex_gbuf_normals->num);
+		}
+		shaderstate.tex_gbuf_normals->width = vid.fbpwidth;
+		shaderstate.tex_gbuf_normals->height = vid.fbpheight;
+		redefine = true;
+	}
+	if (!TEXVALID(shaderstate.tex_gbuf_diffuse) || vid.fbpwidth != shaderstate.tex_gbuf_diffuse->width || vid.fbpheight != shaderstate.tex_gbuf_diffuse->height)
+	{
+		if (!shaderstate.tex_gbuf_diffuse)
+		{
+			shaderstate.tex_gbuf_diffuse = Image_CreateTexture("***prepass diffuse***", NULL, 0);
+			qglGenTextures(1, &shaderstate.tex_gbuf_diffuse->num);
+		}
+		shaderstate.tex_gbuf_diffuse->width = vid.fbpwidth;
+		shaderstate.tex_gbuf_diffuse->height = vid.fbpheight;
+		redefine = true;
 	}
 
-	if (!TEXVALID(shaderstate.tex_normals))
+	//something changed, redefine the textures.
+	if (redefine)
 	{
-		shaderstate.tex_normals = Image_CreateTexture("***prepass normals***", NULL, 0);
-		qglGenTextures(1, &shaderstate.tex_normals->num);
-		r_lightprepass.modified = true;
-	}
-	if (r_lightprepass.modified)
-	{
-		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_normals);
-		qglTexImage2D(GL_TEXTURE_2D, 0, (r_lightprepass.ival==2)?GL_RGBA32F_ARB:GL_RGBA16F_ARB, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_gbuf_diffuse);
+		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, vid.fbpwidth, vid.fbpheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		r_lightprepass.modified = false;
-	}
 
-	if (!TEXVALID(shaderstate.tex_diffuse))
-	{
-		shaderstate.tex_diffuse = Image_CreateTexture("***prepass diffuse***", NULL, 0);
-		qglGenTextures(1, &shaderstate.tex_diffuse->num);
-		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_diffuse);
-		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_normals);
-		qglTexImage2D(GL_TEXTURE_2D, 0, (r_lightprepass.ival==2)?GL_RGBA32F_ARB:GL_RGBA16F_ARB, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-		r_lightprepass.modified = false;
+		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_gbuf_normals);
+		qglTexImage2D(GL_TEXTURE_2D, 0, (r_lightprepass==2)?GL_RGBA32F_ARB:GL_RGBA16F_ARB, vid.fbpwidth, vid.fbpheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	}
 
 	/*set the FB up to draw surface info*/
-	oldfbo = GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_normals, 1, r_nulltex, vid.pixelwidth, vid.pixelheight, 0);
+	oldfbo = GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_gbuf_normals, 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
 	GL_ForceDepthWritable();
 	//FIXME: should probably clear colour buffer too.
 	qglClear(GL_DEPTH_BUFFER_BIT);
@@ -5426,8 +5432,8 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_OPAQUE, SHADER_SORT_OPAQUE);
 
 	/*reconfigure - now drawing diffuse light info using the previous fb image as a source image*/
-	GLBE_FBO_Sources(shaderstate.tex_normals, r_nulltex);
-	GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_diffuse, 1, r_nulltex, vid.pixelwidth, vid.pixelheight, 0);
+	GLBE_FBO_Sources(shaderstate.tex_gbuf_normals, r_nulltex);
+	GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_gbuf_diffuse, 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
 
 	BE_SelectMode(BEM_STANDARD);
 	qglClearColor (0,0,0,1);
@@ -5439,8 +5445,9 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 
 	/*final reconfigure - now drawing final surface data onto true framebuffer*/
 	GLBE_FBO_Pop(oldfbo);
-	GLBE_FBO_Sources(shaderstate.tex_diffuse, r_nulltex);
-	qglDrawBuffer(GL_BACK);
+	GLBE_FBO_Sources(shaderstate.tex_gbuf_diffuse, r_nulltex);
+	if (!oldfbo)
+		qglDrawBuffer(GL_BACK);
 
 	/*now draw the postlight passes (this includes blended stuff which will NOT be lit)*/
 	GLBE_SelectEntity(&r_worldentity);
@@ -5449,14 +5456,14 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 #ifdef RTLIGHTS
 	/*regular lighting now*/
 	GLBE_SelectEntity(&r_worldentity);
-	Sh_DrawLights(vis);
+	Sh_DrawLights(r_refdef.scenevis);
 #endif
 
 	GLBE_FBO_Sources(r_nulltex, r_nulltex);
 	qglClearColor (1,0,0,1);
 }
 
-void GLBE_DrawWorld (batch_t **worldbatches, qbyte *vis)
+void GLBE_DrawWorld (batch_t **worldbatches)
 {
 #ifdef RTLIGHTS
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
@@ -5535,9 +5542,9 @@ void GLBE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 //		shaderstate.identitylightmap *= 1<<gl_overbright.ival;
 
 #ifdef RTLIGHTS
-		if (r_lightprepass.ival)
+		if (r_lightprepass)
 		{
-			GLBE_DrawLightPrePass(vis);
+			GLBE_DrawLightPrePass();
 		}
 		else
 #endif
@@ -5557,7 +5564,7 @@ void GLBE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 				RSpeedRemark();
 				TRACE(("GLBE_DrawWorld: drawing lights\n"));
 				GLBE_SelectEntity(&r_worldentity);
-				Sh_DrawLights(vis);
+				Sh_DrawLights(r_refdef.scenevis);
 				RSpeedEnd(RSPEED_STENCILSHADOWS);
 				TRACE(("GLBE_DrawWorld: lights drawn\n"));
 			}

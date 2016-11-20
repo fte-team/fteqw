@@ -59,6 +59,10 @@ Draw_Init
 */
 void GLDraw_Init (void)
 {
+	//figure out which extra features we can support on these drivers.
+	r_deluxemapping = r_deluxemapping_cvar.ival;
+	r_lightprepass = r_lightprepass_cvar.ival && sh_config.progs_supported;
+	r_softwarebanding = r_softwarebanding_cvar.ival && sh_config.progs_supported;
 	if (gl_config.gles && gl_config.glversion < 3.0)
 		r_softwarebanding = false;
 
@@ -115,6 +119,9 @@ void GLDraw_DeInit (void)
 	Sh_Shutdown();
 #endif
 	Shader_Shutdown();
+
+	GLBE_Shutdown();	//to release its images.
+	Image_Shutdown();
 }
 
 

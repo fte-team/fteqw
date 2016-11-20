@@ -2408,7 +2408,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 			}
 			else
 			{
-				shadowmap[isspot] = Image_CreateTexture("***shadowmap2dcube***", NULL, 0);
+				shadowmap[isspot] = Image_CreateTexture("***shadowmap2domni***", NULL, 0);
 				qglGenTextures(1, &shadowmap[isspot]->num);
 				GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
 	#ifdef DBG_COLOURNOTDEPTH
@@ -2527,6 +2527,84 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 #endif
 	}
 
+	return true;
+}
+
+qboolean Sh_GenerateShadowMap(dlight_t *l)
+{
+	qboolean isspot;
+	int smsize;
+	qbyte *vvis = r_refdef.scenevis;
+	qbyte *lvis;
+
+	
+/*	if (Sh_ScissorForBox(mins, maxs, &rect))
+	{
+		RQuantAdd(RQUANT_RTLIGHT_CULL_SCISSOR, 1);
+		return;
+	}*/
+
+	if (vvis)
+	{
+		if (!l->rebuildcache && l->worldshadowmesh)
+		{
+			lvis = l->worldshadowmesh->litleaves;
+			//fixme: check head node first?
+			if (!Sh_LeafInView(l->worldshadowmesh->litleaves, vvis))
+			{
+				RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
+				return false;
+			}
+		}
+		else
+		{
+			int clus;
+			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, l->origin);
+			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, lvisb, sizeof(lvisb));
+			//FIXME: surely we can use the phs for this?
+
+			if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
+			{
+				RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
+				return false;
+			}
+		}
+	}
+	else
+		lvis = NULL;
+
+
+
+	isspot = l->fov != 0;
+	if (isspot)
+		smsize = SHADOWMAP_SIZE;
+	else
+	{
+		//Stolen from DP. Actually, LH pasted it to me in IRC.
+		vec3_t nearestpoint;
+		vec3_t d;
+		float distance, lodlinear;
+		nearestpoint[0] = bound(l->origin[0]-l->radius, r_origin[0], l->origin[0]+l->radius);
+		nearestpoint[1] = bound(l->origin[1]-l->radius, r_origin[1], l->origin[1]+l->radius);
+		nearestpoint[2] = bound(l->origin[2]-l->radius, r_origin[2], l->origin[2]+l->radius);
+		VectorSubtract(nearestpoint, r_origin, d);
+		distance = VectorLength(d);
+		lodlinear = (l->radius * r_shadow_shadowmapping_precision.value) / sqrt(max(1.0f, distance / l->radius));
+		smsize = bound(16, lodlinear, SHADOWMAP_SIZE);
+	}
+
+#ifdef D3D11QUAKE
+	if (qrenderer == QR_DIRECT3D11)
+		D3D11BE_SetupForShadowMap(l, isspot, isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
+#endif
+#ifdef VKQUAKE
+	if (qrenderer == QR_VULKAN)
+		VKBE_SetupForShadowMap(l, isspot, isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
+#endif
+
+	//fixme: light rotation
+	if (!Sh_GenShadowMap(l, l->axis, lvis, smsize))
+		return false;	//didn't need to do anything
 	return true;
 }
 
@@ -3587,6 +3665,9 @@ void Sh_DrawLights(qbyte *vis)
 		//make sure the lighting is reloaded
 		Sh_PreGenerateLights();
 	}
+
+	if (r_lightprepass)
+		return;
 
 	if (!r_shadow_realtime_world.ival && !r_shadow_realtime_dlight.ival)
 	{

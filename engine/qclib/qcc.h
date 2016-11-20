@@ -1055,6 +1055,7 @@ typedef struct qcc_cachedsourcefile_s {
 	struct qcc_cachedsourcefile_s *next;
 } qcc_cachedsourcefile_t;
 extern qcc_cachedsourcefile_t *qcc_sourcefile;
+int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell, pbool legacyembed);
 
 
 

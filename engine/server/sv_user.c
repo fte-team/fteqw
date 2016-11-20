@@ -2767,6 +2767,7 @@ qboolean SV_AllowDownload (const char *name)
 	extern	cvar_t	allow_download_skins;
 	extern	cvar_t	allow_download_models;
 	extern	cvar_t	allow_download_sounds;
+	extern	cvar_t	allow_download_particles;
 	extern	cvar_t	allow_download_demos;
 	extern	cvar_t	allow_download_maps;
 	extern	cvar_t	allow_download_textures;
@@ -2800,7 +2801,7 @@ qboolean SV_AllowDownload (const char *name)
 		return false;
 	if (*name == '/')	//no absolute.
 		return false;
-	if (strchr(name, '\\'))	//no windows paths - grow up lame windows users.
+	if (strchr(name, '\\'))	//no windows paths - grow up you lame windows users.
 		return false;
 
 	COM_FileExtension(name, ext, sizeof(ext));
@@ -2813,6 +2814,7 @@ qboolean SV_AllowDownload (const char *name)
 
 	if (!strncmp(name, "package/", 8))
 	{
+		//eg: package/id1/foobar.pk3
 		if (!strcmp("pk4", ext) || !strcmp("pk3", ext) || !strcmp("pak", ext) || (!strncmp(name, "package/downloads/", 18) && !strcmp("zip", ext)))
 		{
 			if (!allow_download_packages.ival)
@@ -2839,6 +2841,9 @@ qboolean SV_AllowDownload (const char *name)
 	//sound
 	if (strncmp(name,	"sound/", 6) == 0)
 		return !!allow_download_sounds.value;
+	//particles
+	if (strncmp(name,	"particles/", 6) == 0)
+		return !!allow_download_particles.value;
 	//demos
 	if (strncmp(name,	"demos/", 6) == 0)
 		return !!allow_download_demos.value;
@@ -2846,9 +2851,6 @@ qboolean SV_AllowDownload (const char *name)
 	//textures
 	if (strncmp(name,	"textures/", 9) == 0)
 		return !!allow_download_textures.value;
-
-	if (strncmp(name,	"config/", 7) == 0)
-		return !!allow_download_configs.value;
 
 	if (strncmp(name,	"locs/", 5) == 0)
 		return !!allow_download_locs.value;
@@ -2859,17 +2861,20 @@ qboolean SV_AllowDownload (const char *name)
 	if (!strchr(name, '/') && !strcmp("wad", ext))
 		return !!allow_download_wads.value;
 
+	//configs
+	if (strncmp(name,	"config/", 7) == 0)
+		return !!allow_download_configs.value;
+	if (!strcmp("cfg", ext))
+		return !!allow_download_configs.value;
+
 	//pak/pk3s.
-	if (!strcmp("pk4", ext) || !strcmp("pk3", ext) || !strcmp("pak", ext))
+	if (!strchr(name, '/') && (!strcmp("pk4", ext) || !strcmp("pk3", ext) || !strcmp("pak", ext)))
 	{
 		if (strnicmp(name, "pak", 3))	//don't give out core pak/pk3 files. This matches q3 logic.
 			return !!allow_download_packages.value;
 		else
 			return !!allow_download_packages.value && !!allow_download_copyrighted.value;
 	}
-
-	if (!strcmp("cfg", ext))
-		return !!allow_download_configs.value;
 
 	//root of gamedir
 	if (!strchr(name, '/') && !allow_download_root.value)
@@ -2960,9 +2965,9 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 		static const char *alternatives[][4] = {
 			//orig-path, orig-ext, new-path, new-ext
 			//nexuiz qc names [sound/]sound/foo.wav but expects sound/foo.ogg and variations of that (the [sound/] is implied, but ignored)
-			{"",		"", ".wav", ".ogg"},//nexuiz qc names .wav, but the paks use .ogg
+			{"",		"", ".wav", ".ogg"},	//nexuiz qc names .wav, but the paks use .ogg
 			{"sound/", "",	".wav",	".wav"},	//nexuiz qc names sound/ but that's normally implied, resulting in doubles that don't exist in the filesystem
-			{"sound/", "",	".wav",	".ogg"}	//both of nexuiz's issues
+			{"sound/", "",	".wav",	".ogg"} 	//both of nexuiz's issues at the same time
 		};
 
 		for (alt = 0; alt < countof(alternatives); alt++)

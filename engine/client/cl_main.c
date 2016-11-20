@@ -4686,6 +4686,7 @@ void Host_DoRunFile(hrf_t *f)
 //						if (f->flags & HRF_DOWNLOADED)
 						man->blockupdate = true;
 						BZ_Free(fdata);
+						PM_Shutdown();
 						FS_ChangeGame(man, true, true);
 					}
 					else

@@ -5,6 +5,8 @@
 #include "gl_draw.h"
 #include "shader.h"
 
+//FIXME: instead of switching rendertargets and back, we should be using an alternative queue.
+
 #define PERMUTATION_BEM_DEPTHONLY (1u<<14)
 #define PERMUTATION_BEM_WIREFRAME (1u<<15)
 
@@ -1433,8 +1435,8 @@ static void *fte_restrict VKBE_AllocateBufferSpace(enum dynbuf_e type, size_t da
 	{
 		//flush the old one, just in case.
 		VkMappedMemoryRange range = {VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
-		range.offset = 0;
-		range.size = b->offset;
+		range.offset = b->flushed;
+		range.size = b->offset-b->flushed;
 		range.memory = b->stagingmemory;
 		vkFlushMappedMemoryRanges(vk.device, 1, &range);
 
@@ -1442,9 +1444,9 @@ static void *fte_restrict VKBE_AllocateBufferSpace(enum dynbuf_e type, size_t da
 		{
 			struct vk_fencework *fence = VK_FencedBegin(NULL, 0);
 			VkBufferCopy bcr = {0};
-			bcr.srcOffset = 0;
-			bcr.dstOffset = 0;
-			bcr.size = b->offset;
+			bcr.srcOffset = b->flushed;
+			bcr.dstOffset = b->flushed;
+			bcr.size = b->offset-b->flushed;
 			vkCmdCopyBuffer(fence->cbuf, b->stagingbuf, b->devicebuf, 1, &bcr);
 			VK_FencedSubmit(fence);
 		}
@@ -1453,6 +1455,7 @@ static void *fte_restrict VKBE_AllocateBufferSpace(enum dynbuf_e type, size_t da
 			VKBE_AllocNewBuffer(&b->next, type);
 		b = vk.dynbuf[type] = b->next;
 		b->offset = 0;
+		b->flushed = 0;
 	}
 
 	*buf = b->renderbuf;
@@ -1499,28 +1502,29 @@ void VKBE_FlushDynamicBuffers(void)
 	uint32_t i;
 	struct dynbuffer *d;
 	VkMappedMemoryRange range = {VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
-	range.offset = 0;
 
 	for (i = 0; i < DB_MAX; i++)
 	{
 		d = vk.dynbuf[i];
-		if (!d->offset)
+		if (d->flushed == d->offset)
 			continue;
 
-		range.size = d->offset;
+		range.offset = d->flushed;
+		range.size = d->offset - d->flushed;
 		range.memory = d->stagingmemory;
 		vkFlushMappedMemoryRanges(vk.device, 1, &range);
 
 		if (d->devicebuf != VK_NULL_HANDLE)
 		{	
 			VkBufferCopy bcr = {0};
-			bcr.srcOffset = 0;
-			bcr.dstOffset = 0;
-			bcr.size = d->offset;
+			bcr.srcOffset = d->flushed;
+			bcr.dstOffset = d->flushed;
+			bcr.size = d->offset - d->flushed;
 			if (!fence)
 				fence = VK_FencedBegin(NULL, 0);
 			vkCmdCopyBuffer(fence->cbuf, d->stagingbuf, d->devicebuf, 1, &bcr);
 		}
+		d->flushed = d->offset;
 	}
 
 	if (fence)
@@ -1543,7 +1547,7 @@ void VKBE_RestartFrame(void)
 	for (i = 0; i < DB_MAX; i++)
 	{
 		vk.dynbuf[i] = vk.frame->dynbufs[i];
-		vk.dynbuf[i]->offset = 0;
+		vk.dynbuf[i]->offset = vk.dynbuf[i]->flushed = 0;
 	}
 
 	shaderstate.activepipeline = VK_NULL_HANDLE;
@@ -3540,6 +3544,28 @@ static void BE_DrawMeshChain_Internal(void)
 			if (p->texgen == T_GEN_FULLBRIGHT && !TEXLOADED(shaderstate.curtexnums->fullbright))
 				continue;
 
+			if (p->prog)
+			{
+				vertexbuffers[VK_BUFF_TC] = shaderstate.batchvbo->texcoord.vk.buff;
+				vertexoffsets[VK_BUFF_TC] = shaderstate.batchvbo->texcoord.vk.offs;
+				vertexbuffers[VK_BUFF_LMTC] = shaderstate.batchvbo->lmcoord[0].vk.buff;
+				vertexoffsets[VK_BUFF_LMTC] = shaderstate.batchvbo->lmcoord[0].vk.offs;
+
+				BE_GenerateColourMods(vertcount, p, &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
+
+				vertexbuffers[VK_BUFF_NORM] = shaderstate.staticbuf;
+				vertexoffsets[VK_BUFF_NORM] = sizeof(vec4_t)*65536;
+				vertexbuffers[VK_BUFF_SDIR] = shaderstate.staticbuf;
+				vertexoffsets[VK_BUFF_SDIR] = vertexoffsets[VK_BUFF_NORM] + sizeof(vec3_t)*65536;
+				vertexbuffers[VK_BUFF_TDIR] = shaderstate.staticbuf;
+				vertexoffsets[VK_BUFF_TDIR] = vertexoffsets[VK_BUFF_SDIR] + sizeof(vec3_t)*65536;
+
+				vkCmdBindVertexBuffers(vk.frame->cbuf, 0, VK_BUFF_MAX, vertexbuffers, vertexoffsets);
+				if (BE_SetupMeshProgram(p->prog, p, altshader->flags, idxcount))
+					vkCmdDrawIndexed(vk.frame->cbuf, idxcount, 1, idxfirst, 0, 0);
+				continue;
+			}
+
 			if (shaderstate.batchvbo)
 			{	//texcoords are all compatible with static arrays, supposedly
 				if (p->tcgen == TC_GEN_LIGHTMAP)
@@ -3636,7 +3662,7 @@ qboolean VKBE_GenerateRTLightShader(unsigned int lmode)
 															(lmode & LSHADER_CUBE)?"#CUBE=1":"#CUBE=0")
 														, SUF_NONE, LIGHTPASS_SHADER);
 	}
-	if (!shaderstate.shader_rtlight[lmode]->prog)
+	if (shaderstate.shader_rtlight[lmode]->flags & SHADER_NODRAW)
 		return false;
 	return true;
 }
@@ -5679,7 +5705,7 @@ void VKBE_RenderShadowBuffer(struct vk_shadowbuffer *buf)
 
 	vkCmdBindVertexBuffers(vk.frame->cbuf, 0, 1, &buf->vbuffer, &buf->voffset);
 	vkCmdBindIndexBuffer(vk.frame->cbuf, buf->ibuffer, buf->ioffset, VK_INDEX_TYPE);
-	if (BE_SetupMeshProgram(depthonlyshader->prog, depthonlyshader->passes, 0, buf->numindicies))
+	if (BE_SetupMeshProgram(depthonlyshader->passes[0].prog, depthonlyshader->passes, 0, buf->numindicies))
 		vkCmdDrawIndexed(vk.frame->cbuf, buf->numindicies, 1, 0, 0, 0);
 }
 
@@ -5720,7 +5746,10 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 	struct shadowmaps_s *shad = &shaderstate.shadow[isspot];
 	unsigned int sbuf;
 
-	vkCmdEndRenderPass(vk.frame->cbuf);
+//	const qboolean altqueue = false;
+
+//	if (!altqueue)
+//		vkCmdEndRenderPass(vk.frame->cbuf);
 
 	if (shad->width != width || shad->height != height)
 	{
@@ -5898,40 +5927,53 @@ void VKBE_DoneShadows(void)
 //	struct shadowmaps_s *shad = &shaderstate.shadow[isspot];
 	VkViewport viewport;
 
+//	const qboolean altqueue = false;
+
 	//we've rendered the shadowmap, but now we need to blit it to the screen
 	//so set stuff back to the main view. FIXME: do these in batches to ease the load on tilers.
 	vkCmdEndRenderPass(vk.frame->cbuf);
 
-	/*
-	set_image_layout(vk.frame->cbuf, shad->image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT);
-
+	/*if (altqueue)
 	{
-		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-		imgbarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		imgbarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		imgbarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		imgbarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-		imgbarrier.image = image;
-		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		imgbarrier.subresourceRange.baseMipLevel = 0;
-		imgbarrier.subresourceRange.levelCount = 1;
-		imgbarrier.subresourceRange.baseArrayLayer = 0;
-		imgbarrier.subresourceRange.layerCount = 1;
-		imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+		vkCmdSetEvent(alt, shadowcompleteevent);
+		VKBE_FlushDynamicBuffers();
+		VK_Submit_Work();
+		vkCmdWaitEvents(main, 1, &shadowcompleteevent, barrierstuff);
+		vkCmdResetEvent(main, shadowcompleteevent);
 	}
-	*/
+	else*/
+	{
+		/*
+		set_image_layout(vk.frame->cbuf, shad->image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT);
 
-	vkCmdBeginRenderPass(vk.frame->cbuf, &vk.rendertarg->restartinfo, VK_SUBPASS_CONTENTS_INLINE);
+		{
+			VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+			imgbarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+			imgbarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+			imgbarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+			imgbarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+			imgbarrier.image = image;
+			imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			imgbarrier.subresourceRange.baseMipLevel = 0;
+			imgbarrier.subresourceRange.levelCount = 1;
+			imgbarrier.subresourceRange.baseArrayLayer = 0;
+			imgbarrier.subresourceRange.layerCount = 1;
+			imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+		}
+		*/
 
-	viewport.x = r_refdef.pxrect.x;
-	viewport.y = r_refdef.pxrect.y;//r_refdef.pxrect.maxheight - (r_refdef.pxrect.y+r_refdef.pxrect.height);	//silly GL...
-	viewport.width = r_refdef.pxrect.width;
-	viewport.height = r_refdef.pxrect.height;
-	viewport.minDepth = 0;
-	viewport.maxDepth = shaderstate.depthrange;
-	vkCmdSetViewport(vk.frame->cbuf, 0, 1, &viewport);
+		vkCmdBeginRenderPass(vk.frame->cbuf, &vk.rendertarg->restartinfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		viewport.x = r_refdef.pxrect.x;
+		viewport.y = r_refdef.pxrect.y;//r_refdef.pxrect.maxheight - (r_refdef.pxrect.y+r_refdef.pxrect.height);	//silly GL...
+		viewport.width = r_refdef.pxrect.width;
+		viewport.height = r_refdef.pxrect.height;
+		viewport.minDepth = 0;
+		viewport.maxDepth = shaderstate.depthrange;
+		vkCmdSetViewport(vk.frame->cbuf, 0, 1, &viewport);
+	}
 
 
 	VKBE_SelectEntity(&r_worldentity);
@@ -5979,7 +6021,7 @@ void VKBE_BeginShadowmapFace(void)
 }
 #endif
 
-void VKBE_DrawWorld (batch_t **worldbatches, qbyte *vis)
+void VKBE_DrawWorld (batch_t **worldbatches)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();
@@ -6007,7 +6049,7 @@ void VKBE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 	//fixme: figure out some way to safely orphan this data so that we can throw the rest to a worker.
 	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD);
 
-	if (vis)
+	if (r_refdef.scenevis)
 	{
 		BE_UploadLightmaps(false);
 
@@ -6021,7 +6063,7 @@ void VKBE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 		r_worldentity.axis[2][2] = 1;
 
 #ifdef RTLIGHTS
-		if (vis && r_shadow_realtime_world.ival)
+		if (r_refdef.scenevis && r_shadow_realtime_world.ival)
 			shaderstate.identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif
@@ -6029,18 +6071,30 @@ void VKBE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 		shaderstate.identitylighting *= r_refdef.hdr_value;
 		shaderstate.identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
 
-		VKBE_SelectMode(BEM_STANDARD);
+		if (r_lightprepass)
+		{
+			//set up render target for gbuffer
+			//draw opaque gbuffers
+			//switch render targets to lighting (renderpasses?)
+			//draw lpp lights
+			//revert to screen
+			//draw opaques again.
+		}
+		else
+		{
+			VKBE_SelectMode(BEM_STANDARD);
 
-		
-		VKBE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
-		RSpeedEnd(RSPEED_WORLD);
+			
+			VKBE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+			RSpeedEnd(RSPEED_WORLD);
 
 #ifdef RTLIGHTS
-		RSpeedRemark();
-		VKBE_SelectEntity(&r_worldentity);
-		Sh_DrawLights(vis);
-		RSpeedEnd(RSPEED_STENCILSHADOWS);
+			RSpeedRemark();
+			VKBE_SelectEntity(&r_worldentity);
+			Sh_DrawLights(r_refdef.scenevis);
+			RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
+		}
 
 		VKBE_SubmitMeshes(worldbatches, batches, SHADER_SORT_DECAL, SHADER_SORT_COUNT);
 

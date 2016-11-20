@@ -211,7 +211,18 @@ pbool QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(co
 		el = QC_ReadRawShort(cd+30);
 		cl = QC_ReadRawShort(cd+32);
 
-		if (QC_ReadRawShort(cd+8) != 0)
+		//1=encrypted
+		//2,4=encoder flags
+		//8=crc etc info is dodgy
+		//10=enhanced deflate
+		//20=patchdata
+		//40=strong encryption
+		//80,100,200,400=unused
+		//800=utf-8
+		//1000=enh comp
+		//2000=masked localheader
+		//4000,8000=reserved
+		if (QC_ReadRawShort(cd+8) & ~0x80e)
 			continue;
 
 		{
@@ -221,7 +232,7 @@ pbool QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(co
 
 			if (QC_ReadRawInt(le+0) != 0x04034b50)
 				continue;
-			if (QC_ReadRawShort(le+6) != 0)	//general purpose flags
+			if (QC_ReadRawShort(le+6) & ~0x80e)	//general purpose flags
 				continue;
 			method = QC_ReadRawShort(le+8);
 			if (method != 0 && method != 8)

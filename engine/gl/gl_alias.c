@@ -724,8 +724,8 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 						(tex->upperoverlay && (tex->upperoverlay->status == TEX_LOADING || tex->upperoverlay->status == TEX_LOADED)))
 						return shader;
 				}
-				if (shader->prog && (shader->prog->supportedpermutations & PERMUTATION_UPPERLOWER) && !h2playertranslations)
-				{	//this shader can do permutations. this means we can generate only a black image, with separate top+bottom textures.
+				if ((shader->flags & SHADER_HASTOPBOTTOM) && !h2playertranslations)
+				{	//this shader will try to do top+bottom colours. this means we can generate only a black image, with separate top+bottom textures.
 					tc = 0xfe000000;
 					bc = 0xfe000000;
 					generateupperlower = true;

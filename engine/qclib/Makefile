@@ -25,6 +25,7 @@ ifneq ($(DEBUG),)
 else
 	BASE_LDFLAGS+=-s
 endif
+BASE_LDFLAGS+=-lz
 # set to "" for debugging
 
 DO_CC?=$(CC) $(BASE_CFLAGS) -o $@ -c $< $(CFLAGS)
@@ -46,7 +47,7 @@ win:
 	$(MAKE) USEGUI_CFLAGS="-DUSEGUI -DQCCONLY" R_win
 
 R_qcc: $(QCC_OBJS) $(COMMON_OBJS) $(TUI_OBJS)
-	$(CC) $(BASE_CFLAGS) -o fteqcc.bin -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(TUI_OBJS) $(COMMON_OBJS)
+	$(CC) $(BASE_CFLAGS) -o fteqcc.bin -O3 $(BASE_LDFLAGS) -lm $(QCC_OBJS) $(TUI_OBJS) $(COMMON_OBJS)
 qcc:
 	$(MAKE) USEGUI_CFLAGS="" R_qcc
 

@@ -191,7 +191,7 @@ static struct batch_s *Headless_BE_GetTempBatch	(void)
 {
 	return NULL;
 }
-static void	Headless_BE_DrawWorld	(struct batch_s **worldbatches, qbyte *vis)
+static void	Headless_BE_DrawWorld	(struct batch_s **worldbatches)
 {
 }
 static void	Headless_BE_Init	(void)

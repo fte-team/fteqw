@@ -639,6 +639,7 @@ typedef struct
 void FS_Manifest_Free(ftemanifest_t *man);
 ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data);
 void PM_Shutdown(void);
+void PM_Command_f(void);
 
 void COM_InitFilesystem (void);	//does not set up any gamedirs.
 qboolean FS_DownloadingPackage(void);
@@ -704,7 +705,7 @@ int version_number(void);
 char *version_string(void);
 
 
-void TL_InitLanguages(char *langpath);	//langpath is where the .po files can be found
+void TL_InitLanguages(const char *langpath);	//langpath is where the .po files can be found
 void TL_Shutdown(void);
 void T_FreeStrings(void);
 char *T_GetString(int num);

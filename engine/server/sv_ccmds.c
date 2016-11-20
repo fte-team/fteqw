@@ -1630,6 +1630,12 @@ static void SV_StuffToClient_f(void)
 	char *c;
 	char *key;
 
+	if (Cmd_Argc() < 3)
+	{
+		Con_Printf("%s <clientname> <consolecommand>\n", Cmd_Argv(0));
+		return;
+	}
+
 	Cmd_ShiftArgs(1, Cmd_ExecLevel==RESTRICT_LOCAL);
 	if (!strcmp(Cmd_Argv(1), "bind"))
 	{

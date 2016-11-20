@@ -674,7 +674,7 @@ void QCC_PrintFiles (void)
 }
 
 int encode(int len, int method, char *in, int handle);
-int WriteSourceFiles(int h, pbool sourceaswell, pbool legacyembed)
+int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell, pbool legacyembed)
 {
 	//helpers to deal with misaligned data. writes little-endian.
 #define misbyte(ptr,ofs,data) ((unsigned char*)(ptr))[ofs] = (data)&0xff;
@@ -688,7 +688,7 @@ int WriteSourceFiles(int h, pbool sourceaswell, pbool legacyembed)
 	int startofs;
 	sourceaswell |= flag_embedsrc;
 
-	for (f = qcc_sourcefile,num=0; f ; f=f->next)
+	for (f = filelist,num=0; f ; f=f->next)
 	{
 		if (f->type == FT_CODE && !sourceaswell)
 			continue;
@@ -714,7 +714,7 @@ int WriteSourceFiles(int h, pbool sourceaswell, pbool legacyembed)
 	}
 	startofs = SafeSeek(h, 0, SEEK_CUR);
 	idf = qccHunkAlloc(sizeof(includeddatafile_t)*num);
-	for (f = qcc_sourcefile,num=0; f ; f=f->next)
+	for (f = filelist,num=0; f ; f=f->next)
 	{
 		if (f->type == FT_CODE && !sourceaswell)
 			continue;
@@ -783,7 +783,7 @@ int WriteSourceFiles(int h, pbool sourceaswell, pbool legacyembed)
 		char centralheader[46+sizeof(f->filename)];
 		int centraldirsize;
 		ofs = SafeSeek(h, 0, SEEK_CUR);
-		for (f = qcc_sourcefile,num=0; f ; f=f->next)
+		for (f = filelist,num=0; f ; f=f->next)
 		{
 			size_t fnamelen;
 			if (f->type == FT_CODE && !sourceaswell)
@@ -832,8 +832,6 @@ int WriteSourceFiles(int h, pbool sourceaswell, pbool legacyembed)
 	}
 	else
 		ofs = 0;
-
-	qcc_sourcefile = NULL;
 
 	printf("Embedded files take %u bytes\n",  SafeSeek(h, 0, SEEK_CUR) - startofs);
 
@@ -2081,17 +2079,17 @@ strofs = (strofs+3)&~3;
 	{
 	case QCF_QTEST:
 		progs.version = PROG_QTESTVERSION;
-		progs.ofsfiles = WriteSourceFiles(h, debugtarget, false);
+		progs.ofsfiles = WriteSourceFiles(qcc_sourcefile, h, debugtarget, false);
 		break;
 	case QCF_KK7:
 		progs.version = PROG_KKQWSVVERSION;
-		progs.ofsfiles = WriteSourceFiles(h, debugtarget, false);
+		progs.ofsfiles = WriteSourceFiles(qcc_sourcefile, h, debugtarget, false);
 		break;
 	default:
 	case QCF_STANDARD:
 	case QCF_HEXEN2:	//urgh
 		progs.version = PROG_VERSION;
-		progs.ofsfiles = WriteSourceFiles(h, debugtarget, false);
+		progs.ofsfiles = WriteSourceFiles(qcc_sourcefile, h, debugtarget, false);
 		break;
 	case QCF_DARKPLACES:
 	case QCF_FTE:
@@ -2147,9 +2145,10 @@ strofs = (strofs+3)&~3;
 			progs.numtypes = 0;
 		}
 
-		progs.ofsfiles = WriteSourceFiles(h, debugtarget, true);
+		progs.ofsfiles = WriteSourceFiles(qcc_sourcefile, h, debugtarget, true);
 		break;
 	}
+	qcc_sourcefile = NULL;
 
 	if (progs.version != PROG_EXTENDEDVERSION && progs.numbodylessfuncs)
 		printf ("WARNING: progs format cannot handle extern functions\n");

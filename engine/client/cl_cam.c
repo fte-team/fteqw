@@ -548,6 +548,7 @@ void Cam_Unlock(playerview_t *pv)
 		CL_SendClientCommand(true, "ptrack");
 		pv->cam_state = CAM_FREECAM;
 		pv->viewentity = (cls.demoplayback)?0:(pv->playernum+1);	//free floating
+		SCR_CenterPrint(pv-cl.playerview, NULL, true);
 		Sbar_Changed();
 
 		Skin_FlushPlayers();
@@ -565,6 +566,7 @@ void Cam_Lock(playerview_t *pv, int playernum)
 	pv->cam_spec_track = playernum;
 	pv->cam_state = CAM_PENDING;
 	pv->viewentity = (cls.demoplayback)?0:(pv->playernum+1);	//free floating until actually locked
+	SCR_CenterPrint(pv-cl.playerview, NULL, true);
 
 	
 	Skin_FlushPlayers();

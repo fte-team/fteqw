@@ -2942,7 +2942,8 @@ void Surf_DrawWorld (void)
 	if (r_refdef.flags & RDF_NOWORLDMODEL)
 	{
 		r_refdef.flags |= RDF_NOWORLDMODEL;
-		BE_DrawWorld(NULL, NULL);
+		r_refdef.scenevis = NULL;
+		BE_DrawWorld(NULL);
 		return;
 	}
 	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
@@ -3055,7 +3056,8 @@ void Surf_DrawWorld (void)
 					P_DrawParticles ();
 
 				TRACE(("dbg: calling BE_DrawWorld\n"));
-				BE_DrawWorld(webostate->rbatches, surfvis);
+				r_refdef.scenevis = surfvis;
+				BE_DrawWorld(webostate->rbatches);
 
 				/*FIXME: move this away*/
 				if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
@@ -3155,7 +3157,8 @@ void Surf_DrawWorld (void)
 		}
 
 		TRACE(("dbg: calling BE_DrawWorld\n"));
-		BE_DrawWorld(cl.worldmodel->batches, surfvis);
+		r_refdef.scenevis = surfvis;
+		BE_DrawWorld(cl.worldmodel->batches);
 
 		Surf_PopChains(cl.worldmodel->batches);
 

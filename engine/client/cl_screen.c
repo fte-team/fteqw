@@ -380,6 +380,16 @@ for a few moments
 void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 {
 	cprint_t *p;
+	if (!str)
+	{
+		if (cl.intermissionmode == IM_NONE)
+		{
+			p = &scr_centerprint[pnum];
+			p->flags = 0;
+			p->time_off = 0;
+		}
+		return;
+	}
 	if (!skipgamecode)
 	{
 #ifdef CSQC_DAT

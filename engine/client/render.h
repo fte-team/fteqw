@@ -267,6 +267,7 @@ typedef struct
 
 	float		m_projection[16];
 	float		m_view[16];
+	qbyte		*scenevis;			/*this is the vis that's currently being draw*/
 
 	mplane_t	frustum[MAXFRUSTUMPLANES];
 	int			frustum_numworldplanes;	//all but far, which isn't culled because this wouldn't cover the entire screen.
@@ -275,12 +276,12 @@ typedef struct
 	fogstate_t	globalfog;
 	float		hdr_value;
 
-	pxrect_t	pxrect;		/*vrect, but in pixels rather than virtual coords*/
-	qboolean	externalview; /*draw external models and not viewmodels*/
-	int			recurse;	/*in a mirror/portal/half way through drawing something else*/
-	qboolean	forcevis;	/*if true, vis comes from the forcedvis field instead of recalculated*/
-	unsigned int	flipcull;	/*reflected/flipped view, requires inverted culling (should be set to SHADER_CULL_FLIPPED or 0)*/
-	qboolean	useperspective; /*not orthographic*/
+	pxrect_t	pxrect;				/*vrect, but in pixels rather than virtual coords*/
+	qboolean	externalview;		/*draw external models and not viewmodels*/
+	int			recurse;			/*in a mirror/portal/half way through drawing something else*/
+	qboolean	forcevis;			/*if true, vis comes from the forcedvis field instead of recalculated*/
+	unsigned int	flipcull;		/*reflected/flipped view, requires inverted culling (should be set to SHADER_CULL_FLIPPED or 0)*/
+	qboolean	useperspective;		/*not orthographic*/
 
 	stereomethod_t stereomethod;
 	rtname_t	rt_destcolour[R_MAX_RENDERTARGETS];	/*used for 2d. written by 3d*/
@@ -289,7 +290,7 @@ typedef struct
 	rtname_t	rt_ripplemap;		/*read by 2d. used by 3d (internal ripplemap buffer used if not set)*/
 	rtname_t	nearenvmap;			/*provides a fallback endmap cubemap to render with*/
 
-	qbyte		*forcedvis;
+	qbyte		*forcedvis;			/*set if forcevis is set*/
 	qboolean	areabitsknown;
 	qbyte		areabits[MAX_MAP_AREA_BYTES];
 } refdef_t;
@@ -595,12 +596,13 @@ extern	cvar_t	r_deluxemapping_cvar;
 extern	qboolean r_deluxemapping;
 extern	cvar_t r_softwarebanding_cvar;
 extern	qboolean r_softwarebanding;
+extern	cvar_t r_lightprepass_cvar;
+extern	int r_lightprepass;	//0=off,1=16bit,2=32bit
 
 #ifdef R_XFLIP
 extern cvar_t	r_xflip;
 #endif
 
-extern cvar_t r_lightprepass;
 extern cvar_t gl_mindist, gl_maxdist;
 extern	cvar_t	r_clear;
 extern	cvar_t	gl_poly;

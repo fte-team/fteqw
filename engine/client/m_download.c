@@ -2,12 +2,17 @@
 //provides both a package manager and downloads menu.
 #include "quakedef.h"
 
-#if defined(WEBCLIENT) && !defined(NOBUILTINMENUS)
-#define DOWNLOADMENU
+#ifdef WEBCLIENT
+	#define PACKAGEMANAGER
+	#if !defined(NOBUILTINMENUS) && !defined(SERVERONLY)
+		#define DOWNLOADMENU
+	#endif
 #endif
 
-#ifdef DOWNLOADMENU
+#ifdef PACKAGEMANAGER
 #include "fs.h"
+vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *infile);
+vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefile);
 
 //whole load of extra args for the downloads menu (for the downloads menu to handle engine updates).
 #ifdef VKQUAKE
@@ -115,8 +120,8 @@ void CL_StartCinematicOrMenu(void);
 #define THISENGINE THISARCH "-" DISTRIBUTION "-" ENGINE_RENDERER ENGINE_CLIENT
 
 typedef struct package_s {
-	char fullname[256];
 	char *name;
+	char *category;	//in path form
 
 	struct package_s *alternative;	//alternative (hidden) forms of this package.
 
@@ -128,6 +133,7 @@ typedef struct package_s {
 	char *arch;
 	char *qhash;
 
+	char *title;
 	char *description;
 	char *license;
 	char *author;
@@ -167,13 +173,16 @@ static qboolean loadedinstalled;
 static package_t *availablepackages;
 static int numpackages;
 
-//FIXME: these are allocated for the life of the exe. changing games should purge the list.
+qboolean doautoupdate;	//updates will be marked (but not applied without the user's actions)
+
+//FIXME: these are allocated for the life of the exe. changing basedir should purge the list.
 static int numdownloadablelists = 0;
 static struct
 {
 	char *url;
 	char *prefix;
 	char received;				//says if we got a response yet or not
+	qboolean save;				//written into our local file
 	struct dl_download *curdl;	//the download context
 } downloadablelist[32];
 int downloadablessequence;	//bumped any time any package is purged
@@ -260,7 +269,7 @@ void PM_ValidatePackage(package_t *p)
 				}
 			}
 			if (!(p->flags & (DPF_NATIVE|DPF_CACHED)))
-				Con_Printf("WARNING: %s (%s) no longer exists\n", p->fullname, n);
+				Con_Printf("WARNING: %s (%s) no longer exists\n", p->name, n);
 		}
 	}
 	else
@@ -297,7 +306,7 @@ void PM_ValidatePackage(package_t *p)
 					if (o->flags & DPF_INSTALLED)
 					{
 						if (!strcmp(p->gamedir, o->gamedir) && p->fsroot == o->fsroot)
-							if (strcmp(p->fullname, o->fullname) || strcmp(p->version, o->version))
+							if (strcmp(p->name, o->name) || strcmp(p->version, o->version))
 							{
 								for (odep = o->deps; odep; odep = odep->next)
 								{
@@ -444,7 +453,7 @@ static void PM_InsertPackage(package_t *p)
 	for (link = &availablepackages; *link; link = &(*link)->next)
 	{
 		package_t *prev = *link;
-		int v = strcmp(prev->fullname, p->fullname);
+		int v = strcmp(prev->name, p->name);
 		if (v > 0)
 			break;	//insert before this one
 		else if (v == 0)
@@ -510,9 +519,15 @@ static void PM_AddDep(package_t *p, int deptype, const char *depname)
 	*link = nd;
 }
 
-static void PM_AddSubList(char *url, const char *prefix)
+static void PM_AddSubList(const char *url, const char *prefix, qboolean save)
 {
 	int i;
+	if (!*url)
+		return;
+	if (strchr(url, '\"') || strchr(url, '\n'))
+		return;
+	if (strchr(prefix, '\"') || strchr(prefix, '\n'))
+		return;
 
 	for (i = 0; i < numdownloadablelists; i++)
 	{
@@ -521,6 +536,8 @@ static void PM_AddSubList(char *url, const char *prefix)
 	}
 	if (i == numdownloadablelists && i < countof(downloadablelist))
 	{
+		downloadablelist[i].save = save;
+
 		downloadablelist[i].url = BZ_Malloc(strlen(url)+1);
 		strcpy(downloadablelist[i].url, url);
 
@@ -528,6 +545,17 @@ static void PM_AddSubList(char *url, const char *prefix)
 		strcpy(downloadablelist[i].prefix, prefix);
 
 		numdownloadablelists++;
+	}
+}
+static void PM_RemSubList(const char *url)
+{
+	int i;
+	for (i = 0; i < numdownloadablelists; i++)
+	{
+		if (!strcmp(downloadablelist[i].url, url))
+		{
+			downloadablelist[i].save = false;
+		}
 	}
 }
 
@@ -597,7 +625,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 					subprefix = va("%s/%s", prefix, Cmd_Argv(2));
 				else
 					subprefix = Cmd_Argv(2);
-				PM_AddSubList(Cmd_Argv(1), subprefix);
+				PM_AddSubList(Cmd_Argv(1), subprefix, (parseflags & DPF_INSTALLED)?true:false);
 				continue;
 			}
 			if (!strcmp(Cmd_Argv(0), "set"))
@@ -628,6 +656,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 			}
 			if (version > 1)
 			{
+				char pathname[256];
 				char *fullname = Cmd_Argv(0);
 				char *file = NULL;
 				char *url = NULL;
@@ -635,6 +664,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				char *ver = NULL;
 				char *arch = NULL;
 				char *qhash = NULL;
+				char *title = NULL;
 				char *description = NULL;
 				char *license = NULL;
 				char *author = NULL;
@@ -645,7 +675,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				int i;
 
 				if (version > 2)
-					flags &= DPF_INSTALLED;
+					flags &= ~DPF_INSTALLED;
 
 				p = Z_Malloc(sizeof(*p));
 				for (i = 1; i < argc; i++)
@@ -653,6 +683,8 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 					char *arg = Cmd_Argv(i);
 					if (!strncmp(arg, "url=", 4))
 						url = arg+4;
+					else if (!strncmp(arg, "title=", 8))
+						title = arg+8;
 					else if (!strncmp(arg, "gamedir=", 8))
 						gamedir = arg+8;
 					else if (!strncmp(arg, "ver=", 4))
@@ -676,7 +708,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 					else if (!strncmp(arg, "file=", 5))
 					{
 						if (!file)
-							file = arg+5;
+							file = arg+5; //for when url isn't explicitly given. assume the url to be the same as the file (relative to defined mirrors)
 						PM_AddDep(p, DEP_FILE, arg+5);
 					}
 					else if (!strncmp(arg, "extract=", 8))
@@ -709,10 +741,15 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				}
 
 				if (*prefix)
-					Q_snprintfz(p->fullname, sizeof(p->fullname), "%s/%s", prefix, fullname);
+					Q_snprintfz(pathname, sizeof(pathname), "%s/%s", prefix, fullname);
 				else
-					Q_snprintfz(p->fullname, sizeof(p->fullname), "%s", fullname);
-				p->name = COM_SkipPath(p->fullname);
+					Q_snprintfz(pathname, sizeof(pathname), "%s", fullname);
+				p->name = Z_StrDup(COM_SkipPath(pathname));
+				*COM_SkipPath(pathname) = 0;
+				p->category = Z_StrDup(pathname);
+
+				if (!title)
+					title = p->name;
 
 				if (!gamedir)
 					gamedir = defaultgamedir;
@@ -725,6 +762,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				p->priority = priority;
 				p->flags = flags;
 
+				p->title = Z_StrDup(title);
 				p->arch = arch?Z_StrDup(arch):NULL;
 				p->qhash = qhash?Z_StrDup(qhash):NULL;
 				p->description = description?Z_StrDup(description):NULL;
@@ -757,6 +795,8 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 			}
 			else
 			{
+				char pathname[256];
+				const char *fullname = Cmd_Argv(0);
 				if (argc > 5 || argc < 3)
 				{
 					Con_Printf("Package list is bad - %s\n", line);
@@ -764,14 +804,15 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				}
 
 				p = Z_Malloc(sizeof(*p));
-
 				if (*prefix)
-					Q_strncpyz(p->fullname, va("%s/%s", prefix, Cmd_Argv(0)), sizeof(p->fullname));
+					Q_snprintfz(pathname, sizeof(pathname), "%s/%s", prefix, fullname);
 				else
-					Q_strncpyz(p->fullname, Cmd_Argv(0), sizeof(p->fullname));
-				p->name = p->fullname;
-				while((sl = strchr(p->name, '/')))
-					p->name = sl+1;
+					Q_snprintfz(pathname, sizeof(pathname), "%s", fullname);
+				p->name = Z_StrDup(COM_SkipPath(pathname));
+				p->title = Z_StrDup(p->name);
+				*COM_SkipPath(pathname) = 0;
+				p->category = Z_StrDup(pathname);
+				p->mirror[0] = Z_StrDup(p->name);
 
 				p->priority = PM_DEFAULTPRIORITY;
 				p->flags = parseflags;
@@ -906,8 +947,6 @@ void PM_Shutdown(void)
 		PM_FreePackage(availablepackages);
 }
 
-#ifndef SERVERONLY
-qboolean doautoupdate;
 
 static void PM_PreparePackageList(void)
 {
@@ -927,20 +966,13 @@ static void PM_PreparePackageList(void)
 
 
 //finds the newest version
-static package_t *PM_FindPackage(char *packagename)
+static package_t *PM_FindPackage(const char *packagename)
 {
 	package_t *p, *r = NULL;
 
-	for (p = availablepackages; p; p = p->next)
-	{
-		if (!strcmp(p->fullname, packagename))
-		{
-			if (!r || strcmp(r->version, p->version)>0)
-				r = p;
-		}
-	}
-	if (r)
-		return r;
+	//fixme: NAME (>VER)
+	//fixme: NAME (<VER)
+	//fixme: NAME:ARCH (>VER)
 
 	for (p = availablepackages; p; p = p->next)
 	{
@@ -953,16 +985,30 @@ static package_t *PM_FindPackage(char *packagename)
 	return r;
 }
 //returns the marked version of a package, if any.
-static package_t *PM_MarkedPackage(char *packagename)
+static package_t *PM_MarkedPackage(const char *packagename)
 {
 	package_t *p;
 	for (p = availablepackages; p; p = p->next)
 	{
 		if (p->flags & DPF_MARKED)
-			if (!strcmp(p->name, packagename) || !strcmp(p->fullname, packagename))
+			if (!strcmp(p->name, packagename))
 				return p;
 	}
 	return NULL;
+}
+
+//just resets all actions, so that a following apply won't do anything.
+static void PM_RevertChanges(void)
+{
+	package_t *p;
+	for (p = availablepackages; p; p = p->next)
+	{
+		if (p->flags & DPF_INSTALLED)
+			p->flags |= DPF_MARKED;
+		else
+			p->flags &= ~DPF_MARKED;
+		p->flags &= ~DPF_PURGE;
+	}
 }
 
 //just flags, doesn't delete
@@ -988,7 +1034,7 @@ static void PM_UnmarkPackage(package_t *package)
 	{
 		for (dep = o->deps; dep; dep = dep->next)
 			if (dep->dtype == DEP_REQUIRE)
-				if (!strcmp(dep->name, package->name) || !strcmp(dep->name, package->fullname))
+				if (!strcmp(dep->name, package->name))
 					PM_UnmarkPackage(o);
 	}
 }
@@ -1029,7 +1075,7 @@ static void PM_MarkPackage(package_t *package)
 
 		if (o->flags & DPF_MARKED)
 		{
-			if (!strcmp(o->fullname, package->fullname))
+			if (!strcmp(o->name, package->name))
 			{	//replaces this package
 				o->flags &= ~DPF_MARKED;
 				replacing = true;
@@ -1094,7 +1140,7 @@ static void PM_MarkPackage(package_t *package)
 	{
 		for (dep = o->deps; dep; dep = dep->next)
 			if (dep->dtype == DEP_CONFLICT)
-				if (!strcmp(dep->name, package->fullname) || !strcmp(dep->name, package->name))
+				if (!strcmp(dep->name, package->name))
 					PM_UnmarkPackage(o);
 	}
 }
@@ -1118,7 +1164,7 @@ static unsigned int PM_MarkUpdates (void)
 			{
 				if (p == o || (o->flags & DPF_HIDDEN))
 					continue;
-				if (!strcmp(o->fullname, p->fullname) && !strcmp(o->arch?o->arch:"", p->arch?p->arch:"") && strcmp(o->version, p->version) > 0)
+				if (!strcmp(o->name, p->name) && !strcmp(o->arch?o->arch:"", p->arch?p->arch:"") && strcmp(o->version, p->version) > 0)
 				{
 					if (!b || strcmp(b->version, o->version) < 0)
 						b = o;
@@ -1144,6 +1190,35 @@ static unsigned int PM_MarkUpdates (void)
 
 	return changecount;
 }
+
+static void PM_PrintChanges(void)
+{
+	qboolean changes = 0;
+	package_t *p;
+	for (p = availablepackages; p; p=p->next)
+	{
+		if (!(p->flags & DPF_MARKED) != !(p->flags & DPF_INSTALLED) || (p->flags & DPF_PURGE))
+		{
+			changes++;
+			if (p->flags & DPF_MARKED)
+			{
+				if (p->flags & DPF_PURGE)
+					Con_Printf(" reinstall %s\n", p->name);
+				else
+					Con_Printf(" install %s\n", p->name);
+			}
+			else if ((p->flags & DPF_PURGE) || !(p->qhash && (p->flags & DPF_CACHED)))
+				Con_Printf(" uninstall %s\n", p->name);
+			else
+				Con_Printf(" disable %s\n", p->name);
+		}
+	}
+	if (!changes)
+		Con_Printf("<no changes>\n");
+	else
+		Con_Printf("<%i package(s) changed>\n", changes);
+}
+
 
 static void PM_ListDownloaded(struct dl_download *dl)
 {
@@ -1183,16 +1258,23 @@ static void PM_ListDownloaded(struct dl_download *dl)
 		doautoupdate = true;
 		if (PM_MarkUpdates())
 		{
-			if (Key_Dest_Has(kdm_emenu))
+#ifdef DOWNLOADMENU
+			if (!isDedicated)
 			{
-				Key_Dest_Remove(kdm_emenu);
-				m_state = m_none;
-			}
+				if (Key_Dest_Has(kdm_emenu))
+				{
+					Key_Dest_Remove(kdm_emenu);
+					m_state = m_none;
+				}
 #ifdef MENU_DAT
-			if (Key_Dest_Has(kdm_gmenu))
-				MP_Toggle(0);
+				if (Key_Dest_Has(kdm_gmenu))
+					MP_Toggle(0);
 #endif
-			Cmd_ExecuteString("menu_download\n", RESTRICT_LOCAL);
+				Cmd_ExecuteString("menu_download\n", RESTRICT_LOCAL);
+			}
+			else
+#endif
+				PM_PrintChanges();
 		}
 	}
 }
@@ -1208,7 +1290,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 	//make sure our sources are okay.
 	if (*fs_downloads_url.string)
-		PM_AddSubList(fs_downloads_url.string, "");
+		PM_AddSubList(fs_downloads_url.string, "", true);
 
 	doautoupdate |= autoupdate;
 
@@ -1242,7 +1324,12 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 		doautoupdate = 0;
 		if (PM_MarkUpdates())
 		{
-			Cbuf_AddText("menu_download\n", RESTRICT_LOCAL);
+#ifdef DOWNLOADMENU
+			if (!isDedicated)
+				Cbuf_AddText("menu_download\n", RESTRICT_LOCAL);
+			else
+#endif
+				PM_PrintChanges();
 		}
 	}
 }
@@ -1282,6 +1369,7 @@ static void COM_QuotedConcat(const char *cat, char *buf, size_t bufsize)
 }
 static void PM_WriteInstalledPackages(void)
 {
+	int i;
 	char *s;
 	package_t *p, *e = NULL;
 	struct packagedep_s *dep, *ef = NULL;
@@ -1294,13 +1382,23 @@ static void PM_WriteInstalledPackages(void)
 
 	s = "version 2\n";
 	VFS_WRITE(f, s, strlen(s));
+
+	for (i = 0; i < numdownloadablelists; i++)
+	{
+		if (downloadablelist[i].save)
+		{
+			s = va("sublist \"%s\" \"%s\"\n", downloadablelist[i].url, downloadablelist[i].prefix);
+			VFS_WRITE(f, s, strlen(s));
+		}
+	}
+
 	for (p = availablepackages; p ; p=p->next)
 	{
 		if (p->flags & (DPF_CACHED|DPF_INSTALLED))
 		{
 			char buf[8192];
 			buf[0] = 0;
-			COM_QuotedString(p->fullname, buf, sizeof(buf), false);
+			COM_QuotedString(va("%s%s", p->category, p->name), buf, sizeof(buf), false);
 			if (p->flags & DPF_INSTALLED)
 			{	//v3+
 //				Q_strncatz(buf, " ", sizeof(buf));
@@ -1310,6 +1408,11 @@ static void PM_WriteInstalledPackages(void)
 			{	//v2
 				Q_strncatz(buf, " ", sizeof(buf));
 				COM_QuotedConcat(va("stale=1"), buf, sizeof(buf));
+			}
+			if (*p->title && strcmp(p->title, p->name))
+			{
+				Q_strncatz(buf, " ", sizeof(buf));
+				COM_QuotedConcat(va("title=%s", p->version), buf, sizeof(buf));
 			}
 			if (*p->version)
 			{
@@ -1408,6 +1511,687 @@ static void PM_WriteInstalledPackages(void)
 	}
 }
 
+//callback from PM_Download_Got, extracts each file from an archive
+static int QDECL PM_ExtractFiles(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{	//this is gonna suck. threading would help, but gah.
+	package_t *p = parm;
+	flocation_t loc;
+	if (fname[strlen(fname)-1] == '/')
+	{	//directory.
+
+	}
+	else if (spath->FindFile(spath, &loc, fname, NULL) && loc.len < 0x80000000u)
+	{
+		char *f = malloc(loc.len);
+		const char *n;
+		if (f)
+		{
+			spath->ReadFile(spath, &loc, f);
+			if (*p->gamedir)
+				n = va("%s/%s", p->gamedir, fname);
+			else
+				n = fname;
+			if (FS_WriteFile(n, f, loc.len, p->fsroot))
+				p->flags |= DPF_NATIVE|DPF_INSTALLED;
+			free(f);
+
+			//keep track of the installed files, so we can delete them properly after.
+			PM_AddDep(p, DEP_FILE, fname);
+		}
+	}
+	return 1;
+}
+
+static void PM_StartADownload(void);
+//callback from PM_StartADownload
+static void PM_Download_Got(struct dl_download *dl)
+{
+	qboolean successful = dl->status == DL_FINISHED;
+	package_t *p;
+	char *tempname = dl->user_ctx;
+
+	for (p = availablepackages; p ; p=p->next)
+	{
+		if (p->download == dl)
+			break;
+	}
+
+	if (dl->file)
+	{
+		VFS_CLOSE(dl->file);
+		dl->file = NULL;
+	}
+
+	if (p)
+	{
+		char ext[8];
+		char *destname;
+		struct packagedep_s *dep;
+		p->download = NULL;
+
+		if (!successful)
+		{
+			Con_Printf("Couldn't download %s (from %s)\n", p->name, dl->url);
+			FS_Remove (tempname, p->fsroot);
+			Z_Free(tempname);
+			PM_StartADownload();
+			return;
+		}
+
+		if (p->extract == EXTRACT_ZIP)
+		{
+			vfsfile_t *f = FS_OpenVFS(tempname, "rb", p->fsroot);
+			if (f)
+			{
+				searchpathfuncs_t *archive = FSZIP_LoadArchive(f, tempname, NULL);
+				if (archive)
+				{
+					p->flags &= ~(DPF_NATIVE|DPF_CACHED|DPF_CORRUPT|DPF_INSTALLED);
+					archive->EnumerateFiles(archive, "*", PM_ExtractFiles, p);
+					archive->EnumerateFiles(archive, "*/*", PM_ExtractFiles, p);
+					archive->EnumerateFiles(archive, "*/*/*", PM_ExtractFiles, p);
+					archive->EnumerateFiles(archive, "*/*/*/*", PM_ExtractFiles, p);
+					archive->EnumerateFiles(archive, "*/*/*/*/*", PM_ExtractFiles, p);
+					archive->EnumerateFiles(archive, "*/*/*/*/*/*", PM_ExtractFiles, p);
+					archive->EnumerateFiles(archive, "*/*/*/*/*/*/*", PM_ExtractFiles, p);
+					archive->EnumerateFiles(archive, "*/*/*/*/*/*/*/*", PM_ExtractFiles, p);
+					archive->EnumerateFiles(archive, "*/*/*/*/*/*/*/*/*", PM_ExtractFiles, p);
+					archive->ClosePath(archive);
+
+					PM_WriteInstalledPackages();
+
+//					if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
+//						FS_ReloadPackFiles();
+				}
+				else
+					VFS_CLOSE(f);
+			}
+			PM_ValidatePackage(p);
+
+			FS_Remove (tempname, p->fsroot);
+			Z_Free(tempname);
+			PM_StartADownload();
+			return;
+		}
+		else
+		{
+			for (dep = p->deps; dep; dep = dep->next)
+			{
+				unsigned int nfl;
+				if (dep->dtype != DEP_FILE)
+					continue;
+
+				COM_FileExtension(dep->name, ext, sizeof(ext));
+				if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
+					FS_UnloadPackFiles();	//we reload them after
+				if ((!stricmp(ext, "dll") || !stricmp(ext, "so")) && !Q_strncmp(dep->name, "fteplug_", 8))
+					Cmd_ExecuteString(va("plug_close %s\n", dep->name), RESTRICT_LOCAL);	//try to purge plugins so there's no files left open
+
+				nfl = DPF_NATIVE;
+				if (*p->gamedir)
+				{
+					char temp[MAX_OSPATH];
+					destname = va("%s/%s", p->gamedir, dep->name);
+					if (p->qhash && FS_GenCachedPakName(destname, p->qhash, temp, sizeof(temp)))
+					{
+						nfl = DPF_CACHED;
+						destname = va("%s", temp);
+					}
+				}
+				else
+					destname = dep->name;
+				nfl |= DPF_INSTALLED | (p->flags & ~(DPF_CACHED|DPF_NATIVE|DPF_CORRUPT));
+				FS_CreatePath(destname, p->fsroot);
+				if (FS_Remove(destname, p->fsroot))
+					;
+				if (!FS_Rename2(tempname, destname, p->fsroot, p->fsroot))
+				{
+					//error!
+					Con_Printf("Couldn't rename %s to %s. Removed instead.\n", tempname, destname);
+					FS_Remove (tempname, p->fsroot);
+				}
+				else
+				{	//success!
+					Con_Printf("Downloaded %s (to %s)\n", p->name, destname);
+					p->flags = nfl;
+					PM_WriteInstalledPackages();
+				}
+
+				PM_ValidatePackage(p);
+
+				if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
+					FS_ReloadPackFiles();
+				if ((!stricmp(ext, "dll") || !stricmp(ext, "so")) && !Q_strncmp(dep->name, "fteplug_", 8))
+					Cmd_ExecuteString(va("plug_load %s\n", dep->name), RESTRICT_LOCAL);
+
+				Z_Free(tempname);
+				PM_StartADownload();
+				return;
+			}
+		}
+		Con_Printf("menu_download: %s has no filename info\n", p->name);
+	}
+	else
+		Con_Printf("menu_download: Can't figure out where %s came from (url: %s)\n", dl->localname, dl->url);
+
+	FS_Remove (tempname, FS_GAMEONLY);
+	Z_Free(tempname);
+	PM_StartADownload();
+}
+
+static char *PM_GetTempName(package_t *p)
+{
+	struct packagedep_s *dep, *fdep;
+	char *destname, *t, *ts;
+	//always favour the file so that we can rename safely without needing a copy.
+	for (dep = p->deps, fdep = NULL; dep; dep = dep->next)
+	{
+		if (dep->dtype != DEP_FILE)
+			continue;
+		if (fdep)
+		{
+			fdep = NULL;
+			break;
+		}
+		fdep = dep;
+	}
+	if (fdep)
+	{
+		if (*p->gamedir)
+			destname = va("%s/%s.tmp", p->gamedir, fdep->name);
+		else
+			destname = va("%s.tmp", fdep->name);
+		return Z_StrDup(destname);
+	}
+	ts = Z_StrDup(p->name);
+	for (t = ts; *t; t++)
+	{
+		switch(*t)
+		{
+		case '/':
+		case '?':
+		case '<':
+		case '>':
+		case '\\':
+		case ':':
+		case '*':
+		case '|':
+		case '\"':
+		case '.':
+			*t = '_';
+			break;
+		default:
+			break;
+		}
+	}
+	if (*ts)
+	{
+		if (*p->gamedir)
+			destname = va("%s/%s.tmp", p->gamedir, ts);
+		else
+			destname = va("%s.tmp", ts);
+	}
+	else
+		destname = va("%x.tmp", (unsigned int)(quintptr_t)p);
+	Z_Free(ts);
+	return Z_StrDup(destname);
+}
+
+//looks for the next package that needs downloading, and grabs it
+static void PM_StartADownload(void)
+{
+	vfsfile_t *tmpfile;
+	char *temp;
+//	char native[MAX_OSPATH];
+	package_t *p;
+	int simultaneous = 1;
+	int i;
+
+	for (p = availablepackages; p ; p=p->next)
+	{
+		if (p->download)
+			simultaneous--;
+	}
+
+	for (p = availablepackages; p && simultaneous > 0; p=p->next)
+	{
+		if (p->trymirrors)
+		{	//flagged for a (re?)download
+			char *mirror = NULL;
+			for (i = 0; i < countof(p->mirror); i++)
+			{
+				if (p->mirror[i] && (p->trymirrors & (1u<<i)))
+				{
+					mirror = p->mirror[i];
+					p->trymirrors &= ~(1u<<i);
+					break;
+				}
+			}
+			if (!mirror)
+			{	//erk...
+				p->trymirrors = 0;
+
+				for (i = 0; i < countof(p->mirror); i++)
+					if (p->mirror[i])
+						break;
+				if (i == countof(p->mirror))
+				{	//this appears to be a meta package with no download
+					//just directly install it.
+					p->flags &= ~(DPF_NATIVE|DPF_CACHED|DPF_CORRUPT);
+					p->flags |= DPF_INSTALLED;
+					PM_WriteInstalledPackages();
+				}
+				continue;
+			}
+
+			if (p->qhash && (p->flags & DPF_CACHED))
+			{	//its in our cache directory, so lets just use that
+				p->trymirrors = 0;
+				p->flags |= DPF_INSTALLED;
+				PM_WriteInstalledPackages();
+				FS_ReloadPackFiles();
+				continue;
+			}
+
+
+			temp = PM_GetTempName(p);
+
+			//FIXME: we should lock in the temp path, in case the user foolishly tries to change gamedirs.
+
+			FS_CreatePath(temp, p->fsroot);
+			switch (p->extract)
+			{
+			case EXTRACT_ZIP:
+			case EXTRACT_COPY:
+				tmpfile = FS_OpenVFS(temp, "wb", p->fsroot);
+				break;
+#ifdef AVAIL_XZDEC
+			case EXTRACT_XZ:
+				{
+					vfsfile_t *raw;
+					raw = FS_OpenVFS(temp, "wb", p->fsroot);
+					tmpfile = FS_XZ_DecompressWriteFilter(raw);
+					if (!tmpfile)
+						VFS_CLOSE(raw);
+				}
+				break;
+#endif
+#ifdef AVAIL_GZDEC
+			case EXTRACT_GZ:
+				{
+					vfsfile_t *raw;
+					raw = FS_OpenVFS(temp, "wb", p->fsroot);
+					tmpfile = FS_GZ_DecompressWriteFilter(raw, true);
+					if (!tmpfile)
+						VFS_CLOSE(raw);
+				}
+				break;
+#endif
+			default:
+				Con_Printf("decompression method not supported\n");
+				continue;
+			}
+
+			if (tmpfile)
+				p->download = HTTP_CL_Get(mirror, NULL, PM_Download_Got);
+			if (p->download)
+			{
+				Con_Printf("Downloading %s\n", p->name);
+				p->download->file = tmpfile;
+				p->download->user_ctx = temp;
+
+				DL_CreateThread(p->download, NULL, NULL);
+			}
+			else
+			{
+				Con_Printf("Unable to download %s\n", p->name);
+				p->flags &= ~DPF_MARKED;	//can't do it.
+				if (tmpfile)
+					VFS_CLOSE(tmpfile);
+				FS_Remove(temp, p->fsroot);
+			}
+
+			simultaneous--;
+		}
+	}
+}
+//'just' starts doing all the things needed to remove/install selected packages
+static void PM_ApplyChanges(void)
+{
+	package_t *p, **link;
+
+//delete any that don't exist
+	for (link = &availablepackages; *link ; )
+	{
+		p = *link;
+		if ((p->flags & DPF_PURGE) || (!(p->flags&DPF_MARKED) && (p->flags&DPF_INSTALLED)))
+		{	//if we don't want it but we have it anyway:
+			qboolean reloadpacks = false;
+			struct packagedep_s *dep;
+			for (dep = p->deps; dep; dep = dep->next)
+			{
+				if (dep->dtype == DEP_FILE)
+				{
+					if (!reloadpacks)
+					{
+						char ext[8];
+						COM_FileExtension(dep->name, ext, sizeof(ext));
+						if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
+						{
+							reloadpacks = true;
+							FS_UnloadPackFiles();
+						}
+					}
+					if (*p->gamedir)
+					{
+						char *f = va("%s/%s", p->gamedir, dep->name);
+						char temp[MAX_OSPATH];
+						if (p->qhash && FS_GenCachedPakName(f, p->qhash, temp, sizeof(temp)) && PM_CheckFile(temp, p->fsroot))
+						{
+							if (p->flags & DPF_PURGE)
+								FS_Remove(temp, p->fsroot);
+						}
+						else
+							FS_Remove(va("%s/%s", p->gamedir, dep->name), p->fsroot);
+					}
+					else
+						FS_Remove(dep->name, p->fsroot);
+				}
+			}
+
+			p->flags &= ~(DPF_NATIVE|DPF_CACHED|DPF_CORRUPT|DPF_PURGE|DPF_INSTALLED);
+			PM_ValidatePackage(p);
+			PM_WriteInstalledPackages();
+
+			if (reloadpacks)
+				FS_ReloadPackFiles();
+
+			if (p->flags & DPF_FORGETONUNINSTALL)
+			{
+				if (p->alternative)
+				{	//replace it with its alternative package
+					*p->link = p->alternative;
+					p->alternative->alternative = p->alternative->next;
+					if (p->alternative->alternative)
+						p->alternative->alternative->link = &p->alternative->alternative;
+					p->alternative->next = p->next;
+				}
+				else
+				{	//just remove it from the list.
+					*p->link = p->next;
+					if (p->next)
+						p->next->link = p->link;
+				}
+
+//FIXME: the menu(s) hold references to packages, so its not safe to purge them
+				p->flags |= DPF_HIDDEN;
+//					BZ_Free(p);
+
+				continue;
+			}
+		}
+
+		link = &(*link)->next;
+	}
+
+	//and flag any new/updated ones for a download
+	for (p = availablepackages; p ; p=p->next)
+	{
+		if ((p->flags&DPF_MARKED) && !(p->flags&DPF_INSTALLED) && !p->download)
+			p->trymirrors = ~0u;
+	}
+	PM_StartADownload();	//and try to do those downloads.
+}
+
+void PM_Command_f(void)
+{
+	package_t *p;
+	const char *act = Cmd_Argv(1);
+	const char *key;
+
+	if (Cmd_FromGamecode())
+	{
+		Con_Printf("%s may not be used from gamecode\n", Cmd_Argv(0));
+		return;
+	}
+	
+	if (!loadedinstalled)
+		PM_UpdatePackageList(false, false);
+
+	if (!strcmp(act, "list"))
+	{
+		for (p = availablepackages; p; p=p->next)
+		{
+			const char *status;
+			char *markup;
+			if (p->flags & DPF_INSTALLED)
+				markup = S_COLOR_GREEN;
+			else if (p->flags & DPF_CORRUPT)
+				markup = S_COLOR_RED;
+			else if (p->flags & (DPF_CACHED))
+				markup = S_COLOR_YELLOW;	//downloaded but not active
+			else
+				markup = S_COLOR_WHITE;
+
+			if (!(p->flags & DPF_MARKED) != !(p->flags & DPF_INSTALLED) || (p->flags & DPF_PURGE))
+			{
+				if (p->flags & DPF_MARKED)
+				{
+					if (p->flags & DPF_PURGE)
+						status = S_COLOR_CYAN"<reinstall>";
+					else
+						status = S_COLOR_CYAN"<install>";
+				}
+				else if ((p->flags & DPF_PURGE) || !(p->qhash && (p->flags & DPF_CACHED)))
+					status = S_COLOR_CYAN"<uninstall>";
+				else
+					status = S_COLOR_CYAN"<disable>";
+			}
+			else if ((p->flags & (DPF_INSTALLED|DPF_CACHED)) == DPF_CACHED)
+				status = S_COLOR_CYAN"<disabled>";
+			else
+				status = "";
+
+			Con_Printf(" ^[%s%s%s%s^] %s %s\n", markup, p->name, p->arch?":":"", p->arch?p->arch:"", status, strcmp(p->name, p->title)?p->title:"");
+		}
+		Con_Printf("<end of list>\n");
+	}
+	else if (!strcmp(act, "show"))
+	{
+		key = Cmd_Argv(2);
+		p = PM_FindPackage(key);
+		if (p)
+		{
+			if (p->previewimage)
+				Con_Printf("^[%s (%s)\\tipimg\\%s\\tip\\%s^]\n", p->name, p->version, p->previewimage, "");
+			else
+				Con_Printf("%s (%s)\n", p->name, p->version);
+			if (p->title)
+				Con_Printf("	title: %s\n", p->title);
+			if (p->license)
+				Con_Printf("	license: %s\n", p->license);
+			if (p->author)
+				Con_Printf("	author: %s\n", p->author);
+			if (p->description)
+				Con_Printf("	%s\n", p->description);
+
+			if (p->flags & DPF_MARKED)
+			{
+				if (p->flags & DPF_INSTALLED)
+				{
+					if (p->flags & DPF_PURGE)
+						Con_Printf("	package is flagged to be re-installed\n");
+					else
+						Con_Printf("	package is currently installed\n");
+				}
+				else
+					Con_Printf("	package is flagged to be installed\n");
+			}
+			else
+			{
+				if (p->flags & DPF_INSTALLED)
+				{
+					if (p->flags & DPF_PURGE)
+						Con_Printf("	package is flagged to be purged\n");
+					else
+						Con_Printf("	package is flagged to be disabled\n");
+				}
+				else
+					Con_Printf("	package is not installed\n");
+			}
+			if (p->flags & DPF_NATIVE)
+				Con_Printf("	package is native\n");
+			if (p->flags & DPF_CACHED)
+				Con_Printf("	package is cached\n");
+			if (p->flags & DPF_CORRUPT)
+				Con_Printf("	package is corrupt\n");
+			if (p->flags & DPF_DISPLAYVERSION)
+				Con_Printf("	package has a version conflict\n");
+			if (p->flags & DPF_FORGETONUNINSTALL)
+				Con_Printf("	package is obsolete\n");
+			if (p->flags & DPF_HIDDEN)
+				Con_Printf("	package is hidden\n");
+			if (p->flags & DPF_ENGINE)
+				Con_Printf("	package is an engine update\n");
+			return;
+		}
+		Con_Printf("<package not found>\n");
+	}
+	else if (!strcmp(act, "search") || !strcmp(act, "find"))
+	{
+		const char *key = Cmd_Argv(2);
+		for (p = availablepackages; p; p=p->next)
+		{
+			if (Q_strcasestr(p->name, key) || (p->title && Q_strcasestr(p->title, key)) || (p->description && Q_strcasestr(p->description, key)))
+			{
+				Con_Printf("%s\n", p->name);
+			}
+		}
+		Con_Printf("<end of list>\n");
+	}
+	else if (!strcmp(act, "sources") || !strcmp(act, "addsources"))
+	{
+		if (Cmd_Argc() == 2)
+		{
+			int i;
+			for (i = 0; i < numdownloadablelists; i++)
+				Con_Printf("%s %s\n", downloadablelist[i].url, downloadablelist[i].save?"(explicit)":"(implicit)");
+			Con_Printf("<%i sources>\n", numdownloadablelists);
+		}
+		else
+			PM_AddSubList(Cmd_Argv(2), "", true);
+	}
+	else if (!strcmp(act, "remsource"))
+		PM_RemSubList(Cmd_Argv(2));
+	else if (!strcmp(act, "apply"))
+	{
+		Con_Printf("Applying package changes\n");
+		PM_ApplyChanges();
+	}
+	else if (!strcmp(act, "changes"))
+	{
+		PM_PrintChanges();
+	}
+	else if (!strcmp(act, "reset"))
+	{
+		Con_Printf("Applying package changes\n");
+		PM_RevertChanges();
+		PM_ApplyChanges();
+		PM_PrintChanges();
+	}
+	else if (!strcmp(act, "upgrade"))
+	{
+		Con_Printf("Updating packages\n");
+		PM_MarkUpdates();
+		PM_ApplyChanges();
+	}
+	else if (!strcmp(act, "add") || !strcmp(act, "get") || !strcmp(act, "install") || !strcmp(act, "enable"))
+	{
+		int arg = 2;
+		for (arg = 2; arg < Cmd_Argc(); arg++)
+		{
+			const char *key = Cmd_Argv(arg);
+			p = PM_FindPackage(key);
+			if (p)
+				PM_MarkPackage(p);
+			else
+				Con_Printf("%s: package %s not known\n", Cmd_Argv(0), key);
+		}
+		PM_PrintChanges();
+	}
+	else if (!strcmp(act, "reinstall"))
+	{
+		int arg = 2;
+		for (arg = 2; arg < Cmd_Argc(); arg++)
+		{
+			const char *key = Cmd_Argv(arg);
+			p = PM_FindPackage(key);
+			if (p)
+			{
+				PM_MarkPackage(p);
+				p->flags |= DPF_PURGE;
+			}
+			else
+				Con_Printf("%s: package %s not known\n", Cmd_Argv(0), key);
+		}
+		PM_PrintChanges();
+	}
+	else if (!strcmp(act, "disable") || !strcmp(act, "rem"))
+	{
+		int arg = 2;
+		for (arg = 2; arg < Cmd_Argc(); arg++)
+		{
+			const char *key = Cmd_Argv(arg);
+			p = PM_MarkedPackage(key);
+			if (!p)
+				p = PM_FindPackage(key);
+			if (p)
+				PM_UnmarkPackage(p);
+			else
+				Con_Printf("%s: package %s not known\n", Cmd_Argv(0), key);
+		}
+		PM_PrintChanges();
+	}
+	else if (!strcmp(act, "del") || !strcmp(act, "purge") || !strcmp(act, "delete") || !strcmp(act, "uninstall"))
+	{
+		int arg = 2;
+		for (arg = 2; arg < Cmd_Argc(); arg++)
+		{
+			const char *key = Cmd_Argv(arg);
+			p = PM_MarkedPackage(key);
+			if (!p)
+				p = PM_FindPackage(key);
+			if (p)
+			{
+				PM_UnmarkPackage(p);
+				p->flags |=	DPF_PURGE;
+			}
+			else
+				Con_Printf("%s: package %s not known\n", Cmd_Argv(0), key);
+		}
+		PM_PrintChanges();
+	}
+	else
+		Con_Printf("%s: Unknown action %s\nShould be one of list, show, search, revert, add, rem, del, changes, apply\n", Cmd_Argv(0), act);
+}
+
+#else
+void PM_Command_f (void)
+{
+	Con_Printf("Package Manager is not implemented in this build\n");
+}
+void Menu_Download_Update(void)
+{
+}
+void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri)
+{
+}
+void PM_Shutdown(void)
+{
+}
+#endif
+
+#ifdef DOWNLOADMENU
 static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
 	package_t *p;
@@ -1620,192 +2404,10 @@ qboolean MD_PopMenu (union menuoption_s *mo,struct menu_s *m,int key)
 	return false;
 }
 
-vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *infile);
-vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefile);
-
-static char *MD_GetTempName(package_t *p)
-{
-	struct packagedep_s *dep, *fdep;
-	char *destname, *t, *ts;
-	//always favour the file so that we can rename safely without needing a copy.
-	for (dep = p->deps, fdep = NULL; dep; dep = dep->next)
-	{
-		if (dep->dtype != DEP_FILE)
-			continue;
-		if (fdep)
-		{
-			fdep = NULL;
-			break;
-		}
-		fdep = dep;
-	}
-	if (fdep)
-	{
-		if (*p->gamedir)
-			destname = va("%s/%s.tmp", p->gamedir, fdep->name);
-		else
-			destname = va("%s.tmp", fdep->name);
-		return Z_StrDup(destname);
-	}
-	ts = Z_StrDup(p->name);
-	for (t = ts; *t; t++)
-	{
-		switch(*t)
-		{
-		case '/':
-		case '?':
-		case '<':
-		case '>':
-		case '\\':
-		case ':':
-		case '*':
-		case '|':
-		case '\"':
-		case '.':
-			*t = '_';
-			break;
-		default:
-			break;
-		}
-	}
-	if (*ts)
-	{
-		if (*p->gamedir)
-			destname = va("%s/%s.tmp", p->gamedir, ts);
-		else
-			destname = va("%s.tmp", ts);
-	}
-	else
-		destname = va("%x.tmp", (unsigned int)(quintptr_t)p);
-	Z_Free(ts);
-	return Z_StrDup(destname);
-}
-
-static void Menu_Download_Got(struct dl_download *dl);
-static void MD_StartADownload(void)
-{
-	vfsfile_t *tmpfile;
-	char *temp;
-//	char native[MAX_OSPATH];
-	package_t *p;
-	int simultaneous = 1;
-	int i;
-
-	for (p = availablepackages; p ; p=p->next)
-	{
-		if (p->download)
-			simultaneous--;
-	}
-
-	for (p = availablepackages; p && simultaneous > 0; p=p->next)
-	{
-		if (p->trymirrors)
-		{	//flagged for a (re?)download
-			char *mirror = NULL;
-			for (i = 0; i < countof(p->mirror); i++)
-			{
-				if (p->mirror[i] && (p->trymirrors & (1u<<i)))
-				{
-					mirror = p->mirror[i];
-					p->trymirrors &= ~(1u<<i);
-					break;
-				}
-			}
-			if (!mirror)
-			{	//erk...
-				p->trymirrors = 0;
-
-				for (i = 0; i < countof(p->mirror); i++)
-					if (p->mirror[i])
-						break;
-				if (i == countof(p->mirror))
-				{	//this appears to be a meta package with no download
-					//just directly install it.
-					p->flags &= ~(DPF_NATIVE|DPF_CACHED|DPF_CORRUPT);
-					p->flags |= DPF_INSTALLED;
-					PM_WriteInstalledPackages();
-				}
-				continue;
-			}
-
-			if (p->qhash && (p->flags & DPF_CACHED))
-			{	//its in our cache directory, so lets just use that
-				p->trymirrors = 0;
-				p->flags |= DPF_INSTALLED;
-				PM_WriteInstalledPackages();
-				FS_ReloadPackFiles();
-				continue;
-			}
-
-
-			temp = MD_GetTempName(p);
-
-			//FIXME: we should lock in the temp path, in case the user foolishly tries to change gamedirs.
-
-			FS_CreatePath(temp, p->fsroot);
-			switch (p->extract)
-			{
-			case EXTRACT_ZIP:
-			case EXTRACT_COPY:
-				tmpfile = FS_OpenVFS(temp, "wb", p->fsroot);
-				break;
-#ifdef AVAIL_XZDEC
-			case EXTRACT_XZ:
-				{
-					vfsfile_t *raw;
-					raw = FS_OpenVFS(temp, "wb", p->fsroot);
-					tmpfile = FS_XZ_DecompressWriteFilter(raw);
-					if (!tmpfile)
-						VFS_CLOSE(raw);
-				}
-				break;
-#endif
-#ifdef AVAIL_GZDEC
-			case EXTRACT_GZ:
-				{
-					vfsfile_t *raw;
-					raw = FS_OpenVFS(temp, "wb", p->fsroot);
-					tmpfile = FS_GZ_DecompressWriteFilter(raw, true);
-					if (!tmpfile)
-						VFS_CLOSE(raw);
-				}
-				break;
-#endif
-			default:
-				Con_Printf("decompression method not supported\n");
-				continue;
-			}
-
-			if (tmpfile)
-				p->download = HTTP_CL_Get(mirror, NULL, Menu_Download_Got);
-			if (p->download)
-			{
-				Con_Printf("Downloading %s\n", p->fullname);
-				p->download->file = tmpfile;
-				p->download->user_ctx = temp;
-
-				DL_CreateThread(p->download, NULL, NULL);
-			}
-			else
-			{
-				Con_Printf("Unable to download %s\n", p->fullname);
-				p->flags &= ~DPF_MARKED;	//can't do it.
-				if (tmpfile)
-					VFS_CLOSE(tmpfile);
-				FS_Remove(temp, p->fsroot);
-			}
-
-			simultaneous--;
-		}
-	}
-}
-
 static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int key)
 {
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 	{
-		package_t *p, **link;
-
 #ifdef HAVEAUTOUPDATE
 		if (autoupdatesetting != UPD_UNSUPPORTED)
 		{
@@ -1814,87 +2416,7 @@ static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int k
 		}
 #endif
 
-		//delete any that don't exist
-		for (link = &availablepackages; *link ; )
-		{
-			p = *link;
-			if ((p->flags & DPF_PURGE) || (!(p->flags&DPF_MARKED) && (p->flags&DPF_INSTALLED)))
-			{	//if we don't want it but we have it anyway:
-				qboolean reloadpacks = false;
-				struct packagedep_s *dep;
-				for (dep = p->deps; dep; dep = dep->next)
-				{
-					if (dep->dtype == DEP_FILE)
-					{
-						if (!reloadpacks)
-						{
-							char ext[8];
-							COM_FileExtension(dep->name, ext, sizeof(ext));
-							if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
-							{
-								reloadpacks = true;
-								FS_UnloadPackFiles();
-							}
-						}
-						if (*p->gamedir)
-						{
-							char *f = va("%s/%s", p->gamedir, dep->name);
-							char temp[MAX_OSPATH];
-							if (p->qhash && FS_GenCachedPakName(f, p->qhash, temp, sizeof(temp)) && PM_CheckFile(temp, p->fsroot))
-							{
-								if (p->flags & DPF_PURGE)
-									FS_Remove(temp, p->fsroot);
-							}
-							else
-								FS_Remove(va("%s/%s", p->gamedir, dep->name), p->fsroot);
-						}
-						else
-							FS_Remove(dep->name, p->fsroot);
-					}
-				}
-
-				p->flags &= ~(DPF_NATIVE|DPF_CACHED|DPF_CORRUPT|DPF_PURGE|DPF_INSTALLED);
-				PM_ValidatePackage(p);
-				PM_WriteInstalledPackages();
-
-				if (reloadpacks)
-					FS_ReloadPackFiles();
-
-				if (p->flags & DPF_FORGETONUNINSTALL)
-				{
-					if (p->alternative)
-					{	//replace it with its alternative package
-						*p->link = p->alternative;
-						p->alternative->alternative = p->alternative->next;
-						if (p->alternative->alternative)
-							p->alternative->alternative->link = &p->alternative->alternative;
-						p->alternative->next = p->next;
-					}
-					else
-					{	//just remove it from the list.
-						*p->link = p->next;
-						if (p->next)
-							p->next->link = p->link;
-					}
-
-//FIXME: the menu(s) hold references to packages, so its not safe to purge them
-					p->flags |= DPF_HIDDEN;
-//					BZ_Free(p);
-
-					continue;
-				}
-			}
-
-			link = &(*link)->next;
-		}
-
-		//and flag any new/updated ones for a download
-		for (p = availablepackages; p ; p=p->next)
-		{
-			if ((p->flags&DPF_MARKED) && !(p->flags&DPF_INSTALLED) && !p->download)
-				p->trymirrors = ~0u;
-		}
-		MD_StartADownload();	//and try to do those downloads.
+		PM_ApplyChanges();
 		return true;
 	}
 	return false;
@@ -1913,14 +2435,7 @@ static qboolean MD_RevertUpdates (union menuoption_s *mo,struct menu_s *m,int ke
 {
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 	{
-		package_t *p;
-		for (p = availablepackages; p; p = p->next)
-		{
-			if (p->flags & DPF_INSTALLED)
-				p->flags |= DPF_MARKED;
-			else
-				p->flags &= ~DPF_MARKED;
-		}
+		PM_RevertChanges();
 		return true;
 	}
 	return false;
@@ -1966,26 +2481,36 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 	y+=4;	//small gap
 	for (p = availablepackages; p; p = p->next)
 	{
-		if (strncmp(p->fullname, info->pathprefix, prefixlen))
+		if (strncmp(p->category, info->pathprefix, prefixlen))
 			continue;
 		if ((p->flags & DPF_HIDDEN) && (p->arch || !(p->flags & DPF_INSTALLED)))
 			continue;
 
-		slash = strchr(p->fullname+prefixlen, '/');
+		slash = strchr(p->category+prefixlen, '/');
 		if (slash)
 		{
-			Q_strncpyz(path, p->fullname, MAX_QPATH);
+			Q_strncpyz(path, p->category, MAX_QPATH);
 			slash = strchr(path+prefixlen, '/');
 			if (slash)
 				*slash = '\0';
 
 			for (mo = m->options; mo; mo = mo->common.next)
 				if (mo->common.type == mt_button)
-					if (!strcmp(mo->button.text, path + prefixlen))
+					if (!strcmp(mo->button.text+1, path + prefixlen))
 						break;
 			if (!mo)
 			{
-				menubutton_t *b = MC_AddConsoleCommand(m, 6*8, 170, y, path+prefixlen, va("menu_download \"%s/\"", path));
+				package_t *s;
+				menubutton_t *b;
+				for (s = availablepackages; s; s = s->next)
+				{
+					if (!strncmp(s->category, info->pathprefix, slash-path) || s->category[slash-path] != '/')
+						continue;
+					if (!(s->flags & DPF_INSTALLED) != !(s->flags & DPF_MARKED))
+						break;
+				}
+
+				b = MC_AddConsoleCommand(m, 6*8, 170, y, va("%s%s", s?"!":" ", path+prefixlen), va("menu_download \"%s/\"", path));
 				y += 8;
 
 				if (!m->selecteditem)
@@ -2024,6 +2549,7 @@ void M_Download_UpdateStatus(struct menu_s *m)
 				Z_Free(op);
 		}
 		m->cursoritem = m->selecteditem = NULL;
+		info->downloadablessequence = downloadablessequence;
 
 		info->populated = false;
 		MC_AddWhiteText(m, 24, 170, 8, "Downloads", false);
@@ -2059,171 +2585,6 @@ void M_Download_UpdateStatus(struct menu_s *m)
 	}
 }
 
-static int QDECL MD_ExtractFiles(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath)
-{	//this is gonna suck. threading would help, but gah.
-	package_t *p = parm;
-	flocation_t loc;
-	if (fname[strlen(fname)-1] == '/')
-	{	//directory.
-
-	}
-	else if (spath->FindFile(spath, &loc, fname, NULL) && loc.len < 0x80000000u)
-	{
-		char *f = malloc(loc.len);
-		const char *n;
-		if (f)
-		{
-			spath->ReadFile(spath, &loc, f);
-			if (*p->gamedir)
-				n = va("%s/%s", p->gamedir, fname);
-			else
-				n = fname;
-			if (FS_WriteFile(n, f, loc.len, p->fsroot))
-				p->flags |= DPF_NATIVE|DPF_INSTALLED;
-			free(f);
-
-			//keep track of the installed files, so we can delete them properly after.
-			PM_AddDep(p, DEP_FILE, fname);
-		}
-	}
-	return 1;
-}
-
-static void Menu_Download_Got(struct dl_download *dl)
-{
-	qboolean successful = dl->status == DL_FINISHED;
-	package_t *p;
-	char *tempname = dl->user_ctx;
-
-	for (p = availablepackages; p ; p=p->next)
-	{
-		if (p->download == dl)
-			break;
-	}
-
-	if (dl->file)
-	{
-		VFS_CLOSE(dl->file);
-		dl->file = NULL;
-	}
-
-	if (p)
-	{
-		char ext[8];
-		char *destname;
-		struct packagedep_s *dep;
-		p->download = NULL;
-
-		if (!successful)
-		{
-			Con_Printf("Couldn't download %s (from %s)\n", p->name, dl->url);
-			FS_Remove (tempname, p->fsroot);
-			Z_Free(tempname);
-			MD_StartADownload();
-			return;
-		}
-
-		if (p->extract == EXTRACT_ZIP)
-		{
-			vfsfile_t *f = FS_OpenVFS(tempname, "rb", p->fsroot);
-			if (f)
-			{
-				searchpathfuncs_t *archive = FSZIP_LoadArchive(f, tempname, NULL);
-				if (archive)
-				{
-					p->flags &= ~(DPF_NATIVE|DPF_CACHED|DPF_CORRUPT|DPF_INSTALLED);
-					archive->EnumerateFiles(archive, "*", MD_ExtractFiles, p);
-					archive->EnumerateFiles(archive, "*/*", MD_ExtractFiles, p);
-					archive->EnumerateFiles(archive, "*/*/*", MD_ExtractFiles, p);
-					archive->EnumerateFiles(archive, "*/*/*/*", MD_ExtractFiles, p);
-					archive->EnumerateFiles(archive, "*/*/*/*/*", MD_ExtractFiles, p);
-					archive->EnumerateFiles(archive, "*/*/*/*/*/*", MD_ExtractFiles, p);
-					archive->EnumerateFiles(archive, "*/*/*/*/*/*/*", MD_ExtractFiles, p);
-					archive->EnumerateFiles(archive, "*/*/*/*/*/*/*/*", MD_ExtractFiles, p);
-					archive->EnumerateFiles(archive, "*/*/*/*/*/*/*/*/*", MD_ExtractFiles, p);
-					archive->ClosePath(archive);
-
-					PM_WriteInstalledPackages();
-
-//					if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
-//						FS_ReloadPackFiles();
-				}
-				else
-					VFS_CLOSE(f);
-			}
-			PM_ValidatePackage(p);
-
-			FS_Remove (tempname, p->fsroot);
-			Z_Free(tempname);
-			MD_StartADownload();
-			return;
-		}
-		else
-		{
-			for (dep = p->deps; dep; dep = dep->next)
-			{
-				unsigned int nfl;
-				if (dep->dtype != DEP_FILE)
-					continue;
-
-				COM_FileExtension(dep->name, ext, sizeof(ext));
-				if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
-					FS_UnloadPackFiles();	//we reload them after
-				if ((!stricmp(ext, "dll") || !stricmp(ext, "so")) && !Q_strncmp(dep->name, "fteplug_", 8))
-					Cmd_ExecuteString(va("plug_close %s\n", dep->name), RESTRICT_LOCAL);	//try to purge plugins so there's no files left open
-
-				nfl = DPF_NATIVE;
-				if (*p->gamedir)
-				{
-					char temp[MAX_OSPATH];
-					destname = va("%s/%s", p->gamedir, dep->name);
-					if (p->qhash && FS_GenCachedPakName(destname, p->qhash, temp, sizeof(temp)))
-					{
-						nfl = DPF_CACHED;
-						destname = va("%s", temp);
-					}
-				}
-				else
-					destname = dep->name;
-				nfl |= DPF_INSTALLED | (p->flags & ~(DPF_CACHED|DPF_NATIVE|DPF_CORRUPT));
-				FS_CreatePath(destname, p->fsroot);
-				if (FS_Remove(destname, p->fsroot))
-					;
-				if (!FS_Rename2(tempname, destname, p->fsroot, p->fsroot))
-				{
-					//error!
-					Con_Printf("Couldn't rename %s to %s. Removed instead.\n", tempname, destname);
-					FS_Remove (tempname, p->fsroot);
-				}
-				else
-				{	//success!
-					Con_Printf("Downloaded %s (to %s)\n", p->name, destname);
-					p->flags = nfl;
-					PM_WriteInstalledPackages();
-				}
-
-				PM_ValidatePackage(p);
-
-				if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
-					FS_ReloadPackFiles();
-				if ((!stricmp(ext, "dll") || !stricmp(ext, "so")) && !Q_strncmp(dep->name, "fteplug_", 8))
-					Cmd_ExecuteString(va("plug_load %s\n", dep->name), RESTRICT_LOCAL);
-
-				Z_Free(tempname);
-				MD_StartADownload();
-				return;
-			}
-		}
-		Con_Printf("menu_download: %s has no filename info\n", p->name);
-	}
-	else
-		Con_Printf("menu_download: Can't figure out where %s came from (url: %s)\n", dl->localname, dl->url);
-
-	FS_Remove (tempname, FS_GAMEONLY);
-	Z_Free(tempname);
-	MD_StartADownload();
-}
-
 void Menu_DownloadStuff_f (void)
 {
 	menu_t *menu;
@@ -2255,21 +2616,9 @@ void Menu_Download_Update(void)
 
 	PM_UpdatePackageList(true, 2);
 }
-
-#endif
-
 #else
 void Menu_DownloadStuff_f (void)
 {
 	Con_Printf("Download menu not implemented in this build\n");
-}
-void Menu_Download_Update(void)
-{
-}
-void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri)
-{
-}
-void PM_Shutdown(void)
-{
 }
 #endif

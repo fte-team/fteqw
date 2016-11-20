@@ -3532,7 +3532,7 @@ void D3D11BE_DoneShadows(void)
 }
 #endif
 
-void D3D11BE_DrawWorld (batch_t **worldbatches, qbyte *vis)
+void D3D11BE_DrawWorld (batch_t **worldbatches)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();
@@ -3559,7 +3559,7 @@ void D3D11BE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 	shaderstate.curdlight = NULL;
 	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD);
 
-	if (vis)
+	if (r_refdef.scenevis)
 	{
 		BE_UploadLightmaps(false);
 
@@ -3573,7 +3573,7 @@ void D3D11BE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 		r_worldentity.axis[2][2] = 1;
 
 #ifdef RTLIGHTS
-		if (vis && r_shadow_realtime_world.ival)
+		if (r_refdef.scenevis && r_shadow_realtime_world.ival)
 			shaderstate.identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif
@@ -3590,7 +3590,7 @@ void D3D11BE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 #ifdef RTLIGHTS
 		RSpeedRemark();
 		D3D11BE_SelectEntity(&r_worldentity);
-		Sh_DrawLights(vis);
+		Sh_DrawLights(r_refdef.scenevis);
 		RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
 

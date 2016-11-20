@@ -1175,7 +1175,10 @@ void P_ParticleEffect_f(void)
 		}
 		else if (!strcmp(var, "shader"))
 		{
-			Q_strncpyz(ptype->texname, ptype->name, sizeof(ptype->texname));
+			if (*value)
+				Q_strncpyz(ptype->texname, value, sizeof(ptype->texname));
+			else
+				Q_strncpyz(ptype->texname, ptype->name, sizeof(ptype->texname));
 			buf = Cbuf_GetNext(Cmd_ExecLevel, true);
 			while (*buf && *buf <= ' ')
 				buf++;	//no leading whitespace please.

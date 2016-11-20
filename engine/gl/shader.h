@@ -172,6 +172,8 @@ enum
 typedef struct shaderpass_s {
 	int numMergedPasses;
 
+	struct programshared_s *prog;
+
 #ifndef NOMEDIA
 	struct cin_s *cin;
 #endif
@@ -511,7 +513,7 @@ enum
 	bemoverride_crepuscular = LSHADER_MODES,	//either black (non-sky) or a special crepuscular_sky shader
 	bemoverride_depthonly,		//depth masked. replace if you want alpha test.
 	bemoverride_depthdark,		//itself or a pure-black shader. replace for alpha test.
-	bemoverride_prelight,		//prelighting
+	bemoverride_gbuffer,		//prelighting
 	bemoverride_fog,			//post-render volumetric fog
 	bemoverride_max
 };
@@ -741,7 +743,7 @@ batch_t *GLBE_GetTempBatch(void);
 void GLBE_GenBrushModelVBO(model_t *mod);
 void GLBE_ClearVBO(vbo_t *vbo);
 void GLBE_UploadAllLightmaps(void);
-void GLBE_DrawWorld (batch_t **worldbatches, qbyte *vis);
+void GLBE_DrawWorld (batch_t **worldbatches);
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model);
 void GLBE_SelectEntity(entity_t *ent);
 qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);
@@ -771,7 +773,7 @@ batch_t *D3D9BE_GetTempBatch(void);
 void D3D9BE_GenBrushModelVBO(model_t *mod);
 void D3D9BE_ClearVBO(vbo_t *vbo);
 void D3D9BE_UploadAllLightmaps(void);
-void D3D9BE_DrawWorld (batch_t **worldbatches, qbyte *vis);
+void D3D9BE_DrawWorld (batch_t **worldbatches);
 qboolean D3D9BE_LightCullModel(vec3_t org, model_t *model);
 void D3D9BE_SelectEntity(entity_t *ent);
 qboolean D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);
@@ -795,7 +797,7 @@ batch_t *D3D11BE_GetTempBatch(void);
 void D3D11BE_GenBrushModelVBO(model_t *mod);
 void D3D11BE_ClearVBO(vbo_t *vbo);
 void D3D11BE_UploadAllLightmaps(void);
-void D3D11BE_DrawWorld (batch_t **worldbatches, qbyte *vis);
+void D3D11BE_DrawWorld (batch_t **worldbatches);
 qboolean D3D11BE_LightCullModel(vec3_t org, model_t *model);
 void D3D11BE_SelectEntity(entity_t *ent);
 qboolean D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);

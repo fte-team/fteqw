@@ -85,6 +85,9 @@
 	VKFunc(CmdCopyBuffer)				\
 	VKFunc(CmdBlitImage)				\
 	VKFunc(CmdPipelineBarrier)			\
+	VKFunc(CmdSetEvent)					\
+	VKFunc(CmdResetEvent)				\
+	VKFunc(CmdWaitEvents)				\
 	VKFunc(CreateDescriptorSetLayout)	\
 	VKFunc(DestroyDescriptorSetLayout)	\
 	VKFunc(CreatePipelineLayout)		\
@@ -219,6 +222,11 @@ struct vk_rendertarg_cube
 	struct vk_rendertarg face[6];
 };
 
+#define VQ_RENDER 0
+#define VQ_PRESENT 1
+#define VQ_ALTRENDER 2
+#define VQ_ALTRENDER_COUNT 16
+#define VQ_COUNT 3
 extern struct vulkaninfo_s
 {
 	unsigned short	triplebuffer;
@@ -228,10 +236,11 @@ extern struct vulkaninfo_s
 	VkDevice device;
 	VkPhysicalDevice gpu;
 	VkSurfaceKHR surface;
-	uint32_t queuefam[2];	//queue families, render+present
-	uint32_t queuenum[2];	//queue families, render+present
+	uint32_t queuefam[VQ_COUNT];
+	uint32_t queuenum[VQ_COUNT];
 	VkQueue queue_render;
 	VkQueue queue_present;
+	VkQueue queue_alt[1];
 	VkPhysicalDeviceMemoryProperties memory_properties;
 	VkCommandPool cmdpool;
 
@@ -265,8 +274,9 @@ extern struct vulkaninfo_s
 	} *descpool;
 	struct dynbuffer
 	{
-		size_t offset;
-		size_t size;
+		size_t flushed;	//size already copied to the gpu
+		size_t offset;	//size written by the cpu (that might not yet be flushed)
+		size_t size;	//maximum buffer size
 		size_t align;
 		VkBuffer stagingbuf;
 		VkDeviceMemory stagingmemory;
@@ -305,6 +315,7 @@ extern struct vulkaninfo_s
 	struct vkwork_s
 	{
 		struct vkwork_s *next;
+		VkQueue queue;
 		VkCommandBuffer cmdbuf;
 		VkSemaphore semwait;
 		VkPipelineStageFlags semwaitstagemask;
@@ -366,7 +377,7 @@ batch_t *VKBE_GetTempBatch(void);
 void VKBE_GenBrushModelVBO(model_t *mod);
 void VKBE_ClearVBO(vbo_t *vbo);
 void VKBE_UploadAllLightmaps(void);
-void VKBE_DrawWorld (batch_t **worldbatches, qbyte *vis);
+void VKBE_DrawWorld (batch_t **worldbatches);
 qboolean VKBE_LightCullModel(vec3_t org, model_t *model);
 void VKBE_SelectEntity(entity_t *ent);
 qboolean VKBE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);

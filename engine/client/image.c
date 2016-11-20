@@ -15,7 +15,7 @@ texid_t GL_FindTextureFallback (const char *identifier, unsigned int flags, void
 #else
 cvar_t r_dodgytgafiles = CVARD("r_dodgytgafiles", "0", "Many old glquake engines had a buggy tga loader that ignored bottom-up flags. Naturally people worked around this and the world was plagued with buggy images. Most engines have now fixed the bug, but you can reenable it if you have bugged tga files.");
 cvar_t r_dodgypcxfiles = CVARD("r_dodgypcxfiles", "0", "When enabled, this will ignore the palette stored within pcx files, for compatibility with quake2.");
-cvar_t r_dodgymiptex = CVARD("r_dodgymiptex", "0", "When enabled, this will force regeneration of mipmaps, discarding mips1-4 like glquake did. This may eg solve fullbright issues with some maps, but may reduce distant detail levels.");
+cvar_t r_dodgymiptex = CVARD("r_dodgymiptex", "1", "When enabled, this will force regeneration of mipmaps, discarding mips1-4 like glquake did. This may eg solve fullbright issues with some maps, but may reduce distant detail levels.");
 
 char *r_defaultimageextensions =
 #ifdef IMAGEFMT_DDS

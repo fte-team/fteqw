@@ -231,6 +231,7 @@ static struct
 	vec3_t refractcolour;
 	vec3_t reflectcolour;
 	float wateralpha;
+	qboolean droppass;
 } parsestate;
 
 typedef struct shaderkey_s
@@ -292,13 +293,13 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 		if (*token == '#')
 			conditiontrue = conditiontrue == !!Shader_FloatArgument(shader, token);
 		else if (!Q_stricmp(token, "lpp"))
-			conditiontrue = conditiontrue == r_lightprepass.ival;
+			conditiontrue = conditiontrue == r_lightprepass;
 		else if (!Q_stricmp(token, "lightmap"))
 			conditiontrue = conditiontrue == !r_fullbright.value;
 		else if (!Q_stricmp(token, "deluxmap"))
 			conditiontrue = conditiontrue == r_deluxemapping;
 		else if (!Q_stricmp(token, "softwarebanding"))
-			conditiontrue = conditiontrue == r_softwarebanding && sh_config.progs_supported;
+			conditiontrue = conditiontrue == r_softwarebanding;
 
 		//normalmaps are generated if they're not already known.
 		else if (!Q_stricmp(token, "normalmap"))
@@ -1966,33 +1967,54 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 	*/
 	char *programbody;
 	char *hash;
+	program_t *newprog;
 
 	programbody = Shader_ParseBody(shader->name, ptr);
 	if (programbody)
 	{
-		shader->prog = BZ_Malloc(sizeof(*shader->prog));
-		memset(shader->prog, 0, sizeof(*shader->prog));
-		shader->prog->refs = 1;
-		if (!Shader_LoadPermutations(shader->name, shader->prog, programbody, qrtype, 0, NULL))
+		newprog = BZ_Malloc(sizeof(*newprog));
+		memset(newprog, 0, sizeof(*newprog));
+		newprog->refs = 1;
+		if (!Shader_LoadPermutations(shader->name, newprog, programbody, qrtype, 0, NULL))
 		{
-			BZ_Free(shader->prog);
-			shader->prog = NULL;
+			BZ_Free(newprog);
+			newprog = NULL;
 		}
 
 		BZ_Free(programbody);
-		return;
-	}
-
-	hash = strchr(shader->name, '#');
-	if (hash)
-	{
-		//pass the # postfixes from the shader name onto the generic glsl to use
-		char newname[512];
-		Q_snprintfz(newname, sizeof(newname), "%s%s", Shader_ParseExactString(ptr), hash);
-		shader->prog = Shader_FindGeneric(newname, qrtype);
 	}
 	else
-		shader->prog = Shader_FindGeneric(Shader_ParseExactString(ptr), qrtype);
+	{
+		hash = strchr(shader->name, '#');
+		if (hash)
+		{
+			//pass the # postfixes from the shader name onto the generic glsl to use
+			char newname[512];
+			Q_snprintfz(newname, sizeof(newname), "%s%s", Shader_ParseExactString(ptr), hash);
+			newprog = Shader_FindGeneric(newname, qrtype);
+		}
+		else
+			newprog = Shader_FindGeneric(Shader_ParseExactString(ptr), qrtype);
+	}
+
+	if (pass)
+	{
+		if (pass->numMergedPasses)
+		{
+			Shader_ReleaseGeneric(newprog);
+			Con_DPrintf("shader %s: program defined after first texture map\n", shader->name);
+		}
+		else
+		{
+			Shader_ReleaseGeneric(pass->prog);
+			pass->prog = newprog;
+		}
+	}
+	else
+	{
+		Shader_ReleaseGeneric(shader->prog);
+		shader->prog = newprog;
+	}
 }
 
 static void Shader_GLSLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -2301,8 +2323,8 @@ static void Shader_BEMode(shader_t *shader, shaderpass_t *pass, char **ptr)
 		mode = bemoverride_depthonly;
 	else if (!Q_stricmp(token, "depthdark"))
 		mode = bemoverride_depthdark;
-	else if (!Q_stricmp(token, "prelight"))
-		mode = bemoverride_prelight;
+	else if (!Q_stricmp(token, "gbuffer") || !Q_stricmp(token, "prelight"))
+		mode = bemoverride_gbuffer;
 	else if (!Q_stricmp(token, "fog"))
 		mode = bemoverride_fog;
 	else
@@ -2541,10 +2563,43 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	return true;
 }
 
+shaderpass_t *Shaderpass_DefineMap(shader_t *shader, shaderpass_t *pass)
+{
+	//'map foo' works a bit differently when there's a program in the same pass.
+	//instead of corrupting the previous one, it collects multiple maps so that {prog foo;map t0;map t1; map t2; blendfunc add} can work as expected
+	if (pass->prog)
+	{
+		if (pass->numMergedPasses==0)
+			pass->numMergedPasses++;
+		else
+		{	//FIXME: bounds check!
+			if (shader->numpasses == SHADER_PASS_MAX || shader->numpasses == SHADER_TMU_MAX)
+			{
+				Con_DPrintf (CON_WARNING "Shader %s has too many texture passes.\n", shader->name);
+				parsestate.droppass = true;
+			}
+//			else if (shader->numpasses == be_maxpasses)
+//				parsestate.droppass = true;
+			else
+			{
+				pass->numMergedPasses++;
+				shader->numpasses++;
+			}
+			pass = shader->passes+shader->numpasses-1;
+			memset(pass, 0, sizeof(*pass));
+		}
+	}
+	else
+		pass->numMergedPasses = 1;
+	return pass;
+}
+
 static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	int flags;
 	char *token;
+
+	pass = Shaderpass_DefineMap(shader, pass);
 
 	pass->anim_frames[0] = r_nulltex;
 
@@ -2701,6 +2756,53 @@ static void Shaderpass_VideoMap (shader_t *shader, shaderpass_t *pass, char **pt
 		pass->rgbgen_func.args[0] = pass->rgbgen_func.args[1] = pass->rgbgen_func.args[2] = 0;
 	}
 #endif
+}
+
+static void Shaderpass_SLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr, int qrtype)
+{
+	/*accepts:
+	program
+	{
+		BLAH
+	}
+	where BLAH is both vertex+frag with #ifdefs
+	or
+	program fname
+	on one line.
+	*/
+	//char *programbody;
+	char *hash;
+
+	/*programbody = Shader_ParseBody(shader->name, ptr);
+	if (programbody)
+	{
+		shader->prog = BZ_Malloc(sizeof(*shader->prog));
+		memset(shader->prog, 0, sizeof(*shader->prog));
+		shader->prog->refs = 1;
+		if (!Shader_LoadPermutations(shader->name, shader->prog, programbody, qrtype, 0, NULL))
+		{
+			BZ_Free(shader->prog);
+			shader->prog = NULL;
+		}
+
+		BZ_Free(programbody);
+		return;
+	}*/
+
+	hash = strchr(shader->name, '#');
+	if (hash)
+	{
+		//pass the # postfixes from the shader name onto the generic glsl to use
+		char newname[512];
+		Q_snprintfz(newname, sizeof(newname), "%s%s", Shader_ParseExactString(ptr), hash);
+		pass->prog = Shader_FindGeneric(newname, qrtype);
+	}
+	else
+		pass->prog = Shader_FindGeneric(Shader_ParseExactString(ptr), qrtype);
+}
+static void Shaderpass_ProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	Shaderpass_SLProgramName(shader,pass,ptr,qrenderer);
 }
 
 static void Shaderpass_RGBGen (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -3250,6 +3352,8 @@ static shaderkey_t shaderpasskeys[] =
 	{"alphamask",	Shaderpass_AlphaMask,		"rscript"},//for alienarena
 	{"detail",		Shaderpass_Detail,			"rscript"},
 
+	{"program",		Shaderpass_ProgramName,		"fte"},
+
 	/*doom3 compat*/
 	{"blend",		Shaderpass_BlendFunc,		"doom3"},
 	{"maskcolor",	Shaderpass_MaskColor,		"doom3"},
@@ -3280,6 +3384,12 @@ void Shader_FreePass (shaderpass_t *pass)
 		pass->cin = NULL;
 	}
 #endif
+
+	if (pass->prog)
+	{
+		Shader_ReleaseGeneric(pass->prog);
+		pass->prog = NULL;
+	}
 }
 
 void Shader_ReleaseGeneric(program_t *prog)
@@ -3651,32 +3761,132 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 		pass->blendmode = (pass->texgen == T_GEN_LIGHTMAP)?PBM_OVERBRIGHT:PBM_MODULATE;
 }
 
+void Shader_FixupProgPasses(shader_t *shader, shaderpass_t *pass)
+{
+	int i;
+	int maxpasses = SHADER_PASS_MAX - (pass-shader->passes);
+	struct
+	{
+		int gen;
+		unsigned int flags;
+	} defaulttgen[] =
+	{
+		//light
+		{T_GEN_SHADOWMAP,		0},						//1
+		{T_GEN_LIGHTCUBEMAP,	0},						//2
+
+		//material
+		{T_GEN_DIFFUSE,			SHADER_HASDIFFUSE},		//3
+		{T_GEN_NORMALMAP,		SHADER_HASNORMALMAP},	//4
+		{T_GEN_SPECULAR,		SHADER_HASGLOSS},		//5
+		{T_GEN_UPPEROVERLAY,	SHADER_HASTOPBOTTOM},	//6
+		{T_GEN_LOWEROVERLAY,	SHADER_HASTOPBOTTOM},	//7
+		{T_GEN_FULLBRIGHT,		SHADER_HASFULLBRIGHT},	//8
+		{T_GEN_PALETTED,		SHADER_HASPALETTED},	//9
+		{T_GEN_REFLECTCUBE,		0},						//10
+		{T_GEN_REFLECTMASK,		0},						//11
+//			{T_GEN_REFLECTION,		SHADER_HASREFLECT},		//
+//			{T_GEN_REFRACTION,		SHADER_HASREFRACT},		//
+//			{T_GEN_REFRACTIONDEPTH,	SHADER_HASREFRACTDEPTH},//
+//			{T_GEN_RIPPLEMAP,		SHADER_HASRIPPLEMAP},	//
+
+		//batch
+		{T_GEN_LIGHTMAP,		SHADER_HASLIGHTMAP},	//12
+		{T_GEN_DELUXMAP,		0},						//13
+		//more lightmaps								//14,15,16
+		//mode deluxemaps								//17,18,19
+	};
+
+#ifndef NOMEDIA
+	cin_t *cin = R_ShaderGetCinematic(shader);
+#endif
+
+	//if the glsl doesn't specify all samplers, just trim them.
+	pass->numMergedPasses = pass->prog->numsamplers;
+
+#ifndef NOMEDIA
+	if (cin && R_ShaderGetCinematic(shader) == cin)
+		cin = NULL;
+#endif
+
+	//if the glsl has specific textures listed, be sure to provide a pass for them.
+	for (i = 0; i < sizeof(defaulttgen)/sizeof(defaulttgen[0]); i++)
+	{
+		if (pass->prog->defaulttextures & (1u<<i))
+		{
+			if (pass->numMergedPasses >= maxpasses)
+			{	//panic...
+				parsestate.droppass = true;
+				break;
+			}
+			pass[pass->numMergedPasses].flags &= ~SHADER_PASS_DEPTHCMP;
+			if (defaulttgen[i].gen == T_GEN_SHADOWMAP)
+				pass[pass->numMergedPasses].flags |= SHADER_PASS_DEPTHCMP;
+#ifndef NOMEDIA
+			if (!i && cin)
+			{
+				pass[pass->numMergedPasses].texgen = T_GEN_VIDEOMAP;
+				pass[pass->numMergedPasses].cin = cin;
+				cin = NULL;
+			}
+			else
+#endif
+			{
+				pass[pass->numMergedPasses].texgen = defaulttgen[i].gen;
+#ifndef NOMEDIA
+				pass[pass->numMergedPasses].cin = NULL;
+#endif
+			}
+			pass->numMergedPasses++;
+			shader->flags |= defaulttgen[i].flags;
+		}
+	}
+
+	//must have at least one texture.
+	if (!pass->numMergedPasses)
+	{
+#ifndef NOMEDIA
+		pass[0].texgen = cin?T_GEN_VIDEOMAP:T_GEN_DIFFUSE;
+		pass[0].cin = cin;
+#else
+		pass[0].texgen = T_GEN_DIFFUSE;
+#endif
+		pass->numMergedPasses = 1;
+	}
+#ifndef NOMEDIA
+	else if (cin)
+		Media_ShutdownCin(cin);
+#endif
+
+	shader->numpasses = (pass-shader->passes)+pass->numMergedPasses;
+}
+
 void Shader_Readpass (shader_t *shader, char **ptr)
 {
 	char *token;
 	shaderpass_t *pass;
-	qboolean ignore;
 	static shader_t dummy;
 	int conddepth = 0;
 	int cond[8] = {0};
+	unsigned int oldflags = shader->flags;
 #define COND_IGNORE 1
 #define COND_IGNOREPARENT 2
 #define COND_ALLOWELSE 4
 
 	if ( shader->numpasses >= SHADER_PASS_MAX )
 	{
-		ignore = true;
+		parsestate.droppass = true;
 		shader = &dummy;
 		shader->numpasses = 1;
 		pass = shader->passes;
 	}
 	else
 	{
-		ignore = false;
+		parsestate.droppass = false;
 		pass = &shader->passes[shader->numpasses++];
 	}
 
-    // Set defaults
+	// Set defaults
 	pass->flags = 0;
 	pass->anim_frames[0] = r_nulltex;
 	pass->anim_numframes = 0;
@@ -3684,8 +3894,8 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 	pass->alphagen = ALPHA_GEN_IDENTITY;
 	pass->tcgen = TC_GEN_UNSPECIFIED;
 	pass->numtcmods = 0;
-	pass->numMergedPasses = 1;
 	pass->stagetype = ST_AMBIENT;
+	pass->numMergedPasses = 0;
 
 	if (shader->flags & SHADER_NOMIPMAPS)
 		pass->flags |= SHADER_PASS_NOMIPMAP;
@@ -3749,6 +3959,10 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		}
 	}
 
+	//if there was no texgen, then its too late now.
+	if (!pass->numMergedPasses)
+		pass->numMergedPasses = 1;
+
 	if (conddepth)
 	{
 		Con_Printf("if statements without endif in shader %s\n", shader->name);
@@ -3757,7 +3971,7 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 	if (pass->tcgen == TC_GEN_UNSPECIFIED)
 		pass->tcgen = TC_GEN_BASE;
 
-	if (!ignore)
+	if (!parsestate.droppass)
 	{
 		switch(pass->stagetype)
 		{
@@ -3770,29 +3984,24 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		case ST_BUMPMAP:
 			if (pass->texgen == T_GEN_SINGLEMAP)
 				shader->defaulttextures->bump = pass->anim_frames[0];
-			ignore = true;	//fixme: scrolling etc may be important. but we're not doom3.
+			parsestate.droppass = true;	//fixme: scrolling etc may be important. but we're not doom3.
 			break;
 		case ST_SPECULARMAP:
 			if (pass->texgen == T_GEN_SINGLEMAP)
 				shader->defaulttextures->specular = pass->anim_frames[0];
-			ignore = true;	//fixme: scrolling etc may be important. but we're not doom3.
+			parsestate.droppass = true;	//fixme: scrolling etc may be important. but we're not doom3.
 			break;
 		}
 	}
 
 	// check some things
-	if (ignore)
-	{
-		Shader_FreePass (pass);
-		shader->numpasses--;
-		return;
-	}
 
-	if ((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ZERO))
-	{
-		pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
-		shader->flags |= SHADER_DEPTHWRITE;
-	}
+	if (!parsestate.droppass)
+		if ((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ZERO))
+		{
+			pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
+			shader->flags |= SHADER_DEPTHWRITE;
+		}
 
 	switch (pass->rgbgen)
 	{
@@ -3829,6 +4038,21 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		pass->shaderbits &= ~SBITS_MISC_DEPTHWRITE;
 	}
 	*/
+
+	//if this pass specified a program, make sure it has all the textures that the program requires
+	if (!parsestate.droppass && pass->prog)
+		Shader_FixupProgPasses(shader, pass);
+
+	if (parsestate.droppass)
+	{
+		while (pass->numMergedPasses > 0)
+		{
+			Shader_FreePass (pass+--pass->numMergedPasses);
+			shader->numpasses--;
+		}
+		shader->flags = oldflags;
+		return;
+	}
 }
 
 static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey_t *keys, char *token, char **ptr)
@@ -3885,6 +4109,10 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 	{
 		return;
 	}
+
+	//don't merge passes if they're got their own programs.
+	if (pass->prog || pass2->prog)
+		return;
 
 	/*identity alpha is required for merging*/
 	if (pass->alphagen != ALPHA_GEN_IDENTITY || pass2->alphagen != ALPHA_GEN_IDENTITY)
@@ -4423,7 +4651,7 @@ done:;
 				break;
 
 			pass = s->passes + i;
-			for (j = 1; j < s->numpasses-i && j == i + pass->numMergedPasses && j < be_maxpasses; j++)
+			for (j = i + pass->numMergedPasses; j < s->numpasses-i && j == i + pass->numMergedPasses && j < be_maxpasses; j++)
 				Shader_SetPassFlush (pass, pass + j);
 
 			i += pass->numMergedPasses;
@@ -5004,7 +5232,7 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 	if (!builtin && r_lightmap.ival)
 		builtin = (
 				"{\n"
-					"program drawflat_wall\n"
+					"fte_program drawflat_wall\n"
 					"{\n"
 						"map $lightmap\n"
 						"tcgen lightmap\n"
@@ -5016,7 +5244,7 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 	if (!builtin && r_drawflat.ival)
 		builtin = (
 				"{\n"
-					"program drawflat_wall\n"
+					"fte_program drawflat_wall\n"
 					"{\n"
 						"map $lightmap\n"
 						"tcgen lightmap\n"
@@ -5026,29 +5254,34 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 			);
 
 
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
+	if (!builtin && r_lightprepass)
 	{
-		if (!builtin && r_lightprepass.ival)
-		{
-				builtin = (
+		builtin = (
+			"{\n"
+				"fte_program lpp_wall\n"
+				"{\n"
+					"map $sourcecolour\n"
+				"}\n"
+
+				//this is drawn during the gbuffer pass to prepare it
+				"fte_bemode gbuffer\n"
+				"{\n"
+					"fte_program lpp_depthnorm\n"
 					"{\n"
-						"program lpp_wall\n"
-						"{\n"
-							"map $sourcecolour\n"
-						"}\n"
+						"map $normalmap\n"
+						"tcgen base\n"
 					"}\n"
-				);
-		}
+				"}\n"
+			"}\n"
+		);
 	}
-#endif
 	if (!builtin && ((sh_config.progs_supported && qrenderer == QR_OPENGL) || sh_config.progs_required))
 	{
 			builtin = (
 					"{\n"
-						"program defaultwall\n"
-						//FIXME: these maps are a legacy thing, and could be removed if third-party glsl properly contains s_diffuse
+						"fte_program defaultwall\n"
 						"{\n"
+							//FIXME: these maps are a legacy thing, and could be removed if third-party glsl properly contains s_diffuse
 							"map $diffuse\n"
 						"}\n"
 						"{\n"
@@ -5111,7 +5344,7 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 
 	Shader_DefaultScript(shortname, s, builtin);
 
-	if (r_lightprepass.ival)
+	if (r_lightprepass)
 		s->flags |= SHADER_HASNORMALMAP;
 }
 

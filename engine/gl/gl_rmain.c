@@ -1882,6 +1882,8 @@ void GLR_RenderView (void)
 	}
 	else if ((r_refdef.flags & (RDF_ALLPOSTPROC)) || renderscale != 1)
 	{
+		unsigned int rtflags = IF_NOMIPMAP|IF_CLAMP|IF_RENDERTARGET;
+
 		r_refdef.flags |= RDF_RENDERSCALE;
 
 		//the game needs to be drawn to a texture for post processing
@@ -1896,8 +1898,19 @@ void GLR_RenderView (void)
 			vid.fbpheight = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
 		}
 
-		vid.fbpwidth *= renderscale;
-		vid.fbpheight *= renderscale;
+		if (renderscale < 0)
+		{
+			renderscale = -renderscale;
+			rtflags |= IF_NEAREST;
+			vid.fbpwidth *= renderscale;
+			vid.fbpheight *= renderscale;
+		}
+		else
+		{
+			rtflags |= IF_LINEAR;
+			vid.fbpwidth *= renderscale;
+			vid.fbpheight *= renderscale;
+		}
 
 		//well... err... meh.
 		vid.fbpwidth = bound(1, vid.fbpwidth, sh_config.texture_maxsize);
@@ -1906,7 +1919,7 @@ void GLR_RenderView (void)
 		vid.fbvwidth = vid.fbpwidth;
 		vid.fbvheight = vid.fbpheight;
 
-		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, /*(r_refdef.flags&RDF_BLOOM)?TF_RGBA16F:*/TF_RGBA32, RT_IMAGEFLAGS);
+		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, /*(r_refdef.flags&RDF_BLOOM)?TF_RGBA16F:*/TF_RGBA32, rtflags);
 
 		oldfbo = GLBE_FBO_Update(&fbo_gameview, FBO_RB_DEPTH, &sourcetex, 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
 		dofbo = true;

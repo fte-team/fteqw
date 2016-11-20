@@ -6741,9 +6741,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "lpp_depthnorm",
 "!!permu BUMP\n"
 "!!permu SKELETAL\n"
+"!!cvarf r_glsl_offsetmapping_scale\n"
 
 //light pre-pass rendering (defered lighting)
 //this is the initial pass, that draws the surface normals and depth to the initial colour buffer
+
+"#include \"sys/defs.h\"\n"
+
+"#if defined(OFFSETMAPPING)\n"
+"varying vec3 eyevector;\n"
+"#endif\n"
 
 "varying vec3 norm, tang, bitang;\n"
 "#if defined(BUMP)\n"
@@ -6751,7 +6758,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "#ifdef VERTEX_SHADER\n"
 "#include \"sys/skeletal.h\"\n"
-"attribute vec2 v_texcoord;\n"
+
 "void main()\n"
 "{\n"
 "#if defined(BUMP)\n"
@@ -6760,22 +6767,35 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#else\n"
 "gl_Position = skeletaltransform_n(norm);\n"
 "#endif\n"
+
+"#if defined(OFFSETMAPPING)\n"
+"vec3 eyeminusvertex = e_eyepos - v_position.xyz;\n"
+"eyevector.x = dot(eyeminusvertex, v_svector.xyz);\n"
+"eyevector.y = dot(eyeminusvertex, v_tvector.xyz);\n"
+"eyevector.z = dot(eyeminusvertex, v_normal.xyz);\n"
+"#endif\n"
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
-"#if defined(BUMP)\n"
-"uniform sampler2D s_t0;\n"
+"#ifdef OFFSETMAPPING\n"
+"#include \"sys/offsetmapping.h\"\n"
 "#endif\n"
 "void main()\n"
 "{\n"
+//adjust texture coords for offsetmapping
+"#ifdef OFFSETMAPPING\n"
+"vec2 tcoffsetmap = offsetmap(s_normalmap, tc, eyevector);\n"
+"#define tc tcoffsetmap\n"
+"#endif\n"
+
 "vec3 onorm;\n"
 "#if defined(BUMP)\n"
-"vec3 bm = 2.0*texture2D(s_t0, tc).xyz - 1.0;\n"
+"vec3 bm = 2.0*texture2D(s_normalmap, tc).xyz - 1.0;\n"
 "onorm = normalize(bm.x * tang + bm.y * bitang + bm.z * norm);\n"
 "#else\n"
 "onorm = norm;\n"
 "#endif\n"
-"gl_FragColor = vec4(onorm.xyz, gl_FragCoord.z / gl_FragCoord.w);\n"
+"gl_FragColor = vec4(onorm.xyz, gl_FragCoord.z);\n"
 "}\n"
 "#endif\n"
 },
@@ -6787,6 +6807,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //you can blame Electro for much of the maths in here.
 //fixme: no fog
 
+//s_t0 is the normals and depth
+//output should be amount of light hitting the surface.
+
 "varying vec4 tf;\n"
 "#ifdef VERTEX_SHADER\n"
 "void main()\n"
@@ -6796,27 +6819,147 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
-"uniform sampler2D s_t0;\n"
+"uniform sampler2D s_t0; //norm.xyz, depth\n"
 "uniform vec3 l_lightposition;\n"
 "uniform mat4 m_invviewprojection;\n"
 "uniform vec3 l_lightcolour;\n"
 "uniform float l_lightradius;\n"
+"uniform mat4 l_cubematrix;\n"
+
+
+
+
+
+"#ifdef PCF\n"
+"#define USE_ARB_SHADOW\n"
+"#ifndef USE_ARB_SHADOW\n"
+//fall back on regular samplers if we must
+"#define sampler2DShadow sampler2D\n"
+"#endif\n"
+"uniform sampler2DShadow s_shadowmap;\n"
+
+"uniform vec4 l_shadowmapproj; //light projection matrix info\n"
+"uniform vec2 l_shadowmapscale; //xy are the texture scale, z is 1, w is the scale.\n"
+"vec3 ShadowmapCoord(vec4 cubeproj)\n"
+"{\n"
+"#ifdef SPOT\n"
+//bias it. don't bother figuring out which side or anything, its not needed
+//l_projmatrix contains the light's projection matrix so no other magic needed
+"return ((cubeproj.xyz-vec3(0.0,0.0,0.015))/cubeproj.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
+//#elif defined(CUBESHADOW)
+//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
+//	#define dosamp(x,y) shadowCube(s_shadowmap, shadowcoord + vec2(x,y)*texscale.xy).r
+"#else\n"
+//figure out which axis to use
+//texture is arranged thusly:
+//forward left  up
+//back    right down
+"vec3 dir = abs(cubeproj.xyz);\n"
+//assume z is the major axis (ie: forward from the light)
+"vec3 t = cubeproj.xyz;\n"
+"float ma = dir.z;\n"
+"vec3 axis = vec3(0.5/3.0, 0.5/2.0, 0.5);\n"
+"if (dir.x > ma)\n"
+"{\n"
+"ma = dir.x;\n"
+"t = cubeproj.zyx;\n"
+"axis.x = 0.5;\n"
+"}\n"
+"if (dir.y > ma)\n"
+"{\n"
+"ma = dir.y;\n"
+"t = cubeproj.xzy;\n"
+"axis.x = 2.5/3.0;\n"
+"}\n"
+//if the axis is negative, flip it.
+"if (t.z > 0.0)\n"
+"{\n"
+"axis.y = 1.5/2.0;\n"
+"t.z = -t.z;\n"
+"}\n"
+
+//we also need to pass the result through the light's projection matrix too
+//the 'matrix' we need only contains 5 actual values. and one of them is a -1. So we might as well just use a vec4.
+//note: the projection matrix also includes scalers to pinch the image inwards to avoid sampling over borders, as well as to cope with non-square source image
+//the resulting z is prescaled to result in a value between -0.5 and 0.5.
+//also make sure we're in the right quadrant type thing
+"return axis + ((l_shadowmapproj.xyz*t.xyz + vec3(0.0, 0.0, l_shadowmapproj.w)) / -t.z);\n"
+"#endif\n"
+"}\n"
+
+"float ShadowmapFilter(vec4 vtexprojcoord)\n"
+"{\n"
+"vec3 shadowcoord = ShadowmapCoord(vtexprojcoord);\n"
+
+"#if 0//def GL_ARB_texture_gather\n"
+"vec2 ipart, fpart;\n"
+"#define dosamp(x,y) textureGatherOffset(s_shadowmap, ipart.xy, vec2(x,y)))\n"
+"vec4 tl = step(shadowcoord.z, dosamp(-1.0, -1.0));\n"
+"vec4 bl = step(shadowcoord.z, dosamp(-1.0, 1.0));\n"
+"vec4 tr = step(shadowcoord.z, dosamp(1.0, -1.0));\n"
+"vec4 br = step(shadowcoord.z, dosamp(1.0, 1.0));\n"
+//we now have 4*4 results, woo
+//we can just average them for 1/16th precision, but that's still limited graduations
+//the middle four pixels are 'full strength', but we interpolate the sides to effectively give 3*3
+"vec4 col =     vec4(tl.ba, tr.ba) + vec4(bl.rg, br.rg) + //middle two rows are full strength\n"
+"mix(vec4(tl.rg, tr.rg), vec4(bl.ba, br.ba), fpart.y); //top+bottom rows\n"
+"return dot(mix(col.rgb, col.agb, fpart.x), vec3(1.0/9.0)); //blend r+a, gb are mixed because its pretty much free and gives a nicer dot instruction instead of lots of adds.\n"
+
+"#else\n"
+"#ifdef USE_ARB_SHADOW\n"
+//with arb_shadow, we can benefit from hardware acclerated pcf, for smoother shadows
+"#define dosamp(x,y) shadow2D(s_shadowmap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r\n"
+"#else\n"
+//this will probably be a bit blocky.
+"#define dosamp(x,y) float(texture2D(s_shadowmap, shadowcoord.xy + (vec2(x,y)*l_shadowmapscale.xy)).r >= shadowcoord.z)\n"
+"#endif\n"
+"float s = 0.0;\n"
+"#if r_glsl_pcf >= 1 && r_glsl_pcf < 5\n"
+"s += dosamp(0.0, 0.0);\n"
+"return s;\n"
+"#elif r_glsl_pcf >= 5 && r_glsl_pcf < 9\n"
+"s += dosamp(-1.0, 0.0);\n"
+"s += dosamp(0.0, -1.0);\n"
+"s += dosamp(0.0, 0.0);\n"
+"s += dosamp(0.0, 1.0);\n"
+"s += dosamp(1.0, 0.0);\n"
+"return s/5.0;\n"
+"#else\n"
+"s += dosamp(-1.0, -1.0);\n"
+"s += dosamp(-1.0, 0.0);\n"
+"s += dosamp(-1.0, 1.0);\n"
+"s += dosamp(0.0, -1.0);\n"
+"s += dosamp(0.0, 0.0);\n"
+"s += dosamp(0.0, 1.0);\n"
+"s += dosamp(1.0, -1.0);\n"
+"s += dosamp(1.0, 0.0);\n"
+"s += dosamp(1.0, 1.0);\n"
+"return s/9.0;\n"
+"#endif\n"
+"#endif\n"
+"}\n"
+"#else\n"
+"float ShadowmapFilter(vec4 vtexprojcoord)\n"
+"{\n"
+"return 1.0;\n"
+"}\n"
+"#endif\n"
+
+
+
+
+
 "vec3 calcLightWorldPos(vec2 screenPos, float depth)\n"
 "{\n"
-"vec4 pos;\n"
-"pos.x = screenPos.x;\n"
-"pos.y = screenPos.y;\n"
-"pos.z = depth;\n"
-"pos.w = 1.0;\n"
-"pos = m_invviewprojection * pos;\n"
+"vec4 pos = m_invviewprojection * vec4(screenPos.xy, (depth*2.0)-1.0, 1.0);\n"
 "return pos.xyz / pos.w;\n"
 "}\n"
 "void main ()\n"
 "{\n"
 "vec3 lightColour  = l_lightcolour.rgb;\n"
-"float lightIntensity = 1.0;\n"
+"float lightIntensity  = 1.0;\n"
 "float lightAttenuation = l_lightradius; // fixme: just use the light radius for now, use better near/far att math separately once working\n"
-"float radiusFar  = l_lightradius;\n"
+"float radiusFar   = l_lightradius;\n"
 "float radiusNear  = l_lightradius*0.5;\n"
 
 "vec2 fc;\n"
@@ -6828,54 +6971,86 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 /* calc where the wall that generated this sample came from */
 "vec3 worldPos = calcLightWorldPos(fc, depth);\n"
 
+/*we need to know the cube projection (for both cubemaps+shadows)*/
+"vec4 cubeaxis = l_cubematrix*vec4(worldPos.xyz, 1.0);\n"
+
 /*calc diffuse lighting term*/
 "vec3 lightDir = l_lightposition - worldPos;\n"
 "float zdiff = 1.0 - clamp(length(lightDir) / lightAttenuation, 0.0, 1.0);\n"
 "float atten = (radiusFar * zdiff) / (radiusFar - radiusNear);\n"
 "atten = pow(atten, 2.0);\n"
 "lightDir = normalize(lightDir);\n"
-"float nDotL = dot(norm, lightDir) * atten;\n"
-"float lightDiffuse = max(0.0, nDotL);\n"
+"float nDotL = dot(norm, lightDir);\n"
+"float lightDiffuse = max(0.0, nDotL) * atten;\n"
 
-"gl_FragColor = vec4(lightDiffuse * (lightColour * lightIntensity), 1.0);\n"
+//fixme: apply fog
+//fixme: output a specular term
+//fixme: cubemap filters
+
+"gl_FragColor = vec4(lightDiffuse * (lightColour * lightIntensity) * ShadowmapFilter(cubeaxis), 1.0);\n"
 "}\n"
 "#endif\n"
 },
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "lpp_wall",
+"!!permu BUMP //for offsetmapping rather than bumpmapping (real bumps are handled elsewhere)\n"
+"!!cvarf r_glsl_offsetmapping_scale\n"
+
 //the final defered lighting pass.
 //the lighting values were written to some render target, which is fed into this shader, and now we draw all the wall textures with it.
+
+"#include \"sys/defs.h\"\n"
+
+"#if defined(OFFSETMAPPING)\n"
+"varying vec3 eyevector;\n"
+"#endif\n"
+
 
 "varying vec2 tc, lm;\n"
 "varying vec4 tf;\n"
 "#ifdef VERTEX_SHADER\n"
-"attribute vec2 v_texcoord;\n"
-"attribute vec2 v_lmcoord;\n"
 "void main ()\n"
 "{\n"
 "tc = v_texcoord;\n"
 "lm = v_lmcoord;\n"
 "gl_Position = tf = ftetransform();\n"
+
+"#if defined(OFFSETMAPPING)\n"
+"vec3 eyeminusvertex = e_eyepos - v_position.xyz;\n"
+"eyevector.x = dot(eyeminusvertex, v_svector.xyz);\n"
+"eyevector.y = dot(eyeminusvertex, v_tvector.xyz);\n"
+"eyevector.z = dot(eyeminusvertex, v_normal.xyz);\n"
+"#endif\n"
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
-"uniform sampler2D s_t0;\n"
-"uniform sampler2D s_t1;\n"
-"uniform sampler2D s_t2;\n"
-"uniform vec4 e_lmscale;\n"
+"uniform sampler2D s_t0; //light gbuffer\n"
+"#ifdef OFFSETMAPPING\n"
+"#include \"sys/offsetmapping.h\"\n"
+"#endif\n"
 "void main ()\n"
 "{\n"
+//adjust texture coords for offsetmapping
+"#ifdef OFFSETMAPPING\n"
+"vec2 tcoffsetmap = offsetmap(s_normalmap, tc, eyevector);\n"
+"#define tc tcoffsetmap\n"
+"#endif\n"
+
 "vec2 nst;\n"
 "nst = tf.xy / tf.w;\n"
 "nst = (1.0 + nst) / 2.0;\n"
-"vec4 l = texture2D(s_t0, nst)*5.0;\n"
-"vec4 c = texture2D(s_t1, tc);\n"
-"vec3 lmsamp = texture2D(s_t2, lm).rgb*e_lmscale.rgb;\n"
+"vec4 l = texture2D(s_t0, nst);\n"
+"vec4 c = texture2D(s_diffuse, tc);\n"
+//fixme: top+bottom should add upper+lower colours to c here
+"vec3 lmsamp = texture2D(s_lightmap, lm).rgb*e_lmscale.rgb;\n"
+//fixme: fog the legacy lightmap data
 "vec3 diff = l.rgb;\n"
-"vec3 chrom = diff / (0.001 + dot(diff, vec3(0.3, 0.59, 0.11)));\n"
-"vec3 spec = chrom * l.a;\n"
+//	vec3 chrom = diff / (0.001 + dot(diff, vec3(0.3, 0.59, 0.11)));
+//	vec3 spec = chrom * l.a;
+//fixme: do specular somehow
 "gl_FragColor = vec4((diff + lmsamp) * c.xyz, 1.0);\n"
+//fixme: fullbrights should add to the rgb value
 "}\n"
 "#endif\n"
 },

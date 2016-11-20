@@ -610,7 +610,7 @@ void SWBE_Set2D(void)
 
 	SWBE_UpdateUniforms();
 }
-void SWBE_DrawWorld(batch_t **worldbatches, qbyte *vis)
+void SWBE_DrawWorld(batch_t **worldbatches)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 

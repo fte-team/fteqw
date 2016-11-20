@@ -108,11 +108,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	PROTOCOL_VERSION_QW				28
 
-#define	PROTOCOL_VERSION_Q2_DEMO_MIN	26
-#define	PROTOCOL_VERSION_Q2_MIN			31
-#define	PROTOCOL_VERSION_Q2				34
+#define	PROTOCOL_VERSION_Q2_DEMO_MIN	26	//we can parse this server
+#define	PROTOCOL_VERSION_Q2_MIN			31	//we can join these outdated servers
+#define	PROTOCOL_VERSION_Q2				34	//we host this
 #define	PROTOCOL_VERSION_R1Q2			35
 #define	PROTOCOL_VERSION_Q2PRO			36
+
+#define	PROTOCOL_VERSION_Q2_DEMO_MAX	PROTOCOL_VERSION_Q2PRO
 
 //=========================================
 

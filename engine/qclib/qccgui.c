@@ -3992,8 +3992,8 @@ static void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsi
 	}
 }
 
-#define AVAIL_PNGLIB
-#define AVAIL_ZLIB
+//#define AVAIL_PNGLIB
+//#define AVAIL_ZLIB
 #ifndef MSVCLIBSPATH
 #ifdef MSVCLIBPATH
 	#define MSVCLIBSPATH STRINGIFY(MSVCLIBPATH)
@@ -4470,6 +4470,7 @@ static void GUI_CreateInstaller_Windows(void)
 		{
 			QC_snprintfz(tmp, sizeof(tmp), "%s.ico", modname);
 			pngdata = QCC_ReadFile (tmp, NULL, 0, &pnglen);
+#ifdef AVAIL_PNGLIB
 			if (!pngdata)
 			{
 				QC_snprintfz(tmp, sizeof(tmp), "%s.png", modname);
@@ -4477,9 +4478,14 @@ static void GUI_CreateInstaller_Windows(void)
 			}
 			if (!pngdata)
 				pngdata = QCC_ReadFile ("default.png", NULL, 0, &pnglen);
+#endif
 
 			if (!pngdata)
-				if (PromptForFile("Please Select Icon", "Icons\0*.ico;*.png\0All files\0*.*\0", ".", tmp, tmp, sizeof(tmp), false))
+				if (PromptForFile("Please Select Icon", "Icons\0*.ico"
+#ifdef AVAIL_PNGLIB
+					";*.png"
+#endif
+					"\0All files\0*.*\0", ".", tmp, tmp, sizeof(tmp), false))
 					pngdata = QCC_ReadFile (tmp, NULL, 0, &pnglen);
 
 			if (pngdata && pngdata[0] == 0 && pngdata[1] == 0 && pngdata[2] == 1 && pngdata[3] == 0)
@@ -4524,6 +4530,7 @@ static void GUI_CreateInstaller_Windows(void)
 				if (!error && !UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(1), RESLANG, &icondata, (qbyte*)&icondata.idEntries[icondata.idCount] - (qbyte*)&icondata))
 					error = "UpdateResource failed (icon group)";
 			}
+#ifdef AVAIL_PNGLIB
 			else if (pngdata)
 			{
 				icon_group_t icondata;
@@ -4638,6 +4645,10 @@ static void GUI_CreateInstaller_Windows(void)
 				if (!error && !UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(1), RESLANG, &icondata, (qbyte*)&icondata.idEntries[icondata.idCount] - (qbyte*)&icondata))
 					error = "UpdateResource failed (icon group)";
 			}
+#endif
+			else
+				error = "icon format not supported";
+
 
 			if (mandata)
 			{

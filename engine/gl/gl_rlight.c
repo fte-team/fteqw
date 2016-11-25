@@ -694,7 +694,7 @@ void R_PushDlights (void)
 //rtlight loading
 
 #ifdef RTLIGHTS
-qboolean R_ImportRTLights(char *entlump)
+qboolean R_ImportRTLights(const char *entlump)
 {
 	typedef enum lighttype_e {LIGHTTYPE_MINUSX, LIGHTTYPE_RECIPX, LIGHTTYPE_RECIPXX, LIGHTTYPE_NONE, LIGHTTYPE_SUN, LIGHTTYPE_MINUSXX} lighttype_t;
 
@@ -1257,14 +1257,14 @@ void R_ReloadRTLights_f(void)
 	rtlights_first = RTL_FIRST;
 	rtlights_max = RTL_FIRST;
 	if (!strcmp(Cmd_Argv(1), "bsp"))
-		R_ImportRTLights(cl.worldmodel->entities);
+		R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel));
 	else if (!strcmp(Cmd_Argv(1), "rtlights"))
 		R_LoadRTLights();
 	else if (strcmp(Cmd_Argv(1), "none"))
 	{
 		R_LoadRTLights();
 		if (rtlights_first == rtlights_max)
-			R_ImportRTLights(cl.worldmodel->entities);
+			R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel));
 	}
 
 	for (i = 0; i < cl.num_statics; i++)

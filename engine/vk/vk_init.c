@@ -3267,7 +3267,6 @@ void VK_Shutdown(void)
 		Sys_DestroyConditional(vk.submitcondition);
 
 	memset(&vk, 0, sizeof(vk));
-	qrenderer = QR_NONE;
 
 #ifdef VK_NO_PROTOTYPES
 	#define VKFunc(n) vk##n = NULL;

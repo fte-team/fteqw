@@ -1429,7 +1429,7 @@ qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, void *buf, size_t bufsize)
 
 	/*load up the .map so we can get some entities (anyone going to bother making a qc mod compatible with this?)*/
 	COM_StripExtension(mod->name, token, sizeof(token));
-	mod->entities = FS_LoadMallocFile(va("%s.map", token), NULL);
+	Mod_SetEntitiesString(mod, FS_LoadMallocFile(va("%s.map", token), NULL), true);
 
 	mod->funcs.FindTouchedLeafs = D3_FindTouchedLeafs;
 	mod->funcs.NativeTrace = D3_Trace;

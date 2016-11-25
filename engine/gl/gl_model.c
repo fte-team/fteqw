@@ -449,6 +449,50 @@ void Mod_ResortShaders(void)
 		}
 	}
 }
+
+const char *Mod_GetEntitiesString(model_t *mod)
+{
+	if (!mod)
+		return NULL;
+	if (mod->entities_raw)	//still cached/correct
+		return mod->entities_raw;
+	if (!mod->numentityinfo)
+		return NULL;
+	//reform the entities back into a full string now that we apparently need it
+	return mod->entities_raw;
+}
+void Mod_SetEntitiesString(model_t *mod, const char *str, qboolean docopy)
+{
+	size_t j;
+	for (j = 0; j < mod->numentityinfo; j++)
+		Z_Free(mod->entityinfo[j].keyvals);
+	mod->numentityinfo = 0;
+	Z_Free(mod->entityinfo);
+	mod->entityinfo = NULL;
+	Z_Free((char*)mod->entities_raw);
+	mod->entities_raw = NULL;
+
+	if (str)
+	{
+		if (docopy)
+			str = Z_StrDup(str);
+		mod->entities_raw = str;
+	}
+}
+
+void Mod_SetEntitiesStringLen(model_t *mod, const char *str, size_t strsize)
+{
+	if (str)
+	{
+		char *cpy = BZ_Malloc(strsize+1);
+		memcpy(cpy, str, strsize);
+		cpy[strsize] = 0;
+		Mod_SetEntitiesString(mod, cpy, false);
+	}
+	else
+		Mod_SetEntitiesString(mod, str, false);
+}
+
 /*
 ===================
 Mod_ClearAll
@@ -538,8 +582,7 @@ void Mod_Purge(enum mod_purge_e ptype)
 				mod->meshinfo = NULL;
 			}
 
-			Z_Free(mod->entities);
-			mod->entities = NULL;
+			Mod_SetEntitiesString(mod, NULL, false);
 
 #ifdef PSET_SCRIPT
 			PScript_ClearSurfaceParticles(mod);
@@ -2088,10 +2131,11 @@ void Mod_LoadVisibility (model_t *loadmodel, qbyte *mod_base, lump_t *l, qbyte *
 }
 
 //scans through the worldspawn for a single specific key.
-char *Mod_ParseWorldspawnKey(const char *ents, const char *key, char *buffer, size_t sizeofbuffer)
+const char *Mod_ParseWorldspawnKey(model_t *mod, const char *key, char *buffer, size_t sizeofbuffer)
 {
 	char keyname[64];
 	char value[1024];
+	const char *ents = Mod_GetEntitiesString(mod);
 	while(ents && *ents)
 	{
 		ents = COM_ParseOut(ents, keyname, sizeof(keyname));
@@ -2120,6 +2164,7 @@ static void Mod_SaveEntFile_f(void)
 	char fname[MAX_QPATH];
 	model_t *mod = NULL;
 	char *n = Cmd_Argv(1);
+	const char *ents;
 	if (*n)
 		mod = Mod_ForName(n, MLV_WARN);
 #ifndef CLIENTONLY
@@ -2137,7 +2182,8 @@ static void Mod_SaveEntFile_f(void)
 		Con_Printf("Map not loaded\n");
 		return;
 	}
-	if (!mod->entities)
+	ents = Mod_GetEntitiesString(mod);
+	if (!ents)
 	{
 		Con_Printf("Map is not a map, and has no entities\n");
 		return;
@@ -2155,7 +2201,7 @@ static void Mod_SaveEntFile_f(void)
 		Q_strncatz(fname, ".ent", sizeof(fname));
 	}
 
-	COM_WriteFile(fname, FS_GAMEONLY, mod->entities, strlen(mod->entities));
+	COM_WriteFile(fname, FS_GAMEONLY, ents, strlen(ents));
 }
 
 /*
@@ -2169,46 +2215,46 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	size_t sz;
 	char keyname[64];
 	char value[1024];
-	char *ents, *k;
+	char *ents = NULL, *k;
 	int t;
 
-	loadmodel->entitiescrc = 0;
-	loadmodel->entities = NULL;
+	Mod_SetEntitiesString(loadmodel, NULL, false);
 	if (!l->filelen)
 		return;
 
-	if (mod_loadentfiles.value && !loadmodel->entities && *mod_loadentfiles_dir.string)
+	if (mod_loadentfiles.value && !ents && *mod_loadentfiles_dir.string)
 	{
 		if (!strncmp(loadmodel->name, "maps/", 5))
 		{
 			Q_snprintfz(fname, sizeof(fname), "maps/%s/%s", mod_loadentfiles_dir.string, loadmodel->name+5);
 			COM_StripExtension(fname, fname, sizeof(fname));
 			Q_strncatz(fname, ".ent", sizeof(fname));
-			loadmodel->entities = FS_LoadMallocFile(fname, &sz);
+			ents = FS_LoadMallocFile(fname, &sz);
 		}
 	}
-	if (mod_loadentfiles.value && !loadmodel->entities)
+	if (mod_loadentfiles.value && !ents)
 	{
 		COM_StripExtension(loadmodel->name, fname, sizeof(fname));
 		Q_strncatz(fname, ".ent", sizeof(fname));
-		loadmodel->entities = FS_LoadMallocFile(fname, &sz);
+		ents = FS_LoadMallocFile(fname, &sz);
 	}
-	if (mod_loadentfiles.value && !loadmodel->entities)
+	if (mod_loadentfiles.value && !ents)
 	{	//tenebrae compat
 		COM_StripExtension(loadmodel->name, fname, sizeof(fname));
 		Q_strncatz(fname, ".edo", sizeof(fname));
-		loadmodel->entities = FS_LoadMallocFile(fname, &sz);
+		ents = FS_LoadMallocFile(fname, &sz);
 	}
-	if (!loadmodel->entities)
+	if (!ents)
 	{
-		loadmodel->entities = Z_Malloc(l->filelen + 1);	
-		memcpy (loadmodel->entities, mod_base + l->fileofs, l->filelen);
-		loadmodel->entities[l->filelen] = 0;
+		ents = Z_Malloc(l->filelen + 1);	
+		memcpy (ents, mod_base + l->fileofs, l->filelen);
+		ents[l->filelen] = 0;
 	}
 	else
-		loadmodel->entitiescrc = QCRC_Block(loadmodel->entities, strlen(loadmodel->entities));
+		loadmodel->entitiescrc = QCRC_Block(ents, strlen(ents));
 
-	ents = loadmodel->entities;
+	Mod_SetEntitiesString(loadmodel, ents, false);
+
 	while(ents && *ents)
 	{
 		ents = COM_ParseOut(ents, keyname, sizeof(keyname));
@@ -2579,7 +2625,7 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, lump_t *
 
 	memset(&overrides, 0, sizeof(overrides));
 
-	lmscale = atoi(Mod_ParseWorldspawnKey(loadmodel->entities, "lightmap_scale", buf, sizeof(buf)));
+	lmscale = atoi(Mod_ParseWorldspawnKey(loadmodel, "lightmap_scale", buf, sizeof(buf)));
 	if (!lmscale)
 		lmshift = LMSHIFT_DEFAULT;
 	else
@@ -4880,7 +4926,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 		submod->numclusters = bm->visleafs;
 
 		if (i)
-			submod->entities = NULL;
+			submod->entities_raw = NULL;
 
 		memset(&submod->batches, 0, sizeof(submod->batches));
 		submod->vbos = NULL;
@@ -4916,7 +4962,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 	if (lightmodel == mod)
 	{
 		lightcontext = LightStartup(NULL, lightmodel, true);
-		LightReloadEntities(lightcontext, lightmodel->entities, false);
+		LightReloadEntities(lightcontext, Mod_GetEntitiesString(lightmodel), false);
 	}
 #endif
 TRACE(("LoadBrushModel %i\n", __LINE__));

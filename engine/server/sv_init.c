@@ -781,7 +781,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 {
 	extern cvar_t allow_download_refpackages;
 	func_t f;
-	char *file;
+	const char *file;
 	extern cvar_t pr_maxedicts;
 
 	gametype_e newgametype;
@@ -1451,7 +1451,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	else
 		Info_SetValueForStarKey(svs.info, "*entfile", "", MAX_SERVERINFO_STRING);
 
-	file = sv.world.worldmodel->entities;
+	file = Mod_GetEntitiesString(sv.world.worldmodel);
 	if (!file)
 		file = "";
 

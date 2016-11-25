@@ -403,6 +403,7 @@ enum imageflags
 	IF_MIPCAP = 1<<10,
 	IF_PREMULTIPLYALPHA = 1<<12,	//rgb *= alpha
 
+	IF_PALETTIZE = 1<<21,
 	IF_NOPURGE = 1<<22,
 	IF_HIGHPRIORITY = 1<<23,
 	IF_LOWPRIORITY = 1<<24,
@@ -506,7 +507,7 @@ struct llightinfo_s;
 void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, int surfnum);	//version that is aware of bsp trees
 void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, qbyte surf_styles[4], qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale);	//special version that doesn't know what a face is or anything.
 struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, struct model_s *model, qboolean shadows);
-void LightReloadEntities(struct relight_ctx_s *ctx, char *entstring, qboolean ignorestyles);
+void LightReloadEntities(struct relight_ctx_s *ctx, const char *entstring, qboolean ignorestyles);
 void LightShutdown(struct relight_ctx_s *ctx, struct model_s *mod);
 extern const size_t lightthreadctxsize;
 #endif

@@ -80,7 +80,7 @@ void SVQ3_CreateBaseline(void);
 void SVQ3_ClientThink(client_t *cl);
 void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3);
 
-char *mapentspointer;
+const char *mapentspointer;
 
 #define	Q3SOLID_BMODEL	0xffffff
 
@@ -1614,9 +1614,9 @@ static int QDECL BL_Seek(fileHandle_t f, long offset, int seektype)
 {	// on success, apparently returns 0
 	return VM_FSeek((int)f, offset, seektype, Z_TAG_BOTLIB)?0:-1;
 }
-static char *QDECL BL_BSPEntityData(void)
+static const char *QDECL BL_BSPEntityData(void)
 {
-	return sv.world.worldmodel->entities;
+	return Mod_GetEntitiesString(sv.world.worldmodel);
 }
 static void QDECL BL_Trace(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int passent, int contentmask)
 {
@@ -1836,7 +1836,7 @@ qboolean SVQ3_InitGame(void)
 	SVQ3_SetConfigString(1, sysinfo);
 
 
-	mapentspointer = sv.world.worldmodel->entities;
+	mapentspointer = Mod_GetEntitiesString(sv.world.worldmodel);
 	VM_Call(q3gamevm, GAME_INIT, 0, (int)rand(), false);
 
 	CM_InitBoxHull();

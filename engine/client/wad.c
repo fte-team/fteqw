@@ -42,6 +42,9 @@ void W_CleanupName (const char *in, char *out)
 {
 	int		i;
 	int		c;
+
+	if (!strncmp(in, "textures/", 9))
+		in += 9;
 	
 	for (i=0 ; i<16 ; i++ )
 	{
@@ -694,7 +697,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 {
 	char token[4096];
 	char key[128];
-	char *data = wmodel->entities;
+	const char *data = Mod_GetEntitiesString(wmodel);
 	mapskys_t *msky;
 
 	cl.skyrotate = 0;
@@ -730,7 +733,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 			break; // error		
 		if (!strcmp("wad", key)) // for HalfLife maps
 		{
-			if (wmodel->fromgame == fg_halflife || wmodel->type == mod_heightmap)
+			if (1)
 			{
 				Q_strncatz(wads, ";", sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
 				Q_strncatz(wads, token, sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
@@ -834,8 +837,8 @@ qboolean Wad_NextDownload (void)
 {
 	char wadname[4096+9]="textures/";
 	int i, j, k;
-
-	if (*wads)	//now go about checking the wads
+	model_t *wmodel = cl.worldmodel;
+	if (wmodel && (wmodel->fromgame == fg_halflife || wmodel->type == mod_heightmap) && *wads)	//now go about checking the wads
 	{
 		j = 0;
 		wads[4095] = '\0';

@@ -55,7 +55,6 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define CON_RICHGSHIFT 24
 #define CON_RICHRSHIFT 28	//high nibble
 
-#define CON_Q3MASK			0x0F100000
 #define CON_WHITEMASK		0x0F000000 // must be constant. things assume this
 
 #define CON_DEFAULTCHAR		(CON_WHITEMASK | 32)

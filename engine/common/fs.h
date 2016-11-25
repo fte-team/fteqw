@@ -68,6 +68,8 @@ void FS_UnRegisterFileSystemModule(void *module);
 
 void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, const char *pakpath, const char *qhash, const char *pakprefix);
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri);
+int PM_IsApplying(void);
+void PM_ManifestPackage(const char *name, qboolean doinstall);
 void Menu_Download_Update(void);
 
 int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr);

@@ -2001,8 +2001,13 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 #endif
 #ifdef Q3CLIENT
 		case CP_QUAKE3:
+			msecs -= (double)msecstouse;
 			CLQ3_SendCmd(&independantphysics[0]);
 			memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
+
+			//don't bank too much, because that results in banking speedcheats
+			if (msecs > 200)
+				msecs = 200;
 			return; // Q3 does it's own thing
 #endif
 		default:

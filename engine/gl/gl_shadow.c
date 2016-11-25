@@ -3435,7 +3435,7 @@ void Sh_PreGenerateLights(void)
 		if (!okay)
 			okay |= R_LoadRTLights();
 		if (!okay)
-			okay |= R_ImportRTLights(cl.worldmodel->entities);
+			okay |= R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel));
 		if (!okay && r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value != 1)
 		{
 			r_shadow_realtime_world_lightmaps.value = 1;

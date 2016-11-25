@@ -56,6 +56,7 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, qbyte *mod_base, lump_t *l);
 qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
 qboolean Mod_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
 qboolean Mod_LoadSurfedges (model_t *loadmodel, qbyte *mod_base, lump_t *l);
+void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l);
 
 extern void BuildLightMapGammaTable (float g, float c);
 
@@ -1497,7 +1498,7 @@ qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboolean li
 	unsigned short lmshift, lmscale;
 	char buf[64];
 
-	lmscale = atoi(Mod_ParseWorldspawnKey(mod->entities, "lightmap_scale", buf, sizeof(buf)));
+	lmscale = atoi(Mod_ParseWorldspawnKey(mod, "lightmap_scale", buf, sizeof(buf)));
 	if (!lmscale)
 		lmshift = LMSHIFT_DEFAULT;
 	else
@@ -2034,20 +2035,6 @@ qboolean CModQ2_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 	mod->numclusters = prv->q2vis->numclusters;
 
 	return true;
-}
-
-/*
-=================
-CMod_LoadEntityString
-=================
-*/
-void CMod_LoadEntityString (model_t *mod, qbyte *mod_base, lump_t *l)
-{
-//	if (l->filelen > MAX_Q2MAP_ENTSTRING)
-//		Host_Error ("Map has too large entity lump");
-
-	mod->entities = Z_Malloc(l->filelen+1);
-	memcpy (mod->entities, mod_base + l->fileofs, l->filelen);
 }
 
 #ifdef Q3BSPS
@@ -4101,7 +4088,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		noerrors = noerrors && CModQ3_LoadSubmodels				(mod, mod_base, &header.lumps[Q3LUMP_MODELS]);
 		noerrors = noerrors && CModQ3_LoadVisibility			(mod, mod_base, &header.lumps[Q3LUMP_VISIBILITY]);
 		if (noerrors)
-			CMod_LoadEntityString								(mod, mod_base, &header.lumps[Q3LUMP_ENTITIES]);
+			Mod_LoadEntities								(mod, mod_base, &header.lumps[Q3LUMP_ENTITIES]);
 
 		if (!noerrors)
 		{
@@ -4203,7 +4190,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[Q2LUMP_AREAS]);
 			noerrors = noerrors && CModQ2_LoadAreaPortals	(mod, mod_base, &header.lumps[Q2LUMP_AREAPORTALS]);
 			if (noerrors)
-				CMod_LoadEntityString						(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
+				Mod_LoadEntities							(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
 
 #ifndef CLIENTONLY
 			mod->funcs.FatPVS				= Q2BSP_FatPVS;
@@ -4234,7 +4221,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[Q2LUMP_PLANES]);
 			noerrors = noerrors && CModQ2_LoadTexInfo		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO], loadname);
 			if (noerrors)
-				CMod_LoadEntityString						(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
+				Mod_LoadEntities							(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
 			noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES], header.version == BSPVERSION_Q2W);
 			noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q2LUMP_LEAFFACES], false);
 			noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[Q2LUMP_VISIBILITY]);
@@ -4310,7 +4297,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		Q_snprintfz (name, sizeof(name), "*%i:%s", i, wmod->name);
 		mod = Mod_FindName (name);
 		*mod = *wmod;
-		mod->entities = NULL;
+		mod->entities_raw = NULL;
 		mod->submodelof = wmod;
 		Q_strncpyz(mod->name, name, sizeof(mod->name));
 		memset(&mod->memgroup, 0, sizeof(mod->memgroup));

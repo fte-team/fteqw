@@ -144,7 +144,7 @@ struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, model_t *model, qb
 	ctx->models[ctx->nummodels++] = model;
 	return ctx;
 }
-void LightReloadEntities(struct relight_ctx_s *ctx, char *entstring, qboolean ignorestyles)
+void LightReloadEntities(struct relight_ctx_s *ctx, const char *entstring, qboolean ignorestyles)
 {
 #define DEFAULTLIGHTLEVEL 300
 	mentity_t *mapent;

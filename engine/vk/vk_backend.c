@@ -4293,8 +4293,8 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 
 	for (i = 0; i < MAXRLIGHTMAPS ; i++)
 	{
-		//FIXME: this is fucked
-		/*
+		//FIXME: this is fucked, the batch isn't known yet.
+		#if 0
 		extern cvar_t gl_overbright;
 		unsigned char s = shaderstate.curbatch?shaderstate.curbatch->lmlightstyle[i]:0;
 		float sc;
@@ -4321,13 +4321,15 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 			}
 			break;
 		}
+		#else
+		float sc = 1;
+		#endif
 		if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
 			sc = (1<<bound(0, gl_overbright.ival, 2)) * shaderstate.identitylighting;
 		else
 			sc = shaderstate.identitylighting;
-		sc *= d_lightstylevalue[s]/256.0f;
-		*/
-		float sc = 1;
+//		sc *= d_lightstylevalue[s]/256.0f;
+
 		Vector4Set(cbe->e_lmscale[i], sc, sc, sc, 1);
 	}
 

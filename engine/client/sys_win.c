@@ -3546,7 +3546,7 @@ qboolean Sys_DoInstall(void)
 		int pct = -100;
 		char fname[MAX_OSPATH];
 		memset(&wc, 0, sizeof(wc));
-	    wc.style = 0;
+		wc.style = 0;
 		wc.lpfnWndProc		= NoCloseWindowProc;//Progress_Wnd;
 		wc.hInstance		= hInstance;
 		wc.hCursor			= LoadCursor (NULL,IDC_ARROW);
@@ -3613,7 +3613,7 @@ qboolean Sys_DoInstall(void)
 	}
 
 	/*create startmenu icon*/
-	if (MessageBoxU(NULL, va("Create Startmenu icon for %s?", fs_gamename.string), fs_gamename.string, MB_YESNO|MB_ICONQUESTION|MB_TOPMOST) == IDYES)
+	if (MessageBoxU(NULL, va("Create start-menu icon for %s?", fs_gamename.string), fs_gamename.string, MB_YESNO|MB_ICONQUESTION|MB_TOPMOST) == IDYES)
 	{
 		HRESULT hres;
 		IShellLinkW *psl;

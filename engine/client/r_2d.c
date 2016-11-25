@@ -1597,6 +1597,7 @@ texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfm
 
 	if (rtfmt)
 	{
+		tid->flags = (tid->flags & ~(IF_NEAREST|IF_LINEAR)) | (imageflags & (IF_NEAREST|IF_LINEAR));
 		Image_Upload(tid, rtfmt, NULL, NULL, width, height, imageflags);
 		tid->width = width;
 		tid->height = height;

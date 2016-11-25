@@ -4825,22 +4825,38 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	switch(action)
 	{
+	case ter_ent_get:
+		{
+			int idx = G_INT(OFS_PARM1);
+			G_INT(OFS_RETURN) = 0;
+		}
+		return;
+	case ter_ent_set:
+		{
+			int idx = G_INT(OFS_PARM1);
+			const char *news = PR_GetStringOfs(prinst, OFS_PARM2);
+			G_INT(OFS_RETURN) = 0;
+		}
+		return;
 	case ter_ents_wipe:
-		G_INT(OFS_RETURN) = PR_TempString(prinst, mod->entities);
-		mod->entities = Z_Malloc(1);
+		G_INT(OFS_RETURN) = PR_TempString(prinst, Mod_GetEntitiesString(mod));
+		Mod_SetEntitiesString(mod, "", true);
 		return;
 	case ter_ents_concat:
 		{
-			char *olds = mod->entities;
+			char *newv;
+			const char *olds = Mod_GetEntitiesString(mod);
 			const char *news = PR_GetStringOfs(prinst, OFS_PARM1);
 			size_t oldlen = strlen(olds);
 			size_t newlen = strlen(news);
-			mod->entities = Z_Malloc(oldlen + newlen + 1);
-			memcpy(mod->entities, olds, oldlen);
-			memcpy(mod->entities+oldlen, news, newlen);
-			mod->entities[oldlen + newlen] = 0;
-			Z_Free(olds);
+			newv = Z_Malloc(oldlen + newlen + 1);
+			memcpy(newv, olds, oldlen);
+			memcpy(newv+oldlen, news, newlen);
+			newv[oldlen + newlen] = 0;
+			Z_Free((char*)olds);
 			G_FLOAT(OFS_RETURN) = oldlen + newlen;
+			
+			Mod_SetEntitiesString(mod, newv, false);
 			if (mod->terrain)
 			{
 				hm = mod->terrain;
@@ -4849,7 +4865,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		}
 		return;
 	case ter_ents_get:
-		G_INT(OFS_RETURN) = PR_TempString(prinst, mod->entities);
+		G_INT(OFS_RETURN) = PR_TempString(prinst, Mod_GetEntitiesString(mod));
 		return;
 	case ter_save:
 		if (mod->terrain)
@@ -5087,10 +5103,11 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 }
 #endif
 
-void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
+void Terr_ParseEntityLump(model_t *mod, heightmap_t *heightmap)
 {
 	char key[128];
 	char value[2048];
+	const char *data = Mod_GetEntitiesString(mod);
 
 	heightmap->sectionsize = 1024;
 	heightmap->mode = HMM_TERRAIN;
@@ -5309,7 +5326,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 		if (mod->submodelof)
 			mod = mod->submodelof;
 		hm->entsdirty = false;
-		LightReloadEntities(hm->relightcontext, mod->entities, true);
+		LightReloadEntities(hm->relightcontext, Mod_GetEntitiesString(mod), true);
 
 		//FIXME: figure out some way to hint this without having to relight the entire frigging world.
 		for (bt = hm->brushtextures; bt; bt = bt->next)
@@ -6685,7 +6702,7 @@ void Terr_WriteMapFile(vfsfile_t *file, model_t *mod)
 {
 	char token[8192];
 	int nest = 0;
-	const char *start, *entities = mod->entities;
+	const char *start, *entities = Mod_GetEntitiesString(mod);
 	int i;
 	unsigned int entnum = 0;
 	heightmap_t *hm;
@@ -6803,7 +6820,8 @@ void Mod_Terrain_Save_f(void)
 			Con_Printf("unable to open %s\n", fname);
 		else
 		{
-			VFS_WRITE(file, mod->entities, strlen(mod->entities));
+			const char *s = Mod_GetEntitiesString(mod);
+			VFS_WRITE(file, s, strlen(s));
 			VFS_CLOSE(file);
 		}
 	}
@@ -6826,7 +6844,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 	char token[8192];
 	int nest = 0;
 	int buflen = strlen(entities);
-	char *out, *start;
+	char *out, *outstart, *start;
 	int i;
 	int submodelnum = 0;
 	qboolean isdetail = false;
@@ -6847,7 +6865,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 #endif
 
 	/*FIXME: we need to re-form the entities lump to insert model fields as appropriate*/
-	mod->entities = out = Z_Malloc(buflen+1);
+	outstart = out = Z_Malloc(buflen+1);
 
 	while(entities)
 	{
@@ -6914,8 +6932,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 						if (submod->loadstate == MLS_NOTLOADED)
 						{
 							submod->type = mod_heightmap;
-							if (!submod->entities)
-								submod->entities = Z_Malloc(1);
+							Mod_SetEntitiesString(submod, "", true);
 							subhm = submod->terrain = Mod_LoadTerrainInfo(submod, submod->name, true);
 
 							subhm->exteriorcontents = FTECONTENTS_EMPTY;
@@ -7149,7 +7166,9 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 		while(start < entities)
 			*out++ = *start++;
 	}
-	*out++ = 0;
+	*out = 0;
+
+	Mod_SetEntitiesString(mod, outstart, false);
 
 	mod->numsubmodels = submodelnum;
 
@@ -7209,7 +7228,7 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 	}
 	hm->exteriorcontents = exterior;	//sky outside the map
 
-	Terr_ParseEntityLump(mod->entities, hm);
+	Terr_ParseEntityLump(mod, hm);
 
 	if (hm->firstsegx != hm->maxsegx)
 	{
@@ -7252,7 +7271,7 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 #ifdef RUNTIMELIGHTING
 	if (hm->relightcontext)
 	{
-		LightReloadEntities(hm->relightcontext, mod->entities, true);
+		LightReloadEntities(hm->relightcontext, Mod_GetEntitiesString(mod), true);
 		hm->entsdirty = false;
 	}
 #endif
@@ -7265,11 +7284,11 @@ void *Mod_LoadTerrainInfo(model_t *mod, char *loadname, qboolean force)
 {
 	heightmap_t *hm;
 	heightmap_t potential;
-	if (!mod->entities)
+	if (!Mod_GetEntitiesString(mod))
 		return NULL;
 
 	memset(&potential, 0, sizeof(potential));
-	Terr_ParseEntityLump(mod->entities, &potential);
+	Terr_ParseEntityLump(mod, &potential);
 
 	if (potential.firstsegx >= potential.maxsegx || potential.firstsegy >= potential.maxsegy)
 	{
@@ -7347,7 +7366,7 @@ void Mod_Terrain_Create_f(void)
 	groundheight = Cmd_Argv(5); if (!*groundheight) groundheight = "0";
 	watername = Cmd_Argv(6); if (!*watername) watername = "";
 	waterheight = Cmd_Argv(7); if (!*waterheight) waterheight = "1024";
-	mod.entities = va(
+	Mod_SetEntitiesString(&mod, va(
 		"{\n"
 			"classname \"worldspawn\"\n"
 			"message \"%s\"\n"
@@ -7368,11 +7387,11 @@ void Mod_Terrain_Create_f(void)
 			"classname info_player_start\n"
 			"origin \"0 0 1024\"\n"
 		"}\n"
-		, Cmd_Argv(2));
+		, Cmd_Argv(2)), true);
 
 	mod.type = mod_heightmap;
 	mod.terrain = hm = Z_Malloc(sizeof(*hm));
-	Terr_ParseEntityLump(mod.entities, hm);
+	Terr_ParseEntityLump(&mod, hm);
 	hm->entitylock = Sys_CreateMutex();
 	ClearLink(&hm->recycle);
 	Q_strncpyz(hm->path, Cmd_Argv(1), sizeof(hm->path));
@@ -7411,6 +7430,7 @@ void Mod_Terrain_Create_f(void)
 		Con_Printf("Wrote %s\n", mname);
 		FS_FlushFSHashWritten();
 	}
+	Mod_SetEntitiesString(&mod, NULL, false);
 	Terr_FreeModel(&mod);
 }
 #endif

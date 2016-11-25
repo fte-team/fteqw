@@ -3155,22 +3155,7 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 	galiasskin_t *outskin = galias->ofsskins;
 	const char *slash;
 	unsigned int texflags;
-	const char *defaultshader;
-
-	if (r_softwarebanding && qrenderer == QR_OPENGL && sh_config.progs_supported)
-	{
-		defaultshader = 
-			"{\n"
-				"program defaultskin#EIGHTBIT\n"
-				"affine\n"
-				"{\n"
-					"map $colourmap\n"
-				"}\n"
-			"}\n"
-			;
-	}
-	else
-		defaultshader = NULL;
+	const char *defaultshader = NULL;
 
 	s = pq1inmodel->skinwidth*pq1inmodel->skinheight;
 	for (i = 0; i < pq1inmodel->numskins; i++)

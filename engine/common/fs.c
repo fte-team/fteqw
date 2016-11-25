@@ -3948,6 +3948,7 @@ void FS_Shutdown(void)
 	if (!fs_thread_mutex)
 		return;
 
+	PM_ManifestPackage(NULL, false);
 	FS_FreePaths();
 	Sys_DestroyMutex(fs_thread_mutex);
 	fs_thread_mutex = NULL;
@@ -4185,6 +4186,8 @@ static char fspdl_finalpath[MAX_OSPATH];
 static void FS_BeginNextPackageDownload(void);
 qboolean FS_DownloadingPackage(void)
 {
+	if (PM_IsApplying())
+		return true;
 	return !fs_manifest || !!curpackagedownload;
 }
 //vfsfile_t *FS_DecompressXZip(vfsfile_t *infile, vfsfile_t *outfile);
@@ -4370,6 +4373,8 @@ static void FS_PackageDownloaded(struct dl_download *dl)
 			{
 				Con_Printf("Unable to rename \"%s\" to \"%s\"\n", fspdl_temppath, fspdl_finalpath);
 			}
+//			else
+//				PM_AddDownloadedPackage(fspdl_finalpath);
 		}
 	}
 	Sys_remove (fspdl_temppath);
@@ -4715,6 +4720,7 @@ static void FS_ManifestUpdated(struct dl_download *dl)
 void FS_BeginManifestUpdates(void)
 {
 	ftemanifest_t *man = fs_manifest;
+	PM_ManifestPackage(man->installupd, man->doinstall);
 	if (curpackagedownload || !man)
 		return;
 
@@ -4914,6 +4920,8 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 	if (fs_manifest && fs_manifest->downloadsurl)
 		olddownloadsurl = Z_StrDup(fs_manifest->downloadsurl);
+	else if (!fs_manifest && man->downloadsurl)
+		olddownloadsurl = Z_StrDup(man->downloadsurl);
 	else
 		olddownloadsurl = NULL;
 
@@ -4935,7 +4943,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	}
 	fs_manifest = man;
 
-	if (!man->doinstall)
+	if (!man->doinstall && strcmp(man->downloadsurl?man->downloadsurl:"", olddownloadsurl?olddownloadsurl:""))
 	{	//make sure we only fuck over the user if this is a 'secure' manifest, and not hacked in some way.
 		Z_Free(man->downloadsurl);
 		man->downloadsurl = olddownloadsurl;
@@ -5167,6 +5175,7 @@ void FS_CreateBasedir(const char *path)
 	com_installer = false;
 	Q_strncpyz (com_gamepath, path, sizeof(com_gamepath));
 	COM_CreatePath(com_gamepath);
+	fs_manifest->doinstall = true;
 	FS_ChangeGame(fs_manifest, true, false);
 
 	if (host_parms.manifest)

@@ -108,7 +108,7 @@ cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version
 cvar_t	gameversion_min = CVARD("gameversion_min","", "gamecode version for server browsers");
 cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for server browsers");
 cvar_t	fs_gamename = CVARAFD("com_fullgamename", NULL, "fs_gamename", CVAR_NOSET, "The filesystem is trying to run this game");
-cvar_t	fs_downloads_url = CVARFD("fs_downloads_url", NULL, CVAR_NOSET, "The URL of a package updates list.");
+cvar_t	fs_downloads_url = CVARFD("fs_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");
 cvar_t	com_protocolname = CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
 cvar_t	com_parseezquake = CVARD("com_parseezquake", "0", "Treat chevron chars from configs as a per-character flag. You should use this only for compat with nquake's configs.");
@@ -2715,17 +2715,18 @@ consolecolours_t consolecolours[MAXCONCOLOURS] = {
 };
 
 // This is for remapping the Q3 color codes to character masks, including ^9
+// if using this table, make sure the truecolour flag is disabled first.
 conchar_t q3codemasks[MAXQ3COLOURS] = {
-	0x00000000, // 0, black
-	0x0c000000, // 1, red
-	0x0a000000, // 2, green
-	0x0e000000, // 3, yellow
-	0x09000000, // 4, blue
-	0x0b000000, // 5, cyan
-	0x0d000000, // 6, magenta
-	0x0f000000, // 7, white
-	0x0f100000, // 8, half-alpha white (BX_COLOREDTEXT)
-	0x07000000  // 9, "half-intensity" (BX_COLOREDTEXT)
+	COLOR_BLACK		<< CON_FGSHIFT,	// 0, black
+	COLOR_RED		<< CON_FGSHIFT,	// 1, red
+	COLOR_GREEN		<< CON_FGSHIFT,	// 2, green
+	COLOR_YELLOW	<< CON_FGSHIFT,	// 3, yellow
+	COLOR_BLUE		<< CON_FGSHIFT,	// 4, blue
+	COLOR_CYAN		<< CON_FGSHIFT,	// 5, cyan
+	COLOR_MAGENTA	<< CON_FGSHIFT,	// 6, magenta
+	COLOR_WHITE		<< CON_FGSHIFT,	// 7, white
+	(COLOR_WHITE	<< CON_FGSHIFT)|CON_HALFALPHA,	// 8, half-alpha white (BX_COLOREDTEXT)
+	COLOR_GREY		<< CON_FGSHIFT	// 9, "half-intensity" (BX_COLOREDTEXT)
 };
 
 //Converts a conchar_t string into a char string. returns the null terminator. pass NULL for stop to calc it
@@ -3203,7 +3204,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			{	//q3 colour codes
 				if (ext & CON_RICHFORECOLOUR)
 					ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~(CON_RICHFOREMASK|CON_RICHFORECOLOUR));
-				ext = q3codemasks[str[1]-'0'] | (ext&~CON_Q3MASK); //change colour only.
+				ext = q3codemasks[str[1]-'0'] | (ext&~(CON_WHITEMASK|CON_HALFALPHA)); //change colour only.
 			}
 			else if (str[1] == '&') // extended code
 			{

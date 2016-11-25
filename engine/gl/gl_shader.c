@@ -719,9 +719,12 @@ texid_t R_LoadColourmapImage(void)
 	{
 		size_t sz;
 		qbyte *pcx = FS_LoadMallocFile("pics/colormap.pcx", &sz);
-		colourmappal = Z_Malloc(256*VID_GRADES);
-		ReadPCXData(pcx, sz, 256, VID_GRADES, colourmappal);
-		BZ_Free(pcx);
+		if (pcx)
+		{
+			colourmappal = Z_Malloc(256*VID_GRADES);
+			ReadPCXData(pcx, sz, 256, VID_GRADES, colourmappal);
+			BZ_Free(pcx);
+		}
 	}
 	if (colourmappal)
 	{
@@ -730,8 +733,17 @@ texid_t R_LoadColourmapImage(void)
 	}
 	else
 	{	//erk
+		//fixme: generate a proper colourmap
 		for (x = 0; x < sizeof(data)/sizeof(data[0]); x++)
-			data[x] = d_8to24rgbtable[x & 0xff];
+		{
+			int r, g, b;
+			float l = 1.0-((x/256)/(float)VID_GRADES);
+			r = d_8to24rgbtable[x & 0xff];
+			g = (r>>16)&0xff;
+			b = (r>>8)&0xff;
+			r = (r>>0)&0xff;
+			data[x] = d_8to24rgbtable[GetPaletteIndex(r*l,g*l,b*l)];
+		}
 	}
 	BZ_Free(colourmappal);
 	return R_LoadTexture("$colourmap", w, h, TF_RGBA32, data, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA|IF_CLAMP);
@@ -4960,11 +4972,10 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader)
 
 		if ((shader->flags & SHADER_HASPALETTED) && !TEXVALID(tex->paletted))
 		{
-			/*dlights/realtime lighting needs some stuff*/
-//			if (!TEXVALID(tex->paletted) && *tex->mapname)
-//				tex->paletted = R_LoadHiResTexture(va("%s_pal", tex->mapname), NULL, 0|IF_NEAREST);
-//			if (!TEXVALID(tex->paletted))
-//				tex->paletted = R_LoadHiResTexture(va("%s_pal", imagename), subpath, ((*imagename=='{')?0:IF_NOALPHA)|IF_NEAREST);
+			if (!TEXVALID(tex->paletted) && *tex->mapname)
+				tex->paletted = R_LoadHiResTexture(va("%s", tex->mapname), NULL, 0|IF_NEAREST|IF_PALETTIZE);
+			if (!TEXVALID(tex->paletted))
+				tex->paletted = R_LoadHiResTexture(va("%s", imagename), subpath, ((*imagename=='{')?0:IF_NOALPHA)|IF_NEAREST|IF_PALETTIZE);
 		}
 
 		imageflags |= IF_LOWPRIORITY;
@@ -5228,6 +5239,16 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 	char *builtin = NULL;
 	if (Shader_ParseShader("defaultwall", s))
 		return;
+
+	if (!builtin && r_softwarebanding && (qrenderer == QR_OPENGL || qrenderer == QR_VULKAN) && sh_config.progs_supported)
+		builtin = (
+				"{\n"
+					"{\n"
+						"program defaultwall#EIGHTBIT\n"
+						"map $colourmap\n"
+					"}\n"
+				"}\n"
+			);
 
 	if (!builtin && r_lightmap.ival)
 		builtin = (
@@ -5605,17 +5626,6 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 				"}\n"
 			);
 	}
-	else if (r_softwarebanding && (qrenderer == QR_OPENGL || qrenderer == QR_VULKAN) && sh_config.progs_supported)
-	{
-		Shader_DefaultScript(shortname, s,
-			"{\n"
-				"program defaultwall#EIGHTBIT\n"
-				"{\n"
-					"map $colourmap\n"
-				"}\n"
-			"}\n"
-		);
-	}
 	else
 		Shader_DefaultBSPLM(shortname, s, args);
 }
@@ -5766,19 +5776,6 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 		);
 	}
 
-	if (!builtin && r_softwarebanding)
-	{
-		/*alpha bended*/
-		builtin = (
-			"{\n"
-			"program defaultwall#EIGHTBIT\n"
-				"{\n"
-					"map $colourmap\n"
-				"}\n"
-			"}\n"
-		);
-	}
-
 	if (builtin)
 		Shader_DefaultScript(shortname, s, builtin);
 	else
@@ -5842,6 +5839,20 @@ void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args)
 {
 	if (Shader_ParseShader("defaultskin", s))
 		return;
+
+	if (r_softwarebanding && qrenderer == QR_OPENGL && sh_config.progs_supported)
+	{
+		Shader_DefaultScript(shortname, s,
+			"{\n"
+				"program defaultskin#EIGHTBIT\n"
+				"affine\n"
+				"{\n"
+					"map $colourmap\n"
+				"}\n"
+			"}\n"
+			);
+		return;
+	}
 
 	Shader_DefaultScript(shortname, s,
 		"{\n"

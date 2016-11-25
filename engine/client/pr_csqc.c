@@ -3246,7 +3246,7 @@ static void QCBUILTIN PF_cs_getentitytoken (pubprogfuncs_t *prinst, struct globa
 	{
 		const char *s = PR_GetStringOfs(prinst, OFS_PARM0);
 		if (*s == 0)
-			s = cl.worldmodel?cl.worldmodel->entities:NULL;
+			s = Mod_GetEntitiesString(cl.worldmodel);
 		csqcmapentitydata = s;
 		G_INT(OFS_RETURN) = 0;
 		return;
@@ -6939,14 +6939,14 @@ void CSQC_WorldLoaded(void)
 		CSQC_FindGlobals(false);
 
 	csqcmapentitydataloaded = true;
-	csqcmapentitydata = cl.worldmodel?cl.worldmodel->entities:NULL;
+	csqcmapentitydata = Mod_GetEntitiesString(cl.worldmodel);
 
 	csqc_world.worldmodel = cl.worldmodel;
 	World_RBE_Start(&csqc_world);
 
 	worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
 	worldent->v->solid = SOLID_BSP;
-	wmodelindex = CS_FindModel(cl.worldmodel->name, &tmp);
+	wmodelindex = CS_FindModel(cl.worldmodel?cl.worldmodel->name:"", &tmp);
 	tmp = csqc_worldchanged;
 	csqc_setmodel(csqcprogs, worldent, wmodelindex);
 	csqc_worldchanged = tmp;

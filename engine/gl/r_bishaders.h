@@ -4482,6 +4482,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultwall",
+"!!ver 110 130\n"
 "!!permu DELUXE\n"
 "!!permu FULLBRIGHT\n"
 "!!permu FOG\n"
@@ -4493,6 +4494,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvarf gl_specular\n"
 
 "#include \"sys/defs.h\"\n"
+
+"#if GL_VERSION >= 130\n"
+"#define texture2D texture\n"
+"#define textureCube texture\n"
+"#define gl_FragColor gl_FragData[0]\n"
+"#endif\n"
 
 //this is what normally draws all of your walls, even with rtlights disabled
 //note that the '286' preset uses drawflat_walls instead.
@@ -4578,7 +4585,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //optional: round the lightmap coords to ensure all pixels within a texel have different lighting values either. it just looks wrong otherwise.
 //don't bother if its lightstyled, such cases will have unpredictable correlations anyway.
 //FIXME: this rounding is likely not correct with respect to software rendering. oh well.
-"vec2 lmcoord0 = floor(lm0 * 512.0*16.0)/(512.0*16.0);\n"
+"#if GL_VERSION >= 130\n"
+"vec2 lmsize = vec2(textureSize(s_lightmap0, 0));\n"
+"#else\n"
+"#define lmsize vec2(128.0,2048.0)\n"
+"#endif\n"
+"#define texelstolightmap (16.0)\n"
+"vec2 lmcoord0 = floor(lm0 * lmsize*texelstolightmap)/(lmsize*texelstolightmap);\n"
 "#define lm0 lmcoord0\n"
 "#endif\n"
 
@@ -4675,6 +4688,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "}\n"
 "#endif\n"
+
 },
 #endif
 #ifdef VKQUAKE

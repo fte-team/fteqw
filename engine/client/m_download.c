@@ -48,7 +48,7 @@ vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefil
 #ifndef SVNREVISION
 #define SVNREVISION -
 #endif
-#define DOWNLOADABLESARGS "?ver=" STRINGIFY(SVNREVISION) PHPVK PHPGL PHPD3D PHPMIN PHPLEG PHPDBG "&arch="PLATFORM "_" ARCH_CPU_POSTFIX
+#define DOWNLOADABLESARGS "ver=" STRINGIFY(SVNREVISION) PHPVK PHPGL PHPD3D PHPMIN PHPLEG PHPDBG "&arch="PLATFORM "_" ARCH_CPU_POSTFIX
 
 
 
@@ -81,6 +81,7 @@ extern cvar_t fs_downloads_url;
 #define DPF_HIDDEN					0x80	//wrong arch, file conflicts, etc. still listed if actually installed.
 #define DPF_ENGINE					0x100	//engine update. replaces old autoupdate mechanism
 #define DPF_PURGE					0x200	//package should be completely removed (ie: the dlcache dir too). if its still marked then it should be reinstalled anew. available on cached or corrupt packages, implied by native.
+#define DPF_MANIFEST				0x400	//package was named by the manifest, and should only be uninstalled after a warning.
 
 //pak.lst
 //priories <0
@@ -172,8 +173,10 @@ typedef struct package_s {
 static qboolean loadedinstalled;
 static package_t *availablepackages;
 static int numpackages;
+static char *manifestpackage;	//metapackage named by the manicfest.
+static qboolean domanifestinstall;
 
-qboolean doautoupdate;	//updates will be marked (but not applied without the user's actions)
+static qboolean doautoupdate;	//updates will be marked (but not applied without the user's actions)
 
 //FIXME: these are allocated for the life of the exe. changing basedir should purge the list.
 static int numdownloadablelists = 0;
@@ -185,7 +188,7 @@ static struct
 	qboolean save;				//written into our local file
 	struct dl_download *curdl;	//the download context
 } downloadablelist[32];
-int downloadablessequence;	//bumped any time any package is purged
+static int downloadablessequence;	//bumped any time any package is purged
 
 static void PM_FreePackage(package_t *p)
 {
@@ -222,6 +225,9 @@ static void PM_FreePackage(package_t *p)
 	for (i = 0; i < countof(p->mirror); i++)
 		Z_Free(p->mirror[i]);
 
+	Z_Free(p->name);
+	Z_Free(p->category);
+	Z_Free(p->title);
 	Z_Free(p->description);
 	Z_Free(p->author);
 	Z_Free(p->license);
@@ -665,6 +671,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				char *arch = NULL;
 				char *qhash = NULL;
 				char *title = NULL;
+				char *category = NULL;
 				char *description = NULL;
 				char *license = NULL;
 				char *author = NULL;
@@ -683,8 +690,10 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 					char *arg = Cmd_Argv(i);
 					if (!strncmp(arg, "url=", 4))
 						url = arg+4;
-					else if (!strncmp(arg, "title=", 8))
-						title = arg+8;
+					else if (!strncmp(arg, "category=", 9))
+						category = arg+9;
+					else if (!strncmp(arg, "title=", 6))
+						title = arg+6;
 					else if (!strncmp(arg, "gamedir=", 8))
 						gamedir = arg+8;
 					else if (!strncmp(arg, "ver=", 4))
@@ -740,13 +749,31 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 					}
 				}
 
-				if (*prefix)
-					Q_snprintfz(pathname, sizeof(pathname), "%s/%s", prefix, fullname);
+				if (category)
+				{
+					p->name = Z_StrDup(fullname);
+
+					if (*prefix)
+						Q_snprintfz(pathname, sizeof(pathname), "%s/%s", prefix, category);
+					else
+						Q_snprintfz(pathname, sizeof(pathname), "%s", category);
+					if (*pathname)
+					{
+						if (pathname[strlen(pathname)-1] != '/')
+							Q_strncatz(pathname, "/", sizeof(pathname));
+					}
+					p->category = Z_StrDup(pathname);
+				}
 				else
-					Q_snprintfz(pathname, sizeof(pathname), "%s", fullname);
-				p->name = Z_StrDup(COM_SkipPath(pathname));
-				*COM_SkipPath(pathname) = 0;
-				p->category = Z_StrDup(pathname);
+				{
+					if (*prefix)
+						Q_snprintfz(pathname, sizeof(pathname), "%s/%s", prefix, fullname);
+					else
+						Q_snprintfz(pathname, sizeof(pathname), "%s", fullname);
+					p->name = Z_StrDup(COM_SkipPath(pathname));
+					*COM_SkipPath(pathname) = 0;
+					p->category = Z_StrDup(pathname);
+				}
 
 				if (!title)
 					title = p->name;
@@ -1219,6 +1246,7 @@ static void PM_PrintChanges(void)
 		Con_Printf("<%i package(s) changed>\n", changes);
 }
 
+static void PM_ApplyChanges(void);
 
 static void PM_ListDownloaded(struct dl_download *dl)
 {
@@ -1246,16 +1274,46 @@ static void PM_ListDownloaded(struct dl_download *dl)
 	else
 		downloadablelist[i].received = -1;
 
-	if (!doautoupdate)
+	if (!doautoupdate && !domanifestinstall)
 		return;	//don't spam this.
 	for (i = 0; i < numdownloadablelists; i++)
 	{
 		if (!downloadablelist[i].received)
 			break;
 	}
-	if (i == numdownloadablelists)
+	if (domanifestinstall)
 	{
-		doautoupdate = true;
+		package_t *meta;
+		meta = PM_MarkedPackage(manifestpackage);
+		if (!meta)
+			meta = PM_FindPackage(manifestpackage);
+		if (meta)
+		{
+			PM_RevertChanges();
+			PM_MarkPackage(meta);
+			PM_ApplyChanges();
+
+#ifdef DOWNLOADMENU
+			if (!isDedicated)
+			{
+				if (Key_Dest_Has(kdm_emenu))
+				{
+					Key_Dest_Remove(kdm_emenu);
+					m_state = m_none;
+				}
+#ifdef MENU_DAT
+				if (Key_Dest_Has(kdm_gmenu))
+					MP_Toggle(0);
+#endif
+				Cmd_ExecuteString("menu_download\n", RESTRICT_LOCAL);
+			
+			}
+#endif
+			return;
+		}
+	}
+	if (doautoupdate && i == numdownloadablelists)
+	{
 		if (PM_MarkUpdates())
 		{
 #ifdef DOWNLOADMENU
@@ -1282,6 +1340,7 @@ static void PM_ListDownloaded(struct dl_download *dl)
 static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 {
 	unsigned int i;
+	int setting;
 
 	if (retry>1 || fs_downloads_url.modified)
 		PM_Shutdown();
@@ -1303,7 +1362,11 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 		if (downloadablelist[i].curdl)
 			continue;
 
-		downloadablelist[i].curdl = HTTP_CL_Get(va("%s"DOWNLOADABLESARGS, downloadablelist[i].url), NULL, PM_ListDownloaded);
+		setting = Sys_GetAutoUpdateSetting();
+//		if (setting == UPD_UNSUPPORTED)
+//			setting = autoupdatesetting+1;
+
+		downloadablelist[i].curdl = HTTP_CL_Get(va("%s%s"DOWNLOADABLESARGS"%s", downloadablelist[i].url, strchr(downloadablelist[i].url,'?')?"&":"?", (setting>=UPD_TESTING)?"test=1":""), NULL, PM_ListDownloaded);
 		if (downloadablelist[i].curdl)
 		{
 			downloadablelist[i].curdl->user_num = i;
@@ -1441,7 +1504,7 @@ static void PM_WriteInstalledPackages(void)
 			if (p->description)
 			{
 				Q_strncatz(buf, " ", sizeof(buf));
-				COM_QuotedConcat(va("description=%s", p->description), buf, sizeof(buf));
+				COM_QuotedConcat(va("desc=%s", p->description), buf, sizeof(buf));
 			}
 			if (p->license)
 			{
@@ -1735,23 +1798,60 @@ static char *PM_GetTempName(package_t *p)
 	return Z_StrDup(destname);
 }
 
+static void PM_AddDownloadedPackage(const char *filename)
+{
+	char pathname[1024];
+	package_t *p;
+	Q_snprintfz(pathname, sizeof(pathname), "%s/%s", "Cached", filename);
+	p->name = Z_StrDup(COM_SkipPath(pathname));
+	*COM_SkipPath(pathname) = 0;
+	p->category = Z_StrDup(pathname);
+
+	Q_strncpyz(p->version, "", sizeof(p->version));
+
+	Q_snprintfz(p->gamedir, sizeof(p->gamedir), "%s", "");
+	p->fsroot = FS_ROOT;
+	p->extract = EXTRACT_COPY;
+	p->priority = 0;
+	p->flags = DPF_INSTALLED;
+
+	p->title = Z_StrDup(p->name);
+	p->arch = NULL;
+	p->qhash = NULL; //FIXME
+	p->description = NULL;
+	p->license = NULL;
+	p->author = NULL;
+	p->previewimage = NULL;
+}
+
+int PM_IsApplying(void)
+{
+	package_t *p;
+	int count = 0;
+	int i;
+	for (p = availablepackages; p ; p=p->next)
+	{
+		if (p->download)
+			count++;
+	}
+	for (i = 0; i < numdownloadablelists; i++)
+	{
+		if (downloadablelist[i].curdl)
+			count++;
+	}
+	return count;
+}
+
 //looks for the next package that needs downloading, and grabs it
 static void PM_StartADownload(void)
 {
 	vfsfile_t *tmpfile;
 	char *temp;
-//	char native[MAX_OSPATH];
 	package_t *p;
-	int simultaneous = 1;
+	const int simultaneous = 1;
 	int i;
 
-	for (p = availablepackages; p ; p=p->next)
-	{
-		if (p->download)
-			simultaneous--;
-	}
-
-	for (p = availablepackages; p && simultaneous > 0; p=p->next)
+	for (p = availablepackages; p && simultaneous > PM_IsApplying(); p=p->next)
 	{
 		if (p->trymirrors)
 		{	//flagged for a (re?)download
@@ -1848,8 +1948,6 @@ static void PM_StartADownload(void)
 					VFS_CLOSE(tmpfile);
 				FS_Remove(temp, p->fsroot);
 			}
-
-			simultaneous--;
 		}
 	}
 }
@@ -1862,7 +1960,9 @@ static void PM_ApplyChanges(void)
 	for (link = &availablepackages; *link ; )
 	{
 		p = *link;
-		if ((p->flags & DPF_PURGE) || (!(p->flags&DPF_MARKED) && (p->flags&DPF_INSTALLED)))
+		if (p->download)
+			; //erk, dude, don't do two!
+		else if ((p->flags & DPF_PURGE) || (!(p->flags&DPF_MARKED) && (p->flags&DPF_INSTALLED)))
 		{	//if we don't want it but we have it anyway:
 			qboolean reloadpacks = false;
 			struct packagedep_s *dep;
@@ -1941,6 +2041,20 @@ static void PM_ApplyChanges(void)
 	PM_StartADownload();	//and try to do those downloads.
 }
 
+void PM_ManifestPackage(const char *metaname, qboolean mark)
+{
+	domanifestinstall = mark;
+	Z_Free(manifestpackage);
+	if (metaname)
+	{
+		manifestpackage = Z_StrDup(metaname);
+		if (mark)
+			PM_UpdatePackageList(false, false);
+	}
+	else
+		manifestpackage = NULL;
+}
+
 void PM_Command_f(void)
 {
 	package_t *p;
@@ -1990,7 +2104,7 @@ void PM_Command_f(void)
 			else
 				status = "";
 
-			Con_Printf(" ^[%s%s%s%s^] %s %s\n", markup, p->name, p->arch?":":"", p->arch?p->arch:"", status, strcmp(p->name, p->title)?p->title:"");
+			Con_Printf(" ^[%s%s%s%s^] %s^9 %s\n", markup, p->name, p->arch?":":"", p->arch?p->arch:"", status, strcmp(p->name, p->title)?p->title:"");
 		}
 		Con_Printf("<end of list>\n");
 	}
@@ -2252,7 +2366,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 			}
 		}
 
-		n = p->name;
+		n = p->title;
 		if (p->flags & DPF_DISPLAYVERSION)
 			n = va("%s (%s)", n, *p->version?p->version:"unversioned");
 
@@ -2361,10 +2475,10 @@ static void MD_AutoUpdate_Draw (int x, int y, struct menucustom_s *c, struct men
 	char *settings[] = 
 	{
 		"Unsupported",
-		"Revert",
+		"Revert Engine",
 		"Off",
 		"Stable Updates",
-		"Unsable Updates"
+		"Test Updates"
 	};
 	char *text;
 	int setting = Sys_GetAutoUpdateSetting();

@@ -402,7 +402,7 @@ void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 void R_ReloadRTLights_f(void);
 qboolean R_LoadRTLights(void);
-qboolean R_ImportRTLights(char *entlump);
+qboolean R_ImportRTLights(const char *entlump);
 void R_SaveRTLights_f(void);
 
 //doom

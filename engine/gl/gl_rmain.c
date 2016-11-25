@@ -1762,7 +1762,7 @@ void GLR_RenderView (void)
 	double	time1 = 0, time2;
 	texid_t sourcetex = r_nulltex;
 	shader_t *custompostproc = NULL;
-	float renderscale = r_renderscale.value;	//extreme, but whatever
+	float renderscale;	//extreme, but whatever
 	int oldfbo = 0;
 
 	checkglerror();
@@ -1790,9 +1790,16 @@ void GLR_RenderView (void)
 	Surf_SetupFrame();
 	r_refdef.flags &= ~(RDF_ALLPOSTPROC|RDF_RENDERSCALE);
 
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+	if (dofbo || (r_refdef.flags & RDF_NOWORLDMODEL))
+	{
+		renderscale = 1;
+	}
+	else
+	{
+		renderscale = r_renderscale.value;
 		if (R_CanBloom())
 			r_refdef.flags |= RDF_BLOOM;
+	}
 
 	//check if we can do underwater warp
 	if (cls.protocol != CP_QUAKE2)	//quake2 tells us directly

@@ -3547,12 +3547,45 @@ static void Image_8_BGR_RGB_Swap(qbyte *data, unsigned int w, unsigned int h)
 	}
 }
 
-static void Image_ChangeFormat(struct pendingtextureinfo *mips, uploadfmt_t origfmt)
+static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt)
 {
 	int mip;
 
 	if (mips->type != PTI_2D)
 		return;	//blurgh
+
+	if (flags & IF_PALETTIZE)
+	{
+		if (mips->encoding == PTI_RGBX8)
+		{
+			mips->encoding = PTI_R8;
+			for (mip = 0; mip < mips->mipcount; mip++)
+			{
+				unsigned int i;
+				unsigned char *out;
+				unsigned char *in;
+				void *needfree = NULL;
+				
+				in = mips->mip[mip].data;
+				if (mips->mip[mip].needfree)
+					out = in;
+				else
+				{
+					needfree = in;
+					out = BZ_Malloc(mips->mip[mip].width*mips->mip[mip].height*sizeof(*out));
+					mips->mip[mip].data = out;
+				}
+				mips->mip[mip].datasize = mips->mip[mip].width*mips->mip[mip].height;
+				mips->mip[mip].needfree = true;
+
+				for (i = 0; i < mips->mip[mip].width*mips->mip[mip].height; i++, in+=4)
+					out[i] = GetPaletteIndex(in[0], in[1], in[2]);
+
+				if (needfree)
+					BZ_Free(needfree);
+			}
+		}
+	}
 
 	//if that format isn't supported/desired, try converting it.
 	if (sh_config.texfmt[mips->encoding])
@@ -3721,7 +3754,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		//8bit opaque data
 		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 		flags |= IF_NOPICMIP;
-		if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
+		if (/*!r_dodgymiptex.ival &&*/ mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
 		{
 			unsigned int pixels =
 				(imgwidth>>0) * (imgheight>>0) + 
@@ -4153,7 +4186,7 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 		return false;
 	}
 	Image_GenerateMips(mips, flags);
-	Image_ChangeFormat(mips, fmt);
+	Image_ChangeFormat(mips, flags, fmt);
 
 	tex->width = imgwidth;
 	tex->height = imgheight;
@@ -4612,7 +4645,7 @@ image_t *Image_FindTexture(const char *identifier, const char *subdir, unsigned 
 	tex = Hash_Get(&imagetable, identifier);
 	while(tex)
 	{
-		if (!((tex->flags ^ flags) & IF_CLAMP))
+		if (!((tex->flags ^ flags) & (IF_CLAMP|IF_PALETTIZE)))
 		{
 #ifdef PURGEIMAGES
 			if (!strcmp(subdir, tex->subpath?tex->subpath:""))
@@ -4847,7 +4880,7 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 	if (!Image_GenMip0(&mips, flags, data, palette, width, height, fmt, false))
 		return;
 	Image_GenerateMips(&mips, flags);
-	Image_ChangeFormat(&mips, fmt);
+	Image_ChangeFormat(&mips, flags, fmt);
 	rf->IMG_LoadTextureMips(tex, &mips);
 	tex->width = width;
 	tex->height = height;

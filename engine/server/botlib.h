@@ -179,7 +179,7 @@ typedef struct botlib_import_s
 	//check if the point is in potential visible sight
 	int			(QDECL *inPVS)(vec3_t p1, vec3_t p2);
 	//retrieve the BSP entity data lump
-	char		*(QDECL *BSPEntityData)(void);
+	const char	*(QDECL *BSPEntityData)(void);
 	//
 	void		(QDECL *BSPModelMinsMaxsOrigin)(int modelnum, vec3_t angles, vec3_t mins, vec3_t maxs, vec3_t origin);
 	//send a bot client command

@@ -248,80 +248,50 @@ int HLMod_BoneForName(model_t *mod, char *name)
  =======================================================================================================================
     HL_CalculateBones - calculate bone positions - quaternion+vector in one function
  =======================================================================================================================
-
-  note, while ender may be proud of this function, it lacks the fact that interpolating eular angles is not as acurate as interpolating quaternions.
-  it is faster though.
  */
 void HL_CalculateBones
 (
-    int				offset,
-    int				frame1,
-	int				frame2,
-	float			lerpfrac,
-    vec4_t			adjust,
-    hlmdl_bone_t	*bone,
-    hlmdl_anim_t	*animation,
-    float			*destination
+	int				frame,
+	vec4_t			adjust,
+	hlmdl_bone_t	*bone,
+	hlmdl_anim_t	*animation,
+	float			*organg
 )
 {
-    /*~~~~~~~~~~*/
-    int		i;
-    vec3_t	angle;
-	float lerpifrac = 1-lerpfrac;
-    /*~~~~~~~~~~*/
+	int		i;
 
-    /* For each vector */
-    for(i = 0; i < 3; i++)
-    {
-        /*~~~~~~~~~~~~~~~*/
-        int o = i + offset;        /* Take the value offset - allows quaternion & vector in one function */
-        /*~~~~~~~~~~~~~~~*/
+	/* For each vector */
+	for(i = 0; i < 6; i++)
+	{
+		organg[i] = bone->value[i];	/* Take the bone value */
 
-        angle[i] = bone->value[o];	/* Take the bone value */
+		if(animation->offset[i] != 0)
+		{
+			/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+			int					tempframe;
+			hlmdl_animvalue_t	*animvalue = (hlmdl_animvalue_t *) ((qbyte *) animation + animation->offset[i]);
+			/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-        if(animation->offset[o] != 0)
-        {
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-            int					tempframe;
-            hlmdl_animvalue_t	*animvalue = (hlmdl_animvalue_t *) ((qbyte *) animation + animation->offset[o]);
-			short	f1, f2;
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-
-            /* find values including the required frame */
-			tempframe = frame1;
-            while(animvalue->num.total <= tempframe)
-            {
-                tempframe -= animvalue->num.total;
-                animvalue += animvalue->num.valid + 1;
-            }
-			f1 = animvalue[min(animvalue->num.valid-1, tempframe)+1].value;
-
-			/* frame2 is always higher than frame1, so keep searching for it, if its in a different block */
-			tempframe += frame2-frame1;
+			/* find values including the required frame */
+			tempframe = frame;
 			while(animvalue->num.total <= tempframe)
-            {
-                tempframe -= animvalue->num.total;
-                animvalue += animvalue->num.valid + 1;
-            }
-			f2 = animvalue[min(animvalue->num.valid-1, tempframe)+1].value;
+			{
+				tempframe -= animvalue->num.total;
+				animvalue += animvalue->num.valid + 1;
+			}
+			if (tempframe >= animvalue->num.valid)
+				tempframe = animvalue->num.valid;
+			else
+				tempframe += 1;
 
-			angle[i] += (f1 * lerpifrac + lerpfrac * f2) * bone->scale[o];
-        }
+			organg[i] += animvalue[tempframe].value * bone->scale[i];
+		}
 
-        if(bone->bonecontroller[o] != -1)
+		if(bone->bonecontroller[i] != -1)
 		{	/* Add the programmable offset. */
-            angle[i] += adjust[bone->bonecontroller[o]];
-        }
-    }
-
-    if(offset < 3)
-    {
-        VectorCopy(angle, destination);			/* Just a standard vector */
-    }
-    else
-    {
-        QuaternionGLAngle(angle, destination);	/* A quaternion */
-    }
+			organg[i] += adjust[bone->bonecontroller[i]];
+		}
+	}
 }
 
 /*
@@ -331,39 +301,39 @@ void HL_CalculateBones
  */
 void HL_CalcBoneAdj(hlmodel_t *model)
 {
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-    int						i;
-    float					value;
-    hlmdl_bonecontroller_t	*control = (hlmdl_bonecontroller_t *)
-                                      ((qbyte *) model->header + model->header->controllerindex);
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+	int						i;
+	float					value;
+	hlmdl_bonecontroller_t	*control = (hlmdl_bonecontroller_t *)
+									  ((qbyte *) model->header + model->header->controllerindex);
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    for(i = 0; i < model->header->numcontrollers; i++)
-    {
-        /*~~~~~~~~~~~~~~~~~~~~~*/
-        int j = control[i].index;
-        /*~~~~~~~~~~~~~~~~~~~~~*/
+	for(i = 0; i < model->header->numcontrollers; i++)
+	{
+		/*~~~~~~~~~~~~~~~~~~~~~*/
+		int j = control[i].index;
+		/*~~~~~~~~~~~~~~~~~~~~~*/
 
-        if(control[i].type & 0x8000)
-        {
-            value = model->controller[j] + control[i].start;
-        }
-        else
-        {
-            value = (model->controller[j]+1)*0.5;	//shifted to give a valid range between -1 and 1, with 0 being mid-range.
-            if(value < 0)
-                value = 0;
-            else if(value > 1.0)
-                value = 1.0;
-            value = (1.0 - value) * control[i].start + value * control[i].end;
-        }
+		if(control[i].type & 0x8000)
+		{
+			value = model->controller[j] + control[i].start;
+		}
+		else
+		{
+			value = (model->controller[j]+1)*0.5;	//shifted to give a valid range between -1 and 1, with 0 being mid-range.
+			if(value < 0)
+				value = 0;
+			else if(value > 1.0)
+				value = 1.0;
+			value = (1.0 - value) * control[i].start + value * control[i].end;
+		}
 
-        /* Rotational controllers need their values converted */
-        if(control[i].type >= 0x0008 && control[i].type <= 0x0020)
-            model->adjust[i] = M_PI * value / 180;
-        else
-            model->adjust[i] = value;
-    }
+		/* Rotational controllers need their values converted */
+		if(control[i].type >= 0x0008 && control[i].type <= 0x0020)
+			model->adjust[i] = M_PI * value / 180;
+		else
+			model->adjust[i] = value;
+	}
 }
 
 /*
@@ -374,21 +344,23 @@ void HL_CalcBoneAdj(hlmodel_t *model)
 void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt );
 void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, float subblendfrac, float frametime)
 {
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-    int						i;
-    float					matrix[3][4];
-    static vec3_t			positions[2];
-    static vec4_t			quaternions[2], blended;
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+	int						i;
+	float					matrix[3][4];
+	vec3_t					organg1[2];
+	vec3_t					organg2[2];
+	vec3_t					organgb[2];
+	vec4_t					quat1, quat2, quatb;
 
 	int frame1, frame2;
 
-    hlmdl_sequencelist_t	*sequence = (hlmdl_sequencelist_t *) ((qbyte *) model->header + model->header->seqindex) +
+	hlmdl_sequencelist_t	*sequence = (hlmdl_sequencelist_t *) ((qbyte *) model->header + model->header->seqindex) +
 										 ((unsigned int)seqnum>=model->header->numseq?0:seqnum);
-    hlmdl_sequencedata_t	*sequencedata = (hlmdl_sequencedata_t *)
-                                         ((qbyte *) model->header + model->header->seqgroups) +
-                                         sequence->seqindex;
-    hlmdl_anim_t			*animation;
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+	hlmdl_sequencedata_t	*sequencedata = (hlmdl_sequencedata_t *)
+										 ((qbyte *) model->header + model->header->seqgroups) +
+										 sequence->seqindex;
+	hlmdl_anim_t			*animation;
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 	if (sequencedata->name[32])
 	{
@@ -420,7 +392,7 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 
 	if (!sequence->numframes)
 		return;
-    if(frame1 >= sequence->numframes)
+	if(frame1 >= sequence->numframes)
 	{
 		if (sequence->loop)
 			frame1 %= sequence->numframes;
@@ -448,15 +420,15 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 
 
 
-    HL_CalcBoneAdj(model);	/* Deal with programmable controllers */
+	HL_CalcBoneAdj(model);	/* Deal with programmable controllers */
 
 	/*FIXME:this is useless*/
 	/*
-    if(sequence->motiontype & 0x0001)
+	if(sequence->motiontype & 0x0001)
 		positions[sequence->motionbone][0] = 0.0;
-    if(sequence->motiontype & 0x0002)
+	if(sequence->motiontype & 0x0002)
 		positions[sequence->motionbone][1] = 0.0;
-    if(sequence->motiontype & 0x0004)
+	if(sequence->motiontype & 0x0004)
 		positions[sequence->motionbone][2] = 0.0;
 		*/
 
@@ -490,16 +462,35 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 			subblendfrac = 1;
 		for(i = firstbone; i < lastbone; i++)
 		{
-			HL_CalculateBones(0, frame1, frame2, frametime, model->adjust, model->bones + i, animation + i, positions[0]);
-			HL_CalculateBones(3, frame1, frame2, frametime, model->adjust, model->bones + i, animation + i, quaternions[0]);
+			//calc first blend (writes organgb+quatb)
+			HL_CalculateBones(frame1, model->adjust, model->bones + i, animation + i, organgb[0]);
+			QuaternionGLAngle(organgb[1], quatb);	/* A quaternion */
+			if (frame1 != frame2)
+			{
+				HL_CalculateBones(frame2, model->adjust, model->bones + i, animation + i, organg2[0]);
+				QuaternionGLAngle(organg2[1], quat2);	/* A quaternion */
 
-			HL_CalculateBones(3, frame1, frame2, frametime, model->adjust, model->bones + i, animation + i + model->header->numbones, quaternions[1]);
+				QuaternionSlerp(quatb, quat2, frametime, quatb);
+				VectorInterpolate(organgb[0], frametime, organg2[0], organgb[0]);
+			}
 
-			QuaternionSlerp(quaternions[0], quaternions[1], subblendfrac, blended);
-			QuaternionGLMatrix(blended[0], blended[1], blended[2], blended[3], matrix);
-			matrix[0][3] = positions[0][0];
-			matrix[1][3] = positions[0][1];
-			matrix[2][3] = positions[0][2];
+			//calc first blend (writes organg1+quat1)
+			HL_CalculateBones(frame1, model->adjust, model->bones + i, animation + i + model->header->numbones, organg1[0]);
+			QuaternionGLAngle(organg1[1], quat1);	/* A quaternion */
+			if (frame1 != frame2)
+			{
+				HL_CalculateBones(frame2, model->adjust, model->bones + i, animation + i + model->header->numbones, organg2[0]);
+				QuaternionGLAngle(organg2[1], quat2);	/* A quaternion */
+
+				QuaternionSlerp(quat1, quat2, frametime, quat1);
+				VectorInterpolate(organg1[0], frametime, organg2[0], organg1[0]);
+			}
+
+			//blend the two
+			QuaternionSlerp(quatb, quat1, subblendfrac, quat1);
+			FloatInterpolate(organgb[0][0], subblendfrac, organg1[0][0], matrix[0][3]);
+			FloatInterpolate(organgb[0][0], subblendfrac, organg1[0][1], matrix[1][3]);
+			FloatInterpolate(organgb[0][0], subblendfrac, organg1[0][2], matrix[2][3]);
 
 			/* If we have a parent, take the addition. Otherwise just copy the values */
 			if(model->bones[i].parent>=0)
@@ -511,25 +502,28 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 				memcpy(transform_matrix[i], matrix, 12 * sizeof(float));
 			}
 		}
-
 	}
 	else
 	{
 		for(i = firstbone; i < lastbone; i++)
 		{
-			/*
-			 * There are two vector offsets in the structure. The first seems to be the
-			 * positions of the bones, the second the quats of the bone matrix itself. We
-			 * convert it inside the routine - Inconsistant, but hey.. so's the whole model
-			 * format.
-			 */
-			HL_CalculateBones(0, frame1, frame2, frametime, model->adjust, model->bones + i, animation + i, positions[0]);
-			HL_CalculateBones(3, frame1, frame2, frametime, model->adjust, model->bones + i, animation + i, quaternions[0]);
+			HL_CalculateBones(frame1, model->adjust, model->bones + i, animation + i, organg1[0]);
+			QuaternionGLAngle(organg1[1], quat1);	/* A quaternion */
+			if (frame1 != frame2)
+			{
+				HL_CalculateBones(frame2, model->adjust, model->bones + i, animation + i, organg2[0]);
+				QuaternionGLAngle(organg2[1], quat2);	/* A quaternion */
 
-			QuaternionGLMatrix(quaternions[0][0], quaternions[0][1], quaternions[0][2], quaternions[0][3], matrix);
-			matrix[0][3] = positions[0][0];
-			matrix[1][3] = positions[0][1];
-			matrix[2][3] = positions[0][2];
+				//lerp the quats properly rather than poorly lerping eular angles.
+				QuaternionSlerp(quat1, quat2, frametime, quat1);
+				VectorInterpolate(organg1[0], frametime, organg2[0], organg1[0]);
+			}
+
+			//we probably ought to keep them as quats or something.
+			QuaternionGLMatrix(quat1[0], quat1[1], quat1[2], quat1[3], matrix);
+			matrix[0][3] = organg1[0][0];
+			matrix[1][3] = organg1[0][1];
+			matrix[2][3] = organg1[0][2];
 
 			/* If we have a parent, take the addition. Otherwise just copy the values */
 			if(model->bones[i].parent>=0)
@@ -649,6 +643,7 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_model_t *amodel, entity_t *curent, 
 			st[vert][0] = order[2] * tex_s;
 			st[vert][1] = order[3] * tex_t;
 
+			/*fixme: build vertex normals in the base pose and transform them using the same bone matricies (just discard the origin part)*/
 			norm[vert][0] = 1;
 			norm[vert][1] = 1;
 			norm[vert][2] = 1;
@@ -661,7 +656,7 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_model_t *amodel, entity_t *curent, 
 			order += 4;
 			vert++;
 		} while(--count);
-    }
+	}
 
 	mesh->numindexes = idx;
 	mesh->numvertexes = vert;
@@ -690,23 +685,23 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 	model.memgroup  = &rent->model->memgroup;
 
 	for (body = 0; body < model.header->numbodyparts; body++)
-    {
-        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-        hlmdl_bodypart_t	*bodypart = (hlmdl_bodypart_t *) ((qbyte *) model.header + model.header->bodypartindex) + body;
-        int					bodyindex = (0 / bodypart->base) % bodypart->nummodels;
-        hlmdl_model_t		*amodel = (hlmdl_model_t *) ((qbyte *) model.header + bodypart->modelindex) + bodyindex;
-        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+	{
+		/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+		hlmdl_bodypart_t	*bodypart = (hlmdl_bodypart_t *) ((qbyte *) model.header + model.header->bodypartindex) + body;
+		int					bodyindex = (0 / bodypart->base) % bodypart->nummodels;
+		hlmdl_model_t		*amodel = (hlmdl_model_t *) ((qbyte *) model.header + bodypart->modelindex) + bodyindex;
+		/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
-        /* Draw each mesh */
-        for(m = 0; m < amodel->nummesh; m++)
-        {
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-            hlmdl_mesh_t	*mesh = (hlmdl_mesh_t *) ((qbyte *) model.header + amodel->meshindex) + m;
-            float			tex_w;
-            float			tex_h;
+		/* Draw each mesh */
+		for(m = 0; m < amodel->nummesh; m++)
+		{
+			/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+			hlmdl_mesh_t	*mesh = (hlmdl_mesh_t *) ((qbyte *) model.header + amodel->meshindex) + m;
+			float			tex_w;
+			float			tex_h;
 			struct hlmodelshaders_s *s;
-            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+			/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 			if (mesh->skinindex >= modelc->numskins)
 				continue;
@@ -766,7 +761,7 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 				b->next = batches[sort];
 				batches[sort] = b;
 			}
-			else
+				else
 			{
 				if (batchid == b->surf_first)
 				{
@@ -780,8 +775,8 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 			}
 
 			batchid++;
-        }
-    }
+		}
+	}
 }
 
 qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel);

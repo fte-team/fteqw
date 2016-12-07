@@ -1352,7 +1352,7 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 	shader_t *shader;
 	int facemask;
 	extern cvar_t r_projection;
-	int osm = r_refdef.stereomethod;
+	int osm;
 	struct vk_rendertarg_cube *rtc = &vk_rt_cubemap;
 
 	if (!*ffov.string || !strcmp(ffov.string, "0"))
@@ -1497,6 +1497,7 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 	VectorCopy(r_refdef.viewangles, saveang);
 	saveang[2] = 0;
 
+	osm = r_refdef.stereomethod;
 	r_refdef.stereomethod = STEREO_OFF;
 
 	VKBE_RT_Gen_Cube(rtc, cmapsize, r_clear.ival?true:false);

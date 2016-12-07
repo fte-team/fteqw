@@ -18,6 +18,18 @@ cvar_t mod_terrain_networked = CVARD("mod_terrain_networked", "0", "Terrain edit
 cvar_t mod_terrain_defaulttexture = CVARD("mod_terrain_defaulttexture", "", "Newly created terrain tiles will use this texture. This should generally be updated by the terrain editor.");
 cvar_t mod_terrain_savever = CVARD("mod_terrain_savever", "", "Which terrain section version to write if terrain was edited.");
 
+enum
+{
+	hmcmd_brush_delete,
+	hmcmd_brush_insert,
+	hmcmd_prespawning,	//sent before initial inserts
+	hmcmd_prespawned,		//sent just after initial inserts
+
+	hmcmd_ent_edit = 0x40,
+	hmcmd_ent_remove
+};
+
+
 void validatelinks(link_t *firstnode)
 {
 /*	link_t *node;
@@ -4808,8 +4820,9 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	vec3_t pos;// G_VECTOR(OFS_PARM1);
 	float radius = G_FLOAT(OFS_PARM2);
 	float quant = G_FLOAT(OFS_PARM3);
+	int modelindex = ((wedict_t*)PROG_TO_EDICT(prinst, *vmw->g.self))->v->modelindex;
 //	G_FLOAT(OFS_RETURN) = Heightmap_Edit(w->worldmodel, action, pos, radius, quant);
-	model_t *mod = vmw->Get_CModel(vmw, ((wedict_t*)PROG_TO_EDICT(prinst, *vmw->g.self))->v->modelindex);
+	model_t *mod = vmw->Get_CModel(vmw, modelindex);
 	heightmap_t *hm;
 	vec4_t tally;
 
@@ -4828,15 +4841,85 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	case ter_ent_get:
 		{
 			int idx = G_INT(OFS_PARM1);
-			G_INT(OFS_RETURN) = 0;
+			if (!mod->numentityinfo)
+				Mod_ParseEntities(mod);
+			if (idx >= mod->numentityinfo || !mod->entityinfo[idx].keyvals)
+				G_INT(OFS_RETURN) = 0;
+			else
+				G_INT(OFS_RETURN) = PR_TempString(prinst, mod->entityinfo[idx].keyvals);
 		}
 		return;
 	case ter_ent_set:
 		{
 			int idx = G_INT(OFS_PARM1);
-			const char *news = PR_GetStringOfs(prinst, OFS_PARM2);
+			const char *newvals;
+			if (!mod->numentityinfo)
+				Mod_ParseEntities(mod);
+			if (idx < mod->numentityinfo)
+			{
+				Z_Free(mod->entityinfo[idx].keyvals);
+				mod->entityinfo[idx].keyvals = NULL;
+			}
+			if (G_INT(OFS_PARM2))
+			{
+				newvals = PR_GetStringOfs(prinst, OFS_PARM2);
+				if (idx >= mod->numentityinfo)
+					Z_ReallocElements(&mod->entityinfo, &mod->numentityinfo, idx+64, sizeof(*mod->entityinfo));
+				mod->entityinfo[idx].keyvals = Z_StrDup(newvals);
+			}
+			else
+				newvals = NULL;
 			G_INT(OFS_RETURN) = 0;
+
+#ifndef CLIENTONLY
+			if (sv.state && modelindex > 0)
+			{
+				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+				MSG_WriteShort(&sv.multicast, modelindex);
+				MSG_WriteByte(&sv.multicast, newvals?hmcmd_ent_edit:hmcmd_ent_remove);
+				MSG_WriteLong(&sv.multicast, idx);
+				if (newvals)
+					MSG_WriteString(&sv.multicast, newvals);
+				SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
+				//tell ssqc, csqc will be told by the server
+			}
+			else
+#endif
+#ifndef SERVERONLY
+			if (cls.state && modelindex > 0)
+			{
+				MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
+				MSG_WriteShort(&cls.netchan.message, modelindex);
+				MSG_WriteByte(&cls.netchan.message, newvals?hmcmd_ent_edit:hmcmd_ent_remove);
+				MSG_WriteLong(&cls.netchan.message, idx);
+				if (newvals)
+					MSG_WriteString(&cls.netchan.message, newvals);
+
+				#ifdef CSQC_DAT
+					CSQC_MapEntityEdited(idx, newvals);
+				#endif
+			}
+			else
+#endif
+			{
+				#ifdef CSQC_DAT
+					CSQC_MapEntityEdited(idx, newvals);
+				#endif
+			}
 		}
+		return;
+	case ter_ent_add:
+		{
+			int idx = G_INT(OFS_PARM1);
+			const char *news = PR_GetStringOfs(prinst, OFS_PARM2);
+			G_INT(OFS_RETURN) = mod->numentityinfo;
+
+		}
+		return;
+	case ter_ent_count:
+		if (!mod->numentityinfo)
+			Mod_ParseEntities(mod);
+		G_INT(OFS_RETURN) = mod->numentityinfo;
 		return;
 	case ter_ents_wipe:
 		G_INT(OFS_RETURN) = PR_TempString(prinst, Mod_GetEntitiesString(mod));
@@ -6018,6 +6101,7 @@ static qboolean Brush_Deserialise(heightmap_t *hm, brushes_t *br)
 	}
 	return true;
 }
+
 #ifndef SERVERONLY
 heightmap_t	*CL_BrushEdit_ForceContext(model_t *mod)
 {
@@ -6050,14 +6134,20 @@ void CL_Parse_BrushEdit(void)
 	model_t			*mod			= (modelindex<countof(cl.model_precache))?cl.model_precache[modelindex]:NULL;
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 
-	if (cmd == 0)
+#ifdef CLIENTONLY
+	const qboolean		ignore = false;
+#else
+	const qboolean		ignore = (sv.state>=ss_loading);	//if we're the server then we already have this info. don't break anything (this info is present for demos).
+#endif
+
+	if (cmd == hmcmd_brush_delete)
 	{
 		int id = MSG_ReadLong();
-		if (sv.state >= ss_loading)
+		if (ignore)
 			return;	//ignore if we're the server, we should already have it anyway.
 		Terr_Brush_DeleteId(hm, id);
 	}
-	else if (cmd == 1)
+	else if (cmd == hmcmd_brush_insert)	//1=create/replace
 	{
 		brushes_t brush;
 
@@ -6069,7 +6159,7 @@ void CL_Parse_BrushEdit(void)
 		brush.faces = alloca(sizeof(*brush.faces) * brush.numplanes);
 		if (!Brush_Deserialise(hm, &brush))
 			Host_EndGame("CL_Parse_BrushEdit: unparsable brush\n");
-		if (sv.state >= ss_loading)
+		if (ignore)
 			return;	//ignore if we're the server, we should already have it anyway (but might need it for demos, hence why its still sent).
 		if (brush.id)
 		{
@@ -6088,9 +6178,9 @@ void CL_Parse_BrushEdit(void)
 		}
 		Terr_Brush_Insert(mod, hm, &brush);
 	}
-	else if (cmd == 2)
-	{
-		if (sv.state >= ss_loading)
+	else if (cmd == hmcmd_prespawning)
+	{	//delete all
+		if (ignore)
 			return;	//ignore if we're the server, we should already have it anyway.
 
 		hm = CL_BrushEdit_ForceContext(mod);	//make sure we don't end up with any loaded brushes.
@@ -6100,9 +6190,37 @@ void CL_Parse_BrushEdit(void)
 				Terr_Brush_DeleteIdx(hm, hm->numbrushes-1);
 		}
 	}
-	else if (cmd == 3)
+	else if (cmd == hmcmd_prespawned)
 	{
-		//follows edits after a 2
+	}
+	else if (cmd == hmcmd_ent_edit)
+	{	//ent edit
+		int id = MSG_ReadLong();
+		const char *data = MSG_ReadString();
+		if (id > 0xffff)
+			return;
+		if (id >= mod->numentityinfo)
+			Z_ReallocElements(&mod->entityinfo, &mod->numentityinfo, id+64, sizeof(*mod->entityinfo));
+		if (id < mod->numentityinfo)
+		{
+			if (!ignore)
+			{
+				Z_Free(mod->entityinfo[id].keyvals);
+				mod->entityinfo[id].keyvals = Z_StrDup(data);
+			}
+			CSQC_MapEntityEdited(id, data);
+		}
+	}
+	else if (cmd == hmcmd_ent_remove)
+	{
+		int id = MSG_ReadLong();
+		if (sv.state >= ss_loading)
+			return;	//if we're the server then this will already have been done. don't clobber from internal latency
+		if (id < mod->numentityinfo)
+		{
+			Z_Free(mod->entityinfo[id].keyvals);
+			mod->entityinfo[id].keyvals = NULL;
+		}
 	}
 	else
 		Host_EndGame("CL_Parse_BrushEdit: unknown command %i\n", cmd);
@@ -6140,7 +6258,7 @@ qboolean SV_Prespawn_Brushes(sizebuf_t *msg, unsigned int *modelindex, unsigned 
 		{	//make sure the client starts with a clean slate.
 			MSG_WriteByte(msg, svcfte_brushedit);
 			MSG_WriteShort(msg, *modelindex);
-			MSG_WriteByte(msg, 2);
+			MSG_WriteByte(msg, hmcmd_prespawning);
 		}
 
 		//weird loop to try to ensure we never miss any brushes.
@@ -6161,7 +6279,7 @@ qboolean SV_Prespawn_Brushes(sizebuf_t *msg, unsigned int *modelindex, unsigned 
 		{
 			MSG_WriteByte(msg, svcfte_brushedit);
 			MSG_WriteShort(msg, *modelindex);
-			MSG_WriteByte(msg, 1);
+			MSG_WriteByte(msg, hmcmd_brush_insert);
 			Brush_Serialise(msg, best);
 			*lastid = bestid;
 			return true;
@@ -6178,8 +6296,8 @@ qboolean SV_Parse_BrushEdit(void)
 	int				cmd				= MSG_ReadByte();
 	model_t			*mod			= (modelindex<countof(sv.models))?sv.models[modelindex]:NULL;
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
-	if (cmd == 0)
-	{
+	if (cmd == hmcmd_brush_delete)
+	{	//delete
 		unsigned int brushid = MSG_ReadLong();
 		if (!authorise)
 		{
@@ -6190,12 +6308,12 @@ qboolean SV_Parse_BrushEdit(void)
 
 		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
 		MSG_WriteShort(&sv.multicast, modelindex);
-		MSG_WriteByte(&sv.multicast, 0);
+		MSG_WriteByte(&sv.multicast, hmcmd_brush_delete);
 		MSG_WriteLong(&sv.multicast, brushid);
 		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
 		return true;
 	}
-	else if (cmd == 1)
+	else if (cmd == hmcmd_brush_insert)
 	{
 		brushes_t brush;
 		memset(&brush, 0, sizeof(brush));
@@ -6221,10 +6339,30 @@ qboolean SV_Parse_BrushEdit(void)
 
 		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
 		MSG_WriteShort(&sv.multicast, modelindex);
-		MSG_WriteByte(&sv.multicast, 1);
+		MSG_WriteByte(&sv.multicast, hmcmd_brush_insert);
 		Brush_Serialise(&sv.multicast, &brush);
 		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
 		return true;
+	}
+	else if (cmd == hmcmd_ent_edit || cmd == hmcmd_ent_remove)
+	{
+		size_t entid = MSG_ReadLong();
+		char *keyvals = (cmd == hmcmd_ent_edit)?MSG_ReadString():NULL;
+		if (mod->submodelof != mod)
+			return true;
+		if (!authorise)
+		{
+			SV_PrintToClient(host_client, PRINT_MEDIUM, "Entity editing ignored: you are not a mapper\n");
+			return true;
+		}
+
+		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+		MSG_WriteShort(&sv.multicast, modelindex);
+		MSG_WriteByte(&sv.multicast, keyvals?hmcmd_ent_edit:hmcmd_ent_remove);
+		MSG_WriteLong(&sv.multicast, entid);
+		if (keyvals)
+			MSG_WriteString(&sv.multicast, keyvals);
+		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
 	}
 	else
 	{
@@ -6366,7 +6504,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		{
 			MSG_WriteByte(&sv.multicast, svcfte_brushedit);
 			MSG_WriteShort(&sv.multicast, modelindex);
-			MSG_WriteByte(&sv.multicast, 0);
+			MSG_WriteByte(&sv.multicast, hmcmd_brush_delete);
 			MSG_WriteLong(&sv.multicast, brushid);
 			SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
 		}
@@ -6377,7 +6515,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		{
 			MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
 			MSG_WriteShort(&cls.netchan.message, modelindex);
-			MSG_WriteByte(&cls.netchan.message, 0);
+			MSG_WriteByte(&cls.netchan.message, hmcmd_brush_delete);
 			MSG_WriteLong(&cls.netchan.message, brushid);
 		}
 #else
@@ -6418,7 +6556,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			{
 				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
 				MSG_WriteShort(&sv.multicast, modelindex);
-				MSG_WriteByte(&sv.multicast, 1);
+				MSG_WriteByte(&sv.multicast, hmcmd_brush_insert);
 				Brush_Serialise(&sv.multicast, nb);
 				SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
 				return;
@@ -6429,7 +6567,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			{
 				MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
 				MSG_WriteShort(&cls.netchan.message, modelindex);
-				MSG_WriteByte(&cls.netchan.message, 1);
+				MSG_WriteByte(&cls.netchan.message, hmcmd_brush_insert);
 				Brush_Serialise(&cls.netchan.message, nb);
 				return;
 			}
@@ -6456,7 +6594,7 @@ void QCBUILTIN PF_brush_delete(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	{
 		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
 		MSG_WriteShort(&sv.multicast, modelindex);
-		MSG_WriteByte(&sv.multicast, 0);
+		MSG_WriteByte(&sv.multicast, hmcmd_brush_delete);
 		MSG_WriteLong(&sv.multicast, brushid);
 		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
 		return;
@@ -6467,7 +6605,7 @@ void QCBUILTIN PF_brush_delete(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	{
 		MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
 		MSG_WriteShort(&cls.netchan.message, modelindex);
-		MSG_WriteByte(&cls.netchan.message, 0);
+		MSG_WriteByte(&cls.netchan.message, hmcmd_brush_delete);
 		MSG_WriteLong(&cls.netchan.message, brushid);
 		return;
 	}

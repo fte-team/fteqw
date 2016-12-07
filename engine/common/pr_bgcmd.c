@@ -1708,6 +1708,29 @@ void QCBUILTIN PF_hash_destroytab (pubprogfuncs_t *prinst, struct globalvars_s *
 		Z_Free(tab->bucketmem);
 	}
 }
+void PF_Hash_DestroyAll(pubprogfuncs_t *prinst)
+{
+	qboolean freed = true;
+	size_t idx;
+	for (idx = 0; idx < pf_hash_maxtables; idx++)
+	{
+		if (pf_hashtab[idx].prinst == prinst)
+		{
+			pf_hashtab[idx].prinst = NULL;
+			Hash_Enumerate(&pf_hashtab[idx].tab, PF_hash_destroytab_enum, NULL);
+			Z_Free(pf_hashtab[idx].bucketmem);
+		}
+		else if (pf_hashtab[idx].prinst)
+			freed = false;
+	}
+
+	if (freed && pf_hashtab)
+	{
+		pf_hash_maxtables = 0;
+		Z_Free(pf_hashtab);
+		pf_hashtab	= NULL;
+	}
+}
 void QCBUILTIN PF_hash_createtab (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	//FIXME: these need to be managed by the qcvm for garbage collection
@@ -2567,6 +2590,7 @@ void PR_fclose_progs (pubprogfuncs_t *prinst)
 {
 	PF_fcloseall(prinst);
 	search_close_progs(prinst, true);
+	PF_Hash_DestroyAll(prinst);
 }
 
 //File access

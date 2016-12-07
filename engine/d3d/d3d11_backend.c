@@ -159,6 +159,8 @@ typedef struct
 	vec3_t e_light_dir; float pad2;
 	vec3_t e_light_mul; float pad3;
 	vec4_t e_lmscale[4];
+	vec4_t e_uppercolour;
+	vec4_t e_lowercolour;
 } cbuf_entity_t;
 
 //vertex attributes
@@ -2781,6 +2783,34 @@ void D3D11BE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 	ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)shaderstate.lcbuffer, 0);
 }
 
+static void R_FetchPlayerColour(unsigned int cv, vec4_t rgba)
+{
+	int i;
+
+	if (cv >= 16)
+	{
+		rgba[0] = (((cv&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[15]+0)) / (256.0*256);
+		rgba[1] = (((cv&0x00ff00)>>8)**((unsigned char*)&d_8to24rgbtable[15]+1)) / (256.0*256);
+		rgba[2] = (((cv&0x0000ff)>>0)**((unsigned char*)&d_8to24rgbtable[15]+2)) / (256.0*256);
+		rgba[3] = 1.0;
+		return;
+	}
+	i = cv;
+	if (i >= 8)
+	{
+		i<<=4;
+	}
+	else
+	{
+		i<<=4;
+		i+=15;
+	}
+	i*=3;
+	rgba[0] = host_basepal[i+0] / 255.0;
+	rgba[1] = host_basepal[i+1] / 255.0;
+	rgba[2] = host_basepal[i+2] / 255.0;
+	rgba[3] = 1.0;
+}
 
 //also updates the entity constant buffer
 static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
@@ -2967,6 +2997,9 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	VectorCopy(e->light_avg, cbe->e_light_ambient);
 	VectorCopy(e->light_dir, cbe->e_light_dir);
 	VectorCopy(e->light_range, cbe->e_light_mul);
+
+	R_FetchPlayerColour(e->topcolour, cbe->e_uppercolour);
+	R_FetchPlayerColour(e->bottomcolour, cbe->e_lowercolour);
 
 	//various stuff in modelspace
 	Matrix4x4_CM_Transform3(modelinv, r_origin, cbe->e_eyepos);

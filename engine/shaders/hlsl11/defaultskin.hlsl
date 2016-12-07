@@ -1,3 +1,4 @@
+!!permu UPPERLOWER
 !!samps diffuse upper lower fullbright
 
 struct a2v
@@ -60,11 +61,11 @@ struct v2f
 
 #ifdef UPPER
 		float4 uc = t_upper.Sample(SampleType, inp.tc);
-		col.rgb = lerp(col.rgb, uc.rgb*e_uppercolour, uc.a);
+		col.rgb += uc.rgb*e_uppercolour.rgb*uc.a;
 #endif
 #ifdef LOWER
 		float4 lc = t_lower.Sample(SampleType, inp.tc);
-		col.rgb = lerp(col.rgb, lc.rgb*e_lowercolour, lc.a);
+		col.rgb += lc.rgb*e_lowercolour.rgb*lc.a;
 #endif
 		col.rgb *= inp.light;
 //#ifdef FULLBRIGHT

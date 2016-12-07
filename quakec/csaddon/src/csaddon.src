@@ -1,6 +1,10 @@
 ﻿../csaddon.dat
 //pr_dumpplatform -FFTE -Fdefines -TCS -O csplat
-opts.qc
+
+//#pragma flag enable assumeint
+//#pragma flag enable typeexplicit
+
+#define CSQC
 csplat.qc
 csfixups.qc
 

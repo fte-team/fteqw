@@ -1,4 +1,4 @@
-!!ver 110 130
+!!ver 110 // 130
 !!permu DELUXE
 !!permu FULLBRIGHT
 !!permu FOG

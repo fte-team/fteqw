@@ -1164,7 +1164,7 @@ float CL_FilterTime (double time, float wantfps, qboolean ignoreserver)	//now re
 	{
 		if (!wantfps)
 			return -1;
-		fps = max (30.0, wantfps);
+		fps = max (1.0, wantfps);
 	}
 	else
 	{

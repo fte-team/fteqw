@@ -29,6 +29,7 @@ extern cvar_t gl_overbright;
 extern cvar_t gl_ati_truform;
 extern cvar_t r_wireframe;
 extern cvar_t r_refract_fbo;
+extern cvar_t r_refractreflect_scale;
 
 extern texid_t missing_texture;
 extern texid_t missing_texture_gloss;
@@ -103,12 +104,12 @@ struct {
 		texid_t tex_sourcedepth;
 		texid_t tex_reflectcube;/*used where $reflectcube was invalid or failed*/
 		fbostate_t fbo_2dfbo;
-		fbostate_t fbo_reflectrefrac;
+		fbostate_t fbo_reflectrefrac[R_MAX_RECURSE];
 		fbostate_t fbo_lprepass;
-		texid_t tex_reflection;	/*basically a portal rendered to texture*/
-		texid_t tex_refraction;	/*the (culled) underwater view*/
-		texid_t tex_refractiondepth;	/*the (culled) underwater view*/
-		texid_t tex_ripplemap;	/*temp image for waves and things.*/
+		texid_t tex_reflection[R_MAX_RECURSE];	/*basically a portal rendered to texture*/
+		texid_t tex_refraction[R_MAX_RECURSE];	/*the (culled) underwater view*/
+		texid_t tex_refractiondepth[R_MAX_RECURSE];	/*the (culled) underwater view*/
+		texid_t tex_ripplemap[R_MAX_RECURSE];	/*temp image for waves and things.*/
 
 		int curpatchverts;
 		qboolean force2d;
@@ -1239,7 +1240,7 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		t = shaderstate.tex_sourcedepth;
 		break;
 	case T_GEN_REFLECTION:
-		t = shaderstate.tex_reflection;
+		t = shaderstate.tex_reflection[r_refdef.recurse];
 		break;
 	case T_GEN_REFRACTION:
 		if (!r_refract_fboival)
@@ -1247,13 +1248,13 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 			T_Gen_CurrentRender(tmu);
 			return;
 		}
-		t = shaderstate.tex_refraction;
+		t = shaderstate.tex_refraction[r_refdef.recurse];
 		break;
 	case T_GEN_REFRACTIONDEPTH:
-		t = shaderstate.tex_refractiondepth;
+		t = shaderstate.tex_refractiondepth[r_refdef.recurse];
 		break;
 	case T_GEN_RIPPLEMAP:
-		t = shaderstate.tex_ripplemap;
+		t = shaderstate.tex_ripplemap[r_refdef.recurse];
 		break;
 	}
 	GL_LazyBind(tmu, GL_TEXTURE_2D, t);
@@ -1383,24 +1384,28 @@ void GenerateFogTexture(texid_t *tex, float density, float zscale)
 
 void GLBE_DestroyFBOs(void)
 {
+	size_t i;
 	GLBE_FBO_Destroy(&shaderstate.fbo_2dfbo);
-	GLBE_FBO_Destroy(&shaderstate.fbo_reflectrefrac);
 	GLBE_FBO_Destroy(&shaderstate.fbo_lprepass);
 
-	if (shaderstate.tex_reflection)
+	for (i = 0; i < R_MAX_RECURSE; i++)
 	{
-		Image_DestroyTexture(shaderstate.tex_reflection);
-		shaderstate.tex_reflection = r_nulltex;
-	}
-	if (shaderstate.tex_refraction)
-	{
-		Image_DestroyTexture(shaderstate.tex_refraction);
-		shaderstate.tex_refraction = r_nulltex;
-	}
-	if (shaderstate.tex_refractiondepth)
-	{
-		Image_DestroyTexture(shaderstate.tex_refractiondepth);
-		shaderstate.tex_refractiondepth = r_nulltex;
+		GLBE_FBO_Destroy(&shaderstate.fbo_reflectrefrac[i]);
+		if (shaderstate.tex_reflection[i])
+		{
+			Image_DestroyTexture(shaderstate.tex_reflection[i]);
+			shaderstate.tex_reflection[i] = r_nulltex;
+		}
+		if (shaderstate.tex_refraction[i])
+		{
+			Image_DestroyTexture(shaderstate.tex_refraction[i]);
+			shaderstate.tex_refraction[i] = r_nulltex;
+		}
+		if (shaderstate.tex_refractiondepth[i])
+		{
+			Image_DestroyTexture(shaderstate.tex_refractiondepth[i]);
+			shaderstate.tex_refractiondepth[i] = r_nulltex;
+		}
 	}
 	if (shaderstate.temptexture)
 	{
@@ -4643,6 +4648,10 @@ static void GLBE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 {
 	batch_t *batch, *masklists[2];
 	int i;
+
+	if (!dynamiclist && !worldlist[SHADER_SORT_PORTAL])
+		return;	//no portals to draw
+
 	/*attempt to draw portal shaders*/
 	if (shaderstate.mode == BEM_STANDARD)
 	{
@@ -4668,19 +4677,19 @@ static void GLBE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 		//make sure the current scene doesn't draw over the portal where its not meant to. clamp depth so the near clip plane doesn't cause problems.
 		if (gl_config.arb_depth_clamp)
 			qglEnable(GL_DEPTH_CLAMP_ARB);
+		/*draw depth only, to mask it off*/
+		GLBE_SelectMode(BEM_DEPTHONLY);
 		for (i = 0; i < 2; i++)
 		{
 			for (batch = i?dynamiclist:worldlist[SHADER_SORT_PORTAL]; batch; batch = batch->next)
 			{
-				if (batch->meshes == batch->firstmesh)
-					continue;
+//				if (batch->meshes == batch->firstmesh)
+//					continue;
 
-				/*draw depth only, to mask it off*/
-				GLBE_SelectMode(BEM_DEPTHONLY);
 				GLBE_SubmitBatch(batch);
-				GLBE_SelectMode(BEM_STANDARD);
 			}
 		}
+		GLBE_SelectMode(BEM_STANDARD);
 		if (gl_config.arb_depth_clamp)
 			qglDisable(GL_DEPTH_CLAMP_ARB);
 	}
@@ -4749,9 +4758,9 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			int oldfbo;
 			float oldil;
 			int oldbem;
-			//these flags require rendering some view as an fbo
-			if (r_refdef.recurse)
+			if (r_refdef.recurse == r_portalrecursion.ival || r_refdef.recurse == R_MAX_RECURSE)
 				continue;
+			//these flags require rendering some view as an fbo
 			if (shaderstate.mode != BEM_STANDARD && shaderstate.mode != BEM_DEPTHDARK)
 				continue;
 			oldbem = shaderstate.mode;
@@ -4759,36 +4768,37 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 
 			if ((bs->flags & SHADER_HASREFLECT) && gl_config.ext_framebuffer_objects)
 			{
+				float renderscale = r_refractreflect_scale.value;
 				vrect_t orect = r_refdef.vrect;
 				pxrect_t oprect = r_refdef.pxrect;
-				if (!shaderstate.tex_reflection)
+				if (!shaderstate.tex_reflection[r_refdef.recurse])
 				{
-					shaderstate.tex_reflection = Image_CreateTexture("***tex_reflection***", NULL, 0);
-					if (!shaderstate.tex_reflection->num)
-						qglGenTextures(1, &shaderstate.tex_reflection->num);
+					shaderstate.tex_reflection[r_refdef.recurse] = Image_CreateTexture("***tex_reflection***", NULL, 0);
+					if (!shaderstate.tex_reflection[r_refdef.recurse]->num)
+						qglGenTextures(1, &shaderstate.tex_reflection[r_refdef.recurse]->num);
 				}
 
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
-				r_refdef.vrect.width = vid.fbvwidth/2;
-				r_refdef.vrect.height = vid.fbvheight/2;
+				r_refdef.vrect.width = max(1, vid.fbvwidth * renderscale);
+				r_refdef.vrect.height = max(1, vid.fbvheight * renderscale);
 				r_refdef.pxrect.x = 0;
 				r_refdef.pxrect.y = 0;
-				r_refdef.pxrect.width = vid.fbpwidth/2;
-				r_refdef.pxrect.height = vid.fbpheight/2;
-				if (shaderstate.tex_reflection->width!=r_refdef.pxrect.width || shaderstate.tex_reflection->height!=r_refdef.pxrect.height)
+				r_refdef.pxrect.width = max(1, vid.fbpwidth * renderscale);
+				r_refdef.pxrect.height = max(1, vid.fbpheight * renderscale);
+				if (shaderstate.tex_reflection[r_refdef.recurse]->width!=r_refdef.pxrect.width || shaderstate.tex_reflection[r_refdef.recurse]->height!=r_refdef.pxrect.height)
 				{
-					shaderstate.tex_reflection->width = r_refdef.pxrect.width;
-					shaderstate.tex_reflection->height = r_refdef.pxrect.height;
-					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_reflection);
-					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, shaderstate.tex_reflection->width, shaderstate.tex_reflection->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					shaderstate.tex_reflection[r_refdef.recurse]->width = r_refdef.pxrect.width;
+					shaderstate.tex_reflection[r_refdef.recurse]->height = r_refdef.pxrect.height;
+					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_reflection[r_refdef.recurse]);
+					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
-				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_RB_DEPTH, &shaderstate.tex_reflection, 1, r_nulltex, shaderstate.tex_reflection->width, shaderstate.tex_reflection->height, 0);
-				r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac.rb_size[1];
+				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac[r_refdef.recurse], FBO_RB_DEPTH, &shaderstate.tex_reflection[r_refdef.recurse], 1, r_nulltex, shaderstate.tex_reflection[r_refdef.recurse]->width, shaderstate.tex_reflection[r_refdef.recurse]->height, 0);
+				r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac[r_refdef.recurse].rb_size[1];
 				GL_ViewportUpdate();
 				GL_ForceDepthWritable();
 				qglClearColor(0, 0, 0, 1);
@@ -4803,28 +4813,29 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			{
 				if (r_refract_fboival)
 				{
+					float renderscale = min(1, r_refractreflect_scale.value);
 					vrect_t ovrect = r_refdef.vrect;
 					pxrect_t oprect = r_refdef.pxrect;
 					r_refdef.vrect.x = 0;
 					r_refdef.vrect.y = 0;
-					r_refdef.vrect.width = vid.fbvwidth/2;
-					r_refdef.vrect.height = vid.fbvheight/2;
+					r_refdef.vrect.width = max(1, vid.fbvwidth * renderscale);
+					r_refdef.vrect.height = max(1, vid.fbvheight * renderscale);
 					r_refdef.pxrect.x = 0;
 					r_refdef.pxrect.y = 0;
-					r_refdef.pxrect.width = vid.fbpwidth/2;
-					r_refdef.pxrect.height = vid.fbpheight/2;
+					r_refdef.pxrect.width = max(1, vid.fbpwidth * renderscale);
+					r_refdef.pxrect.height = max(1, vid.fbpheight * renderscale);
 
-					if (!shaderstate.tex_refraction)
+					if (!shaderstate.tex_refraction[r_refdef.recurse])
 					{
-						shaderstate.tex_refraction = Image_CreateTexture("***tex_refraction***", NULL, 0);
-						if (!shaderstate.tex_refraction->num)
-						qglGenTextures(1, &shaderstate.tex_refraction->num);
+						shaderstate.tex_refraction[r_refdef.recurse] = Image_CreateTexture("***tex_refraction***", NULL, 0);
+						if (!shaderstate.tex_refraction[r_refdef.recurse]->num)
+						qglGenTextures(1, &shaderstate.tex_refraction[r_refdef.recurse]->num);
 					}
-					if (shaderstate.tex_refraction->width != r_refdef.pxrect.width || shaderstate.tex_refraction->height != r_refdef.pxrect.height)
+					if (shaderstate.tex_refraction[r_refdef.recurse]->width != r_refdef.pxrect.width || shaderstate.tex_refraction[r_refdef.recurse]->height != r_refdef.pxrect.height)
 					{
-						shaderstate.tex_refraction->width = r_refdef.pxrect.width;
-						shaderstate.tex_refraction->height = r_refdef.pxrect.height;
-						GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refraction);
+						shaderstate.tex_refraction[r_refdef.recurse]->width = r_refdef.pxrect.width;
+						shaderstate.tex_refraction[r_refdef.recurse]->height = r_refdef.pxrect.height;
+						GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refraction[r_refdef.recurse]);
 						qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -4833,30 +4844,30 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					}
 					if (bs->flags & SHADER_HASREFRACTDEPTH)
 					{
-						if (!shaderstate.tex_refractiondepth)
+						if (!shaderstate.tex_refractiondepth[r_refdef.recurse])
 						{
-							shaderstate.tex_refractiondepth = Image_CreateTexture("***tex_refractiondepth***", NULL, 0);
-							if (!shaderstate.tex_refractiondepth->num)
-								qglGenTextures(1, &shaderstate.tex_refractiondepth->num);
+							shaderstate.tex_refractiondepth[r_refdef.recurse] = Image_CreateTexture("***tex_refractiondepth***", NULL, 0);
+							if (!shaderstate.tex_refractiondepth[r_refdef.recurse]->num)
+								qglGenTextures(1, &shaderstate.tex_refractiondepth[r_refdef.recurse]->num);
 						}
-						if (shaderstate.tex_refractiondepth->width != r_refdef.pxrect.width || shaderstate.tex_refractiondepth->height != r_refdef.pxrect.height)
+						if (shaderstate.tex_refractiondepth[r_refdef.recurse]->width != r_refdef.pxrect.width || shaderstate.tex_refractiondepth[r_refdef.recurse]->height != r_refdef.pxrect.height)
 						{
-							shaderstate.tex_refractiondepth->width = r_refdef.pxrect.width;
-							shaderstate.tex_refractiondepth->height = r_refdef.pxrect.height;
-							GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refractiondepth);
+							shaderstate.tex_refractiondepth[r_refdef.recurse]->width = r_refdef.pxrect.width;
+							shaderstate.tex_refractiondepth[r_refdef.recurse]->height = r_refdef.pxrect.height;
+							GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refractiondepth[r_refdef.recurse]);
 							qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24_ARB, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 						}
-						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_TEX_DEPTH, &shaderstate.tex_refraction, 1, shaderstate.tex_refractiondepth, r_refdef.pxrect.width, r_refdef.pxrect.height, 0);
+						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac[r_refdef.recurse], FBO_TEX_DEPTH, &shaderstate.tex_refraction[r_refdef.recurse], 1, shaderstate.tex_refractiondepth[r_refdef.recurse], r_refdef.pxrect.width, r_refdef.pxrect.height, 0);
 					}
 					else
 					{
-						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_RB_DEPTH, &shaderstate.tex_refraction, 1, r_nulltex, r_refdef.pxrect.width, r_refdef.pxrect.height, 0);
+						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac[r_refdef.recurse], FBO_RB_DEPTH, &shaderstate.tex_refraction[r_refdef.recurse], 1, r_nulltex, r_refdef.pxrect.width, r_refdef.pxrect.height, 0);
 					}
-					r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac.rb_size[1];
+					r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac[r_refdef.recurse].rb_size[1];
 					GL_ViewportUpdate();
 
 					GL_ForceDepthWritable();
@@ -4874,37 +4885,38 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			}
 			if ((bs->flags & SHADER_HASRIPPLEMAP) && gl_config.ext_framebuffer_objects)
 			{
+				float renderscale = r_refractreflect_scale.value;
 				vrect_t orect = r_refdef.vrect;
 				pxrect_t oprect = r_refdef.pxrect;
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
-				r_refdef.vrect.width = vid.fbvwidth/2;
-				r_refdef.vrect.height = vid.fbvheight/2;
+				r_refdef.vrect.width = max(1, vid.fbvwidth * renderscale);
+				r_refdef.vrect.height = max(1, vid.fbvheight * renderscale);
 				r_refdef.pxrect.x = 0;
 				r_refdef.pxrect.y = 0;
-				r_refdef.pxrect.width = vid.fbpwidth/2;
-				r_refdef.pxrect.height = vid.fbpheight/2;
+				r_refdef.pxrect.width = max(1, vid.fbpwidth * renderscale);
+				r_refdef.pxrect.height = max(1, vid.fbpheight * renderscale);
 
-				if (!shaderstate.tex_ripplemap)
+				if (!shaderstate.tex_ripplemap[r_refdef.recurse])
 				{
 					//FIXME: can we use RGB8 instead?
-					shaderstate.tex_ripplemap = Image_CreateTexture("***tex_ripplemap***", NULL, 0);
-					if (!shaderstate.tex_ripplemap->num)
-						qglGenTextures(1, &shaderstate.tex_ripplemap->num);
+					shaderstate.tex_ripplemap[r_refdef.recurse] = Image_CreateTexture("***tex_ripplemap***", NULL, 0);
+					if (!shaderstate.tex_ripplemap[r_refdef.recurse]->num)
+						qglGenTextures(1, &shaderstate.tex_ripplemap[r_refdef.recurse]->num);
 				}
-				if (shaderstate.tex_ripplemap->width != r_refdef.pxrect.width || shaderstate.tex_ripplemap->height != r_refdef.pxrect.height)
+				if (shaderstate.tex_ripplemap[r_refdef.recurse]->width != r_refdef.pxrect.width || shaderstate.tex_ripplemap[r_refdef.recurse]->height != r_refdef.pxrect.height)
 				{
-					shaderstate.tex_ripplemap->width = r_refdef.pxrect.width;
-					shaderstate.tex_ripplemap->height = r_refdef.pxrect.height;
-					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_ripplemap);
+					shaderstate.tex_ripplemap[r_refdef.recurse]->width = r_refdef.pxrect.width;
+					shaderstate.tex_ripplemap[r_refdef.recurse]->height = r_refdef.pxrect.height;
+					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_ripplemap[r_refdef.recurse]);
 					qglTexImage2D(GL_TEXTURE_2D, 0, /*(gl_config.glversion>3.1)?GL_RGBA8_SNORM:*/GL_RGBA16F_ARB, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
-				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, 0, &shaderstate.tex_ripplemap, 1, r_nulltex, r_refdef.pxrect.width, r_refdef.pxrect.height, 0);
-				r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac.rb_size[1];
+				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac[r_refdef.recurse], 0, &shaderstate.tex_ripplemap[r_refdef.recurse], 1, r_nulltex, r_refdef.pxrect.width, r_refdef.pxrect.height, 0);
+				r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac[r_refdef.recurse].rb_size[1];
 				GL_ViewportUpdate();
 
 				qglClearColor(0, 0, 0, 1);
@@ -5058,7 +5070,7 @@ void GLBE_RenderToTextureUpdate2d(qboolean destchanged)
 		else
 			GLBE_FBO_Push(NULL);
 
-  		GL_Set2D(false);
+		GL_Set2D(false);
 	}
 	else
 	{

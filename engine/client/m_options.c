@@ -2832,6 +2832,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	const char *fname;
 	shader_t *shader;
 	vec2_t fs = {8,8};
+	float bones[12*MAX_BONES];
 
 	modelview_t *mods = c->dptr;
 
@@ -2887,9 +2888,19 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	ent.shaderTime = 0;//realtime;
 	ent.framestate.g[FS_REG].lerpweight[0] = 1;
 	ent.framestate.g[FS_REG].frame[0] = mods->framegroup;
-	ent.framestate.g[FS_REG].frametime[0] = realtime - mods->framechangetime;
-	ent.framestate.g[FS_REG].frametime[1] = realtime - mods->framechangetime;
+	ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime - mods->framechangetime;
 	ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", mods->modelname));
+
+//	ent.framestate.bonecount = Mod_GetNumBones(ent.model, false);
+	ent.framestate.bonestate = bones;
+	ent.framestate.bonecount = Mod_GetBoneRelations(ent.model, 0, MAX_BONES, &ent.framestate, ent.framestate.bonestate);
+	ent.framestate.skeltype = SKEL_RELATIVE;
+
+	ent.light_avg[0] = ent.light_avg[1] = ent.light_avg[2] = 0.66;
+	ent.light_range[0] = ent.light_range[1] = ent.light_range[2] = 0.33;
+	ent.light_dir[0] = 0; ent.light_dir[1] = 1; ent.light_dir[2] = 0;
+	ent.light_known = 2;
+
 	V_AddEntity(&ent);
 
 	V_ApplyRefdef();

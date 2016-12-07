@@ -452,13 +452,48 @@ void Mod_ResortShaders(void)
 
 const char *Mod_GetEntitiesString(model_t *mod)
 {
+	size_t vl;
+	size_t e;
+	size_t sz;
+	char *o;
 	if (!mod)
 		return NULL;
 	if (mod->entities_raw)	//still cached/correct
 		return mod->entities_raw;
 	if (!mod->numentityinfo)
 		return NULL;
+
 	//reform the entities back into a full string now that we apparently need it
+	//find needed buffer size
+	for (e = 0, sz = 0; e < mod->numentityinfo; e++)
+	{
+		if (!mod->entityinfo[e].keyvals)
+			continue;
+		sz += 2;
+		sz += strlen(mod->entityinfo[e].keyvals);
+		sz += 2;
+	}
+	sz+=1;
+	o = BZ_Malloc(sz);
+
+	//splurge it out
+	for (e = 0, sz = 0; e < mod->numentityinfo; e++)
+	{
+		if (!mod->entityinfo[e].keyvals)
+			continue;
+		o[sz+0] = '{';
+		o[sz+1] = '\n';
+		sz += 2;
+		vl = strlen(mod->entityinfo[e].keyvals);
+		memcpy(&o[sz], mod->entityinfo[e].keyvals, vl);
+		sz += vl;
+		o[sz+0] = '}';
+		o[sz+1] = '\n';
+		sz += 2;
+	}
+	o[sz+0] = 0;
+
+	mod->entities_raw = o;
 	return mod->entities_raw;
 }
 void Mod_SetEntitiesString(model_t *mod, const char *str, qboolean docopy)
@@ -491,6 +526,64 @@ void Mod_SetEntitiesStringLen(model_t *mod, const char *str, size_t strsize)
 	}
 	else
 		Mod_SetEntitiesString(mod, str, false);
+}
+
+void Mod_ParseEntities(model_t *mod)
+{
+	char key[1024];
+	char value[4096];
+	const char *entstart;
+	const char *entend;
+	const char *entdata;
+	size_t c, m;
+
+	c = 0; m = 0;
+
+	while (mod->numentityinfo > 0)
+		Z_Free(mod->entityinfo[--mod->numentityinfo].keyvals);
+	Z_Free(mod->entityinfo);
+	mod->entityinfo = NULL;
+
+
+	entdata = mod->entities_raw;
+	while(1)
+	{
+		if (!(entdata=COM_ParseOut(entdata, key, sizeof(key))))
+			break;
+		if (strcmp(key, "{"))
+			break;
+
+		//skip whitespace to save space.
+		while (*entdata == ' ' || *entdata == '\r' || *entdata == '\n' || *entdata == '\t')
+			entdata++;
+
+		entstart = entdata;
+
+		while(1)
+		{
+			entend = entdata;
+			entdata=COM_ParseOut(entdata, key, sizeof(key));
+			if (!strcmp(key, "}"))
+				break;
+			entdata=COM_ParseOut(entdata, value, sizeof(value));
+		}
+		if (!entdata)
+			break;	//erk. eof
+
+		if (c == m)
+		{
+			if (!m)
+				m = 64;
+			else
+				m *= 2;
+			mod->entityinfo = BZ_Realloc(mod->entityinfo, sizeof(*mod->entityinfo) * m);
+		}
+		mod->entityinfo[c].keyvals = BZ_Malloc(entend-entstart + 1);
+		memcpy(mod->entityinfo[c].keyvals, entstart, entend-entstart);
+		mod->entityinfo[c].keyvals[entend-entstart] = 0;
+		c++;
+	}
+	mod->numentityinfo = c;
 }
 
 /*

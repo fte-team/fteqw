@@ -153,6 +153,8 @@ HRESULT STDMETHODCALLTYPE d3dinclude_Open(ID3DInclude *this, D3D_INCLUDE_TYPE In
 					"float3 e_light_dir; float pad2;\n"
 					"float3 e_light_mul; float pad3;\n"
 					"float4 e_lmscale[4];\n"
+					"float4 e_uppercolour;\n"
+					"float4 e_lowercolour;\n"
 				"};\n"
 				"cbuffer fteviewdefs : register(b1)\n"
 				"{\n"
@@ -473,12 +475,31 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 
 		for (; *precompilerconstants; precompilerconstants++)
 		{
-			const char *t = *precompilerconstants;
-			t = COM_Parse(t);
-			t = COM_Parse(t);
-			defines[consts].Name = Z_StrDup(com_token);
-			defines[consts].Definition = t?Z_StrDup(t):NULL;
-			consts++;
+			const char *t, *nl;
+			char *v;
+			for (t = *precompilerconstants; *t; t++)
+			{
+				t = COM_Parse(t);
+				t = COM_Parse(t);
+				defines[consts].Name = Z_StrDup(com_token);
+				while (*t == ' ' || *t == '\t')
+					t++;
+				nl = strchr(t, '\n');
+				if (!nl)
+					nl = nl+strlen(nl);
+
+				if (nl && nl != t)
+				{
+					v = BZ_Malloc(nl-t+1);
+					memcpy(v, t, nl-t);
+					v[nl-t] = 0;
+					defines[consts].Definition = v;
+				}
+				else
+					defines[consts].Definition = t?Z_StrDup(t):NULL;
+				consts++;
+				t = nl;
+			}
 		}
 
 		defines[consts].Name = NULL;

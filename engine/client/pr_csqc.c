@@ -126,6 +126,8 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(loadresource,		"CSQC_LoadResource");/*EXT_CSQC_1*/	\
 	globalfunction(parse_tempentity,	"CSQC_Parse_TempEntity");/*EXT_CSQC_ABSOLUTLY_VILE*/	\
 	\
+	globalfunction(mapentityedited,		"CSQC_MapEntityEdited");\
+	\
 	/*These are pointers to the csqc's globals.*/	\
 	globalfloat(simtime,				"time");				/*float		The simulation(aka: smoothed server) time, speed drifts based upon latency*/	\
 	globalfloat(frametime,				"frametime");			/*float		Client render frame interval*/	\
@@ -1504,14 +1506,13 @@ void QCBUILTIN PF_R_AddTrisoup(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	unsigned int vertsptr	= G_INT(OFS_PARM2);
 	unsigned int indexesptr	= G_INT(OFS_PARM3);
 	unsigned int numindexes	= G_INT(OFS_PARM4);
-	qboolean twod = qcflags & 4;
+	qboolean twod = qcflags & DRAWFLAG_2D;
 	unsigned int beflags;
 	unsigned int numverts;
 	qcvertex_t *vert;
 	unsigned int *idx;
 	unsigned int i, j, first;
 
-	
 	if ((qcflags & 3) == DRAWFLAG_ADD)
 		beflags = BEF_NOSHADOWS|BEF_FORCEADDITIVE;
 	else if ((qcflags & 3) == DRAWFLAG_MODULATE)
@@ -1536,9 +1537,7 @@ void QCBUILTIN PF_R_AddTrisoup(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	//validates the pointer.
 	numverts = (prinst->stringtablesize - vertsptr) / sizeof(qcvertex_t);
-	if (numverts < 1)
-		numverts = 1;
-	if (vertsptr <= 0 || vertsptr+numverts*sizeof(qcvertex_t) >= prinst->stringtablesize)
+	if (numverts < 1 || vertsptr <= 0 || vertsptr+numverts*sizeof(qcvertex_t) >= prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "PF_R_AddTrisoup: invalid vertexes pointer\n");
 		return;
@@ -7609,6 +7608,18 @@ qboolean CSQC_ParseGamePacket(void)
 	}
 	csqc_mayread = false;
 	return true;
+}
+
+void CSQC_MapEntityEdited(int idx, const char *newe)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.mapentityedited)
+		return;
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	G_INT(OFS_PARM0) = idx;
+	(((string_t *)pr_globals)[OFS_PARM1] = PR_TempString(csqcprogs, newe));
+	PR_ExecuteProgram (csqcprogs, csqcg.mapentityedited);
 }
 
 qboolean CSQC_LoadResource(char *resname, char *restype)

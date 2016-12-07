@@ -899,9 +899,6 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	qbyte newvis[(MAX_MAP_LEAFS+7)/8];
 	float ivmat[16], trmat[16];
 
-	if (r_refdef.recurse >= R_MAX_RECURSE-1)
-		return;
-
 	if (!mesh->xyz_array)
 		return;
 
@@ -946,6 +943,15 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	//if we're behind it, then also don't draw anything. for our purposes, behind is when the entire near clipplane is behind.
 	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < -r_refdef.mindist)
 		return;
+
+	if (r_refdef.recurse >= R_MAX_RECURSE-1)
+	{
+		GLBE_SelectMode(BEM_DEPTHDARK);
+		GLBE_SubmitBatch(batch);
+		GLBE_SelectMode(BEM_STANDARD);
+		return;
+	}
+
 
 	TRACE(("GLR_DrawPortal: portal type %i\n", portaltype));
 
@@ -1156,9 +1162,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		fp.dist += 0.01;
 		r_refdef.frustum[r_refdef.frustum_numplanes++] = fp;
 	}
-
-	//force culling to update to match the new front face.
-//	memcpy(r_refdef.m_view, vmat, sizeof(float)*16);
+#if 1
 	if (depthmasklist)
 	{
 		/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
@@ -1172,7 +1176,6 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			qglMatrixMode(GL_MODELVIEW);
 		}
 		//portals to mask are relative to the old view still.
-		GLBE_SelectEntity(&r_worldentity);
 		currententity = NULL;
 		if (gl_config.arb_depth_clamp)
 			qglEnable(GL_DEPTH_CLAMP_ARB);	//ignore the near clip plane(ish), this means nearer portals can still mask further ones.
@@ -1184,8 +1187,8 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			{
 				if (dmask == batch)
 					continue;
-				if (dmask->meshes == dmask->firstmesh)
-					continue;
+//				if (dmask->meshes == dmask->firstmesh)
+//					continue;
 				GLBE_SubmitBatch(dmask);
 			}
 		}
@@ -1195,6 +1198,9 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 
 		currententity = NULL;
 	}
+#endif
+//	r_refdef = oldrefdef;
+//	return;
 
 	//now determine the stuff the backend will use.
 	memcpy(r_refdef.m_view, vmat, sizeof(float)*16);

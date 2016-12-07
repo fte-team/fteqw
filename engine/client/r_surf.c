@@ -2347,6 +2347,7 @@ void Surf_SetupFrame(void)
 {
 	mleaf_t	*leaf;
 	vec3_t	temp, pvsorg;
+	int viewcontents;
 
 	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
 		r_refdef.flags |= RDF_NOWORLDMODEL;
@@ -2364,7 +2365,7 @@ void Surf_SetupFrame(void)
 		R_UpdateHDR(r_refdef.vieworg);
 	}
 
-	r_viewcontents = 0;
+	viewcontents = 0;
 	if (r_refdef.flags & RDF_NOWORLDMODEL)
 	{
 	}
@@ -2385,7 +2386,7 @@ void Surf_SetupFrame(void)
 		r_viewleaf2 = NULL;
 
 		leaf = Mod_PointInLeaf (cl.worldmodel, pvsorg);
-		r_viewcontents = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, pvsorg);
+		viewcontents = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, pvsorg);
 		r_viewcluster = r_viewcluster2 = leaf->cluster;
 
 		// check above and below so crossing solid water doesn't draw wrong
@@ -2449,22 +2450,22 @@ void Surf_SetupFrame(void)
 			switch(r_viewleaf->contents)
 			{
 			case Q1CONTENTS_WATER:
-				r_viewcontents |= FTECONTENTS_WATER;
+				viewcontents |= FTECONTENTS_WATER;
 				break;
 			case Q1CONTENTS_LAVA:
-				r_viewcontents |= FTECONTENTS_LAVA;
+				viewcontents |= FTECONTENTS_LAVA;
 				break;
 			case Q1CONTENTS_SLIME:
-				r_viewcontents |= FTECONTENTS_SLIME;
+				viewcontents |= FTECONTENTS_SLIME;
 				break;
 			case Q1CONTENTS_SKY:
-				r_viewcontents |= FTECONTENTS_SKY;
+				viewcontents |= FTECONTENTS_SKY;
 				break;
 			case Q1CONTENTS_SOLID:
-				r_viewcontents |= FTECONTENTS_SOLID;
+				viewcontents |= FTECONTENTS_SOLID;
 				break;
 			case Q1CONTENTS_LADDER:
-				r_viewcontents |= FTECONTENTS_LADDER;
+				viewcontents |= FTECONTENTS_LADDER;
 				break;
 			}
 		}
@@ -2473,7 +2474,7 @@ void Surf_SetupFrame(void)
 #ifdef TERRAIN
 	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && cl.worldmodel && cl.worldmodel->terrain)
 	{
-		r_viewcontents |= Heightmap_PointContents(cl.worldmodel, NULL, pvsorg);
+		viewcontents |= Heightmap_PointContents(cl.worldmodel, NULL, pvsorg);
 	}
 #endif
 
@@ -2484,12 +2485,16 @@ void Surf_SetupFrame(void)
 		VectorCopy(pmove.player_maxs, t2);
 		VectorClear(pmove.player_maxs);
 		VectorClear(pmove.player_mins);
-		r_viewcontents |= PM_ExtraBoxContents(pvsorg);
+		viewcontents |= PM_ExtraBoxContents(pvsorg);
 		VectorCopy(t1, pmove.player_mins);
 		VectorCopy(t2, pmove.player_maxs);
 	}
-	if (!r_secondaryview)
-		V_SetContentsColor (r_viewcontents);
+	if (!r_refdef.recurse)
+	{
+		r_viewcontents = viewcontents;
+		if (!r_secondaryview)
+			V_SetContentsColor (viewcontents);
+	}
 
 
 	if (r_refdef.playerview->audio.defaulted)

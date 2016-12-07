@@ -178,10 +178,29 @@ static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, un
 
 		for (defbufe = defbuf; *precompilerconstants; precompilerconstants++)
 		{
-			defines[consts].Definition = COM_ParseOut(*precompilerconstants+7, defbufe, defbuf+sizeof(defbuf) - defbufe-1);
-			defines[consts].Name = defbufe;
-			defbufe += strlen(defbufe)+1;
-			consts++;
+			const char *l, *nl;
+			for(l = *precompilerconstants; *l; l = nl)
+			{
+				l += 7;	//skip over the assumed #define
+
+				l = COM_ParseOut(l, defbufe, defbuf+sizeof(defbuf) - defbufe-1);
+				defines[consts].Name = defbufe;
+				defbufe += strlen(defbufe)+1;
+
+				while (*l == ' ' || *l == '\t')
+					l++;
+
+				nl = strchr(l, '\n');
+				if (nl && *nl)
+				{
+					defines[consts++].Definition = defbufe;
+					memcpy(defbufe, l, nl-l);
+					defbufe[nl-l] = 0;
+					defbufe += nl++-l+1;
+				}
+				else
+					defines[consts++].Definition = l;
+			}
 		}
 
 		defines[consts].Name = NULL;

@@ -67,6 +67,7 @@ Available options:
 #define DP_EF_RED
 #define DP_ENT_CUSTOMCOLORMAP
 #define DP_ENT_EXTERIORMODELTOCLIENT
+#define DP_ENT_SCALE
 #define DP_ENT_TRAILEFFECTNUM /* self.traileffectnum=particleeffectnum("myeffectname"); can be used to attach a particle trail to the given server entity. This is equivelent to calling trailparticles each frame. */
 #define DP_ENT_VIEWMODEL
 #define DP_GECKO_SUPPORT
@@ -148,6 +149,8 @@ Available options:
 #define DP_TE_CUSTOMFLASH
 #define DP_TE_EXPLOSIONRGB
 #define DP_TE_PARTICLECUBE
+#define DP_TE_PARTICLERAIN
+#define DP_TE_PARTICLESNOW
 #define DP_TE_SMALLFLASH
 #define DP_TE_SPARK
 #define DP_TE_STANDARDEFFECTBUILTINS
@@ -160,10 +163,12 @@ Available options:
 #define FTE_CALLTIMEOFDAY /* Replication of mvdsv functionality (call calltimeofday to cause 'timeofday' to be called, with arguments that can be saved off to a global). Generally strftime is simpler to use. */
 #define FTE_CSQC_ALTCONSOLES /* The engine tracks multiple consoles. These may or may not be directly visible to the user. */
 #define FTE_CSQC_BASEFRAME /* Specifies that .basebone, .baseframe2, .baselerpfrac, baseframe1time, etc exist in csqc. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations. */
-#define FTE_QC_BASEFRAME /* Specifies that .basebone and .baseframe exist in ssqc. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations, from ssqc. */
 #define FTE_CSQC_SERVERBROWSER
 #define FTE_CSQC_SKELETONOBJECTS /* Provides container objects for skeletal bone data, which can be modified on a per bone basis if needed. This allows you to dynamically generate animations (or just blend them with greater customisation) instead of being limited to a single animation or two. */
+#define FTE_CSQC_RAWIMAGES /* Provides raw rgba image access to csqc. With this, the csprogs can read textures into qc-accessible memory, modify it, and then upload it to the renderer. */
 #define FTE_CSQC_RENDERTARGETS /* VF_RT_DESTCOLOUR exists and can be used to redirect any rendering to a texture instead of the screen. */
+#define FTE_CSQC_REVERB /* Specifies that the mod can create custom reverb effects. Whether they will actually be used or not depends upon the sound driver. */
+#define FTE_CSQC_WINDOWCAPTION /* Provides csqc with the ability to change the window caption as displayed when running windowed or in the task bar when switched out. */
 #define FTE_ENT_SKIN_CONTENTS /* self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder. */
 #define FTE_ENT_UNIQUESPAWNID
 #define FTE_EXTENDEDTEXTCODES
@@ -183,9 +188,14 @@ Available options:
 #define FTE_PART_SCRIPT /* Specifies that the r_particledesc cvar can be used to select a list of particle effects to load from particles/*.cfg, the format of which is documented elsewhere. */
 #define FTE_PART_NAMESPACES /* Specifies that the engine can use foo.bar to load effect foo from particle description bar. When used via ssqc, this should cause the client to download whatever effects as needed. */
 #define FTE_PART_NAMESPACE_EFFECTINFO /* Specifies that effectinfo.bar can load effects from effectinfo.txt for DP compatibility. */
+#define FTE_QC_BASEFRAME /* Specifies that .basebone and .baseframe exist in ssqc. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations, from ssqc. */
+#define FTE_QC_FILE_BINARY /* Extends FRIK_FILE with binary read+write, as well as allowing seeking. Requires pointers. */
+#define FTE_QC_CHANGELEVEL_HUB /* Adds an extra argument to changelevel which is carried over to the next map in the 'spawnspot' global. Maps will be saved+reloaded until the extra argument is omitted again, purging all saved maps. Saved games will contain a copy of each preserved map. parm1-parm64 globals can be used, giving more space to transfer more player data. */
 #define FTE_QC_CHECKCOMMAND /* Provides a way to test if a console command exists, and whether its a command/alias/cvar. Does not say anything about the expected meanings of any arguments or values. */
 #define FTE_QC_CHECKPVS
-#define FTE_QC_HARDWARECURSORS /* setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits, it will be emulated using regular draws - this at least still avoids conflicting cursors. */
+#define FTE_QC_CROSSPRODUCT
+#define FTE_QC_FS_SEARCH_SIZEMTIME
+#define FTE_QC_HARDWARECURSORS /* setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits (or hardware cursors are unsupported), it will be emulated using regular draws - this at least still avoids conflicting cursors as only one will ever be used, even if console+menu+csqc are all overlayed. */
 #define FTE_QC_HASHTABLES /* Provides efficient string-based lookups. */
 #define FTE_QC_INTCONV /* Provides string<>int conversions, including hex representations. */
 #define FTE_QC_MATCHCLIENTNAME
@@ -193,6 +203,7 @@ Available options:
 #define FTE_QC_PERSISTENTTEMPSTRINGS /* Supersedes DP_QC_MULTIPLETEMPSTRINGS. Temp strings are garbage collected automatically, and do not expire while they're still in use. This makes strzone redundant. */
 #define FTE_QC_RAGDOLL_WIP
 #define FTE_QC_SENDPACKET /* Allows the use of out-of-band udp packets to/from other hosts. Includes the SV_ParseConnectionlessPacket event. */
+#define FTE_QC_STUFFCMDFLAGS /* Variation on regular stuffcmd that gives control over how spectators/mvds should be treated. */
 #define FTE_QC_TRACETRIGGER
 #define FTE_QUAKE2_CLIENT /* This engine is able to act as a quake2 client */
 #define FTE_QUAKE2_SERVER /* This engine is able to act as a quake2 server */
@@ -500,6 +511,13 @@ const int CONTENTBIT_SKY = 0x80000000i;
 const int CONTENTBITS_POINTSOLID = CONTENTBIT_SOLID|0x00000002|CONTENTBIT_BODY;	/* Bits that traceline would normally consider solid */
 const int CONTENTBITS_BOXSOLID = CONTENTBIT_SOLID|0x00000002|CONTENTBIT_BODY|CONTENTBIT_PLAYERCLIP;	/* Bits that tracebox would normally consider solid */
 const int CONTENTBITS_FLUID = CONTENTBIT_WATER|CONTENTBIT_SLIME|CONTENTBIT_LAVA|CONTENTBIT_SKY;
+const int SPA_POSITION;	/* These SPA_* constants are to specify which attribute is returned by the getsurfacepointattribute builtin */
+const int SPA_S_AXIS = 1;
+const int SPA_T_AXIS = 2;
+const int SPA_R_AXIS = 3;	/* aka: SPA_NORMAL */
+const int SPA_TEXCOORDS0 = 4;
+const int SPA_LIGHTMAP0_TEXCOORDS = 5;
+const int SPA_LIGHTMAP0_COLOR = 6;
 #define CHAN_AUTO 0	/* The automatic channel, play as many sounds on this channel as you want, and they'll all play, however the other channels will replace each other. */
 #define CHAN_WEAPON 1
 #define CHAN_VOICE 2
@@ -739,8 +757,10 @@ Note that any rendertarget textures may be destroyed on video mode changes or so
 #define TEREDIT_RESET_SECT 20
 #define TEREDIT_RELOAD_SECT 21
 #define TEREDIT_ENTS_WIPE 22
-#define TEREDIT_ENTS_CONCAT 23
-#define TEREDIT_ENTS_GET 24
+#define TEREDIT_ENT_GET 26
+#define TEREDIT_ENT_SET 27
+#define TEREDIT_ENT_ADD 28
+#define TEREDIT_ENT_COUNT 29
 #define SLIST_HOSTCACHEVIEWCOUNT 0
 #define SLIST_HOSTCACHETOTALCOUNT 1
 #define SLIST_MASTERQUERYCOUNT 2
@@ -804,7 +824,7 @@ void(entity e) remove = #15; /*
 		Destroys the given entity and clears some limited fields (including model, modelindex, solid, classname). Any references to the entity following the call are an error. After two seconds, the entity will be reused, in the interim you can unfortunatly still read its fields to see if the reference is no longer valid. */
 
 void(vector v1, vector v2, float flags, entity ent) traceline = #16; /*
-		Traces an infinitely thin line through the world from v1 towards v2.
+		Traces a thin line through the world from v1 towards v2.
 		Will not collide with ent, ent.owner, or any entity who's owner field refers to ent.
 		The passed entity will also be used to determine whether to use a capsule trace, the contents that the trace should impact, and a couple of other extra fields that define the trace.
 		There are no side effects beyond the trace_* globals being written.
@@ -926,6 +946,9 @@ void (vector pos, string samp, float vol, float atten) ambientsound = #74;
 string(string str) precache_model2 = #75;
 string(string str) precache_sound2 = #76;
 string(string str) precache_file2 = #77;
+string(entity e, string key) infokey = #80; /* Part of QW_ENGINE
+		If e is world, returns the field 'key' from either the serverinfo or the localinfo. If e is a player, returns the value of 'key' from the player's userinfo string. There are a few special exceptions, like 'ip' which is not technically part of the userinfo. */
+
 float(string) stof = #81; /* Part of FRIK_FILE, FTE_STRINGS, QW_ENGINE, ZQ_QC_STRINGS*/
 void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent) tracebox = #90; /* Part of DP_QC_TRACEBOX
 		Exactly like traceline, but a box instead of a uselessly thin point. Acceptable sizes are limited by bsp format, q1bsp has strict acceptable size values. */
@@ -962,7 +985,7 @@ float(string extname) checkextension = #99; /*
 		Use cvar("pr_checkextension") to see if this builtin exists. */
 
 float(__variant funcref) checkbuiltin = #0:checkbuiltin; /*
-		Checks to see if the specified builtin is supported/mapped. This is intended as a way to check for #0 functions, allowing for simple single-builtin functions. */
+		Checks to see if the specified builtin is supported/mapped. This is intended as a way to check for #0 functions, allowing for simple single-builtin functions. Warning, if two different engines map different builtins to the same number, then this function will not tell you which will be called, only that it won't crash (the exception being #0, which are remapped as available). */
 
 float(float value) anglemod = #102;
 filestream(string filename, float mode, optional float mmapminsize) fopen = #110; /* Part of FRIK_FILE
@@ -975,17 +998,17 @@ string(filestream fhandle) fgets = #112; /* Part of FRIK_FILE
 void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7) fputs = #113; /* Part of FRIK_FILE
 		Writes the given string(s) into the file. For compatibility with fgets, you should ensure that the string is terminated with a \n - this will not otherwise be done for you. It is up to the engine whether dos or unix line endings are actually written. */
 
-int(filestream fhandle, void *ptr, int size) fread = #0:fread; /*
+int(filestream fhandle, void *ptr, int size) fread = #0:fread; /* Part of FTE_QC_FILE_BINARY
 		Reads binary data out of the file. Returns truncated lengths if the read exceeds the length of the file. */
 
-int(filestream fhandle, void *ptr, int size) fwrite = #0:fwrite; /*
+int(filestream fhandle, void *ptr, int size) fwrite = #0:fwrite; /* Part of FTE_QC_FILE_BINARY
 		Writes binary data out of the file. */
 
 #define ftell fseek //c compat
-int(filestream fhandle, optional int newoffset) fseek = #0:fseek; /*
+int(filestream fhandle, optional int newoffset) fseek = #0:fseek; /* Part of FTE_QC_FILE_BINARY
 		Changes the current position of the file, if specified. Returns prior position, in bytes. */
 
-int(filestream fhandle, optional int newsize) fsize = #0:fsize; /*
+int(filestream fhandle, optional int newsize) fsize = #0:fsize; /* Part of FTE_QC_FILE_BINARY
 		Reports the total size of the file, in bytes. Can also be used to truncate/extend the file */
 
 float(string s) strlen = #114; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
@@ -1116,10 +1139,10 @@ int(string) stoh = #261; /* Part of FTE_QC_INTCONV
 string(int) htos = #262; /* Part of FTE_QC_INTCONV
 		Formats an integer as a base16 string, with leading 0s and no prefix. Always returns 8 characters. */
 
-int(float) ftoi = #0:ftoi; /*
+int(float) ftoi = #0:ftoi; /* Part of FTE_QC_INTCONV
 		Converts the given float into a true integer without depending on extended qcvm instructions. */
 
-float(int) itof = #0:itof; /*
+float(int) itof = #0:itof; /* Part of FTE_QC_INTCONV
 		Converts the given true integer into a float without depending on extended qcvm instructions. */
 
 float(float modlindex, optional float useabstransforms) skel_create = #263; /* Part of FTE_CSQC_SKELETONOBJECTS
@@ -1171,10 +1194,10 @@ float(float modidx, float framenum) frameduration = #277; /* Part of FTE_CSQC_SK
 		Retrieves the duration (in seconds) of the specified framegroup. */
 
 #define dotproduct(v1,v2) ((vector)(v1)*(vector)(v2))
-vector(vector v1, vector v2) crossproduct = #0:crossproduct; /*
+vector(vector v1, vector v2) crossproduct = #0:crossproduct; /* Part of FTE_QC_CROSSPRODUCT
 		Small helper function to calculate the crossproduct of two vectors. */
 
-void(float action, optional vector pos, optional float radius, optional float quant, ...) terrain_edit = #278; /*
+void(float action, optional vector pos, optional float radius, optional float quant, ...) terrain_edit = #278; /* Part of FTE_TERRAIN_MAP
 		Realtime terrain editing. Actions are the TEREDIT_ constants. */
 
 typedef struct
@@ -1187,25 +1210,25 @@ typedef struct
 	vector	tdir;
 	float	tbias;
 } brushface_t;
-int(float modelidx, int brushid, brushface_t *out_faces, int maxfaces, int *out_contents) brush_get = #0:brush_get; /*
+int(float modelidx, int brushid, brushface_t *out_faces, int maxfaces, int *out_contents) brush_get = #0:brush_get; /* Part of FTE_RAW_MAP
 		Queries a brush's information. You must pre-allocate the face array for the builtin to write to. Return value is the number of faces retrieved, 0 on error. */
 
-int(float modelidx, brushface_t *in_faces, int numfaces, int contents, optional int brushid) brush_create = #0:brush_create; /*
+int(float modelidx, brushface_t *in_faces, int numfaces, int contents, optional int brushid) brush_create = #0:brush_create; /* Part of FTE_RAW_MAP
 		Inserts a new brush into the model. Return value is the new brush's id. */
 
-void(float modelidx, int brushid) brush_delete = #0:brush_delete; /*
+void(float modelidx, int brushid) brush_delete = #0:brush_delete; /* Part of FTE_RAW_MAP
 		Destroys the specified brush. */
 
-float(float modelid, int brushid, int faceid, float selectedstate) brush_selected = #0:brush_selected; /*
+float(float modelid, int brushid, int faceid, float selectedstate) brush_selected = #0:brush_selected; /* Part of FTE_RAW_MAP
 		Allows you to easily set transient visual properties of a brush. returns old value. selectedstate=-1 changes nothing (called for its return value). */
 
-int(float modelid, int brushid, int faceid, vector *points, int maxpoints) brush_getfacepoints = #0:brush_getfacepoints; /*
+int(float modelid, int brushid, int faceid, vector *points, int maxpoints) brush_getfacepoints = #0:brush_getfacepoints; /* Part of FTE_RAW_MAP
 		Returns the list of verticies surrounding the given face. If face is 0, returns the center of the brush (if space for 1 point) or the mins+maxs (if space for 2 points). */
 
-int(int faceid, brushface_t *in_faces, int numfaces, vector *points, int maxpoints) brush_calcfacepoints = #0:brush_calcfacepoints; /*
+int(int faceid, brushface_t *in_faces, int numfaces, vector *points, int maxpoints) brush_calcfacepoints = #0:brush_calcfacepoints; /* Part of FTE_RAW_MAP
 		Determines the points of the specified face, if the specified brush were to actually be created. */
 
-int(float modelid, vector *planes, float *dists, int numplanes, int *out_brushes, int *out_faces, int maxresults) brush_findinvolume = #0:brush_findinvolume; /*
+int(float modelid, vector *planes, float *dists, int numplanes, int *out_brushes, int *out_faces, int maxresults) brush_findinvolume = #0:brush_findinvolume; /* Part of FTE_RAW_MAP
 		Allows you to easily obtain a list of brushes+faces within the given bounding region. If out_faces is not null, the same brush might be listed twice. */
 
 void(optional entity ent, optional vector neworigin) touchtriggers = #279; /*
@@ -1320,10 +1343,10 @@ float(string name) iscachedpic = #316; /*
 string(string name, optional float trywad) precache_pic = #317; /*
 		Forces the engine to load the named image. If trywad is specified, the specified name must any lack path and extension. */
 
-void(string imagename, int width, int height, int *pixeldata) r_uploadimage = #0:r_uploadimage; /*
+void(string imagename, int width, int height, int *pixeldata) r_uploadimage = #0:r_uploadimage; /* Part of FTE_CSQC_RAWIMAGES
 		Updates a texture with the specified rgba data. Will be created if needed. */
 
-int*(string filename, __out int width, __out int height) r_readimage = #0:r_readimage; /*
+int*(string filename, __out int width, __out int height) r_readimage = #0:r_readimage; /* Part of FTE_CSQC_RAWIMAGES
 		Reads and decodes an image from disk, providing raw pixel data. Returns __NULL__ if the image could not be read for any reason. Use memfree to free the data once you're done with it. */
 
 #define draw_getimagesize drawgetimagesize
@@ -1480,7 +1503,7 @@ typedef struct {
 	float flRoomRolloffFactor;
 	int   iDecayHFLimit;
 } reverbinfo_t;
-void(float reverbslot, reverbinfo_t *reverbinfo, int sizeofreverinfo_t) setup_reverb = #0:setup_reverb; /*
+void(float reverbslot, reverbinfo_t *reverbinfo, int sizeofreverinfo_t) setup_reverb = #0:setup_reverb; /* Part of FTE_CSQC_REVERB
 		Reconfigures a reverb slot for weird effects. Slot 0 is reserved for no effects. Slot 1 is reserved for underwater effects. Reserved slots will be reinitialised on snd_restart, but can otherwise be changed. These reverb slots can be activated with SetListener. Note that reverb will currently only work when using OpenAL. */
 
 void(string cmdname) registercommand = #352; /*
@@ -1581,7 +1604,7 @@ void(string conname, vector pos, vector size, float fontsize) con_draw = #393; /
 float(string conname, float inevtype, float parama, float paramb, float paramc) con_input = #394; /* Part of FTE_CSQC_ALTCONSOLES
 		Forwards input events to the named console. Mouse updates should be absolute only. */
 
-void(string newcaption) setwindowcaption = #0:setwindowcaption; /*
+void(string newcaption) setwindowcaption = #0:setwindowcaption; /* Part of FTE_CSQC_WINDOWCAPTION
 		Replaces the title of the game window, as seen when task switching or just running in windowed mode. */
 
 float() cvars_haveunsaved = #0:cvars_haveunsaved; /*
@@ -1602,8 +1625,8 @@ void(vector org, vector dir, float count) te_blood = #405; /* Part of DP_TE_BLOO
 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower = #406; /* Part of _DP_TE_BLOODSHOWER*/
 void(vector org, vector color) te_explosionrgb = #407; /* Part of DP_TE_EXPLOSIONRGB*/
 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube = #408; /* Part of DP_TE_PARTICLECUBE*/
-void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain = #409; /* Part of _DP_TE_PARTICLERAIN*/
-void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow = #410; /* Part of _DP_TE_PARTICLESNOW*/
+void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain = #409; /* Part of DP_TE_PARTICLERAIN*/
+void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow = #410; /* Part of DP_TE_PARTICLESNOW*/
 void(vector org, vector vel, float howmany) te_spark = #411; /* Part of DP_TE_SPARK*/
 void(vector org) te_gunshotquad = #412; /* Part of _DP_TE_QUADEFFECTS1*/
 void(vector org) te_spikequad = #413; /* Part of _DP_TE_QUADEFFECTS1*/
@@ -1646,10 +1669,10 @@ float(searchhandle handle) search_getsize = #446; /* Part of DP_QC_FS_SEARCH
 string(searchhandle handle, float num) search_getfilename = #447; /* Part of DP_QC_FS_SEARCH
 		Retrieves name of one of the files that was found by the initial search. */
 
-float(searchhandle handle, float num) search_getfilesize = #0:search_getfilesize; /*
+float(searchhandle handle, float num) search_getfilesize = #0:search_getfilesize; /* Part of FTE_QC_FS_SEARCH_SIZEMTIME
 		Retrieves the size of one of the files that was found by the initial search. */
 
-string(searchhandle handle, float num) search_getfilemtime = #0:search_getfilemtime; /*
+string(searchhandle handle, float num) search_getfilemtime = #0:search_getfilemtime; /* Part of FTE_QC_FS_SEARCH_SIZEMTIME
 		Retrieves modification time of one of the files. */
 
 string(string cvarname) cvar_string = #448; /* Part of DP_QC_CVAR_STRING*/

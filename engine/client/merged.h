@@ -161,6 +161,7 @@ enum mlverbosity_e
 const char *Mod_GetEntitiesString(struct model_s *mod);
 void Mod_SetEntitiesStringLen(struct model_s *mod, const char *str, size_t strsize);
 void Mod_SetEntitiesString(struct model_s *mod, const char *str, qboolean docopy);
+void Mod_ParseEntities(struct model_s *mod);
 extern void	Mod_ClearAll						(void);
 extern void Mod_Purge							(enum mod_purge_e type);
 extern struct model_s *Mod_FindName				(const char *name);	//find without loading. needload should be set.

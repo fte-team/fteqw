@@ -6051,10 +6051,9 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 	//fixme: figure out some way to safely orphan this data so that we can throw the rest to a worker.
 	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD);
 
+	BE_UploadLightmaps(false);
 	if (r_refdef.scenevis)
 	{
-		BE_UploadLightmaps(false);
-
 		//make sure the world draws correctly
 		r_worldentity.shaderRGBAf[0] = 1;
 		r_worldentity.shaderRGBAf[1] = 1;

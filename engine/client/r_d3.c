@@ -4,13 +4,13 @@
 #ifndef SERVERONLY
 #include "shader.h"
 #endif
+#include "com_mesh.h"
 
 //FIXME: shadowmaps should build a cache of the nearby area surfaces and flag those models as RF_NOSHADOW or something
 //fixme: merge areas and static ents too somehow.
 
 void Mod_SetParent (mnode_t *node, mnode_t *parent);
 static int	D3_ClusterForPoint (struct model_s *model, vec3_t point);
-void R_Generate_Mesh_ST_Vectors(mesh_t *mesh);
 
 #ifndef SERVERONLY
 void ModD3_GenAreaVBO(void *ctx, void *data, size_t a, size_t b)

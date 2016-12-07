@@ -151,14 +151,16 @@ entedit_t*() editor_ents_new =
 {
 	local int nent;
 	local entedit_t *newents;
-	nent = numents;
-	numents += 1i;
-
-	//extend the list
-	newents = memalloc(sizeof(entedit_t)*numents);
-	memcpy((__variant*)newents, (__variant*)editents, sizeof(entedit_t)*nent);
-	memfree((__variant*)editents);
-	editents = newents;
+	nent = terrain_edit(TEREDIT_ENT_ADD, "");
+	if (nent >= numents)
+	{
+		//extend the list
+		newents = memalloc(sizeof(entedit_t)*(nent+1));
+		memcpy((__variant*)newents, (__variant*)editents, sizeof(entedit_t)*numents);
+		memfree((__variant*)editents);
+		editents = newents;
+		numents = nent+1;
+	}
 
 	editents[nent].fields = hash_createtab(12, EV_STRING);
 
@@ -170,9 +172,33 @@ void(float num) editor_ents_delete =
 	if (num >= 0 && num < numents)
 	{
 		hash_destroytab(editents[num].fields);
-		numents--;
-		memcpy(&editents[num], &editents[num+1], sizeof(entedit_t) * (numents-num));
+		editents[num].fields = 0;
+		terrain_edit(TEREDIT_ENT_SET, num, __NULL__);
 	}
+};
+
+string(entedit_t *ent) reforment =
+{
+	string n = "";
+	for (int i = 0; ; i++)
+	{
+		string key, value;
+		key = hash_getkey(ent->fields, i);
+		if isnull(key)
+			break;
+		if (key == "{")
+			continue;
+		value = ent->fields[key];
+		//inject markup into the value so that it doesn't get too corrupted
+		value = strreplace("\\", "\\\\", value);
+		value = strreplace("\"", "\\\"", value);
+		value = strreplace("\n", "\\n", value);
+		//these are more optional
+		value = strreplace("\t", "\\t", value);
+		value = strreplace("\r", "\\r", value);
+		n = strcat(n, key, " \"", value, "\"\n");
+	}
+	return n;
 };
 
 void() updatemodelents =
@@ -183,47 +209,18 @@ void() updatemodelents =
 	for (int e = 0; e < numents; e++)
 	{
 		local entedit_t *ent = &editents[e];
-		string n;
-		n = "{\n";
-		for (int i = 0; ; i++)
-		{
-			string key, value;
-			key = hash_getkey(ent->fields, i);
-			if isnull(key)
-				break;
-			value = ent->fields[key];
-			//inject markup into the value so that it doesn't get too corrupted
-			value = strreplace("\\", "\\\\", value);
-			value = strreplace("\"", "\\\"", value);
-			value = strreplace("\n", "\\n", value);
-			//these are more optional
-			value = strreplace("\t", "\\t", value);
-			value = strreplace("\r", "\\r", value);
-			n = strcat(n, key, " \"", value, "\"\n");
-		}
-		n = strcat(n, "}\n");
-		
-		terrain_edit(TEREDIT_ENTS_CONCAT, n);
+		string n = reforment(ent);
+		terrain_edit(TEREDIT_ENT_SET, e, n);
 	}
 };
 
-float(float mode) editor_ents_poll =
+void(entedit_t *ent) editor_ents_edited =
 {
-	if (mode != MODE_ENTSEDIT)
-	{
-		updatemodelents();
-		localcmd("mod_terrain_save\n");	//saves a .ent if its a bsp, a .map if it has brushes, and a .hmp if otherwise. or something.
-		ca_checksave = __NULL__;
-		return TRUE;
-	}
-	return FALSE;
-}
-void() editor_ents_edited =
-{
-	ca_checksave = editor_ents_poll;
-
 	entsdirty = TRUE;
 	entsapplytime = cltime+2;
+	
+	string n = reforment(ent);
+	terrain_edit(TEREDIT_ENT_SET, ent-editents, n);
 }
 
 inline float(string model) modelindexforname =
@@ -265,7 +262,7 @@ void(entedit_t *nent) editor_ents_updated =
 		{
 			if (classn == entclasses[i].classn)
 			{
-				nent->modelindex = modelindexforname(entclasses[i].model);
+				nent->modelindex = 0;//modelindexforname(entclasses[i].model);
 				nent->alpha = 0.3;
 				nent->colourmod = entclasses[i].colour;
 				nent->mins = entclasses[i].mins;
@@ -285,7 +282,6 @@ entedit_t*(entedit_t *o) editor_ents_clone =
 {
 	int i;
 	entedit_t *n = editor_ents_new();
-	
 
 	for (i = 0; ; i++)
 	{
@@ -301,50 +297,60 @@ entedit_t*(entedit_t *o) editor_ents_clone =
 	return n;
 };
 
-
 void() editor_ents_reload =
 {
+	local entedit_t *nent;
 	local string field, value;
 
-	//reset ent state
-	getentitytoken(__NULL__);
+	int id;
+	int f, fcount;
 
-	for(;;)
+	numents = terrain_edit(TEREDIT_ENT_COUNT);
+	editents = memalloc(sizeof(entedit_t)*numents);
+	for (id = 0; id < numents; id++)
 	{
-		field = getentitytoken();
-		if isnull(field)
+		field = terrain_edit(TEREDIT_ENT_GET, id);
+		nent = &editents[id];
+		if (nent->fields)
+			hash_destroytab(nent->fields);
+		nent->fields = 0;
+		if (field == __NULL__)
+			continue;
+		nent->fields = hash_createtab(12, EV_STRING);
+		fcount = tokenize(field);
+		for (f = 0; f < fcount; f+=2)
 		{
-			break;
+			field = argv(f);
+			value = argv(f+1);
+			nent->fields[field] = value;
 		}
-		if (field == "{")
-		{
-			local entedit_t *nent;
-			nent = editor_ents_new();
-
-			for(;;)
-			{
-				field = getentitytoken();
-				if isnull(field)
-				{
-					print("Truncated ent lump\n");
-					return;
-				}
-				if (field == "}")
-					break;
-				value = getentitytoken();
-
-				nent.fields[field] = value;
-//				print(sprintf("%s: %s\n", field, value));
-			}
-
-			editor_ents_updated(nent);
-		}
-		else
-		{
-			print(sprintf("Corrupt ent lump, found \"%s\"\n", field));
-			return;
-		}
+		editor_ents_updated(nent);
 	}
+};
+
+//called when another client has edited an entity.
+void(int idx, string new) CSQC_MapEntityEdited =
+{
+	if (idx >= numents)
+	{
+		if not (new)
+			return; //deleting an ent that doesn't already exist? :o
+	}
+	local entedit_t *ent = &editents[idx];
+
+	if (ent->fields)
+		hash_destroytab(ent->fields);
+	ent->fields = hash_createtab(12, EV_STRING);
+	int fcount = tokenize(new);
+	for (int f = 0; f < fcount; f+=2)
+	{
+		string field = argv(f);
+		string value = argv(f+1);
+		ent->fields[field] = value;
+	}
+
+	editor_ents_updated(ent);
+//	editor_ents_edited(ent);
 };
 
 void(string shadername, vector min, vector max, vector col) editor_ents_drawbbox =
@@ -520,7 +526,8 @@ float(float key, float unic, vector mousepos) editor_ents_key =
 	{
 		if (selectedent >= numents)
 			return FALSE;
-		string value = editents[selectedent].fields[editkey];
+		ent = &editents[selectedent];
+		string value = ent->fields[editkey];
 
 		if (key == K_ESCAPE)
 		{
@@ -531,7 +538,7 @@ float(float key, float unic, vector mousepos) editor_ents_key =
 		{
 			if (!value)
 			{
-				hash_delete(editents[selectedent].fields, editkey);
+				hash_delete(ent->fields, editkey);
 				editfieldtype = 0;
 			}
 			else
@@ -548,8 +555,9 @@ float(float key, float unic, vector mousepos) editor_ents_key =
 
 		if (editfieldtype)
 		{
-			editents[selectedent].fields[editkey] = value;
-			editor_ents_updated(&editents[selectedent]);
+			ent->fields[editkey] = value;
+			editor_ents_edited(ent);
+			editor_ents_updated(ent);
 		}
 	}
 	else if (key == K_ESCAPE && selectedent)
@@ -566,18 +574,18 @@ float(float key, float unic, vector mousepos) editor_ents_key =
 
 		//figure out how far along the plane normal to push the entity in order to ensure that its mins/maxs is on the floor/slope/ceiling/wall/etc
 		//yay dotproducts
-		float ext = 	[
+		float ext = 	trace_plane_normal * [
 					(trace_plane_normal[0] < 0)?ent->mins[0]:ent->maxs[0],
 					(trace_plane_normal[1] < 0)?ent->mins[1]:ent->maxs[1],
 					(trace_plane_normal[2] < 0)?ent->mins[2]:ent->maxs[2]
-					] * trace_plane_normal;
+					];
 		//update the all important origin
 		string str = sprintf("%v", trace_endpos + trace_plane_normal * ext);
 		ent->fields["origin"] = str;
 		//and fix up the quick-access stuff
 		ent->org = stov(ent->fields["origin"]);
 
-		editor_ents_edited();
+		editor_ents_edited(ent);
 	}
 	else
 		return FALSE;
@@ -612,7 +620,7 @@ void(vector mousepos) editor_ents_overlay =
 			break;
 		value = ent->fields[key];
 		col = '1 1 1';
-		if (pickedit && mousepos_y >= pos_y && mousepos_y < pos_y + 8)
+		if (pickedit && mousepos_y >= pos_y && mousepos_y < pos_y + 8 && mousepos_x < 128)
 		{
 			col_y = 0;
 			editkey = key;

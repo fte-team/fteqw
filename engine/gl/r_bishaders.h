@@ -3121,6 +3121,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef D3D11QUAKE
 {QR_DIRECT3D11, 11, "defaultskin",
+"!!permu UPPERLOWER\n"
 "!!samps diffuse upper lower fullbright\n"
 
 "struct a2v\n"
@@ -3183,11 +3184,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#ifdef UPPER\n"
 "float4 uc = t_upper.Sample(SampleType, inp.tc);\n"
-"col.rgb = lerp(col.rgb, uc.rgb*e_uppercolour, uc.a);\n"
+"col.rgb += uc.rgb*e_uppercolour.rgb*uc.a;\n"
 "#endif\n"
 "#ifdef LOWER\n"
 "float4 lc = t_lower.Sample(SampleType, inp.tc);\n"
-"col.rgb = lerp(col.rgb, lc.rgb*e_lowercolour, lc.a);\n"
+"col.rgb += lc.rgb*e_lowercolour.rgb*lc.a;\n"
 "#endif\n"
 "col.rgb *= inp.light;\n"
 //#ifdef FULLBRIGHT
@@ -4482,7 +4483,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultwall",
-"!!ver 110 130\n"
+"!!ver 110 // 130\n"
 "!!permu DELUXE\n"
 "!!permu FULLBRIGHT\n"
 "!!permu FOG\n"

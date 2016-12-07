@@ -20,27 +20,68 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "winquake.h"
 
-#include <dsound.h>
-#ifndef DECLSPEC_SELECTANY
-#define DECLSPEC_SELECTANY
-#endif
-#define FORCE_DEFINE_GUID(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8) \
-        EXTERN_C const GUID DECLSPEC_SELECTANY name \
-                = { l, w1, w2, { b1, b2,  b3,  b4,  b5,  b6,  b7,  b8 } }
-
-#if _MSC_VER <= 1200
-	DEFINE_GUID(IID_IKsPropertySet, 0x31efac30, 0x515c, 0x11d0, 0xa9, 0xaa, 0x00, 0xaa, 0x00, 0x61, 0xbe, 0x93);
-	DEFINE_GUID(IID_IDirectSound, 0x279AFA83, 0x4981, 0x11CE, 0xA5, 0x21, 0x00, 0x20, 0xAF, 0x0B, 0xE5, 0x60);
-#else
-	FORCE_DEFINE_GUID(IID_IDirectSound, 0x279AFA83, 0x4981, 0x11CE, 0xA5, 0x21, 0x00, 0x20, 0xAF, 0x0B, 0xE5, 0x60);
-	FORCE_DEFINE_GUID(IID_IKsPropertySet, 0x31efac30, 0x515c, 0x11d0, 0xa9, 0xaa, 0x00, 0xaa, 0x00, 0x61, 0xbe, 0x93);
-#endif
-
 #ifdef AVAIL_DSOUND
 
-#define iDirectSoundCreate(a,b,c)	pDirectSoundCreate(a,b,c)
-#define iDirectSoundEnumerate(a,b,c)	pDirectSoundEnumerate(a,b)
+//#define DIRECTSOUND_VERSION 0x800 //either < 0x800 (eax-only) or 0x800 (microsoft's fx stuff).
+#include <dsound.h>
 
+#if !defined(IDirectSoundFXI3DL2Reverb_SetAllParameters) && DIRECTSOUND_VERSION>=0x800
+	//mingw defines version as 0x900, but doesn't provide all the extra interfaces (only the core stuff).
+	//which makes it kinda pointless, so lets provide the crap that its missing.
+	typedef struct {
+		LONG lRoom;
+		LONG lRoomHF;
+		FLOAT flRoomRolloffFactor;
+		FLOAT flDecayTime;
+		FLOAT flDecayHFRatio;
+		LONG lReflections;
+		FLOAT flReflectionsDelay;
+		LONG lReverb;
+		FLOAT flReverbDelay;
+		FLOAT flDiffusion;
+		FLOAT flDensity;
+		FLOAT flHFReference;
+	} DSFXI3DL2Reverb;
+
+	typedef struct IDirectSoundFXI3DL2Reverb
+	{
+		struct
+		{
+			STDMETHOD(QueryInterface)(struct IDirectSoundFXI3DL2Reverb *this_, REFIID riid, LPVOID * ppvObj);
+			STDMETHOD_(ULONG,AddRef)(struct IDirectSoundFXI3DL2Reverb *this_);
+			STDMETHOD_(ULONG,Release)(struct IDirectSoundFXI3DL2Reverb *this_);
+			STDMETHOD(SetAllParameters)(struct IDirectSoundFXI3DL2Reverb *this_, const DSFXI3DL2Reverb *pcDsFxI3DL2Reverb);
+			//INCOMPLETE
+		} *lpVtbl;
+	} IDirectSoundFXI3DL2Reverb;
+	#define IDirectSoundFXI3DL2Reverb8 IDirectSoundFXI3DL2Reverb
+	#define IID_IDirectSoundFXI3DL2Reverb8 IID_IDirectSoundFXI3DL2Reverb
+
+	#define IDirectSoundFXI3DL2Reverb_Release(a) (a)->lpVtbl->Release(a)
+	#define IDirectSoundFXI3DL2Reverb_SetAllParameters(a,b) (a)->lpVtbl->SetAllParameters(a,b)
+#endif
+
+#if _MSC_VER <= 1200
+	#define FORCE_DEFINE_GUID DEFINE_GUID
+#else
+	#ifndef DECLSPEC_SELECTANY
+		#define DECLSPEC_SELECTANY
+	#endif
+	#define FORCE_DEFINE_GUID(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8) \
+			EXTERN_C const GUID DECLSPEC_SELECTANY name \
+					= { l, w1, w2, { b1, b2,  b3,  b4,  b5,  b6,  b7,  b8 } }
+#endif
+
+#if DIRECTSOUND_VERSION >= 0x0800
+FORCE_DEFINE_GUID(IID_IDirectSoundBuffer8, 0x6825a449, 0x7524, 0x4d82, 0x92, 0x0f, 0x50, 0xe3, 0x6a, 0xb3, 0xab, 0x1e);
+FORCE_DEFINE_GUID(IID_IDirectSound8, 0xC50A7E93, 0xF395, 0x4834, 0x9E, 0xF6, 0x7F, 0xA9, 0x9D, 0xE5, 0x09, 0x66);
+FORCE_DEFINE_GUID(IID_IDirectSoundFXI3DL2Reverb, 0x4b166a6a, 0x0d66, 0x43f3, 0x80, 0xe3, 0xee, 0x62, 0x80, 0xde, 0xe1, 0xa4);
+FORCE_DEFINE_GUID(GUID_DSFX_STANDARD_I3DL2REVERB, 0xef985e71, 0xd5c7, 0x42d4, 0xba, 0x4d, 0x2d, 0x07, 0x3e, 0x2e, 0x96, 0xf4);
+HRESULT (WINAPI *pDirectSoundCreate8)(GUID FAR *lpGUID, LPDIRECTSOUND8 FAR *lplpDS, IUnknown FAR *pUnkOuter);
+#endif
+
+FORCE_DEFINE_GUID(IID_IDirectSound, 0x279AFA83, 0x4981, 0x11CE, 0xA5, 0x21, 0x00, 0x20, 0xAF, 0x0B, 0xE5, 0x60);
+FORCE_DEFINE_GUID(IID_IKsPropertySet, 0x31efac30, 0x515c, 0x11d0, 0xa9, 0xaa, 0x00, 0xaa, 0x00, 0x61, 0xbe, 0x93);
 HRESULT (WINAPI *pDirectSoundCreate)(GUID FAR *lpGUID, LPDIRECTSOUND FAR *lplpDS, IUnknown FAR *pUnkOuter);
 HRESULT (WINAPI *pDirectSoundEnumerate)(LPDSENUMCALLBACKA lpCallback, LPVOID lpContext);
 #if defined(VOICECHAT)
@@ -59,8 +100,18 @@ typedef struct {
 	LPDIRECTSOUNDBUFFER pDSBuf;
 	LPDIRECTSOUNDBUFFER pDSPBuf;
 
+#if DIRECTSOUND_VERSION >= 0x0800
+	//dsound8 interfaces, for reverb effects
+	LPDIRECTSOUND8 pDS8;
+	LPDIRECTSOUNDBUFFER8 pDSBuf8;
+	IDirectSoundFXI3DL2Reverb8 *pReverb;
+#endif
+
 	DWORD gSndBufSize;
 	DWORD		mmstarttime;
+
+	int curreverb;
+	int curreverbmodcount;	//so it updates if the effect itself is updated
 
 #ifdef _IKsPropertySet_
 	LPKSPROPERTYSET	EaxKsPropertiesSet;
@@ -73,14 +124,14 @@ static void DSOUND_Restore(soundcardinfo_t *sc)
 {
 	DWORD	dwStatus;
 	dshandle_t *dh = sc->handle;
-	if (dh->pDSBuf->lpVtbl->GetStatus (dh->pDSBuf, &dwStatus) != ERROR_SUCCESS)
+	if (IDirectSoundBuffer_GetStatus (dh->pDSBuf, &dwStatus) != ERROR_SUCCESS)
 		Con_Printf ("Couldn't get sound buffer status\n");
 
 	if (dwStatus & DSBSTATUS_BUFFERLOST)
-		dh->pDSBuf->lpVtbl->Restore (dh->pDSBuf);
+		IDirectSoundBuffer_Restore (dh->pDSBuf);
 
 	if (!(dwStatus & DSBSTATUS_PLAYING))
-		dh->pDSBuf->lpVtbl->Play(dh->pDSBuf, 0, 0, DSBPLAY_LOOPING);
+		IDirectSoundBuffer_Play(dh->pDSBuf, 0, 0, DSBPLAY_LOOPING);
 }
 
 static DWORD	dsound_locksize;
@@ -97,7 +148,7 @@ static void *DSOUND_Lock(soundcardinfo_t *sc, unsigned int *sampidx)
 
 	reps = 0;
 
-	while ((hresult = dh->pDSBuf->lpVtbl->Lock(dh->pDSBuf, 0, dh->gSndBufSize, (void**)&ret, &dsound_locksize,
+	while ((hresult = IDirectSoundBuffer_Lock(dh->pDSBuf, 0, dh->gSndBufSize, (void**)&ret, &dsound_locksize,
 								   (void**)&pbuf2, &dwSize2, 0)) != DS_OK)
 	{
 		if (hresult != DSERR_BUFFERLOST)
@@ -122,7 +173,7 @@ static void *DSOUND_Lock(soundcardinfo_t *sc, unsigned int *sampidx)
 static void DSOUND_Unlock(soundcardinfo_t *sc, void *buffer)
 {
 	dshandle_t *dh = sc->handle;
-	dh->pDSBuf->lpVtbl->Unlock(dh->pDSBuf, buffer, dsound_locksize, NULL, 0);
+	IDirectSoundBuffer_Unlock(dh->pDSBuf, buffer, dsound_locksize, NULL, 0);
 }
 
 /*
@@ -140,34 +191,39 @@ static void DSOUND_Shutdown_Internal (soundcardinfo_t *sc)
 	sc->handle = NULL;
 #ifdef _IKsPropertySet_
 	if (dh->EaxKsPropertiesSet)
-	{
 		IKsPropertySet_Release(dh->EaxKsPropertiesSet);
-	}
+	dh->EaxKsPropertiesSet = NULL;
 #endif
+
+#if DIRECTSOUND_VERSION >= 0x0800
+	if (dh->pReverb)
+		IDirectSoundFXI3DL2Reverb_Release(dh->pReverb);
+	dh->pReverb = NULL;
+	if (dh->pDSBuf8)
+		IDirectSoundBuffer8_Release(dh->pDSBuf8);
+	dh->pDSBuf8 = NULL;
+#endif
+
 	if (dh->pDSBuf)
 	{
-		dh->pDSBuf->lpVtbl->Stop(dh->pDSBuf);
-		dh->pDSBuf->lpVtbl->Release(dh->pDSBuf);
+		IDirectSoundBuffer_Stop(dh->pDSBuf);
+		IDirectSoundBuffer_Release(dh->pDSBuf);
+		if (dh->pDSBuf == dh->pDSPBuf)
+			dh->pDSPBuf = NULL;
+		dh->pDSBuf = NULL;
 	}
 
-// only release primary buffer if it's not also the mixing buffer we just released
-	if (dh->pDSPBuf && (dh->pDSBuf != dh->pDSPBuf))
-	{
-		dh->pDSPBuf->lpVtbl->Release(dh->pDSPBuf);
-	}
+	if (dh->pDSPBuf)
+		IDirectSoundBuffer_Release(dh->pDSPBuf);
+	dh->pDSPBuf = NULL;
 
 	if (dh->pDS)
 	{
-		dh->pDS->lpVtbl->SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_NORMAL);
-		dh->pDS->lpVtbl->Release(dh->pDS);
+		IDirectSound_SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_NORMAL);
+		IDirectSound_Release(dh->pDS);
 	}
 
 	dh->pDS = NULL;
-	dh->pDSBuf = NULL;
-	dh->pDSPBuf = NULL;
-#ifdef _IKsPropertySet_
-	dh->EaxKsPropertiesSet = NULL;
-#endif
 
 	Z_Free(dh);
 }
@@ -225,7 +281,9 @@ static void DSOUND_Shutdown (soundcardinfo_t *sc)
 # define SPEAKER_TOP_BACK_RIGHT          0x20000
 
 /* Bit mask locations reserved for future use*/
+#ifndef SPEAKER_RESERVED
 # define SPEAKER_RESERVED                0x7FFC0000
+#endif
 
 /* Used to specify that any possible permutation of speaker configurations*/
 # define SPEAKER_ALL                     0x80000000
@@ -391,11 +449,24 @@ typedef enum
 } DSPROPERTY_EAX_BUFFERPROPERTY;
 #endif
 
-static void DSOUND_SetReverb(soundcardinfo_t *sc, size_t reverb)
+static long GainToMillibels(float gain)
 {
-#ifdef _IKsPropertySet_
+	return 100*20*(0.43429*log(gain));
+}
+static void DSOUND_SetReverb(soundcardinfo_t *sc, size_t reverbidx)
+{
 	dshandle_t *dh = sc->handle;
+	struct reverbproperties_s *prop;
+	if (reverbidx >= numreverbproperties)
+		return;	//invalid
+	if (dh->curreverb == reverbidx && dh->curreverbmodcount == reverbproperties[reverbidx].modificationcount)
+		return;	//nothing changed.
+	dh->curreverb = reverbidx;
+	dh->curreverbmodcount = reverbproperties[reverbidx].modificationcount;
 
+	prop = &reverbproperties[dh->curreverb].props;
+
+#ifdef _IKsPropertySet_
 	//attempt at eax support.
 	//EAX is a global thing. Get it going in a game and your media player will be doing it too.
 
@@ -403,69 +474,46 @@ static void DSOUND_SetReverb(soundcardinfo_t *sc, size_t reverb)
 	{
 		EAXLISTENERPROPERTIES ListenerProperties =  {0};
 
-/*		DWORD p;
-		IKsPropertySet_Get(dh->EaxKsPropertiesSet, &DSPROPSETID_EAX20_LISTENERPROPERTIES,
-			DSPROPERTY_EAXLISTENER_ALLPARAMETERS, 0, 0, &ListenerProperties,
-			sizeof(ListenerProperties), &p);
-*/
-		if (reverb)
-		{
-#if 1 //phycotic.
-			ListenerProperties.flEnvironmentSize = 2.8;
-			ListenerProperties.flEnvironmentDiffusion = 0.240;
-			ListenerProperties.lRoom = -374;
-			ListenerProperties.lRoomHF = -150;
-			ListenerProperties.flRoomRolloffFactor = 0;
-			ListenerProperties.flAirAbsorptionHF = -5;
-			ListenerProperties.lReflections = -10000;
-			ListenerProperties.flReflectionsDelay  = 0.053;
-			ListenerProperties.lReverb = 625;
-			ListenerProperties.flReverbDelay = 0.08;
-			ListenerProperties.flDecayTime = 5.096;
-			ListenerProperties.flDecayHFRatio = 0.910;
-			ListenerProperties.dwFlags = 0x3f;
-			ListenerProperties.dwEnvironment = EAX_ENVIRONMENT_PSYCHOTIC;
-#else
-			ListenerProperties.flEnvironmentSize = 5.8;
-			ListenerProperties.flEnvironmentDiffusion = 0;
-			ListenerProperties.lRoom = -374;
-			ListenerProperties.lRoomHF = -2860;
-			ListenerProperties.flRoomRolloffFactor = 0;
-			ListenerProperties.flAirAbsorptionHF = -5;
-			ListenerProperties.lReflections = -889;
-			ListenerProperties.flReflectionsDelay  = 0.024;
-			ListenerProperties.lReverb = 797;
-			ListenerProperties.flReverbDelay = 0.035;
-			ListenerProperties.flDecayTime = 5.568;
-			ListenerProperties.flDecayHFRatio = 0.100;
-			ListenerProperties.dwFlags = 0x3f;
-			ListenerProperties.dwEnvironment = EAX_ENVIRONMENT_UNDERWATER;
-#endif
-		}
-		else
-		{
-			ListenerProperties.flEnvironmentSize = 1;
-			ListenerProperties.flEnvironmentDiffusion = 0;
-			ListenerProperties.lRoom = 0;
-			ListenerProperties.lRoomHF = 0;
-			ListenerProperties.flRoomRolloffFactor = 0;
-			ListenerProperties.flAirAbsorptionHF = 0;
-			ListenerProperties.lReflections = 1000;
-			ListenerProperties.flReflectionsDelay  = 0;
-			ListenerProperties.lReverb = 813;
-			ListenerProperties.flReverbDelay = 0.00;
-			ListenerProperties.flDecayTime = 0.1;
-			ListenerProperties.flDecayHFRatio = 0.1;
-			ListenerProperties.dwFlags = 0x3f;
-			ListenerProperties.dwEnvironment = EAX_ENVIRONMENT_GENERIC;
-		}
-
-//		env = EAX_ENVIRONMENT_UNDERWATER;
+		ListenerProperties.flEnvironmentSize = prop->flEchoTime;
+		ListenerProperties.flEnvironmentDiffusion = prop->flDiffusion;
+		ListenerProperties.lRoom = GainToMillibels(prop->flGain);
+		ListenerProperties.lRoomHF = GainToMillibels(prop->flGainHF);
+		ListenerProperties.flRoomRolloffFactor = prop->flRoomRolloffFactor;
+		ListenerProperties.flAirAbsorptionHF = prop->flAirAbsorptionGainHF;
+		ListenerProperties.lReflections = GainToMillibels(prop->flReflectionsGain);
+		ListenerProperties.flReflectionsDelay  = prop->flReflectionsDelay;
+		ListenerProperties.lReverb = GainToMillibels(prop->flLateReverbGain);
+		ListenerProperties.flReverbDelay = prop->flLateReverbDelay;
+		ListenerProperties.flDecayTime = prop->flDecayTime;
+		ListenerProperties.flDecayHFRatio = prop->flDecayHFRatio;
+		ListenerProperties.dwFlags = 0x3f;
+		ListenerProperties.dwEnvironment = reverbidx?EAX_ENVIRONMENT_UNDERWATER:0;
 
 		if (FAILED(IKsPropertySet_Set(dh->EaxKsPropertiesSet, &DSPROPSETID_EAX20_LISTENERPROPERTIES,
 					DSPROPERTY_EAXLISTENER_ALLPARAMETERS, 0, 0, &ListenerProperties,
 					sizeof(ListenerProperties))))
 			Con_SafePrintf ("EAX set failed\n");
+	}
+#endif
+
+#if DIRECTSOUND_VERSION >= 0x0800
+	if (dh->pReverb)
+	{
+		DSFXI3DL2Reverb reverb;
+		reverb.lRoom				= bound(-10000, GainToMillibels(prop->flGain), 0);			// [-10000, 0]      default: -1000 mB
+		reverb.lRoomHF				= bound(-10000, GainToMillibels(prop->flGainHF), 0);			// [-10000, 0]      default: 0 mB
+		reverb.flRoomRolloffFactor	= bound(0.0, prop->flRoomRolloffFactor, 10.0);				// [0.0, 10.0]      default: 0.0
+		reverb.flDecayTime			= bound(0.1, prop->flDecayTime, 20.0);						// [0.1, 20.0]      default: 1.49s
+		reverb.flDecayHFRatio		= bound(0.1, prop->flDecayHFRatio, 2.0);						// [0.1, 2.0]       default: 0.83
+		reverb.lReflections			= bound(-10000, GainToMillibels(prop->flReflectionsGain), 1000);	// [-10000, 1000]   default: -2602 mB
+		reverb.flReflectionsDelay	= bound(0.0, prop->flReflectionsDelay, 0.3);					// [0.0, 0.3]       default: 0.007 s
+		reverb.lReverb				= bound(-10000, GainToMillibels(prop->flLateReverbGain), 2000);	// [-10000, 2000]   default: 200 mB
+		reverb.flReverbDelay		= bound(0.0, prop->flLateReverbDelay, 0.1);					// [0.0, 0.1]       default: 0.011 s
+		reverb.flDiffusion			= bound(0.0, prop->flDiffusion*100, 100.0);					// [0.0, 100.0]     default: 100.0 %
+		reverb.flDensity			= bound(0.0, prop->flDensity*100, 100.0);						// [0.0, 100.0]     default: 100.0 %
+		reverb.flHFReference		= bound(20.0, prop->flHFReference, 20000.0);						// [20.0, 20000.0]  default: 5000.0 Hz
+
+		IDirectSoundFXI3DL2Reverb_SetAllParameters(dh->pReverb, &reverb);
 	}
 #endif
 }
@@ -487,7 +535,7 @@ static unsigned int DSOUND_GetDMAPos(soundcardinfo_t *sc)
 
 	dshandle_t *dh = sc->handle;
 
-	dh->pDSBuf->lpVtbl->GetCurrentPosition(dh->pDSBuf, &mmtime, &dwWrite);
+	IDirectSoundBuffer_GetCurrentPosition(dh->pDSBuf, &mmtime, &dwWrite);
 	s = mmtime - dh->mmstarttime;
 
 
@@ -520,10 +568,17 @@ static qboolean DSOUND_InitOutputLibrary(void)
 	}
 	if (!pDirectSoundCreate)
 		pDirectSoundCreate = (void *)GetProcAddress(hInstDS,"DirectSoundCreate");
-	if (!pDirectSoundCreate)
+#if DIRECTSOUND_VERSION >= 0x0800
+	if (!pDirectSoundCreate8)
+		pDirectSoundCreate8 = (void *)GetProcAddress(hInstDS,"DirectSoundCreate8");	//xp+
+	if (!pDirectSoundCreate8)
+#endif
 	{
-		Con_SafePrintf ("Couldn't get DS proc addr\n");
-		return false;
+		if (!pDirectSoundCreate)
+		{
+			Con_SafePrintf ("Couldn't get DS proc addr\n");
+			return false;
+		}
 	}
 	if (!pDirectSoundEnumerate)
 		pDirectSoundEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundEnumerateA");
@@ -539,11 +594,8 @@ Direct-Sound support
 static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 {
 	extern cvar_t snd_inactive;
-#if _MSC_VER > 1200	//fixme err
-#ifdef _IKsPropertySet_
 	extern cvar_t snd_eax;
-#endif
-#endif
+	int usereverb;	//2=eax, 1=ds8
 	DSBUFFERDESC	dsbuf;
 	DSBCAPS			dsbcaps;
 	DWORD			dwSize, dwWrite;
@@ -613,23 +665,23 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 	}
 
 	format.Format.nChannels = sc->sn.numchannels;
-    format.Format.wBitsPerSample = sc->sn.samplebits;
-    format.Format.nSamplesPerSec = sc->sn.speed;
-    format.Format.nBlockAlign = format.Format.nChannels
-		*format.Format.wBitsPerSample / 8;
-    format.Format.nAvgBytesPerSec = format.Format.nSamplesPerSec
-		*format.Format.nBlockAlign;
+	format.Format.wBitsPerSample = sc->sn.samplebits;
+	format.Format.nSamplesPerSec = sc->sn.speed;
+	format.Format.nBlockAlign = format.Format.nChannels * format.Format.wBitsPerSample / 8;
+	format.Format.nAvgBytesPerSec = format.Format.nSamplesPerSec * format.Format.nBlockAlign;
 
 	if (!DSOUND_InitOutputLibrary())
 		return false;
 
 	sc->handle = Z_Malloc(sizeof(dshandle_t));
 	dh = sc->handle;
+
+	usereverb = !!snd_eax.ival;
  //EAX attempt
 #if _MSC_VER > 1200
 #ifdef _IKsPropertySet_
 	dh->pDS = NULL;
-	if (snd_eax.ival)
+	if (usereverb)
 	{
 		CoInitialize(NULL);
 		if (FAILED(CoCreateInstance( &CLSID_EAXDirectSound, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectSound, (void **)&dh->pDS )))
@@ -637,6 +689,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 		else
 		{
 			IDirectSound_Initialize(dh->pDS, dsguid);
+			usereverb = 2;
 		}
 	}
 
@@ -644,8 +697,22 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 #endif
 #endif
 	{
-		while ((hresult = iDirectSoundCreate(dsguid, &dh->pDS, NULL)) != DS_OK)
+		for(;;)
 		{
+			dh->pDS = NULL;
+#if DIRECTSOUND_VERSION >= 0x0800
+			dh->pDS8 = NULL;
+			if (pDirectSoundCreate8)
+			{
+				hresult = pDirectSoundCreate8(dsguid, &dh->pDS8, NULL);
+				dh->pDS = (void*)dh->pDS8;	//evil cast
+			}
+			else
+#endif
+				hresult = pDirectSoundCreate(dsguid, &dh->pDS, NULL);
+			if (hresult == DS_OK)
+				break;
+
 			if (hresult != DSERR_ALLOCATED)
 			{
 				Con_SafePrintf (": create failed\n");
@@ -669,7 +736,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 #ifdef FTE_SDL
 #define mainwindow GetDesktopWindow()
 #endif
-	if (DS_OK != dh->pDS->lpVtbl->SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_EXCLUSIVE))
+	if (DS_OK != IDirectSound_SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_EXCLUSIVE))
 	{
 		Con_SafePrintf ("Set coop level failed\n");
 		DSOUND_Shutdown_Internal (sc);
@@ -678,7 +745,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 
 	dscaps.dwSize = sizeof(dscaps);
 
-	if (DS_OK != dh->pDS->lpVtbl->GetCaps (dh->pDS, &dscaps))
+	if (DS_OK != IDirectSound_GetCaps (dh->pDS, &dscaps))
 	{
 		Con_SafePrintf ("Couldn't get DS caps\n");
 	}
@@ -716,11 +783,11 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 
 	if (!COM_CheckParm ("-snoforceformat"))
 	{
-		if (DS_OK == dh->pDS->lpVtbl->CreateSoundBuffer(dh->pDS, &dsbuf, &dh->pDSPBuf, NULL))
+		if (DS_OK == IDirectSound_CreateSoundBuffer(dh->pDS, &dsbuf, &dh->pDSPBuf, NULL))
 		{
 			pformat = format;
 
-			if (DS_OK != dh->pDSPBuf->lpVtbl->SetFormat (dh->pDSPBuf, (WAVEFORMATEX *)&pformat))
+			if (DS_OK != IDirectSoundBuffer_SetFormat (dh->pDSPBuf, (WAVEFORMATEX *)&pformat))
 			{
 //				if (snd_firsttime)
 //					Con_SafePrintf ("Set primary sound buffer format: no\n");
@@ -741,6 +808,12 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 		memset (&dsbuf, 0, sizeof(dsbuf));
 		dsbuf.dwSize = sizeof(DSBUFFERDESC);
 		dsbuf.dwFlags = DSBCAPS_CTRLFREQUENCY|DSBCAPS_LOCSOFTWARE;	//dmw 29 may, 2003 removed locsoftware
+
+#if DIRECTSOUND_VERSION >= 0x0800
+		if (usereverb == 1)
+			dsbuf.dwFlags |= DSBCAPS_CTRLFX;
+#endif
+
 #ifdef DSBCAPS_GLOBALFOCUS
 		if (snd_inactive.ival)
 		{
@@ -761,7 +834,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 		memset(&dsbcaps, 0, sizeof(dsbcaps));
 		dsbcaps.dwSize = sizeof(dsbcaps);
 
-		if (DS_OK != dh->pDS->lpVtbl->CreateSoundBuffer(dh->pDS, &dsbuf, &dh->pDSBuf, NULL))
+		if (DS_OK != IDirectSound_CreateSoundBuffer(dh->pDS, &dsbuf, &dh->pDSBuf, NULL))
 		{
 			Con_SafePrintf ("DS:CreateSoundBuffer Failed");
 			DSOUND_Shutdown_Internal (sc);
@@ -772,7 +845,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 		sc->sn.samplebits = format.Format.wBitsPerSample;
 		sc->sn.speed = format.Format.nSamplesPerSec;
 
-		if (DS_OK != dh->pDSBuf->lpVtbl->GetCaps (dh->pDSBuf, &dsbcaps))
+		if (DS_OK != IDirectSoundBuffer_GetCaps (dh->pDSBuf, &dsbcaps))
 		{
 			Con_SafePrintf ("DS:GetCaps failed\n");
 			DSOUND_Shutdown_Internal (sc);
@@ -784,14 +857,14 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 	}
 	else
 	{
-		if (DS_OK != dh->pDS->lpVtbl->SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_WRITEPRIMARY))
+		if (DS_OK != IDirectSound_SetCooperativeLevel (dh->pDS, mainwindow, DSSCL_WRITEPRIMARY))
 		{
 			Con_SafePrintf ("Set coop level failed\n");
 			DSOUND_Shutdown_Internal (sc);
 			return false;
 		}
 
-		if (DS_OK != dh->pDSPBuf->lpVtbl->GetCaps (dh->pDSPBuf, &dsbcaps))
+		if (DS_OK != IDirectSoundBuffer_GetCaps (dh->pDSPBuf, &dsbcaps))
 		{
 			Con_Printf ("DS:GetCaps failed\n");
 			DSOUND_Shutdown_Internal (sc);
@@ -804,21 +877,38 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 
 	dh->gSndBufSize = dsbcaps.dwBufferBytes;
 
+#if DIRECTSOUND_VERSION >= 0x0800
+	if (usereverb == 1)
+	{
+		if (SUCCEEDED(IDirectSoundBuffer_QueryInterface(dh->pDSBuf, &IID_IDirectSoundBuffer8, (void*)&dh->pDSBuf8)))
+		{
+			DSEFFECTDESC effects[1];
+			DWORD results[1];
+			memset(effects, 0, sizeof(effects));
+			effects[0].dwSize = sizeof(effects[0]);
+			effects[0].dwFlags = 0;
+			effects[0].guidDSFXClass = GUID_DSFX_STANDARD_I3DL2REVERB;
+			if (SUCCEEDED(IDirectSoundBuffer8_SetFX(dh->pDSBuf8, 1, effects, results)))
+				if (SUCCEEDED(IDirectSoundBuffer8_GetObjectInPath(dh->pDSBuf8, &GUID_DSFX_STANDARD_I3DL2REVERB, 0, &IID_IDirectSoundFXI3DL2Reverb8, (void*)&dh->pReverb)))
+					usereverb = 0;
+		}
+	}
+#endif
+
 #if 1
 	// Make sure mixer is active
-	dh->pDSBuf->lpVtbl->Play(dh->pDSBuf, 0, 0, DSBPLAY_LOOPING);
+	IDirectSoundBuffer_Play(dh->pDSBuf, 0, 0, DSBPLAY_LOOPING);
 
-/*	if (snd_firsttime)
-		Con_SafePrintf("   %d channel(s)\n"
-		               "   %d bits/sample\n"
-					   "   %d bytes/sec\n",
-					   shm->channels, shm->samplebits, shm->speed);*/
+	Con_DPrintf("   %d channel(s)\n"
+				"   %d bits/sample\n"
+				"   %d bytes/sec\n",
+				sc->sn.numchannels, sc->sn.samplebits, sc->sn.speed);
 
 
 // initialize the buffer
 	reps = 0;
 
-	while ((hresult = dh->pDSBuf->lpVtbl->Lock(dh->pDSBuf, 0, dh->gSndBufSize, (void**)&buffer, &dwSize, NULL, NULL, 0)) != DS_OK)
+	while ((hresult = IDirectSoundBuffer_Lock(dh->pDSBuf, 0, dh->gSndBufSize, (void**)&buffer, &dwSize, NULL, NULL, 0)) != DS_OK)
 	{
 		if (hresult != DSERR_BUFFERLOST)
 		{
@@ -840,17 +930,20 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 
 //	Sleep(500);
 
-	dh->pDSBuf->lpVtbl->Unlock(dh->pDSBuf, buffer, dwSize, NULL, 0);
+	IDirectSoundBuffer_Unlock(dh->pDSBuf, buffer, dwSize, NULL, 0);
 
 
-	dh->pDSBuf->lpVtbl->Stop(dh->pDSBuf);
+	IDirectSoundBuffer_Stop(dh->pDSBuf);
 #endif
-	dh->pDSBuf->lpVtbl->GetCurrentPosition(dh->pDSBuf, &dh->mmstarttime, &dwWrite);
-	dh->pDSBuf->lpVtbl->Play(dh->pDSBuf, 0, 0, DSBPLAY_LOOPING);
+	IDirectSoundBuffer_GetCurrentPosition(dh->pDSBuf, &dh->mmstarttime, &dwWrite);
+	IDirectSoundBuffer_Play(dh->pDSBuf, 0, 0, DSBPLAY_LOOPING);
 
 	sc->sn.samples = dh->gSndBufSize/(sc->sn.samplebits/8);
 	sc->sn.samplepos = 0;
 	sc->sn.buffer = NULL;
+
+	dh->curreverb = ~0;
+	dh->curreverbmodcount = ~0;
 
 
 	sc->Lock		= DSOUND_Lock;
@@ -864,7 +957,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 #if _MSC_VER > 1200
 #ifdef _IKsPropertySet_
 	//attempt at eax support
-	if (snd_eax.ival)
+	if (usereverb == 2)
 	{
 		int r;
 		DWORD support;
@@ -878,19 +971,22 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 				IKsPropertySet_Release(dh->EaxKsPropertiesSet);
 				dh->EaxKsPropertiesSet = NULL;
 				Con_SafePrintf ("EAX 2 not supported\n");
-				return true;//otherwise successful. It can be used for normal sound anyway.
+				//otherwise successful. It can be used for normal sound anyway.
 			}
-
-			//worked. EAX is supported.
+			else
+				usereverb = 0; //worked. EAX is fully inited.
 		}
 		else
 		{
-			Con_SafePrintf ("Couldn't get extended properties\n");
+			Con_DPrintf ("Couldn't get extended properties\n");
 			dh->EaxKsPropertiesSet = NULL;
 		}
 	}
 #endif
 #endif
+
+	if (usereverb)
+		Con_SafePrintf ("Couldn't enable environmental reverb effects\n");
 
 	return true;
 }

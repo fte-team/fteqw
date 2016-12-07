@@ -11939,8 +11939,12 @@ void PR_DumpPlatform_f(void)
 		{"TEREDIT_RESET_SECT",	"const float", CS, NULL, ter_reset},
 		{"TEREDIT_RELOAD_SECT",	"const float", CS, NULL, ter_reloadsect},
 		{"TEREDIT_ENTS_WIPE",	"const float", CS, NULL, ter_ents_wipe},
-		{"TEREDIT_ENTS_CONCAT",	"const float", CS, NULL, ter_ents_concat},
-		{"TEREDIT_ENTS_GET",	"const float", CS, NULL, ter_ents_get},
+//		{"TEREDIT_ENTS_CONCAT",	"const float", CS, NULL, ter_ents_concat},
+//		{"TEREDIT_ENTS_GET",	"const float", CS, NULL, ter_ents_get},
+		{"TEREDIT_ENT_GET",		"const float", CS, NULL, ter_ent_get},
+		{"TEREDIT_ENT_SET",		"const float", CS, NULL, ter_ent_set},
+		{"TEREDIT_ENT_ADD",		"const float", CS, NULL, ter_ent_add},
+		{"TEREDIT_ENT_COUNT",		"const float", CS, NULL, ter_ent_count},
 #endif
 
 		{"SLIST_HOSTCACHEVIEWCOUNT",	"const float", CS|MENU, NULL, SLIST_HOSTCACHEVIEWCOUNT},

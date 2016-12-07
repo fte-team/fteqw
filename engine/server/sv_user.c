@@ -6398,7 +6398,7 @@ int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 	case MOVETYPE_WALK:
 	default:
 #ifndef NOLEGACY
-		if (ent->v->health <= 0)
+		if (cl && ent->v->health <= 0)
 			return PM_DEAD;
 #endif
 		return PM_NORMAL;

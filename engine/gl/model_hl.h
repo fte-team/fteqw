@@ -21,28 +21,30 @@
  */
 typedef struct
 {
-    int		filetypeid;	//IDSP
+	int		filetypeid;	//IDSP
 	int		version;	//10
-    char	name[64];
-    int		filesize;
-    vec3_t	unknown3[5];
-    int		unknown4;
-    int		numbones;
-    int		boneindex;
-    int		numcontrollers;
-    int		controllerindex;
-    int		unknown5[2];
-    int		numseq;
-    int		seqindex;
-    int		unknown6;
-    int		seqgroups;
-    int		numtextures;
-    int		textures;
-    int		unknown7[3];
-    int		skins;
-    int		numbodyparts;
-    int		bodypartindex;
-    int		unknown9[8];
+	char	name[64];
+	int		filesize;
+	vec3_t	unknown3[5];
+	int		unknown4;	//flags
+	int		numbones;
+	int		boneindex;
+	int		numcontrollers;
+	int		controllerindex;
+	int		unknown5[2];	//hitboxes
+	int		numseq;
+	int		seqindex;
+	int		unknown6;		//external sequences
+	int		seqgroups;
+	int		numtextures;
+	int		textures;
+	int		unknown7;	//something to do with external textures
+	int		skinrefs;
+	int		skingroups;
+	int		skins;
+	int		numbodyparts;
+	int		bodypartindex;
+	int		unknown9[8];	//attachments, sounds, transitions
 } hlmdl_header_t;
 
 /*
@@ -52,11 +54,11 @@ typedef struct
  */
 typedef struct
 {
-    char	name[64];
-    int		flags;
-    int		w;	/* width */
-    int		h;	/* height */
-    int		offset;	/* index */
+	char	name[64];
+	int		flags; /*flat, chrome, fullbright*/
+	int		w;	/* width */
+	int		h;	/* height */
+	int		offset;	/* index */
 } hlmdl_tex_t;
 
 /*
@@ -66,10 +68,10 @@ typedef struct
  */
 typedef struct
 {
-    char	name[64];
-    int		nummodels;
-    int		base;
-    int		modelindex;
+	char	name[64];
+	int		nummodels;
+	int		base;
+	int		modelindex;
 } hlmdl_bodypart_t;
 
 /*
@@ -79,11 +81,11 @@ typedef struct
  */
 typedef struct
 {
-    int numtris;
-    int index;
-    int skinindex;
-    int unknown2;
-    int unknown3;
+	int numtris;
+	int index;
+	int skinindex;
+	int unknown2;
+	int unknown3;
 } hlmdl_mesh_t;
 
 /*
@@ -93,12 +95,12 @@ typedef struct
  */
 typedef struct
 {
-    char	name[32];
-    int		parent;
-    int		unknown1;
-    int		bonecontroller[6];
-    float	value[6];
-    float	scale[6];
+	char	name[32];
+	int		parent;
+	int		unknown1;
+	int		bonecontroller[6];
+	float	value[6];
+	float	scale[6];
 } hlmdl_bone_t;
 
 /*
@@ -108,31 +110,33 @@ typedef struct
  */
 typedef struct
 {
-    int		name;
-    int		type;
-    float	start;
-    float	end;
-    int		unknown1;
-    int		index;
+	int		name;
+	int		type;
+	float	start;
+	float	end;
+	int		unknown1;
+	int		index;
 } hlmdl_bonecontroller_t;
 
 /*
  -----------------------------------------------------------------------------------------------------------------------
-    halflife model descriptor
+    halflife submodel descriptor
  -----------------------------------------------------------------------------------------------------------------------
  */
 typedef struct
 {
-    char	name[64];
-    int		unknown1;
-    float	unknown2;
-    int		nummesh;
-    int		meshindex;
-    int		numverts;
-    int		vertinfoindex;
-    int		vertindex;
-    int		unknown3[5];
-} hlmdl_model_t;
+	char	name[64];
+	int		unknown1;
+	float	unknown2;
+	int		nummesh;
+	int		meshindex;
+	int		numverts;
+	int		vertinfoindex;
+	int		vertindex;
+	int		unknown3[2];
+	int		normindex;
+	int		unknown4[2];
+} hlmdl_submodel_t;
 
 /*
  -----------------------------------------------------------------------------------------------------------------------
@@ -141,7 +145,7 @@ typedef struct
  */
 typedef struct
 {
-    unsigned short	offset[6];
+	unsigned short	offset[6];
 } hlmdl_anim_t;
 
 /*
@@ -151,11 +155,11 @@ typedef struct
  */
 typedef union
 {
-    struct {
-        qbyte	valid;
-        qbyte	total;
-    } num;
-    short	value;
+	struct {
+		qbyte	valid;
+		qbyte	total;
+	} num;
+	short	value;
 } hlmdl_animvalue_t;
 
 /*
@@ -165,24 +169,24 @@ typedef union
  */
 typedef struct
 {
-    char	name[32];
-    float	timing;
+	char	name[32];
+	float	timing;
 	int		loop;
-    int		unknown1[4];
-    int		numframes;
-    int		unknown2[2];
-    int		motiontype;
-    int		motionbone;
-    vec3_t	unknown3;
-    int		unknown4[2];
-    vec3_t	bbox[2];
-    int		hasblendseq;
-    int		index;
-    int		unknown7[2];
-    float	unknown[4];
-    int		unknown8;
-    unsigned int		seqindex;
-    int		unknown9[4];
+	int		unknown1[4];
+	int		numframes;
+	int		unknown2[2];
+	int		motiontype;
+	int		motionbone;
+	vec3_t	unknown3;
+	int		unknown4[2];
+	vec3_t	bbox[2];
+	int		hasblendseq;
+	int		index;
+	int		unknown7[2];
+	float	unknown[4];
+	int		unknown8;
+	unsigned int		seqindex;
+	int		unknown9[4];
 } hlmdl_sequencelist_t;
 
 /*
@@ -192,9 +196,9 @@ typedef struct
  */
 typedef struct
 {
-    char			name[96];	/* should be split label[32] and name[64] */
-    unsigned int	cache;
-    int				data;
+	char			name[96];	/* should be split label[32] and name[64] */
+	unsigned int	cache;
+	int				data;
 } hlmdl_sequencedata_t;
 
 typedef struct
@@ -209,27 +213,19 @@ typedef struct
     halflife model internal structure
  -----------------------------------------------------------------------------------------------------------------------
  */
-typedef struct
-{
-    float	controller[5];				/* Position of bone controllers */
-    float	adjust[5];
-
-    /* Static pointers */
-    hlmdl_header_t			*header;
-    hlmdl_bone_t			*bones;
-    hlmdl_bonecontroller_t	*bonectls;
-	struct hlmodelshaders_s	*shaders;
-	hlmdl_sequencefile_t	**animcache;
-	zonegroup_t				*memgroup;
-} hlmodel_t;
 
 #define MAX_ANIM_GROUPS	16	//submodel files containing anim data.
 typedef struct	//this is stored as the cache. an hlmodel_t is generated when drawing
 {
-    hlmdl_header_t			*header;
-    hlmdl_bone_t			*bones;
-    hlmdl_bonecontroller_t	*bonectls;
+	//updated while rendering...
+	float	controller[5];				/* Position of bone controllers */
+	float	adjust[5];
+
+	hlmdl_header_t			*header;
+	hlmdl_bone_t			*bones;
+	hlmdl_bonecontroller_t	*bonectls;
 	hlmdl_sequencefile_t	*animcache[MAX_ANIM_GROUPS];
+	zonegroup_t				*memgroup;
 	struct hlmodelshaders_s
 	{
 		char name[MAX_QPATH];
@@ -237,9 +233,26 @@ typedef struct	//this is stored as the cache. an hlmodel_t is generated when dra
 		shader_t *shader;
 		int w, h;
 	} *shaders;
-	short *skins;
-	int numskins;
-} hlmodelcache_t;
+	short *skinref;
+	int numskinrefs;
+	int numskingroups;
+
+	int numgeomsets;
+	struct
+	{
+		int numalternatives;
+		struct hlalternative_s
+		{
+			mesh_t mesh;
+			int numsubmeshes;
+			struct
+			{
+				int firstindex;
+				int numindexes;
+			} *submesh;
+		} *alternatives;
+	} *geomset;
+} hlmodel_t;
 
 /* HL mathlib prototypes: */
 void	QuaternionGLAngle(const vec3_t angles, vec4_t quaternion);
@@ -252,3 +265,11 @@ void	R_DrawHLModel(entity_t	*curent);
 
 /* physics stuff */
 void *Mod_GetHalfLifeModelData(model_t *mod);
+
+//reflectioney things, including bone data
+int HLMDL_BoneForName(model_t *mod, const char *name);
+int HLMDL_FrameForName(model_t *mod, const char *name);
+const char *HLMDL_FrameNameForNum(model_t *model, int surfaceidx, int num);
+qboolean HLMDL_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **name, int *numframes, float *duration, qboolean *loop);
+int HLMDL_GetNumBones(model_t *mod);
+int HLMDL_GetBoneData(model_t *model, int firstbone, int lastbone, framestate_t *fstate, float *result);

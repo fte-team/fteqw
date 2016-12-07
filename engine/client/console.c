@@ -73,6 +73,7 @@ cvar_t		con_separatechat = CVAR("con_separatechat", "0");
 cvar_t		con_timestamps = CVAR("con_timestamps", "0");
 cvar_t		con_timeformat = CVAR("con_timeformat", "(%H:%M:%S) ");
 cvar_t		con_textsize = CVARD("con_textsize", "8", "Resize the console text to be a different height, scaled separately from the hud. The value is the height in (virtual) pixels.");
+extern cvar_t log_developer;
 
 #define	NUM_CON_TIMES 24
 
@@ -1064,9 +1065,9 @@ void VARGS Con_SafeTPrintf (translation_t text, ...)
 
 static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
 {
-	if (!developer.value)
+	if (log_developer.ival)
 		Con_Log(data);
-	else
+	if (developer.ival)
 	{
 		Sys_Printf ("%s", (const char*)data);	// also echo to debugging console
 		Con_PrintCon(&con_main, data, con_main.parseflags);
@@ -1092,8 +1093,7 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 	Sys_Printf("%s", msg);
 	return;
 #else
-	extern cvar_t log_developer;
-	if (!developer.value && !log_developer.value)
+	if (!developer.ival && !log_developer.ival)
 		return; // early exit
 #endif
 
@@ -1103,14 +1103,13 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 
 	if (!Sys_IsMainThread())
 	{
-		if (developer.ival)
-			COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), 0, 0);
 		return;
 	}
 
-	if (!developer.value)
+	if (log_developer.ival)
 		Con_Log(msg);
-	else
+	if (developer.ival)
 	{
 		Sys_Printf ("%s", msg);	// also echo to debugging console
 		if (con_initialized)

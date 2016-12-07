@@ -221,9 +221,11 @@ enum shaderparsemode_e
 static struct
 {
 	enum shaderparsemode_e mode;
+	qboolean droppass;
 
 	qboolean forceprogramify;
 	//for dpwater compat, used to generate a program
+	int dpwatertype;
 	float reflectmin;
 	float reflectmax;
 	float reflectfactor;
@@ -231,7 +233,6 @@ static struct
 	vec3_t refractcolour;
 	vec3_t reflectcolour;
 	float wateralpha;
-	qboolean droppass;
 } parsestate;
 
 typedef struct shaderkey_s
@@ -2281,6 +2282,7 @@ static void Shader_DP_Water(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	parsestate.forceprogramify = true;
 
+	parsestate.dpwatertype |= 3;
 	parsestate.reflectmin = Shader_ParseFloat(shader, ptr, 0);
 	parsestate.reflectmax = Shader_ParseFloat(shader, ptr, 0);
 	parsestate.refractfactor = Shader_ParseFloat(shader, ptr, 0);
@@ -2293,6 +2295,9 @@ static void Shader_DP_Reflect(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	parsestate.forceprogramify = true;
 
+	parsestate.dpwatertype |= 1;
+	parsestate.reflectmin = 1;
+	parsestate.reflectmax = 1;
 	parsestate.reflectfactor = Shader_ParseFloat(shader, ptr, 0);
 	Shader_ParseVector(shader, ptr, parsestate.reflectcolour);
 }
@@ -2300,6 +2305,7 @@ static void Shader_DP_Refract(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	parsestate.forceprogramify = true;
 
+	parsestate.dpwatertype |= 2;
 	parsestate.refractfactor = Shader_ParseFloat(shader, ptr, 0);
 	Shader_ParseVector(shader, ptr, parsestate.refractcolour);
 }
@@ -4257,9 +4263,9 @@ void Shader_Programify (shader_t *s)
 			return;*/
 	}
 
-	if (parsestate.refractfactor || parsestate.reflectfactor)
+	if (parsestate.dpwatertype)
 	{
-		prog = va("altwater#REFLECT#USEMODS#FRESNEL_EXP=2.0"
+		prog = va("altwater%s#USEMODS#FRESNEL_EXP=2.0"
 				//variable parts
 				"#STRENGTH_REFR=%g#STRENGTH_REFL=%g"
 				"#TINT_REFR=%g,%g,%g"
@@ -4267,6 +4273,7 @@ void Shader_Programify (shader_t *s)
 				"#FRESNEL_MIN=%g#FRESNEL_RANGE=%g"
 				"#ALPHA=%g",
 				//those args
+				(parsestate.dpwatertype&1)?"#REFLECT":"",
 				parsestate.refractfactor*0.01, parsestate.reflectfactor*0.01,
 				parsestate.refractcolour[0],parsestate.refractcolour[1],parsestate.refractcolour[2],
 				parsestate.reflectcolour[0],parsestate.reflectcolour[1],parsestate.reflectcolour[2],
@@ -5633,7 +5640,7 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 {
 	char *builtin = NULL;
-	if (r_mirroralpha.value < 1 && !strcmp(shortname, "window02_1"))
+	if (r_mirroralpha.value < 1 && (!strcmp(shortname, "window02_1") || !strncmp(shortname, "mirror", 6)))
 	{
 		if (r_mirroralpha.value < 0)
 		{

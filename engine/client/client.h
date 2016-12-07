@@ -1341,24 +1341,25 @@ char *CG_GetConfigString(int num);
 //
 #ifdef CSQC_DAT
 qboolean CSQC_Inited(void);
-void CSQC_RendererRestarted(void);
+void	 CSQC_RendererRestarted(void);
 qboolean CSQC_UnconnectedOkay(qboolean inprinciple);
 qboolean CSQC_UnconnectedInit(void);
 qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checksum);
 qboolean CSQC_ConsoleLink(char *text, char *info);
-void CSQC_RegisterCvarsAndThings(void);
+void	 CSQC_RegisterCvarsAndThings(void);
 qboolean CSQC_SetupToRenderPortal(int entnum);
 qboolean CSQC_DrawView(void);
 qboolean CSQC_UseGamecodeLoadingScreen(void);
-void CSQC_Shutdown(void);
+void	 CSQC_Shutdown(void);
 qboolean CSQC_StuffCmd(int lplayernum, char *cmd, char *cmdend);
+void	 CSQC_MapEntityEdited(int idx, const char *newe);
 qboolean CSQC_LoadResource(char *resname, char *restype);
 qboolean CSQC_ParsePrint(char *message, int printlevel);
 qboolean CSQC_ParseGamePacket(void);
 qboolean CSQC_CenterPrint(int lplayernum, char *cmd);
 qboolean CSQC_Parse_Damage(float save, float take, vec3_t source);
-void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd);
-void CSQC_WorldLoaded(void);
+void	 CSQC_Input_Frame(int lplayernum, usercmd_t *cmd);
+void	 CSQC_WorldLoaded(void);
 qboolean CSQC_ParseTempEntity(void);
 qboolean CSQC_ConsoleCommand(char *cmd);
 qboolean CSQC_KeyPress(int key, int unicode, qboolean down, unsigned int devid);
@@ -1367,16 +1368,16 @@ qboolean CSQC_MousePosition(float xabs, float yabs, unsigned int devid);
 qboolean CSQC_JoystickAxis(int axis, float value, unsigned int devid);
 qboolean CSQC_Accelerometer(float x, float y, float z);
 qboolean CSQC_Gyroscope(float x, float y, float z);
-int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod, float timeofs, unsigned int flags);
-void CSQC_ParseEntities(void);
-void CSQC_ResetTrails(void);
+int		 CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod, float timeofs, unsigned int flags);
+void	 CSQC_ParseEntities(void);
+void	 CSQC_ResetTrails(void);
 
 qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state);
-void CSQC_DeltaStart(float time);
+void	 CSQC_DeltaStart(float time);
 qboolean CSQC_DeltaUpdate(entity_state_t *src);
-void CSQC_DeltaEnd(void);
+void	 CSQC_DeltaEnd(void);
 
-void CSQC_CvarChanged(cvar_t *var);
+void	 CSQC_CvarChanged(cvar_t *var);
 #else
 #define CSQC_UnconnectedOkay(inprinciple) false
 #define CSQC_UnconnectedInit() false

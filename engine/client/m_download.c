@@ -1798,7 +1798,7 @@ static char *PM_GetTempName(package_t *p)
 	return Z_StrDup(destname);
 }
 
-static void PM_AddDownloadedPackage(const char *filename)
+/*static void PM_AddDownloadedPackage(const char *filename)
 {
 	char pathname[1024];
 	package_t *p;
@@ -1822,7 +1822,7 @@ static void PM_AddDownloadedPackage(const char *filename)
 	p->license = NULL;
 	p->author = NULL;
 	p->previewimage = NULL;
-}
+}*/
 
 int PM_IsApplying(void)
 {
@@ -2041,6 +2041,8 @@ static void PM_ApplyChanges(void)
 	PM_StartADownload();	//and try to do those downloads.
 }
 
+//names packages that were listed from the  manifest.
+//if 'mark' is true, then this is an initial install.
 void PM_ManifestPackage(const char *metaname, qboolean mark)
 {
 	domanifestinstall = mark;
@@ -2296,6 +2298,9 @@ void Menu_Download_Update(void)
 {
 }
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri)
+{
+}
+void PM_ManifestPackage(const char *metaname, qboolean mark)
 {
 }
 void PM_Shutdown(void)

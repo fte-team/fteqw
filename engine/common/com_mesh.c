@@ -885,6 +885,7 @@ struct
 	vec3_t *anorm;
 	vec3_t *anorms;
 	vec3_t *anormt;
+	float lerp;
 
 	vbo_t vbo;
 	vbo_t *vbop;
@@ -1671,6 +1672,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	{
 		if (meshcache.vertgroup == inf->shares_verts && meshcache.ent == e && usebones == meshcache.usebones)
 		{
+			mesh->xyz_blendw[0] = meshcache.lerp;
+			mesh->xyz_blendw[1] = 1-meshcache.lerp;
 			mesh->xyz_array = meshcache.acoords1;
 			mesh->xyz2_array = meshcache.acoords2;
 			mesh->normals_array = meshcache.anorm;
@@ -1976,6 +1979,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	meshcache.anorm = mesh->normals_array;
 	meshcache.anorms = mesh->snormals_array;
 	meshcache.anormt = mesh->tnormals_array;
+	meshcache.lerp = mesh->xyz_blendw[0];
 	if (vbop)
 		meshcache.vbop = *vbop;
 
@@ -3987,36 +3991,35 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 
 int Mod_GetNumBones(model_t *model, qboolean allowtags)
 {
-	galiasinfo_t *inf;
-
-
-	if (!model || model->type != mod_alias)
-		return 0;
-
-	inf = Mod_Extradata(model);
+	if (model && model->type == mod_alias)
+	{
+		galiasinfo_t *inf = Mod_Extradata(model);
 
 #ifdef SKELETALMODELS
-	if (inf->numbones)
-		return inf->numbones;
-	else
+		if (inf->numbones)
+			return inf->numbones;
+		else
 #endif
-		if (allowtags)
-		return inf->numtags;
-	else
+			if (allowtags)
+			return inf->numtags;
 		return 0;
+	}
+#ifdef HALFLIFEMODELS
+	if (model && model->type == mod_halflife)
+		return HLMDL_GetNumBones(model);
+#endif
+	return 0;
 }
 
 int Mod_GetBoneRelations(model_t *model, int firstbone, int lastbone, framestate_t *fstate, float *result)
 {
 #ifdef SKELETALMODELS
-	galiasinfo_t *inf;
-
-
-	if (!model || model->type != mod_alias)
-		return false;
-
-	inf = Mod_Extradata(model);
-	return Alias_BlendBoneData(inf, fstate, result, SKEL_RELATIVE, firstbone, lastbone);
+	if (model && model->type == mod_alias)
+		return Alias_BlendBoneData(Mod_Extradata(model), fstate, result, SKEL_RELATIVE, firstbone, lastbone);
+#endif
+#ifdef HALFLIFEMODELS
+	if (model && model->type == mod_halflife)
+		return HLMDL_GetBoneData(model, firstbone, lastbone, fstate, result);
 #endif
 	return 0;
 }
@@ -4272,7 +4275,7 @@ int Mod_TagNumForName(model_t *model, const char *name)
 		return 0;
 #ifdef HALFLIFEMODELS
 	if (model->type == mod_halflife)
-		return HLMod_BoneForName(model, name);
+		return HLMDL_BoneForName(model, name);
 #endif
 	if (model->type != mod_alias)
 		return 0;
@@ -4310,7 +4313,7 @@ int Mod_FrameNumForName(model_t *model, int surfaceidx, const char *name)
 		return -1;
 #ifdef HALFLIFEMODELS
 	if (model->type == mod_halflife)
-		return HLMod_FrameForName(model, name);
+		return HLMDL_FrameForName(model, name);
 #endif
 	if (model->type != mod_alias)
 		return 0;
@@ -4364,18 +4367,23 @@ const char *Mod_FrameNameForNum(model_t *model, int surfaceidx, int num)
 
 	if (!model)
 		return NULL;
-	if (model->type != mod_alias)
-		return NULL;
+	if (model->type == mod_alias)
+	{
+		inf = Mod_Extradata(model);
 
-	inf = Mod_Extradata(model);
+		while(surfaceidx-->0 && inf)
+			inf = inf->nextsurf;
 
-	while(surfaceidx-->0 && inf)
-		inf = inf->nextsurf;
-
-	if (!inf || num >= inf->numanimations)
-		return NULL;
-	group = inf->ofsanimations;
-	return group[num].name;
+		if (!inf || num >= inf->numanimations)
+			return NULL;
+		group = inf->ofsanimations;
+		return group[num].name;
+	}
+#ifdef HALFLIFEMODELS
+	if (model->type == mod_halflife)
+		return HLMDL_FrameNameForNum(model, surfaceidx, num);
+#endif
+	return NULL;
 }
 
 qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **name, int *numframes, float *duration, qboolean *loop)
@@ -4385,23 +4393,28 @@ qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **nam
 
 	if (!model)
 		return false;
-	if (model->type != mod_alias)
-		return false;
+	if (model->type == mod_alias)
+	{
+		inf = Mod_Extradata(model);
 
-	inf = Mod_Extradata(model);
+		while(surfaceidx-->0 && inf)
+			inf = inf->nextsurf;
 
-	while(surfaceidx-->0 && inf)
-		inf = inf->nextsurf;
+		if (!inf || num >= inf->numanimations)
+			return false;
+		group = inf->ofsanimations;
 
-	if (!inf || num >= inf->numanimations)
-		return false;
-	group = inf->ofsanimations;
-
-	*name = group[num].name;
-	*numframes = group[num].numposes;
-	*loop = group[num].loop;
-	*duration = group->numposes/group->rate;
-	return true;
+		*name = group[num].name;
+		*numframes = group[num].numposes;
+		*loop = group[num].loop;
+		*duration = group->numposes/group->rate;
+		return true;
+	}
+#ifdef HALFLIFEMODELS
+	if (model->type == mod_halflife)
+		return HLMDL_FrameInfoForNum(model, surfaceidx, num, name, numframes, duration, loop);
+#endif
+	return false;
 }
 
 #ifndef SERVERONLY

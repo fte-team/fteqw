@@ -2373,7 +2373,7 @@ static void SND_AccumulateSpacialization(soundcardinfo_t *sc, channel_t *ch, vec
 
 	dist = VectorNormalize(world_vec) * ch->dist_mult;
 
-	if (ch->flags & CF_NOSPACIALISE)
+	if ((ch->flags & CF_NOSPACIALISE) || !ch->dist_mult)
 	{
 		scale = 1;
 		scale = (1.0 - dist) * scale;
@@ -2501,7 +2501,7 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 
 	dist = VectorNormalize(world_vec) * ch->dist_mult;
 
-	if (ch->flags & CF_NOSPACIALISE)
+	if ((ch->flags & CF_NOSPACIALISE) || !ch->dist_mult)
 	{
 		scale = 1;
 		scale = (1.0 - dist) * scale;

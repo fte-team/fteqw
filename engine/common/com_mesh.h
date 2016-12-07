@@ -9,8 +9,9 @@ extern "C" {
 #include <stdlib.h>
 #endif
 
-int HLMod_BoneForName(model_t *mod, const char *name);
-int HLMod_FrameForName(model_t *mod, const char *name);
+#ifdef HALFLIFEMODELS
+#include "model_hl.h"
+#endif
 
 //a single pose within an animation (note: always refered to via a framegroup, even if there's only one frame in that group).
 typedef struct
@@ -223,14 +224,10 @@ qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **nam
 
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
 
-qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize);
-#ifdef MAP_PROC 
-	qboolean Mod_LoadMap_Proc(model_t *mode, void *buffer);
-#endif
-
 void Mod_AccumulateTextureVectors(vecV_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx);
 void Mod_AccumulateMeshTextureVectors(mesh_t *mesh);
 void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v);
+void R_Generate_Mesh_ST_Vectors(mesh_t *mesh);
 
 #ifdef __cplusplus
 };

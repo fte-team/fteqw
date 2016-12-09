@@ -194,7 +194,7 @@ cvar_t	ruleset_allow_sensitive_texture_replacements = CVAR("ruleset_allow_sensit
 cvar_t	ruleset_allow_localvolume			= CVAR("ruleset_allow_localvolume", "1");
 cvar_t  ruleset_allow_shaders				= CVARF("ruleset_allow_shaders", "1", CVAR_SHADERSYSTEM);
 cvar_t  ruleset_allow_watervis				= CVARF("ruleset_allow_watervis", "1", CVAR_SHADERSYSTEM);
-cvar_t  ruleset_allow_fbmodels				= CVARF("ruleset_allow_fbmodels", "1", CVAR_SHADERSYSTEM);
+cvar_t  ruleset_allow_fbmodels				= CVARF("ruleset_allow_fbmodels", "0", CVAR_SHADERSYSTEM);
 
 extern cvar_t cl_hightrack;
 extern cvar_t	vid_renderer;

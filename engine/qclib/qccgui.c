@@ -6195,6 +6195,7 @@ void RunCompiler(char *args, pbool quick)
 		ext.Printf = GUIprintf;
 		GUIprintf("");
 	}
+	ext.DPrintf = ext.Printf;
 	
 	if (logfile)
 		fclose(logfile);

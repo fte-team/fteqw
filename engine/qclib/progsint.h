@@ -212,6 +212,7 @@ extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 #define sv_num_edicts (*externs->sv_num_edicts)
 #define sv_edicts (*externs->sv_edicts)
 
+#define PR_DPrintf externs->DPrintf
 #define printf externs->Printf
 #define Sys_Error externs->Sys_Error
 

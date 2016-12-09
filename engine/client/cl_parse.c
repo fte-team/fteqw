@@ -992,9 +992,11 @@ qboolean CL_CheckHLBspWads(char *file)
 				while ((w = strchr(com_token, '\\')))
 					*w = '/';
 				w = COM_SkipPath(com_token);
-				Con_Printf("wads: %s\n", w);
 				if (!CL_CheckFile(w))
+				{
+					Con_Printf("missing wad: %s\n", w);
 					CL_CheckOrEnqueDownloadFile(va("textures/%s", w), NULL, DLLF_REQUIRED);
+				}
 			}
 			return false;
 		}
@@ -4396,7 +4398,6 @@ void CL_ParseStatic (int version)
 	ent->shaderRGBAf[0] = (8.0f/256.0f)*es.colormod[0];
 	ent->shaderRGBAf[1] = (8.0f/256.0f)*es.colormod[1];
 	ent->shaderRGBAf[2] = (8.0f/256.0f)*es.colormod[2];
-	ent->shaderRGBAf[3] = es.trans/255.0f;
 
 	ent->fatness = es.fatness/16.0;
 	ent->abslight = es.abslight;
@@ -4412,8 +4413,13 @@ void CL_ParseStatic (int version)
 		ent->flags |= RF_NODEPTHTEST;
 	if (es.effects & EF_NOSHADOW)
 		ent->flags |= RF_NOSHADOW;
-	if (es.trans != 0xff)
+	if (es.trans < 0xfe)
+	{
+		ent->shaderRGBAf[3] = es.trans/(float)0xfe;
 		ent->flags |= RF_TRANSLUCENT;
+	}
+	else
+		ent->shaderRGBAf[3] = 1.0;
 
 	VectorCopy (es.origin, ent->origin);
 	VectorCopy (es.angles, ent->angles);

@@ -6723,6 +6723,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 	csqcprogparms.FileSize = CSQC_PRFileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
 	csqcprogparms.WriteFile = QC_WriteFile;//bool (*WriteFile) (char *name, void *data, int len);
 	csqcprogparms.Printf = PR_Printf;//Con_Printf;//void (*printf) (char *, ...);
+	csqcprogparms.DPrintf = PR_DPrintf;//Con_Printf;//void (*printf) (char *, ...);
 	csqcprogparms.Sys_Error = Sys_Error;
 	csqcprogparms.Abort = CSQC_Abort;
 	csqcprogparms.CheckHeaderCrc = CSQC_CheckHeaderCrc;

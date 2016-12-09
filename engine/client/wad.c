@@ -425,7 +425,13 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 		tex->offsets[2] == tex->offsets[1] + (tex->width>>1)*(tex->height>>1) && 
 		tex->offsets[3] == tex->offsets[2] + (tex->width>>2)*(tex->height>>2) && 
 		((lumpsize+3)&~3) >= ((tex->offsets[3] + (tex->width>>3)*(tex->height>>3) + 2 + 768+3)&~3))
-		pal = (qbyte *)tex + tex->offsets[3] + (tex->width>>3)*(tex->height>>3) + 2;
+	{
+		short fl = *(short*)((qbyte *)tex + tex->offsets[3] + (tex->width>>3)*(tex->height>>3));
+		if (fl == 256)
+			pal = (qbyte *)tex + tex->offsets[3] + (tex->width>>3)*(tex->height>>3) + 2;
+		else
+			pal = host_basepal;
+	}
 	else
 		pal = host_basepal;
 

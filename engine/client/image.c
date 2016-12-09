@@ -3751,7 +3751,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		mips->encoding = PTI_BGRA8;
 		break;
 	case TF_MIP4_LUM8:
-		//8bit opaque data
+		//8bit indexed data.
 		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 		flags |= IF_NOPICMIP;
 		if (/*!r_dodgymiptex.ival &&*/ mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
@@ -3792,7 +3792,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		//8bit opaque data
 		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 		flags |= IF_NOPICMIP;
-		if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && sh_config.texfmt[PTI_RGBX8])
+		if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
 		{	//special hack required to preserve the hand-drawn lower mips.
 			unsigned int pixels =
 				(imgwidth>>0) * (imgheight>>0) + 
@@ -3949,6 +3949,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		freedata = true;
 		break;
 
+	case TF_MIP4_8PAL24_T255:
 	case TF_MIP4_8PAL24:
 		//8bit opaque data
 		{
@@ -3960,7 +3961,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 			palettedata = (qbyte*)rawdata + pixels;
 			Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 			flags |= IF_NOPICMIP;
-			if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && sh_config.texfmt[PTI_RGBX8])
+			if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
 			{
 				unsigned int pixels =
 					(imgwidth>>0) * (imgheight>>0) + 
@@ -3968,13 +3969,31 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 					(imgwidth>>2) * (imgheight>>2) +
 					(imgwidth>>3) * (imgheight>>3);
 
-				mips->encoding = PTI_RGBX8;
 				rgbadata = BZ_Malloc(pixels*4);
-				for (i = 0; i < pixels; i++)
+				if (fmt == TF_MIP4_8PAL24_T255)
 				{
-					qbyte *p = ((qbyte*)palettedata) + ((qbyte*)rawdata)[i]*3;
-					//FIXME: endian
-					rgbadata[i] = 0xff000000 | (p[0]<<0) | (p[1]<<8) | (p[2]<<16);
+					mips->encoding = PTI_RGBA8;
+					for (i = 0; i < pixels; i++)
+					{
+						qbyte idx = ((qbyte*)rawdata)[i];
+						if (idx == 255)
+							rgbadata[i] = 0;
+						else
+						{
+							qbyte *p = ((qbyte*)palettedata) + idx*3;
+							rgbadata[i] = 0xff000000 | (p[0]<<0) | (p[1]<<8) | (p[2]<<16);	//FIXME: endian
+						}
+					}
+				}
+				else
+				{
+					mips->encoding = PTI_RGBX8;
+					for (i = 0; i < pixels; i++)
+					{
+						qbyte *p = ((qbyte*)palettedata) + ((qbyte*)rawdata)[i]*3;
+						//FIXME: endian
+						rgbadata[i] = 0xff000000 | (p[0]<<0) | (p[1]<<8) | (p[2]<<16);
+					}
 				}
 
 				for (i = 0; i < 4; i++)
@@ -4005,13 +4024,31 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 				BZ_Free(rawdata);
 			return false;
 		}
-		mips->encoding = PTI_RGBX8;
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-		for (i = 0; i < imgwidth * imgheight; i++)
+		if (fmt == TF_MIP4_8PAL24_T255)
 		{
-			qbyte *p = ((qbyte*)palettedata) + ((qbyte*)rawdata)[i]*3;
-			//FIXME: endian
-			rgbadata[i] = 0xff000000 | (p[0]<<0) | (p[1]<<8) | (p[2]<<16);
+			mips->encoding = PTI_RGBA8;
+			for (i = 0; i < imgwidth * imgheight; i++)
+			{
+				qbyte idx = ((qbyte*)rawdata)[i];
+				if (idx == 255)
+					rgbadata[i] = 0;
+				else
+				{
+					qbyte *p = ((qbyte*)palettedata) + idx*3;
+					rgbadata[i] = 0xff000000 | (p[0]<<0) | (p[1]<<8) | (p[2]<<16);	//FIXME: endian
+				}
+			}
+		}
+		else
+		{
+			mips->encoding = PTI_RGBX8;
+			for (i = 0; i < imgwidth * imgheight; i++)
+			{
+				qbyte *p = ((qbyte*)palettedata) + ((qbyte*)rawdata)[i]*3;
+				//FIXME: endian
+				rgbadata[i] = 0xff000000 | (p[0]<<0) | (p[1]<<8) | (p[2]<<16);
+			}
 		}
 		if (freedata)
 			BZ_Free(rawdata);
@@ -4800,6 +4837,7 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 			b *= 4;
 			break;
 		case TF_MIP4_8PAL24:
+		case TF_MIP4_8PAL24_T255:
 			pb = 3*256;
 		case TF_MIP4_LUM8:
 		case TF_MIP4_SOLID8:

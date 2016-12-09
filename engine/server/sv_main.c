@@ -4476,10 +4476,10 @@ float SV_Frame (void)
 
 #ifndef SERVERONLY
 	isidle = !isDedicated && sv.allocated_client_slots == 1 && Key_Dest_Has(~kdm_game) && cls.state == ca_active;
-	/*server is effectively paused if there are no clients*/
-//	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && (cls.state != ca_connected))
-//		isidle = true;
-	if ((sv.paused & PAUSE_AUTO) != ((isidle||(sv.spawned_client_slots==0&&!deathmatch.ival))?PAUSE_AUTO:0))
+	/*server is effectively paused in SP/coop if there are no clients/spectators*/
+	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && !deathmatch.ival)
+		isidle = true;
+	if ((sv.paused & PAUSE_AUTO) != ((isidle)?PAUSE_AUTO:0))
 		sv.paused ^= PAUSE_AUTO;
 #endif
 

@@ -3938,8 +3938,13 @@ void CL_LinkPacketEntities (void)
 			ent->flags |= RF_NODEPTHTEST;
 		if (state->effects & EF_NOSHADOW)
 			ent->flags |= RF_NOSHADOW;
-		if (state->trans != 0xff)
+		if (state->trans < 0xfe)
+		{
+			ent->shaderRGBAf[3] = state->trans/(float)0xfe;
 			ent->flags |= RF_TRANSLUCENT;
+		}
+		else
+			ent->shaderRGBAf[3] = 1;
 
 /*		if (le->origin[2] < r_refdef.waterheight != le->lastorigin[2] < r_refdef.waterheight)
 		{
@@ -3983,7 +3988,6 @@ void CL_LinkPacketEntities (void)
 			ent->shaderRGBAf[1] = (state->colormod[1]*8.0f)/256;
 			ent->shaderRGBAf[2] = (state->colormod[2]*8.0f)/256;
 		}
-		ent->shaderRGBAf[3] = state->trans/255.0f;
 
 #ifdef PEXT_FATNESS
 		//set trans

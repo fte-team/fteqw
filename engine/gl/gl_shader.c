@@ -5092,15 +5092,31 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 	if (shader->generator == Shader_DefaultSkin)
 		subpath = shader->genargs;
 
-	if (basefmt == TF_MIP4_SOLID8 && (!mipdata[0] || !mipdata[1] || !mipdata[2] || !mipdata[3]))
-		basefmt = TF_SOLID8;
+	//optimise away any palette info if we can...
+	if (!palette || palette == host_basepal)
+	{
+		if (basefmt == TF_MIP4_8PAL24)
+			basefmt = TF_MIP4_SOLID8;
+//		if (basefmt == TF_MIP4_8PAL24_T255)
+//			basefmt = TF_MIP4_TRANS8;
+	}
 
 	//make sure the noalpha thing is set properly.
-	imageflags |= (basefmt==TF_SOLID8 || basefmt == TF_MIP4_SOLID8)?IF_NOALPHA:0;
+	switch(basefmt)
+	{
+	case TF_MIP4_8PAL24:
+	case TF_MIP4_SOLID8:
+	case TF_SOLID8:
+		imageflags |= IF_NOALPHA;
+		if (!mipdata[0] || !mipdata[1] || !mipdata[2] || !mipdata[3])
+			basefmt = TF_SOLID8;
+		break;
+	default:
+		if (!mipdata[0] || !mipdata[1] || !mipdata[2] || !mipdata[3])
+			basefmt = TF_SOLID8;
+		break;
+	}
 	imageflags |= IF_MIPCAP;
-
-	if (basefmt == TF_MIP4_SOLID8 && palette && palette != host_basepal)
-		basefmt = TF_MIP4_8PAL24;
 
 	COM_StripExtension(imagename, imagename, sizeof(imagename));
 
@@ -5731,6 +5747,7 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 	if (!builtin && *shortname == '{')
 	{
 		/*alpha test*/
+		/*FIXME: use defaultwall#ALPHA=0.666 or so*/
 		builtin = (
 			"{\n"
 		/*		"if $deluxmap\n"
@@ -5746,7 +5763,7 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 				"{\n"
 					"map $diffuse\n"
 					"tcgen base\n"
-					"alphamask\n"
+					"alphafunc ge128\n"
 				"}\n"
 //				"if $lightmap\n"
 					"{\n"

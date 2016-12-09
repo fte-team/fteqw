@@ -2911,8 +2911,19 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	FS_ChangeGame(man, cfg_reload_on_gamedir.ival, false);
 }
 
+#ifdef NOLEGACY
+	#define ZFIXHACK
+#elif defined(ANDROID) //on android, these numbers seem to be generating major weirdness, so disable these.
+	#define ZFIXHACK
+#elif defined(FTE_TARGET_WEB) //on firefox (but not chrome or ie), these numbers seem to be generating major weirdness, so tone them down significantly by default.
+	#define ZFIXHACK "r_polygonoffset_submodel_offset 1\nr_polygonoffset_submodel_factor 0.05\n"
+#else	//many quake maps have hideous z-fighting. this provides a way to work around it, although the exact numbers are gpu and bitdepth dependant, and trying to fix it can actually break other things.
+	#define ZFIXHACK "r_polygonoffset_submodel_offset 25\nr_polygonoffset_submodel_factor 0.05\n"
+#endif
+
 /*quake requires a few settings for compatibility*/
-#define QCFG "set com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n"
+#define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\n"
+#define QCFG "set com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE
 /*stuff that makes dp-only mods work a bit better*/
 #define DPCOMPAT QCFG "set _cl_playermodel \"\"\n set dpcompat_set 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
 /*nexuiz/xonotic has a few quirks/annoyances...*/

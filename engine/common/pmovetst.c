@@ -184,7 +184,7 @@ int PM_ExtraBoxContents (vec3_t p)
 			{
 				if (!PM_TransformedHullCheck(pm, p, p, pmove.player_mins, pmove.player_maxs, &tr, pe->origin, pe->angles))
 					continue;
-				if (tr.startsolid)
+				if (tr.startsolid || tr.inwater)
 					pc |= pe->forcecontentsmask;
 			}
 		}

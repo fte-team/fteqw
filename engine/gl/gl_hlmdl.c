@@ -73,7 +73,7 @@ struct hlvremaps
 	unsigned short scoord;
 	unsigned short tcoord;
 };
-static index_t HLMDL_DeDupe(unsigned short *order, struct hlvremaps *rem, size_t *count)
+static index_t HLMDL_DeDupe(unsigned short *order, struct hlvremaps *rem, size_t *count, size_t max)
 {
 	size_t i;
 	for (i = *count; i-- > 0;)
@@ -82,10 +82,13 @@ static index_t HLMDL_DeDupe(unsigned short *order, struct hlvremaps *rem, size_t
 			return i;
 	}
 	i = *count;
-	rem[i].vertidx = order[0];
-	rem[i].normalidx = order[1];
-	rem[i].scoord = order[2];
-	rem[i].tcoord = order[3];
+	if (i < max)
+	{
+		rem[i].vertidx = order[0];
+		rem[i].normalidx = order[1];
+		rem[i].scoord = order[2];
+		rem[i].tcoord = order[3];
+	}
 	*count += 1;
 	return i;
 }
@@ -94,10 +97,11 @@ static index_t HLMDL_DeDupe(unsigned short *order, struct hlvremaps *rem, size_t
 static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, struct hlalternative_s *submodel)
 {
 	struct hlvremaps *uvert;
-	size_t uvertcount;
+	size_t uvertcount, uvertstart;
 	unsigned short count;
 	int i;
-	size_t idx = 0, v, m;
+	size_t idx = 0, v, m, maxidx=65536*3;
+	size_t maxverts = 65536;
 
 	mesh_t *mesh = &submodel->mesh;
 	index_t *index;
@@ -107,15 +111,15 @@ static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, 
 	vec3_t *norms = (vec3_t *) ((qbyte *) model->header + amodel->normindex);
 
 	uvertcount = 0;
-	uvert = malloc(sizeof(*uvert)*2048);
-
-	index = mesh->indexes = ZG_Malloc(model->memgroup, sizeof(*mesh->colors4b_array)*65536);
+	uvert = malloc(sizeof(*uvert)*maxverts);
+	index = malloc(sizeof(*mesh->colors4b_array)*maxidx);
 
 	for(m = 0; m < amodel->nummesh; m++)
 	{
 		hlmdl_mesh_t	*inmesh = (hlmdl_mesh_t *) ((qbyte *) model->header + amodel->meshindex) + m;
 		unsigned short *order = (unsigned short *) ((qbyte *) model->header + inmesh->index);
 
+		uvertstart = uvertcount;
 		submodel->submesh[m].firstindex = mesh->numindexes;
 		submodel->submesh[m].numindexes = 0;
 
@@ -126,22 +130,26 @@ static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, 
 
 			if(count & 0x8000)
 			{	//fan
-				int first = HLMDL_DeDupe(order+0*4, uvert, &uvertcount);
-				int prev = HLMDL_DeDupe(order+1*4, uvert, &uvertcount);
-				for (i = min(2,count); i < -(short)count; i++)
+				int first = HLMDL_DeDupe(order+0*4, uvert, &uvertcount, maxverts);
+				int prev = HLMDL_DeDupe(order+1*4, uvert, &uvertcount, maxverts);
+				count = (unsigned short)-(short)count;
+				if (idx + (count-2)*3 > maxidx)
+					break;	//would overflow. fixme: extend
+				for (i = min(2,count); i < count; i++)
 				{
 					index[idx++] = first;
 					index[idx++] = prev;
-					index[idx++] = prev = HLMDL_DeDupe(order+i*4, uvert, &uvertcount);
+					index[idx++] = prev = HLMDL_DeDupe(order+i*4, uvert, &uvertcount, maxverts);
 				}
 			}
 			else
 			{
-				int v0 = HLMDL_DeDupe(order+0*4, uvert, &uvertcount);
-				int v1 = HLMDL_DeDupe(order+1*4, uvert, &uvertcount);
+				int v0 = HLMDL_DeDupe(order+0*4, uvert, &uvertcount, maxverts);
+				int v1 = HLMDL_DeDupe(order+1*4, uvert, &uvertcount, maxverts);
 				//emit (count-2)*3 indicies as a strip
 				//012 213, etc
-
+				if (idx + (count-2)*3 > maxidx)
+					break;	//would overflow. fixme: extend
 				for (i = min(2,count); i < count; i++)
 				{
 					if (i & 1)
@@ -155,17 +163,27 @@ static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, 
 						index[idx++] = v1;
 					}
 					v0 = v1;
-					index[idx++] = v1 = HLMDL_DeDupe(order+i*4, uvert, &uvertcount);
+					index[idx++] = v1 = HLMDL_DeDupe(order+i*4, uvert, &uvertcount, maxverts);
 				}
 			}
 			order += i*4;
 		}
 
-		submodel->submesh[m].numindexes = idx - submodel->submesh[m].firstindex;
+		if (uvertcount >= maxverts)
+		{
+			//if we're overflowing our verts, rewind, as we cannot generate this mesh. we'll just end up with a 0-index mesh, with no extra verts either
+			uvertcount = uvertstart;
+			idx = submodel->submesh[m].firstindex;
+		}
 
+		submodel->submesh[m].numindexes = idx - submodel->submesh[m].firstindex;
 	}
+
 	mesh->numindexes = idx;
 	mesh->numvertexes = uvertcount;
+
+	mesh->indexes = ZG_Malloc(model->memgroup, sizeof(*mesh->indexes)*idx);
+	memcpy(mesh->indexes, index, sizeof(*mesh->indexes)*idx);
 
 	mesh->colors4b_array = ZG_Malloc(model->memgroup, sizeof(*mesh->colors4b_array)*uvertcount);
 	mesh->st_array = ZG_Malloc(model->memgroup, sizeof(*mesh->st_array)*uvertcount);
@@ -195,6 +213,7 @@ static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, 
 
 	//don't need that mapping any more
 	free(uvert);
+	free(index);
 
 	//treat this as the base pose, and calculate the sdir+tdir for bumpmaps.
 	R_Generate_Mesh_ST_Vectors(mesh);

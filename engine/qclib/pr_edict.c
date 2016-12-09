@@ -1410,7 +1410,7 @@ const char *ED_ParseEdict (progfuncs_t *progfuncs, const char *data, edictrun_t 
 			{
 				if ((key = ED_FindField (progfuncs, "angles")))
 				{
-					sprintf (qcc_token, "0 %f 0", atof(qcc_token));	//change it from yaw to 3d angle
+					QC_snprintfz (qcc_token, sizeof(qcc_token), "0 %f 0", atof(qcc_token));	//change it from yaw to 3d angle
 					goto cont;
 				}
 			}
@@ -1419,7 +1419,7 @@ const char *ED_ParseEdict (progfuncs_t *progfuncs, const char *data, edictrun_t 
 					goto cont;
 			if (externs->badfield && externs->badfield(&progfuncs->funcs, (struct edict_s*)ent, keyname, qcc_token))
 				continue;
-			printf ("'%s' is not a field\n", keyname);
+			PR_DPrintf ("'%s' is not a field\n", keyname);
 			continue;
 		}
 

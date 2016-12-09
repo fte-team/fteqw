@@ -419,17 +419,11 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 }
 
 //tag warnings/errors for easier debugging.
-int PR_Printf (const char *fmt, ...)
+int PR_Print (qboolean dev, const char *msg)
 {
-	va_list		argptr;
-	char		msg[1024];
 	char		file[MAX_OSPATH];
 	int			line = -1;
 	char		*ls, *ms, *nl;
-
-	va_start (argptr,fmt);
-	vsnprintf (msg,sizeof(msg), fmt,argptr);
-	va_end (argptr);
 
 	while (*msg)
 	{
@@ -445,7 +439,7 @@ int PR_Printf (const char *fmt, ...)
 			Draw_FunString(0, debuggerstacky, msg);
 			debuggerstacky += 8;
 			if (nl)
-				memmove(msg, nl+1, strlen(nl+1)+1);
+				msg = nl+1;
 			else
 				break;
 			continue;
@@ -469,20 +463,56 @@ int PR_Printf (const char *fmt, ...)
 			}
 		}
 
-		if (*file)
-			Con_Printf ("^[%s\\edit\\%s:%i^]", msg, file, line);
+		if (dev)
+		{
+			if (*file)
+				Con_DPrintf ("^[%s\\edit\\%s:%i^]", msg, file, line);
+			else
+				Con_DPrintf ("%s", msg);
+		}
 		else
-			Con_Printf ("%s", msg);
+		{
+			if (*file)
+				Con_Printf ("^[%s\\edit\\%s:%i^]", msg, file, line);
+			else
+				Con_Printf ("%s", msg);
+		}
 
 		if (nl)
 		{
-			Con_Printf ("\n");
-			memmove(msg, nl+1, strlen(nl+1)+1);
+			if (dev)
+				Con_DPrintf ("\n");
+			else
+				Con_Printf ("\n");
+			msg = nl+1;
 		}
 		else
 			break;
 	}
 	return 0;
+}
+
+int PR_Printf (const char *fmt, ...)
+{
+	va_list		argptr;
+	char		msg[1024];
+
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg), fmt,argptr);
+	va_end (argptr);
+
+	return PR_Print(false, msg);
+}
+int PR_DPrintf (const char *fmt, ...)
+{
+	va_list		argptr;
+	char		msg[1024];
+
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg), fmt,argptr);
+	va_end (argptr);
+
+	return PR_Print(true, msg);
 }
 
 #define MAX_TEMPSTRS	((int)pr_tempstringcount.value)

@@ -94,8 +94,9 @@ typedef enum uploadfmt
 		TF_BGR24_FLIP,  /*bgr byte order, no alpha channel nor pad, and bottom up*/
 		TF_LUM8,		/*8bit greyscale image*/
 		TF_MIP4_LUM8,	/*8bit 4-mip greyscale image*/
-		TF_MIP4_SOLID8,	/*8bit 4-mip image*/
-		TF_MIP4_8PAL24,	/*8bit 4-mip image*/
+		TF_MIP4_SOLID8,	/*8bit 4-mip image in default palette*/
+		TF_MIP4_8PAL24,	/*8bit 4-mip image with included palette*/
+		TF_MIP4_8PAL24_T255,/*8bit 4-mip image with included palette where index 255 is alpha 0*/
 		TF_SOLID8,      /*8bit quake-palette image*/
 		TF_TRANS8,      /*8bit quake-palette image, index 255=transparent*/
 		TF_TRANS8_FULLBRIGHT,   /*fullbright 8 - fullbright texels have alpha 255, everything else 0*/

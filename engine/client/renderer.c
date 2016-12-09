@@ -116,7 +116,7 @@ cvar_t r_fastskycolour						= CVARF ("r_fastskycolour", "0",
 cvar_t r_fb_bmodels							= CVARAF("r_fb_bmodels", "1",
 													"gl_fb_bmodels", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_fb_models							= CVARAFD  ("r_fb_models", "1",
-													"gl_fb_models", CVAR_SEMICHEAT, "Force all non-player models to be fullbright in deathmatch. Because if you don't enable these cheats then you'll go splat because everone else uses them. QuakeWorld players suck.");
+													"gl_fb_models", CVAR_SEMICHEAT, "Enables the use of lumas on models. Note that if ruleset_allow_fbmodels is enabled, then all models are unconditionally fullbright in deathmatch, because cheaters would set up their models like that anyway, hurrah for beating them at their own game. QuakeWorld players suck.");
 cvar_t r_skin_overlays						= CVARF  ("r_skin_overlays", "1",
 													CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_globalskin_first					= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. Entities within this range will use the shader/image called 'gfx/skinSKIN.lmp' instead of their regular skin. See also: r_globalskin_count.");
@@ -135,9 +135,9 @@ cvar_t r_floorcolour						= CVARAF ("r_floorcolour", "64 64 128",
 //cvar_t r_floortexture						= SCVARF ("r_floortexture", "",
 //												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fullbright							= CVARFD ("r_fullbright", "0",
-												CVAR_CHEAT|CVAR_SHADERSYSTEM, "Ignore world lightmaps, drawing everything fully lit.");
-cvar_t r_fullbrightSkins					= CVARF	("r_fullbrightSkins", "0.8", /*don't default to 1, as it looks a little ugly (too bright), but don't default to 0 either because then you're handicapped in the dark*/
-												CVAR_SEMICHEAT|CVAR_SHADERSYSTEM);
+												CVAR_CHEAT|CVAR_SHADERSYSTEM, "Ignore world lightmaps, drawing *everything* fully lit.");
+cvar_t r_fullbrightSkins					= CVARFD	("r_fullbrightSkins", "0.8", /*don't default to 1, as it looks a little ugly (too bright), but don't default to 0 either because then you're handicapped in the dark*/
+												CVAR_SEMICHEAT|CVAR_SHADERSYSTEM, "Force the use of fullbright skins on other players. No more hiding in the dark.");
 cvar_t r_lightmap_saturation				= CVAR	("r_lightmap_saturation", "1");
 cvar_t r_lightstylesmooth					= CVARF	("r_lightstylesmooth", "0", CVAR_ARCHIVE);
 cvar_t r_lightstylesmooth_limit				= CVAR	("r_lightstylesmooth_limit", "2");
@@ -286,20 +286,8 @@ extern cvar_t r_novis;
 extern cvar_t r_speeds;
 extern cvar_t r_waterwarp;
 
-#ifndef NOLEGACY
-#if defined(ANDROID)
-//on android, these numbers seem to be generating major weirdness, so disable these.
 cvar_t	r_polygonoffset_submodel_factor = CVAR("r_polygonoffset_submodel_factor", "0");
 cvar_t	r_polygonoffset_submodel_offset = CVAR("r_polygonoffset_submodel_offset", "0");
-#elif defined(FTE_TARGET_WEB)
-//on firefox (but not chrome or ie), these numbers seem to be generating major weirdness, so tone them down significantly by default.
-cvar_t	r_polygonoffset_submodel_factor = CVAR("r_polygonoffset_submodel_factor", "0.05");
-cvar_t	r_polygonoffset_submodel_offset = CVAR("r_polygonoffset_submodel_offset", "1");
-#else
-cvar_t	r_polygonoffset_submodel_factor = CVAR("r_polygonoffset_submodel_factor", "0.05");
-cvar_t	r_polygonoffset_submodel_offset = CVAR("r_polygonoffset_submodel_offset", "25");
-#endif
-#endif
 cvar_t	r_polygonoffset_shadowmap_offset = CVAR("r_polygonoffset_shadowmap_factor", "0.05");
 cvar_t	r_polygonoffset_shadowmap_factor = CVAR("r_polygonoffset_shadowmap_offset", "0");
 

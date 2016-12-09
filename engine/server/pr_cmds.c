@@ -607,6 +607,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 	svprogparms.FileSize = COM_FileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
 	svprogparms.WriteFile = QC_WriteFile;//bool (*WriteFile) (char *name, void *data, int len);
 	svprogparms.Printf = PR_Printf;//Con_Printf;//void (*printf) (char *, ...);
+	svprogparms.DPrintf = PR_DPrintf;//Con_Printf;//void (*printf) (char *, ...);
 	svprogparms.CheckHeaderCrc = PR_SSQC_CheckHeaderCrc;
 	svprogparms.Sys_Error = Sys_Error;
 	svprogparms.Abort = SV_Error;
@@ -1496,15 +1497,13 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 #ifdef QCGC
 			const char *in;
 			ctx->fulldata->string = progfuncs->AllocTempString(progfuncs, &spawndata, end-start+1);
-			for (in = start; in < end; in++)
+			for (in = start; in < end; )
 			{
-				if (*in == '\n')
-				{
-					in++;
+				char c = *in++;
+				if (c == '\n')
 					*spawndata++ = '\t';
-				}
 				else
-					*spawndata++ = *in++;
+					*spawndata++ = c;
 			}
 			*spawndata = 0;
 #else
@@ -8996,7 +8995,24 @@ int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *v
 #endif
 
 			if (!strcmp(key, "*spectator"))
-				svs.clients[entnum-1].spectator = !!atoi(value);
+			{
+				int ns = !!atoi(value);
+
+				if (svs.clients[entnum-1].state == cs_spawned)
+				{
+					if (svs.clients[entnum-1].spectator)
+						sv.spawned_observer_slots--;
+					else
+						sv.spawned_client_slots--;
+					svs.clients[entnum-1].spectator = ns;
+					if (ns)
+						sv.spawned_observer_slots++;
+					else
+						sv.spawned_client_slots++;
+				}
+				else
+					svs.clients[entnum-1].spectator = ns;
+			}
 #ifdef _DEBUG
 			if (!strcmp(key, "*transfer"))
 				Con_Printf("WARNING: *transfer is no longer supported\n");
@@ -9717,7 +9733,16 @@ static void QCBUILTIN PF_clustertransfer(pubprogfuncs_t *prinst, struct globalva
 #endif
 }
 
-
+static void QCBUILTIN PF_setpause(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int pause = (G_FLOAT(OFS_PARM0)?PAUSE_EXPLICIT:0) | (sv.paused&~PAUSE_EXPLICIT);
+	G_FLOAT(OFS_RETURN) = !!(sv.paused&PAUSE_EXPLICIT);
+	if (sv.paused != pause)
+	{
+		sv.paused = pause;
+		sv.pausedstart = Sys_DoubleTime();
+	}
+}
 
 
 #define STUB ,NULL,true
@@ -10609,7 +10634,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"delayedparticle",	PF_Fixme,			0,		0,		0,		528,	"float(vector org, vector vel, float delay, float collisiondelay, optional float theme)"},
 	{"loadfromdata",	PF_loadfromdata,	0,		0,		0,		529,	D("void(string s)", "Reads a set of entities from the given string. This string should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
 	{"loadfromfile",	PF_loadfromfile,	0,		0,		0,		530,	D("void(string s)", "Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
-//	{"setpause",		VM_SV_setpause,		0,		0,		0,		531,	"void(float pause)" STUB},
+	{"setpause",		PF_setpause,		0,		0,		0,		531,	D("void(float pause)", "Sets whether the server should or should not be paused. This does not affect auto-paused things like when the console is down.")},
 	//end dp extras
 	//begin mvdsv extras
 	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532,	"float(string mname)"},

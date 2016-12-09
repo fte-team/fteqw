@@ -1491,6 +1491,7 @@ void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safetoloadf
 		R_InitSky (tx->shader, shadername, tx->mips[0], tx->width, tx->height);
 	else
 	{
+		uploadfmt_t fmt;
 		unsigned int maps = 0;
 		maps |= SHADER_HASPALETTED;
 		maps |= SHADER_HASDIFFUSE;
@@ -1500,7 +1501,23 @@ void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safetoloadf
 			maps |= SHADER_HASNORMALMAP;
 		if (gl_specular.ival)
 			maps |= SHADER_HASGLOSS;
-		R_BuildLegacyTexnums(tx->shader, origname, loadname, maps, 0, ((*tx->name=='{')?TF_TRANS8:TF_MIP4_SOLID8), tx->width, tx->height, tx->mips, tx->palette);
+
+		if (tx->palette)
+		{	//halflife, probably...
+			if (*tx->name == '{')
+				fmt = TF_MIP4_8PAL24_T255;
+			else
+				fmt = TF_MIP4_8PAL24;
+		}
+		else
+		{
+			if (*tx->name == '{')
+				fmt = TF_TRANS8;
+			else
+				fmt = TF_MIP4_SOLID8;
+		}
+
+		R_BuildLegacyTexnums(tx->shader, origname, loadname, maps, 0, fmt, tx->width, tx->height, tx->mips, tx->palette);
 	}
 	BZ_Free(tx->mips[0]);
 #endif
@@ -1514,7 +1531,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt)
 		(mt->width>>2)*(mt->height>>2) +
 		(mt->width>>3)*(mt->height>>3);
 
-	if (loadmodel->fromgame == fg_halflife)
+	if (loadmodel->fromgame == fg_halflife && *(short*)((qbyte *)mt + mt->offsets[3] + (mt->width>>3)*(mt->height>>3)) == 256)
 	{	//mostly identical, just a specific palette hidden at the end. handle fences elsewhere.
 		tx->mips[0] = BZ_Malloc(size + 768);
 		tx->palette = tx->mips[0] + size;
@@ -1523,7 +1540,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt)
 	else
 	{
 		tx->mips[0] = BZ_Malloc(size);
-		tx->palette = host_basepal;
+		tx->palette = NULL;
 	}
 
 	tx->mips[1] = tx->mips[0] + (mt->width>>0)*(mt->height>>0);

@@ -206,6 +206,7 @@ typedef struct progexterns_s {
 	int (PDECL *FileSize)				(const char *fname);	//-1 if file does not exist
 	pbool (PDECL *WriteFile)			(const char *name, void *data, int len);
 	int (VARGS *Printf)					(const char *, ...) LIKEPRINTF(1);
+	int (VARGS *DPrintf)				(const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Sys_Error)				(const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Abort)					(char *, ...) LIKEPRINTF(1);
 	pbool (PDECL *CheckHeaderCrc)		(pubprogfuncs_t *inst, progsnum_t idx, int crc);
@@ -262,7 +263,7 @@ typedef union eval_s
 #define PR_CURRENT	-1
 #define PR_ANY	-2	//not always valid. Use for finding funcs
 #define PR_ANYBACK -3
-#define PROGSTRUCT_VERSION 3
+#define PROGSTRUCT_VERSION 4
 
 
 #ifndef DLL_PROG

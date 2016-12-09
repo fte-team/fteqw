@@ -2354,11 +2354,11 @@ void SVHL_Snapshot_Build(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 		case 0:
 			s->trans = 255;
 			break;
-		case 1:	//used on laser beams, apparently
+		case 1:	//used on laser beams, apparently. disables textures or something.
 			break;
 		case 2:	//transparent windows.
 			break;
-		case 3:	//used on coronarey sprites.
+		case 3:	//used on coronarey sprites. both additive and resizing to give constant distance
 			s->effects |= NQEF_ADDITIVE;
 			break;
 		case 4:	//used on fence textures, apparently. we already deal with these clientside.

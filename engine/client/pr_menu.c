@@ -457,6 +457,8 @@ void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalva
 	while(*str)
 	{
 		str = Font_Decode(str, &codeflags, &codepoint);
+		if (codeflags & CON_HIDDEN)
+			continue;
 		if (codepoint == '\n')
 			py += Font_CharHeight();
 		else if (codepoint == '\r')
@@ -2510,6 +2512,7 @@ qboolean MP_Init (void)
 	menuprogparms.FileSize = MP_PRFileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
 	menuprogparms.WriteFile = QC_WriteFile;//bool (*WriteFile) (char *name, void *data, int len);
 	menuprogparms.Printf = (void *)Con_Printf;//Con_Printf;//void (*printf) (char *, ...);
+	menuprogparms.Printf = (void *)Con_DPrintf;//Con_DPrintf;//void (*dprintf) (char *, ...);
 	menuprogparms.Sys_Error = Sys_Error;
 	menuprogparms.Abort = Menu_Abort;
 	menuprogparms.CheckHeaderCrc = Menu_CheckHeaderCrc;

@@ -1469,6 +1469,7 @@ progexterns_t defexterns = {
 	NULL, //int (*FileSize) (char *fname);	//-1 if file does not exist
 	NULL, //bool (*WriteFile) (char *name, void *data, int len);
 	qclib_null_printf, //void (*printf) (char *, ...);
+	qclib_null_printf, //void (*dprintf) (char *, ...);
 	(void*)exit, //void (*Sys_Error) (char *, ...);
 	NULL, //void (*Abort) (char *, ...);
 	NULL,

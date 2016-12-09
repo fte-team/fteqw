@@ -2364,6 +2364,8 @@ void World_Physics_Frame(world_t *w)
 						float ft = host_frametime;
 						host_client = &svs.clients[i-1];
 						sv_player = svs.clients[i-1].edict;
+
+						host_client->lastruncmd = newt;
 						SV_PreRunCmd();
 #ifndef NEWSPEEDCHEATPROT
 						svs.clients[i-1].last_check = 0;

@@ -66,6 +66,7 @@ void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the l
 void VARGS PR_CB_Free(void *mem);
 
 int PR_Printf (const char *fmt, ...);
+int PR_DPrintf (const char *fmt, ...);
 void PF_InitTempStrings(pubprogfuncs_t *prinst);
 string_t PR_TempString(pubprogfuncs_t *prinst, const char *str);	//returns a tempstring containing str
 char *PF_TempStr(pubprogfuncs_t *prinst);	//returns a tempstring which can be filled in with whatever junk you want.

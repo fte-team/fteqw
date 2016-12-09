@@ -6425,10 +6425,6 @@ void SV_PreRunCmd(void)
 		playertouch = BZ_Malloc((playertouchmax>>3)+1);
 	}
 	memset(playertouch, 0, playertouchmax>>3);
-
-	//timestamp it, so things can't go weird
-	if (host_client)
-		host_client->lastruncmd = sv.time * 1000;
 }
 void SV_RunCmdCleanup(void)
 {

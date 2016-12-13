@@ -132,7 +132,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define D3DQUAKE
 #endif
 #if defined(_WIN32) && defined(GLQUAKE)
-#define USE_EGL
+//#define USE_EGL
 #endif
 
 #if defined(_MSC_VER) && !defined(BOTLIB_STATIC) //too lazy to fix up the makefile

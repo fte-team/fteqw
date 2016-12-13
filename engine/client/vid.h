@@ -119,12 +119,6 @@ void GLVID_Crashed(void);
 void	GLVID_Update (vrect_t *rects);
 // flushes the given rectangles from the view buffer to the screen
 
-int GLVID_SetMode (rendererstate_t *info, unsigned char *palette);
-// sets the mode; only used by the Quake engine for resetting to mode 0 (the
-// base mode) on memory allocation failures
-
-qboolean GLVID_Is8bit(void);
-
 void GLVID_SwapBuffers(void);
 enum uploadfmt;
 char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt);

@@ -121,11 +121,11 @@ clampedmodel_t clampedmodel[] = {
 
 
 
-void Mod_AccumulateTextureVectors(vecV_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx)
+void Mod_AccumulateTextureVectors(vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms)
 {
 	int i;
-	float *v0, *v1, *v2;
-	float *tc0, *tc1, *tc2;
+	const float *v0, *v1, *v2;
+	const float *tc0, *tc1, *tc2;
 
 	vec3_t d1, d2;
 	float td1, td2;
@@ -174,6 +174,13 @@ void Mod_AccumulateTextureVectors(vecV_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv
 		}
 
 		//and we're done, accumulate the result
+		if (calcnorms)
+		{
+			VectorAdd(nv[idx[i+0]], norm, nv[idx[i+0]]);
+			VectorAdd(nv[idx[i+1]], norm, nv[idx[i+1]]);
+			VectorAdd(nv[idx[i+2]], norm, nv[idx[i+2]]);
+		}
+
 		VectorAdd(sv[idx[i+0]], s, sv[idx[i+0]]);
 		VectorAdd(sv[idx[i+1]], s, sv[idx[i+1]]);
 		VectorAdd(sv[idx[i+2]], s, sv[idx[i+2]]);
@@ -186,10 +193,10 @@ void Mod_AccumulateTextureVectors(vecV_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv
 
 void Mod_AccumulateMeshTextureVectors(mesh_t *m)
 {
-	Mod_AccumulateTextureVectors(m->xyz_array, m->st_array, m->normals_array, m->snormals_array, m->tnormals_array, m->indexes, m->numindexes);
+	Mod_AccumulateTextureVectors(m->xyz_array, m->st_array, m->normals_array, m->snormals_array, m->tnormals_array, m->indexes, m->numindexes, false);
 }
 
-void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v)
+void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms)
 {
 	int i;
 	float f;
@@ -197,6 +204,9 @@ void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v)
 
 	for (i = 0; i < v; i++)
 	{
+		if (calcnorms)
+			VectorNormalize(n[i]);
+
 		//strip away any variance against the normal to keep it perpendicular, then normalize
 		f = -DotProduct(s[i], n[i]);
 		VectorMA(s[i], f, n[i], tmp);
@@ -463,49 +473,6 @@ static void Alias_TransformVerticies_VNST(const float *bonepose, int vertcount, 
 	}
 }
 
-static void Alias_TransformVerticies_SW(const float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout)
-{
-	int i;
-	float *out;
-	const float *matrix;
-	galisskeletaltransforms_t *v = weights;
-#ifndef SERVERONLY
-	float *normo;
-	if (normout)
-	{
-		for (i = 0;i < numweights;i++, v++)
-		{
-			out = xyzout[v->vertexindex];
-			normo = normout[v->vertexindex];
-			matrix = bonepose+v->boneindex*12;
-			// FIXME: this can very easily be optimized with SSE or 3DNow
-			out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
-			out[1] += v->org[0] * matrix[4] + v->org[1] * matrix[5] + v->org[2] * matrix[ 6] + v->org[3] * matrix[ 7];
-			out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
-
-			normo[0] += v->normal[0] * matrix[0] + v->normal[1] * matrix[1] + v->normal[2] * matrix[ 2];
-			normo[1] += v->normal[0] * matrix[4] + v->normal[1] * matrix[5] + v->normal[2] * matrix[ 6];
-			normo[2] += v->normal[0] * matrix[8] + v->normal[1] * matrix[9] + v->normal[2] * matrix[10];
-		}
-	}
-	else
-#elif defined(_DEBUG)
-	if (normout)
-		Sys_Error("norms error");
-#endif
-	{
-		for (i = 0;i < numweights;i++, v++)
-		{
-			out = xyzout[v->vertexindex];
-			matrix = bonepose+v->boneindex*12;
-			// FIXME: this can very easily be optimized with SSE or 3DNow
-			out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
-			out[1] += v->org[0] * matrix[4] + v->org[1] * matrix[5] + v->org[2] * matrix[ 6] + v->org[3] * matrix[ 7];
-			out[2] += v->org[0] * matrix[8] + v->org[1] * matrix[9] + v->org[2] * matrix[10] + v->org[3] * matrix[11];
-		}
-	}
-}
-
 //converts one entire frame to another skeleton type
 //only writes to destbuffer if absolutely needed
 const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, float *destbufferalt, size_t destbonecount)
@@ -663,194 +630,6 @@ void QDECL Alias_ForceConvertBoneData(skeltype_t sourcetype, const float *source
 	}
 }
 
-#ifndef NOLEGACY
-static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
-{
-#ifndef SERVERONLY
-	//servers don't need normals. except maybe for tracing... but hey. The normal is calculated on a per-triangle basis.
-
-#define TriangleNormal(a,b,c,n) ( \
-	(n)[0] = ((a)[1] - (b)[1]) * ((c)[2] - (b)[2]) - ((a)[2] - (b)[2]) * ((c)[1] - (b)[1]), \
-	(n)[1] = ((a)[2] - (b)[2]) * ((c)[0] - (b)[0]) - ((a)[0] - (b)[0]) * ((c)[2] - (b)[2]), \
-	(n)[2] = ((a)[0] - (b)[0]) * ((c)[1] - (b)[1]) - ((a)[1] - (b)[1]) * ((c)[0] - (b)[0]) \
-	)
-	int i, j;
-	vecV_t *xyz;
-	vec3_t *normals;
-	int *mvert;
-	float *inversepose;
-	galiasinfo_t *next;
-	vec3_t tn;
-	vec3_t d1, d2;
-	index_t *idx;
-	const float *bonepose = NULL;
-	float angle;
-	float maxvdist = 0, d, maxbdist = 0;
-	float absmatrix[MAX_BONES*12];
-	float absmatrixalt[MAX_BONES*12];
-	float bonedist[MAX_BONES];
-	int modnum = 0;
-	int bcmodnum = -1;
-	int vcmodnum = -1;
-
-	while (model)
-	{
-		int numbones = model->numbones;
-		galisskeletaltransforms_t *v = model->ofsswtransforms;
-		int numweights = model->numswtransforms;
-		int numverts = model->numverts;
-
-		next = model->nextsurf;
-
-		xyz = Z_Malloc(numverts*sizeof(vecV_t));
-		normals = Z_Malloc(numverts*sizeof(vec3_t));
-		inversepose = Z_Malloc(numbones*sizeof(float)*9);
-		mvert = Z_Malloc(numverts*sizeof(*mvert));
-
-		if (bcmodnum != model->shares_bones)
-		{
-			galiasanimation_t *g;
-			galiasbone_t *bones = model->ofsbones;
-			bcmodnum = model->shares_bones;
-			if (model->baseframeofs)
-				bonepose = model->baseframeofs;
-			else
-			{
-				//figure out the pose from frame0pose0
-				if (!model->numanimations)
-					return 0;
-				g = model->ofsanimations;
-				if (g->numposes < 1)
-					return 0;
-				bonepose = Alias_ConvertBoneData(g->skeltype, g->boneofs, numbones, bones, SKEL_ABSOLUTE, absmatrix, absmatrixalt, MAX_BONES);
-			}
-			/*calculate the bone sizes (assuming the bones are strung up and hanging or such)*/
-			for (i = 0; i < model->numbones; i++)
-			{
-				vec3_t d;
-				const float *b;
-				b = bonepose + i*12;
-				d[0] = b[3];
-				d[1] = b[7];
-				d[2] = b[11];
-				if (bones[i].parent >= 0)
-				{
-					b = bonepose + bones[i].parent*12;
-					d[0] -= b[3];
-					d[1] -= b[7];
-					d[2] -= b[11];
-				}
-				bonedist[i] = Length(d);
-				if (bones[i].parent >= 0)
-					bonedist[i] += bonedist[bones[i].parent];
-				if (maxbdist < bonedist[i])
-					maxbdist = bonedist[i];
-			}
-			for (i = 0; i < numbones; i++)
-				Matrix3x4_InvertTo3x3(bonepose+i*12, inversepose+i*9);
-		}
-
-		for (i = 0; i < numweights; i++)
-		{
-			d = Length(v[i].org);
-			if (maxvdist < d)
-				maxvdist = d;
-		}
-
-		//build the actual base pose positions
-		Alias_TransformVerticies_SW(bonepose, v, numweights, xyz, NULL);
-
-		//work out which verticies are identical
-		//this is needed as two verts can have same origin but different tex coords
-		//without this, we end up with a seam that splits the normals each side on arms, etc
-		for (i = 0; i < numverts; i++)
-		{
-			mvert[i] = i;
-			for (j = 0; j < i; j++)
-			{
-				if (	xyz[i][0] == xyz[j][0]
-					&&	xyz[i][1] == xyz[j][1]
-					&&	xyz[i][2] == xyz[j][2])
-				{
-					mvert[i] = j;
-					break;
-				}
-			}
-		}
-
-		//use that base pose to calculate the normals
-		memset(normals, 0, numverts*sizeof(vec3_t));
-		vcmodnum = modnum;
-		idx = model->ofs_indexes;
-
-		//calculate the triangle normal and accumulate them
-		for (i = 0; i < model->numindexes; i+=3, idx+=3)
-		{
-			TriangleNormal(xyz[idx[0]], xyz[idx[1]], xyz[idx[2]], tn);
-			//note that tn is relative to the size of the triangle
-
-			//Imagine a cube, each side made of two triangles
-
-			VectorSubtract(xyz[idx[1]], xyz[idx[0]], d1);
-			VectorSubtract(xyz[idx[2]], xyz[idx[0]], d2);
-			angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
-			VectorMA(normals[mvert[idx[0]]], angle, tn, normals[mvert[idx[0]]]);
-
-			VectorSubtract(xyz[idx[0]], xyz[idx[1]], d1);
-			VectorSubtract(xyz[idx[2]], xyz[idx[1]], d2);
-			angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
-			VectorMA(normals[mvert[idx[1]]], angle, tn, normals[mvert[idx[1]]]);
-
-			VectorSubtract(xyz[idx[0]], xyz[idx[2]], d1);
-			VectorSubtract(xyz[idx[1]], xyz[idx[2]], d2);
-			angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
-			VectorMA(normals[mvert[idx[2]]], angle, tn, normals[mvert[idx[2]]]);
-		}
-
-		/*skip over each additional surface that shares the same verts*/
-		for(;;)
-		{
-			if (next && next->shares_verts == vcmodnum)
-			{
-				modnum++;
-				model = next;
-				next = model->nextsurf;
-			}
-			else
-				break;
-		}
-
-		//the normals are not normalized yet.
-		for (i = 0; i < numverts; i++)
-		{
-			VectorNormalize(normals[i]);
-		}
-
-		for (i = 0; i < numweights; i++, v++)
-		{
-			v->normal[0] = DotProduct(normals[mvert[v->vertexindex]], inversepose+9*v->boneindex+0) * v->org[3];
-			v->normal[1] = DotProduct(normals[mvert[v->vertexindex]], inversepose+9*v->boneindex+3) * v->org[3];
-			v->normal[2] = DotProduct(normals[mvert[v->vertexindex]], inversepose+9*v->boneindex+6) * v->org[3];
-		}
-
-		if (model->ofs_skel_norm)
-			memcpy(model->ofs_skel_norm, normals, numverts*sizeof(vec3_t));
-
-		//FIXME: save off the xyz+normals for this base pose as an optimisation for world objects.
-		Z_Free(inversepose);
-		Z_Free(normals);
-		Z_Free(xyz);
-		Z_Free(mvert);
-
-		model = next;
-		modnum++;
-	}
-	return maxvdist+maxbdist;
-#else
-	return 0;
-#endif
-}
-#endif
 #endif
 
 
@@ -1415,60 +1194,149 @@ const float *Alias_GetBoneInformation(galiasinfo_t *inf, framestate_t *framestat
 
 static void Alias_BuildSkeletalMesh(mesh_t *mesh, framestate_t *framestate, galiasinfo_t *inf)
 {
-	if (inf->ofs_skel_idx)
-	{
-		qbyte *fte_restrict bidx = inf->ofs_skel_idx[0];
-		float *fte_restrict weight = inf->ofs_skel_weight[0];
+	qbyte *fte_restrict bidx = inf->ofs_skel_idx[0];
+	float *fte_restrict weight = inf->ofs_skel_weight[0];
 
-		if (meshcache.bonecachetype != SKEL_INVERSE_ABSOLUTE)
-			meshcache.usebonepose = Alias_GetBoneInformation(inf, framestate, meshcache.bonecachetype=SKEL_INVERSE_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES);
+	if (meshcache.bonecachetype != SKEL_INVERSE_ABSOLUTE)
+		meshcache.usebonepose = Alias_GetBoneInformation(inf, framestate, meshcache.bonecachetype=SKEL_INVERSE_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES);
 
-		if (1)
-			Alias_TransformVerticies_VNST(meshcache.usebonepose, inf->numverts, bidx, weight, 
-					inf->ofs_skel_xyz[0], mesh->xyz_array[0],
-					inf->ofs_skel_norm[0], mesh->normals_array[0],
-					inf->ofs_skel_svect[0], mesh->snormals_array[0],
-					inf->ofs_skel_tvect[0], mesh->tnormals_array[0]
-					);
-		else
-			Alias_TransformVerticies_VN(meshcache.usebonepose, inf->numverts, bidx, weight,
-					inf->ofs_skel_xyz[0], mesh->xyz_array[0],
-					inf->ofs_skel_norm[0], mesh->normals_array[0]
-					);
-	}
+	if (1)
+		Alias_TransformVerticies_VNST(meshcache.usebonepose, inf->numverts, bidx, weight, 
+				inf->ofs_skel_xyz[0], mesh->xyz_array[0],
+				inf->ofs_skel_norm[0], mesh->normals_array[0],
+				inf->ofs_skel_svect[0], mesh->snormals_array[0],
+				inf->ofs_skel_tvect[0], mesh->tnormals_array[0]
+				);
 	else
-	{
-		galisskeletaltransforms_t *weights = inf->ofsswtransforms;
-		int numweights = inf->numswtransforms;
-		if (meshcache.bonecachetype != SKEL_ABSOLUTE)
-			meshcache.usebonepose = Alias_GetBoneInformation(inf, framestate, meshcache.bonecachetype=SKEL_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES);
-		memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vecV_t));
-		memset(mesh->normals_array, 0, mesh->numvertexes*sizeof(vec3_t));
-		Alias_TransformVerticies_SW(meshcache.usebonepose, weights, numweights, mesh->xyz_array, mesh->normals_array);
-	}
+		Alias_TransformVerticies_VN(meshcache.usebonepose, inf->numverts, bidx, weight,
+				inf->ofs_skel_xyz[0], mesh->xyz_array[0],
+				inf->ofs_skel_norm[0], mesh->normals_array[0]
+				);
 }
 
 static void Alias_BuildSkeletalVPositionsPose(float *xyzout, skeltype_t bonetype, const float *bonepose, galiasinfo_t *inf)
 {
 	float buffer[MAX_BONES*12];
 	float bufferalt[MAX_BONES*12];
-	if (inf->ofs_skel_idx)
-	{
-		qbyte *fte_restrict bidx = inf->ofs_skel_idx[0];
-		float *fte_restrict xyzin = inf->ofs_skel_xyz[0];
-		float *fte_restrict weight = inf->ofs_skel_weight[0];
-		bonepose = Alias_ConvertBoneData(bonetype, bonepose, inf->numbones, inf->ofsbones, SKEL_INVERSE_ABSOLUTE, buffer, bufferalt, MAX_BONES);
+	qbyte *fte_restrict bidx = inf->ofs_skel_idx[0];
+	float *fte_restrict xyzin = inf->ofs_skel_xyz[0];
+	float *fte_restrict weight = inf->ofs_skel_weight[0];
+	bonepose = Alias_ConvertBoneData(bonetype, bonepose, inf->numbones, inf->ofsbones, SKEL_INVERSE_ABSOLUTE, buffer, bufferalt, MAX_BONES);
 
-		Alias_TransformVerticies_V(bonepose, inf->numverts, bidx, weight, xyzin, xyzout);
-	}
-	else
-	{
-		galisskeletaltransforms_t *weights = inf->ofsswtransforms;
-		int numweights = inf->numswtransforms;
-		bonepose = Alias_ConvertBoneData(bonetype, bonepose, inf->numbones, inf->ofsbones, SKEL_ABSOLUTE, buffer, bufferalt, MAX_BONES);
-		Alias_TransformVerticies_SW(bonepose, weights, numweights, (vecV_t*)xyzout, NULL);
-	}
+	Alias_TransformVerticies_V(bonepose, inf->numverts, bidx, weight, xyzin, xyzout);
 }
+
+#if defined(MD5MODELS) || defined(ZYMOTICMODELS) || defined(DPMMODELS)
+static int QDECL sortweights(const void *v1, const void *v2)	//helper for Alias_BuildGPUWeights
+{
+	const galisskeletaltransforms_t *w1=v1, *w2=v2;
+	if (w1->vertexindex - w2->vertexindex)
+		return w1->vertexindex - w2->vertexindex;
+	if (w1->org[3] > w2->org[3])
+		return -1;
+	if (w1->org[3] < w2->org[3])
+		return 1;
+	return 0;
+}
+//takes old-style vertex transforms and tries to generate something more friendly for GPUs, limited to only 4 influences per vertex
+static void Alias_BuildGPUWeights(model_t *mod, galiasinfo_t *inf, size_t num_trans, galisskeletaltransforms_t *trans, qboolean calcnorms)
+{
+	size_t i, j, v;
+	double strength;
+	const float *matrix, *basepose;
+	const galisskeletaltransforms_t *t;
+
+	float buffer[MAX_BONES*12];
+	float bufferalt[MAX_BONES*12];
+
+	//first sort the weights by the verticies, then by strength. this is probably already done, but whatever.
+	qsort(trans, num_trans, sizeof(*trans), sortweights);
+
+	inf->ofs_skel_xyz = ZG_Malloc(&mod->memgroup, sizeof(*inf->ofs_skel_xyz) * inf->numverts);
+	inf->ofs_skel_norm = ZG_Malloc(&mod->memgroup, sizeof(*inf->ofs_skel_norm) * inf->numverts);
+	inf->ofs_skel_svect = ZG_Malloc(&mod->memgroup, sizeof(*inf->ofs_skel_svect) * inf->numverts);
+	inf->ofs_skel_tvect = ZG_Malloc(&mod->memgroup, sizeof(*inf->ofs_skel_tvect) * inf->numverts);
+	inf->ofs_skel_idx = ZG_Malloc(&mod->memgroup, sizeof(*inf->ofs_skel_idx) * inf->numverts);
+	inf->ofs_skel_weight = ZG_Malloc(&mod->memgroup, sizeof(*inf->ofs_skel_weight) * inf->numverts);
+
+	//make sure we have a base pose for all animations to be relative to. first animation's first pose if there isn't an explicit one
+	basepose = inf->baseframeofs;
+	if (!basepose)
+	{
+		if (!inf->numanimations || !inf->ofsanimations[0].boneofs)
+		{
+			Con_DPrintf("Alias_BuildGPUWeights: no base pose\n");
+			return;	//its fucked jim
+		}
+		basepose = Alias_ConvertBoneData(inf->ofsanimations[0].skeltype, inf->ofsanimations[0].boneofs, inf->numbones, inf->ofsbones, SKEL_ABSOLUTE, buffer, bufferalt, MAX_BONES);
+	}
+
+	//make sure we have bone inversions
+	for (i = 0; i < inf->numbones; i++)
+	{
+		Matrix3x4_Invert_Simple(basepose+i*12, inf->ofsbones[i].inverse);
+	}
+
+	//validate the indicies, because we can.
+	for (i = 0; i < inf->numindexes; i++)
+	{
+		if (inf->ofs_indexes[i] >= inf->numverts)
+			Con_DPrintf("Alias_BuildGPUWeights: bad index\n");
+	}
+
+	//walk the (sorted) transforms and calculate the proper position for each vert, and the strongest influences too.
+	for (i = 0; i < num_trans; i++)
+	{
+		t = &trans[i];
+		v = t->vertexindex;
+		if (v >= inf->numverts || t->boneindex >= inf->numbones)
+		{
+			Con_DPrintf("Alias_BuildGPUWeights: bad vertex\n");
+			continue;
+		}
+		matrix = basepose + t->boneindex*12;
+
+		//calculate the correct position in the base pose
+		inf->ofs_skel_xyz[v][0] += t->org[0] * matrix[0] + t->org[1] * matrix[1] + t->org[2] * matrix[ 2] + t->org[3] * matrix[ 3];
+		inf->ofs_skel_xyz[v][1] += t->org[0] * matrix[4] + t->org[1] * matrix[5] + t->org[2] * matrix[ 6] + t->org[3] * matrix[ 7];
+		inf->ofs_skel_xyz[v][2] += t->org[0] * matrix[8] + t->org[1] * matrix[9] + t->org[2] * matrix[10] + t->org[3] * matrix[11];
+		if (!calcnorms)
+		{
+			inf->ofs_skel_norm[v][0] += t->org[0] * matrix[0] + t->org[1] * matrix[1] + t->org[2] * matrix[ 2];
+			inf->ofs_skel_norm[v][1] += t->org[0] * matrix[4] + t->org[1] * matrix[5] + t->org[2] * matrix[ 6];
+			inf->ofs_skel_norm[v][2] += t->org[0] * matrix[8] + t->org[1] * matrix[9] + t->org[2] * matrix[10];
+		}
+
+		//we sorted them so we're guarenteed to see the highest influences first.
+		for (j = 0; j < 4; j++)
+		{
+			if (!inf->ofs_skel_weight[v][j])
+			{
+				inf->ofs_skel_weight[v][j] = t->org[3];
+				for (; j < 4; j++)	//be nicer on cache, if necessary
+					inf->ofs_skel_idx[v][j] = t->boneindex;
+				break;
+			}
+		}
+	}
+
+	//weights should add up to 1, but might not if we had too many influences. make sure they don't move, at least in their base pose.
+	for (v = 0; v < inf->numverts; v++)
+	{
+		strength = inf->ofs_skel_weight[v][0] + inf->ofs_skel_weight[v][1] + inf->ofs_skel_weight[v][2] + inf->ofs_skel_weight[v][3];
+		if (strength && strength != 1)
+		{
+			strength = 1/strength;
+			Vector4Scale(inf->ofs_skel_weight[v], strength, inf->ofs_skel_weight[v]);
+		}
+	}
+
+#ifndef SERVERONLY
+	Mod_AccumulateTextureVectors(inf->ofs_skel_xyz, inf->ofs_st_array, inf->ofs_skel_norm, inf->ofs_skel_svect, inf->ofs_skel_tvect, inf->ofs_indexes, inf->numindexes, calcnorms);
+	Mod_NormaliseTextureVectors(inf->ofs_skel_norm, inf->ofs_skel_svect, inf->ofs_skel_tvect, inf->numverts, calcnorms);
+#endif
+}
+#endif
 
 #ifndef SERVERONLY
 static void Alias_DrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bonecount, int basebone)
@@ -1664,7 +1532,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		usebones = false;
 	else if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
 		usebones = false;
-	else if (e->fatness || !inf->ofs_skel_idx || inf->numswtransforms || inf->numbones > MAX_GPU_BONES)
+	else if (e->fatness || !inf->ofs_skel_idx || inf->numbones > MAX_GPU_BONES)
 #endif
 		usebones = false;
 
@@ -2602,8 +2470,8 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 				sv = pose->ofssvector;
 				tv = pose->ofstvector;
 
-				Mod_AccumulateTextureVectors(vc, tc, nv, sv, tv, idx, galias->numindexes);
-				Mod_NormaliseTextureVectors(nv, sv, tv, galias->numverts);
+				Mod_AccumulateTextureVectors(vc, tc, nv, sv, tv, idx, galias->numindexes, false);
+				Mod_NormaliseTextureVectors(nv, sv, tv, galias->numverts, false);
 			}
 		}
 	}
@@ -3634,6 +3502,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 
 	Mesh_HandleFramegroupsFile(mod, galias);
 
+	mod->numframes = galias->numanimations;
 	mod->meshinfo = galias;
 
 	mod->funcs.NativeTrace = Mod_Trace;
@@ -3972,6 +3841,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 	Mod_ClampModelSize(mod);
 
 	mod->meshinfo = galias;
+	mod->numframes = galias->numanimations;
 	mod->type = mod_alias;
 
 	mod->funcs.NativeTrace = Mod_Trace;
@@ -4000,8 +3870,10 @@ int Mod_GetNumBones(model_t *model, qboolean allowtags)
 			return inf->numbones;
 		else
 #endif
+#ifdef MD3MODELS
 			if (allowtags)
 			return inf->numtags;
+#endif
 		return 0;
 	}
 #ifdef HALFLIFEMODELS
@@ -4048,217 +3920,273 @@ galiasbone_t *Mod_GetBoneInfo(model_t *model, int *numbones)
 int Mod_GetBoneParent(model_t *model, int bonenum)
 {
 #ifdef SKELETALMODELS
-	galiasbone_t *bone;
-	galiasinfo_t *inf;
+	if (model && model->type == mod_alias)
+	{
+		galiasbone_t *bone;
+		galiasinfo_t *inf;
+		inf = Mod_Extradata(model);
 
 
-	if (!model || model->type != mod_alias)
-		return 0;
-
-	inf = Mod_Extradata(model);
-
-
-	bonenum--;
-	if ((unsigned int)bonenum >= inf->numbones)
-		return 0;	//no parent
-	bone = inf->ofsbones;
-	return bone[bonenum].parent+1;
+		bonenum--;
+		if ((unsigned int)bonenum >= inf->numbones)
+			return 0;	//no parent
+		bone = inf->ofsbones;
+		return bone[bonenum].parent+1;
+	}
+#endif
+#ifdef HALFLIFEMODELS
+	if (model && model->type == mod_halflife)
+		return HLMDL_GetBoneParent(model, bonenum-1)+1;
 #endif
 	return 0;
 }
 
-char *Mod_GetBoneName(model_t *model, int bonenum)
+const char *Mod_GetBoneName(model_t *model, int bonenum)
 {
 #ifdef SKELETALMODELS
-	galiasbone_t *bone;
-	galiasinfo_t *inf;
+	if (model && model->type == mod_alias)
+	{
+		galiasbone_t *bone;
+		galiasinfo_t *inf;
+		inf = Mod_Extradata(model);
 
 
-	if (!model || model->type != mod_alias)
-		return 0;
-
-	inf = Mod_Extradata(model);
-
-
-	bonenum--;
-	if ((unsigned int)bonenum >= inf->numbones)
-		return 0;	//no parent
-	bone = inf->ofsbones;
-	return bone[bonenum].name;
+		bonenum--;
+		if ((unsigned int)bonenum >= inf->numbones)
+			return 0;	//no parent
+		bone = inf->ofsbones;
+		return bone[bonenum].name;
+	}
+#endif
+#ifdef HALFLIFEMODELS
+	if (model && model->type == mod_halflife)
+		return HLMDL_GetBoneName(model, bonenum-1);
 #endif
 	return 0;
 }
 
 qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *result)
 {
-	galiasinfo_t *inf;
-
-
-	if (!model || model->type != mod_alias)
-		return false;
-
-	inf = Mod_Extradata(model);
-#ifdef SKELETALMODELS
-	if (inf->numbones)
+#ifdef HALFLIFEMODELS
+	if (model && model->type == mod_halflife)
 	{
-		galiasbone_t *bone = inf->ofsbones;
-
-		float tempmatrix[12];			//flipped between this and bonematrix
-		float *matrix;	//the matrix for a single bone in a single pose.
-		float m[12];	//combined interpolated version of 'matrix'.
-		int b, k;	//counters
-
-		int numbonegroups = 0;
-		skellerps_t lerps[FS_COUNT], *lerp;
-
-		if (tagnum <= 0 || tagnum > inf->numbones)
-			return false;
-		tagnum--;	//tagnum 0 is 'use my angles/org'
-
-		//data comes from skeletal object, if possible
-		if (!numbonegroups && fstate->bonestate)
+		int numbones = Mod_GetNumBones(model, false);
+		if (tagnum > 0 && tagnum <= numbones)
 		{
-			if (tagnum >= fstate->bonecount)
+			float relatives[MAX_BONES*12];
+			float tempmatrix[12];			//flipped between this and bonematrix
+			float *matrix;	//the matrix for a single bone in a single pose.
+			float *lerps = relatives;
+
+			if (tagnum <= 0 || tagnum > numbones)
 				return false;
+			tagnum--;	//tagnum 0 is 'use my angles/org'
 
-			if (fstate->skeltype == SKEL_ABSOLUTE)
-			{	//can just directly read it, woo.
-				memcpy(result, fstate->bonestate + 12 * tagnum, 12*sizeof(*result));
-				return true;
-			}
-
-			lerps[0].pose[0] = fstate->bonestate;
-			lerps[0].frac[0] = 1;
-			lerps[0].lerpcount = 1;
-			lerps[0].firstbone = 0;
-			lerps[0].endbone = fstate->bonecount;
-			numbonegroups = 1;
-		}
-
-		//try getting the data from the frame state
-		if (!numbonegroups)
-			numbonegroups = Alias_FindRawSkelData(inf, fstate, lerps, 0, inf->numbones);
-
-		//try base pose?
-		if (!numbonegroups && inf->baseframeofs)
-		{
-			lerps[0].pose[0] = inf->baseframeofs;
-			lerps[0].frac[0] = 1;
-			lerps[0].lerpcount = 1;
-			lerps[0].firstbone = 0;
-			lerps[0].endbone = inf->numbones;
-			numbonegroups = 1;
-		}
-
-		//make sure it was all okay.
-		if (!numbonegroups || tagnum >= lerps[numbonegroups-1].endbone)
-			return false;
-
-		//set up the identity matrix
-		for (k = 0;k < 12;k++)
-			result[k] = 0;
-		result[0] = 1;
-		result[5] = 1;
-		result[10] = 1;
-		while(tagnum >= 0)
-		{
-			for (lerp = lerps; tagnum < lerp->firstbone; lerp++)
-				;
-			//set up the per-bone transform matrix
-			matrix = lerp->pose[0] + tagnum*12;
-			for (k = 0;k < 12;k++)
-				m[k] = matrix[k] * lerp->frac[0];
-			for (b = 1;b < lerp->lerpcount;b++)
+			//data comes from skeletal object, if possible
+			if (fstate->bonestate)
 			{
-				matrix = lerp->pose[b] + tagnum*12;
-				for (k = 0;k < 12;k++)
-					m[k] += matrix[k] * lerp->frac[b];
-			}
+				if (tagnum >= fstate->bonecount)
+					return false;
 
-			if (lerp->skeltype == SKEL_ABSOLUTE)
+				if (fstate->skeltype == SKEL_ABSOLUTE)
+				{	//can just directly read it, woo.
+					memcpy(result, fstate->bonestate + 12 * tagnum, 12*sizeof(*result));
+					return true;
+				}
+
+				lerps = fstate->bonestate;
+			}
+			else //try getting the data from the frame state
 			{
-				memcpy(result, m, sizeof(tempmatrix));
-				return true;
+				numbones = Mod_GetBoneRelations(model, 0, tagnum+1, fstate, relatives);
+				lerps = relatives;
+
+				//make sure it was all okay.
+				if (tagnum >= numbones)
+					return false;
 			}
 
-			memcpy(tempmatrix, result, sizeof(tempmatrix));
-			R_ConcatTransforms((void*)m, (void*)tempmatrix, (void*)result);
+			while(tagnum >= 0)
+			{
+				//set up the per-bone transform matrix
+				matrix = lerps + tagnum*12;
+				memcpy(tempmatrix, result, sizeof(tempmatrix));
+				R_ConcatTransforms((void*)matrix, (void*)tempmatrix, (void*)result);
+				tagnum = Mod_GetBoneParent(model, tagnum+1)-1;
+			}
 
-			tagnum = bone[tagnum].parent;
+			return true;
 		}
-
-		return true;
 	}
 #endif
-	if (inf->numtags)
+
+	if (model && model->type == mod_alias)
 	{
-		md3tag_t *t1, *t2;
-
-		int frame1, frame2;
-		//float f1time, f2time;	//tags/md3s don't support framegroups.
-		float f2ness;
-
-		frame1 = fstate->g[FS_REG].frame[0];
-		frame2 = fstate->g[FS_REG].frame[1];
-		//f1time = fstate->g[FS_REG].frametime[0];
-		//f2time = fstate->g[FS_REG].frametime[1];
-		f2ness = fstate->g[FS_REG].lerpweight[1];
-
-		if (tagnum <= 0 || tagnum > inf->numtags)
-			return false;
-		if (frame1 < 0)
-			return false;
-		if (frame1 >= inf->numtagframes)
-			frame1 = inf->numtagframes - 1;
-		if (frame2 < 0 || frame2 >= inf->numtagframes)
-			frame2 = frame1;
-		tagnum--;	//tagnum 0 is 'use my angles/org'
-
-		t1 = inf->ofstags;
-		t1 += tagnum;
-		t1 += inf->numtags*frame1;
-
-		t2 = inf->ofstags;
-		t2 += tagnum;
-		t2 += inf->numtags*frame2;
-
-		if (t1 == t2)
+		galiasinfo_t *inf = Mod_Extradata(model);
+#ifdef SKELETALMODELS
+		if (inf->numbones)
 		{
-			result[0]	= t1->ang[0][0];
-			result[1]	= t1->ang[0][1];
-			result[2]	= t1->ang[0][2];
-			result[3]	= t1->org[0];
-			result[4]	= t1->ang[1][0];
-			result[5]	= t1->ang[1][1];
-			result[6]	= t1->ang[1][2];
-			result[7]	= t1->org[1];
-			result[8]	= t1->ang[2][0];
-			result[9]	= t1->ang[2][1];
-			result[10]	= t1->ang[2][2];
-			result[11]	= t1->org[2];
+			galiasbone_t *bone = inf->ofsbones;
+
+			float tempmatrix[12];			//flipped between this and bonematrix
+			float *matrix;	//the matrix for a single bone in a single pose.
+			float m[12];	//combined interpolated version of 'matrix'.
+			int b, k;	//counters
+
+			int numbonegroups = 0;
+			skellerps_t lerps[FS_COUNT], *lerp;
+
+			if (tagnum <= 0 || tagnum > inf->numbones)
+				return false;
+			tagnum--;	//tagnum 0 is 'use my angles/org'
+
+			//data comes from skeletal object, if possible
+			if (!numbonegroups && fstate->bonestate)
+			{
+				if (tagnum >= fstate->bonecount)
+					return false;
+
+				if (fstate->skeltype == SKEL_ABSOLUTE)
+				{	//can just directly read it, woo.
+					memcpy(result, fstate->bonestate + 12 * tagnum, 12*sizeof(*result));
+					return true;
+				}
+
+				lerps[0].pose[0] = fstate->bonestate;
+				lerps[0].frac[0] = 1;
+				lerps[0].lerpcount = 1;
+				lerps[0].firstbone = 0;
+				lerps[0].endbone = fstate->bonecount;
+				numbonegroups = 1;
+			}
+
+			//try getting the data from the frame state
+			if (!numbonegroups)
+				numbonegroups = Alias_FindRawSkelData(inf, fstate, lerps, 0, inf->numbones);
+
+			//try base pose?
+			if (!numbonegroups && inf->baseframeofs)
+			{
+				lerps[0].pose[0] = inf->baseframeofs;
+				lerps[0].frac[0] = 1;
+				lerps[0].lerpcount = 1;
+				lerps[0].firstbone = 0;
+				lerps[0].endbone = inf->numbones;
+				numbonegroups = 1;
+			}
+
+			//make sure it was all okay.
+			if (!numbonegroups || tagnum >= lerps[numbonegroups-1].endbone)
+				return false;
+
+			//set up the identity matrix
+			for (k = 0;k < 12;k++)
+				result[k] = 0;
+			result[0] = 1;
+			result[5] = 1;
+			result[10] = 1;
+			while(tagnum >= 0)
+			{
+				for (lerp = lerps; tagnum < lerp->firstbone; lerp++)
+					;
+				//set up the per-bone transform matrix
+				matrix = lerp->pose[0] + tagnum*12;
+				for (k = 0;k < 12;k++)
+					m[k] = matrix[k] * lerp->frac[0];
+				for (b = 1;b < lerp->lerpcount;b++)
+				{
+					matrix = lerp->pose[b] + tagnum*12;
+					for (k = 0;k < 12;k++)
+						m[k] += matrix[k] * lerp->frac[b];
+				}
+
+				if (lerp->skeltype == SKEL_ABSOLUTE)
+				{
+					memcpy(result, m, sizeof(tempmatrix));
+					return true;
+				}
+
+				memcpy(tempmatrix, result, sizeof(tempmatrix));
+				R_ConcatTransforms((void*)m, (void*)tempmatrix, (void*)result);
+
+				tagnum = bone[tagnum].parent;
+			}
+
+			return true;
 		}
-		else
+#endif
+#ifdef MD3MODELS
+		if (inf->numtags)
 		{
-			float f1ness = 1-f2ness;
-			result[0]	= t1->ang[0][0]*f1ness	+ t2->ang[0][0]*f2ness;
-			result[1]	= t1->ang[0][1]*f1ness	+ t2->ang[0][1]*f2ness;
-			result[2]	= t1->ang[0][2]*f1ness	+ t2->ang[0][2]*f2ness;
-			result[3]	= t1->org[0]*f1ness		+ t2->org[0]*f2ness;
-			result[4]	= t1->ang[1][0]*f1ness	+ t2->ang[1][0]*f2ness;
-			result[5]	= t1->ang[1][1]*f1ness	+ t2->ang[1][1]*f2ness;
-			result[6]	= t1->ang[1][2]*f1ness	+ t2->ang[1][2]*f2ness;
-			result[7]	= t1->org[1]*f1ness		+ t2->org[1]*f2ness;
-			result[8]	= t1->ang[2][0]*f1ness	+ t2->ang[2][0]*f2ness;
-			result[9]	= t1->ang[2][1]*f1ness	+ t2->ang[2][1]*f2ness;
-			result[10]	= t1->ang[2][2]*f1ness	+ t2->ang[2][2]*f2ness;
-			result[11]	= t1->org[2]*f1ness		+ t2->org[2]*f2ness;
+			md3tag_t *t1, *t2;
+
+			int frame1, frame2;
+			//float f1time, f2time;	//tags/md3s don't support framegroups.
+			float f2ness;
+
+			frame1 = fstate->g[FS_REG].frame[0];
+			frame2 = fstate->g[FS_REG].frame[1];
+			//f1time = fstate->g[FS_REG].frametime[0];
+			//f2time = fstate->g[FS_REG].frametime[1];
+			f2ness = fstate->g[FS_REG].lerpweight[1];
+
+			if (tagnum <= 0 || tagnum > inf->numtags)
+				return false;
+			if (frame1 < 0)
+				return false;
+			if (frame1 >= inf->numtagframes)
+				frame1 = inf->numtagframes - 1;
+			if (frame2 < 0 || frame2 >= inf->numtagframes)
+				frame2 = frame1;
+			tagnum--;	//tagnum 0 is 'use my angles/org'
+
+			t1 = inf->ofstags;
+			t1 += tagnum;
+			t1 += inf->numtags*frame1;
+
+			t2 = inf->ofstags;
+			t2 += tagnum;
+			t2 += inf->numtags*frame2;
+
+			if (t1 == t2)
+			{
+				result[0]	= t1->ang[0][0];
+				result[1]	= t1->ang[0][1];
+				result[2]	= t1->ang[0][2];
+				result[3]	= t1->org[0];
+				result[4]	= t1->ang[1][0];
+				result[5]	= t1->ang[1][1];
+				result[6]	= t1->ang[1][2];
+				result[7]	= t1->org[1];
+				result[8]	= t1->ang[2][0];
+				result[9]	= t1->ang[2][1];
+				result[10]	= t1->ang[2][2];
+				result[11]	= t1->org[2];
+			}
+			else
+			{
+				float f1ness = 1-f2ness;
+				result[0]	= t1->ang[0][0]*f1ness	+ t2->ang[0][0]*f2ness;
+				result[1]	= t1->ang[0][1]*f1ness	+ t2->ang[0][1]*f2ness;
+				result[2]	= t1->ang[0][2]*f1ness	+ t2->ang[0][2]*f2ness;
+				result[3]	= t1->org[0]*f1ness		+ t2->org[0]*f2ness;
+				result[4]	= t1->ang[1][0]*f1ness	+ t2->ang[1][0]*f2ness;
+				result[5]	= t1->ang[1][1]*f1ness	+ t2->ang[1][1]*f2ness;
+				result[6]	= t1->ang[1][2]*f1ness	+ t2->ang[1][2]*f2ness;
+				result[7]	= t1->org[1]*f1ness		+ t2->org[1]*f2ness;
+				result[8]	= t1->ang[2][0]*f1ness	+ t2->ang[2][0]*f2ness;
+				result[9]	= t1->ang[2][1]*f1ness	+ t2->ang[2][1]*f2ness;
+				result[10]	= t1->ang[2][2]*f1ness	+ t2->ang[2][2]*f2ness;
+				result[11]	= t1->org[2]*f1ness		+ t2->org[2]*f2ness;
+			}
+
+			VectorNormalize(result);
+			VectorNormalize(result+4);
+			VectorNormalize(result+8);
+
+			return true;
 		}
-
-		VectorNormalize(result);
-		VectorNormalize(result+4);
-		VectorNormalize(result+8);
-
-		return true;
+#endif
 	}
 	return false;
 }
@@ -4267,7 +4195,6 @@ int Mod_TagNumForName(model_t *model, const char *name)
 {
 	int i;
 	galiasinfo_t *inf;
-	md3tag_t *t;
 
 	if (!model)
 		return 0;
@@ -4277,29 +4204,35 @@ int Mod_TagNumForName(model_t *model, const char *name)
 	if (model->type == mod_halflife)
 		return HLMDL_BoneForName(model, name);
 #endif
-	if (model->type != mod_alias)
-		return 0;
-	inf = Mod_Extradata(model);
+	if (model->type == mod_alias)
+	{
+		inf = Mod_Extradata(model);
 
 #ifdef SKELETALMODELS
-	if (inf->numbones)
-	{
-		galiasbone_t *b;
-		b = inf->ofsbones;
-		for (i = 0; i < inf->numbones; i++)
+		if (inf->numbones)
 		{
-			if (!strcmp(b[i].name, name))
-				return i+1;
+			galiasbone_t *b;
+			b = inf->ofsbones;
+			for (i = 0; i < inf->numbones; i++)
+			{
+				if (!strcmp(b[i].name, name))
+					return i+1;
+			}
 		}
-	}
 #endif
-	t = inf->ofstags;
-	for (i = 0; i < inf->numtags; i++)
-	{
-		if (!strcmp(t[i].name, name))
-			return i+1;
+#ifdef MD3MODELS
+		if (inf->numtags)
+		{
+			md3tag_t *t = inf->ofstags;
+			for (i = 0; i < inf->numtags; i++)
+			{
+				if (!strcmp(t[i].name, name))
+					return i+1;
+			}
+		}
+#endif
+		return 0;
 	}
-
 	return 0;
 }
 
@@ -4514,6 +4447,13 @@ float Mod_GetFrameDuration(model_t *model, int surfaceidx, int frameno)
 		}
 	}
 	return 0;
+}
+
+int Mod_GetFrameCount(struct model_s *model)
+{
+	if (!model)
+		return 0;
+	return model->numframes;
 }
 
 
@@ -4830,6 +4770,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 	Mod_ClampModelSize(mod);
 
 	mod->type = mod_alias;
+	mod->numframes = root->numanimations;
 	mod->meshinfo = root;
 
 	mod->funcs.NativeTrace = Mod_Trace;
@@ -4913,6 +4854,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 	zymtype1header_t *header;
 	galiasinfo_t *root;
 
+	size_t numtransforms;
 	galisskeletaltransforms_t *transforms;
 	zymvertex_t	*intrans;
 
@@ -4969,16 +4911,15 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 
 	root = ZG_Malloc(&mod->memgroup, sizeof(galiasinfo_t)*header->numsurfaces);
 
-	root->numswtransforms = header->lump_verts.length/sizeof(zymvertex_t);
-	transforms = ZG_Malloc(&mod->memgroup, root->numswtransforms*sizeof(*transforms));
-	root->ofsswtransforms = transforms;
+	numtransforms = header->lump_verts.length/sizeof(zymvertex_t);
+	transforms = Z_Malloc(numtransforms*sizeof(*transforms));
 
 	vertbonecounts = (int *)((char*)header + header->lump_vertbonecounts.start);
 	intrans = (zymvertex_t *)((char*)header + header->lump_verts.start);
 
 	vertbonecounts[0] = BigLong(vertbonecounts[0]);
 	multiplier = 1.0f / vertbonecounts[0];
-	for (i = 0, v=0; i < root->numswtransforms; i++)
+	for (i = 0, v=0; i < numtransforms; i++)
 	{
 		while(!vertbonecounts[v])
 		{
@@ -5013,7 +4954,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 	root->numverts = v+1;
 
 	root->numbones = header->numbones;
-	bone = ZG_Malloc(&mod->memgroup, root->numswtransforms*sizeof(*transforms));
+	bone = ZG_Malloc(&mod->memgroup, numtransforms*sizeof(*transforms));
 	inbone = (zymbone_t*)((char*)header + header->lump_bones.start);
 	for (i = 0; i < root->numbones; i++)
 	{
@@ -5063,6 +5004,11 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 
 #ifndef SERVERONLY
 	skinfiles = Mod_CountSkinFiles(mod->name);
+	if (skinfiles < 1)
+		skinfiles = 1;
+
+	skin = ZG_Malloc(&mod->memgroup, (sizeof(galiasskin_t)+sizeof(skinframe_t))*skinfiles*header->numsurfaces);
+	skinframe = (skinframe_t*)(skin+skinfiles*header->numsurfaces);
 #endif
 
 	for (i = 0; i < header->numsurfaces; i++, surfname+=32)
@@ -5077,18 +5023,20 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 #else
 		root[i].ofs_st_array = stcoords;
 		root[i].numskins = skinfiles;
-
-		skin = ZG_Malloc(&mod->memgroup, (sizeof(galiasskin_t)+sizeof(skinframe_t*))*skinfiles);
-		skinframe = (skinframe_t*)(skin+skinfiles);
-		for (j = 0; j < skinfiles; j++, skinframe++)
-		{
-			skin[j].numframes = 1;	//non-sequenced skins.
-			skin[j].frame = skinframe;
-
-//			shaders[0] = Mod_LoadSkinFile(NULL, &root[i], j, NULL, 0, 0, NULL, skin->name);
-		}
-
 		root[i].ofsskins = skin;
+
+		for (j = 0; j < skinfiles; j++)
+		{
+			skin->skinwidth = 1;
+			skin->skinheight = 1;
+			skin->skinspeed = 10; /*something to avoid div-by-0*/
+			skin->numframes = 1;	//non-sequenced skins.
+			skin->frame = skinframe;
+			skin++;
+
+			Q_strncpyz(skinframe->shadername, surfname, sizeof(skinframe->shadername));
+			skinframe++;
+		}
 #endif
 	}
 
@@ -5121,7 +5069,8 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 		root[i].ofsbones = root[0].ofsbones;
 	}
 
-	Alias_CalculateSkeletalNormals(root);
+	Alias_BuildGPUWeights(mod, root, numtransforms, transforms, true);
+	Z_Free(transforms);
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
@@ -5129,6 +5078,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 
 
 	mod->meshinfo = root;
+	mod->numframes = root->numanimations;
 	mod->type = mod_alias;
 
 	mod->funcs.NativeTrace = Mod_Trace;
@@ -5264,7 +5214,6 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	galiasanimation_t *group;
 	float *animmatrix, *basematrix;
 	index_t *indexes;
-	float vrad;
 	int bonemap[MAX_BONES];
 	char *e;
 	size_t psasize;
@@ -5282,16 +5231,10 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	pskanimkeys_t *animkeys = NULL;
 	unsigned int num_animinfo=0, num_animkeys=0;
 
-//#define PSK_GPU
-#ifndef PSK_GPU
-	unsigned int num_trans;
-	galisskeletaltransforms_t *trans;
-#else
 	vecV_t *skel_xyz;
-	vec3_t *skel_norm;
+	vec3_t *skel_norm, *skel_svect, *skel_tvect;
 	byte_vec4_t *skel_idx;
 	vec4_t *skel_weights;
-#endif
 
 	/*load the psk*/
 	while (pos < fsize && !fail)
@@ -5569,44 +5512,12 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 		Matrix3x4_Invert_Simple(basematrix+i*12, bones[i].inverse);
 	}
 
-	
-#ifndef PSK_GPU
-	/*expand the translations*/
-	num_trans = 0;
-	for (i = 0; i < num_vtxw; i++)
-	{
-		for (j = 0; j < num_rawweights; j++)
-		{
-			if (rawweights[j].pntsindex == vtxw[i].pntsindex)
-			{
-				num_trans++;
-			}
-		}
-	}
-	trans = ZG_Malloc(&mod->memgroup, sizeof(*trans)*num_trans);
-	num_trans = 0;
-	for (i = 0; i < num_vtxw; i++)
-	{
-//		first_trans = num_trans;
-		for (j = 0; j < num_rawweights; j++)
-		{
-			if (rawweights[j].pntsindex == vtxw[i].pntsindex)
-			{
-				vec3_t tmp;
-				trans[num_trans].vertexindex = i;
-				trans[num_trans].boneindex = rawweights[j].boneindex;
-				VectorTransform(pnts[rawweights[j].pntsindex].origin, (void*)bones[rawweights[j].boneindex].inverse, tmp);
-				VectorScale(tmp, rawweights[j].weight, trans[num_trans].org);
-				trans[num_trans].org[3] = rawweights[j].weight;
-				num_trans++;
-			}
-		}
-	}
-#else
-	skel_xyz = Hunk_Alloc(sizeof(*skel_xyz) * num_vtxw);
-	skel_norm = Hunk_Alloc(sizeof(*skel_norm) * num_vtxw);
-	skel_idx = Hunk_Alloc(sizeof(*skel_idx) * num_vtxw);
-	skel_weights = Hunk_Alloc(sizeof(*skel_weights) * num_vtxw);
+	skel_xyz = ZG_Malloc(&mod->memgroup, sizeof(*skel_xyz) * num_vtxw);
+	skel_norm = ZG_Malloc(&mod->memgroup, sizeof(*skel_norm) * num_vtxw);
+	skel_svect = ZG_Malloc(&mod->memgroup, sizeof(*skel_svect) * num_vtxw);
+	skel_tvect = ZG_Malloc(&mod->memgroup, sizeof(*skel_tvect) * num_vtxw);
+	skel_idx = ZG_Malloc(&mod->memgroup, sizeof(*skel_idx) * num_vtxw);
+	skel_weights = ZG_Malloc(&mod->memgroup, sizeof(*skel_weights) * num_vtxw);
 	for (i = 0; i < num_vtxw; i++)
 	{
 		float t;
@@ -5641,12 +5552,10 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			for (j = 0; j < 4; j++)
 				skel_weights[i][j] *= 1/t;
 
-
 		skel_xyz[i][0] = pnts[vtxw[i].pntsindex].origin[0];
 		skel_xyz[i][1] = pnts[vtxw[i].pntsindex].origin[1];
 		skel_xyz[i][2] = pnts[vtxw[i].pntsindex].origin[2];
 	}
-#endif
 
 #ifndef SERVERONLY
 	/*st coords, all share the same list*/
@@ -5760,7 +5669,9 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 		group->skeltype = SKEL_ABSOLUTE;
 	}
 
+
 #ifndef SERVERONLY
+	//client builds need skin info
 	skin = ZG_Malloc(&mod->memgroup, num_matt * (sizeof(galiasskin_t) + sizeof(skinframe_t)));
 	sframes = (skinframe_t*)(skin + num_matt);
 	for (i = 0; i < num_matt; i++, skin++)
@@ -5778,13 +5689,14 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 		gmdl[i].ofs_st_array = stcoord;
 		gmdl[i].numverts = num_vtxw;
 #else
+	//server-only builds
 	for (i = 0; i < num_matt; i++)
 	{
 #endif
+		//common to all builds
 
 		gmdl[i].ofsanimations = group;
 		gmdl[i].numanimations = num_animinfo;
-		gmdl[i].baseframeofs = basematrix;
 
 		gmdl[i].numindexes = 0;
 		for (j = 0; j < num_face; j++)
@@ -5800,23 +5712,28 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 		gmdl[i].ofs_indexes = indexes;
 		indexes += gmdl[i].numindexes;
 
+		//all surfaces share bones
+		gmdl[i].baseframeofs = basematrix;
 		gmdl[i].ofsbones = bones;
 		gmdl[i].numbones = num_boneinfo;
+		gmdl[i].shares_bones = 0;
 
-#ifndef PSK_GPU
-		gmdl[i].ofsswtransforms = trans;
-		gmdl[i].numswtransforms = num_trans;
-#else
+		//all surfaces share verts, but not indexes.
 		gmdl[i].ofs_skel_idx = skel_idx;
 		gmdl[i].ofs_skel_weight = skel_weights;
 		gmdl[i].ofs_skel_xyz = skel_xyz;
 		gmdl[i].ofs_skel_norm = skel_norm;
-#endif
-
+		gmdl[i].ofs_skel_svect = skel_svect;
+		gmdl[i].ofs_skel_tvect = skel_tvect;
 		gmdl[i].shares_verts = 0;
-		gmdl[i].shares_bones = 0;
+
 		gmdl[i].nextsurf = (i != num_matt-1)?&gmdl[i+1]:NULL;
 	}
+
+#ifndef SERVERONLY
+	Mod_AccumulateTextureVectors(skel_xyz, stcoord, skel_norm, skel_svect, skel_tvect, gmdl[0].ofs_indexes, indexes-gmdl[0].ofs_indexes, true);
+	Mod_NormaliseTextureVectors(skel_norm, skel_svect, skel_tvect, num_vtxw, true);
+#endif
 
 	BZ_Free(psabuffer);
 	if (fail)
@@ -5825,11 +5742,10 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	}
 
 
-	vrad = Alias_CalculateSkeletalNormals(gmdl);
+//	mod->radius = Alias_CalculateSkeletalNormals(gmdl);
 
-	mod->mins[0] = mod->mins[1] = mod->mins[2] = -vrad;
-	mod->maxs[0] = mod->maxs[1] = mod->maxs[2] = vrad;
-	mod->radius = vrad;
+	mod->mins[0] = mod->mins[1] = mod->mins[2] = -mod->radius;
+	mod->maxs[0] = mod->maxs[1] = mod->maxs[2] = mod->radius;
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
@@ -5837,6 +5753,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 
 
 	mod->meshinfo = gmdl;
+	mod->numframes = gmdl->numanimations;
 	mod->type = mod_alias;
 	mod->funcs.NativeTrace = Mod_Trace;
 	return true;
@@ -5949,7 +5866,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 	dpmvertex_t *vert;
 	dpmbonevert_t *bonevert;
 
-	galisskeletaltransforms_t *transforms;
+	galisskeletaltransforms_t *transforms, *firsttransform;
 
 	galiasbone_t *outbone;
 	dpmbone_t *inbone;
@@ -6001,86 +5918,6 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 	VectorCopy(header->maxs, mod->maxs);
 
 	root = ZG_Malloc(&mod->memgroup, sizeof(galiasinfo_t)*header->num_meshs);
-
-	mesh = (dpmmesh_t*)((char*)buffer + header->ofs_meshs);
-	for (i = 0; i < header->num_meshs; i++, mesh++)
-	{
-		//work out how much memory we need to allocate
-
-		mesh->num_verts = BigLong(mesh->num_verts);
-		mesh->num_tris = BigLong(mesh->num_tris);
-		mesh->ofs_verts = BigLong(mesh->ofs_verts);
-		mesh->ofs_texcoords = BigLong(mesh->ofs_texcoords);
-		mesh->ofs_indices = BigLong(mesh->ofs_indices);
-		mesh->ofs_groupids = BigLong(mesh->ofs_groupids);
-
-
-		numtransforms = 0;
-		//count and byteswap the transformations
-		vert = (dpmvertex_t*)((char *)buffer+mesh->ofs_verts);
-		for (j = 0; j < mesh->num_verts; j++)
-		{
-			vert->numbones = BigLong(vert->numbones);
-			numtransforms += vert->numbones;
-			bonevert = (dpmbonevert_t*)(vert+1);
-			vert = (dpmvertex_t*)(bonevert+vert->numbones);
-		}
-
-		m = &root[i];
-		m->shares_verts = i;
-		m->shares_bones = 0;
-#ifdef SERVERONLY
-		transforms = ZG_Malloc(&mod->memgroup, numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
-#else
-		outst = ZG_Malloc(&mod->memgroup, mesh->num_verts*sizeof(vec2_t) + numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
-		m->ofs_st_array = (vec2_t*)outst;
-		m->numverts = mesh->num_verts;
-		inst = (float*)((char*)buffer + mesh->ofs_texcoords);
-		for (j = 0; j < mesh->num_verts; j++, outst+=2, inst+=2)
-		{
-			outst[0] = BigFloat(inst[0]);
-			outst[1] = BigFloat(inst[1]);
-		}
-
-		transforms = (galisskeletaltransforms_t*)outst;
-#endif
-
-		//build the transform list.
-		m->ofsswtransforms = transforms;
-		m->numswtransforms = numtransforms;
-		vert = (dpmvertex_t*)((char *)buffer+mesh->ofs_verts);
-		for (j = 0; j < mesh->num_verts; j++)
-		{
-			bonevert = (dpmbonevert_t*)(vert+1);
-			for (k = 0; k < vert->numbones; k++, bonevert++, transforms++)
-			{
-				transforms->boneindex = BigLong(bonevert->bonenum);
-				transforms->vertexindex = j;
-				transforms->org[0] = BigFloat(bonevert->origin[0]);
-				transforms->org[1] = BigFloat(bonevert->origin[1]);
-				transforms->org[2] = BigFloat(bonevert->origin[2]);
-				transforms->org[3] = BigFloat(bonevert->influence);
-#ifndef SERVERONLY
-				transforms->normal[0] = BigFloat(bonevert->normal[0]);
-				transforms->normal[1] = BigFloat(bonevert->normal[1]);
-				transforms->normal[2] = BigFloat(bonevert->normal[2]);
-#endif
-			}
-			//FIXME: transform these verts into the base pose, prioritise the weights, clamp to 4 weights, and then generate per-vertex arrays that are simple enough for the gpu to be happy.
-			vert = (dpmvertex_t*)bonevert;
-		}
-
-		index = (unsigned int*)((char*)buffer + mesh->ofs_indices);
-		outdex = (index_t *)transforms;
-		m->ofs_indexes = outdex;
-		m->numindexes = mesh->num_tris*3;
-		for (j = 0; j < mesh->num_tris; j++, index += 3, outdex += 3)
-		{
-			outdex[0] = BigLong(index[2]);
-			outdex[1] = BigLong(index[1]);
-			outdex[2] = BigLong(index[0]);
-		}
-	}
 
 	outbone = ZG_Malloc(&mod->memgroup, sizeof(galiasbone_t)*header->num_bones);
 	inbone = (dpmbone_t*)((char*)buffer + header->ofs_bones);
@@ -6178,16 +6015,86 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 
 		m->ofsskins = skin;
 #endif
+
+
+		mesh->num_verts = BigLong(mesh->num_verts);
+		mesh->num_tris = BigLong(mesh->num_tris);
+		mesh->ofs_verts = BigLong(mesh->ofs_verts);
+		mesh->ofs_texcoords = BigLong(mesh->ofs_texcoords);
+		mesh->ofs_indices = BigLong(mesh->ofs_indices);
+		mesh->ofs_groupids = BigLong(mesh->ofs_groupids);
+
+		index = (unsigned int*)((char*)buffer + mesh->ofs_indices);
+		outdex = ZG_Malloc(&mod->memgroup, mesh->num_tris*3*sizeof(index_t));
+		m->ofs_indexes = outdex;
+		m->numindexes = mesh->num_tris*3;
+		for (j = 0; j < mesh->num_tris; j++, index += 3, outdex += 3)
+		{
+			outdex[0] = BigLong(index[2]);
+			outdex[1] = BigLong(index[1]);
+			outdex[2] = BigLong(index[0]);
+		}
+
+
+		numtransforms = 0;
+		//count and byteswap the transformations
+		vert = (dpmvertex_t*)((char *)buffer+mesh->ofs_verts);
+		for (j = 0; j < mesh->num_verts; j++)
+		{
+			vert->numbones = BigLong(vert->numbones);
+			numtransforms += vert->numbones;
+			bonevert = (dpmbonevert_t*)(vert+1);
+			vert = (dpmvertex_t*)(bonevert+vert->numbones);
+		}
+
+		m = &root[i];
+		m->shares_verts = i;
+		m->shares_bones = 0;
+#ifndef SERVERONLY
+		outst = ZG_Malloc(&mod->memgroup, mesh->num_verts*sizeof(vec2_t));
+		m->ofs_st_array = (vec2_t*)outst;
+		m->numverts = mesh->num_verts;
+		inst = (float*)((char*)buffer + mesh->ofs_texcoords);
+		for (j = 0; j < mesh->num_verts; j++, outst+=2, inst+=2)
+		{
+			outst[0] = BigFloat(inst[0]);
+			outst[1] = BigFloat(inst[1]);
+		}
+#endif
+
+
+		firsttransform = transforms = Z_Malloc(numtransforms*sizeof(galisskeletaltransforms_t));
+		//build the transform list.
+		vert = (dpmvertex_t*)((char *)buffer+mesh->ofs_verts);
+		for (j = 0; j < mesh->num_verts; j++)
+		{
+			bonevert = (dpmbonevert_t*)(vert+1);
+			for (k = 0; k < vert->numbones; k++, bonevert++, transforms++)
+			{
+				transforms->boneindex = BigLong(bonevert->bonenum);
+				transforms->vertexindex = j;
+				transforms->org[0] = BigFloat(bonevert->origin[0]);
+				transforms->org[1] = BigFloat(bonevert->origin[1]);
+				transforms->org[2] = BigFloat(bonevert->origin[2]);
+				transforms->org[3] = BigFloat(bonevert->influence);
+#ifndef SERVERONLY
+				transforms->normal[0] = BigFloat(bonevert->normal[0]);
+				transforms->normal[1] = BigFloat(bonevert->normal[1]);
+				transforms->normal[2] = BigFloat(bonevert->normal[2]);
+#endif
+			}
+			vert = (dpmvertex_t*)bonevert;
+		}
+		Alias_BuildGPUWeights(mod, root, numtransforms, firsttransform, false);
+		Z_Free(firsttransform);
 	}
-
-
-	Alias_CalculateSkeletalNormals(root);
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
 	Mod_ClampModelSize(mod);
 
 	mod->meshinfo = root;
+	mod->numframes = root->numanimations;
 	mod->type = mod_alias;
 	mod->funcs.NativeTrace = Mod_Trace;
 
@@ -6989,11 +6896,11 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 	{	//make something up
 		for (i = 0; i < h->num_meshes; i++)
 		{
-			Mod_AccumulateTextureVectors(gai[i].ofs_skel_xyz, gai[i].ofs_st_array, gai[i].ofs_skel_norm, gai[i].ofs_skel_svect, gai[i].ofs_skel_tvect, gai[i].ofs_indexes, gai[i].numindexes);
+			Mod_AccumulateTextureVectors(gai[i].ofs_skel_xyz, gai[i].ofs_st_array, gai[i].ofs_skel_norm, gai[i].ofs_skel_svect, gai[i].ofs_skel_tvect, gai[i].ofs_indexes, gai[i].numindexes, false);
 		}
 		for (i = 0; i < h->num_meshes; i++)
 		{
-			Mod_NormaliseTextureVectors(gai[i].ofs_skel_norm, gai[i].ofs_skel_svect, gai[i].ofs_skel_tvect, gai[i].numverts);
+			Mod_NormaliseTextureVectors(gai[i].ofs_skel_norm, gai[i].ofs_skel_svect, gai[i].ofs_skel_tvect, gai[i].numverts, false);
 		}
 	}
 #endif
@@ -7027,6 +6934,7 @@ qboolean QDECL Mod_LoadInterQuakeModel(model_t *mod, void *buffer, size_t fsize)
 
 	Mod_ClampModelSize(mod);
 
+	mod->numframes = root->numanimations;
 	mod->meshinfo = root;
 	mod->type = mod_alias;
 
@@ -7254,7 +7162,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 {
 #define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return NULL; }
 #define MD5ERROR1PARAM(x, y) { Con_Printf(CON_ERROR x "\n", y); return NULL; }
-#define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) Sys_Error("MD5MESH: expected %s", x);
+#define EXPECT(x) buffer = COM_ParseOut(buffer, token, sizeof(token)); if (strcmp(token, x)) Sys_Error("MD5MESH: expected %s", x);
 	int numjoints = 0;
 	int nummeshes = 0;
 	qboolean foundjoints = false;
@@ -7269,15 +7177,17 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 	skinframe_t *frames;
 #endif
 	char *filestart = buffer;
+	const int com_token = 4;
+	char token[1024];
 
 	float x, y, z, qx, qy, qz;
 
-	buffer = COM_Parse(buffer);
-	if (strcmp(com_token, "MD5Version"))
+	buffer = COM_ParseOut(buffer, token, sizeof(token));
+	if (strcmp(token, "MD5Version"))
 		MD5ERROR0PARAM("MD5 model without MD5Version identifier first");
 
-	buffer = COM_Parse(buffer);
-	if (atoi(com_token) != 10)
+	buffer = COM_ParseOut(buffer, token, sizeof(token));
+	if (atoi(token) != 10)
 		MD5ERROR0PARAM("MD5 model with unsupported MD5Version");
 
 
@@ -7286,11 +7196,11 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 
 	for(;;)
 	{
-		buffer = COM_Parse(buffer);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
 		if (!buffer)
 			break;
 
-		if (!strcmp(com_token, "numFrames"))
+		if (!strcmp(token, "numFrames"))
 		{
 			void *poseofs;
 			galiasanimation_t *grp = ZG_Malloc(&mod->memgroup, sizeof(galiasanimation_t));
@@ -7300,31 +7210,31 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 			grp->poseofs = poseofs;
 			return root;
 		}
-		else if (!strcmp(com_token, "commandline"))
+		else if (!strcmp(token, "commandline"))
 		{	//we don't need this
 			buffer = strchr(buffer, '\"');
 			buffer = strchr((char*)buffer+1, '\"')+1;
 //			buffer = COM_Parse(buffer);
 		}
-		else if (!strcmp(com_token, "numJoints"))
+		else if (!strcmp(token, "numJoints"))
 		{
 			if (numjoints)
 				MD5ERROR0PARAM("MD5MESH: numMeshes was already declared");
-			buffer = COM_Parse(buffer);
-			numjoints = atoi(com_token);
+			buffer = COM_ParseOut(buffer, token, sizeof(token));
+			numjoints = atoi(token);
 			if (numjoints <= 0)
 				MD5ERROR0PARAM("MD5MESH: Needs some joints");
 		}
-		else if (!strcmp(com_token, "numMeshes"))
+		else if (!strcmp(token, "numMeshes"))
 		{
 			if (nummeshes)
 				MD5ERROR0PARAM("MD5MESH: numMeshes was already declared");
-			buffer = COM_Parse(buffer);
-			nummeshes = atoi(com_token);
+			buffer = COM_ParseOut(buffer, token, sizeof(token));
+			nummeshes = atoi(token);
 			if (nummeshes <= 0)
 				MD5ERROR0PARAM("MD5MESH: Needs some meshes");
 		}
-		else if (!strcmp(com_token, "joints"))
+		else if (!strcmp(token, "joints"))
 		{
 			if (foundjoints)
 				MD5ERROR0PARAM("MD5MESH: Duplicate joints section");
@@ -7348,36 +7258,36 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 
 			for (i = 0; i < numjoints; i++)
 			{
-				buffer = COM_Parse(buffer);
-				Q_strncpyz(bones[i].name, com_token, sizeof(bones[i].name));
-				buffer = COM_Parse(buffer);
-				bones[i].parent = atoi(com_token);
+				buffer = COM_ParseOut(buffer, token, sizeof(token));
+				Q_strncpyz(bones[i].name, token, sizeof(bones[i].name));
+				buffer = COM_ParseOut(buffer, token, sizeof(token));
+				bones[i].parent = atoi(token);
 				if (bones[i].parent >= i)
 					MD5ERROR0PARAM("MD5MESH: joints parent's must be lower");
 				if ((bones[i].parent < 0 && i) || (!i && bones[i].parent!=-1))
 					MD5ERROR0PARAM("MD5MESH: Only the root joint may have a negative parent");
 
 				EXPECT("(");
-				buffer = COM_Parse(buffer);
-				x = atof(com_token);
-				buffer = COM_Parse(buffer);
-				y = atof(com_token);
-				buffer = COM_Parse(buffer);
-				z = atof(com_token);
+				buffer = COM_ParseOut(buffer, token, sizeof(token));
+				x = atof(token);
+				buffer = COM_ParseOut(buffer, token, sizeof(token));
+				y = atof(token);
+				buffer = COM_ParseOut(buffer, token, sizeof(token));
+				z = atof(token);
 				EXPECT(")");
 				EXPECT("(");
-				buffer = COM_Parse(buffer);
-				qx = atof(com_token);
-				buffer = COM_Parse(buffer);
-				qy = atof(com_token);
-				buffer = COM_Parse(buffer);
-				qz = atof(com_token);
+				buffer = COM_ParseOut(buffer, token, sizeof(token));
+				qx = atof(token);
+				buffer = COM_ParseOut(buffer, token, sizeof(token));
+				qy = atof(token);
+				buffer = COM_ParseOut(buffer, token, sizeof(token));
+				qz = atof(token);
 				EXPECT(")");
 				GenMatrix(x, y, z, qx, qy, qz, posedata+i*12);
 			}
 			EXPECT("}");
 		}
-		else if (!strcmp(com_token, "mesh"))
+		else if (!strcmp(token, "mesh"))
 		{
 			int numverts = 0;
 			int numweights = 0;
@@ -7414,6 +7324,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 			else
 			{
 				inf = ZG_Malloc(&mod->memgroup, sizeof(*inf));
+				inf->shares_verts = lastsurf->shares_verts+1;
 				lastsurf->nextsurf = inf;
 				lastsurf = inf;
 			}
@@ -7436,24 +7347,24 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 			EXPECT("{");
 			for(;;)
 			{
-				buffer = COM_Parse(buffer);
+				buffer = COM_ParseOut(buffer, token, sizeof(token));
 				if (!buffer)
 					MD5ERROR0PARAM("MD5MESH: unexpected eof");
 
-				if (!strcmp(com_token, "shader"))
+				if (!strcmp(token, "shader"))
 				{
-					buffer = COM_Parse(buffer);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
 #ifndef SERVERONLY
 					//FIXME: we probably want to support multiple skins some time
-					Q_strncpyz(frames[0].shadername, com_token, sizeof(frames[0].shadername));
+					Q_strncpyz(frames[0].shadername, token, sizeof(frames[0].shadername));
 #endif
 				}
-				else if (!strcmp(com_token, "numverts"))
+				else if (!strcmp(token, "numverts"))
 				{
 					if (numverts)
 						MD5ERROR0PARAM("MD5MESH: numverts was already specified");
-					buffer = COM_Parse(buffer);
-					numverts = atoi(com_token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					numverts = atoi(token);
 					if (numverts < 0)
 						MD5ERROR0PARAM("MD5MESH: numverts cannot be negative");
 
@@ -7465,39 +7376,39 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 					inf->numverts = numverts;
 #endif
 				}
-				else if (!strcmp(com_token, "vert"))
+				else if (!strcmp(token, "vert"))
 				{	//vert num ( s t ) firstweight numweights
 
-					buffer = COM_Parse(buffer);
-					num = atoi(com_token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					num = atoi(token);
 					if (num < 0 || num >= numverts)
 						MD5ERROR0PARAM("MD5MESH: vertex out of range");
 
 					EXPECT("(");
-					buffer = COM_Parse(buffer);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
 #ifndef SERVERONLY
 					if (!stcoord)
 						MD5ERROR0PARAM("MD5MESH: vertex out of range");
-					stcoord[num*2+0] = atof(com_token);
+					stcoord[num*2+0] = atof(token);
 #endif
-					buffer = COM_Parse(buffer);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
 #ifndef SERVERONLY
-					stcoord[num*2+1] = atof(com_token);
+					stcoord[num*2+1] = atof(token);
 #endif
 					EXPECT(")");
-					buffer = COM_Parse(buffer);
-					firstweightlist[num] = atoi(com_token);
-					buffer = COM_Parse(buffer);
-					numweightslist[num] = atoi(com_token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					firstweightlist[num] = atoi(token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					numweightslist[num] = atoi(token);
 
 					numusableweights += numweightslist[num];
 				}
-				else if (!strcmp(com_token, "numtris"))
+				else if (!strcmp(token, "numtris"))
 				{
 					if (numtris)
 						MD5ERROR0PARAM("MD5MESH: numtris was already specified");
-					buffer = COM_Parse(buffer);
-					numtris = atoi(com_token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					numtris = atoi(token);
 					if (numtris < 0)
 						MD5ERROR0PARAM("MD5MESH: numverts cannot be negative");
 
@@ -7505,64 +7416,63 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 					inf->ofs_indexes = indexes;
 					inf->numindexes = numtris*3;
 				}
-				else if (!strcmp(com_token, "tri"))
+				else if (!strcmp(token, "tri"))
 				{
-					buffer = COM_Parse(buffer);
-					num = atoi(com_token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					num = atoi(token);
 					if (num < 0 || num >= numtris)
 						MD5ERROR0PARAM("MD5MESH: vertex out of range");
 
-					buffer = COM_Parse(buffer);
-					indexes[num*3+0] = atoi(com_token);
-					buffer = COM_Parse(buffer);
-					indexes[num*3+1] = atoi(com_token);
-					buffer = COM_Parse(buffer);
-					indexes[num*3+2] = atoi(com_token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					indexes[num*3+0] = atoi(token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					indexes[num*3+1] = atoi(token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					indexes[num*3+2] = atoi(token);
 				}
-				else if (!strcmp(com_token, "numweights"))
+				else if (!strcmp(token, "numweights"))
 				{
 					if (numweights)
 						MD5ERROR0PARAM("MD5MESH: numweights was already specified");
-					buffer = COM_Parse(buffer);
-					numweights = atoi(com_token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					numweights = atoi(token);
 
 					rawweight = Z_Malloc(sizeof(*rawweight)*numweights);
 					rawweightbone = Z_Malloc(sizeof(*rawweightbone)*numweights);
 				}
-				else if (!strcmp(com_token, "weight"))
+				else if (!strcmp(token, "weight"))
 				{
 					//weight num bone scale ( x y z )
-					buffer = COM_Parse(buffer);
-					num = atoi(com_token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					num = atoi(token);
 					if (num < 0 || num >= numweights)
 						MD5ERROR0PARAM("MD5MESH: weight out of range");
 
-					buffer = COM_Parse(buffer);
-					rawweightbone[num] = atoi(com_token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					rawweightbone[num] = atoi(token);
 					if (rawweightbone[num] < 0 || rawweightbone[num] >= numjoints)
 						MD5ERROR0PARAM("MD5MESH: weight specifies bad bone");
-					buffer = COM_Parse(buffer);
-					w = atof(com_token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					w = atof(token);
 
 					EXPECT("(");
-					buffer = COM_Parse(buffer);
-					rawweight[num][0] = w*atof(com_token);
-					buffer = COM_Parse(buffer);
-					rawweight[num][1] = w*atof(com_token);
-					buffer = COM_Parse(buffer);
-					rawweight[num][2] = w*atof(com_token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					rawweight[num][0] = w*atof(token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					rawweight[num][1] = w*atof(token);
+					buffer = COM_ParseOut(buffer, token, sizeof(token));
+					rawweight[num][2] = w*atof(token);
 					EXPECT(")");
 					rawweight[num][3] = w;
 				}
-				else if (!strcmp(com_token, "}"))
+				else if (!strcmp(token, "}"))
 					break;
 				else
 					MD5ERROR1PARAM("MD5MESH: Unrecognised token inside mesh (%s)", com_token);
 
 			}
 
-			trans = ZG_Malloc(&mod->memgroup, sizeof(*trans)*numusableweights);
-			inf->ofsswtransforms = trans;
+			trans = Z_Malloc(sizeof(*trans)*numusableweights);
 
 			for (num = 0, vnum = 0; num < numverts; num++)
 			{
@@ -7581,7 +7491,9 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 					numweightslist[num]--;
 				}
 			}
-			inf->numswtransforms = vnum;
+
+			Alias_BuildGPUWeights(mod, inf, vnum, trans, true);
+			Z_Free(trans);
 
 			if (firstweightlist)
 				Z_Free(firstweightlist);
@@ -7599,7 +7511,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 	if (!lastsurf)
 		MD5ERROR0PARAM("MD5MESH: No meshes");
 
-	Alias_CalculateSkeletalNormals(root);
+//	Alias_CalculateSkeletalNormals(root);
 
 	return root;
 #undef MD5ERROR0PARAM
@@ -7624,6 +7536,7 @@ qboolean QDECL Mod_LoadMD5MeshModel(model_t *mod, void *buffer, size_t fsize)
 
 
 	mod->type = mod_alias;
+	mod->numframes = root->numanimations;
 	mod->meshinfo = root;
 
 	mod->funcs.NativeTrace = Mod_Trace;
@@ -7801,6 +7714,7 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 	Mod_ClampModelSize(mod);
 
 	mod->type = mod_alias;
+	mod->numframes = root->numanimations;
 	mod->meshinfo = root;
 
 	mod->funcs.NativeTrace = Mod_Trace;

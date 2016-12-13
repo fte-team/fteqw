@@ -1399,13 +1399,6 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 
 
-typedef struct {
-	menucustom_t *list;
-	char intermediatefilename[MAX_QPATH];
-	char pathprefix[MAX_QPATH];
-	int downloadablessequence;
-	qboolean populated;
-} dlmenu_t;
 
 static void COM_QuotedConcat(const char *cat, char *buf, size_t bufsize)
 {
@@ -2294,9 +2287,6 @@ void PM_Command_f (void)
 {
 	Con_Printf("Package Manager is not implemented in this build\n");
 }
-void Menu_Download_Update(void)
-{
-}
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri)
 {
 }
@@ -2309,6 +2299,14 @@ void PM_Shutdown(void)
 #endif
 
 #ifdef DOWNLOADMENU
+typedef struct {
+	menucustom_t *list;
+	char intermediatefilename[MAX_QPATH];
+	char pathprefix[MAX_QPATH];
+	int downloadablessequence;
+	qboolean populated;
+} dlmenu_t;
+
 static int autoupdatesetting = UPD_UNSUPPORTED;
 static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
@@ -2735,6 +2733,9 @@ void Menu_Download_Update(void)
 	PM_UpdatePackageList(true, 2);
 }
 #else
+void Menu_Download_Update(void)
+{
+}
 void Menu_DownloadStuff_f (void)
 {
 	Con_Printf("Download menu not implemented in this build\n");

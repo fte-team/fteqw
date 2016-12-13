@@ -448,7 +448,7 @@ void CrossProduct (const vec3_t v1, const vec3_t v2, vec3_t cross)
 	cross[2] = v1[0]*v2[1] - v1[1]*v2[0];
 }
 
-vec_t Length(vec3_t v)
+vec_t Length(const vec3_t v)
 {
 	int		i;
 	float	length;

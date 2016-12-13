@@ -209,8 +209,8 @@ void DIB_SwapBuffers(void)
 */
 }
 
-extern int window_width;
-extern int window_height;
+static int window_width;
+static int window_height;
 void SWV_UpdateWindowStatus(void)
 {
 	POINT p;

@@ -2652,6 +2652,8 @@ qboolean Mod_LoadTexinfo (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 			out->texture = r_notexture_mip; // texture not found
 			out->flags = 0;
 		}
+		if (!strncmp(out->texture->name, "scroll", 6) || ((*out->texture->name == '*' || *out->texture->name == '{' || *out->texture->name == '!') && !strncmp(out->texture->name+1, "scroll", 6)))
+			out->flags |= TI_FLOWING;
 	}
 
 	return true;
@@ -2846,7 +2848,7 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, lump_t *
 			continue;
 		}
 		
-		if (!Q_strncmp(out->texinfo->texture->name,"*",1))		// turbulent
+		if (*out->texinfo->texture->name == '*' || (*out->texinfo->texture->name == '!' && loadmodel->fromgame == fg_halflife))		// turbulent
 		{
 			out->flags |= (SURF_DRAWTURB | SURF_DRAWTILED);
 			for (i=0 ; i<2 ; i++)
@@ -3194,7 +3196,14 @@ static int Mod_Batches_Generate(model_t *mod)
 		surf = mod->surfaces + mod->firstmodelsurface + i;
 		shader = surf->texinfo->texture->shader;
 
-		if (shader)
+		if (surf->flags & SURF_NODRAW)
+		{
+			shader = R_RegisterShader("nodraw", SUF_NONE, "{\nsurfaceparm nodraw\n}");
+			sortid = shader->sort;
+			VectorClear(plane);
+			plane[3] = 0;
+		}
+		else if (shader)
 		{
 			sortid = shader->sort;
 
@@ -3227,6 +3236,7 @@ static int Mod_Batches_Generate(model_t *mod)
 
 		if (lbatch && (
 					lbatch->texture == surf->texinfo->texture &&
+					lbatch->shader == shader &&
 					lbatch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
 					Vector4Compare(plane, lbatch->plane) &&
 					lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES) &&
@@ -3243,6 +3253,7 @@ static int Mod_Batches_Generate(model_t *mod)
 			{
 				if (
 							batch->texture == surf->texinfo->texture &&
+							lbatch->shader == shader &&
 							batch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
 							Vector4Compare(plane, batch->plane) &&
 							batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
@@ -3265,7 +3276,7 @@ static int Mod_Batches_Generate(model_t *mod)
 			batch->lightmap[3] = lmmerge(surf->lightmaptexturenums[3]);
 #endif
 			batch->texture = surf->texinfo->texture;
-			batch->shader = surf->texinfo->texture->shader;
+			batch->shader = shader;
 			if (surf->texinfo->texture->alternate_anims || surf->texinfo->texture->anim_total)
 			{
 				if (mod->fromgame == fg_quake2)
@@ -5023,6 +5034,19 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 
 			if (submod->hulls[j].available)
 				Q1BSP_CheckHullNodes(&submod->hulls[j]);
+		}
+
+		if (mod->fromgame == fg_halflife && i)
+		{
+			for (j=bm->firstface ; j<bm->firstface+bm->numfaces ; j++)
+			{
+				if (mod->surfaces[j].flags & SURF_DRAWTURB)
+				{
+					if (mod->surfaces[j].plane->type == PLANE_Z && mod->surfaces[j].plane->dist == bm->maxs[2]-1)
+						continue;
+					mod->surfaces[j].flags |= SURF_NODRAW;
+				}
+			}
 		}
 		
 		submod->firstmodelsurface = bm->firstface;

@@ -1,32 +1,36 @@
-#include "bothdefs.h"
+#include "quakedef.h"
 #if defined(GLQUAKE) && defined(USE_EGL)
 #include "gl_videgl.h"
+
+extern cvar_t vid_vsync;
 
 EGLContext eglctx = EGL_NO_CONTEXT;
 EGLDisplay egldpy = EGL_NO_DISPLAY;
 EGLSurface eglsurf = EGL_NO_SURFACE;
 
-static dllhandle_t egllibrary;
-static dllhandle_t eslibrary;
+static dllhandle_t *egllibrary;
+static dllhandle_t *eslibrary;
 
-static EGLint (*qeglGetError)(void);
+static EGLint		(EGLAPIENTRY *qeglGetError)(void);
 
-static EGLDisplay (*qeglGetDisplay)(EGLNativeDisplayType display_id);
-static EGLBoolean (*qeglInitialize)(EGLDisplay dpy, EGLint *major, EGLint *minor);
-static EGLBoolean (*qeglTerminate)(EGLDisplay dpy);
+static EGLDisplay	(EGLAPIENTRY *qeglGetDisplay)(EGLNativeDisplayType display_id);
+static EGLBoolean	(EGLAPIENTRY *qeglInitialize)(EGLDisplay dpy, EGLint *major, EGLint *minor);
+static EGLBoolean	(EGLAPIENTRY *qeglTerminate)(EGLDisplay dpy);
 
-static EGLBoolean (*qeglGetConfigs)(EGLDisplay dpy, EGLConfig *configs, EGLint config_size, EGLint *num_config);
-static EGLBoolean (*qeglChooseConfig)(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs, EGLint config_size, EGLint *num_config);
+static EGLBoolean	(EGLAPIENTRY *qeglGetConfigs)(EGLDisplay dpy, EGLConfig *configs, EGLint config_size, EGLint *num_config);
+static EGLBoolean	(EGLAPIENTRY *qeglChooseConfig)(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs, EGLint config_size, EGLint *num_config);
 
-static EGLSurface (*qeglCreateWindowSurface)(EGLDisplay dpy, EGLConfig config, EGLNativeWindowType win, const EGLint *attrib_list);
-static EGLBoolean (*qeglDestroySurface)(EGLDisplay dpy, EGLSurface surface);
-static EGLBoolean (*qeglQuerySurface)(EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint *value);
+static EGLSurface	(EGLAPIENTRY *qeglCreateWindowSurface)(EGLDisplay dpy, EGLConfig config, EGLNativeWindowType win, const EGLint *attrib_list);
+static EGLBoolean	(EGLAPIENTRY *qeglDestroySurface)(EGLDisplay dpy, EGLSurface surface);
+static EGLBoolean	(EGLAPIENTRY *qeglQuerySurface)(EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint *value);
 
-static EGLBoolean (*qeglSwapBuffers)(EGLDisplay dpy, EGLSurface surface);
-static EGLBoolean (*qeglMakeCurrent)(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx);
-static EGLContext (*qeglCreateContext)(EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list);
-static EGLBoolean (*qeglDestroyContext)(EGLDisplay dpy, EGLContext ctx);
-static void *(*qeglGetProcAddress) (char *name);
+static EGLBoolean	(EGLAPIENTRY *qeglSwapBuffers)(EGLDisplay dpy, EGLSurface surface);
+static EGLBoolean	(EGLAPIENTRY *qeglMakeCurrent)(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx);
+static EGLContext	(EGLAPIENTRY *qeglCreateContext)(EGLDisplay dpy, EGLConfig config, EGLContext share_context, const EGLint *attrib_list);
+static EGLBoolean	(EGLAPIENTRY *qeglDestroyContext)(EGLDisplay dpy, EGLContext ctx);
+static void *		(EGLAPIENTRY *qeglGetProcAddress) (char *name);
+
+static EGLBoolean 	(EGLAPIENTRY *qeglSwapInterval) (EGLDisplay display, EGLint interval);
 
 static dllfunction_t qeglfuncs[] =
 {
@@ -49,6 +53,9 @@ static dllfunction_t qeglfuncs[] =
 	{(void*)&qeglDestroyContext, "eglDestroyContext"},
 
 	{(void*)&qeglGetProcAddress, "eglGetProcAddress"},
+
+	//EGL 1.1
+	{(void*)&qeglSwapInterval,	"eglSwapInterval"},
 
 	{NULL}
 };
@@ -99,6 +106,7 @@ qboolean EGL_LoadLibrary(char *driver)
 	}
 	else
 		Sys_Printf("success\n");
+#ifndef _WIN32
 	if (!eslibrary)
 	{
 		eslibrary = dlopen("libGL", RTLD_NOW|RTLD_GLOBAL);
@@ -114,6 +122,7 @@ qboolean EGL_LoadLibrary(char *driver)
 		eslibrary = dlopen("libGL.so.1", RTLD_NOW|RTLD_GLOBAL);
 		if (eslibrary) Sys_Printf("Loaded libGL.so.1\n");
 	}
+#endif
 	if (!eslibrary)
 		Sys_Printf("unable to load some libGL\n");
 	
@@ -152,6 +161,18 @@ void EGL_Shutdown(void)
 
 void EGL_SwapBuffers (void)
 {
+	if (vid_vsync.modified)
+	{
+		int interval;
+		vid_vsync.modified = false;
+		if (*vid_vsync.string)
+			interval = vid_vsync.ival;
+		else
+			interval = 1;	//default is to always vsync, according to EGL docs, so lets just do that.
+		if (qeglSwapInterval)
+			qeglSwapInterval(egldpy, interval);
+	}
+
 	TRACE(("EGL_SwapBuffers\n"));
 	TRACE(("swapping buffers\n"));
 	qeglSwapBuffers(egldpy, eglsurf);
@@ -180,7 +201,7 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 	};
 	EGLint contextattr[] =
 	{
-		EGL_CONTEXT_CLIENT_VERSION, 2,
+		EGL_CONTEXT_CLIENT_VERSION, 2,	//requires EGL 1.3
 		EGL_NONE, EGL_NONE
 	};
 
@@ -245,6 +266,9 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 		Con_Printf(CON_ERROR "EGL: can't make current!\n");
 		return false;
 	}
+
+
+	vid_vsync.modified = true;
 
 	return true;
 }

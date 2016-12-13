@@ -4,7 +4,9 @@
 #include "quakedef.h"
 #define NativeWindowType EGLNativeWindowType
 #include <EGL/egl.h>
-#include <dlfcn.h>
+#ifndef _WIN32
+	#include <dlfcn.h>
+#endif
 
 void *EGL_Proc(char *f);
 void EGL_UnloadLibrary(void);

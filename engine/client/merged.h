@@ -176,6 +176,7 @@ extern void	Mod_Think							(void);
 extern int Mod_SkinNumForName					(struct model_s *model, int surfaceidx, const char *name);
 extern int Mod_FrameNumForName					(struct model_s *model, int surfaceidx, const char *name);
 extern float Mod_GetFrameDuration				(struct model_s *model, int surfaceidx, int framenum);
+extern int Mod_GetFrameCount					(struct model_s *model);
 
 #undef FNC
 
@@ -186,7 +187,7 @@ int Mod_GetNumBones(struct model_s *model, qboolean allowtags);
 int Mod_GetBoneRelations(struct model_s *model, int firstbone, int lastbone, framestate_t *fstate, float *result);
 int Mod_GetBoneParent(struct model_s *model, int bonenum);
 struct galiasbone_s *Mod_GetBoneInfo(struct model_s *model, int *numbones);
-char *Mod_GetBoneName(struct model_s *model, int bonenum);
+const char *Mod_GetBoneName(struct model_s *model, int bonenum);
 
 void Draw_FunString(float x, float y, const void *str);
 void Draw_AltFunString(float x, float y, const void *str);

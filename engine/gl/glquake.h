@@ -1005,18 +1005,6 @@ extern void (APIENTRY *qglTranslatef) (GLfloat x, GLfloat y, GLfloat z);
 extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4x3fv;
 extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix3x4fv;
 
-#ifdef _WIN32
-extern BOOL  (WINAPI *qwglCopyContext)(HGLRC, HGLRC, UINT);
-extern HGLRC (WINAPI *qwglCreateContext)(HDC);
-extern HGLRC (WINAPI *qwglCreateLayerContext)(HDC, int);
-extern BOOL  (WINAPI *qwglDeleteContext)(HGLRC);
-extern HGLRC (WINAPI *qwglGetCurrentContext)(VOID);
-extern HDC   (WINAPI *qwglGetCurrentDC)(VOID);
-extern PROC  (WINAPI *qwglGetProcAddress)(LPCSTR);
-extern BOOL  (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
-extern BOOL  (WINAPI *qSwapBuffers)(HDC);
-#endif
-
 extern const GLubyte * (APIENTRY * qglGetStringi) (GLenum name, GLuint index);
 
 /*

@@ -4483,7 +4483,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultwall",
-"!!ver 110 // 130\n"
+"!!ver 100 120 // 130\n"
 "!!permu DELUXE\n"
 "!!permu FULLBRIGHT\n"
 "!!permu FOG\n"
@@ -4496,7 +4496,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#include \"sys/defs.h\"\n"
 
-"#if GL_VERSION >= 130\n"
+"#if __VERSION__ >= 130\n"
 "#define texture2D texture\n"
 "#define textureCube texture\n"
 "#define gl_FragColor gl_FragData[0]\n"
@@ -4586,7 +4586,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //optional: round the lightmap coords to ensure all pixels within a texel have different lighting values either. it just looks wrong otherwise.
 //don't bother if its lightstyled, such cases will have unpredictable correlations anyway.
 //FIXME: this rounding is likely not correct with respect to software rendering. oh well.
-"#if GL_VERSION >= 130\n"
+"#if __VERSION__ >= 130\n"
 "vec2 lmsize = vec2(textureSize(s_lightmap0, 0));\n"
 "#else\n"
 "#define lmsize vec2(128.0,2048.0)\n"

@@ -5686,7 +5686,7 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 
 	}
 
-	if (!builtin && (*shortname == '*'))
+	if (!builtin && (*shortname == '*' || *shortname == '!'))
 	{
 		builtin = Shader_DefaultBSPWater(s, shortname);
 	}

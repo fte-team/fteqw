@@ -18,14 +18,44 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 // gl_vidnt.c -- NT GL vid component
+// note that this file also handles win32 vulkan window things
+// and can also use either EGL or WGL.
 
 #include "quakedef.h"
-#ifdef GLQUAKE
+#if defined(_WIN32) && (defined(GLQUAKE) || defined(VKQUAKE))
 #include "glquake.h"
 #include "winquake.h"
 #include "resource.h"
 #include "shader.h"
 #include <commctrl.h>
+
+#ifdef USE_EGL
+	#ifdef GLQUAKE
+		#include "gl_videgl.h"
+	#else
+		#undef USE_EGL
+	#endif
+#endif
+#ifdef GLQUAKE
+	#define USE_WGL
+#endif
+#ifdef VKQUAKE
+	#include "../vk/vkrenderer.h"
+#endif
+
+static enum
+{
+#ifdef USE_WGL
+	MODE_WGL,
+#endif
+#ifdef USE_EGL
+	MODE_EGL,
+#endif
+#ifdef VKQUAKE
+	MODE_VULKAN,
+#endif
+} platform_rendermode;
+
 
 void STT_Event(void);
 
@@ -82,33 +112,18 @@ extern cvar_t vid_conwidth, vid_conautoscale;
 #define WINDOW_CLASS_NAME_W L"FTEGLQuake"
 #define WINDOW_CLASS_NAME_A "FTEGLQuake"
 
-#define MAX_MODE_LIST	128
-#define VID_ROW_SIZE	3
-#define WARP_WIDTH		320
-#define WARP_HEIGHT		200
-#define MAXWIDTH		10000
-#define MAXHEIGHT		10000
-#define BASEWIDTH		320
-#define BASEHEIGHT		200
-
 extern cvar_t vid_width;
 extern cvar_t vid_height;
 extern cvar_t vid_wndalpha;
 
-const char *wgl_extensions;
-
 typedef enum {MS_WINDOWED, MS_FULLDIB, MS_FULLWINDOW, MS_UNINIT} modestate_t;
 
-BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info);
-
-//qboolean VID_SetWindowedMode (int modenum);
-//qboolean VID_SetFullDIBMode (int modenum);
 static qboolean VID_SetWindowedMode (rendererstate_t *info);	//-1 on bpp or hz for default.
 static qboolean VID_SetFullDIBMode (rendererstate_t *info);	//-1 on bpp or hz for default.
 
-qboolean		scr_skipupdate;
-
-//#define WTHREAD	//While the user is resizing a window, the entire thread that owns said window becomes frozen. in order to cope with window resizing, its easiest to just create a separate thread to be microsoft's plaything. our main game thread can then just keep rendering. hopefully that won't bug out on the present.
+#ifdef MULTITHREADED
+#define WTHREAD	//While the user is resizing a window, the entire thread that owns said window becomes frozen. in order to cope with window resizing, its easiest to just create a separate thread to be microsoft's plaything. our main game thread can then just keep rendering. hopefully that won't bug out on the present.
+#endif
 #ifdef WTHREAD
 static HANDLE	windowthread;
 static void		*windowmutex;
@@ -122,21 +137,18 @@ extern qboolean	mouseactive;  // from in_win.c
 static HICON	hIcon;
 extern qboolean vid_isfullscreen;
 
-unsigned short originalgammaramps[3][256];
+static unsigned short originalgammaramps[3][256];
 
 qboolean vid_initializing;
 
-qboolean VID_AttachGL (rendererstate_t *info);
+static int			DIBWidth, DIBHeight;
+static RECT		WindowRect;
+static DWORD		WindowStyle, ExWindowStyle;
 
-int			DIBWidth, DIBHeight;
-RECT		WindowRect;
-DWORD		WindowStyle, ExWindowStyle;
+HWND	mainwindow;
+static HWND dibwindow;
 
-HWND	mainwindow, dibwindow;
-
-HGLRC	baseRC;
-HDC		maindc;
-
+static HDC		maindc;
 
 HWND WINAPI InitializeWindow (HINSTANCE hInstance, int nCmdShow);
 
@@ -147,21 +159,10 @@ viddef_t	vid;				// global video state
 //unsigned short	d_8to16bgrtable[256];
 //unsigned	d_8to24bgrtable[256];
 
-modestate_t	modestate = MS_UNINIT;
+static modestate_t	modestate = MS_UNINIT;
 
 extern float gammapending;
 
-
-LONG WINAPI GLMainWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-qboolean GLAppActivate(BOOL fActive, BOOL minimize);
-void ClearAllStates (void);
-void VID_UpdateWindowStatus (HWND hWnd);
-void GL_Init(void *(*getglfunction) (char *name));
-
-typedef void (APIENTRY *lp3DFXFUNC) (int, int, int, int, int, const void*);
-lp3DFXFUNC qglColorTableEXT;
-qboolean is8bit = false;
-qboolean isPermedia = false;
 
 //====================================
 // Note that 0 is MODE_WINDOWED
@@ -174,6 +175,28 @@ extern cvar_t		vid_desktopgamma;
 extern cvar_t		gl_lateswap;
 extern cvar_t		vid_preservegamma;
 
+int			window_x, window_y;
+static int			window_width, window_height;
+int					window_center_x, window_center_y;
+RECT				window_rect;
+
+
+static LONG WINAPI GLMainWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+static qboolean GLAppActivate(BOOL fActive, BOOL minimize);
+static void ClearAllStates (void);
+static void VID_UpdateWindowStatus (HWND hWnd);
+
+static BOOL (WINAPI *qGetDeviceGammaRamp)(HDC hDC, void *ramp);
+static BOOL (WINAPI *qSetDeviceGammaRamp)(HDC hDC, void *ramp);
+
+//==========================================================
+#ifdef USE_WGL
+static HGLRC	baseRC;
+static const char *wgl_extensions;
+
+static qboolean VID_AttachGL (rendererstate_t *info);
+static BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info);
+
 extern cvar_t		vid_gl_context_version;
 extern cvar_t		vid_gl_context_debug;
 extern cvar_t		vid_gl_context_es;
@@ -182,14 +205,62 @@ extern cvar_t		vid_gl_context_compatibility;
 extern cvar_t		vid_gl_context_robustness;
 extern cvar_t		vid_gl_context_selfreset;
 
-int			window_center_x, window_center_y, window_x, window_y, window_width, window_height;
-RECT		window_rect;
-
-dllhandle_t *hInstGL = NULL;
-dllhandle_t *hInstwgl = NULL;
+static dllhandle_t *hInstGL = NULL;
+static dllhandle_t *hInstwgl = NULL;
 static qboolean usingminidriver;
 static char reqminidriver[MAX_OSPATH];
 static char opengldllname[MAX_OSPATH];
+
+
+static HGLRC (WINAPI *qwglCreateContext)(HDC);
+static BOOL  (WINAPI *qwglDeleteContext)(HGLRC);
+static HGLRC (WINAPI *qwglGetCurrentContext)(VOID);
+static HDC   (WINAPI *qwglGetCurrentDC)(VOID);
+static PROC  (WINAPI *qwglGetProcAddress)(LPCSTR);
+static BOOL  (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
+static BOOL  (WINAPI *qSwapBuffers)(HDC);
+static BOOL  (WINAPI *qwglSwapLayerBuffers)(HDC, UINT);
+static int   (WINAPI *qChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
+static BOOL  (WINAPI *qSetPixelFormat)(HDC, int, CONST PIXELFORMATDESCRIPTOR *);
+static int   (WINAPI *qDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIPTOR);
+
+static BOOL (WINAPI *qwglSwapIntervalEXT) (int);
+
+static BOOL (APIENTRY *qwglChoosePixelFormatARB)(HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int* piFormats, UINT* nNumFormats);
+
+static HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, const int *attribList);
+#define WGL_CONTEXT_MAJOR_VERSION_ARB		0x2091
+#define WGL_CONTEXT_MINOR_VERSION_ARB		0x2092
+#define WGL_CONTEXT_LAYER_PLANE_ARB			0x2093
+#define WGL_CONTEXT_FLAGS_ARB				0x2094
+#define		WGL_CONTEXT_DEBUG_BIT_ARB					0x0001
+#define		WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB		0x0002
+#define		WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB			0x0004 /*WGL_ARB_create_context_robustness*/
+#define WGL_CONTEXT_PROFILE_MASK_ARB		0x9126		/*WGL_ARB_create_context_profile*/
+#define		WGL_CONTEXT_CORE_PROFILE_BIT_ARB			0x00000001
+#define		WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB	0x00000002
+#define		WGL_CONTEXT_ES2_PROFILE_BIT_EXT				0x00000004	/*WGL_CONTEXT_ES2_PROFILE_BIT_EXT*/
+#define ERROR_INVALID_VERSION_ARB			0x2095
+#define	ERROR_INVALID_PROFILE_ARB		0x2096
+#define WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB		0x8256	/*WGL_ARB_create_context_robustness*/
+#define		WGL_NO_RESET_NOTIFICATION_ARB					0x8261
+#define		WGL_LOSE_CONTEXT_ON_RESET_ARB					0x8252
+
+
+//pixel format stuff
+#define 	WGL_DRAW_TO_WINDOW_ARB		0x2001
+#define 	WGL_ACCELERATION_ARB		0x2003
+#define		WGL_SWAP_LAYER_BUFFERS_ARB	0x2006
+#define 	WGL_SUPPORT_OPENGL_ARB		0x2010
+#define 	WGL_DOUBLE_BUFFER_ARB		0x2011
+#define		WGL_STEREO_ARB				0x2012
+#define 	WGL_COLOR_BITS_ARB			0x2014
+#define 	WGL_ALPHA_BITS_ARB			0x201B
+#define 	WGL_DEPTH_BITS_ARB			0x2022
+#define 	WGL_STENCIL_BITS_ARB		0x2023
+#define 	WGL_FULL_ACCELERATION_ARB	0x2027
+
+
 
 #ifdef _DEBUG
 //this is a list of the functions that exist in opengles2, as well as wglCreateContextAttribsARB.
@@ -506,7 +577,7 @@ static char *gles1funcs[] =
 #endif
 
 //just GetProcAddress with a safty net.
-void *getglfunc(char *name)
+static void *getglfunc(char *name)
 {
 	FARPROC proc;
 	proc = qwglGetProcAddress?qwglGetProcAddress(name):NULL;
@@ -544,7 +615,7 @@ void *getglfunc(char *name)
 #endif
 	return proc;
 }
-void *getwglfunc(char *name)
+static void *getwglfunc(char *name)
 {
 	FARPROC proc;
 	TRACE(("dbg: getwglfunc: %s: getting\n", name));
@@ -567,61 +638,11 @@ void *getwglfunc(char *name)
 	return proc;
 }
 
-HGLRC (WINAPI *qwglCreateContext)(HDC);
-BOOL  (WINAPI *qwglDeleteContext)(HGLRC);
-HGLRC (WINAPI *qwglGetCurrentContext)(VOID);
-HDC   (WINAPI *qwglGetCurrentDC)(VOID);
-PROC  (WINAPI *qwglGetProcAddress)(LPCSTR);
-BOOL  (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
-BOOL  (WINAPI *qSwapBuffers)(HDC);
-BOOL  (WINAPI *qwglSwapLayerBuffers)(HDC, UINT);
-int   (WINAPI *qChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
-BOOL  (WINAPI *qSetPixelFormat)(HDC, int, CONST PIXELFORMATDESCRIPTOR *);
-int   (WINAPI *qDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIPTOR);
+static qboolean shouldforcepixelformat;
+static int forcepixelformat;
+static int currentpixelformat;
 
-BOOL (WINAPI *qwglSwapIntervalEXT) (int);
-
-BOOL (APIENTRY *qGetDeviceGammaRamp)(HDC hDC, GLvoid *ramp);
-BOOL (APIENTRY *qSetDeviceGammaRamp)(HDC hDC, GLvoid *ramp);
-
-BOOL (APIENTRY *qwglChoosePixelFormatARB)(HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int* piFormats, UINT* nNumFormats);
-
-HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, const int *attribList);
-#define WGL_CONTEXT_MAJOR_VERSION_ARB		0x2091
-#define WGL_CONTEXT_MINOR_VERSION_ARB		0x2092
-#define WGL_CONTEXT_LAYER_PLANE_ARB			0x2093
-#define WGL_CONTEXT_FLAGS_ARB				0x2094
-#define		WGL_CONTEXT_DEBUG_BIT_ARB					0x0001
-#define		WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB		0x0002
-#define		WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB			0x0004 /*WGL_ARB_create_context_robustness*/
-#define WGL_CONTEXT_PROFILE_MASK_ARB		0x9126		/*WGL_ARB_create_context_profile*/
-#define		WGL_CONTEXT_CORE_PROFILE_BIT_ARB			0x00000001
-#define		WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB	0x00000002
-#define		WGL_CONTEXT_ES2_PROFILE_BIT_EXT				0x00000004	/*WGL_CONTEXT_ES2_PROFILE_BIT_EXT*/
-#define ERROR_INVALID_VERSION_ARB			0x2095
-#define	ERROR_INVALID_PROFILE_ARB		0x2096
-#define WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB		0x8256	/*WGL_ARB_create_context_robustness*/
-#define		WGL_NO_RESET_NOTIFICATION_ARB					0x8261
-#define		WGL_LOSE_CONTEXT_ON_RESET_ARB					0x8252
-
-
-//pixel format stuff
-#define 	WGL_DRAW_TO_WINDOW_ARB		0x2001
-#define 	WGL_ACCELERATION_ARB		0x2003
-#define		WGL_SWAP_LAYER_BUFFERS_ARB	0x2006
-#define 	WGL_SUPPORT_OPENGL_ARB		0x2010
-#define 	WGL_DOUBLE_BUFFER_ARB		0x2011
-#define		WGL_STEREO_ARB				0x2012
-#define 	WGL_COLOR_BITS_ARB			0x2014
-#define 	WGL_ALPHA_BITS_ARB			0x201B
-#define 	WGL_DEPTH_BITS_ARB			0x2022
-#define 	WGL_STENCIL_BITS_ARB		0x2023
-#define 	WGL_FULL_ACCELERATION_ARB	0x2027
-qboolean shouldforcepixelformat;
-int forcepixelformat;
-int currentpixelformat;
-
-qboolean GLInitialise (char *renderer)
+static qboolean GLInitialise (char *renderer)
 {
 	if (!hInstGL || strcmp(reqminidriver, renderer))
 	{
@@ -736,8 +757,84 @@ qboolean GLInitialise (char *renderer)
 	return true;
 }
 
+static void ReleaseGL(void)
+{
+	HGLRC	hRC;
+	HDC		hDC = NULL;
+
+	if (qwglGetCurrentContext)
+	{
+		hRC = qwglGetCurrentContext();
+		hDC = qwglGetCurrentDC();
+
+		qwglMakeCurrent(NULL, NULL);
+
+		if (hRC)
+			qwglDeleteContext(hRC);
+	}
+	qwglGetCurrentContext=NULL;
+
+	if (hDC && dibwindow)
+		ReleaseDC(dibwindow, hDC);
+}
+#endif	//USE_WGL
+
+#ifdef VKQUAKE
+static dllhandle_t *hInstVulkan = NULL;
+static qboolean Win32VK_CreateSurface(void)
+{
+	VkResult err;
+	VkWin32SurfaceCreateInfoKHR createInfo = {VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR};
+	createInfo.flags = 0;
+	createInfo.hinstance = GetModuleHandle(NULL);
+	createInfo.hwnd = mainwindow;
+
+	err = vkCreateWin32SurfaceKHR(vk.instance, &createInfo, NULL, &vk.surface);
+	switch(err)
+	{
+	default:
+		Con_Printf("Unknown vulkan device creation error: %x\n", err);
+		return false;
+	case VK_SUCCESS:
+		break;
+	}
+	return true;
+}
+
+#ifdef WTHREAD
+static void Win32VK_Present(struct vkframe *theframe)
+{
+//	if (theframe)
+//		PostMessage(mainwindow, WM_USER+7, 0, (LPARAM)theframe);
+//	else
+		SendMessage(mainwindow, WM_USER+7, 0, (LPARAM)theframe);
+}
+#else
+#define Win32VK_Present NULL
+#endif
+
+static qboolean Win32VK_AttachVulkan (rendererstate_t *info)
+{	//make sure we can get a valid renderer.
+#ifdef VK_NO_PROTOTYPES
+	hInstVulkan = NULL;
+	if (!hInstVulkan)
+		hInstVulkan = *info->subrenderer?LoadLibrary(info->subrenderer):NULL;
+	if (!hInstVulkan)
+		hInstVulkan = LoadLibrary("vulkan-1.dll");
+	if (!hInstVulkan)
+	{
+		Con_Printf("Unable to load vulkan-1.dll\nNo Vulkan drivers are installed\n");
+		return false;
+	}
+	vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr) GetProcAddress(hInstVulkan, "vkGetInstanceProcAddr");
+#endif
+
+	return VK_Init(info, VK_KHR_WIN32_SURFACE_EXTENSION_NAME, Win32VK_CreateSurface, Win32VK_Present);
+}
+#endif
+
 /*doesn't consider parent offsets*/
-RECT centerrect(unsigned int parentleft, unsigned int parenttop, unsigned int parentwidth, unsigned int parentheight, unsigned int cwidth, unsigned int cheight)
+static RECT centerrect(unsigned int parentleft, unsigned int parenttop, unsigned int parentwidth, unsigned int parentheight, unsigned int cwidth, unsigned int cheight)
 {
 	RECT r;
 	if (modestate!=MS_WINDOWED)
@@ -1115,11 +1212,57 @@ static qboolean VID_SetFullDIBMode (rendererstate_t *info)
 }
 
 extern qboolean gammaworks;
-static void ReleaseGL(void);
 static void Win_Touch_Init(HWND wnd);
-static qboolean CreateMainWindow(rendererstate_t *info)
+
+#ifdef WTHREAD
+static rendererstate_t *rs;
+static qboolean CreateMainWindow(rendererstate_t *info, qboolean withthread);
+static int GLVID_WindowThread(void *cond)
+{
+	extern qboolean mouseshowtoggle;
+	int cursor = 1;
+	MSG		msg;
+	HWND wnd;
+	CreateMainWindow(rs, false);
+	wnd = mainwindow;
+	Sys_ConditionSignal(cond);
+
+	while (GetMessageW(&msg, NULL, 0, 0))
+	{
+//		TranslateMessageW (&msg);
+		DispatchMessageW (&msg);
+
+		//ShowCursor is thread-local.
+		if (cursor != mouseshowtoggle)
+		{
+			cursor = mouseshowtoggle;
+			ShowCursor(cursor);
+		}
+	}
+	DestroyWindow(wnd);
+	return 0;
+}
+#endif
+static qboolean CreateMainWindow(rendererstate_t *info, qboolean withthread)
 {
 	qboolean		stat;
+
+#ifdef WTHREAD
+	if (withthread)
+	{
+		void *cond = Sys_CreateConditional();
+		Sys_LockConditional(cond);
+		rs = info;
+		windowthread = Sys_CreateThread("windowthread", GLVID_WindowThread, cond, 0, 0);
+		if (!Sys_ConditionWait(cond))
+			Con_SafePrintf ("Looks like the window thread isn't starting up\n");
+		Sys_UnlockConditional(cond);
+		Sys_DestroyConditional(cond);
+
+		return !!mainwindow;
+	}
+#endif
+
 	if (WinNT)
 	{
 		WNDCLASSW		wc;
@@ -1174,46 +1317,14 @@ static qboolean CreateMainWindow(rendererstate_t *info)
 	return stat;
 }
 
-#ifdef WTHREAD
-rendererstate_t *rs;
-int GLVID_WindowThread(void *cond)
-{
-	extern qboolean mouseshowtoggle;
-	int cursor = 1;
-	MSG		msg;
-	HWND wnd;
-	CreateMainWindow(rs);
-	wnd = mainwindow;
-	Sys_ConditionSignal(cond);
-
-	while (GetMessageW(&msg, NULL, 0, 0))
-	{
-		TranslateMessageW (&msg);
-		DispatchMessageW (&msg);
-
-		//ShowCursor is thread-local.
-		if (cursor != mouseshowtoggle)
-		{
-			cursor = mouseshowtoggle;
-			ShowCursor(cursor);
-		}
-	}
-	DestroyWindow(wnd);
-	return 0;
-}
-#endif
-
-BOOL CheckForcePixelFormat(rendererstate_t *info);
-void VID_UnSetMode (void);
-int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
+static BOOL CheckForcePixelFormat(rendererstate_t *info);
+static void VID_UnSetMode (void);
+static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 {
 	int				temp;
 	qboolean		stat;
-#ifdef WTHREAD
-	void			*cond;
-#endif
 #ifndef NPFTE
-    MSG				msg;
+	MSG				msg;
 #endif
 //	HDC				hdc;
 
@@ -1225,59 +1336,82 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 
 	CDAudio_Pause ();
 
-	// Set either the fullscreen or windowed mode
-	qwglChoosePixelFormatARB = NULL;
-	qwglCreateContextAttribsARB = NULL;
+	qGetDeviceGammaRamp = (void*)GetDeviceGammaRamp;
+	qSetDeviceGammaRamp = (void*)SetDeviceGammaRamp;
 
-#ifdef WTHREAD
-	cond = Sys_CreateConditional();
-	Sys_LockConditional(cond);
-	rs = info;
-	windowthread = Sys_CreateThread("windowthread", GLVID_WindowThread, cond, 0, 0);
-	if (!Sys_ConditionWait(cond))
-		Con_SafePrintf ("Looks like the window thread isn't starting up\n");
-	Sys_UnlockConditional(cond);
-	Sys_DestroyConditional(cond);
-
-	stat = !!mainwindow;
-#else
-	stat = CreateMainWindow(info);
-#endif
-
-	if (stat)
+	switch(platform_rendermode)
 	{
-		stat = VID_AttachGL(info);
+#ifdef USE_WGL
+	case MODE_WGL:
+		// Set either the fullscreen or windowed mode
+		qwglChoosePixelFormatARB = NULL;
+		qwglCreateContextAttribsARB = NULL;
+		stat = CreateMainWindow(info, true);
+
 		if (stat)
 		{
-			TRACE(("dbg: GLVID_SetMode: attaching gl okay\n"));
-			if (CheckForcePixelFormat(info))
+			stat = VID_AttachGL(info);
+			if (stat)
 			{
-				HMODULE oldgl = hInstGL;
-				hInstGL = NULL;	//don't close the gl library, just in case
-				VID_UnSetMode();
-				hInstGL = oldgl;
+				TRACE(("dbg: GLVID_SetMode: attaching gl okay\n"));
+				if (CheckForcePixelFormat(info))
+				{
+					HMODULE oldgl = hInstGL;
+					hInstGL = NULL;	//don't close the gl library, just in case
+					VID_UnSetMode();
+					hInstGL = oldgl;
 
-				if (CreateMainWindow(info) && VID_AttachGL(info))
-				{
-					//we have our multisample window
-				}
-				else
-				{
-					//multisample failed
-					//try the origional way
-					if (!CreateMainWindow(info) || !VID_AttachGL(info))
+					if (CreateMainWindow(info, true) && VID_AttachGL(info))
 					{
-						Con_Printf("Failed to undo antialising. Giving up.\n");
-						return false;	//eek
+						//we have our multisample window
+					}
+					else
+					{
+						//multisample failed
+						//try the origional way
+						if (!CreateMainWindow(info, true) || !VID_AttachGL(info))
+						{
+							Con_Printf("Failed to undo antialising. Giving up.\n");
+							return false;	//eek
+						}
 					}
 				}
 			}
+			else
+			{
+				TRACE(("dbg: GLVID_SetMode: attaching gl failed\n"));
+				return false;
+			}
 		}
-		else
+		break;
+#endif
+#ifdef USE_EGL
+	case MODE_EGL:
+		stat = CreateMainWindow(info, true);
+		if (stat)
 		{
-			TRACE(("dbg: GLVID_SetMode: attaching gl failed\n"));
-			return false;
+			maindc = GetDC(mainwindow);
+			stat = EGL_Init (info, palette, mainwindow, maindc);
+
+			if (stat)
+				GL_Init(&EGL_Proc);
 		}
+		break;
+#endif
+#ifdef VKQUAKE
+	case MODE_VULKAN:
+		stat = CreateMainWindow(info, true);
+
+		if (stat)
+		{
+			maindc = GetDC(mainwindow);
+			stat = Win32VK_AttachVulkan(info);
+		}
+		break;
+#endif
+	default:
+		stat = false;
+		break;
 	}
 
 	if (!stat)
@@ -1285,6 +1419,10 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 		TRACE(("dbg: GLVID_SetMode: VID_Set... failed\n"));
 		return false;
 	}
+
+	if (!qGetDeviceGammaRamp) qGetDeviceGammaRamp = (void*)GetDeviceGammaRamp;
+	if (!qSetDeviceGammaRamp) qSetDeviceGammaRamp = (void*)SetDeviceGammaRamp;
+
 
 	window_width = DIBWidth;
 	window_height = DIBHeight;
@@ -1306,8 +1444,8 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	/*I don't like this, but if we */
 	while (PeekMessage (&msg, mainwindow, 0, 0, PM_REMOVE))
 	{
-      	TranslateMessage (&msg);
-      	DispatchMessage (&msg);
+		TranslateMessage (&msg);
+		DispatchMessage (&msg);
 	}
 	Sleep (100);
 #endif
@@ -1342,27 +1480,6 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	return true;
 }
 
-static void ReleaseGL(void)
-{
-	HGLRC hRC;
-   	HDC	  hDC = NULL;
-
-	if (qwglGetCurrentContext)
-	{
-		hRC = qwglGetCurrentContext();
-		hDC = qwglGetCurrentDC();
-
-    	qwglMakeCurrent(NULL, NULL);
-
-    	if (hRC)
-    		qwglDeleteContext(hRC);
-	}
-	qwglGetCurrentContext=NULL;
-
-	if (hDC && dibwindow)
-		ReleaseDC(dibwindow, hDC);
-}
-
 void VID_UnSetMode (void)
 {
 	if (mainwindow && vid_initialized)
@@ -1370,13 +1487,32 @@ void VID_UnSetMode (void)
 		GLAppActivate(false, false);
 
 		vid_canalttab = false;
-		ReleaseGL();
+
+		switch(platform_rendermode)
+		{
+#ifdef USE_WGL
+		case MODE_WGL:
+			ReleaseGL();
+			break;
+#endif
+#ifdef USE_EGL
+		case MODE_EGL:
+			EGL_Shutdown();
+			break;
+#endif
+#ifdef VKQUAKE
+		case MODE_VULKAN:
+			VK_Shutdown();
+			break;
+#endif
+		}
 
 		if (modestate == MS_FULLDIB)
 			ChangeDisplaySettings (NULL, 0);
 
 		if (maindc && dibwindow)
 			ReleaseDC (dibwindow, maindc);
+		maindc = NULL;
 	}
 
 	if (mainwindow)
@@ -1389,7 +1525,7 @@ void VID_UnSetMode (void)
 		if (windowthread)
 		{
 			SendMessage(mainwindow, WM_USER+4, 0, 0);
-			CloseHandle((HANDLE)windowthread);
+			Sys_WaitOnThread(windowthread);
 			windowthread = NULL;
 		}
 		else
@@ -1427,7 +1563,7 @@ void VID_UnSetMode (void)
 VID_UpdateWindowStatus
 ================
 */
-void VID_UpdateWindowStatus (HWND hWnd)
+static void VID_UpdateWindowStatus (HWND hWnd)
 {
 	POINT p;
 	RECT nr;
@@ -1447,8 +1583,6 @@ void VID_UpdateWindowStatus (HWND hWnd)
 	window_y = p.y;
 	window_width = WindowRect.right - WindowRect.left;
 	window_height = WindowRect.bottom - WindowRect.top;
-	vid.pixelwidth = window_width;
-	vid.pixelheight = window_height;
 
 	window_rect.left = window_x;
 	window_rect.top = window_y;
@@ -1458,9 +1592,24 @@ void VID_UpdateWindowStatus (HWND hWnd)
 	window_center_y = (window_rect.top + window_rect.bottom) / 2;
 
 	INS_UpdateClipCursor ();
+
+	switch(platform_rendermode)
+	{
+#ifdef VKQUAKE
+	case MODE_VULKAN:
+		if (vid.pixelwidth != window_width || vid.pixelheight != window_height)
+			vk.neednewswapchain = true;
+		break;
+#endif
+	default:
+		vid.pixelwidth = window_width;
+		vid.pixelheight = window_height;
+		break;
+	}
 }
 
-qboolean WGL_CheckExtension(char *extname)
+#ifdef USE_WGL
+static qboolean WGL_CheckExtension(char *extname)
 {
 //	int i;
 	int len;
@@ -1543,14 +1692,14 @@ qboolean VID_AttachGL (rendererstate_t *info)
 
 	TRACE(("dbg: VID_AttachGL: qwglCreateContext\n"));
 
-    baseRC = qwglCreateContext(maindc);
+	baseRC = qwglCreateContext(maindc);
 	if (!baseRC)
 	{
 		Con_SafePrintf(CON_ERROR "Could not initialize GL (wglCreateContext failed).\n\nMake sure you in are 65535 color mode, and try running -window.\n");	//green to make it show.
 		return false;
 	}
 	TRACE(("dbg: VID_AttachGL: qwglMakeCurrent\n"));
-    if (!qwglMakeCurrent(maindc, baseRC))
+	if (!qwglMakeCurrent(maindc, baseRC))
 	{
 		Con_SafePrintf(CON_ERROR "wglMakeCurrent failed\n");	//green to make it show.
 		return false;
@@ -1707,19 +1856,26 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	qglClear(GL_COLOR_BUFFER_BIT);
 	qSwapBuffers(maindc);
 
-	if (!qGetDeviceGammaRamp) qGetDeviceGammaRamp = (void*)GetDeviceGammaRamp;
-	if (!qSetDeviceGammaRamp) qSetDeviceGammaRamp = (void*)SetDeviceGammaRamp;
-
 	return true;
 }
+#endif
 
 static void QDECL VID_Wait_Override_Callback(struct cvar_s *var, char *oldvalue)
 {
-	if (qwglSwapIntervalEXT && *vid_vsync.string)
-		qwglSwapIntervalEXT(vid_vsync.value);
+	switch(platform_rendermode)
+	{
+#ifdef USE_WGL
+	case MODE_WGL:
+		if (qwglSwapIntervalEXT && *vid_vsync.string)
+			qwglSwapIntervalEXT(vid_vsync.value);
+		break;
+#endif
+	default:
+		break;
+	}
 }
 
-void GLVID_Recenter_f(void)
+static void GLVID_Recenter_f(void)
 {
 	// 4 unused variables
 	//int nw = vid_width.value;
@@ -1817,20 +1973,37 @@ static void QDECL VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldva
 
 void GLVID_SwapBuffers (void)
 {
-	if (qwglSwapLayerBuffers)
+	switch(platform_rendermode)
 	{
-		if (!qwglSwapLayerBuffers(maindc, WGL_SWAP_MAIN_PLANE))
-			qwglSwapLayerBuffers = NULL;
+#ifdef USE_WGL
+	case MODE_WGL:
+		if (qwglSwapLayerBuffers)
+		{
+			if (!qwglSwapLayerBuffers(maindc, WGL_SWAP_MAIN_PLANE))
+				qwglSwapLayerBuffers = NULL;
+		}
+		else
+			qSwapBuffers(maindc);
+		break;
+#endif
+#ifdef USE_EGL
+	case MODE_EGL:
+		EGL_SwapBuffers();
+		break;
+#endif
+#ifdef VKQUAKE
+	case MODE_VULKAN:
+		//FIXME: force a buffer swap now (might be called while loading (eg: q3), where we won't get a chance to redraw for a bit)
+		break;
+#endif
 	}
-	else
-		qSwapBuffers(maindc);
 
 // handle the mouse state when windowed if that's changed
 
 	INS_UpdateGrabs(modestate != MS_WINDOWED, vid.activeapp);
 }
 
-void OblitterateOldGamma(void)
+static void OblitterateOldGamma(void)
 {
 	int i;
 	if (vid_preservegamma.value)
@@ -1926,15 +2099,16 @@ void	GLVID_Shutdown (void)
 
 	gammaworks = false;
 
-	GLBE_Shutdown();
-	Image_Shutdown();
+//	GLBE_Shutdown();
+//	Image_Shutdown();
 	VID_UnSetMode();
 }
 
 
 //==========================================================================
 
-BOOL CheckForcePixelFormat(rendererstate_t *info)
+#ifdef USE_WGL
+static BOOL CheckForcePixelFormat(rendererstate_t *info)
 {
 	if (qwglChoosePixelFormatARB && (info->multisample || info->srgb))
 	{
@@ -1988,7 +2162,7 @@ BOOL CheckForcePixelFormat(rendererstate_t *info)
 	return false;
 }
 
-BYTE IntensityFromShifted(unsigned int index, unsigned int shift, unsigned int bits)
+static BYTE IntensityFromShifted(unsigned int index, unsigned int shift, unsigned int bits)
 {
 	unsigned int val;
 
@@ -2023,7 +2197,7 @@ BYTE IntensityFromShifted(unsigned int index, unsigned int shift, unsigned int b
 	return val;
 }
 
-void FixPaletteInDescriptor(HDC hDC, PIXELFORMATDESCRIPTOR *pfd)
+static void FixPaletteInDescriptor(HDC hDC, PIXELFORMATDESCRIPTOR *pfd)
 {
 	LOGPALETTE *ppal;
 	HPALETTE hpal;
@@ -2053,9 +2227,9 @@ void FixPaletteInDescriptor(HDC hDC, PIXELFORMATDESCRIPTOR *pfd)
 	}
 }
 
-BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
+static BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 {
-    PIXELFORMATDESCRIPTOR pfd = {
+	PIXELFORMATDESCRIPTOR pfd = {
 	sizeof(PIXELFORMATDESCRIPTOR),	// size of this pfd
 	1,				// version number
 	PFD_DRAW_TO_WINDOW 		// support window
@@ -2079,7 +2253,7 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 	PFD_MAIN_PLANE,			// main layer
 	0,				// reserved
 	0, 0, 0				// layer masks ignored
-    };
+	};
 
 	TRACE(("dbg: bSetupPixelFormat: ChoosePixelFormat\n"));
 
@@ -2127,11 +2301,11 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 
 	qDescribePixelFormat(hDC, currentpixelformat, sizeof(pfd), &pfd);
 
-    if (qSetPixelFormat(hDC, currentpixelformat, &pfd) == FALSE)
-    {
-        Con_Printf("bSetupPixelFormat: SetPixelFormat failed (%i)\n", (int)GetLastError());
-        return FALSE;
-    }
+	if (qSetPixelFormat(hDC, currentpixelformat, &pfd) == FALSE)
+	{
+		Con_Printf("bSetupPixelFormat: SetPixelFormat failed (%i)\n", (int)GetLastError());
+		return FALSE;
+	}
 
 	if ((pfd.dwFlags & PFD_GENERIC_FORMAT) && !(pfd.dwFlags & PFD_GENERIC_ACCELERATED))
 	{
@@ -2141,8 +2315,9 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 		Con_Printf(CON_WARNING "WARNING: buffer swaps will use copy operations\n");
 
 	FixPaletteInDescriptor(hDC, &pfd);
-    return TRUE;
+	return TRUE;
 }
+#endif
 
 /*
 ===================================================================
@@ -2157,7 +2332,7 @@ MAIN WINDOW
 ClearAllStates
 ================
 */
-void ClearAllStates (void)
+static void ClearAllStates (void)
 {
 	int		i;
 
@@ -2171,7 +2346,7 @@ void ClearAllStates (void)
 	INS_ClearStates ();
 }
 
-qboolean GLAppActivate(BOOL fActive, BOOL minimize)
+static qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 /****************************************************************************
 *
 * Function:     AppActivate
@@ -2317,6 +2492,8 @@ static void Win_Touch_Event(int points, HTOUCHINPUT ti)
 }
 
 #ifdef WTHREAD
+//runs on the main/render thread, forwarded from the worker thread.
+//these events are the ones that would cause race conditions, but need to be able to cope with a little bit of a delay (and shouldn't need to trigger other window messages, as that would cause other races).
 void MainThreadWndProc(void *ctx, void *data, size_t msg, size_t ex)
 {
 	switch(msg)
@@ -2353,7 +2530,7 @@ however, we have to tread carefully. the main/render thread will be running the 
 this means that the main and window thread cannot be allowed to contest any mutexes where anything but memory is touched before its unlocked.
 (or in other words, we can't have the main thread near-perma-lock any mutexes that can be locked-to-sync here)
 */
-LONG WINAPI GLMainWndProc (
+static LONG WINAPI GLMainWndProc (
 	HWND	hWnd,
 	UINT	uMsg,
 	WPARAM	wParam,
@@ -2521,6 +2698,11 @@ LONG WINAPI GLMainWndProc (
 			}
 			break;
 
+#ifdef VKQUAKE
+		case WM_USER+7:
+			VK_DoPresent((struct vkframe*)lParam);
+			break;
+#endif
 		case WM_USER+4:
 			PostQuitMessage(0);
 			break;
@@ -2646,12 +2828,7 @@ LONG WINAPI GLMainWndProc (
 	return lRet;
 }
 
-
-qboolean GLVID_Is8bit(void) {
-	return is8bit;
-}
-
-
+/*
 void VID_Init8bitPalette(void)
 {
 #ifdef GL_USE8BITTEX
@@ -2685,6 +2862,7 @@ void VID_Init8bitPalette(void)
 #endif
 #endif
 }
+*/
 
 void GLVID_DeInit (void)
 {
@@ -2701,11 +2879,13 @@ void GLVID_DeInit (void)
 VID_Init
 ===================
 */
-qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
+qboolean Win32VID_Init (rendererstate_t *info, unsigned char *palette, int mode)
 {
 	extern int isPlugin;
 //	qbyte	*ptmp;
 	DEVMODE	devmode;
+
+	platform_rendermode = mode;
 
 	memset(&devmode, 0, sizeof(devmode));
 
@@ -2726,7 +2906,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 
 	// Check for 3DFX Extensions and initialize them.
-	VID_Init8bitPalette();
+	//VID_Init8bitPalette();
 
 	vid_canalttab = true;
 
@@ -2746,4 +2926,153 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	return true;
 }
+
+#ifdef USE_WGL
+qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
+{
+	return Win32VID_Init(info, palette, MODE_WGL);
+}
+#endif	//USE_WGL
+
+
+
+
+
+#ifdef USE_EGL
+
+static qboolean EGLVID_Init (rendererstate_t *info, unsigned char *palette)
+{
+	if (!EGL_LoadLibrary(info->subrenderer))
+		return false;
+	return Win32VID_Init(info, palette, MODE_EGL);
+}
+
+
+
+#include "shader.h"
+#include "gl_draw.h"
+rendererinfo_t eglrendererinfo =
+{
+	"EGL(win32)",
+	{
+		"egl"
+	},
+	QR_OPENGL,
+
+	GLDraw_Init,
+	GLDraw_DeInit,
+
+	GL_UpdateFiltering,
+	GL_LoadTextureMips,
+	GL_DestroyTexture,
+
+	GLR_Init,
+	GLR_DeInit,
+	GLR_RenderView,
+
+	EGLVID_Init,
+	GLVID_DeInit,
+	GLVID_SwapBuffers,
+	GLVID_ApplyGammaRamps,
+
+	NULL,
+	NULL,
+	NULL,
+	GLVID_SetCaption,       //setcaption
+	GLVID_GetRGBInfo,
+
+
+	GLSCR_UpdateScreen,
+
+	GLBE_SelectMode,
+	GLBE_DrawMesh_List,
+	GLBE_DrawMesh_Single,
+	GLBE_SubmitBatch,
+	GLBE_GetTempBatch,
+	GLBE_DrawWorld,
+	GLBE_Init,
+	GLBE_GenBrushModelVBO,
+	GLBE_ClearVBO,
+	GLBE_UploadAllLightmaps,
+	GLBE_SelectEntity,
+	GLBE_SelectDLight,
+	GLBE_Scissor,
+	GLBE_LightCullModel,
+
+	GLBE_VBO_Begin,
+	GLBE_VBO_Data,
+	GLBE_VBO_Finish,
+	GLBE_VBO_Destroy,
+
+	GLBE_RenderToTextureUpdate2d,
+
+	""
+};
+#endif	//USE_EGL
+
+
+#ifdef VKQUAKE
+static qboolean VKVID_Init (rendererstate_t *info, unsigned char *palette)
+{
+	return Win32VID_Init(info, palette, MODE_VULKAN);
+}
+
+rendererinfo_t vkrendererinfo =
+{
+	"Vulkan",
+	{
+		"vk",
+		"Vulkan"
+	},
+	QR_VULKAN,
+
+	VK_Draw_Init,
+	VK_Draw_Shutdown,
+
+	VK_UpdateFiltering,
+	VK_LoadTextureMips,
+	VK_DestroyTexture,
+
+	VK_R_Init,
+	VK_R_DeInit,
+	VK_R_RenderView,
+
+	VKVID_Init,
+	GLVID_DeInit,
+	GLVID_SwapBuffers,
+	GLVID_ApplyGammaRamps,
+	WIN_CreateCursor,
+	WIN_SetCursor,
+	WIN_DestroyCursor,
+	GLVID_SetCaption,
+	VKVID_GetRGBInfo,
+
+	VK_SCR_UpdateScreen,
+
+	VKBE_SelectMode,
+	VKBE_DrawMesh_List,
+	VKBE_DrawMesh_Single,
+	VKBE_SubmitBatch,
+	VKBE_GetTempBatch,
+	VKBE_DrawWorld,
+	VKBE_Init,
+	VKBE_GenBrushModelVBO,
+	VKBE_ClearVBO,
+	VKBE_UploadAllLightmaps,
+	VKBE_SelectEntity,
+	VKBE_SelectDLight,
+	VKBE_Scissor,
+	VKBE_LightCullModel,
+
+	VKBE_VBO_Begin,
+	VKBE_VBO_Data,
+	VKBE_VBO_Finish,
+	VKBE_VBO_Destroy,
+
+	VKBE_RenderToTextureUpdate2d,
+
+	"no more"
+};
+#endif
+
 #endif

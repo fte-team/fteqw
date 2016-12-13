@@ -1053,6 +1053,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		gl_config.arb_depth_texture = GL_CheckExtension("GL_OES_depth_texture");	//gles2
 		gl_config.arb_depth_texture |= GL_CheckExtension("GL_CHROMIUM_depth_texture");	//nacl
 		gl_config.arb_depth_texture |= GL_CheckExtension("GL_WEBGL_depth_texture");	//webgl. duh.
+		gl_config.arb_depth_texture |= GL_CheckExtension("GL_ANGLE_depth_texture");	//gah. should just use wildcards huh (no uploads)
 	}
 	else
 	{
@@ -2769,6 +2770,13 @@ void GL_Init(void *(*getglfunction) (char *name))
 		sh_config.texfmt[PTI_S3RGBA1] = true;
 		sh_config.texfmt[PTI_S3RGBA3] = true;
 		sh_config.texfmt[PTI_S3RGBA5] = true;
+	}
+	else if (gl_config.gles)
+	{
+		sh_config.texfmt[PTI_S3RGB1] =
+		sh_config.texfmt[PTI_S3RGBA1] = GL_CheckExtension("GL_EXT_texture_compression_dxt1");
+		sh_config.texfmt[PTI_S3RGBA3] = GL_CheckExtension("GL_ANGLE_texture_compression_dxt3");
+		sh_config.texfmt[PTI_S3RGBA5] = GL_CheckExtension("GL_ANGLE_texture_compression_dxt5");
 	}
 
 	if (gl_config.gles)

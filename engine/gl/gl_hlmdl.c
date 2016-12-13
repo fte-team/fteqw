@@ -322,6 +322,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 		Z_Free(texmem);
 
 	mod->type = mod_halflife;
+	mod->numframes = model->header->numseq;
 	mod->meshinfo = model;
 
 	model->numgeomsets = model->header->numbodyparts;
@@ -396,6 +397,8 @@ int HLMDL_BoneForName(model_t *mod, const char *name)
 		if (!strcmp(bones[i].name, name))
 			return i+1;
 	}
+
+	//FIXME: hlmdl has tags as well as bones.
 	return 0;
 }
 
@@ -616,8 +619,10 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 		FIXME: we don't handle frame2.
 	*/
 
-	if (sequence->hasblendseq>1)
+	if (sequence->hasblendseq>1 && sequence->hasblendseq<9)
 	{
+		//I have no idea how to deal with > 1.
+		//some CS models seem to have 9 here, but some look like they're fucked.
 		if (subblendfrac < 0)
 			subblendfrac = 0;
 		if (subblendfrac > 1)
@@ -652,12 +657,16 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 			QuaternionSlerp(quatb, quat1, subblendfrac, quat1);
 			QuaternionGLMatrix(quat1[0], quat1[1], quat1[2], quat1[3], (vec4_t*)matrix);
 			FloatInterpolate(organgb[0][0], subblendfrac, organg1[0][0], matrix[0*4+3]);
-			FloatInterpolate(organgb[0][0], subblendfrac, organg1[0][1], matrix[1*4+3]);
-			FloatInterpolate(organgb[0][0], subblendfrac, organg1[0][2], matrix[2*4+3]);
+			FloatInterpolate(organgb[0][1], subblendfrac, organg1[0][1], matrix[1*4+3]);
+			FloatInterpolate(organgb[0][2], subblendfrac, organg1[0][2], matrix[2*4+3]);
 		}
 	}
 	else
 	{
+		//FIXME: disgusting hack to get CS player models not looking like total idiots. but merely regular ones instead.
+		if (sequence->hasblendseq == 9)
+			animation += 4*model->header->numbones;
+
 		for(i = firstbone; i < lastbone; i++, matrix+=12)
 		{
 			HL_CalculateBones(frame1, model->adjust, model->bones + i, animation + i, organg1[0]);
@@ -690,6 +699,24 @@ int HLMDL_GetNumBones(model_t *mod)
 
 	mc = Mod_Extradata(mod);
 	return mc->header->numbones;
+}
+
+int HLMDL_GetBoneParent(model_t *mod, int bonenum)
+{
+	hlmodel_t *model = Mod_Extradata(mod);
+
+	if (bonenum >= 0 && bonenum < model->header->numbones)
+		return model->bones[bonenum].parent;
+	return -1;
+}
+
+const char *HLMDL_GetBoneName(model_t *mod, int bonenum)
+{
+	hlmodel_t *model = Mod_Extradata(mod);
+
+	if (bonenum >= 0 && bonenum < model->header->numbones)
+		return model->bones[bonenum].name;
+	return NULL;
 }
 
 int HLMDL_GetBoneData(model_t *mod, int firstbone, int lastbone, framestate_t *fstate, float *result)
@@ -854,7 +881,7 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 	static mesh_t bmesh, *mptr = &bmesh;
 	skinfile_t *sk = NULL;
 
-	unsigned int entity_body = rent->bottomcolour;
+	unsigned int entity_body = 0;
 
 	if (rent->customskin)
 		sk = Mod_LookupSkin(rent->customskin);

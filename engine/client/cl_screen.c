@@ -1462,7 +1462,7 @@ void SCR_DrawFPS (void)
 	double t;
 	extern int fps_count;
 	static float lastfps;
-	static float deviationtimes[64];
+	static double deviationtimes[64];
 	static int deviationframe;
 	char str[80];
 	int sfps, frame;

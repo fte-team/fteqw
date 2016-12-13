@@ -1446,22 +1446,45 @@ void GLVID_SwapBuffers (void)
 void X_StoreIcon(Window wnd)
 {
 	int i;
-	unsigned long data[64*64+2];
-	unsigned int *indata = (unsigned int*)icon.pixel_data;
-	unsigned int inwidth = icon.width;
-	unsigned int inheight = icon.height;
-
-	//FIXME: support loading an icon from the filesystem.
-
 	Atom propname = x11.pXInternAtom(vid_dpy, "_NET_WM_ICON", false);
 	Atom proptype = x11.pXInternAtom(vid_dpy, "CARDINAL", false);
 
-	data[0] = inwidth;
-	data[1] = inheight;
-	for (i = 0; i < data[0]*data[1]; i++)
-		data[i+2] = indata[i];
+	size_t filesize;
+	qbyte *filedata = FS_LoadMallocFile("icon.png", &filesize);
+	if (!filedata)
+		FS_LoadMallocFile("icon.tga", &filesize);
+	if (!filedata)
+		FS_LoadMallocFile("icon.jpg", &filesize);
+	if (filedata)
+	{
+		int imagewidth, imageheight;
+		int *iconblob;
+		qboolean hasalpha;
+		qbyte *imagedata = Read32BitImageFile(filedata, filesize, &imagewidth, &imageheight, &hasalpha, "icon.png");
+		Z_Free(filedata);
 
-	x11.pXChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)data, data[0]*data[1]+2);
+		iconblob = BZ_Malloc(sizeof(int)*(2+imagewidth*imageheight));
+		iconblob[0] = imagewidth;
+		iconblob[1] = imageheight;
+		//needs to be 0xARGB, rather than RGBA bytes
+		for (i = 0; i < imagewidth*imageheight; i++)
+			iconblob[i+2] = (imagedata[i*4+3]<<24) | (imagedata[i*4+0]<<16) | (imagedata[i*4+1]<<8) | (imagedata[i*4+2]<<0);
+		Z_Free(imagedata);
+
+		x11.pXChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)iconblob, 2+imagewidth*imageheight);
+		BZ_Free(iconblob);
+	}
+	else
+	{
+		//fall back to the embedded icon.
+		unsigned long data[64*64+2];
+		data[0] = icon.width;
+		data[1] = icon.height;
+		for (i = 0; i < data[0]*data[1]; i++)
+			data[i+2] = ((unsigned int*)icon.pixel_data)[i];
+
+		x11.pXChangeProperty(vid_dpy, wnd, propname, proptype, 32, PropModeReplace, (void*)data, data[0]*data[1]+2);
+	}
 }
 
 void X_GoFullscreen(void)

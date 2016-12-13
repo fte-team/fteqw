@@ -1902,8 +1902,7 @@ void QuakifyThings(model_t *mod, dthing_t *thingsl)
 		ptr += strlen(ptr);
 	}
 
-	mod->entities = BZ_Malloc(ptr-newlump+1);
-	memcpy(mod->entities, newlump, ptr-newlump+1);
+	Mod_SetEntitiesStringLen(mod, newlump, ptr-newlump);
 }
 
 void Doom_GeneratePlanes(ddoomnode_t *nodel)

@@ -1,4 +1,4 @@
-!!ver 110 // 130
+!!ver 100 120 // 130
 !!permu DELUXE
 !!permu FULLBRIGHT
 !!permu FOG
@@ -11,7 +11,7 @@
 
 #include "sys/defs.h"
 
-#if GL_VERSION >= 130
+#if __VERSION__ >= 130
 #define texture2D texture
 #define textureCube texture
 #define gl_FragColor gl_FragData[0]
@@ -101,7 +101,7 @@ void main ()
 	//optional: round the lightmap coords to ensure all pixels within a texel have different lighting values either. it just looks wrong otherwise.
 	//don't bother if its lightstyled, such cases will have unpredictable correlations anyway.
 	//FIXME: this rounding is likely not correct with respect to software rendering. oh well.
-#if GL_VERSION >= 130
+#if __VERSION__ >= 130
 	vec2 lmsize = vec2(textureSize(s_lightmap0, 0));
 #else
 	#define lmsize vec2(128.0,2048.0)

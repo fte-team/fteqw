@@ -375,7 +375,7 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 					SetWindowPos(hWnd, NULL, rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top, SWP_SHOWWINDOW|SWP_FRAMECHANGED);
 					modestate = MS_FULLSCREEN;
 				}
-		
+
 				if (!d3dscreen && modestate == MS_FULLSCREEN)
 					IDXGISwapChain_GetContainingOutput(d3dswapchain, &d3dscreen);
 				IDXGISwapChain_SetFullscreenState(d3dswapchain, modestate == MS_FULLSCREEN, (modestate == MS_FULLSCREEN)?d3dscreen:NULL);

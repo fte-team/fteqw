@@ -292,8 +292,6 @@ void GLVID_Crashed(void);
 
 void	GLVID_Update (vrect_t *rects);
 
-int GLVID_SetMode (rendererstate_t *info, unsigned char *palette);
-
 void GLVID_SetCaption(const char *caption)
 {
 }

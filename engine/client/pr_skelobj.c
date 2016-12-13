@@ -2332,6 +2332,17 @@ void QCBUILTIN PF_frameduration (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	else
 		G_FLOAT(OFS_RETURN) = 0;
 }
+void QCBUILTIN PF_modelframecount (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	model_t *mod = w->Get_CModel(w, modelindex);
+
+	if (mod)
+		G_FLOAT(OFS_RETURN) = Mod_GetFrameCount(mod);
+	else
+		G_FLOAT(OFS_RETURN) = 0;
+}
 
 //string(float modidx, float skinnum) skintoname
 void QCBUILTIN PF_skintoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

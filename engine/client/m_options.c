@@ -2805,21 +2805,25 @@ static unsigned int genhsv(float h_, float s, float v)
 
 #include "com_mesh.h"
 #ifdef SKELETALMODELS
-static void M_BoneDisplay(entity_t *e, galiasbone_t *b, int *y, int depth, int parent, int first, int last)
+static void M_BoneDisplayLame(entity_t *e, int *y, int depth, int parent, int first, int last)
 {
 	int i;
 	for (i = first; i < last;  i++)
 	{
-		if (b[i].parent == parent)
+		int p = Mod_GetBoneParent(e->model, i+1);
+		if (p == parent)
 		{
+			const char *bname = Mod_GetBoneName(e->model, i+1);
 			float result[12];
+			if (!bname)
+				bname = "NULL";
 			memset(result, 0, sizeof(result));
 			if (Mod_GetTag(e->model, i+1, &e->framestate, result))
-				Draw_FunString(depth*16, *y, va("%i: %s (%g %g %g)", i, b[i].name, result[3], result[7], result[11]));
+				Draw_FunString(depth*16, *y, va("%i: %s (%g %g %g)", i, bname, result[3], result[7], result[11]));
 			else
-				Draw_FunString(depth*16, *y, va("%i: %s", i, b[i].name));
+				Draw_FunString(depth*16, *y, va("%i: %s", i, bname));
 			*y += 8;
-			M_BoneDisplay(e, b, y, depth+1, i, i+1, last);
+			M_BoneDisplayLame(e, y, depth+1, i+1, i+1, last);
 		}
 	}
 }
@@ -2832,7 +2836,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	const char *fname;
 	shader_t *shader;
 	vec2_t fs = {8,8};
-	float bones[12*MAX_BONES];
+//	float bones[12*MAX_BONES];
 
 	modelview_t *mods = c->dptr;
 
@@ -2892,14 +2896,29 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", mods->modelname));
 
 //	ent.framestate.bonecount = Mod_GetNumBones(ent.model, false);
-	ent.framestate.bonestate = bones;
-	ent.framestate.bonecount = Mod_GetBoneRelations(ent.model, 0, MAX_BONES, &ent.framestate, ent.framestate.bonestate);
-	ent.framestate.skeltype = SKEL_RELATIVE;
+//	ent.framestate.bonestate = bones;
+//	ent.framestate.bonecount = Mod_GetBoneRelations(ent.model, 0, MAX_BONES, &ent.framestate, ent.framestate.bonestate);
+//	ent.framestate.skeltype = SKEL_RELATIVE;
 
 	ent.light_avg[0] = ent.light_avg[1] = ent.light_avg[2] = 0.66;
 	ent.light_range[0] = ent.light_range[1] = ent.light_range[2] = 0.33;
 	ent.light_dir[0] = 0; ent.light_dir[1] = 1; ent.light_dir[2] = 0;
 	ent.light_known = 2;
+
+	switch(ent.model->loadstate)
+	{
+	case MLS_LOADED:
+		break;
+	case MLS_NOTLOADED:
+		Draw_FunString(0, 0, va("%s not loaded", ent.model->name));
+		return;
+	case MLS_LOADING:
+		Draw_FunString(0, 0, va("%s still loading", ent.model->name));
+		return;
+	case MLS_FAILED:
+		Draw_FunString(0, 0, va("Unable to load %s", ent.model->name));
+		return;
+	}
 
 	V_AddEntity(&ent);
 
@@ -2950,13 +2969,12 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	case MV_BONES:
 #ifdef SKELETALMODELS
 		{
-			int bonecount;
-			galiasbone_t *b = Mod_GetBoneInfo(ent.model, &bonecount);
-			if (b && bonecount)
+			int bonecount = Mod_GetNumBones(ent.model, false);
+			if (bonecount)
 			{
 				Draw_FunString(0, y, va("Bones: "));
 				y+=8;
-				M_BoneDisplay(&ent, b, &y, 0, -1, 0, bonecount);
+				M_BoneDisplayLame(&ent, &y, 0, 0, 0, bonecount);
 			}
 			else
 				R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, "No bones in model", CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);

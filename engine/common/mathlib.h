@@ -132,7 +132,7 @@ void		CrossProduct (const vec3_t v1, const vec3_t v2, vec3_t cross);
 void		FloorDivMod (double numer, double denom, int *quotient, int *rem);
 int			GreatestCommonDivisor (int i1, int i2);
 fixed16_t	Invert24To16 (fixed16_t val);
-vec_t		Length (vec3_t v);
+vec_t		Length (const vec3_t v);
 void		MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up);
 float		Q_rsqrt(float number);
 

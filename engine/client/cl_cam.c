@@ -1112,6 +1112,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 		end =		 (pv->cam_spec_track + 1) % MAX_CLIENTS;
 	else
 		end = pv->cam_spec_track;
+	end = max(0, end) % cl.allocated_client_slots;
 	i = end;
 	do 
 	{

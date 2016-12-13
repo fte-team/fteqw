@@ -5736,6 +5736,9 @@ static struct {
 	{"hash_getcb",				PF_hash_getcb,				293},
 	{"checkcommand",			PF_checkcommand,			294},
 	{"argescape",				PF_argescape,				295},
+
+	{"modelframecount",			PF_modelframecount,			0},
+
 //300
 	{"clearscene",				PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",				PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)

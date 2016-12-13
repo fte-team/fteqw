@@ -6083,6 +6083,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_CON_SETA",						0,	NULL, {NULL}, "The 'seta' console command exists, like the 'set' command, but also marks the cvar for archiving, allowing it to be written into the user's config. Use this command in your default.cfg file."},
 #endif
 	{"DP_EF_ADDITIVE"},
+//--{"DP_ENT_ALPHA"}, //listed above
 	{"DP_EF_BLUE"},						//hah!! This is QuakeWorld!!!
 	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
 	{"DP_EF_NODEPTHTEST"},				//for cheats
@@ -6090,10 +6091,10 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_EF_NOGUNBOB"},					//nogunbob. sane people should use csqc instead.
 	{"DP_EF_NOSHADOW"},
 	{"DP_EF_RED"},
-//	{"DP_ENT_COLORMOD"},
+//--{"DP_ENT_COLORMOD"}, //listed above
 	{"DP_ENT_CUSTOMCOLORMAP"},
 	{"DP_ENT_EXTERIORMODELTOCLIENT"},
-	{"DP_ENT_SCALE"},
+//--{"DP_ENT_SCALE"},	//listed above
 	{"DP_ENT_TRAILEFFECTNUM",			1,	NULL, {"particleeffectnum"}, "self.traileffectnum=particleeffectnum(\"myeffectname\"); can be used to attach a particle trail to the given server entity. This is equivelent to calling trailparticles each frame."},
 	//only in dp6 currently {"DP_ENT_GLOW"},
 	{"DP_ENT_VIEWMODEL"},

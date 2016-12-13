@@ -10295,7 +10295,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"cvar_setlatch",	PF_cvar_setlatch,	0,		0,		0,		???,	"void(string cvarname, optional string value)"},
 	{"clusterevent",	PF_clusterevent,	0,		0,		0,		0,		D("void(string dest, string from, string cmd, string info)", "Only functions in mapcluster mode. Sends an event to whichever server the named player is on. The destination server can then dispatch the event to the client or handle it itself via the SV_ParseClusterEvent entrypoint. If dest is empty, the event is broadcast to ALL servers. If the named player can't be found, the event will be returned to this server with the cmd prefixed with 'error:'.")},
 	{"clustertransfer",	PF_clustertransfer,	0,		0,		0,		0,		D("string(entity player, optional string newnode)", "Only functions in mapcluster mode. Initiate transfer of the player to a different node. Can take some time. If dest is specified, returns null on error. Otherwise returns the current/new target node (or null if not transferring).")},
-
+	{"modelframecount", PF_modelframecount, 0,		0,		0,		0,		D("float(float mdlidx)", "Retrieves the number of frames in the specified model.")},
 
 	{"clearscene",		PF_Fixme,	0,		0,		0,		300,	D("void()", "Forgets all rentities, polygons, and temporary dlights. Resets all view properties to their default values.")},// (EXT_CSQC)
 	{"addentities",		PF_Fixme,	0,		0,		0,		301,	D("void(float mask)", "Walks through all entities effectively doing this:\n if (ent.drawmask&mask){ if (!ent.predaw()) addentity(ent); }\nIf mask&MASK_DELTA, non-csqc entities, particles, and related effects will also be added to the rentity list.\n If mask&MASK_STDVIEWMODEL then the default view model will also be added.")},// (EXT_CSQC)

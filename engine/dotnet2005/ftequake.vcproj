@@ -29424,6 +29424,10 @@
 						</FileConfiguration>
 					</File>
 					<File
+						RelativePath="..\gl\gl_videgl.c"
+						>
+					</File>
+					<File
 						RelativePath="..\gl\gl_vidnt.c"
 						>
 						<FileConfiguration
@@ -29947,10 +29951,6 @@
 					</File>
 					<File
 						RelativePath="..\vk\vk_init.c"
-						>
-					</File>
-					<File
-						RelativePath="..\vk\vk_win32.c"
 						>
 					</File>
 					<File

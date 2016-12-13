@@ -56,9 +56,9 @@ struct galiasbone_s
 	float inverse[12];
 };
 
-typedef struct FTE_DEPRECATED
+typedef struct
 {
-	//DEPRECATED
+	//should be load-time only
 	//use of this prevents the use of glsl acceleration. the framerate loss is of the order of 90%
 	//skeletal poses refer to this.
 	int vertexindex;
@@ -148,8 +148,8 @@ typedef struct galiasinfo_s
 	float *baseframeofs;	/*non-heirachical*/
 	int numbones;
 	galiasbone_t *ofsbones;
-	int numswtransforms;
-	galisskeletaltransforms_t *ofsswtransforms;
+//FTE_DEPRECATED int numswtransforms;
+//FTE_DEPRECATED galisskeletaltransforms_t *ofsswtransforms;
 
 	vecV_t *ofs_skel_xyz;
 	vec3_t *ofs_skel_norm;
@@ -172,9 +172,15 @@ typedef struct galiasinfo_s
 	void *ebomem;
 
 //these exist only in the root mesh.
+#ifdef MD3MODELS
 	int numtagframes;
 	int numtags;
 	md3tag_t *ofstags;
+#else
+	FTE_DEPRECATED int numtagframes;
+	FTE_DEPRECATED int numtags;
+	FTE_DEPRECATED md3tag_t *ofstags;
+#endif
 	unsigned int warned;	//passed around at load time, so we don't spam warnings
 } galiasinfo_t;
 
@@ -224,9 +230,9 @@ qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **nam
 
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
 
-void Mod_AccumulateTextureVectors(vecV_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx);
+void Mod_AccumulateTextureVectors(vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms);
 void Mod_AccumulateMeshTextureVectors(mesh_t *mesh);
-void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v);
+void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms);
 void R_Generate_Mesh_ST_Vectors(mesh_t *mesh);
 
 #ifdef __cplusplus

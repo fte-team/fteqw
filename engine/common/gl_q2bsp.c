@@ -2776,7 +2776,7 @@ void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 	}
 
 	Mod_AccumulateMeshTextureVectors(out->mesh);
-	Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
+	Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes, false);
 }
 
 void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
@@ -2845,7 +2845,7 @@ void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 	}
 
 	Mod_AccumulateMeshTextureVectors(out->mesh);
-	Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
+	Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes, false);
 }
 
 qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)

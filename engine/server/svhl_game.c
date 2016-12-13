@@ -174,8 +174,7 @@ int QDECL GHL_ModelFrames(int midx)
 {
 	bi_trace();
 	//returns the number of frames(sequences I assume) this model has
-	ignore("ModelFrames");
-	return 1;
+	return Mod_GetFrameCount(sv.models[mdlidx], surfaceidx);
 }
 void QDECL GHL_SetSize(hledict_t *ed, float *mins, float *maxs)
 {

@@ -327,14 +327,15 @@ typedef struct
 #define	SURF_PLANEBACK		0x00002
 #define	SURF_DRAWSKY		0x00004
 #define SURF_DRAWSPRITE		0x00008
-#define SURF_DRAWTURB		0x00010
-#define SURF_DRAWTILED		0x00020
+#define SURF_DRAWTURB		0x00010	//water warp effect
+#define SURF_DRAWTILED		0x00020	//no need for a sw surface cache... (read: no lightmap)
 #define SURF_DRAWBACKGROUND	0x00040
 #define SURF_UNDERWATER		0x00080
 #define SURF_DONTWARP		0x00100
 //#define SURF_BULLETEN		0x00200
 #define SURF_NOFLAT			0x08000
 #define SURF_DRAWALPHA		0x10000
+#define SURF_NODRAW			0x20000	//set on non-vertical halflife water submodel surfaces
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!
 typedef struct

@@ -5257,6 +5257,10 @@ double Host_Frame (double time)
 			scr_chatmode = 0;
 
 		r_refdef.stereomethod = r_stereo_method.ival;
+#ifdef FTE_TARGET_WEB
+		if (emscriptenfte_getvrframedata())
+			r_refdef.stereomethod = STEREO_WEBVR;
+#endif
 		CL_UpdateHeadAngles();
 
 		{

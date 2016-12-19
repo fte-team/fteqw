@@ -171,6 +171,7 @@ void		Matrix3x4_RM_FromVectors(float *out, const float vx[3], const float vy[3],
 void		Matrix4x4_RM_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3]);
 void		Matrix3x4_RM_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3]);
 void		Matrix3x4_RM_Transform3(const float *matrix, const float *vector, float *product);
+void		Matrix3x4_RM_Transform3x3(const float *matrix, const float *vector, float *product);
 
 float		*Matrix4x4_CM_NewRotation(float a, float x, float y, float z);
 float		*Matrix4x4_CM_NewTranslation(float x, float y, float z);
@@ -198,6 +199,7 @@ int			Q_log2 (int val);
 void		R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3]);
 void		R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4]);
 void		QDECL R_ConcatTransforms (matrix3x4 in1, matrix3x4 in2, matrix3x4 out);
+void		R_ConcatTransformsAxis (float in1[3][3], float in2[3][4], float out[3][4]);
 void		RotatePointAroundVector (vec3_t dst, const vec3_t dir, const vec3_t point, float degrees);
 void		RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lightpoint, vec3_t result);
 int			VectorCompare (const vec3_t v1, const vec3_t v2);

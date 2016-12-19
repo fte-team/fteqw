@@ -61,8 +61,8 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l);
 extern void BuildLightMapGammaTable (float g, float c);
 
 #ifdef Q2BSPS
-static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
-static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
+static qboolean CM_NativeTrace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
+static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 static unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 static int CM_PointCluster (model_t *mod, vec3_t p);
 #endif
@@ -4423,8 +4423,8 @@ mplane_t		box_planes[6];
 model_t			box_model;
 q2cbrush_t		box_brush;
 q2cbrushside_t	box_sides[6];
-static qboolean BM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
-static unsigned int BM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
+static qboolean BM_NativeTrace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
+static unsigned int BM_NativeContents(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
 {
 	unsigned int j;
 	q2cbrushside_t *brushside = box_sides;
@@ -4694,7 +4694,7 @@ int CM_PointContents (model_t *mod, vec3_t p)
 	return contents;
 }
 
-unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
+unsigned int CM_NativeContents(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
 {
 	cminfo_t	*prv = (cminfo_t*)model->meshinfo;
 	int	contents;
@@ -5861,7 +5861,7 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	return trace_trace;
 }
 
-static qboolean BM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace)
+static qboolean BM_NativeTrace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace)
 {
 	int i;
 	memset (trace, 0, sizeof(*trace));
@@ -5905,7 +5905,7 @@ static qboolean BM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3
 	}
 	return trace->fraction != 1;
 }
-static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace)
+static qboolean CM_NativeTrace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace)
 {
 	if (axis)
 	{
@@ -5923,7 +5923,7 @@ static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3
 		if (model->terrain)
 		{
 			trace_t hmt;
-			Heightmap_Trace(model, forcehullnum, frame, NULL, start, end, mins, maxs, capsule, contents, &hmt);
+			Heightmap_Trace(model, forcehullnum, framestate, NULL, start, end, mins, maxs, capsule, contents, &hmt);
 			if (hmt.fraction < trace->fraction)
 				*trace = hmt;
 		}
@@ -5955,7 +5955,7 @@ static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3
 		if (model->terrain)
 		{
 			trace_t hmt;
-			Heightmap_Trace(model, forcehullnum, frame, NULL, start, end, mins, maxs, capsule, contents, &hmt);
+			Heightmap_Trace(model, forcehullnum, framestate, NULL, start, end, mins, maxs, capsule, contents, &hmt);
 			if (hmt.fraction < trace->fraction)
 				*trace = hmt;
 		}

@@ -861,4 +861,11 @@ struct shader_field_names_s
 extern struct shader_field_names_s shader_field_names[];
 extern struct shader_field_names_s shader_unif_names[];
 extern struct shader_field_names_s shader_attr_names[];
+
+
+void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, float b, float a);
+void CLQ1_AddOrientedCube(shader_t *shader, vec3_t mins, vec3_t maxs, float *matrix, float r, float g, float b, float a);
+void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue);
+void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboolean capsule, float *matrix, float r, float g, float b, float a);
+void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float *matrix, float r, float g, float b, float a);
 #endif

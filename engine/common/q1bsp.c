@@ -885,7 +885,7 @@ hull_t *Q1BSP_ChooseHull(model_t *model, int forcehullnum, vec3_t mins, vec3_t m
 	VectorSubtract (hull->clip_mins, mins, offset);
 	return hull;
 }
-qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int hitcontentsmask, trace_t *trace)
+qboolean Q1BSP_Trace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int hitcontentsmask, trace_t *trace)
 {
 	hull_t *hull;
 	vec3_t start_l, end_l;
@@ -1007,7 +1007,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 	if (model->terrain && trace->fraction)
 	{
 		trace_t hmt;
-		Heightmap_Trace(model, forcehullnum, frame, axis, start, end, mins, maxs, capsule, hitcontentsmask, &hmt);
+		Heightmap_Trace(model, forcehullnum, framestate, axis, start, end, mins, maxs, capsule, hitcontentsmask, &hmt);
 		if (hmt.fraction < trace->fraction)
 			*trace = hmt;
 	}

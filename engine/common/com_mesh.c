@@ -335,39 +335,76 @@ static void PSKGenMatrix(float x, float y, float z, float qx, float qy, float qz
 /*transforms some skeletal vecV_t values*/
 static void Alias_TransformVerticies_V(const float *bonepose, int vertcount, qbyte *bidx, float *weights, float *xyzin, float *fte_restrict xyzout)
 {
-	int i;
-	const float *matrix;
-	for (i = 0; i < vertcount; i++, xyzout+=sizeof(vecV_t)/sizeof(vec_t), xyzin+=sizeof(vecV_t)/sizeof(vec_t), bidx+=4, weights+=4)
+#if 1
+	int i, j;
+	const float *matrix, *matrix1;
+	float mat[12];
+	for (i = 0; i < vertcount; i++, bidx+=4, weights+=4)
 	{
 		matrix = &bonepose[12*bidx[0]];
-		xyzout[0] = weights[0] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
-		xyzout[1] = weights[0] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
-		xyzout[2] = weights[0] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+		if (weights[1])
+		{
+			matrix1 = &bonepose[12*bidx[1]];
+			for (j = 0; j < 12; j++)
+				mat[j] = (weights[0] * matrix[j]) + (weights[1] * matrix1[j]);
+			if (weights[2])
+			{
+				matrix = &bonepose[12*bidx[2]];
+				for (j = 0; j < 12; j++)
+					mat[j] += weights[2] * matrix[j];
+				if (weights[3])
+				{
+					matrix = &bonepose[12*bidx[3]];
+					for (j = 0; j < 12; j++)
+						mat[j] += weights[3] * matrix[j];
+				}
+			}
+			matrix = mat;
+		}
+
+		xyzout[0] = (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + matrix[ 3]);
+		xyzout[1] = (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + matrix[ 7]);
+		xyzout[2] = (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + matrix[11]);
+		xyzout+=sizeof(vecV_t)/sizeof(vec_t);
+		xyzin+=sizeof(vecV_t)/sizeof(vec_t);
+	}
+#else
+	int i;
+	const float *matrix;
+	for (i = 0; i < vertcount; i++, bidx+=4, weights+=4)
+	{
+		matrix = &bonepose[12*bidx[0]];
+		xyzout[0] = weights[0] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + matrix[ 3]);
+		xyzout[1] = weights[0] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + matrix[ 7]);
+		xyzout[2] = weights[0] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + matrix[11]);
 
 		if (weights[1])
 		{
 			matrix = &bonepose[12*bidx[1]];
-			xyzout[0] += weights[1] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
-			xyzout[1] += weights[1] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
-			xyzout[2] += weights[1] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+			xyzout[0] += weights[1] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + matrix[ 3]);
+			xyzout[1] += weights[1] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + matrix[ 7]);
+			xyzout[2] += weights[1] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + matrix[11]);
 
 			if (weights[2])
 			{
 				matrix = &bonepose[12*bidx[2]];
-				xyzout[0] += weights[2] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
-				xyzout[1] += weights[2] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
-				xyzout[2] += weights[2] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+				xyzout[0] += weights[2] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + matrix[ 3]);
+				xyzout[1] += weights[2] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + matrix[ 7]);
+				xyzout[2] += weights[2] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + matrix[11]);
 
 				if (weights[3])
 				{
 					matrix = &bonepose[12*bidx[3]];
-					xyzout[0] += weights[3] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
-					xyzout[1] += weights[3] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
-					xyzout[2] += weights[3] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+					xyzout[0] += weights[3] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + matrix[ 3]);
+					xyzout[1] += weights[3] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + matrix[ 7]);
+					xyzout[2] += weights[3] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + matrix[11]);
 				}
 			}
 		}
+		xyzout+=sizeof(vecV_t)/sizeof(vec_t);
+		xyzin+=sizeof(vecV_t)/sizeof(vec_t);
 	}
+#endif
 }
 
 /*transforms some skeletal vecV_t values*/
@@ -1214,16 +1251,15 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, framestate_t *framestate, gali
 				);
 }
 
-static void Alias_BuildSkeletalVPositionsPose(float *xyzout, skeltype_t bonetype, const float *bonepose, galiasinfo_t *inf)
+static void Alias_BuildSkeletalVerts(float *xyzout, framestate_t *framestate, galiasinfo_t *inf)
 {
 	float buffer[MAX_BONES*12];
 	float bufferalt[MAX_BONES*12];
 	qbyte *fte_restrict bidx = inf->ofs_skel_idx[0];
-	float *fte_restrict xyzin = inf->ofs_skel_xyz[0];
 	float *fte_restrict weight = inf->ofs_skel_weight[0];
-	bonepose = Alias_ConvertBoneData(bonetype, bonepose, inf->numbones, inf->ofsbones, SKEL_INVERSE_ABSOLUTE, buffer, bufferalt, MAX_BONES);
+	const float *bonepose = Alias_GetBoneInformation(inf, framestate, SKEL_INVERSE_ABSOLUTE, buffer, bufferalt, MAX_BONES);
 
-	Alias_TransformVerticies_V(bonepose, inf->numverts, bidx, weight, xyzin, xyzout);
+	Alias_TransformVerticies_V(bonepose, inf->numverts, bidx, weight, inf->ofs_skel_xyz[0], xyzout);
 }
 
 #if defined(MD5MODELS) || defined(ZYMOTICMODELS) || defined(DPMMODELS)
@@ -1908,21 +1944,34 @@ qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, v
 	float frac;
 
 	vec3_t impactpoint;
-//	shader_t *lineshader = NULL;
 
 	for (i = 0; i < numindexes; i+=3)
 	{
 		p1 = posedata[indexes[i+0]];
 		p2 = posedata[indexes[i+1]];
 		p3 = posedata[indexes[i+2]];
-/*
-		VectorAdd(p1, r_refdef.pvsorigin, edge1);
-		VectorAdd(p2, r_refdef.pvsorigin, edge2);
-		VectorAdd(p3, r_refdef.pvsorigin, edge3);
-		CLQ1_DrawLine(lineshader, edge1, edge2, 0, 0, 1, 1);
-		CLQ1_DrawLine(lineshader, edge2, edge3, 0, 0, 1, 1);
-		CLQ1_DrawLine(lineshader, edge3, edge1, 0, 0, 1, 1);
-*/
+
+#if 0
+		{
+			shader_t *lineshader = R_RegisterShader("lineshader", SUF_NONE,
+						"{\n"
+							"polygonoffset\n"
+							"{\n"
+								"map $whiteimage\n"
+								"blendfunc add\n"
+								"rgbgen vertex\n"
+								"alphagen vertex\n"
+							"}\n"
+						"}\n");
+			VectorAdd(p1, r_refdef.pvsorigin, edge1);
+			VectorAdd(p2, r_refdef.pvsorigin, edge2);
+			VectorAdd(p3, r_refdef.pvsorigin, edge3);
+			CLQ1_DrawLine(lineshader, edge1, edge2, 0, 1, 0, 1);
+			CLQ1_DrawLine(lineshader, edge2, edge3, 0, 1, 0, 1);
+			CLQ1_DrawLine(lineshader, edge3, edge1, 0, 1, 0, 1);
+		}
+#endif
+
 		VectorSubtract(p1, p2, edge1);
 		VectorSubtract(p3, p2, edge2);
 		CrossProduct(edge1, edge2, normal);
@@ -2029,30 +2078,32 @@ qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, v
 //		if (fabs(normal[0]) != 1 && fabs(normal[1]) != 1 && fabs(normal[2]) != 1)
 //			Con_Printf("Non-axial impact\n");
 
-/*		if (!lineshader)
-			lineshader = R_RegisterShader("lineshader", SUF_NONE,
-					"{\n"
-					"polygonoffset\n"
-					"{\n"
-					"map $whiteimage\n"
-					"blendfunc add\n"
-					"rgbgen vertex\n"
-					"alphagen vertex\n"
-					"}\n"
-					"}\n");
-		VectorAdd(p1, r_refdef.pvsorigin, edge1);
-		VectorAdd(p2, r_refdef.pvsorigin, edge2);
-		VectorAdd(p3, r_refdef.pvsorigin, edge3);
-		CLQ1_DrawLine(lineshader, edge1, edge2, 0, 1, 0, 1);
-		CLQ1_DrawLine(lineshader, edge2, edge3, 0, 1, 0, 1);
-		CLQ1_DrawLine(lineshader, edge3, edge1, 0, 1, 0, 1);
-*/
+#if 0
+		{
+			shader_t *lineshader = R_RegisterShader("lineshader", SUF_NONE,
+						"{\n"
+							"polygonoffset\n"
+							"{\n"
+								"map $whiteimage\n"
+								"blendfunc add\n"
+								"rgbgen vertex\n"
+								"alphagen vertex\n"
+							"}\n"
+						"}\n");
+			VectorAdd(p1, r_refdef.pvsorigin, edge1);
+			VectorAdd(p2, r_refdef.pvsorigin, edge2);
+			VectorAdd(p3, r_refdef.pvsorigin, edge3);
+			CLQ1_DrawLine(lineshader, edge1, edge2, 0, 1, 0, 1);
+			CLQ1_DrawLine(lineshader, edge2, edge3, 0, 1, 0, 1);
+			CLQ1_DrawLine(lineshader, edge3, edge1, 0, 1, 0, 1);
+		}
+#endif
 	}
 	return impacted;
 }
 
 //The whole reason why model loading is supported in the server.
-qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contentsmask, trace_t *trace)
+qboolean Mod_Trace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contentsmask, trace_t *trace)
 {
 	galiasinfo_t *mod = Mod_Extradata(model);
 	galiasanimation_t *group;
@@ -2089,36 +2140,33 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 	for(; mod; mod = mod->nextsurf, surfnum++)
 	{
 		indexes = mod->ofs_indexes;
-		if (!mod->numanimations)
-		{
 #ifdef SKELETALMODELS
-			//certain models have no possibility of animation.
-			//fixme: skeletal objects...
-			if (mod->ofs_skel_xyz)
-				posedata = mod->ofs_skel_xyz;
-			else
-#endif
-				continue;
+		if (mod->numbones)
+		{
+			if (!mod->ofs_skel_idx)
+				posedata = mod->ofs_skel_xyz;	//if there's no weights, don't try animating anything.
+			else if (mod->shares_verts != cursurfnum)
+			{
+				cursurfnum = mod->shares_verts;
+
+				posedata = alloca(mod->numverts*sizeof(vecV_t));
+				Alias_BuildSkeletalVerts((float*)posedata, framestate, mod);
+			}
 		}
+		else 
+#endif
+		if (!mod->numanimations)
+			continue;
 		else
 		{
 			group = mod->ofsanimations;
-			group += frame % mod->numanimations;
+			group += framestate->g[FS_REG].frame[0] % mod->numanimations;
 			//FIXME: no support for frame blending.
 			if (!group->numposes)
 				continue;
 			pose = group->poseofs;
-			pose += 0%group->numposes;				//FIXME: no framegroup support
+			pose += (int)(framestate->g[FS_REG].frametime[0] * group->rate)%group->numposes;
 			posedata = pose->ofsverts;
-#ifdef SKELETALMODELS
-			if (mod->numbones && mod->shares_verts != cursurfnum)
-			{
-				posedata = alloca(mod->numverts*sizeof(vecV_t));
-				Alias_BuildSkeletalVPositionsPose((float*)posedata, group->skeltype, group->boneofs, mod);
-
-				cursurfnum = mod->shares_verts;
-			}
-#endif
 		}
 
 		trace->truefraction = 1;
@@ -3878,7 +3926,7 @@ int Mod_GetNumBones(model_t *model, qboolean allowtags)
 	}
 #ifdef HALFLIFEMODELS
 	if (model && model->type == mod_halflife)
-		return HLMDL_GetNumBones(model);
+		return HLMDL_GetNumBones(model, allowtags);
 #endif
 	return 0;
 }
@@ -3970,13 +4018,14 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 #ifdef HALFLIFEMODELS
 	if (model && model->type == mod_halflife)
 	{
-		int numbones = Mod_GetNumBones(model, false);
+		int numbones = Mod_GetNumBones(model, true);
 		if (tagnum > 0 && tagnum <= numbones)
 		{
 			float relatives[MAX_BONES*12];
 			float tempmatrix[12];			//flipped between this and bonematrix
 			float *matrix;	//the matrix for a single bone in a single pose.
 			float *lerps = relatives;
+			int k;
 
 			if (tagnum <= 0 || tagnum > numbones)
 				return false;
@@ -3985,7 +4034,10 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 			//data comes from skeletal object, if possible
 			if (fstate->bonestate)
 			{
-				if (tagnum >= fstate->bonecount)
+				numbones = fstate->bonecount;
+				lerps = fstate->bonestate;
+
+				if (tagnum >= numbones)
 					return false;
 
 				if (fstate->skeltype == SKEL_ABSOLUTE)
@@ -3993,19 +4045,21 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 					memcpy(result, fstate->bonestate + 12 * tagnum, 12*sizeof(*result));
 					return true;
 				}
-
-				lerps = fstate->bonestate;
 			}
 			else //try getting the data from the frame state
 			{
 				numbones = Mod_GetBoneRelations(model, 0, tagnum+1, fstate, relatives);
 				lerps = relatives;
-
-				//make sure it was all okay.
-				if (tagnum >= numbones)
-					return false;
 			}
 
+			//set up the identity matrix
+			for (k = 0;k < 12;k++)
+				result[k] = 0;
+			result[0] = 1;
+			result[5] = 1;
+			result[10] = 1;
+			if (tagnum >= numbones)
+				tagnum = HLMDL_GetAttachment(model, tagnum-numbones, result);
 			while(tagnum >= 0)
 			{
 				//set up the per-bone transform matrix
@@ -6952,7 +7006,7 @@ qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *prototype, v
 {
 #define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return false; }
 #define MD5ERROR1PARAM(x, y) { Con_Printf(CON_ERROR x "\n", y); return false; }
-#define EXPECT(x) buffer = COM_Parse(buffer); if (strcmp(com_token, x)) MD5ERROR1PARAM("MD5ANIM: expected %s", x);
+#define EXPECT(x) buffer = COM_ParseOut(buffer, token, sizeof(token)); if (strcmp(token, x)) MD5ERROR1PARAM("MD5ANIM: expected %s", x);
 	unsigned int i, j;
 
 	galiasanimation_t grp;
@@ -6973,29 +7027,29 @@ qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *prototype, v
 	float tx, ty, tz, qx, qy, qz;
 	int fac, flags;
 	float f;
-	char com_token[8192];
+	char token[8192];
 
 	EXPECT("MD5Version");
 	EXPECT("10");
 
 	EXPECT("commandline");
-	buffer = COM_Parse(buffer);
+	buffer = COM_ParseOut(buffer, token, sizeof(token));
 
 	EXPECT("numFrames");
-	buffer = COM_Parse(buffer);
-	numframes = atoi(com_token);
+	buffer = COM_ParseOut(buffer, token, sizeof(token));
+	numframes = atoi(token);
 
 	EXPECT("numJoints");
-	buffer = COM_Parse(buffer);
-	numjoints = atoi(com_token);
+	buffer = COM_ParseOut(buffer, token, sizeof(token));
+	numjoints = atoi(token);
 
 	EXPECT("frameRate");
-	buffer = COM_Parse(buffer);
-	framespersecond = atof(com_token);
+	buffer = COM_ParseOut(buffer, token, sizeof(token));
+	framespersecond = atof(token);
 
 	EXPECT("numAnimatedComponents");
-	buffer = COM_Parse(buffer);
-	numanimatedparts = atoi(com_token);
+	buffer = COM_ParseOut(buffer, token, sizeof(token));
+	numanimatedparts = atoi(token);
 
 	firstanimatedcomponents = BZ_Malloc(sizeof(int)*numjoints);
 	animatedcomponents = BZ_Malloc(sizeof(float)*numanimatedparts);
@@ -7020,28 +7074,28 @@ qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *prototype, v
 	EXPECT("{");
 	for (i = 0; i < numjoints; i++, bonelist++)
 	{
-		buffer = COM_Parse(buffer);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
 		if (prototype->numbones)
 		{
-			if (strcmp(bonelist->name, com_token))
-				MD5ERROR1PARAM("MD5ANIM: bone name doesn't match (%s)", com_token);
+			if (strcmp(bonelist->name, token))
+				MD5ERROR1PARAM("MD5ANIM: bone name doesn't match (%s)", token);
 		}
 		else
-			Q_strncpyz(bonelist->name, com_token, sizeof(bonelist->name));
-		buffer = COM_Parse(buffer);
-		parent = atoi(com_token);
+			Q_strncpyz(bonelist->name, token, sizeof(bonelist->name));
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
+		parent = atoi(token);
 		if (prototype->numbones)
 		{
 			if (bonelist->parent != parent)
-				MD5ERROR1PARAM("MD5ANIM: bone name doesn't match (%s)", com_token);
+				MD5ERROR1PARAM("MD5ANIM: bone name doesn't match (%s)", token);
 		}
 		else
 			bonelist->parent = parent;
 
-		buffer = COM_Parse(buffer);
-		boneflags[i] = atoi(com_token);
-		buffer = COM_Parse(buffer);
-		firstanimatedcomponents[i] = atoi(com_token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
+		boneflags[i] = atoi(token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
+		firstanimatedcomponents[i] = atoi(token);
 	}
 	EXPECT("}");
 
@@ -7053,19 +7107,19 @@ qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *prototype, v
 	for (i = 0; i < numframes; i++)
 	{
 		EXPECT("(");
-		buffer = COM_Parse(buffer);f=atoi(com_token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));f=atoi(token);
 		if (f < mod->mins[0]) mod->mins[0] = f;
-		buffer = COM_Parse(buffer);f=atoi(com_token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));f=atoi(token);
 		if (f < mod->mins[1]) mod->mins[1] = f;
-		buffer = COM_Parse(buffer);f=atoi(com_token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));f=atoi(token);
 		if (f < mod->mins[2]) mod->mins[2] = f;
 		EXPECT(")");
 		EXPECT("(");
-		buffer = COM_Parse(buffer);f=atoi(com_token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));f=atoi(token);
 		if (f > mod->maxs[0]) mod->maxs[0] = f;
-		buffer = COM_Parse(buffer);f=atoi(com_token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));f=atoi(token);
 		if (f > mod->maxs[1]) mod->maxs[1] = f;
-		buffer = COM_Parse(buffer);f=atoi(com_token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));f=atoi(token);
 		if (f > mod->maxs[2]) mod->maxs[2] = f;
 		EXPECT(")");
 	}
@@ -7076,20 +7130,20 @@ qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *prototype, v
 	for (i = 0; i < numjoints; i++)
 	{
 		EXPECT("(");
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+0] = atof(com_token);
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+1] = atof(com_token);
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+2] = atof(com_token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
+		baseframe[i*6+0] = atof(token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
+		baseframe[i*6+1] = atof(token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
+		baseframe[i*6+2] = atof(token);
 		EXPECT(")");
 		EXPECT("(");
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+3] = atof(com_token);
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+4] = atof(com_token);
-		buffer = COM_Parse(buffer);
-		baseframe[i*6+5] = atof(com_token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
+		baseframe[i*6+3] = atof(token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
+		baseframe[i*6+4] = atof(token);
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
+		baseframe[i*6+5] = atof(token);
 		EXPECT(")");
 	}
 	EXPECT("}");
@@ -7101,8 +7155,8 @@ qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *prototype, v
 		EXPECT("{");
 		for (j = 0; j < numanimatedparts; j++)
 		{
-			buffer = COM_Parse(buffer);
-			animatedcomponents[j] = atof(com_token);
+			buffer = COM_ParseOut(buffer, token, sizeof(token));
+			animatedcomponents[j] = atof(token);
 		}
 		EXPECT("}");
 
@@ -7177,7 +7231,6 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 	skinframe_t *frames;
 #endif
 	char *filestart = buffer;
-	const int com_token = 4;
 	char token[1024];
 
 	float x, y, z, qx, qy, qz;
@@ -7468,7 +7521,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 				else if (!strcmp(token, "}"))
 					break;
 				else
-					MD5ERROR1PARAM("MD5MESH: Unrecognised token inside mesh (%s)", com_token);
+					MD5ERROR1PARAM("MD5MESH: Unrecognised token inside mesh (%s)", token);
 
 			}
 
@@ -7505,7 +7558,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 				Z_Free(rawweightbone);
 		}
 		else
-			MD5ERROR1PARAM("Unrecognised token in MD5 model (%s)", com_token);
+			MD5ERROR1PARAM("Unrecognised token in MD5 model (%s)", token);
 	}
 
 	if (!lastsurf)

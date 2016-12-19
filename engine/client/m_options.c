@@ -2759,11 +2759,13 @@ typedef struct
 		MV_NONE,
 		MV_BONES,
 		MV_SHADER,
-		MV_TEXTURE
+		MV_TEXTURE,
+		MV_COLLISION
 	} mode;
 	int surfaceidx;
 	int skingroup;
 	int framegroup;
+	int boneidx;
 	double framechangetime;
 	double skinchangetime;
 	float pitch;
@@ -2805,7 +2807,7 @@ static unsigned int genhsv(float h_, float s, float v)
 
 #include "com_mesh.h"
 #ifdef SKELETALMODELS
-static void M_BoneDisplayLame(entity_t *e, int *y, int depth, int parent, int first, int last)
+static void M_BoneDisplayLame(entity_t *e, int *y, int depth, int parent, int first, int last, int sel)
 {
 	int i;
 	for (i = first; i < last;  i++)
@@ -2819,11 +2821,17 @@ static void M_BoneDisplayLame(entity_t *e, int *y, int depth, int parent, int fi
 				bname = "NULL";
 			memset(result, 0, sizeof(result));
 			if (Mod_GetTag(e->model, i+1, &e->framestate, result))
-				Draw_FunString(depth*16, *y, va("%i: %s (%g %g %g)", i, bname, result[3], result[7], result[11]));
+			{
+#if 0//def _DEBUG
+				Draw_FunString(depth*16, *y, va("%s%i: %s (%g %g %g)", (i==sel)?"^1":"", i, bname, result[3], result[7], result[11]));
+#else
+				Draw_FunString(depth*16, *y, va("%s%i: %s", (i==sel)?"^1":"", i, bname));
+#endif
+			}
 			else
-				Draw_FunString(depth*16, *y, va("%i: %s", i, bname));
+				Draw_FunString(depth*16, *y, va("%s%i: %s (err)", (i==sel)?"^1":"", i, bname));
 			*y += 8;
-			M_BoneDisplayLame(e, y, depth+1, i+1, i+1, last);
+			M_BoneDisplayLame(e, y, depth+1, i+1, i+1, last, sel);
 		}
 	}
 }
@@ -2893,31 +2901,164 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	ent.framestate.g[FS_REG].lerpweight[0] = 1;
 	ent.framestate.g[FS_REG].frame[0] = mods->framegroup;
 	ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime - mods->framechangetime;
+	ent.framestate.g[FS_REG].endbone = 0x7fffffff;
 	ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", mods->modelname));
-
-//	ent.framestate.bonecount = Mod_GetNumBones(ent.model, false);
-//	ent.framestate.bonestate = bones;
-//	ent.framestate.bonecount = Mod_GetBoneRelations(ent.model, 0, MAX_BONES, &ent.framestate, ent.framestate.bonestate);
-//	ent.framestate.skeltype = SKEL_RELATIVE;
 
 	ent.light_avg[0] = ent.light_avg[1] = ent.light_avg[2] = 0.66;
 	ent.light_range[0] = ent.light_range[1] = ent.light_range[2] = 0.33;
 	ent.light_dir[0] = 0; ent.light_dir[1] = 1; ent.light_dir[2] = 0;
 	ent.light_known = 2;
 
+
+//	ent.angles[0]*=-1;
+	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+	VectorInverse(ent.axis[1]);
+//	ent.angles[0]*=-1;
+
+	if (ent.model->type == mod_dummy)
+	{
+		Draw_FunString(0, 0, va("model \"%s\" not loaded", ent.model->name));
+		return;
+	}
 	switch(ent.model->loadstate)
 	{
 	case MLS_LOADED:
 		break;
 	case MLS_NOTLOADED:
-		Draw_FunString(0, 0, va("%s not loaded", ent.model->name));
+		Draw_FunString(0, 0, va("\"%s\" not loaded", ent.model->name));
 		return;
 	case MLS_LOADING:
-		Draw_FunString(0, 0, va("%s still loading", ent.model->name));
+		Draw_FunString(0, 0, va("\"%s\" still loading", ent.model->name));
 		return;
 	case MLS_FAILED:
-		Draw_FunString(0, 0, va("Unable to load %s", ent.model->name));
+		Draw_FunString(0, 0, va("Unable to load \"%s\"", ent.model->name));
 		return;
+	}
+
+#if 0
+	ent.framestate.bonestate = bones;
+	ent.framestate.bonecount = Mod_GetBoneRelations(ent.model, 0, MAX_BONES, &ent.framestate, ent.framestate.bonestate);
+	ent.framestate.skeltype = SKEL_RELATIVE;
+#endif
+
+
+	if (mods->mode == MV_COLLISION)
+	{
+		shader_t *s = R_RegisterShader("bboxshader_nodepth", SUF_NONE,
+				"{\n"
+					"polygonoffset\n"
+					"{\n"
+						"map $whiteimage\n"
+						"blendfunc gl_src_alpha gl_one\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+						"nodepthtest\n"
+					"}\n"
+				"}\n");
+
+#ifdef HALFLIFEMODELS
+		if (ent.model->type == mod_halflife)
+			HLMDL_DrawHitBoxes(&ent);
+		else
+#endif
+		{
+			vec3_t mins, maxs;
+			VectorAdd(ent.model->mins, ent.origin, mins);
+			VectorAdd(ent.model->maxs, ent.origin, maxs);
+			CLQ1_AddOrientedCube(s, mins, maxs, NULL, 1, 1, 1, 0.2);
+		}
+
+#ifdef _DEBUG
+		{
+			trace_t tr;
+			vec3_t v1, v2;
+			VectorSet(v1, 1000*sin(realtime*2*M_PI/180), 1000*cos(realtime*2*M_PI/180), -ent.origin[2]);
+			VectorScale(v1, -1, v2);
+			v2[2] = v1[2];
+			s = R_RegisterShader("bboxshader", SUF_NONE,
+				"{\n"
+					"polygonoffset\n"
+					"{\n"
+						"map $whiteimage\n"
+						"blendfunc gl_src_alpha gl_one\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+				"}\n");
+
+			if (ent.model->funcs.NativeTrace(ent.model, 0, &ent.framestate, NULL, v1, v2, vec3_origin, vec3_origin, false, ~0, &tr))
+			{
+				vec3_t dir;
+				float f;
+
+				VectorAdd(v1, ent.origin, v1);
+				VectorAdd(v2, ent.origin, v2);
+				VectorAdd(tr.endpos, ent.origin, tr.endpos);
+
+				VectorSubtract(tr.endpos, v1, dir);
+				f = DotProduct(dir, tr.plane.normal) * -2;
+				VectorMA(dir, f, tr.plane.normal, v2);
+				VectorAdd(v2, tr.endpos, v2);
+			
+				CLQ1_DrawLine(s, v1, tr.endpos, 0, 1, 0, 1);
+				CLQ1_DrawLine(s, tr.endpos, v2, 1, 0, 0, 1);
+			}
+			else
+			{
+				VectorAdd(v1, ent.origin, v1);
+				VectorAdd(v2, ent.origin, v2);
+				CLQ1_DrawLine(s, v1, v2, 0, 1, 0, 1);
+			}
+		}
+#endif
+	}
+	if (mods->mode == MV_BONES)
+	{
+		shader_t *lineshader;
+		int tags = Mod_GetNumBones(ent.model, true);
+		int b;
+		//if (ragdoll)
+		//	ent->frame[] |= 0x8000;
+		//rag_updatedeltaent(&ent, le);
+
+		lineshader = R_RegisterShader("lineshader_nodepth", SUF_NONE,
+					"{\n"
+						"polygonoffset\n"
+						"{\n"
+							"map $whiteimage\n"
+							"blendfunc add\n"
+							"rgbgen vertex\n"
+							"alphagen vertex\n"
+							"nodepthtest\n"
+						"}\n"
+					"}\n");
+		for (b = 1; b <= tags; b++)
+		{
+			int p = Mod_GetBoneParent(ent.model, b);
+			vec3_t start, end;
+			float boneinfo[12];
+
+			Mod_GetTag(ent.model, b, &ent.framestate, boneinfo);
+			VectorSet(start, boneinfo[3], boneinfo[7], boneinfo[11]);
+			VectorAdd(start, ent.origin, start);
+
+			if (p)
+			{
+				Mod_GetTag(ent.model, p, &ent.framestate, boneinfo);
+				VectorSet(end, boneinfo[3], boneinfo[7], boneinfo[11]);
+				VectorAdd(end, ent.origin, end);
+				CLQ1_DrawLine(lineshader, start, end, 1, (b-1 == mods->boneidx)?0:1, 1, 1);
+			}
+			if (b-1 == mods->boneidx)
+			{
+				VectorSet(end, start[0]+1, start[1], start[2]);
+				CLQ1_DrawLine(lineshader, start, end, 1, 0, 0, 1);
+				VectorSet(end, start[0], start[1]+1, start[2]);
+				CLQ1_DrawLine(lineshader, start, end, 0, 1, 0, 1);
+				VectorSet(end, start[0], start[1], start[2]+1);
+				CLQ1_DrawLine(lineshader, start, end, 0, 0, 1, 1);
+			}
+		}
 	}
 
 	V_AddEntity(&ent);
@@ -2966,15 +3107,24 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			"mins: %g %g %g, maxs: %g %g %g\n", ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2])
 			, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 		break;
+	case MV_COLLISION:
+		if (ent.model->type != mod_halflife)
+		{
+			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, 
+				va("mins: %g %g %g, maxs: %g %g %g\n", ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2])
+				, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
+		break;
+		}
+		//fallthrough
 	case MV_BONES:
 #ifdef SKELETALMODELS
 		{
-			int bonecount = Mod_GetNumBones(ent.model, false);
+			int bonecount = Mod_GetNumBones(ent.model, true);
 			if (bonecount)
 			{
 				Draw_FunString(0, y, va("Bones: "));
 				y+=8;
-				M_BoneDisplayLame(&ent, &y, 0, 0, 0, bonecount);
+				M_BoneDisplayLame(&ent, &y, 0, 0, 0, bonecount, mods->boneidx);
 			}
 			else
 				R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, "No bones in model", CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
@@ -3030,10 +3180,11 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 		mods->shadertext = NULL;
 		switch (mods->mode)
 		{
-		case MV_NONE:	mods->mode = MV_BONES;	break; 
-		case MV_BONES:	mods->mode = MV_SHADER;	break;
-		case MV_SHADER:	mods->mode = MV_TEXTURE;break;
-		case MV_TEXTURE: mods->mode = MV_NONE;	break;
+		case MV_NONE:	mods->mode = MV_BONES;		break; 
+		case MV_BONES:	mods->mode = MV_SHADER;		break;
+		case MV_SHADER:	mods->mode = MV_TEXTURE;	break;
+		case MV_TEXTURE: mods->mode = MV_COLLISION;	break;
+		case MV_COLLISION: mods->mode = MV_NONE;	break;
 		}
 	}
 	else if (key == 'r')
@@ -3041,6 +3192,10 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 		mods->framechangetime = realtime;
 		mods->skinchangetime = realtime;
 	}
+	else if (key == '[')
+		mods->boneidx--;
+	else if (key == ']')
+		mods->boneidx++;
 	else if (key == K_UPARROW)
 		mods->pitch += 5;
 	else if (key == K_DOWNARROW)

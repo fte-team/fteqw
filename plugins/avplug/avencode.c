@@ -40,24 +40,24 @@ static void AVEnc_End (void *ctx);
 
 static AVFrame *alloc_frame(enum AVPixelFormat pix_fmt, int width, int height)
 {
-   AVFrame *picture;
-   uint8_t *picture_buf;
-   int size;
+	AVFrame *picture;
+	uint8_t *picture_buf;
+	int size;
 
-   picture = av_frame_alloc();
-   if(!picture)
-      return NULL;
-   size = av_image_get_buffer_size(pix_fmt, width, height, 1);
-   picture_buf = (uint8_t*)(av_malloc(size));
-   if (!picture_buf)
-   {
-      av_free(picture);
-      return NULL;
-   }
-   av_image_fill_arrays(picture->data, picture->linesize, picture_buf, pix_fmt, width, height, 1/*fixme: align*/);
-   picture->width = width;
-   picture->height = height;
-   return picture;
+	picture = av_frame_alloc();
+	if(!picture)
+		return NULL;
+	size = av_image_get_buffer_size(pix_fmt, width, height, 1);
+	picture_buf = (uint8_t*)(av_malloc(size));
+	if (!picture_buf)
+	{
+		av_free(picture);
+		return NULL;
+	}
+	av_image_fill_arrays(picture->data, picture->linesize, picture_buf, pix_fmt, width, height, 1/*fixme: align*/);
+	picture->width = width;
+	picture->height = height;
+	return picture;
 }
 AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, int width, int height)
 {
@@ -502,7 +502,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 		Con_DPrintf("avplug: Using Audio Codec \"%s\"\n", audiocodec->name);
 	else
 		Con_DPrintf("avplug: Not encoding audio\n");
-	
+
 	if (!videocodec && !audiocodec)
 	{
 		Con_DPrintf("avplug: Nothing to encode!\n");

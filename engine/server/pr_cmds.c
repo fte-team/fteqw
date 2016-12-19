@@ -519,6 +519,12 @@ static void QDECL SVPR_Get_FrameState(world_t *w, wedict_t *ent, framestate_t *f
 	fstate->g[FS_REG].frame[0] = ent->v->frame;
 	fstate->g[FS_REG].frametime[0] = ent->xv->frame1time;
 	fstate->g[FS_REG].lerpweight[0] = 1;
+	fstate->g[FS_REG].endbone = 0x7fffffff;
+
+	fstate->g[FST_BASE].frame[0] = ent->xv->baseframe;
+	fstate->g[FST_BASE].frametime[0] = ent->xv->/*base*/frame1time;
+	fstate->g[FST_BASE].lerpweight[0] = 1;
+	fstate->g[FST_BASE].endbone = ent->xv->basebone;
 
 #if defined(SKELETALOBJECTS) || defined(RAGDOLL)
 	if (ent->xv->skeletonindex)

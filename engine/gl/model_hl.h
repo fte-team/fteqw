@@ -31,7 +31,8 @@ typedef struct
 	int		boneindex;
 	int		numcontrollers;
 	int		controllerindex;
-	int		unknown5[2];	//hitboxes
+	int		num_hitboxes;
+	int		ofs_hitboxes;
 	int		numseq;
 	int		seqindex;
 	int		unknown6;		//external sequences
@@ -44,7 +45,9 @@ typedef struct
 	int		skins;
 	int		numbodyparts;
 	int		bodypartindex;
-	int		unknown9[8];	//attachments, sounds, transitions
+	int		num_attachments;
+	int		ofs_attachments;
+	int		unknown9[6];	//sounds, transitions
 } hlmdl_header_t;
 
 /*
@@ -102,6 +105,23 @@ typedef struct
 	float	value[6];
 	float	scale[6];
 } hlmdl_bone_t;
+
+typedef struct
+{
+	char name[32];	//I assume
+	int unk;
+	int bone;
+	vec3_t org;
+	vec3_t unk2[3];
+} hlmdl_attachment_t;
+
+typedef struct
+{
+	int bone;
+	int body;	//value reported to gamecode on impact
+	vec3_t mins;
+	vec3_t maxs;
+} hlmdl_hitbox_t;
 
 /*
  -----------------------------------------------------------------------------------------------------------------------
@@ -259,9 +279,7 @@ void	QuaternionGLAngle(const vec3_t angles, vec4_t quaternion);
 void	QuaternionGLMatrix(float x, float y, float z, float w, vec4_t *GLM);
 //void	UploadTexture(hlmdl_tex_t *ptexture, qbyte *data, qbyte *pal);
 
-/* HL drawing */
 qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize);
-void	R_DrawHLModel(entity_t	*curent);
 
 /* physics stuff */
 void *Mod_GetHalfLifeModelData(model_t *mod);
@@ -271,7 +289,14 @@ int HLMDL_BoneForName(model_t *mod, const char *name);
 int HLMDL_FrameForName(model_t *mod, const char *name);
 const char *HLMDL_FrameNameForNum(model_t *model, int surfaceidx, int num);
 qboolean HLMDL_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **name, int *numframes, float *duration, qboolean *loop);
-int HLMDL_GetNumBones(model_t *mod);
+int HLMDL_GetNumBones(model_t *mod, qboolean tagstoo);
 int HLMDL_GetBoneParent(model_t *mod, int bonenum);
 const char *HLMDL_GetBoneName(model_t *mod, int bonenum);
 int HLMDL_GetBoneData(model_t *model, int firstbone, int lastbone, framestate_t *fstate, float *result);
+int HLMDL_GetAttachment(model_t *model, int tagnum, float *resultmatrix);
+
+#ifndef SERVERONLY
+//stuff only useful for clients that need to draw stuff
+void	R_DrawHLModel(entity_t	*curent);
+void HLMDL_DrawHitBoxes(entity_t *ent);
+#endif

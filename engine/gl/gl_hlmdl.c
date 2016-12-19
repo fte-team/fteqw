@@ -6,23 +6,27 @@
 #include "com_mesh.h"
 /*
  +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    Half-Life Model Renderer (Experimental) Copyright (C) 2001 James 'Ender' Brown [ender@quakesrc.org] This program is
-    free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as
-    published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
-    This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
-    warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-    details. You should have received a copy of the GNU General Public License along with this program; if not, write
-    to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. fromquake.h -
+	Half-Life Model Renderer (Experimental) Copyright (C) 2001 James 'Ender' Brown [ender@quakesrc.org] This program is
+	free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as
+	published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+	This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+	warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+	details. You should have received a copy of the GNU General Public License along with this program; if not, write
+	to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. fromquake.h -
 
 	render.c - apart from calculations (mostly range checking or value conversion code is a mix of standard Quake 1
 	meshing, and vertex deforms. The rendering loop uses standard Quake 1 drawing, after SetupBones deforms the vertex.
  +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ Note: this code has since been greatly modified to fix skin, submodels, hitboxes, attachments, etc.
 
 
 
   Also, please note that it won't do all hl models....
   Nor will it work 100%
  */
+
+qboolean HLMDL_Trace		(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace);
+unsigned int HLMDL_Contents	(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 
 void QuaternionGLMatrix(float x, float y, float z, float w, vec4_t *GLM)
 {
@@ -64,6 +68,7 @@ void QuaternionGLAngle(const vec3_t angles, vec4_t quaternion)
 
 matrix3x4 transform_matrix[MAX_BONES];	/* Vertex transformation matrix */
 
+#ifndef SERVERONLY
 void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float tex_h);
 
 struct hlvremaps
@@ -218,6 +223,7 @@ static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, 
 	//treat this as the base pose, and calculate the sdir+tdir for bumpmaps.
 	R_Generate_Mesh_ST_Vectors(mesh);
 }
+#endif
 
 /*
  =======================================================================================================================
@@ -226,7 +232,11 @@ static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, 
  */
 qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 {
+#ifndef SERVERONLY
 	int i;
+	int body;
+	struct hlmodelshaders_s *shaders;
+#endif
 
 	hlmodel_t *model;
 	hlmdl_header_t *header;
@@ -234,9 +244,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	hlmdl_tex_t	*tex;
 	hlmdl_bone_t	*bones;
 	hlmdl_bonecontroller_t	*bonectls;
-	struct hlmodelshaders_s *shaders;
 	void *texmem = NULL;
-	int body;
 
 
 	//load the model into hunk
@@ -247,7 +255,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	memcpy(header, buffer, fsize);
 
 #if defined(HLSERVER) && (defined(__powerpc__) || defined(__ppc__))
-//this is to let bigfoot know when he comes to port it all... And I'm lazy.
+//this is to let anyone who tries porting it know that there is a serious issue. And I'm lazy.
 #ifdef warningmsg
 #pragma warningmsg("-----------------------------------------")
 #pragma warningmsg("FIXME: No byteswapping on halflife models")	//hah, yeah, good luck with that, you'll need it.
@@ -301,6 +309,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	model->bones = bones;
 	model->bonectls = bonectls;
 
+#ifndef SERVERONLY
 	shaders = ZG_Malloc(&mod->memgroup, texheader->numtextures*sizeof(shader_t));
 	model->shaders = shaders;
 	for(i = 0; i < texheader->numtextures; i++)
@@ -316,18 +325,21 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	model->numskingroups = texheader->skingroups;
 	model->skinref = ZG_Malloc(&mod->memgroup, model->numskinrefs*model->numskingroups*sizeof(*model->skinref));
 	memcpy(model->skinref, (short *) ((qbyte *) texheader + texheader->skins), model->numskinrefs*model->numskingroups*sizeof(*model->skinref));
-
+#endif
 
 	if (texmem)
 		Z_Free(texmem);
 
+	mod->funcs.NativeContents = HLMDL_Contents;
+	mod->funcs.NativeTrace = HLMDL_Trace;
 	mod->type = mod_halflife;
 	mod->numframes = model->header->numseq;
 	mod->meshinfo = model;
 
+#ifndef SERVERONLY
 	model->numgeomsets = model->header->numbodyparts;
 	model->geomset = ZG_Malloc(&mod->memgroup, sizeof(*model->geomset) * model->numgeomsets);
-	for (body = 0; body < model->header->numbodyparts; body++)
+	for (body = 0; body < model->numgeomsets; body++)
 	{
 		hlmdl_bodypart_t	*bodypart = (hlmdl_bodypart_t *) ((qbyte *) model->header + model->header->bodypartindex) + body;
 		int					bodyindex;
@@ -341,6 +353,8 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 			HLMDL_PrepareVerticies(model, amodel, &model->geomset[body].alternatives[bodyindex]);
 		}
 	}
+	//FIXME: No VBOs used.
+#endif
 	return true;
 }
 
@@ -557,17 +571,18 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 
 	if (!sequence->numframes)
 		return;
+	//halflife seems to dupe the last frame in looping animations, so don't use it.
 	if(frame1 >= sequence->numframes)
 	{
 		if (sequence->loop)
-			frame1 %= sequence->numframes;
+			frame1 %= sequence->numframes-1;
 		else
 			frame1 = sequence->numframes-1;
 	}
 	if(frame2 >= sequence->numframes)
 	{
 		if (sequence->loop)
-			frame2 %= sequence->numframes;
+			frame2 %= sequence->numframes-1;
 		else
 			frame2 = sequence->numframes-1;
 	}
@@ -691,13 +706,15 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 	}
 }
 
-int HLMDL_GetNumBones(model_t *mod)
+int HLMDL_GetNumBones(model_t *mod, qboolean tags)
 {
 	hlmodel_t *mc;
 	if (!mod || mod->type != mod_halflife)
 		return -1;	//halflife models only, please
 
 	mc = Mod_Extradata(mod);
+	if (tags)
+		return mc->header->numbones + mc->header->num_attachments;
 	return mc->header->numbones;
 }
 
@@ -707,6 +724,12 @@ int HLMDL_GetBoneParent(model_t *mod, int bonenum)
 
 	if (bonenum >= 0 && bonenum < model->header->numbones)
 		return model->bones[bonenum].parent;
+	bonenum -= model->header->numbones;
+	if (bonenum >= 0 && bonenum < model->header->num_attachments)
+	{
+		hlmdl_attachment_t *attachments = bonenum+(hlmdl_attachment_t*)((char*)model->header + model->header->ofs_attachments);
+		return attachments->bone;
+	}
 	return -1;
 }
 
@@ -716,13 +739,34 @@ const char *HLMDL_GetBoneName(model_t *mod, int bonenum)
 
 	if (bonenum >= 0 && bonenum < model->header->numbones)
 		return model->bones[bonenum].name;
+	bonenum -= model->header->numbones;
+	if (bonenum >= 0 && bonenum < model->header->num_attachments)
+	{
+		hlmdl_attachment_t *attachments = bonenum+(hlmdl_attachment_t*)((char*)model->header + model->header->ofs_attachments);
+		if (*attachments->name)
+			return attachments->name;
+		return "Unnamed Attachment";
+	}
 	return NULL;
 }
 
-int HLMDL_GetBoneData(model_t *mod, int firstbone, int lastbone, framestate_t *fstate, float *result)
+int HLMDL_GetAttachment(model_t *mod, int tagnum, float *resultmatrix)
+{
+	hlmodel_t *model = Mod_Extradata(mod);
+	if (tagnum >= 0 && tagnum < model->header->num_attachments)
+	{
+		hlmdl_attachment_t *attachments = tagnum+(hlmdl_attachment_t*)((char*)model->header + model->header->ofs_attachments);
+		resultmatrix[3] = attachments->org[0];
+		resultmatrix[7] = attachments->org[1];
+		resultmatrix[11] = attachments->org[2];
+		return attachments->bone;
+	}
+	return -1;
+}
+
+static int HLMDL_GetBoneData_Internal(hlmodel_t *model, int firstbone, int lastbone, framestate_t *fstate, float *result)
 {
 	int b, cbone, bgroup;
-	hlmodel_t *model = Mod_Extradata(mod);
 
 	for (b = 0; b < MAX_BONE_CONTROLLERS; b++)
 		model->controller[b] = fstate->bonecontrols[b];
@@ -737,6 +781,10 @@ int HLMDL_GetBoneData(model_t *mod, int firstbone, int lastbone, framestate_t *f
 		cbone = lastbone;
 	}
 	return cbone;
+}
+int HLMDL_GetBoneData(model_t *mod, int firstbone, int lastbone, framestate_t *fstate, float *result)
+{
+	return HLMDL_GetBoneData_Internal(Mod_Extradata(mod), firstbone, lastbone, fstate, result);
 }
 
 const char *HLMDL_FrameNameForNum(model_t *mod, int surfaceidx, int seqnum)
@@ -754,17 +802,205 @@ qboolean HLMDL_FrameInfoForNum(model_t *mod, int surfaceidx, int seqnum, char **
 
 	*name = sequence->name;
 	*numframes = sequence->numframes;
-	*duration = sequence->numframes/sequence->timing;
+	*duration = (sequence->numframes-1)/sequence->timing;
 	*loop = sequence->loop;
 	return true;
 }
 
+
+
+qboolean HLMDL_Trace		(model_t *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
+{
+	hlmodel_t *hm = Mod_Extradata(model);
+	float *relbones;
+	float calcrelbones[MAX_BONES*12];
+	int bonecount;
+	int b, i;
+	vec3_t norm, p1l, p2l;
+	float inverse[12];
+	hlmdl_hitbox_t *hitbox = (hlmdl_hitbox_t*)((char*)hm->header+hm->header->ofs_hitboxes);
+	float dist, d1, d2, f, enterfrac, enterdist, exitfrac;
+	qboolean startout, endout;
+	int enterplane;
+
+	extern cvar_t temp1;
+	p1[2] += temp1.value;
+	p2[2] += temp1.value;
+
+	memset (trace, 0, sizeof(trace_t));
+	trace->fraction = trace->truefraction = 1;
+	if (!(against & FTECONTENTS_BODY))
+		return false;
+
+	if (framestate->bonestate && framestate->skeltype == SKEL_ABSOLUTE)
+	{
+		relbones = framestate->bonestate;
+		bonecount = framestate->bonecount;
+		if (axis)
+		{
+			for (b = 0; b < bonecount; b++)
+				R_ConcatTransformsAxis(axis, (void*)(relbones+b*12), transform_matrix[b]);
+		}
+		else
+			memcpy(transform_matrix, relbones, bonecount * 12 * sizeof(float));
+	}
+	else
+	{
+		//get relative bones from th emodel.
+		if (framestate->bonestate)
+		{
+			relbones = framestate->bonestate;
+			bonecount = framestate->bonecount;
+		}
+		else
+		{
+			relbones = calcrelbones;
+			bonecount = HLMDL_GetBoneData(model, 0, MAX_BONES, framestate, calcrelbones);
+		}
+
+		//convert relative to absolutes
+		for (b = 0; b < bonecount; b++)
+		{
+			/* If we have a parent, take the addition. Otherwise just copy the values */
+			if(hm->bones[b].parent>=0)
+				R_ConcatTransforms(transform_matrix[hm->bones[b].parent], (void*)(relbones+b*12), transform_matrix[b]);
+			else if (axis)
+				R_ConcatTransformsAxis(axis, (void*)(relbones+b*12), transform_matrix[b]);
+			else
+				memcpy(transform_matrix[b], relbones+b*12, 12 * sizeof(float));
+		}
+	}
+
+	for (b = 0; b < hm->header->num_hitboxes; b++, hitbox++)
+	{
+		startout = false;
+		endout = false;
+		enterplane= 0;
+		enterfrac = -1;
+		exitfrac = 10;
+
+		//fixme: would be nice to check if there's a possible collision a bit faster, without needing to do lots of excess maths.
+
+		//transform start+end into the bbox, so everything is axial and simple.
+		Matrix3x4_Invert_Simple((void*)transform_matrix[hitbox->bone], inverse);
+		Matrix3x4_RM_Transform3(inverse, p1, p1l);
+		Matrix3x4_RM_Transform3(inverse, p2, p2l);
+		//fixme: would it be faster to just generate the plane and transform that, colliding non-axially? would probably be better for sized impactors.
+
+		//clip against the 6 axial faces
+		for (i = 0; i < 6; i++)
+		{
+			if (i < 3)
+			{	//normal>0
+				dist = hitbox->maxs[i] - mins[i];
+				d1 = p1l[i] - dist;
+				d2 = p2l[i] - dist;
+			}
+			else
+			{//normal<0
+				dist = maxs[i-3] - hitbox->mins[i-3];
+				d1 = -p1l[i-3] - dist;
+				d2 = -p2l[i-3] - dist;
+			}
+			//FIXME: if the trace has size, we should insert 6 extra planes for the shape of the impactor
+			//FIXME: capsules
+
+			if (d1 >= 0)
+				startout = true;
+			if (d2 > 0)
+				endout = true;
+
+			//if we're fully outside any plane, then we cannot possibly enter the brush, skip to the next one
+			if (d1 > 0 && d2 >= 0)
+				goto nextbrush;
+
+			//if we're fully inside the plane, then whatever is happening is not relevent for this plane
+			if (d1 < 0 && d2 <= 0)
+				continue;
+
+			f = d1 / (d1-d2);
+			if (d1 > d2)
+			{
+				//entered the brush. favour the furthest fraction to avoid extended edges (yay for convex shapes)
+				if (enterfrac < f)
+				{
+					enterfrac = f;
+					enterplane = i;
+					enterdist = dist;
+				}
+			}
+			else
+			{
+				//left the brush, favour the nearest plane (smallest frac)
+				if (exitfrac > f)
+				{
+					exitfrac = f;
+				}
+			}
+		}
+
+		if (!startout)
+		{
+			trace->startsolid = true;
+			if (!endout)
+				trace->allsolid = true;
+			trace->contents = FTECONTENTS_BODY;
+
+			trace->brush_face = 0;
+			trace->bone_id = hitbox->bone+1;
+			trace->brush_id = b+1;
+			trace->surface_id = hitbox->body;
+			break;
+		}
+		if (enterfrac != -1 && enterfrac < exitfrac)
+		{
+			//impact!
+			if (enterfrac < trace->fraction)
+			{
+				trace->fraction = trace->truefraction = enterfrac;
+				trace->plane.dist = enterdist;
+				trace->contents = FTECONTENTS_BODY;
+
+				trace->brush_face = enterplane+1;
+				trace->bone_id = hitbox->bone+1;
+				trace->brush_id = b+1;
+				trace->surface_id = hitbox->body;
+			}
+		}
+nextbrush:
+		;
+	}
+
+	if (trace->brush_face)
+	{
+		VectorClear(norm);
+		if (trace->brush_face < 4)
+			norm[trace->brush_face-1] = 1;
+		else
+			norm[trace->brush_face-4] = -1;
+		Matrix3x4_RM_Transform3x3((void*)transform_matrix[trace->bone_id-1], norm, trace->plane.normal);
+	}
+	else
+		VectorClear(trace->plane.normal);
+	VectorInterpolate(p1, trace->fraction, p2, trace->endpos);
+
+	return trace->truefraction != 1;
+}
+unsigned int HLMDL_Contents	(model_t *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
+{
+	trace_t tr;
+	HLMDL_Trace(model, hulloverride, framestate, axis, p, p, mins, maxs, false, ~0, &tr);
+	return tr.contents;
+}
+
+
+#ifndef SERVERONLY
 void R_HL_BuildFrame(hlmodel_t *model, hlmdl_submodel_t *amodel, entity_t *curent, int bodypart, int bodyidx, int meshidx, float tex_s, float tex_t, mesh_t *mesh, qboolean gpubones)
 {
 	int b;
 	int cbone;
-	int bgroup;
-	int lastbone;
+//	int bgroup;
+//	int lastbone;
 	int v;
 
 	*mesh = model->geomset[bodypart].alternatives[bodyidx].mesh;
@@ -801,7 +1037,7 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_submodel_t *amodel, entity_t *curen
 		mesh->bones = transform_matrix[0][0];
 		mesh->numbones = model->header->numbones;
 
-		//FIXME: needs caching.
+/*		//FIXME: needs caching.
 		for (b = 0; b < MAX_BONE_CONTROLLERS; b++)
 			model->controller[b] = curent->framestate.bonecontrols[b];
 		for (cbone = 0, bgroup = 0; bgroup < FS_COUNT; bgroup++)
@@ -811,9 +1047,11 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_submodel_t *amodel, entity_t *curen
 				lastbone = model->header->numbones;
 			if (cbone >= lastbone)
 				continue;
-			HL_SetupBones(model, curent->framestate.g[bgroup].frame[0], cbone, lastbone, (curent->framestate.g[bgroup].subblendfrac+1)*0.5, curent->framestate.g[bgroup].frametime[0], relatives);	/* Setup the bones */
+			HL_SetupBones(model, curent->framestate.g[bgroup].frame[0], cbone, lastbone, (curent->framestate.g[bgroup].subblendfrac+1)*0.5, curent->framestate.g[bgroup].frametime[0], relatives);	// Setup the bones
 			cbone = lastbone;
 		}
+*/
+		cbone = HLMDL_GetBoneData_Internal(model, 0, model->header->numbones, &curent->framestate, relatives);
 
 		//convert relative to absolutes
 		for (b = 0; b < cbone; b++)
@@ -867,13 +1105,13 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_submodel_t *amodel, entity_t *curen
 	}
 }
 
-void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches);
-void R_HL_BuildMesh(struct batch_s *b)
+static void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches);
+static void R_HL_BuildMesh(struct batch_s *b)
 {
 	R_HalfLife_WalkMeshes(b->ent, b, NULL);
 }
 
-void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
+static void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 {
 	hlmodel_t *model = Mod_Extradata(rent->model);
 	int						body, m;
@@ -887,7 +1125,7 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 		sk = Mod_LookupSkin(rent->customskin);
 	//entity_body = rent->body;	//hey, if its there, lets use it.
 
-	for (body = 0; body < model->header->numbodyparts; body++)
+	for (body = 0; body < model->numgeomsets; body++)
 	{
 		/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 		hlmdl_bodypart_t	*bodypart = (hlmdl_bodypart_t *) ((qbyte *) model->header + model->header->bodypartindex) + body;
@@ -1006,5 +1244,49 @@ void R_HalfLife_GenerateBatches(entity_t *e, batch_t **batches)
 	R_CalcModelLighting(e, e->model);
 	R_HalfLife_WalkMeshes(e, NULL, batches);
 }
+
+void HLMDL_DrawHitBoxes(entity_t *rent)
+{
+	hlmodel_t *model = Mod_Extradata(rent->model);
+	hlmdl_hitbox_t *hitbox = (hlmdl_hitbox_t*)((char*)model->header+model->header->ofs_hitboxes);
+	matrix3x4 entitymatrix;
+
+	shader_t *shader = R_RegisterShader("hitbox_nodepth", SUF_NONE,
+			"{\n"
+				"polygonoffset\n"
+				"{\n"
+					"map $whiteimage\n"
+					"blendfunc gl_src_alpha gl_one\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
+					"nodepthtest\n"
+				"}\n"
+			"}\n");
+
+	float relbones[MAX_BONES*12];
+	int bonecount = HLMDL_GetBoneData(rent->model, 0, MAX_BONES, &rent->framestate, relbones);
+	int b;
+
+	VectorCopy(rent->axis[0], entitymatrix[0]);
+	VectorCopy(rent->axis[1], entitymatrix[1]);
+	VectorCopy(rent->axis[2], entitymatrix[2]);
+	entitymatrix[0][3] = rent->origin[0];
+	entitymatrix[1][3] = rent->origin[1];
+	entitymatrix[2][3] = rent->origin[2];
+
+	//convert relative to absolutes
+	for (b = 0; b < bonecount; b++)
+	{
+		//If we have a parent, take the addition. Otherwise just copy the values
+		if(model->bones[b].parent>=0)
+			R_ConcatTransforms(transform_matrix[model->bones[b].parent], (void*)(relbones+b*12), transform_matrix[b]);
+		else
+			R_ConcatTransforms(entitymatrix, (void*)(relbones+b*12), transform_matrix[b]);
+	}
+
+	for (b = 0; b < model->header->num_hitboxes; b++, hitbox++)
+		CLQ1_AddOrientedCube(shader, hitbox->mins, hitbox->maxs, transform_matrix[hitbox->bone][0], 1, 1, 1, 0.2);
+}
+#endif
 
 #endif

@@ -283,7 +283,7 @@ int World_PointContents (world_t *w, vec3_t p);
 
 wedict_t	*World_TestEntityPosition (world_t *w, wedict_t *ent);
 
-qboolean World_TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, struct trace_s *trace, vec3_t origin, vec3_t angles, unsigned int hitcontentsmask);
+qboolean World_TransformedTrace (struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, struct trace_s *trace, vec3_t origin, vec3_t angles, unsigned int hitcontentsmask);
 
 /*
  World_Move:

@@ -1178,6 +1178,10 @@ void V_ApplyAFov(playerview_t *pv)
 		afov = bound(0.001, afov, 170);
 
 		ws = 1;
+#ifdef FTE_TARGET_WEB
+		if (r_refdef.stereomethod == STEREO_WEBVR)
+			ws = 0.5;
+#endif
 		if (r_refdef.stereomethod == STEREO_CROSSEYED && r_stereo_separation.value)
 			ws = 0.5;
 

@@ -135,7 +135,7 @@ qboolean World_BoxTrace(struct model_s *model, int hulloverride, int frame, vec3
 	VectorCopy (p2, trace->endpos);
 	return Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, p1, p2, trace);
 }
-qboolean World_CapsuleTrace(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
+qboolean World_CapsuleTrace(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
 {
 	//bbox vs capsule (NYI)
 	//capsule vs capsule (NYI)
@@ -1016,7 +1016,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 
 //wrapper function. Rotates the start and end positions around the angles if needed.
 //qboolean TransformedHullCheck (hull_t *hull, vec3_t start, vec3_t end, trace_t *trace, vec3_t angles)
-qboolean World_TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, struct trace_s *trace, vec3_t origin, vec3_t angles, unsigned int hitcontentsmask)
+qboolean World_TransformedTrace (struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, struct trace_s *trace, vec3_t origin, vec3_t angles, unsigned int hitcontentsmask)
 {
 	vec3_t		start_l, end_l;
 	vec3_t		axis[3];
@@ -1045,11 +1045,11 @@ qboolean World_TransformedTrace (struct model_s *model, int hulloverride, int fr
 		{
 			AngleVectors (angles, axis[0], axis[1], axis[2]);
 			VectorNegate(axis[1], axis[1]);
-			result = model->funcs.NativeTrace (model, hulloverride, frame, axis, start_l, end_l, mins, maxs, capsule, hitcontentsmask, trace);
+			result = model->funcs.NativeTrace (model, hulloverride, framestate, axis, start_l, end_l, mins, maxs, capsule, hitcontentsmask, trace);
 		}
 		else
 		{
-			result = model->funcs.NativeTrace (model, hulloverride, frame, NULL, start_l, end_l, mins, maxs, capsule, hitcontentsmask, trace);
+			result = model->funcs.NativeTrace (model, hulloverride, framestate, NULL, start_l, end_l, mins, maxs, capsule, hitcontentsmask, trace);
 		}
 
 		VectorAdd (trace->endpos, origin, trace->endpos);
@@ -1083,6 +1083,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	trace_t		trace;
 	model_t		*model;
 	int mdlidx = ent->v->modelindex;
+	framestate_t framestate;
 
 // get the clipping hull
 	if ((ent->v->solid == SOLID_BSP || ent->v->solid == SOLID_PORTAL) && mdlidx)
@@ -1109,11 +1110,13 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 			World_HullForBox(boxmins, boxmaxs);
 	}
 
+	w->Get_FrameState(w, ent, &framestate);
+
 // trace a line through the apropriate clipping hull
 	if (ent->v->solid == SOLID_PORTAL)
 	{
 		//solid_portal cares only about origins and as such has no mins/max
-		World_TransformedTrace(model, 0, ent->v->frame, start, end, vec3_origin, vec3_origin, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
+		World_TransformedTrace(model, 0, &framestate, start, end, vec3_origin, vec3_origin, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
 		if (trace.startsolid)	//portals should not block traces. this prevents infinite looping
 			trace.startsolid = false;
 		hitmodel = false;
@@ -1121,12 +1124,12 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	else if (ent->v->solid != SOLID_BSP)
 	{
 		ent->v->angles[0]*=-1;	//carmack made bsp models rotate wrongly.
-		World_TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
+		World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
 		ent->v->angles[0]*=-1;
 	}
 	else
 	{
-		World_TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
+		World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
 	}
 
 // if using hitmodel, we know it hit the bounding box, so try a proper trace now.
@@ -1138,7 +1141,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 		if (model && model->funcs.NativeTrace && model->loadstate == MLS_LOADED)
 		{
 			//do the second trace, using the actual mesh.
-			World_TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
+			World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
 		}
 	}
 

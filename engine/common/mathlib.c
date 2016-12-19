@@ -552,7 +552,6 @@ void R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3])
 				in1[2][2] * in2[2][2];
 }
 
-
 /*
 ================
 R_ConcatTransforms
@@ -586,24 +585,36 @@ void QDECL R_ConcatTransforms (float in1[3][4], float in2[3][4], float out[3][4]
 				in1[2][2] * in2[2][3] + in1[2][3];
 }
 
-void Matrix3x4_Multiply(const float *a, const float *b, float *out)
+//R_ConcatTransforms where there's no offset values
+void R_ConcatTransformsAxis (float in1[3][3], float in2[3][4], float out[3][4])
 {
-	out[0]  = a[0] * b[0] + a[4] * b[1] + a[8] * b[2];
-	out[1]  = a[1] * b[0] + a[5] * b[1] + a[9] * b[2];
-	out[2]  = a[2] * b[0] + a[6] * b[1] + a[10] * b[2];
-	out[3]  = a[3] * b[0] + a[7] * b[1] + a[11] * b[2] + b[3];
-
-	out[4]  = a[0] * b[4] + a[4] * b[5] + a[8] * b[6];
-	out[5]  = a[1] * b[4] + a[5] * b[5] + a[9] * b[6];
-	out[6]  = a[2] * b[4] + a[6] * b[5] + a[10] * b[6];
-	out[7]  = a[3] * b[4] + a[7] * b[5] + a[11] * b[6] + b[7];
-
-	out[8]  = a[0] * b[8] + a[4] * b[9] + a[8] * b[10];
-	out[9]  = a[1] * b[8] + a[5] * b[9] + a[9] * b[10];
-	out[10] = a[2] * b[8] + a[6] * b[9] + a[10] * b[10];
-	out[11] = a[3] * b[8] + a[7] * b[9] + a[11] * b[10] + b[11];
+	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
+				in1[0][2] * in2[2][0];
+	out[0][1] = in1[0][0] * in2[0][1] + in1[0][1] * in2[1][1] +
+				in1[0][2] * in2[2][1];
+	out[0][2] = in1[0][0] * in2[0][2] + in1[0][1] * in2[1][2] +
+				in1[0][2] * in2[2][2];
+	out[0][3] = in1[0][0] * in2[0][3] + in1[0][1] * in2[1][3] +
+				in1[0][2] * in2[2][3];
+	out[1][0] = in1[1][0] * in2[0][0] + in1[1][1] * in2[1][0] +
+				in1[1][2] * in2[2][0];
+	out[1][1] = in1[1][0] * in2[0][1] + in1[1][1] * in2[1][1] +
+				in1[1][2] * in2[2][1];
+	out[1][2] = in1[1][0] * in2[0][2] + in1[1][1] * in2[1][2] +
+				in1[1][2] * in2[2][2];
+	out[1][3] = in1[1][0] * in2[0][3] + in1[1][1] * in2[1][3] +
+				in1[1][2] * in2[2][3];
+	out[2][0] = in1[2][0] * in2[0][0] + in1[2][1] * in2[1][0] +
+				in1[2][2] * in2[2][0];
+	out[2][1] = in1[2][0] * in2[0][1] + in1[2][1] * in2[1][1] +
+				in1[2][2] * in2[2][1];
+	out[2][2] = in1[2][0] * in2[0][2] + in1[2][1] * in2[1][2] +
+				in1[2][2] * in2[2][2];
+	out[2][3] = in1[2][0] * in2[0][3] + in1[2][1] * in2[1][3] +
+				in1[2][2] * in2[2][3];
 }
 
+//R_ConcatTransforms where we don't care about the resulting offsets.
 void R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4])
 {
 	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
@@ -626,6 +637,24 @@ void R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4])
 				in1[2][2] * in2[2][1];
 	out[2][2] = in1[2][0] * in2[0][2] + in1[2][1] * in2[1][2] +
 				in1[2][2] * in2[2][2];
+}
+
+void Matrix3x4_Multiply(const float *a, const float *b, float *out)
+{
+	out[0]  = a[0] * b[0] + a[4] * b[1] + a[8] * b[2];
+	out[1]  = a[1] * b[0] + a[5] * b[1] + a[9] * b[2];
+	out[2]  = a[2] * b[0] + a[6] * b[1] + a[10] * b[2];
+	out[3]  = a[3] * b[0] + a[7] * b[1] + a[11] * b[2] + b[3];
+
+	out[4]  = a[0] * b[4] + a[4] * b[5] + a[8] * b[6];
+	out[5]  = a[1] * b[4] + a[5] * b[5] + a[9] * b[6];
+	out[6]  = a[2] * b[4] + a[6] * b[5] + a[10] * b[6];
+	out[7]  = a[3] * b[4] + a[7] * b[5] + a[11] * b[6] + b[7];
+
+	out[8]  = a[0] * b[8] + a[4] * b[9] + a[8] * b[10];
+	out[9]  = a[1] * b[8] + a[5] * b[9] + a[9] * b[10];
+	out[10] = a[2] * b[8] + a[6] * b[9] + a[10] * b[10];
+	out[11] = a[3] * b[8] + a[7] * b[9] + a[11] * b[10] + b[11];
 }
 
 /*
@@ -1004,6 +1033,12 @@ void Matrix3x4_RM_Transform3(const float *matrix, const float *vector, float *pr
 	product[0] = matrix[0]*vector[0] + matrix[1]*vector[1] + matrix[2]*vector[2] + matrix[3];
 	product[1] = matrix[4]*vector[0] + matrix[5]*vector[1] + matrix[6]*vector[2] + matrix[7];
 	product[2] = matrix[8]*vector[0] + matrix[9]*vector[1] + matrix[10]*vector[2] + matrix[11];
+}
+void Matrix3x4_RM_Transform3x3(const float *matrix, const float *vector, float *product)
+{
+	product[0] = matrix[0]*vector[0] + matrix[1]*vector[1] + matrix[2]*vector[2];
+	product[1] = matrix[4]*vector[0] + matrix[5]*vector[1] + matrix[6]*vector[2];
+	product[2] = matrix[8]*vector[0] + matrix[9]*vector[1] + matrix[10]*vector[2];
 }
 
 //transform 4d vector by a 4d matrix.

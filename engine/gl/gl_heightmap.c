@@ -3269,7 +3269,7 @@ unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org)
 
 	return cont;
 }
-unsigned int Heightmap_NativeBoxContents(model_t *model, int hulloverride, int frame, vec3_t axis[3], vec3_t org, vec3_t mins, vec3_t maxs)
+unsigned int Heightmap_NativeBoxContents(model_t *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t org, vec3_t mins, vec3_t maxs)
 {
 	heightmap_t *hm = model->terrain;
 	return Heightmap_PointContentsHM(hm, mins[2], org);
@@ -3706,12 +3706,10 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 			vec3_t start_l, end_l;
 			trace_t etr;
 			model_t *model;
-			int frame;
 			if (s->ents[i]->traceseq == tr->hm->traceseq)
 				continue;
 			s->ents[i]->traceseq = tr->hm->traceseq;
 			model = s->ents[i]->ent.model;
-			frame = s->ents[i]->ent.framestate.g[FS_REG].frame[0];
 			//FIXME: IGNORE the entity if it isn't loaded yet? surely that's bad?
 			if (!model || model->loadstate != MLS_LOADED || !model->funcs.NativeTrace)
 				continue;
@@ -3735,7 +3733,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 			//do the trace
 			memset(&etr, 0, sizeof(etr));
 			etr.fraction = 1;
-			model->funcs.NativeTrace (model, 0, frame, s->ents[i]->ent.axis, start_l, end_l, tr->mins, tr->maxs, tr->shape == iscapsule, tr->hitcontentsmask, &etr);
+			model->funcs.NativeTrace (model, 0, &s->ents[i]->ent.framestate, s->ents[i]->ent.axis, start_l, end_l, tr->mins, tr->maxs, tr->shape == iscapsule, tr->hitcontentsmask, &etr);
 
 			if (etr.startsolid)
 			{	//many many bsp objects are not enclosed 'properly' (qbsp strips any surfaces outside the world).
@@ -3935,7 +3933,7 @@ Why is recursion good?
 
 Obviously, we don't care all that much about 1
 */
-qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec3_t mataxis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
+qboolean Heightmap_Trace(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t mataxis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
 {
 	vec2_t pos;
 	vec2_t frac;
@@ -4201,14 +4199,14 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	return trace->fraction < 1;
 }
 
-qboolean Heightmap_Trace_Test(struct model_s *model, int hulloverride, int frame, vec3_t mataxis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
+qboolean Heightmap_Trace_Test(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t mataxis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
 {
-	qboolean ret = Heightmap_Trace(model, hulloverride, frame, mataxis, start, end, mins, maxs, capsule, against, trace);
+	qboolean ret = Heightmap_Trace(model, hulloverride, framestate, mataxis, start, end, mins, maxs, capsule, against, trace);
 	
 	if (!trace->startsolid)
 	{
 		trace_t testtrace;
-		Heightmap_Trace(model, hulloverride, frame, mataxis, trace->endpos, trace->endpos, mins, maxs, capsule, against, &testtrace);
+		Heightmap_Trace(model, hulloverride, framestate, mataxis, trace->endpos, trace->endpos, mins, maxs, capsule, against, &testtrace);
 		if (testtrace.startsolid)
 		{
 			Con_DPrintf("Trace became solid\n");

@@ -973,7 +973,7 @@ return;
 	D3_RecursiveSurfCheck (node->child[side^1], midf, p2f, mid, p2);
 }
 
-static qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int hitcontentsmask, struct trace_s *trace)
+static qboolean D3_Trace (struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int hitcontentsmask, struct trace_s *trace)
 {
 	int i;
 	float e1,e2;

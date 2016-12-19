@@ -54,3 +54,6 @@ int emscriptenfte_setupcanvas(
 	int (*ShouldSwitchToFullscreen)(void)
 	);
 
+int emscriptenfte_getvrframedata(void);
+int emscriptenfte_getvreyedata(int eye, float *projectionmatrix, float *viewmatrix);
+

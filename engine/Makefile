@@ -565,7 +565,6 @@ D3DGL_OBJS =		\
 	gl_shader.o	\
 	gl_shadow.o	\
 	gl_rlight.o	\
-	gl_hlmdl.o	\
 	gl_warp.o	\
 	ltface.o	\
 	r_surf.o	\
@@ -655,6 +654,7 @@ WINDOWS_OBJS = \
 
 COMMON_OBJS = \
 	gl_alias.o		\
+	gl_hlmdl.o	\
 	gl_heightmap.o		\
 	gl_model.o	\
 	com_mesh.o	\

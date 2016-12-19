@@ -418,7 +418,7 @@ qboolean R_GameRectIsFullscreen(void);
 R_SetupGL
 =============
 */
-void R_SetupGL (float stereooffset)
+void R_SetupGL (float stereooffset, int i)
 {
 	int		x, x2, y2, y, w, h;
 	vec3_t newa;
@@ -430,8 +430,8 @@ void R_SetupGL (float stereooffset)
 		newa[0] = r_refdef.viewangles[0];
 		newa[1] = r_refdef.viewangles[1];
 		newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
-		if (stereooffset)
-			newa[1] += r_stereo_convergence.value * ((stereooffset>0)?-0.5:0.5);	//can we get away with this cheapness? rip 6dof
+		if (r_refdef.stereomethod)
+			newa[1] += r_stereo_convergence.value * (i?0.5:-0.5);	//can we get away with this cheapness? rip 6dof
 		if (0)
 		{
 			vec3_t paxis[3];
@@ -507,10 +507,14 @@ void R_SetupGL (float stereooffset)
 			w = x2 - x;
 			h = y2 - y;
 
-			if (stereooffset && r_refdef.stereomethod == STEREO_CROSSEYED)
+			if (r_refdef.stereomethod == STEREO_CROSSEYED
+#ifdef FTE_TARGET_WEB
+				|| r_refdef.stereomethod == STEREO_WEBVR
+#endif
+				)
 			{
 				w /= 2;
-				if (stereooffset < 0)
+				if (i)
 					x += vid.fbpwidth/2;
 			}
 
@@ -537,31 +541,47 @@ void R_SetupGL (float stereooffset)
 
 		GL_ViewportUpdate();
 
-
-		if (r_refdef.useperspective)
+#ifdef FTE_TARGET_WEB
+		if (r_refdef.stereomethod == STEREO_WEBVR)
 		{
-			int stencilshadows = Sh_StencilShadowsActive();
+			float vm[16], em[16];
+			emscriptenfte_getvreyedata(i, r_refdef.m_projection, em);
+			Matrix4x4_Identity(em);
 
-			if ((!stencilshadows || !gl_stencilbits) && r_refdef.maxdist)//gl_nv_range_clamp)
+			Matrix4x4_CM_ModelViewMatrixFromAxis(vm, vpn, vright, vup, r_origin);
+			Matrix4_Multiply(vm, em, r_refdef.m_view);
+			//fixme: read the axis+org back out...
+
+//			Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
+		}
+		else
+#endif
+		{
+			if (r_refdef.useperspective)
 			{
-		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
-		//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
-		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
-		//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
+				int stencilshadows = Sh_StencilShadowsActive();
 
-				Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+				if ((!stencilshadows || !gl_stencilbits) && r_refdef.maxdist)//gl_nv_range_clamp)
+				{
+			//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
+			//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
+			//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
+			//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
+
+					Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+				}
+				else
+				{
+					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist);
+				}
 			}
 			else
 			{
-				Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist);
+				Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, r_refdef.mindist, r_refdef.maxdist?r_refdef.maxdist:9999);
 			}
-		}
-		else
-		{
-			Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, r_refdef.mindist, r_refdef.maxdist?r_refdef.maxdist:9999);
-		}
 
-		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
+			Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
+		}
 	}
 
 	if (qglLoadMatrixf)
@@ -691,6 +711,11 @@ void R_RenderScene (void)
 			else
 				qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_TRUE);
 			break;
+#ifdef FTE_TARGET_WEB
+		case STEREO_WEBVR:
+			stereooffset[i] = 0;	//webgl overrides our separation.
+			break;
+#endif
 		case STEREO_CROSSEYED:	//eyestrain
 			break;
 		case STEREO_LEFTONLY:
@@ -710,7 +735,7 @@ void R_RenderScene (void)
 		}
 
 		TRACE(("dbg: calling R_SetupGL\n"));
-		R_SetupGL (stereooffset[i]);
+		R_SetupGL (stereooffset[i], i);
 
 		TRACE(("dbg: calling R_SetFrustrum\n"));
 		if (!r_refdef.recurse)

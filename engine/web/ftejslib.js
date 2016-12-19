@@ -151,6 +151,12 @@ mergeInto(LibraryManager.library,
 						FTEC.pointerislocked = -1;  //don't repeat the request on every click. firefox has a fit at that, so require the mouse to leave the element or something before we retry.
 						Module['canvas'].requestPointerLock();
 					}
+
+					if (FTEC.usevr)
+						if (FTEC.vrDisplay)
+							if (!FTEC.vrDisplay.isPresenting)
+								FTEC.vrDisplay.requestPresent([{ source: Module['canvas'] }]).then(function (){console.log("zomg, presenting!");}, function (err){FTEC.usevr = false;console.log("cannot vrdisplay!");});
+
 					//fallthrough
 				case 'mouseup':
 					if (FTEC.evcb.button != 0)
@@ -272,10 +278,63 @@ mergeInto(LibraryManager.library,
 											document.webkitPointerLockElement === Module['canvas'];
 					console.log("Pointer lock now " + FTEC.pointerislocked);
 					break;
+					
+				case 'vrdisplaypresentchange':
+					console.log("vr present changed");
+					console.log(event);
+					break;
+				case 'vrdisplayactivate':
+					console.log("vr display active");
+					if (event.display == FTEC.vrDisplay)
+					{
+						FTEC.usevr = true;
+						if (!FTEC.vrDisplay.isPresenting)
+							FTEC.vrDisplay.requestPresent([{ source: Module['canvas'] }]).then(function (){console.log("zomg, presenting!");}, function (err){FTEC.usevr = false;console.log("cannot vrdisplay!");});
+					}
+					break;
+				case 'vrdisplaydeactivate':
+					console.log("vr display inactive");
+					if (event.display == FTEC.vrDisplay)
+					{
+						FTEC.vrDisplay.exitPresent()
+						FTEC.usevr = false;
+					}
+					break;
 				default:
 					console.log(event);
 					break;
 			}
+		}
+	},
+	emscriptenfte_getvrframedata : function()
+	{
+		if (!FTEC.vrDisplay)
+			return 0;
+		return FTEC.vrDisplay.isPresenting;
+//		FTEC.vrframeData
+	},
+	emscriptenfte_getvreyedata : function (eye, ptr_proj, ptr_view)
+	{
+		var pm;
+		var vm;
+		if (eye)
+		{
+			pm = FTEC.vrframeData.leftProjectionMatrix;
+			vm = FTEC.vrframeData.leftViewMatrix;
+		}
+		else
+		{
+			pm = FTEC.vrframeData.rightProjectionMatrix;
+			vm = FTEC.vrframeData.rightViewMatrix;
+		}
+		
+		var i;
+		ptr_proj /= 4;
+		ptr_view /= 4;
+		for (i = 0; i < 16; i++)
+		{
+			HEAPF32[ptr_proj + i] = pm[i];
+			HEAPF32[ptr_view + i] = vm[i];
 		}
 	},
 	emscriptenfte_updatepointerlock : function(wantlock, softcursor)
@@ -311,6 +370,8 @@ mergeInto(LibraryManager.library,
 		{
 			var gp = gamepads[i];
 			if (gp === undefined)
+				continue;
+			if (gp == null)
 				continue;
 			for (var j = 0; j < gp.buttons.length; j+=1)
 			{
@@ -348,6 +409,20 @@ mergeInto(LibraryManager.library,
 		FTEC.evcb.jaxis = evjaxis;
 		FTEC.evcb.wantfullscreen = evwantfullscreen;
 
+		if (navigator.getVRDisplays)
+		{
+			FTEC.vrframeData = new VRFrameData();
+			navigator.getVRDisplays().then(function (displays)
+			{
+				if (displays.length > 0)
+				{
+					FTEC.vrDisplay = displays[0];
+//					if (vrDisplay.capabilities.canPresent)
+				}
+			})
+		}
+		
+
 		if ('GamepadEvent' in window)
 			FTEH.gamepads = [];	//don't bother ever trying to poll if we can use gamepad events. this will hopefully avoid weirdness.
 
@@ -374,7 +449,7 @@ mergeInto(LibraryManager.library,
 				document.addEventListener(event, FTEC.handleevent, true);
 			});
 
-			var windowevents = ['message'];
+			var windowevents = ['message','vrdisplaypresentchange','vrdisplayactivate','vrdisplaydeactivate'];
 			windowevents.forEach(function(event)
 			{
 				window.addEventListener(event, FTEC.handleevent, true);
@@ -446,8 +521,16 @@ mergeInto(LibraryManager.library,
 		Module["sched"] = function()
 		{
 			var dovsync = false;
+			var vr = false;
 			if (ABORT)
 				return;
+				
+			if (FTEC.vrDisplay)
+			{
+				vr = FTEC.vrDisplay.isPresenting;
+				FTEC.vrDisplay.getFrameData(FTEC.vrframeData);
+			}
+			
 			try
 			{
 				dovsync = Runtime.dynCall('i', fnc, []);
@@ -456,8 +539,15 @@ mergeInto(LibraryManager.library,
 			{
 				console.log(err);
 			}
+			if (vr)
+				FTEC.vrDisplay.submitFrame();
 			if (dovsync)
-				Browser.requestAnimationFrame(Module["sched"]);
+			{
+				if (FTEC.vrDisplay)
+					FTEC.vrDisplay.requestAnimationFrame(Module["sched"]);
+				else
+					Browser.requestAnimationFrame(Module["sched"]);
+			}
 			else
 				setTimeout(Module["sched"], 0);
 		};

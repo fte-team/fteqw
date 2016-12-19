@@ -845,7 +845,7 @@ entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 
 			VectorSubtract(start, pe->origin, ts);
 			VectorSubtract(end, pe->origin, te);
-			pe->model->funcs.NativeTrace(pe->model, 0, pe->framestate.g[FS_REG].frame[pe->framestate.g[FS_REG].lerpweight[1] > pe->framestate.g[FS_REG].lerpweight[0]], pe->axis, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
+			pe->model->funcs.NativeTrace(pe->model, 0, &pe->framestate, pe->axis, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
 			if (trace.fraction<1)
 			{
 				VectorSubtract(trace.endpos, ts, delta);

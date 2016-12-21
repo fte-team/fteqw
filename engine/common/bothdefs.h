@@ -109,7 +109,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#if !defined(_MSC_VER) || _MSC_VER > 1200
 		#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
 	#endif
-#elif defined(__linux__) || defined(__CYGWIN__)
+#elif (defined(__linux__) || defined(__CYGWIN__)) && !defined(ANDROID)
 	#define HAVE_GNUTLS		//currently disabled as it does not validate the server's certificate, beware the mitm attack.
 #endif
 #endif

@@ -161,11 +161,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 //================================================================= LINUX ===
 
-#if defined(__linux__) || defined(__FreeBSD_kernel__)
+#if defined(__linux__) || defined(__FreeBSD_kernel__) || defined(ANDROID) || defined(__ANDROID__)
 
 #include <endian.h>
 
-#if defined(__linux__)
+#if defined(ANDROID) || defined(__ANDROID__)
+#define OS_STRING "android"
+#elif defined(__linux__)
 #define OS_STRING "linux"
 #else
 #define OS_STRING "kFreeBSD"
@@ -330,6 +332,30 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #endif
 
+#ifdef FTE_TARGET_WEB
+#define OS_STRING "emscripten"
+#define ID_INLINE static inline
+#define PATH_SEP '/'
+
+#define ARCH_STRING "web"
+
+#define Q3_LITTLE_ENDIAN
+
+#define DLL_EXT ".so"
+#endif
+
+#ifdef NACL
+#define OS_STRING "nacl"
+#define ID_INLINE static inline
+#define PATH_SEP '/'
+
+#define ARCH_STRING "web"
+
+#define Q3_LITTLE_ENDIAN
+
+#define DLL_EXT ".so"
+#endif
+
 //================================================================== Q3VM ===
 
 #ifdef Q3_VM
@@ -348,23 +374,28 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 //catch missing defines in above blocks
 #if !defined( OS_STRING )
-#error "Operating system not supported"
+#define ARCH_STRING "unknown"
+//#error "Operating system not supported"
 #endif
 
 #if !defined( ARCH_STRING )
-#error "Architecture not supported"
+#define ARCH_STRING "unk"
+//#error "Architecture not supported"
 #endif
 
 #ifndef ID_INLINE
-#error "ID_INLINE not defined"
+#define ID_INLINE static
+//#error "ID_INLINE not defined"
 #endif
 
 #ifndef PATH_SEP
-#error "PATH_SEP not defined"
+#define PATH_SEP '/'
+//#error "PATH_SEP not defined"
 #endif
 
 #ifndef DLL_EXT
-#error "DLL_EXT not defined"
+#define DLL_EXT ".so"
+//#error "DLL_EXT not defined"
 #endif
 
 

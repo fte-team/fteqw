@@ -1,7 +1,7 @@
 #include "progsint.h"
 #include "qcc.h"
 
-#if !defined(NO_ZLIB) && !defined(FTE_TARGET_WEB)
+#if !defined(NO_ZLIB) && !defined(FTE_TARGET_WEB) && !defined(NACL)
 #define AVAIL_ZLIB
 #endif
 
@@ -104,7 +104,6 @@ int SafeSeek(int hand, int ofs, int mode);
 //we are allowed to trash our input here.
 int QC_encode(progfuncs_t *progfuncs, int len, int method, const char *in, int handle)
 {
-	int i;
 	if (method == 0) //copy, allows a lame pass-through.
 	{		
 		SafeWrite(handle, in, len);
@@ -121,6 +120,7 @@ int QC_encode(progfuncs_t *progfuncs, int len, int method, const char *in, int h
 	{
 #ifdef AVAIL_ZLIB
 		char out[8192];
+		int i=0;
 
 		z_stream strm = {
 			(char *)in,
@@ -142,7 +142,6 @@ int QC_encode(progfuncs_t *progfuncs, int len, int method, const char *in, int h
 			0,
 			0
 		};
-		i=0;
 
 		if (method == 8)
 			deflateInit2(&strm, 9, Z_DEFLATED, -MAX_WBITS, 9, Z_DEFAULT_STRATEGY);		//zip deflate compression

@@ -5672,6 +5672,7 @@ static struct {
 
 //	{"bulleten",				PF_bulleten,		243}, (removed builtin)
 	{"rotatevectorsbytag",		PF_rotatevectorsbytag,	244},
+	{"mod",						PF_mod,				245},
 
 	{"sqlconnect",				PF_NoCSQC,			250},	// #250 float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)
 	{"sqldisconnect",			PF_NoCSQC,			251},	// #251 void(float serveridx) sqldisconnect (FTE_SQL)

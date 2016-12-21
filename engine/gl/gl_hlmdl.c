@@ -195,8 +195,10 @@ static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, 
 	mesh->lmst_array[0] = ZG_Malloc(model->memgroup, sizeof(*mesh->lmst_array[0])*uvertcount);
 	mesh->xyz_array = ZG_Malloc(model->memgroup, sizeof(*mesh->xyz_array)*uvertcount);
 	mesh->normals_array = ZG_Malloc(model->memgroup, sizeof(*mesh->normals_array)*uvertcount);
+#if defined(RTLIGHTS)
 	mesh->snormals_array = ZG_Malloc(model->memgroup, sizeof(*mesh->snormals_array)*uvertcount);
 	mesh->tnormals_array = ZG_Malloc(model->memgroup, sizeof(*mesh->tnormals_array)*uvertcount);
+#endif
 	mesh->bonenums = ZG_Malloc(model->memgroup, sizeof(*mesh->bonenums)*uvertcount);
 	mesh->boneweights = ZG_Malloc(model->memgroup, sizeof(*mesh->boneweights)*uvertcount);
 
@@ -220,8 +222,10 @@ static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, 
 	free(uvert);
 	free(index);
 
+#if defined(RTLIGHTS)
 	//treat this as the base pose, and calculate the sdir+tdir for bumpmaps.
 	R_Generate_Mesh_ST_Vectors(mesh);
+#endif
 }
 #endif
 
@@ -875,9 +879,10 @@ qboolean HLMDL_Trace		(model_t *model, int hulloverride, framestate_t *framestat
 	{
 		startout = false;
 		endout = false;
-		enterplane= 0;
+		enterplane = 0;
 		enterfrac = -1;
 		exitfrac = 10;
+		enterdist = 0;
 
 		//fixme: would be nice to check if there's a possible collision a bit faster, without needing to do lots of excess maths.
 

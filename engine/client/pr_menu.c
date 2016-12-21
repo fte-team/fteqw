@@ -2804,6 +2804,7 @@ qboolean MP_Keydown(int key, int unicode, unsigned int devid)
 		G_FLOAT(OFS_PARM0) = MP_TranslateFTEtoQCCodes(key);
 		G_FLOAT(OFS_PARM1) = unicode;
 		PR_ExecuteProgram(menu_world.progs, mp_keydown_function);
+		result = true;	//doesn't have a return value, so if the menu is set up for key events, all events are considered eaten.
 	}
 	inmenuprogs--;
 	return result;

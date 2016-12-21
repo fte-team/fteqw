@@ -1961,7 +1961,8 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 				externs->entspawn((struct edict_s *) ed, true);
 			file = ED_ParseEdict(progfuncs, file, ed);
 
-			callback(ppf, (struct edict_s *)ed, ctx, datastart, file);
+			if (callback)
+				callback(ppf, (struct edict_s *)ed, ctx, datastart, file);
 		}
 		else if (!strcmp(qcc_token, "progs"))
 		{

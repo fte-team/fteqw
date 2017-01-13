@@ -14,7 +14,7 @@ UPGRADE_OBJS= \
 
 default: all
 
-all: iqm.exe upgrade.exe
+all: iqm.exe #upgrade.exe
 
 clean:
 	-$(RM) $(IQM_OBJS) $(UPGRADE_OBJS) iqm.exe upgrade.exe

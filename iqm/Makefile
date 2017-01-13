@@ -8,7 +8,7 @@ UPGRADE_OBJS= \
 
 default: all
 
-all: iqm upgrade
+all: iqm #upgrade
 
 clean:
 	-$(RM) $(IQM_OBJS) $(UPGRADE_OBJS) iqm upgrade

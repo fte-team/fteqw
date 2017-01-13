@@ -396,6 +396,21 @@ int HLMDL_FrameForName(model_t *mod, const char *name)
 	return -1;
 }
 
+qboolean HLMDL_GetModelEvent(model_t *model, int animation, int eventidx, float *timestamp, int *eventcode, char **eventdata)
+{
+	hlmodel_t *mc = Mod_Extradata(model);
+	hlmdl_header_t *h = mc->header;
+	hlmdl_event_t *ev;
+	hlmdl_sequencelist_t *seq = animation + (hlmdl_sequencelist_t*)((char*)h+h->seqindex);
+	if (animation < 0 || animation >= h->numseq || eventidx < 0 || eventidx >= seq->num_events)
+		return false;
+	ev = eventidx + (hlmdl_event_t*)((char*)h+seq->ofs_events);
+	*timestamp = ev->pose / seq->timing;
+	*eventcode = ev->code;
+	*eventdata = ev->data;
+	return true;
+}
+
 int HLMDL_BoneForName(model_t *mod, const char *name)
 {
 	int i;

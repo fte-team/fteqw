@@ -3240,7 +3240,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			framestate_t fs;
 			fs.skeltype = SKEL_IDENTITY;
 			fs.bonecount = 0;
-			skel_lookup(sv.world.progs, ent->xv->skeletonindex, &fs);
+			skel_lookup(&sv.world, ent->xv->skeletonindex, &fs);
 			if (fs.skeltype == SKEL_RELATIVE && fs.bonecount)
 			{
 				Bones_To_PosQuat4(fs.bonecount, fs.bonestate, AllocateBoneSpace(pack, state->bonecount = fs.bonecount, &state->boneoffset));

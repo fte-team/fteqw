@@ -2,6 +2,14 @@
 
 #include "com_mesh.h"
 
+#ifdef __F16C__
+#ifdef _MSC_VER
+	#include <intrin.h>
+#else
+	#include <x86intrin.h>
+#endif
+#endif
+
 qboolean		r_loadbumpmapping;
 extern cvar_t dpcompat_psa_ungroup;
 extern cvar_t r_noframegrouplerp;
@@ -1251,6 +1259,7 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, framestate_t *framestate, gali
 				);
 }
 
+#if !defined(SERVERONLY)
 static void Alias_BuildSkeletalVerts(float *xyzout, framestate_t *framestate, galiasinfo_t *inf)
 {
 	float buffer[MAX_BONES*12];
@@ -1261,6 +1270,7 @@ static void Alias_BuildSkeletalVerts(float *xyzout, framestate_t *framestate, ga
 
 	Alias_TransformVerticies_V(bonepose, inf->numverts, bidx, weight, inf->ofs_skel_xyz[0], xyzout);
 }
+#endif
 
 #if defined(MD5MODELS) || defined(ZYMOTICMODELS) || defined(DPMMODELS)
 static int QDECL sortweights(const void *v1, const void *v2)	//helper for Alias_BuildGPUWeights
@@ -1901,9 +1911,120 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	return true;	//to allow the mesh to be dlighted.
 }
 
+#ifndef SERVERONLY
+//used by the modelviewer.
+void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader)
+{
+	galiasinfo_t *mod;
+	galiasanimation_t *group;
+	galiaspose_t *pose;
+	scenetris_t *t;
+	vecV_t *posedata = NULL;
+	int surfnum = 0, i;
+#ifdef SKELETALMODELS
+	int cursurfnum = -1;
+#endif
 
+	if (!ent->model || ent->model->loadstate != MLS_LOADED || ent->model->type != mod_alias)
+		return;
+	mod = Mod_Extradata(ent->model);
 
+	for(; mod; mod = mod->nextsurf, surfnum++)
+	{
+		if (surfaceidx < 0)
+		{
+			if (!mod->contents)
+				continue;
+		}
+		else if (surfnum != surfaceidx)
+			continue;
 
+#ifdef SKELETALMODELS
+		if (mod->numbones)
+		{
+			if (!mod->ofs_skel_idx)
+				posedata = mod->ofs_skel_xyz;	//if there's no weights, don't try animating anything.
+			else if (mod->shares_verts != cursurfnum || !posedata)
+			{
+				cursurfnum = mod->shares_verts;
+
+				posedata = alloca(mod->numverts*sizeof(vecV_t));
+				Alias_BuildSkeletalVerts((float*)posedata, &ent->framestate, mod);
+			}
+			//else posedata = posedata;
+		}
+		else 
+#endif
+		if (!mod->numanimations)
+			continue;
+		else
+		{
+			group = mod->ofsanimations;
+			group += ent->framestate.g[FS_REG].frame[0] % mod->numanimations;
+			//FIXME: no support for frame blending.
+			if (!group->numposes || !group->poseofs)
+				continue;
+			pose = group->poseofs;
+			pose += (int)(ent->framestate.g[FS_REG].frametime[0] * group->rate)%group->numposes;
+			posedata = pose->ofsverts;
+		}
+
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris+=8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = shader;
+		t->flags = 0;//BEF_LINES;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+		if (t->flags&BEF_LINES)
+			t->numidx = mod->numindexes*2;
+		else
+			t->numidx = mod->numindexes;
+		t->numvert = mod->numverts;
+
+		if (cl_numstrisidx+t->numidx > cl_maxstrisidx)
+		{
+			cl_maxstrisidx=cl_numstrisidx+t->numidx;
+			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+		}
+		if (cl_numstrisvert+mod->numverts > cl_maxstrisvert)
+		{
+			cl_maxstrisvert=cl_numstrisvert+mod->numverts;
+			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+		}
+		for (i = 0; i < mod->numverts; i++)
+		{
+			VectorAdd(ent->origin, posedata[i], cl_strisvertv[t->firstvert+i]);
+			Vector2Set(cl_strisvertt[t->firstvert+i], 0.5, 0.5);
+			Vector4Set(cl_strisvertc[t->firstvert+i], (mod->contents?1:0), 1, 1, 0.1);
+		}
+		if (t->flags&BEF_LINES)
+		{
+			for (i = 0; i < mod->numindexes; i+=3)
+			{
+				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+0];
+				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+1];
+				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+1];
+				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+2];
+				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+2];
+				cl_strisidx[cl_numstrisidx++] = mod->ofs_indexes[i+0];
+			}
+		}
+		else
+		{
+			for (i = 0; i < mod->numindexes; i++)
+				cl_strisidx[cl_numstrisidx+i] = mod->ofs_indexes[i];
+			cl_numstrisidx += mod->numindexes;
+		}
+		cl_numstrisvert += mod->numverts;
+	}
+}
+#endif
 
 
 static float PlaneNearest(vec3_t normal, vec3_t mins, vec3_t maxs)
@@ -2111,11 +2232,14 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, framestate_t *framestate, v
 
 //	float temp;
 
-	vecV_t *posedata;
+	vecV_t *posedata = NULL;
 	index_t *indexes;
 	int surfnum = 0;
 #ifdef SKELETALMODELS
-	int cursurfnum = -1;
+	int cursurfnum = -1, curbonesurf = -1;
+	float buffer[MAX_BONES*12];
+	float bufferalt[MAX_BONES*12];
+	const float *bonepose = NULL;
 #endif
 
 	vec3_t start_l, end_l;
@@ -2139,19 +2263,27 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, framestate_t *framestate, v
 
 	for(; mod; mod = mod->nextsurf, surfnum++)
 	{
+		if (!(mod->contents & contentsmask))
+			continue;	//this mesh isn't solid to the trace
+
 		indexes = mod->ofs_indexes;
 #ifdef SKELETALMODELS
 		if (mod->numbones)
 		{
 			if (!mod->ofs_skel_idx)
 				posedata = mod->ofs_skel_xyz;	//if there's no weights, don't try animating anything.
-			else if (mod->shares_verts != cursurfnum)
+			else if (mod->shares_verts != cursurfnum || !posedata)
 			{
 				cursurfnum = mod->shares_verts;
-
+				if (curbonesurf != mod->shares_bones)
+				{
+					curbonesurf = mod->shares_bones;
+					bonepose = Alias_GetBoneInformation(mod, framestate, SKEL_INVERSE_ABSOLUTE, buffer, bufferalt, MAX_BONES);
+				}
 				posedata = alloca(mod->numverts*sizeof(vecV_t));
-				Alias_BuildSkeletalVerts((float*)posedata, framestate, mod);
+				Alias_TransformVerticies_V(bonepose, mod->numverts, mod->ofs_skel_idx[0], mod->ofs_skel_weight[0], mod->ofs_skel_xyz[0], posedata[0]);
 			}
+			//else posedata = posedata;
 		}
 		else 
 #endif
@@ -2169,10 +2301,11 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, framestate_t *framestate, v
 			posedata = pose->ofsverts;
 		}
 
-		trace->truefraction = 1;
 		if (Mod_Trace_Trisoup(posedata, indexes, mod->numindexes, start_l, end_l, mins, maxs, trace))
 		{
-			trace->surface_id = 1+surfnum;
+			trace->contents = mod->contents;
+			trace->surface = &mod->csurface;
+			trace->surface_id = mod->surfaceid;
 			trace->bone_id = 0;
 #ifdef SKELETALMODELS
 			if (mod->ofs_skel_weight)
@@ -2248,7 +2381,7 @@ static void Mod_ClampModelSize(model_t *mod)
 	if (mod->engineflags & MDLF_DOCRC)
 	{
 		if (!strcmp(mod->name, "progs/eyes.mdl"))
-		{       //this is checked elsewhere to make sure the crc matches (this is to make sure the crc check was actually called)
+		{	//this is checked elsewhere to make sure the crc matches (this is to make sure the crc check was actually called)
 			if (mod->type != mod_alias || mod->fromgame != fg_quake || mod->flags)
 				mod->tainted = true;
 		}
@@ -2386,6 +2519,18 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 
 	*numgroups = count;
 	return frames;
+}
+
+void Mod_DefaultMesh(galiasinfo_t *galias, const char *name, unsigned int index)
+{
+	Q_strncpyz(galias->surfacename, name, sizeof(galias->surfacename));
+	Q_strncpyz(galias->csurface.name, COM_SkipPath(name), sizeof(galias->csurface.name));
+	galias->contents = FTECONTENTS_BODY;
+	galias->geomset = ~0;	//invalid set = always visible
+	galias->geomid = 0;
+	galias->mindist = 0;
+	galias->maxdist = 0;
+	galias->surfaceid = index+1;
 }
 
 void Mod_DestroyMesh(galiasinfo_t *galias)
@@ -2736,7 +2881,12 @@ void Mod_LoadAliasShaders(model_t *mod)
 				if (!f->shader)
 				{
 					if (!f->defaultshader)
-						f->shader = R_RegisterSkin(f->shadername, mod->name);
+					{
+						if (ai->csurface.flags & 0x80)	//nodraw
+							f->shader = R_RegisterShader(f->shadername, SUF_NONE,	"{\nsurfaceparm nodraw\nsurfaceparm nodlight\nsurfaceparm nomarks\nsurfaceparm noshadows\n}\n");
+						else
+							f->shader = R_RegisterSkin(f->shadername, mod->name);
+					}
 					else
 						f->shader = R_RegisterShader(f->shadername, SUF_NONE, f->defaultshader);
 				}
@@ -2771,7 +2921,7 @@ void Mod_LoadAliasShaders(model_t *mod)
 
 
 //Q1 model loading
-#if 1
+#ifdef MD1MODELS
 #define NUMVERTEXNORMALS	162
 extern float	r_avertexnormals[NUMVERTEXNORMALS][3];
 // mdltype 0 = q1, 1 = qtest, 2 = rapo/h2
@@ -3207,7 +3357,68 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 }
 #endif
 
-void Mesh_HandleFramegroupsFile(model_t *mod, galiasinfo_t *galias)
+//parses a foo.mdl.events file and inserts the events into the relevant animations
+static void Mod_InsertEvent(zonegroup_t *mem, galiasanimation_t *anims, unsigned int numanimations, unsigned int eventanimation, float eventpose, int eventcode, const char *eventdata)
+{
+	galiasevent_t *ev, **link;
+	if (eventanimation >= numanimations)
+	{
+		Con_Printf("Mod_InsertEvent: invalid frame index\n");
+		return;
+	}
+	ev = ZG_Malloc(mem, sizeof(*ev) + strlen(eventdata)+1);
+	ev->data = (char*)(ev+1);
+
+	ev->timestamp = eventpose;
+	ev->timestamp /= anims[eventanimation].rate;
+	ev->code = eventcode;
+	strcpy(ev->data, eventdata);
+	link = &anims[eventanimation].events;
+	while (*link && (*link)->timestamp <= ev->timestamp)
+		link = &(*link)->next;
+	ev->next = *link;
+	*link = ev;
+}
+static qboolean Mod_ParseModelEvents(model_t *mod, galiasanimation_t *anims, unsigned int numanimations)
+{
+	unsigned int anim;
+	float pose;
+	int eventcode;
+
+	const char *modelname = mod->name;
+	zonegroup_t *mem = &mod->memgroup;
+	char fname[MAX_QPATH], tok[2048];
+	size_t fsize;
+	char *line, *file, *eol;
+	Q_snprintfz(fname, sizeof(fname), "%s.events", modelname);
+	line = file = COM_LoadFile(fname, 5, &fsize);
+	if (!file)
+		return false;
+	while(line && *line)
+	{
+		eol = strchr(line, '\n');
+		if (eol)
+			*eol = 0;
+
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		anim = strtoul(tok, NULL, 0);
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		pose = strtod(tok, NULL);
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		eventcode = (long)strtol(tok, NULL, 0);
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		Mod_InsertEvent(mem, anims, numanimations, anim, pose, eventcode, tok);
+
+		if (eol)
+			line = eol+1;
+		else
+			break;
+	}
+	BZ_Free(file);
+	return true;
+}
+
+static void Mesh_HandleFramegroupsFile(model_t *mod, galiasinfo_t *galias)
 {
 	unsigned int numanims, a, p, g, oldnumanims = galias->numanimations, targpose;
 	galiasanimation_t *o, *oldanims = galias->ofsanimations, *frame;
@@ -3241,7 +3452,7 @@ void Mesh_HandleFramegroupsFile(model_t *mod, galiasinfo_t *galias)
 	}
 }
 
-qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
+static qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 {
 #ifndef SERVERONLY
 	vec2_t *st_array;
@@ -3324,6 +3535,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		+ pq1inmodel->numframes*sizeof(galiasanimation_t);
 
 	galias = ZG_Malloc(&mod->memgroup, size);
+	Mod_DefaultMesh(galias, mod->name, 0);
 	galias->ofsanimations = (galiasanimation_t*)(galias+1);
 #ifndef SERVERONLY
 	galias->ofsskins = (galiasskin_t*)(galias->ofsanimations+pq1inmodel->numframes);
@@ -3547,6 +3759,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 
 	mod->type = mod_alias;
 	Mod_ClampModelSize(mod);
+	Mod_ParseModelEvents(mod, galias->ofsanimations, galias->numanimations);
 
 	Mesh_HandleFramegroupsFile(mod, galias);
 
@@ -3571,15 +3784,13 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		galias->lerpcutoff = 30;
 #ifdef HEXEN2
 	if ((mod->flags == MF_ROCKET) && !strncmp(mod->name, "models/sflesh", 13))
-		mod->flags = MFH2_ROCKET;
+		mod->flags = MFH2_SPIDERBLOOD;
 #endif
 
 	return true;
 }
-#endif
 
-
-int Mod_ReadFlagsFromMD1(char *name, int md3version)
+static int Mod_ReadFlagsFromMD1(char *name, int md3version)
 {
 	int result = 0;
 	size_t fsize;
@@ -3605,6 +3816,12 @@ int Mod_ReadFlagsFromMD1(char *name, int md3version)
 	}
 	return result;
 }
+#else
+static int Mod_ReadFlagsFromMD1(char *name, int md3version)
+{
+	return 0;
+}
+#endif
 
 #ifdef MD2MODELS
 
@@ -3732,6 +3949,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 		+ LittleLong(pq2inmodel->num_frames)*sizeof(galiasanimation_t);
 
 	galias = ZG_Malloc(&mod->memgroup, size);
+	Mod_DefaultMesh(galias, mod->name, 0);
 	galias->ofsanimations = (galiasanimation_t*)(galias+1);
 #ifndef SERVERONLY
 	galias->ofsskins = (galiasskin_t*)(galias->ofsanimations + LittleLong(pq2inmodel->num_frames));
@@ -3887,6 +4105,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 	*/
 
 	Mod_ClampModelSize(mod);
+	Mod_ParseModelEvents(mod, galias->ofsanimations, galias->numanimations);
 
 	mod->meshinfo = galias;
 	mod->numframes = galias->numanimations;
@@ -4321,6 +4540,36 @@ int Mod_FrameNumForName(model_t *model, int surfaceidx, const char *name)
 	return -1;
 }
 
+
+qboolean Mod_GetModelEvent(model_t *model, int animation, int eventidx, float *timestamp, int *eventcode, char **eventdata)
+{
+	if (!model)
+		return false;
+	if (model->type == mod_alias)
+	{
+		galiasinfo_t *inf = Mod_Extradata(model);
+		if (inf && animation >= 0 && animation < inf->numanimations)
+		{
+			galiasanimation_t *anim = inf->ofsanimations + animation;
+			galiasevent_t *ev = anim->events;
+			while (eventidx-->0 && ev)
+				ev = ev->next;
+			if (ev)
+			{
+				*timestamp = ev->timestamp;
+				*eventcode = ev->code;
+				*eventdata = ev->data;
+				return true;
+			}
+		}
+	}
+#ifdef HALFLIFEMODELS
+	if (model->type == mod_halflife)
+		return HLMDL_GetModelEvent(model, animation, eventidx, timestamp, eventcode, eventdata);
+#endif
+	return false;
+}
+
 #ifndef SERVERONLY
 int Mod_SkinNumForName(model_t *model, int surfaceidx, const char *name)
 {
@@ -4647,6 +4896,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 			Con_Printf(CON_WARNING "Warning: md3 sub-surface doesn't match ident\n");
 		size = sizeof(galiasinfo_t) + sizeof(galiasanimation_t)*LittleLong(header->numFrames);
 		galias = ZG_Malloc(&mod->memgroup, size);
+		Mod_DefaultMesh(galias, surf->name, s);
 		galias->ofsanimations = (galiasanimation_t*)(galias+1);	//frame groups
 		galias->numanimations = LittleLong(header->numFrames);
 		galias->numverts = LittleLong(surf->numVerts);
@@ -4657,8 +4907,6 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 		else
 			root = galias;
 		parent = galias;
-
-		Q_strncpyz(galias->surfacename, surf->name, sizeof(galias->surfacename));
 
 #ifndef SERVERONLY
 		st_array = ZG_Malloc(&mod->memgroup, sizeof(vec2_t)*galias->numindexes);
@@ -4779,7 +5027,10 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 	}
 
 	if (!root)
+	{
 		root = ZG_Malloc(&mod->memgroup, sizeof(galiasinfo_t));
+		Mod_DefaultMesh(root, mod->name, 0);
+	}
 
 	root->numtagframes = LittleLong(header->numFrames);
 	root->numtags = LittleLong(header->numTags);
@@ -4822,6 +5073,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 		mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);
 
 	Mod_ClampModelSize(mod);
+	Mod_ParseModelEvents(mod, root->ofsanimations, root->numanimations);
 
 	mod->type = mod_alias;
 	mod->numframes = root->numanimations;
@@ -5067,10 +5319,9 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 
 	for (i = 0; i < header->numsurfaces; i++, surfname+=32)
 	{
+		Mod_DefaultMesh(&root[i], surfname, i);
 		root[i].numanimations = header->numscenes;
 		root[i].ofsanimations = grp;
-
-		Q_strncpyz(root[i].surfacename, surfname, sizeof(root[i].surfacename));
 
 #ifdef SERVERONLY
 		root[i].numskins = 1;
@@ -5129,6 +5380,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
 	Mod_ClampModelSize(mod);
+	Mod_ParseModelEvents(mod, root->ofsanimations, root->numanimations);
 
 
 	mod->meshinfo = root;
@@ -5528,6 +5780,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	}
 
 	gmdl = ZG_Malloc(&mod->memgroup, sizeof(*gmdl)*num_matt);
+	Mod_DefaultMesh(gmdl, mod->name, 0);
 
 	/*bones!*/
 	bones = ZG_Malloc(&mod->memgroup, sizeof(galiasbone_t) * num_boneinfo);
@@ -5804,6 +6057,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
 	Mod_ClampModelSize(mod);
+	Mod_ParseModelEvents(mod, gmdl->ofsanimations, gmdl->numanimations);
 
 
 	mod->meshinfo = gmdl;
@@ -6026,6 +6280,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 	for (i = 0; i < header->num_meshs; i++, mesh++)
 	{
 		m = &root[i];
+		Mod_DefaultMesh(m, mesh->shadername, i);
 		if (i < header->num_meshs-1)
 			m->nextsurf = &root[i+1];
 		m->shares_bones = 0;
@@ -6035,9 +6290,6 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 
 		m->numanimations = header->num_frames;
 		m->ofsanimations = outgroups;
-
-
-		Q_strncpyz(m->surfacename, mesh->shadername, sizeof(m->surfacename));
 
 #ifdef SERVERONLY
 		m->numskins = 1;
@@ -6146,6 +6398,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
 	Mod_ClampModelSize(mod);
+	Mod_ParseModelEvents(mod, root->ofsanimations, root->numanimations);
 
 	mod->meshinfo = root;
 	mod->numframes = root->numanimations;
@@ -6274,6 +6527,46 @@ struct iqmbounds
 	float xyradius, radius;
 };
 
+struct iqmextension
+{
+	unsigned int name;
+	unsigned int num_data, ofs_data;
+	unsigned int ofs_extensions; // pointer to next extension. wtf is up with this? how is this not redundant due to ofs_data?
+};
+
+
+struct iqmext_fte_mesh
+{
+	unsigned int contents;		//default CONTENTS_BODY
+	unsigned int surfaceflags;	//propagates to trace_surfaceflags
+	unsigned int surfaceid;		//the body reported to qc via trace_surface
+	unsigned int geomset;
+	unsigned int geomid;
+	float	mindist;
+	float	maxdist;
+};
+struct iqmext_fte_event
+{
+	unsigned int anim;
+	float timestamp;
+	unsigned int evcode;
+	unsigned int evdata_str;	//stringtable
+};
+/*struct iqmext_fte_shader
+{
+	unsigned int material;
+	unsigned int defaultshaderbody;
+	unsigned int ofs_data;		//rgba or 8bit, depending on whether a palette is specified
+	unsigned int width;			//if ofs_data
+	unsigned int height;		//if ofs_data
+	unsigned int ofs_palette;	//rgba*256. colourmapped if exactly matches quake's palette
+};
+//struct iqmext_fte_ragdoll; // pure text
+struct iqmext_fte_bone
+{
+	unsigned int bonegroup;
+};*/
+
 /*
 galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, float *vpos, float *tcoord, float *vnorm, float *vtang, unsigned char *vbone, unsigned char *vweight)
 {
@@ -6304,7 +6597,7 @@ galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, f
 }
 */
 
-static qboolean IQM_ImportArray4B(qbyte *base, struct iqmvertexarray *src, byte_vec4_t *out, size_t count, unsigned int maxval)
+static qboolean IQM_ImportArray4B(const qbyte *base, const struct iqmvertexarray *src, byte_vec4_t *out, size_t count, unsigned int maxval)
 {
 	size_t i;
 	unsigned int j;
@@ -6398,7 +6691,7 @@ static qboolean IQM_ImportArray4B(qbyte *base, struct iqmvertexarray *src, byte_
 
 	return !invalid;
 }
-static void IQM_ImportArrayF(qbyte *base, struct iqmvertexarray *src, float *out, size_t e, size_t count, float *def)
+static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src, float *out, size_t e, size_t count, float *def)
 {
 	size_t i;
 	unsigned int j;
@@ -6415,9 +6708,9 @@ static void IQM_ImportArrayF(qbyte *base, struct iqmvertexarray *src, float *out
 	default:
 		sz = 0;
 		break;
-	case IQM_BYTE:	//FIXME: should be signed
+	case IQM_BYTE:	//negatives not handled properly
 		{
-			char *in = (qbyte*)(base+offset);
+			signed char *in = (signed char*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -6435,9 +6728,9 @@ static void IQM_ImportArrayF(qbyte *base, struct iqmvertexarray *src, float *out
 			}
 		}
 		break;
-	case IQM_SHORT:
+	case IQM_SHORT:	//negatives not handled properly
 		{
-			short *in = (short*)(base+offset);
+			signed short *in = (signed short*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
@@ -6455,28 +6748,50 @@ static void IQM_ImportArrayF(qbyte *base, struct iqmvertexarray *src, float *out
 			}
 		}
 		break;
-	case IQM_INT://FIXME: should be signed
+	case IQM_INT:	//negatives not handled properly
+		{
+			signed int *in = (signed int*)(base+offset);
+			for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < e && j < sz; j++)
+					out[i*e+j] = in[i*sz+j]/(float)0x7fffffff;
+			}
+		}
+		break;
 	case IQM_UINT:
 		{
 			unsigned int *in = (unsigned int*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
-					out[i*e+j] = in[i*sz+j];
+					out[i*e+j] = in[i*sz+j]/(float)0xffffffffu;
 			}
 		}
 		break;
 
-	/*case IQM_HALF:
+	case IQM_HALF:
+#ifdef __F16C__
+		{	//x86 intrinsics
+			unsigned short *in = (qbyte*)(base+offset);
+			for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < e && j < sz; j++)
+					out[i*e+j] = _cvtsh_ss(in[i*sz+j]);
+			}
+		}
+#elif 0
 		{
-			__fp16 *in = (qbyte*)(base+offset);
+			_Float16 *in = (qbyte*)(base+offset);
 			for (i = 0; i < count; i++)
 			{
 				for (j = 0; j < e && j < sz; j++)
 					out[i*e+j] = in[i*sz+j];
 			}
 		}
-		break;*/
+#else
+		sz = 0;
+#endif
+		break;
 	case IQM_FLOAT:
 		{
 			float *in = (float*)(base+offset);
@@ -6512,16 +6827,37 @@ static void IQM_ImportArrayF(qbyte *base, struct iqmvertexarray *src, float *out
 	}
 }
 
-galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
+const void *IQM_FindExtension(const char *buffer, const char *extname, int index, size_t *extsize)
 {
 	struct iqmheader *h = (struct iqmheader *)buffer;
-	struct iqmmesh *mesh;
-	struct iqmvertexarray *varray;
-	struct iqmtriangle *tris;
-	struct iqmanim *anim;
-	unsigned int i, j, t, nt;
+	const char *strings = buffer + h->ofs_text;
+	struct iqmextension *ext;
+	int i;
+	for (i = 0, ext = (struct iqmextension*)(buffer + h->ofs_extensions); i < h->num_extensions; i++, ext = (struct iqmextension*)(buffer + ext->ofs_extensions))
+	{
+		if (!Q_strcasecmp(strings + ext->name, extname) && index-->=0)
+		{
+			*extsize = ext->num_data;
+			return buffer + ext->ofs_data;
+		}
+	}
+	*extsize = 0;
+	return NULL;
+}
 
-	char *strings;
+galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsize)
+{
+	const struct iqmheader *h = (struct iqmheader *)buffer;
+	const struct iqmmesh *mesh;
+	const struct iqmvertexarray *varray;
+	const struct iqmtriangle *tris;
+	const struct iqmanim *anim;
+	const struct iqmext_fte_mesh *ftemesh;
+	const struct iqmext_fte_event *fteevents;
+	const char *strings;
+
+	unsigned int i, j, t, numtris, numverts, firstvert, firsttri;
+	size_t extsize;
 
 	float *vtang = NULL;
 	struct iqmvertexarray vpos = {0}, vnorm = {0}, vtcoord = {0}, vbone = {0}, vweight = {0}, vrgba = {0};
@@ -6557,6 +6893,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 	qboolean noweights;
 	frameinfo_t *framegroups;
 	int numgroups;
+	qboolean fuckedevents = false;
 
 	if (memcmp(h->magic, IQM_MAGIC, sizeof(h->magic)))
 	{
@@ -6599,11 +6936,11 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 			Con_Printf("Unrecognised iqm info (type=%i, fmt=%i, size=%i)\n", type, fmt, size);
 	}
 
-	if (!h->num_meshes)
+	/*if (!h->num_meshes)
 	{
 		Con_Printf("%s: IQM has no meshes\n", mod->name);
 		return NULL;
-	}
+	}*/
 
 	//a mesh must contain vertex coords or its not much of a mesh.
 	//we also require texcoords because we can.
@@ -6615,7 +6952,9 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 		return NULL;
 	}
 	noweights = !vbone.offset || !vweight.offset;
-	if (noweights)
+	if (!h->num_meshes)
+		noweights = true;
+	else if (noweights)
 	{
 		if (h->num_frames || h->num_anims || h->num_joints)
 		{
@@ -6627,6 +6966,26 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 	if (h->num_joints > MAX_BONES)
 	{
 		Con_Printf("%s: IQM has %u joints, max supported is %u.\n", mod->name, h->num_joints, MAX_BONES);
+		return NULL;
+	}
+	if (h->num_poses > MAX_BONES)
+	{
+		Con_Printf("%s: IQM has %u bones, max supported is %u.\n", mod->name, h->num_joints, MAX_BONES);
+		return NULL;
+	}
+	if (h->num_joints && h->num_poses && h->num_joints != h->num_poses)
+	{
+		Con_Printf("%s: IQM has mismatched joints (%i vs %i).\n", mod->name, h->num_joints, h->num_poses);
+		return NULL;
+	}
+	if (h->num_meshes && !h->num_joints)
+	{
+		Con_Printf("%s: mesh IQM has no poses.\n", mod->name);
+		return NULL;
+	}
+	if (h->num_frames && !h->num_poses)
+	{
+		Con_Printf("%s: animated IQM has no poses.\n", mod->name);
 		return NULL;
 	}
 
@@ -6653,6 +7012,8 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 			Q_strncpyz(framegroups[i].name, strings+anim[i].name, sizeof(fgroup[i].name));
 		}
 	}
+	else
+		fuckedevents = true;	//we're not using the animation data from the model, so ignore any events because they won't make sense any more.
 	if (!numgroups)
 	{	/*base frame only*/
 		numgroups = 1;
@@ -6680,7 +7041,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 		if (i)
 			obase = ZG_Malloc(&mod->memgroup, memsize);
 		memsize = 0;
-		dalloc(gai, h->num_meshes);
+		dalloc(gai, max(1,h->num_meshes));
 		dalloc(bones, h->num_joints);
 		dalloc(opos, h->num_vertexes);
 		dalloc(onorm1, h->num_vertexes);
@@ -6838,83 +7199,146 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 	}
 	free(framegroups);
 
-	//determine the bounds
-	inbounds = (struct iqmbounds*)(buffer + h->ofs_bounds);
-	for (i = 0; i < h->num_frames; i++)
+	if (fuckedevents)
 	{
-		vec3_t mins, maxs;
-		mins[0] = LittleFloat(inbounds[i].bbmin[0]);
-		mins[1] = LittleFloat(inbounds[i].bbmin[1]);
-		mins[2] = LittleFloat(inbounds[i].bbmin[2]);
-		AddPointToBounds(mins, mod->mins, mod->maxs);
-		maxs[0] = LittleFloat(inbounds[i].bbmax[0]);
-		maxs[1] = LittleFloat(inbounds[i].bbmax[1]);
-		maxs[2] = LittleFloat(inbounds[i].bbmax[2]);
-		AddPointToBounds(maxs, mod->mins, mod->maxs);
+		fteevents = NULL;
+		extsize = 0;
+	}
+	else
+		fteevents = IQM_FindExtension(buffer, "FTE_EVENT", 0, &extsize);
+	if (fteevents && !(extsize % sizeof(*fteevents)))
+	{
+		galiasevent_t *oevent, **link;
+		extsize /= sizeof(*fteevents);
+		oevent = ZG_Malloc(&mod->memgroup, sizeof(*oevent)*extsize);
+		for (extsize /= sizeof(*fteevents); extsize>0; extsize--, fteevents++,oevent++)
+		{
+			oevent->timestamp = fteevents->timestamp;
+			oevent->code = fteevents->evcode;
+			oevent->data = ZG_Malloc(&mod->memgroup, strlen(strings+fteevents->evdata_str)+1);
+			strcpy(oevent->data, strings+fteevents->evdata_str);
+			oevent->timestamp /= fgroup[fteevents->anim].rate;
+			link = &fgroup[fteevents->anim].events;
+			while (*link && (*link)->timestamp <= oevent->timestamp)
+				link = &(*link)->next;
+			oevent->next = *link;
+			*link = oevent;
+		}
 	}
 
-	for (i = 0; i < h->num_meshes; i++)
+	//determine the bounds
+	inbounds = (struct iqmbounds*)(buffer + h->ofs_bounds);
+	if (h->ofs_bounds)
 	{
-		gai[i].nextsurf = (i == (h->num_meshes-1))?NULL:&gai[i+1];
+		for (i = 0; i < h->num_frames; i++)
+		{
+			vec3_t mins, maxs;
+			mins[0] = LittleFloat(inbounds[i].bbmin[0]);
+			mins[1] = LittleFloat(inbounds[i].bbmin[1]);
+			mins[2] = LittleFloat(inbounds[i].bbmin[2]);
+			AddPointToBounds(mins, mod->mins, mod->maxs);
+			maxs[0] = LittleFloat(inbounds[i].bbmax[0]);
+			maxs[1] = LittleFloat(inbounds[i].bbmax[1]);
+			maxs[2] = LittleFloat(inbounds[i].bbmax[2]);
+			AddPointToBounds(maxs, mod->mins, mod->maxs);
+		}
+	}
+	else
+		AddPointToBounds(vec3_origin, mod->mins, mod->maxs);
+
+	ftemesh = IQM_FindExtension(buffer, "FTE_MESH", 0, &extsize);
+	if (!extsize || extsize != sizeof(*ftemesh)*h->num_meshes)
+		ftemesh = NULL;	//erk.
+
+	for (i = 0; i < max(1, h->num_meshes); i++)
+	{
+		if (h->num_meshes)
+		{
+			Mod_DefaultMesh(&gai[i], strings+mesh[i].name, i);
+			firstvert = LittleLong(mesh[i].first_vertex);
+			numverts = LittleLong(mesh[i].num_vertexes);
+			numtris = LittleLong(mesh[i].num_triangles);
+			firsttri = LittleLong(mesh[i].first_triangle);
+		}
+		else
+		{	//animation-only models still need a place-holder mesh.
+			firstvert = 0;
+			numverts = 0;
+			numtris = 0;
+			firsttri = 0;
+		}
+
+		gai[i].nextsurf = &gai[i+1];
 
 		/*animation info*/
 		gai[i].shares_bones = 0;
-		gai[i].numbones = h->num_joints;
+		gai[i].numbones = h->num_joints?h->num_joints:h->num_poses;
 		gai[i].ofsbones = bones;
 		gai[i].numanimations = numgroups;
 		gai[i].ofsanimations = fgroup;
-		
-		offset = LittleLong(mesh[i].first_vertex);
-
-		Q_strncpyz(gai[i].surfacename, strings+mesh[i].name, sizeof(gai[i].surfacename));
 
 #ifndef SERVERONLY
 		/*colours*/
-		gai[i].ofs_rgbaf = orgbaf?(orgbaf+offset):NULL;
+		gai[i].ofs_rgbaf = orgbaf?(orgbaf+firstvert):NULL;
 		gai[i].ofs_rgbaub = NULL;
 		/*texture coords*/
-		gai[i].ofs_st_array = (otcoords+offset);
+		gai[i].ofs_st_array = (otcoords+firstvert);
 		/*skins*/
-		gai[i].numskins = skinfiles;
-		gai[i].ofsskins = skin;
-
-		for (j = 0; j < skinfiles; j++)
+		if (h->num_meshes)
 		{
-			skin->skinwidth = 1;
-			skin->skinheight = 1;
-			skin->skinspeed = 10; /*something to avoid div by 0*/
-			skin->numframes = 1;	//non-sequenced skins.
-			skin->frame = skinframe;
-			skin++;
+			gai[i].numskins = skinfiles;
+			gai[i].ofsskins = skin;
 
-			Q_strncpyz(skinframe->shadername, strings+mesh[i].material, sizeof(skinframe->shadername));
-			skinframe++;
+			for (j = 0; j < skinfiles; j++)
+			{
+				skin->skinwidth = 1;
+				skin->skinheight = 1;
+				skin->skinspeed = 10; /*something to avoid div by 0*/
+				skin->numframes = 1;	//non-sequenced skins.
+				skin->frame = skinframe;
+				Q_strncpyz(skin->name, "", sizeof(skinframe->shadername));
+				skin++;
+
+				Q_strncpyz(skinframe->shadername, strings+mesh[i].material, sizeof(skinframe->shadername));
+				skinframe++;
+			}
 		}
 #endif
 
-		nt = LittleLong(mesh[i].num_triangles);
 		tris = (struct iqmtriangle*)(buffer + LittleLong(h->ofs_triangles));
-		tris += LittleLong(mesh[i].first_triangle);
-		gai[i].numindexes = nt*3;
+		tris += firsttri;
+		gai[i].numindexes = numtris*3;
 		idx = ZG_Malloc(&mod->memgroup, sizeof(*idx)*gai[i].numindexes);
 		gai[i].ofs_indexes = idx;
-		for (t = 0; t < nt; t++)
+		for (t = 0; t < numtris; t++)
 		{
-			*idx++ = LittleLong(tris[t].vertex[0]) - offset;
-			*idx++ = LittleLong(tris[t].vertex[1]) - offset;
-			*idx++ = LittleLong(tris[t].vertex[2]) - offset;
+			*idx++ = LittleLong(tris[t].vertex[0]) - firstvert;
+			*idx++ = LittleLong(tris[t].vertex[1]) - firstvert;
+			*idx++ = LittleLong(tris[t].vertex[2]) - firstvert;
 		}
 
 		/*verts*/
 		gai[i].shares_verts = i;
-		gai[i].numverts = LittleLong(mesh[i].num_vertexes);
-		gai[i].ofs_skel_xyz = (opos+offset);
-		gai[i].ofs_skel_norm = (onorm1+offset);
-		gai[i].ofs_skel_svect = (onorm2+offset);
-		gai[i].ofs_skel_tvect = (onorm3+offset);
-		gai[i].ofs_skel_idx = oindex?(oindex+offset):NULL;
-		gai[i].ofs_skel_weight = oweight?(oweight+offset):NULL;
+		gai[i].numverts = numverts;
+		gai[i].ofs_skel_xyz = (opos+firstvert);
+		gai[i].ofs_skel_norm = (onorm1+firstvert);
+		gai[i].ofs_skel_svect = (onorm2+firstvert);
+		gai[i].ofs_skel_tvect = (onorm3+firstvert);
+		gai[i].ofs_skel_idx = oindex?(oindex+firstvert):NULL;
+		gai[i].ofs_skel_weight = oweight?(oweight+firstvert):NULL;
+
+		if (ftemesh)
+		{	//if we have extensions, then lets use them!
+			gai[i].geomset = ftemesh[i].geomset;
+			gai[i].geomid = ftemesh[i].geomid;
+			gai[i].contents = ftemesh[i].contents;
+			gai[i].csurface.flags = ftemesh[i].surfaceflags;
+			gai[i].surfaceid = ftemesh[i].surfaceid;
+			gai[i].mindist = ftemesh[i].mindist;
+			gai[i].maxdist = ftemesh[i].maxdist;
+		}
 	}
+	gai[i-1].nextsurf = NULL;
 	if (!noweights)
 	{
 		if (!IQM_ImportArray4B(buffer, &vbone, oindex, h->num_vertexes, h->num_joints))
@@ -6987,10 +7411,12 @@ qboolean QDECL Mod_LoadInterQuakeModel(model_t *mod, void *buffer, size_t fsize)
 	mod->radius = RadiusFromBounds(mod->mins, mod->maxs);
 
 	Mod_ClampModelSize(mod);
+	Mod_ParseModelEvents(mod, root->ofsanimations, root->numanimations);
 
 	mod->numframes = root->numanimations;
 	mod->meshinfo = root;
 	mod->type = mod_alias;
+	mod->funcs.NativeTrace = Mod_Trace;
 
 	return true;
 }
@@ -7381,6 +7807,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 				lastsurf->nextsurf = inf;
 				lastsurf = inf;
 			}
+			Mod_DefaultMesh(inf, COM_SkipPath(mod->name), 0);
 
 			inf->ofsbones = bones;
 			inf->numbones = numjoints;
@@ -7586,7 +8013,7 @@ qboolean QDECL Mod_LoadMD5MeshModel(model_t *mod, void *buffer, size_t fsize)
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
 	Mod_ClampModelSize(mod);
-
+	Mod_ParseModelEvents(mod, root->ofsanimations, root->numanimations);
 
 	mod->type = mod_alias;
 	mod->numframes = root->numanimations;
@@ -7765,6 +8192,7 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
 	Mod_ClampModelSize(mod);
+	Mod_ParseModelEvents(mod, root->ofsanimations, root->numanimations);
 
 	mod->type = mod_alias;
 	mod->numframes = root->numanimations;
@@ -7779,10 +8207,12 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 
 void Alias_Register(void)
 {
+#ifdef MD1MODELS
 	Mod_RegisterModelFormatMagic(NULL, "Quake1 Model (mdl)",				IDPOLYHEADER,							Mod_LoadQ1Model);
 	Mod_RegisterModelFormatMagic(NULL, "QuakeForge 16bit Model",			(('6'<<24)+('1'<<16)+('D'<<8)+'M'),		Mod_LoadQ1Model);
 #ifdef HEXEN2
 	Mod_RegisterModelFormatMagic(NULL, "Hexen2 Model (mdl)",				RAPOLYHEADER,							Mod_LoadQ1Model);
+#endif
 #endif
 #ifdef MD2MODELS
 	Mod_RegisterModelFormatMagic(NULL, "Quake2 Model (md2)",				MD2IDALIASHEADER,						Mod_LoadQ2Model);

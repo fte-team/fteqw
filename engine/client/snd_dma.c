@@ -233,7 +233,7 @@ void S_SoundInfo_f(void)
 					Con_DPrintf(" %s (%i %i, %g %g %g, inactive)\n", sc->channel[i].sfx->name, sc->channel[i].entnum, sc->channel[i].entchannel, sc->channel[i].origin[0], sc->channel[i].origin[1], sc->channel[i].origin[2]);
 			}
 		}
-		Con_Printf(" %d/%d/%d/%d active/known/highest/max\n", active, known, sc->total_chans, MAX_CHANNELS);
+		Con_Printf(" %d/%d/%d/%d active/known/highest/max\n", active, known, sc->total_chans, sc->max_chans);
 		for (i = 0; i < sc->sn.numchannels; i++)
 		{
 			Con_Printf(" chan %i: fwd:%-4g rt:%-4g up:%-4g dist:%-4g\n", i, sc->speakerdir[i][0], sc->speakerdir[i][1], sc->speakerdir[i][2], sc->dist[i]);
@@ -2845,9 +2845,10 @@ void S_StopAllSounds(qboolean clear)
 		}
 
 		sc->total_chans = MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS + NUM_MUSICS;	// no statics
+		Z_ReallocElements((void**)&sc->channel, &sc->max_chans, sc->total_chans, sizeof(*sc->channel));
 
 		memcpy(musics, &sc->channel[MUSIC_FIRST], sizeof(musics));
-		Q_memset(sc->channel, 0, MAX_CHANNELS * sizeof(channel_t));
+		Q_memset(sc->channel, 0, sc->max_chans * sizeof(channel_t));
 		memcpy(&sc->channel[MUSIC_FIRST], musics, sizeof(musics));
 
 		if (clear && !sc->selfpainting)	//if its self-painting, then the mixer will continue painting anyway (which is important if its still painting music, but otherwise don't stutter at all when loading)
@@ -2903,10 +2904,13 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 
 	for (scard = sndcardinfo; scard; scard = scard->next)
 	{
-		if (scard->total_chans == MAX_CHANNELS)
+		if (scard->total_chans == scard->max_chans)
 		{
-			Con_Printf ("total_channels == MAX_CHANNELS\n");
-			continue;
+			if (!ZF_ReallocElements((void**)&scard->channel, &scard->max_chans, scard->max_chans+64, sizeof(*scard->channel)))
+			{
+				Con_Printf ("total_channels == MAX_CHANNELS\n");
+				continue;
+			}
 		}
 
 		if (!S_LoadSound (sfx))
@@ -3004,11 +3008,14 @@ S_UpdateAmbientSounds
 mleaf_t *Q1BSP_LeafForPoint (model_t *model, vec3_t p);
 void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 {
-	mleaf_t		*l;
-	float		vol, oldvol;
+	float		vol;
 	channel_t	*chan;
 	int i;
+#ifdef Q1BSPS
+	mleaf_t		*l;
+	float oldvol;
 	int ambientlevel[NUM_AMBIENTS];
+#endif
 
 	if (!snd_ambient)
 		return;
@@ -3073,7 +3080,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 		}
 	}
 
-
+#ifdef Q1BSPS
 // calc ambient sound levels
 	for (i = 0; i < NUM_AMBIENTS; i++)
 		ambientlevel[i] = 0;
@@ -3140,6 +3147,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 		if (sc->ChannelUpdate)
 			sc->ChannelUpdate(sc, chan, (oldvol == 0) ^ (sc->ambientlevels[i] == 0));
 	}
+#endif
 }
 
 struct sndreverbproperties_s *reverbproperties;

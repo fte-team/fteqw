@@ -133,6 +133,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfloat(frametime,				"frametime");			/*float		Client render frame interval*/	\
 	globalfloat(gamespeed,				"gamespeed");			/*float		Multiplier for real time -> simulation time*/	\
 	globalfloat(cltime,					"cltime");				/*float		Clientside map uptime indepent of gamespeed, latency, and the server in general*/	\
+	globalfloat(clframetime,			"clframetime");			/*float		time since last video frame*/	\
 	globalfloat(netnewtime,				"servertime");			/*float		Server time of latest inbound network frame*/	\
 	globalfloat(netoldtime,				"serverprevtime");		/*float		Server time of previous inbound network frame */	\
 	globalfloat(netdeltatime,			"serverdeltatime");		/*float		new-old */	\
@@ -600,7 +601,7 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 	out->bonecount = 0;
 	out->bonestate = NULL;
 	if (in->xv->skeletonindex)
-		skel_lookup(csqcprogs, in->xv->skeletonindex, out);
+		skel_lookup(&csqc_world, in->xv->skeletonindex, out);
 #endif
 }
 
@@ -1715,7 +1716,7 @@ static void QCBUILTIN PF_R_ClearScene (pubprogfuncs_t *prinst, struct globalvars
 	CL_DecayLights ();
 
 #if defined(SKELETALOBJECTS) || defined(RAGDOLLS)
-	skel_dodelete(csqcprogs);
+	skel_dodelete(&csqc_world);
 #endif
 	CL_ClearEntityLists();
 
@@ -3416,7 +3417,7 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 	static char buffer[64];
 	char *ret;
 
-	if (pnum < 0 || pnum >= cl.allocated_client_slots)
+	if ((unsigned int)pnum >= (unsigned int)cl.allocated_client_slots)
 		ret = "";
 	else if (!strcmp(keyname, "viewentity"))	//compat with DP. Yes, I know this is in the wrong place. This is an evil hack.
 	{
@@ -4565,6 +4566,7 @@ static void CSQC_LerpStateToCSQC(lerpents_t *le, csqcedict_t *ent, qboolean nole
 	ent->xv->baseframe2 = le->oldframe[FST_BASE];
 	ent->xv->baseframe2time = max(0, cl.servertime - le->oldframestarttime[FST_BASE]);
 	ent->xv->baselerpfrac = bound(0, 1-(ent->xv->baseframe1time) / le->framelerpdeltatime[FST_BASE], 1);
+	ent->xv->basebone = le->basebone;
 
 
 	if (nolerp)
@@ -5156,9 +5158,6 @@ static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_
 
 	CL_DecayLights ();
 
-#if defined(SKELETALOBJECTS) || defined(RAGDOLLS)
-	skel_dodelete(csqcprogs);
-#endif
 	CL_ClearEntityLists();
 
 	V_ClearRefdef(csqc_playerview);
@@ -5706,6 +5705,9 @@ static struct {
 	{"skel_delete",				PF_skel_delete,			275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
 	{"frameforname",			PF_frameforname,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",			PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
+	{"processmodelevents",		PF_processmodelevents,	0},
+	{"getnextmodelevent",		PF_getnextmodelevent,	0},
+	{"getmodeleventidx",		PF_getmodeleventidx,	0},
 
 	{"crossproduct",			PF_crossproduct,		0},
 
@@ -6336,7 +6338,15 @@ static qboolean QDECL CSQC_Event_ContentsTransition(world_t *w, wedict_t *ent, i
 
 static model_t *QDECL CSQC_World_ModelForIndex(world_t *w, int modelindex)
 {
-	return CSQC_GetModelForIndex(modelindex);
+	model_t *mod = CSQC_GetModelForIndex(modelindex);
+	if (mod && mod->loadstate != MLS_LOADED)
+	{
+		if (mod->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+		if (mod->loadstate != MLS_LOADED)
+			mod = NULL;	//gah, it failed!
+	}
+	return mod;
 }
 static void QDECL CSQC_World_GetFrameState(world_t *w, wedict_t *win, framestate_t *out)
 {
@@ -7310,6 +7320,8 @@ qboolean CSQC_DrawView(void)
 		else
 			*csqcg.frametime = host_frametime;
 	}
+	if (csqcg.clframetime)
+		*csqcg.clframetime = host_frametime;
 
 	if (csqcg.numclientseats)
 		*csqcg.numclientseats = cl.splitclients;

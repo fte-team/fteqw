@@ -602,6 +602,9 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			plskin = sk->qwskin;
 		}
 	}
+	else if (inf->geomset < MAX_GEOMSETS && 0 != inf->geomid)
+		return NULL;
+
 
 	/*hexen2 feature: global skins */
 	if (inf->numskins < e->skinnum && e->skinnum >= r_globalskin_first.ival && e->skinnum < r_globalskin_first.ival+r_globalskin_count.ival)

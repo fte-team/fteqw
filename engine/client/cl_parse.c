@@ -680,7 +680,11 @@ void CL_DisenqueDownload(char *filename)
 void CL_WebDownloadFinished(struct dl_download *dl)
 {
 	if (dl->status == DL_FAILED)
+	{
 		CL_DownloadFailed(dl->url, &dl->qdownload);
+		if (dl->qdownload.flags & DLLF_ALLOWWEB)	//re-enqueue it if allowed, but this time not from the web server.
+			CL_EnqueDownload(dl->qdownload.localname, dl->qdownload.localname, dl->qdownload.flags & ~DLLF_ALLOWWEB);
+	}
 	else if (dl->status == DL_FINISHED)
 	{
 		if (dl->file)
@@ -697,9 +701,17 @@ void CL_SendDownloadStartRequest(char *filename, char *localname, unsigned int f
 	qdownload_t *dl;
 
 #ifdef WEBCLIENT
-	if (!strncmp(filename, "http://", 7))
+	if (!strncmp(filename, "http://", 7) || !strncmp(filename, "https://", 8))
 	{
-		if (!HTTP_CL_Get(filename, localname, CL_WebDownloadFinished))
+		struct dl_download *wdl = HTTP_CL_Get(filename, localname, CL_WebDownloadFinished);
+		if (wdl)
+		{
+			if (!(flags & DLLF_TEMPORARY))
+				Con_TPrintf ("Downloading %s to %s...\n", wdl->url, wdl->localname);
+			wdl->qdownload.flags = flags;
+			cls.download = &wdl->qdownload;
+		}
+		else
 			CL_DownloadFailed(filename, NULL);
 		return;
 	}
@@ -898,13 +910,22 @@ qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localnam
 
 	SCR_EndLoadingPlaque();	//release console.
 
-	if (*cl_download_mapsrc.string)
-	if (!strncmp(filename, "maps/", 5))
-	if (!strcmp(filename + strlen(filename)-4, ".bsp"))
+	if (flags & DLLF_ALLOWWEB)
 	{
-		char base[MAX_QPATH];
-		COM_FileBase(filename, base, sizeof(base));
-		filename = va("%s%s.bsp", cl_download_mapsrc.string, base);
+		flags &= ~DLLF_ALLOWWEB;
+		if (*cl_download_mapsrc.string)
+		if (!strcmp(filename, localname))
+		if (!strncmp(filename, "maps/", 5))
+		if (!strcmp(filename + strlen(filename)-4, ".bsp"))
+		{
+			char base[MAX_QPATH];
+			COM_FileBase(filename, base, sizeof(base));
+			if (!strncmp(cl_download_mapsrc.string, "http://", 7) || !strncmp(cl_download_mapsrc.string, "https://", 8))
+				filename = va("%s%s.bsp", cl_download_mapsrc.string, base);
+			else
+				filename = va("http://%s/%s.bsp", cl_download_mapsrc.string, base);
+			flags |= DLLF_ALLOWWEB;
+		}
 	}
 
 	if (!CL_EnqueDownload(filename, localname, flags))
@@ -2310,6 +2331,7 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 
 	if (dl->flags & DLLF_BEGUN)
 	{
+		dl->flags &= ~DLLF_BEGUN;
 		if (aborttype == QDL_COMPLETED)
 		{
 			//this file isn't needed now the download has finished.
@@ -2414,7 +2436,8 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 	}
 	dl->dlblocks = NULL;
 
-	Z_Free(dl);
+	if (dl->method != DL_HTTP)
+		Z_Free(dl);
 	if (cls.download == dl)
 		cls.download = NULL;
 }
@@ -2654,6 +2677,8 @@ void CLDP_ParseDownloadBegin(char *s)
 		return;
 	}
 
+	if (dl->method == DL_QWPENDING)
+		dl->method = DL_DARKPLACES;
 	if (dl->method != DL_DARKPLACES)
 	{
 		Con_Printf("Warning: download method isn't right.\n");
@@ -3571,7 +3596,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		}
 		strcpy (cl.model_name[nummodels], str);
 		if (*str != '*' && strcmp(str, "null"))	//not inline models!
-			CL_CheckOrEnqueDownloadFile(str, NULL, ((nummodels==1)?DLLF_REQUIRED:0));
+			CL_CheckOrEnqueDownloadFile(str, NULL, ((nummodels==1)?DLLF_REQUIRED|DLLF_ALLOWWEB:0));
 		Mod_TouchModel (str);
 	}
 

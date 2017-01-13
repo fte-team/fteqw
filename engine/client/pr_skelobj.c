@@ -482,6 +482,19 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 		ctx->body->dimensions[1] = atof(Cmd_Argv(2));
 		ctx->body->dimensions[2] = atof(Cmd_Argv(3));
 	}
+	else if (ctx->body && argc == 4 && !stricmp(cmd, "offset"))
+	{
+		vec3_t ang;
+		ctx->body->isoffset = true;
+		ctx->body->relmatrix[3] = atof(val);
+		ctx->body->relmatrix[7] = atof(Cmd_Argv(2));
+		ctx->body->relmatrix[11] = atof(Cmd_Argv(3));
+		ang[0] = atof(Cmd_Argv(4));
+		ang[1] = atof(Cmd_Argv(5));
+		ang[2] = atof(Cmd_Argv(6));
+		AngleVectorsFLU(ang, &ctx->body->relmatrix[0], &ctx->body->relmatrix[4], &ctx->body->relmatrix[8]);
+		Matrix3x4_Invert_Simple(ctx->body->relmatrix, ctx->body->inverserelmatrix);
+	}
 
 	//joint properties
 	else if (ctx->joint && argc == 2 && !stricmp(cmd, "type"))
@@ -966,13 +979,13 @@ void skel_info_f(void)
 }
 
 /*destroys all skeletons*/
-void skel_reset(pubprogfuncs_t *prinst)
+void skel_reset(world_t *world)
 {
 	int i;
 
 	for (i = 0; i < countof(skelobjects); i++)
 	{
-		if (skelobjects[i].world == prinst->parms->user)
+		if (skelobjects[i].world == world)
 		{
 #ifdef RAGDOLL
 			rag_uninstanciate(&skelobjects[i]);
@@ -992,7 +1005,7 @@ void skel_reset(pubprogfuncs_t *prinst)
 }
 
 /*deletes any skeletons marked for deletion*/
-void skel_dodelete(pubprogfuncs_t *prinst)
+void skel_dodelete(world_t *world)
 {
 	int skelidx;
 	if (!pendingkill)
@@ -1014,7 +1027,7 @@ void skel_dodelete(pubprogfuncs_t *prinst)
 		numskelobjectsused--;
 }
 
-static skelobject_t *skel_create(pubprogfuncs_t *prinst, int bonecount)
+static skelobject_t *skel_create(world_t *world, int bonecount)
 {
 	unsigned int skelidx;
 	//invalid if the bonecount is not set...
@@ -1023,7 +1036,7 @@ static skelobject_t *skel_create(pubprogfuncs_t *prinst, int bonecount)
 
 	for (skelidx = 0; skelidx < numskelobjectsused; skelidx++)
 	{
-		if (!skelobjects[skelidx].inuse && skelobjects[skelidx].numbones == bonecount && skelobjects[skelidx].world == prinst->parms->user)
+		if (!skelobjects[skelidx].inuse && skelobjects[skelidx].numbones == bonecount && skelobjects[skelidx].world == world)
 		{
 			skelobjects[skelidx].inuse = 1;
 			return &skelobjects[skelidx];
@@ -1034,14 +1047,14 @@ static skelobject_t *skel_create(pubprogfuncs_t *prinst, int bonecount)
 	{
 		if (!skelobjects[skelidx].inuse &&
 			(!skelobjects[skelidx].numbones || skelobjects[skelidx].numbones == bonecount) &&
-			(!skelobjects[skelidx].world || skelobjects[skelidx].world == prinst->parms->user))
+			(!skelobjects[skelidx].world || skelobjects[skelidx].world == world))
 		{
 			if (!skelobjects[skelidx].numbones)
 			{
 				skelobjects[skelidx].numbones = bonecount;
-				skelobjects[skelidx].bonematrix = (float*)PR_AddString(prinst, "", sizeof(float)*12*bonecount, false);
+				skelobjects[skelidx].bonematrix = (float*)PR_AddString(world->progs, "", sizeof(float)*12*bonecount, false);
 			}
-			skelobjects[skelidx].world = prinst->parms->user;
+			skelobjects[skelidx].world = world;
 			if (numskelobjectsused <= skelidx)
 				numskelobjectsused = skelidx + 1;
 			skelobjects[skelidx].model = NULL;
@@ -1052,7 +1065,7 @@ static skelobject_t *skel_create(pubprogfuncs_t *prinst, int bonecount)
 
 	return NULL;
 }
-static skelobject_t *skel_get(pubprogfuncs_t *prinst, int skelidx)
+static skelobject_t *skel_get(world_t *world, int skelidx)
 {
 	skelidx--;
 	if ((unsigned int)skelidx >= numskelobjectsused)
@@ -1062,9 +1075,9 @@ static skelobject_t *skel_get(pubprogfuncs_t *prinst, int skelidx)
 	return &skelobjects[skelidx];
 }
 
-void skel_lookup(pubprogfuncs_t *prinst, int skelidx, framestate_t *out)
+void skel_lookup(world_t *world, int skelidx, framestate_t *out)
 {
-	skelobject_t *sko = skel_get(prinst, skelidx);
+	skelobject_t *sko = skel_get(world, skelidx);
 	if (sko && sko->inuse)
 	{
 		out->skeltype = sko->type;
@@ -1075,9 +1088,10 @@ void skel_lookup(pubprogfuncs_t *prinst, int skelidx, framestate_t *out)
 
 void QCBUILTIN PF_skel_mmap(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *world = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
-	skelobject_t *sko = skel_get(prinst, skelidx);
-	if (!sko || sko->world != prinst->parms->user)
+	skelobject_t *sko = skel_get(world, skelidx);
+	if (!sko || sko->world != world)
 		G_INT(OFS_RETURN) = 0;
 	else
 		G_INT(OFS_RETURN) = (char*)sko->bonematrix - prinst->stringtable;
@@ -1118,9 +1132,17 @@ static void rag_uninstanciate(skelobject_t *sko)
 }
 static void rag_genbodymatrix(skelobject_t *sko, rbebodyinfo_t *dollbody, float *emat, float *result)
 {
+	float tmp[12];
 	float *bmat;
 	int bone = dollbody->bone;
 	bmat = sko->bonematrix + bone*12;
+
+	if (dollbody->isoffset)
+	{
+		R_ConcatTransforms((void*)dollbody->relmatrix, (void*)bmat, (void*)tmp);
+		bmat = tmp;
+	}
+
 	R_ConcatTransforms((void*)emat, (void*)bmat, (void*)result);
 
 	if (dollbody->orient)
@@ -1331,8 +1353,15 @@ static void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 		{
 			//bones with a body are given an absolute pose matching that body.
 			sko->world->rbe->RagMatrixFromBody(sko->world, &sko->body[doll->bone[i].bodyidx].odebody, bodymat);
-			//that body matrix is in world space, so transform to model space for our result
-			R_ConcatTransforms((void*)invemat, (void*)bodymat, (void*)((float*)bmat+i*12));
+			if (doll->body[doll->bone[i].bodyidx].isoffset)
+			{
+				float tmp[12];
+				R_ConcatTransforms((void*)doll->body[doll->bone[i].bodyidx].inverserelmatrix, (void*)bodymat, (void*)tmp);
+				R_ConcatTransforms((void*)invemat, (void*)tmp, (void*)((float*)bmat+i*12));
+			}
+			else
+				//that body matrix is in world space, so transform to model space for our result
+				R_ConcatTransforms((void*)invemat, (void*)bodymat, (void*)((float*)bmat+i*12));
 		}
 		else if (amat)	//FIXME: don't do this when the bone has an unanimated child body.
 		{
@@ -1399,7 +1428,7 @@ void rag_removedeltaent(lerpents_t *le)
 		return;
 	le->skeletalobject = 0;
 
-	skelobj = skel_get(csqc_world.progs, skelidx);
+	skelobj = skel_get(&csqc_world, skelidx);
 	if (skelobj)
 	{
 		skelobj->inuse = 2;	//2 means don't reuse yet.
@@ -1421,7 +1450,7 @@ void rag_lerpdeltaent(lerpents_t *le, unsigned int bonecount, short *newstate, f
 	skelobject_t *sko;
 	if (le->skeletalobject)
 	{
-		sko = skel_get(csqc_world.progs, le->skeletalobject);
+		sko = skel_get(&csqc_world, le->skeletalobject);
 		if (sko->numbones != bonecount)
 		{	//unusable, discard it and create a new one.
 			sko->inuse = 2;	//2 means don't reuse yet.
@@ -1435,7 +1464,7 @@ void rag_lerpdeltaent(lerpents_t *le, unsigned int bonecount, short *newstate, f
 
 	if (!sko || sko->inuse != 1)
 	{
-		sko = skel_create(csqc_world.progs, bonecount);
+		sko = skel_create(&csqc_world, bonecount);
 		if (!sko)
 			return;	//couldn't get one, ran out of memory or something?
 		sko->model = NULL;
@@ -1480,10 +1509,8 @@ void rag_lerpdeltaent(lerpents_t *le, unsigned int bonecount, short *newstate, f
 	}
 }
 
-void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
+void rag_updatedeltaent(world_t *w, entity_t *ent, lerpents_t *le)
 {
-	extern world_t csqc_world;
-	world_t *w;
 	model_t *mod = ent->model;
 	skelobject_t *sko;
 	float emat[12];
@@ -1494,13 +1521,12 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 
 	if (mod->dollinfo)
 	{
-		w = &csqc_world;
 		if (!w->rbe)
 			return;
 
 		if (!le->skeletalobject)
 		{
-			sko = skel_create(w->progs, Mod_GetNumBones(mod, false));
+			sko = skel_create(w, Mod_GetNumBones(mod, false));
 			if (!sko)
 				return;	//couldn't get one, ran out of memory or something?
 			sko->model = mod;
@@ -1509,7 +1535,7 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 		}
 		else
 		{
-			sko = skel_get(w->progs, le->skeletalobject);
+			sko = skel_get(w, le->skeletalobject);
 			if (!sko)
 			{
 				le->skeletalobject = 0;
@@ -1551,8 +1577,7 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 	}
 	else if (le->skeletalobject)
 	{
-		w = &csqc_world;
-		sko = skel_get(w->progs, le->skeletalobject);
+		sko = skel_get(w, le->skeletalobject);
 		if (!sko)
 		{
 			le->skeletalobject = 0;
@@ -1574,6 +1599,7 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	//do we want to be able to generate a ragdoll object with this function too?
 #ifdef RAGDOLL
+	world_t *w = prinst->parms->user;
 	wedict_t *wed = (wedict_t*)G_EDICT(prinst, OFS_PARM0);
 	const char *ragname = PR_GetStringOfs(prinst, OFS_PARM1);
 	int parentskel = G_FLOAT(OFS_PARM2);
@@ -1594,11 +1620,11 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	G_FLOAT(OFS_RETURN) = 0;
 
 	//the parent skeletal object must be relative, if specified.
-	psko = skel_get(prinst, parentskel);
+	psko = skel_get(w, parentskel);
 	if (psko && psko->type != SKEL_RELATIVE)
 		return;
 
-	sko = skel_get(prinst, skelidx);
+	sko = skel_get(w, skelidx);
 	if (!sko)
 	{
 		Con_DPrintf("PF_skel_ragedit: invalid skeletal object\n");
@@ -1747,7 +1773,7 @@ void QCBUILTIN PF_skel_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			return;	//this isn't a skeletal model.
 	}
 
-	skelobj = skel_create(prinst, numbones);
+	skelobj = skel_create(w, numbones);
 	if (!skelobj)
 		return;	//couldn't get one, ran out of memory or something?
 
@@ -1804,9 +1830,9 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	}
 
 	if (!skelidx)
-		skelobj = skel_create(prinst, numbones);
+		skelobj = skel_create(w, numbones);
 	else
-		skelobj = skel_get(prinst, skelidx);
+		skelobj = skel_get(w, skelidx);
 	if (!skelobj)
 		return;	//couldn't get one, ran out of memory or something?
 
@@ -1888,10 +1914,11 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 //float(float skel) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
 void QCBUILTIN PF_skel_get_numbones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
 	skelobject_t *skelobj;
 
-	skelobj = skel_get(prinst, skelidx);
+	skelobj = skel_get(w, skelidx);
 
 	if (!skelobj)
 		G_FLOAT(OFS_RETURN) = 0;
@@ -1902,11 +1929,12 @@ void QCBUILTIN PF_skel_get_numbones (pubprogfuncs_t *prinst, struct globalvars_s
 //string(float skel, float bonenum) skel_get_bonename (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
 void QCBUILTIN PF_skel_get_bonename (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
 	int boneidx = G_FLOAT(OFS_PARM1);
 	skelobject_t *skelobj;
 
-	skelobj = skel_get(prinst, skelidx);
+	skelobj = skel_get(w, skelidx);
 
 	if (!skelobj)
 		G_INT(OFS_RETURN) = 0;
@@ -1919,11 +1947,12 @@ void QCBUILTIN PF_skel_get_bonename (pubprogfuncs_t *prinst, struct globalvars_s
 //float(float skel, float bonenum) skel_get_boneparent (FTE_CSQC_SKELETONOBJECTS)
 void QCBUILTIN PF_skel_get_boneparent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
 	int boneidx = G_FLOAT(OFS_PARM1);
 	skelobject_t *skelobj;
 
-	skelobj = skel_get(prinst, skelidx);
+	skelobj = skel_get(w, skelidx);
 
 	if (!skelobj)
 		G_FLOAT(OFS_RETURN) = 0;
@@ -1934,11 +1963,12 @@ void QCBUILTIN PF_skel_get_boneparent (pubprogfuncs_t *prinst, struct globalvars
 //float(float skel, string tagname) skel_find_bone (FTE_CSQC_SKELETONOBJECTS)
 void QCBUILTIN PF_skel_find_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
 	const char *bname = PR_GetStringOfs(prinst, OFS_PARM1);
 	skelobject_t *skelobj;
 
-	skelobj = skel_get(prinst, skelidx);
+	skelobj = skel_get(w, skelidx);
 	if (!skelobj)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
@@ -1951,7 +1981,7 @@ void QCBUILTIN PF_skel_get_bonerel (pubprogfuncs_t *prinst, struct globalvars_s 
 	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
 	int boneidx = G_FLOAT(OFS_PARM1)-1;
-	skelobject_t *skelobj = skel_get(prinst, skelidx);
+	skelobject_t *skelobj = skel_get(w, skelidx);
 	if (!skelobj || (unsigned int)boneidx >= skelobj->numbones)
 		bonematident_toqcvectors(w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
 	else if (skelobj->type!=SKEL_RELATIVE)
@@ -1977,7 +2007,7 @@ void QCBUILTIN PF_skel_get_boneabs (pubprogfuncs_t *prinst, struct globalvars_s 
 	int boneidx = G_FLOAT(OFS_PARM1)-1;
 	float workingm[12], tempmatrix[3][4];
 	int i;
-	skelobject_t *skelobj = skel_get(prinst, skelidx);
+	skelobject_t *skelobj = skel_get(w, skelidx);
 
 	if (!skelobj || (unsigned int)boneidx >= skelobj->numbones)
 		bonematident_toqcvectors(w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
@@ -2050,7 +2080,7 @@ void QCBUILTIN PF_skel_set_bone_world (pubprogfuncs_t *prinst, struct globalvars
 	}
 
 	/*make sure the skeletal object is correct*/
-	skelobj = skel_get(prinst, ent->xv->skeletonindex);
+	skelobj = skel_get(w, ent->xv->skeletonindex);
 	if (!skelobj || boneidx >= skelobj->numbones)
 		return;
 
@@ -2101,7 +2131,7 @@ void QCBUILTIN PF_skel_set_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr
 		matrix[2] = w->g.v_up;
 	}
 
-	skelobj = skel_get(prinst, skelidx);
+	skelobj = skel_get(w, skelidx);
 	if (!skelobj || boneidx >= skelobj->numbones)
 		return;
 
@@ -2123,7 +2153,7 @@ void QCBUILTIN PF_skel_mul_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	else
 		bonemat_fromqcvectors((float*)mult, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_PARM2));
 
-	skelobj = skel_get(prinst, skelidx);
+	skelobj = skel_get(w, skelidx);
 	if (!skelobj || boneidx >= skelobj->numbones)
 		return;
 //testme
@@ -2148,7 +2178,7 @@ void QCBUILTIN PF_skel_mul_bones (pubprogfuncs_t *prinst, struct globalvars_s *p
 	else
 		bonemat_fromqcvectors((float*)mult, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_PARM3));
 
-	skelobj = skel_get(prinst, skelidx);
+	skelobj = skel_get(w, skelidx);
 	if (!skelobj)
 		return;
 
@@ -2173,6 +2203,7 @@ void QCBUILTIN PF_skel_mul_bones (pubprogfuncs_t *prinst, struct globalvars_s *p
 //void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones (FTE_CSQC_SKELETONOBJECTS)
 void QCBUILTIN PF_skel_copybones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *w = prinst->parms->user;
 	int skeldst = G_FLOAT(OFS_PARM0);
 	int skelsrc = G_FLOAT(OFS_PARM1);
 	int startbone = G_FLOAT(OFS_PARM2)-1;
@@ -2181,8 +2212,8 @@ void QCBUILTIN PF_skel_copybones (pubprogfuncs_t *prinst, struct globalvars_s *p
 	skelobject_t *skelobjdst;
 	skelobject_t *skelobjsrc;
 
-	skelobjdst = skel_get(prinst, skeldst);
-	skelobjsrc = skel_get(prinst, skelsrc);
+	skelobjdst = skel_get(w, skeldst);
+	skelobjsrc = skel_get(w, skelsrc);
 	if (!skelobjdst || !skelobjsrc)
 		return;
 	if (startbone == -1)
@@ -2220,10 +2251,11 @@ void QCBUILTIN PF_skel_copybones (pubprogfuncs_t *prinst, struct globalvars_s *p
 //void(float skel) skel_delete (FTE_CSQC_SKELETONOBJECTS)
 void QCBUILTIN PF_skel_delete (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
 	skelobject_t *skelobj;
 
-	skelobj = skel_get(prinst, skelidx);
+	skelobj = skel_get(w, skelidx);
 	if (skelobj)
 	{
 		skelobj->inuse = 2;	//2 means don't reuse yet.
@@ -2342,6 +2374,238 @@ void QCBUILTIN PF_modelframecount (pubprogfuncs_t *prinst, struct globalvars_s *
 		G_FLOAT(OFS_RETURN) = Mod_GetFrameCount(mod);
 	else
 		G_FLOAT(OFS_RETURN) = 0;
+}
+
+//void(float modidx, float framenum, __inout float basetime, float targettime, void(float timestamp, int code, string data) callback)
+void QCBUILTIN PF_processmodelevents (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	unsigned int frame = G_FLOAT(OFS_PARM1);
+	float basetime = G_FLOAT(OFS_PARM2);
+	float targettime = G_FLOAT(OFS_PARM3);
+	func_t callback = G_INT(OFS_PARM4);
+	model_t *mod = w->Get_CModel(w, modelindex);
+	float starttime, timestamp;
+
+	if (targettime == basetime)
+		return;	//don't refire the same event multiple times.
+
+	//returns all basetime <= eventtime < targettime
+
+	if (mod)
+	{
+		if (mod->type == mod_alias)
+		{	//slightly more optimised path that is kinda redundant, but w/e
+			galiasinfo_t *ga = Mod_Extradata(mod);
+			galiasanimation_t *anim = ga->ofsanimations + frame;
+			galiasevent_t *ev;
+			float loopduration;
+			if (frame < (unsigned int)ga->numanimations && anim->events)
+			{
+				if (anim->loop)
+				{
+					loopduration = anim->rate * anim->numposes;
+					starttime = loopduration*(unsigned int)(basetime/loopduration);
+				}
+				else
+					starttime = loopduration = 0;
+				for (ev = anim->events; ; )
+				{
+					//be careful to use as consistent timings as we can
+					timestamp = starttime + ev->timestamp;
+					if (timestamp >= targettime)
+						break;	//this is in the future.
+					if (timestamp >= basetime)
+					{
+						G_FLOAT(OFS_PARM0) = timestamp;
+						G_INT(OFS_PARM1) = ev->code;
+						G_INT(OFS_PARM2) = PR_TempString(prinst, ev->data);
+						PR_ExecuteProgram(prinst, callback);
+					}
+
+					ev = ev->next;
+					if (!ev)
+					{
+						if (loopduration)
+							ev = anim->events;
+						else
+							break;	//animation ends here, so no more events possible
+						starttime += loopduration;
+					}
+				}
+			}
+		}
+#ifdef HALFLIFEMODELS
+		else	//actually this is a generic version that would work for iqm etc too, but is less efficient due to repeated lookups. oh well.
+		{
+			int ev, code;
+			char *data;
+			float loopduration;
+			qboolean looping;
+
+			if (Mod_FrameInfoForNum(mod, 0, frame, &data, &code, &loopduration, &looping))
+			{
+				if (looping && loopduration)
+					starttime = loopduration*(unsigned int)(basetime/loopduration);
+				else
+					starttime = loopduration = 0;
+				for (ev = 0; ; ev++)
+				{
+					if (!Mod_GetModelEvent(mod, frame, ev, &timestamp, &code, &data))
+					{
+						if (looping && Mod_GetModelEvent(mod, frame, 0, &timestamp, &code, &data))
+						{
+							ev = 0;
+							starttime += loopduration;
+						}
+						else
+							break;	//end of anim
+					}
+
+					//be careful to use as consistent timings as we can...
+					timestamp += starttime;
+					if (timestamp >= targettime)
+						break;	//this is in the future.
+					if (timestamp >= basetime)
+					{
+						G_FLOAT(OFS_PARM0) = timestamp;
+						G_INT(OFS_PARM1) = code;
+						G_INT(OFS_PARM2) = PR_TempString(prinst, data);
+						PR_ExecuteProgram(prinst, callback);
+					}
+				}
+			}
+		}
+#endif
+	}
+	G_FLOAT(OFS_PARM2) = targettime;
+}
+
+//float(float modidx, float framenum, __inout float basetime, float targettime, __out int code, __out string data)
+void QCBUILTIN PF_getnextmodelevent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	unsigned int frame = G_FLOAT(OFS_PARM1);
+	float basetime = G_FLOAT(OFS_PARM2);
+	float targettime = G_FLOAT(OFS_PARM3);
+	model_t *mod = w->Get_CModel(w, modelindex);
+	float starttime, timestamp;
+	//default return values
+	G_FLOAT(OFS_RETURN) = false;
+	G_FLOAT(OFS_PARM2) = targettime;
+	G_INT(OFS_PARM4) = 0;
+	G_INT(OFS_PARM5) = 0;
+
+	if (mod)
+	{
+		if (mod->type == mod_alias)
+		{	//slightly more optimised path that is kinda redundant, but w/e
+			galiasinfo_t *ga = Mod_Extradata(mod);
+			galiasanimation_t *anim = ga->ofsanimations + frame;
+			galiasevent_t *ev;
+			float loopduration;
+			if (frame >= (unsigned int)ga->numanimations || !anim->events)
+				return;
+			if (anim->loop)
+			{
+				loopduration = anim->rate * anim->numposes;
+				starttime = loopduration*(unsigned int)(basetime/loopduration);
+			}
+			else
+				starttime = loopduration = 0;
+			for (ev = anim->events; ; )
+			{
+				//be careful to use as consistent timings as we can
+				timestamp = starttime + ev->timestamp;
+				if (timestamp > targettime)
+					break;	//this is in the future.
+				if (timestamp > basetime)
+				{
+					G_FLOAT(OFS_RETURN) = true;
+					G_FLOAT(OFS_PARM2) = timestamp;
+					G_INT(OFS_PARM4) = ev->code;
+					G_INT(OFS_PARM5) = PR_TempString(prinst, ev->data);
+					return;
+				}
+
+				ev = ev->next;
+				if (!ev)
+				{
+					if (loopduration)
+						ev = anim->events;
+					else
+						return;	//animation ended here, so no more events
+					starttime += loopduration;
+				}
+			}
+		}
+#ifdef HALFLIFEMODELS
+		else	//actually this is a generic version that would work for iqm etc too, but is less efficient due to repeated lookups. oh well.
+		{
+			int ev, code;
+			char *data;
+			float loopduration;
+			qboolean looping;
+
+			if (!Mod_FrameInfoForNum(mod, 0, frame, &data, &code, &loopduration, &looping))
+				return; //invalid frame
+
+			if (looping && loopduration)
+				starttime = loopduration*(unsigned int)(basetime/loopduration);
+			else
+				starttime = loopduration = 0;
+			for (ev = 0; ; ev++)
+			{
+				if (!Mod_GetModelEvent(mod, frame, ev, &timestamp, &code, &data))
+				{
+					if (looping && Mod_GetModelEvent(mod, frame, 0, &timestamp, &code, &data))
+					{
+						ev = 0;
+						starttime += loopduration;
+					}
+					else
+						break;	//end of anim
+				}
+
+				//be careful to use as consistent timings as we can...
+				timestamp += starttime;
+				if (timestamp > targettime)
+					break;	//this is in the future.
+				if (timestamp > basetime)
+				{
+					G_FLOAT(OFS_RETURN) = true;
+					G_FLOAT(OFS_PARM2) = timestamp;
+					G_INT(OFS_PARM4) = code;
+					G_INT(OFS_PARM5) = PR_TempString(prinst, data);
+					return;
+				}
+			}
+		}
+#endif
+	}
+}
+//float(float modidx, float framenum, int idx, __out float timestamp, __out int code, __out string data)
+void QCBUILTIN PF_getmodeleventidx (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	unsigned int frame = G_FLOAT(OFS_PARM1);
+	int eventindex = G_INT(OFS_PARM2);
+	model_t *mod = w->Get_CModel(w, modelindex);
+	//default return values
+	float timestamp = 0;
+	int code = 0;
+	char *data = NULL;
+
+	G_FLOAT(OFS_RETURN) = Mod_GetModelEvent(mod, frame, eventindex, &timestamp, &code, &data);
+	G_FLOAT(OFS_PARM3) = timestamp;
+	G_INT(OFS_PARM4) = code;
+	if (data)
+		G_INT(OFS_PARM5) = PR_TempString(prinst, data);
+	else
+		G_INT(OFS_PARM5) = 0;
 }
 
 //string(float modidx, float skinnum) skintoname

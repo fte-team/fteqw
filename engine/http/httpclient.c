@@ -1379,7 +1379,10 @@ static int DL_Thread_Work(void *arg)
 #ifdef NPFTE
 			//the plugin doesn't have a download loop
 			if (dl->notifycomplete)
+			{
 				dl->notifycomplete(dl);
+				dl->notifycomplete = NULL;
+			}
 			if (dl->file)
 				VFS_CLOSE(dl->file);
 #else
@@ -1452,6 +1455,7 @@ struct dl_download *DL_Create(const char *url)
 	strcpy(newdl->url, url);
 	newdl->poll = DL_Decide;
 	newdl->sizelimit = 0x80000000u;	//some sanity limit.
+	newdl->qdownload.method = DL_HTTP;
 
 	if (!newdl->poll(newdl))
 	{
@@ -1488,6 +1492,10 @@ void DL_Close(struct dl_download *dl)
 	if (dl->threadctx)
 		Sys_WaitOnThread(dl->threadctx);
 #endif
+	if (dl->file && dl->file->Seek)
+		VFS_SEEK(dl->file, 0);
+	if (dl->notifycomplete)
+		dl->notifycomplete(dl);
 	if (dl->abort)
 		dl->abort(dl);
 	if (dl->file)
@@ -1542,7 +1550,6 @@ struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*N
 	if (!cls.download && localfile && !newdl->isquery)
 	{
 		cls.download = &newdl->qdownload;
-		newdl->qdownload.method = DL_HTTP;
 		if (*newdl->localname)
 			Q_strncpyz(newdl->qdownload.localname, newdl->localname, sizeof(newdl->qdownload.localname));
 		else
@@ -1614,10 +1621,6 @@ void HTTP_CL_Think(void)
 			if (!dl->poll(dl))
 			{
 				*link = dl->next;
-				if (dl->file && dl->file->Seek)
-					VFS_SEEK(dl->file, 0);
-				if (dl->notifycomplete)
-					dl->notifycomplete(dl);
 				DL_Close(dl);
 				continue;
 			}

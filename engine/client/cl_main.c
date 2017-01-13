@@ -35,7 +35,7 @@ void QDECL Name_Callback(struct cvar_s *var, char *oldvalue);
 #define Name_Callback NULL
 #endif
 
-void CL_ForceStopDownload (qdownload_t *dl, qboolean finish);
+static void CL_ForceStopDownload (qboolean finish);
 
 // we need to declare some mouse variables here, because the menu system
 // references them even when on a unix system.
@@ -160,7 +160,7 @@ cvar_t	cl_sendguid				= CVARD("cl_sendguid", "0", "Send a randomly generated 'gl
 cvar_t	cl_downloads			= CVARFD("cl_downloads", "1", CVAR_NOTFROMSERVER, "Allows you to block all automatic downloads.");
 cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
 cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. Also allows the server to send nearly arbitary download commands.\n2: allows redirection only to named packages files (and demos/*.mvd), which is a bit safer.");
-cvar_t  cl_download_mapsrc		= CVARD("cl_download_mapsrc", "", "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
+cvar_t  cl_download_mapsrc		= CVARFD("cl_download_mapsrc", "", CVAR_ARCHIVE, "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
 cvar_t	cl_download_packages	= CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
 cvar_t	requiredownloads		= CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
 
@@ -3684,8 +3684,9 @@ void CL_DownloadSize_f(void)
 }
 
 void CL_FinishDownload(char *filename, char *tempname);
-void CL_ForceStopDownload (qdownload_t *dl, qboolean finish)
+static void CL_ForceStopDownload (qboolean finish)
 {
+	qdownload_t *dl = cls.download;
 	if (Cmd_IsInsecure())
 	{
 		Con_Printf(CON_WARNING "Execution from server rejected for %s\n", Cmd_Argv(0));
@@ -3713,15 +3714,13 @@ void CL_ForceStopDownload (qdownload_t *dl, qboolean finish)
 	// get another file if needed
 	CL_RequestNextDownload ();
 }
-
 void CL_SkipDownload_f (void)
 {
-	CL_ForceStopDownload(cls.download, false);
+	CL_ForceStopDownload(false);
 }
-
 void CL_FinishDownload_f (void)
 {
-	CL_ForceStopDownload(cls.download, true);
+	CL_ForceStopDownload(true);
 }
 
 #if defined(_WIN32) && !defined(WINRT)
@@ -5795,12 +5794,14 @@ void Host_Shutdown(void)
 	HTTP_CL_Terminate();
 #endif
 
+	//disconnect server/client/etc
+	CL_Disconnect_f();
+
+	M_Shutdown(true);
+
 #ifdef PLUGINS
 	Plug_Shutdown(false);
 #endif
-
-	//disconnect server/client/etc
-	CL_Disconnect_f();
 
 #ifdef CSQC_DAT
 	CSQC_Shutdown();
@@ -5821,7 +5822,6 @@ void Host_Shutdown(void)
 #endif
 	CL_FreeDlights();
 	CL_FreeVisEdicts();
-	M_Shutdown(true);
 	Mod_Shutdown(true);
 	Wads_Flush();
 	Con_History_Save();	//do this outside of the console code so that the filesystem is still running at this point but still allowing the filesystem to make console prints (you might not see them, but they should be visible to sys_printf still, for debugging).

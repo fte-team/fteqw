@@ -367,12 +367,13 @@ void Sys_CloseLibrary(dllhandle_t *lib)
 }
 HMODULE LoadLibraryU(const char *name)
 {
+	HMODULE ret;
 	if (WinNT)
 	{
 		wchar_t wide[MAX_OSPATH];
 		widen(wide, sizeof(wide), name);
 
-		return LoadLibraryW(wide);
+		ret = LoadLibraryW(wide);
 	}
 	else
 	{
@@ -380,8 +381,9 @@ HMODULE LoadLibraryU(const char *name)
 		char ansi[MAX_OSPATH];
 		widen(wide, sizeof(wide), name);
 		ansi[WideCharToMultiByte(CP_ACP, 0, wide, wcslen(wide), ansi, sizeof(ansi)-1, NULL, NULL)] = 0;
-		return LoadLibraryA(ansi);
+		ret = LoadLibraryA(ansi);
 	}
+	return ret;
 }
 dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
@@ -4186,7 +4188,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		{
 			isDedicated = isClusterSlave = true;
 #ifdef _DEBUG
-			MessageBox(0, "Cluster slave", "gah", 0);
+			MessageBox(0, "New cluster slave starting\nAttach to process now, if desired.", "FTEQW", 0);
 #endif
 		}
 	#endif

@@ -1623,11 +1623,6 @@ void Con_PrintToSys(void)
 //returns the bottom of the progress bar
 static int Con_DrawProgress(int left, int right, int y)
 {
-#ifdef RUNTIMELIGHTING
-	extern model_t *lightmodel;
-	extern long relitsurface;
-#endif
-
 	conchar_t			dlbar[1024], *chr;
 	unsigned char	progresspercenttext[128];
 	char *progresstext = NULL;

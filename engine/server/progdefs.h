@@ -421,10 +421,13 @@ typedef struct
 	float animate;
 	qboolean draw:1;
 	qboolean orient:1;
+	qboolean isoffset:1;
 	int orientpeer;
 
 	//ode info
 	int geomshape;
+	float relmatrix[12];
+	float inverserelmatrix[12];
 	vec3_t dimensions;
 	float mass;
 } rbebodyinfo_t;

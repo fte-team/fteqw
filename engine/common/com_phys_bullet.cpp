@@ -143,10 +143,10 @@ static void QDECL World_Bullet_End(world_t *world)
 	struct bulletcontext_s *ctx = (struct bulletcontext_s*)world->rbe;
 	world->rbe = NULL;
 	delete ctx->dworld;
-    delete ctx->solver;
-    delete ctx->collisionconfig;
-    delete ctx->collisiondispatcher;
-    delete ctx->broadphase;
+	delete ctx->solver;
+	delete ctx->collisionconfig;
+	delete ctx->collisiondispatcher;
+	delete ctx->broadphase;
 	delete ctx->ownerfilter;
 	Z_Free(ctx);
 }
@@ -819,24 +819,24 @@ public:
 		trans.setOrigin(org);
 	}
 	QCMotionState(wedict_t *ed, world_t *w)
-    {
+	{
 		dirty = qtrue;
 		edict = ed;
 		world = w;
 
 		ReloadMotionState();
-    }
+	}
 	virtual ~QCMotionState()
 	{
 	}
 
-    virtual void getWorldTransform(btTransform &worldTrans) const
-    {
+	virtual void getWorldTransform(btTransform &worldTrans) const
+	{
 		worldTrans = trans;
-    }
+	}
 
-    virtual void setWorldTransform(const btTransform &worldTrans)
-    {
+	virtual void setWorldTransform(const btTransform &worldTrans)
+	{
 		vec3_t fwd, left, up, offset;
 		trans = worldTrans;
 
@@ -872,7 +872,7 @@ public:
 //        mSceneNode ->setOrientation(rot.w(), rot.x(), rot.y(), rot.z());
 //        btVector3 pos = worldTrans.getOrigin();
 //        mSceneNode ->setPosition(pos.x(), pos.y(), pos.z());
-    }
+	}
 };
 
 static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)

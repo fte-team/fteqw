@@ -2753,6 +2753,11 @@ void M_Menu_Video_f (void)
 }
 
 #ifndef MINIMAL
+
+#ifdef RAGDOLL
+#include "pr_common.h"
+#endif
+
 typedef struct
 {
 	enum {
@@ -2760,7 +2765,8 @@ typedef struct
 		MV_BONES,
 		MV_SHADER,
 		MV_TEXTURE,
-		MV_COLLISION
+		MV_COLLISION,
+		MV_EVENTS,
 	} mode;
 	int surfaceidx;
 	int skingroup;
@@ -2776,6 +2782,17 @@ typedef struct
 
 	char shaderfile[MAX_QPATH];
 	char *shadertext;
+
+#ifdef RAGDOLL
+	lerpents_t ragent;
+	world_t ragworld;
+	wedict_t ragworldedict;
+	comentvars_t ragworldvars;
+	comextentvars_t ragworldextvars;
+	pubprogfuncs_t ragfuncs;
+	qboolean flop;	//ragdoll flopping enabled.
+	float fixedrate;
+#endif
 } modelview_t;
 
 static unsigned int genhsv(float h_, float s, float v)
@@ -2823,9 +2840,9 @@ static void M_BoneDisplayLame(entity_t *e, int *y, int depth, int parent, int fi
 			if (Mod_GetTag(e->model, i+1, &e->framestate, result))
 			{
 #if 0//def _DEBUG
-				Draw_FunString(depth*16, *y, va("%s%i: %s (%g %g %g)", (i==sel)?"^1":"", i, bname, result[3], result[7], result[11]));
+				Draw_FunString(depth*16, *y, va("%s%i: %s (%g %g %g)", (i==sel)?"^1":"", i+1, bname, result[3], result[7], result[11]));
 #else
-				Draw_FunString(depth*16, *y, va("%s%i: %s", (i==sel)?"^1":"", i, bname));
+				Draw_FunString(depth*16, *y, va("%s%i: %s", (i==sel)?"^1":"", i+1, bname));
 #endif
 			}
 			else
@@ -2836,6 +2853,17 @@ static void M_BoneDisplayLame(entity_t *e, int *y, int depth, int parent, int fi
 	}
 }
 #endif
+
+static unsigned int tobit(unsigned int bitmask)
+{
+	unsigned int b;
+	for (b = 0; b < 32; b++)
+	{
+		if (bitmask & (1<<b))
+			return b;
+	}
+	return 0;
+}
 static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
 	static playerview_t pv;
@@ -2935,16 +2963,40 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		return;
 	}
 
-#if 0
-	ent.framestate.bonestate = bones;
-	ent.framestate.bonecount = Mod_GetBoneRelations(ent.model, 0, MAX_BONES, &ent.framestate, ent.framestate.bonestate);
-	ent.framestate.skeltype = SKEL_RELATIVE;
+
+#ifdef RAGDOLL
+	if (mods->flop)
+		ent.framestate.g[FS_REG].frame[0] |= 0x8000;
+	if (ent.model->dollinfo)
+	{
+		float rate = 1.0/60;
+		rag_doallanimations(&mods->ragworld);
+		mods->fixedrate += host_frametime;
+		if (mods->fixedrate > 1)
+			mods->fixedrate = 1;
+		while (mods->fixedrate >= rate)
+		{
+			sv.world.rbe->Frame(&mods->ragworld, rate, 800);
+			mods->fixedrate -= rate;
+		}
+
+		rag_updatedeltaent(&mods->ragworld, &ent, &mods->ragent);
+	}
 #endif
 
 
 	if (mods->mode == MV_COLLISION)
 	{
-		shader_t *s = R_RegisterShader("bboxshader_nodepth", SUF_NONE,
+		shader_t *s;
+
+#ifdef HALFLIFEMODELS
+		if (ent.model->type == mod_halflife)
+			HLMDL_DrawHitBoxes(&ent);
+		else
+#endif
+		if (1)
+		{
+			s = R_RegisterShader("hitbox_nodepth", SUF_NONE,
 				"{\n"
 					"polygonoffset\n"
 					"{\n"
@@ -2955,16 +3007,25 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 						"nodepthtest\n"
 					"}\n"
 				"}\n");
-
-#ifdef HALFLIFEMODELS
-		if (ent.model->type == mod_halflife)
-			HLMDL_DrawHitBoxes(&ent);
+			Mod_AddSingleSurface(&ent, mods->surfaceidx, s);
+		}
 		else
-#endif
 		{
 			vec3_t mins, maxs;
 			VectorAdd(ent.model->mins, ent.origin, mins);
 			VectorAdd(ent.model->maxs, ent.origin, maxs);
+
+			s = R_RegisterShader("bboxshader_nodepth", SUF_NONE,
+				"{\n"
+					"polygonoffset\n"
+					"{\n"
+						"map $whiteimage\n"
+						"blendfunc gl_src_alpha gl_one\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+						"nodepthtest\n"
+					"}\n"
+				"}\n");
 			CLQ1_AddOrientedCube(s, mins, maxs, NULL, 1, 1, 1, 0.2);
 		}
 
@@ -2986,7 +3047,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 					"}\n"
 				"}\n");
 
-			if (ent.model->funcs.NativeTrace(ent.model, 0, &ent.framestate, NULL, v1, v2, vec3_origin, vec3_origin, false, ~0, &tr))
+			if (ent.model->funcs.NativeTrace && ent.model->funcs.NativeTrace(ent.model, 0, &ent.framestate, NULL, v1, v2, vec3_origin, vec3_origin, false, ~0, &tr))
 			{
 				vec3_t dir;
 				float f;
@@ -3067,13 +3128,26 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	R_RenderView();
 
 	y = 0;
-
-	fname = Mod_SurfaceNameForNum(ent.model, mods->surfaceidx);
-	if (!fname)
-		fname = "Unknown Surface";
-	Draw_FunString(0, y, va("Surf %i: %s", mods->surfaceidx, fname));
-	y+=8;
-	
+	{
+		fname = Mod_SurfaceNameForNum(ent.model, mods->surfaceidx);
+		if (!fname)
+			fname = "Unknown Surface";
+		Draw_FunString(0, y, va("Surf %i: %s", mods->surfaceidx, fname));
+		y+=8;
+	}
+	{
+		fname = Mod_SkinNameForNum(ent.model, mods->surfaceidx, mods->skingroup);
+		if (!fname)
+		{
+			Draw_FunString(0, y, va("Skin %i: <invalid skin>", mods->skingroup));
+		}
+		else
+		{
+			shader = Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup);
+			Draw_FunString(0, y, va("Skin %i: \"%s\", shader \"%s\"", mods->skingroup, fname, shader?shader->name:"NO SHADER"));
+		}
+		y+=8;
+	}
 	{
 		char *fname;
 		int numframes = 0;
@@ -3084,12 +3158,6 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		Draw_FunString(0, y, va("Frame%i: %s (%i poses, %f/%f secs, %s)", mods->framegroup, fname, numframes, ent.framestate.g[FS_REG].frametime[0], duration, loop?"looped":"unlooped"));
 		y+=8;
 	}
-	fname = Mod_SkinNameForNum(ent.model, mods->surfaceidx, mods->skingroup);
-	if (!fname)
-		fname = "Unknown Skin";
-	shader = Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup);
-	Draw_FunString(0, y, va("Skin %i: (%s) %s", mods->skingroup, fname, shader?shader->name:"NO SHADER"));
-	y+=8;
 
 	switch(mods->mode)
 	{
@@ -3100,22 +3168,75 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			"s: zoom out\n"
 			"m: mode\n"
 			"r: reset times\n"
-			"home: skin-=1\n"
-			"end: skin+=1\n"
+			"home: skin+=1\n"
+			"end: skin-=1\n"
 			"pgup: frame+=1\n"
 			"pgdn: frame-=1\n"
 			"mins: %g %g %g, maxs: %g %g %g\n", ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2])
 			, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 		break;
 	case MV_COLLISION:
-		if (ent.model->type != mod_halflife)
+		if (!ent.model)
+			;
+		else if (ent.model->type == mod_alias)
+		{
+			galiasinfo_t *inf = Mod_Extradata(ent.model);
+			int surfnum = mods->surfaceidx;
+			while(inf && surfnum-->0)
+				inf = inf->nextsurf;
+			if (inf)
+			{
+				char contents[512];
+				unsigned int i;
+				char *contentnames[32] = {NULL};
+				contentnames[tobit(FTECONTENTS_SOLID)] = "solid";
+				contentnames[tobit(FTECONTENTS_LAVA)] = "lava";
+				contentnames[tobit(FTECONTENTS_SLIME)] = "slime";
+				contentnames[tobit(FTECONTENTS_WATER)] = "water";
+				contentnames[tobit(FTECONTENTS_LADDER)] = "ladder";
+				contentnames[tobit(FTECONTENTS_PLAYERCLIP)] = "playerclip";
+				contentnames[tobit(FTECONTENTS_MONSTERCLIP)] = "monsterclip";
+				contentnames[tobit(FTECONTENTS_BODY)] = "body";
+				contentnames[tobit(FTECONTENTS_CORPSE)] = "corpse";
+				contentnames[tobit(FTECONTENTS_SKY)] = "sky";
+				for (*contents = 0, i = 0; i < 32; i++)
+				{
+					if (inf->contents & (1<<i))
+					{
+						if (*contents)
+							Q_strncatz(contents, "|", sizeof(contents));
+						if (contentnames[i])
+							Q_strncatz(contents, contentnames[i], sizeof(contents));
+						else
+							Q_strncatz(contents, va("%#x", 1<<i), sizeof(contents));
+					}
+				}
+				if (!*contents)
+					Q_strncatz(contents, "non-solid", sizeof(contents));
+				R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, 
+					va(	"mins: %g %g %g, maxs: %g %g %g\n"
+						"contents: %s\n"
+						"surfflags: %#x\n"
+						"body: %i\n"
+						"geomset: %i %i%s\n"
+						"numverts: %i\nnumtris: %i\n"
+						, ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2],
+						contents,
+						inf->csurface.flags,
+						inf->surfaceid,
+						inf->geomset>=MAX_GEOMSETS?-1:inf->geomset, inf->geomid, inf->geomset>=MAX_GEOMSETS?" (always)":"",
+						inf->numverts, inf->numindexes/3
+						)
+					, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
+			}
+		}
+		else
 		{
 			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, 
 				va("mins: %g %g %g, maxs: %g %g %g\n", ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2])
 				, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
-		break;
 		}
-		//fallthrough
+		break;
 	case MV_BONES:
 #ifdef SKELETALMODELS
 		{
@@ -3130,6 +3251,21 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 				R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, "No bones in model", CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 		}
 #endif
+		break;
+	case MV_EVENTS:
+		{
+			int i;
+			float timestamp = 0;
+			int code = 0;
+			char *data = NULL;
+			Draw_FunString(0, y, va("Events: "));
+			y+=8;
+			for (i = 0; Mod_GetModelEvent(ent.model, mods->framegroup, i, &timestamp, &code, &data); y+=8, i++)
+			{
+				Draw_FunString(0, y, va("%i %f: %i %s", i, timestamp, code, data));
+			}
+			Draw_FunString(0, y, va("%f: <end of animation>", Mod_GetFrameDuration(ent.model, 0, mods->framegroup)));
+		}
 		break;
 	case MV_SHADER:
 		{
@@ -3184,7 +3320,8 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 		case MV_BONES:	mods->mode = MV_SHADER;		break;
 		case MV_SHADER:	mods->mode = MV_TEXTURE;	break;
 		case MV_TEXTURE: mods->mode = MV_COLLISION;	break;
-		case MV_COLLISION: mods->mode = MV_NONE;	break;
+		case MV_COLLISION: mods->mode = MV_EVENTS;	break;
+		case MV_EVENTS: mods->mode = MV_NONE;		break;
 		}
 	}
 	else if (key == 'r')
@@ -3192,6 +3329,14 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 		mods->framechangetime = realtime;
 		mods->skinchangetime = realtime;
 	}
+#ifdef RAGDOLL
+	else if (key == 'f')
+	{
+		mods->flop ^= 1;
+		if (!mods->flop)
+			rag_removedeltaent(&mods->ragent);
+	}
+#endif
 	else if (key == '[')
 		mods->boneidx--;
 	else if (key == ']')
@@ -3204,14 +3349,14 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 		mods->yaw -= 5;
 	else if (key == K_RIGHTARROW)
 		mods->yaw += 5;
-	else if (key == K_HOME)
+	else if (key == K_END)
 	{
 		mods->skingroup = max(0, mods->skingroup-1);
 		mods->skinchangetime = realtime;
 		Z_Free(mods->shadertext);
 		mods->shadertext = NULL;
 	}
-	else if (key == K_END)
+	else if (key == K_HOME)
 	{
 		mods->skingroup += 1;
 		mods->skinchangetime = realtime;
@@ -3230,13 +3375,13 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 		mods->framegroup += 1;
 		mods->framechangetime = realtime;
 	}
-	else if (key == K_INS)
+	else if (key == K_DEL)
 	{
 		mods->surfaceidx = max(0, mods->surfaceidx-1);
 		Z_Free(mods->shadertext);
 		mods->shadertext = NULL;
 	}
-	else if (key == K_DEL)
+	else if (key == K_INS)
 	{
 		mods->surfaceidx += 1;
 		Z_Free(mods->shadertext);
@@ -3253,12 +3398,31 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 	return true;
 }
 
+#ifdef RAGDOLL
+void M_Modelviewer_Shutdown(struct menu_s *menu)
+{
+	modelview_t *mv = menu->data;
+	rag_removedeltaent(&mv->ragent);
+	skel_reset(&mv->ragworld);
+	World_RBE_Shutdown(&mv->ragworld);
+}
+//haxors, for skeletal objects+RBE
+char	*PDECL M_Modelviewer_AddString(pubprogfuncs_t *prinst, const char *val, int minlength, pbool demarkup)
+{
+	return Z_Malloc(minlength);
+}
+struct edict_s	*PDECL M_Modelviewer_ProgsToEdict(pubprogfuncs_t *prinst, int num)
+{
+	return (struct edict_s*)prinst->edicttable[num];
+}
+#endif
+
 void M_Menu_ModelViewer_f(void)
 {
 	modelview_t *mv;
 	menucustom_t *c;
 	menu_t *menu;
-		
+
 	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(sizeof(*mv));
@@ -3268,10 +3432,28 @@ void M_Menu_ModelViewer_f(void)
 	c->draw = M_ModelViewerDraw;
 	c->key = M_ModelViewerKey;
 
-	mv->yaw = 180 + crandom()*45;
+	mv->yaw = 180;// + crandom()*45;
 	mv->dist = 150;
 	Q_strncpyz(mv->modelname, Cmd_Argv(1), sizeof(mv->modelname));
 	Q_strncpyz(mv->forceshader, Cmd_Argv(2), sizeof(mv->forceshader));
+
+#ifdef RAGDOLL
+	menu->remove = M_Modelviewer_Shutdown;
+	mv->ragworld.progs = &mv->ragfuncs;
+	mv->ragfuncs.AddString = M_Modelviewer_AddString;
+	mv->ragfuncs.ProgsToEdict = M_Modelviewer_ProgsToEdict;
+	mv->ragfuncs.edicttable = (edict_t**)&mv->ragworld.edicts;
+	mv->ragworld.edicts = &mv->ragworldedict;
+	mv->ragworld.edicts->v = &mv->ragworldvars;
+	mv->ragworld.edicts->xv = &mv->ragworldextvars;
+	mv->ragworld.num_edicts = 1;
+	mv->ragworld.edicts->v->solid = SOLID_BBOX;
+	VectorSet(mv->ragworld.edicts->v->mins, -1000, -1000, -101);
+	VectorSet(mv->ragworld.edicts->v->maxs, 1000, 1000, -100);
+
+	mv->ragworld.worldmodel = Mod_ForName("", MLV_SILENT);
+	World_RBE_Start(&mv->ragworld);
+#endif
 }
 #else
 void M_Menu_ModelViewer_f(void)

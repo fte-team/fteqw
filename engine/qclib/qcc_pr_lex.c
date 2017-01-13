@@ -3886,6 +3886,15 @@ pbool QCC_PR_CheckToken (const char *string)
 	return true;
 }
 
+pbool QCC_PR_PeekToken (const char *string)
+{
+	if (pr_token_type != tt_punct)
+		return false;
+	if (STRCMP (string, pr_token))
+		return false;
+	return true;
+}
+
 pbool QCC_PR_CheckImmediate (const char *string)
 {
 	if (pr_token_type != tt_immediate)

@@ -32,6 +32,14 @@ typedef struct
 	vec3_t		scale_origin;
 } galiaspose_t;
 
+typedef struct galiasevent_s
+{
+	struct galiasevent_s *next;
+	float timestamp;
+	int code;
+	char *data;
+} galiasevent_t;
+
 //a frame group (aka: animation)
 typedef struct
 {
@@ -44,6 +52,7 @@ typedef struct
 	int numposes;
 	float rate;
 	galiaspose_t *poseofs;
+	galiasevent_t *events;
 	char name[64];
 } galiasanimation_t;
 
@@ -120,6 +129,14 @@ typedef struct galiasinfo_s
 	index_t *ofs_indexes;
 	int numindexes;
 
+	//for hitmodel
+	unsigned int contents;		//default CONTENTS_BODY
+	q2csurface_t csurface;		//flags, and also collision name, if useful...
+	unsigned int surfaceid;		//the body reported to qc via trace_surface
+
+	float	mindist;
+	float	maxdist;
+
 	int *ofs_trineighbours;
 	float lerpcutoff;	//hack. should probably be part of the entity structure, but I really don't want new models (and thus code) to have access to this ugly inefficient hack. make your models properly in the first place.
 
@@ -148,8 +165,6 @@ typedef struct galiasinfo_s
 	float *baseframeofs;	/*non-heirachical*/
 	int numbones;
 	galiasbone_t *ofsbones;
-//FTE_DEPRECATED int numswtransforms;
-//FTE_DEPRECATED galisskeletaltransforms_t *ofsswtransforms;
 
 	vecV_t *ofs_skel_xyz;
 	vec3_t *ofs_skel_norm;

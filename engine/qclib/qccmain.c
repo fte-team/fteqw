@@ -1462,7 +1462,7 @@ pbool QCC_WriteData (int crc)
 			}
 		}
 */
-		if (!def->referenced)
+		if (!def->symbolheader->used)
 		{
 			int wt = def->constant?WARN_NOTREFERENCEDCONST:WARN_NOTREFERENCED;
 			pr_scope = def->scope;
@@ -1504,7 +1504,7 @@ pbool QCC_WriteData (int crc)
 		if (def->strip || !def->symbolheader->used)
 		{
 #ifdef DEBUG_DUMP
-			printf("code: %s:%i: strip %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
+			printf("code: %s:%i: strip %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 #endif
 			continue;
 		}
@@ -1550,9 +1550,9 @@ pbool QCC_WriteData (int crc)
 
 #ifdef DEBUG_DUMP
 				if (def->scope)
-					printf("code: %s:%i: strip local %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
+					printf("code: %s:%i: strip local %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 				else if (def->constant)
-					printf("code: %s:%i: strip const %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
+					printf("code: %s:%i: strip const %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 #endif
 				continue;
 			}
@@ -1590,19 +1590,19 @@ pbool QCC_WriteData (int crc)
 
 #ifdef DEBUG_DUMP
 		if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_string)
-			printf("code: %s:%i: %s%s%s %s@%i = \"%s\"\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, ((unsigned)def->symboldata[def->ofs].string>=(unsigned)strofs)?"???":(strings + def->symboldata[def->ofs].string));
+			printf("code: %s:%i: %s%s%s %s@%i = \"%s\"\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, ((unsigned)def->symboldata[def->ofs].string>=(unsigned)strofs)?"???":(strings + def->symboldata[def->ofs].string));
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_float)
-			printf("code: %s:%i: %s%s%s %s@%i = %g\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._float);
+			printf("code: %s:%i: %s%s%s %s@%i = %g\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._float);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_integer)
-			printf("code: %s:%i: %s%s%s %s@%i = %i\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._int);
+			printf("code: %s:%i: %s%s%s %s@%i = %i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._int);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_vector)
-			printf("code: %s:%i: %s%s%s %s@%i = '%g %g %g'\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs].vector[0], def->symboldata[def->ofs].vector[1], def->symboldata[def->ofs].vector[2]);
+			printf("code: %s:%i: %s%s%s %s@%i = '%g %g %g'\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs].vector[0], def->symboldata[def->ofs].vector[1], def->symboldata[def->ofs].vector[2]);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_function)
-			printf("code: %s:%i: %s%s%s %s@%i = %i(%s)\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs].function, def->symboldata[def->ofs].function >= numfunctions?"???":functions[def->symboldata[def->ofs].function].name);
+			printf("code: %s:%i: %s%s%s %s@%i = %i(%s)\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs].function, def->symboldata[def->ofs].function >= numfunctions?"???":functions[def->symboldata[def->ofs].function].name);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_field)
-			printf("code: %s:%i: %s%s%s %s@%i = @%i\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._int);
+			printf("code: %s:%i: %s%s%s %s@%i = @%i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._int);
 		else
-			printf("code: %s:%i: %s%s%s %s@%i\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs);
+			printf("code: %s:%i: %s%s%s %s@%i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs);
 #endif
 	}
 

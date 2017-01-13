@@ -47,6 +47,8 @@ extern	cvar_t gl_simpleitems;
 extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
 
+extern world_t csqc_world;
+
 static struct predicted_player
 {
 	int flags;
@@ -3126,6 +3128,13 @@ static void CL_UpdateNetFrameLerpState(qboolean force, int curframe, int curbase
 			}
 			le->newframe[fst] = frame;
 			le->newframestarttime[fst] = cl.servertime;
+
+//			if (force)
+//			{
+//				//if its new, we need to tweak the age of the animation. looping anims won't appear any different, while non-looping ones will clamp to the last pose of the animation when its new.
+//				le->oldframestarttime[fst] -= Mod_GetFrameDuration(le->model, 0, le->oldframe[fst]);
+//				le->newframestarttime[fst] -= Mod_GetFrameDuration(le->model, 0, le->newframe[fst]);
+//			}
 		}
 	}
 }
@@ -4075,7 +4084,7 @@ void CL_LinkPacketEntities (void)
 
 #ifdef RAGDOLL
 		if (model && (model->dollinfo || le->skeletalobject))
-			rag_updatedeltaent(ent, le);
+			rag_updatedeltaent(&csqc_world, ent, le);
 #endif
 		ent->framestate.g[FS_REG].frame[0] &= ~0x8000;
 		ent->framestate.g[FS_REG].frame[1] &= ~0x8000;

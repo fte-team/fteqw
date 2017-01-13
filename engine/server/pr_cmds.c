@@ -506,9 +506,18 @@ model_t *QDECL SVPR_GetCModel(world_t *w, int modelindex)
 {
 	if ((unsigned int)modelindex < MAX_PRECACHE_MODELS)
 	{
+		model_t *mod;
 		if (!sv.models[modelindex] && sv.strings.model_precache[modelindex])
 			sv.models[modelindex] = Mod_ForName(Mod_FixName(sv.strings.model_precache[modelindex], sv.modelname), MLV_WARN);
-		return sv.models[modelindex];
+		mod = sv.models[modelindex];
+		if (mod && mod->loadstate != MLS_LOADED)
+		{
+			if (mod->loadstate == MLS_LOADING)
+				COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+			if (mod->loadstate != MLS_LOADED)
+				mod = NULL;	//gah, it failed!
+		}
+		return mod;
 	}
 	else
 		return NULL;
@@ -528,7 +537,7 @@ static void QDECL SVPR_Get_FrameState(world_t *w, wedict_t *ent, framestate_t *f
 
 #if defined(SKELETALOBJECTS) || defined(RAGDOLL)
 	if (ent->xv->skeletonindex)
-		skel_lookup(w->progs, ent->xv->skeletonindex, fstate);
+		skel_lookup(w, ent->xv->skeletonindex, fstate);
 #endif
 }
 
@@ -10253,6 +10262,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"skel_delete",		PF_skel_delete,		0,		0,		0,		275,	D("void(float skel)", "Deletes a skeletal object. The actual delete is delayed, allowing the skeletal object to be deleted in an entity's predraw function yet still be valid by the time the addentity+renderscene builtins need it. Also uninstanciates any ragdoll currently in effect on the skeletal object.")}, // (FTE_CSQC_SKELETONOBJECTS)
 	{"frameforname",	PF_frameforname,	0,		0,		0,		276,	D("float(float modidx, string framename)", "Looks up a framegroup from a model by name, avoiding the need for hardcoding. Returns -1 on error.")},// (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",	PF_frameduration,	0,		0,		0,		277,	D("float(float modidx, float framenum)", "Retrieves the duration (in seconds) of the specified framegroup.")},// (FTE_CSQC_SKELETONOBJECTS)
+	{"processmodelevents",PF_processmodelevents,0,	0,		0,		0,		D("void(float modidx, float framenum, __inout float basetime, float targettime, void(float timestamp, int code, string data) callback)", "Calls a callback for each event that has been reached. Basetime is set to targettime.")},
+	{"getnextmodelevent",PF_getnextmodelevent,0,	0,		0,		0,		D("float(float modidx, float framenum, __inout float basetime, float targettime, __out int code, __out string data)", "Reports the next event within a model's animation. Returns a boolean if an event was found between basetime and targettime. Writes to basetime,code,data arguments (if an event was found, basetime is set to the event's time, otherwise to targettime).\nWARNING: this builtin cannot deal with multiple events with the same timestamp (only the first will be reported).")},
+	{"getmodeleventidx",PF_getmodeleventidx,0,		0,		0,		0,		D("float(float modidx, float framenum, int eventidx, __out float timestamp, __out int code, __out string data)", "Reports an indexed event within a model's animation. Writes to timestamp,code,data arguments on success. Returns false if the animation/event/model was out of range/invalid. Does not consider looping animations (retry from index 0 if it fails and you know that its a looping animation). This builtin is more annoying to use than getnextmodelevent, but can be made to deal with multiple events with the exact same timestamp.")},
 
 	{"crossproduct",	PF_crossproduct,	0,		0,		0,		0,		D("#define dotproduct(v1,v2) ((vector)(v1)*(vector)(v2))\nvector(vector v1, vector v2)", "Small helper function to calculate the crossproduct of two vectors.")},
 
@@ -10349,8 +10361,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"drawrotsubpic",	PF_Fixme,	0,		0,		0,		0,		D("void(vector pivot, vector mins, vector maxs, string pic, vector txmin, vector txsize, vector rgb, vector alphaandangles)", "Overcomplicated draw function for over complicated people. Positions follow drawrotpic, while texture coords follow drawsubpic. Due to argument count limitations in builtins, the alpha value and angles are combined into separate fields of a vector (tip: use fteqcc's [alpha, angle] feature.")},
 
 //330
-	{"getstati",		PF_Fixme,	0,		0,		0,		330,	D("float(float stnum)", "Retrieves the numerical value of the given EV_INTEGER or EV_ENTITY stat (converted to a float).")},// (EXT_CSQC)
-	{"getstatf",		PF_Fixme,	0,		0,		0,		331,	D("#define getstatbits getstatf\nfloat(float stnum, optional float firstbit, optional float bitcount)", "Retrieves the numerical value of the given EV_FLOAT stat. If firstbit and bitcount are specified, retrieves the upper bits of the STAT_ITEMS stat.")},// (EXT_CSQC)
+	{"getstati",		PF_Fixme,	0,		0,		0,		330,	D("#define getstati_punf(stnum) (float)(__variant)getstati(stnum)\nint(float stnum)", "Retrieves the numerical value of the given EV_INTEGER or EV_ENTITY stat (converted to a float).")},// (EXT_CSQC)
+	{"getstatf",		PF_Fixme,	0,		0,		0,		331,	D("#define getstatbits getstatf\nfloat(float stnum, optional float firstbit, optional float bitcount)", "Retrieves the numerical value of the given EV_FLOAT stat. If firstbit and bitcount are specified, retrieves the upper bits of the STAT_ITEMS stat (converted into a float, so there are no VM dependancies).")},// (EXT_CSQC)
 	{"getstats",		PF_Fixme,	0,		0,		0,		332,	D("string(float stnum)", "Retrieves the value of the given EV_STRING stat, as a tempstring.\nOlder engines may use 4 consecutive integer stats, with a limit of 15 chars (yes, really. 15.), but "FULLENGINENAME" uses a separate namespace for string stats and has a much higher length limit.")},
 	{"getplayerstat",	PF_Fixme,	0,		0,		0,		0,		D("__variant(float playernum, float statnum, float stattype)", "Retrieves a specific player's stat, matching the type specified on the server. This builtin is primarily intended for mvd playback where ALL players are known. For EV_ENTITY, world will be returned if the entity is not in the pvs, use type-punning with EV_INTEGER to get the entity number if you just want to see if its set. STAT_ITEMS should be queried as an EV_INTEGER on account of runes and items2 being packed into the upper bits.")},
 

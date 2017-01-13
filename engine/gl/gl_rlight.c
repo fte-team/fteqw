@@ -1591,10 +1591,10 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, vec3_t start
 	front = DotProduct (start, plane->normal) - plane->dist;
 	back = DotProduct (end, plane->normal) - plane->dist;
 	side = front < 0;
-	
+
 	if ( (back < 0) == side)
 		return GLRecursiveLightPoint3C (mod, node->children[side], start, end);
-	
+
 	frac = front / (front-back);
 	mid[0] = start[0] + (end[0] - start[0])*frac;
 	mid[1] = start[1] + (end[1] - start[1])*frac;
@@ -1604,10 +1604,10 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, vec3_t start
 	r = GLRecursiveLightPoint3C (mod, node->children[side], start, mid);
 	if (r && r[0]+r[1]+r[2] >= 0)
 		return r;		// hit something
-		
+
 	if ( (back < 0) == side )
 		return NULL;		// didn't hit anuthing
-		
+
 // check for impact on this node
 	VectorCopy (mid, lightspot);
 	lightplane = plane;
@@ -1626,7 +1626,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, vec3_t start
 		if (s < surf->texturemins[0] ||
 		t < surf->texturemins[1])
 			continue;
-		
+
 		ds = s - surf->texturemins[0];
 		dt = t - surf->texturemins[1];
 		

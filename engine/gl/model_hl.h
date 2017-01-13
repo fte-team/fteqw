@@ -192,7 +192,9 @@ typedef struct
 	char	name[32];
 	float	timing;
 	int		loop;
-	int		unknown1[4];
+	int		unknown1[2];
+	int		num_events;
+	int		ofs_events;
 	int		numframes;
 	int		unknown2[2];
 	int		motiontype;
@@ -208,6 +210,14 @@ typedef struct
 	unsigned int		seqindex;
 	int		unknown9[4];
 } hlmdl_sequencelist_t;
+
+typedef struct
+{
+	int pose;
+	int code;
+	int unknown1;
+	char data[64];
+} hlmdl_event_t;
 
 /*
  -----------------------------------------------------------------------------------------------------------------------
@@ -289,6 +299,7 @@ int HLMDL_BoneForName(model_t *mod, const char *name);
 int HLMDL_FrameForName(model_t *mod, const char *name);
 const char *HLMDL_FrameNameForNum(model_t *model, int surfaceidx, int num);
 qboolean HLMDL_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **name, int *numframes, float *duration, qboolean *loop);
+qboolean HLMDL_GetModelEvent(model_t *model, int animation, int eventidx, float *timestamp, int *eventcode, char **eventdata);
 int HLMDL_GetNumBones(model_t *mod, qboolean tagstoo);
 int HLMDL_GetBoneParent(model_t *mod, int bonenum);
 const char *HLMDL_GetBoneName(model_t *mod, int bonenum);

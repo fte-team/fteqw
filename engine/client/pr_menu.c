@@ -1838,7 +1838,9 @@ static void QCBUILTIN PF_m_clearscene(pubprogfuncs_t *prinst, struct globalvars_
 //	CL_DecayLights ();
 
 #if defined(SKELETALOBJECTS) || defined(RAGDOLLS)
-	skel_dodelete(prinst);
+	world_t *world = prinst->parms->user;
+	if (world)
+		skel_dodelete(world);
 #endif
 	CL_ClearEntityLists();
 

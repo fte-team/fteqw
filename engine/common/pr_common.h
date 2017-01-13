@@ -262,10 +262,15 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	void QCBUILTIN PF_gettaginfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_gettagindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 #endif
+
+void QCBUILTIN PF_processmodelevents (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getnextmodelevent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getmodeleventidx (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+
 #if defined(SKELETALOBJECTS) || defined(RAGDOLL)
-	void skel_lookup(pubprogfuncs_t *prinst, int skelidx, framestate_t *out);
-	void skel_dodelete(pubprogfuncs_t *prinst);
-	void skel_reset(pubprogfuncs_t *prinst);
+	void skel_lookup(world_t *prinst, int skelidx, framestate_t *out);
+	void skel_dodelete(world_t *world);
+	void skel_reset(world_t *world);
 #endif
 void QCBUILTIN PF_physics_enable(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_physics_addforce(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

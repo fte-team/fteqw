@@ -16,6 +16,14 @@
 #define WINAVI
 #endif
 
+#if defined(__linux__) && !defined(ANDROID)
+	//should really include posix 2001 systems in general
+	#define HAVE_STATVFS
+#endif
+#ifdef HAVE_STATVFS
+	#include <sys/statvfs.h>
+#endif
+
 
 typedef struct mediatrack_s{
 	char filename[MAX_QPATH];
@@ -2737,13 +2745,21 @@ int captureoldfbo;
 qboolean capturingfbo;
 texid_t	capturetexture;
 qboolean captureframeforce;
+
 #if defined(GLQUAKE) && !defined(GLESONLY)
-//ring buffer
-int pbo_handles[4];
-enum uploadfmt pbo_format;
-#define CAN_USE_PBOS
+#define GLQUAKE_PBOS
 #endif
-int pbo_oldest;
+struct
+{
+#ifdef GLQUAKE_PBOS
+	int pbo_handle;
+#endif
+	enum uploadfmt format;
+	int width;
+	int height;
+} offscreen_queue[4];	//ringbuffer of offscreen_captureframe...captureframe
+int offscreen_captureframe;
+enum uploadfmt offscreen_format;
 
 #define CAPTURECODECDESC_DEFAULT	"tga"
 #ifdef WINAVI
@@ -2765,6 +2781,7 @@ cvar_t capturesound = CVARD("capturesound", "1", "Enables the capturing of game 
 cvar_t capturesoundchannels = CVAR("capturesoundchannels", "2");
 cvar_t capturesoundbits = CVAR("capturesoundbits", "16");
 cvar_t capturemessage = CVAR("capturemessage", "");
+cvar_t capturethrottlesize = CVARD("capturethrottlesize", "0", "If set, capturing will slow down significantly if there is less disk space available than this cvar (in mb). This is useful when recording a stream to (ram)disk while another program is simultaneously consuming frames.");
 qboolean recordingdemo;
 
 media_encoder_funcs_t *currentcapture_funcs;
@@ -2834,6 +2851,34 @@ static void QDECL capture_raw_video (void *vctx, void *data, int frame, int widt
 	ctx->frames = frame+1;
 	Q_snprintfz(filename, sizeof(filename), "%s%8.8i.%s", ctx->videonameprefix, frame, ctx->videonameextension);
 	SCR_ScreenShot(filename, ctx->fsroot, &data, 1, width, height, fmt);
+
+	if (capturethrottlesize.ival)
+	{
+		char base[MAX_QPATH];
+		Q_strncpyz(base, ctx->videonameprefix, sizeof(base));
+		*COM_SkipPath(base) = 0;
+		if (FS_NativePath(base, FS_GAMEONLY, filename, sizeof(filename)))
+		{
+			#if HAVE_STATVFS
+				//posix 2001
+				struct statvfs inf;
+				if(0==statvfs(filename, &inf))
+				{
+					if (inf.f_frsize*(double)inf.f_blocks < (1024.*1024)*capturethrottlesize.value)
+						Sys_Sleep(1);
+				}
+			#elif defined( _WIN32)
+				wchar_t ffs[MAX_OSPATH];
+				ULARGE_INTEGER freebytes;
+				if (GetDiskFreeSpaceExW(widen(ffs, sizeof(ffs), filename), &freebytes, NULL, NULL))
+					if (freebytes.QuadPart < (ULONGLONG)(1024*1024)*capturethrottlesize.value)
+						Sys_Sleep(1);
+			#else
+				Con_Printf("capturethrottlesize is unsupported in this build\n");
+				capturethrottlesize.ival = 0;
+			#endif
+		}
+	}
 }
 static void QDECL capture_raw_audio (void *vctx, void *data, int bytes)
 {
@@ -2882,10 +2927,10 @@ static void QDECL capture_avi_end(void *vctx)
 {
 	struct capture_avi_ctx *ctx = vctx;
 
-    if (ctx->uncompressed_video_stream)	qAVIStreamRelease(ctx->uncompressed_video_stream);
-    if (ctx->compressed_video_stream)	qAVIStreamRelease(ctx->compressed_video_stream);
-    if (ctx->uncompressed_audio_stream)	qAVIStreamRelease(ctx->uncompressed_audio_stream);
-    if (ctx->file)						qAVIFileRelease(ctx->file);
+	if (ctx->uncompressed_video_stream)	qAVIStreamRelease(ctx->uncompressed_video_stream);
+	if (ctx->compressed_video_stream)	qAVIStreamRelease(ctx->compressed_video_stream);
+	if (ctx->uncompressed_audio_stream)	qAVIStreamRelease(ctx->uncompressed_audio_stream);
+	if (ctx->file)						qAVIFileRelease(ctx->file);
 	Z_Free(ctx);
 }
 
@@ -3230,7 +3275,7 @@ void Media_RecordFrame (void)
 			y = vid.height-8;
 
 #ifdef GLQUAKE
-		if (capturingfbo)
+		if (capturingfbo && qrenderer == QR_OPENGL)
 		{
 			shader_t *pic;
 			GLBE_FBO_Pop(captureoldfbo);
@@ -3301,56 +3346,69 @@ void Media_RecordFrame (void)
 	if (R2D_Flush)
 		R2D_Flush();
 
-#ifdef CAN_USE_PBOS
-	if (pbo_format != TF_INVALID)
+#ifdef GLQUAKE_PBOS
+	if (offscreen_format != TF_INVALID && qrenderer == QR_OPENGL)
 	{
-		int imagesize = vid.fbpwidth * vid.fbpheight;
-		switch(pbo_format)
+		int frame;
+		//encode the frame if we're about to stomp on it
+		while (offscreen_captureframe + countof(offscreen_queue) <= captureframe)
 		{
-		case TF_BGR24:
-		case TF_RGB24:
-			imagesize *= 3;
-			break;
-		case TF_BGRA32:
-		case TF_RGBA32:
-			imagesize *= 4;
-			break;
-		default:
-			break;
-		}
-		while (pbo_oldest + countof(pbo_handles) <= captureframe)
-		{
-			qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, pbo_handles[pbo_oldest%countof(pbo_handles)]);
+			frame = offscreen_captureframe%countof(offscreen_queue);
+			qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, offscreen_queue[frame].pbo_handle);
 			buffer = qglMapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY_ARB);
 			if (buffer)
 			{
 				//FIXME: thread these (with audio too, to avoid races)
-				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, pbo_oldest, vid.fbpwidth, vid.fbpheight, pbo_format);
+				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, offscreen_captureframe, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
 				qglUnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
 			}
-			pbo_oldest++;
+			offscreen_captureframe++;
 		}
 
-		if (!pbo_handles[captureframe%countof(pbo_handles)])
+		frame = captureframe%countof(offscreen_queue);
+		//if we have no pbo yet, create one.
+		if (!offscreen_queue[frame].pbo_handle)
 		{
-			qglGenBuffersARB(1, &pbo_handles[captureframe%countof(pbo_handles)]);
-			qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, pbo_handles[captureframe%countof(pbo_handles)]);
+			int imagesize = 0;
+			offscreen_queue[frame].format = offscreen_format;
+			offscreen_queue[frame].width = vid.pixelwidth;
+			offscreen_queue[frame].height = vid.pixelheight;
+			switch(offscreen_queue[frame].format)
+			{
+			case TF_BGR24:
+			case TF_RGB24:
+				imagesize = 3;
+				break;
+			case TF_BGRA32:
+			case TF_RGBA32:
+				imagesize = 4;
+				break;
+			default:
+				break;
+			}
+
+			imagesize *= offscreen_queue[frame].width * offscreen_queue[frame].height;
+
+			qglGenBuffersARB(1, &offscreen_queue[frame].pbo_handle);
+			qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, offscreen_queue[frame].pbo_handle);
 			qglBufferDataARB(GL_PIXEL_PACK_BUFFER_ARB, imagesize, NULL, GL_STATIC_READ_ARB);
 		}
-		qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, pbo_handles[captureframe%countof(pbo_handles)]);
-		switch(pbo_format)
+
+		//get the gpu to copy the texture into the pbo. the driver should pipeline this read until we actually map the pbo, hopefully avoiding stalls
+		qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, offscreen_queue[frame].pbo_handle);
+		switch(offscreen_queue[frame].format)
 		{
 		case TF_BGR24:
-			qglReadPixels(0, 0, vid.fbpwidth, vid.fbpheight, GL_BGR_EXT, GL_UNSIGNED_BYTE, 0);
+			qglReadPixels(0, 0, offscreen_queue[frame].width, offscreen_queue[frame].height, GL_BGR_EXT, GL_UNSIGNED_BYTE, 0);
 			break;
 		case TF_BGRA32:
-			qglReadPixels(0, 0, vid.fbpwidth, vid.fbpheight, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, 0);
+			qglReadPixels(0, 0, offscreen_queue[frame].width, offscreen_queue[frame].height, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, 0);
 			break;
 		case TF_RGB24:
-			qglReadPixels(0, 0, vid.fbpwidth, vid.fbpheight, GL_RGB, GL_UNSIGNED_BYTE, 0);
+			qglReadPixels(0, 0, offscreen_queue[frame].width, offscreen_queue[frame].height, GL_RGB, GL_UNSIGNED_BYTE, 0);
 			break;
 		case TF_RGBA32:
-			qglReadPixels(0, 0, vid.fbpwidth, vid.fbpheight, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+			qglReadPixels(0, 0, offscreen_queue[frame].width, offscreen_queue[frame].height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 			break;
 		default:
 			break;
@@ -3359,8 +3417,38 @@ void Media_RecordFrame (void)
 	}
 	else
 #endif
+#if 0//def VKQUAKE
+	if (offscreen_format != TF_INVALID && qrenderer == QR_VULKAN)
 	{
-		pbo_oldest = captureframe+1;
+		//try and collect any finished frames
+		while (offscreen_captureframe + countof(offscreen_queue) <= captureframe)
+		{
+			frame = offscreen_captureframe%countof(offscreen_queue);
+			vkFenceWait();
+			buffer = NULL;//qglMapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY_ARB);
+			if (buffer)
+			{
+				//FIXME: thread these (with audio too, to avoid races)
+				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, offscreen_captureframe, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
+				//qglUnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
+			}
+			offscreen_captureframe++;
+		}
+
+		frame = captureframe%countof(offscreen_queue);
+		if (no frame yet)
+		{
+			create a buffer
+			map the buffer persistently
+		}
+
+		vkCopyImageToBuffer
+		vkSubmitFence
+	}
+	else
+#endif
+	{
+		offscreen_captureframe = captureframe+1;
 		//submit the current video frame. audio will be mixed to match.
 		buffer = VID_GetRGBInfo(&truewidth, &trueheight, &fmt);
 		if (buffer)
@@ -3388,7 +3476,7 @@ skipframe:
 		y = vid.height-8;
 
 #ifdef GLQUAKE
-	if (capturingfbo)
+	if (capturingfbo && qrenderer == QR_OPENGL)
 	{
 		shader_t *pic;
 		GLBE_FBO_Pop(captureoldfbo);
@@ -3553,29 +3641,55 @@ void Media_InitFakeSoundDevice (int speed, int channels, int samplebits)
 
 void Media_StopRecordFilm_f (void)
 {
-#ifdef CAN_USE_PBOS
-	if (pbo_format)
+#ifdef GLQUAKE_PBOS
+	if (offscreen_format && qrenderer == QR_OPENGL)
 	{
-		int i;
-		while (pbo_oldest < captureframe)
+		int frame;
+		qbyte *buffer;
+		while (offscreen_captureframe < captureframe)
 		{
-			qbyte *buffer;
-			qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, pbo_handles[pbo_oldest%countof(pbo_handles)]);
+			frame = offscreen_captureframe%countof(offscreen_queue);
+			qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, offscreen_queue[frame].pbo_handle);
 			buffer = qglMapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY_ARB);
 			if (buffer)
 			{
-				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, pbo_oldest, vid.fbpwidth, vid.fbpheight, TF_BGR24);
-//				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, pbo_oldest, vid.fbpwidth, vid.fbpheight, TF_BGRA32);
+				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, offscreen_captureframe, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
 				qglUnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
 			}
-			pbo_oldest++;
+			offscreen_captureframe++;
 		}
 
-		for (i = 0; i < countof(pbo_handles); i++)
+		for (frame = 0; frame < countof(offscreen_queue); frame++)
 		{
-			if (pbo_handles[i])
-				qglDeleteBuffersARB(1, &pbo_handles[i]);
-			pbo_handles[i] = 0;
+			if (offscreen_queue[frame].pbo_handle)
+				qglDeleteBuffersARB(1, &offscreen_queue[frame].pbo_handle);
+			memset(&offscreen_queue[frame], 0, sizeof(offscreen_queue[frame]));
+		}
+	}
+#endif
+#if 0//def VKQUAKE
+	if (pbo_format && qrenderer == QR_VULKAN)
+	{
+		int frame;
+		while (offscreen_captureframe < captureframe)
+		{
+			frame = offscreen_captureframe%countof(offscreen_queue);
+			qbyte *buffer;
+			qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, offscreen_queue[frame].pbo_handle);
+			buffer = qglMapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY_ARB);
+			if (buffer)
+			{
+				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, offscreen_captureframe, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
+				qglUnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
+			}
+			offscreen_captureframe++;
+		}
+
+		for (frame = 0; frame < countof(offscreen_queue); frame++)
+		{
+			if (offscreen_queue[frame].pbo_handle)
+				qglDeleteBuffersARB(1, &offscreen_queue[frame].pbo_handle);
+			memset(&offscreen_queue[frame], 0, sizeof(offscreen_queue[frame]));
 		}
 	}
 #endif
@@ -3596,7 +3710,7 @@ void Media_StopRecordFilm_f (void)
 	currentcapture_funcs = NULL;
 
 #ifdef GLQUAKE
-	if (capturingfbo)
+	if (capturingfbo && qrenderer == QR_OPENGL)
 	{
 		GLBE_FBO_Pop(captureoldfbo);
 		GLBE_FBO_Destroy(&capturefbo);
@@ -3627,7 +3741,7 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 
 	Con_ClearNotify();
 
-	captureframe = pbo_oldest = 0;
+	captureframe = offscreen_captureframe = 0;
 	for (i = 0; i < sizeof(pluginencodersfunc)/sizeof(pluginencodersfunc[0]); i++)
 	{
 		if (pluginencodersfunc[i])
@@ -3668,17 +3782,26 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 		vid.fbpheight = captureheight.ival;
 		vid.framebuffer = capturetexture;
 	}
+	else
 #endif
+	{
+		vid.fbpwidth = vid.pixelwidth;
+		vid.fbpheight = vid.pixelheight;
+	}
 
-#ifdef CAN_USE_PBOS
-	pbo_format = TF_INVALID;
+	offscreen_format = TF_INVALID;
+#ifdef GLQUAKE_PBOS
 	if (qrenderer == QR_OPENGL && !gl_config.gles && gl_config.glversion >= 2.1)
 	{	//both tgas and vfw favour bgr24, so lets get the gl drivers to suffer instead of us, where possible.
 		if (vid.fbpwidth & 3)
-			pbo_format = TF_BGRA32;	//don't bother changing pack alignment, just use something that is guarenteed to not need anything.
+			offscreen_format = TF_BGRA32;	//don't bother changing pack alignment, just use something that is guarenteed to not need anything.
 		else
-			pbo_format = TF_BGR24;
+			offscreen_format = TF_BGR24;
 	}
+#endif
+#ifdef VKQUAKE
+//	if (qrenderer == QR_VULKAN)
+//		offscreen_format = TF_BGRA32;	//use the native format, the driver won't do byteswapping for us.
 #endif
 
 	recordingdemo = demo;
@@ -4531,6 +4654,7 @@ void Media_Init(void)
 	Cvar_Register(&captureheight,	"AVI capture controls");
 	Cvar_Register(&capturedriver,	"AVI capture controls");
 	Cvar_Register(&capturecodec,	"AVI capture controls");
+	Cvar_Register(&capturethrottlesize,	"AVI capture controls");
 
 #if defined(WINAVI)
 	Cvar_Register(&capturesoundbits,	"AVI capture controls");

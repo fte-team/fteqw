@@ -2404,6 +2404,7 @@ qboolean SV_Physics (void)
 	int		i;
 	qboolean moved = false;
 	int maxtics;
+	double trueframetime = host_frametime;
 
 	//keep gravity tracking the cvar properly
 	movevars.gravity = sv_gravity.value;
@@ -2425,6 +2426,7 @@ qboolean SV_Physics (void)
 		if (host_frametime < sv_maxtic.value && realtime)
 		{
 //			sv.time+=host_frametime;
+			host_frametime = trueframetime;
 			return false;	//don't bother with the whole server thing for a bit longer
 		}
 		if (host_frametime > sv_maxtic.value)
@@ -2446,6 +2448,7 @@ qboolean SV_Physics (void)
 		default:
 			break;
 		}
+		host_frametime = trueframetime;
 		return true;
 	}
 
@@ -2581,6 +2584,7 @@ qboolean SV_Physics (void)
 
 		sv.world.physicstime += host_frametime;
 	}
+	host_frametime = trueframetime;
 	return moved;
 }
 #endif

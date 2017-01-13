@@ -4862,7 +4862,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			{
 				newvals = PR_GetStringOfs(prinst, OFS_PARM2);
 				if (idx >= mod->numentityinfo)
-					Z_ReallocElements(&mod->entityinfo, &mod->numentityinfo, idx+64, sizeof(*mod->entityinfo));
+					Z_ReallocElements((void**)&mod->entityinfo, &mod->numentityinfo, idx+64, sizeof(*mod->entityinfo));
 				mod->entityinfo[idx].keyvals = Z_StrDup(newvals);
 			}
 			else
@@ -6198,7 +6198,7 @@ void CL_Parse_BrushEdit(void)
 		if (id > 0xffff)
 			return;
 		if (id >= mod->numentityinfo)
-			Z_ReallocElements(&mod->entityinfo, &mod->numentityinfo, id+64, sizeof(*mod->entityinfo));
+			Z_ReallocElements((void**)&mod->entityinfo, &mod->numentityinfo, id+64, sizeof(*mod->entityinfo));
 		if (id < mod->numentityinfo)
 		{
 			if (!ignore)

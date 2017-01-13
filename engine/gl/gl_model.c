@@ -52,7 +52,9 @@ void CM_Shutdown(void);
 void Mod_LoadSpriteShaders(model_t *spr);
 qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer, size_t fsize);
 qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer, size_t fsize);
-qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize);
+#ifdef Q1BSPS
+static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize);
+#endif
 #ifdef Q2BSPS
 qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer, size_t fsize);
 #endif
@@ -77,18 +79,18 @@ extern cvar_t r_loadlits;
 extern cvar_t gl_specular;
 #endif
 extern cvar_t r_fb_bmodels;
-mesh_t nullmesh;
 void Mod_SortShaders(model_t *mod);
 void Mod_LoadAliasShaders(model_t *mod);
 
 #ifdef RUNTIMELIGHTING
 model_t *lightmodel;
-struct relight_ctx_s *lightcontext;
-int numlightdata;
-qboolean writelitfile;
+static struct relight_ctx_s *lightcontext;
+static int numlightdata;
+static qboolean writelitfile;
 
 long relitsurface;
-void Mod_UpdateLightmap(int snum)
+#ifndef MULTITHREAD
+static void Mod_UpdateLightmap(int snum)
 {
 	msurface_t *s;	
 	if (lightmodel)
@@ -106,6 +108,7 @@ void Mod_UpdateLightmap(int snum)
 			Con_Printf("lit non-existant surface\n");
 	}
 }
+#endif
 #endif
 
 static void Mod_MemList_f(void)
@@ -261,12 +264,13 @@ static void Mod_BlockTextureColour_f (void)
 #endif
 
 
-#if defined(RUNTIMELIGHTING) && defined(MULTITHREAD)
-void *relightthread[8];
-unsigned int relightthreads;
-volatile qboolean wantrelight;
+#if defined(RUNTIMELIGHTING) 
+#if defined(MULTITHREAD)
+static void *relightthread[8];
+static unsigned int relightthreads;
+static volatile qboolean wantrelight;
 
-int RelightThread(void *arg)
+static int RelightThread(void *arg)
 {
 	int surf;
 	void *threadctx = malloc(lightthreadctxsize);
@@ -287,8 +291,8 @@ int RelightThread(void *arg)
 	free(threadctx);
 	return 0;
 }
-#else
-void *lightmainthreadctx;
+#endif
+static void *lightmainthreadctx;
 #endif
 
 void Mod_Think (void)
@@ -707,7 +711,9 @@ void Mod_Init (qboolean initial)
 		Mod_ClearAll();	//shouldn't be needed
 		Mod_Purge(MP_RESET);//shouldn't be needed
 		mod_numknown = 0;
+#ifdef Q1BSPS
 		Q1BSP_Init();
+#endif
 
 		Cmd_AddCommand("mod_memlist", Mod_MemList_f);
 #ifndef SERVERONLY
@@ -758,12 +764,14 @@ void Mod_Init (qboolean initial)
 		Mod_RegisterModelFormatText(NULL, "Doom3 (cm)",						"CM",									D3_LoadMap_CollisionMap);
 #endif
 
+#ifdef Q1BSPS
 		//q1-based formats
 		Mod_RegisterModelFormatMagic(NULL, "Quake1 2PSB Map(bsp)",			BSPVERSION_LONG1,						Mod_LoadBrushModel);
 		Mod_RegisterModelFormatMagic(NULL, "Quake1 BSP2 Map(bsp)",			BSPVERSION_LONG2,						Mod_LoadBrushModel);
 		Mod_RegisterModelFormatMagic(NULL, "Half-Life Map (bsp)",			30,										Mod_LoadBrushModel);
 		Mod_RegisterModelFormatMagic(NULL, "Quake1 Map (bsp)",				29,										Mod_LoadBrushModel);
 		Mod_RegisterModelFormatMagic(NULL, "Quake1 Prerelease Map (bsp)",	28,										Mod_LoadBrushModel);
+#endif
 	}
 }
 
@@ -1120,7 +1128,7 @@ Mod_LoadModel
 Loads a model into the cache
 ==================
 */
-void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
+static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 {
 	model_t *mod = ctx;
 	enum mlverbosity_e verbose = a;
@@ -1436,10 +1444,9 @@ static const char *Mod_RemapBuggyTexture(const char *name, const qbyte *data, un
 }
 #endif
 
-
-void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safetoloadfromwads)
-{
 #ifndef SERVERONLY
+static void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safetoloadfromwads)
+{
 	extern cvar_t gl_shadeq1_name;
 	char altname[MAX_QPATH];
 	char *star;
@@ -1520,9 +1527,7 @@ void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safetoloadf
 		R_BuildLegacyTexnums(tx->shader, origname, loadname, maps, 0, fmt, tx->width, tx->height, tx->mips, tx->palette);
 	}
 	BZ_Free(tx->mips[0]);
-#endif
 }
-#ifndef SERVERONLY
 static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt)
 {
 	unsigned int size = 
@@ -1559,7 +1564,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt)
 Mod_LoadTextures
 =================
 */
-qboolean Mod_LoadTextures (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+static qboolean Mod_LoadTextures (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int		i, j, num, max, altmax;
 	miptex_t	*mt;
@@ -2224,7 +2229,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 Mod_LoadVisibility
 =================
 */
-void Mod_LoadVisibility (model_t *loadmodel, qbyte *mod_base, lump_t *l, qbyte *ptr, size_t len)
+static void Mod_LoadVisibility (model_t *loadmodel, qbyte *mod_base, lump_t *l, qbyte *ptr, size_t len)
 {
 	if (!ptr)
 	{
@@ -2462,7 +2467,7 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 Mod_LoadSubmodels
 =================
 */
-qboolean Mod_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean *hexen2map)
+static qboolean Mod_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean *hexen2map)
 {
 	dq1model_t	*inq;
 	dh2model_t	*inh;
@@ -2611,7 +2616,7 @@ qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean
 Mod_LoadTexinfo
 =================
 */
-qboolean Mod_LoadTexinfo (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+static qboolean Mod_LoadTexinfo (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	texinfo_t *in;
 	mtexinfo_t *out;
@@ -2652,7 +2657,7 @@ qboolean Mod_LoadTexinfo (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 			out->texture = r_notexture_mip; // texture not found
 			out->flags = 0;
 		}
-		if (!strncmp(out->texture->name, "scroll", 6) || ((*out->texture->name == '*' || *out->texture->name == '{' || *out->texture->name == '!') && !strncmp(out->texture->name+1, "scroll", 6)))
+		else if (!strncmp(out->texture->name, "scroll", 6) || ((*out->texture->name == '*' || *out->texture->name == '{' || *out->texture->name == '!') && !strncmp(out->texture->name+1, "scroll", 6)))
 			out->flags |= TI_FLOWING;
 	}
 
@@ -2721,7 +2726,7 @@ void CalcSurfaceExtents (model_t *mod, msurface_t *s);
 Mod_LoadFaces
 =================
 */
-qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, lump_t *lightlump, qboolean lm)
+static qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, lump_t *lightlump, qboolean lm)
 {
 	dsface_t		*ins;
 	dlface_t		*inl;
@@ -3113,7 +3118,7 @@ static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindi
 }
 
 //q1 autoanimates. if the frame is set, it uses the alternate animation.
-void Mod_UpdateBatchShader_Q1 (struct batch_s *batch)
+static void Mod_UpdateBatchShader_Q1 (struct batch_s *batch)
 {
 	texture_t *base = batch->texture;
 	int		reletive;
@@ -3144,7 +3149,7 @@ void Mod_UpdateBatchShader_Q1 (struct batch_s *batch)
 }
 
 //q2 has direct control over the texture frames used, but typically has the client generate the frame (different flags autogenerate different ranges).
-void Mod_UpdateBatchShader_Q2 (struct batch_s *batch)
+static void Mod_UpdateBatchShader_Q2 (struct batch_s *batch)
 {
 	texture_t *base = batch->texture;
 	int		reletive;
@@ -3721,7 +3726,7 @@ static qboolean Mod_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 
 			out->firstsurface = LittleLong (in->firstface);
 			out->numsurfaces = LittleLong (in->numfaces);
-			
+
 			for (j=0 ; j<2 ; j++)
 			{
 				p = LittleLong (in->children[j]);
@@ -3760,7 +3765,7 @@ static qboolean Mod_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 
 			out->firstsurface = (unsigned short)LittleShort (in->firstface);
 			out->numsurfaces = (unsigned short)LittleShort (in->numfaces);
-			
+
 			for (j=0 ; j<2 ; j++)
 			{
 				p = LittleShort (in->children[j]);
@@ -3988,13 +3993,13 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 
 
 //these are used to boost other info sizes
-int numsuplementryplanes;
-int numsuplementryclipnodes;
-void *suplementryclipnodes;
-void *suplementryplanes;
-void *crouchhullfile;
+static int numsuplementryplanes;
+static int numsuplementryclipnodes;
+static void *suplementryclipnodes;
+static void *suplementryplanes;
+static void *crouchhullfile;
 
-void Mod_LoadCrouchHull(model_t *loadmodel)
+static void Mod_LoadCrouchHull(model_t *loadmodel)
 {
 	int i, h;
 	int numsm;
@@ -4065,7 +4070,7 @@ void Mod_LoadCrouchHull(model_t *loadmodel)
 Mod_LoadClipnodes
 =================
 */
-qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm, qboolean hexen2map)
+static qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm, qboolean hexen2map)
 {
 	dsclipnode_t *ins;
 	dlclipnode_t *inl;
@@ -4320,7 +4325,7 @@ Mod_MakeHull0
 Deplicate the drawing hull structure as a clipping hull
 =================
 */
-void Mod_MakeHull0 (model_t *loadmodel)
+static void Mod_MakeHull0 (model_t *loadmodel)
 {
 	mnode_t		*in, *child;
 	mclipnode_t *out;
@@ -4452,7 +4457,7 @@ qboolean Mod_LoadSurfedges (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 Mod_LoadPlanes
 =================
 */
-qboolean Mod_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+static qboolean Mod_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int			i, j;
 	mplane_t	*out;
@@ -4550,7 +4555,7 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 }
 #endif
 
-void Mod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
+static void Mod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
 {
 	if (!node)
 		return;
@@ -4733,6 +4738,8 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 #endif
 }
 
+#ifdef Q1BSPS
+
 struct vispatch_s
 {
 	void *fileptr;
@@ -4816,7 +4823,7 @@ static void Mod_FindVisPatch(struct vispatch_s *patch, model_t *mod, size_t leaf
 Mod_LoadBrushModel
 =================
 */
-qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
+static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 {
 	struct vispatch_s vispatch;
 	int			i, j;
@@ -5109,6 +5116,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 #endif
 	return true;
 }
+#endif
 
 /*
 ==============================================================================

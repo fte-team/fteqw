@@ -255,7 +255,6 @@ void OpenAL_CvarInit(void);
 // User-setable variables
 // ====================================================================
 
-#define	MAX_CHANNELS			1024/*tracked sounds (including statics)*/
 #define	MAX_DYNAMIC_CHANNELS	64	/*playing sounds (identical ones merge)*/
 
 
@@ -331,8 +330,9 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 
 //info on which sound effects are playing
 	//FIXME: use a linked list
-	channel_t   channel[MAX_CHANNELS];
+	channel_t	*channel;
 	int			total_chans;
+	int			max_chans;
 
 	float	ambientlevels[NUM_AMBIENTS];	//we use a float instead of the channel's int volume value to avoid framerate dependancies with slow transitions.
 

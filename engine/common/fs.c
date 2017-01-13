@@ -766,7 +766,7 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			|| !Q_strcasecmp(link, "ent") || !Q_strcasecmp(link, "rtlights")
 			|| !Q_strcasecmp(link, "shader") || !Q_strcasecmp(link, "framegroups"))
 			Q_snprintfz(link, sizeof(link), "\\edit\\%s", name);
-		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "pcx"))
+		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "pcx")|| !Q_strcasecmp(link, "bmp"))
 		{
 			//FIXME: image replacements are getting in the way here.
 			Q_snprintfz(link, sizeof(link), "\\tiprawimg\\%s\\tip\\(note: image replacement rules are context-dependant, including base path, sub path, extension, or complete replacement via a shader)", name);
@@ -1255,6 +1255,9 @@ fail:
 	return depth+1;
 }
 
+//returns the package/'gamedir/foo.pk3' filename to tell the client to download
+//unfortunately foo.pk3 may contain a 'bar.pk3' and downloading dir/foo.pk3/bar.pk3 won't work
+//so if loc->search is dir/foo.pk3/bar.pk3 find dir/foo.pk3 instead
 char *FS_GetPackageDownloadFilename(flocation_t *loc)
 {
 	searchpath_t *sp, *search;
@@ -1263,11 +1266,11 @@ char *FS_GetPackageDownloadFilename(flocation_t *loc)
 	{
 		for (search = com_searchpaths; search; search = search->next)
 		{
-			if (search != sp && search->handle->GeneratePureCRC)
-			{	//only consider files that have a pure hash. this excludes system paths
-				if (!strncmp(search->purepath, sp->purepath, strlen(search->purepath)))
-					break;
-			}
+			if (search != sp)
+				if (search->handle->GeneratePureCRC) //only consider files that have a pure hash. this excludes system paths
+					if (!strncmp(search->purepath, sp->purepath, strlen(search->purepath)))
+						if (sp->purepath[strlen(search->purepath)] == '/')	//also ensures that the path gets shorter, avoiding infinite loops as it fights between base+home dirs.
+							break;
 		}
 		if (search)
 			sp = search;
@@ -1275,7 +1278,7 @@ char *FS_GetPackageDownloadFilename(flocation_t *loc)
 			break;
 	}
 
-	if (sp && strchr(sp->purepath, '/'))
+	if (sp && strchr(sp->purepath, '/'))	//never allow any packages that are directly sitting in the basedir.
 		return sp->purepath;
 	return NULL;
 }

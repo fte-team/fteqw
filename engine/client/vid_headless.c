@@ -281,4 +281,112 @@ rendererinfo_t headlessrenderer =
 	Headless_BE_RenderToTextureUpdate2d,
 	""
 };
+
+
+
+
+#if 0//def VKQUAKE
+#include "../vk/vkrenderer.h"
+static qboolean HeadlessVK_CreateSurface(void)
+{
+	vk.surface = VK_NULL_HANDLE;	//nothing to create, we're using offscreen rendering.
+	return true;
+}
+//static void HeadlessVK_Present(struct vkframe *theframe)
+//{
+	//VK_DoPresent(theframe);
+//}
+static qboolean HeadlessVK_Init (rendererstate_t *info, unsigned char *palette)
+{
+	extern cvar_t vid_conautoscale;
+#ifdef VK_NO_PROTOTYPES
+	static dllhandle_t *hInstVulkan = NULL;
+	dllfunction_t vkfuncs[] =
+	{
+		{(void**)&vkGetInstanceProcAddr, "vkGetInstanceProcAddr"},
+		{NULL}
+	};
+	if (!hInstVulkan)
+		hInstVulkan = *info->subrenderer?Sys_LoadLibrary(info->subrenderer, vkfuncs):NULL;
+#ifdef _WIN32
+	if (!hInstVulkan)
+		hInstVulkan = Sys_LoadLibrary("vulkan-1.dll", vkfuncs);
+#else
+	if (!hInstVulkan)
+		hInstVulkan = Sys_LoadLibrary("libvulkan.so.1", vkfuncs);
+	if (!hInstVulkan)
+		hInstVulkan = Sys_LoadLibrary("libvulkan.so", vkfuncs);
+#endif
+	if (!hInstVulkan)
+	{
+		Con_Printf("Unable to load vulkan library\nNo Vulkan drivers are installed\n");
+		return false;
+	}
+#endif
+
+	vid.pixelwidth = 1920;
+	vid.pixelheight = 1080;
+	if (!VK_Init(info, NULL, HeadlessVK_CreateSurface, NULL))
+		return false;
+	Cvar_ForceCallback(&vid_conautoscale);
+	return true;
+}
+
+rendererinfo_t headlessvkrendererinfo =
+{
+	"Headless Vulkan",
+	{
+		"vkheadless"
+	},
+	QR_VULKAN,
+
+	VK_Draw_Init,
+	VK_Draw_Shutdown,
+
+	VK_UpdateFiltering,
+	VK_LoadTextureMips,
+	VK_DestroyTexture,
+
+	VK_R_Init,
+	VK_R_DeInit,
+	VK_R_RenderView,
+
+	HeadlessVK_Init,
+	GLVID_DeInit,
+	GLVID_SwapBuffers,
+	GLVID_ApplyGammaRamps,
+	WIN_CreateCursor,
+	WIN_SetCursor,
+	WIN_DestroyCursor,
+	GLVID_SetCaption,
+	VKVID_GetRGBInfo,
+
+	VK_SCR_UpdateScreen,
+
+	VKBE_SelectMode,
+	VKBE_DrawMesh_List,
+	VKBE_DrawMesh_Single,
+	VKBE_SubmitBatch,
+	VKBE_GetTempBatch,
+	VKBE_DrawWorld,
+	VKBE_Init,
+	VKBE_GenBrushModelVBO,
+	VKBE_ClearVBO,
+	VKBE_UploadAllLightmaps,
+	VKBE_SelectEntity,
+	VKBE_SelectDLight,
+	VKBE_Scissor,
+	VKBE_LightCullModel,
+
+	VKBE_VBO_Begin,
+	VKBE_VBO_Data,
+	VKBE_VBO_Finish,
+	VKBE_VBO_Destroy,
+
+	VKBE_RenderToTextureUpdate2d,
+
+	"no more"
+};
+#endif
+
 #endif

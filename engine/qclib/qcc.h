@@ -670,6 +670,7 @@ int QCC_PR_IntConstExpr(void);
 #ifndef COMMONINLINES
 pbool QCC_PR_CheckImmediate (const char *string);
 pbool QCC_PR_CheckToken (const char *string);
+pbool QCC_PR_PeekToken (const char *string);
 pbool QCC_PR_CheckName (const char *string);
 void QCC_PR_Expect (const char *string);
 pbool QCC_PR_CheckKeyword(int keywordenabled, const char *string);
@@ -1071,6 +1072,16 @@ static bool inline QCC_PR_CheckToken (char *string)
 		return false;
 
 	QCC_PR_Lex ();
+	return true;
+}
+static bool inline QCC_PR_PeekToken (char *string)
+{
+	if (pr_token_type != tt_punct)
+		return false;
+
+	if (STRCMP (string, pr_token))
+		return false;
+
 	return true;
 }
 

@@ -65,7 +65,8 @@ qboolean World_CheckBottom (world_t *world, wedict_t *ent, vec3_t up)
 	sign = (up[a2]>0)?1:-1;
 	
 	VectorAdd (ent->v->origin, ent->v->mins, mins);
-	if (world->worldmodel->fromgame == fg_quake)
+#ifdef Q1BSPS
+	if (world->worldmodel->fromgame == fg_quake || world->worldmodel->fromgame == fg_halflife)
 	{
 		//quake's hulls are weird. sizes are defined as from mins to mins+hullsize. the actual maxs is ignored other than for its size.
 		hull_t *hull;
@@ -75,6 +76,7 @@ qboolean World_CheckBottom (world_t *world, wedict_t *ent, vec3_t up)
 		VectorAdd (maxs, hull->clip_maxs, maxs);
 	}
 	else
+#endif
 		VectorAdd (ent->v->origin, ent->v->maxs, maxs);
 
 // if all of the points under the corners are solid world, don't bother

@@ -254,15 +254,20 @@ static qboolean VK_CreateSwapChain(void)
 
 	vk.dopresent(NULL);	//make sure they're all pushed through.
 
-	VkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.gpu, vk.surface, &fmtcount, NULL));
-	surffmts = malloc(sizeof(VkSurfaceFormatKHR)*fmtcount);
-	VkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.gpu, vk.surface, &fmtcount, surffmts));
+	if (!vk.surface)
+		return true;
+	else
+	{
+		VkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.gpu, vk.surface, &fmtcount, NULL));
+		surffmts = malloc(sizeof(VkSurfaceFormatKHR)*fmtcount);
+		VkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.gpu, vk.surface, &fmtcount, surffmts));
 
-	VkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(vk.gpu, vk.surface, &presentmodes, NULL));
-	presentmode = malloc(sizeof(VkPresentModeKHR)*presentmodes);
-	VkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(vk.gpu, vk.surface, &presentmodes, presentmode));
+		VkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(vk.gpu, vk.surface, &presentmodes, NULL));
+		presentmode = malloc(sizeof(VkPresentModeKHR)*presentmodes);
+		VkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(vk.gpu, vk.surface, &presentmodes, presentmode));
 
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk.gpu, vk.surface, &surfcaps);
+		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk.gpu, vk.surface, &surfcaps);
+	}
 
 	swapinfo.surface = vk.surface;
 	swapinfo.minImageCount = surfcaps.minImageCount+vk.triplebuffer;
@@ -2110,10 +2115,18 @@ qboolean VK_SCR_GrabBackBuffer(void)
 
 	if (vk.frame)	//erk, we already have one...
 		return true;
-	
+
+
 	RSpeedRemark();
 
 	VK_FencedCheck();
+
+	if (!vk.surface)
+	{
+//		if (Media_Capturing() != 2)
+//			Cmd_ExecuteString("quit force\n", RESTRICT_LOCAL);
+		return false;	//headless...
+	}
 
 	if (!vk.unusedframes)
 	{
@@ -2745,8 +2758,14 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	const char *extensions[8];
 	qboolean nvglsl = false;
 	uint32_t extensions_count = 0;
-	extensions[extensions_count++] = sysextname;
-	extensions[extensions_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
+	qboolean headless = false;
+	if (sysextname)
+	{
+		extensions[extensions_count++] = sysextname;
+		extensions[extensions_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
+	}
+	else
+		headless = true;
 	if (vk_debug.ival)
 		extensions[extensions_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
 
@@ -2877,18 +2896,21 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 			vkGetPhysicalDeviceProperties(devs[i], &props);
 			vkGetPhysicalDeviceQueueFamilyProperties(devs[i], &queue_count, NULL);
 
-			for (j = 0; j < queue_count; j++)
+			if (!headless)
 			{
-				VkBool32 supportsPresent;
-				VkAssert(vkGetPhysicalDeviceSurfaceSupportKHR(devs[i], j, vk.surface, &supportsPresent));
-				if (supportsPresent)
-					break;	//okay, this one should be usable
-			}
-			if (j == queue_count)
-			{
-				//no queues can present to that surface, so I guess we can't use that device
-				Con_DPrintf("vulkan: ignoring device %s as it can't present to window\n", props.deviceName);
-				continue;
+				for (j = 0; j < queue_count; j++)
+				{
+					VkBool32 supportsPresent = false;
+					VkAssert(vkGetPhysicalDeviceSurfaceSupportKHR(devs[i], j, vk.surface, &supportsPresent));
+					if (supportsPresent)
+						break;	//okay, this one should be usable
+				}
+				if (j == queue_count)
+				{
+					//no queues can present to that surface, so I guess we can't use that device
+					Con_DPrintf("vulkan: ignoring device %s as it can't present to window\n", props.deviceName);
+					continue;
+				}
 			}
 
 			if (!vk.gpu)
@@ -3022,8 +3044,11 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		{
 			for (i = 0; i < queue_count; i++)
 			{
-				VkBool32 supportsPresent;
-				VkAssert(vkGetPhysicalDeviceSurfaceSupportKHR(vk.gpu, i, vk.surface, &supportsPresent));
+				VkBool32 supportsPresent = false;
+				if (headless)
+					supportsPresent = true;	//won't be used anyway.
+				else
+					VkAssert(vkGetPhysicalDeviceSurfaceSupportKHR(vk.gpu, i, vk.surface, &supportsPresent));
 
 				if ((queueprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && supportsPresent)
 				{

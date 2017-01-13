@@ -1889,7 +1889,7 @@ start:
 	Surf_RecursiveWorldNode (node->children[side], clipflags);
 
 // draw stuff
-  	c = node->numsurfaces;
+	c = node->numsurfaces;
 
 	if (c)
 	{
@@ -2907,6 +2907,8 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 	}
 	else
 #endif
+#ifdef Q1BSPS
+	if (es->wmodel->fromgame == fg_quake || es->wmodel->fromgame == fg_halflife)
 	{
 		//maybe we should just use fatpvs instead, and wait for completion when outside?
 		if (es->leaf[1])
@@ -2925,6 +2927,11 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 			pvs = Q1BSP_LeafPVS (es->wmodel, es->leaf[0], es->pvs, sizeof(es->pvs));
 		}
 		Surf_SimpleWorld_Q1BSP(es, pvs);
+	}
+	else
+#endif
+	{
+		//panic
 	}
 
 	COM_AddWork(WG_MAIN, R_GeneratedWorldEBO, es, NULL, 0, 0);
@@ -2963,12 +2970,12 @@ void Surf_DrawWorld (void)
 	{
 		RSpeedRemark();
 
-		Surf_LightmapShift(cl.worldmodel);
+		Surf_LightmapShift(currentmodel);
 
 #ifdef THREADEDWORLD
-		if ((r_dynamic.ival < 0 || cl.worldmodel->numbatches) && !r_refdef.recurse && cl.worldmodel->type == mod_brush)
+		if ((r_dynamic.ival < 0 || currentmodel->numbatches) && !r_refdef.recurse && currentmodel->type == mod_brush)
 		{
-			if (webostate && webostate->wmodel != cl.worldmodel)
+			if (webostate && webostate->wmodel != currentmodel)
 			{
 				R_DestroyWorldEBO(webostate);
 				webostate = NULL;
@@ -2976,7 +2983,8 @@ void Surf_DrawWorld (void)
 
 			if (qrenderer != QR_OPENGL && qrenderer != QR_VULKAN)
 				;
-			else if (cl.worldmodel->fromgame == fg_quake)
+#ifdef Q1BSPS
+			else if (currentmodel->fromgame == fg_quake || currentmodel->fromgame == fg_halflife)
 			{
 				int i = MAX_LIGHTSTYLES;
 				if (webostate && !webogenerating)
@@ -2993,21 +3001,21 @@ void Surf_DrawWorld (void)
 					if (!webogenerating)
 					{
 						int i;
-						if (!cl.worldmodel->numbatches)
+						if (!currentmodel->numbatches)
 						{
 							int sortid;
 							batch_t *batch;
-							cl.worldmodel->numbatches = 0;
+							currentmodel->numbatches = 0;
 							for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
-								for (batch = cl.worldmodel->batches[sortid]; batch != NULL; batch = batch->next)
+								for (batch = currentmodel->batches[sortid]; batch != NULL; batch = batch->next)
 								{
-									batch->ebobatch = cl.worldmodel->numbatches;
-									cl.worldmodel->numbatches++;
+									batch->ebobatch = currentmodel->numbatches;
+									currentmodel->numbatches++;
 								}
 						}
 						webogeneratingstate = true;
-						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (cl.worldmodel->numbatches-1));
-						webogenerating->wmodel = cl.worldmodel;
+						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1));
+						webogenerating->wmodel = currentmodel;
 						webogenerating->leaf[0] = r_viewleaf;
 						webogenerating->leaf[1] = r_viewleaf2;
 						for (i = 0; i < MAX_LIGHTSTYLES; i++)
@@ -3017,7 +3025,9 @@ void Surf_DrawWorld (void)
 					}
 				}
 			}
-			else if (cl.worldmodel->fromgame == fg_quake3)
+#endif
+#ifdef Q3BSPS
+			else if (currentmodel->fromgame == fg_quake3)
 			{
 				if (webostate && webostate->cluster[0] == r_viewcluster && webostate->cluster[1] == r_viewcluster2)
 				{
@@ -3026,21 +3036,21 @@ void Surf_DrawWorld (void)
 				{
 					if (!webogenerating)
 					{
-						if (!cl.worldmodel->numbatches)
+						if (!currentmodel->numbatches)
 						{
 							int sortid;
 							batch_t *batch;
-							cl.worldmodel->numbatches = 0;
+							currentmodel->numbatches = 0;
 							for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
-								for (batch = cl.worldmodel->batches[sortid]; batch != NULL; batch = batch->next)
+								for (batch = currentmodel->batches[sortid]; batch != NULL; batch = batch->next)
 								{
-									batch->ebobatch = cl.worldmodel->numbatches;
-									cl.worldmodel->numbatches++;
+									batch->ebobatch = currentmodel->numbatches;
+									currentmodel->numbatches++;
 								}
 						}
 						webogeneratingstate = true;
-						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (cl.worldmodel->numbatches-1));
-						webogenerating->wmodel = cl.worldmodel;
+						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1));
+						webogenerating->wmodel = currentmodel;
 						webogenerating->cluster[0] = r_viewcluster;
 						webogenerating->cluster[1] = r_viewcluster2;
 						Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
@@ -3048,6 +3058,7 @@ void Surf_DrawWorld (void)
 					}
 				}
 			}
+#endif
 
 			if (webostate)
 			{
@@ -3065,7 +3076,7 @@ void Surf_DrawWorld (void)
 				BE_DrawWorld(webostate->rbatches);
 
 				/*FIXME: move this away*/
-				if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
+				if (currentmodel->fromgame == fg_quake || currentmodel->fromgame == fg_halflife)
 					Surf_LessenStains();
 				return;
 			}
@@ -3073,26 +3084,34 @@ void Surf_DrawWorld (void)
 #endif
 
 
-		Surf_PushChains(cl.worldmodel->batches);
+		Surf_PushChains(currentmodel->batches);
 
+#ifdef TERRAIN
+		if (currentmodel->type == mod_heightmap)
+		{
+			frustumvis = NULL;
+			entvis = surfvis = NULL;
+		}
+		else
+#endif
 #ifdef Q2BSPS
-		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
+		if (currentmodel->fromgame == fg_quake2 || currentmodel->fromgame == fg_quake3)
 		{
 			frustumvis = frustumvis_;
-			memset(frustumvis, 0, (cl.worldmodel->numclusters + 7)>>3);
+			memset(frustumvis, 0, (currentmodel->numclusters + 7)>>3);
 
 			if (!r_refdef.areabitsknown)
 			{	//generate the info each frame, as the gamecode didn't tell us what to use.
-				int leafnum = CM_PointLeafnum (cl.worldmodel, r_refdef.vieworg);
-				int clientarea = CM_LeafArea (cl.worldmodel, leafnum);
-				CM_WriteAreaBits(cl.worldmodel, r_refdef.areabits, clientarea, false);
+				int leafnum = CM_PointLeafnum (currentmodel, r_refdef.vieworg);
+				int clientarea = CM_LeafArea (currentmodel, leafnum);
+				CM_WriteAreaBits(currentmodel, r_refdef.areabits, clientarea, false);
 				r_refdef.areabitsknown = true;
 			}
 #ifdef Q3BSPS
-			if (cl.worldmodel->fromgame == fg_quake3)
+			if (currentmodel->fromgame == fg_quake3)
 			{
 				entvis = surfvis = R_MarkLeaves_Q3 ();
-				Surf_RecursiveQ3WorldNode (cl.worldmodel->nodes, (1<<r_refdef.frustum_numworldplanes)-1);
+				Surf_RecursiveQ3WorldNode (currentmodel->nodes, (1<<r_refdef.frustum_numworldplanes)-1);
 				//Surf_LeafWorldNode ();
 			}
 			else
@@ -3100,7 +3119,7 @@ void Surf_DrawWorld (void)
 			{
 				entvis = surfvis = R_MarkLeaves_Q2 ();
 				VectorCopy (r_refdef.vieworg, modelorg);
-				Surf_RecursiveQ2WorldNode (cl.worldmodel->nodes);
+				Surf_RecursiveQ2WorldNode (currentmodel->nodes);
 			}
 
 			surfvis = frustumvis;
@@ -3108,9 +3127,9 @@ void Surf_DrawWorld (void)
 		else
 #endif
 #ifdef MAP_PROC
-			if (cl.worldmodel->fromgame == fg_doom3)
+			if (currentmodel->fromgame == fg_doom3)
 		{
-			entvis = surfvis = D3_CalcVis(cl.worldmodel, r_origin);
+			entvis = surfvis = D3_CalcVis(currentmodel, r_origin);
 		}
 		else
 #endif
@@ -3122,14 +3141,8 @@ void Surf_DrawWorld (void)
 		}
 		else
 #endif
-#ifdef TERRAIN
-		if (currentmodel->type == mod_heightmap)
-		{
-			frustumvis = NULL;
-			entvis = surfvis = NULL;
-		}
-		else
-#endif
+#ifdef Q1BSPS
+		if (1)
 		{
 			//extern cvar_t temp1;
 //			if (0)//temp1.value)
@@ -3141,14 +3154,20 @@ void Surf_DrawWorld (void)
 					VectorCopy (r_origin, modelorg);
 
 				frustumvis = frustumvis_;
-				memset(frustumvis, 0, (cl.worldmodel->numclusters + 7)>>3);
+				memset(frustumvis, 0, (currentmodel->numclusters + 7)>>3);
 
 				if (r_refdef.useperspective)
-					Surf_RecursiveWorldNode (cl.worldmodel->nodes, 0x1f);
+					Surf_RecursiveWorldNode (currentmodel->nodes, 0x1f);
 				else
-					Surf_OrthoRecursiveWorldNode (cl.worldmodel->nodes, 0x1f);
+					Surf_OrthoRecursiveWorldNode (currentmodel->nodes, 0x1f);
 				surfvis = frustumvis;
 			}
+		}
+		else
+#endif
+		{
+			frustumvis = NULL;
+			entvis = surfvis = NULL;
 		}
 
 		RSpeedEnd(RSPEED_WORLDNODE);

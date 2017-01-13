@@ -550,6 +550,7 @@ typedef struct downloadlist_s {
 #define DLLF_USEREXPLICIT	(1u<<7)		//use explicitly requested it, ignore the cl_downloads cvar.
 
 #define DLLF_BEGUN			(1u<<8)		//server has confirmed that the file exists, is readable, and we've opened a file. should not be set on new requests.
+#define DLLF_ALLOWWEB		(1u<<9)		//failed http downloads should retry but from the game server itself
 	struct downloadlist_s *next;
 } downloadlist_t;
 

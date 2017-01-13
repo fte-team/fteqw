@@ -90,7 +90,7 @@ void CalcSurfaceExtents (model_t *mod, msurface_t *s)
 	int idx;
 
 	mins[0] = mins[1] = 999999;
-	maxs[0] = maxs[1] = -99999;
+	maxs[0] = maxs[1] = -999999;
 
 	tex = s->texinfo;
 

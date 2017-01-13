@@ -321,8 +321,8 @@ extern cvar_t snd_doppler;
 
 typedef struct
 {
-	#define NUM_SOURCES MAX_CHANNELS
-	ALuint source[NUM_SOURCES];
+	ALuint *source;
+	size_t max_sources;
 
 	ALCdevice *OpenAL_Device;
 	ALCcontext *OpenAL_Context;
@@ -582,8 +582,12 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	int chnum = chan - sc->channel;
 	ALuint buf;
 
-	if (chnum >= NUM_SOURCES)
+	if (chnum >= oali->max_sources)
+	{
+		size_t nc = chnum+1+64;
+		Z_ReallocElements((void**)&oali->source, &oali->max_sources, nc, sizeof(*oali->source));
 		return;
+	}
 
 	//alcMakeContextCurrent
 
@@ -966,7 +970,7 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 			//S_Info();
 
 			//fixme...
-			memset(oali->source, 0, sizeof(oali->source));
+			memset(oali->source, 0, sizeof(*oali->source)*oali->max_sources);
 			PrintALError("alGensources for normal sources");
 
 			palListenerfv(AL_POSITION, oali->ListenPos);
@@ -1107,7 +1111,7 @@ static void OpenAL_Shutdown (soundcardinfo_t *sc)
 
 	//alcMakeContextCurrent
 
-	palDeleteSources(NUM_SOURCES, oali->source);
+	palDeleteSources(oali->max_sources, oali->source);
 
 	/*make sure the buffers are cleared from the sound effects*/
 	for (i=0;i<num_sfx;i++)

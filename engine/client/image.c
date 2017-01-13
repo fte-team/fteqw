@@ -2108,7 +2108,7 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 
 		for (i = 0; i < h.NumofColorIndices; i++)
 		{
-			pal[i] = data[i*4+0] + (data[i*4+1]<<8) + (data[i*4+2]<<16) + (255/*data[i*4+3]*/<<16);
+			pal[i] = data[i*4+2] + (data[i*4+1]<<8) + (data[i*4+0]<<16) + (255/*data[i*4+3]*/<<24);
 		}
 
 		buf += h.OffsetofBMPBits;
@@ -4436,6 +4436,7 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 	int firstex = (tex->flags & IF_EXACTEXTENSION)?tex_extensions_count-1:0;
 	char *altname;
 	char *nextalt;
+	qboolean exactext = !!(tex->flags & IF_EXACTEXTENSION);
 
 //	Sys_Sleep(0.3);
 
@@ -4453,18 +4454,26 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 		}
 
 		//see if we recognise the extension, and only strip it if we do.
-		COM_FileExtension(altname, nicename, sizeof(nicename));
-		e = 0;
-		if (strcmp(nicename, "lmp") && strcmp(nicename, "wal"))
-			for (; e < tex_extensions_count; e++)
-			{
-				if (!strcmp(nicename, (*tex_extensions[e].name=='.')?tex_extensions[e].name+1:tex_extensions[e].name))
-					break;
-			}
+		if (exactext)
+			e = tex_extensions_count;
+		else
+		{
+			COM_FileExtension(altname, nicename, sizeof(nicename));
+			e = 0;
+			if (strcmp(nicename, "lmp") && strcmp(nicename, "wal"))
+				for (; e < tex_extensions_count; e++)
+				{
+					if (!strcmp(nicename, (*tex_extensions[e].name=='.')?tex_extensions[e].name+1:tex_extensions[e].name))
+						break;
+				}
+		}
 
 		//strip it and try replacements if we do, otherwise assume that we're meant to be loading progs/foo.mdl_0.tga or whatever
-		if (e == tex_extensions_count || (tex->flags & IF_EXACTEXTENSION))
+		if (e == tex_extensions_count || exactext)
+		{
+			exactext = true;
 			Q_strncpyz(nicename, altname, sizeof(nicename));
+		}
 		else
 			COM_StripExtension(altname, nicename, sizeof(nicename));
 
@@ -4511,7 +4520,7 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 
 					s = COM_SkipPath(nicename);
 					n = basename;
-					while (*s && *s != '.' && n < basename+sizeof(basename)-5)
+					while (*s && (*s != '.'||exactext) && n < basename+sizeof(basename)-5)
 						*n++ = *s++;
 					s = strchr(s, '_');
 					if (s)

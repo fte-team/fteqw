@@ -660,6 +660,7 @@ void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic)
 	{
 		Vector2Copy(points[i], draw_mesh_xyz[i]);
 		Vector2Copy(texcoords[i], draw_mesh_st[i]);
+		Vector4Copy(draw_active_colour, draw_mesh_colors[i]);
 	}
 
 	BE_DrawMesh_Single(pic, &draw_mesh, NULL, r2d_be_flags);

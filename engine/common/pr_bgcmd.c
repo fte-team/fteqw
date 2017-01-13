@@ -608,9 +608,12 @@ void VARGS PR_CB_Free(void *mem)
 //DP_QC_GETSURFACE
 static void PF_BuildSurfaceMesh(model_t *model, unsigned int surfnum)
 {
+	//this function might be called on dedicated servers.
+#ifdef Q1BSPS
 	void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *cookie);
-	if (model->fromgame == fg_quake)
+	if (model->fromgame == fg_quake || model->fromgame == fg_halflife)
 		ModQ1_Batches_BuildQ1Q2Poly(model, &model->surfaces[surfnum], NULL);
+#endif
 	//fixme: q3...
 }
 // #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
@@ -5852,7 +5855,7 @@ void QCBUILTIN PF_physics_addtorque(pubprogfuncs_t *prinst, struct globalvars_s 
 void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored)
 {
 #if defined(SKELETALOBJECTS) || defined(RAGDOLLS)
-	skel_reset(progs);
+	skel_reset(progs->parms->user);
 #endif
 	PR_fclose_progs(progs);
 	search_close_progs(progs, !errored);
@@ -6221,6 +6224,8 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"},	"Provides an easy way to change a user's userinfo from the server."},
 	{"FTE_GFX_QUAKE3SHADERS",			0,	NULL, {NULL},	"specifies that the engine has full support for vanilla quake3 shaders"},
 	{"FTE_GFX_REMAPSHADER",				0,	NULL, {NULL},	"With the raw power of stuffcmds, the r_remapshader console command is exposed! This mystical command can be used to remap any shader to another. Remapped shaders that specify $diffuse etc in some form will inherit the textures implied by the surface."},
+//	{"FTE_GFX_IQM_HITMESH",				0,	NULL, {NULL},	"Supports hitmesh iqm extensions. Also supports geomsets and embedded events."},
+//	{"FTE_GFX_MODELEVENTS",				1,	NULL, {"processmodelevents", "getnextmodelevent", "getmodeleventidx"},	"Provides a query for per-animation events in model files, including from progs/foo.mdl.events files."},
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}, "Allows you to check if a client has too many reliable messages pending."},
 	{"FTE_MEMALLOC",					4,	NULL, {"memalloc", "memfree", "memcpy", "memfill8"}, "Allows dynamically allocating memory. Use pointers to access this memory. Memory will not be saved into saved games."},
 #ifndef NOMEDIA

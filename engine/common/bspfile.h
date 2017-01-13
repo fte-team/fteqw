@@ -552,7 +552,7 @@ typedef struct
 #define	Q2CONTENTS_TRANSLUCENT							  0x10000000	// auto set if any surface has trans
 #define	Q2CONTENTS_LADDER								  0x20000000
 														//0x40000000
-														//0x80000000
+								//FTECONTENTS_SKY		//0x80000000
 
 
 #define	Q3CONTENTS_SOLID		FTECONTENTS_SOLID		//0x00000001	// should never be on a brush, only in game
@@ -580,7 +580,7 @@ typedef struct
 #define Q3CONTENTS_BOTCLIP								  0x00400000
 #define Q3CONTENTS_MOVER								  0x00800000
 #define	Q3CONTENTS_ORIGIN		Q2CONTENTS_ORIGIN		//0x01000000
-#define	Q3CONTENTS_BODY									  0x02000000
+#define	Q3CONTENTS_BODY			FTECONTENTS_BODY		//0x02000000
 #define	Q3CONTENTS_CORPSE		FTECONTENTS_CORPSE		//0x04000000
 #define	Q3CONTENTS_DETAIL		Q2CONTENTS_DETAIL		//0x08000000
 #define	Q3CONTENTS_STRUCTURAL							  0x10000000

@@ -66,8 +66,9 @@ struct doll_s *rag_createdollfromstring(struct model_s *mod, const char *fname, 
 struct world_s;
 void rag_doallanimations(struct world_s *world);
 void rag_removedeltaent(lerpents_t *le);
-void rag_updatedeltaent(entity_t *ent, lerpents_t *le);
+void rag_updatedeltaent(struct world_s *w, entity_t *ent, lerpents_t *le);
 void rag_lerpdeltaent(lerpents_t *le, unsigned int bonecount, short *newstate, float frac, short *oldstate);
+void skel_reset(struct world_s *world);
 
 typedef struct mesh_s
 {
@@ -107,7 +108,6 @@ typedef struct mesh_s
 	byte_vec4_t		*bonenums;
 	vec4_t			*boneweights;
 } mesh_t;
-extern mesh_t nullmesh;
 
 /*
 batches are generated for each shader/ent as required.
@@ -831,7 +831,7 @@ typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom, fg_d
 #define  MFH2_SCARAB			(1u<<21)		// white transparent particles with little gravity
 #define  MFH2_ACIDBALL			(1u<<22)		// Green drippy acid shit
 #define  MFH2_BLOODSHOT			(1u<<23)		// Blood rain shot trail
-#define  MFH2_ROCKET			(1u<<31)		// spider blood (remapped from MF_ROCKET, to avoid dlight issues)
+#define  MFH2_SPIDERBLOOD		(1u<<31)		// spider blood (remapped from MF_ROCKET, to avoid dlight issues)
 
 typedef union {
 	struct {

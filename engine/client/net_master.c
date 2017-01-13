@@ -17,7 +17,9 @@ void Master_DetermineMasterTypes(void)
 {
 	if (com_protocolname.modified)
 	{
+		char tok[MAX_QPATH];
 		char *prot = com_protocolname.string;
+		char *game;
 		com_protocolname.modified = 0;
 
 		sb_enabledarkplaces = true;	//dpmaster is not specific to any single game/mod, so can be left enabled even when running q2 etc, for extra redundancy.
@@ -26,19 +28,24 @@ void Master_DetermineMasterTypes(void)
 		sb_enablenetquake = false;
 		sb_enablequakeworld = false;
 
-		//this is stupid
-		if (!Q_strncasecmp(prot, "FTE-", 4))
-			prot += 4;
-		else if (!Q_strncasecmp(prot, "DarkPlaces-", 11))
-			prot += 11;
+		for (prot = com_protocolname.string; *prot;)
+		{
+			prot = COM_ParseOut(prot, tok, sizeof(tok));
+			game = tok;
+			//this is stupid, but hey
+			if (!Q_strncasecmp(game, "FTE-", 4))
+				game += 4;
+			else if (!Q_strncasecmp(game, "DarkPlaces-", 11))
+				game += 11;
 
-		if (!strcmp(prot, "Quake2"))
-			sb_enablequake2 = true;
-		if (!strcmp(prot, "Quake3"))
-			sb_enablequake3 = true;
-		//for DP compatibility, we consider these separate(ish) games.
-		if (!strcmp(prot, "Quake") || !strcmp(com_protocolname.string, "Hipnotic") || !strcmp(com_protocolname.string, "Rogue"))
-			sb_enablenetquake = sb_enablequakeworld = true;
+			if (!strcmp(game, "Quake2"))
+				sb_enablequake2 = true;
+			if (!strcmp(game, "Quake3"))
+				sb_enablequake3 = true;
+			//for DP compatibility, we consider these separate(ish) games.
+			if (!strcmp(game, "Quake") || !strcmp(game, "Hipnotic") || !strcmp(game, "Rogue"))
+				sb_enablenetquake = sb_enablequakeworld = true;
+		}
 	}
 }
 
@@ -1974,7 +1981,7 @@ int Master_CheckPollSockets(void)
 					s = MSG_ReadString();
 					
 					old = Info_ValueForKey(info->moreinfo->info, selectedserver.lastrule);
-					if (strcmp(s, old))
+					if (strcmp(s, old) && !strchr(s, '\"') && !strchr(s, '\\'))
 						Info_SetValueForStarKey(info->moreinfo->info, selectedserver.lastrule, s, sizeof(info->moreinfo->info));
 
 					//... and now try to query the next one... because everyone gives up after the first, right?... dude... I hate this shit.
@@ -2352,13 +2359,20 @@ void MasterInfo_Request(master_t *mast)
 		case MP_DPMASTER:
 			{
 				char *str;
-				//for compat with dp, we use the nq netchan version. which is stupid, but whatever
-				//we ask for ipv6 addresses from ipv6 masters (assuming it resolved okay)
-				if (mast->adr.type == NA_IPV6)
-					str = va("%c%c%c%cgetserversExt %s %u empty full ipv6"/*\x0A\n"*/, 255, 255, 255, 255, com_protocolname.string, NQ_NETCHAN_VERSION);
-				else
-					str = va("%c%c%c%cgetservers %s %u empty full"/*\x0A\n"*/, 255, 255, 255, 255, com_protocolname.string, NQ_NETCHAN_VERSION);
-				NET_SendPollPacket (strlen(str), str, mast->adr);
+				char game[MAX_QPATH];
+				char *games = com_protocolname.string;
+				while(*games)
+				{	//send a request for each game listed.
+					games = COM_ParseOut(games, game, sizeof(game));
+
+					//for compat with dp, we use the nq netchan version. which is stupid, but whatever
+					//we ask for ipv6 addresses from ipv6 masters (assuming it resolved okay)
+					if (mast->adr.type == NA_IPV6)
+						str = va("%c%c%c%cgetserversExt %s %u empty full ipv6"/*\x0A\n"*/, 255, 255, 255, 255, game, NQ_NETCHAN_VERSION);
+					else
+						str = va("%c%c%c%cgetservers %s %u empty full"/*\x0A\n"*/, 255, 255, 255, 255, game, NQ_NETCHAN_VERSION);
+					NET_SendPollPacket (strlen(str), str, mast->adr);
+				}
 			}
 			break;
 #endif

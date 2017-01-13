@@ -1046,6 +1046,7 @@ rendererinfo_t swrendererinfo;
 #endif
 #ifdef VKQUAKE
 rendererinfo_t vkrendererinfo;
+//rendererinfo_t headlessvkrendererinfo;
 #endif
 rendererinfo_t headlessrenderer;
 
@@ -1074,6 +1075,9 @@ rendererinfo_t *rendererinfo[] =
 	&dedicatedrendererinfo,
 #endif
 	&headlessrenderer,
+#ifdef VKQUAKE
+	//&headlessvkrendererinfo,
+#endif
 };
 
 
@@ -1863,7 +1867,7 @@ void R_SetRenderer_f (void)
 		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 		{
 			if (rendererinfo[i]->description)
-				Con_Printf("^1%s^7: %s%s\n", rendererinfo[i]->name[0], rendererinfo[i]->description, (currentrendererstate.renderer == rendererinfo[i])?" ^2(current)":"");
+				Con_Printf("^[%s\\type\\/setrenderer %s^]^7: %s%s\n", rendererinfo[i]->name[0], rendererinfo[i]->name[0], rendererinfo[i]->description, (currentrendererstate.renderer == rendererinfo[i])?" ^2(current)":"");
 		}
 		return;
 	}
@@ -1880,7 +1884,7 @@ void R_SetRenderer_f (void)
 			Cvar_Set(&vid_bpp, Cmd_Argv(2));
 	}
 
-	if (newr.renderer->rtype != QR_HEADLESS)	//don't save headless in the vid_renderer cvar via the setrenderer command. 'setrenderer headless;vid_restart' can then do what is most sane.
+	if (newr.renderer->rtype != QR_HEADLESS && !strstr(param, "headless"))	//don't save headless in the vid_renderer cvar via the setrenderer command. 'setrenderer headless;vid_restart' can then do what is most sane.
 		Cvar_Set(&vid_renderer, param);
 
 	if (!r_blockvidrestart)
@@ -2279,6 +2283,7 @@ qbyte *R_MarkLeaves_Q2 (void)
 }
 #endif
 
+#ifdef Q1BSPS
 #if 0
 qbyte *R_CalcVis_Q1 (void)
 {
@@ -2420,6 +2425,7 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 	}
 	return vis;
 }
+#endif
 
 /*
 =================

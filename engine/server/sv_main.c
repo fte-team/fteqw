@@ -1135,6 +1135,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 {
 	//dpmaster support
 	char response[MAX_UDP_PACKET];
+	char protocolname[MAX_QPATH];
 
 	client_t	*cl;
 	int numclients = 0;
@@ -1164,6 +1165,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 	else
 		gamestatus = "";
 
+	COM_ParseOut(com_protocolname.string, protocolname, sizeof(protocolname));
 
 	resp = response;
 
@@ -1184,7 +1186,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 	//this is a DP protocol query, so some QW fields are not needed
 	Info_RemoveKey(resp, "maxclients");	//replaced with sv_maxclients
 	Info_RemoveKey(resp, "map");	//replaced with mapname
-	Info_SetValueForKey(resp, "gamename", com_protocolname.string, sizeof(response) - (resp-response));
+	Info_SetValueForKey(resp, "gamename", protocolname, sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "modname", FS_GetGamedir(true), sizeof(response) - (resp-response));
 //	Info_SetValueForKey(resp, "gamedir", FS_GetGamedir(true), sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "protocol", va("%d", NQ_NETCHAN_VERSION), sizeof(response) - (resp-response));

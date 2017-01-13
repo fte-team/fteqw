@@ -1160,7 +1160,7 @@ void P_DefaultTrail (unsigned int entityeffects, unsigned int modelflags, int *t
 		*trailid = P_FindParticleType("tr_scarab");
 		*trailpalidx = 254;
 	}
-	else if (modelflags & MFH2_ROCKET)
+	else if (modelflags & MFH2_SPIDERBLOOD)
 	{
 		//spiders
 		*trailid = P_FindParticleType("TR_GREENBLOOD");

@@ -173,6 +173,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define SPRMODELS		//quake1 sprite models
 		#define INTERQUAKEMODELS
 		#define RTLIGHTS		//realtime lighting
+		#define Q1BSPS			//quake 1 bsp support, because we're still a quake engine
 		#define Q2BSPS			//quake 2 bsp support (a dependancy of q3bsp)
 		#define Q3BSPS			//quake 3 bsp support
 //		#define TERRAIN			//heightmap support
@@ -234,6 +235,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define DSPMODELS		//doom sprites (only needs DOOMWADS to generate the right wad file names)
 		#define SPRMODELS		//quake1 sprite models
 		#define SP2MODELS		//quake2 sprite models
+		#define MD1MODELS		//quake1 alias models
 		#define MD2MODELS		//quake2 alias models
 		#define MD3MODELS		//quake3 alias models
 		#define MD5MODELS		//doom3 models
@@ -249,6 +251,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define MAP_DOOM		//doom map support
 		#define MAP_PROC		//doom3/quake4 map support
 		//#define WOLF3DSUPPORT	//wolfenstein3d map support (not started yet)
+		#define Q1BSPS			//quake 1 bsp support, because we're still a quake engine
 		#define Q2BSPS			//quake 2 bsp support
 		#define Q3BSPS			//quake 3 bsp support
 		#define TERRAIN			//heightmap support

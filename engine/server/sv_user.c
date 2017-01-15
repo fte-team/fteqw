@@ -588,7 +588,7 @@ void SVNQ_New_f (void)
 				{
 					Q_snprintfz (message, sizeof(message), "\x02\n"
 						"!!! THIS MAP REQUIRES AN IMPROVED PROTOCOL,\n"
-						"!!! BUT YOUR SHITTY CLIENT DOESN'T APPEAR TO SUPPORT ANY.\n"
+						"!!! BUT YOUR CLIENT DOESN'T APPEAR TO SUPPORT ANY.\n"
 						"!!! EXPECT MISSING MODELS, SOUNDS, OR ENTITIES\n");
 						//if you're reading this message to try to avoid your client being described as shitty, implement support for 'cmd protocol' and maybe 'cmd pext' stuffcmds.
 						//simply put, I can't use 666 if I don't know that its safe to do so.

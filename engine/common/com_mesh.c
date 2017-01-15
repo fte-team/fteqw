@@ -2521,6 +2521,67 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 	return frames;
 }
 
+//parses a foo.mdl.events file and inserts the events into the relevant animations
+static void Mod_InsertEvent(zonegroup_t *mem, galiasanimation_t *anims, unsigned int numanimations, unsigned int eventanimation, float eventpose, int eventcode, const char *eventdata)
+{
+	galiasevent_t *ev, **link;
+	if (eventanimation >= numanimations)
+	{
+		Con_Printf("Mod_InsertEvent: invalid frame index\n");
+		return;
+	}
+	ev = ZG_Malloc(mem, sizeof(*ev) + strlen(eventdata)+1);
+	ev->data = (char*)(ev+1);
+
+	ev->timestamp = eventpose;
+	ev->timestamp /= anims[eventanimation].rate;
+	ev->code = eventcode;
+	strcpy(ev->data, eventdata);
+	link = &anims[eventanimation].events;
+	while (*link && (*link)->timestamp <= ev->timestamp)
+		link = &(*link)->next;
+	ev->next = *link;
+	*link = ev;
+}
+static qboolean Mod_ParseModelEvents(model_t *mod, galiasanimation_t *anims, unsigned int numanimations)
+{
+	unsigned int anim;
+	float pose;
+	int eventcode;
+
+	const char *modelname = mod->name;
+	zonegroup_t *mem = &mod->memgroup;
+	char fname[MAX_QPATH], tok[2048];
+	size_t fsize;
+	char *line, *file, *eol;
+	Q_snprintfz(fname, sizeof(fname), "%s.events", modelname);
+	line = file = COM_LoadFile(fname, 5, &fsize);
+	if (!file)
+		return false;
+	while(line && *line)
+	{
+		eol = strchr(line, '\n');
+		if (eol)
+			*eol = 0;
+
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		anim = strtoul(tok, NULL, 0);
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		pose = strtod(tok, NULL);
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		eventcode = (long)strtol(tok, NULL, 0);
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		Mod_InsertEvent(mem, anims, numanimations, anim, pose, eventcode, tok);
+
+		if (eol)
+			line = eol+1;
+		else
+			break;
+	}
+	BZ_Free(file);
+	return true;
+}
+
 void Mod_DefaultMesh(galiasinfo_t *galias, const char *name, unsigned int index)
 {
 	Q_strncpyz(galias->surfacename, name, sizeof(galias->surfacename));
@@ -2672,80 +2733,6 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 }
 
 #ifndef SERVERONLY
-/*
-=================
-Mod_FloodFillSkin
-
-Fill background pixels so mipmapping doesn't have haloes - Ed
-=================
-*/
-
-typedef struct
-{
-	short		x, y;
-} floodfill_t;
-
-// must be a power of 2
-#define FLOODFILL_FIFO_SIZE 0x1000
-#define FLOODFILL_FIFO_MASK (FLOODFILL_FIFO_SIZE - 1)
-
-#define FLOODFILL_STEP( off, dx, dy ) \
-{ \
-	if (pos[off] == fillcolor) \
-	{ \
-		pos[off] = 255; \
-		fifo[inpt].x = x + (dx), fifo[inpt].y = y + (dy); \
-		inpt = (inpt + 1) & FLOODFILL_FIFO_MASK; \
-	} \
-	else if (pos[off] != 255) fdc = pos[off]; \
-}
-
-static void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
-{
-	qbyte				fillcolor = *skin; // assume this is the pixel to fill
-	floodfill_t			fifo[FLOODFILL_FIFO_SIZE];
-	int					inpt = 0, outpt = 0;
-	int					filledcolor = -1;
-	int					i;
-
-	if (filledcolor == -1)
-	{
-		filledcolor = 0;
-		// attempt to find opaque black
-		for (i = 0; i < 256; ++i)
-			if (d_8to24rgbtable[i] == (255 << 0)) // alpha 1.0
-			{
-				filledcolor = i;
-				break;
-			}
-	}
-
-	// can't fill to filled color or to transparent color (used as visited marker)
-	if ((fillcolor == filledcolor) || (fillcolor == 255))
-	{
-		//printf( "not filling skin from %d to %d\n", fillcolor, filledcolor );
-		return;
-	}
-
-	fifo[inpt].x = 0, fifo[inpt].y = 0;
-	inpt = (inpt + 1) & FLOODFILL_FIFO_MASK;
-
-	while (outpt != inpt)
-	{
-		int			x = fifo[outpt].x, y = fifo[outpt].y;
-		int			fdc = filledcolor;
-		qbyte		*pos = &skin[x + skinwidth * y];
-
-		outpt = (outpt + 1) & FLOODFILL_FIFO_MASK;
-
-		if (x > 0)				FLOODFILL_STEP( -1, -1, 0 );
-		if (x < skinwidth - 1)	FLOODFILL_STEP( 1, 1, 0 );
-		if (y > 0)				FLOODFILL_STEP( -skinwidth, 0, -1 );
-		if (y < skinheight - 1)	FLOODFILL_STEP( skinwidth, 0, 1 );
-		skin[x + skinwidth * y] = fdc;
-	}
-}
-
 //looks for foo.md3_0.skin files, for dp compat
 //also try foo_0.skin, because people appear to use that too. *sigh*.
 int Mod_CountSkinFiles(char *modelname)
@@ -3211,6 +3198,80 @@ static void *Q1MDL_LoadSkins_SV (galiasinfo_t *galias, dmdl_t *pq1inmodel, dalia
 }
 
 #ifndef SERVERONLY
+/*
+=================
+Mod_FloodFillSkin
+
+Fill background pixels so mipmapping doesn't have haloes - Ed
+=================
+*/
+
+typedef struct
+{
+	short		x, y;
+} floodfill_t;
+
+// must be a power of 2
+#define FLOODFILL_FIFO_SIZE 0x1000
+#define FLOODFILL_FIFO_MASK (FLOODFILL_FIFO_SIZE - 1)
+
+#define FLOODFILL_STEP( off, dx, dy ) \
+{ \
+	if (pos[off] == fillcolor) \
+	{ \
+		pos[off] = 255; \
+		fifo[inpt].x = x + (dx), fifo[inpt].y = y + (dy); \
+		inpt = (inpt + 1) & FLOODFILL_FIFO_MASK; \
+	} \
+	else if (pos[off] != 255) fdc = pos[off]; \
+}
+
+static void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
+{
+	qbyte				fillcolor = *skin; // assume this is the pixel to fill
+	floodfill_t			fifo[FLOODFILL_FIFO_SIZE];
+	int					inpt = 0, outpt = 0;
+	int					filledcolor = -1;
+	int					i;
+
+	if (filledcolor == -1)
+	{
+		filledcolor = 0;
+		// attempt to find opaque black
+		for (i = 0; i < 256; ++i)
+			if (d_8to24rgbtable[i] == (255 << 0)) // alpha 1.0
+			{
+				filledcolor = i;
+				break;
+			}
+	}
+
+	// can't fill to filled color or to transparent color (used as visited marker)
+	if ((fillcolor == filledcolor) || (fillcolor == 255))
+	{
+		//printf( "not filling skin from %d to %d\n", fillcolor, filledcolor );
+		return;
+	}
+
+	fifo[inpt].x = 0, fifo[inpt].y = 0;
+	inpt = (inpt + 1) & FLOODFILL_FIFO_MASK;
+
+	while (outpt != inpt)
+	{
+		int			x = fifo[outpt].x, y = fifo[outpt].y;
+		int			fdc = filledcolor;
+		qbyte		*pos = &skin[x + skinwidth * y];
+
+		outpt = (outpt + 1) & FLOODFILL_FIFO_MASK;
+
+		if (x > 0)				FLOODFILL_STEP( -1, -1, 0 );
+		if (x < skinwidth - 1)	FLOODFILL_STEP( 1, 1, 0 );
+		if (y > 0)				FLOODFILL_STEP( -skinwidth, 0, -1 );
+		if (y < skinheight - 1)	FLOODFILL_STEP( skinwidth, 0, 1 );
+		skin[x + skinwidth * y] = fdc;
+	}
+}
+
 static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model_t *loadmodel, daliasskintype_t *pskintype, uploadfmt_t skintranstype)
 {
 	skinframe_t *frames;
@@ -3356,67 +3417,6 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 	return pskintype;
 }
 #endif
-
-//parses a foo.mdl.events file and inserts the events into the relevant animations
-static void Mod_InsertEvent(zonegroup_t *mem, galiasanimation_t *anims, unsigned int numanimations, unsigned int eventanimation, float eventpose, int eventcode, const char *eventdata)
-{
-	galiasevent_t *ev, **link;
-	if (eventanimation >= numanimations)
-	{
-		Con_Printf("Mod_InsertEvent: invalid frame index\n");
-		return;
-	}
-	ev = ZG_Malloc(mem, sizeof(*ev) + strlen(eventdata)+1);
-	ev->data = (char*)(ev+1);
-
-	ev->timestamp = eventpose;
-	ev->timestamp /= anims[eventanimation].rate;
-	ev->code = eventcode;
-	strcpy(ev->data, eventdata);
-	link = &anims[eventanimation].events;
-	while (*link && (*link)->timestamp <= ev->timestamp)
-		link = &(*link)->next;
-	ev->next = *link;
-	*link = ev;
-}
-static qboolean Mod_ParseModelEvents(model_t *mod, galiasanimation_t *anims, unsigned int numanimations)
-{
-	unsigned int anim;
-	float pose;
-	int eventcode;
-
-	const char *modelname = mod->name;
-	zonegroup_t *mem = &mod->memgroup;
-	char fname[MAX_QPATH], tok[2048];
-	size_t fsize;
-	char *line, *file, *eol;
-	Q_snprintfz(fname, sizeof(fname), "%s.events", modelname);
-	line = file = COM_LoadFile(fname, 5, &fsize);
-	if (!file)
-		return false;
-	while(line && *line)
-	{
-		eol = strchr(line, '\n');
-		if (eol)
-			*eol = 0;
-
-		line = COM_ParseOut(line, tok, sizeof(tok));
-		anim = strtoul(tok, NULL, 0);
-		line = COM_ParseOut(line, tok, sizeof(tok));
-		pose = strtod(tok, NULL);
-		line = COM_ParseOut(line, tok, sizeof(tok));
-		eventcode = (long)strtol(tok, NULL, 0);
-		line = COM_ParseOut(line, tok, sizeof(tok));
-		Mod_InsertEvent(mem, anims, numanimations, anim, pose, eventcode, tok);
-
-		if (eol)
-			line = eol+1;
-		else
-			break;
-	}
-	BZ_Free(file);
-	return true;
-}
 
 static void Mesh_HandleFramegroupsFile(model_t *mod, galiasinfo_t *galias)
 {
@@ -3790,7 +3790,7 @@ static qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 	return true;
 }
 
-static int Mod_ReadFlagsFromMD1(char *name, int md3version)
+int Mod_ReadFlagsFromMD1(char *name, int md3version)
 {
 	int result = 0;
 	size_t fsize;
@@ -3817,7 +3817,7 @@ static int Mod_ReadFlagsFromMD1(char *name, int md3version)
 	return result;
 }
 #else
-static int Mod_ReadFlagsFromMD1(char *name, int md3version)
+int Mod_ReadFlagsFromMD1(char *name, int md3version)
 {
 	return 0;
 }

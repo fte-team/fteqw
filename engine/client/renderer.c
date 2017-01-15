@@ -57,11 +57,11 @@ void QDECL R_SkyBox_Changed (struct cvar_s *var, char *oldvalue)
 }
 
 #ifdef FTE_TARGET_WEB	//webgl sucks too much to get a stable framerate without vsync.
-cvar_t vid_vsync							= CVARAF  ("vid_wait", "1",
-													   "vid_vsync", CVAR_ARCHIVE);
+cvar_t vid_vsync							= CVARAF  ("vid_vsync", "1",
+													   "vid_wait", CVAR_ARCHIVE);
 #else
-cvar_t vid_vsync							= CVARAF  ("vid_wait", "0",
-													   "vid_vsync", CVAR_ARCHIVE);
+cvar_t vid_vsync							= CVARAF  ("vid_vsync", "0",
+													   "vid_wait", CVAR_ARCHIVE);
 #endif
 
 cvar_t _windowed_mouse						= CVARF ("_windowed_mouse","1",

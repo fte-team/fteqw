@@ -1685,7 +1685,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 	entity_state_t	*base;
 	packet_entities_t	*pack;
 
-	qboolean isnehahra = false;//(cls.protocol_nq == CPNQ_ID && cls.demoplayback);
+	qboolean isnehahra = CPNQ_IS_BJP;//||(cls.protocol_nq == CPNQ_ID && cls.demoplayback);
 
 	if (cls.signon == 4 - 1)
 	{	// first update is the final signon stage
@@ -1746,7 +1746,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 	state->sequence = cls.netchan.incoming_sequence;
 	state->solidsize = ES_SOLID_BSP;
 
-	state->dpflags = (bits & NQU_NOLERP)?RENDER_STEP:0;
+	state->dpflags = 0;
 
 	if (bits & NQU_MODEL)
 	{
@@ -1782,6 +1782,9 @@ void CLNQ_ParseEntity(unsigned int bits)
 		state->origin[2] = MSG_ReadCoord ();
 	if (bits & NQU_ANGLE3)
 		state->angles[2] = MSG_ReadAngle();
+
+	if (bits & NQU_NOLERP)
+		state->dpflags |= RENDER_STEP;
 
 	if (isnehahra)
 	{
@@ -1839,11 +1842,19 @@ void CLNQ_ParseEntity(unsigned int bits)
 			state->colormod[2] = (qbyte)((i & 3) * (32.0f / 3.0f));
 		}
 
+		if (bits & DPU_GLOWTRAIL)
+			state->dpflags |= RENDER_GLOWTRAIL;
+
 		if (bits & DPU_FRAME2)
 			state->frame |= MSG_ReadByte() << 8;
 
 		if (bits & DPU_MODEL2)
 			state->modelindex |= MSG_ReadByte() << 8;
+
+		if (bits & DPU_VIEWMODEL)
+			state->dpflags |= RENDER_VIEWMODEL;
+		if (bits & DPU_EXTERIORMODEL)
+			state->dpflags |= RENDER_EXTERIORMODEL;
 	}
 }
 #endif
@@ -2955,7 +2966,7 @@ void CLQ1_AddShadow(entity_t *ent)
 	scenetris_t *t;
 	cl_adddecal_ctx_t ctx;
 
-	if (!r_shadows.value || !ent->model || ent->model->type != mod_alias)
+	if (!r_shadows.value || !ent->model || (ent->model->type != mod_alias && ent->model->type != mod_halflife))
 		return;
 
 	s = R_RegisterShader("shadowshader", SUF_NONE,

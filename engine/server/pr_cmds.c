@@ -4447,6 +4447,37 @@ static void QCBUILTIN PF_lightstyle (pubprogfuncs_t *prinst, struct globalvars_s
 	PF_applylightstyle(style, val, rgb);
 }
 
+static void QCBUILTIN PF_getlightstyle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int		style = G_FLOAT(OFS_PARM0);
+
+	if (style >= countof(sv.strings.lightstyles))
+	{
+		VectorSet(G_VECTOR(OFS_PARM1), 0, 0, 0);
+		G_INT(OFS_RETURN) = 0;
+	}
+	else
+	{
+		VectorCopy(sv.lightstylecolours[style], G_VECTOR(OFS_PARM1));
+		if (!sv.strings.lightstyles[style])
+			G_INT(OFS_RETURN) = 0;
+		else
+			RETURN_TSTRING(sv.strings.lightstyles[style]);
+	}
+}
+static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int		style = G_FLOAT(OFS_PARM0);
+	int value;
+	if (!sv.strings.lightstyles[style])
+		value = ('m'-'a')*22;
+	else if (sv.strings.lightstyles[style][0] == '=')
+		value = atof(sv.strings.lightstyles[style]+1)*256;
+	else
+		value = sv.strings.lightstyles[style][max(0,(int)(sv.time*10)) % strlen(sv.strings.lightstyles[style])] - 'a';
+	VectorScale(sv.lightstylecolours[style], value*(1.0/256), G_VECTOR(OFS_RETURN));
+}
+
 #ifdef HEXEN2
 static void QCBUILTIN PF_lightstylevalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -10041,6 +10072,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //end of mvdsv
 #endif
 
+	{"getlightstyle",	PF_getlightstyle,	0,		0,		0,		0,	D("string(float style, optional __out vector rgb)", "Obtains the light style string for the given style.")},
+	{"getlightstylergb",PF_getlightstylergb,0,		0,		0,		0,	D("vector(float style)", "Obtains the current rgb value of the specified light style. In csqc, this is correct with regard to the current frame, while ssqc gives no guarentees about time and ignores client cvars. Note: use getlight if you want the actual light value at a point.")},
 #ifdef HEXEN2
 	{"lightstylestatic",PF_lightstylestatic,0,		0,		5,		5,	D("void(float style, float val, optional vector rgb)", "Sets the lightstyle to an explicit numerical level. From Hexen2.")},
 	{"tracearea",		PF_traceboxh2,		0,		0,		33,		0,	D("void(vector v1, vector v2, vector mins, vector maxs, float nomonsters, entity ent)", "For hexen2 compat")},

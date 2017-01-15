@@ -4102,9 +4102,9 @@ static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey
 	}
 
 	if (prefix)
-		Con_DPrintf("Unknown shader directive: \"%s\"\n", prefix);
+		Con_DPrintf("Unknown shader directive parsing %s: \"%s\"\n", shader->name, prefix);
 	else
-		Con_DPrintf("Unknown shader directive: \"%s\"\n", token);
+		Con_DPrintf("Unknown shader directive parsing %s: \"%s\"\n", shader->name, token);
 
 	// Next Line
 	while (ptr)

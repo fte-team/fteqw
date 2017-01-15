@@ -2529,8 +2529,6 @@ int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_
 
 	int stringadjust;
 
-	char *mainstringtable, *newstringtable;
-
 	current_progstate = progstate;
 
 	strcpy(current_progstate->filename, filename);
@@ -2794,9 +2792,6 @@ retry:
 
 	len=sizeof(char)*pr_progs->numstrings;
 	s = PRAddressableExtend(progfuncs, pr_strings, len, 0);
-
-	newstringtable = s;
-	mainstringtable = progfuncs->funcs.stringtable;
 	pr_strings = (char *)s;
 
 	len=sizeof(float)*pr_progs->numglobals;

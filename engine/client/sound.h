@@ -331,8 +331,8 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 //info on which sound effects are playing
 	//FIXME: use a linked list
 	channel_t	*channel;
-	int			total_chans;
-	int			max_chans;
+	size_t		total_chans;
+	size_t		max_chans;
 
 	float	ambientlevels[NUM_AMBIENTS];	//we use a float instead of the channel's int volume value to avoid framerate dependancies with slow transitions.
 

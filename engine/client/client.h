@@ -338,7 +338,7 @@ typedef struct
 	int		length;
 	char	map[MAX_STYLESTRING];
 	vec3_t	colours;
-	int		colourkey;
+	int		colourkey;	//compacted version of the colours, for comparison against caches
 } lightstyle_t;
 
 

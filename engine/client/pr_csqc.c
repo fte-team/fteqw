@@ -3807,6 +3807,63 @@ static void QCBUILTIN PF_cs_lightstyle (pubprogfuncs_t *prinst, struct globalvar
 	R_UpdateLightStyle(stnum, str, rgb[0],rgb[1],rgb[2]);
 }
 
+static void QCBUILTIN PF_getlightstyle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int stnum = G_FLOAT(OFS_PARM0);
+
+	if (stnum >= MAX_LIGHTSTYLES)
+	{
+		VectorSet(G_VECTOR(OFS_PARM1), 0, 0, 0);
+		G_INT(OFS_RETURN) = 0;
+		return;
+	}
+
+	VectorCopy(cl_lightstyle[stnum].colours, G_VECTOR(OFS_PARM1));
+	if (!cl_lightstyle[stnum].length)
+		G_INT(OFS_RETURN) = 0;
+	else
+		RETURN_TSTRING(cl_lightstyle[stnum].map);
+}
+static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int stnum = G_FLOAT(OFS_PARM0);
+	int value;	//could be float, but that would exceed the precision of R_AnimateLight
+
+	if (stnum >= MAX_LIGHTSTYLES)
+	{
+		Con_Printf ("PF_getlightstyle: stnum > MAX_LIGHTSTYLES");
+		return;
+	}
+
+	if (!cl_lightstyle[stnum].length)
+		value = ('m'-'a')*22 * r_lightstylescale.value;
+	else if (cl_lightstyle[stnum].map[0] == '=')
+		value = atof(cl_lightstyle[stnum].map+1)*256*r_lightstylescale.value;
+	else
+	{
+		int v1, v2, vd, i;
+		float f;
+		
+		f = (cl.time*r_lightstylespeed.value);
+		if (f < 0)
+			f = 0;
+		i = (int)f;
+		f -= i;	//this can require updates at 1000 times a second.. Depends on your framerate of course
+
+		v1 = i % cl_lightstyle[stnum].length;
+		v1 = cl_lightstyle[stnum].map[v1] - 'a';
+		v2 = (i+1) % cl_lightstyle[stnum].length;
+		v2 = cl_lightstyle[stnum].map[v2] - 'a';
+		vd = v1 - v2;
+		if (!r_lightstylesmooth.ival || vd < -r_lightstylesmooth_limit.ival || vd > r_lightstylesmooth_limit.ival)
+			value = v1*22*r_lightstylescale.value;
+		else
+			value = (v1*(1-f) + v2*(f))*22*r_lightstylescale.value;
+	}
+
+	VectorScale(cl_lightstyle[stnum].colours, value*(1.0/256), G_VECTOR(OFS_RETURN));
+}
+
 //entity(string field, float match) findchainflags = #450
 //chained search for float, int, and entity reference fields
 static void QCBUILTIN PF_cs_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5571,6 +5628,8 @@ static struct {
 	{"stof",					PF_stof,	81},				// #81 float(string s) stof (FRIK_FILE or QW_ENGINE)
 	{"multicast",				PF_NoCSQC,	82},				// #82 void(vector where, float set) multicast (QW_ENGINE) (don't support)
 
+	{"getlightstyle",			PF_getlightstyle,		0},
+	{"getlightstylergb",		PF_getlightstylergb,		0},
 
 //90
 	{"tracebox",				PF_cs_tracebox,	90},

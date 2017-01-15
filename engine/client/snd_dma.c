@@ -233,7 +233,7 @@ void S_SoundInfo_f(void)
 					Con_DPrintf(" %s (%i %i, %g %g %g, inactive)\n", sc->channel[i].sfx->name, sc->channel[i].entnum, sc->channel[i].entchannel, sc->channel[i].origin[0], sc->channel[i].origin[1], sc->channel[i].origin[2]);
 			}
 		}
-		Con_Printf(" %d/%d/%d/%d active/known/highest/max\n", active, known, sc->total_chans, sc->max_chans);
+		Con_Printf(" %d/%d/%"PRIiSIZE"/%"PRIiSIZE" active/known/highest/max\n", active, known, sc->total_chans, sc->max_chans);
 		for (i = 0; i < sc->sn.numchannels; i++)
 		{
 			Con_Printf(" chan %i: fwd:%-4g rt:%-4g up:%-4g dist:%-4g\n", i, sc->speakerdir[i][0], sc->speakerdir[i][1], sc->speakerdir[i][2], sc->dist[i]);

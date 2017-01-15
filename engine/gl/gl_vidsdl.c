@@ -182,7 +182,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	#if SDL_PATCHLEVEL >= 1
 		flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 	#endif
-	sdlwindow = SDL_CreateWindow("My Magic Window", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, info->width, info->height, flags);
+	sdlwindow = SDL_CreateWindow(FULLENGINENAME, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, info->width, info->height, flags);
 	if (!sdlwindow)
 	{
 		Con_Printf("Couldn't set video mode: %s\n", SDL_GetError());

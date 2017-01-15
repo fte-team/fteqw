@@ -3489,7 +3489,7 @@ void CLNQ_ParseProtoVersion(void)
 	else if (protover == PROTOCOL_VERSION_BJP3)
 	{
 		cls.protocol_nq = CPNQ_BJP3;
-		Con_DPrintf("bjp3 %i protocol\n", PROTOCOL_VERSION_BJP2);
+		Con_DPrintf("bjp3 %i protocol\n", PROTOCOL_VERSION_BJP3);
 	}
 	else if (protover == PROTOCOL_VERSION_NQ)
 		Con_DPrintf("Standard NQ protocols\n");

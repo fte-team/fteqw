@@ -169,12 +169,15 @@ static struct
 	int 	 (*pXWarpPointer)(Display *display, Window src_w, Window dest_w, int src_x, int src_y, unsigned int src_width, unsigned int src_height, int dest_x, int dest_y);
 	Status (*pXMatchVisualInfo)(Display *display, int screen, int depth, int class, XVisualInfo *vinfo_return);
 
+#define XI_RESOURCENAME "FTEQW"
+#define XI_RESOURCECLASS "FTEQW"
 	char *(*pXSetLocaleModifiers)(char *modifier_list);
 	Bool (*pXSupportsLocale)(void); 
 	XIM		(*pXOpenIM)(Display *display, struct _XrmHashBucketRec *db, char *res_name, char *res_class);
 	char *	(*pXGetIMValues)(XIM im, ...); 
 	XIC		(*pXCreateIC)(XIM im, ...);
 	void	(*pXSetICFocus)(XIC ic); 
+	void	(*pXUnsetICFocus)(XIC ic); 
 	char *  (*pXGetICValues)(XIC ic, ...); 
 	Bool	(*pXFilterEvent)(XEvent *event, Window w);
 	int		(*pXutf8LookupString)(XIC ic, XKeyPressedEvent *event, char *buffer_return, int bytes_buffer, KeySym *keysym_return, Status *status_return);
@@ -266,6 +269,7 @@ static qboolean x11_initlib(void)
 			x11.pXGetIMValues		= Sys_GetAddressForName(x11.lib, "XGetIMValues");
 			x11.pXCreateIC			= Sys_GetAddressForName(x11.lib, "XCreateIC");
 			x11.pXSetICFocus		= Sys_GetAddressForName(x11.lib, "XSetICFocus");
+			x11.pXUnsetICFocus		= Sys_GetAddressForName(x11.lib, "XUnsetICFocus");
 			x11.pXGetICValues		= Sys_GetAddressForName(x11.lib, "XGetICValues");
 			x11.pXFilterEvent		= Sys_GetAddressForName(x11.lib, "XFilterEvent");
 			x11.pXutf8LookupString	= Sys_GetAddressForName(x11.lib, "Xutf8LookupString");
@@ -649,13 +653,13 @@ static long X_InitUnicode(void)
 
 	if (!COM_CheckParm("-noxim"))
 	{
-		if (x11.pXSetLocaleModifiers && x11.pXSupportsLocale && x11.pXOpenIM && x11.pXGetIMValues && x11.pXCreateIC && x11.pXSetICFocus && x11.pXGetICValues && x11.pXFilterEvent && (x11.pXutf8LookupString || x11.pXwcLookupString) && x11.pXDestroyIC && x11.pXCloseIM)
+		if (x11.pXSetLocaleModifiers && x11.pXSupportsLocale && x11.pXOpenIM && x11.pXGetIMValues && x11.pXCreateIC && x11.pXSetICFocus && x11.pXUnsetICFocus && x11.pXGetICValues && x11.pXFilterEvent && (x11.pXutf8LookupString || x11.pXwcLookupString) && x11.pXDestroyIC && x11.pXCloseIM)
 		{
 			setlocale(LC_CTYPE, "");	//just in case.
 			x11.pXSetLocaleModifiers("");
 			if (x11.pXSupportsLocale())
 			{
-				x11.inputmethod = x11.pXOpenIM(vid_dpy, NULL, NULL, NULL);
+				x11.inputmethod = x11.pXOpenIM(vid_dpy, NULL, XI_RESOURCENAME, XI_RESOURCECLASS);
 				if (x11.inputmethod)
 				{
 					XIMStyles *sup = NULL;
@@ -691,10 +695,12 @@ static long X_InitUnicode(void)
 							XNInputStyle, st,
 							XNClientWindow, vid_window,
 							XNFocusWindow, vid_window,
+							XNResourceName, XI_RESOURCENAME,
+							XNResourceClass, XI_RESOURCECLASS,
 							NULL);
 						if (x11.unicodecontext)
 						{
-							x11.pXSetICFocus(x11.unicodecontext);
+//							x11.pXSetICFocus(x11.unicodecontext);
 							x11.dounicode = true;
 
 							x11.pXGetICValues(x11.unicodecontext, XNFilterEvents, &requiredevents, NULL);
@@ -1205,12 +1211,18 @@ static void GetEvent(void)
 			modeswitchtime = Sys_Milliseconds() + 1500;	/*fairly slow, to make sure*/
 		}
 
+		if (event.xfocus.window == vid_window && x11.unicodecontext)
+			x11.pXSetICFocus(x11.unicodecontext);
+
 		//we we're focusing onto the game window and we're currently fullscreen, hide the other one so alt-tab won't select that instead of a real alternate app.
 //		if ((fullscreenflags & FULLSCREEN_ACTIVE) && (fullscreenflags & FULLSCREEN_LEGACY) && event.xfocus.window == vid_window)
 //			x11.pXUnmapWindow(vid_dpy, vid_decoywindow);
 		break;
 	case FocusOut:
 		//if we're already active, the decoy window shouldn't be focused anyway.
+		if (event.xfocus.window == vid_window && x11.unicodecontext)
+			x11.pXSetICFocus(x11.unicodecontext);
+
 		if ((fullscreenflags & FULLSCREEN_ACTIVE) && event.xfocus.window == vid_decoywindow)
 		{
 			break;

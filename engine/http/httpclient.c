@@ -1455,7 +1455,9 @@ struct dl_download *DL_Create(const char *url)
 	strcpy(newdl->url, url);
 	newdl->poll = DL_Decide;
 	newdl->sizelimit = 0x80000000u;	//some sanity limit.
+#if !defined(NPFTE) && !defined(SERVERONLY)
 	newdl->qdownload.method = DL_HTTP;
+#endif
 
 	if (!newdl->poll(newdl))
 	{

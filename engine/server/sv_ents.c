@@ -2750,7 +2750,7 @@ int i, eff;
 float miss;
 unsigned int bits=0;
 
-int glowsize=0, glowcolor=0, colourmod=0;
+int glowsize=0, glowcolour=0, colourmod=0;
 
 	for (i=0 ; i<3 ; i++)
 	{
@@ -2811,35 +2811,35 @@ int glowsize=0, glowcolor=0, colourmod=0;
 	}
 	else if (host_client->protocol == SCP_BJP3)
 	{
+		//should be nehahra here, but that'll screw up DP, so don't generate anything.
 	}
-	else if (0)
-	{
 #if 0
-		if (baseline.trans != ent->xv->alpha)
-			if (!(baseline.trans == 1 && !ent->xv->alpha))
-				bits |= DPU_ALPHA;
-		if (baseline.scale != ent->xv->scale)
+	else if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
+	{
+		if (baseline->trans != ent->trans)
+			bits |= DPU_ALPHA;
+		if (baseline->scale != ent->scale)
 		{
-			if (ent->xv->scale != 0 || ent->baseline.scale != 1)
+			if (ent->scale != 0 || baseline->scale != 1)
 				bits |= DPU_SCALE;
 		}
 
-		if (ent->v->modelindex >= 256)	//as much as protocols can handle
+		if (ent->modelindex >= 256)	//as much as protocols can handle
 			bits |= DPU_MODEL2;
 
-		if ((baseline.effects&0xff00) != ((int)eff & 0xff00))
+		if ((baseline->effects&0xff00) != ((int)eff & 0xff00))
 			bits |= DPU_EFFECTS2;
 
-		if (ent->xv->exteriormodeltoclient == EDICT_TO_PROG(svprogfuncs, host_client->edict))
+		if (ent->dpflags & RENDER_EXTERIORMODEL)
 			bits |= DPU_EXTERIORMODEL;
-		if (ent->xv->viewmodelforclient == EDICT_TO_PROG(svprogfuncs, host_client->edict))
+		if (ent->dpflags & RENDER_VIEWMODEL)
 			bits |= DPU_VIEWMODEL;
 
 
-		glowsize = ent->xv->glow_size*0.25f;
-		glowcolor = ent->xv->glow_color;
+		glowsize = ent->glowsize;
+		glowcolor = ent->glowcolour;
 
-		colourmod = ((int)bound(0, ent->xv->colormod[0] * (7.0f / 32.0f), 7) << 5) | ((int)bound(0, ent->xv->colormod[1] * (7.0f / 32.0f), 7) << 2) | ((int)bound(0, ent->xv->colormod[2] * (3.0f / 32.0f), 3) << 0);
+		colourmod = ((int)bound(0, ent->colormod[0] * (7.0f / 32.0f), 7) << 5) | ((int)bound(0, ent->colormod[1] * (7.0f / 32.0f), 7) << 2) | ((int)bound(0, ent->colormod[2] * (3.0f / 32.0f), 3) << 0);
 
 		if (0 != glowsize)
 			bits |= DPU_GLOWSIZE;
@@ -2848,8 +2848,8 @@ int glowsize=0, glowcolor=0, colourmod=0;
 
 		if (0 != colourmod)
 			bits |= DPU_COLORMOD;
-#endif
 	}
+#endif
 	else
 	{
 		if (ent->modelindex >= 256)	//as much as protocols can handle
@@ -2910,7 +2910,7 @@ int glowsize=0, glowcolor=0, colourmod=0;
 	else if (host_client->protocol == SCP_BJP3)
 	{
 	}
-	else
+	else if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
 	{
 		if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->trans);
 		if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->scale);

@@ -312,6 +312,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcnq_effect2				53		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
 #define	svcdp_precache				54		// [short] precacheindex [string] filename, precacheindex is + 0 for modelindex and +32768 for soundindex
 #define svcdp_spawnbaseline2		55
+#define svcdp_spawnstatic2			56
 #define svcdp_entities				57
 #define svcdp_csqcentities			58
 #define	svcdp_spawnstaticsound2		59	// [coord3] [short] samp [byte] vol [byte] aten

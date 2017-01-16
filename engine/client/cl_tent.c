@@ -3521,7 +3521,7 @@ void CL_UpdateBeams (void)
 			for (j = 0; j < cl.splitclients; j++)
 			{
 				playerview_t *pv = &cl.playerview[j];
-				if (b->entity == ((pv->cam_state == CAM_EYECAM)?pv->cam_spec_track+1:(pv->playernum+1)))
+				if (b->entity == pv->viewentity)
 				{
 //					player_state_t	*pl;
 		//			VectorSubtract(cl.simorg, b->start, org);

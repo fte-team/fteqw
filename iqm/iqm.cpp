@@ -4251,7 +4251,10 @@ bool writeiqm(const char *filename)
 		f->putlil(ext.name);
 		f->putlil(ext.num_data);
 		f->putlil(ext.ofs_data);
-		f->putlil((uint)sizeof(ext));
+		if (i == extensions.length()-1)
+			f->putlil(0);
+		else
+			f->putlil((uint)(hdr.ofs_extensions + (i+1)*sizeof(ext)));
 	}
 
 	if (ext_meshes_fte) loopv(meshes_fte)

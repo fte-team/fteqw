@@ -6978,9 +6978,9 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsi
 		Con_Printf("%s: IQM has mismatched joints (%i vs %i).\n", mod->name, h->num_joints, h->num_poses);
 		return NULL;
 	}
-	if (h->num_meshes && !h->num_joints)
+	if (h->num_meshes && !noweights && !h->num_joints)
 	{
-		Con_Printf("%s: mesh IQM has no poses.\n", mod->name);
+		Con_Printf("%s: mesh IQM has no joints.\n", mod->name);
 		return NULL;
 	}
 	if (h->num_frames && !h->num_poses)
@@ -7211,7 +7211,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsi
 		galiasevent_t *oevent, **link;
 		extsize /= sizeof(*fteevents);
 		oevent = ZG_Malloc(&mod->memgroup, sizeof(*oevent)*extsize);
-		for (extsize /= sizeof(*fteevents); extsize>0; extsize--, fteevents++,oevent++)
+		for (; extsize>0; extsize--, fteevents++,oevent++)
 		{
 			oevent->timestamp = fteevents->timestamp;
 			oevent->code = fteevents->evcode;

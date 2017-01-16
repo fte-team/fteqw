@@ -4281,7 +4281,7 @@ void CL_ParseBaseline (entity_state_t *es, int baselinetype2)
 	es->trans = (bits & FITZ_B_ALPHA) ? MSG_ReadByte() : 255;
 	es->scale = (bits & RMQFITZ_B_SCALE) ? MSG_ReadByte() : 16;
 }
-void CL_ParseBaseline2 (void)
+void CL_ParseBaselineDelta (void)
 {
 	entity_state_t es;
 
@@ -4290,7 +4290,7 @@ void CL_ParseBaseline2 (void)
 	else
 		CLQW_ParseDelta(&nullentitystate, &es, (unsigned short)MSG_ReadShort());
 	if (!CL_CheckBaselines(es.number))
-		Host_EndGame("CL_ParseBaseline2: check baselines failed with size %i", es.number);
+		Host_EndGame("CL_ParseBaselineDelta: check baselines failed with size %i", es.number);
 	memcpy(cl_baselines + es.number, &es, sizeof(es));
 }
 
@@ -4345,27 +4345,20 @@ like torches
 =====================
 */
 void R_StaticEntityToRTLight(int i);
-void CL_ParseStatic (int version)
+void CL_ParseStaticProt (int baselinetype)
 {
 	entity_t *ent;
 	int		i;
 	entity_state_t	es;
 	vec3_t mins,maxs;
 
-	if (version == 3)
+	if (baselinetype)
 	{
-		CL_ParseBaseline(&es, CPNQ_FITZ666);
+		CL_ParseBaseline(&es, baselinetype);
 		i = cl.num_statics;
 		cl.num_statics++;
 	}
-	else if (version == 1)
-	{
-		//old nq/qw style
-		CL_ParseBaseline (&es, CPNQ_ID);
-		i = cl.num_statics;
-		cl.num_statics++;
-	}
-	else if (version == 2)
+	else
 	{
 		//new deltaed style ('full' extension support)
 		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
@@ -4390,8 +4383,6 @@ void CL_ParseStatic (int version)
 				cl.num_statics++;
 		}
 	}
-	else
-		return;
 
 	if (i == cl_max_static_entities)
 	{
@@ -6774,13 +6765,13 @@ void CLQW_ParseServerMessage (void)
 			CL_ParseBaseline (cl_baselines + i, CPNQ_ID);
 			break;
 		case svcfte_spawnbaseline2:
-			CL_ParseBaseline2 ();
+			CL_ParseBaselineDelta ();
 			break;
 		case svc_spawnstatic:
-			CL_ParseStatic (1);
+			CL_ParseStaticProt (CPNQ_ID);
 			break;
 		case svcfte_spawnstatic2:
-			CL_ParseStatic (2);
+			CL_ParseStaticProt (0);
 			break;
 		case svc_temp_entity:
 #ifdef NQPROT
@@ -7630,7 +7621,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_spawnstatic:
-			CL_ParseStatic (1);
+			CL_ParseStaticProt (CPNQ_ID);
 			break;
 
 		case svc_spawnbaseline:
@@ -7650,10 +7641,10 @@ void CLNQ_ParseServerMessage (void)
 			CLFTE_ParseEntities();
 			break;
 		case svcfte_spawnstatic2:
-			CL_ParseStatic (2);
+			CL_ParseStaticProt (0);
 			break;
 		case svcfte_spawnbaseline2:
-			CL_ParseBaseline2 ();
+			CL_ParseBaselineDelta ();
 			break;
 
 		case svcfte_cgamepacket:
@@ -7912,7 +7903,7 @@ void CLNQ_ParseServerMessage (void)
 			CL_ParseBaseline (cl_baselines + i, CPNQ_FITZ666);
 			break;
 		case svcfitz_spawnstatic2:
-			CL_ParseStatic (3);
+			CL_ParseStaticProt (CPNQ_FITZ666);
 			break;
 		case svcfitz_spawnstaticsound2:
 			CL_ParseStaticSound(true);
@@ -7942,6 +7933,9 @@ void CLNQ_ParseServerMessage (void)
 			CL_ParseBaseline (cl_baselines + i, CPNQ_DP5);
 			break;
 
+		case svcdp_spawnstatic2:
+			CL_ParseStaticProt (CPNQ_DP5);
+			break;
 		case svcdp_spawnstaticsound2:
 			CL_ParseStaticSound(true);
 			break;

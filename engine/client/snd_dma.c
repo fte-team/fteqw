@@ -150,10 +150,10 @@ cvar_t snd_voip_showmeter		= CVARAFD("cl_voip_showmeter", "1", NULL, CVAR_ARCHIV
 cvar_t snd_voip_play			= CVARAFDC("cl_voip_play", "1", NULL, CVAR_ARCHIVE, "Enables voip playback. Value is a volume scaler.", S_Voip_Play_Callback);
 cvar_t snd_voip_ducking			= CVARAFD("cl_voip_ducking", "0.5", NULL, CVAR_ARCHIVE, "Scales game audio by this much when someone is talking to you. Does not affect your speaker volume when you speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
 cvar_t snd_voip_micamp			= CVARAFDC("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "Amplifies your microphone when using voip.", 0);
-cvar_t snd_voip_codec			= CVARAFDC("cl_voip_codec", "0", NULL, CVAR_ARCHIVE, "0: speex(@11khz). 1: raw. 2: opus. 3: speex(@8khz). 4: speex(@16). 5:speex(@32).", 0);
+cvar_t snd_voip_codec			= CVARAFDC("cl_voip_codec", "", NULL, CVAR_ARCHIVE, "0: speex(@11khz). 1: raw. 2: opus. 3: speex(@8khz). 4: speex(@16). 5:speex(@32).", 0);
 cvar_t snd_voip_noisefilter		= CVARAFDC("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.", 0);
 cvar_t snd_voip_autogain		= CVARAFDC("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.", 0);
-cvar_t snd_voip_bitrate			= CVARAFDC("cl_voip_bitrate", "0", NULL, CVAR_ARCHIVE, "For codecs with non-specific bitrates, this specifies the target bitrate to use (in kb).", 0);
+cvar_t snd_voip_opus_bitrate	= CVARAFDC("cl_voip_opus_bitrate", "3000", NULL, CVAR_ARCHIVE, "For codecs with non-specific bitrates, this specifies the target bitrate to use.", 0);
 #endif
 
 extern vfsfile_t *rawwritefile;
@@ -248,7 +248,7 @@ void S_SoundInfo_f(void)
 enum
 {
 	VOIP_SPEEX_OLD	= 0,	//original supported codec (with needless padding and at the wrong rate to keep quake implementations easy)
-	VOIP_RAW		= 1,	//support is not recommended.
+	VOIP_RAW16		= 1,	//support is not recommended.
 	VOIP_OPUS		= 2,	//supposed to be better than speex.
 	VOIP_SPEEX_NARROW = 3,	//narrowband speex. packed data.
 	VOIP_SPEEX_WIDE = 4,	//wideband speex. packed data.
@@ -256,6 +256,7 @@ enum
 
 	VOIP_INVALID = 16	//not currently generating audio.
 };
+#define VOIP_DEFAULT_CODEC (cls.protocol==CP_QUAKEWORLD?VOIP_SPEEX_OLD:VOIP_OPUS)	//opus is preferred, but ezquake is still common and only supports my first attempt at voice compression so favour that for quakeworld.
 static struct
 {
 	struct
@@ -301,7 +302,7 @@ static struct
 	unsigned char decgen[MAX_CLIENTS];	/*last generation. if it changes, we flush speex to reset packet loss*/
 	unsigned int decsamplerate[MAX_CLIENTS];
 	unsigned int decframesize[MAX_CLIENTS];
-	float lastspoke[MAX_CLIENTS];	/*time when they're no longer considered talking. if future, they're talking*/
+	float lastspoke[MAX_CLIENTS];	/*time when they're no longer considered talking. if future, they're talking (timeout avoids flickering, and harder to troll with fake-tourettes when noone is looking)*/
 	float lastspoke_any;
 
 	unsigned char capturebuf[32768]; /*pending data*/
@@ -511,8 +512,6 @@ static qboolean S_Opus_Init(void)
 	}
 #endif
 
-	Con_Printf("OPUS support is experimental and should not be used\n");	//need to remove the packet length prefix.
-
 	s_voip.opus.loaded = true;
 	return s_voip.opus.loaded;
 }
@@ -551,7 +550,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			case VOIP_SPEEX_ULTRAWIDE:
 				qspeex_decoder_destroy(s_voip.decoder[sender]);
 				break;
-			case VOIP_RAW:
+			case VOIP_RAW16:
 				break;
 			case VOIP_OPUS:
 				qopus_decoder_destroy(s_voip.decoder[sender]);
@@ -565,7 +564,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		{
 		default:	//codec not supported.
 			return;
-		case VOIP_RAW:
+		case VOIP_RAW16:
 			s_voip.decsamplerate[sender] = 11025;
 			break;
 		case VOIP_SPEEX_OLD:
@@ -634,7 +633,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 				if (!s_voip.decoder[sender])
 					return;
 
-				s_voip.decframesize[sender] = (sizeof(decodebuf) / sizeof(decodebuf[0])) / 2;	//this is the maximum size in a single frame.
+				s_voip.decframesize[sender] = s_voip.decsamplerate[sender]/400;	//this is the maximum size in a single frame.
 			}
 			else
 				qopus_decoder_ctl(s_voip.decoder[sender], OPUS_RESET_STATE);
@@ -715,7 +714,7 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 				}
 			}
 			break;
-		case VOIP_RAW:
+		case VOIP_RAW16:
 			len = min(bytes, sizeof(decodebuf)-(sizeof(decodebuf[0])*decodesamps));
 			memcpy(decodebuf+decodesamps, start, len);
 			decodesamps += len / sizeof(decodebuf[0]);
@@ -734,9 +733,10 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 //			Con_Printf("Decoded %i frames from %i bytes\n", r, len);
 			if (r > 0)
 			{
+				int frames = r / s_voip.decframesize[sender];
 				decodesamps += r;
-				s_voip.decseq[sender] = (s_voip.decseq[sender] + 1) & 0xff;//r / s_voip.decframesize[sender];
-				seq = (seq+1)&0xff;//r / s_voip.decframesize[sender];
+				s_voip.decseq[sender] = (s_voip.decseq[sender] + frames) & 0xff;
+				seq = (seq+frames)&0xff;
 			}
 			else if (r < 0)
 				Con_Printf("Opus decoding error %i\n", r);
@@ -909,7 +909,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	int len;
 	float micamp = snd_voip_micamp.value;
 	qboolean voipsendenable = true;
-	int voipcodec = snd_voip_codec.ival;
+	int voipcodec = *snd_voip_codec.string?snd_voip_codec.ival:VOIP_DEFAULT_CODEC;
 	qboolean rtpstream = NET_RTP_Active();
 
 	if (buf)
@@ -1023,7 +1023,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				qspeex_encoder_ctl(s_voip.encoder, SPEEX_SET_SAMPLING_RATE, &s_voip.encsamplerate);
 			}
 			break;
-		case VOIP_RAW:
+		case VOIP_RAW16:
 			s_voip.encsamplerate = 11025;
 			s_voip.encframesize = 256;
 			break;
@@ -1037,7 +1037,6 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			//use whatever is convienient.
 			s_voip.encsamplerate = 48000;
 			s_voip.encframesize = s_voip.encsamplerate / 400;	//2.5ms frames, at a minimum.
-			s_voip.encframesize *= 4;	//go for 10ms
 			s_voip.encoder = qopus_encoder_create(s_voip.encsamplerate, 1, OPUS_APPLICATION_VOIP, NULL);
 			if (!s_voip.encoder)
 				return;
@@ -1100,7 +1099,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			case VOIP_SPEEX_ULTRAWIDE:
 				qspeex_bits_reset(&s_voip.speex.encbits);
 				break;
-			case VOIP_RAW:
+			case VOIP_RAW16:
 				break;
 			case VOIP_OPUS:
 				qopus_encoder_ctl(s_voip.encoder, OPUS_RESET_STATE);
@@ -1196,7 +1195,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			len = qspeex_bits_write(&s_voip.speex.encbits, outbuf+outpos, sizeof(outbuf) - outpos);
 			outpos += len;
 			break;
-		case VOIP_RAW:
+		case VOIP_RAW16:
 			len = s_voip.capturepos-encpos;	//amount of data to be eaten in this frame
 			len = min(len, sizeof(outbuf)-outpos);
 			len &= ~((s_voip.encframesize*2)-1);
@@ -1216,38 +1215,36 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				//densely pack the frames.
 				start = (short*)(s_voip.capturebuf + encpos);
 				frames = (s_voip.capturepos-encpos)/2;
-				frames = s_voip.encframesize;
-				if (frames >= 2880)
-					frames = 2880;
-				else if (frames >= 1920)
-					frames = 1920;
-				else if (frames >= 960)
-					frames = 960;
-				else if (frames >= 480)
-					frames = 480;
-				else if (frames >= 240)
-					frames = 240;
-				else if (frames >= 120)
-					frames = 120;
-				else
-				{
-					Con_Printf("invalid Opus frame size\n");
-					frames = 0;
-				}
 
-				nrate = snd_voip_bitrate.value * 1000;
+				nrate = snd_voip_opus_bitrate.value;
 				if (nrate != s_voip.curbitrate)
 				{
 					s_voip.curbitrate = nrate;
 					if (nrate == 0)
 						nrate = -1000;
 					qopus_encoder_ctl(s_voip.encoder, OPUS_SET_BITRATE_REQUEST, (int)nrate);
+					nrate = 10000;
 				}
 
-//				Con_Printf("Encoding %i frames", frames);
+				if (frames >= 2880)
+					frames = 2880;
+				else if (frames >= 1920 && nrate > 100)
+					frames = 1920;
+				else if (frames >= 960 && nrate > 500)
+					frames = 960;
+				else if (frames >= 480 && nrate > 1000)
+					frames = 480;
+				else if (snd_voip_send.ival & 4)
+					break;	//don't send small rtp packets, its abusive.
+				else if (frames >= 240 && nrate > 2000)
+					frames = 240;
+				else if (frames >= 120 && nrate > 4000)
+					frames = 120;
+				else
+					break;	//invalid size, wait for more.
+
 				level += S_Voip_Preprocess(start, frames, micamp);
 				len = qopus_encode(s_voip.encoder, start, frames, outbuf+outpos, sizeof(outbuf) - outpos);
-//				Con_Printf(" (%i bytes)\n", len);
 				if (len >= 0)
 				{
 					s_voip.encsequence += frames / s_voip.encframesize;
@@ -1301,15 +1298,20 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		}
 	}
 
-	if (outpos && (!buf || buf->maxsize - buf->cursize >= outpos+4))
+	if (outpos)
 	{
-		if (buf && (snd_voip_send.ival != 4))
+		if (buf && !(snd_voip_send.ival & 4))
 		{
-			MSG_WriteByte(buf, clc);
-			MSG_WriteByte(buf, (s_voip.enccodec<<4) | (s_voip.generation & 0x0f)); /*gonna leave that nibble clear here... in this version, the client will ignore packets with those bits set. can use them for codec or something*/
-			MSG_WriteByte(buf, initseq&0xff);
-			MSG_WriteShort(buf, outpos);
-			SZ_Write(buf, outbuf, outpos);
+			if (buf->maxsize - buf->cursize >= 5+outpos)
+			{
+				MSG_WriteByte(buf, clc);
+				MSG_WriteByte(buf, (s_voip.enccodec<<4) | (s_voip.generation & 0x0f)); /*gonna leave that nibble clear here... in this version, the client will ignore packets with those bits set. can use them for codec or something*/
+				MSG_WriteByte(buf, initseq&0xff);
+				MSG_WriteShort(buf, outpos);
+				SZ_Write(buf, outbuf, outpos);
+			}
+			else
+				Con_Printf("Audio frame too small %i vs %i\n", outpos+4, buf->maxsize - buf->cursize);
 		}
 
 #ifdef SUPPORT_ICE
@@ -1379,6 +1381,7 @@ static void QDECL S_Voip_Play_Callback(cvar_t *var, char *oldval)
 }
 void S_Voip_MapChange(void)
 {
+	voipbutton = false;
 	Cvar_ForceCallback(&snd_voip_play);
 }
 int S_Voip_Loudness(qboolean ignorevad)
@@ -1417,6 +1420,7 @@ void S_Voip_Init(void)
 	Cvar_Register(&snd_voip_codec,		"Voice Chat");
 	Cvar_Register(&snd_voip_noisefilter,		"Voice Chat");
 	Cvar_Register(&snd_voip_autogain,		"Voice Chat");
+	Cvar_Register(&snd_voip_opus_bitrate,		"Voice Chat");
 	Cmd_AddCommand("+voip", S_Voip_Enable_f);
 	Cmd_AddCommand("-voip", S_Voip_Disable_f);
 	Cmd_AddCommand("voip", S_Voip_f);

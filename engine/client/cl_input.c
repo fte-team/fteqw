@@ -1688,7 +1688,7 @@ qboolean CLQW_SendCmd (sizebuf_t *buf, qboolean actuallysend)
 void CL_SendCmd (double frametime, qboolean mainloop)
 {
 	sizebuf_t	buf;
-	qbyte		data[1024];
+	qbyte		data[MAX_DATAGRAM];
 	int			i, plnum;
 	usercmd_t	*cmd;
 	float wantfps;

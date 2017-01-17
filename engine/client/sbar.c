@@ -2684,7 +2684,7 @@ static void Sbar_Voice(int y)
 		int s, i;
 		float range = loudness/100.0f;
 		w = 0;
-		Font_BeginString(font_default, sbar_rect.x + sbar_rect.width/2, sbar_rect.y + y + sbar_rect.height-SBAR_HEIGHT, &x, &y);
+		Font_BeginString(font_default, sbar_rect.x + min(320,sbar_rect.width)/2, sbar_rect.y + y + sbar_rect.height-SBAR_HEIGHT, &x, &y);
 		w += Font_CharWidth(CON_WHITEMASK, 0xe080);
 		w += Font_CharWidth(CON_WHITEMASK, 0xe081)*16;
 		w += Font_CharWidth(CON_WHITEMASK, 0xe082);

@@ -552,19 +552,23 @@ void M_Menu_Audio_f (void)
 	};
 #ifdef VOICECHAT
 	static const char *voipcodecoptions[] = {
+		"Auto",
 		"Speex (ez-compat)",
-//		"Raw (11025)",
-		"Opus (external)",
+//		"Raw16 (11025)",
+		"Opus",
 		"Speex (Narrow)",
 		"Speex (Wide)",
+//		"Speex (UltraWide)",
 		NULL
 	};
 	static const char *voipcodecvalue[] = {
+		"",
 		"0",
 //		"1",
 		"2",
 		"3",
 		"4",
+//		"5",
 		NULL
 	};
 

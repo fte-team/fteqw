@@ -417,7 +417,7 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 
 	connectinfo.time = realtime;	// for retransmit requests
 
-	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5 FITZ NEHAHRABJP NEHAHRABJP2 NEHAHRABJP3 QUAKE\\challenge\\%s", 255, 255, 255, 255, challenge);
+	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5 RMQ FITZ NEHAHRABJP NEHAHRABJP2 NEHAHRABJP3 QUAKE\\challenge\\%s", 255, 255, 255, 255, challenge);
 
 	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 

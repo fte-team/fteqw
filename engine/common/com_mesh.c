@@ -7217,7 +7217,6 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsi
 			oevent->code = fteevents->evcode;
 			oevent->data = ZG_Malloc(&mod->memgroup, strlen(strings+fteevents->evdata_str)+1);
 			strcpy(oevent->data, strings+fteevents->evdata_str);
-			oevent->timestamp /= fgroup[fteevents->anim].rate;
 			link = &fgroup[fteevents->anim].events;
 			while (*link && (*link)->timestamp <= oevent->timestamp)
 				link = &(*link)->next;

@@ -268,7 +268,7 @@ char *svc_nqstrings[] =
 	"NEW PROTOCOL(81)",	//81
 	"NEW PROTOCOL(82)",	//82
 	"nqsvcfte_cgamepacket(83)",	//83
-	"NEW PROTOCOL(84)",	//84
+	"nqsvcfte_voicechat",	//84
 	"NEW PROTOCOL(85)",	//85
 	"nqsvcfte_updateentities",	//86
 	"NEW PROTOCOL(87)",	//87
@@ -3658,6 +3658,10 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 	if (CPNQ_IS_DP)	//DP's protocol requires client+server to have exactly the same data files. this is shit, but in the interests of compatibility...
 		COM_Effectinfo_Enumerate(CL_Darkplaces_Particle_Precache);
+
+#ifdef VOICECHAT
+	S_Voip_MapChange();
+#endif
 
 #ifdef PEXT_CSQC
 	CSQC_Shutdown();
@@ -7822,6 +7826,12 @@ void CLNQ_ParseServerMessage (void)
 			i = MSG_ReadShort();
 			S_StopSound(i>>3, i&7);
 			break;
+
+#ifdef PEXT2_VOICECHAT
+		case svcfte_voicechat:
+			S_Voip_Parse();
+			break;
+#endif
 
 		case svc_temp_entity:
 			CL_ParseTEnt (true);

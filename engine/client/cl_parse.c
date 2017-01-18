@@ -4356,7 +4356,7 @@ void CL_ParseStaticProt (int baselinetype)
 	entity_state_t	es;
 	vec3_t mins,maxs;
 
-	if (baselinetype)
+	if (baselinetype >= 0)
 	{
 		CL_ParseBaseline(&es, baselinetype);
 		i = cl.num_statics;
@@ -6775,7 +6775,7 @@ void CLQW_ParseServerMessage (void)
 			CL_ParseStaticProt (CPNQ_ID);
 			break;
 		case svcfte_spawnstatic2:
-			CL_ParseStaticProt (0);
+			CL_ParseStaticProt (-1);
 			break;
 		case svc_temp_entity:
 #ifdef NQPROT
@@ -7645,7 +7645,7 @@ void CLNQ_ParseServerMessage (void)
 			CLFTE_ParseEntities();
 			break;
 		case svcfte_spawnstatic2:
-			CL_ParseStaticProt (0);
+			CL_ParseStaticProt (-1);
 			break;
 		case svcfte_spawnbaseline2:
 			CL_ParseBaselineDelta ();

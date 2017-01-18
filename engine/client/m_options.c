@@ -782,6 +782,7 @@ const char *presetexec[] =
 	"seta r_shadow_realtime_dlight 0;"
 	"seta r_shadow_realtime_world 0;"
 	"seta r_glsl_offsetmapping 0;"
+	"seta vid_hardwaregamma 3;"	//people benchmarking against other engines with fte using glsl gamma and the other not is annoying as fuck.
 //	"seta gl_detail 0;"
 	"seta gl_load24bit 0;"
 	"seta r_replacemodels \"\";"
@@ -833,6 +834,7 @@ const char *presetexec[] =
 	//these things are perhaps a little extreme
 	"r_loadlit 0;"
 	"r_nolerp 1;"
+	"seta vid_hardwaregamma 1;"
 	"r_softwarebanding 1;"		//ugly software banding.
 	"d_mipcap 0 2;"				//gl without anisotropic filtering favours too-distant mips too often, so lets just pretend it doesn't exist. should probably mess with lod instead or something
 	"gl_affinemodels 1;"

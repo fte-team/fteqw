@@ -216,7 +216,8 @@ void Draw_FunStringWidth(float x, float y, const void *str, int width, int right
 	int fw = 0;
 	unsigned int codeflags, codepoint;
 
-	width = (width*vid.rotpixelwidth)/vid.width;
+	//be generous and round up, to avoid too many issues with truncations
+	width = ceil((width*(float)vid.rotpixelwidth)/vid.width);
 
 	codeflags = (highlight&1)?CON_ALTMASK:CON_WHITEMASK;
 	if (highlight&2)

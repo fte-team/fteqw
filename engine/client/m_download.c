@@ -2408,6 +2408,10 @@ void PM_ManifestPackage(const char *metaname, qboolean mark)
 void PM_Shutdown(void)
 {
 }
+qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize)
+{
+	return false;
+}
 #endif
 
 #ifdef DOWNLOADMENU

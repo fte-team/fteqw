@@ -320,13 +320,13 @@ typedef struct
 static void QDECL SDL_Capture_Start(void *ctx)
 {
 	sdlcapture_t *d = ctx;
-	SDL_PauseAudioDevice(d->dev, FALSE);
+	SDL_PauseAudioDevice(d->dev, false);
 }
 
 static void QDECL SDL_Capture_Stop(void *ctx)
 {
 	sdlcapture_t *d = ctx;
-	SDL_PauseAudioDevice(d->dev, TRUE);
+	SDL_PauseAudioDevice(d->dev, true);
 }
 
 static void QDECL SDL_Capture_Shutdown(void *ctx)

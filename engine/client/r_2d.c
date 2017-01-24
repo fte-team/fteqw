@@ -406,7 +406,7 @@ mpic_t	*R2D_SafeCachePic (const char *path)
 	shader_t *s;
 	if (!qrenderer)
 		return NULL;
-	s = R_RegisterPic(path);
+	s = R_RegisterPic(path, NULL);
 	return s;
 }
 
@@ -526,7 +526,7 @@ apic_t *R2D_LoadAtlasedPic(const char *name)
 	}
 	else if (1)
 	{
-		apic->atlas = R_RegisterPic(va("gfx/%s", name));
+		apic->atlas = R_RegisterPic(va("gfx/%s", name), "wad");
 		apic->sl = 0;
 		apic->sh = 1;
 		apic->tl = 0;
@@ -871,7 +871,7 @@ void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 	}
 
 	if (*var->string)
-		conback = R_RegisterPic(var->string);
+		conback = R_RegisterPic(var->string, NULL);
 	if (!R_GetShaderSizes(conback, NULL, NULL, true))
 	{
 		conback = R_RegisterCustom("console", SUF_2D, NULL, NULL);	//quake3
@@ -879,13 +879,13 @@ void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 		{
 #ifdef HEXEN2
 			if (M_GameType() == MGT_HEXEN2)
-				conback = R_RegisterPic("gfx/menu/conback.lmp");
+				conback = R_RegisterPic("gfx/menu/conback.lmp", NULL);
 			else
 #endif
 				if (M_GameType() == MGT_QUAKE2)
-				conback = R_RegisterPic("pics/conback.pcx");
+				conback = R_RegisterPic("pics/conback.pcx", NULL);
 			else
-				conback = R_RegisterPic("gfx/conback.lmp");
+				conback = R_RegisterPic("gfx/conback.lmp", NULL);
 		}
 	}
 }

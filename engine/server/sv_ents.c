@@ -66,7 +66,6 @@ crosses a waterline.
 int needcleanup;
 
 //int		fatbytes;
-int glowsize, glowcolor; // made it a global variable, to suppress msvc warning.
 
 #ifdef Q2BSPS
 unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsigned int buffersize, qboolean add)
@@ -2837,7 +2836,7 @@ int glowsize=0, glowcolour=0, colourmod=0;
 
 
 		glowsize = ent->glowsize;
-		glowcolor = ent->glowcolour;
+		glowcolour = ent->glowcolour;
 
 		colourmod = ((int)bound(0, ent->colormod[0] * (7.0f / 32.0f), 7) << 5) | ((int)bound(0, ent->colormod[1] * (7.0f / 32.0f), 7) << 2) | ((int)bound(0, ent->colormod[2] * (3.0f / 32.0f), 3) << 0);
 
@@ -2916,7 +2915,7 @@ int glowsize=0, glowcolour=0, colourmod=0;
 		if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->scale);
 		if (bits & DPU_EFFECTS2)	MSG_WriteByte(msg, eff >> 8);
 		if (bits & DPU_GLOWSIZE)	MSG_WriteByte(msg, glowsize);
-		if (bits & DPU_GLOWCOLOR)	MSG_WriteByte(msg, glowcolor);
+		if (bits & DPU_GLOWCOLOR)	MSG_WriteByte(msg, glowcolour);
 		if (bits & DPU_COLORMOD)	MSG_WriteByte(msg, colourmod);
 		if (bits & DPU_FRAME2)		MSG_WriteByte(msg, ent->frame >> 8);
 		if (bits & DPU_MODEL2)		MSG_WriteByte(msg, ent->modelindex >> 8);

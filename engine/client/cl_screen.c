@@ -1709,7 +1709,11 @@ void SCR_DrawLoading (qboolean opaque)
 		return;	//will be drawn as part of the regular screen updates
 #ifdef MENU_DAT
 	if (MP_UsingGamecodeLoadingScreen())
+	{
+		if (opaque)
+			MP_Draw();
 		return;	//menuqc should have just drawn whatever overlays it wanted.
+	}
 #endif
 
 	//int mtype = M_GameType(); //unused variable
@@ -1892,11 +1896,14 @@ void SCR_BeginLoadingPlaque (void)
 //		return;
 
 // redraw with no console and the loading plaque
-	Sbar_Changed ();
-	scr_drawloading = true;
-	scr_disabled_for_loading = true;
-	SCR_UpdateScreen ();
-	scr_drawloading = false;
+	if (!scr_disabled_for_loading)
+	{
+		Sbar_Changed ();
+		scr_drawloading = true;
+		SCR_UpdateScreen ();
+		scr_drawloading = false;
+		scr_disabled_for_loading = true;
+	}
 
 	scr_disabled_time = Sys_DoubleTime();	//realtime tends to change... Hmmm....
 }
@@ -1924,26 +1931,39 @@ void SCR_ImageName (const char *mapname)
 		if (!R_GetShaderSizes(R2D_SafeCachePic (levelshotname), NULL, NULL, true))
 		{
 			*levelshotname = '\0';
-			return;
+			if (scr_disabled_for_loading)
+				return;
 		}
 	}
 	else
 	{
 		*levelshotname = '\0';
-		return;
+		if (scr_disabled_for_loading)
+			return;
 	}
 
-	scr_disabled_for_loading = false;
-	scr_drawloading = true;
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
+	if (!scr_disabled_for_loading)
 	{
-		SCR_DrawLoading(false);
-		SCR_SetUpToDrawConsole();
-		if (Key_Dest_Has(kdm_console) || !*levelshotname)
-			SCR_DrawConsole(!!*levelshotname);
+		Sbar_Changed ();
+		scr_drawloading = true;
+		SCR_UpdateScreen ();
+		scr_drawloading = false;
+		scr_disabled_for_loading = true;
 	}
+	else
+	{
+		scr_disabled_for_loading = false;
+		scr_drawloading = true;
+#ifdef GLQUAKE
+		if (qrenderer == QR_OPENGL)
+		{
+			SCR_DrawLoading(false);
+			SCR_SetUpToDrawConsole();
+			if (Key_Dest_Has(kdm_console) || !*levelshotname)
+				SCR_DrawConsole(!!*levelshotname);
+		}
 #endif
+	}
 	scr_drawloading = false;
 
 	scr_disabled_time = Sys_DoubleTime();	//realtime tends to change... Hmmm....
@@ -2920,6 +2940,9 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		SCR_DrawLoading(false);
 
 		SCR_ShowPics_Draw();
+
+		if (!scr_disabled_for_loading)
+			consolefocused = false;
 	}
 	else if (nohud)
 	{

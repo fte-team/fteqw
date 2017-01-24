@@ -31,10 +31,35 @@ static string() skinopts =
 	return opts;
 };
 
+var float autocvar_m_pitch = 0.022;
+class options_basic : mitem_exmenu
+{
+	virtual string(string key) get =
+	{
+		if (key == "m_pitchsign")
+			return (autocvar_m_pitch<0)?"1":"0";
+		return super::get(key);
+	};
+	virtual void(string key, string newval) set =
+	{
+		if (key == "m_pitchsign")
+		{
+			float invert;
+			if (stof(newval))
+				invert = autocvar_m_pitch > 0;
+			else
+				invert = autocvar_m_pitch < 0;
+			if (invert)
+				cvar_set("m_pitch", ftos(-autocvar_m_pitch));
+		}
+		else
+			super::set(key, newval);
+	};
+};
 nonstatic void(mitem_desktop desktop) M_Options_Basic =
 {
 	mitem_exmenu m;
-	m = spawn(mitem_exmenu, item_text:_("Basic Options"), item_flags:IF_SELECTABLE, item_command:"m_options");
+	m = spawn(options_basic, item_text:_("Basic Options"), item_flags:IF_SELECTABLE, item_command:"m_options");
 	desktop.add(m, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX, '0 0', '0 0');
 	desktop.item_focuschange(m, IF_KFOCUSED);
 	m.totop();
@@ -60,9 +85,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Basic =
 	if (assumefalsecheckcommand("bottomcolor"))
 		fr.add(menuitemcolour_spawn(_("Lower Colour"), 	"bottomcolor", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;	/*aka: arse colour*/
 	pos += 8;
-//	it = spawn(mitem_check, item_text:_("Invert Mouse"), item_command:"m_pitch", item_scale:8, item_size:'280 8');
-//	it.item_dynamicvalue = idv_cvar_invert;
-//	fr.add(it,	fr, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcheck_spawn (_("Invert Mouse"),		"m_pitchsign", 					'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Sensitivity"),		"sensitivity", 			'3 20 1',	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Fov"),			"fov", 				'80 130 5',	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Gamma"),			dp("v_gamma", "gamma"), 	'0.4 1.3 0.1',	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;

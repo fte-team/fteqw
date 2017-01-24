@@ -18,6 +18,10 @@ nonstatic void(mitem_desktop desktop) M_Options_Effects =
 
 	fr.add(menuitemcheck_spawn(_("Show Framerate"),			dp("showfps", "show_fps"), 		'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("Bloom"),				"r_bloom", 				'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	if (assumefalsecheckcommand("r_drawflat"))
+		fr.add(menuitemcheck_spawn(_("Simple Textures"),	"r_drawflat", 				'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	if (assumefalsecheckcommand("r_softwarebanding"))
+		fr.add(menuitemcheck_spawn(_("Colourmapped Rendering"),	"r_softwarebanding", 			'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("HDR"),				"r_hdr_irisadaptation", 		'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("Coronas"),			"r_coronas", 				'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("High Res Textures"),		"gl_load24bit", 			'280 8'),	fl, [0, pos], [0, 8]); pos += 8;

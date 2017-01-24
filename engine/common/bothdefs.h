@@ -202,6 +202,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef AVAIL_OPENAL		//just bloat...
 		#define NOMEDIA			//NO playing of avis/cins/roqs
 
+		#define Q1BSPS
 		#define SPRMODELS		//quake1 sprite models
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
 		#define PLUGINS

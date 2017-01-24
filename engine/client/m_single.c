@@ -164,7 +164,7 @@ static void M_Menu_LoadSave_Preview_Draw(int x, int y, menucustom_t *item, menu_
 				Image_UnloadTexture(info->picshader->defaulttextures->base);
 				R_UnloadShader(info->picshader);
 			}
-			info->picshader = R_RegisterPic(va("saves/%s/screeny.tga", m_saves[slot].sname));
+			info->picshader = R_RegisterPic(va("saves/%s/screeny.tga", m_saves[slot].sname), NULL);
 		}
 		if (info->picshader)
 		{
@@ -176,7 +176,7 @@ static void M_Menu_LoadSave_Preview_Draw(int x, int y, menucustom_t *item, menu_
 				break;
 			case 0:
 				if (*m_saves[slot].map)
-					pic = R_RegisterPic(va("levelshots/%s", m_saves[slot].map));
+					pic = R_RegisterPic(va("levelshots/%s", m_saves[slot].map), NULL);
 				break;
 			}
 			if (pic)

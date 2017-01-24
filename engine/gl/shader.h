@@ -617,7 +617,7 @@ extern int be_maxpasses;
 char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize);
 void R_UnloadShader(shader_t *shader);
 int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blocktillloaded);
-shader_t *R_RegisterPic (const char *name);
+shader_t *R_RegisterPic (const char *name, const char *subdirs);
 shader_t *QDECL R_RegisterShader (const char *name, unsigned int usageflags, const char *shaderscript);
 shader_t *R_RegisterShader_Lightmap (const char *name);
 shader_t *R_RegisterShader_Vertex (const char *name);

@@ -6972,10 +6972,10 @@ int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blockti
 		return false;
 	}
 }
-shader_t *R_RegisterPic (const char *name)
+shader_t *R_RegisterPic (const char *name, const char *subdirs)
 {
 	shader_t *shader;
-	shader = R_LoadShader (name, SUF_2D, Shader_Default2D, NULL);
+	shader = R_LoadShader (name, SUF_2D, Shader_Default2D, subdirs);
 	return shader;
 }
 

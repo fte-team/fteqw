@@ -1962,7 +1962,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 					imgname = Info_ValueForKey(linkinfo, "img");
 					if (*imgname)
 					{
-						pic = R_RegisterPic(imgname);
+						pic = R_RegisterPic(imgname, NULL);
 						if (pic)
 						{
 							imgname = Info_ValueForKey(linkinfo, "w");
@@ -2317,7 +2317,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 			{
 				shader_t *shader = w->backshader;
 				if (!shader)
-					shader = w->backshader = R_RegisterPic(w->backimage);// R_RegisterCustom(w->backimage, SUF_NONE, Shader_DefaultCinematic, w->backimage);
+					shader = w->backshader = R_RegisterPic(w->backimage, NULL);// R_RegisterCustom(w->backimage, SUF_NONE, Shader_DefaultCinematic, w->backimage);
 				if (shader)
 				{
 					int top = 8;

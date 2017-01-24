@@ -2805,7 +2805,7 @@ void M_Download_UpdateStatus(struct menu_s *m)
 		package_t *p = m->selecteditem->custom.dptr;
 		if (p->previewimage)
 		{
-			shader_t *sh = R_RegisterPic(p->previewimage);
+			shader_t *sh = R_RegisterPic(p->previewimage, NULL);
 			if (R_GetShaderSizes(sh, NULL, NULL, false) > 0)
 				R2D_Image(0, 0, vid.width, vid.height, 0, 0, 1, 1, sh);
 		}

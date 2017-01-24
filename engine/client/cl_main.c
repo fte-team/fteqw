@@ -4674,13 +4674,14 @@ void Host_DoRunFile(hrf_t *f)
 				char *fdata = BZ_Malloc(len+1);
 				foo = VFS_READ(f->srcfile, fdata, len);
 				fdata[len] = 0;
-				if (foo != len)
+				if (foo != len || !len)
 				{
 					Con_Printf("Host_DoRunFile: unable to read file properly\n");
 					BZ_Free(fdata);
 				}
 				else
 				{
+					host_parms.manifest = Z_StrDup(fdata);
 					man = FS_Manifest_Parse(NULL, fdata);
 					if (man)
 					{

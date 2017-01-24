@@ -1375,7 +1375,7 @@ void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr
 		beflags |= BEF_FORCETWOSIDED;
 
 	if (twod)
-		shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0));
+		shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
 	else
 		shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
 
@@ -1524,7 +1524,7 @@ void QCBUILTIN PF_R_AddTrisoup(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		beflags |= BEF_FORCETWOSIDED;
 
 	if (twod)
-		shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0));
+		shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
 	else
 		shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
 

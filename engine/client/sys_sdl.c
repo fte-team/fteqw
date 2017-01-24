@@ -715,14 +715,18 @@ void Sys_Sleep (double seconds)
 
 
 #ifdef HAVEAUTOUPDATE
-int Sys_GetAutoUpdateSetting(void)
-{
-	return UPD_UNSUPPORTED;
-}
-void Sys_SetAutoUpdateSetting(int newval)
-{
-}
+//legacy, so old build can still deal with updates properly
 void Sys_SetUpdatedBinary(const char *fname)
 {
+}
+//says whether the system code is able to invoke new binaries properly
+qboolean Sys_EngineCanUpdate(void)
+{
+	return false;	//nope, nothing here
+}
+//invoke the given system-path binary
+qboolean Sys_EngineWasUpdated(char *newbinary)
+{
+	return false;	//sorry
 }
 #endif

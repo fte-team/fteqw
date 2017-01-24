@@ -73,13 +73,13 @@ nonstatic void(mitem_desktop desktop) M_Options_Video =
 																	//	"60	\"60\" "
 																	//	"75	\"75\" "
 																		)),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcheck_spawn(_("VSync"),		dp("vid_vsync", "vid_wait"), 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcheck_spawn(_("Show Framerate"),	dp("showfps", "show_fps"), 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("View Size"),	"viewsize",				'50 120 10', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Field Of View"),	"fov",				'50 140 5', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Gamma"),	"gamma",				'1.3 0.5 -0.1', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Contrast"),	"contrast",				'0.7 2 0.1', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Brightness"),	"brightness",			'0 0.4 0.05', '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcheck_spawn(_("VSync"),		dp("vid_vsync", "vid_wait"), 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemcheck_spawn(_("Show Framerate"),	dp("showfps", "show_fps"), 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 
 	addmenuback(m);
 };

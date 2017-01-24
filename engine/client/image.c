@@ -4426,19 +4426,19 @@ static qboolean Image_LoadCubemapTexture(texid_t tex, char *nicename)
 	return true;
 }
 
-static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
+static qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *bestname, size_t bestnamesize, unsigned int *bestflags)
 {
-	image_t *tex = ctx;
-	char fname[MAX_QPATH], iname[MAX_QPATH], nicename[MAX_QPATH];
+	char fname[MAX_QPATH], nicename[MAX_QPATH];
 	int i, e;
-	char *buf;
-	size_t fsize;
-	int firstex = (tex->flags & IF_EXACTEXTENSION)?tex_extensions_count-1:0;
 	char *altname;
 	char *nextalt;
 	qboolean exactext = !!(tex->flags & IF_EXACTEXTENSION);
 
-//	Sys_Sleep(0.3);
+	int locflags = FSLF_DEPTH_INEXPLICIT|FSLF_DEEPONFAILURE;
+	int bestdepth = 0x7fffffff, depth;
+	int firstex = (tex->flags & IF_EXACTEXTENSION)?tex_extensions_count-1:0;
+
+	flocation_t loc;
 
 	for(altname = tex->ident;altname;altname = nextalt)
 	{
@@ -4477,29 +4477,17 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 		else
 			COM_StripExtension(altname, nicename, sizeof(nicename));
 
-		if ((tex->flags & IF_TEXTYPE) == IF_CUBEMAP)
-		{	//cubemaps require special handling because they are (normally) 6 files instead of 1.
-			//the exception is single-file dds cubemaps, but we don't support those.
-			if (!Image_LoadCubemapTexture(tex, nicename))
-			{
-				if (tex->flags & IF_NOWORKER)
-					Image_LoadTexture_Failed(tex, NULL, 0, 0);
-				else
-					COM_AddWork(WG_MAIN, Image_LoadTexture_Failed, tex, NULL, 0, 0);
-			}
-			return;
-		}
-
 		if (!tex->fallbackdata || (gl_load24bit.ival && !(tex->flags & IF_NOREPLACE)))
 		{
 			Q_snprintfz(fname, sizeof(fname), "dds/%s.dds", nicename);
-			if ((buf = COM_LoadFile (fname, 5, &fsize)))
+			depth = FS_FLocateFile(fname, locflags, &loc);
+			if (depth < bestdepth)
 			{
-				Q_snprintfz(iname, sizeof(iname), "dds/%s", nicename); /*should be safe if its null*/
-				if (Image_LoadTextureFromMemory(tex, tex->flags, iname, fname, buf, fsize))
-					return;
+				Q_strncpyz(bestname, fname, bestnamesize);
+				bestdepth = depth;
+				*bestloc = loc;
+				bestflags = 0;
 			}
-
 
 			if (strchr(nicename, '/') || strchr(nicename, '\\'))	//never look in a root dir for the pic
 				i = 0;
@@ -4553,11 +4541,13 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 								if (!strcmp(tex_extensions[e].name, ".pcx"))
 									continue;
 							Q_snprintfz(fname, sizeof(fname), tex_path[i].path, subpath, basename, tex_extensions[e].name);
-							if ((buf = COM_LoadFile (fname, 5, &fsize)))
+							depth = FS_FLocateFile(fname, locflags, &loc);
+							if (depth < bestdepth)
 							{
-								Q_snprintfz(iname, sizeof(iname), "%s/%s", subpath, nicename); /*should be safe if its null*/
-								if (Image_LoadTextureFromMemory(tex, tex->flags, iname, fname, buf, fsize))
-									return;
+								Q_strncpyz(bestname, fname, bestnamesize);
+								bestdepth = depth;
+								*bestloc = loc;
+								bestflags = 0;
 							}
 						}
 					}
@@ -4570,9 +4560,14 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 							if (!strcmp(tex_extensions[e].name, ".pcx"))
 								continue;
 						Q_snprintfz(fname, sizeof(fname), tex_path[i].path, nicename, tex_extensions[e].name);
-						if ((buf = COM_LoadFile (fname, 5, &fsize)))
-							if (Image_LoadTextureFromMemory(tex, tex->flags, nicename, fname, buf, fsize))
-								return;
+						depth = FS_FLocateFile(fname, locflags, &loc);
+						if (depth < bestdepth)
+						{
+							Q_strncpyz(bestname, fname, bestnamesize);
+							bestdepth = depth;
+							*bestloc = loc;
+							bestflags = 0;
+						}
 					}
 				}
 
@@ -4585,7 +4580,8 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 					}
 					else
 					{
-						char bumpname[MAX_QPATH], *n, *b;
+						char bumpname[MAX_QPATH], *b;
+						const char *n;
 						b = bumpname;
 						n = nicename;
 						while(*n)
@@ -4607,23 +4603,15 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 							if (!strcmp(tex_extensions[e].name, ".tga"))
 							{
 								Q_snprintfz(fname, sizeof(fname), tex_path[i].path, bumpname, tex_extensions[e].name);
-								if ((buf = COM_LoadFile (fname, 5, &fsize)))
+
+								Q_snprintfz(fname, sizeof(fname), tex_path[i].path, nicename, tex_extensions[e].name);
+								depth = FS_FLocateFile(fname, locflags, &loc);
+								if (depth < bestdepth)
 								{
-									int w, h;
-									qboolean a;
-									qbyte *d;
-									if ((d = ReadTargaFile(buf, fsize, &w, &h, &a, 2)))	//Only load a greyscale image.
-									{
-										BZ_Free(buf);
-										if (Image_LoadRawTexture(tex, tex->flags, d, NULL, w, h, TF_HEIGHT8))
-										{
-											BZ_Free(tex->fallbackdata);
-											tex->fallbackdata = NULL;	
-											return;
-										}
-									}
-									else
-										BZ_Free(buf);
+									Q_strncpyz(bestname, fname, bestnamesize);
+									bestdepth = depth;
+									*bestloc = loc;
+									*bestflags = IF_TRYBUMP;
 								}
 							}
 						}
@@ -4635,30 +4623,125 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 			/*still failed? attempt to load quake lmp files, which have no real format id (hence why they're not above)*/
 			Q_strncpyz(fname, nicename, sizeof(fname));
 			COM_DefaultExtension(fname, ".lmp", sizeof(fname));
-			if (!(tex->flags & IF_NOPCX) && (buf = COM_LoadFile (fname, 5, &fsize)))
+			if (!(tex->flags & IF_NOPCX))
 			{
-				if (Image_LoadTextureFromMemory(tex, tex->flags, nicename, fname, buf, fsize))
-					return;
-			}
-			else
-			{
-				int imgwidth;
-				int imgheight;
-				qboolean alphaed;
-				//now look in wad files. (halflife compatability)
-				buf = W_GetTexture(nicename, &imgwidth, &imgheight, &alphaed);
-				if (buf)
+				depth = FS_FLocateFile(fname, locflags, &loc);
+				if (depth < bestdepth)
 				{
-					if (Image_LoadRawTexture(tex, tex->flags, buf, NULL, imgwidth, imgheight, TF_RGBA32))
-					{
-						BZ_Free(tex->fallbackdata);
-						tex->fallbackdata = NULL;					
-						return;
-					}
-					BZ_Free(buf);
+					Q_strncpyz(bestname, fname, bestnamesize);
+					bestdepth = depth;
+					*bestloc = loc;
+					bestflags = 0;
 				}
 			}
 		}
+	}
+
+	return bestdepth != 0x7fffffff;
+}
+
+static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
+{
+	image_t *tex = ctx;
+	char fname[MAX_QPATH];
+	char *altname;
+	char *nextalt;
+	qboolean exactext = !!(tex->flags & IF_EXACTEXTENSION);
+
+	flocation_t loc;
+	unsigned int locflags;
+
+	vfsfile_t *f;
+	size_t fsize;
+	char *buf;
+
+	int imgwidth;
+	int imgheight;
+	qboolean alphaed;
+
+//	Sys_Sleep(0.3);
+
+	if ((tex->flags & IF_TEXTYPE) == IF_CUBEMAP)
+	{	//cubemaps require special handling because they are (normally) 6 files instead of 1.
+		//the exception is single-file dds cubemaps, but we don't support those.
+		for(altname = tex->ident;altname;altname = nextalt)
+		{
+			nextalt = strchr(altname, ':');
+			if (nextalt)
+			{
+				nextalt++;
+				if (nextalt-altname >= sizeof(fname))
+					continue;	//too long...
+				memcpy(fname, altname, nextalt-altname-1);
+				fname[nextalt-altname-1] = 0;
+				altname = fname;
+			}
+
+			if (!Image_LoadCubemapTexture(tex, altname))
+			{
+				if (tex->flags & IF_NOWORKER)
+					Image_LoadTexture_Failed(tex, NULL, 0, 0);
+				else
+					COM_AddWork(WG_MAIN, Image_LoadTexture_Failed, tex, NULL, 0, 0);
+			}
+		}
+		return;
+	}
+
+	
+
+	if (Image_LocateHighResTexture(tex, &loc, fname, sizeof(fname), &locflags))
+	{
+		f = FS_OpenReadLocation(&loc);
+		if (f)
+		{
+			fsize = VFS_GETLEN(f);
+			buf = BZ_Malloc(fsize);
+			if (buf)
+			{
+				VFS_READ(f, buf, fsize);
+				VFS_CLOSE(f);
+
+				if (locflags & IF_TRYBUMP)
+				{	//it was supposed to be a heightmap image (that we need to convert to normalmap)
+					qbyte *d;
+					int w, h;
+					qboolean a;
+					if ((d = ReadTargaFile(buf, fsize, &w, &h, &a, 2)))	//Only load a greyscale image.
+					{
+						BZ_Free(buf);
+						if (Image_LoadRawTexture(tex, tex->flags, d, NULL, w, h, TF_HEIGHT8))
+						{
+							BZ_Free(tex->fallbackdata);
+							tex->fallbackdata = NULL;	
+							return;
+						}
+					}
+					//guess not, fall back to normalmaps
+				}
+
+				if (Image_LoadTextureFromMemory(tex, tex->flags, tex->ident, loc.rawname, buf, fsize))
+				{
+					BZ_Free(tex->fallbackdata);
+					tex->fallbackdata = NULL;	
+					return;
+				}
+			}
+			else
+				VFS_CLOSE(f);
+		}
+	}
+
+	//now look in wad files and swap over the fallback. (halflife compatability)
+	COM_StripExtension(tex->ident, fname, sizeof(fname));
+	buf = W_GetTexture(fname, &imgwidth, &imgheight, &alphaed);
+	if (buf)
+	{
+		BZ_Free(tex->fallbackdata);
+		tex->fallbackdata = buf;
+		tex->fallbackfmt = TF_RGBA32;
+		tex->fallbackwidth = imgwidth;
+		tex->fallbackheight = imgheight;
 	}
 
 	if (tex->fallbackdata)
@@ -5072,14 +5155,26 @@ void Image_Purge(void)
 
 void Image_List_f(void)
 {
+	flocation_t loc;
 	image_t *tex, *a;
 	int loaded = 0, total = 0;
 	size_t mem = 0;
+	unsigned int loadflags;
+	char fname[MAX_QPATH];
 	for (tex = imagelist; tex; tex = tex->next)
 	{
 		total++;
 		if (tex->subpath)
-			Con_Printf("^h(%s)^h%s: ", tex->subpath, tex->ident);
+			Con_Printf("^h(%s)^h", tex->subpath);
+		
+		if (Image_LocateHighResTexture(tex, &loc, fname, sizeof(fname), &loadflags))
+		{
+			char defuck[MAX_OSPATH], *bullshit;
+			Q_strncpyz(defuck, loc.search->logicalpath, sizeof(defuck));
+			while((bullshit=strchr(defuck, '\\')))
+				*bullshit = '/';
+			Con_Printf("^[%s\\desc\\%s/%s^]: ", tex->ident, defuck, fname);
+		}
 		else
 			Con_Printf("%s: ", tex->ident);
 

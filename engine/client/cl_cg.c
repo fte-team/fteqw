@@ -851,13 +851,13 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
 		else
-			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
+			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0]), NULL));
 		break;
 	case CG_R_REGISTERSHADERNOMIP:
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
 		else
-			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
+			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0]), NULL));
 		break;
 
 	case CG_R_CLEARSCENE:	//clear scene (not rtlights, only dynamic ones)

@@ -676,7 +676,7 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 		Q_strncpyz(font->name, name, sizeof(font->name));
 		for (i = GLYPH_START; i < GLYPH_END; i++)
 		{
-			font->glyphs[i].glyph = VM_TOSHANDLE(R_RegisterPic(font->glyphs[i].shaderName));
+			font->glyphs[i].glyph = VM_TOSHANDLE(R_RegisterPic(font->glyphs[i].shaderName, NULL));
 		}
 	}
 }
@@ -899,7 +899,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
 		else
-			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
+			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0]), NULL));
 		break;
 
 	case UI_R_CLEARSCENE:	//clear scene

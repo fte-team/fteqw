@@ -2761,8 +2761,11 @@ void MP_Draw(void)
 	((float *)pr_globals)[OFS_PARM0+0] = vid.width;
 	((float *)pr_globals)[OFS_PARM0+1] = vid.height;
 	((float *)pr_globals)[OFS_PARM0+2] = 0;
-	if (mp_drawloading_function && scr_drawloading)
+	if (mp_drawloading_function && (scr_drawloading||scr_disabled_for_loading))
+	{
+		((float *)pr_globals)[OFS_PARM1] = scr_disabled_for_loading;
 		PR_ExecuteProgram(menu_world.progs, mp_drawloading_function);
+	}
 	else if (mp_draw_function)
 		PR_ExecuteProgram(menu_world.progs, mp_draw_function);
 	inmenuprogs--;

@@ -108,13 +108,14 @@ cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version
 cvar_t	gameversion_min = CVARD("gameversion_min","", "gamecode version for server browsers");
 cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for server browsers");
 cvar_t	fs_gamename = CVARAFD("com_fullgamename", NULL, "fs_gamename", CVAR_NOSET, "The filesystem is trying to run this game");
-cvar_t	fs_downloads_url = CVARFD("fs_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");
 cvar_t	com_protocolname = CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
 cvar_t	com_parseezquake = CVARD("com_parseezquake", "0", "Treat chevron chars from configs as a per-character flag. You should use this only for compat with nquake's configs.");
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.\n");
 cvar_t	sys_platform = CVAR("sys_platform", PLATFORM);
+cvar_t	pm_downloads_url = CVARFD("pm_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");	//read from the default.fmf
+cvar_t	pm_autoupdate = CVARFD("pm_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -5553,6 +5554,14 @@ void COM_Init (void)
 	nullentitystate.solidsize = 0;//ES_SOLID_BSP;
 }
 
+void COM_Shutdown (void)
+{
+#ifdef LOADERTHREAD
+	COM_DestroyWorkerThread();
+#endif
+	COM_BiDi_Shutdown();
+	FS_Shutdown();
+}
 
 /*
 ============
@@ -5596,7 +5605,7 @@ int	memsearch (qbyte *start, int count, int search)
 }
 
 #ifdef NQPROT
-//for compat with dpp7 protocols
+//for compat with dpp7 protocols, or dp gamecode that neglects to properly precache particles.
 void COM_Effectinfo_Enumerate(int (*cb)(const char *pname))
 {
 	int i;

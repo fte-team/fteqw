@@ -1537,7 +1537,7 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 	MSG_WriteByte (msg, svcfte_updateentities);
 	if (ISNQCLIENT(client) && (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 	{
-		MSG_WriteShort(msg, client->last_sequence);
+		MSG_WriteShort(msg, client->last_sequence&0xffff);
 	}
 //	Con_Printf("Gen sequence %i\n", sequence);
 	MSG_WriteFloat(msg, sv.world.physicstime);

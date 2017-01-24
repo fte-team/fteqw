@@ -1134,7 +1134,7 @@ static BOOL CALLBACK dsound_capture_enumerate_ds(LPGUID lpGuid, LPCSTR lpcstrDes
 
 	StringFromGUID2(lpGuid, mssuck, sizeof(mssuck)/sizeof(mssuck[0]));
 	wcstombs(guidbuf, mssuck, sizeof(guidbuf));
-	callback(SDRVNAME, guidbuf, lpcstrDescription);
+	callback(SDRVNAME, guidbuf, va("DS: %s", lpcstrDescription));
 	return TRUE;
 }
 

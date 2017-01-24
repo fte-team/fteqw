@@ -7371,18 +7371,19 @@ static char *CLNQ_ParseProQuakeMessage (char *s)
 	return s;
 }
 
-static enum {
-	CLNQPP_NONE,
-	CLNQPP_PINGS
-} cl_nqparseprint;
 qboolean CLNQ_ParseNQPrints(char *s)
 {
 	int i;
 	char *start = s;
-	if (cl_nqparseprint == CLNQPP_PINGS)
+	if (!strcmp(s, "Client ping times:\n"))
+	{
+		cl.nqparseprint = CLNQPP_PINGS;
+		return true;
+	}
+	else if (cl.nqparseprint == CLNQPP_PINGS)
 	{
 		char *pingstart;
-		cl_nqparseprint = CLNQPP_NONE;
+		cl.nqparseprint = CLNQPP_NONE;
 		while(*s == ' ')
 			s++;
 		pingstart = s;
@@ -7414,7 +7415,7 @@ qboolean CLNQ_ParseNQPrints(char *s)
 				{
 					cl.players[i].ping = atoi(pingstart);
 				}
-				cl_nqparseprint = CLNQPP_PINGS;
+				cl.nqparseprint = CLNQPP_PINGS;
 				return true;
 			}
 		}
@@ -7422,10 +7423,51 @@ qboolean CLNQ_ParseNQPrints(char *s)
 		s = start;
 	}
 
-	if (!strcmp(s, "Client ping times:\n"))
+	if (!strncmp(s, "host:    ", 9))
 	{
-		cl_nqparseprint = CLNQPP_PINGS;
-		return true;
+		cl.nqparseprint = CLNQPP_STATUS;
+		return cls.nqexpectingstatusresponse;
+	}
+	else if (cl.nqparseprint == CLNQPP_STATUS)
+	{
+		if (!strncmp(s, "players: ", 9))
+		{
+			cl.nqparseprint = CLNQPP_STATUSPLAYER;
+			return cls.nqexpectingstatusresponse;
+		}
+		else if (strchr(s, ':'))
+			return cls.nqexpectingstatusresponse;
+		
+		cl.nqparseprint = CLNQPP_NONE;	//error of some kind...
+		cls.nqexpectingstatusresponse = false;
+	}
+	if (cl.nqparseprint == CLNQPP_STATUSPLAYER)
+	{
+		if (*s == '#')
+		{
+			cl.nqparseprint = CLNQPP_STATUSPLAYERIP;
+			cl.nqparseprintplayer = atoi(s+1)-1;
+			if (cl.nqparseprintplayer >= 0 && cl.nqparseprintplayer < cl.allocated_client_slots)
+				return cls.nqexpectingstatusresponse;
+		}
+		cl.nqparseprint = CLNQPP_NONE;	//error of some kind...
+		cls.nqexpectingstatusresponse = false;
+	}
+	if (cl.nqparseprint == CLNQPP_STATUSPLAYERIP)
+	{
+		if (!strncmp(s, "   ", 3))
+		{
+			while(*s == ' ')
+				s++;
+			COM_ParseOut(s, cl.players[cl.nqparseprintplayer].ip, sizeof(cl.players[cl.nqparseprintplayer].ip));
+			IPLog_Add(cl.players[cl.nqparseprintplayer].ip, cl.players[cl.nqparseprintplayer].name);
+			if (*cl.players[cl.nqparseprintplayer].ip != '[' && *cl.players[cl.nqparseprintplayer].ip < '0' && *cl.players[cl.nqparseprintplayer].ip > '9')
+				*cl.players[cl.nqparseprintplayer].ip = 0;	//non-numeric addresses are not useful.
+			cl.nqparseprint = CLNQPP_STATUSPLAYER;
+			return cls.nqexpectingstatusresponse;
+		}
+		cl.nqparseprint = CLNQPP_NONE;	//error of some kind...
+		cls.nqexpectingstatusresponse = false;
 	}
 
 	return false;
@@ -7740,6 +7782,8 @@ void CLNQ_ParseServerMessage (void)
 				if (*cl.players[i].name)
 					cl.players[i].userid = i+1;
 				Info_SetValueForKey(cl.players[i].userinfo, "name", cl.players[i].name, sizeof(cl.players[i].userinfo));
+				if (!cl.nqplayernamechanged)
+					cl.nqplayernamechanged = realtime+2;
 			}
 			break;
 

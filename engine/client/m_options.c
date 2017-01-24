@@ -172,15 +172,6 @@ qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_se
 	}
 }
 
-#ifdef HAVEAUTOUPDATE
-static void M_Options_Remove(menu_t *m)
-{
-	menucombo_t *c = m->data;
-	if (c)
-		Sys_SetAutoUpdateSetting(c->selectedoption);
-}
-#endif
-
 //options menu.
 void M_Menu_Options_f (void)
 {
@@ -190,14 +181,17 @@ void M_Menu_Options_f (void)
 #endif
 	int y;
 
-#ifdef HAVEAUTOUPDATE
-#define HAVEAUTOUPDATE
-	menuoption_t *updatecbo;
+#ifdef WEBCLIENT
 	static const char *autoupopts[] = {
-		"Revert",
 		"Off",
 		"Tested(Recommended)",
 		"Untested(Latest)",
+		NULL
+	};
+	static const char *autoupvals[] = {
+		"0",
+		"1",
+		"2",
 		NULL
 	};
 #endif
@@ -256,8 +250,8 @@ void M_Menu_Options_f (void)
 		MB_CHECKBOXCVAR("Lookspring", lookspring, 0),
 		MB_CHECKBOXCVAR("Lookstrafe", lookstrafe, 0),
 		MB_CHECKBOXCVAR("Windowed Mouse", _windowed_mouse, 0),
-#ifdef HAVEAUTOUPDATE
-		MB_COMBORETURN("Auto Update", autoupopts, Sys_GetAutoUpdateSetting(), updatecbo, "This downloads engine updates from the internet, when a new build is available."),
+#ifdef WEBCLIENT
+		MB_COMBOCVAR("Auto Update", pm_autoupdate, autoupopts, autoupvals, "This offers to download engine+package updates from the internet, when new versions are available."),
 #endif
 #ifndef CLIENTONLY
 		MB_COMBOCVAR("Auto Save", sv_autosave, autosaveopts, autosavevals, NULL),
@@ -310,11 +304,6 @@ void M_Menu_Options_f (void)
 		};
 		MC_AddCvarCombo(menu, 16, 216, y, "Use Hud Plugin", &plug_sbar, hudplugopts, hudplugvalues);			y += 8;
 	}
-#endif
-
-#ifdef HAVEAUTOUPDATE
-	menu->data = updatecbo;
-	menu->remove = M_Options_Remove;
 #endif
 }
 

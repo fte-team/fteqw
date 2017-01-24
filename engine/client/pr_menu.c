@@ -2384,6 +2384,7 @@ world_t menu_world;
 func_t mp_init_function;
 func_t mp_shutdown_function;
 func_t mp_draw_function;
+func_t mp_drawloading_function;
 func_t mp_keydown_function;
 func_t mp_keyup_function;
 func_t mp_inputevent_function;
@@ -2604,6 +2605,7 @@ qboolean MP_Init (void)
 		mp_init_function = PR_FindFunction(menu_world.progs, "m_init", PR_ANY);
 		mp_shutdown_function = PR_FindFunction(menu_world.progs, "m_shutdown", PR_ANY);
 		mp_draw_function = PR_FindFunction(menu_world.progs, "m_draw", PR_ANY);
+		mp_drawloading_function = PR_FindFunction(menu_world.progs, "m_drawloading", PR_ANY);
 		mp_inputevent_function = PR_FindFunction(menu_world.progs, "Menu_InputEvent", PR_ANY);
 		mp_keydown_function = PR_FindFunction(menu_world.progs, "m_keydown", PR_ANY);
 		mp_keyup_function = PR_FindFunction(menu_world.progs, "m_keyup", PR_ANY);
@@ -2734,8 +2736,15 @@ void MP_RegisterCvarsAndCmds(void)
 		Cvar_Set(&forceqmenu, "1");
 }
 
+qboolean MP_UsingGamecodeLoadingScreen(void)
+{
+	return menu_world.progs && mp_drawloading_function;
+}
+
 void MP_Draw(void)
 {
+	extern qboolean scr_drawloading;
+	globalvars_t *pr_globals;
 	if (!menu_world.progs)
 		return;
 	if (setjmp(mp_abort))
@@ -2748,14 +2757,14 @@ void MP_Draw(void)
 		*menu_world.g.frametime = host_frametime;
 
 	inmenuprogs++;
-	if (mp_draw_function)
-	{
-		globalvars_t *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
-		((float *)pr_globals)[OFS_PARM0+0] = vid.width;
-		((float *)pr_globals)[OFS_PARM0+1] = vid.height;
-		((float *)pr_globals)[OFS_PARM0+2] = 0;
+	pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
+	((float *)pr_globals)[OFS_PARM0+0] = vid.width;
+	((float *)pr_globals)[OFS_PARM0+1] = vid.height;
+	((float *)pr_globals)[OFS_PARM0+2] = 0;
+	if (mp_drawloading_function && scr_drawloading)
+		PR_ExecuteProgram(menu_world.progs, mp_drawloading_function);
+	else if (mp_draw_function)
 		PR_ExecuteProgram(menu_world.progs, mp_draw_function);
-	}
 	inmenuprogs--;
 }
 

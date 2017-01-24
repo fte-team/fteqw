@@ -1706,7 +1706,11 @@ void SCR_DrawLoading (qboolean opaque)
 	int h2depth;
 
 	if (CSQC_UseGamecodeLoadingScreen())
-		return;
+		return;	//will be drawn as part of the regular screen updates
+#ifdef MENU_DAT
+	if (MP_UsingGamecodeLoadingScreen())
+		return;	//menuqc should have just drawn whatever overlays it wanted.
+#endif
 
 	//int mtype = M_GameType(); //unused variable
 	y = vid.height/2;

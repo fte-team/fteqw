@@ -211,6 +211,11 @@ void GL_Set2D (qboolean flipped)
 		qglLoadMatrixf(r_refdef.m_view);
 	}
 
+	if (flipped)
+		r_refdef.flipcull = SHADER_CULL_FLIP;
+	else
+		r_refdef.flipcull = 0;
+
 	GL_SetShaderState2D(true);
 }
 

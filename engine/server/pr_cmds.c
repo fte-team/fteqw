@@ -11508,6 +11508,7 @@ void PR_DumpPlatform_f(void)
 		{"m_init",					"void()", MENU},
 		{"m_shutdown",				"void()", MENU},
 		{"m_draw",					"void(vector screensize)", MENU, "Provides the menuqc with a chance to draw. Will be called even if the menu does not have focus, so be sure to avoid that. COMPAT: screensize is not provided in DP."},
+		{"m_drawloading",			"void(vector screensize)", MENU, "Additional drawing function to draw loading screen overlays."},
 		{"m_keydown",				"void(float scan, float chr)", MENU},
 		{"m_keyup",					"void(float scan, float chr)", MENU},
 		{"m_toggle",				"void(float wantmode)", MENU},

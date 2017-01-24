@@ -324,7 +324,7 @@ cvar_t gl_conback							= CVARFDC ("gl_conback", "",
 //												CVAR_ARCHIVE);
 //cvar_t gl_detailscale						= CVAR  ("gl_detailscale", "5");
 cvar_t gl_font								= CVARFD ("gl_font", "",
-													  CVAR_RENDERERCALLBACK, ("Specifies the font file to use. a value such as FONT:ALTFONT specifies an alternative font to be used when ^^a is used.\n"
+													  CVAR_RENDERERCALLBACK|CVAR_ARCHIVE, ("Specifies the font file to use. a value such as FONT:ALTFONT specifies an alternative font to be used when ^^a is used.\n"
 													  "When using TTF fonts, you will likely need to scale text to at least 150% - vid_conautoscale 1.5 will do this.\n"
 													  "TTF fonts may be loaded from your windows directory. \'gl_font cour?col=1,1,1:couri?col=0,1,0\' loads eg: c:\\windows\\fonts\\cour.ttf, and uses the italic version of courier for alternative text, with specific colour tints."
 													  ));

@@ -3324,6 +3324,15 @@ void Sbar_DeathmatchOverlay (int start)
 			CL_SendClientCommand(true, "ping");
 		}
 	}
+	if (cls.protocol == CP_NETQUAKE)
+	{
+		if (cl.nqplayernamechanged && cl.nqplayernamechanged < realtime)
+		{
+			cl.nqplayernamechanged = 0;
+			cls.nqexpectingstatusresponse = true;
+			CL_SendClientCommand(true, "status");
+		}
+	}
 
 	if (start)
 		y = start;

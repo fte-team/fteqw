@@ -1260,7 +1260,10 @@ void M_Shutdown(qboolean total)
 	MP_Shutdown();
 #endif
 	if (total)
+	{
+		M_RemoveAllMenus(false);
 		M_DeInit_Internal();
+	}
 }
 
 void M_Reinit(void)

@@ -169,6 +169,8 @@ typedef struct player_info_s
 	int		ping;
 	qbyte	pl;
 
+	char	ip[128];
+
 	struct
 	{
 		float time;	//invalid if too old.
@@ -531,6 +533,7 @@ typedef struct
 	int language;
 
 	colourised_t *colourised;
+	qboolean	nqexpectingstatusresponse;
 } client_static_t;
 
 extern client_static_t	cls;
@@ -917,6 +920,16 @@ typedef struct
 		MATCH_STANDBY,
 		MATCH_INPROGRESS
 	} matchstate;
+
+	enum {
+		CLNQPP_NONE,
+		CLNQPP_PINGS,
+		CLNQPP_STATUS, //"host:    *\n" ... "players: *\n\n"
+		CLNQPP_STATUSPLAYER,	//#...\n
+		CLNQPP_STATUSPLAYERIP,	//   foobar\n
+	}	nqparseprint;
+	int			nqparseprintplayer;
+	float		nqplayernamechanged;
 } client_state_t;
 
 extern unsigned int		cl_teamtopcolor;

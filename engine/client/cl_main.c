@@ -41,6 +41,7 @@ static void CL_ForceStopDownload (qboolean finish);
 // references them even when on a unix system.
 
 qboolean	noclip_anglehack;		// remnant from old quake
+int startuppending;
 
 void Host_FinishLoading(void);
 
@@ -737,6 +738,7 @@ void CL_CheckForResend (void)
 	int contype = 0;
 	qboolean keeptrying = true;
 	char *host;
+	extern int	r_blockvidrestart;
 
 #ifndef CLIENTONLY
 	if (!cls.state && (!connectinfo.trying || sv.state != ss_clustermode) && sv.state)
@@ -970,6 +972,8 @@ void CL_CheckForResend (void)
 
 	if (!connectinfo.trying)
 		return;
+	if (startuppending || r_blockvidrestart)
+		return;	//don't send connect requests until we've actually initialised fully. this isn't a huge issue, but makes the startup prints a little more sane.
 
 	/*
 #ifdef NQPROT
@@ -4952,7 +4956,6 @@ Runs all active servers
 extern cvar_t cl_netfps;
 extern cvar_t cl_sparemsec;
 
-int startuppending;
 void CL_StartCinematicOrMenu(void);
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
@@ -5363,7 +5366,7 @@ void CL_StartCinematicOrMenu(void)
 {
 	COM_MainThreadWork();
 
-	if (FS_DownloadingPackage())
+	if (com_installer && FS_DownloadingPackage())
 	{
 		startuppending = true;
 		return;
@@ -5681,6 +5684,7 @@ Host_Init
 */
 void Host_Init (quakeparms_t *parms)
 {
+	char engineupdated[MAX_OSPATH];
 	int man;
 
 	com_parseutf8.ival = 1;	//enable utf8 parsing even before cvars are registered.
@@ -5704,9 +5708,31 @@ void Host_Init (quakeparms_t *parms)
 	COM_ParsePlusSets(false);
 	Cbuf_Init ();
 	Cmd_Init ();
+	COM_Init ();
+
+	//we have enough of the filesystem inited now that we can read the package list and figure out which engine was last installed.
+	if (PM_FindUpdatedEngine(engineupdated, sizeof(engineupdated)))
+	{
+		PM_Shutdown();	//will restart later as needed, but we need to be sure that no files are open or anything.
+		if (Sys_EngineWasUpdated(engineupdated))
+		{
+			COM_Shutdown();
+			Cmd_Shutdown();
+			Sys_Shutdown();
+			Con_Shutdown();
+			Memory_DeInit();
+			Cvar_Shutdown();
+			Sys_Quit();
+			return;
+		}
+	}
 	V_Init ();
 	NET_Init ();
-	COM_Init ();
+
+#ifdef PLUGINS
+	Plug_Initialise(false);
+#endif
+
 #ifdef Q2BSPS
 	CM_Init();
 #endif
@@ -5784,10 +5810,7 @@ to run quit through here before the final handoff to the sys code.
 void Host_Shutdown(void)
 {
 	if (!host_initialized)
-	{
-		Sys_Printf ("recursive shutdown\n");
 		return;
-	}
 	host_initialized = false;
 
 #ifdef WEBCLIENT

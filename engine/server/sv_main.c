@@ -2199,6 +2199,8 @@ client_t *SVC_DirectConnect(void)
 			{
 				{"FITZ",			1u<<SCP_FITZ666},	//dp doesn't support this, but this is for potential compat if other engines use this handshake
 				{"666",				1u<<SCP_FITZ666},	//dp doesn't support this, but this is for potential compat if other engines use this handshake
+				{"RMQ",				1u<<SCP_FITZ666},	//fte doesn't distinguish, but assumes clients will support both
+				{"999",				1u<<SCP_FITZ666},	//fte doesn't distinguish, but assumes clients will support both
 				{"DP7",				1u<<SCP_DARKPLACES7},
 				{"DP6",				1u<<SCP_DARKPLACES6},
 				{"DP5",				0},
@@ -2206,10 +2208,10 @@ client_t *SVC_DirectConnect(void)
 				{"DP3",				0},
 				{"DP2",				0},
 				{"DP1",				0},
+				{"QW",				0},	//mixing protocols doesn't make sense, and would just confuse the client.
 				{"QUAKEDP",			1u<<SCP_NETQUAKE},
 				{"QUAKE",			1u<<SCP_NETQUAKE},
-				{"QW",				0},	//mixing protocols doesn't make sense, and would just confuse the client.
-				{"NEHAHRAMOVIE",	0},
+				{"NEHAHRAMOVIE",	1u<<SCP_NETQUAKE},
 				{"NEHAHRABJP",		0},
 				{"NEHAHRABJP2",		0},
 				{"NEHAHRABJP3",		1u<<SCP_BJP3},
@@ -3107,6 +3109,9 @@ client_t *SVC_DirectConnect(void)
 #ifdef SUBSERVERS
 	SSV_SavePlayerStats(newcl, 0);
 #endif
+
+	if (Q_strncasecmp(newcl->name, "unconnected", 11) && Q_strncasecmp(newcl->name, "connecting", 10))
+		IPLog_Add(NET_AdrToString(adrbuf,sizeof(adrbuf), &newcl->netchan.remote_address), newcl->name);
 
 	return newcl;
 }

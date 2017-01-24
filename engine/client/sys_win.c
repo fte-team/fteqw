@@ -1031,10 +1031,12 @@ qboolean Sys_remove (char *path)
 	if (WinNT)
 	{
 		wchar_t wide[MAX_OSPATH];
+		DWORD err;
 		widen(wide, sizeof(wide), path);
 		if (DeleteFileW(wide))
 			return true;	//success
-		if (GetLastError() == ERROR_FILE_NOT_FOUND)
+		err = GetLastError();
+		if (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND)
 			return true;	//succeed when the file already didn't exist
 		return false;		//other errors? panic
 	}
@@ -2619,406 +2621,118 @@ void Win7_TaskListInit(void)
 }
 #endif
 
-BOOL CopyFileU(const char *src, const char *dst, BOOL bFailIfExists)
-{
-	wchar_t wide1[2048];
-	wchar_t wide2[2048];
-	return CopyFileW(widen(wide1, sizeof(wide1), src), widen(wide2, sizeof(wide2), dst), bFailIfExists);
-}
-
-//#define SVNREVISION 1
-#if defined(SVNREVISION) && !defined(MINIMAL) && !defined(NOLEGACY)
-	#define SVNREVISIONSTR STRINGIFY(SVNREVISION)
-	#if defined(OFFICIAL_RELEASE)
-		#define UPD_BUILDTYPE "rel"
+#ifndef SVNREVISION
+	#if 0	//1 to debug engine update in msvc.
+		#define SVNREVISION 1
 	#else
-		#define UPD_BUILDTYPE "test"
-		//WARNING: Security comes from the fact that the triptohell.info certificate is hardcoded in the tls code.
-		//this will correctly detect insecure tls proxies also.
-		#define UPDATE_URL_ROOT		"https://triptohell.info/moodles/"
-		#define UPDATE_URL_TESTED	UPDATE_URL_ROOT "autoup/"
-		#define UPDATE_URL_NIGHTLY	UPDATE_URL_ROOT
-		#define UPDATE_URL_VERSION	"%sversion.txt"
-		#ifdef NOLEGACY
-			#ifdef _WIN64
-				#define UPDATE_URL_BUILD "%snocompat64/fte" EXETYPE "64.exe"
-			#else
-				#define UPDATE_URL_BUILD "%snocompat/fte" EXETYPE ".exe"
-			#endif
+		#define SVNREVISION -
+	#endif
+#endif
+#define SVNREVISIONSTR STRINGIFY(SVNREVISION)
+
+#ifndef NOLEGACY
+	#if defined(SVNREVISION) && !defined(MINIMAL)
+		#if defined(OFFICIAL_RELEASE)
+			#define UPD_BUILDTYPE "rel"
 		#else
-			#ifdef _WIN64
-				#define UPDATE_URL_BUILD "%swin64/fte" EXETYPE "64.exe"
+			#define UPD_BUILDTYPE "test"
+			//WARNING: Security comes from the fact that the triptohell.info certificate is hardcoded in the tls code.
+			//this will correctly detect insecure tls proxies also.
+			#define UPDATE_URL_ROOT		"https://triptohell.info/moodles/"
+			#define UPDATE_URL_TESTED	UPDATE_URL_ROOT "autoup/"
+			#define UPDATE_URL_NIGHTLY	UPDATE_URL_ROOT
+			#define UPDATE_URL_VERSION	"%sversion.txt"
+			#ifdef NOLEGACY
+				#ifdef _WIN64
+					#define UPDATE_URL_BUILD "%snocompat64/fte" EXETYPE "64.exe"
+				#else
+					#define UPDATE_URL_BUILD "%snocompat/fte" EXETYPE ".exe"
+				#endif
 			#else
-				#define UPDATE_URL_BUILD "%swin32/fte" EXETYPE ".exe"
+				#ifdef _WIN64
+					#define UPDATE_URL_BUILD "%swin64/fte" EXETYPE "64.exe"
+				#else
+					#define UPDATE_URL_BUILD "%swin32/fte" EXETYPE ".exe"
+				#endif
 			#endif
+		#endif
+
+		#if defined(SERVERONLY)
+			#define EXETYPE "qwsv"	//not gonna happen, but whatever.
+		#elif defined(GLQUAKE) && defined(D3DQUAKE)
+			#define EXETYPE "qw"
+		#elif defined(GLQUAKE)
+			#ifdef MINIMAL
+				#define EXETYPE "minglqw"
+			#else
+				#define EXETYPE "glqw"
+			#endif
+		#elif defined(D3DQUAKE)
+			#define EXETYPE "d3dqw"
+		#elif defined(SWQUAKE)
+			#define EXETYPE "swqw"
+		#else
+			//erm...
+			#define EXETYPE "qw"
 		#endif
 	#endif
 #endif
 
-#if defined(SERVERONLY)
-	#define EXETYPE "qwsv"	//not gonna happen, but whatever.
-#elif defined(GLQUAKE) && defined(D3DQUAKE)
-	#define EXETYPE "qw"
-#elif defined(GLQUAKE)
-	#ifdef MINIMAL
-		#define EXETYPE "minglqw"
-	#else
-		#define EXETYPE "glqw"
-	#endif
-#elif defined(D3DQUAKE)
-	#define EXETYPE "d3dqw"
-#elif defined(SWQUAKE)
-	#define EXETYPE "swqw"
-#else
-	//erm...
-	#define EXETYPE "qw"
-#endif
-
-#ifdef UPDATE_URL_ROOT
-
-int sys_autoupdatesetting;
-
-qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
-{
-	HMODULE shfolder = LoadLibraryA("shfolder.dll");
-
-	if (shfolder)
-	{
-		HRESULT (WINAPI *dSHGetFolderPathW) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPWSTR pszPath);
-		dSHGetFolderPathW = (void *)GetProcAddress(shfolder, "SHGetFolderPathW");
-		if (dSHGetFolderPathW)
-		{
-			wchar_t folderw[MAX_PATH];
-			// 0x5 == CSIDL_PERSONAL
-			if (dSHGetFolderPathW(NULL, 0x5, NULL, 0, folderw) == S_OK)
-			{
-				narrowen(homedir, homedirsize, folderw);
-				Q_strncatz(homedir, "/My Games/"FULLENGINENAME"/", homedirsize);
-				return true;
-			}
-		}
-//		FreeLibrary(shfolder);
-	}
-	return false;
-}
-
-static void	Update_CreatePath (char *path)
-{
-	char	*ofs;
-
-	for (ofs = path+1 ; *ofs ; ofs++)
-	{
-		if (*ofs == '/')
-		{	// create the directory
-			*ofs = 0;
-			Sys_mkdir (path);
-			*ofs = '/';
-		}
-	}
-}
-
-//ctx is a pointer to the original frontend process
-void Update_PromptedDownloaded(void *ctx, int foo)
-{
-	if (foo == 0 && ctx)
-	{
-		PROCESS_INFORMATION childinfo;
-		STARTUPINFOW startinfo = {sizeof(startinfo)};
-		wchar_t widearg[2048];
-		wchar_t wideexe[2048];
-		char cmdline[2048];
-
-#ifndef SERVERONLY
-		SetHookState(false);
-		Host_Shutdown ();
-		CloseHandle (qwclsemaphore);
-		SetHookState(false);
-#else
-		SV_Shutdown();
-#endif
-		TL_Shutdown();
-
-		narrowen(cmdline, sizeof(cmdline), GetCommandLineW());
-		widen(wideexe, sizeof(wideexe), ctx);
-		widen(widearg, sizeof(widearg), va("\"%s\" %s", (char*)ctx, COM_Parse(cmdline)));
-
-		CreateProcessW(wideexe, widearg, NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo);
-		Z_Free(ctx);
-		exit(1);
-	}
-	else
-		Z_Free(ctx);
-}
-
-void Update_Version_Updated(struct dl_download *dl)
-{
-	//happens in a thread, avoid va
-	if (dl->file)
-	{
-		if (dl->status == DL_FINISHED)
-		{
-			char buf[8192];
-			unsigned int size = 0, chunk;
-			char pendingname[MAX_OSPATH];
-			vfsfile_t *pending;
-			Update_GetHomeDirectory(pendingname, sizeof(pendingname));
-			Q_strncatz(pendingname, DISTRIBUTION UPD_BUILDTYPE EXETYPE".tmp", sizeof(pendingname));
-			Update_CreatePath(pendingname);
-			pending = VFSOS_Open(pendingname, "wb");
-			if (!pending)
-				Con_Printf("Unable to write to \"%s\"\n", pendingname);
-			else
-			{
-				while(1)
-				{
-					chunk = VFS_READ(dl->file, buf, sizeof(buf));
-					if (!chunk)
-						break;
-					size += VFS_WRITE(pending, buf, chunk);
-				}
-				VFS_CLOSE(pending);
-				if (VFS_GETLEN(dl->file) != size)
-					Con_Printf("Download was the wrong size / corrupt\n");
-				else
-				{
-					//figure out the original binary that was executed, so we can start from scratch.
-					//this is to attempt to avoid the new process appearing as 'foo.tmp'. which needlessly confuses firewall rules etc.
-					int ffe = COM_CheckParm("--fromfrontend");
-					wchar_t wbinarypath[MAX_PATH];
-					char ubinarypath[MAX_PATH];
-					char *ffp;
-					GetModuleFileNameW(NULL, wbinarypath, countof(wbinarypath)-1);
-					narrowen(ubinarypath, sizeof(ubinarypath), wbinarypath);
-					ffp = Z_StrDup(ffe?com_argv[ffe+2]:ubinarypath);
-
-					//make it pending
-					MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, REG_SZ, pendingname, strlen(pendingname)+1);
-
-					Key_Dest_Remove(kdm_console);
-					M_Menu_Prompt(Update_PromptedDownloaded, ffp, "An update was downloaded", "Restart to activate.", "", ffp?"Restart":NULL, "", "Okay");
-				}
-			}
-		}
-		else
-			Con_Printf("Update download failed\n");
-	}
-}
-void Update_PromptedForUpdate(void *ctx, int foo)
-{
-	if (foo == 0)
-	{
-		struct dl_download *dl;
-		Con_Printf("Downloading update\n");
-		dl = HTTP_CL_Get(va(UPDATE_URL_BUILD, (char*)ctx), NULL, Update_Version_Updated);
-		dl->file = FS_OpenTemp();
-#ifdef MULTITHREAD
-		DL_CreateThread(dl, NULL, NULL);
-#endif
-	}
-	else
-		Con_Printf("Not downloading update\n");
-}
-void Update_Versioninfo_Available(struct dl_download *dl)
-{
-	if (dl->file)
-	{
-		if (dl->status == DL_FINISHED)
-		{
-			char linebuf[1024];
-			while(VFS_GETS(dl->file, linebuf, sizeof(linebuf)))
-			{
-				if (!strnicmp(linebuf, "Revision: ", 10))
-				{
-					if (atoi(linebuf+10) > atoi(SVNREVISIONSTR))
-					{
-						char *revision = va("Revision %i", atoi(linebuf+10));
-						char *current = va("Current %i", atoi(SVNREVISIONSTR));
-
-						Con_Printf("An update is available, revision %i\n", atoi(linebuf+10));
-						if (COM_CheckParm("-autoupdate") || COM_CheckParm("--autoupdate"))
-							Update_PromptedForUpdate(dl->user_ctx, 0);
-						else
-						{
-							Key_Dest_Remove(kdm_console);
-							M_Menu_Prompt(Update_PromptedForUpdate, dl->user_ctx, "An update is available.", revision, current, "Download", "", "Ignore");
-						}
-					}
-					else
-						Con_Printf("autoupdate: already at latest version\n");
-					return;
-				}
-			}
-		}
-	}
-}
-
-void Update_Check(void)
-{
-	static qboolean doneupdatecheck;	//once per run
-	struct dl_download *dl;
-
-	if (sys_autoupdatesetting <= UPD_OFF)	//not if disabled (do it once it does get enabled)
-		return;
-
-	if (!doneupdatecheck)
-	{
-		char *updateroot = (sys_autoupdatesetting>=UPD_TESTING)?UPDATE_URL_NIGHTLY:UPDATE_URL_TESTED;
-		doneupdatecheck = true;
-		dl = HTTP_CL_Get(va(UPDATE_URL_VERSION, updateroot), NULL, Update_Versioninfo_Available);
-		dl->file = FS_OpenTemp();
-		dl->user_ctx = updateroot;
-		dl->isquery = true;
-#ifdef MULTITHREAD
-		DL_CreateThread(dl, NULL, NULL);
-#endif
-	}
-}
-
-int Sys_GetAutoUpdateSetting(void)
-{
-	return sys_autoupdatesetting;
-}
-void Sys_SetAutoUpdateSetting(int newval)
-{
-	if (sys_autoupdatesetting == newval)
-		return;
-	sys_autoupdatesetting = newval;
-	MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "AutoUpdateEnabled", REG_DWORD, &sys_autoupdatesetting, sizeof(sys_autoupdatesetting));
-
-	Update_Check();
-}
-
-BOOL DeleteFileU(const char *path)
-{
-	wchar_t wide[2048];
-	return DeleteFileW(widen(wide, sizeof(wide), path));
-}
-BOOL MoveFileU(const char *src, const char *dst)
-{
-	wchar_t wide1[2048];
-	wchar_t wide2[2048];
-	return MoveFileExW(widen(wide1, sizeof(wide1), src), widen(wide2, sizeof(wide2), dst), MOVEFILE_COPY_ALLOWED);
-}
-
+#ifdef HAVEAUTOUPDATE
+//this is for legacy reasons. old builds stored a 'pending' name in the registry for the 'frontend' to rename+use
 void Sys_SetUpdatedBinary(const char *binary)
 {
+#ifdef UPD_BUILDTYPE
 	//downloads menu has provided a new binary to use
 	MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, REG_SZ, binary, strlen(binary)+1);
+#endif
 }
+qboolean Sys_EngineCanUpdate(void)
+{
+	char *e;
 
-qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
+	//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
+	if (!strcmp(SVNREVISIONSTR, "-"))
+		return false;
+
+	//svn revision didn't parse as an exact number.	this implies it has an 'M' in it to mark it as modified.
+	//either way, its bad and autoupdates when we don't know what we're updating from is a bad idea.
+	strtoul(SVNREVISIONSTR, &e, 10);
+	if (!*SVNREVISIONSTR || *e)
+		return false;
+
+	//update blocked via commandline
+	if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate") || COM_CheckParm("-noautoupdate") || COM_CheckParm("--noautoupdate"))
+		return false;
+
+	return true;
+}
+qboolean Sys_EngineWasUpdated(char *newbinary)
 {
 	wchar_t wide1[2048];
-	int ffe = COM_CheckParm("--fromfrontend");
+	wchar_t widefe[MAX_OSPATH];
+	wchar_t wargs[8192];
 	PROCESS_INFORMATION childinfo;
 	STARTUPINFOW startinfo = {sizeof(startinfo)};
 
-	char *e;
-	strtoul(SVNREVISIONSTR, &e, 10);
-	if (!*SVNREVISIONSTR || *e)	//svn revision didn't parse as an exact number.	this implies it has an 'M' in it to mark it as modified, or a - to mean unknown. either way, its bad and autoupdates when we don't know what we're updating from is a bad idea.
-		sys_autoupdatesetting = UPD_UNSUPPORTED;
-	else if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate") || COM_CheckParm("-noautoupdate") || COM_CheckParm("--noautoupdate"))
-		sys_autoupdatesetting = UPD_REVERT;
-	else if (COM_CheckParm("-autoupdate") || COM_CheckParm("--autoupdate"))
-		sys_autoupdatesetting = UPD_TESTING;
-	else
-	{
-		//favour 'tested'
-		sys_autoupdatesetting = MyRegGetIntValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "AutoUpdateEnabled", 2);
-	}
-
-	if (!strcmp(SVNREVISIONSTR, "-"))
-		return false;	//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
-	else if (sys_autoupdatesetting == UPD_REVERT || sys_autoupdatesetting == UPD_UNSUPPORTED)
+	//if we were called from a frontend, then don't chain to another, because that would be recursive, and that would be bad.
+	if (COM_CheckParm("--fromfrontend"))
 		return false;
-	else if (isPlugin == 1)
-	{
-		//download, but don't invoke. the caller is expected to start us up properly (once installed).
-	}
-	else if (!ffe)
-	{
-		//if we're not from the frontend (ie: we ARE the frontend), we should run the updated build instead
-		char pendingpath[MAX_OSPATH];
-		char updatedpath[MAX_OSPATH];
+	//if we're not allowed for some other reason
+	if (!Sys_EngineCanUpdate())
+		return false;
 
-		//FIXME: store versions instead of names
-		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, pendingpath, sizeof(pendingpath));
-		if (*pendingpath)
-		{
-			qboolean okay;
-			MyRegDeleteKeyValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE);
-			Update_GetHomeDirectory(updatedpath, sizeof(updatedpath));
-			Update_CreatePath(updatedpath);
-			Q_strncatz(updatedpath, "cur" UPD_BUILDTYPE EXETYPE".exe", sizeof(updatedpath));
-			DeleteFileU(updatedpath);
-			okay = MoveFileU(pendingpath, updatedpath);
-			if (!okay)
-			{	//if we just downloaded an update, we may need to wait for the existing process to close.
-				//sadly I'm too lazy to provide any sync mechanism (and wouldn't trust any auto-released handles or whatever), so lets just retry after a delay.
-				Sleep(2000);
-				okay = MoveFileU(pendingpath, updatedpath);
-			}
-			if (okay)
-				MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, UPD_BUILDTYPE EXETYPE, REG_SZ, updatedpath, strlen(updatedpath)+1);
-			else
-			{
-				MessageBox(NULL, va("Unable to rename %s to %s", pendingpath, updatedpath), FULLENGINENAME" autoupdate", 0);
-				DeleteFileU(pendingpath);
-			}
-		}
+	startinfo.dwFlags = STARTF_USESTDHANDLES;
+	startinfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+	startinfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+	startinfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
 
-		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, UPD_BUILDTYPE EXETYPE, updatedpath, sizeof(updatedpath));
-		
-		if (*updatedpath)
-		{
-			wchar_t widefe[MAX_OSPATH], wargs[2048];
-			GetModuleFileNameW(NULL, widefe, countof(widefe)-1);
-			_snwprintf(wargs, countof(wargs), L"%s --fromfrontend \"%s\" \"%s\"", GetCommandLineW(), widen(wide1, sizeof(wide1), SVNREVISIONSTR), widefe);
-			if (CreateProcessW(widen(wide1, sizeof(wide1), updatedpath), wargs, NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
-				return true;
-		}
-	}
-	else
-	{
-//		char frontendpath[MAX_OSPATH];
-		//com_argv[ffe+1] is frontend revision
-		//com_argv[ffe+2] is frontend location
-		if (atoi(com_argv[ffe+1]) > atoi(SVNREVISIONSTR))
-		{
-			//ping-pong it back, to make sure we're running the most recent version.
-//			GetModuleFileName(NULL, frontendpath, sizeof(frontendpath)-1);
-			if (CreateProcessW(widen(wide1, sizeof(wide1), com_argv[ffe+2]), GetCommandLineW(), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
-				return true;
-		}
-		if (com_argv[ffe+2])
-		{
-			com_argv[0] = com_argv[ffe+2];
-			Q_strncpyz(bindir, com_argv[0], bindirsize);
-			*COM_SkipPath(bindir) = 0;
-		}
+	GetModuleFileNameW(NULL, widefe, countof(widefe)-1);
+	_snwprintf(wargs, countof(wargs), L"%s --fromfrontend \"%s\" \"%s\"", GetCommandLineW(), widen(wide1, sizeof(wide1), SVNREVISIONSTR), widefe);
+	if (CreateProcessW(widen(wide1, sizeof(wide1), newbinary), wargs, NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
+		return true;	//it started up, we need to die now.
 
-	}
-	return false;
-}
-#else
-#ifdef HAVEAUTOUPDATE
-int Sys_GetAutoUpdateSetting(void)
-{
-	return -1;
-}
-void Sys_SetAutoUpdateSetting(int newval)
-{
-}
-void Sys_SetUpdatedBinary(const char *binary)
-{
-}
-#endif
-qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
-{
-	return false;
-}
-void Update_Check(void)
-{
+	return false;	//failure!
 }
 #endif
 
@@ -3473,6 +3187,13 @@ LRESULT CALLBACK NoCloseWindowProc(HWND w, UINT m, WPARAM wp, LPARAM lp)
 	if (m == WM_CLOSE)
 		return 0;
 	return DefWindowProc(w, m, wp, lp);
+}
+
+BOOL CopyFileU(const char *src, const char *dst, BOOL bFailIfExists)
+{
+	wchar_t wide1[2048];
+	wchar_t wide2[2048];
+	return CopyFileW(widen(wide1, sizeof(wide1), src), widen(wide2, sizeof(wide2), dst), bFailIfExists);
 }
 
 void FS_CreateBasedir(const char *path);
@@ -4048,9 +3769,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				isPlugin = 0;
 		}
 
-		if (Sys_CheckUpdated(bindir, sizeof(bindir)))
-			return true;
-
 		if (COM_CheckParm("-register_types"))
 		{
 			Sys_DoFileAssociations(1);
@@ -4205,6 +3923,10 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (!Sys_Startup_CheckMem(&parms))
 			Sys_Error ("Not enough memory free; check disk space\n");
 
+//		FS_ChangeGame(NULL, true, true);
+//		if (Sys_CheckUpdated(bindir, sizeof(bindir)))
+//			return true;
+
 
 #ifndef CLIENTONLY
 		if (isDedicated)	//compleate denial to switch to anything else - many of the client structures are not initialized.
@@ -4263,8 +3985,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			printf("status Running!\n");
 			fflush(stdout);
 		}
-
-		Update_Check();
 
 		/* main window message loop */
 		while (1)

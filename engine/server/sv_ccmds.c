@@ -1765,6 +1765,14 @@ static void SV_Status_f (void)
 	int columns = 80;
 	extern cvar_t sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
 
+#ifndef SERVERONLY
+	if (!sv.state && cls.state >= ca_connected && !cls.demoplayback && cls.protocol == CP_NETQUAKE)
+	{	//nq can normally forward the request to the server.
+		Cmd_ForwardToServer();
+		return;
+	}
+#endif
+
 	if (sv_redirected != RD_OBLIVION && (sv_redirected != RD_NONE
 #ifndef SERVERONLY
 		|| (vid.width < 68*8 && qrenderer != QR_NONE)

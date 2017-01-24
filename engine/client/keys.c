@@ -746,6 +746,9 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		if (i == cl.splitclients)
 		{
 			extern cvar_t rcon_password;
+			if (*cl.players[player].ip)
+				Con_Footerf(con, true, "\n%s", cl.players[player].ip);
+
 			if (cl.spectator || cls.demoplayback)
 			{
 				//we're spectating, or an mvd

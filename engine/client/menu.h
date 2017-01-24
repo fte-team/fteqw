@@ -274,6 +274,7 @@ typedef struct menu_s {
 
 	qboolean iszone;
 	qboolean exclusive;
+	qboolean persist;	//persists despite menuqc/engine changes etc
 
 	void *data;	//typecast
 
@@ -467,6 +468,7 @@ qboolean MP_Init (void);
 void MP_Shutdown (void);
 qboolean MP_Toggle(int mode);
 void MP_Draw(void);
+qboolean MP_UsingGamecodeLoadingScreen(void);
 void MP_RegisterCvarsAndCmds(void);
 qboolean MP_Keydown(int key, int unicode, unsigned int devid);
 void MP_Keyup(int key, int unicode, unsigned int devid);

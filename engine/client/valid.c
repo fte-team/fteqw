@@ -613,49 +613,58 @@ void Validation_Auto_Response(int playernum, char *s)
 	static float cmdlineresponsetime;
 	static float scriptsresponsetime;
 
-	if (!strncmp(s, "f_version", 9) && versionresponsetime < Sys_DoubleTime())	//respond to it.
+	//quakeworld tends to use f_*
+	//netquake uses the slightly more guessable q_* form
+	if (!strncmp(s, "f_", 2))
+		s+=2;
+	else if (!strncmp(s, "q_", 2))
+		s+=2;
+	else
+		return;
+
+	if (!strncmp(s, "version", 7) && versionresponsetime < Sys_DoubleTime())	//respond to it.
 	{
 		Validation_Version();
 		versionresponsetime = Sys_DoubleTime() + 5;
 	}
 	else if (cl.spectator)
 		return;
-	else if (!strncmp(s, "f_server", 8) && serverresponsetime < Sys_DoubleTime())	//respond to it.
+	else if (!strncmp(s, "server", 6) && serverresponsetime < Sys_DoubleTime())	//respond to it.
 	{
 		Validation_Server();
 		serverresponsetime = Sys_DoubleTime() + 5;
 	}
-	else if (!strncmp(s, "f_system", 8) && systemresponsetime < Sys_DoubleTime())
+	else if (!strncmp(s, "system", 6) && systemresponsetime < Sys_DoubleTime())
 	{
 		Validation_System();
 		systemresponsetime = Sys_DoubleTime() + 5;
 	}
-	else if (!strncmp(s, "f_cmdline", 9) && cmdlineresponsetime < Sys_DoubleTime())
+	else if (!strncmp(s, "cmdline", 7) && cmdlineresponsetime < Sys_DoubleTime())
 	{
 		Validation_CmdLine();
 		cmdlineresponsetime = Sys_DoubleTime() + 5;
 	}
-	else if (!strncmp(s, "f_fakeshaft", 11) && fakeshaftresponsetime < Sys_DoubleTime())
+	else if (!strncmp(s, "fakeshaft", 9) && fakeshaftresponsetime < Sys_DoubleTime())
 	{
 		Validation_FakeShaft();
 		fakeshaftresponsetime = Sys_DoubleTime() + 5;
 	}
-	else if (!strncmp(s, "f_modified", 10) && modifiedresponsetime < Sys_DoubleTime())	//respond to it.
+	else if (!strncmp(s, "modified", 8) && modifiedresponsetime < Sys_DoubleTime())	//respond to it.
 	{
 		Validation_FilesModified();
 		modifiedresponsetime = Sys_DoubleTime() + 5;
 	}
-	else if (!strncmp(s, "f_scripts", 9) && scriptsresponsetime < Sys_DoubleTime())
+	else if (!strncmp(s, "scripts", 7) && scriptsresponsetime < Sys_DoubleTime())
 	{
 		Validation_Scripts();
 		scriptsresponsetime = Sys_DoubleTime() + 5;
 	}
-	else if (!strncmp(s, "f_skins", 7) && skinsresponsetime < Sys_DoubleTime())	//respond to it.
+	else if (!strncmp(s, "skins", 5) && skinsresponsetime < Sys_DoubleTime())	//respond to it.
 	{
 		Validation_Skins();
 		skinsresponsetime = Sys_DoubleTime() + 5;
 	}
-	else if (!strncmp(s, "f_ruleset", 9) && rulesetresponsetime < Sys_DoubleTime())
+	else if (!strncmp(s, "ruleset", 7) && rulesetresponsetime < Sys_DoubleTime())
 	{
 		if (1)
 			Validation_AllChecks();

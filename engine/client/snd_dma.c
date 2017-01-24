@@ -437,10 +437,12 @@ extern snd_capture_driver_t OPENAL_Capture;
 #endif
 snd_capture_driver_t DSOUND_Capture;
 snd_capture_driver_t OSS_Capture;
+snd_capture_driver_t SDL_Capture;
 
 snd_capture_driver_t *capturedrivers[] =
 {
 	&DSOUND_Capture,
+	&SDL_Capture,
 	&OSS_Capture,
 #ifdef AVAIL_OPENAL
 	&OPENAL_Capture,
@@ -1735,7 +1737,7 @@ static void QDECL S_Voip_EnumeratedCaptureDevice(const char *driver, const char 
 		fullintname = va("%s:%s", driver, devicecode);
 	else
 		fullintname = driver;
-
+	
 	Q_snprintfz(opts, sizeof(opts), "%s%s%s %s", snd_voip_capturedevice_opts.string, *snd_voip_capturedevice_opts.string?" ":"", COM_QuotedString(fullintname, nbuf, sizeof(nbuf), false), COM_QuotedString(readabledevice, dbuf, sizeof(dbuf), false));
 	Cvar_ForceSet(&snd_voip_capturedevice_opts, opts);
 }
@@ -2072,6 +2074,7 @@ void S_ShutdownCard(soundcardinfo_t *sc)
 			*link = sc->next;
 			if (sc->Shutdown)
 				sc->Shutdown(sc);
+			Z_Free(sc->channel);
 			Z_Free(sc);
 			break;
 		}

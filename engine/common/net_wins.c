@@ -2510,24 +2510,39 @@ qboolean FTENET_Generic_GetPacket(ftenet_generic_connection_t *con)
 			return false;
 		if (err == NET_EMSGSIZE)
 		{
-			SockadrToNetadr (&from, &net_from);
-			Con_TPrintf ("Warning:  Oversize packet from %s\n",
+			static unsigned int resettime;
+			unsigned int curtime = Sys_Milliseconds();
+			if (curtime-resettime >= 5000)	//throttle prints to once per 5 secs (even if they're about different clients, yay ddos)
+			{
+				SockadrToNetadr (&from, &net_from);
+				Con_TPrintf ("Warning:  Oversize packet from %s\n",
 				NET_AdrToString (adr, sizeof(adr), &net_from));
+			}
 			return false;
 		}
 		if (err == NET_ECONNABORTED || err == NET_ECONNRESET)
 		{
-			Con_TPrintf ("Connection lost or aborted\n");	//server died/connection lost.
-#ifndef SERVERONLY
-			if (cls.state != ca_disconnected && !con->islisten)
+			static unsigned int resettime;
+			unsigned int curtime = Sys_Milliseconds();
+			if (curtime-resettime >= 5000 || err == NET_ECONNRESET)	//throttle prints to once per 5 secs (even if they're about different clients, yay ddos)
 			{
-				if (cls.lastarbiatarypackettime+5 < Sys_DoubleTime())	//too many mvdsv
-					Cbuf_AddText("disconnect\nreconnect\n", RESTRICT_LOCAL);	//retry connecting.
+				if (err == NET_ECONNABORTED)
+					Con_TPrintf ("Connection lost or aborted (%s)\n", NET_AdrToString (adr, sizeof(adr), &net_from));	//server died/connection lost.
 				else
-					Con_Printf("Packet was not delivered - server might be badly configured\n");
-				return false;
-			}
+					Con_TPrintf ("Connection lost or aborted\n");	//server died/connection lost.
+				resettime = curtime;
+#ifndef SERVERONLY
+				//fixme: synthesise a reset packet for the caller to handle? "\xff\xff\xff\xffreset" ?
+				if (cls.state != ca_disconnected && !con->islisten)
+				{
+					if (cls.lastarbiatarypackettime+5 < Sys_DoubleTime())	//too many mvdsv
+						Cbuf_AddText("disconnect\nreconnect\n", RESTRICT_LOCAL);	//retry connecting.
+					else
+						Con_Printf("Packet was not delivered - server might be badly configured\n");
+					return false;
+				}
 #endif
+			}
 			return false;
 		}
 
@@ -2535,7 +2550,7 @@ qboolean FTENET_Generic_GetPacket(ftenet_generic_connection_t *con)
 		Con_Printf ("NET_GetPacket: Error (%i): %s\n", err, strerror(err));
 		return false;
 	}
- 	SockadrToNetadr (&from, &net_from);
+	SockadrToNetadr (&from, &net_from);
 
 	net_message.packing = SZ_RAWBYTES;
 	net_message.currentbit = 0;

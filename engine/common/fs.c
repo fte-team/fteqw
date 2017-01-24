@@ -2955,7 +2955,6 @@ typedef struct {
 	const char *manifestfile;
 } gamemode_info_t;
 const gamemode_info_t gamemode_info[] = {
-#define MASTER_PREFIX "FTE-"
 //note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
 //this is to avoid having too many gamemodes anyway.
 
@@ -2964,13 +2963,13 @@ const gamemode_info_t gamemode_info[] = {
 //for quake, we also allow extracting all files from paks. some people think it loads faster that way or something.
 
 	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
-	{"-quake",		"q1",		MASTER_PREFIX"Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},		"Quake", "https://fte.triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	{"-quake",		"q1",		"FTE-Quake DarkPlaces-Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},		"Quake", "https://fte.triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//quake's mission packs should not be favoured over the base game nor autodetected
 	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
 	//and q2 also has a rogue/pak0.pak file that we don't want to find and cause quake2 to look like dissolution of eternity
 	//so just make these require the same files as good ol' quake.
-	{"-hipnotic",	"hipnotic",	MASTER_PREFIX"Hipnotic",{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},		"Quake: Scourge of Armagon"},
-	{"-rogue",		"rogue",	MASTER_PREFIX"Rogue",	{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"rogue",	"*fte"},		"Quake: Dissolution of Eternity"},
+	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},		"Quake: Scourge of Armagon"},
+	{"-rogue",		"rogue",	"FTE-Rogue",	{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"rogue",	"*fte"},		"Quake: Dissolution of Eternity"},
 
 	//various quake-based standalone mods.
 	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},	"Nexuiz"},
@@ -3968,7 +3967,7 @@ void FS_Shutdown(void)
 	fs_thread_mutex = NULL;
 
 	Cvar_SetEngineDefault(&fs_gamename, NULL);
-	Cvar_SetEngineDefault(&fs_downloads_url, NULL);
+	Cvar_SetEngineDefault(&pm_downloads_url, NULL);
 	Cvar_SetEngineDefault(&com_protocolname, NULL);
 }
 
@@ -5118,11 +5117,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 			if (reloadconfigs)
 			{
 				Cvar_SetEngineDefault(&fs_gamename, man->formalname?man->formalname:"FTE");
-				Cvar_SetEngineDefault(&fs_downloads_url, man->downloadsurl?man->downloadsurl:"");
+				Cvar_SetEngineDefault(&pm_downloads_url, man->downloadsurl?man->downloadsurl:"");
 				Cvar_SetEngineDefault(&com_protocolname, man->protocolname?man->protocolname:"FTE");
 				//FIXME: flag this instead and do it after a delay?
 				Cvar_ForceSet(&fs_gamename, fs_gamename.enginevalue);
-				Cvar_ForceSet(&fs_downloads_url, fs_downloads_url.enginevalue);
+				Cvar_ForceSet(&pm_downloads_url, pm_downloads_url.enginevalue);
 				Cvar_ForceSet(&com_protocolname, com_protocolname.enginevalue);
 				vidrestart = false;
 
@@ -5567,7 +5566,8 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&cfg_reload_on_gamedir, "Filesystem");
 	Cvar_Register(&com_fs_cache, "Filesystem");
 	Cvar_Register(&fs_gamename, "Filesystem");
-	Cvar_Register(&fs_downloads_url, "Filesystem");
+	Cvar_Register(&pm_downloads_url, "Filesystem");
+	Cvar_Register(&pm_autoupdate, "Filesystem");
 	Cvar_Register(&com_protocolname, "Server Info");
 	Cvar_Register(&fs_game, "Filesystem");
 #ifdef Q2SERVER
@@ -5697,10 +5697,6 @@ void COM_InitFilesystem (void)
 	fs_readonly = COM_CheckParm("-readonly");
 
 	fs_thread_mutex = Sys_CreateMutex();
-
-#ifdef PLUGINS
-	Plug_Initialise(false);
-#endif
 }
 
 

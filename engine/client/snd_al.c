@@ -1139,6 +1139,7 @@ static void OpenAL_Shutdown (soundcardinfo_t *sc)
 	palcMakeContextCurrent(NULL);
 	palcDestroyContext(oali->OpenAL_Context);
 	palcCloseDevice(oali->OpenAL_Device);
+	Z_Free(oali->source);
 	Z_Free(oali);
 }
 

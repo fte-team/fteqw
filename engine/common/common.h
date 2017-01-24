@@ -374,6 +374,7 @@ int COM_CheckParm (const char *parm);	//WARNING: Legacy arguments should be list
 int COM_CheckNextParm (const char *parm, int last);
 void COM_AddParm (const char *parm);
 
+void COM_Shutdown (void);
 void COM_Init (void);
 void COM_InitArgv (int argc, const char **argv);
 void COM_ParsePlusSets (qboolean docbuf);
@@ -730,6 +731,7 @@ void Log_String (logtype_t lognum, char *s);
 void Con_Log (char *s);
 void Log_Logfile_f (void);
 void Log_Init(void);
+void IPLog_Add(const char *ip, const char *name);	//for associating player ip addresses with names.
 
 
 /*used by and for botlib and q3 gamecode*/

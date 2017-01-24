@@ -1793,8 +1793,8 @@ void TP_SearchForMsgTriggers (char *s, int level)
 			&& t->string[0] && strstr(s, t->string))
 		{
 			if (level == PRINT_CHAT && (
-				strstr (s, "f_version") || strstr (s, "f_system") ||
-				strstr (s, "f_speed") || strstr (s, "f_modified") || strstr (s, "f_ruleset")))
+				strstr (s, "_version") || strstr (s, "_system") ||
+				strstr (s, "_speed") || strstr (s, "_modified") || strstr (s, "_ruleset")))
 				continue; 	// don't let llamas fake proxy replies
 
 			string = Cmd_AliasExist (t->name, RESTRICT_LOCAL);

@@ -2484,10 +2484,11 @@ qboolean SV_SendClientDatagram (client_t *client)
 	qbyte		buf[MAX_OVERALLMSGLEN];
 	sizebuf_t	msg;
 	unsigned int sentbytes;
+	unsigned int outframeseq = client->netchan.incoming_sequence;	//this is so weird... but at least covers nq/qw sequence vs unreliables weirdness...
 
 	if (ISQWCLIENT(client) || ISNQCLIENT(client))
 	{
-		client_frame_t *frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
+		client_frame_t *frame = &client->frameunion.frames[outframeseq & UPDATE_MASK];
 		frame->numresendstats = 0;
 	}
 
@@ -2522,11 +2523,11 @@ qboolean SV_SendClientDatagram (client_t *client)
 #endif
 		{
 
-			if (!ISQ2CLIENT(client) && Netchan_CanReliable (&client->netchan, SV_RateForClient(client)))
+			if (!ISQ2CLIENT(client) && ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || Netchan_CanReliable (&client->netchan, SV_RateForClient(client))))
 			{
 				int pnum=1;
 				client_t *c;
-				client_frame_t *frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
+				client_frame_t *frame = &client->frameunion.frames[outframeseq & UPDATE_MASK];
 				SV_UpdateClientStats (client, 0, &msg, frame);
 
 				for (c = client->controlled; c; c = c->controlled,pnum++)

@@ -1581,7 +1581,11 @@ void M_RemoveMenu (menu_t *menu)
 	if (menu->remove)
 		menu->remove(menu);
 	if (menu == firstmenu)
+	{
 		firstmenu = menu->parent;
+		if (firstmenu)
+			firstmenu->child = NULL;
+	}
 	else
 	{
 		menu_t *prev;
@@ -1636,14 +1640,8 @@ void M_RemoveAllMenus (qboolean leaveprompts)
 	for (link = &firstmenu; *link; )
 	{
 		m = *link;
-		if (!m->exclusive && leaveprompts)
-		{
-			//this is WEIRD.
-			if (m == firstmenu)
-				link = &m->parent;
-			else
-				link = &m->child;
-		}
+		if ((m->persist || !m->exclusive) && leaveprompts)
+			link = &m->parent;
 		else
 			M_RemoveMenu(m);
 	}

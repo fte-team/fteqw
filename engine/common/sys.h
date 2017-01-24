@@ -168,23 +168,21 @@ qboolean NPQTV_Sys_Startup(int argc, char *argv[]);
 void NPQTV_Sys_MainLoop(void);
 #endif
 
-#define UPD_UNSUPPORTED -1
-#define UPD_REVERT 0
-#define UPD_OFF 1
-#define UPD_STABLE 2
-#define UPD_TESTING 3
+#define UPD_OFF 0
+#define UPD_STABLE 1
+#define UPD_TESTING 2
 
 #if defined(WEBCLIENT) && defined(_WIN32) && !defined(SERVERONLY)
 int StartLocalServer(int close);
 
 #define HAVEAUTOUPDATE
-int Sys_GetAutoUpdateSetting(void);
-void Sys_SetAutoUpdateSetting(int newval);
-void Sys_SetUpdatedBinary(const char *fname);
+void Sys_SetUpdatedBinary(const char *fname);	//legacy, so old build can still deal with updates properly
+qboolean Sys_EngineCanUpdate(void);				//says whether the system code is able to invoke new binaries properly
+qboolean Sys_EngineWasUpdated(char *newbinary);	//invoke the given system-path binary
 #else
-#define Sys_GetAutoUpdateSetting() UPD_UNSUPPORTED
-#define Sys_SetAutoUpdateSetting(n)
+#define Sys_EngineCanUpdate() false
 #define Sys_SetUpdatedBinary(n)
+#define Sys_EngineWasUpdated(n) false
 #endif
 
 void Sys_Init (void);

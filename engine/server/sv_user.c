@@ -635,6 +635,10 @@ void SVNQ_New_f (void)
 	if (!gamedir[0])
 	{
 		gamedir = FS_GetGamedir(true);
+#ifndef NOLEGACY
+		if (!strcmp(gamedir, "qw"))	//hack: hide the qw dir from nq clients.
+			gamedir = "";
+#endif
 	}
 	COM_FileBase(sv.modelname, mapname, sizeof(mapname));
 
@@ -5170,7 +5174,7 @@ void SV_CalcNetRates(client_t *cl, double *ftime, int *frames, double *minf, dou
 	}
 }
 
-void Cmd_FPSList_f(void)
+static void Cmd_FPSList_f(void)
 {
 	client_t *cl;
 	int c;
@@ -5233,7 +5237,7 @@ static void SV_STFU_f(void)
 }
 
 #ifdef NQPROT
-void SVNQ_Spawn_f (void)
+static void SVNQ_Spawn_f (void)
 {
 	extern cvar_t sv_gravity;
 	int		i;
@@ -5331,7 +5335,7 @@ void SVNQ_Spawn_f (void)
 
 	host_client->send_message = true;
 }
-void SVNQ_Begin_f (void)
+static void SVNQ_Begin_f (void)
 {
 	unsigned pmodel = 0, emodel = 0;
 	int		i;
@@ -5460,7 +5464,7 @@ void SVNQ_Begin_f (void)
 	SV_RunCmd (&host_client->lastcmd, false);
 	SV_PostRunCmd();
 }
-void SVNQ_PreSpawn_f (void)
+static void SVNQ_PreSpawn_f (void)
 {
 	if (host_client->prespawn_stage < PRESPAWN_MAPCHECK)
 		SV_StuffcmdToClient(host_client, va("cmd prespawn %s\n", Cmd_Args()));
@@ -5499,13 +5503,13 @@ void SVNQ_PreSpawn_f (void)
 
 	host_client->send_message = true;
 }
-void SVNQ_NQInfo_f (void)
+static void SVNQ_NQInfo_f (void)
 {
 	Cmd_TokenizeString(va("setinfo \"%s\" \"%s\"\n", Cmd_Argv(0), Cmd_Argv(1)), false, false);
 	SV_SetInfo_f();
 }
 
-void SVNQ_NQColour_f (void)
+static void SVNQ_NQColour_f (void)
 {
 	char *val;
 	int top;
@@ -5576,7 +5580,7 @@ void SVNQ_NQColour_f (void)
 	SV_ExtractFromUserinfo (host_client, true);
 }
 
-void SVNQ_Ping_f(void)
+static void SVNQ_Ping_f(void)
 {
 	int i;
 	client_t *cl;
@@ -5592,8 +5596,54 @@ void SVNQ_Ping_f(void)
 		SV_PrintToClient(host_client, PRINT_HIGH, va("%3i %s\n", SV_CalcPing (cl, false), cl->name));
 	}
 }
+static void SVNQ_Status_f(void)
+{	//note: numerous NQ clients poll for this...
+	//so try to ensure that we adhere to various rules...
+	//we have a different function for server operators to use which contains more info.
+	int i;
+	client_t *cl;
+	int count;
+	extern cvar_t maxclients, maxspectators;
 
-void SVNQ_Protocols_f(void)
+	/*
+	int nummodels, numsounds;
+	for (nummodels = 1; nummodels < MAX_PRECACHE_MODELS; nummodels++)
+		if (!sv.strings.model_precache[nummodels])
+			break;
+	for (numsounds = 1; numsounds < MAX_PRECACHE_SOUNDS; numsounds++)
+		if (!sv.strings.sound_precache[numsounds])
+			break;*/
+
+	SV_PrintToClient(host_client, PRINT_HIGH, va("host:    %s\n", hostname.string));	//must be first, with same first 9 chars
+	SV_PrintToClient(host_client, PRINT_HIGH, va("version: %s\n", version_string()));
+//	SV_PrintToClient(host_client, PRINT_HIGH, va("IPv4:     \n", ));
+//	SV_PrintToClient(host_client, PRINT_HIGH, va("IPv6:     \n", ));
+	SV_PrintToClient(host_client, PRINT_HIGH, va("map:     %s\n", svs.name));
+/*	for (count = 1; count < MAX_PRECACHE_MODELS; count++)
+		if (!sv.strings.model_precache[count])
+			break;
+	SV_PrintToClient(host_client, PRINT_HIGH, va("models:  %i/%i\n", count-1, MAX_PRECACHE_MODELS-1));*/
+/*	for (count = 1; count < MAX_PRECACHE_SOUNDS; count++)
+		if (!sv.strings.sound_precache[count])
+			break;
+	SV_PrintToClient(host_client, PRINT_HIGH, va("sounds:  %i/%i\n", count-1, MAX_PRECACHE_SOUNDS-1));*/
+//	SV_PrintToClient(host_client, PRINT_HIGH, va("entities:%i/%i\n", sv.world.num_edicts, sv.world.max_edicts));
+	for (count=0,i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
+	{
+		if (cl->state)
+			count++;
+	}
+	SV_PrintToClient(host_client, PRINT_HIGH, va("players: %i active (%i max)\n\n", count, min(maxclients.ival+maxspectators.ival,sv.allocated_client_slots)));//must be last
+	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
+	{
+		if (!cl->state)
+			continue;
+		SV_PrintToClient(host_client, PRINT_HIGH, va("#%i\n", i+1));
+		SV_PrintToClient(host_client, PRINT_HIGH, va("   %s\n", "WITHHELD"));
+	}
+}
+
+static void SVNQ_Protocols_f(void)
 {
 	int i;
 	host_client->supportedprotocols = 0;
@@ -5841,7 +5891,7 @@ ucmd_t nqucmds[] =
 	{"begin",		SVNQ_Begin_f, true},
 	{"prespawn",	SVNQ_PreSpawn_f, true},
 
-	{"status",		NULL},
+	{"status",		SVNQ_Status_f},
 
 
 	{"god",			Cmd_God_f},

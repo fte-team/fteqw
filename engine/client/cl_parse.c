@@ -5589,7 +5589,7 @@ char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 			Sys_ServerActivity();	//chat always flashes the screen..
 
 		//check f_ stuff
-		if (*player && !strncmp(s, "f_", 2))
+		if (*player && (!strncmp(s, "f_", 2)|| !strncmp(s, "q_", 2)))
 		{
 			Validation_Auto_Response(*player - cl.players, s);
 			return s;

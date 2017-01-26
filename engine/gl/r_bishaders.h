@@ -6706,6 +6706,46 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "\x0D\x01\x00\x00\x5E\x00\x00\x00\x5E\x00\x00\x00\x5E\x00\x00\x00\x0C\x01\x00\x00\x85\x00\x05\x00\x10\x00\x00\x00\x0E\x01\x00\x00"
 "\x0B\x01\x00\x00\x0D\x01\x00\x00\xFE\x00\x02\x00\x0E\x01\x00\x00\x38\x00\x01\x00"},
 #endif
+#ifdef D3D9QUAKE
+{QR_DIRECT3D9, 9, "drawflat_wall",
+"!!cvard3 r_floorcolour\n"
+"!!cvard3 r_wallcolour\n"
+//FIXME !!permu FOG
+
+"struct a2v {\n"
+"float4 pos: POSITION;\n"
+"float2 lmtc: TEXCOORD1;\n"
+"float3 normal: NORMAL;\n"
+"};\n"
+"struct v2f {\n"
+"#ifndef FRAGMENT_SHADER\n"
+"float4 pos: POSITION;\n"
+"#endif\n"
+"float2 lmtc: TEXCOORD0;\n"
+"float4 col: TEXCOORD1; //tc not colour to preserve range for oversaturation\n"
+"};\n"
+"#ifdef VERTEX_SHADER\n"
+"float4x4  m_modelviewprojection;\n"
+"float4 e_lmscale;\n"
+"v2f main (a2v inp)\n"
+"{\n"
+"v2f outp;\n"
+"outp.pos = mul(m_modelviewprojection, inp.pos);\n"
+"outp.lmtc = inp.lmtc;\n"
+"outp.col = e_lmscale * float4(((inp.normal.z < 0.73)?r_wallcolour:r_floorcolour)/255.0, 1.0);\n"
+"return outp;\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"sampler s_t0;\n"
+"float4 main (v2f inp) : COLOR0\n"
+"{\n"
+"return inp.col * tex2D(s_t0, inp.lmtc).xyzw;\n"
+"}\n"
+"#endif\n"
+},
+#endif
 #ifdef D3D11QUAKE
 {QR_DIRECT3D11, 11, "drawflat_wall",
 "!!samps lightmap\n"

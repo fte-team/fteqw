@@ -1867,9 +1867,26 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, param4, 3);
 			break;
 
+		case SP_E_LMSCALE:
+			Vector4Set(param4, 1, 1, 1, 1);
+			if (shaderstate.curentity->model && (shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT))
+			{
+				extern cvar_t gl_overbright;
+				const float identitylighting = 1;
+				float sc = (1<<bound(0, gl_overbright.ival, 2)) * identitylighting;
+				VectorSet(param4, sc, sc, sc);
+			}
+			else
+			{
+				const float identitylighting = 1;
+				VectorSet(param4, identitylighting, identitylighting, identitylighting);
+			}
+			param4[3] = 1;
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, param4, 3);
+			break;
+
 		case SP_M_ENTBONES:
 		case SP_M_MODELVIEW:
-		case SP_E_LMSCALE:
 		case SP_E_VLSCALE:
 		case SP_E_ORIGIN:
 		case SP_E_GLOWMOD:

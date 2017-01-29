@@ -3346,7 +3346,7 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	volume = G_FLOAT(OFS_PARM3) * 255;
 	attenuation = G_FLOAT(OFS_PARM4);
 	if (svprogfuncs->callargc > 5)
-		pitchadj = G_FLOAT(OFS_PARM5);
+		pitchadj = G_FLOAT(OFS_PARM5)*0.01;
 	else
 		pitchadj = 0;
 	if (svprogfuncs->callargc > 6)
@@ -3386,7 +3386,7 @@ static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s 
 	volume = G_FLOAT(OFS_PARM2);
 	attenuation = G_FLOAT(OFS_PARM3);
 	if (prinst->callargc >= 5)
-		pitchpct = G_FLOAT(OFS_PARM4);
+		pitchpct = G_FLOAT(OFS_PARM4)*0.01;
 	else
 		pitchpct = 0;
 
@@ -5388,12 +5388,12 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		MSG_WriteByte (&sv.nqmulticast, type);	//nq doesn't have a count.
 #endif
 		break;
-	case TEQW_EXPLOSIONNOSPRITE:
+	case TEQW_EXPLOSION_NOSPRITE:
 		MSG_WriteByte (&sv.multicast, TE_EXPLOSION);
 #ifdef NQPROT
 		MSG_WriteByte (&sv.nqmulticast, TE_EXPLOSION);
 #endif
-		type = TEQW_EXPLOSIONNOSPRITE;
+		type = TEQW_EXPLOSION_NOSPRITE;
 		split = PEXT_TE_BULLET;
 		break;
 	case TE_LIGHTNING1:
@@ -8493,7 +8493,7 @@ static void QCBUILTIN PF_te_superspikequad(pubprogfuncs_t *prinst, struct global
 static void QCBUILTIN PF_te_explosion(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (progstype != PROG_QW)
-		SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_EXPLOSIONNOSPRITE, 1);
+		SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_EXPLOSION_NOSPRITE, 1);
 	else
 		SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_EXPLOSION, 1);
 }
@@ -11508,7 +11508,7 @@ void PR_DumpPlatform_f(void)
 		{"m_init",					"void()", MENU},
 		{"m_shutdown",				"void()", MENU},
 		{"m_draw",					"void(vector screensize)", MENU, "Provides the menuqc with a chance to draw. Will be called even if the menu does not have focus, so be sure to avoid that. COMPAT: screensize is not provided in DP."},
-		{"m_drawloading",			"void(vector screensize)", MENU, "Additional drawing function to draw loading screen overlays."},
+		{"m_drawloading",			"void(vector screensize, float opaque)", MENU, "Additional drawing function to draw loading screens. If opaque is set, then this function must ensure that the entire screen is overdrawn (even if just by a black drawfill)."},
 		{"m_keydown",				"void(float scan, float chr)", MENU},
 		{"m_keyup",					"void(float scan, float chr)", MENU},
 		{"m_toggle",				"void(float wantmode)", MENU},

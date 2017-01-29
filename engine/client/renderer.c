@@ -93,6 +93,7 @@ cvar_t r_bouncysparks						= CVARFD ("r_bouncysparks", "1",
 													CVAR_ARCHIVE,
 													"Enables particle interaction with world surfaces, allowing for bouncy particles, stains, and decals.");
 cvar_t r_drawentities						= CVAR  ("r_drawentities", "1");
+cvar_t r_max_gpu_bones						= CVARD  ("r_max_gpu_bones", "", "Specifies the maximum number of bones that can be handled on the GPU. If empty, will guess.");
 cvar_t r_drawflat							= CVARAF ("r_drawflat", "0", "gl_textureless",
 													CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
 cvar_t r_lightmap							= CVARF ("r_lightmap", "0",
@@ -877,6 +878,7 @@ void Renderer_Init(void)
 	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_mipcap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
+	Cvar_Register (&r_max_gpu_bones, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
 	Cvar_Register (&r_lightmap, GRAPHICALNICETIES);
 	Cvar_Register (&r_menutint, GRAPHICALNICETIES);

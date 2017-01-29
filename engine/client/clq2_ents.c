@@ -2315,7 +2315,7 @@ void CLQ2_AddEntities (void)
 		AngleVectors(r_refdef.viewangles, axis[0], axis[1], axis[2]);
 		VectorMA(r_refdef.vieworg, -chase_back.value, axis[0], camorg);
 		VectorMA(camorg, -chase_up.value, pv->gravitydir, camorg);
-//		if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, r_refdef.vieworg, camorg, vec3_origin, vec3_origin, true, MASK_WORLDSOLID, &tr))
+//		if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, NULLFRAMESTATE, NULL, r_refdef.vieworg, camorg, vec3_origin, vec3_origin, true, MASK_WORLDSOLID, &tr))
 		VectorCopy(camorg, r_refdef.vieworg);
 
 		V_EditExternalModels(0, NULL, 0);

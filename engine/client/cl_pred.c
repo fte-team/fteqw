@@ -170,7 +170,7 @@ q2trace_t	VARGS CLQ2_PMTrace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end
 	trace_t		t;
 
 	// check against world
-	cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, start, end, mins, maxs, false, MASK_PLAYERSOLID, &t);
+	cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, NULLFRAMESTATE, NULL, start, end, mins, maxs, false, MASK_PLAYERSOLID, &t);
 	if (t.fraction < 1.0)
 		t.ent = (struct edict_s *)1;
 

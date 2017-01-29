@@ -69,6 +69,7 @@ typedef struct {
 	float bonecontrols[MAX_BONE_CONTROLLERS];	//hl special bone controllers
 #endif
 } framestate_t;
+#define NULLFRAMESTATE (framestate_t*)NULL
 
 
 

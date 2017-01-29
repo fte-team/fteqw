@@ -874,7 +874,7 @@ void NPP_NQFlush(void)
 
 				requireextension = PEXT_TE_BULLET;
 				SV_MulticastProtExt(org, multicasttype, pr_global_struct->dimension_send, 0, requireextension);
-				buffer[1] = TEQW_EXPLOSIONNOSPRITE;
+				buffer[1] = TEQW_EXPLOSION_NOSPRITE;
 			}
 			break;
 		case TENQ_BEAM:

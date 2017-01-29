@@ -53,11 +53,6 @@ typedef enum {
 } shadersort_t;
 
 #define MAX_BONES 256
-#ifdef FTE_TARGET_WEB
-#define MAX_GPU_BONES 32	//ATI drivers bug out and start to crash if you put this at 128. FIXME: make dynamic.
-#else
-#define MAX_GPU_BONES 64	//ATI drivers bug out and start to crash if you put this at 128. FIXME: make dynamic.
-#endif
 struct doll_s;
 void rag_uninstanciateall(void);
 void rag_flushdolls(qboolean force);

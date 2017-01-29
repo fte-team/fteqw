@@ -64,7 +64,7 @@ static vec_t CastRay (struct relight_ctx_s *ctx, vec3_t p1, vec3_t p2)
 
 	if (ctx->shadows)
 	{
-		ctx->models[0]->funcs.NativeTrace (ctx->models[0], 0, 0, NULL, p1, p2, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID, &trace);
+		ctx->models[0]->funcs.NativeTrace (ctx->models[0], 0, NULLFRAMESTATE, NULL, p1, p2, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID, &trace);
 		if (trace.fraction < 1)
 			return -1;
 	}

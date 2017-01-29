@@ -2553,7 +2553,7 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 // =======================================================================
 // Start a sound effect
 // =======================================================================
-static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_t *target_chan, int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t velocity, float fvol, float attenuation, float timeoffset, float pitchadj, unsigned int flags)
+static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_t *target_chan, int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t velocity, float fvol, float attenuation, float timeoffset, float ratemul, unsigned int flags)
 {
 	channel_t *check;
 	int		vol;
@@ -2572,10 +2572,10 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	if (!sfx)
 		sfx = target_chan->sfx;
 
-	if (pitchadj <= 0)
-		pitchadj = 100;
+	if (ratemul <= 0)
+		ratemul = 1;
 
-	pitchadj *= snd_playbackrate.value * (cls.state?cl.gamespeed:1) * (cls.demoplayback?cl_demospeed.value:1);
+	ratemul *= snd_playbackrate.value * (cls.state?cl.gamespeed:1) * (cls.demoplayback?cl_demospeed.value:1);
 
 	vol = fvol*255;
 
@@ -2632,7 +2632,7 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 		absstartpos = 0;
 	}
 
-	target_chan->rate = ((1<<PITCHSHIFT) * pitchadj) / 100;	/*pitchadj is a percentage*/
+	target_chan->rate = ((1<<PITCHSHIFT) * ratemul); //*sfx->rate/sc->sn.speed;
 	if (target_chan->rate < 1)	/*make sure the rate won't crash us*/
 		target_chan->rate = 1;
 	target_chan->pos = absstartpos + (int)(timeoffset*sc->sn.speed*target_chan->rate);

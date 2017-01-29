@@ -1578,7 +1578,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		usebones = false;
 	else if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
 		usebones = false;
-	else if (e->fatness || !inf->ofs_skel_idx || inf->numbones > MAX_GPU_BONES)
+	else if (e->fatness || !inf->ofs_skel_idx || inf->numbones > sh_config.max_gpu_bones)
 #endif
 		usebones = false;
 
@@ -2270,7 +2270,7 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, framestate_t *framestate, v
 #ifdef SKELETALMODELS
 		if (mod->numbones)
 		{
-			if (!mod->ofs_skel_idx)
+			if (!mod->ofs_skel_idx || !framestate)
 				posedata = mod->ofs_skel_xyz;	//if there's no weights, don't try animating anything.
 			else if (mod->shares_verts != cursurfnum || !posedata)
 			{
@@ -2292,12 +2292,14 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, framestate_t *framestate, v
 		else
 		{
 			group = mod->ofsanimations;
-			group += framestate->g[FS_REG].frame[0] % mod->numanimations;
+			if (framestate)
+				group += framestate->g[FS_REG].frame[0] % mod->numanimations;
 			//FIXME: no support for frame blending.
 			if (!group->numposes)
 				continue;
 			pose = group->poseofs;
-			pose += (int)(framestate->g[FS_REG].frametime[0] * group->rate)%group->numposes;
+			if (framestate)
+				pose += (int)(framestate->g[FS_REG].frametime[0] * group->rate)%group->numposes;
 			posedata = pose->ofsverts;
 		}
 

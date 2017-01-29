@@ -866,7 +866,7 @@ enum {
 #define FTESND_MOREFLAGS	(1<<2)		// actually, chan flags
 #define NQSND_LARGEENTITY	(1<<3)		//both dp+fitz
 #define NQSND_LARGESOUND	(1<<4)		//both dp+fitz
-//#define	DPSND_SPEEDUSHORT4000	(1<<5)		// ushort speed*4000 (speed is usually 1.0, a value of 0.0 is the same as 1.0)
+#define	DPSND_SPEEDUSHORT4000	(1<<5)		// ushort speed*4000 (speed is usually 1.0, a value of 0.0 is the same as 1.0)
 #define FTESND_TIMEOFS		(1<<6)		//signed short, in milliseconds.
 #define FTESND_PITCHADJ		(1<<7)			//a byte (speed percent (0=100%))
 //more flags are weird.
@@ -923,7 +923,8 @@ enum {
 	TEQW_BEAM				= 18,	//use the builtin, luke.
 	TENEH_SMOKE				= 18,	//gah	[vector] origin [byte] palette
 	TEQW_EXPLOSION2			= 19,	//use the builtin, luke.
-	TEQW_EXPLOSIONNOSPRITE	= 20,
+	TEQW_EXPLOSION_NOSPRITE	= 20,	//nq-style explosion over qw
+	TENQ_EXPLOSION_SPRITE	= 20,	//qw-style explosion over nq
 	TE_GUNSHOT_NQCOMPAT		= 21,	//nq has count byte, qw does not
 
 	// hexen 2

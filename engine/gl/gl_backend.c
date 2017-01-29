@@ -3137,12 +3137,10 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			break;
 		case SP_M_ENTBONES:
 			{
-#ifdef GLESONLY
-				//cop out.
-				qglUniform4fvARB(ph, shaderstate.sourcevbo->numbones*3, shaderstate.sourcevbo->bones);
-#else
-				qglUniformMatrix3x4fv(ph, shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
-#endif
+				if (sh_config.maxver>=120)
+					qglUniformMatrix3x4fv(ph, shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
+				else
+					qglUniform4fvARB(ph, shaderstate.sourcevbo->numbones*3, shaderstate.sourcevbo->bones);
 			}
 			break;
 		case SP_M_INVVIEWPROJECTION:

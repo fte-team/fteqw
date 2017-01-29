@@ -4521,21 +4521,21 @@ CL_ParseStartSoundPacket
 */
 void CLQW_ParseStartSoundPacket(void)
 {
-    vec3_t  pos;
-    int 	channel, ent;
-    int 	sound_num;
-    int 	volume;
-    float 	attenuation;
- 	int		i;
+	vec3_t  pos;
+	int 	channel, ent;
+	int 	sound_num;
+	int 	volume;
+	float 	attenuation;
+	int		i;
 
-    channel = MSG_ReadShort();
+	channel = MSG_ReadShort();
 
-    if (channel & QWSND_VOLUME)
+	if (channel & QWSND_VOLUME)
 		volume = MSG_ReadByte ();
 	else
 		volume = DEFAULT_SOUND_PACKET_VOLUME;
 
-    if (channel & QWSND_ATTENUATION)
+	if (channel & QWSND_ATTENUATION)
 		attenuation = MSG_ReadByte () / 64.0;
 	else
 		attenuation = DEFAULT_SOUND_PACKET_ATTENUATION;
@@ -4552,7 +4552,7 @@ void CLQW_ParseStartSoundPacket(void)
 		Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
 
 #ifdef PEXT_CSQC
-	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, 100, 0, 0))
+	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, 1, 0, 0))
 #endif
 	{
 		if (!sound_num)
@@ -4677,7 +4677,7 @@ void CLNQ_ParseStartSoundPacket(void)
 	int 	field_mask;
 	float 	attenuation;
  	int		i;
-	int		pitchadj;
+	float	pitchadj;
 	float	timeofs;
 	unsigned int flags;
 
@@ -4697,9 +4697,9 @@ void CLNQ_ParseStartSoundPacket(void)
 		attenuation = DEFAULT_SOUND_PACKET_ATTENUATION;
 
 	if (field_mask & FTESND_PITCHADJ)
-		pitchadj = MSG_ReadByte();
+		pitchadj = MSG_ReadByte()/100.0;
 	else
-		pitchadj = 100;
+		pitchadj = 1;
 
 	if (field_mask & FTESND_TIMEOFS)
 		timeofs = MSG_ReadShort() / 1000.0;
@@ -4714,6 +4714,9 @@ void CLNQ_ParseStartSoundPacket(void)
 	}
 	else
 		VectorClear(vel);
+
+	if (field_mask & DPSND_SPEEDUSHORT4000)
+		pitchadj = (unsigned short)MSG_ReadShort() / 4000.0;
 
 	flags = field_mask>>8;
 	flags &= CF_FORCELOOP | CF_NOREVERB | CF_FOLLOW;
@@ -7849,6 +7852,12 @@ void CLNQ_ParseServerMessage (void)
 			float f = MSG_ReadFloat();
 			CL_SetStatNumeric (destsplit, i, f, f);
 			}
+			break;
+		case svcfte_setangledelta:
+			for (i=0 ; i<3 ; i++)
+				cl.playerview[destsplit].viewangles[i] += MSG_ReadAngle16 ();
+			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].simangles);
+			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].intermissionangles);
 			break;
 		case svc_setangle:
 			{

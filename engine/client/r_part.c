@@ -911,10 +911,10 @@ float CL_TraceLine (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, int 
 			{
 				AngleVectors(pe->angles, axis[0], axis[1], axis[2]);
 				VectorNegate(axis[1], axis[1]);
-				pe->model->funcs.NativeTrace(pe->model, 0, 0, axis, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
+				pe->model->funcs.NativeTrace(pe->model, 0, PE_FRAMESTATE, axis, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
 			}
 			else
-				pe->model->funcs.NativeTrace(pe->model, 0, 0, NULL, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
+				pe->model->funcs.NativeTrace(pe->model, 0, PE_FRAMESTATE, NULL, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
 			if (trace.fraction<1)
 			{
 				if (bestfrac > trace.fraction)

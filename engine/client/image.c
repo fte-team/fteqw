@@ -2481,7 +2481,7 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 	int encoding;
 
 	ddsheader fmtheader;
-	if (*(int*)filedata != *(int*)"DDS ")
+	if (*(int*)filedata != (('D'<<0)|('D'<<8)|('S'<<16)|(' '<<24)))
 		return false;
 
 	memcpy(&fmtheader, filedata+4, sizeof(fmtheader));
@@ -2492,14 +2492,14 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 	if (nummips < 1)
 		nummips = 1;
 
-	if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT1")
+	if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('1'<<24)))
 	{
 		encoding = PTI_S3RGBA1;	//alpha or not? Assume yes, and let the drivers decide.
 		pad = 8;
 		divsize = 4;
 		blocksize = 8;
 	}
-	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT2")	//dx3 with premultiplied alpha
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('2'<<24)))	//dx3 with premultiplied alpha
 	{
 //		if (!(tex->flags & IF_PREMULTIPLYALPHA))
 			return false;
@@ -2508,7 +2508,7 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 		divsize = 4;
 		blocksize = 16;
 	}
-	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT3")
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('3'<<24)))
 	{
 		if (tex->flags & IF_PREMULTIPLYALPHA)
 			return false;
@@ -2517,7 +2517,7 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 		divsize = 4;
 		blocksize = 16;
 	}
-	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT4")	//dx5 with premultiplied alpha
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('4'<<24)))	//dx5 with premultiplied alpha
 	{
 //		if (!(tex->flags & IF_PREMULTIPLYALPHA))
 			return false;
@@ -2526,7 +2526,7 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 		divsize = 4;
 		blocksize = 16;
 	}
-	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT5")
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('5'<<24)))
 	{
 		if (tex->flags & IF_PREMULTIPLYALPHA)
 			return false;
@@ -4646,10 +4646,9 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 	char fname[MAX_QPATH];
 	char *altname;
 	char *nextalt;
-	qboolean exactext = !!(tex->flags & IF_EXACTEXTENSION);
 
 	flocation_t loc;
-	unsigned int locflags;
+	unsigned int locflags = 0;
 
 	vfsfile_t *f;
 	size_t fsize;
@@ -4720,7 +4719,7 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 					//guess not, fall back to normalmaps
 				}
 
-				if (Image_LoadTextureFromMemory(tex, tex->flags, tex->ident, loc.rawname, buf, fsize))
+				if (Image_LoadTextureFromMemory(tex, tex->flags, tex->ident, fname, buf, fsize))
 				{
 					BZ_Free(tex->fallbackdata);
 					tex->fallbackdata = NULL;	

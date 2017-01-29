@@ -756,7 +756,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				mins = vec3_origin;
 			if (!maxs)
 				maxs = vec3_origin;
-			mod->funcs.NativeTrace(mod, 0, 0, NULL, start, end, mins, maxs, fn==CG_CM_CAPSULETRACE, brushmask, &tr);
+			mod->funcs.NativeTrace(mod, 0, NULLFRAMESTATE, NULL, start, end, mins, maxs, fn==CG_CM_CAPSULETRACE, brushmask, &tr);
 			results->allsolid = tr.allsolid;
 			results->contents = tr.contents;
 			results->fraction = tr.fraction;

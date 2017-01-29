@@ -2033,7 +2033,7 @@ static void Doom_LoadVerticies(char *name)
 		glc = 0;
 		gl1 = NULL;
 	}
-	else if (gl2[0] == *(int*)"gNd2")
+	else if (gl2[0] == (('g'<<0)|('N'<<8)|('d'<<16)|('2'<<24)))
 	{
 		gl2++;
 		glc = (fsize-4)/sizeof(int)/2;

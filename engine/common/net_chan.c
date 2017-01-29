@@ -216,7 +216,7 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 		if (fornq)
 		{
 			//only ones that are tested
-			mask &= PEXT2_VOICECHAT | PEXT2_REPLACEMENTDELTAS | PEXT2_NEWSIZEENCODING | PEXT2_PREDINFO;
+			mask &= /*PEXT2_PRYDONCURSOR |*/ PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_REPLACEMENTDELTAS | PEXT2_MAXPLAYERS | PEXT2_PREDINFO | PEXT2_NEWSIZEENCODING;
 		}
 //		else
 //			mask &= ~PEXT2_PREDINFO;

@@ -2123,7 +2123,7 @@ void Q1BSPX_Setup(model_t *mod, char *filebase, unsigned int filelen, lump_t *lu
 
 	i = LittleLong(h->numlumps);
 	/*verify the header*/
-	if (*(int*)h->id != *(int*)"BSPX" ||
+	if (*(int*)h->id != (('B'<<0)|('S'<<8)|('P'<<16)|('X'<<24)) ||
 		i < 0 ||
 		offs + sizeof(*h) + sizeof(h->lumps[0])*(i-1) > filelen)
 		return;

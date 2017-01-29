@@ -819,7 +819,7 @@ char *QDECL GHL_TraceTexture(hledict_t *againstent, vec3_t start, vec3_t end)
 {
 	trace_t tr;
 	bi_trace();
-	sv.world.worldmodel->funcs.NativeTrace(sv.world.worldmodel, 0, 0, NULL, start, end, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &tr);
+	sv.world.worldmodel->funcs.NativeTrace(sv.world.worldmodel, 0, NULLFRAMESTATE, NULL, start, end, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &tr);
 	return tr.surface->name;
 }
 unk QDECL GHL_TraceSphere(unk){notimpf(__func__);}

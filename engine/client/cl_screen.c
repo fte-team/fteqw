@@ -1317,7 +1317,7 @@ void SCR_CrosshairPosition(playerview_t *pview, float *x, float *y)
 
 		memset(&tr, 0, sizeof(tr));
 		tr.fraction = 1;
-		cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, start, end, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &tr);
+		cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, NULLFRAMESTATE, NULL, start, end, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &tr);
 		start[2]-=16;
 		if (tr.fraction != 1)
 		{

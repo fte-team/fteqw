@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	MAX_MAP_HULLSDQ1	4
 #define	MAX_MAP_HULLSDH2	8
-#define	MAX_MAP_HULLSM		16
+#define	MAX_MAP_HULLSM		8
 
 //#define	MAX_MAP_MODELS		256
 //#define	MAX_MAP_BRUSHES		0x8000

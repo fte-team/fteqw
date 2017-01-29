@@ -553,8 +553,8 @@ typedef struct
 #define	PROG_VERSION	6
 #define PROG_KKQWSVVERSION 7
 #define	PROG_EXTENDEDVERSION	7
-#define PROG_SECONDARYVERSION16 (*(int*)"1FTE" ^ *(int*)"PROG")	//something unlikly and still meaningful (to me)
-#define PROG_SECONDARYVERSION32 (*(int*)"1FTE" ^ *(int*)"32B ")	//something unlikly and still meaningful (to me)
+#define PROG_SECONDARYVERSION16 ((('1'<<0)|('F'<<8)|('T'<<16)|('E'<<24))^(('P'<<0)|('R'<<8)|('O'<<16)|('G'<<24)))	//something unlikly and still meaningful (to me)
+#define PROG_SECONDARYVERSION32 ((('1'<<0)|('F'<<8)|('T'<<16)|('E'<<24))^(('3'<<0)|('2'<<8)|('B'<<16)|(' '<<24)))	//something unlikly and still meaningful (to me)
 typedef struct
 {
 	int		version;

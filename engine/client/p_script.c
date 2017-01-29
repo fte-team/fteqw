@@ -1623,7 +1623,7 @@ parsefluid:
 
 			ptype->sounds[ptype->numsounds].vol = 1;
 			ptype->sounds[ptype->numsounds].atten = 1;
-			ptype->sounds[ptype->numsounds].pitch = 100;
+			ptype->sounds[ptype->numsounds].pitch = 1;
 			ptype->sounds[ptype->numsounds].delay = 0;
 			ptype->sounds[ptype->numsounds].weight = 0;
 
@@ -1650,7 +1650,7 @@ parsefluid:
 							ptype->sounds[ptype->numsounds].atten = atof(e);
 					}
 					else if (!Q_strncasecmp(e, "pitch=", 6))
-						ptype->sounds[ptype->numsounds].pitch = atof(strchr(e, '=')+1);
+						ptype->sounds[ptype->numsounds].pitch = atof(strchr(e, '=')+1)*0.01;
 					else if (!Q_strncasecmp(e, "delay=", 6))
 						ptype->sounds[ptype->numsounds].delay = atof(strchr(e, '=')+1);
 					else if (!Q_strncasecmp(e, "weight=", 7))
@@ -1667,9 +1667,9 @@ parsefluid:
 				ptype->sounds[ptype->numsounds].atten = atof(Cmd_Argv(3));
 				if (!ptype->sounds[ptype->numsounds].atten)
 					ptype->sounds[ptype->numsounds].atten = 1;
-				ptype->sounds[ptype->numsounds].pitch = atof(Cmd_Argv(4));
+				ptype->sounds[ptype->numsounds].pitch = atof(Cmd_Argv(4))*0.01;
 				if (!ptype->sounds[ptype->numsounds].pitch)
-					ptype->sounds[ptype->numsounds].pitch = 100;
+					ptype->sounds[ptype->numsounds].pitch = 1;
 				ptype->sounds[ptype->numsounds].delay = atof(Cmd_Argv(5));
 				if (!ptype->sounds[ptype->numsounds].delay)
 					ptype->sounds[ptype->numsounds].delay = 0;

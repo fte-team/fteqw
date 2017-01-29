@@ -2294,7 +2294,7 @@ qboolean Cull_Traceline(pvscamera_t *cameras, edict_t *seen)
 	for (c = 0; c < cameras->numents; c++)
 	{
 		tr.fraction = 1;
-		if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, cameras->org[c], seen->v->origin, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID, &tr))
+		if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, NULLFRAMESTATE, NULL, cameras->org[c], seen->v->origin, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID, &tr))
 			return false;	//wasn't blocked
 	}
 
@@ -2308,7 +2308,7 @@ qboolean Cull_Traceline(pvscamera_t *cameras, edict_t *seen)
 			end[2] = seen->v->origin[2] + ((i&4)?seen->v->mins[2]+0.1:seen->v->maxs[2]);
 
 			tr.fraction = 1;
-			if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, cameras->org[c], end, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID, &tr))
+			if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, NULLFRAMESTATE, NULL, cameras->org[c], end, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID, &tr))
 				return false;	//this trace went through, so don't cull
 		}
 	}

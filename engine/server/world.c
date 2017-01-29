@@ -2077,7 +2077,7 @@ trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t
 	memset ( &clip, 0, sizeof ( moveclip_t ) );
 
 // clip to world
-	w->worldmodel->funcs.NativeTrace(w->worldmodel, 0, 0, NULL, start, end, mins, maxs, false, hitcontentsmask, &clip.trace);
+	w->worldmodel->funcs.NativeTrace(w->worldmodel, 0, NULLFRAMESTATE, NULL, start, end, mins, maxs, false, hitcontentsmask, &clip.trace);
 	clip.trace.ent = ge->edicts;
 
 	if (clip.trace.fraction == 0)

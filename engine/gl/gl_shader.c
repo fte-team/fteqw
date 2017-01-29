@@ -1124,6 +1124,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	qboolean geom = false;
 	qboolean tess = false;
 
+	char maxgpubones[128];
 	cvar_t *cvarrefs[64];
 	char *cvarnames[64];
 	int cvartypes[64];
@@ -1423,6 +1424,15 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	}
 	blobadded = false;
 
+	if (!sh_config.max_gpu_bones)
+	{
+		Q_snprintfz(maxgpubones, sizeof(maxgpubones), "");
+		nopermutation |= PERMUTATION_SKELETAL;
+	}
+	else if (qrenderer == QR_OPENGL && sh_config.maxver < 120)	//with old versions of glsl (including gles), mat3x4 is not supported, and we have to emulate it with 3*vec4. maybe we should just do that unconditionally, but whatever.
+		Q_snprintfz(maxgpubones, sizeof(maxgpubones), "#define MAX_GPU_BONES %i\n#define PACKEDBONES\n", sh_config.max_gpu_bones);
+	else
+		Q_snprintfz(maxgpubones, sizeof(maxgpubones), "#define MAX_GPU_BONES %i\n", sh_config.max_gpu_bones);
 	if (gl_specular.value)
 	{
 		if (nummodifiers < MAXMODIFIERS)
@@ -1530,6 +1540,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	prog->supportedpermutations = ~nopermutation;
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
+		qboolean isprimary;
 		memset(&prog->permu[p].h, 0, sizeof(prog->permu[p].h));
 		if (nopermutation & p)
 		{
@@ -1541,8 +1552,11 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			if (p & (1u<<n))
 				permutationdefines[pn++] = permutationname[n];
 		}
+		isprimary = (pn-nummodifiers)==1;
 		if (p & PERMUTATION_UPPERLOWER)
 			permutationdefines[pn++] = "#define UPPER\n#define LOWER\n";
+		if (p & PERMUTATION_SKELETAL)
+			permutationdefines[pn++] = maxgpubones;
 		if (p & PERMUTATION_BUMPMAP)
 		{
 			if (r_glsl_offsetmapping.ival)
@@ -1573,6 +1587,8 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 #define SILENTPERMUTATIONS (developer.ival?0:PERMUTATION_SKELETAL)
 		if (!sh_config.pCreateProgram(prog, name, p, ver, permutationdefines, script, tess?script:NULL, tess?script:NULL, geom?script:NULL, script, (p & SILENTPERMUTATIONS)?true:onefailed, sh_config.pValidateProgram?NULL:blobfile))
 		{
+			if (isprimary)
+				prog->supportedpermutations &= ~p;
 			if (!(p & SILENTPERMUTATIONS))
 				onefailed = true;	//don't flag it if skeletal failed.
 			if (!p)	//give up if permutation 0 failed. that one failing is fatal.
@@ -3483,6 +3499,23 @@ qboolean Shader_Init (void)
 		Hash_InitTable(&shader_active_hash, 1024, shader_active_hash_mem);
 
 		Shader_FlushGenerics();
+
+		if (!sh_config.progs_supported)
+			sh_config.max_gpu_bones = 0;
+		else
+		{
+			extern cvar_t r_max_gpu_bones;
+			if (!*r_max_gpu_bones.string)
+			{
+#ifdef FTE_TARGET_WEB
+				sh_config.max_gpu_bones = 0;	//webgl tends to crap out if this is too high, so 32 is a good enough value to play safe. some browsers have really shitty uniform performance too, so lets just default to pure-cpu transforms. in javascript. yes, its that bad.
+#else
+				sh_config.max_gpu_bones = 64;	//ATI drivers bug out and start to crash if you put this at 128.
+#endif
+			}
+			else
+				sh_config.max_gpu_bones = bound(0, r_max_gpu_bones.ival, MAX_BONES);
+		}
 	}
 	
 	memset(wibuf, 0xff, sizeof(wibuf));

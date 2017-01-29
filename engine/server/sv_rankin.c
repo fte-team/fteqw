@@ -27,7 +27,7 @@ cvar_t rank_parms_last = CVARD("rank_parms_last", "31", "Mod setting: the index 
 char rank_cvargroup[] = "server rankings";
 
 #define RANKFILE_VERSION ((NUM_RANK_SPAWN_PARMS==32)?0:0x00000001)
-#define RANKFILE_IDENT	*(int*)"RANK"
+#define RANKFILE_IDENT	(('R'<<0)|('A'<<8)|('N'<<16)|('K'<<24))
 
 static void READ_PLAYERSTATS(int x, rankstats_t *os)
 {

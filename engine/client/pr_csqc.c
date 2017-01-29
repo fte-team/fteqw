@@ -3610,7 +3610,7 @@ void QCBUILTIN PF_soundupdate (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	const char		*sample = PR_GetStringOfs(prinst, OFS_PARM2);
 	float			volume = G_FLOAT(OFS_PARM3);
 	float			attenuation = G_FLOAT(OFS_PARM4);
-	float			pitchpct = (prinst->callargc >= 6)?G_FLOAT(OFS_PARM5):0;
+	float			pitchpct = (prinst->callargc >= 6)?G_FLOAT(OFS_PARM5)*0.01:0;
 	unsigned int	flags = (prinst->callargc>=7)?G_FLOAT(OFS_PARM6):0;
 	float			startoffset = (prinst->callargc>=8)?G_FLOAT(OFS_PARM7):0;
 
@@ -3659,7 +3659,7 @@ static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *p
 	sample = PR_GetStringOfs(prinst, OFS_PARM2);
 	volume = G_FLOAT(OFS_PARM3);
 	attenuation = G_FLOAT(OFS_PARM4);
-	pitchpct = (prinst->callargc>=6)?G_FLOAT(OFS_PARM5):0;
+	pitchpct = (prinst->callargc>=6)?G_FLOAT(OFS_PARM5)*0.01:0;
 	flags = (prinst->callargc>=7)?G_FLOAT(OFS_PARM6):0;
 	startoffset = (prinst->callargc>=8)?G_FLOAT(OFS_PARM7):0;
 
@@ -3691,7 +3691,7 @@ static void QCBUILTIN PF_cs_pointsound(pubprogfuncs_t *prinst, struct globalvars
 	volume = G_FLOAT(OFS_PARM2);
 	attenuation = G_FLOAT(OFS_PARM3);
 	if (prinst->callargc >= 5)
-		pitchpct = G_FLOAT(OFS_PARM4);
+		pitchpct = G_FLOAT(OFS_PARM4)*0.01;
 	else
 		pitchpct = 0;
 
@@ -7883,7 +7883,7 @@ int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float 
 		G_FLOAT(OFS_PARM3) = vol;
 		G_FLOAT(OFS_PARM4) = attenuation;
 		VectorCopy(pos, G_VECTOR(OFS_PARM5));
-		G_FLOAT(OFS_PARM6) = pitchmod;
+		G_FLOAT(OFS_PARM6) = pitchmod*100;
 		G_FLOAT(OFS_PARM7) = flags;
 //		G_FLOAT(OFS_PARM8) = timeofs;
 

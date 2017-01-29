@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include "quakedef.h"
 
-static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace, vec3_t origin, vec3_t angles);
+static qboolean PM_TransformedHullCheck (model_t *model, framestate_t *framestate, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace, vec3_t origin, vec3_t angles);
 int Q1BSP_HullPointContents(hull_t *hull, vec3_t p);
 static	hull_t		box_hull;
 static	mclipnode_t	box_clipnodes[6];
@@ -182,7 +182,7 @@ int PM_ExtraBoxContents (vec3_t p)
 		{
 			if (pe->forcecontentsmask)
 			{
-				if (!PM_TransformedHullCheck(pm, p, p, pmove.player_mins, pmove.player_maxs, &tr, pe->origin, pe->angles))
+				if (!PM_TransformedHullCheck(pm, PE_FRAMESTATE, p, p, pmove.player_mins, pmove.player_maxs, &tr, pe->origin, pe->angles))
 					continue;
 				if (tr.startsolid || tr.inwater)
 					pc |= pe->forcecontentsmask;
@@ -209,7 +209,7 @@ LINE TESTING IN HULLS
 */
 
 /*returns if it actually did a trace*/
-static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, vec3_t player_mins, vec3_t player_maxs, trace_t *trace, vec3_t origin, vec3_t angles)
+static qboolean PM_TransformedHullCheck (model_t *model, framestate_t *framestate, vec3_t start, vec3_t end, vec3_t player_mins, vec3_t player_maxs, trace_t *trace, vec3_t origin, vec3_t angles)
 {
 	vec3_t		start_l, end_l;
 	int i;
@@ -226,7 +226,7 @@ static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t en
 		{
 			AngleVectors (angles, axis[0], axis[1], axis[2]);
 			VectorNegate(axis[1], axis[1]);
-			model->funcs.NativeTrace(model, 0, 0, axis, start_l, end_l, player_mins, player_maxs, pmove.capsule, MASK_PLAYERSOLID, trace);
+			model->funcs.NativeTrace(model, 0, framestate, axis, start_l, end_l, player_mins, player_maxs, pmove.capsule, MASK_PLAYERSOLID, trace);
 		}
 		else
 		{
@@ -237,7 +237,7 @@ static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t en
 				if (start_l[i]+player_maxs[i] < model->mins[i] && end_l[i] + player_maxs[i] < model->mins[i])
 					return false;
 			}
-			model->funcs.NativeTrace(model, 0, 0, NULL, start_l, end_l, player_mins, player_maxs, pmove.capsule, MASK_PLAYERSOLID, trace);
+			model->funcs.NativeTrace(model, 0, framestate, NULL, start_l, end_l, player_mins, player_maxs, pmove.capsule, MASK_PLAYERSOLID, trace);
 		}
 	}
 	else
@@ -388,7 +388,7 @@ qboolean PM_TestPlayerPosition (vec3_t pos, qboolean ignoreportals)
 			//if the trace ended up inside a portal region, then its not valid.
 			if (pe->model)
 			{
-				if (!PM_TransformedHullCheck (pe->model, pos, pos, vec3_origin, vec3_origin, &trace, pe->origin, pe->angles))
+				if (!PM_TransformedHullCheck (pe->model, PE_FRAMESTATE, pos, pos, vec3_origin, vec3_origin, &trace, pe->origin, pe->angles))
 					continue;
 				if (trace.allsolid)
 					return false;
@@ -405,7 +405,7 @@ qboolean PM_TestPlayerPosition (vec3_t pos, qboolean ignoreportals)
 		{
 			if (pe->model)
 			{
-				if (!PM_TransformedHullCheck (pe->model, pos, pos, pmove.player_mins, pmove.player_maxs, &trace, pe->origin, pe->angles))
+				if (!PM_TransformedHullCheck (pe->model, PE_FRAMESTATE, pos, pos, pmove.player_mins, pmove.player_maxs, &trace, pe->origin, pe->angles))
 					continue;
 				if (trace.allsolid)
 				{
@@ -480,7 +480,7 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end, unsigned int solidmask)
 			PM_HullForBox (mins, maxs);
 
 			// trace a line through the apropriate clipping hull
-			if (!PM_TransformedHullCheck (NULL, start, end, pmove.player_mins, pmove.player_maxs, &trace, pe->origin, pe->angles))
+			if (!PM_TransformedHullCheck (NULL, NULL, start, end, pmove.player_mins, pmove.player_maxs, &trace, pe->origin, pe->angles))
 				continue;
 		}
 		else if (pe->isportal)
@@ -489,13 +489,13 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end, unsigned int solidmask)
 			PM_PortalCSG(pe, i, pmove.player_mins, pmove.player_maxs, start, end, &total);
 
 			// trace a line through the apropriate clipping hull
-			if (!PM_TransformedHullCheck (pe->model, start, end, vec3_origin, vec3_origin, &trace, pe->origin, pe->angles))
+			if (!PM_TransformedHullCheck (pe->model, PE_FRAMESTATE, start, end, vec3_origin, vec3_origin, &trace, pe->origin, pe->angles))
 				continue;
 		}
 		else
 		{
 			// trace a line through the apropriate clipping hull
-			if (!PM_TransformedHullCheck (pe->model, start, end, pmove.player_mins, pmove.player_maxs, &trace, pe->origin, pe->angles))
+			if (!PM_TransformedHullCheck (pe->model, PE_FRAMESTATE, start, end, pmove.player_mins, pmove.player_maxs, &trace, pe->origin, pe->angles))
 				continue;
 
 			if (trace.allsolid)

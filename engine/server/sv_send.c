@@ -1239,7 +1239,7 @@ struct startsoundcontext_s
 	unsigned int sampleidx;
 	unsigned int volume;
 	float attenuation;
-	float pitchpct;
+	float ratemul;
 	unsigned int chflags;
 	unsigned int timeofs;
 };
@@ -1263,7 +1263,7 @@ static void SV_SoundMulticast(client_t *client, sizebuf_t *msg, void *vctx)
 		field_mask |= NQSND_LARGESOUND;
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
-		if (ctx->pitchpct && (ctx->pitchpct != 100))
+		if (ctx->ratemul && (ctx->ratemul != 1))
 			field_mask |= FTESND_PITCHADJ;
 		if (ctx->timeofs != 0)
 			field_mask |= FTESND_TIMEOFS;
@@ -1272,6 +1272,14 @@ static void SV_SoundMulticast(client_t *client, sizebuf_t *msg, void *vctx)
 
 		if (field_mask > 0xff)
 			field_mask |= FTESND_MOREFLAGS;
+	}
+	if (client->protocol == SCP_DARKPLACES7)
+	{	//dpp7 clients get slightly higher precision
+		if (ctx->ratemul && (ctx->ratemul != 1))
+		{
+			field_mask |= DPSND_SPEEDUSHORT4000;
+			field_mask &= ~FTESND_PITCHADJ;
+		}
 	}
 
 	if (ISNQCLIENT(client) || ctx->chan >= 8 || ctx->ent >= 2048 || (field_mask & ~(NQSND_VOLUME|NQSND_ATTENUATION)))
@@ -1293,7 +1301,7 @@ static void SV_SoundMulticast(client_t *client, sizebuf_t *msg, void *vctx)
 		if (field_mask & NQSND_ATTENUATION)
 			MSG_WriteByte (msg, bound(0, ctx->attenuation*64, 255));
 		if (field_mask & FTESND_PITCHADJ)
-			MSG_WriteByte (msg, bound(1, ctx->pitchpct, 255));
+			MSG_WriteByte (msg, bound(1, ctx->ratemul*100, 255));
 		if (field_mask & FTESND_TIMEOFS)
 			MSG_WriteShort (msg, bound(-32768, ctx->timeofs*1000, 32767));
 		if (field_mask & FTESND_VELOCITY)
@@ -1302,6 +1310,8 @@ static void SV_SoundMulticast(client_t *client, sizebuf_t *msg, void *vctx)
 			MSG_WriteShort (msg, ctx->vel[1]*8);
 			MSG_WriteShort (msg, ctx->vel[2]*8);
 		}
+		if (field_mask & DPSND_SPEEDUSHORT4000)
+			MSG_WriteShort (msg, bound(1, ctx->ratemul*4000, 65535));
 		if (field_mask & NQSND_LARGEENTITY)
 		{
 			MSG_WriteEntity (msg, ctx->ent);
@@ -1336,7 +1346,7 @@ static void SV_SoundMulticast(client_t *client, sizebuf_t *msg, void *vctx)
 			MSG_WriteCoord (msg, ctx->org[i]);
 	}
 }
-void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int chflags)
+void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int channel, const char *sample, int volume, float attenuation, float ratemul, float timeofs, unsigned int chflags)
 {
 	qboolean	use_phs;
 	qboolean	reliable = chflags & CF_RELIABLE;
@@ -1366,7 +1376,7 @@ void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int c
 	ctx.chflags = chflags;
 	ctx.org = origin;
 	ctx.vel = velocity;
-	ctx.pitchpct = pitchadj;
+	ctx.ratemul = ratemul;
 	ctx.timeofs = timeofs;
 	ctx.volume = volume;
 

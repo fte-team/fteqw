@@ -696,6 +696,7 @@ typedef struct
 	qboolean progs_required;	//no fixed function if this is true (d3d11, gles, gl3core)
 	unsigned int minver;		//lowest glsl version usable
 	unsigned int maxver;		//highest glsl version usable
+	unsigned int max_gpu_bones;	//max number of bones supported by uniforms.
 
 	qboolean texfmt[PTI_MAX];		//which texture formats are supported (renderable not implied)
 	unsigned int texture_maxsize;	//max size of a 2d texture

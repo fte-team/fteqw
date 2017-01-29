@@ -262,8 +262,8 @@ char *PDECL filefromprogs(pubprogfuncs_t *ppf, progsnum_t prnum, char *fname, si
 		return NULL;
 	if (pr_progstate[prnum].progs->version != PROG_EXTENDEDVERSION)
 		return NULL;
-	if (!pr_progstate[prnum].progs->secondaryversion != PROG_SECONDARYVERSION16 &&
-		!pr_progstate[prnum].progs->secondaryversion != PROG_SECONDARYVERSION32)
+	if (pr_progstate[prnum].progs->secondaryversion != PROG_SECONDARYVERSION16 &&
+		pr_progstate[prnum].progs->secondaryversion != PROG_SECONDARYVERSION32)
 		return NULL;
 
 	num = *(int*)((char *)pr_progstate[prnum].progs + pr_progstate[prnum].progs->ofsfiles);

@@ -1075,8 +1075,11 @@ void CL_ParseTEnt (void)
 		case TENQ_BEAM:
 			type = TEQW_BEAM;
 			break;
+		case TENQ_EXPLOSION_SPRITE:
+			type = TE_EXPLOSION;
+			break;
 		case TE_EXPLOSION:
-			type = TEQW_EXPLOSIONNOSPRITE;
+			type = TEQW_EXPLOSION_NOSPRITE;
 			break;
 		case TE_GUNSHOT:
 			type = TE_GUNSHOT_NQCOMPAT;
@@ -1337,7 +1340,7 @@ void CL_ParseTEnt (void)
 			ex->endalpha = ex->startalpha;	//don't fade out
 		}
 		break;
-	case TEQW_EXPLOSIONNOSPRITE:	//nq-style, no sprite
+	case TEQW_EXPLOSION_NOSPRITE:	//nq-style, no sprite
 	case TE_EXPLOSION:				//qw-style, with (optional) sprite
 	// particles
 		pos[0] = MSG_ReadCoord ();

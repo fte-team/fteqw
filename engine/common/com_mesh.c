@@ -1573,7 +1573,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 #endif
 	mesh->trneighbors = inf->ofs_trineighbours;
 
-#ifdef SKELETALMODELS
+#if defined(SKELETALMODELS) && !defined(SERVERONLY)
 	if (!inf->numbones)
 		usebones = false;
 	else if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)

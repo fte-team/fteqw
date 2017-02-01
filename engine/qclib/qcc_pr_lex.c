@@ -2314,7 +2314,7 @@ int QCC_PR_FindMacro (char *name)
 		if (!STRCMP (name, pr_framemacro[i].name))
 		{
 			if (pr_framemacro[i].file != s_filen)
-				QCC_PR_ParseWarning(WARN_DUPLICATEMACRO, "Stale macro used (%s, defined in %s)", pr_token, pr_framemacro[i].file);
+				QCC_PR_ParseWarning(WARN_STALEMACRO, "Stale macro used (%s, defined in %s)", pr_token, pr_framemacro[i].file);
 			return pr_framemacro[i].value;
 		}
 	}
@@ -2324,7 +2324,7 @@ int QCC_PR_FindMacro (char *name)
 		{
 			QCC_PR_ParseWarning(WARN_CASEINSENSITIVEFRAMEMACRO, "Case insensitive frame macro (using %s)", pr_framemacro[i].name);
 			if (pr_framemacro[i].file != s_filen)
-				QCC_PR_ParseWarning(WARN_DUPLICATEMACRO, "Stale macro used (%s, defined in %s)", pr_token, pr_framemacro[i].file);
+				QCC_PR_ParseWarning(WARN_STALEMACRO, "Stale macro used (%s, defined in %s)", pr_token, pr_framemacro[i].file);
 			return pr_framemacro[i].value;
 		}
 	}
@@ -4438,6 +4438,8 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 			paramlist[numparms].ofs = 0;
 			paramlist[numparms].arraysize = 0;
 			paramlist[numparms].type = QCC_PR_ParseType(false, false);
+			if (!paramlist[numparms].type)
+				QCC_PR_ParseError(0, "Expected type\n");
 
 			if (paramlist[numparms].type->type == ev_void)
 				break;
@@ -4540,6 +4542,8 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 				nptype = QCC_PR_ParseType(true, false);
 			}
 
+			if (!nptype)
+				QCC_PR_ParseError(0, "Expected type\n");
 			if (nptype->type == ev_void)
 				break;
 //			type->name = "FUNC PARAMETER";
@@ -4671,14 +4675,12 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		//so .*float will give you that.
 		//however, we can't cope parsing that with regular types, so we support that ONLY when . was already specified.
 		//this is pretty much an evil syntax hack.
-		if (QCC_PR_CheckToken ("*"))
-		{
-			type = QCC_PR_NewType("POINTER TYPE", ev_pointer, false);
-			type->aux_type = QCC_PR_ParseType (false, false);
-			type->size = type->aux_type->size;
-		}
-		else
-			type = QCC_PR_ParseType (false, false);
+		pbool ptr = QCC_PR_CheckToken ("*");
+		type = QCC_PR_ParseType(false, false);
+		if (!type)
+			QCC_PR_ParseError(0, "Expected type\n");
+		if (ptr)
+			type = QCC_PointerTypeTo(type);
 
 		name = qccHunkAlloc(strlen(type->name)+2);
 		*name = '.';

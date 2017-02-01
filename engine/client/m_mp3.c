@@ -2867,7 +2867,7 @@ static void QDECL capture_raw_video (void *vctx, void *data, int frame, int widt
 					if (inf.f_frsize*(double)inf.f_blocks < (1024.*1024)*capturethrottlesize.value)
 						Sys_Sleep(1);
 				}
-			#elif defined( _WIN32)
+			#elif defined(_WIN32) && !defined(FTE_SDL)
 				wchar_t ffs[MAX_OSPATH];
 				ULARGE_INTEGER freebytes;
 				if (GetDiskFreeSpaceExW(widen(ffs, sizeof(ffs), filename), &freebytes, NULL, NULL))

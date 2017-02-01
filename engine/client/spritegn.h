@@ -87,8 +87,8 @@ typedef struct {
 #define SPR_VP_PARALLEL				2	//faces camera (traditional sprite)
 #define SPR_ORIENTED				3	//uses axis
 #define SPR_VP_PARALLEL_ORIENTED	4	//faces camera *then* rotated
-#define SPRDP_LABEL               	5
-#define SPRDP_LABEL_SCALE         	6
+#define SPRDP_LABEL					5
+#define SPRDP_LABEL_SCALE			6
 #define SPRDP_OVERHEAD				7
 
 #define SPRHL_OPAQUE	0

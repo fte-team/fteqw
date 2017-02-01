@@ -366,7 +366,9 @@ XZ_EXTERN uint64_t xz_crc64(const uint8_t *buf, size_t size, uint64_t crc);
 typedef unsigned char bool;
 #	define true 1
 #	define false 0
-#	define inline __inline
+#	ifndef inline
+#		define inline __inline
+#	endif
 #else
 #	include <stdbool.h>
 #endif

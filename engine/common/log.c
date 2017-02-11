@@ -638,9 +638,6 @@ void Log_Init(void)
 	Cmd_AddCommand("ipmerge", IPLog_Merge_f);
 	Cmd_AddCommand("ipdump", IPLog_Dump_f);
 
-	IPLog_Merge_File("iplog.txt");
-	IPLog_Merge_File("iplog.dat");	//legacy crap, for compat with proquake
-
 	// cmd line options, debug options
 #ifdef CRAZYDEBUGGING
 	Cvar_ForceSet(&log_enable[LOG_CONSOLE], "1");

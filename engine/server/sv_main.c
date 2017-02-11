@@ -5439,6 +5439,9 @@ void SV_Init (quakeparms_t *parms)
 		}
 #endif
 
+		IPLog_Merge_File("iplog.txt");
+		IPLog_Merge_File("iplog.dat");	//legacy crap, for compat with proquake
+
 		// if a map wasn't specified on the command line, spawn start.map
 		//aliases require that we flush the cbuf in order to actually see the results.
 		if (sv.state == ss_dead && Cmd_AliasExist("startmap_dm", RESTRICT_LOCAL))

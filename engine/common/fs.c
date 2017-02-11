@@ -1666,7 +1666,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		last = NULL;
 		for (i = 0; i < sizeof(fs_manifest->gamepath)/sizeof(fs_manifest->gamepath[0]); i++)
 		{
-			if (fs_manifest->gamepath[i].base && fs_manifest->gamepath[i].path)
+			if (fs_manifest && fs_manifest->gamepath[i].base && fs_manifest->gamepath[i].path)
 			{
 				if (*fs_manifest->gamepath[i].path == '*')
 					continue;

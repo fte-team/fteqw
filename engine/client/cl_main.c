@@ -5660,6 +5660,9 @@ void Host_FinishLoading(void)
 		r_blockvidrestart = 2;
 
 		Menu_Download_Update();
+
+		IPLog_Merge_File("iplog.txt");
+		IPLog_Merge_File("iplog.dat");	//legacy crap, for compat with proquake
 	}
 
 #ifdef ANDROID

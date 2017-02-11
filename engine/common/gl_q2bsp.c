@@ -4118,8 +4118,19 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		//light grid info
 		if (mod->lightgrid)
 		{
+			char gridsize[256], *key;
+			char val[64];
 			float maxs;
 			q3lightgridinfo_t *lg = mod->lightgrid;
+			key = (char*)Mod_ParseWorldspawnKey(mod, "gridsize", gridsize, sizeof(gridsize));
+
+			key = COM_ParseOut(key, val, sizeof(val));
+			lg->gridSize[0] = atof(val);
+			key = COM_ParseOut(key, val, sizeof(val));
+			lg->gridSize[1] = atof(val);
+			key = COM_ParseOut(key, val, sizeof(val));
+			lg->gridSize[2] = atof(val);
+
 			if ( lg->gridSize[0] < 1 || lg->gridSize[1] < 1 || lg->gridSize[2] < 1 )
 			{
 				lg->gridSize[0] = 64;

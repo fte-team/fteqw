@@ -1219,7 +1219,7 @@ static void SV_FilterIP_f (void)
 		return;
 	}
 
-	if (!NET_StringToAdrMasked(Cmd_Argv(1), &proto.adr, &proto.adrmask))
+	if (!NET_StringToAdrMasked(Cmd_Argv(1), true, &proto.adr, &proto.adrmask))
 	{
 		Con_Printf("invalid address or mask\n");
 		return;
@@ -1368,7 +1368,7 @@ static void SV_Unfilter_f (void)
 		Con_Printf("removing all filtered addresses\n");
 		all = true;
 	}
-	else if (!NET_StringToAdrMasked(Cmd_Argv(1), &unbanadr, &unbanmask))
+	else if (!NET_StringToAdrMasked(Cmd_Argv(1), true, &unbanadr, &unbanmask))
 	{
 		Con_Printf("invalid address or mask\n");
 		return;

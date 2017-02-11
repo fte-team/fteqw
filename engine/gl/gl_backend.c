@@ -26,7 +26,7 @@ void DumpGLState(void);
 #endif
 
 extern cvar_t gl_overbright;
-extern cvar_t gl_ati_truform;
+extern cvar_t r_tessellation;
 extern cvar_t r_wireframe;
 extern cvar_t r_refract_fbo;
 extern cvar_t r_refractreflect_scale;
@@ -2730,9 +2730,9 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 				(sbits&SBITS_MASK_ALPHA)?GL_FALSE:GL_TRUE
 				);
 	}
-	if ((delta & SBITS_TRUFORM) && qglPNTrianglesiATI)
+	if ((delta & SBITS_TESSELLATION) && qglPNTrianglesiATI)
 	{
-		if ((sbits & SBITS_TRUFORM) && gl_ati_truform.ival)
+		if ((sbits & SBITS_TESSELLATION) && r_tessellation.ival)
 			qglEnable(GL_PN_TRIANGLES_ATI);
 		else
 			qglDisable(GL_PN_TRIANGLES_ATI);

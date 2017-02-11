@@ -248,6 +248,8 @@ void SV_Shutdown (void)
 
 	SV_GibFilterPurge();
 
+	Log_ShutDown();
+
 	NET_Shutdown ();
 
 #ifdef PLUGINS
@@ -1037,6 +1039,12 @@ CONNECTIONLESS COMMANDS
 ==============================================================================
 */
 
+char *SV_PlayerPublicAddress(client_t *cl)
+{	//returns a string containing the client's IP address, as permitted for viewing by other clients.
+	//if something useful is actually returned, it should be masked.
+	return "private";
+}
+
 #define STATUS_OLDSTYLE					0
 #define	STATUS_SERVERINFO				1
 #define	STATUS_PLAYERS					2
@@ -1165,7 +1173,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 	else
 		gamestatus = "";
 
-	COM_ParseOut(com_protocolname.string, protocolname, sizeof(protocolname));
+	COM_ParseOut(com_protocolname.string, protocolname, sizeof(protocolname));	//we can only report one, so report the first.
 
 	resp = response;
 
@@ -1193,7 +1201,8 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 	Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "mapname", Info_ValueForKey(svs.info, "map"), sizeof(response) - (resp-response));
-	Info_SetValueForKey(resp, "qcstatus", gamestatus, sizeof(response) - (resp-response));
+	if (*gamestatus)
+		Info_SetValueForKey(resp, "qcstatus", gamestatus, sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "challenge", challenge, sizeof(response) - (resp-response));
 	resp += strlen(resp);
 
@@ -3770,7 +3779,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			MSG_WriteLong (&sb, cl->playercolor);
 			MSG_WriteLong (&sb, cl->old_frags);
 			MSG_WriteLong (&sb, realtime - cl->connection_started);
-			MSG_WriteString (&sb, "");	/*player's address, leave blank, don't spam that info as it can result in personal attacks exploits*/
+			MSG_WriteString (&sb, SV_PlayerPublicAddress(cl));	/*player's address, leave blank, don't spam that info as it can result in personal attacks exploits*/
 		}
 		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);

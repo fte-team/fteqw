@@ -1004,7 +1004,6 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="winmm.lib wsock32.lib Advapi32.lib"
 				OutputFile="../../fteqwsv64.exe"
-				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				IgnoreDefaultLibraryNames="libc.lib;msvcrt.lib"
@@ -1079,7 +1078,7 @@
 				FavorSizeOrSpeed="1"
 				OmitFramePointers="true"
 				AdditionalIncludeDirectories="../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk9/include;../libs/dxsdk7/include"
-				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;GLQUAKE;D3DQUAKE;SWQUAKE;VKQUAKE"
+				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;GLQUAKE;D3D9QUAKE;D3D11QUAKE;SWQUAKE;VKQUAKE;USE_EGL"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -10580,6 +10579,14 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
+						Name="Release Dedicated Server|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -13139,6 +13146,14 @@
 					>
 					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release Dedicated Server|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -19851,6 +19866,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -25208,7 +25224,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"

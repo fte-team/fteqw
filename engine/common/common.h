@@ -731,6 +731,7 @@ void Log_String (logtype_t lognum, char *s);
 void Con_Log (char *s);
 void Log_Logfile_f (void);
 void Log_Init(void);
+void Log_ShutDown(void);
 void IPLog_Add(const char *ip, const char *name);	//for associating player ip addresses with names.
 
 

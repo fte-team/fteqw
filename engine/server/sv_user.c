@@ -5639,7 +5639,7 @@ static void SVNQ_Status_f(void)
 		if (!cl->state)
 			continue;
 		SV_PrintToClient(host_client, PRINT_HIGH, va("#%i\n", i+1));
-		SV_PrintToClient(host_client, PRINT_HIGH, va("   %s\n", "WITHHELD"));
+		SV_PrintToClient(host_client, PRINT_HIGH, va("   %s\n", SV_PlayerPublicAddress(cl)));
 	}
 }
 

@@ -129,7 +129,7 @@ qboolean NET_IsClientLegal(netadr_t *adr);
 
 qboolean	NET_IsLoopBackAddress (netadr_t *adr);
 
-qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask);
+qboolean NET_StringToAdrMasked (const char *s, qboolean allowdns, netadr_t *a, netadr_t *amask);
 char	*NET_AdrToStringMasked (char *s, int len, netadr_t *a, netadr_t *amask);
 void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits);
 qboolean NET_CompareAdrMasked(netadr_t *a, netadr_t *b, netadr_t *mask);

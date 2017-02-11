@@ -309,9 +309,9 @@ cvar_t	vid_gl_context_selfreset			= CVARD	("vid_gl_context_selfreset", "1", "Upo
 #endif
 
 #if 1
-cvar_t gl_ati_truform						= CVAR  ("gl_ati_truform", "0");
+cvar_t r_tessellation						= CVARAFD  ("r_tessellation", "0", "gl_ati_truform", CVAR_SHADERSYSTEM, "Enables+controls the use of blinn tessellation on the fallback shader for meshes, equivelent to a shader with 'program defaultskin#TESS'. This will look stupid unless the meshes were actually designed for it and have suitable vertex normals.");
 cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
-cvar_t gl_ati_truform_tesselation			= CVAR  ("gl_ati_truform_tesselation", "3");
+cvar_t r_tessellation_level					= CVAR  ("r_tessellation_level", "5");
 cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
 cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Blend sprites instead of alpha testing them");
 cvar_t r_deluxemapping_cvar					= CVARAFD ("r_deluxemapping", "0", "r_glsl_deluxemapping",
@@ -497,9 +497,9 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
 	Cvar_Register (&r_fog_exp2, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_ati_truform, GRAPHICALNICETIES);
+	Cvar_Register (&r_tessellation, GRAPHICALNICETIES);
 	Cvar_Register (&gl_ati_truform_type, GRAPHICALNICETIES);
-	Cvar_Register (&gl_ati_truform_tesselation, GRAPHICALNICETIES);
+	Cvar_Register (&r_tessellation_level, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_screenangle, GLRENDEREROPTIONS);
 

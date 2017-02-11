@@ -1217,92 +1217,91 @@ static const char *glsl_hdrs[] =
 	"sys/defs.h",
 			"#define DEFS_DEFINED\n"
 			"#ifdef VERTEX_SHADER\n"
-//				"attribute vec3 v_position1;\n" //defined elsewhere, depending on fixed function availability
-//				"attribute vec3 v_position2;\n"
-				"attribute vec4 v_colour;\n"
-				"attribute vec2 v_texcoord;\n"
-				"attribute vec2 v_lmcoord;\n"
-				"attribute vec3 v_normal;\n"
-				"attribute vec3 v_svector;\n"
-				"attribute vec3 v_tvector;\n"
-				"attribute vec4 v_bone;\n"	//fixme: make ints
-				"attribute vec4 v_weight;\n"
+//				"attribute vec3 v_position1;" //defined elsewhere, depending on fixed function availability
+//				"attribute vec3 v_position2;"
+				"attribute vec4 v_colour;"
+				"attribute vec2 v_texcoord;"
+				"attribute vec2 v_lmcoord;"
+				"attribute vec3 v_normal;"
+				"attribute vec3 v_svector;"
+				"attribute vec3 v_tvector;"
+				"attribute vec4 v_bone;"	//fixme: make ints
+				"attribute vec4 v_weight;"
 #if MAXRLIGHTMAPS > 1
-				"#define v_lmcoord1 v_lmcoord\n"
-				"attribute vec2 v_lmcoord2;\n"
-				"attribute vec2 v_lmcoord3;\n"
-				"attribute vec2 v_lmcoord4;\n"
-				"#define v_colour1 v_colour\n"
-				"attribute vec4 v_colour2;\n"
-				"attribute vec4 v_colour3;\n"
-				"attribute vec4 v_colour4;\n"
+				"\n#define v_lmcoord1 v_lmcoord\n"
+				"attribute vec2 v_lmcoord2;"
+				"attribute vec2 v_lmcoord3;"
+				"attribute vec2 v_lmcoord4;"
+				"\n#define v_colour1 v_colour\n"
+				"attribute vec4 v_colour2;"
+				"attribute vec4 v_colour3;"
+				"attribute vec4 v_colour4;"
 #endif
-			"#endif\n"
+			"\n#endif\n"
 #ifndef NOLEGACY
-			"uniform sampler2D s_shadowmap;\n"
-			"uniform samplerCube s_projectionmap;\n"
-			"uniform sampler2D s_diffuse;\n"
-			"uniform sampler2D s_normalmap;\n"
-			"uniform sampler2D s_specular;\n"
-			"uniform sampler2D s_upper;\n"
-			"uniform sampler2D s_lower;\n"
-			"uniform sampler2D s_fullbright;\n"
-			"uniform sampler2D s_paletted;\n"
-			"uniform samplerCube s_reflectcube;\n"
-			"uniform sampler2D s_reflectmask;\n"
-			"uniform sampler2D s_lightmap;\n"
-			"uniform sampler2D s_deluxmap;\n"
-			"#define s_lightmap0 s_lightmap\n"
+			"uniform sampler2DShadow s_shadowmap;"
+			"uniform samplerCube s_projectionmap;"
+			"uniform sampler2D s_diffuse;"
+			"uniform sampler2D s_normalmap;"
+			"uniform sampler2D s_specular;"
+			"uniform sampler2D s_upper;"
+			"uniform sampler2D s_lower;"
+			"uniform sampler2D s_fullbright;"
+			"uniform sampler2D s_paletted;"
+			"uniform samplerCube s_reflectcube;"
+			"uniform sampler2D s_reflectmask;"
+			"uniform sampler2D s_lightmap;"
+			"uniform sampler2D s_deluxmap;"
+			"\n#define s_lightmap0 s_lightmap\n"
 			"#define s_deluxmap0 s_deluxmap\n"
 #if MAXRLIGHTMAPS > 1
-			"uniform sampler2D s_lightmap1;\n"
-			"uniform sampler2D s_lightmap2;\n"
-			"uniform sampler2D s_lightmap3;\n"
-			"uniform sampler2D s_deluxmap1;\n"
-			"uniform sampler2D s_deluxmap2;\n"
+			"uniform sampler2D s_lightmap1;"
+			"uniform sampler2D s_lightmap2;"
+			"uniform sampler2D s_lightmap3;"
+			"uniform sampler2D s_deluxmap1;"
+			"uniform sampler2D s_deluxmap2;"
 			"uniform sampler2D s_deluxmap3;\n"
 #endif
 #endif
 			"#ifdef USEUBOS\n"
 				"layout(std140) uniform u_lightinfo\n"
-				"{\n"
-					"vec3		l_lightscreen;\n"
-					"float		l_lightradius;\n"
-					"vec3		l_lightcolour;\n"
+				"{"
+					"vec3		l_lightscreen;"
+					"float		l_lightradius;"
+					"vec3		l_lightcolour;"
 						"float		l_pad1;\n"
-					"vec3		l_lightcolourscale;\n"
-						"float		l_pad2;\n"
-					"vec3		l_lightposition;\n"
-						"float		l_pad3;\n"
-					"mat4		l_cubematrix;\n"
-					"vec4		l_shadowmapproj;\n"
-					"vec2		l_shadowmapscale;\n"
-						"vec2		l_pad4;\n"
-				"\n"
+					"vec3		l_lightcolourscale;n"
+						"float		l_pad2;"
+					"vec3		l_lightposition;"
+						"float		l_pad3;"
+					"mat4		l_cubematrix;"
+					"vec4		l_shadowmapproj;"
+					"vec2		l_shadowmapscale;"
+						"vec2		l_pad4;"
 				"};\n"
 				"layout(std140) uniform u_entityinfo\n"
 				"{\n"
-					"vec2		e_vblend;\n"
-						"vec2		e_pad1;\n"
-					"vec3		e_glowmod;\n"
-						"float		e_pad2;\n"
-					"vec3		e_origin;\n"
-						"float		e_pad3;\n"
-					"vec4		colormod;\n"
-					"vec3		e_glowmod;\n"
-						"float		e_pad4;\n"
-					"vec3		e_uppercolour;\n"
-						"float		e_pad5;\n"
-					"vec3		e_lowercolour;\n"
-						"float		e_pad6;\n"
-					"vec3		w_fogcolour;\n"
-					"float		w_fogalpha;\n"
-					"vec3		e_light_dir;\n"
-					"float		w_fogdensity;\n"
-					"vec3		e_light_mul;\n"
-					"float		w_fogdepthbias;\n"
-					"vec3		e_light_ambient;\n"
-					"float		e_time;\n"
+					"vec2		e_vblend;"
+						"vec2		e_pad1;"
+					"vec3		e_glowmod;"
+						"float		e_pad2;"
+					"vec3		e_origin;"
+						"float		e_pad3;"
+					"vec4		colormod;"
+					"vec3		e_glowmod;"
+						"float		e_pad4;"
+					"vec3		e_uppercolour;"
+						"float		e_pad5;"
+					"vec3		e_lowercolour;"
+						"float		e_pad6;"
+					"vec3		w_fogcolour;"
+					"float		w_fogalpha;"
+					"vec3		e_light_dir;"
+					"float		w_fogdensity;"
+					"vec3		e_light_mul;"
+					"float		w_fogdepthbias;"
+					"vec3		e_light_ambient;"
+					"float		e_time;"
 				"};\n"
 				"#ifdef SKELETAL\n"
 					"layout(std140) unform u_bones\n"
@@ -1315,11 +1314,13 @@ static const char *glsl_hdrs[] =
 					"};\n"
 				"#endif\n"
 			"#else\n"
-				"uniform mat4 m_model;\n"
-				"uniform mat4 m_view;\n"
-				"uniform mat4 m_modelview;\n"
+				"uniform mat4 m_model;"
+				"uniform mat4 m_view;"
+				"uniform mat4 m_modelview;"
 				"uniform mat4 m_projection;\n"
-//				"uniform mat4 m_modelviewprojection;\n"
+				"#ifndef VERTEX_SHADER\n"
+					"uniform mat4 m_modelviewprojection;\n"
+				"#endif\n"
 				"#ifdef SKELETAL\n"	//skeletal permutation tends to require glsl 120
 					"#ifdef PACKEDBONES\n"
 						"uniform vec4 m_bones[3*MAX_GPU_BONES];\n"
@@ -1327,11 +1328,11 @@ static const char *glsl_hdrs[] =
 						"uniform mat3x4 m_bones[MAX_GPU_BONES];\n"
 					"#endif\n"
 				"#endif\n"
-				"uniform mat4 m_invviewprojection;\n"
-				"uniform mat4 m_invmodelviewprojection;\n"
+				"uniform mat4 m_invviewprojection;"
+				"uniform mat4 m_invmodelviewprojection;"
 
 				/*viewer properties*/
-				"uniform vec3 v_eyepos;\n"
+				"uniform vec3 v_eyepos;"
 				"uniform vec4 w_fog[2];\n"
 				"#define w_fogcolour	w_fog[0].rgb\n"
 				"#define w_fogalpha		w_fog[0].a\n"
@@ -1345,37 +1346,37 @@ static const char *glsl_hdrs[] =
 				"#else\n"
 				"uniform vec4 e_lmscale;\n"
 				"#endif\n"
-				"uniform vec3 e_origin;\n"
-				"uniform float e_time;\n"
-				"uniform vec3 e_eyepos;\n"
-				"uniform vec4 e_colour;\n"
-				"uniform vec4 e_colourident;\n"
-				"uniform vec3 e_glowmod;\n"
-				"uniform vec3 e_uppercolour;\n"
-				"uniform vec3 e_lowercolour;\n"
-				"uniform vec3 e_light_dir;\n"
-				"uniform vec3 e_light_mul;\n"
-				"uniform vec3 e_light_ambient;\n"
+				"uniform vec3 e_origin;"
+				"uniform float e_time;"
+				"uniform vec3 e_eyepos;"
+				"uniform vec4 e_colour;"
+				"uniform vec4 e_colourident;"
+				"uniform vec3 e_glowmod;"
+				"uniform vec3 e_uppercolour;"
+				"uniform vec3 e_lowercolour;"
+				"uniform vec3 e_light_dir;"
+				"uniform vec3 e_light_mul;"
+				"uniform vec3 e_light_ambient;"
 
 				/*rtlight properties, use with caution*/
-				"uniform vec2	l_lightscreen;\n"
-				"uniform float	l_lightradius;\n"
-				"uniform vec3	l_lightcolour;\n"
-				"uniform vec3	l_lightposition;\n"
-				"uniform vec3	l_lightcolourscale;\n"
-				"uniform mat4	l_cubematrix;\n"
-				"uniform vec4	l_shadowmapproj;\n"
-				"uniform vec2	l_shadowmapscale;\n"
+				"uniform vec2	l_lightscreen;"
+				"uniform float	l_lightradius;"
+				"uniform vec3	l_lightcolour;"
+				"uniform vec3	l_lightposition;"
+				"uniform vec3	l_lightcolourscale;"
+				"uniform mat4	l_cubematrix;"
+				"uniform vec4	l_shadowmapproj;"
+				"uniform vec2	l_shadowmapscale;"
 
 				"uniform vec2 e_rendertexturescale;\n"
 			"#endif\n"
 		,
 	"sys/skeletal.h",
 			"#ifndef DEFS_DEFINED\n"
-				"attribute vec3 v_normal;\n"
-				"attribute vec3 v_svector;\n"
-				"attribute vec3 v_tvector;\n"
-			"#endif\n"
+				"attribute vec3 v_normal;"
+				"attribute vec3 v_svector;"
+				"attribute vec3 v_tvector;"
+			"\n#endif\n"
 			"#ifdef SKELETAL\n"
 				"#ifndef DEFS_DEFINED\n"
 					"attribute vec4 v_bone;"
@@ -1887,10 +1888,18 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
-		if (ver >= 130)	//gl3+ deprecated the varying keyword for geometry shaders to work properly
+		if (ver >= 130)
 		{
 			prstrings[strings] =
+				//gl3+ deprecated the varying keyword for geometry shaders to work properly
 				"#define varying in\n"
+				//it also deprecated the numerous texture functions. now only the 'texture' function exists, with overloads for each sampler type.
+				"#define texture2D texture\n"
+				"#define textureCube texture\n"
+				"#define shadow2D texture\n"
+				//gl_FragColor and gl_FragData got deprecated too
+				"out vec4 fte_fragdata;\n"
+				"#define gl_FragColor fte_fragdata\n"
 			;
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
@@ -1912,7 +1921,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 #ifdef NOLEGACY
 			const char *defaultsamplernames[] =
 			{
-				"uniform sampler2D s_shadowmap;\n",
+				"uniform sampler2DShadow s_shadowmap;\n",
 				"uniform samplerCube s_projectionmap;\n",
 				"uniform sampler2D s_diffuse;\n",
 				"uniform sampler2D s_normalmap;\n",
@@ -1957,12 +1966,22 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 		strings++;
 		break;
 	case GL_TESS_CONTROL_SHADER_ARB:
-		prstrings[strings] = "#define TESS_CONTROL_SHADER\n";
+		prstrings[strings] =
+			"#define TESS_CONTROL_SHADER\n"
+			"#if __VERSION__ < 400\n"
+				"#extension GL_ARB_tessellation_shader : enable\n"
+			"#endif\n";
+			//varyings are arrays, so don't bother defining that here.
 		length[strings] = strlen(prstrings[strings]);
 		strings++;
 		break;
 	case GL_TESS_EVALUATION_SHADER_ARB:
-		prstrings[strings] = "#define TESS_EVALUATION_SHADER\n";
+		prstrings[strings] = 
+			"#define TESS_EVALUATION_SHADER\n"
+			"#if __VERSION__ < 400\n"
+				"#extension GL_ARB_tessellation_shader : enable\n"
+			"#endif\n"
+			"#define varying out\n";
 		length[strings] = strlen(prstrings[strings]);
 		strings++;
 		break;
@@ -2084,7 +2103,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 
 //called after CreateShader. Checks for success.
 //Splitting creation allows for both vertex+fragment shaders to be processed simultaneously if the driver threads glCompileShaderARB.
-static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GLenum shadertype, qboolean silent)
+static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GLenum shadertype, qboolean *silent)
 {
 	GLint	compiled;
 	int loglen;
@@ -2096,12 +2115,13 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 	if(!compiled)
 	{
 		char	*typedesc;
-		char	str[8192];
+		char	str[65536];
 
 		*str = 0;
 		qglGetShaderInfoLog_(shader, sizeof(str), NULL, str);
-		if (!silent)
+		if (!*silent)
 		{
+			*silent = true;
 			switch (shadertype)
 			{
 			case GL_FRAGMENT_SHADER_ARB:
@@ -2168,7 +2188,7 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 	return shader;
 }
 
-GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLhandleARB cont, GLhandleARB eval, GLhandleARB geom, GLhandleARB frag, qboolean silent)
+GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLhandleARB cont, GLhandleARB eval, GLhandleARB geom, GLhandleARB frag)
 {
 	GLhandleARB	program;
 
@@ -2295,16 +2315,16 @@ union programhandle_u GLSlang_CreateProgram(program_t *prog, const char *name, i
 	cs = GLSlang_CreateShader(prog, name, ver, precompilerconstants, cont, GL_TESS_CONTROL_SHADER_ARB, silent);
 	es = GLSlang_CreateShader(prog, name, ver, precompilerconstants, eval, GL_TESS_EVALUATION_SHADER_ARB, silent);
 
-	fs = GLSlang_FinishShader(fs, name, GL_FRAGMENT_SHADER_ARB, silent);
-	gs = GLSlang_FinishShader(gs, name, GL_GEOMETRY_SHADER_ARB, silent);
-	vs = GLSlang_FinishShader(vs, name, GL_VERTEX_SHADER_ARB, silent);
-	cs = GLSlang_FinishShader(cs, name, GL_TESS_CONTROL_SHADER_ARB, silent);
-	es = GLSlang_FinishShader(es, name, GL_TESS_EVALUATION_SHADER_ARB, silent);
+	fs = GLSlang_FinishShader(fs, name, GL_FRAGMENT_SHADER_ARB, &silent);
+	gs = GLSlang_FinishShader(gs, name, GL_GEOMETRY_SHADER_ARB, &silent);
+	vs = GLSlang_FinishShader(vs, name, GL_VERTEX_SHADER_ARB, &silent);
+	cs = GLSlang_FinishShader(cs, name, GL_TESS_CONTROL_SHADER_ARB, &silent);
+	es = GLSlang_FinishShader(es, name, GL_TESS_EVALUATION_SHADER_ARB, &silent);
 
 	if (!vs || !fs)
 		ret.glsl.handle = 0;
 	else
-		ret.glsl.handle = GLSlang_CreateProgramObject(name, vs, cs, es, gs, fs, silent);
+		ret.glsl.handle = GLSlang_CreateProgramObject(name, vs, cs, es, gs, fs);
 	//delete ignores 0s.
 	if (vs) qglDeleteShaderObject_(vs);
 	if (gs) qglDeleteShaderObject_(gs);
@@ -2314,6 +2334,7 @@ union programhandle_u GLSlang_CreateProgram(program_t *prog, const char *name, i
 
 	checkglerror();
 
+	ret.glsl.usetesselation = (cont || eval);
 	if (ret.glsl.handle && blobfile && qglGetProgramBinary)
 	{
 		GLuint ui;
@@ -2334,8 +2355,6 @@ union programhandle_u GLSlang_CreateProgram(program_t *prog, const char *name, i
 		VFS_WRITE(blobfile, &ret.glsl.usetesselation, sizeof(ret.glsl.usetesselation));
 		BZ_Free(blobdata);
 	}
-
-	ret.glsl.usetesselation = (cont || eval);
 
 	return ret;
 }

@@ -88,6 +88,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define OS_STRING "win_msvc64"
 #elif defined __MINGW64__
 #define OS_STRING "win_mingw64"
+#else
+#define OS_STRING "win64"
 #endif
 
 #define ID_INLINE static __inline

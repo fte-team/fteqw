@@ -1,4 +1,5 @@
-!!ver 100 130
+!!ver 100 150
+!!permu TESS
 !!permu FULLBRIGHT
 !!permu UPPERLOWER
 !!permu FRAMEBLEND
@@ -8,6 +9,7 @@
 !!cvarf r_glsl_offsetmapping_scale
 !!cvarf gl_specular
 !!cvardf gl_affinemodels=0
+!!cvardf r_tessellation=0
 
 #include "sys/defs.h"
 
@@ -16,19 +18,31 @@
 //the vertex shader is responsible for calculating lighting values.
 
 #if gl_affinemodels==1 && __VERSION__ >= 130
-noperspective
+#define affine noperspective
+#else
+#define affine
 #endif
-	varying vec2 tc;
-varying vec3 light;
-#if defined(SPECULAR) || defined(OFFSETMAPPING)
-varying vec3 eyevector;
-#endif
+
+
+
+
 
 
 
 
 #ifdef VERTEX_SHADER
 #include "sys/skeletal.h"
+
+affine varying vec2 tc;
+varying vec3 light;
+#if defined(SPECULAR) || defined(OFFSETMAPPING)
+varying vec3 eyevector;
+#endif
+#ifdef TESS
+varying vec3 vertex;
+varying vec3 normal;
+#endif
+
 void main ()
 {
 #if defined(SPECULAR)||defined(OFFSETMAPPING)
@@ -39,17 +53,120 @@ void main ()
 	eyevector.y = dot(eyeminusvertex, t.xyz);
 	eyevector.z = dot(eyeminusvertex, n.xyz);
 #else
-	vec3 n;
-	gl_Position = skeletaltransform_n(n);
+	vec3 n, s, t, w;
+	gl_Position = skeletaltransform_wnst(w,n,s,t);
 #endif
+
+	tc = v_texcoord;
 
 	float d = dot(n,e_light_dir);
 	if (d < 0.0)		//vertex shader. this might get ugly, but I don't really want to make it per vertex.
 		d = 0.0;	//this avoids the dark side going below the ambient level.
 	light = e_light_ambient + (dot(n,e_light_dir)*e_light_mul);
-	tc = v_texcoord;
+
+#ifdef TESS
+	normal = n;
+	vertex = w;
+#endif
 }
 #endif
+
+
+
+
+
+
+
+
+
+
+#if defined(TESS_CONTROL_SHADER)
+layout(vertices = 3) out;
+
+in vec3 vertex[];
+out vec3 t_vertex[];
+in vec3 normal[];
+out vec3 t_normal[];
+affine in vec2 tc[];
+affine out vec2 t_tc[];
+in vec3 light[];
+out vec3 t_light[];
+#if defined(SPECULAR) || defined(OFFSETMAPPING)
+in vec3 eyevector[];
+out vec3 t_eyevector[];
+#endif
+void main()
+{
+	//the control shader needs to pass stuff through
+#define id gl_InvocationID
+	t_vertex[id] = vertex[id];
+	t_normal[id] = normal[id];
+	t_tc[id] = tc[id];
+	t_light[id] = light[id];
+#if defined(SPECULAR) || defined(OFFSETMAPPING)
+	t_eyevector[id] = eyevector[id];
+#endif
+
+	gl_TessLevelOuter[0] = float(r_tessellation)+1.0;
+	gl_TessLevelOuter[1] = float(r_tessellation)+1.0;
+	gl_TessLevelOuter[2] = float(r_tessellation)+1.0;
+	gl_TessLevelInner[0] = float(r_tessellation)+1.0;
+}
+#endif
+
+
+
+
+
+
+
+
+
+#if defined(TESS_EVALUATION_SHADER)
+layout(triangles) in;
+
+in vec3 t_vertex[];
+in vec3 t_normal[];
+affine in vec2 t_tc[];
+affine out vec2 tc;
+in vec3 t_light[];
+out vec3 light;
+#if defined(SPECULAR) || defined(OFFSETMAPPING)
+in vec3 t_eyevector[];
+out vec3 eyevector;
+#endif
+
+#define LERP(a) (gl_TessCoord.x*a[0] + gl_TessCoord.y*a[1] + gl_TessCoord.z*a[2])
+void main()
+{
+#define factor 1.0
+	tc = LERP(t_tc);
+	vec3 w = LERP(t_vertex);
+
+	vec3 t0 = w - dot(w-t_vertex[0],t_normal[0])*t_normal[0];
+	vec3 t1 = w - dot(w-t_vertex[1],t_normal[1])*t_normal[1];
+	vec3 t2 = w - dot(w-t_vertex[2],t_normal[2])*t_normal[2];
+	w = w*(1.0-factor) + factor*(gl_TessCoord.x*t0+gl_TessCoord.y*t1+gl_TessCoord.z*t2);
+
+	//FIXME: we should be recalcing these here, instead of just lerping them
+	light = LERP(t_light);
+#if defined(SPECULAR) || defined(OFFSETMAPPING)
+	eyevector = LERP(t_eyevector);
+#endif
+
+	gl_Position = m_modelviewprojection * vec4(w,1.0);
+}
+#endif
+
+
+
+
+
+
+
+
+
+
 #ifdef FRAGMENT_SHADER
 
 #include "sys/fog.h"
@@ -67,9 +184,10 @@ uniform float cvar_gl_specular;
 uniform sampler2D s_colourmap;
 #endif
 
-#if __VERSION__ >= 130
-#define gl_FragColor thecolour
-out vec4 thecolour;
+affine varying vec2 tc;
+varying vec3 light;
+#if defined(SPECULAR) || defined(OFFSETMAPPING)
+varying vec3 eyevector;
 #endif
 
 

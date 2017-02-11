@@ -1603,7 +1603,7 @@ void SCR_DrawGameClock(void)
 
 	minutes = showtime/60;
 	seconds = (int)showtime - (minutes*60);
-	sprintf(str, " %02i:%02i", minutes, seconds);
+	sprintf(str, "%02i:%02i", minutes, seconds);
 
 	SCR_StringXY(str, show_gameclock_x.value, show_gameclock_y.value);
 #endif

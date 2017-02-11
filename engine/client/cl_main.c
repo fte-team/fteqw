@@ -5852,6 +5852,7 @@ void Host_Shutdown(void)
 #ifndef CLIENTONLY
 	SV_Shutdown();
 #else
+	Log_ShutDown();
 	NET_Shutdown ();
 	FS_Shutdown();
 #endif

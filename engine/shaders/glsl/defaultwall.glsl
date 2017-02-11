@@ -1,4 +1,5 @@
-!!ver 100 120 // 130
+!!ver 100 150
+!!permu TESS
 !!permu DELUXE
 !!permu FULLBRIGHT
 !!permu FOG
@@ -8,41 +9,42 @@
 !!permu REFLECTCUBEMASK
 !!cvarf r_glsl_offsetmapping_scale
 !!cvarf gl_specular
+!!cvardf r_tessellation=0
 
 #include "sys/defs.h"
-
-#if __VERSION__ >= 130
-#define texture2D texture
-#define textureCube texture
-#define gl_FragColor gl_FragData[0]
-#endif
 
 //this is what normally draws all of your walls, even with rtlights disabled
 //note that the '286' preset uses drawflat_walls instead.
 
 #include "sys/fog.h"
-#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
-varying vec3 eyevector;
-#endif
 
-#ifdef REFLECTCUBEMASK
-varying mat3 invsurface;
-#endif
+#if !defined(TESS_CONTROL_SHADER)
+	#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
+		varying vec3 eyevector;
+	#endif
 
-varying vec2 tc;
-#ifdef VERTEXLIT
-	varying vec4 vc;
-#else
-	#ifdef LIGHTSTYLED
-		//we could use an offset, but that would still need to be per-surface which would break batches
-		//fixme: merge attributes?
-		varying vec2 lm0, lm1, lm2, lm3;
+	#ifdef REFLECTCUBEMASK
+		varying mat3 invsurface;
+	#endif
+
+	varying vec2 tc;
+	#ifdef VERTEXLIT
+		varying vec4 vc;
 	#else
-		varying vec2 lm0;
+		#ifdef LIGHTSTYLED
+			//we could use an offset, but that would still need to be per-surface which would break batches
+			//fixme: merge attributes?
+			varying vec2 lm0, lm1, lm2, lm3;
+		#else
+			varying vec2 lm0;
+		#endif
 	#endif
 #endif
 
 #ifdef VERTEX_SHADER
+#ifdef TESS
+varying vec3 vertex, normal;
+#endif
 void main ()
 {
 #if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
@@ -73,8 +75,149 @@ void main ()
 #endif
 #endif
 	gl_Position = ftetransform();
+
+#ifdef TESS
+	vertex = v_position;
+	normal = v_normal;
+#endif
 }
 #endif
+
+
+#if defined(TESS_CONTROL_SHADER)
+layout(vertices = 3) out;
+
+in vec3 vertex[];
+out vec3 t_vertex[];
+in vec3 normal[];
+out vec3 t_normal[];
+#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
+	in vec3 eyevector[];
+	out vec3 t_eyevector[];
+#endif
+#ifdef REFLECTCUBEMASK
+	in mat3 invsurface[];
+	out mat3 t_invsurface[];
+#endif
+in vec2 tc[];
+out vec2 t_tc[];
+#ifdef VERTEXLIT
+	in vec4 vc[];
+	out vec4 t_vc[];
+#else
+	in vec2 lm0[];
+	out vec2 t_lm0[];
+	#ifdef LIGHTSTYLED
+		in vec2 lm1[], lm2[], lm3[];
+		out vec2 t_lm1[], t_lm2[], t_lm3[];
+	#endif
+#endif
+void main()
+{
+	//the control shader needs to pass stuff through
+#define id gl_InvocationID
+	t_vertex[id] = vertex[id];
+	t_normal[id] = normal[id];
+	#ifdef REFLECTCUBEMASK
+		t_invsurface[id] = invsurface[id];
+	#endif
+	t_tc[id] = tc[id];
+	#ifdef VERTEXLIT
+		t_vc[id] = vc[id];
+	#else
+		t_lm0[id] = lm0[id];
+		#ifdef LIGHTSTYLED
+			t_lm1[id] = lm1[id];
+			t_lm2[id] = lm2[id];
+			t_lm3[id] = lm3[id];
+		#endif
+	#endif
+
+	#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+		t_eyevector[id] = eyevector[id];
+	#endif
+
+	gl_TessLevelOuter[0] = float(r_tessellation)+1.0;
+	gl_TessLevelOuter[1] = float(r_tessellation)+1.0;
+	gl_TessLevelOuter[2] = float(r_tessellation)+1.0;
+	gl_TessLevelInner[0] = float(r_tessellation)+1.0;
+}
+#endif
+
+
+
+
+
+
+
+
+
+#if defined(TESS_EVALUATION_SHADER)
+layout(triangles) in;
+
+in vec3 t_vertex[];
+in vec3 t_normal[];
+#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
+	in vec3 t_eyevector[];
+#endif
+#ifdef REFLECTCUBEMASK
+	in mat3 t_invsurface[];
+#endif
+in vec2 t_tc[];
+#ifdef VERTEXLIT
+	in vec4 t_vc[];
+#else
+	#ifdef LIGHTSTYLED
+		//we could use an offset, but that would still need to be per-surface which would break batches
+		//fixme: merge attributes?
+		in vec2 t_lm0[], t_lm1[], t_lm2[], t_lm3[];
+	#else
+		in vec2 t_lm0[];
+	#endif
+#endif
+
+#define LERP(a) (gl_TessCoord.x*a[0] + gl_TessCoord.y*a[1] + gl_TessCoord.z*a[2])
+void main()
+{
+#define factor 1.0
+	tc = LERP(t_tc);
+	#ifdef VERTEXLIT
+		vc = LERP(t_vc);
+	#else
+		lm0 = LERP(t_lm0);
+		#ifdef LIGHTSTYLED
+			lm1 = LERP(t_lm1);
+			lm2 = LERP(t_lm2);
+			lm3 = LERP(t_lm3);
+		#endif
+	#endif
+	vec3 w = LERP(t_vertex);
+
+	vec3 t0 = w - dot(w-t_vertex[0],t_normal[0])*t_normal[0];
+	vec3 t1 = w - dot(w-t_vertex[1],t_normal[1])*t_normal[1];
+	vec3 t2 = w - dot(w-t_vertex[2],t_normal[2])*t_normal[2];
+	w = w*(1.0-factor) + factor*(gl_TessCoord.x*t0+gl_TessCoord.y*t1+gl_TessCoord.z*t2);
+
+#if defined(PCF) || defined(SPOT) || defined(CUBE)
+	//for texture projections/shadowmapping on dlights
+	vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));
+#endif
+
+	//FIXME: we should be recalcing these here, instead of just lerping them
+#ifdef REFLECTCUBEMASK
+	invsurface = LERP(t_invsurface);
+#endif
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+	eyevector = LERP(t_eyevector);
+#endif
+
+	gl_Position = m_modelviewprojection * vec4(w,1.0);
+}
+#endif
+
+
+
+
 
 
 #ifdef FRAGMENT_SHADER

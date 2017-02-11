@@ -3258,7 +3258,7 @@ static int Mod_Batches_Generate(model_t *mod)
 			{
 				if (
 							batch->texture == surf->texinfo->texture &&
-							lbatch->shader == shader &&
+							batch->shader == shader &&
 							batch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
 							Vector4Compare(plane, batch->plane) &&
 							batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&

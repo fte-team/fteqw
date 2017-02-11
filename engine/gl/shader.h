@@ -161,7 +161,7 @@ enum
 	SBITS_MISC_DEPTHCLOSERONLY			= 0x00080000,
 //#define SBITS_MISC_BITS				  0x000f0000
 
-	SBITS_TRUFORM						= 0x00100000,
+	SBITS_TESSELLATION					= 0x00100000,
 	SBITS_AFFINE						= 0x00200000,
 
 	//provided for the backend to hack about with
@@ -441,6 +441,7 @@ typedef struct programshared_s
 {
 	int refs;
 	qboolean nofixedcompat;
+	qboolean tess;
 	unsigned short numsamplers;	//shader system can strip any passes above this
 	unsigned int defaulttextures;	//diffuse etc
 

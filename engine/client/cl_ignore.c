@@ -27,12 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAX_TEAMIGNORELIST	4
 #define	FLOODLIST_SIZE		10
 
-
-
-
-#define	PLAYER_ID_NOMATCH		-1
-#define	PLAYER_NAME_NOMATCH		-2
-#define	PLAYER_NUM_NOMATCH		-3
 int Player_IdtoSlot (int id)
 {
 	int j;
@@ -45,7 +39,7 @@ int Player_IdtoSlot (int id)
 	return -1;
 }
 
-int Player_StringtoSlot(char *arg)
+int Player_StringtoSlot(const char *arg)
 {
 	int i, slot;
 

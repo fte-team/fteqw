@@ -46,6 +46,7 @@ extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_fastturb, r_fastsky, r_skyboxname;
 extern cvar_t r_drawflat;
 extern cvar_t r_shaderblobs;
+extern cvar_t r_tessellation;
 
 //backend fills this in to say the max pass count
 int be_maxpasses;
@@ -1123,6 +1124,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	qboolean blobadded;
 	qboolean geom = false;
 	qboolean tess = false;
+	qboolean cantess = false;
 
 	char maxgpubones[128];
 	cvar_t *cvarrefs[64];
@@ -1340,7 +1342,9 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			if (!permutationname[p])
 			{
 				//we 'recognise' ones that are force-defined, despite not being actual permutations.
-				if (strncmp("SPECULAR", script, end - script))
+				if (end - script == 4 && !strncmp("TESS", script, 4))
+					cantess = true;
+				else if (strncmp("SPECULAR", script, end - script))
 				if (strncmp("DELUXE", script, end - script))
 				if (strncmp("OFFSETMAPPING", script, end - script))
 				if (strncmp("RELIEFMAPPING", script, end - script))
@@ -1383,6 +1387,9 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		while (*script && *script != '\n')
 			script++;
 	};
+
+	if (qrenderer == qrtype && ver < 150)
+		tess = cantess = false;	//GL_ARB_tessellation_shader requires glsl 150(gl3.2) (or glessl 3.1). nvidia complains about layouts if you try anyway
 
 	if (sh_config.pLoadBlob && blobfilename && *blobfilename)
 		blobfile = FS_OpenVFS(blobfilename, "w+b", FS_GAMEONLY);
@@ -1448,6 +1455,9 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			prog->nofixedcompat = false;
 		if (nummodifiers < MAXMODIFIERS)
 		{
+			if (end-start == 4 && !Q_strncasecmp(start, "tess", 4))
+				tess |= cantess;
+
 			permutationdefines[nummodifiers] = d = BZ_Malloc(10 + end - start);
 			memcpy(d, "#define ", 8);
 			memcpy(d+8, start, end - start);
@@ -1537,6 +1547,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		}
 	}
 
+	prog->tess = tess;
 	prog->supportedpermutations = ~nopermutation;
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
@@ -4723,8 +4734,8 @@ done:;
 	if (!s->bemoverrides[bemoverride_depthonly])
 	{
 		const char *mask = Shader_AlphaMaskProgArgs(s);
-		if (*mask)
-			s->bemoverrides[bemoverride_depthonly] = R_RegisterShader(va("depthonly%s", mask), SUF_NONE, 
+		if (*mask || (s->prog&&s->prog->tess))
+			s->bemoverrides[bemoverride_depthonly] = R_RegisterShader(va("depthonly%s%s", mask, (s->prog&&s->prog->tess)?"#TESS":""), SUF_NONE, 
 				"{\n"
 					"program depthonly\n"
 					"{\n"
@@ -4733,6 +4744,35 @@ done:;
 						"maskcolor\n"
 					"}\n"
 				"}\n");
+	}
+	if (!s->bemoverrides[LSHADER_STANDARD] && (s->prog&&s->prog->tess))
+	{
+		int mode;
+		for (mode = 0; mode < LSHADER_MODES; mode++)
+		{
+			if ((mode & LSHADER_CUBE) && (mode & LSHADER_SPOT))
+				continue;
+			if (s->bemoverrides[mode])
+				continue;
+			s->bemoverrides[mode] = R_RegisterShader(va("rtlight%s%s%s%s#TESS", 
+																(mode & LSHADER_SMAP)?"#PCF":"",
+																(mode & LSHADER_SPOT)?"#SPOT":"",
+																(mode & LSHADER_CUBE)?"#CUBE":"",
+#ifdef GLQUAKE
+																(qrenderer == QR_OPENGL && gl_config.arb_shadow && (mode & (LSHADER_SMAP|LSHADER_SPOT)))?"#USE_ARB_SHADOW":""
+#else
+																""
+#endif
+																)
+														, s->usageflags, 
+				"{\n"
+					"program rtlight\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc add\n"
+					"}\n"
+				"}\n");
+		}
 	}
 
 	if (!s->prog && sh_config.progs_supported && (r_forceprogramify.ival || parsestate.forceprogramify))
@@ -5910,6 +5950,15 @@ void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args)
 			);
 		return;
 	}
+	if (r_tessellation.ival && sh_config.progs_supported)
+	{
+		Shader_DefaultScript(shortname, s,
+			"{\n"
+				"program defaultskin#TESS\n"
+			"}\n"
+			);
+		return;
+	}
 
 	Shader_DefaultScript(shortname, s,
 		"{\n"
@@ -6400,7 +6449,7 @@ char *Shader_Decompose(shader_t *s)
 			if (p->shaderbits & SBITS_MISC_NODEPTHTEST)		{	sprintf(o, "SBITS_MISC_NODEPTHTEST\n"); o+=strlen(o); }
 			if (p->shaderbits & SBITS_MISC_DEPTHEQUALONLY)	{	sprintf(o, "SBITS_MISC_DEPTHEQUALONLY\n"); o+=strlen(o); }
 			if (p->shaderbits & SBITS_MISC_DEPTHCLOSERONLY)	{	sprintf(o, "SBITS_MISC_DEPTHCLOSERONLY\n"); o+=strlen(o); }
-			if (p->shaderbits & SBITS_TRUFORM)				{	sprintf(o, "SBITS_TRUFORM\n"); o+=strlen(o); }
+			if (p->shaderbits & SBITS_TESSELLATION)			{	sprintf(o, "SBITS_TESSELLATION\n"); o+=strlen(o); }
 			if (p->shaderbits & SBITS_AFFINE)				{	sprintf(o, "SBITS_AFFINE\n"); o+=strlen(o); }
 			if (p->shaderbits & SBITS_MASK_BITS)			{	sprintf(o, "SBITS_MASK_BITS\n"); o+=strlen(o); }
 

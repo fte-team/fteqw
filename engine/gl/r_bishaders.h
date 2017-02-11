@@ -1849,8 +1849,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "depthonly",
+"!!ver 100 150\n"
+"!!permu TESS\n"
 "!!permu FRAMEBLEND\n"
 "!!permu SKELETAL\n"
+"!!cvardf r_tessellation=0\n"
+
+"#include \"sys/defs.h\"\n"
 
 //standard shader used for drawing shadowmap depth.
 //also used for masking off portals and other things that want depth and no colour.
@@ -1859,11 +1864,79 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#ifdef VERTEX_SHADER\n"
 "#include \"sys/skeletal.h\"\n"
+"#ifdef TESS\n"
+"varying vec3 vertex;\n"
+"varying vec3 normal;\n"
+"#endif\n"
 "void main ()\n"
 "{\n"
+"#ifdef TESS\n"
+"skeletaltransform_n(normal);\n"
+"vertex = v_position;\n"
+"#else\n"
 "gl_Position = skeletaltransform();\n"
+"#endif\n"
 "}\n"
 "#endif\n"
+
+
+
+"#if defined(TESS_CONTROL_SHADER)\n"
+"layout(vertices = 3) out;\n"
+
+"in vec3 vertex[];\n"
+"out vec3 t_vertex[];\n"
+"in vec3 normal[];\n"
+"out vec3 t_normal[];\n"
+
+"void main()\n"
+"{\n"
+//the control shader needs to pass stuff through
+"#define id gl_InvocationID\n"
+"t_vertex[id] = vertex[id];\n"
+"t_normal[id] = normal[id];\n"
+"gl_TessLevelOuter[0] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[1] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[2] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelInner[0] = float(r_tessellation)+1.0;\n"
+"}\n"
+"#endif\n"
+
+
+
+
+
+
+
+
+
+"#if defined(TESS_EVALUATION_SHADER)\n"
+"layout(triangles) in;\n"
+
+"in vec3 t_vertex[];\n"
+"in vec3 t_normal[];\n"
+
+"#define LERP(a) (gl_TessCoord.x*a[0] + gl_TessCoord.y*a[1] + gl_TessCoord.z*a[2])\n"
+"void main()\n"
+"{\n"
+"#define factor 1.0\n"
+"vec3 w = LERP(t_vertex);\n"
+
+"vec3 t0 = w - dot(w-t_vertex[0],t_normal[0])*t_normal[0];\n"
+"vec3 t1 = w - dot(w-t_vertex[1],t_normal[1])*t_normal[1];\n"
+"vec3 t2 = w - dot(w-t_vertex[2],t_normal[2])*t_normal[2];\n"
+"w = w*(1.0-factor) + factor*(gl_TessCoord.x*t0+gl_TessCoord.y*t1+gl_TessCoord.z*t2);\n"
+
+"gl_Position = m_modelviewprojection * vec4(w,1.0);\n"
+"}\n"
+"#endif\n"
+
+
+
+
+
+
+
 
 "#ifdef FRAGMENT_SHADER\n"
 "void main ()\n"
@@ -2248,7 +2321,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultskin",
-"!!ver 100 130\n"
+"!!ver 100 150\n"
+"!!permu TESS\n"
 "!!permu FULLBRIGHT\n"
 "!!permu UPPERLOWER\n"
 "!!permu FRAMEBLEND\n"
@@ -2258,6 +2332,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvarf gl_specular\n"
 "!!cvardf gl_affinemodels=0\n"
+"!!cvardf r_tessellation=0\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -2266,19 +2341,31 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //the vertex shader is responsible for calculating lighting values.
 
 "#if gl_affinemodels==1 && __VERSION__ >= 130\n"
-"noperspective\n"
+"#define affine noperspective\n"
+"#else\n"
+"#define affine\n"
 "#endif\n"
-"varying vec2 tc;\n"
-"varying vec3 light;\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
-"varying vec3 eyevector;\n"
-"#endif\n"
+
+
+
+
 
 
 
 
 "#ifdef VERTEX_SHADER\n"
 "#include \"sys/skeletal.h\"\n"
+
+"affine varying vec2 tc;\n"
+"varying vec3 light;\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+"varying vec3 eyevector;\n"
+"#endif\n"
+"#ifdef TESS\n"
+"varying vec3 vertex;\n"
+"varying vec3 normal;\n"
+"#endif\n"
+
 "void main ()\n"
 "{\n"
 "#if defined(SPECULAR)||defined(OFFSETMAPPING)\n"
@@ -2289,17 +2376,120 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "eyevector.y = dot(eyeminusvertex, t.xyz);\n"
 "eyevector.z = dot(eyeminusvertex, n.xyz);\n"
 "#else\n"
-"vec3 n;\n"
-"gl_Position = skeletaltransform_n(n);\n"
+"vec3 n, s, t, w;\n"
+"gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
 "#endif\n"
+
+"tc = v_texcoord;\n"
 
 "float d = dot(n,e_light_dir);\n"
 "if (d < 0.0)  //vertex shader. this might get ugly, but I don't really want to make it per vertex.\n"
 "d = 0.0; //this avoids the dark side going below the ambient level.\n"
 "light = e_light_ambient + (dot(n,e_light_dir)*e_light_mul);\n"
-"tc = v_texcoord;\n"
+
+"#ifdef TESS\n"
+"normal = n;\n"
+"vertex = w;\n"
+"#endif\n"
 "}\n"
 "#endif\n"
+
+
+
+
+
+
+
+
+
+
+"#if defined(TESS_CONTROL_SHADER)\n"
+"layout(vertices = 3) out;\n"
+
+"in vec3 vertex[];\n"
+"out vec3 t_vertex[];\n"
+"in vec3 normal[];\n"
+"out vec3 t_normal[];\n"
+"affine in vec2 tc[];\n"
+"affine out vec2 t_tc[];\n"
+"in vec3 light[];\n"
+"out vec3 t_light[];\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+"in vec3 eyevector[];\n"
+"out vec3 t_eyevector[];\n"
+"#endif\n"
+"void main()\n"
+"{\n"
+//the control shader needs to pass stuff through
+"#define id gl_InvocationID\n"
+"t_vertex[id] = vertex[id];\n"
+"t_normal[id] = normal[id];\n"
+"t_tc[id] = tc[id];\n"
+"t_light[id] = light[id];\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+"t_eyevector[id] = eyevector[id];\n"
+"#endif\n"
+
+"gl_TessLevelOuter[0] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[1] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[2] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelInner[0] = float(r_tessellation)+1.0;\n"
+"}\n"
+"#endif\n"
+
+
+
+
+
+
+
+
+
+"#if defined(TESS_EVALUATION_SHADER)\n"
+"layout(triangles) in;\n"
+
+"in vec3 t_vertex[];\n"
+"in vec3 t_normal[];\n"
+"affine in vec2 t_tc[];\n"
+"affine out vec2 tc;\n"
+"in vec3 t_light[];\n"
+"out vec3 light;\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+"in vec3 t_eyevector[];\n"
+"out vec3 eyevector;\n"
+"#endif\n"
+
+"#define LERP(a) (gl_TessCoord.x*a[0] + gl_TessCoord.y*a[1] + gl_TessCoord.z*a[2])\n"
+"void main()\n"
+"{\n"
+"#define factor 1.0\n"
+"tc = LERP(t_tc);\n"
+"vec3 w = LERP(t_vertex);\n"
+
+"vec3 t0 = w - dot(w-t_vertex[0],t_normal[0])*t_normal[0];\n"
+"vec3 t1 = w - dot(w-t_vertex[1],t_normal[1])*t_normal[1];\n"
+"vec3 t2 = w - dot(w-t_vertex[2],t_normal[2])*t_normal[2];\n"
+"w = w*(1.0-factor) + factor*(gl_TessCoord.x*t0+gl_TessCoord.y*t1+gl_TessCoord.z*t2);\n"
+
+//FIXME: we should be recalcing these here, instead of just lerping them
+"light = LERP(t_light);\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+"eyevector = LERP(t_eyevector);\n"
+"#endif\n"
+
+"gl_Position = m_modelviewprojection * vec4(w,1.0);\n"
+"}\n"
+"#endif\n"
+
+
+
+
+
+
+
+
+
+
 "#ifdef FRAGMENT_SHADER\n"
 
 "#include \"sys/fog.h\"\n"
@@ -2317,9 +2507,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform sampler2D s_colourmap;\n"
 "#endif\n"
 
-"#if __VERSION__ >= 130\n"
-"#define gl_FragColor thecolour\n"
-"out vec4 thecolour;\n"
+"affine varying vec2 tc;\n"
+"varying vec3 light;\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+"varying vec3 eyevector;\n"
 "#endif\n"
 
 
@@ -4483,7 +4674,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultwall",
-"!!ver 100 120 // 130\n"
+"!!ver 100 150\n"
+"!!permu TESS\n"
 "!!permu DELUXE\n"
 "!!permu FULLBRIGHT\n"
 "!!permu FOG\n"
@@ -4493,19 +4685,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu REFLECTCUBEMASK\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvarf gl_specular\n"
+"!!cvardf r_tessellation=0\n"
 
 "#include \"sys/defs.h\"\n"
-
-"#if __VERSION__ >= 130\n"
-"#define texture2D texture\n"
-"#define textureCube texture\n"
-"#define gl_FragColor gl_FragData[0]\n"
-"#endif\n"
 
 //this is what normally draws all of your walls, even with rtlights disabled
 //note that the '286' preset uses drawflat_walls instead.
 
 "#include \"sys/fog.h\"\n"
+
+"#if !defined(TESS_CONTROL_SHADER)\n"
 "#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
@@ -4526,8 +4715,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "varying vec2 lm0;\n"
 "#endif\n"
 "#endif\n"
+"#endif\n"
 
 "#ifdef VERTEX_SHADER\n"
+"#ifdef TESS\n"
+"varying vec3 vertex, normal;\n"
+"#endif\n"
 "void main ()\n"
 "{\n"
 "#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
@@ -4558,8 +4751,149 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "#endif\n"
 "gl_Position = ftetransform();\n"
+
+"#ifdef TESS\n"
+"vertex = v_position;\n"
+"normal = v_normal;\n"
+"#endif\n"
 "}\n"
 "#endif\n"
+
+
+"#if defined(TESS_CONTROL_SHADER)\n"
+"layout(vertices = 3) out;\n"
+
+"in vec3 vertex[];\n"
+"out vec3 t_vertex[];\n"
+"in vec3 normal[];\n"
+"out vec3 t_normal[];\n"
+"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
+"in vec3 eyevector[];\n"
+"out vec3 t_eyevector[];\n"
+"#endif\n"
+"#ifdef REFLECTCUBEMASK\n"
+"in mat3 invsurface[];\n"
+"out mat3 t_invsurface[];\n"
+"#endif\n"
+"in vec2 tc[];\n"
+"out vec2 t_tc[];\n"
+"#ifdef VERTEXLIT\n"
+"in vec4 vc[];\n"
+"out vec4 t_vc[];\n"
+"#else\n"
+"in vec2 lm0[];\n"
+"out vec2 t_lm0[];\n"
+"#ifdef LIGHTSTYLED\n"
+"in vec2 lm1[], lm2[], lm3[];\n"
+"out vec2 t_lm1[], t_lm2[], t_lm3[];\n"
+"#endif\n"
+"#endif\n"
+"void main()\n"
+"{\n"
+//the control shader needs to pass stuff through
+"#define id gl_InvocationID\n"
+"t_vertex[id] = vertex[id];\n"
+"t_normal[id] = normal[id];\n"
+"#ifdef REFLECTCUBEMASK\n"
+"t_invsurface[id] = invsurface[id];\n"
+"#endif\n"
+"t_tc[id] = tc[id];\n"
+"#ifdef VERTEXLIT\n"
+"t_vc[id] = vc[id];\n"
+"#else\n"
+"t_lm0[id] = lm0[id];\n"
+"#ifdef LIGHTSTYLED\n"
+"t_lm1[id] = lm1[id];\n"
+"t_lm2[id] = lm2[id];\n"
+"t_lm3[id] = lm3[id];\n"
+"#endif\n"
+"#endif\n"
+
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"t_eyevector[id] = eyevector[id];\n"
+"#endif\n"
+
+"gl_TessLevelOuter[0] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[1] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[2] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelInner[0] = float(r_tessellation)+1.0;\n"
+"}\n"
+"#endif\n"
+
+
+
+
+
+
+
+
+
+"#if defined(TESS_EVALUATION_SHADER)\n"
+"layout(triangles) in;\n"
+
+"in vec3 t_vertex[];\n"
+"in vec3 t_normal[];\n"
+"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
+"in vec3 t_eyevector[];\n"
+"#endif\n"
+"#ifdef REFLECTCUBEMASK\n"
+"in mat3 t_invsurface[];\n"
+"#endif\n"
+"in vec2 t_tc[];\n"
+"#ifdef VERTEXLIT\n"
+"in vec4 t_vc[];\n"
+"#else\n"
+"#ifdef LIGHTSTYLED\n"
+//we could use an offset, but that would still need to be per-surface which would break batches
+//fixme: merge attributes?
+"in vec2 t_lm0[], t_lm1[], t_lm2[], t_lm3[];\n"
+"#else\n"
+"in vec2 t_lm0[];\n"
+"#endif\n"
+"#endif\n"
+
+"#define LERP(a) (gl_TessCoord.x*a[0] + gl_TessCoord.y*a[1] + gl_TessCoord.z*a[2])\n"
+"void main()\n"
+"{\n"
+"#define factor 1.0\n"
+"tc = LERP(t_tc);\n"
+"#ifdef VERTEXLIT\n"
+"vc = LERP(t_vc);\n"
+"#else\n"
+"lm0 = LERP(t_lm0);\n"
+"#ifdef LIGHTSTYLED\n"
+"lm1 = LERP(t_lm1);\n"
+"lm2 = LERP(t_lm2);\n"
+"lm3 = LERP(t_lm3);\n"
+"#endif\n"
+"#endif\n"
+"vec3 w = LERP(t_vertex);\n"
+
+"vec3 t0 = w - dot(w-t_vertex[0],t_normal[0])*t_normal[0];\n"
+"vec3 t1 = w - dot(w-t_vertex[1],t_normal[1])*t_normal[1];\n"
+"vec3 t2 = w - dot(w-t_vertex[2],t_normal[2])*t_normal[2];\n"
+"w = w*(1.0-factor) + factor*(gl_TessCoord.x*t0+gl_TessCoord.y*t1+gl_TessCoord.z*t2);\n"
+
+"#if defined(PCF) || defined(SPOT) || defined(CUBE)\n"
+//for texture projections/shadowmapping on dlights
+"vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));\n"
+"#endif\n"
+
+//FIXME: we should be recalcing these here, instead of just lerping them
+"#ifdef REFLECTCUBEMASK\n"
+"invsurface = LERP(t_invsurface);\n"
+"#endif\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"eyevector = LERP(t_eyevector);\n"
+"#endif\n"
+
+"gl_Position = m_modelviewprojection * vec4(w,1.0);\n"
+"}\n"
+"#endif\n"
+
+
+
+
 
 
 "#ifdef FRAGMENT_SHADER\n"
@@ -9302,6 +9636,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "rtlight",
+"!!ver 100 150\n"
+"!!permu TESS\n"
 "!!permu BUMP\n"
 "!!permu FRAMEBLEND\n"
 "!!permu SKELETAL\n"
@@ -9310,7 +9646,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu REFLECTCUBEMASK\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvardf r_glsl_pcf\n"
+"!!cvardf r_tessellation=0\n"
 
+"#include \"sys/defs.h\"\n"
 
 "#ifndef USE_ARB_SHADOW\n"
 //fall back on regular samplers if we must
@@ -9352,7 +9690,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#undef OFFSETMAPPING\n"
 "#endif\n"
 
-
+"#if !defined(TESS_CONTROL_SHADER)\n"
 "varying vec2 tcbase;\n"
 "varying vec3 lightvector;\n"
 "#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
@@ -9360,23 +9698,18 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "#ifdef REFLECTCUBEMASK\n"
 "varying mat3 invsurface;\n"
-"uniform mat4 m_model;\n"
 "#endif\n"
 "#if defined(PCF) || defined(CUBE) || defined(SPOT)\n"
 "varying vec4 vtexprojcoord;\n"
 "#endif\n"
+"#endif\n"
 
 
 "#ifdef VERTEX_SHADER\n"
-"#if defined(PCF) || defined(CUBE) || defined(SPOT)\n"
-"uniform mat4 l_cubematrix;\n"
+"#ifdef TESS\n"
+"varying vec3 vertex, normal;\n"
 "#endif\n"
 "#include \"sys/skeletal.h\"\n"
-"uniform vec3 l_lightposition;\n"
-"attribute vec2 v_texcoord;\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
-"uniform vec3 e_eyepos;\n"
-"#endif\n"
 "void main ()\n"
 "{\n"
 "vec3 n, s, t, w;\n"
@@ -9407,57 +9740,114 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //for texture projections/shadowmapping on dlights
 "vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));\n"
 "#endif\n"
+
+"#ifdef TESS\n"
+"vertex = w;\n"
+"normal = n;\n"
+"#endif\n"
 "}\n"
 "#endif\n"
 
 
 
 
+
+
+"#if defined(TESS_CONTROL_SHADER)\n"
+"layout(vertices = 3) out;\n"
+
+"in vec3 vertex[];\n"
+"out vec3 t_vertex[];\n"
+"in vec3 normal[];\n"
+"out vec3 t_normal[];\n"
+"in vec2 tcbase[];\n"
+"out vec2 t_tcbase[];\n"
+"in vec3 lightvector[];\n"
+"out vec3 t_lightvector[];\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"in vec3 eyevector[];\n"
+"out vec3 t_eyevector[];\n"
+"#endif\n"
+"void main()\n"
+"{\n"
+//the control shader needs to pass stuff through
+"#define id gl_InvocationID\n"
+"t_vertex[id] = vertex[id];\n"
+"t_normal[id] = normal[id];\n"
+"t_tcbase[id] = tcbase[id];\n"
+"t_lightvector[id] = lightvector[id];\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"t_eyevector[id] = eyevector[id];\n"
+"#endif\n"
+
+"gl_TessLevelOuter[0] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[1] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[2] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelInner[0] = float(r_tessellation)+1.0;\n"
+"}\n"
+"#endif\n"
+
+
+
+
+
+
+
+
+
+"#if defined(TESS_EVALUATION_SHADER)\n"
+"layout(triangles) in;\n"
+
+"in vec3 t_vertex[];\n"
+"in vec3 t_normal[];\n"
+"in vec2 t_tcbase[];\n"
+"in vec3 t_lightvector[];\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"in vec3 t_eyevector[];\n"
+"#endif\n"
+
+"#define LERP(a) (gl_TessCoord.x*a[0] + gl_TessCoord.y*a[1] + gl_TessCoord.z*a[2])\n"
+"void main()\n"
+"{\n"
+"#define factor 1.0\n"
+"tcbase = LERP(t_tcbase);\n"
+"vec3 w = LERP(t_vertex);\n"
+
+"vec3 t0 = w - dot(w-t_vertex[0],t_normal[0])*t_normal[0];\n"
+"vec3 t1 = w - dot(w-t_vertex[1],t_normal[1])*t_normal[1];\n"
+"vec3 t2 = w - dot(w-t_vertex[2],t_normal[2])*t_normal[2];\n"
+"w = w*(1.0-factor) + factor*(gl_TessCoord.x*t0+gl_TessCoord.y*t1+gl_TessCoord.z*t2);\n"
+
+"#if defined(PCF) || defined(SPOT) || defined(CUBE)\n"
+//for texture projections/shadowmapping on dlights
+"vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));\n"
+"#endif\n"
+
+//FIXME: we should be recalcing these here, instead of just lerping them
+"lightvector = LERP(t_lightvector);\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"eyevector = LERP(t_eyevector);\n"
+"#endif\n"
+
+"gl_Position = m_modelviewprojection * vec4(w,1.0);\n"
+"}\n"
+"#endif\n"
+
+
+
+
+
+
+
+
+
+
+
 "#ifdef FRAGMENT_SHADER\n"
+
 "#include \"sys/fog.h\"\n"
-"uniform sampler2D s_diffuse; //diffuse\n"
 
-"#if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
-"uniform sampler2D s_normalmap; //normalmap\n"
-"#endif\n"
-"#ifdef SPECULAR\n"
-"uniform sampler2D s_specular; //specular\n"
-"#endif\n"
-"#ifdef CUBE\n"
-"uniform samplerCube s_projectionmap; //projected cubemap\n"
-"#endif\n"
 "#ifdef PCF\n"
-"#ifdef CUBESHADOW\n"
-"uniform samplerCubeShadow s_shadowmap; //shadowmap\n"
-"#else\n"
-"#if 0//def GL_ARB_texture_gather\n"
-"uniform sampler2D s_shadowmap;\n"
-"#else\n"
-"uniform sampler2DShadow s_shadowmap;\n"
-"#endif\n"
-"#endif\n"
-"#endif\n"
-"#ifdef LOWER\n"
-"uniform sampler2D s_lower;  //pants colours\n"
-"uniform vec3 e_lowercolour;\n"
-"#endif\n"
-"#ifdef UPPER\n"
-"uniform sampler2D s_upper;  //shirt colours\n"
-"uniform vec3 e_uppercolour;\n"
-"#endif\n"
-
-"#ifdef REFLECTCUBEMASK\n"
-"uniform sampler2D s_reflectmask;\n"
-"uniform samplerCube s_reflectcube;\n"
-"#endif\n"
-
-
-"uniform float l_lightradius;\n"
-"uniform vec3 l_lightcolour;\n"
-"uniform vec3 l_lightcolourscale;\n"
-"#ifdef PCF\n"
-"uniform vec4 l_shadowmapproj; //light projection matrix info\n"
-"uniform vec2 l_shadowmapscale; //xy are the texture scale, z is 1, w is the scale.\n"
 "vec3 ShadowmapCoord(void)\n"
 "{\n"
 "#ifdef SPOT\n"
@@ -9526,7 +9916,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#else\n"
 "#ifdef USE_ARB_SHADOW\n"
 //with arb_shadow, we can benefit from hardware acclerated pcf, for smoother shadows
-"#define dosamp(x,y) shadow2D(s_shadowmap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r\n"
+"#define dosamp(x,y) shadow2D(s_shadowmap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx))\n"
 "#else\n"
 //this will probably be a bit blocky.
 "#define dosamp(x,y) float(texture2D(s_shadowmap, shadowcoord.xy + (vec2(x,y)*l_shadowmapscale.xy)).r >= shadowcoord.z)\n"

@@ -1932,14 +1932,18 @@ int Master_CheckPollSockets(void)
 				info = Master_InfoForServer(&net_from);
 				if (selserver == info)
 				{
+					char playeraddrbuf[256];
 					int playernum = MSG_ReadByte();
 					char *playername = MSG_ReadString();
 					int playercolor = MSG_ReadLong();
 					int playerfrags = MSG_ReadLong();
 					int secsonserver = MSG_ReadLong();
-					//char *playeraddr = MSG_ReadString();
+					char *playeraddr = MSG_ReadStringBuffer(playeraddrbuf, sizeof(playeraddrbuf));
 					if (msg_badread)
 						continue;
+
+					//might as well
+					IPLog_Add(playeraddr, playername);
 
 					selectedserver.lastplayer = playernum+1;
 

@@ -1067,6 +1067,7 @@ void SV_ArgumentOverrides(void);
 int SV_CalcPing (client_t *cl, qboolean forcecalc);
 void SV_FullClientUpdate (client_t *client, client_t *to);
 void SV_GeneratePublicUserInfo(int pext, client_t *cl, char *info, int infolength);
+char *SV_PlayerPublicAddress(client_t *cl);
 
 int SV_ModelIndex (const char *name);
 

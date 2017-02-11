@@ -33,4 +33,10 @@ char Ignore_Check_Flood(player_info_t *sender, const char *s, int flags);
 void Ignore_Flood_Add(player_info_t *sender, const char *s);
 void Ignore_ResetFloodList(void);
 
+
+#define	PLAYER_ID_NOMATCH		-1
+#define	PLAYER_NAME_NOMATCH		-2
+#define	PLAYER_NUM_NOMATCH		-3
+int Player_StringtoSlot(const char *arg);
+
 #endif

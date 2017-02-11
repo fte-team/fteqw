@@ -325,6 +325,52 @@ void SV_Fraglogfile_f (void)
 }
 */
 
+/*for fuck sake, why can people still not write simple files. proquake is writing binary files as text ones. this function is to try to deal with that fuckup*/
+static size_t IPLog_Read_Fucked(qbyte *file, size_t *offset, size_t totalsize, qbyte *out, size_t outsize)
+{
+	size_t read = 0;
+	while (outsize-- > 0 && *offset < totalsize)
+	{
+		if (file[*offset] == '\r' && *offset+1 < totalsize && file[*offset+1] == '\n')
+		{
+			out[read] = '\n';
+			*offset += 2;
+			read += 1;
+		}
+		else
+		{
+			out[read] = file[*offset];
+			*offset += 1;
+			read += 1;
+		}
+	}
+	return read;
+}
+/*need to make sure any 13 bytes followed by 10s don't bug out when read back in *sigh* */
+static size_t IPLog_Write_Fucked(vfsfile_t *file, qbyte *out, size_t outsize)
+{
+	qbyte tmp[64];
+	size_t write = 0;
+	size_t block = 0;
+	while (outsize-- > 0)
+	{
+		if (block >= sizeof(tmp)-4)
+		{
+			VFS_WRITE(file, tmp, block);
+			write += block;
+			block = 0;
+		}
+		if (*out == '\n')
+			tmp[block++] = '\r';
+		tmp[block++] = *out++;
+	}
+	if (block)
+	{
+		VFS_WRITE(file, tmp, block);
+		write += block;
+	}
+	return write;
+}
 static qboolean IPLog_Merge_File(const char *fname)
 {
 	char ip[MAX_ADR_SIZE];
@@ -333,18 +379,25 @@ static qboolean IPLog_Merge_File(const char *fname)
 	vfsfile_t *f;
 	if (!*fname)
 		fname = "iplog.txt";
-	f = FS_OpenVFS(fname, "rb", FS_GAME);
+	f = FS_OpenVFS(fname, "rb", FS_PUBBASEGAMEONLY);
+	if (!f)
+		f = FS_OpenVFS(fname, "rb", FS_GAME);
 	if (!f)
 		return false;
-	if (!Q_strcasecmp(COM_FileExtension(fname, name, sizeof(name)), ".dat"))
+	if (!Q_strcasecmp(COM_FileExtension(fname, name, sizeof(name)), "dat"))
 	{	//we don't write this format because of it being limited to ipv4, as well as player name lengths
-		while (VFS_READ(f, line, 20) == 20)
-		{
-			Q_snprintfz(ip, sizeof(ip), "%i.%i.%i.%i", (qbyte)line[0], (qbyte)line[1], (qbyte)line[2], (qbyte)line[3]);
+		size_t l = VFS_GETLEN(f), offset = 0;
+		qbyte *ffs = malloc(l+1);
+		VFS_READ(f, ffs, l);
+		ffs[l] = 0;
+		while (IPLog_Read_Fucked(ffs, &offset, l, line, 20) == 20)
+		{	//yes, these addresses are weird.
+			Q_snprintfz(ip, sizeof(ip), "%i.%i.%i.xxx", (qbyte)line[2], (qbyte)line[1], (qbyte)line[0]);
 			memcpy(name, line+4, 20-4);
 			name[20-4] = 0;
 			IPLog_Add(ip, name);
 		}
+		free(ffs);
 	}
 	else
 	{
@@ -360,9 +413,31 @@ static qboolean IPLog_Merge_File(const char *fname)
 	VFS_CLOSE(f);
 	return true;
 }
+struct iplog_entry
+{
+	netadr_t adr;
+	netadr_t mask;
+	char name[1];
+} **iplog_entries;
+size_t iplog_num, iplog_max;
 void IPLog_Add(const char *ipstr, const char *name)
 {
+	size_t i;
+	netadr_t a, m;
+	while (*ipstr == ' ' || *ipstr == '\t')
+		ipstr++;
 	if (*ipstr != '[' && *ipstr < '0' && *ipstr > '9')
+		return;
+	if (*ipstr == '[')
+		ipstr++;
+	//some names are dodgy.
+	if (!*name 
+		//|| !Q_strcasecmp(name, /*nq default*/"player") || !Q_strcasecmp(name, /*qw default*/"unnamed")
+		|| !strcmp(name, /*nq fallback*/"unconnected") || !strncmp(name, "BOT:", 4))
+		return;
+	memset(&a, 0, sizeof(a));
+	memset(&m, 0, sizeof(m));
+	if (!NET_StringToAdrMasked(ipstr, false, &a, &m))
 		return;
 	//might be x.y.z.w:port
 	//might be x.y.z.FUCKED
@@ -370,43 +445,173 @@ void IPLog_Add(const char *ipstr, const char *name)
 	//might be [::]:port
 	//might be [::]/bits
 	//or other ways to express an ip address
-	//note that ipv4 addresses should be converted to ipv6 ::ffff:x.y.z.w format for internal use or something, then this code only needs to deal with a single 128bit address format.
-	//ipv6 addresses generally only need 64bits to identify a user's home router, the other 64bits are generally 'just' to avoid nats.
-	//ignore ipx addresses, I doubt anyone will ever actually use it, and even if they do its just lans.
+
+	//FIXME: ignore private addresses?
+
+	//check for dupes
+	for (i = 0; i < iplog_num; i++)
+	{
+		if (!memcmp(&a, &iplog_entries[i]->adr, sizeof(netadr_t)) && !memcmp(&m, &iplog_entries[i]->mask, sizeof(netadr_t)) && !Q_strcasecmp(name, iplog_entries[i]->name))
+			return;
+	}
+
+	//looks like its new...
+	if (iplog_num == iplog_max)
+		Z_ReallocElements((void**)&iplog_entries, &iplog_max, iplog_max+64, sizeof(*iplog_entries));
+	iplog_entries[iplog_num] = BZ_Malloc(sizeof(struct iplog_entry) + strlen(name));
+	iplog_entries[iplog_num]->adr = a;
+	iplog_entries[iplog_num]->mask = m;
+	strcpy(iplog_entries[iplog_num]->name, name);
+	iplog_num++;
 }
+static void IPLog_Identify(netadr_t *adr, netadr_t *mask, char *fmt, ...)
+{
+	va_list		argptr;
+
+	qboolean found = false;
+	char line[256];
+	size_t i;
+		
+	va_start(argptr, fmt);
+	vsnprintf(line, sizeof(line), fmt, argptr);
+	va_end(argptr);
+	Con_Printf("%s: ", line);
+
+	for (i = 0; i < iplog_num; i++)
+	{
+		if (NET_CompareAdrMasked(adr, &iplog_entries[i]->adr, mask?mask:&iplog_entries[i]->mask))
+		{
+			if (found)
+				Con_Printf(", ");
+			found=true;
+			Con_Printf("%s", iplog_entries[i]->name);
+		}
+	}
+	if (!found)
+		Con_Printf("<no matches>");
+	Con_Printf("\n");
+}
+#include "cl_ignore.h"
 static void IPLog_Identify_f(void)
 {
-//	const char *nameorip = Cmd_Argv(1);
-	Con_Printf("Not yet implemented\n");
+	const char *nameorip = Cmd_Argv(1);
+	netadr_t adr, mask;
+	char clean[256];
 	//if *, use a mask that includes all ips
-	//try to parse as an ip
-	//if server is active, walk players to see if there's a name match to get their address and guess an address mask
-	//else if client is active, walk players to see if there's a name match, to get their address+mask if known via nq hacks
-	//look for matches
+	if (NET_StringToAdrMasked (nameorip, false, &adr, &mask))
+	{	//try to parse as an ip
+		//treading carefully here, to avoid dns name lookups weirding everything out.
+		IPLog_Identify(&adr, &mask, "Identity of %s", NET_AdrToStringMasked(clean, sizeof(clean), &adr, &mask));
+	}
+#ifndef CLIENTONLY
+	else if (sv.active)
+	{	//if server is active, walk players to see if there's a name match to get their address and guess an address mask
+		client_t *cl;
+		int clnum = -1;
+		while((cl = SV_GetClientForString(nameorip, &clnum)))
+		{
+			if (cl->realip_status)
+			{
+				IPLog_Identify(&cl->realip, NULL, "Identity of %s (real) [%s]", cl->name, NET_AdrToString(clean, sizeof(clean), &cl->realip));
+				IPLog_Identify(&cl->netchan.remote_address, NULL, "Identity of %s (proxy) [%s]", cl->name, NET_AdrToString(clean, sizeof(clean), &cl->realip));
+			}
+			else
+				IPLog_Identify(&cl->netchan.remote_address, NULL, "Identity of %s [%s]", cl->name, NET_AdrToString(clean, sizeof(clean), &cl->realip));
+		}
+	}
+#endif
+#ifndef SERVERONLY
+	else if (cls.state >= ca_connected)
+	{	//else if client is active, walk players to see if there's a name match, to get their address+mask if known via nq hacks
+		int slot;
+		netadr_t adr;
+		if ((slot = Player_StringtoSlot(nameorip)) < 0)
+			Con_Printf("%s: no player with userid %s\n", Cmd_Argv(0), nameorip);
+		else if (!*cl.players[slot].ip)
+			Con_Printf("%s: ip address of %s is not known\n", Cmd_Argv(0), cl.players[slot].name);
+		else
+		{
+			NET_StringToAdr(cl.players[slot].ip, 0, &adr);
+			IPLog_Identify(&adr, NULL, "Identity of %s [%s]", cl.players[slot].name, cl.players[slot].ip);
+		}
+	}
+#endif
+	else
+		Con_Printf("%s: not connected, nor raw address\n", Cmd_Argv(0));
+}
+static qboolean IPLog_Dump(const char *fname)
+{
+	size_t i;
+	vfsfile_t *f;
+	qbyte line[20];
+	if (!*fname)
+		fname = "iplog.txt";
+
+	f = FS_OpenVFS(fname, "wb", FS_PUBBASEGAMEONLY);
+	if (!f)
+		return false;
+	if (!Q_strcasecmp(COM_FileExtension(fname, line, sizeof(line)), "dat"))
+	{
+		for (i = 0; i < iplog_num; i++)
+		{
+			//this shitty format supports only ipv4.
+			if (iplog_entries[i]->adr.type != NA_IP)
+				continue;
+			line[0] = iplog_entries[i]->adr.address.ip[2];
+			line[1] = iplog_entries[i]->adr.address.ip[1];
+			line[2] = iplog_entries[i]->adr.address.ip[0];
+			line[3] = 0;
+			strncpy(line+4, iplog_entries[i]->name, sizeof(line)-4);
+			IPLog_Write_Fucked(f, line, sizeof(line));	//convert \n to \r\n, to avoid fucking up any formatting with binary data (inside the address part, so *.13.10.* won't corrupt the file)
+		}
+	}
+	else
+	{
+		VFS_PRINTF(f, "//generated by "FULLENGINENAME"\n");
+		for (i = 0; i < iplog_num; i++)
+		{
+			char ip[512];
+			char buf[1024];
+			char buf2[1024];
+			VFS_PRINTF(f, log_dosformat.value?"%s %s\r\n":"%s %s\n", COM_QuotedString(NET_AdrToStringMasked(ip, sizeof(ip), &iplog_entries[i]->adr, &iplog_entries[i]->mask), buf2, sizeof(buf2), false), COM_QuotedString(iplog_entries[i]->name, buf, sizeof(buf), false));
+		}
+	}
+	VFS_CLOSE(f);
+	return true;
 }
 static void IPLog_Dump_f(void)
 {
+	char native[MAX_OSPATH];
 	const char *fname = Cmd_Argv(1);
-	if (!*fname)
-		fname = "iplog.txt";
-#if 1
-	Con_Printf("Not yet implemented\n");
-#else
-	vfsfile_t *f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
-	VFS_PRINTF(f, "//generated by "FULLENGINENAME"\n", foo->ip, foo->name);
-	for (foo = first; foo; foo = foo->next)
+	if (FS_NativePath(fname, FS_GAMEONLY, native, sizeof(native)))
+		Q_strncpyz(native, fname, sizeof(native));
+	IPLog_Merge_File(fname);	//merge from the existing file, so that we're hopefully more robust if multiple processes are poking the same file.
+	if (!IPLog_Dump(fname))
+		Con_Printf("unable to write %s\n", fname);
+	else
 	{
-		char buf[1024];
-		VFS_PRINTF(f, "%s %s\n", foo->ip, COM_QuotedString(foo->name, buf, sizeof(buf), false));
+		Con_Printf("wrote %s\n", native);
 	}
-	VFS_CLOSE(f);
-#endif
 }
 static void IPLog_Merge_f(void)
 {
 	const char *fname = Cmd_Argv(1);
 	if (!IPLog_Merge_File(fname))
 		Con_Printf("unable to read %s\n", fname);
+}
+void Log_ShutDown(void)
+{
+	IPLog_Dump("iplog.txt");
+//	IPLog_Dump("iplog.dat");
+
+	while(iplog_num > 0)
+	{
+		iplog_num--;
+		BZ_Free(iplog_entries[iplog_num]);
+	}
+	BZ_Free(iplog_entries);
+	iplog_entries = NULL;
+	iplog_max = iplog_num = 0;
 }
 
 void Log_Init(void)
@@ -432,6 +637,9 @@ void Log_Init(void)
 	Cmd_AddCommand("identify", IPLog_Identify_f);
 	Cmd_AddCommand("ipmerge", IPLog_Merge_f);
 	Cmd_AddCommand("ipdump", IPLog_Dump_f);
+
+	IPLog_Merge_File("iplog.txt");
+	IPLog_Merge_File("iplog.dat");	//legacy crap, for compat with proquake
 
 	// cmd line options, debug options
 #ifdef CRAZYDEBUGGING

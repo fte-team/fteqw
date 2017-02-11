@@ -71,9 +71,9 @@ extern cvar_t	ffov;
 extern cvar_t	gl_motionblur;
 extern cvar_t	gl_motionblurscale;
 
-extern cvar_t gl_ati_truform;
+extern cvar_t r_tessellation;
 extern cvar_t gl_ati_truform_type;
-extern cvar_t gl_ati_truform_tesselation;
+extern cvar_t r_tessellation_level;
 
 extern cvar_t gl_blendsprites;
 extern cvar_t r_portaldrawplanes;
@@ -1990,7 +1990,7 @@ void GLR_RenderView (void)
 			qglPNTrianglesiATI(GL_PN_TRIANGLES_NORMAL_MODE_ATI, GL_PN_TRIANGLES_NORMAL_MODE_QUADRATIC_ATI);
 			qglPNTrianglesiATI(GL_PN_TRIANGLES_POINT_MODE_ATI, GL_PN_TRIANGLES_POINT_MODE_CUBIC_ATI);
 		}
-		qglPNTrianglesfATI(GL_PN_TRIANGLES_TESSELATION_LEVEL_ATI, gl_ati_truform_tesselation.value);
+		qglPNTrianglesfATI(GL_PN_TRIANGLES_TESSELATION_LEVEL_ATI, r_tessellation_level.value);
 	}
 
 	if (gl_finish.ival)

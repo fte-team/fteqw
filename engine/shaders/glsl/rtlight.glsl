@@ -1,3 +1,5 @@
+!!ver 100 150
+!!permu TESS
 !!permu BUMP
 !!permu FRAMEBLEND
 !!permu SKELETAL
@@ -6,7 +8,9 @@
 !!permu REFLECTCUBEMASK
 !!cvarf r_glsl_offsetmapping_scale
 !!cvardf r_glsl_pcf
+!!cvardf r_tessellation=0
 
+#include "sys/defs.h"
 
 #ifndef USE_ARB_SHADOW
 //fall back on regular samplers if we must
@@ -48,31 +52,26 @@
 #undef OFFSETMAPPING
 #endif
 
-
-varying vec2 tcbase;
-varying vec3 lightvector;
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
-varying vec3 eyevector;
-#endif
-#ifdef REFLECTCUBEMASK
-varying mat3 invsurface;
-uniform mat4 m_model;
-#endif
-#if defined(PCF) || defined(CUBE) || defined(SPOT)
-varying vec4 vtexprojcoord;
+#if !defined(TESS_CONTROL_SHADER)
+	varying vec2 tcbase;
+	varying vec3 lightvector;
+	#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+		varying vec3 eyevector;
+	#endif
+	#ifdef REFLECTCUBEMASK
+		varying mat3 invsurface;
+	#endif
+	#if defined(PCF) || defined(CUBE) || defined(SPOT)
+		varying vec4 vtexprojcoord;
+	#endif
 #endif
 
 
 #ifdef VERTEX_SHADER
-#if defined(PCF) || defined(CUBE) || defined(SPOT)
-uniform mat4 l_cubematrix;
+#ifdef TESS
+varying vec3 vertex, normal;
 #endif
 #include "sys/skeletal.h"
-uniform vec3 l_lightposition;
-attribute vec2 v_texcoord;
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
-uniform vec3 e_eyepos;
-#endif
 void main ()
 {
 	vec3 n, s, t, w;
@@ -103,57 +102,114 @@ void main ()
 	//for texture projections/shadowmapping on dlights
 	vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));
 #endif
+
+#ifdef TESS
+	vertex = w;
+	normal = n;
+#endif
 }
 #endif
 
 
 
 
+
+
+#if defined(TESS_CONTROL_SHADER)
+layout(vertices = 3) out;
+
+in vec3 vertex[];
+out vec3 t_vertex[];
+in vec3 normal[];
+out vec3 t_normal[];
+in vec2 tcbase[];
+out vec2 t_tcbase[];
+in vec3 lightvector[];
+out vec3 t_lightvector[];
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+in vec3 eyevector[];
+out vec3 t_eyevector[];
+#endif
+void main()
+{
+	//the control shader needs to pass stuff through
+#define id gl_InvocationID
+	t_vertex[id] = vertex[id];
+	t_normal[id] = normal[id];
+	t_tcbase[id] = tcbase[id];
+	t_lightvector[id] = lightvector[id];
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+	t_eyevector[id] = eyevector[id];
+#endif
+
+	gl_TessLevelOuter[0] = float(r_tessellation)+1.0;
+	gl_TessLevelOuter[1] = float(r_tessellation)+1.0;
+	gl_TessLevelOuter[2] = float(r_tessellation)+1.0;
+	gl_TessLevelInner[0] = float(r_tessellation)+1.0;
+}
+#endif
+
+
+
+
+
+
+
+
+
+#if defined(TESS_EVALUATION_SHADER)
+layout(triangles) in;
+
+in vec3 t_vertex[];
+in vec3 t_normal[];
+in vec2 t_tcbase[];
+in vec3 t_lightvector[];
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+in vec3 t_eyevector[];
+#endif
+
+#define LERP(a) (gl_TessCoord.x*a[0] + gl_TessCoord.y*a[1] + gl_TessCoord.z*a[2])
+void main()
+{
+#define factor 1.0
+	tcbase = LERP(t_tcbase);
+	vec3 w = LERP(t_vertex);
+
+	vec3 t0 = w - dot(w-t_vertex[0],t_normal[0])*t_normal[0];
+	vec3 t1 = w - dot(w-t_vertex[1],t_normal[1])*t_normal[1];
+	vec3 t2 = w - dot(w-t_vertex[2],t_normal[2])*t_normal[2];
+	w = w*(1.0-factor) + factor*(gl_TessCoord.x*t0+gl_TessCoord.y*t1+gl_TessCoord.z*t2);
+
+#if defined(PCF) || defined(SPOT) || defined(CUBE)
+	//for texture projections/shadowmapping on dlights
+	vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));
+#endif
+
+	//FIXME: we should be recalcing these here, instead of just lerping them
+	lightvector = LERP(t_lightvector);
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+	eyevector = LERP(t_eyevector);
+#endif
+
+	gl_Position = m_modelviewprojection * vec4(w,1.0);
+}
+#endif
+
+
+
+
+
+
+
+
+
+
+
 #ifdef FRAGMENT_SHADER
+
 #include "sys/fog.h"
-uniform sampler2D s_diffuse;	//diffuse
 
-#if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
-uniform sampler2D s_normalmap;	//normalmap
-#endif
-#ifdef SPECULAR
-uniform sampler2D s_specular;	//specular
-#endif
-#ifdef CUBE
-uniform samplerCube s_projectionmap;	//projected cubemap
-#endif
 #ifdef PCF
-#ifdef CUBESHADOW
-uniform samplerCubeShadow s_shadowmap;	//shadowmap
-#else
-#if 0//def GL_ARB_texture_gather
-uniform sampler2D s_shadowmap;
-#else
-uniform sampler2DShadow s_shadowmap;
-#endif
-#endif
-#endif
-#ifdef LOWER
-uniform sampler2D s_lower;		//pants colours
-uniform vec3 e_lowercolour;
-#endif
-#ifdef UPPER
-uniform sampler2D s_upper;		//shirt colours
-uniform vec3 e_uppercolour;
-#endif
-
-#ifdef REFLECTCUBEMASK
-uniform sampler2D s_reflectmask;
-uniform samplerCube s_reflectcube;
-#endif
-
-
-uniform float l_lightradius;
-uniform vec3 l_lightcolour;
-uniform vec3 l_lightcolourscale;
-#ifdef PCF
-uniform vec4 l_shadowmapproj; //light projection matrix info
-uniform vec2 l_shadowmapscale;	//xy are the texture scale, z is 1, w is the scale.
 vec3 ShadowmapCoord(void)
 {
 #ifdef SPOT
@@ -222,7 +278,7 @@ float ShadowmapFilter(void)
 	#else
 #ifdef USE_ARB_SHADOW
 		//with arb_shadow, we can benefit from hardware acclerated pcf, for smoother shadows
-		#define dosamp(x,y) shadow2D(s_shadowmap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r
+		#define dosamp(x,y) shadow2D(s_shadowmap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx))
 #else
 		//this will probably be a bit blocky.
 		#define dosamp(x,y) float(texture2D(s_shadowmap, shadowcoord.xy + (vec2(x,y)*l_shadowmapscale.xy)).r >= shadowcoord.z)

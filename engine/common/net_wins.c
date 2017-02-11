@@ -1240,57 +1240,116 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 	}
 }
 
-// ParsePartialIPv4: check string to see if it is a partial IPv4 address and
+// ParsePartialIP: check string to see if it is a partial IP address and
 // return bits to mask and set netadr_t or 0 if not an address
-int ParsePartialIPv4(const char *s, netadr_t *a)
+int ParsePartialIP(const char *s, netadr_t *a)
 {
-	const char *colon = NULL;
-	char *address = a->address.ip;
-	int bits = 8;
+	char *colon;
+	int bits;
 
 	if (!*s)
 		return 0;
 
 	memset (a, 0, sizeof(*a));
-	while (*s)
+
+	//multiple colons == ipv6
+	colon = strchr(s, ':');
+	if (colon && strchr(colon+1, ':'))
 	{
-		if (*s == ':')
-		{
-			if (colon) // only 1 colon
-				return 0;
-			colon = s + 1;
-		}
-		else if (*s == '.')
-		{
-			if (colon) // no colons before periods (probably invalid anyway)
-				return 0;
-			else if (bits >= 32) // only 32 bits in ipv4
-				return 0;
-			else if (*(s+1) == '.')
-				return 0;
-			else if (*(s+1) == '\0')
-				break; // don't add more bits to the mask for x.x., etc
-			bits += 8;
-			address++;
-		}
-		else if (*s >= '0' && *s <= '9')
-			*address = ((*address)*10) + (*s-'0');
-		else
-			return 0; // invalid character
+		qbyte *address = a->address.ip6;
+		unsigned long tmp;
+		bits = 0;
+		//FIXME: check for ::ffff:a.b.c.d
+		//FIXME: check for xx::xx
 
-		s++;
+		if (s[0] == ':' && s[1] == ':' && !s[2])
+		{
+			s+=2;
+			bits = 1;
+		}
+		else while(*s)
+		{
+			tmp = strtoul(s, &colon, 16);
+			if (tmp > 0xffff)
+				return 0;	//invalid
+			*address++ = (tmp>>8)&0xff;
+			*address++ = (tmp>>0)&0xff;
+			bits += 16;
+
+			if (bits == 128)
+			{
+				if (!*colon)
+					break;
+				return 0;	//must have ended here
+			}
+
+
+			//double-colon ends it here. we can't parse xx::xx
+			//hopefully the last 64 bits or whatever will be irrelevant anyway, so such addresses won't be common
+			if (colon[0] == ':' && colon[1] == ':' && !colon[2])
+				break;
+			if (*colon == ':')
+				colon++;
+			else
+				return 0; //don't allow it if it just ended without a double-colon.
+			s = colon;
+		}
+		a->type = NA_IPV6;
+		a->port = 0;
 	}
+	else
+	{
+		char *address = a->address.ip;
+		int port = 0;
+		bits = 8;
+		while (*s)
+		{
+			if (*s == ':')
+			{
+				port = strtoul(s+1, &address, 10);
+				if (*address)	//if there was something other than a number there, give up now
+					return 0;
+				break;	//end-of-string
+			}
+			else if (*s == '.')
+			{
+				if (bits >= 32) // only 32 bits in ipv4
+					return 0;
+				else if (*(s+1) == '.')
+					return 0;
+				else if (*(s+1) == '\0')
+					break; // don't add more bits to the mask for x.x., etc
+				address++;
 
-	a->type = NA_IP;
-	if (colon)
-		a->port = atoi(colon);
+				//many nq servers mask addresses with Xs.
+				if (s[1] == 'x' || s[1] == 'X')
+				{
+					s++;
+					while (*s == 'x' || *s == 'X' || *s == '.')
+						s++;
+					if (*s)
+						return 0;
+					break;
+				}
+				bits += 8;
+			}
+			else if (*s >= '0' && *s <= '9')
+				*address = ((*address)*10) + (*s-'0');
+			else
+				return 0; // invalid character
+
+			s++;
+		}
+		a->type = NA_IP;
+		a->port = port;
+	}
 
 	return bits;
 }
 
 // NET_StringToAdrMasked: extension to NET_StringToAdr to handle IP addresses
 // with masks or integers representing the bit masks
-qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask)
+qboolean NET_StringToAdrMasked (const char *s, qboolean allowdns, netadr_t *a, netadr_t *amask)
 {
 	char t[64];
 	char *spoint;
@@ -1308,7 +1367,7 @@ qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask)
 			i = sizeof(t);
 
 		Q_strncpyz(t, s, i);
-		if (!ParsePartialIPv4(t, a) && !NET_StringToAdr(t, 0, a))
+		if (!ParsePartialIP(t, a) && (!allowdns || !NET_StringToAdr(t, 0, a)))
 			return false;
 		spoint++;
 
@@ -1327,7 +1386,7 @@ qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask)
 		}
 
 		if (c == NULL) // we have an address so resolve it and return
-			return ParsePartialIPv4(spoint, amask) || NET_StringToAdr(spoint, 0, amask);
+			return ParsePartialIP(spoint, amask) || (allowdns && NET_StringToAdr(spoint, 0, amask));
 
 		// otherwise generate mask for given bits
 		i = atoi(spoint);
@@ -1336,8 +1395,8 @@ qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask)
 	else
 	{
 		// we don't have a slash, resolve and fill with a full mask
-		i = ParsePartialIPv4(s, a);
-		if (!i && !NET_StringToAdr(s, 0, a))
+		i = ParsePartialIP(s, a);
+		if (!i && (!allowdns || !NET_StringToAdr(s, 0, a)))
 			return false;
 
 		memset (amask, 0, sizeof(*amask));

@@ -371,7 +371,7 @@ static size_t IPLog_Write_Fucked(vfsfile_t *file, qbyte *out, size_t outsize)
 	}
 	return write;
 }
-static qboolean IPLog_Merge_File(const char *fname)
+qboolean IPLog_Merge_File(const char *fname)
 {
 	char ip[MAX_ADR_SIZE];
 	char name[256];

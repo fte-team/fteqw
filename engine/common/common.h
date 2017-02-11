@@ -733,6 +733,7 @@ void Log_Logfile_f (void);
 void Log_Init(void);
 void Log_ShutDown(void);
 void IPLog_Add(const char *ip, const char *name);	//for associating player ip addresses with names.
+qboolean IPLog_Merge_File(const char *fname);
 
 
 /*used by and for botlib and q3 gamecode*/

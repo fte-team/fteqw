@@ -1234,6 +1234,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		e->light_known = 2;
 		return e->light_known-1;
 	}
+#ifdef HEXEN2
 	if ((e->drawflags & MLS_MASK) == MLS_FULLBRIGHT || (e->flags & Q2RF_FULLBRIGHT))
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
@@ -1241,6 +1242,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		e->light_known = 2;
 		return e->light_known-1;
 	}
+#endif
 	if (r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival && (clmodel->engineflags & MDLF_EZQUAKEFBCHEAT) && cls.protocol == CP_QUAKEWORLD && cl.deathmatch)
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
@@ -1385,11 +1387,13 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		shadelight[0] = shadelight[1] = shadelight[2] =
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = 128+sin(cl.servertime*4)*64;
 	}
+#ifdef HEXEN2
 	if ((e->drawflags & MLS_MASK) == MLS_ABSLIGHT)
 	{
 		shadelight[0] = shadelight[1] = shadelight[2] = e->abslight;
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = e->abslight;
 	}
+#endif
 
 	if (e->flags & RF_WEAPONMODEL)
 	{
@@ -1571,6 +1575,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 				if (SHADER_SORT_PORTAL < sort && sort < SHADER_SORT_BLEND)
 					sort = SHADER_SORT_BLEND;
 			}
+#ifdef HEXEN2
 			else if (e->drawflags & DRF_TRANSLUCENT)
 			{
 				b->flags |= BEF_FORCETRANSPARENT;
@@ -1578,6 +1583,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 					sort = SHADER_SORT_BLEND;
 				e->shaderRGBAf[3] = r_wateralpha.value;
 			}
+#endif
 			if (e->flags & RF_NODEPTHTEST)
 			{
 				b->flags |= BEF_FORCENODEPTH;

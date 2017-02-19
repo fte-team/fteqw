@@ -298,7 +298,7 @@ static unsigned int MPQ_FindFile(searchpathfuncs_t *handle, flocation_t *loc, co
 	}
 	if (loc)
 	{
-		loc->index = blockentry;
+		loc->fhandle = &mpq->blockdata[blockentry];
 		loc->offset = 0;
 		*loc->rawname = 0;
 		loc->len = mpq->blockdata[blockentry].size;
@@ -428,7 +428,7 @@ static void	MPQ_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *Add
 			//precompute the name->block lookup. fte normally does the hashing outside the archive code.
 			//however, its possible multiple hash tables point to a single block, so we need to pass null for the third arg (or allocate fsbucket_ts one per hash instead of buckets).
 			if (MPQ_FindFile(&mpq->pub, &loc, name, NULL))
-				AddFileHash(depth, name, NULL, &mpq->blockdata[loc.index]);
+				AddFileHash(depth, name, NULL, loc.fhandle);
 		}
 	}
 }
@@ -851,7 +851,7 @@ static qboolean MPQF_GetKey(unsigned int flags, unsigned int blockoffset, unsign
 static vfsfile_t *MPQ_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {
 	mpqarchive_t *mpq = (void*)handle;
-	mpqblock_t *block = &mpq->blockdata[loc->index];
+	mpqblock_t *block = loc->fhandle;
 	mpqfile_t *f;
 
 	if (block->flags & MPQFilePatch)

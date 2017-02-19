@@ -10,6 +10,8 @@
 
 #include "errno.h"
 
+//#define TODO_READWRITETRACK
+
 //#define DEBUG_DUMP
 //#define DISASM "M_Preset"
 
@@ -34,7 +36,6 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor);
 
 void *FS_ReadToMem(char *fname, void *membuf, int *len);
 void FS_CloseFromMem(void *mem);
-const char *QCC_VarAtOffset(QCC_sref_t ref, unsigned int size);
 
 unsigned int MAX_REGS;
 unsigned int MAX_LOCALS = 0x10000;
@@ -976,6 +977,56 @@ void QCC_FinaliseDef(QCC_def_t *def)
 			for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
 				sub->referenced |= def->referenced;
 		}
+
+#ifdef TODO_READWRITETRACK
+		if (!def->read)
+		{
+			pbool ignoreone = true;
+			//touch all but one child
+			for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
+			{
+				if (sub->read)
+					def->read=true;	//if one child is referenced, the composite is referenced
+				else if (!sub->read && ignoreone)
+					ignoreone = false;	//this is the one we're going to warn about
+				else
+					sub->read |= def->read;			
+			}
+			if (!def->read)	//no child defs were referenced at all. if we're going to be warning about this then at least mute warnings for any other fields
+				for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
+					sub->read = true;
+		}
+		else
+		{
+			//touch children
+			for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
+				sub->read |= def->read;
+		}
+
+		if (!def->written)
+		{
+			pbool ignoreone = true;
+			//touch all but one child
+			for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
+			{
+				if (sub->written)
+					def->written=true;	//if one child is referenced, the composite is referenced
+				else if (!sub->written && ignoreone)
+					ignoreone = false;	//this is the one we're going to warn about
+				else
+					sub->written |= def->written;			
+			}
+			if (!def->written)	//no child defs were referenced at all. if we're going to be warning about this then at least mute warnings for any other fields
+				for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
+					sub->written = true;
+		}
+		else
+		{
+			//touch children
+			for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
+				sub->written |= def->written;
+		}
+#endif
 	}
 //	else if (def->symbolheader)	//if a child symbol is referenced, mark the entire parent as referenced too. this avoids vec_x+vec_y with no vec or vec_z from generating warnings about vec being unreferenced
 //		def->symbolheader->referenced |= def->referenced;
@@ -1464,7 +1515,21 @@ pbool QCC_WriteData (int crc)
 			}
 		}
 */
-		if (!def->symbolheader->used)
+#ifdef TODO_READWRITETRACK
+		if (def->symbolheader->read && !def->symbolheader->written && !def->symbolheader->referenced)
+		{
+			char typestr[256];
+			QCC_sref_t sr = {def, def->ofs, def->type};
+			QCC_PR_Warning(WARN_READNOTWRITTEN, def->filen, def->s_line, "%s %s = %s read, but not writte.", TypeName(def->type, typestr, sizeof(typestr)), def->name, QCC_VarAtOffset(sr));
+		}
+		if (def->symbolheader->written && !def->symbolheader->read && !def->symbolheader->referenced)
+		{
+			char typestr[256];
+			QCC_sref_t sr = {def, def->ofs, def->type};
+			QCC_PR_Warning(WARN_WRITTENNOTREAD, def->filen, def->s_line, "%s %s = %s written, but not read.", TypeName(def->type, typestr, sizeof(typestr)), def->name, QCC_VarAtOffset(sr));
+		}
+#endif
+		if (!def->symbolheader->read && !def->symbolheader->written && !def->symbolheader->referenced)
 		{
 			int wt = def->constant?WARN_NOTREFERENCEDCONST:WARN_NOTREFERENCED;
 			pr_scope = def->scope;
@@ -1485,14 +1550,20 @@ pbool QCC_WriteData (int crc)
 			}
 			pr_scope = NULL;
 
-			if (opt_unreferenced && def->type->type != ev_field)
+			if (def->symbolheader->used)
+			{
+				char typestr[256];
+				QCC_sref_t sr = {def, def->ofs, def->type};
+				QCC_PR_Warning(WARN_NOTREFERENCED, def->filen, def->s_line, "%s %s = %s used, but not referenced.", TypeName(def->type, typestr, sizeof(typestr)), def->name, QCC_VarAtOffset(sr));
+			}
+			/*if (opt_unreferenced && def->type->type != ev_field)
 			{
 				optres_unreferenced++;
 #ifdef DEBUG_DUMP
 				printf("code: %s:%i: strip noref %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 #endif
 				continue;
-			}
+			}*/
 		}
 		if ((def->type->type == ev_struct || def->type->type == ev_union || def->arraysize) && def->deftail)
 		{
@@ -1505,6 +1576,7 @@ pbool QCC_WriteData (int crc)
 
 		if (def->strip || !def->symbolheader->used)
 		{
+			optres_unreferenced++;
 #ifdef DEBUG_DUMP
 			printf("code: %s:%i: strip %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 #endif

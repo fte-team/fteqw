@@ -874,9 +874,12 @@ void COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *d
 	{
 		VFS_WRITE(vfs, data, len);
 		VFS_CLOSE(vfs);
-	}
 
-	com_fschanged=true;
+		if (fsroot >= FS_GAME)
+			FS_FlushFSHashWritten(filename);
+		else
+			com_fschanged=true;
+	}
 }
 
 /*
@@ -957,7 +960,7 @@ struct fsbucketblock
 };
 static struct fsbucketblock *fs_hash_filebuckets;
 
-void FS_FlushFSHashReally(qboolean domutexes)
+static void FS_FlushFSHashReally(qboolean domutexes)
 {
 	COM_AssertMainThread("FS_FlushFSHashReally");
 	if (!domutexes || Sys_LockMutex(fs_thread_mutex))
@@ -981,19 +984,6 @@ void FS_FlushFSHashReally(qboolean domutexes)
 		if (domutexes)
 			Sys_UnlockMutex(fs_thread_mutex);
 	}
-}
-void FS_FlushFSHashWritten(void)
-{
-	/*SHOULD be handled automatically, but really isn't*/
-	FS_FlushFSHashReally(true);
-}
-void FS_FlushFSHashRemoved(void)
-{
-	FS_FlushFSHashReally(true);
-}
-void FS_FlushFSHash(void)
-{
-	FS_FlushFSHashReally(true);
 }
 
 static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle)
@@ -1038,7 +1028,7 @@ static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *fileh
 	fs_hash_files++;
 }
 
-void FS_RebuildFSHash(qboolean domutex)
+static void FS_RebuildFSHash(qboolean domutex)
 {
 	int depth = 1;
 	searchpath_t	*search;
@@ -1087,6 +1077,73 @@ void FS_RebuildFSHash(qboolean domutex)
 	Con_DPrintf("%i unique files, %i duplicates\n", fs_hash_files, fs_hash_dups);
 }
 
+static void FS_RebuildFSHash_Update(const char *fname)
+{
+	flocation_t loc;
+	searchpath_t *search;
+	int depth = 0;
+	fsbucket_t *old;
+
+	if (com_fschanged)
+		return;
+
+	COM_WorkerFullSync();
+	if (!Sys_LockMutex(fs_thread_mutex))
+		return;	//amg!
+
+	old = Hash_GetInsensitiveBucket(&filesystemhash, fname);
+	if (old)
+	{
+		Hash_RemoveBucket(&filesystemhash, fname, &old->buck);
+		fs_hash_files--;
+	}
+
+	if (com_purepaths)
+	{	//go for the pure paths first.
+		for (search = com_purepaths; search; search = search->nextpure)
+		{
+			if (search->handle->FindFile(search->handle, &loc, fname, NULL))
+			{
+				FS_AddFileHash(depth, fname, NULL, loc.fhandle);
+				return;
+			}
+			depth++;
+		}
+	}
+	if (fs_puremode < 2)
+	{
+		for (search = com_searchpaths ; search ; search = search->next)
+		{
+			if (search->handle->FindFile(search->handle, &loc, fname, NULL))
+			{
+				FS_AddFileHash(depth, fname, NULL, loc.fhandle);
+				return;
+			}
+			depth++;
+		}
+	}
+
+	Sys_UnlockMutex(fs_thread_mutex);
+}
+
+void FS_FlushFSHashWritten(const char *fname)
+{
+	FS_RebuildFSHash_Update(fname);
+}
+void FS_FlushFSHashRemoved(const char *fname)
+{
+	FS_RebuildFSHash_Update(fname);
+}
+void FS_FlushFSHashFull(void)
+{	//any calls to this are typically a bug...
+	//that said, figuring out if the file was actually within quake's filesystem isn't easy.
+	com_fschanged = true;
+
+	//for safety we would need to sync with all threads, so lets just not bother.
+	//FS_FlushFSHashReally(true);
+}
+
+
 /*
 ===========
 COM_FindFile
@@ -1110,7 +1167,7 @@ int FS_FLocateFile(const char *filename, unsigned int lflags, flocation_t *loc)
 	if (!loc)
 		loc = &allownoloc;
 
-	loc->index = 0;
+	loc->fhandle = NULL;
 	loc->offset = 0;
 	*loc->rawname = 0;
 	loc->search = NULL;
@@ -1559,7 +1616,7 @@ vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 	if (!handle || handle->WriteBytes || handle->seekingisabadplan)	//only on readonly files
 		return handle;
 //	ext = COM_FileExtension (filename);
-#ifdef AVAIL_ZLIB
+#ifdef AVAIL_GZDEC
 //	if (!Q_strcasecmp(ext, ".gz"))
 	{
 		return FS_DecompressGZip(handle, NULL);
@@ -1799,6 +1856,7 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 	switch (relativeto)
 	{
 	case FS_GAMEONLY:	//OS access only, no paks
+		vfs = NULL;
 		if (com_homepathenabled)
 		{
 			if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_homepath, gamedirfile, filename))
@@ -1806,18 +1864,18 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 			if (*mode == 'w')
 				COM_CreatePath(fullname);
 			vfs = VFSOS_Open(fullname, mode);
-			if (vfs)
-				return vfs;
 		}
-		if (*gamedirfile)
+		if (!vfs && *gamedirfile)
 		{
 			if (!try_snprintf(fullname, sizeof(fullname), "%s%s/%s", com_gamepath, gamedirfile, filename))
 				return NULL;
 			if (*mode == 'w')
 				COM_CreatePath(fullname);
-			return VFSOS_Open(fullname, mode);
+			vfs =  VFSOS_Open(fullname, mode);
 		}
-		return NULL;
+		if (vfs && !strcmp(mode, "wb"))
+
+		return vfs;
 	case FS_PUBGAMEONLY:
 		if (!FS_NativePath(filename, relativeto, fullname, sizeof(fullname)))
 			return NULL;
@@ -2590,7 +2648,7 @@ static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purep
 	return search;
 }
 
-void COM_RefreshFSCache_f(void)
+static void COM_RefreshFSCache_f(void)
 {
 	com_fschanged=true;
 }
@@ -2955,13 +3013,35 @@ typedef struct {
 	const char *manifestfile;
 } gamemode_info_t;
 const gamemode_info_t gamemode_info[] = {
+#ifdef GAME_SHORTNAME
+	#ifndef GAME_PROTOCOL
+	#define GAME_PROTOCOL			DISTRIBUTION
+	#endif
+	#ifndef GAME_IDENTIFYINGFILES
+	#define GAME_IDENTIFYINGFILES	NULL	//
+	#endif
+	#ifndef GAME_DEFAULTCMDS
+	#define GAME_DEFAULTCMDS		NULL	//doesn't need anything
+	#endif
+	#ifndef GAME_BASEGAMES
+	#define GAME_BASEGAMES			"data"
+	#endif
+	#ifndef GAME_FULLNAME
+	#define GAME_FULLNAME			FULLENGINENAME
+	#endif
+	#ifndef GAME_MANIFESTUPDATE
+	#define GAME_MANIFESTUPDATE		NULL
+	#endif
+
+	{"-"GAME_SHORTNAME,		GAME_SHORTNAME,			GAME_PROTOCOL,					{GAME_IDENTIFYINGFILES}, GAME_DEFAULTCMDS, {GAME_BASEGAMES}, GAME_FULLNAME, GAME_MANIFESTUPDATE},
+#endif
 //note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
 //this is to avoid having too many gamemodes anyway.
 
 //mission packs should generally come after the main game to avoid prefering the main game. we violate this for hexen2 as the mission pack is mostly a superset.
 //whereas the quake mission packs replace start.bsp making the original episodes unreachable.
 //for quake, we also allow extracting all files from paks. some people think it loads faster that way or something.
-
+#ifndef NOLEGACY
 	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
 	{"-quake",		"q1",		"FTE-Quake DarkPlaces-Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},		"Quake", "https://fte.triptohell.info/downloadables.php" /*,"id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
 	//quake's mission packs should not be favoured over the base game nor autodetected
@@ -3014,6 +3094,7 @@ const gamemode_info_t gamemode_info[] = {
 #if defined(HLSERVER) || defined(HLCLIENT)
 	//can run in windows, needs hl gamecode enabled. maps can always be viewed, but meh.
 	{"-halflife",	"halflife",	"FTE-HalfLife",			{"valve/liblist.gam"},			NULL,	{"valve",						"*ftehl"},	"Half-Life"},
+#endif
 #endif
 
 	{NULL}
@@ -4007,6 +4088,11 @@ static qboolean FS_DirHasGame(const char *basedir, int gameidx)
 {
 	int j;
 	vfsfile_t *f;
+
+	//none listed, just assume its correct.
+	if (!gamemode_info[gameidx].auniquefile[0])
+		return true;
+
 	for (j = 0; j < 4; j++)
 	{
 		if (!gamemode_info[gameidx].auniquefile[j])
@@ -4588,7 +4674,7 @@ static qboolean FS_BeginPackageDownload(struct manpack_s *pack, char *baseurl, q
 #endif
 			break;
 		case X_GZ:
-#ifdef AVAIL_ZLIB
+#ifdef AVAIL_GZDEC
 			tmpf = FS_GZ_DecompressWriteFilter(tmpf, true);
 #else
 			VFS_CLOSE(tmpf);
@@ -5549,6 +5635,7 @@ void COM_InitFilesystem (void)
 	Cmd_AddCommandD("fs_changegame", FS_ChangeGame_f, "Switch between different manifests (or registered games)");
 	Cmd_AddCommandD("fs_changemod", FS_ChangeMod_f, "Provides the backend functionality of a transient online installer. Eg, for quaddicted's map/mod database.");
 	Cmd_AddCommand("fs_showmanifest", FS_ShowManifest_f);
+	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
 
 //
 // -basedir <path>
@@ -5709,24 +5796,26 @@ extern searchpathfuncs_t *(QDECL VFSOS_OpenPath) (vfsfile_t *file, const char *d
 extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
 #endif
 extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
-#ifdef DOOMWADS
+#ifdef PACKAGE_DOOMWAD
 extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
 #endif
 void FS_RegisterDefaultFileSystems(void)
 {
+#ifdef PACKAGE_Q1PAK
 	FS_RegisterFileSystemType(NULL, "pak", FSPAK_LoadArchive, true);
 #if !defined(_WIN32) && !defined(ANDROID)
 	/*for systems that have case sensitive paths, also include *.PAK */
 	FS_RegisterFileSystemType(NULL, "PAK", FSPAK_LoadArchive, true);
 #endif
+#endif
 	FS_RegisterFileSystemType(NULL, "pk3dir", VFSOS_OpenPath, true);
-#if 1//def AVAIL_ZLIB
+#ifdef PACKAGE_PK3
 	FS_RegisterFileSystemType(NULL, "pk3", FSZIP_LoadArchive, true);
 	FS_RegisterFileSystemType(NULL, "pk4", FSZIP_LoadArchive, true);
 	FS_RegisterFileSystemType(NULL, "apk", FSZIP_LoadArchive, false);
 	FS_RegisterFileSystemType(NULL, "zip", FSZIP_LoadArchive, false);
 #endif
-#ifdef DOOMWADS
+#ifdef PACKAGE_DOOMWAD
 	FS_RegisterFileSystemType(NULL, "wad", FSDWD_LoadArchive, true);
 #endif
 }

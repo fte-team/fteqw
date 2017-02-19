@@ -78,6 +78,7 @@ typedef struct {
 #endif
 } net_masterlist_t;
 net_masterlist_t net_masterlist[] = {
+#ifndef QUAKETC
 	//user-specified master lists.
 	{MP_QUAKEWORLD, CVARC("net_qwmaster1", "", Net_Masterlist_Callback)},
 	{MP_QUAKEWORLD, CVARC("net_qwmaster2", "", Net_Masterlist_Callback)},
@@ -87,6 +88,7 @@ net_masterlist_t net_masterlist[] = {
 	{MP_QUAKEWORLD, CVARC("net_qwmaster6", "", Net_Masterlist_Callback)},
 	{MP_QUAKEWORLD, CVARC("net_qwmaster7", "", Net_Masterlist_Callback)},
 	{MP_QUAKEWORLD, CVARC("net_qwmaster8", "", Net_Masterlist_Callback)},
+#endif
 
 	//dpmaster is the generic non-quake-specific master protocol that we use for custom stand-alone mods.
 	{MP_DPMASTER,	CVARAFC("net_master1", "", "sv_master1", 0, Net_Masterlist_Callback)},
@@ -98,16 +100,21 @@ net_masterlist_t net_masterlist[] = {
 	{MP_DPMASTER,	CVARAFC("net_master7", "", "sv_master7", 0, Net_Masterlist_Callback)},
 	{MP_DPMASTER,	CVARAFC("net_master8", "", "sv_master8", 0, Net_Masterlist_Callback)},
 
+#ifdef Q2CLIENT
 	{MP_QUAKE2,		CVARC("net_q2master1", "", Net_Masterlist_Callback)},
 	{MP_QUAKE2,		CVARC("net_q2master2", "", Net_Masterlist_Callback)},
 	{MP_QUAKE2,		CVARC("net_q2master3", "", Net_Masterlist_Callback)},
 	{MP_QUAKE2,		CVARC("net_q2master4", "", Net_Masterlist_Callback)},
+#endif
 
+#ifdef Q3CLIENT
 	{MP_QUAKE3,		CVARC("net_q3master1", "", Net_Masterlist_Callback)},
 	{MP_QUAKE3,		CVARC("net_q3master2", "", Net_Masterlist_Callback)},
 	{MP_QUAKE3,		CVARC("net_q3master3", "", Net_Masterlist_Callback)},
 	{MP_QUAKE3,		CVARC("net_q3master4", "", Net_Masterlist_Callback)},
+#endif
 
+#ifndef QUAKETC
 	//engine-specified/maintained master lists (so users can be lazy and update the engine without having to rewrite all their configs).
 	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra1", "qwmaster.ocrana.de:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"Ocrana(2nd)"},	//german. admin unknown
 	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra2", ""/*"masterserver.exhale.de:27000" seems dead*/,	CVAR_NOSAVE, Net_Masterlist_Callback)},	//german. admin unknown
@@ -129,18 +136,23 @@ net_masterlist_t net_masterlist[] = {
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"kubus.rulez.pl:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"kubus.rulez.pl"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"telefrag.me:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"telefrag.me"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"master.teamdamage.com:27000",				CVAR_NOSAVE, Net_Masterlist_Callback),	"master.teamdamage.com"},
+#endif
 
 	{MP_DPMASTER,	CVARFC("net_masterextra1",		"ghdigital.com:27950 207.55.114.154:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //207.55.114.154 (was 69.59.212.88 (admin: LordHavoc)
 	{MP_DPMASTER,	CVARFC("net_masterextra2",		"dpmaster.deathmask.net:27950 107.161.23.68:27950 [2604:180::4ac:98c1]:27950",	CVAR_NOSAVE, Net_Masterlist_Callback)}, //107.161.23.68 (admin: Willis)
 	{MP_DPMASTER,	CVARFC("net_masterextra3",		"dpmaster.tchr.no:27950 92.62.40.73:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //92.62.40.73 (admin: tChr)
 
+#ifdef Q2CLIENT
 //	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"satan.idsoftware.com:27900",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Official Quake2 master server"},
 //	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"master.planetgloom.com:27900",					CVAR_NOSAVE, Net_Masterlist_Callback)},	//?
 //	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"master.q2servers.com:27900",					CVAR_NOSAVE, Net_Masterlist_Callback)},	//?
 	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"netdome.biz:27900",							CVAR_NOSAVE, Net_Masterlist_Callback)},	//?
+#endif
 
+#ifdef Q3CLIENT
 //	{MP_QUAKE3,		CVARFC("net_q3masterextra1",	"masterserver.exhale.de:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Official Quake3 master server"},
 	{MP_QUAKE3,		CVARFC("net_q3masterextra1",	"master.quake3arena.com:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Official Quake3 master server"},
+#endif
 
 	{MP_UNSPECIFIED, CVAR(NULL, NULL)}
 };
@@ -2549,17 +2561,25 @@ void MasterInfo_Refresh(void)
 		int i;
 		Master_LoadMasterList("servers.txt", false, MT_MASTERUDP, MP_QUAKEWORLD, 1);
 
+		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_QWSERVER),				MT_BCAST,			MP_QUAKEWORLD, "Nearby QuakeWorld UDP servers.");
+#ifndef QUAKETC
 		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quakeworld",	MT_MASTERHTTP,		MP_QUAKEWORLD, "gameaholic's QW master");
 		Master_AddMasterHTTP("https://www.quakeservers.net/lists/servers/global.txt",MT_MASTERHTTP,		MP_QUAKEWORLD, "QuakeServers.net (http)");
-		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_QWSERVER),				MT_BCAST,			MP_QUAKEWORLD, "Nearby QuakeWorld UDP servers.");
+#endif
+#ifdef NQPROT
 		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake",		MT_MASTERHTTP,		MP_NETQUAKE, "gameaholic's NQ master");
 		Master_AddMasterHTTP("http://servers.quakeone.com/index.php?format=json",	MT_MASTERHTTPJSON,	MP_NETQUAKE, "quakeone's server listing");
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_NQSERVER),				MT_BCAST,			MP_NETQUAKE, "Nearby Quake1 servers");
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_NQSERVER),				MT_BCAST,			MP_DPMASTER, "Nearby DarkPlaces servers");
+#endif
+#ifdef Q2CLIENT
 		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake2",		MT_MASTERHTTP,		MP_QUAKE2, "gameaholic's Q2 master");
 		Master_AddMaster("255.255.255.255:27910",									MT_BCAST,			MP_QUAKE2, "Nearby Quake2 UDP servers.");
+#endif
+#ifdef Q3CLIENT
 		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake3",		MT_MASTERHTTP,		MP_QUAKE3, "gameaholic's Q3 master");
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_Q3SERVER),				MT_BCAST,			MP_QUAKE3, "Nearby Quake3 UDP servers.");
+#endif
 
 		for (i = 0; net_masterlist[i].cv.name; i++)
 		{

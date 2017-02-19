@@ -1548,7 +1548,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	st = &pr_statements16[s];
 	while (progfuncs->funcs.debug_trace || prinst.watch_ptr || prinst.profiling)
 	{
-#ifdef FTE_TARGET_WEB
+#if defined(FTE_TARGET_WEB) || defined(SIMPLE_QCVM)
 		reeval16:
 		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
 		pr_xstatement = st-pr_statements16;
@@ -1580,7 +1580,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 
 static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *fte_restrict runaway)
 {
-#ifdef FTE_TARGET_WEB
+#if defined(FTE_TARGET_WEB) ||defined(SIMPLE_QCVM)
 	//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
 	pr_xstatement = s;
 	PR_RunError (&progfuncs->funcs, "32bit qc statement support was disabled for this platform.\n");

@@ -1602,7 +1602,7 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 				t1 = src[0];
 				t2 = src[1];
 				dst[0] = t1 * tcmod->args[0] + t2 * tcmod->args[2] + tcmod->args[4];
-				dst[1] = t2 * tcmod->args[1] + t1 * tcmod->args[3] + tcmod->args[5];
+				dst[1] = t1 * tcmod->args[1] + t2 * tcmod->args[3] + tcmod->args[5];
 			}
 			break;
 

@@ -60,7 +60,7 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l);
 
 extern void BuildLightMapGammaTable (float g, float c);
 
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 static qboolean CM_NativeTrace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
 static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 static unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
@@ -178,7 +178,7 @@ void Mod_SortShaders(model_t *mod)
 
 
 
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 
@@ -398,6 +398,13 @@ void	CM_InitBoxHull (void);
 static void CM_FinalizeBrush(q2cbrush_t *brush);
 static void	FloodAreaConnections (cminfo_t	*prv);
 
+qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2)
+{
+	return (mins1[0] <= maxs2[0] && mins1[1] <= maxs2[1] && mins1[2] <= maxs2[2] &&
+		 maxs1[0] >= mins2[0] && maxs1[1] >= mins2[1] && maxs1[2] >= mins2[2]);
+}
+
+#ifdef Q3BSPS
 static int			numvertexes;
 static vecV_t		*map_verts;	//3points
 static vec2_t		*map_vertstmexcoords;
@@ -408,12 +415,10 @@ static vec3_t		*map_normals_array;
 //static vec3_t		*map_tvector_array;
 
 static index_t *map_surfindexes;
-static int	map_numsurfindexes;
+//static int	map_numsurfindexes;
 
-q3cface_t	*map_faces;
+static q3cface_t	*map_faces;
 static int			numfaces;
-
-
 
 int	PlaneTypeForNormal ( vec3_t normal )
 {
@@ -465,12 +470,6 @@ void PlaneFromPoints ( vec3_t verts[3], mplane_t *plane )
 	plane->dist = DotProduct( verts[0], plane->normal );
 }
 
-qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2)
-{
-	return (mins1[0] <= maxs2[0] && mins1[1] <= maxs2[1] && mins1[2] <= maxs2[2] &&
-		 maxs1[0] >= mins2[0] && maxs1[1] >= mins2[1] && maxs1[2] >= mins2[2]);
-}
-
 /*
 ===============
 Patch_FlatnessTest
@@ -508,7 +507,7 @@ static int Patch_FlatnessTest( float maxflat2, const float *point0, const float 
 Patch_GetFlatness
 ===============
 */
-void Patch_GetFlatness( float maxflat, const float *points, int comp, const int *patch_cp, int *flat )
+static void Patch_GetFlatness( float maxflat, const float *points, int comp, const int *patch_cp, int *flat )
 {
 	int i, p, u, v;
 	float maxflat2 = maxflat * maxflat;
@@ -560,7 +559,7 @@ static void Patch_Evaluate_QuadricBezier( float t, const vec_t *point0, const ve
 Patch_Evaluate
 ===============
 */
-void Patch_Evaluate( const vec_t *p, const int *numcp, const int *tess, vec_t *dest, int comp )
+static void Patch_Evaluate( const vec_t *p, const int *numcp, const int *tess, vec_t *dest, int comp )
 {
 	int num_patches[2], num_tess[2];
 	int index[3], dstpitch, i, u, v, x, y;
@@ -953,7 +952,7 @@ static void CM_CreatePatch(model_t *loadmodel, q3cpatch_t *patch, q2mapsurface_t
 CM_CreatePatchesForLeafs
 =================
 */
-qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
+static qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
 {
 	int i, j, k;
 	mleaf_t *leaf;
@@ -1112,7 +1111,7 @@ qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
 
 	return true;
 }
-
+#endif
 
 
 /*
@@ -1123,12 +1122,22 @@ qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
 ===============================================================================
 */
 
+static void CMod_SetParent (mnode_t *node, mnode_t *parent)
+{
+	node->parent = parent;
+	if (node->contents != -1)
+		return;
+	CMod_SetParent (node->children[0], node);
+	CMod_SetParent (node->children[1], node);
+}
+
+#ifdef Q2BSPS
 /*
 =================
 CMod_LoadSubmodels
 =================
 */
-qboolean CModQ2_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+static qboolean CModQ2_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)loadmodel->meshinfo;
 	q2dmodel_t	*in;
@@ -1182,7 +1191,7 @@ qboolean CModQ2_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 CMod_LoadSurfaces
 =================
 */
-qboolean CModQ2_LoadSurfaces (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ2_LoadSurfaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	q2texinfo_t	*in;
@@ -1218,7 +1227,7 @@ qboolean CModQ2_LoadSurfaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 #ifndef SERVERONLY
-texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname, char *shadername, unsigned int imageflags)
+static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname, char *shadername, unsigned int imageflags)
 {
 	char name[MAX_QPATH];
 	q2miptex_t replacementwal;
@@ -1304,7 +1313,7 @@ texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname, char *
 	return tex;
 }
 
-qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *mapname)	//yes I know these load from the same place
+static qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *mapname)	//yes I know these load from the same place
 {
 	q2texinfo_t *in;
 	mtexinfo_t *out;
@@ -1434,7 +1443,7 @@ qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *map
 }
 #endif
 /*
-void CalcSurfaceExtents (msurface_t *s)
+static void CalcSurfaceExtents (msurface_t *s)
 {
 	float	mins[2], maxs[2], val;
 	int		i,j, e;
@@ -1487,7 +1496,7 @@ Mod_LoadFaces
 =================
 */
 #ifndef SERVERONLY
-qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboolean lightofsisdouble)
+static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboolean lightofsisdouble)
 {
 	dsface_t		*in;
 	msurface_t 	*out;
@@ -1584,22 +1593,13 @@ qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboolean li
 }
 #endif
 
-void CMod_SetParent (mnode_t *node, mnode_t *parent)
-{
-	node->parent = parent;
-	if (node->contents != -1)
-		return;
-	CMod_SetParent (node->children[0], node);
-	CMod_SetParent (node->children[1], node);
-}
-
 /*
 =================
 CMod_LoadNodes
 
 =================
 */
-qboolean CModQ2_LoadNodes (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ2_LoadNodes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	q2dnode_t		*in;
 	int			child;
@@ -1668,7 +1668,7 @@ CMod_LoadBrushes
 
 =================
 */
-qboolean CModQ2_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ2_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	q2dbrush_t	*in;
@@ -1712,7 +1712,7 @@ qboolean CModQ2_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 CMod_LoadLeafs
 =================
 */
-qboolean CModQ2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i, j;
 	mleaf_t		*out;
@@ -1787,7 +1787,7 @@ qboolean CModQ2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 CMod_LoadPlanes
 =================
 */
-qboolean CModQ2_LoadPlanes (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ2_LoadPlanes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i, j;
 	mplane_t	*out;
@@ -1841,7 +1841,7 @@ qboolean CModQ2_LoadPlanes (model_t *mod, qbyte *mod_base, lump_t *l)
 CMod_LoadLeafBrushes
 =================
 */
-qboolean CModQ2_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ2_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i;
@@ -1883,7 +1883,7 @@ qboolean CModQ2_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 CMod_LoadBrushSides
 =================
 */
-qboolean CModQ2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	unsigned int			i, j;
@@ -1929,7 +1929,7 @@ qboolean CModQ2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 CMod_LoadAreas
 =================
 */
-qboolean CModQ2_LoadAreas (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ2_LoadAreas (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i;
@@ -1970,7 +1970,7 @@ qboolean CModQ2_LoadAreas (model_t *mod, qbyte *mod_base, lump_t *l)
 CMod_LoadAreaPortals
 =================
 */
-qboolean CModQ2_LoadAreaPortals (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ2_LoadAreaPortals (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i;
@@ -2009,7 +2009,7 @@ qboolean CModQ2_LoadAreaPortals (model_t *mod, qbyte *mod_base, lump_t *l)
 CMod_LoadVisibility
 =================
 */
-qboolean CModQ2_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ2_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int		i;
@@ -2036,9 +2036,10 @@ qboolean CModQ2_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 
 	return true;
 }
+#endif	//q2bsps
 
 #ifdef Q3BSPS
-qboolean CModQ3_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int		i, j, count;
 	int		*in;
@@ -2070,7 +2071,7 @@ qboolean CModQ3_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l
 	return true;
 }
 
-qboolean CModQ3_LoadSubmodels (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadSubmodels (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	q3dmodel_t	*in;
@@ -2154,7 +2155,7 @@ qboolean CModQ3_LoadSubmodels (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadShaders (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadShaders (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	dq3shader_t	*in;
@@ -2213,7 +2214,7 @@ qboolean CModQ3_LoadShaders (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	q3dvertex_t	*in;
 	vecV_t		*out;
@@ -2281,7 +2282,8 @@ qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean CModRBSP_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
+#ifdef RFBSPS
+static qboolean CModRBSP_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	rbspvertex_t	*in;
 	vecV_t		*out;
@@ -2349,9 +2351,10 @@ qboolean CModRBSP_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 
 	return true;
 }
+#endif
 
-
-qboolean CModQ3_LoadIndexes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+#ifndef SERVERONLY
+static qboolean CModQ3_LoadIndexes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int		i, count;
 	int		*in;
@@ -2374,20 +2377,21 @@ qboolean CModQ3_LoadIndexes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
 	map_surfindexes = out;
-	map_numsurfindexes = count;
+//	map_numsurfindexes = count;
 
 	for ( i=0 ; i<count ; i++)
 		out[i] = LittleLong (in[i]);
 
 	return true;
 }
+#endif
 
 /*
 =================
 CMod_LoadFaces
 =================
 */
-qboolean CModQ3_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	q3dface_t		*in;
 	q3cface_t		*out;
@@ -2436,7 +2440,8 @@ qboolean CModQ3_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
+#ifdef RFBSPS
+static qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	rbspface_t		*in;
 	q3cface_t		*out;
@@ -2483,6 +2488,7 @@ qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	mod->numsurfaces = i;
 	return true;
 }
+#endif
 
 #ifndef SERVERONLY
 
@@ -2491,7 +2497,7 @@ qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 Mod_LoadFogs
 =================
 */
-qboolean CModQ3_LoadFogs (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadFogs (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	dfog_t 	*in;
@@ -2569,9 +2575,9 @@ mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org)
 
 #define MAX_ARRAY_VERTS 65535
 
-index_t tempIndexesArray[MAX_ARRAY_VERTS*6];
+static index_t tempIndexesArray[MAX_ARRAY_VERTS*6];
 
-void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
+static void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
 {
 	int patch_cp[2], step[2], size[2], flat[2];
 	float subdivlevel;
@@ -2604,9 +2610,9 @@ void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numverts, i
 }
 
 //mesh_t *GL_CreateMeshForPatch ( model_t *mod, q3dface_t *surf )
-void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
+static void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
 {
-    int numindexes, patch_cp[2], step[2], size[2], flat[2], i, u, v, p;
+	int numindexes, patch_cp[2], step[2], size[2], flat[2], i, u, v, p;
 	index_t	*indexes;
 	float subdivlevel;
 	int sty;
@@ -2706,7 +2712,8 @@ void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, int patc
 	memcpy (mesh->indexes, tempIndexesArray, numindexes * sizeof(index_t) );
 }
 
-void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
+#ifdef RFBSPS
+static void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 {
 	rbspface_t *in = (rbspface_t*)(bd+1);
 	int idx = (out - mod->surfaces) - mod->firstmodelsurface;
@@ -2778,8 +2785,9 @@ void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 	Mod_AccumulateMeshTextureVectors(out->mesh);
 	Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes, false);
 }
+#endif
 
-void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
+static void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 {
 	q3dface_t *in = (q3dface_t*)(bd+1);
 	int idx = (out - mod->surfaces) - mod->firstmodelsurface;
@@ -2848,7 +2856,7 @@ void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 	Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes, false);
 }
 
-qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	extern cvar_t r_vertexlight;
@@ -2962,7 +2970,8 @@ qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
+#ifdef RFBSPS
+static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	extern cvar_t r_vertexlight;
@@ -3072,8 +3081,9 @@ qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 #endif
+#endif
 
-qboolean CModQ3_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int			i, j, count, p;
 	q3dnode_t	*in;
@@ -3134,7 +3144,7 @@ qboolean CModQ3_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	q3dbrush_t	*in;
@@ -3174,7 +3184,7 @@ qboolean CModQ3_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i, j;
@@ -3248,7 +3258,7 @@ qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int			i, j;
 	mplane_t	*out;
@@ -3286,7 +3296,7 @@ qboolean CModQ3_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i;
@@ -3323,7 +3333,7 @@ qboolean CModQ3_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i, j;
@@ -3366,7 +3376,8 @@ qboolean CModQ3_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-qboolean CModRBSP_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
+#ifdef RFBSPS
+static qboolean CModRBSP_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i, j;
@@ -3408,8 +3419,9 @@ qboolean CModRBSP_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 
 	return true;
 }
+#endif
 
-qboolean CModQ3_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	unsigned int numclusters;
@@ -3446,7 +3458,7 @@ qboolean CModQ3_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 }
 
 #ifndef SERVERONLY
-void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	qbyte *in = mod_base + l->fileofs;
 	qbyte *out;
@@ -3512,7 +3524,7 @@ void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	}
 }
 
-qboolean CModQ3_LoadLightgrid (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+static qboolean CModQ3_LoadLightgrid (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	dq3gridlight_t 	*in;
 	dq3gridlight_t 	*out;
@@ -3538,7 +3550,9 @@ qboolean CModQ3_LoadLightgrid (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 
 	return true;
 }
-qboolean CModRBSP_LoadLightgrid (model_t *loadmodel, qbyte *mod_base, lump_t *elements, lump_t *indexes)
+
+#ifdef RFBSPS
+static qboolean CModRBSP_LoadLightgrid (model_t *loadmodel, qbyte *mod_base, lump_t *elements, lump_t *indexes)
 {
 	unsigned short	*iin;
 	rbspgridlight_t	*ein;
@@ -3580,10 +3594,11 @@ qboolean CModRBSP_LoadLightgrid (model_t *loadmodel, qbyte *mod_base, lump_t *el
 }
 #endif
 #endif
+#endif
 
-#ifndef SERVERONLY
+#if !defined(SERVERONLY) && defined(Q2BSPS)
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
-int CM_GetQ2Palette (void)
+static int CM_GetQ2Palette (void)
 {
 	char *f;
 	size_t sz;
@@ -3628,7 +3643,8 @@ int CM_GetQ2Palette (void)
 }
 #endif
 
-void CM_OpenAllPortals(model_t *mod, char *ents)	//this is a compleate hack. About as compleate as possible.
+#if 0
+static void CM_OpenAllPortals(model_t *mod, char *ents)	//this is a compleate hack. About as compleate as possible.
 {	//q2 levels contain a thingie called area portals. Basically, doors can seperate two areas and
 	//the engine knows when this portal is open, and weather to send ents from both sides of the door
 	//or not. It's not just ents, but also walls. We want to just open them by default and hope the
@@ -3675,10 +3691,11 @@ void CM_OpenAllPortals(model_t *mod, char *ents)	//this is a compleate hack. Abo
 		ents++;
 	}
 }
+#endif
 
 
-#ifndef CLIENTONLY
-void CMQ3_CalcPHS (model_t *mod)
+#if !defined(CLIENTONLY) && defined(Q3BSPS)
+static void CMQ3_CalcPHS (model_t *mod)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int		rowbytes, rowwords;
@@ -3888,7 +3905,9 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	model_t			*wmod = mod;
 	char			loadname[32];
 	qbyte			*mod_base = (qbyte *)filein;
+#ifdef Q3BSPS
 	extern cvar_t	gl_overbright;
+#endif
 
 #ifndef SERVERONLY
 	void (*buildmeshes)(model_t *mod, msurface_t *surf, builddata_t *cookie) = NULL;
@@ -3945,15 +3964,19 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		return NULL;
 		break;
 #ifdef Q3BSPS
+#ifdef RFBSPS
 	case BSPVERSION_RBSP: //rbsp/fbsp
+#endif
 	case BSPVERSION_RTCW:	//rtcw
 	case BSPVERSION_Q3:
+#ifdef RFBSPS
 		if (header.ident == (('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24)))
 		{
 			mod->lightmaps.width = 512;
 			mod->lightmaps.height = 512;
 		}
 		else
+#endif
 		{
 			mod->lightmaps.width = 128;
 			mod->lightmaps.height = 128;
@@ -3963,12 +3986,14 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		mod->fromgame = fg_quake3;
 		for (i=0 ; i<Q3LUMPS_TOTAL ; i++)
 		{
+#ifdef RFBSPS
 			if (i == RBSPLUMP_LIGHTINDEXES && header.version != BSPVERSION_RBSP)
 			{
 				header.lumps[i].filelen = 0;
 				header.lumps[i].fileofs = 0;
 			}
 			else
+#endif
 			{
 				header.lumps[i].filelen = LittleLong (header.lumps[i].filelen);
 				header.lumps[i].fileofs = LittleLong (header.lumps[i].fileofs);
@@ -4021,28 +4046,34 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		prv->mapisq3 = true;
 		noerrors = noerrors && CModQ3_LoadShaders				(mod, mod_base, &header.lumps[Q3LUMP_SHADERS]);
 		noerrors = noerrors && CModQ3_LoadPlanes				(mod, mod_base, &header.lumps[Q3LUMP_PLANES]);
+#ifdef RFBSPS
 		if (header.version == BSPVERSION_RBSP)
 		{
 			noerrors = noerrors && CModRBSP_LoadBrushSides		(mod, mod_base, &header.lumps[Q3LUMP_BRUSHSIDES]);
 			noerrors = noerrors && CModRBSP_LoadVertexes		(mod, mod_base, &header.lumps[Q3LUMP_DRAWVERTS]);
 		}
 		else
+#endif
 		{
 			noerrors = noerrors && CModQ3_LoadBrushSides		(mod, mod_base, &header.lumps[Q3LUMP_BRUSHSIDES]);
 			noerrors = noerrors && CModQ3_LoadVertexes			(mod, mod_base, &header.lumps[Q3LUMP_DRAWVERTS]);
 		}
 		noerrors = noerrors && CModQ3_LoadBrushes				(mod, mod_base, &header.lumps[Q3LUMP_BRUSHES]);
 		noerrors = noerrors && CModQ3_LoadLeafBrushes			(mod, mod_base, &header.lumps[Q3LUMP_LEAFBRUSHES]);
-		if (header.version == 1)
+#ifdef RFBSPS
+		if (header.version == BSPVERSION_RBSP)
 			noerrors = noerrors && CModRBSP_LoadFaces			(mod, mod_base, &header.lumps[Q3LUMP_SURFACES]);
 		else
+#endif
 			noerrors = noerrors && CModQ3_LoadFaces				(mod, mod_base, &header.lumps[Q3LUMP_SURFACES]);
 #ifndef SERVERONLY
 		if (qrenderer != QR_NONE)
 		{
+#ifdef RFBSPS
 			if (header.version == BSPVERSION_RBSP)
 				noerrors = noerrors && CModRBSP_LoadLightgrid	(mod, mod_base, &header.lumps[Q3LUMP_LIGHTGRID], &header.lumps[RBSPLUMP_LIGHTINDEXES]);
 			else
+#endif
 				noerrors = noerrors && CModQ3_LoadLightgrid		(mod, mod_base, &header.lumps[Q3LUMP_LIGHTGRID]);
 			noerrors = noerrors && CModQ3_LoadIndexes			(mod, mod_base, &header.lumps[Q3LUMP_DRAWINDEXES]);
 
@@ -4052,6 +4083,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				mod->numfogs = 0;
 
 			facedata = (void *)(mod_base + header.lumps[Q3LUMP_SURFACES].fileofs);
+#ifdef RFBSPS
 			if (header.version == BSPVERSION_RBSP)
 			{
 				noerrors = noerrors && CModRBSP_LoadRFaces		(mod, mod_base, &header.lumps[Q3LUMP_SURFACES]);
@@ -4060,6 +4092,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				mod->lightmaps.surfstyles = 4;
 			}
 			else
+#endif
 			{
 				noerrors = noerrors && CModQ3_LoadRFaces		(mod, mod_base, &header.lumps[Q3LUMP_SURFACES]);
 				buildmeshes = CModQ3_BuildSurfMesh;
@@ -4098,9 +4131,9 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		}
 
 #ifndef CLIENTONLY
-		mod->funcs.FatPVS					= Q2BSP_FatPVS;
-		mod->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
-		mod->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
+		mod->funcs.FatPVS					= Q23BSP_FatPVS;
+		mod->funcs.EdictInFatPVS			= Q23BSP_EdictInFatPVS;
+		mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
 #endif
 		mod->funcs.ClusterPVS				= CM_ClusterPVS;
 		mod->funcs.ClusterForPoint		= CM_PointCluster;
@@ -4161,6 +4194,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		BZ_Free(map_faces);
 		break;
 #endif
+#ifdef Q2BSPS
 	case BSPVERSION_Q2:
 	case BSPVERSION_Q2W:
 		mod->lightmaps.width = LMBLOCK_SIZE_MAX;
@@ -4204,9 +4238,9 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				Mod_LoadEntities							(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
 
 #ifndef CLIENTONLY
-			mod->funcs.FatPVS				= Q2BSP_FatPVS;
-			mod->funcs.EdictInFatPVS		= Q2BSP_EdictInFatPVS;
-			mod->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
+			mod->funcs.FatPVS				= Q23BSP_FatPVS;
+			mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
+			mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
 #endif
 			mod->funcs.LightPointValues		= NULL;
 			mod->funcs.StainNode			= NULL;
@@ -4250,9 +4284,9 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				return NULL;
 			}
 #ifndef CLIENTONLY
-			mod->funcs.FatPVS				= Q2BSP_FatPVS;
-			mod->funcs.EdictInFatPVS		= Q2BSP_EdictInFatPVS;
-			mod->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
+			mod->funcs.FatPVS				= Q23BSP_FatPVS;
+			mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
+			mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
 #endif
 			mod->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
 			mod->funcs.StainNode			= GLR_Q2BSP_StainNode;
@@ -4265,6 +4299,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			break;
 #endif
 		}
+#endif
 	}
 
 	if (map_autoopenportals.value)
@@ -4388,15 +4423,17 @@ static cmodel_t	*CM_InlineModel (model_t *model, char *name)
 	return &prv->cmodels[num];
 }
 
-int		CM_NumClusters (model_t *model)
+int		CM_ClusterBytes (model_t *model)
 {
-	return model->numclusters;
-}
-
-int		CM_ClusterSize (model_t *model)
-{
-	cminfo_t	*prv = (cminfo_t*)model->meshinfo;
-	return prv->q3pvs->rowsize ? prv->q3pvs->rowsize : MAX_MAP_LEAFS / 8;
+#ifdef Q3BSPS
+	if (model->fromgame == fg_quake3)
+	{
+		cminfo_t	*prv = (cminfo_t*)model->meshinfo;
+		return prv->q3pvs->rowsize ? prv->q3pvs->rowsize : MAX_MAP_LEAFS / 8;
+	}
+	else
+#endif
+		return (model->numclusters+7)/8;
 }
 
 static int		CM_NumInlineModels (model_t *model)
@@ -4465,7 +4502,7 @@ void CM_InitBoxHull (void)
 #ifndef CLIENTONLY
 	box_model.funcs.FatPVS				= Q2BSP_FatPVS;
 	box_model.funcs.EdictInFatPVS		= Q2BSP_EdictInFatPVS;
-	box_model.funcs.FindTouchedLeafs	= Q2BSP_FindTouchedLeafs;
+	box_model.funcs.FindTouchedLeafs	= Q23BSP_FindTouchedLeafs;
 #endif
 
 #ifndef SERVERONLY
@@ -4960,6 +4997,7 @@ static void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 	}
 }
 
+#ifdef Q3BSPS
 static void CM_ClipBoxToPlanes (vec3_t trmins, vec3_t trmaxs, vec3_t p1, vec3_t p2, trace_t *trace, vec3_t plmins, vec3_t plmaxs, mplane_t *plane, int numplanes, q2csurface_t *surf)
 {
 	int			i, j;
@@ -5128,6 +5166,7 @@ static void CM_ClipBoxToPlanes (vec3_t trmins, vec3_t trmaxs, vec3_t p1, vec3_t 
 		}
 	}
 }
+
 static void Mod_Trace_Trisoup_(vecV_t *posedata, index_t *indexes, size_t numindexes, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace, q2csurface_t *surf)
 {
 	size_t i;
@@ -5309,7 +5348,7 @@ static void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 			leavefrac=0;
 	}
 }
-
+#endif
 
 /*
 ================
@@ -5370,6 +5409,7 @@ static void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 	trace->contents |= brush->contents;
 }
 
+#ifdef Q3BSPS
 static void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 					  trace_t *trace, q2cbrush_t *brush)
 {
@@ -5434,7 +5474,7 @@ static void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 	trace->startsolid = trace->allsolid = true;
 	trace->contents = brush->contents;
 }
-
+#endif
 
 /*
 ================
@@ -5443,12 +5483,14 @@ CM_TraceToLeaf
 */
 static void CM_TraceToLeaf (cminfo_t	*prv, mleaf_t		*leaf)
 {
-	int			k, j;
+	int			k;
 	q2cbrush_t	*b;
 
-	int patchnum;
+#ifdef Q3BSPS
+	int patchnum, j;
 	q3cpatch_t *patch;
 	q3cmesh_t *cmesh;
+#endif
 
 	if ( !(leaf->contents & trace_contents))
 		return;
@@ -5469,6 +5511,7 @@ static void CM_TraceToLeaf (cminfo_t	*prv, mleaf_t		*leaf)
 			return;
 	}
 
+#ifdef Q3BSPS
 	if (!prv->mapisq3 || map_noCurves.value)
 		return;
 
@@ -5509,6 +5552,7 @@ static void CM_TraceToLeaf (cminfo_t	*prv, mleaf_t		*leaf)
 		if (trace_nearfraction<=0)
 			return;
 	}
+#endif
 }
 
 
@@ -5519,11 +5563,13 @@ CM_TestInLeaf
 */
 static void CM_TestInLeaf (cminfo_t *prv, mleaf_t *leaf)
 {
-	int			k, j;
-	int patchnum;
+	int			k;
 	q2cbrush_t	*b;
+#ifdef Q3BSPS
+	int patchnum, j;
 	q3cmesh_t	*cmesh;
 	q3cpatch_t *patch;
+#endif
 
 	if ( !(leaf->contents & trace_contents))
 		return;
@@ -5544,10 +5590,11 @@ static void CM_TestInLeaf (cminfo_t *prv, mleaf_t *leaf)
 			return;
 	}
 
+#ifdef Q3BSPS
 	if (!prv->mapisq3 || map_noCurves.value)
 		return;
 
-  	// trace line against all patches in the leaf
+	// trace line against all patches in the leaf
 	for (k = 0; k < leaf->numleafpatches; k++)
 	{
 		patchnum = prv->leafpatches[leaf->firstleafpatch+k];
@@ -5584,6 +5631,7 @@ static void CM_TestInLeaf (cminfo_t *prv, mleaf_t *leaf)
 		if (trace_nearfraction<=0)
 			return;
 	}
+#endif
 }
 
 

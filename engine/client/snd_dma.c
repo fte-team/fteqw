@@ -905,7 +905,9 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	unsigned int encpos;//in bytes
 	short *start;
 	unsigned int initseq;//in frames
+#ifdef SUPPORT_ICE
 	unsigned int inittimestamp;//in samples
+#endif
 	unsigned int samps;
 	float level;
 	int len;
@@ -1128,7 +1130,9 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	}
 
 	initseq = s_voip.encsequence;
+#ifdef SUPPORT_ICE
 	inittimestamp = s_voip.enctimestamp;
+#endif
 	level = 0;
 	samps=0;
 	//*2 for 16bit audio input.

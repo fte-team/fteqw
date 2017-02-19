@@ -1170,7 +1170,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 	}
 }
 
-#ifdef THREADEDWORLD
+#if defined(THREADEDWORLD) && (defined(Q1BSPS)||defined(Q2BSPS))
 static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift, int ambient, unsigned int lmwidth, int *d_lightstylevalue)
 {
 	int			smax, tmax;
@@ -1570,7 +1570,7 @@ dynamic:
 	}
 }
 
-#ifdef THREADEDWORLD
+#if defined(THREADEDWORLD) && (defined(Q1BSPS)||defined(Q2BSPS))
 static void Surf_RenderDynamicLightmaps_Worker (model_t *wmodel, msurface_t *fa, int *d_lightstylevalue)
 {
 	qbyte		*base, *luxbase;
@@ -1805,6 +1805,8 @@ static qbyte *Surf_MaskVis(qbyte *src, qbyte *dest)
 }
 */
 qbyte *frustumvis;
+
+#ifdef Q1BSPS
 /*
 ================
 R_RecursiveWorldNode
@@ -1987,6 +1989,7 @@ static void Surf_OrthoRecursiveWorldNode (mnode_t *node, unsigned int clipflags)
 	}
 	return;
 }
+#endif
 
 #ifdef Q2BSPS
 static void Surf_RecursiveQ2WorldNode (mnode_t *node)
@@ -2568,6 +2571,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 		}
 
 		Surf_LightmapShift(model);
+#ifdef HEXEN2
 		if ((ent->drawflags & MLS_MASK) == MLS_ABSLIGHT)
 		{
 			//update lightmaps.
@@ -2581,6 +2585,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 				Surf_RenderAmbientLightmaps (s, 255);
 		}
 		else
+#endif
 		{
 			//update lightmaps.
 			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
@@ -2592,11 +2597,13 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 	bef = BEF_PUSHDEPTH;
 	if (ent->flags & RF_ADDITIVE)
 		bef |= BEF_FORCEADDITIVE;
+#ifdef HEXEN2
 	else if ((ent->drawflags & DRF_TRANSLUCENT) && r_wateralpha.value != 1)
 	{
 		bef |= BEF_FORCETRANSPARENT;
 		ent->shaderRGBAf[3] = r_wateralpha.value;
 	}
+#endif
 	else if ((ent->flags & RF_TRANSLUCENT) && cls.protocol != CP_QUAKE3)
 		bef |= BEF_FORCETRANSPARENT;
 	if (ent->flags & RF_NODEPTHTEST)
@@ -2786,6 +2793,7 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 		}
 	}
 }
+#ifdef Q1BSPS
 static void Surf_SimpleWorld_Q1BSP(struct webostate_s *es, qbyte *pvs)
 {
 	mleaf_t		*leaf;
@@ -2826,7 +2834,8 @@ static void Surf_SimpleWorld_Q1BSP(struct webostate_s *es, qbyte *pvs)
 		}
 	}
 }
-#if defined(Q2BSP) || defined(Q3BSP)
+#endif
+#if defined(Q2BSPS) || defined(Q3BSPS)
 static void Surf_SimpleWorld_Q3BSP(struct webostate_s *es, qbyte *pvs)
 {
 	mleaf_t		*leaf;
@@ -2886,7 +2895,7 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 		es->batches[i].idxbuffer = NULL;
 	}
 
-#if defined(Q2BSP) || defined(Q3BSP)
+#if defined(Q2BSPS) || defined(Q3BSPS)
 	if (es->wmodel->fromgame == fg_quake2 || es->wmodel->fromgame == fg_quake3)
 	{
 		if (es->cluster[1] != -1 && es->cluster[0] != es->cluster[1])
@@ -3094,7 +3103,7 @@ void Surf_DrawWorld (void)
 		}
 		else
 #endif
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 		if (currentmodel->fromgame == fg_quake2 || currentmodel->fromgame == fg_quake3)
 		{
 			frustumvis = frustumvis_;
@@ -3116,10 +3125,17 @@ void Surf_DrawWorld (void)
 			}
 			else
 #endif
+#ifdef Q2BSPS
+			if (currentmodel->fromgame == fg_quake2)
 			{
 				entvis = surfvis = R_MarkLeaves_Q2 ();
 				VectorCopy (r_refdef.vieworg, modelorg);
 				Surf_RecursiveQ2WorldNode (currentmodel->nodes);
+			}
+			else
+#endif
+			{
+				entvis = surfvis = NULL;
 			}
 
 			surfvis = frustumvis;

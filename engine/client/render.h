@@ -148,7 +148,7 @@ typedef struct entity_s
 #ifdef PEXT_FATNESS
 	float fatness;
 #endif
-#ifdef PEXT_HEXEN2
+#ifdef HEXEN2
 	int drawflags;
 	int abslight;
 #endif

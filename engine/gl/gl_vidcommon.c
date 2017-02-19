@@ -2537,14 +2537,14 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t
 					prog->numsamplers = i+1;
 			}
 		}
-		for (i = 0; sh_defaultsamplers[i]; i++)
+		for (i = 0; sh_defaultsamplers[i].name; i++)
 		{
 			//figure out which ones are needed.
-			if (prog->defaulttextures & (1u<<i))
+			if (prog->defaulttextures & sh_defaultsamplers[i].defaulttexbits)
 				continue;	//don't spam
-			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, sh_defaultsamplers[i]);
+			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, sh_defaultsamplers[i].name);
 			if (uniformloc != -1)
-				prog->defaulttextures |= (1u<<i);
+				prog->defaulttextures |= sh_defaultsamplers[i].defaulttexbits;
 		}
 	}
 
@@ -2564,11 +2564,11 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t
 				continue;
 			sampnum = prog->numsamplers;
 			GLSlang_UseProgram(prog->permu[p].h.glsl.handle);
-			for (i = 0; sh_defaultsamplers[i]; i++)
+			for (i = 0; sh_defaultsamplers[i].name; i++)
 			{
-				if (prog->defaulttextures & (1u<<i))
+				if (prog->defaulttextures & sh_defaultsamplers[i].defaulttexbits)
 				{
-					uniformloc = qglGetUniformLocationARB(prog->permu[p].h.glsl.handle, sh_defaultsamplers[i]);
+					uniformloc = qglGetUniformLocationARB(prog->permu[p].h.glsl.handle, sh_defaultsamplers[i].name);
 					if (uniformloc != -1)
 						qglUniform1iARB(uniformloc, sampnum);
 					sampnum++;

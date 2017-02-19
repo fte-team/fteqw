@@ -1190,11 +1190,11 @@ void M_Menu_Textures_f (void)
 	static const char *texturesizeoptions[] =
 	{
 		"128",
-		"196",
+//		"192",
 		"256",
-		"384",
+//		"384",
 		"512",
-		"768",
+//		"768",
 		"1024",
 		"2048",
 		"4096",

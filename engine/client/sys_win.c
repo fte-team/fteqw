@@ -3625,6 +3625,9 @@ static void Sys_MakeInstaller(const char *name)
 #if defined(_MSC_VER) && defined(_AMD64_)
 #pragma optimize( "", off)	//64bit msvc sucks and falls over when trying to inline Host_Frame
 #endif
+#ifdef __GNUC__
+__attribute__((visibility("default")))
+#endif
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 //    MSG				msg;
@@ -4045,6 +4048,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #pragma optimize( "", on)	//revert back to default optimisations again.
 #endif
 
+#if 0	//define this if you're somehow getting windows' consle subsystem instead of the proper windows one
 int __cdecl main(void)
 {
 	char *cmdline;
@@ -4067,6 +4071,7 @@ int __cdecl main(void)
 	}
 	return WinMain(GetModuleHandle(NULL), NULL, cmdline, SW_NORMAL);
 }
+#endif 
 
 //now queries at startup and then caches, to avoid mode changes from giving weird results.
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)

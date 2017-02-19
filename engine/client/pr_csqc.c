@@ -81,7 +81,7 @@ cvar_t	pr_csqc_memsize = CVAR("pr_csqc_memsize", "-1");
 cvar_t	cl_csqcdebug = CVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
 cvar_t  cl_nocsqc = CVAR("cl_nocsqc", "0");
 cvar_t  pr_csqc_coreonerror = CVAR("pr_csqc_coreonerror", "1");
-#ifdef NOLEGACY
+#if defined(NOBUILTINMENUS) && !defined(MENU_DAT)
 cvar_t  pr_csqc_formenus = CVARF("pr_csqc_formenus", "1", CVAR_NOSET);
 #else
 cvar_t  pr_csqc_formenus = CVAR("pr_csqc_formenus", "0");
@@ -875,6 +875,10 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 
 	VectorCopy(in->xv->glowmod, out->glowmod);
 
+#ifdef HEXEN2
+	out->drawflags = in->xv->drawflags;
+	out->abslight = in->xv->abslight;
+#endif
 	out->skinnum = in->v->skin;
 	out->fatness = in->xv->fatness;
 	ival = in->xv->forceshader;
@@ -4680,7 +4684,10 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 	ent->v->skin = src->skinnum;
 	ent->xv->scale = src->scale/16.0f;
 	ent->xv->fatness = src->fatness/16.0f;
-//	ent->xv->drawflags = src->hexen2flags;
+#ifdef HEXEN2
+	ent->xv->drawflags = src->hexen2flags;
+	ent->xv->abslight = src->abslight;
+#endif
 //	ent->xv->abslight = src->abslight;
 //	ent->v->dpflags = src->dpflags;
 	ent->xv->colormod[0] = src->colormod[0]*(8/256.0f);

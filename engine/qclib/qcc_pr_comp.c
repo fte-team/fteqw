@@ -191,7 +191,7 @@ QCC_sref_t	QCC_StoreSRefToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable
 QCC_sref_t	QCC_StoreRefToRef(QCC_ref_t *dest, QCC_ref_t *source, pbool readable, pbool preservedest);
 void QCC_PR_DiscardRef(QCC_ref_t *ref);
 QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *type, pbool dowrap);
-const char *QCC_VarAtOffset(QCC_sref_t ref, unsigned int size);
+const char *QCC_VarAtOffset(QCC_sref_t ref);
 QCC_sref_t QCC_EvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit);
 void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t def, unsigned int flags);
 
@@ -2083,7 +2083,7 @@ static void QCC_fprintfLocals(FILE *f, QCC_def_t *locals)
 
 #ifdef WRITEASM
 void QCC_WriteAsmFunction(QCC_function_t	*sc, unsigned int firststatement, QCC_def_t *firstlocal);
-const char *QCC_VarAtOffset(QCC_sref_t ref, unsigned int size)
+const char *QCC_VarAtOffset(QCC_sref_t ref)
 {	//for debugging, we don't need to preserve the cast.
 	static char message[1024];
 	//check the temps
@@ -2238,7 +2238,7 @@ pbool QCC_Temp_Describe(QCC_def_t *def, char *buffer, int buffersize)
 	switch(s->op)
 	{
 	default:
-		QC_snprintfz(buffer, buffersize, "%s %s %s", QCC_VarAtOffset(s->a, 1), pr_opcodes[s->op].name, QCC_VarAtOffset(s->b, 1));
+		QC_snprintfz(buffer, buffersize, "%s %s %s", QCC_VarAtOffset(s->a), pr_opcodes[s->op].name, QCC_VarAtOffset(s->b));
 		break;
 	}
 	return true;
@@ -5863,6 +5863,12 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 			{
 				e = QCC_PR_BuildRef(&parambuf[arg], REF_GLOBAL, QCC_MakeSRef(&def_parms[arg], 0, p?p:type_variant), nullsref, p?p:type_variant, true);
 			}
+			else if (arg < t->num_parms && (QCC_PR_PeekToken (",") || QCC_PR_PeekToken (")")))
+			{
+				if (!func.cast->params[arg].defltvalue.cast)
+					QCC_PR_ParseErrorPrintSRef (ERR_NOTDEFINED, func, "Default value not specified for implicit argument %i", arg+1);
+				e = QCC_DefToRef(&parambuf[arg], func.cast->params[arg].defltvalue);
+			}
 			else
 
 			//with vectorcalls, we store the vector into the args as individual floats
@@ -5949,8 +5955,13 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 	}
 
 	//don't warn if we omited optional arguments
-	while (np > arg && func.cast->params[np-1].optional)
-		np--;
+	while (arg < np && func.cast->params[arg].defltvalue.cast && !func.cast->params[arg].optional)
+	{
+		param[arg] = QCC_DefToRef(&parambuf[arg], func.cast->params[arg].defltvalue);
+		arg++;
+	}
+	if (arg < np && func.cast->params[arg].optional)
+		np = arg;
 	if (arg < np)
 	{
 		/*if (arg+1==np && !strcmp(QCC_GetSRefName(func), "makestatic"))
@@ -7088,7 +7099,11 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 
 // if the token is an immediate, allocate a constant for it
 	if (pr_token_type == tt_immediate)
-		return QCC_DefToRef(refbuf, QCC_PR_ParseImmediate ());
+	{
+		d = QCC_PR_ParseImmediate ();
+		d.sym->referenced = true;
+		return QCC_DefToRef(refbuf, d);
+	}
 
 	if (QCC_PR_CheckToken("["))
 	{
@@ -7123,7 +7138,9 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 
 		QCC_PR_Expect("]");
 
-		return QCC_DefToRef(refbuf, QCC_PR_GenerateVector(x,y,z));
+		d = QCC_PR_GenerateVector(x,y,z);
+		d.sym->referenced = true;
+		return QCC_DefToRef(refbuf, d);
 	}
 
 	if (QCC_PR_CheckToken("::"))
@@ -9248,7 +9265,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				}
 				else
 					lhsd = QCC_RefToDef(lhsr, true);
-				
+
 				rhsr = QCC_PR_RefExpression (&rhsbuf, priority-1, exprflags | EXPR_DISALLOW_ARRAYASSIGN);
 
 				if (op->associative!=ASSOC_LEFT)
@@ -9259,7 +9276,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				{
 					rhsd = QCC_RefToDef(rhsr, true);
 					op = QCC_PR_ChooseOpcode(lhsd, rhsd, &opcodeprioritized[priority][opnum]);
-				
+
 					if (logicjump)	//logic shortcut jumps to just before the if. the rhs is uninitialised if the jump was taken, but the lhs makes it deterministic.
 					{
 						logicjump->b.ofs = &statements[numstatements] - logicjump;
@@ -11496,21 +11513,21 @@ void QCC_WriteGUIAsmFunction(QCC_function_t	*sc, unsigned int firststatement)
 //			if (strlen(pr_opcodes[statements[i].op].opname)<6)
 //				QC_strlcat(line, "  ", sizeof(line));
 			if (pr_opcodes[statements[i].op].type_a)
-				QC_snprintfz(typebuf, sizeof(typebuf), "  %s", QCC_VarAtOffset(statements[i].a, (*pr_opcodes[statements[i].op].type_a)->size));
+				QC_snprintfz(typebuf, sizeof(typebuf), "  %s", QCC_VarAtOffset(statements[i].a));
 			else
 				QC_snprintfz(typebuf, sizeof(typebuf), "  %i", statements[i].a.ofs);
 			QC_strlcat(line, typebuf, sizeof(line));
 			if (pr_opcodes[statements[i].op].type_b != &type_void)
 			{
 				if (pr_opcodes[statements[i].op].type_b)
-					QC_snprintfz(typebuf, sizeof(typebuf), ",  %s", QCC_VarAtOffset(statements[i].b, (*pr_opcodes[statements[i].op].type_b)->size));
+					QC_snprintfz(typebuf, sizeof(typebuf), ",  %s", QCC_VarAtOffset(statements[i].b));
 				else
 					QC_snprintfz(typebuf, sizeof(typebuf), ",  %i", statements[i].b.ofs);
 				QC_strlcat(line, typebuf, sizeof(line));
 				if (pr_opcodes[statements[i].op].type_c != &type_void && (pr_opcodes[statements[i].op].associative==ASSOC_LEFT || statements[i].c.cast))
 				{
 					if (pr_opcodes[statements[i].op].type_c)
-						QC_snprintfz(typebuf, sizeof(typebuf), ",  %s", QCC_VarAtOffset(statements[i].c, (*pr_opcodes[statements[i].op].type_c)->size));
+						QC_snprintfz(typebuf, sizeof(typebuf), ",  %s", QCC_VarAtOffset(statements[i].c));
 					else
 						QC_snprintfz(typebuf, sizeof(typebuf), ",  %i", statements[i].c.ofs);
 					QC_strlcat(line, typebuf, sizeof(line));
@@ -11521,7 +11538,7 @@ void QCC_WriteGUIAsmFunction(QCC_function_t	*sc, unsigned int firststatement)
 				if (pr_opcodes[statements[i].op].type_c != &type_void)
 				{
 					if (pr_opcodes[statements[i].op].type_c)
-						QC_snprintfz(typebuf, sizeof(typebuf), ",  %s", QCC_VarAtOffset(statements[i].c, (*pr_opcodes[statements[i].op].type_c)->size));
+						QC_snprintfz(typebuf, sizeof(typebuf), ",  %s", QCC_VarAtOffset(statements[i].c));
 					else
 						QC_snprintfz(typebuf, sizeof(typebuf), ",  %i", statements[i].c.ofs);
 					QC_strlcat(line, typebuf, sizeof(line));
@@ -11533,7 +11550,7 @@ void QCC_WriteGUIAsmFunction(QCC_function_t	*sc, unsigned int firststatement)
 			if (pr_opcodes[statements[i].op].type_c != &type_void)
 			{
 				if (pr_opcodes[statements[i].op].type_c)
-					QC_snprintfz(typebuf, sizeof(typebuf), "  %s", QCC_VarAtOffset(statements[i].c, (*pr_opcodes[statements[i].op].type_c)->size));
+					QC_snprintfz(typebuf, sizeof(typebuf), "  %s", QCC_VarAtOffset(statements[i].c));
 				else
 					QC_snprintfz(typebuf, sizeof(typebuf), "  %i", statements[i].c.ofs);
 				QC_strlcat(line, typebuf, sizeof(line));
@@ -11590,19 +11607,19 @@ void QCC_WriteAsmFunction(QCC_function_t	*sc, unsigned int firststatement, QCC_d
 			if (strlen(pr_opcodes[statements[i].op].opname)<6)
 				fprintf(asmfile, "\t");
 			if (pr_opcodes[statements[i].op].type_a)
-				fprintf(asmfile, "\t%s", QCC_VarAtOffset(statements[i].a, (*pr_opcodes[statements[i].op].type_a)->size));
+				fprintf(asmfile, "\t%s", QCC_VarAtOffset(statements[i].a));
 			else
 				fprintf(asmfile, "\t%i", statements[i].a.ofs);
 			if (pr_opcodes[statements[i].op].type_b != &type_void)
 			{
 				if (pr_opcodes[statements[i].op].type_b)
-					fprintf(asmfile, ",\t%s", QCC_VarAtOffset(statements[i].b, (*pr_opcodes[statements[i].op].type_b)->size));
+					fprintf(asmfile, ",\t%s", QCC_VarAtOffset(statements[i].b));
 				else
 					fprintf(asmfile, ",\t%i", statements[i].b.ofs);
 				if (pr_opcodes[statements[i].op].type_c != &type_void && (pr_opcodes[statements[i].op].associative==ASSOC_LEFT || statements[i].c.sym))
 				{
 					if (pr_opcodes[statements[i].op].type_c)
-						fprintf(asmfile, ",\t%s", QCC_VarAtOffset(statements[i].c, (*pr_opcodes[statements[i].op].type_c)->size));
+						fprintf(asmfile, ",\t%s", QCC_VarAtOffset(statements[i].c));
 					else
 						fprintf(asmfile, ",\t%i", statements[i].c.ofs);
 				}
@@ -11612,7 +11629,7 @@ void QCC_WriteAsmFunction(QCC_function_t	*sc, unsigned int firststatement, QCC_d
 				if (pr_opcodes[statements[i].op].type_c != &type_void)
 				{
 					if (pr_opcodes[statements[i].op].type_c)
-						fprintf(asmfile, ",\t%s", QCC_VarAtOffset(statements[i].c, (*pr_opcodes[statements[i].op].type_c)->size));
+						fprintf(asmfile, ",\t%s", QCC_VarAtOffset(statements[i].c));
 					else
 						fprintf(asmfile, ",\t%i", statements[i].c.ofs);
 				}
@@ -11623,7 +11640,7 @@ void QCC_WriteAsmFunction(QCC_function_t	*sc, unsigned int firststatement, QCC_d
 			if (pr_opcodes[statements[i].op].type_c != &type_void)
 			{
 				if (pr_opcodes[statements[i].op].type_c)
-					fprintf(asmfile, "\t%s", QCC_VarAtOffset(statements[i].c, (*pr_opcodes[statements[i].op].type_c)->size));
+					fprintf(asmfile, "\t%s", QCC_VarAtOffset(statements[i].c));
 				else
 					fprintf(asmfile, "\t%i", statements[i].c.ofs);
 			}
@@ -13416,6 +13433,13 @@ void QCC_PR_ParseInitializerDef(QCC_def_t *def, unsigned int flags)
 	if (!def->initialized || def->initialized == 3)
 		def->initialized = 1;
 }
+QCC_sref_t QCC_PR_ParseDefaultInitialiser(QCC_type_t *type)
+{
+	QCC_sref_t ref = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+	if (!ref.sym->constant)
+		QCC_PR_ParseError(0, "Default value not a constant\n");
+	return QCC_EvaluateCast(ref, type, true);
+}
 
 int accglobalsblock;	//0 = error, 1 = var, 2 = function, 3 = objdata
 
@@ -14324,7 +14348,7 @@ pbool	QCC_PR_CompileFile (char *string, char *filename)
 					sr.sym = d;
 					sr.cast = d->type;
 					sr.ofs = 0;
-					QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: %i references still held on %s (%s)", d->refcount, d->name, QCC_VarAtOffset(sr, 1));
+					QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: %i references still held on %s (%s)", d->refcount, d->name, QCC_VarAtOffset(sr));
 					d->refcount = 0;
 				}
 			}
@@ -14336,7 +14360,7 @@ pbool	QCC_PR_CompileFile (char *string, char *filename)
 					sr.sym = d;
 					sr.cast = d->type;
 					sr.ofs = 0;
-					QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: %i references still held on %s (%s)", d->refcount, d->name, QCC_VarAtOffset(sr, d->type->size));
+					QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: %i references still held on %s (%s)", d->refcount, d->name, QCC_VarAtOffset(sr));
 					d->refcount = 0;
 				}
 			}
@@ -14349,7 +14373,7 @@ pbool	QCC_PR_CompileFile (char *string, char *filename)
 					sr.sym = d;
 					sr.cast = d->type;
 					sr.ofs = 0;
-					QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: %i references still held on %s (%s)", d->refcount, d->name, QCC_VarAtOffset(sr, d->type->size));
+					QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: %i references still held on %s (%s)", d->refcount, d->name, QCC_VarAtOffset(sr));
 					d->refcount = 0;
 				}
 			}

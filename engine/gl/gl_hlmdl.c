@@ -240,12 +240,12 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	int i;
 	int body;
 	struct hlmodelshaders_s *shaders;
+	hlmdl_tex_t	*tex;
 #endif
 
 	hlmodel_t *model;
 	hlmdl_header_t *header;
 	hlmdl_header_t *texheader;
-	hlmdl_tex_t	*tex;
 	hlmdl_bone_t	*bones;
 	hlmdl_bonecontroller_t	*bonectls;
 	void *texmem = NULL;
@@ -305,7 +305,6 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	else
 		header->numtextures = texheader->numtextures;
 
-	tex = (hlmdl_tex_t *) ((qbyte *) texheader + texheader->textures);
 	bones = (hlmdl_bone_t *) ((qbyte *) header + header->boneindex);
 	bonectls = (hlmdl_bonecontroller_t *) ((qbyte *) header + header->controllerindex);
 
@@ -314,6 +313,8 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	model->bonectls = bonectls;
 
 #ifndef SERVERONLY
+	tex = (hlmdl_tex_t *) ((qbyte *) texheader + texheader->textures);
+
 	shaders = ZG_Malloc(&mod->memgroup, texheader->numtextures*sizeof(shader_t));
 	model->shaders = shaders;
 	for(i = 0; i < texheader->numtextures; i++)

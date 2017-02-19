@@ -598,7 +598,7 @@ static void QDECL R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 cvar_t r_decal_noperpendicular = CVARD("r_decal_noperpendicular", "1", "When enabled, decals will not be generated on planes at a steep angle from clipped decal orientation.");
 cvar_t r_rockettrail = CVARFC("r_rockettrail", "1", CVAR_SEMICHEAT, R_Rockettrail_Callback);
 cvar_t r_grenadetrail = CVARFC("r_grenadetrail", "1", CVAR_SEMICHEAT, R_Grenadetrail_Callback);
-#ifdef NOLEGACY
+#ifndef PSET_CLASSIC
 cvar_t r_particlesystem	= CVARFC("r_particlesystem",	"script",						CVAR_SEMICHEAT|CVAR_ARCHIVE|CVAR_NOSET, R_ParticleSystem_Callback);
 cvar_t r_particledesc	= CVARAF("r_particledesc",		"",			"r_particlesdesc",	CVAR_SEMICHEAT|CVAR_ARCHIVE);
 #else

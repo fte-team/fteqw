@@ -2,55 +2,30 @@
 #include "fs.h"
 
 #ifdef AVAIL_ZLIB
-#define ZIPCRYPT
+# define ZIPCRYPT
 
-#ifndef ZEXPORT
+# ifndef ZEXPORT
 	#define ZEXPORT VARGS
-#endif
-#include <zlib.h>
-
-typedef struct {
-	unsigned char ident1;
-	unsigned char ident2;
-	unsigned char cm;
-	unsigned char flags;
-	unsigned int mtime;
-	unsigned char xflags;
-	unsigned char os;
-	//unsigned short xlen;
-	//unsigned char xdata[xlen];
-	//unsigned char fname[];
-	//unsigned char fcomment[];
-	//unsigned short fhcrc;
-	//unsigned char compresseddata[];
-	//unsigned int crc32;
-	//unsigned int isize;
-} gzheader_t;
-#define sizeofgzheader_t 10
-
-#define	GZ_FTEXT	1
-#define	GZ_FHCRC	2
-#define GZ_FEXTRA	4
-#define GZ_FNAME	8
-#define GZ_FCOMMENT	16
-#define GZ_RESERVED (32|64|128)
-
-#ifdef DYNAMIC_ZLIB
-#define ZLIB_LOADED() (zlib_handle!=NULL)
-void *zlib_handle;
-#define ZSTATIC(n)
-#else
-#define ZLIB_LOADED() 1
-#define ZSTATIC(n) = &n
-
-#ifdef _MSC_VER
-# ifdef _WIN64
-# pragma comment(lib, MSVCLIBSPATH "zlib64.lib")
-# else
-# pragma comment(lib, MSVCLIBSPATH "zlib.lib")
 # endif
-#endif
-#endif
+# include <zlib.h>
+
+# ifdef _MSC_VER
+#  ifdef _WIN64
+#   pragma comment(lib, MSVCLIBSPATH "zlib64.lib")
+#  else
+#   pragma comment(lib, MSVCLIBSPATH "zlib.lib")
+#  endif
+# endif
+
+# ifdef DYNAMIC_ZLIB
+#  define ZLIB_LOADED() (zlib_handle!=NULL)
+void *zlib_handle;
+#  define ZSTATIC(n)
+# else
+#  define ZLIB_LOADED() 1
+#  define ZSTATIC(n) = &n
+
+# endif
 
 #ifndef Z_U4
 #define z_crc_t uLongf
@@ -58,13 +33,20 @@ void *zlib_handle;
 
 //#pragma comment(lib, MSVCLIBSPATH "zlib.lib")
 
-static int (ZEXPORT *qinflateEnd) (z_streamp strm) ZSTATIC(inflateEnd);
-static int (ZEXPORT *qinflate) (z_streamp strm, int flush) ZSTATIC(inflate);
-static int (ZEXPORT *qinflateInit2_) (z_streamp strm, int  windowBits,
-                                      const char *version, int stream_size) ZSTATIC(inflateInit2_);
-//static z_crc_t (ZEXPORT *qcrc32)   (uLong crc, const Bytef *buf, uInt len) ZSTATIC(crc32);
-#ifdef ZIPCRYPT
-static const z_crc_t *(ZEXPORT *qget_crc_table)   (void) ZSTATIC(get_crc_table);
+#ifdef DYNAMIC_ZLIB
+	static int (ZEXPORT *qinflateEnd) (z_streamp strm) ZSTATIC(inflateEnd);
+	static int (ZEXPORT *qinflate) (z_streamp strm, int flush) ZSTATIC(inflate);
+	static int (ZEXPORT *qinflateInit2_) (z_streamp strm, int  windowBits,
+										  const char *version, int stream_size) ZSTATIC(inflateInit2_);
+	//static z_crc_t (ZEXPORT *qcrc32)   (uLong crc, const Bytef *buf, uInt len) ZSTATIC(crc32);
+	#ifdef ZIPCRYPT
+	static const z_crc_t *(ZEXPORT *qget_crc_table)   (void) ZSTATIC(get_crc_table);
+	#endif
+#else
+	#define qinflateEnd		inflateEnd
+	#define qinflate		inflate
+	#define qinflateInit2_	inflateInit2_
+	#define qget_crc_table	get_crc_table
 #endif
 
 #define qinflateInit2(strm, windowBits) \
@@ -90,6 +72,32 @@ qboolean LibZ_Init(void)
 	return ZLIB_LOADED();
 }
 
+#ifdef AVAIL_GZDEC
+typedef struct {
+	unsigned char ident1;
+	unsigned char ident2;
+	unsigned char cm;
+	unsigned char flags;
+	unsigned int mtime;
+	unsigned char xflags;
+	unsigned char os;
+	//unsigned short xlen;
+	//unsigned char xdata[xlen];
+	//unsigned char fname[];
+	//unsigned char fcomment[];
+	//unsigned short fhcrc;
+	//unsigned char compresseddata[];
+	//unsigned int crc32;
+	//unsigned int isize;
+} gzheader_t;
+#define sizeofgzheader_t 10
+
+#define	GZ_FTEXT	1
+#define	GZ_FHCRC	2
+#define GZ_FEXTRA	4
+#define GZ_FNAME	8
+#define GZ_FCOMMENT	16
+#define GZ_RESERVED (32|64|128)
 //outfile may be null
 vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, vfsfile_t *outfile)
 {
@@ -457,7 +465,7 @@ vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefil
 	return &n->vf;
 }
 
-
+#endif
 #endif
 
 
@@ -467,12 +475,7 @@ vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefil
 
 
 
-
-
-
-
-
-
+#ifdef PACKAGE_PK3
 
 typedef struct
 {
@@ -581,7 +584,7 @@ static unsigned int QDECL FSZIP_FLocate(searchpathfuncs_t *handle, flocation_t *
 		ret = FF_FOUND;
 		if (loc)
 		{
-			loc->index = pf - zip->files;
+			loc->fhandle = pf;
 			*loc->rawname = 0;
 			loc->offset = (qofs_t)-1;
 			loc->len = pf->filelen;
@@ -893,14 +896,7 @@ static vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress
 #else
 struct decompressstate
 {
-//	zipfile_t *source;
-//	qofs_t cstart;	//position of start of data
-//	qofs_t cofs;	//current read offset
-//	qofs_t cend;	//compressed data ends at this point.
-//	qofs_t usize;	//data remaining. refuse to read more bytes than this.
-//	unsigned char inbuffer[16384];
-//	unsigned char outbuffer[16384];
-//	unsigned int readoffset;
+	int nothing;
 };
 struct decompressstate *FSZIP_Decompress_Init(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize, char *filename, char *password, unsigned int crc)
 {
@@ -1027,6 +1023,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	vfszip_t *vfsz;
 	unsigned int flags;
 	qofs_t datasize = 0;
+	zpackfile_t *pf = loc->fhandle;
 
 	if (strcmp(mode, "rb"))
 		return NULL; //urm, unable to write/append
@@ -1034,7 +1031,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	if (qofs_Error(loc->len))
 		return NULL;
 
-	flags = zip->files[loc->index].flags;
+	flags = pf->flags;
 	if (flags & ZFL_CORRUPT)
 		return NULL;
 
@@ -1044,7 +1041,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	vfsz->length = loc->len;
 
 #ifdef _DEBUG
-	Q_strncpyz(vfsz->funcs.dbgname, zip->files[loc->index].name, sizeof(vfsz->funcs.dbgname));
+	Q_strncpyz(vfsz->funcs.dbgname, pf->name, sizeof(vfsz->funcs.dbgname));
 #endif
 	vfsz->funcs.Close = VFSZIP_Close;
 	vfsz->funcs.GetLen = VFSZIP_GetLen;
@@ -1055,7 +1052,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	vfsz->funcs.WriteBytes = NULL;
 	vfsz->funcs.seekingisabadplan = true;
 
-	if (!FSZIP_ValidateLocalHeader(zip, &zip->files[loc->index], &vfsz->startpos, &datasize))
+	if (!FSZIP_ValidateLocalHeader(zip, pf, &vfsz->startpos, &datasize))
 	{
 		Z_Free(vfsz);
 		return NULL;
@@ -1069,7 +1066,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 #else
 		char *password = NULL;
 #endif
-		vfsz->decompress = FSZIP_Decompress_Init(zip, vfsz->startpos, datasize, vfsz->length, zip->files[loc->index].name, password, zip->files[loc->index].crc);
+		vfsz->decompress = FSZIP_Decompress_Init(zip, vfsz->startpos, datasize, vfsz->length, pf->name, password, pf->crc);
 		if (!vfsz->decompress)
 		{
 			/*
@@ -1693,7 +1690,7 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip, struct zipinfo *in
 				Con_Printf("zip: zip64 end-of-central directory at unknown offset.\n");
 				result = false;
 			}
-     
+
 			break;
 		}
 	}
@@ -1920,5 +1917,6 @@ struct archivedeltafuncs_s *FSZIP_OpenDeltaZip(qdownload_t *dl)
 	za->pub.GetNextRange = FSZIPDL_GetNextRange;
 	return &za->pub;
 }
+#endif
 #endif
 

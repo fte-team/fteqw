@@ -370,10 +370,10 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 
 	if (!didexist)
 	{
-		if (handle && handle->AddFileHash)
+		if (handle && quakename && handle->AddFileHash)
 			handle->AddFileHash(handle->hashdepth, quakename, NULL, handle);
 		else
-			COM_RefreshFSCache_f();	//no idea where this path is. if its inside a quake path, make sure it gets flushed properly. FIXME: his shouldn't be needed if we have change notifications working properly.
+			FS_FlushFSHashFull();	//FIXME: no idea where this path is. if its inside a quake path, make sure it gets flushed properly. FIXME: his shouldn't be needed if we have change notifications working properly.
 	}
 
 
@@ -553,7 +553,7 @@ static unsigned int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t 
 		}
 		loc->len = len;
 		loc->offset = 0;
-		loc->index = 0;
+		loc->fhandle = handle;
 		Q_strncpyz(loc->rawname, netpath, sizeof(loc->rawname));
 	}
 	if (attr & FILE_ATTRIBUTE_DIRECTORY)

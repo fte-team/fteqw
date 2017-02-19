@@ -84,7 +84,9 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_UK
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-#ifdef BRANDING_ICON
+#ifdef CONFIG_FILE_NAME
+IDI_ICON1               ICON                    BRANDING_ICON
+#elif defined(BRANDING_ICON)
 IDI_ICON1               ICON                    BRANDING_ICON
 IDI_ICON2               ICON                    "bymorphed.ico"
 IDI_ICON3               ICON                    "q2.ico"

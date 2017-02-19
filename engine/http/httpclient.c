@@ -793,12 +793,8 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 		if (con->gzip)
 		{
-#if !defined(NPFTE) && defined(AVAIL_ZLIB)
-#if 1
+#ifdef AVAIL_GZDEC
 			con->file = FS_GZ_DecompressWriteFilter(dl->file, false);
-#else
-			con->file = FS_OpenTemp();
-#endif
 #else
 			Con_Printf("HTTP: no support for gzipped files \"%s\"\n", dl->localname);
 			dl->status = DL_FAILED;
@@ -929,21 +925,12 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				dl->status = DL_FAILED;
 			else
 			{
-#if !defined(NPFTE) && defined(AVAIL_ZLIB)
-#if 1
+#if AVAIL_GZDEC
 				if (con->gzip && con->file)
 				{
 					VFS_CLOSE(con->file);
 					con->file = NULL;
 				}
-#else
-				if (con->gzip && con->file)
-				{
-					VFS_SEEK(con->file, 0);
-					dl->file = FS_DecompressGZip(con->file, dl->file);
-					con->file = NULL;
-				}
-#endif
 #endif
 				if (con->contentlength != -1 && con->totalreceived != con->contentlength)
 					dl->status = DL_FAILED;	//file was truncated
@@ -1099,7 +1086,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 			"Content-Length: %u\r\n"
 			"Content-Type: %s\r\n"
 			"Connection: close\r\n"
-#if !defined(NPFTE) && defined(AVAIL_ZLIB)
+#ifdef AVAIL_GZDEC
 			"Accept-Encoding: gzip\r\n"
 #endif
 			"User-Agent: "FULLENGINENAME"\r\n"
@@ -1116,7 +1103,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 			"Host: %s\r\n"
 			/*Cookie:*/ "%s"
 			"Connection: close\r\n"			//theoretically, this is not needed. but as our code will basically do it anyway, it might as well be here FIXME: implement connection reuse.
-#if !defined(NPFTE) && defined(AVAIL_ZLIB)
+#ifdef AVAIL_GZDEC
 			"Accept-Encoding: gzip\r\n"
 #endif
 			"User-Agent: "FULLENGINENAME"\r\n"

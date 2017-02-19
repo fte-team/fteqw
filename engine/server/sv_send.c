@@ -635,7 +635,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		}
 	}
 
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 	//in theory, this q2/q3 path is only still different thanks to areas, but it also supports q2 gamecode properly.
 	if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
 	{
@@ -1395,7 +1395,7 @@ void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int c
 			if (!strcmp(sample, sv.strings.sound_precache[ctx.sampleidx]))
 				break;
 
-		if ( ctx.sampleidx == MAX_PRECACHE_SOUNDS || !sv.strings.sound_precache[ctx.sampleidx] )
+		if ( ctx.sampleidx >= MAX_PRECACHE_SOUNDS || !sv.strings.sound_precache[ctx.sampleidx] )
 		{
 			if (ctx.sampleidx < MAX_PRECACHE_SOUNDS)
 			{

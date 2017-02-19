@@ -4032,6 +4032,13 @@ static int typecmp_strict(QCC_type_t *a, QCC_type_t *b)
 			return 1;
 		if (typecmp_strict(a->params[i].type, b->params[i].type))
 			return 1;
+		if (a->params[i].defltvalue.cast || b->params[i].defltvalue.cast)
+		{
+			if (typecmp_strict(a->params[i].defltvalue.cast, b->params[i].defltvalue.cast) ||
+				a->params[i].defltvalue.sym != b->params[i].defltvalue.sym ||
+				a->params[i].defltvalue.ofs != b->params[i].defltvalue.ofs)
+				return 1;
+		}
 	}
 
 	return 0;
@@ -4074,6 +4081,13 @@ int typecmp(QCC_type_t *a, QCC_type_t *b)
 			return 1;
 		if (typecmp(a->params[i].type, b->params[i].type))
 			return 1;
+		if (a->params[i].defltvalue.cast || b->params[i].defltvalue.cast)
+		{
+			if (typecmp(a->params[i].defltvalue.cast, b->params[i].defltvalue.cast) ||
+				a->params[i].defltvalue.sym != b->params[i].defltvalue.sym ||
+				a->params[i].defltvalue.ofs != b->params[i].defltvalue.ofs)
+				return 1;
+		}
 	}
 
 	return 0;
@@ -4140,6 +4154,14 @@ int typecmp_lax(QCC_type_t *a, QCC_type_t *b)
 		else
 		{
 			if (typecmp_lax(a->params[t].type, b->params[t].type))
+				return 1;
+		}
+
+		if (a->params[t].defltvalue.cast || b->params[t].defltvalue.cast)
+		{
+			if (typecmp(a->params[t].defltvalue.cast, b->params[t].defltvalue.cast) ||
+				a->params[t].defltvalue.sym != b->params[t].defltvalue.sym ||
+				a->params[t].defltvalue.ofs != b->params[t].defltvalue.ofs)
 				return 1;
 		}
 	}
@@ -4244,6 +4266,12 @@ char *TypeName(QCC_type_t *type, char *buffer, int buffersize)
 			{
 				Q_strlcat(buffer, " ", buffersize);
 				Q_strlcat(buffer, type->params[i].paramname, buffersize);
+			}
+
+			if (type->params[i].defltvalue.cast)
+			{
+				Q_strlcat(buffer, " = ", buffersize);
+				Q_strlcat(buffer, QCC_VarAtOffset(type->params[i].defltvalue), buffersize);
 			}
 
 			if (++i < type->num_parms || vargs)
@@ -4383,7 +4411,6 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 	QCC_type_t	*ftype;
 	char	*name;
 	int definenames = !recursivefunctiontype;
-	int optional = 0;
 	int numparms = 0;
 	struct QCC_typeparam_s paramlist[MAX_PARMS+MAX_EXTRA_PARMS];
 
@@ -4419,22 +4446,9 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 			else
 				paramlist[numparms].out = false;	//the default
 
-			if (QCC_PR_CheckKeyword(keyword_optional, "optional"))
-			{
-				paramlist[numparms].optional = true;
-				optional = true;
-			}
-			else
-			{
-				if (optional)
-				{
-					QCC_PR_ParseWarning(WARN_MISSINGOPTIONAL, "optional not specified on all optional args\n");
-					paramlist[numparms].optional = true;
-				}
-				else
-					paramlist[numparms].optional = false;
-			}
+			paramlist[numparms].optional = QCC_PR_CheckKeyword(keyword_optional, "optional");
 
+			paramlist[numparms].defltvalue.cast = NULL;
 			paramlist[numparms].ofs = 0;
 			paramlist[numparms].arraysize = 0;
 			paramlist[numparms].type = QCC_PR_ParseType(false, false);
@@ -4442,7 +4456,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 				QCC_PR_ParseError(0, "Expected type\n");
 
 			if (paramlist[numparms].type->type == ev_void)
-				break;
+				break; //float(void) has no actual args
 
 //			type->name = "FUNC PARAMETER";
 
@@ -4463,6 +4477,9 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 			}
 			else if (definenames)
 				strcpy (pr_parm_names[numparms], "");
+
+			if (QCC_PR_CheckToken("="))
+				paramlist[numparms].defltvalue = QCC_PR_ParseDefaultInitialiser(paramlist[numparms].type);
 			numparms++;
 		} while (QCC_PR_CheckToken (","));
 
@@ -4626,6 +4643,7 @@ QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s 
 		p->optional = args[i].optional;
 		p->ofs = args[i].ofs;
 		p->arraysize = args[i].arraysize;
+		p->defltvalue.cast = NULL;
 	}
 	return QCC_PR_FindType (ftype);
 }
@@ -5216,6 +5234,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			parms[numparms].paramname = parmname;
 			parms[numparms].arraysize = arraysize;
 			parms[numparms].type = newparm;
+			parms[numparms].defltvalue.cast = NULL;
 
 			basicindex = 0;
 			found = false;
@@ -5430,6 +5449,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			parms[numparms].optional = false;
 			parms[numparms].paramname = parmname;
 			parms[numparms].type = newparm;
+			parms[numparms].defltvalue.cast = NULL;
 			numparms++;
 		}
 		if (!numparms)

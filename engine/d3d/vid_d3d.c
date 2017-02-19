@@ -64,7 +64,7 @@ extern qboolean		scr_drawloading;
 extern qboolean		scr_con_forcedraw;
 static qboolean d3d_resized;
 
-cvar_t vid_hardwaregamma;
+extern cvar_t vid_hardwaregamma;
 
 
 //sound/error code needs this
@@ -895,6 +895,8 @@ void D3D9_Set2D (void)
 	r_refdef.pxrect.y = 0;
 	r_refdef.pxrect.width = vid.fbpwidth;
 	r_refdef.pxrect.height = vid.fbpheight;
+
+	D3DBE_Set2D();
 }
 
 static int d3d9error(int i)
@@ -981,6 +983,8 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 			scr_drawloading = true;
 			SCR_DrawLoading (true);
 			scr_drawloading = false;
+			if (R2D_Flush)
+				R2D_Flush();
 			IDirect3DDevice9_EndScene(pD3DDev9);
 			IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
 			return true;

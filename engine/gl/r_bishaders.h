@@ -354,7 +354,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "altwater",
 "!!cvardf r_glsl_turbscale_reflect=1 //simpler scaler\n"
 "!!cvardf r_glsl_turbscale_refract=1 //simpler scaler\n"
-"!!samps 4 diffuse\n"
+"!!samps 4 diffuse normalmap\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -1853,7 +1853,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu TESS\n"
 "!!permu FRAMEBLEND\n"
 "!!permu SKELETAL\n"
-"!!cvardf r_tessellation=0\n"
+"!!cvardf r_tessellation_level=5\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -1895,10 +1895,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#define id gl_InvocationID\n"
 "t_vertex[id] = vertex[id];\n"
 "t_normal[id] = normal[id];\n"
-"gl_TessLevelOuter[0] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelOuter[1] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelOuter[2] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelInner[0] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[0] = float(r_tessellation_level);\n"
+"gl_TessLevelOuter[1] = float(r_tessellation_level);\n"
+"gl_TessLevelOuter[2] = float(r_tessellation_level);\n"
+"gl_TessLevelInner[0] = float(r_tessellation_level);\n"
 "}\n"
 "#endif\n"
 
@@ -2332,7 +2332,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvarf gl_specular\n"
 "!!cvardf gl_affinemodels=0\n"
-"!!cvardf r_tessellation=0\n"
+"!!cvardf r_tessellation_level=5\n"
+"!!samps diffuse normalmap specular fullbright upper lower paletted\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -2430,10 +2431,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "t_eyevector[id] = eyevector[id];\n"
 "#endif\n"
 
-"gl_TessLevelOuter[0] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelOuter[1] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelOuter[2] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelInner[0] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[0] = float(r_tessellation_level);\n"
+"gl_TessLevelOuter[1] = float(r_tessellation_level);\n"
+"gl_TessLevelOuter[2] = float(r_tessellation_level);\n"
+"gl_TessLevelInner[0] = float(r_tessellation_level);\n"
 "}\n"
 "#endif\n"
 
@@ -4685,7 +4686,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu REFLECTCUBEMASK\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvarf gl_specular\n"
-"!!cvardf r_tessellation=0\n"
+"!!cvardf r_tessellation_level=5\n"
+"!!samps diffuse lightmap specular normalmap fullbright reflectmask reflectcube paletted lightmap1 lightmap2 lightmap3\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -4813,10 +4815,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "t_eyevector[id] = eyevector[id];\n"
 "#endif\n"
 
-"gl_TessLevelOuter[0] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelOuter[1] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelOuter[2] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelInner[0] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[0] = float(r_tessellation_level);\n"
+"gl_TessLevelOuter[1] = float(r_tessellation_level);\n"
+"gl_TessLevelOuter[2] = float(r_tessellation_level);\n"
+"gl_TessLevelInner[0] = float(r_tessellation_level);\n"
 "}\n"
 "#endif\n"
 
@@ -5823,6 +5825,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "defaultwarp",
 "!!permu FOG\n"
 "!!cvarf r_wateralpha\n"
+"!!samps diffuse\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -9646,7 +9649,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu REFLECTCUBEMASK\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvardf r_glsl_pcf\n"
-"!!cvardf r_tessellation=0\n"
+"!!cvardf r_tessellation_level=5\n"
+"!!samps shadowmap diffuse normalmap specular upper lower reflectcube reflectmask\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -9780,10 +9784,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "t_eyevector[id] = eyevector[id];\n"
 "#endif\n"
 
-"gl_TessLevelOuter[0] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelOuter[1] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelOuter[2] = float(r_tessellation)+1.0;\n"
-"gl_TessLevelInner[0] = float(r_tessellation)+1.0;\n"
+"gl_TessLevelOuter[0] = float(r_tessellation_level);\n"
+"gl_TessLevelOuter[1] = float(r_tessellation_level);\n"
+"gl_TessLevelOuter[2] = float(r_tessellation_level);\n"
+"gl_TessLevelInner[0] = float(r_tessellation_level);\n"
 "}\n"
 "#endif\n"
 

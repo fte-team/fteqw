@@ -3990,8 +3990,10 @@ void CL_LinkPacketEntities (void)
 		// set skin
 		ent->skinnum = state->skinnum;
 
+#ifdef HEXEN2
 		ent->abslight = state->abslight;
 		ent->drawflags = state->hexen2flags;
+#endif
 
 		CL_LerpNetFrameState(&ent->framestate, le);
 

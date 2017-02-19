@@ -658,12 +658,15 @@ void QCC_PR_Lex (void);
 QCC_type_t *QCC_PR_NewType (char *name, int basictype, pbool typedefed);
 QCC_type_t *QCC_PointerTypeTo(QCC_type_t *type);
 QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail);
+QCC_sref_t QCC_PR_ParseDefaultInitialiser(QCC_type_t *type);
 extern pbool type_inlinefunction;
 QCC_type_t *QCC_TypeForName(char *name);
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype);
 QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype);
 char *QCC_PR_ParseName (void);
 CompilerConstant_t *QCC_PR_DefineName(char *name);
+
+const char *QCC_VarAtOffset(QCC_sref_t ref);
 
 int QCC_PR_IntConstExpr(void);
 
@@ -692,6 +695,8 @@ char *QCC_NameForWarning(int idx);
 enum {
 	WARN_DEBUGGING,
 	WARN_ERROR,
+	WARN_WRITTENNOTREAD,
+	WARN_READNOTWRITTEN,
 	WARN_NOTREFERENCED,
 	WARN_NOTREFERENCEDCONST,
 	WARN_CONFLICTINGRETURNS,

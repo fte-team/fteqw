@@ -299,7 +299,7 @@ fixme:
 use q2-style bsp collision using the trisoup for flats collisions.
 use blockmap for walls
 */
-qboolean Doom_Trace(model_t *model, int hulloverride, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean iscapsule, unsigned int contentstype, trace_t *trace)
+qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean iscapsule, unsigned int contentstype, trace_t *trace)
 {
 #if 0
 #define TRACESTEP	16

@@ -3685,8 +3685,10 @@ void CL_UpdateBeams (void)
 				return;
 			VectorCopy (org, ent->origin);
 			ent->model = type->model;
+#ifdef HEXEN2
 			ent->drawflags |= MLS_ABSLIGHT;
 			ent->abslight = 64 + 128 * bound(0, cl_shaftlight.value, 1);
+#endif
 			ent->shaderRGBAf[3] = b->alpha;
 			ent->flags = b->rflags;
 
@@ -3832,7 +3834,9 @@ void CL_UpdateExplosions (void)
 		ent->shaderRGBAf[3] = (1.0 - f/(numframes))*(ex->startalpha-ex->endalpha) + ex->endalpha;
 		ent->flags = ex->flags;
 		ent->scale = scale*ex->scale;
-		ent->drawflags = SCALE_ORIGIN_ORIGIN; 
+#ifdef HEXEN2
+		ent->drawflags = SCALE_ORIGIN_ORIGIN;
+#endif
 
 		if (ex->traileffect != P_INVALID)
 			pe->ParticleTrail(ent->oldorigin, ent->origin, ex->traileffect, 0, ent->axis, &(ex->trailstate));

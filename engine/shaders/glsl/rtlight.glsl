@@ -8,7 +8,8 @@
 !!permu REFLECTCUBEMASK
 !!cvarf r_glsl_offsetmapping_scale
 !!cvardf r_glsl_pcf
-!!cvardf r_tessellation=0
+!!cvardf r_tessellation_level=5
+!!samps shadowmap diffuse normalmap specular upper lower reflectcube reflectmask
 
 #include "sys/defs.h"
 
@@ -142,10 +143,10 @@ void main()
 	t_eyevector[id] = eyevector[id];
 #endif
 
-	gl_TessLevelOuter[0] = float(r_tessellation)+1.0;
-	gl_TessLevelOuter[1] = float(r_tessellation)+1.0;
-	gl_TessLevelOuter[2] = float(r_tessellation)+1.0;
-	gl_TessLevelInner[0] = float(r_tessellation)+1.0;
+	gl_TessLevelOuter[0] = float(r_tessellation_level);
+	gl_TessLevelOuter[1] = float(r_tessellation_level);
+	gl_TessLevelOuter[2] = float(r_tessellation_level);
+	gl_TessLevelInner[0] = float(r_tessellation_level);
 }
 #endif
 

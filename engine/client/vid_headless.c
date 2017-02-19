@@ -1,4 +1,5 @@
 #include "quakedef.h"
+#ifdef HEADLESSQUAKE
 #ifndef SERVERONLY
 #include "gl_draw.h"
 #include "shader.h"
@@ -388,5 +389,5 @@ rendererinfo_t headlessvkrendererinfo =
 	"no more"
 };
 #endif
-
+#endif
 #endif

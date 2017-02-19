@@ -49,6 +49,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define NO_ZLIB
 #endif
 
+#ifndef MULTITHREAD
+#define NO_MULTITHREAD
+#endif
+
 #ifdef FTE_TARGET_WEB
 	//no Sys_LoadLibrary support, so we might as well kill this stuff off.
 	#define NO_PNG
@@ -58,19 +62,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define NO_FREETYPE
 #endif
 
-#ifdef HAVE_CONFIG_H	//if it was configured properly, then we have a more correct list of features we want to use.
+#ifdef D3DQUAKE
+#define D3D9QUAKE
+//#define D3D11QUAKE
+#undef D3DQUAKE
+#endif
+
+#define STRINGIFY2(s) #s
+#define STRINGIFY(s) STRINGIFY2(s)
+
+#ifdef CONFIG_FILE_NAME
+	//yup, C89 allows this.
+	#include STRINGIFY(CONFIG_FILE_NAME)
+#elif defined(HAVE_CONFIG_H)	//if it was configured properly, then we have a more correct list of features we want to use.
 	#include "config.h"
 #else
-	#ifndef MSVCLIBSPATH
-	#ifdef MSVCLIBPATH
-		#define MSVCLIBSPATH STRINGIFY(MSVCLIBPATH)
-	#elif _MSC_VER == 1200
-		#define MSVCLIBSPATH "../libs/vc6-libs/"
-	#else
-		#define MSVCLIBSPATH "../libs/"
-	#endif
-	#endif
-
 	#ifdef NO_LIBRARIES
 		#define NO_DIRECTX
 		#define NO_PNG
@@ -94,9 +100,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #if !defined(NO_DIRECTX) && !defined(NODIRECTX) && defined(_WIN32)
 	#define AVAIL_DINPUT
-	#define AVAIL_DDRAW
 	#define AVAIL_DSOUND
-	#define AVAIL_D3D
 	#define AVAIL_WASAPI
 #endif
 #ifdef WINRT
@@ -123,14 +127,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define LIBVORBISFILE_STATIC
 //#define SPEEX_STATIC
 
-#ifdef D3DQUAKE
-#define D3D9QUAKE
-//#define D3D11QUAKE
-#endif
-
-#if (defined(D3D9QUAKE) || defined(D3D11QUAKE)) && !defined(D3DQUAKE)
-#define D3DQUAKE
-#endif
 #if defined(_WIN32) && defined(GLQUAKE)
 //#define USE_EGL
 #endif
@@ -149,10 +145,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef NO_JPEG
 	#undef AVAIL_JPEGLIB
 #endif
-#ifdef NO_ZLIB
-	#undef AVAIL_ZLIB
-	#undef AVAIL_XZDEC
-#endif
 #ifdef NO_OGG
 	#undef AVAIL_OGGVORBIS
 #endif
@@ -167,6 +159,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //set any additional defines or libs in win32
 	#define LOADERTHREAD
 
+	#define PACKAGE_Q1PAK
+	#define PACKAGE_PK3
+	#define AVAIL_GZDEC
+	#define PACKAGE_WAD	//quake's image wad support
+
+	#ifdef GLQUAKE
+	#define HEADLESSQUAKE
+	#endif
+
 	#ifdef NOLEGACY
 		//these are only the features that really make sense in a more modern engine
 		#define QUAKETC			//skip some legacy stuff
@@ -177,7 +178,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define Q2BSPS			//quake 2 bsp support (a dependancy of q3bsp)
 		#define Q3BSPS			//quake 3 bsp support
 //		#define TERRAIN			//heightmap support
-		#define ZLIB			//zip/pk3 support
 		#define WEBCLIENT		//http/ftp clients.
 		#define IMAGEFMT_DDS	//a sort of image file format.
 		#define PSET_SCRIPT
@@ -200,12 +200,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef AVAIL_JPEGLIB	//no jpeg support
 		#undef AVAIL_PNGLIB		//no png support
 		#undef AVAIL_OPENAL		//just bloat...
+		#undef AVAIL_GZDEC
 		#define NOMEDIA			//NO playing of avis/cins/roqs
 
 		#define Q1BSPS
 		#define SPRMODELS		//quake1 sprite models
+		#define MD1MODELS		//quake ain't much use without this
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
 		#define PLUGINS
+		#define NOQCDESCRIPTIONS	//trim space from no fteextensions.qc info
 
 		#define PSET_CLASSIC
 
@@ -255,6 +258,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define Q1BSPS			//quake 1 bsp support, because we're still a quake engine
 		#define Q2BSPS			//quake 2 bsp support
 		#define Q3BSPS			//quake 3 bsp support
+		#define RFBSPS			//rogue(sof+jk2o)+qfusion bsp support
 		#define TERRAIN			//heightmap support
 //		#define SV_MASTER		//starts up a master server
 		#define SVCHAT			//serverside npc chatting. see sv_chat.c
@@ -266,7 +270,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define HLCLIENT 7		//we can run HL gamecode (not protocol compatible, set to 6 or 7)
 //		#define HLSERVER 140	//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
-		#define ZLIB			//zip/pk3 support
 		#define WEBSERVER		//http/ftp servers
 		#define WEBCLIENT		//http/ftp clients.
 		#define RUNTIMELIGHTING	//calculate lit/lux files the first time the map is loaded and doesn't have a loadable lit.
@@ -303,19 +306,47 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 	#endif
 
+
+
+	#ifdef QUAKETC
+		#define NOBUILTINMENUS	//kill engine menus (should be replaced with ewither csqc or menuqc)
+		#undef Q2CLIENT	//not useful
+		#undef Q2SERVER	//not useful
+		#undef Q3CLIENT	//not useful
+		#undef Q3SERVER	//not useful
+		#undef HLCLIENT	//not useful
+		#undef HLSERVER	//not useful
+		#undef VM_Q1	//not useful
+		#undef VM_LUA	//not useful
+		#undef HALFLIFEMODELS	//yuck
+		#undef RUNTIMELIGHTING	//presumably not useful
+		#undef HEXEN2
+	#endif
+
 #endif
 
+
+	#ifndef MSVCLIBSPATH
+	#ifdef MSVCLIBPATH
+		#define MSVCLIBSPATH STRINGIFY(MSVCLIBPATH)
+	#elif _MSC_VER == 1200
+		#define MSVCLIBSPATH "../libs/vc6-libs/"
+	#else
+		#define MSVCLIBSPATH "../libs/"
+	#endif
+	#endif
 
 //software rendering is just too glitchy, don't use it.
 #if defined(SWQUAKE) && !defined(_DEBUG)
 	#undef SWQUAKE
 #endif
+#if (defined(D3D9QUAKE) || defined(D3D11QUAKE)) && !defined(D3DQUAKE)
+#define D3DQUAKE
+#endif
 
 
 //include a file to update the various configurations for game-specific configs (hopefully just names)
 #ifdef BRANDING_INC
-	#define STRINGIFY2(s) #s
-	#define STRINGIFY(s) STRINGIFY2(s)
 	#include STRINGIFY(BRANDING_INC)
 #endif
 #ifndef DISTRIBUTION
@@ -331,22 +362,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define ENGINEWEBSITE "http://fte.triptohell.info"	//url for program
 #endif
 
-#ifdef QUAKETC
-	#define NOBUILTINMENUS	//kill engine menus (should be replaced with ewither csqc or menuqc)
-	#undef Q2CLIENT	//not useful
-	#undef Q2SERVER	//not useful
-	#undef Q3CLIENT	//not useful
-	#undef Q3SERVER	//not useful
-	#undef HLCLIENT	//not useful
-	#undef HLSERVER	//not useful
-	#undef VM_Q1	//not useful
-	#undef VM_LUA	//not useful
-	#undef HALFLIFEMODELS	//yuck
-	#undef RUNTIMELIGHTING	//presumably not useful
-	#undef HEXEN2
-#endif
-
 //#define QUAKESPYAPI //define this if you want the engine to be usable via gamespy/quakespy, which has been dead for a long time now.
+
+#ifdef NO_ZLIB	//compile-time option.
+	#undef AVAIL_ZLIB
+	#undef AVAIL_XZDEC
+	#undef AVAIL_GZDEC
+#endif
 
 #ifdef FTE_TARGET_WEB
 	//try to trim the fat
@@ -420,6 +442,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define SQL
 #endif
 
+#if (defined(AVAIL_GZDEC) && !defined(ZLIB)) || !defined(NPFTE)
+	//gzip needs zlib to work (pk3s can still contain non-compressed files)
+	#undef AVAIL_GZDEC
+#endif
+
+#if defined(RFBSPS) && !defined(Q3BSPS)
+	#define Q3BSPS	//rbsp might as well depend upon q3bsp - its the same thing but with more lightstyles (support for which can bog down the renderer a little).
+#endif
+
 //fix things a little...
 #ifdef NPQTV
 	#define NPFTE
@@ -440,6 +471,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifndef _WIN32
 	#undef QTERM	//not supported - FIXME: move to native plugin
+#endif
+
+#if defined(Q3BSPS) && !defined(Q2BSPS)
+//	#define Q2BSPS	//FIXME: silently enable that as a dependancy, for now
 #endif
 
 #if (defined(Q2CLIENT) || defined(Q2SERVER))
@@ -490,6 +525,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define USERBE
 #endif
 
+#if  defined(MD1MODELS) || defined(MD2MODELS) || defined(MD3MODELS)
+	#define NONSKELETALMODELS
+#endif
 #if  defined(ZYMOTICMODELS) || defined(MD5MODELS) || defined(DPMMODELS) || defined(PSKMODELS) || defined(INTERQUAKEMODELS) 
 	#define SKELETALMODELS	//defined if we have a skeletal model.
 #endif

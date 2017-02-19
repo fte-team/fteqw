@@ -933,7 +933,7 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		if (!FS_NativePath(name, FS_GAMEONLY, syspath, sizeof(syspath)))
 			return;
 		ge->WriteLevel(syspath);
-		FS_FlushFSHashReally(true);
+		FS_FlushFSHashFull();
 		return;
 	}
 #endif
@@ -942,6 +942,7 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 	if (svs.gametype == GT_HALFLIFE)
 	{
 		SVHL_SaveLevelCache(name);
+		FS_FlushFSHashFull();
 		return;
 	}
 #endif
@@ -1092,6 +1093,8 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 			ed->ereftype = ER_ENTITY;
 		}
 	}
+
+	FS_FlushFSHashFull();
 }
 
 #define FTESAVEGAME_VERSION 25000
@@ -1301,13 +1304,13 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 		if (!FS_NativePath(va("saves/%s/game.gsv", savename), FS_GAMEONLY, syspath, sizeof(syspath)))
 			return;
 		ge->WriteGame(syspath, mapchange);
-		FS_FlushFSHashReally(true);
+		FS_FlushFSHashFull();
 	}
 	else
 #endif
 	{
 		//fixme
-		FS_FlushFSHashReally(true);
+		FS_FlushFSHashFull();
 	}
 }
 

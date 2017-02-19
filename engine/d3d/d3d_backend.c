@@ -671,6 +671,12 @@ void D3D9BE_Init(void)
 	R_InitFlashblends();
 }
 
+void D3DBE_Set2D(void)
+{	//start of some 2d rendering code.
+	r_refdef.time = realtime;
+	shaderstate.curtime = r_refdef.time;
+}
+
 static void allocvertexbuffer(IDirect3DVertexBuffer9 *buff, unsigned int bmaxsize, unsigned int *offset, void **data, unsigned int bytes)
 {
 	unsigned int boff;
@@ -770,7 +776,11 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		FIXME: no code to grab the current screen and convert to a texture
 		break;*/
 	case T_GEN_VIDEOMAP:
+#ifdef NOMEDIA
+		BindTexture(tu, missing_texture);
+#else
 		BindTexture(tu, Media_UpdateForShader(pass->cin));
+#endif
 		break;
 	}
 
@@ -1346,7 +1356,7 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 				t1 = src[0];
 				t2 = src[1];
 				dst[0] = t1 * tcmod->args[0] + t2 * tcmod->args[2] + tcmod->args[4];
-				dst[1] = t2 * tcmod->args[1] + t1 * tcmod->args[3] + tcmod->args[5];
+				dst[1] = t1 * tcmod->args[1] + t2 * tcmod->args[3] + tcmod->args[5];
 			}
 			break;
 
@@ -1925,6 +1935,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 
 	program_t *p = s->prog;
 
+#ifdef SKELETALMODELS
 	if (shaderstate.batchvbo && shaderstate.batchvbo->numbones)
 	{
 		if (p->permu[perm|PERMUTATION_SKELETAL].h.loaded)
@@ -1932,6 +1943,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 		else
 			return;
 	}
+#endif
 	if (TEXVALID(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
 		perm |= PERMUTATION_BUMPMAP;
 	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)
@@ -1940,15 +1952,19 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 		perm |= PERMUTATION_UPPERLOWER;
 	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].h.loaded)
 		perm |= PERMUTATION_FOG;
+#ifdef NONSKELETALMODELS
 	if (p->permu[perm|PERMUTATION_FRAMEBLEND].h.loaded && shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
 	{
 		perm |= PERMUTATION_FRAMEBLEND;
 		vdec |= D3D_VDEC_POS2;
 	}
+#endif
 //	if (p->permu[perm|PERMUTATION_DELUXE].h.loaded && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
+#if MAXRLIGHTMAPS > 1
 	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].h.loaded)
 		perm |= PERMUTATION_LIGHTSTYLES;
+#endif
 
 	BE_ApplyUniforms(p, perm);
 

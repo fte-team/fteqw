@@ -12,6 +12,9 @@
 #include "qcc.h"
 #include "gui.h"
 
+//#define AVAIL_PNGLIB
+//#define AVAIL_ZLIB
+
 #define EMBEDDEBUG
 
 #define IDI_ICON_FTEQCC MAKEINTRESOURCE(101)
@@ -2409,12 +2412,14 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 static void EditorReload(editor_t *editor)
 {
 	struct stat sbuf;
-	size_t flen;
+	size_t flensz;
 	char *rawfile;
 	char *file;
+	unsigned int flen;
 	pbool dofree;
 
-	rawfile = QCC_ReadFile(editor->filename, NULL, 0, &flen);
+	rawfile = QCC_ReadFile(editor->filename, NULL, 0, &flensz);
+	flen = flensz;
 
 	file = QCC_SanitizeCharSet(rawfile, &flen, &dofree, &editor->savefmt);
 
@@ -3953,6 +3958,7 @@ typedef struct
 #pragma pack(pop)
 
 
+#ifdef AVAIL_PNGLIB
 static void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,  int outwidth, int outheight)
 {
 	int		i, j;
@@ -3991,9 +3997,8 @@ static void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsi
 		}
 	}
 }
+#endif
 
-//#define AVAIL_PNGLIB
-//#define AVAIL_ZLIB
 #ifndef MSVCLIBSPATH
 #ifdef MSVCLIBPATH
 	#define MSVCLIBSPATH STRINGIFY(MSVCLIBPATH)
@@ -4347,11 +4352,10 @@ static void GUI_CreateInstaller_Windows(void)
 {
 #define RESLANG MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_UK)
 	unsigned char *mandata = NULL;
-	unsigned int manlen;
+	size_t manlen;
 	unsigned char *pngdata = NULL;
-	unsigned int pnglen;
+	size_t pnglen;
 	char *error = NULL;
-	char *warn = NULL;
 	HANDLE bin;
 	char ourname[MAX_PATH];
 	char *basedir = enginebasedir;

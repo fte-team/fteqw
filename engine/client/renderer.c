@@ -1030,27 +1030,30 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	""
 };
-rendererinfo_t *pdedicatedrendererinfo = &dedicatedrendererinfo;
 
 #ifdef GLQUAKE
 extern rendererinfo_t openglrendererinfo;
-rendererinfo_t eglrendererinfo;
+#ifdef USE_EGL
+extern rendererinfo_t eglrendererinfo;
+#endif
 extern rendererinfo_t rpirendererinfo;
 rendererinfo_t waylandrendererinfo;
 rendererinfo_t fbdevrendererinfo;
 #endif
 #ifdef D3DQUAKE
-rendererinfo_t d3d9rendererinfo;
-rendererinfo_t d3d11rendererinfo;
+extern rendererinfo_t d3d9rendererinfo;
+extern rendererinfo_t d3d11rendererinfo;
 #endif
 #ifdef SWQUAKE
-rendererinfo_t swrendererinfo;
+extern rendererinfo_t swrendererinfo;
 #endif
 #ifdef VKQUAKE
-rendererinfo_t vkrendererinfo;
+extern rendererinfo_t vkrendererinfo;
 //rendererinfo_t headlessvkrendererinfo;
 #endif
-rendererinfo_t headlessrenderer;
+#ifdef HEADLESSQUAKE
+extern rendererinfo_t headlessrenderer;
+#endif
 
 rendererinfo_t *rendererinfo[] =
 {
@@ -1059,12 +1062,16 @@ rendererinfo_t *rendererinfo[] =
 	&rpirendererinfo,
 #endif
 	&openglrendererinfo,
+#ifdef USE_EGL
 	&eglrendererinfo,
+#endif
 	&waylandrendererinfo,
 	&fbdevrendererinfo,
 #endif
-#ifdef D3DQUAKE
+#ifdef D3D9QUAKE
 	&d3d9rendererinfo,
+#endif
+#ifdef D3D11QUAKE
 	&d3d11rendererinfo,
 #endif
 #ifdef SWQUAKE
@@ -1076,9 +1083,11 @@ rendererinfo_t *rendererinfo[] =
 #ifndef NPQTV
 	&dedicatedrendererinfo,
 #endif
+#ifdef HEADLESSQUAKE
 	&headlessrenderer,
 #ifdef VKQUAKE
 	//&headlessvkrendererinfo,
+#endif
 #endif
 };
 

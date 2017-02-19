@@ -469,7 +469,7 @@ typedef struct searchpath_s
 } searchpath_t;
 typedef struct {
 	struct searchpath_s	*search;			//used to say which filesystem driver to open the file from
-	int				index;					//used by the filesystem driver as a simple reference to the file
+	void			*fhandle;				//used by the filesystem driver as a simple reference to the file
 	char			rawname[MAX_OSPATH];	//blank means not readable directly
 	qofs_t			offset;					//only usable if rawname is set.
 	qofs_t			len;					//uncompressed length
@@ -529,23 +529,23 @@ char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen);
 void VARGS VFS_PRINTF(vfsfile_t *vf, char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
-	FS_GAME,		//standard search (not generally valid for save/rename/delete/etc)
 	FS_BINARYPATH,	//for dlls and stuff
 	FS_ROOT,		//./ (the root basepath or root homepath.)
+	FS_SYSTEM,		//a system path. absolute paths are explicitly allowed and expected, but not required.
+
+	//after this point, all types must be relative to a gamedir
+	FS_GAME,		//standard search (not generally valid for writing/save/rename/delete/etc)
 	FS_GAMEONLY,	//$gamedir/
-	FS_GAMEDOWNLOADCACHE,	//typically the same as FS_GAMEONLY 
 	FS_BASEGAMEONLY,	//fte/
 	FS_PUBGAMEONLY,		//$gamedir/ or qw/ but not fte/
-	FS_PUBBASEGAMEONLY,	//qw/ (fixme: should be the last non-private basedir)
-	FS_SYSTEM		//a system path. absolute paths are explicitly allowed and expected, but not required.
+	FS_PUBBASEGAMEONLY	//qw/ (fixme: should be the last non-private basedir)
 };
 
 void COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len);
 
-void FS_FlushFSHashReally(qboolean domutexes);
-void FS_FlushFSHashWritten(void);
-void FS_FlushFSHashRemoved(void);
-void FS_FlushFSHash(void);
+void FS_FlushFSHashWritten(const char *fname);
+void FS_FlushFSHashRemoved(const char *fname);
+void FS_FlushFSHashFull(void);	//too much/unknown changed...
 void FS_CreatePath(const char *pname, enum fs_relative relativeto);
 qboolean FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto);	//0 on success, non-0 on error
 qboolean FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrelativeto, enum fs_relative newrelativeto);
@@ -589,7 +589,6 @@ qbyte *COM_LoadTempMoreFile (const char *path, size_t *fsize);	//allocates a lit
 
 searchpathfuncs_t *COM_IteratePaths (void **iterator, char *pathbuffer, int pathbuffersize, char *dirname, int dirnamesize);
 void COM_FlushFSCache(qboolean purge, qboolean domutex);	//a file was written using fopen
-void COM_RefreshFSCache_f(void);
 qboolean FS_Restarted(unsigned int *since);
 
 enum manifestdeptype_e

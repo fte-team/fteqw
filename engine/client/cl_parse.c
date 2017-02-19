@@ -764,7 +764,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 
 	DL_Abort(dl, QDL_COMPLETED);
 
-	COM_RefreshFSCache_f();
+	FS_FlushFSHashWritten(dl->tempname);
 
 	COM_FileExtension(filename, ext, sizeof(ext));
 
@@ -1028,7 +1028,7 @@ qboolean CL_CheckHLBspWads(char *file)
 qboolean CL_CheckQ2BspWals(char *file)
 {
 	qboolean gotone = false;
-
+#ifdef Q2BSPS
 	q2dheader_t *dh;
 	lump_t lump;
 	q2texinfo_t *tinf;
@@ -1063,6 +1063,7 @@ qboolean CL_CheckQ2BspWals(char *file)
 						gotone = true;
 		}
 	}
+#endif
 	return gotone;
 }
 
@@ -2530,7 +2531,7 @@ void CL_ParseDownload (qboolean zlib)
 
 	if (zlib)
 	{
-#ifdef AVAIL_ZLIB
+#if defined(AVAIL_ZLIB) && defined(Q2CLIENT)
 		z_stream s;
 		unsigned short clen = size;
 		unsigned short ulen = MSG_ReadShort();
@@ -4410,7 +4411,10 @@ void CL_ParseStaticProt (int baselinetype)
 	ent->framestate.g[FS_REG].frame[0] = ent->framestate.g[FS_REG].frame[1] = es.frame;
 	ent->framestate.g[FS_REG].lerpweight[0] = 1;
 	ent->skinnum = es.skinnum;
+#ifdef HEXEN2
 	ent->drawflags = es.hexen2flags;
+	ent->abslight = es.abslight;
+#endif
 
 #ifdef PEXT_SCALE
 	ent->scale = es.scale/16.0;
@@ -4420,7 +4424,6 @@ void CL_ParseStaticProt (int baselinetype)
 	ent->shaderRGBAf[2] = (8.0f/256.0f)*es.colormod[2];
 
 	ent->fatness = es.fatness/16.0;
-	ent->abslight = es.abslight;
 
 	ent->flags = 0;
 	if (es.dpflags & RENDER_VIEWMODEL)

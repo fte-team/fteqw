@@ -4861,12 +4861,6 @@ void COM_Version_f (void)
 	#ifndef AVAIL_DSOUND
 		Con_Printf("DirectSound disabled\n");
 	#endif
-	#ifndef AVAIL_D3D
-		Con_Printf("Direct3D disabled\n");
-	#endif
-	#ifndef AVAIL_DDRAW
-		Con_Printf("DirectDraw disabled\n");
-	#endif
 #endif
 
 	Con_Printf("Games:");

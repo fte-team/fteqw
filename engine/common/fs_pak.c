@@ -1,6 +1,8 @@
 #include "quakedef.h"
 #include "fs.h"
 
+#ifdef PACKAGE_Q1PAK
+
 //
 // in memory
 //
@@ -124,7 +126,7 @@ static unsigned int QDECL FSPAK_FLocate(searchpathfuncs_t *handle, flocation_t *
 	{
 		if (loc)
 		{
-			loc->index = pf - pak->files;
+			loc->fhandle = pf;
 			snprintf(loc->rawname, sizeof(loc->rawname), "%s", pak->descname);
 			loc->offset = pf->filepos;
 			loc->len = pf->filelen;
@@ -271,7 +273,10 @@ static vfsfile_t *QDECL FSPAK_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	vfs->currentpos = vfs->startpos;
 
 #ifdef _DEBUG
-	Q_strncpyz(vfs->funcs.dbgname, pack->files[loc->index].name, sizeof(vfs->funcs.dbgname));
+	{
+		mpackfile_t *pf = loc->fhandle;
+		Q_strncpyz(vfs->funcs.dbgname, pf->name, sizeof(vfs->funcs.dbgname));
+	}
 #endif
 	vfs->funcs.Close = VFSPAK_Close;
 	vfs->funcs.GetLen = VFSPAK_GetLen;
@@ -404,7 +409,7 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, const char *desc, c
 	return &pack->pub;
 }
 
-#ifdef DOOMWADS
+#ifdef PACKAGE_DOOMWAD
 searchpathfuncs_t *QDECL FSDWD_LoadArchive (vfsfile_t *packhandle, const char *desc, const char *prefix)
 {
 	dwadheader_t	header;
@@ -591,4 +596,5 @@ newsection:
 	pack->pub.OpenVFS = FSPAK_OpenVFS;
 	return &pack->pub;
 }
+#endif
 #endif

@@ -497,9 +497,11 @@ static void IPLog_Identify_f(void)
 	const char *nameorip = Cmd_Argv(1);
 	netadr_t adr, mask;
 	char clean[256];
-	//if *, use a mask that includes all ips
-	if (NET_StringToAdrMasked (nameorip, false, &adr, &mask))
-	{	//try to parse as an ip
+	char *endofnum;
+	strtoul(nameorip, &endofnum, 10);
+
+	if (*endofnum && NET_StringToAdrMasked (nameorip, false, &adr, &mask))
+	{	//if not a single number, try to parse as an ip
 		//treading carefully here, to avoid dns name lookups weirding everything out.
 		IPLog_Identify(&adr, &mask, "Identity of %s", NET_AdrToStringMasked(clean, sizeof(clean), &adr, &mask));
 	}

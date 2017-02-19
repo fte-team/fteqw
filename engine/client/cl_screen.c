@@ -2770,6 +2770,10 @@ qboolean SCR_RSShot (void)
 	char st[80];
 	time_t now;
 	enum uploadfmt fmt;
+	int src_size;
+	int src_red;
+	int src_green;
+	int src_blue;
 
 	if (!scr_allowsnap.ival)
 		return false;
@@ -2794,8 +2798,23 @@ qboolean SCR_RSShot (void)
 
 	if (fmt == TF_INVALID)
 		return false;
-	if (fmt != TF_RGB24)
+	switch(fmt)
 	{
+	case TF_RGB24:
+	case TF_RGBA32:
+		src_size = (fmt==TF_RGB24)?3:4;
+		src_red = 0;
+		src_green = 1;
+		src_blue = 2;
+		break;
+	case TF_BGR24:
+	case TF_BGRA32:
+		src_size =  (fmt==TF_BGR24)?3:4;
+		src_red = 2;
+		src_green = 1;
+		src_blue = 0;
+		break;
+	default:
 		BZ_Free(newbuf);
 		return false;
 	}
@@ -2809,7 +2828,7 @@ qboolean SCR_RSShot (void)
 
 	//scale down first.
 	for (y = 0; y < h; y++) {
-		dest = newbuf + (w*3 * y);
+		dest = newbuf + (w*src_size * y);
 
 		for (x = 0; x < w; x++) {
 			r = g = b = 0;
@@ -2823,11 +2842,12 @@ qboolean SCR_RSShot (void)
 
 			count = 0;
 			for (/* */; dy < dey; dy++) {
-				src = newbuf + (truewidth * 3 * dy) + dx * 3;
+				src = newbuf + (truewidth * src_size * dy) + dx * src_size;
 				for (nx = dx; nx < dex; nx++) {
-					r += *src++;
-					g += *src++;
-					b += *src++;
+					r += src[src_red];
+					g += src[src_green];
+					b += src[src_blue];
+					src += src_size;
 					count++;
 				}
 			}
@@ -2842,12 +2862,12 @@ qboolean SCR_RSShot (void)
 
 	// convert to eight bit
 	for (y = 0; y < h; y++) {
-		src = newbuf + (w * 3 * y);
+		src = newbuf + (w * src_size * y);
 		dest = newbuf + (w * y);
 
 		for (x = 0; x < w; x++) {
 			*dest++ = MipColor(src[0], src[1], src[2]);
-			src += 3;
+			src += src_size;
 		}
 	}
 

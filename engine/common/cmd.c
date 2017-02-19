@@ -3696,7 +3696,6 @@ void Cmd_Init (void)
 	Cmd_AddCommandD ("cvarwatch", Cvar_Watch_f, "Prints a notification when the named cvar is changed. Also displays the start/end of configs. Alternatively, use '-watch foo' on the commandline.");
 	Cmd_AddCommand ("cvar_lockdefaults", Cvar_LockDefaults_f);
 	Cmd_AddCommand ("cvar_purgedefaults", Cvar_PurgeDefaults_f);
-	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
 
 	Cmd_AddCommandD ("apropos", Cmd_Apropos_f, "Lists all cvars or commands with the specified substring somewhere in their name or descrition.");
 

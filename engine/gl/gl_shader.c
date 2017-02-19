@@ -1068,53 +1068,61 @@ static qboolean Shader_ParseProgramCvar(char *script, cvar_t **cvarrefs, char **
 }
 #endif
 
-const char *sh_defaultsamplers[] =
+const struct sh_defaultsamplers_s sh_defaultsamplers[] =
 {
-	"s_shadowmap",
-	"s_projectionmap",
-	"s_diffuse",
-	"s_normalmap",
-	"s_specular",
-	"s_upper",
-	"s_lower",
-	"s_fullbright",
-	"s_paletted",
-	"s_reflectcube",
-	"s_reflectmask",
-	"s_lightmap",
-	"s_deluxmap",
+	{"s_shadowmap",		1u<<0},
+	{"s_projectionmap",	1u<<1},
+	{"s_diffuse",		1u<<2},
+	{"s_normalmap",		1u<<3},
+	{"s_specular",		1u<<4},
+	{"s_upper",			1u<<5},
+	{"s_lower",			1u<<6},
+	{"s_fullbright",	1u<<7},
+	{"s_paletted",		1u<<8},
+	{"s_reflectcube",	1u<<9},
+	{"s_reflectmask",	1u<<10},
+	{"s_lightmap",		1u<<11},
+	{"s_deluxmap",		1u<<12},
 #if MAXRLIGHTMAPS > 1
-	"s_lightmap1",
-	"s_lightmap2",
-	"s_lightmap3",
-	"s_deluxmap1",
-	"s_deluxmap2",
-	"s_deluxmap3",
+	{"s_lightmap1",		1u<<13},
+	{"s_lightmap2",		1u<<14},
+	{"s_lightmap3",		1u<<15},
+	{"s_deluxmap1",		1u<<16},
+	{"s_deluxmap2",		1u<<17},
+	{"s_deluxmap3",		1u<<18},
+#else
+	{"s_lightmap1",		0},
+	{"s_lightmap2",		0},
+	{"s_lightmap3",		0},
+	{"s_deluxmap1",		0},
+	{"s_deluxmap2",		0},
+	{"s_deluxmap3",		0},
 #endif
-	NULL
+	{NULL}
 };
 
 /*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
 static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *script, int qrtype, int ver, char *blobfilename)
 {
 #if defined(GLQUAKE) || defined(D3DQUAKE)
-	static char *permutationname[] =
+	static struct
 	{
-		"#define BUMP\n",
-		"#define FULLBRIGHT\n",
-		"#define UPPERLOWER\n",
-		"#define REFLECTCUBEMASK\n",
-		"#define SKELETAL\n",
-		"#define FOG\n",
-		"#define FRAMEBLEND\n",
-#if MAXRLIGHTMAPS > 1
-		"#define LIGHTSTYLED\n",
-#endif
-		NULL
+		char *name;
+		unsigned int bitmask;
+	} permutations[] =
+	{
+		{"#define BUMP\n", PERMUTATION_BUMPMAP},
+		{"#define FULLBRIGHT\n", PERMUTATION_FULLBRIGHT},
+		{"#define UPPERLOWER\n", PERMUTATION_UPPERLOWER},
+		{"#define REFLECTCUBEMASK\n", PERMUTATION_REFLECTCUBEMASK},
+		{"#define SKELETAL\n", PERMUTATION_SKELETAL},
+		{"#define FOG\n", PERMUTATION_FOG},
+		{"#define FRAMEBLEND\n", PERMUTATION_FRAMEBLEND},
+		{"#define LIGHTSTYLED\n", PERMUTATION_LIGHTSTYLES}
 	};
 #define MAXMODIFIERS 64
-	const char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0]) + MAXMODIFIERS + 1];
-	unsigned int nopermutation = ~0u;
+	const char *permutationdefines[countof(permutations) + MAXMODIFIERS + 1];
+	unsigned int nopermutation = PERMUTATIONS-1;
 	int nummodifiers = 0;
 	int p, n, pn;
 	char *end;
@@ -1191,15 +1199,15 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				while (*script != ' ' && *script != '\t' && *script != '\r' && *script != '\n')
 					script++;
 
-				for (i = 0; sh_defaultsamplers[i]; i++)
+				for (i = 0; sh_defaultsamplers[i].name; i++)
 				{
-					if (!strncmp(start, sh_defaultsamplers[i]+2, script-start) && sh_defaultsamplers[i][2+script-start] == 0)
+					if (!strncmp(start, sh_defaultsamplers[i].name+2, script-start) && sh_defaultsamplers[i].name[2+script-start] == 0)
 					{
-						prog->defaulttextures |= (1u<<i);
+						prog->defaulttextures |= sh_defaultsamplers[i].defaulttexbits;
 						break;
 					}
 				}
-				if (!sh_defaultsamplers[i])
+				if (!sh_defaultsamplers[i].name)
 				{
 					i = atoi(start);
 					if (i)
@@ -1331,15 +1339,15 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			end = script;
 			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
 				end++;
-			for (p = 0; permutationname[p]; p++)
+			for (p = 0; p < countof(permutations); p++)
 			{
-				if (!strncmp(permutationname[p]+8, script, end - script) && permutationname[p][8+end-script] == '\n')
+				if (!strncmp(permutations[p].name+8, script, end - script) && permutations[p].name[8+end-script] == '\n')
 				{
-					nopermutation &= ~(1u<<p);
+					nopermutation &= ~permutations[p].bitmask;
 					break;
 				}
 			}
-			if (!permutationname[p])
+			if (p == countof(permutations))
 			{
 				//we 'recognise' ones that are force-defined, despite not being actual permutations.
 				if (end - script == 4 && !strncmp("TESS", script, 4))
@@ -1558,10 +1566,10 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			continue;
 		}
 		pn = nummodifiers;
-		for (n = 0; permutationname[n]; n++)
+		for (n = 0; n < countof(permutations); n++)
 		{
-			if (p & (1u<<n))
-				permutationdefines[pn++] = permutationname[n];
+			if (p & permutations[n].bitmask)
+				permutationdefines[pn++] = permutations[n].name;
 		}
 		isprimary = (pn-nummodifiers)==1;
 		if (p & PERMUTATION_UPPERLOWER)

@@ -1,5 +1,6 @@
 !!permu FOG
 !!cvarf r_wateralpha
+!!samps diffuse
 
 #include "sys/defs.h"
 

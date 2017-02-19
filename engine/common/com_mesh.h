@@ -13,6 +13,7 @@ extern "C" {
 #include "model_hl.h"
 #endif
 
+#ifdef NONSKELETALMODELS
 //a single pose within an animation (note: always refered to via a framegroup, even if there's only one frame in that group).
 typedef struct
 {
@@ -31,6 +32,7 @@ typedef struct
 	vec3_t		scale;
 	vec3_t		scale_origin;
 } galiaspose_t;
+#endif
 
 typedef struct galiasevent_s
 {
@@ -51,7 +53,9 @@ typedef struct
 	qboolean loop;
 	int numposes;
 	float rate;
+#ifdef NONSKELETALMODELS
 	galiaspose_t *poseofs;
+#endif
 	galiasevent_t *events;
 	char name[64];
 } galiasanimation_t;

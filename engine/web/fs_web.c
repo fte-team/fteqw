@@ -155,7 +155,7 @@ vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 	qboolean needsflush;
 	f = VFSWEB_Open(osname, mode, &needsflush);
 	if (needsflush)
-		FS_FlushFSHashReally(true);
+		FS_FlushFSHash();
 	return f;
 }
 

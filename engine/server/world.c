@@ -388,8 +388,8 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 		World_TouchLinks (w, ent, node->children[1]);
 }
 
-#ifdef Q2BSPS
-void Q2BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, float *mins, float *maxs)
+#if defined(Q2BSPS) || defined(Q3BSPS)
+void Q23BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, float *mins, float *maxs)
 {
 #define MAX_TOTAL_ENT_LEAFS		128
 	int			leafs[MAX_TOTAL_ENT_LEAFS];
@@ -541,13 +541,16 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		VectorAdd (ent->v->origin, ent->v->maxs, ent->v->absmax);
 	}
 
+	if (ent->v->modelindex)
 	{
-		unsigned int mdl = ent->v->modelindex;
-		if (mdl < MAX_PRECACHE_MODELS && sv.models[mdl] && sv.models[mdl]->type == mod_brush)
+		model_t *mod = w->Get_CModel(w, ent->v->modelindex);
+		if (mod && mod->type == mod_brush)
 			ent->solidsize = ES_SOLID_BSP;
 		else
 			ent->solidsize = COM_EncodeSize(ent->v->mins, ent->v->maxs);
 	}
+	else
+		ent->solidsize = ES_SOLID_BSP;
 
 //
 // to make items easier to pick up and allow them to be grabbed off

@@ -1153,6 +1153,7 @@ static void SHM_Shutdown(void)
 	memset(&cv, 0, sizeof(cv));
 }
 
+#ifdef Q3BSPS
 #define VERT_POS_EPSILON (1.0f/32)
 static int SHM_ComposeVolume_FindVert(float *vert)
 {
@@ -1280,6 +1281,7 @@ static void SHM_ComposeVolume_Soup(vecV_t *points, int numpoints, index_t *idx, 
 		cv.numtris++;
 	}
 }
+
 /*call this function after generating litsurfs meshes*/
 static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 {
@@ -1407,6 +1409,7 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 		}
 	}
 }
+#endif
 
 static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvis, unsigned char *vvis, int type)
 {

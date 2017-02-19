@@ -979,7 +979,7 @@ void CL_Stop_f (void)
 	cls.demorecording = false;
 	Con_Printf ("Completed demo\n");
 
-	FS_FlushFSHash();
+	FS_FlushFSHashFull();	//FIXME: single name
 }
 
 void CL_WriteRecordQ2DemoMessage(sizebuf_t *msg)

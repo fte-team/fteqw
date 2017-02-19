@@ -606,7 +606,7 @@ static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth
 }
 
 //=============================================================================
-#ifdef DOOMWADS
+#ifdef PACKAGE_DOOMWAD
 #define DSPK_RATE 140
 #define DSPK_BASE 170.0
 #define DSPK_EXP 0.0433
@@ -771,7 +771,7 @@ static S_LoadSound_t AudioInputPlugins[10] =
 	S_LoadOVSound,
 #endif
 	S_LoadWavSound,
-#ifdef DOOMWADS
+#ifdef PACKAGE_DOOMWAD
 	S_LoadDoomSound,
 //	S_LoadDoomSpeakerSound,
 #endif

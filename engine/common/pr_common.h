@@ -4,17 +4,6 @@ extern "C" {
 #include "progtype.h"
 #include "progslib.h"
 
-#ifdef CLIENTONLY
-typedef struct edict_s {
-	enum ereftype_e		ereftype;
-	float				freetime;			// realtime when the object was freed
-	unsigned int		entnum;
-	unsigned int		fieldsize;
-	pbool				readonly;	//causes error when QC tries writing to it. (quake's world entity)
-	void				*v;
-} edict_t;
-#endif
-
 struct wedict_s
 {
 	enum ereftype_e	ereftype;
@@ -221,6 +210,7 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	#define PF_skel_mmap			PF_Fixme
 	#define PF_skel_ragedit			PF_Fixme
 	#define PF_frameduration		PF_Fixme
+	#define PF_modelframecount		PF_Fixme
 	#define PF_frameforname			PF_Fixme
 	#define PF_skel_delete			PF_Fixme
 	#define PF_skel_copybones		PF_Fixme
@@ -236,6 +226,10 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	#define PF_skel_build			PF_Fixme
 	#define PF_skel_create			PF_Fixme
 	#define PF_skinforname			PF_Fixme
+
+	#define PF_processmodelevents	PF_Fixme
+	#define PF_getnextmodelevent	PF_Fixme
+	#define PF_getmodeleventidx		PF_Fixme
 #else
 	void QCBUILTIN PF_skel_set_bone_world (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skel_mmap(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -261,11 +255,11 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	void QCBUILTIN PF_skinforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_gettaginfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_gettagindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-#endif
 
-void QCBUILTIN PF_processmodelevents (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_getnextmodelevent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_getmodeleventidx (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_processmodelevents (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_getnextmodelevent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_getmodeleventidx (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#endif
 
 #if defined(SKELETALOBJECTS) || defined(RAGDOLL)
 	void skel_lookup(world_t *prinst, int skelidx, framestate_t *out);

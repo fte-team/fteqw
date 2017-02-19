@@ -196,6 +196,7 @@ static const char *wgl_extensions;
 
 static qboolean VID_AttachGL (rendererstate_t *info);
 static BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info);
+static BOOL CheckForcePixelFormat(rendererstate_t *info);
 
 extern cvar_t		vid_gl_context_version;
 extern cvar_t		vid_gl_context_debug;
@@ -1317,7 +1318,6 @@ static qboolean CreateMainWindow(rendererstate_t *info, qboolean withthread)
 	return stat;
 }
 
-static BOOL CheckForcePixelFormat(rendererstate_t *info);
 static void VID_UnSetMode (void);
 static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 {

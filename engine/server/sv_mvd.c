@@ -76,8 +76,6 @@ extern cvar_t qtv_password;
 //does not unlink.
 static void DestClose(mvddest_t *d, enum mvdclosereason_e reason)
 {
-	char path[MAX_OSPATH];
-
 	if (d->desttype == DEST_THREADEDFILE)
 	{
 		while(d->flushing == true)
@@ -87,7 +85,10 @@ static void DestClose(mvddest_t *d, enum mvdclosereason_e reason)
 	if (d->cache)
 		BZ_Free(d->cache);
 	if (d->file)
+	{
 		VFS_CLOSE(d->file);
+		FS_FlushFSHashWritten(d->filename);
+	}
 #ifdef HAVE_TCP
 	if (d->socket != INVALID_SOCKET)
 		closesocket(d->socket);
@@ -95,17 +96,16 @@ static void DestClose(mvddest_t *d, enum mvdclosereason_e reason)
 
 	if (reason == MVD_CLOSE_CANCEL)
 	{
-		snprintf(path, MAX_OSPATH, "%s/%s", d->path, d->name);
-		FS_Remove(path, FS_GAMEONLY);
+		FS_Remove(d->filename, FS_GAMEONLY);
 
-		FS_Remove(SV_MVDName2Txt(path), FS_GAMEONLY);
+		FS_Remove(SV_MVDName2Txt(d->filename), FS_GAMEONLY);
 
 		//SV_BroadcastPrintf (PRINT_CHAT, "Server recording canceled, demo removed\n");
 	}
 	else if (d->desttype != DEST_STREAM)
 	{
 		char buf[512];
-		SV_BroadcastPrintf (PRINT_CHAT, "Server recording complete\n^[/download %s^]\n", COM_QuotedString(va("demos/%s",d->name), buf, sizeof(buf), false));
+		SV_BroadcastPrintf (PRINT_CHAT, "Server recording complete\n^[/download %s^]\n", COM_QuotedString(va("demos/%s",d->simplename), buf, sizeof(buf), false));
 	}
 
 	Z_Free(d);
@@ -1324,7 +1324,7 @@ mvddest_t *SV_FindRecordFile(char *match, mvddest_t ***link_out)
 		f = *link;
 		if (f->desttype == DEST_FILE || f->desttype == DEST_BUFFEREDFILE || f->desttype == DEST_THREADEDFILE)
 		{
-			if (!match || !strcmp(match, f->name))
+			if (!match || !strcmp(match, f->simplename))
 			{
 				if (link_out)
 					*link_out = link;
@@ -1348,6 +1348,12 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 
 	char path[MAX_OSPATH];
 
+	if (strlen(name) >= countof(dst->filename))
+	{
+		Con_Printf ("ERROR: couldn't open \"%s\". Too long.\n", name);
+		return NULL;
+	}
+
 	file = FS_OpenVFS (name, "wb", FS_GAMEONLY);
 	if (!file)
 	{
@@ -1357,6 +1363,7 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 
 	dst = Z_Malloc(sizeof(mvddest_t));
 	dst->socket = INVALID_SOCKET;
+	strcpy(dst->filename, name);
 
 #ifdef LOADERTHREAD
 	if (!*sv_demoUseCache.string)
@@ -1391,11 +1398,7 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 
 	s = name + strlen(name);
 	while (*s != '/') s--;
-	Q_strncpyz(dst->name, s+1, sizeof(dst->name));
-	Q_strncpyz(dst->path, sv_demoDir.string, sizeof(dst->path));
-
-	if (!*dst->path)
-		Q_strncpyz(dst->path, ".", MAX_OSPATH);
+	Q_strncpyz(dst->simplename, s+1, sizeof(dst->simplename));
 
 	switch(dst->desttype)
 	{
@@ -1442,7 +1445,7 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 	else
 	{
 		FS_Remove(path, FS_GAMEONLY);
-		FS_FlushFSHashRemoved();
+		FS_FlushFSHashRemoved(path);
 	}
 
 	return dst;
@@ -1454,7 +1457,7 @@ char *SV_Demo_CurrentOutput(void)
 	for (d = demo.dest; d; d = d->nextdest)
 	{
 		if (d->desttype == DEST_FILE || d->desttype == DEST_BUFFEREDFILE || d->desttype == DEST_THREADEDFILE)
-			return d->name;
+			return d->simplename;
 	}
 	return "QTV";
 }
@@ -2394,7 +2397,7 @@ void SV_MVDList_f (void)
 		{
 			for (d = demo.dest; d; d = d->nextdest)
 			{
-				if (!strcmp(list->name, d->name))
+				if (!strcmp(list->name, d->simplename))
 					Con_Printf("*%d: ^[^7%s\\demo\\%s/%s^] %dk\n", i, list->name, sv_demoDir.string, list->name, d->totalsize/1024);
 			}
 			if (!d)
@@ -2444,7 +2447,7 @@ void SV_UserCmdMVDList_f (void)
 		{
 			for (d = demo.dest; d; d = d->nextdest)
 			{
-				if (!strcmp(list->name, d->name))
+				if (!strcmp(list->name, d->simplename))
 					SV_ClientPrintf(host_client, PRINT_HIGH, "*%d: %s %dk\n", i, list->name, d->totalsize/1024);
 			}
 			if (!d)
@@ -2649,7 +2652,7 @@ void SV_MVDInfoAdd_f (void)
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s", active->path, SV_MVDName2Txt(active->name));
+		Q_strncpyz(path, SV_MVDName2Txt(active->filename), sizeof(path));
 	}
 	else
 	{
@@ -2701,7 +2704,7 @@ void SV_MVDInfoRemove_f (void)
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s", active->path, SV_MVDName2Txt(active->name));
+		snprintf(path, MAX_OSPATH, "%s", SV_MVDName2Txt(active->filename));
 	}
 	else
 	{
@@ -2716,9 +2719,14 @@ void SV_MVDInfoRemove_f (void)
 		snprintf(path, MAX_OSPATH, "%s/%s", sv_demoDir.string, name);
 	}
 
-	if (!FS_Remove(path, FS_GAMEONLY))
+	if (FS_Remove(path, FS_GAMEONLY))
+	{
+		FS_FlushFSHashRemoved(path);
+		Con_Printf("file removed\n");
+	}
+	else
 		Con_Printf("failed to remove the file\n");
-	else Con_Printf("file removed\n");
+
 }
 
 void SV_MVDInfo_f (void)
@@ -2743,7 +2751,7 @@ void SV_MVDInfo_f (void)
 			return;
 		}
 
-		snprintf(path, MAX_OSPATH, "%s/%s", active->path, SV_MVDName2Txt(active->name));
+		Q_strncpyz(path, SV_MVDName2Txt(active->filename), sizeof(path));
 	}
 	else
 	{

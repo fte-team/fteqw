@@ -662,7 +662,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="../libs/speex,..\client,../libs/freetype2/include,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include"
+				AdditionalIncludeDirectories="../libs/speex,..\client,../libs/freetype2/include,../common,../server,../gl,../sw,../qclib,../libs,../d3d9;../libs/dxsdk9/include;../libs/dxsdk7/include"
 				PreprocessorDefinitions="_DEBUG;GLQUAKE;VKQUAKE;WIN32;_WINDOWS;BOTLIB_STATIC;USE_MSVCRT_DEBUG;DYNAMIC_SDL"
 				BasicRuntimeChecks="3"
 				SmallerTypeCheck="true"

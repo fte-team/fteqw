@@ -55,7 +55,7 @@ qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer, size_t fsize);
 #ifdef Q1BSPS
 static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize);
 #endif
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer, size_t fsize);
 #endif
 model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose);
@@ -264,7 +264,7 @@ static void Mod_BlockTextureColour_f (void)
 #endif
 
 
-#if defined(RUNTIMELIGHTING) 
+#ifdef RUNTIMELIGHTING
 #if defined(MULTITHREAD)
 static void *relightthread[8];
 static unsigned int relightthreads;
@@ -291,8 +291,9 @@ static int RelightThread(void *arg)
 	free(threadctx);
 	return 0;
 }
-#endif
+#else
 static void *lightmainthreadctx;
+#endif
 #endif
 
 void Mod_Think (void)
@@ -746,10 +747,10 @@ void Mod_Init (qboolean initial)
 #endif
 
 		//q2/q3bsps
-#ifdef Q2BSPS
-		Mod_RegisterModelFormatMagic(NULL, "Quake2/Quake2 Map (bsp)",		IDBSPHEADER,							Mod_LoadQ2BrushModel);
+#if defined(Q2BSPS) || defined(Q3BSPS)
+		Mod_RegisterModelFormatMagic(NULL, "Quake2/Quake3 Map (bsp)",		IDBSPHEADER,							Mod_LoadQ2BrushModel);
 #endif
-#ifdef Q3BSPS
+#ifdef RFBSPS
 		Mod_RegisterModelFormatMagic(NULL, "Raven Map (bsp)",				('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24),	Mod_LoadQ2BrushModel);
 		Mod_RegisterModelFormatMagic(NULL, "QFusion Map (bsp)",				('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24),	Mod_LoadQ2BrushModel);
 #endif
@@ -1394,7 +1395,8 @@ model_t *Mod_ForName (const char *name, enum mlverbosity_e verbosity)
 
 ===============================================================================
 */
-#ifndef SERVERONLY
+
+#if !defined(SERVERONLY)
 static const struct
 {
 	const char *oldname;
@@ -1442,9 +1444,7 @@ static const char *Mod_RemapBuggyTexture(const char *name, const qbyte *data, un
 	}
 	return NULL;
 }
-#endif
 
-#ifndef SERVERONLY
 static void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safetoloadfromwads)
 {
 	extern cvar_t gl_shadeq1_name;
@@ -1528,235 +1528,12 @@ static void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safe
 	}
 	BZ_Free(tx->mips[0]);
 }
-static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt)
-{
-	unsigned int size = 
-		(mt->width>>0)*(mt->height>>0) +
-		(mt->width>>1)*(mt->height>>1) +
-		(mt->width>>2)*(mt->height>>2) +
-		(mt->width>>3)*(mt->height>>3);
-
-	if (loadmodel->fromgame == fg_halflife && *(short*)((qbyte *)mt + mt->offsets[3] + (mt->width>>3)*(mt->height>>3)) == 256)
-	{	//mostly identical, just a specific palette hidden at the end. handle fences elsewhere.
-		tx->mips[0] = BZ_Malloc(size + 768);
-		tx->palette = tx->mips[0] + size;
-		memcpy(tx->palette, (qbyte *)mt + mt->offsets[3] + (mt->width>>3)*(mt->height>>3) + 2, 768);
-	}
-	else
-	{
-		tx->mips[0] = BZ_Malloc(size);
-		tx->palette = NULL;
-	}
-
-	tx->mips[1] = tx->mips[0] + (mt->width>>0)*(mt->height>>0);
-	tx->mips[2] = tx->mips[1] + (mt->width>>1)*(mt->height>>1);
-	tx->mips[3] = tx->mips[2] + (mt->width>>2)*(mt->height>>2);
-	memcpy(tx->mips[0], (qbyte *)mt + mt->offsets[0], (mt->width>>0)*(mt->height>>0));
-	memcpy(tx->mips[1], (qbyte *)mt + mt->offsets[1], (mt->width>>1)*(mt->height>>1));
-	memcpy(tx->mips[2], (qbyte *)mt + mt->offsets[2], (mt->width>>2)*(mt->height>>2));
-	memcpy(tx->mips[3], (qbyte *)mt + mt->offsets[3], (mt->width>>3)*(mt->height>>3));
-
-}
 #endif
-
-/*
-=================
-Mod_LoadTextures
-=================
-*/
-static qboolean Mod_LoadTextures (model_t *loadmodel, qbyte *mod_base, lump_t *l)
-{
-	int		i, j, num, max, altmax;
-	miptex_t	*mt;
-	texture_t	*tx, *tx2;
-	texture_t	*anims[10];
-	texture_t	*altanims[10];
-	dmiptexlump_t *m;
-
-TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
-
-//	Mod_InitTextureDescs(loadname);
-
-	if (!l->filelen)
-	{
-		Con_Printf(CON_WARNING "warning: %s contains no texture data\n", loadmodel->name);
-
-		loadmodel->numtextures = 1;
-		loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, 1 * sizeof(*loadmodel->textures));
-
-		i = 0;
-		tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
-		memcpy(tx, r_notexture_mip, sizeof(texture_t));
-		sprintf(tx->name, "unnamed%i", i);
-		loadmodel->textures[i] = tx;
-
-		return true;
-	}
-	m = (dmiptexlump_t *)(mod_base + l->fileofs);
-
-	m->nummiptex = LittleLong (m->nummiptex);
-
-	loadmodel->numtextures = m->nummiptex;
-	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, m->nummiptex * sizeof(*loadmodel->textures));
-
-	for (i=0 ; i<m->nummiptex ; i++)
-	{
-		m->dataofs[i] = LittleLong(m->dataofs[i]);
-		if (m->dataofs[i] == -1)	//e1m2, this happens
-		{
-			tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
-			memcpy(tx, r_notexture_mip, sizeof(texture_t));
-			sprintf(tx->name, "unnamed%i", i);
-			loadmodel->textures[i] = tx;
-			continue;
-		}
-		mt = (miptex_t *)((qbyte *)m + m->dataofs[i]);
-
-	TRACE(("dbg: Mod_LoadTextures: texture %s\n", loadname));
-
-		if (!*mt->name)	//I HATE MAPPERS!
-		{
-			sprintf(mt->name, "unnamed%i", i);
-			Con_DPrintf(CON_WARNING "warning: unnamed texture in %s, renaming to %s\n", loadmodel->name, mt->name);
-		}
-
-		mt->width = LittleLong (mt->width);
-		mt->height = LittleLong (mt->height);
-		for (j=0 ; j<MIPLEVELS ; j++)
-			mt->offsets[j] = LittleLong (mt->offsets[j]);
-
-		if ( (mt->width & 15) || (mt->height & 15) )
-			Con_Printf (CON_WARNING "Warning: Texture %s is not 16 aligned", mt->name);
-		if (mt->width < 1 || mt->height < 1)
-			Con_Printf (CON_WARNING "Warning: Texture %s has no size", mt->name);
-		tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
-		loadmodel->textures[i] = tx;
-
-		memcpy (tx->name, mt->name, sizeof(tx->name));
-		tx->width = mt->width;
-		tx->height = mt->height;
-
-		if (!mt->offsets[0])	//this is a hl external style texture, load it a little later (from a wad)
-		{
-			continue;
-		}
-
-#ifndef SERVERONLY
-		Mod_LoadMiptex(loadmodel, tx, mt);
-#endif
-	}
-//
-// sequence the animations
-//
-	for (i=0 ; i<m->nummiptex ; i++)
-	{
-		tx = loadmodel->textures[i];
-		if (!tx || tx->name[0] != '+')
-			continue;
-		if (tx->anim_next)
-			continue;	// already sequenced
-
-	// find the number of frames in the animation
-		memset (anims, 0, sizeof(anims));
-		memset (altanims, 0, sizeof(altanims));
-
-		max = tx->name[1];
-		altmax = 0;
-		if (max >= 'a' && max <= 'z')
-			max -= 'a' - 'A';
-		if (max >= '0' && max <= '9')
-		{
-			max -= '0';
-			altmax = 0;
-			anims[max] = tx;
-			max++;
-		}
-		else if (max >= 'A' && max <= 'J')
-		{
-			altmax = max - 'A';
-			max = 0;
-			altanims[altmax] = tx;
-			altmax++;
-		}
-		else
-		{
-			Con_Printf (CON_ERROR "Bad animating texture %s\n", tx->name);
-			return false;
-		}
-
-		for (j=i+1 ; j<m->nummiptex ; j++)
-		{
-			tx2 = loadmodel->textures[j];
-			if (!tx2 || tx2->name[0] != '+')
-				continue;
-			if (strcmp (tx2->name+2, tx->name+2))
-				continue;
-
-			num = tx2->name[1];
-			if (num >= 'a' && num <= 'z')
-				num -= 'a' - 'A';
-			if (num >= '0' && num <= '9')
-			{
-				num -= '0';
-				anims[num] = tx2;
-				if (num+1 > max)
-					max = num + 1;
-			}
-			else if (num >= 'A' && num <= 'J')
-			{
-				num = num - 'A';
-				altanims[num] = tx2;
-				if (num+1 > altmax)
-					altmax = num+1;
-			}
-			else
-			{
-				Con_Printf (CON_ERROR "Bad animating texture %s\n", tx->name);
-				return false;
-			}
-		}
-
-#define	ANIM_CYCLE	2
-	// link them all together
-		for (j=0 ; j<max ; j++)
-		{
-			tx2 = anims[j];
-			if (!tx2)
-			{
-				Con_Printf (CON_ERROR "Missing frame %i of %s\n",j, tx->name);
-				return false;
-			}
-			tx2->anim_total = max * ANIM_CYCLE;
-			tx2->anim_min = j * ANIM_CYCLE;
-			tx2->anim_max = (j+1) * ANIM_CYCLE;
-			tx2->anim_next = anims[ (j+1)%max ];
-			if (altmax)
-				tx2->alternate_anims = altanims[0];
-		}
-		for (j=0 ; j<altmax ; j++)
-		{
-			tx2 = altanims[j];
-			if (!tx2)
-			{
-				Con_Printf (CON_ERROR "Missing frame %i of %s\n",j, tx->name);
-				return false;
-			}
-			tx2->anim_total = altmax * ANIM_CYCLE;
-			tx2->anim_min = j * ANIM_CYCLE;
-			tx2->anim_max = (j+1) * ANIM_CYCLE;
-			tx2->anim_next = altanims[ (j+1)%altmax ];
-			if (max)
-				tx2->alternate_anims = anims[0];
-		}
-	}
-
-	return true;
-}
 
 void Mod_NowLoadExternal(model_t *loadmodel)
 {
 	//for halflife bsps where wads are loaded after the map.
-#ifndef SERVERONLY
+#if !defined(SERVERONLY)
 	int i;
 	texture_t	*tx;
 	char loadname[32];
@@ -2224,27 +2001,6 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 #endif
 }
 
-/*
-=================
-Mod_LoadVisibility
-=================
-*/
-static void Mod_LoadVisibility (model_t *loadmodel, qbyte *mod_base, lump_t *l, qbyte *ptr, size_t len)
-{
-	if (!ptr)
-	{
-		ptr = mod_base + l->fileofs;
-		len = l->filelen;
-	}
-	if (!len)
-	{
-		loadmodel->visdata = NULL;
-		return;
-	}
-	loadmodel->visdata = ZG_Malloc(&loadmodel->memgroup, len);	
-	memcpy (loadmodel->visdata, ptr, len);
-}
-
 //scans through the worldspawn for a single specific key.
 const char *Mod_ParseWorldspawnKey(model_t *mod, const char *key, char *buffer, size_t sizeofbuffer)
 {
@@ -2462,6 +2218,1194 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
+#if defined(Q1BSPS) || defined(Q2BSPS)
+void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *cookie)
+{
+	unsigned int vertidx;
+	int i, lindex, edgevert;
+	mesh_t *mesh = surf->mesh;
+	float *vec;
+	float s, t, d;
+	int sty;
+//	int w,h;
+
+	if (!mesh)
+	{
+		mesh = surf->mesh = ZG_Malloc(&mod->memgroup, sizeof(mesh_t) + (sizeof(vecV_t)+sizeof(vec2_t)*(1+1)+sizeof(vec3_t)*3+sizeof(vec4_t)*1)* surf->numedges + sizeof(index_t)*(surf->numedges-2)*3);
+		mesh->numvertexes = surf->numedges;
+		mesh->numindexes = (mesh->numvertexes-2)*3;
+		mesh->xyz_array = (vecV_t*)(mesh+1);
+		mesh->st_array = (vec2_t*)(mesh->xyz_array+mesh->numvertexes);
+		mesh->lmst_array[0] = (vec2_t*)(mesh->st_array+mesh->numvertexes);
+		mesh->normals_array = (vec3_t*)(mesh->lmst_array[0]+mesh->numvertexes);
+		mesh->snormals_array = (vec3_t*)(mesh->normals_array+mesh->numvertexes);
+		mesh->tnormals_array = (vec3_t*)(mesh->snormals_array+mesh->numvertexes);
+		mesh->colors4f_array[0] = (vec4_t*)(mesh->tnormals_array+mesh->numvertexes);
+		mesh->indexes = (index_t*)(mesh->colors4f_array[0]+mesh->numvertexes);
+	}
+	mesh->istrifan = true;
+
+	//output the mesh's indicies
+	for (i=0 ; i<mesh->numvertexes-2 ; i++)
+	{
+		mesh->indexes[i*3] = 0;
+		mesh->indexes[i*3+1] = i+1;
+		mesh->indexes[i*3+2] = i+2;
+	}
+	//output the renderable verticies
+	for (i=0 ; i<mesh->numvertexes ; i++)
+	{
+		lindex = mod->surfedges[surf->firstedge + i];
+		edgevert = lindex <= 0;
+		if (edgevert)
+			lindex = -lindex;
+		if (lindex < 0 || lindex >= mod->numedges)
+			vertidx = 0;
+		else
+			vertidx = mod->edges[lindex].v[edgevert];
+		vec = mod->vertexes[vertidx].position;
+
+		s = DotProduct (vec, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3];
+		t = DotProduct (vec, surf->texinfo->vecs[1]) + surf->texinfo->vecs[1][3];
+
+		VectorCopy (vec, mesh->xyz_array[i]);
+
+/*		if (R_GetShaderSizes(surf->texinfo->texture->shader, &w, &h, false) > 0)
+		{
+			mesh->st_array[i][0] = s/w;
+			mesh->st_array[i][1] = t/h;
+		}
+		else
+*/
+		{
+			mesh->st_array[i][0] = s;
+			mesh->st_array[i][1] = t;
+			if (surf->texinfo->texture->width)
+				mesh->st_array[i][0] /= surf->texinfo->texture->width;
+			if (surf->texinfo->texture->height)
+				mesh->st_array[i][1] /= surf->texinfo->texture->height;
+		}
+
+#ifndef SERVERONLY
+		if (gl_lightmap_average.ival)
+		{
+			for (sty = 0; sty < 1; sty++)
+			{
+				mesh->lmst_array[sty][i][0] = (surf->extents[0]*0.5 + (surf->light_s[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.width<<surf->lmshift);
+				mesh->lmst_array[sty][i][1] = (surf->extents[1]*0.5 + (surf->light_t[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.height<<surf->lmshift);
+			}
+		}
+		else
+#endif
+		{
+			for (sty = 0; sty < 1; sty++)
+			{
+				mesh->lmst_array[sty][i][0] = (s - surf->texturemins[0] + (surf->light_s[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.width<<surf->lmshift);
+				mesh->lmst_array[sty][i][1] = (t - surf->texturemins[1] + (surf->light_t[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.height<<surf->lmshift);
+			}
+		}
+
+		//figure out the texture directions, for bumpmapping and stuff
+		if (mod->normals && (surf->texinfo->flags & 0x800) && (mod->normals[vertidx][0] || mod->normals[vertidx][1] || mod->normals[vertidx][2])) 
+		{
+			//per-vertex normals - used for smoothing groups and stuff.
+			VectorCopy(mod->normals[vertidx], mesh->normals_array[i]);
+		}
+		else
+		{
+			if (surf->flags & SURF_PLANEBACK)
+				VectorNegate(surf->plane->normal, mesh->normals_array[i]);
+			else
+				VectorCopy(surf->plane->normal, mesh->normals_array[i]);
+		}
+		VectorCopy(surf->texinfo->vecs[0], mesh->snormals_array[i]);
+		VectorNegate(surf->texinfo->vecs[1], mesh->tnormals_array[i]);
+		//the s+t vectors are axis-aligned, so fiddle them so they're normal aligned instead
+		d = -DotProduct(mesh->normals_array[i], mesh->snormals_array[i]);
+		VectorMA(mesh->snormals_array[i], d, mesh->normals_array[i], mesh->snormals_array[i]);
+		d = -DotProduct(mesh->normals_array[i], mesh->tnormals_array[i]);
+		VectorMA(mesh->tnormals_array[i], d, mesh->normals_array[i], mesh->tnormals_array[i]);
+		VectorNormalize(mesh->snormals_array[i]);
+		VectorNormalize(mesh->tnormals_array[i]);
+
+		//q1bsp has no colour information (fixme: sample from the lightmap?)
+		for (sty = 0; sty < 1; sty++)
+		{
+			mesh->colors4f_array[sty][i][0] = 1;
+			mesh->colors4f_array[sty][i][1] = 1;
+			mesh->colors4f_array[sty][i][2] = 1;
+			mesh->colors4f_array[sty][i][3] = 1;
+		}
+	}
+}
+#endif
+
+#ifndef SERVERONLY
+static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindicies, void (*build)(model_t *mod, msurface_t *surf, builddata_t *bd), builddata_t *bd, int lmmerge)
+{
+	batch_t *batch;
+	msurface_t *surf;
+	mesh_t *mesh;
+	int numverts = 0;
+	int numindicies = 0;
+	int j, i;
+	int sortid;
+	int sty;
+	vbo_t vbo;
+	int styles = mod->lightmaps.surfstyles;
+	char *ptr;
+
+	memset(&vbo, 0, sizeof(vbo));
+	vbo.indicies.sysptr = ZG_Malloc(&mod->memgroup, sizeof(index_t) * maxindicies);
+	ptr = ZG_Malloc(&mod->memgroup, (sizeof(vecV_t)+sizeof(vec2_t)*(1+styles)+sizeof(vec3_t)*3+sizeof(vec4_t)*styles)* maxverts);
+
+	vbo.coord.sysptr = ptr;
+	ptr += sizeof(vecV_t)*maxverts;
+	for (sty = 0; sty < styles; sty++)
+	{
+		vbo.colours[sty].sysptr = ptr;
+		ptr += sizeof(vec4_t)*maxverts;
+	}
+	for (; sty < MAXRLIGHTMAPS; sty++)
+		vbo.colours[sty].sysptr = NULL;
+	vbo.texcoord.sysptr = ptr;
+	ptr += sizeof(vec2_t)*maxverts;
+	sty = 0;
+	for (; sty < styles; sty++)
+	{
+		vbo.lmcoord[sty].sysptr = ptr;
+		ptr += sizeof(vec2_t)*maxverts;
+	}
+	for (; sty < MAXRLIGHTMAPS; sty++)
+		vbo.lmcoord[sty].sysptr = NULL;
+	vbo.normals.sysptr = ptr;
+	ptr += sizeof(vec3_t)*maxverts;
+	vbo.svector.sysptr = ptr;
+	ptr += sizeof(vec3_t)*maxverts;
+	vbo.tvector.sysptr = ptr;
+	ptr += sizeof(vec3_t)*maxverts;
+
+	numindicies = 0;
+	numverts = 0;
+
+	//build each mesh
+	for (sortid=0; sortid<SHADER_SORT_COUNT; sortid++)
+	{
+		for (batch = mod->batches[sortid]; batch; batch = batch->next)
+		{
+			for (j = 0; j < batch->maxmeshes; j++)
+			{
+				surf = (msurface_t*)batch->mesh[j];
+				mesh = surf->mesh;
+				batch->mesh[j] = mesh;
+
+				mesh->vbofirstvert = numverts;
+				mesh->vbofirstelement = numindicies;
+				numverts += mesh->numvertexes;
+				numindicies += mesh->numindexes;
+
+				//set up the arrays. the arrangement is required for the backend to optimise vbos
+				mesh->xyz_array = (vecV_t*)vbo.coord.sysptr + mesh->vbofirstvert;
+				mesh->st_array = (vec2_t*)vbo.texcoord.sysptr + mesh->vbofirstvert;
+				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+				{
+					if (vbo.lmcoord[sty].sysptr)
+						mesh->lmst_array[sty] = (vec2_t*)vbo.lmcoord[sty].sysptr + mesh->vbofirstvert;
+					else
+						mesh->lmst_array[sty] = NULL;
+					if (vbo.colours[sty].sysptr)
+						mesh->colors4f_array[sty] = (vec4_t*)vbo.colours[sty].sysptr + mesh->vbofirstvert;
+					else
+						mesh->colors4f_array[sty] = NULL;
+				}
+				mesh->normals_array = (vec3_t*)vbo.normals.sysptr + mesh->vbofirstvert;
+				mesh->snormals_array = (vec3_t*)vbo.svector.sysptr + mesh->vbofirstvert;
+				mesh->tnormals_array = (vec3_t*)vbo.tvector.sysptr + mesh->vbofirstvert;
+				mesh->indexes = (index_t*)vbo.indicies.sysptr + mesh->vbofirstelement;
+
+				mesh->vbofirstvert = 0;
+				mesh->vbofirstelement = 0;
+
+				build(mod, surf, bd);
+
+				if (lmmerge != 1)
+				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+				{
+					if (surf->lightmaptexturenums[sty] >= 0)
+					{
+						if (mesh->lmst_array[sty])
+						{
+							for (i = 0; i < mesh->numvertexes; i++)
+							{
+								mesh->lmst_array[sty][i][1] += surf->lightmaptexturenums[sty] % lmmerge;
+								mesh->lmst_array[sty][i][1] /= lmmerge;
+							}
+						}
+						surf->lightmaptexturenums[sty] /= lmmerge;
+					}
+				}
+			}
+			batch->meshes = 0;
+			batch->firstmesh = 0;
+		}
+	}
+}
+
+#ifdef Q1BSPS
+//q1 autoanimates. if the frame is set, it uses the alternate animation.
+static void Mod_UpdateBatchShader_Q1 (struct batch_s *batch)
+{
+	texture_t *base = batch->texture;
+	int		reletive;
+	int		count;
+
+	if (batch->ent->framestate.g[FS_REG].frame[0])
+	{
+		if (base->alternate_anims)
+			base = base->alternate_anims;
+	}
+
+	if (base->anim_total)
+	{
+		reletive = (int)(cl.time*10) % base->anim_total;
+
+		count = 0;
+		while (base->anim_min > reletive || base->anim_max <= reletive)
+		{
+			base = base->anim_next;
+			if (!base)
+				Sys_Error ("R_TextureAnimation: broken cycle");
+			if (++count > 100)
+				Sys_Error ("R_TextureAnimation: infinite cycle");
+		}
+	}
+
+	batch->shader = base->shader;
+}
+#endif
+
+#ifdef Q2BSPS
+//q2 has direct control over the texture frames used, but typically has the client generate the frame (different flags autogenerate different ranges).
+static void Mod_UpdateBatchShader_Q2 (struct batch_s *batch)
+{
+	texture_t *base = batch->texture;
+	int		reletive;
+	int frame = batch->ent->framestate.g[FS_REG].frame[0];
+	if (batch->ent == &r_worldentity)
+		frame = cl.time*2;
+
+	if (base->anim_total)
+	{
+		reletive = frame % base->anim_total;
+		while (reletive --> 0)
+		{
+			base = base->anim_next;
+			if (!base)
+				Sys_Error ("R_TextureAnimation: broken cycle");
+		}
+	}
+
+	batch->shader = base->shader;
+}
+#endif
+
+#define lmmerge(i) ((i>=0)?i/merge:i)
+/*
+batch->firstmesh is set only in and for this function, its cleared out elsewhere
+*/
+static int Mod_Batches_Generate(model_t *mod)
+{
+	int i;
+	msurface_t *surf;
+	shader_t *shader;
+	int sortid;
+	batch_t *batch, *lbatch = NULL;
+	vec4_t plane;
+
+	int merge = mod->lightmaps.merge;
+	if (!merge)
+		merge = 1;
+
+	mod->lightmaps.count = (mod->lightmaps.count+merge-1) & ~(merge-1);
+	mod->lightmaps.count /= merge;
+	mod->lightmaps.height *= merge;
+
+	mod->numbatches = 0;
+
+	//for each surface, find a suitable batch to insert it into.
+	//we use 'firstmesh' to avoid chucking out too many verts in a single vbo (gl2 hardware tends to have a 16bit limit)
+	for (i=0; i<mod->nummodelsurfaces; i++)
+	{
+		surf = mod->surfaces + mod->firstmodelsurface + i;
+		shader = surf->texinfo->texture->shader;
+
+		if (surf->flags & SURF_NODRAW)
+		{
+			shader = R_RegisterShader("nodraw", SUF_NONE, "{\nsurfaceparm nodraw\n}");
+			sortid = shader->sort;
+			VectorClear(plane);
+			plane[3] = 0;
+		}
+		else if (shader)
+		{
+			sortid = shader->sort;
+
+			//shaders that are portals need to be split into separate batches to have the same surface planes
+			if (sortid == SHADER_SORT_PORTAL || (shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT)))
+			{
+				if (surf->flags & SURF_PLANEBACK)
+				{
+					VectorNegate(surf->plane->normal, plane);
+					plane[3] = -surf->plane->dist;
+				}
+				else
+				{
+					VectorCopy(surf->plane->normal, plane);
+					plane[3] = surf->plane->dist;
+				}
+			}
+			else
+			{
+				VectorClear(plane);
+				plane[3] = 0;
+			}
+		}
+		else
+		{
+			sortid = SHADER_SORT_OPAQUE;
+			VectorClear(plane);
+			plane[3] = 0;
+		}
+
+		if (lbatch && (
+					lbatch->texture == surf->texinfo->texture &&
+					lbatch->shader == shader &&
+					lbatch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
+					Vector4Compare(plane, lbatch->plane) &&
+					lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES) &&
+#if MAXRLIGHTMAPS > 1
+					lbatch->lightmap[1] == lmmerge(surf->lightmaptexturenums[1]) &&
+					lbatch->lightmap[2] == lmmerge(surf->lightmaptexturenums[2]) &&
+					lbatch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
+#endif
+					lbatch->fog == surf->fog)
+			batch = lbatch;
+		else
+		{
+			for (batch = mod->batches[sortid]; batch; batch = batch->next)
+			{
+				if (
+							batch->texture == surf->texinfo->texture &&
+							batch->shader == shader &&
+							batch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
+							Vector4Compare(plane, batch->plane) &&
+							batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
+#if MAXRLIGHTMAPS > 1
+							batch->lightmap[1] == lmmerge(surf->lightmaptexturenums[1]) &&
+							batch->lightmap[2] == lmmerge(surf->lightmaptexturenums[2]) &&
+							batch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
+#endif
+							batch->fog == surf->fog)
+					break;
+			}
+		}
+		if (!batch)
+		{
+			batch = ZG_Malloc(&mod->memgroup, sizeof(*batch));
+			batch->lightmap[0] = lmmerge(surf->lightmaptexturenums[0]);
+#if MAXRLIGHTMAPS > 1
+			batch->lightmap[1] = lmmerge(surf->lightmaptexturenums[1]);
+			batch->lightmap[2] = lmmerge(surf->lightmaptexturenums[2]);
+			batch->lightmap[3] = lmmerge(surf->lightmaptexturenums[3]);
+#endif
+			batch->texture = surf->texinfo->texture;
+			batch->shader = shader;
+			if (surf->texinfo->texture->alternate_anims || surf->texinfo->texture->anim_total)
+			{
+				switch (mod->fromgame)
+				{
+#ifdef Q2BSPS
+				case fg_quake2:
+					batch->buildmeshes = Mod_UpdateBatchShader_Q2;
+					break;
+#endif
+#ifdef Q1BSPS
+				case fg_quake:
+				case fg_halflife:
+					batch->buildmeshes = Mod_UpdateBatchShader_Q1;
+					break;
+#endif
+				default:
+					break;
+				}
+			}
+			batch->next = mod->batches[sortid];
+			batch->ent = &r_worldentity;
+			batch->fog = surf->fog;
+			Vector4Copy(plane, batch->plane);
+
+			mod->batches[sortid] = batch;
+		}
+
+		surf->sbatch = batch;	//let the surface know which batch its in
+		batch->maxmeshes++;
+		batch->firstmesh += surf->mesh->numvertexes;
+
+		lbatch = batch;
+	}
+
+	return merge;
+#undef lmmerge
+}
+
+void Mod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe, unsigned int width, unsigned int height, int firstlm)
+{
+	memset(lmallocator, 0, sizeof(*lmallocator));
+	lmallocator->deluxe = hasdeluxe;
+	lmallocator->lmnum = firstlm;
+	lmallocator->firstlm = firstlm;
+
+	lmallocator->width = width;
+	lmallocator->height = height;
+}
+void Mod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod)
+{
+	mod->lightmaps.first = lmallocator->firstlm;
+	mod->lightmaps.count = (lmallocator->lmnum - lmallocator->firstlm);
+	if (lmallocator->allocated[0])	//lmnum was only *COMPLETE* lightmaps that we allocated, and does not include the one we're currently building.
+		mod->lightmaps.count++;
+
+	if (lmallocator->deluxe)
+	{
+		mod->lightmaps.first*=2;
+		mod->lightmaps.count*=2;
+		mod->lightmaps.deluxemapping = true;
+	}
+	else
+		mod->lightmaps.deluxemapping = false;
+}
+void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short *x, unsigned short *y, int *tnum)
+{
+	int best, best2;
+	int i, j;
+
+	for(;;)
+	{
+		best = lmallocator->height;
+
+		for (i = 0; i <= lmallocator->width - w; i++)
+		{
+			best2 = 0;
+
+			for (j=0; j < w; j++)
+			{
+				if (lmallocator->allocated[i+j] >= best)
+					break;
+				if (lmallocator->allocated[i+j] > best2)
+					best2 = lmallocator->allocated[i+j];
+			}
+			if (j == w)
+			{	// this is a valid spot
+				*x = i;
+				*y = best = best2;
+			}
+		}
+
+		if (best + h > lmallocator->height)
+		{
+			memset(lmallocator->allocated, 0, sizeof(lmallocator->allocated));
+			lmallocator->lmnum++;
+			continue;
+		}
+
+		for (i=0; i < w; i++)
+			lmallocator->allocated[*x + i] = best + h;
+
+		if (lmallocator->deluxe)
+			*tnum = lmallocator->lmnum*2;
+		else
+			*tnum = lmallocator->lmnum;
+		break;
+	}
+}
+
+#ifdef Q3BSPS
+static void Mod_Batches_SplitLightmaps(model_t *mod, int lmmerge)
+{
+	batch_t *batch;
+	batch_t *nb;
+	int i, j, sortid;
+	msurface_t *surf;
+	int sty;
+
+	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
+	{
+		surf = (msurface_t*)batch->mesh[0];
+		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+		{
+			batch->lightmap[sty] = (surf->lightmaptexturenums[sty]>=0)?surf->lightmaptexturenums[sty]/lmmerge:surf->lightmaptexturenums[sty];
+			batch->lmlightstyle[sty] = surf->styles[sty];
+		}
+
+		for (j = 1; j < batch->maxmeshes; j++)
+		{
+			surf = (msurface_t*)batch->mesh[j];
+			for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+			{
+				int lm = (surf->lightmaptexturenums[sty]>=0)?surf->lightmaptexturenums[sty]/lmmerge:surf->lightmaptexturenums[sty];
+				if (lm != batch->lightmap[sty] ||
+					//fixme: we should merge later (reverted matching) surfaces into the prior batch
+					surf->styles[sty] != batch->lmlightstyle[sty] ||
+					surf->vlstyles[sty] != batch->vtlightstyle[sty])
+					break;
+			}
+			if (sty < MAXRLIGHTMAPS)
+			{
+				nb = ZG_Malloc(&mod->memgroup, sizeof(*batch));
+				*nb = *batch;
+				batch->next = nb;
+
+				nb->mesh = batch->mesh + j*2;
+				nb->maxmeshes = batch->maxmeshes - j;
+				batch->maxmeshes = j;
+				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+				{
+					int lm = (surf->lightmaptexturenums[sty]>=0)?surf->lightmaptexturenums[sty]/lmmerge:surf->lightmaptexturenums[sty];
+					nb->lightmap[sty] = lm;
+					nb->lmlightstyle[sty] = surf->styles[sty];
+					nb->vtlightstyle[sty] = surf->vlstyles[sty];
+				}
+
+				memmove(nb->mesh, batch->mesh+j, sizeof(msurface_t*)*nb->maxmeshes);
+
+				for (i = 0; i < nb->maxmeshes; i++)
+				{
+					surf = (msurface_t*)nb->mesh[i];
+					surf->sbatch = nb;
+				}
+
+				batch = nb;
+				j = 1;
+			}
+		}
+	}
+}
+#endif
+
+#if defined(Q1BSPS) || defined(Q2BSPS)
+static void Mod_LightmapAllocSurf(lmalloc_t *lmallocator, msurface_t *surf, int surfstyle)
+{
+	int smax, tmax;
+	smax = (surf->extents[0]>>surf->lmshift)+1;
+	tmax = (surf->extents[1]>>surf->lmshift)+1;
+
+	if (isDedicated ||
+		(surf->texinfo->texture->shader && !(surf->texinfo->texture->shader->flags & SHADER_HASLIGHTMAP)) || //fte
+		(surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB)) ||	//q1
+		(surf->texinfo->flags & TEX_SPECIAL) ||	//the original 'no lightmap'
+		(surf->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP)) ||	//q2 surfaces
+		smax > lmallocator->width || tmax > lmallocator->height || smax < 0 || tmax < 0)	//bugs/bounds/etc
+	{
+		surf->lightmaptexturenums[surfstyle] = -1;
+		return;
+	}
+
+	Mod_LightmapAllocBlock (lmallocator, smax, tmax, &surf->light_s[surfstyle], &surf->light_t[surfstyle], &surf->lightmaptexturenums[surfstyle]);
+}
+
+/*
+allocates lightmaps and splits batches upon lightmap boundaries
+*/
+static void Mod_Batches_AllocLightmaps(model_t *mod)
+{
+	batch_t *batch;
+	batch_t *nb;
+	lmalloc_t lmallocator;
+	int i, j, sortid;
+	msurface_t *surf;
+	int sty;
+
+	size_t samps = 0;
+
+	//small models don't have many surfaces, don't allocate a smegging huge lightmap that simply won't be used.
+	for (i=0, j=0; i<mod->nummodelsurfaces; i++)
+	{
+		surf = mod->surfaces + mod->firstmodelsurface + i;
+		if (surf->texinfo->flags & TEX_SPECIAL)
+			continue;	//surfaces with no lightmap should not count torwards anything.
+		samps += ((surf->extents[0]>>surf->lmshift)+1) * ((surf->extents[1]>>surf->lmshift)+1);
+
+		if (j < (surf->extents[0]>>surf->lmshift)+1)
+			j = (surf->extents[0]>>surf->lmshift)+1;
+		if (j < (surf->extents[1]>>surf->lmshift)+1)
+			j = (surf->extents[1]>>surf->lmshift)+1;
+	}
+	samps /= 4;
+	samps = sqrt(samps);
+	if (j > 128 || r_dynamic.ival <= 0)
+		samps *= 2;
+	mod->lightmaps.width = bound(j, samps, LMBLOCK_SIZE_MAX);
+	mod->lightmaps.height = bound(j, samps, LMBLOCK_SIZE_MAX);
+	for (i = 0; (1<<i) < mod->lightmaps.width; i++);
+	mod->lightmaps.width = 1<<i;
+	for (i = 0; (1<<i) < mod->lightmaps.height; i++);
+	mod->lightmaps.height = 1<<i;
+	mod->lightmaps.width = bound(64, mod->lightmaps.width, sh_config.texture_maxsize);
+	mod->lightmaps.height = bound(64, mod->lightmaps.height, sh_config.texture_maxsize);
+
+	Mod_LightmapAllocInit(&lmallocator, mod->deluxdata != NULL, mod->lightmaps.width, mod->lightmaps.height, 0x50);
+
+	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
+	{
+		surf = (msurface_t*)batch->mesh[0];
+		Mod_LightmapAllocSurf (&lmallocator, surf, 0);
+		for (sty = 1; sty < MAXRLIGHTMAPS; sty++)
+			surf->lightmaptexturenums[sty] = -1;
+		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+		{
+			batch->lightmap[sty] = surf->lightmaptexturenums[sty];
+			batch->lmlightstyle[sty] = 255;//don't do special backend rendering of lightstyles.
+			batch->vtlightstyle[sty] = 255;//don't do special backend rendering of lightstyles.
+		}
+
+		for (j = 1; j < batch->maxmeshes; j++)
+		{
+			surf = (msurface_t*)batch->mesh[j];
+			Mod_LightmapAllocSurf (&lmallocator, surf, 0);
+			for (sty = 1; sty < MAXRLIGHTMAPS; sty++)
+				surf->lightmaptexturenums[sty] = -1;
+			if (surf->lightmaptexturenums[0] != batch->lightmap[0])
+			{
+				nb = ZG_Malloc(&mod->memgroup, sizeof(*batch));
+				*nb = *batch;
+				batch->next = nb;
+
+				nb->mesh = batch->mesh + j*2;
+				nb->maxmeshes = batch->maxmeshes - j;
+				batch->maxmeshes = j;
+				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+					nb->lightmap[sty] = surf->lightmaptexturenums[sty];
+
+				memmove(nb->mesh, batch->mesh+j, sizeof(msurface_t*)*nb->maxmeshes);
+
+				for (i = 0; i < nb->maxmeshes; i++)
+				{
+					surf = (msurface_t*)nb->mesh[i];
+					surf->sbatch = nb;
+				}
+
+				batch = nb;
+				j = 0;
+			}
+		}
+	}
+
+	Mod_LightmapAllocDone(&lmallocator, mod);
+}
+#endif
+
+extern void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift);
+//if build is NULL, uses q1/q2 surf generation, and allocates lightmaps
+static void Mod_Batches_Build(model_t *mod, builddata_t *bd)
+{
+	int i;
+	int numverts = 0, numindicies=0;
+	msurface_t *surf;
+	mesh_t *mesh;
+	mesh_t **bmeshes;
+	int sortid;
+	batch_t *batch;
+	mesh_t *meshlist;
+	int merge = 1;
+
+	currentmodel = mod;
+
+	if (!mod->textures)
+		return;
+
+	if (mod->firstmodelsurface + mod->nummodelsurfaces > mod->numsurfaces)
+		Sys_Error("submodel %s surface range is out of bounds\n", mod->name);
+
+	if (bd)
+		meshlist = NULL;
+	else
+		meshlist = ZG_Malloc(&mod->memgroup, sizeof(mesh_t) * mod->nummodelsurfaces);
+
+	for (i=0; i<mod->nummodelsurfaces; i++)
+	{
+		surf = mod->surfaces + i + mod->firstmodelsurface;
+		if (meshlist)
+		{
+			mesh = surf->mesh = &meshlist[i];
+			mesh->numvertexes = surf->numedges;
+			mesh->numindexes = (surf->numedges-2)*3;
+		}
+		else
+			mesh = surf->mesh;
+
+		numverts += mesh->numvertexes;
+		numindicies += mesh->numindexes;
+//		surf->lightmaptexturenum = -1;
+	}
+
+	/*assign each mesh to a batch, generating as needed*/
+	merge = Mod_Batches_Generate(mod);
+
+	bmeshes = ZG_Malloc(&mod->memgroup, sizeof(*bmeshes)*mod->nummodelsurfaces*R_MAX_RECURSE);
+
+	//we now know which batch each surface is in, and how many meshes there are in each batch.
+	//allocate the mesh-pointer-lists for each batch. *2 for recursion.
+	for (i = 0, sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
+	{
+		batch->mesh = bmeshes + i;
+		i += batch->maxmeshes*R_MAX_RECURSE;
+	}
+	//store the *surface* into the batch's mesh list (yes, this is an evil cast hack, but at least both are pointers)
+	for (i=0; i<mod->nummodelsurfaces; i++)
+	{
+		surf = mod->surfaces + mod->firstmodelsurface + i;
+		surf->sbatch->mesh[surf->sbatch->meshes++] = (mesh_t*)surf;
+	}
+
+#if defined(Q1BSPS) || defined(Q2BSPS)
+	if (!bd)
+	{
+		Mod_Batches_AllocLightmaps(mod);
+
+		mod->lightmaps.surfstyles = 1;
+		Mod_Batches_BuildModelMeshes(mod, numverts, numindicies, ModQ1_Batches_BuildQ1Q2Poly, bd, merge);
+	}
+#endif
+#if defined(Q3BSPS)
+	if (bd)
+	{
+		Mod_Batches_SplitLightmaps(mod, merge);
+		Mod_Batches_BuildModelMeshes(mod, numverts, numindicies, bd->buildfunc, bd, merge);
+	}
+#endif
+
+	if (BE_GenBrushModelVBO)
+		BE_GenBrushModelVBO(mod);
+}
+#endif
+
+
+/*
+=================
+Mod_SetParent
+=================
+*/
+void Mod_SetParent (mnode_t *node, mnode_t *parent)
+{
+	if (!node)
+		return;
+	node->parent = parent;
+	if (node->contents < 0)
+		return;
+	Mod_SetParent (node->children[0], node);
+	Mod_SetParent (node->children[1], node);
+}
+
+#if defined(Q1BSPS) || defined(Q2BSPS)
+/*
+=================
+Mod_LoadEdges
+=================
+*/
+qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm)
+{
+	medge_t *out;
+	int 	i, count;
+	
+	if (lm)
+	{
+		dledge_t *in = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*in))
+		{
+			Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*in);
+		out = ZG_Malloc(&loadmodel->memgroup, (count + 1) * sizeof(*out));	
+
+		loadmodel->edges = out;
+		loadmodel->numedges = count;
+
+		for ( i=0 ; i<count ; i++, in++, out++)
+		{
+			out->v[0] = LittleLong(in->v[0]);
+			out->v[1] = LittleLong(in->v[1]);
+		}
+	}
+	else
+	{
+		dsedge_t *in = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*in))
+		{
+			Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*in);
+		out = ZG_Malloc(&loadmodel->memgroup, (count + 1) * sizeof(*out));
+
+		loadmodel->edges = out;
+		loadmodel->numedges = count;
+
+		for ( i=0 ; i<count ; i++, in++, out++)
+		{
+			out->v[0] = (unsigned short)LittleShort(in->v[0]);
+			out->v[1] = (unsigned short)LittleShort(in->v[1]);
+		}
+	}
+
+	return true;
+}
+
+/*
+=================
+Mod_LoadMarksurfaces
+=================
+*/
+qboolean Mod_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm)
+{	
+	int		i, j, count;
+	msurface_t **out;
+
+	if (lm)
+	{
+		int		*inl;
+		inl = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*inl))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*inl);
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
+
+		loadmodel->marksurfaces = out;
+		loadmodel->nummarksurfaces = count;
+
+		for ( i=0 ; i<count ; i++)
+		{
+			j = (unsigned int)LittleLong(inl[i]);
+			if (j >= loadmodel->numsurfaces)
+			{
+				Con_Printf (CON_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
+				return false;
+			}
+			out[i] = loadmodel->surfaces + j;
+		}
+	}
+	else
+	{
+		short		*ins;
+		ins = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*ins))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*ins);
+		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
+
+		loadmodel->marksurfaces = out;
+		loadmodel->nummarksurfaces = count;
+
+		for ( i=0 ; i<count ; i++)
+		{
+			j = (unsigned short)LittleShort(ins[i]);
+			if (j >= loadmodel->numsurfaces)
+			{
+				Con_Printf (CON_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
+				return false;
+			}
+			out[i] = loadmodel->surfaces + j;
+		}
+	}
+
+	return true;
+}
+
+/*
+=================
+Mod_LoadSurfedges
+=================
+*/
+qboolean Mod_LoadSurfedges (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+{	
+	int		i, count;
+	int		*in, *out;
+	
+	in = (void *)(mod_base + l->fileofs);
+	if (l->filelen % sizeof(*in))
+	{
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		return false;
+	}
+	count = l->filelen / sizeof(*in);
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
+
+	loadmodel->surfedges = out;
+	loadmodel->numsurfedges = count;
+
+	for ( i=0 ; i<count ; i++)
+		out[i] = LittleLong (in[i]);
+
+	return true;
+}
+#endif
+#ifdef Q1BSPS
+/*
+=================
+Mod_LoadVisibility
+=================
+*/
+static void Mod_LoadVisibility (model_t *loadmodel, qbyte *mod_base, lump_t *l, qbyte *ptr, size_t len)
+{
+	if (!ptr)
+	{
+		ptr = mod_base + l->fileofs;
+		len = l->filelen;
+	}
+	if (!len)
+	{
+		loadmodel->visdata = NULL;
+		return;
+	}
+	loadmodel->visdata = ZG_Malloc(&loadmodel->memgroup, len);	
+	memcpy (loadmodel->visdata, ptr, len);
+}
+
+#ifndef SERVERONLY
+static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt)
+{
+	unsigned int size = 
+		(mt->width>>0)*(mt->height>>0) +
+		(mt->width>>1)*(mt->height>>1) +
+		(mt->width>>2)*(mt->height>>2) +
+		(mt->width>>3)*(mt->height>>3);
+
+	if (loadmodel->fromgame == fg_halflife && *(short*)((qbyte *)mt + mt->offsets[3] + (mt->width>>3)*(mt->height>>3)) == 256)
+	{	//mostly identical, just a specific palette hidden at the end. handle fences elsewhere.
+		tx->mips[0] = BZ_Malloc(size + 768);
+		tx->palette = tx->mips[0] + size;
+		memcpy(tx->palette, (qbyte *)mt + mt->offsets[3] + (mt->width>>3)*(mt->height>>3) + 2, 768);
+	}
+	else
+	{
+		tx->mips[0] = BZ_Malloc(size);
+		tx->palette = NULL;
+	}
+
+	tx->mips[1] = tx->mips[0] + (mt->width>>0)*(mt->height>>0);
+	tx->mips[2] = tx->mips[1] + (mt->width>>1)*(mt->height>>1);
+	tx->mips[3] = tx->mips[2] + (mt->width>>2)*(mt->height>>2);
+	memcpy(tx->mips[0], (qbyte *)mt + mt->offsets[0], (mt->width>>0)*(mt->height>>0));
+	memcpy(tx->mips[1], (qbyte *)mt + mt->offsets[1], (mt->width>>1)*(mt->height>>1));
+	memcpy(tx->mips[2], (qbyte *)mt + mt->offsets[2], (mt->width>>2)*(mt->height>>2));
+	memcpy(tx->mips[3], (qbyte *)mt + mt->offsets[3], (mt->width>>3)*(mt->height>>3));
+
+}
+#endif
+
+/*
+=================
+Mod_LoadTextures
+=================
+*/
+static qboolean Mod_LoadTextures (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+{
+	int		i, j, num, max, altmax;
+	miptex_t	*mt;
+	texture_t	*tx, *tx2;
+	texture_t	*anims[10];
+	texture_t	*altanims[10];
+	dmiptexlump_t *m;
+
+TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
+
+//	Mod_InitTextureDescs(loadname);
+
+	if (!l->filelen)
+	{
+		Con_Printf(CON_WARNING "warning: %s contains no texture data\n", loadmodel->name);
+
+		loadmodel->numtextures = 1;
+		loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, 1 * sizeof(*loadmodel->textures));
+
+		i = 0;
+		tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
+		memcpy(tx, r_notexture_mip, sizeof(texture_t));
+		sprintf(tx->name, "unnamed%i", i);
+		loadmodel->textures[i] = tx;
+
+		return true;
+	}
+	m = (dmiptexlump_t *)(mod_base + l->fileofs);
+
+	m->nummiptex = LittleLong (m->nummiptex);
+
+	loadmodel->numtextures = m->nummiptex;
+	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, m->nummiptex * sizeof(*loadmodel->textures));
+
+	for (i=0 ; i<m->nummiptex ; i++)
+	{
+		m->dataofs[i] = LittleLong(m->dataofs[i]);
+		if (m->dataofs[i] == -1)	//e1m2, this happens
+		{
+			tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
+			memcpy(tx, r_notexture_mip, sizeof(texture_t));
+			sprintf(tx->name, "unnamed%i", i);
+			loadmodel->textures[i] = tx;
+			continue;
+		}
+		mt = (miptex_t *)((qbyte *)m + m->dataofs[i]);
+
+	TRACE(("dbg: Mod_LoadTextures: texture %s\n", loadname));
+
+		if (!*mt->name)	//I HATE MAPPERS!
+		{
+			sprintf(mt->name, "unnamed%i", i);
+			Con_DPrintf(CON_WARNING "warning: unnamed texture in %s, renaming to %s\n", loadmodel->name, mt->name);
+		}
+
+		mt->width = LittleLong (mt->width);
+		mt->height = LittleLong (mt->height);
+		for (j=0 ; j<MIPLEVELS ; j++)
+			mt->offsets[j] = LittleLong (mt->offsets[j]);
+
+		if ( (mt->width & 15) || (mt->height & 15) )
+			Con_Printf (CON_WARNING "Warning: Texture %s is not 16 aligned", mt->name);
+		if (mt->width < 1 || mt->height < 1)
+			Con_Printf (CON_WARNING "Warning: Texture %s has no size", mt->name);
+		tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
+		loadmodel->textures[i] = tx;
+
+		memcpy (tx->name, mt->name, sizeof(tx->name));
+		tx->width = mt->width;
+		tx->height = mt->height;
+
+		if (!mt->offsets[0])	//this is a hl external style texture, load it a little later (from a wad)
+		{
+			continue;
+		}
+
+#ifndef SERVERONLY
+		Mod_LoadMiptex(loadmodel, tx, mt);
+#endif
+	}
+//
+// sequence the animations
+//
+	for (i=0 ; i<m->nummiptex ; i++)
+	{
+		tx = loadmodel->textures[i];
+		if (!tx || tx->name[0] != '+')
+			continue;
+		if (tx->anim_next)
+			continue;	// already sequenced
+
+	// find the number of frames in the animation
+		memset (anims, 0, sizeof(anims));
+		memset (altanims, 0, sizeof(altanims));
+
+		max = tx->name[1];
+		altmax = 0;
+		if (max >= 'a' && max <= 'z')
+			max -= 'a' - 'A';
+		if (max >= '0' && max <= '9')
+		{
+			max -= '0';
+			altmax = 0;
+			anims[max] = tx;
+			max++;
+		}
+		else if (max >= 'A' && max <= 'J')
+		{
+			altmax = max - 'A';
+			max = 0;
+			altanims[altmax] = tx;
+			altmax++;
+		}
+		else
+		{
+			Con_Printf (CON_ERROR "Bad animating texture %s\n", tx->name);
+			return false;
+		}
+
+		for (j=i+1 ; j<m->nummiptex ; j++)
+		{
+			tx2 = loadmodel->textures[j];
+			if (!tx2 || tx2->name[0] != '+')
+				continue;
+			if (strcmp (tx2->name+2, tx->name+2))
+				continue;
+
+			num = tx2->name[1];
+			if (num >= 'a' && num <= 'z')
+				num -= 'a' - 'A';
+			if (num >= '0' && num <= '9')
+			{
+				num -= '0';
+				anims[num] = tx2;
+				if (num+1 > max)
+					max = num + 1;
+			}
+			else if (num >= 'A' && num <= 'J')
+			{
+				num = num - 'A';
+				altanims[num] = tx2;
+				if (num+1 > altmax)
+					altmax = num+1;
+			}
+			else
+			{
+				Con_Printf (CON_ERROR "Bad animating texture %s\n", tx->name);
+				return false;
+			}
+		}
+
+#define	ANIM_CYCLE	2
+	// link them all together
+		for (j=0 ; j<max ; j++)
+		{
+			tx2 = anims[j];
+			if (!tx2)
+			{
+				Con_Printf (CON_ERROR "Missing frame %i of %s\n",j, tx->name);
+				return false;
+			}
+			tx2->anim_total = max * ANIM_CYCLE;
+			tx2->anim_min = j * ANIM_CYCLE;
+			tx2->anim_max = (j+1) * ANIM_CYCLE;
+			tx2->anim_next = anims[ (j+1)%max ];
+			if (altmax)
+				tx2->alternate_anims = altanims[0];
+		}
+		for (j=0 ; j<altmax ; j++)
+		{
+			tx2 = altanims[j];
+			if (!tx2)
+			{
+				Con_Printf (CON_ERROR "Missing frame %i of %s\n",j, tx->name);
+				return false;
+			}
+			tx2->anim_total = altmax * ANIM_CYCLE;
+			tx2->anim_min = j * ANIM_CYCLE;
+			tx2->anim_max = (j+1) * ANIM_CYCLE;
+			tx2->anim_next = altanims[ (j+1)%altmax ];
+			if (max)
+				tx2->alternate_anims = anims[0];
+		}
+	}
+
+	return true;
+}
+
 /*
 =================
 Mod_LoadSubmodels
@@ -2551,60 +3495,6 @@ static qboolean Mod_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *
 			out->visleafs = LittleLong (inq->visleafs);
 			out->firstface = LittleLong (inq->firstface);
 			out->numfaces = LittleLong (inq->numfaces);
-		}
-	}
-
-	return true;
-}
-
-/*
-=================
-Mod_LoadEdges
-=================
-*/
-qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm)
-{
-	medge_t *out;
-	int 	i, count;
-	
-	if (lm)
-	{
-		dledge_t *in = (void *)(mod_base + l->fileofs);
-		if (l->filelen % sizeof(*in))
-		{
-			Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
-			return false;
-		}
-		count = l->filelen / sizeof(*in);
-		out = ZG_Malloc(&loadmodel->memgroup, (count + 1) * sizeof(*out));	
-
-		loadmodel->edges = out;
-		loadmodel->numedges = count;
-
-		for ( i=0 ; i<count ; i++, in++, out++)
-		{
-			out->v[0] = LittleLong(in->v[0]);
-			out->v[1] = LittleLong(in->v[1]);
-		}
-	}
-	else
-	{
-		dsedge_t *in = (void *)(mod_base + l->fileofs);
-		if (l->filelen % sizeof(*in))
-		{
-			Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
-			return false;
-		}
-		count = l->filelen / sizeof(*in);
-		out = ZG_Malloc(&loadmodel->memgroup, (count + 1) * sizeof(*out));
-
-		loadmodel->edges = out;
-		loadmodel->numedges = count;
-
-		for ( i=0 ; i<count ; i++, in++, out++)
-		{
-			out->v[0] = (unsigned short)LittleShort(in->v[0]);
-			out->v[1] = (unsigned short)LittleShort(in->v[1]);
 		}
 	}
 
@@ -2884,769 +3774,6 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, l
 	}
 
 	return true;
-}
-
-void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *cookie)
-{
-	unsigned int vertidx;
-	int i, lindex, edgevert;
-	mesh_t *mesh = surf->mesh;
-	float *vec;
-	float s, t, d;
-	int sty;
-//	int w,h;
-
-	if (!mesh)
-	{
-		mesh = surf->mesh = ZG_Malloc(&mod->memgroup, sizeof(mesh_t) + (sizeof(vecV_t)+sizeof(vec2_t)*(1+1)+sizeof(vec3_t)*3+sizeof(vec4_t)*1)* surf->numedges + sizeof(index_t)*(surf->numedges-2)*3);
-		mesh->numvertexes = surf->numedges;
-		mesh->numindexes = (mesh->numvertexes-2)*3;
-		mesh->xyz_array = (vecV_t*)(mesh+1);
-		mesh->st_array = (vec2_t*)(mesh->xyz_array+mesh->numvertexes);
-		mesh->lmst_array[0] = (vec2_t*)(mesh->st_array+mesh->numvertexes);
-		mesh->normals_array = (vec3_t*)(mesh->lmst_array[0]+mesh->numvertexes);
-		mesh->snormals_array = (vec3_t*)(mesh->normals_array+mesh->numvertexes);
-		mesh->tnormals_array = (vec3_t*)(mesh->snormals_array+mesh->numvertexes);
-		mesh->colors4f_array[0] = (vec4_t*)(mesh->tnormals_array+mesh->numvertexes);
-		mesh->indexes = (index_t*)(mesh->colors4f_array[0]+mesh->numvertexes);
-	}
-	mesh->istrifan = true;
-
-	//output the mesh's indicies
-	for (i=0 ; i<mesh->numvertexes-2 ; i++)
-	{
-		mesh->indexes[i*3] = 0;
-		mesh->indexes[i*3+1] = i+1;
-		mesh->indexes[i*3+2] = i+2;
-	}
-	//output the renderable verticies
-	for (i=0 ; i<mesh->numvertexes ; i++)
-	{
-		lindex = mod->surfedges[surf->firstedge + i];
-		edgevert = lindex <= 0;
-		if (edgevert)
-			lindex = -lindex;
-		if (lindex < 0 || lindex >= mod->numedges)
-			vertidx = 0;
-		else
-			vertidx = mod->edges[lindex].v[edgevert];
-		vec = mod->vertexes[vertidx].position;
-
-		s = DotProduct (vec, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3];
-		t = DotProduct (vec, surf->texinfo->vecs[1]) + surf->texinfo->vecs[1][3];
-
-		VectorCopy (vec, mesh->xyz_array[i]);
-
-/*		if (R_GetShaderSizes(surf->texinfo->texture->shader, &w, &h, false) > 0)
-		{
-			mesh->st_array[i][0] = s/w;
-			mesh->st_array[i][1] = t/h;
-		}
-		else
-*/
-		{
-			mesh->st_array[i][0] = s;
-			mesh->st_array[i][1] = t;
-			if (surf->texinfo->texture->width)
-				mesh->st_array[i][0] /= surf->texinfo->texture->width;
-			if (surf->texinfo->texture->height)
-				mesh->st_array[i][1] /= surf->texinfo->texture->height;
-		}
-
-#ifndef SERVERONLY
-		if (gl_lightmap_average.ival)
-		{
-			for (sty = 0; sty < 1; sty++)
-			{
-				mesh->lmst_array[sty][i][0] = (surf->extents[0]*0.5 + (surf->light_s[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.width<<surf->lmshift);
-				mesh->lmst_array[sty][i][1] = (surf->extents[1]*0.5 + (surf->light_t[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.height<<surf->lmshift);
-			}
-		}
-		else
-#endif
-		{
-			for (sty = 0; sty < 1; sty++)
-			{
-				mesh->lmst_array[sty][i][0] = (s - surf->texturemins[0] + (surf->light_s[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.width<<surf->lmshift);
-				mesh->lmst_array[sty][i][1] = (t - surf->texturemins[1] + (surf->light_t[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.height<<surf->lmshift);
-			}
-		}
-
-		//figure out the texture directions, for bumpmapping and stuff
-		if (mod->normals && (surf->texinfo->flags & 0x800) && (mod->normals[vertidx][0] || mod->normals[vertidx][1] || mod->normals[vertidx][2])) 
-		{
-			//per-vertex normals - used for smoothing groups and stuff.
-			VectorCopy(mod->normals[vertidx], mesh->normals_array[i]);
-		}
-		else
-		{
-			if (surf->flags & SURF_PLANEBACK)
-				VectorNegate(surf->plane->normal, mesh->normals_array[i]);
-			else
-				VectorCopy(surf->plane->normal, mesh->normals_array[i]);
-		}
-		VectorCopy(surf->texinfo->vecs[0], mesh->snormals_array[i]);
-		VectorNegate(surf->texinfo->vecs[1], mesh->tnormals_array[i]);
-		//the s+t vectors are axis-aligned, so fiddle them so they're normal aligned instead
-		d = -DotProduct(mesh->normals_array[i], mesh->snormals_array[i]);
-		VectorMA(mesh->snormals_array[i], d, mesh->normals_array[i], mesh->snormals_array[i]);
-		d = -DotProduct(mesh->normals_array[i], mesh->tnormals_array[i]);
-		VectorMA(mesh->tnormals_array[i], d, mesh->normals_array[i], mesh->tnormals_array[i]);
-		VectorNormalize(mesh->snormals_array[i]);
-		VectorNormalize(mesh->tnormals_array[i]);
-
-		//q1bsp has no colour information (fixme: sample from the lightmap?)
-		for (sty = 0; sty < 1; sty++)
-		{
-			mesh->colors4f_array[sty][i][0] = 1;
-			mesh->colors4f_array[sty][i][1] = 1;
-			mesh->colors4f_array[sty][i][2] = 1;
-			mesh->colors4f_array[sty][i][3] = 1;
-		}
-	}
-}
-
-#ifndef SERVERONLY
-static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindicies, void (*build)(model_t *mod, msurface_t *surf, builddata_t *bd), builddata_t *bd, int lmmerge)
-{
-	batch_t *batch;
-	msurface_t *surf;
-	mesh_t *mesh;
-	int numverts = 0;
-	int numindicies = 0;
-	int j, i;
-	int sortid;
-	int sty;
-	vbo_t vbo;
-	int styles = mod->lightmaps.surfstyles;
-	char *ptr;
-
-	memset(&vbo, 0, sizeof(vbo));
-	vbo.indicies.sysptr = ZG_Malloc(&mod->memgroup, sizeof(index_t) * maxindicies);
-	ptr = ZG_Malloc(&mod->memgroup, (sizeof(vecV_t)+sizeof(vec2_t)*(1+styles)+sizeof(vec3_t)*3+sizeof(vec4_t)*styles)* maxverts);
-
-	vbo.coord.sysptr = ptr;
-	ptr += sizeof(vecV_t)*maxverts;
-	for (sty = 0; sty < styles; sty++)
-	{
-		vbo.colours[sty].sysptr = ptr;
-		ptr += sizeof(vec4_t)*maxverts;
-	}
-	for (; sty < MAXRLIGHTMAPS; sty++)
-		vbo.colours[sty].sysptr = NULL;
-	vbo.texcoord.sysptr = ptr;
-	ptr += sizeof(vec2_t)*maxverts;
-	sty = 0;
-	for (; sty < styles; sty++)
-	{
-		vbo.lmcoord[sty].sysptr = ptr;
-		ptr += sizeof(vec2_t)*maxverts;
-	}
-	for (; sty < MAXRLIGHTMAPS; sty++)
-		vbo.lmcoord[sty].sysptr = NULL;
-	vbo.normals.sysptr = ptr;
-	ptr += sizeof(vec3_t)*maxverts;
-	vbo.svector.sysptr = ptr;
-	ptr += sizeof(vec3_t)*maxverts;
-	vbo.tvector.sysptr = ptr;
-	ptr += sizeof(vec3_t)*maxverts;
-
-	numindicies = 0;
-	numverts = 0;
-
-	//build each mesh
-	for (sortid=0; sortid<SHADER_SORT_COUNT; sortid++)
-	{
-		for (batch = mod->batches[sortid]; batch; batch = batch->next)
-		{
-			for (j = 0; j < batch->maxmeshes; j++)
-			{
-				surf = (msurface_t*)batch->mesh[j];
-				mesh = surf->mesh;
-				batch->mesh[j] = mesh;
-
-				mesh->vbofirstvert = numverts;
-				mesh->vbofirstelement = numindicies;
-				numverts += mesh->numvertexes;
-				numindicies += mesh->numindexes;
-
-				//set up the arrays. the arrangement is required for the backend to optimise vbos
-				mesh->xyz_array = (vecV_t*)vbo.coord.sysptr + mesh->vbofirstvert;
-				mesh->st_array = (vec2_t*)vbo.texcoord.sysptr + mesh->vbofirstvert;
-				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
-				{
-					if (vbo.lmcoord[sty].sysptr)
-						mesh->lmst_array[sty] = (vec2_t*)vbo.lmcoord[sty].sysptr + mesh->vbofirstvert;
-					else
-						mesh->lmst_array[sty] = NULL;
-					if (vbo.colours[sty].sysptr)
-						mesh->colors4f_array[sty] = (vec4_t*)vbo.colours[sty].sysptr + mesh->vbofirstvert;
-					else
-						mesh->colors4f_array[sty] = NULL;
-				}
-				mesh->normals_array = (vec3_t*)vbo.normals.sysptr + mesh->vbofirstvert;
-				mesh->snormals_array = (vec3_t*)vbo.svector.sysptr + mesh->vbofirstvert;
-				mesh->tnormals_array = (vec3_t*)vbo.tvector.sysptr + mesh->vbofirstvert;
-				mesh->indexes = (index_t*)vbo.indicies.sysptr + mesh->vbofirstelement;
-
-				mesh->vbofirstvert = 0;
-				mesh->vbofirstelement = 0;
-
-				build(mod, surf, bd);
-
-				if (lmmerge != 1)
-				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
-				{
-					if (surf->lightmaptexturenums[sty] >= 0)
-					{
-						if (mesh->lmst_array[sty])
-						{
-							for (i = 0; i < mesh->numvertexes; i++)
-							{
-								mesh->lmst_array[sty][i][1] += surf->lightmaptexturenums[sty] % lmmerge;
-								mesh->lmst_array[sty][i][1] /= lmmerge;
-							}
-						}
-						surf->lightmaptexturenums[sty] /= lmmerge;
-					}
-				}
-			}
-			batch->meshes = 0;
-			batch->firstmesh = 0;
-		}
-	}
-}
-
-//q1 autoanimates. if the frame is set, it uses the alternate animation.
-static void Mod_UpdateBatchShader_Q1 (struct batch_s *batch)
-{
-	texture_t *base = batch->texture;
-	int		reletive;
-	int		count;
-
-	if (batch->ent->framestate.g[FS_REG].frame[0])
-	{
-		if (base->alternate_anims)
-			base = base->alternate_anims;
-	}
-
-	if (base->anim_total)
-	{
-		reletive = (int)(cl.time*10) % base->anim_total;
-
-		count = 0;
-		while (base->anim_min > reletive || base->anim_max <= reletive)
-		{
-			base = base->anim_next;
-			if (!base)
-				Sys_Error ("R_TextureAnimation: broken cycle");
-			if (++count > 100)
-				Sys_Error ("R_TextureAnimation: infinite cycle");
-		}
-	}
-
-	batch->shader = base->shader;
-}
-
-//q2 has direct control over the texture frames used, but typically has the client generate the frame (different flags autogenerate different ranges).
-static void Mod_UpdateBatchShader_Q2 (struct batch_s *batch)
-{
-	texture_t *base = batch->texture;
-	int		reletive;
-	int frame = batch->ent->framestate.g[FS_REG].frame[0];
-	if (batch->ent == &r_worldentity)
-		frame = cl.time*2;
-
-	if (base->anim_total)
-	{
-		reletive = frame % base->anim_total;
-		while (reletive --> 0)
-		{
-			base = base->anim_next;
-			if (!base)
-				Sys_Error ("R_TextureAnimation: broken cycle");
-		}
-	}
-
-	batch->shader = base->shader;
-}
-
-#define lmmerge(i) ((i>=0)?i/merge:i)
-/*
-batch->firstmesh is set only in and for this function, its cleared out elsewhere
-*/
-static int Mod_Batches_Generate(model_t *mod)
-{
-	int i;
-	msurface_t *surf;
-	shader_t *shader;
-	int sortid;
-	batch_t *batch, *lbatch = NULL;
-	vec4_t plane;
-
-	int merge = mod->lightmaps.merge;
-	if (!merge)
-		merge = 1;
-
-	mod->lightmaps.count = (mod->lightmaps.count+merge-1) & ~(merge-1);
-	mod->lightmaps.count /= merge;
-	mod->lightmaps.height *= merge;
-
-	mod->numbatches = 0;
-
-	//for each surface, find a suitable batch to insert it into.
-	//we use 'firstmesh' to avoid chucking out too many verts in a single vbo (gl2 hardware tends to have a 16bit limit)
-	for (i=0; i<mod->nummodelsurfaces; i++)
-	{
-		surf = mod->surfaces + mod->firstmodelsurface + i;
-		shader = surf->texinfo->texture->shader;
-
-		if (surf->flags & SURF_NODRAW)
-		{
-			shader = R_RegisterShader("nodraw", SUF_NONE, "{\nsurfaceparm nodraw\n}");
-			sortid = shader->sort;
-			VectorClear(plane);
-			plane[3] = 0;
-		}
-		else if (shader)
-		{
-			sortid = shader->sort;
-
-			//shaders that are portals need to be split into separate batches to have the same surface planes
-			if (sortid == SHADER_SORT_PORTAL || (shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT)))
-			{
-				if (surf->flags & SURF_PLANEBACK)
-				{
-					VectorNegate(surf->plane->normal, plane);
-					plane[3] = -surf->plane->dist;
-				}
-				else
-				{
-					VectorCopy(surf->plane->normal, plane);
-					plane[3] = surf->plane->dist;
-				}
-			}
-			else
-			{
-				VectorClear(plane);
-				plane[3] = 0;
-			}
-		}
-		else
-		{
-			sortid = SHADER_SORT_OPAQUE;
-			VectorClear(plane);
-			plane[3] = 0;
-		}
-
-		if (lbatch && (
-					lbatch->texture == surf->texinfo->texture &&
-					lbatch->shader == shader &&
-					lbatch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
-					Vector4Compare(plane, lbatch->plane) &&
-					lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES) &&
-#if MAXRLIGHTMAPS > 1
-					lbatch->lightmap[1] == lmmerge(surf->lightmaptexturenums[1]) &&
-					lbatch->lightmap[2] == lmmerge(surf->lightmaptexturenums[2]) &&
-					lbatch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
-#endif
-					lbatch->fog == surf->fog)
-			batch = lbatch;
-		else
-		{
-			for (batch = mod->batches[sortid]; batch; batch = batch->next)
-			{
-				if (
-							batch->texture == surf->texinfo->texture &&
-							batch->shader == shader &&
-							batch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
-							Vector4Compare(plane, batch->plane) &&
-							batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
-#if MAXRLIGHTMAPS > 1
-							batch->lightmap[1] == lmmerge(surf->lightmaptexturenums[1]) &&
-							batch->lightmap[2] == lmmerge(surf->lightmaptexturenums[2]) &&
-							batch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
-#endif
-							batch->fog == surf->fog)
-					break;
-			}
-		}
-		if (!batch)
-		{
-			batch = ZG_Malloc(&mod->memgroup, sizeof(*batch));
-			batch->lightmap[0] = lmmerge(surf->lightmaptexturenums[0]);
-#if MAXRLIGHTMAPS > 1
-			batch->lightmap[1] = lmmerge(surf->lightmaptexturenums[1]);
-			batch->lightmap[2] = lmmerge(surf->lightmaptexturenums[2]);
-			batch->lightmap[3] = lmmerge(surf->lightmaptexturenums[3]);
-#endif
-			batch->texture = surf->texinfo->texture;
-			batch->shader = shader;
-			if (surf->texinfo->texture->alternate_anims || surf->texinfo->texture->anim_total)
-			{
-				if (mod->fromgame == fg_quake2)
-					batch->buildmeshes = Mod_UpdateBatchShader_Q2;
-				else
-					batch->buildmeshes = Mod_UpdateBatchShader_Q1;
-			}
-			batch->next = mod->batches[sortid];
-			batch->ent = &r_worldentity;
-			batch->fog = surf->fog;
-			Vector4Copy(plane, batch->plane);
-
-			mod->batches[sortid] = batch;
-		}
-
-		surf->sbatch = batch;	//let the surface know which batch its in
-		batch->maxmeshes++;
-		batch->firstmesh += surf->mesh->numvertexes;
-
-		lbatch = batch;
-	}
-
-	return merge;
-#undef lmmerge
-}
-
-void Mod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe, unsigned int width, unsigned int height, int firstlm)
-{
-	memset(lmallocator, 0, sizeof(*lmallocator));
-	lmallocator->deluxe = hasdeluxe;
-	lmallocator->lmnum = firstlm;
-	lmallocator->firstlm = firstlm;
-
-	lmallocator->width = width;
-	lmallocator->height = height;
-}
-void Mod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod)
-{
-	mod->lightmaps.first = lmallocator->firstlm;
-	mod->lightmaps.count = (lmallocator->lmnum - lmallocator->firstlm);
-	if (lmallocator->allocated[0])	//lmnum was only *COMPLETE* lightmaps that we allocated, and does not include the one we're currently building.
-		mod->lightmaps.count++;
-
-	if (lmallocator->deluxe)
-	{
-		mod->lightmaps.first*=2;
-		mod->lightmaps.count*=2;
-		mod->lightmaps.deluxemapping = true;
-	}
-	else
-		mod->lightmaps.deluxemapping = false;
-}
-void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short *x, unsigned short *y, int *tnum)
-{
-	int best, best2;
-	int i, j;
-
-	for(;;)
-	{
-		best = lmallocator->height;
-
-		for (i = 0; i <= lmallocator->width - w; i++)
-		{
-			best2 = 0;
-
-			for (j=0; j < w; j++)
-			{
-				if (lmallocator->allocated[i+j] >= best)
-					break;
-				if (lmallocator->allocated[i+j] > best2)
-					best2 = lmallocator->allocated[i+j];
-			}
-			if (j == w)
-			{	// this is a valid spot
-				*x = i;
-				*y = best = best2;
-			}
-		}
-
-		if (best + h > lmallocator->height)
-		{
-			memset(lmallocator->allocated, 0, sizeof(lmallocator->allocated));
-			lmallocator->lmnum++;
-			continue;
-		}
-
-		for (i=0; i < w; i++)
-			lmallocator->allocated[*x + i] = best + h;
-
-		if (lmallocator->deluxe)
-			*tnum = lmallocator->lmnum*2;
-		else
-			*tnum = lmallocator->lmnum;
-		break;
-	}
-}
-
-static void Mod_LightmapAllocSurf(lmalloc_t *lmallocator, msurface_t *surf, int surfstyle)
-{
-	int smax, tmax;
-	smax = (surf->extents[0]>>surf->lmshift)+1;
-	tmax = (surf->extents[1]>>surf->lmshift)+1;
-
-	if (isDedicated ||
-		(surf->texinfo->texture->shader && !(surf->texinfo->texture->shader->flags & SHADER_HASLIGHTMAP)) || //fte
-		(surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB)) ||	//q1
-		(surf->texinfo->flags & TEX_SPECIAL) ||	//the original 'no lightmap'
-		(surf->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP)) ||	//q2 surfaces
-		smax > lmallocator->width || tmax > lmallocator->height || smax < 0 || tmax < 0)	//bugs/bounds/etc
-	{
-		surf->lightmaptexturenums[surfstyle] = -1;
-		return;
-	}
-
-	Mod_LightmapAllocBlock (lmallocator, smax, tmax, &surf->light_s[surfstyle], &surf->light_t[surfstyle], &surf->lightmaptexturenums[surfstyle]);
-}
-
-static void Mod_Batches_SplitLightmaps(model_t *mod, int lmmerge)
-{
-	batch_t *batch;
-	batch_t *nb;
-	int i, j, sortid;
-	msurface_t *surf;
-	int sty;
-
-	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
-	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
-	{
-		surf = (msurface_t*)batch->mesh[0];
-		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
-		{
-			batch->lightmap[sty] = (surf->lightmaptexturenums[sty]>=0)?surf->lightmaptexturenums[sty]/lmmerge:surf->lightmaptexturenums[sty];
-			batch->lmlightstyle[sty] = surf->styles[sty];
-		}
-
-		for (j = 1; j < batch->maxmeshes; j++)
-		{
-			surf = (msurface_t*)batch->mesh[j];
-			for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
-			{
-				int lm = (surf->lightmaptexturenums[sty]>=0)?surf->lightmaptexturenums[sty]/lmmerge:surf->lightmaptexturenums[sty];
-				if (lm != batch->lightmap[sty] ||
-					//fixme: we should merge later (reverted matching) surfaces into the prior batch
-					surf->styles[sty] != batch->lmlightstyle[sty] ||
-					surf->vlstyles[sty] != batch->vtlightstyle[sty])
-					break;
-			}
-			if (sty < MAXRLIGHTMAPS)
-			{
-				nb = ZG_Malloc(&mod->memgroup, sizeof(*batch));
-				*nb = *batch;
-				batch->next = nb;
-
-				nb->mesh = batch->mesh + j*2;
-				nb->maxmeshes = batch->maxmeshes - j;
-				batch->maxmeshes = j;
-				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
-				{
-					int lm = (surf->lightmaptexturenums[sty]>=0)?surf->lightmaptexturenums[sty]/lmmerge:surf->lightmaptexturenums[sty];
-					nb->lightmap[sty] = lm;
-					nb->lmlightstyle[sty] = surf->styles[sty];
-					nb->vtlightstyle[sty] = surf->vlstyles[sty];
-				}
-
-				memmove(nb->mesh, batch->mesh+j, sizeof(msurface_t*)*nb->maxmeshes);
-
-				for (i = 0; i < nb->maxmeshes; i++)
-				{
-					surf = (msurface_t*)nb->mesh[i];
-					surf->sbatch = nb;
-				}
-
-				batch = nb;
-				j = 1;
-			}
-		}
-	}
-}
-
-/*
-allocates lightmaps and splits batches upon lightmap boundaries
-*/
-static void Mod_Batches_AllocLightmaps(model_t *mod)
-{
-	batch_t *batch;
-	batch_t *nb;
-	lmalloc_t lmallocator;
-	int i, j, sortid;
-	msurface_t *surf;
-	int sty;
-
-	size_t samps = 0;
-
-	//small models don't have many surfaces, don't allocate a smegging huge lightmap that simply won't be used.
-	for (i=0, j=0; i<mod->nummodelsurfaces; i++)
-	{
-		surf = mod->surfaces + mod->firstmodelsurface + i;
-		if (surf->texinfo->flags & TEX_SPECIAL)
-			continue;	//surfaces with no lightmap should not count torwards anything.
-		samps += ((surf->extents[0]>>surf->lmshift)+1) * ((surf->extents[1]>>surf->lmshift)+1);
-
-		if (j < (surf->extents[0]>>surf->lmshift)+1)
-			j = (surf->extents[0]>>surf->lmshift)+1;
-		if (j < (surf->extents[1]>>surf->lmshift)+1)
-			j = (surf->extents[1]>>surf->lmshift)+1;
-	}
-	samps /= 4;
-	samps = sqrt(samps);
-	if (j > 128 || r_dynamic.ival <= 0)
-		samps *= 2;
-	mod->lightmaps.width = bound(j, samps, LMBLOCK_SIZE_MAX);
-	mod->lightmaps.height = bound(j, samps, LMBLOCK_SIZE_MAX);
-	for (i = 0; (1<<i) < mod->lightmaps.width; i++);
-	mod->lightmaps.width = 1<<i;
-	for (i = 0; (1<<i) < mod->lightmaps.height; i++);
-	mod->lightmaps.height = 1<<i;
-	mod->lightmaps.width = bound(64, mod->lightmaps.width, sh_config.texture_maxsize);
-	mod->lightmaps.height = bound(64, mod->lightmaps.height, sh_config.texture_maxsize);
-
-	Mod_LightmapAllocInit(&lmallocator, mod->deluxdata != NULL, mod->lightmaps.width, mod->lightmaps.height, 0x50);
-
-	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
-	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
-	{
-		surf = (msurface_t*)batch->mesh[0];
-		Mod_LightmapAllocSurf (&lmallocator, surf, 0);
-		for (sty = 1; sty < MAXRLIGHTMAPS; sty++)
-			surf->lightmaptexturenums[sty] = -1;
-		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
-		{
-			batch->lightmap[sty] = surf->lightmaptexturenums[sty];
-			batch->lmlightstyle[sty] = 255;//don't do special backend rendering of lightstyles.
-			batch->vtlightstyle[sty] = 255;//don't do special backend rendering of lightstyles.
-		}
-
-		for (j = 1; j < batch->maxmeshes; j++)
-		{
-			surf = (msurface_t*)batch->mesh[j];
-			Mod_LightmapAllocSurf (&lmallocator, surf, 0);
-			for (sty = 1; sty < MAXRLIGHTMAPS; sty++)
-				surf->lightmaptexturenums[sty] = -1;
-			if (surf->lightmaptexturenums[0] != batch->lightmap[0])
-			{
-				nb = ZG_Malloc(&mod->memgroup, sizeof(*batch));
-				*nb = *batch;
-				batch->next = nb;
-
-				nb->mesh = batch->mesh + j*2;
-				nb->maxmeshes = batch->maxmeshes - j;
-				batch->maxmeshes = j;
-				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
-					nb->lightmap[sty] = surf->lightmaptexturenums[sty];
-
-				memmove(nb->mesh, batch->mesh+j, sizeof(msurface_t*)*nb->maxmeshes);
-
-				for (i = 0; i < nb->maxmeshes; i++)
-				{
-					surf = (msurface_t*)nb->mesh[i];
-					surf->sbatch = nb;
-				}
-
-				batch = nb;
-				j = 0;
-			}
-		}
-	}
-
-	Mod_LightmapAllocDone(&lmallocator, mod);
-}
-
-extern void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift);
-//if build is NULL, uses q1/q2 surf generation, and allocates lightmaps
-static void Mod_Batches_Build(model_t *mod, builddata_t *bd)
-{
-	int i;
-	int numverts = 0, numindicies=0;
-	msurface_t *surf;
-	mesh_t *mesh;
-	mesh_t **bmeshes;
-	int sortid;
-	batch_t *batch;
-	mesh_t *meshlist;
-	int merge = 1;
-
-	currentmodel = mod;
-
-	if (!mod->textures)
-		return;
-
-	if (mod->firstmodelsurface + mod->nummodelsurfaces > mod->numsurfaces)
-		Sys_Error("submodel %s surface range is out of bounds\n", mod->name);
-
-	if (bd)
-		meshlist = NULL;
-	else
-		meshlist = ZG_Malloc(&mod->memgroup, sizeof(mesh_t) * mod->nummodelsurfaces);
-
-	for (i=0; i<mod->nummodelsurfaces; i++)
-	{
-		surf = mod->surfaces + i + mod->firstmodelsurface;
-		if (meshlist)
-		{
-			mesh = surf->mesh = &meshlist[i];
-			mesh->numvertexes = surf->numedges;
-			mesh->numindexes = (surf->numedges-2)*3;
-		}
-		else
-			mesh = surf->mesh;
-
-		numverts += mesh->numvertexes;
-		numindicies += mesh->numindexes;
-//		surf->lightmaptexturenum = -1;
-	}
-
-	/*assign each mesh to a batch, generating as needed*/
-	merge = Mod_Batches_Generate(mod);
-
-	bmeshes = ZG_Malloc(&mod->memgroup, sizeof(*bmeshes)*mod->nummodelsurfaces*R_MAX_RECURSE);
-
-	//we now know which batch each surface is in, and how many meshes there are in each batch.
-	//allocate the mesh-pointer-lists for each batch. *2 for recursion.
-	for (i = 0, sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
-	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
-	{
-		batch->mesh = bmeshes + i;
-		i += batch->maxmeshes*R_MAX_RECURSE;
-	}
-	//store the *surface* into the batch's mesh list (yes, this is an evil cast hack, but at least both are pointers)
-	for (i=0; i<mod->nummodelsurfaces; i++)
-	{
-		surf = mod->surfaces + mod->firstmodelsurface + i;
-		surf->sbatch->mesh[surf->sbatch->meshes++] = (mesh_t*)surf;
-	}
-	if (bd)	//q3
-		Mod_Batches_SplitLightmaps(mod, merge);
-	else
-		Mod_Batches_AllocLightmaps(mod);
-
-	if (!bd)
-	{
-		mod->lightmaps.surfstyles = 1;
-		Mod_Batches_BuildModelMeshes(mod, numverts, numindicies, ModQ1_Batches_BuildQ1Q2Poly, bd, merge);
-	}
-	else
-		Mod_Batches_BuildModelMeshes(mod, numverts, numindicies, bd->buildfunc, bd, merge);
-
-	if (BE_GenBrushModelVBO)
-		BE_GenBrushModelVBO(mod);
-}
-#endif
-
-/*
-=================
-Mod_SetParent
-=================
-*/
-void Mod_SetParent (mnode_t *node, mnode_t *parent)
-{
-	if (!node)
-		return;
-	node->parent = parent;
-	if (node->contents < 0)
-		return;
-	Mod_SetParent (node->children[0], node);
-	Mod_SetParent (node->children[1], node);
 }
 
 /*
@@ -4359,101 +4486,6 @@ static void Mod_MakeHull0 (model_t *loadmodel)
 
 /*
 =================
-Mod_LoadMarksurfaces
-=================
-*/
-qboolean Mod_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm)
-{	
-	int		i, j, count;
-	msurface_t **out;
-
-	if (lm)
-	{
-		int		*inl;
-		inl = (void *)(mod_base + l->fileofs);
-		if (l->filelen % sizeof(*inl))
-		{
-			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
-			return false;
-		}
-		count = l->filelen / sizeof(*inl);
-		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
-
-		loadmodel->marksurfaces = out;
-		loadmodel->nummarksurfaces = count;
-
-		for ( i=0 ; i<count ; i++)
-		{
-			j = (unsigned int)LittleLong(inl[i]);
-			if (j >= loadmodel->numsurfaces)
-			{
-				Con_Printf (CON_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
-				return false;
-			}
-			out[i] = loadmodel->surfaces + j;
-		}
-	}
-	else
-	{
-		short		*ins;
-		ins = (void *)(mod_base + l->fileofs);
-		if (l->filelen % sizeof(*ins))
-		{
-			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
-			return false;
-		}
-		count = l->filelen / sizeof(*ins);
-		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
-
-		loadmodel->marksurfaces = out;
-		loadmodel->nummarksurfaces = count;
-
-		for ( i=0 ; i<count ; i++)
-		{
-			j = (unsigned short)LittleShort(ins[i]);
-			if (j >= loadmodel->numsurfaces)
-			{
-				Con_Printf (CON_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
-				return false;
-			}
-			out[i] = loadmodel->surfaces + j;
-		}
-	}
-
-	return true;
-}
-
-/*
-=================
-Mod_LoadSurfedges
-=================
-*/
-qboolean Mod_LoadSurfedges (model_t *loadmodel, qbyte *mod_base, lump_t *l)
-{	
-	int		i, count;
-	int		*in, *out;
-	
-	in = (void *)(mod_base + l->fileofs);
-	if (l->filelen % sizeof(*in))
-	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
-		return false;
-	}
-	count = l->filelen / sizeof(*in);
-	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
-
-	loadmodel->surfedges = out;
-	loadmodel->numsurfedges = count;
-
-	for ( i=0 ; i<count ; i++)
-		out[i] = LittleLong (in[i]);
-
-	return true;
-}
-
-
-/*
-=================
 Mod_LoadPlanes
 =================
 */
@@ -4670,6 +4702,8 @@ static void Mod_FixupMinsMaxs(model_t *loadmodel)
 	}
 	Mod_FixupNodeMinsMaxs (loadmodel->nodes, NULL);	// sets nodes and leafs
 }
+
+#endif
 
 void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 {

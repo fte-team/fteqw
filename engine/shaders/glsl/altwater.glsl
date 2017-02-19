@@ -1,6 +1,6 @@
 !!cvardf r_glsl_turbscale_reflect=1	//simpler scaler
 !!cvardf r_glsl_turbscale_refract=1	//simpler scaler
-!!samps 4 diffuse
+!!samps 4 diffuse normalmap
 
 #include "sys/defs.h"
 

@@ -3448,8 +3448,11 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		else
 			return;
 	}
+
+#ifdef NONSKELETALMODELS
 	if (p->permu[perm|PERMUTATION_FRAMEBLEND].h.loaded && shaderstate.sourcevbo->coord2.gl.addr)
 		perm |= PERMUTATION_FRAMEBLEND;
+#endif
 	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
 		perm |= PERMUTATION_BUMPMAP;
 	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)

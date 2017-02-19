@@ -97,7 +97,7 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 #define DINPUT_VERSION_DX7 0x0700
 
 // mouse variables
-static cvar_t	in_dinput = CVARF("in_dinput","0", CVAR_ARCHIVE);
+static cvar_t	in_dinput = CVARFD("in_dinput","0", CVAR_ARCHIVE, "Enables the use of dinput for mouse movements");
 static cvar_t	in_xinput = CVARFD("in_xinput","0", CVAR_ARCHIVE, "Enables the use of xinput for controllers.\nNote that if you have a headset plugged in, that headset will be used for audio playback if no specific audio device is configured.");
 static cvar_t	in_builtinkeymap = CVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
 static cvar_t in_simulatemultitouch = CVAR("in_simulatemultitouch", "0");
@@ -143,7 +143,6 @@ static int		originalmouseparms[3], newmouseparms[3] = {0, 0, 0};
 qboolean		mouseinitialized;
 static qboolean	mouseparmsvalid, mouseactivatetoggle;
 qboolean	mouseshowtoggle = 1;
-static qboolean	dinput_acquired;
 unsigned int uiWheelMessage;
 
 qboolean	mouseactive;
@@ -160,7 +159,7 @@ qboolean	mouseactive;
 // each time.  this avoids any problems with getting back to a default usage
 // or when changing from one controller to another.  this way at least something
 // works.
-static cvar_t	in_joystick				= CVARF("joystick","0", CVAR_ARCHIVE);
+static cvar_t	in_joystick				= CVARAF("joystick","0", "in_joystick", CVAR_ARCHIVE);
 static qboolean	joy_advancedinit;
 
 static DWORD		joy_flags;
@@ -191,6 +190,7 @@ static const GUID fIID_IDirectInput7A		= {0x9a4cb684, 0x236d, 0x11d3, {0x8e, 0x9
 // devices
 static LPDIRECTINPUT		g_pdi;
 static LPDIRECTINPUTDEVICE	g_pMouse;
+static qboolean	dinput_acquired;
 
 static HINSTANCE hInstDI;
 
@@ -659,7 +659,7 @@ INS_InitDInput
 */
 int INS_InitDInput (void)
 {
-    HRESULT		hr;
+	HRESULT		hr;
 	DIPROPDWORD	dipdw = {
 		{
 			sizeof(DIPROPDWORD),        // diph.dwSize
@@ -1834,6 +1834,7 @@ void INS_Commands (void)
 		K_JOY4,	//XINPUT_GAMEPAD_B
 		K_JOY1,	//XINPUT_GAMEPAD_X
 		K_JOY3,	//XINPUT_GAMEPAD_Y
+
 		K_AUX9,	//left trigger
 		K_AUX10	//right trigger
 	};
@@ -2113,6 +2114,7 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 	for (idx = 0; idx < rawmicecount; idx++)
 		callback(ctx, "mouse", rawmice[idx].sysname?rawmice[idx].sysname:va("raw%i", idx), &rawmice[idx].qdeviceid);
 
+#ifdef AVAIL_DINPUT
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 	if (dinput >= DINPUT_VERSION_DX7 && g_pMouse7)
 		callback(ctx, "mouse", "di7", NULL);
@@ -2120,6 +2122,7 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 #endif
 		if (dinput && g_pMouse)
 		callback(ctx, "mouse", "di", NULL);
+#endif
 	callback(ctx, "mouse", "system", NULL);
 
 	for (idx = 0; idx < joy_count; idx++)
@@ -2136,8 +2139,8 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 
 static qbyte        scantokey[] =
 {
-//  0           1			2			3			4			5			6				7
-//  8           9			A			B			C			D			E				F
+//	0			1			2			3			4			5			6				7
+//	8			9			A			B			C			D			E				F
 	0,			27,			'1',		'2',		'3',		'4',		'5',			'6',		// 0
 	'7',		'8',		'9',		'0',		'-',		'=',		K_BACKSPACE,	9,			// 0
 	'q',		'w',		'e',		'r',		't',		'y',		'u',			'i',		// 1
@@ -2154,8 +2157,8 @@ static qbyte        scantokey[] =
 	0,			0,			0,			0,			0,			0,			0,				0,			// 6
 	0,			0,			0,			0,			0,			0,			0,				0,			// 7
 	0,			0,			0,			0,			0,			0,			0,				0,			// 7
-//  0           1			2			3			4			5			6				7
-//  8           9			A			B			C			D			E				F
+//	0			1			2			3			4			5			6				7
+//	8			9			A			B			C			D			E				F
 	0,			0,			0,			0,			0,			0,			0,				0,			// 8
 	0,			0,			0,			0,			0,			0,			0,				0,			// 8
 	0,			0,			0,			0,			0,			0,			0,				0,			// 9
@@ -2172,8 +2175,8 @@ static qbyte        scantokey[] =
 	0,			0,			0,			0,			0,			0,			0,				0,			// e
 	0,			0,			0,			0,			0,			0,			0,				0,			// f
 	0,			0,			0,			0,			0,			0,			0,				0,			// f
-//  0           1			2			3			4			5			6				7
-//  8           9			A			B			C			D			E				F
+//	0			1			2			3			4			5			6				7
+//	8			9			A			B			C			D			E				F
 	0,			27,			'1',		'2',		'3',		'4',		'5',			'6',		// 0
 	'7',		'8',		'9',		'0',		'-',		'=',		K_BACKSPACE,	9,			// 0
 	'q',		'w',		'e',		'r',		't',		'y',		'u',			'i',		// 1
@@ -2190,8 +2193,8 @@ static qbyte        scantokey[] =
 	0,			0,			0,			0,			0,			0,			0,				0,			// 6
 	0,			0,			0,			0,			0,			0,			0,				0,			// 7
 	0,			0,			0,			0,			0,			0,			0,				0			// 7
-//  0           1			2			3			4			5			6				7
-//  8           9			A			B			C			D			E				F
+//	0			1			2			3			4			5			6				7
+//	8			9			A			B			C			D			E				F
 };
 
 /*

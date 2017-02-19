@@ -1442,8 +1442,8 @@ typedef struct mvddest_s {
 #endif
 	vfsfile_t *file;
 
-	char name[MAX_QPATH];
-	char path[MAX_QPATH];
+	char filename[MAX_QPATH];	//demos/foo.mvd
+	char simplename[MAX_QPATH];	//foo.mvd
 
 	int flushing;	//worker has a cache (used as a sync point)
 	char *cache;

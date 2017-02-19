@@ -21,9 +21,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+void *wadmutex;
+
+#ifndef PACKAGE_WAD
+void Wads_Flush (void){}
+qboolean Wad_NextDownload (void){return true;}
+void *W_SafeGetLumpName (const char *name, size_t *size) {return NULL;}
+qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalpha){return NULL;}
+void W_LoadWadFile (char *filename){}
+void W_Shutdown (void){}
+void CL_Skygroup_f(void){}
+#else
+
 int			wad_numlumps;
 lumpinfo_t	*wad_lumps;
 qbyte		*wad_base;
+
+static char wads[4096];
 
 void SwapPic (qpic_t *pic);
 
@@ -267,7 +281,6 @@ typedef struct
 } texwadlump_t;
 int numwadtextures;
 static texwadlump_t texwadlump[TEXWAD_MAXIMAGES];
-void *wadmutex;
 
 wadfile_t *openwadfiles;
 
@@ -698,141 +711,6 @@ void CL_Skygroup_f(void)
 	}
 }
 
-char wads[4096];
-void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in the model code.
-{
-	char token[4096];
-	char key[128];
-	const char *data = Mod_GetEntitiesString(wmodel);
-	mapskys_t *msky;
-
-	cl.skyrotate = 0;
-	VectorClear(cl.skyaxis);
-
-	wads[0] = '\0';
-
-#ifndef CLIENTONLY
-	if (isDedicated)	//don't bother
-		return;
-#endif
-
-	// this hack is necessary to ensure Quake 2 maps get their default skybox, without breaking q1 etc
-	if (wmodel->fromgame == fg_quake2)
-		strcpy(cl.skyname, "unit1_");
-	else
-		cl.skyname[0] = '\0';
-
-	if (data)
-	if ((data=COM_ParseOut(data, token, sizeof(token))))	//read the map info.
-	if (token[0] == '{')
-	while (1)
-	{
-		if (!(data=COM_ParseOut(data, token, sizeof(token))))
-			break; // error
-		if (token[0] == '}')
-			break; // end of worldspawn
-		if (token[0] == '_')
-			Q_strncpyz(key, token + 1, sizeof(key));	//_ vars are for comments/utility stuff that arn't visible to progs. Ignore them.
-		else
-			Q_strncpyz(key, token, sizeof(key));
-		if (!((data=COM_ParseOut(data, token, sizeof(token)))))
-			break; // error		
-		if (!strcmp("wad", key)) // for HalfLife maps
-		{
-			if (1)
-			{
-				Q_strncatz(wads, ";", sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
-				Q_strncatz(wads, token, sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
-			}
-		}
-		else if (!strcmp("skyname", key)) // for HalfLife maps
-		{
-			Q_strncpyz(cl.skyname, token, sizeof(cl.skyname));
-		}
-		else if (!strcmp("fog", key))	//q1 extension. FIXME: should be made temporary.
-		{
-			key[0] = 'f';
-			key[1] = 'o';
-			key[2] = 'g';
-			key[3] = ' ';
-			Q_strncpyz(key+4, token, sizeof(key)-4);
-			Cbuf_AddText(key, RESTRICT_INSECURE);
-			Cbuf_AddText("\n", RESTRICT_INSECURE);
-		}
-		else if (!strcmp("waterfog", key))	//q1 extension. FIXME: should be made temporary.
-		{
-			memcpy(key, "waterfog ", 9);
-			Q_strncpyz(key+9, token, sizeof(key)-9);
-			Cbuf_AddText(key, RESTRICT_INSECURE);
-			Cbuf_AddText("\n", RESTRICT_INSECURE);
-		}
-		else if (!strncmp("cvar_", key, 5)) //override cvars so mappers don't end up hacking cvars and fucking over configs (at least in other engines).
-		{
-			cvar_t *var = Cvar_FindVar(key+5);
-			if (var && !(var->flags & CVAR_NOTFROMSERVER))
-				Cvar_LockFromServer(var, com_token);
-		}
-		else if (!strcmp("wateralpha", key)) //override cvars so mappers don't end up hacking cvars and fucking over configs (at least in other engines).
-		{
-			Cvar_LockFromServer(&r_wateralpha, com_token);
-			Cvar_LockFromServer(&r_waterstyle, "1");	//force vanilla-style water too.
-		}
-		else if (!strcmp("slimealpha", key))
-		{
-			Cvar_LockFromServer(&r_slimealpha, com_token);
-			Cvar_LockFromServer(&r_slimestyle, "1");
-		}
-		else if (!strcmp("lavaalpha", key))
-		{
-			Cvar_LockFromServer(&r_lavaalpha, com_token);
-			Cvar_LockFromServer(&r_lavastyle, "1");
-		}
-		else if (!strcmp("telealpha", key))
-		{
-			Cvar_LockFromServer(&r_telealpha, com_token);
-			Cvar_LockFromServer(&r_telestyle, "1");
-		}
-		else if (!strcmp("sky", key)) // for Quake2 maps
-		{
-			Q_strncpyz(cl.skyname, token, sizeof(cl.skyname));
-		}
-		else if (!strcmp("skyrotate", key))	//q2 feature
-		{
-			cl.skyrotate = atof(token);
-		}
-		else if (!strcmp("skyaxis", key))	//q2 feature
-		{
-			char *s;
-			Q_strncpyz(key, token, sizeof(key));
-			s = COM_ParseOut(key, token, sizeof(token));
-			if (s)
-			{
-				cl.skyaxis[0] = atof(s);
-				s = COM_ParseOut(s, token, sizeof(token));
-				if (s)
-				{
-					cl.skyaxis[1] = atof(s);
-					COM_ParseOut(s, token, sizeof(token));
-					if (s)
-						cl.skyaxis[2] = atof(s);
-				}
-			}
-		}
-	}
-
-	COM_FileBase (wmodel->name, token, sizeof(token));
-
-	//map-specific sky override feature
-	for (msky = mapskies; msky; msky = msky->next)
-	{
-		if (!strcmp(msky->mapname, token))
-		{
-			Q_strncpyz(cl.skyname, msky->skyname, sizeof(cl.skyname));
-			break;
-		}
-	}
-}
-
 //textures/fred.wad is the DP standard - I wanna go for that one.
 //textures/halfline/fred.wad is what fuhquake can use (yuck). 
 //fred.wad is what half-life supports.
@@ -914,4 +792,142 @@ qboolean Wad_NextDownload (void)
 		}
 	}
 	return true;
+}
+#endif
+
+void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in the model code.
+{
+	char token[4096];
+	char key[128];
+	const char *data = Mod_GetEntitiesString(wmodel);
+#ifdef PACKAGE_WAD
+	mapskys_t *msky;
+
+	wads[0] = '\0';
+#endif
+
+	cl.skyrotate = 0;
+	VectorClear(cl.skyaxis);
+
+#ifndef CLIENTONLY
+	if (isDedicated)	//don't bother
+		return;
+#endif
+
+	// this hack is necessary to ensure Quake 2 maps get their default skybox, without breaking q1 etc
+	if (wmodel->fromgame == fg_quake2)
+		strcpy(cl.skyname, "unit1_");
+	else
+		cl.skyname[0] = '\0';
+
+	if (data)
+	if ((data=COM_ParseOut(data, token, sizeof(token))))	//read the map info.
+	if (token[0] == '{')
+	while (1)
+	{
+		if (!(data=COM_ParseOut(data, token, sizeof(token))))
+			break; // error
+		if (token[0] == '}')
+			break; // end of worldspawn
+		if (token[0] == '_')
+			Q_strncpyz(key, token + 1, sizeof(key));	//_ vars are for comments/utility stuff that arn't visible to progs. Ignore them.
+		else
+			Q_strncpyz(key, token, sizeof(key));
+		if (!((data=COM_ParseOut(data, token, sizeof(token)))))
+			break; // error
+		if (!strcmp("wad", key)) // for HalfLife maps
+		{
+#ifdef PACKAGE_WAD
+			Q_strncatz(wads, ";", sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
+			Q_strncatz(wads, token, sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
+#endif
+		}
+		else if (!strcmp("skyname", key)) // for HalfLife maps
+		{
+			Q_strncpyz(cl.skyname, token, sizeof(cl.skyname));
+		}
+		else if (!strcmp("fog", key))	//q1 extension. FIXME: should be made temporary.
+		{
+			key[0] = 'f';
+			key[1] = 'o';
+			key[2] = 'g';
+			key[3] = ' ';
+			Q_strncpyz(key+4, token, sizeof(key)-4);
+			Cbuf_AddText(key, RESTRICT_INSECURE);
+			Cbuf_AddText("\n", RESTRICT_INSECURE);
+		}
+		else if (!strcmp("waterfog", key))	//q1 extension. FIXME: should be made temporary.
+		{
+			memcpy(key, "waterfog ", 9);
+			Q_strncpyz(key+9, token, sizeof(key)-9);
+			Cbuf_AddText(key, RESTRICT_INSECURE);
+			Cbuf_AddText("\n", RESTRICT_INSECURE);
+		}
+		else if (!strncmp("cvar_", key, 5)) //override cvars so mappers don't end up hacking cvars and fucking over configs (at least in other engines).
+		{
+			cvar_t *var = Cvar_FindVar(key+5);
+			if (var && !(var->flags & CVAR_NOTFROMSERVER))
+				Cvar_LockFromServer(var, com_token);
+		}
+		else if (!strcmp("wateralpha", key)) //override cvars so mappers don't end up hacking cvars and fucking over configs (at least in other engines).
+		{
+			Cvar_LockFromServer(&r_wateralpha, com_token);
+			Cvar_LockFromServer(&r_waterstyle, "1");	//force vanilla-style water too.
+		}
+		else if (!strcmp("slimealpha", key))
+		{
+			Cvar_LockFromServer(&r_slimealpha, com_token);
+			Cvar_LockFromServer(&r_slimestyle, "1");
+		}
+		else if (!strcmp("lavaalpha", key))
+		{
+			Cvar_LockFromServer(&r_lavaalpha, com_token);
+			Cvar_LockFromServer(&r_lavastyle, "1");
+		}
+		else if (!strcmp("telealpha", key))
+		{
+			Cvar_LockFromServer(&r_telealpha, com_token);
+			Cvar_LockFromServer(&r_telestyle, "1");
+		}
+		else if (!strcmp("sky", key)) // for Quake2 maps
+		{
+			Q_strncpyz(cl.skyname, token, sizeof(cl.skyname));
+		}
+		else if (!strcmp("skyrotate", key))	//q2 feature
+		{
+			cl.skyrotate = atof(token);
+		}
+		else if (!strcmp("skyaxis", key))	//q2 feature
+		{
+			char *s;
+			Q_strncpyz(key, token, sizeof(key));
+			s = COM_ParseOut(key, token, sizeof(token));
+			if (s)
+			{
+				cl.skyaxis[0] = atof(s);
+				s = COM_ParseOut(s, token, sizeof(token));
+				if (s)
+				{
+					cl.skyaxis[1] = atof(s);
+					COM_ParseOut(s, token, sizeof(token));
+					if (s)
+						cl.skyaxis[2] = atof(s);
+				}
+			}
+		}
+	}
+
+	COM_FileBase (wmodel->name, token, sizeof(token));
+
+#ifdef PACKAGE_WAD
+	//map-specific sky override feature
+	for (msky = mapskies; msky; msky = msky->next)
+	{
+		if (!strcmp(msky->mapname, token))
+		{
+			Q_strncpyz(cl.skyname, msky->skyname, sizeof(cl.skyname));
+			break;
+		}
+	}
+#endif
 }

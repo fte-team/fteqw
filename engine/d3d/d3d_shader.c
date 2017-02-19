@@ -359,14 +359,14 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 			}
 		}
 
-		for (i = 0; sh_defaultsamplers[i]; i++)
+		for (i = 0; sh_defaultsamplers[i].name; i++)
 		{
 			//figure out which ones are needed.
-			if (prog->defaulttextures & (1u<<i))
+			if (prog->defaulttextures & sh_defaultsamplers[i].defaulttexbits)
 				continue;	//don't spam
-			uniformloc = D3D9Shader_FindUniform(&pp->h, 2, sh_defaultsamplers[i]);
+			uniformloc = D3D9Shader_FindUniform(&pp->h, 2, sh_defaultsamplers[i].name);
 			if (uniformloc != -1)
-				prog->defaulttextures |= (1u<<i);
+				prog->defaulttextures |= sh_defaultsamplers[i].defaulttexbits;
 		}
 	}
 
@@ -385,11 +385,11 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 			if (!prog->permu[p].h.loaded)
 				continue;
 			sampnum = prog->numsamplers;
-			for (i = 0; sh_defaultsamplers[i]; i++)
+			for (i = 0; sh_defaultsamplers[i].name; i++)
 			{
-				if (prog->defaulttextures & (1u<<i))
+				if (prog->defaulttextures & sh_defaultsamplers[i].defaulttexbits)
 				{
-					uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 2, sh_defaultsamplers[i]);
+					uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 2, sh_defaultsamplers[i].name);
 					if (uniformloc != -1)
 					{
 						int v[4] = {sampnum};

@@ -721,6 +721,7 @@ struct
 #endif
 
 #ifndef SERVERONLY
+#ifdef D3DQUAKE
 void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals)
 {
 	int i;
@@ -766,6 +767,7 @@ void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *
 		}
 	}
 }
+#endif
 
 void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *normals, float scale)
 {
@@ -856,6 +858,7 @@ void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int
 		}
 	}
 }
+#ifdef NONSKELETALMODELS
 static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float lerp, float expand, float lerpcutoff)
 {
 	extern cvar_t r_nolerp; // r_nolightdir is unused
@@ -950,6 +953,7 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 		}
 	}
 }
+#endif
 #endif
 #endif
 
@@ -1515,17 +1519,10 @@ void Alias_Shutdown(void)
 
 qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean usebones)
 {
-	galiasanimation_t *g1, *g2;
 #ifndef SERVERONLY
 	extern cvar_t r_nolerp;
-	float lerpcutoff;
 #endif
 
-	int frame1;
-	int frame2;
-	float lerp;
-	float fg1time;
-//	float fg2time;
 #ifdef SKELETALMODELS
 	qboolean bytecolours = false;
 #endif
@@ -1749,6 +1746,21 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	else
 #endif
 	{
+#ifndef NONSKELETALMODELS
+		memset(mesh, 0, sizeof(*mesh));
+		*vbop = NULL;
+		return false;
+#else
+#ifndef SERVERONLY
+		float lerpcutoff;
+#endif
+		galiasanimation_t *g1, *g2;
+		int frame1;
+		int frame2;
+		float lerp;
+		float fg1time;
+		//float fg2time;
+
 		//FIXME: replace most of this logic with Alias_BuildSkelLerps
 
 		frame1 = e->framestate.g[FS_REG].frame[0];
@@ -1883,6 +1895,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			if (vbop && meshcache.vbo.indicies.sysptr)
 				*vbop = meshcache.vbop = &meshcache.vbo;
 		}
+#endif
 	}
 
 	meshcache.vbo.vao = 0;
@@ -1916,8 +1929,6 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader)
 {
 	galiasinfo_t *mod;
-	galiasanimation_t *group;
-	galiaspose_t *pose;
 	scenetris_t *t;
 	vecV_t *posedata = NULL;
 	int surfnum = 0, i;
@@ -1955,11 +1966,15 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader)
 		}
 		else 
 #endif
+#ifndef NONSKELETALMODELS
+			continue;
+#else
 		if (!mod->numanimations)
 			continue;
 		else
 		{
-			group = mod->ofsanimations;
+			galiaspose_t *pose;
+			galiasanimation_t *group = mod->ofsanimations;
 			group += ent->framestate.g[FS_REG].frame[0] % mod->numanimations;
 			//FIXME: no support for frame blending.
 			if (!group->numposes || !group->poseofs)
@@ -1968,6 +1983,7 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader)
 			pose += (int)(ent->framestate.g[FS_REG].frametime[0] * group->rate)%group->numposes;
 			posedata = pose->ofsverts;
 		}
+#endif
 
 		if (cl_numstris == cl_maxstris)
 		{
@@ -2227,8 +2243,6 @@ qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, v
 qboolean Mod_Trace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contentsmask, trace_t *trace)
 {
 	galiasinfo_t *mod = Mod_Extradata(model);
-	galiasanimation_t *group;
-	galiaspose_t *pose;
 
 //	float temp;
 
@@ -2287,11 +2301,15 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, framestate_t *framestate, v
 		}
 		else 
 #endif
+#ifndef NONSKELETALMODELS
+			continue;
+#else
 		if (!mod->numanimations)
 			continue;
 		else
 		{
-			group = mod->ofsanimations;
+			galiaspose_t *pose;
+			galiasanimation_t *group = mod->ofsanimations;
 			if (framestate)
 				group += framestate->g[FS_REG].frame[0] % mod->numanimations;
 			//FIXME: no support for frame blending.
@@ -2302,6 +2320,7 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, framestate_t *framestate, v
 				pose += (int)(framestate->g[FS_REG].frametime[0] * group->rate)%group->numposes;
 			posedata = pose->ofsverts;
 		}
+#endif
 
 		if (Mod_Trace_Trisoup(posedata, indexes, mod->numindexes, start_l, end_l, mins, maxs, trace))
 		{
@@ -2614,17 +2633,16 @@ void Mod_GenerateMeshVBO(galiasinfo_t *galias)
 //vec3_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx, int numverts)
 {
 #ifndef SERVERONLY
+#ifdef NONSKELETALMODELS
 	int i, p;
-	galiasanimation_t *group;
-	galiaspose_t *pose;
+	galiasanimation_t *group = galias->ofsanimations;
+#endif
 	int vbospace = 0;
 	vbobctx_t vboctx;
 
 	//don't fail on dedicated servers
 	if (!BE_VBO_Begin || !galias->numverts)
 		return;
-
-	group = galias->ofsanimations;
 
 	//determine the amount of space we need for our vbos.
 	if (galias->ofs_st_array)
@@ -2647,11 +2665,14 @@ void Mod_GenerateMeshVBO(galiasinfo_t *galias)
 	if (galias->ofs_skel_weight)
 		vbospace += sizeof(*galias->ofs_skel_weight) * galias->numverts;
 #endif
+#ifdef NONSKELETALMODELS
 	for (i = 0; i < galias->numanimations; i++)
 	{
-		if (group->poseofs)
+		if (group[i].poseofs)
 			vbospace += group[i].numposes * galias->numverts * (sizeof(vecV_t)+sizeof(vec3_t)*3);
 	}
+#endif
+
 	BE_VBO_Begin(&vboctx, vbospace);
 	if (galias->ofs_st_array)
 		BE_VBO_Data(&vboctx, galias->ofs_st_array, sizeof(*galias->ofs_st_array) * galias->numverts, &galias->vbotexcoords);
@@ -2673,26 +2694,28 @@ void Mod_GenerateMeshVBO(galiasinfo_t *galias)
 	if (galias->ofs_skel_weight)
 		BE_VBO_Data(&vboctx, galias->ofs_skel_weight, sizeof(*galias->ofs_skel_weight) * galias->numverts, &galias->vbo_skel_bweight);
 #endif
-
-	for (i = 0; i < galias->numanimations; i++, group++)
+#ifdef NONSKELETALMODELS
+	for (i = 0; i < galias->numanimations; i++)
 	{
-		pose = group->poseofs;
+		galiaspose_t *pose = group[i].poseofs;
 		if (pose)
-		for (p = 0; p < group->numposes; p++, pose++)
-		{
-			BE_VBO_Data(&vboctx, pose->ofsverts, sizeof(*pose->ofsverts) * galias->numverts, &pose->vboverts);
-			BE_VBO_Data(&vboctx, pose->ofsnormals, sizeof(*pose->ofsnormals) * galias->numverts, &pose->vbonormals);
-			if (pose->ofssvector)
-				BE_VBO_Data(&vboctx, pose->ofssvector, sizeof(*pose->ofssvector) * galias->numverts, &pose->vbosvector);
-			if (pose->ofstvector)
-				BE_VBO_Data(&vboctx, pose->ofstvector, sizeof(*pose->ofstvector) * galias->numverts, &pose->vbotvector);
-		}
+			for (p = 0; p < group[i].numposes; p++, pose++)
+			{
+				BE_VBO_Data(&vboctx, pose->ofsverts, sizeof(*pose->ofsverts) * galias->numverts, &pose->vboverts);
+				BE_VBO_Data(&vboctx, pose->ofsnormals, sizeof(*pose->ofsnormals) * galias->numverts, &pose->vbonormals);
+				if (pose->ofssvector)
+					BE_VBO_Data(&vboctx, pose->ofssvector, sizeof(*pose->ofssvector) * galias->numverts, &pose->vbosvector);
+				if (pose->ofstvector)
+					BE_VBO_Data(&vboctx, pose->ofstvector, sizeof(*pose->ofstvector) * galias->numverts, &pose->vbotvector);
+			}
 	}
+#endif
 	BE_VBO_Finish(&vboctx, galias->ofs_indexes, sizeof(*galias->ofs_indexes) * galias->numindexes, &galias->vboindicies, &galias->vbomem, &galias->ebomem);
 #endif
 }
 
 
+#ifdef NONSKELETALMODELS
 //called for non-skeletal model formats.
 void Mod_BuildTextureVectors(galiasinfo_t *galias)
 //vec3_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx, int numverts)
@@ -2733,6 +2756,7 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 	}
 #endif
 }
+#endif
 
 #ifndef SERVERONLY
 //looks for foo.md3_0.skin files, for dp compat

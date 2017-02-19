@@ -67,10 +67,10 @@ int needcleanup;
 
 //int		fatbytes;
 
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsigned int buffersize, qboolean add)
 {
-	int		leafs[64];
+	int	leafs[64];
 	int		i, j, count;
 	unsigned int		longs;
 	qbyte	*src;
@@ -82,15 +82,12 @@ unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsig
 		maxs[i] = org[i] + 8;
 	}
 
-	count = CM_BoxLeafnums (mod, mins, maxs, leafs, 64, NULL);
+	count = CM_BoxLeafnums (mod, mins, maxs, leafs, countof(leafs), NULL);
 	if (count < 1)
 		Sys_Error ("SV_Q2FatPVS: count < 1");
 
-	if (mod->fromgame == fg_quake3)
-		longs = CM_ClusterSize(mod);
-	else
-		longs = (CM_NumClusters(mod)+7)/8;
-	longs = (longs+(sizeof(long)-1))/sizeof(long);
+	longs = CM_ClusterBytes(mod);
+	longs = (longs+(sizeof(longs)-1))/sizeof(longs);
 
 	// convert leafs to clusters
 	for (i=0 ; i<count ; i++)
@@ -121,9 +118,9 @@ unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsig
 			continue;		// already have the cluster we want
 		src = CM_ClusterPVS(mod, leafs[i], NULL, 0);
 		for (j=0 ; j<longs ; j++)
-			((long *)resultbuf)[j] |= ((long *)src)[j];
+			((unsigned int *)resultbuf)[j] |= ((unsigned int *)src)[j];
 	}
-	return longs*sizeof(long);
+	return longs*sizeof(longs);
 }
 #endif
 
@@ -3027,10 +3024,10 @@ qboolean SV_GibFilter(edict_t	*ent)
 }
 
 
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 static int		clientarea;
 
-unsigned int Q2BSP_FatPVS(model_t *mod, vec3_t org, qbyte *buffer, unsigned int buffersize, qboolean add)
+unsigned int Q23BSP_FatPVS(model_t *mod, vec3_t org, qbyte *buffer, unsigned int buffersize, qboolean add)
 {//fixme: this doesn't add areas
 	int		leafnum;
 	leafnum = CM_PointLeafnum (mod, org);
@@ -3039,7 +3036,7 @@ unsigned int Q2BSP_FatPVS(model_t *mod, vec3_t org, qbyte *buffer, unsigned int 
 	return SV_Q2BSP_FatPVS (mod, org, buffer, buffersize, add);
 }
 
-qboolean Q2BSP_EdictInFatPVS(model_t *mod, pvscache_t *ent, qbyte *pvs)
+qboolean Q23BSP_EdictInFatPVS(model_t *mod, pvscache_t *ent, qbyte *pvs)
 {
 	int i,l;
 	int nullarea = (mod->fromgame == fg_quake2)?0:-1;
@@ -3262,8 +3259,10 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->skinnum = ent->v->skin;
 	state->effects = ent->v->effects;
 	state->effects |= (int)ent->xv->modelflags<<24;
+#ifdef HEXEN2
 	state->hexen2flags = ent->xv->drawflags;
 	state->abslight = (int)(ent->xv->abslight*255) & 255;
+#endif
 	state->tagentity = ent->xv->tag_entity;
 	state->tagindex = ent->xv->tag_index;
 

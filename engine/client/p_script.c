@@ -2223,6 +2223,7 @@ parsefluid:
 
 qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 {
+#ifndef QUAKETC
 	int i;
 	part_type_t *ptype = &part_type[typenum];
 	if (typenum < 0 || typenum >= numparticletypes)
@@ -2529,7 +2530,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 
 		return true;
 	}
-
+#endif
 	return false;
 }
 
@@ -3625,9 +3626,12 @@ static void QDECL R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
 		}
 
 		//if we didn't manage to load any, make sure SOMETHING got loaded...
+#ifdef PSET_CLASSIC
 		if (!count)
 			P_LoadParticleSet("classic", true, true);
-		else if (failure)
+		else
+#endif
+			if (failure)
 			P_LoadParticleSet("high", true, true);
 
 		if (cls.state)

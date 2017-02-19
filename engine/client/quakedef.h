@@ -177,9 +177,7 @@ extern "C" {
 
 #include "progtype.h"
 #include "progdefs.h"
-#ifndef CLIENTONLY
 #include "progs.h"
-#endif
 #include "world.h"
 #include "q2game.h"
 #include "../http/iweb.h"

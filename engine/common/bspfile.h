@@ -230,7 +230,7 @@ typedef struct
 	unsigned int	v[2];		// vertex numbers
 } dledge_t;
 
-#ifdef Q3BSPS
+#ifdef RFBSPS
 #define	MAXRLIGHTMAPS	4	//max lightmaps mixed by the renderer (rbsp=4, otherwise 1)
 #else
 #define	MAXRLIGHTMAPS	1	//max lightmaps mixed by the renderer (rbsp=4, otherwise 1)
@@ -434,7 +434,9 @@ enum Q3LUMP
 	Q3LUMP_LIGHTMAPS	=14,
 	Q3LUMP_LIGHTGRID	=15,
 	Q3LUMP_VISIBILITY	=16,
+#ifdef RFBSPS
 	RBSPLUMP_LIGHTINDEXES=17,
+#endif
 	Q3LUMPS_TOTAL
 };
 
@@ -873,7 +875,7 @@ typedef struct pvscache_s
 {
 	int				num_leafs;
 	unsigned short	leafnums[MAX_ENT_LEAFS];
-#if defined(Q2BSPS) || defined(TERRAIN)
+#if defined(Q2BSPS) || defined(Q3BSPS) || defined(TERRAIN)
 	int				areanum;	//q2bsp
 	int				areanum2;	//q2bsp
 	int				headnode;	//q2bsp

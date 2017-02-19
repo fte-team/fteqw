@@ -319,21 +319,39 @@ typedef struct
 } skydome_t;
 
 enum{
-	PERMUTATION_GENERIC = 0,
-	PERMUTATION_BUMPMAP = 1,			//FIXME: make argument somehow
-	PERMUTATION_FULLBRIGHT = 2,			//FIXME: make argument somehow
-	PERMUTATION_UPPERLOWER = 4,			//FIXME: make argument somehow
-	PERMUTATION_REFLECTCUBEMASK = 8,	//FIXME: make argument somehow
-	PERMUTATION_SKELETAL = 16,
-	PERMUTATION_FOG	= 32,				//FIXME: remove.
-	PERMUTATION_FRAMEBLEND = 64,
-#if MAXRLIGHTMAPS > 1
-	PERMUTATION_LIGHTSTYLES = 128,		//FIXME: make argument
-	PERMUTATIONS = 256
-#else
-	PERMUTATIONS = 128
-#endif
+	#define PERMUTATION_GENERIC	0
+	#define PERMUTATION_BUMPMAP			(1u<<PERMUTATION_BIT_BUMPMAP)
+	PERMUTATION_BIT_BUMPMAP,			//FIXME: make argument somehow
+	#define PERMUTATION_FULLBRIGHT		(1u<<PERMUTATION_BIT_FULLBRIGHT)
+	PERMUTATION_BIT_FULLBRIGHT,			//FIXME: make argument somehow
+	#define PERMUTATION_UPPERLOWER		(1u<<PERMUTATION_BIT_UPPERLOWER)
+	PERMUTATION_BIT_UPPERLOWER,			//FIXME: make argument somehow
+	#define PERMUTATION_REFLECTCUBEMASK	(1u<<PERMUTATION_BIT_REFLECTCUBEMASK)
+	PERMUTATION_BIT_REFLECTCUBEMASK,	//FIXME: make argument somehow
+	#ifdef SKELETALMODELS
+		#define PERMUTATION_SKELETAL	(1u<<PERMUTATION_BIT_SKELETAL)
+		PERMUTATION_BIT_SKELETAL,
+	#else
+		#define PERMUTATION_SKELETAL	0u
+	#endif
+	#define PERMUTATION_FOG				(1u<<PERMUTATION_BIT_FOG)
+	PERMUTATION_BIT_FOG,				//FIXME: remove (recompile shaders if its enabled).
+	#ifdef NONSKELETALMODELS
+		#define PERMUTATION_FRAMEBLEND	(1u<<PERMUTATION_BIT_FRAMEBLEND)
+		PERMUTATION_BIT_FRAMEBLEND,
+	#else
+		#define PERMUTATION_FRAMEBLEND	0u
+	#endif
+	#if MAXRLIGHTMAPS > 1
+		#define PERMUTATION_LIGHTSTYLES	(1u<<PERMUTATION_BIT_LIGHTSTYLES)
+		PERMUTATION_BIT_LIGHTSTYLES,	//FIXME: make argument
+	#else
+		#define PERMUTATION_LIGHTSTYLES	0u
+	#endif
+
+	PERMUTATION_BIT_MAX
 };
+#define PERMUTATIONS				(1u<<PERMUTATION_BIT_MAX)
 
 enum shaderattribs_e
 {
@@ -717,7 +735,11 @@ typedef struct
 } sh_config_t;
 extern sh_config_t sh_config;
 #endif
-extern const char *sh_defaultsamplers[];
+extern const struct sh_defaultsamplers_s
+{
+	const char *name;
+	unsigned int defaulttexbits;
+} sh_defaultsamplers[];
 
 #ifdef GLSLONLY
 	#define gl_config_nofixedfunc true
@@ -787,6 +809,7 @@ void D3D9BE_Scissor(srect_t *rect);
 
 void D3D9Shader_Init(void);
 void D3D9BE_Reset(qboolean before);
+void D3DBE_Set2D(void);
 #endif
 #ifdef D3D11QUAKE
 void D3D11BE_Init(void);

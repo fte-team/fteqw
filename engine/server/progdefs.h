@@ -204,6 +204,21 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldstring(noise3,NULL)
 /*DO NOT ADD TO THE ABOVE STRUCTURE*/
 
+#ifdef HEXEN2
+#define comextqcfieldshexen2	\
+	comfieldfloat(drawflags,"Various flags that affect lighting values and scaling. Typically set to 96 in quake for proper compatibility with DP_QC_SCALE.")/*hexen2*/\
+	comfieldfloat(abslight,"Allows overriding light levels. Use drawflags to state that this field should actually be used.")/*hexen2's force a lightlevel*/\
+
+#define svextqcfieldshexen2	\
+	comfieldfloat(playerclass,NULL)/*hexen2 requirements*/\
+	comfieldfloat(hasted,NULL)/*hexen2 uses this AS WELL as maxspeed*/\
+	comfieldfloat(light_level,"Used by hexen2 to indicate the light level where the player is standing.")\
+
+#else
+#define comextqcfieldshexen2
+#define svextqcfieldshexen2
+#endif
+
 #define comextqcfields	\
 	comfieldvector(punchangle,NULL) /*std in nq*/\
 	comfieldfloat(gravity,NULL)	/*added in quake 1.09 (for hipnotic)*/\
@@ -240,17 +255,13 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(bouncestop,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(idealpitch,NULL)/*DP_QC_CHANGEPITCH (inconsistant naming)*/\
 	comfieldfloat(pitch_speed,NULL)/*DP_QC_CHANGEPITCH*/\
+	comextqcfieldshexen2	\
 	comfieldvector(color,"This affects the colour of realtime lights that were enabled via the pflags field.")/*Hexen2 has a .float color, the warnings should be benign*/ \
 	comfieldfloat(light_lev,"This is the radius of an entity's light. This is not normally used by the engine, but is used for realtime lights (ones that are enabled with the pflags field).")\
 	comfieldfloat(style,"Used by the light util to decide how an entity's light should animate. On an entity with pflags set, this also affects realtime lights.")\
 	comfieldfloat(pflags,"Realtime lighting flags")
 
 #ifdef HEXEN2
-#define svextqcfieldshexen2	\
-	comfieldfloat(playerclass,NULL)/*hexen2 requirements*/\
-	comfieldfloat(hasted,NULL)/*hexen2 uses this AS WELL as maxspeed*/\
-	comfieldfloat(light_level,"Used by hexen2 to indicate the light level where the player is standing.")\
-
 #else
 #define svextqcfieldshexen2
 #endif
@@ -281,8 +292,6 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(dimension_seen,"This is the dimension mask (bitfield) that the client is visible within. Clients that cannot see this dimension mask will not see this entity.")/*EXT_DIMENSION_VISIBLE*/\
 	comfieldfloat(dimension_ghost,"If this entity is visible only within these dimensions, it will become transparent, as if a ghost.")/*EXT_DIMENSION_GHOST*/\
 	comfieldfloat(dimension_ghost_alpha,"If this entity is subject to dimension_ghost, this is the scaler for its alpha value. If 0, 0.5 will be used instead.")/*EXT_DIMENSION_GHOST*/\
-	comfieldfloat(drawflags,"Various flags that affect lighting values and scaling. Typically set to 96 in quake for proper compatibility with DP_QC_SCALE.")/*hexen2*/\
-	comfieldfloat(abslight,"Allows overriding light levels. Use drawflags to state that this field should actually be used.")/*hexen2's force a lightlevel*/\
 	comfieldfunction(SendEntity, ".float(entity playerent, float changedflags)","Called by the engine whenever an entity needs to be (re)sent to a client's csprogs, either because SendFlags was set or because data was lost. Must write its data to the MSG_ENTITY buffer. Will be called at the engine's leasure.")/*EXT_CSQC*/\
 	comfieldfloat(SendFlags,"Indicates that something in the entity has been changed, and that it needs to be updated to all players that can see it. The engine will clear it at some point, with the cleared bits appearing in the 'changedflags' argument of the SendEntity method.")/*EXT_CSQC_1 (one of the DP guys came up with it)*/\
 	comfieldfloat_legacy(Version,"Obsolete, set a SendFlags bit instead.")/*EXT_CSQC (obsolete)*/\

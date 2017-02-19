@@ -1255,7 +1255,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 		}
 	}
 
-#ifdef DOOMWADS
+#ifdef PACKAGE_DOOMWAD
 	if (!*fontfilename)
 	{
 		unsigned char buf[PLANEWIDTH*PLANEHEIGHT];

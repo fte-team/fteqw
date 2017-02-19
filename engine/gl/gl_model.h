@@ -436,7 +436,7 @@ typedef struct mnode_s
 // node specific
 	mplane_t	*plane;
 	struct mnode_s	*children[2];
-#if defined(Q2BSPS) || defined(MAP_PROC)
+#if defined(Q2BSPS) || defined(Q3BSPS) || defined(MAP_PROC)
 	int childnum[2];
 #endif
 
@@ -467,13 +467,11 @@ typedef struct mleaf_s
 
 #if defined(Q2BSPS) || defined(Q3BSPS)
 	int			cluster;
-//	struct mleaf_s *vischain;
-#endif
-#ifdef Q2BSPS
-	//it's a q2 thing
 	int			area;
 	unsigned int	firstleafbrush;
 	unsigned int	numleafbrushes;
+#endif
+#ifdef Q3BSPS
 	unsigned int	firstleafcmesh;
 	unsigned int	numleafcmeshes;
 	unsigned int	firstleafpatch;
@@ -1043,7 +1041,7 @@ qboolean SV_Prespawn_Brushes(sizebuf_t *msg, unsigned int *modelindex, unsigned 
 qboolean Heightmap_Edit(model_t *mod, int action, float *pos, float radius, float quant);
 
 
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 
 void CM_InitBoxHull (void);
 
@@ -1056,8 +1054,7 @@ void CM_Init(void);
 qboolean	CM_SetAreaPortalState (struct model_s *mod, int portalnum, qboolean open);
 qboolean	CM_HeadnodeVisible (struct model_s *mod, int nodenum, qbyte *visbits);
 qboolean	VARGS CM_AreasConnected (struct model_s *mod, unsigned int area1, unsigned int area2);
-int		CM_NumClusters (struct model_s *mod);
-int		CM_ClusterSize (struct model_s *mod);
+int		CM_ClusterBytes (struct model_s *mod);
 int		CM_LeafContents (struct model_s *mod, int leafnum);
 int		CM_LeafCluster (struct model_s *mod, int leafnum);
 int		CM_LeafArea (struct model_s *mod, int leafnum);

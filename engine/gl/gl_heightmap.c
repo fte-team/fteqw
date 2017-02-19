@@ -1725,6 +1725,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 		VFS_SEEK(f, 0);
 		VFS_WRITE(f, &dbh, sizeof(dbh));
 		VFS_CLOSE(f);
+		FS_FlushFSHashWritten(fname);
 	}
 	else
 #endif
@@ -1752,6 +1753,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 		VFS_WRITE(f, &dsh, sizeof(dsh));
 		Terr_Save(hm, s, f, sx, sy, writever);
 		VFS_CLOSE(f);
+		FS_FlushFSHashWritten(fname);
 	}
 	return true;
 #endif
@@ -4908,8 +4910,8 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		return;
 	case ter_ent_add:
 		{
-			int idx = G_INT(OFS_PARM1);
-			const char *news = PR_GetStringOfs(prinst, OFS_PARM2);
+//			int idx = G_INT(OFS_PARM1);
+//			const char *news = PR_GetStringOfs(prinst, OFS_PARM2);
 			G_INT(OFS_RETURN) = mod->numentityinfo;
 
 		}
@@ -6959,6 +6961,7 @@ void Mod_Terrain_Save_f(void)
 			const char *s = Mod_GetEntitiesString(mod);
 			VFS_WRITE(file, s, strlen(s));
 			VFS_CLOSE(file);
+			FS_FlushFSHashWritten(fname);
 		}
 	}
 	else
@@ -6971,9 +6974,9 @@ void Mod_Terrain_Save_f(void)
 		{
 			Terr_WriteMapFile(file, mod);
 			VFS_CLOSE(file);
+			FS_FlushFSHashWritten(fname);
 		}
 	}
-	FS_FlushFSHash();
 }
 qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 {
@@ -7564,7 +7567,7 @@ void Mod_Terrain_Create_f(void)
 		Terr_WriteMapFile(file, &mod);
 		VFS_CLOSE(file);
 		Con_Printf("Wrote %s\n", mname);
-		FS_FlushFSHashWritten();
+		FS_FlushFSHashWritten(mname);
 	}
 	Mod_SetEntitiesString(&mod, NULL, false);
 	Terr_FreeModel(&mod);

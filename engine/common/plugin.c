@@ -876,10 +876,10 @@ typedef struct {
 	struct dl_download *dl;
 	struct {
 		char filename[MAX_QPATH];
-		qbyte *buffer;
-		int buflen;
-		int curlen;
-		int curpos;
+//		qbyte *buffer;
+//		int buflen;
+//		int curlen;
+//		int curpos;
 	} file;
 } pluginstream_t;
 pluginstream_t *pluginstreamarray;
@@ -903,7 +903,6 @@ static int Plug_NewStreamHandle(plugstream_e type)
 	pluginstreamarray[i].plugin = currentplug;
 	pluginstreamarray[i].type = type;
 	pluginstreamarray[i].socket = -1;
-	pluginstreamarray[i].file.buffer = NULL;
 	*pluginstreamarray[i].file.filename = '\0';
 
 	return i;
@@ -1297,7 +1296,7 @@ void Plug_Net_Close_Internal(int handle)
 			if (!pluginstreamarray[handle].vfs->seekingisabadplan && pluginstreamarray[handle].vfs->WriteBytes)
 			{
 				VFS_CLOSE(pluginstreamarray[handle].vfs);
-				FS_FlushFSHashWritten();
+				FS_FlushFSHashWritten(pluginstreamarray[handle].file.filename);
 			}
 			else
 				VFS_CLOSE(pluginstreamarray[handle].vfs);

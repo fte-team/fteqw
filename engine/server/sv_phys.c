@@ -2128,7 +2128,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 
 	if (ent->xv->customphysics)
 	{
-		*w->g.time = sv.world.physicstime;
+		*w->g.time = w->physicstime;
 		*w->g.self = EDICT_TO_PROG(w->progs, ent);
 		PR_ExecuteProgram (w->progs, ent->xv->customphysics);
 	}

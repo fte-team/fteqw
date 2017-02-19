@@ -2,7 +2,7 @@
 !!permu TESS
 !!permu FRAMEBLEND
 !!permu SKELETAL
-!!cvardf r_tessellation=0
+!!cvardf r_tessellation_level=5
 
 #include "sys/defs.h"
 
@@ -44,10 +44,10 @@ void main()
 #define id gl_InvocationID
 	t_vertex[id] = vertex[id];
 	t_normal[id] = normal[id];
-	gl_TessLevelOuter[0] = float(r_tessellation)+1.0;
-	gl_TessLevelOuter[1] = float(r_tessellation)+1.0;
-	gl_TessLevelOuter[2] = float(r_tessellation)+1.0;
-	gl_TessLevelInner[0] = float(r_tessellation)+1.0;
+	gl_TessLevelOuter[0] = float(r_tessellation_level);
+	gl_TessLevelOuter[1] = float(r_tessellation_level);
+	gl_TessLevelOuter[2] = float(r_tessellation_level);
+	gl_TessLevelInner[0] = float(r_tessellation_level);
 }
 #endif
 

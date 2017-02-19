@@ -1537,6 +1537,7 @@ void VKBE_Set2D(qboolean twodee)
 		shaderstate.forcebeflags = BEF_FORCENODEPTH;
 	else
 		shaderstate.forcebeflags = 0;
+	shaderstate.curtime = realtime;
 }
 
 //called at the start of each frame
@@ -1815,26 +1816,24 @@ static void colourgen(const shaderpass_t *pass, int cnt, byte_vec4_t *srcb, avec
 		}
 		break;
 	case RGB_GEN_VERTEX_LIGHTING:
+#if MAXRLIGHTMAPS > 1
 		if (mesh->colors4f_array[1])
 		{
 			float lm[MAXRLIGHTMAPS];
 			lm[0] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[0]]/256.0f*shaderstate.identitylighting;
-#if MAXRLIGHTMAPS > 1
 			lm[1] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[1]]/256.0f*shaderstate.identitylighting;
 			lm[2] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[2]]/256.0f*shaderstate.identitylighting;
 			lm[3] = d_lightstylevalue[shaderstate.curbatch->vtlightstyle[3]]/256.0f*shaderstate.identitylighting;
-#endif
 			while((cnt)--)
 			{
 				VectorScale(		mesh->colors4f_array[0][cnt], lm[0], dst[cnt]);
-#if MAXRLIGHTMAPS > 1
 				VectorMA(dst[cnt],	lm[1], mesh->colors4f_array[1][cnt], dst[cnt]);
 				VectorMA(dst[cnt],	lm[2], mesh->colors4f_array[2][cnt], dst[cnt]);
 				VectorMA(dst[cnt],	lm[3], mesh->colors4f_array[3][cnt], dst[cnt]);
-#endif
 			}
 			break;
 		}
+#endif
 
 		if (shaderstate.identitylighting != 1)
 		{
@@ -2339,7 +2338,7 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 				t1 = src[0];
 				t2 = src[1];
 				dst[0] = t1 * tcmod->args[0] + t2 * tcmod->args[2] + tcmod->args[4];
-				dst[1] = t2 * tcmod->args[1] + t1 * tcmod->args[3] + tcmod->args[5];
+				dst[1] = t1 * tcmod->args[1] + t1 * tcmod->args[3] + tcmod->args[5];
 			}
 			break;
 
@@ -3113,6 +3112,7 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 				delux = lightmap[lmi+1]->lightmap_texture;
 			BE_SetupTextureDescriptor(delux, r_whiteimage, set, descs, desc++, img++);
 		}
+#if MAXRLIGHTMAPS > 1
 		if (p->defaulttextures & ((1u<<13)|(1u<<14)|(1u<<15)))
 		{
 			int lmi = shaderstate.curbatch->lightmap[1];
@@ -3140,6 +3140,7 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 				BE_SetupTextureDescriptor(NULL, r_whiteimage, set, descs, desc++, img++);
 			}
 		}
+#endif
 
 		//shader / pass
 		for (i = 0; i < p->numsamplers; i++)

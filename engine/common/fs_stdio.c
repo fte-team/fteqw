@@ -203,7 +203,7 @@ vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 	qboolean needsflush;
 	f = VFSSTDIO_Open(osname, mode, &needsflush);
 	if (needsflush)
-		FS_FlushFSHashReally(true);
+		FS_FlushFSHashFull();
 	return f;
 }
 #endif
@@ -294,7 +294,7 @@ static unsigned int QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t
 	{
 		loc->len = len;
 		loc->offset = 0;
-		loc->index = 0;
+		loc->fhandle = handle;
 		Q_strncpyz(loc->rawname, netpath, sizeof(loc->rawname));
 	}
 	return FF_FOUND;

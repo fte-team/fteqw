@@ -155,7 +155,7 @@ vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 	qboolean needsflush;
 	f = VFSWEB_Open(osname, mode, &needsflush);
 	if (needsflush)
-		FS_FlushFSHash();
+		FS_FlushFSHashFull();
 	return f;
 }
 
@@ -233,7 +233,7 @@ static qboolean QDECL FSWEB_FLocate(searchpathfuncs_t *handle, flocation_t *loc,
 	{
 		loc->len = len;
 		loc->offset = 0;
-		loc->index = 0;
+		loc->fhandle = NULL;
 		Q_strncpyz(loc->rawname, netpath, sizeof(loc->rawname));
 	}
 	return true;

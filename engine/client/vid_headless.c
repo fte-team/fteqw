@@ -38,7 +38,7 @@ static void	Headless_R_DeInit					(void)
 static void	Headless_R_RenderView				(void)
 {
 }
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 //tray icon crap, so the user can still restore the game.
 LRESULT CALLBACK HeadlessWndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {

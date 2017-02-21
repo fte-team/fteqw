@@ -4813,7 +4813,7 @@ void COM_Version_f (void)
 #else
 	Con_Printf(" Ogg Vorbis(dynamic)");
 #endif
-#if defined(_WIN32) && !defined(WINRT) && !defined(NOMEDIA)
+#if defined(AVAIL_MP3_ACM)
 	Con_Printf(" mp3(system)");
 #endif
 	Con_Printf("\n");

@@ -136,7 +136,7 @@ qboolean DIB_Init(void)
 	** create the DIB section
 	*/
 	hDIBSection = CreateDIBSection( mainhDC,
-		                                     pbmiDIB,
+											 pbmiDIB,
 											 DIB_RGB_COLORS,
 											 (void**)&pDIBBase,
 											 NULL,
@@ -149,17 +149,17 @@ qboolean DIB_Init(void)
 	}
 
 	if (pbmiDIB->bmiHeader.biHeight < 0)
-    {
+	{
 		// bottom up
 		screenbuffer	= pDIBBase + ( vid.pixelheight - 1 ) * vid.pixelwidth * 4;
 		screenpitch		= -(int)vid.pixelwidth;
-    }
-    else
-    {
+	}
+	else
+	{
 		// top down
 		screenbuffer	= pDIBBase;
 		screenpitch		= vid.pixelwidth;
-    }
+	}
 
 	/*
 	** clear the DIB memory buffer
@@ -305,10 +305,10 @@ qboolean SWAppActivate(BOOL fActive, BOOL minimize)
 }
 
 LONG WINAPI MainWndProc (
-    HWND    hWnd,
-    UINT    uMsg,
-    WPARAM  wParam,
-    LPARAM  lParam)
+	HWND    hWnd,
+	UINT    uMsg,
+	WPARAM  wParam,
+	LPARAM  lParam)
 {
 	LONG			lRet = 0;
 	int				fActive, fMinimized, temp;
@@ -346,8 +346,8 @@ LONG WINAPI MainWndProc (
 					VID_SetMode ((int)vid_fullscreen_mode.value, vid_curpal);
 */					break;
 
-                case SC_SCREENSAVE:
-                case SC_MONITORPOWER:
+				case SC_SCREENSAVE:
+				case SC_MONITORPOWER:
 					if (w32sw.isfullscreen)
 					{
 					// don't call DefWindowProc() because we don't want to start
@@ -574,7 +574,7 @@ LONG WINAPI MainWndProc (
 			}
 			break;
 */
-   	    case WM_CLOSE:
+		case WM_CLOSE:
 		// this causes Close in the right-click task bar menu not to work, but right
 		// now bad things happen if Close is handled in that case (garbage and a
 		// crash on Win95)
@@ -588,18 +588,20 @@ LONG WINAPI MainWndProc (
 			}
 			break;
 
+#ifdef HAVE_CDPLAYER
 		case MM_MCINOTIFY:
-            lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
+			lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
 			break;
+#endif
 
 		default:
-            /* pass all unhandled messages to DefWindowProc */
-            lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
-	        break;
-    }
+			/* pass all unhandled messages to DefWindowProc */
+			lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
+			break;
+	}
 
-    /* return 0 if handled message, 1 if not */
-    return lRet;
+	/* return 0 if handled message, 1 if not */
+	return lRet;
 }
 
 
@@ -632,18 +634,18 @@ void VID_CreateWindow(int width, int height, qboolean fullscreen)
 	}
 
 	/* Register the frame class */
-    wc.style         = 0;
-    wc.lpfnWndProc   = (WNDPROC)MainWndProc;
-    wc.cbClsExtra    = 0;
-    wc.cbWndExtra    = 0;
-    wc.hInstance     = global_hInstance;
-    wc.hIcon         = 0;
-    wc.hCursor       = LoadCursor (NULL,IDC_ARROW);
+	wc.style         = 0;
+	wc.lpfnWndProc   = (WNDPROC)MainWndProc;
+	wc.cbClsExtra    = 0;
+	wc.cbWndExtra    = 0;
+	wc.hInstance     = global_hInstance;
+	wc.hIcon         = 0;
+	wc.hCursor       = LoadCursor (NULL,IDC_ARROW);
 	wc.hbrBackground = (void *)COLOR_GRAYTEXT;
-    wc.lpszMenuName  = 0;
-    wc.lpszClassName = WINDOW_CLASS_NAME;
+	wc.lpszMenuName  = 0;
+	wc.lpszClassName = WINDOW_CLASS_NAME;
 
-    RegisterClass(&wc);
+	RegisterClass(&wc);
 
 	r.left = 0;
 	r.top = 0;

@@ -439,7 +439,7 @@ void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s 
 
 
 
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 
 // #487 float(string name, string video="http:") gecko_create
 void QCBUILTIN PF_cs_media_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

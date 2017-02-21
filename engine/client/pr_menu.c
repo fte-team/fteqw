@@ -2202,7 +2202,7 @@ static struct {
 	{"drawsetcliparea",			PF_CL_drawsetcliparea,		458},
 	{"drawresetcliparea",		PF_CL_drawresetcliparea,	459},
 	{"drawgetimagesize",		PF_CL_drawgetimagesize,		460},
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 	{"cin_open",				PF_cs_media_create,			461},
 	{"cin_close",				PF_cs_media_destroy,		462},
 	{"cin_setstate",			PF_cs_media_setstate,		463},
@@ -2233,7 +2233,7 @@ static struct {
 	{"strreplace",				PF_strreplace,				484},
 	{"strireplace",				PF_strireplace,				485},
 															//486
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 	{"gecko_create",			PF_cs_media_create,			487},
 	{"gecko_destroy",			PF_cs_media_destroy,		488},
 	{"gecko_navigate",			PF_cs_media_command,		489},

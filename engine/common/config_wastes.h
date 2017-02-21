@@ -51,6 +51,12 @@
 #endif
 
 
+//various package formats
+#define PACKAGE_PK3
+#undef PACKAGE_Q1PAK	//also q2
+#undef PACKAGE_DOOMWAD	//doom wad support (generates various file names, and adds support for doom's audio, sprites, etc)
+#undef PACKAGE_TEXWAD	//quake's image wad support
+
 //map formats
 #define Q3BSPS
 #undef Q1BSPS
@@ -81,6 +87,7 @@
 #undef AVAIL_GZDEC	//.gz decompression
 #undef AVAIL_PNGLIB	//.png image format support (read+screenshots)
 #undef AVAIL_JPEGLIB	//.jpeg image format support (read+screenshots)
+#undef AVAIL_MP3_ACM	//.mp3 support (in windows).
 #undef IMAGEFMT_DDS	//.dds files embed mipmaps and texture compression. faster to load.
 #undef IMAGEFMT_BLP	//legacy crap
 #undef NETPREPARSE	//allows for running both nq+qw on the same server (if not, protocol used must match gamecode).
@@ -108,12 +115,12 @@
 #undef PLUGINS		//support for external plugins (like huds or fancy menus or whatever)
 #undef SUPPORT_ICE	//Internet Connectivity Establishment, for use by plugins to establish voice or game connections.
 #undef PSET_CLASSIC	//support the 'classic' particle system, for that classic quake feel.
+#undef HAVE_CDPLAYER	//includes cd playback. actual cds. named/numbered tracks are supported regardless (though you need to use the 'music' command to play them without this).
+#undef HAVE_JUKEBOX	//includes built-in jukebox crap
+#undef HAVE_MEDIA_DECODER	//can play cin/roq, more with plugins
+#undef HAVE_MEDIA_ENCODER	//capture/capturedemo work.
+#undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
 
-//various package formats
-#define PACKAGE_PK3
-#undef PACKAGE_Q1PAK	//also q2
-#undef PACKAGE_DOOMWAD	//doom wad support (generates various file names, and adds support for doom's audio, sprites, etc)
-#undef PACKAGE_WAD	//quake's image wad support
 
 
 

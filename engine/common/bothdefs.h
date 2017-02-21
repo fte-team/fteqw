@@ -162,11 +162,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define PACKAGE_Q1PAK
 	#define PACKAGE_PK3
 	#define AVAIL_GZDEC
-	#define PACKAGE_WAD	//quake's image wad support
+	#define PACKAGE_TEXWAD	//quake's image wad support
 
 	#ifdef GLQUAKE
 	#define HEADLESSQUAKE
 	#endif
+	#define AVAIL_MP3_ACM	//microsoft's Audio Compression Manager api
 
 	#ifdef NOLEGACY
 		//these are only the features that really make sense in a more modern engine
@@ -201,7 +202,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef AVAIL_PNGLIB		//no png support
 		#undef AVAIL_OPENAL		//just bloat...
 		#undef AVAIL_GZDEC
-		#define NOMEDIA			//NO playing of avis/cins/roqs
 
 		#define Q1BSPS
 		#define SPRMODELS		//quake1 sprite models
@@ -299,6 +299,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PSET_CLASSIC
 		//#define PSET_DARKPLACES
 
+
+		#define HAVE_CDPLAYER	//includes cd playback. actual cds. faketracks are supported regardless.
+		#define HAVE_JUKEBOX	//includes built-in jukebox crap
+		#define HAVE_MEDIA_DECODER	//can play cin/roq, more with plugins
+		#define HAVE_MEDIA_ENCODER	//capture/capturedemo work.
+		#define HAVE_SPEECHTOTEXT	//windows speech-to-text thing
+
 		#define VOICECHAT
 
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(MULTITHREAD) //always thread on win32 non-minimal builds
@@ -368,6 +375,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_ZLIB
 	#undef AVAIL_XZDEC
 	#undef AVAIL_GZDEC
+#endif
+
+#if !defined(_WIN32) || defined(WINRT)
+	#undef HAVE_SPEECHTOTEXT
+	#undef AVAIL_MP3_ACM
+#endif
+
+#ifdef NOMEDIA
+	#undef HAVE_CDPLAYER		//includes cd playback. actual cds. faketracks are supported regardless.
+	#undef HAVE_JUKEBOX			//includes built-in jukebox crap
+	#undef HAVE_MEDIA_DECODER	//can play cin/roq, more with plugins
+	#undef HAVE_MEDIA_ENCODER	//capture/capturedemo work.
+	#undef AVAIL_MP3_ACM		//microsoft's Audio Compression Manager api
+	#undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
 #endif
 
 #ifdef FTE_TARGET_WEB
@@ -814,11 +835,21 @@ STAT_ITEMS			= 15,
 STAT_VIEWHEIGHT		= 16,	//same as zquake
 STAT_TIME			= 17,	//zquake
 STAT_MATCHSTARTTIME = 18,
-STAT_IDEALPITCH		= 19,
+//STAT_UNUSED		= 19,
 #ifdef SIDEVIEWS
 STAT_VIEW2			= 20,
 #endif
 STAT_VIEWZOOM		= 21, // DP
+//STAT_UNUSED		= 22,
+//STAT_UNUSED		= 23,
+//STAT_UNUSED		= 24,
+STAT_IDEALPITCH		= 25,	//nq-emu
+STAT_PUNCHANGLE_X	= 26,	//nq-emu
+STAT_PUNCHANGLE_Y	= 27,	//nq-emu
+STAT_PUNCHANGLE_Z	= 28,	//nq-emu
+STAT_PUNCHVECTOR_X	= 29,
+STAT_PUNCHVECTOR_Y	= 30,
+STAT_PUNCHVECTOR_Z	= 31,
 
 //these stats are used only when running a hexen2 mod/hud, and will never be used for a quake mod/hud/generic code.
 STAT_H2_LEVEL	= 32,				// changes stat bar
@@ -883,7 +914,7 @@ STAT_MOVEVARS_AIRCONTROL_PENALTY			= 221, // DP
 STAT_MOVEVARS_AIRSPEEDLIMIT_NONQW 			= 222, // DP
 STAT_MOVEVARS_AIRSTRAFEACCEL_QW 			= 223, // DP
 STAT_MOVEVARS_AIRCONTROL_POWER				= 224, // DP
-STAT_MOVEFLAGS                              = 225, // DP
+STAT_MOVEFLAGS								= 225, // DP
 STAT_MOVEVARS_WARSOWBUNNY_AIRFORWARDACCEL	= 226, // DP
 STAT_MOVEVARS_WARSOWBUNNY_ACCEL				= 227, // DP
 STAT_MOVEVARS_WARSOWBUNNY_TOPSPEED			= 228, // DP

@@ -776,10 +776,10 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		FIXME: no code to grab the current screen and convert to a texture
 		break;*/
 	case T_GEN_VIDEOMAP:
-#ifdef NOMEDIA
-		BindTexture(tu, missing_texture);
-#else
+#ifdef HAVE_MEDIA_DECODER
 		BindTexture(tu, Media_UpdateForShader(pass->cin));
+#else
+		BindTexture(tu, missing_texture);
 #endif
 		break;
 	}
@@ -3457,7 +3457,7 @@ void D3D9BE_BaseEntTextures(void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode);
-	D3D9BE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+	D3D9BE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 	BE_SelectEntity(&r_worldentity);
 }
 
@@ -3543,7 +3543,7 @@ void D3D9BE_DrawWorld (batch_t **worldbatches)
 			BE_SelectMode(BEM_STANDARD);
 
 		RSpeedRemark();
-		D3D9BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+		D3D9BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 		RSpeedEnd(RSPEED_WORLD);
 
 #ifdef RTLIGHTS
@@ -3558,7 +3558,7 @@ void D3D9BE_DrawWorld (batch_t **worldbatches)
 
 		BE_SelectMode(BEM_STANDARD);
 
-		D3D9BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_DECAL, SHADER_SORT_COUNT);
+		D3D9BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_SEETHROUGH+1, SHADER_SORT_COUNT);
 	}
 	else
 	{

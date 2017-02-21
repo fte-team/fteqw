@@ -1,5 +1,5 @@
 #include "quakedef.h"
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 
 typedef struct
 {

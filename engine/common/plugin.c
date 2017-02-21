@@ -544,17 +544,21 @@ static qintptr_t VARGS Plug_ExportNative(void *offset, quintptr_t mask, const qi
 		currentplug->blockcloses++;
 	}
 	*/
-#if defined(PLUGINS) && !defined(NOMEDIA) && !defined(SERVERONLY)
+#if defined(PLUGINS) && !defined(SERVERONLY)
+#ifdef HAVE_MEDIA_DECODER
 	else if (!strcmp(name, "Media_VideoDecoder"))
 	{
 		Media_RegisterDecoder(currentplug, func);
 //		currentplug->blockcloses++;
 	}
+#endif
+#ifdef HAVE_MEDIA_ENCODER
 	else if (!strcmp(name, "Media_VideoEncoder"))
 	{
 		Media_RegisterEncoder(currentplug, func);
 //		currentplug->blockcloses++;
 	}
+#endif
 #endif
 
 #ifndef SERVERONLY
@@ -1991,9 +1995,13 @@ void Plug_Close(plugin_t *plug)
 		Con_DPrintf("Closing plugin %s\n", plug->name);
 
 	//ensure any active contexts provided by the plugin are closed (stuff with destroy callbacks)
-#if defined(PLUGINS) && !defined(NOMEDIA) && !defined(SERVERONLY)
+#if defined(PLUGINS) && !defined(SERVERONLY)
+#ifdef HAVE_MEDIA_DECODER
 	Media_UnregisterDecoder(plug, NULL);
+#endif
+#ifdef HAVE_MEDIA_ENCODER
 	Media_UnregisterEncoder(plug, NULL);
+#endif
 #endif
 	FS_UnRegisterFileSystemModule(plug);
 	Mod_UnRegisterAllModelFormats(plug);

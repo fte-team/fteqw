@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 
+#ifdef HAVE_CDPLAYER
 void CDAudio_Init(void);
 qboolean CDAudio_Startup(void);	//called when the cd isn't currently valid. returns if its valid or not.
 int CDAudio_GetAudioDiskInfo(void);//returns number of tracks available, or 0 if the cd is not valid.
@@ -29,7 +30,11 @@ void CDAudio_Eject(void);
 void CDAudio_CloseDoor(void);
 void CDAudio_Shutdown(void);
 void CDAudio_Update(void);
-
-void CDAudio_TrackEnded(void);
-
+#else
+#define CDAudio_Update()
+#define CDAudio_Init()
+#define CDAudio_Shutdown()
+#define CDAudio_Pause()
+#define CDAudio_Resume()
+#endif
 

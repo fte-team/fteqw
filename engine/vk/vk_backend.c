@@ -1665,11 +1665,9 @@ static texid_t SelectPassTexture(const shaderpass_t *pass)
 	case T_GEN_CURRENTRENDER:
 		return shaderstate.tex_currentrender;
 	case T_GEN_VIDEOMAP:
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 		if (pass->cin)
-		{
 			return Media_UpdateForShader(pass->cin);
-		}
 #endif
 		return r_nulltex;
 
@@ -5602,7 +5600,7 @@ void VKBE_BaseEntTextures(void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode);
-	VKBE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+	VKBE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 	VKBE_SelectEntity(&r_worldentity);
 }
 
@@ -6087,7 +6085,7 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 			VKBE_SelectMode(BEM_STANDARD);
 
 			
-			VKBE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+			VKBE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 			RSpeedEnd(RSPEED_WORLD);
 
 #ifdef RTLIGHTS
@@ -6098,7 +6096,7 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 #endif
 		}
 
-		VKBE_SubmitMeshes(worldbatches, batches, SHADER_SORT_DECAL, SHADER_SORT_COUNT);
+		VKBE_SubmitMeshes(worldbatches, batches, SHADER_SORT_SEETHROUGH+1, SHADER_SORT_COUNT);
 
 
 		if (r_wireframe.ival)

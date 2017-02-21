@@ -1222,10 +1222,10 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		return;
 
 	case T_GEN_VIDEOMAP:
-#ifdef NOMEDIA
-		t = shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
-#else
+#ifdef HAVE_MEDIA_DECODER
 		t = Media_UpdateForShader(pass->cin);
+#else
+		t = shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
 #endif
 		break;
 
@@ -1336,7 +1336,7 @@ void Shader_LightPass(const char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
 	extern cvar_t r_drawflat;
-	sprintf(shadertext, LIGHTPASS_SHADER, (r_lightmap.ival||r_drawflat.ival)?"#FLAT":"");
+	sprintf(shadertext, LIGHTPASS_SHADER, (r_lightmap.ival||r_drawflat.ival)?"#FLAT=1.0":"");
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 
@@ -5568,7 +5568,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 				BE_SelectMode(BEM_STANDARD);
 
 			RSpeedRemark();
-			GLBE_SubmitMeshes(worldbatches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+			GLBE_SubmitMeshes(worldbatches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 			RSpeedEnd(RSPEED_WORLD);
 
 #ifdef RTLIGHTS
@@ -5586,7 +5586,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 
 		shaderstate.identitylighting = 1;
 
-		GLBE_SubmitMeshes(worldbatches, SHADER_SORT_DECAL, SHADER_SORT_NEAREST);
+		GLBE_SubmitMeshes(worldbatches, SHADER_SORT_SEETHROUGH+1, SHADER_SORT_NEAREST);
 
 /*		if (r_refdef.gfog_alpha)
 		{

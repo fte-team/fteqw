@@ -324,7 +324,7 @@ void main ()
 #define tcbase tcoffsetmap
 #endif
 #if defined(FLAT)
-	vec3 bases = vec3(1.0);
+	vec3 bases = vec3(FLAT);
 #else
 	vec3 bases = vec3(texture2D(s_diffuse, tcbase));
 #endif

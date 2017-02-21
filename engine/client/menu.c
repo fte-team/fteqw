@@ -1300,7 +1300,9 @@ void M_Init (void)
 #endif
 	//demo menu is allowed to see outside of the quakedir. you can't replicate that in qc's sandbox.
 	Cmd_AddCommand ("menu_demo", M_Menu_Demos_f);
+#ifdef HAVE_JUKEBOX
 	Cmd_AddCommand ("menu_mediafiles", M_Menu_MediaFiles_f);
+#endif
 
 
 

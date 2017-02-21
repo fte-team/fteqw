@@ -1852,7 +1852,24 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 		if (ver != 100)
 #endif
 		{
-			Q_snprintfz(verline, sizeof(verline), "#version %u\n", ver);
+			//known versions:
+			//100 == gles2
+			//110 == gl2.0
+			//120 == gl2.1
+			//130 == gl3.0
+			//140 == gl3.1
+			//150 [core|compatibility] == gl3.2
+			//330, 400, 410, 420, 430 [core|compatibility] == gl?.??
+			//300 ES == gles3
+			if (gl_config_gles && ver != 100)
+				Q_snprintfz(verline, sizeof(verline), "#version %u ES\n", ver);
+			else if (!gl_config_gles && ver >= 150 && !gl_config_nofixedfunc)
+				//favour compatibility profile, simply because we want ftransform to work properly
+				//note that versions 130+140 are awkward due to deprecation stuff, both assume compatibility profiles where supported.
+				//  however, 130 REMOVED ftransform in revision 2 and then re-added it as deprecated in revision 4 (of 10).
+				Q_snprintfz(verline, sizeof(verline), "#version %u compatibility\n", ver);
+			else
+				Q_snprintfz(verline, sizeof(verline), "#version %u\n", ver);	//core assumed, where defined
 			prstrings[strings] = verline;
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
@@ -1891,13 +1908,14 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 		if (ver >= 130)
 		{
 			prstrings[strings] =
-				//gl3+ deprecated the varying keyword for geometry shaders to work properly
+				//gl3+ deprecated the some things. these are removed in forwards-compatible / core contexts.
+				//varying became either in or out, which is important if you have geometry shaders...
 				"#define varying in\n"
-				//it also deprecated the numerous texture functions. now only the 'texture' function exists, with overloads for each sampler type.
+				//now only the 'texture' function exists, with overloads for each sampler type.
 				"#define texture2D texture\n"
 				"#define textureCube texture\n"
 				"#define shadow2D texture\n"
-				//gl_FragColor and gl_FragData got deprecated too
+				//gl_FragColor and gl_FragData got deprecated too, need to make manual outputs
 				"out vec4 fte_fragdata;\n"
 				"#define gl_FragColor fte_fragdata\n"
 			;
@@ -2018,7 +2036,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
-		if (gl_config_nofixedfunc || ver >= 130)
+		if (gl_config_nofixedfunc)
 		{
 			prstrings[strings] =
 					"attribute vec3 v_position1;\n"

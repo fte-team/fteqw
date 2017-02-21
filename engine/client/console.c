@@ -875,7 +875,7 @@ void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 			if (parseflags & PFS_NONOTIFY)
 				con->current->flags |= CONL_NONOTIFY;
 
-#if defined(_WIN32) && !defined(NOMEDIA) && !defined(WINRT)
+#if defined(HAVE_SPEECHTOTEXT)
 			if (con->current)
 				TTS_SayConString((conchar_t*)(con->current+1));
 #endif
@@ -2321,7 +2321,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 				if (shader)
 				{
 					int top = 8;
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 					cin_t *cin = R_ShaderGetCinematic(shader);
 					if (cin)
 					{

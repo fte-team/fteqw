@@ -9,8 +9,8 @@
 #include "winquake.h"
 
 #if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
-    #define HMONITOR_DECLARED
-    DECLARE_HANDLE(HMONITOR);
+	#define HMONITOR_DECLARED
+	DECLARE_HANDLE(HMONITOR);
 #endif
 
 #include    <d3d9.h>
@@ -378,7 +378,7 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				mmi->ptMinTrackSize.y = 200 + ((windowrect.bottom - windowrect.top) - (clientrect.bottom - clientrect.top));
 			}
 			return 0;
-    	case WM_SIZE:
+		case WM_SIZE:
 			d3d_resized = true;
 			break;
 
@@ -390,7 +390,7 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
 				}
 
-	        break;
+			break;
 
 		case WM_ACTIVATE:
 			fActive = LOWORD(wParam);
@@ -405,25 +405,27 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 
 			break;
 
-   	    case WM_DESTROY:
-        {
+		case WM_DESTROY:
+		{
 //			if (dibwindow)
 //				DestroyWindow (dibwindow);
-        }
-        break;
+		}
+		break;
 
+#ifdef HAVE_CDPLAYER
 		case MM_MCINOTIFY:
-            lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
+			lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
 			break;
+#endif
 
-    	default:
-            /* pass all unhandled messages to DefWindowProc */
-            lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
-        break;
-    }
+		default:
+			/* pass all unhandled messages to DefWindowProc */
+			lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
+		break;
+	}
 
-    /* return 1 if handled message, 0 if not */
-    return lRet;
+	/* return 1 if handled message, 0 if not */
+	return lRet;
 }
 
 static void D3D9_VID_SwapBuffers(void)
@@ -463,10 +465,10 @@ static void resetD3D9(void)
 #if (WINVER < 0x500) && !defined(__GNUC__)
 typedef struct tagMONITORINFO
 {
-    DWORD   cbSize;
-    RECT    rcMonitor;
-    RECT    rcWork;
-    DWORD   dwFlags;
+	DWORD   cbSize;
+	RECT    rcMonitor;
+	RECT    rcWork;
+	DWORD   dwFlags;
 } MONITORINFO, *LPMONITORINFO;
 #endif
 
@@ -1052,7 +1054,7 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 		if (uimenu != 1)
 		{
 			if (r_worldentity.model && cls.state == ca_active)
- 				V_RenderView ();
+				V_RenderView ();
 			else
 			{
 				noworld = true;

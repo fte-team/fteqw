@@ -5043,7 +5043,7 @@ double Host_Frame (double time)
 		double idlesec = 1.0 / cl_idlefps.value;
 		if (idlesec > 0.1)
 			idlesec = 0.1; // limit to at least 10 fps
-#if !defined(NOMEDIA)
+#ifdef HAVE_MEDIA_ENCODER
 		if (Media_Capturing())
 			idlesec = 0;
 #endif
@@ -5101,7 +5101,7 @@ double Host_Frame (double time)
 		maxfps = 10;
 
 	if (maxfps > 0 
-#if !defined(NOMEDIA)
+#ifdef HAVE_MEDIA_ENCODER
 		&& Media_Capturing() != 2
 #endif
 		)
@@ -5416,7 +5416,7 @@ void CL_StartCinematicOrMenu(void)
 	}
 
 	//and any startup cinematics
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 #ifndef CLIENTONLY
 	if (!sv.state)
 #endif
@@ -5438,7 +5438,7 @@ void CL_StartCinematicOrMenu(void)
 			Media_PlayFilm("video/idlog.cin", true);
 
 #ifndef NOLEGACY
-		//and for fun:
+		//and for fun (blame spirit):
 		if (COM_FCheckExists("data/local/video/New_Bliz640x480.bik"))
 			Media_PlayFilm("av:data/local/video/New_Bliz640x480.bik", true);
 		if (COM_FCheckExists("data/local/video/BlizNorth640x480.bik"))

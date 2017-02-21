@@ -174,7 +174,7 @@ typedef struct shaderpass_s {
 
 	struct programshared_s *prog;
 
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 	struct cin_s *cin;
 #endif
 	

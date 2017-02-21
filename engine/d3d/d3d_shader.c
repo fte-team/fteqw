@@ -434,6 +434,8 @@ void D3D9Shader_DeleteProg(program_t *prog)
 			prog->permu[permu].h.hlsl.ctabf = NULL;
 			IUnknown_Release(fct);
 		}
+		prog->permu[permu].numparms = 0;
+		BZ_Free(prog->permu[permu].parm);
 	}
 }
 

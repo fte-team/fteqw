@@ -8,21 +8,109 @@
 #endif
 #include "shader.h"
 
-#if !defined(NOMEDIA)
-#if defined(_WIN32) && !defined(WINRT) && !defined(NOMEDIAMENU)
-//#define WINAMP
+#if defined(HAVE_JUKEBOX)
+	#if defined(_WIN32) && !defined(WINRT) && !defined(NOMEDIAMENU)
+		//#define WINAMP
+	#endif
 #endif
-#if defined(_WIN32) && !defined(WINRT)
-#define WINAVI
+#if (defined(HAVE_MEDIA_DECODER) || defined(HAVE_MEDIA_ENCODER)) && defined(_WIN32) && !defined(WINRT)
+	#define HAVE_API_VFW
 #endif
 
-#if defined(__linux__) && !defined(ANDROID)
-	//should really include posix 2001 systems in general
-	#define HAVE_STATVFS
+#ifdef HAVE_MEDIA_ENCODER
+	#if defined(__linux__) && !defined(ANDROID)
+		//should really include posix 2001 systems in general
+		#define HAVE_STATVFS
+	#endif
+	#ifdef HAVE_STATVFS
+		#include <sys/statvfs.h>
+	#endif
 #endif
-#ifdef HAVE_STATVFS
-	#include <sys/statvfs.h>
+
+
+#ifdef _WIN32
+	#include "winquake.h"
 #endif
+#if defined(AVAIL_MP3_ACM) || defined(HAVE_API_VFW)
+//equivelent to
+//#include <msacm.h>
+#undef CDECL	//windows is stupid at times.
+#define CDECL __cdecl
+
+#if defined(_MSC_VER) && (_MSC_VER < 1300)
+	#define DWORD_PTR DWORD
+#endif
+
+DECLARE_HANDLE(HACMSTREAM);
+typedef HACMSTREAM *LPHACMSTREAM;
+DECLARE_HANDLE(HACMDRIVER);
+typedef struct {
+	DWORD     cbStruct;
+	DWORD     fdwStatus;
+	DWORD_PTR dwUser;
+	LPBYTE    pbSrc;
+	DWORD     cbSrcLength;
+	DWORD     cbSrcLengthUsed;
+	DWORD_PTR dwSrcUser;
+	LPBYTE    pbDst;
+	DWORD     cbDstLength;
+	DWORD     cbDstLengthUsed;
+	DWORD_PTR dwDstUser;
+	DWORD     dwReservedDriver[10];
+} ACMSTREAMHEADER, *LPACMSTREAMHEADER;
+#define ACM_STREAMCONVERTF_BLOCKALIGN   0x00000004
+
+
+
+
+//mingw workarounds
+#define LPWAVEFILTER void *
+#include <objbase.h>
+
+MMRESULT (WINAPI *qacmStreamUnprepareHeader) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwUnprepare);
+MMRESULT (WINAPI *qacmStreamConvert) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwConvert);
+MMRESULT (WINAPI *qacmStreamPrepareHeader) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwPrepare);
+MMRESULT (WINAPI *qacmStreamOpen) (LPHACMSTREAM phas, HACMDRIVER had, LPWAVEFORMATEX pwfxSrc, LPWAVEFORMATEX pwfxDst, LPWAVEFILTER pwfltr, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
+MMRESULT (WINAPI *qacmStreamClose) (HACMSTREAM has, DWORD fdwClose);
+
+static qboolean qacmStartup(void)
+{
+	static int inited;
+	static dllhandle_t *module;
+	if (!inited)
+	{
+		dllfunction_t funcs[] =
+		{
+			{(void*)&qacmStreamUnprepareHeader,	"acmStreamUnprepareHeader"},
+			{(void*)&qacmStreamConvert,			"acmStreamConvert"},
+			{(void*)&qacmStreamPrepareHeader,	"acmStreamPrepareHeader"},
+			{(void*)&qacmStreamOpen,			"acmStreamOpen"},
+			{(void*)&qacmStreamClose,			"acmStreamClose"},
+			{NULL,NULL}
+		};
+		inited = true;
+		module = Sys_LoadLibrary("msacm32.dll", funcs);
+	}
+
+	return module?true:false;
+}
+#endif
+
+static char media_currenttrack[MAX_QPATH];
+
+//higher bits have priority (if they have something to play).
+#define MEDIA_GAMEMUSIC (1u<<0)	//cd music. also music command etc.
+#ifdef HAVE_JUKEBOX
+#define MEDIA_CVARLIST	(1u<<1)	//cvar abuse. handy for preserving times when switching tracks.
+#define MEDIA_PLAYLIST	(1u<<2)	//
+static unsigned int media_playlisttypes;
+static unsigned int media_playlistcurrent;
+
+//cvar abuse
+static int music_playlist_last;
+static cvar_t music_playlist_index = CVAR("music_playlist_index", "-1");
+//	created dynamically: CVAR("music_playlist_list0+", ""),
+//	created dynamically: CVAR("music_playlist_sampleposition0+", "-1"),
 
 
 typedef struct mediatrack_s{
@@ -32,30 +120,43 @@ typedef struct mediatrack_s{
 	struct mediatrack_s *next;
 } mediatrack_t;
 
-qboolean media_fadeout;
-float media_fadeouttime;
-
 //info about the current stuff that is playing.
-static char media_currenttrack[MAX_QPATH];
 static char media_friendlyname[MAX_QPATH];
+
+
+
+int lasttrackplayed;
+
+cvar_t media_shuffle = CVAR("media_shuffle", "1");
+cvar_t media_repeat = CVAR("media_repeat", "1");
+#ifdef WINAMP
+cvar_t media_hijackwinamp = CVAR("media_hijackwinamp", "0");
 #endif
 
-//higher bits have priority (if they have something to play).
-#define MEDIA_GAMEMUSIC (1u<<0)	//cd music. also music command etc.
-#define MEDIA_CVARLIST	(1u<<1)	//cvar abuse. handy for preserving times when switching tracks.
-#define MEDIA_PLAYLIST	(1u<<2)	//
-#if !defined(NOMEDIA)
-static unsigned int media_playlisttypes;
-#endif
-static unsigned int media_playlistcurrent;
+int selectedoption=-1;
+int numtracks;
+int nexttrack=-1;
+mediatrack_t *tracks;
 
+char media_iofilename[MAX_OSPATH]="";
+
+#if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
+void Media_LoadTrackNames (char *listname);
+int loadedtracknames;
+#endif
+qboolean Media_EvaluateNextTrack(void);
+
+#else
+#define NOMEDIAMENU	//the media menu requires us to be able to queue up random tracks and stuff.
+#endif
+
+#ifdef HAVE_CDPLAYER
 static int cdplayingtrack;	//currently playing cd track (becomes 0 when paused)
 static int cdpausedtrack;	//currently paused cd track
 
 //info about (fake)cd tracks that we want to play
 int cdplaytracknum;
-static char cdplaytrack[MAX_QPATH];
-static char cdloopingtrack[MAX_QPATH];
+
 //info about (fake)cd tracks that we could play if asked.
 #define REMAPPED_TRACKS 256
 static struct
@@ -64,23 +165,115 @@ static struct
 } cdremap[REMAPPED_TRACKS];
 static qboolean cdenabled;
 static int cdnumtracks;		//maximum cd track we can play.
-
-
-//cvar abuse
-#if !defined(NOMEDIA)
-static int music_playlist_last;
-static cvar_t music_playlist_index = CVAR("music_playlist_index", "-1");
-//	created dynamically: CVAR("music_playlist_list0+", ""),
-//	created dynamically: CVAR("music_playlist_sampleposition0+", "-1"),
 #endif
 
 
+static char media_playtrack[MAX_QPATH];		//name of track to play next/now
+static char media_loopingtrack[MAX_QPATH];	//name of track to loop afterwards
+qboolean media_fadeout;
+float media_fadeouttime;
+
+//whatever music track was previously playing has terminated.
+//return value is the new sample to start playing.
+//*starttime says the time into the track that we should resume playing at
+//this is on the main thread with the mixer locked, its safe to do stuff, but try not to block
+char *Media_NextTrack(int musicchannelnum, float *starttime)
+{
+	if (bgmvolume.value <= 0)
+		return NULL;
+
+	if (media_fadeout)
+	{
+		if (S_Music_Playing(musicchannelnum))
+			return NULL;	//can't pick a new track until they've all stopped.
+
+		//okay, it has actually stopped everywhere.
+	}
+	media_fadeout = false;	//it has actually ended now
+
+	Q_strncpyz(media_currenttrack, "", sizeof(media_currenttrack));
+#ifdef HAVE_JUKEBOX
+	Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
+
+	music_playlist_index.modified = false;
+	music_playlist_last = -1;
+	media_playlistcurrent = 0;
+
+	if (!media_playlistcurrent && (media_playlisttypes & MEDIA_PLAYLIST))
+	{
+#if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
+		if (!loadedtracknames)
+			Media_LoadTrackNames("sound/media.m3u");
+#endif
+		if (Media_EvaluateNextTrack())
+		{
+			media_playlistcurrent = MEDIA_PLAYLIST;
+			return media_currenttrack;
+		}
+	}
+	if (!media_playlistcurrent && (media_playlisttypes & MEDIA_CVARLIST))
+	{
+		if (music_playlist_index.ival >= 0)
+		{
+			cvar_t *list = Cvar_Get(va("music_playlist_list%i", music_playlist_index.ival), "", 0, "compat");
+			if (list)
+			{
+				cvar_t *sampleposition = Cvar_Get(va("music_playlist_sampleposition%i", music_playlist_index.ival), "-1", 0, "compat");
+				Q_snprintfz(media_currenttrack, sizeof(media_currenttrack), "sound/cdtracks/%s", list->string);
+				Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
+				media_playlistcurrent = MEDIA_CVARLIST;
+				music_playlist_last = music_playlist_index.ival;
+				if (sampleposition)
+				{
+					*starttime = sampleposition->value;
+					if (*starttime == -1)
+						*starttime = 0;
+				}
+				else
+					*starttime = 0;
+			}
+		}
+	}
+
+	if (!media_playlistcurrent && (media_playlisttypes & MEDIA_GAMEMUSIC))
+#endif
+	{
+#ifdef HAVE_CDPLAYER
+		if (cdplaytracknum)
+		{
+			if (cdplayingtrack != cdplaytracknum && cdpausedtrack != cdplaytracknum)
+			{
+				CDAudio_Play(cdplaytracknum);
+				cdplayingtrack = cdplaytracknum;
+			}
+#ifdef HAVE_JUKEBOX
+			media_playlistcurrent = MEDIA_GAMEMUSIC;
+#endif
+			return "";
+		}
+#endif
+		if (*media_playtrack)
+		{
+			Q_strncpyz(media_currenttrack, media_playtrack, sizeof(media_currenttrack));
+#ifdef HAVE_JUKEBOX
+			Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
+			media_playlistcurrent = MEDIA_GAMEMUSIC;
+#endif
+		}
+	}
+	return media_currenttrack;
+}
+
+//begin cross-fading
 static qboolean Media_Changed (unsigned int mediatype)
 {
+#ifdef HAVE_JUKEBOX
 	//something changed, but it has a lower priority so we don't care
 	if (mediatype < media_playlistcurrent)
 		return false;
+#endif
 
+#ifdef HAVE_CDPLAYER
 	//make sure we're not playing any cd music.
 	if (cdplayingtrack || cdpausedtrack)
 	{
@@ -88,12 +281,39 @@ static qboolean Media_Changed (unsigned int mediatype)
 		cdpausedtrack = 0;
 		CDAudio_Stop();
 	}
-
-#if !defined(NOMEDIA)
+#endif
 	media_fadeout = true;
 	media_fadeouttime = realtime;
-#endif
 	return true;
+}
+
+//returns the new volume the sample should be at, to support crossfading.
+//if we return < 0, the mixer will know to kill whatever is currently playing, ready for a new track.
+//this is on the main thread with the mixer locked, its safe to do stuff, but try not to block
+float Media_CrossFade(int musicchanel, float vol, float time)
+{
+	if (media_fadeout)
+	{
+		float fadetime = 1;
+		float frac = (fadetime + media_fadeouttime - realtime)/fadetime;
+		vol *= frac;
+	}
+#ifdef HAVE_JUKEBOX
+	else if (music_playlist_index.modified)
+	{
+		if (Media_Changed(MEDIA_CVARLIST))
+		{
+			if (music_playlist_last >= 0)
+			{
+				cvar_t *sampleposition = Cvar_Get(va("music_playlist_sampleposition%i", music_playlist_last), "-1", 0, "compat");
+				if (sampleposition && sampleposition->value != -1)
+					Cvar_SetValue(sampleposition, time);
+			}
+			vol = -1;	//kill it NOW
+		}
+	}
+#endif
+	return vol;
 }
 
 void Media_WriteCurrentTrack(sizebuf_t *buf)
@@ -103,11 +323,11 @@ void Media_WriteCurrentTrack(sizebuf_t *buf)
 	MSG_WriteByte (buf, 0);
 }
 
-//fake cd tracks.
+//controls which music track should be playing right now
+//track and looptrack will usually be the same thing, track is what to play NOW, looptrack is what to keep re-playing after, or "-" for stop.
 qboolean Media_NamedTrack(const char *track, const char *looptrack)
 {
 	unsigned int tracknum;
-#if !defined(NOMEDIA)
 	static char *path[] =
 	{
 		"music/",
@@ -118,8 +338,10 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 	static char *ext[] =
 	{
 		"",
+#ifdef AVAIL_OGGVORBIS
 		".ogg",
-#ifdef WINAVI
+#endif
+#if defined(AVAIL_MP3_ACM) || defined(FTE_TARGET_WEB)
 		".mp3",
 #endif
 		".wav",
@@ -128,7 +350,6 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 	char trackname[MAX_QPATH];
 	int ie, ip;
 	qboolean found = false;
-#endif
 	char *trackend;
 
 	if (!track || !*track)			//ignore calls if the primary track is invalid. whatever is already playing will continue to play.
@@ -136,10 +357,14 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 	if (!looptrack || !*looptrack)	//null or empty looptrack loops using the primary track, for compat with q3.
 		looptrack = track;
 
+	if (!strcmp(looptrack, "-"))	//- for the looptrack argument can be used to prevent looping.
+		looptrack = "";
+
 	//check if its a proper number (0123456789 without any other weird stuff. if so, we can use fake track paths or actual cd tracks)
-	tracknum = strtoul(track, &trackend, 0);
+	tracknum = strtoul(track, &trackend, 10);
 	if (*trackend)
-		tracknum = 0;
+		tracknum = 0;	//not a single integer
+#ifdef HAVE_CDPLAYER
 	if (tracknum > 0 && tracknum < REMAPPED_TRACKS && *cdremap[tracknum].fname)
 	{	//remap the track if its remapped.
 		track = cdremap[tracknum].fname;
@@ -147,33 +372,41 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 		if (*trackend)
 			tracknum = 0;
 	}
+#endif
 
-	if (!strcmp(looptrack, "-"))	//- for the looptrack argument can be used to prevent looping.
-		looptrack = "";
-#ifndef NOMEDIA
+#ifdef NOLEGACY
+	if (!tracknum)	//might as well require exact file
+	{
+		Q_snprintfz(trackname, sizeof(trackname), "%s", track);
+		found = COM_FCheckExists(trackname);
+	}
+	else
+#endif
 	for(ip = 0; path[ip] && !found; ip++)
 	{
 		if (tracknum)
 		{
-			if (tracknum <= 999)
+			if (*path[ip])
 			{
-				for(ie = 0; ext[ie] && !found; ie++)
+				if (tracknum <= 999)
 				{
-					Q_snprintfz(trackname, sizeof(trackname), "%strack%03i%s", path[ip], tracknum, ext[ie]);
-					found = COM_FCheckExists(trackname);
+					for(ie = 0; ext[ie] && !found; ie++)
+					{
+						Q_snprintfz(trackname, sizeof(trackname), "%strack%03u%s", path[ip], tracknum, ext[ie]);
+						found = COM_FCheckExists(trackname);
+					}
 				}
-			}
-			if (tracknum <= 99)
-			{
-				for(ie = 0; ext[ie] && !found; ie++)
+				if (tracknum <= 99)
 				{
-					Q_snprintfz(trackname, sizeof(trackname), "%strack%02i%s", path[ip], tracknum, ext[ie]);
-					found = COM_FCheckExists(trackname);
+					for(ie = 0; ext[ie] && !found; ie++)
+					{
+						Q_snprintfz(trackname, sizeof(trackname), "%strack%02u%s", path[ip], tracknum, ext[ie]);
+						found = COM_FCheckExists(trackname);
+					}
 				}
 			}
 		}
-
-		if (!found)
+		else
 		{
 			for(ie = 0; ext[ie] && !found; ie++)
 			{
@@ -185,16 +418,19 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 
 	if (found)
 	{
+#ifdef HAVE_CDPLAYER
 		cdplaytracknum = 0;
-		Q_strncpyz(cdplaytrack, trackname, sizeof(cdplaytrack));
-		Q_strncpyz(cdloopingtrack, looptrack, sizeof(cdloopingtrack));
+#endif
+		Q_strncpyz(media_playtrack, trackname, sizeof(media_playtrack));
+		Q_strncpyz(media_loopingtrack, looptrack, sizeof(media_loopingtrack));
 		Media_Changed(MEDIA_GAMEMUSIC);
 		return true;
 	}
-#endif
+
+#ifdef HAVE_CDPLAYER
 	if (tracknum && cdenabled)
 	{
-		Q_strncpyz(cdloopingtrack, looptrack, sizeof(cdloopingtrack));
+		Q_strncpyz(media_loopingtrack, looptrack, sizeof(media_loopingtrack));
 
 		//couldn't do a faketrack, resort to actual cd tracks, if we're allowed
 		if (!CDAudio_Startup())
@@ -212,11 +448,11 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 			return true;	//already playing, don't need to do anything
 
 		cdplaytracknum = tracknum;
-		Q_strncpyz(cdplaytrack, "", sizeof(cdplaytrack));
-		Q_strncpyz(cdloopingtrack, "", sizeof(cdloopingtrack));
+		Q_strncpyz(media_playtrack, "", sizeof(media_playtrack));
 		Media_Changed(MEDIA_GAMEMUSIC);
 		return true;
 	}
+#endif
 	return false;
 }
 
@@ -239,19 +475,184 @@ void Media_NumberedTrack(unsigned int initialtrack, unsigned int looptrack)
 
 void Media_EndedTrack(void)
 {
+#ifdef HAVE_CDPLAYER
 	cdplayingtrack = 0;
 	cdpausedtrack = 0;
+#endif
 
-	if (*cdloopingtrack)
-		Media_NamedTrack(cdloopingtrack, cdloopingtrack);
+	if (*media_loopingtrack)
+		Media_NamedTrack(media_loopingtrack, media_loopingtrack);
 }
 
 
 
-#if !defined(NOMEDIA)
+
+void Media_SetPauseTrack(qboolean paused)
+{
+#ifdef HAVE_CDPLAYER
+	if (paused)
+	{
+		if (!cdplayingtrack)
+			return;
+		cdpausedtrack = cdplayingtrack;
+		cdplayingtrack = 0;
+		CDAudio_Pause();
+	}
+	else
+	{
+		if (!cdpausedtrack)
+			return;
+		cdplayingtrack = cdpausedtrack;
+		cdpausedtrack = 0;
+		CDAudio_Resume();
+	}
+#endif
+}
+
+#ifdef HAVE_CDPLAYER
+void CD_f (void)
+{
+	char	*command;
+	int		ret;
+	int		n;
+
+	if (Cmd_Argc() < 2)
+		return;
+
+	command = Cmd_Argv (1);
+
+	if (Q_strcasecmp(command, "play") == 0)
+	{
+		Media_NamedTrack(Cmd_Argv(2), "-");
+		return;
+	}
+
+	if (Q_strcasecmp(command, "loop") == 0)
+	{
+		if (Cmd_Argc() < 4)
+			Media_NamedTrack(Cmd_Argv(2), NULL);
+		else
+			Media_NamedTrack(Cmd_Argv(2), Cmd_Argv(3));
+		return;
+	}
+
+	if (Q_strcasecmp(command, "remap") == 0)
+	{
+		ret = Cmd_Argc() - 2;
+		if (ret <= 0)
+		{
+			for (n = 1; n < REMAPPED_TRACKS; n++)
+				if (*cdremap[n].fname)
+					Con_Printf("  %u -> %s\n", n, cdremap[n].fname);
+			return;
+		}
+		for (n = 1; n <= ret; n++)
+			Q_strncpyz(cdremap[n].fname, Cmd_Argv (n+1), sizeof(cdremap[n].fname));
+		return;
+	}
+
+	if (Q_strcasecmp(command, "stop") == 0)
+	{
+		*media_playtrack = *media_loopingtrack = 0;
+		cdplaytracknum = 0;
+		Media_Changed(MEDIA_GAMEMUSIC);
+		return;
+	}
+
+	if (!bgmvolume.value)
+	{
+		Con_Printf("Background music is disabled: %s is 0\n", bgmvolume.name);
+		return;
+	}
+
+	if (!CDAudio_Startup())
+	{
+		Con_Printf("No cd drive detected\n");
+		return;
+	}
+
+	if (Q_strcasecmp(command, "on") == 0)
+	{
+		cdenabled = true;
+		return;
+	}
+
+	if (Q_strcasecmp(command, "off") == 0)
+	{
+		if (cdplayingtrack || cdpausedtrack)
+			CDAudio_Stop();
+		cdenabled = false;
+
+		*media_playtrack = *media_loopingtrack = 0;
+		cdplaytracknum = 0;
+		Media_Changed(MEDIA_GAMEMUSIC);
+		return;
+	}
+
+	if (Q_strcasecmp(command, "reset") == 0)
+	{
+		cdenabled = true;
+		if (cdplayingtrack || cdpausedtrack)
+			CDAudio_Stop();
+		for (n = 0; n < REMAPPED_TRACKS; n++)
+			strcpy(cdremap[n].fname, "");
+		cdnumtracks = CDAudio_GetAudioDiskInfo();
+		return;
+	}
+
+	if (Q_strcasecmp(command, "close") == 0)
+	{
+		CDAudio_CloseDoor();
+		return;
+	}
+
+	if (cdnumtracks <= 0)
+	{
+		cdnumtracks = CDAudio_GetAudioDiskInfo();
+		if (cdnumtracks < 0)
+		{
+			Con_Printf("No CD in player.\n");
+			return;
+		}
+	}
+
+	if (Q_strcasecmp(command, "pause") == 0)
+	{
+		Media_SetPauseTrack(true);
+		return;
+	}
+
+	if (Q_strcasecmp(command, "resume") == 0)
+	{
+		Media_SetPauseTrack(false);
+		return;
+	}
+
+	if (Q_strcasecmp(command, "eject") == 0)
+	{
+		if (cdplayingtrack || cdpausedtrack)
+			CDAudio_Stop();
+		CDAudio_Eject();
+		cdnumtracks = -1;
+		return;
+	}
+
+	if (Q_strcasecmp(command, "info") == 0)
+	{
+		Con_Printf("%u tracks\n", cdnumtracks);
+		if (cdplayingtrack > 0)
+			Con_Printf("Currently %s track %u\n", *media_loopingtrack ? "looping" : "playing", cdplayingtrack);
+		else if (cdpausedtrack > 0)
+			Con_Printf("Paused %s track %u\n", *media_loopingtrack ? "looping" : "playing", cdpausedtrack);
+		return;
+	}
+}
+#endif
 
 
-#include "winquake.h"
+
+
+#ifdef HAVE_JUKEBOX
 
 #ifdef WINAMP
 
@@ -262,22 +663,6 @@ HWND hwnd_winamp;
 
 qboolean Media_EvaluateNextTrack(void);
 
-int lasttrackplayed;
-
-cvar_t media_shuffle = CVAR("media_shuffle", "1");
-cvar_t media_repeat = CVAR("media_repeat", "1");
-#ifdef WINAMP
-cvar_t media_hijackwinamp = CVAR("media_hijackwinamp", "0");
-#endif
-
-int selectedoption=-1;
-int numtracks;
-int nexttrack=-1;
-mediatrack_t *tracks;
-
-char media_iofilename[MAX_OSPATH]="";
-
-int loadedtracknames;
 
 #ifdef WINAMP
 qboolean WinAmp_GetHandle (void)
@@ -436,164 +821,6 @@ qboolean Media_EvaluateNextTrack(void)
 	}
 
 	return true;
-}
-
-void Media_SetPauseTrack(qboolean paused)
-{
-	if (paused)
-	{
-		if (!cdplayingtrack)
-			return;
-		cdpausedtrack = cdplayingtrack;
-		cdplayingtrack = 0;
-		CDAudio_Pause();
-	}
-	else
-	{
-		if (!cdpausedtrack)
-			return;
-		cdplayingtrack = cdpausedtrack;
-		cdpausedtrack = 0;
-		CDAudio_Resume();
-	}
-}
-
-void CD_f (void)
-{
-	char	*command;
-	int		ret;
-	int		n;
-
-	if (Cmd_Argc() < 2)
-		return;
-
-	command = Cmd_Argv (1);
-
-	if (Q_strcasecmp(command, "play") == 0)
-	{
-		Media_NamedTrack(Cmd_Argv(2), "-");
-		return;
-	}
-
-	if (Q_strcasecmp(command, "loop") == 0)
-	{
-		if (Cmd_Argc() < 4)
-			Media_NamedTrack(Cmd_Argv(2), NULL);
-		else
-			Media_NamedTrack(Cmd_Argv(2), Cmd_Argv(3));
-		return;
-	}
-
-	if (Q_strcasecmp(command, "remap") == 0)
-	{
-		ret = Cmd_Argc() - 2;
-		if (ret <= 0)
-		{
-			for (n = 1; n < REMAPPED_TRACKS; n++)
-				if (*cdremap[n].fname)
-					Con_Printf("  %u -> %s\n", n, cdremap[n].fname);
-			return;
-		}
-		for (n = 1; n <= ret; n++)
-			Q_strncpyz(cdremap[n].fname, Cmd_Argv (n+1), sizeof(cdremap[n].fname));
-		return;
-	}
-
-	if (Q_strcasecmp(command, "stop") == 0)
-	{
-		*cdplaytrack = *cdloopingtrack = 0;
-		cdplaytracknum = 0;
-		Media_Changed(MEDIA_GAMEMUSIC);
-		return;
-	}
-
-	if (!bgmvolume.value)
-	{
-		Con_Printf("Background music is disabled: %s is 0\n", bgmvolume.name);
-		return;
-	}
-
-	if (!CDAudio_Startup())
-	{
-		Con_Printf("No cd drive detected\n");
-		return;
-	}
-
-	if (Q_strcasecmp(command, "on") == 0)
-	{
-		cdenabled = true;
-		return;
-	}
-
-	if (Q_strcasecmp(command, "off") == 0)
-	{
-		if (cdplayingtrack || cdpausedtrack)
-			CDAudio_Stop();
-		cdenabled = false;
-
-		*cdplaytrack = *cdloopingtrack = 0;
-		cdplaytracknum = 0;
-		Media_Changed(MEDIA_GAMEMUSIC);
-		return;
-	}
-
-	if (Q_strcasecmp(command, "reset") == 0)
-	{
-		cdenabled = true;
-		if (cdplayingtrack || cdpausedtrack)
-			CDAudio_Stop();
-		for (n = 0; n < REMAPPED_TRACKS; n++)
-			strcpy(cdremap[n].fname, "");
-		cdnumtracks = CDAudio_GetAudioDiskInfo();
-		return;
-	}
-
-	if (Q_strcasecmp(command, "close") == 0)
-	{
-		CDAudio_CloseDoor();
-		return;
-	}
-
-	if (cdnumtracks <= 0)
-	{
-		cdnumtracks = CDAudio_GetAudioDiskInfo();
-		if (cdnumtracks < 0)
-		{
-			Con_Printf("No CD in player.\n");
-			return;
-		}
-	}
-
-	if (Q_strcasecmp(command, "pause") == 0)
-	{
-		Media_SetPauseTrack(true);
-		return;
-	}
-
-	if (Q_strcasecmp(command, "resume") == 0)
-	{
-		Media_SetPauseTrack(false);
-		return;
-	}
-
-	if (Q_strcasecmp(command, "eject") == 0)
-	{
-		if (cdplayingtrack || cdpausedtrack)
-			CDAudio_Stop();
-		CDAudio_Eject();
-		cdnumtracks = -1;
-		return;
-	}
-
-	if (Q_strcasecmp(command, "info") == 0)
-	{
-		Con_Printf("%u tracks\n", cdnumtracks);
-		if (cdplayingtrack > 0)
-			Con_Printf("Currently %s track %u\n", *cdloopingtrack ? "looping" : "playing", cdplayingtrack);
-		else if (cdpausedtrack > 0)
-			Con_Printf("Paused %s track %u\n", *cdloopingtrack ? "looping" : "playing", cdpausedtrack);
-		return;
-	}
 }
 
 //actually, this func just flushes and states that it should be playing. the ambientsound func actually changes the track.
@@ -1142,116 +1369,7 @@ void Media_LoadTrackNames (char *listname)
 }
 #endif
 
-//mixer is locked, its safe to do stuff, but try not to block
-float Media_CrossFade(int musicchanel, float vol, float time)
-{
-	if (media_fadeout)
-	{
-		float fadetime = 1;
-		float frac = (fadetime + media_fadeouttime - realtime)/fadetime;
-		vol *= frac;
-	}
-	else if (music_playlist_index.modified)
-	{
-		if (Media_Changed(MEDIA_CVARLIST))
-		{
-			if (music_playlist_last >= 0)
-			{
-				cvar_t *sampleposition = Cvar_Get(va("music_playlist_sampleposition%i", music_playlist_last), "-1", 0, "compat");
-				if (sampleposition && sampleposition->value != -1)
-					Cvar_SetValue(sampleposition, time);
-			}
-			vol = -1;	//kill it NOW
-		}
-	}
-	return vol;
-}
-
-//mixer is locked, its safe to do stuff, but try not to block
-char *Media_NextTrack(int musicchannelnum, float *starttime)
-{
-	if (bgmvolume.value <= 0)
-		return NULL;
-
-	if (media_fadeout)
-	{
-		if (S_Music_Playing(musicchannelnum))
-			return NULL;	//can't pick a new track until they've all stopped.
-
-		//okay, it has actually stopped everywhere.
-	}
-	media_fadeout = false;	//it has actually ended now
-
-	music_playlist_index.modified = false;
-	music_playlist_last = -1;
-	media_playlistcurrent = 0;
-	Q_strncpyz(media_currenttrack, "", sizeof(media_currenttrack));
-	Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
-	if (!media_playlistcurrent && (media_playlisttypes & MEDIA_PLAYLIST))
-	{
-#if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
-		if (!loadedtracknames)
-			Media_LoadTrackNames("sound/media.m3u");
 #endif
-		if (Media_EvaluateNextTrack())
-		{
-			media_playlistcurrent = MEDIA_PLAYLIST;
-			return media_currenttrack;
-		}
-	}
-	if (!media_playlistcurrent && (media_playlisttypes & MEDIA_CVARLIST))
-	{
-		if (music_playlist_index.ival >= 0)
-		{
-			cvar_t *list = Cvar_Get(va("music_playlist_list%i", music_playlist_index.ival), "", 0, "compat");
-			if (list)
-			{
-				cvar_t *sampleposition = Cvar_Get(va("music_playlist_sampleposition%i", music_playlist_index.ival), "-1", 0, "compat");
-				Q_snprintfz(media_currenttrack, sizeof(media_currenttrack), "sound/cdtracks/%s", list->string);
-				Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
-				media_playlistcurrent = MEDIA_CVARLIST;
-				music_playlist_last = music_playlist_index.ival;
-				if (sampleposition)
-				{
-					*starttime = sampleposition->value;
-					if (*starttime == -1)
-						*starttime = 0;
-				}
-				else
-					*starttime = 0;
-			}
-		}
-	}
-	if (!media_playlistcurrent && (media_playlisttypes & MEDIA_GAMEMUSIC))
-	{
-		if (cdplaytracknum)
-		{
-			if (cdplayingtrack != cdplaytracknum && cdpausedtrack != cdplaytracknum)
-			{
-				CDAudio_Play(cdplaytracknum);
-				cdplayingtrack = cdplaytracknum;
-			}
-			media_playlistcurrent = MEDIA_GAMEMUSIC;
-		}
-		else if (*cdplaytrack)
-		{
-			Q_strncpyz(media_currenttrack, cdplaytrack, sizeof(media_currenttrack));
-			Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
-			media_playlistcurrent = MEDIA_GAMEMUSIC;
-		}
-	}
-
-	return media_currenttrack;
-}
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1269,69 +1387,7 @@ char *Media_NextTrack(int musicchannelnum, float *starttime)
 #include "roq.h"
 
 
-#ifdef WINAVI
-#undef CDECL	//windows is stupid at times.
-#define CDECL __cdecl
-
-#if defined(_MSC_VER) && (_MSC_VER < 1300)
-#define DWORD_PTR DWORD
-#endif
-
-#if 0
-#include <msacm.h>
-#else
-DECLARE_HANDLE(HACMSTREAM);
-typedef HACMSTREAM *LPHACMSTREAM;
-DECLARE_HANDLE(HACMDRIVER);
-typedef struct {
-	DWORD     cbStruct;
-	DWORD     fdwStatus;
-	DWORD_PTR dwUser;
-	LPBYTE    pbSrc;
-	DWORD     cbSrcLength;
-	DWORD     cbSrcLengthUsed;
-	DWORD_PTR dwSrcUser;
-	LPBYTE    pbDst;
-	DWORD     cbDstLength;
-	DWORD     cbDstLengthUsed;
-	DWORD_PTR dwDstUser;
-	DWORD     dwReservedDriver[10];
-} ACMSTREAMHEADER, *LPACMSTREAMHEADER;
-#define ACM_STREAMCONVERTF_BLOCKALIGN   0x00000004
-#endif
-
-//mingw workarounds
-#define LPWAVEFILTER void *
-#include <objbase.h>
-
-MMRESULT (WINAPI *qacmStreamUnprepareHeader) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwUnprepare);
-MMRESULT (WINAPI *qacmStreamConvert) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwConvert);
-MMRESULT (WINAPI *qacmStreamPrepareHeader) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwPrepare);
-MMRESULT (WINAPI *qacmStreamOpen) (LPHACMSTREAM phas, HACMDRIVER had, LPWAVEFORMATEX pwfxSrc, LPWAVEFORMATEX pwfxDst, LPWAVEFILTER pwfltr, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
-MMRESULT (WINAPI *qacmStreamClose) (HACMSTREAM has, DWORD fdwClose);
-
-static qboolean qacmStartup(void)
-{
-	static int inited;
-	static dllhandle_t *module;
-	if (!inited)
-	{
-		dllfunction_t funcs[] =
-		{
-			{(void*)&qacmStreamUnprepareHeader,	"acmStreamUnprepareHeader"},
-			{(void*)&qacmStreamConvert,			"acmStreamConvert"},
-			{(void*)&qacmStreamPrepareHeader,	"acmStreamPrepareHeader"},
-			{(void*)&qacmStreamOpen,			"acmStreamOpen"},
-			{(void*)&qacmStreamClose,			"acmStreamClose"},
-			{NULL,NULL}
-		};
-		inited = true;
-		module = Sys_LoadLibrary("msacm32.dll", funcs);
-	}
-
-	return module?true:false;
-}
-
+#ifdef HAVE_API_VFW
 #if 0
 #include <vfw.h>
 #else
@@ -1441,6 +1497,8 @@ static qboolean qAVIStartup(void)
 }
 #endif
 
+#ifdef HAVE_MEDIA_DECODER
+
 static char *cin_prop_buf;
 static size_t cin_prop_bufsize;
 struct cin_s
@@ -1466,7 +1524,7 @@ struct cin_s
 	texid_t texture;
 
 
-#ifdef WINAVI
+#ifdef HAVE_API_VFW
 	struct {
 		AVISTREAMINFOA		vidinfo;
 		PAVISTREAM			pavivideo;
@@ -1524,7 +1582,7 @@ shader_t *videoshader;
 
 //////////////////////////////////////////////////////////////////////////////////
 //AVI Support (windows)
-#ifdef WINAVI
+#ifdef HAVE_API_VFW
 static void Media_WinAvi_Shutdown(struct cin_s *cin)
 {
 	qAVIStreamGetFrameClose(cin->avi.pgf);
@@ -2302,7 +2360,7 @@ cin_t *Media_StartCin(char *name)
 	if (!cin)
 		cin = Media_RoQ_TryLoad(name);
 #endif
-#ifdef WINAVI
+#ifdef HAVE_API_VFW
 	if (!cin)
 		cin = Media_WinAvi_TryLoad(name);
 #endif
@@ -2717,6 +2775,9 @@ void Media_PlayVideoWindowed_f (void)
 
 	Con_SetActive(con);
 }
+#else
+qboolean Media_ShowFilm(void){return false;}
+#endif	//HAVE_MEDIA_DECODER
 
 
 
@@ -2731,9 +2792,7 @@ void Media_PlayVideoWindowed_f (void)
 
 
 
-
-
-
+#ifdef HAVE_MEDIA_ENCODER
 
 soundcardinfo_t *capture_fakesounddevice;
 
@@ -2762,7 +2821,7 @@ int offscreen_captureframe;
 enum uploadfmt offscreen_format;
 
 #define CAPTURECODECDESC_DEFAULT	"tga"
-#ifdef WINAVI
+#ifdef HAVE_API_VFW
 #define CAPTUREDRIVERDESC_AVI "avi: capture directly to avi (capturecodec should be a fourcc value).\n"
 #define CAPTURECODECDESC_AVI "With (win)avi, this should be a fourcc code like divx or xvid, may be blank for raw video.\n"
 #else
@@ -2907,7 +2966,7 @@ static media_encoder_funcs_t capture_raw =
 	capture_raw_end
 };
 #endif
-#if defined(WINAVI)
+#if defined(HAVE_API_VFW)
 
 /*screenshot capture*/
 struct capture_avi_ctx
@@ -3906,8 +3965,20 @@ void Media_RecordDemo_f(void)
 	if (!currentcapture_funcs)
 		CL_Stopdemo_f();	//capturing failed for some reason
 }
+#else
 
-#if defined(_WIN32) && !defined(WINRT)
+void Media_CaptureDemoEnd(void) {}
+qboolean Media_PausedDemo(qboolean fortiming) {return false;}
+double Media_TweekCaptureFrameTime(double oldtime, double time) { return oldtime+time ; }
+void Media_RecordFrame (void) {}
+
+#endif
+
+
+
+
+
+#ifdef HAVE_SPEECHTOTEXT
 typedef struct ISpNotifySink ISpNotifySink;
 typedef void *ISpNotifyCallback;
 typedef void __stdcall SPNOTIFYCALLBACK(WPARAM wParam, LPARAM lParam);
@@ -4596,88 +4667,12 @@ void STT_Init_f(void)
 }
 #endif
 
-qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
-
-void Media_Init(void)
-{
-	int i;
-#if defined(_WIN32) && !defined(WINRT)
-	Cmd_AddCommand("tts", TTS_Say_f);
-	Cmd_AddCommand("stt", STT_Init_f);
-	Cvar_Register(&tts_mode, "Gimmicks");
-#endif
-
-#if defined(WINAVI)
-	Media_RegisterEncoder(NULL, &capture_avi);
-#endif
-#ifdef _DEBUG
-	Media_RegisterEncoder(NULL, &capture_null);
-#endif
-	Media_RegisterEncoder(NULL, &capture_raw);
-
-	Cmd_AddCommand("playclip", Media_PlayVideoWindowed_f);
-	Cmd_AddCommand("playvideo", Media_PlayFilm_f);
-	Cmd_AddCommand("playfilm", Media_PlayFilm_f);
-	Cmd_AddCommand("cinematic", Media_PlayFilm_f);
-	Cmd_AddCommand("music_fforward", Media_FForward_f);
-	Cmd_AddCommand("music_rewind", Media_Rewind_f);
-	Cmd_AddCommand("music_next", Media_Next_f);
-	Cmd_AddCommand("media_next", Media_Next_f);
-	Cmd_AddCommand("music", Media_NamedTrack_f);
-
-	Cvar_Register(&music_playlist_index, "compat");
-	for (i = 0; i < 6; i++)
-	{
-		Cvar_Get(va("music_playlist_list%i", i), "", 0, "compat");
-		Cvar_Get(va("music_playlist_sampleposition%i", i), "-1", 0, "compat");
-	}
-	music_playlist_last = -1;
-
-	Cmd_AddCommand("cd", CD_f);
-	cdenabled = false;
-	if (COM_CheckParm("-nocdaudio"))
-		cdenabled = false;
-	if (COM_CheckParm("-cdaudio"))
-		cdenabled = true;
-
-	media_playlisttypes = MEDIA_PLAYLIST | MEDIA_GAMEMUSIC | MEDIA_CVARLIST;
-
-	Cmd_AddCommand("capture", Media_RecordFilm_f);
-	Cmd_AddCommand("capturedemo", Media_RecordDemo_f);
-	Cmd_AddCommand("capturestop", Media_StopRecordFilm_f);
-	Cmd_AddCommand("capturepause", Media_CapturePause_f);
-
-	Cvar_Register(&capturemessage,	"AVI capture controls");
-	Cvar_Register(&capturesound,	"AVI capture controls");
-	Cvar_Register(&capturerate,	"AVI capture controls");
-	Cvar_Register(&capturewidth,	"AVI capture controls");
-	Cvar_Register(&captureheight,	"AVI capture controls");
-	Cvar_Register(&capturedriver,	"AVI capture controls");
-	Cvar_Register(&capturecodec,	"AVI capture controls");
-	Cvar_Register(&capturethrottlesize,	"AVI capture controls");
-
-#if defined(WINAVI)
-	Cvar_Register(&capturesoundbits,	"AVI capture controls");
-	Cvar_Register(&capturesoundchannels,	"AVI capture controls");
-
-	S_RegisterSoundInputPlugin(S_LoadMP3Sound);
-#endif
-
-#ifdef WINAMP
-	Cvar_Register(&media_hijackwinamp,	"Media player things");
-#endif
-	Cvar_Register(&media_shuffle,	"Media player things");
-	Cvar_Register(&media_repeat,	"Media player things");
-	Cmd_AddCommand ("media_add", M_Media_Add_f);
-	Cmd_AddCommand ("media_remove", M_Media_Remove_f);
-#if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
-	Cmd_AddCommand ("menu_media", M_Menu_Media_f);
-#endif
-}
 
 
 
-#ifdef WINAVI
+
+
+#ifdef AVAIL_MP3_ACM
 typedef struct
 {
 	HACMSTREAM acm;
@@ -4897,25 +4892,87 @@ qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 
 
 
+void Media_Init(void)
+{
+#ifdef HAVE_JUKEBOX
+	int i;
+	Cmd_AddCommand("music_fforward", Media_FForward_f);
+	Cmd_AddCommand("music_rewind", Media_Rewind_f);
+	Cmd_AddCommand("music_next", Media_Next_f);
+	Cmd_AddCommand("media_next", Media_Next_f);
 
-#else
-void M_Media_Draw (void){}
-void M_Media_Key (int key) {}
-qboolean Media_ShowFilm(void){return false;}
+	Cvar_Register(&music_playlist_index, "compat");
+	for (i = 0; i < 6; i++)
+	{
+		Cvar_Get(va("music_playlist_list%i", i), "", 0, "compat");
+		Cvar_Get(va("music_playlist_sampleposition%i", i), "-1", 0, "compat");
+	}
+	music_playlist_last = -1;
+	media_playlisttypes = MEDIA_PLAYLIST | MEDIA_GAMEMUSIC | MEDIA_CVARLIST;
 
-double Media_TweekCaptureFrameTime(double oldtime, double time) { return oldtime+time ; }
-void Media_RecordFrame (void) {}
-void Media_CaptureDemoEnd(void) {}
-void Media_RecordDemo_f(void) {}
-//void Media_RecordAudioFrame (short *sample_buffer, int samples) {}
-void Media_StopRecordFilm_f (void) {}
-void Media_RecordFilm_f (void){}
-void M_Menu_Media_f (void) {}
-float Media_CrossFade(int ch, float vol, float time) {return vol;}
-
-char *Media_NextTrack(int musicchannelnum, float *time) {return NULL;}
-qboolean Media_PausedDemo(qboolean fortiming) {return false;}
-
-int filmtexture;
+	#ifdef WINAMP
+		Cvar_Register(&media_hijackwinamp,	"Media player things");
+	#endif
+	Cvar_Register(&media_shuffle,	"Media player things");
+	Cvar_Register(&media_repeat,	"Media player things");
+	Cmd_AddCommand ("media_add", M_Media_Add_f);
+	Cmd_AddCommand ("media_remove", M_Media_Remove_f);
+	#if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
+		Cmd_AddCommand ("menu_media", M_Menu_Media_f);
+	#endif
 #endif
 
+#ifdef HAVE_SPEECHTOTEXT
+	Cmd_AddCommand("tts", TTS_Say_f);
+	Cmd_AddCommand("stt", STT_Init_f);
+	Cvar_Register(&tts_mode, "Gimmicks");
+#endif
+#ifdef AVAIL_MP3_ACM
+	S_RegisterSoundInputPlugin(S_LoadMP3Sound);
+#endif
+
+
+#ifdef HAVE_CDPLAYER
+	Cmd_AddCommand("cd", CD_f);
+	cdenabled = false;
+	if (COM_CheckParm("-nocdaudio"))
+		cdenabled = false;
+	if (COM_CheckParm("-cdaudio"))
+		cdenabled = true;
+#endif
+
+#ifdef HAVE_MEDIA_ENCODER
+	#if defined(HAVE_API_VFW)
+		Media_RegisterEncoder(NULL, &capture_avi);
+	#endif
+	#ifdef _DEBUG
+		Media_RegisterEncoder(NULL, &capture_null);
+	#endif
+	Media_RegisterEncoder(NULL, &capture_raw);
+
+	Cmd_AddCommand("capture", Media_RecordFilm_f);
+	Cmd_AddCommand("capturedemo", Media_RecordDemo_f);
+	Cmd_AddCommand("capturestop", Media_StopRecordFilm_f);
+	Cmd_AddCommand("capturepause", Media_CapturePause_f);
+
+	Cvar_Register(&capturemessage,			"Video Capture Controls");
+	Cvar_Register(&capturesound,			"Video Capture Controls");
+	Cvar_Register(&capturerate,				"Video Capture Controls");
+	Cvar_Register(&capturewidth,			"Video Capture Controls");
+	Cvar_Register(&captureheight,			"Video Capture Controls");
+	Cvar_Register(&capturedriver,			"Video Capture Controls");
+	Cvar_Register(&capturecodec,			"Video Capture Controls");
+	Cvar_Register(&capturethrottlesize,		"Video Capture Controls");
+	Cvar_Register(&capturesoundbits,		"Video Capture Controls");
+	Cvar_Register(&capturesoundchannels,	"Video Capture Controls");
+#endif
+
+#ifdef HAVE_MEDIA_DECODER
+	Cmd_AddCommand("playclip", Media_PlayVideoWindowed_f);
+	Cmd_AddCommand("playvideo", Media_PlayFilm_f);
+	Cmd_AddCommand("playfilm", Media_PlayFilm_f);
+	Cmd_AddCommand("cinematic", Media_PlayFilm_f);
+#endif
+
+	Cmd_AddCommand("music", Media_NamedTrack_f);
+}

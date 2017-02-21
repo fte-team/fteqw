@@ -726,7 +726,12 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				if (oneclient)
 				{
 					if (oneclient != split)
-						continue;
+					{
+						if (split->spectator && split->spec_track >= 0 && oneclient == &svs.clients[split->spec_track])
+							;
+						else
+							continue;
+					}
 				}
 				else if (mask)
 				{
@@ -795,7 +800,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				break;
 #endif
 			case SCP_QUAKEWORLD:
-			    if (reliable)
+				if (reliable)
 				{
 					ClientReliableCheckBlock(client, sv.multicast.cursize);
 					ClientReliableWrite_SZ(client, sv.multicast.data, sv.multicast.cursize);
@@ -893,7 +898,12 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				if (oneclient)
 				{
 					if (oneclient != split)
-						continue;
+					{
+						if (split->spectator && split->spec_track >= 0 && oneclient == &svs.clients[split->spec_track])
+							;
+						else
+							continue;
+					}
 				}
 				else if (svprogfuncs)
 				{
@@ -1110,7 +1120,12 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 			if (oneclient)
 			{
 				if (oneclient != split)
-					continue;
+				{
+					if (split->spectator && split->spec_track >= 0 && oneclient == &svs.clients[split->spec_track])
+						;
+					else
+						continue;
+				}
 			}
 			else if (svprogfuncs)
 			{
@@ -1670,7 +1685,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	ent = client->edict;
 	if (progstype != PROG_QW)
 	{
-		if (ISQWCLIENT(client))
+		if (ISQWCLIENT(client) && !(client->fteprotocolextensions2 & PEXT2_PREDINFO))
 		{
 			//quakeworld clients drop the punch angle themselves.
 			while (ent->xv->punchangle[0] < -3)
@@ -1685,25 +1700,6 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 			}
 			ent->xv->punchangle[1] = 0;
 			ent->xv->punchangle[2] = 0;
-		}
-		else
-		{
-			for (i = 0; i < 3; i++)
-			{
-				//nq clients require the server to do it (interpolating, if its a decent client).
-				if (ent->xv->punchangle[i] < 0)
-				{
-					ent->xv->punchangle[i] += 10 * (1/77.0);
-					if (ent->xv->punchangle[i] > 0)
-						ent->xv->punchangle[i] = 0;
-				}
-				if (ent->xv->punchangle[i] < 0)
-				{
-					ent->xv->punchangle[i] -= 10 * (1/77.0);
-					if (ent->xv->punchangle[i] < 0)
-						ent->xv->punchangle[i] = 0;
-				}
-			}
 		}
 	}
 
@@ -1738,8 +1734,8 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	if (ent->v->view_ofs[2] != DEFAULT_VIEWHEIGHT)
 		bits |= SU_VIEWHEIGHT;
 
-//	if (ent->v->idealpitch)
-//		bits |= SU_IDEALPITCH;
+	if (ent->xv->idealpitch)
+		bits |= SU_IDEALPITCH;
 
 // stuff the sigil bits into the high bits of items for sbar, or else
 // mix in items2
@@ -1764,6 +1760,8 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	{
 		if (ent->xv->punchangle[i])
 			bits |= (SU_PUNCH1<<i);
+//		if ((client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7) && ent->xv->punchvector[i])
+//			bits |= (DPSU_PUNCHVEC1<<i);
 		if (ent->v->velocity[i])
 			bits |= (SU_VELOCITY1<<i);
 	}
@@ -1826,8 +1824,8 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	if (bits & SU_VIEWHEIGHT)
 		MSG_WriteChar (msg, ent->v->view_ofs[2]);
 
-//	if (bits & SU_IDEALPITCH)
-//		MSG_WriteChar (msg, ent->v->idealpitch);
+	if (bits & SU_IDEALPITCH)
+		MSG_WriteChar (msg, ent->xv->idealpitch);
 
 	for (i=0 ; i<3 ; i++)
 	{
@@ -1838,6 +1836,8 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 			else
 				MSG_WriteChar (msg, ent->xv->punchangle[i]);
 		}
+//		if ((client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7) && (bits & (DPSU_PUNCHVEC1<<i)))
+//			Msg_WriteCoord(msg, ent->xv->punchvector);
 		if (bits & (SU_VELOCITY1<<i))
 		{
 			if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
@@ -2120,6 +2120,11 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsi[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
 
 		statsf[STAT_VIEWHEIGHT] = ent->v->view_ofs[2];
+
+		statsf[STAT_PUNCHANGLE_X] = ent->xv->punchangle[0];
+		statsf[STAT_PUNCHANGLE_Y] = ent->xv->punchangle[1];
+		statsf[STAT_PUNCHANGLE_Z] = ent->xv->punchangle[2];
+
 	#ifdef PEXT_VIEW2
 		if (ent->xv->view2)
 			statsi[STAT_VIEW2] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, ent->xv->view2));

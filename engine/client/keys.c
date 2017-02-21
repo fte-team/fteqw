@@ -424,7 +424,7 @@ int Con_Navigate(console_t *con, char *line)
 {
 	if (con->backshader)
 	{
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 		cin_t *cin = R_ShaderGetCinematic(con->backshader);
 		if (cin)
 		{
@@ -1034,7 +1034,7 @@ void Key_ConsoleRelease(console_t *con, int key, int unicode)
 //	if (con->buttonsdown == CB_MOVE)	//window title(move)
 		con->buttonsdown = CB_NONE;
 
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 	if (con->backshader)
 	{
 		cin_t *cin = R_ShaderGetCinematic(con->backshader);
@@ -1513,7 +1513,7 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 	//console does not have any way to accept input, so don't try giving it any.
 	if (!con->linebuffered)
 	{
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 		if (con->backshader)
 		{
 			cin_t *cin = R_ShaderGetCinematic(con->backshader);
@@ -2497,7 +2497,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		if (Key_Dest_Has(kdm_gmenu))
 			MP_Keyup (key, unicode, devid);
 #endif
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 		if (Media_PlayingFullScreen())
 			Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
 #endif
@@ -2556,7 +2556,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			Key_Dest_Remove(kdm_cwindows);
 
 	}
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 	if (Media_PlayingFullScreen())
 	{
 		Media_Send_KeyEvent(NULL, key, unicode, down?0:1);

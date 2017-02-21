@@ -1038,6 +1038,7 @@ void M_Menu_Demos_f (void)
 	M_Demo_Reselect(info, info->fs->selname);
 }
 
+#ifdef HAVE_JUKEBOX
 void M_Menu_MediaFiles_f (void)
 {
 	demomenu_t *info;
@@ -1054,10 +1055,11 @@ void M_Menu_MediaFiles_f (void)
 	info->fs = &mediareenterloc;
 	info->numext = 0;
 
+#ifdef HAVE_JUKEBOX
 	info->ext[info->numext] = ".m3u";
 	info->command[info->numext] = "mediaplaylist";
 	info->numext++;
-#if defined(_WIN32) || defined(FTE_TARGET_WEB)
+#if defined(AVAIL_MP3_ACM) || defined(FTE_TARGET_WEB)
 	info->ext[info->numext] = ".mp3";
 	info->command[info->numext] = "media_add";
 	info->numext++;
@@ -1070,7 +1072,9 @@ void M_Menu_MediaFiles_f (void)
 	info->command[info->numext] = "media_add";
 	info->numext++;
 #endif
+#endif
 
+#ifdef HAVE_MEDIA_DECODER
 	info->ext[info->numext] = ".roq";
 	info->command[info->numext] = "playfilm";
 	info->numext++;
@@ -1078,6 +1082,7 @@ void M_Menu_MediaFiles_f (void)
 	info->ext[info->numext] = ".avi";
 	info->command[info->numext] = "playfilm";
 	info->numext++;
+#endif
 #endif
 
 	MC_AddWhiteText(menu, 24, 170, 8, "Media List", false);
@@ -1092,4 +1097,5 @@ void M_Menu_MediaFiles_f (void)
 	ShowDemoMenu(menu, info->fs->path);
 	M_Demo_Reselect(info, info->fs->selname);
 }
+#endif
 #endif

@@ -665,7 +665,10 @@ struct playerview_s
 	float predicted_step;
 #endif
 
-	float		punchangle;		// temporary view kick from weapon firing
+	//temporary view kick from weapon firing, angles+origins
+	float		punchangle_cl;		// qw-style angles
+	vec3_t		punchangle_sv;		// nq-style
+	vec3_t		punchorigin;		// nq-style
 
 	float		v_dmg_time;		//various view knockbacks.
 	float		v_dmg_roll;
@@ -1578,6 +1581,9 @@ void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale);
 struct model_s;
 void CL_AddVWeapModel(entity_t *player, struct model_s *model);
 
+typedef struct cin_s cin_t;
+#ifdef HAVE_MEDIA_DECODER
+
 /*q2 cinematics*/
 struct cinematics_s;
 void CIN_StopCinematic (struct cinematics_s *cin);
@@ -1594,26 +1600,13 @@ typedef enum
 	CINSTATE_ENDED,
 	CINSTATE_FLUSHED,	//video will restart from beginning
 } cinstates_t;
-typedef struct cin_s cin_t;
-#ifdef NOMEDIA
-#define Media_Playing() false
-#define Media_Init() (void)0
-#define Media_PlayingFullScreen() false
-#define Media_PlayFilm(n,e) false
-#define Media_StopFilm(a) (void)true
-#else
 /*media playing system*/
 qboolean Media_PlayingFullScreen(void);
-void Media_Init(void);
 qboolean Media_PlayFilm(char *name, qboolean enqueue);
 qboolean Media_StopFilm(qboolean all);
 struct cin_s *Media_StartCin(char *name);
 texid_tf Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
-#endif
-qboolean Media_NamedTrack(const char *initialtrack, const char *looptrack);	//new background music interface
-void Media_NumberedTrack(unsigned int initialtrack, unsigned int looptrack);				//legacy cd interface for protocols that only support numbered tracks.
-void Media_EndedTrack(void);	//cd is no longer running, media code needs to pick a new track (cd track or faketrack)
 
 //these accept NULL for cin to mean the current fullscreen video
 void Media_Send_Command(cin_t *cin, const char *command);
@@ -1625,6 +1618,18 @@ void Media_Send_Reset(cin_t *cin);
 void Media_SetState(cin_t *cin, cinstates_t newstate);
 cinstates_t Media_GetState(cin_t *cin);
 const char *Media_Send_GetProperty(cin_t *cin, const char *key);
+
+#else
+#define Media_Playing() false
+#define Media_PlayingFullScreen() false
+#define Media_PlayFilm(n,e) false
+#define Media_StopFilm(a) (void)true
+#endif
+
+void Media_Init(void);
+qboolean Media_NamedTrack(const char *initialtrack, const char *looptrack);	//new background music interface
+void Media_NumberedTrack(unsigned int initialtrack, unsigned int looptrack);				//legacy cd interface for protocols that only support numbered tracks.
+void Media_EndedTrack(void);	//cd is no longer running, media code needs to pick a new track (cd track or faketrack)
 
 void MVD_Interpolate(void);
 

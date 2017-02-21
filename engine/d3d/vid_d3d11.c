@@ -55,8 +55,8 @@ ID3D11DeviceContext *d3ddevctx;
 #endif
 
 #define DEFINE_QGUID(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8) \
-        const GUID DECLSPEC_SELECTANY name \
-                = { l, w1, w2, { b1, b2,  b3,  b4,  b5,  b6,  b7,  b8 } }
+		const GUID DECLSPEC_SELECTANY name \
+				= { l, w1, w2, { b1, b2,  b3,  b4,  b5,  b6,  b7,  b8 } }
 
 DEFINE_QGUID(qIID_ID3D11Texture2D,0x6f15aaf2,0xd208,0x4e89,0x9a,0xb4,0x48,0x95,0x35,0xd3,0x4f,0x9c);
 
@@ -520,7 +520,7 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 				mmi->ptMinTrackSize.y = 200 + ((windowrect.bottom - windowrect.top) - (clientrect.bottom - clientrect.top));
 			}
 			return 0;
-    	case WM_SIZE:
+		case WM_SIZE:
 			d3d_resized = true;
 
 			D3DVID_UpdateWindowStatus(mainwindow);
@@ -571,37 +571,38 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 			lRet = 1;
 			break;
 
-   	    case WM_DESTROY:
-        {
+		case WM_DESTROY:
+		{
 //			if (dibwindow)
 //				DestroyWindow (dibwindow);
-        }
-        break;
-
+		}
+		break;
+#ifdef HAVE_CDPLAYER
 		case MM_MCINOTIFY:
-            lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
+			lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
 			break;
+#endif
 #endif
 		case WM_ERASEBKGND:
 			return 1;
-    	default:
-            /* pass all unhandled messages to DefWindowProc */
-            lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
-        break;
-    }
+		default:
+			/* pass all unhandled messages to DefWindowProc */
+			lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
+		break;
+	}
 
-    /* return 1 if handled message, 0 if not */
-    return lRet;
+	/* return 1 if handled message, 0 if not */
+	return lRet;
 }
 #endif
 
 #if (WINVER < 0x500) && !defined(__GNUC__)
 typedef struct tagMONITORINFO
 {
-    DWORD   cbSize;
-    RECT    rcMonitor;
-    RECT    rcWork;
-    DWORD   dwFlags;
+	DWORD   cbSize;
+	RECT    rcMonitor;
+	RECT    rcWork;
+	DWORD   dwFlags;
 } MONITORINFO, *LPMONITORINFO;
 #endif
 
@@ -1310,7 +1311,7 @@ static qboolean	(D3D11_SCR_UpdateScreen)			(void)
 		if (uimenu != 1)
 		{
 			if (r_worldentity.model && cls.state == ca_active)
- 				V_RenderView ();
+				V_RenderView ();
 			else
 			{
 				noworld = true;

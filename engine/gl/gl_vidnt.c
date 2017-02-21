@@ -2520,6 +2520,12 @@ void MainThreadWndProc(void *ctx, void *data, size_t msg, size_t ex)
 			break;
 		ClearAllStates ();	//FIXME: thread
 		break;
+
+#ifdef HAVE_CDPLAYER
+		case MM_MCINOTIFY:
+			CDAudio_MessageHandler (mainwindow, uMsg, ctx, data);
+			break;
+#endif
 	}
 }
 #endif
@@ -2707,7 +2713,7 @@ static LONG WINAPI GLMainWndProc (
 			PostQuitMessage(0);
 			break;
 		case WM_USER:
-#ifndef NOMEDIA
+#ifdef HAVE_SPEECHTOTEXT
 			STT_Event();
 #endif
 			break;
@@ -2809,9 +2815,14 @@ static LONG WINAPI GLMainWndProc (
 			}
 			break;
 
-#ifndef WTHREAD
+#ifdef HAVE_CDPLAYER
 		case MM_MCINOTIFY:
+#ifdef WTHREAD
+			COM_AddWork(WG_MAIN, MainThreadWndProc, wParam, lParam, uMsg, 0);
+			lRet = 0;
+#else
 			lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);	//FIXME: thread
+#endif
 			break;
 #endif
 

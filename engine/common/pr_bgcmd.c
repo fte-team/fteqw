@@ -6228,7 +6228,7 @@ lh_extension_t QSG_Extensions[] = {
 //	{"FTE_GFX_MODELEVENTS",				1,	NULL, {"processmodelevents", "getnextmodelevent", "getmodeleventidx"},	"Provides a query for per-animation events in model files, including from progs/foo.mdl.events files."},
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}, "Allows you to check if a client has too many reliable messages pending."},
 	{"FTE_MEMALLOC",					4,	NULL, {"memalloc", "memfree", "memcpy", "memfill8"}, "Allows dynamically allocating memory. Use pointers to access this memory. Memory will not be saved into saved games."},
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 	#if defined(_WIN32) && !defined(WINRT)
 	{"FTE_MEDIA_AVI",					0,	NULL, {NULL}, "playfilm command supports avi files."},
 	#endif
@@ -6271,7 +6271,9 @@ lh_extension_t QSG_Extensions[] = {
 #ifdef QCGC
 	{"FTE_QC_PERSISTENTTEMPSTRINGS",	NOBI	 "Supersedes DP_QC_MULTIPLETEMPSTRINGS. Temp strings are garbage collected automatically, and do not expire while they're still in use. This makes strzone redundant."},
 #endif
+#ifdef RAGDOLL
 	{"FTE_QC_RAGDOLL_WIP",				1,	NULL, {"ragupdate", "skel_set_bone_world", "skel_mmap"}},
+#endif
 	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}, "Allows the use of out-of-band udp packets to/from other hosts. Includes the SV_ParseConnectionlessPacket event."},
 	{"FTE_QC_STUFFCMDFLAGS",			1,	NULL, {"stuffcmdflags"}, "Variation on regular stuffcmd that gives control over how spectators/mvds should be treated."},
 	{"FTE_QC_TRACETRIGGER"},

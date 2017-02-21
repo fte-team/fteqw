@@ -2783,7 +2783,7 @@ static void Shaderpass_VideoMap (shader_t *shader, shaderpass_t *pass, char **pt
 {
 	char		*token = Shader_ParseSensString (ptr);
 
-#ifdef NOMEDIA
+#ifndef HAVE_MEDIA_DECODER
 	(void)token;
 #else
 	if (pass->cin)
@@ -3430,7 +3430,7 @@ static shaderkey_t shaderpasskeys[] =
 
 void Shader_FreePass (shaderpass_t *pass)
 {
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 	if ( pass->flags & SHADER_PASS_VIDEOMAP )
 	{
 		Media_ShutdownCin(pass->cin);
@@ -3867,14 +3867,14 @@ void Shader_FixupProgPasses(shader_t *shader, shaderpass_t *pass)
 		//mode deluxemaps								//17,18,19
 	};
 
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 	cin_t *cin = R_ShaderGetCinematic(shader);
 #endif
 
 	//if the glsl doesn't specify all samplers, just trim them.
 	pass->numMergedPasses = pass->prog->numsamplers;
 
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 	if (cin && R_ShaderGetCinematic(shader) == cin)
 		cin = NULL;
 #endif
@@ -3892,7 +3892,7 @@ void Shader_FixupProgPasses(shader_t *shader, shaderpass_t *pass)
 			pass[pass->numMergedPasses].flags &= ~SHADER_PASS_DEPTHCMP;
 			if (defaulttgen[i].gen == T_GEN_SHADOWMAP)
 				pass[pass->numMergedPasses].flags |= SHADER_PASS_DEPTHCMP;
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 			if (!i && cin)
 			{
 				pass[pass->numMergedPasses].texgen = T_GEN_VIDEOMAP;
@@ -3903,7 +3903,7 @@ void Shader_FixupProgPasses(shader_t *shader, shaderpass_t *pass)
 #endif
 			{
 				pass[pass->numMergedPasses].texgen = defaulttgen[i].gen;
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 				pass[pass->numMergedPasses].cin = NULL;
 #endif
 			}
@@ -3915,7 +3915,7 @@ void Shader_FixupProgPasses(shader_t *shader, shaderpass_t *pass)
 	//must have at least one texture.
 	if (!pass->numMergedPasses)
 	{
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 		pass[0].texgen = cin?T_GEN_VIDEOMAP:T_GEN_DIFFUSE;
 		pass[0].cin = cin;
 #else
@@ -3923,7 +3923,7 @@ void Shader_FixupProgPasses(shader_t *shader, shaderpass_t *pass)
 #endif
 		pass->numMergedPasses = 1;
 	}
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 	else if (cin)
 		Media_ShutdownCin(cin);
 #endif
@@ -4624,7 +4624,7 @@ done:;
 				if (best->anim_frames[0] && *best->anim_frames[0]->ident != '$')
 					s->defaulttextures->base = best->anim_frames[0];
 			}
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 			else if (pass->texgen == T_GEN_VIDEOMAP && pass->cin)
 				s->defaulttextures->base = Media_UpdateForShader(best->cin);
 #endif
@@ -4830,14 +4830,14 @@ done:;
 			//mode deluxemaps								//17,18,19
 		};
 
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 		cin_t *cin = R_ShaderGetCinematic(s);
 #endif
 
 		//if the glsl doesn't specify all samplers, just trim them.
 		s->numpasses = s->prog->numsamplers;
 
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 		if (cin && R_ShaderGetCinematic(s) == cin)
 			cin = NULL;
 #endif
@@ -4852,7 +4852,7 @@ done:;
 				s->passes[s->numpasses].flags &= ~SHADER_PASS_DEPTHCMP;
 				if (defaulttgen[i].gen == T_GEN_SHADOWMAP)
 					s->passes[s->numpasses].flags |= SHADER_PASS_DEPTHCMP;
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 				if (!i && cin)
 				{
 					s->passes[s->numpasses].texgen = T_GEN_VIDEOMAP;
@@ -4863,7 +4863,7 @@ done:;
 #endif
 				{
 					s->passes[s->numpasses].texgen = defaulttgen[i].gen;
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 					s->passes[s->numpasses].cin = NULL;
 #endif
 				}
@@ -4875,7 +4875,7 @@ done:;
 		//must have at least one texture.
 		if (!s->numpasses)
 		{
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 			s->passes[0].texgen = cin?T_GEN_VIDEOMAP:T_GEN_DIFFUSE;
 			s->passes[0].cin = cin;
 #else
@@ -4883,7 +4883,7 @@ done:;
 #endif
 			s->numpasses = 1;
 		}
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 		else if (cin)
 			Media_ShutdownCin(cin);
 #endif
@@ -6818,7 +6818,7 @@ void Shader_NeedReload(qboolean rescanfs)
 
 cin_t *R_ShaderGetCinematic(shader_t *s)
 {
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 	int j;
 	if (!s)
 		return NULL;
@@ -6858,10 +6858,10 @@ shader_t *R_ShaderFind(const char *name)
 
 cin_t *R_ShaderFindCinematic(const char *name)
 {
-#ifdef NOMEDIA
-	return NULL;
-#else
+#ifdef HAVE_MEDIA_DECODER
 	return R_ShaderGetCinematic(R_ShaderFind(name));
+#else
+	return NULL;
 #endif
 }
 

@@ -1497,7 +1497,11 @@ void V_CalcRefdef (playerview_t *pv)
 
 // set up the refresh position
 	if (v_gunkick.value)
-		r_refdef.viewangles[PITCH] += pv->punchangle*v_gunkick.value;
+	{
+		r_refdef.viewangles[PITCH] += pv->punchangle_cl*v_gunkick.value;
+		VectorMA(r_refdef.viewangles, v_gunkick.value, pv->punchangle_sv, r_refdef.viewangles);
+		VectorMA(r_refdef.vieworg, v_gunkick.value, pv->punchorigin, r_refdef.vieworg);
+	}
 
 
 	if (chase_active.ival && cls.allow_cheats)	//cheat restriction might be lifted some time when any wallhacks are solved.
@@ -1551,17 +1555,17 @@ DropPunchAngle
 */
 void DropPunchAngle (playerview_t *pv)
 {
-	if (pv->punchangle < 0)
+	if (pv->punchangle_cl < 0)
 	{
-		pv->punchangle += 10*host_frametime;
-		if (pv->punchangle > 0)
-			pv->punchangle = 0;
+		pv->punchangle_cl += 10*host_frametime;
+		if (pv->punchangle_cl > 0)
+			pv->punchangle_cl = 0;
 	}
 	else
 	{
-		pv->punchangle -= 10*host_frametime;
-		if (pv->punchangle < 0)
-			pv->punchangle = 0;
+		pv->punchangle_cl -= 10*host_frametime;
+		if (pv->punchangle_cl < 0)
+			pv->punchangle_cl = 0;
 	}
 }
 

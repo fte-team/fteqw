@@ -6077,7 +6077,7 @@ static struct {
 //DP_QC_GETSURFACEPOINTATTRIBUTE
 	{"getsurfacepointattribute",PF_getsurfacepointattribute,	486},	// #486vector(entity e, float s, float n, float a) getsurfacepointattribute
 
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 //DP_GECKO_SUPPORT
 	{"gecko_create",			PF_cs_media_create,				487},	// #487 float(string name)
 	{"gecko_destroy",			PF_cs_media_destroy,			488},	// #488 void(string name)

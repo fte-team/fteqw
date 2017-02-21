@@ -22,7 +22,7 @@
 
 #include "quakedef.h"
 
-#ifndef NOMEDIA
+#ifdef HAVE_MEDIA_DECODER
 
 
 static int VFS_GETC(vfsfile_t *fp)

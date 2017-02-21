@@ -55,7 +55,11 @@
 	{
 		float3 col = l_lightcolour;
 		col *= max(1.0 - dot(inp.lpos, inp.lpos)/(l_lightradius*l_lightradius), 0.0);
+#ifdef FLAT
+		float3 diff = FLAT;
+#else
 		float3 diff = tex2D(s_diffuse, inp.tc);
+#endif
 		return float4(diff * col, 1);
 	}
 #endif

@@ -1002,7 +1002,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 					ClientReliableWrite_Byte (client, track);
 
 				if (!track && *sv.h2miditrack)
-					SV_StuffcmdToClient(client, va("cd loop \"%s\"\n", sv.h2miditrack));
+					SV_StuffcmdToClient(client, va("music \"%s\"\n", sv.h2miditrack));
 			}
 			else if (client->prespawn_idx == 2)
 			{
@@ -6737,6 +6737,22 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	}
 
 
+	for (i = 0; i < 3; i++)
+	{
+		if (sv_player->xv->punchangle[i] < 0)
+		{
+			sv_player->xv->punchangle[i] += 10 * host_frametime;
+			if (sv_player->xv->punchangle[i] > 0)
+				sv_player->xv->punchangle[i] = 0;
+		}
+		if (sv_player->xv->punchangle[i] > 0)
+		{
+			sv_player->xv->punchangle[i] -= 10 * host_frametime;
+			if (sv_player->xv->punchangle[i] < 0)
+				sv_player->xv->punchangle[i] = 0;
+		}
+	}
+
 	if (!host_client->spectator)
 	{
 		vec_t oldvz;
@@ -8400,6 +8416,7 @@ static void SV_WaterJump (void)
 
 void SV_ClientThink (void)
 {
+	int i;
 	vec3_t		v_angle;
 
 	cmd = host_client->lastcmd;
@@ -8429,6 +8446,21 @@ void SV_ClientThink (void)
 	velocity = sv_player->v->velocity;
 
 //	DropPunchAngle ();
+	for (i = 0; i < 3; i++)
+	{
+		if (sv_player->xv->punchangle[i] < 0)
+		{
+			sv_player->xv->punchangle[i] += 10 * host_frametime;
+			if (sv_player->xv->punchangle[i] > 0)
+				sv_player->xv->punchangle[i] = 0;
+		}
+		if (sv_player->xv->punchangle[i] > 0)
+		{
+			sv_player->xv->punchangle[i] -= 10 * host_frametime;
+			if (sv_player->xv->punchangle[i] < 0)
+				sv_player->xv->punchangle[i] = 0;
+		}
+	}
 
 //
 // if dead, behave differently

@@ -26,6 +26,7 @@ void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLDP_ParseDarkPlaces5Entities(void);
 static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue);
 #define CL_SetStatInt(pnum,stat,ival) do{int thevalue=ival; CL_SetStatNumeric(pnum,stat,thevalue,thevalue);}while(0)
+#define CL_SetStatFloat(pnum,stat,fval) do{float thevalue=fval; CL_SetStatNumeric(pnum,stat,thevalue,thevalue);}while(0)
 static qboolean CL_CheckModelResources (char *name);
 #ifdef NQPROT
 static char *CLNQ_ParseProQuakeMessage (char *s);
@@ -1617,7 +1618,7 @@ void CL_RequestNextDownload (void)
 		if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		{
 			Con_Printf("\n\n-------------\n" CON_ERROR "Couldn't download \"%s\" - cannot fully connect\n", cl.worldmodel?cl.worldmodel->name:"unknown");
-#if !defined(NOMEDIA)
+#ifdef HAVE_MEDIA_ENCODER
 			if (cls.demoplayback && Media_Capturing())
 			{
 				Con_Printf(CON_ERROR "Aborting capture\n");
@@ -3730,7 +3731,8 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 void CLNQ_ParseClientdata (void)
 {
 	int		i;
-	player_state_t *pl = &cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[0].playernum];
+	const int seat = 0;
+	player_state_t *pl = &cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[seat].playernum];
 
 	unsigned int bits;
 
@@ -3754,16 +3756,14 @@ void CLNQ_ParseClientdata (void)
 	for (i=0 ; i<3 ; i++)
 	{
 		if (bits & (SU_PUNCH1<<i) )
-			/*cl.punchangle[i] =*/ CPNQ_IS_DP?MSG_ReadAngle16():MSG_ReadChar();
-//		else
-//			cl.punchangle[i] = 0;
+			CL_SetStatFloat(seat, STAT_PUNCHANGLE_X+i, CPNQ_IS_DP?MSG_ReadAngle16():MSG_ReadChar());
+		else
+			CL_SetStatFloat(seat, STAT_PUNCHANGLE_X+i, 0);
 
 		if (CPNQ_IS_DP && bits & (DPSU_PUNCHVEC1<<i))
-		{
-			/*cl.punchvector[i] =*/ MSG_ReadCoord();
-		}
-//		else
-//			cl.punchvector[i] = 0;
+			CL_SetStatFloat(seat, STAT_PUNCHVECTOR_X+i, MSG_ReadCoord());
+		else
+			CL_SetStatFloat(seat, STAT_PUNCHVECTOR_X+i, 0);
 
 		if (bits & (SU_VELOCITY1<<i))
 		{
@@ -5861,7 +5861,7 @@ void CL_PrintChat(player_info_t *plr, char *msg, int plrflags)
 		else
 			Q_strncatz(fullchatmessage, "\1", sizeof(fullchatmessage));
 
-#if defined(_WIN32) && !defined(NOMEDIA) && !defined(WINRT)
+#if defined(HAVE_SPEECHTOTEXT)
 		TTS_SayChatString(&msg);
 #endif
 
@@ -6889,10 +6889,10 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_smallkick:
-			cl.playerview[destsplit].punchangle = -2;
+			cl.playerview[destsplit].punchangle_cl = -2;
 			break;
 		case svc_bigkick:
-			cl.playerview[destsplit].punchangle = -4;
+			cl.playerview[destsplit].punchangle_cl = -4;
 			break;
 
 		case svc_muzzleflash:
@@ -7662,10 +7662,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 		case svc_setpause:
 			cl.paused = MSG_ReadByte ();
-			if (cl.paused)
-				CDAudio_Pause ();
-			else
-				CDAudio_Resume ();
+//			Media_SetPauseTrack(!!cl.paused);
 			break;
 
 		case svc_spawnstaticsound:
@@ -7774,6 +7771,15 @@ void CLNQ_ParseServerMessage (void)
 //				cl.inframes[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.num_entities=0;
 				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.servertime = cl.gametime;
+			}
+			for (i = 0; i < cl.splitclients; i++)
+			{
+				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.punchangle[i][0] = cl.playerview[i].statsf[STAT_PUNCHANGLE_X];
+				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.punchangle[i][1] = cl.playerview[i].statsf[STAT_PUNCHANGLE_Y];
+				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.punchangle[i][2] = cl.playerview[i].statsf[STAT_PUNCHANGLE_Z];
+				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.punchorigin[i][0] = cl.playerview[i].statsf[STAT_PUNCHVECTOR_X];
+				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.punchorigin[i][1] = cl.playerview[i].statsf[STAT_PUNCHVECTOR_Y];
+				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.punchorigin[i][2] = cl.playerview[i].statsf[STAT_PUNCHVECTOR_Z];
 			}
 			break;
 

@@ -1124,6 +1124,8 @@ typedef struct
 	entity_state_t	*entities;
 	int				fixangles[MAX_SPLITS];	//these should not be in here
 	vec3_t			fixedangles[MAX_SPLITS];
+	vec3_t			punchangle[MAX_SPLITS];
+	vec3_t			punchorigin[MAX_SPLITS];
 
 	qbyte			*bonedata;
 	size_t			bonedatacur;

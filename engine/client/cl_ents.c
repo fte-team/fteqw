@@ -865,6 +865,7 @@ void CLFTE_ParseEntities(void)
 	qboolean	isvalid = false;
 	qboolean removeflag;
 	int inputframe = cls.netchan.incoming_sequence;
+	int i;
 
 //	int i;
 //	for (i = cl.validsequence+1; i < cls.netchan.incoming_sequence; i++)
@@ -880,7 +881,6 @@ void CLFTE_ParseEntities(void)
 #ifdef NQPROT
 	else if (cls.protocol == CP_NETQUAKE)
 	{
-		int i;
 		cls.netchan.incoming_sequence++;
 		cl.last_servermessage = realtime;
 		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
@@ -924,6 +924,16 @@ void CLFTE_ParseEntities(void)
 	cl.inframes[newpacket].invalid = true;
 	cl.inframes[newpacket].receivedtime = realtime;
 	cl.inframes[newpacket].frameid = cls.netchan.incoming_sequence;
+
+	for (i = 0; i < cl.splitclients; i++)
+	{
+		cl.inframes[newpacket&UPDATE_MASK].packet_entities.punchangle[i][0] = cl.playerview[i].statsf[STAT_PUNCHANGLE_X];
+		cl.inframes[newpacket&UPDATE_MASK].packet_entities.punchangle[i][1] = cl.playerview[i].statsf[STAT_PUNCHANGLE_Y];
+		cl.inframes[newpacket&UPDATE_MASK].packet_entities.punchangle[i][2] = cl.playerview[i].statsf[STAT_PUNCHANGLE_Z];
+		cl.inframes[newpacket&UPDATE_MASK].packet_entities.punchorigin[i][0] = cl.playerview[i].statsf[STAT_PUNCHVECTOR_X];
+		cl.inframes[newpacket&UPDATE_MASK].packet_entities.punchorigin[i][1] = cl.playerview[i].statsf[STAT_PUNCHVECTOR_Y];
+		cl.inframes[newpacket&UPDATE_MASK].packet_entities.punchorigin[i][2] = cl.playerview[i].statsf[STAT_PUNCHVECTOR_Z];
+	}
 
 
 	if (!cl.validsequence || cls.netchan.incoming_sequence-cl.validsequence >= UPDATE_BACKUP-1 || oldp == newp)
@@ -3614,7 +3624,7 @@ qboolean CL_MayLerp(void)
 void CL_TransitionEntities (void)
 {
 	packet_entities_t	*packnew, *packold;
-	int newf, newff, oldf;
+	int newf, newff, oldf, i;
 	qboolean nolerp;
 	float servertime, frac;
 
@@ -3654,6 +3664,12 @@ void CL_TransitionEntities (void)
 //		Con_Printf("%f %f %f (%f) (%i) %f %f %f\n", packold->servertime, servertime, packnew->servertime, frac, newff, cl.oldgametime, servertime, cl.gametime);
 
 	CL_TransitionPacketEntities(newff, packnew, packold, frac, servertime);
+
+	for (i = 0; i < cl.splitclients; i++)
+	{
+		VectorInterpolate(packold->punchangle[i], frac, packnew->punchangle[i], cl.playerview[i].punchangle_sv);
+		VectorInterpolate(packold->punchorigin[i], frac, packnew->punchorigin[i], cl.playerview[i].punchorigin);
+	}
 
 
 	/*and transition players too*/

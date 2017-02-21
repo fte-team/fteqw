@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void *wadmutex;
 
-#ifndef PACKAGE_WAD
+#ifndef PACKAGE_TEXWAD
 void Wads_Flush (void){}
 qboolean Wad_NextDownload (void){return true;}
 void *W_SafeGetLumpName (const char *name, size_t *size) {return NULL;}
@@ -800,7 +800,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 	char token[4096];
 	char key[128];
 	const char *data = Mod_GetEntitiesString(wmodel);
-#ifdef PACKAGE_WAD
+#ifdef PACKAGE_TEXWAD
 	mapskys_t *msky;
 
 	wads[0] = '\0';
@@ -837,7 +837,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 			break; // error
 		if (!strcmp("wad", key)) // for HalfLife maps
 		{
-#ifdef PACKAGE_WAD
+#ifdef PACKAGE_TEXWAD
 			Q_strncatz(wads, ";", sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
 			Q_strncatz(wads, token, sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
 #endif
@@ -919,7 +919,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 
 	COM_FileBase (wmodel->name, token, sizeof(token));
 
-#ifdef PACKAGE_WAD
+#ifdef PACKAGE_TEXWAD
 	//map-specific sky override feature
 	for (msky = mapskies; msky; msky = msky->next)
 	{

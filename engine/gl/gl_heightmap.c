@@ -5624,7 +5624,11 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 	{
 		if (!bt->shader)
 		{
+#ifdef PACKAGE_TEXWAD
 			miptex_t *tx = W_GetMipTex(bt->shadername);
+#else
+			const miptex_t *tx = NULL;
+#endif
 
 			if (!Q_strcasecmp(bt->shadername, "clip"))
 				bt->shader = R_RegisterShader(bt->shadername, SUF_LIGHTMAP, "{\nsurfaceparm nodraw\n}");

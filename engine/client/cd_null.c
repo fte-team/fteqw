@@ -1,5 +1,8 @@
 #include "quakedef.h"
 
+#ifdef HAVE_CDPLAYER
+	//nothing
+
 #ifdef _WIN32
 //not really needed, but nice none-the-less.
 #include "winquake.h"
@@ -54,3 +57,4 @@ qboolean CDAudio_Startup(void)
 {
 	return false;
 }
+#endif

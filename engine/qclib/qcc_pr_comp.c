@@ -681,6 +681,11 @@ QCC_opcode_t pr_opcodes[] =
  {7, "-", "SUB_EI",	4, ASSOC_LEFT,						&type_entity,	&type_integer,	&type_entity},
  {7, "-", "SUB_EF",	4, ASSOC_LEFT,						&type_entity,	&type_float,	&type_entity},
 
+ {7, "&", "BITAND_V", 5, ASSOC_LEFT,			&type_vector,	&type_vector,	&type_vector},
+ {7, "|", "BITOR_V", 5, ASSOC_LEFT,				&type_vector,	&type_vector,	&type_vector},
+ {7, "~", "BITNOT_V", -1, ASSOC_LEFT,				&type_vector,	&type_void, &type_vector},
+ {7, "^", "BITXOR_V", 3, ASSOC_LEFT,					&type_vector,	&type_vector, &type_vector},
+
  {0, NULL}
 };
 
@@ -932,6 +937,7 @@ QCC_opcode_t *opcodes_orstore[] =
 	&pr_opcodes[OP_BITOR_I],
 	&pr_opcodes[OP_BITOR_IF],
 	&pr_opcodes[OP_BITOR_FI],
+	&pr_opcodes[OP_BITOR_V],
 	NULL
 };
 QCC_opcode_t *opcodes_orstorep[] =
@@ -943,6 +949,7 @@ QCC_opcode_t *opcodes_xorstore[] =
 {
 	&pr_opcodes[OP_BITXOR_I],
 	&pr_opcodes[OP_BITXOR_F],
+	&pr_opcodes[OP_BITXOR_V],
 	NULL
 };
 QCC_opcode_t *opcodes_andstore[] =
@@ -951,6 +958,7 @@ QCC_opcode_t *opcodes_andstore[] =
 	&pr_opcodes[OP_BITAND_I],
 	&pr_opcodes[OP_BITAND_IF],
 	&pr_opcodes[OP_BITAND_FI],
+	&pr_opcodes[OP_BITAND_V],
 	NULL
 };
 QCC_opcode_t *opcodes_clearstore[] =
@@ -1038,14 +1046,17 @@ QCC_opcode_t *opcodeprioritized[TOP_PRIORITY+1][128] =
 		&pr_opcodes[OP_BITAND_I],
 		&pr_opcodes[OP_BITAND_IF],
 		&pr_opcodes[OP_BITAND_FI],
+		&pr_opcodes[OP_BITAND_V],
 
 		&pr_opcodes[OP_BITOR_F],
 		&pr_opcodes[OP_BITOR_I],
 		&pr_opcodes[OP_BITOR_IF],
 		&pr_opcodes[OP_BITOR_FI],
+		&pr_opcodes[OP_BITOR_V],
 
 		&pr_opcodes[OP_BITXOR_I],
 		&pr_opcodes[OP_BITXOR_F],
+		&pr_opcodes[OP_BITXOR_V],
 
 		&pr_opcodes[OP_RSHIFT_I],
 		&pr_opcodes[OP_RSHIFT_F],
@@ -2346,10 +2357,24 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
 					optres_constantarithmatic++;
 					return QCC_MakeFloatConst(QCC_PR_RoundFloatConst(eval_a) | QCC_PR_RoundFloatConst(eval_b));
+				case OP_BITOR_V:
+					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
+					optres_constantarithmatic++;
+					return QCC_MakeVectorConst(
+						(int)eval_a->vector[0] | (int)eval_b->vector[0],
+						(int)eval_a->vector[1] | (int)eval_b->vector[1],
+						(int)eval_a->vector[2] | (int)eval_b->vector[2]);
 				case OP_BITAND_F:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
 					optres_constantarithmatic++;
 					return QCC_MakeFloatConst(QCC_PR_RoundFloatConst(eval_a) & QCC_PR_RoundFloatConst(eval_b));
+				case OP_BITAND_V:
+					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
+					optres_constantarithmatic++;
+					return QCC_MakeVectorConst(
+						(int)eval_a->vector[0] & (int)eval_b->vector[0],
+						(int)eval_a->vector[1] & (int)eval_b->vector[1],
+						(int)eval_a->vector[2] & (int)eval_b->vector[2]);
 				case OP_MUL_F:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
 					optres_constantarithmatic++;
@@ -2624,6 +2649,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				case OP_BITNOT_I:
 					QCC_FreeTemp(var_a);
 					return QCC_MakeIntConst(~eval_a->_int);
+				case OP_BITNOT_V:
+					QCC_FreeTemp(var_a);
+					return QCC_MakeVectorConst(~(int)eval_a->vector[0], ~(int)eval_a->vector[1], ~(int)eval_a->vector[2]);
 				case OP_CONV_FTOI:
 					QCC_FreeTemp(var_a);
 					optres_constantarithmatic++;
@@ -3241,6 +3269,22 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				return var_c;
 			}
 			break;
+		case OP_BITAND_V:
+		case OP_BITOR_V:
+			op = &pr_opcodes[((op - pr_opcodes)==OP_BITAND_V)?OP_BITAND_F:OP_BITOR_F];
+			var_c = QCC_GetTemp(type_vector);
+			var_a.cast = type_float;
+			var_b.cast = type_float;
+			var_c.cast = type_float;
+			QCC_PR_SimpleStatement(op, var_a, var_b, var_c, true);
+			var_a.ofs++; var_b.ofs++; var_c.ofs++;
+			QCC_PR_SimpleStatement(op, var_a, var_b, var_c, true);
+			var_a.ofs++; var_b.ofs++; var_c.ofs++;
+			QCC_PR_SimpleStatement(op, var_a, var_b, var_c, true);
+			var_a.ofs++; var_b.ofs++; var_c.ofs++;
+			var_c.cast = type_vector;
+			var_c.ofs -= 3;
+			return var_c;
 		case OP_ADD_I:
 			{
 				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "AddInt", NULL, false, 0, 0);
@@ -3393,6 +3437,14 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_BITAND_F], var_b, var_a, NULL, 0);
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_F], var_c, var_a, NULL, 0);
 
+		case OP_BITXOR_V:
+//			r = (a & ~b) | (b & ~a);
+			var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITNOT_V], var_b, nullsref, NULL, STFL_PRESERVEA);
+			var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITAND_V], var_a, var_c, NULL, STFL_PRESERVEA);
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_BITNOT_V], var_a, nullsref, NULL, 0);
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_BITAND_V], var_b, var_a, NULL, 0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_V], var_c, var_a, NULL, 0);
+
 		case OP_IF_S:
 			tmp = QCC_MakeFloatConst(0);
 			tmp.cast = type_string;
@@ -3480,6 +3532,12 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			op = &pr_opcodes[OP_SUB_F];
 			var_b = var_a;
 			var_a = QCC_MakeFloatConst(-1);	//divVerent says -1 is safe, even with floats. I guess I'm just too paranoid.
+			break;
+		case OP_BITNOT_V:
+			op = &pr_opcodes[OP_SUB_V];
+			var_b = var_a;
+			var_a = QCC_MakeVectorConst(-1, -1, -1);
+			var_a.sym->referenced=true;
 			break;
 
 		case OP_DIVSTORE_F:
@@ -7599,6 +7657,8 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_F], e, nullsref, NULL);
 			else if (t == ev_integer)
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_I], e, nullsref, NULL);	//functions are integer values too.
+			else if (t == ev_vector)
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_V], e, nullsref, NULL);	//functions are integer values too.
 			else
 			{
 				e2 = nullsref;		// shut up compiler warning;

@@ -2,7 +2,9 @@
 
 #include <SDL.h>
 
-#if SDL_MAJOR_VERSION >= 2
+#ifndef HAVE_CDPLAYER
+	//nothing
+#elif SDL_MAJOR_VERSION >= 2
 //sdl2 has no cd support. sod off.
 #include "cd_null.c"
 #else

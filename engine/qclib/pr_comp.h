@@ -417,6 +417,11 @@ enum qcop_e {
 	OP_SUB_EI,
 	OP_SUB_EF,
 
+	OP_BITAND_V,
+	OP_BITOR_V,
+	OP_BITNOT_V,
+	OP_BITXOR_V,
+
 	OP_NUMOPS
 };
 

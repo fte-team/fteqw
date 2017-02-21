@@ -22,7 +22,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-#ifdef __CYGWIN__ 
+#ifndef HAVE_CDPLAYER
+	//nothing
+#elif defined(__CYGWIN__)
 #include "cd_null.c"
 #else
 

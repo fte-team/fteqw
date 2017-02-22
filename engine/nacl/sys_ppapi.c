@@ -318,7 +318,7 @@ void FrameEvent(void* user_data, int32_t result)
 }
 void startquake(char *manif)
 {
-	static char *args[16];
+	static const char *args[16];
 	quakeparms_t parms;
 	memset(&parms, 0, sizeof(parms));
 	parms.basedir = "";	/*filled in later*/
@@ -645,7 +645,7 @@ PP_EXPORT int32_t PPP_InitializeModule(PP_Module a_module_id, PPB_GetInterface g
 	ppb_fullscreen_interface = (PPB_Fullscreen*)(get_browser(PPB_FULLSCREEN_INTERFACE));
 	ppb_websocket_interface = (PPB_WebSocket*)(get_browser(PPB_WEBSOCKET_INTERFACE));
 	ppb_view_instance = (PPB_View*)(get_browser(PPB_VIEW_INTERFACE));
-	ppb_vararraybuffer_interface = (PPB_View*)(get_browser(PPB_VAR_ARRAY_BUFFER_INTERFACE));
+	ppb_vararraybuffer_interface = (PPB_VarArrayBuffer*)(get_browser(PPB_VAR_ARRAY_BUFFER_INTERFACE));
 
 	glInitializePPAPI(sys_gbi);
 

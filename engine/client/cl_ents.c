@@ -925,6 +925,7 @@ void CLFTE_ParseEntities(void)
 	cl.inframes[newpacket].receivedtime = realtime;
 	cl.inframes[newpacket].frameid = cls.netchan.incoming_sequence;
 
+#ifdef QUAKESTATS
 	for (i = 0; i < cl.splitclients; i++)
 	{
 		cl.inframes[newpacket&UPDATE_MASK].packet_entities.punchangle[i][0] = cl.playerview[i].statsf[STAT_PUNCHANGLE_X];
@@ -934,6 +935,7 @@ void CLFTE_ParseEntities(void)
 		cl.inframes[newpacket&UPDATE_MASK].packet_entities.punchorigin[i][1] = cl.playerview[i].statsf[STAT_PUNCHVECTOR_Y];
 		cl.inframes[newpacket&UPDATE_MASK].packet_entities.punchorigin[i][2] = cl.playerview[i].statsf[STAT_PUNCHVECTOR_Z];
 	}
+#endif
 
 
 	if (!cl.validsequence || cls.netchan.incoming_sequence-cl.validsequence >= UPDATE_BACKUP-1 || oldp == newp)

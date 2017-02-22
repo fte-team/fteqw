@@ -71,7 +71,7 @@ LRESULT CALLBACK HeadlessWndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lpara
 
 static qboolean Headless_VID_Init				(rendererstate_t *info, unsigned char *palette)
 {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 	//tray icon crap, so the user can still restore the game.
 	extern HWND	mainwindow;
 	extern HINSTANCE	global_hInstance;
@@ -140,7 +140,7 @@ static qboolean Headless_VID_Init				(rendererstate_t *info, unsigned char *pale
 }
 static void	 Headless_VID_DeInit				(void)
 {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 	//tray icon crap, so the user can still restore the game.
 	//FIXME: remove tray icon. win95 won't do this automagically.
 	extern HWND	mainwindow;
@@ -168,7 +168,7 @@ static qboolean	Headless_SCR_UpdateScreen			(void)
 {
 	if (!cls.timedemo)
 	{
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 		Sleep(100);
 #else
 		usleep(100*1000);

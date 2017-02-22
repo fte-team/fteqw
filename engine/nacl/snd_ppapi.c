@@ -8,11 +8,13 @@ extern PPB_Audio *audio_interface;
 extern PPB_AudioConfig *audioconfig_interface;
 extern PP_Instance pp_instance;
 
-static PPB_Audio_Callback audio_callback;
-
 extern int S_GetMixerTime(soundcardinfo_t *sc);
 
-static void PPAPI_audio_callback(void *sample_buffer, uint32_t len, void *user_data)
+static void PPAPI_audio_callback(void *sample_buffer, uint32_t len, 
+#ifdef PPB_AUDIO_INTERFACE_1_1
+								 PP_TimeDelta latency,
+#endif
+								 void *user_data)
 {
 	soundcardinfo_t *sc = user_data;
 	unsigned int framesz;
@@ -52,10 +54,6 @@ static void *PPAPI_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	*sampidx = 0;
     return sc->sn.buffer;
-}
-
-static void PPAPI_SetUnderWater(soundcardinfo_t *sc, qboolean uw)
-{
 }
 
 static void PPAPI_Submit(soundcardinfo_t *sc, int start, int end)

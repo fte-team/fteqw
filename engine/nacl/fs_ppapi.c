@@ -239,7 +239,7 @@ static void FSPPAPI_DoUnlink(mfile_t *file)
 	//and finally free the last bit of memory.
 	free(file);
 }
-static void VFSMEM_Close(vfsfile_t *file)
+static qboolean VFSMEM_Close(vfsfile_t *file)
 {
 	vfsmfile_t *f = (vfsmfile_t*)file;
 	f->file->refs -= 1;
@@ -247,6 +247,7 @@ static void VFSMEM_Close(vfsfile_t *file)
 		if (f->file->unlinked)
 			FSPPAPI_DoUnlink(f->file);
 	free(f);
+	return true;
 }
 static void VFSMEM_Flush(struct vfsfile_s *file)
 {
@@ -418,13 +419,13 @@ int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(con
 	}
 	return true;
 }
-static int FSPPAPI_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm)
+static int FSPPAPI_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (*func)(const char *, qofs_t, time_t, void *, searchpathfuncs_t *), void *parm)
 {
 	pppath_t *sp = (void*)handle;
 	return Sys_EnumerateFiles(sp->rootpath, match, func, parm, handle);
 }
 
-static int FSPPAPI_RebuildFSHash(const char *filename, qofs_t filesize, void *data, searchpathfuncs_t *handle)
+static int FSPPAPI_RebuildFSHash(const char *filename, qofs_t filesize, time_t time, void *data, searchpathfuncs_t *handle)
 {
 	pppath_t *sp = (void*)handle;
 	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = data;
@@ -477,7 +478,7 @@ static qboolean FSPPAPI_FLocate(searchpathfuncs_t *handle, flocation_t *loc, con
 	{
 		loc->len = len;
 		loc->offset = 0;
-		loc->index = 0;
+		loc->fhandle = 0;
 		Q_strncpyz(loc->rawname, filename, sizeof(loc->rawname));
 	}
 
@@ -495,7 +496,7 @@ static void FSPPAPI_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *
 	result = VFS_READ(f, buffer, loc->len);
 
 	if (result != loc->len)
-		Con_Printf("FSPPAPI_ReadFile() fread: Filename: %s, expected %i, result was %u\n",loc->rawname,loc->len,(unsigned int)result);
+		Con_Printf("FSPPAPI_ReadFile() fread: Filename: %s, expected %i, result was %u\n",loc->rawname,(int)loc->len,(unsigned int)result);
 
 	VFS_CLOSE(f);
 }

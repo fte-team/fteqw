@@ -7772,6 +7772,7 @@ void CLNQ_ParseServerMessage (void)
 				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.num_entities=0;
 				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.servertime = cl.gametime;
 			}
+#ifdef QUAKESTATS
 			for (i = 0; i < cl.splitclients; i++)
 			{
 				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.punchangle[i][0] = cl.playerview[i].statsf[STAT_PUNCHANGLE_X];
@@ -7781,6 +7782,7 @@ void CLNQ_ParseServerMessage (void)
 				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.punchorigin[i][1] = cl.playerview[i].statsf[STAT_PUNCHVECTOR_Y];
 				cl.inframes[cl.validsequence&UPDATE_MASK].packet_entities.punchorigin[i][2] = cl.playerview[i].statsf[STAT_PUNCHVECTOR_Z];
 			}
+#endif
 			break;
 
 		case svc_updatename:

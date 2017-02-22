@@ -2125,6 +2125,10 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 		statsf[STAT_PUNCHANGLE_Y] = ent->xv->punchangle[1];
 		statsf[STAT_PUNCHANGLE_Z] = ent->xv->punchangle[2];
 
+//		statsf[STAT_PUNCHORIGIN_X] = ent->xv->punchvector[0];
+//		statsf[STAT_PUNCHORIGIN_Y] = ent->xv->punchvector[1];
+//		statsf[STAT_PUNCHORIGIN_Z] = ent->xv->punchvector[2];
+
 	#ifdef PEXT_VIEW2
 		if (ent->xv->view2)
 			statsi[STAT_VIEW2] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, ent->xv->view2));

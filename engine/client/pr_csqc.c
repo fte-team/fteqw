@@ -557,17 +557,25 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 
 		out->g[FST_BASE].frame[0] = in->xv->baseframe;
 		out->g[FST_BASE].frame[1] = in->xv->baseframe2;
+		//out->g[FST_BASE].frame[2] = in->xv->baseframe3;
+		//out->g[FST_BASE].frame[3] = in->xv->baseframe4;
 		out->g[FST_BASE].lerpweight[1] = in->xv->baselerpfrac;
-		out->g[FST_BASE].lerpweight[0] = 1-out->g[FST_BASE].lerpweight[1];
+//		out->g[FST_BASE].lerpweight[2] = in->xv->baselerpfrac3;
+//		out->g[FST_BASE].lerpweight[3] = in->xv->baselerpfrac4;
+		out->g[FST_BASE].lerpweight[0] = 1-(out->g[FST_BASE].lerpweight[1]);
 		if (rflags & CSQCRF_FRAMETIMESARESTARTTIMES)
 		{
 			out->g[FST_BASE].frametime[0] = *csqcg.simtime - in->xv->baseframe1time;
 			out->g[FST_BASE].frametime[1] = *csqcg.simtime - in->xv->baseframe2time;
+			//out->g[FST_BASE].frametime[2] = *csqcg.simtime - in->xv->baseframe3time;
+			//out->g[FST_BASE].frametime[3] = *csqcg.simtime - in->xv->baseframe4time;
 		}
 		else
 		{
 			out->g[FST_BASE].frametime[0] = in->xv->baseframe1time;
 			out->g[FST_BASE].frametime[1] = in->xv->baseframe2time;
+			//out->g[FST_BASE].frametime[2] = in->xv->baseframe3time;
+			//out->g[FST_BASE].frametime[3] = in->xv->baseframe4time;
 		}
 	}
 
@@ -820,7 +828,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	{
 		VectorCopy(in->v->angles, out->angles);
 		if (model->type == mod_alias)
-			out->angles[0]*=-1;
+			out->angles[0] *= r_meshpitch.value;
 		AngleVectors(out->angles, out->axis[0], out->axis[1], out->axis[2]);
 		VectorInverse(out->axis[1]);
 
@@ -1083,10 +1091,10 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 		G_FLOAT(OFS_RETURN) = l->style-1;
 		break;
 	case lfield_angles:
-		VectorAngles(l->axis[0], l->axis[2], v);
-		G_FLOAT(OFS_RETURN+0) = anglemod(v[0]?-v[0]:0);
-		G_FLOAT(OFS_RETURN+1) = v[1]?v[1]:0;
-		G_FLOAT(OFS_RETURN+2) = v[2]?v[2]:0;
+		VectorAngles(l->axis[0], l->axis[2], v, false);
+		G_FLOAT(OFS_RETURN+0) = anglemod(v[0]);
+		G_FLOAT(OFS_RETURN+1) = v[1];
+		G_FLOAT(OFS_RETURN+2) = v[2];
 		break;
 	case lfield_fov:
 		G_FLOAT(OFS_RETURN) = l->fov;
@@ -1542,20 +1550,20 @@ void QCBUILTIN PF_R_AddTrisoup(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	//validates the pointer.
 	numverts = (prinst->stringtablesize - vertsptr) / sizeof(qcvertex_t);
-	if (numverts < 1 || vertsptr <= 0 || vertsptr+numverts*sizeof(qcvertex_t) >= prinst->stringtablesize)
+	if (numverts < 1 || vertsptr <= 0 || vertsptr+numverts*sizeof(qcvertex_t) > prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "PF_R_AddTrisoup: invalid vertexes pointer\n");
 		return;
 	}
 	vert = (qcvertex_t*)(prinst->stringtable + vertsptr);
-	if (indexesptr <= 0 || indexesptr+numindexes*sizeof(int) >= prinst->stringtablesize)
+	if (indexesptr <= 0 || indexesptr+numindexes*sizeof(int) > prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "PF_R_AddTrisoup: invalid indexes pointer\n");
 		return;
 	}
 	idx = (int*)(prinst->stringtable + indexesptr);
 
-	first = csqc_poly_startvert - csqc_poly_origvert;
+	first = cl_numstrisvert - csqc_poly_origvert;
 	if (first + numindexes > MAX_INDICIES)
 	{
 		if (numindexes > MAX_INDICIES)
@@ -1603,7 +1611,8 @@ void QCBUILTIN PF_R_AddTrisoup(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		cl_strisidx[cl_numstrisidx++] = first++;
 	}
 
-	//this is where our current poly starts, so verts+end can still work properly afterwards.
+
+	//in case someone calls polygonvertex+end without beginpolygon
 	csqc_poly_startvert = cl_numstrisvert;
 	csqc_poly_startidx = cl_numstrisidx;
 }
@@ -2504,7 +2513,7 @@ static model_t *csqc_setmodel(pubprogfuncs_t *prinst, csqcedict_t *ent, int mode
 			return NULL;
 		prinst->SetStringField(prinst, (void*)ent, &ent->v->model, cl.model_csqcname[-modelindex], true);
 		if (!cl.model_csqcprecache[-modelindex])
-			cl.model_csqcprecache[-modelindex] = Mod_ForName(Mod_FixName(cl.model_csqcname[-modelindex], csqc_world.worldmodel->name), MLV_WARN);
+			cl.model_csqcprecache[-modelindex] = Mod_ForName(Mod_FixName(cl.model_csqcname[-modelindex], csqc_world.worldmodel->publicname), MLV_WARN);
 		model = cl.model_csqcprecache[-modelindex];
 	}
 	else
@@ -2587,7 +2596,7 @@ static void QCBUILTIN PF_cs_PrecacheModel(pubprogfuncs_t *prinst, struct globalv
 		return;
 	}
 
-	fixedname = Mod_FixName(modelname, csqc_world.worldmodel->name);
+	fixedname = Mod_FixName(modelname, csqc_world.worldmodel->publicname);
 
 	for (i = 1; i < MAX_PRECACHE_MODELS; i++)	//Make sure that the server specified model is loaded..
 	{
@@ -2607,7 +2616,7 @@ static void QCBUILTIN PF_cs_PrecacheModel(pubprogfuncs_t *prinst, struct globalv
 	{
 		if (!freei)
 			Host_EndGame("CSQC ran out of model slots\n");
-		fixedname = Mod_FixName(modelname, csqc_world.worldmodel->name);
+		fixedname = Mod_FixName(modelname, csqc_world.worldmodel->publicname);
 		Q_strncpyz(cl.model_csqcname[-freei], fixedname, sizeof(cl.model_csqcname[-freei]));	//allocate a slot now
 		modelindex = freei;
 
@@ -3233,7 +3242,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	}
 
 	VectorCopy(pmove.angles, ent->v->angles);
-	ent->v->angles[0] *= -1/3.0f;	//FIXME
+	ent->v->angles[0] *= r_meshpitch.value * 1/3.0f;	//FIXME
 	VectorCopy(pmove.origin, ent->v->origin);
 	VectorCopy(pmove.velocity, ent->v->velocity);
 	ent->xv->pmove_flags = 0;
@@ -4757,7 +4766,7 @@ void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 	VectorCopy(srcp->viewangles, ent->v->angles);
 
 	VectorCopy(srcp->velocity, ent->v->velocity);
-	ent->v->angles[0] *= -0.333;
+	ent->v->angles[0] *= r_meshpitch.value * 0.333;
 	ent->v->colormap = pnum+1;
 	ent->xv->scale = srcp->scale;
 	//ent->v->fatness = srcp->fatness;
@@ -5133,7 +5142,7 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 	case GE_GRAVITYDIR:
 		{
 			vec3_t a;
-			a[0] = ((-192-es->u.q1.gravitydir[0])/256.0f) * 360;
+			a[0] = ((192+es->u.q1.gravitydir[0])/256.0f) * 360;
 			a[1] = (es->u.q1.gravitydir[1]/256.0f) * 360;
 			a[2] = 0;
 			AngleVectors(a, G_VECTOR(OFS_RETURN), NULL, NULL);
@@ -6856,7 +6865,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		csqc_world.Get_CModel = CSQC_World_ModelForIndex;
 		csqc_world.Get_FrameState = CSQC_World_GetFrameState;
 		csqc_world.defaultgravityscale = 1;
-		World_ClearWorld(&csqc_world);
+		World_ClearWorld(&csqc_world, false);
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
 
 		if (setjmp(csqc_abort))
@@ -7032,6 +7041,8 @@ void CSQC_WorldLoaded(void)
 	csqc_worldchanged = tmp;
 
 	worldent->readonly = false;	//just in case
+
+	World_ClearWorld(&csqc_world, true);
 
 	if (csqc_isdarkplaces)
 	{
@@ -7290,7 +7301,7 @@ qboolean CSQC_SetupToRenderPortal(int entkeynum)
 
 			*csqcg.self = EDICT_TO_PROG(csqcprogs, e);
 			VectorCopy(r_refdef.vieworg, G_VECTOR(OFS_PARM0));
-			VectorAngles(vpn, vup, G_VECTOR(OFS_PARM1));
+			VectorAngles(vpn, vup, G_VECTOR(OFS_PARM1), true/*FIXME*/);
 			VectorCopy(vpn, csqcg.forward);
 			VectorCopy(vright, csqcg.right);
 			VectorCopy(vup, csqcg.up);

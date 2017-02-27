@@ -611,7 +611,12 @@ void R_ToggleFullscreen_f(void)
 	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
 
 	newr = currentrendererstate;
-	newr.fullscreen = newr.fullscreen?0:2;
+	if (newr.fullscreen)
+		newr.fullscreen = 0;	//if we're currently any sort of fullscreen then go windowed
+	else if (vid_fullscreen.ival)
+		newr.fullscreen = vid_fullscreen.ival;	//if we're normally meant to be fullscreen, use that
+	else
+		newr.fullscreen = 2;	//otherwise use native resolution
 	if (newr.fullscreen)
 	{
 		int dbpp, dheight, dwidth, drate;
@@ -623,8 +628,14 @@ void R_ToggleFullscreen_f(void)
 			drate = 0;
 		}
 
-		newr.width = dwidth;
-		newr.height = dheight;
+		if (newr.fullscreen == 1 && vid_width.ival>0)
+			newr.width = vid_width.ival;
+		else
+			newr.width = dwidth;
+		if (newr.fullscreen == 1 && vid_height.ival>0)
+			newr.height = vid_height.ival;
+		else
+			newr.height = dheight;
 	}
 	else
 	{
@@ -1392,7 +1403,6 @@ TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 #ifndef CLIENTONLY
 	if (sv.world.worldmodel)
 	{
-		wedict_t *ent;
 #ifdef Q2SERVER
 		q2edict_t *q2ent;
 #endif
@@ -1419,23 +1429,9 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 					sv.models[i] = NULL;
 			}
 
-			World_ClearWorld (&sv.world);
-			ent = sv.world.edicts;
+			World_ClearWorld (&sv.world, true);
+//			ent = sv.world.edicts;
 //			ent->v->model = PR_NewString(svprogfuncs, sv.worldmodel->name);	//FIXME: is this a problem for normal ents?
-			for (i=0 ; i<sv.world.num_edicts ; i++)
-			{
-				ent = (wedict_t*)EDICT_NUM(svprogfuncs, i);
-				if (!ent)
-					continue;
-				if (ED_ISFREE(ent))
-					continue;
-
-				if (ent->area.prev)
-				{
-					ent->area.prev = ent->area.next = NULL;
-					World_LinkEdict (&sv.world, ent, false);	// relink ents so touch functions continue to work.
-				}
-			}
 		}
 #ifdef Q2SERVER
 		else if (svs.gametype == GT_QUAKE2)
@@ -1455,7 +1451,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 					sv.models[i] = NULL;
 			}
 
-			World_ClearWorld (&sv.world);
+			World_ClearWorld (&sv.world, false);
 			q2ent = ge->edicts;
 			for (i=0 ; i<ge->num_edicts ; i++, q2ent = (q2edict_t *)((char *)q2ent + ge->edict_size))
 			{

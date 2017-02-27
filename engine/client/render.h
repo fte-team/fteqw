@@ -628,6 +628,8 @@ extern	cvar_t	gl_playermip;
 
 extern  cvar_t	r_lightmap_saturation;
 
+extern cvar_t r_meshpitch;
+
 enum {
 	RSPEED_TOTALREFRESH,
 	RSPEED_LINKENTITIES,

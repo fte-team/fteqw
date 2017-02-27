@@ -652,6 +652,7 @@ cin_t *R_ShaderGetCinematic(shader_t *s);
 cin_t *R_ShaderFindCinematic(const char *name);
 shader_t *R_ShaderFind(const char *name);	//does NOT increase the shader refcount.
 
+void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args);
 void Shader_DefaultSkinShell(const char *shortname, shader_t *s, const void *args);
 void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args);
 void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args);

@@ -291,7 +291,7 @@ void VectorVectors(const vec3_t forward, vec3_t right, vec3_t up)
 	CrossProduct(right, forward, up);
 }
 
-void QDECL VectorAngles(float *forward, float *up, float *result)	//up may be NULL
+void QDECL VectorAngles(float *forward, float *up, float *result, qboolean meshpitch)	//up may be NULL
 {
 	float	yaw, pitch, roll;	
 
@@ -331,9 +331,11 @@ void QDECL VectorAngles(float *forward, float *up, float *result)	//up may be NU
 			roll = 0;
 	}
 
-	pitch *= -180 / M_PI;
+	pitch *= 180 / M_PI;
 	yaw *= 180 / M_PI;
 	roll *= 180 / M_PI;
+	if (meshpitch)
+		pitch *= r_meshpitch.value;
 	if (pitch < 0)
 		pitch += 360;
 	if (yaw < 0)
@@ -379,11 +381,6 @@ void QDECL AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3
 		up[1] = (cr*sp*sy+-sr*cy);
 		up[2] = cr*cp;
 	}
-}
-
-void QDECL vectoangles(vec3_t fwd, vec3_t ang)
-{
-	VectorAngles(fwd, NULL, ang);
 }
 
 int VectorCompare (const vec3_t v1, const vec3_t v2)

@@ -524,9 +524,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef VM_CG
 	#undef TEXTEDITOR
 	#undef RUNTIMELIGHTING
-	#undef DSPMODELS
-	#undef SPRMODELS
-	#undef SP2MODELS
 
 	#undef PSET_SCRIPT
 	#undef PSET_CLASSIC

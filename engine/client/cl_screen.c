@@ -481,8 +481,15 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 		}
 		else if (str[1] == 'I')
 		{
-			char *e = strchr(str+=2, ':');
-			int l = e - str;
+			char *e;
+			int l;
+			str+=2;
+			e = strchr(str, ':');
+			if (!e)
+				e = strchr(str, ' ');	//probably an error
+			if (!e)
+				e = str + strlen(str)-1;	//error
+			l = e - str;
 			if (l >= sizeof(p->titleimage))
 				l = sizeof(p->titleimage)-1;
 			strncpy(p->titleimage, str, l);
@@ -2384,7 +2391,7 @@ static void SCR_ScreenShot_f (void)
 	Con_Printf (CON_ERROR "Couldn't write %s\n", sysname);
 }
 
-void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, enum uploadfmt *fmt)
+static void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, enum uploadfmt *fmt)
 {
 	int width, height;
 	void *buf;
@@ -2468,10 +2475,10 @@ static void SCR_ScreenShot_Mega_f(void)
 
 	if (!fbwidth)
 		fbwidth = sh_config.texture_maxsize;
-	fbwidth = bound(0, fbwidth, sh_config.texture_maxsize);
+	fbwidth = bound(1, fbwidth, sh_config.texture_maxsize);
 	if (!fbheight)
 		fbheight = (fbwidth * 3)/4;
-	fbheight = bound(0, fbheight, sh_config.texture_maxsize);
+	fbheight = bound(1, fbheight, sh_config.texture_maxsize);
 
 	if (strstr (screenyname, "..") || strchr(screenyname, ':') || *screenyname == '.' || *screenyname == '/')
 		screenyname = "";
@@ -2567,6 +2574,8 @@ static void SCR_ScreenShot_VR_f(void)
 
 	if (width <= 2)
 		width = 2048;
+	if (width > sh_config.texture_maxsize)
+		width = sh_config.texture_maxsize;
 	height = width/2;
 	if (step <= 0)
 		step = 5;
@@ -2693,9 +2702,57 @@ static void SCR_ScreenShot_VR_f(void)
 	VectorClear(r_refdef.eyeoffset);
 }
 
-void SCR_ScreenShot_EnvMap_f(void)
+void SCR_ScreenShot_Cubemap_f(void)
 {
-	Con_Printf("Not implemented\n");
+	void *buffer;
+	int fbwidth, fbheight;
+	uploadfmt_t fmt;
+	char filename[MAX_QPATH];
+	char *fname = Cmd_Argv(1);
+	int i;
+	const struct
+	{
+		vec3_t angle;
+		const char *postfix;
+	} sides[] =
+	{
+		{{0, 0, 0}, "_px"},
+		{{0, 180, 0}, "_nx"},
+		{{0, 90, 0}, "_py"},
+		{{0, 270, 0}, "_ny"},
+		{{90, 0, 0}, "_pz"},
+		{{-90, 0, 0}, "_nz"}
+	};
+
+	r_refdef.stereomethod = STEREO_OFF;
+
+	fbheight = atoi(Cmd_Argv(2));
+	if (fbheight < 1)
+		fbheight = 512;
+	fbwidth = fbheight;
+
+	for (i = 0; i < countof(sides); i++)
+	{
+		Q_snprintfz(filename, sizeof(filename), "cubemaps/%s%s", fname, sides[i].postfix);
+		COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
+
+		buffer = SCR_ScreenShot_Capture(fbwidth, fbheight, &fmt);
+		if (buffer)
+		{
+			char			sysname[1024];
+			if (SCR_ScreenShot(filename, FS_GAMEONLY, &buffer, 1, fbwidth, fbheight, fmt))
+			{
+				FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+				Con_Printf ("Wrote %s\n", sysname);
+			}
+			else
+			{
+				FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+				Con_Printf ("Failed to write %s\n", sysname);
+			}
+			BZ_Free(buffer);
+		}
+	}
 }
 
 
@@ -3035,7 +3092,8 @@ void SCR_Init (void)
 	Cmd_AddCommandD ("screenshot_mega",SCR_ScreenShot_Mega_f, "screenshot_mega <name> [width] [height]\nTakes a screenshot with explicit sizes that are not tied to the size of your monitor, allowing for true monstrosities.");
 	Cmd_AddCommandD ("screenshot_stereo",SCR_ScreenShot_Mega_f, "screenshot_stereo <name> [width] [height]\nTakes a simple stereo screenshot.");
 	Cmd_AddCommandD ("screenshot_vr",SCR_ScreenShot_VR_f, "screenshot_vr <name> [width]\nTakes a spherical stereoscopic panorama image, for viewing with VR displays.");
-	Cmd_AddCommand ("envmap",SCR_ScreenShot_EnvMap_f);
+	Cmd_AddCommandD ("screenshot_cubemap",SCR_ScreenShot_Cubemap_f, "screenshot_cubemap <name> [size]\nTakes 6 screenshots forming a single cubemap.");
+	Cmd_AddCommandD ("envmap",SCR_ScreenShot_Cubemap_f, "Legacy name for the screenshot_cubemap command.");	//legacy 
 	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
 	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
 	Cmd_AddCommand ("sizedown",SCR_SizeDown_f);

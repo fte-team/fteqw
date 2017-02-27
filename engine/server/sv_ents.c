@@ -2340,16 +2340,19 @@ void SV_WritePlayersToMVD (client_t *client, client_frame_t *frame, sizebuf_t *m
 		ent = cl->edict;
 		vent = ent;
 
+#ifdef NQPROT
 		if (progstype != PROG_QW)
 		{
 			if ((int)ent->v->effects & EF_MUZZLEFLASH)
 			{
-				if (needcleanup < (j+1))
-				{
-					needcleanup = (j+1);
-				}
+				ent->v->effects = (int)ent->v->effects & ~EF_MUZZLEFLASH;
+				ent->muzzletime = sv.world.physicstime;
+				MSG_WriteByte (&sv.multicast, svc_muzzleflash);
+				MSG_WriteEntity (&sv.multicast, NUM_FOR_EDICT(svprogfuncs, ent));
+				SV_MulticastProtExt (ent->v->origin, MULTICAST_PHS, pr_global_struct->dimension_send, 0, 0);
 			}
 		}
+#endif
 
 		if (SV_AddCSQCUpdate(client, ent))
 			continue;
@@ -2579,7 +2582,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 
 
 
-
+#ifdef NQPROT
 		if (progstype != PROG_QW)
 		{
 			if (progstype == PROG_H2 && (int)ent->v->effects & H2EF_NODRAW && ent != clent)
@@ -2587,12 +2590,14 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 
 			if ((int)ent->v->effects & EF_MUZZLEFLASH)
 			{
-				if (needcleanup < (j+1))
-				{
-					needcleanup = (j+1);
-				}
+				ent->v->effects = (int)ent->v->effects & ~EF_MUZZLEFLASH;
+				ent->muzzletime = sv.world.physicstime;
+				MSG_WriteByte (&sv.multicast, svc_muzzleflash);
+				MSG_WriteEntity (&sv.multicast, NUM_FOR_EDICT(svprogfuncs, ent));
+				SV_MulticastProtExt (ent->v->origin, MULTICAST_PHS, pr_global_struct->dimension_send, 0, 0);
 			}
 		}
+#endif
 
 		// ZOID visibility tracking
 		if (ent != clent &&
@@ -3290,7 +3295,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 		}
 		else
 		{
-			vectoangles(sv.world.g.defaultgravitydir, ang);
+			VectorAngles(sv.world.g.defaultgravitydir, NULL, ang, false);
 			state->u.q1.gravitydir[0] = ((ang[0]/360) * 256) - 192;
 			state->u.q1.gravitydir[1] = (ang[1]/360) * 256;
 		}
@@ -3298,7 +3303,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	else
 	{
 		vec3_t ang;
-		vectoangles(ent->xv->gravitydir, ang);
+		VectorAngles(ent->xv->gravitydir, NULL, ang, false);
 		state->u.q1.gravitydir[0] = ((ang[0]/360) * 256) - 192;
 		state->u.q1.gravitydir[1] = (ang[1]/360) * 256;
 	}
@@ -3321,6 +3326,15 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 		state->hexen2flags |= MLS_FULLBRIGHT;
 
 #ifdef NQPROT
+	if (client && !ISQWCLIENT(client))
+	{
+		if (ent->muzzletime > client->lastoutgoingphysicstime && ent->muzzletime <= (float)sv.world.physicstime)
+			state->effects |= EF_MUZZLEFLASH;
+
+		if (client->spectator && !client->spec_track && ent == client->edict)
+			state->modelindex = sv_playermodel;
+	}
+
 	if (progstype != PROG_QW)
 	{
 		if (progstype == PROG_TENEBRAE)
@@ -3561,19 +3575,19 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 				continue;
 		}
 
+#ifdef NQPROT
 		if (progstype != PROG_QW)
 		{
-//			if (progstype == PROG_H2)
-//				if (ent->v->effects == H2EF_NODRAW)
-//					continue;
 			if ((int)ent->v->effects & EF_MUZZLEFLASH)
 			{
-				if (needcleanup < e)
-				{
-					needcleanup = e;
-				}
+				ent->v->effects = (int)ent->v->effects & ~EF_MUZZLEFLASH;
+				ent->muzzletime = sv.world.physicstime;
+				MSG_WriteByte (&sv.multicast, svc_muzzleflash);
+				MSG_WriteEntity (&sv.multicast, NUM_FOR_EDICT(svprogfuncs, ent));
+				SV_MulticastProtExt (ent->v->origin, MULTICAST_PHS, pr_global_struct->dimension_send, 0, 0);
 			}
 		}
+#endif
 
 		pvsflags = ent->xv->pvsflags;
 		for (c = 0; c < maxc; c++)
@@ -4050,7 +4064,6 @@ void SV_CleanupEnts(void)
 {
 	int		e;
 	edict_t	*ent;
-	vec3_t org;
 
 	if (!needcleanup)
 		return;
@@ -4058,17 +4071,6 @@ void SV_CleanupEnts(void)
 	for (e=1 ; e<=needcleanup ; e++)
 	{
 		ent = EDICT_NUM(svprogfuncs, e);
-		if ((int)ent->v->effects & EF_MUZZLEFLASH)
-		{
-			ent->v->effects = (int)ent->v->effects & ~EF_MUZZLEFLASH;
-
-			MSG_WriteByte(&sv.multicast, svc_muzzleflash);
-			MSG_WriteEntity(&sv.multicast, e);
-			VectorCopy(ent->v->origin, org);
-			if (progstype == PROG_H2)
-				org[2] += 24;
-			SV_Multicast(org, MULTICAST_PVS);
-		}
 		ent->xv->SendFlags = 0;
 
 #ifndef NOLEGACY

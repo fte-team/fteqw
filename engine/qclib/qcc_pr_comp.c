@@ -1521,7 +1521,7 @@ const QCC_eval_t *QCC_SRef_EvalConst(QCC_sref_t ref)
 	if (ref.sym && ref.sym->initialized && ref.sym->constant)
 	{
 		ref.sym->referenced = true;
-		return &ref.sym->symboldata[/*ref.sym->ofs +*/ ref.ofs];
+		return &ref.sym->symboldata[ref.ofs];
 	}
 	return NULL;
 }
@@ -1707,6 +1707,7 @@ static void QCC_ClobberDef(QCC_def_t *def)
 					if (statements[st].c.sym == a)
 						statements[st].c.sym = a->generatedfor;
 				}
+				tmp.sym->refcount = a->symbolheader->refcount;
 				a->symbolheader = tmp.sym;
 				from = QCC_MakeSRefForce(a->generatedfor, 0, a->type);
 				a->generatedfor = tmp.sym;
@@ -1714,7 +1715,6 @@ static void QCC_ClobberDef(QCC_def_t *def)
 				a->temp = tmp.sym->temp;
 				a->ofs = tmp.sym->ofs;
 				tmp.sym = a;
-				tmp.sym->refcount = a->refcount;
 				if (a->type->type==ev_variant || a->type->type == ev_vector)
 					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_V], from, tmp, NULL, STFL_PRESERVEB));
 				else
@@ -5236,7 +5236,10 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 	if (callconvention == OP_CALL1H)
 	{
 		for (i = 0; i < parm && i < 2; i++)
+		{
+			args[i].ref.sym->referenced=true;
 			QCC_FreeTemp(args[i].ref);
+		}
 	}
 
 	//we dont need to lock the local containing the function index because its thrown away after the call anyway
@@ -6099,7 +6102,7 @@ QCC_sref_t QCC_MakeIntConst(int value)
 			continue;
 		typechecks++;
 
-		if ( cn->symboldata[cn->ofs]._int == value )
+		if ( cn->symboldata[0]._int == value )
 		{
 			return QCC_MakeSRefForce(cn, 0, type_integer);
 		}
@@ -6526,7 +6529,7 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 	pr.local_tail = &pr.local_head;
 
 	scope->initialized = true;
-	scope->symboldata[scope->ofs].function = pr_scope - functions;
+	scope->symboldata[0].function = pr_scope - functions;
 
 	ed = QCC_PR_GetSRef(type_entity, "self", NULL, true, 0, false);
 
@@ -6760,7 +6763,8 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 		if (idx.cast)
 			allowarray = arraysize>0 ||
 						(t->type == ev_vector) ||
-						(t->type == ev_field && t->aux_type->type == ev_vector);
+						(t->type == ev_field && t->aux_type->type == ev_vector) ||
+						(t->type == ev_union && t->num_parms == 1 && !t->params[0].paramname && !arraysize);
 		else if (!idx.cast)
 		{
 			allowarray = arraysize>0 ||
@@ -6792,6 +6796,11 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 			/*if its a pointer that got dereferenced, follow the type*/
 			if (!idx.cast && t->type == ev_pointer && !arraysize)
 				t = t->aux_type;
+			else if (idx.cast && (t->type == ev_union && t->num_parms == 1 && !t->params[0].paramname && !arraysize))
+			{
+				arraysize = t->params[0].arraysize;
+				t = t->params[0].type;
+			}
 
 			if (!idx.cast && r->cast->type == ev_pointer && !arraysize)
 			{
@@ -7757,6 +7766,7 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 					QCC_PR_Expect ("]");
 					QCC_PR_Expect(")");
 					QCC_PR_Expect("{");
+
 					QCC_PR_Expect ("}");
 					return array;
 				}*/
@@ -10213,6 +10223,7 @@ void QCC_PR_ParseStatement (void)
 		conditional = 1;
 		e = QCC_PR_Expression (TOP_PRIORITY, 0);
 		conditional = 0;
+		e.sym->referenced = true;
 
 		//expands
 
@@ -11512,7 +11523,7 @@ void QCC_Marshal_Locals(int firststatement, int laststatement)
 		{
 			//FIXME: check for uninitialised locals.
 			//these matter when the function goes recursive (and locals marshalling counts as recursive every time).
-			if (local->symboldata[local->ofs]._int)
+			if (local->symboldata[0]._int)
 			{
 				QCC_PR_Note(ERR_INTERNAL, local->filen, local->s_line, "Marshaling non-const initialised %s", local->name);
 				error = true;
@@ -11712,7 +11723,7 @@ void QCC_WriteAsmFunction(QCC_function_t	*sc, unsigned int firststatement, QCC_d
 }
 #endif
 
-QCC_function_t *QCC_PR_GenerateBuiltinFunction (QCC_def_t *def, int builtinnum)
+QCC_function_t *QCC_PR_GenerateBuiltinFunction (QCC_def_t *def, int builtinnum, char *builtinname)
 {
 	QCC_function_t *func;
 	if (numfunctions >= MAX_FUNCTIONS)
@@ -11721,7 +11732,13 @@ QCC_function_t *QCC_PR_GenerateBuiltinFunction (QCC_def_t *def, int builtinnum)
 	func->filen = s_filen;
 	func->s_filed = s_filed;
 	func->line = def->s_line;	//FIXME
-	func->name = def->name;
+	if (builtinname==def->name)
+		func->name = builtinname;
+	else
+	{
+		func->name = qccHunkAlloc(strlen(builtinname)+1);
+		strcpy(func->name, builtinname);
+	}
 	func->builtin = builtinnum;
 	func->code = -1;
 	func->type = def->type;
@@ -11806,7 +11823,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 			binum = pr_immediate._int;
 		else
 			QCC_PR_ParseError (ERR_BADBUILTINIMMEDIATE, "Bad builtin immediate");
-		f = QCC_PR_GenerateBuiltinFunction(def, binum);
+		f = QCC_PR_GenerateBuiltinFunction(def, binum, def->name);
 		QCC_PR_Lex ();
 
 		return f;
@@ -11817,7 +11834,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 		|| pr_immediate_type != type_float
 		|| pr_immediate._float != (int)pr_immediate._float)
 			QCC_PR_ParseError (ERR_BADBUILTINIMMEDIATE, "Bad builtin immediate");
-		f = QCC_PR_GenerateBuiltinFunction(def, (int)-pr_immediate._float);
+		f = QCC_PR_GenerateBuiltinFunction(def, (int)-pr_immediate._float, def->name);
 		QCC_PR_Lex ();
 		QCC_PR_Expect(";");
 
@@ -11949,6 +11966,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 			{
 				a.sym = &def_parms[u];
 				a.ofs = 0;
+				QCC_ForceUnFreeDef(a.sym);
 			}
 			a.cast = type_vector;
 			QCC_UnFreeTemp(va_list);
@@ -12210,7 +12228,7 @@ QCC_def_t *QCC_PR_EmitArrayGetVector(QCC_sref_t array)
 	pr_source_line = pr_token_line_last = pr_scope->line = array.sym->s_line;	//thankfully these functions are emitted after compilation.
 	pr_scope->filen = array.sym->filen;
 	pr_scope->s_filed = array.sym->s_filed;
-	func->symboldata[func->ofs]._int = pr_scope - functions;
+	func->symboldata[0]._int = pr_scope - functions;
 
 	index = QCC_PR_GetSRef(type_float, "index___", pr_scope, true, 0, false);
 	index.sym->referenced = true;
@@ -12271,7 +12289,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 	index = QCC_PR_GetSRef(type_float, "__indexg", pr_scope, true, 0, false);
 
 	scope->initialized = true;
-	scope->symboldata[scope->ofs]._int = pr_scope - functions;
+	scope->symboldata[0]._int = pr_scope - functions;
 
 /*	if (fasttrackpossible)
 	{
@@ -12457,7 +12475,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 	value = QCC_PR_GetSRef(thearray.cast, "value___", pr_scope, true, 0, false);
 
 	scope->initialized = true;
-	scope->symboldata[scope->ofs]._int = pr_scope - functions;
+	scope->symboldata[0]._int = pr_scope - functions;
 
 	if (fasttrackpossible.cast)
 	{
@@ -12620,7 +12638,10 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_function_t *scope, 
 		}
 
 		if (flags & GDF_USED)
+		{
 			def->used = true;
+			def->referenced = true;
+		}
 
 		def->ofs = ofs + ((a>0)?type->size*a:0);
 		if (!first)
@@ -13066,7 +13087,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, QCC_function_t *scope, int arr
 						def = QCC_PR_GetDef(ftype, newname, scope, true, 0, saved);
 						if (parttype->type == ev_function)
 							def->initialized = true;
-						def->symboldata[def->ofs]._int = *fieldofs;
+						def->symboldata[0]._int = *fieldofs;
 						*fieldofs += parttype->size;
 					}
 					else
@@ -13191,9 +13212,7 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 						{
 							if (functions[i].code == -1 && functions[i].builtin == binum)
 							{
-								if (!*functions[i].name)
-									functions[i].name = (char*)defname;
-								if (!strcmp(functions[i].name, defname))
+								if (!*functions[i].name || !strcmp(functions[i].name, defname))
 								{
 									tmp = QCC_MakeIntConst(i);
 									break;
@@ -13204,7 +13223,7 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 				}
 
 				if (!tmp.cast)
-					f = QCC_PR_GenerateBuiltinFunction(def.sym, binum);
+					f = QCC_PR_GenerateBuiltinFunction(def.sym, binum, *fname?fname:def.sym->name);
 				else
 					f = NULL;
 			}
@@ -13313,7 +13332,7 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 			QCC_PR_Lex();
 			QCC_PR_Expect(")");
 		}
-		else if ((type->type == ev_struct || type->type == ev_union) && QCC_PR_CheckToken("{"))
+		else if ((type->type == ev_struct && QCC_PR_CheckToken("{")) || (type->type == ev_union && ((type->num_parms == 1 && !type->params->paramname) || QCC_PR_CheckToken("{"))))
 		{
 			//structs go recursive
 			unsigned int partnum;
@@ -13332,11 +13351,54 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 				QCC_PR_ParseInitializerType((type)->params[partnum].arraysize, basedef, def, flags);
 				if (isunion || !QCC_PR_CheckToken(","))
 				{
+					if (isunion && (type->num_parms == 1 && !type->params->paramname))
+						break;
 					QCC_PR_Expect("}");
 					break;
 				}
 			}
 			return;
+		}
+		else if (type->type == ev_pointer && QCC_PR_CheckToken("{"))
+		{
+			//generate a temp array
+			QCC_ref_t buf, buf2;
+			tmp.sym = QCC_PR_DummyDef(type->aux_type, NULL, pr_scope, 0, NULL, 0, false, GDF_STRIP|(pr_scope?GDF_STATIC:0));
+			tmp.ofs = 0;
+			tmp.cast = tmp.sym->type;
+
+			tmp.sym->refcount+=1;
+
+			//fill up the array
+			do
+			{
+				//expand the array
+				int newsize = tmp.sym->arraysize * tmp.cast->size;
+				if (tmp.sym->symbolsize < newsize)
+				{
+					void *newdata;
+					newsize += 64 * tmp.cast->size;
+					newdata = qccHunkAlloc (newsize * sizeof(float));
+					memcpy(newdata, tmp.sym->symboldata, tmp.sym->symbolsize*sizeof(float));
+					tmp.sym->symboldata = newdata;
+					tmp.sym->symbolsize = newsize;
+				}
+				tmp.sym->arraysize++;
+				//generate the def...
+				QCC_PR_DummyDef(tmp.cast, NULL, pr_scope, 0, tmp.sym, tmp.ofs, false, GDF_STRIP|(pr_scope?GDF_STATIC:0));
+
+				//and fill it in.
+				QCC_PR_ParseInitializerType(0, tmp.sym, tmp, flags);
+				tmp.ofs += type->aux_type->size;
+			} while(QCC_PR_CheckToken(","));
+			QCC_PR_Expect("}");
+
+			//drop the size back down to something sane
+			tmp.sym->symbolsize = tmp.ofs*sizeof(float);
+
+			//grab the address of it.
+			tmp.ofs = 0;
+			tmp = QCC_RefToDef(QCC_PR_GenerateAddressOf(&buf, QCC_DefToRef(&buf2, tmp)), true);
 		}
 		else
 		{
@@ -13652,24 +13714,40 @@ void QCC_PR_ParseDefs (char *classname)
 
 	if (QCC_PR_CheckKeyword (keyword_typedef, "typedef"))
 	{
-		type = QCC_PR_ParseType(true, false);
+		type = QCC_PR_ParseType(false, false);
 		if (!type)
 		{
 			QCC_PR_ParseError(ERR_NOTANAME, "typedef found unexpected tokens");
 		}
-		if (QCC_PR_CheckToken("*"))
+		do
 		{
-			QCC_type_t *ptr;
-			ptr = QCC_PR_NewType(QCC_CopyString(pr_token)+strings, ev_pointer, false);
-			ptr->aux_type = type;
-			type = ptr;
-		}
-		else
-		{
-			type->name = QCC_CopyString(pr_token)+strings;
-		}
-		type->typedefed = true;
-		QCC_PR_Lex();
+			char *name;
+			if (QCC_PR_CheckToken(";"))
+				return;
+
+			if (QCC_PR_CheckToken("*"))
+				type = QCC_PointerTypeTo(type);
+
+			name = QCC_PR_ParseName();
+
+			if (QCC_PR_CheckToken("["))
+			{
+				struct QCC_typeparam_s *param = qccHunkAlloc(sizeof(*param));
+				param->type = type;
+				param->arraysize = QCC_PR_IntConstExpr();
+				type = QCC_PR_NewType(name, ev_union, true);
+				type->params = param;
+				type->num_parms = 1;
+				type->size = param->type->size * param->arraysize;
+				QCC_PR_Expect("]");
+			}
+			else
+			{
+				type = QCC_PR_DuplicateType(type, false);
+				type->name = name;
+				type->typedefed = true;
+			}
+		} while(QCC_PR_CheckToken(","));
 		QCC_PR_Expect(";");
 		return;
 	}
@@ -13745,7 +13823,7 @@ void QCC_PR_ParseDefs (char *classname)
 			def = QCC_PR_GetDef(type_float, name, NULL, true, 0, true);
 			if (QCC_PR_CheckToken("="))
 			{
-				def->symboldata[def->ofs]._float = pr_immediate._float;
+				def->symboldata[0]._float = pr_immediate._float;
 				QCC_PR_Lex();
 			}
 		}
@@ -13755,11 +13833,11 @@ void QCC_PR_ParseDefs (char *classname)
 			if (QCC_PR_CheckToken("="))
 			{
 				QCC_PR_Expect("[");
-				def->symboldata[def->ofs].vector[0] = pr_immediate._float;
+				def->symboldata[0].vector[0] = pr_immediate._float;
 				QCC_PR_Lex();
-				def->symboldata[def->ofs].vector[1] = pr_immediate._float;
+				def->symboldata[0].vector[1] = pr_immediate._float;
 				QCC_PR_Lex();
-				def->symboldata[def->ofs].vector[2] = pr_immediate._float;
+				def->symboldata[0].vector[2] = pr_immediate._float;
 				QCC_PR_Lex();
 				QCC_PR_Expect("]");
 			}
@@ -13814,12 +13892,12 @@ void QCC_PR_ParseDefs (char *classname)
 				def->initialized = 1;
 				for (u = 0; u < def->type->size*(def->arraysize?def->arraysize:1); u++)	//make arrays of fields work.
 				{
-					if (*(int *)&def->symboldata[def->ofs+u])
+					if (*(int *)&def->symboldata[u])
 					{
 						QCC_PR_ParseWarning(0, "Field def already has a value:");
 						QCC_PR_ParsePrintDef(0, def);
 					}
-					*(int *)&def->symboldata[def->ofs+u] = pr.size_fields+u;
+					*(int *)&def->symboldata[u] = pr.size_fields+u;
 				}
 
 				pr.size_fields += u;
@@ -13936,7 +14014,7 @@ void QCC_PR_ParseDefs (char *classname)
 
 			def->initialized = 1;
 			def->isstatic = isstatic;
-			def->symboldata[def->ofs].function = numfunctions;
+			def->symboldata[0].function = numfunctions;
 			f->def = def;
 	//				if (pr_dumpasm)
 	//					PR_PrintFunction (def);
@@ -14162,7 +14240,7 @@ void QCC_PR_ParseDefs (char *classname)
 			{
 				d = d->next;
 				d->initialized = 1;	//fake function
-				d->symboldata[d->ofs].function = 0;
+				d->symboldata[0].function = 0;
 			}
 
 			continue;
@@ -14277,11 +14355,11 @@ void QCC_PR_ParseDefs (char *classname)
 					def->initialized = true;
 					//if the field already has a value, don't allocate new field space for it as that would confuse things.
 					//otherwise allocate new space.
-					if (def->symboldata[def->ofs]._int)
+					if (def->symboldata[0]._int)
 					{
 						for (i = 0; i < type->size*(arraysize?arraysize:1); i++)	//make arrays of fields work.
 						{
-							if (def->symboldata[def->ofs+i]._int != i + def->symboldata[def->ofs]._int)
+							if (def->symboldata[i]._int != i + def->symboldata[0]._int)
 							{
 								QCC_PR_ParseWarning(0, "Inconsistant field def:");
 								QCC_PR_ParsePrintDef(0, def);
@@ -14293,12 +14371,12 @@ void QCC_PR_ParseDefs (char *classname)
 					{
 						for (i = 0; i < type->size*(arraysize?arraysize:1); i++)	//make arrays of fields work.
 						{
-							if (def->symboldata[def->ofs+i]._int)
+							if (def->symboldata[i]._int)
 							{
 								QCC_PR_ParseWarning(0, "Field def already has a value:");
 								QCC_PR_ParsePrintDef(0, def);
 							}
-							def->symboldata[def->ofs+i]._int = pr.size_fields+i;
+							def->symboldata[i]._int = pr.size_fields+i;
 						}
 
 						pr.size_fields += i;

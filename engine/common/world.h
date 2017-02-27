@@ -261,7 +261,7 @@ void World_RBE_Start(world_t *world);
 void World_RBE_Shutdown(world_t *world);
 
 
-void World_ClearWorld (world_t *w);
+void World_ClearWorld (world_t *w, qboolean relink);
 // called after the world model has been loaded, before linking any entities
 
 void World_UnlinkEdict (wedict_t *ent);

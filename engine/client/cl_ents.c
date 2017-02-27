@@ -1945,9 +1945,9 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 			model = NULL;
 		if (model && model->type == mod_alias)
 		{
-			ang[0]*=-1;
+			ang[0]*=r_meshpitch.value;
 			AngleVectors(ang, axis[0], axis[1], axis[2]);
-			ang[0]*=-1;
+			ang[0]*=r_meshpitch.value;
 		}
 		else
 			AngleVectors(ang, axis[0], axis[1], axis[2]);
@@ -2090,10 +2090,10 @@ entity_t *V_AddEntity(entity_t *in)
 
 	*ent = *in;
 
-	ent->angles[0]*=-1;
+	ent->angles[0]*=r_meshpitch.value;
 	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 	VectorInverse(ent->axis[1]);
-	ent->angles[0]*=-1;
+	ent->angles[0]*=r_meshpitch.value;
 
 	return ent;
 }
@@ -2120,10 +2120,10 @@ void VQ2_AddLerpEntity(entity_t *in)	//a convienience function
 
 	ent->framestate.g[FS_REG].lerpfrac = back;
 
-	ent->angles[0]*=-1;
+	ent->angles[0]*=r_meshpitch.value;
 	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 	VectorInverse(ent->axis[1]);
-	ent->angles[0]*=-1;
+	ent->angles[0]*=r_meshpitch.value;
 }
 */
 int V_AddLight (int entsource, vec3_t org, float quant, float r, float g, float b)
@@ -3094,7 +3094,7 @@ void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects
 			);
 	}
 	shell->shaderRGBAf[0] *= (effects & EF_RED)?1:0;
-	shell->shaderRGBAf[1] *= 0;//(effects & EF_GREEN)?1:0;
+	shell->shaderRGBAf[1] *= (effects & EF_GREEN)?1:0;
 	shell->shaderRGBAf[2] *= (effects & EF_BLUE)?1:0;
 	shell->shaderRGBAf[3] *= v_powerupshell.value;
 	/*let the shader do all the work*/
@@ -3129,12 +3129,11 @@ static void CL_UpdateNetFrameLerpState(qboolean force, int curframe, int curbase
 			curbaseframe = curframe;
 		else if (curbasebone == 255)
 			curframe = curbaseframe;
-		else
-			le->basebone = curbasebone;
+		le->basebone = curbasebone;
 	}
 	for (fst = 0; fst < FS_COUNT; fst++)
 	{
-		frame = fst?curframe:curbaseframe;
+		frame = (fst==FST_BASE)?curbaseframe:curframe;
 		if (force || frame != le->newframe[fst])
 		{
 			le->framelerpdeltatime[fst] = bound(0, cl.servertime - le->newframestarttime[fst], 0.1);	//clamp to 10 tics per second
@@ -3216,10 +3215,10 @@ void CL_LinkStaticEntities(void *pvs)
 
 			//figure out the correct axis for the model
 			if (clmodel && clmodel->type == mod_alias && (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE))
-			{
-				stat->state.angles[0]*=-1;
+			{	//q2 is fixed, but q1 pitches the wrong way
+				stat->state.angles[0]*=r_meshpitch.value;
 				AngleVectors(stat->state.angles, stat->ent.axis[0], stat->ent.axis[1], stat->ent.axis[2]);
-				stat->state.angles[0]*=-1;
+				stat->state.angles[0]*=r_meshpitch.value;
 			}
 			else
 				AngleVectors(stat->state.angles, stat->ent.axis[0], stat->ent.axis[1], stat->ent.axis[2]);
@@ -3905,7 +3904,7 @@ void CL_LinkPacketEntities (void)
 			{
 				VectorCopy(le->angles, angles);
 				//if (model && model->type == mod_alias)
-					angles[0]*=-1;	//pflags matches alias models.
+					angles[0]*=r_meshpitch.value;	//pflags matches alias models.
 				AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 				VectorInverse(dl->axis[1]);
 				R_LoadNumberedLightTexture(dl, state->skinnum);
@@ -4096,7 +4095,7 @@ void CL_LinkPacketEntities (void)
 		}
 
 		if (model && model->type == mod_alias)
-			angles[0]*=-1;	//carmack screwed up when he added alias models - they pitch the wrong way.
+			angles[0]*=r_meshpitch.value;	//carmack screwed up when he added alias models - they pitch the wrong way.
 		VectorCopy(angles, ent->angles);
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
@@ -4319,10 +4318,10 @@ void CL_LinkProjectiles (void)
 		VectorCopy (pr->origin, ent->origin);
 		VectorCopy (pr->angles, ent->angles);
 
-		ent->angles[0]*=-1;
+		ent->angles[0]*=r_meshpitch.value;
 		AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
-		ent->angles[0]*=-1;
+		ent->angles[0]*=r_meshpitch.value;
 	}
 }
 
@@ -4821,7 +4820,7 @@ void CL_AddFlagModels (entity_t *ent, int team)
 	newent->angles[2] -= 45;
 
 	VectorCopy(newent->angles, angles);
-	angles[0]*=-1;
+	angles[0]*=r_meshpitch.value;
 	AngleVectors(angles, newent->axis[0], newent->axis[1], newent->axis[2]);
 	VectorInverse(newent->axis[1]);
 }
@@ -5071,7 +5070,7 @@ void CL_LinkPlayers (void)
 		}
 
 		if (model && model->type == mod_alias)
-			angles[0]*=-1;	//carmack screwed up when he added alias models - they pitch the wrong way.
+			angles[0]*=r_meshpitch.value;	//carmack screwed up when he added alias models - they pitch the wrong way.
 		VectorCopy(angles, ent->angles);
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
@@ -5162,7 +5161,7 @@ void CL_LinkViewModel(void)
 	entity_t	ent;
 
 	unsigned int plnum;
-	player_state_t *plstate;
+	unsigned int playereffects;
 	float alpha;
 	playerview_t *pv = r_refdef.playerview;
 
@@ -5295,16 +5294,27 @@ void CL_LinkViewModel(void)
 		plnum = Cam_TrackNum(pv);
 	if (plnum == -1)
 		plnum = r_refdef.playerview->playernum;
-	plstate = &cl.inframes[parsecountmod].playerstate[plnum];
+	playereffects = 0;
+	if (r_refdef.playerview->nolocalplayer && plnum >= 0 && plnum < cl.maxlerpents)
+	{
+		if (plnum+1 < cl.maxlerpents)
+		{
+			lerpents_t *le = &cl.lerpents[plnum+1];
+			if (le->entstate)
+				playereffects = le->entstate->effects;
+		}
+	}
+	else if (plnum >= 0 && plnum < cl.allocated_client_slots)
+		playereffects = cl.inframes[parsecountmod].playerstate[plnum].effects;
 
-	if (plstate->effects & DPEF_NOGUNBOB)
+	if (playereffects & DPEF_NOGUNBOB)
 		ent.flags |= RF_WEAPONMODELNOBOB;
 
 /*	ent.topcolour = TOP_DEFAULT;//cl.players[plnum].ttopcolor;
 	ent.bottomcolour = cl.players[plnum].tbottomcolor;
 	ent.h2playerclass = cl.players[plnum].h2playerclass;
 */
-	CLQ1_AddPowerupShell(V_AddEntity(&ent), true, plstate?plstate->effects:0);
+	CLQ1_AddPowerupShell(V_AddEntity(&ent), true, playereffects);
 
 	//small hack to mask depth so only the front faces of the weaponmodel appear (no glitchy intra faces).
 	if (alpha < 1 && qrenderer == QR_OPENGL)
@@ -5382,7 +5392,7 @@ void CL_SetSolidEntities (void)
 			if (pent->model->loadstate != MLS_LOADED)
 				continue;
 			VectorCopy (state->angles, pent->angles);
-			pent->angles[0]*=-1;
+			pent->angles[0]*=r_meshpitch.value;
 		}
 		else
 		{

@@ -99,6 +99,7 @@ void AddSourceFile(const char *parentsrc, const char *filename);
 #define SCI_BACKTAB 2328 
 #define SCI_SEARCHANCHOR 2366
 #define SCI_SEARCHNEXT 2367
+#define SCI_SEARCHPREV 2368
 #define SCI_STYLEGETFORE 2481
 #define SCI_STYLEGETBACK 2482
 #define SCI_STYLEGETBOLD 2483
@@ -748,12 +749,12 @@ void GUI_DialogPrint(char *title, char *text)
 	MessageBox(mainwindow, text, title, 0);
 }
 
-static void FindNextScintilla(editor_t *editor, char *findtext)
+static void FindNextScintilla(editor_t *editor, char *findtext, pbool next)
 {
 	int pos = SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0);
 	Edit_SetSel(editor->editpane, pos+1, pos+1);
 	SendMessage(editor->editpane, SCI_SEARCHANCHOR, 0, 0);
-	if (SendMessage(editor->editpane, SCI_SEARCHNEXT, 0, (LPARAM)findtext) != -1)
+	if (SendMessage(editor->editpane, next?SCI_SEARCHNEXT:SCI_SEARCHPREV, 0, (LPARAM)findtext) != -1)
 		Edit_ScrollCaret(editor->editpane);	//make sure its focused
 	else
 	{
@@ -805,33 +806,6 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 				}
 			}
 			break;
-		}
-	}
-	if (uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN)
-	{
-		switch(wParam)
-		{
-		case VK_F3:
-			{
-				char buffer[128];
-				GetWindowText(search_name, buffer, sizeof(buffer));
-				if (*buffer == 0)
-					SetFocus(search_name);
-				else
-				{
-					editor_t *editor;
-					for (editor = editors; editor; editor = editor->next)
-					{
-						if (editor->editpane == hWnd)
-							break;
-					}
-					if (editor && editor->scintilla)
-					{
-						FindNextScintilla(editor, buffer);
-					}
-				}
-			}
-			return 0;
 		}
 	}
 	if (uMsg == WM_LBUTTONDBLCLK && hWnd == outputbox)
@@ -1303,6 +1277,8 @@ enum {
 	IDM_SAVE,
 	IDM_RECOMPILE,
 	IDM_FIND,
+	IDM_FINDNEXT,
+	IDM_FINDPREV,
 	IDM_QUIT,
 	IDM_UNDO,
 	IDM_REDO,
@@ -1725,6 +1701,29 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 		break;
 	case IDM_FIND:
 		SetFocus(search_name);
+		break;
+	case IDM_FINDNEXT:
+	case IDM_FINDPREV:
+		{
+			char buffer[128];
+			GetWindowText(search_name, buffer, sizeof(buffer));
+			if (*buffer != 0)
+			{
+				HWND ew = (HWND)SendMessage(mdibox, WM_MDIGETACTIVE, 0, 0);
+				editor_t *editor;
+				for (editor = editors; editor; editor = editor->next)
+				{
+					if (editor->window == ew)
+						break;
+				}
+				if (editor && editor->scintilla)
+				{
+					FindNextScintilla(editor, buffer, LOWORD(wParam) == IDM_FINDNEXT);
+					SetFocus(editor->window);
+					SetFocus(editor->editpane);
+				}
+			}
+		}
 		break;
 	case IDM_GREP:
 		{
@@ -5253,33 +5252,11 @@ static LRESULT CALLBACK SearchComboSubClass(HWND hWnd,UINT message,
 	{ 
 	case WM_KEYDOWN: 
 		switch (wParam) 
-		{  
+		{
 		case VK_RETURN:
 			PostMessage(mainwindow, WM_COMMAND, 0x4404, (LPARAM)search_gotodef);
 			return true;
-		case VK_F3:
-			{
-				char buffer[128];
-				GetWindowText(search_name, buffer, sizeof(buffer));
-				if (*buffer != 0)
-				{
-					HWND ew = (HWND)SendMessage(mdibox, WM_MDIGETACTIVE, 0, 0);
-					editor_t *editor;
-					for (editor = editors; editor; editor = editor->next)
-					{
-						if (editor->window == ew)
-							break;
-					}
-					if (editor && editor->scintilla)
-					{
-						FindNextScintilla(editor, buffer);
-						SetFocus(editor->window);
-						SetFocus(editor->editpane);
-					}
-				}
-			}
-		} 
-		break; 
+		}
 	}
 	return CallWindowProc(combosubclassproc, hWnd, message, wParam, lParam); 
 }
@@ -6488,6 +6465,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		{FCONTROL|FVIRTKEY, 'F', IDM_FIND},
 		{FCONTROL|FVIRTKEY, 'G', IDM_GREP},
 		{FCONTROL|FVIRTKEY, 'R', IDM_RECOMPILE},
+		{FVIRTKEY,			VK_F3, IDM_FINDNEXT},
+		{FSHIFT|FVIRTKEY,	VK_F3, IDM_FINDPREV},
 //		{FVIRTKEY,			VK_F4, IDM_NEXTERROR},
 		{FVIRTKEY,			VK_F5, IDM_DEBUG_RUN},
 		{FVIRTKEY,			VK_F6, IDM_OUTPUT_WINDOW},

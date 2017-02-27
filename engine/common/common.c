@@ -5531,6 +5531,8 @@ void COM_Init (void)
 	Cvar_Register (&com_highlightcolor, "Internationalisation");
 	com_parseutf8.ival = 1;
 
+	Cvar_Register (&r_meshpitch, "Gamecode");
+
 	TranslateInit();
 
 	COM_BiDi_Setup();

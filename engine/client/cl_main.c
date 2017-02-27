@@ -4931,7 +4931,7 @@ void CL_UpdateHeadAngles(void)
 		AngleVectorsFLU(pv->viewangles, tmp[0], tmp[1], tmp[2]);
 		R_ConcatRotations(headchange, tmp, tmp2);
 		VectorAngles(tmp2[0], tmp2[2], pv->viewangles);
-		pv->viewangles[0] *= -1;
+		pv->viewangles[0] *= r_meshpitch.value;
 
 		//fall through
 	default:

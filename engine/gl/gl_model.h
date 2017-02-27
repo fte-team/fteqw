@@ -855,7 +855,8 @@ enum
 };
 typedef struct model_s
 {
-	char		name[MAX_QPATH];
+	char		name[MAX_QPATH];	//actual name on disk
+	char		publicname[MAX_QPATH];	//name that the gamecode etc sees
 	int			datasequence;
 	int			loadstate;//MLS_
 	qboolean	tainted;

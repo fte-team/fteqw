@@ -305,18 +305,18 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 	}
 	else
 #endif
-		ent->v->angles[0] *= -1;
+		ent->v->angles[0] *= r_meshpitch.value;
 	VectorCopy(ent->v->angles, G_VECTOR(OFS_PARM1));
 	AngleVectors(ent->v->angles, w->g.v_forward, w->g.v_right, w->g.v_up);
 	PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
-	VectorAngles(w->g.v_forward, w->g.v_up, ent->v->angles);
+	VectorAngles(w->g.v_forward, w->g.v_up, ent->v->angles, true);
 #ifndef CLIENTONLY
 	if (ent->entnum > 0 && ent->entnum <= svs.allocated_client_slots)
 	{
 		client_t *cl = &svs.clients[ent->entnum-1];
 		int i;
 		vec3_t delta;
-		ent->v->angles[0] *= -1;
+		ent->v->angles[0] *= r_meshpitch.value;
 		if (!cl->lockangles && (cl->fteprotocolextensions2 & PEXT2_SETANGLEDELTA))
 		{
 			cl = ClientReliableWrite_BeginSplit(cl, svcfte_setangledelta, 7);
@@ -339,7 +339,7 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 				ClientReliableWrite_Angle (cl, ent->v->angles[i]);
 		}
 		VectorCopy(ent->v->angles, ent->v->v_angle);
-		ent->v->angles[0] *= -1;
+		ent->v->angles[0] *= r_meshpitch.value;
 	}
 #endif
 
@@ -347,11 +347,11 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 	avelocity is horribly dependant upon eular angles. trying to treat it as a matrix is folly.
 	if (DotProduct(ent->v->avelocity, ent->v->avelocity))
 	{
-		ent->v->avelocity[0] *= -1;
+		ent->v->avelocity[0] *= r_meshpitch.value;
 		AngleVectors(ent->v->avelocity, w->g.v_forward, w->g.v_right, w->g.v_up);
 		PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
 		VectorAngles(w->g.v_forward, w->g.v_up, ent->v->avelocity);
-		ent->v->avelocity[0] *= -1;
+		ent->v->avelocity[0] *= r_meshpitch.value;
 	}
 	*/
 

@@ -363,7 +363,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				Q_strncpyz(skin->mappings[skin->nummappings].surface, com_token, sizeof(skin->mappings[skin->nummappings].surface));
 				skintext = COM_ParseToken(skintext+1, NULL);
 				Q_strncpyz(shadername, com_token, sizeof(shadername));
-				skin->mappings[skin->nummappings].shader = R_RegisterSkin(shadername, skin->skinname);
+				skin->mappings[skin->nummappings].shader = R_RegisterCustom (shadername, 0, Shader_DefaultSkin, NULL);
 				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader);
 				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
 				skin->nummappings++;

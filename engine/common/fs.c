@@ -1083,9 +1083,36 @@ static void FS_RebuildFSHash_Update(const char *fname)
 	searchpath_t *search;
 	int depth = 0;
 	fsbucket_t *old;
+	void *filehandle = NULL;
 
 	if (com_fschanged)
 		return;
+
+	if (!filehandle && com_purepaths)
+	{	//go for the pure paths first.
+		for (search = com_purepaths; search; search = search->nextpure)
+		{
+			if (search->handle->FindFile(search->handle, &loc, fname, NULL))
+			{
+				filehandle = loc.fhandle;
+				break;
+			}
+			depth++;
+		}
+	}
+	if (!filehandle && fs_puremode < 2)
+	{
+		for (search = com_searchpaths ; search ; search = search->next)
+		{
+			if (search->handle->FindFile(search->handle, &loc, fname, NULL))
+			{
+				filehandle = loc.fhandle;
+				break;
+			}
+			depth++;
+		}
+	}
+
 
 	COM_WorkerFullSync();
 	if (!Sys_LockMutex(fs_thread_mutex))
@@ -1098,30 +1125,8 @@ static void FS_RebuildFSHash_Update(const char *fname)
 		fs_hash_files--;
 	}
 
-	if (com_purepaths)
-	{	//go for the pure paths first.
-		for (search = com_purepaths; search; search = search->nextpure)
-		{
-			if (search->handle->FindFile(search->handle, &loc, fname, NULL))
-			{
-				FS_AddFileHash(depth, fname, NULL, loc.fhandle);
-				return;
-			}
-			depth++;
-		}
-	}
-	if (fs_puremode < 2)
-	{
-		for (search = com_searchpaths ; search ; search = search->next)
-		{
-			if (search->handle->FindFile(search->handle, &loc, fname, NULL))
-			{
-				FS_AddFileHash(depth, fname, NULL, loc.fhandle);
-				return;
-			}
-			depth++;
-		}
-	}
+	if (filehandle)
+		FS_AddFileHash(depth, fname, NULL, filehandle);
 
 	Sys_UnlockMutex(fs_thread_mutex);
 }

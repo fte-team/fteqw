@@ -220,12 +220,11 @@ static void bonemat_fromentity(world_t *w, wedict_t *ed, float *trans)
 	vec3_t d[3], a;
 	model_t *mod;
 	mod = w->Get_CModel(w, ed->v->modelindex);
-	if (!mod || mod->type == mod_alias)
-		a[0] = -ed->v->angles[0];
-	else
-		a[0] = ed->v->angles[0];
+	a[0] = ed->v->angles[0];
 	a[1] = ed->v->angles[1];
 	a[2] = ed->v->angles[2];
+	if (!mod || mod->type == mod_alias)
+		a[0] *= r_meshpitch.value;
 	AngleVectors(a, d[0], d[1], d[2]);
 	bonemat_fromqcvectors(trans, d[0], d[1], d[2], ed->v->origin);
 }
@@ -1610,7 +1609,7 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	vec3_t d[3], a;
 	//fixme: respond to renderflags&USEAXIS? scale?
-	a[0] = wed->v->angles[0] * -1; /*mod_alias bug*/
+	a[0] = wed->v->angles[0] * r_meshpitch.value; /*mod_alias bug*/
 	a[1] = wed->v->angles[1];
 	a[2] = wed->v->angles[2];
 	AngleVectors(a, d[0], d[1], d[2]);
@@ -2056,7 +2055,7 @@ void QCBUILTIN PF_skel_set_bone_world (pubprogfuncs_t *prinst, struct globalvars
 	if (prinst->callargc == 4)
 	{
 		vec3_t d[3], a;
-		a[0] = G_VECTOR(OFS_PARM3)[0] * -1; /*mod_alias bug*/
+		a[0] = G_VECTOR(OFS_PARM3)[0] * r_meshpitch.value; /*mod_alias bug*/
 		a[1] = G_VECTOR(OFS_PARM3)[1];
 		a[2] = G_VECTOR(OFS_PARM3)[2];
 		AngleVectors(a, d[0], d[1], d[2]);

@@ -1430,8 +1430,6 @@ void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg);
 void CL_InitCam(void);
 void Cam_AutoTrack_Update(const char *mode);	//reset autotrack setting (because we started a new map or whatever)
 
-void QDECL vectoangles(vec3_t fwd, vec3_t ang);
-
 //
 //zqtp.c
 //

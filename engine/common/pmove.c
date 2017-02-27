@@ -138,8 +138,7 @@ static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t
 		VectorCopy(pmove.angles, G_VECTOR(OFS_PARM1));
 		AngleVectors(pmove.angles, w->g.v_forward, w->g.v_right, w->g.v_up);
 		PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
-		VectorAngles(w->g.v_forward, w->g.v_up, newang);
-		newang[0] *= -1;
+		VectorAngles(w->g.v_forward, w->g.v_up, newang, false);
 	}
 
 	*w->g.self = oself;
@@ -1155,11 +1154,11 @@ void PM_NudgePosition (void)
 		if (PM_TestPlayerPosition (pmove.origin, false))
 			return;
 
-	for (z=0 ; z<sizeof(sign)/sizeof(sign[0]) ; z++)
+	for (z=0 ; z<countof(sign) ; z++)
 	{
-		for (x=0 ; x<sizeof(sign)/sizeof(sign[0]) ; x++)
+		for (x=0 ; x<countof(sign) ; x++)
 		{
-			for (y=0 ; y<sizeof(sign)/sizeof(sign[0]) ; y++)
+			for (y=0 ; y<countof(sign) ; y++)
 			{
 				pmove.origin[0] = base[0] + (sign[x] * 1.0/8);
 				pmove.origin[1] = base[1] + (sign[y] * 1.0/8);

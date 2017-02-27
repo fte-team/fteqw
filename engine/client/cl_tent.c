@@ -1378,6 +1378,7 @@ void CL_ParseTEnt (void)
 			explosion_t *ex = CL_AllocExplosion (pos);
 			ex->start = cl.time;
 			ex->model = Mod_ForName ("progs/s_explod.spr", MLV_WARN);
+			ex->endalpha = ex->startalpha;	//don't fade out
 		}
 		break;
 
@@ -2369,7 +2370,7 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t 
 			ex->angles[1] = 270;
 		else
 			ex->angles[1] = 0;
-		ex->angles[0]*=-1;
+		ex->angles[0]*=r_meshpitch.value;
 	}
 
 
@@ -2789,7 +2790,7 @@ fixme:
 			ex->angles[1] = 270;
 		else
 			ex->angles[1] = 0;
-		ex->angles[0]*=-1;
+		ex->angles[0]*=r_meshpitch.value;
 
 		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, NULL, 1, 1, 0, 0, 0);
 
@@ -3116,7 +3117,7 @@ fixme:
 			ex->angles[1] = 270;
 		else
 			ex->angles[1] = 0;
-		ex->angles[0]*=-1;
+		ex->angles[0]*=r_meshpitch.value;
 
 		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, NULL, 1, 1, 0, 0, 0);
 
@@ -3165,7 +3166,7 @@ fixme:
 			ex->angles[1] = 270;
 		else
 			ex->angles[1] = 0;
-		ex->angles[0]*=-1;
+		ex->angles[0]*=r_meshpitch.value;
 
 		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, NULL, 1, 1, 0, 0, 0);
 
@@ -3569,10 +3570,9 @@ void CL_UpdateBeams (void)
 						VectorSubtract (playerbeam_end[j], vieworg, org);
 						len = VectorLength(org);
 						org[2] -= 22;		// adjust for view height
-						VectorAngles (org, NULL, ang);
+						VectorAngles (org, NULL, ang, false);
 
 						// lerp pitch
-						ang[0] = -ang[0];
 						if (ang[0] < -180)
 							ang[0] += 360;
 						ang[0] += (viewang[0] - ang[0]) * f;
@@ -3823,7 +3823,7 @@ void CL_UpdateExplosions (void)
 		VectorCopy (ex->oldorigin, ent->oldorigin);
 		VectorCopy (ex->angles, ent->angles);
 		ent->skinnum = ex->skinnum;
-		ent->angles[0]*=-1;
+		ent->angles[0]*=r_meshpitch.value;
 		AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 		ent->model = ex->model;

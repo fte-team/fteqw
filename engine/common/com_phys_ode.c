@@ -82,6 +82,7 @@ static BUILTINR(cvar_t*, Cvar_GetNVFDG, (const char *name, const char *defaultva
 #undef ARGNAMES
 
 static rbeplugfuncs_t *rbefuncs;
+cvar_t r_meshpitch;
 
 //============================================================================
 // physics engine support
@@ -1484,8 +1485,7 @@ static void World_ODE_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	Matrix4_Multiply(ed->ode.ode_offsetimatrix, bodymatrix, entitymatrix);
 	Matrix3x4_RM_ToVectors(entitymatrix, forward, left, up, origin);
 
-	VectorAngles(forward, up, angles);
-	angles[0]*=-1;
+	VectorAngles(forward, up, angles, false);
 	avelocity[PITCH] = RAD2DEG(spinvelocity[PITCH]);
 	avelocity[YAW] = RAD2DEG(spinvelocity[ROLL]);
 	avelocity[ROLL] = RAD2DEG(spinvelocity[YAW]);
@@ -1495,8 +1495,8 @@ static void World_ODE_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 		model = world->Get_CModel(world, ed->v->modelindex);
 		if (!model || model->type == mod_alias)
 		{
-			angles[PITCH] *= -1;
-			avelocity[PITCH] *= -1;
+			angles[PITCH] *= r_meshpitch.value;
+			avelocity[PITCH] *= r_meshpitch.value;
 		}
 	}
 
@@ -2321,8 +2321,8 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			model = world->Get_CModel(world, ed->v->modelindex);
 			if (!model || model->type == mod_alias)
 			{
-				qangles[PITCH] *= -1;
-				qavelocity[PITCH] *= -1;
+				qangles[PITCH] *= r_meshpitch.value;
+				qavelocity[PITCH] *= r_meshpitch.value;
 			}
 		}
 
@@ -2736,6 +2736,8 @@ static void QDECL World_ODE_Start(world_t *world)
 	ctx = BZ_Malloc(sizeof(*ctx));
 	memset(ctx, 0, sizeof(*ctx));
 	world->rbe = &ctx->pub;
+
+	r_meshpitch.value = pCvar_GetFloat("physics_ode_quadtree_depth");
 
 	VectorAvg(world->worldmodel->mins, world->worldmodel->maxs, center);
 	VectorSubtract(world->worldmodel->maxs, center, extents);

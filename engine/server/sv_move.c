@@ -324,7 +324,7 @@ float World_changeyaw (wedict_t *ent)
 		vec3_t vang;
 
 		/*calc current view matrix relative to the surface*/
-		ent->v->angles[PITCH] *= -1;
+		ent->v->angles[PITCH] *= r_meshpitch.value;
 		AngleVectors(ent->v->angles, view[0], view[1], view[2]);
 		VectorNegate(view[1], view[1]);
 
@@ -338,7 +338,7 @@ float World_changeyaw (wedict_t *ent)
 		Matrix4_Multiply(viewm, invsurfm, mat);
 		/*convert that back to angles*/
 		Matrix3x4_RM_ToVectors(mat, view[0], view[1], view[2], view[3]);
-		VectorAngles(view[0], view[2], vang);
+		VectorAngles(view[0], view[2], vang, true);
 
 		/*edit it*/
 
@@ -375,7 +375,7 @@ float World_changeyaw (wedict_t *ent)
 		Matrix4_Multiply(mat, surfm, viewm);
 		/*and figure out the final result*/
 		Matrix3x4_RM_ToVectors(viewm, view[0], view[1], view[2], view[3]);
-		VectorAngles(view[0], view[2], ent->v->angles);
+		VectorAngles(view[0], view[2], ent->v->angles, true);
 
 		//make sure everything is sane
 		ent->v->angles[PITCH] = anglemod(ent->v->angles[PITCH]);

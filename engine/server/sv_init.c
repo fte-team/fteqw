@@ -1011,7 +1011,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	//
 	// init physics interaction links
 	//
-	World_ClearWorld (&sv.world);
+	World_ClearWorld (&sv.world, false);
 
 	//do we allow csprogs?
 #ifdef PEXT_CSQC

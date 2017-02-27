@@ -480,7 +480,8 @@ typedef struct client_s
 	float			spawn_parms[NUM_SPAWN_PARMS];
 	char			*spawninfo;
 	float			spawninfotime;
-	float			nextservertimeupdate;
+	float			nextservertimeupdate;	//next time to send STAT_TIME
+	float			lastoutgoingphysicstime;//sv.world.physicstime of the last outgoing message.
 
 // client known data for deltas
 	int				old_frags;
@@ -667,11 +668,19 @@ typedef struct client_s
 	laggedpacket_t *laggedpacket_last;
 } client_t;
 
+#if defined(NQPROT) || defined(Q2SERVER) || defined(Q3SERVER)
 #define ISQWCLIENT(cl) ((cl)->protocol == SCP_QUAKEWORLD)
 #define ISQ2CLIENT(cl) ((cl)->protocol == SCP_QUAKE2)
 #define ISQ3CLIENT(cl) ((cl)->protocol == SCP_QUAKE3)
 #define ISNQCLIENT(cl) ((cl)->protocol >= SCP_NETQUAKE)
 #define ISDPCLIENT(cl) ((cl)->protocol >= SCP_DARKPLACES6)
+#else
+#define ISQWCLIENT(cl) ((cl)->protocol != SCP_BAD)
+#define ISQ2CLIENT(cl) false
+#define ISQ3CLIENT(cl) false
+#define ISNQCLIENT(cl) false
+#define ISDPCLIENT(cl) false
+#endif
 
 // a client can leave the server in one of four ways:
 // dropping properly by quiting or disconnecting

@@ -2089,8 +2089,7 @@ void V_RenderPlayerViews(playerview_t *pv)
 		r_secondaryview = 2;
 
 		VectorSubtract(r_refdef.vieworg, pv->cam_desired_position, dir);
-		VectorAngles(dir, NULL, r_refdef.viewangles);
-		r_refdef.viewangles[0] = -r_refdef.viewangles[0];	//flip the pitch. :(
+		VectorAngles(dir, NULL, r_refdef.viewangles, false);
 
 
 		VectorCopy(pv->cam_desired_position, r_refdef.vieworg);

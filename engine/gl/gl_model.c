@@ -635,6 +635,9 @@ void Mod_Purge(enum mod_purge_e ptype)
 	{
 		unused = mod->datasequence != mod_datasequence;
 
+		if (mod->loadstate == MLS_NOTLOADED)
+			continue;
+
 		//this model isn't active any more.
 		if (unused || ptype != MP_MAPCHANGED)
 		{
@@ -904,7 +907,7 @@ model_t *Mod_FindName (const char *name)
 // search the currently loaded models
 //
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
-		if (!strcmp (mod->name, name) )
+		if (!strcmp (mod->publicname, name) )
 			break;
 			
 	if (i == mod_numknown)
@@ -912,16 +915,17 @@ model_t *Mod_FindName (const char *name)
 #ifdef LOADERTHREAD
 		Sys_LockMutex(com_resourcemutex);
 		for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
-			if (!strcmp (mod->name, name) )
+			if (!strcmp (mod->publicname, name) )
 				break;
 		if (i == mod_numknown)
 		{
 #endif
 			if (mod_numknown == MAX_MOD_KNOWN)
 				Sys_Error ("mod_numknown == MAX_MOD_KNOWN");
-			if (strlen(name) >= sizeof(mod->name))
+			if (strlen(name) >= sizeof(mod->publicname))
 				Sys_Error ("model name is too long: %s", name);
 			memset(mod, 0, sizeof(model_t));	//clear the old model as the renderers use the same globals
+			Q_strncpyz (mod->publicname, name, sizeof(mod->publicname));
 			Q_strncpyz (mod->name, name, sizeof(mod->name));
 			mod->loadstate = MLS_NOTLOADED;
 			mod_numknown++;
@@ -1143,7 +1147,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 	size_t filesize;
 	char ext[8];
 
-	if (!*mod->name)
+	if (!*mod->publicname)
 	{
 		mod->type = mod_dummy;
 		mod->mins[0] = -16;
@@ -1172,43 +1176,43 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 // load the file
 //
 	// set necessary engine flags for loading purposes
-	if (!strcmp(mod->name, "progs/player.mdl"))
+	if (!strcmp(mod->publicname, "progs/player.mdl"))
 		mod->engineflags |= MDLF_PLAYER | MDLF_DOCRC;
-	else if (!strcmp(mod->name, "progs/flame.mdl") || 
-		!strcmp(mod->name, "progs/flame2.mdl") ||
-		!strcmp(mod->name, "models/flame1.mdl") ||	//hexen2 small standing flame
-		!strcmp(mod->name, "models/flame2.mdl") ||	//hexen2 large standing flame
-		!strcmp(mod->name, "models/cflmtrch.mdl"))	//hexen2 wall torch
+	else if (!strcmp(mod->publicname, "progs/flame.mdl") || 
+		!strcmp(mod->publicname, "progs/flame2.mdl") ||
+		!strcmp(mod->publicname, "models/flame1.mdl") ||	//hexen2 small standing flame
+		!strcmp(mod->publicname, "models/flame2.mdl") ||	//hexen2 large standing flame
+		!strcmp(mod->publicname, "models/cflmtrch.mdl"))	//hexen2 wall torch
 		mod->engineflags |= MDLF_FLAME;
-	else if (!strcmp(mod->name, "progs/bolt.mdl") ||
-		!strcmp(mod->name, "progs/bolt2.mdl") ||
-		!strcmp(mod->name, "progs/bolt3.mdl") ||
-		!strcmp(mod->name, "progs/beam.mdl") || 
-		!strcmp(mod->name, "models/stsunsf2.mdl") || 
-		!strcmp(mod->name, "models/stsunsf1.mdl") ||
-		!strcmp(mod->name, "models/stice.mdl"))
+	else if (!strcmp(mod->publicname, "progs/bolt.mdl") ||
+		!strcmp(mod->publicname, "progs/bolt2.mdl") ||
+		!strcmp(mod->publicname, "progs/bolt3.mdl") ||
+		!strcmp(mod->publicname, "progs/beam.mdl") || 
+		!strcmp(mod->publicname, "models/stsunsf2.mdl") || 
+		!strcmp(mod->publicname, "models/stsunsf1.mdl") ||
+		!strcmp(mod->publicname, "models/stice.mdl"))
 		mod->engineflags |= MDLF_BOLT;
-	else if (!strcmp(mod->name, "progs/backpack.mdl"))
+	else if (!strcmp(mod->publicname, "progs/backpack.mdl"))
 		mod->engineflags |= MDLF_NOTREPLACEMENTS;
-	else if (!strcmp(mod->name, "progs/eyes.mdl"))
+	else if (!strcmp(mod->publicname, "progs/eyes.mdl"))
 		mod->engineflags |= MDLF_NOTREPLACEMENTS|MDLF_DOCRC;
 
 	/*handle ezquake-originated cheats that would feck over fte users if fte didn't support
 	these are the conditions required for r_fb_models on non-players*/
 	mod->engineflags |= MDLF_EZQUAKEFBCHEAT;
 	if ((mod->engineflags & MDLF_DOCRC) ||
-		!strcmp(mod->name, "progs/backpack.mdl") ||
-		!strcmp(mod->name, "progs/gib1.mdl") ||
-		!strcmp(mod->name, "progs/gib2.mdl") ||
-		!strcmp(mod->name, "progs/gib3.mdl") ||
-		!strcmp(mod->name, "progs/h_player.mdl") ||
-		!strncmp(mod->name, "progs/v_", 8))
+		!strcmp(mod->publicname, "progs/backpack.mdl") ||
+		!strcmp(mod->publicname, "progs/gib1.mdl") ||
+		!strcmp(mod->publicname, "progs/gib2.mdl") ||
+		!strcmp(mod->publicname, "progs/gib3.mdl") ||
+		!strcmp(mod->publicname, "progs/h_player.mdl") ||
+		!strncmp(mod->publicname, "progs/v_", 8))
 		mod->engineflags &= ~MDLF_EZQUAKEFBCHEAT;
 
 	mod->engineflags |= MDLF_RECALCULATERAIN;
 
 	// get string used for replacement tokens
-	COM_FileExtension(mod->name, ext, sizeof(ext));
+	COM_FileExtension(mod->publicname, ext, sizeof(ext));
 	if (!Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "sp2"))
 		replstr = ""; // sprite
 #ifdef DSPMODELS
@@ -1225,7 +1229,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 	if (!gl_load24bit.value)
 		replstr = "";
 
-	COM_StripExtension(mod->name, mdlbase, sizeof(mdlbase));
+	COM_StripExtension(mod->publicname, mdlbase, sizeof(mdlbase));
 
 	while (replstr)
 	{
@@ -1238,12 +1242,17 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 			Q_snprintfz(altname, sizeof(altname), "%s.%s", mdlbase, token);
 			TRACE(("Mod_LoadModel: Trying to load (replacement) model \"%s\"\n", altname));
 			buf = (unsigned *)COM_LoadFile (altname, 5, &filesize);
+
+			if (buf)
+				Q_strncpyz(mod->name, altname, sizeof(mod->name));
 		}
 		else
 		{
-			TRACE(("Mod_LoadModel: Trying to load model \"%s\"\n", mod->name));
-			buf = (unsigned *)COM_LoadFile (mod->name, 5, &filesize);
-			if (!buf)
+			TRACE(("Mod_LoadModel: Trying to load model \"%s\"\n", mod->publicname));
+			buf = (unsigned *)COM_LoadFile (mod->publicname, 5, &filesize);
+			if (buf)
+				Q_strncpyz(mod->name, mod->publicname, sizeof(mod->name));
+			else if (!buf)
 			{
 #ifdef DSPMODELS
 				if (doomsprite) // special case needed for doom sprites
@@ -5119,14 +5128,12 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 			char	name[MAX_QPATH];
 			model_t *nextmod;
 
-//			if (isnotmap)
-				Q_snprintfz (name, sizeof(name), "*%i:%s", i+1, mod->name);
-//			else//FIXME: this can bug out if we've still got one of these queued from a previous map change
-//				Q_snprintfz (name, sizeof(name), "*%i", i+1);
+			Q_snprintfz (name, sizeof(name), "*%i:%s", i+1, mod->publicname);
 			nextmod = Mod_FindName (name);
 			*nextmod = *submod;
 			nextmod->submodelof = mod;
-			Q_strncpyz(nextmod->name, name, sizeof(nextmod->name));
+			Q_strncpyz(nextmod->publicname, name, sizeof(nextmod->publicname));
+			Q_snprintfz (nextmod->name, sizeof(nextmod->publicname), "*%i:%s", i+1, mod->publicname);
 			submod = nextmod;
 			memset(&submod->memgroup, 0, sizeof(submod->memgroup));
 		}
@@ -5161,6 +5168,26 @@ SPRITES
 */
 
 //=========================================================
+
+#ifdef SERVERONLY
+//dedicated servers should not need to load sprites.
+//dedicated servers need *.bsp to be loaded for setmodel to get the correct size (or all model types with sv_gameplayfix_setmodelrealbox).
+//otherwise other model types(actually: names) only need to be loaded once reflection or hitmodel is used.
+//for sprites we don't really care ever.
+qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer, size_t fsize)
+{
+	mod->type = mod_dummy;
+	return true;
+}
+qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer, size_t fsize)
+{
+	return Mod_LoadSpriteModel(mod, buffer, fsize);
+}
+void Mod_LoadDoomSprite (model_t *mod)
+{
+	mod->type = mod_dummy;
+}
+#else
 
 //we need to override the rtlight shader for sprites so they get lit properly ignoring n+s+t dirs
 //so lets split the shader into parts to avoid too many dupes
@@ -5211,7 +5238,7 @@ void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspritefra
 	else
 		Q_snprintfz(name, sizeof(name), "%s_%i_%i.tga", spr->name, frame, subframe);
 
-	if (mod_litsprites_force.ival || strchr(spr->name, '!'))
+	if (mod_litsprites_force.ival || strchr(spr->publicname, '!'))
 		litsprite = true;
 #ifndef NOLEGACY
 	else
@@ -5231,7 +5258,7 @@ void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspritefra
 		};
 
 		for (i = 0; forcelitsprites[i]; i++)
-			if (!strcmp(spr->name, forcelitsprites[i]))
+			if (!strcmp(spr->publicname, forcelitsprites[i]))
 			{
 				litsprite = true;
 				break;
@@ -5865,6 +5892,8 @@ void Mod_LoadDoomSprite (model_t *mod)
 
 	mod->meshinfo = psprite;
 }
+#endif
+
 #endif
 
 //=============================================================================

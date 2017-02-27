@@ -224,28 +224,29 @@ static areanode_t *World_CreateAreaNode (world_t *w, int depth, vec3_t mins, vec
 	w->numareanodes++;
 
 	ClearLink (&anode->edicts);
-	
-	if (depth == w->areanodedepth)
+
+	VectorSubtract (maxs, mins, size);
+
+	if (depth == w->areanodedepth || (size[0] < 512 && size[1] < 512))
 	{
 		anode->axis = -1;
 		anode->children[0] = anode->children[1] = NULL;
 		return anode;
 	}
-	
-	VectorSubtract (maxs, mins, size);
+
 	if (size[0] > size[1])
 		anode->axis = 0;
 	else
 		anode->axis = 1;
-	
+
 	anode->dist = 0.5 * (maxs[anode->axis] + mins[anode->axis]);
 	VectorCopy (mins, mins1);	
 	VectorCopy (mins, mins2);	
 	VectorCopy (maxs, maxs1);	
 	VectorCopy (maxs, maxs2);	
-	
+
 	maxs1[anode->axis] = mins2[anode->axis] = anode->dist;
-	
+
 	anode->children[0] = World_CreateAreaNode (w, depth+1, mins2, maxs2);
 	anode->children[1] = World_CreateAreaNode (w, depth+1, mins1, maxs1);
 
@@ -258,8 +259,10 @@ SV_ClearWorld
 
 ===============
 */
-void World_ClearWorld (world_t *w)
+void World_ClearWorld (world_t *w, qboolean relink)
 {
+	int i;
+	wedict_t *ent;
 	int maxdepth;
 	vec3_t mins, maxs;
 	if (w->worldmodel)
@@ -279,18 +282,33 @@ void World_ClearWorld (world_t *w)
 	ClearLink (&w->portallist.edicts);
 	w->portallist.axis = -1;
 
-	maxdepth = 4;
+	maxdepth = 8;
 
 	if (!w->areanodes || w->areanodedepth != maxdepth)
 	{
 		Z_Free(w->areanodes);
 		w->areanodedepth = maxdepth;
-		w->areanodes = Z_Malloc(sizeof(*w->areanodes) * pow(2, w->areanodedepth+1));
+		w->areanodes = Z_Malloc(sizeof(*w->areanodes) * (pow(2, w->areanodedepth+1)-1));
 	}
 	else
 		memset (w->areanodes, 0, sizeof(*w->areanodes)*w->numareanodes);
 	w->numareanodes = 0;
 	World_CreateAreaNode (w, 0, mins, maxs);
+
+
+	if (relink)
+	{
+		for (i=0 ; i<w->num_edicts ; i++)
+		{
+			ent = WEDICT_NUM(w->progs, i);
+			if (!ent)
+				continue;
+			ent->area.prev = ent->area.next = NULL;
+			if (ED_ISFREE(ent))
+				continue;
+			World_LinkEdict (w, ent, false);	// relink ents so touch functions continue to work.
+		}
+	}
 }
 
 
@@ -1126,9 +1144,9 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	}
 	else if (ent->v->solid != SOLID_BSP)
 	{
-		ent->v->angles[0]*=-1;	//carmack made bsp models rotate wrongly.
+		ent->v->angles[0]*=r_meshpitch.value;	//carmack made bsp models rotate wrongly.
 		World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
-		ent->v->angles[0]*=-1;
+		ent->v->angles[0]*=r_meshpitch.value;
 	}
 	else
 	{
@@ -1275,7 +1293,7 @@ static void WorldQ2_AreaEdicts_r (areanode_t *node)
 		if (!l)
 		{
 			int i;
-			World_ClearWorld(&sv.world);
+			World_ClearWorld(&sv.world, false);
 			check = ge->edicts;
 			for (i = 0; i < ge->num_edicts; i++, check = (q2edict_t	*)((char *)check + ge->edict_size))
 				memset(&check->area, 0, sizeof(check->area));

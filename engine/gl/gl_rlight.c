@@ -1179,7 +1179,7 @@ void R_SaveRTLights_f(void)
 			continue;
 		if (!light->radius)
 			continue;
-		VectorAngles(light->axis[0], light->axis[2], ang);
+		VectorAngles(light->axis[0], light->axis[2], ang, false);
 		VFS_PUTS(f, va(
 			"%s%f %f %f "
 			"%f %f %f %f "
@@ -1194,7 +1194,7 @@ void R_SaveRTLights_f(void)
 			light->radius, light->color[0], light->color[1], light->color[2], 
 			light->style-1,
 			light->cubemapname, light->corona,
-			anglemod(-ang[0]), ang[1], ang[2],
+			ang[0], ang[1], ang[2],
 			light->coronascale, light->lightcolourscales[0], light->lightcolourscales[1], light->lightcolourscales[2], light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE|LFLAG_CREPUSCULAR),
 			light->rotation[0],light->rotation[1],light->rotation[2],light->fov
 			));

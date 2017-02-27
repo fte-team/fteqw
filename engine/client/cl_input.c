@@ -739,8 +739,7 @@ void CL_ClampPitch (int pnum)
 		Matrix4_Multiply(Matrix4x4_CM_NewRotation(roll, 1, 0, 0), mat, mat2);
 #endif
 		Matrix3x4_RM_ToVectors(mat2, view[0], view[1], view[2], view[3]);
-		VectorAngles(view[0], view[2], pv->viewangles);
-		pv->viewangles[PITCH]=360 - pv->viewangles[PITCH];
+		VectorAngles(view[0], view[2], pv->viewangles, false);
 		VectorClear(pv->viewanglechange);
 
 		return;
@@ -782,8 +781,7 @@ void CL_ClampPitch (int pnum)
 		Matrix4_Multiply(viewm, invsurfm, mat);
 		/*convert that back to angles*/
 		Matrix3x4_RM_ToVectors(mat, view[0], view[1], view[2], view[3]);
-		VectorAngles(view[0], view[2], vang);
-		vang[PITCH] *= -1;
+		VectorAngles(view[0], view[2], vang, false);
 
 		/*edit it*/
 		vang[PITCH] += pv->viewanglechange[PITCH];
@@ -833,8 +831,7 @@ void CL_ClampPitch (int pnum)
 		Matrix4_Multiply(mat, surfm, viewm);
 		/*and figure out the final result*/
 		Matrix3x4_RM_ToVectors(viewm, view[0], view[1], view[2], view[3]);
-		VectorAngles(view[0], view[2], cl.playerview[pnum].viewangles);
-		cl.playerview[pnum].viewangles[PITCH] *= -1;
+		VectorAngles(view[0], view[2], cl.playerview[pnum].viewangles, false);
 
 		if (pv->viewangles[ROLL] >= 360)
 			pv->viewangles[ROLL] -= 360;

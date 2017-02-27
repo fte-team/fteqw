@@ -1762,7 +1762,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 		}
 
- 	ent.angles[0]*=-1;	//q2 has it fixed.
+		ent.angles[0]*=r_meshpitch.value;	//q2 has it fixed.
 
 		if (s1->number == cl.playerview[0].playernum+1)	//woo! this is us!
 		{

@@ -1801,7 +1801,7 @@ qboolean SVQ3_InitGame(void)
 
 	SV_InitBotLib();
 
-	World_ClearWorld(&sv.world);
+	World_ClearWorld(&sv.world, false);
 
 	q3_sentities = Z_Malloc(sizeof(q3serverEntity_t)*MAX_GENTITIES);
 

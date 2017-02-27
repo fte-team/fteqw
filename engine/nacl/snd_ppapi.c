@@ -53,7 +53,7 @@ static void PPAPI_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
 static void *PPAPI_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	*sampidx = 0;
-    return sc->sn.buffer;
+	return sc->sn.buffer;
 }
 
 static void PPAPI_Submit(soundcardinfo_t *sc, int start, int end)

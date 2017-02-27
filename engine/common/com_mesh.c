@@ -14,6 +14,20 @@ qboolean		r_loadbumpmapping;
 extern cvar_t dpcompat_psa_ungroup;
 extern cvar_t r_noframegrouplerp;
 cvar_t r_lerpmuzzlehack						= CVARF  ("r_lerpmuzzlehack", "1", CVAR_ARCHIVE);
+static void QDECL r_meshpitch_callback(cvar_t *var, char *oldvalue)
+{
+	if (!strcmp(var->string, "-1") || !strcmp(var->string, "1"))
+		return;
+	if (var->value <= 0)
+		Cvar_ForceSet(var, "-1");
+	else
+		Cvar_ForceSet(var, "1");
+}
+#ifdef NOLEGACY
+cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "1", r_meshpitch_callback, "Specifies the direction of the pitch angle on mesh models formats, also affects gamecode, so do not change from its default.");
+#else
+cvar_t r_meshpitch							= CVARCD	("r_meshpitch", "-1", r_meshpitch_callback, "Specifies the direction of the pitch angle on mesh models formats, Quake compatibility requires -1.");
+#endif
 
 #ifndef SERVERONLY
 void Mod_UpdateCRC(void *ctx, void *data, size_t a, size_t b)
@@ -2761,10 +2775,11 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 #ifndef SERVERONLY
 //looks for foo.md3_0.skin files, for dp compat
 //also try foo_0.skin, because people appear to use that too. *sigh*.
-int Mod_CountSkinFiles(char *modelname)
+int Mod_CountSkinFiles(model_t *mod)
 {
 	int i;
 	char skinfilename[MAX_QPATH];
+	char *modelname = mod->name;
 	//try and add numbered skins, and then try fixed names.
 	for (i = 0; ; i++)
 	{
@@ -2781,7 +2796,7 @@ int Mod_CountSkinFiles(char *modelname)
 }
 
 //support for foo.md3_0.skin
-shader_t *Mod_ShaderFromQ3SkinFile(galiasinfo_t *surf, char *modelname, int skinnum)
+shader_t *Mod_ShaderFromQ3SkinFile(galiasinfo_t *surf, model_t *mod, int skinnum)
 {
 	shader_t *result = NULL;
 	skinid_t skinid;
@@ -2789,6 +2804,7 @@ shader_t *Mod_ShaderFromQ3SkinFile(galiasinfo_t *surf, char *modelname, int skin
 	int i;
 	char *filedata;
 	char skinfilename[MAX_QPATH];
+	char *modelname = mod->name;
 
 	if (qrenderer == QR_NONE)
 		return NULL;
@@ -2888,7 +2904,7 @@ void Mod_LoadAliasShaders(model_t *mod)
 			for (j = 0, f = s->frame; j < s->numframes; j++, f++)
 			{
 				if (j == 0)
-					f->shader = Mod_ShaderFromQ3SkinFile(ai, mod->name, i);
+					f->shader = Mod_ShaderFromQ3SkinFile(ai, mod, i);
 				else
 					f->shader = NULL;
 				if (!f->shader)
@@ -4909,7 +4925,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 	root = NULL;
 
 #ifndef SERVERONLY
-	externalskins = Mod_CountSkinFiles(mod->name);
+	externalskins = Mod_CountSkinFiles(mod);
 #endif
 
 	min[0] = min[1] = min[2] = 0;
@@ -5335,7 +5351,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 	}
 
 #ifndef SERVERONLY
-	skinfiles = Mod_CountSkinFiles(mod->name);
+	skinfiles = Mod_CountSkinFiles(mod);
 	if (skinfiles < 1)
 		skinfiles = 1;
 
@@ -6297,7 +6313,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 	}
 
 #ifndef SERVERONLY
-	skinfiles = Mod_CountSkinFiles(mod->name);
+	skinfiles = Mod_CountSkinFiles(mod);
 	if (skinfiles < 1)
 		skinfiles = 1;
 #endif
@@ -7054,7 +7070,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsi
 	mesh = (struct iqmmesh*)(buffer + h->ofs_meshes);
 
 #ifndef SERVERONLY
-	skinfiles = Mod_CountSkinFiles(mod->name);
+	skinfiles = Mod_CountSkinFiles(mod);
 	if (skinfiles < 1)
 		skinfiles = 1;	//iqms have 1 skin and one skin only and always. make sure its loaded.
 #endif

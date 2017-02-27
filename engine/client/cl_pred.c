@@ -776,7 +776,7 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 		VectorSet(plstate->gravitydir, 0, 0, -1);
 	else
 	{
-		a[0] = ((-192-state->u.q1.gravitydir[0])/256.0f) * 360;
+		a[0] = ((192+state->u.q1.gravitydir[0])/256.0f) * 360;
 		a[1] = (state->u.q1.gravitydir[1]/256.0f) * 360;
 		a[2] = 0;
 		AngleVectors(a, plstate->gravitydir, NULL, NULL);
@@ -1302,10 +1302,9 @@ void CL_PredictMovePNum (int seat)
 #endif
 		{
 			VectorScale(pv->simangles, 1, le->angles);
-			if (pv->pmovetype == PM_6DOF)
-				le->angles[0] *= -1;
-			else
-				le->angles[0] *= -0.333;
+			if (pv->pmovetype != PM_6DOF)
+				le->angles[0] *= 0.333;
+			le->angles[0] *= r_meshpitch.value;
 		}
 	}
 
@@ -1316,8 +1315,7 @@ void CL_PredictMovePNum (int seat)
 		vec3_t dir;
 
 		VectorSubtract(pv->simorg, pv->cam_desired_position, dir);
-		VectorAngles(dir, NULL, pv->simangles);
-		pv->simangles[0] *= -1;
+		VectorAngles(dir, NULL, pv->simangles, false);
 		VectorCopy(pv->simangles, pv->viewangles);
 		pv->viewangles[0] = anglemod(pv->viewangles[0]);
 		if (pv->viewangles[0] > 180)

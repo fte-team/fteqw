@@ -259,7 +259,7 @@ static void World_Bullet_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	foo Matrix3x4_RM_ToVectors(entitymatrix, forward, left, up, origin);
 
 	VectorAngles(forward, up, angles);
-	angles[0]*=-1;
+	angles[0]*=r_meshpitch.value;
 
 	avelocity[PITCH] = RAD2DEG(spinvelocity[PITCH]);
 	avelocity[YAW] = RAD2DEG(spinvelocity[ROLL]);
@@ -270,8 +270,8 @@ static void World_Bullet_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 		model = world->Get_CModel(world, ed->v->modelindex);
 		if (!model || model->type == mod_alias)
 		{
-			angles[PITCH] *= -1;
-			avelocity[PITCH] *= -1;
+			angles[PITCH] *= r_meshpitch.value;
+			avelocity[PITCH] *= r_meshpitch.value;
 		}
 	}
 
@@ -856,7 +856,7 @@ public:
 			if (!model || model->type == mod_alias)
 				;
 			else
-				edict->v->angles[PITCH] *= -1;
+				edict->v->angles[PITCH] *= r_meshpitch.value;
 		}
 
 		//so it doesn't get rebuilt
@@ -1219,8 +1219,8 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			model = world->Get_CModel(world, ed->v->modelindex);
 			if (!model || model->type == mod_alias)
 			{
-				qangles[PITCH] *= -1;
-				qavelocity[PITCH] *= -1;
+				qangles[PITCH] *= r_meshpitch.value;
+				qavelocity[PITCH] *= r_meshpitch.value;
 			}
 		}
 

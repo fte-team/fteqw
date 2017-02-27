@@ -923,11 +923,14 @@ void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 	for (; sym; sym = sym->next)
 	{
 		if (sym->constant && sym->type->type == ev_field && !opt_stripunusedfields)
+		{
 			sym->symbolheader->used = true;	//fields should always be present, annoyingly enough, as they're often used to silence map warnings.
 											//FIXME: we want to strip these. fte/dp extensions.qc have a LOT of fields that could be stripped.
+			sym->referenced = true;			//FIXME
+		}
 		else if (sym->constant && sym->type->type == ev_function)
 		{						//non-builtins must be present, because of spawn functions and other entrypoints.
-			unsigned int fnum = sym->symboldata[sym->ofs]._int;
+			unsigned int fnum = sym->symboldata[0]._int;
 			if (fnum < numfunctions && functions[fnum].code == -1)
 				sym->symbolheader->used = true;
 		}
@@ -1074,8 +1077,8 @@ void QCC_FinaliseDef(QCC_def_t *def)
 		else
 			memset(qcc_pr_globals+def->ofs, 0, def->symbolsize*sizeof(float));
 	}
-	def->symboldata = qcc_pr_globals;
-	def->symbolsize = numpr_globals;
+	def->symboldata = qcc_pr_globals + def->ofs;
+	def->symbolsize = numpr_globals - def->ofs;
 
 #ifdef DEBUG_DUMP
 	if (!def->referenced)
@@ -1187,7 +1190,7 @@ static void QCC_GenerateFieldDefs(QCC_def_t *def, char *fieldname, int ofs, QCC_
 	dd = &qcc_globals[numglobaldefs];
 	numglobaldefs++;
 	dd->type = ev_field;
-	dd->ofs = ofs;
+	dd->ofs = def->ofs+ofs;
 	dd->s_name = sname;
 }
 
@@ -1519,13 +1522,13 @@ pbool QCC_WriteData (int crc)
 		if (def->symbolheader->read && !def->symbolheader->written && !def->symbolheader->referenced)
 		{
 			char typestr[256];
-			QCC_sref_t sr = {def, def->ofs, def->type};
+			QCC_sref_t sr = {def, 0, def->type};
 			QCC_PR_Warning(WARN_READNOTWRITTEN, def->filen, def->s_line, "%s %s = %s read, but not writte.", TypeName(def->type, typestr, sizeof(typestr)), def->name, QCC_VarAtOffset(sr));
 		}
 		if (def->symbolheader->written && !def->symbolheader->read && !def->symbolheader->referenced)
 		{
 			char typestr[256];
-			QCC_sref_t sr = {def, def->ofs, def->type};
+			QCC_sref_t sr = {def, 0, def->type};
 			QCC_PR_Warning(WARN_WRITTENNOTREAD, def->filen, def->s_line, "%s %s = %s written, but not read.", TypeName(def->type, typestr, sizeof(typestr)), def->name, QCC_VarAtOffset(sr));
 		}
 #endif
@@ -1553,7 +1556,7 @@ pbool QCC_WriteData (int crc)
 			if (def->symbolheader->used)
 			{
 				char typestr[256];
-				QCC_sref_t sr = {def, def->ofs, def->type};
+				QCC_sref_t sr = {def, 0, def->type};
 				QCC_PR_Warning(WARN_NOTREFERENCED, def->filen, def->s_line, "%s %s = %s used, but not referenced.", TypeName(def->type, typestr, sizeof(typestr)), def->name, QCC_VarAtOffset(sr));
 			}
 			/*if (opt_unreferenced && def->type->type != ev_field)
@@ -1585,7 +1588,7 @@ pbool QCC_WriteData (int crc)
 
 		if (def->type->type == ev_function)
 		{
-			if (opt_function_names && def->initialized && functions[def->symboldata[def->ofs].function].code<0)
+			if (opt_function_names && def->initialized && functions[def->symboldata[0].function].code<0)
 			{
 				optres_function_names++;
 				def->name = "";
@@ -1610,7 +1613,7 @@ pbool QCC_WriteData (int crc)
 		}
 		else if (def->type->type == ev_field && def->constant && (!def->scope || def->isstatic || def->initialized))
 		{
-			QCC_GenerateFieldDefs(def, def->name, def->ofs, def->type->aux_type);
+			QCC_GenerateFieldDefs(def, def->name, 0, def->type->aux_type);
 			continue;
 		}
 		else if ((def->scope||def->constant) && (def->type->type != ev_string || (strncmp(def->name, "dotranslate_", 12) && opt_constant_names_strings)))
@@ -1664,17 +1667,17 @@ pbool QCC_WriteData (int crc)
 
 #ifdef DEBUG_DUMP
 		if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_string)
-			printf("code: %s:%i: %s%s%s %s@%i = \"%s\"\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, ((unsigned)def->symboldata[def->ofs].string>=(unsigned)strofs)?"???":(strings + def->symboldata[def->ofs].string));
+			printf("code: %s:%i: %s%s%s %s@%i = \"%s\"\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, ((unsigned)def->symboldata[0].string>=(unsigned)strofs)?"???":(strings + def->symboldata[0].string));
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_float)
-			printf("code: %s:%i: %s%s%s %s@%i = %g\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._float);
+			printf("code: %s:%i: %s%s%s %s@%i = %g\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0]._float);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_integer)
-			printf("code: %s:%i: %s%s%s %s@%i = %i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._int);
+			printf("code: %s:%i: %s%s%s %s@%i = %i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0]._int);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_vector)
-			printf("code: %s:%i: %s%s%s %s@%i = '%g %g %g'\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs].vector[0], def->symboldata[def->ofs].vector[1], def->symboldata[def->ofs].vector[2]);
+			printf("code: %s:%i: %s%s%s %s@%i = '%g %g %g'\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0].vector[0], def->symboldata[0].vector[1], def->symboldata[0].vector[2]);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_function)
-			printf("code: %s:%i: %s%s%s %s@%i = %i(%s)\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs].function, def->symboldata[def->ofs].function >= numfunctions?"???":functions[def->symboldata[def->ofs].function].name);
+			printf("code: %s:%i: %s%s%s %s@%i = %i(%s)\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0].function, def->symboldata[0].function >= numfunctions?"???":functions[def->symboldata[0].function].name);
 		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_field)
-			printf("code: %s:%i: %s%s%s %s@%i = @%i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._int);
+			printf("code: %s:%i: %s%s%s %s@%i = @%i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[0]._int);
 		else
 			printf("code: %s:%i: %s%s%s %s@%i\n", def->filen, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs);
 #endif
@@ -2471,7 +2474,7 @@ static void QCC_MergeUnstrip(dfunction_t *in, unsigned int num)
 		if (!def)
 		{
 			def = QCC_PR_GetDef(type_function, name, NULL, true, 0, GDF_BASICTYPE);
-			def->symboldata[def->ofs].function = i;
+			def->symboldata[0].function = i;
 			def->initialized = true;
 			def->referenced = true;
 			def->assumedtype = true;

@@ -1561,7 +1561,16 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	}
 
 	// a fixangle might get lost in a dropped packet.  Oh well.
-	if (ent->v->fixangle)
+	if (client->spectator && ISNQCLIENT(client) && client->spec_track > 0)
+	{
+		edict_t *ed = EDICT_NUM(svprogfuncs, client->spec_track);
+		MSG_WriteByte(msg, svc_setangle);
+		MSG_WriteAngle(msg, ed->v->v_angle[0]);
+		MSG_WriteAngle(msg, ed->v->v_angle[1]);
+		MSG_WriteAngle(msg, ed->v->v_angle[2]);
+		VectorCopy(ed->v->origin, client->edict->v->origin);
+	}
+	else if (ent->v->fixangle)
 	{
 		if (!client->lockangles)
 		{
@@ -1683,6 +1692,8 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 #ifdef NQPROT
 	ent = client->edict;
+	if (client->spectator && client->spec_track)
+		ent = EDICT_NUM(svprogfuncs, client->spec_track);
 	if (progstype != PROG_QW)
 	{
 		if (ISQWCLIENT(client) && !(client->fteprotocolextensions2 & PEXT2_PREDINFO))
@@ -1871,7 +1882,10 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 	if (nqjunk)
 	{
-		MSG_WriteShort (msg, ent->v->health);
+		if (client->spectator && !client->spec_track)
+			MSG_WriteShort (msg, 1000);
+		else
+			MSG_WriteShort (msg, ent->v->health);
 		if (client->protocol == SCP_FITZ666)
 		{
 			MSG_WriteByte (msg, (int)ent->v->currentammo & 0xff);
@@ -2098,26 +2112,35 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 #endif
 	{
 #ifdef QUAKESTATS
-		statsf[STAT_HEALTH] = ent->v->health;	//sorry, but mneh
-		statsi[STAT_WEAPONMODELI] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
-		if ((unsigned)statsi[STAT_WEAPONMODELI] >= client->maxmodels)
-			statsi[STAT_WEAPONMODELI] = 0;	//play it safe, try not to crash unsuspecting clients
-		statsf[STAT_AMMO] = ent->v->currentammo;
-		statsf[STAT_ARMOR] = ent->v->armorvalue;
-		statsf[STAT_SHELLS] = ent->v->ammo_shells;
-		statsf[STAT_NAILS] = ent->v->ammo_nails;
-		statsf[STAT_ROCKETS] = ent->v->ammo_rockets;
-		statsf[STAT_CELLS] = ent->v->ammo_cells;
-		statsf[STAT_ACTIVEWEAPON] = ent->v->weapon;
-		if ((client->csqcactive && !(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)) || client->protocol != SCP_QUAKEWORLD || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
-//		if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || client->protocol != SCP_QUAKEWORLD)
-			statsf[STAT_WEAPONFRAME] = ent->v->weaponframe;		//weapon frame is sent differently with classic quakeworld protocols.
-
-		// stuff the sigil bits into the high bits of items for sbar
-		if (sv.haveitems2)
-			statsi[STAT_ITEMS] = (int)ent->v->items | ((int)ent->xv->items2 << 23);
+		if (client->spectator && !client->spec_track && ISNQCLIENT(client))
+		{
+			statsf[STAT_HEALTH] = 1000;
+			statsf[STAT_ARMOR] = 1000;
+			statsf[STAT_AMMO] = 1000;
+		}
 		else
-			statsi[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
+		{
+			statsf[STAT_HEALTH] = ent->v->health;	//sorry, but mneh
+			statsi[STAT_WEAPONMODELI] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
+			if ((unsigned)statsi[STAT_WEAPONMODELI] >= client->maxmodels)
+				statsi[STAT_WEAPONMODELI] = 0;	//play it safe, try not to crash unsuspecting clients
+			statsf[STAT_AMMO] = ent->v->currentammo;
+			statsf[STAT_ARMOR] = ent->v->armorvalue;
+			statsf[STAT_SHELLS] = ent->v->ammo_shells;
+			statsf[STAT_NAILS] = ent->v->ammo_nails;
+			statsf[STAT_ROCKETS] = ent->v->ammo_rockets;
+			statsf[STAT_CELLS] = ent->v->ammo_cells;
+			statsf[STAT_ACTIVEWEAPON] = ent->v->weapon;
+			if ((client->csqcactive && !(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)) || client->protocol != SCP_QUAKEWORLD || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
+	//		if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || client->protocol != SCP_QUAKEWORLD)
+				statsf[STAT_WEAPONFRAME] = ent->v->weaponframe;		//weapon frame is sent differently with classic quakeworld protocols.
+
+			// stuff the sigil bits into the high bits of items for sbar
+			if (sv.haveitems2)
+				statsi[STAT_ITEMS] = (int)ent->v->items | ((int)ent->xv->items2 << 23);
+			else
+				statsi[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
+		}
 
 		statsf[STAT_VIEWHEIGHT] = ent->v->view_ofs[2];
 
@@ -2484,7 +2507,7 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 
 qboolean SV_CanTrack(client_t *client, int entity)
 {
-	if (entity < 0 || entity >= sv.allocated_client_slots)
+	if (entity <= 0 || entity > sv.allocated_client_slots)
 		return false;
 	if (svs.clients[entity-1].spectator)
 		return false;
@@ -3217,7 +3240,7 @@ void SV_SendClientMessages (void)
 				c->frameunion.frames[fnum & UPDATE_MASK].packetsizeout += sentbytes;
 			c->datagram.cursize = 0;
 		}
-
+		c->lastoutgoingphysicstime = sv.world.physicstime;
 	}
 
 	SV_CleanupEnts();

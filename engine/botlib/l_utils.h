@@ -29,7 +29,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *
  *****************************************************************************/
 
-#define Vector2Angles(v,a)		vectoangles(v,a)
+void QDECL VectorAngles(float *forward, float *up, float *result, qboolean meshpitch);
+#define Vector2Angles(v,a)		VectorAngles(v,NULL,a,qfalse)
 #ifndef MAX_PATH
 #define MAX_PATH				MAX_QPATH
 #endif

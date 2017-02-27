@@ -2933,10 +2933,10 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	ent.light_known = 2;
 
 
-//	ent.angles[0]*=-1;
+//	ent.angles[0]*=r_meshpitch.value;
 	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
 	VectorInverse(ent.axis[1]);
-//	ent.angles[0]*=-1;
+//	ent.angles[0]*=r_meshpitch.value;
 
 	if (ent.model->type == mod_dummy)
 	{

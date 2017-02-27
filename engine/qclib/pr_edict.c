@@ -2450,6 +2450,7 @@ void PR_CleanUpStatements16(progfuncs_t *progfuncs, dstatement16_t *st, pbool he
 			if (!st[i].c)
 				st[i].c = OFS_RETURN;
 
+		//sanitise inputs
 		if (st[i].a >= numglob)
 			if (st[i].op != OP_GOTO)
 				st[i].op = ~0;
@@ -2477,6 +2478,7 @@ void PR_CleanUpStatements32(progfuncs_t *progfuncs, dstatement32_t *st, pbool he
 			if (!st[i].c)
 				st[i].c = OFS_RETURN;
 
+		//sanitise inputs
 		if (st[i].a >= numglob)
 			if (st[i].op != OP_GOTO)
 				st[i].op = ~0;
@@ -2484,10 +2486,10 @@ void PR_CleanUpStatements32(progfuncs_t *progfuncs, dstatement32_t *st, pbool he
 			if (st[i].op != OP_IFNOT_I && st[i].op != OP_IF_I &&
 				st[i].op != OP_IFNOT_F && st[i].op != OP_IF_F &&
 				st[i].op != OP_IFNOT_S && st[i].op != OP_IF_S &&
-				st[i].op != OP_BOUNDCHECK)
+				st[i].op != OP_BOUNDCHECK && st[i].op != OP_CASE)
 				st[i].op = ~0;
 		if (st[i].c >= numglob)
-			if (st[i].op != OP_BOUNDCHECK)
+			if (st[i].op != OP_BOUNDCHECK && st[i].op != OP_CASERANGE)
 				st[i].op = ~0;
 	}
 }
@@ -3300,12 +3302,6 @@ retry:
 				((int *)glob)[d16->ofs] = PR_FindFunc(&progfuncs->funcs, s, PR_ANY);
 				if (!((int *)glob)[d16->ofs])
 					printf("Warning: Runtime-linked function %s could not be found (loading %s)\n", s, filename);
-				/*
-				d2 = ED_FindGlobalOfsFromProgs(progfuncs, s, 0, ev_function);
-				if (!d2)
-					Sys_Error("Runtime-linked function %s was not found in primary progs (loading %s)", s, filename);
-				((int *)glob)[d16->ofs] = (*(func_t *)&pr_progstate[0].globals[*d2]);
-				*/
 				s+=strlen(s)+1;
 			}
 		}
@@ -3320,18 +3316,17 @@ retry:
 			for (i = 0; i < pr_progs->numbodylessfuncs; i++)
 			{
 				d32 = ED_FindGlobal32(progfuncs, s);
-				d2 = ED_FindGlobalOfsFromProgs(progfuncs, s, 0, ev_function);
-				if (!d2)
-					printf("Warning: Runtime-linked function %s was not found in existing progs", s);
 				if (!d32)
 				{
-					printf("Couldn't find def for \"%s\"", s);
+					printf("\"%s\" requires the external function \"%s\", but the definition was stripped\n", filename, s);
 					PRHunkFree(progfuncs, hmark);
 					pr_progs=NULL;
 					return false;
 				}
-				((int *)glob)[d32->ofs] = (*(func_t *)&pr_progstate[0].globals[*d2]);
 
+				((int *)glob)[d32->ofs] = PR_FindFunc(&progfuncs->funcs, s, PR_ANY);
+				if (!((int *)glob)[d32->ofs])
+					printf("Warning: Runtime-linked function %s could not be found (loading %s)\n", s, filename);
 				s+=strlen(s)+1;
 			}
 		}

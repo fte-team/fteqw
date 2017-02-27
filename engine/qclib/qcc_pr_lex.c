@@ -4428,6 +4428,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 	{
 		do
 		{
+			pbool foundinout;
 			if (ftype->num_parms>=MAX_PARMS+MAX_EXTRA_PARMS)
 				QCC_PR_ParseError(ERR_TOOMANYTOTALPARAMETERS, "Too many parameters. Sorry. (limit is %i)\n", MAX_PARMS+MAX_EXTRA_PARMS);
 
@@ -4437,16 +4438,30 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 				break;
 			}
 
-			if (QCC_PR_CheckKeyword(keyword_inout, "inout"))
-				paramlist[numparms].out = true;
-			else if (QCC_PR_CheckKeyword(keyword_inout, "out"))
-				paramlist[numparms].out = 2;	//not really supported, but parsed for readability.
-			else if (QCC_PR_CheckKeyword(keyword_inout, "in"))
-				paramlist[numparms].out = false;
-			else
-				paramlist[numparms].out = false;	//the default
+			foundinout = false;
+			paramlist[numparms].optional = false;
+			paramlist[numparms].out = false;
 
-			paramlist[numparms].optional = QCC_PR_CheckKeyword(keyword_optional, "optional");
+			while(1)
+			{
+				if (!paramlist[numparms].optional && QCC_PR_CheckKeyword(keyword_optional, "optional"))
+					paramlist[numparms].optional = true;
+				if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "inout"))
+				{
+					paramlist[numparms].out = true;
+					foundinout = true;
+				}
+				if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "out"))
+				{
+					paramlist[numparms].out = 2;	//not really supported, but parsed for readability.
+					foundinout = true;
+				}
+				if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "in"))
+				{
+					paramlist[numparms].out = false;
+					foundinout = true;
+				}
+			}
 
 			paramlist[numparms].defltvalue.cast = NULL;
 			paramlist[numparms].ofs = 0;
@@ -4454,6 +4469,9 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 			paramlist[numparms].type = QCC_PR_ParseType(false, false);
 			if (!paramlist[numparms].type)
 				QCC_PR_ParseError(0, "Expected type\n");
+
+			while (QCC_PR_CheckToken("*"))
+				paramlist[numparms].type = QCC_PointerTypeTo(paramlist[numparms].type);
 
 			if (paramlist[numparms].type->type == ev_void)
 				break; //float(void) has no actual args
@@ -4474,6 +4492,12 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 				strcpy(paramlist[numparms].paramname, name);
 				if (definenames)
 					strcpy (pr_parm_names[numparms], name);
+
+				if (QCC_PR_CheckToken("["))
+				{
+					QCC_PR_ParseError(0, "Array arguments are not supported\n");
+					QCC_PR_Expect("]");
+				}
 			}
 			else if (definenames)
 				strcpy (pr_parm_names[numparms], "");

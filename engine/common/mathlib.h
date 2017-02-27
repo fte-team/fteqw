@@ -114,8 +114,6 @@ typedef struct {
 	float m[4][4];
 } matrix4x4_t;
 
-
-
 //vec_t		_DotProduct (vec3_t v1, vec3_t v2);
 //void		_VectorAdd (vec3_t veca, vec3_t vecb, vec3_t out);
 //void		_VectorCopy (vec3_t in, vec3_t out);
@@ -123,7 +121,7 @@ typedef struct {
 void		AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 float		anglemod (float a);
 void		QDECL AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
-void		QDECL VectorAngles (float *forward, float *up, float *angles);	//up may be NULL
+void		QDECL VectorAngles (float *forward, float *up, float *angles, qboolean meshpitch);	//up may be NULL
 void VARGS	BOPS_Error (void);
 int VARGS	BoxOnPlaneSide (vec3_t emins, vec3_t emaxs, struct mplane_s *plane);
 void		ClearBounds (vec3_t mins, vec3_t maxs);

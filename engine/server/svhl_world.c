@@ -379,9 +379,9 @@ trace_t SVHL_ClipMoveToEntity (hledict_t *ent, vec3_t start, vec3_t mins, vec3_t
 // trace a line through the apropriate clipping hull
 	if (ent->v.solid != SOLID_BSP)
 	{
-		ent->v.angles[0]*=-1;	//carmack made bsp models rotate wrongly.
+		ent->v.angles[0]*=r_meshpitch.value;	//carmack made bsp models rotate wrongly.
 		World_TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, false, &trace, ent->v.origin, ent->v.angles, clipmask);
-		ent->v.angles[0]*=-1;
+		ent->v.angles[0]*=r_meshpitch.value;
 	}
 	else
 	{

@@ -577,7 +577,7 @@ typedef struct
 	void (QDECL *ReleaseCollisionMesh) (wedict_t *ed);
 	void (QDECL *LinkEdict)(world_t *w, wedict_t *ed, qboolean touchtriggers);
 
-	void (QDECL *VectorAngles)(float *forward, float *up, float *result);
+	void (QDECL *VectorAngles)(float *forward, float *up, float *result, qboolean meshpitch);
 	void (QDECL *AngleVectors)(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
 } rbeplugfuncs_t;
 #define RBEPLUGFUNCS_VERSION 1

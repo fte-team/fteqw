@@ -1229,9 +1229,6 @@ void PR_ApplyCompilation_f (void)
 
 	pr_global_struct->time = sv.world.physicstime;
 
-
-	World_ClearWorld (&sv.world);
-
 	for (i=0 ; i<sv.allocated_client_slots ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i+1);
@@ -1239,15 +1236,7 @@ void PR_ApplyCompilation_f (void)
 		svs.clients[i].edict = ent;
 	}
 
-	ent = (edict_t*)sv.world.edicts;
-	for (i=0 ; i<sv.world.num_edicts ; i++)
-	{
-		ent = EDICT_NUM(svprogfuncs, i);
-		if (ED_ISFREE(ent))
-			continue;
-
-		World_LinkEdict (&sv.world, (wedict_t*)ent, false);	// force retouch even for stationary
-	}
+	World_ClearWorld (&sv.world, true);
 
 	svprogfuncs->parms->memfree(s);
 }
@@ -7503,7 +7492,7 @@ static void QCBUILTIN PF_h2matchAngleToSlope(pubprogfuncs_t *prinst, struct glob
 
 	AngleVectors(actor->v->angles, old_forward, old_right, P_VEC(v_up));
 
-	VectorAngles(G_VECTOR(OFS_PARM0), NULL, G_VECTOR(OFS_RETURN));
+	VectorAngles(G_VECTOR(OFS_PARM0), NULL, G_VECTOR(OFS_RETURN), true/*FIXME*/);
 
 	pitch = G_FLOAT(OFS_RETURN) - 90;
 
@@ -9548,7 +9537,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		{
 			if (!sv_player->v->fixangle)
 			{
-				sv_player->v->angles[PITCH] = -sv_player->v->v_angle[PITCH]/3;
+				sv_player->v->angles[PITCH] = r_meshpitch.value * sv_player->v->v_angle[PITCH]/3;
 				sv_player->v->angles[YAW] = sv_player->v->v_angle[YAW];
 			}
 			sv_player->v->angles[ROLL] =
@@ -11338,7 +11327,7 @@ void PR_DumpPlatform_f(void)
 		{"oldorigin",			".vector", QW|NQ|CS,	D("This is often used on players to reset the player back to where they were last frame if they somehow got stuck inside something due to fpu precision. Never change a player's oldorigin field to inside a solid, because that might cause them to become pemanently stuck.")},
 		{"velocity",			".vector", QW|NQ|CS,	D("The direction and speed that the entity is moving in world space.")},
 		{"angles",				".vector", QW|NQ|CS,	D("The eular angles the entity is facing in, in pitch, yaw, roll order. Due to a legacy bug, mdl/iqm/etc formats use +x=UP, bsp/spr/etc formats use +x=DOWN.")},
-		{"avelocity",			".vector", QW|NQ|CS,	D("The amount the entity's angles change by each frame. Note that this is direct eular angles, and thus the angular change is non-linear and often just looks buggy.")},
+		{"avelocity",			".vector", QW|NQ|CS,	D("The amount the entity's angles change by per second. Note that this is direct eular angles, and thus the angular change is non-linear and often just looks buggy if you're changing more than one angle at a time.")},
 		{"pmove_flags",			".float", CS},
 		{"punchangle",			".vector", NQ},
 		{"classname",			".string", QW|NQ|CS,	D("Identifies the class/type of the entity. Useful for debugging, also used for loading, but its value is not otherwise significant to the engine, this leaves the mod free to set it to whatever it wants and randomly test strings for values in whatever inefficient way it chooses fit.")},

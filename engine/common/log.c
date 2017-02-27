@@ -533,8 +533,10 @@ static void IPLog_Identify_f(void)
 			Con_Printf("%s: ip address of %s is not known\n", Cmd_Argv(0), cl.players[slot].name);
 		else
 		{
-			NET_StringToAdr(cl.players[slot].ip, 0, &adr);
-			IPLog_Identify(&adr, NULL, "Identity of %s [%s]", cl.players[slot].name, cl.players[slot].ip);
+			if (NET_StringToAdrMasked(cl.players[slot].ip, false, &adr, &mask))
+				IPLog_Identify(&adr, &mask, "Identity of %s [%s]", cl.players[slot].name, cl.players[slot].ip);
+			else
+				Con_Printf("ip address of %s not known, cannot identify\n", cl.players[slot].name);
 		}
 	}
 #endif

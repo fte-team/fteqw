@@ -1229,8 +1229,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 
 	//now determine the stuff the backend will use.
 	memcpy(r_refdef.m_view, vmat, sizeof(float)*16);
-	VectorAngles(vpn, vup, r_refdef.viewangles);
-	r_refdef.viewangles[0] *= -1;
+	VectorAngles(vpn, vup, r_refdef.viewangles, false);
 	VectorCopy(r_refdef.vieworg, r_origin);
 
 	//determine r_refdef.flipcull & SHADER_CULL_FLIP based upon whether right is right or not.

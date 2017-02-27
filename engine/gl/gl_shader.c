@@ -2261,6 +2261,8 @@ static void Shader_DiffuseMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 	char *token = Shader_ParseString(ptr);
 	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
 	shader->defaulttextures->base = Shader_FindImage(token, flags);
+
+	Q_strncpyz(shader->defaulttextures->mapname, token, sizeof(shader->defaulttextures->mapname));
 }
 static void Shader_SpecularMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -2272,7 +2274,7 @@ static void Shader_NormalMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	char *token = Shader_ParseString(ptr);
 	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
-	shader->defaulttextures->bump = Shader_FindImage(token, flags);
+	shader->defaulttextures->bump = Shader_FindImage(token, flags|IF_TRYBUMP);
 }
 static void Shader_FullbrightMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -3889,6 +3891,7 @@ void Shader_FixupProgPasses(shader_t *shader, shaderpass_t *pass)
 				parsestate.droppass = true;
 				break;
 			}
+			pass[pass->numMergedPasses].flags |= SHADER_PASS_NOCOLORARRAY;
 			pass[pass->numMergedPasses].flags &= ~SHADER_PASS_DEPTHCMP;
 			if (defaulttgen[i].gen == T_GEN_SHADOWMAP)
 				pass[pass->numMergedPasses].flags |= SHADER_PASS_DEPTHCMP;

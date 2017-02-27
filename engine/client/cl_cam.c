@@ -621,8 +621,7 @@ static float Cam_TryFlyby(vec3_t selforigin, vec3_t playerorigin, vec3_t vec, qb
 	pmove.player_maxs[0] = pmove.player_maxs[1] = 16;
 	pmove.player_maxs[2] = 32;
 
-	VectorAngles(vec, NULL, v);
-//	v[0] = -v[0];
+	VectorAngles(vec, NULL, v, true);
 	VectorCopy (v, pmove.angles);
 	VectorNormalize(vec);
 	VectorMA(playerorigin, 800, vec, v);
@@ -791,8 +790,7 @@ void Cam_SelfTrack(playerview_t *pv)
 		VectorCopy(pv->cam_desired_position, r_refdef.vieworg);
 
 		VectorSubtract(pv->simorg, pv->cam_desired_position, vec);
-		VectorAngles(vec, NULL, r_refdef.viewangles);
-		r_refdef.viewangles[0] = -r_refdef.viewangles[0];
+		VectorAngles(vec, NULL, r_refdef.viewangles, false);
 	}
 }
 

@@ -348,7 +348,7 @@ void PM_ValidatePackage(package_t *p)
 							}
 					}
 				}
-				if (o && o->qhash && p->qhash && (o->flags & DPF_CACHED) && fl == DPF_CACHED)
+				if (o && o->qhash && p->qhash && (o->flags & DPF_CACHED) || fl == DPF_CACHED)
 					p->flags |= DPF_CACHED;
 				else if (!o)
 				{
@@ -2547,13 +2547,13 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsig
 			case DPF_MARKED:
 				p->flags |= DPF_PURGE;
 				//now: re-get despite already having it.
-				if ((p->flags & DPF_PRESENT) && !PM_PurgeOnDisable(p))
+				if ((p->flags & DPF_CORRUPT) || ((p->flags & DPF_PRESENT) && !PM_PurgeOnDisable(p)))
 					break;	//only makes sense if we already have a cached copy that we're not going to use.
 				//fallthrough
 			case DPF_MARKED|DPF_PURGE:
 				PM_UnmarkPackage(p);
 				//now: delete
-				if ((p->flags & DPF_PRESENT) && !PM_PurgeOnDisable(p))
+				if ((p->flags & DPF_CORRUPT) || ((p->flags & DPF_PRESENT) && !PM_PurgeOnDisable(p)))
 					break;	//only makes sense if we have a cached/corrupt copy of it already
 				//fallthrough
 			case DPF_PURGE:

@@ -329,19 +329,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 
 	//FIXME: DP saved games have some / *\nkey values\nkey values\n* / thing in them to save precaches and stuff
 
-	World_ClearWorld(&sv.world);
-
-	for (i=0 ; i<sv.world.num_edicts ; i++)
-	{
-		ent = EDICT_NUM(svprogfuncs, i);
-
-		if (!ent)
-			break;
-		if (ED_ISFREE(ent))
-			continue;
-
-		World_LinkEdict (&sv.world, (wedict_t*)ent, false);
-	}
+	World_ClearWorld(&sv.world, true);
 
 	sv.spawned_client_slots = 0;
 	for (i=0 ; i<svs.allocated_client_slots ; i++)
@@ -622,7 +610,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 		flocation_t loc;
 		SV_SpawnServer (level, startspot, false, false);
 
-		World_ClearWorld(&sv.world);
+		World_ClearWorld(&sv.world, false);
 		if (!ge)
 		{
 			Con_Printf("Incorrect gamecode type.\n");
@@ -774,7 +762,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 
 	PF_InitTempStrings(svprogfuncs);
 
-	World_ClearWorld (&sv.world);
+	World_ClearWorld (&sv.world, true);
 
 	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
@@ -836,14 +824,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	}
 
 	pr_global_struct->time = sv.world.physicstime;
-	for (i=0 ; i<sv.world.num_edicts ; i++)
-	{
-		ent = EDICT_NUM(svprogfuncs, i);
-		if (ED_ISFREE(ent))
-			continue;
 
-		World_LinkEdict (&sv.world, (wedict_t*)ent, false);
-	}
 	for (i=0 ; i<sv.world.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);

@@ -4591,7 +4591,7 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, vbo_t *vbo, unsigned int beflags)
 {
 	shader->next = NULL;
-	BE_DrawMesh_List(shader, 1, &mesh, NULL, NULL, beflags);
+	GLBE_DrawMesh_List(shader, 1, &mesh, NULL, NULL, beflags);
 }
 
 void GLBE_SubmitBatch(batch_t *batch)

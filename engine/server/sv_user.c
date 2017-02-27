@@ -3956,6 +3956,12 @@ void SV_PTrack_f (void)
 		ent = EDICT_NUM(svprogfuncs, host_client - svs.clients + 1);
 		tent = EDICT_NUM(svprogfuncs, 0);
 		ent->v->goalentity = EDICT_TO_PROG(svprogfuncs, tent);
+
+		if (ISNQCLIENT(host_client))
+		{
+			ClientReliableWrite_Begin(host_client, svc_setview, 4);
+			ClientReliableWrite_Entity(host_client, host_client - svs.clients + 1);
+		}
 		return;
 	}
 
@@ -3975,6 +3981,12 @@ void SV_PTrack_f (void)
 		ent = EDICT_NUM(svprogfuncs, host_client - svs.clients + 1);
 		tent = EDICT_NUM(svprogfuncs, 0);
 		ent->v->goalentity = EDICT_TO_PROG(svprogfuncs, tent);
+
+		if (ISNQCLIENT(host_client))
+		{
+			ClientReliableWrite_Begin(host_client, svc_setview, 4);
+			ClientReliableWrite_Entity(host_client, host_client - svs.clients + 1);
+		}
 		return;
 	}
 	host_client->spec_track = i + 1; // now tracking
@@ -3982,6 +3994,12 @@ void SV_PTrack_f (void)
 	ent = EDICT_NUM(svprogfuncs, host_client - svs.clients + 1);
 	tent = EDICT_NUM(svprogfuncs, i + 1);
 	ent->v->goalentity = EDICT_TO_PROG(svprogfuncs, tent);
+
+	if (ISNQCLIENT(host_client))
+	{
+		ClientReliableWrite_Begin(host_client, svc_setview, 4);
+		ClientReliableWrite_Entity(host_client, i + 1);
+	}
 }
 
 
@@ -4877,7 +4895,7 @@ void Cmd_Join_f (void)
 		return;
 	}
 
-	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
+	if (!ISNQCLIENT(host_client) && !(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
 	{
 		SV_TPrintToClient(host_client, PRINT_HIGH, "Your game client doesn't support this command\n");
 		return;
@@ -4921,6 +4939,12 @@ void Cmd_Join_f (void)
 	{
 		SV_TPrintToClient(host_client, PRINT_HIGH, "Can't join, all player slots full\n");
 		return;
+	}
+
+	if (ISNQCLIENT(host_client))
+	{	//make sure the nq client is viewing from its own player entity again
+		ClientReliableWrite_Begin(host_client, svc_setview, 4);
+		ClientReliableWrite_Entity(host_client, host_client - svs.clients + 1);
 	}
 
 	for (; host_client; host_client = host_client->controlled)
@@ -5022,7 +5046,7 @@ void Cmd_Observe_f (void)
 		return;
 	}
 
-	if (!(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
+	if (!ISNQCLIENT(host_client) && !(host_client->zquake_extensions & Z_EXT_JOIN_OBSERVE))
 	{
 		SV_TPrintToClient(host_client, PRINT_HIGH, "Your game client doesn't support this command\n");
 		return;
@@ -5808,11 +5832,11 @@ ucmd_t ucmds[] =
 	{"nextdl", SV_NextDownload_f, true},
 
 	/*quakeworld specific things*/
-	{"addseat", Cmd_AddSeat_f},
+	{"addseat", Cmd_AddSeat_f},	//splitscreen
 	{"join", Cmd_Join_f},
 	{"observe", Cmd_Observe_f},
-	{"snap", SV_NoSnap_f},
 	{"ptrack", SV_PTrack_f}, //ZOID - used with autocam
+	{"snap", SV_NoSnap_f},	//cheat detection
 
 	{"enablecsqc", SV_EnableClientsCSQC, true},
 	{"disablecsqc", SV_DisableClientsCSQC, true},
@@ -5937,6 +5961,11 @@ ucmd_t nqucmds[] =
 	{"enablecsqc",	SV_EnableClientsCSQC},
 	{"disablecsqc",	SV_DisableClientsCSQC},
 	{"challengeconnect", NULL},
+
+	/*spectating, this should be fun...*/
+	{"join", Cmd_Join_f},
+	{"observe", Cmd_Observe_f},
+	{"ptrack", SV_PTrack_f}, //ZOID - used with autocam
 
 #ifdef VOICECHAT
 	{"voicetarg",	SV_Voice_Target_f},
@@ -6228,7 +6257,7 @@ static qboolean AddEntityToPmove(edict_t *player, edict_t *check)
 	if (solid == SOLID_PORTAL || solid == SOLID_BSP)
 	{
 		if(progstype != PROG_H2)
-			pe->angles[0]*=-1;	//quake is wierd. I guess someone fixed it hexen2... or my code is buggy or something...
+			pe->angles[0]*=r_meshpitch.value;	//quake is wierd. I guess someone fixed it hexen2... or my code is buggy or something...
 		pe->model = sv.models[(int)(check->v->modelindex)];
 		VectorCopy (check->v->angles, pe->angles);
 	}
@@ -6712,7 +6741,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	{
 		if (sv_player->v->movetype == MOVETYPE_6DOF)
 		{
-			sv_player->v->angles[PITCH] = -sv_player->v->v_angle[PITCH];
+			sv_player->v->angles[PITCH] = r_meshpitch.value * sv_player->v->v_angle[PITCH];
 			sv_player->v->angles[YAW] = sv_player->v->v_angle[YAW];
 			sv_player->v->angles[ROLL] = sv_player->v->v_angle[ROLL];
 		}
@@ -6720,7 +6749,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		{
 			if (!sv_player->v->fixangle)
 			{
-				sv_player->v->angles[PITCH] = -sv_player->v->v_angle[PITCH]/3;
+				sv_player->v->angles[PITCH] = r_meshpitch.value * sv_player->v->v_angle[PITCH]/3;
 				sv_player->v->angles[YAW] = sv_player->v->v_angle[YAW];
 			}
 			sv_player->v->angles[ROLL] =
@@ -6996,7 +7025,7 @@ if (sv_player->v->health > 0 && before && !after )
 			VectorInterpolate(surf[0], 0.333, view[0], fwd);
 			CrossProduct(surf[1], fwd, up);
 			/*we have our player's new axis*/
-			VectorAngles(fwd, up, sv_player->v->angles);
+			VectorAngles(fwd, up, sv_player->v->angles, true);
 		}
 	}
 
@@ -7870,6 +7899,52 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 		bits = MSG_ReadLong();
 	else
 		bits = MSG_ReadByte ();
+	if (host_client->spectator)
+	{
+		qboolean tracknext = false;
+		if (bits & (move->buttons ^ bits) & BUTTON_ATTACK)
+		{	//enable/disable tracking
+			if (host_client->spec_track)
+			{	//disable tracking
+				host_client->spec_track = 0;
+				host_client->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, 0));
+				ClientReliableWrite_Begin(host_client, svc_setview, 4);
+				ClientReliableWrite_Entity(host_client, host_client - svs.clients + 1);
+			}
+			else	//otherwise track the next person, if we can
+				tracknext = true;
+		}
+		if ((bits & (move->buttons ^ bits) & BUTTON_JUMP) && host_client->spec_track)
+			tracknext = true;
+
+		if (tracknext)
+		{	//track the next player
+			for (i = host_client->spec_track+1; i < sv.allocated_client_slots; i++)
+			{
+				if (SV_CanTrack(host_client, i))
+					break;
+			}
+			//try a previous one instead of disabling
+			if (i == sv.allocated_client_slots)
+			{
+				for (i = 1; i < host_client->spec_track; i++)
+				{
+					if (SV_CanTrack(host_client, i))
+						break;
+				}
+				if (i == host_client->spec_track)
+				i = 0;
+			}
+
+			host_client->spec_track = i;
+			host_client->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, i));
+			ClientReliableWrite_Begin(host_client, svc_setview, 4);
+			ClientReliableWrite_Entity(host_client, i?i:(host_client - svs.clients + 1));
+
+			if (i)
+				SV_ClientTPrintf (host_client, PRINT_HIGH, "tracking %s\n", svs.clients[i-1].name);
+		}
+	}
 	move->buttons = bits;
 
 	i = MSG_ReadByte ();

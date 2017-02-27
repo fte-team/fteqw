@@ -1793,7 +1793,7 @@ void NPP_QWFlush(void)
 					//move nq players to origin + angle
 					VectorCopy(org, cl->edict->v->origin);
 					VectorCopy(ang, cl->edict->v->angles);
-					cl->edict->v->angles[0]*=-1;
+					cl->edict->v->angles[0]*=r_meshpitch.value;
 				}
 			}
 		}
@@ -1815,6 +1815,7 @@ void NPP_QWFlush(void)
 			short data;
 			float org[3];
 			edict_t *ent = EDICT_NUM(svprogfuncs, LittleShort((*(short*)&buffer[1])));
+			ent->muzzletime = sv.world.physicstime+host_frametime;	//flag the entity as needing an EF_MUZZLEFLASH
 			VectorCopy(ent->v->origin, org);
 
 			//we need to make a fake muzzleflash position for multicast to work properly.

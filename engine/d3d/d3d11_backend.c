@@ -3348,7 +3348,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 		TransformDir(vup, paxis, vaxis, vup);
 	}
 	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
-	VectorAngles(vpn, vup, r_refdef.viewangles);
+	VectorAngles(vpn, vup, r_refdef.viewangles, true);
 	VectorCopy(r_refdef.vieworg, r_origin);
 
 /*FIXME: the batch stuff should be done in renderscene*/

@@ -360,6 +360,7 @@ typedef struct QCC_type_s
 } QCC_type_t;
 int typecmp(QCC_type_t *a, QCC_type_t *b);
 int typecmp_lax(QCC_type_t *a, QCC_type_t *b);
+QCC_type_t *QCC_PR_DuplicateType(QCC_type_t *in, pbool recurse);
 
 typedef struct temp_s temp_t;
 void QCC_PurgeTemps(void);

@@ -928,12 +928,12 @@ void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 											//FIXME: we want to strip these. fte/dp extensions.qc have a LOT of fields that could be stripped.
 			sym->referenced = true;			//FIXME
 		}
-		else if (sym->constant && sym->type->type == ev_function)
-		{						//non-builtins must be present, because of spawn functions and other entrypoints.
-			unsigned int fnum = sym->symboldata[0]._int;
-			if (fnum < numfunctions && functions[fnum].code == -1)
-				sym->symbolheader->used = true;
-		}
+//		else if (sym->constant && sym->type->type == ev_function)
+//		{						//non-builtins must be present, because of spawn functions and other entrypoints.
+//			unsigned int fnum = sym->symboldata[0]._int;
+//			if (fnum < numfunctions && functions[fnum].code == -1)
+//				sym->symbolheader->used = true;
+//		}
 	}
 
 	for (i=0 ; i<numstatements ; i++)

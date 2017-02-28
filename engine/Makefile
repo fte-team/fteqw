@@ -52,6 +52,7 @@ NATIVE_BASE_DIR?=$(BASE_DIR)
 NATIVE_RELEASE_DIR?=$(RELEASE_DIR)
 NATIVE_DEBUG_DIR?=$(DEBUG_DIR)
 
+EXE_NAME=fteqw
 
 #include the appropriate games.
 ifneq (,$(BRANDING))

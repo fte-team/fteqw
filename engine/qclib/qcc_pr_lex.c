@@ -2515,7 +2515,7 @@ void QCC_PR_MacroFrame(char *name, int value, pbool force)
 			//our caller incremented the value externally
 			//so warn+ignore if its from the same file
 			if (pr_framemacro[i].file == s_filen && !force)
-				QCC_PR_ParseWarning(WARN_DUPLICATEMACRO, "Duplicate macro defined (%s)", pr_token);
+				QCC_PR_ParseWarning(WARN_DUPLICATEMACRO, "Duplicate macro defined (%s). Rename it.", pr_token);
 			else
 			{
 				pr_framemacro[i].value = value;	//old file, override it, whatever the old value was is redundant now
@@ -4446,21 +4446,23 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 			{
 				if (!paramlist[numparms].optional && QCC_PR_CheckKeyword(keyword_optional, "optional"))
 					paramlist[numparms].optional = true;
-				if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "inout"))
+				else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "inout"))
 				{
 					paramlist[numparms].out = true;
 					foundinout = true;
 				}
-				if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "out"))
+				else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "out"))
 				{
 					paramlist[numparms].out = 2;	//not really supported, but parsed for readability.
 					foundinout = true;
 				}
-				if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "in"))
+				else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "in"))
 				{
 					paramlist[numparms].out = false;
 					foundinout = true;
 				}
+				else
+					break;
 			}
 
 			paramlist[numparms].defltvalue.cast = NULL;

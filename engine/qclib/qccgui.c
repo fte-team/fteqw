@@ -2743,7 +2743,6 @@ int EditorSave(editor_t *edit)
 		free(afile);
 		if (saved < 0)
 		{
-			free(afile);
 			MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
 			return false;
 		}

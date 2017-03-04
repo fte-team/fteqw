@@ -1200,9 +1200,9 @@ static void QCC_GenerateFieldDefs(QCC_def_t *def, char *fieldname, int ofs, QCC_
 	dd->s_name = sname;
 }
 
-char *QCC_FileForStatement(int st)
+const char *QCC_FileForStatement(int st)
 {
-	char *ret = "???";
+	const char *ret = "???";
 	int i;
 	for (i = 0; i < numfunctions; i++) 
 	{

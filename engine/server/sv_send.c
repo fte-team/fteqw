@@ -237,7 +237,7 @@ A Con_Printf that only shows up if the "developer" cvar is set
 */
 static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
 {
-	Con_DLPrintf(level, "%s", (char*)data);
+	Con_DLPrintf(a, "%s", (char*)data);
 	BZ_Free(data);
 }
 void Con_DPrintf (const char *fmt, ...)

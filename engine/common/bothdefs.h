@@ -771,13 +771,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	ON_EPSILON		0.1			// point on plane side epsilon
 
-#define	MAX_NQMSGLEN	65536		// max length of a reliable message
+#define	MAX_NQMSGLEN	65536		// max length of a reliable message. FIXME: should be 8000 to play safe with proquake
 #define MAX_Q2MSGLEN	1400
 #define MAX_QWMSGLEN	1450
 #define MAX_OVERALLMSGLEN	65536	// mvdsv sends packets this big
 #define	MAX_DATAGRAM	1450		// max length of unreliable message
 #define MAX_Q2DATAGRAM	MAX_Q2MSGLEN
-#define	MAX_NQDATAGRAM	1024		// max length of unreliable message
+#define	MAX_NQDATAGRAM	1024		// max length of unreliable message with vanilla nq protocol
 #define MAX_OVERALLDATAGRAM MAX_DATAGRAM
 
 #define MAX_BACKBUFLEN	1200

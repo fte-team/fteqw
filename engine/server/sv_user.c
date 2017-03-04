@@ -5991,7 +5991,7 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 	if (host_client->state < cs_connected)
 		return;
 
-	Con_DPrintf("Client command: %s\n", s);
+	Con_DLPrintf((host_client->netchan.remote_address.type==NA_LOOPBACK)?2:1, "Client command: %s\n", s);
 
 	Cmd_TokenizeString (s, false, false);
 	sv_player = host_client->edict;

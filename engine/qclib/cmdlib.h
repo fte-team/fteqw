@@ -111,6 +111,7 @@ extern	int		qcc_eof;
 
 #define qcc_iswhite(c) ((c) == ' ' || (c) == '\r' || (c) == '\n' || (c) == '\t' || (c) == '\v')
 #define qcc_iswhitesameline(c) ((c) == ' ' || (c) == '\t')
+#define qcc_islineending(c,n) ((c) == '\n' || ((c) == '\r' && (n) != '\n'))	//to try to handle mac line endings, especially if they're in the middle of a line
 
 
 enum

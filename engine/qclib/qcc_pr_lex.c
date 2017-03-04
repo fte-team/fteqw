@@ -2223,7 +2223,7 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor)
 	// skip whitespace
 		while ((c = *pr_file_p) && qcc_iswhite(c))
 		{
-			if (c=='\n')
+			if (qcc_islineending(c, pr_file_p[1]))
 			{
 				pr_file_p++;
 				if (!inhibitpreprocessor)
@@ -2242,10 +2242,10 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor)
 	// skip // comments
 		if (c=='/' && pr_file_p[1] == '/')
 		{
-			while (*pr_file_p && *pr_file_p != '\n')
+			while (*pr_file_p && !qcc_islineending(pr_file_p[0], pr_file_p[1]))
 				pr_file_p++;
 
-			if (*pr_file_p == '\n')
+			if (*pr_file_p)
 				pr_file_p++;	//don't break on eof.
 			if (!inhibitpreprocessor)
 				QCC_PR_NewLine(false);
@@ -2261,7 +2261,7 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor)
 			do
 			{
 				pr_file_p++;
-				if (pr_file_p[0]=='\n')
+				if (qcc_islineending(pr_file_p[0], pr_file_p[1]))
 				{
 					if (!inhibitpreprocessor)
 						QCC_PR_NewLine(true);

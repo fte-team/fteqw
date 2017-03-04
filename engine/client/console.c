@@ -1067,7 +1067,7 @@ static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
 {
 	if (log_developer.ival)
 		Con_Log(data);
-	if (developer.ival)
+	if (developer.ival >= (int)a)
 	{
 		Sys_Printf ("%s", (const char*)data);	// also echo to debugging console
 		Con_PrintCon(&con_main, data, con_main.parseflags);
@@ -1103,7 +1103,7 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 
 	if (!Sys_IsMainThread())
 	{
-		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), 1, 0);
 		return;
 	}
 
@@ -1116,6 +1116,42 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 			Con_PrintCon(&con_main, msg, con_main.parseflags);
 	}
 }
+void VARGS Con_DLPrintf (int level, const char *fmt, ...)
+{
+	va_list		argptr;
+	char		msg[MAXPRINTMSG];
+
+#ifdef CRAZYDEBUGGING
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	va_end (argptr);
+	Sys_Printf("%s", msg);
+	return;
+#else
+	if (developer.ival<level && !log_developer.ival)
+		return; // early exit
+#endif
+
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	va_end (argptr);
+
+	if (!Sys_IsMainThread())
+	{
+		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), level, 0);
+		return;
+	}
+
+	if (log_developer.ival)
+		Con_Log(msg);
+	if (developer.ival >= level)
+	{
+		Sys_Printf ("%s", msg);	// also echo to debugging console
+		if (con_initialized)
+			Con_PrintCon(&con_main, msg, con_main.parseflags);
+	}
+}
+
 
 /*description text at the bottom of the console*/
 void Con_Footerf(console_t *con, qboolean append, const char *fmt, ...)

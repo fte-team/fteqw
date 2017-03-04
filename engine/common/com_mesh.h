@@ -116,6 +116,8 @@ typedef struct
 	unsigned int subframe;
 	bucket_t bucket;
 } galiascolourmapped_t;
+#else
+typedef void galiasskin_t;
 #endif
 
 typedef struct
@@ -145,20 +147,20 @@ typedef struct galiasinfo_s
 	float lerpcutoff;	//hack. should probably be part of the entity structure, but I really don't want new models (and thus code) to have access to this ugly inefficient hack. make your models properly in the first place.
 
 	int numskins;
-#ifndef SERVERONLY
+//#ifndef SERVERONLY
 	galiasskin_t *ofsskins;
-#endif
+//#endif
 
 	int shares_verts;	//used with models with two shaders using the same vertex. set to the surface number to inherit from (or itself).
 	int shares_bones;	//use last mesh's bones. set to the surface number to inherit from (or itself).
 
 	int numverts;
 
-#ifndef SERVERONLY
+//#ifndef SERVERONLY
 	vec2_t *ofs_st_array;
 	vec4_t *ofs_rgbaf;
 	byte_vec4_t *ofs_rgbaub;
-#endif
+//#endif
 
 	int numanimations;
 	galiasanimation_t *ofsanimations;

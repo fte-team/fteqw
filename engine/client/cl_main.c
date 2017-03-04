@@ -680,18 +680,23 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE2, fteprotextsupported2), sizeof(data));
 #endif
 
-	if (mtu > 0)
 	{
+		int ourmtu;
 		if (to->type == NA_LOOPBACK)
-			mtu = MAX_UDP_PACKET;
-		else if (net_mtu.ival > 64 && mtu > net_mtu.ival)
-			mtu = net_mtu.ival;
-		mtu &= ~7;
-		Q_strncatz(data, va("0x%x %i\n", PROTOCOL_VERSION_FRAGMENT, mtu), sizeof(data));
-		connectinfo.mtu = mtu;
+			ourmtu = MAX_UDP_PACKET;
+		else if (*net_mtu.string)
+			ourmtu = net_mtu.ival;
+		else
+			ourmtu = 1440;	//a safe bet. servers have an unsafe bet by default
+		if (ourmtu < 0)
+			ourmtu = 0;
+		if (mtu > ourmtu)
+			mtu = ourmtu;
+		connectinfo.mtu = mtu & ~7;
+
+		if (connectinfo.mtu > 0)
+			Q_strncatz(data, va("0x%x %i\n", PROTOCOL_VERSION_FRAGMENT, connectinfo.mtu), sizeof(data));
 	}
-	else
-		connectinfo.mtu = 0;
 
 #ifdef HUFFNETWORK
 	if (compressioncrc && net_compress.ival && Huff_CompressionCRC(compressioncrc))
@@ -5664,6 +5669,9 @@ void Host_FinishLoading(void)
 		IPLog_Merge_File("iplog.txt");
 		IPLog_Merge_File("iplog.dat");	//legacy crap, for compat with proquake
 	}
+
+	if (PM_IsApplying(true))
+		return;
 
 #ifdef ANDROID
 	//android needs to wait a bit longer before it's allowed to init its video properly.

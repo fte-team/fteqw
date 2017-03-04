@@ -749,6 +749,7 @@ enum {
 	WARN_FTE_SPECIFIC,	//extension that only FTEQCC will have a clue about.
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands
 	WARN_IFSTRING_USED,
+	WARN_IFVECTOR_DISABLED,	//if(vector) does if(vector_x) if ifvector is disabled
 	WARN_LAXCAST,	//some errors become this with a compiler flag
 	WARN_TYPEMISMATCHREDECOPTIONAL,
 	WARN_UNDESIRABLECONVENTION,

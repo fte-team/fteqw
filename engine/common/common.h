@@ -600,7 +600,12 @@ enum manifestdeptype_e
 typedef struct
 {
 	qboolean blockupdate;	//set to block the updateurl from being used this session. this avoids recursive updates when manifests contain the same update url.
-	qboolean doinstall;		//manifest was embedded in the engine. don't assume its already installed, but ask to install it (also, enable some extra permissions for writing dlls)
+	enum
+	{
+		MANIFEST_SECURITY_NOT,		//don't trust it, don't even allow downloadsurl.
+		MANIFEST_SECURITY_DEFAULT,	//the default.fmf file may suggest packages
+		MANIFEST_SECURITY_INSTALLER	//built-in fmf files can force packages
+	} security;		//manifest was embedded in the engine. don't assume its already installed, but ask to install it (also, enable some extra permissions for writing dlls)
 
 	enum
 	{

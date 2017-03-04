@@ -2296,9 +2296,9 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, framestate_t *framestate, v
 
 		indexes = mod->ofs_indexes;
 #ifdef SKELETALMODELS
-		if (mod->numbones)
+		if (mod->ofs_skel_xyz)
 		{
-			if (!mod->ofs_skel_idx || !framestate)
+			if (!mod->ofs_skel_idx || !framestate || !mod->numbones)
 				posedata = mod->ofs_skel_xyz;	//if there's no weights, don't try animating anything.
 			else if (mod->shares_verts != cursurfnum || !posedata)
 			{
@@ -2330,6 +2330,8 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, framestate_t *framestate, v
 			if (!group->numposes)
 				continue;
 			pose = group->poseofs;
+			if (!pose)
+				continue;	//error...
 			if (framestate)
 				pose += (int)(framestate->g[FS_REG].frametime[0] * group->rate)%group->numposes;
 			posedata = pose->ofsverts;
@@ -7056,7 +7058,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsi
 	}
 	else
 		fuckedevents = true;	//we're not using the animation data from the model, so ignore any events because they won't make sense any more.
-	if (!numgroups)
+	if (!numgroups && !noweights && h->num_joints)
 	{	/*base frame only*/
 		numgroups = 1;
 		framegroups = malloc(sizeof(*framegroups));

@@ -649,7 +649,7 @@ void Mod_Purge(enum mod_purge_e ptype)
 			}
 
 			if (unused)
-				Con_DPrintf("model \"%s\" no longer needed\n", mod->name);
+				Con_DLPrintf(2, "model \"%s\" no longer needed\n", mod->name);
 
 #ifdef TERRAIN
 			//we can safely flush all terrain sections at any time

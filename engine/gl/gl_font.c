@@ -248,6 +248,7 @@ static fontplanes_t fontplanes;
 #define FONT_CHAR_BUFFER 512
 static index_t font_indicies[FONT_CHAR_BUFFER*6];
 static vecV_t font_coord[FONT_CHAR_BUFFER*4];
+static vecV_t font_backcoord[FONT_CHAR_BUFFER*4];
 static vec2_t font_texcoord[FONT_CHAR_BUFFER*4];
 static byte_vec4_t font_forecoloura[FONT_CHAR_BUFFER*4];
 static byte_vec4_t font_backcoloura[FONT_CHAR_BUFFER*4];
@@ -338,7 +339,7 @@ void Font_Init(void)
 	font_foremesh.colors4b_array = font_forecoloura;
 
 	font_backmesh.indexes = font_indicies;
-	font_backmesh.xyz_array = font_coord;
+	font_backmesh.xyz_array = font_backcoord;
 	font_backmesh.st_array = font_texcoord;
 	font_backmesh.colors4b_array = font_backcoloura;
 
@@ -400,7 +401,7 @@ static void Font_Flush(void)
 		fontplanes.planechanged = false;
 	}
 	font_foremesh.istrifan = (font_foremesh.numvertexes == 4);
-	if ((font_colourmask & CON_NONCLEARBG) && font_foremesh.numindexes)
+	if ((font_colourmask & (CON_RICHFORECOLOUR|CON_NONCLEARBG)) == CON_NONCLEARBG && font_foremesh.numindexes)
 	{
 		font_backmesh.numindexes = font_foremesh.numindexes;
 		font_backmesh.numvertexes = font_foremesh.numvertexes;
@@ -1872,7 +1873,7 @@ int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint
 
 	if (codepoint == '\t')
 		return Font_TabWidth(px);
-	if (codepoint == ' ')
+	if (codepoint == ' ' && (charflags & (CON_RICHFORECOLOUR|CON_NONCLEARBG)) != CON_NONCLEARBG)
 		return nextx;
 
 /*	if (charcode & CON_BLINKTEXT)
@@ -2052,10 +2053,29 @@ int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint
 	*(int*)font_forecoloura[v+1] = *(int*)font_forecolour;
 	*(int*)font_forecoloura[v+2] = *(int*)font_forecolour;
 	*(int*)font_forecoloura[v+3] = *(int*)font_forecolour;
-	*(int*)font_backcoloura[v+0] = *(int*)font_backcolour;
-	*(int*)font_backcoloura[v+1] = *(int*)font_backcolour;
-	*(int*)font_backcoloura[v+2] = *(int*)font_backcolour;
-	*(int*)font_backcoloura[v+3] = *(int*)font_backcolour;
+
+	if (font_colourmask & CON_NONCLEARBG)
+	{
+		sx = ((px+dxbias)*(int)vid.width) / (float)vid.rotpixelwidth;
+		sy = ((py+dxbias)*(int)vid.height) / (float)vid.rotpixelheight;
+		sw = sx + ((c->advance)*vid.width) / (float)vid.rotpixelwidth;
+		sh = sy + ((font->charheight)*vid.height) / (float)vid.rotpixelheight;
+
+		//don't care about texcoords
+		font_backcoord[v+0][0] = sx;
+		font_backcoord[v+0][1] = sy;
+		font_backcoord[v+1][0] = sw;
+		font_backcoord[v+1][1] = sy;
+		font_backcoord[v+2][0] = sw;
+		font_backcoord[v+2][1] = sh;
+		font_backcoord[v+3][0] = sx;
+		font_backcoord[v+3][1] = sh;
+
+		*(int*)font_backcoloura[v+0] = *(int*)font_backcolour;
+		*(int*)font_backcoloura[v+1] = *(int*)font_backcolour;
+		*(int*)font_backcoloura[v+2] = *(int*)font_backcolour;
+		*(int*)font_backcoloura[v+3] = *(int*)font_backcolour;
+	}
 
 	return nextx;
 }
@@ -2102,7 +2122,7 @@ float Font_DrawScaleChar(float px, float py, unsigned int charflags, unsigned in
 
 	nextx = px + c->advance*cw;
 
-	if (codepoint == ' ')
+	if (codepoint == ' ' && (charflags & (CON_RICHFORECOLOUR|CON_NONCLEARBG)) != CON_NONCLEARBG)
 		return nextx;
 
 	if (charflags & CON_BLINKTEXT)
@@ -2261,10 +2281,34 @@ float Font_DrawScaleChar(float px, float py, unsigned int charflags, unsigned in
 	*(int*)font_forecoloura[v+1] = *(int*)font_forecolour;
 	*(int*)font_forecoloura[v+2] = *(int*)font_forecolour;
 	*(int*)font_forecoloura[v+3] = *(int*)font_forecolour;
-	*(int*)font_backcoloura[v+0] = *(int*)font_backcolour;
-	*(int*)font_backcoloura[v+1] = *(int*)font_backcolour;
-	*(int*)font_backcoloura[v+2] = *(int*)font_backcolour;
-	*(int*)font_backcoloura[v+3] = *(int*)font_backcolour;
+
+	if (font_colourmask & CON_NONCLEARBG)
+	{
+		sx = px + dxbias;
+		sy = py + dxbias;
+		sw = sx + c->advance;
+		sh = sy + font->charheight;
+
+		sx *= (int)vid.width / (float)vid.rotpixelwidth;
+		sy *= (int)vid.height / (float)vid.rotpixelheight;
+		sw *= (int)vid.width / (float)vid.rotpixelwidth;
+		sh *= (int)vid.height / (float)vid.rotpixelheight;
+
+		//don't care about texcoords
+		font_backcoord[v+0][0] = sx;
+		font_backcoord[v+0][1] = sy;
+		font_backcoord[v+1][0] = sw;
+		font_backcoord[v+1][1] = sy;
+		font_backcoord[v+2][0] = sw;
+		font_backcoord[v+2][1] = sh;
+		font_backcoord[v+3][0] = sx;
+		font_backcoord[v+3][1] = sh;
+
+		*(int*)font_backcoloura[v+0] = *(int*)font_backcolour;
+		*(int*)font_backcoloura[v+1] = *(int*)font_backcolour;
+		*(int*)font_backcoloura[v+2] = *(int*)font_backcolour;
+		*(int*)font_backcoloura[v+3] = *(int*)font_backcolour;
+	}
 
 	return nextx;
 }

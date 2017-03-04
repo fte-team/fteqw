@@ -180,7 +180,7 @@ static qboolean loadedinstalled;
 static package_t *availablepackages;
 static int numpackages;
 static char *manifestpackage;	//metapackage named by the manicfest.
-static qboolean domanifestinstall;
+static int domanifestinstall;	//SECURITY_MANIFEST_*
 
 static qboolean doautoupdate;	//updates will be marked (but not applied without the user's actions)
 
@@ -1211,6 +1211,23 @@ static unsigned int PM_MarkUpdates (void)
 {
 	unsigned int changecount = 0;
 	package_t *p, *o, *b, *e = NULL;
+
+	if (manifestpackage)
+	{
+		p = PM_MarkedPackage(manifestpackage);
+		if (!p)
+		{
+			p = PM_FindPackage(manifestpackage);
+			if (p)
+			{
+				PM_MarkPackage(p);
+				changecount++;
+			}
+		}
+		else if (!(p->flags & DPF_PRESENT))
+			changecount++;
+	}
+
 	for (p = availablepackages; p; p = p->next)
 	{
 		if ((p->flags & DPF_ENGINE) && !(p->flags & DPF_HIDDEN))
@@ -1318,38 +1335,40 @@ static void PM_ListDownloaded(struct dl_download *dl)
 		if (!downloadablelist[i].received)
 			break;
 	}
-	if (domanifestinstall)
+	if (domanifestinstall == MANIFEST_SECURITY_INSTALLER)
 	{
 		package_t *meta;
 		meta = PM_MarkedPackage(manifestpackage);
 		if (!meta)
-			meta = PM_FindPackage(manifestpackage);
-		if (meta)
 		{
-			PM_RevertChanges();
-			PM_MarkPackage(meta);
-			PM_ApplyChanges();
+			meta = PM_FindPackage(manifestpackage);
+			if (meta)
+			{
+				PM_RevertChanges();
+				PM_MarkPackage(meta);
+				PM_ApplyChanges();
 
 #ifdef DOWNLOADMENU
-			if (!isDedicated)
-			{
-				if (Key_Dest_Has(kdm_emenu))
+				if (!isDedicated)
 				{
-					Key_Dest_Remove(kdm_emenu);
-					m_state = m_none;
-				}
+					if (Key_Dest_Has(kdm_emenu))
+					{
+						Key_Dest_Remove(kdm_emenu);
+						m_state = m_none;
+					}
 #ifdef MENU_DAT
-				if (Key_Dest_Has(kdm_gmenu))
-					MP_Toggle(0);
+					if (Key_Dest_Has(kdm_gmenu))
+						MP_Toggle(0);
 #endif
-				Cmd_ExecuteString("menu_download\n", RESTRICT_LOCAL);
-			
+					Cmd_ExecuteString("menu_download\n", RESTRICT_LOCAL);
+				
+				}
+#endif
+				return;
 			}
-#endif
-			return;
 		}
 	}
-	if (doautoupdate && i == numdownloadablelists)
+	if ((doautoupdate || domanifestinstall == MANIFEST_SECURITY_DEFAULT) && i == numdownloadablelists)
 	{
 		if (PM_MarkUpdates())
 		{
@@ -1863,15 +1882,18 @@ static char *PM_GetTempName(package_t *p)
 	p->previewimage = NULL;
 }*/
 
-int PM_IsApplying(void)
+int PM_IsApplying(qboolean listsonly)
 {
 	package_t *p;
 	int count = 0;
 	int i;
-	for (p = availablepackages; p ; p=p->next)
+	if (!listsonly)
 	{
-		if (p->download)
-			count++;
+		for (p = availablepackages; p ; p=p->next)
+		{
+			if (p->download)
+				count++;
+		}
 	}
 	for (i = 0; i < numdownloadablelists; i++)
 	{
@@ -1887,10 +1909,10 @@ static void PM_StartADownload(void)
 	vfsfile_t *tmpfile;
 	char *temp;
 	package_t *p;
-	const int simultaneous = 1;
+	const int simultaneous = PM_IsApplying(true)?1:2;
 	int i;
 
-	for (p = availablepackages; p && simultaneous > PM_IsApplying(); p=p->next)
+	for (p = availablepackages; p && simultaneous > PM_IsApplying(false); p=p->next)
 	{
 		if (p->trymirrors)
 		{	//flagged for a (re?)download
@@ -2096,14 +2118,14 @@ static void PM_ApplyChanges(void)
 
 //names packages that were listed from the  manifest.
 //if 'mark' is true, then this is an initial install.
-void PM_ManifestPackage(const char *metaname, qboolean mark)
+void PM_ManifestPackage(const char *metaname, int security)
 {
-	domanifestinstall = mark;
+	domanifestinstall = security;
 	Z_Free(manifestpackage);
 	if (metaname)
 	{
 		manifestpackage = Z_StrDup(metaname);
-		if (mark)
+		if (security)
 			PM_UpdatePackageList(false, false);
 	}
 	else

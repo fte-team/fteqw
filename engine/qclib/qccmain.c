@@ -26,6 +26,12 @@ extern int optres_test2;
 
 pbool writeasm;
 pbool verbose;
+#define VERBOSE_STANDARD 1
+#define VERBOSE_FILELIST 2
+#define VERBOSE_FIELDLIST 2
+#define VERBOSE_AUTOCVARLIST 2
+#define VERBOSE_DEBUG 3
+#define VERBOSE_DEBUGSTATEMENTS 4	//figuring out the files can be expensive.
 pbool qcc_nopragmaoptimise;
 pbool opt_stripunusedfields;
 extern unsigned int locals_marshalled;
@@ -1036,7 +1042,7 @@ void QCC_FinaliseDef(QCC_def_t *def)
 
 	if (!def->symbolheader->used)
 	{
-		if (verbose >= 3)
+		if (verbose >= VERBOSE_DEBUG)
 			printf("not needed: %s\n", def->name);
 		return;
 	}
@@ -1105,7 +1111,7 @@ void QCC_UnmarshalLocals(void)
 #endif
 			for (d = functions[i].firstlocal; d; d = d->nextlocal)
 				QCC_FinaliseDef(d);
-			if (verbose >= 3)
+			if (verbose >= VERBOSE_DEBUG)
 			{
 				if (onum == numpr_globals)
 					printf("code: %s:%i: function %s no private locals\n", functions[i].filen, functions[i].line, functions[i].name);
@@ -1127,7 +1133,7 @@ void QCC_UnmarshalLocals(void)
 			if (biggest < numpr_globals)
 				biggest = numpr_globals;
 
-			if (verbose >= 3)
+			if (verbose >= VERBOSE_DEBUG)
 			{
 				if (onum == numpr_globals)
 					printf("code: %s:%i: function %s no locals\n", functions[i].filen, functions[i].line, functions[i].name);
@@ -1192,6 +1198,22 @@ static void QCC_GenerateFieldDefs(QCC_def_t *def, char *fieldname, int ofs, QCC_
 	dd->type = ev_field;
 	dd->ofs = def->ofs+ofs;
 	dd->s_name = sname;
+}
+
+char *QCC_FileForStatement(int st)
+{
+	char *ret = "???";
+	int i;
+	for (i = 0; i < numfunctions; i++) 
+	{
+		if (functions[i].code > 0)
+		{
+			if (st < functions[i].code)
+				break;
+			ret = functions[i].filen;
+		}
+	}
+	return ret;
 }
 
 
@@ -1469,9 +1491,11 @@ pbool QCC_WriteData (int crc)
 				if (funcs[i].locals && !funcs[i].parm_start)
 					QCC_PR_Warning(0, strings + funcs[i].s_file, functions[i].line, "%s:%i: func %s @%i locals@%i+%i, %i parms\n", functions[i].filen, functions[i].line, strings+funcs[i].s_name, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
 
-#ifdef DEBUG_DUMP
-				printf("code: %s:%i: func %s @%i locals@%i+%i, %i parms\n", functions[i].file, functions[i].line, strings+funcs[i].s_named, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
-#endif
+				if (verbose >= VERBOSE_DEBUG)
+				{
+					printf("code: %s:%i: func %s @%i locals@%i+%i, %i parms\n", functions[i].filen, functions[i].line, strings+funcs[i].s_name, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
+					printf("code: %s:%i: (%i,%i,%i,%i,%i,%i,%i,%i)\n", functions[i].filen, functions[i].line, funcs[i].parm_size[0], funcs[i].parm_size[1], funcs[i].parm_size[2], funcs[i].parm_size[3], funcs[i].parm_size[4], funcs[i].parm_size[5], funcs[i].parm_size[6], funcs[i].parm_size[7]);
+				}
 			}
 			funcdata = funcs;
 			funcdatasize = numfunctions*sizeof(*funcs);
@@ -1844,9 +1868,8 @@ strofs = (strofs+3)&~3;
 				statements32[i].b = PRLittleLong((statements[i].b.sym?statements[i].b.sym->ofs:0) + statements[i].b.ofs);
 				statements32[i].c = PRLittleLong((statements[i].c.sym?statements[i].c.sym->ofs:0) + statements[i].c.ofs);
 
-#ifdef DEBUG_DUMP
-				printf("code: %s:%i: @%i %s %i %i %i\n", "???", statements[i].linenum, i, pr_opcodes[statements[i].op].name, statements32[i].a, statements32[i].b, statements32[i].c);
-#endif
+				if (verbose >= VERBOSE_DEBUGSTATEMENTS)
+					printf("code: %s:%i: @%i %s %i %i %i\n", QCC_FileForStatement(i), statements[i].linenum, i, pr_opcodes[statements[i].op].name, statements32[i].a, statements32[i].b, statements32[i].c);
 			}
 
 			if (progs.blockscompressed&1)
@@ -1913,19 +1936,22 @@ strofs = (strofs+3)&~3;
 				unsigned int c = (statements[i].c.sym?statements[i].c.sym->ofs:0) + statements[i].c.ofs;
 				statements16[i].op = PRLittleShort((unsigned short)statements[i].op);
 
-#if defined(DISASM) && !defined(DEBUG_DUMP)
-				if (i >= start && i < end)
+				if (
+#if defined(DISASM)
+					(i >= start && i < end) ||
 #endif
-#if defined(DEBUG_DUMP) || defined(DISASM)
+					verbose >= VERBOSE_DEBUGSTATEMENTS)
 				{
+					char line[2048];
 					char *astr = statements[i].a.sym?statements[i].a.sym->name:"";
 					char *bstr = statements[i].b.sym?statements[i].b.sym->name:"";
 					char *cstr = statements[i].c.sym?statements[i].c.sym->name:"";
-					printf("code: %s:%i: @%i\t%s\t%i\t%i\t%i\t(%s", "???", statements[i].linenum, i, pr_opcodes[statements[i].op].opname, a, b, c, QCC_VarAtOffset(statements[i].a, 1));
-					printf(" %s", QCC_VarAtOffset(statements[i].b, 1));
-					printf(" %s)\n", QCC_VarAtOffset(statements[i].c, 1));
+
+					QC_snprintfz(line, sizeof(line), "code: %s:%i: @%i  %s  t%i  t%i  %i  (%s", QCC_FileForStatement(i), statements[i].linenum, i, pr_opcodes[statements[i].op].opname, a, b, c, QCC_VarAtOffset(statements[i].a));
+					QC_snprintfz(line+strlen(line), sizeof(line)-strlen(line), " %s", QCC_VarAtOffset(statements[i].b));
+					QC_snprintfz(line+strlen(line), sizeof(line)-strlen(line), " %s)\n", QCC_VarAtOffset(statements[i].c));
+					printf("%s", line);
 				}
-#endif
 #ifdef _DEBUG
 				if (((signed)a >= (signed)numpr_globals && statements[i].a.sym) || ((signed)b >= (signed)numpr_globals && statements[i].b.sym) || ((signed)c >= (signed)numpr_globals && statements[i].c.sym))
 					printf("invalid offset on %s instruction\n", pr_opcodes[statements[i].op].opname);
@@ -1977,13 +2003,13 @@ strofs = (strofs+3)&~3;
 	else
 		SafeWrite (h, funcdata, funcdatasize);
 
-	if (verbose >= 2)
+	if (verbose >= VERBOSE_FILELIST)
 		QCC_PrintFiles();
 
-	if (verbose >= 2)
+	if (verbose >= VERBOSE_FIELDLIST)
 		QCC_PrintFields();
 
-	if (verbose >= 2)
+	if (verbose >= VERBOSE_AUTOCVARLIST)
 		QCC_PrintAutoCvars();
 
 	switch(outputsttype)

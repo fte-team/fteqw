@@ -811,7 +811,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 						e = NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset, &chan->remote_address);
 						if (e == NETERR_MTU && !offset && chan->fragmentsize > 560)
 						{
-							chan->fragmentsize -= 10;
+							chan->fragmentsize -= 16;
 							Con_Printf("Reducing MSS to %i\n", chan->fragmentsize);
 							no = offset;
 							more = true;

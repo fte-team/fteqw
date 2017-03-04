@@ -1679,6 +1679,8 @@ QCC_sref_t QCC_MakeSRefForce(QCC_def_t *def, unsigned int ofs, QCC_type_t *type)
 QCC_sref_t QCC_MakeSRef(QCC_def_t *def, unsigned int ofs, QCC_type_t *type);
 
 //we're about to overwrite the given def, so if there's any aliases to it, we need to clear them out.
+//if def == NULL, then clobber all.
+//def should never be a temp...
 static void QCC_ClobberDef(QCC_def_t *def)
 {
 	QCC_def_t *a, **link;
@@ -1708,7 +1710,7 @@ static void QCC_ClobberDef(QCC_def_t *def)
 						statements[st].c.sym = a->generatedfor;
 				}
 				tmp.sym->refcount = a->symbolheader->refcount;
-				a->symbolheader = tmp.sym;
+				a->symbolheader = tmp.sym;	//the alias now refers to a temp
 				from = QCC_MakeSRefForce(a->generatedfor, 0, a->type);
 				a->generatedfor = tmp.sym;
 				a->name = tmp.sym->name;
@@ -1736,6 +1738,7 @@ static QCC_sref_t QCC_GetAliasTemp(QCC_sref_t ref)
 	def->name = ref.sym->name;
 	def->referenced = true;
 	def->fromstatement = numstatements;
+	def->scope = pr_scope;
 
 	//allaliases allows them to be finalized correctly
 	def->strip = true;
@@ -1831,6 +1834,7 @@ void QCC_FinaliseTemps(void)
 	//finalize alises so they map correctly.
 	while(allaliases)
 	{
+		allaliases->symbolheader = allaliases->generatedfor->symbolheader;
 		allaliases->ofs = allaliases->generatedfor->ofs;
 		allaliases = allaliases->next;
 	}
@@ -1948,7 +1952,7 @@ static QCC_def_t *QCC_MakeLocked(gofs_t tofs, gofs_t tsize, QCC_def_t *tmp)
 	for (link = &allaliases; *link;)
 	{
 		a = *link;
-		if (a->generatedfor == tmp)
+		if (a->generatedfor == tmp && a->scope == pr_scope)
 		{
 //			*link = a->next;
 //			a->next = NULL;
@@ -4079,9 +4083,6 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 	if (!pr_scope)
 		QCC_PR_ParseError(ERR_BADEXTENSION, "Unable to generate statements at global scope.\n");
 
-	if (outstatement)
-		QCC_ClobberDef(NULL);
-
 	if (op->type_c == &type_void || op->associative==ASSOC_RIGHT || op->type_c == NULL)
 	{
 		QCC_FreeTemp(var_b);	//returns a instead of some result/temp
@@ -4093,6 +4094,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		QCC_FreeTemp(var_a);
 		QCC_FreeTemp(var_b);
 	}
+
+	if (outstatement)
+		QCC_ClobberDef(NULL);
 
 	statement = &statements[numstatements++];
 
@@ -9573,7 +9577,10 @@ QCC_statement_t *QCC_Generate_OP_IFNOT(QCC_sref_t e, pbool preserve)
 			op = OP_IF_I;
 		}
 		else
+		{
+			QCC_PR_ParseWarning(WARN_IFVECTOR_DISABLED, "if (vector) tests only the first element with the current compiler flags");
 			op = OP_IFNOT_I;
+		}
 		break;
 
 	case ev_variant:
@@ -11578,6 +11585,7 @@ void QCC_WriteGUIAsmFunction(QCC_function_t	*sc, unsigned int firststatement)
 	for (i = firststatement; i < (unsigned int)numstatements; i++)
 	{
 		line[0] = 0;
+//		QC_snprintfz(line, sizeof(line), "%i  ", QCC_VarAtOffset(statements[i].a));
 		QC_strlcat(line, pr_opcodes[statements[i].op].opname, sizeof(line));
 		if (pr_opcodes[statements[i].op].type_a != &type_void)
 		{

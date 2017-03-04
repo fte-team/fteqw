@@ -2977,14 +2977,14 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	FS_ChangeGame(man, cfg_reload_on_gamedir.ival, false);
 }
 
-#ifdef NOLEGACY
+#if defined(NOLEGACY) || defined(SERVERONLY)
 	#define ZFIXHACK
 #elif defined(ANDROID) //on android, these numbers seem to be generating major weirdness, so disable these.
 	#define ZFIXHACK
 #elif defined(FTE_TARGET_WEB) //on firefox (but not chrome or ie), these numbers seem to be generating major weirdness, so tone them down significantly by default.
-	#define ZFIXHACK "r_polygonoffset_submodel_offset 1\nr_polygonoffset_submodel_factor 0.05\n"
+	#define ZFIXHACK "set r_polygonoffset_submodel_offset 1\nset r_polygonoffset_submodel_factor 0.05\n"
 #else	//many quake maps have hideous z-fighting. this provides a way to work around it, although the exact numbers are gpu and bitdepth dependant, and trying to fix it can actually break other things.
-	#define ZFIXHACK "r_polygonoffset_submodel_offset 25\nr_polygonoffset_submodel_factor 0.05\n"
+	#define ZFIXHACK "set r_polygonoffset_submodel_offset 25\nset r_polygonoffset_submodel_factor 0.05\n"
 #endif
 
 /*quake requires a few settings for compatibility*/
@@ -4190,6 +4190,7 @@ static ftemanifest_t *FS_GenerateLegacyManifest(char *newbasedir, int sizeof_new
 			FS_Manifest_ParseTokens(man);
 		}
 	}
+	man->security = MANIFEST_SECURITY_INSTALLER;
 	return man;
 }
 
@@ -4290,7 +4291,7 @@ static char fspdl_finalpath[MAX_OSPATH];
 static void FS_BeginNextPackageDownload(void);
 qboolean FS_DownloadingPackage(void)
 {
-	if (PM_IsApplying())
+	if (PM_IsApplying(false))
 		return true;
 	return !fs_manifest || !!curpackagedownload;
 }
@@ -4718,7 +4719,7 @@ static void FS_BeginNextPackageDownload(void)
 	if (curpackagedownload || !man || com_installer)
 		return;
 
-	if (man->doinstall)
+	if (man->security != MANIFEST_SECURITY_NOT)
 	{
 		for (j = 0; j < sizeof(fs_manifest->package) / sizeof(fs_manifest->package[0]); j++)
 		{
@@ -4824,7 +4825,7 @@ static void FS_ManifestUpdated(struct dl_download *dl)
 void FS_BeginManifestUpdates(void)
 {
 	ftemanifest_t *man = fs_manifest;
-	PM_ManifestPackage(man->installupd, man->doinstall);
+	PM_ManifestPackage(man->installupd, man->security);
 	if (curpackagedownload || !man)
 		return;
 
@@ -4877,6 +4878,7 @@ ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, q
 				VFS_READ(f, fdata, len);
 				fdata[len] = 0;
 				man = FS_Manifest_Parse(NULL, fdata);
+				man->security = MANIFEST_SECURITY_DEFAULT;
 				BZ_Free(fdata);
 			}
 			VFS_CLOSE(f);
@@ -4900,7 +4902,7 @@ ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, q
 	{
 		man = FS_Manifest_Parse(va("%sdefault.fmf", newbasedir), host_parms.manifest);
 		if (man)
-			man->doinstall = true;
+			man->security = MANIFEST_SECURITY_INSTALLER;
 	}
 
 	if (!man)
@@ -5047,7 +5049,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	}
 	fs_manifest = man;
 
-	if (!man->doinstall && strcmp(man->downloadsurl?man->downloadsurl:"", olddownloadsurl?olddownloadsurl:""))
+	if (man->security == MANIFEST_SECURITY_NOT && strcmp(man->downloadsurl?man->downloadsurl:"", olddownloadsurl?olddownloadsurl:""))
 	{	//make sure we only fuck over the user if this is a 'secure' manifest, and not hacked in some way.
 		Z_Free(man->downloadsurl);
 		man->downloadsurl = olddownloadsurl;
@@ -5094,7 +5096,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 				builtingame = true;
 				if (!fixedbasedir && !FS_DirHasGame(newbasedir, i))
-					if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), !man->doinstall) && FS_FixPath(realpath, sizeof(realpath)) && FS_DirHasGame(realpath, i))
+					if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), man->security != MANIFEST_SECURITY_INSTALLER) && FS_FixPath(realpath, sizeof(realpath)) && FS_DirHasGame(realpath, i))
 						Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
 				break;
 			}
@@ -5105,7 +5107,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	{
 		if (!builtingame && !fixedbasedir && !FS_DirHasAPackage(newbasedir, man))
 		{
-			if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), !man->doinstall) && FS_FixPath(realpath, sizeof(realpath)) && FS_DirHasAPackage(realpath, man))
+			if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), man->security != MANIFEST_SECURITY_INSTALLER) && FS_FixPath(realpath, sizeof(realpath)) && FS_DirHasAPackage(realpath, man))
 				Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
 #ifndef SERVERONLY
 			else
@@ -5279,7 +5281,7 @@ void FS_CreateBasedir(const char *path)
 	com_installer = false;
 	Q_strncpyz (com_gamepath, path, sizeof(com_gamepath));
 	COM_CreatePath(com_gamepath);
-	fs_manifest->doinstall = true;
+	fs_manifest->security = MANIFEST_SECURITY_INSTALLER;
 	FS_ChangeGame(fs_manifest, true, false);
 
 	if (host_parms.manifest)

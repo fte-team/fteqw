@@ -1095,7 +1095,7 @@ progsnum_t AddProgs(const char *name)
 		Q_strncpyz(gamedir, loc.search->purepath, sizeof(gamedir));
 		*COM_SkipPath(gamedir) = 0;
 	}
-	Con_TPrintf("Loaded progs %s%s\n", gamedir, name);
+	Con_DPrintf("Loaded progs %s%s\n", gamedir, name);
 
 	PR_ProgsAdded(svprogfuncs, num, name);
 
@@ -12555,47 +12555,44 @@ void PR_DumpPlatform_f(void)
 		VFS_PRINTF(f, "#endif\n");
 	}
 
-	if (accessors)
-	{
-		VFS_PRINTF(f, "#ifdef _ACCESSORS\n");
-		VFS_PRINTF(f,
-			"accessor strbuf : float\n{\n"
-				"\tinline get float asfloat[float idx] = {return stof(bufstr_get(this, idx));};\n"
-				"\tinline set float asfloat[float idx] = {bufstr_set(this, idx, ftos(value));};\n"
-				"\tget string[float] = bufstr_get;\n"
-				"\tset string[float] = bufstr_set;\n"
-				"\tget float length = buf_getsize;\n"
-			"};\n");
-		VFS_PRINTF(f,
-			"accessor searchhandle : float\n{\n"
-				"\tget string[float] = search_getfilename;\n"
-				"\tget float length = search_getsize;\n"
-			"};\n");
-		VFS_PRINTF(f,
-			"accessor hashtable : float\n{\n"
-				"\tinline get vector v[string key] = {return hash_get(this, key, '0 0 0', EV_VECTOR);};\n"
-				"\tinline set vector v[string key] = {hash_add(this, key, value, HASH_REPLACE|EV_VECTOR);};\n"
-				"\tinline get string s[string key] = {return hash_get(this, key, \"\", EV_STRING);};\n"
-				"\tinline set string s[string key] = {hash_add(this, key, value, HASH_REPLACE|EV_STRING);};\n"
-				"\tinline get string f[string key] = {return hash_get(this, key, 0.0, EV_FLOAT);};\n"
-				"\tinline set string f[string key] = {hash_add(this, key, value, HASH_REPLACE|EV_FLOAT);};\n"
-				"\tinline get __variant[string key] = {return hash_get(this, key, __NULL__);};\n"
-				"\tinline set __variant[string key] = {hash_add(this, key, value, HASH_REPLACE);};\n"
-			"};\n");
-		VFS_PRINTF(f,
-			"accessor infostring : string\n{\n"
-				"\tget string[string] = infoget;\n"
+	VFS_PRINTF(f, "#ifdef _ACCESSORS\n");
+	VFS_PRINTF(f,
+		"accessor strbuf : float\n{\n"
+			"\tinline get float asfloat[float idx] = {return stof(bufstr_get(this, idx));};\n"
+			"\tinline set float asfloat[float idx] = {bufstr_set(this, idx, ftos(value));};\n"
+			"\tget string[float] = bufstr_get;\n"
+			"\tset string[float] = bufstr_set;\n"
+			"\tget float length = buf_getsize;\n"
+		"};\n");
+	VFS_PRINTF(f,
+		"accessor searchhandle : float\n{\n"
+			"\tget string[float] = search_getfilename;\n"
+			"\tget float length = search_getsize;\n"
+		"};\n");
+	VFS_PRINTF(f,
+		"accessor hashtable : float\n{\n"
+			"\tinline get vector v[string key] = {return hash_get(this, key, '0 0 0', EV_VECTOR);};\n"
+			"\tinline set vector v[string key] = {hash_add(this, key, value, HASH_REPLACE|EV_VECTOR);};\n"
+			"\tinline get string s[string key] = {return hash_get(this, key, \"\", EV_STRING);};\n"
+			"\tinline set string s[string key] = {hash_add(this, key, value, HASH_REPLACE|EV_STRING);};\n"
+			"\tinline get float f[string key] = {return hash_get(this, key, 0.0, EV_FLOAT);};\n"
+			"\tinline set float f[string key] = {hash_add(this, key, value, HASH_REPLACE|EV_FLOAT);};\n"
+			"\tinline get __variant[string key] = {return hash_get(this, key, __NULL__);};\n"
+			"\tinline set __variant[string key] = {hash_add(this, key, value, HASH_REPLACE);};\n"
+		"};\n");
+	VFS_PRINTF(f,
+		"accessor infostring : string\n{\n"
+			"\tget string[string] = infoget;\n"
 #ifdef QCGC
-				"\tinline set* string[string fld] = {(*this) = infoadd(*this, fld, value);};\n"
+			"\tinline set* string[string fld] = {(*this) = infoadd(*this, fld, value);};\n"
 #endif
-			"};\n");
-		VFS_PRINTF(f,
-			"accessor filestream : float\n{\n"
-				"\tget string = fgets;\n"
-				"\tinline set string = {fputs(this,value);};\n"
-			"};\n");
-		VFS_PRINTF(f, "#endif\n");
-	}
+		"};\n");
+	VFS_PRINTF(f,
+		"accessor filestream : float\n{\n"
+			"\tget string = fgets;\n"
+			"\tinline set string = {fputs(this,value);};\n"
+		"};\n");
+	VFS_PRINTF(f, "#endif\n");
 
 	VFS_PRINTF(f, "#pragma noref 0\n");
 

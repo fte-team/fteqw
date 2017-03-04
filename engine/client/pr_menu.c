@@ -2679,7 +2679,7 @@ void MP_CoreDump_f(void)
 
 void MP_Reload_f(void)
 {
-	M_Shutdown(true);
+	M_Shutdown(false);
 	M_Reinit();
 }
 

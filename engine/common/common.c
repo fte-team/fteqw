@@ -3252,6 +3252,8 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				//preserved flags and reset to white. links must contain their own colours.
 				linkinitflags = ext;
 				ext = COLOR_RED << CON_FGSHIFT;
+				if (!(linkinitflags & CON_RICHFORECOLOUR))
+					ext |= linkinitflags & (CON_NONCLEARBG|CON_HALFALPHA|CON_BGMASK);
 				linkstart = out;
 				*out++ = '[';
 

@@ -6203,7 +6203,7 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 	while((msg = strchr(stufftext, '\n')))
 	{
 		*msg = '\0';
-		Con_DPrintf("stufftext: %s\n", stufftext);
+		Con_DLPrintf((cls.state==ca_active)?1:2, "stufftext: %s\n", stufftext);
 		if (!strncmp(stufftext, "fullserverinfo ", 15))
 		{
 			Cmd_ExecuteString(stufftext, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded

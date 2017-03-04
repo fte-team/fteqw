@@ -1781,7 +1781,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			{
 				next = clientcmdlist->next;
 				CL_Demo_ClientCommand(clientcmdlist->command);
-				Con_DPrintf("Sending stringcmd %s\n", clientcmdlist->command);
+				Con_DLPrintf(2, "Sending stringcmd %s\n", clientcmdlist->command);
 				Z_Free(clientcmdlist);
 				clientcmdlist = next;
 			}
@@ -1946,7 +1946,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 					MSG_WriteString (&buf, clientcmdlist->command);
 				}
 			}
-			Con_DPrintf("Sending stringcmd %s\n", clientcmdlist->command);
+			Con_DLPrintf(2, "Sending stringcmd %s\n", clientcmdlist->command);
 			Z_Free(clientcmdlist);
 			clientcmdlist = next;
 		}

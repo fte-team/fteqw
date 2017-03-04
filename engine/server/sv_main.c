@@ -1488,8 +1488,10 @@ void SVC_GetChallenge (qboolean nodpresponse)
 			over+=sizeof(lng);
 		}
 #endif
-
-		mask = net_mtu.ival&~7;
+		if (*net_mtu.string)
+			mask = net_mtu.ival&~7;
+		else
+			mask = 8192;
 		if (mask > 64)
 		{
 			lng = LittleLong(PROTOCOL_VERSION_FRAGMENT);

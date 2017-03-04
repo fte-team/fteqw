@@ -716,21 +716,6 @@ int GUI_BuildParms(char *args, char **argv, pbool quick)//, char *forceoutputfil
 		paramlen += strlen(param+paramlen)+1;
 	}
 
-	while(*args)
-	{
-		while (*args <= ' '&& *args)
-			args++;
-
-		for (next = args; *next>' '; next++)
-			;
-		strncpy(param+paramlen, args, next-args);
-		param[paramlen+next-args] = '\0';
-		argv[argc++] = param+paramlen;
-		paramlen += strlen(param+paramlen)+1;
-
-		args=next;
-	}
-
 	targ = 0;
 	targ |= fl_hexen2?1:0;
 	targ |= fl_ftetarg?2:0;
@@ -794,6 +779,21 @@ int GUI_BuildParms(char *args, char **argv, pbool quick)//, char *forceoutputfil
 	{
 		argv[argc++] = "-src";
 		argv[argc++] = progssrcdir;
+	}
+
+	while(*args)
+	{
+		while (*args <= ' '&& *args)
+			args++;
+
+		for (next = args; *next>' '; next++)
+			;
+		strncpy(param+paramlen, args, next-args);
+		param[paramlen+next-args] = '\0';
+		argv[argc++] = param+paramlen;
+		paramlen += strlen(param+paramlen)+1;
+
+		args=next;
 	}
 
 	return argc;

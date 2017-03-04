@@ -237,7 +237,7 @@ A Con_Printf that only shows up if the "developer" cvar is set
 */
 static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
 {
-	Con_DPrintf("%s", (char*)data);
+	Con_DLPrintf(level, "%s", (char*)data);
 	BZ_Free(data);
 }
 void Con_DPrintf (const char *fmt, ...)
@@ -270,6 +270,41 @@ void Con_DPrintf (const char *fmt, ...)
 	}
 
 	if (developer.value)
+		Sys_Printf ("%s", msg);	// also echo to debugging console
+
+	if (log_developer.value)
+		Con_Log(msg); // log to console
+}
+void Con_DLPrintf (int level, const char *fmt, ...)
+{
+	va_list		argptr;
+	char		msg[MAXPRINTMSG];
+	extern cvar_t log_developer;
+
+	if (developer.ival < level && !log_developer.value)
+		return;
+
+	va_start (argptr,fmt);
+	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	va_end (argptr);
+
+	if (!Sys_IsMainThread())
+	{
+		COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), level, 0);
+		return;
+	}
+
+	// add to redirected message
+	if (sv_redirected)
+	{
+		if (strlen (msg) + strlen(sv_redirected_buf) > sizeof(sv_redirected_buf) - 1)
+			SV_FlushRedirect ();
+		strcat (sv_redirected_buf, msg);
+		if (sv_redirected != -1)
+			return;
+	}
+
+	if (developer.ival >= level)
 		Sys_Printf ("%s", msg);	// also echo to debugging console
 
 	if (log_developer.value)
@@ -2547,8 +2582,14 @@ qboolean SV_SendClientDatagram (client_t *client)
 		client->edict->v->goalentity = 0;
 	}
 
-//	if (client->protocol != SCP_FITZ666 && !client->netchan.fragmentsize)
-		msg.maxsize = MAX_DATAGRAM;
+	if (client->netchan.fragmentsize)
+		msg.maxsize = client->netchan.fragmentsize;	//try not to overflow
+	else if (client->protocol == SCP_NETQUAKE)
+		msg.maxsize = MAX_NQDATAGRAM;				//vanilla client is limited.
+	else
+		msg.maxsize = MAX_DATAGRAM;			//udp limit, ish.
+	if (msg.maxsize > countof(buf))
+		msg.maxsize = countof(buf);
 
 	if (sv.world.worldmodel && !client->controller)
 	{

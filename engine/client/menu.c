@@ -1259,11 +1259,8 @@ void M_Shutdown(qboolean total)
 #ifdef MENU_DAT
 	MP_Shutdown();
 #endif
-	if (total)
-	{
-		M_RemoveAllMenus(false);
-		M_DeInit_Internal();
-	}
+	M_RemoveAllMenus(!total);
+	M_DeInit_Internal();
 }
 
 void M_Reinit(void)

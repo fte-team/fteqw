@@ -1562,7 +1562,6 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 			SVFTE_ExpandFrames(client, outno+1);
 			break;
 		}
-		client->pendingdeltabits[j] = 0;
 
 		if (bits & UF_REMOVE)
 		{	//if reset is set, then reset was set eroneously.
@@ -1572,6 +1571,11 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 		}
 		else if (client->sentents.entities[j].number) /*only send a new copy of the ent if they actually have one already*/
 		{
+			//if we didn't reach the end in the last packet, start at that point to avoid spam
+			//player slots are exempt from this, so they are in every packet (strictly speaking only the local player 'needs' this, but its nice to have it for high-priority targets too)
+			if (j < client->nextdeltaindex && j > svs.allocated_client_slots)
+				continue;
+
 			if (bits & UF_RESET2)
 			{
 				/*if reset2, then this is the second packet sent to the client and should have a forced reset (but which isn't tracked)*/
@@ -1593,10 +1597,18 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 			SV_EmitDeltaEntIndex(msg, j, false, true);
 			SVFTE_WriteUpdate(bits, &client->sentents.entities[j], msg, client->fteprotocolextensions2, client->sentents.bonedata);
 		}
+
+		client->pendingdeltabits[j] = 0;
+
 		resend[outno].flags = 0;
 		resend[outno++].entnum = j;
 	}
 	MSG_WriteShort(msg, 0);
+
+	if (j == client->sentents.num_entities) //looks like we sent them all
+		client->nextdeltaindex = 0;	//start afresh with the next packet.
+	else
+		client->nextdeltaindex = j;	//we overflowed or something, start going round-robin
 
 	client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities = outno;
 	client->frameunion.frames[sequence & UPDATE_MASK].sequence = sequence;
@@ -3984,60 +3996,61 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			client->netchan.incoming_sequence++;
 		}
 		SV_EmitCSQCUpdate(client, msg, svcdp_csqcentities);
-		return;
-	}
-#endif
-
-	// encode the packet entities as a delta from the
-	// last packetentities acknowledged by the client
-
-	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-	{
-		SVFTE_EmitPacketEntities(client, pack, msg);
 	}
 	else
+#endif
 	{
-#ifdef QUAKESTATS
-		// Z_EXT_TIME protocol extension
-		// every now and then, send an update so that extrapolation
-		// on client side doesn't stray too far off
-		if (ISQWCLIENT(client))
+		// encode the packet entities as a delta from the
+		// last packetentities acknowledged by the client
+
+		if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 		{
-			if (client->fteprotocolextensions & PEXT_ACCURATETIMINGS && sv.world.physicstime - client->nextservertimeupdate > 0)
-			{	//the fte pext causes the server to send out accurate timings, allowing for perfect interpolation.
-				MSG_WriteByte (msg, svcqw_updatestatlong);
-				MSG_WriteByte (msg, STAT_TIME);
-				MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
-
-				client->nextservertimeupdate = sv.world.physicstime;
-			}
-			else if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.world.physicstime - client->nextservertimeupdate > 0)
-			{	//the zquake ext causes the server to send out peridoic timings, allowing for moderatly accurate game time.
-				MSG_WriteByte (msg, svcqw_updatestatlong);
-				MSG_WriteByte (msg, STAT_TIME);
-				MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
-
-				client->nextservertimeupdate = sv.world.physicstime+10;
-			}
+			SVFTE_EmitPacketEntities(client, pack, msg);
 		}
+		else
+		{
+#ifdef QUAKESTATS
+			// Z_EXT_TIME protocol extension
+			// every now and then, send an update so that extrapolation
+			// on client side doesn't stray too far off
+			if (ISQWCLIENT(client))
+			{
+				if (client->fteprotocolextensions & PEXT_ACCURATETIMINGS && sv.world.physicstime - client->nextservertimeupdate > 0)
+				{	//the fte pext causes the server to send out accurate timings, allowing for perfect interpolation.
+					MSG_WriteByte (msg, svcqw_updatestatlong);
+					MSG_WriteByte (msg, STAT_TIME);
+					MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
+
+					client->nextservertimeupdate = sv.world.physicstime;
+				}
+				else if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.world.physicstime - client->nextservertimeupdate > 0)
+				{	//the zquake ext causes the server to send out peridoic timings, allowing for moderatly accurate game time.
+					MSG_WriteByte (msg, svcqw_updatestatlong);
+					MSG_WriteByte (msg, STAT_TIME);
+					MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
+
+					client->nextservertimeupdate = sv.world.physicstime+10;
+				}
+			}
 #endif
 
-		// send over the players in the PVS
-		if (svs.gametype != GT_HALFLIFE)
-		{
-			if (client == &demo.recorder)
-				SV_WritePlayersToMVD(client, frame, msg);
-			else
-				SV_WritePlayersToClient (client, frame, clent, cameras, msg);
+			// send over the players in the PVS
+			if (svs.gametype != GT_HALFLIFE)
+			{
+				if (client == &demo.recorder)
+					SV_WritePlayersToMVD(client, frame, msg);
+				else
+					SV_WritePlayersToClient (client, frame, clent, cameras, msg);
+			}
+
+			SVQW_EmitPacketEntities (client, pack, msg);
 		}
 
-		SVQW_EmitPacketEntities (client, pack, msg);
+		SV_EmitCSQCUpdate(client, msg, svcfte_csqcentities);
+
+		// now add the specialized nail update
+		SV_EmitNailUpdate (msg, ignorepvs);
 	}
-
-	SV_EmitCSQCUpdate(client, msg, svcfte_csqcentities);
-
-	// now add the specialized nail update
-	SV_EmitNailUpdate (msg, ignorepvs);
 }
 
 //just goes and makes sure each client tracks all the right SendFlags.

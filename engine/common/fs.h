@@ -69,7 +69,7 @@ void FS_UnRegisterFileSystemModule(void *module);
 void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, const char *pakpath, const char *qhash, const char *pakprefix);
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri);
 int PM_IsApplying(qboolean listsonly);
-void PM_ManifestPackage(const char *name, qboolean doinstall);
+void PM_ManifestPackage(const char *name, int security);
 qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize);	//names the engine we should be running
 void Menu_Download_Update(void);
 

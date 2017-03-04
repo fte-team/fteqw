@@ -2430,6 +2430,10 @@ void PM_ManifestPackage(const char *metaname, int security)
 void PM_Shutdown(void)
 {
 }
+int PM_IsApplying(qboolean listsonly)
+{
+	return false;
+}
 qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize)
 {
 	return false;

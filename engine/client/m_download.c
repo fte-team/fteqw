@@ -348,7 +348,7 @@ void PM_ValidatePackage(package_t *p)
 							}
 					}
 				}
-				if (o && o->qhash && p->qhash && (o->flags & DPF_CACHED) || fl == DPF_CACHED)
+				if ((o && o->qhash && p->qhash && (o->flags & DPF_CACHED)) || fl == DPF_CACHED)
 					p->flags |= DPF_CACHED;
 				else if (!o)
 				{
@@ -2122,7 +2122,7 @@ void PM_ManifestPackage(const char *metaname, int security)
 {
 	domanifestinstall = security;
 	Z_Free(manifestpackage);
-	if (metaname)
+	if (metaname && security)
 	{
 		manifestpackage = Z_StrDup(metaname);
 		if (security)
@@ -2424,7 +2424,7 @@ void PM_Command_f (void)
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri)
 {
 }
-void PM_ManifestPackage(const char *metaname, qboolean mark)
+void PM_ManifestPackage(const char *metaname, int security)
 {
 }
 void PM_Shutdown(void)

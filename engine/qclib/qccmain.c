@@ -1943,9 +1943,6 @@ strofs = (strofs+3)&~3;
 					verbose >= VERBOSE_DEBUGSTATEMENTS)
 				{
 					char line[2048];
-					char *astr = statements[i].a.sym?statements[i].a.sym->name:"";
-					char *bstr = statements[i].b.sym?statements[i].b.sym->name:"";
-					char *cstr = statements[i].c.sym?statements[i].c.sym->name:"";
 
 					QC_snprintfz(line, sizeof(line), "code: %s:%i: @%i  %s  t%i  t%i  %i  (%s", QCC_FileForStatement(i), statements[i].linenum, i, pr_opcodes[statements[i].op].opname, a, b, c, QCC_VarAtOffset(statements[i].a));
 					QC_snprintfz(line+strlen(line), sizeof(line)-strlen(line), " %s", QCC_VarAtOffset(statements[i].b));

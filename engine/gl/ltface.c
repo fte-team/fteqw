@@ -21,6 +21,7 @@ struct relight_ctx_s
 	unsigned int nummodels;
 	model_t *models[2048];
 
+	qboolean skiplit;	//lux only
 	qboolean shadows;
 	mentity_t *entities;
 	unsigned int num_entities;
@@ -134,12 +135,13 @@ void LightShutdown(struct relight_ctx_s *ctx, model_t *mod)
 	Z_Free(ctx->entities);
 	Z_Free(ctx);
 }
-struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, model_t *model, qboolean shadows)
+struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, model_t *model, qboolean shadows, qboolean skiplit)
 {
 	if (!ctx)
 	{
 		ctx = Z_Malloc(sizeof(*ctx));
 		ctx->shadows = shadows;
+		ctx->skiplit = skiplit;
 	}
 	ctx->models[ctx->nummodels++] = model;
 	return ctx;
@@ -848,7 +850,10 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 		dulout = GetNormFileSpace (f->lightofs, lightmapsize);
 	}
 #else
-	rgbout = surf_rgbsamples;
+	if (!ctx->skiplit)
+		rgbout = surf_rgbsamples;
+	else
+		rgbout = NULL;
 	if (l->ctx->models[0]->deluxdata)
 	{
 		dulout = surf_deluxesamples;
@@ -909,7 +914,8 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 					if (total > 0xff)
 						total = 0xff;
 					
-					*rgbout++ = total;
+					if (rgbout)
+						*rgbout++ = total;
 					mean += total;
 				}
 #ifdef UTILITY
@@ -925,9 +931,9 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 						VectorSet(temp, 0, 0, 1);
 					else
 						VectorNormalize(temp);
-					*dulout++ = (temp[0]+1)*128;
-					*dulout++ = (temp[1]+1)*128;
-					*dulout++ = (temp[2]+1)*128;
+					*dulout++ = (temp[0]+1)*127;
+					*dulout++ = (temp[1]+1)*127;
+					*dulout++ = (temp[2]+1)*127;
 				}
 			}
 		}

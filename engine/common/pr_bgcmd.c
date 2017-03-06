@@ -2266,7 +2266,7 @@ void QCBUILTIN PF_fread (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 void QCBUILTIN PF_fseek (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	G_INT(OFS_PARM1) = 0;
+	G_INT(OFS_RETURN) = -1;
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
 		PF_Warningf(prinst, "PF_fread: File out of range\n");
@@ -2283,16 +2283,16 @@ void QCBUILTIN PF_fseek (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		return;	//this just isn't ours.
 	}
 
-	G_INT(OFS_PARM1) = pf_fopen_files[fnum].ofs;
-	if (prinst->callargc>1 && G_INT(OFS_PARM0) >= 0)
+	G_INT(OFS_RETURN) = pf_fopen_files[fnum].ofs;
+	if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
 	{
-		pf_fopen_files[fnum].ofs = G_INT(OFS_PARM0);
+		pf_fopen_files[fnum].ofs = G_INT(OFS_PARM1);
 	}
 }
 void QCBUILTIN PF_fsize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	G_INT(OFS_PARM1) = 0;
+	G_INT(OFS_RETURN) = -1;
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
 		PF_Warningf(prinst, "PF_fsize: File out of range\n");
@@ -2309,10 +2309,10 @@ void QCBUILTIN PF_fsize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		return;	//this just isn't ours.
 	}
 
-	G_INT(OFS_PARM1) = pf_fopen_files[fnum].len;
-	if (prinst->callargc>1 && G_INT(OFS_PARM0) >= 0)
+	G_INT(OFS_RETURN) = pf_fopen_files[fnum].len;
+	if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
 	{
-		size_t newlen = G_INT(OFS_PARM0);
+		size_t newlen = G_INT(OFS_PARM1);
 		PF_fresizebuffer_internal(&pf_fopen_files[fnum], newlen);
 		pf_fopen_files[fnum].len = min(pf_fopen_files[fnum].bufferlen, newlen);
 	}

@@ -24,6 +24,7 @@ char shaders[][64] =
 	"defaultwarp",
 	"defaultgammacb",
 	"drawflat_wall",
+	"wireframe",
 	"lpp_depthnorm",
 	"lpp_light",
 	"lpp_wall",

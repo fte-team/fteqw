@@ -7002,7 +7002,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 
 #ifdef RUNTIMELIGHTING
 	hm->entsdirty = true;
-	hm->relightcontext = LightStartup(NULL, mod, false);
+	hm->relightcontext = LightStartup(NULL, mod, false, false);
 	hm->lightthreadmem = BZ_Malloc(lightthreadctxsize);
 	hm->inheritedlightthreadmem = false;
 #endif
@@ -7098,7 +7098,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 							submod->loadstate = MLS_LOADED;
 
 #ifdef RUNTIMELIGHTING
-							subhm->relightcontext = LightStartup(hm->relightcontext, submod, false);
+							subhm->relightcontext = LightStartup(hm->relightcontext, submod, false, false);
 							subhm->lightthreadmem = hm->lightthreadmem;
 							subhm->inheritedlightthreadmem = true;
 #endif

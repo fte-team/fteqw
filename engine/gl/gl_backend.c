@@ -91,6 +91,7 @@ struct {
 		const shader_t *crepskyshader;
 		const shader_t *crepopaqueshader;
 		const shader_t *depthonlyshader;
+		const shader_t *wireframeshader;
 
 		union programhandle_u	allblackshader;
 		int allblack_mvp;
@@ -3573,6 +3574,15 @@ void GLBE_SelectMode(backendmode_t mode)
 		default:
 			break;
 		case BEM_WIREFRAME:
+			if (!shaderstate.wireframeshader && gl_config.arb_shader_objects)
+				shaderstate.wireframeshader = R_RegisterShader("wireframe", SUF_NONE,
+					"{\n"
+						"program wireframe\n"
+						"{\n"
+							"nodepthtest\n"
+						"}\n"
+					"}\n"
+				);
 			break;
 		case BEM_DEPTHONLY:
 #ifndef GLSLONLY
@@ -4128,31 +4138,35 @@ static void DrawMeshes(void)
 		break;
 
 	case BEM_WIREFRAME:
-		//FIXME: do this with a shader instead? its not urgent as we can draw the shader normally anyway, just faster.
-		//FIXME: we need to use a shader for vertex blending. not really an issue with mdl, but more significant with iqms (base pose!).
+		if (shaderstate.wireframeshader && shaderstate.wireframeshader->prog)
+		{
+			shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
+			shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
+			shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
+			shaderstate.pendingtexcoordparts[0] = 2;
+			shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+			shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+			BE_RenderMeshProgram(shaderstate.wireframeshader, shaderstate.wireframeshader->passes, shaderstate.wireframeshader->prog);
+		}
 #ifndef GLSLONLY
-		if (!gl_config_nofixedfunc)
+		else if (gl_config_nofixedfunc)
 		{
 			BE_SetPassBlendMode(0, PBM_REPLACE);
 			GL_DeSelectProgram();
+
+			shaderstate.pendingcolourvbo = 0;
+			shaderstate.pendingcolourpointer = NULL;
+			Vector4Set(shaderstate.pendingcolourflat, 1, 1, 1, 1);
+			while(shaderstate.lastpasstmus>0)
+			{
+				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+			}
+			BE_SendPassBlendDepthMask((shaderstate.curshader->passes[0].shaderbits & ~SBITS_BLEND_BITS) | SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | ((r_wireframe.ival == 1)?SBITS_MISC_NODEPTHTEST:0));
+
+			BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR), 0);
+			BE_SubmitMeshChain(false);
 		}
-		else
 #endif
-		{
-			break;
-		}
-
-		shaderstate.pendingcolourvbo = 0;
-		shaderstate.pendingcolourpointer = NULL;
-		Vector4Set(shaderstate.pendingcolourflat, 1, 1, 1, 1);
-		while(shaderstate.lastpasstmus>0)
-		{
-			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
-		}
-		BE_SendPassBlendDepthMask((shaderstate.curshader->passes[0].shaderbits & ~SBITS_BLEND_BITS) | SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | ((r_wireframe.ival == 1)?SBITS_MISC_NODEPTHTEST:0));
-
-		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR), 0);
-		BE_SubmitMeshChain(false);
 		break;
 	case BEM_DEPTHDARK:
 		if ((shaderstate.curshader->flags & SHADER_HASLIGHTMAP) && !TEXVALID(shaderstate.curtexnums->fullbright))

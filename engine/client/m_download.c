@@ -1335,7 +1335,7 @@ static void PM_ListDownloaded(struct dl_download *dl)
 		if (!downloadablelist[i].received)
 			break;
 	}
-	if (domanifestinstall == MANIFEST_SECURITY_INSTALLER)
+	if (domanifestinstall == MANIFEST_SECURITY_INSTALLER && manifestpackage)
 	{
 		package_t *meta;
 		meta = PM_MarkedPackage(manifestpackage);

@@ -13,11 +13,6 @@
 
 #include "sys/defs.h"
 
-#ifndef USE_ARB_SHADOW
-//fall back on regular samplers if we must
-#define sampler2DShadow sampler2D
-#endif
-
 //this is the main shader responsible for realtime dlights.
 
 //texture units:
@@ -27,14 +22,6 @@
 //CUBEPROJ(projected cubemap)
 //SPOT(projected circle
 //CUBESHADOW
-
-#ifndef r_glsl_pcf
-#error r_glsl_pcf wasnt defined
-#endif
-#if r_glsl_pcf < 1
-	#undef r_glsl_pcf
-	#define r_glsl_pcf 9
-#endif
 
 #if 0 && defined(GL_ARB_texture_gather) && defined(PCF) 
 #extension GL_ARB_texture_gather : enable
@@ -209,115 +196,25 @@ void main()
 #ifdef FRAGMENT_SHADER
 
 #include "sys/fog.h"
-
-#ifdef PCF
-vec3 ShadowmapCoord(void)
-{
-#ifdef SPOT
-	//bias it. don't bother figuring out which side or anything, its not needed
-	//l_projmatrix contains the light's projection matrix so no other magic needed
-	return ((vtexprojcoord.xyz-vec3(0.0,0.0,0.015))/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);
-//#elif defined(CUBESHADOW)
-//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
-//	#define dosamp(x,y) shadowCube(s_shadowmap, shadowcoord + vec2(x,y)*texscale.xy).r
-#else
-	//figure out which axis to use
-	//texture is arranged thusly:
-	//forward left  up
-	//back    right down
-	vec3 dir = abs(vtexprojcoord.xyz);
-	//assume z is the major axis (ie: forward from the light)
-	vec3 t = vtexprojcoord.xyz;
-	float ma = dir.z;
-	vec3 axis = vec3(0.5/3.0, 0.5/2.0, 0.5);
-	if (dir.x > ma)
-	{
-		ma = dir.x;
-		t = vtexprojcoord.zyx;
-		axis.x = 0.5;
-	}
-	if (dir.y > ma)
-	{
-		ma = dir.y;
-		t = vtexprojcoord.xzy;
-		axis.x = 2.5/3.0;
-	}
-	//if the axis is negative, flip it.
-	if (t.z > 0.0)
-	{
-		axis.y = 1.5/2.0;
-		t.z = -t.z;
-	}
-
-	//we also need to pass the result through the light's projection matrix too
-	//the 'matrix' we need only contains 5 actual values. and one of them is a -1. So we might as well just use a vec4.
-	//note: the projection matrix also includes scalers to pinch the image inwards to avoid sampling over borders, as well as to cope with non-square source image
-	//the resulting z is prescaled to result in a value between -0.5 and 0.5.
-	//also make sure we're in the right quadrant type thing
-	return axis + ((l_shadowmapproj.xyz*t.xyz + vec3(0.0, 0.0, l_shadowmapproj.w)) / -t.z);
-#endif
-}
-
-float ShadowmapFilter(void)
-{
-	vec3 shadowcoord = ShadowmapCoord();
-
-	#if 0//def GL_ARB_texture_gather
-		vec2 ipart, fpart;
-		#define dosamp(x,y) textureGatherOffset(s_shadowmap, ipart.xy, vec2(x,y)))
-		vec4 tl = step(shadowcoord.z, dosamp(-1.0, -1.0));
-		vec4 bl = step(shadowcoord.z, dosamp(-1.0, 1.0));
-		vec4 tr = step(shadowcoord.z, dosamp(1.0, -1.0));
-		vec4 br = step(shadowcoord.z, dosamp(1.0, 1.0));
-		//we now have 4*4 results, woo
-		//we can just average them for 1/16th precision, but that's still limited graduations
-		//the middle four pixels are 'full strength', but we interpolate the sides to effectively give 3*3
-		vec4 col =     vec4(tl.ba, tr.ba) + vec4(bl.rg, br.rg) + //middle two rows are full strength
-				mix(vec4(tl.rg, tr.rg), vec4(bl.ba, br.ba), fpart.y); //top+bottom rows
-		return dot(mix(col.rgb, col.agb, fpart.x), vec3(1.0/9.0));	//blend r+a, gb are mixed because its pretty much free and gives a nicer dot instruction instead of lots of adds.
-
-	#else
-#ifdef USE_ARB_SHADOW
-		//with arb_shadow, we can benefit from hardware acclerated pcf, for smoother shadows
-		#define dosamp(x,y) shadow2D(s_shadowmap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx))
-#else
-		//this will probably be a bit blocky.
-		#define dosamp(x,y) float(texture2D(s_shadowmap, shadowcoord.xy + (vec2(x,y)*l_shadowmapscale.xy)).r >= shadowcoord.z)
-#endif
-		float s = 0.0;
-		#if r_glsl_pcf >= 1 && r_glsl_pcf < 5
-			s += dosamp(0.0, 0.0);
-			return s;
-		#elif r_glsl_pcf >= 5 && r_glsl_pcf < 9
-			s += dosamp(-1.0, 0.0);
-			s += dosamp(0.0, -1.0);
-			s += dosamp(0.0, 0.0);
-			s += dosamp(0.0, 1.0);
-			s += dosamp(1.0, 0.0);
-			return s/5.0;
-		#else
-			s += dosamp(-1.0, -1.0);
-			s += dosamp(-1.0, 0.0);
-			s += dosamp(-1.0, 1.0);
-			s += dosamp(0.0, -1.0);
-			s += dosamp(0.0, 0.0);
-			s += dosamp(0.0, 1.0);
-			s += dosamp(1.0, -1.0);
-			s += dosamp(1.0, 0.0);
-			s += dosamp(1.0, 1.0);
-			return s/9.0;
-		#endif
-	#endif
-}
-#endif
-
-
+#include "sys/pcf.h"
 #ifdef OFFSETMAPPING
 #include "sys/offsetmapping.h"
 #endif
 
 void main ()
 {
+	float colorscale = max(1.0 - (dot(lightvector, lightvector)/(l_lightradius*l_lightradius)), 0.0);
+#ifdef PCF
+	/*filter the light by the shadowmap. logically a boolean, but we allow fractions for softer shadows*/
+	colorscale *= ShadowmapFilter(s_shadowmap);
+#endif
+#if defined(SPOT)
+	/*filter the colour by the spotlight. discard anything behind the light so we don't get a mirror image*/
+	if (vtexprojcoord.w < 0.0) discard;
+	vec2 spot = ((vtexprojcoord.st)/vtexprojcoord.w);
+	colorscale*=1.0-(dot(spot,spot));
+#endif
+
 //read raw texture samples (offsetmapping munges the tex coords first)
 #ifdef OFFSETMAPPING
 	vec2 tcoffsetmap = offsetmap(s_normalmap, tcbase, eyevector);
@@ -345,7 +242,6 @@ void main ()
 	vec4 specs = texture2D(s_specular, tcbase);
 #endif
 
-	float colorscale = max(1.0 - (dot(lightvector, lightvector)/(l_lightradius*l_lightradius)), 0.0);
 	vec3 diff;
 #ifdef NOBUMP
 	//surface can only support ambient lighting, even for lights that try to avoid it.
@@ -377,19 +273,6 @@ void main ()
 #ifdef CUBE
 	/*filter the colour by the cubemap projection*/
 	diff *= textureCube(s_projectionmap, vtexprojcoord.xyz).rgb;
-#endif
-
-#if defined(SPOT)
-	/*filter the colour by the spotlight. discard anything behind the light so we don't get a mirror image*/
-	if (vtexprojcoord.w < 0.0) discard;
-	vec2 spot = ((vtexprojcoord.st)/vtexprojcoord.w);colorscale*=1.0-(dot(spot,spot));
-#endif
-
-#ifdef PCF
-	/*filter the light by the shadowmap. logically a boolean, but we allow fractions for softer shadows*/
-//diff.rgb = (vtexprojcoord.xyz/vtexprojcoord.w) * 0.5 + 0.5;
-	colorscale *= ShadowmapFilter();
-//	diff = ShadowmapCoord();
 #endif
 
 #if defined(PROJECTION)

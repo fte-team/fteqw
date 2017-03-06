@@ -1882,10 +1882,16 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 #endif
 
 #ifdef RUNTIMELIGHTING
-	if (r_loadlits.value == 2 && !lightmodel && (!litdata || (!luxdata && r_deluxemapping)))
+	if (!lightmodel && r_loadlits.value == 2 && (!litdata || (!luxdata && r_deluxemapping)))
 	{
-		if (!litdata)
-			writelitfile = true;
+		writelitfile = !litdata;
+		numlightdata = l->filelen;
+		lightmodel = loadmodel;
+		relitsurface = 0;
+	}
+	else if (!lightmodel && r_loadlits.value && r_deluxemapping && !luxdata && !(r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value<=0))
+	{	//if deluxemapping is on, generate missing lux files a little more often, but don't bother if we have rtlights on anyway.
+		writelitfile = false;
 		numlightdata = l->filelen;
 		lightmodel = loadmodel;
 		relitsurface = 0;
@@ -5143,7 +5149,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 	TRACE(("LoadBrushModel %i\n", __LINE__));
 	if (lightmodel == mod)
 	{
-		lightcontext = LightStartup(NULL, lightmodel, true);
+		lightcontext = LightStartup(NULL, lightmodel, true, !writelitfile);
 		LightReloadEntities(lightcontext, Mod_GetEntitiesString(lightmodel), false);
 	}
 #endif

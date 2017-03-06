@@ -115,7 +115,7 @@ cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "A
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.\n");
 cvar_t	sys_platform = CVAR("sys_platform", PLATFORM);
 cvar_t	pm_downloads_url = CVARFD("pm_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");	//read from the default.fmf
-cvar_t	pm_autoupdate = CVARFD("pm_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
+cvar_t	pm_autoupdate = CVARFD("pm_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_ARCHIVE, "0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
 
 qboolean	com_modified;	// set true if using non-id files
 

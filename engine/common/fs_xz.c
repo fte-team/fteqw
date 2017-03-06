@@ -3092,7 +3092,7 @@ vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *outfile)
 
 	n->outfile = outfile;
 
-	n->s = xz_dec_init(XZ_DYNALLOC, 1 << 26);
+	n->s = xz_dec_init(XZ_DYNALLOC, 1 << 27);
 	if (!n->s)
 	{
 		Z_Free(n);

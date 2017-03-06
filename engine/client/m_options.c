@@ -2902,6 +2902,8 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 
 	memset(&ent, 0, sizeof(ent));
 	ent.scale = 1;
+//	ent.angles[1] = realtime*45;//mods->yaw;
+//	ent.angles[0] = realtime*23.4;//mods->pitch;
 	ent.model = Mod_ForName(mods->modelname, MLV_WARN);
 	if (!ent.model)
 		return;	//panic!
@@ -2933,10 +2935,10 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	ent.light_known = 2;
 
 
-//	ent.angles[0]*=r_meshpitch.value;
+	ent.angles[0]*=r_meshpitch.value;
 	AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+	ent.angles[0]*=r_meshpitch.value;
 	VectorInverse(ent.axis[1]);
-//	ent.angles[0]*=r_meshpitch.value;
 
 	if (ent.model->type == mod_dummy)
 	{
@@ -3042,7 +3044,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 					"}\n"
 				"}\n");
 
-			if (ent.model->funcs.NativeTrace && ent.model->funcs.NativeTrace(ent.model, 0, &ent.framestate, NULL, v1, v2, vec3_origin, vec3_origin, false, ~0, &tr))
+			if (ent.model->funcs.NativeTrace && ent.model->funcs.NativeTrace(ent.model, 0, &ent.framestate, ent.axis, v1, v2, vec3_origin, vec3_origin, false, ~0, &tr))
 			{
 				vec3_t dir;
 				float f;
@@ -3095,12 +3097,14 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			float boneinfo[12];
 
 			Mod_GetTag(ent.model, b, &ent.framestate, boneinfo);
+			//fixme: no axis transform
 			VectorSet(start, boneinfo[3], boneinfo[7], boneinfo[11]);
 			VectorAdd(start, ent.origin, start);
 
 			if (p)
 			{
 				Mod_GetTag(ent.model, p, &ent.framestate, boneinfo);
+				//fixme: no axis transform
 				VectorSet(end, boneinfo[3], boneinfo[7], boneinfo[11]);
 				VectorAdd(end, ent.origin, end);
 				CLQ1_DrawLine(lineshader, start, end, 1, (b-1 == mods->boneidx)?0:1, 1, 1);

@@ -2029,7 +2029,11 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader)
 		}
 		for (i = 0; i < mod->numverts; i++)
 		{
-			VectorAdd(ent->origin, posedata[i], cl_strisvertv[t->firstvert+i]);
+			VectorMA(ent->origin,					posedata[i][0], ent->axis[0], cl_strisvertv[t->firstvert+i]);
+			VectorMA(cl_strisvertv[t->firstvert+i], posedata[i][1], ent->axis[1], cl_strisvertv[t->firstvert+i]);
+			VectorMA(cl_strisvertv[t->firstvert+i], posedata[i][2], ent->axis[2], cl_strisvertv[t->firstvert+i]);
+//			VectorAdd(ent->origin, posedata[i], cl_strisvertv[t->firstvert+i]);
+
 			Vector2Set(cl_strisvertt[t->firstvert+i], 0.5, 0.5);
 			Vector4Set(cl_strisvertc[t->firstvert+i], (mod->contents?1:0), 1, 1, 0.1);
 		}

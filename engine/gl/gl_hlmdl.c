@@ -30,40 +30,40 @@ unsigned int HLMDL_Contents	(struct model_s *model, int hulloverride, framestate
 
 void QuaternionGLMatrix(float x, float y, float z, float w, vec4_t *GLM)
 {
-    GLM[0][0] = 1 - 2 * y * y - 2 * z * z;
-    GLM[1][0] = 2 * x * y + 2 * w * z;
-    GLM[2][0] = 2 * x * z - 2 * w * y;
-    GLM[0][1] = 2 * x * y - 2 * w * z;
-    GLM[1][1] = 1 - 2 * x * x - 2 * z * z;
-    GLM[2][1] = 2 * y * z + 2 * w * x;
-    GLM[0][2] = 2 * x * z + 2 * w * y;
-    GLM[1][2] = 2 * y * z - 2 * w * x;
-    GLM[2][2] = 1 - 2 * x * x - 2 * y * y;
+	GLM[0][0] = 1 - 2 * y * y - 2 * z * z;
+	GLM[1][0] = 2 * x * y + 2 * w * z;
+	GLM[2][0] = 2 * x * z - 2 * w * y;
+	GLM[0][1] = 2 * x * y - 2 * w * z;
+	GLM[1][1] = 1 - 2 * x * x - 2 * z * z;
+	GLM[2][1] = 2 * y * z + 2 * w * x;
+	GLM[0][2] = 2 * x * z + 2 * w * y;
+	GLM[1][2] = 2 * y * z - 2 * w * x;
+	GLM[2][2] = 1 - 2 * x * x - 2 * y * y;
 }
 
 /*
  =======================================================================================================================
-    QuaternionGLAngle - Convert a GL angle to a quaternion matrix
+	QuaternionGLAngle - Convert a GL angle to a quaternion matrix
  =======================================================================================================================
  */
 void QuaternionGLAngle(const vec3_t angles, vec4_t quaternion)
 {
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-    float	yaw = angles[2] * 0.5;
-    float	pitch = angles[1] * 0.5;
-    float	roll = angles[0] * 0.5;
-    float	siny = sin(yaw);
-    float	cosy = cos(yaw);
-    float	sinp = sin(pitch);
-    float	cosp = cos(pitch);
-    float	sinr = sin(roll);
-    float	cosr = cos(roll);
-    /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+	float	yaw = angles[2] * 0.5;
+	float	pitch = angles[1] * 0.5;
+	float	roll = angles[0] * 0.5;
+	float	siny = sin(yaw);
+	float	cosy = cos(yaw);
+	float	sinp = sin(pitch);
+	float	cosp = cos(pitch);
+	float	sinr = sin(roll);
+	float	cosr = cos(roll);
+	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
-    quaternion[0] = sinr * cosp * cosy - cosr * sinp * siny;
-    quaternion[1] = cosr * sinp * cosy + sinr * cosp * siny;
-    quaternion[2] = cosr * cosp * siny - sinr * sinp * cosy;
-    quaternion[3] = cosr * cosp * cosy + sinr * sinp * siny;
+	quaternion[0] = sinr * cosp * cosy - cosr * sinp * siny;
+	quaternion[1] = cosr * sinp * cosy + sinr * cosp * siny;
+	quaternion[2] = cosr * cosp * siny - sinr * sinp * cosy;
+	quaternion[3] = cosr * cosp * cosy + sinr * sinp * siny;
 }
 
 matrix3x4 transform_matrix[MAX_BONES];	/* Vertex transformation matrix */
@@ -231,7 +231,7 @@ static void HLMDL_PrepareVerticies (hlmodel_t *model, hlmdl_submodel_t *amodel, 
 
 /*
  =======================================================================================================================
-    Mod_LoadHLModel - read in the model's constituent parts
+	Mod_LoadHLModel - read in the model's constituent parts
  =======================================================================================================================
  */
 qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
@@ -438,7 +438,7 @@ int HLMDL_BoneForName(model_t *mod, const char *name)
 
 /*
  =======================================================================================================================
-    HL_CalculateBones - calculate bone positions - quaternion+vector in one function
+	HL_CalculateBones - calculate bone positions - quaternion+vector in one function
  =======================================================================================================================
  */
 void HL_CalculateBones
@@ -488,7 +488,7 @@ void HL_CalculateBones
 
 /*
  =======================================================================================================================
-    HL_CalcBoneAdj - Calculate the adjustment values for the programmable controllers
+	HL_CalcBoneAdj - Calculate the adjustment values for the programmable controllers
  =======================================================================================================================
  */
 void HL_CalcBoneAdj(hlmodel_t *model)
@@ -536,7 +536,7 @@ void HL_CalcBoneAdj(hlmodel_t *model)
 
 /*
  =======================================================================================================================
-    HL_SetupBones - determine where vertex should be using bone movements
+	HL_SetupBones - determine where vertex should be using bone movements
  =======================================================================================================================
  */
 void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt );
@@ -842,10 +842,6 @@ qboolean HLMDL_Trace		(model_t *model, int hulloverride, framestate_t *framestat
 	float dist, d1, d2, f, enterfrac, enterdist, exitfrac;
 	qboolean startout, endout;
 	int enterplane;
-
-	extern cvar_t temp1;
-	p1[2] += temp1.value;
-	p2[2] += temp1.value;
 
 	memset (trace, 0, sizeof(trace_t));
 	trace->fraction = trace->truefraction = 1;
@@ -1288,9 +1284,15 @@ void HLMDL_DrawHitBoxes(entity_t *rent)
 	int bonecount = HLMDL_GetBoneData(rent->model, 0, MAX_BONES, &rent->framestate, relbones);
 	int b;
 
-	VectorCopy(rent->axis[0], entitymatrix[0]);
-	VectorCopy(rent->axis[1], entitymatrix[1]);
-	VectorCopy(rent->axis[2], entitymatrix[2]);
+	entitymatrix[0][0] = rent->axis[0][0];
+	entitymatrix[0][1] = rent->axis[1][0];
+	entitymatrix[0][2] = rent->axis[2][0];
+	entitymatrix[1][0] = rent->axis[0][1];
+	entitymatrix[1][1] = rent->axis[1][1];
+	entitymatrix[1][2] = rent->axis[2][1];
+	entitymatrix[2][0] = rent->axis[0][2];
+	entitymatrix[2][1] = rent->axis[1][2];
+	entitymatrix[2][2] = rent->axis[2][2];
 	entitymatrix[0][3] = rent->origin[0];
 	entitymatrix[1][3] = rent->origin[1];
 	entitymatrix[2][3] = rent->origin[2];

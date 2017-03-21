@@ -15,6 +15,9 @@
 #endif
 
 #include    <d3d8.h>
+#ifndef D3DSGR_NO_CALIBRATION
+#define D3DSGR_NO_CALIBRATION 0	//mingw fails to define this.
+#endif
 
 /*Fixup outdated windows headers*/
 #ifndef WM_XBUTTONDOWN

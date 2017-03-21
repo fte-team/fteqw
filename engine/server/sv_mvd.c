@@ -2515,7 +2515,7 @@ void SV_UserCmdMVDList_f (void)
 		}
 
 		if (host_client->num_backbuf == MAX_BACK_BUFFERS)
-			SV_ClientPrintf(host_client, PRINT_HIGH, "*MORE*\n", i, list->name, list->size/1024);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "*MORE*\n");
 	}
 
 	for (d = demo.dest; d; d = d->nextdest)

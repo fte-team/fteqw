@@ -2596,7 +2596,7 @@ void PM_Command_f(void)
 		unsigned int changes = PM_MarkUpdates();
 		if (changes)
 		{
-			Con_Printf("%u packages flagged\n");
+			Con_Printf("%u packages flagged\n", changes);
 			PM_PromptApplyChanges();
 		}
 		else

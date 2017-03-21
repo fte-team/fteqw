@@ -853,31 +853,6 @@ void QCBUILTIN PF_CL_drawline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	int flags	= prinst->callargc >= 6?G_FLOAT(OFS_PARM5):0;
 	shader_t *shader_draw_line;
 
-	mesh_t mesh;
-	vecV_t vpos[2];
-	vec2_t vst[2];
-	vec4_t vcol[2];
-	index_t idx[2];
-
-	memset(&mesh, 0, sizeof(mesh));
-	mesh.indexes = idx;
-	mesh.xyz_array = vpos;
-	mesh.st_array = vst;
-	mesh.colors4f_array[0] = vcol;
-
-	VectorCopy(point1, vpos[0]);
-	Vector2Set(vst[0], 0, 0);
-	Vector4Set(vcol[0], rgb[0], rgb[1], rgb[2], alpha);
-
-	VectorCopy(point2, vpos[1]);
-	Vector2Set(vst[1], 0, 0);
-	Vector4Set(vcol[1], rgb[0], rgb[1], rgb[2], alpha);
-	mesh.numvertexes = 2;
-
-	mesh.indexes[0] = 0;
-	mesh.indexes[1] = 1;
-	mesh.numindexes = 2;
-
 	//this shader lookup might get pricy.
 	shader_draw_line = R_RegisterShader("shader_draw_line", SUF_NONE,
 		"{\n"
@@ -890,11 +865,11 @@ void QCBUILTIN PF_CL_drawline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			"}\n"
 		"}\n");
 
+	r2d_be_flags = PF_SelectDPDrawFlag(flags);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	R2D_Line(point1[0], point1[1], point2[0], point2[1], shader_draw_line);
 	R2D_ImageColours(1,1,1,1);
-
-//	BE_DrawMesh_Single(shader_draw_line, &mesh, NULL, flags|BEF_LINES);
+	r2d_be_flags = 0;
 }
 
 //vector  drawgetimagesize(string pic) = #460;

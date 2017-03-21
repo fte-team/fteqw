@@ -4132,7 +4132,6 @@ Allow clients to change userinfo
 */
 void SV_SetInfo_f (void)
 {
-	int i;
 	char oldval[MAX_INFO_KEY];
 	char *key, *val;
 
@@ -4193,7 +4192,6 @@ void SV_SetInfo_f (void)
 
 	if (*key != '_')
 	{
-		i = host_client - svs.clients;
 		val = Info_ValueForKey(host_client->userinfo, key);
 
 		SV_BroadcastUserinfoChange(host_client, SV_UserInfoIsBasic(key), key, val);

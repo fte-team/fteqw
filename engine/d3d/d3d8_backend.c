@@ -415,6 +415,7 @@ void D3D8BE_Reset(qboolean before)
 	int i;
 	if (before)
 	{
+		IDirect3DDevice8_SetVertexShader(pD3DDev8, 0);
 		IDirect3DDevice8_SetStreamSource(pD3DDev8, 0, NULL, 0);
 		IDirect3DDevice8_SetIndices(pD3DDev8, NULL, 0);
 
@@ -1482,8 +1483,8 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 	/*all meshes in a chain must have the same features*/
 	vdec = D3DFVF_QVBO;
 
-	*vertfirst = shaderstate.dynvbo_offs/sizeof(*map);
 	allocvertexbuffer(shaderstate.dynvbo_buff, shaderstate.dynvbo_size, &shaderstate.dynvbo_offs, &map, vertcount*sizeof(*map));
+	*vertfirst = (shaderstate.dynvbo_offs - vertcount*sizeof(*map))/sizeof(*map);
 
 
 	for (mno = 0; mno < shaderstate.nummeshes; mno++)
@@ -1518,7 +1519,6 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 
 	d3dcheck(IDirect3DDevice8_SetStreamSource(pD3DDev8, 0, shaderstate.dynvbo_buff, sizeof(vbovdata_t)));
 	d3dcheck(IDirect3DDevice8_SetIndices(pD3DDev8, shaderstate.dynidx_buff, *vertfirst));	//base vertex is considered part of ebo state in d3d8, I guess
-//	*vertfirst = 0;
 
 	/*we only use one colour, generated from the first pass*/
 	//vdec |= BE_GenerateColourMods(vertcount, pass);

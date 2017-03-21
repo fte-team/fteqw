@@ -572,6 +572,10 @@ GLQUAKE_OBJS =		\
 	$(VKQUAKE_OBJS)
 
 D3DQUAKE_OBJS =		\
+	d3d8_backend.o \
+	d3d8_image.o	\
+	d3d8_shader.o	\
+	vid_d3d8.o	\
 	d3d_backend.o \
 	d3d_image.o	\
 	d3d_shader.o	\

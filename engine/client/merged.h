@@ -344,7 +344,7 @@ typedef union vboarray_s
 		void *addr;
 	} gl;
 #endif
-#if defined(D3D9QUAKE) || defined(D3D11QUAKE)
+#if defined(D3D8QUAKE) || defined(D3D9QUAKE) || defined(D3D11QUAKE)
 	struct
 	{
 		void *buff;

@@ -1,6 +1,12 @@
 #include "quakedef.h"
 
 #if defined(AVAIL_WASAPI) && !defined(SERVERONLY)
+//wasapi is nice in that you can use it to bypass the windows audio mixer. hurrah for exclusive audio.
+//this should give slightly lower latency audio.
+//its otherwise not that interesting.
+
+//side note: wasapi does provide proper notifications for when a sound device is enabled/disabled, which is useful even if you're using directsound instead.
+//this means that we can finally restart the audio if someone plugs in a headset.
 #include "winquake.h"
 
 #include <audioclient.h>

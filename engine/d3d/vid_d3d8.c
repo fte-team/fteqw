@@ -796,7 +796,7 @@ static qboolean D3D8_VID_Init(rendererstate_t *info, unsigned char *palette)
 		mouseactive = false;
 	}
 
-	D3D8BE_Reset(false);
+//	D3D8BE_Reset(false);
 
 	//FIXME: old hardware is not guarenteed to support hardware cursors.
 	//this should not be a problem on dx9+ hardware, but might on earlier stuff.

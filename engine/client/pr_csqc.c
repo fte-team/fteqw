@@ -759,6 +759,14 @@ static model_t *CSQC_GetModelForIndex(int index)
 		return NULL;
 }
 
+static float CSQC_PitchScaleForModelIndex(int index)
+{
+	model_t *mod = CSQC_GetModelForIndex(index);
+	if (mod && (mod->type == mod_alias || mod->type == mod_halflife))
+		return r_meshpitch.value;	//these are buggy.
+	return 1;
+}
+
 static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 {
 	int ival;
@@ -827,7 +835,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	else
 	{
 		VectorCopy(in->v->angles, out->angles);
-		if (model->type == mod_alias)
+		if (model && model->type == mod_alias)
 			out->angles[0] *= r_meshpitch.value;
 		AngleVectors(out->angles, out->axis[0], out->axis[1], out->axis[2]);
 		VectorInverse(out->axis[1]);
@@ -1512,7 +1520,7 @@ typedef struct
 //	vec3_t sdir;
 //	vec3_t tdir;
 } qcvertex_t;
-void QCBUILTIN PF_R_AddTrisoup(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_R_AddTrisoup_Simple(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	shader_t *shader;		//parm 0
 	unsigned int qcflags	= G_INT(OFS_PARM1);
@@ -2060,7 +2068,10 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 			{
 				float fmt = G_FLOAT(OFS_PARM2);
 				float *size = G_VECTOR(OFS_PARM3);
-				R2D_RT_Configure(r_refdef.rt_destcolour[i].texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
+				if (fmt < 0)
+					R2D_RT_Configure(r_refdef.rt_destcolour[i].texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);
+				else
+					R2D_RT_Configure(r_refdef.rt_destcolour[i].texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
 			}
 			BE_RenderToTextureUpdate2d(true);
 		}
@@ -2071,7 +2082,10 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(r_refdef.rt_sourcecolour.texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
+			if (fmt < 0)
+				R2D_RT_Configure(r_refdef.rt_sourcecolour.texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);
+			else
+				R2D_RT_Configure(r_refdef.rt_sourcecolour.texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
 		}
 		BE_RenderToTextureUpdate2d(false);
 		break;
@@ -2081,7 +2095,10 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(r_refdef.rt_depth.texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
+			if (fmt < 0)
+				R2D_RT_Configure(r_refdef.rt_depth.texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);
+			else
+				R2D_RT_Configure(r_refdef.rt_depth.texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
 		}
 		BE_RenderToTextureUpdate2d(false);
 		break;
@@ -2091,7 +2108,10 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(r_refdef.rt_ripplemap.texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
+			if (fmt < 0)
+				R2D_RT_Configure(r_refdef.rt_ripplemap.texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);
+			else
+				R2D_RT_Configure(r_refdef.rt_ripplemap.texname, size[0], size[1], PR_TranslateTextureFormat(fmt), RT_IMAGEFLAGS);
 		}
 		BE_RenderToTextureUpdate2d(false);
 		break;
@@ -4987,6 +5007,14 @@ static void QCBUILTIN PF_DeltaListen(pubprogfuncs_t *prinst, struct globalvars_s
 	}
 }
 
+static void AngleVectorsIndex (const vec3_t angles, int modelindex, vec3_t forward, vec3_t right, vec3_t up)
+{
+	vec3_t fixedangles;
+	fixedangles[0] = angles[0] * CSQC_PitchScaleForModelIndex(modelindex);
+	fixedangles[1] = angles[1];
+	fixedangles[2] = angles[2];
+	AngleVectors(fixedangles, forward, right, up);
+}
 static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int entnum = G_FLOAT(OFS_PARM0);
@@ -4997,6 +5025,136 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 	if (fldnum == GE_MAXENTS)
 	{
 		G_FLOAT(OFS_RETURN) = cl.maxlerpents;
+		return;
+	}
+
+	if (entnum > 0 && entnum <= cl.allocated_client_slots && cl.lerpplayers[entnum-1].sequence == cl.lerpentssequence)
+	{
+		player_state_t *ps = &cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[entnum-1];
+		le = &cl.lerpplayers[entnum-1];
+
+		switch(fldnum)
+		{
+		case GE_ACTIVE:
+			G_FLOAT(OFS_RETURN) = 1;
+			break;
+
+		case GE_ORIGIN:
+			/*lerped position*/
+			VectorCopy(le->origin, G_VECTOR(OFS_RETURN));
+			break;
+		case GE_SCALE:
+			G_FLOAT(OFS_RETURN) = ps->scale / 16.0f;
+			break;
+		case GE_ALPHA:
+			G_FLOAT(OFS_RETURN) = ps->alpha / 255.0f;
+			break;
+		case GE_COLORMOD:
+			G_FLOAT(OFS_RETURN+0) = ps->colourmod[0] / 8.0f;
+			G_FLOAT(OFS_RETURN+1) = ps->colourmod[1] / 8.0f;
+			G_FLOAT(OFS_RETURN+2) = ps->colourmod[2] / 8.0f;
+			break;
+		case GE_SKIN:
+			G_FLOAT(OFS_RETURN) = ps->skinnum;
+			break;
+		case GE_MINS:
+			VectorCopy(ps->szmins, G_VECTOR(OFS_RETURN));
+			break;
+		case GE_MAXS:
+			VectorCopy(ps->szmaxs, G_VECTOR(OFS_RETURN));
+			break;
+
+		case GE_ABSMIN:
+			VectorAdd(ps->szmins, le->origin, G_VECTOR(OFS_RETURN));
+			break;
+		case GE_ABSMAX:
+			VectorAdd(ps->szmaxs, le->origin, G_VECTOR(OFS_RETURN));
+			break;
+		case GE_ORIGINANDVECTORS:
+			VectorCopy(le->origin, G_VECTOR(OFS_RETURN));
+			AngleVectorsIndex(le->angles, ps->modelindex, csqcg.forward, csqcg.right, csqcg.up);
+			break;
+		case GE_FORWARD:
+			AngleVectorsIndex(le->angles, ps->modelindex, G_VECTOR(OFS_RETURN), NULL, NULL);
+			break;
+		case GE_RIGHT:
+			AngleVectorsIndex(le->angles, ps->modelindex, NULL, G_VECTOR(OFS_RETURN), NULL);
+			break;
+		case GE_UP:
+			AngleVectorsIndex(le->angles, ps->modelindex, NULL, NULL, G_VECTOR(OFS_RETURN));
+			break;
+		case GE_PANTSCOLOR:
+			G_FLOAT(OFS_RETURN) = cl.players[entnum-1].tbottomcolor;
+			break;
+		case GE_SHIRTCOLOR:
+			G_FLOAT(OFS_RETURN) = cl.players[entnum-1].ttopcolor;
+			break;
+		case GE_LIGHT:
+			G_FLOAT(OFS_RETURN) = 0;
+			break;
+
+		case GE_MODELINDEX:
+			G_FLOAT(OFS_RETURN) = ps->modelindex;
+			break;
+		case GE_MODELINDEX2:
+			G_FLOAT(OFS_RETURN) = ps->command.impulse;	//evil hack
+			break;
+		case GE_EFFECTS:
+			G_FLOAT(OFS_RETURN) = ps->effects;
+			break;
+		case GE_FRAME:
+			G_FLOAT(OFS_RETURN) = ps->frame;
+			break;
+		case GE_ANGLES:
+			VectorCopy(le->angles, G_VECTOR(OFS_RETURN));
+			break;
+		case GE_FATNESS:
+			G_FLOAT(OFS_RETURN) = ps->fatness;
+			break;
+		case GE_DRAWFLAGS:
+			G_FLOAT(OFS_RETURN) = SCALE_ORIGIN_ORIGIN;
+			break;
+		case GE_ABSLIGHT:
+			G_FLOAT(OFS_RETURN) = 0;
+			break;
+		case GE_GLOWMOD:
+			VectorSet(G_VECTOR(OFS_RETURN), 1, 1, 1);
+			break;
+		case GE_GLOWSIZE:
+			G_FLOAT(OFS_RETURN) = 0;
+			break;
+		case GE_GLOWCOLOUR:
+			G_FLOAT(OFS_RETURN) = 0;
+			break;
+		case GE_RTSTYLE:
+			G_FLOAT(OFS_RETURN) = 0;
+			break;
+		case GE_RTPFLAGS:
+			G_FLOAT(OFS_RETURN) = 0;
+			break;
+		case GE_RTCOLOUR:
+			VectorSet(G_VECTOR(OFS_RETURN), 1, 1, 1);
+			break;
+		case GE_RTRADIUS:
+			G_FLOAT(OFS_RETURN) = 0;
+			break;
+		case GE_TAGENTITY:
+			G_FLOAT(OFS_RETURN) = 0;
+			break;
+		case GE_TAGINDEX:
+			G_FLOAT(OFS_RETURN) = 0;
+			break;
+		case GE_GRAVITYDIR:
+			VectorCopy(ps->gravitydir, G_VECTOR(OFS_RETURN));
+			break;
+		case GE_TRAILEFFECTNUM:
+			G_FLOAT(OFS_RETURN) = 0;
+			break;
+
+		default:
+			VectorCopy(vec3_origin, G_VECTOR(OFS_RETURN));
+			break;
+		}
 		return;
 	}
 
@@ -5061,16 +5219,16 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 		break;
 	case GE_ORIGINANDVECTORS:
 		VectorCopy(le->origin, G_VECTOR(OFS_RETURN));
-		AngleVectors(le->angles, csqcg.forward, csqcg.right, csqcg.up);
+		AngleVectorsIndex(le->angles, es->modelindex, csqcg.forward, csqcg.right, csqcg.up);
 		break;
 	case GE_FORWARD:
-		AngleVectors(le->angles, G_VECTOR(OFS_RETURN), NULL, NULL);
+		AngleVectorsIndex(le->angles, es->modelindex, G_VECTOR(OFS_RETURN), NULL, NULL);
 		break;
 	case GE_RIGHT:
-		AngleVectors(le->angles, NULL, G_VECTOR(OFS_RETURN), NULL);
+		AngleVectorsIndex(le->angles, es->modelindex, NULL, G_VECTOR(OFS_RETURN), NULL);
 		break;
 	case GE_UP:
-		AngleVectors(le->angles, NULL, NULL, G_VECTOR(OFS_RETURN));
+		AngleVectorsIndex(le->angles, es->modelindex, NULL, NULL, G_VECTOR(OFS_RETURN));
 		break;
 	case GE_PANTSCOLOR:
 		if (es->colormap <= cl.allocated_client_slots && !(es->dpflags & RENDER_COLORMAPPED))
@@ -5829,7 +5987,7 @@ static struct {
 	{"R_BeginPolygon",			PF_R_PolygonBegin,	306},				// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
 	{"R_PolygonVertex",			PF_R_PolygonVertex,	307},				// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
 	{"R_EndPolygon",			PF_R_PolygonEnd,	308},				// #308 void() R_EndPolygon (EXT_CSQC_???)
-	{"addtrisoup_1",			PF_R_AddTrisoup,	0},
+	{"addtrisoup_simple",		PF_R_AddTrisoup_Simple,	0},
 
 	{"getproperty",				PF_R_GetViewFlag,	309},				// #309 vector/float(float property) getproperty (EXT_CSQC_1)
 

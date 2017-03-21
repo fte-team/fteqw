@@ -787,6 +787,31 @@ void GLBE_FBO_Pop(int oldfbo);
 void GLBE_FBO_Destroy(fbostate_t *state);
 int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, int colourbuffers, texid_t destdepth, int width, int height, int layer);
 #endif
+#ifdef D3D8QUAKE
+void D3D8BE_Init(void);
+void D3D8BE_Shutdown(void);
+void D3D8BE_SelectMode(backendmode_t mode);
+void D3D8BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
+void D3D8BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, unsigned int beflags);
+void D3D8BE_SubmitBatch(batch_t *batch);
+batch_t *D3D8BE_GetTempBatch(void);
+void D3D8BE_GenBrushModelVBO(model_t *mod);
+void D3D8BE_ClearVBO(vbo_t *vbo);
+void D3D8BE_UploadAllLightmaps(void);
+void D3D8BE_DrawWorld (batch_t **worldbatches);
+qboolean D3D8BE_LightCullModel(vec3_t org, model_t *model);
+void D3D8BE_SelectEntity(entity_t *ent);
+qboolean D3D8BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);
+void D3D8BE_VBO_Begin(vbobctx_t *ctx, size_t maxsize);
+void D3D8BE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);
+void D3D8BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray, void **vbomem, void **ebomem);
+void D3D8BE_VBO_Destroy(vboarray_t *vearray, void *mem);
+void D3D8BE_Scissor(srect_t *rect);
+
+void D3D8Shader_Init(void);
+void D3D8BE_Reset(qboolean before);
+void D3D8BE_Set2D(void);
+#endif
 #ifdef D3D9QUAKE
 void D3D9BE_Init(void);
 void D3D9BE_Shutdown(void);
@@ -810,7 +835,7 @@ void D3D9BE_Scissor(srect_t *rect);
 
 void D3D9Shader_Init(void);
 void D3D9BE_Reset(qboolean before);
-void D3DBE_Set2D(void);
+void D3D9BE_Set2D(void);
 #endif
 #ifdef D3D11QUAKE
 void D3D11BE_Init(void);

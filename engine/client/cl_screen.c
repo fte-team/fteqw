@@ -3134,6 +3134,7 @@ void SCR_DeInit (void)
 		Cmd_RemoveCommand ("screenshot_mega");
 		Cmd_RemoveCommand ("screenshot_stereo");
 		Cmd_RemoveCommand ("screenshot_vr");
+		Cmd_RemoveCommand ("screenshot_cubemap");
 		Cmd_RemoveCommand ("envmap");
 		Cmd_RemoveCommand ("sizeup");
 		Cmd_RemoveCommand ("sizedown");

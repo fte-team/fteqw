@@ -467,7 +467,7 @@ int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i, int thispl
 
 	return i;
 }
-void WriteEntityState(netmsg_t *msg, entity_state_t *es)
+void WriteEntityState(netmsg_t *msg, entity_state_t *es, unsigned int pext)
 {
 	int i;
 	WriteByte(msg, es->modelindex);
@@ -476,8 +476,8 @@ void WriteEntityState(netmsg_t *msg, entity_state_t *es)
 	WriteByte(msg, es->skinnum);
 	for (i = 0; i < 3; i++)
 	{
-		WriteShort(msg, es->origin[i]);
-		WriteByte(msg, es->angles[i]);
+		WriteCoord(msg, es->origin[i], pext);
+		WriteAngle(msg, es->angles[i], pext);
 	}
 }
 int SendCurrentBaselines(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize, int i)
@@ -497,7 +497,7 @@ int SendCurrentBaselines(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize
 		{
 			WriteByte(msg, svc_spawnbaseline);
 			WriteShort(msg, i);
-			WriteEntityState(msg, &tv->map.entity[i].baseline);
+			WriteEntityState(msg, &tv->map.entity[i].baseline, tv->pext);
 		}
 	}
 
@@ -535,9 +535,9 @@ int SendStaticSounds(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize, in
 			continue;
 
 		WriteByte(msg, svc_spawnstaticsound);
-		WriteShort(msg, tv->map.staticsound[i].origin[0]);
-		WriteShort(msg, tv->map.staticsound[i].origin[1]);
-		WriteShort(msg, tv->map.staticsound[i].origin[2]);
+		WriteCoord(msg, tv->map.staticsound[i].origin[0], tv->pext);
+		WriteCoord(msg, tv->map.staticsound[i].origin[1], tv->pext);
+		WriteCoord(msg, tv->map.staticsound[i].origin[2], tv->pext);
 		WriteByte(msg, tv->map.staticsound[i].soundindex);
 		WriteByte(msg, tv->map.staticsound[i].volume);
 		WriteByte(msg, tv->map.staticsound[i].attenuation);
@@ -560,7 +560,7 @@ int SendStaticEntities(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize, 
 			continue;
 
 		WriteByte(msg, svc_spawnstatic);
-		WriteEntityState(msg, &tv->map.spawnstatic[i]);
+		WriteEntityState(msg, &tv->map.spawnstatic[i], tv->pext);
 	}
 
 	return i;
@@ -1248,7 +1248,7 @@ void ConnectionlessPacket(cluster_t *cluster, netadr_t *from, netmsg_t *m)
 }
 
 
-void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t *to, netmsg_t *msg, qboolean force)
+void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t *to, netmsg_t *msg, qboolean force, unsigned int pext)
 {
 	unsigned int i;
 	unsigned int bits;
@@ -1311,17 +1311,17 @@ void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t 
 	if (bits & U_EFFECTS)
 		WriteByte (msg, to->effects&0x00ff);
 	if (bits & U_ORIGIN1)
-		WriteShort (msg, to->origin[0]);
+		WriteCoord(msg, to->origin[0], pext);
 	if (bits & U_ANGLE1)
-		WriteByte(msg, to->angles[0]);
+		WriteAngle(msg, to->angles[0], pext);
 	if (bits & U_ORIGIN2)
-		WriteShort (msg, to->origin[1]);
+		WriteCoord(msg, to->origin[1], pext);
 	if (bits & U_ANGLE2)
-		WriteByte(msg, to->angles[1]);
+		WriteAngle(msg, to->angles[1], pext);
 	if (bits & U_ORIGIN3)
-		WriteShort (msg, to->origin[2]);
+		WriteCoord(msg, to->origin[2], pext);
 	if (bits & U_ANGLE3)
-		WriteByte(msg, to->angles[2]);
+		WriteAngle(msg, to->angles[2], pext);
 }
 
 const entity_state_t nullentstate = {0};
@@ -1365,7 +1365,7 @@ void SV_EmitPacketEntities (const sv_t *qtv, const viewer_t *v, const packet_ent
 		if (newnum == oldnum)
 		{	// delta update from old position
 //Con_Printf ("delta %i\n", newnum);
-			SV_WriteDelta (newnum, &from->ents[oldindex], &to->ents[newindex], msg, false);
+			SV_WriteDelta (newnum, &from->ents[oldindex], &to->ents[newindex], msg, false, qtv->pext);
 
 			oldindex++;
 			newindex++;
@@ -1376,7 +1376,7 @@ void SV_EmitPacketEntities (const sv_t *qtv, const viewer_t *v, const packet_ent
 		{	// this is a new entity, send it from the baseline
 			baseline = &qtv->map.entity[newnum].baseline;
 //Con_Printf ("baseline %i\n", newnum);
-			SV_WriteDelta (newnum, baseline, &to->ents[newindex], msg, true);
+			SV_WriteDelta (newnum, baseline, &to->ents[newindex], msg, true, qtv->pext);
 
 			newindex++;
 			continue;
@@ -1403,7 +1403,7 @@ void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg)
 	for (i = 0; i < frame->numents; i++)
 	{
 		entnum = frame->entnums[i];
-		SV_WriteDelta(entnum, &qtv->map.entity[entnum].baseline, &frame->ents[i], msg, true);
+		SV_WriteDelta(entnum, &qtv->map.entity[entnum].baseline, &frame->ents[i], msg, true, qtv->pext);
 	}
 	WriteShort(msg, 0);
 }
@@ -1448,9 +1448,9 @@ void SendLocalPlayerState(sv_t *tv, viewer_t *v, int playernum, netmsg_t *msg)
 				flags |= (PF_VELOCITY1<<j);
 
 		WriteShort(msg, flags);
-		WriteShort(msg, tv->map.players[tv->map.thisplayer].current.origin[0]);
-		WriteShort(msg, tv->map.players[tv->map.thisplayer].current.origin[1]);
-		WriteShort(msg, tv->map.players[tv->map.thisplayer].current.origin[2]);
+		WriteCoord(msg, tv->map.players[tv->map.thisplayer].current.origin[0], tv->pext);
+		WriteCoord(msg, tv->map.players[tv->map.thisplayer].current.origin[1], tv->pext);
+		WriteCoord(msg, tv->map.players[tv->map.thisplayer].current.origin[2], tv->pext);
 		WriteByte(msg, tv->map.players[tv->map.thisplayer].current.frame);
 
 		for (j=0 ; j<3 ; j++)
@@ -1475,9 +1475,9 @@ void SendLocalPlayerState(sv_t *tv, viewer_t *v, int playernum, netmsg_t *msg)
 				flags |= (PF_VELOCITY1<<j);
 
 		WriteShort(msg, flags);
-		WriteShort(msg, v->origin[0]*8);
-		WriteShort(msg, v->origin[1]*8);
-		WriteShort(msg, v->origin[2]*8);
+		WriteCoord(msg, v->origin[0], tv->pext);
+		WriteCoord(msg, v->origin[1], tv->pext);
+		WriteCoord(msg, v->origin[2], tv->pext);
 		WriteByte(msg, 0);
 
 		for (j=0 ; j<3 ; j++)
@@ -1628,7 +1628,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 	usercmd_t to;
 	float lerp;
 	int bits;
-	unsigned short org[3];
+	float org[3];
 	entity_t *ent;
 	playerinfo_t *pl;
 
@@ -1712,17 +1712,17 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				if (bits & UNQ_EFFECTS)
 					WriteByte (msg, 0);
 				if (bits & UNQ_ORIGIN1)
-					WriteShort (msg, v->origin[0]*8);
+					WriteCoord (msg, v->origin[0], tv->pext);
 				if (bits & UNQ_ANGLE1)
-					WriteByte(msg, -(v->ucmds[2].angles[0]>>8));
+					WriteAngle(msg, -(360.0*v->ucmds[2].angles[0])/0x10000, tv->pext);
 				if (bits & UNQ_ORIGIN2)
-					WriteShort (msg, v->origin[1]*8);
+					WriteCoord (msg, v->origin[1], tv->pext);
 				if (bits & UNQ_ANGLE2)
-					WriteByte(msg, v->ucmds[2].angles[1]>>8);
+					WriteAngle(msg, (360.0*v->ucmds[2].angles[1])/0x10000, tv->pext);
 				if (bits & UNQ_ORIGIN3)
-					WriteShort (msg, v->origin[2]*8);
+					WriteCoord (msg, v->origin[2], tv->pext);
 				if (bits & UNQ_ANGLE3)
-					WriteByte(msg, v->ucmds[2].angles[2]>>8);
+					WriteAngle(msg, (360.0*v->ucmds[2].angles[2])/0x10000, tv->pext);
 				continue;
 			}
 
@@ -1800,17 +1800,17 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			if (bits & UNQ_EFFECTS)
 				WriteByte (msg, pl->current.effects);
 			if (bits & UNQ_ORIGIN1)
-				WriteShort (msg, org[0]);
+				WriteCoord (msg, org[0], tv->pext);
 			if (bits & UNQ_ANGLE1)
-				WriteByte(msg, -(pl->current.angles[0]>>8));
+				WriteAngle(msg, -(360.0*pl->current.angles[0])/0x10000, tv->pext);
 			if (bits & UNQ_ORIGIN2)
-				WriteShort (msg, org[1]);
+				WriteCoord (msg, org[1], tv->pext);
 			if (bits & UNQ_ANGLE2)
-				WriteByte(msg, pl->current.angles[1]>>8);
+				WriteAngle(msg, (360.0*pl->current.angles[1])/0x10000, tv->pext);
 			if (bits & UNQ_ORIGIN3)
-				WriteShort (msg, org[2]);
+				WriteCoord (msg, org[2], tv->pext);
 			if (bits & UNQ_ANGLE3)
-				WriteByte(msg, pl->current.angles[2]>>8);
+				WriteAngle(msg, (360.0*pl->current.angles[2])/0x10000, tv->pext);
 		}
 
 
@@ -1928,9 +1928,9 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 		WriteShort (msg,UNQ_MOREBITS|UNQ_MODEL|UNQ_ORIGIN1 | UNQ_ORIGIN2 | UNQ_ORIGIN3 | UNQ_SIGNAL);
 		WriteByte (msg, v->thisplayer+1);
 		WriteByte (msg, 2);	//model
-		WriteShort (msg, v->origin[0]);
-		WriteShort (msg, v->origin[1]);
-		WriteShort (msg, v->origin[2]);
+		WriteCoord (msg, v->origin[0], tv->pext);
+		WriteCoord (msg, v->origin[1], tv->pext);
+		WriteCoord (msg, v->origin[2], tv->pext);
 	}
 }
 
@@ -1961,7 +1961,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 	int i;
 	usercmd_t to;
 	unsigned short flags;
-	short interp;
+	float interp;
 	float lerp;
 	int track;
 
@@ -2065,18 +2065,18 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 				(tv->map.players[i].current.origin[1] - tv->map.players[i].old.origin[1])*(tv->map.players[i].current.origin[1] - tv->map.players[i].old.origin[1]) > snapdist ||
 				(tv->map.players[i].current.origin[2] - tv->map.players[i].old.origin[2])*(tv->map.players[i].current.origin[2] - tv->map.players[i].old.origin[2]) > snapdist)
 			{	//teleported (or respawned), so don't interpolate
-				WriteShort(msg, tv->map.players[i].current.origin[0]);
-				WriteShort(msg, tv->map.players[i].current.origin[1]);
-				WriteShort(msg, tv->map.players[i].current.origin[2]);
+				WriteCoord(msg, tv->map.players[i].current.origin[0], tv->pext);
+				WriteCoord(msg, tv->map.players[i].current.origin[1], tv->pext);
+				WriteCoord(msg, tv->map.players[i].current.origin[2], tv->pext);
 			}
 			else
 			{	//send interpolated angles
 				interp = (lerp)*tv->map.players[i].current.origin[0] + (1-lerp)*tv->map.players[i].old.origin[0];
-				WriteShort(msg, interp);
+				WriteCoord(msg, interp, tv->pext);
 				interp = (lerp)*tv->map.players[i].current.origin[1] + (1-lerp)*tv->map.players[i].old.origin[1];
-				WriteShort(msg, interp);
+				WriteCoord(msg, interp, tv->pext);
 				interp = (lerp)*tv->map.players[i].current.origin[2] + (1-lerp)*tv->map.players[i].old.origin[2];
-				WriteShort(msg, interp);
+				WriteCoord(msg, interp, tv->pext);
 			}
 
 			WriteByte(msg, tv->map.players[i].current.frame);
@@ -2329,13 +2329,13 @@ void PMove(viewer_t *v, usercmd_t *cmd)
 	pmove_t pmove;
 	if (v->server && v->server->controller == v)
 	{
-		v->origin[0] = v->server->map.players[v->server->map.thisplayer].current.origin[0]/8.0f;
-		v->origin[1] = v->server->map.players[v->server->map.thisplayer].current.origin[1]/8.0f;
-		v->origin[2] = v->server->map.players[v->server->map.thisplayer].current.origin[2]/8.0f;
+		v->origin[0] = v->server->map.players[v->server->map.thisplayer].current.origin[0];
+		v->origin[1] = v->server->map.players[v->server->map.thisplayer].current.origin[1];
+		v->origin[2] = v->server->map.players[v->server->map.thisplayer].current.origin[2];
 
-		v->velocity[0] = v->server->map.players[v->server->map.thisplayer].current.velocity[2]/8.0f;
-		v->velocity[1] = v->server->map.players[v->server->map.thisplayer].current.velocity[2]/8.0f;
-		v->velocity[2] = v->server->map.players[v->server->map.thisplayer].current.velocity[2]/8.0f;
+		v->velocity[0] = v->server->map.players[v->server->map.thisplayer].current.velocity[0];
+		v->velocity[1] = v->server->map.players[v->server->map.thisplayer].current.velocity[1];
+		v->velocity[2] = v->server->map.players[v->server->map.thisplayer].current.velocity[2];
 		return;
 	}
 	pmove.origin[0] = v->origin[0];
@@ -4230,6 +4230,7 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 						int passwd = ReadLong(m);
 
 						//fte extension, sent so that dual-protocol servers will not create connections for dual-protocol clients
+						//the nqconnect command disables this (as well as the qw hand shake) if you really want to use nq protocols with fte clients
 						ReadString(m, tempbuffer, sizeof(tempbuffer));
 						if (!strncmp(tempbuffer, "getchallenge", 12))
 							break;

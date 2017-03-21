@@ -86,8 +86,7 @@ extern cvar_t cl_cursor;
 extern cvar_t cl_cursorsize;
 extern cvar_t cl_cursorbias;
 extern cvar_t m_preset_chosen;
-menu_t *currentmenu;
-menu_t *firstmenu;
+menu_t *topmenu;
 menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old);
 
 #ifdef HEXEN2
@@ -328,12 +327,50 @@ static qboolean MI_Selectable(menuoption_t *op)
 	}
 }
 
+static qboolean M_MouseMoved(menu_t *menu)
+{
+	menuoption_t *option;
+//	if (menu->prev && !menu->exclusive)
+//		if (M_MouseMoved(menu->prev))
+//			return true;
+	for(option = menu->options; option; option = option->common.next)
+	{
+		if (mousemoved && !bindingactive && !option->common.ishidden)
+		{
+			if (mousecursor_x > menu->xpos+option->common.posx-option->common.extracollide && mousecursor_x < menu->xpos+option->common.posx+option->common.width)
+			{
+				if (mousecursor_y > menu->ypos+option->common.posy && mousecursor_y < menu->ypos+option->common.posy+option->common.height)
+				{
+					if (MI_Selectable(option))
+					{
+						if (menu->mouseitem != option)
+						{
+/*							if (!option->common.noselectionsound && vid.activeapp)
+							{
+#ifdef HEXEN2
+								if (M_GameType() == MGT_HEXEN2)
+									S_LocalSound ("raven/menu1.wav");
+								else
+#endif
+									S_LocalSound ("misc/menu1.wav");
+							}
+*/
+							menu->mouseitem = option;
+							menu->tooltiptime = realtime + 1;
+							MenuTooltipChange(menu, menu->mouseitem->common.tooltip);
+						}
+//						if (menu->cursoritem)
+//							menu->cursoritem->common.posy = menu->selecteditem->common.posy;
+					}
+				}
+			}
+		}
+	}
+	return true;
+}
+
 static void M_CheckMouseMove(void)
 {
-	qboolean foundexclusive = false;
-	menu_t *menu;
-	menuoption_t *option;
-
 	if (omousex != (int)mousecursor_x || omousey != (int)mousecursor_y)
 		mousemoved = true;
 	else
@@ -342,51 +379,7 @@ static void M_CheckMouseMove(void)
 	omousey = mousecursor_y;
 
 	if (mousemoved)
-	{
-		for (menu = firstmenu; menu; menu = menu->parent)
-		{
-			if (menu->exclusive)
-			{
-				if (foundexclusive)
-					continue;
-				foundexclusive=true;
-			}
-
-			for(option = menu->options; option; option = option->common.next)
-			{
-				if (mousemoved && !bindingactive && !option->common.ishidden)
-				{
-					if (mousecursor_x > menu->xpos+option->common.posx-option->common.extracollide && mousecursor_x < menu->xpos+option->common.posx+option->common.width)
-					{
-						if (mousecursor_y > menu->ypos+option->common.posy && mousecursor_y < menu->ypos+option->common.posy+option->common.height)
-						{
-							if (MI_Selectable(option))
-							{
-								if (menu->selecteditem != option)
-								{
-									if (!option->common.noselectionsound && vid.activeapp)
-									{
-#ifdef HEXEN2
-										if (M_GameType() == MGT_HEXEN2)
-											S_LocalSound ("raven/menu1.wav");
-										else
-#endif
-											S_LocalSound ("misc/menu1.wav");
-									}
-
-									menu->selecteditem = option;
-									menu->tooltiptime = realtime + 1;
-									MenuTooltipChange(menu, menu->selecteditem->common.tooltip);
-								}
-								if (menu->cursoritem)
-									menu->cursoritem->common.posy = menu->selecteditem->common.posy;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+		M_MouseMoved(topmenu);
 }
 
 static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
@@ -394,6 +387,20 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 	int i;
 	mpic_t *p;
 	int pw,ph;
+
+	if (option && option->common.type == mt_box && !option->common.ishidden)
+	{
+		Draw_TextBox(xpos+option->common.posx, ypos+option->common.posy, option->box.width, option->box.height);
+		option = option->common.next;
+	}
+
+	if (menu == topmenu && menu->mouseitem)
+	{
+		float alphamax = 0.5, alphamin = 0.2;
+		R2D_ImageColours(.5,.4,0,(sin(realtime*2)+1)*0.5*(alphamax-alphamin)+alphamin);
+		R2D_FillBlock(xpos+menu->mouseitem->common.posx, ypos+menu->mouseitem->common.posy, menu->mouseitem->common.width, menu->mouseitem->common.height);
+		R2D_ImageColours(1,1,1,1);
+	}
 
 	while (option)
 	{
@@ -411,7 +418,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 					Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, "^Ue00d");
 			}
 			else if (option->common.width)
-				Draw_FunStringWidth(xpos + option->common.posx, ypos+option->common.posy, option->text.text, option->common.width, true, option->text.isred);
+				Draw_FunStringWidth(xpos + option->common.posx, ypos+option->common.posy, option->text.text, option->common.width, option->text.rightalign, option->text.isred);
 			else if (option->text.isred)
 				Draw_AltFunString(xpos+option->common.posx, ypos+option->common.posy, option->text.text);
 			else
@@ -524,9 +531,9 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 				}
 #if 0
 				if (on)
-					Draw_Character (x, y, 131);
+					Draw_Character (x, y, 0xe083);
 				else
-					Draw_Character (x, y, 129);
+					Draw_Character (x, y, 0xe081);
 #endif
 				if (!menu->cursoritem && menu->selecteditem == option)
 					Draw_AltFunString (x, y, on ? "on" : "off");
@@ -619,15 +626,19 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 
 static void MenuDraw(menu_t *menu)
 {
+	if (!menu->exclusive && menu->prev)	//popup menus draw the one underneath them
+		MenuDraw(menu->prev);
+
 	if (!menu->dontexpand)
 		menu->xpos = ((vid.width - 320)>>1);
 	if (menu->predraw)
 		menu->predraw(menu);
 	MenuDrawItems(menu->xpos, menu->ypos, menu->options, menu);
 	// draw tooltip
-	if (menu->selecteditem && menu->tooltip && realtime > menu->tooltiptime)
+	if (menu->mouseitem && menu->tooltip && realtime > menu->tooltiptime)
 	{
-		menuoption_t *option = menu->selecteditem;
+		menuoption_t *option = menu->mouseitem;
+
 		if (omousex > menu->xpos+option->common.posx && omousex < menu->xpos+option->common.posx+option->common.width)
 			if (omousey > menu->ypos+option->common.posy && omousey < menu->ypos+option->common.posy+option->common.height)
 			{
@@ -688,7 +699,8 @@ menutext_t *MC_AddWhiteText(menu_t *menu, int lhs, int rhs, int y, const char *t
 	n->common.iszone = true;
 	n->common.posx = lhs;
 	n->common.posy = y;
-	n->common.width = (rhs && rightalign)?rhs-lhs:0;
+	n->common.width = (rhs)?rhs-lhs:0;
+	n->rightalign = rightalign;
 	if (text)
 	{
 		n->text = (char*)(n+1);
@@ -1410,7 +1422,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 
 void MC_CheckBox_Key(menucheck_t *option, menu_t *menu, int key)
 {
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_LEFTARROW && key != K_RIGHTARROW && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_LEFTARROW && key != K_RIGHTARROW && key != K_MWHEELUP && key != K_MWHEELDOWN && key != K_MOUSE1)
 		return;
 	if (option->func)
 		option->func(option, menu, CHK_TOGGLE);
@@ -1476,7 +1488,7 @@ void MC_EditBox_Key(menuedit_t *edit, int key, unsigned int unicode)
 
 void MC_Combo_Key(menucombo_t *combo, int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW || key == K_MWHEELDOWN || key == K_MOUSE1)
 	{
 		combo->selectedoption++;
 		if (combo->selectedoption >= combo->numoptions)
@@ -1487,7 +1499,7 @@ changed:
 			Cvar_Set(combo->cvar, (char *)combo->values[combo->selectedoption]);
 		S_LocalSound ("misc/menu2.wav");
 	}
-	else if (key == K_LEFTARROW)
+	else if (key == K_LEFTARROW || key == K_MWHEELUP)
 	{
 		combo->selectedoption--;
 		if (combo->selectedoption < 0)
@@ -1496,41 +1508,16 @@ changed:
 	}
 }
 
-void M_AddMenuFront (menu_t *menu)
-{
-	menu_t *pmenu;
-	m_state = m_complex;
-	if (!firstmenu)
-	{
-		M_AddMenu(menu);
-		return;
-	}
-	pmenu = firstmenu;
-	while(pmenu->parent)
-		pmenu = pmenu->parent;
-	pmenu->parent = menu;
-	menu->child = pmenu;
-	menu->parent = NULL;
-
-	menu->exclusive = true;
-
-	menu->xpos = ((vid.width - 320)>>1);
-
-	currentmenu = menu;
-}
-
 void M_AddMenu (menu_t *menu)
 {
 	m_state = m_complex;
-	menu->parent = firstmenu;
-	if (firstmenu)
-		firstmenu->child = menu;
-	menu->child = NULL;
-	firstmenu = menu;
+	menu->prev = topmenu;
+	if (topmenu)
+		topmenu->next = menu;
+	menu->next = NULL;
+	topmenu = menu;
 
 	menu->exclusive = true;
-
-	currentmenu = menu;
 }
 menu_t *M_CreateMenu (int extrasize)
 {
@@ -1550,23 +1537,29 @@ menu_t *M_CreateMenuInfront (int extrasize)
 	menu->iszone=true;
 	menu->data = menu+1;
 
-	M_AddMenuFront(menu);
+	M_AddMenu(menu);
+	menu->xpos = ((vid.width - 320)>>1);
 	menu->exclusive = false;
 
 	return menu;
 }
 void M_HideMenu (menu_t *menu)
 {
-	if (menu == firstmenu)
-		firstmenu = menu->parent;
+	if (menu == topmenu)
+	{
+		topmenu = menu->prev;
+		if (topmenu)
+			topmenu->next = NULL;
+		menu->prev = NULL;
+	}
 	else
 	{
 		menu_t *prev;
-		prev = menu->child;
+		prev = menu->next;
 		if (prev)
-			prev->parent = menu->parent;
-		if (menu->parent)
-			menu->parent->child = menu;
+			prev->prev = menu->prev;
+		if (menu->prev)
+			menu->prev->next = menu;
 	}
 }
 void M_RemoveMenu (menu_t *menu)
@@ -1580,20 +1573,20 @@ void M_RemoveMenu (menu_t *menu)
 
 	if (menu->remove)
 		menu->remove(menu);
-	if (menu == firstmenu)
+	if (menu == topmenu)
 	{
-		firstmenu = menu->parent;
-		if (firstmenu)
-			firstmenu->child = NULL;
+		topmenu = menu->prev;
+		if (topmenu)
+			topmenu->next = NULL;
 	}
 	else
 	{
 		menu_t *prev;
-		prev = menu->child;
+		prev = menu->next;
 		if (prev)
-			prev->parent = menu->parent;
-		if (menu->parent)
-			menu->parent->child = menu;
+			prev->prev = menu->prev;
+		if (menu->prev)
+			menu->prev->next = menu;
 	}
 
 	op = menu->options;
@@ -1617,16 +1610,13 @@ void M_RemoveMenu (menu_t *menu)
 		menu->iszone=false;
 		Z_Free(menu);
 	}
-
-	if (menu == currentmenu)
-		currentmenu = firstmenu;
 }
 
 void M_ReloadMenus(void)
 {
 	menu_t *m;
 
-	for (m = firstmenu; m; m = m->parent)
+	for (m = topmenu; m; m = m->prev)
 	{
 		if (m->reset)
 			m->reset(m);
@@ -1637,11 +1627,11 @@ void M_RemoveAllMenus (qboolean leaveprompts)
 {
 	menu_t **link, *m;
 
-	for (link = &firstmenu; *link; )
+	for (link = &topmenu; *link; )
 	{
 		m = *link;
 		if ((m->persist || !m->exclusive) && leaveprompts)
-			link = &m->parent;
+			link = &m->prev;
 		else
 			M_RemoveMenu(m);
 	}
@@ -1649,17 +1639,14 @@ void M_RemoveAllMenus (qboolean leaveprompts)
 }
 void M_MenuPop_f (void)
 {
-	if (!currentmenu)
+	if (!topmenu)
 		return;
-	M_RemoveMenu(currentmenu);
+	M_RemoveMenu(topmenu);
 }
 
 void M_Complex_Draw(void)
 {
-	menu_t *menu, *cmenu;
-	qboolean foundexclusive = false;
-
-	if (!firstmenu)
+	if (!topmenu)
 	{
 		Key_Dest_Remove(kdm_emenu);
 		m_state = m_none;
@@ -1668,19 +1655,7 @@ void M_Complex_Draw(void)
 
 	M_CheckMouseMove();
 
-	for (menu = firstmenu; menu; )
-	{
-		cmenu = menu;
-		menu = menu->parent;	//this way we can remove the currently drawn menu easily (if needed)
-
-		if (cmenu->exclusive)
-		{
-			if (foundexclusive)
-				continue;
-			foundexclusive=true;
-		}
-		MenuDraw(cmenu);
-	}
+	MenuDraw(topmenu);
 }
 
 menuoption_t *M_NextItem(menu_t *m, menuoption_t *old)
@@ -1707,11 +1682,11 @@ menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old)
 	while (1)
 	{
 		if (!op)
-			op = currentmenu->options;
+			op = m->options;
 
 		op = M_NextItem(m, op);
 		if (!op)
-			op = currentmenu->options;
+			op = m->options;
 
 		if (op == old)
 		{
@@ -1731,18 +1706,18 @@ menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 	menuoption_t *op;
 
 	if (!old)
-		old = currentmenu->options;
+		old = m->options;
 
 	op = old;
 
 	while (1)
 	{
 		if (!op)
-			op = currentmenu->options;
+			op = m->options;
 
 		op = op->common.next;
 		if (!op)
-			op = currentmenu->options;
+			op = m->options;
 
 		if (op == old)
 			return old;	//whoops.
@@ -1755,6 +1730,7 @@ menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 
 void M_Complex_Key(int key, int unicode)
 {
+	menu_t *currentmenu = topmenu;
 	if (!currentmenu)
 		return;	//erm...
 
@@ -1854,6 +1830,34 @@ void M_Complex_Key(int key, int unicode)
 				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy;
 		}
 		break;
+
+	case K_MOUSE1:
+	case K_MOUSE3:
+	case K_MOUSE4:
+	case K_MOUSE5:
+	case K_MOUSE6:
+	case K_MOUSE7:
+	case K_MOUSE8:
+	case K_MOUSE9:
+	case K_MOUSE10:
+	case K_MWHEELUP:
+	case K_MWHEELDOWN:
+		if (!currentmenu->mouseitem)
+			break;
+		if (currentmenu->mouseitem && currentmenu->selecteditem != currentmenu->mouseitem)
+		{
+			currentmenu->selecteditem = currentmenu->mouseitem;
+#ifdef HEXEN2
+			if (M_GameType() == MGT_HEXEN2)
+				S_LocalSound ("raven/menu1.wav");
+			else
+#endif
+				S_LocalSound ("misc/menu1.wav");
+
+			if (currentmenu->cursoritem)
+				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy;
+		}
+		//fall through
 	default:
 		if (!currentmenu->selecteditem)
 		{
@@ -2131,12 +2135,14 @@ void M_Menu_Main_f (void)
 	}
 	else
 	{
+		int width;
 		m_state = m_complex;
 		Key_Dest_Add(kdm_emenu);
 		mainm = M_CreateMenu(0);
 
-		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
-		if (R_GetShaderSizes(p, NULL, NULL, true) <= 0)
+		p = R2D_SafeCachePic("gfx/mainmenu.lmp");
+		R2D_SafeCachePic("gfx/ttl_main.lmp");
+		if (R_GetShaderSizes(p, &width, NULL, true) <= 0)
 		{
 			MC_AddRedText(mainm, 16, 170, 0,				"MAIN MENU", false);
 
@@ -2152,21 +2158,18 @@ void M_Menu_Main_f (void)
 		MC_AddCenterPicture(mainm, 4, 24, "gfx/ttl_main.lmp");
 		MC_AddPicture(mainm, 72, 32, 240, 112, "gfx/mainmenu.lmp");
 
-
-		p = R2D_SafeCachePic("gfx/mainmenu.lmp");
-
 		b=MC_AddConsoleCommand	(mainm, 72, 312, 32,	"", "menu_single\n");
 		b->common.tooltip = "Start singleplayer Quake game.";
 		mainm->selecteditem = (menuoption_t *)b;
-		b->common.width = p->width;
+		b->common.width = width;
 		b->common.height = 20;
 		b=MC_AddConsoleCommand	(mainm, 72, 312, 52,	"", "menu_multi\n");
 		b->common.tooltip = "Multiplayer menu.";
-		b->common.width = p->width;
+		b->common.width = width;
 		b->common.height = 20;
 		b=MC_AddConsoleCommand	(mainm, 72, 312, 72,	"", "menu_options\n");
 		b->common.tooltip = "Options menu.";
-		b->common.width = p->width;
+		b->common.width = width;
 		b->common.height = 20;
 		if (m_helpismedia.value)
 		{
@@ -2178,7 +2181,7 @@ void M_Menu_Main_f (void)
 			b=MC_AddConsoleCommand(mainm, 72, 312, 92,	"", "help\n");
 			b->common.tooltip = "Help menu.";
 		}
-		b->common.width = p->width;
+		b->common.width = width;
 		b->common.height = 20;
 		b=MC_AddConsoleCommand	(mainm, 72, 312, 112,	"", "menu_quit\n");
 #ifdef FTE_TARGET_WEB
@@ -2186,7 +2189,7 @@ void M_Menu_Main_f (void)
 #else
 		b->common.tooltip = "Exit to DOS.";
 #endif
-		b->common.width = p->width;
+		b->common.width = width;
 		b->common.height = 20;
 
 		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);

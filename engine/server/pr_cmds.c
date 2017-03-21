@@ -9007,29 +9007,7 @@ int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *v
 			
 			SV_ExtractFromUserinfo (&svs.clients[entnum-1], false);
 
-			MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-			MSG_WriteByte (&sv.reliable_datagram, entnum-1);
-			MSG_WriteString (&sv.reliable_datagram, key);
-			MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(svs.clients[entnum-1].userinfo, key));
-
-#ifdef NQPROT
-			if (!strcmp(key, "name"))
-			{
-				MSG_WriteByte(&sv.nqreliable_datagram, svc_updatename);
-				MSG_WriteByte(&sv.nqreliable_datagram, entnum-1);
-				MSG_WriteString (&sv.nqreliable_datagram, Info_ValueForKey(svs.clients[entnum-1].userinfo, key));
-			}
-			else if (!strcmp(key, "topcolor") || !strcmp(key, "bottomcolor"))
-			{
-				int c;
-				//this sucks, but whatever.
-				c = (atoi(Info_ValueForKey(svs.clients[entnum-1].userinfo, "topcolor"   )) & 0xf)<<4;
-				c|= (atoi(Info_ValueForKey(svs.clients[entnum-1].userinfo, "bottomcolor")) & 0xf);
-				MSG_WriteByte(&sv.nqreliable_datagram, svc_updatecolors);
-				MSG_WriteByte(&sv.nqreliable_datagram, entnum-1);
-				MSG_WriteByte (&sv.nqreliable_datagram, c);
-			}
-#endif
+			value = Info_ValueForKey(svs.clients[entnum-1].userinfo, key);
 
 			if (!strcmp(key, "*spectator"))
 			{
@@ -9050,10 +9028,8 @@ int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *v
 				else
 					svs.clients[entnum-1].spectator = ns;
 			}
-#ifdef _DEBUG
-			if (!strcmp(key, "*transfer"))
-				Con_Printf("WARNING: *transfer is no longer supported\n");
-#endif
+
+			SV_BroadcastUserinfoChange(host_client, SV_UserInfoIsBasic(key), key, value);
 		}
 
 		return 1;
@@ -9063,7 +9039,7 @@ int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *v
 	return 0;
 }
 
-void QCBUILTIN PF_ForceInfoKey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_ForceInfoKey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*e;
 	const char	*value;
@@ -10044,15 +10020,15 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //we support them for mvdsv compatability but some of them look very hacky.
 //these ones are not honoured with numbers, but can be used via the proper means.
 	{"teamfield",		PF_teamfield,		0,		0,		0,		87, D("void(.string teamfield)",NULL), true},
-	{"substr",			PF_substr,			0,		0,		0,		88, D("string(string str, float start, float len)",NULL), true},
+	{"substr",			PF_substr,			0,		0,		0,		88, D("string(string str, float start, float len)","Returns the theDoes not work on tempstrings nor zoned strings."), true},
 	{"mvdstrcat",		PF_strcat,			0,		0,		0,		89, D("string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)",NULL), true},
 	{"mvdstrlen",		PF_strlen,			0,		0,		0,		90, D("float(string s)",NULL), true},
-	{"str2byte",		PF_str2byte,		0,		0,		0,		91, D("float(string str)",NULL), true},
-	{"str2short",		PF_str2short,		0,		0,		0,		92, D("float(string str)",NULL), true},
-	{"mvdnewstr",		PF_mvdsv_newstring,	0,		0,		0,		93, D("string(string s, optional float bufsize)",NULL), true},
-	{"mvdfreestr",		PF_mvdsv_freestring,0,		0,		0,		94, D("void(string s)",NULL), true},
-	{"conprint",		PF_conprint,		0,		0,		0,		95, D("void(string s, ...)",NULL), true},
-	{"readcmd",			PF_readcmd,			0,		0,		0,		96, D("string(string str)",NULL), true},
+	{"str2byte",		PF_str2byte,		0,		0,		0,		91, D("float(string str)","Returns the value of the first byte of the given string."), true},
+	{"str2short",		PF_str2short,		0,		0,		0,		92, D("float(string str)","Returns the value of the first two bytes of the given string, treated as a short."), true},
+	{"mvdnewstr",		PF_mvdsv_newstring,	0,		0,		0,		93, D("string(string s, optional float bufsize)","Allocs a copy of the string. If bufsize is longer than the string then there will be extra space available on the end. The resulting string can then be modified freely."), true},
+	{"mvdfreestr",		PF_mvdsv_freestring,0,		0,		0,		94, D("void(string s)","Frees memory allocated by mvdnewstr."), true},
+	{"conprint",		PF_conprint,		0,		0,		0,		95, D("void(string s, ...)","Prints the string(s) onto the local console, bypassing redirects."), true},
+	{"readcmd",			PF_readcmd,			0,		0,		0,		0/*96*/, D("string(string str)",NULL), true},
 	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		97, D("void(string dst, string src)",NULL), true},
 	{"strstr",			PF_strstr,			0,		0,		0,		98, D("string(string str, string sub)",NULL), true},
 	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		99, D("void(string dst, string src, float count)",NULL), true},
@@ -10342,7 +10318,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"clearscene",		PF_Fixme,	0,		0,		0,		300,	D("void()", "Forgets all rentities, polygons, and temporary dlights. Resets all view properties to their default values.")},// (EXT_CSQC)
 	{"addentities",		PF_Fixme,	0,		0,		0,		301,	D("void(float mask)", "Walks through all entities effectively doing this:\n if (ent.drawmask&mask){ if (!ent.predaw()) addentity(ent); }\nIf mask&MASK_DELTA, non-csqc entities, particles, and related effects will also be added to the rentity list.\n If mask&MASK_STDVIEWMODEL then the default view model will also be added.")},// (EXT_CSQC)
 	{"addentity",		PF_Fixme,	0,		0,		0,		302,	D("void(entity ent)", "Copies the entity fields into a new rentity for later rendering via addscene.")},// (EXT_CSQC)
-	{"addtrisoup_1",	PF_Fixme,	0,		0,		0,		0,		D("void(string texturename, float flags, void *verts, int *indexes, int numindexes)", "Adds the specified trisoup into the scene as additional geometry. This permits caching geometry to reduce builtin spam. Indexes are a triangle list (so eg quads will need 6 indicies to form two triangles). NOTE: this is not going to be a speedup over polygons if you're still generating lots of new data every frame.")},
+	{"addtrisoup_simple",PF_Fixme,	0,		0,		0,		0,		D("typedef float vec2[2];\ntypedef float vec3[3];\ntypedef float vec4[4];\ntypedef struct trisoup_simple_vert_s {vec3 xyz;vec2 st;vec4 rgba;} trisoup_simple_vert_t;\nvoid(string texturename, int flags, struct trisoup_simple_vert_s *verts, int *indexes, int numindexes)", "Adds the specified trisoup into the scene as additional geometry. This permits caching geometry to reduce builtin spam. Indexes are a triangle list (so eg quads will need 6 indicies to form two triangles). NOTE: this is not going to be a speedup over polygons if you're still generating lots of new data every frame.")},
 	{"setproperty",		PF_Fixme,	0,		0,		0,		303,	D("#define setviewprop setproperty\nfloat(float property, ...)", "Allows you to override default view properties like viewport, fov, and whether the engine hud will be drawn. Different VF_ values have slightly different arguments, some are vectors, some floats.")},// (EXT_CSQC)
 	{"renderscene",		PF_Fixme,	0,		0,		0,		304,	D("void()", "Draws all entities, polygons, and particles on the rentity list (which were added via addentities or addentity), using the various view properties set via setproperty. There is no ordering dependancy.\nThe scene must generally be cleared again before more entities are added, as entities will persist even over to the next frame.\nYou may call this builtin multiple times per frame, but should only be called from CSQC_UpdateView.")},// (EXT_CSQC)
 

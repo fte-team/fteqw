@@ -35,7 +35,8 @@ typedef enum
 	QR_SOFTWARE,	//not worth using
 	QR_VULKAN,		//
 	QR_DIRECT3D12,	//no implementation
-	QR_METAL		//no implementation
+	QR_METAL,		//no implementation
+	QR_DIRECT3D8	//
 } r_qrenderer_t;
 
 typedef struct {

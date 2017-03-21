@@ -929,6 +929,8 @@ qboolean R_ImportRTLights(const char *entlump)
 			lightscale = 1;
 		if (fadescale <= 0)
 			fadescale = 1;
+		if (color[0] >= 16 || color[1] >= 16 || color[2] >= 16)	//_color 255 255 255 should be identity, not super-oversaturated.
+			VectorScale(color, 1/255.0, color);					//if only there were standards for this sort of thing.
 		if (color[0] == color[1] && color[0] == color[2])
 		{
 			color[0] *= overridecolor[0];

@@ -111,7 +111,7 @@ void M_Menu_Mods_f (void);	//used at startup if the current gamedirs look dodgy.
 void M_Menu_Installer (void);	//given an embedded manifest, this displays an install menu for said game.
 mpic_t	*M_CachePic (char *path);
 void M_Menu_Quit_f (void);
-void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, char *m1, char *m2, char *m3, char *optionyes, char *optionno, char *optioncancel);
+void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel);
 
 struct menu_s;
 
@@ -198,6 +198,7 @@ typedef struct menucheck_s {
 typedef struct {
 	menucommon_t common;
 	const char *text;
+	qboolean rightalign;
 	qboolean isred;
 } menutext_t;
 
@@ -286,12 +287,13 @@ typedef struct menu_s {
 	menuoption_t *options;
 
 	menuoption_t *selecteditem;
+	menuoption_t *mouseitem;
 
 	menutooltip_t *tooltip;
 	double tooltiptime;
 
-	struct menu_s *child;
-	struct menu_s *parent;
+	struct menu_s *prev;
+	struct menu_s *next;
 
 	int cursorpos;
 	menuoption_t *cursoritem;
@@ -371,7 +373,6 @@ menu_t *M_Options_Title(int *y, int infosize);	/*Create a menu with the default 
 menu_t *M_CreateMenu (int extrasize);
 menu_t *M_CreateMenuInfront (int extrasize);
 void M_AddMenu (menu_t *menu);
-void M_AddMenuFront (menu_t *menu);
 void M_HideMenu (menu_t *menu);
 void M_RemoveMenu (menu_t *menu);
 void M_RemoveAllMenus (qboolean leaveprompts);

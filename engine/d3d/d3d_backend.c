@@ -671,7 +671,7 @@ void D3D9BE_Init(void)
 	R_InitFlashblends();
 }
 
-void D3DBE_Set2D(void)
+void D3D9BE_Set2D(void)
 {	//start of some 2d rendering code.
 	r_refdef.time = realtime;
 	shaderstate.curtime = r_refdef.time;

@@ -181,20 +181,6 @@ void M_Menu_Options_f (void)
 #endif
 	int y;
 
-#ifdef WEBCLIENT
-	static const char *autoupopts[] = {
-		"Off",
-		"Tested(Recommended)",
-		"Untested(Latest)",
-		NULL
-	};
-	static const char *autoupvals[] = {
-		"0",
-		"1",
-		"2",
-		NULL
-	};
-#endif
 	static const char *projections[] = {
 		"Regular",
 		"Stereographic",
@@ -237,6 +223,9 @@ void M_Menu_Options_f (void)
 
 	menubulk_t bulk[] = {
 		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
+#ifdef WEBCLIENT
+		MB_CONSOLECMD("Updates and packages", "menu_download\n", "Modify keyboard and mouse inputs."),
+#endif
 		MB_CONSOLECMD("Go to console", "toggleconsole\nplay misc/menu2.wav\n", "Open up the engine console."),
 		MB_CONSOLECMD("Reset to defaults", "cvarreset *\nexec default.cfg\nplay misc/menu2.wav\n", "Reloads the default configuration."),
 		MB_CONSOLECMD("Save all settings", "cfg_save\n", "Writes changed settings out to a config file."),
@@ -250,9 +239,6 @@ void M_Menu_Options_f (void)
 		MB_CHECKBOXCVAR("Lookspring", lookspring, 0),
 		MB_CHECKBOXCVAR("Lookstrafe", lookstrafe, 0),
 		MB_CHECKBOXCVAR("Windowed Mouse", _windowed_mouse, 0),
-#ifdef WEBCLIENT
-		MB_COMBOCVAR("Auto Update", pm_autoupdate, autoupopts, autoupvals, "This offers to download engine+package updates from the internet, when new versions are available."),
-#endif
 #ifndef CLIENTONLY
 		MB_COMBOCVAR("Auto Save", sv_autosave, autosaveopts, autosavevals, NULL),
 #endif
@@ -760,7 +746,7 @@ const char *presetexec[] =
 	"seta gl_polyblend 0;"
 	"seta gl_flashblend 0;"
 	"seta gl_specular 0;"
-	"seta r_deluxemapping 0;"
+	"seta r_deluxmapping 0;"
 	"seta r_loadlit 0;"
 	"seta r_fastsky 1;"
 	"seta r_drawflame 0;"
@@ -880,12 +866,12 @@ const char *presetexec[] =
 	"r_shadow_realtime_dlight 1;"
 //	"gl_detail 1;"
 	"r_lightstylesmooth 1;"
-	"r_deluxemapping 1;"
+	"r_deluxmapping 2;"
 	"gl_texture_anisotropic_filtering 4;"
 
 	, // realtime options
 	"r_bloom 1;"
-	"r_deluxemapping 0;"	//won't be seen anyway
+	"r_deluxmapping 0;"	//won't be seen anyway
 	"r_particledesc \"high tsshaft\";"
 	"r_waterstyle 3;"
 	"r_glsl_offsetmapping 1;"
@@ -944,7 +930,7 @@ void M_Menu_Preset_f (void)
 #else
 	bias = 1;
 #endif
-		if (r_deluxemapping_cvar.ival)
+		if (r_deluxmapping_cvar.ival)
 		item = 2;	//nice
 	else if (gl_load24bit.ival)
 		item = 3;	//normal
@@ -1216,7 +1202,6 @@ void M_Menu_Textures_f (void)
 		MB_COMBOCVAR("Anisotropy", gl_texture_anisotropic_filtering, anisotropylevels, anisotropyvalues, NULL),
 		MB_SPACING(4),
 		MB_CHECKBOXCVAR("Software-style Rendering", r_softwarebanding_cvar, 0),
-		MB_CHECKBOXCVAR("Deluxemapping", r_deluxemapping_cvar, 0),
 		MB_CHECKBOXCVAR("Specular Highlights", gl_specular, 0),
 //		MB_CHECKBOXCVAR("Detail Textures", gl_detail, 0),
 		MB_CHECKBOXCVAR("offsetmapping", r_glsl_offsetmapping, 0),
@@ -1481,6 +1466,7 @@ void M_Menu_Lighting_f (void)
 			MB_SPACING(4),
 #endif
 			MB_COMBOCVAR("LIT Loading", r_loadlits, loadlitopts, loadlitvalues, "Determines if the engine should use external colored lighting for maps. The generated setting will cause the engine to generate colored lighting for maps that don't have the associated data."),
+			MB_COMBOCVAR("Deluxmapping", r_deluxmapping_cvar, loadlitopts, loadlitvalues, "Controls whether static lighting should respond to lighting directions."),
 			MB_CHECKBOXCVAR("Lightstyle Lerp", r_lightstylesmooth, 0),
 			MB_SPACING(4),
 			MB_COMBOCVAR("Flash Blend", r_flashblend, fbopts, fbvalues, "Disables or enables the spherical light effect for dynamic lights. Traced means the sphere effect will be line of sight checked before displaying the effect."),
@@ -2507,6 +2493,9 @@ void M_Menu_Video_f (void)
 #ifdef VKQUAKE
 		"Vulkan (Experimental)",
 #endif
+#ifdef D3D8QUAKE
+		"Direct3D 8 (limited)",
+#endif
 #ifdef D3D9QUAKE
 		"Direct3D 9 (limited)",
 #endif
@@ -2532,6 +2521,9 @@ void M_Menu_Video_f (void)
 #endif
 #ifdef VKQUAKE
 		"vk",
+#endif
+#ifdef D3D8QUAKE
+		"d3d8",
 #endif
 #ifdef D3D9QUAKE
 		"d3d9",

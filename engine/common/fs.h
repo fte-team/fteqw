@@ -68,6 +68,7 @@ void FS_UnRegisterFileSystemModule(void *module);
 
 void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, const char *pakpath, const char *qhash, const char *pakprefix);
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri);
+void PM_EnumeratePlugins(void (*callback)(const char *name));
 int PM_IsApplying(qboolean listsonly);
 void PM_ManifestPackage(const char *name, int security);
 qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize);	//names the engine we should be running
@@ -84,3 +85,6 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 #define SPF_WRITABLE		64	//safe to write here. lots of weird rules etc.
 #define SPF_BASEPATH		128	//part of the basegames, and not the mod gamedir(s).
 qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, unsigned int flags);
+
+vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *infile);
+vfsfile_t *FS_GZ_WriteFilter(vfsfile_t *outfile, qboolean autoclosefile, qboolean compress);

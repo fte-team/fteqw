@@ -693,8 +693,6 @@ void QCBUILTIN PF_CL_uploadimage (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	G_INT(OFS_RETURN) = 0;	//assume the worst
 
-#define RT_IMAGEFLAGS IF_NOMIPMAP|IF_CLAMP|IF_LINEAR|IF_RENDERTARGET
-
 	if (width < 0 || height < 0 || width > 16384 || height > 16384)
 	{	//this is actually kinda likely when everyone assumes everything is a float.
 		PR_BIError(prinst, "PF_CL_uploadimage: dimensions are out of range\n");
@@ -892,7 +890,11 @@ void QCBUILTIN PF_CL_drawline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			"}\n"
 		"}\n");
 
-	BE_DrawMesh_Single(shader_draw_line, &mesh, NULL, flags|BEF_LINES);
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_Line(point1[0], point1[1], point2[0], point2[1], shader_draw_line);
+	R2D_ImageColours(1,1,1,1);
+
+//	BE_DrawMesh_Single(shader_draw_line, &mesh, NULL, flags|BEF_LINES);
 }
 
 //vector  drawgetimagesize(string pic) = #460;

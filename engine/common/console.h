@@ -196,7 +196,7 @@ extern	console_t	*con_chat;
 //shared between console and keys.
 //really the console input should be in console.c instead of keys.c I suppose.
 #define		MAXCMDLINE	8192
-#define		CON_EDIT_LINES_MASK ((1<<6)-1)
+#define		CON_EDIT_LINES_MASK ((1<<8)-1)
 extern	unsigned char	*key_lines[CON_EDIT_LINES_MASK+1];
 extern	int		edit_line;
 extern	int		key_linepos;

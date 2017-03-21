@@ -201,7 +201,7 @@ cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
 												CVAR_NOTFROMSERVER);
 cvar_t scr_centersbar						= CVAR  ("scr_centersbar", "2");
 cvar_t scr_centertime						= CVAR  ("scr_centertime", "2");
-cvar_t scr_logcenterprint					= CVARD  ("con_logcenterprint", "1", "");
+cvar_t scr_logcenterprint					= CVARD  ("con_logcenterprint", "1", "Specifies whether to print centerprints on the console.\n0: never\n1: single-player or coop only.\n2: always.\n");
 cvar_t scr_chatmodecvar						= CVAR  ("scr_chatmode", "0");
 cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 												Cvar_Limiter_ZeroToOne_Callback);
@@ -314,9 +314,9 @@ cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
 cvar_t r_tessellation_level					= CVAR  ("r_tessellation_level", "5");
 cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
 cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Blend sprites instead of alpha testing them");
-cvar_t r_deluxemapping_cvar					= CVARAFD ("r_deluxemapping", "0", "r_glsl_deluxemapping",
-												CVAR_ARCHIVE, "Enables bumpmapping based upon precomputed light directions");
-qboolean r_deluxemapping;
+cvar_t r_deluxmapping_cvar					= CVARAFD ("r_deluxmapping", "0", "r_deluxemapping",	//fixme: rename to r_glsl_deluxmapping once configs catch up
+												CVAR_ARCHIVE, "Enables bumpmapping based upon precomputed light directions.\n0=off\n1=use if available\n2=auto-generate (if possible)");
+qboolean r_deluxmapping;
 cvar_t r_shaderblobs						= CVARD ("r_shaderblobs", "0", "If enabled, can massively accelerate vid restarts / loading (especially with the d3d renderer). Can cause issues when upgrading engine versions, so this is disabled by default.");
 cvar_t gl_compress							= CVARFD ("gl_compress", "0", CVAR_ARCHIVE, "Enable automatic texture compression even for textures which are not pre-compressed.");
 cvar_t gl_conback							= CVARFDC ("gl_conback", "",
@@ -476,7 +476,7 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
-	Cvar_Register (&r_deluxemapping_cvar, GRAPHICALNICETIES);
+	Cvar_Register (&r_deluxmapping_cvar, GRAPHICALNICETIES);
 
 #ifdef R_XFLIP
 	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
@@ -1051,8 +1051,13 @@ extern rendererinfo_t rpirendererinfo;
 rendererinfo_t waylandrendererinfo;
 rendererinfo_t fbdevrendererinfo;
 #endif
-#ifdef D3DQUAKE
+#ifdef D3D8QUAKE
+extern rendererinfo_t d3d8rendererinfo;
+#endif
+#ifdef D3D9QUAKE
 extern rendererinfo_t d3d9rendererinfo;
+#endif
+#ifdef D3D11QUAKE
 extern rendererinfo_t d3d11rendererinfo;
 #endif
 #ifdef SWQUAKE
@@ -1090,6 +1095,9 @@ rendererinfo_t *rendererinfo[] =
 #endif
 #ifdef VKQUAKE
 	&vkrendererinfo,
+#endif
+#ifdef D3D8QUAKE
+	&d3d8rendererinfo,
 #endif
 #ifndef NPQTV
 	&dedicatedrendererinfo,
@@ -1347,7 +1355,7 @@ TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 TRACE(("dbg: R_ApplyRenderer: vid applied\n"));
 
 		r_softwarebanding = false;
-		r_deluxemapping = false;
+		r_deluxmapping = false;
 		r_lightprepass = false;
 
 		W_LoadWadFile("gfx.wad");
@@ -1950,6 +1958,7 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 	else if (psprite->frames[frame].type == SPR_ANGLED)
 	{
 		pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
+//		pspriteframe = pspritegroup->frames[(int)((r_refdef.viewangles[1]-currententity->angles[1])/360*pspritegroup->numframes + 0.5-4)%pspritegroup->numframes];
 		pspriteframe = pspritegroup->frames[(int)((r_refdef.viewangles[1]-currententity->angles[1])/360*8 + 0.5-4)&7];
 	}
 	else

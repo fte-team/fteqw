@@ -115,7 +115,7 @@ cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "A
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.\n");
 cvar_t	sys_platform = CVAR("sys_platform", PLATFORM);
 cvar_t	pm_downloads_url = CVARFD("pm_downloads_url", NULL, CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "The URL of a package updates list.");	//read from the default.fmf
-cvar_t	pm_autoupdate = CVARFD("pm_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_ARCHIVE, "0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
+cvar_t	pm_autoupdate = CVARFD("pm_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -308,11 +308,11 @@ int Q_strlen (char *str)
 
 char *Q_strrchr(char *s, char c)
 {
-    int len = Q_strlen(s);
-    s += len;
-    while (len--)
-        if (*--s == c) return s;
-    return 0;
+	int len = Q_strlen(s);
+	s += len;
+	while (len--)
+		if (*--s == c) return s;
+	return 0;
 }
 
 void Q_strcat (char *dest, char *src)
@@ -355,6 +355,7 @@ int Q_strncmp (char *s1, char *s2, int count)
 
 #endif
 
+//case comparisons are specific to ascii only, so this should be 'safe' for utf-8 strings too.
 int Q_strncasecmp (const char *s1, const char *s2, int n)
 {
 	int		c1, c2;
@@ -2933,32 +2934,33 @@ static char *bidi_chartype;
 static unsigned int bidi_charcount;
 
 
-//semi-colon delimited tokens
-char *COM_ParseStringSetSep (const char *data, char sep)
+//semi-colon delimited tokens, without whitespace awareness
+char *COM_ParseStringSetSep (const char *data, char sep, char *out, size_t outsize)
 {
 	int	c;
 	size_t	len;
 
-	COM_AssertMainThread("COM_ParseStringSetSep");
+	if (out == com_token)
+		COM_AssertMainThread("COM_ParseStringSetSep");
 
 	len = 0;
-	com_token[0] = 0;
+	out[0] = 0;
 
 	if (data)
 	for (;*data;)
 	{
-		if (len >= sizeof(com_token)-1)
+		if (len >= outsize-1)
 		{
-			com_token[len] = 0;
+			out[len] = 0;
 			return (char*)data;
 		}
 		c = *data++;
 		if (c == ';')
 			break;
-		com_token[len++] = c;
+		out[len++] = c;
 	}
 
-	com_token[len] = 0;
+	out[len] = 0;
 	return (char*)data;
 }
 void COM_BiDi_Shutdown(void)
@@ -3004,12 +3006,12 @@ static void COM_BiDi_Setup(void)
 			if (end)
 				*end++ = 0;
 
-			tok = COM_ParseStringSetSep(line,';');	//number
+			tok = COM_ParseStringSetSep(line,';', com_token, sizeof(com_token));	//number
 			c = strtoul(com_token, NULL, 16);
-			tok = COM_ParseStringSetSep(tok,';');	//name
-			tok = COM_ParseStringSetSep(tok,';');	//class?
-			tok = COM_ParseStringSetSep(tok,';');	//?
-			tok = COM_ParseStringSetSep(tok,';');	//bidi
+			tok = COM_ParseStringSetSep(tok,';', com_token, sizeof(com_token));	//name
+			tok = COM_ParseStringSetSep(tok,';', com_token, sizeof(com_token));	//class?
+			tok = COM_ParseStringSetSep(tok,';', com_token, sizeof(com_token));	//?
+			tok = COM_ParseStringSetSep(tok,';', com_token, sizeof(com_token));	//bidi
 			if (c < bidi_charcount)
 			{
 				if (!Q_strcasecmp(com_token, "R") || !Q_strcasecmp(com_token, "AL"))
@@ -5825,7 +5827,7 @@ char *Info_ValueForKey (const char *s, const char *key)
 	}
 }
 
-char *Info_KeyForNumber (char *s, int num)
+char *Info_KeyForNumber (const char *s, int num)
 {
 	static char	pkey[1024];
 	char	*o;
@@ -6111,48 +6113,47 @@ void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsi
 	Info_SetValueForStarKey (s, key, value, maxsize);
 }
 
-void Info_Print (char *s, char *lineprefix)
+void Info_Enumerate (const char *s, void *ctx, void(*cb)(void *ctx, const char *key, const char *value))
 {
 	char	key[1024];
 	char	value[1024];
 	char	*o;
-	int		l;
 
 	if (*s == '\\')
 		s++;
 	while (*s)
 	{
 		o = key;
-		while (*s && *s != '\\')
+		while (*s && *s != '\\' && o < key+countof(key)-1)
 			*o++ = *s++;
+		*o = 0;
 
-		l = o - key;
-		if (l < 20)
-		{
-			memset (o, ' ', 20-l);
-			key[20] = 0;
-		}
-		else
-			*o = 0;
-		Con_Printf ("%s%s", lineprefix, key);
-
-		if (!*s)
+		if (!*s++)
 		{
 			//should never happen.
-			Con_Printf ("<no value>\n");
+			cb(ctx, key, "");
 			return;
 		}
 
 		o = value;
-		s++;
-		while (*s && *s != '\\')
+		while (*s && *s != '\\' && o < value+countof(value)-1)
 			*o++ = *s++;
 		*o = 0;
 
 		if (*s)
 			s++;
-		Con_Printf ("%s\n", value);
+		cb(ctx, key, value);
 	}
+}
+
+static void Info_PrintCB (void *ctx, const char *key, const char *value)
+{
+	char *lineprefix = ctx;
+	Con_Printf ("%s%-20s%s\n", lineprefix, key, value);
+}
+void Info_Print (const char *s, const char *lineprefix)
+{
+	Info_Enumerate(s, (void*)lineprefix, Info_PrintCB);
 }
 
 void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags)

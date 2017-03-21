@@ -1755,7 +1755,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 					samples = ql2->lmsize;
 
 					litdata = shifts+ql2->numsurfs;
-					if (r_deluxemapping)
+					if (r_deluxmapping)
 						luxdata = litdata+samples*3;
 				}
 			}
@@ -1817,7 +1817,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 	}
 
 
-	if (!luxdata && r_loadlits.ival && r_deluxemapping)
+	if (!luxdata && r_loadlits.ival && r_deluxmapping)
 	{	//the map util has a '-scalecos X' parameter. use 0 if you're going to use only just lux. without lux scalecos 0 is hideous.
 		char luxname[MAX_QPATH];
 		size_t luxsz = 0;
@@ -1882,14 +1882,14 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 #endif
 
 #ifdef RUNTIMELIGHTING
-	if (!lightmodel && r_loadlits.value == 2 && (!litdata || (!luxdata && r_deluxemapping)))
+	if (!lightmodel && r_loadlits.value == 2 && (!litdata || (!luxdata && r_deluxmapping)))
 	{
 		writelitfile = !litdata;
 		numlightdata = l->filelen;
 		lightmodel = loadmodel;
 		relitsurface = 0;
 	}
-	else if (!lightmodel && r_loadlits.value && r_deluxemapping && !luxdata && !(r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value<=0))
+	else if (!lightmodel && r_deluxmapping_cvar.value>1 && r_deluxmapping && !luxdata && !(r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value<=0))
 	{	//if deluxemapping is on, generate missing lux files a little more often, but don't bother if we have rtlights on anyway.
 		writelitfile = false;
 		numlightdata = l->filelen;
@@ -1915,7 +1915,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		}
 	}
 	/*if we're relighting, make sure there's the proper lux data to be updated*/
-	if (lightmodel == loadmodel && r_deluxemapping && !luxdata)
+	if (lightmodel == loadmodel && r_deluxmapping && !luxdata)
 	{
 		int i;
 		luxdata = ZG_Malloc(&loadmodel->memgroup, samples*3);

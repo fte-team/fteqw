@@ -335,7 +335,6 @@ void QDECL Q_strncpyz(char*d, const char*s, int n);
 #define strncpy Q_strncpy
 #endif*/
 
-
 /*replacement functions which do not care for locale in text formatting ('C' locale), or are non-standard*/
 char *Q_strcasestr(const char *haystack, const char *needle);
 int Q_strncasecmp (const char *s1, const char *s2, int n);
@@ -359,7 +358,8 @@ extern	qboolean	com_eof;
 #define COM_Parse(d) COM_ParseOut(d,com_token, sizeof(com_token))
 #define COM_ParseOut(d,o,l) COM_ParseType(d,o,l,NULL)
 char *COM_ParseType (const char *data, char *out, int outlen, com_tokentype_t *toktype);
-char *COM_ParseStringSet (const char *data, char *out, size_t outlen);
+char *COM_ParseStringSet (const char *data, char *out, size_t outlen);	//whitespace or semi-colon separators
+char *COM_ParseStringSetSep (const char *data, char sep, char *out, size_t outsize);	//single-char-separator, no whitespace
 char *COM_ParseCString (const char *data, char *out, size_t maxoutlen, size_t *writtenlen);
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);
 char *COM_ParseToken (const char *data, const char *punctuation);
@@ -688,12 +688,13 @@ unsigned int COM_RemapMapChecksum(unsigned int checksum);
 #define	MAX_INFO_KEY	256
 char *Info_ValueForKey (const char *s, const char *key);
 void Info_RemoveKey (char *s, const char *key);
-char *Info_KeyForNumber (char *s, int num);
+char *Info_KeyForNumber (const char *s, int num);
 void Info_RemovePrefixedKeys (char *start, char prefix);
 void Info_RemoveNonStarKeys (char *start);
 void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsize);
 void Info_SetValueForStarKey (char *s, const char *key, const char *value, int maxsize);
-void Info_Print (char *s, char *lineprefix);
+void Info_Print (const char *s, const char *lineprefix);
+void Info_Enumerate (const char *s, void *ctx, void(*cb)(void *ctx, const char *key, const char *value));
 void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags);
 
 void Com_BlocksChecksum (int blocks, void **buffer, int *len, unsigned char *outbuf);

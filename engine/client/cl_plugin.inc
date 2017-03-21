@@ -689,7 +689,7 @@ static qintptr_t VARGS Plug_GetNetworkInfo(void *offset, quintptr_t mask, const 
 	if (has(capturing))
 	{
 #ifdef HAVE_MEDIA_ENCODER
-	outptr->capturing = Media_Capturing();
+		outptr->capturing = Media_Capturing();
 #else
 		outptr->capturing = 0;
 #endif

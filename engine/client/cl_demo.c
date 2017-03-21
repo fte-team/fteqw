@@ -2327,39 +2327,34 @@ void CL_PlayDemo(char *demoname, qboolean usesystempath)
 {
 	char	name[256];
 	vfsfile_t *f;
+	int i;
+	char *exts[] =
+	{
+		".qwd",
+		".dem",
+		".mvd",
+		".dm2",
+	};
 
 //
 // open the demo file
 //
-	Q_strncpyz (name, demoname, sizeof(name));
-	COM_DefaultExtension (name, ".qwd", sizeof(name));
-	f = CL_OpenFileInZipOrSys(name, usesystempath);
-	if (!f)
+	f = NULL;
+	for (i = 0; i < countof(exts); i++)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
-		COM_DefaultExtension (name, ".dem", sizeof(name));
-		if (usesystempath)
-			f = VFSOS_Open(name, "rb");
-		else
-			f = FS_OpenVFS(name, "rb", FS_GAME);
-	}
-	if (!f)
-	{
+		COM_DefaultExtension (name, exts[i], sizeof(name));
+		f = CL_OpenFileInZipOrSys(name, usesystempath);
+		if (f)
+			break;
+
+#ifdef AVAIL_GZDEC
 		Q_strncpyz (name, demoname, sizeof(name));
-		COM_DefaultExtension (name, ".mvd", sizeof(name));
-		if (usesystempath)
-			f = VFSOS_Open(name, "rb");
-		else
-			f = FS_OpenVFS(name, "rb", FS_GAME);
-	}
-	if (!f)
-	{
-		Q_strncpyz (name, demoname, sizeof(name));
-		COM_DefaultExtension (name, ".dm2", sizeof(name));
-		if (usesystempath)
-			f = VFSOS_Open(name, "rb");
-		else
-			f = FS_OpenVFS(name, "rb", FS_GAME);
+		COM_DefaultExtension (name, va("%s.gz", exts[i]), sizeof(name));
+		f = CL_OpenFileInZipOrSys(name, usesystempath);
+		if (f)
+			break;
+#endif
 	}
 	if (!f)
 	{
@@ -2370,6 +2365,11 @@ void CL_PlayDemo(char *demoname, qboolean usesystempath)
 		return;
 	}
 	Q_strncpyz (lastdemoname, demoname, sizeof(lastdemoname));
+
+#ifdef AVAIL_GZDEC
+	if (strlen(name) >= 3 && !Q_strcasecmp(name + strlen(name) - 3, ".gz"))
+		f = FS_DecompressGZip(f, NULL);
+#endif
 
 	CL_PlayDemoFile(f, name, usesystempath);
 }

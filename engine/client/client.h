@@ -158,6 +158,7 @@ typedef struct player_info_s
 {
 	int		userid;
 	char	userinfo[EXTENDED_INFO_STRING];
+	qboolean userinfovalid;	//set if we actually know the userinfo (ie: false on vanilla nq servers)
 	char	teamstatus[128];
 	float	teamstatustime;
 
@@ -739,6 +740,7 @@ typedef struct
 
 	qboolean	stillloading;	// set when doing something slow, and the game is still loading.
 
+	qboolean	haveserverinfo;	//nq servers will usually be false. don't override stuff if we already know better.
 	char		serverinfo[MAX_SERVERINFO_STRING];
 	char		serverpaknames[1024];
 	char		serverpakcrcs[1024];
@@ -1022,7 +1024,6 @@ extern int rtlights_first, rtlights_max;
 extern int cl_baselines_count;
 
 extern	qboolean	nomaster;
-extern float	server_version;	// version of server we connected to
 
 //=============================================================================
 

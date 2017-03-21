@@ -649,17 +649,28 @@ void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic)
 			return;
 	}
 
-	if (R2D_Flush)
-		R2D_Flush();
+	if (draw_active_shader != pic || draw_active_flags != r2d_be_flags || draw_mesh.numvertexes+4 > DRAW_QUADS)
+	{
+		if (R2D_Flush)
+			R2D_Flush();
+
+		draw_active_shader = pic;
+		draw_active_flags = r2d_be_flags;
+		R2D_Flush = R2D_ImageFlush;
+
+		draw_mesh.numindexes = 0;
+		draw_mesh.numvertexes = 0;
+	}
 
 	for (i = 0; i < 4; i++)
 	{
-		Vector2Copy(points[i], draw_mesh_xyz[i]);
-		Vector2Copy(texcoords[i], draw_mesh_st[i]);
-		Vector4Copy(draw_active_colour, draw_mesh_colors[i]);
+		Vector2Copy(points[i], draw_mesh_xyz[draw_mesh.numvertexes+i]);
+		Vector2Copy(texcoords[i], draw_mesh_st[draw_mesh.numvertexes+i]);
+		Vector4Copy(draw_active_colour, draw_mesh_colors[draw_mesh.numvertexes+i]);
 	}
 
-	BE_DrawMesh_Single(pic, &draw_mesh, NULL, r2d_be_flags);
+	draw_mesh.numvertexes += 4;
+	draw_mesh.numindexes += 6;
 }
 
 /*draws a block of the current colour on the screen*/
@@ -702,13 +713,18 @@ void R2D_FillBlock(float x, float y, float w, float h)
 void R2D_Line(float x1, float y1, float x2, float y2, shader_t *shader)
 {
 	if (R2D_Flush)
+	{
 		R2D_Flush();
+		R2D_Flush = NULL;
+	}
 
 	VectorSet(draw_mesh_xyz[0], x1, y1, 0);
 	Vector2Set(draw_mesh_st[0], 0, 0);
+	Vector4Copy(draw_active_colour, draw_mesh_colors[0]);
 
 	VectorSet(draw_mesh_xyz[1], x2, y2, 0);
 	Vector2Set(draw_mesh_st[1], 1, 0);
+	Vector4Copy(draw_active_colour, draw_mesh_colors[1]);
 
 	if (!shader)
 	{

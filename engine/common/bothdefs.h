@@ -347,7 +347,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if defined(SWQUAKE) && !defined(_DEBUG)
 	#undef SWQUAKE
 #endif
-#if (defined(D3D9QUAKE) || defined(D3D11QUAKE)) && !defined(D3DQUAKE)
+#if (defined(D3D8QUAKE) || defined(D3D9QUAKE) || defined(D3D11QUAKE)) && !defined(D3DQUAKE)
 #define D3DQUAKE
 #endif
 
@@ -463,7 +463,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define SQL
 #endif
 
-#if (defined(AVAIL_GZDEC) && !defined(ZLIB)) || !defined(NPFTE)
+#if defined(AVAIL_GZDEC) && (!defined(AVAIL_ZLIB) || defined(NPFTE))
 	//gzip needs zlib to work (pk3s can still contain non-compressed files)
 	#undef AVAIL_GZDEC
 #endif

@@ -1220,6 +1220,8 @@ void SV_SendServerInfoChange(const char *key, const char *value);
 void SV_SendMessagesToAll (void);
 void SV_FindModelNumbers (void);
 
+void SV_BroadcastUserinfoChange(client_t *about, qboolean isbasic, const char *key, const char *newval);
+
 //
 // sv_user.c
 //
@@ -1227,7 +1229,7 @@ void SV_FindModelNumbers (void);
 void SVNQ_New_f (void);
 void SVNQ_ExecuteClientMessage (client_t *cl);
 #endif
-qboolean SV_UserInfoIsBasic(char *infoname);	//standard message.
+qboolean SV_UserInfoIsBasic(const char *infoname);	//standard message.
 void SV_ExecuteClientMessage (client_t *cl);
 void SVQ2_ExecuteClientMessage (client_t *cl);
 int SV_PMTypeForClient (client_t *cl, edict_t *ent);
@@ -1498,6 +1500,7 @@ extern cvar_t	sv_demoMaxDirSize;
 char *SV_Demo_CurrentOutput(void);
 void SV_MVDInit(void);
 char *SV_MVDNum(char *buffer, int bufferlen, int num);
+const char *SV_MVDLastNum(unsigned int num);
 void SV_SendMVDMessage(void);
 void SV_MVD_WriteReliables(qboolean writebroadcasts);
 qboolean SV_ReadMVD (void);

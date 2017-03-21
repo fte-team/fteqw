@@ -748,49 +748,79 @@ static void M_Menu_Prompt_Cancel (struct menu_s *gm)
 	if (callback)
 		callback(ctx, -1);
 }
-void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, char *m1, char *m2, char *m3, char *optionyes, char *optionno, char *optioncancel)
+void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, const char *messages, char *optionyes, char *optionno, char *optioncancel)
 {
 	promptmenu_t *m;
 	char *t;
+	int y;
+	int x = 64, w = 224;
 
 	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
-	m = (promptmenu_t*)M_CreateMenuInfront(sizeof(*m) - sizeof(m->m) + strlen(m1)+strlen(m2)+strlen(m3)+strlen(optionyes)+strlen(optionyes)+strlen(optioncancel)+6);
+	m = (promptmenu_t*)M_CreateMenuInfront(sizeof(*m) - sizeof(m->m) + strlen(messages)+(optionyes?strlen(optionyes):0)+(optionno?strlen(optionno):0)+(optioncancel?strlen(optioncancel):0)+6);
 	m->callback =  callback;
 	m->ctx = ctx;
 	m->m.remove = M_Menu_Prompt_Cancel;
 
 	t = (char*)(m+1);
-	strcpy(t, m1);
-	m1 = t;
-	t += strlen(t)+1;
-	strcpy(t, m2);
-	m2 = t;
-	t += strlen(t)+1;
-	strcpy(t, m3);
-	m3 = t;
-	t += strlen(t)+1;
-	strcpy(t, optionyes);
-	optionyes = t;
-	t += strlen(t)+1;
-	strcpy(t, optionno);
-	optionno = t;
-	t += strlen(t)+1;
-	strcpy(t, optioncancel);
-	optioncancel = t;
+	if (optionyes)
+	{
+		strcpy(t, optionyes);
+		optionyes = t;
+		t += strlen(t)+1;
+	}
+	if (optionno)
+	{
+		strcpy(t, optionno);
+		optionno = t;
+		t += strlen(t)+1;
+	}
+	if (optioncancel)
+	{
+		strcpy(t, optioncancel);
+		optioncancel = t;
+		t += strlen(t)+1;
+	}
 
-	MC_AddWhiteText(&m->m, 64, 0, 84,	 m1, false);
-	MC_AddWhiteText(&m->m, 64, 0, 92,	 m2, false);
-	MC_AddWhiteText(&m->m, 64, 0, 100,	 m3, false);
-	                
-	m->b_yes	= MC_AddCommand(&m->m, 64, 0, 116, optionyes,		M_Menu_Prompt_Button);
-	m->b_no		= MC_AddCommand(&m->m, 144,0, 116, optionno,		M_Menu_Prompt_Button);
-	m->b_cancel	= MC_AddCommand(&m->m, 224,0, 116, optioncancel,	M_Menu_Prompt_Button);
+	y = 76;
+	y += 8;	//top border
+	strcpy(t, messages);
+
+	for(messages = t; t; y += 8)
+	{
+		messages = t;
+		t = strchr(messages, '\n');
+		if (t)
+			*t++ = 0;
+		if (*messages)
+			MC_AddWhiteText(&m->m, x, x+w, y, messages, 2);
+	}
+
+	y += 8;	//blank space
+
+	if (optionyes)
+	{
+		m->b_yes	= MC_AddCommand(&m->m, x, x+70, y, optionyes,		M_Menu_Prompt_Button);
+		m->b_yes->rightalign = 2;
+	}
+	if (optionno)
+	{
+		m->b_no		= MC_AddCommand(&m->m, x+w/3, x+(2*w)/3, y, optionno,		M_Menu_Prompt_Button);
+		m->b_no->rightalign = 2;	//actually center align
+	}
+	if (optioncancel)
+	{
+		m->b_cancel	= MC_AddCommand(&m->m, x+(2*w)/3, x+w, y, optioncancel,	M_Menu_Prompt_Button);
+		m->b_cancel->rightalign = 2;
+	}
+	y += 8; //footer
+
+	y += 8;	//bottom border
 
 	m->m.selecteditem = (menuoption_t *)m->b_cancel;
 
-	MC_AddBox (&m->m, 56, 76, 25, 5);
+	MC_AddBox (&m->m, x-8, 76, (w/8), (y-76)/8);
 }
 
 //=============================================================================
@@ -1372,8 +1402,8 @@ void M_Draw (int uimenu)
 #ifndef NOBUILTINMENUS
 	if ((!menu_script || scr_con_current) && !m_recursiveDraw)
 	{
-		extern menu_t *firstmenu;
-		if (m_state == m_complex && firstmenu && firstmenu->selecteditem && firstmenu->selecteditem->common.type == mt_slider && (firstmenu->selecteditem->slider.var == &v_gamma || firstmenu->selecteditem->slider.var == &v_contrast))
+		extern menu_t *topmenu;
+		if (m_state == m_complex && topmenu && topmenu->selecteditem && topmenu->selecteditem->common.type == mt_slider && (topmenu->selecteditem->slider.var == &v_gamma || topmenu->selecteditem->slider.var == &v_contrast))
 			/*no menu tint if we're trying to adjust gamma*/;
 		else
 			R2D_FadeScreen ();

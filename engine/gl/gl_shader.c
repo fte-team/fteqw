@@ -299,7 +299,7 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 		else if (!Q_stricmp(token, "lightmap"))
 			conditiontrue = conditiontrue == !r_fullbright.value;
 		else if (!Q_stricmp(token, "deluxmap"))
-			conditiontrue = conditiontrue == r_deluxemapping;
+			conditiontrue = conditiontrue == r_deluxmapping;
 		else if (!Q_stricmp(token, "softwarebanding"))
 			conditiontrue = conditiontrue == r_softwarebanding;
 
@@ -311,6 +311,8 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 			conditiontrue = conditiontrue == (qrenderer == QR_VULKAN);
 		else if (!Q_stricmp(token, "opengl"))
 			conditiontrue = conditiontrue == (qrenderer == QR_OPENGL);
+		else if (!Q_stricmp(token, "d3d8"))
+			conditiontrue = conditiontrue == (qrenderer == QR_DIRECT3D8);
 		else if (!Q_stricmp(token, "d3d9"))
 			conditiontrue = conditiontrue == (qrenderer == QR_DIRECT3D9);
 		else if (!Q_stricmp(token, "d3d11"))
@@ -1354,6 +1356,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 					cantess = true;
 				else if (strncmp("SPECULAR", script, end - script))
 				if (strncmp("DELUXE", script, end - script))
+				if (strncmp("DELUX", script, end - script))
 				if (strncmp("OFFSETMAPPING", script, end - script))
 				if (strncmp("RELIEFMAPPING", script, end - script))
 					Con_DPrintf("Unknown pemutation in glsl program %s\n", name);
@@ -1585,7 +1588,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 					permutationdefines[pn++] = "#define RELIEFMAPPING\n";
 			}
 
-			if (r_deluxemapping)	//fixme: should be per-model really
+			if (r_deluxmapping)	//fixme: should be per-model really
 				permutationdefines[pn++] = "#define DELUXE\n";
 		}
 		permutationdefines[pn++] = NULL;

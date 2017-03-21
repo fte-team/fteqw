@@ -2135,7 +2135,6 @@ SV_Serverinfo_f
   Examine or change the serverinfo string
 ===========
 */
-extern char *Info_KeyForNumber(char *s, int num);
 void SV_Serverinfo_f (void)
 {
 	cvar_t	*var;

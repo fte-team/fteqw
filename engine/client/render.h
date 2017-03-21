@@ -43,7 +43,7 @@ static const texid_t r_nulltex = NULL;
 //desktop-gl will generally cope with ints, but expect a performance hit from that with old gpus (so we don't bother)
 //vulkan+dx10 can cope with ints, but might be 24bit
 //either way, all renderers in the same build need to use the same thing.
-#if (defined(GLQUAKE) && !defined(NOLEGACY)) || defined(MINIMAL) || defined(D3D9QUAKE) || defined(ANDROID)
+#if (defined(GLQUAKE) && !defined(NOLEGACY)) || defined(MINIMAL) || defined(D3D8QUAKE) || defined(D3D9QUAKE) || defined(ANDROID)
 	#define sizeof_index_t 2
 #endif
 #if sizeof_index_t == 2
@@ -438,7 +438,14 @@ void Image_Shutdown(void);
 
 image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
 
+#ifdef D3D8QUAKE
+void		D3D8_Set2D (void);
+void		D3D8_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
+qboolean	D3D8_LoadTextureMips	(texid_t tex, struct pendingtextureinfo *mips);
+void		D3D8_DestroyTexture		(texid_t tex);
+#endif
 #ifdef D3D9QUAKE
+void		D3D9_Set2D (void);
 void		D3D9_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
 qboolean	D3D9_LoadTextureMips	(texid_t tex, struct pendingtextureinfo *mips);
 void		D3D9_DestroyTexture		(texid_t tex);
@@ -597,8 +604,8 @@ extern	cvar_t	r_telestyle;
 extern	cvar_t	r_dynamic;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
-extern	cvar_t	r_deluxemapping_cvar;
-extern	qboolean r_deluxemapping;
+extern	cvar_t	r_deluxmapping_cvar;
+extern	qboolean r_deluxmapping;
 extern	cvar_t r_softwarebanding_cvar;
 extern	qboolean r_softwarebanding;
 extern	cvar_t r_lightprepass_cvar;

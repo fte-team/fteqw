@@ -1878,9 +1878,9 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 				COM_CreatePath(fullname);
 			vfs =  VFSOS_Open(fullname, mode);
 		}
-		if (vfs && !strcmp(mode, "wb"))
-
-		return vfs;
+		if (vfs && (*mode == 'w' || *mode == 'a'))
+			return vfs;
+		//fall through
 	case FS_PUBGAMEONLY:
 		if (!FS_NativePath(filename, relativeto, fullname, sizeof(fullname)))
 			return NULL;
@@ -2912,7 +2912,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	if (*dir == '.' || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
 		|| strstr(dir, "\\") || strstr(dir, ":") || strstr(dir, "\"") )
 	{
-		Con_Printf ("Gamedir should be a single filename, not a path\n");
+		Con_Printf ("Gamedir should be a single filename, not \"%s\"\n", dir);
 		return;
 	}
 
@@ -3105,6 +3105,24 @@ const gamemode_info_t gamemode_info[] = {
 	{NULL}
 };
 
+void QDECL Q_strnlowercatz(char *d, const char *s, int n)
+{
+	int c = strlen(d);
+	d += c;
+	n -= c;
+	n -= 1;	//for the null
+	while (*s && n-- > 0)
+	{
+		if (*s >= 'A' && *s <= 'Z')
+			*d = (*s-'A') + 'a';
+		else
+			*d = *s;
+		d++;
+		s++;
+	}
+	*d = 0;
+}
+
 qboolean FS_GenCachedPakName(const char *pname, const char *crc, char *local, int llen)
 {
 	const char *fn;
@@ -3117,7 +3135,8 @@ qboolean FS_GenCachedPakName(const char *pname, const char *crc, char *local, in
 
 	if (!strncmp(pname, "downloads/", 10))
 	{
-		Q_snprintfz(local, llen, "%s", pname);
+		*local = 0;
+		Q_strnlowercatz(local, pname, llen);
 		return true;
 	}
 
@@ -3137,7 +3156,7 @@ qboolean FS_GenCachedPakName(const char *pname, const char *crc, char *local, in
 	}
 	Q_strncpyz(local, pname, min((fn - pname) + 1, llen));
 	Q_strncatz(local, "dlcache/", llen);
-	Q_strncatz(local, fn, llen);
+	Q_strnlowercatz(local, fn, llen);
 	if (crc && *crc)
 	{
 		Q_strncatz(local, ".", llen);
@@ -3198,6 +3217,7 @@ qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, in
 
 //'small' wrapper to open foo.zip/bar to read files within zips that are not part of the gamedir.
 //name needs to be null terminated. recursive. pass null for search.
+//name is restored to its original state after the call, only technically not const
 vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name)
 {
 	int found;
@@ -3207,6 +3227,9 @@ vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name)
 	char ext[8];
 	char *end;
 	int i;
+
+	//keep chopping off the last part of the filename until we get an actual package
+	//once we do, recurse into that package
 
 	end = name + strlen(name);
 
@@ -3412,7 +3435,13 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			if (!*dir || *dir == '.' || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
 				|| strstr(dir, "\\") || strstr(dir, ":") )
 			{
-				Con_Printf ("Gamedir should be a single filename, not a path\n");
+				Con_Printf ("Gamedir should be a single filename, not \"%s\"\n", dir);
+				continue;
+			}
+
+			if (!Q_strncasecmp(dir, "downloads", 9))
+			{
+				Con_Printf ("Gamedir should not be \"%s\"\n", dir);
 				continue;
 			}
 
@@ -4296,8 +4325,6 @@ qboolean FS_DownloadingPackage(void)
 	return !fs_manifest || !!curpackagedownload;
 }
 //vfsfile_t *FS_DecompressXZip(vfsfile_t *infile, vfsfile_t *outfile);
-vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *infile);
-vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefile);
 static void FS_ExtractPackage(searchpathfuncs_t *archive, flocation_t *loc, const char *origname, const char *finalname)
 {
 	vfsfile_t *in = archive->OpenVFS(archive, loc, "rb");
@@ -4681,7 +4708,7 @@ static qboolean FS_BeginPackageDownload(struct manpack_s *pack, char *baseurl, q
 			break;
 		case X_GZ:
 #ifdef AVAIL_GZDEC
-			tmpf = FS_GZ_DecompressWriteFilter(tmpf, true);
+			tmpf = FS_GZ_WriteFilter(tmpf, true, false);
 #else
 			VFS_CLOSE(tmpf);
 			tmpf = NULL;

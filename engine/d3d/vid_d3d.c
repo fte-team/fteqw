@@ -898,7 +898,7 @@ void D3D9_Set2D (void)
 	r_refdef.pxrect.width = vid.fbpwidth;
 	r_refdef.pxrect.height = vid.fbpheight;
 
-	D3DBE_Set2D();
+	D3D9BE_Set2D();
 }
 
 static int d3d9error(int i)

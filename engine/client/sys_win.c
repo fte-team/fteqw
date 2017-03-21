@@ -1038,6 +1038,8 @@ qboolean Sys_remove (char *path)
 		err = GetLastError();
 		if (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND)
 			return true;	//succeed when the file already didn't exist
+		if (err == ERROR_ACCESS_DENIED)
+			return false;	//windows is shite. this may simply include that its open in another process that didn't include the SHARE_DELETE permission.
 		return false;		//other errors? panic
 	}
 	else
@@ -3657,6 +3659,14 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	memset(&parms, 0, sizeof(parms));
 
+	/*work around potentially serious windows flaw loading dlls from the current directory, by loading a dll...*/
+	{
+		BOOL (WINAPI *pSetDllDirectoryW)(LPCWSTR lpPathName);
+		dllfunction_t ffsfuncs[] = {{(void*)&pSetDllDirectoryW, "SetDllDirectoryW"}, {NULL,NULL}};
+		if (Sys_LoadLibrary("kernel32.dll", ffsfuncs))
+			pSetDllDirectoryW(L"");	//disables it (null for 'use working directory')
+	}
+
 	Win7_Init();
 
 #ifdef _MSC_VER
@@ -3850,6 +3860,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 						old = FindWindowW(L"FTED3D11QUAKE", NULL);
 					if (!old)
 						old = FindWindowW(L"FTED3D9QUAKE", NULL);
+					if (!old)
+						old = FindWindowW(L"FTED3D8QUAKE", NULL);
 					if (old)
 					{
 						COPYDATASTRUCT cds;

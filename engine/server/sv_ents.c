@@ -178,9 +178,14 @@ qboolean SV_AddNailUpdate (edict_t *ent)
 {
 	if (ent->v->modelindex != sv_nailmodel
 		&& ent->v->modelindex != sv_supernailmodel)
-		return false;
+		return false;	//must be a nail
 	if (sv_nailhack.value || (host_client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
-		return false;
+		return false;	//'nailhack' is named because of a qizmo-publicised binary hack to disable svc_nails. replacementdeltas also trims much of the state so we may as well use it.
+						//should probably also detect qizmo specifically - its trajectory stuff beats svc_nails.
+	if (ent->v->origin[0] <= -4096 || ent->v->origin[0] >= 4096 ||
+		ent->v->origin[1] <= -4096 || ent->v->origin[1] >= 4096 ||
+		ent->v->origin[2] <= -4096 || ent->v->origin[2] >= 4096)
+		return !(host_client->fteprotocolextensions & PEXT_FLOATCOORDS);	//outside the bounds of the nails protocol. just swallow it if it can't be sent anyway.
 
 #ifdef SERVER_DEMO_PLAYBACK
 	demonails = false;

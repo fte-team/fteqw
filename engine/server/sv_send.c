@@ -1196,14 +1196,17 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 
 		if (reliable)
 		{
-			char msgbuf[1024];
+			char msgbuf[8192];
 			sizebuf_t msg = {0};
 			msg.data = msgbuf;
 			msg.maxsize = sizeof(msgbuf);
 			msg.prim = client->datagram.prim;
 			callback(client, &msg, ctx);
-			ClientReliableCheckBlock(client, msg.cursize);
-			ClientReliableWrite_SZ(client, msg.data, msg.cursize);
+			if (msg.cursize)
+			{
+				ClientReliableCheckBlock(client, msg.cursize);
+				ClientReliableWrite_SZ(client, msg.data, msg.cursize);
+			}
 		}
 		else
 			callback(client, &client->datagram, ctx);
@@ -2863,7 +2866,12 @@ void SV_UpdateToReliableMessages (void)
 							continue;
 						ClientReliableWrite_Begin(client, svc_updatefrags, 4);
 						ClientReliableWrite_Byte(client, i);
-						ClientReliableWrite_Short(client, host_client->edict->v->frags);
+#ifdef NQPROT
+						if (ISNQCLIENT(client) && host_client->spectator == 1)
+							ClientReliableWrite_Short(client, -999);
+						else
+#endif
+							ClientReliableWrite_Short(client, host_client->edict->v->frags);
 					}
 
 					if (sv.mvdrecording)
@@ -2926,7 +2934,12 @@ void SV_UpdateToReliableMessages (void)
 						continue;
 					ClientReliableWrite_Begin(client, svc_updatefrags, 4);
 					ClientReliableWrite_Byte(client, i);
-					ClientReliableWrite_Short(client, curfrags);
+#ifdef NQPROT
+					if (ISNQCLIENT(client) && host_client->spectator == 1)
+						ClientReliableWrite_Short(client, -999);
+					else
+#endif
+						ClientReliableWrite_Short(client, curfrags);
 				}
 
 				if (sv.mvdrecording)
@@ -3011,6 +3024,91 @@ void SV_UpdateToReliableMessages (void)
 //#endif
 
 
+//a single userinfo value was changed.
+static void SV_SendUserinfoChange(client_t *to, client_t *about, qboolean isbasic, const char *key, const char *newval)
+{
+	int playernum = about - svs.clients;
+
+	if (ISQWCLIENT(to))
+	{
+		if (isbasic || (to->fteprotocolextensions & PEXT_BIGUSERINFOS))
+		{
+			ClientReliableWrite_Begin(to, svc_setinfo, 4+strlen(key)+strlen(newval));
+			ClientReliableWrite_Byte(to, playernum);
+			ClientReliableWrite_String(to, key);
+			ClientReliableWrite_String(to, newval);
+		}
+	}
+#ifdef NQPROT
+	else if (ISNQCLIENT(to))
+	{
+		if (!strcmp(key, "*spectator"))
+		{	//nq does not support spectators, mods tend to use frags=-999 or -99 instead.
+			//yes, this breaks things.
+			ClientReliableWrite_Begin(to, svc_updatefrags, 4);
+			ClientReliableWrite_Byte(to, playernum);
+			if (atoi(newval) == 1)
+				ClientReliableWrite_Short(to, -999);
+			else
+				ClientReliableWrite_Short(to, about->old_frags);	//restore their true frag count
+		}
+		else if (!strcmp(key, "name"))
+		{
+			ClientReliableWrite_Begin(to, svc_updatename, 3+strlen(newval));
+			ClientReliableWrite_Byte(to, playernum);
+			ClientReliableWrite_String(to, newval);
+		}
+		else if (!strcmp(key, "topcolor") || !strcmp(key, "bottomcolor"))
+		{	//due to these being combined, nq players get double colour change notifications...
+			int tc = atoi(Info_ValueForKey(about->userinfo, "topcolor"));
+			int bc = atoi(Info_ValueForKey(about->userinfo, "bottomcolor"));
+			if (tc < 0 || tc > 13)
+				tc = 0;
+			if (bc < 0 || bc > 13)
+				bc = 0;
+			ClientReliableWrite_Begin(to, svc_updatecolors, 3);
+			ClientReliableWrite_Byte(to, playernum);
+			ClientReliableWrite_Byte(to, 16*tc + bc);
+		}
+
+		if (to->fteprotocolextensions2 & PEXT2_PREDINFO)
+		{
+			char quotedkey[1024];
+			char quotedval[8192];
+			char *s = va("//ui %i %s %s\n", playernum, COM_QuotedString(key, quotedkey, sizeof(quotedkey), false), COM_QuotedString(newval, quotedval, sizeof(quotedval), false));
+			ClientReliableWrite_Begin(to, svc_stufftext, 2+strlen(s));
+			ClientReliableWrite_String(to, s);
+		}
+	}
+#endif
+}
+void SV_BroadcastUserinfoChange(client_t *about, qboolean isbasic, const char *key, const char *newval)
+{
+	client_t *client;
+	int j;
+	for (j = 0; j < svs.allocated_client_slots; j++)
+	{
+		client = svs.clients+j;
+		if (client->state < cs_connected)
+			continue;	// reliables go to all connected or spawned
+		if (client->controller)
+			continue;	//splitscreen
+
+		if (client->protocol == SCP_BAD)
+			continue;	//botclient
+
+		SV_SendUserinfoChange(client, about, isbasic, key, newval);
+	}
+
+	if (sv.mvdrecording && (isbasic || (demo.recorder.fteprotocolextensions & PEXT_BIGUSERINFOS)))
+	{
+		sizebuf_t *msg = MVDWrite_Begin (dem_all, 0, strlen(key)+strlen(newval)+4);
+		MSG_WriteByte (msg, svc_setinfo);
+		MSG_WriteByte (msg, about - svs.clients);
+		MSG_WriteString (msg, key);
+		MSG_WriteString (msg, newval);
+	}
+}
 
 /*
 =======================

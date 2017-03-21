@@ -76,8 +76,8 @@ cvar_t	crosshair				= CVARF("crosshair", "1", CVAR_ARCHIVE);
 cvar_t	crosshaircolor			= CVARF("crosshaircolor", "255 255 255", CVAR_ARCHIVE);
 cvar_t	crosshairsize			= CVARF("crosshairsize", "8", CVAR_ARCHIVE);
 
-cvar_t  cl_crossx				= CVARF("cl_crossx", "0", CVAR_ARCHIVE);
-cvar_t  cl_crossy				= CVARF("cl_crossy", "0", CVAR_ARCHIVE);
+cvar_t	cl_crossx				= CVARF("cl_crossx", "0", CVAR_ARCHIVE);
+cvar_t	cl_crossy				= CVARF("cl_crossy", "0", CVAR_ARCHIVE);
 cvar_t	crosshaircorrect		= CVARF("crosshaircorrect", "0", CVAR_SEMICHEAT);
 cvar_t	crosshairimage			= CVAR("crosshairimage", "");
 cvar_t	crosshairalpha			= CVAR("crosshairalpha", "1");

@@ -937,7 +937,7 @@ static void SCR_NetStats(int x, int y, float period, vmnetinfo_t *netinfo)
     static float  ping_dev;
     static float  f_min, f_max, f_avg;
     static int    lost_lost, lost_delta, lost_rate, lost_total;
-    static int    size_all, size_in, size_out;
+    static int    size_all, size_in, size_out, pps_in, pps_out;
     static int    bandwidth_all, bandwidth_in, bandwidth_out;
     static int    with_delta;
 
@@ -981,6 +981,9 @@ static void SCR_NetStats(int x, int y, float period, vmnetinfo_t *netinfo)
         clamp(lost_rate,  0, 100);
         clamp(lost_delta, 0, 100);
         clamp(lost_total, 0, 100);
+
+		pps_in = netinfo->clrate.in_pps;
+		pps_out = netinfo->clrate.out_pps;
 
 		//per packet sizes
         size_in  = (int)(netinfo->clrate.in_bps/netinfo->clrate.in_pps + 0.5);
@@ -1047,15 +1050,15 @@ static void SCR_NetStats(int x, int y, float period, vmnetinfo_t *netinfo)
     Draw_Alt_String(x+4, y, "packet size/BPS");
     y+=12;
 
-    snprintf(line, sizeof (line), "out    %3d %5d", size_out, bandwidth_out);
+    snprintf(line, sizeof (line), "out    %3d %5d %d", size_out, bandwidth_out, pps_out);
     Draw_String(x, y, line);
     y+=8;
 
-    snprintf(line, sizeof (line), "in     %3d %5d", size_in, bandwidth_in);
+    snprintf(line, sizeof (line), "in     %3d %5d %3d", size_in, bandwidth_in, pps_in);
     Draw_String(x, y, line);
     y+=8;
 
-    snprintf(line, sizeof (line), "total  %3d %5d", size_all, bandwidth_all);
+    snprintf(line, sizeof (line), "total  %3d %5d %3d", size_all, bandwidth_all, pps_in+pps_out);
     Draw_String(x, y, line);
     y+=8;
 }

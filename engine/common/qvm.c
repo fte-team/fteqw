@@ -104,6 +104,11 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 		if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 
+		if (!hVM && FS_NativePath(dllname_arch, FS_ROOT, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
+		if (!hVM && FS_NativePath(dllname_anycpu, FS_ROOT, fname, sizeof(fname)))
+			hVM = Sys_LoadLibrary(fname, funcs);
+
 		// run through the search paths
 		iterator = NULL;
 		while (!hVM && COM_IteratePaths(&iterator, NULL, 0, gpath, sizeof(gpath)))

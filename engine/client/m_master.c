@@ -1060,7 +1060,7 @@ static void CalcFilters(menu_t *menu)
 		if (info->filter[2]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_QUAKEWORLD, SLIST_TEST_NOTEQUAL);
 	}
 	if (info->filter[3]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_PROXY, SLIST_TEST_NOTCONTAIN);
-	if (info->filter[5]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_FAVORITE, SLIST_TEST_CONTAINS);
+	if (!info->filter[5]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_FAVORITE, SLIST_TEST_CONTAINS);
 	if (info->filter[6]) Master_SetMaskInteger(false, SLKEY_NUMHUMANS, 0, SLIST_TEST_NOTEQUAL);
 	if (info->filter[7]) Master_SetMaskInteger(false, SLKEY_FREEPLAYERS, 0, SLIST_TEST_NOTEQUAL);
 
@@ -1075,7 +1075,7 @@ static qboolean SL_ReFilter (menucheck_t *option, menu_t *menu, chk_set_t set)
 	switch(set)
 	{
 	case CHK_CHECKED:
-		return info->filter[option->bits];
+		return !info->filter[option->bits];
 	case CHK_TOGGLE:
 		if (option->bits>0)
 		{
@@ -1201,22 +1201,23 @@ void M_Menu_ServerList2_f(void)
 #ifdef NQPROT
 	if (M_GameType() == MGT_QUAKE1)
 	{
-		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*1, "Hide NQ   ", SL_ReFilter, 1);
-		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*2, "Hide QW   ", SL_ReFilter, 2);
+		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*1, "Show NQ   ", SL_ReFilter, 1);
+		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*2, "Show QW   ", SL_ReFilter, 2);
 	}
 #endif
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*3, "Hide Proxies", SL_ReFilter, 3);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*3, "Show Proxies", SL_ReFilter, 3);
 	info->filtertext =
 	MC_AddEditCvar    (menu, 128, 200, vid.height - 64+8*4, "Filter   ",	sb_filtertext.name, true);
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*5, "Only Favs ", SL_ReFilter, 5);
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*6, "Show Empty", SL_ReFilter, 6);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*7, "Show Full ", SL_ReFilter, 7);
 
 	MC_AddCommand(menu, 64, 320, 0, info->refreshtext, SL_DoRefresh);
 
 	info->filter[1] = !!sb_hidenetquake.value;
 	info->filter[2] = !!sb_hidequakeworld.value;
 	info->filter[3] = !!sb_hideproxies.value;
+	info->filter[5] = true;//!sb_showonlyfavourites.value;
 	info->filter[6] = !!sb_hideempty.value;
 	info->filter[7] = !!sb_hidefull.value;
 

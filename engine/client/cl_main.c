@@ -286,8 +286,6 @@ jmp_buf 	host_abort;
 
 void Master_Connect_f (void);
 
-float	server_version = 0;	// version of server we connected to
-
 char emodel_name[] =
 	{ 'e' ^ 0xff, 'm' ^ 0xff, 'o' ^ 0xff, 'd' ^ 0xff, 'e' ^ 0xff, 'l' ^ 0xff, 0 };
 char pmodel_name[] =
@@ -1819,7 +1817,7 @@ void CL_User_f (void)
 		if (cl.players[i].userid == uid
 		|| !strcmp(cl.players[i].name, Cmd_Argv(1)) )
 		{
-			if (cls.protocol == CP_NETQUAKE)
+			if (!cl.players[i].userinfovalid)
 				Con_Printf("name: %s\ncolour %i %i\nping: %i\n", cl.players[i].name, cl.players[i].rbottomcolor, cl.players[i].rtopcolor, cl.players[i].ping);
 			else
 				Info_Print (cl.players[i].userinfo, "");
@@ -2011,6 +2009,7 @@ void CL_CheckServerInfo(void)
 	int oldstate;
 #endif
 	int oldteamplay;
+	qboolean spectating = cl.spectator && cl.spectator != 2;	//spectator 2 = spectator-with-scores, considered to be players. this means we don't want to allow spec cheats while they're inactive, because that would be weird.
 
 	oldteamplay = cl.teamplay;
 	cl.teamplay = atoi(Info_ValueForKey(cl.serverinfo, "teamplay"));
@@ -2026,11 +2025,12 @@ void CL_CheckServerInfo(void)
 
 
 	cls.allow_csqc = atoi(Info_ValueForKey(cl.serverinfo, "anycsqc")) || *Info_ValueForKey(cl.serverinfo, "*csprogs");
+	cl.csqcdebug = atoi(Info_ValueForKey(cl.serverinfo, "*csqcdebug"));
 
-	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "watervis")))
+	if (spectating || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "watervis")))
 		cls.allow_watervis=true;
 
-	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_skybox")) || atoi(Info_ValueForKey(cl.serverinfo, "allow_skyboxes")))
+	if (spectating || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_skybox")) || atoi(Info_ValueForKey(cl.serverinfo, "allow_skyboxes")))
 		cls.allow_skyboxes=true;	//mostly obsolete.
 
 	s = Info_ValueForKey(cl.serverinfo, "fbskins");
@@ -2042,7 +2042,7 @@ void CL_CheckServerInfo(void)
 		cls.allow_fbskins = 1;
 
 	s = Info_ValueForKey(cl.serverinfo, "*cheats");
-	if (cl.spectator || cls.demoplayback || !stricmp(s, "on"))
+	if (spectating || cls.demoplayback || !stricmp(s, "on"))
 		cls.allow_cheats = true;
 
 #ifndef CLIENTONLY
@@ -2052,7 +2052,7 @@ void CL_CheckServerInfo(void)
 #endif
 
 	s = Info_ValueForKey(cl.serverinfo, "strict");
-	if ((!cl.spectator && !cls.demoplayback && *s && strcmp(s, "0")) || !ruleset_allow_semicheats.ival)
+	if ((!spectating && !cls.demoplayback && *s && strcmp(s, "0")) || !ruleset_allow_semicheats.ival)
 	{
 		cls.allow_semicheats = false;
 		cls.allow_cheats	= false;
@@ -2127,7 +2127,7 @@ void CL_CheckServerInfo(void)
 		cls.allow_anyparticles = false;
 
 
-	if (cl.spectator || cls.demoplayback)
+	if (spectating || cls.demoplayback)
 		cl.fpd = 0;
 	else
 		cl.fpd = atoi(Info_ValueForKey(cl.serverinfo, "fpd"));
@@ -2180,44 +2180,6 @@ void CL_CheckServerInfo(void)
 
 	if (oldteamplay != cl.teamplay)
 		Skin_FlushPlayers();
-}
-/*
-==================
-CL_FullServerinfo_f
-
-Sent by server just after the svc_serverdata
-==================
-*/
-void CL_FullServerinfo_f (void)
-{
-	char *p;
-	float v;
-
-	if (!Cmd_FromGamecode())
-	{
-		Con_Printf("Hey! fullserverinfo is meant to come from the server!\n");
-		return;
-	}
-
-	if (Cmd_Argc() != 2)
-	{
-		Con_TPrintf ("usage: fullserverinfo <complete info string>\n");
-		return;
-	}
-
-	Q_strncpyz (cl.serverinfo, Cmd_Argv(1), sizeof(cl.serverinfo));
-
-	if ((p = Info_ValueForKey(cl.serverinfo, "*version")) && *p) {
-		v = Q_atof(p);
-		if (v) {
-			if (!server_version)
-				Con_TPrintf ("Version %1.2f Server\n", v);
-			server_version = v;
-		}
-	}
-	CL_CheckServerInfo();
-
-	cl.csqcdebug = atoi(Info_ValueForKey(cl.serverinfo, "*csqcdebug"));
 }
 
 /*
@@ -3537,11 +3499,14 @@ void CL_ReadPackets (void)
 
 //=============================================================================
 
-qboolean CL_AllowArbitaryDownload(char *localfile)
+qboolean CL_AllowArbitaryDownload(char *oldname, char *localfile)
 {
 	int allow;
 	//never allow certain (native code) arbitary downloads.
-	if (!strnicmp(localfile, "game", 4) || !stricmp(localfile, "progs.dat") || !stricmp(localfile, "menu.dat") || !stricmp(localfile, "csprogs.dat") || !stricmp(localfile, "qwprogs.dat") || strstr(localfile, "..") || strstr(localfile, ":") || strstr(localfile, "//") || strstr(localfile, ".qvm") || strstr(localfile, ".dll") || strstr(localfile, ".so"))
+	if (!Q_strncasecmp(localfile, "game", 4) ||	//q2-ey things
+		!Q_strcasecmp(localfile, "progs.dat") || !Q_strcasecmp(localfile, "menu.dat") || !Q_strcasecmp(localfile, "csprogs.dat") || !Q_strcasecmp(localfile, "qwprogs.dat") || //overriding gamecode is bad (csqc should be dlcached)
+		strstr(localfile, "\\") || strstr(localfile, "..") || strstr(localfile, "./") || strstr(localfile, ":") || strstr(localfile, "//") ||	//certain path patterns are just bad
+		Q_strcasestr(localfile, ".qvm") || Q_strcasestr(localfile, ".dll") || Q_strcasestr(localfile, ".so"))	//disallow any native code
 	{	//yes, I know the user can use a different progs from the one that is specified. If you leave it blank there will be no problem. (server isn't allowed to stuff progs cvar)
 		Con_Printf("Ignoring arbitary download to \"%s\" due to possible security risk\n", localfile);
 		return false;
@@ -3551,8 +3516,11 @@ qboolean CL_AllowArbitaryDownload(char *localfile)
 	{
 		char ext[8];
 		COM_FileExtension(localfile, ext, sizeof(ext));
-		if (!strncmp(localfile, "package/", 8) || !strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4") || (!strncmp(localfile, "demos/", 6) && !strcmp(ext, "mvd")))
-			return true;
+		if (!strncmp(localfile, "demos/", 6) && (!Q_strcasecmp(ext, "mvd") || !Q_strcasecmp(ext, "gz")))
+			return true;	//mvdsv popularised the server sending 'download demo/foobar.mvd' in response to 'download demonum/5' aka 'cmd dl #'
+		else if (!strncmp(localfile, "package/", 8) && (!Q_strcasecmp(ext, "pak") || !Q_strcasecmp(ext, "pk3") || !Q_strcasecmp(ext, "pk4")))
+			return true;	//packages, woo.
+							//fixme: we should probably try using package/$gamedir/foo.pak if we get redirected to that.
 		else
 		{
 			Con_Printf("Ignoring non-package download redirection to \"%s\"\n", localfile);
@@ -3630,7 +3598,7 @@ void CL_Download_f (void)
 			DL_Abort(cls.download, QDL_FAILED);
 
 		//don't let gamecode order us to download random junk
-		if (!CL_AllowArbitaryDownload(localname))
+		if (!CL_AllowArbitaryDownload(NULL, localname))
 			return;
 
 		CL_CheckOrEnqueDownloadFile(url, localname, DLLF_REQUIRED|DLLF_VERBOSE);
@@ -3671,7 +3639,7 @@ void CL_DownloadSize_f(void)
 	{	//'download this file instead'
 		redirection = Cmd_Argv(3);
 
-		if (!CL_AllowArbitaryDownload(redirection))
+		if (!CL_AllowArbitaryDownload(rname, redirection))
 			return;
 
 		dl = CL_DownloadFailed(rname, NULL);
@@ -4138,7 +4106,6 @@ void CL_Init (void)
 
 	Cmd_AddCommand ("setinfo", CL_SetInfo_f);
 	Cmd_AddCommand ("fullinfo", CL_FullInfo_f);
-	Cmd_AddCommand ("fullserverinfo", CL_FullServerinfo_f);
 
 	Cmd_AddCommand ("color", CL_Color_f);
 	Cmd_AddCommand ("download", CL_Download_f);
@@ -4827,7 +4794,7 @@ void Host_DoRunFile(hrf_t *f)
 	{
 		if (!(f->flags & HRF_ACTION))
 		{
-			M_Menu_Prompt(Host_RunFilePrompted, f, "File already exists.", "What would you like to do?", displayname, "Overwrite", "Run old", "Cancel");
+			M_Menu_Prompt(Host_RunFilePrompted, f, va("File already exists.\nWhat would you like to do?\n%s\n", displayname), "Overwrite", "Run old", "Cancel");
 			return;
 		}
 	}
@@ -4835,7 +4802,7 @@ void Host_DoRunFile(hrf_t *f)
 	{
 		if (!(f->flags & HRF_ACTION))
 		{
-			M_Menu_Prompt(Host_RunFilePrompted, f, "File appears new.", "Would you like to install", displayname, "Install!", "", "Cancel");
+			M_Menu_Prompt(Host_RunFilePrompted, f, va("File appears new.\nWould you like to install\n%s\n", displayname), "Install!", "", "Cancel");
 			return;
 		}
 	}
@@ -4885,6 +4852,7 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 		fname = utf8;
 		nlen = strlen(fname);
 	}
+	else
 #elif !defined(FTE_TARGET_WEB)
 	//unix file urls are fairly consistant.
 	if (nlen >= 8 && !strncmp(fname, "file:///", 8))
@@ -4892,7 +4860,46 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 		fname += 7;
 		nlen -= 7;
 	}
+	else
 #endif
+		if (nlen >= 5 && !strncmp(fname, "qw://", 5))
+	{	//this is also implemented by ezquake, so be careful here...
+		//"qw://[stream@]host[:port]/COMMAND" join, spectate, qtvplay
+		char *t, *cmd;
+		const char *url;
+		char buffer[8192];
+		t = Z_Malloc(nlen+1);
+		memcpy(t, fname, nlen);
+		t[nlen] = 0;
+		url = t+5;
+
+		for (cmd = t+5; *cmd; cmd++)
+		{
+			if (*cmd == '/')
+			{
+				*cmd++ = 0;
+				break;
+			}
+		}
+
+		//quote the url safely.
+		url = COM_QuotedString(url, buffer, sizeof(buffer), false);
+
+		//now figure out what the command actually was
+		if (!Q_strcasecmp(cmd, "join"))
+			Cbuf_AddText(va("join %s\n", url), RESTRICT_LOCAL);
+		else if (!Q_strcasecmp(cmd, "spectate") || !strcmp(cmd, "observe"))
+			Cbuf_AddText(va("observe %s\n", url), RESTRICT_LOCAL);
+		else if (!Q_strcasecmp(cmd, "qtvplay"))
+			Cbuf_AddText(va("qtvplay %s\n", url), RESTRICT_LOCAL);
+		else if (!*cmd || !Q_strcasecmp(cmd, "connect"))
+			Cbuf_AddText(va("connect %s\n", url), RESTRICT_LOCAL);
+		else
+			Con_Printf("Unknown url command: %s\n", cmd);
+
+		Z_Free(t);
+		return true;
+	}
 
 	f = Z_Malloc(sizeof(*f) + nlen);
 	memcpy(f->fname, fname, nlen);

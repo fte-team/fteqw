@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef CLIENTONLY
 
 #include "winquake.h"
+#include "fs.h"
 
 #include "netinc.h"
 
@@ -41,6 +42,7 @@ cvar_t	sv_demoPings = CVARD("sv_demoPings", "10", "Interval between ping updates
 cvar_t	sv_demoMaxSize = CVARD("sv_demoMaxSize", "", "Demos will be truncated to be no larger than this size.");
 cvar_t	sv_demoExtraNames = CVAR("sv_demoExtraNames", "");
 cvar_t	sv_demoExtensions = CVARD("sv_demoExtensions", "", "Enables protocol extensions within MVDs. This will cause older/non-fte clients to error upon playback.\n0: off.\n1: all extensions.\n2: extensions also supported by a certain other engine.");
+cvar_t	sv_demoAutoCompress = CVARD("sv_demoAutoCompress", "", "Specifies whether to compress demos as they're recorded.\n0 = no compression.\n1 = gzip compression.");
 
 cvar_t qtv_password		= CVAR(		"qtv_password", "");
 cvar_t qtv_streamport	= CVARAF(	"qtv_streamport", "0",
@@ -54,6 +56,17 @@ cvar_t			sv_demotxt = CVAR("sv_demotxt", "1");
 
 void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
 void SV_WriteRecordMVDMessage (sizebuf_t *msg);
+
+
+static struct
+{	//tracks the previously recorded demos, so we don't have to content with dates and filesystem ordering and stuff.
+#define DEMOLOG_LENGTH 16
+	unsigned int sequence;	//incremented
+	struct 
+	{
+		char filename[MAX_QPATH];
+	} log[DEMOLOG_LENGTH];
+} demolog;
 
 demo_t			demo;
 static float			demo_prevtime;
@@ -105,6 +118,8 @@ static void DestClose(mvddest_t *d, enum mvdclosereason_e reason)
 	else if (d->desttype != DEST_STREAM)
 	{
 		char buf[512];
+		Q_strncpyz(demolog.log[demolog.sequence%DEMOLOG_LENGTH].filename, d->simplename, sizeof(demolog.log[demolog.sequence%DEMOLOG_LENGTH].filename));
+		demolog.sequence++;
 		SV_BroadcastPrintf (PRINT_CHAT, "Server recording complete\n^[/download %s^]\n", COM_QuotedString(va("demos/%s",d->simplename), buf, sizeof(buf), false));
 	}
 
@@ -729,6 +744,7 @@ typedef struct
 {
 	char	name[MAX_MVD_NAME];
 	int		size;
+	time_t	mtime;
 } file_t;
 
 typedef struct
@@ -759,9 +775,22 @@ static int QDECL Sys_listdirFound(const char *fname, qofs_t fsize, time_t mtime,
 	f = &dir->files[dir->numfiles++];
 	Q_strncpyz(f->name, fname, sizeof(f->name));
 	f->size = fsize;
+	f->mtime = mtime;
 	dir->size += fsize;
 
 	return true;
+}
+
+static int Sys_listdir_Sort(const void *va, const void *vb)
+{
+	const file_t *fa = va;
+	const file_t *fb = vb;
+
+	if (fa->mtime == fb->mtime)
+		return 0;
+	if (fa->mtime >= fb->mtime)
+		return 1;
+	return -1;
 }
 
 static dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
@@ -776,6 +805,15 @@ static dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
 
 	Q_strncpyz(searchterm, va("%s/*%s", path, ext), sizeof(searchterm));
 	COM_EnumerateFiles(searchterm, Sys_listdirFound, dir);
+
+	if (!strcmp(ext, ".mvd"))
+	{
+		Q_strncpyz(searchterm, va("%s/*%s.gz", path, ext), sizeof(searchterm));
+		COM_EnumerateFiles(searchterm, Sys_listdirFound, dir);
+	}
+
+	if (usesorting)
+		qsort(dir->files, dir->numfiles, sizeof(*dir->files), Sys_listdir_Sort);
 
 	return dir;
 }
@@ -1244,18 +1282,19 @@ void MVD_Init (void)
 {
 #define MVDVARGROUP "Server MVD cvars"
 
-	Cvar_Register (&sv_demofps,		MVDVARGROUP);
+	Cvar_Register (&sv_demofps,			MVDVARGROUP);
 	Cvar_Register (&sv_demoPings,		MVDVARGROUP);
 	Cvar_Register (&sv_demoUseCache,	MVDVARGROUP);
 	Cvar_Register (&sv_demoCacheSize,	MVDVARGROUP);
 	Cvar_Register (&sv_demoMaxSize,		MVDVARGROUP);
 	Cvar_Register (&sv_demoMaxDirSize,	MVDVARGROUP);
-	Cvar_Register (&sv_demoDir,		MVDVARGROUP);
+	Cvar_Register (&sv_demoDir,			MVDVARGROUP);
 	Cvar_Register (&sv_demoPrefix,		MVDVARGROUP);
 	Cvar_Register (&sv_demoSuffix,		MVDVARGROUP);
-	Cvar_Register (&sv_demotxt,		MVDVARGROUP);
+	Cvar_Register (&sv_demotxt,			MVDVARGROUP);
 	Cvar_Register (&sv_demoExtraNames,	MVDVARGROUP);
 	Cvar_Register (&sv_demoExtensions,	MVDVARGROUP);
+	Cvar_Register (&sv_demoAutoCompress,MVDVARGROUP);
 }
 
 static char *SV_PrintTeams(void)
@@ -1360,6 +1399,11 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 		Con_Printf ("ERROR: couldn't open \"%s\"\n", name);
 		return NULL;
 	}
+
+#ifdef AVAIL_GZDEC
+	if (!Q_strcasecmp("gz", COM_FileExtension(name, path, sizeof(path))))
+		file = FS_GZ_WriteFilter(file, true, true);
+#endif
 
 	dst = Z_Malloc(sizeof(mvddest_t));
 	dst->socket = INVALID_SOCKET;
@@ -1649,7 +1693,7 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 
 		if (sv_demoExtensions.ival == 2 || !*sv_demoExtensions.string)
 		{	/*more limited subset supported by ezquake*/
-			demo.recorder.fteprotocolextensions = PEXT_CHUNKEDDOWNLOADS|PEXT_256PACKETENTITIES|PEXT_FLOATCOORDS|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SPAWNSTATIC2;
+			demo.recorder.fteprotocolextensions = PEXT_CHUNKEDDOWNLOADS|PEXT_256PACKETENTITIES|/*PEXT_FLOATCOORDS|*/PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SPAWNSTATIC2;
 //			demo.recorder.fteprotocolextensions |= PEXT_HLBSP;	/*ezquake DOES have this, but it is pointless and should have been in some feature mask rather than protocol extensions*/
 //			demo.recorder.fteprotocolextensions |= PEXT_ACCURATETIMINGS;	/*ezquake does not support this any more*/
 //			demo.recorder.fteprotocolextensions |= PEXT_TRANS;	/*ezquake has no support for .alpha*/
@@ -1936,7 +1980,12 @@ void SV_MVD_Record_f (void)
 
 
 	COM_StripExtension(name, name, sizeof(name));
-	COM_DefaultExtension(name, ".mvd", sizeof(name));
+#ifdef AVAIL_GZDEC
+	if (sv_demoAutoCompress.ival == 1)
+		COM_DefaultExtension(name, ".mvd.gz", sizeof(name));
+	else
+#endif
+		COM_DefaultExtension(name, ".mvd", sizeof(name));
 	FS_CreatePath (name, FS_GAMEONLY);
 
 	//
@@ -2223,7 +2272,7 @@ void SV_MVDEasyRecord_f (void)
 	Q_strncpyz(name2, name, sizeof(name2));
 //	COM_StripExtension(name2, name2);
 	FS_CreatePath (name2, FS_GAMEONLY);
-	strcat (name2, ".mvd");
+	Q_strncatz(name2, ".mvd", sizeof(name2));
 	if ((f = FS_OpenVFS(name2, "rb", FS_GAMEONLY)) == 0)
 		f = FS_OpenVFS(va("%s.gz", name2), "rb", FS_GAMEONLY);
 
@@ -2234,13 +2283,17 @@ void SV_MVDEasyRecord_f (void)
 			VFS_CLOSE (f);
 			snprintf(name2, sizeof(name2), "%s_%02i", name, i);
 //			COM_StripExtension(name2, name2);
-			strcat (name2, ".mvd");
+			Q_strncatz(name2, ".mvd", sizeof(name2));
 			if ((f = FS_OpenVFS (name2, "rb", FS_GAMEONLY)) == 0)
 				f = FS_OpenVFS(va("%s.gz", name2), "rb", FS_GAMEONLY);
 			i++;
 		} while (f);
 	}
 
+#ifdef AVAIL_GZDEC
+	if (sv_demoAutoCompress.ival == 1)
+		Q_strncatz(name2, ".gz", sizeof(name2));
+#endif
 	SV_MVD_Record (SV_MVD_InitRecordFile(name2));
 }
 
@@ -2370,6 +2423,7 @@ void SV_MVDStream_Poll(void)
 #endif
 }
 
+//console command for servers/admins
 void SV_MVDList_f (void)
 {
 	mvddest_t *d;
@@ -2420,6 +2474,7 @@ void SV_MVDList_f (void)
 	Sys_freedir(dir);
 }
 
+//console command used to print to connected clients (we're acting as a dedicated server)
 void SV_UserCmdMVDList_f (void)
 {
 	mvddest_t *d;
@@ -2451,8 +2506,16 @@ void SV_UserCmdMVDList_f (void)
 					SV_ClientPrintf(host_client, PRINT_HIGH, "*%d: %s %dk\n", i, list->name, d->totalsize/1024);
 			}
 			if (!d)
-				SV_ClientPrintf(host_client, PRINT_HIGH, "%d: %s %dk\n", i, list->name, list->size/1024);
+			{
+				if (host_client->fteprotocolextensions2 & PEXT_CSQC)	//its a hack to use csqc this way, but oh well, but other clients don't want the gibberish.
+					SV_ClientPrintf(host_client, PRINT_HIGH, "%d: ^[%s\\type\\/download demos/%s^] %dk\n", i, list->name, list->name, list->size/1024);
+				else
+					SV_ClientPrintf(host_client, PRINT_HIGH, "%d: %s %dk\n", i, list->name, list->size/1024);
+			}
 		}
+
+		if (host_client->num_backbuf == MAX_BACK_BUFFERS)
+			SV_ClientPrintf(host_client, PRINT_HIGH, "*MORE*\n", i, list->name, list->size/1024);
 	}
 
 	for (d = demo.dest; d; d = d->nextdest)
@@ -2470,7 +2533,14 @@ void SV_UserCmdMVDList_f (void)
 	Sys_freedir(dir);
 }
 
-char *SV_MVDNum(char *buffer, int bufferlen, int num)
+const char *SV_MVDLastNum(unsigned int num)
+{
+	if (!num || num > DEMOLOG_LENGTH)
+		return NULL;
+	num = demolog.sequence - num;
+	return demolog.log[num % DEMOLOG_LENGTH].filename;
+}
+char *SV_MVDNum(char *buffer, int bufferlen, int num)	//lame number->name lookup according to a list generated at an arbitrary time
 {
 	file_t	*list;
 	dir_t	*dir;
@@ -2478,6 +2548,8 @@ char *SV_MVDNum(char *buffer, int bufferlen, int num)
 	dir = Sys_listdir(sv_demoDir.string, ".mvd", SORT_BY_DATE);
 	list = dir->files;
 
+	if (num < 0)
+		num = dir->numfiles + num;
 	if (num > dir->numfiles || num <= 0)
 	{
 		Sys_freedir(dir);

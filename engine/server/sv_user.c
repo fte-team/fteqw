@@ -2813,13 +2813,13 @@ qboolean SV_AllowDownload (const char *name)
 	//block attempts to download logs
 	if (!Q_strcasecmp("log", ext))
 		return !!allow_download_logs.value;
-	if (strncmp(name,	"logs/", 5) == 0)
+	if (Q_strncasecmp(name,	"logs/", 5) == 0)
 		return !!allow_download_logs.value;
 
-	if (!strncmp(name, "package/", 8))
+	if (!Q_strncasecmp(name, "package/", 8))
 	{
 		//eg: package/id1/foobar.pk3
-		if (!strcmp("pk4", ext) || !strcmp("pk3", ext) || !strcmp("pak", ext) || (!strncmp(name, "package/downloads/", 18) && !strcmp("zip", ext)))
+		if (!Q_strcasecmp("pk4", ext) || !Q_strcasecmp("pk3", ext) || !Q_strcasecmp("pak", ext) || (!Q_strncasecmp(name, "package/downloads/", 18) && !Q_strcasecmp("zip", ext)))
 		{
 			if (!allow_download_packages.ival)
 				return false;
@@ -2832,49 +2832,49 @@ qboolean SV_AllowDownload (const char *name)
 		return false;
 	}
 
-	if (strncmp(name,	"maps/", 5) == 0)
+	if (Q_strncasecmp(name,	"maps/", 5) == 0)
 		return !!allow_download_maps.value;
 
 	//skins?
-	if (strncmp(name,	"skins/", 6) == 0)
+	if (Q_strncasecmp(name,	"skins/", 6) == 0)
 		return !!allow_download_skins.value;
 	//models
-	if ((strncmp(name,	"progs/", 6) == 0) ||
-		(strncmp(name,	"models/", 7) == 0))
+	if ((Q_strncasecmp(name,	"progs/", 6) == 0) ||
+		(Q_strncasecmp(name,	"models/", 7) == 0))
 		return !!allow_download_models.value;
 	//sound
-	if (strncmp(name,	"sound/", 6) == 0)
+	if (Q_strncasecmp(name,	"sound/", 6) == 0)
 		return !!allow_download_sounds.value;
 	//particles
-	if (strncmp(name,	"particles/", 6) == 0)
+	if (Q_strncasecmp(name,	"particles/", 6) == 0)
 		return !!allow_download_particles.value;
 	//demos
-	if (strncmp(name,	"demos/", 6) == 0)
+	if (Q_strncasecmp(name,	"demos/", 6) == 0)
 		return !!allow_download_demos.value;
 
 	//textures
-	if (strncmp(name,	"textures/", 9) == 0)
+	if (Q_strncasecmp(name,	"textures/", 9) == 0)
 		return !!allow_download_textures.value;
 
-	if (strncmp(name,	"locs/", 5) == 0)
+	if (Q_strncasecmp(name,	"locs/", 5) == 0)
 		return !!allow_download_locs.value;
 
 	//wads
-	if (strncmp(name,	"wads/", 5) == 0)
+	if (Q_strncasecmp(name,	"wads/", 5) == 0)
 		return !!allow_download_wads.value;
-	if (!strchr(name, '/') && !strcmp("wad", ext))
+	if (!strchr(name, '/') && !Q_strcasecmp("wad", ext))
 		return !!allow_download_wads.value;
 
 	//configs
-	if (strncmp(name,	"config/", 7) == 0)
+	if (Q_strncasecmp(name,	"config/", 7) == 0)
 		return !!allow_download_configs.value;
-	if (!strcmp("cfg", ext))
+	if (!Q_strcasecmp("cfg", ext))
 		return !!allow_download_configs.value;
 
 	//pak/pk3s.
-	if (!strchr(name, '/') && (!strcmp("pk4", ext) || !strcmp("pk3", ext) || !strcmp("pak", ext)))
+	if (!strchr(name, '/') && (!Q_strcasecmp("pk4", ext) || !Q_strcasecmp("pk3", ext) || !Q_strcasecmp("pak", ext)))
 	{
-		if (strnicmp(name, "pak", 3))	//don't give out core pak/pk3 files. This matches q3 logic.
+		if (Q_strncasecmp(name, "pak", 3))	//don't give out core pak/pk3 files. This matches q3 logic.
 			return !!allow_download_packages.value;
 		else
 			return !!allow_download_packages.value && !!allow_download_copyrighted.value;
@@ -2892,7 +2892,7 @@ qboolean SV_AllowDownload (const char *name)
 	return !!allow_download_other.value;
 }
 
-static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementname, qboolean redirectpaks)
+static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacementname, qboolean redirectpaks)
 {
 	extern	cvar_t	allow_download_anymap, allow_download_pakcontents;
 	extern cvar_t sv_demoDir;
@@ -2903,16 +2903,8 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 	if (replacementname)
 		*replacementname = NULL;
 
-	//mangle the name by making it lower case.
-	{
-		char *p;
-
-		for (p = name; *p; p++)
-			*p = (char)tolower((unsigned char)*p);
-	}
-
 	//mvdsv demo downloading support demonum/ -> demos/XXXX (sets up the client paths)
-	if (!strncmp(name, "demonum/", 8))
+	if (!Q_strncasecmp(name, "demonum/", 8))
 	{
 		if (replacementname)
 		{
@@ -2936,13 +2928,13 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 	}
 
 	//mvdsv demo downloading support. demos/ -> demodir (sets up the server paths)
-	if (!strncmp(name, "demos/", 6))
+	if (Q_strncasecmp(name, "demos/", 6))
 	{
 		Q_snprintfz(tmpname, sizeof(tmpname), "%s/%s", sv_demoDir.string, name+6);
 		name = tmpname;
 	}
 
-	if (!strncmp(name, "package/", 8))
+	if (!Q_strncasecmp(name, "package/", 8))
 	{
 		vfsfile_t *f = FS_OpenVFS(name+8, "rb", FS_ROOT);
 		if (f)
@@ -2978,11 +2970,11 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 		{
 			char tryalt[MAX_QPATH];
 			char ext[8];
-			if (strncmp(name, alternatives[alt][0], strlen(alternatives[alt][0])))
+			if (Q_strncasecmp(name, alternatives[alt][0], strlen(alternatives[alt][0])))
 			{
 				if (*alternatives[alt][2])
 				{
-					if (strcmp(COM_FileExtension(name, ext, sizeof(ext)), alternatives[alt][2]+1))
+					if (Q_strcasecmp(COM_FileExtension(name, ext, sizeof(ext)), alternatives[alt][2]+1))
 						continue;
 					memcpy(tryalt, alternatives[alt][1], strlen(alternatives[alt][1]));
 					COM_StripExtension(name+strlen(alternatives[alt][0]), tryalt+strlen(alternatives[alt][1]), sizeof(tryalt)-strlen(alternatives[alt][1]));
@@ -3011,7 +3003,7 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 		// special check for maps, if it came from a pak file, don't allow download
 		if (protectedpak)
 		{
-			if (!allow_download_anymap.value && !strncmp(name, "maps/", 5))
+			if (!allow_download_anymap.value && !Q_strncasecmp(name, "maps/", 5))
 			{
 				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name+8);
 				return DLERR_PERMISSIONS;
@@ -3100,6 +3092,64 @@ void SV_DownloadSize_f(void)
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
 		ClientReliableWrite_String (host_client, name);
 		break;
+	}
+}
+
+void SV_DemoDownload_f(void)
+{
+	int arg;
+	unsigned long num;
+	const char *name, *mvdname;
+	char mvdnamebuffer[MAX_QPATH];
+	if (Cmd_Argc() < 2)
+	{
+		//fixme: help text, or possibly just display links to the last 10 demos?
+		return;
+	}
+	if (Cmd_Argc() == 2)
+	{
+		name = Cmd_Argv(1);
+		if (!strcmp(name, "\\") || !Q_strcasecmp(name, "stop") || !Q_strcasecmp(name, "cancel"))
+		{
+			//fte servers don't do download queues, as it is impossible to avoid race conditions with vanilla clients anyway.
+			return;
+		}
+	}
+
+	for (arg = 1; arg < Cmd_Argc(); arg++)
+	{
+		name = Cmd_Argv(arg);
+		if (*name == '.')
+		{	//just count the dots
+			for (num = 0, mvdname = name; *mvdname == '.'; mvdname++)
+				num++;
+			if (*mvdname)
+			{
+				SV_ClientPrintf (host_client, PRINT_HIGH, "invalid demo id %s\n", name);
+				continue;
+			}
+			mvdname = SV_MVDLastNum(num);
+		}
+		else
+		{
+			char *e;
+			num = strtoul(name, &e, 10);
+			if (!num || *e)
+			{
+				SV_ClientPrintf (host_client, PRINT_HIGH, "invalid demo id %s\n", name);
+				continue;
+			}
+			mvdname = SV_MVDNum(mvdnamebuffer, sizeof(mvdnamebuffer), num);
+		}
+
+		if (!mvdname)
+			SV_ClientPrintf (host_client, PRINT_HIGH, "%s is an invalid MVD demonum.\n", name);
+		else
+		{
+			const char *s = va("download \"demos/%s\"\n", mvdname);
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(s));
+			ClientReliableWrite_String (host_client, s);
+		}
 	}
 }
 
@@ -3249,7 +3299,7 @@ void SV_BeginDownload_f(void)
 		else
 #endif
 		if (ISNQCLIENT(host_client))
-		{
+		{	//dp's download protocol
 			SV_PrintToClient(host_client, PRINT_HIGH, error);
 
 			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+12);
@@ -4051,7 +4101,7 @@ void SV_Msg_f (void)
 	SV_ClientTPrintf (host_client, PRINT_HIGH, "new msg level set to %i\n", host_client->messagelevel);
 }
 
-qboolean SV_UserInfoIsBasic(char *infoname)
+qboolean SV_UserInfoIsBasic(const char *infoname)
 {
 	int i;
 	char *basicinfos[] = {
@@ -4082,12 +4132,9 @@ Allow clients to change userinfo
 */
 void SV_SetInfo_f (void)
 {
-	int i, j;
+	int i;
 	char oldval[MAX_INFO_KEY];
 	char *key, *val;
-	qboolean basic;	//infos that we send to any old qw client.
-	client_t *client;
-
 
 	if (Cmd_Argc() == 1)
 	{
@@ -4149,48 +4196,7 @@ void SV_SetInfo_f (void)
 		i = host_client - svs.clients;
 		val = Info_ValueForKey(host_client->userinfo, key);
 
-		basic = SV_UserInfoIsBasic(key);
-
-		for (j = 0; j < svs.allocated_client_slots; j++)
-		{
-			client = svs.clients+j;
-			if (client->state < cs_connected)
-				continue;	// reliables go to all connected or spawned
-			if (client->controller)
-				continue;	//splitscreen
-
-			if (client->protocol == SCP_BAD)
-				continue;	//botclient
-
-			if (ISQWCLIENT(client))
-			{
-				if (basic || (client->fteprotocolextensions & PEXT_BIGUSERINFOS))
-				{
-					ClientReliableWrite_Begin(client, svc_setinfo, 1+1+strlen(key)+1+strlen(val)+1);
-					ClientReliableWrite_Byte(client, i);
-					ClientReliableWrite_String(client, key);
-					ClientReliableWrite_String(client, val);
-				}
-			}
-			if (ISNQCLIENT(client))
-			{
-				if (!strcmp(key, "name"))
-				{
-					ClientReliableWrite_Begin(client, svc_updatename, 1+1+strlen(val)+1);
-					ClientReliableWrite_Byte(client, i);
-					ClientReliableWrite_String(client, val);
-				}
-			}
-		}
-
-		if (sv.mvdrecording && (basic || (demo.recorder.fteprotocolextensions & PEXT_BIGUSERINFOS)))
-		{
-			sizebuf_t *msg = MVDWrite_Begin (dem_all, 0, strlen(key)+strlen(val)+4);
-			MSG_WriteByte (msg, svc_setinfo);
-			MSG_WriteByte (msg, i);
-			MSG_WriteString (msg, key);
-			MSG_WriteString (msg, val);
-		}
+		SV_BroadcastUserinfoChange(host_client, SV_UserInfoIsBasic(key), key, val);
 	}
 
 	//doh't spam chat changes. they're not interesting, and just spammy.
@@ -5824,9 +5830,12 @@ ucmd_t ucmds[] =
 	{"serverinfo", SV_ShowServerinfo_f},
 
 	/*demo/download commands*/
-	{"stopdownload", SV_StopDownload_f},
 	{"demolist", SV_UserCmdMVDList_f},
+	{"dlist", SV_UserCmdMVDList_f},	//apparently people are too lazy to type.
 	{"demoinfo", SV_MVDInfo_f},
+	{"dl", SV_DemoDownload_f},
+
+	{"stopdownload", SV_StopDownload_f},
 	{"dlsize", SV_DownloadSize_f},
 	{"download", SV_BeginDownload_f},
 	{"nextdl", SV_NextDownload_f, true},
@@ -6437,7 +6446,7 @@ int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 	{								//it prevents bugs from being visible in unsuspecting mods.
 		if (cl && cl->spectator)
 		{
-			if (cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
+			if ((cl->zquake_extensions & Z_EXT_PM_TYPE_NEW) || (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 				return PM_SPECTATOR;
 			return PM_OLD_SPECTATOR;
 		}
@@ -6451,8 +6460,9 @@ int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 	{
 	case MOVETYPE_NOCLIP:
 		/*older/vanilla clients have a b0rked spectator mode that we don't want to break*/
-		if (cl && cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
-			return PM_SPECTATOR;
+		if (cl)
+			if ((cl->zquake_extensions & Z_EXT_PM_TYPE_NEW) || (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+				return PM_SPECTATOR;
 		return PM_OLD_SPECTATOR;
 
 	case MOVETYPE_WALLWALK:
@@ -7891,7 +7901,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	move->sidemove = MSG_ReadShort ();
 	move->upmove = MSG_ReadShort ();
 
-	move->msec=bound(0, timesincelast*1000, 255);
+	move->msec=bound(0, timesincelast*1000, 250);
 	frame->move_msecs = timesincelast*1000;
 
 // read buttons
@@ -7932,8 +7942,8 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 					if (SV_CanTrack(host_client, i))
 						break;
 				}
-				if (i == host_client->spec_track)
-				i = 0;
+				if (i >= host_client->spec_track)
+					i = 0;
 			}
 
 			host_client->spec_track = i;

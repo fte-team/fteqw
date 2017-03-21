@@ -46,11 +46,17 @@ void *zlib_handle;
 	#define qinflateEnd		inflateEnd
 	#define qinflate		inflate
 	#define qinflateInit2_	inflateInit2_
+	#define qdeflateEnd		deflateEnd
+	#define qdeflate		deflate
+	#define qdeflateInit2_	deflateInit2_
 	#define qget_crc_table	get_crc_table
 #endif
 
 #define qinflateInit2(strm, windowBits) \
         qinflateInit2_((strm), (windowBits), ZLIB_VERSION, sizeof(z_stream))
+#define qdeflateInit2(strm, level, method, windowBits, memLevel, strategy) \
+        qdeflateInit2_((strm),(level),(method),(windowBits),(memLevel),\
+                      (strategy),           ZLIB_VERSION, sizeof(z_stream))
 
 qboolean LibZ_Init(void)
 {
@@ -60,6 +66,9 @@ qboolean LibZ_Init(void)
 		{(void*)&qinflateEnd,		"inflateEnd"},
 		{(void*)&qinflate,			"inflate"},
 		{(void*)&qinflateInit2_,	"inflateInit2_"},
+		{(void*)&qdeflateEnd,		"deflateEnd"},
+		{(void*)&qdeflate,			"deflate"},
+		{(void*)&qdeflateInit2_,	"deflateInit2_"},
 //		{(void*)&qcrc32,			"crc32"},
 #ifdef ZIPCRYPT
 		{(void*)&qget_crc_table,	"get_crc_table"},
@@ -260,6 +269,7 @@ typedef struct
 	vfsfile_t vf;
 	vfsfile_t *outfile;
 	qboolean autoclosefile;
+	qboolean compress;
 
 	//gzip header handling
 	qboolean headerparsed;
@@ -273,9 +283,21 @@ typedef struct
 static qboolean QDECL FS_GZ_Dec_Close(vfsfile_t *f)
 {
 	vf_gz_dec_t *n = (vf_gz_dec_t*)f;
+
+	if (n->compress)
+		qdeflate(&n->strm, Z_FINISH);
+	else
+		qinflate(&n->strm, Z_FINISH);
+	if (n->strm.next_out != n->out)
+		VFS_WRITE(n->outfile, n->out, n->strm.next_out-n->out);
+
+	if (n->compress)
+		qdeflateEnd(&n->strm);
+	else
+		qinflateEnd(&n->strm);
+
 	if (n->autoclosefile)
 		VFS_CLOSE(n->outfile);
-	qinflateEnd(&n->strm);
 	Z_Free(n);
 	return true;
 }
@@ -380,7 +402,10 @@ noheader:
 
 	while(n->strm.avail_in)
 	{
-		ret = qinflate(&n->strm, Z_SYNC_FLUSH);
+		if (n->compress)
+			ret = qdeflate(&n->strm, Z_SYNC_FLUSH);
+		else
+			ret = qinflate(&n->strm, Z_SYNC_FLUSH);
 
 		if (!n->strm.avail_out)
 		{
@@ -437,12 +462,13 @@ noheader:
 	return len;
 }
 
-vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefile)
+vfsfile_t *FS_GZ_WriteFilter(vfsfile_t *outfile, qboolean autoclosefile, qboolean compress)
 {
 	vf_gz_dec_t *n = Z_Malloc(sizeof(*n));
 
 	n->outfile = outfile;
 	n->autoclosefile = autoclosefile;
+	n->compress = compress;
 
 	n->strm.next_in		= NULL;
 	n->strm.avail_in 	= 0;
@@ -460,7 +486,13 @@ vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefil
 	n->vf.WriteBytes		= FS_GZ_Dec_Write;
 	n->vf.seekingisabadplan	= true;
 
-	qinflateInit2(&n->strm, -MAX_WBITS);
+	if (n->compress)
+	{
+		n->headerparsed = true;	//deflate will write out a minimal header for us, so we can just splurge everything without rewinding.
+		qdeflateInit2(&n->strm, Z_BEST_COMPRESSION, Z_DEFLATED, MAX_WBITS|16, MAX_MEM_LEVEL, Z_DEFAULT_STRATEGY);
+	}
+	else
+		qinflateInit2(&n->strm, -MAX_WBITS);
 
 	return &n->vf;
 }

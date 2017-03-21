@@ -89,8 +89,8 @@ void M_MenuS_Clear_f (void)
 
 void M_MenuS_Script_f (void)	//create a menu.
 {
+	extern menu_t *topmenu;
 	int items;
-	extern menu_t *currentmenu;
 	menu_t *oldmenu;
 	char *alias = Cmd_Argv(1);
 	Key_Dest_Add(kdm_emenu);
@@ -115,14 +115,14 @@ void M_MenuS_Script_f (void)	//create a menu.
 		M_MenuS_Clear_f();
 	}
 
-	oldmenu = currentmenu;
+	oldmenu = topmenu;
 
 	menu_script = M_CreateMenu(0);
 	if (oldmenu)
 	{
 		M_HideMenu(oldmenu);	//bring to front
 		M_AddMenu(oldmenu);
-	}	
+	}
 	menu_script->remove = M_Script_Remove;
 	menu_script->key = M_Script_Key;
 	

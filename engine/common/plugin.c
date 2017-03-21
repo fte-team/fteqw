@@ -13,7 +13,7 @@
 #ifdef PLUGINS
 
 cvar_t plug_sbar = CVARD("plug_sbar", "3", "Controls whether plugins are allowed to draw the hud, rather than the engine (when allowed by csqc). This is typically used to permit the ezhud plugin without needing to bother unloading it.\n=0: never use hud plugins.\n&1: Use hud plugins in deathmatch.\n&2: Use hud plugins in singleplayer/coop.\n=3: Always use hud plugins (when loaded).");
-cvar_t plug_loaddefault = CVAR("plug_loaddefault", "1");
+cvar_t plug_loaddefault = CVARD("plug_loaddefault", "1", "0: Load plugins only via explicit plug_load commands\n1: Load built-in plugins and those selected via the package manager\n2: Scan for misc plugins, loading all that can be found, but not built-ins.\n3: Scan for plugins, and then load any built-ins");
 
 qintptr_t Plug_Bullet_Init(qintptr_t *args);
 qintptr_t Plug_ODE_Init(qintptr_t *args);
@@ -248,20 +248,48 @@ static qintptr_t EXPORT_FN Plug_SystemCallsNative(qintptr_t arg, ...)
 }
 qintptr_t (QDECL *plugin_syscall)( qintptr_t arg, ... ) = Plug_SystemCallsNative;
 
+static char *Plug_CleanName(const char *file, char *out, size_t sizeof_out)
+{
+	size_t len;
+	//"fteplug_ezhud_x86.REV.dll" gets converted into "ezhud"
+
+	//skip fteplug_
+	if (!Q_strncasecmp(file, "fteplug_", 8))
+		file += 8;
+
+	//strip .REV.dll
+	COM_StripAllExtensions(file, out, sizeof_out);
+
+	//strip _x86
+	len = strlen(out);
+	if (len > strlen("_"ARCH_CPU_POSTFIX) && !Q_strncasecmp(out+len-strlen("_"ARCH_CPU_POSTFIX), "_"ARCH_CPU_POSTFIX, strlen("_"ARCH_CPU_POSTFIX)))
+	{
+		len -= strlen("_"ARCH_CPU_POSTFIX);
+		out[len] = 0;
+	}
+	return out;
+}
 plugin_t *Plug_Load(const char *file, int type)
 {
+	char temp[MAX_OSPATH];
 	plugin_t *newplug;
+	Plug_CleanName(file, temp, sizeof(temp));
 
 	for (newplug = plugs; newplug; newplug = newplug->next)
 	{
-		if (!Q_strcasecmp(newplug->name, file))
+		if (!Q_strcasecmp(newplug->name, temp))
 			return newplug;
 	}
 
-	newplug = Z_Malloc(sizeof(plugin_t)+strlen(file)+1);
+	newplug = Z_Malloc(sizeof(plugin_t)+strlen(temp)+1);
 	newplug->name = (char*)(newplug+1);
-	strcpy(newplug->name, file);
+	strcpy(newplug->name, temp);
 
+	if (!newplug->vm && (type & PLUG_NATIVE) && !Q_strncasecmp(file, "fteplug_", 8) && !Q_strcasecmp(ARCH_DL_POSTFIX+1, COM_FileExtension(file, temp, sizeof(temp))))
+	{
+		COM_StripExtension(file, temp, sizeof(temp));
+		newplug->vm = VM_Create(temp, Plug_SystemCallsNative, NULL);
+	}
 	if (!newplug->vm && (type & PLUG_NATIVE))
 		newplug->vm = VM_Create(va("fteplug_%s_", file), Plug_SystemCallsNative, NULL);
 	if (!newplug->vm && (type & PLUG_NATIVE))
@@ -1529,6 +1557,11 @@ void VM_Test_f(void)
 	}
 }*/
 
+static void Plug_LoadDownloaded(const char *fname)
+{
+	Plug_Load(fname, PLUG_NATIVE);
+}
+
 void Plug_Initialise(qboolean fromgamedir)
 {
 	char nat[MAX_OSPATH];
@@ -1536,11 +1569,7 @@ void Plug_Initialise(qboolean fromgamedir)
 	if (!numplugbuiltins)
 	{
 		Cvar_Register(&plug_sbar, "plugins");
-#ifdef SUBSERVERS
-		if (!SSV_IsSubServer())
-#endif
-
-			Cvar_Register(&plug_loaddefault, "plugins");
+		Cvar_Register(&plug_loaddefault, "plugins");
 
 		Cmd_AddCommand("plug_closeall", Plug_CloseAll_f);
 		Cmd_AddCommand("plug_close", Plug_Close_f);
@@ -1620,9 +1649,11 @@ void Plug_Initialise(qboolean fromgamedir)
 		Plug_Client_Init();
 	}
 
-	if (plug_loaddefault.value)
+#ifdef SUBSERVERS
+	if (!SSV_IsSubServer())	//subservers will need plug_load I guess
+#endif
+	if (plug_loaddefault.ival & 2)
 	{
-		unsigned int u;
 		if (!fromgamedir)
 		{
 			FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
@@ -1633,6 +1664,11 @@ void Plug_Initialise(qboolean fromgamedir)
 		{
 			COM_EnumerateFiles("plugins/*.qvm",		Plug_Emumerated, ".qvm");
 		}
+	}
+	if (plug_loaddefault.ival & 1)
+	{
+		unsigned int u;
+		PM_EnumeratePlugins(Plug_LoadDownloaded);
 		for (u = 0; staticplugins[u].name; u++)
 		{
 			Plug_Load(staticplugins[u].name, PLUG_NATIVE);
@@ -2040,11 +2076,14 @@ void Plug_Close_f(void)
 {
 	plugin_t *plug;
 	char *name = Cmd_Argv(1);
+	char cleaned[MAX_OSPATH];
 	if (Cmd_Argc()<2)
 	{
 		Con_Printf("Close which plugin?\n");
 		return;
 	}
+
+	name = Plug_CleanName(name, cleaned, sizeof(cleaned));
 
 	if (currentplug)
 		Sys_Error("Plug_CloseAll_f called inside a plugin!\n");

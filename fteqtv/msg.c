@@ -134,6 +134,20 @@ void WriteFloat(netmsg_t *b, float f)
 	u.f = f;
 	WriteLong(b, u.i);
 }
+void WriteCoord(netmsg_t *b, float c, unsigned int pext)
+{
+	if (pext & PEXT_FLOATCOORDS)
+		WriteFloat(b, c);
+	else
+		WriteShort(b, c*8);
+}
+void WriteAngle(netmsg_t *b, float a, unsigned int pext)
+{
+	if (pext & PEXT_FLOATCOORDS)
+		WriteShort(b, (a/360.0)*0x10000);
+	else
+		WriteByte(b, (a/360.0)*0x100 + 0.49);	//round better, to avoid rounding bias
+}
 void WriteString2(netmsg_t *b, const char *str)
 {	//no null terminator, convienience function.
 	while(*str)

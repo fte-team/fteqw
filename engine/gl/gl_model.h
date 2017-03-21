@@ -1023,7 +1023,7 @@ void Terr_FreeModel(model_t *mod);
 void Terr_FinishTerrain(model_t *model);
 void Terr_PurgeTerrainModel(model_t *hm, qboolean lightmapsonly, qboolean lightmapreusable);
 void *Mod_LoadTerrainInfo(model_t *mod, char *loadname, qboolean force);	//call this after loading a bsp
-qboolean Terrain_LocateSection(char *name, flocation_t *loc);	//used on servers to generate sections for download.
+qboolean Terrain_LocateSection(const char *name, flocation_t *loc);	//used on servers to generate sections for download.
 qboolean Heightmap_Trace(model_t *model, int forcehullnum, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contentmask, struct trace_s *trace);
 unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org);
 struct fragmentdecal_s;

@@ -3316,6 +3316,7 @@ void Surf_LightmapMode(void)
 		lightmap_bgra = true;
 		break;
 #ifdef D3DQUAKE
+	case QR_DIRECT3D8:
 	case QR_DIRECT3D9:
 	case QR_DIRECT3D11:
 		/*always bgra, hope your card supports it*/
@@ -3797,7 +3798,7 @@ TRACE(("dbg: Surf_NewMap: tp\n"));
 
 void Surf_PreNewMap(void)
 {
-	r_loadbumpmapping = r_deluxemapping || r_glsl_offsetmapping.ival;
+	r_loadbumpmapping = r_deluxmapping || r_glsl_offsetmapping.ival;
 #ifdef RTLIGHTS
 	r_loadbumpmapping |= r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival;
 #endif

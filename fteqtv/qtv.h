@@ -336,15 +336,15 @@ typedef struct {
 	unsigned char modelindex;
 	unsigned char colormap;
 	unsigned char skinnum;
-	short origin[3];
-	char angles[3];
+	float origin[3];
+	float angles[3];
 	unsigned char effects;
 } entity_state_t;
 typedef struct {
 	unsigned char frame;
 	unsigned char modelindex;
 	unsigned char skinnum;
-	short origin[3];
+	float origin[3];
 	short velocity[3];
 	short angles[3];
 	unsigned char effects;
@@ -810,6 +810,8 @@ unsigned short ReadShort(netmsg_t *b);
 unsigned int ReadLong(netmsg_t *b);
 float ReadFloat(netmsg_t *b);
 void ReadString(netmsg_t *b, char *string, int maxlen);
+float ReadCoord(netmsg_t *b, unsigned int pext);
+float ReadAngle(netmsg_t *b, unsigned int pext);
 
 unsigned int SwapLong(unsigned int val);
 unsigned int BigLong(unsigned int val);
@@ -837,6 +839,8 @@ void WriteByte(netmsg_t *b, unsigned char c);
 void WriteShort(netmsg_t *b, unsigned short l);
 void WriteLong(netmsg_t *b, unsigned int l);
 void WriteFloat(netmsg_t *b, float f);
+void WriteCoord(netmsg_t *b, float c, unsigned int pext);
+void WriteAngle(netmsg_t *b, float a, unsigned int pext);
 void WriteString2(netmsg_t *b, const char *str);
 void WriteString(netmsg_t *b, const char *str);
 void WriteData(netmsg_t *b, const void *data, int length);

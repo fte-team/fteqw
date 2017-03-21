@@ -5,8 +5,6 @@
 #include "netinc.h"
 #include "fs.h"
 
-vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefile);
-
 #if defined(WEBCLIENT)
 #ifndef NPFTE
 static struct dl_download *activedownloads;
@@ -794,7 +792,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		if (con->gzip)
 		{
 #ifdef AVAIL_GZDEC
-			con->file = FS_GZ_DecompressWriteFilter(dl->file, false);
+			con->file = FS_GZ_WriteFilter(dl->file, false, false);
 #else
 			Con_Printf("HTTP: no support for gzipped files \"%s\"\n", dl->localname);
 			dl->status = DL_FAILED;
@@ -925,7 +923,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				dl->status = DL_FAILED;
 			else
 			{
-#if AVAIL_GZDEC
+#ifdef AVAIL_GZDEC
 				if (con->gzip && con->file)
 				{
 					VFS_CLOSE(con->file);

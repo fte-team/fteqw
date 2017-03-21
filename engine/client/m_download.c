@@ -11,8 +11,6 @@
 
 #ifdef PACKAGEMANAGER
 #include "fs.h"
-vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *infile);
-vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefile);
 
 //whole load of extra args for the downloads menu (for the downloads menu to handle engine updates).
 #ifdef VKQUAKE
@@ -81,12 +79,15 @@ extern cvar_t pm_downloads_url;
 #define DPF_DISPLAYVERSION			0x20	//some sort of conflict, the package is listed twice, so show versions so the user knows what's old.
 #define DPF_FORGETONUNINSTALL		0x40	//for previously installed packages, remove them from the list if there's no current version any more (should really be automatic if there's no known mirrors)
 #define DPF_HIDDEN					0x80	//wrong arch, file conflicts, etc. still listed if actually installed.
-#define DPF_ENGINE					0x100	//engine update. replaces old autoupdate mechanism
 #define DPF_PURGE					0x200	//package should be completely removed (ie: the dlcache dir too). if its still marked then it should be reinstalled anew. available on cached or corrupt packages, implied by native.
 #define DPF_MANIFEST				0x400	//package was named by the manifest, and should only be uninstalled after a warning.
 #define DPF_TESTING					0x800	//package is provided on a testing/trial basis, and will only be selected/listed if autoupdates are configured to allow it.
 
+#define DPF_ENGINE					0x1000	//engine update. replaces old autoupdate mechanism
+#define DPF_PLUGIN					0x2000	//this is a plugin package, with a dll
+
 #define DPF_PRESENT					(DPF_NATIVE|DPF_CACHED)
+#define DPF_DISABLEDINSTALLED		(DPF_ENGINE|DPF_PLUGIN)	//engines+plugins can be installed without being enabled.
 //pak.lst
 //priories <0
 //pakX
@@ -179,10 +180,12 @@ typedef struct package_s {
 static qboolean loadedinstalled;
 static package_t *availablepackages;
 static int numpackages;
-static char *manifestpackage;	//metapackage named by the manicfest.
+static char *manifestpackages;	//metapackage named by the manicfest.
+static char *declinedpackages;	//metapackage named by the manicfest.
 static int domanifestinstall;	//SECURITY_MANIFEST_*
 
 static qboolean doautoupdate;	//updates will be marked (but not applied without the user's actions)
+static qboolean pkg_updating;	//when flagged, further changes are blocked until completion.
 
 //FIXME: these are allocated for the life of the exe. changing basedir should purge the list.
 static int numdownloadablelists = 0;
@@ -248,8 +251,8 @@ qboolean PM_PurgeOnDisable(package_t *p)
 	//corrupt packages must be purged
 	if (p->flags & DPF_CORRUPT)
 		return true;
-	//engine updates can be present and not enabled
-	if (p->flags & DPF_ENGINE)
+	//certain updates can be present and not enabled
+	if (p->flags & DPF_DISABLEDINSTALLED)
 		return false;
 	//hashed packages can also be present and not enabled, but only if they're in the cache and not native
 	if (*p->gamedir && p->qhash && (p->flags & DPF_CACHED))
@@ -353,7 +356,10 @@ void PM_ValidatePackage(package_t *p)
 				else if (!o)
 				{
 					if (!PM_PurgeOnDisable(p))
+					{
 						p->flags |= fl;
+						VFS_CLOSE(pf);
+					}
 					else if (p->qhash)
 					{
 						char buf[8];
@@ -683,8 +689,19 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				}
 				else if (!strcmp(Cmd_Argv(1), "updatemode"))
 				{
-					if (!(parseflags & DPF_ENABLED))	//don't use a downloaded file's version of this
+					if (parseflags & DPF_ENABLED)	//don't use a downloaded file's version of this, only use the local version of it.
 						Cvar_ForceSet(&pm_autoupdate, Cmd_Argv(2));
+				}
+				else if (!strcmp(Cmd_Argv(1), "declined"))
+				{
+					if (parseflags & DPF_ENABLED)	//don't use a downloaded file's version of this, only use the local version of it.
+					{
+						Z_Free(declinedpackages);
+						if (*Cmd_Argv(2))
+							declinedpackages = Z_StrDup(Cmd_Argv(2));
+						else
+							declinedpackages = NULL;
+					}
 				}
 				else
 				{
@@ -774,7 +791,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 					else if (!strncmp(arg, "test=", 5))
 						flags |= DPF_TESTING;
 					else if (!strncmp(arg, "stale=", 6) && version==2)
-						flags &= ~DPF_ENABLED;
+						flags &= ~DPF_ENABLED;	//known about, (probably) cached, but not actually enabled.
 					else if (!strncmp(arg, "installed=", 6) && version>2)
 						flags |= parseflags & DPF_ENABLED;
 					else
@@ -908,7 +925,10 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 						p->flags |= DPF_ENGINE;
 				}
 				else if (!Q_strcasecmp(p->arch, THISARCH))
-					;
+				{
+					if (p->fsroot == FS_ROOT && !*p->gamedir)
+						p->flags |= DPF_PLUGIN;
+				}
 				else
 					p->flags |= DPF_HIDDEN;	//other engine builds or other cpus are all hidden
 			}
@@ -932,6 +952,28 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 		}
 	}
 }
+
+#ifdef PLUGINS
+void PM_EnumeratePlugins(void (*callback)(const char *name))
+{
+	package_t *p;
+	struct packagedep_s *d;
+	for (p = availablepackages; p; p = p->next)
+	{
+		if ((p->flags & DPF_ENABLED) && (p->flags & DPF_PLUGIN))
+		{
+			for (d = p->deps; d; d = d->next)
+			{
+				if (d->dtype == DEP_FILE)
+				{
+					if (!Q_strncasecmp(d->name, "fteplug_", 8))
+						callback(d->name);
+				}
+			}
+		}
+	}
+}
+#endif
 
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri)
 {
@@ -983,7 +1025,6 @@ void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const cha
 void PM_Shutdown(void)
 {
 	//free everything...
-	loadedinstalled = false;
 	pm_downloads_url.modified = false;
 
 	downloadablessequence++;
@@ -1006,6 +1047,7 @@ void PM_Shutdown(void)
 
 	while (availablepackages)
 		PM_FreePackage(availablepackages);
+	loadedinstalled = false;
 }
 
 
@@ -1062,6 +1104,10 @@ static package_t *PM_MarkedPackage(const char *packagename)
 static void PM_RevertChanges(void)
 {
 	package_t *p;
+
+	if (pkg_updating)
+		return;
+
 	for (p = availablepackages; p; p = p->next)
 	{
 		if (p->flags & DPF_ENABLED)
@@ -1077,6 +1123,9 @@ static void PM_UnmarkPackage(package_t *package)
 {
 	package_t *o;
 	struct packagedep_s *dep;
+
+	if (pkg_updating)
+		return;
 
 	if (!(package->flags & DPF_MARKED))
 		return;	//looks like its already deselected.
@@ -1106,6 +1155,9 @@ static void PM_MarkPackage(package_t *package)
 	package_t *o;
 	struct packagedep_s *dep, *dep2;
 	qboolean replacing = false;
+
+	if (pkg_updating)
+		return;
 
 	if (package->flags & DPF_MARKED)
 		return;	//looks like its already picked.
@@ -1206,26 +1258,47 @@ static void PM_MarkPackage(package_t *package)
 	}
 }
 
+static qboolean PM_NameIsInStrings(const char *strings, const char *match)
+{
+	char tok[1024];
+	while (strings && *strings)
+	{
+		strings = COM_ParseStringSetSep(strings, ';', tok, sizeof(tok));
+		if (!Q_strcasecmp(tok, match))	//okay its here.
+			return true;
+	}
+	return false;
+}
+
 //just flag stuff as needing updating
 static unsigned int PM_MarkUpdates (void)
 {
 	unsigned int changecount = 0;
 	package_t *p, *o, *b, *e = NULL;
 
-	if (manifestpackage)
+	if (manifestpackages)
 	{
-		p = PM_MarkedPackage(manifestpackage);
-		if (!p)
+		char tok[1024];
+		char *strings = manifestpackages;
+		while (strings && *strings)
 		{
-			p = PM_FindPackage(manifestpackage);
-			if (p)
+			strings = COM_ParseStringSetSep(strings, ';', tok, sizeof(tok));
+			if (PM_NameIsInStrings(declinedpackages, tok))
+				continue;
+
+			p = PM_MarkedPackage(tok);
+			if (!p)
 			{
-				PM_MarkPackage(p);
-				changecount++;
+				p = PM_FindPackage(tok);
+				if (p)
+				{
+					PM_MarkPackage(p);
+					changecount++;
+				}
 			}
+			else if (!(p->flags & DPF_ENABLED))
+				changecount++;
 		}
-		else if (!(p->flags & DPF_PRESENT))
-			changecount++;
 	}
 
 	for (p = availablepackages; p; p = p->next)
@@ -1272,6 +1345,61 @@ static unsigned int PM_MarkUpdates (void)
 	return changecount;
 }
 
+#if defined(M_Menu_Prompt) || defined(SERVERONLY)
+#else
+static unsigned int PM_ChangeList(char *out, size_t outsize)
+{
+	unsigned int changes = 0;
+	const char *change;
+	package_t *p;
+	size_t l;
+	size_t ofs = 0;
+	if (!outsize)
+		out = NULL;
+	else
+		*out = 0;
+	for (p = availablepackages; p; p=p->next)
+	{
+		if (!(p->flags & DPF_MARKED) != !(p->flags & DPF_ENABLED) || (p->flags & DPF_PURGE))
+		{
+			changes++;
+			if (!out)
+				continue;
+
+			if (p->flags & DPF_MARKED)
+			{
+				if (p->flags & DPF_PURGE)
+					change = va(" reinstall %s\n", p->name);
+				else if (p->flags & DPF_PRESENT)
+					change = va(" enable %s\n", p->name);
+				else
+					change = va(" install %s\n", p->name);
+			}
+			else if ((p->flags & DPF_PURGE) || !(p->qhash && (p->flags & DPF_CACHED)))
+				change = va(" uninstall %s\n", p->name);
+			else
+				change = va(" disable %s\n", p->name);
+
+			l = strlen(change);
+			if (ofs+l >= outsize)
+			{
+				Q_strncpyz(out, "Too many changes\n", outsize);
+				out = NULL;
+
+				break;
+			}
+			else
+			{
+				memcpy(out+ofs, change, l);
+				ofs += l;
+				out[ofs] = 0;
+			}
+		}
+	}
+	return changes;
+}
+#endif
+
 static void PM_PrintChanges(void)
 {
 	qboolean changes = 0;
@@ -1309,6 +1437,9 @@ static void PM_ListDownloaded(struct dl_download *dl)
 	f = dl->file;
 	dl->file = NULL;
 
+	if (!availablepackages)
+		Con_Printf("ZOMG NO PACKAGES\n");
+
 	i = dl->user_num;
 
 	if (dl != downloadablelist[i].curdl)
@@ -1335,13 +1466,14 @@ static void PM_ListDownloaded(struct dl_download *dl)
 		if (!downloadablelist[i].received)
 			break;
 	}
-	if (domanifestinstall == MANIFEST_SECURITY_INSTALLER && manifestpackage)
+/*
+	if (domanifestinstall == MANIFEST_SECURITY_INSTALLER && manifestpackages)
 	{
 		package_t *meta;
-		meta = PM_MarkedPackage(manifestpackage);
+		meta = PM_MarkedPackage(manifestpackages);
 		if (!meta)
 		{
-			meta = PM_FindPackage(manifestpackage);
+			meta = PM_FindPackage(manifestpackages);
 			if (meta)
 			{
 				PM_RevertChanges();
@@ -1368,6 +1500,7 @@ static void PM_ListDownloaded(struct dl_download *dl)
 			}
 		}
 	}
+*/
 	if ((doautoupdate || domanifestinstall == MANIFEST_SECURITY_DEFAULT) && i == numdownloadablelists)
 	{
 		if (PM_MarkUpdates())
@@ -1474,6 +1607,7 @@ static void COM_QuotedConcat(const char *cat, char *buf, size_t bufsize)
 }
 static void PM_WriteInstalledPackages(void)
 {
+	char buf[8192];
 	int i;
 	char *s;
 	package_t *p, *e = NULL;
@@ -1488,7 +1622,9 @@ static void PM_WriteInstalledPackages(void)
 	s = "version 2\n";
 	VFS_WRITE(f, s, strlen(s));
 
-	s = va("set updatemode \"%s\"\n", pm_autoupdate.string);
+	s = va("set updatemode %s\n", COM_QuotedString(pm_autoupdate.string, buf, sizeof(buf), false));
+	VFS_WRITE(f, s, strlen(s));
+	s = va("set declined %s\n", COM_QuotedString(declinedpackages?declinedpackages:"", buf, sizeof(buf), false));
 	VFS_WRITE(f, s, strlen(s));
 
 	for (i = 0; i < numdownloadablelists; i++)
@@ -1504,7 +1640,6 @@ static void PM_WriteInstalledPackages(void)
 	{
 		if (p->flags & (DPF_PRESENT|DPF_ENABLED))
 		{
-			char buf[8192];
 			buf[0] = 0;
 			COM_QuotedString(va("%s%s", p->category, p->name), buf, sizeof(buf), false);
 			if (p->flags & DPF_ENABLED)
@@ -1656,6 +1791,31 @@ static int QDECL PM_ExtractFiles(const char *fname, qofs_t fsize, time_t mtime, 
 	return 1;
 }
 
+//package has been downloaded and installed, but some packages need to be enabled
+//(plugins might have other dll dependancies, so this can only happen AFTER the entire package was extracted)
+void PM_PackageEnabled(package_t *p)
+{
+	char ext[8];
+	struct packagedep_s *dep;
+	FS_FlushFSHashFull();
+	for (dep = p->deps; dep; dep = dep->next)
+	{
+		if (dep->dtype != DEP_FILE)
+			continue;
+		COM_FileExtension(dep->name, ext, sizeof(ext));
+		if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
+			FS_ReloadPackFiles();
+#ifdef PLUGINS
+		if ((p->flags & DPF_PLUGIN) && !Q_strncasecmp(dep->name, "fteplug_", 8))
+			Cmd_ExecuteString(va("plug_load %s\n", dep->name), RESTRICT_LOCAL);
+#endif
+#ifdef MENU_DAT
+		if (!Q_strcasecmp(dep->name, "menu.dat"))
+			Cmd_ExecuteString("menu_restart\n", RESTRICT_LOCAL);
+#endif
+	}
+}
+
 static void PM_StartADownload(void);
 //callback from PM_StartADownload
 static void PM_Download_Got(struct dl_download *dl)
@@ -1739,8 +1899,10 @@ static void PM_Download_Got(struct dl_download *dl)
 				COM_FileExtension(dep->name, ext, sizeof(ext));
 				if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
 					FS_UnloadPackFiles();	//we reload them after
+#ifdef PLUGINS
 				if ((!stricmp(ext, "dll") || !stricmp(ext, "so")) && !Q_strncmp(dep->name, "fteplug_", 8))
 					Cmd_ExecuteString(va("plug_close %s\n", dep->name), RESTRICT_LOCAL);	//try to purge plugins so there's no files left open
+#endif
 
 				nfl = DPF_NATIVE;
 				if (*p->gamedir)
@@ -1778,10 +1940,7 @@ static void PM_Download_Got(struct dl_download *dl)
 
 				PM_ValidatePackage(p);
 
-				if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
-					FS_ReloadPackFiles();
-				if ((!stricmp(ext, "dll") || !stricmp(ext, "so")) && !Q_strncmp(dep->name, "fteplug_", 8))
-					Cmd_ExecuteString(va("plug_load %s\n", dep->name), RESTRICT_LOCAL);
+				PM_PackageEnabled(p);
 
 				Z_Free(tempname);
 				PM_StartADownload();
@@ -1911,9 +2070,13 @@ static void PM_StartADownload(void)
 	package_t *p;
 	const int simultaneous = PM_IsApplying(true)?1:2;
 	int i;
+	qboolean downloading = false;
 
 	for (p = availablepackages; p && simultaneous > PM_IsApplying(false); p=p->next)
 	{
+		if (p->download)
+			downloading = true;
+
 		if (p->trymirrors)
 		{	//flagged for a (re?)download
 			char *mirror = NULL;
@@ -1936,19 +2099,25 @@ static void PM_StartADownload(void)
 				if (i == countof(p->mirror))
 				{	//this appears to be a meta package with no download
 					//just directly install it.
+					//FIXME: make sure there's no files...
 					p->flags &= ~(DPF_NATIVE|DPF_CACHED|DPF_CORRUPT);
 					p->flags |= DPF_ENABLED;
+
+					Con_Printf("Enabled meta package %s\n", p->name);
 					PM_WriteInstalledPackages();
+					PM_PackageEnabled(p);
 				}
 				continue;
 			}
 
-			if (!PM_PurgeOnDisable(p))
+			if ((p->flags & DPF_PRESENT) && !PM_PurgeOnDisable(p))
 			{	//its in our cache directory, so lets just use that
 				p->trymirrors = 0;
 				p->flags |= DPF_ENABLED;
+
+				Con_Printf("Enabled cached package %s\n", p->name);
 				PM_WriteInstalledPackages();
-				FS_ReloadPackFiles();
+				PM_PackageEnabled(p);
 				continue;
 			}
 
@@ -1980,7 +2149,7 @@ static void PM_StartADownload(void)
 				{
 					vfsfile_t *raw;
 					raw = FS_OpenVFS(temp, "wb", p->fsroot);
-					tmpfile = FS_GZ_DecompressWriteFilter(raw, true);
+					tmpfile = FS_GZ_WriteFilter(raw, true, false);
 					if (!tmpfile)
 						VFS_CLOSE(raw);
 				}
@@ -2000,6 +2169,7 @@ static void PM_StartADownload(void)
 				p->download->user_ctx = temp;
 
 				DL_CreateThread(p->download, NULL, NULL);
+				downloading = true;
 			}
 			else
 			{
@@ -2011,11 +2181,18 @@ static void PM_StartADownload(void)
 			}
 		}
 	}
+
+	//clear the updating flag once there's no more activity needed
+	pkg_updating = downloading;
 }
 //'just' starts doing all the things needed to remove/install selected packages
 static void PM_ApplyChanges(void)
 {
 	package_t *p, **link;
+
+	if (pkg_updating)
+		return;
+	pkg_updating = true;
 
 //delete any that don't exist
 	for (link = &availablepackages; *link ; )
@@ -2028,22 +2205,33 @@ static void PM_ApplyChanges(void)
 			qboolean reloadpacks = false;
 			struct packagedep_s *dep;
 
+
+			for (dep = p->deps; dep; dep = dep->next)
+			{
+				if (dep->dtype == DEP_FILE)
+				{
+					char ext[8];
+					COM_FileExtension(dep->name, ext, sizeof(ext));
+					if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
+						reloadpacks = true;
+
+#ifdef PLUGINS		//when disabling/purging plugins, be sure to unload them first (unfortunately there might be some latency before this can actually happen).
+					if ((p->flags & DPF_PLUGIN) && !Q_strncasecmp(dep->name, "fteplug_", 8))
+						Cmd_ExecuteString(va("plug_close %s\n", dep->name), RESTRICT_LOCAL);	//try to purge plugins so there's no files left open
+#endif
+
+				}
+			}
+			if (reloadpacks)	//okay, some package was removed, unload all, do the deletions/disables, then reload them. This is kinda shit. Would be better to remove individual packages, which would avoid unnecessary config execs.
+				FS_UnloadPackFiles();
+
 			if ((p->flags & DPF_PURGE) || PM_PurgeOnDisable(p))
 			{
+				Con_Printf("Purging package %s\n", p->name);
 				for (dep = p->deps; dep; dep = dep->next)
 				{
 					if (dep->dtype == DEP_FILE)
 					{
-						if (!reloadpacks)
-						{
-							char ext[8];
-							COM_FileExtension(dep->name, ext, sizeof(ext));
-							if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
-							{
-								reloadpacks = true;
-								FS_UnloadPackFiles();
-							}
-						}
 						if (*p->gamedir)
 						{
 							char *f = va("%s/%s", p->gamedir, dep->name);
@@ -2061,6 +2249,8 @@ static void PM_ApplyChanges(void)
 					}
 				}
 			}
+			else
+				Con_Printf("Disabling package %s\n", p->name);
 			p->flags &= ~(DPF_PURGE|DPF_ENABLED);
 
 			/* FIXME: windows bug:
@@ -2116,20 +2306,131 @@ static void PM_ApplyChanges(void)
 	PM_StartADownload();	//and try to do those downloads.
 }
 
+#if defined(M_Menu_Prompt) || defined(SERVERONLY)
+//if M_Menu_Prompt is a define, then its a stub...
+static void PM_PromptApplyChanges(void)
+{
+	PM_ApplyChanges();
+}
+#else
+static qboolean PM_DeclinedPackages(char *out, size_t outsize)
+{
+	size_t ofs = 0;
+	package_t *p;
+	qboolean ret = false;
+	if (manifestpackages)
+	{
+		char tok[1024];
+		char *strings = manifestpackages;
+		while (strings && *strings)
+		{
+			strings = COM_ParseStringSetSep(strings, ';', tok, sizeof(tok));
+
+			//already in the list
+			if (PM_NameIsInStrings(declinedpackages, tok))
+				continue;
+
+			p = PM_MarkedPackage(tok);
+			if (p)	//don't mark it as declined if it wasn't
+				continue;
+
+			p = PM_FindPackage(tok);
+			if (p)
+			{	//okay, it was declined
+				ret = true;
+				if (!out)
+				{	//we're confirming that they should be flagged as declined
+					if (declinedpackages)
+					{
+						char *t = declinedpackages;
+						declinedpackages = Z_StrDup(va("%s;%s", declinedpackages, tok));
+						Z_Free(t);
+					}
+					else
+						declinedpackages = Z_StrDup(tok);
+				}
+				else
+				{	//we're collecting a list of package names
+					char *change = va("%s\n", p->name);
+					size_t l = strlen(change);
+					if (ofs+l >= outsize)
+					{
+						Q_strncpyz(out, "Too many changes\n", outsize);
+						out = NULL;
+
+						break;
+					}
+					else
+					{
+						memcpy(out+ofs, change, l);
+						ofs += l;
+						out[ofs] = 0;
+					}
+					break;
+				}
+			}
+		}
+	}
+	if (!out && ret)
+		PM_WriteInstalledPackages();
+	return ret;
+}
+static void PM_PromptApplyChanges_Callback(void *ctx, int opt)
+{
+	pkg_updating = false;
+	if (opt == 0)
+		PM_ApplyChanges();
+}
+static void PM_PromptApplyChanges(void);
+static void PM_PromptApplyDecline_Callback(void *ctx, int opt)
+{
+	pkg_updating = false;
+	if (opt == 1)
+	{
+		PM_DeclinedPackages(NULL, 0);
+		PM_PromptApplyChanges();
+	}
+}
+static void PM_PromptApplyChanges(void)
+{
+	unsigned int changes;
+	char text[8192];
+	//lock it down, so noone can make any changes while this prompt is still displayed
+	if (pkg_updating)
+	{
+		M_Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, "An update is already in progress\nPlease wait\n", NULL, NULL, "Cancel");
+		return;
+	}
+	pkg_updating = true;
+
+	strcpy(text, "Really decline the following\nrecommendedpackages?\n\n");
+	if (PM_DeclinedPackages(text+strlen(text), sizeof(text)-strlen(text)))
+		M_Menu_Prompt(PM_PromptApplyDecline_Callback, NULL, text, NULL, "Confirm", "Cancel");
+	else
+	{
+		strcpy(text, "Apply the following changes?\n\n");
+		changes = PM_ChangeList(text+strlen(text), sizeof(text)-strlen(text));
+		if (!changes)
+			pkg_updating = false;//no changes...
+		else
+			M_Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, text, "Apply", NULL, "Cancel");
+	}
+}
+#endif
+
 //names packages that were listed from the  manifest.
 //if 'mark' is true, then this is an initial install.
 void PM_ManifestPackage(const char *metaname, int security)
 {
 	domanifestinstall = security;
-	Z_Free(manifestpackage);
+	Z_Free(manifestpackages);
 	if (metaname && security)
 	{
-		manifestpackage = Z_StrDup(metaname);
-		if (security)
-			PM_UpdatePackageList(false, false);
+		manifestpackages = Z_StrDup(metaname);
+//		PM_UpdatePackageList(false, false);
 	}
 	else
-		manifestpackage = NULL;
+		manifestpackages = NULL;
 }
 
 void PM_Command_f(void)
@@ -2181,7 +2482,7 @@ void PM_Command_f(void)
 			else
 				status = "";
 
-			Con_Printf(" ^[%s%s%s%s^] %s^9 %s\n", markup, p->name, p->arch?":":"", p->arch?p->arch:"", status, strcmp(p->name, p->title)?p->title:"");
+			Con_Printf(" ^[%s%s%s%s^] %s^9 %s (%s%s)\n", markup, p->name, p->arch?":":"", p->arch?p->arch:"", status, strcmp(p->name, p->title)?p->title:"", p->version, (p->flags&DPF_TESTING)?"-testing":"");
 		}
 		Con_Printf("<end of list>\n");
 	}
@@ -2277,24 +2578,29 @@ void PM_Command_f(void)
 	else if (!strcmp(act, "apply"))
 	{
 		Con_Printf("Applying package changes\n");
-		PM_ApplyChanges();
+		if (qrenderer != QR_NONE)
+			PM_PromptApplyChanges();
+		else
+			PM_ApplyChanges();
 	}
 	else if (!strcmp(act, "changes"))
 	{
 		PM_PrintChanges();
 	}
-	else if (!strcmp(act, "reset"))
+	else if (!strcmp(act, "reset") || !strcmp(act, "revert"))
 	{
-		Con_Printf("Applying package changes\n");
 		PM_RevertChanges();
-		PM_ApplyChanges();
-		PM_PrintChanges();
 	}
 	else if (!strcmp(act, "upgrade"))
 	{
-		Con_Printf("Updating packages\n");
-		PM_MarkUpdates();
-		PM_ApplyChanges();
+		unsigned int changes = PM_MarkUpdates();
+		if (changes)
+		{
+			Con_Printf("%u packages flagged\n");
+			PM_PromptApplyChanges();
+		}
+		else
+			Con_Printf("Already using latest versions of all packages\n");
 	}
 	else if (!strcmp(act, "add") || !strcmp(act, "get") || !strcmp(act, "install") || !strcmp(act, "enable"))
 	{
@@ -2422,6 +2728,9 @@ void PM_Command_f (void)
 	Con_Printf("Package Manager is not implemented in this build\n");
 }
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri)
+{
+}
+void PM_EnumeratePlugins(void (*callback)(const char *name))
 {
 }
 void PM_ManifestPackage(const char *metaname, int security)
@@ -2666,7 +2975,7 @@ static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int k
 {
 	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 	{
-		PM_ApplyChanges();
+		PM_PromptApplyChanges();
 		return true;
 	}
 	return false;

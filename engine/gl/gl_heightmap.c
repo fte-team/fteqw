@@ -292,7 +292,7 @@ static int dehex_e(int i, qboolean *error)
 		*error = true;
 	return 0;
 }
-static qboolean Terr_IsSectionFName(heightmap_t *hm, char *fname, int *sx, int *sy)
+static qboolean Terr_IsSectionFName(heightmap_t *hm, const char *fname, int *sx, int *sy)
 {
 	int l;
 	qboolean error = false;
@@ -1873,7 +1873,7 @@ int Heightmap_Save(heightmap_t *hm)
 
 #ifndef CLIENTONLY
 //on servers, we can get requests to download current map sections. if so, give them it.
-qboolean Terrain_LocateSection(char *name, flocation_t *loc)
+qboolean Terrain_LocateSection(const char *name, flocation_t *loc)
 {
 	heightmap_t *hm;
 	hmsection_t *s;
@@ -1881,7 +1881,7 @@ qboolean Terrain_LocateSection(char *name, flocation_t *loc)
 	char fname[MAX_QPATH];
 
 	//reject if its not in maps
-	if (strncmp(name, "maps/", 5))
+	if (Q_strncasecmp(name, "maps/", 5))
 		return false;
 
 	if (!sv.world.worldmodel)

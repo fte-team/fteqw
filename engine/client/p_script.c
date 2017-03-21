@@ -4503,7 +4503,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		return 1;
 
 	// inwater check, switch only once
-	if (r_part_contentswitch.ival && ptype->inwater >= 0 && cl.worldmodel)
+	if (r_part_contentswitch.ival && ptype->inwater >= 0 && cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
 	{
 		int cont;
 		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, org);
@@ -5937,7 +5937,7 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlk
 		return 1;
 
 	// inwater check, switch only once
-	if (r_part_contentswitch.ival && ptype->inwater >= 0 && cl.worldmodel)
+	if (r_part_contentswitch.ival && ptype->inwater >= 0 && cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
 	{
 		int cont;
 		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, startpos);

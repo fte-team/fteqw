@@ -1028,6 +1028,14 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 		ClientReliableWrite_Begin (to, svc_updatecolors, 3);
 		ClientReliableWrite_Byte (to, i);
 		ClientReliableWrite_Byte (to, playercolor);
+
+		if (to->fteprotocolextensions2 & PEXT2_PREDINFO)
+		{
+			char quotedval[8192];
+			char *s = va("//fui %i %s\n", i, COM_QuotedString(client->userinfo, quotedval, sizeof(quotedval), false));
+			ClientReliableWrite_Begin(to, svc_stufftext, 2+strlen(s));
+			ClientReliableWrite_String(to, s);
+		}
 	}
 }
 
@@ -2084,7 +2092,7 @@ Q3: connect "\key\val"
 DP: connect\key\val
 QW: connect $VER $QPORT $CHALLENGE "\key\val"
 SS: connect2 $VER $QPORT $CHALLENGE "\key\val" "\key\val"
-NQ: hacked to take the form of QW
+NQ: hacked to take the form of QW, but with protocol version 3.
 extension flags follow it.
 */
 client_t *SVC_DirectConnect(void)
@@ -2318,7 +2326,12 @@ client_t *SVC_DirectConnect(void)
 
 		// note an extra qbyte is needed to replace spectator key
 		for (i = 0; i < numssclients; i++)
+		{
 			Q_strncpyz (userinfo[i], Cmd_Argv(4+i), sizeof(userinfo[i])-1);
+
+			if (protocol == SCP_NETQUAKE)
+				Info_RemoveKey(userinfo[i], "mod");	//its served its purpose.
+		}
 	}
 
 	{
@@ -5085,12 +5098,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	{
 		Info_SetValueForKey(cl->userinfo, "team", p, sizeof(cl->userinfo));
 		if (verbose)
-		{
-			MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-			MSG_WriteByte (&sv.reliable_datagram, cl-svs.clients);
-			MSG_WriteString (&sv.reliable_datagram, "team");
-			MSG_WriteString (&sv.reliable_datagram, p);
-		}
+			SV_BroadcastUserinfoChange(cl, true, "team", p);
 	}
 	Q_strncpyz (cl->team, val, sizeof(cl->teambuf));
 

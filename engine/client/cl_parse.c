@@ -490,7 +490,12 @@ void CL_AckedInputFrame(int inseq, int outseq, qboolean worldstateokay)
 		{
 //nq has no concept of choking. outbound packets that are accepted during a single frame will be erroneoulsy considered dropped. nq never had a netgraph based upon outgoing timings.
 //			Con_Printf("Dropped moveframe %i\n", i);
-			cl.outframes[i].latency = -1;
+			if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
+			{	//dp doesn't ack every single packet. trying to report packet loss correctly is futile, we'll just get bad-mouthed.
+				cl.outframes[i].latency = -2;	//flag as choked
+			}
+			else
+				cl.outframes[i].latency = -1;	//flag as dropped
 		}
 	}
 	cl.inframes[inseq&UPDATE_MASK].ackframe = outseq;
@@ -704,16 +709,19 @@ void CL_SendDownloadStartRequest(char *filename, char *localname, unsigned int f
 #ifdef WEBCLIENT
 	if (!strncmp(filename, "http://", 7) || !strncmp(filename, "https://", 8))
 	{
-		struct dl_download *wdl = HTTP_CL_Get(filename, localname, CL_WebDownloadFinished);
-		if (wdl)
+		if (!cls.download || !(cls.download->flags & DLLF_ALLOWWEB))
 		{
-			if (!(flags & DLLF_TEMPORARY))
-				Con_TPrintf ("Downloading %s to %s...\n", wdl->url, wdl->localname);
-			wdl->qdownload.flags = flags;
-			cls.download = &wdl->qdownload;
+			struct dl_download *wdl = HTTP_CL_Get(filename, localname, CL_WebDownloadFinished);
+			if (wdl)
+			{
+				if (!(flags & DLLF_TEMPORARY))
+					Con_TPrintf ("Downloading %s to %s...\n", wdl->url, wdl->localname);
+				wdl->qdownload.flags = flags;
+				cls.download = &wdl->qdownload;
+			}
+			else
+				CL_DownloadFailed(filename, NULL);
 		}
-		else
-			CL_DownloadFailed(filename, NULL);
 		return;
 	}
 #endif
@@ -1140,7 +1148,7 @@ void Model_CheckDownloads (void)
 			continue;
 #endif
 
-		CL_CheckOrEnqueDownloadFile(s, s, (i==1)?DLLF_REQUIRED:0);	//world is required to be loaded.
+		CL_CheckOrEnqueDownloadFile(s, s, (i==1)?DLLF_REQUIRED|DLLF_ALLOWWEB:0);	//world is required to be loaded.
 		CL_CheckModelResources(s);
 	}
 
@@ -2669,7 +2677,7 @@ void CLDP_ParseDownloadBegin(char *s)
 	char buffer[8192];
 	qofs_t size, pos, chunk;
 	char *fname;
-	Cmd_TokenizeString(s+1, false, false);
+	Cmd_TokenizeString(s, false, false);
 	size = (qofs_t)strtoull(Cmd_Argv(1), NULL, 0);
 	fname = Cmd_Argv(2);
 
@@ -2717,7 +2725,7 @@ void CLDP_ParseDownloadFinished(char *s)
 	if (!dl || !dl->file)
 		return;
 
-	Cmd_TokenizeString(s+1, false, false);
+	Cmd_TokenizeString(s, false, false);
 
 	VFS_CLOSE (dl->file);
 
@@ -2744,7 +2752,7 @@ void CLDP_ParseDownloadFinished(char *s)
 		return;
 	}
 
-	Cmd_TokenizeString(s+1, false, false);
+	Cmd_TokenizeString(s, false, false);
 	if (size != atoi(Cmd_Argv(1)))
 	{
 		Con_Printf("Download failed: wrong file size\n");
@@ -3670,6 +3678,12 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	CSQC_Init(cls.demoplayback, false, 0);
 #endif
 }
+static void CLNQ_SendInitialUserInfo(void *ctx, const char *key, const char *value)
+{
+	char keybuf[2048];
+	char valbuf[4096];
+	CL_SendClientCommand(true, "setinfo %s %s\n", COM_QuotedString(key, keybuf, sizeof(keybuf), false), COM_QuotedString(value, valbuf, sizeof(valbuf), false));
+}
 void CLNQ_SignonReply (void)
 {
 	extern cvar_t	topcolor;
@@ -3690,27 +3704,16 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 
 	case 2:
 		CL_SendClientCommand(true, "name \"%s\"\n", name.string);
-
 		CL_SendClientCommand(true, "color %i %i\n", topcolor.ival, bottomcolor.ival);
-
-		CL_SendClientCommand(true, "spawn %s", "");
-
-		if (CPNQ_IS_DP)	//dp needs a couple of extras to work properly.
+		if (cl.haveserverinfo)
+			Info_Enumerate(cls.userinfo[0], NULL, CLNQ_SendInitialUserInfo);
+		else if (CPNQ_IS_DP)	//dp needs a couple of extras to work properly. don't send them on other servers because that generally results in error messages.
 		{
 			CL_SendClientCommand(true, "rate %s", rate.string);
-
 			CL_SendClientCommand(true, "playermodel %s", model.string);
 			CL_SendClientCommand(true, "playerskin %s", skin.string);
-			/*
-#ifdef PEXT_CSQC
-			{
-				char *s;
-				s = Info_ValueForKey(cl.serverinfo, "*csprogs");
-				CSQC_Init(false, *s?true:false, atoi(s));
-			}
-#endif
-			*/
 		}
+		CL_SendClientCommand(true, "spawn %s", "");
 		break;
 
 	case 3:
@@ -4044,6 +4047,7 @@ void CLQ2_ParseClientinfo(int i, char *s)
 	char *model, *name;
 	player_info_t *player;
 	//s contains "name\model/skin"
+	//q2 doesn't really do much with userinfos.
 
 	if (i >= MAX_CLIENTS)
 		return;
@@ -4051,6 +4055,7 @@ void CLQ2_ParseClientinfo(int i, char *s)
 	player = &cl.players[i];
 
 	*player->userinfo = '\0';
+	cl.players[i].userinfovalid = true;
 
 	model = strchr(s, '\\');
 	if (model)
@@ -5039,6 +5044,7 @@ void CL_UpdateUserinfo (void)
 	player = &cl.players[slot];
 	player->userid = MSG_ReadLong ();
 	Q_strncpyz (player->userinfo, MSG_ReadString(), sizeof(player->userinfo));
+	player->userinfovalid = true;
 
 	CL_ProcessUserInfo (slot, player);
 
@@ -5079,6 +5085,7 @@ void CL_ParseSetInfo (void)
 		Con_DPrintf("SETINFO %s: %s=%s\n", player->name, key, value);
 
 		Info_SetValueForStarKey (player->userinfo, key, value, sizeof(player->userinfo));
+		player->userinfovalid = true;
 
 		CL_ProcessUserInfo (slot, player);
 	}
@@ -6139,7 +6146,7 @@ static void CL_ParseItemTimer(void)
 
 	for (timer = cl.itemtimers; timer; timer = timer->next)
 	{
-		if (VectorCompare(timer->origin, org) && timer->entnum == entnum)
+		if (VectorCompare(timer->origin, org) && timer->entnum == entnum && entnum)
 			break;
 	}
 	if (!timer)
@@ -6206,111 +6213,197 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 		Con_DLPrintf((cls.state==ca_active)?1:2, "stufftext: %s\n", stufftext);
 		if (!strncmp(stufftext, "fullserverinfo ", 15))
 		{
-			Cmd_ExecuteString(stufftext, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded
+			Cmd_TokenizeString(stufftext, false, false);
+			if (Cmd_Argc() == 2)
+			{
+				cl.haveserverinfo = true;
+				Q_strncpyz (cl.serverinfo, Cmd_Argv(1), sizeof(cl.serverinfo));
+				CL_CheckServerInfo();
+			}
+
 			#if _MSC_VER > 1200
 			if (cls.netchan.remote_address.type != NA_LOOPBACK)
 				Sys_RecentServer("+connect", cls.servername, va("%s (%s)", Info_ValueForKey(cl.serverinfo, "hostname"), cls.servername), "Join QW Server");
 			#endif
 		}
-		else
+		else if (!strncmp(stufftext, "//svi ", 6))	//for serverinfo over NQ protocols
 		{
-			if (!strncmp(stufftext, "//querycmd ", 11))
+			Cmd_TokenizeString(stufftext+2, false, false);
+			Con_DPrintf("SERVERINFO: %s=%s\n", Cmd_Argv(1), Cmd_Argv(2));
+			Info_SetValueForStarKey (cl.serverinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_SERVERINFO_STRING);
+			CL_CheckServerInfo();
+		}
+
+#ifdef NQPROT
+		//DP's download protocol
+		else if (cls.protocol == CP_NETQUAKE && !strncmp(stufftext, "cl_serverextension_download ", 28))	//<supported>. server lets us know that it supports it.
+			cl_dp_serverextension_download = true;	//warning, this is sent BEFORE svc_serverdata, so cannot use cl.foo
+		else if (cls.protocol == CP_NETQUAKE && !strncmp(stufftext, "cl_downloadbegin ", 17))		//<size> <name>.  server [reliably] lets us know that its going to start sending data.
+			CLDP_ParseDownloadBegin(stufftext);
+		else if (cls.protocol == CP_NETQUAKE && !strncmp(stufftext, "cl_downloadfinished ", 20))		//<size> <crc>. server [reliably] lets us know that we acked the entire thing
+			CLDP_ParseDownloadFinished(stufftext);
+		else if (cls.protocol == CP_NETQUAKE && !strcmp(stufftext, "stopdownload"))						//download command reported failure. safe to request the next.
+		{
+			if (cls.download)
+				CL_DownloadFailed(cls.download->remotename, cls.download);
+		}
+
+		//DP servers use these to report the correct csprogs.dat file+version to use.
+		//WARNING: these are sent BEFORE svc_serverdata, so we cannot store this state into cl.foo
+		//we poke the data into cl.serverinfo once we get the following svc_serverdata.
+		//we then clobber it from a fullserverinfo message if its an fte server running dpp7, but hey.
+		else if (cls.protocol == CP_NETQUAKE && !strncmp(stufftext, "csqc_progname ", 14))
+			COM_ParseOut(stufftext+14, cl_dp_csqc_progsname, sizeof(cl_dp_csqc_progsname));
+		else if (cls.protocol == CP_NETQUAKE && !strncmp(stufftext, "csqc_progsize ", 14))
+			cl_dp_csqc_progssize = atoi(stufftext+14);
+		else if (cls.protocol == CP_NETQUAKE && !strncmp(stufftext, "csqc_progcrc ", 13))
+			cl_dp_csqc_progscrc = atoi(stufftext+13);
+
+		//NQ servers/mods like spamming this. Its annoying, but we might as well use it if we can, while also muting it.
+		else if (!strncmp(stufftext, "cl_fullpitch ", 13) || !strncmp(stufftext, "pq_fullpitch ", 13))	
+		{
+			if (!cl.haveserverinfo)
 			{
-				COM_Parse(stufftext + 11);
-				if (Cmd_Exists(com_token))
+				Info_SetValueForStarKey(cl.serverinfo, "maxpitch", (atoi(stufftext+13))? "90":"", sizeof(cl.serverinfo));
+				Info_SetValueForStarKey(cl.serverinfo, "minpitch", (atoi(stufftext+13))?"-90":"", sizeof(cl.serverinfo));
+				CL_CheckServerInfo();
+			}
+		}
+#endif
+
+		else if (!strncmp(stufftext, "//querycmd ", 11))	//for servers to check if a command exists or not.
+		{
+			COM_Parse(stufftext + 11);
+			if (Cmd_Exists(com_token))
+			{
+				Cbuf_AddText ("cmd cmdsupported ", RESTRICT_SERVER+destsplit);
+				Cbuf_AddText (com_token, RESTRICT_SERVER+destsplit);
+				Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
+			}
+		}
+		else if (!strncmp(stufftext, "//paknames ", 11))	//so that the client knows what to download...
+		{													//there's a couple of prefixes involved etc
+			Q_strncatz(cl.serverpaknames, stufftext+11, sizeof(cl.serverpaknames));
+			cl.serverpakschanged = true;
+		}
+		else if (!strncmp(stufftext, "//paks ", 7))			//gives the client a list of hashes to match against
+		{													//the client can re-order for cl_pure support, or download dupes to avoid version mismatches
+			Q_strncatz(cl.serverpakcrcs, stufftext+7, sizeof(cl.serverpakcrcs));
+			cl.serverpakschanged = true;
+			CL_CheckServerPacks();
+		}
+		else if (!strncmp(stufftext, "//vwep ", 7))			//list of vwep model indexes, because using the normal model precaches wasn't cool enough
+		{													//(from zquake/ezquake)
+			int i;
+			char *mname;
+			Cmd_TokenizeString(stufftext+7, false, false);
+			for (i = 0; i < Cmd_Argc(); i++)
+			{
+				mname = Cmd_Argv(i);
+				if (strcmp(mname, "-"))
 				{
-					Cbuf_AddText ("cmd cmdsupported ", RESTRICT_SERVER+destsplit);
-					Cbuf_AddText (com_token, RESTRICT_SERVER+destsplit);
-					Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
-				}
-			}
-			else if (!strncmp(stufftext, "//paknames ", 11))
-			{
-				Q_strncatz(cl.serverpaknames, stufftext+11, sizeof(cl.serverpaknames));
-				cl.serverpakschanged = true;
-			}
-			else if (!strncmp(stufftext, "//paks ", 7))
-			{
-				Q_strncatz(cl.serverpakcrcs, stufftext+7, sizeof(cl.serverpakcrcs));
-				cl.serverpakschanged = true;
-				CL_CheckServerPacks();
-			}
-			else if (!strncmp(stufftext, "//vwep ", 7))
-			{
-				int i;
-				char *mname;
-				Cmd_TokenizeString(stufftext+7, false, false);
-				for (i = 0; i < Cmd_Argc(); i++)
-				{
-					mname = Cmd_Argv(i);
-					if (strcmp(mname, "-"))
+					mname = va("progs/%s.mdl", Cmd_Argv(i));
+					Q_strncpyz(cl.model_name_vwep[i], mname, sizeof(cl.model_name_vwep[i]));
+					if (cls.state == ca_active)
 					{
-						mname = va("progs/%s.mdl", Cmd_Argv(i));
-						Q_strncpyz(cl.model_name_vwep[i], mname, sizeof(cl.model_name_vwep[i]));
-						if (cls.state == ca_active)
-						{
-							CL_CheckOrEnqueDownloadFile(cl.model_name_vwep[i], NULL, 0);
-							cl.model_precache_vwep[i] = Mod_ForName(cl.model_name_vwep[i], MLV_WARN);
-						}
+						CL_CheckOrEnqueDownloadFile(cl.model_name_vwep[i], NULL, 0);
+						cl.model_precache_vwep[i] = Mod_ForName(cl.model_name_vwep[i], MLV_WARN);
 					}
 				}
 			}
-			else if (!strncmp(stufftext, "//exectrigger ", 14))
+		}
+		else if (!strncmp(stufftext, "//exectrigger ", 14))		//so that mods can add whatever 'alias grabbedarmour' or whatever triggers that users might want to script responses for, without errors about unknown commands
+		{
+			COM_Parse(stufftext + 14);
+			if (Cmd_AliasExist(com_token, RESTRICT_SERVER))
+				Cmd_ExecuteString(com_token, RESTRICT_SERVER);	//do this NOW so that it's done before any models or anything are loaded
+		}
+		else if (!strncmp(stufftext, "//set ", 6))				//equivelent to regular set, except non-spammy if it doesn't exist, and happens instantly without extra latency.
+		{
+			Cmd_ExecuteString(stufftext+2, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded
+		}
+		else if (!strncmp(stufftext, "//at ", 5))				//ktx autotrack hints
+		{
+			Cam_SetModAutoTrack(atoi(stufftext+5));
+		}
+		else if (!strncmp(stufftext, "//wps ", 5))				//ktx weapon statistics
+		{
+			Cmd_TokenizeString(stufftext+5, false, false);
+			CL_ParseWeaponStats();
+		}
+		else if (!strncmp(stufftext, "//kickfile ", 11))		//FTE sends this to give a more friendly error about modified BSP files, although it could be used for more stuff.
+		{
+			flocation_t loc;
+			Cmd_TokenizeString(stufftext+2, false, false);
+			if (FS_FLocateFile(Cmd_Argv(1), FSLF_IFFOUND, &loc))
 			{
-				COM_Parse(stufftext + 14);
-				if (Cmd_AliasExist(com_token, RESTRICT_SERVER))
-					Cmd_ExecuteString(com_token, RESTRICT_SERVER);	//do this NOW so that it's done before any models or anything are loaded
+				if (!*loc.rawname)
+					Con_Printf("You have been kicked due to the file "U8("%s")" being modified, inside "U8("%s")"\n", Cmd_Argv(1), loc.search->logicalpath);
+				else
+					Con_Printf("You have been kicked due to the file "U8("%s")" being modfied, located at "U8("%s")"\n", Cmd_Argv(1), loc.rawname);
 			}
-			else if (!strncmp(stufftext, "//set ", 6))
+		}
+		else if (!strncmp(stufftext, "//it ", 5))				//it <timeout> <org xyz> <radius> <rgb> <timername> <entnum>
+		{
+			Cmd_TokenizeString(stufftext+5, false, false);
+			CL_ParseItemTimer();
+		}
+		else if (!strncmp(stufftext, "//fui ", 6))				//ui <slot> <key> <value>. Full user info updates.
+		{
+			unsigned int slot;
+			const char *value;
+			Cmd_TokenizeString(stufftext+6, false, false);
+			slot = atoi(Cmd_Argv(0));
+			value = Cmd_Argv(1);
+			if (slot < MAX_CLIENTS)
 			{
-				Cmd_ExecuteString(stufftext+2, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded
+				player_info_t *player = &cl.players[slot];
+				Con_DPrintf("SETINFO %s: %s\n", player->name, value);
+				Q_strncpyz(player->userinfo, value, sizeof(player->userinfo));
+				player->userinfovalid = true;
+				CL_ProcessUserInfo (slot, player);
 			}
-			else if (!strncmp(stufftext, "//at ", 5))
+		}
+		else if (!strncmp(stufftext, "//ui ", 5))				//ui <slot> <key> <value>. Full user info updates.
+		{
+			unsigned int slot;
+			const char *key, *value;
+			Cmd_TokenizeString(stufftext+5, false, false);
+			slot = atoi(Cmd_Argv(0));
+			key = Cmd_Argv(1);
+			value = Cmd_Argv(2);
+			if (slot < MAX_CLIENTS)
 			{
-				Cam_SetModAutoTrack(atoi(stufftext+5));
+				player_info_t *player = &cl.players[slot];
+				Con_DPrintf("SETINFO %s: %s=%s\n", player->name, key, value);
+				Info_SetValueForStarKey (player->userinfo, key, value, sizeof(player->userinfo));
+				CL_ProcessUserInfo (slot, player);
 			}
-			else if (!strncmp(stufftext, "//wps ", 5))
-			{
-				Cmd_TokenizeString(stufftext+5, false, false);
-				CL_ParseWeaponStats();
-			}
-			else if (!strncmp(stufftext, "//kickfile ", 11))
-			{
-				flocation_t loc;
-				Cmd_TokenizeString(stufftext+2, false, false);
-				if (FS_FLocateFile(Cmd_Argv(1), FSLF_IFFOUND, &loc))
-					Con_Printf("You have been kicked due to the file \"%s\" being modified.\n", Cmd_Argv(1));
-			}
-			else if (!strncmp(stufftext, "//it ", 5))
-			{
-				Cmd_TokenizeString(stufftext+5, false, false);
-				CL_ParseItemTimer();
-			}
+		}
 #ifdef PLUGINS
-			else if (!strncmp(stufftext, "//tinfo ", 8))
-			{
-				Cmd_TokenizeString(stufftext+2, false, false);
-				CL_ParseTeamInfo();
-				Plug_Command_f();	//FIXME: deprecate this call
-			}
-			else if (!strncmp(stufftext, "//sn ", 5))
-			{
-				Cmd_TokenizeString(stufftext+2, false, false);
-				Plug_Command_f();
-			}
+		else if (!strncmp(stufftext, "//tinfo ", 8))			//ktx-team-info <pidx> <org xyz> <health> <armour> <STAT_ITEMS> <nickname>
+		{
+			Cmd_TokenizeString(stufftext+2, false, false);
+			CL_ParseTeamInfo();
+			Plug_Command_f();	//FIXME: deprecate this call
+		}
+		else if (!strncmp(stufftext, "//sn ", 5))
+		{
+			Cmd_TokenizeString(stufftext+2, false, false);
+			Plug_Command_f();
+		}
 #endif
 #ifdef CSQC_DAT
-			else if (CSQC_StuffCmd(destsplit, stufftext, msg))
-			{
-			}
+		else if (CSQC_StuffCmd(destsplit, stufftext, msg))
+		{
+		}
 #endif
-			else
-			{
-				if (!strncmp(stufftext, "cmd ", 4))
-					Cbuf_AddText (va("p%i ", destsplit+1), RESTRICT_SERVER+destsplit);	//without this, in_forceseat can break directed cmds.
-				Cbuf_AddText (stufftext, RESTRICT_SERVER+destsplit);
-				Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
-			}
+		else
+		{
+			if (!strncmp(stufftext, "cmd ", 4))
+				Cbuf_AddText (va("p%i ", destsplit+1), RESTRICT_SERVER+destsplit);	//without this, in_forceseat can break directed cmds.
+			Cbuf_AddText (stufftext, RESTRICT_SERVER+destsplit);
+			Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
 		}
 		msg++;
 
@@ -6609,7 +6702,6 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_stufftext:
 			s = MSG_ReadString ();
-
 			CL_ParseStuffCmd(s, destsplit);
 			break;
 
@@ -7479,6 +7571,17 @@ qboolean CLNQ_ParseNQPrints(char *s)
 	return false;
 }
 
+void CLNQ_CheckPlayerIsSpectator(int i)
+{
+	cl.players[i].spectator =
+		(cl.players[i].frags==-999) ||	//DP mods tend to use -999
+		(cl.players[i].frags==-99);	//crmod uses -99 for spectators, which is annoying.
+	//we can't add any colour checks, as apparently this fucks up too.
+
+	if (!*cl.players[i].name)
+		cl.players[i].spectator = false;
+}
+
 void CLNQ_ParseServerMessage (void)
 {
 	const int	destsplit = 0;
@@ -7564,53 +7667,14 @@ void CLNQ_ParseServerMessage (void)
 			s = MSG_ReadString ();
 
 #ifdef PLUGINS
-			if (Plug_CenterPrintMessage(s, 0))
+			if (Plug_CenterPrintMessage(s, destsplit))
 #endif
-				SCR_CenterPrint (0, s, false);
+				SCR_CenterPrint (destsplit, s, false);
 			break;
 
 		case svc_stufftext:
 			s = MSG_ReadString ();
-			if (*s == 1 && !cls.allow_csqc)
-			{
-				Con_DPrintf("Proquake: %s\n", s);
-				s = CLNQ_ParseProQuakeMessage(s);
-			}
-			Con_DPrintf ("stufftext: %s\n", s);
-			if (!strncmp(s, "cl_serverextension_download ", 14))
-			{
-				cl_dp_serverextension_download = true;
-			}
-			else if (!strncmp(s, "//svi ", 6))
-			{
-				Cmd_TokenizeString(s+2, false, false);
-				Con_DPrintf("SERVERINFO: %s=%s\n", Cmd_Argv(1), Cmd_Argv(2));
-				Info_SetValueForStarKey (cl.serverinfo, Cmd_Argv(1), Cmd_Argv(2), MAX_SERVERINFO_STRING);
-				CL_CheckServerInfo();
-			}
-			else if (!strncmp(s, "\ncl_downloadbegin ", 17))
-				CLDP_ParseDownloadBegin(s);
-			else if (!strncmp(s, "\ncl_downloadfinished ", 17))
-				CLDP_ParseDownloadFinished(s);
-			else if (!strcmp(s, "\nstopdownload\n"))
-			{
-				if (cls.download)
-					CL_DownloadFailed(cls.download->remotename, cls.download);
-			}
-			else if (!strncmp(s, "csqc_progname ", 14))
-				COM_ParseOut(s+14, cl_dp_csqc_progsname, sizeof(cl_dp_csqc_progsname));
-			else if (!strncmp(s, "csqc_progsize ", 14))
-				cl_dp_csqc_progssize = atoi(s+14);
-			else if (!strncmp(s, "csqc_progcrc ", 13))
-				cl_dp_csqc_progscrc = atoi(s+13);
-			else if (!strncmp(s, "cl_fullpitch ", 13) || !strncmp(s, "pq_fullpitch ", 13))
-			{
-				//
-			}
-			else
-			{
-				Cbuf_AddText (s, RESTRICT_SERVER);	//no cheating here...
-			}
+			CL_ParseStuffCmd(s, destsplit);
 			break;
 
 		case svc_version:
@@ -7798,6 +7862,8 @@ void CLNQ_ParseServerMessage (void)
 				Info_SetValueForKey(cl.players[i].userinfo, "name", cl.players[i].name, sizeof(cl.players[i].userinfo));
 				if (!cl.nqplayernamechanged)
 					cl.nqplayernamechanged = realtime+2;
+
+				CLNQ_CheckPlayerIsSpectator(i);
 			}
 			break;
 
@@ -7807,7 +7873,10 @@ void CLNQ_ParseServerMessage (void)
 			if (i >= MAX_CLIENTS)
 				MSG_ReadShort();
 			else
+			{
 				cl.players[i].frags = MSG_ReadShort();
+				CLNQ_CheckPlayerIsSpectator(i);
+			}
 			break;
 		case svc_updatecolors:
 			{
@@ -7818,6 +7887,7 @@ void CLNQ_ParseServerMessage (void)
 				{
 					cl.players[i].rtopcolor = a&0x0f;
 					cl.players[i].rbottomcolor = (a&0xf0)>>4;
+					CLNQ_CheckPlayerIsSpectator(i);
 
 					sprintf(cl.players[i].team, "%2d", cl.players[i].rbottomcolor);
 
@@ -7931,7 +8001,7 @@ void CLNQ_ParseServerMessage (void)
 				cl.completed_time = cl.gametime;
 			}
 			cl.intermissionmode = IM_NQFINALE;
-			SCR_CenterPrint (0, MSG_ReadString (), false);
+			SCR_CenterPrint (destsplit, MSG_ReadString (), false);
 			break;
 
 		case svc_cutscene:
@@ -7941,7 +8011,7 @@ void CLNQ_ParseServerMessage (void)
 				cl.completed_time = cl.gametime;
 			}
 			cl.intermissionmode = IM_NQCUTSCENE;
-			SCR_CenterPrint (0, MSG_ReadString (), false);
+			SCR_CenterPrint (destsplit, MSG_ReadString (), false);
 			break;
 
 		case svc_sellscreen:	//pantsie

@@ -1386,7 +1386,6 @@ void GenerateFogTexture(texid_t *tex, float density, float zscale)
 void GLBE_DestroyFBOs(void)
 {
 	size_t i;
-	GLBE_FBO_Destroy(&shaderstate.fbo_2dfbo);
 	GLBE_FBO_Destroy(&shaderstate.fbo_lprepass);
 
 	for (i = 0; i < R_MAX_RECURSE; i++)
@@ -1430,6 +1429,7 @@ void GLBE_DestroyFBOs(void)
 
 void GLBE_Shutdown(void)
 {
+	GLBE_FBO_Destroy(&shaderstate.fbo_2dfbo);
 	GLBE_DestroyFBOs();
 
 	BZ_Free(shaderstate.wbatches);

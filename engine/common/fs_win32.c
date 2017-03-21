@@ -333,11 +333,11 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 	{
 		//FILE_SHARE_DELETE is not supported in 9x, sorry.
 		if ((write && read) || append)
-			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ,	NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		else if (write)
-			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, 0,					NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		else if (read)
-			h = CreateFileA(osname, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+			h = CreateFileA(osname, GENERIC_READ,				FILE_SHARE_READ,	NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 		else
 			h = INVALID_HANDLE_VALUE;
 	}
@@ -627,9 +627,9 @@ searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc
 		wchar_t wide[MAX_OSPATH];
 		memcpy(np->rootpath, desc, dlen+1);
 		if (!WinNT)
-			np->changenotification = FindFirstChangeNotificationA(np->rootpath, true, FILE_NOTIFY_CHANGE_FILE_NAME);
+			np->changenotification = FindFirstChangeNotificationA(np->rootpath, true, FILE_NOTIFY_CHANGE_FILE_NAME|FILE_NOTIFY_CHANGE_CREATION);
 		else
-			np->changenotification = FindFirstChangeNotificationW(widen(wide, sizeof(wide), np->rootpath), true, FILE_NOTIFY_CHANGE_FILE_NAME);
+			np->changenotification = FindFirstChangeNotificationW(widen(wide, sizeof(wide), np->rootpath), true, FILE_NOTIFY_CHANGE_FILE_NAME|FILE_NOTIFY_CHANGE_CREATION);
 	}
 
 	np->pub.fsver			= FSVER;

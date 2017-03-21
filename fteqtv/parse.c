@@ -574,7 +574,7 @@ static int ParseList(sv_t *tv, netmsg_t *m, filename_t *list, int to, unsigned i
 	return ReadByte(m);
 }
 
-static void ParseEntityState(entity_state_t *es, netmsg_t *m)	//for baselines/static entities
+static void ParseEntityState(sv_t *tv, entity_state_t *es, netmsg_t *m)	//for baselines/static entities
 {
 	int i;
 
@@ -584,8 +584,8 @@ static void ParseEntityState(entity_state_t *es, netmsg_t *m)	//for baselines/st
 	es->skinnum = ReadByte(m);
 	for (i = 0; i < 3; i++)
 	{
-		es->origin[i] = ReadShort(m);
-		es->angles[i] = ReadByte(m);
+		es->origin[i] = ReadCoord(m, tv->pext);
+		es->angles[i] = ReadAngle(m, tv->pext);
 	}
 }
 static void ParseBaseline(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -597,7 +597,7 @@ static void ParseBaseline(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		ParseError(m);
 		return;
 	}
-	ParseEntityState(&tv->map.entity[entnum].baseline, m);
+	ParseEntityState(tv, &tv->map.entity[entnum].baseline, m);
 	
 	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 }
@@ -642,7 +642,7 @@ void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		Sys_Printf(tv->cluster, "Too many static entities\n");
 	}
 
-	ParseEntityState(&tv->map.spawnstatic[tv->map.spawnstatic_count], m);
+	ParseEntityState(tv, &tv->map.spawnstatic[tv->map.spawnstatic_count], m);
 
 	tv->map.spawnstatic_count++;
 
@@ -679,9 +679,9 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 	{
 		flags = (unsigned short)ReadShort (m);
 
-		tv->map.players[num].current.origin[0] = ReadShort (m);
-		tv->map.players[num].current.origin[1] = ReadShort (m);
-		tv->map.players[num].current.origin[2] = ReadShort (m);
+		tv->map.players[num].current.origin[0] = ReadCoord (m, tv->pext);
+		tv->map.players[num].current.origin[1] = ReadCoord (m, tv->pext);
+		tv->map.players[num].current.origin[2] = ReadCoord (m, tv->pext);
 
 		tv->map.players[num].current.frame = ReadByte(m);
 
@@ -754,7 +754,7 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 		for (i = 0; i < 3; i++)
 		{
 			if (flags & (DF_ORIGIN << i))
-				tv->map.players[num].current.origin[i] = ReadShort (m);
+				tv->map.players[num].current.origin[i] = ReadCoord (m, tv->pext);
 		}
 
 		for (i = 0; i < 3; i++)
@@ -782,9 +782,9 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 	}
 
 	tv->map.players[num].leafcount = BSP_SphereLeafNums(tv->map.bsp,	MAX_ENTITY_LEAFS, tv->map.players[num].leafs,
-														tv->map.players[num].current.origin[0]/8.0f,
-														tv->map.players[num].current.origin[1]/8.0f,
-														tv->map.players[num].current.origin[2]/8.0f, 32);
+														tv->map.players[num].current.origin[0],
+														tv->map.players[num].current.origin[1],
+														tv->map.players[num].current.origin[2], 32);
 }
 
 static int readentitynum(netmsg_t *m, unsigned int *retflags)
@@ -837,26 +837,26 @@ static void ParseEntityDelta(sv_t *tv, netmsg_t *m, entity_state_t *old, entity_
 		new->effects = ReadByte(m);
 
 	if (flags & U_ORIGIN1)
-		new->origin[0] = ReadShort(m);
+		new->origin[0] = ReadCoord(m, tv->pext);
 	if (flags & U_ANGLE1)
-		new->angles[0] = ReadByte(m);
+		new->angles[0] = ReadAngle(m, tv->pext);
 	if (flags & U_ORIGIN2)
-		new->origin[1] = ReadShort(m);
+		new->origin[1] = ReadCoord(m, tv->pext);
 	if (flags & U_ANGLE2)
-		new->angles[1] = ReadByte(m);
+		new->angles[1] = ReadAngle(m, tv->pext);
 	if (flags & U_ORIGIN3)
-		new->origin[2] = ReadShort(m);
+		new->origin[2] = ReadCoord(m, tv->pext);
 	if (flags & U_ANGLE3)
-		new->angles[2] = ReadByte(m);
+		new->angles[2] = ReadAngle(m, tv->pext);
 
 
 	if (forcerelink || (flags & (U_ORIGIN1|U_ORIGIN2|U_ORIGIN3|U_MODEL)))
 	{
 		ent->leafcount = 
 				BSP_SphereLeafNums(tv->map.bsp, MAX_ENTITY_LEAFS, ent->leafs,
-				new->origin[0]/8.0f,
-				new->origin[1]/8.0f,
-				new->origin[2]/8.0f, 32);
+				new->origin[0],
+				new->origin[1],
+				new->origin[2], 32);
 	}
 }
 
@@ -1098,9 +1098,9 @@ return;
 
 		if ((flags & (U_ORIGIN1 | U_ORIGIN2 | U_ORIGIN3)) || forcerelink)
 			tv->entity[entnum].leafcount = BSP_SphereLeafNums(tv->bsp, MAX_ENTITY_LEAFS, tv->entity[entnum].leafs,
-															tv->entity[entnum].current.origin[0]/8.0f,
-															tv->entity[entnum].current.origin[1]/8.0f,
-															tv->entity[entnum].current.origin[2]/8.0f, 32);
+															tv->entity[entnum].current.origin[0],
+															tv->entity[entnum].current.origin[1],
+															tv->entity[entnum].current.origin[2], 32);
 	}
 */
 }
@@ -1252,12 +1252,12 @@ static void ParseSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	channel = (unsigned short)ReadShort(m);
 
 
-    if (channel & SND_VOLUME)
+	if (channel & SND_VOLUME)
 		vol = ReadByte (m);
 	else
 		vol = DEFAULT_SOUND_PACKET_VOLUME;
 
-    if (channel & SND_ATTENUATION)
+	if (channel & SND_ATTENUATION)
 		atten = ReadByte (m) / 64.0;
 	else
 		atten = DEFAULT_SOUND_PACKET_ATTENUATION;
@@ -1268,7 +1268,7 @@ static void ParseSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	channel &= 7;
 
 	for (i=0 ; i<3 ; i++)
-		org[i] = ReadShort (m);
+		org[i] = ReadCoord (m, tv->pext);
 
 	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 
@@ -1307,9 +1307,9 @@ static void ParseDamage(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	ReadByte (m);
 	ReadByte (m);
-	ReadShort (m);
-	ReadShort (m);
-	ReadShort (m);
+	ReadCoord (m, tv->pext);
+	ReadCoord (m, tv->pext);
+	ReadCoord (m, tv->pext);
 	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
@@ -1621,9 +1621,9 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 		case svc_setangle:
 			if (!tv->usequakeworldprotocols)
 				ReadByte(&buf);
-			tv->proxyplayerangles[0] = ReadByte(&buf)*360.0/255;
-			tv->proxyplayerangles[1] = ReadByte(&buf)*360.0/255;
-			tv->proxyplayerangles[2] = ReadByte(&buf)*360.0/255;
+			tv->proxyplayerangles[0] = ReadAngle(&buf, tv->pext);
+			tv->proxyplayerangles[1] = ReadAngle(&buf, tv->pext);
+			tv->proxyplayerangles[2] = ReadAngle(&buf, tv->pext);
 
 			if (tv->usequakeworldprotocols && tv->controller)
 				SendBufferToViewer(tv->controller, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, true);
@@ -1657,9 +1657,9 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 //#define	svc_updatecolors	17	// [qbyte] [qbyte] [qbyte]
 
 		case svc_particle:
-			ReadShort(&buf);
-			ReadShort(&buf);
-			ReadShort(&buf);
+			ReadCoord(&buf, tv->pext);
+			ReadCoord(&buf, tv->pext);
+			ReadCoord(&buf, tv->pext);
 			ReadByte(&buf);
 			ReadByte(&buf);
 			ReadByte(&buf);

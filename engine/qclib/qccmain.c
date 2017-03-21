@@ -452,6 +452,7 @@ stringtab_t *stringtablist[256];
 int	QCC_CopyString (char *str)
 {
 	int		old;
+	size_t len;
 
 	if (!str)
 		return 0;
@@ -492,8 +493,11 @@ int	QCC_CopyString (char *str)
 	}
 
 	old = strofs;
-	strcpy (strings+strofs, str);
-	strofs += strlen(str)+1;
+	len = strlen(str)+1;
+	if (strofs + len > MAX_STRINGS)
+		QCC_Error(ERR_INTERNAL, "QCC_CopyString: stringtable size limit exceeded\n");
+	memcpy (strings+strofs, str, len);
+	strofs += len;
 	return old;
 }
 
@@ -507,6 +511,8 @@ int	QCC_CopyStringLength (char *str, size_t length)
 		return !flag_nullemptystr;
 
 	old = strofs;
+	if (strofs + length > MAX_STRINGS)
+		QCC_Error(ERR_INTERNAL, "QCC_CopyString: stringtable size limit exceeded\n");
 	memcpy (strings+strofs, str, length);
 	strofs += length;
 	return old;
@@ -514,6 +520,7 @@ int	QCC_CopyStringLength (char *str, size_t length)
 
 int	QCC_CopyDupBackString (char *str)
 {
+	size_t length;
 	int		old;
 	char *s;
 
@@ -522,8 +529,11 @@ int	QCC_CopyDupBackString (char *str)
 			return s-strings;
 
 	old = strofs;
+	length = strlen(str)+1;
+	if (strofs + length > MAX_STRINGS)
+		QCC_Error(ERR_INTERNAL, "QCC_CopyString: stringtable size limit exceeded\n");
 	strcpy (strings+strofs, str);
-	strofs += strlen(str)+1;
+	strofs += length;
 	return old;
 }
 
@@ -1232,6 +1242,7 @@ pbool QCC_WriteData (int crc)
 	int			*statement_linenums;
 	void		*funcdata;
 	size_t		funcdatasize;
+	pbool		bigjumps;
 
 
 	extern char *basictypenames[];
@@ -1270,6 +1281,17 @@ pbool QCC_WriteData (int crc)
 	QCC_UnmarshalLocals();
 	QCC_FinaliseTemps();
 
+	for (i=0 ; i<numstatements ; i++)
+	{
+		if (!statements[i].a.sym && (statements[i].a.ofs > 0x7fff || statements[i].a.ofs < 0x7fff))
+			break;
+		if (!statements[i].a.sym && (statements[i].a.ofs > 0x7fff || statements[i].a.ofs < 0x7fff))
+			break;
+		if (!statements[i].a.sym && (statements[i].a.ofs > 0x7fff || statements[i].a.ofs < 0x7fff))
+			break;
+	}
+	bigjumps = i<numstatements;
+
 	switch (qcc_targetformat)
 	{
 	case QCF_HEXEN2:
@@ -1277,7 +1299,12 @@ pbool QCC_WriteData (int crc)
 		if (bodylessfuncs)
 			printf("Warning: There are some functions without bodies.\n");
 
-		if (numpr_globals > 65530 )
+		if (bigjumps)
+		{
+			printf("Forcing target to FTE32 due to large functions\n");
+			outputsttype = PST_FTE32;
+		}
+		else if (numpr_globals > 65530)
 		{
 			printf("Forcing target to FTE32 due to numpr_globals\n");
 			outputsttype = PST_FTE32;
@@ -1309,10 +1336,18 @@ pbool QCC_WriteData (int crc)
 		if (qcc_targetformat == QCF_FTEDEBUG)
 			debugtarget = true;
 
-		if (numpr_globals > 65530)
+		if (outputsttype != PST_FTE32)
 		{
-			printf("Using 32 bit target due to numpr_globals\n");
-			outputsttype = PST_FTE32;
+			if (bigjumps)
+			{
+				printf("Using 32 bit target due to large functions\n");
+				outputsttype = PST_FTE32;
+			}
+			else if (numpr_globals > 65530)
+			{
+				printf("Using 32 bit target due to numpr_globals\n");
+				outputsttype = PST_FTE32;
+			}
 		}
 
 		if (qcc_targetformat == QCF_DARKPLACES)

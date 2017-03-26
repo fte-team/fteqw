@@ -259,7 +259,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define HALFLIFEMODELS	//halflife model support (experimental)
 		#define INTERQUAKEMODELS
 
-		#ifdef _XBOX
+		#ifndef _XBOX
 			#define RAGDOLL
 		#endif
 
@@ -614,7 +614,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#if defined(WINRT)
 			#define PLATFORM	"WinRT"		/*those poor poor souls. maybe just maybe I'll actually get the tools for a port, its just a shame that I won't be able to release said port*/
 		#elif defined(_XBOX)
-			#define PLATFORM "Xbox"
+			#define PLATFORM	"Xbox"
 		#else
 			#define PLATFORM	"Win"
 		#endif

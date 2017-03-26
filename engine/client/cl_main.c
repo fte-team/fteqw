@@ -4838,7 +4838,7 @@ void Host_DoRunFile(hrf_t *f)
 qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 {
 	hrf_t *f;
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 	//win32 file urls are basically fucked, so defer to the windows api.
 	char utf8[MAX_OSPATH*3];
 	if (nlen >= 7 && !strncmp(fname, "file://", 7))
@@ -5664,7 +5664,7 @@ void Host_FinishLoading(void)
 					"\n"
 					"See the GNU General Public License for more details.\n");
 
-	#if defined(_WIN32) && !defined(FTE_SDL) && defined(WEBCLIENT)
+	#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX) && defined(WEBCLIENT)
 		if (Sys_RunInstaller())
 			Sys_Quit();
 	#endif

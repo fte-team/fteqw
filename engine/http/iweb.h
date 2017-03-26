@@ -6,9 +6,6 @@
 #ifdef WEBSVONLY
 
 #include "quakedef.h"
-#ifdef _WIN32
-#include "winquake.h"
-#endif
 
 #define Con_TPrintf IWebPrintf
 #define IWebPrintf printf
@@ -32,10 +29,6 @@ qboolean SV_AllowDownload (const char *name);
 
 
 typedef qboolean iwboolean;
-
-#ifndef _WIN32
-#define INVALID_SOCKET ~0
-#endif
 
 //it's not allowed to error.
 #ifndef WEBSVONLY

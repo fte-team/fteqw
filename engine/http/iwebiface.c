@@ -3,6 +3,7 @@
 #ifdef WEBSERVER
 
 #include "iweb.h"
+#include "netinc.h"
 
 #ifdef WEBSVONLY	//we need some functions from quake
 

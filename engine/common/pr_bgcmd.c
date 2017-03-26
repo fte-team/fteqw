@@ -111,13 +111,11 @@ extern int isPlugin;	//if 2, we were invoked by a debugger, and we need to give 
 static int debuggerstacky;
 #endif
 
-#if defined(_WIN32) && !defined(FTE_SDL)
-#ifndef _XBOX
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
 	#include <windows.h>
+	void INS_UpdateGrabs(int fullscreen, int activeapp);
 #endif
 
-void INS_UpdateGrabs(int fullscreen, int activeapp);
-#endif
 int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *error, pbool fatal);
 void QCLoadBreakpoints(const char *vmname, const char *progsname)
 {	//this asks the gui to reapply any active breakpoints and waits for them so that any spawn functions can be breakpointed properly.
@@ -307,7 +305,8 @@ qboolean QCExternalDebuggerCommand(char *text)
 
 int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason, pbool fatal)
 {
-#if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL) && !defined(_XBOX)
+#ifndef SERVERONLY
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
 	if (isPlugin >= 2)
 	{
 		if (wantquit)
@@ -367,6 +366,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			return DEBUG_TRACE_ABORT;
 		return debuggerresume;
 	}
+#endif
 #endif
 
 #ifdef TEXTEDITOR

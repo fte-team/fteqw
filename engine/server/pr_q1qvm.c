@@ -1709,7 +1709,9 @@ struct
 	{"SetExtField",			QVM_SetExtField},
 	{"GetExtField",			QVM_GetExtField},
 	{"ChangeLevel2",		QVM_ChangeLevel2},	//with start spot
-	{"URI_Query",			QVM_uri_query},	//with start spot
+#ifdef WEBCLIENT
+	{"URI_Query",			QVM_uri_query},
+#endif
 	{"particleeffectnum",	QVM_particleeffectnum},
 	{"trailparticles",		QVM_trailparticles},
 	{"pointparticles",		QVM_pointparticles},

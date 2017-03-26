@@ -109,7 +109,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if !defined(NO_DIRECTX) && !defined(NODIRECTX) && defined(_WIN32)
 	#define AVAIL_DINPUT
 	#define AVAIL_DSOUND
-	#undef AVAIL_WASAPI
+	#define AVAIL_WASAPI
 #endif
 #ifdef WINRT
 	#define AVAIL_XAUDIO2
@@ -117,16 +117,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define AVAIL_XZDEC
 
 #if !defined(MINIMAL) && !defined(NPFTE) && !defined(NPQTV)
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 	#if !defined(_MSC_VER) || _MSC_VER > 1200
 		#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
 	#endif
 #elif (defined(__linux__) || defined(__CYGWIN__)) && !defined(ANDROID)
 	#define HAVE_GNUTLS		//currently disabled as it does not validate the server's certificate, beware the mitm attack.
 #endif
-#endif
-#if defined(HAVE_WINSSPI) || defined(HAVE_GNUTLS)
-	#define HAVE_SSL
 #endif
 
 //#define DYNAMIC_ZLIB
@@ -164,6 +161,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
 #endif
 
+#define HAVE_TCP	//says we can use tcp too (either ipv4 or ipv6)
+#define HAVE_PACKET	//if we have the socket api at all...
+
 //set any additional defines or libs in win32
 	#define LOADERTHREAD
 
@@ -198,10 +198,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef AVAIL_JPEGLIB
 		#undef AVAIL_XZDEC
 
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(MULTITHREAD) //always thread on win32 non-minimal builds
-#ifndef _XBOX
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(MULTITHREAD) && !defined(_XBOX) //always thread on win32 non-minimal builds
 		#define MULTITHREAD
-#endif
 #endif
 	#elif defined(MINIMAL)
 		#define QUAKESTATS
@@ -258,10 +256,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PSKMODELS		//PSK model format (ActorX stuff from UT, though not the format the game itself uses)
 		#define HALFLIFEMODELS	//halflife model support (experimental)
 		#define INTERQUAKEMODELS
-
-		#ifndef _XBOX
-			#define RAGDOLL
-		#endif
+		#define RAGDOLL
 
 		#define HUFFNETWORK		//huffman network compression
 		#define DOOMWADS		//doom wad/sprite support
@@ -404,7 +399,27 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
 #endif
 
+#if defined(_XBOX)
+	#undef HAVE_TCP		//FIXME
+	#undef HAVE_PACKET	//FIXME
+	#undef SUPPORT_ICE	//screw that
+	#undef PLUGINS		//would need LoadLibrary working properly.
+
+	#undef AVAIL_DINPUT	//xbox apparently only really does controllers.
+	#undef AVAIL_DSOUND	//FIXME
+	#undef TEXTEDITOR	//its hard to edit text when you have just a controller (and no onscreen keyboard)
+	#undef RAGDOLL		//needs a proper physics engine
+	#undef AVAIL_MP3_ACM		//api not supported
+	#undef HAVE_SPEECHTOTEXT	//api not supported
+	#undef MULTITHREAD			//no CreateThread stuff.
+	#undef SUBSERVERS			//single-process.
+#endif
+
 #ifdef FTE_TARGET_WEB
+	//sandboxing...
+	#undef HAVE_TCP		//websockets are not real tcp.
+	#undef HAVE_PACKET	//no udp support
+
 	//try to trim the fat
 	#undef VOICECHAT	//too lazy to compile speex
 	#undef HLCLIENT		//dlls...
@@ -437,6 +452,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //	#undef RTLIGHTS
 #endif
 #ifdef WINRT
+	//microsoft do not support winsock any more.
+	#undef HAVE_TCP
+	#undef HAVE_PACKET
+
 	#undef TCPCONNECT	//err...
 	#undef IRCCONNECT	//not happening
 	#undef AVAIL_DSOUND	//yeah, good luck there
@@ -456,6 +475,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define GLESONLY	//should reduce the conditions a little
 #endif
 #if defined(NACL)
+	//stuff is sandboxed.
+	#undef HAVE_TCP		//websockets are not true tcp
+	#undef HAVE_PACKET	//no udp support.
+
 	#undef SUPPORT_ICE
 	#undef CL_MASTER	//no sockets support
 	#undef SV_MASTER	//noone uses this anyway
@@ -470,6 +493,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	//database code requires threads to do stuff async.
 	#undef USE_SQLITE
 	#undef USE_MYSQL
+#endif
+
+#if defined(HAVE_WINSSPI) || defined(HAVE_GNUTLS)
+	#define HAVE_SSL
 #endif
 
 #if defined(USE_SQLITE) || defined(USE_MYSQL)
@@ -527,6 +554,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifndef AVAIL_ZLIB
 	#undef SUPPORT_ICE	//depends upon zlib's crc32 for fingerprinting. I cba writing my own.
+#endif
+
+#ifndef HAVE_TCP
+	#undef TCPCONNECT
+	#undef IRCCONNECT
+	#undef WEBSERVER
+	#undef WEBCLIENT
+#endif
+#ifndef HAVE_PACKET
+	#undef SV_MASTER
+	#undef CL_MASTER
+	#undef SUPPORT_ICE
 #endif
 
 #ifdef SERVERONLY	//remove options that don't make sense on only a server

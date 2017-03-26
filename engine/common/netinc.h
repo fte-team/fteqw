@@ -1,9 +1,6 @@
+#ifndef NETINC_INCLUDED
+#define NETINC_INCLUDED
 
-#if !defined(NACL) && !defined(FTE_TARGET_WEB) && !defined(WINRT)
-#define HAVE_IPV4	//says we can send and receive AF_INET ipv4 udp packets.
-#define HAVE_TCP	//says we can use tcp too (either ipv4 or ipv6)
-#define HAVE_PACKET	//if we have the socket api at all...
-#endif
 
 #ifndef HAVE_PACKET
 
@@ -36,26 +33,23 @@
 	#define ntohl BigLong
 
 #elif defined(_WIN32)
-	#ifdef _MSC_VER
-		#define USEIPX
+	#ifdef _XBOX
+		#include <xtl.h>
+		#include <WinSockX.h>
+	#else
+		#ifdef _MSC_VER
+			#define USEIPX
+		#endif
+		#define WIN32_LEAN_AND_MEAN
+		#include <windows.h>
+		#include <winsock2.h>
+		#ifdef USEIPX
+			#include "wsipx.h"
+		#endif
+		#include <ws2tcpip.h>
 	#endif
-	#define WIN32_LEAN_AND_MEAN
-#ifdef _XBOX
-	#include <xtl.h>
-	#include <WinSockX.h>
-#else
-	#include <windows.h>
-	#include <winsock2.h>
-#endif
-//	#include "winquake.h"
-#ifndef _XBOX
-	#ifdef USEIPX
-		#include "wsipx.h"
-	#endif
-	#include <ws2tcpip.h>
-#endif
 	#include <errno.h>
-	#ifndef IPPROTO_IPV6
+	#if !defined(IPPROTO_IPV6) && !defined(_XBOX)
 		/*for msvc6*/
 		#define	IPPROTO_IPV6 41
 		
@@ -77,38 +71,43 @@
 		};
 
 		#if !defined(in_addr6)
-		struct in6_addr
-		{
-			u_char	s6_addr[16];	/* IPv6 address */
-		};
-		#define sockaddr_in6 sockaddr_in6_fixed /*earlier versions of msvc have a sockaddr_in6 which does _not_ match windows, so this *must* be redefined for any non-final msvc releases or it won't work at all*/
-		typedef struct sockaddr_in6
-		{
-			short  sin6_family;
-			u_short  sin6_port;
-			u_long  sin6_flowinfo;
-			struct in6_addr  sin6_addr;
-			union
+			struct in6_addr
 			{
-				u_long  sin6_scope_id;
-				struct ip6_scope_id  sin6_scope_struct; 
+				u_char	s6_addr[16];	/* IPv6 address */
 			};
-		};
-		struct addrinfo
-		{
-		  int ai_flags;
-		  int ai_family;
-		  int ai_socktype;
-		  int ai_protocol;
-		  size_t ai_addrlen;
-		  char* ai_canonname;
-		  struct sockaddr * ai_addr;
-		  struct addrinfo * ai_next;
-		};
+			#define sockaddr_in6 sockaddr_in6_fixed /*earlier versions of msvc have a sockaddr_in6 which does _not_ match windows, so this *must* be redefined for any non-final msvc releases or it won't work at all*/
+			typedef struct sockaddr_in6
+			{
+				short  sin6_family;
+				u_short  sin6_port;
+				u_long  sin6_flowinfo;
+				struct in6_addr  sin6_addr;
+				union
+				{
+					u_long  sin6_scope_id;
+					struct ip6_scope_id  sin6_scope_struct; 
+				};
+			};
+			struct addrinfo
+			{
+			  int ai_flags;
+			  int ai_family;
+			  int ai_socktype;
+			  int ai_protocol;
+			  size_t ai_addrlen;
+			  char* ai_canonname;
+			  struct sockaddr * ai_addr;
+			  struct addrinfo * ai_next;
+			};
 		#endif
 	#endif
 	#ifndef IPV6_V6ONLY
 		#define IPV6_V6ONLY 27
+	#endif
+
+	#define HAVE_IPV4
+	#ifdef IPPROTO_IPV6
+			#define HAVE_IPV6
 	#endif
 #else
 	#include <sys/time.h>
@@ -141,7 +140,14 @@
 	#endif
 
 	#if defined(AF_INET6) && !defined(IPPROTO_IPV6)
-		#define IPPROTO_IPV6 IPPROTO_IPV6
+		#define IPPROTO_IPV6 IPPROTO_IPV6	//fte often just checks to see if IPPROTO_IPV6 is defined or not, which doesn't work if its an enum value or somesuch...
+	#endif
+
+	#if defined(AF_INET)
+		#define HAVE_IPV4
+	#endif
+	#ifdef IPPROTO_IPV6
+		#define HAVE_IPV6
 	#endif
 
 	#define SOCKET int
@@ -314,3 +320,5 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
 #ifndef SOCK_CLOEXEC
 #define SOCK_CLOEXEC 0
 #endif
+
+#endif //NETINC_INCLUDED

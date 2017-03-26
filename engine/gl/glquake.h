@@ -28,27 +28,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning(disable : 4051)     // ALPHA
 #endif
 
-#ifdef _WIN32
-#ifndef WIN32_BLOATED
-#define WIN32_LEAN_AND_MEAN
-#endif
-
-#ifndef _XBOX
-	#include <windows.h>
-#endif
-
-#if defined(WINAPI_FAMILY) && !defined(WINRT)
-	#if WINAPI_FAMILY != WINAPI_FAMILY_DESKTOP_APP
-		//don't just define it. things that don't #include winquake.h / glquake.h need it too.
-		#error "WINRT needs to be defined for non-desktop"
-	#endif
-#endif
-#endif
-
-#ifndef APIENTRY
-#define APIENTRY
-#endif
-
 void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);
@@ -102,14 +81,25 @@ void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short
 		#define GLclampd GLclampf
 		#define GLdouble GLfloat
 	#else
+		#ifdef _WIN32	//windows might use the standard header filename, but it still requires that we manually include windows.h first.
+			#ifndef WIN32_BLOATED
+				#define WIN32_LEAN_AND_MEAN
+			#endif
+			#include <windows.h>
+		#endif
+
 		#include <GL/gl.h>
 		#ifdef GL_STATIC
 			#define GL_GLEXT_PROTOTYPES
 			#include <GL/glext.h>
 		#endif
 	#endif
-//#include <GL/glu.h>
-#include "glsupp.h"
+//	#include <GL/glu.h>
+
+	#ifndef APIENTRY
+		#define APIENTRY	//our code decorates function pointers with this for windows, so make sure it exists on systems that don't need it.
+	#endif
+	#include "glsupp.h"
 			
 
 

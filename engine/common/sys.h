@@ -172,7 +172,7 @@ void NPQTV_Sys_MainLoop(void);
 #define UPD_STABLE 1
 #define UPD_TESTING 2
 
-#if defined(WEBCLIENT) && defined(_WIN32) && !defined(SERVERONLY)
+#if defined(WEBCLIENT) && defined(_WIN32) && !defined(SERVERONLY) && !defined(_XBOX)
 int StartLocalServer(int close);
 
 #define HAVEAUTOUPDATE

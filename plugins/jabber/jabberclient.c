@@ -236,8 +236,8 @@ char *JCL_Info_ValueForKey (char *s, const char *key, char *valuebuf, int valuel
 	}
 }
 
-#ifdef _WIN32
-#include "windns.h"
+#if defined(_WIN32) && defined(HAVE_PACKET)
+#include <windns.h>
 static DNS_STATUS (WINAPI *pDnsQuery_UTF8) (PCSTR pszName, WORD wType, DWORD Options, PIP4_ARRAY aipServers, PDNS_RECORD *ppQueryResults, PVOID *pReserved);
 static VOID (WINAPI *pDnsRecordListFree)(PDNS_RECORD pRecordList, DNS_FREE_TYPE FreeType);
 static HMODULE dnsapi_lib;
@@ -263,7 +263,7 @@ qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
 	}
 	return false;
 }
-#else
+#elif defined(__unix__) || defined(ANDROID) || defined(__MACH__) || defined(__linux__)
 #include <resolv.h>
 #include <arpa/nameser.h>
 qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
@@ -351,6 +351,11 @@ qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
 	if (i < 0)
 		return false;
 	return true;
+}
+#else
+qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
+{
+	return false;
 }
 #endif
 

@@ -562,23 +562,7 @@ void SV_Master_Shutdown (void)
 //remove dead servers.
 //master was polled a minute ago and server was not on list - server on multiple masters would be awkward.
 
-#ifdef _WIN32
-#include "winquake.h"
-#else
-typedef int SOCKET;
-#endif
-
 #include "netinc.h"
-
-#ifdef AF_IPX
-#define USEIPX
-#endif
-
-#if defined(_XBOX)
-	#undef TCPCONNECT
-	#undef IPPROTO_IPV6
-	#undef USEIPX
-#endif
 
 //the number of servers should be limited only by memory.
 

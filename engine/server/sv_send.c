@@ -1359,9 +1359,9 @@ static void SV_SoundMulticast(client_t *client, sizebuf_t *msg, void *vctx)
 			MSG_WriteShort (msg, bound(-32768, ctx->timeofs*1000, 32767));
 		if (field_mask & FTESND_VELOCITY)
 		{
-			MSG_WriteShort (msg, ctx->vel[0]*8);
-			MSG_WriteShort (msg, ctx->vel[1]*8);
-			MSG_WriteShort (msg, ctx->vel[2]*8);
+			MSG_WriteShort (msg, bound(-32767, ctx->vel[0]*8, 32767));
+			MSG_WriteShort (msg, bound(-32767, ctx->vel[1]*8, 32767));
+			MSG_WriteShort (msg, bound(-32767, ctx->vel[2]*8, 32767));
 		}
 		if (field_mask & DPSND_SPEEDUSHORT4000)
 			MSG_WriteShort (msg, bound(1, ctx->ratemul*4000, 65535));

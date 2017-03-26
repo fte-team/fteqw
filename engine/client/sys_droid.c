@@ -35,11 +35,11 @@ static char sys_basedir[MAX_OSPATH];
 static char sys_basepak[MAX_OSPATH];
 extern  jmp_buf 	host_abort;
 
-cvar_t sys_vibrate = CVARD("sys_vibrate", "1", "Enables the system vibrator for damage events and such things. The value provided is a duration scaler.");
+cvar_t sys_vibrate = CVARFD("sys_vibrate", "1", CVAR_ARCHIVE, "Enables the system vibrator for damage events and such things. The value provided is a duration scaler.");
 cvar_t sys_osk = CVAR("sys_osk", "0");	//to be toggled
-cvar_t sys_keepscreenon = CVARD("sys_keepscreenon", "1", "If set, the screen will never darken. This might cost some extra battery power, but then so will running a 3d engine.");	//to be toggled
-cvar_t sys_orientation = CVARD("sys_orientation", "landscape", "Specifies what angle to render quake at.\nValid values are: sensor (autodetect), landscape, portrait, reverselandscape, reverseportrait");
-cvar_t sys_glesversion_cvar = CVARD("sys_glesversion", "1", "Specifies which version of gles to use. 1 or 2 are valid values.");
+cvar_t sys_keepscreenon = CVARFD("sys_keepscreenon", "1", CVAR_ARCHIVE, "If set, the screen will never darken. This might cost some extra battery power, but then so will running a 3d engine.");	//to be toggled
+cvar_t sys_orientation = CVARFD("sys_orientation", "landscape", CVAR_ARCHIVE, "Specifies what angle to render quake at.\nValid values are: sensor (autodetect), landscape, portrait, reverselandscape, reverseportrait");
+cvar_t sys_glesversion_cvar = CVARFD("sys_glesversion", "1", CVAR_ARCHIVE, "Specifies which version of gles to use. 1 or 2 are valid values.");
 extern cvar_t vid_conautoscale;
 
 
@@ -264,7 +264,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		parms.argv = args;
 
 		tmp = (*env)->GetStringUTFChars(env, japkpath, NULL);
-		Q_strncpyz(sys_basepak, tmp, sizeof(sys_basedir));
+		Q_strncpyz(sys_basepak, tmp, sizeof(sys_basepak));
 		(*env)->ReleaseStringUTFChars(env, japkpath, tmp);
 
 		tmp = (*env)->GetStringUTFChars(env, jusrpath, NULL);

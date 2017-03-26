@@ -1043,10 +1043,14 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		else
 		{
 			int maxclientsupportedsounds = 256;
-	#ifdef PEXT_SOUNDDBL
+#ifdef PEXT_SOUNDDBL
 			if (client->fteprotocolextensions & PEXT_SOUNDDBL)
 				maxclientsupportedsounds = MAX_PRECACHE_SOUNDS;
-	#endif
+#endif
+#ifdef PEXT_SOUNDDBL
+			if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+				maxclientsupportedsounds = MAX_PRECACHE_SOUNDS;
+#endif
 			started = false;
 
 			//allows stalling for the soundlist command, for compat.
@@ -1060,7 +1064,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				{
 					started = true;
 					client->prespawn_allow_soundlist = false;
-	#ifdef PEXT_SOUNDDBL
+	#if defined(PEXT_SOUNDDBL) || defined(PEXT2_REPLACEMENTDELTAS)
 					if (client->prespawn_idx > 255)
 					{
 						MSG_WriteByte (&client->netchan.message, svcfte_soundlistshort);
@@ -1164,7 +1168,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				{
 					started = true;
 					client->prespawn_allow_modellist = false;
-	#ifdef PEXT_SOUNDDBL
+	#if defined(PEXT_SOUNDDBL) || defined(PEXT2_REPLACEMENTDELTAS)
 					if (client->prespawn_idx > 255)
 					{
 						MSG_WriteByte (&client->netchan.message, svcfte_modellistshort);

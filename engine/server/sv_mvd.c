@@ -1240,44 +1240,6 @@ qboolean SV_MVDWritePackets (int num)
 	return true;
 }
 
-// table of readable characters, same as ezquake
-char readable[256] =
-{
-	'.', '_', '_', '_', '_', '.', '_', '_',
-	'_', '_', '\n', '_', '\n', '>', '.', '.',
-	'[', ']', '0', '1', '2', '3', '4', '5',
-	'6', '7', '8', '9', '.', '_', '_', '_',
-	' ', '!', '\"', '#', '$', '%', '&', '\'',
-	'(', ')', '*', '+', ',', '-', '.', '/',
-	'0', '1', '2', '3', '4', '5', '6', '7',
-	'8', '9', ':', ';', '<', '=', '>', '?',
-	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
-	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
-	'X', 'Y', 'Z', '[', '\\', ']', '^', '_',
-	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
-	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
-	'x', 'y', 'z', '{', '|', '}', '~', '_',
-	'_', '_', '_', '_', '_', '.', '_', '_',
-	'_', '_', '_', '_', '_', '>', '.', '.',
-	'[', ']', '0', '1', '2', '3', '4', '5',
-	'6', '7', '8', '9', '.', '_', '_', '_',
-	' ', '!', '\"', '#', '$', '%', '&', '\'',
-	'(', ')', '*', '+', ',', '-', '.', '/',
-	'0', '1', '2', '3', '4', '5', '6', '7',
-	'8', '9', ':', ';', '<', '=', '>', '?',
-	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
-	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
-	'X', 'Y', 'Z', '[', '\\', ']', '^', '_',
-	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
-	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
-	'x', 'y', 'z', '{', '|', '}', '~', '_'
-};
-#define chartbl readable
-
 void MVD_Init (void)
 {
 #define MVDVARGROUP "Server MVD cvars"
@@ -1707,9 +1669,12 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 #ifdef PEXT_VIEW2
 			demo.recorder.fteprotocolextensions |= PEXT_VIEW2;
 #endif
-			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_PRYDONCURSOR | (pext_replacementdeltas.ival?PEXT2_REPLACEMENTDELTAS:0);
+			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | /*PEXT2_PRYDONCURSOR |*/ (pext_replacementdeltas.ival?PEXT2_REPLACEMENTDELTAS:0);
 			/*enable these, because we might as well (stat ones are always useful)*/
 			demo.recorder.zquake_extensions = Z_EXT_PM_TYPE | Z_EXT_PM_TYPE_NEW | Z_EXT_VIEWHEIGHT | Z_EXT_SERVERTIME | Z_EXT_PITCHLIMITS | Z_EXT_JOIN_OBSERVE | Z_EXT_VWEP;
+
+//			if (demo.recorder.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)	//replacementdeltas makes a number of earlier extensions obsolete...
+//				demo.recorder.fteprotocolextensions &= ~(PEXT_COLOURMOD|PEXT_DPFLAGS|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_FATNESS|PEXT_HEXEN2|PEXT_HULLSIZE|PEXT_MODELDBL|PEXT_SCALE|PEXT_SETATTACHMENT|PEXT_SOUNDDBL|PEXT_SPAWNSTATIC2|PEXT_TRANS);
 		}
 		else
 		{
@@ -1912,6 +1877,80 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	singledest = NULL;
 }
 
+//double-underscores will get merged together.
+const char *SV_GenCleanTable(void)
+{
+	static char tab[256];
+	static int tabbuilt = -1;
+	int mode = com_parseutf8.ival>0;
+	int i;
+
+	if (tabbuilt == mode)
+		return tab;
+
+	//identity
+	for(i = 0; i < 32; i++)
+		tab[i] = '_';	//unprintables.
+	for(     ; i < 128; i++)
+		tab[i] = i;
+
+	//cheesy way around NUL.mvd etc filenames.
+	for(i = 'A'; i <= 'Z'; i++)
+		tab[i] = i + ('a'-'A');
+
+	//these chars are reserved by windows, so its generally best to not use them, even on loonix
+	tab['<'] = '[';
+	tab['>'] = ']';
+	tab['|'] = '_';
+	tab[':'] = '_';
+	tab['*'] = '_';
+	tab['?'] = '_';
+	tab['\\']= '_';
+	tab['/'] = '_';
+	tab['\"']= '_';
+	//some extra ones to make unix scripts nicer.
+	tab['&'] = '_';
+	tab['~'] = '_';
+	tab['`'] = '_';
+	tab[','] = '_';
+	tab[' '] = '_';	//don't use spaces, it means files need quotes, and then stuff bugs out.
+	tab['.'] = '_';	//many windows programs can't properly deal with multiple dots
+
+	if (mode)
+	{
+		//high chars are regular utf-8. yay
+		for(i = 128; i < 256; i++)
+			tab[i] = i;
+	}
+	else
+	{
+		//second row contains coloured numbers for the hud
+		tab[16] = '[';
+		tab[17] = ']';
+		for(i = 0; i < 10; i++)
+			tab[18+i] = '0'+i;
+		tab[28] = '_';	//'.'
+		tab[29] =	//line breaks
+		tab[30] =
+		tab[31] = '_';
+
+		//high chars
+
+		//the first 16 chars of the high range are actually different.
+		tab[128] = '_';	//scrollbars
+		tab[129] = '_';
+		tab[130] = '_';
+		tab[130] = '_';
+		for(i = 132; i < 128+16; i++)
+			tab[18+i] = '_';	//LEDs mostly
+
+		//but the rest of the table is just recoloured.
+		for(i = 128+16; i < 256; i++)
+			tab[i] = tab[i&127];
+	}
+	return tab;
+}
+
 /*
 ====================
 SV_CleanName
@@ -1924,6 +1963,7 @@ char *SV_CleanName (unsigned char *name)
 {
 	static char text[1024];
 	char *out = text;
+	const char *chartbl = SV_GenCleanTable();
 
 	*out = chartbl[*name++];
 
@@ -1933,7 +1973,12 @@ char *SV_CleanName (unsigned char *name)
 		else *++out = chartbl[*name++];
 
 	*++out = 0;
-	return text;
+
+
+	out = text;
+	while (*out == '.')
+		out++;	//leading dots (which could be caused by all sorts of things) are bad. boo hidden files.
+	return out;
 }
 
 /*

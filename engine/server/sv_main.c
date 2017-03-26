@@ -1792,7 +1792,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 
 		//you need to reconnect for this to update, of course. so make sure its not *too* low...
 		client->max_net_ents =  bound(512, pr_maxedicts.ival, MAX_EDICTS);
-		client->maxmodels = MAX_PRECACHE_MODELS;	//protocol limited to 14 bits.
+		client->maxmodels = min(1u<<14, MAX_PRECACHE_MODELS);	//protocol limited to 14 bits.
 	}
 	else if (ISQWCLIENT(client))	//readd?
 	{
@@ -1804,7 +1804,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 			client->max_net_ents += 1024;
 	
 		if (client->fteprotocolextensions & PEXT_MODELDBL)
-			client->maxmodels = MAX_PRECACHE_MODELS;
+			client->maxmodels = 512;
 	}
 	else if (ISDPCLIENT(client))
 	{

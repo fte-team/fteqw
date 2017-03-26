@@ -1491,7 +1491,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk9/include;../libs/dxsdk7/include"
-				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;GLQUAKE;D3D9QUAKE;D3D11QUAKE;SWQUAKE;VKQUAKE;MULTITHREAD;USE_MSVCRT_DEBUG"
+				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;GLQUAKE;D3D8QUAKE;D3D9QUAKE;D3D11QUAKE;SWQUAKE;VKQUAKE;MULTITHREAD;USE_MSVCRT_DEBUG"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
 				FloatingPointModel="2"
@@ -29908,6 +29908,14 @@
 						>
 					</File>
 					<File
+						RelativePath="..\d3d\d3d8_backend.c"
+						>
+					</File>
+					<File
+						RelativePath="..\d3d\d3d8_image.c"
+						>
+					</File>
+					<File
 						RelativePath="..\d3d\d3d_backend.c"
 						>
 					</File>
@@ -29925,6 +29933,10 @@
 					</File>
 					<File
 						RelativePath="..\d3d\vid_d3d11.c"
+						>
+					</File>
+					<File
+						RelativePath="..\d3d\vid_d3d8.c"
 						>
 					</File>
 				</Filter>

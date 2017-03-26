@@ -1,5 +1,6 @@
 //copyright 'Spike', license gplv2+
 //provides both a package manager and downloads menu.
+//FIXME: block downloads of exe/dll/so/etc if not an https url (even if inside zips). also block such files from package lists over http.
 #include "quakedef.h"
 
 #ifdef WEBCLIENT
@@ -1436,9 +1437,6 @@ static void PM_ListDownloaded(struct dl_download *dl)
 	vfsfile_t *f;
 	f = dl->file;
 	dl->file = NULL;
-
-	if (!availablepackages)
-		Con_Printf("ZOMG NO PACKAGES\n");
 
 	i = dl->user_num;
 

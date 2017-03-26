@@ -798,7 +798,7 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 	if (to->dpflags != from->dpflags && (protext & PEXT_DPFLAGS))
 		evenmorebits |= U_DPFLAGS;
 
-	if ((to->tagentity != from->tagentity || to->tagindex != from->tagindex) && (protext & PEXT_DPFLAGS))
+	if ((to->tagentity != from->tagentity || to->tagindex != from->tagindex) && (protext & PEXT_SETATTACHMENT))
 		evenmorebits |= U_TAGINFO;
 
 	if ((to->light[0] != from->light[0] || to->light[1] != from->light[1] || to->light[2] != from->light[2] || to->light[3] != from->light[3] || to->lightstyle != from->lightstyle || to->lightpflags != from->lightstyle) && (protext & PEXT_DPFLAGS))

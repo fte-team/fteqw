@@ -449,7 +449,7 @@ void M_UnbindCommand (const char *command);
 #else
 //no builtin menu code.
 //stubs
-#define M_Menu_Prompt(cb,ctx,m1,m2,m3,optionyes,optionno,optioncancel) (cb)(ctx,-1)
+#define M_Menu_Prompt(cb,ctx,messages,optionyes,optionno,optioncancel) (cb)(ctx,-1)
 #define M_ToggleMenu_f() Cbuf_AddText("togglemenu\n",RESTRICT_LOCAL)
 //#define M_Shutdown(t) MP_Shutdown()
 

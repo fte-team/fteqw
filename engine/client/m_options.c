@@ -2300,7 +2300,7 @@ void CheckCustomMode(struct menu_s *menu)
 	info->hzfixed->common.ishidden = true;
 	for (i = 0; i < ASPECT_RATIOS; i++)
 		info->ressize[i]->common.ishidden = true;
-	if (info->dispmode->selectedoption != 2)
+	if (!info->dispmode || info->dispmode->selectedoption != 2)
 	{
 		info->resmode->common.ishidden = false;
 		sel = info->resmode->selectedoption;
@@ -2481,9 +2481,39 @@ void M_Menu_Video_f (void)
 {
 	extern cvar_t v_contrast, vid_conwidth, vid_conheight;
 //	extern cvar_t vid_width, vid_height, vid_preservegamma, vid_hardwaregamma, vid_desktopgamma;
-	extern cvar_t vid_fullscreen, vid_desktopsettings, vid_conautoscale;
+	extern cvar_t vid_desktopsettings, vid_conautoscale;
 	extern cvar_t vid_bpp, vid_refreshrate, vid_multisample;
 
+#ifdef ANDROID
+	extern cvar_t sys_orientation;
+	static const char *orientationopts[] = {
+		"Auto",
+		"Landscape",
+		"Portrait",
+		"Reverse Landscape",
+		"Reverse Portrait",
+		NULL
+	};
+	static const char *orientationvalues[] = {
+		"",
+		"landscape",
+		"portrait",
+		"reverselandscape",
+		"reverseportrait",
+		NULL
+	};
+	extern cvar_t sys_glesversion_cvar;
+	static const char *glesopts[] = {
+		"GLES 1",
+		"GLES 2",
+		NULL
+	};
+	static const char *glesvalues[] = {
+		"1",
+		"2",
+		NULL
+	};
+#else
 	extern cvar_t vid_renderer;
 	static const char *rendererops[] =
 	{
@@ -2544,6 +2574,7 @@ void M_Menu_Video_f (void)
 		NULL
 	};
 
+	extern cvar_t vid_fullscreen;
 	static const char *fullscreenopts[] = {
 		"Windowed",
 		"Fullscreen",
@@ -2551,6 +2582,7 @@ void M_Menu_Video_f (void)
 		NULL
 	};
 	static const char *fullscreenvalues[] = {"0", "1", "2", NULL};
+#endif
 
 	static const char *aaopts[] = {
 		"1x",
@@ -2612,6 +2644,8 @@ void M_Menu_Video_f (void)
 		NULL
 	};
 	static const char *scalevalues[] = { "1", "1.5", "2", "2.5", "3", "4", "5", "6", NULL};
+
+
 /*
 	static const char *vsyncoptions[] =
 	{
@@ -2651,8 +2685,13 @@ void M_Menu_Video_f (void)
 		{
 			MB_REDTEXT("Video Options", true),
 			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+#ifdef ANDROID
+			MB_COMBOCVAR("Orientation", sys_orientation, orientationopts, orientationvalues, NULL),
+			MB_COMBOCVAR("GLES Version", sys_glesversion_cvar, glesopts, glesvalues, NULL),
+#else
 			MB_COMBOCVAR("Renderer", vid_renderer, rendererops, renderervalues, NULL),
 			MB_COMBOCVARRETURN("Display Mode", vid_fullscreen, fullscreenopts, fullscreenvalues, info->dispmode, vid_fullscreen.description),
+#endif
 			MB_COMBOCVAR("Anti-aliasing", vid_multisample, aaopts, aavalues, NULL),
 			MB_REDTEXT(current3dres, true),
 			MB_COMBORETURN("Aspect", resmodeopts, resmodechoice, info->resmode, "Select method for determining or configuring display options. The desktop option will attempt to use the width, height, color depth, and refresh from your operating system's desktop environment."),

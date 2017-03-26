@@ -3420,8 +3420,8 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 		searchpathfuncs_t *pak;
 		vfsfile_t *vfs = VFSOS_Open(pakname, "rb");
 		pak = FS_OpenPackByExtension(vfs, pakname);
-		if (pak)
-			FS_AddPathHandle(&oldpaths, "", pakname, pak, "", SPF_COPYPROTECTED|SPF_EXPLICIT, reloadflags);
+		if (pak)	//logically should have SPF_EXPLICIT set, but that would give it a worse gamedir depth
+			FS_AddPathHandle(&oldpaths, "", pakname, pak, "", SPF_COPYPROTECTED, reloadflags);
 		i = COM_CheckNextParm ("-basepack", i);
 	}
 
@@ -4884,11 +4884,27 @@ qboolean FS_FoundManifest(void *usr, ftemanifest_t *man)
 //if fixedbasedir is true, stuff like -quake won't override/change the active basedir (ie: -basedir or gamedir switching without breaking gamedir)
 ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, qboolean fixedbasedir)
 {
+	int i;
 	int game = -1;
 	ftemanifest_t *man = NULL;
 
 	vfsfile_t *f;
 
+	//commandline generally takes precedence
+	if (!man && game == -1)
+	{
+		int i;
+		for (i = 0; gamemode_info[i].argname; i++)
+		{
+			if (COM_CheckParm(gamemode_info[i].argname))
+			{
+				game = i;
+				break;
+			}
+		}
+	}
+
+	//hopefully this will be used for TCs.
 	if (!man && game == -1)
 	{
 #ifdef BRANDING_NAME
@@ -4912,18 +4928,40 @@ ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, q
 		}
 	}
 
-	if (!man && game == -1)
+	//-basepack is primarily an android feature
+	i = COM_CheckParm ("-basepack");
+	while (!man && game == -1 && i && i < com_argc-1)
 	{
-		int i;
-		for (i = 0; gamemode_info[i].argname; i++)
+		const char *pakname = com_argv[i+1];
+		searchpathfuncs_t *pak;
+		vfsfile_t *vfs = VFSOS_Open(pakname, "rb");
+		pak = FS_OpenPackByExtension(vfs, pakname);
+		if (pak)
 		{
-			if (COM_CheckParm(gamemode_info[i].argname))
+			flocation_t loc;
+			if (pak->FindFile(pak, &loc, "default.fmf", NULL))
 			{
-				game = i;
-				break;
+				f = pak->OpenVFS(pak, &loc, "rb");
+				if (f)
+				{
+					size_t len = VFS_GETLEN(f);
+					char *fdata = BZ_Malloc(len+1);
+					if (fdata)
+					{
+						VFS_READ(f, fdata, len);
+						fdata[len] = 0;
+						man = FS_Manifest_Parse(NULL, fdata);
+						man->security = MANIFEST_SECURITY_DEFAULT;
+						BZ_Free(fdata);
+					}
+					VFS_CLOSE(f);
+				}
 			}
+			pak->ClosePath(pak);
 		}
+		i = COM_CheckNextParm ("-basepack", i);
 	}
+
 
 	if (!man && game == -1 && host_parms.manifest)
 	{

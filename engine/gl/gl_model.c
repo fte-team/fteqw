@@ -1889,7 +1889,11 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		lightmodel = loadmodel;
 		relitsurface = 0;
 	}
-	else if (!lightmodel && r_deluxmapping_cvar.value>1 && r_deluxmapping && !luxdata && !(r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value<=0))
+	else if (!lightmodel && r_deluxmapping_cvar.value>1 && r_deluxmapping && !luxdata
+#ifdef RTLIGHTS
+		&& !(r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value<=0)
+#endif
+		)
 	{	//if deluxemapping is on, generate missing lux files a little more often, but don't bother if we have rtlights on anyway.
 		writelitfile = false;
 		numlightdata = l->filelen;

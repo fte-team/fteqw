@@ -495,6 +495,9 @@ public class FTEDroidActivity extends Activity
 									ori = 9;//android.content.pm.ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT;
 								else if (ors.equalsIgnoreCase("fullsensor"))
 									ori = 10;//android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR;
+								//and the default, because specifying it again is always useless.
+								else
+									ori = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR;
 								android.util.Log.i("FTEDroid", "Orientation changed to " + ori + " (" + ors + ").");
 								act.setRequestedOrientation(ori);
 							}

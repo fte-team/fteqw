@@ -140,8 +140,8 @@ endif
 USER_TARGET:=$(FTE_TARGET)
 
 #make droid-rel doesn't get the right stuff
-#add a small default config file. its only small.
-DROID_PACKSU?= $(BASE_DIR)/droid/fte.cfg
+#add a small default config file. its only small. and some other stuff, because we can. This makes it much easier to get it up and running.
+DROID_PACKSU?= $(BASE_DIR)/droid/fte.cfg $(BASE_DIR)/droid/default.fmf $(BASE_DIR)/droid/configs/touch.cfg
 ANDROID_NDK_ROOT?=~/android-ndk-r8e
 ANDROID_HOME?=~/android-sdk-linux
 ANT?=ant

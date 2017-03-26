@@ -7050,12 +7050,10 @@ const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned 
 		}
 		Info_SetValueForKey(clfeatures, "basicprotocol", bp, sizeof(clfeatures));
 		Info_SetValueForKey(clfeatures, "guid", guid, sizeof(clfeatures));
-		Info_SetValueForKey(clfeatures, "maxsounds", "256", sizeof(clfeatures));
-		Info_SetValueForKey(clfeatures, "maxmodels", "256", sizeof(clfeatures));
 
 		//this is not the limits of the client itself, but the limits that the server is able and willing to send to them.
 
-		if ((pext1 & PEXT_SOUNDDBL) || (protocol == SCP_BJP3 || protocol == SCP_FITZ666 || protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
+		if ((pext1 & PEXT_SOUNDDBL) || (pext2 & PEXT2_REPLACEMENTDELTAS) || (protocol == SCP_BJP3 || protocol == SCP_FITZ666 || protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
 			Info_SetValueForKey(clfeatures, "maxsounds", va("%i", MAX_PRECACHE_SOUNDS), sizeof(clfeatures));
 		else
 			Info_SetValueForKey(clfeatures, "maxsounds", "256", sizeof(clfeatures));

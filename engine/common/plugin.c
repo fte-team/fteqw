@@ -940,6 +940,12 @@ static int Plug_NewStreamHandle(plugstream_e type)
 	return i;
 }
 
+#if defined(_XBOX)
+	#undef TCPCONNECT
+	#undef IPPROTO_IPV6
+	#undef USEIPX
+#endif
+
 #ifdef HAVE_PACKET
 //EBUILTIN(int, NET_TCPListen, (char *ip, int port, int maxcount));
 //returns a new socket with listen enabled.

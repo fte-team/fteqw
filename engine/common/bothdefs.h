@@ -42,6 +42,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define NO_OGG
 #endif
 
+#ifdef _XBOX
+	#define NO_PNG
+	#define NO_JPEG
+	#define NO_OGG
+	#define NO_ZLIB
+	#define NOMEDIA
+#endif
+
 #ifdef NACL
 	#define NO_PNG
 	#define NO_JPEG
@@ -101,7 +109,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if !defined(NO_DIRECTX) && !defined(NODIRECTX) && defined(_WIN32)
 	#define AVAIL_DINPUT
 	#define AVAIL_DSOUND
-	#define AVAIL_WASAPI
+	#undef AVAIL_WASAPI
 #endif
 #ifdef WINRT
 	#define AVAIL_XAUDIO2
@@ -191,7 +199,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef AVAIL_XZDEC
 
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(MULTITHREAD) //always thread on win32 non-minimal builds
+#ifndef _XBOX
 		#define MULTITHREAD
+#endif
 #endif
 	#elif defined(MINIMAL)
 		#define QUAKESTATS
@@ -248,7 +258,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PSKMODELS		//PSK model format (ActorX stuff from UT, though not the format the game itself uses)
 		#define HALFLIFEMODELS	//halflife model support (experimental)
 		#define INTERQUAKEMODELS
-		#define RAGDOLL
+
+		#ifdef _XBOX
+			#define RAGDOLL
+		#endif
 
 		#define HUFFNETWORK		//huffman network compression
 		#define DOOMWADS		//doom wad/sprite support
@@ -600,6 +613,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#elif defined(_WIN32)
 		#if defined(WINRT)
 			#define PLATFORM	"WinRT"		/*those poor poor souls. maybe just maybe I'll actually get the tools for a port, its just a shame that I won't be able to release said port*/
+		#elif defined(_XBOX)
+			#define PLATFORM "Xbox"
 		#else
 			#define PLATFORM	"Win"
 		#endif

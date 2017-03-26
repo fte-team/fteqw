@@ -4,7 +4,6 @@ clientside master queries and server ping/polls
 */
 
 #include "quakedef.h"
-
 #include "cl_master.h"
 
 qboolean	sb_enablequake2;
@@ -565,7 +564,6 @@ void SV_Master_Shutdown (void)
 
 #ifdef _WIN32
 #include "winquake.h"
-#define USEIPX
 #else
 typedef int SOCKET;
 #endif
@@ -576,6 +574,11 @@ typedef int SOCKET;
 #define USEIPX
 #endif
 
+#if defined(_XBOX)
+	#undef TCPCONNECT
+	#undef IPPROTO_IPV6
+	#undef USEIPX
+#endif
 
 //the number of servers should be limited only by memory.
 

@@ -32,7 +32,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef WIN32_BLOATED
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <windows.h>
+
+#ifndef _XBOX
+	#include <windows.h>
+#endif
 
 #if defined(WINAPI_FAMILY) && !defined(WINRT)
 	#if WINAPI_FAMILY != WINAPI_FAMILY_DESKTOP_APP

@@ -3700,7 +3700,7 @@ void CL_FinishDownload_f (void)
 	CL_ForceStopDownload(true);
 }
 
-#if defined(_WIN32) && !defined(WINRT)
+#if defined(_WIN32) && !defined(WINRT) && !defined(_XBOX)
 #include "winquake.h"
 /*
 =================
@@ -4149,7 +4149,7 @@ void CL_Init (void)
 //
 //  Windows commands
 //
-#if defined(_WIN32) && !defined(WINRT)
+#if defined(_WIN32) && !defined(WINRT) && !defined(_XBOX)
 	Cmd_AddCommand ("windows", CL_Windows_f);
 #endif
 

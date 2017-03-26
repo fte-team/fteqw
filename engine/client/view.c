@@ -385,7 +385,7 @@ static void QDECL V_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 	V_UpdatePalette (true);
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(_XBOX)
 void W32_BlowChunk(vec3_t pos, float radius)
 {
 	vec3_t center;
@@ -437,7 +437,7 @@ void V_ParseDamage (playerview_t *pv)
 
 	pv->faceanimtime = cl.time + 0.2;		// but sbar face into pain frame
 
-#if defined(_WIN32) && !defined(MINIMAL)
+#if defined(_WIN32) && !defined(MINIMAL) && !defined(_XBOX)
 	if (itburnsitburnsmakeitstop.value > 0)
 		W32_BlowChunk(from, (armor+blood) * itburnsitburnsmakeitstop.value);
 #endif

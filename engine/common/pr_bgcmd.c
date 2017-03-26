@@ -112,13 +112,16 @@ static int debuggerstacky;
 #endif
 
 #if defined(_WIN32) && !defined(FTE_SDL)
-#include <windows.h>
+#ifndef _XBOX
+	#include <windows.h>
+#endif
+
 void INS_UpdateGrabs(int fullscreen, int activeapp);
 #endif
 int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *error, pbool fatal);
 void QCLoadBreakpoints(const char *vmname, const char *progsname)
 {	//this asks the gui to reapply any active breakpoints and waits for them so that any spawn functions can be breakpointed properly.
-#if defined(_WIN32) && !defined(FTE_SDL)
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
 	extern int				isPlugin;
 	if (isPlugin >= 2)
 	{
@@ -304,7 +307,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 
 int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason, pbool fatal)
 {
-#if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
+#if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL) && !defined(_XBOX)
 	if (isPlugin >= 2)
 	{
 		if (wantquit)

@@ -37,10 +37,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #define WIN32_LEAN_AND_MEAN
 #define byte winbyte
-#include <windows.h>
-#include <winsock2.h>
-#include <mmsystem.h>
-#include <mmreg.h>
+#ifdef _XBOX
+	#include <xtl.h>
+	#include <WinSockX.h>
+#else
+	#include <windows.h>
+	#include <winsock2.h>
+	#include <mmsystem.h>
+	#include <mmreg.h>
+#endif
+
 #define _LPCWAVEFORMATEX_DEFINED
 
 
@@ -78,13 +84,15 @@ LONG CDAudio_MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 //shell32 stuff that doesn't exist in win95
 #define COBJMACROS
+
+#ifndef _XBOX
 #include <shlobj.h>
 #include <shellapi.h>
 extern LPITEMIDLIST (STDAPICALLTYPE *pSHBrowseForFolderW)(LPBROWSEINFOW lpbi);
 extern BOOL (STDAPICALLTYPE *pSHGetPathFromIDListW)(LPCITEMIDLIST pidl, LPWSTR pszPath);
 extern BOOL (STDAPICALLTYPE *pSHGetSpecialFolderPathW)(HWND hwnd, LPWSTR pszPath, int csidl, BOOL fCreate);
 extern BOOL (STDAPICALLTYPE *pShell_NotifyIconW)(DWORD dwMessage, PNOTIFYICONDATAW lpData);
-
+#endif
 
 //void	VID_LockBuffer (void);
 //void	VID_UnlockBuffer (void);

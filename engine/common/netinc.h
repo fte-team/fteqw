@@ -40,13 +40,20 @@
 		#define USEIPX
 	#endif
 	#define WIN32_LEAN_AND_MEAN
+#ifdef _XBOX
+	#include <xtl.h>
+	#include <WinSockX.h>
+#else
 	#include <windows.h>
 	#include <winsock2.h>
+#endif
 //	#include "winquake.h"
+#ifndef _XBOX
 	#ifdef USEIPX
 		#include "wsipx.h"
 	#endif
 	#include <ws2tcpip.h>
+#endif
 	#include <errno.h>
 	#ifndef IPPROTO_IPV6
 		/*for msvc6*/

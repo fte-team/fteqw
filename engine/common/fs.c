@@ -3753,7 +3753,7 @@ void FS_ReloadPackFiles_f(void)
 		FS_BeginManifestUpdates();
 }
 
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 #include "winquake.h"
 #ifdef MINGW
 #define byte BYTE	//some versions of mingw headers are broken slightly. this lets it compile.
@@ -5739,7 +5739,7 @@ void COM_InitFilesystem (void)
 	//assume the home directory is the working directory.
 	*com_homepath = '\0';
 
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 	{	//win32 sucks.
 		HRESULT (WINAPI *dSHGetFolderPathW) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, wchar_t *pszPath) = NULL;
 		dllfunction_t funcs[] =

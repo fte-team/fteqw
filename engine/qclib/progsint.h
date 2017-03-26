@@ -17,8 +17,11 @@
 			//#define AVAIL_ZLIB
 		#endif
 	#endif
-
+#ifndef _XBOX
 	#include <windows.h>
+#else 
+	#include <xtl.h>
+#endif
 #else
 	#include <stdarg.h>
 	#include <math.h>

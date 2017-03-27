@@ -268,7 +268,7 @@ void Surf_LessenStains(void)
 
 	static float time;
 
-	if (!r_stains.value)
+	if (!r_stains.value || !r_stainfadeammount.value)
 		return;
 
 	time += host_frametime;

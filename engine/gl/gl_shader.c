@@ -984,10 +984,12 @@ static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
 		shader->sort = SHADER_SORT_SKY;
 	else if( !Q_stricmp( token, "opaque" ) )
 		shader->sort = SHADER_SORT_OPAQUE;
-	else if( !Q_stricmp( token, "decal" ) )
+	else if( !Q_stricmp( token, "decal" ) ||  !Q_stricmp( token, "litdecal" ) )
 		shader->sort = SHADER_SORT_DECAL;
 	else if( !Q_stricmp( token, "seethrough" ) )
 		shader->sort = SHADER_SORT_SEETHROUGH;
+	else if( !Q_stricmp( token, "unlitdecal" ) )
+		shader->sort = SHADER_SORT_UNLITDECAL;
 	else if( !Q_stricmp( token, "banner" ) )
 		shader->sort = SHADER_SORT_BANNER;
 	else if( !Q_stricmp( token, "additive" ) )

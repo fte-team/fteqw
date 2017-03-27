@@ -42,6 +42,8 @@ typedef enum {
 	//fixme: occlusion tests
 	SHADER_SORT_DECAL,
 	SHADER_SORT_SEETHROUGH,
+	//then rtlights are drawn
+	SHADER_SORT_UNLITDECAL,
 	SHADER_SORT_BANNER,
 	SHADER_SORT_UNDERWATER,
 	SHADER_SORT_BLEND,

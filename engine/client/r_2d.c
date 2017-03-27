@@ -903,6 +903,7 @@ void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 }
 
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
+#include <windows.h>
 qboolean R2D_Font_WasAdded(char *buffer, char *fontfilename)
 {
 	char *match;

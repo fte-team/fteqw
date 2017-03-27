@@ -266,6 +266,9 @@ static void Mod_BlockTextureColour_f (void)
 
 #ifdef RUNTIMELIGHTING
 #if defined(MULTITHREAD)
+#ifdef _WIN32
+#include <windows.h>
+#endif
 static void *relightthread[8];
 static unsigned int relightthreads;
 static volatile qboolean wantrelight;

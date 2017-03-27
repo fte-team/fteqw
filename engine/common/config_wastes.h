@@ -24,6 +24,7 @@
 //#define D3D9QUAKE
 //#define GLQUAKE
 #undef D3D11QUAKE
+#define D3D8QUAKE
 #undef VKQUAKE
 #undef HEADLESSQUAKE
 

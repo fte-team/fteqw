@@ -8,6 +8,12 @@
     #define HMONITOR_DECLARED
     DECLARE_HANDLE(HMONITOR);
 #endif
+
+#ifdef _XBOX
+	#include <xtl.h>
+	#define D3DLOCK_DISCARD 0
+#endif
+
 #include <d3d8.h>
 
 /*
@@ -3200,12 +3206,16 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 	glplane[1] = plane.normal[1];
 	glplane[2] = plane.normal[2];
 	glplane[3] = -plane.dist;
+#ifndef _XBOX
 	IDirect3DDevice8_SetClipPlane(pD3DDev8, 0, glplane);
 	IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRS_CLIPPLANEENABLE, D3DCLIPPLANE0);
+#endif
 	Surf_SetupFrame();
 	R_RenderScene();
-	IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRS_CLIPPLANEENABLE, 0);
 
+#ifndef _XBOX
+	IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRS_CLIPPLANEENABLE, 0);
+#endif
 	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
 	for (batch = blist[sort]; batch; batch = batch->next)
 	{

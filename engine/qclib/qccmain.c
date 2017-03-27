@@ -494,7 +494,7 @@ int	QCC_CopyString (char *str)
 
 	old = strofs;
 	len = strlen(str)+1;
-	if (strofs + len > MAX_STRINGS)
+	if ( (strofs + len) > MAX_STRINGS)
 		QCC_Error(ERR_INTERNAL, "QCC_CopyString: stringtable size limit exceeded\n");
 	memcpy (strings+strofs, str, len);
 	strofs += len;
@@ -511,7 +511,7 @@ int	QCC_CopyStringLength (char *str, size_t length)
 		return !flag_nullemptystr;
 
 	old = strofs;
-	if (strofs + length > MAX_STRINGS)
+	if ( (strofs + length) > MAX_STRINGS)
 		QCC_Error(ERR_INTERNAL, "QCC_CopyString: stringtable size limit exceeded\n");
 	memcpy (strings+strofs, str, length);
 	strofs += length;
@@ -530,7 +530,7 @@ int	QCC_CopyDupBackString (char *str)
 
 	old = strofs;
 	length = strlen(str)+1;
-	if (strofs + length > MAX_STRINGS)
+	if ( (strofs + length) > MAX_STRINGS)
 		QCC_Error(ERR_INTERNAL, "QCC_CopyString: stringtable size limit exceeded\n");
 	strcpy (strings+strofs, str);
 	strofs += length;

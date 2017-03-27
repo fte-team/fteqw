@@ -4,10 +4,17 @@
 
 #ifndef HAVE_PACKET
 
+#ifndef _XBOX
 	struct sockaddr
 	{
 		short  sa_family;
 	};
+
+	#define ntohs BigShort
+	#define htons BigShort
+	#define htonl BigLong
+	#define ntohl BigLong
+#endif
 /*	struct sockaddr_in
 	{
 		short  sin_family;
@@ -27,10 +34,7 @@
 		char url[64];
 	};
 
-	#define ntohs BigShort
-	#define htons BigShort
-	#define htonl BigLong
-	#define ntohl BigLong
+
 
 #elif defined(_WIN32)
 	#ifdef _XBOX

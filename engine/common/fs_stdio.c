@@ -8,7 +8,7 @@
 #define Z_Free free
 #define Z_Malloc malloc
 #else
-#if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT)
+#if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT) || defined(_XBOX)
 #define FSSTDIO_OpenPath VFSOS_OpenPath
 #endif
 #define FSSTDIO_OpenTemp FS_OpenTemp
@@ -196,7 +196,7 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsfl
 }
 
 #ifndef WEBSVONLY
-#if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT)
+#if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT) || defined(_XBOX)
 vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 {
 	vfsfile_t *f;

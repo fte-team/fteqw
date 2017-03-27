@@ -317,7 +317,13 @@
 					RelativePath="..\client\fragstats.c">
 				</File>
 				<File
+					RelativePath="..\http\httpclient.c">
+				</File>
+				<File
 					RelativePath="..\client\image.c">
+				</File>
+				<File
+					RelativePath="..\client\in_generic.c">
 				</File>
 				<File
 					RelativePath="..\client\keys.c">
@@ -396,6 +402,9 @@
 				</File>
 				<File
 					RelativePath="..\client\skin.c">
+				</File>
+				<File
+					RelativePath="..\client\snd_dma.c">
 				</File>
 				<File
 					RelativePath="..\client\snd_mem.c">
@@ -558,6 +567,9 @@
 				</File>
 				<File
 					RelativePath="..\qclib\qccmain.c">
+				</File>
+				<File
+					RelativePath="..\qclib\qcd_main.c">
 				</File>
 				<File
 					RelativePath="..\qclib\qcdecomp.c">

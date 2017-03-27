@@ -23,6 +23,19 @@ struct sockaddr;
 #include "quakedef.h"
 #include "netinc.h"
 
+// Eww, eww. This is hacky but so is netinc.h, so bite me
+#ifdef _XBOX
+	struct sockaddr
+	{
+		short  sa_family;
+	};
+
+	#define ntohs BigShort
+	#define htons BigShort
+	#define htonl BigLong
+	#define ntohl BigLong
+#endif
+
 #if defined(_WIN32) || defined(__linux__) && !defined(ANDROID)
 #define USE_GETHOSTNAME_LOCALLISTING
 #endif
@@ -81,11 +94,6 @@ cvar_t	net_fakeloss	= CVARFD("net_fakeloss", "0", CVAR_CHEAT, "Simulates packetl
 cvar_t	net_enabled		= CVARD("net_enabled", "1", "If 0, disables all network access, including name resolution and socket creation. Does not affect loopback/internal connections.");
 
 extern cvar_t sv_public, sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
-
-
-
-
-
 
 #define	MAX_LOOPBACK	64
 typedef struct
@@ -6617,4 +6625,3 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport)
 	return NULL;
 }
 #endif
-

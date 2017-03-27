@@ -5,6 +5,13 @@
     #define HMONITOR_DECLARED
     DECLARE_HANDLE(HMONITOR);
 #endif
+
+#ifdef _XBOX
+	#include <xtl.h>
+	#define D3DLOCK_NOSYSLOCK 0
+	#define D3DLOCK_DISCARD 0
+#endif
+
 #include <d3d8.h>
 extern LPDIRECT3DDEVICE8 pD3DDev8;
 

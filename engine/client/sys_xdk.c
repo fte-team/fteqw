@@ -1,6 +1,8 @@
 #include "quakedef.h"
 #include <xtl.h>
 
+#define MAXPRINTMSG 1024 // Yes
+qboolean isDedicated = false;
 
 /*Timers, supposedly xbox supports QueryPerformanceCounter stuff*/
 double Sys_DoubleTime (void)
@@ -69,7 +71,7 @@ void VARGS Sys_Printf (char *fmt, ...)
 	char		msg[MAXPRINTMSG];
 
 	va_start (argptr,fmt);
-	_vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
+	Q_snprintfz (msg,sizeof(msg)-1, fmt,argptr);
 	msg[sizeof(msg)-1] = 0;	//_vsnprintf sucks.
 	va_end (argptr);
 
@@ -105,6 +107,10 @@ char *Sys_ConsoleInput (void)
 /*various system notifications*/
 void Sys_ServerActivity(void)
 {	//player joined the server or said something. would normally flash the app in the system tray.
+}
+
+void Sys_RecentServer(char *command, char *target, char *title, char *desc) {
+
 }
 
 /*check any system message queues here*/
@@ -195,9 +201,6 @@ void main( int argc, char **argv)
 
 }
 
-
-
-
 /*input stubs
 in_generic.c should make these kinda useless, but sometimes you need more than the following three functions:
 void IN_JoystickAxisEvent(unsigned int devid, int axis, float value);
@@ -237,4 +240,11 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 #endif
 }
 
+void INS_SetupControllerAudioDevices (void) // Not used
+{
+}
+
+void INS_UpdateGrabs (void) // Not used
+{
+}
 

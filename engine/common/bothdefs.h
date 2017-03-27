@@ -48,6 +48,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define NO_OGG
 	#define NO_ZLIB
 	#define NOMEDIA
+	#define NO_FREETYPE
+	#define HAVE_PACKET
 #endif
 
 #ifdef NACL
@@ -400,6 +402,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #if defined(_XBOX)
+	#define D3DQUAKE
+	#define D3D8QUAKE
 	#undef HAVE_TCP		//FIXME
 	#undef HAVE_PACKET	//FIXME
 	#undef SUPPORT_ICE	//screw that
@@ -410,9 +414,31 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef TEXTEDITOR	//its hard to edit text when you have just a controller (and no onscreen keyboard)
 	#undef RAGDOLL		//needs a proper physics engine
 	#undef AVAIL_MP3_ACM		//api not supported
+	#undef AVAIL_OPENAL
 	#undef HAVE_SPEECHTOTEXT	//api not supported
 	#undef MULTITHREAD			//no CreateThread stuff.
 	#undef SUBSERVERS			//single-process.
+	#undef VOICECHAT
+	#undef TERRAIN
+	#undef Q2CLIENT
+	#undef Q2SERVER
+	#undef Q3CLIENT
+	#undef Q3SERVER
+	#undef HLCLIENT
+	#undef HLSERVER
+	#undef VM_Q1
+	#undef VM_LUA
+	#undef HALFLIFEMODELS
+	#undef RUNTIMELIGHTING
+	#undef HEXEN2
+	#undef DOOMWADS	
+	#undef MAP_PROC	
+	#undef Q1BSPS
+	#undef Q2BSPS
+	#undef Q3BSPS
+	#undef RFBSPS
+	#undef WEBSERVER		//http/ftp servers
+	#undef WEBCLIENT		//http/ftp clients.
 #endif
 
 #ifdef FTE_TARGET_WEB

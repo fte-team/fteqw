@@ -9,6 +9,10 @@
 //#define FIXME
 #include "winquake.h"
 
+#ifdef _XBOX
+	#include <xtl.h>
+#endif
+
 #if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
 	#define HMONITOR_DECLARED
 	DECLARE_HANDLE(HMONITOR);
@@ -154,6 +158,7 @@ static modestate_t modestate;
 
 static void D3DVID_UpdateWindowStatus (HWND hWnd)
 {
+#ifndef _XBOX
 	POINT p;
 	RECT nr;
 	int window_width, window_height;
@@ -183,6 +188,7 @@ static void D3DVID_UpdateWindowStatus (HWND hWnd)
 	window_center_y = (window_rect.top + window_rect.bottom) / 2;
 
 	INS_UpdateClipCursor ();
+#endif
 }
 
 static qboolean D3D8AppActivate(BOOL fActive, BOOL minimize)
@@ -231,10 +237,7 @@ static qboolean D3D8AppActivate(BOOL fActive, BOOL minimize)
 	return true;
 }
 
-
-
-
-
+#ifndef _XBOX
 static LRESULT WINAPI D3D8_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	LONG    lRet = 1;
@@ -428,6 +431,7 @@ static LRESULT WINAPI D3D8_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 	/* return 1 if handled message, 0 if not */
 	return lRet;
 }
+#endif
 
 static void D3D8_VID_SwapBuffers(void)
 {
@@ -580,7 +584,9 @@ static qboolean initD3D8Device(HWND hWnd, rendererstate_t *info, unsigned int de
 		break;
 	}
 
+#ifndef _XBOX
 	cflags = D3DCREATE_FPU_PRESERVE;
+#endif
 	if ((caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) && (caps.DevCaps & D3DDEVCAPS_PUREDEVICE))
 		cflags |= D3DCREATE_HARDWARE_VERTEXPROCESSING;
 	else
@@ -599,6 +605,7 @@ static qboolean initD3D8Device(HWND hWnd, rendererstate_t *info, unsigned int de
 
 	if (pD3DDev8)
 	{
+#ifndef _XBOX
 		HMONITOR hm;
 		MONITORINFO mi;
 		char *s;
@@ -632,6 +639,7 @@ static qboolean initD3D8Device(HWND hWnd, rendererstate_t *info, unsigned int de
 			AdjustWindowRectEx(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0);
 			MoveWindow(d3dpp.hDeviceWindow, rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top, false);
 		}
+#endif
 		D3D8Shader_Init();
 		return true;	//successful
 	}
@@ -653,12 +661,17 @@ static qboolean initD3D8Device(HWND hWnd, rendererstate_t *info, unsigned int de
 
 static void initD3D8(HWND hWnd, rendererstate_t *info)
 {
+#ifdef _XBOX
+	LPDIRECT3D8 pDirect3DCreate8 = NULL;
+	pDirect3DCreate8 = Direct3DCreate8( D3D_SDK_VERSION );
+#else
 	int i;
 	int numadaptors;
 	D3DADAPTER_IDENTIFIER8 inf;
 
 	static HMODULE d3d8dll;
 	LPDIRECT3D8 (WINAPI *pDirect3DCreate8) (int version);
+
 
 	if (!d3d8dll)
 		d3d8dll = LoadLibrary("d3d8.dll");
@@ -702,10 +715,22 @@ static void initD3D8(HWND hWnd, rendererstate_t *info)
 		if (initD3D8Device(hWnd, info, i, D3DDEVTYPE_REF))
 			return;
 	}
+#endif
 }
 
 static qboolean D3D8_VID_Init(rendererstate_t *info, unsigned char *palette)
 {
+#ifdef _XBOX
+	vid.pixelwidth = 640;
+	vid.pixelheight = 480;
+
+	vid.width = 640;
+	vid.height = 480;
+
+	vid_initializing = false;
+
+	IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRS_LIGHTING, FALSE);
+#else
 	DWORD width = info->width;
 	DWORD height = info->height;
 	//DWORD bpp = info->bpp;
@@ -808,10 +833,12 @@ static qboolean D3D8_VID_Init(rendererstate_t *info, unsigned char *palette)
 	rf->VID_SetCursor = WIN_SetCursor;
 
 	return true;
+#endif
 }
 
 static void	 (D3D8_VID_DeInit)				(void)
 {
+#ifndef _XBOX
 	Image_Shutdown();
 
 	/*final shutdown, kill the video stuff*/
@@ -840,6 +867,7 @@ static void	 (D3D8_VID_DeInit)				(void)
 //	Cvar_Unhook(&v_gamma);
 //	Cvar_Unhook(&v_contrast);
 //	Cvar_Unhook(&v_brightness);
+#endif
 }
 
 qboolean D3D8_VID_ApplyGammaRamps		(unsigned int gammarampsize, unsigned short *ramps)
@@ -915,7 +943,9 @@ static char	*(D3D8_VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enu
 }
 static void	(D3D8_VID_SetWindowCaption)		(const char *msg)
 {
+#ifndef _XBOX
 	SetWindowText(mainwindow, msg);
+#endif
 }
 
 void D3D8_Set2D (void)
@@ -997,6 +1027,7 @@ static qboolean	(D3D8_SCR_UpdateScreen)			(void)
 		Cvar_ForceCallback(&vid_conwidth);
 	}
 
+#ifndef _XBOX
 	switch (IDirect3DDevice8_TestCooperativeLevel(pD3DDev8))
 	{
 	case D3DERR_DEVICELOST:
@@ -1018,6 +1049,7 @@ static qboolean	(D3D8_SCR_UpdateScreen)			(void)
 	default:
 		break;
 	}
+#endif
 
 	D3D8BE_Reset(false);
 

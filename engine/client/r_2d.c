@@ -902,7 +902,7 @@ void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 	}
 }
 
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 qboolean R2D_Font_WasAdded(char *buffer, char *fontfilename)
 {
 	char *match;
@@ -986,7 +986,7 @@ void R2D_Font_Changed(void)
 	if (qrenderer == QR_NONE)
 		return;
 
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 	if (!strcmp(gl_font.string, "?"))
 	{
 		BOOL (APIENTRY *pChooseFontW)(LPCHOOSEFONTW) = NULL;

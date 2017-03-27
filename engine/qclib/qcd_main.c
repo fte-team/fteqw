@@ -1,7 +1,7 @@
 #include "progsint.h"
 #include "qcc.h"
 
-#if !defined(NO_ZLIB) && !defined(FTE_TARGET_WEB) && !defined(NACL)
+#if !defined(NO_ZLIB) && !defined(FTE_TARGET_WEB) && !defined(NACL) && !defined(_XBOX)
 #define AVAIL_ZLIB
 #endif
 

@@ -448,19 +448,11 @@ static void resetD3D8(void)
 		return;
 	}
 
-
 	/*clear the screen to black as soon as we start up, so there's no lingering framebuffer state*/
 	IDirect3DDevice8_BeginScene(pD3DDev8);
 	IDirect3DDevice8_Clear(pD3DDev8, 0, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
 	IDirect3DDevice8_EndScene(pD3DDev8);
 	IDirect3DDevice8_Present(pD3DDev8, NULL, NULL, NULL, NULL);
-
-
-
-
-
-
-
 	//IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRENDERSTATE_DITHERENABLE, FALSE);
 	//IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRENDERSTATE_SPECULARENABLE, FALSE);
 	//IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRENDERSTATE_TEXTUREPERSPECTIVE, TRUE);
@@ -584,7 +576,9 @@ static qboolean initD3D8Device(HWND hWnd, rendererstate_t *info, unsigned int de
 		break;
 	}
 
-#ifndef _XBOX
+#ifdef _XBOX
+	cflags = 0;
+#else 
 	cflags = D3DCREATE_FPU_PRESERVE;
 #endif
 	if ((caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) && (caps.DevCaps & D3DDEVCAPS_PUREDEVICE))
@@ -662,8 +656,8 @@ static qboolean initD3D8Device(HWND hWnd, rendererstate_t *info, unsigned int de
 static void initD3D8(HWND hWnd, rendererstate_t *info)
 {
 #ifdef _XBOX
-	LPDIRECT3D8 pDirect3DCreate8 = NULL;
-	pDirect3DCreate8 = Direct3DCreate8( D3D_SDK_VERSION );
+	pD3D = Direct3DCreate8( D3D_SDK_VERSION );
+	initD3D8Device(NULL, info, 0, D3DDEVTYPE_HAL);
 #else
 	int i;
 	int numadaptors;
@@ -721,15 +715,27 @@ static void initD3D8(HWND hWnd, rendererstate_t *info)
 static qboolean D3D8_VID_Init(rendererstate_t *info, unsigned char *palette)
 {
 #ifdef _XBOX
+	vid_initializing = true;
+
+	initD3D8( NULL, info );
+
+	IDirect3DDevice8_Clear(pD3DDev8, 0, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(255, 0, 255), 1.0f, 0);
+	IDirect3DDevice8_BeginScene(pD3DDev8);
+	IDirect3DDevice8_EndScene(pD3DDev8);
+	IDirect3DDevice8_Present(pD3DDev8, NULL, NULL, NULL, NULL);
+
+	D3D8_Set2D();
+
 	vid.pixelwidth = 640;
 	vid.pixelheight = 480;
-
 	vid.width = 640;
 	vid.height = 480;
 
 	vid_initializing = false;
 
 	IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRS_LIGHTING, FALSE);
+
+	return TRUE;
 #else
 	DWORD width = info->width;
 	DWORD height = info->height;
@@ -838,7 +844,6 @@ static qboolean D3D8_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 static void	 (D3D8_VID_DeInit)				(void)
 {
-#ifndef _XBOX
 	Image_Shutdown();
 
 	/*final shutdown, kill the video stuff*/
@@ -847,7 +852,9 @@ static void	 (D3D8_VID_DeInit)				(void)
 		D3D8BE_Reset(true);
 
 		/*try and knock it back into windowed mode to avoid d3d bugs*/
+		#ifndef _XBOX
 		d3dpp.Windowed = true;
+		#endif
 		IDirect3DDevice8_Reset(pD3DDev8, &d3dpp);
 
 		IDirect3DDevice8_Release(pD3DDev8);
@@ -858,16 +865,17 @@ static void	 (D3D8_VID_DeInit)				(void)
 		IDirect3D8_Release(pD3D);
 		pD3D = NULL;
 	}
+
+	#ifndef _XBOX
 	if (mainwindow)
 	{
 		DestroyWindow(mainwindow);
 		mainwindow = NULL;
 	}
-
+	#endif
 //	Cvar_Unhook(&v_gamma);
 //	Cvar_Unhook(&v_contrast);
 //	Cvar_Unhook(&v_brightness);
-#endif
 }
 
 qboolean D3D8_VID_ApplyGammaRamps		(unsigned int gammarampsize, unsigned short *ramps)

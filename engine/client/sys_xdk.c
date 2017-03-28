@@ -71,7 +71,7 @@ void VARGS Sys_Printf (char *fmt, ...)
 	char		msg[MAXPRINTMSG];
 
 	va_start (argptr,fmt);
-	Q_snprintfz (msg,sizeof(msg)-1, fmt,argptr);
+	vsnprintf(msg,sizeof(msg)-1, fmt,argptr);
 	msg[sizeof(msg)-1] = 0;	//_vsnprintf sucks.
 	va_end (argptr);
 

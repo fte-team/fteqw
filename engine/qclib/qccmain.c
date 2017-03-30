@@ -1225,6 +1225,22 @@ const char *QCC_FileForStatement(int st)
 	}
 	return ret;
 }
+const char *QCC_FunctionForStatement(int st)
+{
+	const char *ret = "???";
+	int i;
+	for (i = 0; i < numfunctions; i++) 
+	{
+		if (functions[i].code > 0)
+		{
+			if (st < functions[i].code)
+				break;
+			ret = functions[i].filen;
+		}
+	}
+	return ret;
+}
+
 
 
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
@@ -1242,7 +1258,7 @@ pbool QCC_WriteData (int crc)
 	int			*statement_linenums;
 	void		*funcdata;
 	size_t		funcdatasize;
-	pbool		bigjumps;
+	const char *bigjumps = NULL;
 
 
 	extern char *basictypenames[];
@@ -1283,14 +1299,15 @@ pbool QCC_WriteData (int crc)
 
 	for (i=0 ; i<numstatements ; i++)
 	{
-		if (!statements[i].a.sym && (statements[i].a.ofs > 0x7fff || statements[i].a.ofs < 0x7fff))
+		if (!statements[i].a.sym && ((int)statements[i].a.ofs > 0x7fff || (int)statements[i].a.ofs < -0x7fff))
 			break;
-		if (!statements[i].a.sym && (statements[i].a.ofs > 0x7fff || statements[i].a.ofs < 0x7fff))
+		if (!statements[i].a.sym && ((int)statements[i].a.ofs > 0x7fff || (int)statements[i].a.ofs < -0x7fff))
 			break;
-		if (!statements[i].a.sym && (statements[i].a.ofs > 0x7fff || statements[i].a.ofs < 0x7fff))
+		if (!statements[i].a.sym && ((int)statements[i].a.ofs > 0x7fff || (int)statements[i].a.ofs < -0x7fff))
 			break;
 	}
-	bigjumps = i<numstatements;
+	if (i < numstatements)
+		bigjumps = QCC_FunctionForStatement(i);
 
 	switch (qcc_targetformat)
 	{
@@ -1301,7 +1318,7 @@ pbool QCC_WriteData (int crc)
 
 		if (bigjumps)
 		{
-			printf("Forcing target to FTE32 due to large functions\n");
+			printf("Forcing target to FTE32 due to large function %s\n", bigjumps);
 			outputsttype = PST_FTE32;
 		}
 		else if (numpr_globals > 65530)
@@ -1340,7 +1357,7 @@ pbool QCC_WriteData (int crc)
 		{
 			if (bigjumps)
 			{
-				printf("Using 32 bit target due to large functions\n");
+				printf("Using 32 bit target due to large function %s\n", bigjumps);
 				outputsttype = PST_FTE32;
 			}
 			else if (numpr_globals > 65530)

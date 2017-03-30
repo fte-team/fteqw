@@ -305,7 +305,6 @@ qboolean QCExternalDebuggerCommand(char *text)
 
 int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason, pbool fatal)
 {
-#ifndef SERVERONLY
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(_XBOX)
 	if (isPlugin >= 2)
 	{
@@ -318,7 +317,11 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 				return DEBUG_TRACE_ABORT;
 			return DEBUG_TRACE_OFF;
 		}
+#ifdef SERVERONLY
+		SV_GetConsoleCommands();
+#else
 		Sys_SendKeyEvents();
+#endif
 		debuggerresume = -1;
 		debuggerresumeline = *line;
 		if (debuggerwnd)
@@ -331,9 +334,21 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 		else
 			printf("qcstep \"%s\":%i\n", filename, *line);
 		fflush(stdout);
-		INS_UpdateGrabs(false, false);
 		debuggerinstance = prinst;
 		debuggerfile = filename;
+#ifdef SERVERONLY
+		if (reason)
+		{
+			printf("Debugger triggered at \"%s\":%i, %s\n", filename, *line, reason);
+			PR_StackTrace(prinst, 1);
+		}
+		while(debuggerresume == -1 && !wantquit)
+		{
+			Sleep(10);
+			SV_GetConsoleCommands();
+		}
+#else
+		INS_UpdateGrabs(false, false);
 		if (reason)
 			Con_Footerf(NULL, false, "^bDebugging: %s", reason);
 		else
@@ -359,6 +374,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			}
 		}
 		Con_Footerf(NULL, false, "");
+#endif
 		*line = debuggerresumeline;
 		debuggerinstance = NULL;
 		debuggerfile = NULL;
@@ -366,7 +382,6 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			return DEBUG_TRACE_ABORT;
 		return debuggerresume;
 	}
-#endif
 #endif
 
 #ifdef TEXTEDITOR

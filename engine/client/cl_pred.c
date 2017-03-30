@@ -723,9 +723,11 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 	vec3_t a;
 	int pmtype;
 	qboolean onground = plstate->onground;
+	qboolean jumpheld = plstate->jump_held;
 	vec3_t vel;
 	VectorCopy(plstate->velocity, vel);
 	memset(plstate, 0, sizeof(*plstate));
+	plstate->jump_held = jumpheld;
 
 	switch(state->u.q1.pmovetype)
 	{

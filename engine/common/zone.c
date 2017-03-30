@@ -327,7 +327,11 @@ void VARGS Z_FreeTags(int tag)
 	#define SIZE_MAX ((size_t)-1)
 #endif
 
+#ifdef USE_MSVCRT_DEBUG
+qboolean ZF_ReallocElementsNamed(void **ptr, size_t *elements, size_t newelements, size_t elementsize, const char *file, int line)
+#else
 qboolean ZF_ReallocElements(void **ptr, size_t *elements, size_t newelements, size_t elementsize)
+#endif
 {
 	void *n;
 	size_t oldsize;
@@ -340,7 +344,11 @@ qboolean ZF_ReallocElements(void **ptr, size_t *elements, size_t newelements, si
 	oldsize = *elements * elementsize;
 	newsize = newelements * elementsize;
 
+#ifdef USE_MSVCRT_DEBUG
+	n = BZ_ReallocNamed(*ptr, newsize, file, line);
+#else
 	n = BZ_Realloc(*ptr, newsize);
+#endif
 	if (!n)
 		return false;
 	if (newsize > oldsize)

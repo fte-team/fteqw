@@ -1548,7 +1548,6 @@ static void SV_ForceName_f (void)
 {
 	client_t	*cl;
 	int clnum=-1;
-	int i;
 
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
@@ -1556,12 +1555,7 @@ static void SV_ForceName_f (void)
 		SV_LogPlayer(cl, "name forced");
 		SV_ExtractFromUserinfo(cl, true);
 		Q_strncpyz(cl->name, Cmd_Argv(2), sizeof(cl->namebuf));
-		i = cl - svs.clients;
-		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-		MSG_WriteByte (&sv.reliable_datagram, i);
-		MSG_WriteString (&sv.reliable_datagram, "name");
-		MSG_WriteString (&sv.reliable_datagram, cl->name);
-
+		SV_BroadcastUserinfoChange(cl, true, "name", cl->name);
 		return;
 	}
 

@@ -96,6 +96,7 @@ void *VARGS Z_TagMalloc (int size, int tag);
 void VARGS Z_TagFree(void *ptr);
 void VARGS Z_FreeTags(int tag);
 qboolean ZF_ReallocElements(void **ptr, size_t *elements, size_t newelements, size_t elementsize);	//returns false on error
+qboolean ZF_ReallocElementsNamed(void **ptr, size_t *elements, size_t newelements, size_t elementsize, char *file, int line);	//returns false on error
 #define Z_ReallocElements(ptr,elements,newelements,elementsize) do{if (!ZF_ReallocElements(ptr,elements,newelements,elementsize))Sys_Error("Z_ReallocElements failed (%s %i)\n", __FILE__, __LINE__);}while(0)	//returns false on error
 
 //Big Zone: allowed to fail, doesn't clear. The expectation is a large file, rather than sensitive data structures.
@@ -128,6 +129,7 @@ void ZG_FreeGroup(zonegroup_t *ctx);
 #define ZF_Malloc(size) ZF_MallocNamed(size, __FILE__, __LINE__)
 #define BZF_Realloc(ptr, size) BZF_ReallocNamed(ptr, size, __FILE__, __LINE__)
 #define ZG_Malloc(ctx, size) ZG_MallocNamed(ctx, size, __FILE__, __LINE__)
+#define ZF_ReallocElements(p,e,n,s) ZF_ReallocElementsNamed(p,e,n,s,__FILE__,__LINE__)
 #endif
 #define Z_StrDup(s) strcpy(Z_Malloc(strlen(s)+1), s)
 

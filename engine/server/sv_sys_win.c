@@ -905,8 +905,8 @@ char *Sys_ConsoleInput (void)
 		{
 			if (!GetMessage (&msg, NULL, 0, 0))
 				return NULL;
-      		TranslateMessage (&msg);
-      		DispatchMessage (&msg);
+			TranslateMessage (&msg);
+			DispatchMessage (&msg);
 		}
 		return NULL;
 	}
@@ -954,6 +954,55 @@ char *Sys_ConsoleInput (void)
 		return NULL;
 	}
 #endif
+
+	if (isPlugin)
+	{
+		DWORD avail;
+		static char	text[256], *nl;
+		static int textpos = 0;
+
+		HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+		if (!PeekNamedPipe(input, NULL, 0, NULL, &avail, NULL))
+		{
+			wantquit = true;
+			Cmd_ExecuteString("quit force", RESTRICT_LOCAL);
+		}
+		else if (avail)
+		{
+			if (avail > sizeof(text)-1-textpos)
+				avail = sizeof(text)-1-textpos;
+			if (ReadFile(input, text+textpos, avail, &avail, NULL))
+			{
+				textpos += avail;
+				if (textpos > sizeof(text)-1)
+					Sys_Error("No.");
+			}
+		}
+		while (textpos)
+		{
+			text[textpos] = 0;
+			nl = strchr(text, '\n');
+			if (nl)
+			{
+				*nl++ = 0;
+				if (coninput_len)
+				{
+					putch ('\r');
+					putch (']');
+				}
+				coninput_len = 0;
+				Q_strncpyz(coninput_text, text, sizeof(coninput_text));
+				memmove(text, nl, textpos - (nl - text));
+				textpos -= (nl - text);
+				return coninput_text;
+			}
+			else
+				break;
+		}
+	}
+
+
+
 
 	// read a line out
 	while (_kbhit())

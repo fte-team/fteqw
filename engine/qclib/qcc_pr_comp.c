@@ -7633,7 +7633,7 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 				QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANT, "Assignment to constant %s", QCC_GetSRefName(e));
 				QCC_PR_ParsePrintSRef(WARN_ASSIGNMENTTOCONSTANT, e);
 			}
-			if (e.sym->temp)
+			if (e.sym->temp && r->type == REF_GLOBAL)
 				QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANT, "Hey! That's a temp! ++ operators cannot work on temps!");
 			switch (r->cast->type)
 			{

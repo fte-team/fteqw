@@ -2932,7 +2932,7 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 	}
 
 	//mvdsv demo downloading support. demos/ -> demodir (sets up the server paths)
-	if (Q_strncasecmp(name, "demos/", 6))
+	if (!Q_strncasecmp(name, "demos/", 6))
 	{
 		Q_snprintfz(tmpname, sizeof(tmpname), "%s/%s", sv_demoDir.string, name+6);
 		name = tmpname;
@@ -5569,22 +5569,14 @@ static void SVNQ_NQColour_f (void)
 	if (strcmp(val, Info_ValueForKey(host_client->userinfo, "topcolor")))
 	{
 		Info_SetValueForKey(host_client->userinfo, "topcolor", val, sizeof(host_client->userinfo));
-
-		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-		MSG_WriteByte (&sv.reliable_datagram, host_client - svs.clients);
-		MSG_WriteString (&sv.reliable_datagram, "topcolor");
-		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, "topcolor"));
+		SV_BroadcastUserinfoChange(host_client, true, "topcolor", NULL);
 	}
 
 	val = va("%i", bottom);
 	if (strcmp(val, Info_ValueForKey(host_client->userinfo, "bottomcolor")))
 	{
 		Info_SetValueForKey(host_client->userinfo, "bottomcolor", val, sizeof(host_client->userinfo));
-
-		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-		MSG_WriteByte (&sv.reliable_datagram, host_client - svs.clients);
-		MSG_WriteString (&sv.reliable_datagram, "bottomcolor");
-		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, "bottomcolor"));
+		SV_BroadcastUserinfoChange(host_client, true, "bottomcolor", NULL);
 	}
 
 	switch(bottom)
@@ -5602,11 +5594,7 @@ static void SVNQ_NQColour_f (void)
 	if (strcmp(val, Info_ValueForKey(host_client->userinfo, "team")))
 	{
 		Info_SetValueForKey(host_client->userinfo, "team", val, sizeof(host_client->userinfo));
-
-		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-		MSG_WriteByte (&sv.reliable_datagram, host_client - svs.clients);
-		MSG_WriteString (&sv.reliable_datagram, "team");
-		MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, "team"));
+		SV_BroadcastUserinfoChange(host_client, true, "team", NULL);
 	}
 
 	SV_ExtractFromUserinfo (host_client, true);

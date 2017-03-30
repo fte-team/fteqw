@@ -2937,7 +2937,7 @@ void PF_centerprint_Internal (int entnum, qboolean plaque, const char *s)
 
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
 	{
-		Con_TPrintf ("tried to sprint to a non-client\n");
+		PR_RunWarning(sv.world.progs, "tried to centerprint to a non-client\n");
 		return;
 	}
 
@@ -9027,7 +9027,7 @@ int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *v
 					svs.clients[entnum-1].spectator = ns;
 			}
 
-			SV_BroadcastUserinfoChange(host_client, SV_UserInfoIsBasic(key), key, value);
+			SV_BroadcastUserinfoChange(&svs.clients[entnum-1], SV_UserInfoIsBasic(key), key, value);
 		}
 
 		return 1;
@@ -9066,6 +9066,7 @@ static void QCBUILTIN PF_setcolors (pubprogfuncs_t *prinst, struct globalvars_s 
 	client_t	*client;
 	int			entnum, i;
 	char number[8];
+	char *key = NULL;
 
 	entnum = G_EDICTNUM(prinst, OFS_PARM0);
 	i = G_FLOAT(OFS_PARM1);
@@ -9078,31 +9079,26 @@ static void QCBUILTIN PF_setcolors (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	client = &svs.clients[entnum-1];
 	client->edict->v->team = (i & 15) + 1;
-#ifdef NQPROT
-	MSG_WriteByte (&sv.nqreliable_datagram, svc_updatecolors);
-	MSG_WriteByte (&sv.nqreliable_datagram, entnum - 1);
-	MSG_WriteByte (&sv.nqreliable_datagram, i);
-#endif
+
 	sprintf(number, "%i", i>>4);
 	if (!strcmp(number, Info_ValueForKey(client->userinfo, "topcolor")))
 	{
 		Info_SetValueForKey(client->userinfo, "topcolor", number, sizeof(client->userinfo));
-		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-		MSG_WriteByte (&sv.reliable_datagram, entnum-1);
-		MSG_WriteString (&sv.reliable_datagram, "topcolor");
-		MSG_WriteString (&sv.reliable_datagram, number);
+		key = "topcolor";
 	}
 
 	sprintf(number, "%i", i&15);
 	if (!strcmp(number, Info_ValueForKey(client->userinfo, "bottomcolor")))
 	{
 		Info_SetValueForKey(client->userinfo, "bottomcolor", number, sizeof(client->userinfo));
-		MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-		MSG_WriteByte (&sv.reliable_datagram, entnum-1);
-		MSG_WriteString (&sv.reliable_datagram, "bottomcolor");
-		MSG_WriteString (&sv.reliable_datagram, number);
+		key = key?"*bothcolours":"bottomcolor";
 	}
+
 	SV_ExtractFromUserinfo (client, true);
+	if (key)
+	{	//something changed at least.
+		SV_BroadcastUserinfoChange(client, true, key, NULL);
+	}
 }
 
 static void ParamNegateFix ( float * xx, float * yy, int Zone )

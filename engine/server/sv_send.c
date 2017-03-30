@@ -2807,16 +2807,7 @@ void SV_UpdateToReliableMessages (void)
 				Info_SetValueForKey(host_client->userinfo, "bottomcolor", va("%i", (int)host_client->edict->xv->clientcolors&15), sizeof(host_client->userinfo));
 				{
 					SV_ExtractFromUserinfo (host_client, true);	//this will take care of nq for us anyway.
-
-					MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-					MSG_WriteByte (&sv.reliable_datagram, i);
-					MSG_WriteString (&sv.reliable_datagram, "topcolor");
-					MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, "topcolor"));
-
-					MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-					MSG_WriteByte (&sv.reliable_datagram, i);
-					MSG_WriteString (&sv.reliable_datagram, "bottomcolor");
-					MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(host_client->userinfo, "bottomcolor"));
+					SV_BroadcastUserinfoChange(host_client, true, "*bothcolours", NULL);
 				}
 			}
 #endif
@@ -2837,10 +2828,7 @@ void SV_UpdateToReliableMessages (void)
 
 					if (strcmp(oname, host_client->name))
 					{
-						MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
-						MSG_WriteByte (&sv.reliable_datagram, i);
-						MSG_WriteString (&sv.reliable_datagram, "name");
-						MSG_WriteString (&sv.reliable_datagram, host_client->name);
+						SV_BroadcastUserinfoChange(host_client, true, "name", host_client->name);
 					}
 
 #ifdef QCGC
@@ -3025,18 +3013,42 @@ void SV_UpdateToReliableMessages (void)
 
 
 //a single userinfo value was changed.
+//*bothcolours sends out both topcolor and bottomcolor, with a single svc_updatecolors in nq
 static void SV_SendUserinfoChange(client_t *to, client_t *about, qboolean isbasic, const char *key, const char *newval)
 {
 	int playernum = about - svs.clients;
+
+	if (playernum > to->max_net_clients)
+		return;
+
+	if (!newval)
+		newval = Info_ValueForKey(about->userinfo, key);
 
 	if (ISQWCLIENT(to))
 	{
 		if (isbasic || (to->fteprotocolextensions & PEXT_BIGUSERINFOS))
 		{
-			ClientReliableWrite_Begin(to, svc_setinfo, 4+strlen(key)+strlen(newval));
-			ClientReliableWrite_Byte(to, playernum);
-			ClientReliableWrite_String(to, key);
-			ClientReliableWrite_String(to, newval);
+			if (ISQWCLIENT(to) && !strcmp(key, "*bothcolours")) 
+			{
+				newval = Info_ValueForKey(about->userinfo, "topcolor");
+				ClientReliableWrite_Begin(to, svc_setinfo, 4+strlen(key)+strlen(newval));
+				ClientReliableWrite_Byte(to, playernum);
+				ClientReliableWrite_String(to, "topcolor");
+				ClientReliableWrite_String(to, Info_ValueForKey(about->userinfo, "topcolor"));
+				
+				newval = Info_ValueForKey(about->userinfo, "bottomcolor");
+				ClientReliableWrite_Begin(to, svc_setinfo, 4+strlen(key)+strlen(newval));
+				ClientReliableWrite_Byte(to, playernum);
+				ClientReliableWrite_String(to, "bottomcolor");
+				ClientReliableWrite_String(to, newval);
+			}
+			else
+			{
+				ClientReliableWrite_Begin(to, svc_setinfo, 4+strlen(key)+strlen(newval));
+				ClientReliableWrite_Byte(to, playernum);
+				ClientReliableWrite_String(to, key);
+				ClientReliableWrite_String(to, newval);
+			}
 		}
 	}
 #ifdef NQPROT
@@ -3058,7 +3070,7 @@ static void SV_SendUserinfoChange(client_t *to, client_t *about, qboolean isbasi
 			ClientReliableWrite_Byte(to, playernum);
 			ClientReliableWrite_String(to, newval);
 		}
-		else if (!strcmp(key, "topcolor") || !strcmp(key, "bottomcolor"))
+		else if (!strcmp(key, "topcolor") || !strcmp(key, "bottomcolor") || !strcmp(key, "*bothcolours"))
 		{	//due to these being combined, nq players get double colour change notifications...
 			int tc = atoi(Info_ValueForKey(about->userinfo, "topcolor"));
 			int bc = atoi(Info_ValueForKey(about->userinfo, "bottomcolor"));
@@ -3086,6 +3098,8 @@ void SV_BroadcastUserinfoChange(client_t *about, qboolean isbasic, const char *k
 {
 	client_t *client;
 	int j;
+	if (!newval)
+		newval = Info_ValueForKey(about->userinfo, key);
 	for (j = 0; j < svs.allocated_client_slots; j++)
 	{
 		client = svs.clients+j;

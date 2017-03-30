@@ -1838,7 +1838,7 @@ void INS_Commands (void)
 		K_AUX9,	//left trigger
 		K_AUX10	//right trigger
 	};
-	static const int dinputjbuttons[32] =
+	static const int mmjbuttons[32] =
 	{
 		K_JOY1,
 		K_JOY2,
@@ -1908,10 +1908,10 @@ void INS_Commands (void)
 				for (i=0 ; i < joy->numbuttons ; i++)
 				{
 					if ( (buttonstate & (1<<i)) && !(joy->oldbuttonstate & (1<<i)) )
-						Key_Event (joy->devid, dinputjbuttons[i], 0, true);
+						Key_Event (joy->devid, mmjbuttons[i], 0, true);
 
 					if ( !(buttonstate & (1<<i)) && (joy->oldbuttonstate & (1<<i)) )
-						Key_Event (joy->devid, dinputjbuttons[i], 0, false);
+						Key_Event (joy->devid, mmjbuttons[i], 0, false);
 				}
 			}
 			joy->oldbuttonstate = buttonstate;

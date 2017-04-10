@@ -1635,6 +1635,7 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 			st = (**sd->InitCard)(sc, device);
 			if (st)
 			{
+cardinited:
 				S_DefaultSpeakerConfiguration(sc);
 				if (snd_speed)
 				{	//if the sample speeds of multiple soundcards do not match, it'll fail.
@@ -1650,6 +1651,8 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 
 				if (sc->seat == -1 && sc->ListenerUpdate)
 					sc->seat = 0;	//hardware rendering won't cope with seat=-1
+
+				Z_ReallocElements((void**)&sc->channel, &sc->max_chans, MAX_DYNAMIC_CHANNELS+NUM_AMBIENTS+NUM_MUSICS, sizeof(*sc->channel));
 				return sc;
 			}
 		}
@@ -1666,25 +1669,7 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 
 			st = (**od->ptr)(sc, device?atoi(device):0);
 			if (st == 1)
-			{
-				S_DefaultSpeakerConfiguration(sc);
-
-				if (snd_speed)
-				{	//if the sample speeds of multiple soundcards do not match, it'll fail.
-					if (snd_speed != sc->sn.speed)
-					{
-						Con_TPrintf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\nTry running Quake with -singlesound to use just the primary soundcard\n", sc->name);
-						S_ShutdownCard(sc);
-						continue;
-					}
-				}
-				else
-					snd_speed = sc->sn.speed;
-
-				if (sc->seat == -1 && sc->ListenerUpdate)
-					sc->seat = 0;	//hardware rendering won't cope with seat=-1
-				return sc;
-			}
+				goto cardinited;
 		}
 	}
 

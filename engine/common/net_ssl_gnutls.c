@@ -497,7 +497,7 @@ static int QDECL SSL_Read(struct vfsfile_s *f, void *buffer, int bytestoread)
 	{
 		if (read == GNUTLS_E_PREMATURE_TERMINATION)
 		{
-			Con_Printf("TLS Premature Termination\n");
+			Con_Printf("TLS Premature Termination from %s\n", file->certname);
 			return -1;
 		}
 		else if (read == GNUTLS_E_REHANDSHAKE)
@@ -506,7 +506,7 @@ static int QDECL SSL_Read(struct vfsfile_s *f, void *buffer, int bytestoread)
 			//if false, 'recommended' to send an GNUTLS_A_NO_RENEGOTIATION alert, no idea how.
 		}
 		else if (!qgnutls_error_is_fatal(read))
-			return 0;
+			return 0;	//caller is expected to try again later, no real need to loop here, just in case it repeats (eg E_AGAIN)
 		else
 		{
 			Con_Printf("TLS Read Error %i (bufsize %i)\n", read, bytestoread);
@@ -570,9 +570,9 @@ static ssize_t SSL_Push(gnutls_transport_ptr_t p, const void *data, size_t size)
 		qgnutls_transport_set_errno(file->session, EAGAIN);
 		return -1;
 	}
+	qgnutls_transport_set_errno(file->session, done<0?errno:0);
 	if (done < 0)
 		return 0;
-	qgnutls_transport_set_errno(file->session, done<0?errno:0);
 	return done;
 }
 /*static ssize_t SSL_PushV(gnutls_transport_ptr_t p, giovec_t *iov, int iovcnt)
@@ -607,11 +607,11 @@ static ssize_t SSL_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
 		qgnutls_transport_set_errno(file->session, EAGAIN);
 		return -1;
 	}
+	qgnutls_transport_set_errno(file->session, done<0?errno:0);
 	if (done < 0)
 	{
 		return 0;
 	}
-	qgnutls_transport_set_errno(file->session, done<0?errno:0);
 	return done;
 }
 

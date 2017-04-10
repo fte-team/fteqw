@@ -1254,6 +1254,8 @@ qboolean LibJPEG_Init(void)
 #endif
 	#endif
 
+	if (!LIBJPEG_LOADED())
+		Con_Printf("Unable to init libjpeg\n");
 	return LIBJPEG_LOADED();
 }
 
@@ -1430,7 +1432,10 @@ qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height)
 	memset(&cinfo, 0, sizeof(cinfo));
 
 	if (!LIBJPEG_LOADED())
+	{
+		Con_DPrintf("libjpeg not available.\n");
 		return NULL;
+	}
 
 	/* Step 1: allocate and initialize JPEG decompression object */
 
@@ -1445,6 +1450,7 @@ qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height)
 	if (setjmp(jerr.setjmp_buffer))
 	{
 		// If we get here, the JPEG code has signaled an error.
+		Con_DPrintf("libjpeg failed to decode a file.\n");
 badjpeg:
 		#ifdef DYNAMIC_LIBJPEG
 			qjpeg_destroy_decompress(&cinfo);
@@ -1454,7 +1460,7 @@ badjpeg:
 
 		if (mem)
 			BZ_Free(mem);
-		return 0;
+		return NULL;
 	}
 	#ifdef DYNAMIC_LIBJPEG
 		qjpeg_create_decompress(&cinfo);
@@ -1479,16 +1485,12 @@ badjpeg:
 
 	if (cinfo.output_components == 0)
 	{
-		#ifdef _DEBUG
-		Con_Printf("No JPEG Components, not a JPEG.\n");
-		#endif
+		Con_DPrintf("No JPEG Components, not a JPEG.\n");
 		goto badjpeg;
 	}
 	if (cinfo.output_components!=3 && cinfo.output_components != 1)
 	{
-		#ifdef _DEBUG
-		Con_Printf("Bad number of components in JPEG: '%d', should be '3'.\n",cinfo.output_components);
-		#endif
+		Con_DPrintf("Bad number of components in JPEG: '%d', should be '3'.\n",cinfo.output_components);
 		goto badjpeg;
 	}
 	size_stride = cinfo.output_width * cinfo.output_components;
@@ -2770,7 +2772,7 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean
 #endif
 #ifdef AVAIL_JPEGLIB
 	//jpeg jfif only.
-	if (len > 4 && (buf[0] == 0xff && buf[1] == 0xd8 && buf[2] == 0xff && buf[3] == 0xe0) && (data = ReadJPEGFile(buf, len, width, height)))
+	if (len > 4 && (buf[0] == 0xff && buf[1] == 0xd8 && buf[2] == 0xff /*&& buf[3] == 0xe0*/) && (data = ReadJPEGFile(buf, len, width, height)))
 	{
 		TRACE(("dbg: Read32BitImageFile: jpeg\n"));
 		return data;
@@ -4329,7 +4331,7 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 	}
 #endif
 	else
-		Sys_Printf("Unable to read file %s (format unsupported)\n", fname);
+		Con_Printf("Unable to read file %s (format unsupported)\n", fname);
 
 	BZ_Free(filedata);
 	return false;

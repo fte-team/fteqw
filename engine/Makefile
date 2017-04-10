@@ -142,57 +142,68 @@ USER_TARGET:=$(FTE_TARGET)
 #make droid-rel doesn't get the right stuff
 #add a small default config file. its only small. and some other stuff, because we can. This makes it much easier to get it up and running.
 DROID_PACKSU?= $(BASE_DIR)/droid/fte.cfg $(BASE_DIR)/droid/default.fmf $(BASE_DIR)/droid/configs/touch.cfg
-ANDROID_NDK_ROOT?=~/android-ndk-r8e
 ANDROID_HOME?=~/android-sdk-linux
+#ANDROID_NDK_ROOT?=~/android-ndk-r8e
+ANDROID_NDK_ROOT?=$(ANDROID_HOME)/ndk-bundle
+ANDROID_TOOLS?=$(ANDROID_HOME)/tools
 ANT?=ant
+JAVA_HOME?=/usr
 JAVATOOL=$(JAVA_HOME)/bin/
 ANDROID_SCRIPT=android
 
 ifeq ($(DROID_ARCH),)
-	DROID_ARCH=armeabi
+	DROID_ARCH=arm
 endif
 ifeq ($(FTE_TARGET),droid)
-	DROID_API_LEVEL=4
+	#figure out the host system, required to find a usable compiler
+	ifneq ($(shell uname -o 2>&1 | grep Cygwin),)
+#		ifeq ($(shell uname -m 2>&1), i686)
+#			ANDROID_HOSTSYSTEM=windows
+#		else
+#			ANDROID_HOSTSYSTEM=windows-$(shell uname -m)
+#		endif
+		ANDROID_HOSTSYSTEM=windows-x86_64
+	else
+		ANDROID_HOSTSYSTEM=linux-$(shell uname -m)
+	endif
 
+	#ask the android ndk which compiler version strings we should be using
+	ANDROID_TOOLCHAINNAME:=$(shell ANDROID_NDK_ROOT=$(ANDROID_NDK_ROOT) . $(ANDROID_NDK_ROOT)/build/tools/dev-defaults.sh && get_default_toolchain_name_for_arch $(DROID_ARCH))
+	ANDROID_TOOLCHAINPREFIX:=$(shell ANDROID_NDK_ROOT=$(ANDROID_NDK_ROOT) . $(ANDROID_NDK_ROOT)/build/tools/dev-defaults.sh && get_default_toolchain_prefix_for_arch $(DROID_ARCH))
+	TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/$(ANDROID_TOOLCHAINNAME)/prebuilt/$(ANDROID_HOSTSYSTEM)/bin/
+	TOOLCHAIN:=$(TOOLCHAINPATH)$(ANDROID_TOOLCHAINPREFIX)-
+
+	#4 is the min that fte requires
+	DROID_API_LEVEL?=4
+	DROID_API_NAME?=android-$(DROID_API_LEVEL)
+
+	DROID_PLAT_INC=arch-$(DROID_ARCH)
 	ifeq ($(DROID_ARCH),x86)
-		DROID_PLAT_INC=arch-x86
 		#google fecked up. anything before api_level 9 will fail to compile on x86
 		DROID_API_LEVEL=9
 	else
-		DROID_PLAT_INC=arch-arm
-
 		#there are 3 ABI targets
 		#armv5 (works on all arm droids)
 		#armv7 (more common on 2.2+ droids)
 		#armv7+neon
 		DROID_ABI?=-mfloat-abi=softfp
 	endif
-	DROIDSYSROOT=$(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC))
+	DROIDSYSROOT=$(realpath $(ANDROID_NDK_ROOT)/platforms/$(DROID_API_NAME)/$(DROID_PLAT_INC))
+	ifeq ($(DROIDSYSROOT),)	#its possible that google removed whatever api we're trying to target, just switch up to the new default.
+		DROID_API_NAME:=$(shell ANDROID_NDK_ROOT=$(ANDROID_NDK_ROOT) . $(ANDROID_NDK_ROOT)/build/tools/dev-defaults.sh && echo -n $$DEFAULT_PLATFORM)
+		BITCHANDMOAN:=$(shell echo targetting \"$(DROID_API_NAME)\" instead of \"android-$(DROID_API_LEVEL)\" 1>&2)
+	endif
+	DROIDSYSROOT:=$(DROIDSYSROOT)
 
 	#if we're running under windows, then we want to run some other binary
 	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
-		#set up for linux
-		ifeq ($(DROID_ARCH),x86)
-			TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/x86-4.7/prebuilt/linux-x86/bin/
-			TOOLCHAIN:=$(TOOLCHAINPATH)i686-linux-androideabi-
-		else
-			TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/linux-x86/bin/
-			TOOLCHAIN:=$(TOOLCHAINPATH)arm-linux-androideabi-
-		endif
-
-		TOOLOVERRIDES=PATH="/usr/bin:$(realpath $(TOOLCHAINPATH))" CFLAGS=--sysroot="$(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC))" CPPFLAGS=--sysroot="$(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC))" 
-		CONFIGARGS= --with-sysroot="$(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC))" 
+		#set up for linux/mingw
+		TOOLOVERRIDES=PATH="/usr/bin:$(realpath $(TOOLCHAINPATH))" CFLAGS=--sysroot="$(realpath $(ANDROID_NDK_ROOT)/platforms/$(DROID_API_NAME)/$(DROID_PLAT_INC))" CPPFLAGS=--sysroot="$(realpath $(ANDROID_NDK_ROOT)/platforms/$(DROID_API_NAME)/$(DROID_PLAT_INC))" 
+		CONFIGARGS= --with-sysroot="$(realpath $(ANDROID_NDK_ROOT)/platforms/$(DROID_API_NAME)/$(DROID_PLAT_INC))" 
 	else
+		#we're running upon cygwin
 		#FIXME: support mingw too...
 
-		#we're running upon windows
-		ifeq ($(DROID_ARCH),x86)
-			TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/x86-4.7/prebuilt/windows-x86_64/bin/
-			TOOLCHAIN:=$(TOOLCHAINPATH)i686-linux-android-
-		else
-			TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/windows-x86_64/bin/
-			TOOLCHAIN:=$(TOOLCHAINPATH)arm-linux-androideabi-
-		endif
 		ANDROID_SCRIPT=android.bat
 		#make can't cope with absolute win32 paths in dependancy files
 		DEPCC=
@@ -200,7 +211,7 @@ ifeq ($(FTE_TARGET),droid)
 		#configure hates android, with its broken default sysroot and lack of path etc
 		DROIDSYSROOT:=$(shell cygpath -m $(DROIDSYSROOT))
 		TOOLOVERRIDES=PATH="/usr/bin:$(shell cygpath -u $(realpath $(TOOLCHAINPATH)))" CFLAGS=--sysroot="$(DROIDSYSROOT)" CPPFLAGS=--sysroot="$(DROIDSYSROOT)" 
-		CONFIGARGS= --with-sysroot="$(shell cygpath -u $(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)))" 
+		CONFIGARGS= --with-sysroot="$(shell cygpath -u $(realpath $(ANDROID_NDK_ROOT)/platforms/$(DROID_API_NAME)/$(DROID_PLAT_INC)))" 
 	endif
 
 	CC:=$(TOOLCHAIN)gcc --sysroot="$(DROIDSYSROOT)" -DANDROID $(DROID_ABI) -fno-strict-aliasing
@@ -1826,12 +1837,16 @@ nacl-dbg:
 #################################################
 #webgl helpers
 
-#just adds some extra paths (WINDOWS HOST ONLY)
-#assumes you installed the emscripten 1.22.0 sdk to EMSCRIPTENROOT
-#if you have a different version installed, you will need to fix up the paths yourself (or just use fte_target explicitly yourself).
-EMSCRIPTENROOT?=C:/Games/tools/Emscripten
-#EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/e1.22.0_64bit):$(realpath $(EMSCRIPTENROOT)/node/0.10.17_64bit):$(realpath $(EMSCRIPTENROOT)/python/2.7.5.3_64bit):$(realpath $(EMSCRIPTENROOT)/emscripten/1.22.0):$(PATH)
-EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/e1.35.0_64bit):$(realpath $(EMSCRIPTENROOT)/node/4.1.1_64bit/bin):$(realpath $(EMSCRIPTENROOT)/python/2.7.5.3_64bit):$(realpath $(EMSCRIPTENROOT)/emscripten/1.35.0):$(PATH)
+ifeq (,$(EMSDK))
+	#just adds some extra paths (WINDOWS HOST ONLY)
+	#assumes you installed the emscripten 1.22.0 sdk to EMSCRIPTENROOT
+	#if you have a different version installed, you will need to fix up the paths yourself (or just use fte_target explicitly yourself).
+	EMSCRIPTENROOT?=C:/Games/tools/Emscripten
+	#EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/e1.22.0_64bit):$(realpath $(EMSCRIPTENROOT)/node/0.10.17_64bit):$(realpath $(EMSCRIPTENROOT)/python/2.7.5.3_64bit):$(realpath $(EMSCRIPTENROOT)/emscripten/1.22.0):$(PATH)
+	EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/e1.35.0_64bit):$(realpath $(EMSCRIPTENROOT)/node/4.1.1_64bit/bin):$(realpath $(EMSCRIPTENROOT)/python/2.7.5.3_64bit):$(realpath $(EMSCRIPTENROOT)/emscripten/1.35.0):$(PATH)
+else
+	EMSCRIPTENPATH=$(PATH)
+endif
 
 #EMCC?=/opt/emsdk_portable/emscripten/master/emcc
 EMCC?=emcc.bat --em-config $(shell cygpath -m $(USERPROFILE))/.emscripten
@@ -1906,7 +1921,7 @@ endif
 	@echo
 	@$(JAVATOOL)jarsigner $(JARSIGNARGS) -digestalg SHA1 -sigalg MD5withRSA -keystore droid/ftekeystore droid/bin/FTEDroid-release-unsigned.apk autogen
 	-rm -f $(RELEASE_DIR)/FTEDroid.apk
-	$(ANDROID_HOME)/tools/zipalign 4 droid/bin/FTEDroid-release-unsigned.apk $(NATIVE_RELEASE_DIR)/FTEDroid.apk
+	$(ANDROID_TOOLS)/zipalign 4 droid/bin/FTEDroid-release-unsigned.apk $(NATIVE_RELEASE_DIR)/FTEDroid.apk
 
 droid-opt:
 	$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore
@@ -1987,6 +2002,8 @@ else
 	-test -f libs-$(ARCH)/libvorbisfile.a || (cd libs-$(ARCH) && tar -xvzf ../libvorbis-$(VORBISVER).tar.gz && cd libvorbis-$(VORBISVER) && $(TOOLOVERRIDES) ./configure PKG_CONFIG= $(CONFIGARGS) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/libogg-$(OGGVER)/include && $(TOOLOVERRIDES) $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../ )
 endif
 
+httpserver:
+	$(CC) -o release/httpserver http/httpserver.c http/iwebiface.c common/fs_stdio.c -Icommon -Iclient -Iqclib -Igl -Iserver -DWEBSVONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp
 
 prefix ?= /usr/local
 exec_prefix ?= $(prefix)

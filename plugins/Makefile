@@ -2,19 +2,22 @@
 #windows is special as always, but we don't support itanium, and microsoft don't support anything else (not even arm with the nt win32 api)
 ifeq ($(FTE_TARGET),win32)
 PLUG_NATIVE_EXT=_x86.dll
-PLUG_LDFLAGS=-L../engine/libs/mingw-libs -lzlib
+PLUG_LDFLAGS= 
+PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw-libs -lzlib
 BITS=32
 PLUG_LDFLAGS_DL=
 endif
 ifeq ($(FTE_TARGET),win64)
 PLUG_NATIVE_EXT=_x64.dll
-PLUG_LDFLAGS=-L../engine/libs/mingw64-libs -lz -Wl,--support-old-code
+PLUG_LDFLAGS=-Wl,--support-old-code
+PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw64-libs -lz
 BITS=64
 PLUG_LDFLAGS_DL=
 endif
 
 PLUG_LDFLAGS_DL?=-ldl
-PLUG_LDFLAGS?=-L/usr/local/lib -Wl,-R/usr/local/lib -lz -lm
+PLUG_LDFLAGS?=-L/usr/local/lib -Wl,-R/usr/local/lib -lm
+PLUG_LDFLAGS_ZLIB?=-lz
 
 ifneq ($(PLUG_NATIVE_EXT),)
 #if we're on windows, we'll put our windows-specific hacks here.
@@ -38,18 +41,28 @@ endif
 #if they're not on windows, we'll try asking the compiler directly
 #the check to see if its already set is to avoid asking msvc, which would probably break things.
 ifeq ($(PLUG_NATIVE_EXT),)
-LIBRESOLV=-lresolv
+	LIBRESOLV=-lresolv
 ifneq ($(shell echo|$(CC) -E -dM -|grep __amd64__),)
-PLUG_NATIVE_EXT=_amd64.so
+	#either x32 or x64 ABIs
+	ifneq ($(shell echo|$(CC) -E -dM -|grep __ILP32__),)
+		PLUG_NATIVE_EXT=_x32.so
+	else
+		PLUG_NATIVE_EXT=_amd64.so
+	endif
 endif
 ifneq ($(shell echo|$(CC) -E -dM -|grep __i386__),)
-PLUG_NATIVE_EXT=_x86.so
+	PLUG_NATIVE_EXT=_x86.so
 endif
 ifneq ($(shell echo|$(CC) -E -dM -|grep __arm__),)
-PLUG_NATIVE_EXT=_arm.so
+	#gnueabi[hf]
+	ifneq ($(shell echo|$(CC) -E -dM -|grep __SOFTFP__),)
+		PLUG_NATIVE_EXT=_arm.so
+	else
+		PLUG_NATIVE_EXT=_armhf.so
+	endif
 endif
 ifneq ($(shell echo|$(CC) -E -dM -|grep __ppc__),)
-PLUG_NATIVE_EXT=_ppc.so
+	PLUG_NATIVE_EXT=_ppc.so
 endif
 endif
 
@@ -59,7 +72,11 @@ PLUG_NATIVE_EXT?=_unk.so
 PLUG_DEFFILE?=
 PLUG_CFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic -fvisibility=hidden
 PLUG_CXXFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic -fvisibility=hidden
-PLUG_LDFLAGS?=
+PLUG_LDFLAGS_ZLIB?=
+ARCH:=$(shell $(CC) -dumpmachine)
+PLUG_LDFLAGS:=-L../engine/libs-$(ARCH) $(PLUG_LDFLAGS)
+PLUG_CFLAGS:=-I../engine/libs-$(ARCH) $(PLUG_CFLAGS)
+PLUG_CXXFLAGS:=-I../engine/libs-$(ARCH) $(PLUG_CXXFLAGS)
 
 all: ezscript qi hud irc
 
@@ -177,7 +194,7 @@ $(OUT_DIR)/fteplug_bullet$(PLUG_NATIVE_EXT): bullet/bulletplug.c plugin.c qvm_ap
 -include Makefile.private
 
 $(OUT_DIR)/fteplug_mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c qvm_api.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS_ZLIB) $(PLUG_LDFLAGS)
 NATIVE_PLUGINS+=mpq
 
 $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/sift.c jabber/xml.c plugin.c qvm_api.c ../engine/common/sha1.c emailnot/md5.c

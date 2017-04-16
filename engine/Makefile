@@ -285,6 +285,12 @@ ifeq ($(FTE_TARGET),linux32)
 	CC=gcc -m32
 	BITS=32
 endif
+ifeq ($(FTE_TARGET),linuxarmhf)
+	#debian's armhf is armv7, but armv6 works on RPI too.
+	FTE_TARGET=linux
+	CC=arm-linux-gnueabihf-gcc -marm -march=armv6 -mfpu=vfp -mfloat-abi=hard
+	BITS=armhf
+endif
 ifeq ($(FTE_TARGET),linuxx32)
 	#note: the x32 abi is still not finished or something.
 	#at the current time, you will need to edit your kernel's commandline to allow this stuff to run
@@ -357,7 +363,7 @@ ifeq ($(NOCOMPAT),1)
 	NCCFLAGS=-DNOLEGACY -DOMIT_QCC
 	NCDIRPREFIX=nc
 endif
-ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(BRANDFLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS) $(ARCH_CFLAGS) $(NCCFLAGS)
+ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(BRANDFLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS) $(ARCH_CFLAGS) $(NCCFLAGS) -I$(ARCHLIBS)
 
 #cheap compile-everything-in-one-unit (compile becomes preprocess only)
 ifneq ($(WPO),)
@@ -374,7 +380,7 @@ endif
 
 #DO_ECHO=@echo $< && 
 DO_ECHO=@
-#DO_ECHO=
+DO_ECHO=
 DO_CC=$(DO_ECHO) $(CC) $(LTO_CC) $(ALL_CFLAGS) -o $@ -c $<
 
 ifeq ($(FTE_TARGET),vc)
@@ -425,7 +431,7 @@ OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
 VISIBILITY_FLAGS?=
 
 #BASELDFLAGS=-lm  -lz
-XLDFLAGS=$(IMAGELDFLAGS)
+XLDFLAGS=-L$(ARCHLIBS) $(IMAGELDFLAGS)
 
 #hack some other arguments based upon the toolchain
 ifeq ($(FTE_TARGET),vc)
@@ -445,6 +451,9 @@ JOINT_CFLAGS=
 DEBUG_CFLAGS?=-ggdb -g
 DEBUG_CFLAGS+=-DDEBUG
 RELEASE_CFLAGS?=-O3 -ffast-math $(CPUOPTIMIZATIONS)
+
+ARCH?=$(shell $(CC) -dumpmachine)
+ARCHLIBS=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)
 
 #incase our compiler doesn't support it (mingw)
 ifeq ($(shell LANG=c $(CC) -rdynamic 2>&1 | grep unrecognized),)
@@ -824,7 +833,7 @@ ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
 	SV_LDFLAGS+=-lz
 	GL_LDFLAGS+=-lz
 	M_LDFLAGS+=-lz
-	QCC_LDFLAGS+=-lz
+	QCC_LDFLAGS+=-L$(ARCHLIBS) -lz
 endif
 
 
@@ -843,23 +852,24 @@ ifeq ($(FTE_TARGET),nacl)
 
 	CC=
 	STRIP=
+	NACLLIBC=glibc
 	ifeq ($(NARCH),x86_32)
-		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-gcc -DNACL -m32
-		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-strip
+		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-gcc -DNACL -m32
+		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-strip
 		BITS=
-		NACLLIBS=newlib_x86_32/Release
+		NACLLIBS=$(NACLLIBC)_x86_32/Release
 	endif
 	ifeq ($(NARCH),x86_64)
-		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-gcc -DNACL -m64
-		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_newlib/bin/i686-nacl-strip
+		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-gcc -DNACL -m64
+		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-strip
 		BITS=
-		NACLLIBS=newlib_x86_64/Release
+		NACLLIBS=$(NACLLIBC)_x86_64/Release
 	endif
 	ifeq ($(NARCH),arm)
-		CC=NACL_SDK_ROOT/toolchain/$(MYOS)_arm_newlib/bin/arm-nacl-gcc -DNACL
-		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_newlib/bin/arm-nacl-strip
+		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_$(NACLLIBC)/bin/arm-nacl-gcc -DNACL
+		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_$(NACLLIBC)/bin/arm-nacl-strip
 		BITS=
-		NACLLIBS=newlib_arm/Release
+		NACLLIBS=$(NACLLIBC)_arm/Release
 	endif
 	ifeq ($(NARCH),pnacl)
 		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_pnacl/bin/pnacl-clang -DNACL
@@ -1435,6 +1445,8 @@ endif
 
 SV_DIR?=sv_sdl
 DEPCC?=$(CC)
+ARCH:=$(ARCH)
+BASELDFLAGS:=-L$(ARCHLIBS) $(BASELDFLAGS)
 
 -include Makefile_private
 
@@ -1590,7 +1602,7 @@ _clsv-profile: reldir
 	@$(MAKE) _out-profile EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(JOINT_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS CLIENT_OBJS PROGS_OBJS SERVER_OBJS"
 
 sv-tmp: reldir debugdir
-	@$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SV_EXE_NAME)" WCFLAGS="$(SV_CFLAGS)" LDFLAGS="$(SV_LDFLAGS) $(LDFLAGS)" OBJS="SV_OBJS"
+	@$(MAKE) $(TYPE) OUT_DIR="$(OUT_DIR)" EXE_NAME="$(SV_EXE_NAME)" WCFLAGS="$(SV_CFLAGS)" LDFLAGS="$(ARCH_LDFLAGS) $(SV_LDFLAGS) $(LDFLAGS)" OBJS="SV_OBJS"
 sv-rel:
 	@$(MAKE) sv-tmp TYPE=_out-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(SV_DIR)"
 sv-dbg:
@@ -1967,7 +1979,7 @@ $(BASE_DIR)/libs/SDL2-2.0.1/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)/libs
 
 #update these to download+build a different version. this assumes that the url+subdirs etc contain a consistant version everywhere.
 JPEGVER=9a
-ZLIBVER=1.2.8
+ZLIBVER=1.2.11
 PNGVER=1.6.14
 OGGVER=1.3.2
 VORBISVER=1.3.4
@@ -1975,13 +1987,11 @@ VORBISVER=1.3.4
 AR?=$(ARCH)-ar
 
 
-CONFIGARGS+= -host=$(ARCH) --enable-shared=no
+CONFIGARGS+= -host=$(ARCH) --enable-shared=no CC="$(CC)"
+CONFIGARGS:= $(CONFIGARGS)
 #--disable-silent-rules 
 
 makelibs:
-	#lock these down, to avoid expanding them too often
-	#TOOLOVERRIDES:=$(TOOLOVERRIDES)
-	#CONFIGARGS:=$(CONFIGARGS)
 ifndef ARCH
 	$(MAKE) makelibs ARCH=$(shell $(CC) -dumpmachine)
 else
@@ -1990,10 +2000,10 @@ else
 	-test -f libs-$(ARCH)/libjpeg.a || (cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v$(JPEGVER).tar.gz && cd jpeg-$(JPEGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libjpeg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libjpeg.a && cp jconfig.h jerror.h jmorecfg.h jpeglib.h jversion.h ../ )
 	
 	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/zlib-$(ZLIBVER).tar.gz
-	-test -f libs-$(ARCH)/libz.a || (cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS)" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h ../ )
+	-test -f libs-$(ARCH)/libz.a || (cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h ../ )
 	
 	test -f libpng-$(PNGVER).tar.gz || wget http://prdownloads.sourceforge.net/libpng/libpng-$(PNGVER).tar.gz?download -O libpng-$(PNGVER).tar.gz
-	-test -f libs-$(ARCH)/libpng.a || (cd libs-$(ARCH) && tar -xvzf ../libpng-$(PNGVER).tar.gz && cd libpng-$(PNGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) --with-zlib-prefix=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/zlib-$(ZLIBVER)/ && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libpng16.a ../libpng.a && cp png*.h ../ )
+	-test -f libs-$(ARCH)/libpng.a || (cd libs-$(ARCH) && tar -xvzf ../libpng-$(PNGVER).tar.gz && cd libpng-$(PNGVER) && $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --enable-static && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libpng16.a ../libpng.a && cp png*.h ../ )
 	
 	test -f libogg-$(OGGVER).tar.gz || wget http://downloads.xiph.org/releases/ogg/libogg-$(OGGVER).tar.gz
 	-test -f libs-$(ARCH)/libogg.a || (cd libs-$(ARCH) && tar -xvzf ../libogg-$(OGGVER).tar.gz && cd libogg-$(OGGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp src/.libs/libogg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libogg.a)

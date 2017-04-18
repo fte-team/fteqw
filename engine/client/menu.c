@@ -1381,7 +1381,6 @@ void M_Init (void)
 
 void M_Draw (int uimenu)
 {
-	extern menu_t *topmenu;
 	qboolean stillactive = false;
 
 	if (uimenu)
@@ -1427,11 +1426,12 @@ void M_Draw (int uimenu)
 #endif
 
 #ifndef NOBUILTINMENUS
+	{extern menu_t *topmenu;
 	if (topmenu)
 	{
 		M_Complex_Draw ();
 		stillactive = true;
-	}
+	}}
 #endif
 	if (!stillactive)
 		Key_Dest_Remove(kdm_emenu);

@@ -1054,6 +1054,7 @@ static int QDECL PM_EnumeratedPlugin (const char *name, qofs_t size, time_t mtim
 
 	return true;
 }
+#ifndef SERVERONLY
 void PM_PluginDetected(void *ctx, int status)
 {
 	PM_WriteInstalledPackages();
@@ -1063,6 +1064,7 @@ void PM_PluginDetected(void *ctx, int status)
 		Cmd_ExecuteString("menu_download \"Plugins/\"\n", RESTRICT_LOCAL);
 	}
 }
+#endif
 #endif
 
 static void PM_PreparePackageList(void)
@@ -1088,7 +1090,9 @@ static void PM_PreparePackageList(void)
 			if (foundone && !pluginpromptshown)
 			{
 				pluginpromptshown = true;
+#ifndef SERVERONLY
 				M_Menu_Prompt(PM_PluginDetected, NULL, "Plugin(s) appears to have\nbeen installed externally.\nUse the updates menu\ntoenable them.", "View", NULL, "Disable");
+#endif
 			}
 		}
 #endif
@@ -1793,7 +1797,7 @@ static void PM_WriteInstalledPackages(void)
 			if (p->fsroot == FS_BINARYPATH)
 			{
 				Q_strncatz(buf, " ", sizeof(buf));
-				COM_QuotedConcat(va("root=bin", p->previewimage), buf, sizeof(buf));
+				COM_QuotedConcat("root=bin", buf, sizeof(buf));
 			}
 
 			for (dep = p->deps; dep; dep = dep->next)

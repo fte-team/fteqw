@@ -10,7 +10,9 @@ BASE=$SVNROOT/..
 #export BRANDING=wastes
 
 #defaults, if we're not set up properly.
+#should be overriden in build.cfg
 BUILDFOLDER=$HOME/htdocs
+BUILDLOGFOLDER=$BUILDFOLDER/build_logs
 SVNROOT=$BASE/fteqw-code
 BUILD_LINUXx86=y
 BUILD_LINUXx64=y
@@ -35,7 +37,7 @@ fi
 export NACL_SDK_ROOT
 
 ########### Emscripten / Web Stuff
-export EMSDK=$EMSCRIPTENROOT/emsdk-portable
+export EMSDK=$EMSCRIPTENROOT
 #export WEB_PREJS="--pre-js $HOME/prejs.js"
 
 ########### Android Stuff. so messy...
@@ -47,17 +49,19 @@ if [ ! -e $KEYPASSFILE ]; then
 fi
 KEYPASS=`cat $KEYPASSFILE`
 export JAVA_HOME=/usr
-export ANDROID_HOME=$ANDROIDROOT
-export ANDROID_NDK_ROOT=$ANDROID_HOME/ndk-bundle
-export ANDROID_TOOLS=$ANDROID_HOME/build-tools/25.0.0/
+if [ ! -z "$ANDROIDROOT" ]; then 
+	export ANDROID_HOME=$ANDROIDROOT
+fi
+if [ ! -z "$ANDROIDNDKROOT" ]; then 
+	export ANDROID_NDK_ROOT=$ANDROIDNDKROOT
+else
+	export ANDROID_NDK_ROOT=$ANDROID_HOME/ndk-bundle
+fi
 export KEYTOOLARGS="-keypass $KEYPASS -storepass $KEYPASS -dname \"CN=fteqw.com, OU=ID, O=FTE, L=Unknown, S=Unknown, C=GB\""
 export JARSIGNARGS="-storepass $KEYPASS"
 
 ########### Various Output etc Paths
-#BUILDFOLDER=$HOME/htdocs
-BUILDLOGFOLDER=$BUILDFOLDER/build_logs
 QCCBUILDFOLDER=$BUILDFOLDER/fteqcc
-#SVNROOT=$BASE/fteqw-code
 SVNFOLDER=$SVNROOT/engine/release
 ARCHIVEFOLDER=$BUILDFOLDER/archive
 SVNDBGFOLDER=$SVNROOT/engine/debug

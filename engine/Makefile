@@ -145,7 +145,7 @@ DROID_PACKSU?= $(BASE_DIR)/droid/fte.cfg $(BASE_DIR)/droid/default.fmf $(BASE_DI
 ANDROID_HOME?=~/android-sdk-linux
 #ANDROID_NDK_ROOT?=~/android-ndk-r8e
 ANDROID_NDK_ROOT?=$(ANDROID_HOME)/ndk-bundle
-ANDROID_TOOLS?=$(ANDROID_HOME)/tools
+ZIPALIGN?=$(ANDROID_HOME)/tools/zipalign
 ANT?=ant
 JAVA_HOME?=/usr
 JAVATOOL=$(JAVA_HOME)/bin/
@@ -158,13 +158,13 @@ ifeq ($(FTE_TARGET),droid)
 	#figure out the host system, required to find a usable compiler
 	ifneq ($(shell uname -o 2>&1 | grep Cygwin),)
 #		ifeq ($(shell uname -m 2>&1), i686)
-#			ANDROID_HOSTSYSTEM=windows
+#			ANDROID_HOSTSYSTEM?=windows
 #		else
-#			ANDROID_HOSTSYSTEM=windows-$(shell uname -m)
+#			ANDROID_HOSTSYSTEM?=windows-$(shell uname -m)
 #		endif
-		ANDROID_HOSTSYSTEM=windows-x86_64
+		ANDROID_HOSTSYSTEM?=windows-x86_64
 	else
-		ANDROID_HOSTSYSTEM=linux-$(shell uname -m)
+		ANDROID_HOSTSYSTEM?=linux-$(shell uname -m)
 	endif
 
 	#ask the android ndk which compiler version strings we should be using
@@ -1943,7 +1943,7 @@ endif
 	@echo
 	@$(JAVATOOL)jarsigner $(JARSIGNARGS) -digestalg SHA1 -sigalg MD5withRSA -keystore droid/ftekeystore droid/bin/FTEDroid-release-unsigned.apk autogen
 	-rm -f $(RELEASE_DIR)/FTEDroid.apk
-	$(ANDROID_TOOLS)/zipalign 4 droid/bin/FTEDroid-release-unsigned.apk $(NATIVE_RELEASE_DIR)/FTEDroid.apk
+	$(ZIPALIGN) 4 droid/bin/FTEDroid-release-unsigned.apk $(NATIVE_RELEASE_DIR)/FTEDroid.apk
 
 droid-opt:
 	$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore

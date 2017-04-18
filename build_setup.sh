@@ -3,18 +3,33 @@
 #this script must be run twice. first time as root, which installs system packages
 #second time as a regular user (probably not your normal one), which installs 3rd-party stuff
 
-NACLSDKVERSION=pepper_49
-
 SVNROOT=$(cd "$(dirname "$BASH_SOURCE")" && pwd)
 FTEROOT=$(realpath $SVNROOT/..)
 FTEROOT=${FTEROOT:-~}
 FTECONFIG=$SVNROOT/build.cfg
 
 BUILDFOLDER=`echo ~`/htdocs
-ANDROIDROOT=$FTEROOT/android
-EMSCRIPTENROOT=$FTEROOT/emscripten
+BUILDLOGFOLDER=$BUILDFOLDER/build_logs
+
+#mac defaults
 OSXCROSSROOT=$FTEROOT/osxcross
+
+#emscripten defaults
+EMSCRIPTENROOT=$FTEROOT/emsdk-portable
+
+#nacl defaults
 NACLROOT=$FTEROOT/nacl_sdk
+NACLSDKVERSION=pepper_49
+
+#android defaults
+ANDROIDROOT=$FTEROOT/android
+ifneq ($(shell uname -o 2>&1 | grep Cygwin),)
+	ANDROID_HOSTSYSTEM?=windows-x86_64
+else
+	ANDROID_HOSTSYSTEM?=linux-$(shell uname -m)
+endif
+ANDROIDBUILDTOOLS=25.0.0
+ANDROID_ZIPALIGN=$ANDROIDROOT/build-tools/$ANDROIDBUILDTOOLS/zipalign	#relative to ndk tools
 
 THREADS="-j 4"
 
@@ -86,10 +101,12 @@ if [ "$REUSE_CONFIG" != "y" ]; then
 		echo "Skipping Linux options."
 	fi
 	BUILD_CYGWIN=n
+	BUILD_MSVC=n
 	if [ "$(uname -o)" == "Cygwin" ]; then
 		read -n 1 -p "Build for Cygwin? [y/N] " BUILD_CYGWIN && echo
+		read -n 1 -p "Build with MSVC? (requires windows7 sdk) [y/N] " BUILD_MSVC && echo
 	else
-		echo "Skipping Cygwin option."
+		echo "Skipping Cygwin options."
 	fi
 	read -n 1 -p "Build for Windows? [Y/n] " BUILD_WINDOWS && echo
 	read -n 1 -p "Build for SDL? [y/N] " BUILD_SDL && echo
@@ -109,6 +126,7 @@ BUILD_LINUXx32=${BUILD_LINUXx32:-n}
 BUILD_LINUXarmhf=${BUILD_LINUXarmhf:-n}
 BUILD_CYGWIN=${BUILD_CYGWIN:-n}
 BUILD_WINDOWS=${BUILD_WINDOWS:-y}
+BUILD_MSVC=${BUILD_MSVC:-n}
 BUILD_SDL=${BUILD_SDL:-n}
 BUILD_ANDROID=${BUILD_ANDROID:-n}
 BUILD_WEB=${BUILD_WEB:-n}
@@ -122,6 +140,8 @@ if [ "$UID" != "0" ]; then
 	echo "BUILDLOGFOLDER=\"$BUILDLOGFOLDER\""		>>$FTECONFIG
 	echo "SVNROOT=\"$SVNROOT\""				>>$FTECONFIG
 	echo "ANDROIDROOT=\"$ANDROIDROOT\""			>>$FTECONFIG
+	echo "export ANDROID_HOSTSYSTEM=\"ANDROID_HOSTSYSTEM\""	>>$FTECONFIG
+	echo "export ANDROID_ZIPALIGN=\"ANDROID_ZIPALIGN\""	>>$FTECONFIG
 	echo "EMSCRIPTENROOT=\"$EMSCRIPTENROOT\""		>>$FTECONFIG
 	echo "OSXCROSSROOT=\"$OSXCROSSROOT\""			>>$FTECONFIG
 	echo "NACLROOT=\"$NACLROOT\""				>>$FTECONFIG
@@ -134,6 +154,7 @@ if [ "$UID" != "0" ]; then
 	echo "BUILD_LINUXarmhf=\"$BUILD_LINUXarmhf\""		>>$FTECONFIG
 	echo "BUILD_CYGWIN=\"$BUILD_CYGWIN\""			>>$FTECONFIG
 	echo "BUILD_WINDOWS=\"$BUILD_WINDOWS\""			>>$FTECONFIG
+	echo "BUILD_MSVC=\"$BUILD_MSVC\""			>>$FTECONFIG
 	echo "BUILD_ANDROID=\"$BUILD_ANDROID\""			>>$FTECONFIG
 	echo "BUILD_SDL=\"$BUILD_SDL\""				>>$FTECONFIG
 	echo "BUILD_WEB=\"$BUILD_WEB\""				>>$FTECONFIG
@@ -284,7 +305,7 @@ if [ "$BUILD_ANDROID" == "y" ] && [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y"
 	cd tools/bin
 	#yes, android-8 is fucking old now. newer versions won't work on older devices.
 	echo "downloading android build tools"
-	./sdkmanager "build-tools;25.0.0"
+	./sdkmanager "build-tools;$ANDROID_BUILDTOOLS"
 	echo "downloading android platform tools"
 	./sdkmanager "platform-tools"
 	echo "downloading android-9"
@@ -297,10 +318,10 @@ fi
 #emscripten/web shit
 if [ "$BUILD_WEB" == "y" ] && [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 	mkdir -p $EMSCRIPTENROOT
-	cd $EMSCRIPTENROOT
+	cd $EMSCRIPTENROOT/..
 	wget -N https://s3.amazonaws.com/mozilla-games/emscripten/releases/emsdk-portable.tar.gz
-	tar xzf emsdk-portable.tar.gz
-	cd emsdk-portable
+	cd $EMSCRIPTENROOT
+	tar xzf ../emsdk-portable.tar.gz --strip-components=1
 	./emsdk install latest
 	./emsdk activate latest
 	cd ~

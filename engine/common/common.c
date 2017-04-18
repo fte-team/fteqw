@@ -4067,32 +4067,36 @@ skipwhite:
 }
 
 #define DEFAULT_PUNCTUATION "(,{})(\':;=!><&|+"
-char *COM_ParseToken (const char *data, const char *punctuation)
+char *COM_ParseTokenOut (const char *data, const char *punctuation, char *token, size_t tokenlen, com_tokentype_t *tokentype)
 {
 	int		c;
-	int		len;
+	size_t	len;
 
 	if (!punctuation)
 		punctuation = DEFAULT_PUNCTUATION;
 
-	COM_AssertMainThread("COM_ParseOut: com_token");
+	if (token == com_token || tokentype == &com_tokentype)
+		COM_AssertMainThread("COM_ParseTokenOut: com_token");
 
 	len = 0;
-	com_token[0] = 0;
+	token[0] = 0;
 
 	if (!data)
 	{
-		com_tokentype = TTP_UNKNOWN;
+		if (tokentype)
+			*tokentype = TTP_EOF;
 		return NULL;
 	}
 
 // skip whitespace
+//line endings count as whitespace only if we can report the token type.
 skipwhite:
-	while ( (c = *(unsigned char*)data) <= ' ' && c != '\r' && c != '\n')
+	while ( (c = *(unsigned char*)data) <= ' ' && ((c != '\r' && c != '\n') || !tokentype))
 	{
 		if (c == 0)
 		{
-			com_tokentype = TTP_UNKNOWN;
+			if (tokentype)
+				*tokentype = TTP_EOF;
 			return NULL;			// end of file;
 		}
 		data++;
@@ -4104,24 +4108,25 @@ skipwhite:
 
 	if (c == '\r' || c == '\n')
 	{
-		com_tokentype = TTP_LINEENDING;
-		com_token[0] = '\n';
-		com_token[1] = '\0';
+		if (tokentype)
+			*tokentype = TTP_LINEENDING;
+		token[0] = '\n';
+		token[1] = '\0';
 		data++;
 		return (char*)data;
 	}
 
-// skip // comments
+// skip comments
 	if (c=='/')
 	{
 		if (data[1] == '/')
-		{
+		{	// style comments
 			while (*data && *data != '\n')
 				data++;
 			goto skipwhite;
 		}
 		else if (data[1] == '*')
-		{
+		{	/* style comments */
 			data+=2;
 			while (*data && (*data != '*' || data[1] != '/'))
 				data++;
@@ -4136,34 +4141,35 @@ skipwhite:
 // handle quoted strings specially
 	if (c == '\"')
 	{
-		com_tokentype = TTP_STRING;
+		if (tokentype)
+			*tokentype = TTP_STRING;
 		data++;
 		while (1)
 		{
 			if (len >= TOKENSIZE-1)
 			{
-				com_token[len] = '\0';
+				token[len] = '\0';
 				return (char*)data;
 			}
 			c = *data++;
 			if (c=='\"' || !c)
 			{
-				com_token[len] = 0;
+				token[len] = 0;
 				return (char*)data;
 			}
-			com_token[len] = c;
+			token[len] = c;
 			len++;
 		}
 	}
 
-	com_tokentype = TTP_UNKNOWN;
-
 // parse single characters
 	if (strchr(punctuation, c))
 	{
-		com_token[len] = c;
+		token[len] = c;
 		len++;
-		com_token[len] = 0;
+		token[len] = 0;
+		if (tokentype)
+			*tokentype = TTP_PUNCTUATION;
 		return (char*)(data+1);
 	}
 
@@ -4172,7 +4178,7 @@ skipwhite:
 	{
 		if (len >= TOKENSIZE-1)
 			break;
-		com_token[len] = c;
+		token[len] = c;
 		data++;
 		len++;
 		c = *data;
@@ -4180,7 +4186,9 @@ skipwhite:
 			break;
 	} while (c>32);
 
-	com_token[len] = 0;
+	token[len] = 0;
+	if (tokentype)
+		*tokentype = TTP_RAWTOKEN;
 	return (char*)data;
 }
 
@@ -4708,8 +4716,12 @@ void COM_Version_f (void)
 #ifdef _WIN64
 		Con_Printf("Compiled for 64bit windows\n");
 #endif
-#if defined(_M_AMD64) || defined(__amd64__)
+#if defined(_M_AMD64) || defined(__amd64__) || defined(__x86_64__)
+	#ifdef __ILP32__
+		Con_Printf("Compiled for AMD64 compatible cpus (x32)\n");
+	#else
 		Con_Printf("Compiled for AMD64 compatible cpus\n");
+	#endif
 #endif
 
 #ifdef _M_IX86

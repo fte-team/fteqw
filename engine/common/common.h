@@ -348,7 +348,7 @@ void deleetstring(char *result, const char *leet);
 
 extern	char		com_token[65536];
 
-typedef enum {TTP_UNKNOWN, TTP_STRING, TTP_LINEENDING, TTP_RAWTOKEN, TTP_EOF} com_tokentype_t;
+typedef enum {TTP_UNKNOWN, TTP_STRING, TTP_LINEENDING, TTP_RAWTOKEN, TTP_EOF, TTP_PUNCTUATION} com_tokentype_t;
 extern com_tokentype_t com_tokentype;
 
 extern	qboolean	com_eof;
@@ -362,7 +362,8 @@ char *COM_ParseStringSet (const char *data, char *out, size_t outlen);	//whitesp
 char *COM_ParseStringSetSep (const char *data, char sep, char *out, size_t outsize);	//single-char-separator, no whitespace
 char *COM_ParseCString (const char *data, char *out, size_t maxoutlen, size_t *writtenlen);
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);
-char *COM_ParseToken (const char *data, const char *punctuation);
+#define COM_ParseToken(data,punct) COM_ParseTokenOut(data, punct, com_token, sizeof(com_token), &com_tokentype)
+char *COM_ParseTokenOut (const char *data, const char *punctuation, char *token, size_t tokenlen, com_tokentype_t *tokentype);	//note that line endings are a special type of token.
 char *COM_TrimString(char *str, char *buffer, int buffersize);
 const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean omitquotes);	//inverse of COM_StringParse
 

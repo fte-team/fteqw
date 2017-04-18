@@ -91,8 +91,12 @@ void M_SomeInitialisationFunctionCalledAtStartup(void)
 }
 */
 
-typedef enum {m_none, m_complex, m_help, m_plugin} m_state_t;
-extern m_state_t m_state;
+#ifdef PLUGINS
+extern struct plugin_s *menuplug;
+#endif
+#ifndef NOBUILTINMENUS
+extern struct menu_s *topmenu;
+#endif
 void M_DrawTextBox (int x, int y, int width, int lines);
 
 #ifndef NOBUILTINMENUS

@@ -87,6 +87,8 @@ extern cvar_t pm_downloads_url;
 #define DPF_ENGINE					0x1000	//engine update. replaces old autoupdate mechanism
 #define DPF_PLUGIN					0x2000	//this is a plugin package, with a dll
 
+#define DPF_TRUSTED					0x4000	//flag used when parsing package lists. if not set then packages will be ignored if they are anything but paks/pk3s
+
 #define DPF_PRESENT					(DPF_NATIVE|DPF_CACHED)
 #define DPF_DISABLEDINSTALLED		(DPF_ENGINE|DPF_PLUGIN)	//engines+plugins can be installed without being enabled.
 //pak.lst
@@ -185,6 +187,7 @@ static char *manifestpackages;	//metapackage named by the manicfest.
 static char *declinedpackages;	//metapackage named by the manicfest.
 static int domanifestinstall;	//SECURITY_MANIFEST_*
 
+static qboolean pluginpromptshown;	//so we only show prompts for new externally-installed plugins once, instead of every time the file is reloaded.
 static qboolean doautoupdate;	//updates will be marked (but not applied without the user's actions)
 static qboolean pkg_updating;	//when flagged, further changes are blocked until completion.
 
@@ -194,6 +197,7 @@ static struct
 {
 	char *url;
 	char *prefix;
+	qboolean trustworthy;		//trusted 
 	char received;				//says if we got a response yet or not
 	qboolean save;				//written into our local file
 	struct dl_download *curdl;	//the download context
@@ -559,7 +563,7 @@ static void PM_AddDep(package_t *p, int deptype, const char *depname)
 	*link = nd;
 }
 
-static void PM_AddSubList(const char *url, const char *prefix, qboolean save)
+static void PM_AddSubList(const char *url, const char *prefix, qboolean save, qboolean trustworthy)
 {
 	int i;
 	if (!*url)
@@ -576,6 +580,10 @@ static void PM_AddSubList(const char *url, const char *prefix, qboolean save)
 	}
 	if (i == numdownloadablelists && i < countof(downloadablelist))
 	{
+		if (!strncmp(url, "https:", 6))
+			downloadablelist[i].trustworthy = trustworthy;
+		else
+			downloadablelist[i].trustworthy = false;	//if its not a secure url, never consider it as trustworthy
 		downloadablelist[i].save = save;
 
 		downloadablelist[i].url = BZ_Malloc(strlen(url)+1);
@@ -665,7 +673,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 					subprefix = va("%s/%s", prefix, Cmd_Argv(2));
 				else
 					subprefix = Cmd_Argv(2);
-				PM_AddSubList(Cmd_Argv(1), subprefix, (parseflags & DPF_ENABLED)?true:false);
+				PM_AddSubList(Cmd_Argv(1), subprefix, (parseflags & DPF_ENABLED)?true:false, (parseflags&DPF_TRUSTED));
 				continue;
 			}
 			if (!strcmp(Cmd_Argv(0), "set"))
@@ -729,6 +737,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				int extract = EXTRACT_COPY;
 				int priority = PM_DEFAULTPRIORITY;
 				unsigned int flags = parseflags;
+				enum fs_relative fsroot = FS_ROOT;
 				int i;
 
 				if (version > 2)
@@ -795,6 +804,13 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 						flags &= ~DPF_ENABLED;	//known about, (probably) cached, but not actually enabled.
 					else if (!strncmp(arg, "installed=", 6) && version>2)
 						flags |= parseflags & DPF_ENABLED;
+					else if (!strncmp(arg, "root=", 5) && (parseflags&DPF_ENABLED))
+					{
+						if (!Q_strcasecmp(arg+5, "bin"))
+							fsroot = FS_BINARYPATH;
+						else
+							fsroot = FS_ROOT;
+					}
 					else
 					{
 						Con_DPrintf("Unknown package property\n");
@@ -836,7 +852,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				Q_strncpyz(p->version, ver?ver:"", sizeof(p->version));
 
 				Q_snprintfz(p->gamedir, sizeof(p->gamedir), "%s", gamedir);
-				p->fsroot = FS_ROOT;
+				p->fsroot = fsroot;
 				p->extract = extract;
 				p->priority = priority;
 				p->flags = flags;
@@ -927,7 +943,7 @@ static void PM_ParsePackageList(vfsfile_t *f, int parseflags, const char *url, c
 				}
 				else if (!Q_strcasecmp(p->arch, THISARCH))
 				{
-					if (p->fsroot == FS_ROOT && !*p->gamedir)
+					if ((p->fsroot == FS_ROOT || p->fsroot == FS_BINARYPATH) && !*p->gamedir)
 						p->flags |= DPF_PLUGIN;
 				}
 				else
@@ -976,6 +992,109 @@ void PM_EnumeratePlugins(void (*callback)(const char *name))
 }
 #endif
 
+#ifdef PLUGINS
+static void PM_WriteInstalledPackages(void);
+static package_t *PM_FindPackage(const char *packagename);
+static int QDECL PM_EnumeratedPlugin (const char *name, qofs_t size, time_t mtime, void *param, searchpathfuncs_t *spath)
+{
+	package_t *p;
+	struct packagedep_s *dep;
+	char vmname[MAX_QPATH];
+	int len;
+	char *dot;
+	if (!strncmp(name, "fteplug_", 8))
+		Q_strncpyz(vmname, name+8, sizeof(vmname));
+	else
+		Q_strncpyz(vmname, name, sizeof(vmname));
+	len = strlen(vmname);
+	len -= strlen(ARCH_CPU_POSTFIX ARCH_DL_POSTFIX);
+	if (!strcmp(vmname+len, ARCH_CPU_POSTFIX ARCH_DL_POSTFIX))
+		vmname[len] = 0;
+	else
+	{
+		dot = strchr(vmname, '.');
+		if (dot)
+			*dot = 0;
+	}
+	len = strlen(vmname);
+	if (len > 0 && vmname[len-1] == '_')
+		vmname[len-1] = 0;
+
+	for (p = availablepackages; p; p = p->next)
+	{
+		if (!(p->flags & DPF_PLUGIN))
+			continue;
+		for (dep = p->deps; dep; dep = dep->next)
+		{
+			if (dep->dtype != DEP_FILE)
+				continue;
+			if (!Q_strcasecmp(dep->name, name))
+				return true;
+		}
+	}
+
+	if (PM_FindPackage(vmname))
+		return true;	//don't include it if its a dupe anyway.
+
+	p = Z_Malloc(sizeof(*p));
+	p->deps = Z_Malloc(sizeof(*p->deps) + strlen(name));
+	p->deps->dtype = DEP_FILE;
+	strcpy(p->deps->name, name);
+	p->arch = Z_StrDup(THISARCH);
+	p->name = Z_StrDup(vmname);
+	p->title = Z_StrDup(vmname);
+	p->category = Z_StrDup("Plugins/");
+	p->priority = PM_DEFAULTPRIORITY;
+	p->fsroot = FS_BINARYPATH;
+	strcpy(p->version, "??""??");
+	p->flags = DPF_PLUGIN|DPF_NATIVE|DPF_FORGETONUNINSTALL;
+	PM_InsertPackage(p);
+
+	*(int*)param = true;
+
+	return true;
+}
+void PM_PluginDetected(void *ctx, int status)
+{
+	PM_WriteInstalledPackages();
+	if (status == 0)
+	{
+		Cmd_ExecuteString("menu_download\n", RESTRICT_LOCAL);
+		Cmd_ExecuteString("menu_download \"Plugins/\"\n", RESTRICT_LOCAL);
+	}
+}
+#endif
+
+static void PM_PreparePackageList(void)
+{
+	//figure out what we've previously installed.
+	if (!loadedinstalled)
+	{
+		char nat[MAX_OSPATH];
+		vfsfile_t *f = FS_OpenVFS(INSTALLEDFILES, "rb", FS_ROOT);
+		loadedinstalled = true;
+		if (f)
+		{
+			PM_ParsePackageList(f, DPF_FORGETONUNINSTALL|DPF_ENABLED, NULL, "");
+			VFS_CLOSE(f);
+		}
+
+#ifdef PLUGINS
+		{
+			int foundone = false;
+			FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
+			Con_DPrintf("Loading plugins from \"%s\"\n", nat);
+			Sys_EnumerateFiles(nat, "fteplug_*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, PM_EnumeratedPlugin, &foundone, NULL);
+			if (foundone && !pluginpromptshown)
+			{
+				pluginpromptshown = true;
+				M_Menu_Prompt(PM_PluginDetected, NULL, "Plugin(s) appears to have\nbeen installed externally.\nUse the updates menu\ntoenable them.", "View", NULL, "Disable");
+			}
+		}
+#endif
+	}
+}
+
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri)
 {
 	package_t *p;
@@ -984,16 +1103,7 @@ void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const cha
 	int pri;
 
 	//figure out what we've previously installed.
-	if (!loadedinstalled)
-	{
-		vfsfile_t *f = FS_OpenVFS(INSTALLEDFILES, "rb", FS_ROOT);
-		loadedinstalled = true;
-		if (f)
-		{
-			PM_ParsePackageList(f, DPF_FORGETONUNINSTALL|DPF_ENABLED, NULL, "");
-			VFS_CLOSE(f);
-		}
-	}
+	PM_PreparePackageList();
 
 	do
 	{
@@ -1050,24 +1160,6 @@ void PM_Shutdown(void)
 		PM_FreePackage(availablepackages);
 	loadedinstalled = false;
 }
-
-
-static void PM_PreparePackageList(void)
-{
-	//figure out what we've previously installed.
-	if (!loadedinstalled)
-	{
-		vfsfile_t *f = FS_OpenVFS(INSTALLEDFILES, "rb", FS_ROOT);
-		loadedinstalled = true;
-		if (f)
-		{
-			PM_ParsePackageList(f, DPF_FORGETONUNINSTALL|DPF_ENABLED, NULL, "");
-			VFS_CLOSE(f);
-		}
-	}
-}
-
-
 
 //finds the newest version
 static package_t *PM_FindPackage(const char *packagename)
@@ -1484,7 +1576,6 @@ static void PM_ListDownloaded(struct dl_download *dl)
 					if (Key_Dest_Has(kdm_emenu))
 					{
 						Key_Dest_Remove(kdm_emenu);
-						m_state = m_none;
 					}
 #ifdef MENU_DAT
 					if (Key_Dest_Has(kdm_gmenu))
@@ -1507,10 +1598,7 @@ static void PM_ListDownloaded(struct dl_download *dl)
 			if (!isDedicated)
 			{
 				if (Key_Dest_Has(kdm_emenu))
-				{
 					Key_Dest_Remove(kdm_emenu);
-					m_state = m_none;
-				}
 #ifdef MENU_DAT
 				if (Key_Dest_Has(kdm_gmenu))
 					MP_Toggle(0);
@@ -1535,7 +1623,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 	//make sure our sources are okay.
 	if (*pm_downloads_url.string)
-		PM_AddSubList(pm_downloads_url.string, "", true);
+		PM_AddSubList(pm_downloads_url.string, "", true, true);
 
 	doautoupdate |= autoupdate;
 
@@ -1702,6 +1790,12 @@ static void PM_WriteInstalledPackages(void)
 				COM_QuotedConcat(va("preview=%s", p->previewimage), buf, sizeof(buf));
 			}
 
+			if (p->fsroot == FS_BINARYPATH)
+			{
+				Q_strncatz(buf, " ", sizeof(buf));
+				COM_QuotedConcat(va("root=bin", p->previewimage), buf, sizeof(buf));
+			}
+
 			for (dep = p->deps; dep; dep = dep->next)
 			{
 				if (dep->dtype == DEP_FILE)
@@ -1791,7 +1885,7 @@ static int QDECL PM_ExtractFiles(const char *fname, qofs_t fsize, time_t mtime, 
 
 //package has been downloaded and installed, but some packages need to be enabled
 //(plugins might have other dll dependancies, so this can only happen AFTER the entire package was extracted)
-void PM_PackageEnabled(package_t *p)
+static void PM_PackageEnabled(package_t *p)
 {
 	char ext[8];
 	struct packagedep_s *dep;
@@ -2267,8 +2361,12 @@ static void PM_ApplyChanges(void)
 			if (reloadpacks)
 				FS_ReloadPackFiles();
 
-			if (p->flags & DPF_FORGETONUNINSTALL)
+			if ((p->flags & DPF_FORGETONUNINSTALL) && !(p->flags & DPF_PRESENT))
 			{
+#if 1
+				downloadablessequence++;
+				PM_FreePackage(p);
+#else
 				if (p->alternative)
 				{	//replace it with its alternative package
 					*p->link = p->alternative;
@@ -2287,6 +2385,7 @@ static void PM_ApplyChanges(void)
 //FIXME: the menu(s) hold references to packages, so its not safe to purge them
 				p->flags |= DPF_HIDDEN;
 //					BZ_Free(p);
+#endif
 
 				continue;
 			}
@@ -2569,7 +2668,7 @@ void PM_Command_f(void)
 			Con_Printf("<%i sources>\n", numdownloadablelists);
 		}
 		else
-			PM_AddSubList(Cmd_Argv(2), "", true);
+			PM_AddSubList(Cmd_Argv(2), "", true, true);
 	}
 	else if (!strcmp(act, "remsource"))
 		PM_RemSubList(Cmd_Argv(2));
@@ -2676,16 +2775,7 @@ qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize)
 	package_t *e = NULL, *p;
 	char *pfname;
 	//figure out what we've previously installed.
-	if (!loadedinstalled)
-	{
-		vfsfile_t *f = FS_OpenVFS(INSTALLEDFILES, "rb", FS_ROOT);
-		loadedinstalled = true;
-		if (f)
-		{
-			PM_ParsePackageList(f, DPF_FORGETONUNINSTALL|DPF_ENABLED, NULL, "");
-			VFS_CLOSE(f);
-		}
-	}
+	PM_PreparePackageList();
 
 	for (p = availablepackages; p; p = p->next)
 	{
@@ -2998,7 +3088,7 @@ static qboolean MD_RevertUpdates (union menuoption_s *mo,struct menu_s *m,int ke
 	return false;
 }
 
-void M_AddItemsToDownloadMenu(menu_t *m)
+static void MD_AddItemsToDownloadMenu(menu_t *m)
 {
 	char path[MAX_QPATH];
 	int y;
@@ -3094,7 +3184,7 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 }
 
 #include "shader.h"
-void M_Download_UpdateStatus(struct menu_s *m)
+static void MD_Download_UpdateStatus(struct menu_s *m)
 {
 	dlmenu_t *info = m->data;
 	int i;
@@ -3130,7 +3220,7 @@ void M_Download_UpdateStatus(struct menu_s *m)
 		}
 
 		info->populated = true;
-		M_AddItemsToDownloadMenu(m);
+		MD_AddItemsToDownloadMenu(m);
 	}
 
 	if (m->selecteditem && m->selecteditem->common.type == mt_custom && m->selecteditem->custom.dptr)
@@ -3151,13 +3241,12 @@ void Menu_DownloadStuff_f (void)
 	dlmenu_t *info;
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(dlmenu_t));
 	info = menu->data;
 
 	menu->persist = true;
-	menu->predraw = M_Download_UpdateStatus;
+	menu->predraw = MD_Download_UpdateStatus;
 	info->downloadablessequence = downloadablessequence;
 
 

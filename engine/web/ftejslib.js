@@ -825,9 +825,9 @@ console.log("onload: " + _url + " status " + http.status);
 
 		http.onerror = function(e)
 		{
-console.log("onerror: " + _url + " status " + http.status);
+console.log("onerror: " + _url);
 			if (onerror)
-				Runtime.dynCall('vii', onerror, [ctx, http.status]);
+				Runtime.dynCall('vii', onerror, [ctx, 0]);
 		};
 
 		http.onprogress = function(e)

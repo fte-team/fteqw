@@ -380,7 +380,7 @@ endif
 
 #DO_ECHO=@echo $< && 
 DO_ECHO=@
-DO_ECHO=
+#DO_ECHO=
 DO_CC=$(DO_ECHO) $(CC) $(LTO_CC) $(ALL_CFLAGS) -o $@ -c $<
 
 ifeq ($(FTE_TARGET),vc)
@@ -452,7 +452,17 @@ DEBUG_CFLAGS?=-ggdb -g
 DEBUG_CFLAGS+=-DDEBUG
 RELEASE_CFLAGS?=-O3 -ffast-math $(CPUOPTIMIZATIONS)
 
-ARCH?=$(shell $(CC) -dumpmachine)
+ifeq ($(FTE_TARGET),vc)
+	#msvc doesn't do -dumpmachine.
+	#we might as well get it to reuse the mingw libraries, if only because that makes those libraries easier to compile...
+	ifeq ($(BITS),64)
+		ARCH?=x86_64-w64-mingw32
+	else
+		ARCH?=i686-w64-mingw32
+	endif
+else
+	ARCH?=$(shell $(CC) -dumpmachine)
+endif
 ARCHLIBS=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)
 
 #incase our compiler doesn't support it (mingw)
@@ -1696,7 +1706,7 @@ m-dbg:
 m-profile:
 	@$(MAKE) m-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(MB_DIR)"
 
-.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir makelibs
+.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir makelibs wel-rel web-dbg
 
 
 _qcc-tmp: $(REQDIR)
@@ -1849,7 +1859,9 @@ nacl-dbg:
 #################################################
 #webgl helpers
 
-ifeq (,$(EMSDK))
+#EMCC?=/opt/emsdk_portable/emscripten/master/emcc
+EMCC?=emcc.bat --em-config $(shell cygpath -m $(USERPROFILE))/.emscripten
+ifeq ($(EMSDK),)
 	#just adds some extra paths (WINDOWS HOST ONLY)
 	#assumes you installed the emscripten 1.22.0 sdk to EMSCRIPTENROOT
 	#if you have a different version installed, you will need to fix up the paths yourself (or just use fte_target explicitly yourself).
@@ -1860,8 +1872,6 @@ else
 	EMSCRIPTENPATH=$(PATH)
 endif
 
-#EMCC?=/opt/emsdk_portable/emscripten/master/emcc
-EMCC?=emcc.bat --em-config $(shell cygpath -m $(USERPROFILE))/.emscripten
 web-rel:
 	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-rel FTE_TARGET=web CC="$(EMCC)"
 	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
@@ -1871,7 +1881,7 @@ web-rel:
 
 web-dbg:
 	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-dbg FTE_TARGET=web CC="$(EMCC)"
-	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
+	cp $(BASE_DIR)/web/fteshell.html $(DEBUG_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.js
 	@gzip -f $(DEBUG_DIR)/ftewebgl.js.map

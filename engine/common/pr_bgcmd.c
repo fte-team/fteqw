@@ -38,7 +38,7 @@ void PF_Common_RegisterCvars(void)
 	a.i = 1;
 	b.i = 1;
 	if (!(a.f && b.f))
-		Con_Printf("WARNING: denormalised floats are disabled. Mods may malfunction\n");
+		Con_Printf(CON_WARNING "WARNING: denormalised floats are disabled. Mods may malfunction\n");
 
 
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
@@ -5822,6 +5822,23 @@ void QCBUILTIN PF_checkcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
+void QCBUILTIN PF_physics_supported(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifdef USERBE
+	world_t *world = prinst->parms->user;
+	if (prinst->callargc)
+	{
+		if (G_FLOAT(OFS_PARM0) && !world->rbe)
+			World_RBE_Start(world);
+		else if (!G_FLOAT(OFS_PARM0) && world->rbe)
+			World_RBE_Shutdown(world);
+	}
+	if (world->rbe)
+		G_FLOAT(OFS_RETURN) = 1;
+	else
+#endif
+		G_FLOAT(OFS_RETURN) = 0;
+}
 #ifdef USERBE
 void QCBUILTIN PF_physics_enable(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

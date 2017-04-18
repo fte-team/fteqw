@@ -4852,24 +4852,41 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	case ter_ent_set:
 		{
 			int idx = G_INT(OFS_PARM1);
+			int id;
 			const char *newvals;
+			//if there's no ents, then that's a problem. make sure that there's at least a worldspawn.
 			if (!mod->numentityinfo)
 				Mod_ParseEntities(mod);
+			//make sure we don't have any cached entities string, by wiping it all.
+			Z_Free((char*)mod->entities_raw);
+			mod->entities_raw = NULL;
+
+			G_INT(OFS_RETURN) = 0;
 			if (idx < mod->numentityinfo)
 			{
+				if (!G_INT(OFS_PARM2) && !mod->entityinfo[idx].keyvals)
+					return; //no-op
 				Z_Free(mod->entityinfo[idx].keyvals);
 				mod->entityinfo[idx].keyvals = NULL;
+				id = mod->entityinfo[idx].id;
 			}
+			else
+				id = 0;
 			if (G_INT(OFS_PARM2))
 			{
 				newvals = PR_GetStringOfs(prinst, OFS_PARM2);
 				if (idx >= mod->numentityinfo)
 					Z_ReallocElements((void**)&mod->entityinfo, &mod->numentityinfo, idx+64, sizeof(*mod->entityinfo));
 				mod->entityinfo[idx].keyvals = Z_StrDup(newvals);
+				if (!id)
+					id = (idx+1) | ((cl.playerview[0].playernum+1)<<24);
+				mod->entityinfo[idx].id = id;
 			}
 			else
+			{
 				newvals = NULL;
-			G_INT(OFS_RETURN) = 0;
+				mod->entityinfo[idx].id = 0;
+			}
 
 #ifndef CLIENTONLY
 			if (sv.state && modelindex > 0)
@@ -4877,11 +4894,13 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
 				MSG_WriteShort(&sv.multicast, modelindex);
 				MSG_WriteByte(&sv.multicast, newvals?hmcmd_ent_edit:hmcmd_ent_remove);
-				MSG_WriteLong(&sv.multicast, idx);
+				MSG_WriteLong(&sv.multicast, id);
 				if (newvals)
 					MSG_WriteString(&sv.multicast, newvals);
 				SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
 				//tell ssqc, csqc will be told by the server
+
+				SSQC_MapEntityEdited(modelindex, idx, newvals);
 			}
 			else
 #endif
@@ -4891,19 +4910,19 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 				MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
 				MSG_WriteShort(&cls.netchan.message, modelindex);
 				MSG_WriteByte(&cls.netchan.message, newvals?hmcmd_ent_edit:hmcmd_ent_remove);
-				MSG_WriteLong(&cls.netchan.message, idx);
+				MSG_WriteLong(&cls.netchan.message, id);
 				if (newvals)
 					MSG_WriteString(&cls.netchan.message, newvals);
 
 				#ifdef CSQC_DAT
-					CSQC_MapEntityEdited(idx, newvals);
+					CSQC_MapEntityEdited(modelindex, idx, newvals);
 				#endif
 			}
 			else
 #endif
 			{
 				#ifdef CSQC_DAT
-					CSQC_MapEntityEdited(idx, newvals);
+					CSQC_MapEntityEdited(modelindex, idx, newvals);
 				#endif
 			}
 		}
@@ -4913,7 +4932,6 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 //			int idx = G_INT(OFS_PARM1);
 //			const char *news = PR_GetStringOfs(prinst, OFS_PARM2);
 			G_INT(OFS_RETURN) = mod->numentityinfo;
-
 		}
 		return;
 	case ter_ent_count:
@@ -4921,11 +4939,11 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			Mod_ParseEntities(mod);
 		G_INT(OFS_RETURN) = mod->numentityinfo;
 		return;
-	case ter_ents_wipe:
+	case ter_ents_wipe_deprecated:
 		G_INT(OFS_RETURN) = PR_TempString(prinst, Mod_GetEntitiesString(mod));
 		Mod_SetEntitiesString(mod, "", true);
 		return;
-	case ter_ents_concat:
+	case ter_ents_concat_deprecated:
 		{
 			char *newv;
 			const char *olds = Mod_GetEntitiesString(mod);
@@ -6197,33 +6215,45 @@ void CL_Parse_BrushEdit(void)
 	else if (cmd == hmcmd_prespawned)
 	{
 	}
-	else if (cmd == hmcmd_ent_edit)
+	else if (cmd == hmcmd_ent_edit || cmd == hmcmd_ent_remove)
 	{	//ent edit
 		int id = MSG_ReadLong();
-		const char *data = MSG_ReadString();
-		if (id > 0xffff)
-			return;
-		if (id >= mod->numentityinfo)
-			Z_ReallocElements((void**)&mod->entityinfo, &mod->numentityinfo, id+64, sizeof(*mod->entityinfo));
-		if (id < mod->numentityinfo)
+		const char *data;
+		int idx = mod->numentityinfo, i;
+		if (cmd == hmcmd_ent_edit)
+			data = MSG_ReadString();
+		else
+			data = NULL;
+
+		//convert id to idx
+		for (i = 0; i < mod->numentityinfo; i++)
+		{
+			if (mod->entityinfo[i].id == id)
+			{
+				idx = i;
+				break;
+			}
+			if (!mod->entityinfo[i].keyvals)
+				idx = i;
+		}
+
+		//FIXME: cap the maximum data sizes (both count and storage, to prevent DOS attacks).
+
+		if (idx == mod->numentityinfo && data)
+			Z_ReallocElements((void**)&mod->entityinfo, &mod->numentityinfo, mod->numentityinfo+64, sizeof(*mod->entityinfo));
+		if (idx < mod->numentityinfo)
 		{
 			if (!ignore)
 			{
-				Z_Free(mod->entityinfo[id].keyvals);
-				mod->entityinfo[id].keyvals = Z_StrDup(data);
+				mod->entityinfo[idx].id = id;
+				Z_Free(mod->entityinfo[idx].keyvals);
+				if (data)
+					mod->entityinfo[idx].keyvals = Z_StrDup(data);
+				else
+					mod->entityinfo[idx].keyvals = NULL;
+
+				CSQC_MapEntityEdited(modelindex, idx, data);
 			}
-			CSQC_MapEntityEdited(id, data);
-		}
-	}
-	else if (cmd == hmcmd_ent_remove)
-	{
-		int id = MSG_ReadLong();
-		if (sv.state >= ss_loading)
-			return;	//if we're the server then this will already have been done. don't clobber from internal latency
-		if (id < mod->numentityinfo)
-		{
-			Z_Free(mod->entityinfo[id].keyvals);
-			mod->entityinfo[id].keyvals = NULL;
 		}
 	}
 	else
@@ -6350,15 +6380,19 @@ qboolean SV_Parse_BrushEdit(void)
 	}
 	else if (cmd == hmcmd_ent_edit || cmd == hmcmd_ent_remove)
 	{
-		size_t entid = MSG_ReadLong();
+		unsigned int entid = MSG_ReadLong();
 		char *keyvals = (cmd == hmcmd_ent_edit)?MSG_ReadString():NULL;
 		if (mod->submodelof != mod)
 			return true;
 		if (!authorise)
 		{
 			SV_PrintToClient(host_client, PRINT_MEDIUM, "Entity editing ignored: you are not a mapper\n");
+			//FIXME: undo the client's edit? or is that rude?
 			return true;
 		}
+
+		//FIXME: need to update the server's entity list
+		//SSQC_MapEntityEdited(idx, newvals);
 
 		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
 		MSG_WriteShort(&sv.multicast, modelindex);
@@ -6471,7 +6505,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	model_t			*mod			= vmw->Get_CModel(vmw, modelindex);
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 	unsigned int	numfaces		= G_INT(OFS_PARM2);
-	qcbrushface_t	*in_faces		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_faces), numfaces, false);
+	qcbrushface_t	*in_faces		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_faces), numfaces, numfaces==0);
 	unsigned int	contents		= G_INT(OFS_PARM3);
 	unsigned int	brushid			= (prinst->callargc > 4)?G_INT(OFS_PARM4):0;	//to simplify edits
 
@@ -6999,6 +7033,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 	int brushcontents = FTECONTENTS_SOLID;
 	heightmap_t *subhm = NULL;
 	model_t *submod = NULL;
+	const char *brushpunct = "(){}[]";	//use an empty string for better compat with vanilla qbsp...
 
 #ifdef RUNTIMELIGHTING
 	hm->entsdirty = true;
@@ -7013,7 +7048,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 	while(entities)
 	{
 		start = entities;
-		entities = COM_ParseOut(entities, token, sizeof(token));
+		entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 		if (token[0] == '}' && token[1] == 0)
 		{
 			nest--;
@@ -7136,24 +7171,24 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			{
 				if (token[0] != '(' || token[1] != 0)
 					break;
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				points[p][0] = atof(token);
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				points[p][1] = atof(token);
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				points[p][2] = atof(token);
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				if (token[0] != ')' || token[1] != 0)
 				{
 //					VectorClear(points[1]);
 //					VectorClear(points[2]);
 					points[1][0] = atof(token);
-					entities = COM_ParseOut(entities, token, sizeof(token));
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 					if (p == 0 && !strcmp(token, ")"))
 						p = 4;	//we just managed to read an entire plane instead of 3 points.
 					break;
 				}
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			}
 			if (p < 3)
 			{
@@ -7184,35 +7219,35 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				brushcontents = FTECONTENTS_SOLID;
 
 			//FIXME: halflife format has the entire [x y z dist] plane specified.
-			entities = COM_ParseOut(entities, token, sizeof(token));
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			if (*token == '[')
 			{
 				hlstyle = true;
 
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				texplane[0][0] = atof(token);
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				texplane[0][1] = atof(token);
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				texplane[0][2] = atof(token);
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				texplane[0][3] = atof(token);
 
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				//]
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				//[
 
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				texplane[1][0] = atof(token);
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				texplane[1][1] = atof(token);
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				texplane[1][2] = atof(token);
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				texplane[1][3] = atof(token);
 
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				//]
 			}
 			else
@@ -7220,22 +7255,22 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				VectorClear(texplane[0]);
 				VectorClear(texplane[1]);
 				texplane[0][3] = atof(token);
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 				texplane[1][3] = atof(token);
 			}
 
-			entities = COM_ParseOut(entities, token, sizeof(token));
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			rot = atof(token);
-			entities = COM_ParseOut(entities, token, sizeof(token));
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			scale[0] = atof(token);
-			entities = COM_ParseOut(entities, token, sizeof(token));
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			scale[1] = atof(token);
 
 			//hexen2 has some extra junk that is useless - some 'light' value, but its never used and should normally be -1.
 			while (*entities == ' ' || *entities == '\t')
 				entities++;
 			if (*entities == '-' || (*entities >= '0' && *entities <= '9'))
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 
 			//okay, that's all the actual parsing, now try to make sense of this plane.
 			if (p == 4)
@@ -7298,13 +7333,13 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 		{
 			if (!strcmp(token, "classname"))
 			{
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 
 				if (!strcmp(token, "func_detail"))
 					isdetail = true;
 			}
 			else
-				entities = COM_ParseOut(entities, token, sizeof(token));
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 		}
 		while(start < entities)
 			*out++ = *start++;

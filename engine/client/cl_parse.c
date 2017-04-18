@@ -2026,8 +2026,6 @@ void DL_Completed(qdownload_t *dl, qofs_t start, qofs_t end)
 	}
 }
 
-qboolean CL_AllowArbitaryDownload(char *localfile);
-
 static float chunkrate;
 
 void CL_ParseChunkedDownload(qdownload_t *dl)
@@ -2071,7 +2069,7 @@ void CL_ParseChunkedDownload(qdownload_t *dl)
 		{
 			if (flag == DLERR_REDIRECTFILE)
 			{
-				if (CL_AllowArbitaryDownload(svname))
+				if (CL_AllowArbitaryDownload(dl->remotename, svname))
 				{
 					Con_Printf("Download of \"%s\" redirected to \"%s\"\n", dl->remotename, svname);
 					if (!strncmp(svname, "package/", 8))
@@ -2195,7 +2193,7 @@ void CL_ParseChunkedDownload(qdownload_t *dl)
 	chunkrate += 1;
 }
 
-int CL_CountQueuedDownloads(void)
+static int CL_CountQueuedDownloads(void)
 {
 	int count = 0;
 	downloadlist_t *dl;

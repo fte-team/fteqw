@@ -3506,7 +3506,7 @@ qboolean CL_AllowArbitaryDownload(char *oldname, char *localfile)
 	if (!Q_strncasecmp(localfile, "game", 4) ||	//q2-ey things
 		!Q_strcasecmp(localfile, "progs.dat") || !Q_strcasecmp(localfile, "menu.dat") || !Q_strcasecmp(localfile, "csprogs.dat") || !Q_strcasecmp(localfile, "qwprogs.dat") || //overriding gamecode is bad (csqc should be dlcached)
 		strstr(localfile, "\\") || strstr(localfile, "..") || strstr(localfile, "./") || strstr(localfile, ":") || strstr(localfile, "//") ||	//certain path patterns are just bad
-		Q_strcasestr(localfile, ".qvm") || Q_strcasestr(localfile, ".dll") || Q_strcasestr(localfile, ".so"))	//disallow any native code
+		Q_strcasestr(localfile, ".qvm") || Q_strcasestr(localfile, ".dll") || Q_strcasestr(localfile, ".so") || Q_strcasestr(localfile, ".dylib"))	//disallow any native code
 	{	//yes, I know the user can use a different progs from the one that is specified. If you leave it blank there will be no problem. (server isn't allowed to stuff progs cvar)
 		Con_Printf("Ignoring arbitary download to \"%s\" due to possible security risk\n", localfile);
 		return false;
@@ -5469,15 +5469,15 @@ void CL_StartCinematicOrMenu(void)
 		if (!sv.state)
 #endif
 		{
-			if (qrenderer > QR_NONE && !m_state)
+			if (qrenderer > QR_NONE && !Key_Dest_Has(kdm_emenu))
 			{
 #ifndef NOBUILTINMENUS
-				if (!cls.state && !m_state && !*FS_GetGamedir(false))
+				if (!cls.state && !Key_Dest_Has(kdm_emenu) && !*FS_GetGamedir(false))
 					M_Menu_Mods_f();
 #endif
-				if (!cls.state && !m_state && cl_demoreel.ival)
+				if (!cls.state && !Key_Dest_Has(kdm_emenu) && cl_demoreel.ival)
 					CL_NextDemo();
-				if (!cls.state && !m_state)
+				if (!cls.state && !Key_Dest_Has(kdm_emenu))
 					//if we're (now) meant to be using csqc for menus, make sure that its running.
 					if (!CSQC_UnconnectedInit())
 						M_ToggleMenu_f();

@@ -253,13 +253,11 @@ skipwhite:
 	return (char*)data;
 }
 
+#undef COM_ParseToken
 char *COM_ParseToken (const char *data, const char *punctuation)
 {
 	int		c;
 	int		len;
-#ifndef WEBSVONLY
-	COM_AssertMainThread("COM_ParseToken");
-#endif
 	len = 0;
 	com_token[0] = 0;
 	

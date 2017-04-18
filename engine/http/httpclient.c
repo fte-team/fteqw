@@ -27,6 +27,7 @@ static void DL_Cancel(struct dl_download *dl)
 }
 static void DL_OnLoad(void *c, void *data, int datasize)
 {
+	//also fires from 404s.
 	struct dl_download *dl = c;
 
 	//make sure the file is 'open'.
@@ -65,13 +66,15 @@ static void DL_OnError(void *c)
 #endif
 {
 	struct dl_download *dl = c;
+	//fires from cross-domain blocks, tls errors, etc.
+	//anything which doesn't yield an http response (404 is NOT an error as far as js is aware).
 
 #if MYJS
 	dl->replycode = ecode;
 #else
 	dl->replycode = 404;	//we don't actually know. should we not do this?
 #endif
-	Con_Printf("download: %s: error %i\n", dl->url, dl->replycode);
+	Con_Printf(CON_WARNING"dl error: %s\n", dl->url);
 	dl->status = DL_FAILED;
 }
 static void DL_OnProgress(void *c, int position, int totalsize)
@@ -495,6 +498,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 	char *nl;
 	char *msg;
 	int ammount;
+	qboolean transfercomplete = false;
 
 #ifdef MULTITHREAD
 	//if we're running in a thread, wait for some actual activity instead of busylooping like an moron.
@@ -826,8 +830,11 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 		con->bufferused+=ammount;
 
-		if (con->chunking)	//FIXME: NEEDS TESTING!!!
+		if (con->chunking)
 		{
+			//9\r\n
+			//chunkdata\r\n
+			//(etc)
 			int trim;
 			char *nl;
 			con->buffer[con->bufferused] = '\0';
@@ -838,29 +845,46 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 					trim = con->bufferused - con->chunked;
 					if (trim > con->chunksize)
 						trim = con->chunksize;	//don't go into the next size field.
-					con->chunksize -= trim;
-					con->chunked += trim;
 
-					if (!con->chunksize)
+					if (con->chunksize == trim)
 					{	//we need to find the next \n and trim it.
-						nl = strchr(con->buffer+con->chunked, '\n');
+						nl = strchr(con->buffer+con->chunked+trim, '\n');
 						if (!nl)
 							break;
 						nl++;
+						con->chunksize = 0;
+						con->chunked += trim;
+
+						//chop out the \r\n from the stream
 						trim = nl - (con->buffer+con->chunked);
 						memmove(con->buffer + con->chunked, nl, con->buffer+con->bufferused-nl+1);
 						con->bufferused -= trim;
 					}
+					else
+					{
+						con->chunksize -= trim;
+						con->chunked += trim;
+					}
+
 					if (!(con->bufferused - con->chunked))
 						break;
 				}
 				else
 				{
+					size_t nextsize;
 					nl = strchr(con->buffer+con->chunked, '\n');
 					if (!nl)
 						break;
-					con->chunksize = strtol(con->buffer+con->chunked, NULL, 16);	//it's hex.
+					nextsize = strtoul(con->buffer+con->chunked, NULL, 16);	//it's hex.
 					nl++;
+					if (!nextsize) //eof. make sure we skip its \n too
+					{
+						nl = strchr(nl, '\n');
+						if (!nl)
+							break;
+						transfercomplete = true;
+					}
+					con->chunksize = nextsize;
 					trim = nl - (con->buffer+con->chunked);
 					memmove(con->buffer + con->chunked, nl, con->buffer+con->bufferused-nl+1);
 					con->bufferused -= trim;
@@ -914,11 +938,12 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				con->bufferused -= chunk;
 			}
 			if (con->totalreceived == con->contentlength)
-				ammount = 0;
+				transfercomplete = true;
 		}
 
-		if (!ammount)
-		{	//server closed off the connection.
+		if (!ammount || transfercomplete)
+		{	//server closed off the connection (or signalled eof/sent enough data).
+			//if (ammount) then we can save off the connection for reuse.
 			if (con->chunksize)
 				dl->status = DL_FAILED;
 			else
@@ -1716,16 +1741,6 @@ static int QDECL VFSPIPE_ReadBytes(vfsfile_t *f, void *buffer, int len)
 		len = p->writepos - p->readpos;
 	memcpy(buffer, p->data+p->readpos, len);
 	p->readpos += len;
-
-	if (p->readpos > 8192)
-	{
-		//shift the memory down periodically
-		//fixme: use cyclic buffer? max size, etc?
-		memmove(p->data, p->data+p->readpos, p->writepos-p->readpos);
-
-		p->writepos -= p->readpos;
-		p->readpos = 0;
-	}
 	Sys_UnlockMutex(p->mutex);
 	return len;
 }
@@ -1733,6 +1748,12 @@ static int QDECL VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
 	Sys_LockMutex(p->mutex);
+	if (p->readpos > 8192)
+	{	//don't grow infinitely if we're reading+writing at the same time
+		memmove(p->data, p->data+p->readpos, p->writepos-p->readpos);
+		p->writepos -= p->readpos;
+		p->readpos = 0;
+	}
 	if (p->writepos + len > p->maxlen)
 	{
 		p->maxlen = p->writepos + len;

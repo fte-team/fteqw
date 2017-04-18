@@ -2,12 +2,10 @@
 START=$(date +%s)
 
 SVNROOT=$(cd "$(dirname "$(readlink "$BASH_SOURCE")")" && pwd)
-FTECONFIG=$SVNROOT/build_cfg.sh
+FTECONFIG=$SVNROOT/build.cfg
 
 HOME=`echo ~`
 BASE=$SVNROOT/..
-#how many cpu cores do you have?
-THREADS="-j 4"
 #set this if you want non-default branding, for customised builds.
 #export BRANDING=wastes
 
@@ -23,12 +21,15 @@ PLUGINS_LINUXx86="qi ezhud xmpp irc"
 PLUGINS_LINUXx64="qi ezhud xmpp irc"
 PLUGINS_LINUXx32="qi ezhud xmpp irc"
 PLUGINS_WINDOWS="avplug ode qi ezhud xmpp irc"
+THREADS="-j 4"
 
 ########### NaCL stuff
 NACL_SDK_ROOT=/opt/nacl_sdk/pepper_31/
 
 if [ -e $FTECONFIG ]; then
 	. $FTECONFIG
+else
+	echo "WARNING: $FTECONFIG does not exist yet."
 fi
 
 export NACL_SDK_ROOT
@@ -143,6 +144,10 @@ if [ "$BUILD_WINDOWS" != "n" ]; then
 	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows 32-bit" win32 FTE_TARGET=win32 CFLAGS="$WARNINGLEVEL" sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel NATIVE_PLUGINS="$PLUGINS_WINDOWS"
 	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows 64-bit" win64 FTE_TARGET=win64 CFLAGS="$WARNINGLEVEL" sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel
 fi
+if [ "$BUILD_MSVC" != "n" ]; then
+	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows MSVC 32-bit" msvc FTE_TARGET=vc BITS=32 CFLAGS="$WARNINGLEVEL" sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel
+	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows MSVC 64-bit" msvc FTE_TARGET=vc BITS=64 CFLAGS="$WARNINGLEVEL" sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel
+fi
 export NATIVE_PLUGINS="qi ezhud xmpp irc"
 if [ "$BUILD_ANDROID" != "n" ]; then
 	build "Android" android droid-rel
@@ -175,6 +180,7 @@ fi
 ####build "MorphOS" morphos CFLAGS="-I$BASE/morphos/os-include/ -I$BASE/morphos/lib/ -L$BASE/morphos/lib/ -I$BASE/zlib/zlib-1.2.5 -L$BASE/zlib/zlib-1.2.5 -I./libs $WARNINGLEVEL" gl-rel mingl-rel sv-rel qcc-rel
 if [ "$BUILD_MAC" != "n" ]; then
 	#build "MacOSX" macosx_tiger CFLAGS="-I$BASE/mac/x86/include/ -L$BASE/mac/x86/lib -I./libs" FTE_TARGET=macosx_x86 sv-rel gl-rel mingl-rel qcc-rel
+	#FIXME: figure out how to do universal binaries or whatever they're called
 	build "MacOSX 32-bit" osx32 CC=o32-clang CXX=o32-clang++ FTE_TARGET=osx_x86 BITS=32 sv-rel gl-rel mingl-rel qcc-rel
 	build "MacOSX 64-bit" osx64 CC=o64-clang CXX=o64-clang++ FTE_TARGET=osx_x86_64 BITS=64 sv-rel gl-rel mingl-rel qcc-rel
 fi
@@ -208,7 +214,7 @@ then
 	mv ~/.fte/fte/src/csqcsysdefs.qc $QCCBUILDFOLDER
 	mv ~/.fte/fte/src/menusysdefs.qc $QCCBUILDFOLDER
 else
-	echo "Skipping FTE Extensions, no Linux build located"
+	echo "Skipping FTE Extensions, no Linux gl32 build located"
 fi
 
 

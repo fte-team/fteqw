@@ -19,7 +19,6 @@ void M_Menu_MultiPlayer_f (void)
 
 	p = NULL;
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	mgt = M_GameType();
 
@@ -442,7 +441,6 @@ void M_Menu_Setup_f (void)
 			};
 			mpic_t *p;
 			menucustom_t *cu;
-			m_state = m_complex;
 			Key_Dest_Add(kdm_emenu);
 
 			menu = M_CreateMenu(sizeof(setupmenu_t));
@@ -470,7 +468,6 @@ void M_Menu_Setup_f (void)
 #endif
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(setupmenu_t));
 	info = menu->data;
@@ -657,7 +654,6 @@ void M_Menu_GameOptions_f (void)
 	int players;
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(newmultimenu_t));
 	info = menu->data;

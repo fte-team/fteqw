@@ -1725,7 +1725,7 @@ static const char *glsl_hdrs[] =
 					"#else\n"
 						"#ifdef USE_ARB_SHADOW\n"
 							//with arb_shadow, we can benefit from hardware acclerated pcf, for smoother shadows
-							"#define dosamp(x,y) shadow2D(smap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx))\n"
+							"#define dosamp(x,y) float(shadow2D(smap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)))\n"
 						"#else\n"
 							"#define dosamp(x,y) float(texture2D(smap, shadowcoord.xy + (vec2(x,y)*l_shadowmapscale.xy)).r >= shadowcoord.z)\n"
 						"#endif\n"
@@ -3121,15 +3121,31 @@ void DumpGLState(void)
 
 
 rendererinfo_t openglrendererinfo = {
+	//customise the text printed depending on the actual type of opengl that we're locking ourselves to
 #ifdef FTE_TARGET_WEB
 	"WebGL",
+#elif defined(GLESONLY)
+	#ifdef GLSLONLY
+		"OpenGLES2+",
+	#else
+		"OpenGLES",
+	#endif
 #else
 	"OpenGL",
 #endif
 	{
+		//reorder these too, if only so that 'setrenderer' lists gles-only builds as using gles instead of gl
+#if defined(GLESONLY)
+		"gles",
+		"opengles",
 		"gl",
 		"opengl",
-		"hardware",
+#else
+		"gl",
+		"opengl",
+		"gles",
+		"opengles",
+#endif
 	},
 	QR_OPENGL,
 

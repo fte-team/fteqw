@@ -44,6 +44,8 @@ typedef struct
 } qpic_t;
 
 typedef struct shader_s shader_t;
+#define material_t shader_t	//the material
+#define rshader_t shader_t	//the shader the material will draw with
 #define mpic_t shader_t
 
 //atlased images within some larger atlas

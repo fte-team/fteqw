@@ -1318,6 +1318,7 @@ static int csqc_poly_2d;
 #define DRAWFLAG_MODULATE2	3
 #define DRAWFLAG_2D			(1u<<2)
 #define DRAWFLAG_TWOSIDED	0x400
+#define DRAWFLAG_LINES		0x800
 
 static void CSQC_PolyFlush(void)
 {
@@ -1542,6 +1543,8 @@ void QCBUILTIN PF_R_AddTrisoup_Simple(pubprogfuncs_t *prinst, struct globalvars_
 		beflags = BEF_NOSHADOWS;
 	if (qcflags & DRAWFLAG_TWOSIDED)
 		beflags |= BEF_FORCETWOSIDED;
+	if (qcflags & DRAWFLAG_LINES)
+		beflags |= BEF_LINES;
 
 	if (twod)
 		shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
@@ -7527,7 +7530,7 @@ qboolean CSQC_DrawView(void)
 #ifdef RAGDOLL
 				rag_doallanimations(&sv.world);
 #endif
-				csqc_world.rbe->Frame(&csqc_world, host_frametime, 800);
+				csqc_world.rbe->RunFrame(&csqc_world, host_frametime, 800);
 			}
 #endif
 
@@ -7619,7 +7622,7 @@ qboolean CSQC_DrawView(void)
 		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = vid.width;
 		G_FLOAT(OFS_PARM1) = vid.height;
-		G_FLOAT(OFS_PARM2) = !m_state && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
+		G_FLOAT(OFS_PARM2) = !Key_Dest_Has(kdm_emenu) && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
 	}
 	//end EXT_CSQC_1
 	if (csqcg.f_updateviewloading && cls.state && cls.state < ca_active)
@@ -7862,10 +7865,13 @@ qboolean CSQC_ParseGamePacket(void)
 	return true;
 }
 
-void CSQC_MapEntityEdited(int idx, const char *newe)
+void CSQC_MapEntityEdited(int modelindex, int idx, const char *newe)
 {
 	void *pr_globals;
 	if (!csqcprogs || !csqcg.mapentityedited)
+		return;
+
+	if (modelindex != 1)
 		return;
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);

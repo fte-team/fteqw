@@ -1031,7 +1031,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 #endif
 }
 
-progsnum_t AddProgs(const char *name)
+static progsnum_t AddProgs(const char *name)
 {
 	float fl;
 	func_t f;
@@ -1133,7 +1133,7 @@ progsnum_t AddProgs(const char *name)
 	return num;
 }
 
-void PR_Decompile_f(void)
+static void PR_Decompile_f(void)
 {
 	if (!svprogfuncs)
 	{
@@ -1147,7 +1147,7 @@ void PR_Decompile_f(void)
 	else
 		svprogfuncs->Decompile(svprogfuncs, Cmd_Argv(1));
 }
-void PR_Compile_f(void)
+static void PR_Compile_f(void)
 {
 	qboolean killondone = false;
 	int argc=3;
@@ -1202,7 +1202,7 @@ void PR_Compile_f(void)
 	Con_TPrintf("Compile took %f secs\n", time);
 }
 
-void PR_ApplyCompilation_f (void)
+static void PR_ApplyCompilation_f (void)
 {
 	edict_t *ent;
 	char *s;
@@ -1241,7 +1241,7 @@ void PR_ApplyCompilation_f (void)
 	svprogfuncs->parms->memfree(s);
 }
 
-void PR_BreakPoint_f(void)
+static void PR_BreakPoint_f(void)
 {
 	int wasset;
 	int isset;
@@ -1265,7 +1265,7 @@ void PR_BreakPoint_f(void)
 
 //	Cvar_Set(Cvar_FindVar("debugger"), "1");
 }
-void PR_WatchPoint_f(void)
+static void PR_WatchPoint_f(void)
 {
 	char *variable = Cmd_Argv(1);
 	int oldself;
@@ -1320,7 +1320,7 @@ static void PR_SSPoke_f(void)
 		Con_TPrintf ("not supported.\n");
 }
 
-void PR_SSCoreDump_f(void)
+static void PR_SSCoreDump_f(void)
 {
 	if (!svprogfuncs)
 	{
@@ -1337,7 +1337,7 @@ void PR_SSCoreDump_f(void)
 	}
 }
 
-void PR_SVExtensionList_f(void);
+static void PR_SVExtensionList_f(void);
 
 /*
 #ifdef _DEBUG
@@ -2125,6 +2125,10 @@ qboolean PR_ParseClusterEvent(char *dest, char *source, char *cmd, char *info)
 	}
 
 	return false;
+}
+
+void SSQC_MapEntityEdited(int modelidx, int idx, const char *newdata)
+{
 }
 
 qboolean PR_KrimzonParseCommand(char *s)
@@ -10662,6 +10666,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"matchpattern",	PF_Fixme,			0,		0,		0,		538,	"float(string s, string pattern, float matchrule)"},
 //	{"undefined",		PF_Fixme,			0,		0,		0,		539,	""},
 
+	{"physics_supported",PF_physics_supported,0,	0,		0,		0,		D("float(optional float force)", "Queries whether rigid body physics is enabled or not. CSQC and SSQC may report different values. If the force argument is used then the engine will try to activate or release physics (returning the new state, which may fail if plugins or dlls are missing). Note that restarting the physics engine is likely to result in hitches when collision trees get generated. The state may change if a plugin is disabled mid-map.")},
 #ifdef USERBE
 	{"physics_enable",	PF_physics_enable,	0,		0,		0,		540,	D("void(entity e, float physics_enabled)", "Enable or disable the physics attached to a MOVETYPE_PHYSICS entity. Entities which have been disabled in this way will stop taking so much cpu time.")},
 	{"physics_addforce",PF_physics_addforce,0,		0,		0,		541,	D("void(entity e, vector force, vector relative_ofs)", "Apply some impulse directional force upon a MOVETYPE_PHYSICS entity.")},
@@ -11985,13 +11990,13 @@ void PR_DumpPlatform_f(void)
 		{"TEREDIT_TINT",		"const float", CS, NULL, ter_tint},
 		{"TEREDIT_RESET_SECT",	"const float", CS, NULL, ter_reset},
 		{"TEREDIT_RELOAD_SECT",	"const float", CS, NULL, ter_reloadsect},
-		{"TEREDIT_ENTS_WIPE",	"const float", CS, NULL, ter_ents_wipe},
+//		{"TEREDIT_ENTS_WIPE",	"const float", CS, NULL, ter_ents_wipe_deprecated},
 //		{"TEREDIT_ENTS_CONCAT",	"const float", CS, NULL, ter_ents_concat},
 //		{"TEREDIT_ENTS_GET",	"const float", CS, NULL, ter_ents_get},
 		{"TEREDIT_ENT_GET",		"const float", CS, NULL, ter_ent_get},
 		{"TEREDIT_ENT_SET",		"const float", CS, NULL, ter_ent_set},
 		{"TEREDIT_ENT_ADD",		"const float", CS, NULL, ter_ent_add},
-		{"TEREDIT_ENT_COUNT",		"const float", CS, NULL, ter_ent_count},
+		{"TEREDIT_ENT_COUNT",	"const float", CS, NULL, ter_ent_count},
 #endif
 
 		{"SLIST_HOSTCACHEVIEWCOUNT",	"const float", CS|MENU, NULL, SLIST_HOSTCACHEVIEWCOUNT},

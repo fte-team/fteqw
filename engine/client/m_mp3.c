@@ -1260,7 +1260,6 @@ qboolean M_Media_Key (int key, menu_t *menu)
 void M_Menu_Media_f (void)
 {
 	menu_t *menu;
-	m_state = m_complex;
 	Key_Dest_Add(kdm_emenu);
 	menu = M_CreateMenu(0);
 
@@ -2481,10 +2480,7 @@ qboolean Media_PlayFilm(char *name, qboolean enqueue)
 		SCR_EndLoadingPlaque();
 
 		if (Key_Dest_Has(kdm_emenu))
-		{
 			Key_Dest_Remove(kdm_emenu);
-			m_state = m_none;
-		}
 #ifdef MENU_DAT
 		if (Key_Dest_Has(kdm_gmenu))
 			MP_Toggle(0);

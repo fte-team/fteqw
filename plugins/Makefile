@@ -1,18 +1,18 @@
 
 #windows is special as always, but we don't support itanium, and microsoft don't support anything else (not even arm with the nt win32 api)
 ifeq ($(FTE_TARGET),win32)
-PLUG_NATIVE_EXT=_x86.dll
+	PLUG_NATIVE_EXT=_x86.dll
 PLUG_LDFLAGS= 
 PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw-libs -lzlib
-BITS=32
-PLUG_LDFLAGS_DL=
+	BITS=32
+	PLUG_LDFLAGS_DL=
 endif
 ifeq ($(FTE_TARGET),win64)
-PLUG_NATIVE_EXT=_x64.dll
+	PLUG_NATIVE_EXT=_x64.dll
 PLUG_LDFLAGS=-Wl,--support-old-code
 PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw64-libs -lz
-BITS=64
-PLUG_LDFLAGS_DL=
+	BITS=64
+	PLUG_LDFLAGS_DL=
 endif
 
 PLUG_LDFLAGS_DL?=-ldl
@@ -20,50 +20,50 @@ PLUG_LDFLAGS?=-L/usr/local/lib -Wl,-R/usr/local/lib -lm
 PLUG_LDFLAGS_ZLIB?=-lz
 
 ifneq ($(PLUG_NATIVE_EXT),)
-#if we're on windows, we'll put our windows-specific hacks here.
-PLUG_DEFFILE=plugin.def
-PLUG_CFLAGS=
-PLUG_CXXFLAGS=
+	#if we're on windows, we'll put our windows-specific hacks here.
+	PLUG_DEFFILE=plugin.def
+	PLUG_CFLAGS=
+	PLUG_CXXFLAGS=
 endif
 
 #cygwin uses dll naming.
 ifeq ($(FTE_TARGET),cygwin)
-ifeq ($(BITS),64)
-PLUG_DEFFILE=plugin.def
-PLUG_NATIVE_EXT=_amd64.dll
-endif
-ifneq ($(BITS),64)
-PLUG_DEFFILE=plugin.def
-PLUG_NATIVE_EXT=_x86.dll
-endif
+	ifeq ($(BITS),64)
+		PLUG_DEFFILE=plugin.def
+		PLUG_NATIVE_EXT=_amd64.dll
+	endif
+	ifneq ($(BITS),64)
+		PLUG_DEFFILE=plugin.def
+		PLUG_NATIVE_EXT=_x86.dll
+	endif
 endif
 
 #if they're not on windows, we'll try asking the compiler directly
 #the check to see if its already set is to avoid asking msvc, which would probably break things.
 ifeq ($(PLUG_NATIVE_EXT),)
 	LIBRESOLV=-lresolv
-ifneq ($(shell echo|$(CC) -E -dM -|grep __amd64__),)
-	#either x32 or x64 ABIs
-	ifneq ($(shell echo|$(CC) -E -dM -|grep __ILP32__),)
-		PLUG_NATIVE_EXT=_x32.so
-	else
-		PLUG_NATIVE_EXT=_amd64.so
+	ifneq ($(shell echo|$(CC) -E -dM -|grep __amd64__),)
+		#either x32 or x64 ABIs
+		ifneq ($(shell echo|$(CC) -E -dM -|grep __ILP32__|grep 1),)
+			PLUG_NATIVE_EXT=_x32.so
+		else
+			PLUG_NATIVE_EXT=_amd64.so
+		endif
 	endif
-endif
-ifneq ($(shell echo|$(CC) -E -dM -|grep __i386__),)
-	PLUG_NATIVE_EXT=_x86.so
-endif
-ifneq ($(shell echo|$(CC) -E -dM -|grep __arm__),)
-	#gnueabi[hf]
-	ifneq ($(shell echo|$(CC) -E -dM -|grep __SOFTFP__),)
-		PLUG_NATIVE_EXT=_arm.so
-	else
-		PLUG_NATIVE_EXT=_armhf.so
+	ifneq ($(shell echo|$(CC) -E -dM -|grep __i386__),)
+		PLUG_NATIVE_EXT=_x86.so
 	endif
-endif
-ifneq ($(shell echo|$(CC) -E -dM -|grep __ppc__),)
-	PLUG_NATIVE_EXT=_ppc.so
-endif
+	ifneq ($(shell echo|$(CC) -E -dM -|grep __arm__),)
+		#gnueabi[hf]
+		ifneq ($(shell echo|$(CC) -E -dM -|grep __SOFTFP__),)
+			PLUG_NATIVE_EXT=_arm.so
+		else
+			PLUG_NATIVE_EXT=_armhf.so
+		endif
+	endif
+	ifneq ($(shell echo|$(CC) -E -dM -|grep __ppc__),)
+		PLUG_NATIVE_EXT=_ppc.so
+	endif
 endif
 
 #fallback

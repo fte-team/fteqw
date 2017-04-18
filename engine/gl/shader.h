@@ -536,13 +536,15 @@ enum
 	bemoverride_fog,			//post-render volumetric fog
 	bemoverride_max
 };
+//FIXME: split into separate materials and shaders
 struct shader_s
 {
 	char name[MAX_QPATH];
 	enum {
 		SUF_NONE		= 0,
 		SUF_LIGHTMAP	= 1<<0,	//$lightmap passes are valid. otherwise collapsed to an rgbgen
-		SUF_2D			= 1<<1	//any loaded textures will obey 2d picmips rather than 3d picmips
+		SUF_2D			= 1<<1,	//any loaded textures will obey 2d picmips rather than 3d picmips
+		SUR_FORCEFALLBACK = 1<<2//shader fallback is forced, will not load from disk
 	} usageflags;	//
 	int uses;	//released when the uses drops to 0
 	int width;	//when used as an image, this is the logical 'width' of the image. FIXME.
@@ -554,8 +556,8 @@ struct shader_s
 	struct shader_s *next;
 	int id;
 
-	shader_t *bemoverrides[bemoverride_max];
-	shader_t *remapto;	//render using this shader instead. for q3 nonsense.
+	rshader_t *bemoverrides[bemoverride_max];
+	material_t *remapto;	//render using this material instead. for q3 nonsense.
 	float	remaptime;
 
 	byte_vec4_t fog_color;

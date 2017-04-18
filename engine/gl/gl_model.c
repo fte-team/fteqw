@@ -586,6 +586,7 @@ void Mod_ParseEntities(model_t *mod)
 				m *= 2;
 			mod->entityinfo = BZ_Realloc(mod->entityinfo, sizeof(*mod->entityinfo) * m);
 		}
+		mod->entityinfo[c].id = c+1;
 		mod->entityinfo[c].keyvals = BZ_Malloc(entend-entstart + 1);
 		memcpy(mod->entityinfo[c].keyvals, entstart, entend-entstart);
 		mod->entityinfo[c].keyvals[entend-entstart] = 0;
@@ -1267,7 +1268,37 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 					return;
 				}
 #endif
-				break; // failed to load unreplaced file and nothing left
+#ifdef TERRAIN
+				if (!Q_strcasecmp(ext, "map"))
+				{
+					const char *dummymap =
+						"{\n"
+							"classname worldspawn\n"
+							"wad \"base.wad\"\n"	//we ARE a quake engine after all, and default.wad is generally wrong
+							"message \"Unnamed map\"\n"
+							"{\n"
+								"(-128  128 0)	( 128  128 0)	( 128 -128 0)	\"WBRICK1_5\" 0 0 0 1 1\n"
+								"( 128 -128 -16)( 128  128 -16)	(-128  128 -16)	\"WBRICK1_5\" 0 0 0 1 1\n"
+								"( 128  128 0)	(-128  128 0)	(-128  128 -16)	\"WBRICK1_5\" 0 0 0 1 1\n"
+								"(-128 -128 0)	( 128 -128 0)	( 128 -128 -16)	\"WBRICK1_5\" 0 0 0 1 1\n"
+								"(-128  128 0)	(-128 -128 0)	(-128 -128 -16)	\"WBRICK1_5\" 0 0 0 1 1\n"
+								"( 128 -128 0)	( 128  128 0)	( 128  128 -16)	\"WBRICK1_5\" 0 0 0 1 1\n"
+							"}\n"
+						"}\n"
+						"{\n"
+							"classname info_player_start\n"
+							"origin \"0 0 24\"\n"
+						"}\n"
+						"{\n"
+							"classname light\n"
+							"origin \"0 0 64\"\n"
+						"}\n";
+					buf = (unsigned*)Z_StrDup(dummymap);
+					filesize = strlen(dummymap);
+				}
+				else
+#endif
+					break; // failed to load unreplaced file and nothing left
 			}
 		}
 		if (!buf)

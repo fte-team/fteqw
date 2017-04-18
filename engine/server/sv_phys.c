@@ -2553,7 +2553,7 @@ qboolean SV_Physics (void)
 #ifdef RAGDOLL
 			rag_doallanimations(&sv.world);
 #endif
-			sv.world.rbe->Frame(&sv.world, host_frametime, sv_gravity.value);
+			sv.world.rbe->RunFrame(&sv.world, host_frametime, sv_gravity.value);
 		}
 #endif
 

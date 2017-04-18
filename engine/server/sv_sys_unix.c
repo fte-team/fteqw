@@ -717,6 +717,9 @@ int main(int argc, char *argv[])
 	COM_InitArgv (argc, (const char **)argv);
 	parms.argc = com_argc;
 	parms.argv = com_argv;
+#ifdef CONFIG_MANIFEST_TEXT
+	parms.manifest = CONFIG_MANIFEST_TEXT;
+#endif
 
 #ifdef __linux__
 	if (!COM_CheckParm("-nodumpstack"))

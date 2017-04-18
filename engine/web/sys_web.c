@@ -214,6 +214,9 @@ int QDECL main(int argc, char **argv)
 
 	parms.argc = argc;
 	parms.argv = (const char**)argv;
+#ifdef CONFIG_MANIFEST_TEXT
+	parms.manifest = CONFIG_MANIFEST_TEXT;
+#endif
 
 	COM_InitArgv (parms.argc, parms.argv);
 

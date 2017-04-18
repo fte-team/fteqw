@@ -20,6 +20,7 @@ uniform sampler2D s_t0;
 varying vec2 tc;
 varying vec4 vc;
 uniform vec4 e_colourident;
+uniform vec4 e_lmscale;
 void main ()
 {
 	vec4 col = texture2D(s_t0, tc);
@@ -27,6 +28,6 @@ void main ()
 	if (col.a < float(MASK))
 		discard;
 #endif
-	gl_FragColor = fog4blend(col * vc * e_colourident);
+	gl_FragColor = fog4blend(col * vc * e_colourident * e_lmscale);
 }
 #endif

@@ -2158,6 +2158,7 @@ void World_RBE_Shutdown(world_t *world)
 		}
 	}
 	world->rbe->End(world);
+	world->rbe = NULL;
 #endif
 }
 void QDECL World_UnregisterPhysicsEngine(const char *enginename)

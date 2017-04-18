@@ -231,7 +231,6 @@ void M_Menu_Save_f (void)
 		return;
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
 	menu->data = menu+1;
@@ -263,7 +262,6 @@ void M_Menu_Load_f (void)
 	char time[64];
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 	
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
 	menu->data = menu+1;
@@ -308,7 +306,6 @@ void M_Menu_SinglePlayer_f (void)
 #endif
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 #ifdef CLIENTONLY
 	menu = M_CreateMenu(0);
@@ -978,7 +975,6 @@ void M_Menu_Demos_f (void)
 
 	Key_Dest_Add(kdm_emenu);
 	Key_Dest_Remove(kdm_console);
-	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(demomenu_t));
 	menu->remove = M_Demo_Remove;
@@ -1046,7 +1042,6 @@ void M_Menu_MediaFiles_f (void)
 	static demoloc_t mediareenterloc = {FS_GAME};
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(demomenu_t));
 	menu->remove = M_Demo_Remove;

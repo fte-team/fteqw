@@ -4267,9 +4267,9 @@ void QCC_SetDefaultProperties (void)
 
 	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)	//force on the thinktime keyword if hexen2 progs.
 	{
-		keyword_thinktime = true;
-		keyword_until = true;
-		keyword_loop = true;
+		keyword_thinktime = true;	//thinktime self : 0.1;
+		keyword_until = true;		//until(cond) {code}; or do{code}until(cond);
+		keyword_loop = true;		//loop {code};
 	}
 
 	if ((FWDSLASHARGS && QCC_CheckParm("/Debug")))	//disable any debug optimisations

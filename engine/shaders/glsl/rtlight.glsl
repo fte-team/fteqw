@@ -43,6 +43,9 @@
 #if !defined(TESS_CONTROL_SHADER)
 	varying vec2 tcbase;
 	varying vec3 lightvector;
+	#if defined(VERTEXCOLOURS)
+		varying vec4 vc;
+	#endif
 	#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 		varying vec3 eyevector;
 	#endif
@@ -74,6 +77,9 @@ void main ()
 	lightvector.x = dot(lightminusvertex, s.xyz);
 	lightvector.y = dot(lightminusvertex, t.xyz);
 	lightvector.z = dot(lightminusvertex, n.xyz);
+#endif
+#if defined(VERTEXCOLOURS)
+	vc = v_colour;
 #endif
 #if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
@@ -114,6 +120,10 @@ in vec2 tcbase[];
 out vec2 t_tcbase[];
 in vec3 lightvector[];
 out vec3 t_lightvector[];
+#if defined(VERTEXCOLOURS)
+in vec4 vc[];
+out vec4 t_vc[];
+#endif
 #if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 in vec3 eyevector[];
 out vec3 t_eyevector[];
@@ -126,6 +136,9 @@ void main()
 	t_normal[id] = normal[id];
 	t_tcbase[id] = tcbase[id];
 	t_lightvector[id] = lightvector[id];
+#if defined(VERTEXCOLOURS)
+	t_vc[id] = vc[id];
+#endif
 #if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	t_eyevector[id] = eyevector[id];
 #endif
@@ -152,6 +165,9 @@ in vec3 t_vertex[];
 in vec3 t_normal[];
 in vec2 t_tcbase[];
 in vec3 t_lightvector[];
+#if defined(VERTEXCOLOURS)
+in vec4 t_vc[];
+#endif
 #if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 in vec3 t_eyevector[];
 #endif
@@ -175,6 +191,9 @@ void main()
 
 	//FIXME: we should be recalcing these here, instead of just lerping them
 	lightvector = LERP(t_lightvector);
+#if defined(VERTEXCOLOURS)
+	vc = LERP(t_vc);
+#endif
 #if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	eyevector = LERP(t_eyevector);
 #endif
@@ -221,9 +240,12 @@ void main ()
 #define tcbase tcoffsetmap
 #endif
 #if defined(FLAT)
-	vec3 bases = vec3(FLAT);
+	vec4 bases = vec3(FLAT, 1.0);
 #else
-	vec3 bases = vec3(texture2D(s_diffuse, tcbase));
+	vec4 bases = texture2D(s_diffuse, tcbase);
+	#ifdef VERTEXCOLOURS
+		bases.rgb *= bases.a;
+	#endif
 #endif
 #ifdef UPPER
 	vec4 uc = texture2D(s_upper, tcbase);
@@ -245,14 +267,14 @@ void main ()
 	vec3 diff;
 #ifdef NOBUMP
 	//surface can only support ambient lighting, even for lights that try to avoid it.
-	diff = bases * (l_lightcolourscale.x+l_lightcolourscale.y);
+	diff = bases.rgb * (l_lightcolourscale.x+l_lightcolourscale.y);
 #else
 	vec3 nl = normalize(lightvector);
 	#ifdef BUMP
-		diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(bumps, nl), 0.0));
+		diff = bases.rgb * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(bumps, nl), 0.0));
 	#else
 		//we still do bumpmapping even without bumps to ensure colours are always sane. light.exe does it too.
-		diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));
+		diff = bases.rgb * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));
 	#endif
 #endif
 
@@ -278,6 +300,9 @@ void main ()
 #if defined(PROJECTION)
 	/*2d projection, not used*/
 //	diff *= texture2d(s_projectionmap, shadowcoord);
+#endif
+#if defined(VERTEXCOLOURS)
+	diff *= vc.rgb * vc.a;
 #endif
 
 	gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);

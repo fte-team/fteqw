@@ -3,6 +3,14 @@
 #include "qcc.h"
 #include <math.h>
 
+/*
+TODO:
+*foo++ = 5;
+is currently store foo->tmp; store 5->*tmp; add tmp,1->foo
+should be just store 5->*foo; add foo,1->foo
+the dereference does the post-inc. needs to be delayed somehow. could build a list of post-inc terms after the current expression, but might be really messy.
+*/
+
 #define WARN_IMPLICITVARIANTCAST 0
 
 //FIXME: #define IAMNOTLAZY
@@ -2460,6 +2468,11 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					optres_constantarithmatic++;
 					return QCC_MakeFloatConst(eval_a->_float + eval_b->_int);
 
+				case OP_ADD_PIW:
+					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
+					optres_constantarithmatic++;
+					return QCC_MakeIntConst(eval_a->_int + eval_b->_int*4);
+
 				case OP_SUB_IF:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
 					optres_constantarithmatic++;
@@ -2772,7 +2785,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					return nd;
 				}
 				break;
-
+#endif
 			case OP_BITOR_F:
 			case OP_OR_F:
 			case OP_SUB_F:
@@ -2813,6 +2826,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			case OP_OR_I:
 			case OP_SUB_I:
 			case OP_ADD_I:
+			case OP_ADD_PIW:
 				if (eval_b->_int == 0)
 				{
 					optres_constantarithmatic++;
@@ -2830,12 +2844,13 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				}
 				break;
 			case OP_BITAND_I:
-				if (eval_b->_int == 0xffffffff)
+				if (eval_b->_int == ~0)
 				{
 					optres_constantarithmatic++;
 					QCC_FreeTemp(var_b);
 					return var_a;
 				}
+				break;
 			case OP_AND_I:
 				if (eval_b->_int)
 				{
@@ -2850,7 +2865,6 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					return var_b;
 				}
 				break;
-#endif
 			}
 		}
 	}
@@ -10612,10 +10626,9 @@ void QCC_PR_ParseStatement (void)
 		e = QCC_PR_Expression (TOP_PRIORITY, 0);
 		QCC_PR_Expect(":");
 		e2 = QCC_PR_Expression (TOP_PRIORITY, 0);
+		e2 = QCC_SupplyConversion(e2, ev_float, true);
 		if (e.cast->type != ev_entity || e2.cast->type != ev_float)
 			QCC_PR_ParseError(ERR_THINKTIMETYPEMISMATCH, "thinktime type mismatch");
-
-		QCC_SupplyConversion(e2, ev_float, true);
 
 		if (QCC_OPCodeValid(&pr_opcodes[OP_THINKTIME]))
 			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_THINKTIME], e, e2, NULL));
@@ -13678,7 +13691,7 @@ Called at the outer layer and when a local statement is hit
 void QCC_PR_ParseDefs (char *classname)
 {
 	char		*name;
-	QCC_type_t		*type, *defclass;
+	QCC_type_t		*basetype, *type, *defclass;
 	QCC_def_t		*def, *d;
 	QCC_sref_t		dynlength;
 	QCC_function_t	*f;
@@ -13805,68 +13818,12 @@ void QCC_PR_ParseDefs (char *classname)
 					QCC_PR_GetDef(type_void, "end_sys_globals", NULL, true, 0, false);
 			accglobalsblock = 3;
 		}
-	}
 
-	if (!pr_scope)
-	switch(accglobalsblock)//reacc support.
-	{
-	case 1:
+		if (!pr_scope)
+		switch(accglobalsblock)//reacc support.
 		{
-		char *oldp = pr_file_p;
-		name = QCC_PR_ParseName();
-		if (!QCC_PR_CheckToken(":"))	//nope, it wasn't!
-		{
-			QCC_PR_IncludeChunk(name, true, NULL);
-			QCC_PR_Lex();
-			QCC_PR_UnInclude();
-			pr_file_p = oldp;
-			break;
-		}
-		if (QCC_PR_CheckKeyword(keyword_object, "object"))
-			QCC_PR_GetDef(type_entity, name, NULL, true, 0, true);
-		else if (QCC_PR_CheckKeyword(keyword_string, "string"))
-			QCC_PR_GetDef(type_string, name, NULL, true, 0, true);
-		else if (QCC_PR_CheckKeyword(keyword_real, "real"))
-		{
-			def = QCC_PR_GetDef(type_float, name, NULL, true, 0, true);
-			if (QCC_PR_CheckToken("="))
+		case 1:
 			{
-				def->symboldata[0]._float = pr_immediate._float;
-				QCC_PR_Lex();
-			}
-		}
-		else if (QCC_PR_CheckKeyword(keyword_vector, "vector"))
-		{
-			def = QCC_PR_GetDef(type_vector, name, NULL, true, 0, true);
-			if (QCC_PR_CheckToken("="))
-			{
-				QCC_PR_Expect("[");
-				def->symboldata[0].vector[0] = pr_immediate._float;
-				QCC_PR_Lex();
-				def->symboldata[0].vector[1] = pr_immediate._float;
-				QCC_PR_Lex();
-				def->symboldata[0].vector[2] = pr_immediate._float;
-				QCC_PR_Lex();
-				QCC_PR_Expect("]");
-			}
-		}
-		else if (QCC_PR_CheckKeyword(keyword_pfunc, "pfunc"))
-			QCC_PR_GetDef(type_function, name, NULL, true, 0, true);
-		else
-			QCC_PR_ParseError(ERR_BADNOTTYPE, "Bad type\n");
-		QCC_PR_Expect (";");
-
-		if (QCC_PR_CheckKeyword (keyword_system, "system"))
-			QCC_PR_Expect (";");
-		return;
-		}
-	case 2:
-		name = QCC_PR_ParseName();
-		QCC_PR_GetDef(type_function, name, NULL, true, 0, true);
-		QCC_PR_CheckToken (";");
-		return;
-	case 3:
-		{
 			char *oldp = pr_file_p;
 			name = QCC_PR_ParseName();
 			if (!QCC_PR_CheckToken(":"))	//nope, it wasn't!
@@ -13878,41 +13835,97 @@ void QCC_PR_ParseDefs (char *classname)
 				break;
 			}
 			if (QCC_PR_CheckKeyword(keyword_object, "object"))
-				def = QCC_PR_GetDef(QCC_PR_FieldType(type_entity), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+				QCC_PR_GetDef(type_entity, name, NULL, true, 0, true);
 			else if (QCC_PR_CheckKeyword(keyword_string, "string"))
-				def = QCC_PR_GetDef(QCC_PR_FieldType(type_string), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+				QCC_PR_GetDef(type_string, name, NULL, true, 0, true);
 			else if (QCC_PR_CheckKeyword(keyword_real, "real"))
-				def = QCC_PR_GetDef(QCC_PR_FieldType(type_float), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
-			else if (QCC_PR_CheckKeyword(keyword_vector, "vector"))
-				def = QCC_PR_GetDef(QCC_PR_FieldType(type_vector), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
-			else if (QCC_PR_CheckKeyword(keyword_pfunc, "pfunc"))
-				def = QCC_PR_GetDef(QCC_PR_FieldType(type_function), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
-			else
 			{
+				def = QCC_PR_GetDef(type_float, name, NULL, true, 0, true);
+				if (QCC_PR_CheckToken("="))
+				{
+					def->symboldata[0]._float = pr_immediate._float;
+					QCC_PR_Lex();
+				}
+			}
+			else if (QCC_PR_CheckKeyword(keyword_vector, "vector"))
+			{
+				def = QCC_PR_GetDef(type_vector, name, NULL, true, 0, true);
+				if (QCC_PR_CheckToken("="))
+				{
+					QCC_PR_Expect("[");
+					def->symboldata[0].vector[0] = pr_immediate._float;
+					QCC_PR_Lex();
+					def->symboldata[0].vector[1] = pr_immediate._float;
+					QCC_PR_Lex();
+					def->symboldata[0].vector[2] = pr_immediate._float;
+					QCC_PR_Lex();
+					QCC_PR_Expect("]");
+				}
+			}
+			else if (QCC_PR_CheckKeyword(keyword_pfunc, "pfunc"))
+				QCC_PR_GetDef(type_function, name, NULL, true, 0, true);
+			else
 				QCC_PR_ParseError(ERR_BADNOTTYPE, "Bad type\n");
+			QCC_PR_Expect (";");
+
+			if (QCC_PR_CheckKeyword (keyword_system, "system"))
+				QCC_PR_Expect (";");
+			return;
+			}
+		case 2:
+			name = QCC_PR_ParseName();
+			QCC_PR_GetDef(type_function, name, NULL, true, 0, true);
+			QCC_PR_CheckToken (";");
+			return;
+		case 3:
+			{
+				char *oldp = pr_file_p;
+				name = QCC_PR_ParseName();
+				if (!QCC_PR_CheckToken(":"))	//nope, it wasn't!
+				{
+					QCC_PR_IncludeChunk(name, true, NULL);
+					QCC_PR_Lex();
+					QCC_PR_UnInclude();
+					pr_file_p = oldp;
+					break;
+				}
+				if (QCC_PR_CheckKeyword(keyword_object, "object"))
+					def = QCC_PR_GetDef(QCC_PR_FieldType(type_entity), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+				else if (QCC_PR_CheckKeyword(keyword_string, "string"))
+					def = QCC_PR_GetDef(QCC_PR_FieldType(type_string), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+				else if (QCC_PR_CheckKeyword(keyword_real, "real"))
+					def = QCC_PR_GetDef(QCC_PR_FieldType(type_float), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+				else if (QCC_PR_CheckKeyword(keyword_vector, "vector"))
+					def = QCC_PR_GetDef(QCC_PR_FieldType(type_vector), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+				else if (QCC_PR_CheckKeyword(keyword_pfunc, "pfunc"))
+					def = QCC_PR_GetDef(QCC_PR_FieldType(type_function), name, NULL, true, 0, GDF_CONST|GDF_SAVED);
+				else
+				{
+					QCC_PR_ParseError(ERR_BADNOTTYPE, "Bad type\n");
+					QCC_PR_Expect (";");
+					return;
+				}
+
+				if (!def->initialized)
+				{
+					unsigned int u;
+					def->initialized = 1;
+					for (u = 0; u < def->type->size*(def->arraysize?def->arraysize:1); u++)	//make arrays of fields work.
+					{
+						if (*(int *)&def->symboldata[u])
+						{
+							QCC_PR_ParseWarning(0, "Field def already has a value:");
+							QCC_PR_ParsePrintDef(0, def);
+						}
+						*(int *)&def->symboldata[u] = pr.size_fields+u;
+					}
+
+					pr.size_fields += u;
+				}
+
 				QCC_PR_Expect (";");
 				return;
 			}
-
-			if (!def->initialized)
-			{
-				unsigned int u;
-				def->initialized = 1;
-				for (u = 0; u < def->type->size*(def->arraysize?def->arraysize:1); u++)	//make arrays of fields work.
-				{
-					if (*(int *)&def->symboldata[u])
-					{
-						QCC_PR_ParseWarning(0, "Field def already has a value:");
-						QCC_PR_ParsePrintDef(0, def);
-					}
-					*(int *)&def->symboldata[u] = pr.size_fields+u;
-				}
-
-				pr.size_fields += u;
-			}
-
-			QCC_PR_Expect (";");
-			return;
 		}
 	}
 
@@ -13956,13 +13969,13 @@ void QCC_PR_ParseDefs (char *classname)
 			break;
 	}
 
-	type = QCC_PR_ParseType (false, false);
-	if (type == NULL)	//ignore
+	basetype = QCC_PR_ParseType (false, false);
+	if (basetype == NULL)	//ignore
 		return;
 
 	inlinefunction = type_inlinefunction;
 
-	if (externfnc && type->type != ev_function)
+	if (externfnc && basetype->type != ev_function)
 	{
 		printf ("Only functions may be defined as external (yet)\n");
 		externfnc=false;
@@ -13972,10 +13985,10 @@ void QCC_PR_ParseDefs (char *classname)
 	{
 		name = QCC_PR_ParseName ();
 		QCC_PR_Expect("(");
-		type = QCC_PR_ParseFunctionTypeReacc(false, type);
+		type = QCC_PR_ParseFunctionTypeReacc(false, basetype);
 		QCC_PR_Expect(";");
 
-		def = QCC_PR_GetDef (type, name, NULL, true, 0, false);
+		def = QCC_PR_GetDef (basetype, name, NULL, true, 0, false);
 
 		if (autoprototype || dostrip)
 		{	//ignore the code and stuff
@@ -14018,7 +14031,7 @@ void QCC_PR_ParseDefs (char *classname)
 		{
 			def->referenced = true;
 
-			f = QCC_PR_ParseImmediateStatements (def, type, false);
+			f = QCC_PR_ParseImmediateStatements (def, basetype, false);
 
 			def->initialized = 1;
 			def->isstatic = isstatic;
@@ -14039,6 +14052,7 @@ void QCC_PR_ParseDefs (char *classname)
 	do
 	{
 		isinitialised = false;
+		type = basetype;
 
 		if (QCC_PR_CheckToken (";"))
 		{
@@ -14062,6 +14076,8 @@ void QCC_PR_ParseDefs (char *classname)
 		}
 		else
 		{
+			while (QCC_PR_CheckToken ("*"))
+				type = QCC_PointerTypeTo(type);
 			name = QCC_PR_ParseName ();
 		}
 

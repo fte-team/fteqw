@@ -180,6 +180,7 @@ char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey
 	return pixels;
 }
 
+#define MISSHORT(ptr) (*(ptr) | (*(ptr+1) << 8))
 //remember to free it
 qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *hasalpha, int asgrey)
 {
@@ -196,8 +197,8 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 	tgaheader.id_len = buf[0];
 	tgaheader.cm_type = buf[1];
 	tgaheader.version = buf[2];
-	tgaheader.cm_idx = LittleShort(*(short *)&buf[3]);
-	tgaheader.cm_len = LittleShort(*(short *)&buf[5]);
+	tgaheader.cm_idx = MISSHORT(buf+3);
+	tgaheader.cm_len = MISSHORT(buf+5);
 	tgaheader.cm_size = buf[7];
 	tgaheader.originx = LittleShort(*(short *)&buf[8]);
 	tgaheader.originy = LittleShort(*(short *)&buf[10]);
@@ -331,7 +332,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 				packetHeader=*data++;
 				packetSize = 1 + (packetHeader & 0x7f);
 				if (packetHeader & 0x80)
-				{        // run-length packet
+				{	// run-length packet
 					switch (tgaheader.bpp)
 					{
 						case 8:	//we made sure this was version 11
@@ -5162,9 +5163,12 @@ void Image_List_f(void)
 	size_t mem = 0;
 	unsigned int loadflags;
 	char fname[MAX_QPATH];
+	const char *filter = Cmd_Argv(1);
 	for (tex = imagelist; tex; tex = tex->next)
 	{
 		total++;
+		if (*filter && !strstr(tex->ident, filter))
+			continue;
 		if (tex->subpath)
 			Con_Printf("^h(%s)^h", tex->subpath);
 		

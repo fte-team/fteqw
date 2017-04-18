@@ -1510,7 +1510,6 @@ changed:
 
 void M_AddMenu (menu_t *menu)
 {
-	m_state = m_complex;
 	menu->prev = topmenu;
 	if (topmenu)
 		topmenu->next = menu;
@@ -1649,7 +1648,6 @@ void M_Complex_Draw(void)
 	if (!topmenu)
 	{
 		Key_Dest_Remove(kdm_emenu);
-		m_state = m_none;
 		return;
 	}
 
@@ -1927,7 +1925,6 @@ qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 				return true;
 
 		Key_Dest_Remove(kdm_emenu);
-		m_state = m_none;
 		return true;
 	}
 	return false;
@@ -1986,7 +1983,6 @@ void M_Menu_Main_f (void)
 	{
 		if (R_GetShaderSizes(R2D_SafeCachePic("pics/m_main_quit"), NULL, NULL, true) > 0)
 		{
-			m_state = m_complex;
 			Key_Dest_Add(kdm_emenu);
 
 			mainm = M_CreateMenu(0);
@@ -2044,7 +2040,6 @@ void M_Menu_Main_f (void)
 		if (R_GetShaderSizes(p, NULL, NULL, true) <= 0)
 			return;
 
-		m_state = m_complex;
 		Key_Dest_Add(kdm_emenu);
 		mainm = M_CreateMenu(0);
 		mainm->key = MC_Main_Key;
@@ -2084,7 +2079,6 @@ void M_Menu_Main_f (void)
 		if (QBigFontWorks())
 	{
 		int y;
-		m_state = m_complex;
 		Key_Dest_Add(kdm_emenu);
 		mainm = M_CreateMenu(0);
 
@@ -2136,7 +2130,6 @@ void M_Menu_Main_f (void)
 	else
 	{
 		int width;
-		m_state = m_complex;
 		Key_Dest_Add(kdm_emenu);
 		mainm = M_CreateMenu(0);
 

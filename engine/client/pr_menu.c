@@ -21,6 +21,7 @@ extern unsigned int r2d_be_flags;
 #define DRAWFLAG_MODULATE2	3
 #define DRAWFLAG_2D			(1u<<2)
 #define DRAWFLAG_TWOSIDED	0x400
+#define DRAWFLAG_LINES		0x800
 static unsigned int PF_SelectDPDrawFlag(int flag)
 {
 	csqc_dp_lastwas3d = false;	//for compat with dp's stupid beginpolygon

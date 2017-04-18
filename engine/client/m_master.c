@@ -1134,7 +1134,6 @@ void M_Menu_ServerList2_f(void)
 
 	Key_Dest_Remove(kdm_console);
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(serverlist_t));
 	menu->predraw = SL_PreDraw;
@@ -1335,7 +1334,6 @@ void M_QuickConnect_f(void)
 	menu_t *menu;
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	MasterInfo_Refresh();
 	isrefreshing = true;

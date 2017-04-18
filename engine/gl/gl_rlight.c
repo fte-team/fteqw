@@ -706,6 +706,14 @@ qboolean R_ImportRTLights(const char *entlump)
 	int nest;
 	qboolean okay = false;
 
+	//a quick note about tenebrae:
+	//by default, tenebrae's rtlights come from the server via static entities, which is all fancy and posh and actually fairly nice... if all servers actually did it.
+	//(the tenebrae gamecode uses spawnflag 2048 for static lights. note the pflags_fulldynamic fte/dp vs tenebrae difference)
+	//failing that, it will insert lights with some crappy fixed radius around only all 'classname light' entities, without any colours or anything, vanilla only.
+	//such lights are ONLY created if they're not near some other existing light (like a static entity one).
+	//this can result in FTE having noticably more and bigger lights than tenebrae. shadowmapping doesn't help performance either.
+	float lightmaplevel = -1;
+
 	COM_Parse(entlump);
 	if (!strcmp(com_token, "Version"))
 	{
@@ -921,6 +929,7 @@ qboolean R_ImportRTLights(const char *entlump)
 			else if (entnum == 0 && !strcmp("lightmapbright", key))
 			{
 				//tenebrae compat. this overrides r_shadow_realtime_world_lightmap
+				lightmaplevel = atof(value);
 			}
 		}
 		if (!islight)
@@ -1262,7 +1271,9 @@ void R_ReloadRTLights_f(void)
 		R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel));
 	else if (!strcmp(Cmd_Argv(1), "rtlights"))
 		R_LoadRTLights();
-	else if (strcmp(Cmd_Argv(1), "none"))
+	else if (!strcmp(Cmd_Argv(1), "none"))
+		;
+	else
 	{
 		R_LoadRTLights();
 		if (rtlights_first == rtlights_max)

@@ -94,7 +94,6 @@ void M_MenuS_Script_f (void)	//create a menu.
 	menu_t *oldmenu;
 	char *alias = Cmd_Argv(1);
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	selectitem = 0;
 	items=0;

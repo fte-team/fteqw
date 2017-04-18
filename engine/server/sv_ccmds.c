@@ -556,6 +556,7 @@ void SV_Map_f (void)
 
 	COM_FlushFSCache(false, true);
 
+#ifdef Q2SERVER
 	if (strlen(level) > 4 &&
 		(!strcmp(level + strlen(level)-4, ".cin") ||
 		!strcmp(level + strlen(level)-4, ".roq") ||
@@ -565,6 +566,13 @@ void SV_Map_f (void)
 		cinematic = true;
 	}
 	else
+#endif
+#ifdef TERRAIN
+	//'map doesntexist.map' should just auto-generate that map or something
+	if (!Q_strcasecmp("map", COM_FileExtension(level, expanded, sizeof(expanded))))
+		;
+	else
+#endif
 	{
 		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ NULL};
 		int i, j;
@@ -1037,6 +1045,11 @@ void SV_EvaluatePenalties(client_t *cl)
 			}
 		}
 	}
+
+	if (delta & BAN_VIP)
+		Info_SetValueForStarKey(cl->userinfo, "*VIP", (cl->penalties & BAN_VIP)?"1":"", sizeof(cl->userinfo));
+	if (delta & BAN_MAPPER)
+		Info_SetValueForStarKey(cl->userinfo, "*mapper", (cl->penalties & BAN_MAPPER)?"1":"", sizeof(cl->userinfo));
 }
 
 static time_t reevaluatebantime;
@@ -1225,12 +1238,6 @@ static void SV_FilterIP_f (void)
 		return;
 	}
 
-	if (NET_IsLoopBackAddress(&proto.adr))
-	{
-		Con_Printf("You're not allowed to filter loopback!\n");
-		return;
-	}
-
 	s = Cmd_Argv(2);
 	proto.banflags = 0;
 	while(*s)
@@ -1256,6 +1263,12 @@ static void SV_FilterIP_f (void)
 			proto.banflags = BAN_BAN;
 		else
 			proto.banflags = filterban.ival?BAN_BAN:BAN_PERMIT;
+	}
+
+	if (NET_IsLoopBackAddress(&proto.adr) && (proto.banflags & BAN_NOLOCALHOST))
+	{	//do allow them to be muted etc, just not banned outright.
+		Con_Printf("You're not allowed to filter loopback!\n");
+		return;
 	}
 
 	s = Cmd_Argv(3);
@@ -1460,6 +1473,12 @@ static void SV_PenaltyToggle (unsigned int banflag, char *penaltyname)
 		proto.adr = cl->netchan.remote_address;
 		proto.adr.port = 0;
 		proto.adrmask.type = cl->netchan.remote_address.type;
+
+		if (NET_IsLoopBackAddress(&proto.adr) && (proto.banflags & BAN_NOLOCALHOST))
+		{
+			Con_Printf("You're not allowed to filter loopback!\n");
+			continue;
+		}
 
 		switch(SV_ToggleBan(&proto, reason))
 		{

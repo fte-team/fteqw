@@ -262,6 +262,9 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		parms.basedir = sys_basedir;	/*filled in later*/
 		parms.argc = 3;
 		parms.argv = args;
+#ifdef CONFIG_MANIFEST_TEXT
+		parms.manifest = CONFIG_MANIFEST_TEXT;
+#endif
 
 		tmp = (*env)->GetStringUTFChars(env, japkpath, NULL);
 		Q_strncpyz(sys_basepak, tmp, sizeof(sys_basepak));

@@ -104,7 +104,6 @@ menu_t *M_Options_Title(int *y, int infosize)
 	*y = 32;
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	menu = M_CreateMenu(infosize);
 
@@ -401,7 +400,6 @@ void M_Menu_Audio_Speakers_f (void)
 	menu_t *menu;
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(audiomenuinfo_t));
 	info = menu->data;
@@ -3004,7 +3002,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			mods->fixedrate = 1;
 		while (mods->fixedrate >= rate)
 		{
-			sv.world.rbe->Frame(&mods->ragworld, rate, 800);
+			sv.world.rbe->RunFrame(&mods->ragworld, rate, 800);
 			mods->fixedrate -= rate;
 		}
 
@@ -3511,7 +3509,13 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 	if (!mods->nummanifests)
 	{
 		Draw_FunString(x, y+0, "No games or mods known");
-		Draw_FunString(x, y+8, "You may need to use -basedir $PATHTOGAME on the commandline");
+#if defined(FTE_TARGET_WEB) || defined(NACL)
+		Draw_FunString(x, y+8, "Connection issue or bad server config");
+#else
+		Draw_FunString(x, y+8, "You may need to use");
+		Draw_FunString(x, y+16, "  -basedir $PATHTOGAME");
+		Draw_FunString(x, y+24, "  on the commandline");
+#endif
 		return;
 	}
 

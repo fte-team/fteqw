@@ -184,7 +184,12 @@ void main( int argc, char **argv)
 
 	memset(&parms, 0, sizeof(parms));
 
-	//fill in parms
+	parms.argc = argc;
+	parms.argv = argv;
+#ifdef CONFIG_MANIFEST_TEXT
+	parms.manifest = CONFIG_MANIFEST_TEXT;
+#endif
+
 	COM_InitArgv(parms.argc, parms.argv);
 	TL_InitLanguages(parms.basedir);
 	Host_Init(&parms);

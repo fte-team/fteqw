@@ -166,7 +166,7 @@ typedef struct
 	void (QDECL *RagCreateJoint)(struct world_s *world, rbejoint_t *joint, rbejointinfo_t *info, rbebody_t *body1, rbebody_t *body2, vec3_t aaa2[3]);
 	void (QDECL *RagDestroyBody)(struct world_s *world, rbebody_t *bodyptr);
 	void (QDECL *RagDestroyJoint)(struct world_s *world, rbejoint_t *joint);
-	void (QDECL *Frame)(struct world_s *world, double frametime, double gravity);
+	void (QDECL *RunFrame)(struct world_s *world, double frametime, double gravity);
 	void (QDECL *PushCommand)(struct world_s *world, rbecommandqueue_t *cmd);
 } rigidbodyengine_t;
 #endif

@@ -476,6 +476,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define GLESONLY	//should reduce the conditions a little
 	#define R_MAX_RECURSE 2 //less bss
 //	#undef RTLIGHTS
+	#undef HEADLESSQUAKE
+	#define NO_FREETYPE
 #endif
 #ifdef WINRT
 	//microsoft do not support winsock any more.
@@ -491,6 +493,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef WEBSERVER		//http/ftp servers
 	#undef WEBCLIENT		//http/ftp clients.
 	#undef MULTITHREAD
+	#undef HEADLESSQUAKE
 #endif
 #ifdef ANDROID
 	#undef RTLIGHTS
@@ -499,6 +502,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 	#undef TEXTEDITOR
 	#define GLESONLY	//should reduce the conditions a little
+	#undef HEADLESSQUAKE
 #endif
 #if defined(NACL)
 	//stuff is sandboxed.
@@ -513,6 +517,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef IRCCONNECT
 	#define GLSLONLY	//pointless having the junk
 	#define GLESONLY	//should reduce the conditions a little
+	#undef HEADLESSQUAKE
+	#define NO_FREETYPE
 #endif
 
 #ifndef MULTITHREAD
@@ -586,7 +592,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef TCPCONNECT
 	#undef IRCCONNECT
 	#undef WEBSERVER
-	#undef WEBCLIENT
+	#if !defined(FTE_TARGET_WEB) && !defined(NACL)
+		#undef WEBCLIENT
+	#endif
 #endif
 #ifndef HAVE_PACKET
 	#undef SV_MASTER
@@ -730,12 +738,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define ARCH_DL_POSTFIX ".so"
 #endif
 
-#if defined(_M_AMD64) || defined(__amd64__)
-#ifdef _WIN32
-	#define ARCH_CPU_POSTFIX "x64"
-#else
-	#define ARCH_CPU_POSTFIX "amd64"
-#endif
+#if defined(_M_AMD64) || defined(__amd64__) || defined(__x86_64__)
+	#ifdef __ILP32__
+		#define ARCH_CPU_POSTFIX "x32"	//32bit pointers, with 16 registers.
+	#else
+		#ifdef _WIN32
+			#define ARCH_CPU_POSTFIX "x64"
+		#else
+			#define ARCH_CPU_POSTFIX "amd64"
+		#endif
+	#endif
 #elif defined(_M_IX86) || defined(__i386__)
 	#define ARCH_CPU_POSTFIX "x86"
 #elif defined(__powerpc__) || defined(__ppc__)
@@ -743,7 +755,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #elif defined(__aarch64__)
 	#define ARCH_CPU_POSTFIX "arm64"
 #elif defined(__arm__)
-	#define ARCH_CPU_POSTFIX "arm"
+	#ifdef __SOFTFP__
+		#define ARCH_CPU_POSTFIX "arm"
+	#else
+		#define ARCH_CPU_POSTFIX "armhf"
+	#endif
 #else
 	#define ARCH_CPU_POSTFIX "unk"
 #endif

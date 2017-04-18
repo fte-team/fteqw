@@ -96,19 +96,19 @@ void *VARGS Z_TagMalloc (int size, int tag);
 void VARGS Z_TagFree(void *ptr);
 void VARGS Z_FreeTags(int tag);
 qboolean ZF_ReallocElements(void **ptr, size_t *elements, size_t newelements, size_t elementsize);	//returns false on error
-qboolean ZF_ReallocElementsNamed(void **ptr, size_t *elements, size_t newelements, size_t elementsize, char *file, int line);	//returns false on error
+qboolean ZF_ReallocElementsNamed(void **ptr, size_t *elements, size_t newelements, size_t elementsize, const char *file, int line);	//returns false on error
 #define Z_ReallocElements(ptr,elements,newelements,elementsize) do{if (!ZF_ReallocElements(ptr,elements,newelements,elementsize))Sys_Error("Z_ReallocElements failed (%s %i)\n", __FILE__, __LINE__);}while(0)	//returns false on error
 
 //Big Zone: allowed to fail, doesn't clear. The expectation is a large file, rather than sensitive data structures.
 //(this is a nicer name for malloc)
 void *BZ_Malloc(int size);
 void *BZF_Malloc(int size);
-void *BZ_MallocNamed (int size, char *file, int line); // returns 0 filled memory
-void *BZF_MallocNamed (int size, char *file, int line); // allowed to fail
+void *BZ_MallocNamed (int size, const char *file, int line); // returns 0 filled memory
+void *BZF_MallocNamed (int size, const char *file, int line); // allowed to fail
 void *BZ_Realloc(void *ptr, int size);
-void *BZ_ReallocNamed(void *data, int newsize, char *file, int line);
+void *BZ_ReallocNamed(void *data, int newsize, const char *file, int line);
 void *BZF_Realloc(void *data, int newsize);
-void *BZF_ReallocNamed(void *data, int newsize, char *file, int line);
+void *BZF_ReallocNamed(void *data, int newsize, const char *file, int line);
 void BZ_Free(void *ptr);
 
 //ctx should start off as void*ctx=NULL

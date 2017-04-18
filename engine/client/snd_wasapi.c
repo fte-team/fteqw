@@ -203,7 +203,7 @@ static int WASAPI_Thread(void *arg)
 	IMMDevice *pDevice = NULL;
 	IAudioClient *pAudioClient = NULL;
 	IAudioRenderClient *pRenderClient = NULL;
-	UINT32 bufferFrameCount;
+	UINT32 bufferFrameCount = 0;
 	HANDLE hEvent = NULL;
 	WAVEFORMATEX *pwfx;
 

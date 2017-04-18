@@ -399,7 +399,7 @@ void *Z_Realloc(void *data, int newsize)
 */
 
 #ifdef USE_MSVCRT_DEBUG
-void *BZF_MallocNamed(int size, char *file, int line)	//BZ_MallocNamed but allowed to fail - like straight malloc.
+void *BZF_MallocNamed(int size, const char *file, int line)	//BZ_MallocNamed but allowed to fail - like straight malloc.
 {
 	void *mem;
 	mem = _malloc_dbg(size, _NORMAL_BLOCK, file, line);
@@ -425,7 +425,7 @@ void *BZF_Malloc(int size)	//BZ_Malloc but allowed to fail - like straight mallo
 #endif
 
 #ifdef USE_MSVCRT_DEBUG
-void *BZ_MallocNamed(int size, char *file, int line)	//BZ_MallocNamed but allowed to fail - like straight malloc.
+void *BZ_MallocNamed(int size, const char *file, int line)	//BZ_MallocNamed but allowed to fail - like straight malloc.
 {
 	void *mem = BZF_MallocNamed(size, file, line);
 	if (!mem)
@@ -445,12 +445,12 @@ void *BZ_Malloc(int size)	//Doesn't clear. The expectation is a large file, rath
 #endif
 
 #ifdef USE_MSVCRT_DEBUG
-void *BZF_ReallocNamed(void *data, int newsize, char *file, int line)
+void *BZF_ReallocNamed(void *data, int newsize, const char *file, int line)
 {
 	return _realloc_dbg(data, newsize, _NORMAL_BLOCK, file, line);
 }
 
-void *BZ_ReallocNamed(void *data, int newsize, char *file, int line)
+void *BZ_ReallocNamed(void *data, int newsize, const char *file, int line)
 {
 	void *mem = BZF_ReallocNamed(data, newsize, file, line);
 

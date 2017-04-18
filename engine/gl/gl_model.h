@@ -950,7 +950,7 @@ typedef struct model_s
 	q3lightgridinfo_t *lightgrid;
 	mfog_t		*fogs;
 	int			numfogs;
-	struct {char *keyvals;} *entityinfo;
+	struct {unsigned int id; char *keyvals;} *entityinfo;
 	size_t		numentityinfo;
 	const char	*entities_raw;
 	int			entitiescrc;

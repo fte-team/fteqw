@@ -2290,10 +2290,7 @@ qboolean Key_MouseShouldBeFree(void)
 //		return true;
 
 	if (Key_Dest_Has(kdm_emenu))
-	{
-		if (m_state == m_complex || m_state == m_plugin /*|| m_state == m_menu_dat*/)
-			return true;
-	}
+		return true;
 
 #ifdef VM_UI
 	if (UI_MenuState())

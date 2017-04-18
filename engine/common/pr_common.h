@@ -266,6 +266,7 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	void skel_dodelete(world_t *world);
 	void skel_reset(world_t *world);
 #endif
+void QCBUILTIN PF_physics_supported(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_physics_enable(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_physics_addforce(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_physics_addtorque(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -755,9 +756,9 @@ enum terrainedit_e
 	ter_reset,			//vector pos, float radius
 	ter_reloadsect,		//vector pos, float radius
 
-	ter_ents_wipe,		//none
-	ter_ents_concat,	//string
-	ter_ents_get,		//none
+	ter_ents_wipe_deprecated,		//none
+	ter_ents_concat_deprecated,	//string
+	ter_ents_get,		//none, returns the map's entity string.
 
 //	ter_poly_add,		//add a poly, woo
 //	ter_poly_remove,	//remove polys

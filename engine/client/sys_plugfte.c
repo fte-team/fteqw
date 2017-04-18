@@ -166,6 +166,27 @@ void VARGS Con_Printf (const char *fmt, ...)
 	write(2, dest, strlen(dest));
 #endif
 }
+void VARGS Con_DPrintf (const char *fmt, ...)
+{
+	va_list		argptr;
+	char dest[256];
+
+	va_start (argptr, fmt);
+	Q_vsnprintfz(dest, sizeof(dest), fmt, argptr);
+	va_end (argptr);
+
+#ifdef _WIN32
+	OutputDebugString(dest);
+#else
+	FILE *f = fopen("/tmp/ftelog", "a");
+	if (f)
+	{
+		fputs(dest, f);
+		fclose(f);
+	}
+	write(2, dest, strlen(dest));
+#endif
+}
 #ifdef _WIN32
 // don't use these functions in MSVC8
 #if (_MSC_VER < 1400)

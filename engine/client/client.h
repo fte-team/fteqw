@@ -416,6 +416,7 @@ enum qdlabort
 qboolean DL_Begun(qdownload_t *dl);
 void DL_Completed(qdownload_t *dl, qofs_t start, qofs_t end);	//notifies the download logic that a chunk of the file is no longer needed.
 void DL_Abort(qdownload_t *dl, enum qdlabort aborttype);		//just frees the download's resources. does not delete the temp file.
+qboolean CL_AllowArbitaryDownload(char *oldname, char *localfile);
 
 //chunked downloads
 void DLC_Poll(qdownload_t *dl);
@@ -1370,7 +1371,7 @@ qboolean CSQC_DrawView(void);
 qboolean CSQC_UseGamecodeLoadingScreen(void);
 void	 CSQC_Shutdown(void);
 qboolean CSQC_StuffCmd(int lplayernum, char *cmd, char *cmdend);
-void	 CSQC_MapEntityEdited(int idx, const char *newe);
+void	 CSQC_MapEntityEdited(int modelindex, int idx, const char *newe);
 qboolean CSQC_LoadResource(char *resname, char *restype);
 qboolean CSQC_ParsePrint(char *message, int printlevel);
 qboolean CSQC_ParseGamePacket(void);

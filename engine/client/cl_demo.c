@@ -2580,7 +2580,6 @@ void CL_QTVPoll (void)
 				//now put it on a menu
 				if (!sourcesmenu)
 				{
-					m_state = m_complex;
 					Key_Dest_Add(kdm_emenu);
 					sourcesmenu = M_CreateMenu(0);
 

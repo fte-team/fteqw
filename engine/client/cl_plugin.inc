@@ -6,7 +6,7 @@
 
 
 
-static plugin_t *menuplug;	//plugin that has the current menu
+plugin_t *menuplug;	//plugin that has the current menu
 static plugin_t *protocolclientplugin;
 
 
@@ -27,17 +27,15 @@ static qintptr_t VARGS Plug_Menu_Control(void *offset, quintptr_t mask, const qi
 			Plug_Menu_Event(3, 0);
 			menuplug = NULL;
 			currentplug = oldplug;
-			Key_Dest_Remove(kdm_emenu);
 		}
 		if (VM_LONG(arg[0]) != 1)
 			return 1;
 		//give us menu control
 		menuplug = currentplug;
 		Key_Dest_Add(kdm_emenu);
-		m_state = m_plugin;
 		return 1;
 	case 2: //weather it's us or not.
-		return currentplug == menuplug && m_state == m_plugin;
+		return currentplug == menuplug && Key_Dest_Has(kdm_emenu);
 	case 3:	//weather a menu is active
 		return !!Key_Dest_Has(kdm_emenu|kdm_gmenu);
 	default:

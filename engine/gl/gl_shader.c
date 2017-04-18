@@ -2354,6 +2354,7 @@ static void Shader_DP_Refract(shader_t *shader, shaderpass_t *pass, char **ptr)
 
 static void Shader_BEMode(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
+	char subname[1024];
 	int mode;
 	char tokencopy[1024];
 	char *token;
@@ -2417,8 +2418,7 @@ static void Shader_BEMode(shader_t *shader, shaderpass_t *pass, char **ptr)
 		{
 			if ((mode & LSHADER_CUBE) && (mode & LSHADER_SPOT))
 				continue;
-			shader->bemoverrides[mode] = R_RegisterCustom(va("%s%s%s%s%s", 
-																tokencopy,
+			Q_snprintfz(subname, sizeof(subname), "%s%s%s%s%s", tokencopy,
 																(mode & LSHADER_SMAP)?"#PCF":"",
 																(mode & LSHADER_SPOT)?"#SPOT":"",
 																(mode & LSHADER_CUBE)?"#CUBE":"",
@@ -2427,13 +2427,13 @@ static void Shader_BEMode(shader_t *shader, shaderpass_t *pass, char **ptr)
 #else
 																""
 #endif
-																)
-														, shader->usageflags, embed?Shader_DefaultScript:NULL, embed);
+																);
+			shader->bemoverrides[mode] = R_RegisterCustom(subname, shader->usageflags|(embed?SUR_FORCEFALLBACK:0), embed?Shader_DefaultScript:NULL, embed);
 		}
 	}
 	else
 	{
-		shader->bemoverrides[mode] = R_RegisterCustom(tokencopy, shader->usageflags, embed?Shader_DefaultScript:NULL, embed);
+		shader->bemoverrides[mode] = R_RegisterCustom(tokencopy, shader->usageflags|(embed?SUR_FORCEFALLBACK:0), embed?Shader_DefaultScript:NULL, embed);
 	}
 	if (embed)
 		BZ_Free(embed);
@@ -6363,7 +6363,7 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 		*argsstart = 0;
 	COM_StripExtension (cleanname, shortname, sizeof(shortname));
 
-	if (ruleset_allow_shaders.ival)
+	if (ruleset_allow_shaders.ival && !(usageflags & SUR_FORCEFALLBACK))
 	{
 		if (sh_config.shadernamefmt)
 		{

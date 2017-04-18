@@ -183,8 +183,17 @@ typedef struct trailstate_s {
 
 #define PARTICLE_Z_CLIP	8.0
 
-typedef enum { BM_BLEND/*SRC_ALPHA ONE_MINUS_SRC_ALPHA*/, BM_BLENDCOLOUR/*SRC_COLOR ONE_MINUS_SRC_COLOR*/, BM_ADDA/*SRC_ALPHA ONE*/, BM_ADDC/*GL_SRC_COLOR GL_ONE*/, BM_SUBTRACT/*SRC_ALPHA ONE_MINUS_SRC_COLOR*/, BM_INVMODA/*ZERO ONE_MINUS_SRC_ALPHA*/, BM_INVMODC/*ZERO ONE_MINUS_SRC_COLOR*/, BM_PREMUL/*ONE ONE_MINUS_SRC_ALPHA*/} blendmode_t;
-
+typedef enum {
+	BM_BLEND/*SRC_ALPHA ONE_MINUS_SRC_ALPHA*/,
+	BM_BLENDCOLOUR/*SRC_COLOR ONE_MINUS_SRC_COLOR*/,
+	BM_ADDA/*SRC_ALPHA ONE*/,
+	BM_ADDC/*GL_SRC_COLOR GL_ONE*/,
+	BM_SUBTRACT/*SRC_ALPHA ONE_MINUS_SRC_COLOR*/,
+	BM_INVMODA/*ZERO ONE_MINUS_SRC_ALPHA*/,
+	BM_INVMODC/*ZERO ONE_MINUS_SRC_COLOR*/,
+	BM_PREMUL/*ONE ONE_MINUS_SRC_ALPHA*/,
+	BM_RTSMOKE	/*special shader generation that causes these particles to be lit up by nearby rtlights, instead of just being fullbright junk*/
+} blendmode_t;
 #define frandom() (rand()*(1.0f/RAND_MAX))
 #define crandom() (rand()*(2.0f/RAND_MAX)-1.0f)
 #define hrandom() (rand()*(1.0f/RAND_MAX)-0.5f)

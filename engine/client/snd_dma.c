@@ -2081,6 +2081,7 @@ void S_Shutdown(qboolean final)
 	{
 		next = sc->next;
 		sc->Shutdown(sc);
+		Z_Free(sc->channel);
 		Z_Free(sc);
 		sndcardinfo = next;
 	}

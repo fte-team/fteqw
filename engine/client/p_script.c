@@ -712,6 +712,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 		case BM_INVMODA:	bmpostfix = "#INVMODA"; break;
 		case BM_INVMODC:	bmpostfix = "#INVMODC"; break;
 		case BM_PREMUL:		bmpostfix = "#PREMUL"; break;
+		case BM_RTSMOKE:	bmpostfix = "#RTSMOKE"; break;
 		}
 		/*try and load the shader, fail if we would need to generate one*/
 		ptype->looks.shader = R_RegisterCustom(va("%s%s", ptype->texname, bmpostfix), SUF_NONE, NULL, NULL);
@@ -885,6 +886,29 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 				"}\n"
 				;
 			break;
+		case BM_RTSMOKE:
+			namepostfix = "_rts";
+			defaultshader =
+				"{\n"
+					"program defaultsprite#LIGHT\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA\n"
+						"rgbgen const vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+					"surfaceparm noshadows\n"
+					"sort seethrough\n"	//needs to be low enough that its subject to rtlights
+					"bemode rtlight\n"
+					"{\n"
+						"program rtlight#NOBUMP#VERTEXCOLOURS\n"
+						"{\n"
+							"map $diffuse\n"
+							"blendfunc add\n"
+						"}\n"
+					"}\n"
+				"}\n";
+			break;
 		}
 
 		memset(&tn, 0, sizeof(tn));
@@ -945,6 +969,8 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 		}
 		R_BuildDefaultTexnums(&tn, ptype->looks.shader);
 	}
+	else
+		R_BuildDefaultTexnums(NULL, ptype->looks.shader);
 }
 
 static void P_ResetToDefaults(part_type_t *ptype)
@@ -1836,6 +1862,11 @@ parsefluid:
 				ptype->looks.premul = 1;
 				ptype->looks.blendmode = BM_PREMUL;
 			}
+			else if (!strcmp(value, "rtsmoke"))
+			{
+				ptype->looks.premul = 1;
+				ptype->looks.blendmode = BM_RTSMOKE;
+			}
 			else
 			{
 				Con_DPrintf("%s.%s: uses unknown blend type '%s', assuming legacy 'blendalpha'\n", ptype->config, ptype->name, value);
@@ -2306,6 +2337,9 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 				Q_strncatz(outstr, "blend premul_add\n", outstrlen);
 			else
 				Q_strncatz(outstr, "blend premul_blend\n", outstrlen);
+			break;
+		case BM_RTSMOKE:
+			Q_strncatz(outstr, "blend rtsmoke\n", outstrlen);
 			break;
 		}
 

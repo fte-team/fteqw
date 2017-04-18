@@ -781,7 +781,7 @@ static int QDECL Sys_listdirFound(const char *fname, qofs_t fsize, time_t mtime,
 	return true;
 }
 
-static int Sys_listdir_Sort(const void *va, const void *vb)
+static int QDECL Sys_listdir_Sort(const void *va, const void *vb)
 {
 	const file_t *fa = va;
 	const file_t *fb = vb;

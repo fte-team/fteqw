@@ -1673,6 +1673,7 @@ void SCR_SetLoadingStage(int stage)
 		if (loadingfile)
 			Z_Free(loadingfile);
 		loadingfile = NULL;
+		scr_disabled_for_loading = scr_drawloading = false;
 		break;
 	case LS_CONNECTION:
 		SCR_SetLoadingFile("waiting for connection...");
@@ -2030,7 +2031,7 @@ void SCR_SetUpToDrawConsole (void)
 						{
 							if (CL_TryingToConnect())	//if we're trying to connect, make sure there's a loading/connecting screen showing instead of forcing the menu visible
 								SCR_SetLoadingStage(LS_CONNECTION);
-							else if (!m_state && !startuppending)	//don't force anything until the startup stuff has been done
+							else if (!Key_Dest_Has(kdm_emenu) && !startuppending)	//don't force anything until the startup stuff has been done
 								M_ToggleMenu_f();
 						}
 					}

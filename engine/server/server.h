@@ -1060,7 +1060,9 @@ void SV_AutoAddPenalty (client_t *cl, unsigned int banflag, int duration, char *
 #define BAN_USER6		(1u<<16)//mod-specified
 #define BAN_USER7		(1u<<17)//mod-specified
 #define BAN_USER8		(1u<<18)//mod-specified
-#define BAN_MAPPER		(1u<<19)//mod-specified
+#define BAN_MAPPER		(1u<<19)//player is allowed to use the brush/entity editing clc.
+
+#define BAN_NOLOCALHOST	(BAN_BAN|BAN_PERMIT|BAN_SPECONLY)	//any attempt to ban localhost is denied, but you can vip, lag, cripple, etc them.
 
 //
 // sv_main.c

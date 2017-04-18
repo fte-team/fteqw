@@ -21,7 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 #include "shader.h"
 
-m_state_t m_state;
 qboolean menu_mousedown;
 
 void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic)
@@ -317,7 +316,6 @@ void M_CloseMenu_f (void)
 		return;
 	M_RemoveAllMenus(false);
 	Key_Dest_Remove(kdm_emenu);
-	m_state = m_none;
 }
 /*
 ================
@@ -326,7 +324,7 @@ M_ToggleMenu_f
 */
 void M_ToggleMenu_f (void)
 {
-	if (m_state)
+	if (topmenu)
 	{
 		Key_Dest_Add(kdm_emenu);
 		return;
@@ -355,7 +353,6 @@ void M_ToggleMenu_f (void)
 	if (Key_Dest_Has(kdm_emenu))
 	{
 		Key_Dest_Remove(kdm_emenu);
-		m_state = m_none;
 		return;
 	}
 	if (Key_Dest_Has(kdm_console|kdm_cwindows))
@@ -510,7 +507,6 @@ void M_Menu_Keys_f (void)
 	extern cvar_t cl_splitscreen;
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	menu = M_CreateMenu(0);
 	switch(M_GameType())
@@ -634,11 +630,75 @@ struct
 	{"gfx/menu/help%02i.lmp",1}		//hexen2
 };
 
+void M_Help_Draw (menu_t *m)
+{
+	int i;
+	mpic_t *pic = NULL;
+	for (i = 0; i < sizeof(helpstyles)/sizeof(helpstyles[0]) && !pic; i++)
+	{
+		pic = R2D_SafeCachePic(va(helpstyles[i].pattern, help_page+helpstyles[i].base));
+		if (R_GetShaderSizes(pic, NULL, NULL, true) <= 0)
+			pic = NULL;
+	}
+	if (!pic)
+		M_Menu_Main_f ();
+	else
+	{
+		//define default aspect ratio
+		int width = 320;
+		int height = 200;
+
+		//figure out which axis we're meeting.
+		if (vid.width/(float)width > vid.height/(float)height)
+		{
+			width = width * (vid.height/(float)height);
+			height = vid.height;
+		}
+		else
+		{
+			height = height * (vid.width/(float)width);
+			width = vid.width;
+		}
+		R2D_ScalePic ((vid.width-width)/2, (vid.height-height)/2, width, height, pic);
+	}
+}
+qboolean M_Help_Key (int key, menu_t *m)
+{
+	switch (key)
+	{
+	case K_ESCAPE:
+	case K_MOUSE2:
+		M_Menu_Main_f ();
+		return true;
+
+	case K_UPARROW:
+	case K_RIGHTARROW:
+	case K_MOUSE1:
+		S_LocalSound ("misc/menu2.wav");
+		if (++help_page >= num_help_pages)
+			help_page = 0;
+		return true;
+
+	case K_DOWNARROW:
+	case K_LEFTARROW:
+		S_LocalSound ("misc/menu2.wav");
+		if (--help_page < 0)
+			help_page = num_help_pages-1;
+		return true;
+	default:
+		return false;
+	}
+}
+
 void M_Menu_Help_f (void)
 {
 	int i;
+	menu_t *helpmenu = M_CreateMenu(0);
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_help;
+
+	helpmenu->predraw = M_Help_Draw;
+	helpmenu->key = M_Help_Key;
+
 	help_page = 0;
 
 	num_help_pages = 1;
@@ -653,52 +713,6 @@ void M_Menu_Help_f (void)
 			break;
 		num_help_pages++;
 	}
-}
-
-
-
-void M_Help_Draw (void)
-{
-	int i;
-	mpic_t *pic = NULL;
-	for (i = 0; i < sizeof(helpstyles)/sizeof(helpstyles[0]) && !pic; i++)
-	{
-		pic = R2D_SafeCachePic(va(helpstyles[i].pattern, help_page+helpstyles[i].base));
-		if (R_GetShaderSizes(pic, NULL, NULL, true) <= 0)
-			pic = NULL;
-	}
-	if (!pic)
-		M_Menu_Main_f ();
-	else
-		M_DrawScalePic (0, 0, 320, 200, pic);
-}
-
-
-void M_Help_Key (int key)
-{
-	switch (key)
-	{
-	case K_ESCAPE:
-	case K_MOUSE2:
-		M_Menu_Main_f ();
-		break;
-
-	case K_UPARROW:
-	case K_RIGHTARROW:
-	case K_MOUSE1:
-		S_LocalSound ("misc/menu2.wav");
-		if (++help_page >= num_help_pages)
-			help_page = 0;
-		break;
-
-	case K_DOWNARROW:
-	case K_LEFTARROW:
-		S_LocalSound ("misc/menu2.wav");
-		if (--help_page < 0)
-			help_page = num_help_pages-1;
-		break;
-	}
-
 }
 
 
@@ -756,7 +770,6 @@ void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, const char *messag
 	int x = 64, w = 224;
 
 	Key_Dest_Add(kdm_emenu);
-	m_state = m_complex;
 
 	m = (promptmenu_t*)M_CreateMenuInfront(sizeof(*m) - sizeof(m->m) + strlen(messages)+(optionyes?strlen(optionyes):0)+(optionno?strlen(optionno):0)+(optioncancel?strlen(optioncancel):0)+6);
 	m->callback =  callback;
@@ -900,10 +913,7 @@ void M_Quit_Key (int key)
 			m_entersound = true;
 		}
 		else
-		{
 			key_dest = key_game;
-			m_state = m_none;
-		}
 		break;
 
 	case 'Y':
@@ -1086,7 +1096,6 @@ void M_Menu_Quit_f (void)
 	case 2:
 		Key_Dest_Add(kdm_emenu);
 		Key_Dest_Remove(kdm_console);
-		m_state = m_complex;
 
 		quitmenu = M_CreateMenuInfront(0);
 		quitmenu->key = MC_SaveQuit_Key;
@@ -1110,7 +1119,6 @@ void M_Menu_Quit_f (void)
 	case 1:
 		Key_Dest_Add(kdm_emenu);
 		Key_Dest_Remove(kdm_console);
-		m_state = m_complex;
 
 		quitmenu = M_CreateMenuInfront(0);
 		quitmenu->key = MC_Quit_Key;
@@ -1373,6 +1381,9 @@ void M_Init (void)
 
 void M_Draw (int uimenu)
 {
+	extern menu_t *topmenu;
+	qboolean stillactive = false;
+
 	if (uimenu)
 	{
 		if (uimenu == 2)
@@ -1383,27 +1394,18 @@ void M_Draw (int uimenu)
 	}
 
 #ifndef NOBUILTINMENUS
-	if (m_state != m_complex)
+	if (!Key_Dest_Has(kdm_emenu))
 	{
 		M_RemoveAllMenus(false);
 		menu_mousedown = false;
+		return;
 	}
 #endif
-
-	if (!Key_Dest_Has(kdm_emenu))
-	{
-		m_state = m_none;
-		return;
-	}
-
-	if (m_state == m_none)
-		return;
 
 #ifndef NOBUILTINMENUS
 	if ((!menu_script || scr_con_current) && !m_recursiveDraw)
 	{
-		extern menu_t *topmenu;
-		if (m_state == m_complex && topmenu && topmenu->selecteditem && topmenu->selecteditem->common.type == mt_slider && (topmenu->selecteditem->slider.var == &v_gamma || topmenu->selecteditem->slider.var == &v_contrast))
+		if (topmenu && topmenu->selecteditem && topmenu->selecteditem->common.type == mt_slider && (topmenu->selecteditem->slider.var == &v_gamma || topmenu->selecteditem->slider.var == &v_contrast))
 			/*no menu tint if we're trying to adjust gamma*/;
 		else
 			R2D_FadeScreen ();
@@ -1416,45 +1418,31 @@ void M_Draw (int uimenu)
 
 	R2D_ImageColours(1, 1, 1, 1);
 
-	switch (m_state)
+#ifdef PLUGINS
+	if (menuplug)
 	{
-	default:
-	case m_none:
-		break;
+		Plug_Menu_Event (0, (int)(realtime*1000));
+		stillactive = true;
+	}
+#endif
 
 #ifndef NOBUILTINMENUS
-	case m_help:
-		M_Help_Draw ();
-		break;
-
-	case m_complex:
+	if (topmenu)
+	{
 		M_Complex_Draw ();
-		break;
-#endif
-
-#ifdef PLUGINS
-	case m_plugin:
-		Plug_Menu_Event (0, (int)(realtime*1000));
-		break;
-#endif
+		stillactive = true;
 	}
+#endif
+	if (!stillactive)
+		Key_Dest_Remove(kdm_emenu);
 }
 
 
 void M_Keydown (int key, int unicode)
 {
-	switch (m_state)
-	{
-	default:
-	case m_none:
-		Key_Dest_Remove(kdm_emenu);
-		return;
 #ifndef NOBUILTINMENUS
-	case m_help:
-		M_Help_Key (key);
-		return;
-
-	case m_complex:
+	if (topmenu)
+	{
 		if (key == K_MOUSE1)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
 			menu_mousedown = true;
 		else if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
@@ -1462,38 +1450,41 @@ void M_Keydown (int key, int unicode)
 		else
 			M_Complex_Key (key, unicode);
 		return;
+	}
 #endif
 
 #ifdef PLUGINS
-	case m_plugin:
+	if (menuplug)
+	{
 		Plug_Menu_Event (1, key);
 		return;
-#endif
 	}
+#endif
+
+	Key_Dest_Remove(kdm_emenu);
 }
 
 
 void M_Keyup (int key, int unicode)
 {
-	switch (m_state)
-	{
 #ifndef NOBUILTINMENUS
-	case m_complex:
+	if (topmenu)
+	{
 		if (key == K_MOUSE1 && menu_mousedown)
 			M_Complex_Key (key, unicode);
 		else if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
 			M_Complex_Key (key, unicode);
 		menu_mousedown = false;
 		return;
+	}
 #endif
 #ifdef PLUGINS
-	case m_plugin:
+	if (menuplug)
+	{
 		Plug_Menu_Event (2, key);
 		return;
-#endif
-	default:
-		break;
 	}
+#endif
 }
 
 // Generic function to choose which game menu to draw

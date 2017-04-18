@@ -95,6 +95,10 @@ IDI_ICON1               ICON                    "bymorphed.ico"
 IDI_ICON2               ICON                    "q2.ico"
 #endif
 
+#ifdef CONFIG_MANIFEST_TEXT
+1	RCDATA	{CONFIG_MANIFEST_TEXT}
+#endif
+
 /////////////////////////////////////////////////////////////////////////////
 //
 // Version

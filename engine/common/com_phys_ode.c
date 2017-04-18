@@ -2737,7 +2737,7 @@ static void QDECL World_ODE_Start(world_t *world)
 	memset(ctx, 0, sizeof(*ctx));
 	world->rbe = &ctx->pub;
 
-	r_meshpitch.value = pCvar_GetFloat("physics_ode_quadtree_depth");
+	r_meshpitch.value = pCvar_GetFloat("r_meshpitch");
 
 	VectorAvg(world->worldmodel->mins, world->worldmodel->maxs, center);
 	VectorSubtract(world->worldmodel->maxs, center, extents);
@@ -2756,7 +2756,7 @@ static void QDECL World_ODE_Start(world_t *world)
 	ctx->pub.RagCreateJoint			= World_ODE_RagCreateJoint;
 	ctx->pub.RagDestroyBody			= World_ODE_RagDestroyBody;
 	ctx->pub.RagDestroyJoint		= World_ODE_RagDestroyJoint;
-	ctx->pub.Frame					= World_ODE_Frame;
+	ctx->pub.RunFrame				= World_ODE_Frame;
 	ctx->pub.PushCommand			= World_ODE_PushCommand;
 
 	if(physics_ode_world_erp->value >= 0)

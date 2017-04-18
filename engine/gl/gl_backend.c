@@ -181,7 +181,7 @@ struct {
 		int oldwidth, oldheight;
 
 		vbo_t *sourcevbo;
-		const shader_t *curshader;
+		const material_t *curshader;
 		const entity_t *curentity;
 		const batch_t *curbatch;
 		const texnums_t *curtexnums;

@@ -4340,12 +4340,13 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 
 		char	name[MAX_QPATH];
 
-		Q_snprintfz (name, sizeof(name), "*%i:%s", i, wmod->name);
+		Q_snprintfz (name, sizeof(name), "*%i:%s", i, wmod->publicname);
 		mod = Mod_FindName (name);
 		*mod = *wmod;
 		mod->entities_raw = NULL;
 		mod->submodelof = wmod;
-		Q_strncpyz(mod->name, name, sizeof(mod->name));
+		Q_strncpyz(mod->publicname, name, sizeof(mod->publicname));
+		Q_snprintfz (mod->name, sizeof(mod->name), "*%i:%s", i, wmod->name);
 		memset(&mod->memgroup, 0, sizeof(mod->memgroup));
 
 		bm = CM_InlineModel (wmod, name);

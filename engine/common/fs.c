@@ -4036,6 +4036,15 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			return true;
 		}
 	}
+	s = va("/usr/share/games/%s-demo/", gamename);
+	if (stat(s, &sb) == 0)
+	{
+		if (S_ISDIR(sb.st_mode))
+		{
+			Q_strncpyz(basepath, s, basepathlen);
+			return true;
+		}
+	}
 #endif
 	return false;
 }
@@ -5185,7 +5194,13 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		}
 	}
 	if (!fixedbasedir && !com_installer)
-		Q_strncpyz (com_gamepath, newbasedir, sizeof(com_gamepath));
+	{
+		if (strcmp(com_gamepath, newbasedir))
+		{
+			PM_Shutdown();
+			Q_strncpyz (com_gamepath, newbasedir, sizeof(com_gamepath));
+		}
+	}
 
 	//make sure it has a trailing slash, or is empty. woo.
 	FS_CleanDir(com_gamepath, sizeof(com_gamepath));

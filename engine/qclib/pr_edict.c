@@ -10,7 +10,7 @@ struct edict_s;
 #define NOENDIAN
 #endif
 
-pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int fldtype, char *s);
+pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, int fldtype, char *s);
 
 /*
 =================
@@ -1237,7 +1237,7 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const cha
 	return true;
 }
 
-pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int fldtype, char *s)
+pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, int fldtype, char *s)
 {
 	int		i;
 	char	string[128];

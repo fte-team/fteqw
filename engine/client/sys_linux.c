@@ -264,8 +264,132 @@ void Sys_Quit (void)
 	exit(0);
 }
 
+static void Sys_Register_File_Associations_f(void)
+{
+	char xdgbase[MAX_OSPATH];
+
+	if (1)
+	{
+		const char *e = getenv("XDG_DATA_HOME");
+		if (e && *e)
+			Q_strncpyz(xdgbase, e, sizeof(xdgbase));
+		else
+		{
+			e = getenv("HOME");
+			if (e && *e)
+				Q_snprintfz(xdgbase, sizeof(xdgbase), "%s/.local/share", e);
+			else
+			{
+				Con_Printf("homedir not known\n");
+				return;
+			}
+		}
+	}
+	else
+	{
+		const char *e = getenv("XDG_DATA_DIRS");
+		while (e && *e == ':')
+			e++;
+		if (e && *e)
+		{
+			char *c;
+			Q_strncpyz(xdgbase, e, sizeof(xdgbase));
+			c = strchr(xdgbase, ':');
+			if (*c)
+				*c = 0;
+		}
+		else
+			Q_strncpyz(xdgbase, "/usr/local/share/", sizeof(xdgbase));
+	}
+
+	//we need to create some .desktop file first, so stuff knows how to start us up.
+	{
+		char *exe = realpath(host_parms.argv[0], NULL);
+		char *basedir = realpath(com_gamepath, NULL);
+		const char *desktopfile = 
+			"[Desktop Entry]\n"
+			"Type=Application\n"
+			"Encoding=UTF-8\n"
+			"Name=FTE QuakeWorld\n"	//FIXME: needs to come from the manifest
+			"Comment=Awesome First Person Shooter\n"	//again should be a manicfest item
+			"Exec=\"%s\" %%u\n"	//FIXME: FS_GetManifestArgs! etc!
+			"Path=%s\n"
+			"Icon=quake\n"		//FIXME: fix me!
+			"Terminal=false\n"
+			"Categories=Game;\n"
+			"MimeType=application/x-quakeworlddemo;x-scheme-handler/qw;\n"
+			;
+		desktopfile = va(desktopfile,
+					exe, basedir);
+		free(exe);
+		free(basedir);
+		FS_WriteFile(va("%s/applications/fteqw.desktop", xdgbase), desktopfile, strlen(desktopfile), FS_SYSTEM);
+	}
+
+	//we need to set some default applications.
+	//write out a new file and rename the new over the top of the old
+	{
+		char *foundassoc = NULL;
+		vfsfile_t *out = FS_OpenVFS(va("%s/applications/.mimeapps.list.new", xdgbase), "wb", FS_SYSTEM);
+		if (out)
+		{
+			qofs_t insize;
+			char *in = FS_MallocFile(va("%s/applications/mimeapps.list", xdgbase), FS_SYSTEM, &insize);
+			if (in)
+			{
+				qboolean inadded = false;
+				char *l = in;
+				while(*l)
+				{
+					char *le;
+					while(*l == ' ' || *l == '\n')
+						l++;
+					le = strchr(l, '\n');
+					if (le)
+						le = le+1;
+					else
+						le = l + strlen(l);
+					if (!strncmp(l, "[Added Associations]", 20))
+					{
+						inadded = true;
+						if (!foundassoc)
+							foundassoc = le;
+					}
+					else if (!strncmp(l, "[", 1))
+						inadded = false;
+					else if (inadded && !strncmp(l, "x-scheme-handler/qw=", 20))
+					{
+						foundassoc = l;
+						insize -= strlen(le);
+						memmove(l, le, strlen(le));	//remove the line
+					}
+					l = le;
+				}
+				if (foundassoc)
+				{	//if we found it, or somewhere to insert it, then insert it.
+					VFS_WRITE(out, in, foundassoc-in);
+					VFS_PRINTF(out, "x-scheme-handler/qw=fteqw.desktop\n");
+					VFS_WRITE(out, foundassoc, insize - (foundassoc-in));
+				}
+				else
+					VFS_WRITE(out, in, insize);	//not found, just write everything as-is
+				Z_Free(in);
+			}
+			if (!foundassoc)
+			{	//if file not found, or no appropriate section, just concat it on the end.
+				VFS_PRINTF(out, "[Added Associations]\n");
+				VFS_PRINTF(out, "x-scheme-handler/qw=fteqw.desktop\n");
+			}
+			VFS_FLUSH(out);
+			VFS_CLOSE(out);
+			FS_Rename2(va("%s/applications/.mimeapps.list.new", xdgbase), va("%s/applications/mimeapps.list", xdgbase), FS_SYSTEM, FS_SYSTEM);
+		}
+	}
+}
+
 void Sys_Init(void)
 {
+	Cmd_AddCommandD("sys_register_file_associations", Sys_Register_File_Associations_f, "Register FTE as the default handler for various file+protocol types, using FreeDesktop standards.\n");
 }
 void Sys_Shutdown(void)
 {
@@ -334,56 +458,6 @@ qboolean Sys_remove (char *path)
 qboolean Sys_Rename (char *oldfname, char *newfname)
 {
 	return !rename(oldfname, newfname);
-}
-
-int Sys_FileOpenRead (char *path, int *handle)
-{
-	int h;
-	struct stat fileinfo;
-
-	h = open (path, O_RDONLY, 0666);
-	*handle = h;
-	if (h == -1)
-		return -1;
-
-	if (fstat (h,&fileinfo) == -1)
-		Sys_Error ("Error fstating %s", path);
-
-	return fileinfo.st_size;
-}
-
-int Sys_FileOpenWrite (char *path)
-{
-	int handle;
-
-	umask (0);
-
-	handle = open(path,O_RDWR | O_CREAT | O_TRUNC, 0666);
-
-	if (handle == -1)
-		Sys_Error ("Error opening %s: %s", path,strerror(errno));
-
-	return handle;
-}
-
-int Sys_FileWrite (int handle, void *src, int count)
-{
-	return write (handle, src, count);
-}
-
-void Sys_FileClose (int handle)
-{
-	close (handle);
-}
-
-void Sys_FileSeek (int handle, int position)
-{
-	lseek (handle, position, SEEK_SET);
-}
-
-int Sys_FileRead (int handle, void *dest, int count)
-{
-	return read (handle, dest, count);
 }
 
 int Sys_DebugLog(char *file, char *fmt, ...)
@@ -800,6 +874,7 @@ int main (int c, const char **v)
 {
 	double time, oldtime, newtime;
 	quakeparms_t parms;
+	int i;
 
 //	char cwd[1024];
 	char bindir[1024];
@@ -815,6 +890,9 @@ int main (int c, const char **v)
 
 	parms.argc = c;
 	parms.argv = v;
+#ifdef CONFIG_MANIFEST_TEXT
+	parms.manifest = CONFIG_MANIFEST_TEXT;
+#endif
 	COM_InitArgv(parms.argc, parms.argv);
 
 #ifdef __linux__
@@ -831,7 +909,7 @@ int main (int c, const char **v)
 	}
 #endif
 
-	parms.basedir = basedir;
+	parms.basedir = realpath(".", NULL);
 	memset(bindir, 0, sizeof(bindir));	//readlink does NOT null terminate, apparently.
 #ifdef __linux__
 	//attempt to figure out where the exe is located
@@ -875,6 +953,16 @@ int main (int c, const char **v)
 		nostdout = 1;
 
 	Host_Init(&parms);
+
+	for (i = 1; i < parms.argc; i++)
+	{
+		Con_Printf("Arg%i == %s\n", i, parms.argv[i]);
+		if (!parms.argv[i])
+			continue;
+		if (*parms.argv[i] == '+' || *parms.argv[i] == '-')
+			break;
+		Host_RunFile(parms.argv[i], strlen(parms.argv[i]), NULL);
+	}
 
 	oldtime = Sys_DoubleTime ();
 	while (1)

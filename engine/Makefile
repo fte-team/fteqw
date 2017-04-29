@@ -1218,6 +1218,12 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	SV_LDFLAGS=
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DMULTITHREAD
 
+	CL_CFLAGS=$(SPEEXCFLAGS) -DMULTITHREAD -DDYNAMIC_SDL
+	
+	#one of these two
+	IMAGELDFLAGS=-lpng -ljpeg
+	#CL_CFLAGS+= -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG
+
 	QCC_DIR=linqcc$(BITS)
 	
 	NPFTE_OBJS=httpclient.o image.o sys_linux_threads.o sys_npfte.o sys_axfte.o sys_plugfte.o
@@ -1230,7 +1236,7 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	GL_EXE_NAME=../$(EXE_NAME)-gl$(BITS)
 	GLCL_EXE_NAME=../$(EXE_NAME)-glcl$(BITS)
 	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DMULTITHREAD -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG -DDYNAMIC_SDL
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(CL_CFLAGS)
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
 
@@ -1238,7 +1244,7 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	VK_EXE_NAME=../$(EXE_NAME)-vk$(BITS)
 	VKCL_EXE_NAME=../$(EXE_NAME)-vkcl$(BITS)
 	VK_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
-	VK_CFLAGS=$(VKCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DMULTITHREAD -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG -DDYNAMIC_SDL
+	VK_CFLAGS=$(VKCFLAGS) -I/usr/X11R6/include $(CL_CFLAGS)
 	VKB_DIR=vk_linux$(BITS)
 	VKCL_DIR=vkcl_linux$(BITS)
 
@@ -1249,8 +1255,6 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	M_CFLAGS=$(VKCFLAGS) $(GL_CFLAGS)
 	MB_DIR=m_linux$(BITS)
 	MCL_DIR=mcl_linux$(BITS)
-
-	IMAGELDFLAGS=
 
 	ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
 		SV_LDFLAGS+= -lz
@@ -2001,29 +2005,40 @@ CONFIGARGS+= -host=$(ARCH) --enable-shared=no CC="$(CC)"
 CONFIGARGS:= $(CONFIGARGS)
 #--disable-silent-rules 
 
-makelibs:
-ifndef ARCH
-	$(MAKE) makelibs ARCH=$(shell $(CC) -dumpmachine)
-else
-	mkdir -p libs-$(ARCH)
+
+libs-$(ARCH)/libjpeg.a:
 	test -f jpegsrc.v$(JPEGVER).tar.gz || wget http://www.ijg.org/files/jpegsrc.v$(JPEGVER).tar.gz
-	-test -f libs-$(ARCH)/libjpeg.a || (cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v$(JPEGVER).tar.gz && cd jpeg-$(JPEGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libjpeg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libjpeg.a && cp jconfig.h jerror.h jmorecfg.h jpeglib.h jversion.h ../ )
-	
+	-test -f libs-$(ARCH)/libjpeg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v$(JPEGVER).tar.gz && cd jpeg-$(JPEGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libjpeg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libjpeg.a && cp jconfig.h jerror.h jmorecfg.h jpeglib.h jversion.h ../ )
+
+libs-$(ARCH)/libz.a:
 	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/zlib-$(ZLIBVER).tar.gz
-	-test -f libs-$(ARCH)/libz.a || (cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h ../ )
-	
+	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h ../ )
+
+libs-$(ARCH)/libpng.a: libs-$(ARCH)/libz.a
 	test -f libpng-$(PNGVER).tar.gz || wget http://prdownloads.sourceforge.net/libpng/libpng-$(PNGVER).tar.gz?download -O libpng-$(PNGVER).tar.gz
-	-test -f libs-$(ARCH)/libpng.a || (cd libs-$(ARCH) && tar -xvzf ../libpng-$(PNGVER).tar.gz && cd libpng-$(PNGVER) && $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --enable-static && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libpng16.a ../libpng.a && cp png*.h ../ )
-	
+	-test -f libs-$(ARCH)/libpng.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libpng-$(PNGVER).tar.gz && cd libpng-$(PNGVER) && $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --enable-static && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libpng16.a ../libpng.a && cp png*.h ../ )
+
+libs-$(ARCH)/libogg.a:
 	test -f libogg-$(OGGVER).tar.gz || wget http://downloads.xiph.org/releases/ogg/libogg-$(OGGVER).tar.gz
-	-test -f libs-$(ARCH)/libogg.a || (cd libs-$(ARCH) && tar -xvzf ../libogg-$(OGGVER).tar.gz && cd libogg-$(OGGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp src/.libs/libogg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libogg.a)
+	-test -f libs-$(ARCH)/libogg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libogg-$(OGGVER).tar.gz && cd libogg-$(OGGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp src/.libs/libogg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libogg.a && mkdir ../ogg && cp include/ogg/*.h ../ogg)
 
+libs-$(ARCH)/libvorbis.a:
 	test -f libvorbis-$(VORBISVER).tar.gz || wget http://downloads.xiph.org/releases/vorbis/libvorbis-$(VORBISVER).tar.gz
-	-test -f libs-$(ARCH)/libvorbisfile.a || (cd libs-$(ARCH) && tar -xvzf ../libvorbis-$(VORBISVER).tar.gz && cd libvorbis-$(VORBISVER) && $(TOOLOVERRIDES) ./configure PKG_CONFIG= $(CONFIGARGS) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/libogg-$(OGGVER)/include && $(TOOLOVERRIDES) $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../ )
-endif
+	-test -f libs-$(ARCH)/libvorbisfile.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libvorbis-$(VORBISVER).tar.gz && cd libvorbis-$(VORBISVER) && $(TOOLOVERRIDES) ./configure PKG_CONFIG= $(CONFIGARGS) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/libogg-$(OGGVER)/include && $(TOOLOVERRIDES) $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../  && mkdir ../vorbis && cp include/vorbis/*.h ../vorbis)
 
-httpserver:
-	$(CC) -o release/httpserver http/httpserver.c http/iwebiface.c common/fs_stdio.c -Icommon -Iclient -Iqclib -Igl -Iserver -DWEBSVONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp
+makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a
+
+HTTP_OBJECTS=http/httpserver.c http/iwebiface.c common/fs_stdio.c
+$(RELEASE_DIR)/httpserver$(BITS): $(HTTP_OBJECTS)
+	$(CC) -o $(RELEASE_DIR)/httpserver$(BITS) $(HTTP_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DWEBSVONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -DNO_PNG
+httpserver: $(RELEASE_DIR)/httpserver$(BITS)
+
+IQM_OBJECTS=../iqm/iqm.cpp
+$(RELEASE_DIR)/iqm$(BITS): $(IQM_OBJECTS)
+	$(CC) -o $(RELEASE_DIR)/iqm$(BITS) $(IQM_OBJECTS) -lstdc++ -lm
+iqm: $(RELEASE_DIR)/iqm$(BITS)
+
+utils: httpserver iqm
 
 prefix ?= /usr/local
 exec_prefix ?= $(prefix)

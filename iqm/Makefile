@@ -17,3 +17,6 @@ iqm: $(IQM_OBJS)
 	$(CXX) $(CXXFLAGS) -o iqm $(IQM_OBJS)
 upgrade: $(UPGRADE_OBJS)
 	$(CXX) $(CXXFLAGS) -o upgrade $(UPGRADE_OBJS)
+
+%.o : %.cpp
+	$(CXX) -o $@ -c $<

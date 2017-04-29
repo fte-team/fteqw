@@ -135,11 +135,10 @@ static void (VARGS *qgnutls_transport_set_pull_function)(gnutls_session_t sessio
 static void (VARGS *qgnutls_transport_set_errno)(gnutls_session_t session, int err);
 static int (VARGS *qgnutls_error_is_fatal)(int error);
 static int (VARGS *qgnutls_credentials_set)(gnutls_session_t, gnutls_credentials_type_t type, void* cred);
-static int (VARGS *qgnutls_kx_set_priority)(gnutls_session_t session, const int*);
+//static int (VARGS *qgnutls_kx_set_priority)(gnutls_session_t session, const int*);
 static int (VARGS *qgnutls_init)(gnutls_session_t * session, gnutls_connection_end_t con_end);
 static int (VARGS *qgnutls_set_default_priority)(gnutls_session_t session);
 static int (VARGS *qgnutls_certificate_allocate_credentials)(gnutls_certificate_credentials_t *sc);
-static int (VARGS *qgnutls_certificate_type_set_priority)(gnutls_session_t session, const int*);
 static int (VARGS *qgnutls_anon_allocate_client_credentials)(gnutls_anon_client_credentials_t *sc);
 static int (VARGS *qgnutls_global_init)(void);
 static ssize_t (VARGS *qgnutls_record_send)(gnutls_session_t session, const void *data, size_t sizeofdata);
@@ -197,9 +196,7 @@ static qboolean Init_GNUTLS(void)
 	GNUTLS_FUNC(gnutls_transport_set_pull_function)	\
 	GNUTLS_FUNC(gnutls_transport_set_errno)	\
 	GNUTLS_FUNC(gnutls_error_is_fatal)	\
-	GNUTLS_FUNC(gnutls_certificate_type_set_priority)	\
 	GNUTLS_FUNC(gnutls_credentials_set)	\
-	GNUTLS_FUNC(gnutls_kx_set_priority)	\
 	GNUTLS_FUNC(gnutls_init)	\
 	GNUTLS_FUNC(gnutls_set_default_priority)	\
 	GNUTLS_FUNC(gnutls_certificate_allocate_credentials)	\
@@ -232,9 +229,8 @@ static qboolean Init_GNUTLS(void)
 		{(void**)&qgnutls_transport_set_pull_function, "gnutls_transport_set_pull_function"},
 		{(void**)&qgnutls_transport_set_errno, "gnutls_transport_set_errno"},
 		{(void**)&qgnutls_error_is_fatal, "gnutls_error_is_fatal"},
-		{(void**)&qgnutls_certificate_type_set_priority, "gnutls_certificate_type_set_priority"},
 		{(void**)&qgnutls_credentials_set, "gnutls_credentials_set"},
-		{(void**)&qgnutls_kx_set_priority, "gnutls_kx_set_priority"},
+//		{(void**)&qgnutls_kx_set_priority, "gnutls_kx_set_priority"},
 		{(void**)&qgnutls_init, "gnutls_init"},
 		{(void**)&qgnutls_set_default_priority, "gnutls_set_default_priority"},
 		{(void**)&qgnutls_certificate_allocate_credentials, "gnutls_certificate_allocate_credentials"},
@@ -396,7 +392,7 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 			gnutls_datum_t out;
 			gnutls_certificate_type_t type;
 
-			if (preverified && certstatus == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
+			if (preverified && (certstatus&~GNUTLS_CERT_EXPIRED) == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
 				return 0;
 			if (certstatus == 0)
 				return 0;
@@ -699,7 +695,7 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, 
 	qgnutls_set_default_priority (newf->session);
 	if (anon)
 	{
-		qgnutls_kx_set_priority (newf->session, kx_prio);
+		//qgnutls_kx_set_priority (newf->session, kx_prio);
 		qgnutls_credentials_set (newf->session, GNUTLS_CRD_ANON, anoncred);
 	}
 	else
@@ -707,7 +703,7 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, 
 //#if GNUTLS_VERSION_MAJOR >= 3
 		//gnutls_priority_set_direct();
 //#else
-		qgnutls_certificate_type_set_priority (newf->session, cert_type_priority);
+		//qgnutls_certificate_type_set_priority (newf->session, cert_type_priority);
 //#endif
 		qgnutls_credentials_set (newf->session, GNUTLS_CRD_CERTIFICATE, xcred);
 	}

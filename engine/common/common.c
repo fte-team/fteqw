@@ -4796,12 +4796,20 @@ void COM_Version_f (void)
 #ifndef AVAIL_PNGLIB
 	Con_Printf("libpng disabled\n");
 #else
-	Con_Printf("libPNG %s -%s", PNG_LIBPNG_VER_STRING, PNG_HEADER_VERSION_STRING);
+	#ifdef DYNAMIC_LIBPNG
+		Con_Printf("libPNG(dynamic) %s -%s", PNG_LIBPNG_VER_STRING, PNG_HEADER_VERSION_STRING);
+	#else
+		Con_Printf("libPNG %s -%s", PNG_LIBPNG_VER_STRING, PNG_HEADER_VERSION_STRING);
+	#endif
 #endif
 #ifndef AVAIL_JPEGLIB
 	Con_Printf("libjpeg disabled\n");
 #else
-	Con_Printf("libjpeg: %i (%d series)\n", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
+	#ifdef DYNAMIC_LIBJPEG
+		Con_Printf("libjpeg(dynamic): %i (%d series)\n", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
+	#else
+		Con_Printf("libjpeg: %i (%d series)\n", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
+	#endif
 #endif
 
 	Con_Printf("VoiceChat:");
@@ -4809,12 +4817,12 @@ void COM_Version_f (void)
 	Con_Printf(" disabled");
 #else
 	#ifdef SPEEX_STATIC
-		Con_Printf(" speex(static)");
+		Con_Printf(" speex");
 	#else
 		Con_Printf(" speex(dynamic)");
 	#endif
 	#ifdef OPUS_STATIC
-		Con_Printf(" opus(static)");
+		Con_Printf(" opus");
 	#else
 		Con_Printf(" opus(dynamic)");
 	#endif
@@ -4823,9 +4831,9 @@ void COM_Version_f (void)
 
 	Con_Printf("Audio Decoders:");
 #ifndef AVAIL_OGGVORBIS
-	Con_Printf(" ^h(disabled: Ogg Vorbis)^7");
+	Con_DPrintf(" ^h(disabled: Ogg Vorbis)^7");
 #elif defined(LIBVORBISFILE_STATIC)
-	Con_Printf(" Ogg Vorbis(static)");
+	Con_Printf(" Ogg Vorbis");
 #else
 	Con_Printf(" Ogg Vorbis(dynamic)");
 #endif
@@ -4840,12 +4848,12 @@ void COM_Version_f (void)
 	#ifdef USE_MYSQL
 		Con_Printf(" mySQL(dynamic)");
 	#else
-		Con_Printf(" ^h(disabled: mySQL)^7");
+		Con_DPrintf(" ^h(disabled: mySQL)^7");
 	#endif
 	#ifdef USE_SQLITE
 		Con_Printf(" sqlite(dynamic)");
 	#else
-		Con_Printf(" ^h(disabled: sqlite)^7");
+		Con_DPrintf(" ^h(disabled: sqlite)^7");
 	#endif
 	Con_Printf("\n");
 #endif
@@ -4854,28 +4862,28 @@ void COM_Version_f (void)
 #ifdef SUBSERVERS
 	Con_Printf(" mapcluster(enabled)");
 #else
-	Con_Printf(" ^h(disabled: mapcluster)^7");
+	Con_DPrintf(" ^h(disabled: mapcluster)^7");
 #endif
 #ifndef SERVERONLY
 #ifdef AVAIL_FREETYPE
 	Con_Printf(" freetype2");
 #else
-	Con_Printf(" ^h(disabled: freetype2)^7");
+	Con_DPrintf(" ^h(disabled: freetype2)^7");
 #endif
 #ifdef AVAIL_OPENAL
 	Con_Printf(" openal");
 #else
-	Con_Printf(" ^h(disabled: openal)^7");
+	Con_DPrintf(" ^h(disabled: openal)^7");
 #endif
 #endif
 	Con_Printf("\n");
 
 #ifdef _WIN32
 	#ifndef AVAIL_DINPUT
-		Con_Printf("DirectInput disabled\n");
+		Con_DPrintf("DirectInput disabled\n");
 	#endif
 	#ifndef AVAIL_DSOUND
-		Con_Printf("DirectSound disabled\n");
+		Con_DPrintf("DirectSound disabled\n");
 	#endif
 #endif
 
@@ -4889,7 +4897,7 @@ void COM_Version_f (void)
 #elif defined(Q3BSPS)
 	Con_Printf(" Quake3(bsp only)");
 #else
-	Con_Printf(" ^h(disabled: Quake3)^7");
+	Con_DPrintf(" ^h(disabled: Quake3)^7");
 #endif
 #if defined(Q2SERVER) && defined(Q2CLIENT)
 	Con_Printf(" Quake2");
@@ -4900,17 +4908,17 @@ void COM_Version_f (void)
 #elif defined(Q2BSPS)
 	Con_Printf(" Quake2(bsp only)");
 #else
-	Con_Printf(" ^h(disabled: Quake2)^7");
+	Con_DPrintf(" ^h(disabled: Quake2)^7");
 #endif
 #if defined(HEXEN2)
 	Con_Printf(" Hexen2");
 #else
-	Con_Printf(" ^h(disabled: Hexen2)^7");
+	Con_DPrintf(" ^h(disabled: Hexen2)^7");
 #endif
 #if defined(NQPROT)
 	Con_Printf(" NetQuake");
 #else
-	Con_Printf(" ^h(disabled: NetQuake)");
+	Con_DPrintf(" ^h(disabled: NetQuake)");
 #endif
 #if defined(VM_Q1)
 	Con_Printf(" ssq1qvm");

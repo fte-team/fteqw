@@ -23,11 +23,11 @@ NACLSDKVERSION=pepper_49
 
 #android defaults
 ANDROIDROOT=$FTEROOT/android
-ifneq ($(shell uname -o 2>&1 | grep Cygwin),)
-	ANDROID_HOSTSYSTEM?=windows-x86_64
+if [ ! -z "$(uname -o 2>&1 | grep Cygwin)" ]; then
+	ANDROID_HOSTSYSTEM=windows-x86_64
 else
-	ANDROID_HOSTSYSTEM?=linux-$(shell uname -m)
-endif
+	ANDROID_HOSTSYSTEM=linux-$(uname -m)
+fi
 ANDROIDBUILDTOOLS=25.0.0
 ANDROID_ZIPALIGN=$ANDROIDROOT/build-tools/$ANDROIDBUILDTOOLS/zipalign	#relative to ndk tools
 
@@ -233,7 +233,7 @@ debianpackages subversion make automake libtool p7zip-full zip || otherpackages 
 if [ "$BUILD_LINUXx86" == "y" ]; then
 	#for building linux targets
 	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev libvorbis-dev || otherpackages gcc || exit
-	jessiepackages libgnutls28-dev || debianpackages libgnutls-dev || otherpackages gcc || exit
+	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
 	if [[ "$PLUGINS_LINUXx86" =~ "avplug" ]]; then
 		debianpackages libswscale-dev libavcodec-dev || otherpackages || exit
 	fi
@@ -241,7 +241,7 @@ fi
 if [ "$BUILD_LINUXx64" == "y" ]; then
 	#for building linux targets
 	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev || otherpackages gcc || exit
-	jessiepackages libgnutls28-dev || debianpackages libgnutls-dev || otherpackages gcc || exit
+	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
 	if [[ "$PLUGINS_LINUXx64" =~ "avplug" ]]; then
 		debianpackages libswscale-dev libavcodec-dev || otherpackages || exit
 	fi
@@ -249,12 +249,12 @@ fi
 if [ "$BUILD_LINUXx32" == "y" ]; then
 	#for building linux targets
 	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev || otherpackages gcc || exit
-	jessiepackages libgnutls28-dev || debianpackages libgnutls-dev || otherpackages gcc || exit
+	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
 fi
 if [ "$BUILD_LINUXarmhf" == "y" ]; then
 	#for building linux targets
 	debianpackages gcc-multilib-arm-linux-gnueabihf g++-multilib-arm-linux-gnueabihf mesa-common-dev libasound2-dev || otherpackages gcc || exit
-	jessiepackages libgnutls28-dev || debianpackages libgnutls-dev || otherpackages gcc || exit
+	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
 fi
 if [ "$BUILD_SDL" == "y" ]; then
 	#for building SDL targets
@@ -368,7 +368,7 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 		echo "Making libraries (x86)..."
 		make FTE_TARGET=linux32 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
-	if [ "$BUILD_LINUx64" == "y" ]; then
+	if [ "$BUILD_LINUXx64" == "y" ]; then
 		echo "Making libraries (linux x86_64)..."
 		make FTE_TARGET=linux64 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi

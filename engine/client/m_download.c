@@ -1091,7 +1091,7 @@ static void PM_PreparePackageList(void)
 			{
 				pluginpromptshown = true;
 #ifndef SERVERONLY
-				M_Menu_Prompt(PM_PluginDetected, NULL, "Plugin(s) appears to have\nbeen installed externally.\nUse the updates menu\ntoenable them.", "View", NULL, "Disable");
+				M_Menu_Prompt(PM_PluginDetected, NULL, "Plugin(s) appears to have\nbeen installed externally.\nUse the updates menu\nto enable them.", "View", NULL, "Disable");
 #endif
 			}
 		}

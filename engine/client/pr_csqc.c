@@ -2966,7 +2966,7 @@ static void QCBUILTIN PF_cs_particleeffectnum (pubprogfuncs_t *prinst, struct gl
 		{
 			//effects can be in the list despite now being stale. they still take up a slot to avoid reuse as the qc can potentially still potentially reference it.
 			//csqc needs to be able to detect a now-stale effect
-			if (cl.particle_csprecache[i] != P_INVALID)
+			//if (cl.particle_csprecache[i] != P_INVALID)
 				G_FLOAT(OFS_RETURN) = -i;
 			return;
 		}

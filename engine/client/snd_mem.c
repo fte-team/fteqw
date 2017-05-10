@@ -648,7 +648,7 @@ qboolean QDECL S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, size_t datalen, in
 	}
 
 	sc->length = len;
-	sc->loopstart = -1;
+	s->loopstart = -1;
 	sc->numchannels = 1;
 	sc->width = 1;
 	sc->speed = snd_speed;
@@ -748,10 +748,10 @@ static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, 
 {
 	sfxcache_t *sc;
 	s->decoder.buf = sc = BZ_Malloc(sizeof(sfxcache_t) + datalen);
+	s->loopstart = -1;
 	sc->data = (qbyte*)(sc+1);
 	sc->length = datalen;
 	sc->width = 0;	//ie: not pcm
-	sc->loopstart = -1;
 	sc->speed = sndspeed;
 	sc->numchannels = 2;
 	sc->soundoffset = 0;

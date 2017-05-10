@@ -3871,6 +3871,7 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcpconnect_connection_t *con, ftenet
 		}
 		else
 		{
+			qboolean fail = false;
 			char acceptkey[20*2];
 			unsigned char sha1digest[20];
 			char *blurgh;
@@ -3910,12 +3911,12 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcpconnect_connection_t *con, ftenet
 			case TCPC_WEBSOCKETU:
 			case TCPC_WEBSOCKETB:
 				if (!net_enable_websockets.ival)
-					return false;
+					fail = true;
 				break;
 			case TCPC_WEBRTC_HOST:
 			case TCPC_WEBRTC_CLIENT:
 				if (!net_enable_webrtcbroker.ival)
-					return false;
+					fail = true;
 				break;
 			default:
 				return false;
@@ -3930,6 +3931,9 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcpconnect_connection_t *con, ftenet
 			if (st->clienttype == TCPC_WEBRTC_CLIENT && !*st->webrtc.resource)
 				fail = true;
 #endif
+
+			if (fail)
+				return false;
 
 			resp = va(	"HTTP/1.1 101 WebSocket Protocol Handshake\r\n"
 						"Upgrade: websocket\r\n"

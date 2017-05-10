@@ -392,11 +392,11 @@ int Q_strncasecmp (const char *s1, const char *s2, int n)
 
 int Q_strcasecmp (const char *s1, const char *s2)
 {
-	return Q_strncasecmp (s1, s2, INT_MAX);
+	return Q_strncasecmp (s1, s2, 0x7fffffff);
 }
 int QDECL Q_stricmp (const char *s1, const char *s2)
 {
-	return Q_strncasecmp (s1, s2, INT_MAX);
+	return Q_strncasecmp (s1, s2, 0x7fffffff);
 }
 int Q_strstopcasecmp(const char *s1start, const char *s1end, const char *s2)
 {	//safer version of strncasecmp, where s1 is the one with the length, and must exactly match s2 (which is null terminated and probably an immediate.

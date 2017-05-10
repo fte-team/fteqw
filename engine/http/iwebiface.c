@@ -670,7 +670,7 @@ int IWebAuthorize(const char *name, const char *password)
 	rankinfo_t info;
 	if (!id)
 	{
-		if (!sv_readlevel.value && !*name || !stricmp(name, "anonymous"))
+		if (!sv_readlevel.value && (!*name || !stricmp(name, "anonymous")))
 			return IWEBACC_READ;	//read only anywhere
 		return 0;
 	}

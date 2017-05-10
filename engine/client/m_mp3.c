@@ -3406,7 +3406,7 @@ double Media_TweekCaptureFrameTime(double oldtime, double time)
 }
 
 #ifdef VKQUAKE
-static void Media_CapturedFrame (void *data, int bytestride, size_t width, size_t height, enum uploadfmt fmt)
+static void Media_CapturedFrame (void *data, qintptr_t bytestride, size_t width, size_t height, enum uploadfmt fmt)
 {
 	if (currentcapture_funcs)
 		currentcapture_funcs->capture_video(currentcapture_ctx, offscreen_captureframe, data, bytestride, width, height, fmt);

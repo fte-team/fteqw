@@ -53,7 +53,9 @@ typedef struct FTPclient_s{
 
 	unsigned long blocking;
 
+#ifdef MULTITHREAD
 	void *transferthread;
+#endif
 
 	struct FTPclient_s *next;
 } FTPclient_t;
@@ -529,6 +531,7 @@ qboolean FTP_ReadToAbsFilename(FTPclient_t *cl, const char *msg, char *out, size
 	return true;
 }
 
+#ifdef MULTITHREAD
 int FTP_TransferThread(void *vcl)
 {
 	char resource[8192];
@@ -536,7 +539,7 @@ int FTP_TransferThread(void *vcl)
 	u_long _false = false;
 	ioctlsocket (cl->datasock, FIONBIO, &_false);
 
-	if (cl->datadir == 1)
+	if ((cl->datadir&~64) == 1)
 	{
 		while(1)
 		{
@@ -554,7 +557,7 @@ int FTP_TransferThread(void *vcl)
 				break;
 		}
 	}
-	else if (cl->datadir == 2)
+	else if ((cl->datadir&~64) == 2)
 	{
 		while(1)
 		{
@@ -565,10 +568,11 @@ int FTP_TransferThread(void *vcl)
 				break;
 		}
 	}
-	cl->transferthread = NULL;
+	cl->datadir &= ~64;
 
 	return 0;
 }
+#endif
 
 iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 {
@@ -581,15 +585,22 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 	char resource[8192];
 	int _true = true;
 
-	if (cl->transferthread)
+#ifdef MULTITHREAD
+	if (cl->datadir & 64)
 	{
 		if (*cl->messagebuffer)
-		{
+		{	//fixme: gah!
 			if (send (cl->controlsock, cl->messagebuffer, strlen(cl->messagebuffer), 0) != -1)
 				*cl->messagebuffer = '\0';	//YAY! It went!
 		}
 		return false;
 	}
+	if (cl->transferthread)
+	{
+		Sys_WaitOnThread(cl->transferthread);
+		cl->transferthread = NULL;
+	}
+#endif
 
 	if (cl->datadir == 1)
 	{
@@ -1322,8 +1333,13 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		}
 	}
 
+#ifdef MULTITHREAD
 	if (cl->datadir && !cl->transferthread)
+	{
+		cl->datadir|=64;
 		cl->transferthread = Sys_CreateThread("FTP RECV", FTP_TransferThread, cl, 0, 65536);
+	}
+#endif
 	return false;
 }
 

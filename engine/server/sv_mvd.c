@@ -2355,6 +2355,7 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 	VFS_PRINTF(pipe,
 		"<html>"
 			"<head>"
+				"<title>%s - %s</title>"
 				"<meta charset='UTF-8'>"
 				"<style>"
 					".mydiv { width: 20%%; height: 100%%; padding: 0px; margin: 0px; border: 0px solclass #aaaaaa; float:left; }"
@@ -2363,14 +2364,14 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 				"<script>"
 					"function playdemo(demo)"
 					"{"
-						"demo = '%s/demos/'+demo;"
+						"demo = window.location.origin+'/demos/'+demo;"
 						"thegame.postMessage({cmd:'playdemo',url:demo}, '*');"
 					"}"
 				"</script>"
 			"</head>"
 			"<body>"
 			"<div class='mydiv'>\n"
-		, hostname);
+		, fs_manifest->formalname, hostname.string);
 
 	VFS_PRINTF(pipe, "available demos:<br/>\n");
 	dir = Sys_listdir(sv_demoDir.string, ".mvd", SORT_BY_DATE);

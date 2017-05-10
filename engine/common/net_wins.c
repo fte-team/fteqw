@@ -3871,7 +3871,6 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcpconnect_connection_t *con, ftenet
 		}
 		else
 		{
-			qboolean fail = false;
 			char acceptkey[20*2];
 			unsigned char sha1digest[20];
 			char *blurgh;
@@ -3918,6 +3917,8 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcpconnect_connection_t *con, ftenet
 				if (!net_enable_webrtcbroker.ival)
 					return false;
 				break;
+			default:
+				return false;
 			}
 
 			if (*arg[WCATTR_URL] == '/')
@@ -4010,6 +4011,7 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcpconnect_connection_t *con, ftenet
 	}
 }
 
+#ifdef HAVE_SSL
 static int QDECL TLSPromoteRead (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	if (bytestoread > net_message.cursize)
@@ -4018,6 +4020,7 @@ static int QDECL TLSPromoteRead (struct vfsfile_s *file, void *buffer, int bytes
 	net_message.cursize = 0;
 	return bytestoread;
 }
+#endif
 #endif
 void FTENET_TCPConnect_PrintStatus(ftenet_generic_connection_t *gcon)
 {

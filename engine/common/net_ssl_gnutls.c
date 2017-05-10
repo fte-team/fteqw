@@ -623,8 +623,8 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, 
 //	long _true = true;
 
 	/* Need to enable anonymous KX specifically. */
-	const int kx_prio[] = {GNUTLS_KX_ANON_DH, 0};
-	const int cert_type_priority[3] = {GNUTLS_CRT_X509, 0};
+//	const int kx_prio[] = {GNUTLS_KX_ANON_DH, 0};
+//	const int cert_type_priority[3] = {GNUTLS_CRT_X509, 0};
 
 	if (!source)
 		return NULL;
@@ -680,7 +680,7 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, 
 	newf->funcs.WriteBytes = SSL_Write;
 	newf->funcs.Seek = SSL_Seek;
 	newf->funcs.Tell = SSL_Tell;
-	newf->funcs.seekingisabadplan = SS_UNSEEKABLE;
+	newf->funcs.seekstyle = SS_UNSEEKABLE;
 
 	Q_strncpyz(newf->certname, hostname, sizeof(newf->certname));
 

@@ -6,6 +6,8 @@
 #include "libswscale/swscale.h"
 #include "libavutil/imgutils.h"
 
+#define TARGET_FFMPEG (LIBAVFORMAT_VERSION_MICRO >= 100)
+
 //between av 52.31 and 54.35, lots of constants etc got renamed to gain an extra AV_ prefix.
 /*
 #define AV_PIX_FMT_BGRA PIX_FMT_BGRA
@@ -27,7 +29,7 @@
 BUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, int channels, int width, float volume));
 #undef ARGNAMES
 
-/*should probably try threading this*/
+/*should probably try threading this, though I suppose it should be the engine doing that.*/
 /*timing is based upon the start time. this means overflow issues with rtsp etc*/
 
 struct decctx
@@ -57,8 +59,8 @@ struct decctx
 static qboolean AVDec_SetSize (void *vctx, int width, int height)
 {
 	struct decctx	*ctx = (struct decctx*)vctx;
-	uint8_t *rgb_data[1];
-	int rgb_linesize[1];
+	uint8_t *rgb_data[4];	//av_image_alloc requires at least 4 entries for certain pix formats (libav (but not ffmpeg) zero-fills, so this is important).
+	int rgb_linesize[4];
 
 	//colourspace conversions will be fastest if we
 //	if (width > ctx->pCodecCtx->width)
@@ -150,7 +152,7 @@ static void *AVDec_Create(const char *medianame)
 	AVCodec         *pCodec;
 	qboolean useioctx = false;
 
-	/*only respond to av: media prefixes*/
+	/*always respond to av: media prefixes*/
 	if (!strncmp(medianame, "av:", 3))
 	{
 		medianame = medianame + 3;
@@ -161,8 +163,10 @@ static void *AVDec_Create(const char *medianame)
 		medianame = medianame + 4;
 		//let avformat do its own avio context stuff
 	}
-	else
+	else if (strchr(medianame, ':'))	//block other types of url.
 		return NULL;
+	else //if (!strcasecmp(extension, ".roq") || !strcasecmp(extension, ".roq"))
+		return NULL;	//roq+cin should be played back via the engine instead.
 
 	ctx = malloc(sizeof(*ctx));
 	memset(ctx, 0, sizeof(*ctx));
@@ -316,7 +320,17 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 
 				repainted = true;
 			}
+#if TARGET_FFMPEG
 			ctx->lasttime = av_frame_get_best_effort_timestamp(ctx->pVFrame);
+#else
+			if(frameFinished)
+			{
+				if (ctx->pVFrame->pkt_pts != AV_NOPTS_VALUE)
+					ctx->lasttime = ctx->pVFrame->pkt_pts;
+				else
+					ctx->lasttime = ctx->pVFrame->pkt_dts;
+			}
+#endif
 		}
 		else if(packet.stream_index==ctx->audioStream && !nosound)
 		{

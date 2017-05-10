@@ -19,6 +19,16 @@ SVNREVISION:=-DSVNREVISION=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(B
 
 WHOAMI:=$(shell whoami)
 
+
+#update these to download+build a different version. this assumes that the url+subdirs etc contain a consistant version everywhere.
+JPEGVER=9b
+ZLIBVER=1.2.11
+PNGVER=1.6.29
+OGGVER=1.3.2
+VORBISVER=1.3.5
+SDLVER=2.0.5
+SCINTILLAVER=373
+
 #only limited forms of cross-making is supported
 #only the following 3 are supported
 #linux->win32 (FTE_TARGET=win32) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
@@ -926,8 +936,8 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	EXEPOSTFIX=.exe
 
 	CC_MACHINE:=$(shell $(CC) -dumpmachine)
-	ARCH_PREDEP=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)/bin/sdl2-config
-	SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)
+	ARCH_PREDEP=$(BASE_DIR)/libs/SDL2-$(SDLVER)/$(CC_MACHINE)/bin/sdl2-config
+	SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs/SDL2-$(SDLVER)/$(CC_MACHINE)
 	ARCH_CFLAGS=`$(SDLCONFIG) --cflags`
 	
 	#the defaults for sdl come first
@@ -1727,7 +1737,6 @@ qccgui-dbg:
 
 #scintilla is messy as fuck when building statically. but at least we can strip out the lexers we don't use this way.
 #note that this is only used in the 'qccgui-scintilla' target.
-SCINTILLAVER=366
 SCINTILLA_FILES= AutoComplete.o CallTip.o CaseConvert.o CaseFolder.o CellBuffer.o CharacterCategory.o CharacterSet.o CharClassify.o ContractionState.o Decoration.o Document.o EditModel.o Editor.o EditView.o KeyMap.o Indicator.o LineMarker.o MarginView.o PerLine.o PlatWin.o PositionCache.o PropSetSimple.o RESearch.o RunStyles.o Selection.o Style.o UniConversion.o ViewStyle.o XPM.o ScintillaWin.o HanjaDic.o ScintillaBase.o Accessor.o Catalogue.o ExternalLexer.o LexerBase.o LexerModule.o LexerSimple.o StyleContext.o WordList.o LexCPP.o
 SCINTILLA_ROOT=$(BASE_DIR)/scintilla$(SCINTILLAVER)/scintilla
 SCINTILLA_DIRS=$(SCINTILLA_ROOT)/lexers:$(SCINTILLA_ROOT)/lexlib:$(SCINTILLA_ROOT)/src:$(SCINTILLA_ROOT)/win32
@@ -1814,7 +1823,7 @@ clean:
 
 distclean: clean
 	-rm -f droid/ftekeystore
-	-rm -f -r libs/SDL2-2.0.1
+	-rm -f -r libs/SDL2-$(SDLVER)
 
 
 #################################################
@@ -1991,12 +2000,6 @@ $(BASE_DIR)/libs/SDL2-2.0.1/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)/libs
 
 
 
-#update these to download+build a different version. this assumes that the url+subdirs etc contain a consistant version everywhere.
-JPEGVER=9a
-ZLIBVER=1.2.11
-PNGVER=1.6.14
-OGGVER=1.3.2
-VORBISVER=1.3.4
 #makes sure the configure scripts get the right idea.
 AR?=$(ARCH)-ar
 

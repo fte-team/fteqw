@@ -33,21 +33,21 @@ ANDROID_ZIPALIGN=$ANDROIDROOT/build-tools/$ANDROIDBUILDTOOLS/zipalign	#relative 
 
 THREADS="-j 4"
 
-#windows is always cross compiled, so we don't have issues with non-native avplug
+#windows is always cross compiled, so we don't have issues with non-native ffmpeg
 PLUGINS_LINUXx86="ode qi ezhud xmpp irc"
 PLUGINS_LINUXx64="ode qi ezhud xmpp irc"
 PLUGINS_LINUXx32="qi ezhud xmpp irc"
 PLUGINS_LINUXarmhf="qi ezhud xmpp irc"
 if [ "$(uname -m)" != "x86_64" ]; then
-	PLUGINS_LINUXx86="avplug ode qi ezhud xmpp irc"
+	PLUGINS_LINUXx86="ffmpeg ode qi ezhud xmpp irc"
 fi
 if [ "$(uname -m)" == "x86_64" ]; then
-	PLUGINS_LINUX64="avplug ode qi ezhud xmpp irc"
+	PLUGINS_LINUX64="ffmpeg ode qi ezhud xmpp irc"
 fi
 #windows doesn't cross compile, so no system dependancy issues
 #skip some dependancies if we're running on cygwin, ode is buggy.
 if [ "$(uname -s)" == "Linux" ]; then
-	PLUGINS_WINDOWS="avplug ode qi ezhud xmpp irc"
+	PLUGINS_WINDOWS="ffmpeg ode qi ezhud xmpp irc"
 else
 	PLUGINS_WINDOWS="qi ezhud xmpp irc"
 fi
@@ -234,7 +234,7 @@ if [ "$BUILD_LINUXx86" == "y" ]; then
 	#for building linux targets
 	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev libvorbis-dev || otherpackages gcc || exit
 	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
-	if [[ "$PLUGINS_LINUXx86" =~ "avplug" ]]; then
+	if [[ "$PLUGINS_LINUXx86" =~ "ffmpeg" ]]; then
 		debianpackages libswscale-dev libavcodec-dev || otherpackages || exit
 	fi
 fi
@@ -242,7 +242,7 @@ if [ "$BUILD_LINUXx64" == "y" ]; then
 	#for building linux targets
 	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev || otherpackages gcc || exit
 	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
-	if [[ "$PLUGINS_LINUXx64" =~ "avplug" ]]; then
+	if [[ "$PLUGINS_LINUXx64" =~ "ffmpeg" ]]; then
 		debianpackages libswscale-dev libavcodec-dev || otherpackages || exit
 	fi
 fi
@@ -396,9 +396,9 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 	fi
 	if [ "$BUILD_WINDOWS" == "y" ]; then
 		echo "Obtaining ffmpeg library (win32)..."
-		make FTE_TARGET=win32 plugins-rel NATIVE_PLUGINS=avplug 2>&1 >>/dev/null
+		make FTE_TARGET=win32 plugins-rel NATIVE_PLUGINS=ffmpeg 2>&1 >>/dev/null
 		echo "Obtaining ffmpeg library (win64)..."
-		make FTE_TARGET=win64 plugins-rel NATIVE_PLUGINS=avplug 2>&1 >>/dev/null
+		make FTE_TARGET=win64 plugins-rel NATIVE_PLUGINS=ffmpeg 2>&1 >>/dev/null
 	fi
 	cd ~
 fi

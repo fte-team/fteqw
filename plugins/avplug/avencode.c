@@ -7,9 +7,15 @@
 #include "libswscale/swscale.h"
 #include "libavutil/imgutils.h"
 #include "libavutil/opt.h"
-//#include <libavutil/channel_layout.h>
+#include "libavutil/channel_layout.h"
 
+#define TARGET_FFMPEG (LIBAVFORMAT_VERSION_MICRO >= 100)
+
+#if TARGET_FFMPEG
 #define ENCODERNAME "ffmpeg"
+#else
+#define ENCODERNAME "libav"
+#endif
 
 #define HAVE_DECOUPLED_API (LIBAVCODEC_VERSION_MAJOR>57 || (LIBAVCODEC_VERSION_MAJOR==57&&LIBAVCODEC_VERSION_MINOR>=36))
 
@@ -50,6 +56,15 @@ struct encctx
 #define VARIABLE_AUDIO_FRAME_MIN_SIZE 512	//audio frames smaller than a certain size are just wasteful
 #define VARIABLE_AUDIO_FRAME_MAX_SIZE 1024
 
+#if !TARGET_FFMPEG
+#define av_make_error_string qav_make_error_string
+static inline char *av_make_error_string(char *errbuf, size_t errbuf_size, int errnum)
+{
+    av_strerror(errnum, errbuf, errbuf_size);
+    return errbuf;
+}
+#endif
+
 static void AVEnc_End (void *ctx);
 
 static AVFrame *alloc_frame(enum AVPixelFormat pix_fmt, int width, int height)
@@ -61,14 +76,22 @@ static AVFrame *alloc_frame(enum AVPixelFormat pix_fmt, int width, int height)
 	picture = av_frame_alloc();
 	if(!picture)
 		return NULL;
+#if TARGET_FFMPEG
 	size = av_image_get_buffer_size(pix_fmt, width, height, 1);
+#else
+	size = avpicture_get_size(pix_fmt, width, height);
+#endif
 	picture_buf = (uint8_t*)(av_malloc(size));
 	if (!picture_buf)
 	{
 		av_free(picture);
 		return NULL;
 	}
+#if TARGET_FFMPEG
 	av_image_fill_arrays(picture->data, picture->linesize, picture_buf, pix_fmt, width, height, 1/*fixme: align*/);
+#else
+	avpicture_fill((AVPicture*)picture, picture_buf, pix_fmt, width, height);
+#endif
 	picture->width = width;
 	picture->height = height;
 	return picture;
@@ -174,8 +197,8 @@ static void AVEnc_DoEncode(AVFormatContext *fc, AVStream *stream, AVFrame *frame
 static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, int width, int height, enum uploadfmt qpfmt)
 {
 	struct encctx *ctx = vctx;
-	const uint8_t *srcslices[2];
-	int srcstride[2];
+	const uint8_t *srcslices[4];
+	int srcstride[4];
 	int avpfmt;
 
 	if (!ctx->video_st)
@@ -185,8 +208,10 @@ static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, in
 	{
 	case TF_BGRA32: avpfmt = AV_PIX_FMT_BGRA; break;
 	case TF_RGBA32: avpfmt = AV_PIX_FMT_RGBA; break;
+#if TARGET_FFMPEG
 	case TF_BGRX32: avpfmt = AV_PIX_FMT_BGR0; break;
 	case TF_RGBX32: avpfmt = AV_PIX_FMT_RGB0; break;
+#endif
 	case TF_BGR24: avpfmt = AV_PIX_FMT_BGR24; break;
 	case TF_RGB24: avpfmt = AV_PIX_FMT_RGB24; break;
 	default:
@@ -198,7 +223,12 @@ static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, in
 	srcstride[0] = bytestride;
 	srcslices[1] = NULL;
 	srcstride[1] = 0;
+	srcslices[2] = NULL;	//libav's version probably needs this excess
+	srcstride[2] = 0;
+	srcslices[3] = NULL;
+	srcstride[3] = 0;
 
+	//fixme: it would be nice to avoid copies here if possible...
 	//convert RGB to whatever the codec needs (ie: yuv...).
 	//also rescales, but only if the user resizes the video while recording. which is a stupid thing to do.
 	ctx->scale_ctx = sws_getCachedContext(ctx->scale_ctx, width, height, avpfmt, ctx->picture->width, ctx->picture->height, ctx->video_st->codec->pix_fmt, SWS_POINT, 0, 0, 0);
@@ -262,22 +292,6 @@ static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int sample
 	c->time_base.den = samplerate;
 	c->sample_rate = samplerate;
 	c->channels = channels;
-#if 0
-	switch(channels)
-	{
-	case 1:
-		c->channel_layout = AV_CH_LAYOUT_MONO;
-		break;
-	case 2:
-		c->channel_layout = AV_CH_LAYOUT_STEREO;
-		break;
-	default:
-		break;
-	}
-#else
-	c->channel_layout = av_get_default_channel_layout(c->channels);
-#endif
-
 	c->channel_layout = av_get_default_channel_layout(c->channels);
 	c->sample_fmt = codec->sample_fmts[0];
 
@@ -657,6 +671,7 @@ static void AVEnc_End (void *vctx)
 #endif
 
 	close_video(ctx);
+	close_audio(ctx);
 
 	//don't write trailers if this is an error case and we never even wrote the headers.
 	if (ctx->doneheaders)

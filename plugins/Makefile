@@ -129,14 +129,24 @@ AV_PRE32=$(AV_VER)-win32-dev/
 AV_W64=$(AV_VER)-win64-dev$(AV_ARCHIVEEXT)
 AV_URL64=http://ffmpeg.zeranoe.com/builds/win64/dev/$(AV_W64)
 AV_PRE64=$(AV_VER)-win64-dev/
-AV_BASE=$(OUT_DIR)/../fte_libav_$(AV_VER)/
+ifeq ($(findstring win,$(FTE_TARGET)),win)
+  AV_BASE=$(OUT_DIR)/../fte_libav_$(AV_VER)/
+endif
+
+ifneq ($(AV_BASE),)
+  AV_DEP=$(AV_BASE)libavformat/avformat.h
+  AV_CFLAGS=-I$(AV_BASE)
+  AV_LDFLAGS=-L$(AV_BASE)lib$(BITS) -lavcodec -lavformat -lavutil -lswscale
+else
+  AV_LDFLAGS=-lavcodec -lavformat -lavutil -lswscale
+endif
 
 
 ifeq ($(FTE_TARGET),win32)
-#NATIVE_PLUGINS+=avplug
+#NATIVE_PLUGINS+=ffmpeg
 endif
 ifeq ($(FTE_TARGET),win64)
-#NATIVE_PLUGINS+=avplug
+#NATIVE_PLUGINS+=ffmpeg
 endif
 
 $(AV_BASE)libavformat/avformat.h:
@@ -153,13 +163,15 @@ $(AV_BASE)libavformat/avformat.h:
 	rm $(AV_BASE)$(AV_W64)
 distclean:
 	rm $(AV_BASE)libavformat/avformat.h
-$(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): $(AV_BASE)libavformat/avformat.h
+$(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): $(AV_DEP)
 
+AVPLUG_OBJS= avplug/avaudio.c avplug/avencode.c avplug/avdecode.c plugin.c qvm_api.c
 $(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): avplug/avencode.c avplug/avdecode.c avplug/avaudio.c plugin.c qvm_api.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) -L$(AV_BASE)lib$(BITS) -I$(AV_BASE) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -lavcodec -lavformat -lavutil -lswscale
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AV_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(AV_LDFLAGS)
 
 #small script for ode
 #FIXME: ode fails to compile under cygwin
+#FIXME: race condition if you try compiling debug+release at the same time, as this makefile is invoked twice by the engine's one
 ODE_ARCH=$(FTE_TARGET)
 ifeq ($(ODE_ARCH),)
   ODE_ARCH=unknown

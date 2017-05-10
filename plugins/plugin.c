@@ -135,6 +135,11 @@ BUILTINR(qhandle_t,	Cvar_Register, (const char *name, const char *defaultval, in
 #define ARGNAMES ,handle,modificationcount,stringv,floatv
 BUILTINR(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
 #undef ARGNAMES
+#if !defined(Q3_VM) && defined(FTEPLUGIN)
+#define ARGNAMES ,name,defaultval,flags,description,groupname
+BUILTINR(cvar_t*, Cvar_GetNVFDG, (const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname));
+#undef ARGNAMES
+#endif
 
 #define ARGNAMES ,pnum,stats,maxstats
 BUILTINR(int, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
@@ -440,6 +445,9 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Cvar_GetFloat);
 	CHECKBUILTIN(Cvar_Register);
 	CHECKBUILTIN(Cvar_Update);
+#if !defined(Q3_VM) && defined(FTEPLUGIN)
+	CHECKBUILTIN(Cvar_GetNVFDG);
+#endif
 
 	//file system
 #if !defined(Q3_VM) && defined(FTEPLUGIN)

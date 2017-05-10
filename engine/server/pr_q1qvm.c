@@ -1508,11 +1508,11 @@ static void QVM_uri_query_callback(struct dl_download *dl)
 		char *buffer = malloc(len+1);
 		buffer[len] = 0;
 		VFS_READ(dl->file, buffer, len);
-		Cmd_Args_Set(buffer);
+		Cmd_Args_Set(buffer, strlen(buffer));
 		free(buffer);
 	}
 	else
-		Cmd_Args_Set(NULL);
+		Cmd_Args_Set(NULL, 0);
 	VM_Call(q1qvm, cb_entry, cb_context, dl->replycode, 0, 0, 0);
 }
 

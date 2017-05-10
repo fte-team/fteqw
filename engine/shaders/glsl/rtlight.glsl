@@ -240,7 +240,7 @@ void main ()
 #define tcbase tcoffsetmap
 #endif
 #if defined(FLAT)
-	vec4 bases = vec3(FLAT, 1.0);
+	vec4 bases = vec4(FLAT, FLAT, FLAT, 1.0);
 #else
 	vec4 bases = texture2D(s_diffuse, tcbase);
 	#ifdef VERTEXCOLOURS

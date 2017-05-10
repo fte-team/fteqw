@@ -84,18 +84,22 @@ double Sys_DoubleTime (void)
 }
 
 //create a directory
-void Sys_mkdir (char *path)
+void Sys_mkdir (const char *path)
 {
+}
+qboolean Sys_rmdir (const char *path)
+{
+	return true;
 }
 
 //unlink a file
-qboolean Sys_remove (char *path)
+qboolean Sys_remove (const char *path)
 {
 	emscriptenfte_buf_delete(path);
 	return true;
 }
 
-qboolean Sys_Rename (char *oldfname, char *newfname)
+qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	return emscriptenfte_buf_rename(oldfname, newfname);
 	return false;

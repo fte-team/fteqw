@@ -56,8 +56,9 @@ mergeInto(LibraryManager.library,
 	emscriptenfte_buf_createfromarraybuf__deps : ['emscriptenfte_handle_alloc'],
 	emscriptenfte_buf_createfromarraybuf : function(buf)
 	{
+		buf = new Uint8Array(buf);
 		var len = buf.length;
-		var b = {h:-1, r:1, l:len,m:len,d:new Uint8Array(buf), n:null};
+		var b = {h:-1, r:1, l:len,m:len,d:buf, n:null};
 		b.h = _emscriptenfte_handle_alloc(b);
 		return b.h;
 	},
@@ -69,6 +70,7 @@ mergeInto(LibraryManager.library,
 		pointerislocked:0,
 		pointerwantlock:0,
 		linebuffer:'',
+		localstorefailure:false,
 		w: -1,
 		h: -1,
 		donecb:0,
@@ -400,6 +402,8 @@ mergeInto(LibraryManager.library,
 	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser', 'emscriptenfte_buf_createfromarraybuf'],
 	emscriptenfte_setupcanvas : function(nw,nh,evresize,evmouse,evmbutton,evkey,evfile,evjbutton,evjaxis,evwantfullscreen)
 	{
+		try
+		{
 		FTEC.evcb.resize = evresize;
 		FTEC.evcb.mouse = evmouse;
 		FTEC.evcb.button = evmbutton;
@@ -499,6 +503,10 @@ mergeInto(LibraryManager.library,
 		}
 		
 		_emscriptenfte_updatepointerlock(false, false);
+		} catch(e)
+		{
+		console.log(e);
+		}
 
 		return 1;
 	},
@@ -576,22 +584,35 @@ mergeInto(LibraryManager.library,
 		var r = -1;
 		if (f == null)
 		{
-			if (window.localStorage && createifneeded != 2)
+			if (!FTEC.localstorefailure)
 			{
-				var str = window.localStorage.getItem(name);
-				if (str != null)
+				try
 				{
-//					console.log('read file '+name+': ' + str);
+					if (localStorage && createifneeded != 2)
+					{
+						var str = localStorage.getItem(name);
+						if (str != null)
+						{
+		//					console.log('read file '+name+': ' + str);
 
-					var len = str.length;
-					var buf = new Uint8Array(len);
-					for (var i = 0; i < len; i++)
-						buf[i] = str.charCodeAt(i);
+							var len = str.length;
+							var buf = new Uint8Array(len);
+							for (var i = 0; i < len; i++)
+								buf[i] = str.charCodeAt(i);
 
-					var b = {h:-1, r:2, l:len,m:len,d:buf, n:name};
-					r = b.h = _emscriptenfte_handle_alloc(b);
-					FTEH.f[name] = b;
-					return b.h;
+							var b = {h:-1, r:2, l:len,m:len,d:buf, n:name};
+							r = b.h = _emscriptenfte_handle_alloc(b);
+							FTEH.f[name] = b;
+							return b.h;
+						}
+					}
+				}
+				catch(e)
+				{
+					console.log('exception while trying to read local storage for ' + name);
+					console.log(e);
+					console.log('disabling further attempts to access local storage');
+					FTEC.localstorefailure = true;
 				}
 			}
 
@@ -655,16 +676,24 @@ mergeInto(LibraryManager.library,
 			return;
 		var data = b.d;
 		var len = b.l;
-		if (window.localStorage)
+		try
 		{
-			var foo = "";
-			//use a divide and conquer implementation instead for speed?
-			for (var i = 0; i < len; i++)
-				foo += String.fromCharCode(data[i]);
-			window.localStorage.setItem(b.n, foo);
+			if (localStorage)
+			{
+				var foo = "";
+				//use a divide and conquer implementation instead for speed?
+				for (var i = 0; i < len; i++)
+					foo += String.fromCharCode(data[i]);
+				localStorage.setItem(b.n, foo);
+			}
+			else
+				console.log('local storage not supported');
 		}
-		else
-			console.log('local storage not supported');
+		catch (e)
+		{
+			console.log('exception while trying to save ' + b.n);
+			console.log(e);
+		}
 	},
 	emscriptenfte_buf_release : function(handle)
 	{
@@ -722,13 +751,19 @@ mergeInto(LibraryManager.library,
 	},
 
 	emscriptenfte_ws_connect__deps: ['emscriptenfte_handle_alloc'],
-	emscriptenfte_ws_connect : function(url)
+	emscriptenfte_ws_connect : function(brokerurl, protocolname)
 	{
-		var _url = Pointer_stringify(url);
+		var _url = Pointer_stringify(brokerurl);
+		var _protocol = Pointer_stringify(protocolname);
 		var s = {ws:null, inq:[], err:0, con:0};
-		s.ws = new WebSocket(_url, 'binary');
+		try {
+			s.ws = new WebSocket(_url, _protocol);
+		} catch(err) { console.log(err); }
 		if (s.ws === undefined)
 			return -1;
+		if (s.ws == null)
+			return -1;
+		s.ws.binaryType = 'arraybuffer';
 		s.ws.onerror = function(event) {s.con = 0; s.err = 1;};
 		s.ws.onclose = function(event) {s.con = 0; s.err = 1;};
 		s.ws.onopen = function(event) {s.con = 1;};
@@ -745,8 +780,26 @@ mergeInto(LibraryManager.library,
 		var s = FTEH.h[sockid];
 		if (s === undefined)
 			return -1;
-		s.ws.close();
-		s.ws = null;	//make sure to avoid circular references
+
+		s.callcb = null;
+
+		if (s.ws != null)
+		{
+			s.ws.close();
+			s.ws = null;	//make sure to avoid circular references
+		}
+
+		if (s.pc != null)
+		{
+			s.pc.close();
+			s.pc = null;	//make sure to avoid circular references
+		}
+		
+		if (s.broker != null)
+		{
+			s.broker.close();
+			s.broker = null;	//make sure to avoid circular references
+		}
 		delete FTEH.h[sockid];	//socked is no longer accessible.
 		return 0;
 	},
@@ -763,9 +816,9 @@ mergeInto(LibraryManager.library,
 		var s = FTEH.h[sockid];
 		if (s === undefined)
 			return -1;
-		if (s.con == 0 || len < 1 || len > 125)
+		if (s.con == 0)
 			return 0; //not connected yet
-		s.ws.send(HEAPU8.subarray(data, data+len).buffer);
+		s.ws.send(HEAPU8.subarray(data, data+len));
 		return len;
 	},
 	emscriptenfte_ws_recv : function(sockid, data, len)
@@ -786,7 +839,189 @@ mergeInto(LibraryManager.library,
 		return 0;
 	},
 
+	emscriptenfte_rtc_create__deps: ['emscriptenfte_handle_alloc'],
+	emscriptenfte_rtc_create : function(clientside, ctxp, ctxi, callback)
+	{
+		var pcconfig = {
+			iceServers:
+			[{
+				url: 'stun:stun.l.google.com:19302'
+			}]
+		};
+		var dcconfig = {ordered: false, maxRetransmits: 0, reliable:false};
 
+console.log("emscriptenfte_rtc_create");
+
+		var s = {pc:null, ws:null, inq:[], err:0, con:0, isclient:clientside, callcb:
+			function(evtype,stringdata)
+			{	//private helper
+			
+console.log("emscriptenfte_rtc_create callback: " + evtype);
+			
+				var stringlen = (stringdata.length*3)+1;
+				var dataptr = _malloc(stringlen);
+				stringToUTF8(stringdata, dataptr, stringlen);
+				Runtime.dynCall('viiii', callback, [ctxp,ctxi,evtype,dataptr]);
+				_free(dataptr);
+			}
+		};
+
+		if (RTCPeerConnection === undefined)
+		{	//IE or something.
+			console.log("RTCPeerConnection undefined");
+			return -1;
+		}
+
+		s.pc = new RTCPeerConnection(pcconfig);
+		if (s.pc === undefined)
+		{
+			console.log("webrtc failed to create RTCPeerConnection");
+			return -1;
+		}
+
+//create the dataconnection
+		s.ws = s.pc.createDataChannel('quake', dcconfig);
+		s.ws.binaryType = 'arraybuffer';
+		s.ws.onclose = function(event)
+			{
+console.log("webrtc datachannel closed:")
+console.log(event);
+				s.con = 0;
+				s.err = 1;
+			};
+		s.ws.onopen = function(event)
+			{
+console.log("webrtc datachannel opened:");
+console.log(event);
+				s.con = 1;
+			};
+		s.ws.onmessage = function(event)
+			{
+//console.log("webrtc datachannel message:");
+//console.log(event);
+				assert(typeof event.data !== 'string' && event.data.byteLength);
+				s.inq.push(new Uint8Array(event.data));
+			};
+			
+		s.pc.onicecandidate = function(e)
+			{
+console.log("onicecandidate: ");
+console.log(e);
+				var desc;
+				if (1)
+					desc = JSON.stringify(e.candidate);
+				else
+					desc = e.candidate.candidate;
+				s.callcb(4, desc);
+			};
+		s.pc.oniceconnectionstatechange = function(e)
+			{
+console.log("oniceconnectionstatechange: ");
+console.log(e);
+			};
+		s.pc.onaddstream = function(e)
+			{
+console.log("onaddstream: ");
+console.log(e);
+			};
+		s.pc.ondatachannel = function(e)
+			{
+console.log("ondatachannel: ");
+console.log(e);
+
+			s.recvchan = e.channel;
+			s.recvchan.binaryType = 'arraybuffer';
+			s.recvchan.onmessage = s.ws.onmessage;
+
+			};
+		s.pc.onnegotiationneeded = function(e)
+			{
+console.log("onnegotiationneeded: ");
+console.log(e);
+			};
+
+		if (clientside)
+		{
+			s.pc.createOffer().then(
+				function(desc)
+				{
+					s.pc.setLocalDescription(desc);
+					console.log("gotlocaldescription: ");
+					console.log(desc);
+
+					if (1)
+						desc = JSON.stringify(desc);
+					else
+						desc = desc.sdp;
+
+					s.callcb(3, desc);
+				},
+				function(event)
+				{
+					console.log("createOffer error:");
+					console.log(event);
+					s.err = 1;
+				}
+			);
+		}
+
+		return _emscriptenfte_handle_alloc(s);
+	},
+	emscriptenfte_rtc_offer : function(sockid, offer, offertype)
+	{
+		var s = FTEH.h[sockid];
+		offer = Pointer_stringify(offer);
+		offertype = Pointer_stringify(offertype);
+		if (s === undefined)
+			return -1;
+
+		if (1)
+			desc = JSON.parse(offer);
+		else
+			desc = {sdp:offer, type:offertype};
+
+		s.pc.setRemoteDescription(desc);
+		
+		if (!s.isclient)
+		{	//server must give a response.
+			s.pc.createAnswer().then(
+				function(desc)
+				{
+					s.pc.setLocalDescription(desc);
+					console.log("gotlocaldescription: ");
+					console.log(desc);
+
+					if (1)
+						desc = JSON.stringify(desc);
+					else
+						desc = desc.sdp;
+
+					s.callcb(3, desc);
+				},
+				function(event)
+				{
+					console.log("createAnswer error:" + event.toString());
+					s.err = 1;
+				}
+			);
+		}
+	},
+	emscriptenfte_rtc_candidate : function(sockid, offer)
+	{
+		var s = FTEH.h[sockid];
+		offer = Pointer_stringify(offer);
+		if (s === undefined)
+			return -1;
+
+		var desc;
+		if (1)
+			desc = JSON.parse(offer);
+		else
+			desc = {candidate:offer, sdpMid:null, sdpMLineIndex:0};
+console.log("addIceCandidate:");
+console.log(desc);
+		s.pc.addIceCandidate(desc);
+	},
 
 	emscriptenfte_async_wget_data2 : function(url, ctx, onload, onerror, onprogress)
 	{
@@ -810,11 +1045,8 @@ mergeInto(LibraryManager.library,
 console.log("onload: " + _url + " status " + http.status);
 			if (http.status == 200)
 			{
-				var bar = new Uint8Array(http.response);
-				var buf = _malloc(bar.length);
-				HEAPU8.set(bar, buf);
 				if (onload)
-					Runtime.dynCall('viii', onload, [ctx, buf, bar.length]);
+					Runtime.dynCall('vii', onload, [ctx, _emscriptenfte_buf_createfromarraybuf(http.response)]);
 			}
 			else
 			{

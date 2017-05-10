@@ -153,7 +153,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="..\client;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;../libs/freetype2/include;../libs/speex;../"
-				PreprocessorDefinitions="_DEBUG;GLQUAKE;WIN32;_WINDOWS;NPQTV;MULTITHREAD"
+				PreprocessorDefinitions="_DEBUG;GLQUAKE;WIN32;_WINDOWS;NPQTV;MULTITHREAD;NO_ZLIB"
 				RuntimeLibrary="1"
 				FloatingPointModel="2"
 				PrecompiledHeaderThrough="quakedef.h"

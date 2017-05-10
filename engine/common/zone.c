@@ -212,6 +212,18 @@ void *Z_Malloc(int size)
 }
 #endif
 
+void Z_StrCat(char **ptr, char *append)
+{
+	size_t oldlen = *ptr?strlen(*ptr):0;
+	size_t newlen = strlen(append);
+	char *newptr = BZ_Malloc(oldlen+newlen+1);
+	memcpy(newptr, *ptr, oldlen);
+	memcpy(newptr+oldlen, append, newlen);
+	newptr[oldlen+newlen] = 0;
+	BZ_Free(*ptr);
+	*ptr = newptr;
+}
+
 void VARGS Z_TagFree(void *mem)
 {
 	zone_t *zone = ((zone_t *)mem) - 1;

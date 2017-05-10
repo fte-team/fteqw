@@ -1,3 +1,5 @@
+//FIXME: slice tool is a bit shite and has no way to change points 1+2, only the last one can be freely changed.
+
 var float autocvar_ca_show = 0;
 var float autocvar_ca_editormode = MODE_LIGHTEDIT;
 string autocvar_ca_colourtint;
@@ -21,19 +23,36 @@ float pointedsurface;
 
 float editorrsd[editornames.length];
 
+static void() csaddon_savemap =
+{
+	localcmd(strcat("mod_terrain_save \"", mapname, "\"\n"));
+};
+
+struct
+{
+	string text;
+	string cmd;
+	void() cb;
+} editorcommands[] =
+{
+	{"Close",			"ca_show 0\n"},
+	{"Noclip",			"noclip\n"},
+	{"Notarget",			"notarget\n"},
+	{"Fullbright",			"toggle r_fullbright\n"},
+	{"Brush Editor Bindings",	"brushedit_binds\n"},
+	{"Save",			__NULL__, csaddon_savemap},
+};
 float(float key, float unic, vector mouse) editor_options_key =
 {
 	if (key == K_MOUSE1)
 	{
 		int sel = (mouse_y - 16) / 8;
-		if (sel == 0)
+		if (sel >= 0 && sel < editorcommands.length)
 		{
-			cvar_set("ca_show", "0");
-			return TRUE;
-		}
-		else if (sel == 1)
-		{
-			localcmd("brushedit_binds\n");
+			if (editorcommands[sel].cb)
+				editorcommands[sel].cb();
+			else
+				localcmd(editorcommands[sel].cmd);
 			return TRUE;
 		}
 	}
@@ -43,8 +62,25 @@ void(vector mouse) editor_options_overlay =
 {
 	vector pos = '0 16';
 	int sel = (mouse_y - pos_y) / 8;
-	drawstring(pos, "Close", '8 8', (sel==0)?'0 0 1':'1 1 1', 1, 0); pos_y += 8;
-	drawstring(pos, "Brush Editor Bindings", '8 8', (sel==1)?'0 0 1':'1 1 1', 1, 0);
+	for (int i = 0; i < editorcommands.length; i++)
+	{
+		string txt = editorcommands[i].text;
+		string cmd = editorcommands[i].cmd;
+		if (substring(cmd, 0, 7) == "toggle ")
+		{
+			if (cvar(substring(cmd, 7, -2)))
+				txt = strcat(txt, " (ON)");
+			else
+				txt = strcat(txt, " (OFF)");
+		}
+		drawstring(pos, txt, 		'8 8', (sel==i)?'0 0 1':'1 1 1', 1, 0);
+		pos_y += 8;
+	}
+};
+
+static void() perf_renderscene =
+{
+	renderscene();
 };
 
 /*the renderscene builtin in the parent progs is redirected to here*/
@@ -189,7 +225,7 @@ void() wrap_renderscene =
 	else if (autocvar_ca_editormode == MODE_BRUSHEDIT)
 		editor_brushes_addentities(curmousepos);
 
-	renderscene();
+	perf_renderscene();
 
 	for (i = 0, x = 0; i < editornames.length; i+=1)
 	{

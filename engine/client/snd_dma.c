@@ -36,7 +36,6 @@ static void S_StopAllSounds_f (void);
 
 static void S_UpdateCard(soundcardinfo_t *sc);
 static void S_ClearBuffer (soundcardinfo_t *sc);
-sfx_t *S_FindName (const char *name, qboolean create);
 
 // =======================================================================
 // Internal sound data & structures
@@ -147,13 +146,13 @@ cvar_t snd_voip_vad_delay		= CVARD("cl_voip_vad_delay", "0.3", "Keeps sending vo
 cvar_t snd_voip_capturingvol	= CVARAFD("cl_voip_capturingvol", "0.5", NULL, CVAR_ARCHIVE, "Volume multiplier applied while capturing, to avoid your audio from being heard by others. Does not affect game volume when other speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
 cvar_t snd_voip_showmeter		= CVARAFD("cl_voip_showmeter", "1", NULL, CVAR_ARCHIVE, "Shows your speech volume above the standard hud. 0=hide, 1=show when transmitting, 2=ignore voice-activation disable");
 
-cvar_t snd_voip_play			= CVARAFDC("cl_voip_play", "1", NULL, CVAR_ARCHIVE, "Enables voip playback. Value is a volume scaler.", S_Voip_Play_Callback);
+cvar_t snd_voip_play			= CVARAFCD("cl_voip_play", "1", NULL, CVAR_ARCHIVE, S_Voip_Play_Callback, "Enables voip playback. Value is a volume scaler.");
 cvar_t snd_voip_ducking			= CVARAFD("cl_voip_ducking", "0.5", NULL, CVAR_ARCHIVE, "Scales game audio by this much when someone is talking to you. Does not affect your speaker volume when you speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
-cvar_t snd_voip_micamp			= CVARAFDC("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "Amplifies your microphone when using voip.", 0);
-cvar_t snd_voip_codec			= CVARAFDC("cl_voip_codec", "", NULL, CVAR_ARCHIVE, "0: speex(@11khz). 1: raw. 2: opus. 3: speex(@8khz). 4: speex(@16). 5:speex(@32).", 0);
-cvar_t snd_voip_noisefilter		= CVARAFDC("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.", 0);
-cvar_t snd_voip_autogain		= CVARAFDC("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.", 0);
-cvar_t snd_voip_opus_bitrate	= CVARAFDC("cl_voip_opus_bitrate", "3000", NULL, CVAR_ARCHIVE, "For codecs with non-specific bitrates, this specifies the target bitrate to use.", 0);
+cvar_t snd_voip_micamp			= CVARAFD("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "Amplifies your microphone when using voip.");
+cvar_t snd_voip_codec			= CVARAFD("cl_voip_codec", "", NULL, CVAR_ARCHIVE, "0: speex(@11khz). 1: raw. 2: opus. 3: speex(@8khz). 4: speex(@16). 5:speex(@32).");
+cvar_t snd_voip_noisefilter		= CVARAFD("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.");
+cvar_t snd_voip_autogain		= CVARAFD("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.");
+cvar_t snd_voip_opus_bitrate	= CVARAFD("cl_voip_opus_bitrate", "3000", NULL, CVAR_ARCHIVE, "For codecs with non-specific bitrates, this specifies the target bitrate to use.");
 #endif
 
 extern vfsfile_t *rawwritefile;
@@ -1853,7 +1852,7 @@ void S_DoRestart (qboolean onlyifneeded)
 	{
 		if (!cl.sound_name[i][0])
 			break;
-		cl.sound_precache[i] = S_FindName (cl.sound_name[i], true);
+		cl.sound_precache[i] = S_FindName (cl.sound_name[i], true, false);
 	}
 }
 
@@ -2121,7 +2120,7 @@ S_FindName
 also touches it
 ==================
 */
-sfx_t *S_FindName (const char *name, qboolean create)
+sfx_t *S_FindName (const char *name, qboolean create, qboolean syspath)
 {
 	int		i;
 	sfx_t	*sfx;
@@ -2134,7 +2133,7 @@ sfx_t *S_FindName (const char *name, qboolean create)
 
 // see if already loaded
 	for (i=0 ; i < num_sfx ; i++)
-		if (!Q_strcmp(known_sfx[i].name, name))
+		if (!Q_strcmp(known_sfx[i].name, name) && known_sfx[i].syspath == syspath)
 		{
 			known_sfx[i].touched = true;
 			return &known_sfx[i];
@@ -2147,7 +2146,8 @@ sfx_t *S_FindName (const char *name, qboolean create)
 	{
 		sfx = &known_sfx[i];
 		strcpy (sfx->name, name);
-		known_sfx[i].touched = true;
+		sfx->syspath = syspath;
+		sfx->touched = true;
 
 		num_sfx++;
 	}
@@ -2240,7 +2240,7 @@ void S_TouchSound (char *name)
 	if (!sound_started)
 		return;
 
-	S_FindName (name, true);
+	S_FindName (name, true, false);
 }
 
 /*
@@ -2249,14 +2249,14 @@ S_PrecacheSound
 
 ==================
 */
-sfx_t *S_PrecacheSound (const char *name)
+sfx_t *S_PrecacheSound2 (const char *name, qboolean syspath)
 {
 	sfx_t	*sfx;
 
 	if (nosound.ival || !known_sfx || !*name)
 		return NULL;
 
-	sfx = S_FindName (name, true);
+	sfx = S_FindName (name, true, syspath);
 
 // cache it in
 	if (precache.ival && sndcardinfo)
@@ -2708,13 +2708,16 @@ void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t 
 	S_UnlockMixer();
 }
 
-qboolean S_GetMusicInfo(int musicchannel, float *time, float *duration)
+qboolean S_GetMusicInfo(int musicchannel, float *time, float *duration, char *title, size_t titlesize)
 {
 	qboolean result = false;
 	soundcardinfo_t *sc;
 	sfx_t *sfx;
 	*time = 0;
 	*duration = 0;
+
+	if (titlesize)
+		*title = 0;
 
 	musicchannel += MUSIC_FIRST;
 
@@ -2724,18 +2727,23 @@ qboolean S_GetMusicInfo(int musicchannel, float *time, float *duration)
 		sfx = sc->channel[musicchannel].sfx;
 		if (sfx)
 		{
-			if (sfx->loadstate == SLS_LOADED && sfx->decoder.querydata)
-				*duration = sfx->decoder.querydata(sfx, NULL);
-			else if (sfx->decoder.buf)
+			Q_strncpyz(title, COM_SkipPath(sfx->name), titlesize);
+			if (sfx->loadstate == SLS_LOADED)
 			{
-				sfxcache_t *c = sfx->decoder.buf;
-				*duration = (float)c->length / c->speed;
-			}
-			else
-				*duration = 0;
+				if (sfx->decoder.querydata)
+					*duration = sfx->decoder.querydata(sfx, NULL, title, titlesize);
+				else if (sfx->decoder.buf)
+				{
+					sfxcache_t *c = sfx->decoder.buf;
+					*duration = (float)c->length / c->speed;
+				}
+				else
+					*duration = 0;
 
-			*time = (sc->channel[musicchannel].pos>>PITCHSHIFT) / (float)snd_speed;	//the time into the sound, ignoring play rate.
-			result = true;
+				//FIXME: openal doesn't report the actual time.
+				*time = (sc->channel[musicchannel].pos>>PITCHSHIFT) / (float)snd_speed;	//the time into the sound, ignoring play rate.
+				result = true;
+			}
 		}
 	}
 	S_UnlockMixer();
@@ -3024,25 +3032,18 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 		if (!chan->sfx)
 		{
 			float time = 0;
-			char *nexttrack = Media_NextTrack(i-MUSIC_FIRST, &time);
-			sfx_t *newmusic;
-
-			if (nexttrack && *nexttrack)
+			sfx_t *newmusic = Media_NextTrack(i-MUSIC_FIRST, &time);
+			if (newmusic && newmusic->loadstate != SLS_FAILED)
 			{
-				newmusic = S_PrecacheSound(nexttrack);
+				chan->sfx = newmusic;
+				chan->rate = 1<<PITCHSHIFT;
+				chan->pos = (int)(time * sc->sn.speed) * chan->rate;
+				changed = true;
 
-				if (newmusic && newmusic->loadstate != SLS_FAILED)
-				{
-					chan->sfx = newmusic;
-					chan->rate = 1<<PITCHSHIFT;
-					chan->pos = (int)(time * sc->sn.speed) * chan->rate;
-					changed = true;
-
-					chan->master_vol = bound(0, 1, 255);
-					chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
-					if (sc->ChannelUpdate)
-						sc->ChannelUpdate(sc, chan, changed);
-				}
+				chan->master_vol = bound(0, 1, 255);
+				chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
+				if (sc->ChannelUpdate)
+					sc->ChannelUpdate(sc, chan, changed);
 			}
 		}
 		if (chan->sfx)
@@ -3664,7 +3665,7 @@ void S_SoundList_f(void)
 		else if (sfx->decoder.decodedata)
 		{
 			if (sfx->decoder.querydata)
-				sc = (sfx->decoder.querydata(sfx, &scachebuf) < 0)?NULL:&scachebuf;
+				sc = (sfx->decoder.querydata(sfx, &scachebuf, NULL, 0) < 0)?NULL:&scachebuf;
 			else
 				sc = NULL;	//don't bother trying to actually decode anything here.
 			if (!sc)
@@ -3683,7 +3684,7 @@ void S_SoundList_f(void)
 		size = (sc->soundoffset+sc->length)*sc->width*(sc->numchannels);
 		duration = (sc->soundoffset+sc->length) / sc->speed;
 		total += size;
-		if (sc->loopstart >= 0)
+		if (sfx->loopstart >= 0)
 			Con_Printf ("L");
 		else
 			Con_Printf (" ");
@@ -3748,14 +3749,13 @@ void S_ClearRaw(void)
 }
 
 //returns an sfxcache_t stating where the data is
-sfxcache_t *S_Raw_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, int length)
+sfxcache_t *QDECL S_Raw_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, int length)
 {
 	streaming_t *s = sfx->decoder.buf;
 	if (buf)
 	{
 		buf->data = s->data;
 		buf->length = s->length;
-		buf->loopstart = -1;
 		buf->numchannels = s->numchannels;
 		buf->soundoffset = 0;
 		buf->speed = snd_speed;

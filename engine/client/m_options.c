@@ -850,7 +850,7 @@ const char *presetexec[] =
 	"r_nolerp 0;"
 
 	, // nice options
-	"r_stains 0.75;"
+//	"r_stains 0.75;"
 	"gl_texturemode ll;"
 #ifndef MINIMAL
 //	"r_particlesystem script;"
@@ -2193,48 +2193,48 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 	else
 		currentmap = 0;
 
-		MC_AddRedText(menu, 16, 170, y, 		"Hexen2 Singleplayer Cheats", false); y+=8;
-		MC_AddWhiteText(menu, 16, 170, y,		"^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082 ", false); y+=8;
-		y+=8;
-		#ifndef CLIENTONLY
-		info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
-		#endif
-		info->mapcombo = MC_AddCombo(menu,16,170, y,	"Map", mapoptions, currentmap);	y+=8;
-		#ifndef CLIENTONLY
-		MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
-		#endif
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Godmode", "god\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Flymode", "fly\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Noclip", "noclip\n"); y+=8;
-		#ifndef CLIENTONLY
-		MC_AddSlider(menu,	16, 170, y,			"Gravity", &sv_gravity,0,800,25);	y+=8;
-		#endif
-		MC_AddSlider(menu,	16, 170, y,			"Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
-		MC_AddSlider(menu,	16, 170, y,			"Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
-		MC_AddSlider(menu,	16, 170, y,			"Back Speed", &cl_backspeed,0,1000,50);	y+=8;
-		#ifndef CLIENTONLY
-		MC_AddSlider(menu,	16, 170, y,			"Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
-		#endif
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Sheep Transformation", "impulse 14\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Change To Paladin (lvl3+)", "impulse 171\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Change To Crusader (lvl3+)", "impulse 172\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Change to Necromancer (lvl3+)", "impulse 173\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Change to Assassin (lvl3+)", "impulse 174\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Remove Monsters", "impulse 35\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Freeze Monsters", "impulse 36\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Unfreeze Monsters", "impulse 37\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Increase Level By 1", "impulse 40\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Increase Experience", "impulse 41\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Display Co-ordinates", "impulse 42\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"All Weapons & Mana", "impulse 9\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"All Weapons & Mana & Items", "impulse 43\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"No Enemy Targetting", "notarget\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"Enable Crosshair", "crosshair 1\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,	"20 Of Each Artifact", "impulse 299\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, 170, y,  "Restart Map", "impulse 99\n"); y+=8;
+	MC_AddRedText(menu, 16, 170, y, 		"Hexen2 Singleplayer Cheats", false); y+=8;
+	MC_AddWhiteText(menu, 16, 170, y,		"^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082 ", false); y+=8;
+	y+=8;
+	#ifndef CLIENTONLY
+	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
+	#endif
+	info->mapcombo = MC_AddCombo(menu,16,170, y,	"Map", mapoptions, currentmap);	y+=8;
+	#ifndef CLIENTONLY
+	MC_AddCheckBox(menu,	16, 170, y,		"Cheats", &sv_cheats,0);	y+=8;
+	#endif
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Godmode", "god\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Flymode", "fly\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Toggle Noclip", "noclip\n"); y+=8;
+	#ifndef CLIENTONLY
+	MC_AddSlider(menu,	16, 170, y,			"Gravity", &sv_gravity,0,800,25);	y+=8;
+	#endif
+	MC_AddSlider(menu,	16, 170, y,			"Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, 170, y,			"Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+	#ifndef CLIENTONLY
+	MC_AddSlider(menu,	16, 170, y,			"Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+	#endif
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Sheep Transformation", "impulse 14\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Change To Paladin (lvl3+)", "impulse 171\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Change To Crusader (lvl3+)", "impulse 172\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Change to Necromancer (lvl3+)", "impulse 173\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Change to Assassin (lvl3+)", "impulse 174\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Remove Monsters", "impulse 35\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Freeze Monsters", "impulse 36\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Unfreeze Monsters", "impulse 37\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Increase Level By 1", "impulse 40\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Increase Experience", "impulse 41\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Display Co-ordinates", "impulse 42\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"All Weapons & Mana", "impulse 9\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"All Weapons & Mana & Items", "impulse 43\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"No Enemy Targetting", "notarget\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"Enable Crosshair", "crosshair 1\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,	"20 Of Each Artifact", "impulse 299\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, 170, y,  "Restart Map", "impulse 99\n"); y+=8;
 
-		y+=8;
-		MC_AddCommand(menu,	16, 170, y,			"Apply Changes", M_Apply_SP_Cheats_H2);	y+=8;
+	y+=8;
+	MC_AddCommand(menu,	16, 170, y,			"Apply Changes", M_Apply_SP_Cheats_H2);	y+=8;
 
 	menu->selecteditem = (union menuoption_s *)info->skillcombo;
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 250, 0, cursorpositionY, NULL, false);

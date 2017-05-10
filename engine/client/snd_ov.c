@@ -77,12 +77,12 @@ typedef struct {
 	sfx_t *s;
 } ovdecoderbuffer_t;
 
-float OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf);
-static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length);
-static void OV_CancelDecoder(sfx_t *s);
+float QDECL OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf, char *name, size_t namesize);
+static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length);
+static void QDECL OV_CancelDecoder(sfx_t *s);
 static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer);
 
-qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
 {
 	ovdecoderbuffer_t *buffer;
 
@@ -95,6 +95,7 @@ qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	buffer->decodedbytecount = 0;
 	buffer->s = s;
 	s->decoder.buf = buffer;
+	s->loopstart = -1;
 
 	if (!OV_StartDecode(data, datalen, buffer))
 	{
@@ -121,7 +122,7 @@ qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	return true;
 }
 
-float OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf)
+float QDECL OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf, char *name, size_t namesize)
 {
 	ovdecoderbuffer_t *dec = sfx->decoder.buf;
 	if (!dec)
@@ -131,15 +132,33 @@ float OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf)
 		buf->data = NULL;	//you're not meant to actually be using the data here
 		buf->soundoffset = 0;
 		buf->length = p_ov_pcm_total(&dec->vf, -1);
-		buf->loopstart = -1;
 		buf->numchannels = dec->srcchannels;
 		buf->speed = dec->srcspeed;
 		buf->width = 2;
 	}
+	if (name)
+	{
+		vorbis_comment *c = p_ov_comment(&dec->vf, -1);
+		int i;
+		const char *artist = NULL;
+		const char *title = NULL;
+		for (i = 0; i < c->comments; i++)
+		{
+			if (!strncmp(c->user_comments[i], "ARTIST=", 7))
+				artist = c->user_comments[i]+7;
+			else if (!strncmp(c->user_comments[i], "TITLE=", 6))
+				title = c->user_comments[i]+6;
+		}
+
+		if (artist && title)
+			Q_snprintfz(name, namesize, "%s - %s", artist, title);
+		else if (title)
+			Q_snprintfz(name, namesize, "%s", title);
+	}
 	return p_ov_time_total(&dec->vf, -1);
 }
 
-static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length)
+static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length)
 {
 	extern int snd_speed;
 	extern cvar_t snd_linearresample_stream;
@@ -161,13 +180,13 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 //		Con_Printf("Rewound to %i\n", start);
 		dec->failed = false;
 
-		/*something rewound, purge clear the buffer*/
-		dec->decodedbytecount = 0;
-		dec->decodedbytestart = start;
-
 		//check pos
-		//fixme: seeking might not be supported
-		p_ov_pcm_seek(&dec->vf, (dec->decodedbytestart * dec->srcspeed) / outspeed);
+		if (p_ov_pcm_seek(&dec->vf, start * (dec->srcspeed/(2.0*dec->srcchannels*outspeed))) == 0)
+		{
+			/*something rewound, purge clear the buffer*/
+			dec->decodedbytecount = 0;
+			dec->decodedbytestart = start;
+		}
 	}
 
 /*	if (start > dec->decodedbytestart + dec->decodedbytecount)
@@ -191,8 +210,11 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 		}
 		else if (trim > dec->decodedbytecount)
 		{
-			dec->decodedbytecount = 0;
-			dec->decodedbytestart = start;
+			if (0==p_ov_pcm_seek(&dec->vf, start * (dec->srcspeed/(2.0*dec->srcchannels*outspeed))))
+			{
+				dec->decodedbytecount = 0;
+				dec->decodedbytestart = start;
+			}
 //			Con_Printf("trim > count\n");
 		}
 		else
@@ -228,6 +250,8 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 					Con_Printf("ogg decoding failed\n");
 					break;
 				}
+				if (start >= dec->decodedbytestart+dec->decodedbytecount)
+					return NULL;	//let the mixer know that we hit the end
 				break;
 			}
 		}
@@ -253,6 +277,8 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 					Con_Printf("ogg decoding failed\n");
 					return NULL;
 				}
+				if (start >= dec->decodedbytestart+dec->decodedbytecount)
+					return NULL;	//let the mixer know that we hit the end
 				break;
 			}
 
@@ -278,7 +304,6 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 		buf->data = dec->decodedbuffer;
 		buf->soundoffset = dec->decodedbytestart / (2 * dec->srcchannels);
 		buf->length = dec->decodedbytecount / (2 * dec->srcchannels);
-		buf->loopstart = -1;
 		buf->numchannels = dec->srcchannels;
 		buf->speed = snd_speed;
 		buf->width = 2;
@@ -291,7 +316,7 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 	if (s->loadstate != SLS_LOADING)
 		s->loadstate = SLS_NOTLOADED;
 }*/
-static void OV_CancelDecoder(sfx_t *s)
+static void QDECL OV_CancelDecoder(sfx_t *s)
 {
 	ovdecoderbuffer_t *dec;
 	s->loadstate = SLS_FAILED;

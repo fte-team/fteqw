@@ -1226,6 +1226,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 	FS_Remove(savefilename, FS_GAMEONLY);
 	if (cls.state == ca_active && qrenderer > QR_NONE && qrenderer != QR_VULKAN/*FIXME*/)
 	{
+		int stride;
 		int width;
 		int height;
 		void *rgbbuffer;
@@ -1252,11 +1253,11 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 		if (okay)
 		{
 			enum uploadfmt fmt;
-			rgbbuffer = VID_GetRGBInfo(&width, &height, &fmt);
+			rgbbuffer = VID_GetRGBInfo(&stride, &width, &height, &fmt);
 			if (rgbbuffer)
 			{
 //				extern cvar_t	scr_sshot_type;
-				SCR_ScreenShot(savefilename, FS_GAMEONLY, &rgbbuffer, 1, width, height, fmt);
+				SCR_ScreenShot(savefilename, FS_GAMEONLY, &rgbbuffer, 1, stride, width, height, fmt);
 				BZ_Free(rgbbuffer);
 	
 

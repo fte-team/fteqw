@@ -20,15 +20,18 @@ static struct dl_download *activedownloads;
 #include <emscripten/emscripten.h>
 #endif
 
+vfsfile_t *FSWEB_OpenTempHandle(int f);
+
 static void DL_Cancel(struct dl_download *dl)
 {
 	//FIXME: clear out the callbacks somehow
 	dl->ctx = NULL;
 }
-static void DL_OnLoad(void *c, void *data, int datasize)
+static void DL_OnLoad(void *c, int buf)
 {
 	//also fires from 404s.
 	struct dl_download *dl = c;
+	vfsfile_t *tempfile = FSWEB_OpenTempHandle(buf);
 
 	//make sure the file is 'open'.
 	if (!dl->file)
@@ -40,19 +43,37 @@ static void DL_OnLoad(void *c, void *data, int datasize)
 		}
 		else
 		{
-			//emscripten does not close the file. plus we seem to end up with infinite loops.
-			dl->file = FS_OpenTemp();
+			dl->file = tempfile;
+			tempfile = NULL;
 		}
 	}
 
 	if (dl->file)
 	{
-		VFS_WRITE(dl->file, data, datasize);
-		VFS_SEEK(dl->file, 0);
 		dl->status = DL_FINISHED;
+		if (tempfile)
+		{
+			qofs_t datasize = VFS_GETLEN(tempfile);
+			char *data = malloc(datasize);	//grab a temp buffer so we can do the entire file at once...
+			if (!data)
+				dl->status = DL_FAILED;
+			else
+			{
+				VFS_READ(tempfile, data, datasize);
+
+				VFS_WRITE(dl->file, data, datasize);
+				if (dl->file->seekstyle < SS_PIPE)
+					VFS_SEEK(dl->file, 0);
+
+				free(data);
+			}
+		}
 	}
 	else
 		dl->status = DL_FAILED;
+
+	if (tempfile)
+		VFS_CLOSE(tempfile);
 
 	dl->replycode = 200;
 #if !MYJS
@@ -1504,7 +1525,7 @@ void DL_Close(struct dl_download *dl)
 	if (dl->threadctx)
 		Sys_WaitOnThread(dl->threadctx);
 #endif
-	if (dl->file && dl->file->Seek)
+	if (dl->file && dl->file->seekstyle < SS_PIPE)
 		VFS_SEEK(dl->file, 0);
 	if (dl->notifycomplete)
 		dl->notifycomplete(dl);
@@ -1706,17 +1727,27 @@ typedef struct
 
 	char *data;
 	int maxlen;
-	int writepos;
-	int readpos;
+	unsigned int writepos;
+	unsigned int readpos;
 	void *mutex;
+	int refs;
+	qboolean terminate;	//one end has closed, make the other report failures now that its no longer needed.
 } vfspipe_t;
 
 static qboolean QDECL VFSPIPE_Close(vfsfile_t *f)
 {
+	int r;
 	vfspipe_t *p = (vfspipe_t*)f;
-	free(p->data);
-	Sys_DestroyMutex(p->mutex);
-	free(p);
+	Sys_LockMutex(p->mutex);
+	r = --p->refs;
+	p->terminate = true;
+	Sys_UnlockMutex(p->mutex);
+	if (!r)
+	{
+		free(p->data);
+		Sys_DestroyMutex(p->mutex);
+		free(p);
+	}
 	return true;
 }
 static qofs_t QDECL VFSPIPE_GetLen(vfsfile_t *f)
@@ -1724,21 +1755,33 @@ static qofs_t QDECL VFSPIPE_GetLen(vfsfile_t *f)
 	vfspipe_t *p = (vfspipe_t*)f;
 	return p->writepos - p->readpos;
 }
-//static unsigned long QDECL VFSPIPE_Tell(vfsfile_t *f)
-//{
-//	return 0;
-//}
-//static qboolean QDECL VFSPIPE_Seek(vfsfile_t *f, unsigned long offset)
-//{
-//	Con_Printf("Seeking is a bad plan, mmkay?\n");
-//	return false;
-//}
+static qofs_t QDECL VFSPIPE_Tell(vfsfile_t *f)
+{
+	vfspipe_t *p = (vfspipe_t*)f;
+	return p->readpos;
+}
+static qboolean QDECL VFSPIPE_Seek(vfsfile_t *f, qofs_t offset)
+{
+	vfspipe_t *p = (vfspipe_t*)f;
+	p->readpos = offset;
+	return true;
+}
 static int QDECL VFSPIPE_ReadBytes(vfsfile_t *f, void *buffer, int len)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
 	Sys_LockMutex(p->mutex);
+	if (p->readpos > p->writepos)
+		len = 0;
 	if (len > p->writepos - p->readpos)
+	{
 		len = p->writepos - p->readpos;
+		if (!len && p->terminate)
+		{	//if we reached eof, we started with two refs and are down to 1 and we're reading, then its the writer side that disconnected.
+			//eof is now fatal rather than 'try again later'.
+			Sys_UnlockMutex(p->mutex);
+			return -1;
+		}
+	}
 	memcpy(buffer, p->data+p->readpos, len);
 	p->readpos += len;
 	Sys_UnlockMutex(p->mutex);
@@ -1748,8 +1791,14 @@ static int QDECL VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
 	Sys_LockMutex(p->mutex);
-	if (p->readpos > 8192)
+	if (p->terminate)
+	{	//if we started with 2 refs, and we're down to one, and we're writing, then its the reader that closed. that means writing is redundant and we should signal an error.
+		Sys_UnlockMutex(p->mutex);
+		return -1;
+	}
+	if (p->readpos > 8192 && !p->funcs.Seek)
 	{	//don't grow infinitely if we're reading+writing at the same time
+		//if we're seekable, then we have to buffer the ENTIRE file.
 		memmove(p->data, p->data+p->readpos, p->writepos-p->readpos);
 		p->writepos -= p->readpos;
 		p->readpos = 0;
@@ -1759,6 +1808,16 @@ static int QDECL VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
 		p->maxlen = p->writepos + len;
 		if (p->maxlen < (p->writepos-p->readpos)*2)	//over-allocate a little
 			p->maxlen = (p->writepos-p->readpos)*2;
+		if (p->maxlen > 0x8000000)
+		{
+			p->maxlen = 0x8000000;
+			len = p->maxlen - p->writepos;
+			if (!len)
+			{
+				Sys_UnlockMutex(p->mutex);
+				return -1;	//try and get the caller to stop
+			}
+		}
 		p->data = realloc(p->data, p->maxlen);
 	}
 	memcpy(p->data+p->writepos, buffer, len);
@@ -1767,10 +1826,12 @@ static int QDECL VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
 	return len;
 }
 
-vfsfile_t *VFSPIPE_Open(void)
+vfsfile_t *VFSPIPE_Open(int refs, qboolean seekable)
 {
 	vfspipe_t *newf;
 	newf = malloc(sizeof(*newf));
+	newf->refs = refs;
+	newf->terminate = false;
 	newf->mutex = Sys_CreateMutex();
 	newf->data = NULL;
 	newf->maxlen = 0;
@@ -1780,10 +1841,20 @@ vfsfile_t *VFSPIPE_Open(void)
 	newf->funcs.Flush = NULL;
 	newf->funcs.GetLen = VFSPIPE_GetLen;
 	newf->funcs.ReadBytes = VFSPIPE_ReadBytes;
-	newf->funcs.Seek = NULL;//VFSPIPE_Seek;
-	newf->funcs.Tell = NULL;//VFSPIPE_Tell;
 	newf->funcs.WriteBytes = VFSPIPE_WriteBytes;
-	newf->funcs.seekingisabadplan = true;
+
+	if (seekable)
+	{	//if this is set, then we allow changing the readpos at the expense of buffering the ENTIRE file. no more fifo.
+		newf->funcs.Seek = VFSPIPE_Seek;
+		newf->funcs.Tell = VFSPIPE_Tell;
+		newf->funcs.seekstyle = SS_PIPE;
+	}
+	else
+	{	//periodically reclaim read data to avoid memory wastage. this means that seeking can't work.
+		newf->funcs.Seek = NULL;
+		newf->funcs.Tell = NULL;
+		newf->funcs.seekstyle = SS_UNSEEKABLE;
+	}
 
 	return &newf->funcs;
 }

@@ -5624,7 +5624,7 @@ static void QCBUILTIN PF_resourcestatus(pubprogfuncs_t *prinst, struct globalvar
 			}
 		}
 		if (!sfx)
-			sfx = S_FindName(resname, doload);
+			sfx = S_FindName(resname, doload, false);
 		if (!sfx)
 			G_FLOAT(OFS_RETURN) = RESSTATE_NOTKNOWN;
 		else

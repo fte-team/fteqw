@@ -47,7 +47,7 @@ cvar_t	sv_spectalk	= CVAR("sv_spectalk", "1");
 cvar_t	sv_mapcheck	= CVAR("sv_mapcheck", "1");
 
 cvar_t	sv_fullredirect = CVARD("sv_fullredirect", "", "This is the ip:port to redirect players to when the server is full");
-cvar_t	sv_antilag			= CVARFD("sv_antilag", "", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag. 0=completely off. 1=mod-controlled. 2=forced, which might break certain uses of traceline.");
+cvar_t	sv_antilag			= CVARFD("sv_antilag", "", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag via the MOVE_ANTILAG feature.\n0=completely off.\n1=mod-controlled (default).\n2=forced, which might break certain uses of traceline.\n3=Also attempt to recalculate trace start positions to avoid lagged knockbacks.");
 cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "", CVAR_SERVERINFO);
 #ifndef NEWSPEEDCHEATPROT
 cvar_t	sv_cheatpc				= CVARD("sv_cheatpc", "125", "If the client tried to claim more than this percentage of time within any speed-cheat period, the client will be deemed to have cheated.");
@@ -69,7 +69,9 @@ cvar_t	sv_nqplayerphysics	= CVARAD("sv_nqplayerphysics", "0", "sv_nomsec", "Disa
 cvar_t	sv_edgefriction	= CVARAF("sv_edgefriction", "2",
 								 "edgefriction", 0);
 
+#ifndef NOLEGACY
 cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
+#endif
 
 cvar_t	sv_chatfilter	= CVAR("sv_chatfilter", "0");
 
@@ -3328,7 +3330,7 @@ void SV_BeginDownload_f(void)
 #ifdef PEXT_CHUNKEDDOWNLOADS
 	if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 	{
-		if (host_client->download->seekingisabadplan)
+		if (host_client->download->seekstyle != SS_SEEKABLE)
 		{	//if seeking is a bad plan (for whatever reason - usually because of zip files)
 			//create a temp file instead
 			int i, len;
@@ -6432,6 +6434,7 @@ int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 	}
 #endif
 
+#ifndef NOLEGACY
 	if (sv_brokenmovetypes.value)	//this is to mimic standard qw servers, which don't support movetypes other than MOVETYPE_FLY.
 	{								//it prevents bugs from being visible in unsuspecting mods.
 		if (cl && cl->spectator)
@@ -6445,6 +6448,7 @@ int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 			return PM_DEAD;
 		return PM_NORMAL;
 	}
+#endif
 
 	switch((int)ent->v->movetype)
 	{
@@ -8172,7 +8176,9 @@ void SV_UserInit (void)
 	Cvar_Register (&votepercent, sv_votinggroup);
 	Cvar_Register (&votetime, sv_votinggroup);
 
+#ifndef NOLEGACY
 	Cvar_Register (&sv_brokenmovetypes, "Backwards compatability");
+#endif
 
 	Cvar_Register (&sv_edgefriction, "netquake compatability");
 }

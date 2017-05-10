@@ -316,6 +316,7 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 	unsigned int fsize;
 	void *mmap;
 	qboolean didexist = true;
+	qboolean create;
 
 	vfsw32file_t *file;
 	qboolean read = !!strchr(mode, 'r');
@@ -323,6 +324,7 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 	qboolean append = !!strchr(mode, 'a');
 	qboolean text = !!strchr(mode, 't');
 	write |= append;
+	create = write;
 	if (strchr(mode, '+'))
 		read = write = true;
 
@@ -332,7 +334,9 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 	if (!WinNT)
 	{
 		//FILE_SHARE_DELETE is not supported in 9x, sorry.
-		if ((write && read) || append)
+		if (!create && write)
+			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ,	NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		else if ((write && read) || append)
 			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ,	NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		else if (write)
 			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, 0,					NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -356,6 +360,8 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 
 		if (h != INVALID_HANDLE_VALUE)
 			;
+		else if (!create && write)
+			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE,	FILE_SHARE_READ|FILE_SHARE_DELETE,	NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 		else if ((write && read) || append)
 			h = CreateFileW(wide, GENERIC_READ|GENERIC_WRITE,	FILE_SHARE_READ|FILE_SHARE_DELETE,	NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		else if (write)
@@ -428,6 +434,25 @@ vfsfile_t *QDECL VFSW32_Open(const char *osname, const char *mode)
 {
 	//called without regard to a search path
 	return VFSW32_OpenInternal(NULL, NULL, osname, mode);
+}
+
+#include <sys/stat.h>
+static qboolean QDECL VFSW32_FileStat(searchpathfuncs_t *handle, flocation_t *loc, time_t *mtime)
+{
+	int r;
+	struct _stat s;
+	if (WinNT)
+	{
+		wchar_t wide[MAX_OSPATH];
+		widen(wide, sizeof(wide), loc->rawname);
+		r = _wstat(wide, &s);
+	}
+	else
+		r = _stat(loc->rawname, &s);
+	if (r)
+		return false;
+	*mtime = s.st_mtime;
+	return true;
 }
 
 static vfsfile_t *QDECL VFSW32_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
@@ -640,6 +665,8 @@ searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc
 	np->pub.EnumerateFiles	= VFSW32_EnumerateFiles;
 	np->pub.OpenVFS			= VFSW32_OpenVFS;
 	np->pub.PollChanges		= VFSW32_PollChanges;
+
+	np->pub.FileStat		= VFSW32_FileStat;
 
 	np->pub.RenameFile		= VFSW32_RenameFile;
 	np->pub.RemoveFile		= VFSW32_RemoveFile;

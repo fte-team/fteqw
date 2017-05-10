@@ -25,6 +25,13 @@ cvar_t *tls_ignorecertificateerrors;
 #define USE_PROT_DGRAM_SERVER (SP_PROT_DTLS_SERVER)
 #define USE_PROT_DGRAM_CLIENT (SP_PROT_DTLS_CLIENT)
 
+#ifndef szOID_RSA_SHA512RSA
+#define szOID_RSA_SHA512RSA "1.2.840.113549.1.1.13"
+#endif
+#ifndef SCH_CRED_SNI_CREDENTIAL
+#define SCH_CRED_SNI_CREDENTIAL 0x00080000
+#endif
+
 //hungarian ensures we hit no macros.
 static struct
 {
@@ -501,9 +508,8 @@ static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServe
 		crypt.pCertFreeCertificateChain(pChainContext);
 	}
 
-    return Status;
+	return Status;
 }
-
 static PCCERT_CONTEXT SSPI_GetServerCertificate(void)
 {
 	static PCCERT_CONTEXT ret;
@@ -517,7 +523,7 @@ static PCCERT_CONTEXT SSPI_GetServerCertificate(void)
 		return ret;
 
 	memset(&sigalg, 0, sizeof(sigalg));
-	sigalg.pszObjId = szOID_RSA_SHA1RSA;
+	sigalg.pszObjId = szOID_RSA_SHA512RSA;
 
 	GetSystemTime(&expiredate);
 	expiredate.wYear += 2;	//2 years hence. woo
@@ -538,6 +544,20 @@ static PCCERT_CONTEXT SSPI_GetServerCertificate(void)
 			&expiredate,
 			NULL
 		);
+	if (!ret)
+	{	//try and downgrade the signature algo if it failed.
+		sigalg.pszObjId = szOID_RSA_SHA1RSA;
+		ret = crypt.pCertCreateSelfSignCertificate(
+			0,
+			&issuerblob,
+			0,
+			NULL,
+			&sigalg,
+			NULL,
+			&expiredate,
+			NULL
+		);
+	}
 
 	Z_Free(issuerblob.pbData);
 	return ret;
@@ -578,11 +598,14 @@ static void SSPI_Handshake (sslfile_t *f)
 	SECURITY_STATUS		ss;
 	TimeStamp			Lifetime;
 	SecBufferDesc		OutBuffDesc;
-	SecBuffer			OutSecBuff;
+	SecBuffer			OutSecBuff[2];
 	SecBufferDesc		InBuffDesc;
-	SecBuffer			InSecBuff[2];
+	SecBuffer			InSecBuff[3];
 	ULONG				ContextAttributes;
 	SCHANNEL_CRED SchannelCred;
+
+	char buf1[128];
+	char buf2[128];
 
 	if (f->outcrypt.avail)
 	{
@@ -595,12 +618,16 @@ static void SSPI_Handshake (sslfile_t *f)
 	//FIXME: skip this if we've had no new data since last time
 
 	OutBuffDesc.ulVersion = SECBUFFER_VERSION;
-	OutBuffDesc.cBuffers  = 1;
-	OutBuffDesc.pBuffers  = &OutSecBuff;
+	OutBuffDesc.cBuffers  = 2;
+	OutBuffDesc.pBuffers  = OutSecBuff;
 
-	OutSecBuff.cbBuffer   = f->outcrypt.datasize - f->outcrypt.avail;
-	OutSecBuff.BufferType = SECBUFFER_TOKEN;
-	OutSecBuff.pvBuffer   = f->outcrypt.data + f->outcrypt.avail;
+	OutSecBuff[0].cbBuffer   = f->outcrypt.datasize - f->outcrypt.avail;
+	OutSecBuff[0].BufferType = SECBUFFER_TOKEN;
+	OutSecBuff[0].pvBuffer   = f->outcrypt.data + f->outcrypt.avail;
+
+	OutSecBuff[1].BufferType = 16;//SECBUFFER_TARGET_HOST;
+	OutSecBuff[1].pvBuffer   = buf1;
+	OutSecBuff[1].cbBuffer   = sizeof(buf1);
 
 	if (f->handshaking == HS_ERROR)
 		return;	//gave up.
@@ -612,7 +639,7 @@ static void SSPI_Handshake (sslfile_t *f)
 		memset(&SchannelCred, 0, sizeof(SchannelCred));
 		SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
 		SchannelCred.grbitEnabledProtocols = f->datagram?USE_PROT_DGRAM_CLIENT:USE_PROT_CLIENT;
-		SchannelCred.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS;	/*don't use windows login info or anything*/
+		SchannelCred.dwFlags |= SCH_CRED_SNI_CREDENTIAL | SCH_CRED_NO_DEFAULT_CREDS;	/*don't use windows login info or anything*/
 
 		ss = secur.pAcquireCredentialsHandleA (NULL, UNISP_NAME_A, SECPKG_CRED_OUTBOUND, NULL, &SchannelCred, NULL, NULL, &f->cred, &Lifetime);
 		if (ss < 0)
@@ -665,7 +692,7 @@ static void SSPI_Handshake (sslfile_t *f)
 			return;
 
 		InBuffDesc.ulVersion = SECBUFFER_VERSION;
-		InBuffDesc.cBuffers  = 2;
+		InBuffDesc.cBuffers  = 3;
 		InBuffDesc.pBuffers  = InSecBuff;
 
 		InSecBuff[0].BufferType = SECBUFFER_TOKEN;
@@ -675,6 +702,10 @@ static void SSPI_Handshake (sslfile_t *f)
 		InSecBuff[1].BufferType = SECBUFFER_EMPTY;
 		InSecBuff[1].pvBuffer   = NULL;
 		InSecBuff[1].cbBuffer   = 0;
+
+		InSecBuff[2].BufferType = 16;//SECBUFFER_TARGET_HOST;
+		InSecBuff[2].pvBuffer   = buf2;
+		InSecBuff[2].cbBuffer   = sizeof(buf2);
 
 		ss = secur.pAcceptSecurityContext(&f->cred, (f->handshaking==HS_SERVER)?&f->sechnd:NULL, &InBuffDesc, ASC_REQ_ALLOCATE_MEMORY|ASC_REQ_STREAM|ASC_REQ_CONFIDENTIALITY, SECURITY_NATIVE_DREP, &f->sechnd, &OutBuffDesc, &ContextAttributes, &Lifetime); 
 
@@ -727,7 +758,7 @@ static void SSPI_Handshake (sslfile_t *f)
 		}
 	}
 
-	if (SSPI_CopyIntoBuffer(&f->outcrypt, OutSecBuff.pvBuffer, OutSecBuff.cbBuffer, true) < OutSecBuff.cbBuffer)
+	if (SSPI_CopyIntoBuffer(&f->outcrypt, OutSecBuff[0].pvBuffer, OutSecBuff[0].cbBuffer, true) < OutSecBuff[0].cbBuffer)
 	{
 		SSPI_Error(f, "crypt overflow\n");
 		return;
@@ -855,12 +886,13 @@ static qboolean QDECL SSPI_Close (struct vfsfile_s *file)
 }
 
 #include <wchar.h>
-vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, qboolean datagram)
+vfsfile_t *FS_OpenSSL(const char *servername, vfsfile_t *source, qboolean server, qboolean datagram)
 {
 	sslfile_t *newf;
 	int i = 0;
 	int err;
 	unsigned int c;
+	const char *localname, *peername;
 
 	if (!source || !SSL_Inited())
 	{
@@ -868,8 +900,16 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, 
 			VFS_CLOSE(source);
 		return NULL;
 	}
-	if (!hostname)
-		hostname = "";
+	if (server)
+	{
+		localname = servername;
+		peername = "";
+	}
+	else
+	{
+		localname = "";
+		peername = servername;
+	}
 
 /*
 	if (server)	//unsupported
@@ -880,9 +920,9 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, 
 */
 
 	newf = Z_Malloc(sizeof(*newf));
-	while(*hostname)
+	while(*peername)
 	{
-		c = utf8_decode(&err, hostname, (void*)&hostname);
+		c = utf8_decode(&err, peername, (void*)&peername);
 		if (c > WCHAR_MAX)
 			err = true;	//no 16bit surrogates. they're evil.
 		else if (i == sizeof(newf->wpeername)/sizeof(newf->wpeername[0]) - 1)
@@ -897,6 +937,7 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, 
 		}
 	}
 	newf->wpeername[i] = 0;
+
 	newf->datagram = datagram;
 	newf->handshaking = server?HS_STARTSERVER:HS_STARTCLIENT;
 	newf->stream = source;
@@ -907,7 +948,7 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, 
 	newf->funcs.Seek = SSPI_Seek;
 	newf->funcs.Tell = SSPI_Tell;
 	newf->funcs.WriteBytes = SSPI_WriteBytes;
-	newf->funcs.seekingisabadplan = true;
+	newf->funcs.seekstyle = SS_UNSEEKABLE;
 
 	SSPI_ExpandBuffer(&newf->outraw,	8192);
 	SSPI_ExpandBuffer(&newf->outcrypt,	8192);

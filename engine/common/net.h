@@ -25,17 +25,39 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define HAVE_WEBSOCKCL
 #endif
 
-//FIXME: should split this into loopback/dgram/stream/irc
+//FIXME: should split this into loopback/dgram/stream/dtls/tls/irc
 //with the ipv4/v6/x as a separate parameter
-typedef enum {NA_INVALID, NA_LOOPBACK, NA_IP, NA_IPV6, NA_IPX, NA_BROADCAST_IP, NA_BROADCAST_IP6, NA_BROADCAST_IPX, NA_TCP, NA_TCPV6, NA_TLSV4, NA_TLSV6, NA_IRC, NA_WEBSOCKET, NA_NATPMP} netadrtype_t;
+typedef enum {
+	NA_INVALID,
+	NA_LOOPBACK,
+	/*NA_HYBRID,*/	//ipv6 hybrid socket that might accept ipv4 packets too.
+	NA_IP,
+	NA_IPV6,
+	NA_IPX,
+#ifdef IRCCONNECT
+	NA_IRC/*remove!*/,
+#endif
+#ifdef HAVE_WEBSOCKCL
+	NA_WEBSOCKET,
+#endif
+} netadrtype_t;
+typedef enum {
+	NP_DGRAM,
+	NP_DTLS,	//connected via ICE/WebRTC
+	NP_STREAM,
+	NP_TLS,
+	NP_WS,
+	NP_WSS,
+	NP_IRC,
+	NP_NATPMP
+} netproto_t;
 
 typedef enum {NS_CLIENT, NS_SERVER} netsrc_t;
-
-typedef enum {NQP_ERROR, NQP_DATAGRAM, NQP_RELIABLE} nqprot_t;
 
 typedef struct
 {
 	netadrtype_t	type;
+	netproto_t		prot;
 
 	union {
 		qbyte	ip[4];
@@ -105,6 +127,7 @@ int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);
 qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host, qboolean islisten);
+void		NET_PrintConnectionsStatus(struct ftenet_connections_s *collection);
 
 enum addressscope_e
 {
@@ -115,16 +138,18 @@ enum addressscope_e
 };
 enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc);
 
+qboolean NET_AddrIsReliable(netadr_t *adr);	//hints that the protocol is reliable. if so, we don't need to wait for acks
 qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b);
 qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b);
 void		NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *data, size_t a, size_t b), void *ctx, size_t a, size_t b);
 char		*NET_AdrToString (char *s, int len, netadr_t *a);
+char		*NET_SockadrToString (char *s, int len, struct sockaddr_qstorage *a);
 char		*NET_BaseAdrToString (char *s, int len, netadr_t *a);
 size_t		NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount);
 #define NET_StringToSockaddr(s,p,a,f,z) (NET_StringToSockaddr2(s,p,a,f,z,1)>0)
 size_t		NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t addrcount);
 #define NET_StringToAdr(s,p,a) NET_StringToAdr2(s,p,a,1)
-qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a);
+qboolean	NET_PortToAdr (netadrtype_t adrfamily, netproto_t adrprot, const char *s, netadr_t *a);
 qboolean NET_IsClientLegal(netadr_t *adr);
 
 qboolean	NET_IsLoopBackAddress (netadr_t *adr);
@@ -134,7 +159,7 @@ char	*NET_AdrToStringMasked (char *s, int len, netadr_t *a, netadr_t *amask);
 void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits);
 qboolean NET_CompareAdrMasked(netadr_t *a, netadr_t *b, netadr_t *mask);
 
-qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, qboolean islisten);
+qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot, qboolean islisten);
 
 //============================================================================
 
@@ -230,7 +255,7 @@ qboolean Netchan_CanPacket (netchan_t *chan, int rate);
 void Netchan_Block (netchan_t *chan, int bytes, int rate);
 qboolean Netchan_CanReliable (netchan_t *chan, int rate);
 #ifdef NQPROT
-nqprot_t NQNetChan_Process(netchan_t *chan);
+qboolean NQNetChan_Process(netchan_t *chan);
 #endif
 
 #ifdef HUFFNETWORK
@@ -299,9 +324,9 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 
 #endif
 
-int UDP_OpenSocket (int port, qboolean bcast);
-int UDP6_OpenSocket (int port, qboolean bcast);
-int IPX_OpenSocket (int port, qboolean bcast);
+int UDP_OpenSocket (int port);
+int UDP6_OpenSocket (int port);
+int IPX_OpenSocket (int port);
 int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
 void SockadrToNetadr (struct sockaddr_qstorage *s, netadr_t *a);
 qboolean NET_Sleep(float seconds, qboolean stdinissocket);

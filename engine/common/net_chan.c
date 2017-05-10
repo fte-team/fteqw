@@ -401,7 +401,7 @@ qboolean ServerPaused(void);
 #endif
 
 #ifdef NQPROT
-nqprot_t NQNetChan_Process(netchan_t *chan)
+qboolean NQNetChan_Process(netchan_t *chan)
 {
 	int header;
 	int sequence;
@@ -412,10 +412,10 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 
 	header = LongSwap(MSG_ReadLong());
 	if (net_message.cursize != (header & NETFLAG_LENGTH_MASK))
-		return NQP_ERROR;	//size was wrong, couldn't have been ours.
+		return false;	//size was wrong, couldn't have been ours.
 
 	if (header & NETFLAG_CTL)
-		return NQP_ERROR;	//huh?
+		return false;	//huh?
 
 	sequence = LongSwap(MSG_ReadLong());
 
@@ -452,7 +452,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 						, sequence
 						, 0);
 
-		return NQP_ERROR;	//don't try execing the 'payload'. I hate ack packets.
+		return false;	//don't try execing the 'payload'. I hate ack packets.
 	}
 
 	if (header & NETFLAG_UNRELIABLE)
@@ -461,7 +461,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 		{
 			if (showdrop.ival)
 				Con_Printf("Stale datagram recieved (%i<=%i)\n", sequence, chan->incoming_unreliable);
-			return NQP_ERROR;
+			return false;
 		}
 		drop = sequence - chan->incoming_unreliable - 1;
 		if (drop > 0)
@@ -489,7 +489,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 						, chan->sock != NS_SERVER?"s2c":"c2s"
 						, chan->incoming_unreliable
 						, net_message.cursize);
-		return NQP_DATAGRAM;
+		return true;
 	}
 	if (header & NETFLAG_DATA)
 	{
@@ -512,7 +512,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 			if (chan->in_fragment_length + net_message.cursize-8 >= sizeof(chan->in_fragment_buf))
 			{
 				chan->fatal_error = true;
-				return NQP_ERROR;
+				return false;
 			}
 
 			memcpy(chan->in_fragment_buf + chan->in_fragment_length, net_message.data+8, net_message.cursize-8);
@@ -530,7 +530,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 								, chan->sock != NS_SERVER?"s2c":"c2s"
 								, sequence
 								, net_message.cursize);
-				return NQP_RELIABLE;	//we can read it now
+				return true;	//we can read it now
 			}
 		}
 		else
@@ -539,10 +539,10 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 				Con_Printf("Stale reliable (%i)\n", sequence);
 		}
 
-		return NQP_ERROR;
+		return false;
 	}
 
-	return NQP_ERROR;	//not supported.
+	return false;	//not supported.
 }
 #endif
 
@@ -575,7 +575,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		send.maxsize = MAX_NQMSGLEN + PACKET_HEADER;
 		send.cursize = 0;
 
-		if ((chan->remote_address.type == NA_TCP || chan->remote_address.type == NA_TCPV6 || chan->remote_address.type == NA_TLSV4 || chan->remote_address.type == NA_TLSV6) && chan->reliable_length)
+		if (NET_AddrIsReliable(&chan->remote_address) && chan->reliable_length)
 		{
 			//if over tcp, everything is assumed to be reliable. pretend it got acked.
 			chan->reliable_length = 0;	//they got the entire message
@@ -606,7 +606,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			{
 				MSG_WriteLong(&send, 0);
 				MSG_WriteLong(&send, LongSwap(chan->reliable_sequence));
-				if (i > MAX_NQDATAGRAM && chan->remote_address.type != NA_TCP)
+				if (i > MAX_NQDATAGRAM && !NET_AddrIsReliable(&chan->remote_address))
 					i = MAX_NQDATAGRAM;
 
 				SZ_Write (&send, chan->reliable_buf+chan->reliable_start, i);

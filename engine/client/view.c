@@ -317,9 +317,9 @@ cshift_t	cshift_lava = { {255,80,0}, 150 };
 
 cshift_t	cshift_server = { {130,80,50}, 0 };
 
-cvar_t		v_gamma = CVARFDC("gamma", "1.0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, "Controls how bright the screen is. Setting this to anything but 1 without hardware gamma requires glsl support and can noticably harm your framerate.", V_Gamma_Callback);
-cvar_t		v_contrast = CVARFDC("contrast", "1.0", CVAR_ARCHIVE, "Scales colour values linearly to make your screen easier to see. Setting this to anything but 1 without hardware gamma will reduce your framerates a little.", V_Gamma_Callback);
-cvar_t		v_brightness = CVARFDC("brightness", "0.0", CVAR_ARCHIVE, "Brightness is how much 'white' to add to each and every pixel on the screen.", V_Gamma_Callback);
+cvar_t		v_gamma = CVARFCD("gamma", "1.0", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, V_Gamma_Callback, "Controls how bright the screen is. Setting this to anything but 1 without hardware gamma requires glsl support and can noticably harm your framerate.");
+cvar_t		v_contrast = CVARFCD("contrast", "1.0", CVAR_ARCHIVE, V_Gamma_Callback, "Scales colour values linearly to make your screen easier to see. Setting this to anything but 1 without hardware gamma will reduce your framerates a little.");
+cvar_t		v_brightness = CVARFCD("brightness", "0.0", CVAR_ARCHIVE, V_Gamma_Callback, "Brightness is how much 'white' to add to each and every pixel on the screen.");
 
 qbyte		gammatable[256];	// palette is sent through this
 

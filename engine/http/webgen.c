@@ -212,7 +212,7 @@ static void IWeb_GenerateRankingsFileCallback(const rankinfo_t *ri)
 	IWeb_Generate("</TR>");
 }
 
-static void IWeb_GenerateRankingsFile (char *parms, char *content, int contentlength)
+static void IWeb_GenerateRankingsFile (const char *parms, const char *content, int contentlength)
 {
 	IWeb_Generate("<HTML><HEAD></HEAD><BODY>");
 
@@ -243,7 +243,7 @@ static void IWeb_GenerateRankingsFile (char *parms, char *content, int contentle
 	IWeb_Generate("</BODY></HTML>");
 }
 
-static void IWeb_GenerateIndexFile (char *parms, char *content, int contentlength)
+static void IWeb_GenerateIndexFile (const char *parms, const char *content, int contentlength)
 {
 	extern cvar_t	rcon_password;
 	char *s, *o;
@@ -338,7 +338,7 @@ static void IWeb_GenerateIndexFile (char *parms, char *content, int contentlengt
 
 typedef struct {
 	char *name;
-	void (*GenerationFunction) (char *parms, char *content, int contentlength);
+	void (*GenerationFunction) (const char *parms, const char *content, int contentlength);
 	float lastgenerationtime;
 	float oldbysecs;
 	IWeb_FileGen_t *buffer;
@@ -440,10 +440,10 @@ static vfsfile_t *VFSGen_Create(IWeb_FileGen_t *gen)
 	return (vfsfile_t*)ret;
 }
 
-vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
+vfsfile_t *IWebGenerateFile(const char *name, const char *content, int contentlength)
 {
 	int fnum;
-	char *parms;
+	const char *parms;
 	int len;
 
 	if (!sv.state)

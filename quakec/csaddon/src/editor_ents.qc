@@ -15,15 +15,22 @@ typedef struct
 	vector mins;
 	vector maxs;
 	float scale;
+	
+	trisoup_simple_vert_t bboxverts[8];
 
 	//full data
 	hashtable fields;
 } entedit_t;
 
+int bbox_line_idxs[] =
+{
+	0,2, 2,3, 3,1, 1,0,
+	4,6, 6,7, 7,5, 5,4,
+	0,4, 3,7, 2,6, 1,5
+};
+
 static entedit_t *editents;
 static int numents;
-static int entsdirty;
-static float entsapplytime;
 
 struct
 {	//FIXME: should probably parse quakeed comments or something.
@@ -169,7 +176,8 @@ entedit_t*() editor_ents_new =
 
 void(float num) editor_ents_delete =
 {
-	if (num >= 0 && num < numents)
+	//num 0 *could* be deleted, but we really don't want to allow that...
+	if (num > 0 && num < numents)
 	{
 		hash_destroytab(editents[num].fields);
 		editents[num].fields = 0;
@@ -201,24 +209,8 @@ string(entedit_t *ent) reforment =
 	return n;
 };
 
-void() updatemodelents =
-{
-	entsdirty = FALSE;
-	self = world;
-	terrain_edit(TEREDIT_ENTS_WIPE);
-	for (int e = 0; e < numents; e++)
-	{
-		local entedit_t *ent = &editents[e];
-		string n = reforment(ent);
-		terrain_edit(TEREDIT_ENT_SET, e, n);
-	}
-};
-
 void(entedit_t *ent) editor_ents_edited =
 {
-	entsdirty = TRUE;
-	entsapplytime = cltime+2;
-	
 	string n = reforment(ent);
 	terrain_edit(TEREDIT_ENT_SET, ent-editents, n);
 }
@@ -235,6 +227,7 @@ inline float(string model) modelindexforname =
 void(entedit_t *nent) editor_ents_updated =
 {
 	float ang;
+	int i;
 
 	nent->alpha = stof(nent->fields["alpha"]);
 	nent->scale = stof(nent->fields["scale"]);
@@ -255,15 +248,14 @@ void(entedit_t *nent) editor_ents_updated =
 
 	if (!nent->modelindex)
 	{
-		int i;
 		string classn;
 		classn = nent->fields["classname"];
 		for (i = 0; i < entclasses.length; i++)
 		{
 			if (classn == entclasses[i].classn)
 			{
-				nent->modelindex = 0;//modelindexforname(entclasses[i].model);
-				nent->alpha = 0.3;
+				nent->modelindex = modelindexforname(entclasses[i].model);
+				nent->alpha = 0.7;
 				nent->colourmod = entclasses[i].colour;
 				nent->mins = entclasses[i].mins;
 				nent->maxs = entclasses[i].maxs;
@@ -276,6 +268,39 @@ void(entedit_t *nent) editor_ents_updated =
 
 	if (nent->isbsp)
 		nent->ang = '0 0 0';	//bsp entities should not be displayed rotated, because that just messes everything up.
+		
+	
+	nent->bboxverts[0].xyz = (vec3)((__variant)nent->org);
+	nent->bboxverts[0].st = (vec2){0,0};
+	nent->bboxverts[0].rgba = (vec4){nent->colourmod[0], nent->colourmod[1], nent->colourmod[2], nent->alpha?nent->alpha:1};
+	nent->bboxverts[7] = nent->bboxverts[6] = nent->bboxverts[5] = nent->bboxverts[4] = nent->bboxverts[3] = nent->bboxverts[2] = nent->bboxverts[1] = nent->bboxverts[0];
+	for (i = 0; i < 8; i++)
+	{
+		nent->bboxverts[i].xyz[0] = nent->org[0] + ((i&1i)?nent->maxs[0]:nent->mins[0]);
+		nent->bboxverts[i].xyz[1] = nent->org[1] + (((i&2i)?nent->maxs[1]:nent->mins[1]));
+		nent->bboxverts[i].xyz[2] = nent->org[2] + ((i&4)?nent->maxs[2]:nent->mins[2]);
+	}
+		/*void(string shadername, vector min, vector max, vector col) editor_ents_drawbbox =
+{
+	if (min == max)
+		return;
+	R_BeginPolygon(shadername);
+#define line(x,y) 			R_PolygonVertex(x, '0 0', col, 1);	R_PolygonVertex(y, '0 0', col, 1);	R_EndPolygon()
+	line(min, ([max[0], min[1], min[2]]));
+	line(min, ([min[0], max[1], min[2]]));
+	line(min, ([min[0], min[1], max[2]]));
+	line(max, ([min[0], max[1], max[2]]));
+	line(max, ([max[0], min[1], max[2]]));
+	line(max, ([max[0], max[1], min[2]]));
+
+	line(([max[0], min[1], min[2]]), ([max[0], max[1], min[2]]));
+	line(([max[0], min[1], min[2]]), ([max[0], min[1], max[2]]));
+	line(([min[0], max[1], min[2]]), ([min[0], max[1], max[2]]));
+	line(([min[0], max[1], min[2]]), ([max[0], max[1], min[2]]));
+	line(([min[0], min[1], max[2]]), ([min[0], max[1], max[2]]));
+	line(([min[0], min[1], max[2]]), ([max[0], min[1], max[2]]));
+#undef line
+};*/
 };
 
 entedit_t*(entedit_t *o) editor_ents_clone =
@@ -314,7 +339,7 @@ void() editor_ents_reload =
 		if (nent->fields)
 			hash_destroytab(nent->fields);
 		nent->fields = 0;
-		if (field == __NULL__)
+		if (field == __NULL__)	//empty entity slot.
 			continue;
 		nent->fields = hash_createtab(12, EV_STRING);
 		fcount = tokenize(field);
@@ -351,28 +376,6 @@ void(int idx, string new) CSQC_MapEntityEdited =
 
 	editor_ents_updated(ent);
 //	editor_ents_edited(ent);
-};
-
-void(string shadername, vector min, vector max, vector col) editor_ents_drawbbox =
-{
-	if (min == max)
-		return;
-	R_BeginPolygon(shadername);
-#define line(x,y) 			R_PolygonVertex(x, '0 0', col, 1);	R_PolygonVertex(y, '0 0', col, 1);	R_EndPolygon()
-	line(min, ([max[0], min[1], min[2]]));
-	line(min, ([min[0], max[1], min[2]]));
-	line(min, ([min[0], min[1], max[2]]));
-	line(max, ([min[0], max[1], max[2]]));
-	line(max, ([max[0], min[1], max[2]]));
-	line(max, ([max[0], max[1], min[2]]));
-
-	line(([max[0], min[1], min[2]]), ([max[0], max[1], min[2]]));
-	line(([max[0], min[1], min[2]]), ([max[0], min[1], max[2]]));
-	line(([min[0], max[1], min[2]]), ([min[0], max[1], max[2]]));
-	line(([min[0], max[1], min[2]]), ([max[0], max[1], min[2]]));
-	line(([min[0], min[1], max[2]]), ([min[0], max[1], max[2]]));
-	line(([min[0], min[1], max[2]]), ([max[0], min[1], max[2]]));
-#undef line
 };
 
 void() editor_ents_addentities =
@@ -437,7 +440,9 @@ void() editor_ents_addentities =
 			addentity(tempent);
 		}
 		else
-			editor_ents_drawbbox("entbox", editents[e].org+editents[e].mins, editents[e].org+editents[e].maxs, editents[e].colourmod);
+		{
+			addtrisoup_simple("entbox", 0x800, &editents[e].bboxverts[0], bbox_line_idxs, bbox_line_idxs.length);
+		}
 	}
 };
 
@@ -488,7 +493,7 @@ float(float key, float unic, vector mousepos) editor_ents_key =
 				bestent = e;
 			}
 		}
-		tempent.modelindex = SOLID_NOT;
+		tempent.modelindex = 0;
 
 		selectedent = bestent;
 	}
@@ -647,7 +652,4 @@ void(vector mousepos) editor_ents_overlay =
 		drawrawstring(pos, sprintf("%s: <UNDEFINED>", editkey==""?"<UNMNAMED>":editkey), '8 8 0', '0 0 1', 1);
 		pos_y += 8;
 	}
-	
-	if (entsdirty && cltime > entsapplytime)
-		updatemodelents();
 };

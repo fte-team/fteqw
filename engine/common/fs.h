@@ -47,6 +47,7 @@ struct searchpathfuncs_s
 
 	qboolean		(QDECL *PollChanges)(searchpathfuncs_t *handle);	//returns true if there were changes
 
+	qboolean		(QDECL *FileStat)(searchpathfuncs_t *handle, flocation_t *loc, time_t *mtime);
 	qboolean		(QDECL *RenameFile)(searchpathfuncs_t *handle, const char *oldname, const char *newname);	//returns true on success, false if source doesn't exist, or if dest does.
 	qboolean		(QDECL *RemoveFile)(searchpathfuncs_t *handle, const char *filename);	//returns true on success, false if it wasn't found or is readonly.
 	qboolean		(QDECL *MkDir)(searchpathfuncs_t *handle, const char *filename);	//is this really needed?
@@ -86,5 +87,9 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 #define SPF_BASEPATH		128	//part of the basegames, and not the mod gamedir(s).
 qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, unsigned int flags);
 
+#ifdef AVAIL_XZDEC
 vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *infile);
+#endif
+#ifdef AVAIL_GZDEC
 vfsfile_t *FS_GZ_WriteFilter(vfsfile_t *outfile, qboolean autoclosefile, qboolean compress);
+#endif

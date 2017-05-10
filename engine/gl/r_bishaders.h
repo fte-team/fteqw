@@ -10004,7 +10004,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#define tcbase tcoffsetmap\n"
 "#endif\n"
 "#if defined(FLAT)\n"
-"vec4 bases = vec3(FLAT, 1.0);\n"
+"vec4 bases = vec4(FLAT, FLAT, FLAT, 1.0);\n"
 "#else\n"
 "vec4 bases = texture2D(s_diffuse, tcbase);\n"
 "#ifdef VERTEXCOLOURS\n"

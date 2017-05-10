@@ -237,13 +237,14 @@ qboolean GLSCR_UpdateScreen (void)
 }
 
 
-char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt)
+char *GLVID_GetRGBInfo(int *bytestride, int *truewidth, int *trueheight, enum uploadfmt *fmt)
 {	//returns a BZ_Malloced array
 	extern qboolean gammaworks;
 	int i, c;
 	qbyte *ret;
 	extern qboolean r2d_canhwgamma;
 
+	*bytestride = 0;
 	*truewidth = vid.fbpwidth;
 	*trueheight = vid.fbpheight;
 
@@ -277,7 +278,8 @@ char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt)
 		//total line byte length must be aligned to GL_PACK_ALIGNMENT. by reading rgba instead of rgb, we can ensure the line is a multiple of 4 bytes.
 
 		ret = BZ_Malloc((*truewidth)*(*trueheight)*4);
-		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_RGBA, GL_UNSIGNED_BYTE, ret); 
+		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_RGBA, GL_UNSIGNED_BYTE, ret);
+		*bytestride = *truewidth*-3;
 
 		*fmt = TF_RGB24;
 		c = (*truewidth)*(*trueheight);
@@ -296,6 +298,7 @@ char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt)
 		*fmt = TF_BGRA32;
 		ret = BZ_Malloc((*truewidth)*(*trueheight)*4);
 		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, ret); 
+		*bytestride = *truewidth*-4;
 	}
 #endif
 	else
@@ -303,6 +306,7 @@ char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt)
 		*fmt = TF_RGB24;
 		ret = BZ_Malloc((*truewidth)*(*trueheight)*3);
 		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_RGB, GL_UNSIGNED_BYTE, ret); 
+		*bytestride = *truewidth*-3;
 	}
 
 	if (gammaworks && r2d_canhwgamma)

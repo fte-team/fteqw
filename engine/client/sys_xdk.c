@@ -125,14 +125,17 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 }
 
 /*filesystem stuff*/
-void Sys_mkdir (char *path)
+void Sys_mkdir (const char *path)
 {
 }
-qboolean Sys_remove (char *path)
+void Sys_rmdir (const char *path)
+{
+}
+qboolean Sys_remove (const char *path)
 {
 	return false;	//false for failure
 }
-qboolean Sys_Rename (char *oldfname, char *newfname)
+qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	return false;	//false for failure
 }

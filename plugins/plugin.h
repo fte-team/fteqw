@@ -225,6 +225,9 @@ EBUILTIN(qboolean, Cvar_GetString, (const char *name, char *retstring, int sizeo
 EBUILTIN(float, Cvar_GetFloat, (const char *name));
 EBUILTIN(qhandle_t,	Cvar_Register, (const char *name, const char *defaultval, int flags, const char *grouphint));
 EBUILTIN(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
+#ifdef FTEPLUGIN
+EBUILTIN(cvar_t*, Cvar_GetNVFDG, (const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname));
+#endif
 
 EBUILTIN(void, Plug_GetPluginName, (int plugnum, char *buffer, int bufsize));
 EBUILTIN(void, LocalSound, (const char *soundname));

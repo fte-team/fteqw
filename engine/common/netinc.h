@@ -253,19 +253,21 @@ typedef struct
 {
 	struct icestate_s *(QDECL *ICE_Create)(void *module, const char *conname, const char *peername, enum icemode_e mode, enum iceproto_e proto);	//doesn't start pinging anything.
 	qboolean (QDECL *ICE_Set)(struct icestate_s *con, const char *prop, const char *value);
-	qboolean (QDECL *ICE_Get)(struct icestate_s *con, const char *prop, char *value, int valuesize);
+	qboolean (QDECL *ICE_Get)(struct icestate_s *con, const char *prop, char *value, size_t valuesize);
 	struct icecandinfo_s *(QDECL *ICE_GetLCandidateInfo)(struct icestate_s *con);		//retrieves candidates that need reporting to the peer.
 	void (QDECL *ICE_AddRCandidateInfo)(struct icestate_s *con, struct icecandinfo_s *cand);		//stuff that came from the peer.
 	void (QDECL *ICE_Close)(struct icestate_s *con);	//bye then.
 	void (QDECL *ICE_CloseModule)(void *module);	//closes all unclosed connections, with warning.
 //	struct icestate_s *(QDECL *ICE_Find)(void *module, const char *conname);
+	qboolean (QDECL *ICE_GetLCandidateSDP)(struct icestate_s *con, char *out, size_t valuesize);		//retrieves candidates that need reporting to the peer.
 } icefuncs_t;
 extern icefuncs_t iceapi;
 #endif
 
-
+//address flags
 #define ADDR_NATPMP		(1u<<0)
 #define ADDR_UPNPIGP	(1u<<1)
+#define ADDR_REFLEX		(1u<<2)	//as reported by some external server.
 
 #define FTENET_ADDRTYPES 2
 typedef struct ftenet_generic_connection_s {
@@ -277,8 +279,9 @@ typedef struct ftenet_generic_connection_s {
 	neterr_t (*SendPacket)(struct ftenet_generic_connection_s *con, int length, const void *data, netadr_t *to);
 	void (*Close)(struct ftenet_generic_connection_s *con);
 #ifdef HAVE_PACKET
-	int (*SetReceiveFDSet) (struct ftenet_generic_connection_s *con, fd_set *fdset);	/*set for connections which have multiple sockets (ie: listening tcp connections)*/
+	int (*SetFDSets) (struct ftenet_generic_connection_s *con, fd_set *readfdset, fd_set *writefdset);	/*set for connections which have multiple sockets (ie: listening tcp connections)*/
 #endif
+	void (*PrintStatus)(struct ftenet_generic_connection_s *con);
 
 	netadrtype_t addrtype[FTENET_ADDRTYPES];
 	qboolean islisten;
@@ -312,8 +315,8 @@ void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrn
 
 ftenet_connections_t *FTENET_CreateCollection(qboolean listen);
 void FTENET_CloseCollection(ftenet_connections_t *col);
-qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, qboolean islisten);
-int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, int *adrflags, netadr_t *addresses, int maxaddresses);
+qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot, qboolean islisten);
+int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
 
 vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, qboolean datagram);
 #ifdef HAVE_PACKET

@@ -4,10 +4,9 @@
 #ifdef WEBSERVER
 
 #ifdef WEBSVONLY
-
-#include "quakedef.h"
-
+//When running standalone
 #define Con_TPrintf IWebPrintf
+void VARGS IWebDPrintf(char *fmt, ...) LIKEPRINTF(1);
 #define IWebPrintf printf
 #define com_gamedir "."	//current dir.
 
@@ -15,6 +14,16 @@
 #define IWebMalloc(x) calloc(x, 1)
 #define IWebRealloc(x, y) realloc(x, y)
 #define IWebFree free
+#else
+//Inside FTE
+#define IWebDPrintf	Con_DPrintf
+#define IWebPrintf	Con_Printf
+
+#define IWebMalloc	Z_Malloc
+#define IWebRealloc	BZF_Realloc
+#define IWebFree	Z_Free
+
+void VARGS IWebWarnPrintf(char *fmt, ...) LIKEPRINTF(1);
 #endif
 
 #define IWEBACC_READ	1
@@ -30,13 +39,6 @@ qboolean SV_AllowDownload (const char *name);
 
 typedef qboolean iwboolean;
 
-//it's not allowed to error.
-#ifndef WEBSVONLY
-void VARGS IWebDPrintf(char *fmt, ...) LIKEPRINTF(1);
-void VARGS IWebPrintf(char *fmt, ...) LIKEPRINTF(1);
-void VARGS IWebWarnPrintf(char *fmt, ...) LIKEPRINTF(1);
-#endif
-
 typedef struct {
 	float gentime;	//useful for generating a new file (if too old, removes reference)
 	int references;	//freed if 0
@@ -44,18 +46,11 @@ typedef struct {
 	int len;
 } IWeb_FileGen_t;
 
-#ifndef WEBSVONLY
-void *IWebMalloc(int size);
-void *IWebRealloc(void *old, int size);
-void IWebFree(void *mem);
-#define IWebFree	Z_Free
-#endif
+int IWebAuthorize(const char *name, const char *password);
+iwboolean IWebAllowUpLoad(const char *fname, const char *uname);
 
-int IWebAuthorize(char *name, char *password);
-iwboolean IWebAllowUpLoad(char *fname, char *uname);
-
-vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength);
-
+vfsfile_t *IWebGenerateFile(const char *name, const char *content, int contentlength);
+int IWebGetSafeListeningPort(void);
 
 //char *COM_ParseOut (const char *data, char *out, int outlen);
 //struct searchpath_s;
@@ -64,10 +59,6 @@ vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength);
 
 char *Q_strcpyline(char *out, const char *in, int maxlen);
 
-
-
-
-iwboolean	FTP_StringToAdr (const char *s, qbyte ip[4], qbyte port[2]);
 
 //server tick/control functions
 iwboolean FTP_ServerRun(iwboolean ftpserverwanted, int port);
@@ -145,7 +136,7 @@ struct dl_download
 	void (*notifycomplete) (struct dl_download *dl);
 };
 
-vfsfile_t *VFSPIPE_Open(void);
+vfsfile_t *VFSPIPE_Open(int refs, qboolean seekable);	//refs should be 1 or 2, to say how many times it must be closed before its actually closed, so both ends can close separately
 void HTTP_CL_Think(void);
 void HTTP_CL_Terminate(void);	//kills all active downloads
 unsigned int HTTP_CL_GetActiveDownloads(void);

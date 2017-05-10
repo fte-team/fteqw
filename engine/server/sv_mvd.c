@@ -45,10 +45,8 @@ cvar_t	sv_demoExtensions = CVARD("sv_demoExtensions", "", "Enables protocol exte
 cvar_t	sv_demoAutoCompress = CVARD("sv_demoAutoCompress", "", "Specifies whether to compress demos as they're recorded.\n0 = no compression.\n1 = gzip compression.");
 
 cvar_t qtv_password		= CVAR(		"qtv_password", "");
-cvar_t qtv_streamport	= CVARAF(	"qtv_streamport", "0",
-									"mvd_streamport", 0);
-cvar_t qtv_maxstreams	= CVARAF(	"qtv_maxstreams", "1",
-									"mvd_maxstreams",  0);
+cvar_t qtv_maxstreams	= CVARAFD(	"qtv_maxstreams", "0",
+									"mvd_maxstreams",  0, "This is the maximum number of QTV clients/proxies that may be directly connected to the server. If empty then there is no limit. 0 disallows any streaming.");
 
 cvar_t			sv_demoPrefix = CVAR("sv_demoPrefix", "");
 cvar_t			sv_demoSuffix = CVAR("sv_demoSuffix", "");
@@ -79,9 +77,7 @@ static char demomsgbuf[MAX_OVERALLMSGLEN];
 
 static mvddest_t *singledest;	//used when a stream is starting up so redundant data doesn't get dumped into other streams
 
-#ifdef HAVE_TCP
-static mvddest_t *SV_MVD_InitStream(int socket);
-#endif
+static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream);
 qboolean SV_MVD_Record (mvddest_t *dest);
 char *SV_MVDName2Txt(char *name);
 extern cvar_t qtv_password;
@@ -102,10 +98,6 @@ static void DestClose(mvddest_t *d, enum mvdclosereason_e reason)
 		VFS_CLOSE(d->file);
 		FS_FlushFSHashWritten(d->filename);
 	}
-#ifdef HAVE_TCP
-	if (d->socket != INVALID_SOCKET)
-		closesocket(d->socket);
-#endif
 
 	if (reason == MVD_CLOSE_CANCEL)
 	{
@@ -203,28 +195,17 @@ void DestFlush(qboolean compleate)
 			break;
 
 		case DEST_STREAM:
-#ifndef HAVE_TCP
-			d->error = true;
-#else
 			if (d->cacheused && !d->error)
 			{
-				len = send(d->socket, d->cache, d->cacheused, 0);
-				if (len == 0) //client died
+				len = VFS_WRITE(d->file, d->cache, d->cacheused);
+				if (len < 0) //client died
 					d->error = true;
 				else if (len > 0)	//we put some data through
 				{	//move up the buffer
 					d->cacheused -= len;
 					memmove(d->cache, d->cache+len, d->cacheused);
 				}
-				else
-				{	//error of some kind. would block or something
-					int e;
-					e = neterrno();
-					if (e != NET_EWOULDBLOCK)
-						d->error = true;
-				}
 			}
-#endif
 			break;
 
 		case DEST_NONE:
@@ -244,146 +225,61 @@ void DestFlush(qboolean compleate)
 	}
 }
 
-void SV_MVD_RunPendingConnections(void)
+enum qtvstatus_e
 {
-#ifndef HAVE_TCP
-	if (demo.pendingdest)
-		Sys_Error("demo.pendingdest not null");
-#else
+	QTV_ERROR = -1,	//corrupt/bad request that should be dropped.
+	QTV_RETRY = 0,	//still handshaking.
+	QTV_ACCEPT = 1	//stream is now owned by the qtv code
+};
+int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *headerend, qtvpendingstate_t *p)
+{
 	unsigned short ushort_result;
 	char *e;
-	int len;
-	mvdpendingdest_t *p;
-	mvdpendingdest_t *np;
 
-	if (!demo.pendingdest)
-		return;
+	qboolean server = false;
+	char *start, *lineend;
+	int versiontouse = 0;
+	int raw = 0;
+	char password[256] = "";
+	enum {
+		QTVAM_NONE,
+		QTVAM_PLAIN,
+		QTVAM_CCITT,
+		QTVAM_MD4,
+		QTVAM_MD5,
+	} authmethod = QTVAM_NONE;
 
-	while (demo.pendingdest && demo.pendingdest->error)
-	{
-		np = demo.pendingdest->nextdest;
+	start = headerstart;
 
-		if (demo.pendingdest->socket != INVALID_SOCKET)
-			closesocket(demo.pendingdest->socket);
-		Z_Free(demo.pendingdest);
-		demo.pendingdest = np;
+	lineend = strchr(start, '\n');
+	if (!lineend)
+		return QTV_ERROR;
+
+	*lineend = '\0';
+	COM_ParseToken(start, NULL);
+	start = lineend+1;
+	if (strcmp(com_token, "QTV"))
+	{	//it's an error if it's not qtv.
+		if (!strcmp(com_token, "QTVSV"))
+			server = true;
+		else
+			return QTV_ERROR;
 	}
 
-	for (p = demo.pendingdest; p && p->nextdest; p = p->nextdest)
-	{
-		if (p->nextdest->error)
-		{
-			np = p->nextdest->nextdest;
-			if (p->nextdest->socket != INVALID_SOCKET)
-				closesocket(p->nextdest->socket);
-			Z_Free(p->nextdest);
-			p->nextdest = np;
-		}
+	if (server != p->isreverse)
+	{	//just a small check
+		return QTV_ERROR;
 	}
 
-	for (p = demo.pendingdest; p; p = p->nextdest)
+	for(;;)
 	{
-		if (p->outsize && !p->error)
+		lineend = strchr(start, '\n');
+		if (!lineend)
+			break;
+		*lineend = '\0';
+		start = COM_ParseToken(start, NULL);
+		if (start && *start == ':')
 		{
-			len = send(p->socket, p->outbuffer, p->outsize, 0);
-			if (len == 0) //client died
-				p->error = true;
-			else if (len > 0)	//we put some data through
-			{	//move up the buffer
-				p->outsize -= len;
-				memmove(p->outbuffer, p->outbuffer+len, p->outsize );
-			}
-			else
-			{	//error of some kind. would block or something
-				int e;
-				e = neterrno();
-				if (e != NET_EWOULDBLOCK)
-					p->error = true;
-			}
-		}
-		if (!p->error)
-		{
-			len = recv(p->socket, p->inbuffer + p->insize, sizeof(p->inbuffer) - p->insize - 1, 0);
-			if (len > 0)
-			{//fixme: cope with extra \rs
-				char *end;
-				p->insize += len;
-				p->inbuffer[p->insize] = 0;
-
-				for (end = p->inbuffer; ; end++)
-				{
-					if (*end == '\0')
-					{
-						end = NULL;
-						break;	//not enough data
-					}
-
-					if (end[0] == '\n')
-					{
-						if (end[1] == '\n')
-						{
-							end[1] = '\0';
-							break;
-						}
-					}
-				}
-				if (end)
-				{	//we found the end of the header
-					qboolean server = false;
-					char *start, *lineend;
-					int versiontouse = 0;
-					int raw = 0;
-					char password[256] = "";
-					enum {
-						QTVAM_NONE,
-						QTVAM_PLAIN,
-						QTVAM_CCITT,
-						QTVAM_MD4,
-						QTVAM_MD5,
-					} authmethod = QTVAM_NONE;
-
-					start = p->inbuffer;
-
-					lineend = strchr(start, '\n');
-					if (!lineend)
-					{
-//						char *e;
-//						e =	"This is a QTV server.";
-//						send(p->socket, e, strlen(e), 0);
-
-						p->error = true;
-						continue;
-					}
-					*lineend = '\0';
-					COM_ParseToken(start, NULL);
-					start = lineend+1;
-					if (strcmp(com_token, "QTV"))
-					{	//it's an error if it's not qtv.
-						if (!strcmp(com_token, "QTVSV"))
-							server = true;
-						else
-						{
-							p->error = true;
-							lineend = strchr(start, '\n');
-							continue;
-						}
-					}
-
-					if (server != p->isreverse)
-					{	//just a small check
-						p->error = true;
-						return;
-					}
-
-					for(;;)
-					{
-						lineend = strchr(start, '\n');
-						if (!lineend)
-							break;
-						*lineend = '\0';
-						start = COM_ParseToken(start, NULL);
-						if (*start == ':')
-						{
 //VERSION: a list of the different qtv protocols supported. Multiple versions can be specified. The first is assumed to be the prefered version.
 //RAW: if non-zero, send only a raw mvd with no additional markup anywhere (for telnet use). Doesn't work with challenge-based auth, so will only be accepted when proxy passwords are not required.
 //AUTH: specifies an auth method, the exact specs varies based on the method
@@ -395,243 +291,242 @@ void SV_MVD_RunPendingConnections(void)
 //SOURCE: which stream to play from, DEFAULT is special. Without qualifiers, it's assumed to be a tcp address.
 //COMPRESSION: Suggests a compression method (multiple are allowed). You'll get a COMPRESSION response, and compression will begin with the binary data.
 
-							start = start+1;
-							while(*start == ' ' || *start == '\t')
-								start++;
-							Con_DPrintf("qtv, got (%s) (%s)\n", com_token, start);
-							if (!strcmp(com_token, "VERSION"))
-							{
-								start = COM_ParseToken(start, NULL);
-								if (atoi(com_token) == 1)
-									versiontouse = 1;
-							}
-							else if (!strcmp(com_token, "RAW"))
-							{
-								start = COM_ParseToken(start, NULL);
-								raw = atoi(com_token);
-							}
-							else if (!strcmp(com_token, "PASSWORD"))
-							{
-								start = COM_ParseToken(start, NULL);
-								Q_strncpyz(password, com_token, sizeof(password));
-							}
-							else if (!strcmp(com_token, "AUTH"))
-							{
-								int thisauth;
-								start = COM_ParseToken(start, NULL);
-								if (!strcmp(com_token, "NONE"))
-									thisauth = QTVAM_PLAIN;
-								else if (!strcmp(com_token, "PLAIN"))
-									thisauth = QTVAM_PLAIN;
-								else if (!strcmp(com_token, "CCIT"))
-									thisauth = QTVAM_CCITT;
-								else if (!strcmp(com_token, "MD4"))
-									thisauth = QTVAM_MD4;
+			start = start+1;
+			while(*start == ' ' || *start == '\t')
+				start++;
+			Con_DPrintf("qtv, got (%s) (%s)\n", com_token, start);
+			if (!strcmp(com_token, "VERSION"))
+			{
+				start = COM_ParseToken(start, NULL);
+				if (atoi(com_token) == 1)
+					versiontouse = 1;
+			}
+			else if (!strcmp(com_token, "RAW"))
+			{
+				start = COM_ParseToken(start, NULL);
+				raw = atoi(com_token);
+			}
+			else if (!strcmp(com_token, "PASSWORD"))
+			{
+				start = COM_ParseToken(start, NULL);
+				Q_strncpyz(password, com_token, sizeof(password));
+			}
+			else if (!strcmp(com_token, "AUTH"))
+			{
+				int thisauth;
+				start = COM_ParseToken(start, NULL);
+				if (!strcmp(com_token, "NONE"))
+					thisauth = QTVAM_PLAIN;
+				else if (!strcmp(com_token, "PLAIN"))
+					thisauth = QTVAM_PLAIN;
+				else if (!strcmp(com_token, "CCIT"))
+					thisauth = QTVAM_CCITT;
+				else if (!strcmp(com_token, "MD4"))
+					thisauth = QTVAM_MD4;
 //								else if (!strcmp(com_token, "MD5"))
 //									thisauth = QTVAM_MD5;
-								else
-								{
-									thisauth = QTVAM_NONE;
-									Con_DPrintf("qtv: received unrecognised auth method (%s)\n", com_token);
-								}
-
-								if (authmethod < thisauth)
-									authmethod = thisauth;
-							}
-							else if (!strcmp(com_token, "SOURCE"))
-							{
-								//servers don't support source, and ignore it.
-								//source is only useful for qtv proxy servers.
-							}
-							else if (!strcmp(com_token, "COMPRESSION"))
-							{
-								//compression not supported yet
-							}
-							else if (!strcmp(com_token, "QTV_EZQUAKE_EXT"))
-							{
-								//if we were treating this as a regular client over tcp (qizmo...)
-							}
-							else if (!strcmp(com_token, "USERINFO"))
-							{
-								//if we were treating this as a regular client over tcp (qizmo...)
-							}
-							else
-							{
-								//not recognised.
-							}
-						}
-						start = lineend+1;
-					}
-
-					len = (end - p->inbuffer)+2;
-					p->insize -= len;
-					memmove(p->inbuffer, p->inbuffer + len, p->insize);
-					p->inbuffer[p->insize] = 0;
-
-					e = NULL;
-					if (p->hasauthed)
-					{
-					}
-					else if (p->isreverse)
-						p->hasauthed = true;	//reverse connections do not need to auth.
-					else if (!*qtv_password.string)
-						p->hasauthed = true;	//no password, no need to auth.
-					else if (*password)
-					{
-						switch (authmethod)
-						{
-						case QTVAM_NONE:
-							e = ("QTVSV 1\n"
-								 "PERROR: You need to provide a password.\n\n");
-							break;
-						case QTVAM_PLAIN:
-							p->hasauthed = !strcmp(qtv_password.string, password);
-							break;
-						case QTVAM_CCITT:
-							QCRC_Init(&ushort_result);
-							QCRC_AddBlock(&ushort_result, p->challenge, strlen(p->challenge));
-							QCRC_AddBlock(&ushort_result, qtv_password.string, strlen(qtv_password.string));
-							p->hasauthed = (ushort_result == strtoul(password, NULL, 0));
-							break;
-						case QTVAM_MD4:
-							{
-								char hash[512];
-								int md4sum[4];
-
-								snprintf(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
-								Com_BlockFullChecksum (hash, strlen(hash), (unsigned char*)md4sum);
-								sprintf(hash, "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);
-								p->hasauthed = !strcmp(password, hash);
-							}
-							break;
-						case QTVAM_MD5:
-						default:
-							e = ("QTVSV 1\n"
-								 "PERROR: FTEQWSV bug detected.\n\n");
-							break;
-						}
-						if (!p->hasauthed && !e)
-						{
-							if (raw)
-								e = "";
-							else
-								e =	("QTVSV 1\n"
-									 "PERROR: Bad password.\n\n");
-						}
-					}
-					else
-					{
-						//no password, and not automagically authed
-						switch (authmethod)
-						{
-						case QTVAM_NONE:
-							if (raw)
-								e = "";
-							else
-								e = ("QTVSV 1\n"
-									 "PERROR: You need to provide a common auth method.\n\n");
-							break;
-						case QTVAM_PLAIN:
-							p->hasauthed = !strcmp(qtv_password.string, password);
-							break;
-
-							if (0)
-							{
-						case QTVAM_CCITT:
-									e =	("QTVSV 1\n"
-										"AUTH: CCITT\n"
-										"CHALLENGE: ");
-							}
-							else if (0)
-							{
-						case QTVAM_MD4:
-									e =	("QTVSV 1\n"
-										"AUTH: MD4\n"
-										"CHALLENGE: ");
-							}
-							else
-							{
-						case QTVAM_MD5:
-									e =	("QTVSV 1\n"
-										"AUTH: MD5\n"
-										"CHALLENGE: ");
-							}
-
-							send(p->socket, e, strlen(e), 0);
-							send(p->socket, p->challenge, strlen(p->challenge), 0);
-							e = "\n\n";
-							send(p->socket, e, strlen(e), 0);
-							continue;
-
-						default:
-							e = ("QTVSV 1\n"
-								 "PERROR: FTEQWSV bug detected.\n\n");
-							break;
-						}
-					}
-
-					if (e)
-					{
-					}
-					else if (!versiontouse)
-					{
-						e =	("QTVSV 1\n"
-							 "PERROR: Incompatible version (valid version is v1)\n\n");
-					}
-					else if (raw)
-					{
-						if (p->hasauthed == false)
-						{
-							e =	"";
-						}
-						else
-						{
-							SV_MVD_Record(SV_MVD_InitStream(p->socket));
-							p->socket = INVALID_SOCKET;	//so it's not cleared wrongly.
-						}
-						p->error = true;
-					}
-					else
-					{
-						if (p->hasauthed == true)
-						{
-							mvddest_t *dst;
-							e =	("QTVSV 1\n"
-								 "BEGIN\n"
-								 "\n");
-							send(p->socket, e, strlen(e), 0);
-							e = NULL;
-							dst = SV_MVD_InitStream(p->socket);
-							dst->droponmapchange = p->isreverse;
-							SV_MVD_Record(dst);
-							p->socket = INVALID_SOCKET;	//so it's not cleared wrongly.
-						}
-						else
-						{
-							e =	("QTVSV 1\n"
-								"PERROR: You need to provide a password.\n\n");
-						}
-						p->error = true;
-					}
-
-					if (e)
-					{
-						send(p->socket, e, strlen(e), 0);
-						p->error = true;
-					}
+				else
+				{
+					thisauth = QTVAM_NONE;
+					Con_DPrintf("qtv: received unrecognised auth method (%s)\n", com_token);
 				}
+
+				if (authmethod < thisauth)
+					authmethod = thisauth;
 			}
-			else if (len == 0)
-				p->error = true;
+			else if (!strcmp(com_token, "SOURCE"))
+			{
+				//servers don't support source, and ignore it.
+				//source is only useful for qtv proxy servers.
+			}
+			else if (!strcmp(com_token, "COMPRESSION"))
+			{
+				//compression not supported yet
+			}
+			else if (!strcmp(com_token, "QTV_EZQUAKE_EXT"))
+			{
+				//if we were treating this as a regular client over tcp (qizmo...)
+			}
+			else if (!strcmp(com_token, "USERINFO"))
+			{
+				//if we were treating this as a regular client over tcp (qizmo...)
+			}
 			else
-			{	//error of some kind. would block or something
-				int e = neterrno();
-				if (e != NET_EWOULDBLOCK)
-					p->error = true;
+			{
+				//not recognised.
 			}
 		}
+		start = lineend+1;
 	}
-#endif
+
+	/*len = (headerend - headerstart)+2;
+	p->insize -= len;
+	memmove(p->inbuffer, p->inbuffer + len, p->insize);
+	p->inbuffer[p->insize] = 0;
+	*/
+
+	e = NULL;
+	if (p->hasauthed)
+	{
+	}
+	else if (p->isreverse)
+		p->hasauthed = true;	//reverse connections do not need to auth.
+	else if (!*qtv_password.string)
+		p->hasauthed = true;	//no password, no need to auth.
+	else if (*password)
+	{
+		switch (authmethod)
+		{
+		case QTVAM_NONE:
+			e = ("QTVSV 1\n"
+				 "PERROR: You need to provide a password.\n\n");
+			break;
+		case QTVAM_PLAIN:
+			p->hasauthed = !strcmp(qtv_password.string, password);
+			break;
+		case QTVAM_CCITT:
+			QCRC_Init(&ushort_result);
+			QCRC_AddBlock(&ushort_result, p->challenge, strlen(p->challenge));
+			QCRC_AddBlock(&ushort_result, qtv_password.string, strlen(qtv_password.string));
+			p->hasauthed = (ushort_result == strtoul(password, NULL, 0));
+			break;
+		case QTVAM_MD4:
+			{
+				char hash[512];
+				int md4sum[4];
+
+				snprintf(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
+				Com_BlockFullChecksum (hash, strlen(hash), (unsigned char*)md4sum);
+				sprintf(hash, "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);
+				p->hasauthed = !strcmp(password, hash);
+			}
+			break;
+		case QTVAM_MD5:
+		default:
+			e = ("QTVSV 1\n"
+				 "PERROR: FTEQWSV bug detected.\n\n");
+			break;
+		}
+		if (!p->hasauthed && !e)
+		{
+			if (raw)
+				e = "";
+			else
+				e =	("QTVSV 1\n"
+					 "PERROR: Bad password.\n\n");
+		}
+	}
+	else
+	{
+		//no password, and not automagically authed
+		switch (authmethod)
+		{
+		case QTVAM_NONE:
+			if (raw)
+				e = "";
+			else
+				e = ("QTVSV 1\n"
+					 "PERROR: You need to provide a common auth method.\n\n");
+			break;
+		case QTVAM_PLAIN:
+			p->hasauthed = !strcmp(qtv_password.string, password);
+			break;
+
+			if (0)
+			{
+		case QTVAM_CCITT:
+					e =	("QTVSV 1\n"
+						"AUTH: CCITT\n"
+						"CHALLENGE: ");
+			}
+			else if (0)
+			{
+		case QTVAM_MD4:
+					e =	("QTVSV 1\n"
+						"AUTH: MD4\n"
+						"CHALLENGE: ");
+			}
+			else
+			{
+		case QTVAM_MD5:
+					e =	("QTVSV 1\n"
+						"AUTH: MD5\n"
+						"CHALLENGE: ");
+			}
+
+			VFS_WRITE(clientstream, e, strlen(e));
+			VFS_WRITE(clientstream, p->challenge, strlen(p->challenge));
+			e = "\n\n";
+			VFS_WRITE(clientstream, e, strlen(e));
+			return QTV_RETRY;
+
+		default:
+			e = ("QTVSV 1\n"
+				 "PERROR: FTEQWSV bug detected.\n\n");
+			break;
+		}
+	}
+
+	if (*qtv_maxstreams.string)
+	{
+		int count = 0;
+		mvddest_t *dest;
+		for (dest = demo.dest; dest; dest = dest->nextdest)
+		{
+			if (dest->desttype == DEST_STREAM)
+				count++;
+		}
+
+		if (count >= qtv_maxstreams.value) //sorry
+		{
+			if (!qtv_maxstreams.value)
+				e = "QTVSV 1\nTERROR: QTV streaming from this server is blocked by qtv_maxstreams.\n\n";
+			else
+				e = "QTVSV 1\nTERROR: This server enforces a limit on the number of proxies connected at any one time. Please try again later.\n\n";
+		}
+	}
+
+	if (e)
+	{
+	}
+	else if (!versiontouse)
+	{
+		e =	("QTVSV 1\n"
+			 "PERROR: Incompatible version (valid version is v1)\n\n");
+	}
+	else if (raw)
+	{
+		if (p->hasauthed == true)
+		{
+			SV_MVD_Record(SV_MVD_InitStream(clientstream));
+			return QTV_ACCEPT;
+		}
+	}
+	else
+	{
+		if (p->hasauthed == true)
+		{
+			mvddest_t *dst;
+			e =	("QTVSV 1\n"
+				 "BEGIN\n"
+				 "\n");
+			VFS_WRITE(clientstream, e, strlen(e));
+			e = NULL;
+			dst = SV_MVD_InitStream(clientstream);
+			dst->droponmapchange = p->isreverse;
+			SV_MVD_Record(dst);
+			return QTV_ACCEPT;
+		}
+		else
+		{
+			e =	("QTVSV 1\n"
+				"PERROR: You need to provide a password.\n\n");
+		}
+	}
+
+	if (e && !raw)	//don't write any error messages to raw requests. that would confuse stuff.
+		VFS_WRITE(clientstream, e, strlen(e));
+	return QTV_ERROR;
 }
 
 static int DestCloseAllFlush(enum mvdclosereason_e reason, qboolean mvdonly)
@@ -1368,7 +1263,6 @@ mvddest_t *SV_MVD_InitRecordFile (char *name)
 #endif
 
 	dst = Z_Malloc(sizeof(mvddest_t));
-	dst->socket = INVALID_SOCKET;
 	strcpy(dst->filename, name);
 
 #ifdef LOADERTHREAD
@@ -1467,42 +1361,40 @@ char *SV_Demo_CurrentOutput(void)
 	}
 	return "QTV";
 }
+void SV_Demo_PrintOutputs(void)
+{
+	mvddest_t *d;
+	for (d = demo.dest; d; d = d->nextdest)
+	{
+		if (d->desttype == DEST_FILE || d->desttype == DEST_BUFFEREDFILE || d->desttype == DEST_THREADEDFILE)
+			Con_Printf("recording        : %s\n", d->simplename);
+		else if (d->desttype == DEST_STREAM)
+			Con_Printf("streaming        : %s\n", d->simplename);
+	}
+}
 
-#ifdef HAVE_TCP
-static mvddest_t *SV_MVD_InitStream(int socket)
+static mvddest_t *SV_MVD_InitStream(vfsfile_t *stream)
 {
 	mvddest_t *dst;
+
+	for (dst = demo.dest; dst; dst = dst->nextdest)
+	{
+		if (dst->desttype == DEST_STREAM)
+			break;
+	}
+	if (!dst)
+		SV_BroadcastPrintf (PRINT_CHAT, "Smile, you're on QTV!\n");
 
 	dst = Z_Malloc(sizeof(mvddest_t));
 
 	dst->desttype = DEST_STREAM;
-	dst->socket = socket;
+	dst->file = stream;
 	dst->maxcachesize = 0x8000;	//is this too small?
 	dst->cache = BZ_Malloc(dst->maxcachesize);
 	dst->droponmapchange = false;
 
-	SV_BroadcastPrintf (PRINT_CHAT, "Smile, you're on QTV!\n");
-
 	return dst;
 }
-
-static mvdpendingdest_t *SV_MVD_InitPendingStream(int socket, char *ip)
-{
-	mvdpendingdest_t *dst;
-	int i;
-	dst = Z_Malloc(sizeof(mvdpendingdest_t));
-	dst->socket = socket;
-
-	Q_strncpyz(dst->challenge, ip, sizeof(dst->challenge));
-	for (i = strlen(dst->challenge); i < sizeof(dst->challenge)-1; i++)
-		dst->challenge[i] = rand()%(127-33) + 33;	//generate a random challenge
-
-	dst->nextdest = demo.pendingdest;
-	demo.pendingdest = dst;
-
-	return dst;
-}
-#endif
 
 /*
 ====================
@@ -2041,7 +1933,7 @@ void SV_MVD_Record_f (void)
 
 void SV_MVD_QTVReverse_f (void)
 {
-#ifndef HAVE_TCP
+#if 1//ndef HAVE_TCP
 	Con_Printf ("%s is not supported in this build\n", Cmd_Argv(0));
 #else
 	char *ip;
@@ -2342,132 +2234,6 @@ void SV_MVDEasyRecord_f (void)
 	SV_MVD_Record (SV_MVD_InitRecordFile(name2));
 }
 
-#ifdef HAVE_TCP
-static SOCKET MVD_StreamStartListening(int port)
-{
-	SOCKET sock;
-
-	struct sockaddr_in	address;
-//	int fromlen;
-
-	unsigned int nonblocking = true;
-
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons((u_short)port);
-
-
-
-	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
-	{
-		Sys_Error ("MVD_StreamStartListening: socket: %s", strerror(neterrno()));
-	}
-
-	if (ioctlsocket (sock, FIONBIO, (u_long *)&nonblocking) == INVALID_SOCKET)
-	{
-		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(neterrno()));
-	}
-
-	if( bind (sock, (void *)&address, sizeof(address)) == INVALID_SOCKET)
-	{
-		closesocket(sock);
-		return INVALID_SOCKET;
-	}
-
-	listen(sock, 2);
-
-	return sock;
-}
-#endif
-
-void SV_MVDStream_Poll(void)
-{
-#ifdef HAVE_TCP
-	static SOCKET listensocket=INVALID_SOCKET;
-	static int listenport;
-	int _true = true;
-
-	int client;
-	netadr_t na;
-	struct sockaddr_qstorage addr;
-	int addrlen;
-	int count;
-	qboolean wanted;
-	mvddest_t *dest;
-	char *ip;
-	char adrbuf[MAX_ADR_SIZE];
-
-	if (!sv.state || !qtv_streamport.ival)
-		wanted = false;
-	else if (listenport && qtv_streamport.ival != listenport)	//easy way to switch... disable for a frame. :)
-	{
-		listenport = qtv_streamport.ival;
-		wanted = false;
-	}
-	else
-	{
-		listenport = qtv_streamport.ival;
-		wanted = true;
-	}
-
-	if (wanted && listensocket==INVALID_SOCKET)
-	{
-		listensocket = MVD_StreamStartListening(listenport);
-		if (listensocket==INVALID_SOCKET && qtv_streamport.modified)
-		{
-			Con_Printf("Cannot open TCP port %i for QTV\n", listenport);
-			qtv_streamport.modified = false;
-		}
-
-	}
-	else if (!wanted && listensocket!=INVALID_SOCKET)
-	{
-		closesocket(listensocket);
-		listensocket = INVALID_SOCKET;
-		return;
-	}
-	if (listensocket==INVALID_SOCKET)
-		return;
-
-	addrlen = sizeof(addr);
-	client = accept(listensocket, (struct sockaddr *)&addr, &addrlen);
-
-	if (client == INVALID_SOCKET)
-		return;
-
-	ioctlsocket(client, FIONBIO, (u_long *)&_true);
-
-	if (qtv_maxstreams.value > 0)
-	{
-		count = 0;
-		for (dest = demo.dest; dest; dest = dest->nextdest)
-		{
-			if (dest->desttype == DEST_STREAM)
-			{
-				count++;
-			}
-		}
-
-		if (count > qtv_maxstreams.value)
-		{	//sorry
-			char *goawaymessage = "QTVSV 1\nTERROR: This server enforces a limit on the number of proxies connected at any one time. Please try again later\n\n";
-
-			send(client, goawaymessage, strlen(goawaymessage), 0);
-			closesocket(client);
-			return;
-		}
-	}
-
-	SockadrToNetadr(&addr, &na);
-	ip = NET_AdrToString(adrbuf, sizeof(adrbuf), &na);
-	Con_Printf("MVD streaming client attempting to connect from %s\n", ip);
-
-	SV_MVD_InitPendingStream(client, ip);
-
-//	SV_MVD_Record (SV_InitStream(client));
-#endif
-}
-
 //console command for servers/admins
 void SV_MVDList_f (void)
 {
@@ -2496,7 +2262,7 @@ void SV_MVDList_f (void)
 		{
 			for (d = demo.dest; d; d = d->nextdest)
 			{
-				if (!strcmp(list->name, d->simplename))
+				if (d->desttype != DEST_STREAM && !strcmp(list->name, d->simplename))
 					Con_Printf("*%d: ^[^7%s\\demo\\%s/%s^] %dk\n", i, list->name, sv_demoDir.string, list->name, d->totalsize/1024);
 			}
 			if (!d)
@@ -2547,7 +2313,7 @@ void SV_UserCmdMVDList_f (void)
 		{
 			for (d = demo.dest; d; d = d->nextdest)
 			{
-				if (!strcmp(list->name, d->simplename))
+				if (d->desttype != DEST_STREAM && !strcmp(list->name, d->simplename))
 					SV_ClientPrintf(host_client, PRINT_HIGH, "*%d: %s %dk\n", i, list->name, d->totalsize/1024);
 			}
 			if (!d)
@@ -2574,6 +2340,80 @@ void SV_UserCmdMVDList_f (void)
 			f = 0;
 		SV_ClientPrintf(host_client, PRINT_HIGH, "space available: %.1fMB\n", f);
 	}
+
+	Sys_freedir(dir);
+}
+
+void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
+{
+	mvddest_t *d;
+	dir_t	*dir;
+	file_t	*list;
+	float	f;
+	int		i;
+
+	VFS_PRINTF(pipe,
+		"<html>"
+			"<head>"
+				"<meta charset='UTF-8'>"
+				"<style>"
+					".mydiv { width: 20%%; height: 100%%; padding: 0px; margin: 0px; border: 0px solclass #aaaaaa; float:left; }"
+					".game { width: 80%%; height: 100%%; padding: 0px; margin: 0px; border: 0px solclass #aaaaaa; float:left; }"
+				"</style>"
+				"<script>"
+					"function playdemo(demo)"
+					"{"
+						"demo = '%s/demos/'+demo;"
+						"thegame.postMessage({cmd:'playdemo',url:demo}, '*');"
+					"}"
+				"</script>"
+			"</head>"
+			"<body>"
+			"<div class='mydiv'>\n"
+		, hostname);
+
+	VFS_PRINTF(pipe, "available demos:<br/>\n");
+	dir = Sys_listdir(sv_demoDir.string, ".mvd", SORT_BY_DATE);
+	list = dir->files;
+	if (!list->name[0])
+	{
+		VFS_PRINTF(pipe, "no demos<br/>\n");
+	}
+
+	for (i = 1; i <= dir->numfiles; i++, list++)
+	{
+		for (d = demo.dest; d; d = d->nextdest)
+		{
+			if (d->desttype != DEST_STREAM && !strcmp(list->name, d->simplename))
+				VFS_PRINTF(pipe, "*%d: %s %dk<br/>\n", i, list->name, d->totalsize/1024);
+		}
+		if (!d)
+			VFS_PRINTF(pipe, "%d: <a href='/demos/%s'>%s</a> %dk <a href='javascript:void(0)' onclick='playdemo(\"%s\")'>play</a><br/>\n", i, list->name, list->name, list->size/1024, list->name);
+	}
+
+	for (d = demo.dest; d; d = d->nextdest)
+		dir->size += d->totalsize;
+
+	VFS_PRINTF(pipe, "<br/>\ndirectory size: %.1fMB<br/>\n",(float)dir->size/(1024*1024));
+	if (sv_demoMaxDirSize.value)
+	{
+		f = (sv_demoMaxDirSize.value*1024 - dir->size)/(1024*1024);
+		if ( f < 0)
+			f = 0;
+		VFS_PRINTF(pipe, "space available: %.1fMB<br/>\n", f);
+	}
+
+	VFS_PRINTF(pipe,
+				"</div>"
+				"<div class='game'>"
+					"<iframe name='thegame'"	//the name of the game is... thegame!
+						" src='"ENGINEWEBSITE"/quake' allowfullscreen=true"
+						" frameborder='0' scrolling='no' marginheight='0' marginwidth='0' width='100%%' height='100%%'"
+						" onerror=\"alert('Failed to load engine')\">"
+				"</iframe>"
+				"</div>"
+			"</body>\n"
+		"</html>\n");
 
 	Sys_freedir(dir);
 }
@@ -2958,7 +2798,6 @@ void SV_MVDInit(void)
 	Cmd_AddCommand ("rmdemo", SV_MVDRemove_f);
 	Cmd_AddCommand ("rmdemonum", SV_MVDRemoveNum_f);
 
-	Cvar_Register(&qtv_streamport, "MVD Streaming");
 	Cvar_Register(&qtv_maxstreams, "MVD Streaming");
 	Cvar_Register(&qtv_password, "MVD Streaming");
 }

@@ -603,7 +603,7 @@ void QCBUILTIN PF_soundlength (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		sfxcache_t cachebuf, *cache;
 		if (sfx->decoder.querydata)
 		{
-			G_FLOAT(OFS_RETURN) = sfx->decoder.querydata(sfx, NULL);
+			G_FLOAT(OFS_RETURN) = sfx->decoder.querydata(sfx, NULL, NULL, 0);
 			return;
 		}
 		else if (sfx->decoder.decodedata)

@@ -1,7 +1,7 @@
 #include "../plugin.h"
 #include "../engine.h"
 
-#include "libavcodec/avcodec.h"
+//#include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libswscale/swscale.h"
 #include "libavutil/imgutils.h"
@@ -18,6 +18,8 @@
 #define AVIOContext ByteIOContext
 #define avio_alloc_context av_alloc_put_byte
 */
+
+#define DECODERNAME "ffmpeg"
 
 #define PASSFLOAT(f) *(int*)&(f)
 
@@ -459,7 +461,7 @@ static qintptr_t AVDec_Shutdown(qintptr_t *args)
 static media_decoder_funcs_t decoderfuncs =
 {
 	sizeof(media_decoder_funcs_t),
-	"avplug",
+	DECODERNAME,
 	AVDec_Create,
 	AVDec_DisplayFrame,
 	AVDec_Destroy,
@@ -472,11 +474,11 @@ static media_decoder_funcs_t decoderfuncs =
 	NULL,//AVDec_ChangeStream
 };
 
-static qboolean AVDec_Init(void)
+qboolean AVDec_Init(void)
 {
 	if (!pPlug_ExportNative("Media_VideoDecoder", &decoderfuncs))
 	{
-		Con_Printf("avplug: Engine doesn't support media decoder plugins\n");
+		Con_Printf(DECODERNAME": Engine doesn't support media decoder plugins\n");
 		return false;
 	}
 
@@ -485,32 +487,3 @@ static qboolean AVDec_Init(void)
 
 	return true;
 }
-
-static void AVLogCallback(void *avcl, int level, const char *fmt, va_list vl)
-{	//needs to be reenterant
-#ifdef _DEBUG
-	char		string[1024];
-	Q_vsnprintf (string, sizeof(string), fmt, vl);
-	pCon_Print(string);
-#endif
-}
-
-//get the encoder/decoders to register themselves with the engine, then make sure avformat/avcodec have registered all they have to give.
-qboolean AVEnc_Init(void);
-qintptr_t Plug_Init(qintptr_t *args)
-{
-	qboolean okay = false;
-
-	okay |= AVDec_Init();
-	okay |= AVEnc_Init();
-	if (okay)
-	{
-		av_register_all();
-		avcodec_register_all();
-
-		av_log_set_level(AV_LOG_WARNING);
-		av_log_set_callback(AVLogCallback);
-	}
-	return okay;
-}
-

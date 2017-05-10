@@ -269,7 +269,7 @@ int Sys_EnumerateFiles(const char *gpath, const char *match, int (*func)(const c
 	return ret;
 }
 
-void Sys_mkdir(char *path)
+void Sys_mkdir(const char *path)
 {
 	BPTR lock;
 
@@ -283,14 +283,19 @@ void Sys_mkdir(char *path)
 	}
 }
 
-qboolean Sys_remove(char *path)
+qboolean Sys_rmdir (const char *path)
+{
+	return false;
+}
+
+qboolean Sys_remove(const char *path)
 {
 	if (path[0] == '.' && path[1] == '/')
 		path+= 2;
 
 	return DeleteFile(path);
 }
-qboolean Sys_Rename (char *oldfname, char *newfname)
+qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	return !rename(oldfname, newfname);
 }

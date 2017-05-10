@@ -714,8 +714,13 @@ void Cmd_Exec_f (void)
 	if (cvar_watched)
 		Cbuf_InsertText (va("echo END %s", buf), level, true);
 	// don't execute anything if it was from server (either the stuffcmd/localcmd, or the file)
-	if (!strcmp(name, "default.cfg") && !(Cmd_FromGamecode() || untrusted))
-		Cbuf_InsertText ("\ncvar_lockdefaults 1\n", level, false);
+	if (!strcmp(name, "default.cfg"))
+	{
+		if (!(Cmd_FromGamecode() || untrusted))
+			Cbuf_InsertText ("\ncvar_lockdefaults 1\n", level, false);
+		if (fs_manifest->defaultoverrides)
+			Cbuf_InsertText (fs_manifest->defaultoverrides, level, false);
+	}
 	Cbuf_InsertText (s, level, true);
 	if (cvar_watched)
 		Cbuf_InsertText (va("echo BEGIN %s", buf), level, true);
@@ -1246,15 +1251,16 @@ char *VARGS Cmd_Args (void)
 	return cmd_args;
 }
 
-void Cmd_Args_Set(const char *newargs)
+void Cmd_Args_Set(const char *newargs, size_t len)
 {
 	if (cmd_args_buf)
 		Z_Free(cmd_args_buf);
 
 	if (newargs)
 	{
-		cmd_args_buf = (char*)Z_Malloc (Q_strlen(newargs)+1);
-		Q_strcpy (cmd_args_buf, newargs);
+		cmd_args_buf = (char*)Z_Malloc (len+1);
+		memcpy(cmd_args_buf, newargs, len);
+		cmd_args_buf[len] = 0;
 		cmd_args = cmd_args_buf;
 	}
 	else
@@ -1547,13 +1553,13 @@ Parses the given string into command line tokens, stopping at the \n
 const char *Cmd_TokenizeString (const char *text, qboolean expandmacros, qboolean qctokenize)
 {
 	int		i;
+	const char *args = NULL;
 
 // clear the args from the last string
 	for (i=0 ; i<cmd_argc ; i++)
 		Z_Free (cmd_argv[i]);
 
 	cmd_argc = 0;
-	Cmd_Args_Set(NULL);
 
 	while (1)
 	{
@@ -1570,18 +1576,16 @@ const char *Cmd_TokenizeString (const char *text, qboolean expandmacros, qboolea
 		}
 
 		if (!*text)
-			return text;
+			break;
 
 		if (cmd_argc == 1)
-		{
-			Cmd_Args_Set(text);
-		}
+			args = text;
 
 		text = COM_StringParse (text, com_token, sizeof(com_token), expandmacros, qctokenize);
 		if (!text)
-			return text;
+			break;
 		if (!strcmp(com_token, "\n"))
-			return text;
+			break;
 
 		if (cmd_argc < MAX_ARGS)
 		{
@@ -1590,19 +1594,30 @@ const char *Cmd_TokenizeString (const char *text, qboolean expandmacros, qboolea
 			cmd_argc++;
 		}
 	}
+
+	if (args)
+	{
+		const char *argsend = text?text:args+strlen(args);
+		while (argsend > args && (argsend[-1] == '\n' || argsend[-1] == '\r'))
+			argsend--;
+		Cmd_Args_Set(args, argsend-args);
+	}
+	else
+		Cmd_Args_Set(NULL, 0);
 	return text;
 }
 
 void Cmd_TokenizePunctation (char *text, char *punctuation)
 {
 	int		i;
+	char *args = NULL;
 
 // clear the args from the last string
 	for (i=0 ; i<cmd_argc ; i++)
 		Z_Free (cmd_argv[i]);
 
 	cmd_argc = 0;
-	Cmd_Args_Set(NULL);
+	Cmd_Args_Set(NULL, 0);
 
 	while (1)
 	{
@@ -1619,16 +1634,14 @@ void Cmd_TokenizePunctation (char *text, char *punctuation)
 		}
 
 		if (!*text)
-			return;
+			break;
 
 		if (cmd_argc == 1)
-		{
-			Cmd_Args_Set(text);
-		}
+			args = text;
 
 		text = COM_ParseToken (text, punctuation);
 		if (!text)
-			return;
+			break;
 
 		if (cmd_argc < MAX_ARGS)
 		{
@@ -1636,6 +1649,14 @@ void Cmd_TokenizePunctation (char *text, char *punctuation)
 			Q_strcpy (cmd_argv[cmd_argc], com_token);
 			cmd_argc++;
 		}
+	}
+
+	if (args)
+	{
+		const char *argsend = text?text:args+strlen(args);
+		while (argsend > args && (argsend[-1] == '\n' || argsend[-1] == '\r'))
+			argsend--;
+		Cmd_Args_Set(args, argsend-args);
 	}
 }
 
@@ -2095,7 +2116,7 @@ void Cmd_Apropos_f (void)
 			;
 		else
 			continue;
-			Con_Printf("command ^2%s^7: %s\n", cmd->name, cmd->description?cmd->description:"no description");
+		Con_Printf("command ^2%s^7: %s\n", cmd->name, cmd->description?cmd->description:"no description");
 	}
 	//FIXME: add aliases.
 }

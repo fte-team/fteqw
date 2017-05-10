@@ -155,7 +155,8 @@ static void VK_DestroySwapChain(void)
 		Sys_WaitOnThread(vk.submitthread);
 		vk.submitthread = NULL;
 	}
-	vk.dopresent(NULL);
+	if (vk.dopresent)
+		vk.dopresent(NULL);
 	while (vk.aquirenext < vk.aquirelast)
 	{
 		VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
@@ -199,7 +200,8 @@ static void VK_DestroySwapChain(void)
 		VK_DestroyVkTexture(&vk.backbufs[i].depth);
 	}
 
-	vk.dopresent(NULL);
+	if (vk.dopresent)
+		vk.dopresent(NULL);
 	while (vk.aquirenext < vk.aquirelast)
 	{
 		VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
@@ -249,13 +251,78 @@ static qboolean VK_CreateSwapChain(void)
 	uint32_t i, curpri;
 	VkSwapchainKHR newvkswapchain;
 	VkImage *images;
+	VkImage *memories;
 	VkImageView attachments[2];
 	VkFramebufferCreateInfo fb_info = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
 
 	vk.dopresent(NULL);	//make sure they're all pushed through.
 
-	if (!vk.surface)
-		return true;
+	if (vk.headless)
+	{
+		if (vk.swapchain || vk.backbuf_count)
+			VK_DestroySwapChain();
+
+		vk.backbufformat = vid_srgb.ival?VK_FORMAT_B8G8R8A8_SRGB:VK_FORMAT_B8G8R8A8_UNORM;
+		vk.backbuf_count = 4;
+
+		swapinfo.imageExtent.width = vid.pixelwidth;
+		swapinfo.imageExtent.height = vid.pixelheight;
+
+		images = malloc(sizeof(VkImage)*vk.backbuf_count);
+		memset(images, 0, sizeof(VkImage)*vk.backbuf_count);
+		memories = malloc(sizeof(VkDeviceMemory)*vk.backbuf_count);
+		memset(memories, 0, sizeof(VkDeviceMemory)*vk.backbuf_count);
+
+		vk.aquirelast = vk.aquirenext = 0;
+		for (i = 0; i < ACQUIRELIMIT; i++)
+		{
+			VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+			fci.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+			VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefences[i]));
+
+			vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT] = vk.aquirelast%vk.backbuf_count;
+			vk.aquirelast++;
+		}
+
+		for (i = 0; i < vk.backbuf_count; i++)
+		{
+			VkMemoryRequirements mem_reqs;
+			VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+			VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+
+			ici.flags = 0;
+			ici.imageType = VK_IMAGE_TYPE_2D;
+			ici.format = vk.backbufformat;
+			ici.extent.width = vid.pixelwidth;
+			ici.extent.height = vid.pixelheight;
+			ici.extent.depth = 1;
+			ici.mipLevels = 1;
+			ici.arrayLayers = 1;
+			ici.samples = VK_SAMPLE_COUNT_1_BIT;
+			ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+			ici.usage = VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_TRANSFER_SRC_BIT|VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+			ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+			ici.queueFamilyIndexCount = 0;
+			ici.pQueueFamilyIndices = NULL;
+			ici.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+			VkAssert(vkCreateImage(vk.device, &ici, vkallocationcb, &images[i]));
+
+			vkGetImageMemoryRequirements(vk.device, images[i], &mem_reqs);
+
+			memAllocInfo.allocationSize = mem_reqs.size;
+			memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			if (memAllocInfo.memoryTypeIndex == ~0)
+				memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			if (memAllocInfo.memoryTypeIndex == ~0)
+				memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+			if (memAllocInfo.memoryTypeIndex == ~0)
+				memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
+
+			VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &memories[i]));
+			VkAssert(vkBindImageMemory(vk.device, images[i], memories[i], 0));
+		}
+	}
 	else
 	{
 		VkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.gpu, vk.surface, &fmtcount, NULL));
@@ -267,129 +334,130 @@ static qboolean VK_CreateSwapChain(void)
 		VkAssert(vkGetPhysicalDeviceSurfacePresentModesKHR(vk.gpu, vk.surface, &presentmodes, presentmode));
 
 		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk.gpu, vk.surface, &surfcaps);
-	}
 
-	swapinfo.surface = vk.surface;
-	swapinfo.minImageCount = surfcaps.minImageCount+vk.triplebuffer;
-	if (swapinfo.minImageCount > surfcaps.maxImageCount)
-		swapinfo.minImageCount = surfcaps.maxImageCount;
-	if (swapinfo.minImageCount < surfcaps.minImageCount)
-		swapinfo.minImageCount = surfcaps.minImageCount;
-	swapinfo.imageExtent.width = surfcaps.currentExtent.width;
-	swapinfo.imageExtent.height = surfcaps.currentExtent.height;
-	swapinfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-	swapinfo.preTransform = surfcaps.currentTransform;//VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-	if (surfcaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
-		swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	else if (surfcaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR)
-		swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
-	else if (surfcaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR)
-		swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
-	else
-		swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;	//erk?
-	swapinfo.imageArrayLayers = /*(r_stereo_method.ival==1)?2:*/1;
-	swapinfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	swapinfo.queueFamilyIndexCount = 0;
-	swapinfo.pQueueFamilyIndices = NULL;
-	swapinfo.oldSwapchain = vk.swapchain;
-	swapinfo.clipped = vid_isfullscreen?VK_FALSE:VK_TRUE;	//allow fragment shaders to be skipped on parts that are obscured by another window. screenshots might get weird, so use proper captures if required/automagic.
+		swapinfo.surface = vk.surface;
+		swapinfo.minImageCount = surfcaps.minImageCount+vk.triplebuffer;
+		if (swapinfo.minImageCount > surfcaps.maxImageCount)
+			swapinfo.minImageCount = surfcaps.maxImageCount;
+		if (swapinfo.minImageCount < surfcaps.minImageCount)
+			swapinfo.minImageCount = surfcaps.minImageCount;
+		swapinfo.imageExtent.width = surfcaps.currentExtent.width;
+		swapinfo.imageExtent.height = surfcaps.currentExtent.height;
+		swapinfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+		swapinfo.preTransform = surfcaps.currentTransform;//VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+		if (surfcaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
+			swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+		else if (surfcaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR)
+			swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
+		else if (surfcaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR)
+			swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
+		else
+			swapinfo.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;	//erk?
+		swapinfo.imageArrayLayers = /*(r_stereo_method.ival==1)?2:*/1;
+		swapinfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		swapinfo.queueFamilyIndexCount = 0;
+		swapinfo.pQueueFamilyIndices = NULL;
+		swapinfo.oldSwapchain = vk.swapchain;
+		swapinfo.clipped = vid_isfullscreen?VK_FALSE:VK_TRUE;	//allow fragment shaders to be skipped on parts that are obscured by another window. screenshots might get weird, so use proper captures if required/automagic.
 
-	swapinfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;	//supposed to be guarenteed support.
-	for (i = 0, curpri = 0; i < presentmodes; i++)
-	{
-		uint32_t priority = 0;
-		switch(presentmode[i])
+		swapinfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;	//supposed to be guarenteed support.
+		for (i = 0, curpri = 0; i < presentmodes; i++)
 		{
-		default://ignore it.
-			break;
-		case VK_PRESENT_MODE_IMMEDIATE_KHR:
-			priority = (vk.vsync?0:2) + 2;	//for most quake players, latency trumps tearing.
-			break;
-		case VK_PRESENT_MODE_MAILBOX_KHR:
-			priority = (vk.vsync?0:2) + 1;
-			break;
-		case VK_PRESENT_MODE_FIFO_KHR:
-			priority = (vk.vsync?2:0) + 1;
-			break;
-		case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
-			priority = (vk.vsync?2:0) + 2;	//strict vsync results in weird juddering if rtlights etc caues framerates to drop below the refreshrate
-			break;
+			uint32_t priority = 0;
+			switch(presentmode[i])
+			{
+			default://ignore it.
+				break;
+			case VK_PRESENT_MODE_IMMEDIATE_KHR:
+				priority = (vk.vsync?0:2) + 2;	//for most quake players, latency trumps tearing.
+				break;
+			case VK_PRESENT_MODE_MAILBOX_KHR:
+				priority = (vk.vsync?0:2) + 1;
+				break;
+			case VK_PRESENT_MODE_FIFO_KHR:
+				priority = (vk.vsync?2:0) + 1;
+				break;
+			case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
+				priority = (vk.vsync?2:0) + 2;	//strict vsync results in weird juddering if rtlights etc caues framerates to drop below the refreshrate
+				break;
+			}
+			if (priority > curpri)
+			{
+				curpri = priority;
+				swapinfo.presentMode = presentmode[i];
+			}
 		}
-		if (priority > curpri)
+
+		swapinfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+		swapinfo.imageFormat = vid_srgb.ival?VK_FORMAT_B8G8R8A8_SRGB:VK_FORMAT_B8G8R8A8_UNORM;
+		for (i = 0, curpri = 0; i < fmtcount; i++)
 		{
-			curpri = priority;
-			swapinfo.presentMode = presentmode[i];
+			uint32_t priority = 0;
+			switch(surffmts[i].format)
+			{
+			case VK_FORMAT_B8G8R8A8_UNORM:
+			case VK_FORMAT_R8G8B8A8_UNORM:
+				priority = 4+!vid_srgb.ival;
+				break;
+			case VK_FORMAT_B8G8R8A8_SRGB:
+			case VK_FORMAT_R8G8B8A8_SRGB:
+				priority = 4+!!vid_srgb.ival;
+				break;
+			case VK_FORMAT_R16G16B16A16_SFLOAT:	//16bit per-channel formats
+			case VK_FORMAT_R16G16B16A16_SNORM:
+				priority = 3;
+				break;
+			case VK_FORMAT_R32G32B32A32_SFLOAT:	//32bit per-channel formats
+				priority = 2;
+				break;
+			default:	//16 bit formats (565).
+				priority = 1;
+				break;
+			}
+			if (priority > curpri)
+			{
+				curpri = priority;
+				swapinfo.imageColorSpace = surffmts[i].colorSpace;
+				swapinfo.imageFormat = surffmts[i].format;
+			}
 		}
-	}
 
-	swapinfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-	swapinfo.imageFormat = vid_srgb.ival?VK_FORMAT_B8G8R8A8_SRGB:VK_FORMAT_B8G8R8A8_UNORM;
-	for (i = 0, curpri = 0; i < fmtcount; i++)
-	{
-		uint32_t priority = 0;
-		switch(surffmts[i].format)
+		if (vk.backbufformat != swapinfo.imageFormat)
 		{
-		case VK_FORMAT_B8G8R8A8_UNORM:
-		case VK_FORMAT_R8G8B8A8_UNORM:
-			priority = 4+!vid_srgb.ival;
-			break;
-		case VK_FORMAT_B8G8R8A8_SRGB:
-		case VK_FORMAT_R8G8B8A8_SRGB:
-			priority = 4+!!vid_srgb.ival;
-			break;
-		case VK_FORMAT_R16G16B16A16_SFLOAT:	//16bit per-channel formats
-		case VK_FORMAT_R16G16B16A16_SNORM:
-			priority = 3;
-			break;
-		case VK_FORMAT_R32G32B32A32_SFLOAT:	//32bit per-channel formats
-			priority = 2;
-			break;
-		default:	//16 bit formats (565).
-			priority = 1;
-			break;
+			VK_DestroyRenderPass();
+			reloadshaders = true;
 		}
-		if (priority > curpri)
+		vk.backbufformat = swapinfo.imageFormat;
+
+		free(presentmode);
+		free(surffmts);
+
+		VkAssert(vkCreateSwapchainKHR(vk.device, &swapinfo, vkallocationcb, &newvkswapchain));
+		if (!newvkswapchain)
+			return false;
+		if (vk.swapchain)
 		{
-			curpri = priority;
-			swapinfo.imageColorSpace = surffmts[i].colorSpace;
-			swapinfo.imageFormat = surffmts[i].format;
+			VK_DestroySwapChain();
 		}
-	}
+		vk.swapchain = newvkswapchain;
 
-	if (vk.backbufformat != swapinfo.imageFormat)
-	{
-		VK_DestroyRenderPass();
-		reloadshaders = true;
-	}
-	vk.backbufformat = swapinfo.imageFormat;
+		VkAssert(vkGetSwapchainImagesKHR(vk.device, vk.swapchain, &vk.backbuf_count, NULL));
+		images = malloc(sizeof(VkImage)*vk.backbuf_count);
+		memories = NULL;
+		VkAssert(vkGetSwapchainImagesKHR(vk.device, vk.swapchain, &vk.backbuf_count, images));
 
-	free(presentmode);
-	free(surffmts);
-
-	VkAssert(vkCreateSwapchainKHR(vk.device, &swapinfo, vkallocationcb, &newvkswapchain));
-	if (!newvkswapchain)
-		return false;
-	if (vk.swapchain)
-	{
-		VK_DestroySwapChain();
-	}
-	vk.swapchain = newvkswapchain;
-
-	VkAssert(vkGetSwapchainImagesKHR(vk.device, vk.swapchain, &vk.backbuf_count, NULL));
-	images = malloc(sizeof(VkImage)*vk.backbuf_count);
-	VkAssert(vkGetSwapchainImagesKHR(vk.device, vk.swapchain, &vk.backbuf_count, images));
-
-	vk.aquirelast = vk.aquirenext = 0;
-	for (i = 0; i < ACQUIRELIMIT; i++)
-	{
-		VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-		VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefences[i]));
-	}
-	/*-1 to hide any weird thread issues*/
-	while (vk.aquirelast < ACQUIRELIMIT-1 && vk.aquirelast < vk.backbuf_count && vk.aquirelast <= vk.backbuf_count-surfcaps.minImageCount)
-	{
-		VkAssert(vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, VK_NULL_HANDLE, vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]));
-		vk.aquirelast++;
+		vk.aquirelast = vk.aquirenext = 0;
+		for (i = 0; i < ACQUIRELIMIT; i++)
+		{
+			VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+			VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefences[i]));
+		}
+		/*-1 to hide any weird thread issues*/
+		while (vk.aquirelast < ACQUIRELIMIT-1 && vk.aquirelast < vk.backbuf_count && vk.aquirelast <= vk.backbuf_count-surfcaps.minImageCount)
+		{
+			VkAssert(vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, VK_NULL_HANDLE, vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]));
+			vk.aquirelast++;
+		}
 	}
 
 	VK_CreateRenderPass();
@@ -415,7 +483,7 @@ static qboolean VK_CreateSwapChain(void)
 	for (i = 0; i < vk.backbuf_count; i++)
 	{
 		VkImageViewCreateInfo ivci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-		ivci.format = swapinfo.imageFormat;
+		ivci.format = vk.backbufformat;
 		ivci.components.r = VK_COMPONENT_SWIZZLE_R;
 		ivci.components.g = VK_COMPONENT_SWIZZLE_G;
 		ivci.components.b = VK_COMPONENT_SWIZZLE_B;
@@ -429,6 +497,10 @@ static qboolean VK_CreateSwapChain(void)
 		ivci.flags = 0;
 		ivci.image = images[i];
 		vk.backbufs[i].colour.image = images[i];
+		if (memories)
+			vk.backbufs[i].colour.memory = memories[i];
+		vk.backbufs[i].colour.width = swapinfo.imageExtent.width;
+		vk.backbufs[i].colour.height = swapinfo.imageExtent.height;
 		VkAssert(vkCreateImageView(vk.device, &ivci, vkallocationcb, &vk.backbufs[i].colour.view));
 
 		vk.backbufs[i].firstuse = true;
@@ -492,6 +564,7 @@ static qboolean VK_CreateSwapChain(void)
 		}
 	}
 	free(images);
+	free(memories);
 
 	vid.pixelwidth = swapinfo.imageExtent.width;
 	vid.pixelheight = swapinfo.imageExtent.height;
@@ -1873,14 +1946,100 @@ void	VK_R_RenderView				(void)
 	vk.sourcecolour = r_nulltex;
 }
 
-char	*VKVID_GetRGBInfo			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
+
+typedef struct
+{
+	struct vk_fencework w;
+
+	uint32_t imageformat;
+	uint32_t imagestride;
+	uint32_t imagewidth;
+	uint32_t imageheight;
+	VkBuffer buffer;
+	size_t memsize;
+	VkDeviceMemory memory;
+	void (*gotrgbdata) (void *rgbdata, intptr_t bytestride, size_t width, size_t height, enum uploadfmt fmt);
+} vkscreencapture_t;
+
+static void VKVID_CopiedRGBData (void*ctx)
+{	//some fence got hit, we did our copy, data is now cpu-visible, cache-willing.
+	vkscreencapture_t *capt = ctx;
+	void *imgdata;
+	VkAssert(vkMapMemory(vk.device, capt->memory, 0, capt->memsize, 0, &imgdata));
+	capt->gotrgbdata(imgdata, capt->imagestride, capt->imagewidth, capt->imageheight, capt->imageformat);
+	vkUnmapMemory(vk.device, capt->memory);
+	vkDestroyBuffer(vk.device, capt->buffer, vkallocationcb);
+	vkFreeMemory(vk.device, capt->memory, vkallocationcb);
+}
+void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytestride, size_t width, size_t height, enum uploadfmt fmt))
+{
+	//should be half way through rendering
+	vkscreencapture_t *capt;
+
+	VkBufferImageCopy icpy;
+	VkImageSubresource subres = {0};
+
+	VkMemoryRequirements mem_reqs;
+	VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+	VkBufferCreateInfo bci = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+
+
+	if (!VK_SCR_GrabBackBuffer())
+		return;
+
+	if (!vk.frame->backbuf->colour.width || !vk.frame->backbuf->colour.height)
+		return; //erm, some kind of error?
+
+	capt = VK_AtFrameEnd(VKVID_CopiedRGBData, sizeof(*capt));
+	capt->gotrgbdata = gotrgbdata;
+
+	capt->imageformat = TF_BGRA32;
+	capt->imagestride = vk.frame->backbuf->colour.width*4;	//vulkan is top-down, so this should be positive.
+	capt->imagewidth = vk.frame->backbuf->colour.width;
+	capt->imageheight = vk.frame->backbuf->colour.height;
+
+	bci.flags = 0;
+	bci.size = capt->memsize = capt->imagewidth*capt->imageheight*4;
+	bci.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bci.queueFamilyIndexCount = 0;
+	bci.pQueueFamilyIndices = NULL;
+
+	VkAssert(vkCreateBuffer(vk.device, &bci, vkallocationcb, &capt->buffer));
+	vkGetBufferMemoryRequirements(vk.device, capt->buffer, &mem_reqs);
+	memAllocInfo.allocationSize = mem_reqs.size;
+	memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &capt->memory));
+	VkAssert(vkBindBufferMemory(vk.device, capt->buffer, capt->memory, 0));
+
+	set_image_layout(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
+
+	icpy.bufferOffset = 0;
+	icpy.bufferRowLength = 0;	//packed
+	icpy.bufferImageHeight = 0;	//packed
+	icpy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	icpy.imageSubresource.mipLevel = 0;
+	icpy.imageSubresource.baseArrayLayer = 0;
+	icpy.imageSubresource.layerCount = 1;
+	icpy.imageOffset.x = 0;
+	icpy.imageOffset.y = 0;
+	icpy.imageOffset.z = 0;
+	icpy.imageExtent.width = capt->imagewidth;
+	icpy.imageExtent.height = capt->imageheight;
+	icpy.imageExtent.depth = 1;
+
+	vkCmdCopyImageToBuffer(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, capt->buffer, 1, &icpy);
+
+	set_image_layout(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+}
+
+char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
 	//with vulkan, we need to create a staging image to write into, submit a copy, wait for completion, map the copy, copy that out, free the staging.
 	//its enough to make you pitty anyone that writes opengl drivers.
 	if (VK_SCR_GrabBackBuffer())
 	{
 		void *imgdata, *outdata;
-		uint32_t y;
 		struct vk_fencework *fence = VK_FencedBegin(NULL, 0);
 		VkImageCopy icpy;
 		VkImage tempimage;
@@ -1944,8 +2103,9 @@ char	*VKVID_GetRGBInfo			(int *truevidwidth, int *truevidheight, enum uploadfmt 
 
 		VK_FencedSync(fence);
 
-		outdata = BZ_Malloc(4*vid.pixelwidth*vid.pixelheight);
+		outdata = BZ_Malloc(4*vid.pixelwidth*vid.pixelheight);	//FIXME: this sucks.
 		*fmt = PTI_BGRA8;
+		*bytestride = vid.pixelwidth*4;
 		*truevidwidth = vid.pixelwidth;
 		*truevidheight = vid.pixelheight;
 
@@ -1954,8 +2114,7 @@ char	*VKVID_GetRGBInfo			(int *truevidwidth, int *truevidheight, enum uploadfmt 
 		subres.arrayLayer = 0;
 		vkGetImageSubresourceLayout(vk.device, tempimage, &subres, &layout);
 		VkAssert(vkMapMemory(vk.device, tempmemory, 0, mem_reqs.size, 0, &imgdata));
-		for (y = 0; y < vid.pixelheight; y++)
-			memcpy((char*)outdata + (vid.pixelheight-1-y)*vid.pixelwidth*4, (char*)imgdata + layout.offset + y*layout.rowPitch, vid.pixelwidth*4);
+		memcpy(outdata, imgdata, 4*vid.pixelwidth*vid.pixelheight);
 		vkUnmapMemory(vk.device, tempmemory);
 
 		vkDestroyImage(vk.device, tempimage, vkallocationcb);
@@ -2121,13 +2280,6 @@ qboolean VK_SCR_GrabBackBuffer(void)
 
 	VK_FencedCheck();
 
-	if (!vk.surface)
-	{
-//		if (Media_Capturing() != 2)
-//			Cmd_ExecuteString("quit force\n", RESTRICT_LOCAL);
-		return false;	//headless...
-	}
-
 	if (!vk.unusedframes)
 	{
 		struct vkframe *newframe = Z_Malloc(sizeof(*vk.frame));
@@ -2139,6 +2291,9 @@ qboolean VK_SCR_GrabBackBuffer(void)
 	while (vk.aquirenext == vk.aquirelast)
 	{	//we're still waiting for the render thread to increment acquirelast.
 		Sys_Sleep(0);	//o.O
+#ifdef _WIN32
+		Sys_SendKeyEvents();
+#endif
 	}
 
 	//wait for the queued acquire to actually finish
@@ -2332,12 +2487,13 @@ void VK_DebugFramerate(void)
 
 qboolean	VK_SCR_UpdateScreen			(void)
 {
+	uint32_t fblayout;
 	VkCommandBuffer bufs[1];
 
 	VK_FencedCheck();
 
 	//a few cvars need some extra work if they're changed
-	if (vk_submissionthread.modified || vid_vsync.modified || vid_triplebuffer.modified || vid_srgb.modified)
+	if ((vk.allowsubmissionthread && vk_submissionthread.modified) || vid_vsync.modified || vid_triplebuffer.modified || vid_srgb.modified)
 	{
 		vid_vsync.modified = false;
 		vid_triplebuffer.modified = false;
@@ -2371,7 +2527,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		VK_CreateSwapChain();
 		vk.neednewswapchain = false;
 
-		if (vk_submissionthread.ival || !*vk_submissionthread.string)
+		if (vk.allowsubmissionthread && (vk_submissionthread.ival || !*vk_submissionthread.string))
 		{
 			vk.submitthread = Sys_CreateThread("vksubmission", VK_Submit_Thread, NULL, THREADP_HIGHEST, 0);
 		}
@@ -2390,12 +2546,49 @@ qboolean	VK_SCR_UpdateScreen			(void)
 
 	vkCmdEndRenderPass(vk.frame->cbuf);
 
+	fblayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	/*if (0)
+	{
+		vkscreencapture_t *capt = VK_AtFrameEnd(atframeend, sizeof(vkscreencapture_t));
+		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+		VkBufferImageCopy region;
+		imgbarrier.pNext = NULL;
+		imgbarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		imgbarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		imgbarrier.oldLayout = fblayout;
+		imgbarrier.newLayout = fblayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		imgbarrier.image = vk.frame->backbuf->colour.image;
+		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imgbarrier.subresourceRange.baseMipLevel = 0;
+		imgbarrier.subresourceRange.levelCount = 1;
+		imgbarrier.subresourceRange.baseArrayLayer = 0;
+		imgbarrier.subresourceRange.layerCount = 1;
+		imgbarrier.srcQueueFamilyIndex = vk.queuefam[0];
+		imgbarrier.dstQueueFamilyIndex = vk.queuefam[0];
+		vkCmdPipelineBarrier(vk.frame->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+
+		region.bufferOffset = 0;
+		region.bufferRowLength = 0;		//tightly packed
+		region.bufferImageHeight = 0;	//tightly packed
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.mipLevel = 0;
+		region.imageSubresource.baseArrayLayer = 0;
+		region.imageSubresource.layerCount = 1;
+		region.imageOffset.x = 0;
+		region.imageOffset.y = 0;
+		region.imageOffset.z = 0;
+		region.imageExtent.width = capt->imagewidth = vk.frame->backbuf->colour.width;
+		region.imageExtent.height = capt->imageheight = vk.frame->backbuf->colour.height;
+		region.imageExtent.depth = 1;
+		vkCmdCopyImageToBuffer(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
+	}*/
+
 	{
 		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
 		imgbarrier.pNext = NULL;
-		imgbarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		imgbarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT|VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 		imgbarrier.dstAccessMask = 0;
-		imgbarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		imgbarrier.oldLayout = fblayout;
 		imgbarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		imgbarrier.image = vk.frame->backbuf->colour.image;
 		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -2758,14 +2951,15 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	const char *extensions[8];
 	qboolean nvglsl = false;
 	uint32_t extensions_count = 0;
-	qboolean headless = false;
+	vk.allowsubmissionthread = true;
+	vk.headless = false;
 	if (sysextname)
 	{
 		extensions[extensions_count++] = sysextname;
 		extensions[extensions_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
 	}
 	else
-		headless = true;
+		vk.headless = true;
 	if (vk_debug.ival)
 		extensions[extensions_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
 
@@ -2896,7 +3090,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 			vkGetPhysicalDeviceProperties(devs[i], &props);
 			vkGetPhysicalDeviceQueueFamilyProperties(devs[i], &queue_count, NULL);
 
-			if (!headless)
+			if (!vk.headless)
 			{
 				for (j = 0; j < queue_count; j++)
 				{
@@ -3045,7 +3239,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 			for (i = 0; i < queue_count; i++)
 			{
 				VkBool32 supportsPresent = false;
-				if (headless)
+				if (vk.headless)
 					supportsPresent = true;	//won't be used anyway.
 				else
 					VkAssert(vkGetPhysicalDeviceSurfaceSupportKHR(vk.gpu, i, vk.surface, &supportsPresent));
@@ -3124,7 +3318,8 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 			else
 			{
 				queueinf[0].queueCount = 1;
-				vk.dopresent = VK_DoPresent;	//can't split submit+present onto different queues, so do these on a single thread.
+				if (!vk.headless)
+					vk.dopresent = VK_DoPresent;	//can't split submit+present onto different queues, so do these on a single thread.
 				Con_DPrintf("Using single queue\n");
 			}
 		}
@@ -3242,7 +3437,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	{
 		vk.neednewswapchain = false;
 
-		if (vk_submissionthread.ival || !*vk_submissionthread.string)
+		if (vk.allowsubmissionthread && (vk_submissionthread.ival || !*vk_submissionthread.string))
 		{
 			vk.submitthread = Sys_CreateThread("vksubmission", VK_Submit_Thread, NULL, THREADP_HIGHEST, 0);
 		}

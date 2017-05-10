@@ -1051,9 +1051,9 @@ void M_Menu_MediaFiles_f (void)
 	info->numext = 0;
 
 #ifdef HAVE_JUKEBOX
-	info->ext[info->numext] = ".m3u";
-	info->command[info->numext] = "mediaplaylist";
-	info->numext++;
+//	info->ext[info->numext] = ".m3u";
+//	info->command[info->numext] = "mediaplaylist";
+//	info->numext++;
 #if defined(AVAIL_MP3_ACM) || defined(FTE_TARGET_WEB)
 	info->ext[info->numext] = ".mp3";
 	info->command[info->numext] = "media_add";

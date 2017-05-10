@@ -1072,7 +1072,6 @@ static void PM_PreparePackageList(void)
 	//figure out what we've previously installed.
 	if (!loadedinstalled)
 	{
-		char nat[MAX_OSPATH];
 		vfsfile_t *f = FS_OpenVFS(INSTALLEDFILES, "rb", FS_ROOT);
 		loadedinstalled = true;
 		if (f)
@@ -1084,6 +1083,7 @@ static void PM_PreparePackageList(void)
 #ifdef PLUGINS
 		{
 			int foundone = false;
+			char nat[MAX_OSPATH];
 			FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
 			Con_DPrintf("Loading plugins from \"%s\"\n", nat);
 			Sys_EnumerateFiles(nat, "fteplug_*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, PM_EnumeratedPlugin, &foundone, NULL);
@@ -1631,7 +1631,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 	doautoupdate |= autoupdate;
 
-	//kick off the initial tier of downloads.
+	//kick off the initial tier of list-downloads.
 	for (i = 0; i < numdownloadablelists; i++)
 	{
 		if (downloadablelist[i].received)
@@ -1645,13 +1645,13 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 		{
 			downloadablelist[i].curdl->user_num = i;
 
-			downloadablelist[i].curdl->file = VFSPIPE_Open();
+			downloadablelist[i].curdl->file = VFSPIPE_Open(1, false);
 			downloadablelist[i].curdl->isquery = true;
 			DL_CreateThread(downloadablelist[i].curdl, NULL, NULL);
 		}
 		else
 		{
-			Con_Printf("Could not contact server - %s\n", downloadablelist[i].url);
+			Con_Printf("Could not contact updates server - %s\n", downloadablelist[i].url);
 			downloadablelist[i].received = -1;
 		}
 	}

@@ -339,6 +339,7 @@ void QDECL Q_strncpyz(char*d, const char*s, int n);
 char *Q_strcasestr(const char *haystack, const char *needle);
 int Q_strncasecmp (const char *s1, const char *s2, int n);
 int Q_strcasecmp (const char *s1, const char *s2);
+int Q_strstopcasecmp(const char *s1start, const char *s1end, const char *s2);
 int	Q_atoi (const char *str);
 float Q_atof (const char *str);
 void deleetstring(char *result, const char *leet);
@@ -416,7 +417,8 @@ void COM_FileBase (const char *in, char *out, int outlen);
 int QDECL COM_FileSize(const char *path);
 void COM_DefaultExtension (char *path, const char *extension, int maxlen);
 qboolean COM_RequireExtension(char *path, const char *extension, int maxlen);
-char *COM_FileExtension (const char *in, char *result, size_t sizeofresult);
+char *COM_FileExtension (const char *in, char *result, size_t sizeofresult);	//copies the extension, without the dot
+const char *COM_GetFileExtension (const char *in, const char *term);	//returns the extension WITH the dot, allowing for scanning backwards.
 void COM_CleanUpPath(char *str);
 
 char	*VARGS va(const char *format, ...) LIKEPRINTF(1);
@@ -432,7 +434,8 @@ extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 //extern	char	*com_basedir;
 
 //qofs_Make is used to 'construct' a variable of qofs_t type. this is so the code can merge two 32bit ints on old systems and use a long long type internally without generating warnings about bit shifts when qofs_t is only 32bit instead.
-#if 1//defined(__amd64__) || defined(_AMD64_) || __WORDSIZE == 64
+//#if defined(__amd64__) || defined(_AMD64_) || __WORDSIZE == 64
+#if !defined(FTE_TARGET_WEB) && !defined(NACL)
 	#if !defined(_MSC_VER) || _MSC_VER > 1200
 		#define FS_64BIT
 	#endif
@@ -440,16 +443,23 @@ extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 #ifdef FS_64BIT
 	typedef quint64_t qofs_t;	//type to use for a file offset
 	#define qofs_Make(low,high) (low | (((qofs_t)(high))<<32))
-	#define qofs_Low(o) ((o)&0xffffffffu)
-	#define qofs_High(o) ((o)>>32)
-	#define qofs_Error(o) ((o) == ~(quint64_t)0u)
+	#define qofs_Low(ofs) ((ofs)&0xffffffffu)
+	#define qofs_High(ofs) ((ofs)>>32)
+	#define qofs_Error(ofs) ((ofs) == ~(quint64_t)0u)
+
+	#define PRIxQOFS PRIx64
+	#define PRIuQOFS PRIu64
 #else
 	typedef quint32_t qofs_t;	//type to use for a file offset
 	#define qofs_Make(low,high) (low)
-	#define qofs_Low(o) (o)
-	#define qofs_High(o) (0)
-	#define qofs_Error(o) ((o) == ~0ul)
+	#define qofs_Low(ofs) (ofs)
+	#define qofs_High(ofs) (0)
+	#define qofs_Error(ofs) ((ofs) == ~0ul)
+
+	#define PRIxQOFS "x"
+	#define PRIuQOFS "u"
 #endif
+#define qofs_ErrorValue() (~(qofs_t)0u)
 
 typedef struct searchpathfuncs_s searchpathfuncs_t;
 typedef struct searchpath_s
@@ -491,6 +501,7 @@ struct vfsfile_s;
 int FS_FLocateFile(const char *filename, unsigned int flags, flocation_t *loc);
 struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
 char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced);
+qboolean FS_GetLocMTime(flocation_t *location, time_t *modtime);
 char *FS_GetPackageDownloadFilename(flocation_t *loc);
 
 qboolean FS_GetPackageDownloadable(const char *package);
@@ -511,7 +522,13 @@ typedef struct vfsfile_s
 	qofs_t (QDECL *GetLen) (struct vfsfile_s *file);	//could give some lag
 	qboolean (QDECL *Close) (struct vfsfile_s *file);	//returns false if there was some error.
 	void (QDECL *Flush) (struct vfsfile_s *file);
-	qboolean seekingisabadplan;
+	enum
+	{
+		SS_SEEKABLE,
+		SS_SLOW,	//probably readonly, its fine for an occasional seek, its just really. really. slow.
+		SS_PIPE,	//read can be seeked, write appends only.
+		SS_UNSEEKABLE
+	} seekstyle;
 
 #ifdef _DEBUG
 	char dbgname[MAX_QPATH];
@@ -623,8 +640,10 @@ typedef struct
 	char *downloadsurl;	//optional installable files (menu)
 	char *installupd;	//which download/updated package to install.
 	char *protocolname;	//the name used for purposes of dpmaster
-	char *defaultexec;	//execed after cvars are reset, to give game-specific defaults.
+	char *defaultexec;	//execed after cvars are reset, to give game-specific engine-defaults.
+	char *defaultoverrides;	//execed after default.cfg, to give usable defaults even when the mod the user is running is shit.
 	char *eula;			//when running as an installer, the user will be presented with this as a prompt
+	char *rtcbroker;	//the broker to use for webrtc connections.
 	struct
 	{
 		qboolean base;
@@ -642,6 +661,7 @@ typedef struct
 		int mirrornum;		//the index we last tried to download from, so we still work even if mirrors are down.
 	} package[64];
 } ftemanifest_t;
+extern ftemanifest_t	*fs_manifest;	//currently active manifest.
 void FS_Manifest_Free(ftemanifest_t *man);
 ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data);
 void PM_Shutdown(void);
@@ -659,7 +679,6 @@ struct gamepacks
 };
 void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths);
 char *FS_GetGamedir(qboolean publicpathonly);
-char *FS_GetBasedir(void);
 char *FS_GetManifestArgs(void);
 int FS_GetManifestArgv(char **argv, int maxargs);
 

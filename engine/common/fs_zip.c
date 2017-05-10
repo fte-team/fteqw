@@ -484,7 +484,7 @@ vfsfile_t *FS_GZ_WriteFilter(vfsfile_t *outfile, qboolean autoclosefile, qboolea
 	n->vf.Tell				= NULL;
 	n->vf.Close				= FS_GZ_Dec_Close;
 	n->vf.WriteBytes		= FS_GZ_Dec_Write;
-	n->vf.seekingisabadplan	= true;
+	n->vf.seekstyle			= SS_UNSEEKABLE;
 
 	if (n->compress)
 	{
@@ -1049,6 +1049,13 @@ static qboolean QDECL VFSZIP_Close (struct vfsfile_s *file)
 
 static qboolean FSZIP_ValidateLocalHeader(zipfile_t *zip, zpackfile_t *zfile, qofs_t *datastart, qofs_t *datasize);
 
+static qboolean QDECL FSZIP_FileStat (searchpathfuncs_t *handle, flocation_t *loc, time_t *mtime)
+{
+	zpackfile_t *pf = loc->fhandle;
+	*mtime = pf->mtime;
+	return true;
+}
+
 static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
 {
 	zipfile_t *zip = (void*)handle;
@@ -1082,7 +1089,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	vfsz->funcs.Seek = VFSZIP_Seek;
 	vfsz->funcs.Tell = VFSZIP_Tell;
 	vfsz->funcs.WriteBytes = NULL;
-	vfsz->funcs.seekingisabadplan = true;
+	vfsz->funcs.seekstyle = SS_SLOW;
 
 	if (!FSZIP_ValidateLocalHeader(zip, pf, &vfsz->startpos, &datasize))
 	{
@@ -1806,6 +1813,7 @@ searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *d
 	zip->pub.FindFile			= FSZIP_FLocate;
 	zip->pub.ReadFile			= FSZIP_ReadFile;
 	zip->pub.EnumerateFiles		= FSZIP_EnumerateFiles;
+	zip->pub.FileStat			= FSZIP_FileStat;
 	zip->pub.GeneratePureCRC	= FSZIP_GeneratePureCRC;
 	zip->pub.OpenVFS			= FSZIP_OpenVFS;
 	return &zip->pub;

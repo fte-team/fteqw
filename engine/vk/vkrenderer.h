@@ -83,6 +83,7 @@
 	VKFunc(CmdClearDepthStencilImage)	\
 	VKFunc(CmdCopyImage)				\
 	VKFunc(CmdCopyBuffer)				\
+	VKFunc(CmdCopyImageToBuffer)		\
 	VKFunc(CmdBlitImage)				\
 	VKFunc(CmdPipelineBarrier)			\
 	VKFunc(CmdSetEvent)					\
@@ -231,6 +232,8 @@ extern struct vulkaninfo_s
 {
 	unsigned short	triplebuffer;
 	qboolean		vsync;
+	qboolean		headless;
+	qboolean		allowsubmissionthread;
 
 	VkInstance instance;
 	VkDevice device;
@@ -435,8 +438,11 @@ void	VK_R_Init					(void);
 void	VK_R_DeInit					(void);
 void	VK_R_RenderView				(void);
 
-char	*VKVID_GetRGBInfo			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
+char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
 
 qboolean	VK_SCR_UpdateScreen			(void);
 
 void	VKBE_RenderToTextureUpdate2d(qboolean destchanged);
+
+//improved rgb get that calls the callback when the data is actually available. used for video capture.
+void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, qintptr_t bytestride, size_t width, size_t height, enum uploadfmt fmt));

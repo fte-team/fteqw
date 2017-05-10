@@ -1,6 +1,10 @@
 #include "quakedef.h"
 
 #ifndef CLIENTONLY
+//FIXME: this is shitty old code.
+//possible improvements: using a hash table for player names for faster logons
+//threading logins
+//using a real database...
 
 #ifdef SVRANKING
 
@@ -13,8 +17,14 @@ typedef struct {
 } rankfileheader_t;
 
 //endian
+#define NOENDIAN
+#ifdef NOENDIAN
+#define swaplong(l) l
+#define swapfloat(f) f
+#else
 #define swaplong	LittleLong
 #define swapfloat	LittleFloat
+#endif
 
 rankfileheader_t rankfileheader;
 vfsfile_t *rankfile;
@@ -31,7 +41,9 @@ char rank_cvargroup[] = "server rankings";
 
 static void READ_PLAYERSTATS(int x, rankstats_t *os)
 {
+#ifndef NOENDIAN
 	int i;
+#endif
 	size_t result;
 
 	VFS_SEEK(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)));
@@ -40,6 +52,7 @@ static void READ_PLAYERSTATS(int x, rankstats_t *os)
 	if (result != sizeof(rankstats_t))
 		Con_Printf("READ_PLAYERSTATS() fread: expected %lu, result was %u\n",(long unsigned int)sizeof(rankstats_t),(unsigned int)result);
 
+#ifndef NOENDIAN
 	os->kills = swaplong(os->kills);
 	os->deaths = swaplong(os->deaths);
 	for (i = 0; i < NUM_RANK_SPAWN_PARMS; i++)
@@ -49,15 +62,17 @@ static void READ_PLAYERSTATS(int x, rankstats_t *os)
 //	os->trustlevel = (os->trustlevel);
 //	os->pad2 = (os->pad2);
 //	os->pad3 = (os->pad3);
+#endif
 }
 
 static void WRITE_PLAYERSTATS(int x, rankstats_t *os)
 {
+#ifdef NOENDIAN
+	VFS_SEEK(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)));
+	VFS_WRITE(rankfile, os, sizeof(rankstats_t));
+#else
 	rankstats_t ns;
 	int i;
-
-	VFS_SEEK(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)));
-
 	ns.kills = swaplong(os->kills);
 	ns.deaths = swaplong(os->deaths);
 	for (i = 0; i < NUM_RANK_SPAWN_PARMS; i++)
@@ -68,7 +83,9 @@ static void WRITE_PLAYERSTATS(int x, rankstats_t *os)
 	ns.pad2 = (os->pad2);
 	ns.pad3 = (os->pad3);
 
+	VFS_SEEK(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)));
 	VFS_WRITE(rankfile, &ns, sizeof(rankstats_t));
+#endif
 }
 
 static void READ_PLAYERHEADER(int x, rankheader_t *oh)
@@ -82,26 +99,31 @@ static void READ_PLAYERHEADER(int x, rankheader_t *oh)
 	if (result != sizeof(rankheader_t))
 		Con_Printf("READ_PLAYERHEADER() fread: expected %lu, result was %u\n",(long unsigned int)sizeof(rankheader_t),(unsigned int)result);
 
+#ifndef NOENDIAN
 	oh->prev = swaplong(oh->prev);		//score is held for convineance.
 	oh->next = swaplong(oh->next);
 //	strcpy(oh->name, oh->name);
 	oh->pwd = swaplong(oh->pwd);
 	oh->score = swapfloat(oh->score);
+#endif
 }
 
 static void WRITE_PLAYERHEADER(int x, rankheader_t *oh)
 {
-	rankheader_t nh;
-
+#ifdef NOENDIAN
 	VFS_SEEK(rankfile, sizeof(rankfileheader_t)+((x-1)*sizeof(rankinfo_t)));
-
+	VFS_WRITE(rankfile, &oh, sizeof(rankheader_t));
+#else
+	rankheader_t nh;
 	nh.prev = swaplong(oh->prev);		//score is held for convineance.
 	nh.next = swaplong(oh->next);
 	Q_strncpyz(nh.name, oh->name, sizeof(nh.name));
 	nh.pwd = swaplong(oh->pwd);
 	nh.score = swapfloat(oh->score);
 
+	VFS_SEEK(rankfile, sizeof(rankfileheader_t)+((x-1)*sizeof(rankinfo_t)));
 	VFS_WRITE(rankfile, &nh, sizeof(rankheader_t));
+#endif
 }
 
 static void READ_PLAYERINFO(int x, rankinfo_t *inf)
@@ -469,6 +491,7 @@ void Rank_AddUser_f (void)
 	char *name = Cmd_Argv(1);
 	int pwd = atoi(Cmd_Argv(2));
 	int userlevel = atoi(Cmd_Argv(3));
+	char fixed[80];
 
 	if (Cmd_Argc() < 2)
 	{
@@ -492,7 +515,8 @@ void Rank_AddUser_f (void)
 		return;
 	}
 
-	SV_FixupName(name, name, sizeof(name));
+	SV_FixupName(name, fixed, sizeof(fixed));
+	name = fixed;
 
 	if (!Rank_OpenRankings())
 	{
@@ -548,6 +572,9 @@ void Rank_AddUser_f (void)
 
 	memset(&rs, 0, sizeof(rs));
 	rs.trustlevel = userlevel;
+#if NUM_RANK_SPAWN_PARMS>32
+	rs.created = rs.lastseen = time(NULL);
+#endif
 	WRITE_PLAYERSTATS(id, &rs);
 
 	Rank_SetPlayerStats(id, &rs);
@@ -560,6 +587,7 @@ void Rank_SetPass_f (void)
 	rankheader_t rh;
 	char *name = Cmd_Argv(1);
 	int newpass = atoi(Cmd_Argv(2));
+	char fixed[80];
 
 	int id;
 
@@ -575,7 +603,8 @@ void Rank_SetPass_f (void)
 		return;
 	}
 
-	SV_FixupName(name, name, sizeof(name));
+	SV_FixupName(name, fixed, sizeof(fixed));
+	name = fixed;
 
 	id = rankfileheader.leader;
 	while(id)
@@ -595,6 +624,7 @@ void Rank_SetPass_f (void)
 int Rank_GetPass (char *name)
 {
 	rankheader_t rh;
+	char fixed[80];
 
 	int id;
 
@@ -604,7 +634,8 @@ int Rank_GetPass (char *name)
 		return 0;
 	}
 
-	SV_FixupName(name, name, sizeof(name));
+	SV_FixupName(name, fixed, sizeof(fixed));
+	name = fixed;
 
 	id = rankfileheader.leader;
 	while(id)
@@ -651,14 +682,11 @@ int Rank_Enumerate (unsigned int first, unsigned int last, void (*callback) (con
 
 void Rank_RankingList_f (void)
 {
-#if 1
-	Con_Printf("Fixme\n");
-#else
 	rankinfo_t ri;
 	int id;
 	int num;
 
-	FILE *outfile;
+	vfsfile_t *outfile;
 
 	if (!Rank_OpenRankings())
 	{
@@ -666,9 +694,14 @@ void Rank_RankingList_f (void)
 		return;
 	}
 
-	outfile = fopen("list.txt", "wb");
+	outfile = FS_OpenVFS("list.txt", "wb", FS_GAMEONLY);
+	if (!outfile)
+	{
+		Con_Printf("Couldn't open list.txt\n");
+		return;
+	}
 
-	fprintf(outfile, "%5s: %32s, %5s %5s\r\n", "", "Name", "Kills", "Deaths");
+	VFS_PRINTF(outfile, "%5s: %32s, %5s %5s\r\n", "", "Name", "Kills", "Deaths");
 
 	id = rankfileheader.leader;	//start at the leaders
 	num=1;
@@ -676,17 +709,16 @@ void Rank_RankingList_f (void)
 	{
 		READ_PLAYERINFO(id, &ri);
 
-		fprintf(outfile, "%5i: %32s, %5i %5i\r\n", num, ri.h.name, ri.s.kills, ri.s.deaths);
+		VFS_PRINTF(outfile, "%5i: %32s, %5i %5i\r\n", num, ri.h.name, ri.s.kills, ri.s.deaths);
 
 		num++;
 		id = ri.h.next;
 	}
 
-	fclose(outfile);
-#endif
+	VFS_CLOSE(outfile);
 }
 
-void Rank_Remove_f (void)
+void Rank_RemoveID_f (void)
 {
 	rankinfo_t ri;
 	int id;
@@ -770,7 +802,7 @@ void Rank_Find_f (void)
 	rankinfo_t ri;
 	int id;
 
-	char *match = Cmd_Argv(1);
+	char *match = Q_strlwr(Cmd_Argv(1));
 
 	if (!Rank_OpenRankings())
 	{
@@ -784,7 +816,7 @@ void Rank_Find_f (void)
 	{
 		READ_PLAYERINFO(id, &ri);
 
-		if (strstr(ri.h.name, match))
+		if (wildcmp(match, Q_strlwr(ri.h.name)))
 		{
 			Con_Printf("%i %s\n", id, ri.h.name);
 		}
@@ -889,7 +921,7 @@ void Rank_RegisterCommands(void)
 	Cmd_AddCommand("ranklist", Rank_RankingList_f);
 	Cmd_AddCommand("ranktopten", Rank_ListTop10_f);
 	Cmd_AddCommand("rankfind", Rank_Find_f);
-	Cmd_AddCommand("rankremove", Rank_Remove_f);
+	Cmd_AddCommand("rankremove", Rank_RemoveID_f);
 	Cmd_AddCommand("rankrefresh", Rank_Refresh_f);
 
 	Cmd_AddCommand("rankrconlevel", Rank_RCon_f);

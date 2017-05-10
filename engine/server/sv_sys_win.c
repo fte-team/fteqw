@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <winsock.h>
 #include <conio.h>
+#include <direct.h>
 
 #ifdef MULTITHREAD
 #include <process.h>
@@ -483,19 +484,22 @@ char *narrowen(char *out, size_t outlen, wchar_t *wide);
 Sys_mkdir
 ================
 */
-int _mkdir(const char *path);;
-void Sys_mkdir (char *path)
+void Sys_mkdir (const char *path)
 {
 	_mkdir(path);
 }
+qboolean Sys_rmdir (const char *path)
+{
+	return 0==_rmdir(path);
+}
 
-qboolean Sys_remove (char *path)
+qboolean Sys_remove (const char *path)
 {
 	remove(path);
 
 	return true;
 }
-qboolean Sys_Rename (char *oldfname, char *newfname)
+qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	return !rename(oldfname, newfname);
 }

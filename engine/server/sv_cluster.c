@@ -836,7 +836,7 @@ void SSV_UpdateAddresses(void)
 	char		buf[256];
 	netadr_t	addr[64];
 	struct ftenet_generic_connection_s			*con[sizeof(addr)/sizeof(addr[0])];
-	int			flags[sizeof(addr)/sizeof(addr[0])];
+	unsigned int	flags[sizeof(addr)/sizeof(addr[0])];
 	int			count;
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_QWMSGLEN];

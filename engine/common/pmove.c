@@ -1147,7 +1147,9 @@ void PM_NudgePosition (void)
 	VectorCopy (pmove.origin, base);
 
 	for (i=0 ; i<3 ; i++)
-		base[i] = ((int)(base[i]*8)) * 0.125;
+		base[i] = MSG_FromCoord(MSG_ToCoord(base[i], 2), 2);
+
+//	VectorCopy (base, pmove.origin);
 
 	//if we're moving, allow that spot without snapping to any grid
 //	if (pmove.velocity[0] || pmove.velocity[1] || pmove.velocity[2])

@@ -1171,7 +1171,7 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 					break;
 
 				if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
-				{
+				{	//phs is always 'visible' within 1024qu
 					vec3_t delta;
 					VectorSubtract(origin, split->edict->v->origin, delta);
 					if (DotProduct(delta, delta) <= 1024*1024)
@@ -1294,7 +1294,7 @@ struct startsoundcontext_s
 	float attenuation;
 	float ratemul;
 	unsigned int chflags;
-	unsigned int timeofs;
+	int timeofs;
 };
 static void SV_SoundMulticast(client_t *client, sizebuf_t *msg, void *vctx)
 {
@@ -1305,7 +1305,7 @@ static void SV_SoundMulticast(client_t *client, sizebuf_t *msg, void *vctx)
 	if (ctx->ent >= client->max_net_ents)
 		return;
 
-	field_mask |= (ctx->chflags & (CF_NOSPACIALISE|CF_NOREVERB|CF_FOLLOW)) << 8;
+	field_mask |= (ctx->chflags & CF_NETWORKED) << 8;
 	if (ctx->volume != DEFAULT_SOUND_PACKET_VOLUME)
 		field_mask |= NQSND_VOLUME;
 	if (ctx->attenuation != DEFAULT_SOUND_PACKET_ATTENUATION)
@@ -3421,8 +3421,6 @@ void SV_SendMVDMessage(void)
 	extern		cvar_t sv_demoPings;
 //	extern		cvar_t	sv_demoMaxSize;
 	sizebuf_t *dmsg;
-
-	SV_MVD_RunPendingConnections();
 
 	if (!sv.mvdrecording)
 		return;

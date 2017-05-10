@@ -2,17 +2,31 @@
 #include "../engine.h"
 
 #include "libavformat/avformat.h"
-#include "libavformat/avio.h"
-#include "libavcodec/avcodec.h"
+//#include "libavformat/avio.h"
+//#include "libavcodec/avcodec.h"
 #include "libswscale/swscale.h"
 #include "libavutil/imgutils.h"
 #include "libavutil/opt.h"
 //#include <libavutil/channel_layout.h>
 
+#define ENCODERNAME "ffmpeg"
+
+#define HAVE_DECOUPLED_API (LIBAVCODEC_VERSION_MAJOR>57 || (LIBAVCODEC_VERSION_MAJOR==57&&LIBAVCODEC_VERSION_MINOR>=36))
+
 /*
 Most of the logic in here came from here:
 http://svn.gnumonks.org/tags/21c3-video/upstream/ffmpeg-0.4.9-pre1/output_example.c
 */
+
+static cvar_t *ffmpeg_format_force;
+static cvar_t *ffmpeg_videocodec;
+static cvar_t *ffmpeg_videobitrate;
+static cvar_t *ffmpeg_videoforcewidth;
+static cvar_t *ffmpeg_videoforceheight;
+static cvar_t *ffmpeg_videopreset;
+static cvar_t *ffmpeg_video_crf;
+static cvar_t *ffmpeg_audiocodec;
+static cvar_t *ffmpeg_audiobitrate;
 
 struct encctx
 {
@@ -59,14 +73,13 @@ static AVFrame *alloc_frame(enum AVPixelFormat pix_fmt, int width, int height)
 	picture->height = height;
 	return picture;
 }
-AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, int width, int height)
+static AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, int width, int height)
 {
 	AVCodecContext *c;
 	AVStream *st;
-	char prof[128];
-	int bitrate = (int)pCvar_GetFloat("avplug_videobitrate");
-	int forcewidth = (int)pCvar_GetFloat("avplug_videoforcewidth");
-	int forceheight = (int)pCvar_GetFloat("avplug_videoforceheight");
+	int bitrate = ffmpeg_videobitrate->value;
+	int forcewidth = ffmpeg_videoforcewidth->value;
+	int forceheight = ffmpeg_videoforceheight->value;
 
 	st = avformat_new_stream(ctx->fc, codec);
 	if (!st)
@@ -102,17 +115,15 @@ AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, int widt
 	if (ctx->fc->oformat->flags & AVFMT_GLOBALHEADER)
 		c->flags |= CODEC_FLAG_GLOBAL_HEADER;
 
-	pCvar_GetString("avplug_videopreset", prof, sizeof(prof));
-	if (*prof)
-		av_opt_set(c->priv_data, "preset", prof, AV_OPT_SEARCH_CHILDREN);
-	pCvar_GetString("avplug_video_crf", prof, sizeof(prof));
-	if (*prof)
-		av_opt_set(c->priv_data, "crf", prof, AV_OPT_SEARCH_CHILDREN);
+	if (*ffmpeg_videopreset->string)
+		av_opt_set(c->priv_data, "preset", ffmpeg_videopreset->string, AV_OPT_SEARCH_CHILDREN);
+	if (*ffmpeg_video_crf->string)
+		av_opt_set(c->priv_data, "crf", ffmpeg_video_crf->string, AV_OPT_SEARCH_CHILDREN);
 
 
 	return st;
 }
-void close_video(struct encctx *ctx)
+static void close_video(struct encctx *ctx)
 {
 	if (!ctx->video_st)
 		return;
@@ -125,33 +136,66 @@ void close_video(struct encctx *ctx)
 	}
 	av_free(ctx->video_outbuf);
 }
-static void AVEnc_Video (void *vctx, void *data, int frame, int width, int height, enum uploadfmt qpfmt)
+
+#if HAVE_DECOUPLED_API
+//frame can be null on eof.
+static void AVEnc_DoEncode(AVFormatContext *fc, AVStream *stream, AVFrame *frame)
+{
+	AVPacket pkt;
+	AVCodecContext *codec = stream->codec;
+	int err = avcodec_send_frame(codec, frame);
+	if (err)
+	{
+		char buf[512];
+		Con_Printf("avcodec_send_frame: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
+	}
+
+	av_init_packet(&pkt);
+	while (!(err=avcodec_receive_packet(codec, &pkt)))
+	{
+		av_packet_rescale_ts(&pkt, codec->time_base, stream->time_base);
+		pkt.stream_index = stream->index;
+		err = av_interleaved_write_frame(fc, &pkt);
+		if (err)
+		{
+			char buf[512];
+			Con_Printf("av_interleaved_write_frame: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
+		}
+		av_packet_unref(&pkt);
+	}
+	if (err && err != AVERROR(EAGAIN) && err != AVERROR_EOF)
+	{
+		char buf[512];
+		Con_Printf("avcodec_receive_packet: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
+	}
+}
+#endif
+
+static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, int width, int height, enum uploadfmt qpfmt)
 {
 	struct encctx *ctx = vctx;
 	const uint8_t *srcslices[2];
 	int srcstride[2];
-	int success;
-	AVPacket pkt;
 	int avpfmt;
-	int inbpp;
-	int err;
 
 	if (!ctx->video_st)
 		return;
 
 	switch(qpfmt)
 	{
-	case TF_BGRA32: avpfmt = AV_PIX_FMT_BGRA; inbpp = 4; break;
-	case TF_RGBA32: avpfmt = AV_PIX_FMT_RGBA; inbpp = 4; break;
-	case TF_BGR24: avpfmt = AV_PIX_FMT_BGR24; inbpp = 3; break;
-	case TF_RGB24: avpfmt = AV_PIX_FMT_RGB24; inbpp = 3; break;
+	case TF_BGRA32: avpfmt = AV_PIX_FMT_BGRA; break;
+	case TF_RGBA32: avpfmt = AV_PIX_FMT_RGBA; break;
+	case TF_BGRX32: avpfmt = AV_PIX_FMT_BGR0; break;
+	case TF_RGBX32: avpfmt = AV_PIX_FMT_RGB0; break;
+	case TF_BGR24: avpfmt = AV_PIX_FMT_BGR24; break;
+	case TF_RGB24: avpfmt = AV_PIX_FMT_RGB24; break;
 	default:
 		return;
 	}
 
 	//weird maths to flip it.
-	srcslices[0] = (uint8_t*)data + (height-1)*width*inbpp;
-	srcstride[0] = -width*inbpp;
+	srcslices[0] = (uint8_t*)data;
+	srcstride[0] = bytestride;
 	srcslices[1] = NULL;
 	srcstride[1] = 0;
 
@@ -160,40 +204,47 @@ static void AVEnc_Video (void *vctx, void *data, int frame, int width, int heigh
 	ctx->scale_ctx = sws_getCachedContext(ctx->scale_ctx, width, height, avpfmt, ctx->picture->width, ctx->picture->height, ctx->video_st->codec->pix_fmt, SWS_POINT, 0, 0, 0);
 	sws_scale(ctx->scale_ctx, srcslices, srcstride, 0, height, ctx->picture->data, ctx->picture->linesize);
 
-	av_init_packet(&pkt);
-	ctx->picture->pts = frame;
-	success = 0;
-	pkt.data = ctx->video_outbuf;
-	pkt.size = ctx->video_outbuf_size;
+	ctx->picture->pts = frameno;
 	ctx->picture->format = ctx->video_st->codec->pix_fmt;
-	err = avcodec_encode_video2(ctx->video_st->codec, &pkt, ctx->picture, &success);
-	if (err)
+#if HAVE_DECOUPLED_API
+	AVEnc_DoEncode(ctx->fc, ctx->video_st, ctx->picture);
+#else
 	{
-		char buf[512];
-		Con_Printf("avcodec_encode_video2: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
-	}
-	else if (err == 0 && success)
-	{
-//		pkt.pts = ctx->video_st->codec->coded_frame->pts;
-//		if(ctx->video_st->codec->coded_frame->key_frame)
-//			pkt.flags |= AV_PKT_FLAG_KEY;
-		av_packet_rescale_ts(&pkt, ctx->video_st->codec->time_base, ctx->video_st->time_base);
-		pkt.stream_index = ctx->video_st->index;
-		err = av_interleaved_write_frame(ctx->fc, &pkt);
-	
+		AVPacket pkt;
+		int success;
+		int err;
+
+		av_init_packet(&pkt);
+		pkt.data = ctx->video_outbuf;
+		pkt.size = ctx->video_outbuf_size;
+		success = 0;
+		err = avcodec_encode_video2(ctx->video_st->codec, &pkt, ctx->picture, &success);
 		if (err)
 		{
 			char buf[512];
-			Con_Printf("av_interleaved_write_frame: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
+			Con_Printf("avcodec_encode_video2: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
+		}
+		else if (err == 0 && success)
+		{
+			av_packet_rescale_ts(&pkt, ctx->video_st->codec->time_base, ctx->video_st->time_base);
+			pkt.stream_index = ctx->video_st->index;
+			err = av_interleaved_write_frame(ctx->fc, &pkt);
+		
+			if (err)
+			{
+				char buf[512];
+				Con_Printf("av_interleaved_write_frame: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
+			}
 		}
 	}
+#endif
 }
 
-AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int samplerate, int *bits, int channels)
+static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int samplerate, int *bits, int channels)
 {
 	AVCodecContext *c;
 	AVStream *st;
-	int bitrate = (int)pCvar_GetFloat("avplug_audiobitrate");
+	int bitrate = ffmpeg_audiobitrate->value;
 
 	st = avformat_new_stream(ctx->fc, codec);
 	if (!st)
@@ -249,7 +300,7 @@ AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int samplerate, i
 
 	return st;
 }
-void close_audio(struct encctx *ctx)
+static void close_audio(struct encctx *ctx)
 {
 	if (!ctx->audio_st)
 		return;
@@ -259,9 +310,6 @@ void close_audio(struct encctx *ctx)
 static void AVEnc_Audio (void *vctx, void *data, int bytes)
 {
 	struct encctx *ctx = vctx;
-	int success;
-	AVPacket pkt;
-	int err;
 
 	if (!ctx->audio_st)
 		return;
@@ -384,36 +432,45 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 
 		ctx->audio->nb_samples = ctx->audio_outcount;
 		avcodec_fill_audio_frame(ctx->audio, ctx->audio_st->codec->channels, ctx->audio_st->codec->sample_fmt, ctx->audio_outbuf, av_get_bytes_per_sample(ctx->audio_st->codec->sample_fmt)*ctx->audio_outcount*ctx->audio_st->codec->channels, 1);
-
-		av_init_packet(&pkt);
-		pkt.data = NULL;
-		pkt.size = 0;
-		success = 0;
 		ctx->audio->pts = ctx->audio_pts;
 		ctx->audio_pts += ctx->audio_outcount;
 		ctx->audio_outcount = 0;
-		err = avcodec_encode_audio2(ctx->audio_st->codec, &pkt, ctx->audio, &success);
 
-		if (err)
+#if HAVE_DECOUPLED_API
+		AVEnc_DoEncode(ctx->fc, ctx->audio_st, ctx->audio);
+#else
 		{
-			char buf[512];
-			Con_Printf("avcodec_encode_audio2: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
-		}
-		else if (success)
-		{
-	//		pkt.pts = ctx->audio_st->codec->coded_frame->pts;
-	//		if(ctx->audio_st->codec->coded_frame->key_frame)
-	//			pkt.flags |= AV_PKT_FLAG_KEY;
+			AVPacket pkt;
+			int success;
+			int err;
+			av_init_packet(&pkt);
+			pkt.data = NULL;
+			pkt.size = 0;
+			success = 0;
+			err = avcodec_encode_audio2(ctx->audio_st->codec, &pkt, ctx->audio, &success);
 
-			av_packet_rescale_ts(&pkt, ctx->audio_st->codec->time_base, ctx->audio_st->time_base);
-			pkt.stream_index = ctx->audio_st->index;
-			err = av_interleaved_write_frame(ctx->fc, &pkt);
 			if (err)
 			{
 				char buf[512];
-				Con_Printf("av_interleaved_write_frame: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
+				Con_Printf("avcodec_encode_audio2: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
+			}
+			else if (success)
+			{
+		//		pkt.pts = ctx->audio_st->codec->coded_frame->pts;
+		//		if(ctx->audio_st->codec->coded_frame->key_frame)
+		//			pkt.flags |= AV_PKT_FLAG_KEY;
+
+				av_packet_rescale_ts(&pkt, ctx->audio_st->codec->time_base, ctx->audio_st->time_base);
+				pkt.stream_index = ctx->audio_st->index;
+				err = av_interleaved_write_frame(ctx->fc, &pkt);
+				if (err)
+				{
+					char buf[512];
+					Con_Printf("av_interleaved_write_frame: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
+				}
 			}
 		}
+#endif
 	}
 }
 
@@ -423,14 +480,11 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 	AVOutputFormat *fmt = NULL;
 	AVCodec *videocodec = NULL;
 	AVCodec *audiocodec = NULL;
-	char formatname[64];
 	int err;
-	formatname[0] = 0;
-	pCvar_GetString("avplug_format_force", formatname, sizeof(formatname));
 
-	if (*formatname)
+	if (ffmpeg_format_force->string)
 	{
-		fmt = av_guess_format(formatname, NULL, NULL);
+		fmt = av_guess_format(ffmpeg_format_force->string, NULL, NULL);
 		if (!fmt)
 		{
 			Con_Printf("Unknown format specified.\n");
@@ -452,18 +506,14 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 
 	if (videorate)
 	{
-		char codecname[64];
-		codecname[0] = 0;
-		pCvar_GetString("avplug_videocodec", codecname, sizeof(codecname));
-
-		if (strcmp(codecname, "none"))
+		if (strcmp(ffmpeg_videocodec->string, "none"))
 		{
-			if (codecname[0])
+			if (ffmpeg_videocodec->string[0])
 			{
-				videocodec = avcodec_find_encoder_by_name(codecname);
+				videocodec = avcodec_find_encoder_by_name(ffmpeg_videocodec->string);
 				if (!videocodec)
 				{
-					Con_Printf("Unsupported avplug_videocodec \"%s\"\n", codecname);
+					Con_Printf("Unsupported %s \"%s\"\n", ffmpeg_videocodec->name, ffmpeg_videocodec->string);
 					return NULL;
 				}
 			}
@@ -473,18 +523,14 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 	}
 	if (*sndkhz)
 	{
-		char codecname[64];
-		codecname[0] = 0;
-		pCvar_GetString("avplug_audiocodec", codecname, sizeof(codecname));
-
-		if (strcmp(codecname, "none"))
+		if (strcmp(ffmpeg_audiocodec->string, "none"))
 		{
-			if (codecname[0])
+			if (ffmpeg_audiocodec->string[0])
 			{
-				audiocodec = avcodec_find_encoder_by_name(codecname);
+				audiocodec = avcodec_find_encoder_by_name(ffmpeg_audiocodec->string);
 				if (!audiocodec)
 				{
-					Con_Printf("avplug: Unsupported avplug_audiocodec \"%s\"\n", codecname);
+					Con_Printf(ENCODERNAME": Unsupported %s \"%s\"\n", ffmpeg_audiocodec->name, ffmpeg_audiocodec->string);
 					return NULL;
 				}
 			}
@@ -493,19 +539,19 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 		}
 	}
 
-	Con_DPrintf("avplug: Using format \"%s\"\n", fmt->name);
+	Con_DPrintf(ENCODERNAME": Using format \"%s\"\n", fmt->name);
 	if (videocodec)
-		Con_DPrintf("avplug: Using Video Codec \"%s\"\n", videocodec->name);
+		Con_DPrintf(ENCODERNAME": Using Video Codec \"%s\"\n", videocodec->name);
 	else
-		Con_DPrintf("avplug: Not encoding video\n");
+		Con_DPrintf(ENCODERNAME": Not encoding video\n");
 	if (audiocodec)
-		Con_DPrintf("avplug: Using Audio Codec \"%s\"\n", audiocodec->name);
+		Con_DPrintf(ENCODERNAME": Using Audio Codec \"%s\"\n", audiocodec->name);
 	else
-		Con_DPrintf("avplug: Not encoding audio\n");
+		Con_DPrintf(ENCODERNAME": Not encoding audio\n");
 
 	if (!videocodec && !audiocodec)
 	{
-		Con_DPrintf("avplug: Nothing to encode!\n");
+		Con_DPrintf(ENCODERNAME": Nothing to encode!\n");
 		return NULL;
 	}
 
@@ -536,7 +582,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 		if (err < 0)
 		{
 			char buf[512];
-			Con_Printf("avplug: Could not init codec instance \"%s\" - %s\nMaybe try a different framerate/resolution/bitrate\n", videocodec->name, av_make_error_string(buf, sizeof(buf), err));
+			Con_Printf(ENCODERNAME": Could not init codec instance \"%s\" - %s\nMaybe try a different framerate/resolution/bitrate\n", videocodec->name, av_make_error_string(buf, sizeof(buf), err));
 			AVEnc_End(ctx);
 			return NULL;
 		}
@@ -556,7 +602,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 		if (err < 0)
 		{
 			char buf[512];
-			Con_Printf("avplug: Could not init codec instance \"%s\" - %s\n", audiocodec->name, av_make_error_string(buf, sizeof(buf), err));
+			Con_Printf(ENCODERNAME": Could not init codec instance \"%s\" - %s\n", audiocodec->name, av_make_error_string(buf, sizeof(buf), err));
 			AVEnc_End(ctx);
 			return NULL;
 		}
@@ -599,6 +645,17 @@ static void AVEnc_End (void *vctx)
 	struct encctx *ctx = vctx;
 	unsigned int i;
 
+#if HAVE_DECOUPLED_API
+	if (ctx->doneheaders)
+	{
+		//terminate the codecs properly, flushing all unwritten packets
+		if (ctx->video_st)
+			AVEnc_DoEncode(ctx->fc, ctx->video_st, NULL);
+		if (ctx->audio_st)
+			AVEnc_DoEncode(ctx->fc, ctx->audio_st, NULL);
+	}
+#endif
+
 	close_video(ctx);
 
 	//don't write trailers if this is an error case and we never even wrote the headers.
@@ -620,8 +677,8 @@ static void AVEnc_End (void *vctx)
 static media_encoder_funcs_t encoderfuncs =
 {
 	sizeof(media_encoder_funcs_t),
-	"avplug",
-	"Use ffmpeg's various codecs. Various settings are configured with the avplug_* cvars.",
+	"ffmpeg",
+	"Use ffmpeg's various codecs. Various settings are configured with the "ENCODERNAME"_* cvars.",
 	".mp4",
 	AVEnc_Begin,
 	AVEnc_Video,
@@ -658,24 +715,24 @@ qboolean AVEnc_Init(void)
 	CHECKBUILTIN(FS_NativePath);
 	if (!BUILTINISVALID(FS_NativePath))
 	{
-		Con_Printf("avplug: Engine too old\n");
+		Con_Printf(ENCODERNAME": Engine too old\n");
 		return false;
 	}
 	if (!pPlug_ExportNative("Media_VideoEncoder", &encoderfuncs))
 	{
-		Con_Printf("avplug: Engine doesn't support media encoder plugins\n");
+		Con_Printf(ENCODERNAME": Engine doesn't support media encoder plugins\n");
 		return false;
 	}
 
-	pCvar_Register("avplug_format_force",		"",				0, "avplug");
-
-	pCvar_Register("avplug_videocodec",			"",				0, "avplug");
-	pCvar_Register("avplug_videobitrate",		"4000000",		0, "avplug");
-	pCvar_Register("avplug_videoforcewidth",	"",				0, "avplug");
-	pCvar_Register("avplug_videoforceheight",	"",				0, "avplug");
-	pCvar_Register("avplug_videopreset",		"veryfast",		0, "avplug");
-	pCvar_Register("avplug_audiocodec",			"",				0, "avplug");
-	pCvar_Register("avplug_audiobitrate",		"64000",		0, "avplug");
+	ffmpeg_format_force		= pCvar_GetNVFDG(ENCODERNAME"_format_force",		"",				0, "Forces the output container format. If blank, will guess based upon filename extension.", ENCODERNAME);
+	ffmpeg_videocodec		= pCvar_GetNVFDG(ENCODERNAME"_videocodec",			"",				0, "Forces which video encoder to use. If blank, guesses based upon container defaults.", ENCODERNAME);
+	ffmpeg_videobitrate		= pCvar_GetNVFDG(ENCODERNAME"_videobitrate",		"4000000",		0, "Specifies the target video bitrate", ENCODERNAME);
+	ffmpeg_videoforcewidth	= pCvar_GetNVFDG(ENCODERNAME"_videoforcewidth",		"",				0, "Rescales the input video width. Best to leave blank in order to record the video at the native resolution.", ENCODERNAME);
+	ffmpeg_videoforceheight	= pCvar_GetNVFDG(ENCODERNAME"_videoforceheight",	"",				0, "Rescales the input video height. Best to leave blank in order to record the video at the native resolution.", ENCODERNAME);
+	ffmpeg_videopreset		= pCvar_GetNVFDG(ENCODERNAME"_videopreset",			"veryfast",		0, "Specifies which codec preset to use, for codecs that support such presets.", ENCODERNAME);
+	ffmpeg_video_crf		= pCvar_GetNVFDG(ENCODERNAME"_video_crf",			"",				0, "Specifies the 'Constant Rate Factor' codec setting.", ENCODERNAME);
+	ffmpeg_audiocodec		= pCvar_GetNVFDG(ENCODERNAME"_audiocodec",			"",				0, "Forces which audio encoder to use. If blank, guesses based upon container defaults.", ENCODERNAME);
+	ffmpeg_audiobitrate		= pCvar_GetNVFDG(ENCODERNAME"_audiobitrate",		"64000",		0, "Specifies the target audio bitrate", ENCODERNAME);
 
 //	if (Plug_Export("ExecuteCommand", AVEnc_ExecuteCommand))
 //		Cmd_AddCommand("avcapture");

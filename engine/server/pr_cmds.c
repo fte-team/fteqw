@@ -9305,6 +9305,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	extern cvar_t sv_gravity;
 	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
 	edict_t *touched;
+	client_t *client;
 
 	if (!ent || ent->readonly)
 	{
@@ -9317,7 +9318,11 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	else
 		pmove.sequence = 0;
 
-	pmove.pm_type = SV_PMTypeForClient((host_client && host_client->edict == ent)?host_client:NULL, ent);
+	if (ent->entnum >= 1 && ent->entnum <= sv.allocated_client_slots)
+		client = &svs.clients[ent->entnum-1];
+	else
+		client = NULL;
+	pmove.pm_type = SV_PMTypeForClient(client, ent);
 
 	pmove.jump_msec = 0;
 

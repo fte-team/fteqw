@@ -2119,89 +2119,105 @@ typedef struct _TargaHeader {
 
 
 #if defined(AVAIL_JPEGLIB) && !defined(NO_JPEG)
-qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int screenwidth, int screenheight, enum uploadfmt fmt);
+qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int bytestride, int screenwidth, int screenheight, enum uploadfmt fmt);
 #endif
 #ifdef AVAIL_PNGLIB
-int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, int width, int height, enum uploadfmt fmt);
+int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt);
 #endif
-void WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int width, int height);
+void WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int bytestride, int width, int height);
 
-qboolean WriteTGA(char *filename, enum fs_relative fsroot, qbyte *rgb_buffer, int width, int height, enum uploadfmt fmt)
+qboolean WriteTGA(char *filename, enum fs_relative fsroot, qbyte *fte_restrict rgb_buffer, int bytestride, int width, int height, enum uploadfmt fmt)
 {
 	size_t c, i;
 	vfsfile_t *vfs;
-	if (fmt != TF_BGRA32 && fmt != TF_RGB24 && fmt != TF_RGBA32 && fmt != TF_BGR24)
+	if (fmt != TF_BGRA32 && fmt != TF_RGB24 && fmt != TF_RGBA32 && fmt != TF_BGR24 && fmt != TF_RGBX32 && fmt != TF_BGRX32)
 		return false;
 	FS_CreatePath(filename, fsroot);
 	vfs = FS_OpenVFS(filename, "wb", fsroot);
 	if (vfs)
 	{
+		int ipx,opx;
+		qboolean rgb;
 		unsigned char header[18];
 		memset (header, 0, 18);
-		header[2] = 2;          // uncompressed type
+
+		if (fmt == TF_BGRA32 || fmt == TF_RGBA32)
+		{
+			rgb = fmt==TF_RGBA32;
+			ipx = 4;
+			opx = 4;
+		}
+		else if (fmt == TF_RGBX32 || fmt == TF_BGRX32)
+		{
+			rgb = fmt==TF_RGBX32;
+			ipx = 4;
+			opx = 3;
+		}
+		else
+		{
+			rgb = fmt==TF_RGB24;
+			ipx = 3;
+			opx = 3;
+		}
+
+		header[2] = 2;			// uncompressed type
 		header[12] = width&255;
 		header[13] = width>>8;
 		header[14] = height&255;
 		header[15] = height>>8;
-		header[16] = 24;        // pixel size
+		header[16] = opx*8;		// pixel size
+		header[17] = 0x00;		// flags
 
-		if (fmt == TF_BGRA32)
-		{
-#if 0
-			header[16] = 32;
-#else
-			qbyte tmp[3];
-			// compact+swap
-			c = width*height;
-			for (i=0 ; i<c ; i++)
-			{
-				tmp[0] = rgb_buffer[i*4+0];
-				tmp[1] = rgb_buffer[i*4+1];
-				tmp[2] = rgb_buffer[i*4+2];
-				rgb_buffer[i*3+0] = tmp[0];
-				rgb_buffer[i*3+1] = tmp[1];
-				rgb_buffer[i*3+2] = tmp[2];
-			}
-			c *= 3;
-#endif
+		if (bytestride < 0)
+		{	//if we're upside down, lets just use an upside down tga.
+			rgb_buffer += bytestride*(height-1);
+			bytestride = -bytestride;
+			//now we can just do everything else in-place
 		}
-		else if (fmt == TF_BGR24)
-			c = width*height*3;
-		else if (fmt == TF_RGBA32)
-		{
-			int s = 3;
-			qbyte tmp[3];
-#if 0
-			s = 4;
-			header[16] = s*8;
-#endif
-			// compact+swap
-			c = width*height;
-			for (i=0 ; i<c ; i++)
-			{
-				tmp[0] = rgb_buffer[i*4+0];
-				tmp[1] = rgb_buffer[i*4+1];
-				tmp[2] = rgb_buffer[i*4+2];
-				rgb_buffer[i*s+0] = tmp[2];
-				rgb_buffer[i*s+1] = tmp[1];
-				rgb_buffer[i*s+2] = tmp[0];
-			}
-			c *= s;
-		}
-		else if (fmt == TF_RGB24)
-		{
-			qbyte temp;
-			// swap r+b in place
-			c = width*height*3;
-			for (i=0 ; i<c ; i+=3)
-			{
-				temp = rgb_buffer[i];
-				rgb_buffer[i] = rgb_buffer[i+2];
-				rgb_buffer[i+2] = temp;
-			}
+		else	//our data is top-down, set up the header to also be top-down.
+			header[17] = 0x20;
+
+		if (ipx == opx && !rgb)
+		{	//can just directly write it
+			//bgr24, bgra24
+			c = width*height*opx;
 		}
 		else
-			c = 0;
+		{
+			//no need to swap alpha, and if we're just swapping alpha will be fine in-place.
+			if (rgb)
+			{	//rgb24, rgbx32, rgba32
+				qbyte tmp[3];
+				// compact in place, and swap
+				c = width*height;
+				for (i=0 ; i<c ; i++)
+				{
+					tmp[2] = rgb_buffer[i*ipx+0];
+					tmp[1] = rgb_buffer[i*ipx+1];
+					tmp[0] = rgb_buffer[i*ipx+2];
+					rgb_buffer[i*opx+0] = tmp[0];
+					rgb_buffer[i*opx+1] = tmp[1];
+					rgb_buffer[i*opx+2] = tmp[2];
+				}
+			}
+			else
+			{	//(bgr24), bgrx32, (bgra32)
+				qbyte tmp[3];
+				// compact in place
+				c = width*height;
+				for (i=0 ; i<c ; i++)
+				{
+					tmp[0] = rgb_buffer[i*ipx+0];
+					tmp[1] = rgb_buffer[i*ipx+1];
+					tmp[2] = rgb_buffer[i*ipx+2];
+					rgb_buffer[i*opx+0] = tmp[0];
+					rgb_buffer[i*opx+1] = tmp[1];
+					rgb_buffer[i*opx+2] = tmp[2];
+				}
+			}
+			c *= opx;
+		}
+
 		VFS_WRITE(vfs, header, sizeof(header));
 		VFS_WRITE(vfs, rgb_buffer, c);
 		VFS_CLOSE(vfs);
@@ -2242,13 +2258,24 @@ int MipColor(int r, int g, int b)
 	return best;
 }
 
-qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int width, int height, enum uploadfmt fmt)
+qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt)
 {
 #if defined(AVAIL_PNGLIB) || defined(AVAIL_JPEGLIB)
 	extern cvar_t scr_sshot_compression;
 #endif
 
 	char ext[8];
+	void *nbuffers[2];
+
+	if (!bytestride)
+		bytestride = width*4;
+	if (bytestride < 0)
+	{	//fix up the buffers so callers don't have to.
+		int nb = numbuffers;
+		for (numbuffers = 0; numbuffers < nb && numbuffers < countof(nbuffers); numbuffers++)
+			nbuffers[numbuffers] = (char*)buffer[numbuffers] - bytestride*(height-1);
+		buffer = nbuffers;
+	}
 
 	COM_FileExtension(filename, ext, sizeof(ext));
 
@@ -2258,14 +2285,14 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer,
 		//png can do bgr+rgb
 		//rgba bgra will result in an extra alpha chan
 		//actual stereo is also supported. huzzah.
-		return Image_WritePNG(filename, fsroot, scr_sshot_compression.value, buffer, numbuffers, width, height, fmt);
+		return Image_WritePNG(filename, fsroot, scr_sshot_compression.value, buffer, numbuffers, bytestride, width, height, fmt);
 	}
 	else
 #endif
 #ifdef AVAIL_JPEGLIB
 		if (!Q_strcasecmp(ext, "jpeg") || !Q_strcasecmp(ext, "jpg"))
 	{
-		return screenshotJPEG(filename, fsroot, scr_sshot_compression.value, buffer[0], width, height, fmt);
+		return screenshotJPEG(filename, fsroot, scr_sshot_compression.value, buffer[0], bytestride, width, height, fmt);
 	}
 	else
 #endif
@@ -2278,15 +2305,16 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer,
 	{
 		int y, x, s;
 		qbyte *src, *dest;
-		qbyte *newbuf = buffer[0];
-		if (fmt == TF_RGB24 || fmt == TF_RGBA32)
+		qbyte *srcbuf = buffer[0], *dstbuf;
+		if (fmt == TF_RGB24 || fmt == TF_RGBA32 || fmt == TF_RGBX32)
 		{
+			dstbuf = malloc(width*height);
 			s = (fmt == TF_RGB24)?3:4;
 			// convert in-place to eight bit
 			for (y = 0; y < height; y++)
 			{
-				src = newbuf + (width * s * y);
-				dest = newbuf + (width * y);
+				src = srcbuf + (bytestride * y);
+				dest = dstbuf + (width * y);
 
 				for (x = 0; x < width; x++) {
 					*dest++ = MipColor(src[0], src[1], src[2]);
@@ -2294,14 +2322,15 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer,
 				}
 			}
 		}
-		else if (fmt == TF_BGR24 || fmt == TF_BGRA32)
+		else if (fmt == TF_BGR24 || fmt == TF_BGRA32 || fmt == TF_BGRX32)
 		{
+			dstbuf = malloc(width*height);
 			s = (fmt == TF_BGR24)?3:4;
 			// convert in-place to eight bit
 			for (y = 0; y < height; y++)
 			{
-				src = newbuf + (width * s * y);
-				dest = newbuf + (width * y);
+				src = srcbuf + (bytestride * y);
+				dest = dstbuf + (width * y);
 
 				for (x = 0; x < width; x++) {
 					*dest++ = MipColor(src[2], src[1], src[0]);
@@ -2312,10 +2341,11 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer,
 		else
 			return false;
 
-		WritePCXfile (filename, fsroot, newbuf, width, height, width, host_basepal, false);
+		WritePCXfile (filename, fsroot, dstbuf, width, height, width, host_basepal, false);
+		free(dstbuf);
 	}
 	else if (!Q_strcasecmp(ext, "tga"))	//tga
-		return WriteTGA(filename, fsroot, buffer[0], width, height, fmt);
+		return WriteTGA(filename, fsroot, buffer[0], bytestride, width, height, fmt);
 	else	//extension / type not recognised.
 		return false;
 	return true;
@@ -2333,7 +2363,7 @@ static void SCR_ScreenShot_f (void)
 	int                     i;
 	vfsfile_t *vfs;
 	void *rgbbuffer;
-	int width, height;
+	int stride, width, height;
 	enum uploadfmt fmt;
 
 	if (!VID_GetRGBInfo)
@@ -2378,10 +2408,10 @@ static void SCR_ScreenShot_f (void)
 
 	FS_NativePath(pcxname, FS_GAMEONLY, sysname, sizeof(sysname));
 
-	rgbbuffer = VID_GetRGBInfo(&width, &height, &fmt);
+	rgbbuffer = VID_GetRGBInfo(&stride, &width, &height, &fmt);
 	if (rgbbuffer)
 	{
-		if (SCR_ScreenShot(pcxname, FS_GAMEONLY, &rgbbuffer, 1, width, height, fmt))
+		if (SCR_ScreenShot(pcxname, FS_GAMEONLY, &rgbbuffer, 1, stride, width, height, fmt))
 		{
 			Con_Printf ("Wrote %s\n", sysname);
 			BZ_Free(rgbbuffer);
@@ -2392,7 +2422,7 @@ static void SCR_ScreenShot_f (void)
 	Con_Printf (CON_ERROR "Couldn't write %s\n", sysname);
 }
 
-static void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, enum uploadfmt *fmt)
+static void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt)
 {
 	int width, height;
 	void *buf;
@@ -2426,11 +2456,11 @@ static void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, enum uploadfmt *f
 	if (!okay)
 	{
 		buf = NULL;
-		width = height = 0;
+		*stride = width = height = 0;
 		*fmt = TF_INVALID;
 	}
 	else
-		buf = VID_GetRGBInfo(&width, &height, fmt);
+		buf = VID_GetRGBInfo(stride, &width, &height, fmt);
 
 	R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, 0, 0, 0, RT_IMAGEFLAGS);
 	Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));
@@ -2447,6 +2477,7 @@ static void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, enum uploadfmt *f
 
 static void SCR_ScreenShot_Mega_f(void)
 {
+	int stride[2];
 	int width[2];
 	int height[2];
 	void *buffers[2];
@@ -2522,7 +2553,7 @@ static void SCR_ScreenShot_Mega_f(void)
 				r_refdef.stereomethod = STEREO_LEFTONLY;
 		}
 
-		buffers[buf] = SCR_ScreenShot_Capture(fbwidth, fbheight, &fmt[buf]);
+		buffers[buf] = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride[buf], &fmt[buf]);
 		width[buf] = fbwidth;
 		height[buf] = fbheight;
 
@@ -2539,7 +2570,7 @@ static void SCR_ScreenShot_Mega_f(void)
 	//okay, we drew something, we're good to save a screeny.
 	if (buffers[0])
 	{
-		if (SCR_ScreenShot(filename, FS_GAMEONLY, buffers, numbuffers, width[0], height[0], fmt[0]))
+		if (SCR_ScreenShot(filename, FS_GAMEONLY, buffers, numbuffers, stride[0], width[0], height[0], fmt[0]))
 		{
 			char			sysname[1024];
 			FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
@@ -2559,6 +2590,7 @@ static void SCR_ScreenShot_VR_f(void)
 {
 	char *screenyname = Cmd_Argv(1);
 	int width = atoi(Cmd_Argv(2));
+	int stride=0;
 	//we spin the camera around, taking slices from equirectangular screenshots
 	char filename[MAX_QPATH];
 	int height;	//equirectangular 360 * 180 gives a nice clean ratio
@@ -2628,7 +2660,7 @@ static void SCR_ScreenShot_VR_f(void)
 		r_refdef.eyeoffset[0] = sin(ang) * r_stereo_separation.value * 0.5;
 		r_refdef.eyeoffset[1] = cos(ang) * r_stereo_separation.value * 0.5;
 		r_refdef.eyeoffset[2] = 0;
-		buf = SCR_ScreenShot_Capture(width, height, &fmt);
+		buf = SCR_ScreenShot_Capture(width, height, &stride, &fmt);
 		switch(fmt)
 		{
 		case TF_BGRA32:
@@ -2662,7 +2694,7 @@ static void SCR_ScreenShot_VR_f(void)
 		r_refdef.eyeoffset[0] *= -1;
 		r_refdef.eyeoffset[1] *= -1;
 		r_refdef.eyeoffset[2] = 0;
-		buf = SCR_ScreenShot_Capture(width, height, &fmt);
+		buf = SCR_ScreenShot_Capture(width, height, &stride, &fmt);
 		switch(fmt)
 		{
 		case TF_BGRA32:
@@ -2689,7 +2721,7 @@ static void SCR_ScreenShot_VR_f(void)
 
 	if (fail)
 		Con_Printf ("Unable to capture suitable screen image\n");
-	else if (SCR_ScreenShot(filename, FS_GAMEONLY, &left_buffer, 1, width, height*2, TF_BGRA32))
+	else if (SCR_ScreenShot(filename, FS_GAMEONLY, &left_buffer, 1, stride, width, height*2, TF_BGRA32))
 	{
 		char			sysname[1024];
 		FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
@@ -2706,7 +2738,7 @@ static void SCR_ScreenShot_VR_f(void)
 void SCR_ScreenShot_Cubemap_f(void)
 {
 	void *buffer;
-	int fbwidth, fbheight;
+	int stride, fbwidth, fbheight;
 	uploadfmt_t fmt;
 	char filename[MAX_QPATH];
 	char *fname = Cmd_Argv(1);
@@ -2737,11 +2769,11 @@ void SCR_ScreenShot_Cubemap_f(void)
 		Q_snprintfz(filename, sizeof(filename), "cubemaps/%s%s", fname, sides[i].postfix);
 		COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
 
-		buffer = SCR_ScreenShot_Capture(fbwidth, fbheight, &fmt);
+		buffer = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt);
 		if (buffer)
 		{
 			char			sysname[1024];
-			if (SCR_ScreenShot(filename, FS_GAMEONLY, &buffer, 1, fbwidth, fbheight, fmt))
+			if (SCR_ScreenShot(filename, FS_GAMEONLY, &buffer, 1, stride, fbwidth, fbheight, fmt))
 			{
 				FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
 				Con_Printf ("Wrote %s\n", sysname);
@@ -2814,6 +2846,7 @@ SCR_RSShot
 */
 qboolean SCR_RSShot (void)
 {
+	int stride;
 	int truewidth;
 	int trueheight;
 
@@ -2852,7 +2885,7 @@ qboolean SCR_RSShot (void)
 //
 // save the pcx file
 //
-	newbuf = VID_GetRGBInfo(&truewidth, &trueheight, &fmt);
+	newbuf = VID_GetRGBInfo(&truewidth, &trueheight, &stride, &fmt);
 
 	if (fmt == TF_INVALID)
 		return false;

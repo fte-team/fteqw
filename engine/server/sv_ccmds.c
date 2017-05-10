@@ -1846,8 +1846,9 @@ static void SV_Status_f (void)
 	Con_Printf("gamedir          : %s\n", FS_GetGamedir(true));
 	if (sv.csqcdebug)
 		Con_Printf("csqc debug       : true\n");
-	if (sv.mvdrecording)
-		Con_Printf("recording        : %s\n", SV_Demo_CurrentOutput());
+	SV_Demo_PrintOutputs();
+	NET_PrintConnectionsStatus(svs.sockets);
+
 
 // min fps lat drp
 	if (columns < 80)
@@ -1855,7 +1856,7 @@ static void SV_Status_f (void)
 		// most remote clients are 40 columns
 		//           0123456789012345678901234567890123456789
 		Con_Printf ("name               userid frags\n");
-        Con_Printf ("  address          rate ping drop\n");
+		Con_Printf ("  address          rate ping drop\n");
 		Con_Printf ("  ---------------- ---- ---- -----\n");
 		for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 		{
@@ -1930,7 +1931,7 @@ static void SV_Status_f (void)
 			}
 			if (cl->protocol != SCP_QUAKEWORLD || cl->spectator || !(cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 				columns |= 1<<9;
-			if (cl->netchan.remote_address.type == NA_IPV6 || cl->netchan.remote_address.type == NA_TCPV6 || cl->netchan.remote_address.type == NA_TLSV6)
+			if (cl->netchan.remote_address.type == NA_IPV6)
 				columns = (columns & ~(1<<2)) | (1<<10);
 		}
 

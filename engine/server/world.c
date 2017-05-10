@@ -1863,6 +1863,59 @@ boxmaxs[0] = boxmaxs[1] = boxmaxs[2] = 9999;
 #endif
 }
 
+#if !defined(CLIENTONLY)
+qboolean SV_AntiKnockBack(world_t *w, client_t *client)
+{
+	int seq = client->netchan.incoming_acknowledged;	//our outgoing sequence that was last acked (in qw, this matches the last known-good input frame)
+	client_frame_t *frame;
+	edict_t *ent = client->edict;
+	if (client->protocol != SCP_QUAKEWORLD || !client->frameunion.frames || !ent)
+		return false;	//FIXME: support nq protocols too
+
+	//reload player state from the journal (the input frame should already have been applied)
+	frame = &client->frameunion.frames[seq&UPDATE_MASK];
+	VectorCopy(frame->pmorigin, pmove.origin);
+	VectorCopy(frame->pmvelocity, pmove.velocity);
+	pmove.pm_type = frame->pmtype;
+	pmove.jump_held = frame->pmjumpheld;
+	pmove.waterjumptime = frame->pmwaterjumptime;
+	pmove.onladder = frame->pmonladder;
+
+	//stuff not regenerated properly, shouldn't really be changing much or not very significant.
+	pmove.world = w;
+	VectorCopy(ent->v->mins, pmove.player_mins);
+	VectorCopy(ent->v->maxs, pmove.player_maxs);
+	pmove.capsule = (ent->xv->geomtype == GEOMTYPE_CAPSULE);
+	if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
+		VectorCopy(ent->xv->gravitydir, pmove.gravitydir);
+	else
+		VectorCopy(w->g.defaultgravitydir, pmove.gravitydir);
+
+	//FIXME
+	VectorCopy(ent->v->oldorigin, pmove.safeorigin);
+	pmove.safeorigin_known = false;
+	pmove.jump_msec = 0;
+	VectorClear(pmove.basevelocity);
+
+	//and apply each more recent frame
+	while (++seq <= client->netchan.incoming_sequence)
+	{
+		if (frame->sequence != seq)
+			continue;	//FIXME: lost
+
+		pmove.sequence = seq;
+		pmove.cmd = frame->cmd;
+
+//		pmove.angles;
+
+//		pmove.numphysent/physents;
+
+		PM_PlayerMove(sv.gamespeed);
+	}
+	return true;
+}
+#endif
+
 /*
 ==================
 SV_Move
@@ -1908,6 +1961,22 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 			}
 		}
 		hullnum++;
+	}
+#endif
+
+#if !defined(CLIENTONLY)
+	//figure out where the firing player was, and re-run their input frames to calculate their position without any velocity/knockback changes.
+	//then update the start position to compensate.
+	if ((clip.type & MOVE_LAGGED) && w == &sv.world && passedict->entnum && passedict->entnum <= sv.allocated_client_slots && sv_antilag.ival==3)
+	{
+		vec3_t nudge;
+		if (SV_AntiKnockBack(w, &svs.clients[passedict->entnum-1]))
+		{
+			VectorSubtract(pmove.origin, passedict->v->origin, nudge);
+
+			VectorAdd(start, nudge, start);
+			VectorAdd(end, nudge, end);
+		}
 	}
 #endif
 

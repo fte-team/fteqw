@@ -131,7 +131,7 @@ const char *Cmd_TokenizeString (const char *text, qboolean expandmacros, qboolea
 
 void	Cmd_ExecuteString (char *text, int restrictionlevel);
 
-void Cmd_Args_Set(const char *newargs);
+void Cmd_Args_Set(const char *newargs, size_t len);
 
 #define RESTRICT_MAX_TOTAL  31
 #define RESTRICT_MAX_USER	29

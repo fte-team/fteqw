@@ -1170,7 +1170,7 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 		handle = Plug_NewStreamHandle(STREAM_WEB);
 		pluginstreamarray[handle].dl = HTTP_CL_Get(fname, NULL, Plug_DownloadComplete);
 		pluginstreamarray[handle].dl->user_num = handle;
-		pluginstreamarray[handle].dl->file = pluginstreamarray[handle].vfs = VFSPIPE_Open();
+		pluginstreamarray[handle].dl->file = pluginstreamarray[handle].vfs = VFSPIPE_Open(2, true);
 		pluginstreamarray[handle].dl->isquery = true;
 #ifdef MULTITHREAD
 		DL_CreateThread(pluginstreamarray[handle].dl, NULL, NULL);
@@ -1187,6 +1187,7 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 		return -1;
 	handle = Plug_NewStreamHandle(STREAM_VFS);
 	pluginstreamarray[handle].vfs = f;
+	Q_strncpyz(pluginstreamarray[handle].file.filename, fname, sizeof(pluginstreamarray[handle].file.filename));
 	*ret = handle;
 	return VFS_GETLEN(pluginstreamarray[handle].vfs);
 }
@@ -1325,7 +1326,7 @@ void Plug_Net_Close_Internal(int handle)
 	case STREAM_VFS:
 		if (pluginstreamarray[handle].vfs)
 		{
-			if (!pluginstreamarray[handle].vfs->seekingisabadplan && pluginstreamarray[handle].vfs->WriteBytes)
+			if (*pluginstreamarray[handle].file.filename && pluginstreamarray[handle].vfs->WriteBytes)
 			{
 				VFS_CLOSE(pluginstreamarray[handle].vfs);
 				FS_FlushFSHashWritten(pluginstreamarray[handle].file.filename);
@@ -1949,7 +1950,7 @@ qboolean Plug_ServerMessage(char *buffer, int messagelevel)
 	qboolean ret = true;
 
 	Cmd_TokenizeString(buffer, false, false);
-	Cmd_Args_Set(buffer);
+	Cmd_Args_Set(buffer, strlen(buffer));
 
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 	{
@@ -1959,7 +1960,7 @@ qboolean Plug_ServerMessage(char *buffer, int messagelevel)
 		}
 	}
 
-	Cmd_Args_Set(NULL);
+	Cmd_Args_Set(NULL, 0);
 
 	return ret; // true to display message, false to supress
 }
@@ -1969,7 +1970,7 @@ qboolean Plug_ChatMessage(char *buffer, int talkernum, int tpflags)
 	qboolean ret = true;
 
 	Cmd_TokenizeString(buffer, false, false);
-	Cmd_Args_Set(buffer);
+	Cmd_Args_Set(buffer, strlen(buffer));
 
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 	{
@@ -1979,7 +1980,7 @@ qboolean Plug_ChatMessage(char *buffer, int talkernum, int tpflags)
 		}
 	}
 
-	Cmd_Args_Set(NULL);
+	Cmd_Args_Set(NULL, 0);
 
 	return ret; // true to display message, false to supress
 }
@@ -1989,7 +1990,7 @@ qboolean Plug_CenterPrintMessage(char *buffer, int clientnum)
 	qboolean ret = true;
 
 	Cmd_TokenizeString(buffer, false, false);
-	Cmd_Args_Set(buffer);
+	Cmd_Args_Set(buffer, strlen(buffer));
 
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 	{
@@ -1999,7 +2000,7 @@ qboolean Plug_CenterPrintMessage(char *buffer, int clientnum)
 		}
 	}
 
-	Cmd_Args_Set(NULL);
+	Cmd_Args_Set(NULL, 0);
 
 	return ret; // true to display message, false to supress
 }

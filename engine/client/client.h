@@ -414,12 +414,8 @@ enum qdlabort
 	QDL_COMPLETED,	//rename file, tell server.
 };
 qboolean DL_Begun(qdownload_t *dl);
-void DL_Completed(qdownload_t *dl, qofs_t start, qofs_t end);	//notifies the download logic that a chunk of the file is no longer needed.
 void DL_Abort(qdownload_t *dl, enum qdlabort aborttype);		//just frees the download's resources. does not delete the temp file.
 qboolean CL_AllowArbitaryDownload(char *oldname, char *localfile);
-
-//chunked downloads
-void DLC_Poll(qdownload_t *dl);
 
 
 //
@@ -509,7 +505,6 @@ typedef struct
 	float		demoseektime;
 	qboolean	timedemo;
 	vfsfile_t	*demoinfile;
-	struct dl_download *demoindownload; 
 	float		td_lastframe;		// to meter out one message a frame
 	int			td_startframe;		// host_framecount at start
 	float		td_starttime;		// realtime at second frame of timedemo
@@ -1674,7 +1669,7 @@ typedef struct
 	const char *description;
 	const char *defaultextension;
 	void *(VARGS *capture_begin) (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits);
-	void (VARGS *capture_video) (void *ctx, void *data, int frame, int width, int height, enum uploadfmt fmt);
+	void (VARGS *capture_video) (void *ctx, int frame, void *data, int stride, int width, int height, enum uploadfmt fmt);
 	void (VARGS *capture_audio) (void *ctx, void *data, int bytes);
 	void (VARGS *capture_end) (void *ctx);
 } media_encoder_funcs_t;

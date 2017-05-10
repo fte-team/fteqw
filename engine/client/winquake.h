@@ -122,6 +122,7 @@ extern HCURSOR	hArrowCursor, hCustomCursor;
 void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale);
 qboolean WIN_SetCursor(void *cursor);
 void WIN_DestroyCursor(void *cursor);
+void WIN_WindowCreated(HWND window);
 
 void INS_UpdateClipCursor (void);
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify);

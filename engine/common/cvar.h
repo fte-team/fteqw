@@ -86,21 +86,21 @@ typedef struct cvar_s
 } cvar_t;
 
 #ifdef MINIMAL
-#define CVARAFDC(ConsoleName,Value,ConsoleName2,Flags,Description,Callback)	{ConsoleName, NULL, NULL, Flags, 0, 0, 0, ConsoleName2, Callback, NULL,        Value}
+#define CVARAFCD(ConsoleName,Value,ConsoleName2,Flags,Callback,Description)	{ConsoleName, NULL, NULL, Flags, 0, 0, 0, ConsoleName2, Callback, NULL,        Value}
 #else
-#define CVARAFDC(ConsoleName,Value,ConsoleName2,Flags,Description,Callback)	{ConsoleName, NULL, NULL, Flags, 0, 0, 0, ConsoleName2, Callback, Description, Value}
+#define CVARAFCD(ConsoleName,Value,ConsoleName2,Flags,Callback,Description)	{ConsoleName, NULL, NULL, Flags, 0, 0, 0, ConsoleName2, Callback, Description, Value}
 #endif
-#define CVARAFD(ConsoleName,Value,ConsoleName2,Flags,Description)CVARAFDC(ConsoleName, Value, ConsoleName2, Flags, Description, NULL)
-#define CVARAFC(ConsoleName,Value,ConsoleName2,Flags,Callback)	CVARAFDC(ConsoleName, Value, ConsoleName2, Flags, NULL, Callback)
-#define CVARAF(ConsoleName,Value,ConsoleName2,Flags)			CVARAFDC(ConsoleName, Value, ConsoleName2, Flags, NULL, NULL)
-#define CVARFDC(ConsoleName,Value,Flags,Description,Callback)	CVARAFDC(ConsoleName, Value, NULL, Flags, Description, Callback)
-#define CVARFC(ConsoleName,Value,Flags,Callback)				CVARAFDC(ConsoleName, Value, NULL, Flags, NULL, Callback)
-#define CVARAD(ConsoleName,Value,ConsoleName2,Description)		CVARAFDC(ConsoleName, Value, ConsoleName2, 0, Description, NULL)
-#define CVARFD(ConsoleName,Value,Flags,Description)				CVARAFDC(ConsoleName, Value, NULL, Flags, Description, NULL)
+#define CVARAFD(ConsoleName,Value,ConsoleName2,Flags,Description)CVARAFCD(ConsoleName, Value, ConsoleName2, Flags, NULL, Description)
+#define CVARAFC(ConsoleName,Value,ConsoleName2,Flags,Callback)	CVARAFCD(ConsoleName, Value, ConsoleName2, Flags, Callback, NULL)
+#define CVARAF(ConsoleName,Value,ConsoleName2,Flags)			CVARAFCD(ConsoleName, Value, ConsoleName2, Flags, NULL, NULL)
+#define CVARFCD(ConsoleName,Value,Flags,Callback,Description)	CVARAFCD(ConsoleName, Value, NULL, Flags, Callback, Description)
+#define CVARFC(ConsoleName,Value,Flags,Callback)				CVARAFCD(ConsoleName, Value, NULL, Flags, Callback, NULL)
+#define CVARAD(ConsoleName,Value,ConsoleName2,Description)		CVARAFCD(ConsoleName, Value, ConsoleName2, 0, NULL, Description)
+#define CVARFD(ConsoleName,Value,Flags,Description)				CVARAFCD(ConsoleName, Value, NULL, Flags, NULL, Description)
 #define CVARF(ConsoleName,Value,Flags)							CVARFC(ConsoleName, Value, Flags, NULL)
 #define CVARC(ConsoleName,Value,Callback)						CVARFC(ConsoleName, Value, 0, Callback)
-#define CVARCD(ConsoleName,Value,Callback,Description)			CVARAFDC(ConsoleName, Value, NULL, 0, Description, Callback)
-#define CVARD(ConsoleName,Value,Description)					CVARAFDC(ConsoleName, Value, NULL, 0, Description, NULL)
+#define CVARCD(ConsoleName,Value,Callback,Description)			CVARAFCD(ConsoleName, Value, NULL, 0, Callback, Description)
+#define CVARD(ConsoleName,Value,Description)					CVARAFCD(ConsoleName, Value, NULL, 0, NULL, Description)
 #define CVAR(ConsoleName,Value)									CVARD(ConsoleName, Value, NULL)
 
 #define CVARDP4(Flags,ConsoleName,Value,Description) CVARFD(ConsoleName, Value, Flags,Description)

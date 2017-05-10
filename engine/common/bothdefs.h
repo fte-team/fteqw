@@ -297,7 +297,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		//#define	VM_LUA			//q1 lua gamecode interface
 
 		#define TCPCONNECT		//a tcpconnect command, that allows the player to connect to tcp-encapsulated qw protocols.
-		#define IRCCONNECT		//an ircconnect command, that allows the player to connect to irc-encapsulated qw protocols... yeah, really.
+//		#define IRCCONNECT		//an ircconnect command, that allows the player to connect to irc-encapsulated qw protocols... yeah, really.
 
 		#define PLUGINS			//qvm/dll plugins.
 		#define SUPPORT_ICE		//Interactive Connectivity Establishment protocol, for peer-to-peer connections
@@ -383,6 +383,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef NO_ZLIB	//compile-time option.
 	#undef AVAIL_ZLIB
+	#undef AVAIL_PNGLIB
 	#undef AVAIL_XZDEC
 	#undef AVAIL_GZDEC
 #endif

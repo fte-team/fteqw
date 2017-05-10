@@ -20,7 +20,7 @@ typedef struct {
 	int idx[4];
 } roq_qcell;
 
-typedef struct {
+typedef struct roq_info_s {
 	vfsfile_t *fp;
 	qofs_t maxpos;	//addition for pack files. all seeks add this, all tells subtract this.
 	int buf_size;

@@ -115,14 +115,21 @@ irc-clean:
 #linux users are expected to have the library installed locally already. If your version is too old or missing, run the following command to install it (to /usr/local), then delete the gz and directory.
 #wget http://ffmpeg.org/releases/ffmpeg-1.2.tar.gz && cd tar xvfz ffmpeg-1.2.tar.gz && cd ffmpeg-1.2/ && ./configure --disable-yasm --enable-shared && make && sudo make install
 #we use ffmpeg's version for some reason, as opposed to libav. not sure what the differences are meant to be, but libav seemed to have non-depricated functions defined, docs that say to use them, and these functions missing.
-AV7Z_VER=ffmpeg-3.0.1
-AV7Z_W32=$(AV7Z_VER)-win32-dev.7z
-AV7Z_URL32=http://ffmpeg.zeranoe.com/builds/win32/dev/$(AV7Z_W32)
-AV7Z_PRE32=$(AV7Z_VER)-win32-dev/
-AV7Z_W64=$(AV7Z_VER)-win64-dev.7z
-AV7Z_URL64=http://ffmpeg.zeranoe.com/builds/win64/dev/$(AV7Z_W64)
-AV7Z_PRE64=$(AV7Z_VER)-win64-dev/
-AV_BASE=$(OUT_DIR)/../fte_libav_$(AV7Z_VER)/
+AV_VER=ffmpeg-3.2.4
+ifeq (0,1)
+    AV_ARCHIVEEXT=.z7
+    AV_EXTRACT=7z e -y
+else
+    AV_ARCHIVEEXT=.zip
+    AV_EXTRACT=unzip -j
+endif
+AV_W32=$(AV_VER)-win32-dev$(AV_ARCHIVEEXT)
+AV_URL32=http://ffmpeg.zeranoe.com/builds/win32/dev/$(AV_W32)
+AV_PRE32=$(AV_VER)-win32-dev/
+AV_W64=$(AV_VER)-win64-dev$(AV_ARCHIVEEXT)
+AV_URL64=http://ffmpeg.zeranoe.com/builds/win64/dev/$(AV_W64)
+AV_PRE64=$(AV_VER)-win64-dev/
+AV_BASE=$(OUT_DIR)/../fte_libav_$(AV_VER)/
 
 
 ifeq ($(FTE_TARGET),win32)
@@ -134,21 +141,21 @@ endif
 
 $(AV_BASE)libavformat/avformat.h:
 	mkdir -p $(AV_BASE)
-	wget $(AV7Z_URL32) -O $(AV_BASE)$(AV7Z_W32)
-	mkdir -p $(AV_BASE)libavformat && cd $(AV_BASE)libavformat && 7z e -y ../$(AV7Z_W32) $(AV7Z_PRE32)include/libavformat/ && cd -
-	mkdir -p $(AV_BASE)libavcodec && cd $(AV_BASE)libavcodec && 7z e -y ../$(AV7Z_W32) $(AV7Z_PRE32)include/libavcodec/ && cd -
-	mkdir -p $(AV_BASE)libavutil && cd $(AV_BASE)libavutil && 7z e -y ../$(AV7Z_W32) $(AV7Z_PRE32)include/libavutil/ && cd -
-	mkdir -p $(AV_BASE)libswscale && cd $(AV_BASE)libswscale && 7z e -y ../$(AV7Z_W32) $(AV7Z_PRE32)include/libswscale/ && cd -
-	mkdir -p $(AV_BASE)lib32 && cd $(AV_BASE)lib32 && 7z e -y ../$(AV7Z_W32) $(AV7Z_PRE32)lib/avformat.lib $(AV7Z_PRE32)lib/avcodec.lib $(AV7Z_PRE32)lib/avutil.lib $(AV7Z_PRE32)lib/swscale.lib && cd -
-	rm $(AV_BASE)$(AV7Z_W32)
-	wget $(AV7Z_URL64) -O $(AV_BASE)$(AV7Z_W64)
-	mkdir -p $(AV_BASE)lib64 && cd $(AV_BASE)lib64 && 7z e -y ../$(AV7Z_W64) $(AV7Z_PRE64)lib/avformat.lib $(AV7Z_PRE64)lib/avcodec.lib $(AV7Z_PRE64)lib/avutil.lib $(AV7Z_PRE64)lib/swscale.lib && cd -
-	rm $(AV_BASE)$(AV7Z_W64)
+	cd $(AV_BASE) && wget -N $(AV_URL32)
+	mkdir -p $(AV_BASE)libavformat && cd $(AV_BASE)libavformat && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)include/libavformat/* && cd -
+	mkdir -p $(AV_BASE)libavcodec  && cd $(AV_BASE)libavcodec  && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)include/libavcodec/*  && cd -
+	mkdir -p $(AV_BASE)libavutil   && cd $(AV_BASE)libavutil   && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)include/libavutil/*   && cd -
+	mkdir -p $(AV_BASE)libswscale  && cd $(AV_BASE)libswscale  && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)include/libswscale/*  && cd -
+	mkdir -p $(AV_BASE)lib32 && cd $(AV_BASE)lib32 && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)lib/avformat.lib $(AV_PRE32)lib/avcodec.lib $(AV_PRE32)lib/avutil.lib $(AV_PRE32)lib/swscale.lib && cd -
+	rm $(AV_BASE)$(AV_W32)
+	cd $(AV_BASE) && wget -N $(AV_URL64)
+	mkdir -p $(AV_BASE)lib64 && cd $(AV_BASE)lib64 && $(AV_EXTRACT) ../$(AV_W64) $(AV_PRE64)lib/avformat.lib $(AV_PRE64)lib/avcodec.lib $(AV_PRE64)lib/avutil.lib $(AV_PRE64)lib/swscale.lib && cd -
+	rm $(AV_BASE)$(AV_W64)
 distclean:
 	rm $(AV_BASE)libavformat/avformat.h
-$(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT): $(AV_BASE)libavformat/avformat.h
+$(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): $(AV_BASE)libavformat/avformat.h
 
-$(OUT_DIR)/fteplug_avplug$(PLUG_NATIVE_EXT): avplug/avencode.c avplug/avdecode.c plugin.c qvm_api.c
+$(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): avplug/avencode.c avplug/avdecode.c avplug/avaudio.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) -L$(AV_BASE)lib$(BITS) -I$(AV_BASE) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -lavcodec -lavformat -lavutil -lswscale
 
 #small script for ode

@@ -306,7 +306,7 @@ void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 				if (sv.state)
 				{
 					//tcp masters require a route
-					if (na->type == NA_TCP || na->type == NA_TCPV6 || na->type == NA_TLSV4 || na->type == NA_TLSV6)
+					if (NET_AddrIsReliable(na))
 						NET_EnsureRoute(svs.sockets, master->cv.name, master->cv.string, false);
 
 					//q2+qw masters are given a ping to verify that they're still up
@@ -636,6 +636,7 @@ int lastpollsockIPX;
 #define FIRSTUDP6SOCKET (FIRSTUDP4SOCKET+POLLUDP4SOCKETS)
 #define POLLTOTALSOCKETS (FIRSTUDP6SOCKET+POLLUDP6SOCKETS)
 SOCKET pollsocketsList[POLLTOTALSOCKETS];
+char pollsocketsBCast[POLLTOTALSOCKETS];
 
 void Master_SetupSockets(void)
 {
@@ -1366,11 +1367,19 @@ void CLMaster_AddMaster_Worker_Resolved(void *ctx, void *data, size_t a, size_t 
 		if (mast->mastertype == MT_BCAST)	//broadcasts
 		{
 			if (mast->adr.type == NA_IP)
-				mast->adr.type = NA_BROADCAST_IP;
+				memset(mast->adr.address.ip+4, 0xff, sizeof(mast->adr.address.ip));
 			if (mast->adr.type == NA_IPX)
-				mast->adr.type = NA_BROADCAST_IPX;
+			{
+				memset(mast->adr.address.ipx+0, 0, 4);
+				memset(mast->adr.address.ipx+4, 0xff, 6);
+			}
 			if (mast->adr.type == NA_IPV6)
-				mast->adr.type = NA_BROADCAST_IP6;
+			{
+				memset(mast->adr.address.ip6, 0, sizeof(mast->adr.address.ip6));
+				mast->adr.address.ip6[0]	= 0xff;
+				mast->adr.address.ip6[1]	= 0x02;
+				mast->adr.address.ip6[15]	= 0x01;
+			}
 		}
 
 		//fix up default ports if not specified
@@ -1694,6 +1703,7 @@ qboolean Master_LoadMasterList (char *filename, qboolean withcomment, int defaul
 
 void NET_SendPollPacket(int len, void *data, netadr_t to)
 {
+	unsigned long bcast;
 	int ret;
 	struct sockaddr_qstorage	addr;
 
@@ -1705,39 +1715,66 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 		if (lastpollsockIPX>=POLLIPXSOCKETS)
 			lastpollsockIPX=0;
 		if (pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX]==INVALID_SOCKET)
-			pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX] = IPX_OpenSocket(PORT_ANY, true);
+		{
+			pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX] = IPX_OpenSocket(PORT_ANY);
+			pollsocketsBCast[FIRSTIPXSOCKET+lastpollsockIPX] = false;
+		}
 		if (pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX]==INVALID_SOCKET)
 			return;	//bother
+
+		bcast = !memcmp(to.address.ipx, "\0\0\0\0\xff\xff\xff\xff\xff\xff", sizeof(to.address.ipx));
+		if (pollsocketsBCast[FIRSTIPXSOCKET+lastpollsockIPX] != bcast)
+		{
+			if (setsockopt(pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX], SOL_SOCKET, SO_BROADCAST, (char *)&bcast, sizeof(bcast)) == -1)
+				return;
+			pollsocketsBCast[FIRSTIPXSOCKET+lastpollsockIPX] = bcast;
+		}
 		ret = sendto (pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
 	}
 	else
 #endif
-#ifdef IPPROTO_IPV6
+#ifdef HAVE_IPV6
 	if (((struct sockaddr*)&addr)->sa_family == AF_INET6)
 	{
 		lastpollsockUDP6++;
 		if (lastpollsockUDP6>=POLLUDP6SOCKETS)
 			lastpollsockUDP6=0;
 		if (pollsocketsList[FIRSTUDP6SOCKET+lastpollsockUDP6]==INVALID_SOCKET)
-			pollsocketsList[FIRSTUDP6SOCKET+lastpollsockUDP6] = UDP6_OpenSocket(PORT_ANY, true);
+		{
+			pollsocketsList[FIRSTUDP6SOCKET+lastpollsockUDP6] = UDP6_OpenSocket(PORT_ANY);
+			pollsocketsBCast[FIRSTUDP6SOCKET+lastpollsockUDP6] = false;
+		}
 		if (pollsocketsList[FIRSTUDP6SOCKET+lastpollsockUDP6]==INVALID_SOCKET)
 			return;	//bother
 		ret = sendto (pollsocketsList[FIRSTUDP6SOCKET+lastpollsockUDP6], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
 	}
 	else
 #endif
+#ifdef HAVE_IPV4
 		if (((struct sockaddr*)&addr)->sa_family == AF_INET)
 	{
 		lastpollsockUDP4++;
 		if (lastpollsockUDP4>=POLLUDP4SOCKETS)
 			lastpollsockUDP4=0;
 		if (pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4]==INVALID_SOCKET)
-			pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4] = UDP_OpenSocket(PORT_ANY, true);
+		{
+			pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4] = UDP_OpenSocket(PORT_ANY);
+			pollsocketsBCast[FIRSTUDP4SOCKET+lastpollsockUDP4] = false;
+		}
 		if (pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4]==INVALID_SOCKET)
 			return;	//bother
+
+		bcast = !memcmp(to.address.ip, "\xff\xff\xff\xff", sizeof(to.address.ip));
+		if (pollsocketsBCast[FIRSTUDP4SOCKET+lastpollsockUDP4] != bcast)
+		{
+			if (setsockopt(pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4], SOL_SOCKET, SO_BROADCAST, (char *)&bcast, sizeof(bcast)) == -1)
+				return;
+			pollsocketsBCast[FIRSTUDP4SOCKET+lastpollsockUDP4] = bcast;
+		}
 		ret = sendto (pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4], data, len, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in) );
 	}
 	else
+#endif
 		return;
 
 	if (ret == -1)

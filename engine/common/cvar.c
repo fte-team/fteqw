@@ -422,7 +422,7 @@ showhelp:
 
 //default values are meant to be constants.
 //sometimes that just doesn't make sense.
-//so provide a safe way to change it (MUST be initialised to NULL)
+//so provide a safe way to change it (MUST be initialised to NULL so that it doesn't get freed)
 void Cvar_SetEngineDefault(cvar_t *var, char *val)
 {
 	qboolean wasdefault = (var->defaultstr == var->enginevalue);
@@ -1021,11 +1021,22 @@ Cvar_SetValue
 void Cvar_SetValue (cvar_t *var, float value)
 {
 	char	val[32];
+	char *e, *p;
 
 //	if (value == (int)value)
 //		sprintf (val, "%i",(int)value);	//make it look nicer.
 //	else
-		sprintf (val, "%g",value);
+		sprintf (val, "%f",value);
+	p = strchr(val, '.');
+	if (p)
+	{
+		e = p + strlen(p);
+		while (e > p && e[-1] == '0')
+			e--;
+		if (e[-1] == '.')
+			e--;
+		*e = 0;
+	}
 	Cvar_Set (var, val);
 }
 void Cvar_ForceSetValue (cvar_t *var, float value)

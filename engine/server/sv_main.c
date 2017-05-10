@@ -485,6 +485,9 @@ void SV_DropClient (client_t *drop)
 				for (j=0 ; j<NUM_RANK_SPAWN_PARMS ; j++)
 					if (pr_global_ptrs->spawnparamglobals[j])
 						rs.parm[j] = *pr_global_ptrs->spawnparamglobals[j];
+#if NUM_RANK_SPAWN_PARMS>32
+				rs.lastseen = time(NULL);
+#endif
 				Rank_SetPlayerStats(drop->rankid, &rs);
 			}
 		}
@@ -3681,13 +3684,13 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		flags = MSG_ReadByte();
 		passwd = MSG_ReadLong();
 
-		if (!strncmp(MSG_ReadString(), "getchallenge", 12) && (sv_listen_qw.ival || sv_listen_dp.ival))
+		if (SV_ChallengeRecent())
+			return true;
+		else if (!strncmp(MSG_ReadString(), "getchallenge", 12) && (sv_listen_qw.ival || sv_listen_dp.ival))
 		{
 			/*dual-stack client, supporting either DP or QW protocols*/
 			SVC_GetChallenge (true);
 		}
-		else if (SV_ChallengeRecent())
-			return true;
 		else
 		{
 			if (progstype == PROG_H2)
@@ -4573,11 +4576,6 @@ float SV_Frame (void)
 			SVM_Think(sv_masterport.ival);
 		else
 			SVM_Think(PORT_QWMASTER);
-	}
-
-	{
-void SV_MVDStream_Poll(void);
-	SV_MVDStream_Poll();
 	}
 
 #ifdef PLUGINS

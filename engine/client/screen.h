@@ -122,7 +122,7 @@ typedef enum uploadfmt
 		TF_SYSTEMDECODE
 } uploadfmt_t;
 
-qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int width, int height, enum uploadfmt fmt);
+qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt);
 
 void SCR_DrawTwoDimensional(int uimenu, qboolean nohud);
 

@@ -30,6 +30,7 @@ int cls_lastto;
 int cls_lasttype;
 
 void CL_PlayDemo(char *demoname, qboolean usesystempath);
+void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath);
 char lastdemoname[256];
 static qboolean lastdemowassystempath;
 
@@ -72,15 +73,12 @@ void CL_StopPlayback (void)
 
 	Media_CaptureDemoEnd();
 
-	VFS_CLOSE (cls.demoinfile);
+	if (cls.demoinfile)
+		VFS_CLOSE (cls.demoinfile);
 	cls.demoinfile = NULL;
 	cls.state = ca_disconnected;
 	cls.demoplayback = DPB_NONE;
 	cls.demoseeking = false;	//just in case
-
-	if (cls.demoindownload)
-		cls.demoindownload->status = DL_FAILED;
-	cls.demoindownload = NULL;
 
 	if (cls.timedemo)
 		CL_FinishTimeDemo ();
@@ -320,7 +318,7 @@ int readdemobytes(int *readpos, void *data, int len)
 
 	if (*readpos+len > demobuffersize)
 	{
-		if (i < 0 || (i == 0 && len && !cls.demoinfile->seekingisabadplan))
+		if (i < 0 || (i == 0 && len && cls.demoinfile->seekstyle < SS_SLOW))
 		{	//0 means no data available yet, don't error on that (unless we can seek, in which case its not a stream and we won't get any more data later on).
 			endofdemo = true;
 			return 0;
@@ -435,8 +433,16 @@ void CL_DemoJump_f(void)
 		cls.demoseektime = newtime;
 	else
 	{
+		vfsfile_t *df = cls.demoinfile;
 		Con_Printf("Rewinding demo\n");
-		CL_PlayDemo(lastdemoname, lastdemowassystempath);
+		if (df->seekstyle != SS_UNSEEKABLE)
+		{
+			VFS_SEEK(df, 0);
+			cls.demoinfile = NULL;
+			CL_PlayDemoFile(df, lastdemoname, lastdemowassystempath);
+		}
+		else
+			CL_PlayDemo(lastdemoname, lastdemowassystempath);
 
 		//now fastparse it.
 		cls.demoseektime = newtime;
@@ -2072,10 +2078,11 @@ void CL_PlayDemo_f (void)
 
 #ifdef WEBCLIENT
 #if 1
-	if (!strncmp(Cmd_Argv(1), "ftp://", 6) || !strncmp(Cmd_Argv(1), "http://", 7))
+	if (!strncmp(Cmd_Argv(1), "ftp://", 6) || !strncmp(Cmd_Argv(1), "http://", 7) || !strncmp(Cmd_Argv(1), "https://", 7))
 	{
 		if (Cmd_ExecLevel == RESTRICT_LOCAL)
-			HTTP_CL_Get(Cmd_Argv(1), COM_SkipPath(Cmd_Argv(1)), CL_PlayDownloadedDemo);
+			Host_RunFile(Cmd_Argv(1), strlen(Cmd_Argv(1)), NULL);
+//			HTTP_CL_Get(Cmd_Argv(1), COM_SkipPath(Cmd_Argv(1)), CL_PlayDownloadedDemo);
 		return;
 	}
 #endif
@@ -2092,16 +2099,8 @@ void CL_PlayDemo_f (void)
 		CL_PlayDemo(demoname, false);
 }
 
-void CL_DemoStreamFullyDownloaded(struct dl_download *dl)
-{
-	//let the file get closed by the demo playback code.
-	dl->file = NULL;
-	//kill the reference now that its done.
-	if (cls.demoindownload == dl)
-		cls.demoindownload = NULL;
-}
 //dl is provided so that we can receive files via chunked/gziped http downloads and on systems that don't provide sockets etc. its tracked so we can cancel the download if the client aborts playback early.
-void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, qboolean issyspath, int demotype, float bufferdelay)
+void CL_PlayDemoStream(vfsfile_t *file, char *filename, qboolean issyspath, int demotype, float bufferdelay)
 {
 	int protocol = CP_UNKNOWN;
 
@@ -2137,9 +2136,6 @@ void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, 
 		return;
 	}
 
-	if (dl)
-		dl->notifycomplete = CL_DemoStreamFullyDownloaded;
-
 //
 // disconnect from server
 //
@@ -2151,7 +2147,6 @@ void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, 
 //
 // open the demo file
 //
-	cls.demoindownload = dl;
 	cls.demoinfile = file;
 	if (!cls.demoinfile)
 	{
@@ -2212,20 +2207,20 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "dm2") ||
 		!Q_strcasecmp(demoname + strlen(demoname) - 6, "dm2.gz"))
 	{
-		CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKE2, 0);
+		CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKE2, 0);
 		return;
 	}
 #endif
 	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "mvd") ||
 		!Q_strcasecmp(demoname + strlen(demoname) - 6, "mvd.gz"))
 	{
-		CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_MVD, 0);
+		CL_PlayDemoStream(f, demoname, issyspath, DPB_MVD, 0);
 		return;
 	}
 	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "qwd") ||
 		!Q_strcasecmp(demoname + strlen(demoname) - 6, "qwd.gz"))
 	{
-		CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKEWORLD, 0);
+		CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKEWORLD, 0);
 		return;
 	}
 
@@ -2252,7 +2247,7 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 			ft *= -1;
 		if (chr == '\n')
 		{
-			CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_NETQUAKE, 0);
+			CL_PlayDemoStream(f, demoname, issyspath, DPB_NETQUAKE, 0);
 			return;
 		}
 		VFS_SEEK(f, start);
@@ -2293,7 +2288,7 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 				if (protocol >= PROTOCOL_VERSION_Q2_DEMO_MIN && protocol <= PROTOCOL_VERSION_Q2_DEMO_MAX)
 				{
 					VFS_SEEK(f, start);
-					CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKE2, 0);
+					CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKE2, 0);
 					return;
 				}
 				break;
@@ -2309,7 +2304,7 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 	//could also be .qwz or .dmz or whatever that nq extension is. we don't support either.
 
 	//mvd and qwd have no identifying markers, other than the extension.
-	CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKEWORLD, 0);
+	CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKEWORLD, 0);
 }
 #ifdef WEBCLIENT
 void CL_PlayDownloadedDemo(struct dl_download *dl)
@@ -2609,7 +2604,7 @@ void CL_QTVPoll (void)
 
 	if (streamavailable)
 	{
-		CL_PlayDemoStream(qtvrequest, NULL, NULL, false, iseztv?DPB_EZTV:DPB_MVD, BUFFERTIME);
+		CL_PlayDemoStream(qtvrequest, NULL, false, iseztv?DPB_EZTV:DPB_MVD, BUFFERTIME);
 		qtvrequest = NULL;
 		demo_resetcache(qtvrequestsize - (tail-qtvrequestbuffer), tail);
 		return;
@@ -2894,7 +2889,7 @@ void CL_QTVPlay_f (void)
 	if (raw)
 	{
 		VFS_WRITE(newf, msg, msglen);
-		CL_PlayDemoStream(qtvrequest, NULL, qtvhostname, false, DPB_MVD, BUFFERTIME);
+		CL_PlayDemoStream(qtvrequest, qtvhostname, false, DPB_MVD, BUFFERTIME);
 	}
 	else
 	{

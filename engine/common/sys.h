@@ -24,9 +24,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // for the most part, we use stdio.
 // if your system doesn't have stdio then urm... well.
 //
-void Sys_mkdir (char *path);	//not all pre-unix systems have directories (including dos 1)
-qboolean Sys_remove (char *path);
-qboolean Sys_Rename (char *oldfname, char *newfname);
+void Sys_mkdir (const char *path);	//not all pre-unix systems have directories (including dos 1)
+qboolean Sys_rmdir (const char *path);
+qboolean Sys_remove (const char *path);
+qboolean Sys_Rename (const char *oldfname, const char *newfname);
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts);
 
 //

@@ -436,19 +436,19 @@ menutext 0 24 "Cancel"
 */
 void M_Script_Init(void)
 {
-	Cmd_AddCommandD("menuclear",	M_MenuS_Clear_f, "Pop the currently scripted menu.");
-	Cmd_AddCommandD("menucallback",	M_MenuS_Callback_f, "Explicitly invoke the active script menu's callback function with the given option set.");
-	Cmd_AddCommand("conmenu",	M_MenuS_Script_f);
-	Cmd_AddCommand("menubox",	M_MenuS_Box_f);
-	Cmd_AddCommand("menuedit",	M_MenuS_Edit_f);
-	Cmd_AddCommand("menueditpriv",	M_MenuS_EditPriv_f);
-	Cmd_AddCommand("menutext",	M_MenuS_Text_f);
-	Cmd_AddCommand("menutextbig",	M_MenuS_TextBig_f);
-	Cmd_AddCommand("menupic",	M_MenuS_Picture_f);
-	Cmd_AddCommand("menucheck",	M_MenuS_CheckBox_f);
-	Cmd_AddCommand("menuslider",	M_MenuS_Slider_f);
-	Cmd_AddCommand("menubind",	M_MenuS_Bind_f);
-	Cmd_AddCommand("menucomboi",	M_MenuS_Comboi_f);
-	Cmd_AddCommand("menucombos",	M_MenuS_Combos_f);
+	Cmd_AddCommandD("menuclear",	M_MenuS_Clear_f,	"Pop the currently scripted menu.");
+	Cmd_AddCommandD("menucallback",	M_MenuS_Callback_f,	"Explicitly invoke the active script menu's callback function with the given option set.");
+	Cmd_AddCommandD("conmenu",		M_MenuS_Script_f,	"conmenu <callback>\nCreates a new (built-in) scripted menu. any following commands that define scipted menu items will add their items to this new menu. The callback will be called with argument 'cancel' when the menu is closed.");
+	Cmd_AddCommandD("menubox",		M_MenuS_Box_f,		"x y width height");
+	Cmd_AddCommandD("menuedit",		M_MenuS_Edit_f,		"x y caption cvarname");
+	Cmd_AddCommandD("menueditpriv",	M_MenuS_EditPriv_f, "x y caption def");
+	Cmd_AddCommandD("menutext",		M_MenuS_Text_f,		"x y caption cbcommand");
+	Cmd_AddCommandD("menutextbig",	M_MenuS_TextBig_f,	"x y caption cbcommand");
+	Cmd_AddCommandD("menupic",		M_MenuS_Picture_f,	"x y picname");
+	Cmd_AddCommandD("menucheck",	M_MenuS_CheckBox_f,	"x y caption cvarname bitmask");
+	Cmd_AddCommandD("menuslider",	M_MenuS_Slider_f,	"x y caption cvarname min max");
+	Cmd_AddCommandD("menubind",		M_MenuS_Bind_f,		"x y caption bindcommand");
+	Cmd_AddCommandD("menucomboi",	M_MenuS_Comboi_f,	"x y caption cvarname [caption0] [caption1] ...");
+	Cmd_AddCommandD("menucombos",	M_MenuS_Combos_f,	"x y caption cvarname [caption0] [value0] [caption1] [value1] ...\nif 'caption0' is { then the options will be parsed from trailing lines\n");
 }
 #endif

@@ -1005,7 +1005,7 @@ error:
 
 
 #ifndef NPFTE
-int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, int width, int height, enum uploadfmt fmt)
+int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, int bufferstride, int width, int height, enum uploadfmt fmt)
 {
 	char name[MAX_OSPATH];
 	int i;
@@ -1015,7 +1015,7 @@ int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, vo
 	png_byte **row_pointers;
 	struct pngerr errctx;
 	int pxsize;
-	int stride = width;
+	int outwidth = width;
 
 	qbyte stereochunk = 0;	//cross-eyed
 	png_unknown_chunk unknowns = {"sTER", &stereochunk, sizeof(stereochunk), PNG_HAVE_PLTE};
@@ -1025,13 +1025,13 @@ int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, vo
 
 	if (numbuffers == 2)
 	{
-		stride = width;
-		if (stride & 7)	//standard stereo images must be padded to 8 pixels width padding between
-			stride += 8-(stride & 7);
-		stride += width;
+		outwidth = width;
+		if (outwidth & 7)	//standard stereo images must be padded to 8 pixels width padding between
+			outwidth += 8-(outwidth & 7);
+		outwidth += width;
 	}
 	else	//arrange them all horizontally
-		stride = width * numbuffers;
+		outwidth = width * numbuffers;
 
 	if (!LibPNG_Init())
 		return false;
@@ -1077,43 +1077,50 @@ err:
 #endif
 	qpng_set_compression_level(png_ptr, Z_NO_COMPRESSION + (compression*(Z_BEST_COMPRESSION-Z_NO_COMPRESSION))/100);
 
-	if (fmt == TF_BGR24 || fmt == TF_BGRA32)
+	if (fmt == TF_BGR24 || fmt == TF_BGRA32 || fmt == TF_BGRX32)
 		qpng_set_bgr(png_ptr);
 	if (fmt == TF_RGBA32 || fmt == TF_BGRA32)
 	{
 		pxsize = 4;
-		qpng_set_IHDR(png_ptr, info_ptr, stride, height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+		qpng_set_IHDR(png_ptr, info_ptr, outwidth, height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+	}
+	else if (fmt == TF_RGBX32 || fmt == TF_BGRX32)
+	{
+		pxsize = 4;
+		qpng_set_IHDR(png_ptr, info_ptr, outwidth, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 	}
 	else
 	{
 		pxsize = 3;
-		qpng_set_IHDR(png_ptr, info_ptr, stride, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+		qpng_set_IHDR(png_ptr, info_ptr, outwidth, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 	}
 
 	if (numbuffers == 2)	//flag it as a standard stereographic image
 		qpng_set_unknown_chunks(png_ptr, info_ptr, &unknowns, 1);
 
 	qpng_write_info(png_ptr, info_ptr);
+	if (fmt == TF_RGBX32 || fmt == TF_BGRX32)
+		png_set_filler(png_ptr, 0, PNG_FILLER_AFTER);
 
 	if (numbuffers == 2)
 	{	//standard stereographic png image.
 		qbyte *pixels, *left, *right;
 		//we need to pack the data into a single image for libpng to use
-		row_pointers = Z_Malloc (sizeof(png_byte *) * height + stride*height*pxsize);	//must be zeroed, because I'm too lazy to specially deal with padding.
+		row_pointers = Z_Malloc (sizeof(png_byte *) * height + outwidth*height*pxsize);	//must be zeroed, because I'm too lazy to specially deal with padding.
 		if (!row_pointers)
 			goto err;
 		pixels = (qbyte*)row_pointers + height;
 		//png requires right then left, which is a bit weird.
 		right = pixels;
-		left = right + (stride-width)*pxsize;
+		left = right + (outwidth-width)*pxsize;
 
 		for (i = 0; i < height; i++)
 		{
 			if ((qbyte*)buffers[1])
-				memcpy(right + i*stride*pxsize, (qbyte*)buffers[1] + i*pxsize*width, pxsize * width);
+				memcpy(right + i*outwidth*pxsize, (qbyte*)buffers[1] + i*bufferstride, pxsize * width);
 			if ((qbyte*)buffers[0])
-				memcpy(left + i*stride*pxsize, (qbyte*)buffers[0] + i*pxsize*width, pxsize * width);
-			row_pointers[height - i - 1] = pixels + i * stride * pxsize;
+				memcpy(left + i*outwidth*pxsize, (qbyte*)buffers[0] + i*bufferstride, pxsize * width);
+			row_pointers[i] = pixels + i * outwidth * pxsize;
 		}
 	}
 	else if (numbuffers == 1)
@@ -1122,14 +1129,14 @@ err:
 		if (!row_pointers)
 			goto err;
 		for (i = 0; i < height; i++)
-			row_pointers[height - i - 1] = (qbyte*)buffers[0] + i * width * pxsize;
+			row_pointers[i] = (qbyte*)buffers[0] + i * bufferstride;
 	}
 	else
 	{	//pack all images horizontally, because preventing people from doing the whole cross-eyed thing is cool, or something.
 		qbyte *pixels;
 		int j;
 		//we need to pack the data into a single image for libpng to use
-		row_pointers = BZ_Malloc (sizeof(png_byte *) * height + stride*height*pxsize);
+		row_pointers = BZ_Malloc (sizeof(png_byte *) * height + outwidth*height*pxsize);
 		if (!row_pointers)
 			goto err;
 		pixels = (qbyte*)row_pointers + height;
@@ -1138,9 +1145,9 @@ err:
 			for (j = 0; j < numbuffers; j++)
 			{
 				if (buffers[j])
-					memcpy(pixels+(width*j + i*stride)*pxsize, (qbyte*)buffers[j] + i*pxsize*width, pxsize * width);
+					memcpy(pixels+(width*j + i*outwidth)*pxsize, (qbyte*)buffers[j] + i*bufferstride, pxsize * width);
 			}
-			row_pointers[height - i - 1] = pixels + i * stride * pxsize;
+			row_pointers[i] = pixels + i * outwidth * pxsize;
 		}
 	}
 	qpng_write_image(png_ptr, row_pointers);
@@ -1647,9 +1654,9 @@ void ftejpeg_mem_dest (j_compress_ptr cinfo, vfsfile_t *vfs)
 
 METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo)
 {
-  longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
+	longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
-qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int screenwidth, int screenheight, enum uploadfmt fmt)
+qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int stride, int screenwidth, int screenheight, enum uploadfmt fmt)
 {
 	qbyte	*buffer;
 	vfsfile_t	*outfile;
@@ -1657,58 +1664,61 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 	struct jpeg_compress_struct cinfo;
 	JSAMPROW row_pointer[1];
 
+	qbyte *rgbdata = NULL;
+
 	//convert in-place if needed.
 	//bgr->rgb may require copying out entirely for the first pixel to work properly.
-	if (fmt == TF_BGRA32)
-	{
-		qbyte *in=screendata, *out=screendata;
+	if (fmt == TF_BGRA32 || fmt == TF_BGRX32 || fmt == TF_BGR24)
+	{	//byteswap and strip alpha
+		size_t ps = (fmt == TF_BGR24)?3:4;
+		qbyte *in=screendata, *out=rgbdata=Hunk_TempAlloc(screenwidth*screenheight*3);
+		size_t y, x;
 		size_t sz = screenwidth*screenheight;
-		while(sz --> 0)
+		for (y = 0; y < screenheight; y++)
 		{
-			int r = in[2];
-			int g = in[1];
-			int b = in[0];
-			out[0] = r;
-			out[1] = g;
-			out[2] = b;
-			in+=4;
-			out+=3;
+			for (x = 0; x < screenwidth; x++)
+			{
+				int r = in[2];
+				int g = in[1];
+				int b = in[0];
+				out[0] = r;
+				out[1] = g;
+				out[2] = b;
+				in+=ps;
+				out+=3;
+			}
+			in-=screenwidth*ps;
+			in+=stride;
 		}
 		fmt = TF_RGB24;
+		stride = screenwidth*3;
+		screendata = rgbdata;
 	}
-	else if (fmt == TF_RGBA32)
-	{
-		qbyte *in=screendata, *out=screendata;
+	else if (fmt == TF_RGBA32 || fmt == TF_RGBX32 || (fmt == TF_RGB24 && stride < 0))
+	{	//strip alpha, no need to byteswap
+		size_t ps = (fmt == TF_RGB24)?3:4;
+		qbyte *in=screendata, *out=rgbdata=Hunk_TempAlloc(screenwidth*screenheight*3);
+		size_t y, x;
 		size_t sz = screenwidth*screenheight;
-		while(sz --> 0)
+		for (y = 0; y < screenheight; y++)
 		{
-			int r = in[0];
-			int g = in[1];
-			int b = in[2];
-			out[0] = r;
-			out[1] = g;
-			out[2] = b;
-			in+=4;
-			out+=3;
+			for (x = 0; x < screenwidth; x++)
+			{
+				int r = in[0];
+				int g = in[1];
+				int b = in[2];
+				out[0] = r;
+				out[1] = g;
+				out[2] = b;
+				in+=ps;
+				out+=3;
+			}
+			in-=screenwidth*ps;
+			in+=stride;
 		}
 		fmt = TF_RGB24;
-	}
-	else if (fmt == TF_BGR24)
-	{
-		qbyte *in=screendata, *out=screendata;
-		size_t sz = screenwidth*screenheight;
-		while(sz --> 0)
-		{
-			int r = in[0];
-			int g = in[1];
-			int b = in[2];
-			out[0] = r;
-			out[1] = g;
-			out[2] = b;
-			in+=3;
-			out+=3;
-		}
-		fmt = TF_RGB24;
+		stride = screenwidth*3;
+		screendata = rgbdata;
 	}
 	else if (fmt != TF_RGB24)
 	{
@@ -1754,7 +1764,7 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 
 	while (cinfo.next_scanline < cinfo.image_height)
 	{
-		*row_pointer = &buffer[(cinfo.image_height - cinfo.next_scanline - 1) * cinfo.image_width * 3];
+		*row_pointer = &buffer[cinfo.next_scanline * stride];
 		qjpeg_write_scanlines(&cinfo, row_pointer, 1);
 	}
 	qjpeg_finish_compress(&cinfo);
@@ -1803,9 +1813,6 @@ void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, i
 
 // pack the image
 	pack = (qbyte *)(pcx+1);
-
-	data += rowbytes * (height - 1);
-
 	for (i=0 ; i<height ; i++)
 	{
 		for (j=0 ; j<width ; j++)
@@ -1820,7 +1827,6 @@ void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, i
 		}
 
 		data += rowbytes - width;
-		data -= rowbytes * 2;
 	}
 
 // write the palette
@@ -2806,6 +2812,27 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean
 				if (in[i] == 255)
 					foundalpha = true;
 				((unsigned int*)data)[i] = d_8to24rgbtable[in[i]];
+			}
+			*width = w;
+			*height = h;
+			*hasalpha = foundalpha;
+			return data;
+		}
+		else if (w >= 3 && h >= 4 && w*h+sizeof(int)*2+768+2 == len)
+		{
+			qboolean foundalpha = false;
+			qbyte *in = (qbyte*)((int*)buf+2);
+			qbyte *palette = in + w*h+2, *p;
+			data = BZ_Malloc(w * h * sizeof(int));
+			for (i = 0; i < w * h; i++)
+			{
+				if (in[i] == 255)
+					foundalpha = true;
+				p = palette + 3*in[i];
+				data[(i<<2)+0] = p[2];
+				data[(i<<2)+1] = p[1];
+				data[(i<<2)+2] = p[0];
+				data[(i<<2)+3] = 255;
 			}
 			*width = w;
 			*height = h;
@@ -4984,7 +5011,7 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 				if (sizelimit)
 					dl->sizelimit = sizelimit;
 				dl->user_ctx = tex;
-				dl->file = VFSPIPE_Open();
+				dl->file = VFSPIPE_Open(1, false);
 				dl->isquery = true;
 			}
 #ifdef MULTITHREAD

@@ -1061,7 +1061,15 @@ void CL_CheckForResend (void)
 	if (contype & 1)
 	{
 		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
-		keeptrying &= NET_SendPacket (NS_CLIENT, strlen(data), data, &connectinfo.adr)==NETERR_SENT;
+		switch(NET_SendPacket (NS_CLIENT, strlen(data), data, &connectinfo.adr))
+		{
+		case NETERR_CLOGGED:	//temporary failure
+		case NETERR_SENT:		//yay, works!
+			break;
+		default:
+			keeptrying = false;
+			break;
+		}
 	}
 	/*NQ*/
 #ifdef NQPROT
@@ -1093,7 +1101,15 @@ void CL_CheckForResend (void)
 			MSG_WriteString(&sb, "getchallenge");
 
 		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
-		keeptrying &= NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, &connectinfo.adr)==NETERR_SENT;
+		switch(NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, &connectinfo.adr))
+		{
+		case NETERR_CLOGGED:	//temporary failure
+		case NETERR_SENT:		//yay, works!
+			break;
+		default:
+			keeptrying = false;
+			break;
+		}
 	}
 #endif
 
@@ -1318,7 +1334,7 @@ void CL_IRCConnect_f (void)
 {
 	CL_Disconnect_f ();
 
-	if (FTENET_AddToCollection(cls.sockets, "TCP", Cmd_Argv(2), NA_IRC, false))
+	if (FTENET_AddToCollection(cls.sockets, "TCP", Cmd_Argv(2), NA_IP, NP_IRC, false))
 	{
 		char *server;
 		server = Cmd_Argv (1);
@@ -1747,7 +1763,7 @@ void CL_Disconnect (void)
 
 #ifdef TCPCONNECT
 	//disconnects it, without disconnecting the others.
-	FTENET_AddToCollection(cls.sockets, "conn", NULL, NA_INVALID, false);
+	FTENET_AddToCollection(cls.sockets, "conn", NULL, NA_INVALID, NP_DGRAM, false);
 #endif
 
 	Cvar_ForceSet(&cl_servername, "none");
@@ -3418,17 +3434,11 @@ void CL_ReadPackets (void)
 		{
 		case CP_NETQUAKE:
 #ifdef NQPROT
-			switch(NQNetChan_Process(&cls.netchan))
+			if(NQNetChan_Process(&cls.netchan))
 			{
-			case NQP_ERROR:
-				break;
-			case NQP_DATAGRAM://datagram
-//				cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence - 3;
-			case NQP_RELIABLE://reliable
 				MSG_ChangePrimitives(cls.netchan.netprim);
 				CL_WriteDemoMessage (&net_message, msg_readcount);
 				CLNQ_ParseServerMessage ();
-				break;
 			}
 #endif
 			break;
@@ -4314,7 +4324,7 @@ void Host_RunFileNotify(struct dl_download *dl)
 
 #define HRF_OPENED		(1<<4)
 #define HRF_DOWNLOADED	(1<<5)	//file was actually downloaded, and not from the local system
-#define HRF_WAITING		(1<<6)	//file looks important enough that we should wait for it to start to download or something to see what file type it is.
+#define HRF_WAITING		(1<<6)	//file looks important enough that we should wait for it to start to download or something before we try doing other stuff.
 //						(1<<7)
 
 #define HRF_DEMO_MVD	(1<<8)
@@ -4328,12 +4338,14 @@ void Host_RunFileNotify(struct dl_download *dl)
 #define HRF_PACKAGE		(1<<15)	//pak or pk3 that should be installed.
 #define	HRF_ARCHIVE		(1<<16)	//zip - treated as a multiple-file 'installer'
 #define HRF_MODEL		(1<<17)
+#define HRF_CONFIG		(1<<18)	//exec it on the console...
 
 #define HRF_ACTION (HRF_OVERWRITE|HRF_NOOVERWRITE|HRF_ABORT)
 #define HRF_DEMO		(HRF_DEMO_MVD|HRF_DEMO_QWD|HRF_DEMO_DM2|HRF_DEMO_DEM)
-#define HRF_FILETYPES	(HRF_DEMO|HRF_QTVINFO|HRF_MANIFEST|HRF_BSP|HRF_PACKAGE|HRF_MODEL|HRF_ARCHIVE)
+#define HRF_FILETYPES	(HRF_DEMO|HRF_QTVINFO|HRF_MANIFEST|HRF_BSP|HRF_PACKAGE|HRF_ARCHIVE|HRF_MODEL|HRF_CONFIG)
 typedef struct {
 	unsigned int flags;
+	struct dl_download *dl;
 	vfsfile_t *srcfile;
 	vfsfile_t *dstfile;
 	char fname[1];	//system path or url.
@@ -4341,13 +4353,108 @@ typedef struct {
 
 extern int waitingformanifest;
 void Host_DoRunFile(hrf_t *f);
-void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *, char *filename, qboolean issyspath, int demotype, float bufferdelay);
+void CL_PlayDemoStream(vfsfile_t *file, char *filename, qboolean issyspath, int demotype, float bufferdelay);
 void CL_ParseQTVDescriptor(vfsfile_t *f, const char *name);
 qboolean FS_PathURLCache(char *url, char *path, size_t pathsize);
+
+//guesses the file type based upon its file extension. mdl/md3/iqm distinctions are not important, so we can usually get away with this in the context of quake.
+unsigned int Host_GuessFileType(const char *mimetype, const char *filename)
+{
+	if (mimetype)
+	{
+		if (!strcmp(mimetype, "application/x-qtv"))	//what uses this?
+			return HRF_QTVINFO;
+		else if (!strcmp(mimetype, "text/x-quaketvident"))
+			return HRF_QTVINFO;
+		else if (!strcmp(mimetype, "application/x-fteplugin"))
+			return HRF_MANIFEST;
+		else if (!strcmp(mimetype, "application/x-ftemanifest"))
+			return HRF_MANIFEST;
+		else if (!strcmp(mimetype, "application/x-multiviewdemo"))
+			return HRF_DEMO_MVD;
+		else if (!strcmp(mimetype, "application/zip"))
+			return HRF_ARCHIVE;
+//		else if (!strcmp(mimetype, "application/x-ftebsp"))
+//			return HRF_BSP;
+//		else if (!strcmp(mimetype, "application/x-ftepackage"))
+//			return HRF_PACKAGE;
+	}
+
+	if (filename)
+	{	//find the query or location part of the url, so we can ignore extra stuff.
+		struct
+		{
+			unsigned int type;
+			const char *ext;
+		} exts[] =
+		{
+			//demo formats
+			{HRF_DEMO_QWD, "qwd"},
+			{HRF_DEMO_QWD, "qwd.gz"},
+			{HRF_DEMO_MVD, "mvd"},
+			{HRF_DEMO_MVD, "mvd.gz"},
+			{HRF_DEMO_DM2, "dm2"},
+			{HRF_DEMO_DM2, "dm2.gz"},
+			{HRF_DEMO_DEM, "dem"},
+			{HRF_DEMO_DEM, "dem.gz"},
+			{HRF_QTVINFO, "qtv"},
+			//other stuff
+			{HRF_MANIFEST, "fmf"},
+			{HRF_BSP, "bsp"},
+			{HRF_BSP, "map"},
+			{HRF_CONFIG, "cfg"},
+			{HRF_CONFIG, "rc"},
+			{HRF_PACKAGE, "pak"},
+			{HRF_PACKAGE, "pk3"},
+			{HRF_PACKAGE, "pk4"},
+			{HRF_PACKAGE, "wad"},
+			{HRF_ARCHIVE, "zip"},
+			//model formats
+			{HRF_MODEL, "mdl"},
+			{HRF_MODEL, "md2"},
+			{HRF_MODEL, "md3"},
+			{HRF_MODEL, "iqm"},
+			{HRF_MODEL, "psk"},
+			{HRF_MODEL, "zym"},
+			{HRF_MODEL, "dpm"},
+			//sprites
+			{HRF_MODEL, "spr"},
+			{HRF_MODEL, "spr2"},
+			//static stuff
+			{HRF_MODEL, "obj"},
+			{HRF_MODEL, "lwo"},
+			{HRF_MODEL, "ase"},
+		};
+		size_t i;
+		const char *ext;
+		const char *stop = filename+strlen(filename);
+		const char *tag = strchr(filename, '?');
+		if (tag && tag < stop)
+			stop = tag;
+		tag = strchr(filename, '#');
+		if (tag && tag < stop)
+			stop = tag;
+
+		ext = COM_GetFileExtension(filename, stop);
+		if (!Q_strstopcasecmp(ext, stop, ".php"))	//deal with extra extensions the easy way
+			ext = COM_GetFileExtension(filename, stop=ext);
+		if (!Q_strstopcasecmp(ext, stop, ".gz"))	//deal with extra extensions the easy way
+			ext = COM_GetFileExtension(filename, ext);
+		if (*ext == '.')
+			ext++;
+
+		for (i = 0; i < countof(exts); i++)
+			if (!Q_strstopcasecmp(ext, stop, exts[i].ext))
+				return exts[i].type;
+	}
+	return 0;
+}
 
 void Host_RunFileDownloaded(struct dl_download *dl)
 {
 	hrf_t *f = dl->user_ctx;
+	if(!f)	//download was previously cancelled.
+		return;
 	if (dl->status == DL_FAILED)
 	{
 		f->flags |= HRF_ABORT;
@@ -4355,6 +4462,9 @@ void Host_RunFileDownloaded(struct dl_download *dl)
 	}
 	else
 	{
+		if (f->srcfile)	//erk?
+			VFS_CLOSE(f->srcfile);
+		f->flags |= HRF_OPENED;
 		f->srcfile = dl->file;
 		dl->file = NULL;
 	}
@@ -4373,50 +4483,10 @@ qboolean Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 		waitingformanifest--;
 	}
 
-	if (mimetype && !(f->flags & HRF_FILETYPES))
-	{
-		if (!strcmp(mimetype, "application/x-qtv"))	//what uses this?
-			f->flags |= HRF_QTVINFO;
-		else if (!strcmp(mimetype, "text/x-quaketvident"))
-			f->flags |= HRF_QTVINFO;
-		else if (!strcmp(mimetype, "application/x-fteplugin"))
-			f->flags |= HRF_MANIFEST;
-		else if (!strcmp(mimetype, "application/x-ftemanifest"))
-			f->flags |= HRF_MANIFEST;
-		else if (!strcmp(mimetype, "application/x-multiviewdemo"))
-			f->flags |= HRF_DEMO_MVD;
-		else if (!strcmp(mimetype, "application/zip"))
-			f->flags |= HRF_ARCHIVE;
-//		else if (!strcmp(mimetype, "application/x-ftebsp"))
-//			f->flags |= HRF_BSP;
-//		else if (!strcmp(mimetype, "application/x-ftepackage"))
-//			f->flags |= HRF_PACKAGE;
-
-		if (f->flags & HRF_MANIFEST)
-			waitingformanifest++;
-	}
-
 	if (!(f->flags & HRF_FILETYPES))
 	{
-		char ext[8];
-		COM_FileExtension(f->fname, ext, sizeof(ext));
-		if (!strcmp(ext, "qwd"))
-			f->flags |= HRF_DEMO_QWD;
-		else if (!strcmp(ext, "mvd"))
-			f->flags |= HRF_DEMO_MVD;
-		else if (!strcmp(ext, "dm2"))
-			f->flags |= HRF_DEMO_DM2;
-		else if (!strcmp(ext, "dem"))
-			f->flags |= HRF_DEMO_DEM;
-		else if (!strcmp(ext, "qtv"))
-			f->flags |= HRF_QTVINFO;
-		else if (!strcmp(ext, "fmf"))
-			f->flags |= HRF_MANIFEST;
-		else if (!strcmp(ext, "bsp"))
-			f->flags |= HRF_BSP;
-		else if (!strcmp(ext, "pak") || !strcmp(ext, "pk3"))
-			f->flags |= HRF_PACKAGE;
-		else
+		f->flags |= Host_GuessFileType(mimetype, f->fname);
+		if (!(f->flags & HRF_FILETYPES))
 		{
 			if (mimetype)
 				Con_Printf("mime type \"%s\" and file extension of \"%s\" not recognised\n", mimetype, f->fname);
@@ -4428,27 +4498,33 @@ qboolean Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 			return false;
 		}
 
-		if (f->flags & HRF_MANIFEST)
+		if ((f->flags & HRF_MANIFEST) && !(f->flags & HRF_WAITING))
+		{
+			f->flags |= HRF_WAITING;
 			waitingformanifest++;
+		}
 	}
 
+	//seeking means we can rewind
 	if (f->flags & HRF_DEMO_QWD)
-		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, true, DPB_QUAKEWORLD, 0);
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, true, DPB_QUAKEWORLD, 0);
 	else if (f->flags & HRF_DEMO_MVD)
-		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, true, DPB_MVD, 0);
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, true, DPB_MVD, 0);
 #ifdef Q2CLIENT
 	else if (f->flags & HRF_DEMO_DM2)
-		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, true, DPB_QUAKE2, 0);
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, true, DPB_QUAKE2, 0);
 #endif
 #ifdef NQPROT
-//fixme: the demo code can't handle the cd track like this.
-//	else if (f->flags & HRF_DEMO_DEM)
-//		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_NETQUAKE, 0);
+	else if (f->flags & HRF_DEMO_DEM)
+	{	//fixme: the demo code can't handle the cd track with streamed/missing-so-far writes.
+		dl->file = VFSPIPE_Open(1, true);	//make sure the reader will be seekable, so we can rewind.
+//		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, DPB_NETQUAKE, 0);
+	}
 #endif
 	else if (f->flags & (HRF_MANIFEST | HRF_QTVINFO))
 	{
 		//just use a pipe instead of a temp file, working around an issue with temp files on android
-		dl->file = VFSPIPE_Open();
+		dl->file = VFSPIPE_Open(1, false);
 		return true;
 	}
 	else if (f->flags & HRF_ARCHIVE)
@@ -4476,9 +4552,11 @@ qboolean Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 	//demos stream, so we want to continue the http download, but we don't want to do anything with the result.
 	if (f->flags & HRF_DEMO)
 		result = true;
-
-	f->flags |= HRF_ABORT;
-	Host_DoRunFile(f);
+	else
+	{
+		f->flags |= HRF_ABORT;
+		Host_DoRunFile(f);
+	}
 	return result;
 }
 void Host_RunFilePrompted(void *ctx, int button)
@@ -4527,7 +4605,8 @@ void Host_DoRunFile(hrf_t *f)
 	
 	if (f->flags & HRF_ABORT)
 	{
-		if (f->flags & HRF_MANIFEST)
+done:
+		if (f->flags & HRF_WAITING)
 			waitingformanifest--;
 
 		if (f->srcfile)
@@ -4540,8 +4619,6 @@ void Host_DoRunFile(hrf_t *f)
 
 	if (!(f->flags & HRF_FILETYPES))
 	{
-		char ext[8];
-
 #ifdef WEBCLIENT
 		if (isurl(f->fname) && !f->srcfile)
 		{
@@ -4552,51 +4629,38 @@ void Host_DoRunFile(hrf_t *f)
 				dl = HTTP_CL_Get(f->fname, NULL, Host_RunFileDownloaded);
 				if (dl)
 				{
-					f->flags |= HRF_WAITING|HRF_DOWNLOADED;
+					f->flags |= HRF_DOWNLOADED;
 					dl->notifystarted = Host_BeginFileDownload;
 					dl->user_ctx = f;
 
-					waitingformanifest++;
+					if (!(f->flags & HRF_WAITING))
+					{
+						f->flags |= HRF_WAITING;
+						waitingformanifest++;
+					}
 					return;
 				}
 			}
 		}
 #endif
 
-		//if we get here, we have no mime type to give us any clues.
-		COM_FileExtension(f->fname, ext, sizeof(ext));
-		if (!Q_strcasecmp(ext, "qwd"))
-			f->flags |= HRF_DEMO_QWD;
-		else if (!Q_strcasecmp(ext, "mvd"))
-			f->flags |= HRF_DEMO_MVD;
-		else if (!Q_strcasecmp(ext, "dm2"))
-			f->flags |= HRF_DEMO_DM2;
-		else if (!Q_strcasecmp(ext, "dem"))
-			f->flags |= HRF_DEMO_DEM;
-		else if (!Q_strcasecmp(ext, "qtv"))
-			f->flags |= HRF_QTVINFO;
-		else if (!Q_strcasecmp(ext, "fmf"))
-			f->flags |= HRF_MANIFEST;
-		else if (!Q_strcasecmp(ext, "bsp"))
-			f->flags |= HRF_BSP;
-		else if (!Q_strcasecmp(ext, "pak") || !Q_strcasecmp(ext, "pk3") || !Q_strcasecmp(ext, "pk4") || !Q_strcasecmp(ext, "wad"))
-			f->flags |= HRF_PACKAGE;
-		else if (!Q_strcasecmp(ext, "mdl") || !Q_strcasecmp(ext, "md2") || !Q_strcasecmp(ext, "md3") || !Q_strcasecmp(ext, "iqm")
-			|| !Q_strcasecmp(ext, "psk") || !Q_strcasecmp(ext, "zym") || !Q_strcasecmp(ext, "dpm") || !Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "spr2")
-			|| !Q_strcasecmp(ext, "obj") || !Q_strcasecmp(ext, "lwo") || !Q_strcasecmp(ext, "ase"))
-			f->flags |= HRF_MODEL;
-
+		f->flags |= Host_GuessFileType(NULL, f->fname);
+		
 		//if we still don't know what it is, give up.
 		if (!(f->flags & HRF_FILETYPES))
 		{
 			Con_Printf("Host_DoRunFile: unknown filetype\n");
-			f->flags |= HRF_ABORT;
-			Host_DoRunFile(f);
-			return;
+			goto done;
 		}
 
 		if (f->flags & HRF_MANIFEST)
-			waitingformanifest++;
+		{
+			if (!(f->flags & HRF_WAITING))
+			{
+				f->flags |= HRF_WAITING;
+				waitingformanifest++;
+			}
+		}
 	}
 
 	if (f->flags & HRF_DEMO)
@@ -4605,9 +4669,7 @@ void Host_DoRunFile(hrf_t *f)
 		FS_FixupGamedirForExternalFile(f->fname, loadcommand, sizeof(loadcommand));
 		Cbuf_AddText(va("playdemo \"%s\"\n", loadcommand), RESTRICT_LOCAL);
 
-		f->flags |= HRF_ABORT;
-		Host_DoRunFile(f);
-		return;
+		goto done;
 	}
 	else if (f->flags & HRF_BSP)
 	{
@@ -4617,9 +4679,7 @@ void Host_DoRunFile(hrf_t *f)
 		{
 			COM_StripExtension(qname+5, loadcommand, sizeof(loadcommand));
 			Cbuf_AddText(va("map \"%s\"\n", loadcommand), RESTRICT_LOCAL);
-			f->flags |= HRF_ABORT;
-			Host_DoRunFile(f);
-			return;
+			goto done;
 		}
 
 		snprintf(loadcommand, sizeof(loadcommand), "map \"%s\"\n", shortname);
@@ -4672,9 +4732,7 @@ void Host_DoRunFile(hrf_t *f)
 					}
 				}
 
-				f->flags |= HRF_ABORT;
-				Host_DoRunFile(f);
-				return;
+				goto done;
 			}
 		}
 	}
@@ -4684,9 +4742,7 @@ void Host_DoRunFile(hrf_t *f)
 			Con_Printf("%s is not within the current gamedir\n", f->fname);
 		else
 			Cbuf_AddText(va("modelviewer \"%s\"\n", loadcommand), RESTRICT_LOCAL);
-		f->flags |= HRF_ABORT;
-		Host_DoRunFile(f);
-		return;
+		goto done;
 	}
 	else if (f->flags & HRF_ARCHIVE)
 	{
@@ -4703,16 +4759,35 @@ void Host_DoRunFile(hrf_t *f)
 		{
 			COM_Gamedir("", packagespaths);
 		}
-		f->flags |= HRF_ABORT;
-		Host_DoRunFile(f);
-		return;
+		goto done;
+	}
+	else if (f->flags & HRF_CONFIG)
+	{
+		if (!(f->flags & HRF_ACTION))
+		{
+			Key_Dest_Remove(kdm_console);
+			M_Menu_Prompt(Host_RunFilePrompted, f, va("Exec %s?\n", COM_SkipPath(f->fname)), "Yes", NULL, "Cancel");
+			return;
+		}
+		if (f->flags & HRF_OPENED)
+		{
+			size_t len = VFS_GETLEN(f->srcfile);
+			char *fdata = BZ_Malloc(len+2);
+			if (fdata)
+			{
+				VFS_READ(f->srcfile, fdata, len);
+				fdata[len++] = '\n';
+				fdata[len] = 0;
+				Cbuf_AddText(fdata, RESTRICT_INSECURE);
+				BZ_Free(fdata);
+			}
+			goto done;
+		}
 	}
 	else if (!(f->flags & HRF_QTVINFO))
 	{
 		Con_Printf("Host_DoRunFile: filetype not handled\n");
-		f->flags |= HRF_ABORT;
-		Host_DoRunFile(f);
-		return;
+		goto done;
 	}
 
 	//at this point we need the file to have been opened.
@@ -4740,9 +4815,7 @@ void Host_DoRunFile(hrf_t *f)
 	if (!f->srcfile)
 	{
 		Con_Printf("Unable to open %s\n", f->fname);
-		f->flags |= HRF_ABORT;
-		Host_DoRunFile(f);
-		return;
+		goto done;
 	}
 
 	if (f->flags & HRF_MANIFEST)
@@ -4757,9 +4830,7 @@ void Host_DoRunFile(hrf_t *f)
 		CL_ParseQTVDescriptor(f->srcfile, f->fname);
 		f->srcfile = NULL;
 
-		f->flags |= HRF_ABORT;
-		Host_DoRunFile(f);
-		return;
+		goto done;
 	}
 
 	VFS_SEEK(f->srcfile, 0);
@@ -4768,7 +4839,7 @@ void Host_DoRunFile(hrf_t *f)
 	if (f->dstfile)
 	{
 		//do a real diff.
-		if (f->srcfile->seekingisabadplan || VFS_GETLEN(f->srcfile) != VFS_GETLEN(f->dstfile))
+		if (f->srcfile->seekstyle == SS_UNSEEKABLE || VFS_GETLEN(f->srcfile) != VFS_GETLEN(f->dstfile))
 		{
 			//if we can't seek, or the sizes differ, just assume that the file is modified.
 			haschanged = true;
@@ -4794,6 +4865,7 @@ void Host_DoRunFile(hrf_t *f)
 	{
 		if (!(f->flags & HRF_ACTION))
 		{
+			Key_Dest_Remove(kdm_console);
 			M_Menu_Prompt(Host_RunFilePrompted, f, va("File already exists.\nWhat would you like to do?\n%s\n", displayname), "Overwrite", "Run old", "Cancel");
 			return;
 		}
@@ -4802,6 +4874,7 @@ void Host_DoRunFile(hrf_t *f)
 	{
 		if (!(f->flags & HRF_ACTION))
 		{
+			Key_Dest_Remove(kdm_console);
 			M_Menu_Prompt(Host_RunFilePrompted, f, va("File appears new.\nWould you like to install\n%s\n", displayname), "Install!", "", "Cancel");
 			return;
 		}
@@ -4814,6 +4887,11 @@ void Host_DoRunFile(hrf_t *f)
 		f->dstfile = FS_OpenVFS(qname, "wb", FS_GAMEONLY);
 		if (f->dstfile)
 		{
+#ifdef FTE_TARGET_WEB
+			VFS_SEEK(f->dstfile, VFS_GETLEN(f->srcfile));
+			VFS_WRITE(f->dstfile, "zomg", 0);	//hack to ensure the file is there, avoiding excessive copies.
+			VFS_SEEK(f->dstfile, 0);
+#endif
 			while(1)
 			{
 				len = VFS_READ(f->srcfile, buffer, sizeof(buffer));
@@ -4897,6 +4975,8 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 		else
 			Con_Printf("Unknown url command: %s\n", cmd);
 
+		if(file)
+			VFS_CLOSE(file);
 		Z_Free(t);
 		return true;
 	}
@@ -4904,6 +4984,9 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 	f = Z_Malloc(sizeof(*f) + nlen);
 	memcpy(f->fname, fname, nlen);
 	f->fname[nlen] = 0;
+	f->srcfile = file;
+	if (file)
+		f->flags |= HRF_OPENED;
 
 	Con_Printf("Opening external file: %s\n", f->fname);
 
@@ -5601,6 +5684,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 		Cbuf_AddText ("exec frontend.cfg\n", RESTRICT_LOCAL);
 #endif
 	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
+	COM_ParsePlusSets(true);
 
 	com_parseutf8.ival = com_parseutf8.value;
 
@@ -5841,10 +5925,6 @@ void Host_Shutdown(void)
 
 	M_Shutdown(true);
 
-#ifdef PLUGINS
-	Plug_Shutdown(false);
-#endif
-
 #ifdef CSQC_DAT
 	CSQC_Shutdown();
 #endif
@@ -5853,12 +5933,16 @@ void Host_Shutdown(void)
 	UI_Stop();
 #endif
 
-//	Host_WriteConfiguration ();
-
+	S_Shutdown(true);
 	CDAudio_Shutdown ();
 	IN_Shutdown ();
 	R_ShutdownRenderer(true);
-	S_Shutdown(true);
+
+#ifdef PLUGINS
+	Plug_Shutdown(false);
+#endif
+
+//	Host_WriteConfiguration ();
 #ifdef CL_MASTER
 	MasterInfo_Shutdown();
 #endif

@@ -3112,7 +3112,7 @@ vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *outfile)
 	n->vf.Tell				= NULL;
 	n->vf.Close				= FS_XZ_Dec_Close;
 	n->vf.WriteBytes		= FS_XZ_Dec_Write;
-	n->vf.seekingisabadplan	= true;
+	n->vf.seekstyle			= SS_UNSEEKABLE;
 
 	return &n->vf;
 }

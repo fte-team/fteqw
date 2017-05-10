@@ -526,7 +526,9 @@ static void OpenAL_ListenerUpdate(soundcardinfo_t *sc, int entnum, vec3_t origin
 	{
 		palListenerf(AL_GAIN, 1);
 		palListenerfv(AL_POSITION, oali->ListenPos);
+#ifndef FTE_TARGET_WEB	//webaudio sucks.
 		palListenerfv(AL_VELOCITY, oali->ListenVel);
+#endif
 		palListenerfv(AL_ORIENTATION, oali->ListenOri);
 	}
 }
@@ -581,6 +583,8 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	float pitch, cvolume;
 	int chnum = chan - sc->channel;
 	ALuint buf;
+	qboolean stream;
+	qboolean srcrel;
 
 	if (chnum >= oali->max_sources)
 	{
@@ -638,17 +642,19 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 				palDeleteBuffers(1, &buf);
 			}
 		}
-	}
-	if (!schanged && sfx)	//if we don't figure out when they've finished, they'll not get replaced properly.
-	{
-		palGetSourcei(src, AL_SOURCE_STATE, &buf);
-		if (buf != AL_PLAYING)
+		else if (!schanged && sfx)	//if we don't figure out when they've finished, they'll not get replaced properly.
 		{
-			schanged = true;
-			if (chan->flags & CF_FORCELOOP)
-				chan->pos = 0;
-			else
-				sfx = chan->sfx = NULL;
+			palGetSourcei(src, AL_SOURCE_STATE, &buf);
+			if (buf != AL_PLAYING)
+			{
+				schanged = true;
+				if(sfx->loopstart != -1)
+					chan->pos = sfx->loopstart<<PITCHSHIFT;
+				else if (chan->flags & CF_FORCELOOP)
+					chan->pos = 0;
+				else
+					sfx = chan->sfx = NULL;
+			}
 		}
 	}
 
@@ -673,7 +679,10 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	if (!(chan->flags & CF_ABSVOLUME))
 		cvolume *= volume.value*voicevolumemod;
 
-	if (schanged || sfx->decoder.decodedata)
+	//openal doesn't support loopstart (entire sample loops or not at all), so if we're meant to skip the first half then we need to stream it.
+	stream = sfx->decoder.decodedata || sfx->loopstart > 0;
+
+	if (schanged || stream)
 	{
 		if (!sfx->openal_buffer)
 		{
@@ -688,39 +697,63 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 				}
 				return;	//not available yet
 			}
-			if (sfx->decoder.decodedata)
+			if (stream)
 			{
+				ALuint queuedbufs;
 				int offset;
 				sfxcache_t sbuf, *sc;
-				palGetSourcei(src, AL_BUFFERS_QUEUED, &buf);
-				if (buf <= 3)
+				palGetSourcei(src, AL_BUFFERS_QUEUED, &queuedbufs);
+				while (queuedbufs < 3)
 				{	//decode periodically instead of all at the start.
-					sc = sfx->decoder.decodedata(sfx, &sbuf, chan->pos>>PITCHSHIFT, 65536);
+					int tryduration = snd_speed*0.5;
+					ssamplepos_t pos = chan->pos>>PITCHSHIFT;
+
+					if (sfx->decoder.decodedata)
+						sc = sfx->decoder.decodedata(sfx, &sbuf, pos, tryduration);
+					else
+					{
+						sc = sfx->decoder.buf;
+						if (pos >= sc->length)
+							sc = NULL;
+					}
 					if (sc)
 					{
 						memcpy(&sbuf, sc, sizeof(sbuf));
 
 						//hack up the sound to offset it correctly
-						offset = (chan->pos>>PITCHSHIFT) - sbuf.soundoffset;
-						sbuf.data += offset * sc->width*sc->numchannels;
-						sbuf.length -= offset;
-
-
+						if (pos < sbuf.soundoffset || pos > sbuf.soundoffset+sbuf.length)
+							sbuf.length = 0;	//didn't contain the requested samples... the decoder is struggling.
+						else
+						{
+							offset = pos - sbuf.soundoffset;
+							sbuf.data += offset * sc->width*sc->numchannels;
+							sbuf.length -= offset;
+						}
 						sbuf.soundoffset = 0;
 
-						if (!buf)
-						{	//queue 124 samples if we're starting/resetting a new stream this is to try to cover up discintinuities caused by low samle rates
-							sfxcache_t silence = sbuf;
+						if (sbuf.length > tryduration)
+							sbuf.length = tryduration;	//don't bother queuing more than 3*0.5 secs
+
+						if (sbuf.length)
+						{
+							//build a buffer with it and queue it up.
+							//buffer will be purged later on when its unqueued
+							OpenAL_LoadCache(&buf, &sbuf, max(1,cvolume));
+							palSourceQueueBuffers(src, 1, &buf);
+						}
+						else
+						{	//decoder isn't ready yet, but didn't signal an error/eof. queue a little silence, because that's better than constant micro stutters
+							sfxcache_t silence;
+							silence.speed = snd_speed;
+							silence.width = 2;
+							silence.numchannels = 1;
 							silence.data = NULL;
-							silence.length = 0.1 * sbuf.speed;
+							silence.length = 0.1 * silence.speed;
+							silence.soundoffset = 0;
 							OpenAL_LoadCache(&buf, &silence, 1);
 							palSourceQueueBuffers(src, 1, &buf);
 						}
-
-						//build a buffer with it and queue it up.
-						//buffer will be purged later on when its unqueued
-						OpenAL_LoadCache(&buf, &sbuf, max(1,cvolume));
-						palSourceQueueBuffers(src, 1, &buf);
+						queuedbufs++;
 
 						//yay
 						chan->pos += sbuf.length<<PITCHSHIFT;
@@ -731,24 +764,39 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 					}
 					else
 					{
-						palGetSourcei(src, AL_SOURCE_STATE, &buf);
-						if (buf != AL_PLAYING)
-						{
-							if (chan->flags & CF_FORCELOOP)
-								chan->pos = 0;
-//							else if(sbuf.loopstart != -1)
-//								chan->pos = sbuf.loopstart<<PITCHSHIFT;
-							else
-							{
-								chan->sfx = NULL;
-								if (sfx->decoder.ended)
-								{
-									if (!S_IsPlayingSomewhere(sfx))
-										sfx->decoder.ended(sfx);
-								}
-							}
-							return;
+						if(sfx->loopstart != -1)
+							chan->pos = sfx->loopstart<<PITCHSHIFT;
+						else if (chan->flags & CF_FORCELOOP)
+							chan->pos = 0;
+						else //we don't want to play anything more.
+							break;
+						if (!queuedbufs)
+						{	//queue 0.1 secs if we're starting/resetting a new stream this is to try to cover up discintinuities caused by packetloss or whatever
+							sfxcache_t silence;
+							silence.speed = snd_speed;
+							silence.width = 2;
+							silence.numchannels = 1;
+							silence.data = NULL;
+							silence.length = 0.1 * silence.speed;
+							silence.soundoffset = 0;
+							OpenAL_LoadCache(&buf, &silence, 1);
+							palSourceQueueBuffers(src, 1, &buf);
+							queuedbufs++;
 						}
+					}
+				}
+				if (!queuedbufs)
+				{
+					palGetSourcei(src, AL_SOURCE_STATE, &buf);
+					if (buf != AL_PLAYING)
+					{
+						chan->sfx = NULL;
+						if (sfx->decoder.ended)
+						{
+							if (!S_IsPlayingSomewhere(sfx))
+								sfx->decoder.ended(sfx);
+						}
+						return;
 					}
 				}
 			}
@@ -771,15 +819,20 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	}
 
 	palSourcef(src, AL_GAIN, min(cvolume, 1));	//openal only supports a max volume of 1. anything above is an error and will be clamped.
-	if ((chan->flags & CF_NOSPACIALISE) || (chan->entnum && chan->entnum == oali->ListenEnt) || !chan->dist_mult)
+	srcrel = (chan->flags & CF_NOSPACIALISE) || (chan->entnum && chan->entnum == oali->ListenEnt) || !chan->dist_mult;
+	if (srcrel)
 	{
 		palSourcefv(src, AL_POSITION, vec3_origin);
+#ifndef FTE_TARGET_WEB	//webaudio sucks.
 		palSourcefv(src, AL_VELOCITY, vec3_origin);
+#endif
 	}
 	else
 	{
 		palSourcefv(src, AL_POSITION, chan->origin);
+#ifndef FTE_TARGET_WEB	//webaudio sucks.
 		palSourcefv(src, AL_VELOCITY, chan->velocity);
+#endif
 	}
 
 	if (schanged)
@@ -804,8 +857,8 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 		}
 #endif
 
-		palSourcei(src, AL_LOOPING, (chan->flags & CF_FORCELOOP)?AL_TRUE:AL_FALSE);
-		if ((chan->flags & CF_NOSPACIALISE) || chan->entnum == oali->ListenEnt || !chan->dist_mult)
+		palSourcei(src, AL_LOOPING, (!stream && (chan->flags & CF_FORCELOOP))?AL_TRUE:AL_FALSE);
+		if (srcrel)
 		{
 			palSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
 //			palSourcef(src, AL_ROLLOFF_FACTOR, 0.0f);
@@ -819,22 +872,46 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 		//this is disgustingly shit.
 		//logically we want to set the distance divisor to 1 and the rolloff factor to dist_mult.
 		//but openal clamps in an annoying order (probably to keep things signed in hardware) and webaudio refuses infinity, so we need to special case no attenuation to get around the issue
-		if (!chan->dist_mult)
+		if (srcrel)
 		{
-			palSourcef(src, AL_ROLLOFF_FACTOR, 0);
-			palSourcef(src, AL_REFERENCE_DISTANCE, 0);
-			palSourcef(src, AL_MAX_DISTANCE, 1);	//doesn't matter, so long as its not a nan
+#ifdef FTE_TARGET_WEB
+			switch(0)	//emscripten omits it, and this is webaudio's default too.
+#else
+			switch(s_al_distancemodel.ival)
+#endif
+			{
+			default:
+			case 0:
+			case 1:
+				palSourcef(src, AL_ROLLOFF_FACTOR, 0);
+				palSourcef(src, AL_REFERENCE_DISTANCE, 1);	//0 would be silent, or a division by 0
+				palSourcef(src, AL_MAX_DISTANCE, 1);	//only used for clamped mode
+				break;
+			case 2:
+			case 3:
+				palSourcef(src, AL_ROLLOFF_FACTOR, 0);
+				palSourcef(src, AL_REFERENCE_DISTANCE, 0);	//doesn't matter when rolloff is 0
+				palSourcef(src, AL_MAX_DISTANCE, 1);	//doesn't matter, so long as its not a nan
+				break;
+			}
 		}
 		else
 		{
+#ifdef FTE_TARGET_WEB
+			switch(2)	//emscripten hardcodes it.
+#else
 			switch(s_al_distancemodel.ival)
+#endif
 			{
 			default:
+			case 0:
+			case 1:
 				palSourcef(src, AL_ROLLOFF_FACTOR, s_al_reference_distance.value);
 				palSourcef(src, AL_REFERENCE_DISTANCE, 1);
 				palSourcef(src, AL_MAX_DISTANCE, 1/chan->dist_mult);	//clamp to the maximum distance you'd normally be allowed to hear... this is probably going to be annoying.
 				break;
 			case 2:	//linear, mimic quake.
+			case 3: //linear clamped to further than ref distance
 				palSourcef(src, AL_ROLLOFF_FACTOR, 1);
 				palSourcef(src, AL_REFERENCE_DISTANCE, 0);
 				palSourcef(src, AL_MAX_DISTANCE, 1/chan->dist_mult);
@@ -974,7 +1051,9 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 			PrintALError("alGensources for normal sources");
 
 			palListenerfv(AL_POSITION, oali->ListenPos);
+#ifndef FTE_TARGET_WEB	//webaudio sucks.
 			palListenerfv(AL_VELOCITY, oali->ListenVel);
+#endif
 			palListenerfv(AL_ORIENTATION, oali->ListenOri);
 
 			return true;
@@ -1007,24 +1086,38 @@ static void QDECL OnChangeALSettings (cvar_t *var, char *value)
 			switch (s_al_distancemodel.ival)
 			{
 				case 0:
+					//gain = AL_REFERENCE_DISTANCE / (AL_REFERENCE_DISTANCE +  AL_ROLLOFF_FACTOR * (distance – AL_REFERENCE_DISTANCE) )
 					palDistanceModel(AL_INVERSE_DISTANCE);
 					break;
-				case 1:
+				case 1:	//openal's default mode
+					//istance = max(distance,AL_REFERENCE_DISTANCE); 
+					//distance = min(distance,AL_MAX_DISTANCE); 
+					//gain = AL_REFERENCE_DISTANCE / (AL_REFERENCE_DISTANCE +  AL_ROLLOFF_FACTOR * (distance – AL_REFERENCE_DISTANCE) )
 					palDistanceModel(AL_INVERSE_DISTANCE_CLAMPED);
 					break;
-				case 2:
+				case 2:	//most quake-like
+					//distance = min(distance, AL_MAX_DISTANCE) // avoid negative gain 
+					//gain = ( 1 – AL_ROLLOFF_FACTOR * (distance – AL_REFERENCE_DISTANCE) / (AL_MAX_DISTANCE – AL_REFERENCE_DISTANCE) )
 					palDistanceModel(AL_LINEAR_DISTANCE);
 					break;
 				case 3:
+					//distance = max(distance, AL_REFERENCE_DISTANCE) 
+					//distance = min(distance, AL_MAX_DISTANCE) 
+					//gain = ( 1 – AL_ROLLOFF_FACTOR * (distance – AL_REFERENCE_DISTANCE) / (AL_MAX_DISTANCE – AL_REFERENCE_DISTANCE) )
 					palDistanceModel(AL_LINEAR_DISTANCE_CLAMPED);
 					break;
 				case 4:
+					//gain = (distance / AL_REFERENCE_DISTANCE) ^ (- AL_ROLLOFF_FACTOR)
 					palDistanceModel(AL_EXPONENT_DISTANCE);
 					break;
 				case 5:
+					//distance = max(distance, AL_REFERENCE_DISTANCE) 
+					//distance = min(distance, AL_MAX_DISTANCE) 
+					//gain = (distance / AL_REFERENCE_DISTANCE) ^ (- AL_ROLLOFF_FACTOR)
 					palDistanceModel(AL_EXPONENT_DISTANCE_CLAMPED);
 					break;
 				case 6:
+					//gain = 1
 					palDistanceModel(AL_NONE);
 					break;
 				default:

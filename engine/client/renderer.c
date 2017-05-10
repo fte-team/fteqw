@@ -169,7 +169,7 @@ qboolean r_softwarebanding;
 cvar_t r_speeds								= CVAR ("r_speeds", "0");
 cvar_t r_stainfadeammount					= CVAR  ("r_stainfadeammount", "1");
 cvar_t r_stainfadetime						= CVAR  ("r_stainfadetime", "1");
-cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0.75"),
+cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0"),
 												CVAR_ARCHIVE,
 												Cvar_Limiter_ZeroToOne_Callback);
 cvar_t r_renderscale						= CVARD("r_renderscale", "1", "Provides a way to enable subsampling or super-sampling");
@@ -208,9 +208,8 @@ cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
 cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
 // 10 - 170
-cvar_t scr_fov								= CVARFDC("fov", "90",
-												CVAR_ARCHIVE, "field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.",
-												SCR_Fov_Callback);
+cvar_t scr_fov								= CVARFCD("fov", "90", CVAR_ARCHIVE, SCR_Fov_Callback,
+												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
 cvar_t scr_printspeed						= CVAR  ("scr_printspeed", "16");
 cvar_t scr_showpause						= CVAR  ("showpause", "1");
 cvar_t scr_showturtle						= CVAR  ("showturtle", "0");
@@ -218,9 +217,7 @@ cvar_t scr_turtlefps						= CVAR  ("scr_turtlefps", "10");
 cvar_t scr_sshot_compression				= CVAR  ("scr_sshot_compression", "75");
 cvar_t scr_sshot_type						= CVAR  ("scr_sshot_type", "png");
 cvar_t scr_sshot_prefix						= CVAR  ("scr_sshot_prefix", "screenshots/fte-"); 
-cvar_t scr_viewsize							= CVARFC("viewsize", "100",
-												CVAR_ARCHIVE,
-												SCR_Viewsize_Callback);
+cvar_t scr_viewsize							= CVARFC("viewsize", "100", CVAR_ARCHIVE, SCR_Viewsize_Callback);
 
 #ifdef ANDROID
 cvar_t vid_conautoscale						= CVARF ("vid_conautoscale", "2",
@@ -319,8 +316,8 @@ cvar_t r_deluxmapping_cvar					= CVARAFD ("r_deluxmapping", "0", "r_deluxemappin
 qboolean r_deluxmapping;
 cvar_t r_shaderblobs						= CVARD ("r_shaderblobs", "0", "If enabled, can massively accelerate vid restarts / loading (especially with the d3d renderer). Can cause issues when upgrading engine versions, so this is disabled by default.");
 cvar_t gl_compress							= CVARFD ("gl_compress", "0", CVAR_ARCHIVE, "Enable automatic texture compression even for textures which are not pre-compressed.");
-cvar_t gl_conback							= CVARFDC ("gl_conback", "",
-												CVAR_RENDERERCALLBACK, "Specifies which conback shader/image to use. The Quake fallback is gfx/conback.lmp", R2D_Conback_Callback);
+cvar_t gl_conback							= CVARFCD ("gl_conback", "",
+												CVAR_RENDERERCALLBACK, R2D_Conback_Callback, "Specifies which conback shader/image to use. The Quake fallback is gfx/conback.lmp");
 //cvar_t gl_detail							= CVARF ("gl_detail", "0",
 //												CVAR_ARCHIVE);
 //cvar_t gl_detailscale						= CVAR  ("gl_detailscale", "5");
@@ -372,15 +369,15 @@ cvar_t gl_specular_fallbackexp				= CVARF  ("gl_specular_fallbackexp", "1", CVAR
 cvar_t gl_texture_anisotropic_filtering		= CVARFC("gl_texture_anisotropic_filtering", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												Image_TextureMode_Callback);
-cvar_t gl_texturemode						= CVARFDC("gl_texturemode", "GL_LINEAR_MIPMAP_LINEAR",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK | CVAR_SAVE,
-												"Specifies how world/model textures appear. Typically 3 letters eg lln.\nFirst letter can be l(inear) or n(earest) and says how to sample from the mip (when downsampling).\nThe middle letter can . to disable mipmaps, or l or n to describe whether to blend between mipmaps.\nThe third letter says what to do when the texture is too low resolution and is thus the most noticable with low resolution textures, a n will make it look like lego, while an l will keep it smooth.", Image_TextureMode_Callback);
+cvar_t gl_texturemode						= CVARFCD("gl_texturemode", "GL_LINEAR_MIPMAP_LINEAR",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK | CVAR_SAVE, Image_TextureMode_Callback,
+												"Specifies how world/model textures appear. Typically 3 letters eg lln.\nFirst letter can be l(inear) or n(earest) and says how to sample from the mip (when downsampling).\nThe middle letter can . to disable mipmaps, or l or n to describe whether to blend between mipmaps.\nThe third letter says what to do when the texture is too low resolution and is thus the most noticable with low resolution textures, a n will make it look like lego, while an l will keep it smooth.");
 cvar_t gl_mipcap							= CVARAFC("d_mipcap", "0 1000", "gl_miptexLevel",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												Image_TextureMode_Callback);
-cvar_t gl_texturemode2d						= CVARFDC("gl_texturemode2d", "GL_LINEAR",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
-												"Specifies how 2d images are sampled. format is a 3-tupple ", Image_TextureMode_Callback);
+cvar_t gl_texturemode2d						= CVARFCD("gl_texturemode2d", "GL_LINEAR",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, Image_TextureMode_Callback,
+												"Specifies how 2d images are sampled. format is a 3-tupple ");
 
 cvar_t vid_triplebuffer						= CVARAFD ("vid_triplebuffer", "1", "gl_triplebuffer", CVAR_ARCHIVE, "Specifies whether the hardware is forcing tripplebuffering on us, this is the number of extra page swaps required before old data has been completely overwritten.");
 
@@ -973,7 +970,7 @@ void	(*R_RenderView)				(void);		// must set r_refdef first
 
 qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (*VID_DeInit)				(void);
-char	*(*VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
+char	*(*VID_GetRGBInfo)			(int *stride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
 void	(*VID_SetWindowCaption)		(const char *msg);
 
 qboolean (*SCR_UpdateScreen)			(void);
@@ -1066,6 +1063,7 @@ extern rendererinfo_t swrendererinfo;
 #ifdef VKQUAKE
 extern rendererinfo_t vkrendererinfo;
 //rendererinfo_t headlessvkrendererinfo;
+extern rendererinfo_t nvvkrendererinfo;
 #endif
 #ifdef HEADLESSQUAKE
 extern rendererinfo_t headlessrenderer;
@@ -1095,6 +1093,9 @@ rendererinfo_t *rendererinfo[] =
 #endif
 #ifdef VKQUAKE
 	&vkrendererinfo,
+	#ifdef _WIN32
+		&nvvkrendererinfo,
+	#endif
 #endif
 #ifdef D3D8QUAKE
 	&d3d8rendererinfo,

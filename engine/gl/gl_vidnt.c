@@ -52,7 +52,10 @@ static enum
 	MODE_EGL,
 #endif
 #ifdef VKQUAKE
-	MODE_VULKAN,
+	MODE_VULKAN,	//proper vulkan
+	#ifdef USE_WGL
+		MODE_NVVULKAN,	//vulkan accessed via nvidia's render-to-image-then-copy-to-gl-backbuffer-then-copy-that opengl extension.
+	#endif
 #endif
 } platform_rendermode;
 
@@ -834,6 +837,94 @@ static qboolean Win32VK_AttachVulkan (rendererstate_t *info)
 }
 #endif
 
+
+#if defined(VKQUAKE) && defined(USE_WGL)
+#define GLuint64 quint64_t
+#define GLchar char
+static PFN_vkVoidFunction	(WINAPI *qglGetVkProcAddrNV)		(const GLchar *name);
+static void					(WINAPI *qglDrawVkImageNV)			(GLuint64 vkImage, GLuint sampler, GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1, GLfloat z, GLfloat s0, GLfloat t0, GLfloat s1, GLfloat t1);
+static void					(WINAPI *qglWaitVkSemaphoreNV)		(GLuint64 vkSemaphore);
+static void					(WINAPI *qglSignalVkSemaphoreNV)	(GLuint64 vkSemaphore);
+static void					(WINAPI *qglSignalVkFenceNV)		(GLuint64 vkFence);
+static PFN_vkVoidFunction VKAPI_CALL nvvkGetInstanceProcAddr(VkInstance instance, const char* pName)
+{
+	//nvidia do not make this easy.
+	PFN_vkVoidFunction fnc;
+
+//	qwglMakeCurrent(maindc, baseRC);
+	fnc = qglGetVkProcAddrNV(pName);
+//	qwglMakeCurrent(maindc, NULL);
+
+	return fnc;
+}
+static qboolean Win32NVVK_CreateSurface(void)
+{
+	vk.surface = VK_NULL_HANDLE;
+//	vk.allowsubmissionthread = false;	//must come on the main thread, because that's the one with the gl context.
+										//I seem to be getting crashes on vulkan's fences if I try giving ownership of the gl context to a different thread (instead of main).
+	return true;
+}
+static void Win32NVVK_Present(struct vkframe *theframe)
+{
+	SendMessage(mainwindow, WM_USER+8, 0, (LPARAM)theframe);
+}
+static void Win32NVVK_DoPresent(struct vkframe *theframe)
+{
+	VkFence fence;
+	RSpeedLocals();
+	if (!theframe)
+		return;	//this is used to ensure some presentation thread has woken up. we're not threading this, hopefully the gl server will do any of that that's needed.
+
+	RSpeedRemark();
+
+	//this might be a submission thread, so make sure we're talking to the right opengl context...
+//	qwglMakeCurrent(maindc, baseRC);
+
+	//get the gl driver to wait for the vk driver to finish rendering the frame
+	qglWaitVkSemaphoreNV(theframe->backbuf->presentsemaphore);
+
+	//tell the gl driver to copy it over now
+	qglDrawVkImageNV(theframe->backbuf->colour.image, theframe->backbuf->colour.sampler, 
+			0, 0, vid.pixelwidth, vid.pixelheight,	//xywh (window coords)
+			0,	//z
+			0, 1, 1, 0);	//stst (remember that gl textures are meant to be upside down)
+
+	//and tell our code to expect it.
+	vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT] = vk.aquirelast%vk.backbuf_count;
+	fence = vk.acquirefences[vk.aquirelast%ACQUIRELIMIT];
+	vk.aquirelast++;
+	//and actually signal it, so our code can wake up.
+	qglSignalVkFenceNV(fence);
+
+
+	//and the gl driver has its final image and should do something with it now.
+	qSwapBuffers(maindc);
+
+//	qwglMakeCurrent(maindc, NULL);
+
+	RSpeedEnd(RSPEED_PRESENT);
+}
+static qboolean WGL_CheckExtension(char *extname);
+static qboolean Win32NVVK_AttachVulkan (rendererstate_t *info)
+{	//make sure we can get a valid renderer.
+
+	if (!GL_CheckExtension("GL_NV_draw_vulkan_image"))
+	{
+		Con_Printf("GL_NV_draw_vulkan_image is not supported. Try using real vulkan instead.\n");
+		return false;
+	}
+	qglGetVkProcAddrNV		= getglfunc("glGetVkProcAddrNV");
+	qglDrawVkImageNV		= getglfunc("glDrawVkImageNV");
+	qglWaitVkSemaphoreNV	= getglfunc("glWaitVkSemaphoreNV");
+	qglSignalVkSemaphoreNV	= getglfunc("glSignalVkSemaphoreNV");
+	qglSignalVkFenceNV		= getglfunc("glSignalVkFenceNV");
+
+	vkGetInstanceProcAddr = nvvkGetInstanceProcAddr;
+//	qwglMakeCurrent(maindc, NULL);
+	return VK_Init(info, NULL, Win32NVVK_CreateSurface, Win32NVVK_Present);
+}
+#endif
+
 /*doesn't consider parent offsets*/
 static RECT centerrect(unsigned int parentleft, unsigned int parenttop, unsigned int parentwidth, unsigned int parentheight, unsigned int cwidth, unsigned int cheight)
 {
@@ -1343,6 +1434,9 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	{
 #ifdef USE_WGL
 	case MODE_WGL:
+#ifdef VKQUAKE
+	case MODE_NVVULKAN:
+#endif
 		// Set either the fullscreen or windowed mode
 		qwglChoosePixelFormatARB = NULL;
 		qwglCreateContextAttribsARB = NULL;
@@ -1383,6 +1477,13 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 				return false;
 			}
 		}
+
+#ifdef VKQUAKE
+		if (platform_rendermode == MODE_NVVULKAN && stat)
+		{
+			stat = Win32NVVK_AttachVulkan(info);
+		}
+#endif
 		break;
 #endif
 #ifdef USE_EGL
@@ -1490,6 +1591,13 @@ void VID_UnSetMode (void)
 
 		switch(platform_rendermode)
 		{
+#if defined(VKQUAKE) && defined(USE_WGL)
+		case MODE_NVVULKAN:
+			qwglMakeCurrent(maindc, baseRC);
+			VK_Shutdown();
+			ReleaseGL();
+			break;
+#endif
 #ifdef USE_WGL
 		case MODE_WGL:
 			ReleaseGL();
@@ -1596,10 +1704,10 @@ static void VID_UpdateWindowStatus (HWND hWnd)
 	switch(platform_rendermode)
 	{
 #ifdef VKQUAKE
+	case MODE_NVVULKAN:
 	case MODE_VULKAN:
 		if (vid.pixelwidth != window_width || vid.pixelheight != window_height)
 			vk.neednewswapchain = true;
-		break;
 #endif
 	default:
 		vid.pixelwidth = window_width;
@@ -2709,6 +2817,11 @@ static LONG WINAPI GLMainWndProc (
 			VK_DoPresent((struct vkframe*)lParam);
 			break;
 #endif
+#if defined(VKQUAKE) && defined(USE_WGL)
+		case WM_USER+8:
+			Win32NVVK_DoPresent((struct vkframe*)lParam);
+			break;
+#endif
 		case WM_USER+4:
 			PostQuitMessage(0);
 			break;
@@ -2814,6 +2927,31 @@ static LONG WINAPI GLMainWndProc (
 				break;
 			}
 			break;
+
+		case WM_DROPFILES:
+		{
+			HDROP p = (HDROP)wParam;
+			wchar_t fnamew[MAX_PATH];
+			char fname[MAX_PATH];
+			vfsfile_t *f;
+			int i, count = DragQueryFile(p, ~0, NULL, 0);
+			for(i = 0; i < count; i++)
+			{
+				if (WinNT)
+				{
+					DragQueryFileW(p, i, fnamew, countof(fnamew));
+					narrowen(fname, sizeof(fname), fnamew);
+				}
+				else
+					DragQueryFileA(p, i, fname, countof(fname));
+				f = FS_OpenVFS(fname, "rb", FS_SYSTEM);
+				if (f)
+					Host_RunFile(fname, strlen(fname), f);
+			}
+			DragFinish(p);
+			return 0;	//An application should return zero if it processes this message.
+		}
+		break;
 
 #ifdef HAVE_CDPLAYER
 		case MM_MCINOTIFY:
@@ -2935,6 +3073,8 @@ qboolean Win32VID_Init (rendererstate_t *info, unsigned char *palette, int mode)
 	vid_initialized = true;
 	vid_initializing = false;
 
+	WIN_WindowCreated(mainwindow);
+
 	return true;
 }
 
@@ -3049,6 +3189,69 @@ rendererinfo_t vkrendererinfo =
 	VK_R_RenderView,
 
 	VKVID_Init,
+	GLVID_DeInit,
+	GLVID_SwapBuffers,
+	GLVID_ApplyGammaRamps,
+	WIN_CreateCursor,
+	WIN_SetCursor,
+	WIN_DestroyCursor,
+	GLVID_SetCaption,
+	VKVID_GetRGBInfo,
+
+	VK_SCR_UpdateScreen,
+
+	VKBE_SelectMode,
+	VKBE_DrawMesh_List,
+	VKBE_DrawMesh_Single,
+	VKBE_SubmitBatch,
+	VKBE_GetTempBatch,
+	VKBE_DrawWorld,
+	VKBE_Init,
+	VKBE_GenBrushModelVBO,
+	VKBE_ClearVBO,
+	VKBE_UploadAllLightmaps,
+	VKBE_SelectEntity,
+	VKBE_SelectDLight,
+	VKBE_Scissor,
+	VKBE_LightCullModel,
+
+	VKBE_VBO_Begin,
+	VKBE_VBO_Data,
+	VKBE_VBO_Finish,
+	VKBE_VBO_Destroy,
+
+	VKBE_RenderToTextureUpdate2d,
+
+	"no more"
+};
+
+
+
+
+static qboolean NVVKVID_Init (rendererstate_t *info, unsigned char *palette)
+{
+	return Win32VID_Init(info, palette, MODE_NVVULKAN);
+}
+rendererinfo_t nvvkrendererinfo =
+{
+	"Vulkan (nvidia workaround)",
+	{
+		"nvvk",
+	},
+	QR_VULKAN,
+
+	VK_Draw_Init,
+	VK_Draw_Shutdown,
+
+	VK_UpdateFiltering,
+	VK_LoadTextureMips,
+	VK_DestroyTexture,
+
+	VK_R_Init,
+	VK_R_DeInit,
+	VK_R_RenderView,
+
+	NVVKVID_Init,
 	GLVID_DeInit,
 	GLVID_SwapBuffers,
 	GLVID_ApplyGammaRamps,

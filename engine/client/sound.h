@@ -37,10 +37,10 @@ typedef struct
 } portable_samplegroup_t;
 
 typedef struct {
-	struct sfxcache_s *(*decodedata) (struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length);	//return true when done.
-	float (*querydata) (struct sfx_s *sfx, struct sfxcache_s *buf);	//reports length + original format info without actually decoding anything.
-	void (*ended) (struct sfx_s *sfx);	//sound stopped playing and is now silent (allow rewinding or something).
-	void (*purge) (struct sfx_s *sfx);	//sound is being purged from memory. destroy everything.
+	struct sfxcache_s *(QDECL *decodedata) (struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length);	//return true when done.
+	float (QDECL *querydata) (struct sfx_s *sfx, struct sfxcache_s *buf, char *title, size_t titlesize);	//reports length + original format info without actually decoding anything.
+	void (QDECL *ended) (struct sfx_s *sfx);	//sound stopped playing and is now silent (allow rewinding or something).
+	void (QDECL *purge) (struct sfx_s *sfx);	//sound is being purged from memory. destroy everything.
 	void *buf;
 } sfxdecode_t;
 
@@ -58,6 +58,9 @@ typedef struct sfx_s
 
 	int loadstate; //no more super-spammy
 	qboolean touched:1; //if the sound is still relevent
+	qboolean syspath:1; //if the sound is still relevent
+
+	int loopstart;	//-1 or sample index to begin looping at once the sample ends
 
 #ifdef AVAIL_OPENAL
 	unsigned int	openal_buffer;
@@ -68,7 +71,6 @@ typedef struct sfx_s
 typedef struct sfxcache_s
 {
 	usamplepos_t length;	//sample count
-	int loopstart;	//-1 or sample index to begin looping at once the sample ends
 	unsigned int speed;
 	unsigned int width;
 	unsigned int numchannels;
@@ -90,17 +92,32 @@ typedef struct
 	unsigned char	*buffer;				// pointer to mixed pcm buffer (not directly used by mixer)
 } dma_t;
 
-#define CF_RELIABLE		1	// serverside only. yeah, evil. screw you.
+//client and server
+//CF_RELIABLE		1
 #define CF_FORCELOOP	2	// forces looping. set on static sounds.
 #define CF_NOSPACIALISE 4	// these sounds are played at a fixed volume in both speakers, but still gets quieter with distance.
 //#define CF_PAUSED		8	// rate = 0. or something.
-#define CF_ABSVOLUME	16	// ignores volume cvar.
+//CF_ABSVOLUME
 #define CF_NOREVERB		32	// disables reverb on this channel, if possible.
 #define CF_FOLLOW		64	// follows the owning entity (stops moving if we lose track)
+//#define CF_RESERVEDN	128	// reserved for things that should be networked.
 
+//client only
+#define CF_ABSVOLUME	16	// ignores volume cvar.
+//client-internal
+#define CF_AUTOSOUND	1024	// generated from q2 entities, which avoids breaking regular sounds, using it outside the sound system will probably break things.
+
+//server only
+#define CF_RELIABLE		1	// serverside only. yeah, evil. screw you.
 #define CF_UNICAST		256 // serverside only. the sound is sent to msg_entity only.
 #define CF_SENDVELOCITY	512	// serverside hint that velocity is important
-#define CF_AUTOSOUND	1024	// generated from q2 entities, which avoids breaking regular sounds, using it outside the sound system will probably break things.
+//#define CF_UNUSED		2048
+//#define CF_UNUSED		4096
+//#define CF_UNUSED		8192
+//#define CF_UNUSED		16384
+//#define CF_UNUSED		32768
+
+#define CF_NETWORKED (CF_NOSPACIALISE|CF_NOREVERB|CF_FORCELOOP|CF_FOLLOW/*|CF_RESERVEDN*/)
 
 typedef struct
 {
@@ -186,13 +203,14 @@ qboolean S_HaveOutput(void);
 
 void S_Music_Clear(sfx_t *onlyifsample);
 void S_Music_Seek(float time);
-qboolean S_GetMusicInfo(int musicchannel, float *time, float *duration);
+qboolean S_GetMusicInfo(int musicchannel, float *time, float *duration, char *title, size_t titlesize);
 qboolean S_Music_Playing(int musicchannel);
 float Media_CrossFade(int musicchanel, float vol, float time);	//queries the volume we're meant to be playing (checks for fade out). -1 for no more, otherwise returns vol.
-char *Media_NextTrack(int musicchanel, float *time);	//queries the track we're meant to be playing now.
+sfx_t *Media_NextTrack(int musicchanel, float *time);	//queries the track we're meant to be playing now.
 
-sfx_t *S_FindName (const char *name, qboolean create);
-sfx_t *S_PrecacheSound (const char *sample);
+sfx_t *S_FindName (const char *name, qboolean create, qboolean syspath);
+sfx_t *S_PrecacheSound2 (const char *sample, qboolean syspath);
+#define S_PrecacheSound(s) S_PrecacheSound2(s,false)
 void S_TouchSound (char *sample);
 void S_UntouchAll(void);
 void S_ClearPrecache (void);
@@ -293,7 +311,7 @@ void S_LocalSound (const char *s);
 void S_LocalSound2 (const char *sound, int channel, float volume);
 qboolean S_LoadSound (sfx_t *s);
 
-typedef qboolean (*S_LoadSound_t) (sfx_t *s, qbyte *data, int datalen, int sndspeed);
+typedef qboolean (QDECL *S_LoadSound_t) (sfx_t *s, qbyte *data, size_t datalen, int sndspeed);
 qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc);	//called to register additional sound input plugins
 
 void S_AmbientOff (void);

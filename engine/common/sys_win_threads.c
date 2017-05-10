@@ -168,7 +168,16 @@ void Sys_DetachThread(void *thread)
 void Sys_WaitOnThread(void *thread)
 {
 	threadctx_t *ctx = thread;
+#ifdef SERVERONLY
 	WaitForSingleObject(ctx->handle, INFINITE);
+#else
+	while (WAIT_OBJECT_0+1 == MsgWaitForMultipleObjects(1, &ctx->handle, false, INFINITE, QS_SENDMESSAGE))
+	{
+		MSG msg;
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+			DispatchMessage (&msg);
+	}
+#endif
 	CloseHandle(ctx->handle);
 	free(ctx);
 }

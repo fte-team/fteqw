@@ -4,7 +4,10 @@
 #include "quakedef.h"
 
 #ifdef GLQUAKE
-#include "glquake.h"//fixme
+#include "glquake.h"
+#endif
+#ifdef VKQUAKE
+#include "../vk/vkrenderer.h"
 #endif
 #include "shader.h"
 
@@ -134,6 +137,7 @@ cvar_t media_hijackwinamp = CVAR("media_hijackwinamp", "0");
 #endif
 
 int selectedoption=-1;
+static int mouseselectedoption=-1;
 int numtracks;
 int nexttrack=-1;
 mediatrack_t *tracks;
@@ -142,6 +146,7 @@ char media_iofilename[MAX_OSPATH]="";
 
 #if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
 void Media_LoadTrackNames (char *listname);
+void Media_SaveTrackNames (char *listname);
 int loadedtracknames;
 #endif
 qboolean Media_EvaluateNextTrack(void);
@@ -177,8 +182,9 @@ float media_fadeouttime;
 //return value is the new sample to start playing.
 //*starttime says the time into the track that we should resume playing at
 //this is on the main thread with the mixer locked, its safe to do stuff, but try not to block
-char *Media_NextTrack(int musicchannelnum, float *starttime)
+sfx_t *Media_NextTrack(int musicchannelnum, float *starttime)
 {
+	sfx_t *s = NULL;
 	if (bgmvolume.value <= 0)
 		return NULL;
 
@@ -208,7 +214,10 @@ char *Media_NextTrack(int musicchannelnum, float *starttime)
 		if (Media_EvaluateNextTrack())
 		{
 			media_playlistcurrent = MEDIA_PLAYLIST;
-			return media_currenttrack;
+			if (*media_currenttrack == '#')
+				return S_PrecacheSound2(media_currenttrack+1, true);
+			else
+				return S_PrecacheSound(media_currenttrack);
 		}
 	}
 	if (!media_playlistcurrent && (media_playlisttypes & MEDIA_CVARLIST))
@@ -231,6 +240,8 @@ char *Media_NextTrack(int musicchannelnum, float *starttime)
 				}
 				else
 					*starttime = 0;
+
+				s = S_PrecacheSound(media_currenttrack);
 			}
 		}
 	}
@@ -249,7 +260,7 @@ char *Media_NextTrack(int musicchannelnum, float *starttime)
 #ifdef HAVE_JUKEBOX
 			media_playlistcurrent = MEDIA_GAMEMUSIC;
 #endif
-			return "";
+			return NULL;
 		}
 #endif
 		if (*media_playtrack)
@@ -259,9 +270,10 @@ char *Media_NextTrack(int musicchannelnum, float *starttime)
 			Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
 			media_playlistcurrent = MEDIA_GAMEMUSIC;
 #endif
+			s = S_PrecacheSound(media_currenttrack);
 		}
 	}
-	return media_currenttrack;
+	return s;
 }
 
 //begin cross-fading
@@ -887,10 +899,15 @@ void M_Media_Add_f (void)
 {
 	char *fname = Cmd_Argv(1);
 
+	if (!loadedtracknames)
+		Media_LoadTrackNames("sound/media.m3u");
+
 	if (Cmd_Argc() == 1)
 		Con_Printf("%s <track>\n", Cmd_Argv(0));
 	else
 		Media_AddTrack(fname);
+
+	Media_SaveTrackNames("sound/media.m3u");
 }
 void M_Media_Remove_f (void)
 {
@@ -900,6 +917,8 @@ void M_Media_Remove_f (void)
 		Con_Printf("%s <track>\n", Cmd_Argv(0));
 	else
 		Media_RemoveTrack(fname);
+
+	Media_SaveTrackNames("sound/media.m3u");
 }
 
 
@@ -920,7 +939,12 @@ void M_Media_Draw (menu_t *menu)
 {
 	mediatrack_t *track;
 	int y;
-	int op, i;
+	int op, i, mop;
+	qboolean playing;
+
+	float time, duration;
+	char title[256];
+	playing = S_GetMusicInfo(0, &time, &duration, title, sizeof(title));
 
 #define MP_Hightlight(x,y,text,hl) (hl?M_PrintWhite(x, y, text):M_Print(x, y, text))
 
@@ -943,17 +967,36 @@ void M_Media_Draw (menu_t *menu)
 	else
 	{
 		M_Print (12, 32, "Currently playing:");
-		M_Print (12, 40, *media_friendlyname?media_friendlyname:media_currenttrack);
+		if (*title)
+		{
+			M_Print (12, 40, title);
+			M_Print (12, 48, media_currenttrack);
+		}
+		else
+			M_Print (12, 40, *media_friendlyname?media_friendlyname:media_currenttrack);
 	}
 
-	y=52;
+	y=60;
 	op = selectedoption - (vid.height-y)/16;
 	if (op + (vid.height-y)/8>numtracks)
 		op = numtracks - (vid.height-y)/8;
 	if (op < MEDIA_MIN)
 		op = MEDIA_MIN;
+	mop = (mousecursor_y - y)/8;
+	mop += MEDIA_MIN;
+	mouseselectedoption = MEDIA_MIN-1;
+	if (mousecursor_x < 12 + ((vid.width - 320)>>1) || mousecursor_x > 320-24 + ((vid.width - 320)>>1))
+		mop = mouseselectedoption;
 	while(op < 0)
 	{
+		if (op == mop)
+		{
+			float alphamax = 0.5, alphamin = 0.2;
+			mouseselectedoption = op;
+			R2D_ImageColours(.5,.4,0,(sin(realtime*2)+1)*0.5*(alphamax-alphamin)+alphamin);
+			R2D_FillBlock(12 + ((vid.width - 320)>>1), y, 320-24, 8);
+			R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
+		}
 		switch(op)
 		{
 		case MEDIA_VOLUME:
@@ -966,8 +1009,7 @@ void M_Media_Draw (menu_t *menu)
 			break;
 		case MEDIA_FASTFORWARD:
 			{
-				float time, duration;
-				if (S_GetMusicInfo(0, &time, &duration))
+				if (playing)
 				{
 					int itime = time;
 					int iduration = duration;
@@ -1004,7 +1046,7 @@ void M_Media_Draw (menu_t *menu)
 			y+=8;
 			break;
 		case MEDIA_REPEAT:
-			if (media_shuffle.value)
+			if (!media_shuffle.value)
 			{
 				if (media_repeat.value)
 					MP_Hightlight (12, y, "Repeat on", op == selectedoption);
@@ -1027,6 +1069,21 @@ void M_Media_Draw (menu_t *menu)
 	for (track = tracks, i=0; track && i<op; track=track->next, i++);
 	for (; track; track=track->next, y+=8, op++)
 	{
+		if (track->length != (int)duration && *title && !strcmp(track->filename, media_currenttrack))
+		{
+			Q_strncpyz(track->nicename, title, sizeof(track->nicename));
+			track->length = duration;
+			Media_SaveTrackNames("sound/media.m3u");
+		}
+
+		if (op == mop)
+		{
+			float alphamax = 0.5, alphamin = 0.2;
+			mouseselectedoption = op;
+			R2D_ImageColours(.5,.4,0,(sin(realtime*2)+1)*0.5*(alphamax-alphamin)+alphamin);
+			R2D_FillBlock(12 + ((vid.width - 320)>>1), y, 320-24, 8);
+			R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
+		}
 		if (op == selectedoption)
 			M_PrintWhite (12, y, track->nicename);
 		else
@@ -1146,8 +1203,14 @@ qboolean M_Media_Key (int key, menu_t *menu)
 			}
 		}
 	}
-	else if (key == K_ENTER || key == K_KP_ENTER)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 	{
+		if (key == K_MOUSE1)
+		{
+			if (mouseselectedoption < MEDIA_MIN)
+				return false;
+			selectedoption = mouseselectedoption;
+		}
 		switch(selectedoption)
 		{
 		case MEDIA_FASTFORWARD:
@@ -1260,6 +1323,9 @@ qboolean M_Media_Key (int key, menu_t *menu)
 void M_Menu_Media_f (void)
 {
 	menu_t *menu;
+	if (!loadedtracknames)
+		Media_LoadTrackNames("sound/media.m3u");
+
 	Key_Dest_Add(kdm_emenu);
 	menu = M_CreateMenu(0);
 
@@ -1271,6 +1337,20 @@ void M_Menu_Media_f (void)
 }
 
 
+
+void Media_SaveTrackNames (char *listname)
+{
+	mediatrack_t *tr;
+	vfsfile_t *f = FS_OpenVFS(listname, "wb", FS_GAMEONLY);
+	if (!f)
+		return;
+	VFS_PRINTF(f, "#EXTM3U\n");
+	for (tr = tracks; tr; tr = tr->next)
+	{
+		VFS_PRINTF(f, "#EXTINF:%i,%s\n%s\n", tr->length, tr->nicename, tr->filename);
+	}
+	VFS_CLOSE(f);
+}
 
 //safeprints only.
 void Media_LoadTrackNames (char *listname)
@@ -1307,7 +1387,10 @@ void Media_LoadTrackNames (char *listname)
 			if (!trackname)
 				return;
 
-			lineend[-1]='\0';
+			if (lineend > data && lineend[-1] == '\r')
+				lineend[-1]='\0';
+			else
+				lineend[0]='\0';
 
 			filename = data = lineend+1;
 
@@ -1315,22 +1398,15 @@ void Media_LoadTrackNames (char *listname)
 
 			if (lineend)
 			{
-				lineend[-1]='\0';
+				if (lineend > data && lineend[-1] == '\r')
+					lineend[-1]='\0';
+				else
+					lineend[0]='\0';
 				data = lineend+1;
 			}
 
 			newtrack = Z_Malloc(sizeof(mediatrack_t));
-#ifndef _WIN32	//crossplatform - lcean up any dos names
-			if (filename[1] == ':')
-			{
-				snprintf(newtrack->filename, sizeof(newtrack->filename)-1, "/mnt/%c/%s", filename[0]-'A'+'a', filename+3);
-				while((filename = strchr(newtrack->filename, '\\')))
-					*filename = '/';
-
-			}
-			else
-#endif
-				Q_strncpyz(newtrack->filename, filename, sizeof(newtrack->filename));
+			Q_strncpyz(newtrack->filename, filename, sizeof(newtrack->filename));
 			Q_strncpyz(newtrack->nicename, trackname, sizeof(newtrack->nicename));
 			newtrack->length = atoi(len);
 			newtrack->next = tracks;
@@ -1374,17 +1450,7 @@ void Media_LoadTrackNames (char *listname)
 
 
 
-
-#undef	dwFlags
-#undef	lpFormat
-#undef	lpData
-#undef	cbData
-#undef	lTime
-
-
 ///temporary residence for media handling
-#include "roq.h"
-
 
 #ifdef HAVE_API_VFW
 #if 0
@@ -1563,7 +1629,7 @@ struct cin_s
 	} image;
 
 	struct {
-		roq_info *roqfilm;
+		struct roq_info_s *roqfilm;
 //		float lastmediatime;
 		float nextframetime;
 	} roq;
@@ -2044,6 +2110,7 @@ cin_t *Media_Plugin_TryLoad(char *name)
 //Quake3 RoQ Support
 
 #ifdef Q3CLIENT
+#include "roq.h"
 static void Media_Roq_Shutdown(struct cin_s *cin)
 {
 	roq_close(cin->roq.roqfilm);
@@ -2810,6 +2877,7 @@ struct
 	int pbo_handle;
 #endif
 	enum uploadfmt format;
+	int stride;
 	int width;
 	int height;
 } offscreen_queue[4];	//ringbuffer of offscreen_captureframe...captureframe
@@ -2899,13 +2967,13 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 	}
 	return ctx;
 }
-static void QDECL capture_raw_video (void *vctx, void *data, int frame, int width, int height, enum uploadfmt fmt)
+static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stride, int width, int height, enum uploadfmt fmt)
 {
 	struct capture_raw_ctx *ctx = vctx;
 	char filename[MAX_OSPATH];
 	ctx->frames = frame+1;
 	Q_snprintfz(filename, sizeof(filename), "%s%8.8i.%s", ctx->videonameprefix, frame, ctx->videonameextension);
-	SCR_ScreenShot(filename, ctx->fsroot, &data, 1, width, height, fmt);
+	SCR_ScreenShot(filename, ctx->fsroot, &data, 1, stride, width, height, fmt);
 
 	if (capturethrottlesize.ival)
 	{
@@ -3128,40 +3196,60 @@ static void *QDECL capture_avi_begin (char *streamname, int videorate, int width
 	return ctx;
 }
 
-static void QDECL capture_avi_video(void *vctx, void *vdata, int frame, int width, int height, enum uploadfmt fmt)
+static void QDECL capture_avi_video(void *vctx, int frame, void *vdata, int stride, int width, int height, enum uploadfmt fmt)
 {
+	//vfw api is bottom up.
 	struct capture_avi_ctx *ctx = vctx;
-	qbyte *data = vdata;
-	int c, i;
-	qbyte temp;
+	qbyte *data, *in, *out;
+	int x, y;
 
-	if (fmt == TF_BGRA32)
+	//we need to output a packed bottom-up bgr image.
+
+	//switch the input from logically top-down to bottom-up (regardless of the physical ordering of its rows)
+	in = (qbyte*)vdata + stride*(height-1);
+	stride = -stride;
+
+	if (fmt == TF_BGR24 && stride == width*3)
+	{	//no work needed!
+		data = in;
+	}
+	else
 	{
-		// truncate bgra to bgr
-		c = width*height;
-		for (i=0 ; i<c ; i++)
-		{
-			data[i*3+0] = data[i*4+0];
-			data[i*3+1] = data[i*4+1];
-			data[i*3+2] = data[i*4+2];
+		int ipx = (fmt == TF_BGR24||fmt == TF_RGB24)?3:4;
+		data = out = Hunk_TempAlloc(width*height*3);
+		if (fmt == TF_RGB24 || fmt == TF_RGBX32 || fmt == TF_RGBA32)
+		{	//byteswap + strip alpha
+			for (y = height; y --> 0; out += width*3, in += stride)
+			{
+				for (x = 0; x < width; x++)
+				{
+					out[x*3+0] = in[x*ipx+2];
+					out[x*3+1] = in[x*ipx+1];
+					out[x*3+2] = in[x*ipx+0];
+				}
+			}
+		}
+		else if (fmt == TF_BGR24 || fmt == TF_BGRX32 || fmt == TF_BGRA32)
+		{	//just strip alpha (or just flip)
+			for (y = height; y --> 0; out += width*3, in += stride)
+			{
+				for (x = 0; x < width; x++)
+				{
+					out[x*3+0] = in[x*ipx+0];
+					out[x*3+1] = in[x*ipx+1];
+					out[x*3+2] = in[x*ipx+2];
+				}
+			}
+		}
+		else
+		{	//probably spammy, but oh well
+			Con_Printf("capture_avi_video: Unsupported image format\n");
+			return;
 		}
 	}
-	else if (fmt == TF_RGB24)
-	{
-		// swap rgb to bgr
-		c = width*height*3;
-		for (i=0 ; i<c ; i+=3)
-		{
-			temp = data[i];
-			data[i] = data[i+2];
-			data[i+2] = temp;
-		}
-	}
-	else if (fmt != TF_BGR24)
-	{
-		Con_Printf("Unsupported image format\n");
-		return;
-	}
+
+	//FIXME: if we're allocating memory anyway, can we not push this to a thread?
+
 	//write it
 	if (FAILED(qAVIStreamWrite(avi_video_stream(ctx), frame, 1, data, width*height * 3, ((frame%15) == 0)?AVIIF_KEYFRAME:0, NULL, NULL)))
 		Con_DPrintf("Recoring error\n");
@@ -3188,15 +3276,31 @@ static media_encoder_funcs_t capture_avi =
 #endif
 
 #ifdef _DEBUG
+struct capture_null_context
+{
+	float starttime;
+	int frames;
+};
 static void QDECL capture_null_end(void *vctx)
 {
+	struct capture_null_context *ctx = vctx;
+	float duration = Sys_DoubleTime() - ctx->starttime;
+	Con_Printf("%d video frames ignored, %g secs, %gfps\n", ctx->frames, duration, ctx->frames/duration);
+	Z_Free(ctx);
 }
 static void *QDECL capture_null_begin (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits)
 {
-	return (void*)~0;
+	struct capture_null_context *ctx = Z_Malloc(sizeof(*ctx));
+	*sndkhz = 11025;
+	*sndchannels = 2;
+	*sndbits = 32;	//floats!
+	ctx->starttime = Sys_DoubleTime();
+	return ctx;
 }
-static void QDECL capture_null_video(void *vctx, void *vdata, int frame, int width, int height, enum uploadfmt fmt)
+static void QDECL capture_null_video(void *vctx, int frame, void *vdata, int stride, int width, int height, enum uploadfmt fmt)
 {
+	struct capture_null_context *ctx = vctx;
+	ctx->frames = frame+1;
 }
 static void QDECL capture_null_audio(void *vctx, void *data, int bytes)
 {
@@ -3301,10 +3405,19 @@ double Media_TweekCaptureFrameTime(double oldtime, double time)
 	return oldtime + time;
 }
 
+#ifdef VKQUAKE
+static void Media_CapturedFrame (void *data, int bytestride, size_t width, size_t height, enum uploadfmt fmt)
+{
+	if (currentcapture_funcs)
+		currentcapture_funcs->capture_video(currentcapture_ctx, offscreen_captureframe, data, bytestride, width, height, fmt);
+	offscreen_captureframe++;
+}
+#endif
+
 void Media_RecordFrame (void)
 {
 	char *buffer;
-	int truewidth, trueheight;
+	int bytestride, truewidth, trueheight;
 	enum uploadfmt fmt;
 
 	if (!currentcapture_funcs)
@@ -3413,8 +3526,9 @@ void Media_RecordFrame (void)
 			buffer = qglMapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY_ARB);
 			if (buffer)
 			{
+				qbyte *firstrow = (offscreen_queue[frame].stride<0)?buffer - offscreen_queue[frame].stride*(offscreen_queue[frame].height-1):buffer;
 				//FIXME: thread these (with audio too, to avoid races)
-				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, offscreen_captureframe, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
+				currentcapture_funcs->capture_video(currentcapture_ctx, offscreen_captureframe, firstrow, offscreen_queue[frame].stride, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
 				qglUnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
 			}
 			offscreen_captureframe++;
@@ -3441,6 +3555,8 @@ void Media_RecordFrame (void)
 			default:
 				break;
 			}
+
+			offscreen_queue[frame].stride = vid.pixelwidth*-imagesize;//gl is upside down
 
 			imagesize *= offscreen_queue[frame].width * offscreen_queue[frame].height;
 
@@ -3472,49 +3588,25 @@ void Media_RecordFrame (void)
 	}
 	else
 #endif
-#if 0//def VKQUAKE
-	if (offscreen_format != TF_INVALID && qrenderer == QR_VULKAN)
-	{
-		//try and collect any finished frames
-		while (offscreen_captureframe + countof(offscreen_queue) <= captureframe)
-		{
-			frame = offscreen_captureframe%countof(offscreen_queue);
-			vkFenceWait();
-			buffer = NULL;//qglMapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY_ARB);
-			if (buffer)
-			{
-				//FIXME: thread these (with audio too, to avoid races)
-				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, offscreen_captureframe, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
-				//qglUnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
-			}
-			offscreen_captureframe++;
-		}
-
-		frame = captureframe%countof(offscreen_queue);
-		if (no frame yet)
-		{
-			create a buffer
-			map the buffer persistently
-		}
-
-		vkCopyImageToBuffer
-		vkSubmitFence
-	}
+#ifdef VKQUAKE
+	if (qrenderer == QR_VULKAN)
+		VKVID_QueueGetRGBData(Media_CapturedFrame);
 	else
 #endif
 	{
 		offscreen_captureframe = captureframe+1;
 		//submit the current video frame. audio will be mixed to match.
-		buffer = VID_GetRGBInfo(&truewidth, &trueheight, &fmt);
+		buffer = VID_GetRGBInfo(&bytestride, &truewidth, &trueheight, &fmt);
 		if (buffer)
 		{
-			currentcapture_funcs->capture_video(currentcapture_ctx, buffer, captureframe, truewidth, trueheight, fmt);
+			qbyte *firstrow = (bytestride<0)?buffer - bytestride*(trueheight-1):buffer;
+			currentcapture_funcs->capture_video(currentcapture_ctx, captureframe, firstrow, bytestride, truewidth, trueheight, fmt);
 			BZ_Free (buffer);
 		}
 		else
 		{
 			Con_DPrintf("Unable to grab video image\n");
-			currentcapture_funcs->capture_video(currentcapture_ctx, NULL, captureframe, 0, 0, TF_INVALID);
+			currentcapture_funcs->capture_video(currentcapture_ctx, captureframe, NULL, 0, 0, 0, TF_INVALID);
 		}
 	}
 	captureframe++;
@@ -3709,7 +3801,8 @@ void Media_StopRecordFilm_f (void)
 			buffer = qglMapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY_ARB);
 			if (buffer)
 			{
-				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, offscreen_captureframe, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
+				qbyte *firstrow = (offscreen_queue[frame].stride<0)?buffer - offscreen_queue[frame].stride*(offscreen_queue[frame].height-1):buffer;
+				currentcapture_funcs->capture_video(currentcapture_ctx, offscreen_captureframe, firstrow, offscreen_queue[frame].stride, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
 				qglUnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
 			}
 			offscreen_captureframe++;
@@ -3756,7 +3849,7 @@ void Media_StopRecordFilm_f (void)
 	capture_fakesounddevice = NULL;
 
 	if (recordingdemo)	//start up their regular audio devices again.
-		Cmd_ExecuteString("snd_restart", RESTRICT_LOCAL);
+		S_DoRestart(false);
 
 	recordingdemo=false;
 
@@ -3828,21 +3921,21 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 		sndbits = 0;
 	}
 
+	vid.fbpwidth = vid.pixelwidth;
+	vid.fbpheight = vid.pixelheight;
+	if (demo && capturewidth.ival && captureheight.ival)
+	{
 #ifdef GLQUAKE
-	if (demo && capturewidth.ival && captureheight.ival && qrenderer == QR_OPENGL && gl_config.ext_framebuffer_objects)
-	{
-		capturingfbo = true;
-		capturetexture = R2D_RT_Configure("$democapture", capturewidth.ival, captureheight.ival, TF_BGRA32, RT_IMAGEFLAGS);
-		captureoldfbo = GLBE_FBO_Update(&capturefbo, FBO_RB_DEPTH|(Sh_StencilShadowsActive()?FBO_RB_STENCIL:0), &capturetexture, 1, r_nulltex, capturewidth.ival, captureheight.ival, 0);
-		vid.fbpwidth = capturewidth.ival;
-		vid.fbpheight = captureheight.ival;
-		vid.framebuffer = capturetexture;
-	}
-	else
+		if (qrenderer == QR_OPENGL && gl_config.ext_framebuffer_objects)
+		{
+			capturingfbo = true;
+			capturetexture = R2D_RT_Configure("$democapture", capturewidth.ival, captureheight.ival, TF_BGRA32, RT_IMAGEFLAGS);
+			captureoldfbo = GLBE_FBO_Update(&capturefbo, FBO_RB_DEPTH|(Sh_StencilShadowsActive()?FBO_RB_STENCIL:0), &capturetexture, 1, r_nulltex, capturewidth.ival, captureheight.ival, 0);
+			vid.fbpwidth = capturewidth.ival;
+			vid.fbpheight = captureheight.ival;
+			vid.framebuffer = capturetexture;
+		}
 #endif
-	{
-		vid.fbpwidth = vid.pixelwidth;
-		vid.fbpheight = vid.pixelheight;
 	}
 
 	offscreen_format = TF_INVALID;
@@ -3897,11 +3990,25 @@ static void Media_RecordFilm_f (void)
 	if (Cmd_Argc() != 2)
 	{
 		int i;
-		Con_Printf("capture <filename>\nRecords video output in an avi file.\nUse capturerate and capturecodec to configure.\n");
+		Con_Printf("capture <filename>\nRecords video output in an avi file.\nUse capturerate and capturecodec to configure.\n\n");
 		for (i = 0; i < countof(pluginencodersfunc); i++)
 		{
 			if (pluginencodersfunc[i])
-				Con_Printf("%s: %s\n", pluginencodersfunc[i]->drivername, pluginencodersfunc[i]->description);
+				Con_Printf("%s%s^7: %s\n", !strcmp(pluginencodersfunc[i]->drivername, capturedriver.string)?"^2":"^3", pluginencodersfunc[i]->drivername, pluginencodersfunc[i]->description);
+		}
+		Con_Printf("\n");
+
+		Con_Printf("Current capture settings:\n");
+		Con_Printf(" ^[/capturedriver %s^]\n", capturedriver.string);
+		Con_Printf(" ^[/capturecodec %s^]\n", capturecodec.string);
+		Con_Printf(" ^[/capturedemowidth %s^]\n", capturewidth.string);
+		Con_Printf(" ^[/capturedemoheight %s^]\n", captureheight.string);
+		Con_Printf(" ^[/capturerate %s^]\n", capturerate.string);
+		Con_Printf(" ^[/capturesound %s^]\n", capturesound.string);
+		if (capturesound.value)
+		{
+			Con_Printf(" ^[/capturesoundchannels %s^]\n", capturesoundchannels.string);
+			Con_Printf(" ^[/capturesoundbits %s^]\n", capturesoundbits.string);
 		}
 		return;
 	}
@@ -4685,9 +4792,11 @@ typedef struct
 	unsigned int srcoffset; /*in bytes*/
 	unsigned int srclen;	/*in bytes*/
 	qbyte srcdata[1];
+
+	char title[256];
 } mp3decoder_t;
 
-static void S_MP3_Purge(sfx_t *sfx)
+static void QDECL S_MP3_Purge(sfx_t *sfx)
 {
 	mp3decoder_t *dec = sfx->decoder.buf;
 
@@ -4705,17 +4814,50 @@ static void S_MP3_Purge(sfx_t *sfx)
 	sfx->loadstate = SLS_NOTLOADED;
 }
 
-float S_MP3_Query(sfx_t *sfx, sfxcache_t *buf)
+float QDECL S_MP3_Query(sfx_t *sfx, sfxcache_t *buf, char *title, size_t titlesize)
 {
+	mp3decoder_t *dec = sfx->decoder.buf;
 	//we don't know unless we decode it all
 	if (buf)
 	{
+	}
+	if (titlesize && dec->srclen >= 128)
+	{	//id3v1 is a 128 byte blob at the end of the file.
+		char trimartist[31];
+		char trimtitle[31];
+		char *p;
+		struct
+		{
+			char tag[3];	//TAG
+			char title[30];
+			char artist[30];
+			char album[30];
+			char year[4];
+			char comment[30];//[28]+null+track
+			qbyte genre;
+		} *id3v1 = (void*)(dec->srcdata + dec->srclen-128);
+		if (id3v1->tag[0] == 'T' && id3v1->tag[1] == 'A' && id3v1->tag[2] == 'G')
+		{	//yup, there's an id3v1 tag there
+			memcpy(trimartist, id3v1->artist, 30);
+			for(p = trimartist+30; p>trimartist && p[-1] == ' '; )
+				p--;
+			*p = 0;
+			memcpy(trimtitle, id3v1->title, 30);
+			for(p = trimtitle+30; p>trimtitle && p[-1] == ' '; )
+				p--;
+			*p = 0;
+			if (*trimartist && *trimtitle)
+				Q_snprintfz(title, titlesize, "%.30s - %.30s", trimartist, trimtitle);
+			else if (*id3v1->title)
+				Q_snprintfz(title, titlesize, "%.30s", trimtitle);
+		}
+		return 1;//no real idea.
 	}
 	return 0;
 }
 
 /*must be thread safe*/
-sfxcache_t *S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, int length)
+sfxcache_t *QDECL S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, int length)
 {
 	int newlen;
 	if (buf)
@@ -4758,6 +4900,8 @@ sfxcache_t *S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, int le
 			strhdr.cbStruct = sizeof(strhdr);
 			strhdr.pbSrc = dec->srcdata + dec->srcoffset;
 			strhdr.cbSrcLength = dec->srclen - dec->srcoffset;
+			if (!strhdr.cbSrcLength)
+				break;
 			strhdr.pbDst = buffer;
 			strhdr.cbDstLength = sizeof(buffer);
 
@@ -4794,11 +4938,13 @@ sfxcache_t *S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, int le
 
 		buf->data = dec->dstdata;
 		buf->length = dec->dstcount;
-		buf->loopstart = -1;
 		buf->numchannels = dec->srcchannels;
 		buf->soundoffset = dec->dststart;
 		buf->speed = snd_speed;
 		buf->width = dec->srcwidth/8;
+
+		if (dec->srclen == dec->srcoffset && start >= dec->dststart+dec->dstcount)
+			return NULL;	//once we reach the EOF, start reporting errors.
 	}
 	return buf;
 }
@@ -4821,7 +4967,7 @@ typedef struct
 #define MPEGLAYER3_ID_MPEG 1
 #endif
 
-qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+qboolean QDECL S_LoadMP3Sound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
 {
 	WAVEFORMATEX pcm_format;
 	MPEGLAYER3WAVEFORMAT mp3format;
@@ -4843,6 +4989,7 @@ qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	s->decoder.purge = S_MP3_Purge;
 	s->decoder.decodedata = S_MP3_Locate;
 	s->decoder.querydata = S_MP3_Query;
+	s->loopstart = -1;
 	
 	dec->dstdata = NULL;
 	dec->dstcount = 0;
@@ -4883,6 +5030,8 @@ qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	}
 
 	S_MP3_Locate(s, NULL, 0, 100);
+
+
 	return true;
 }
 #endif

@@ -93,7 +93,9 @@ vfsfile_t *FSSTDIO_OpenTemp(void)
 
 #ifdef _WIN32
 	/*warning: annother app might manage to open the file before we can. if the file is not opened exclusively then we can end up with issues
-	on windows, fopen is typically exclusive anyway, but not on unix. but on unix, tmpfile is actually usable, so special-case the windows code*/
+	on windows, fopen is typically exclusive anyway, but not on unix. but on unix, tmpfile is actually usable, so special-case the windows code
+	we also have a special close function to ensure the file is deleted too
+	*/
 	char *fname = _tempnam(NULL, "ftemp");
 	f = fopen(fname, "w+b");
 	if (!f)
@@ -321,6 +323,18 @@ static int QDECL FSSTDIO_EnumerateFiles (searchpathfuncs_t *handle, const char *
 	return Sys_EnumerateFiles(sp->rootpath, match, func, parm, handle);
 }
 
+#include <sys/stat.h>
+static qboolean QDECL FSSTDIO_FileStat (searchpathfuncs_t *handle, flocation_t *loc, time_t *mtime)
+{
+	struct stat s;
+	if (stat(loc->rawname, &s) != -1)
+	{
+		*mtime = s.st_mtime;
+		return true;
+	}
+	return false;
+}
+
 
 searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc, const char *prefix)
 {
@@ -345,6 +359,7 @@ searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *des
 	np->pub.EnumerateFiles	= FSSTDIO_EnumerateFiles;
 	np->pub.OpenVFS			= FSSTDIO_OpenVFS;
 	np->pub.PollChanges		= FSSTDIO_PollChanges;
+	np->pub.FileStat		= FSSTDIO_FileStat;
 	return &np->pub;
 }
 

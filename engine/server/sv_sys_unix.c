@@ -92,20 +92,28 @@ Sys_mkdir
 
 ============
 */
-void Sys_mkdir (char *path)
+void Sys_mkdir (const char *path)
 {
-	if (mkdir (path, 0777) != -1)
+	if (mkdir (path, 0755) != -1)
 		return;
 //	if (errno != EEXIST)
 //		Sys_Error ("mkdir %s: %s",path, strerror(errno));
 }
+qboolean Sys_rmdir (const char *path)
+{
+	if (rmdir (path) == 0)
+		return true;
+	if (errno == ENOENT)
+		return true;
+	return false;
+}
 
-qboolean Sys_remove (char *path)
+qboolean Sys_remove (const char *path)
 {
 	return system(va("rm \"%s\"", path));
 }
 
-qboolean Sys_Rename (char *oldfname, char *newfname)
+qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	return !rename(oldfname, newfname);
 }

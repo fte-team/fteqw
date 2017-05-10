@@ -122,6 +122,6 @@ void	GLVID_Update (vrect_t *rects);
 
 void GLVID_SwapBuffers(void);
 enum uploadfmt;
-char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt);
+char *GLVID_GetRGBInfo(int *bytestride, int *truewidth, int *trueheight, enum uploadfmt *fmt);
 void GLVID_SetCaption(const char *caption);
 #endif

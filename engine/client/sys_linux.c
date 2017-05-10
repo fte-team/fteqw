@@ -446,16 +446,23 @@ int	Sys_FileTime (char *path)
 }
 
 
-void Sys_mkdir (char *path)
+void Sys_mkdir (const char *path)
 {
 	mkdir (path, 0777);
 }
-
-qboolean Sys_remove (char *path)
+qboolean Sys_rmdir (const char *path)
+{
+	if (rmdir (path) == 0)
+		return true;
+	if (errno == ENOENT)
+		return true;
+	return false;
+}
+qboolean Sys_remove (const char *path)
 {
 	return system(va("rm \"%s\"", path));
 }
-qboolean Sys_Rename (char *oldfname, char *newfname)
+qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	return !rename(oldfname, newfname);
 }

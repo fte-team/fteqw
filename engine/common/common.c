@@ -392,11 +392,18 @@ int Q_strncasecmp (const char *s1, const char *s2, int n)
 
 int Q_strcasecmp (const char *s1, const char *s2)
 {
-	return Q_strncasecmp (s1, s2, 99999);
+	return Q_strncasecmp (s1, s2, INT_MAX);
 }
 int QDECL Q_stricmp (const char *s1, const char *s2)
 {
-	return Q_strncasecmp (s1, s2, 99999);
+	return Q_strncasecmp (s1, s2, INT_MAX);
+}
+int Q_strstopcasecmp(const char *s1start, const char *s1end, const char *s2)
+{	//safer version of strncasecmp, where s1 is the one with the length, and must exactly match s2 (which is null terminated and probably an immediate.
+	//return value isn't suitable for sorting.
+	if (s1end - s1start != strlen(s2))
+		return -1;
+	return Q_strncasecmp (s1start, s2, s1end - s1start);
 }
 
 char *Q_strcasestr(const char *haystack, const char *needle)
@@ -2042,7 +2049,7 @@ char *COM_FileExtension (const char *in, char *result, size_t sizeofresult)
 	int		i;
 	const char *dot;
 
-	for (dot = in + strlen(in); dot >= in && *dot != '.'; dot--)
+	for (dot = in + strlen(in); dot >= in && *dot != '.' && *dot != '/' && *dot != '\\'; dot--)
 		;
 	if (dot < in)
 	{
@@ -2056,6 +2063,23 @@ char *COM_FileExtension (const char *in, char *result, size_t sizeofresult)
 		result[i] = *in;
 	result[i] = 0;
 	return result;
+}
+
+//returns a pointer to the extension text, including the dot
+//term is the end of the string (or null, to make things easy). if its a previous (non-empty) return value, then you can scan backwards to skip .gz or whatever extra postfixes.
+const char *COM_GetFileExtension (const char *in, const char *term)
+{
+	const char *dot;
+
+	if (!term)
+		term = in + strlen(in);
+
+	for (dot = term; dot >= in && *dot != '.' && *dot != '/' && *dot != '\\'; dot--)
+		;
+	if (dot < in)
+		return "";
+	in = dot;
+	return in;
 }
 
 //Quake 2's tank model has a borked skin (or two).
@@ -4962,7 +4986,7 @@ void COM_ErrorMe_f(void)
 #ifdef LOADERTHREAD
 static void QDECL COM_WorkerCount_Change(cvar_t *var, char *oldvalue);
 cvar_t worker_flush = CVARD("worker_flush", "1", "If set, process the entire load queue, loading stuff faster but at the risk of stalling the main thread.");
-cvar_t worker_count = CVARFDC("worker_count", "", CVAR_NOTFROMSERVER, "Specifies the number of worker threads to utilise.", COM_WorkerCount_Change);
+cvar_t worker_count = CVARFCD("worker_count", "", CVAR_NOTFROMSERVER, COM_WorkerCount_Change, "Specifies the number of worker threads to utilise.");
 cvar_t worker_sleeptime = CVARFD("worker_sleeptime", "0", CVAR_NOTFROMSERVER, "Causes workers to sleep for a period of time after each job.");
 
 #define WORKERTHREADS 16	//max

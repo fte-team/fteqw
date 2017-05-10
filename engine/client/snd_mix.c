@@ -166,11 +166,11 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 				{
 					scache = s->decoder.buf;
 					ch->pos += (end-sc->paintedtime)*ch->rate;
-					if (ch->pos > scache->length)
+					if ((ch->pos>>PITCHSHIFT) > scache->length)
 					{
 						ch->pos = 0;
-						if (scache->loopstart != -1)
-							ch->pos = scache->loopstart<<PITCHSHIFT;
+						if (s->loopstart != -1)
+							ch->pos = s->loopstart<<PITCHSHIFT;
 						else if (!(ch->flags & CF_FORCELOOP))
 						{
 							ch->sfx = NULL;
@@ -188,30 +188,70 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 			ltime = sc->paintedtime;
 			while (ltime < end)
 			{
+				ssamplepos_t spos = ch->pos>>PITCHSHIFT;
 				if (s->decoder.decodedata)
-					scache = s->decoder.decodedata(s, &scachebuf, ch->pos>>PITCHSHIFT, 1 + (((end - ltime) * ch->rate)>>PITCHSHIFT));	/*1 for luck - balances audio termination below*/
-				else
-					scache = s->decoder.buf;
-				if (!scache)
+					scache = s->decoder.decodedata(s, &scachebuf, spos, 1 + (((end - ltime) * ch->rate)>>PITCHSHIFT));	/*1 for luck - balances audio termination below*/
+				else if (s->decoder.buf)
 				{
-					ch->sfx = NULL;
-					break;
+					scache = s->decoder.buf;
+					if (spos >= scache->length)
+						scache = NULL;	//EOF
+				}
+				else
+					scache = NULL;
+
+				if (!scache)
+				{	//hit eof, loop it or stop it
+					if (s->loopstart != -1)	/*some wavs contain a loop offset directly in the sound file, such samples loop even if a non-looping builtin was used*/
+					{
+						ch->pos &= ~((-1)<<PITCHSHIFT);	/*clear out all but the subsample offset*/
+						ch->pos += s->loopstart<<PITCHSHIFT;	//ignore the offset if its off the end of the file
+					}
+					else if (ch->flags & CF_FORCELOOP)	/*(static)channels which are explicitly looping always loop from the start*/
+					{
+						/*restart it*/
+						ch->pos = 0;
+					}
+					else
+					{	// channel just stopped
+						ch->sfx = NULL;
+						if (s->decoder.ended)
+						{
+							if (!S_IsPlayingSomewhere(s))
+								s->decoder.ended(s);
+						}
+						break;
+					}
+
+					//retry at that new offset (continue here could give an infinite loop)
+					spos = ch->pos>>PITCHSHIFT;
+					if (s->decoder.decodedata)
+						scache = s->decoder.decodedata(s, &scachebuf, spos, 1 + (((end - ltime) * ch->rate)>>PITCHSHIFT));	/*1 for luck - balances audio termination below*/
+					else if (s->decoder.buf)
+					{
+						scache = s->decoder.buf;
+						if (spos >= scache->length)
+							scache = NULL;	//EOF
+					}
+					else
+						scache = NULL;
+
+					if (!scache)
+						break;
 				}
 
-				// find how many samples till the sample ends (clamp max length)
-				avail = scache->length;
-				if (avail > maxlen)
-					avail = snd_speed*10;
-				avail = (((int)(scache->soundoffset + avail)<<PITCHSHIFT) - ch->pos) / ch->rate;
+				if (spos < scache->soundoffset || spos > scache->soundoffset+scache->length)
+					avail = 0;	//urm, we would be trying to read outside of the buffer. let mixing slip when there's no data available yet.
+				else
+				{
+					// find how many samples till the sample ends (clamp max length)
+					avail = scache->length;
+					if (avail > maxlen)
+						avail = snd_speed*10;
+					avail = (((int)(scache->soundoffset + avail)<<PITCHSHIFT) - ch->pos) / ch->rate;
+				}
 				// mix the smaller of how much is available or the time left
 				count = min(avail, end - ltime);
-
-				if (avail < 0)
-				{
-					Sys_Printf("sound already past end of buffer\n");
-					avail = 0;
-					count = 0;
-				}
 
 				if (count > 0)
 				{
@@ -254,37 +294,8 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 					ltime += count;
 					ch->pos += ch->rate * count;
 				}
-				
-				if (count == avail)
-				{
-					if (scache->loopstart != -1)	/*some wavs contain a loop offset directly in the sound file, such samples loop even if a non-looping builtin was used*/
-					{
-						if (scache->length <= scache->loopstart)
-							break;
-						ch->pos &= ~((-1)<<PITCHSHIFT);	/*clear out all but the subsample offset*/
-						ch->pos += scache->loopstart<<PITCHSHIFT;
-						if (!scache->length)
-						{
-							scache->loopstart=-1;
-							break;
-						}
-					}
-					else if ((ch->flags & CF_FORCELOOP) && scache->length)	/*(static)channels which are explicitly looping always loop from the start*/
-					{
-						/*restart it*/
-						ch->pos = 0;
-					}
-					else
-					{	// channel just stopped
-						ch->sfx = NULL;
-						if (s->decoder.ended)
-						{
-							if (!S_IsPlayingSomewhere(s))
-								s->decoder.ended(s);
-						}
-						break;
-					}
-				}
+				else
+					break;
 			}
 		}
 

@@ -587,9 +587,9 @@ static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth
 	sc->soundoffset = 0;
 	sc->data = (qbyte*)(sc+1);
 	if (inloopstart == -1)
-		sc->loopstart = inloopstart;
+		sfx->loopstart = inloopstart;
 	else
-		sc->loopstart = inloopstart * scale;
+		sfx->loopstart = inloopstart * scale;
 
 	SND_ResampleStream (data,
 		inrate,
@@ -612,7 +612,7 @@ static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth
 #define DSPK_EXP 0.0433
 
 /*
-sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+qboolean QDECL S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
 {
 	sfxcache_t	*sc;
 
@@ -688,7 +688,7 @@ sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int snds
 	return sc;
 }
 */
-static qboolean S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+static qboolean QDECL S_LoadDoomSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
 {
 	// format data from Unofficial Doom Specs v1.6
 	unsigned short *dataus;
@@ -717,7 +717,7 @@ static qboolean S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspee
 }
 #endif
 
-static qboolean S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
 {
 	wavinfo_t	info;
 
@@ -740,11 +740,11 @@ static qboolean S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed
 	return ResampleSfx (s, info.rate, info.numchannels, info.width, info.samples, info.loopstart, data + info.dataofs);
 }
 
-qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
+qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed);
 
 #ifdef FTE_TARGET_WEB
 //web browsers contain their own decoding libraries that our openal stuff can use.
-static qboolean S_LoadBrowserFile (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, int sndspeed)
 {
 	sfxcache_t *sc;
 	s->decoder.buf = sc = BZ_Malloc(sizeof(sfxcache_t) + datalen);
@@ -812,23 +812,12 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 	char *name = s->name;
 	size_t filesize;
 
-	if (name[1] == ':' && name[2] == '\\')
+	s->loopstart = -1;
+
+	if (s->syspath)
 	{
 		vfsfile_t *f;
-#ifndef _WIN32	//convert from windows to a suitable alternative.
-		char unixname[128];
-		Q_snprintfz(unixname, sizeof(unixname), "/mnt/%c/%s", name[0]-'A'+'a', name+3);
-		name = unixname;
-		while (*name)
-		{
-			if (*name == '\\')
-				*name = '/';
-			name++;
-		}
-		name = unixname;
-#endif
 
-		
 		if ((f = VFSOS_Open(name, "rb")))
 		{
 			filesize = VFS_GETLEN(f);

@@ -77,9 +77,6 @@ static BUILTIN(void, Sys_CloseLibrary, (dllhandle_t *hdl));
 #define ARGNAMES ,version
 static BUILTINR(rbeplugfuncs_t*, RBE_GetPluginFuncs, (int version));
 #undef ARGNAMES
-#define ARGNAMES ,name,defaultval,flags,description,groupname
-static BUILTINR(cvar_t*, Cvar_GetNVFDG, (const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname));
-#undef ARGNAMES
 
 static rbeplugfuncs_t *rbefuncs;
 cvar_t r_meshpitch;
@@ -2831,7 +2828,6 @@ static qintptr_t QDECL Plug_ODE_Shutdown(qintptr_t *args)
 qintptr_t Plug_Init(qintptr_t *args)
 {
 	CHECKBUILTIN(RBE_GetPluginFuncs);
-	CHECKBUILTIN(Cvar_GetNVFDG);
 #ifndef ODE_STATIC
 	CHECKBUILTIN(Sys_LoadLibrary);
 	CHECKBUILTIN(Sys_CloseLibrary);

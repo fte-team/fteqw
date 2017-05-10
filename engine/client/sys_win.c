@@ -126,14 +126,24 @@ void Sys_Quit (void)
 	exit(0);
 }
 
-void Sys_mkdir (char *path)
+void Sys_mkdir (const char *path)
 {
 	wchar_t wide[MAX_OSPATH];
 	widen(wide, sizeof(wide), path);
 	CreateDirectoryW(wide, NULL);
 }
+qboolean Sys_rmdir (const char *path)
+{
+	RemoveDirectoryW(wide)
 
-qboolean Sys_remove (char *path)
+	if (rmdir (path) == 0)
+		return true;
+	if (errno == ENOENT)
+		return true;
+	return false;
+}
+
+qboolean Sys_remove (const char *path)
 {
 	wchar_t wide[MAX_OSPATH];
 	widen(wide, sizeof(wide), path);
@@ -144,7 +154,7 @@ qboolean Sys_remove (char *path)
 	return false;		//other errors? panic
 }
 
-qboolean Sys_Rename (char *oldfname, char *newfname)
+qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	wchar_t oldwide[MAX_OSPATH];
 	wchar_t newwide[MAX_OSPATH];
@@ -389,10 +399,27 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	int i;
 	HMODULE lib;
+	DWORD err;
 
 	lib = LoadLibraryU(name);
 	if (!lib)
 	{
+		err = GetLastError();
+		switch(err)
+		{
+		case ERROR_MOD_NOT_FOUND:
+			break;
+		case ERROR_BAD_EXE_FORMAT:
+			Con_Printf("Error ERROR_BAD_EXE_FORMAT loading %s\n", name);
+			break;
+		case ERROR_PROC_NOT_FOUND:
+			Con_Printf("Error ERROR_PROC_NOT_FOUND loading %s\n", name);
+			break;
+		default:
+			Con_Printf("Error %u loading %s\n", err, name);
+			break;
+		}
+
 		if (!strstr(COM_SkipPath(name), ".dll"))
 		{	//.dll implies that it is a system dll, or something that is otherwise windows-specific already.
 			char libname[MAX_OSPATH];
@@ -1014,7 +1041,7 @@ FILE IO
 ===============================================================================
 */
 
-void Sys_mkdir (char *path)
+void Sys_mkdir (const char *path)
 {
 	if (WinNT)
 	{
@@ -1026,7 +1053,20 @@ void Sys_mkdir (char *path)
 		_mkdir (path);
 }
 
-qboolean Sys_remove (char *path)
+qboolean Sys_rmdir (const char *path)
+{
+	if (WinNT)
+	{
+		wchar_t wide[MAX_OSPATH];
+		widen(wide, sizeof(wide), path);
+		return RemoveDirectoryW(wide);
+	}
+	else
+		return 0==_mkdir (path);
+}
+
+
+qboolean Sys_remove (const char *path)
 {
 	if (WinNT)
 	{
@@ -1055,7 +1095,7 @@ qboolean Sys_remove (char *path)
 	}
 }
 
-qboolean Sys_Rename (char *oldfname, char *newfname)
+qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	if (WinNT)
 	{
@@ -4233,5 +4273,49 @@ qboolean WIN_SetCursor(void *cursor)
 void WIN_DestroyCursor(void *cursor)
 {
 	DestroyIcon(cursor);
+}
+
+
+
+/*
+static HRESULT STDMETHODCALLTYPE DD_QueryInterface(IDropTarget *This, REFIID riid, void **ppvObject) {return E_NOINTERFACE;}
+static ULONG STDMETHODCALLTYPE DD_AddRef(IDropTarget *This) {return 1;}
+static ULONG STDMETHODCALLTYPE DD_Release(IDropTarget *This) {return 1;}
+static HRESULT STDMETHODCALLTYPE DD_DragEnter(IDropTarget *This, IDataObject *pDataObj, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect)
+{
+	*pdwEffect &= DROPEFFECT_COPY;
+	return S_OK;
+}
+static HRESULT STDMETHODCALLTYPE DD_DragOver(IDropTarget *This, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect)
+{
+	*pdwEffect &= DROPEFFECT_COPY;
+	return S_OK;
+}
+static HRESULT STDMETHODCALLTYPE DD_DragLeave(IDropTarget *This)
+{
+	return S_OK;
+}
+static HRESULT STDMETHODCALLTYPE DD_Drop(IDropTarget *This, IDataObject *pDataObj, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect)
+{
+	*pdwEffect &= DROPEFFECT_COPY;
+	return S_OK;
+}
+static struct IDropTargetVtbl MyDropTargetVtbl =
+{
+	DD_QueryInterface,
+	DD_AddRef,
+	DD_Release,
+	DD_DragEnter,
+	DD_DragOver,
+	DD_DragLeave,
+	DD_Drop
+};
+static IDropTarget MyDropTarget = {&MyDropTargetVtbl};*/
+void WIN_WindowCreated(HWND window)
+{
+//	OleInitialize(NULL);
+//	if (FAILED(RegisterDragDrop(window, &MyDropTarget)))
+//		Con_Printf("RegisterDragDrop failed\n");
+	DragAcceptFiles(window, TRUE);
 }
 #endif

@@ -31,11 +31,13 @@ static qboolean CL_CheckModelResources (char *name);
 #ifdef NQPROT
 static char *CLNQ_ParseProQuakeMessage (char *s);
 #endif
+static void DLC_Poll(qdownload_t *dl);
+static void CL_ProcessUserInfo (int slot, player_info_t *player);
 
-char cl_dp_csqc_progsname[128];
-int cl_dp_csqc_progssize;
-int cl_dp_csqc_progscrc;
-int cl_dp_serverextension_download;
+static char cl_dp_csqc_progsname[128];
+static int cl_dp_csqc_progssize;
+static int cl_dp_csqc_progscrc;
+static int cl_dp_serverextension_download;
 
 #ifdef AVAIL_ZLIB
 #ifndef ZEXPORT
@@ -45,7 +47,7 @@ int cl_dp_serverextension_download;
 #endif
 
 
-char *svc_qwstrings[] =
+static char *svc_qwstrings[] =
 {
 	"svc_bad",
 	"svc_nop",
@@ -175,7 +177,7 @@ char *svc_qwstrings[] =
 	"???",
 };
 
-char *svc_nqstrings[] =
+static char *svc_nqstrings[] =
 {
 	"nqsvc_bad",
 	"nqsvc_nop",
@@ -655,7 +657,7 @@ void CL_GetDownloadSizes(unsigned int *filecount, qofs_t *totalsize, qboolean *s
 	}
 }
 
-void CL_DisenqueDownload(char *filename)
+static void CL_DisenqueDownload(char *filename)
 {
 	downloadlist_t *dl, *nxt;
 	if(cl.downloadlist)	//remove from enqued download list
@@ -683,7 +685,7 @@ void CL_DisenqueDownload(char *filename)
 }
 
 #ifdef WEBCLIENT
-void CL_WebDownloadFinished(struct dl_download *dl)
+static void CL_WebDownloadFinished(struct dl_download *dl)
 {
 	if (dl->status == DL_FAILED)
 	{
@@ -701,7 +703,7 @@ void CL_WebDownloadFinished(struct dl_download *dl)
 }
 #endif
 
-void CL_SendDownloadStartRequest(char *filename, char *localname, unsigned int flags)
+static void CL_SendDownloadStartRequest(char *filename, char *localname, unsigned int flags)
 {
 	static int dlsequence;
 	qdownload_t *dl;
@@ -839,7 +841,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 	}
 }
 
-qboolean CL_CheckFile(const char *filename)
+static qboolean CL_CheckFile(const char *filename)
 {
 	if (strstr (filename, ".."))
 	{
@@ -985,7 +987,7 @@ static qboolean CL_CheckMD2Skins (qbyte *precache_model)
 	return ret;
 }
 
-qboolean CL_CheckHLBspWads(char *file)
+static qboolean CL_CheckHLBspWads(char *file)
 {
 	lump_t lump;
 	dheader_t *dh;
@@ -1034,7 +1036,7 @@ qboolean CL_CheckHLBspWads(char *file)
 	return false;
 }
 
-qboolean CL_CheckQ2BspWals(char *file)
+static qboolean CL_CheckQ2BspWals(char *file)
 {
 	qboolean gotone = false;
 #ifdef Q2BSPS
@@ -1110,7 +1112,7 @@ static qboolean CL_CheckModelResources (char *name)
 Model_NextDownload
 =================
 */
-void Model_CheckDownloads (void)
+static void Model_CheckDownloads (void)
 {
 	char	*s;
 	int		i;
@@ -1167,7 +1169,7 @@ void Model_CheckDownloads (void)
 	}
 }
 
-int CL_LoadModels(int stage, qboolean dontactuallyload)
+static int CL_LoadModels(int stage, qboolean dontactuallyload)
 {
 	int i;
 
@@ -1419,7 +1421,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	return stage;
 }
 
-int CL_LoadSounds(int stage, qboolean dontactuallyload)
+static int CL_LoadSounds(int stage, qboolean dontactuallyload)
 {
 	int i;
 	float giveuptime = Sys_DoubleTime()+0.1;	//small things get padded into a single frame
@@ -1490,7 +1492,7 @@ void Sound_CheckDownload(const char *s)
 Sound_NextDownload
 =================
 */
-void Sound_CheckDownloads (void)
+static void Sound_CheckDownloads (void)
 {
 	int		i;
 
@@ -1720,7 +1722,7 @@ void CL_SendDownloadReq(sizebuf_t *msg)
 #include <zlib.h>
 #endif
 
-char *ZLibDownloadDecode(int *messagesize, char *input, int finalsize)
+static char *ZLibDownloadDecode(int *messagesize, char *input, int finalsize)
 {
 	char *outbuf = Hunk_TempAlloc(finalsize);
 	z_stream zs;
@@ -1911,7 +1913,7 @@ qboolean DL_Begun(qdownload_t *dl)
 	return true;
 }
 
-void DL_Completed(qdownload_t *dl, qofs_t start, qofs_t end)
+static void DL_Completed(qdownload_t *dl, qofs_t start, qofs_t end)
 {
 	struct dlblock_s *prev = NULL, *b, *n, *e;
 	if (end <= start)
@@ -2028,7 +2030,7 @@ void DL_Completed(qdownload_t *dl, qofs_t start, qofs_t end)
 
 static float chunkrate;
 
-void CL_ParseChunkedDownload(qdownload_t *dl)
+static void CL_ParseChunkedDownload(qdownload_t *dl)
 {
 	qbyte	*svname;
 	int flag;
@@ -2318,7 +2320,7 @@ static void DLC_RequestDownloadChunks(qdownload_t *dl, float frametime)
 	}
 }
 
-void DLC_Poll(qdownload_t *dl)
+static void DLC_Poll(qdownload_t *dl)
 {
 	static float lasttime;
 	DLC_RequestDownloadChunks(dl, realtime - lasttime);
@@ -2457,7 +2459,7 @@ CL_ParseDownload
 A download message has been received from the server
 =====================
 */
-void CL_ParseDownload (qboolean zlib)
+static void CL_ParseDownload (qboolean zlib)
 {
 	extern cvar_t cl_dlemptyterminate;
 	int		size, percent;
@@ -2641,7 +2643,7 @@ qboolean CL_ParseOOBDownload(void)
 	return true;
 }
 
-void CLDP_ParseDownloadData(void)
+static void CLDP_ParseDownloadData(void)
 {
 	qdownload_t *dl = cls.download;
 	unsigned char buffer[1<<16];
@@ -2669,7 +2671,7 @@ void CLDP_ParseDownloadData(void)
 	MSG_WriteShort(&cls.netchan.message, size);
 }
 
-void CLDP_ParseDownloadBegin(char *s)
+static void CLDP_ParseDownloadBegin(char *s)
 {
 	qdownload_t *dl = cls.download;
 	char buffer[8192];
@@ -2714,7 +2716,7 @@ void CLDP_ParseDownloadBegin(char *s)
 	}
 }
 
-void CLDP_ParseDownloadFinished(char *s)
+static void CLDP_ParseDownloadFinished(char *s)
 {
 	qdownload_t *dl = cls.download;
 	unsigned short runningcrc = 0;
@@ -2861,7 +2863,7 @@ void CL_StopUpload(void)
 	upload_pos = upload_size = 0;
 }
 
-qboolean CL_StartUploadFile(char *filename)
+static qboolean CL_StartUploadFile(char *filename)
 {
 	if (!COM_CheckParm("-fileul"))
 	{
@@ -2870,7 +2872,10 @@ qboolean CL_StartUploadFile(char *filename)
 	}
 
 	if (cls.state < ca_onserver)
+	{
+		Con_Printf("not connected\n");
 		return false; // gotta be connected
+	}
 
 	CL_StopUpload();
 
@@ -2894,7 +2899,7 @@ qboolean CL_StartUploadFile(char *filename)
 =====================================================================
 */
 #ifdef CLIENTONLY
-float nextdemotime;
+static float nextdemotime;
 #endif
 
 void CL_ClearParseState(void)
@@ -2931,7 +2936,7 @@ void CL_ClearParseState(void)
 CL_ParseServerData
 ==================
 */
-void CLQW_ParseServerData (void)
+static void CLQW_ParseServerData (void)
 {
 	int pnum;
 	int clnum;
@@ -3223,7 +3228,7 @@ void CLQW_ParseServerData (void)
 }
 
 #ifdef Q2CLIENT
-void CLQ2_ParseServerData (void)
+static void CLQ2_ParseServerData (void)
 {
 	char	*str;
 	int		i;
@@ -3393,7 +3398,7 @@ void CL_ParseEstablished(void)
 }
 
 #ifdef NQPROT
-void CLNQ_ParseProtoVersion(void)
+static void CLNQ_ParseProtoVersion(void)
 {
 	int protover;
 	struct netprim_s netprim;
@@ -3534,7 +3539,7 @@ static int CL_Darkplaces_Particle_Precache(const char *pname)
 
 //FIXME: move to header
 void CL_KeepaliveMessage(void){}
-void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
+static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 {
 	int	nummodels, numsounds;
 	char	*str;
@@ -3729,7 +3734,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 }
 
 #define	DEFAULT_VIEWHEIGHT	22
-void CLNQ_ParseClientdata (void)
+static void CLNQ_ParseClientdata (void)
 {
 	int		i;
 	const int seat = 0;
@@ -3885,7 +3890,7 @@ void CLNQ_ParseClientdata (void)
 CL_ParseSoundlist
 ==================
 */
-void CL_ParseSoundlist (qboolean lots)
+static void CL_ParseSoundlist (qboolean lots)
 {
 	int	numsounds;
 	char	*str;
@@ -3961,7 +3966,7 @@ void CL_ParseSoundlist (qboolean lots)
 CL_ParseModellist
 ==================
 */
-void CL_ParseModellist (qboolean lots)
+static void CL_ParseModellist (qboolean lots)
 {
 	int	nummodels;
 	char	*str;
@@ -4037,10 +4042,8 @@ void CL_ParseModellist (qboolean lots)
 	SCR_SetLoadingFile("loading data");
 }
 
-void CL_ProcessUserInfo (int slot, player_info_t *player);
-
 #ifdef Q2CLIENT
-void CLQ2_ParseClientinfo(int i, char *s)
+static void CLQ2_ParseClientinfo(int i, char *s)
 {
 	char *model, *name;
 	player_info_t *player;
@@ -4089,7 +4092,7 @@ void CLQ2_ParseClientinfo(int i, char *s)
 	CL_ProcessUserInfo (i, player);
 }
 
-void CLQ2_ParseConfigString (void)
+static void CLQ2_ParseConfigString (void)
 {
 	unsigned int		i;
 	char	*s;
@@ -4259,7 +4262,7 @@ qboolean CL_CheckBaselines (int size)
 CL_ParseBaseline
 ==================
 */
-void CL_ParseBaseline (entity_state_t *es, int baselinetype2)
+static void CL_ParseBaseline (entity_state_t *es, int baselinetype2)
 {
 	int			i;
 	unsigned int bits;
@@ -4289,7 +4292,7 @@ void CL_ParseBaseline (entity_state_t *es, int baselinetype2)
 	es->trans = (bits & FITZ_B_ALPHA) ? MSG_ReadByte() : 255;
 	es->scale = (bits & RMQFITZ_B_SCALE) ? MSG_ReadByte() : 16;
 }
-void CL_ParseBaselineDelta (void)
+static void CL_ParseBaselineDelta (void)
 {
 	entity_state_t es;
 
@@ -4302,33 +4305,7 @@ void CL_ParseBaselineDelta (void)
 	memcpy(cl_baselines + es.number, &es, sizeof(es));
 }
 
-void CLNQ_ParseBaseline2 (entity_state_t *es, qboolean dp)
-{
-	int			i;
-	int			bits;
-
-	memcpy(es, &nullentitystate, sizeof(entity_state_t));
-
-	if (dp)
-		bits = FITZ_B_LARGEMODEL|FITZ_B_LARGEFRAME;
-	else
-		bits = MSG_ReadByte();
-	es->modelindex = (bits & FITZ_B_LARGEMODEL) ? MSG_ReadShort() : MSG_ReadByte();
-	es->frame = (bits & FITZ_B_LARGEFRAME) ? MSG_ReadShort() : MSG_ReadByte();
-	es->colormap = MSG_ReadByte();
-	es->skinnum = MSG_ReadByte();
-
-	for (i=0 ; i<3 ; i++)
-	{
-		es->origin[i] = MSG_ReadCoord ();
-		es->angles[i] = MSG_ReadAngle ();
-	}
-
-	es->trans = (bits & FITZ_B_ALPHA) ? MSG_ReadByte() : 255;
-	es->scale = (bits & RMQFITZ_B_SCALE) ? MSG_ReadByte() : 16;
-}
-
-void CLQ2_Precache_f (void)
+static void CLQ2_Precache_f (void)
 {
 	Model_CheckDownloads();
 	Sound_CheckDownloads();
@@ -4353,7 +4330,7 @@ like torches
 =====================
 */
 void R_StaticEntityToRTLight(int i);
-void CL_ParseStaticProt (int baselinetype)
+static void CL_ParseStaticProt (int baselinetype)
 {
 	entity_t *ent;
 	int		i;
@@ -4486,7 +4463,7 @@ void CL_ParseStaticProt (int baselinetype)
 CL_ParseStaticSound
 ===================
 */
-void CL_ParseStaticSound (qboolean large)
+static void CL_ParseStaticSound (qboolean large)
 {
 	extern cvar_t cl_staticsounds;
 	vec3_t		org;
@@ -4525,7 +4502,7 @@ ACTION MESSAGES
 CL_ParseStartSoundPacket
 ==================
 */
-void CLQW_ParseStartSoundPacket(void)
+static void CLQW_ParseStartSoundPacket(void)
 {
 	vec3_t  pos;
 	int 	channel, ent;
@@ -4579,7 +4556,7 @@ void CLQW_ParseStartSoundPacket(void)
 }
 
 #ifdef Q2CLIENT
-void CLQ2_ParseStartSoundPacket(void)
+static void CLQ2_ParseStartSoundPacket(void)
 {
 	vec3_t  pos_v;
 	float	*pos;
@@ -4674,7 +4651,7 @@ void CLQ2_ParseStartSoundPacket(void)
 #endif
 
 #if defined(NQPROT) || defined(PEXT_SOUNDDBL)
-void CLNQ_ParseStartSoundPacket(void)
+static void CLNQ_ParseStartSoundPacket(void)
 {
 	vec3_t  pos, vel;
 	int 	channel, ent;
@@ -4954,7 +4931,7 @@ void CL_NewTranslation (int slot)
 CL_UpdateUserinfo
 ==============
 */
-void CL_ProcessUserInfo (int slot, player_info_t *player)
+static void CL_ProcessUserInfo (int slot, player_info_t *player)
 {
 	int i;
 	char *col;
@@ -5030,7 +5007,7 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 CL_UpdateUserinfo
 ==============
 */
-void CL_UpdateUserinfo (void)
+static void CL_UpdateUserinfo (void)
 {
 	int		slot;
 	player_info_t	*player;
@@ -5062,7 +5039,7 @@ void CL_UpdateUserinfo (void)
 CL_SetInfo
 ==============
 */
-void CL_ParseSetInfo (void)
+static void CL_ParseSetInfo (void)
 {
 	int		slot;
 	player_info_t	*player;
@@ -5094,7 +5071,7 @@ void CL_ParseSetInfo (void)
 CL_ServerInfo
 ==============
 */
-void CL_ServerInfo (void)
+static void CL_ServerInfo (void)
 {
 //	int		slot;
 //	player_info_t	*player;
@@ -5153,7 +5130,7 @@ static void CL_SetStat_Internal (int pnum, int stat, int ivalue, float fvalue)
 }
 
 #ifdef NQPROT
-void CL_SetStatMovevar(int pnum, int stat, float value)
+static void CL_SetStatMovevar(int pnum, int stat, float value)
 {
 	switch(stat)
 	{
@@ -5247,7 +5224,7 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 #endif
 }
 
-void CL_SetStatString (int pnum, int stat, char *value)
+static void CL_SetStatString (int pnum, int stat, char *value)
 {
 	if (stat < 0 || stat >= MAX_CL_STATS)
 		return;
@@ -5275,7 +5252,7 @@ void CL_SetStatString (int pnum, int stat, char *value)
 CL_MuzzleFlash
 ==============
 */
-void CL_MuzzleFlash (int entnum)
+static void CL_MuzzleFlash (int entnum)
 {
 	dlight_t	*dl;
 	player_state_t	*pl;
@@ -5363,7 +5340,7 @@ void CL_MuzzleFlash (int entnum)
 
 #ifdef Q2CLIENT
 void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float timeofs);
-void CLQ2_ParseMuzzleFlash (void)
+static void CLQ2_ParseMuzzleFlash (void)
 {
 	vec3_t		fv, rv, dummy;
 	dlight_t	*dl;
@@ -5556,7 +5533,7 @@ void CLQ2_ParseMuzzleFlash (void)
 	}
 }
 
-void CLQ2_ParseMuzzleFlash2 (void)
+static void CLQ2_ParseMuzzleFlash2 (void)
 {
 	int			ent;
 	int			flash_number;
@@ -5570,7 +5547,7 @@ void CLQ2_ParseMuzzleFlash2 (void)
 	CLQ2_RunMuzzleFlash2(ent, flash_number);
 }
 
-void CLQ2_ParseInventory (int seat)
+static void CLQ2_ParseInventory (int seat)
 {
 	unsigned int		i;
 	for (i=0 ; i<Q2MAX_ITEMS ; i++)
@@ -5579,7 +5556,7 @@ void CLQ2_ParseInventory (int seat)
 #endif
 
 //return if we want to print the message.
-char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
+static char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 {
 	extern cvar_t cl_chatsound, cl_nofake, cl_teamchatsound, cl_enemychatsound;
 	int flags;
@@ -5672,7 +5649,7 @@ char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 }
 
 // CL_PlayerColor: returns color and mask for player_info_t
-int CL_PlayerColor(player_info_t *plr, qboolean *name_coloured)
+static int CL_PlayerColor(player_info_t *plr, qboolean *name_coloured)
 {
 	char *t;
 	unsigned int c;
@@ -5966,8 +5943,8 @@ void CL_PrintChat(player_info_t *plr, char *msg, int plrflags)
 
 // CL_PrintStandardMessage: takes non-chat net messages and performs name coloring
 // NOTE: msg is considered destroyable
-char acceptedchars[] = {'.', '?', '!', '\'', ',', ':', ' ', '\0'};
-void CL_PrintStandardMessage(char *msgtext, int printlevel)
+static char acceptedchars[] = {'.', '?', '!', '\'', ',', ':', ' ', '\0'};
+static void CL_PrintStandardMessage(char *msgtext, int printlevel)
 {
 	int i;
 	player_info_t *p;
@@ -6047,8 +6024,8 @@ void CL_PrintStandardMessage(char *msgtext, int printlevel)
 	Con_Printf("%s", fullmessage);
 }
 
-char printtext[4096];
-void CL_ParsePrint(char *msg, int level)
+static char printtext[4096];
+static void CL_ParsePrint(char *msg, int level)
 {
 	char n;
 	if (strlen(printtext) + strlen(msg) >= sizeof(printtext))
@@ -6193,8 +6170,8 @@ static void CL_ParseTeamInfo(void)
 #endif
 
 
-char stufftext[4096];
-void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from network segregation.
+static char stufftext[4096];
+static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from network segregation.
 {
 #ifdef NQPROT
 	if (!*stufftext && *msg == 1 && !cls.allow_csqc)
@@ -6409,7 +6386,7 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 	}
 }
 
-void CL_ParsePrecache(void)
+static void CL_ParsePrecache(void)
 {
 	int i, code = (unsigned short)MSG_ReadShort();
 	char *s = MSG_ReadString();
@@ -6464,7 +6441,7 @@ void CL_ParsePrecache(void)
 	}
 }
 
-void Con_HexDump(qbyte *packet, size_t len)
+static void Con_HexDump(qbyte *packet, size_t len)
 {
 	int i;
 	int pos;
@@ -6501,7 +6478,7 @@ void CL_DumpPacket(void)
 	Con_HexDump(net_message.data, net_message.cursize);
 }
 
-void CL_ParsePortalState(void)
+static void CL_ParsePortalState(void)
 {
 	int mode = MSG_ReadByte();
 	int a1, a2;
@@ -7126,7 +7103,7 @@ void CLQW_ParseServerMessage (void)
 }
 
 #ifdef Q2CLIENT
-void CLQ2_ParseZPacket(void)
+static void CLQ2_ParseZPacket(void)
 {
 #ifndef AVAIL_ZLIB
 	Host_EndGame ("CLQ2_ParseZPacket: zlib not supported in this build");
@@ -7171,7 +7148,7 @@ void CLQ2_ParseZPacket(void)
 	msg_badread = false;
 #endif
 }
-void CLR1Q2_ParseSetting(void)
+static void CLR1Q2_ParseSetting(void)
 {
 	int setting = MSG_ReadLong();
 	int value = MSG_ReadLong();
@@ -7467,7 +7444,7 @@ static char *CLNQ_ParseProQuakeMessage (char *s)
 	return s;
 }
 
-qboolean CLNQ_ParseNQPrints(char *s)
+static qboolean CLNQ_ParseNQPrints(char *s)
 {
 	int i;
 	char *start = s;
@@ -7569,7 +7546,7 @@ qboolean CLNQ_ParseNQPrints(char *s)
 	return false;
 }
 
-void CLNQ_CheckPlayerIsSpectator(int i)
+static void CLNQ_CheckPlayerIsSpectator(int i)
 {
 	cl.players[i].spectator =
 		(cl.players[i].frags==-999) ||	//DP mods tend to use -999

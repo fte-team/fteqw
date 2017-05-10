@@ -119,7 +119,7 @@ extern void	(*R_RenderView)							(void);		// must set r_refdef first
 
 extern qboolean	(*VID_Init)							(rendererstate_t *info, unsigned char *palette);
 extern void	(*VID_DeInit)							(void);
-extern char *(*VID_GetRGBInfo)						(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
+extern char *(*VID_GetRGBInfo)						(int *stride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt); //if stride is negative, then the return value points to the last line intead of the first. this allows it to be freed normally.
 extern void	(*VID_SetWindowCaption)					(const char *msg);
 
 extern void SCR_Init								(void);
@@ -425,7 +425,7 @@ typedef struct rendererinfo_s {
 	void	 (*VID_DestroyCursor)			(void *cursor);	//may be null
 
 	void	 (*VID_SetWindowCaption)		(const char *msg);
-	char	*(*VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
+	char	*(*VID_GetRGBInfo)			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
 
 	qboolean (*SCR_UpdateScreen)			(void);
 

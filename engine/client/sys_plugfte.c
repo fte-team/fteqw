@@ -666,12 +666,12 @@ qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
 	return false;
 }
 
-void Sys_mkdir (char *path)
+void Sys_mkdir (const char *path)
 {
 	CreateDirectory (path, NULL);
 }
 #else
-void Sys_mkdir (char *path)
+void Sys_mkdir (const char *path)
 {
 	mkdir (path, 0777);
 }
@@ -792,7 +792,7 @@ qboolean Plug_GetDownloadedName(char *updatedpath, int updatedpathlen)
 			if (enginedownloadactive)
 			{
 				enginedownloadactive->user_ctx = NULL;
-				DL_CreateThread(enginedownloadactive, VFSPIPE_Open(), Update_Version_Updated);
+				DL_CreateThread(enginedownloadactive, VFSPIPE_Open(1, false), Update_Version_Updated);
 			}
 		}
 	}

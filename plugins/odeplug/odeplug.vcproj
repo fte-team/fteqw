@@ -113,9 +113,8 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				AdditionalIncludeDirectories="../../engine/server;../../engine/gl;../../engine/qclib;../../engine/client;../../engine/common"
-				PreprocessorDefinitions="FTEPLUGIN"
-				CallingConvention="1"
+				AdditionalIncludeDirectories="../../engine/server;../../engine/gl;../../engine/qclib;../../engine/client;../../engine/common;."
+				PreprocessorDefinitions="FTEPLUGIN;ODE_STATIC"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -129,7 +128,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				AdditionalDependencies="ode/ode_double.lib"
-				OutputFile="../../fteplug_odex86.dll"
+				OutputFile="../../fteplug_ode_x86.dll"
 				GenerateManifest="false"
 				ModuleDefinitionFile="..\plugin.def"
 			/>

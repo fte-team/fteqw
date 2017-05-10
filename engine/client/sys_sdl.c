@@ -119,7 +119,7 @@ double Sys_DoubleTime (void)
 }
 
 //create a directory
-void Sys_mkdir (char *path)
+void Sys_mkdir (const char *path)
 {
 #if WIN32
 	_mkdir (path);
@@ -129,15 +129,31 @@ void Sys_mkdir (char *path)
 #endif
 }
 
+qboolean Sys_rmdir (const char *path)
+{
+	int ret;
+#if WIN32
+	ret = _rmdir (path);
+#else
+	//user, group, others
+	ret = rmdir (path, 0755);	//WARNING: DO NOT RUN AS ROOT!
+#endif
+	if (ret == 0)
+		return true;
+	if (errno == ENOENT)
+		return true;
+	return false;
+}
+
 //unlink a file
-qboolean Sys_remove (char *path)
+qboolean Sys_remove (const char *path)
 {
 	remove(path);
 
 	return true;
 }
 
-qboolean Sys_Rename (char *oldfname, char *newfname)
+qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	return !rename(oldfname, newfname);
 }

@@ -568,18 +568,19 @@ cvar_t	cl_pitchspeed = CVAR("cl_pitchspeed","150");
 cvar_t	cl_anglespeedkey = CVAR("cl_anglespeedkey","1.5");
 
 
+#define GATHERBIT(bname,bit) if (bname.state[pnum] & 3)	{bits |=   bit;} bname.state[pnum]	&= ~2;
 void CL_GatherButtons (usercmd_t *cmd, int pnum)
 {
 	unsigned int bits = 0;
-	if (in_attack .state[pnum] & 3)	bits |=   1; in_attack.state[pnum]	&= ~2;
-	if (in_jump   .state[pnum] & 3)	bits |=   2; in_jump.state[pnum]	&= ~2;
-	if (in_use    .state[pnum] & 3)	bits |=   4; in_use.state[pnum]		&= ~2;
-	if (in_button3.state[pnum] & 3)	bits |=   4; in_button3.state[pnum] &= ~2;	//yup, flag 4 twice.
-	if (in_button4.state[pnum] & 3)	bits |=   8; in_button4.state[pnum] &= ~2;
-	if (in_button5.state[pnum] & 3)	bits |=  16; in_button5.state[pnum] &= ~2;
-	if (in_button6.state[pnum] & 3)	bits |=  32; in_button6.state[pnum] &= ~2;
-	if (in_button7.state[pnum] & 3)	bits |=  64; in_button7.state[pnum] &= ~2;
-	if (in_button8.state[pnum] & 3)	bits |= 128; in_button8.state[pnum] &= ~2;
+	GATHERBIT(in_attack,	1);
+	GATHERBIT(in_jump,		2);
+	GATHERBIT(in_use,		4);
+	GATHERBIT(in_button3,	4);	//yup, flag 4 twice.
+	GATHERBIT(in_button4,	8);
+	GATHERBIT(in_button5,	16);
+	GATHERBIT(in_button6,	32);
+	GATHERBIT(in_button7,	64);
+	GATHERBIT(in_button8,	128);
 	cmd->buttons = bits;
 }
 

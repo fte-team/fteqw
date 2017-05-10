@@ -1,6 +1,7 @@
 #include "quakedef.h"
 #include "glquake.h"
 #include "web/ftejslib.h"
+vfsfile_t *FSWEB_OpenTempHandle(int f);
 
 extern cvar_t gl_lateswap;
 extern qboolean gammaworks;
@@ -156,11 +157,10 @@ static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 		IN_KeyEvent(devid, down, K_MOUSE1+button, 0);
 	}
 }
-vfsfile_t *FSWEB_OpenTempHandle(int f);
+
 void DOM_LoadFile(char *loc, char *mime, int handle)
 {
 	vfsfile_t *file = NULL;
-	Con_Printf("DOM_LoadFile: %s %i\n", loc, handle);
 	if (handle != -1)
 		file = FSWEB_OpenTempHandle(handle);
 	else

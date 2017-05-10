@@ -76,6 +76,10 @@ struct icestate_s
 	char *conname;		//internal id.
 	char *friendlyname;	//who you're talking to.
 
+	unsigned int originid;	//should be randomish
+	unsigned int originversion;//bumped each time something in the sdp changes.
+	char originaddress[16];
+
 	struct icecandidate_s *lc;
 	char *lpwd;
 	char *lufrag;
@@ -277,21 +281,24 @@ struct icestate_s *QDECL ICE_Create(void *module, const char *conname, const cha
 		Sys_RandomBytes((void*)rnd, sizeof(rnd));
 		conname = va("fte%08x%08x", rnd[0], rnd[1]);
 	}
-
+	
 	con = Z_Malloc(sizeof(*con));
 	con->conname = Z_StrDup(conname);
 	con->friendlyname = Z_StrDup(peername);
 	con->proto = proto;
 	con->rpwd = Z_StrDup("");
 	con->rufrag = Z_StrDup("");
+	Sys_RandomBytes((void*)&con->originid, sizeof(con->originid));
+	con->originversion = 1;
+	Q_strncpyz(con->originaddress, "127.0.0.1", sizeof(con->originaddress));
 
 	con->mode = mode;
 
 	if (!collection)
 	{
 		con->connections = collection = FTENET_CreateCollection(true);
-		FTENET_AddToCollection(collection, "UDP", "0", NA_IP, true);
-		FTENET_AddToCollection(collection, "natpmp", "natpmp://5351", NA_IP, true);
+		FTENET_AddToCollection(collection, "UDP", "0", NA_IP, NP_DGRAM, true);
+		FTENET_AddToCollection(collection, "natpmp", "natpmp://5351", NA_IP, NP_NATPMP, true);
 	}
 
 	con->next = icelist;
@@ -317,7 +324,7 @@ struct icestate_s *QDECL ICE_Create(void *module, const char *conname, const cha
 
 		netadr_t	addr[64];
 		struct ftenet_generic_connection_s			*gcon[sizeof(addr)/sizeof(addr[0])];
-		int			flags[sizeof(addr)/sizeof(addr[0])];
+		unsigned int			flags[sizeof(addr)/sizeof(addr[0])];
 
 		m = NET_EnumerateAddresses(collection, gcon, flags, addr, sizeof(addr)/sizeof(addr[0]));
 
@@ -325,29 +332,10 @@ struct icestate_s *QDECL ICE_Create(void *module, const char *conname, const cha
 		{
 			if (addr[i].type == NA_IP || addr[i].type == NA_IPV6)
 			{
-				ICE_AddLCandidateInfo(con, &addr[i], i, ICE_HOST);
-
-				/*
-				cand = Z_Malloc(sizeof(*cand));
-				cand->info.network = i;
-				cand->info.port = ntohs(adr.port);
-				adr.port = 0;	//to make sure its not part of the string...
-				Q_strncpyz(cand->info.addr, NET_AdrToString(adrbuf, sizeof(adrbuf), &adr), sizeof(cand->info.addr));
-				cand->info.generation = 0;
-				cand->info.component = 1;
-				cand->info.foundation = 1;
-				cand->info.priority =
-					(1<<24)*(126) +
-					(1<<8)*((adr.type == NA_IP?32768:0)+net*256+(255-adrno)) +
-					(1<<0)*(256 - cand->info.component);
-
-				Sys_RandomBytes((void*)rnd, sizeof(rnd));
-				Q_strncpyz(cand->info.candidateid, va("x%08x%08x", rnd[0], rnd[1]), sizeof(cand->info.candidateid));
-				cand->dirty = true;
-
-				cand->next = con->lc;
-				con->lc = cand;
-				*/
+//				if (flags[i] & ADDR_REFLEX)
+//					ICE_AddLCandidateInfo(con, &addr[i], i, ICE_SRFLX); //FIXME: needs reladdr relport info
+//				else
+					ICE_AddLCandidateInfo(con, &addr[i], i, ICE_HOST);
 			}
 		}
 	}
@@ -685,7 +673,6 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 			if (!NET_StringToAdr(con->stunserver, con->stunport, &con->pubstunserver))
 				return false;
 	}
-/*
 	else if (!strcmp(prop, "sdp"))
 	{
 		const char *eol;
@@ -694,6 +681,8 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 			eol = strchr(value, '\n');
 			if (!eol)
 				eol = value+strlen(value);
+			else
+				eol++;
 
 			if      (!strncmp(value, "a=ice-pwd:", 10))
 				ICE_Set(con, "rpwd", value+10);
@@ -705,7 +694,7 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 				int codec;
 				char *sl;
 				value += 9;
-				codec = strtoul(value, &value, 0);
+				codec = strtoul(value, (char**)&value, 0);
 				if (*value == ' ') value++;
 
 				COM_ParseOut(value, name, sizeof(name));
@@ -720,10 +709,10 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 				memset(&n, 0, sizeof(n));
 
 				value += 12;
-				n.foundation = strtoul(value, &value, 0);
+				n.foundation = strtoul(value, (char**)&value, 0);
 
 				if(*value == ' ')value++;
-				n.component = strtoul(value, &value, 0);
+				n.component = strtoul(value, (char**)&value, 0);
 
 				if(*value == ' ')value++;
 				if (!strncmp(value, "UDP ", 4))
@@ -735,14 +724,14 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 					break;
 
 				if(*value == ' ')value++;
-				n.priority = strtoul(value, &value, 0);
+				n.priority = strtoul(value, (char**)&value, 0);
 
 				if(*value == ' ')value++;
 				value = COM_ParseOut(value, n.addr, sizeof(n.addr));
 				if (!value) break;
 
 				if(*value == ' ')value++;
-				n.port = strtoul(value, &value, 0);
+				n.port = strtoul(value, (char**)&value, 0);
 				
 				if(*value == ' ')value++;
 				if (strncmp(value, "typ ", 4)) break;
@@ -773,7 +762,7 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 					else if (!strncmp(value, "rport ", 6))
 					{
 						value += 6;
-						n.relport = strtoul(value, &value, 0);
+						n.relport = strtoul(value, (char**)&value, 0);
 					}
 					else
 					{
@@ -789,12 +778,40 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 			}
 		}
 	}
-*/
 	else
 		return false;
 	return true;
 }
-qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *value, int valuelen)
+static char *ICE_CandidateToSDP(struct icecandidate_s *can, char *value, size_t valuelen)
+{
+	char *ctype = "?";
+	switch(can->info.type)
+	{
+	default:
+	case ICE_HOST: ctype = "host"; break;
+	case ICE_SRFLX: ctype = "srflx"; break;
+	case ICE_PRFLX: ctype = "prflx"; break;
+	case ICE_RELAY: ctype = "relay"; break;
+	}
+	Q_snprintfz(value, valuelen, "candidate:%i %i %s %i %s %i typ %s",
+			can->info.foundation,
+			can->info.component,
+			can->info.transport==0?"udp":"ERROR",
+			can->info.priority,
+			can->info.addr,
+			can->info.port,
+			ctype
+			);
+	Q_strncatz(value, va(" generation %i", can->info.generation), valuelen);
+	if (can->info.type != ICE_HOST)
+	{
+		Q_strncatz(value, va(" raddr %s", can->info.reladdr), valuelen);
+		Q_strncatz(value, va(" rport %i", can->info.relport), valuelen);
+	}
+
+	return value;
+}
+qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *value, size_t valuelen)
 {
 	if (!strcmp(prop, "sid"))
 		Q_strncpyz(value, con->conname, valuelen);
@@ -828,7 +845,6 @@ qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *value, in
 			}
 		}
 	}
-/*
 	else if (!strcmp(prop, "sdp"))
 	{
 		struct icecandidate_s *can;
@@ -848,13 +864,18 @@ qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *value, in
 		}
 
 		Q_strncpyz(value, "v=0\n", valuelen);
-		Q_strncatz(value, va("o=$NAME $? $? IN IP4 $ADR\n"), valuelen);
-		Q_strncatz(value, "s=\n", valuelen);
+		Q_strncatz(value, va("o=%s %u %u IN IP4 %s\n", "-", con->originid, con->originversion, con->originaddress), valuelen);	//originator
+		Q_strncatz(value, va("s=%s\n", con->conname), valuelen);
 		Q_strncatz(value, va("c=IN %s %s\n", sender.type==NA_IPV6?"IP6":"IP4", NET_BaseAdrToString(tmpstr, sizeof(tmpstr), &sender)), valuelen);
 		Q_strncatz(value, "t=0 0\n", valuelen);
 		Q_strncatz(value, va("a=ice-pwd:%s\n", con->lpwd), valuelen);
 		Q_strncatz(value, va("a=ice-ufrag:%s\n", con->lufrag), valuelen);
-		
+
+		if (con->proto == ICEP_QWSERVER || con->proto == ICEP_QWCLIENT)
+		{
+			Q_strncatz(value, "m=application 9 DTLS/SCTP 5000\n", valuelen);
+		}
+
 		for (i = 0; i < countof(con->codec); i++)
 		{
 			int codec = atoi(prop+5);
@@ -876,38 +897,34 @@ qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *value, in
 
 			for (can = con->lc; can; can = can->next)
 			{
-				char *ctype = NULL;
+				char canline[256];
 				can->dirty = false;	//doesn't matter now.
-				switch(can->info.type)
-				{
-				default:
-				case ICE_HOST: ctype = "host"; break;
-				case ICE_SRFLX: ctype = "srflx"; break;
-				case ICE_PRFLX: ctype = "prflx"; break;
-				case ICE_RELAY: ctype = "relay"; break;
-				}
-				Q_strncatz(value, va("a=candidate:%i %i %s %i %s %i typ %s",
-						can->info.foundation,
-						can->info.component,
-						can->info.transport==0?"UDP":"ERROR",
-						can->info.priority,
-						can->info.addr,
-						can->info.port,
-						ctype
-						), valuelen);
-				if (can->info.type != ICE_HOST)
-				{
-					Q_strncatz(value, va(" raddr %s", can->info.reladdr), valuelen);
-					Q_strncatz(value, va(" rport %i", can->info.relport), valuelen);
-				}
+				Q_strncatz(value, "a=\n", valuelen);
+				ICE_CandidateToSDP(can, canline, sizeof(canline));
+				Q_strncatz(value, canline, valuelen);
 				Q_strncatz(value, "\n", valuelen);
 			}
 		}
 	}
-*/
 	else
 		return false;
 	return true;
+}
+qboolean QDECL ICE_GetLCandidateSDP(struct icestate_s *con, char *out, size_t outsize)
+{
+	struct icecandidate_s *can;
+	for (can = con->lc; can; can = can->next)
+	{
+		if (can->dirty)
+		{
+			struct icecandinfo_s *c = &can->info;
+			can->dirty = false;
+
+			ICE_CandidateToSDP(can, out, outsize);
+			return true;
+		}
+	}
+	return false;
 }
 struct icecandinfo_s *QDECL ICE_GetLCandidateInfo(struct icestate_s *con)
 {
@@ -1091,7 +1108,8 @@ icefuncs_t iceapi =
 	ICE_GetLCandidateInfo,
 	ICE_AddRCandidateInfo,
 	ICE_Close,
-	ICE_CloseModule
+	ICE_CloseModule,
+	ICE_GetLCandidateSDP
 };
 
 qboolean ICE_WasStun(netsrc_t netsrc)

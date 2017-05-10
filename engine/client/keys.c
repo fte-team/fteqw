@@ -1299,6 +1299,7 @@ qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int k
 			return false;
 		}
 	}
+#ifndef FTE_TARGET_WEB	//browser port gets keys stuck down when task switching, especially alt+tab. don't confuse users.
 	else if (com_parseutf8.ival >= 0)	//don't do this for iso8859-1. the major user of that is hexen2 which doesn't have these chars.
 	{
 		if (ctrl && !keydown[K_RALT])
@@ -1331,6 +1332,7 @@ qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int k
 		if (keydown[K_LALT] && unicode > 32 && unicode < 128)
 			unicode |= 0xe080;		// red char
 	}
+#endif
 
 	unicode = utf8_encode(utf8, unicode, sizeof(utf8)-1);
 	if (unicode)

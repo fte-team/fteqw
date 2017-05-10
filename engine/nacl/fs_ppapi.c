@@ -292,7 +292,7 @@ vfsfile_t *FSPPAPI_OpenTemp(void)
 	return &r->funcs;
 }
 
-qboolean Sys_remove (char *path)
+qboolean Sys_remove (const char *path)
 {
 	mfile_t *f;
 	for (f = mfiles; f; f = f->next)
@@ -308,7 +308,7 @@ qboolean Sys_remove (char *path)
 	}
 	return false;
 }
-qboolean Sys_Rename (char *oldfname, char *newfname)
+qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
 	mfile_t *f;
 	for (f = mfiles; f; f = f->next)
@@ -322,8 +322,12 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 	return false;
 }
 //no concept of directories.
-void Sys_mkdir (char *path)
+void Sys_mkdir (const char *path)
 {
+}
+qboolean Sys_rmdir (const char *path)
+{
+	return false;
 }
 
 vfsfile_t *VFSPPAPI_Open(const char *osname, const char *mode)

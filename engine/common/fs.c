@@ -23,8 +23,9 @@ static unsigned int fs_restarts;
 void *fs_thread_mutex;
 
 cvar_t com_fs_cache			= CVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
+cvar_t fs_noreexec			= CVARD("fs_noreexec", "0", "Disables automatic re-execing configs on gamedir switches.\nThis means your cvar defaults etc may be from the wrong mod, and cfg_save will leave that stuff corrupted!");	
 cvar_t cfg_reload_on_gamedir = CVAR("cfg_reload_on_gamedir", "1");
-cvar_t fs_game = CVARFDC("game", "", CVAR_NOSAVE|CVAR_NORESET, "Provided for Q2 compat.", fs_game_callback);
+cvar_t fs_game = CVARFCD("game", "", CVAR_NOSAVE|CVAR_NORESET, fs_game_callback, "Provided for Q2 compat.");
 cvar_t fs_gamedir = CVARFD("fs_gamedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
 cvar_t fs_basedir = CVARFD("fs_basedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
 int active_fs_cachetype;
@@ -210,6 +211,8 @@ void FS_Manifest_Free(ftemanifest_t *man)
 	Z_Free(man->protocolname);
 	Z_Free(man->eula);
 	Z_Free(man->defaultexec);
+	Z_Free(man->defaultoverrides);
+	Z_Free(man->rtcbroker);
 	for (i = 0; i < sizeof(man->gamepath) / sizeof(man->gamepath[0]); i++)
 	{
 		Z_Free(man->gamepath[i].path);
@@ -247,6 +250,10 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 		newm->eula = Z_StrDup(oldm->eula);
 	if (oldm->defaultexec)
 		newm->defaultexec = Z_StrDup(oldm->defaultexec);
+	if (oldm->defaultoverrides)
+		newm->defaultoverrides = Z_StrDup(oldm->defaultoverrides);
+	if (oldm->rtcbroker)
+		newm->rtcbroker = Z_StrDup(oldm->rtcbroker);
 	newm->disablehomedir = oldm->disablehomedir;
 
 	for (i = 0; i < sizeof(newm->gamepath) / sizeof(newm->gamepath[0]); i++)
@@ -291,6 +298,10 @@ void FS_Manifest_Print(ftemanifest_t *man)
 		Con_Printf("protocolname %s\n", COM_QuotedString(man->protocolname, buffer, sizeof(buffer), false));
 	if (man->defaultexec)
 		Con_Printf("defaultexec %s\n", COM_QuotedString(man->defaultexec, buffer, sizeof(buffer), false));
+	if (man->defaultoverrides)
+		Con_Printf("%s", man->defaultoverrides);
+	if (man->rtcbroker)
+		Con_Printf("rtcbroker %s\n", COM_QuotedString(man->rtcbroker, buffer, sizeof(buffer), false));
 
 	for (i = 0; i < sizeof(man->gamepath) / sizeof(man->gamepath[0]); i++)
 	{
@@ -530,6 +541,15 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 	{
 		Z_Free(man->defaultexec);
 		man->defaultexec = Z_StrDup(Cmd_Argv(1));
+	}
+	else if (!Q_strcasecmp(cmd, "bind") || !Q_strcasecmp(cmd, "set") || !Q_strcasecmp(cmd, "seta"))
+	{
+		Z_StrCat(&man->defaultoverrides, va("%s %s\n", Cmd_Argv(0), Cmd_Args()));
+	}
+	else if (!Q_strcasecmp(cmd, "rtcbroker"))
+	{
+		Z_Free(man->rtcbroker);
+		man->rtcbroker = Z_StrDup(Cmd_Argv(1));
 	}
 	else if (!Q_strcasecmp(cmd, "updateurl"))
 	{
@@ -1618,7 +1638,7 @@ vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 {
 //	char *ext;
 
-	if (!handle || handle->WriteBytes || handle->seekingisabadplan)	//only on readonly files
+	if (!handle || handle->WriteBytes || handle->seekstyle == SS_SLOW || handle->seekstyle == SS_UNSEEKABLE)	//only on readonly files for which we can undo any header read damage
 		return handle;
 //	ext = COM_FileExtension (filename);
 #ifdef AVAIL_GZDEC
@@ -1878,7 +1898,7 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 				COM_CreatePath(fullname);
 			vfs =  VFSOS_Open(fullname, mode);
 		}
-		if (vfs && (*mode == 'w' || *mode == 'a'))
+		if (vfs || !(*mode == 'w' || *mode == 'a'))
 			return vfs;
 		//fall through
 	case FS_PUBGAMEONLY:
@@ -1943,6 +1963,14 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 		return VFSOS_Open(fullname, mode);
 	}
 	return NULL;
+}
+
+qboolean FS_GetLocMTime(flocation_t *location, time_t *modtime)
+{
+	*modtime = 0;
+	if (!location->search->handle->FileStat || !location->search->handle->FileStat(location->search->handle, location, modtime))
+		return false;
+	return true;
 }
 
 /*opens a vfsfile from an already discovered location*/
@@ -5021,6 +5049,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	qboolean reloadconfigs = false;
 	qboolean builtingame = false;
 	flocation_t loc;
+	qboolean allowvidrestart = true;
 
 	char *vidfile[] = {"gfx.wad", "gfx/conback.lmp",	//misc stuff
 		"gfx/palette.lmp", "pics/colormap.pcx"};		//palettes
@@ -5033,13 +5062,26 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 	for (i = 0; i < countof(vidfile); i++)
 	{
-		FS_FLocateFile(vidfile[i], FSLF_IFFOUND, &loc);	//q1
-		vidpath[i] = loc.search?loc.search->handle:NULL;
+		if (allowvidrestart)
+		{
+			FS_FLocateFile(vidfile[i], FSLF_IFFOUND, &loc);	//q1
+			vidpath[i] = loc.search?loc.search->handle:NULL;
+		}
+		else
+			vidpath[i] = NULL;
 	}
+
+	if (allowreloadconfigs && fs_noreexec.ival)
+		allowreloadconfigs = false;
 	for (i = 0; i < countof(conffile); i++)
 	{
-		FS_FLocateFile(conffile[i], FSLF_IFFOUND, &loc);	//q1
-		confpath[i] = loc.search?loc.search->handle:NULL;
+		if (allowreloadconfigs)
+		{
+			FS_FLocateFile(conffile[i], FSLF_IFFOUND, &loc);	//q1
+			confpath[i] = loc.search?loc.search->handle:NULL;
+		}
+		else
+			confpath[i] = NULL;
 	}
 
 #if defined(NACL) || defined(FTE_TARGET_WEB) || defined(ANDROID) || defined(WINRT)
@@ -5153,7 +5195,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 						}
 				}
 
-				if (!man->downloadsurl)
+				if (!man->downloadsurl && gamemode_info[i].downloadsurl)
 				{
 					Cmd_TokenizeString(va("downloadsurl \"%s\"", gamemode_info[i].downloadsurl), false, false);
 					FS_Manifest_ParseTokens(man);
@@ -5262,7 +5304,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		COM_CheckRegistered();
 
 
-		if (qrenderer != QR_NONE)
+		if (qrenderer != QR_NONE && allowvidrestart)
 		{
 			for (i = 0; i < countof(vidfile); i++)
 			{

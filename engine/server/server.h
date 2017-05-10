@@ -319,8 +319,6 @@ typedef struct
 	float				move_msecs;		//
 	int					packetsizein;	//amount of data received for this frame
 	int					packetsizeout;	//amount of data that was sent in the frame
-	vec3_t				playerpositions[MAX_CLIENTS];	//where each player was in this frame, for antilag
-	qboolean			playerpresent[MAX_CLIENTS];		//whether the player was actually present
 	packet_entities_t	entities;		//package containing entity states that were sent in this frame, for deltaing
 	struct resendinfo_s
 	{
@@ -330,6 +328,19 @@ typedef struct
 	} *resend;
 	unsigned short		resendstats[32];//the number of each entity that was sent in this frame
 	unsigned int		numresendstats;	//the bits of each entity that were sent in this frame
+
+	//antilag
+	//these are to recalculate the player's origin without old knockbacks nor teleporters, to give more accurate weapon start positions (post-command).
+	vec3_t				pmorigin;
+	vec3_t				pmvelocity;
+	int					pmtype;
+	unsigned int		pmjumpheld:1;
+	unsigned int		pmonladder:1;
+	float				pmwaterjumptime;
+	usercmd_t			cmd;
+	//these are old positions of players, to give more accurate victim positions
+	vec3_t				playerpositions[MAX_CLIENTS];	//where each player was in this frame, for antilag
+	qboolean			playerpresent[MAX_CLIENTS];		//whether the player was actually present
 } client_frame_t;
 
 #ifdef Q2SERVER
@@ -779,7 +790,6 @@ typedef struct
 	int			forceFrame;
 
 	struct mvddest_s *dest;
-	struct mvdpendingdest_s *pendingdest;
 } demo_t;
 
 
@@ -1333,6 +1343,11 @@ typedef struct {	//stats info
 	qbyte trustlevel;
 	char pad2;
 	char pad3;
+
+#if NUM_RANK_SPAWN_PARMS>32
+	quint64_t created;
+	quint64_t lastseen;
+#endif
 } rankstats_t;
 
 typedef struct {	//name, identity and order.
@@ -1417,7 +1432,7 @@ void SV_ChatThink(client_t *client);
 
 
 
-
+/*
 //
 // sv_mvd.c
 //
@@ -1442,7 +1457,7 @@ typedef struct mvdpendingdest_s {
 	int outsize;
 
 	struct mvdpendingdest_s *nextdest;
-} mvdpendingdest_t;
+} mvdpendingdest_t;*/
 
 typedef struct mvddest_s {
 	qboolean error;	//disables writers, quit ASAP.
@@ -1450,11 +1465,6 @@ typedef struct mvddest_s {
 
 	enum {DEST_NONE, DEST_FILE, DEST_BUFFEREDFILE, DEST_THREADEDFILE, DEST_STREAM} desttype;
 
-#ifdef _WIN32
-	quintptr_t socket;	//gah
-#else
-	int socket;
-#endif
 	vfsfile_t *file;
 
 	char filename[MAX_QPATH];	//demos/foo.mvd
@@ -1500,6 +1510,7 @@ extern cvar_t	sv_demoMaxSize;
 extern cvar_t	sv_demoMaxDirSize;
 
 char *SV_Demo_CurrentOutput(void);
+void SV_Demo_PrintOutputs(void);
 void SV_MVDInit(void);
 char *SV_MVDNum(char *buffer, int bufferlen, int num);
 const char *SV_MVDLastNum(unsigned int num);
@@ -1508,6 +1519,14 @@ void SV_MVD_WriteReliables(qboolean writebroadcasts);
 qboolean SV_ReadMVD (void);
 void SV_FlushDemoSignon (void);
 void DestFlush(qboolean compleate);
+
+typedef struct
+{
+	qboolean hasauthed;
+	qboolean isreverse;
+	char challenge[32];
+} qtvpendingstate_t;
+int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *headerend, qtvpendingstate_t *p);
 
 // savegame.c
 void SV_LegacySavegame_f(void);

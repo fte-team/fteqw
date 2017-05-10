@@ -1,3 +1,7 @@
+//as of firefox 52(march 2017), firefox no longer supports npapi (except for flash, the buggiest of them all, stupid stupid)
+//chrome 42 disabled support by default, and completely removed by 45 (sept 2015).
+//no browser with > 1% market share can actually use this.
+
 #include "quakedef.h"
 #include "winquake.h"
 #define bool int	//we ain't c++ (grr microsoft stdbool.h gief!)

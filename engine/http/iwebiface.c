@@ -7,6 +7,47 @@
 
 #ifdef WEBSVONLY	//we need some functions from quake
 
+char *NET_SockadrToString(char *s, int slen, struct sockaddr_qstorage *addr)
+{
+	switch(((struct sockaddr*)addr)->sa_family)
+	{
+	case AF_INET:
+		Q_snprintfz(s, slen, "%s:%u", inet_ntoa(((struct sockaddr_in*)addr)->sin_addr), ntohs(((struct sockaddr_in*)addr)->sin_port));
+		break;
+	case AF_INET6:
+		if (!memcmp(((struct sockaddr_in6*)addr)->sin6_addr.s6_bytes, "\0\0\0\0\0\0\0\0\0\0\xff\xff", 12))
+		{	//ipv4-mapped
+			Q_snprintfz(s, slen, "[::ffff:%u.%u.%u.%u]:%u", 
+				((struct sockaddr_in6*)addr)->sin6_addr.s6_bytes[12],
+				((struct sockaddr_in6*)addr)->sin6_addr.s6_bytes[13],
+				((struct sockaddr_in6*)addr)->sin6_addr.s6_bytes[14],
+				((struct sockaddr_in6*)addr)->sin6_addr.s6_bytes[15],
+
+				ntohs(((struct sockaddr_in6*)addr)->sin6_port));
+		}
+		else
+		{
+			Q_snprintfz(s, slen, "[%x:%x:%x:%x:%x:%x:%x:%x]:%u", 
+				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[0]),
+				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[1]),
+				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[2]),
+				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[3]),
+
+				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[4]),
+				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[5]),
+				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[6]),
+				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[7]),
+
+				ntohs(((struct sockaddr_in6*)addr)->sin6_port));
+		}
+		break;
+	default:
+		*s = 0;
+		break;
+	}
+	return s;
+}
+
 qboolean SV_AllowDownload (const char *name)
 {
 	if (strstr(name, ".."))
@@ -22,7 +63,7 @@ com_tokentype_t com_tokentype;
 int		com_argc;
 const char	**com_argv;
 
-vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
+vfsfile_t *IWebGenerateFile(const char *name, const char *content, int contentlength)
 {
 	return NULL;
 }
@@ -45,6 +86,21 @@ void Q_strncpyz(char *d, const char *s, int n)
 		*d++ = *s++;
 	}
 	*d='\0';
+}
+
+void VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
+{
+	va_list args;
+	va_start (args, fmt);
+#ifdef _WIN32
+#undef _vsnprintf
+	_vsnprintf (dest, size-1, fmt, args);
+#else
+	vsnprintf (dest, size-1, fmt, args);
+#endif
+	va_end (args);
+	//make sure its terminated.
+	dest[size-1] = 0;
 }
 
 /*char	*va(char *format, ...)
@@ -91,23 +147,82 @@ int COM_CheckParm(const char *parm)
 
 char *authedusername;
 char *autheduserpassword;
+int lport_min, lport_max;
+int anonaccess = IWEBACC_READ;
+iwboolean verbose;
 int main(int argc, char **argv)
 {
 	int httpport = 80;
+	int ftpport = 21;
 	int arg = 1;
 #ifdef _WIN32
 	WSADATA pointlesscrap;
 	WSAStartup(2, &pointlesscrap);
 #endif
 
+	while (arg < argc)
+	{
+		char *a = argv[arg];
+		if (!a)
+			continue;
+		if (*a != '-')
+			break;	//other stuff
+		while (*a == '-')
+			a++;
+		arg++;
+
+		if (!strcmp(a, "help"))
+		{
+			printf("%s -http 80 -ftp 21 -user steve -pass swordfish -ports 5000 6000\n", argv[0]);
+			printf("runs a simple http server\n");
+			printf("	-http <num> specifies the port to listen on for http\n");
+			printf("	-ftp <num> specifies the port to listen on for ftp\n");
+			printf("	-ports <lowest> <highest> specifies a port range for incoming ftp connections, to work around firewall rules\n");
+			printf("	-user <name> specifies the username that has full access. if not supplied noone can write.\n");
+			printf("	-pass <pass> specifies the password to go with that username\n");
+			printf("	-noanon will refuse to serve files to anyone but the authed user\n");
+			return;
+		}
+		else if (!strcmp(a, "port") || !strcmp(a, "p"))
+		{
+			httpport = atoi(argv[arg++]);
+			ftpport = 0;
+		}
+		else if (!strcmp(a, "http") || !strcmp(a, "h"))
+			httpport = atoi(argv[arg++]);
+		else if (!strcmp(a, "ftp") || !strcmp(a, "f"))
+			ftpport = atoi(argv[arg++]);
+		else if (!strcmp(a, "noanon"))
+			anonaccess = 0;
+		else if (!strcmp(a, "ports"))
+		{
+			lport_min = atoi(argv[arg++]);
+			lport_max = atoi(argv[arg++]);
+			if (lport_max < lport_min)
+				lport_max = lport_min;
+		}
+		else if (!strcmp(a, "verbose") || !strcmp(a, "v"))
+			verbose = true;
+		else if (!strcmp(a, "user"))
+			authedusername = argv[arg++];
+		else if (!strcmp(a, "pass"))
+			autheduserpassword = argv[arg++];
+		else
+			printf("Unknown argument: %s\n", a);
+	}
+
 	if (arg < argc && atoi(argv[arg]))
+	{
 		httpport = atoi(argv[arg++]);
+		ftpport = 0;
+	}
 	if (arg < argc)
 		authedusername = argv[arg++];
 	if (arg < argc)
 		autheduserpassword = argv[arg++];
 
 	printf("http port %i\n", httpport);
+	printf("ftp port %i\n", ftpport);
 	if (authedusername || autheduserpassword)
 		printf("Username = \"%s\"\nPassword = \"%s\"\n", authedusername, autheduserpassword);
 	else
@@ -115,7 +230,8 @@ int main(int argc, char **argv)
 
 	while(1)
 	{
-//		FTP_ServerRun(1, 21);
+		if (ftpport)
+			FTP_ServerRun(1, ftpport);
 		if (httpport)
 			HTTP_ServerPoll(1, httpport);
 #ifdef _WIN32
@@ -125,6 +241,22 @@ int main(int argc, char **argv)
 #endif
 	}
 }
+
+int IWebGetSafeListeningPort(void)
+{
+	static int sequence;
+	return lport_min + (sequence++ % (lport_max+1-lport_min));
+}
+void VARGS IWebDPrintf(char *fmt, ...)
+{
+	va_list args;
+	if (!verbose)
+		return;
+	va_start (args, fmt);
+	vprintf (fmt, args);
+	va_end (args);
+}
+
 
 #ifdef _WIN32
 #ifdef _MSC_VER
@@ -253,7 +385,7 @@ skipwhite:
 	return (char*)data;
 }
 
-#undef COM_ParseToken
+/*#undef COM_ParseToken
 char *COM_ParseToken (const char *data, const char *punctuation)
 {
 	int		c;
@@ -335,7 +467,7 @@ skipwhite:
 	
 	com_token[len] = 0;
 	return (char*)data;
-}
+}*/
 
 /*
 IWEBFILE *IWebFOpenRead(char *name)					//fread(name, "rb");
@@ -371,7 +503,7 @@ IWEBFILE *IWebFOpenRead(char *name)					//fread(name, "rb");
 
 #else
 
-#ifndef CLIENTONLY
+#ifdef WEBSERVER
 cvar_t ftpserver = CVAR("sv_ftp", "0");
 cvar_t ftpserver_port = CVAR("sv_ftp_port", "21");
 cvar_t httpserver = CVAR("sv_http", "0");
@@ -379,35 +511,31 @@ cvar_t httpserver_port = CVAR("sv_http_port", "80");
 cvar_t sv_readlevel = CVAR("sv_readlevel", "0");	//default to allow anyone
 cvar_t sv_writelevel = CVAR("sv_writelevel", "35");	//allowed to write to uploads/uname
 cvar_t sv_fulllevel = CVAR("sv_fulllevel", "51");	//allowed to write anywhere, replace any file...
+cvar_t sv_ftp_port_range = CVARD("sv_ftp_port_range", "0", "Specifies the port range for the server to create listening sockets for 'active' ftp connections, to work around NAT/firewall issues.\nMost FTP clients should use passive connections, but there's still some holdouts like windows.");
+
+int IWebGetSafeListeningPort(void)
+{
+	char *e;
+	int base, range;
+	static int sequence;
+	if (!*sv_ftp_port_range.string)
+		return 0;	//lets the OS pick.
+	base = strtol(sv_ftp_port_range.string, &e, 0);
+	while(*e == ' ')
+		e++;
+	if (*e == '-')
+		e++;
+	while(*e == ' ')
+		e++;
+	range = strtol(e, NULL, 0);
+	if (range < base)
+		range = base;
+	return base + (sequence++ % (range+1-base));
+}
 #endif
 
 //this file contains functions called from each side.
 
-void VARGS IWebDPrintf(char *fmt, ...)
-{
-	va_list		argptr;
-	char		msg[4096];
-
-	if (!developer.value)
-		return;
-	
-	va_start (argptr,fmt);
-	vsnprintf (msg,sizeof(msg)-10, fmt,argptr);	//catch any nasty bugs... (this is hopefully impossible)
-	va_end (argptr);
-
-	Con_Printf("%s", msg);
-}
-void VARGS IWebPrintf(char *fmt, ...)
-{
-	va_list		argptr;
-	char		msg[4096];
-
-	va_start (argptr,fmt);
-	vsnprintf (msg,sizeof(msg)-10, fmt,argptr);	//catch any nasty bugs... (this is hopefully impossible)
-	va_end (argptr);
-
-	Con_Printf("%s", msg);
-}
 void VARGS IWebWarnPrintf(char *fmt, ...)
 {
 	va_list		argptr;
@@ -429,6 +557,7 @@ void IWebInit(void)
 
 	Cvar_Register(&ftpserver, "Internet Server Access");
 	Cvar_Register(&ftpserver_port, "Internet Server Access");
+	Cvar_Register(&sv_ftp_port_range, "Internet Server Access");
 	Cvar_Register(&httpserver, "Internet Server Access");
 	Cvar_Register(&httpserver_port, "Internet Server Access");
 
@@ -467,39 +596,81 @@ void IWebShutdown(void)
 }
 #endif
 
-#ifndef WEBSVONLY
-//replacement for Z_Malloc. It simply allocates up to a reserve ammount.
-void *IWebMalloc(int size)
+#ifdef WEBSVONLY
+void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
 {
-	void *mem = BZF_Malloc(size);
-	memset(mem, 0, size);
-	return mem;
+	return NULL;
 }
+qboolean FS_Remove(const char *fname, enum fs_relative relativeto)
+{
+	return false;
+}
+qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen)
+{
+	Q_strncpyz(out, fname, outlen);
+	if (*out == '/' || strstr(out, ".."))
+	{
+		*out = 0;
+		return false;
+	}
+	return strlen(fname) == strlen(out);
+}
+void FS_FlushFSHashWritten(const char *fname) {}
+void FS_FlushFSHashRemoved(const char *fname) {}
+qboolean FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto)
+{
+	return rename(oldf, newf) != -1;
+}
+#ifdef _WIN32
+#include <direct.h>
+void FS_CreatePath(const char *pname, enum fs_relative relativeto)
+{
+	_mkdir(pname);
+}
+qboolean Sys_rmdir (const char *path)
+{
+	return _rmdir(path) != -1;
+}
+#else
+#include <unistd.h>
+void FS_CreatePath(const char *pname, enum fs_relative relativeto)
+{
+	mkdir(pname);
+}
+qboolean Sys_rmdir (const char *path)
+{
+	return rmdir(path) != -1;
+}
+#endif
 
-void *IWebRealloc(void *old, int size)
-{
-	return BZF_Realloc(old, size);
-}
 #endif
 
 
 
 
-int IWebAuthorize(char *name, char *password)
+int IWebAuthorize(const char *name, const char *password)
 {
 #ifdef WEBSVONLY
 	if (authedusername)
+	{
 		if (!strcmp(name, authedusername))
+		{
 			if (!strcmp(password, autheduserpassword))
 				return IWEBACC_FULL;
-	return IWEBACC_READ;
+		}
+	}
+
+	//if they tried giving some other username, don't give them any access (prevents them from reading actual user files).
+	if (*name && stricmp(name, "anonymous"))
+		return 0;
+	return anonaccess;
 #else
 #ifndef CLIENTONLY
 	int id = Rank_GetPlayerID(NULL, name, atoi(password), false, true);
 	rankinfo_t info;
 	if (!id)
 	{
-		if (!sv_readlevel.value)
+		if (!sv_readlevel.value && !*name || !stricmp(name, "anonymous"))
 			return IWEBACC_READ;	//read only anywhere
 		return 0;
 	}
@@ -517,7 +688,7 @@ int IWebAuthorize(char *name, char *password)
 #endif
 }
 
-iwboolean IWebAllowUpLoad(char *fname, char *uname)	//called for partial write access
+iwboolean IWebAllowUpLoad(const char *fname, const char *uname)	//called for partial write access
 {
 	if (strstr(fname, ".."))
 		return false;
@@ -528,50 +699,6 @@ iwboolean IWebAllowUpLoad(char *fname, char *uname)	//called for partial write a
 				return true;
 	}
 	return false;
-}
-
-iwboolean	FTP_StringToAdr (const char *s, qbyte ip[4], qbyte port[2])
-{
-	s = COM_ParseToken(s, NULL);
-	ip[0] = atoi(com_token);
-
-	s = COM_ParseToken(s, NULL);
-	if (*com_token != ',')
-		return false;
-
-	s = COM_ParseToken(s, NULL);
-	ip[1] = atoi(com_token);
-
-	s = COM_ParseToken(s, NULL);
-	if (*com_token != ',')
-		return false;
-
-	s = COM_ParseToken(s, NULL);
-	ip[2] = atoi(com_token);
-
-	s = COM_ParseToken(s, NULL);
-	if (*com_token != ',')
-		return false;
-	
-	s = COM_ParseToken(s, NULL);
-	ip[3] = atoi(com_token);
-
-	s = COM_ParseToken(s, NULL);
-	if (*com_token != ',')
-		return false;
-	
-	s = COM_ParseToken(s, NULL);
-	port[0] = atoi(com_token);
-
-	s = COM_ParseToken(s, NULL);
-	if (*com_token != ',')
-		return false;
-	
-	s = COM_ParseToken(s, NULL);
-	port[1] = atoi(com_token);
-
-
-	return true;
 }
 
 char *Q_strcpyline(char *out, const char *in, int maxlen)

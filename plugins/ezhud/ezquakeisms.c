@@ -12,10 +12,6 @@ float alphamul;
 
 cvar_t *scr_newHud;
 
-#define ARGNAMES ,name,defaultval,flags,description,groupname
-BUILTINR(cvar_t*, Cvar_GetNVFDG, (const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname));
-#undef ARGNAMES
-
 char *Cmd_Argv(int arg)
 {
 	static char buf[4][128];
@@ -725,7 +721,6 @@ qintptr_t EZHud_MenuEvent(qintptr_t *args)
 
 qintptr_t Plug_Init(qintptr_t *args)
 {
-	CHECKBUILTIN(Cvar_GetNVFDG);
 	if (BUILTINISVALID(Cvar_GetNVFDG) &&
 		BUILTINISVALID(Draw_ImageSize) &&
 		BUILTINISVALID(GetTeamInfo) &&

@@ -842,10 +842,6 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 			Q_strncatz(wads, token, sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
 #endif
 		}
-		else if (!strcmp("skyname", key)) // for HalfLife maps
-		{
-			Q_strncpyz(cl.skyname, token, sizeof(cl.skyname));
-		}
 		else if (!strcmp("fog", key))	//q1 extension. FIXME: should be made temporary.
 		{
 			key[0] = 'f';
@@ -888,6 +884,10 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 		{
 			Cvar_LockFromServer(&r_telealpha, com_token);
 			Cvar_LockFromServer(&r_telestyle, "1");
+		}
+		else if (!strcmp("skyname", key)) // for HalfLife maps
+		{
+			Q_strncpyz(cl.skyname, token, sizeof(cl.skyname));
 		}
 		else if (!strcmp("sky", key)) // for Quake2 maps
 		{

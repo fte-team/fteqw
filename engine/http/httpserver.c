@@ -129,15 +129,41 @@ typedef enum {HTTP_WAITINGFORREQUEST,HTTP_SENDING} http_mode_t;
 
 qboolean HTTP_ServerInit(int port)
 {
-	struct sockaddr_in address;
+	struct sockaddr_qstorage address;
 	unsigned long _true = true;
 	int i;
 
-	if ((httpserversocket = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
+	memset(&address, 0, sizeof(address));
+	//check for interface binding option. this also forces ipv4, oh well.
+	if ((i = COM_CheckParm("-ip")) != 0 && i < com_argc)
+	{
+		((struct sockaddr_in*)&address)->sin_addr.s_addr = inet_addr(com_argv[i+1]);
+			Con_TPrintf("Binding to IP Interface Address of %s\n",
+					inet_ntoa(((struct sockaddr_in*)&address)->sin_addr));
+
+
+		((struct sockaddr_in*)&address)->sin_family = AF_INET;
+		if (port != PORT_ANY)
+			((struct sockaddr_in*)&address)->sin_port = htons((short)port);
+	}
+	else
+	{	//otherwise just use ipv6
+		((struct sockaddr_in6*)&address)->sin6_family = AF_INET6;
+		if (port != PORT_ANY)
+			((struct sockaddr_in6*)&address)->sin6_port = htons((short)port);
+	}
+
+	if ((httpserversocket = socket (((struct sockaddr*)&address)->sa_family, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
 		IWebPrintf ("HTTP_ServerInit: socket: %s\n", strerror(neterrno()));
 		httpserverfailed = true;
 		return false;
+	}
+
+	if (((struct sockaddr_in6*)&address)->sin6_family == AF_INET6 && !memcmp(((struct sockaddr_in6*)&address)->sin6_addr.s6_addr, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16))
+	{	//in6addr_any, allow ipv4 too, if we can do hybrid sockets.
+		unsigned long v6only = false;
+		setsockopt(httpserversocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, sizeof(v6only));
 	}
 
 	if (ioctlsocket (httpserversocket, FIONBIO, &_true) == -1)
@@ -146,22 +172,6 @@ qboolean HTTP_ServerInit(int port)
 		httpserverfailed = true;
 		return false;
 	}
-
-	address.sin_family = AF_INET;
-//check for interface binding option
-	if ((i = COM_CheckParm("-ip")) != 0 && i < com_argc)
-	{
-		address.sin_addr.s_addr = inet_addr(com_argv[i+1]);
-		Con_TPrintf("Binding to IP Interface Address of %s\n",
-				inet_ntoa(address.sin_addr));
-	}
-	else
-		address.sin_addr.s_addr = INADDR_ANY;
-
-	if (port == PORT_ANY)
-		address.sin_port = 0;
-	else
-		address.sin_port = htons((short)port);
 
 	if( bind (httpserversocket, (void *)&address, sizeof(address)) == -1)
 	{
@@ -697,23 +707,6 @@ notimplemented:
 	}
 }
 
-#ifdef WEBSVONLY
-void VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
-{
-	va_list args;
-	va_start (args, fmt);
-#ifdef _WIN32
-#undef _vsnprintf
-	_vsnprintf (dest, size-1, fmt, args);
-#else
-	vsnprintf (dest, size-1, fmt, args);
-#endif
-	va_end (args);
-	//make sure its terminated.
-	dest[size-1] = 0;
-}
-#endif
-
 qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while true
 {
 	struct sockaddr_qstorage	from;
@@ -773,16 +766,7 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 	}
 
 	cl = IWebMalloc(sizeof(HTTP_active_connections_t));
-
-#ifndef WEBSVONLY
-	{
-		netadr_t na;
-		SockadrToNetadr(&from, &na);
-		NET_AdrToString(cl->peername, sizeof(cl->peername), &na);
-	}
-#else
-	Q_snprintfz(cl->peername, sizeof(cl->peername), "%s:%i", inet_ntoa(((struct sockaddr_in*)&from)->sin_addr), ntohs(((struct sockaddr_in*)&from)->sin_port));
-#endif
+	NET_SockadrToString(cl->peername, sizeof(cl->peername), &from);
 	IWebPrintf("%s: New http connection\n", cl->peername);
 
 	cl->datasock = clientsock;

@@ -158,10 +158,10 @@ static qboolean Headless_VID_ApplyGammaRamps		(unsigned int gammarampsize, unsig
 static void	Headless_VID_SetWindowCaption		(const char *msg)
 {
 }
-static char	*Headless_VID_GetRGBInfo			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
+static char	*Headless_VID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
 	*fmt = TF_INVALID;
-	*truevidwidth = *truevidheight = 0;
+	*bytestride = *truevidwidth = *truevidheight = 0;
 	return NULL;
 }
 static qboolean	Headless_SCR_UpdateScreen			(void)
@@ -291,12 +291,31 @@ rendererinfo_t headlessrenderer =
 static qboolean HeadlessVK_CreateSurface(void)
 {
 	vk.surface = VK_NULL_HANDLE;	//nothing to create, we're using offscreen rendering.
+	vk.allowsubmissionthread = false;	//waste of threading
 	return true;
 }
-//static void HeadlessVK_Present(struct vkframe *theframe)
-//{
+static void HeadlessVK_Present(struct vkframe *theframe)
+{
 	//VK_DoPresent(theframe);
-//}
+
+	if (!theframe)
+		return;
+	vk
+
+	qglWaitVkSemaphoreNV(theframe->backbuf->presentsemaphore);
+	//tell the gl driver to copy it over now
+	qglDrawVkImageNV(theframe->backbuf->colour.image, theframe->backbuf->colour.sampler, 
+		0, 0, vid.pixelwidth, vid.pixelheight,	//xywh (window coords)
+		0,	//z
+		0, 1, 1, 0);	//stst (remember that gl textures are meant to be upside down)
+
+	//at this point the gl driver can signal the fence so our vk code can wake up and start drawing the next frame (if the gpu is slow)
+	qglSignalVkFenceNV(vk.acquirefences[vk.aquirelast%ACQUIRELIMIT]);
+	//and tell our code to expect it.
+	vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT] = vk.aquirelast%vk.backbuf_count;
+	barrier
+	vk.aquirelast++;
+}
 static qboolean HeadlessVK_Init (rendererstate_t *info, unsigned char *palette)
 {
 	extern cvar_t vid_conautoscale;

@@ -800,7 +800,7 @@ qboolean D3D9_VID_ApplyGammaRamps		(unsigned int gammarampsize, unsigned short *
 		IDirect3DDevice9_SetGammaRamp(pD3DDev9, 0, D3DSGR_NO_CALIBRATION, (D3DGAMMARAMP *)ramps);
 	return true;
 }
-static char	*(D3D9_VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
+static char	*(D3D9_VID_GetRGBInfo)			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
 	IDirect3DSurface9 *backbuf, *surf;
 	D3DLOCKED_RECT rect;
@@ -845,7 +845,7 @@ static char	*(D3D9_VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enu
 						}
 						p += rect.Pitch;
 					}
-
+					*bytestride = desc.Width*3;
 					*truevidwidth = desc.Width;
 					*truevidheight = desc.Height;
 				}

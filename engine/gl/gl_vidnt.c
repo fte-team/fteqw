@@ -1704,7 +1704,9 @@ static void VID_UpdateWindowStatus (HWND hWnd)
 	switch(platform_rendermode)
 	{
 #ifdef VKQUAKE
+#ifdef USE_WGL
 	case MODE_NVVULKAN:
+#endif
 	case MODE_VULKAN:
 		if (vid.pixelwidth != window_width || vid.pixelheight != window_height)
 			vk.neednewswapchain = true;
@@ -3227,7 +3229,7 @@ rendererinfo_t vkrendererinfo =
 
 
 
-
+#ifdef USE_WGL
 static qboolean NVVKVID_Init (rendererstate_t *info, unsigned char *palette)
 {
 	return Win32VID_Init(info, palette, MODE_NVVULKAN);
@@ -3287,6 +3289,7 @@ rendererinfo_t nvvkrendererinfo =
 
 	"no more"
 };
+#endif
 #endif
 
 #endif

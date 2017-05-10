@@ -1093,7 +1093,7 @@ rendererinfo_t *rendererinfo[] =
 #endif
 #ifdef VKQUAKE
 	&vkrendererinfo,
-	#ifdef _WIN32
+	#if defined(_WIN32) && defined(GLQUAKE)
 		&nvvkrendererinfo,
 	#endif
 #endif

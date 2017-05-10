@@ -1108,7 +1108,7 @@ static qboolean	D3D11_VID_ApplyGammaRamps(unsigned int gammarampsize, unsigned s
 	}
 	return false;
 }
-static char	*D3D11_VID_GetRGBInfo(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
+static char	*D3D11_VID_GetRGBInfo(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
 	//don't directly map the frontbuffer, as that can hold other things.
 	//create a texture, copy the (gpu)backbuffer to that (cpu)texture
@@ -1153,6 +1153,7 @@ static char	*D3D11_VID_GetRGBInfo(int *truevidwidth, int *truevidheight, enum up
 		ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)texture, 0);
 	}
 	ID3D11Texture2D_Release(texture);
+	*bytestride = vid.pixelwidth*3;
 	*truevidwidth = vid.pixelwidth;
 	*truevidheight = vid.pixelheight;
 	*fmt = TF_RGB24;

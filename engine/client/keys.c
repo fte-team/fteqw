@@ -260,6 +260,25 @@ keyname_t keynames[] =
 	{"BACKQUOTE",	'`'},
 	{"BACKSLASH",	'\\'},
 
+	{"GP_A",			K_GP_A},
+	{"GP_B",			K_GP_B},
+	{"GP_X",			K_GP_X},
+	{"GP_Y",			K_GP_Y},
+	{"GP_LSHOULDER",	K_GP_LEFT_SHOULDER},
+	{"GP_RSHOULDER",	K_GP_RIGHT_SHOULDER},
+	{"GP_LTRIGGER",		K_GP_LEFT_TRIGGER},
+	{"GP_RTRIGGER",		K_GP_RIGHT_TRIGGER},
+	{"GP_BACK",			K_GP_BACK},
+	{"GP_START",		K_GP_START},
+	{"GP_LTHUMB",		K_GP_LEFT_THUMB},
+	{"GP_RTHUMB",		K_GP_RIGHT_THUMB},
+	{"GP_DPAD_UP",		K_GP_DPAD_UP},
+	{"GP_DPAD_DOWN",	K_GP_DPAD_DOWN},
+	{"GP_DPAD_LEFT",	K_GP_DPAD_LEFT},
+	{"GP_DPAD_RIGHT",	K_GP_DPAD_RIGHT},
+	{"GP_GUIDE",		K_GP_GUIDE},
+	{"GP_UNKNOWN",		K_GP_UNKNOWN},
+
 	{NULL,			0}
 };
 
@@ -777,7 +796,10 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		else
 		{
 			char cmdprefix[6];
-			snprintf(cmdprefix, sizeof(cmdprefix), "%i ", i+1);
+			if (i == 0)
+				*cmdprefix = 0;
+			else
+				snprintf(cmdprefix, sizeof(cmdprefix), "%i ", i+1);
 
 			//hey look! its you!
 

@@ -1061,7 +1061,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 	if (https)
 	{
 		//https has an extra ssl/tls layer between tcp and http.
-		con->stream = FS_OpenSSL(con->server, con->stream, false, false);
+		con->stream = FS_OpenSSL(con->server, con->stream, false);
 		con->secure = true;
 	}
 #endif

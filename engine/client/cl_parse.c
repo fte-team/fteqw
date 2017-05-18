@@ -6109,7 +6109,7 @@ static void CL_ParseItemTimer(void)
 					atof(Cmd_Argv(2)),
 					atof(Cmd_Argv(3))};
 	float radius =	atof(Cmd_Argv(4));
-	//unsigned int rgb = strtoul(Cmd_Argv(5), NULL, 16);
+	unsigned int rgb = (Cmd_Argc() > 5)?strtoul(Cmd_Argv(5), NULL, 16):0x202020;
 //	char *timername =	Cmd_Argv(6);
 	unsigned int entnum = strtoul(Cmd_Argv(7), NULL, 0);
 	struct itemtimer_s *timer;
@@ -6139,6 +6139,9 @@ static void CL_ParseItemTimer(void)
 	timer->entnum = entnum;
 	timer->start = cl.time;
 	timer->end = cl.time + timer->duration;
+	timer->rgb[0] = ((rgb>>16)&0xff)/255.0;
+	timer->rgb[1] = ((rgb>> 8)&0xff)/255.0;
+	timer->rgb[2] = ((rgb    )&0xff)/255.0;
 }
 
 #ifdef PLUGINS

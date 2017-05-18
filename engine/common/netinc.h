@@ -292,6 +292,17 @@ typedef struct ftenet_generic_connection_s {
 #endif
 } ftenet_generic_connection_t;
 
+#ifdef HAVE_DTLS
+void *DTLS_CreateContext(char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver);	//if remotehost is null then their certificate will not be validated.
+void DTLS_DestroyContext(void *ctx);
+neterr_t DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize);
+neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize);
+neterr_t DTLS_Timeouts(void *ctx);
+qboolean DTLS_HasServerCertificate(void);
+#endif
+
+
+
 #define MAX_CONNECTIONS 8
 typedef struct ftenet_connections_s
 {
@@ -306,6 +317,10 @@ typedef struct ftenet_connections_s
 	float bytesinrate;
 	float bytesoutrate;
 	ftenet_generic_connection_t *conn[MAX_CONNECTIONS];
+
+#ifdef HAVE_DTLS
+	struct dtlspeer_s *dtls;	//linked list. linked lists are shit, but at least it keeps pointers valid when things are resized.
+#endif
 } ftenet_connections_t;
 
 void ICE_Tick(void);
@@ -318,7 +333,7 @@ void FTENET_CloseCollection(ftenet_connections_t *col);
 qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot, qboolean islisten);
 int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
 
-vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, qboolean datagram);
+vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server);
 #ifdef HAVE_PACKET
 vfsfile_t *FS_OpenTCPSocket(SOCKET socket, qboolean conpending, const char *peername);	//conpending allows us to reject any writes until the connection has succeeded
 #endif

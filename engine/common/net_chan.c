@@ -575,16 +575,6 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		send.maxsize = MAX_NQMSGLEN + PACKET_HEADER;
 		send.cursize = 0;
 
-		if (NET_AddrIsReliable(&chan->remote_address) && chan->reliable_length)
-		{
-			//if over tcp, everything is assumed to be reliable. pretend it got acked.
-			chan->reliable_length = 0;	//they got the entire message
-			chan->reliable_start = 0;
-			chan->incoming_reliable_acknowledged = chan->reliable_sequence;
-			chan->reliable_sequence++;
-			chan->nqreliable_allowed = true;
-		}
-
 		/*unreliables flood out, but reliables are tied to server sequences*/
 		if (chan->nqreliable_resendtime < realtime)
 			chan->nqreliable_allowed = true;
@@ -606,6 +596,9 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			{
 				MSG_WriteLong(&send, 0);
 				MSG_WriteLong(&send, LongSwap(chan->reliable_sequence));
+
+				//limit the payload length to nq's datagram max size.
+				//relax the limitation if its reliable (ie: over tcp) where its assumed to have no real limit
 				if (i > MAX_NQDATAGRAM && !NET_AddrIsReliable(&chan->remote_address))
 					i = MAX_NQDATAGRAM;
 
@@ -623,20 +616,31 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				}
 				else
 					*(int*)send_buf = BigLong(NETFLAG_DATA | send.cursize);
-				NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
+
 				chan->bytesout += send.cursize;
-
 				sentsize += send.cursize;
-
 				if (showpackets.value)
 					Con_Printf ("out %s r s=%i %i\n"
 						, chan->sock == NS_SERVER?"s2c":"c2s"
 						, chan->reliable_sequence
 						, send.cursize);
-				send.cursize = 0;
-
 				chan->nqreliable_allowed = false;
 				chan->nqreliable_resendtime = realtime + 0.3;	//resend reliables after 0.3 seconds. nq transports suck.
+
+				if (NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address) == NETERR_SENT && NET_AddrIsReliable(&chan->remote_address))
+				{	//if over tcp, everything is assumed to be reliable. pretend it got acked now.
+					//if we get an ack later, then who cares.
+					chan->reliable_start += i;
+					if (chan->reliable_start >= chan->reliable_length)
+					{
+						chan->reliable_length = 0;	//they got the entire message
+						chan->reliable_start = 0;
+					}
+					chan->incoming_reliable_acknowledged = chan->reliable_sequence;
+					chan->reliable_sequence++;
+					chan->nqreliable_allowed = true;
+				}
+				send.cursize = 0;
 			}
 		}
 

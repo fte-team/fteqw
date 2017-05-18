@@ -78,7 +78,9 @@ static qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_
 
 void SVQ3_CreateBaseline(void);
 void SVQ3_ClientThink(client_t *cl);
-void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3);
+#ifdef QWOVERQ3
+static void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3);
+#endif
 
 const char *mapentspointer;
 
@@ -1991,9 +1993,8 @@ void SVQ3_EmitPacketEntities(client_t *client, q3client_frame_t *from, q3client_
 		if(newnum < oldnum)
 		{
 			// this is a new entity, send it from the baseline
-			if (svs.gametype == GT_QUAKE3)
-				MSGQ3_WriteDeltaEntity( msg, &q3_baselines[newnum], newent, true );
-			else
+#ifdef QWOVERQ3
+			if (svs.gametype != GT_QUAKE3)
 			{
 				q3entityState_t q3base;
 				edict_t *e;
@@ -2001,6 +2002,9 @@ void SVQ3_EmitPacketEntities(client_t *client, q3client_frame_t *from, q3client_
 				SVQ3Q1_ConvertEntStateQ1ToQ3(&e->baseline, &q3base);
 				MSGQ3_WriteDeltaEntity( msg, &q3base, newent, true );
 			}
+			else
+#endif
+				MSGQ3_WriteDeltaEntity( msg, &q3_baselines[newnum], newent, true );
 			newindex++;
 			continue;
 		}
@@ -2230,7 +2234,7 @@ static qboolean SVQ3_EntityIsVisible(q3client_frame_t *snap, q3sharedEntity_t *e
 	return true;
 }
 
-q3playerState_t *SVQ3Q1_BuildPlayerState(client_t *client)
+static q3playerState_t *SVQ3Q1_BuildPlayerState(client_t *client)
 {
 	static q3playerState_t state;
 	extern cvar_t sv_gravity;
@@ -2411,6 +2415,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 			}
 		}
 	}
+#ifdef QWOVERQ3
 	else
 	{	//our q1->q3 converter
 		packet_entities_t pack;
@@ -2426,6 +2431,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 			entityStates[snap->num_entities++] = &q3packentities[i];
 		}
 	}
+#endif
 
 	if( q3_next_snapshot_entities + snap->num_entities >= 0x7FFFFFFE )
 	{
@@ -2450,10 +2456,10 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	{	//fix areabits, q2->q3 style..
 		snap->areabits[i]^=255;
 	}
-
 }
 
-void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3)
+#ifdef QWOVERQ3
+static void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3)
 {
 #ifdef warningmsg
 #pragma warningmsg("qwoverq3: This _WILL_ need extending")
@@ -2511,31 +2517,9 @@ void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3)
 	q3->angles2[2] = 0;
 	q3->constantLight = q1->abslight;
 	q3->frame = q1->frame;
-
-#if 0
-
-//these are the things I've not packed in to the above structure yet.
-#if defined(Q2CLIENT) || defined(Q2SERVER)
-	int             renderfx;               //q2
-	qbyte           modelindex3;    //q2
-	qbyte           modelindex4;    //q2
-#endif
-	qbyte glowsize;
-	qbyte glowcolour;
-	qbyte   scale;
-	char    fatness;
-	qbyte   hexen2flags;
-	qbyte   dpflags;
-	qbyte   colormod[3];//multiply this by 8 to read as 0 to 1...
-	qbyte lightstyle;
-	qbyte lightpflags;
-	unsigned short light[4];
-	unsigned short tagentity;
-	unsigned short tagindex;
-#endif
 }
 
-void SVQ3Q1_SendGamestateConfigstrings(sizebuf_t *msg)
+static void SVQ3Q1_SendGamestateConfigstrings(sizebuf_t *msg)
 {
 	const int cs_models = 32;
 	const int cs_sounds = cs_models + 256;
@@ -2614,6 +2598,7 @@ void SVQ3Q1_SendGamestateConfigstrings(sizebuf_t *msg)
 		MSG_WriteBits(msg, 0, 8);
 	}
 }
+#endif
 
 //writes initial gamestate
 void SVQ3_SendGameState(client_t *client)
@@ -2664,6 +2649,7 @@ void SVQ3_SendGameState(client_t *client)
 			MSGQ3_WriteDeltaEntity( &msg, NULL, &q3_baselines[i], true );
 		}
 		break;
+#ifdef QWOVERQ3
 	case GT_PROGS:
 	case GT_Q1QVM:
 		SVQ3Q1_SendGamestateConfigstrings(&msg);
@@ -2680,10 +2666,9 @@ void SVQ3_SendGameState(client_t *client)
 			}
 		}
 		break;
-	// warning: enumeration value GT_? not handled in switch
-	case GT_HALFLIFE:
-	case GT_QUAKE2:
-	case GT_MAX:
+#endif
+	default:
+		client->drop = true;
 		break;
 	}
 

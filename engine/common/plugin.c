@@ -1085,7 +1085,7 @@ qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, quintptr_t mask, const qintp
 		return -2;
 	}
 
-	stream->vfs = FS_OpenSSL(VM_POINTER(arg[1]), stream->vfs, false, false);
+	stream->vfs = FS_OpenSSL(VM_POINTER(arg[1]), stream->vfs, false);
 	if (!stream->vfs)
 	{
 		Plug_Net_Close_Internal(handle);

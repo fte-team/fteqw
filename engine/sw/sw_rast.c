@@ -906,7 +906,26 @@ void SW_R_RenderView(void)
 	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
 		r_refdef.flags |= RDF_NOWORLDMODEL;
 
-//	R_SetupGL ();
+	//no fbos here
+	vid.fbvwidth = vid.width;
+	vid.fbvheight = vid.height;
+	vid.fbpwidth = vid.pixelwidth;
+	vid.fbpheight = vid.pixelheight;
+
+	{
+		//figure out the viewport that we should be using.
+		int x = floor(r_refdef.vrect.x * (float)vid.fbpwidth/(float)vid.width);
+		int x2 = ceil((r_refdef.vrect.x + r_refdef.vrect.width) * (float)vid.fbpwidth/(float)vid.width);
+		int y = floor(r_refdef.vrect.y * (float)vid.fbpheight/(float)vid.height);
+		int y2 = ceil((r_refdef.vrect.y + r_refdef.vrect.height) * (float)vid.fbpheight/(float)vid.height);
+		int w = x2 - x;
+		int h = y2 - y;
+		r_refdef.pxrect.x = x;
+		r_refdef.pxrect.y = y;
+		r_refdef.pxrect.width = w;
+		r_refdef.pxrect.height = h;
+		r_refdef.pxrect.maxheight = vid.fbpheight;
+	}
 
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
@@ -982,7 +1001,6 @@ qboolean SW_SCR_UpdateScreen(void)
 		if (!CSQC_DrawView())
 			V_RenderView ();
 
-		R2D_PolyBlend ();
 		R2D_BrightenScreen();
 	}
 

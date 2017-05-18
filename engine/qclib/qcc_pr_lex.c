@@ -2948,6 +2948,8 @@ static void QCC_PR_ExpandStrCat(char **buffer, size_t *bufferlen, size_t *buffer
 
 static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t retbufsize)
 {
+	if (constname[0] != '_' || constname[1] != '_')
+		return NULL;
 	if (!strcmp(constname, "__TIME__"))
 	{
 		time_t long_time;
@@ -2969,7 +2971,7 @@ static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t 
 	}
 	if (!strcmp(constname, "__QCCVER__"))
 	{
-		return "FTEQCC "__DATE__","__TIME__"";
+		return "\"FTEQCC "__DATE__","__TIME__"\"";
 	}
 	if (!strcmp(constname, "__FILE__"))
 	{
@@ -2986,7 +2988,7 @@ static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t 
 		QC_snprintfz(retbuf, retbufsize, "\"%i\"", pr_source_line);
 		return retbuf;
 	}
-	if (!strcmp(constname, "__FUNC__"))
+	if (!strcmp(constname, "__FUNC__") || !strcmp(constname, "__func__"))
 	{
 		QC_snprintfz(retbuf, retbufsize, "\"%s\"",pr_scope?pr_scope->name:"<NO FUNCTION>");
 		return retbuf;

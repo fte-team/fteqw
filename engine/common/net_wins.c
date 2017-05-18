@@ -97,13 +97,16 @@ cvar_t	net_enabled				= CVARD("net_enabled",				"1", "If 0, disables all network
 #if defined(TCPCONNECT) && !defined(CLIENTONLY)
 cvar_t	net_enable_qizmo		= CVARD("net_enable_qizmo",			"1", "Enables compatibility with qizmo's tcp connections serverside. Frankly, using sv_port_tcp without this is a bit pointless.");
 cvar_t	net_enable_qtv			= CVARD("net_enable_qtv",			"1", "Listens for qtv proxies, or clients using the qtvplay command.");
-cvar_t	net_enable_tls			= CVARD("net_enable_tls",			"1", "If enabled, binary data sent to a tcp connection will be interpretted as a tls handshake (enabling https or wss over the same tcp port.");
+cvar_t	net_enable_tls			= CVARD("net_enable_tls",			"1", "If enabled, binary data sent to a non-tls tcp port will be interpretted as a tls handshake (enabling https or wss over the same tcp port.");
 cvar_t	net_enable_http			= CVARD("net_enable_http",			"1", "If enabled, tcp ports will accept http clients, potentially serving large files which could distrupt gameplay.");
 cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, tcp ports will accept websocket game clients.");
 cvar_t	net_enable_webrtcbroker	= CVARD("net_enable_webrtcbroker",	"1", "If 1, tcp ports will accept websocket connections from clients trying to broker direct webrtc connections. This should be low traffic, but might involve a lot of mostly-idle connections.");
 #endif
 
-extern cvar_t sv_public, sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
+extern cvar_t sv_public, sv_listen_qw, sv_listen_nq, sv_listen_dp;
+#ifdef QWOVERQ3
+extern cvar_t sv_listen_q3;
+#endif
 
 #define	MAX_LOOPBACK	64
 typedef struct
@@ -121,6 +124,14 @@ typedef struct
 } loopback_t;
 
 loopback_t	loopbacks[2];
+
+
+#ifdef HAVE_DTLS
+static neterr_t FTENET_DTLS_SendPacket(ftenet_connections_t *col, int length, const void *data, netadr_t *to);
+#endif
+
+
+
 //=============================================================================
 
 int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
@@ -234,7 +245,6 @@ qboolean NET_AddrIsReliable(netadr_t *adr)	//hints that the protocol is reliable
 	case NP_TLS:
 	case NP_WS:
 	case NP_WSS:
-	case NP_IRC:
 		return true;
 	}
 }
@@ -495,7 +505,6 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 	case NP_TLS:	prot = "tls://";	break;
 	case NP_WS:		prot = "ws://";		break;
 	case NP_WSS:	prot = "wss://";	break;
-	case NP_IRC:	prot = "irc://";	break;
 	case NP_NATPMP:	prot = "natpmp://";	break;
 	}
 
@@ -679,7 +688,6 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t *a)
 	case NP_TLS:	prot = "tls://";	break;
 	case NP_WS:		prot = "ws://";		break;
 	case NP_WSS:	prot = "wss://";	break;
-	case NP_IRC:	prot = "irc://";	break;
 	case NP_NATPMP:	prot = "natpmp://";	break;
 	}
 
@@ -1141,11 +1149,11 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 		a->prot = NP_STREAM;
 		return true;
 	}
-	if (!strncmp (s, "ws://", 7))
+	if (!strncmp (s, "ws://", 5))
 	{
 		//make sure that the rest of the address is a valid ip address (4 or 6)
 
-		if (!NET_StringToSockaddr (s+6, defaultport, &sadr[0], NULL, NULL))
+		if (!NET_StringToSockaddr (s+5, defaultport, &sadr[0], NULL, NULL))
 		{
 			a->type = NA_INVALID;
 			return false;
@@ -1155,7 +1163,7 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 		a->prot = NP_WS;
 		return true;
 	}
-	if (!strncmp (s, "wss://", 7))
+	if (!strncmp (s, "wss://", 6))
 	{
 		//make sure that the rest of the address is a valid ip address (4 or 6)
 
@@ -1171,9 +1179,10 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 	}
 	if (!strncmp (s, "dtls://", 7))
 	{
+#ifdef HAVE_DTLS
 		//make sure that the rest of the address is a valid ip address (4 or 6)
 
-		if (!NET_StringToSockaddr (s+6, defaultport, &sadr[0], NULL, NULL))
+		if (!NET_StringToSockaddr (s+7, defaultport, &sadr[0], NULL, NULL))
 		{
 			a->type = NA_INVALID;
 			return false;
@@ -1182,6 +1191,9 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 		SockadrToNetadr (&sadr[0], a);
 		a->prot = NP_DTLS;
 		return true;
+#else
+		return false;
+#endif
 	}
 	if (!strncmp (s, "tls://", 6))
 	{
@@ -2217,6 +2229,144 @@ ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver
 }
 #endif
 
+#ifdef HAVE_DTLS
+struct dtlspeer_s
+{
+	ftenet_connections_t *col;
+	void *dtlsstate;
+	netadr_t addr;
+	float timeout;
+
+	struct dtlspeer_s *next;
+	struct dtlspeer_s **link;
+};
+
+void NET_DTLS_Timeouts(ftenet_connections_t *col)
+{
+	struct dtlspeer_s *peer;
+	if (!col)
+		return;
+	for (peer = col->dtls; peer; peer = peer->next)
+	{
+		DTLS_Timeouts(peer->dtlsstate);
+	}
+}
+
+static neterr_t NET_SendPacketCol (ftenet_connections_t *collection, int length, const void *data, netadr_t *to);
+static neterr_t FTENET_DTLS_DoSendPacket(void *cbctx, const qbyte *data, size_t length)
+{	//callback that does the actual sending
+	struct dtlspeer_s *peer = cbctx;
+	return NET_SendPacketCol(peer->col, length, data, &peer->addr);
+}
+qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to)
+{
+	struct dtlspeer_s *peer;
+	if (to->prot != NP_DGRAM)
+		return false;
+	for (peer = col->dtls; peer; peer = peer->next)
+	{
+		if (NET_CompareAdr(&peer->addr, to))
+			break;
+	}
+	if (!peer)
+	{
+		char hostname[256];
+		peer = Z_Malloc(sizeof(*peer));
+		peer->addr = *to;
+		peer->col = col;
+
+		peer->dtlsstate = DTLS_CreateContext(NET_BaseAdrToString(hostname, sizeof(hostname), to), peer, FTENET_DTLS_DoSendPacket, col->islisten);
+		Sys_Printf("Created %p\n", peer->dtlsstate);
+
+		if (peer->next)
+			peer->next->link = &peer->next;
+		peer->link = &col->dtls;
+		peer->next = col->dtls;
+		col->dtls = peer;
+	}
+	return true;
+}
+static void NET_DTLS_DisconnectPeer(ftenet_connections_t *col, struct dtlspeer_s *peer)
+{
+//	Sys_Printf("Destroy %p\n", peer->dtlsstate);
+
+	if (peer->next)
+		peer->next->link = peer->link;
+	*peer->link = peer->next;
+
+	DTLS_DestroyContext(peer->dtlsstate);
+	Z_Free(peer);
+}
+qboolean NET_DTLS_Disconnect(ftenet_connections_t *col, netadr_t *to)
+{
+	struct dtlspeer_s *peer;
+	netadr_t n = *to;
+	if (!col || (to->prot != NP_DGRAM && to->prot != NP_DTLS))
+		return false;
+	n.prot = NP_DGRAM;
+	for (peer = col->dtls; peer; peer = peer->next)
+	{
+		if (NET_CompareAdr(&peer->addr, &n))
+		{
+			NET_DTLS_DisconnectPeer(col, peer);
+			break;
+		}
+	}
+	return peer?true:false;
+}
+static neterr_t FTENET_DTLS_SendPacket(ftenet_connections_t *col, int length, const void *data, netadr_t *to)
+{
+	struct dtlspeer_s *peer;
+	to->prot = NP_DGRAM;
+	for (peer = col->dtls; peer; peer = peer->next)
+	{
+		if (NET_CompareAdr(&peer->addr, to))
+			break;
+	}
+	to->prot = NP_DTLS;
+	if (peer)
+		return DTLS_Transmit(peer->dtlsstate, data, length);
+	else
+		return NETERR_NOROUTE;
+}
+
+qboolean NET_DTLS_Decode(ftenet_connections_t *col)
+{
+	struct dtlspeer_s *peer;
+	for (peer = col->dtls; peer; peer = peer->next)
+	{
+		if (NET_CompareAdr(&peer->addr, &net_from))
+		{
+			switch(DTLS_Received(peer->dtlsstate, net_message.data, net_message.cursize))
+			{
+			case NETERR_DISCONNECTED:
+				Sys_Printf("disconnected %p\n", peer->dtlsstate);
+				NET_DTLS_DisconnectPeer(col, peer);
+				break;
+			case NETERR_NOROUTE:
+				return false;	//not a valid dtls packet.
+			default:
+			case NETERR_CLOGGED:
+				//ate it
+				net_message.cursize = 0;
+				break;
+			case NETERR_SENT:
+				//we decoded it properly
+				break;
+			}
+			net_from.prot = NP_DTLS;
+			return true;
+		}
+	}
+	return false;
+}
+#endif
+
+
+
+
+
+
 static qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char *name, ftenet_generic_connection_t *(*establish)(qboolean isserver, const char *address, netadr_t adr), qboolean islisten, const char *address, netadr_t *adr)
 {
 	int count = 0;
@@ -2300,10 +2450,10 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 		if (adr[i].prot == NP_DGRAM && adr[i].type == NA_LOOPBACK)	establish[i] = FTENET_Loop_EstablishConnection; else
 #endif
 #ifdef HAVE_IPV4
-		if (adr[i].prot == NP_DGRAM && adr[i].type == NA_IP)	establish[i] = FTENET_Datagram_EstablishConnection;	else
+		if ((adr[i].prot == NP_DGRAM) && adr[i].type == NA_IP)	establish[i] = FTENET_Datagram_EstablishConnection;	else
 #endif
 #ifdef HAVE_IPV6
-		if (adr[i].prot == NP_DGRAM && adr[i].type == NA_IPV6)	establish[i] = FTENET_Datagram_EstablishConnection;	else
+		if ((adr[i].prot == NP_DGRAM) && adr[i].type == NA_IPV6)	establish[i] = FTENET_Datagram_EstablishConnection;	else
 #endif
 #ifdef USEIPX
 		if (adr[i].prot == NP_DGRAM && adr[i].type == NA_IPX)	establish[i] = FTENET_Datagram_EstablishConnection;	else
@@ -4021,7 +4171,8 @@ static int QDECL TLSPromoteRead (struct vfsfile_s *file, void *buffer, int bytes
 	if (bytestoread > net_message.cursize)
 		bytestoread = net_message.cursize;
 	memcpy(buffer, net_message_buffer, bytestoread);
-	net_message.cursize = 0;
+	net_message.cursize -= bytestoread;
+	memmove(net_message_buffer, net_message_buffer+bytestoread, net_message.cursize);
 	return bytestoread;
 }
 #endif
@@ -4120,7 +4271,8 @@ qboolean FTENET_TCPConnect_GetPacket(ftenet_generic_connection_t *gcon)
 		{
 			Con_Printf ("tcp peer %s closed connection\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 closesvstream:
-			VFS_CLOSE(st->clientstream);
+			if (st->clientstream)
+				VFS_CLOSE(st->clientstream);
 			st->clientstream = NULL;
 			continue;
 		}
@@ -4143,13 +4295,16 @@ closesvstream:
 				memcpy(net_message_buffer, st->inbuffer, st->inlen);
 				net_message.cursize = st->inlen;
 				//wrap the stream now
-				st->clientstream = FS_OpenSSL(NULL, st->clientstream, true, false);
+				st->clientstream = FS_OpenSSL(NULL, st->clientstream, true);
 				st->remoteaddr.prot = NP_TLS;
-				//try and reclaim it all
-				st->inlen = VFS_READ(st->clientstream, st->inbuffer, sizeof(st->inbuffer)-1);
-				//make sure we actually read from the proper stream again
-				stream->ReadBytes = realread;
-				if (net_message.cursize)
+				if (st->clientstream)
+				{
+					//try and reclaim it all
+					st->inlen = VFS_READ(st->clientstream, st->inbuffer, sizeof(st->inbuffer)-1);
+					//make sure we actually read from the proper stream again
+					stream->ReadBytes = realread;
+				}
+				if (!st->clientstream || net_message.cursize)
 					goto closesvstream;	//something cocked up. we didn't give the tls stream all the data.
 				net_message.cursize = 0;
 				continue;
@@ -4564,7 +4719,7 @@ closesvstream:
 #ifdef HAVE_SSL
 			if (con->tls && st->clientstream)	//if we're meant to be using tls, wrap the stream in a tls connection
 			{
-				st->clientstream = FS_OpenSSL(NULL, st->clientstream, true, false);
+				st->clientstream = FS_OpenSSL(NULL, st->clientstream, true);
 				/*sockadr doesn't contain transport info, so fix that up here*/
 				st->remoteaddr.prot = NP_TLS;
 			}
@@ -4890,7 +5045,7 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(qboolean isse
 
 #ifdef HAVE_SSL
 			if (newcon->tls)	//if we're meant to be using tls, wrap the stream in a tls connection
-				newcon->tcpstreams->clientstream = FS_OpenSSL(address, newcon->tcpstreams->clientstream, false, false);
+				newcon->tcpstreams->clientstream = FS_OpenSSL(address, newcon->tcpstreams->clientstream, false);
 #endif
 
 			//send the qizmo greeting.
@@ -6202,21 +6357,20 @@ int NET_GetPacket (netsrc_t netsrc, int firstsock)
 
 	while (firstsock < MAX_CONNECTIONS)
 	{
-		if (!collection->conn[firstsock])
-			break;
-		if (collection->conn[firstsock]->GetPacket(collection->conn[firstsock]))
-		{
-			if (net_fakeloss.value)
+		if (collection->conn[firstsock])
+			if (collection->conn[firstsock]->GetPacket(collection->conn[firstsock]))
 			{
-				if (frandom () < net_fakeloss.value)
-					continue;
-			}
+				if (net_fakeloss.value)
+				{
+					if (frandom () < net_fakeloss.value)
+						continue;
+				}
 
-			collection->bytesin += net_message.cursize;
-			collection->packetsin += 1;
-			net_from.connum = firstsock+1;
-			return firstsock;
-		}
+				collection->bytesin += net_message.cursize;
+				collection->packetsin += 1;
+				net_from.connum = firstsock+1;
+				return firstsock;
+			}
 
 		firstsock += 1;
 	}
@@ -6254,31 +6408,10 @@ int NET_LocalAddressForRemote(ftenet_connections_t *collection, netadr_t *remote
 	return collection->conn[remote->connum-1]->GetLocalAddresses(collection->conn[remote->connum-1], &adrflags, local, 1);
 }
 
-neterr_t NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t *to)
+static neterr_t NET_SendPacketCol (ftenet_connections_t *collection, int length, const void *data, netadr_t *to)
 {
 	neterr_t err;
-//	char buffer[64];
-	ftenet_connections_t *collection;
 	int i;
-
-	if (netsrc == NS_SERVER)
-	{
-#ifdef CLIENTONLY
-		Sys_Error("NET_GetPacket: Bad netsrc");
-		return NETERR_NOROUTE;
-#else
-		collection = svs.sockets;
-#endif
-	}
-	else
-	{
-#ifdef SERVERONLY
-		Sys_Error("NET_GetPacket: Bad netsrc");
-		return NETERR_NOROUTE;
-#else
-		collection = cls.sockets;
-#endif
-	}
 
 	if (!collection)
 		return NETERR_NOROUTE;
@@ -6338,6 +6471,35 @@ neterr_t NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t
 	return NETERR_NOROUTE;
 }
 
+neterr_t NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t *to)
+{
+	ftenet_connections_t *collection;
+
+	if (netsrc == NS_SERVER)
+	{
+#ifdef CLIENTONLY
+		Sys_Error("NET_GetPacket: Bad netsrc");
+		return NETERR_NOROUTE;
+#else
+		collection = svs.sockets;
+#endif
+	}
+	else
+	{
+#ifdef SERVERONLY
+		Sys_Error("NET_GetPacket: Bad netsrc");
+		return NETERR_NOROUTE;
+#else
+		collection = cls.sockets;
+#endif
+	}
+#ifdef HAVE_DTLS
+	if (to->prot == NP_DTLS)
+		return FTENET_DTLS_SendPacket(collection, length, data, to);
+#endif
+	return NET_SendPacketCol (collection, length, data, to);
+}
+
 qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host, qboolean islisten)
 {
 	netadr_t adr;
@@ -6347,11 +6509,15 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 		switch(adr.prot)
 		{
 		case NP_DTLS:
+#ifdef HAVE_DTLS
+//			if (FTENET_DTLS_Create(collection, &adr) == NETERR_NOROUTE)
+///				return false;
+			break;
+#endif
 		case NP_WS:
 		case NP_WSS:
 		case NP_TLS:
 		case NP_STREAM:
-		case NP_IRC:
 			if (!FTENET_AddToCollection(collection, routename, host, adr.type, adr.prot, islisten))
 				return false;
 			Con_Printf("Establishing connection to %s\n", host);
@@ -6496,6 +6662,15 @@ void NET_PrintConnectionsStatus(ftenet_connections_t *collection)
 		if (collection->conn[i]->PrintStatus)
 			collection->conn[i]->PrintStatus(collection->conn[i]);
 	}
+
+#ifdef HAVE_DTLS
+	{
+		struct dtlspeer_s *dtls;
+		char adr[64];
+		for (dtls = collection->dtls; dtls; dtls = dtls->next)
+			Con_Printf("dtls: %s\n", NET_AdrToString(adr, sizeof(adr), &dtls->addr));
+	}
+#endif
 }
 
 //=============================================================================
@@ -6977,7 +7152,7 @@ void NET_ClientPort_f(void)
 
 qboolean NET_WasSpecialPacket(netsrc_t netsrc)
 {
-#ifdef HAVE_NATPMP
+#if defined(HAVE_NATPMP)
 	ftenet_connections_t *collection = NULL;
 	if (netsrc == NS_SERVER)
 	{
@@ -6991,16 +7166,18 @@ qboolean NET_WasSpecialPacket(netsrc_t netsrc)
 		collection = cls.sockets;
 #endif
 	}
+
+#ifdef HAVE_NATPMP
+	if (NET_Was_NATPMP(collection))
+		return true;
+#endif
 #endif
 
 #ifdef SUPPORT_ICE
 	if (ICE_WasStun(netsrc))
 		return true;
 #endif
-#ifdef HAVE_NATPMP
-	if (NET_Was_NATPMP(collection))
-		return true;
-#endif
+
 	return false;
 }
 
@@ -7065,6 +7242,11 @@ void NET_Init (void)
 	Net_Master_Init();
 }
 #ifndef SERVERONLY
+void NET_CloseClient(void)
+{	//called by disconnect console command
+	FTENET_CloseCollection(cls.sockets);
+	cls.sockets = NULL;
+}
 void NET_InitClient(qboolean loopbackonly)
 {
 	const char *port;
@@ -7201,6 +7383,16 @@ void SVNET_RegisterCvars(void)
 	Cvar_Register (&sv_port_natpmp,	"networking");
 	sv_port_natpmp.restriction = RESTRICT_MAX;
 #endif
+
+
+#if defined(TCPCONNECT) && !defined(CLIENTONLY)
+	Cvar_Register (&net_enable_qizmo,			"networking");
+	Cvar_Register (&net_enable_qtv,				"networking");
+	Cvar_Register (&net_enable_tls,				"networking");
+	Cvar_Register (&net_enable_http,			"networking");
+	Cvar_Register (&net_enable_websockets,		"networking");
+	Cvar_Register (&net_enable_webrtcbroker,	"networking");
+#endif
 }
 
 void NET_CloseServer(void)
@@ -7211,7 +7403,11 @@ void NET_CloseServer(void)
 
 void NET_InitServer(void)
 {
-	if (sv_listen_nq.value || sv_listen_dp.value || sv_listen_qw.value || sv_listen_q3.ival)
+	if (sv_listen_nq.value || sv_listen_dp.value || sv_listen_qw.value
+#ifdef QWOVERQ3
+		|| sv_listen_q3.ival
+#endif
+		)
 	{
 		if (!svs.sockets)
 		{

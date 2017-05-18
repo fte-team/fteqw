@@ -2904,7 +2904,7 @@ void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t
 		cl_numstris--;
 }
 
-void R_AddItemTimer(vec3_t shadoworg, float yaw, float radius, float percent)
+void R_AddItemTimer(vec3_t shadoworg, float yaw, float radius, float percent, vec3_t rgb)
 {
 	vec3_t eang;
 	shader_t *s;
@@ -2963,7 +2963,7 @@ void R_AddItemTimer(vec3_t shadoworg, float yaw, float radius, float percent)
 	}
 
 	ctx.t = t;
-	Vector4Set(ctx.rgbavalue, 0.1, 0.1, 0.1, percent);
+	Vector4Set(ctx.rgbavalue, rgb[0], rgb[1], rgb[2], percent);
 	Mod_ClipDecal(cl.worldmodel, shadoworg, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius, 0,0, CL_AddDecal_Callback, &ctx);
 	if (!t->numidx)
 		cl_numstris--;
@@ -3781,7 +3781,7 @@ void CL_LinkPacketEntities (void)
 				if (le->sequence != cl.lerpentssequence)
 					continue;
 			}
-			R_AddItemTimer(timer->origin, cl.time*90 + timer->origin[0] + timer->origin[1] + timer->origin[2], timer->radius, (cl.time - timer->start) / timer->duration);
+			R_AddItemTimer(timer->origin, cl.time*90 + timer->origin[0] + timer->origin[1] + timer->origin[2], timer->radius, (cl.time - timer->start) / timer->duration, timer->rgb);
 		}
 	}
 

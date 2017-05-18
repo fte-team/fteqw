@@ -64,6 +64,9 @@ extern cvar_t sv_listen_qw;
 extern cvar_t sv_listen_nq;
 extern cvar_t sv_listen_dp;
 extern cvar_t sv_listen_q3;
+#ifdef HAVE_DTLS
+extern cvar_t sv_listen_dtls;
+#endif
 
 typedef struct {
 	enum masterprotocol_e protocol;
@@ -3310,7 +3313,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 		return;
 	}
 
-	MSG_ReadByte ();
+	MSG_ReadByte ();	//should be \n
 
 	last = firstserver;
 

@@ -601,6 +601,9 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 {
 	return NULL;
 }
+void Sys_WaitOnThread(void *thread)
+{
+}
 qboolean FS_Remove(const char *fname, enum fs_relative relativeto)
 {
 	return false;

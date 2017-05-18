@@ -575,6 +575,12 @@ void SWBE_Set2D(void)
 	float ang, rad, w, h;
 	float tmp[16];
 	float tmp2[16];
+
+	vid.fbvwidth = vid.width;
+	vid.fbvheight = vid.height;
+	vid.fbpwidth = vid.pixelwidth;
+	vid.fbpheight = vid.pixelheight;
+
 	ang = (gl_screenangle.value>0?(gl_screenangle.value+45):(gl_screenangle.value-45))/90;
 	ang = (int)ang * 90;
 	if (ang)

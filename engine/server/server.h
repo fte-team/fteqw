@@ -299,6 +299,20 @@ typedef struct
 } server_t;
 void SV_WipeServerState(void);
 
+/*
+#define CS_EMPTY		0
+#define CS_ZOMBIE		(1u<<0)	//just stops the slot from being reused for a bit.
+#define CS_CLUSTER		(1u<<1)	//is managed by the cluster host (and will appear on scoreboards).
+#define CS_SPAWNED		(1u<<2)	//has an active entity.
+#define CS_ACTIVE		(1u<<3)	//has a connection
+
+#define cs_free			(CS_EMPTY)
+#define cs_zombie		(CS_ZOMBIE)
+#define cs_loadzombie	(CS_SPAWNED)
+#define cs_connected	(CS_ACTIVE)
+#define cs_spawned		(CS_ACTIVE|CS_SPAWNED)
+*/
+
 typedef enum
 {
 	cs_free,		// can be reused for a new connection
@@ -413,6 +427,7 @@ enum
 
 #define STUFFCMD_IGNOREINDEMO (   1<<0) // do not put in mvd demo
 #define STUFFCMD_DEMOONLY     (   1<<1) // put in mvd demo only
+#define STUFFCMD_BROADCAST    (   1<<2) // everyone sees it.
 
 typedef struct client_s
 {
@@ -545,14 +560,7 @@ typedef struct client_s
 
 	//true/false/persist
 	unsigned int	penalties;
-/*	qbyte		ismuted;
-	qbyte		iscuffed;
-	qbyte		iscrippled;
-	qbyte		isdeaf;
-	qbyte		islagged;
-	qbyte		isvip;
-*/
-	qbyte		istobeloaded;	//loadgame creates place holders for clients to connect to. Effectivly loading a game reconnects all clients, but has precreated ents.
+	qbyte			istobeloaded;	//loadgame creates place holders for clients to connect to. Effectivly loading a game reconnects all clients, but has precreated ents.
 
 	double			floodprotmessage;
 	double			lastspoke;
@@ -1091,6 +1099,10 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc);
 void SV_FullClientUpdate (client_t *client, client_t *to);
 void SV_GeneratePublicUserInfo(int pext, client_t *cl, char *info, int infolength);
 char *SV_PlayerPublicAddress(client_t *cl);
+
+qboolean SVC_GetChallenge (qboolean respond_dp);
+int SV_NewChallenge (void);
+client_t *SVC_DirectConnect(void);
 
 int SV_ModelIndex (const char *name);
 

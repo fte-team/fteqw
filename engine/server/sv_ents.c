@@ -1786,17 +1786,12 @@ unsigned int SVDP_CalcDelta(entity_state_t *from, qbyte *frombonedatabase, entit
 	return bits;
 }
 
-void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean isnew, qbyte *bonedatabase)
+void SVDP_EmitEntityDelta(unsigned int bits, entity_state_t *to, sizebuf_t *msg, qbyte *bonedatabase)
 {
-	int bits;
+	bits &= ~E5_SERVERPRIVATE;
 
-	bits = 0;
-	if (isnew)
-		bits |= E5_FULLUPDATE;
-
-	//FIXME: this stuff should be outside of this function
-	//with the whole nack stuff
-	bits = SVDP_CalcDelta(from, NULL, to, bonedatabase);
+	if (!bits)
+		return;
 
 	if (bits >= 256)
 		bits |= E5_EXTEND1;
@@ -1804,9 +1799,6 @@ void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *m
 		bits |= E5_EXTEND2;
 	if (bits >= 16777216)
 		bits |= E5_EXTEND3;
-
-	if (!bits)
-		return;
 
 	MSG_WriteShort(msg, to->number);
 	MSG_WriteByte(msg, bits & 0xFF);
@@ -1930,6 +1922,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 	int		oldindex, newindex;
 	int		oldnum, newnum;
 	int		oldmax;
+	int		j;
 
 	// this is the frame that we are going to delta update from
 	if (!client->netchan.incoming_sequence)
@@ -1939,10 +1932,58 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 	}
 	else
 	{
-		client_frame_t	*fromframe = &client->frameunion.frames[(client->netchan.incoming_sequence-1) & UPDATE_MASK];
-		from = &fromframe->entities;
+		from = &client->sentents;
 		oldmax = from->num_entities;
 	}
+
+	if (to->num_entities)
+	{
+		j = to->entities[to->num_entities-1].number+1;
+		if (j > from->max_entities)
+		{
+			from->entities = BZ_Realloc(from->entities, sizeof(*from->entities) * j);
+			memset(&from->entities[from->max_entities], 0, sizeof(from->entities[0]) * (j - from->max_entities));
+			from->max_entities = j;
+		}
+		while(j > client->sentents.num_entities)
+		{
+			from->entities[from->num_entities].number = 0;
+			from->num_entities++;
+		}
+	}
+
+	//diff the from+to states, flagging any changed state (which is combined with any state from previous packet loss
+	newindex = 0;
+	oldindex = 0;
+	while (newindex < to->num_entities || oldindex < oldmax)
+	{
+		newnum = newindex >= to->num_entities ? 0x7fff : to->entities[newindex].number;
+		oldnum = oldindex >= oldmax ? 0x7fff : from->entities[oldindex].number;
+
+		if (newnum < oldnum)
+		{	// this is a new entity, send it from the baseline... as far as dp understands it...
+			client->pendingdeltabits[newnum] |= E5_FULLUPDATE | SVDP_CalcDelta(&nullentitystate, NULL, &to->entities[oldindex], to->bonedata);
+			newindex++;
+		}
+		else if (newnum > oldnum)
+		{	// the old entity isn't present in the new message
+			client->pendingdeltabits[oldnum] = E5_SERVERREMOVE;
+			oldindex++;
+		}
+		else
+		{	// delta update from old position
+			client->pendingdeltabits[newnum] |= SVDP_CalcDelta(&from->entities[oldindex], NULL/*from->bonedata*/, &to->entities[oldindex], to->bonedata);
+			if (client->pendingdeltabits[newnum] & E5_SERVERREMOVE)
+			{	//if it got flagged for removal, but its actually a valid entity, then assume that its an outdated remove and just flag it for a full update in case stuff got lost.
+				client->pendingdeltabits[newnum] &= ~E5_SERVERREMOVE;
+				client->pendingdeltabits[newnum] |= E5_FULLUPDATE;
+			}
+			oldindex++;
+			newindex++;
+		}
+	}
+
+	//loop through all ents and send them as required
 
 //	Con_Printf ("frame %i\n", client->netchan.incoming_sequence);
 
@@ -1955,7 +1996,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 
 	//add in the bitmasks of dropped packets.
 
-	newindex = 0;
+/*	newindex = 0;
 	oldindex = 0;
 //Con_Printf ("---%i to %i ----\n", client->delta_sequence & UPDATE_MASK
 //			, client->netchan.outgoing_sequence & UPDATE_MASK);
@@ -1989,7 +2030,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 			continue;
 		}
 	}
-
+*/
 	MSG_WriteShort(msg, 0x8000);
 }
 #endif
@@ -3862,6 +3903,7 @@ void SV_Snapshot_Clear(packet_entities_t *pack)
 	numnails = 0;
 }
 
+#ifdef QWOVERQ3
 /*
 =============
 SVQ3Q1_BuildEntityPacket
@@ -3876,6 +3918,7 @@ void SVQ3Q1_BuildEntityPacket(client_t *client, packet_entities_t *pack)
 	SV_Snapshot_SetupPVS(client, &cameras);
 	SV_Snapshot_BuildQ1(client, pack, &cameras, client->edict);
 }
+#endif
 
 /*
 =============

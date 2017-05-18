@@ -98,11 +98,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
+#define PROTOCOL_VERSION_VARLENGTH		(('v'<<0) + ('l'<<8) + ('e'<<16) + ('n' << 24))	//variable length handshake
+
 #define PROTOCOL_VERSION_FTE			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))	//fte extensions.
 #define PROTOCOL_VERSION_FTE2			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('2' << 24))	//fte extensions.
 #define PROTOCOL_VERSION_HUFFMAN		(('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24))	//packet compression
-#define PROTOCOL_VERSION_VARLENGTH		(('v'<<0) + ('l'<<8) + ('e'<<16) + ('n' << 24))	//variable length handshake
 #define PROTOCOL_VERSION_FRAGMENT		(('F'<<0) + ('R'<<8) + ('A'<<16) + ('G' << 24))	//supports fragmentation/packets larger than 1450
+#ifdef HAVE_DTLS
+#define PROTOCOL_VERSION_DTLSUPGRADE	(('D'<<0) + ('T'<<8) + ('L'<<16) + ('S' << 24))	//server supports dtls. clients should dtlsconnect THEN continue connecting (also allows dtls rcon!).
+#endif
 
 #define PROTOCOL_INFO_GUID				(('G'<<0) + ('U'<<8) + ('I'<<16) + ('D' << 24))	//globally 'unique' client id info.
 
@@ -1733,3 +1737,5 @@ typedef struct q1usercmd_s
 #define E5_EXTEND4 (1<<31)
 
 #define E5_ALLUNUSED (E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)
+#define E5_SERVERPRIVATE (E5_EXTEND1|E5_EXTEND2|E5_EXTEND3|E5_EXTEND4)
+#define E5_SERVERREMOVE E5_EXTEND1

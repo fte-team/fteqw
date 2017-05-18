@@ -615,9 +615,8 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 #ifndef CLIENTONLY
 			else if (con->proto == ICEP_QWSERVER)
 			{
-				extern void SVC_GetChallenge(qboolean nodpresponse);
 				net_from = con->chosenpeer;
-				SVC_GetChallenge(true);
+				SVC_GetChallenge(false);
 			}
 #endif
 			if (con->state == ICE_CONNECTED)
@@ -873,12 +872,13 @@ qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *value, si
 
 		if (con->proto == ICEP_QWSERVER || con->proto == ICEP_QWCLIENT)
 		{
+#ifdef HAVE_DTLS
 			Q_strncatz(value, "m=application 9 DTLS/SCTP 5000\n", valuelen);
+#endif
 		}
 
 		for (i = 0; i < countof(con->codec); i++)
 		{
-			int codec = atoi(prop+5);
 			if (!con->codec[i])
 				continue;
 
@@ -917,7 +917,6 @@ qboolean QDECL ICE_GetLCandidateSDP(struct icestate_s *con, char *out, size_t ou
 	{
 		if (can->dirty)
 		{
-			struct icecandinfo_s *c = &can->info;
 			can->dirty = false;
 
 			ICE_CandidateToSDP(can, out, outsize);

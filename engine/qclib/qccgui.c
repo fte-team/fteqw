@@ -56,6 +56,11 @@ void AddSourceFile(const char *parentsrc, const char *filename);
 #define SCI_GETANCHOR 2009
 #define SCI_SETSAVEPOINT 2014
 #define SCI_GETCURLINE 2027
+#define SCI_CONVERTEOLS 2029
+#define SC_EOL_CRLF 0
+#define SC_EOL_CR 1
+#define SC_EOL_LF 2
+#define SCI_SETEOLMODE 2031
 #define SCI_SETCODEPAGE 2037
 #define SCI_MARKERDEFINE 2040
 #define SCI_MARKERSETFORE 2041
@@ -114,6 +119,7 @@ void AddSourceFile(const char *parentsrc, const char *filename);
 #define SCI_BRACEHIGHLIGHT 2351
 #define SCI_BRACEBADLIGHT 2352
 #define SCI_BRACEMATCH 2353
+#define SCI_SETVIEWEOL 2356
 #define SCI_ANNOTATIONSETTEXT 2540
 #define SCI_ANNOTATIONGETTEXT 2541
 #define SCI_ANNOTATIONSETSTYLE 2542
@@ -1295,6 +1301,8 @@ enum {
 	IDM_DEBUG_TOGGLEBREAK,
 	IDM_ENCODING_PRIVATEUSE,
 	IDM_ENCODING_DEPRIVATEUSE,
+	IDM_ENCODING_UNIX,
+	IDM_ENCODING_WINDOWS,
 	IDM_CREATEINSTALLER_WINDOWS,
 	IDM_CREATEINSTALLER_ANDROID,
 
@@ -1814,6 +1822,15 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 		break;
 	case IDM_ENCODING_DEPRIVATEUSE:
 		GUI_Recode(editor, UTF_ANSI);
+		break;
+
+	case IDM_ENCODING_UNIX:
+		SendMessage(editor->editpane, SCI_CONVERTEOLS, SC_EOL_LF, 0);
+		SendMessage(editor->editpane, SCI_SETVIEWEOL, false, 0);
+		break;
+	case IDM_ENCODING_WINDOWS:
+		SendMessage(editor->editpane, SCI_CONVERTEOLS, SC_EOL_CRLF, 0);
+		SendMessage(editor->editpane, SCI_SETVIEWEOL, false, 0);
 		break;
 
 	default:
@@ -2416,7 +2433,6 @@ static void EditorReload(editor_t *editor)
 	char *file;
 	unsigned int flen;
 	pbool dofree;
-
 	rawfile = QCC_ReadFile(editor->filename, NULL, 0, &flensz);
 	flen = flensz;
 
@@ -2427,6 +2443,50 @@ static void EditorReload(editor_t *editor)
 
 	if (editor->scintilla)
 	{
+		int endings = 0;
+		char *e, *stop;
+		for (e = file, stop=file+flen; e < stop; )
+		{
+			if (*e == '\r')
+			{
+				e++;
+				if (*e == '\n')
+				{
+					e++;
+					endings |= 4;
+				}
+				else
+					endings |= 2;
+			}
+			else if (*e == '\n')
+			{
+				e++;
+				endings |= 1;
+			}
+			else
+				e++;
+		}
+		switch(endings)
+		{
+		case 0:	//new file with no endings, default to windows on windows.
+		case 4:	//windows
+			SendMessage(editor->editpane, SCI_SETEOLMODE, SC_EOL_CRLF, 0);
+			SendMessage(editor->editpane, SCI_SETVIEWEOL, false, 0);
+			break;
+		case 1:	//unix
+			SendMessage(editor->editpane, SCI_SETEOLMODE, SC_EOL_LF, 0);
+			SendMessage(editor->editpane, SCI_SETVIEWEOL, false, 0);
+			break;
+		case 2:	//mac. traditionally qccs have never supported this. one of the mission packs has a \r in the middle of some single-line comment.
+			SendMessage(editor->editpane, SCI_SETEOLMODE, SC_EOL_CR, 0);
+			SendMessage(editor->editpane, SCI_SETVIEWEOL, false, 0);
+			break;
+		default:	//panic! everyone panic!
+			SendMessage(editor->editpane, SCI_SETEOLMODE, SC_EOL_LF, 0);
+			SendMessage(editor->editpane, SCI_SETVIEWEOL, true, 0);
+			break;
+		}
+
 //		SendMessage(editor->editpane, SCI_SETTEXT, 0, (LPARAM)file);
 //		SendMessage(editor->editpane, SCI_SETUNDOCOLLECTION, 0, 0);
 		SendMessage(editor->editpane, SCI_SETTEXT, 0, (LPARAM)file);
@@ -5301,6 +5361,8 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					AppendMenu(m, MF_SEPARATOR, 0, NULL);
 					AppendMenu(m, 0, IDM_ENCODING_PRIVATEUSE,					"Convert to UTF-8");
 					AppendMenu(m, 0, IDM_ENCODING_DEPRIVATEUSE,					"Convert to Quake encoding");
+					AppendMenu(m, 0, IDM_ENCODING_UNIX,							"Convert to Unix Endings");
+					AppendMenu(m, 0, IDM_ENCODING_WINDOWS,						"Convert to Dos Endings");
 
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = windowmenu = CreateMenu()),	"&Window");
 					AppendMenu(m, 0, IDM_CASCADE,								"Cascade");

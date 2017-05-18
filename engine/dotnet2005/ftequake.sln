@@ -556,7 +556,8 @@ Global
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Debug|Win32.ActiveCfg = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Debug|x64.ActiveCfg = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Debug|x64.Build.0 = Debug Dedicated Server|x64
-		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLDebug|Win32.ActiveCfg = Debug Dedicated Server|x64
+		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLDebug|Win32.ActiveCfg = Debug Dedicated Server|Win32
+		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLDebug|Win32.Build.0 = Debug Dedicated Server|Win32
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLDebug|x64.ActiveCfg = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLRelease|Win32.ActiveCfg = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.GLRelease|x64.ActiveCfg = Debug Dedicated Server|x64
@@ -580,7 +581,7 @@ Global
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Release|Win32.ActiveCfg = Release Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Release|x64.ActiveCfg = Release Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.Release|x64.Build.0 = Release Dedicated Server|x64
-		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.VkDebug|Win32.ActiveCfg = Debug Dedicated Server|x64
+		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.VkDebug|Win32.ActiveCfg = Debug Dedicated Server|Win32
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.VkDebug|x64.ActiveCfg = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.VkRelease|Win32.ActiveCfg = Debug Dedicated Server|x64
 		{482A886A-5755-4DAE-AD5F-D7CD4A990F9E}.VkRelease|x64.ActiveCfg = Debug Dedicated Server|x64

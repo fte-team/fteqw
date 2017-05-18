@@ -293,6 +293,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define RTLIGHTS		//realtime lighting
 #endif
 
+//		#define QWOVERQ3		//allows qw servers with q3 clients. requires specific cgame.
+
 		#define VM_Q1			//q1 qvm gamecode interface
 		//#define	VM_LUA			//q1 lua gamecode interface
 
@@ -531,6 +533,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if defined(HAVE_WINSSPI) || defined(HAVE_GNUTLS)
 	#define HAVE_SSL
 #endif
+#if defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI)
+	//FIXME: HAVE_WINSSPI does not work as a server.
+	//FIXME: advertising dtls without a valid certificate will probably bug out if a client tries to auto-upgrade.
+//	#define HAVE_DTLS
+#endif
 
 #if defined(USE_SQLITE) || defined(USE_MYSQL)
 	#define SQL
@@ -543,6 +550,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #if defined(RFBSPS) && !defined(Q3BSPS)
 	#define Q3BSPS	//rbsp might as well depend upon q3bsp - its the same thing but with more lightstyles (support for which can bog down the renderer a little).
+#endif
+
+#if defined(QWOVERQ3) && !defined(Q3SERVER)
+	#undef QWOVERQ3
 #endif
 
 //fix things a little...

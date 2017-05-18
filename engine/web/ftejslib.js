@@ -266,10 +266,10 @@ mergeInto(LibraryManager.library,
 					delete FTEH.gamepads[gp.index];
 					if (FTEC.evcb.jaxis)	//try and clear out the axis when released.
 						for (var j = 0; j < 6; j+=1)
-							Runtime.dynCall('viid', FTEC.evcb.jaxis, [gp.index, j, 0]);
+							Runtime.dynCall('viidi', FTEC.evcb.jaxis, [gp.index, j, 0, true]);
 					if (FTEC.evcb.jbutton)	//try and clear out the axis when released.
 						for (var j = 0; j < 32+4; j+=1)
-							Runtime.dynCall('viid', FTEC.evcb.jbutton, [gp.index, j, 0]);
+							Runtime.dynCall('viiii', FTEC.evcb.jbutton, [gp.index, j, 0, true]);
 					console.log("Gamepad disconnected from index %d: %s", gp.index, gp.id);
 					break;
 				case 'pointerlockchange':
@@ -362,9 +362,9 @@ mergeInto(LibraryManager.library,
 		//with events, we can do unplug stuff properly.
 		//otherwise hot unplug might be buggy.
 		var gamepads;
-		if (FTEH.gamepads !== undefined)
-			gamepads = FTEH.gamepads;
-		else
+//		if (FTEH.gamepads !== undefined)
+//			gamepads = FTEH.gamepads;
+//		else
 			gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : []);
 
 		if (gamepads !== undefined)
@@ -380,23 +380,18 @@ mergeInto(LibraryManager.library,
 				var b = gp.buttons[j];
 				var p;
 				if (typeof(b) == "object")
-				{
-					p = b.pressed;
-					if (b.lastframe != p)
-					{	//cache it to avoid spam
-						b.lastframe = p;
-						Runtime.dynCall('viii', FTEC.evcb.jbutton, [gp.index, j, p]);
-					}
-				}
+					p = b.pressed;	//.value is a fractional thing. oh well.
 				else
-				{//old chrome bug
-					p = b==1.0;
-					//warning: no cache. this is going to be spammy.
-					Runtime.dynCall('viii', FTEC.evcb.jbutton, [gp.index, j, p]);
+					p = b > 0.5;	//old chrome bug
+
+				if (b.lastframe != p)
+				{	//cache it to avoid spam
+					b.lastframe = p;
+					Runtime.dynCall('viiii', FTEC.evcb.jbutton, [gp.index, j, p, gp.mapping=="standard"]);
 				}
 			}
 			for (var j = 0; j < gp.axes.length; j+=1)
-				Runtime.dynCall('viid', FTEC.evcb.jaxis, [gp.index, j, gp.axes[j]]);
+				Runtime.dynCall('viidi', FTEC.evcb.jaxis, [gp.index, j, gp.axes[j], gp.mapping=="standard"]);
 		}
 	},
 	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser', 'emscriptenfte_buf_createfromarraybuf'],
@@ -437,7 +432,6 @@ mergeInto(LibraryManager.library,
 						'keypress', 'keydown', 'keyup', 
 						'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove',
 						'dragenter', 'dragover', 'drop',
-						'gamepadconnected', 'gamepaddisconnected',
 						'message', 
 						'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockchange',
 						'focus', 'blur'];   //try to fix alt-tab
@@ -453,7 +447,7 @@ mergeInto(LibraryManager.library,
 				document.addEventListener(event, FTEC.handleevent, true);
 			});
 
-			var windowevents = ['message','vrdisplaypresentchange','vrdisplayactivate','vrdisplaydeactivate'];
+			var windowevents = ['message','vrdisplaypresentchange','vrdisplayactivate','vrdisplaydeactivate','gamepadconnected', 'gamepaddisconnected'];
 			windowevents.forEach(function(event)
 			{
 				window.addEventListener(event, FTEC.handleevent, true);

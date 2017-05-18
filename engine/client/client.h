@@ -893,6 +893,7 @@ typedef struct
 		float start;
 		float duration;
 		vec3_t origin;
+		vec3_t rgb;
 		float radius;
 		struct itemtimer_s *next;
 	} *itemtimers;

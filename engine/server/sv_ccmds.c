@@ -1776,7 +1776,13 @@ static void SV_Status_f (void)
 	float pi, po, bi, bo;
 
 	int columns = 80;
-	extern cvar_t sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
+	extern cvar_t sv_listen_qw, sv_listen_nq, sv_listen_dp;
+#ifdef QWOVERQ3
+	extern cvar_t sv_listen_q3;
+#endif
+#ifdef HAVE_DTLS
+	extern cvar_t sv_listen_dtls;
+#endif
 
 #ifndef SERVERONLY
 	if (!sv.state && cls.state >= ca_connected && !cls.demoplayback && cls.protocol == CP_NETQUAKE)
@@ -1815,7 +1821,47 @@ static void SV_Status_f (void)
 		Con_Printf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
 	Con_Printf("server uptime    : %s\n", ShowTime(realtime));
 	Con_Printf("public           : %s\n", sv_public.value?"yes":"no");
-	Con_Printf("client types     :%s%s%s%s\n", sv_listen_qw.ival?" QW":"", sv_listen_nq.ival?" NQ":"", sv_listen_dp.ival?" DP":"", sv_listen_q3.ival?" Q3":"");
+	switch(svs.gametype)
+	{
+#ifdef Q3SERVER
+	case GT_QUAKE3:
+		Con_Printf("client types     :%s\n", sv_listen_qw.ival?" Q3":"");
+		break;
+#endif
+#ifdef Q2SERVER
+	case GT_QUAKE2:
+		Con_Printf("client types     :%s\n", sv_listen_qw.ival?" Q2":"");
+		break;
+#endif
+	default:
+		Con_Printf("client types     :%s", sv_listen_qw.ival?" QW":"");
+#ifdef NQPROT
+		Con_Printf("%s%s", (sv_listen_nq.ival==2)?" -NQ":(sv_listen_nq.ival?" NQ":""), sv_listen_dp.ival?" DP":"");
+#endif
+#ifdef QWOVERQ3
+		if (sv_listen_q3.ival) Con_Printf(" Q3");
+#endif
+#ifdef HAVE_DTLS
+		if (sv_listen_dtls.ival >= 2)
+			Con_Printf(" +DTLS");
+		else if (sv_listen_dtls.ival)
+			Con_Printf(" DTLS");
+#endif
+		/*if (net_enable_tls.ival)
+			Con_Printf(" TLS");
+		if (net_enable_http.ival)
+			Con_Printf(" HTTP");
+		if (net_enable_webrtcbroker.ival)
+			Con_Printf(" WebRTC");
+		if (net_enable_websockets.ival)
+			Con_Printf(" WS");
+		if (net_enable_qizmo.ival)
+			Con_Printf(" QZ");
+		if (net_enable_qtv.ival)
+			Con_Printf(" QTV");*/
+		Con_Printf("\n");
+		break;
+	}
 #ifdef SUBSERVERS
 	if (sv.state == ss_clustermode)
 	{

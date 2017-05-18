@@ -774,7 +774,7 @@ qboolean SW_VID_ApplyGammaRamps		(unsigned int gammarampsize, unsigned short *ra
 {
 	return false;
 }
-char *SW_VID_GetRGBInfo(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
+char *SW_VID_GetRGBInfo(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
 	char *buf = NULL;
 	char *src, *dst;
@@ -790,6 +790,7 @@ char *SW_VID_GetRGBInfo(int *truevidwidth, int *truevidheight, enum uploadfmt *f
 			dst[2] = src[0];
 		}
 	}
+	*bytestride = vid.pixelwidth*3;
 	*truevidwidth = vid.pixelwidth;
 	*truevidheight = vid.pixelheight;
 	*fmt = TF_BGR24;

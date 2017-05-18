@@ -48,7 +48,6 @@ typedef enum {
 	NP_TLS,
 	NP_WS,
 	NP_WSS,
-	NP_IRC,
 	NP_NATPMP
 } netproto_t;
 
@@ -114,6 +113,7 @@ void		NET_Init (void);
 void		NET_Tick (void);
 void		SVNET_RegisterCvars(void);
 void		NET_InitClient (qboolean loopbackonly);
+void		NET_CloseClient(void);
 void		NET_InitServer (void);
 qboolean	NET_WasSpecialPacket(netsrc_t netsrc);
 void		NET_CloseServer (void);
@@ -160,6 +160,13 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits);
 qboolean NET_CompareAdrMasked(netadr_t *a, netadr_t *b, netadr_t *mask);
 
 qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot, qboolean islisten);
+
+#ifdef HAVE_DTLS
+qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to);
+qboolean NET_DTLS_Decode(struct ftenet_connections_s *col);
+qboolean NET_DTLS_Disconnect(struct ftenet_connections_s *col, netadr_t *to);
+void NET_DTLS_Timeouts(struct ftenet_connections_s *col);
+#endif
 
 //============================================================================
 

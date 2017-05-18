@@ -7253,6 +7253,53 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 },
 #endif
 #ifdef GLQUAKE
+{QR_OPENGL, 110, "itemtimer",
+"!!permu FOG\n"
+
+"#include \"sys/defs.h\"\n"
+"#include \"sys/fog.h\"\n"
+
+"varying vec2 tc;\n"
+"varying vec4 vc;\n"
+
+"#ifdef VERTEX_SHADER\n"
+"void main ()\n"
+"{\n"
+"tc = v_texcoord;\n"
+"vc = v_colour;\n"
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+
+
+"#ifdef FRAGMENT_SHADER\n"
+"void main ()\n"
+"{\n"
+"gl_FragColor = vec4(0.5,0.5,0.5,1);//texture2D(s_diffuse, tc.xy);\n"
+
+"vec2 st = (tc-floor(tc)) - 0.5;\n"
+"st *= 2.0;\n"
+"float dist = sqrt(dot(st,st));\n"
+
+"float ring = 1.0 + smoothstep(0.9, 1.0, dist)\n"
+"- smoothstep(0.8, 0.9, dist);\n"
+
+//fade out the rim
+"if ((atan(st.t, st.s)+3.14)/6.28 > vc.a)\n"
+"gl_FragColor.a *= 0.25;\n"
+"gl_FragColor.rgb *= mix(vc.rgb, vec3(0.0), ring);\n"
+//gl_FragColor.a;
+
+//and finally hide it all if we're fogged.
+"#ifdef FOG\n"
+"gl_FragColor = fog4additive(gl_FragColor);\n"
+"#endif\n"
+"}\n"
+"#endif\n"
+
+},
+#endif
+#ifdef GLQUAKE
 {QR_OPENGL, 110, "lpp_depthnorm",
 "!!permu BUMP\n"
 "!!permu SKELETAL\n"

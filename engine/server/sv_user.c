@@ -528,8 +528,8 @@ void SVNQ_New_f (void)
 			qboolean big;	//used as a filter to exclude protocols that don't match our coord+angles mode
 		} preferedprot[] =
 		{
-			{SCP_DARKPLACES7, true},
-			{SCP_DARKPLACES6, true},
+//			{SCP_DARKPLACES7, true},
+//			{SCP_DARKPLACES6, true},
 			{SCP_FITZ666, true},	//actually 999... shh...
 			{SCP_FITZ666, false},
 			{SCP_BJP3, false}
@@ -604,7 +604,7 @@ void SVNQ_New_f (void)
 			protoname = "NQ";
 		}
 		break;
-	case SCP_DARKPLACES6:
+	/*case SCP_DARKPLACES6:
 		SV_LogPlayer(host_client, "new (DP6)");
 		protmain = PROTOCOL_VERSION_DP6;
 		protext1 &= ~PEXT_FLOATCOORDS;	//always enabled, try not to break things
@@ -615,7 +615,7 @@ void SVNQ_New_f (void)
 		protmain = PROTOCOL_VERSION_DP7;
 		protext1 &= ~PEXT_FLOATCOORDS;	//always enabled, try not to break things
 		protoname = "DPP7";
-		break;
+		break;*/
 	default:
 		host_client->drop = true;
 		protoname = "?""?""?";
@@ -6869,7 +6869,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 
 	VectorCopy(sv_player->v->origin, pmove.origin);
 	VectorCopy(sv_player->v->oldorigin, pmove.safeorigin);
-	pmove.safeorigin_known = true;
+	pmove.safeorigin_known = progstype != PROG_QW;
 
 	VectorCopy (sv_player->v->velocity, pmove.velocity);
 	VectorCopy (sv_player->v->v_angle, pmove.angles);

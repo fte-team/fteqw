@@ -140,6 +140,25 @@ int MP_TranslateFTEtoQCCodes(int code)
 	case K_AUX31:			return 814;
 	case K_AUX32:			return 815;
 
+#ifndef K_GP_DPAD_UP	//	these are probably just aliases, so dupe cases. left for completeness.
+	case K_GP_DPAD_UP:		return 816;
+	case K_GP_DPAD_DOWN:	return 817;
+	case K_GP_DPAD_LEFT:	return 818;
+	case K_GP_DPAD_RIGHT:	return 819;
+	case K_GP_START:		return 820;
+	case K_GP_BACK:			return 821;
+	case K_GP_LEFT_THUMB:	return 822;
+	case K_GP_RIGHT_THUMB:	return 823;
+	case K_GP_LEFT_SHOULDER:return 824;
+	case K_GP_RIGHT_SHOULDER:return 825;
+	case K_GP_A:			return 826;
+	case K_GP_B:			return 827;
+	case K_GP_X:			return 828;
+	case K_GP_Y:			return 829;
+	case K_GP_LEFT_TRIGGER:	return 830;
+	case K_GP_RIGHT_TRIGGER:return 831;
+#endif
+
 	case K_VOLUP:			return -code;
 	case K_VOLDOWN:			return -code;
 	case K_APP:				return -code;
@@ -274,6 +293,32 @@ int MP_TranslateQCtoFTECodes(int code)
 	case 813:		return K_AUX30;
 	case 814:		return K_AUX31;
 	case 815:		return K_AUX32;
+
+	//WARNING: these are currently aliases in FTE.
+	case 816:		return K_GP_DPAD_UP;
+	case 817:		return K_GP_DPAD_DOWN;
+	case 818:		return K_GP_DPAD_LEFT;
+	case 819:		return K_GP_DPAD_RIGHT;
+	case 820:		return K_GP_START;
+	case 821:		return K_GP_BACK;
+	case 822:		return K_GP_LEFT_THUMB;
+	case 823:		return K_GP_RIGHT_THUMB;
+	case 824:		return K_GP_LEFT_SHOULDER;
+	case 825:		return K_GP_RIGHT_SHOULDER;
+	case 826:		return K_GP_A;
+	case 827:		return K_GP_B;
+	case 828:		return K_GP_X;
+	case 829:		return K_GP_Y;
+	case 830:		return K_GP_LEFT_TRIGGER;
+	case 831:		return K_GP_RIGHT_TRIGGER;
+//	case 832:		return K_GP_LEFT_THUMB_UP;
+//	case 833:		return K_GP_LEFT_THUMB_DOWN;
+//	case 834:		return K_GP_LEFT_THUMB_LEFT;
+//	case 835:		return K_GP_LEFT_THUMB_RIGHT;
+//	case 836:		return K_GP_RIGHT_THUMB_UP;
+//	case 837:		return K_GP_RIGHT_THUMB_DOWN;
+//	case 838:		return K_GP_RIGHT_THUMB_LEFT;
+//	case 839:		return K_GP_RIGHT_THUMB_RIGHT;
 	default:		
 		if (code < 0)	//negative values are 'fte-native' keys, for stuff that the api lacks.
 			return -code;

@@ -93,8 +93,8 @@ static cvar_t	joy_anglesens[3] =
 };
 static cvar_t	joy_movesens[3] =
 {
-	CVAR("joyforwardsensitivity", "1.0"),
-	CVAR("joysidesensitivity", "-1.0"),
+	CVAR("joyforwardsensitivity", "-1.0"),
+	CVAR("joysidesensitivity", "1.0"),
 	CVAR("joyupsensitivity", "1.0")
 };
 //comments on threshholds comes from microsoft's xinput docs.

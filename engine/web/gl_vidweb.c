@@ -11,17 +11,79 @@ extern qboolean vid_isfullscreen;
 qboolean mouseactive;
 extern qboolean mouseusedforgui;
 
+static int gamepaddeviceids[] = {DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET};
+static int keyboardid[] = {0};
+static int mouseid[] = {0};
 
 static void *GLVID_getsdlglfunction(char *functionname)
 {
 	return NULL;
 }
 
-static void IN_JoystickButtonEvent(unsigned int joydevid, int button, int ispressed)
+static void IN_GamePadButtonEvent(unsigned int joydevid, int button, int ispressed, int isstandardmapping)
 {
-	if (button >= 32+4)
-		return;
-	IN_KeyEvent(joydevid, ispressed, K_JOY1+button, 0);
+	int standardmapping[] =
+	{	//the order of these keys is different from that of xinput
+		//however, the quake button codes should be the same. I really ought to define some K_ aliases for them.
+		K_GP_A,
+		K_GP_B,
+		K_GP_X,
+		K_GP_Y,
+		K_GP_LEFT_SHOULDER,
+		K_GP_RIGHT_SHOULDER,
+		K_GP_LEFT_TRIGGER,
+		K_GP_RIGHT_TRIGGER,
+		K_GP_BACK,
+		K_GP_START,
+		K_GP_LEFT_THUMB,
+		K_GP_RIGHT_THUMB,
+		K_GP_DPAD_UP,
+		K_GP_DPAD_DOWN,
+		K_GP_DPAD_LEFT,
+		K_GP_DPAD_RIGHT,
+		K_GP_GUIDE,
+		//K_GP_UNKNOWN
+	};
+
+	if (joydevid < countof(gamepaddeviceids))
+	{
+		if (joydevid == gamepaddeviceids[joydevid])
+		{
+			if (!ispressed)
+				return;	//don't send axis events until its enabled.
+			gamepaddeviceids[joydevid] = joydevid;
+		}
+		joydevid = gamepaddeviceids[joydevid];
+	}
+
+	if (isstandardmapping)
+	{
+		if (button < countof(standardmapping))
+			IN_KeyEvent(joydevid, ispressed, standardmapping[button], 0);
+	}
+	else
+	{
+		if (button < 32+4)
+			IN_KeyEvent(joydevid, ispressed, K_JOY1+button, 0);
+	}
+}
+
+static void IN_GamePadAxisEvent(unsigned int joydevid, int axis, float value, int isstandardmapping)
+{
+	if (joydevid < countof(gamepaddeviceids))
+	{
+		joydevid = gamepaddeviceids[joydevid];
+		if (joydevid == DEVID_UNSET)
+			return;	//don't send axis events until its enabled.
+	}
+	if (isstandardmapping)
+	{
+		int axismap[] = {GPAXIS_LT_RIGHT,GPAXIS_LT_DOWN,GPAXIS_RT_RIGHT,GPAXIS_RT_DOWN};
+		if (axis < countof(axismap))
+			IN_JoystickAxisEvent(joydevid, axismap[axis], value);
+	}
+	else
+		IN_JoystickAxisEvent(joydevid, axis, value);
 }
 
 static void VID_Resized(int width, int height)
@@ -119,7 +181,7 @@ static int DOM_KeyEvent(unsigned int devid, int down, int scan, int uni)
 		scan = domkeytoquake(scan);
 		uni = (scan >= 32 && scan <= 127)?scan:0;
 	}
-	IN_KeyEvent(devid, down, scan, uni);
+	IN_KeyEvent(keyboardid[devid], down, scan, uni);
 	//Chars which don't map to some printable ascii value get preventDefaulted.
 	//This is to stop fucking annoying fucking things like backspace randomly destroying the page and thus game.
 	//And it has to be conditional, or we don't get any unicode chars at all.
@@ -137,12 +199,12 @@ static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 		//fixme: the event is a float. we ignore that.
 		while(button < 0)
 		{
-			IN_KeyEvent(devid, true, K_MWHEELUP, 0);
+			IN_KeyEvent(mouseid[devid], true, K_MWHEELUP, 0);
 			button += 1;
 		}
 		while(button > 0)
 		{
-			IN_KeyEvent(devid, true, K_MWHEELDOWN, 0);
+			IN_KeyEvent(mouseid[devid], true, K_MWHEELDOWN, 0);
 			button -= 1;
 		}
 	}
@@ -154,8 +216,12 @@ static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 		else if (button == 1)
 			button = 2;
 
-		IN_KeyEvent(devid, down, K_MOUSE1+button, 0);
+		IN_KeyEvent(mouseid[devid], down, K_MOUSE1+button, 0);
 	}
+}
+void DOM_MouseMove(unsigned int devid, int abs, float x, float y, float z, float size)
+{
+	IN_MouseMove(mouseid[devid], abs, x, y, z, size);
 }
 
 void DOM_LoadFile(char *loc, char *mime, int handle)
@@ -206,12 +272,12 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		info->width,
 		info->height,
 		VID_Resized,
-		IN_MouseMove,
+		DOM_MouseMove,
 		DOM_ButtonEvent,
 		DOM_KeyEvent,
 		DOM_LoadFile,
-		IN_JoystickButtonEvent,
-		IN_JoystickAxisEvent,
+		IN_GamePadButtonEvent,
+		IN_GamePadAxisEvent,
 		VID_ShouldSwitchToFullscreen
 		))
 	{
@@ -307,5 +373,22 @@ void INS_Commands (void)
 }
 void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid))
 {
+	size_t i;
+	char foobar[64];
+	for (i = 0; i < countof(gamepaddeviceids); i++)
+	{
+		Q_snprintfz(foobar, sizeof(foobar), "gp%i", i);
+		callback(ctx, "gamepad", foobar, &gamepaddeviceids[i]);
+	}
+	for (i = 0; i < countof(mouseid); i++)
+	{
+		Q_snprintfz(foobar, sizeof(foobar), "m%i", i);
+		callback(ctx, "mouse", foobar, &mouseid[i]);
+	}
+	for (i = 0; i < countof(keyboardid); i++)
+	{
+		Q_snprintfz(foobar, sizeof(foobar), "kb%i", i);
+		callback(ctx, "keyboard", foobar, &keyboardid[i]);
+	}
 }
 

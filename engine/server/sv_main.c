@@ -41,6 +41,14 @@ void SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue);
 void SV_Port_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue);
+#ifdef HAVE_DTLS
+void SV_Listen_Dtls_Changed(struct cvar_s *var, char *oldvalue)
+{
+	if (var->ival)
+		if (!DTLS_HasCertificate())
+			var->ival = 0;	//disable the cvar (internally) if we don't have a usable certificate. this allows us to default the cvar to enabled without it breaking otherwise.
+}
+#endif
 
 client_t	*host_client;			// current client
 
@@ -97,10 +105,15 @@ extern cvar_t sv_allow_splitscreen;
 
 cvar_t sv_serverip			= CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
 cvar_t sv_public			= CVAR("sv_public", "0");
-cvar_t sv_listen_qw			= CVARAF("sv_listen_qw", "1", "sv_listen", 0);
+cvar_t sv_listen_qw			= CVARAFD("sv_listen_qw", "1", "sv_listen", 0, "Specifies whether normal clients are allowed to connect.");
 cvar_t sv_listen_nq			= CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server.\n0 = don't let them in.\n1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks).\n2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
 cvar_t sv_listen_dp			= CVARD("sv_listen_dp", "0", "Allows the server to respond with the DP-specific handshake protocol.\nWarning: this can potentially get confused with quake2, and results in race conditions with both vanilla netquake and quakeworld protocols.\nOn the plus side, DP clients can usually be identified correctly, enabling a model+sound limit boost.");
+#ifdef QWOVERQ3
 cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
+#endif
+#ifdef HAVE_DTLS
+cvar_t sv_listen_dtls		= CVARCD("net_enable_dtls", "", SV_Listen_Dtls_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: available in desired.\n2: used where possible.\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
+#endif
 cvar_t sv_reportheartbeats	= CVAR("sv_reportheartbeats", "1");
 cvar_t sv_highchars			= CVAR("sv_highchars", "1");
 cvar_t sv_maxrate			= CVAR("sv_maxrate", "30000");
@@ -679,6 +692,10 @@ void SV_DropClient (client_t *drop)
 		//send twice, to cover packetloss a little.
 		Netchan_Transmit (&drop->netchan, termmsg.cursize, termmsg.data, 10000);
 		Netchan_Transmit (&drop->netchan, termmsg.cursize, termmsg.data, 10000);
+
+#ifdef HAVE_DTLS
+		NET_DTLS_Disconnect(svs.sockets, &drop->netchan.remote_address);
+#endif
 	}
 
 	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)	//gamecode should do it all for us.
@@ -1071,7 +1088,7 @@ Responds with all the info that qplug or qspy can see
 This message can be up to around 5k with worst case string lengths.
 ================
 */
-void SVC_Status (void)
+static void SVC_Status (void)
 {
 	int displayflags;
 	int		i;
@@ -1150,7 +1167,7 @@ void SVC_Status (void)
 }
 
 #ifdef NQPROT
-void SVC_GetInfo (char *challenge, int fullstatus)
+static void SVC_GetInfo (char *challenge, int fullstatus)
 {
 	//dpmaster support
 	char response[MAX_UDP_PACKET];
@@ -1267,7 +1284,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 #endif
 
 #ifdef Q2SERVER
-void SVC_InfoQ2 (void)
+static void SVC_InfoQ2 (void)
 {
 	char	string[64];
 	int		i, count;
@@ -1301,7 +1318,7 @@ SV_CheckLog
 ===================
 */
 #define	LOG_FLUSH		10*60
-void SV_CheckLog (void)
+static void SV_CheckLog (void)
 {
 	sizebuf_t	*sz;
 
@@ -1332,7 +1349,7 @@ the same as the current sequence, an A2A_NACK will be returned
 instead of the data.
 ================
 */
-void SVC_Log (void)
+static void SVC_Log (void)
 {
 	unsigned int	seq;
 	char	data[MAX_DATAGRAM+64];
@@ -1439,7 +1456,7 @@ flood the server with invalid connection IPs.  With a
 challenge, they must give a valid IP address.
 =================
 */
-void SVC_GetChallenge (qboolean nodpresponse)
+qboolean SVC_GetChallenge (qboolean respond_dp)
 {
 #ifdef HUFFNETWORK
 	int compressioncrc;
@@ -1449,24 +1466,71 @@ void SVC_GetChallenge (qboolean nodpresponse)
 	int lng;
 	char *over;
 
-	if (!sv_listen_qw.value && !sv_listen_dp.value && !sv_listen_q3.ival)
-		return;
+	qboolean respond_std = true;
+#ifdef QWOVERQ3
+	qboolean respond_qwoverq3 = true;
+	respond_qwoverq3 &= !!sv_listen_q3.value;
+#else
+	const qboolean respond_qwoverq3 = false;
+#endif
 
+	respond_std &= !!sv_listen_qw.value;
+	respond_dp &= !!sv_listen_dp.value;
+
+	if (progstype == PROG_H2)
+		respond_dp = false;	//don't bother. dp doesn't support the maps anyway.
+	//dp's connections result in race conditions or are ambiguous in certain regards
+	//race: dp vs nq.
+	//		the dp request will generally arrive first. we check if there was a recent challenge requested, and inhibit the nq response, ensuring that dp clients connect with a known protocol
+	//race: dp vs qw.
+	//		DP clients will just bindly respond to both with a connection request. sending the dp one usually means the server will see the dp connection request first
+	//		FTE clients explicitly ignore dp challenges with the specific 'FTE' prefix so you get qw connections there.
+	//conflict: dp vs q2. dp challenge responses USUALLY contain letters. vanilla q2 is always a 32bit int. FTE clients will check that before sending an appropriate response.
+	//so:
+	//		vanilla nq doesn't send getchallenge, its nq connect is not inhibited, and connects directly (we optionally hack a challenge over stuffcmds, as well as protocol extensions).
+	//		dp gets a dp+qw challenge, its nq request is ignored due to packet ordering and a small timeout, the server sees the dp connection request first and ignores the qw connect.
+	//		fte's nq request is treated as a getchallenge. fte clients ignore the dp challenge response (if qw protocols are still enabled). ends up with a qw/fte connection
+	if (!(sv_listen_nq.value || sv_bigcoords.value || !respond_std))
+		respond_dp = false;
+
+#ifdef QWOVERQ3
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)
+		respond_qwoverq3 = false;	//should probably just nuke this feature.
+#endif
+
+	if (!respond_std && !respond_dp && !respond_qwoverq3)
+		return false;
+
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)
+	{	//if we're running q2 or q3, just ignore the whole DP thing. its irrelevent in those game modes.
+		respond_std |= true;
+#ifdef QWOVERQ3
+		respond_qwoverq3 = false;
+#endif
+		respond_dp = false;
+	}
+	if (respond_dp)
+		respond_std = false;
 
 	challenge = SV_NewChallenge();
 
-	// send it back
+	//different game modes require different types of responses
+	switch(svs.gametype)
+	{
 #ifdef Q3SERVER
-	if (svs.gametype == GT_QUAKE3)	//q3 servers
+	case GT_QUAKE3:	//q3 servers
 		buf = va("challengeResponse %i", challenge);
-	else
+		break;
 #endif
 #ifdef Q2SERVER
-		if (svs.gametype == GT_QUAKE2)
+	case GT_QUAKE2:
 		buf = va("challenge %i", challenge);	//quake 2 servers give a different challenge response
-	else
+		break;
 #endif
+	default:
 		buf = va("%c%i", S2C_CHALLENGE, challenge);	//quakeworld's response is a bit poo.
+		break;
+	}
 
 	over = buf + strlen(buf) + 1;
 
@@ -1527,12 +1591,25 @@ void SVC_GetChallenge (qboolean nodpresponse)
 			over+=sizeof(lng);
 		}
 #endif
+
+#ifdef HAVE_DTLS
+		if (sv_listen_dtls.ival/* || !*sv_listen_dtls.string*/)
+		{
+			lng = LittleLong(PROTOCOL_VERSION_DTLSUPGRADE);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+
+			if (sv_listen_dtls.ival >= 2)
+				lng = LittleLong(2);	//required
+			else
+				lng = LittleLong(1);	//supported
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+		}
+#endif
 	}
 
-	if (progstype == PROG_H2)
-		nodpresponse = true;
-
-	if (!nodpresponse && sv_listen_dp.value && (sv_listen_nq.value || sv_bigcoords.value || !sv_listen_qw.value))
+	if (respond_dp)
 	{
 		char *dp;
 		if (sv_listen_qw.value)
@@ -1542,22 +1619,23 @@ void SVC_GetChallenge (qboolean nodpresponse)
 		Netchan_OutOfBand(NS_SERVER, &net_from, strlen(dp)+1, dp);
 	}
 
-	if (sv_listen_qw.value || (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM))
+	if (respond_std)
 		Netchan_OutOfBand(NS_SERVER, &net_from, over-buf, buf);
 
-#ifdef Q3SERVER
+#ifdef QWOVERQ3
 	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 	{
-		if (sv_listen_q3.ival)
+		if (respond_qwoverq3)
 		{
 			buf = va("challengeResponse %i", challenge);
 			Netchan_OutOfBand(NS_SERVER, &net_from, strlen(buf), buf);
 		}
 	}
 #endif
+	return true;
 }
 
-void VARGS SV_OutOfBandPrintf (int q2, netadr_t *adr, char *format, ...)
+static void VARGS SV_OutOfBandPrintf (int q2, netadr_t *adr, char *format, ...)
 {
 	va_list		argptr;
 	char		string[8192];
@@ -1579,7 +1657,7 @@ void VARGS SV_OutOfBandPrintf (int q2, netadr_t *adr, char *format, ...)
 
 	Netchan_OutOfBand (NS_SERVER, adr, strlen(string), (qbyte *)string);
 }
-void VARGS SV_OutOfBandTPrintf (int q2, netadr_t *adr, int language, translation_t text, ...)
+static void VARGS SV_OutOfBandTPrintf (int q2, netadr_t *adr, int language, translation_t text, ...)
 {
 	va_list		argptr;
 	char		string[8192];
@@ -1621,7 +1699,7 @@ qboolean SV_ChallengePasses(int challenge)
 //this means that DP clients tend to connect as generic NQ clients.
 //and because DP _REQUIRES_ sv_bigcoords, they tend to end up being given fitz/rmq protocols
 //thus we don't respond to the connect if sv_listen_dp is 1, and we had a recent getchallenge request. recent is 2 secs.
-qboolean SV_ChallengeRecent(void)
+static qboolean SV_ChallengeRecent(void)
 {
 	int curtime = realtime;	//yeah, evil. sue me. consitent with challenges.
 	int i;
@@ -1872,7 +1950,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 		if (client->frameunion.frames)
 			Z_Free(client->frameunion.frames);
 
-		if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))// || ISDPCLIENT(&temp))
+		if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || ISDPCLIENT(client))
 		{
 			char *ptr;
 			int maxents = maxpacketentities*4;	/*this is the max number of ents updated per frame. we can't track more, so...*/
@@ -2144,11 +2222,15 @@ client_t *SVC_DirectConnect(void)
 
 	if (*Cmd_Argv(1) == '\\')
 	{	//connect "\key\val"
-
+#ifndef QWOVERQ3
+		SV_RejectMessage (SCP_QUAKE3, "This is not a q3 server: %s\n", version_string());
+		Con_TPrintf ("* rejected connect from q3 client\n");
+		return NULL;
+#else
 		//this is used by q3 (note, we already decrypted the huffman connection packet in a hack)
 		if (!sv_listen_q3.ival)
 		{
-			SV_RejectMessage (SCP_QUAKE3, "Server is not accepting quake3 clients at this time.\n", version_string());
+			SV_RejectMessage (SCP_QUAKE3, "Server is not accepting quake3 clients at this time: %s\n", version_string());
 			Con_TPrintf ("* rejected connect from q3 client\n");
 			return NULL;
 		}
@@ -2181,6 +2263,7 @@ client_t *SVC_DirectConnect(void)
 
 #ifdef HUFFNETWORK
 		huffcrc = HUFFCRC_QUAKE3;
+#endif
 #endif
 	}
 	else if (*(Cmd_Argv(0)+7) == '\\')
@@ -2237,7 +2320,7 @@ client_t *SVC_DirectConnect(void)
 				{"NEHAHRABJP",		0},
 				{"NEHAHRABJP2",		0},
 				{"NEHAHRABJP3",		1u<<SCP_BJP3},
-				{"DP7DP6",			(1u<<SCP_DARKPLACES7)|(1u<<SCP_DARKPLACES6)},	//stupid shitty crappy client
+				{"DP7DP6",			(1u<<SCP_DARKPLACES7)|(1u<<SCP_DARKPLACES6)},	//stupid shitty buggy crappy client
 			};
 			int p;
 
@@ -2336,6 +2419,14 @@ client_t *SVC_DirectConnect(void)
 				Info_RemoveKey(userinfo[i], "mod");	//its served its purpose.
 		}
 	}
+
+#ifdef HAVE_DTLS
+	if (sv_listen_dtls.ival > 2 && (net_from.prot == NP_DGRAM || net_from.prot == NP_STREAM || net_from.prot == NP_WS))
+	{
+		SV_RejectMessage (protocol, "This server requires the use of DTLS/TLS/WSS.\n");
+		return NULL;
+	}
+#endif
 
 	{
 		char *banreason = SV_BannedReason(&net_from);
@@ -2509,7 +2600,7 @@ client_t *SVC_DirectConnect(void)
 		else if (!strcmp(sv_protocol_nq.string, "dp6"))
 			protocol = SCP_DARKPLACES6;
 		else if (!strcmp(sv_protocol_nq.string, "dp7"))
-			protocol = SCP_DARKPLACES6;
+			protocol = SCP_DARKPLACES7;
 		else if (!strcmp(sv_protocol_nq.string, "id") || !strcmp(sv_protocol_nq.string, "vanilla"))
 			protocol = SCP_NETQUAKE;
 		else switch(sv_protocol_nq.ival)
@@ -3451,6 +3542,11 @@ qboolean SV_ConnectionlessPacket (void)
 #endif
 	else if (!strncmp(c,"connect", 7))
 	{
+#ifdef HAVE_DTLS
+		if (net_from.prot == NP_DGRAM)
+			NET_DTLS_Disconnect(svs.sockets, &net_from);
+#endif
+
 #ifdef Q3SERVER
 		if (svs.gametype == GT_QUAKE3)
 		{
@@ -3458,6 +3554,7 @@ qboolean SV_ConnectionlessPacket (void)
 			return true;
 		}
 
+#ifdef QWOVERQ3
 		if (sv_listen_q3.ival)
 		{
 			if (!strstr(s, "\\name\\"))
@@ -3473,7 +3570,9 @@ qboolean SV_ConnectionlessPacket (void)
 			}
 		}
 #endif
-			if (secure.value)	//FIXME: possible problem for nq clients when enabled
+#endif
+
+		if (secure.value)	//FIXME: possible problem for nq clients when enabled
 		{
 			Netchan_OutOfBandTPrintf (NS_SERVER, &net_from, svs.language, "%c\nThis server requires client validation.\nPlease use the "FULLENGINENAME" validation program\n", A2C_PRINT);
 		}
@@ -3483,13 +3582,44 @@ qboolean SV_ConnectionlessPacket (void)
 			return true;
 		}
 	}
-	else if (!strcmp(c,"\xad\xad\xad\xad""getchallenge"))
+	else if (!strcmp(c,"dtlsconnect"))
 	{
-		SVC_GetChallenge (true);
+#ifdef HAVE_DTLS
+		if (net_from.prot == NP_DGRAM && (sv_listen_dtls.ival /*|| !*sv_listen_dtls.ival*/))
+		{
+			if (SV_ChallengePasses(atoi(Cmd_Argv(1))))
+			{
+				char *banreason = SV_BannedReason(&net_from);
+				if (banreason)
+				{
+					if (*banreason)
+						SV_RejectMessage (SCP_QUAKEWORLD, "You were banned.\nReason: %s\n", banreason);
+					else
+						SV_RejectMessage (SCP_QUAKEWORLD, "You were banned.\n");
+				}
+				else
+				{
+					//NET_DTLS_Disconnect(svs.sockets, &net_from);
+					if (NET_DTLS_Create(svs.sockets, &net_from))
+						Netchan_OutOfBandPrint(NS_SERVER, &net_from, "dtlsopened");
+				}
+			}
+			else
+				SV_RejectMessage (SCP_QUAKEWORLD, "Bad challenge.\n");
+		}
+		return true;
+#endif
 	}
-	else if (!strcmp(c,"getchallenge"))
+	/*else if (!strcmp(c,"\xad\xad\xad\xad""getchallenge"))
 	{
 		SVC_GetChallenge (false);
+	}*/
+	else if (!strcmp(c,"getchallenge"))
+	{
+		//qw+q2 always sends "\xff\xff\xff\xffgetchallenge\n"
+		//dp+q3 always sends "\xff\xff\xff\xffgetchallenge"
+		//its a subtle difference, but means we can avoid wasteful spam for real qw clients.
+		SVC_GetChallenge ((net_message.cursize==16)?true:false);
 	}
 #ifdef NQPROT
 	/*for DP*/
@@ -3537,6 +3667,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 	char buffer[256], buffer2[256];
 	netadr_t localaddr;
 	char *banreason;
+
 	if (net_from.type == NA_LOOPBACK)
 		return false;
 
@@ -3689,7 +3820,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		else if (!strncmp(MSG_ReadString(), "getchallenge", 12) && (sv_listen_qw.ival || sv_listen_dp.ival))
 		{
 			/*dual-stack client, supporting either DP or QW protocols*/
-			SVC_GetChallenge (true);
+			SVC_GetChallenge (false);
 		}
 		else
 		{
@@ -4024,6 +4155,21 @@ qboolean SV_ReadPackets (float *delay)
 			SV_ConnectionlessPacket();
 			continue;
 		}
+#ifdef HAVE_DTLS
+		else
+		{
+			if (NET_DTLS_Decode(svs.sockets))
+			{
+				if (!net_message.cursize)
+					continue;
+				if (*(unsigned int *)net_message.data == ~0)
+				{
+					SV_ConnectionlessPacket();
+					continue;
+				}
+			}
+		}
+#endif
 
 #ifdef Q3SERVER
 		if (svs.gametype == GT_QUAKE3)
@@ -4139,7 +4285,7 @@ dominping:
 		if (i != svs.allocated_client_slots)
 			continue;
 
-#ifdef Q3SERVER
+#ifdef QWOVERQ3
 		if (sv_listen_q3.ival && SVQ3_HandleClient())
 		{
 			received++;
@@ -4161,6 +4307,10 @@ dominping:
 		if (sv_showconnectionlessmessages.ival)
 			Con_Printf ("%s:sequenced packet without connection\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));	//hack: com_token cos we need some random temp buffer.
 	}
+
+#ifdef HAVE_DTLS
+	NET_DTLS_Timeouts(svs.sockets);
+#endif
 
 	return received;
 }
@@ -4848,8 +4998,13 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_listen_qw,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen_nq,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen_dp,	cvargroup_servercontrol);
+#ifdef QWOVERQ3
 	Cvar_Register (&sv_listen_q3,	cvargroup_servercontrol);
-	sv_listen_qw.restriction = RESTRICT_MAX;
+#endif
+#ifdef HAVE_DTLS
+	Cvar_Register (&sv_listen_dtls,	cvargroup_servercontrol);
+#endif
+	sv_listen_qw.restriction = RESTRICT_MAX;	//no disabling this over rcon.
 	Cvar_Register (&fraglog_public,	cvargroup_servercontrol);
 
 	SVNET_RegisterCvars();

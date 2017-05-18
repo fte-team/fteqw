@@ -245,6 +245,15 @@ static struct
 	qboolean		trying;
 	qboolean		istransfer;		//ignore the user's desired server (don't change connect.adr).
 	netadr_t		adr;			//address that we're trying to transfer to. FIXME: support multiple resolved addresses, eg both ::1 AND 127.0.0.1
+#ifdef HAVE_DTLS
+	enum
+	{
+		DTLS_DISABLE,
+		DTLS_TRY,
+		DTLS_REQUIRE,
+		DTLS_ACTIVE
+	} dtlsupgrade;
+#endif
 	int				mtu;
 	unsigned int	compresscrc;
 	int				protocol;		//nq/qw/q2/q3. guessed based upon server replies
@@ -528,8 +537,6 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	int fteprotextsupported=0;
 	int fteprotextsupported2=0;
 #endif
-	int clients;
-	int c;
 	char *a;
 
 // JACK: Fixed bug where DNS lookups would cause two connects real fast
@@ -585,6 +592,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 
 	NET_AdrToString(data, sizeof(data), to);
 	Cvar_ForceSet(&cl_serveraddress, data);
+//	Info_SetValueForStarKey (cls.userinfo, "*ip", data, MAX_INFO_STRING);
 
 	if (!NET_IsClientLegal(to))
 	{
@@ -606,29 +614,6 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	if (connectinfo.protocol == CP_QUAKE2 && (connectinfo.subprotocol == PROTOCOL_VERSION_R1Q2 || connectinfo.subprotocol == PROTOCOL_VERSION_Q2PRO))
 		connectinfo.qport &= 0xff;
 
-//	Info_SetValueForStarKey (cls.userinfo, "*ip", NET_AdrToString(adr), MAX_INFO_STRING);
-
-	clients = 1;
-/*
-	if (cl_splitscreen.value && (fteprotextsupported & PEXT_SPLITSCREEN))
-	{
-//		if (adr.type == NA_LOOPBACK)
-			clients = cl_splitscreen.value+1;
-//		else
-//			Con_Printf("Split screens are still under development\n");
-	}
-
-	if (clients < 1)
-		clients = 1;
-	if (clients > MAX_SPLITS)
-		clients = MAX_SPLITS;
-
-#ifdef Q2CLIENT
-	if (connectinfo.protocol == CP_QUAKE2)	//q2 only supports after-connect seats
-		clients = 1;
-#endif
-*/
-
 #ifdef Q3CLIENT
 	if (connectinfo.protocol == CP_QUAKE3)
 	{	//q3 requires some very strange things.
@@ -638,9 +623,6 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 #endif
 
 	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect", 255, 255, 255, 255);
-
-	if (clients>1)	//splitscreen 'connect' command specifies the number of userinfos sent.
-		Q_strncatz(data, va("%i", clients), sizeof(data));
 
 	Q_strncatz(data, va(" %i %i %i", connectinfo.subprotocol, connectinfo.qport, connectinfo.challenge), sizeof(data));
 
@@ -659,8 +641,6 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 		Q_strncatz(data, va("\\*z_ext\\%i", SUPPORTED_Z_EXTENSIONS), sizeof(data));
 
 	Q_strncatz(data, "\"", sizeof(data));
-	for (c = 1; c < clients; c++)
-		Q_strncatz(data, va(" \"%s\"", cls.userinfo[c]), sizeof(data));
 
 	if (connectinfo.protocol == CP_QUAKE2 && connectinfo.subprotocol == PROTOCOL_VERSION_R1Q2)
 		Q_strncatz(data, va(" %d %d", mtu, 1905), sizeof(data));	//mti, sub-sub-version
@@ -721,11 +701,6 @@ char *CL_TryingToConnect(void)
 	return cls.servername;
 }
 
-#ifndef CLIENTONLY
-int SV_NewChallenge (void);
-client_t *SVC_DirectConnect(void);
-#endif
-
 /*
 =================
 CL_CheckForResend
@@ -759,6 +734,7 @@ void CL_CheckForResend (void)
 			return;	//erk?
 		connectinfo.trying = true;
 		connectinfo.istransfer = false;
+		connectinfo.adr.prot = NP_DGRAM;
 
 		NET_InitClient(true);
 
@@ -1015,6 +991,24 @@ void CL_CheckForResend (void)
 			SCR_EndLoadingPlaque();
 			return;
 		}
+
+#ifdef HAVE_DTLS
+		if (connectinfo.dtlsupgrade == DTLS_ACTIVE)
+		{	//if we've already established a dtls connection, stick with it
+			if (connectinfo.adr.prot == NP_DGRAM)
+				connectinfo.adr.prot = NP_DTLS;
+		}
+		else if (connectinfo.adr.prot == NP_DTLS)
+		{	//dtls connections start out with regular udp, and upgrade to dtls once its established that the server supports it.
+			connectinfo.dtlsupgrade = DTLS_REQUIRE;
+			connectinfo.adr.prot = NP_DGRAM;
+		}
+		else
+		{
+			//hostname didn't specify dtls. upgrade if we're allowed, but don't mandate it.
+			//connectinfo.dtlsupgrade = DTLS_TRY;
+		}
+#endif
 	}
 	if (!NET_IsClientLegal(&connectinfo.adr))
 	{
@@ -1132,6 +1126,9 @@ void CL_BeginServerConnect(const char *host, int port, qboolean noproxy)
 
 	if (!port)
 		port = cl_defaultport.value;
+#ifdef HAVE_DTLS
+	NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr);
+#endif
 	memset(&connectinfo, 0, sizeof(connectinfo));
 	connectinfo.trying = true;
 	connectinfo.defaultport = port;
@@ -1148,6 +1145,10 @@ void CL_BeginServerReconnect(void)
 		Con_TPrintf ("Connect ignored - dedicated. set a renderer first\n");
 		return;
 	}
+#endif
+#ifdef HAVE_DTLS
+	NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr);
+	connectinfo.dtlsupgrade = 0;
 #endif
 	connectinfo.trying = true;
 	connectinfo.istransfer = false;
@@ -1553,6 +1554,13 @@ void CL_ClearState (void)
 			BZ_Free(cl.item_name[i]);
 #endif
 
+	while (cl.itemtimers)
+	{
+		struct itemtimer_s *t = cl.itemtimers;
+		cl.itemtimers = t->next;
+		Z_Free(t);
+	}
+
 	{
 		downloadlist_t *next;
 		while(cl.downloadlist)
@@ -1791,6 +1799,8 @@ void CL_Disconnect_f (void)
 	CL_Disconnect ();
 
 	connectinfo.trying = false;
+
+	NET_CloseClient();
 
 	(void)CSQC_UnconnectedInit();
 }
@@ -2792,6 +2802,9 @@ void CL_ConnectionlessPacket (void)
 		static netadr_t lastadr;
 		unsigned int curtime = Sys_Milliseconds();
 		unsigned long pext = 0, pext2 = 0, huffcrc=0, mtu=0;
+#ifdef HAVE_DTLS
+		qboolean candtls = false;
+#endif
 
 		s = MSG_ReadString ();
 		COM_Parse(s);
@@ -2888,6 +2901,7 @@ void CL_ConnectionlessPacket (void)
 			}
 #else
 			Con_Printf("\nUnable to connect to Quake2\n");
+			return;
 #endif
 			s+=9;
 		}
@@ -2940,31 +2954,65 @@ void CL_ConnectionlessPacket (void)
 
 		for(;;)
 		{
-			c = MSG_ReadLong ();
+			int cmd = MSG_ReadLong ();
 			if (msg_badread)
 				break;
-			if (c == PROTOCOL_VERSION_FTE)
-				pext = MSG_ReadLong ();
-			else if (c == PROTOCOL_VERSION_FTE2)
-				pext2 = MSG_ReadLong ();
-			else if (c == PROTOCOL_VERSION_FRAGMENT)
-				mtu = MSG_ReadLong ();
-			else if (c == PROTOCOL_VERSION_VARLENGTH)
+			if (cmd == PROTOCOL_VERSION_VARLENGTH)
 			{
 				int len = MSG_ReadLong();
 				if (len < 0 || len > 8192)
 					break;
 				c = MSG_ReadLong();/*ident*/
-				MSG_ReadSkip(len); /*payload*/
+				switch(c)
+				{
+				default:
+					MSG_ReadSkip(len); /*payload*/
+					break;
+				}
 			}
-#ifdef HUFFNETWORK
-			else if (c == PROTOCOL_VERSION_HUFFMAN)
-				huffcrc = MSG_ReadLong ();
-#endif
-			//else if (c == PROTOCOL_VERSION_...)
 			else
-				MSG_ReadLong ();
+			{
+				unsigned int l = MSG_ReadLong();
+				switch(cmd)
+				{
+				case PROTOCOL_VERSION_FTE:			pext = l;		break;
+				case PROTOCOL_VERSION_FTE2:			pext2 = l;		break;
+				case PROTOCOL_VERSION_FRAGMENT:		mtu = l;		break;
+#ifdef HAVE_DTLS
+				case PROTOCOL_VERSION_DTLSUPGRADE:	candtls = l;	break;	//0:not enabled. 1:use if you want. 2:require it.
+#endif
+#ifdef HUFFNETWORK
+				case PROTOCOL_VERSION_HUFFMAN:		huffcrc = l;	break;
+#endif
+				default:
+					break;
+				}
+			}
 		}
+
+#ifdef HAVE_DTLS
+		if (candtls && connectinfo.adr.prot == NP_DGRAM && (connectinfo.dtlsupgrade || candtls > 1))
+		{
+			//c2s getchallenge
+			//s2c c%u\0DTLS=0
+			//c2s dtlsconnect %u
+			//s2c dtlsopened
+			//c2s DTLS(getchallenge)
+			//DTLS(etc)
+
+			//server says it can do tls.
+			char *pkt = va("%c%c%c%cdtlsconnect %i", 255, 255, 255, 255, connectinfo.challenge);
+			NET_SendPacket (NS_CLIENT, strlen(pkt), pkt, &net_from);
+			return;
+		}
+		if (connectinfo.dtlsupgrade == DTLS_REQUIRE)
+		{
+			connectinfo.trying = false;
+			Con_Printf("Server does not support/allow dtls. not connecting.\n");
+			return;
+		}
+#endif
+
 		CL_SendConnectPacket (&net_from, mtu, pext, pext2, huffcrc/*, ...*/);
 		return;
 	}
@@ -3094,13 +3142,37 @@ void CL_ConnectionlessPacket (void)
 	}
 #endif
 
-	if (c == 'd')	//note - this conflicts with qw masters, our browser uses a different socket.
+	if (c == 'd'/*M2C_MASTER_REPLY*/)
 	{
-		Con_Printf ("d\n");
-		if (cls.demoplayback != DPB_NONE)
+		s = MSG_ReadString ();
+		COM_Parse(s);
+		if (!strcmp(com_token, "tlsopened"))
+		{	//server is letting us know that its now listening for a dtls handshake.
+#ifdef HAVE_DTLS
+			Con_Printf ("dtlsopened\n");
+			if (!NET_CompareAdr(&connectinfo.adr, &net_from))
+				return;
+
+			connectinfo.dtlsupgrade = DTLS_ACTIVE;
+			connectinfo.adr.prot = NP_DTLS;
+			if (!NET_DTLS_Create(cls.sockets, &net_from))
+				Con_Printf ("unable to establish dtls route\n");
+#else
+			Con_Printf ("dtlsopened (unsupported)\n");
+#endif
+		}
+		else if (*s != '\n')
+		{	//qw master server list response
+			Con_Printf ("server ip list\n");
+		}
+		else
 		{
-			Con_Printf("Disconnect\n");
-			CL_Disconnect_f();
+			Con_Printf ("d\n");
+			if (cls.demoplayback != DPB_NONE)
+			{
+				Con_Printf("Disconnect\n");
+				CL_Disconnect_f();
+			}
 		}
 		return;
 	}
@@ -3169,7 +3241,12 @@ client_connect:	//fixme: make function
 			CL_SendClientCommand(true, "new");
 		cls.state = ca_connected;
 		if (cls.netchan.remote_address.type != NA_LOOPBACK)
-			Con_TPrintf ("Connected.\n");
+		{
+			if (cls.netchan.remote_address.prot == NP_DTLS || cls.netchan.remote_address.prot == NP_TLS || cls.netchan.remote_address.prot == NP_WSS)
+				Con_TPrintf ("Connected (encrypted).\n");
+			else
+				Con_TPrintf ("Connected (plain-text).\n");
+		}
 #ifdef QUAKESPYAPI
 		allowremotecmd = false; // localid required now for remote cmds
 #endif
@@ -3369,7 +3446,19 @@ void CL_ReadPackets (void)
 	for(;;)
 	{
 		if (!CL_GetMessage())
+#ifndef HAVE_DTLS
 			break;
+#else
+		{
+			NET_DTLS_Timeouts(cls.sockets);
+			break;
+		}
+
+		if (*(int *)net_message.data != -1)
+			if (NET_DTLS_Decode(cls.sockets))
+				if (!net_message.cursize)
+					continue;
+#endif
 
 #ifdef NQPROT
 		if (cls.demoplayback == DPB_NETQUAKE)

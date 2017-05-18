@@ -357,6 +357,7 @@ static void INS_HideMouse (void)
 //scan for an unused device id for joysticks (now that something was pressed).
 static int Joy_AllocateDevID(void)
 {
+	extern cvar_t cl_splitscreen;
 	int id = 0, j;
 	for (id = 0; ; id++)
 	{
@@ -366,12 +367,17 @@ static int Joy_AllocateDevID(void)
 				break;
 		}
 		if (j == joy_count)
+		{
+			if (id > cl_splitscreen.ival && !*cl_splitscreen.string)
+				cl_splitscreen.ival = id;
 			return id;
+		}
 	}
 }
 #ifdef USINGRAWINPUT
 static int Mouse_AllocateDevID(void)
 {
+	extern cvar_t cl_splitscreen;
 	int id = 0, j;
 	for (id = 0; ; id++)
 	{
@@ -381,11 +387,16 @@ static int Mouse_AllocateDevID(void)
 				break;
 		}
 		if (j == rawmicecount)
+		{
+			if (id > cl_splitscreen.ival && !*cl_splitscreen.string)
+				cl_splitscreen.ival = id;
 			return id;
+		}
 	}
 }
 static int Keyboard_AllocateDevID(void)
 {
+	extern cvar_t cl_splitscreen;
 	int id = 0, j;
 	for (id = 0; ; id++)
 	{
@@ -395,7 +406,11 @@ static int Keyboard_AllocateDevID(void)
 				break;
 		}
 		if (j == rawkbdcount)
+		{
+			if (id > cl_splitscreen.ival && !*cl_splitscreen.string)
+				cl_splitscreen.ival = id;
 			return id;
+		}
 	}
 }
 #endif
@@ -1817,26 +1832,27 @@ void INS_Commands (void)
 
 	static const int xinputjbuttons[] =
 	{	
-		K_UPARROW,	//XINPUT_GAMEPAD_DPAD_UP
-		K_DOWNARROW,	//XINPUT_GAMEPAD_DPAD_DOWN
-		K_LEFTARROW,	//XINPUT_GAMEPAD_DPAD_LEFT
-		K_RIGHTARROW,	//XINPUT_GAMEPAD_DPAD_RIGHT
-		K_AUX5, //XINPUT_GAMEPAD_START
-		K_AUX6, //XINPUT_GAMEPAD_BACK
-		K_AUX3, //XINPUT_GAMEPAD_LEFT_THUMB
-		K_AUX4, //XINPUT_GAMEPAD_RIGHT_THUMB
+		K_GP_DPAD_UP,
+		K_GP_DPAD_DOWN,
+		K_GP_DPAD_LEFT,
+		K_GP_DPAD_RIGHT,
+		K_GP_START,
+		K_GP_BACK,
+		K_GP_LEFT_THUMB,
+		K_GP_RIGHT_THUMB,
 
-		K_AUX1, //XINPUT_GAMEPAD_LEFT_SHOULDER
-		K_AUX2,	//XINPUT_GAMEPAD_RIGHT_SHOULDER
-		K_AUX7,	//unused
-		K_AUX8,	//unused
-		K_JOY2,	//XINPUT_GAMEPAD_A
-		K_JOY4,	//XINPUT_GAMEPAD_B
-		K_JOY1,	//XINPUT_GAMEPAD_X
-		K_JOY3,	//XINPUT_GAMEPAD_Y
+		K_GP_LEFT_SHOULDER,
+		K_GP_RIGHT_SHOULDER,
+		K_GP_GUIDE,		//officially, this is 'reserved'
+		K_GP_UNKNOWN,	//reserved
+		K_GP_A,
+		K_GP_B,
+		K_GP_X,
+		K_GP_Y,
 
-		K_AUX9,	//left trigger
-		K_AUX10	//right trigger
+		//not part of xinput specs, but appended by us from analog triggers
+		K_GP_LEFT_TRIGGER,
+		K_GP_RIGHT_TRIGGER
 	};
 	static const int mmjbuttons[32] =
 	{
@@ -2009,12 +2025,12 @@ qboolean INS_ReadJoystick (struct wjoy_s *joy)
 
 			if (joy->devid != DEVID_UNSET)
 			{
-				IN_JoystickAxisEvent(joy->devid, 0, xistate.Gamepad.sThumbRX / 32768.0);
-				IN_JoystickAxisEvent(joy->devid, 1, xistate.Gamepad.sThumbRY / 32768.0);
-				IN_JoystickAxisEvent(joy->devid, 2, xistate.Gamepad.bRightTrigger/255.0);
-				IN_JoystickAxisEvent(joy->devid, 3, xistate.Gamepad.sThumbLX / 32768.0);
-				IN_JoystickAxisEvent(joy->devid, 4, xistate.Gamepad.sThumbLY / 32768.0);
-				IN_JoystickAxisEvent(joy->devid, 5, xistate.Gamepad.bLeftTrigger/255.0);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_RIGHT, xistate.Gamepad.sThumbLX / 32768.0);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_DOWN, xistate.Gamepad.sThumbLY / 32768.0);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_TRIGGER, xistate.Gamepad.bLeftTrigger/255.0);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_RIGHT, xistate.Gamepad.sThumbRX / 32768.0);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_DOWN, xistate.Gamepad.sThumbRY / 32768.0);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_TRIGGER, xistate.Gamepad.bRightTrigger/255.0);
 
 				vibrator.wLeftMotorSpeed = xinput_leftvibrator.value * 0xffff;
 				vibrator.wRightMotorSpeed = xinput_rightvibrator.value * 0xffff;
@@ -2036,12 +2052,12 @@ qboolean INS_ReadJoystick (struct wjoy_s *joy)
 			joy->buttonstate = ji.dwButtons;
 			if (joy->devid != DEVID_UNSET)
 			{
-				IN_JoystickAxisEvent(joy->devid, 0, (ji.dwXpos - 32768.0) / 32768);
-				IN_JoystickAxisEvent(joy->devid, 1, (ji.dwYpos - 32768.0) / 32768);
-				IN_JoystickAxisEvent(joy->devid, 2, (ji.dwZpos - 32768.0) / 32768);
-				IN_JoystickAxisEvent(joy->devid, 3, (ji.dwRpos - 32768.0) / 32768);
-				IN_JoystickAxisEvent(joy->devid, 4, (ji.dwUpos - 32768.0) / 32768);
-				IN_JoystickAxisEvent(joy->devid, 5, (ji.dwVpos - 32768.0) / 32768);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_RIGHT, (ji.dwXpos - 32768.0) / 32768);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_DOWN, (ji.dwYpos - 32768.0) / 32768);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_AUX, (ji.dwZpos - 32768.0) / 32768);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_RIGHT, (ji.dwRpos - 32768.0) / 32768);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_DOWN, (ji.dwUpos - 32768.0) / 32768);
+				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_AUX, (ji.dwVpos - 32768.0) / 32768);
 			}
 			return true;
 		}

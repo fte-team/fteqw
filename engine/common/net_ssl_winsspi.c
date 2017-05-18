@@ -1,5 +1,12 @@
 #include "quakedef.h"
 #if defined(HAVE_WINSSPI)
+
+/*regarding HAVE_DTLS
+DTLS1.0 is supported from win8 onwards
+Its also meant to be supported from some RDP server patch on win7, but I can't get it to work.
+I've given up for now.
+*/
+
 cvar_t *tls_ignorecertificateerrors;
 
 #include "winquake.h"
@@ -32,6 +39,10 @@ cvar_t *tls_ignorecertificateerrors;
 #define SCH_CRED_SNI_CREDENTIAL 0x00080000
 #endif
 
+#define SEC_I_MESSAGE_FRAGMENT	0x00090364L
+#define SEC_E_INVALID_PARAMETER	0x8009035DL
+
+
 //hungarian ensures we hit no macros.
 static struct
 {
@@ -39,7 +50,7 @@ static struct
 	SECURITY_STATUS (WINAPI *pDecryptMessage)				(PCtxtHandle,PSecBufferDesc,ULONG,PULONG);
 	SECURITY_STATUS (WINAPI *pEncryptMessage)				(PCtxtHandle,ULONG,PSecBufferDesc,ULONG);
 	SECURITY_STATUS (WINAPI *pAcquireCredentialsHandleA)	(SEC_CHAR*,SEC_CHAR*,ULONG,PLUID,PVOID,SEC_GET_KEY_FN,PVOID,PCredHandle,PTimeStamp);
-	SECURITY_STATUS (WINAPI *pInitializeSecurityContextA)	(PCredHandle,PCtxtHandle,SEC_CHAR*,ULONG,ULONG,ULONG,PSecBufferDesc,ULONG,PCtxtHandle,PSecBufferDesc,PULONG,PTimeStamp);
+//	SECURITY_STATUS (WINAPI *pInitializeSecurityContextA)	(PCredHandle,PCtxtHandle,SEC_CHAR*,ULONG,ULONG,ULONG,PSecBufferDesc,ULONG,PCtxtHandle,PSecBufferDesc,PULONG,PTimeStamp);
 	SECURITY_STATUS (WINAPI *pInitializeSecurityContextW)	(PCredHandle,PCtxtHandle,SEC_WCHAR*,ULONG,ULONG,ULONG,PSecBufferDesc,ULONG,PCtxtHandle,PSecBufferDesc,PULONG,PTimeStamp);
 	SECURITY_STATUS (WINAPI *pAcceptSecurityContext)		(PCredHandle,PCtxtHandle,PSecBufferDesc,unsigned long,unsigned long,PCtxtHandle,PSecBufferDesc,unsigned long SEC_FAR *,PTimeStamp);
 	SECURITY_STATUS (WINAPI *pCompleteAuthToken)			(PCtxtHandle,PSecBufferDesc);
@@ -65,7 +76,7 @@ void SSL_Init(void)
 		{(void**)&secur.pDecryptMessage,				"DecryptMessage"},
 		{(void**)&secur.pEncryptMessage,				"EncryptMessage"},
 		{(void**)&secur.pAcquireCredentialsHandleA,		"AcquireCredentialsHandleA"},
-		{(void**)&secur.pInitializeSecurityContextA,	"InitializeSecurityContextA"},
+//		{(void**)&secur.pInitializeSecurityContextA,	"InitializeSecurityContextA"},
 		{(void**)&secur.pInitializeSecurityContextW,	"InitializeSecurityContextW"},
 		{(void**)&secur.pAcceptSecurityContext,			"AcceptSecurityContext"},
 		{(void**)&secur.pCompleteAuthToken,				"CompleteAuthToken"},
@@ -98,14 +109,13 @@ qboolean SSL_Inited(void)
 	return !!secur.lib && !!crypt.lib;
 }
 
-#define MessageAttribute (ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY | ISC_RET_EXTENDED_ERROR | ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_MANUAL_CRED_VALIDATION) 
+#define MessageAttribute (ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY | ISC_REQ_EXTENDED_ERROR | ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_MANUAL_CRED_VALIDATION) 
 
 struct sslbuf
 {
 	size_t datasize;
 	char *data;
 	size_t avail;
-	size_t newd;
 };
 
 typedef struct {
@@ -137,6 +147,11 @@ typedef struct {
 	SecHandle sechnd;
 	int headersize, footersize;
 	char headerdata[1024], footerdata[1024];
+
+#ifdef HAVE_DTLS
+	void *cbctx;
+	void (*transmit)(void *cbctx, qbyte *data, size_t datasize);
+#endif
 } sslfile_t;
 
 static int SSPI_ExpandBuffer(struct sslbuf *buf, size_t bytes)
@@ -162,8 +177,15 @@ static int SSPI_CopyIntoBuffer(struct sslbuf *buf, const void *data, unsigned in
 
 static void SSPI_Error(sslfile_t *f, char *error, ...)
 {
+	va_list         argptr;
+	char             string[1024];
+	va_start (argptr, error);
+	vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
 	f->handshaking = HS_ERROR;
-	Sys_Printf("%s", error);
+	if (*string)
+		Sys_Printf("%s", string);
 	if (f->stream)
 		VFS_CLOSE(f->stream);
 
@@ -176,7 +198,17 @@ static void SSPI_TryFlushCryptOut(sslfile_t *f)
 {
 	int sent;
 	if (f->outcrypt.avail)
+	{
+#ifdef HAVE_DTLS
+		if (f->transmit)
+		{
+			f->transmit(f->cbctx, f->outcrypt.data, f->outcrypt.avail);
+			f->outcrypt.avail = 0;
+			return;
+		}
+#endif
 		sent = VFS_WRITE(f->stream, f->outcrypt.data, f->outcrypt.avail);
+	}
 	else
 		return;
 
@@ -215,7 +247,7 @@ static void SSPI_Decode(sslfile_t *f)
 		return;
 
 	BuffDesc.ulVersion    = SECBUFFER_VERSION;
-	BuffDesc.cBuffers     = 4;
+	BuffDesc.cBuffers     = countof(SecBuff);
 	BuffDesc.pBuffers     = SecBuff;
 
 	SecBuff[0].BufferType = SECBUFFER_DATA;
@@ -238,6 +270,7 @@ static void SSPI_Decode(sslfile_t *f)
 		}
 		switch(ss)
 		{
+		case SEC_E_DECRYPT_FAILURE:	SSPI_Error(f, "DecryptMessage failed: SEC_E_DECRYPT_FAILURE\n", ss); break;
 		case SEC_E_INVALID_HANDLE:	SSPI_Error(f, "DecryptMessage failed: SEC_E_INVALID_HANDLE\n"); break;
 		default:					SSPI_Error(f, "DecryptMessage failed: %0#lx\n", ss); break;
 		}
@@ -318,6 +351,8 @@ static void SSPI_Encode(sslfile_t *f)
 	SecBuff[2].pvBuffer   = f->footerdata;
 
 	SecBuff[3].BufferType = SECBUFFER_EMPTY;
+	SecBuff[3].cbBuffer   = 0;
+	SecBuff[3].pvBuffer   = NULL;
 
 	ss = secur.pEncryptMessage(&f->sechnd, ulQop, &BuffDesc, 0);
 
@@ -367,9 +402,19 @@ static struct
 };
 
 char *narrowen(char *out, size_t outlen, wchar_t *wide);
-static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data, size_t datasize)
+static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data, size_t datasize, qboolean datagram)
 {
 	int i;
+	if (datagram)
+	{
+		Con_Printf("FIXME: Ring of trust not yet implemented\n");
+		if (status == CERT_E_UNTRUSTEDROOT)
+		{
+			Con_Printf("Allowing (probably) self-signed cert.\n");
+			status = SEC_E_OK;
+		}
+		return status;
+	}
 	for (i = 0; knowncerts[i].hostname; i++)
 	{
 		if (!wcscmp(domain, knowncerts[i].hostname))
@@ -409,7 +454,7 @@ static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data,
 	return status;
 }
 
-static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServerName, DWORD dwCertFlags)
+static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServerName, DWORD dwCertFlags, qboolean datagram)
 {
 	HTTPSPolicyCallbackData polHttps;
 	CERT_CHAIN_POLICY_PARA PolicyPara;
@@ -465,7 +510,7 @@ static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServe
 		}
 		else
 		{
-			Status = VerifyKnownCertificates(PolicyStatus.dwError, pwszServerName, pServerCert->pbCertEncoded, pServerCert->cbCertEncoded);
+			Status = VerifyKnownCertificates(PolicyStatus.dwError, pwszServerName, pServerCert->pbCertEncoded, pServerCert->cbCertEncoded, datagram);
 			if (Status)
 			{
 				char fmsg[512];
@@ -598,14 +643,18 @@ static void SSPI_Handshake (sslfile_t *f)
 	SECURITY_STATUS		ss;
 	TimeStamp			Lifetime;
 	SecBufferDesc		OutBuffDesc;
-	SecBuffer			OutSecBuff[2];
+	SecBuffer			OutSecBuff[8];
 	SecBufferDesc		InBuffDesc;
-	SecBuffer			InSecBuff[3];
+	SecBuffer			InSecBuff[8];
 	ULONG				ContextAttributes;
 	SCHANNEL_CRED SchannelCred;
+	int i;
+	qboolean retries = 5;
 
-	char buf1[128];
-	char buf2[128];
+//	char buf1[128];
+//	char buf2[128];
+
+retry:
 
 	if (f->outcrypt.avail)
 	{
@@ -618,16 +667,19 @@ static void SSPI_Handshake (sslfile_t *f)
 	//FIXME: skip this if we've had no new data since last time
 
 	OutBuffDesc.ulVersion = SECBUFFER_VERSION;
-	OutBuffDesc.cBuffers  = 2;
+	OutBuffDesc.cBuffers  = countof(OutSecBuff);
 	OutBuffDesc.pBuffers  = OutSecBuff;
 
-	OutSecBuff[0].cbBuffer   = f->outcrypt.datasize - f->outcrypt.avail;
 	OutSecBuff[0].BufferType = SECBUFFER_TOKEN;
+	OutSecBuff[0].cbBuffer   = f->outcrypt.datasize - f->outcrypt.avail;
 	OutSecBuff[0].pvBuffer   = f->outcrypt.data + f->outcrypt.avail;
 
-	OutSecBuff[1].BufferType = 16;//SECBUFFER_TARGET_HOST;
-	OutSecBuff[1].pvBuffer   = buf1;
-	OutSecBuff[1].cbBuffer   = sizeof(buf1);
+	for (i = 0; i < OutBuffDesc.cBuffers; i++)
+	{
+		OutSecBuff[i].BufferType = SECBUFFER_EMPTY;
+		OutSecBuff[i].pvBuffer   = NULL;
+		OutSecBuff[i].cbBuffer   = 0;
+	}
 
 	if (f->handshaking == HS_ERROR)
 		return;	//gave up.
@@ -653,29 +705,52 @@ static void SSPI_Handshake (sslfile_t *f)
 	else if (f->handshaking == HS_CLIENT)
 	{
 		//only if we actually have data.
-		if (!f->incrypt.avail)
+		if (!f->incrypt.avail && !f->datagram)
 			return;
 
 		InBuffDesc.ulVersion = SECBUFFER_VERSION;
-		InBuffDesc.cBuffers  = 2;
+		InBuffDesc.cBuffers  = 4;
 		InBuffDesc.pBuffers  = InSecBuff;
 
-		InSecBuff[0].BufferType = SECBUFFER_TOKEN;
-		InSecBuff[0].cbBuffer   = f->incrypt.avail;
-		InSecBuff[0].pvBuffer   = f->incrypt.data;
+		i = 0;
 
-		InSecBuff[1].BufferType = SECBUFFER_EMPTY;
-		InSecBuff[1].pvBuffer   = NULL;
-		InSecBuff[1].cbBuffer   = 0;
+		if (f->incrypt.avail)
+		{
+			InSecBuff[i].BufferType = SECBUFFER_TOKEN;
+			InSecBuff[i].cbBuffer   = f->incrypt.avail;
+			InSecBuff[i].pvBuffer   = f->incrypt.data;
+			i++;
+		}
 
-		ss = secur.pInitializeSecurityContextA (&f->cred, &f->sechnd, NULL, MessageAttribute|(f->datagram?ISC_REQ_DATAGRAM:ISC_REQ_STREAM), 0, SECURITY_NATIVE_DREP, &InBuffDesc, 0, &f->sechnd, &OutBuffDesc, &ContextAttributes, &Lifetime);
+		for (; i < InBuffDesc.cBuffers; i++)
+		{
+			InSecBuff[i].BufferType = SECBUFFER_EMPTY;
+			InSecBuff[i].pvBuffer   = NULL;
+			InSecBuff[i].cbBuffer   = 0;
+		}
+
+		ss = secur.pInitializeSecurityContextW (&f->cred, &f->sechnd, NULL, MessageAttribute|(f->datagram?ISC_REQ_DATAGRAM:ISC_REQ_STREAM), 0, SECURITY_NETWORK_DREP, &InBuffDesc, 0, &f->sechnd, &OutBuffDesc, &ContextAttributes, &Lifetime);
 
 		if (ss == SEC_E_INCOMPLETE_MESSAGE)
 		{
-			if (f->incrypt.avail == f->incrypt.datasize)
+//			Con_Printf("SEC_E_INCOMPLETE_MESSAGE\n");
+			if (!f->datagram && f->incrypt.avail == f->incrypt.datasize)
 				SSPI_ExpandBuffer(&f->incrypt, f->incrypt.datasize+1024);
 			return;
 		}
+		else if (ss == SEC_E_INVALID_TOKEN)
+		{
+//			Con_Printf("SEC_E_INVALID_TOKEN\n");
+			if (f->datagram)
+				return;	//our udp protocol may have non-dtls packets mixed in. besides, we don't want to die from spoofed packets.
+		}
+//		else if (ss == SEC_I_MESSAGE_FRAGMENT)
+//			Con_Printf("SEC_I_MESSAGE_FRAGMENT\n");
+//		else if (ss == SEC_I_CONTINUE_NEEDED)
+//			Con_Printf("SEC_I_CONTINUE_NEEDED\n");
+//		else
+//			Con_Printf("InitializeSecurityContextA %x\n", ss);
+
 
 		//any extra data should still remain for the next time around. this might be more handshake data or payload data.
 		if (InSecBuff[1].BufferType == SECBUFFER_EXTRA)
@@ -692,29 +767,49 @@ static void SSPI_Handshake (sslfile_t *f)
 			return;
 
 		InBuffDesc.ulVersion = SECBUFFER_VERSION;
-		InBuffDesc.cBuffers  = 3;
+		InBuffDesc.cBuffers  = countof(InSecBuff);
 		InBuffDesc.pBuffers  = InSecBuff;
+		i = 0;
 
-		InSecBuff[0].BufferType = SECBUFFER_TOKEN;
-		InSecBuff[0].cbBuffer   = f->incrypt.avail;
-		InSecBuff[0].pvBuffer   = f->incrypt.data;
-
-		InSecBuff[1].BufferType = SECBUFFER_EMPTY;
-		InSecBuff[1].pvBuffer   = NULL;
-		InSecBuff[1].cbBuffer   = 0;
-
-		InSecBuff[2].BufferType = 16;//SECBUFFER_TARGET_HOST;
-		InSecBuff[2].pvBuffer   = buf2;
-		InSecBuff[2].cbBuffer   = sizeof(buf2);
-
-		ss = secur.pAcceptSecurityContext(&f->cred, (f->handshaking==HS_SERVER)?&f->sechnd:NULL, &InBuffDesc, ASC_REQ_ALLOCATE_MEMORY|ASC_REQ_STREAM|ASC_REQ_CONFIDENTIALITY, SECURITY_NATIVE_DREP, &f->sechnd, &OutBuffDesc, &ContextAttributes, &Lifetime); 
-
-		if (ss == SEC_E_INCOMPLETE_MESSAGE)
+		if (f->incrypt.avail)
 		{
-			if (f->incrypt.avail == f->incrypt.datasize)
+			InSecBuff[i].BufferType = SECBUFFER_TOKEN;
+			InSecBuff[i].cbBuffer   = f->incrypt.avail;
+			InSecBuff[i].pvBuffer   = f->incrypt.data;
+			i++;
+		}
+
+		for (; i < InBuffDesc.cBuffers; i++)
+		{
+			InSecBuff[i].BufferType = SECBUFFER_EMPTY;
+			InSecBuff[i].pvBuffer   = NULL;
+			InSecBuff[i].cbBuffer   = 0;
+		}
+
+		i = 1;
+		OutSecBuff[i++].BufferType = SECBUFFER_EXTRA;
+		OutSecBuff[i++].BufferType = 17/*SECBUFFER_ALERT*/;
+
+#define ServerMessageAttribute (ASC_REQ_SEQUENCE_DETECT | ASC_REQ_REPLAY_DETECT | ASC_REQ_CONFIDENTIALITY /*| ASC_REQ_EXTENDED_ERROR*/ | ASC_REQ_ALLOCATE_MEMORY)
+
+		ss = secur.pAcceptSecurityContext(&f->cred, (f->handshaking==HS_SERVER)?&f->sechnd:NULL, &InBuffDesc,
+								ServerMessageAttribute|(f->datagram?ASC_REQ_DATAGRAM:ASC_REQ_STREAM), SECURITY_NETWORK_DREP, &f->sechnd,
+								&OutBuffDesc, &ContextAttributes, NULL); 
+		if (ss == SEC_E_INVALID_TOKEN)
+		{
+//			Con_Printf("SEC_E_INVALID_TOKEN\n");
+			if (f->datagram)
+				return;
+		}
+		else if (ss == SEC_E_INCOMPLETE_MESSAGE)
+		{
+//			Con_Printf("SEC_E_INCOMPLETE_MESSAGE\n");
+			if (!f->datagram && f->incrypt.avail == f->incrypt.datasize)
 				SSPI_ExpandBuffer(&f->incrypt, f->incrypt.datasize+1024);
 			return;
 		}
+//		else
+//			Con_Printf("InitializeSecurityContextA %x\n", ss);
 		f->handshaking = HS_SERVER;
 
 		//any extra data should still remain for the next time around. this might be more handshake data or payload data.
@@ -743,7 +838,8 @@ static void SSPI_Handshake (sslfile_t *f)
 		case SEC_E_INVALID_HANDLE:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_INVALID_HANDLE\n");		break;
 		case SEC_E_ILLEGAL_MESSAGE:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_ILLEGAL_MESSAGE\n");		break;
 		case SEC_E_INVALID_TOKEN:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_INVALID_TOKEN\n");		break;
-		default:						SSPI_Error(f, "InitializeSecurityContext failed: %#lx\n", ss);				break;
+		case SEC_E_INVALID_PARAMETER:	SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_INVALID_PARAMETER\n");	break;
+		default:						SSPI_Error(f, "InitializeSecurityContext failed: %lx\n", (long)ss);				break;
 		}
 		return;
 	}
@@ -757,15 +853,6 @@ static void SSPI_Handshake (sslfile_t *f)
 			return;
 		}
 	}
-
-	if (SSPI_CopyIntoBuffer(&f->outcrypt, OutSecBuff[0].pvBuffer, OutSecBuff[0].cbBuffer, true) < OutSecBuff[0].cbBuffer)
-	{
-		SSPI_Error(f, "crypt overflow\n");
-		return;
-	}
-
-	//send early, send often.
-	SSPI_TryFlushCryptOut(f);
 
 	//its all okay and established if we get this far.
 	if (ss == SEC_E_OK)
@@ -787,7 +874,7 @@ static void SSPI_Handshake (sslfile_t *f)
 					SSPI_Error(f, "unable to read server's certificate\n");
 					return;
 				}
-				if (VerifyServerCertificate(remotecert, f->wpeername, 0))
+				if (VerifyServerCertificate(remotecert, f->wpeername, 0, f->datagram))
 				{
 					f->handshaking = HS_ERROR;
 					SSPI_Error(f, "Error validating certificante\n");
@@ -799,9 +886,33 @@ static void SSPI_Handshake (sslfile_t *f)
 		}
 
 		f->handshaking = HS_ESTABLISHED;
-
-		SSPI_Encode(f);
 	}
+
+	//send early, send often.
+#ifdef HAVE_DTLS
+	if (f->transmit)
+	{
+		for (i = 0; i < OutBuffDesc.cBuffers; i++)
+			if (OutSecBuff[i].BufferType == SECBUFFER_TOKEN && OutSecBuff[i].cbBuffer)
+				f->transmit(f->cbctx, OutSecBuff[i].pvBuffer, OutSecBuff[i].cbBuffer);
+	}
+	else
+#endif
+	{
+		i = 0;
+		if (SSPI_CopyIntoBuffer(&f->outcrypt, OutSecBuff[i].pvBuffer, OutSecBuff[i].cbBuffer, true) < OutSecBuff[i].cbBuffer)
+		{
+			SSPI_Error(f, "crypt overflow\n");
+			return;
+		}
+		SSPI_TryFlushCryptOut(f);
+	}
+
+	if (f->handshaking == HS_ESTABLISHED)
+		SSPI_Encode(f);
+	else if (ss == SEC_I_MESSAGE_FRAGMENT)	//looks like we can connect faster if we loop when we get this result.
+		if (retries --> 0)
+			goto retry;
 }
 
 static int QDECL SSPI_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
@@ -886,7 +997,7 @@ static qboolean QDECL SSPI_Close (struct vfsfile_s *file)
 }
 
 #include <wchar.h>
-vfsfile_t *FS_OpenSSL(const char *servername, vfsfile_t *source, qboolean server, qboolean datagram)
+vfsfile_t *FS_OpenSSL(const char *servername, vfsfile_t *source, qboolean server)
 {
 	sslfile_t *newf;
 	int i = 0;
@@ -938,7 +1049,6 @@ vfsfile_t *FS_OpenSSL(const char *servername, vfsfile_t *source, qboolean server
 	}
 	newf->wpeername[i] = 0;
 
-	newf->datagram = datagram;
 	newf->handshaking = server?HS_STARTSERVER:HS_STARTCLIENT;
 	newf->stream = source;
 	newf->funcs.Close = SSPI_Close;
@@ -960,4 +1070,163 @@ vfsfile_t *FS_OpenSSL(const char *servername, vfsfile_t *source, qboolean server
 
 	return &newf->funcs;
 }
+
+
+#if 0
+struct nulldtls_s
+{
+	void *cbctx;
+	neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize);
+};
+void *DTLS_CreateContext(void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
+{
+	struct nulldtls_s *ctx = Z_Malloc(sizeof(*ctx));
+	ctx->cbctx = cbctx;
+	ctx->push = push;
+	return ctx;
+}
+qboolean DTLS_HasServerCertificate(void)
+{
+	//FIXME: at this point, schannel is still returning errors when I try acting as a server.
+	//so just block any attempt to use this as a server.
+	//clients don't need certs!
+	return false;
+}
+neterr_t DTLS_Transmit(void *vctx, const qbyte *data, size_t datasize)
+{
+	struct nulldtls_s *ctx = vctx;
+	neterr_t r;
+	*(int*)data ^= 0xdeadbeef;
+	r = ctx->push(ctx->cbctx, data, datasize);
+	*(int*)data ^= 0xdeadbeef;
+	return r;
+}
+neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize)
+{
+	*(int*)data ^= 0xdeadbeef;
+	return NETERR_SENT;
+}
+#elif defined(HAVE_DTLS)
+void *DTLS_CreateContext(char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
+{
+	int i = 0;
+	sslfile_t *ctx;
+	if (!SSL_Inited())
+		return NULL;
+
+	ctx = Z_Malloc(sizeof(*ctx));
+	ctx->datagram = true;
+	ctx->handshaking = isserver?HS_STARTSERVER:HS_STARTCLIENT;
+	ctx->cbctx = cbctx;
+	ctx->transmit = push;
+
+	while(*remotehost)
+	{
+		int err;
+		int c = utf8_decode(&err, remotehost, (void*)&remotehost);
+		if (c > WCHAR_MAX)
+			err = true;	//no 16bit surrogates. they're evil.
+		else if (i == sizeof(ctx->wpeername)/sizeof(ctx->wpeername[0]) - 1)
+			err = true; //no space to store it
+		else
+			ctx->wpeername[i++] = c;
+		if (err)
+		{
+			Z_Free(ctx);
+			return NULL;
+		}
+	}
+	ctx->wpeername[i] = 0;
+
+	SSPI_ExpandBuffer(&ctx->outraw,		8192);
+	SSPI_ExpandBuffer(&ctx->outcrypt,	65536);
+	SSPI_ExpandBuffer(&ctx->inraw,		8192);
+	SSPI_ExpandBuffer(&ctx->incrypt,	65536);
+
+	if (isserver)
+		SSPI_GenServerCredentials(ctx);
+	else
+		SSPI_Handshake(ctx);	//begin the initial handshake now
+	return ctx;
+}
+
+void DTLS_DestroyContext(void *vctx)
+{
+	SSPI_Close(vctx);
+}
+
+
+neterr_t DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
+{
+	int ret;
+	sslfile_t *f = (sslfile_t *)ctx;
+
+//Con_Printf("DTLS_Transmit: %i\n", datasize);
+
+	//sspi likes writing over the source data. make sure nothing is hurt by copying it out first.
+	f->outraw.avail = 0;
+	SSPI_CopyIntoBuffer(&f->outraw, data, datasize, true);
+
+	if (f->handshaking)
+	{
+		SSPI_Handshake(f);
+
+		if (f->handshaking == HS_ERROR)
+			ret = NETERR_DISCONNECTED;
+		ret = NETERR_CLOGGED;	//not ready yet
+	}
+	else
+	{
+		SSPI_Encode(f);
+		ret = NETERR_SENT;
+	}
+
+	return ret;
+}
+
+neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize)
+{
+	int ret;
+	sslfile_t *f = (sslfile_t *)ctx;
+
+//Con_Printf("DTLS_Received: %i\n", datasize);
+
+	f->incrypt.data = data;
+	f->incrypt.avail = f->incrypt.datasize = datasize;
+
+	if (f->handshaking)
+	{
+		SSPI_Handshake(f);
+		ret = NETERR_CLOGGED;	//not ready yet
+
+		if (f->handshaking == HS_ERROR)
+			ret = NETERR_DISCONNECTED;
+	}
+	else
+	{
+		SSPI_Decode(f);
+		ret = NETERR_SENT;
+
+		memcpy(net_message_buffer, f->inraw.data, f->inraw.avail);
+		net_message.cursize = f->inraw.avail;
+		f->inraw.avail = 0;
+
+		net_message_buffer[net_message.cursize] = 0;
+//		Con_Printf("returning %i bytes: %s\n", net_message.cursize, net_message_buffer);
+	}
+	f->incrypt.data = NULL;
+	return ret;
+}
+neterr_t DTLS_Timeouts(void *ctx)
+{
+	sslfile_t *f = (sslfile_t *)ctx;
+	if (f->handshaking)
+	{
+//		SSPI_Handshake(f);
+		return NETERR_CLOGGED;
+	}
+	return NETERR_SENT;
+}
+#endif
+
 #endif

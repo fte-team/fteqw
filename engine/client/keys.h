@@ -21,6 +21,43 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __CLIENT_KEYS_H__
 #define __CLIENT_KEYS_H__
 
+enum
+{	//fte's assumed gamepad axis
+	GPAXIS_LT_RIGHT	= 0,
+	GPAXIS_LT_DOWN	= 1,
+	GPAXIS_LT_AUX	= 2,
+
+	GPAXIS_RT_RIGHT	= 3,
+	GPAXIS_RT_DOWN	= 4,
+	GPAXIS_RT_AUX	= 5,
+
+//gah
+#define GPAXIS_LT_TRIGGER GPAXIS_LT_AUX
+#define GPAXIS_RT_TRIGGER GPAXIS_RT_AUX
+};
+
+#if 1
+//gamepad alises, because I'm too lazy to define actual keys that are distinct from joysticks
+#define K_GP_A				K_JOY2
+#define K_GP_B				K_JOY4
+#define K_GP_X				K_JOY1
+#define K_GP_Y				K_JOY3
+#define K_GP_LEFT_SHOULDER	K_AUX1
+#define K_GP_RIGHT_SHOULDER	K_AUX2
+#define K_GP_LEFT_TRIGGER	K_AUX9
+#define K_GP_RIGHT_TRIGGER	K_AUX10
+#define K_GP_BACK			K_AUX6
+#define K_GP_START			K_AUX5
+#define K_GP_LEFT_THUMB		K_AUX3
+#define K_GP_RIGHT_THUMB	K_AUX4
+#define K_GP_DPAD_UP		K_UPARROW
+#define K_GP_DPAD_DOWN		K_DOWNARROW
+#define K_GP_DPAD_LEFT		K_LEFTARROW
+#define K_GP_DPAD_RIGHT		K_RIGHTARROW
+#define K_GP_GUIDE			K_AUX7
+#define K_GP_UNKNOWN		K_AUX8
+#endif
+
 //
 // these are the key numbers that should be passed to Key_Event
 //
@@ -108,6 +145,22 @@ K_MOUSE10,
 K_MWHEELUP,
 K_MWHEELDOWN, // 189
 
+#ifndef K_GP_A
+K_GP_A = 190,
+K_GP_B = 191,
+K_GP_X = 192,
+K_GP_Y = 193,
+K_GP_LEFT_SHOULDER = 194,
+K_GP_RIGHT_SHOULDER = 195,
+K_GP_LEFT_TRIGGER = 196,
+K_GP_RIGHT_TRIGGER = 197,
+K_GP_BACK = 198,
+K_GP_START = 199,
+K_GP_LEFT_THUMB = 200,
+K_GP_RIGHT_THUMB = 201,
+K_GP_GUIDE = 202,
+#endif
+
 //
 // joystick buttons
 //
@@ -163,6 +216,17 @@ K_RCTRL			= 246,
 K_RSHIFT		= 247,
 K_PRINTSCREEN	= 248,
 
+//K_UNUSED	= 249,
+//K_UNUSED	= 250,
+
+#ifndef K_GP_DPAD_UP
+K_GP_DPAD_UP = 251,
+K_GP_DPAD_DOWN = 252,
+K_GP_DPAD_LEFT = 253,
+K_GP_DPAD_RIGHT = 254,
+K_GP_UNKNOWN = 255,
+#endif
+
 K_MAX			= 256
 };
 
@@ -172,6 +236,7 @@ K_MAX			= 256
 #define KEY_MODIFIER_ALTBINDMAP	(1<<3)
 #define	KEY_MODIFIERSTATES		(1<<4)
 
+//legacy aliases, lest we ever forget!
 #define K_SHIFT K_LSHIFT
 #define K_CTRL K_LCTRL
 #define K_ALT K_LALT

@@ -135,13 +135,12 @@ qboolean Sys_rmdir (const char *path)
 #if WIN32
 	ret = _rmdir (path);
 #else
-	//user, group, others
-	ret = rmdir (path, 0755);	//WARNING: DO NOT RUN AS ROOT!
+	ret = rmdir (path);
 #endif
 	if (ret == 0)
 		return true;
-	if (errno == ENOENT)
-		return true;
+//	if (errno == ENOENT)
+//		return true;
 	return false;
 }
 

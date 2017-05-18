@@ -9345,7 +9345,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	pmove.cmd.upmove = bound(-32767, (pr_global_struct->input_movevalues)[2], 32767);
 	pmove.cmd.buttons = pr_global_struct->input_buttons;
 
-	pmove.safeorigin_known = true;
+	pmove.safeorigin_known = progstype != PROG_QW;
 	VectorCopy(ent->v->oldorigin, pmove.safeorigin);
 	VectorCopy(ent->v->origin, pmove.origin);
 	VectorCopy(ent->v->velocity, pmove.velocity);

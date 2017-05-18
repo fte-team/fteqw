@@ -53,8 +53,8 @@ int emscriptenfte_setupcanvas(
 	void(*Button)(unsigned int devid, int down, int mbutton),
 	int(*Keyboard)(unsigned int devid, int down, int keycode, int unicode),
 	void(*LoadFile)(char *url, char *mime, int filehandle),
-	void(*buttonevent)(unsigned int joydev, int button, int ispressed),
-	void(*axisevent)(unsigned int joydev, int axis, float value),
+	void(*buttonevent)(unsigned int joydev, int button, int ispressed, int isstandard),
+	void(*axisevent)(unsigned int joydev, int axis, float value, int isstandard),
 	int (*ShouldSwitchToFullscreen)(void)
 	);
 

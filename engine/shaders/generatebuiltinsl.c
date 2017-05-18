@@ -25,6 +25,7 @@ char shaders[][64] =
 	"defaultgammacb",
 	"drawflat_wall",
 	"wireframe",
+	"itemtimer",
 	"lpp_depthnorm",
 	"lpp_light",
 	"lpp_wall",

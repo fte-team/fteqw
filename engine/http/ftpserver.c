@@ -1485,8 +1485,10 @@ unsigned long _true = true;
 		cl->controlaf = 1;
 	else if (((struct sockaddr *)&from)->sa_family == AF_INET6)
 		cl->controlaf = 2;
+#ifdef USEIPX
 	else if (((struct sockaddr *)&from)->sa_family == AF_IPX)
 		cl->controlaf = 11;
+#endif
 	else
 		cl->controlaf = 0;
 

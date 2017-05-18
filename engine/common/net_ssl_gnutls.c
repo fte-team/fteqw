@@ -4,12 +4,14 @@
 
 #include "quakedef.h"
 
-#define GNUTLS_DYNAMIC 	//statically linking is bad, because that just dynamically links to a .so that probably won't exist.
-						//on the other hand, it does validate that the function types are correct.
+#ifndef GNUTLS_STATIC
+	#define GNUTLS_DYNAMIC 	//statically linking is bad, because that just dynamically links to a .so that probably won't exist.
+							//on the other hand, it does validate that the function types are correct.
+#endif
 
 #ifdef HAVE_GNUTLS
 
-#if defined(_WIN32) && !defined(MINGW)
+#if defined(_WIN32) && !defined(MINGW) && 0
 
 #define GNUTLS_VERSION "2.12.23"
 #define GNUTLS_SOPREFIX ""
@@ -92,6 +94,7 @@ typedef int (VARGS gnutls_certificate_verify_function)(gnutls_session_t session)
 
 #else
 #include <gnutls/gnutls.h>
+#include <gnutls/dtls.h>
 #define gnutls_connection_end_t unsigned int
 
 	#if GNUTLS_VERSION_MAJOR < 3 || (GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR < 3)
@@ -152,6 +155,7 @@ static int (VARGS *qgnutls_certificate_set_x509_system_trust)(gnutls_certificate
 #else
 static int (VARGS *qgnutls_certificate_set_x509_trust_file)(gnutls_certificate_credentials_t cred, const char * cafile, gnutls_x509_crt_fmt_t type);
 #endif
+static int (VARGS *qgnutls_certificate_set_x509_key_file)(gnutls_certificate_credentials_t res, const char * certfile, const char * keyfile, gnutls_x509_crt_fmt_t type); 
 #ifdef GNUTLS_HAVE_VERIFY3
 static int (VARGS *qgnutls_certificate_verify_peers3)(gnutls_session_t session, const char* hostname, unsigned int * status);
 static int (VARGS *qgnutls_certificate_verification_status_print)(unsigned int status, gnutls_certificate_type_t type, gnutls_datum_t * out, unsigned int flags);
@@ -165,6 +169,15 @@ static const gnutls_datum_t *(VARGS *qgnutls_certificate_get_peers)(gnutls_sessi
 static gnutls_certificate_type_t (VARGS *qgnutls_certificate_type_get)(gnutls_session_t session);
 static void (VARGS *qgnutls_free)(void * ptr);
 static int (VARGS *qgnutls_server_name_set)(gnutls_session_t session, gnutls_server_name_type_t type, const void * name, size_t name_length); 
+
+#ifdef HAVE_DTLS
+static int (VARGS *qgnutls_key_generate)(gnutls_datum_t * key, unsigned int key_size);
+static void (VARGS *qgnutls_transport_set_pull_timeout_function)(gnutls_session_t session, gnutls_pull_timeout_func func);
+static int (VARGS *qgnutls_dtls_cookie_verify)(gnutls_datum_t * key, void *client_data, size_t client_data_size, void *_msg, size_t msg_size, gnutls_dtls_prestate_st * prestate);
+static int (VARGS *qgnutls_dtls_cookie_send)(gnutls_datum_t * key, void *client_data, size_t client_data_size, gnutls_dtls_prestate_st * prestate, gnutls_transport_ptr_t ptr, gnutls_push_func push_func);
+static void (VARGS *qgnutls_dtls_prestate_set)(gnutls_session_t session, gnutls_dtls_prestate_st * prestate);
+static void (VARGS *qgnutls_dtls_set_mtu)(gnutls_session_t session, unsigned int mtu);
+#endif
 
 static qboolean Init_GNUTLS(void)
 {
@@ -184,6 +197,18 @@ static qboolean Init_GNUTLS(void)
 		GNUTLS_FUNC(gnutls_x509_crt_init) \
 		GNUTLS_FUNC(gnutls_x509_crt_import) \
 		GNUTLS_FUNC(gnutls_certificate_get_peers)
+#endif
+
+#ifdef HAVE_DTLS
+#define GNUTLS_DTLS_STUFF \
+		GNUTLS_FUNC(gnutls_key_generate) \
+		GNUTLS_FUNC(gnutls_transport_set_pull_timeout_function) \
+		GNUTLS_FUNC(gnutls_dtls_cookie_verify) \
+		GNUTLS_FUNC(gnutls_dtls_cookie_send) \
+		GNUTLS_FUNC(gnutls_dtls_prestate_set) \
+		GNUTLS_FUNC(gnutls_dtls_set_mtu)
+#else
+	#define GNUTLS_DTLS_STUFF
 #endif
 
 
@@ -208,10 +233,12 @@ static qboolean Init_GNUTLS(void)
 	GNUTLS_FUNC(gnutls_session_get_ptr)	\
 	GNUTLS_FUNC(gnutls_session_set_ptr)	\
 	GNUTLS_TRUSTFUNCS	\
+	GNUTLS_FUNC(gnutls_certificate_set_x509_key_file)	\
 	GNUTLS_VERIFYFUNCS	\
 	GNUTLS_FUNC(gnutls_certificate_type_get)	\
 	GNUTLS_FUNC(gnutls_free)	\
 	GNUTLS_FUNC(gnutls_server_name_set)	\
+	GNUTLS_DTLS_STUFF
 
 #ifdef GNUTLS_DYNAMIC
 	dllhandle_t *hmod;
@@ -247,6 +274,7 @@ static qboolean Init_GNUTLS(void)
 #else
 		{(void**)&qgnutls_certificate_set_x509_trust_file, "gnutls_certificate_set_x509_trust_file"},
 #endif
+		{(void**)&qgnutls_certificate_set_x509_key_file, "gnutls_certificate_set_x509_key_file"},
 #ifdef GNUTLS_HAVE_VERIFY3
 		{(void**)&qgnutls_certificate_verify_peers3, "gnutls_certificate_verify_peers3"},
 		{(void**)&qgnutls_certificate_verification_status_print, "gnutls_certificate_verification_status_print"},
@@ -260,6 +288,16 @@ static qboolean Init_GNUTLS(void)
 		{(void**)&qgnutls_certificate_type_get, "gnutls_certificate_type_get"},
 		{(void**)&qgnutls_free, "gnutls_free"},
 		{(void**)&qgnutls_server_name_set, "gnutls_server_name_set"},
+
+#ifdef HAVE_DTLS
+		{(void**)&qgnutls_key_generate, "gnutls_key_generate"},
+		{(void**)&qgnutls_transport_set_pull_timeout_function, "gnutls_transport_set_pull_timeout_function"},
+		{(void**)&qgnutls_dtls_cookie_verify, "gnutls_dtls_cookie_verify"},
+		{(void**)&qgnutls_dtls_cookie_send, "gnutls_dtls_cookie_send"},
+		{(void**)&qgnutls_dtls_prestate_set, "gnutls_dtls_prestate_set"},
+		{(void**)&qgnutls_dtls_set_mtu, "gnutls_dtls_set_mtu"},
+#endif
+
 		{NULL, NULL}
 	};
 	
@@ -282,11 +320,6 @@ static qboolean Init_GNUTLS(void)
 	return true;
 }
 
-struct sslbuf
-{
-	char data[8192];
-	int avail;
-};
 typedef struct 
 {
 	vfsfile_t funcs;
@@ -298,10 +331,13 @@ typedef struct
 	qboolean handshaking;
 	qboolean datagram;
 
-	struct sslbuf outplain;
-	struct sslbuf outcrypt;
-	struct sslbuf inplain;
-	struct sslbuf incrypt;
+	qboolean challenging;	//not sure this is actually needed, but hey.
+	void *cbctx;
+	neterr_t(*cbpush)(void *cbctx, const qbyte *data, size_t datasize);
+	qbyte *readdata;
+	size_t readsize;
+	gnutls_dtls_prestate_st prestate;
+//	int mtu;
 } gnutlsfile_t;
 
 #define CAFILE "/etc/ssl/certs/ca-certificates.crt"
@@ -456,7 +492,10 @@ int SSL_DoHandshake(gnutlsfile_t *file)
 	int err;
 	//session was previously closed = error
 	if (!file->session)
+	{
+		Sys_Printf("null session\n");
 		return -1;
+	}
 
 	err = qgnutls_handshake (file->session);
 	if (err < 0)
@@ -466,7 +505,7 @@ int SSL_DoHandshake(gnutlsfile_t *file)
 			return 0;
 
 		//certificate errors etc
-//		qgnutls_perror (err);
+		qgnutls_perror (err);
 
 		SSL_Close(&file->funcs);
 //		Con_Printf("%s: abort\n", file->certname);
@@ -560,6 +599,7 @@ static qofs_t QDECL SSL_GetLen (struct vfsfile_s *file)
 static ssize_t SSL_Push(gnutls_transport_ptr_t p, const void *data, size_t size)
 {
 	gnutlsfile_t *file = p;
+//	Sys_Printf("SSL_Push: %u\n", size);
 	int done = VFS_WRITE(file->stream, data, size);
 	if (!done)
 	{
@@ -571,32 +611,10 @@ static ssize_t SSL_Push(gnutls_transport_ptr_t p, const void *data, size_t size)
 		return 0;
 	return done;
 }
-/*static ssize_t SSL_PushV(gnutls_transport_ptr_t p, giovec_t *iov, int iovcnt)
-{
-	int i;
-	ssize_t written;
-	ssize_t total;
-	gnutlsfile_t *file = p;
-	for (i = 0; i < iovcnt; i++)
-	{
-		written = SSL_Push(file, iov[i].iov_base, iov[i].iov_len);
-		if (written <= 0)
-			break;
-		total += written;
-		if (written < iov[i].iov_len)
-			break;
-	}
-	if (!total)
-	{
-		qgnutls_transport_set_errno(file->session, EAGAIN);
-		return -1;
-	}
-	qgnutls_transport_set_errno(file->session, 0);
-	return total;
-}*/
 static ssize_t SSL_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
 {
 	gnutlsfile_t *file = p;
+//	Sys_Printf("SSL_Pull: %u\n", size);
 	int done = VFS_READ(file->stream, data, size);
 	if (!done)
 	{
@@ -611,62 +629,174 @@ static ssize_t SSL_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
 	return done;
 }
 
-vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, qboolean datagram)
+static ssize_t DTLS_Push(gnutls_transport_ptr_t p, const void *data, size_t size)
+{
+	gnutlsfile_t *file = p;
+
+	neterr_t ne = file->cbpush(file->cbctx, data, size);
+
+//	Sys_Printf("DTLS_Push: %u, err=%i\n", (unsigned)size, (int)ne);
+
+	switch(ne)
+	{
+	case NETERR_CLOGGED:
+		qgnutls_transport_set_errno(file->session, EAGAIN);
+		return -1;
+	case NETERR_MTU:
+		qgnutls_transport_set_errno(file->session, EMSGSIZE);
+		return -1;
+	case NETERR_DISCONNECTED:
+		qgnutls_transport_set_errno(file->session, EPERM);
+		return -1;
+	default:
+		qgnutls_transport_set_errno(file->session, 0);
+		return size;
+	}
+}
+static ssize_t DTLS_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
+{
+	gnutlsfile_t *file = p;
+
+//	Sys_Printf("DTLS_Pull: %u of %u\n", size, file->readsize);
+
+	if (!file->readsize)
+	{	//no data left
+//		Sys_Printf("DTLS_Pull: EAGAIN\n");
+		qgnutls_transport_set_errno(file->session, EAGAIN);
+		return -1;
+	}
+	else if (file->readsize > size)
+	{	//buffer passed is smaller than available data
+//		Sys_Printf("DTLS_Pull: EMSGSIZE\n");
+		memcpy(data, file->readdata, size);
+		file->readsize = 0;
+		qgnutls_transport_set_errno(file->session, EMSGSIZE);
+		return -1;
+	}
+	else
+	{	//buffer is big enough to read it all
+		size = file->readsize;
+		file->readsize = 0;
+//		Sys_Printf("DTLS_Pull: reading %i\n", size);
+		memcpy(data, file->readdata, size);
+		qgnutls_transport_set_errno(file->session, 0);
+		return size;
+	}
+}
+static int DTLS_Pull_Timeout(gnutls_transport_ptr_t p, unsigned int timeout)
+{	//gnutls (pointlessly) requires this function for dtls.
+	gnutlsfile_t *f = p;
+//	Sys_Printf("DTLS_Pull_Timeout %i, %i\n", timeout, f->readsize);
+	return f->readsize>0?1:0;
+}
+
+#ifdef USE_ANON
+static gnutls_anon_client_credentials_t anoncred[2];
+#else
+static gnutls_certificate_credentials_t xcred[2];
+#endif
+static gnutls_datum_t cookie_key;
+
+qboolean SSL_InitGlobal(qboolean isserver)
+{
+	static int initstatus[2];
+	if (!initstatus[isserver])
+	{
+		if (!Init_GNUTLS())
+		{
+			Con_Printf("GnuTLS "GNUTLS_VERSION" library not available.\n");
+			return false;
+		}
+		initstatus[isserver] = true;
+		qgnutls_global_init ();
+
+		if (isserver)
+			qgnutls_key_generate(&cookie_key, GNUTLS_COOKIE_KEY_SIZE);
+
+
+#ifdef USE_ANON
+		qgnutls_anon_allocate_client_credentials (&anoncred[isserver]);
+#else
+
+		qgnutls_certificate_allocate_credentials (&xcred[isserver]);
+
+#ifdef GNUTLS_HAVE_SYSTEMTRUST
+		qgnutls_certificate_set_x509_system_trust (xcred[isserver]);
+#else
+		qgnutls_certificate_set_x509_trust_file (xcred[isserver], CAFILE, GNUTLS_X509_FMT_PEM);
+#endif
+
+		if (isserver)
+		{
+#define KEYFILE "c:/games/tools/ssl/key.pem"
+#define CERTFILE "c:/games/tools/ssl/cert.pem"
+			int ret = qgnutls_certificate_set_x509_key_file(xcred[isserver], CERTFILE, KEYFILE, GNUTLS_X509_FMT_PEM); 
+			if (ret < 0)
+			{
+				Con_Printf("No certificate or key were found\n");
+				initstatus[isserver] = -1;
+			}
+		}
+		else
+			qgnutls_certificate_set_verify_function (xcred[isserver], SSL_CheckCert);
+#endif
+	}
+
+	if (initstatus[isserver] < 0)
+		return false;
+	return true;
+}
+qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboolean datagram)
+{
+	// Initialize TLS session
+	qgnutls_init (&newf->session, GNUTLS_NONBLOCK|(isserver?GNUTLS_SERVER:GNUTLS_CLIENT)|(datagram?GNUTLS_DATAGRAM:0));
+
+	if (!isserver)
+		qgnutls_server_name_set(newf->session, GNUTLS_NAME_DNS, newf->certname, strlen(newf->certname));
+
+	qgnutls_session_set_ptr(newf->session, newf);
+
+#ifdef USE_ANON
+	//qgnutls_kx_set_priority (newf->session, kx_prio);
+	qgnutls_credentials_set (newf->session, GNUTLS_CRD_ANON, anoncred[isserver]);
+#else
+//#if GNUTLS_VERSION_MAJOR >= 3
+	//gnutls_priority_set_direct();
+//#else
+	//qgnutls_certificate_type_set_priority (newf->session, cert_type_priority);
+//#endif
+	qgnutls_credentials_set (newf->session, GNUTLS_CRD_CERTIFICATE, xcred[isserver]);
+#endif
+	// Use default priorities
+	qgnutls_set_default_priority (newf->session);
+
+	// tell gnutls how to send/receive data
+	qgnutls_transport_set_ptr (newf->session, newf);
+	qgnutls_transport_set_push_function(newf->session, datagram?DTLS_Push:SSL_Push);
+	//qgnutls_transport_set_vec_push_function(newf->session, SSL_PushV);
+	qgnutls_transport_set_pull_function(newf->session, datagram?DTLS_Pull:SSL_Pull);
+	if (datagram)
+		qgnutls_transport_set_pull_timeout_function(newf->session, DTLS_Pull_Timeout);
+
+//	if (isserver)	//don't bother to auth any client certs
+//		qgnutls_certificate_server_set_request(newf->session, GNUTLS_CERT_IGNORE);
+
+	newf->handshaking = true;
+
+	return true;
+}
+
+vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean isserver)
 {
 	gnutlsfile_t *newf;
-	qboolean anon = false;
-	
-	static gnutls_anon_client_credentials_t anoncred;
-	static gnutls_certificate_credentials_t xcred;
-
-//	long _false = false;
-//	long _true = true;
-
-	/* Need to enable anonymous KX specifically. */
-//	const int kx_prio[] = {GNUTLS_KX_ANON_DH, 0};
-//	const int cert_type_priority[3] = {GNUTLS_CRT_X509, 0};
 
 	if (!source)
 		return NULL;
 
-	if (datagram)
-	{
-		VFS_CLOSE(source);
-		return NULL;
-	}
-
-#ifdef GNUTLS_DATAGRAM
-	if (datagram)
-		return NULL;
-#endif
-
-	{
-		static qboolean needinit = true;
-		if (needinit)
-		{
-			if (!Init_GNUTLS())
-			{
-				Con_Printf("GnuTLS "GNUTLS_VERSION" library not available.\n");
-				VFS_CLOSE(source);
-				return NULL;
-			}
-			qgnutls_global_init ();
-
-			qgnutls_anon_allocate_client_credentials (&anoncred);
-			qgnutls_certificate_allocate_credentials (&xcred);
-
-#ifdef GNUTLS_HAVE_SYSTEMTRUST
-			qgnutls_certificate_set_x509_system_trust (xcred);
-#else
-			qgnutls_certificate_set_x509_trust_file (xcred, CAFILE, GNUTLS_X509_FMT_PEM);
-#endif
-			qgnutls_certificate_set_verify_function (xcred, SSL_CheckCert);
-
-			needinit = false;
-		}
-	}
-
-	newf = Z_Malloc(sizeof(*newf));
+	if (!SSL_InitGlobal(isserver))
+		newf = NULL;
+	else
+		newf = Z_Malloc(sizeof(*newf));
 	if (!newf)
 	{
 		VFS_CLOSE(source);
@@ -682,51 +812,189 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, 
 	newf->funcs.Tell = SSL_Tell;
 	newf->funcs.seekstyle = SS_UNSEEKABLE;
 
-	Q_strncpyz(newf->certname, hostname, sizeof(newf->certname));
-
-	// Initialize TLS session
-	qgnutls_init (&newf->session, GNUTLS_CLIENT/*|(datagram?GNUTLS_DATAGRAM:0)*/);
-
-	qgnutls_server_name_set(newf->session, GNUTLS_NAME_DNS, newf->certname, strlen(newf->certname));
-
-	qgnutls_session_set_ptr(newf->session, newf);
-
-	// Use default priorities
-	qgnutls_set_default_priority (newf->session);
-	if (anon)
-	{
-		//qgnutls_kx_set_priority (newf->session, kx_prio);
-		qgnutls_credentials_set (newf->session, GNUTLS_CRD_ANON, anoncred);
-	}
+	if (hostname)
+		Q_strncpyz(newf->certname, hostname, sizeof(newf->certname));
 	else
+		Q_strncpyz(newf->certname, "", sizeof(newf->certname));
+
+	if (!SSL_InitConnection(newf, isserver, false))
 	{
-//#if GNUTLS_VERSION_MAJOR >= 3
-		//gnutls_priority_set_direct();
-//#else
-		//qgnutls_certificate_type_set_priority (newf->session, cert_type_priority);
-//#endif
-		qgnutls_credentials_set (newf->session, GNUTLS_CRD_CERTIFICATE, xcred);
+		VFS_CLOSE(&newf->funcs);
+		return NULL;
 	}
-
-	// tell gnutls how to send/receive data
-	qgnutls_transport_set_ptr (newf->session, newf);
-	qgnutls_transport_set_push_function(newf->session, SSL_Push);
-	//qgnutls_transport_set_vec_push_function(newf->session, SSL_PushV);
-	qgnutls_transport_set_pull_function(newf->session, SSL_Pull);
-	//qgnutls_transport_set_pull_timeout_function(newf->session, NULL);
-
-	newf->handshaking = true;
 
 	return &newf->funcs;
 }
 
-/*
-vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server, qboolean datagram)
+
+
+#ifdef HAVE_DTLS
+
+void DTLS_DestroyContext(void *ctx)
 {
-	if (source)
-		VFS_CLOSE(source);
-	return NULL;
+	SSL_Close(ctx);
 }
-*/
+qboolean DTLS_HasServerCertificate(void)
+{
+	if (!SSL_InitGlobal(true))
+		return false;
+	return true;
+}
+void *DTLS_CreateContext(void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
+{
+	gnutlsfile_t *newf;
+
+	if (!SSL_InitGlobal(isserver))
+		newf = NULL;
+	else
+		newf = Z_Malloc(sizeof(*newf));
+	if (!newf)
+		return NULL;
+	newf->datagram = true;
+	newf->cbctx = cbctx;
+	newf->cbpush = push;
+	newf->challenging = isserver;
+
+//	Sys_Printf("DTLS_CreateContext: server=%i\n", isserver);
+
+	Q_strncpyz(newf->certname, "", sizeof(newf->certname));
+
+	if (!SSL_InitConnection(newf, isserver, true))
+	{
+		SSL_Close(&newf->funcs);
+		return NULL;
+	}
+
+	return newf;
+}
+
+neterr_t DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
+{
+	int ret;
+	gnutlsfile_t *f = (gnutlsfile_t *)ctx;
+//	Sys_Printf("DTLS_Transmit: %u\n", datasize);
+//	Sys_Printf("%su\n", data);
+
+	if (f->challenging)
+		return NETERR_CLOGGED;
+	if (f->handshaking)
+	{
+		ret = SSL_DoHandshake(f);
+		if (!ret)
+			return NETERR_CLOGGED;
+		if (ret < 0)
+			return NETERR_DISCONNECTED;
+	}
+
+	ret = qgnutls_record_send(f->session, data, datasize);
+	if (ret < 0)
+	{
+		if (ret == GNUTLS_E_LARGE_PACKET)
+			return NETERR_MTU;
+//Sys_Error("qgnutls_record_send returned %i\n", ret);
+
+		if (qgnutls_error_is_fatal(ret))
+			return NETERR_DISCONNECTED;
+		return NETERR_CLOGGED;
+	}
+	return NETERR_SENT;
+}
+
+neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize)
+{
+	int cli_addr = 0xdeadbeef;
+	int ret;
+	gnutlsfile_t *f = (gnutlsfile_t *)ctx;
+
+//Sys_Printf("DTLS_Received: %u\n", datasize);
+
+	if (f->challenging)
+	{
+		memset(&f->prestate, 0, sizeof(f->prestate));
+		ret = qgnutls_dtls_cookie_verify(&cookie_key,
+				&cli_addr, sizeof(cli_addr),
+				data, datasize,
+				&f->prestate);
+
+		if (ret < 0)
+		{
+//Sys_Printf("Sending cookie\n");
+			qgnutls_dtls_cookie_send(&cookie_key,
+					&cli_addr, sizeof(cli_addr),
+					&f->prestate,
+					(gnutls_transport_ptr_t)f, DTLS_Push);
+			return NETERR_CLOGGED;
+		}
+//Sys_Printf("Got correct cookie\n");
+		f->challenging = false;
+
+		qgnutls_dtls_prestate_set(f->session, &f->prestate);
+		qgnutls_dtls_set_mtu(f->session, 1440);
+
+//		qgnutls_transport_set_push_function(f->session, DTLS_Push);
+//		qgnutls_transport_set_pull_function(f->session, DTLS_Pull);
+		f->handshaking = true;
+	}
+
+	f->readdata = data;
+	f->readsize = datasize;
+
+	if (f->handshaking)
+	{
+		ret = SSL_DoHandshake(f);
+		if (ret <= 0)
+			f->readsize = 0;
+		if (!ret)
+			return NETERR_CLOGGED;
+		if (ret < 0)
+			return NETERR_DISCONNECTED;
+	}
+
+	ret = qgnutls_record_recv(f->session, net_message_buffer, sizeof(net_message_buffer));
+//Sys_Printf("DTLS_Received returned %i of %i\n", ret, f->readsize);
+	f->readsize = 0;
+	if (ret <= 0)
+	{
+		if (!ret)
+		{
+//			Sys_Printf("DTLS_Received peer terminated connection\n");
+			return NETERR_DISCONNECTED;
+		}
+		if (qgnutls_error_is_fatal(ret))
+		{
+//			Sys_Printf("DTLS_Received fail error\n");
+			return NETERR_DISCONNECTED;
+		}
+//		Sys_Printf("DTLS_Received temp error\n");
+		return NETERR_CLOGGED;
+	}
+	net_message.cursize = ret;
+	data[ret] = 0;
+//	Sys_Printf("DTLS_Received returned %s\n", data);
+	return NETERR_SENT;
+}
+
+neterr_t DTLS_Timeouts(void *ctx)
+{
+	gnutlsfile_t *f = (gnutlsfile_t *)ctx;
+	int ret;
+	if (f->challenging)
+		return NETERR_CLOGGED;
+	if (f->handshaking)
+	{
+		f->readsize = 0;
+		ret = SSL_DoHandshake(f);
+		f->readsize = 0;
+		if (!ret)
+			return NETERR_CLOGGED;
+		if (ret < 0)
+			return NETERR_DISCONNECTED;
+
+//		Sys_Printf("handshaking over?\n");
+	}
+	return NETERR_SENT;
+}
+#endif
+
 #endif
 

@@ -2389,7 +2389,11 @@ void SV_UserCmdMVDList_HTML (vfsfile_t *pipe)
 				VFS_PRINTF(pipe, "*%d: %s %dk<br/>\n", i, list->name, d->totalsize/1024);
 		}
 		if (!d)
-			VFS_PRINTF(pipe, "%d: <a href='/demos/%s'>%s</a> %dk <a href='javascript:void(0)' onclick='playdemo(\"%s\")'>play</a><br/>\n", i, list->name, list->name, list->size/1024, list->name);
+		{
+			char datetime[64];
+			strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M:%S", localtime(&list->mtime));
+			VFS_PRINTF(pipe, "%d: <a href='/demos/%s'>%s</a> %dk <a href='javascript:void(0)' onclick='playdemo(\"%s\")'>play</a> %s<br/>\n", i, list->name, list->name, list->size/1024, list->name, datetime);
+		}
 	}
 
 	for (d = demo.dest; d; d = d->nextdest)

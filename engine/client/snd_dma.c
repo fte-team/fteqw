@@ -91,7 +91,13 @@ cvar_t snd_noextraupdate		= CVARAF(	"s_noextraupdate", "0",
 											"snd_noextraupdate", 0);
 cvar_t snd_show					= CVARAF(	"s_show", "0",
 											"snd_show", 0);
-cvar_t snd_khz					= CVARAFD(	"s_khz", "48",
+#ifdef __DJGPP__
+#define DEFAULT_SND_KHZ "11"
+#else
+//fixme: are android devices more likely to use 44.1khz?
+#define DEFAULT_SND_KHZ "48"	//most modern systems should go with 48khz audio (dvd quality). various hardware codecs support nothing else.
+#endif
+cvar_t snd_khz					= CVARAFD(	"s_khz", DEFAULT_SND_KHZ,
 											"snd_khz", CVAR_ARCHIVE, "Sound speed, in kilohertz. Common values are 11, 22, 44, 48. Values above 1000 are explicitly in hertz.");
 cvar_t	snd_inactive			= CVARAFD(	"s_inactive", "1",
 											"snd_inactive", CVAR_ARCHIVE,
@@ -1507,10 +1513,15 @@ extern sounddriver_t XAUDIO2_Output;
 extern sounddriver_t DSOUND_Output;
 #endif
 sounddriver_t SDL_Output;
+#ifdef __linux__
 sounddriver_t ALSA_Output;
+#endif
 sounddriver_t OSS_Output;
 #ifdef AVAIL_OPENAL
 extern sounddriver_t OPENAL_Output;
+#endif
+#ifdef __DJGPP__
+extern sounddriver_t SBLASTER_Output;
 #endif
 
 sounddriver pSNDIO_InitCard;
@@ -1546,6 +1557,9 @@ static sounddriver_t *outputdrivers[] =
 	&ALSA_Output,		//pure shite
 #endif
 	&OSS_Output,		//good, but not likely to work any more
+#ifdef __DJGPP__
+	&SBLASTER_Output,	//zomgwtfdos?
+#endif
 	NULL
 };
 typedef struct {

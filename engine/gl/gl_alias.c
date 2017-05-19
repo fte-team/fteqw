@@ -17,7 +17,7 @@
 #include "glquake.h"
 #ifndef SERVERONLY
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__DJGPP__)
 	#include <malloc.h>
 #else
 	#include <alloca.h>

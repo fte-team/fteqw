@@ -71,7 +71,7 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 
 
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__DJGPP__)
 #include <malloc.h>
 #else
 #include <alloca.h>

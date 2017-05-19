@@ -660,6 +660,165 @@ void SWBE_ClearVBO(struct vbo_s *vbo)
 void SWBE_UploadAllLightmaps(void)
 {
 }
+static void SWR_RotateForEntity (float *m, float *modelview, const entity_t *e, const model_t *mod)
+{
+	if ((e->flags & RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
+	{
+		float em[16];
+		float vm[16];
+
+		if (e->flags & RF_WEAPONMODELNOBOB)
+		{
+			vm[0] = vpn[0];
+			vm[1] = vpn[1];
+			vm[2] = vpn[2];
+			vm[3] = 0;
+
+			vm[4] = -vright[0];
+			vm[5] = -vright[1];
+			vm[6] = -vright[2];
+			vm[7] = 0;
+
+			vm[8] = vup[0];
+			vm[9] = vup[1];
+			vm[10] = vup[2];
+			vm[11] = 0;
+
+			vm[12] = r_refdef.vieworg[0];
+			vm[13] = r_refdef.vieworg[1];
+			vm[14] = r_refdef.vieworg[2];
+			vm[15] = 1;
+		}
+		else
+		{
+			vm[0] = r_refdef.playerview->vw_axis[0][0];
+			vm[1] = r_refdef.playerview->vw_axis[0][1];
+			vm[2] = r_refdef.playerview->vw_axis[0][2];
+			vm[3] = 0;
+
+			vm[4] = r_refdef.playerview->vw_axis[1][0];
+			vm[5] = r_refdef.playerview->vw_axis[1][1];
+			vm[6] = r_refdef.playerview->vw_axis[1][2];
+			vm[7] = 0;
+
+			vm[8] = r_refdef.playerview->vw_axis[2][0];
+			vm[9] = r_refdef.playerview->vw_axis[2][1];
+			vm[10] = r_refdef.playerview->vw_axis[2][2];
+			vm[11] = 0;
+
+			vm[12] = r_refdef.playerview->vw_origin[0];
+			vm[13] = r_refdef.playerview->vw_origin[1];
+			vm[14] = r_refdef.playerview->vw_origin[2];
+			vm[15] = 1;
+		}
+
+		em[0] = e->axis[0][0];
+		em[1] = e->axis[0][1];
+		em[2] = e->axis[0][2];
+		em[3] = 0;
+
+		em[4] = e->axis[1][0];
+		em[5] = e->axis[1][1];
+		em[6] = e->axis[1][2];
+		em[7] = 0;
+
+		em[8] = e->axis[2][0];
+		em[9] = e->axis[2][1];
+		em[10] = e->axis[2][2];
+		em[11] = 0;
+
+		em[12] = e->origin[0];
+		em[13] = e->origin[1];
+		em[14] = e->origin[2];
+		em[15] = 1;
+
+		Matrix4_Multiply(vm, em, m);
+	}
+	else
+	{
+		m[0] = e->axis[0][0];
+		m[1] = e->axis[0][1];
+		m[2] = e->axis[0][2];
+		m[3] = 0;
+
+		m[4] = e->axis[1][0];
+		m[5] = e->axis[1][1];
+		m[6] = e->axis[1][2];
+		m[7] = 0;
+
+		m[8] = e->axis[2][0];
+		m[9] = e->axis[2][1];
+		m[10] = e->axis[2][2];
+		m[11] = 0;
+
+		m[12] = e->origin[0];
+		m[13] = e->origin[1];
+		m[14] = e->origin[2];
+		m[15] = 1;
+	}
+
+	if (e->scale != 1 && e->scale != 0)	//hexen 2 stuff
+	{
+#ifdef HEXEN2
+		float z;
+		float escale;
+		escale = e->scale;
+		switch(e->drawflags&SCALE_TYPE_MASK)
+		{
+		default:
+		case SCALE_TYPE_UNIFORM:
+			VectorScale((m+0), escale, (m+0));
+			VectorScale((m+4), escale, (m+4));
+			VectorScale((m+8), escale, (m+8));
+			break;
+		case SCALE_TYPE_XYONLY:
+			VectorScale((m+0), escale, (m+0));
+			VectorScale((m+4), escale, (m+4));
+			break;
+		case SCALE_TYPE_ZONLY:
+			VectorScale((m+8), escale, (m+8));
+			break;
+		}
+		if (mod && (e->drawflags&SCALE_TYPE_MASK) != SCALE_TYPE_XYONLY)
+		{
+			switch(e->drawflags&SCALE_ORIGIN_MASK)
+			{
+			case SCALE_ORIGIN_CENTER:
+				z = ((mod->maxs[2] + mod->mins[2]) * (1-escale))/2;
+				VectorMA((m+12), z, e->axis[2], (m+12));
+				break;
+			case SCALE_ORIGIN_BOTTOM:
+				VectorMA((m+12), mod->mins[2]*(1-escale), e->axis[2], (m+12));
+				break;
+			case SCALE_ORIGIN_TOP:
+				VectorMA((m+12), -mod->maxs[2], e->axis[2], (m+12));
+				break;
+			}
+		}
+#else
+		VectorScale((m+0), e->scale, (m+0));
+		VectorScale((m+4), e->scale, (m+4));
+		VectorScale((m+8), e->scale, (m+8));
+#endif
+	}
+	else if (mod && !strcmp(mod->name, "progs/eyes.mdl"))
+	{
+		/*resize eyes, to make them easier to see*/
+		m[14] -= (22 + 8);
+		VectorScale((m+0), 2, (m+0));
+		VectorScale((m+4), 2, (m+4));
+		VectorScale((m+8), 2, (m+8));
+	}
+	if (mod && !ruleset_allow_larger_models.ival && mod->clampscale != 1 && mod->type == mod_alias)
+	{	//possibly this should be on a per-frame basis, but that's a real pain to do
+		Con_DPrintf("Rescaling %s by %f\n", mod->name, mod->clampscale);
+		VectorScale((m+0), mod->clampscale, (m+0));
+		VectorScale((m+4), mod->clampscale, (m+4));
+		VectorScale((m+8), mod->clampscale, (m+8));
+	}
+
+	Matrix4_Multiply(r_refdef.m_view, m, modelview);
+}
 void SWBE_SelectEntity(struct entity_s *ent)
 {
 	float modelmatrix[16];
@@ -670,7 +829,7 @@ void SWBE_SelectEntity(struct entity_s *ent)
 		return;
 	shaderstate.curentity = ent;
 
-	R_RotateForEntity(modelmatrix, modelviewmatrix, shaderstate.curentity, shaderstate.curentity->model);
+	SWR_RotateForEntity(modelmatrix, modelviewmatrix, shaderstate.curentity, shaderstate.curentity->model);
 	Matrix4_Multiply(r_refdef.m_projection, modelviewmatrix, shaderstate.m_mvp);
 	shaderstate.viewplane[0] = vpn[0];//-modelviewmatrix[0];//0*4+2];
 	shaderstate.viewplane[1] = vpn[1];//-modelviewmatrix[1];//1*4+2];

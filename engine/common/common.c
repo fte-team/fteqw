@@ -1717,7 +1717,7 @@ void MSG_ReadPos (vec3_t pos)
 	pos[2] = MSG_ReadCoord();
 }
 
-#if defined(Q2SERVER) || !defined(SERVERONLY)
+#if 1//defined(Q2SERVER) || !defined(SERVERONLY)
 #define Q2NUMVERTEXNORMALS	162
 vec3_t	bytedirs[Q2NUMVERTEXNORMALS] =
 {
@@ -2652,7 +2652,7 @@ unsigned int unicode_charofsfrombyteofs(const char *str, unsigned int byteofs, q
 	return chars;
 }
 
-#ifdef FTE_TARGET_WEB
+#if defined(FTE_TARGET_WEB) || defined(__DJGPP__)
 //targets that don't support towupper/towlower...
 #define towupper Q_towupper
 #define towlower Q_towlower

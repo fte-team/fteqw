@@ -36,7 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stdio.h>
 #include <dlfcn.h>
 #include <dirent.h>
-#ifndef __CYGWIN__
+#if !defined(__CYGWIN__) && !defined(__DJGPP__)
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #endif
@@ -46,7 +46,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <errno.h>
-#ifndef __MACOSX__
+#if !defined(__MACOSX__) && !defined(__DJGPP__)
 #include <X11/Xlib.h>
 #endif
 #ifdef MULTITHREAD
@@ -255,8 +255,10 @@ void Sys_Printf (char *fmt, ...)
 void Sys_Quit (void)
 {
 	Host_Shutdown();
+#ifndef __DJGPP__
 	if (!noconinput)
 		fcntl (0, F_SETFL, fcntl (0, F_GETFL, 0) & ~FNDELAY);
+#endif
 
 #ifdef USE_LIBTOOL
 	lt_dlexit();
@@ -400,9 +402,11 @@ void Sys_Error (const char *error, ...)
 	va_list argptr;
 	char string[1024];
 
+#ifndef __DJGPP__
 // change stdin to non blocking
 	if (!noconinput)
 		fcntl (0, F_SETFL, fcntl (0, F_GETFL, 0) & ~FNDELAY);
+#endif
 
 	va_start (argptr,error);
 	vsnprintf (string,sizeof(string)-1, error,argptr);
@@ -827,13 +831,6 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 // Sleeps for microseconds
 // =======================================================================
 
-static volatile int oktogo;
-
-void alarm_handler(int x)
-{
-	oktogo=1;
-}
-
 char *Sys_ConsoleInput(void)
 {
 #if 1
@@ -853,7 +850,9 @@ char *Sys_ConsoleInput(void)
 
 //	if (!qrenderer)
 	{
+Con_Printf("ConsoleInput\n");
 		len = read (0, text, sizeof(text));
+Con_Printf("ConsoleInput read %i\n", len);
 		if (len < 1)
 			return NULL;
 
@@ -948,13 +947,17 @@ int main (int c, const char **v)
 
 
 	noconinput = COM_CheckParm("-noconinput");
+#ifndef __DJGPP__
 	if (!noconinput)
 		fcntl(0, F_SETFL, fcntl (0, F_GETFL, 0) | FNDELAY);
+#endif
 
 #ifdef SUBSERVERS
 	if (COM_CheckParm("-clusterslave"))
 		isDedicated = nostdout = isClusterSlave = true;
 #endif
+	if (COM_CheckParm("-dedicated"))
+		isDedicated = true;
 
 	if (COM_CheckParm("-nostdout"))
 		nostdout = 1;
@@ -963,7 +966,6 @@ int main (int c, const char **v)
 
 	for (i = 1; i < parms.argc; i++)
 	{
-		Con_Printf("Arg%i == %s\n", i, parms.argv[i]);
 		if (!parms.argv[i])
 			continue;
 		if (*parms.argv[i] == '+' || *parms.argv[i] == '-')
@@ -1033,7 +1035,7 @@ void Sys_ServerActivity(void)
 //from the OS. This will cause problems with framebuffer-only setups.
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {
-#ifdef __MACOSX__
+#if defined(__MACOSX__) || defined(__DJGPP__)
 //this about sums up the problem with this function
 	return false;
 #else

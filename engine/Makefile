@@ -289,6 +289,12 @@ ifeq ($(FTE_TARGET),morphos)
 	endif
 endif
 
+ifeq ($(FTE_TARGET),dos)
+	#at least from dos.
+	CC=i586-pc-msdosdjgpp-gcc
+	CFLAGS+=-DNO_ZLIB
+endif
+
 #if you have an x86, you can get gcc to build binaries using 3 different ABIs, instead of builds for just the default ABI
 ifeq ($(FTE_TARGET),linux32)
 	FTE_TARGET=linux
@@ -360,6 +366,7 @@ CLIENT_DIR=$(BASE_DIR)/client
 GL_DIR=$(BASE_DIR)/gl
 D3D_DIR=$(BASE_DIR)/d3d
 VK_DIR=$(BASE_DIR)/vk
+SW_DIR=$(BASE_DIR)/sw
 SERVER_DIR=$(BASE_DIR)/server
 COMMON_DIR=$(BASE_DIR)/common
 HTTP_DIR=$(BASE_DIR)/http
@@ -397,6 +404,9 @@ ifeq ($(FTE_TARGET),vc)
 	BASELDFLAGS=
 endif
 ifeq ($(FTE_TARGET),cyg)
+	BASELDFLAGS=-lm
+endif
+ifeq ($(FTE_TARGET),dos)
 	BASELDFLAGS=-lm
 endif
 ifeq ($(FTE_TARGET),morphos)
@@ -1369,6 +1379,30 @@ ifeq ($(FTE_TARGET),morphos)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	
 endif
 
+ifeq ($(FTE_TARGET),dos)
+	EXEPOSTFIX=.exe
+	SV_DIR=sv_dos
+	GLB_DIR=gl_dos
+	MB_DIR=m_dos
+	MCL_DIR=mcl_dos
+	MINGL_DIR=mingl_dos
+	VKB_DIR=vk_dos
+	VKCL_DIR=vkcl_dos
+
+	IMAGELDFLAGS=
+	OGGVORBISLDFLAGS=
+
+	SOFTWARE_OBJS=sw_rast.o sw_backend.o sw_image.o
+
+	M_LDFLAGS=
+	M_CFLAGS=-DSWQUAKE -DNO_ZLIB
+	MCL_OBJS=$(SOFTWARE_OBJS) $(D3DGL_OBJS) sw_viddos.o cd_null.o sys_dos.o snd_sblaster.o
+	M_EXE_NAME=../$(EXE_NAME)$(EXEPOSTFIX)
+	SV_EXE_NAME=../$(EXE_NAME)sv$(BITS)$(EXEPOSTFIX)
+	VK_EXE_NAME=../$(EXE_NAME)-vk$(BITS)$(EXEPOSTFIX)
+
+	VKCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) cd_null.o sys_dos.o snd_sblaster.o
+endif
 
 ifeq ($(FTE_TARGET),cyg)
 	SV_DIR=sv_cygwin
@@ -1510,7 +1544,7 @@ ifneq ($(OUT_DIR),)
 endif
 
 
-VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(D3D_DIR) : $(VK_DIR) : $(BOTLIB_DIR) : $(BASE_DIR)/libs/speex/libspeex : $(BASE_DIR)/web
+VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(SW_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(D3D_DIR) : $(VK_DIR) : $(BOTLIB_DIR) : $(BASE_DIR)/libs/speex/libspeex : $(BASE_DIR)/web
 
 ifneq ($(findstring -DSPEEX_STATIC, $(CFLAGS)),)
 	#add these to statically link libspeex

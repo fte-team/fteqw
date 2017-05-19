@@ -356,7 +356,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 
 //software rendering is just too glitchy, don't use it.
-#if defined(SWQUAKE) && !defined(_DEBUG)
+#if defined(SWQUAKE) && !defined(_DEBUG) && !defined(__DJGPP__)
 	#undef SWQUAKE
 #endif
 #if (defined(D3D8QUAKE) || defined(D3D9QUAKE) || defined(D3D11QUAKE)) && !defined(D3DQUAKE)
@@ -442,6 +442,26 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef RFBSPS
 	#undef WEBSERVER		//http/ftp servers
 	#undef WEBCLIENT		//http/ftp clients.
+#endif
+
+#ifdef __DJGPP__
+	//no bsd sockets library.
+	#undef HAVE_TCP
+	#undef HAVE_PACKET
+	#undef SUPPORT_ICE
+	//too lazy to deal with no dlopen
+	#undef PLUGINS
+	#undef Q2SERVER
+	#undef Q3SERVER
+	#undef Q2CLIENT	//fixme...
+	#undef Q3CLIENT	//might as well.
+	//too lazy to write the code to boot up more cores. dosbox would probably hate it so why bother.
+	#undef MULTITHREAD
+	//too lazy to deal with various libraries
+	#undef VOICECHAT
+	#undef AVAIL_JPEGLIB
+	#undef AVAIL_PNGLIB
+	#undef AVAIL_OGGVORBIS
 #endif
 
 #ifdef FTE_TARGET_WEB

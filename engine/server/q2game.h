@@ -120,6 +120,8 @@ struct q2gclient_s
 	// this point in the structure
 };
 
+#endif
+#if defined(Q2SERVER) || defined(Q2CLIENT)
 typedef struct q2entity_state_s
 {
 	int		number;			// edict index
@@ -141,6 +143,8 @@ typedef struct q2entity_state_s
 							// events only go out for a single frame, they
 							// are automatically cleared each frame
 } q2entity_state_t;
+#endif
+#if defined(Q2SERVER)
 
 
 struct q2edict_s

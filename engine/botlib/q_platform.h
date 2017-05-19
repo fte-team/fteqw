@@ -328,11 +328,24 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define ARCH_STRING "x86"
 
-#define Q3_BIG_ENDIAN
+#define Q3_LITTLE_ENDIAN
 
 #define DLL_EXT ".dll"
 
 #endif
+
+#ifdef __DJGPP__
+#define OS_STRING "msdos"
+#define ID_INLINE static inline
+#define PATH_SEP '/'
+
+#define ARCH_STRING "dos"
+
+#define Q3_LITTLE_ENDIAN
+
+#define DLL_EXT ".dll"
+#endif
+
 
 #ifdef FTE_TARGET_WEB
 #define OS_STRING "emscripten"

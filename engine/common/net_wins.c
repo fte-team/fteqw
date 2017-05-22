@@ -2958,9 +2958,26 @@ qboolean	NET_PortToAdr (netadrtype_t adrfamily, netproto_t adrprot, const char *
 /*just here to prevent the client from spamming new sockets, which can be a problem with certain q2 servers*/
 qboolean FTENET_Datagram_ChangeLocalAddress(struct ftenet_generic_connection_s *con, netadr_t *adr)
 {
-	if (adr->type == con->addrtype[0] || adr->type == con->addrtype[1])
-		if (adr->port == 0)
-			return true;	//they want to use addr_any. it doesn't matter one jot which port we're currently listening on then.
+	struct sockaddr_qstorage address;
+	netadr_t current;
+	int namelen;
+	if (getsockname (con->thesocket, (struct sockaddr *)&address, &namelen) == 0)
+	{
+		SockadrToNetadr(&address, &current);
+
+		//make sure the types match (special check for ipv6 hybrid sockets that accept ipv4 too)
+		if (adr->type == current.type
+#if defined(HAVE_IPV4) && defined(HAVE_IPV6)
+			|| (net_hybriddualstack.ival && adr->type == NA_IP && current.type == NA_IPV6)
+#endif
+			)
+		{	//make sure the port is currect (or they don't care which port)
+			if (adr->port == current.port || !adr->port)
+				return true;	//then pretend we changed it, because needed to change in the first place.
+		}
+	}
+
+	//doesn't match how its currently bound, so I guess we need to rebind then.
 	return false;
 }
 
@@ -7271,12 +7288,21 @@ void NET_InitClient(qboolean loopbackonly)
 #endif
 	if (loopbackonly)
 		port = "";
-#ifdef HAVE_IPV4
-	FTENET_AddToCollection(cls.sockets, "CLUDP4", port, NA_IP, NP_DGRAM, true);
+#if defined(HAVE_IPV4) && defined(HAVE_IPV6)
+	if (net_hybriddualstack.ival)
+	{
+		FTENET_AddToCollection(cls.sockets, "CLUDP", port, NA_IP, NP_DGRAM, true);
+	}
+	else
 #endif
-#ifdef IPPROTO_IPV6
-	FTENET_AddToCollection(cls.sockets, "CLUDP6", port, NA_IPV6, NP_DGRAM, true);
-#endif
+	{
+		#ifdef HAVE_IPV4
+			FTENET_AddToCollection(cls.sockets, "CLUDP4", port, NA_IP, NP_DGRAM, true);
+		#endif
+		#ifdef HAVE_IPV6
+			FTENET_AddToCollection(cls.sockets, "CLUDP6", port, NA_IPV6, NP_DGRAM, true);
+		#endif
+	}
 #ifdef USEIPX
 	FTENET_AddToCollection(cls.sockets, "CLIPX", port, NA_IPX, NP_DGRAM, true);
 #endif

@@ -284,7 +284,8 @@ void IN_JumpDown (void)
 #endif
 #ifdef QUAKESTATS
 		if (condition && cl.playerview[pnum].stats[STAT_HEALTH] > 0 && !cls.demoplayback && !cl.spectator && 
-		cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[pnum].playernum].messagenum == cl.validsequence && cl.playerview[pnum].waterlevel >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
+			(cls.protocol==CP_NETQUAKE || cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[pnum].playernum].messagenum == cl.validsequence)
+			&& cl.playerview[pnum].waterlevel >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
 	)
 		KeyDown(&in_up);
 	else

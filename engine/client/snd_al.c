@@ -499,7 +499,6 @@ void OpenAL_CvarInit(void)
 	Cvar_Register(&s_al_speedofsound, SOUNDVARS);
 }
 
-extern float voicevolumemod;
 static void OpenAL_ListenerUpdate(soundcardinfo_t *sc, int entnum, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity)
 {
 	oalinfo_t *oali = sc->handle;
@@ -913,7 +912,18 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 			case 2:	//linear, mimic quake.
 			case 3: //linear clamped to further than ref distance
 				palSourcef(src, AL_ROLLOFF_FACTOR, 1);
+#ifdef FTE_TARGET_WEB
+				//chrome complains about 0.
+				//with the expontential model, 0 results in division by zero, but we're not using that model and the maths for the linear model is fine with it.
+				//the web audio spec says 'The default value is 1. A RangeError exception must be thrown if this is set to a non-negative value.'
+				//which of course means that the PannerNode's constructor must throw an exception, which kinda prevents you ever creating one.
+				//it also says elsewhere 'If dref = 0, the value of the [exponential|inverse] model is taken to be 0, ...'
+				//which shows that the spec should read 'negative values' for rangeerrors (rather than non-positive). so chrome is being shit.
+				//unfortutely due to the nature of javascript and exceptions, this is fucking everything else up. thanks chrome!
+				palSourcef(src, AL_REFERENCE_DISTANCE, 0.01);
+#else
 				palSourcef(src, AL_REFERENCE_DISTANCE, 0);
+#endif
 				palSourcef(src, AL_MAX_DISTANCE, 1/chan->dist_mult);
 				break;
 			}

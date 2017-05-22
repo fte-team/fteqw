@@ -215,6 +215,7 @@ struct {
 	{" F208", WARN_NOTREFERENCEDCONST},
 	{" F209", WARN_EXTRAPRECACHE},	
 	{" F210", WARN_NOTPRECACHED},
+	{" F211", WARN_SYSTEMCRC2},
 
 	//frikqcc errors
 	//Q608: PrecacheSound: numsounds
@@ -2321,7 +2322,7 @@ strofs = (strofs+3)&~3;
 		size = (size+15)&(~15);	//and will allocate it on the hunk with 16-byte alignment
 
 		//this global receives the offset from world to the start of the progs def _IN VANILLA QUAKE_.
-		//this is a negative index due to allocation ordering
+		//this is a negative index due to allocation ordering with the assumption that the progs.dat was loaded on the heap directly followed by the entities.
 		//this will NOT work in FTE, DP, QuakeForge due to entity indexes. Various other engines will likely mess up too, if they change the allocation order or sizes etc. 64bit is screwed.
 		if (progs.blockscompressed&32)
 			printf("unable to write value for 'entity progs'\n");	//would not work anyway
@@ -2332,7 +2333,7 @@ strofs = (strofs+3)&~3;
 			if (def->initialized)
 				i = PRLittleLong(qcc_pr_globals[def->ofs]._int);
 			else
-			{
+			{	//entsize(=96)+hunk header size(=32)
 				if (verbose)
 					printf("qccx hack - 'entity progs' uninitialised. Assuming 112.\n");
 				i = 112;	//match qccx.
@@ -3434,7 +3435,7 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 		break;
 	case 17105:
 	case 32199:	//outdated ext_csqc
-		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "Recognised progs as outdated CSQC module\n");
+		QCC_PR_Warning(WARN_SYSTEMCRC2, NULL, 0, "Recognised progs as outdated CSQC module\n");
 		break;
 	case 52195:	//this is what DP requires. don't print it as the warning that it is as that would royally piss off xonotic and their use of -Werror.
 		printf("Recognised progs as DP-specific CSQC module\n");

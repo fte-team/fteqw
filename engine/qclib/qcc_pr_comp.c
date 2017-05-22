@@ -2287,7 +2287,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 	if (var_a.sym)
 	{
- 		var_a.sym->referenced = true;
+		var_a.sym->referenced = true;
 		if (flags&STFL_PRESERVEA)
 			QCC_UnFreeTemp(var_a);
 	}
@@ -5173,7 +5173,6 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 					if (copyop_idx == 0)
 						src.ofs += copyop_v?3:1;
 				}
-				QCC_FreeTemp(fparm);
 			}
 			else
 			{	//small and simple. yay.
@@ -5224,6 +5223,8 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 				else
 					QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_F], args[i].ref, d, NULL, 0));
 			}
+			else
+				QCC_FreeTemp(args[i].ref);
 		}
 		args[i].ref = d;
 	}
@@ -5938,9 +5939,13 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 				QCC_PR_ParsePrintSRef(WARN_TOOMANYPARAMETERSFORFUNC, func);
 			}
 
-			if (flag_qccx && QCC_PR_CheckToken("#"))
+			if (QCC_PR_CheckToken("#"))
 			{
-				e = QCC_PR_BuildRef(&parambuf[arg], REF_GLOBAL, QCC_MakeSRef(&def_parms[arg], 0, p?p:type_variant), nullsref, p?p:type_variant, true);
+				QCC_sref_t sr = QCC_MakeSRefForce(&def_parms[arg], 0, p?p:type_variant);
+//				sr.sym = &def_parms[arg];
+//				sr.ofs = 0;
+//				sr.cast = p?p:type_variant;
+				e = QCC_PR_BuildRef(&parambuf[arg], REF_GLOBAL, sr, nullsref, p?p:type_variant, true);
 			}
 			else if (arg < t->num_parms && (QCC_PR_PeekToken (",") || QCC_PR_PeekToken (")")))
 			{
@@ -6734,7 +6739,8 @@ static QCC_ref_t *QCC_PR_ParseField(QCC_ref_t *refbuf, QCC_ref_t *lhs)
 		lhs = QCC_PR_ParseField(refbuf, lhs);
 	}
 	else if (flag_qccx && t->type == ev_entity && QCC_PR_CheckToken("["))
-	{
+	{	//p[%0] gives a regular array reference. except that p is probably a float, and we're expecting OP_LOAD_F
+		//might also be assigned to, so just create a regular field ref and figure that stuff out later.
 		QCC_ref_t *field;
 		QCC_ref_t fieldbuf;
 		field = QCC_PR_RefExpression(&fieldbuf, TOP_PRIORITY, 0);
@@ -6742,6 +6748,21 @@ static QCC_ref_t *QCC_PR_ParseField(QCC_ref_t *refbuf, QCC_ref_t *lhs)
 		QCC_PR_Expect("]");
 
 		lhs = QCC_PR_BuildRef(refbuf, REF_FIELD, QCC_RefToDef(lhs, true), QCC_RefToDef(field, true), type_float, false);
+
+		
+		lhs = QCC_PR_ParseField(refbuf, lhs);
+		lhs = QCC_PR_ParseRefArrayPointer (refbuf, lhs, false, false);
+	}
+	else if (flag_qccx && t->type == ev_entity && QCC_PR_CheckToken("^"))
+	{	//p^[%0] is evaluated as an OP_LOAD_V (or OP_ADDRESS+OP_STOREP_V)
+		QCC_ref_t *field;
+		QCC_ref_t fieldbuf;
+		QCC_PR_Expect("[");
+		field = QCC_PR_RefExpression(&fieldbuf, TOP_PRIORITY, 0);
+		field->cast = type_floatfield;
+		QCC_PR_Expect("]");
+
+		lhs = QCC_PR_BuildRef(refbuf, REF_FIELD, QCC_RefToDef(lhs, true), QCC_RefToDef(field, true), type_vector, false);
 
 		
 		lhs = QCC_PR_ParseField(refbuf, lhs);
@@ -7186,11 +7207,10 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 	if (pr_token_type == tt_immediate)
 	{
 		d = QCC_PR_ParseImmediate ();
-		d.sym->referenced = true;
-		return QCC_DefToRef(refbuf, d);
+//		d.sym->referenced = true;
+//		return QCC_DefToRef(refbuf, d);
 	}
-
-	if (QCC_PR_CheckToken("["))
+	else if (QCC_PR_CheckToken("["))
 	{
 		//originally used for reacc - taking the form of [5 84 2]
 		//we redefine it to include statements - [a+b, c, 3+(d*2)]
@@ -7224,153 +7244,155 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		QCC_PR_Expect("]");
 
 		d = QCC_PR_GenerateVector(x,y,z);
-		d.sym->referenced = true;
-		return QCC_DefToRef(refbuf, d);
+//		d.sym->referenced = true;
+//		return QCC_DefToRef(refbuf, d);
 	}
-
-	if (QCC_PR_CheckToken("::"))
+	else
 	{
-		assumeclass = NULL;
-		expandmemberfields = false;	//::classname is always usable for eg: the find builtin.
-	}
-	name = QCC_PR_ParseName ();
-
-	//fixme: namespaces should be relative
-	if (QCC_PR_CheckToken("::"))
-	{
-		expandmemberfields = false;	//this::classname should also be available to the find builtin, etc. this won't affect self.classname::member nor classname::staticfunc
-
-		if (assumeclass && !strcmp(name, "super"))
-			t = assumeclass->parentclass;
-		else if (assumeclass && !strcmp(name, "this"))
-			t = assumeclass;
-		else
-			t = QCC_TypeForName(name);
-		if (!t || t->type != ev_entity)
+		if (QCC_PR_CheckToken("::"))
 		{
-			QCC_PR_ParseError (ERR_NOTATYPE, "Not a class \"%s\"", name);
-			d = nullsref;
+			assumeclass = NULL;
+			expandmemberfields = false;	//::classname is always usable for eg: the find builtin.
+		}
+		name = QCC_PR_ParseName ();
+
+		//fixme: namespaces should be relative
+		if (QCC_PR_CheckToken("::"))
+		{
+			expandmemberfields = false;	//this::classname should also be available to the find builtin, etc. this won't affect self.classname::member nor classname::staticfunc
+
+			if (assumeclass && !strcmp(name, "super"))
+				t = assumeclass->parentclass;
+			else if (assumeclass && !strcmp(name, "this"))
+				t = assumeclass;
+			else
+				t = QCC_TypeForName(name);
+			if (!t || t->type != ev_entity)
+			{
+				QCC_PR_ParseError (ERR_NOTATYPE, "Not a class \"%s\"", name);
+				d = nullsref;
+			}
+			else
+			{
+				QCC_type_t *p;
+				char membername[1024];
+				name = QCC_PR_ParseName ();
+				//walk up the parents if needed, to find one that has that field
+				for(d = nullsref, p = t; !d.cast && p; p = p->parentclass)
+				{
+					//use static functions in preference to virtual functions. kinda needed so you can use super::func...
+					QC_snprintfz(membername, sizeof(membername), "%s::%s", p->name, name);
+					d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
+					if (!d.cast)
+					{
+						QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, p->name, name);
+						d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
+					}
+				}
+				if (!d.cast)
+				{
+					QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s::%s\"", t->name, name);
+				}
+			}
 		}
 		else
 		{
-			QCC_type_t *p;
-			char membername[1024];
-			name = QCC_PR_ParseName ();
-			//walk up the parents if needed, to find one that has that field
-			for(d = nullsref, p = t; !d.cast && p; p = p->parentclass)
-			{
-				//use static functions in preference to virtual functions. kinda needed so you can use super::func...
-				QC_snprintfz(membername, sizeof(membername), "%s::%s", p->name, name);
-				d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
-				if (!d.cast)
+			d = nullsref;
+			// 'testvar' becomes 'this::testvar'
+			if (assumeclass && assumeclass->parentclass)
+			{	//try getting a member.
+				QCC_type_t *type;
+				for(type = assumeclass; type && !d.cast; type = type->parentclass)
 				{
-					QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, p->name, name);
+					//look for virtual things
+					QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, type->name, name);
+					d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
+				}
+				for(type = assumeclass; type && !d.cast; type = type->parentclass)
+				{
+					//look for non-virtual things (functions: after virtual stuff, because this will find the actual function def too)
+					QC_snprintfz(membername, sizeof(membername), "%s::%s", type->name, name);
 					d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
 				}
 			}
 			if (!d.cast)
 			{
-				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s::%s\"", t->name, name);
+				// look through the defs
+				d = QCC_PR_GetSRef (NULL, name, pr_scope, false, 0, false);
 			}
 		}
-	}
-	else
-	{
-		d = nullsref;
-		// 'testvar' becomes 'this::testvar'
-		if (assumeclass && assumeclass->parentclass)
-		{	//try getting a member.
-			QCC_type_t *type;
-			for(type = assumeclass; type && !d.cast; type = type->parentclass)
-			{
-				//look for virtual things
-				QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, type->name, name);
-				d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
-			}
-			for(type = assumeclass; type && !d.cast; type = type->parentclass)
-			{
-				//look for non-virtual things (functions: after virtual stuff, because this will find the actual function def too)
-				QC_snprintfz(membername, sizeof(membername), "%s::%s", type->name, name);
-				d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);
-			}
-		}
+
 		if (!d.cast)
 		{
-			// look through the defs
-			d = QCC_PR_GetSRef (NULL, name, pr_scope, false, 0, false);
-		}
-	}
-
-	if (!d.cast)
-	{
-		if (!strcmp(name, "nil"))
-			d = QCC_MakeIntConst(0);
-		else if (	(!strcmp(name, "randomv"))	||
-				(!strcmp(name, "sizeof"))	||
-				(!strcmp(name, "alloca"))	||
-				(!strcmp(name, "entnum"))	||
-				(!strcmp(name, "autocvar"))	||
-				(!strcmp(name, "used_model"))	||
-				(!strcmp(name, "used_sound"))	||
-				(!strcmp(name, "va_arg"))	||
-				(!strcmp(name, "..."))		||	//for compat. otherwise wtf?
-				(!strcmp(name, "_"))		)	//intrinsics, any old function with no args will do.
-		{
-			d = QCC_PR_GetSRef (type_function, name, NULL, true, 0, false);
-//			d->initialized = 0;
-		}
-		else if (	(!strcmp(name, "random" ))	)	//intrinsics, any old function with no args will do. returning a float just in case people declare things in the wrong order
-		{
-			d = QCC_PR_GetSRef (type_floatfunction, name, NULL, true, 0, false);
-//			d.sym->initialized = 0;
-		}
-		else if (keyword_class && !strcmp(name, "this"))
-		{
-			if (!pr_classtype)
-				QCC_PR_ParseError(ERR_NOTANAME, "Cannot use 'this' outside of an OO function\n");
-			d = QCC_PR_GetSRef(type_entity, "self", NULL, true, 0, false);
-			d.cast = pr_classtype;
-		}
-		else if (keyword_class && !strcmp(name, "super"))
-		{
-			if (!assumeclass)
-				QCC_PR_ParseError(ERR_NOTANAME, "Cannot use 'super' outside of an OO function\n");
-			if (!assumeclass->parentclass)
-				QCC_PR_ParseError(ERR_NOTANAME, "class %s has no super\n", pr_classtype->name);
-			d = QCC_PR_GetSRef(NULL, "self", NULL, true, 0, false);
-			d.cast = assumeclass->parentclass;
-		}
-		else if (pr_assumetermtype)
-		{
-			d = QCC_PR_GetSRef (pr_assumetermtype, name, pr_assumetermscope, true, 0, pr_assumetermflags);
-			if (!d.cast)
-				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
-		}
-		else
-		{
-			d = QCC_PR_GetSRef (type_variant, name, pr_scope, true, 0, false);
-			if (!expandmemberfields && assumeclass)
+			if (!strcmp(name, "nil"))
+				d = QCC_MakeIntConst(0);
+			else if (	(!strcmp(name, "randomv"))	||
+					(!strcmp(name, "sizeof"))	||
+					(!strcmp(name, "alloca"))	||
+					(!strcmp(name, "entnum"))	||
+					(!strcmp(name, "autocvar"))	||
+					(!strcmp(name, "used_model"))	||
+					(!strcmp(name, "used_sound"))	||
+					(!strcmp(name, "va_arg"))	||
+					(!strcmp(name, "..."))		||	//for compat. otherwise wtf?
+					(!strcmp(name, "_"))		)	//intrinsics, any old function with no args will do.
 			{
+				d = QCC_PR_GetSRef (type_function, name, NULL, true, 0, false);
+	//			d->initialized = 0;
+			}
+			else if (	(!strcmp(name, "random" ))	)	//intrinsics, any old function with no args will do. returning a float just in case people declare things in the wrong order
+			{
+				d = QCC_PR_GetSRef (type_floatfunction, name, NULL, true, 0, false);
+	//			d.sym->initialized = 0;
+			}
+			else if (keyword_class && !strcmp(name, "this"))
+			{
+				if (!pr_classtype)
+					QCC_PR_ParseError(ERR_NOTANAME, "Cannot use 'this' outside of an OO function\n");
+				d = QCC_PR_GetSRef(type_entity, "self", NULL, true, 0, false);
+				d.cast = pr_classtype;
+			}
+			else if (keyword_class && !strcmp(name, "super"))
+			{
+				if (!assumeclass)
+					QCC_PR_ParseError(ERR_NOTANAME, "Cannot use 'super' outside of an OO function\n");
+				if (!assumeclass->parentclass)
+					QCC_PR_ParseError(ERR_NOTANAME, "class %s has no super\n", pr_classtype->name);
+				d = QCC_PR_GetSRef(NULL, "self", NULL, true, 0, false);
+				d.cast = assumeclass->parentclass;
+			}
+			else if (pr_assumetermtype)
+			{
+				d = QCC_PR_GetSRef (pr_assumetermtype, name, pr_assumetermscope, true, 0, pr_assumetermflags);
 				if (!d.cast)
-					QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown field \"%s\" in class \"%s\"", name, assumeclass->name);
-				else if (!assumeclass->parentclass && assumeclass != type_entity)
-				{
-					QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Class \"%s\" is not defined, cannot access memeber \"%s\"", assumeclass->name, name);
-					if (!autoprototype && !autoprototyped)
-						QCC_PR_Note(ERR_UNKNOWNVALUE, s_filen, pr_source_line, "Consider using #pragma autoproto");
-				}
-				else
-				{
-					QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown field \"%s\" in class \"%s\"", name, assumeclass->name);
-				}
+					QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
 			}
 			else
 			{
-				if (!d.cast)
-					QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
+				d = QCC_PR_GetSRef (type_variant, name, pr_scope, true, 0, false);
+				if (!expandmemberfields && assumeclass)
+				{
+					if (!d.cast)
+						QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown field \"%s\" in class \"%s\"", name, assumeclass->name);
+					else if (!assumeclass->parentclass && assumeclass != type_entity)
+					{
+						QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Class \"%s\" is not defined, cannot access memeber \"%s\"", assumeclass->name, name);
+						if (!autoprototype && !autoprototyped)
+							QCC_PR_Note(ERR_UNKNOWNVALUE, s_filen, pr_source_line, "Consider using #pragma autoproto");
+					}
+					else
+					{
+						QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown field \"%s\" in class \"%s\"", name, assumeclass->name);
+					}
+				}
 				else
 				{
-					QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\".", name);
+					if (!d.cast)
+						QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
+					else
+					{
+						QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\".", name);
+					}
 				}
 			}
 		}
@@ -7697,12 +7719,13 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 		{
 			r = QCC_PR_RefExpression (retbuf, UNARY_PRIORITY, EXPR_DISALLOW_COMMA);
 			if (flag_qccx && r->cast->type == ev_float)
-			{
-				r->readonly = false;
-				r->cast = QCC_PR_PointerType(r->cast);
+			{	//&%342 casts it to a (pre-dereferenced) pointer.
+				r = QCC_PR_BuildRef(retbuf, REF_POINTER, QCC_RefToDef(r, true), nullsref, type_float, false);
 			}
 			else if (flag_qccx && (r->cast->type == ev_string || r->cast->type == ev_field || r->cast->type == ev_entity || r->cast->type == ev_function))
+			{	//&string casts it to a float. does not dereference it
 				r->cast = type_float;
+			}
 			else
 				r = QCC_PR_GenerateAddressOf(retbuf, r);
 			return r;
@@ -7711,7 +7734,9 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 		{
 			e = QCC_PR_Expression (UNARY_PRIORITY, EXPR_DISALLOW_COMMA);
 			if (flag_qccx && (e.cast->type == ev_float || e.cast->type == ev_integer))
+			{	//just an evil cast. note that qccx assumes offsets rather than indexes, so these are often quite large and typically refer to some index into the world entity.
 				return QCC_PR_BuildRef(retbuf, REF_GLOBAL, e, nullsref, type_entity, false);
+			}
 			else if (e.cast->type == ev_pointer)	//FIXME: arrays
 				return QCC_PR_BuildRef(retbuf, REF_POINTER, e, nullsref, e.cast->aux_type, false);
 			else if (e.cast->accessors)
@@ -9292,17 +9317,14 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				}
 				else
 				{
-					if (flag_qccx && lhsr->cast->type == ev_pointer && rhsd.cast->type == ev_float)
-					{
-						char totypename[256], fromtypename[256], destname[256];
-						TypeName(lhsr->cast, totypename, sizeof(totypename));
-						TypeName(rhsd.cast, fromtypename, sizeof(fromtypename));
-						QCC_PR_ParseWarning(WARN_LAXCAST, "Implicit type mismatch on assignment to %s. Needed %s, got %s.", QCC_GetRefName(lhsr, destname, sizeof(destname)), totypename, fromtypename);
-
+					/*if (flag_qccx && lhsr->cast->type == ev_pointer && rhsd.cast->type == ev_float)
+					{	//&%555 = 4.0;
+						char destname[256];
+						QCC_PR_ParseWarning(WARN_LAXCAST, "Implicit pointer dereference on assignment to %s", QCC_GetRefName(lhsr, destname, sizeof(destname)));
 						lhsd = QCC_RefToDef(lhsr, true);
 						lhsr = QCC_PR_BuildRef(retbuf, REF_POINTER, lhsd, nullsref, lhsd.cast->aux_type, false);
 					}
-					else if (QCC_SRef_IsNull(rhsd))
+					else */if (QCC_SRef_IsNull(rhsd))
 					{
 						QCC_FreeTemp(rhsd);
 						if (lhsr->cast->type == ev_vector)
@@ -9865,9 +9887,13 @@ void QCC_PR_ParseStatement (void)
 		}
 		else if (pr_scope->type->aux_type->type != e.cast->type)
 		{
-			e = QCC_EvaluateCast(e, pr_scope->type->aux_type, true);
-			//e = QCC_SupplyConversion(e, pr_scope->type->aux_type->type, true);
-//			QCC_PR_ParseWarning(WARN_WRONGRETURNTYPE, "\'%s\' returned %s, expected %s", pr_scope->name, e->type->name, pr_scope->type->aux_type->name);
+			if (pr_scope->type->aux_type->type == ev_void)
+			{	//returning a value inside a function defined to return void is bad dude.
+				QCC_PR_ParseWarning(WARN_WRONGRETURNTYPE, "\'%s\' returned %s, expected %s", pr_scope->name, e.sym->type->name, pr_scope->type->aux_type->name);
+				e = QCC_EvaluateCast(e, type_variant, true);
+			}
+			else
+				e = QCC_EvaluateCast(e, pr_scope->type->aux_type, true);
 		}
 		PR_GenerateReturnOuts();
 		QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_RETURN], e, nullsref, NULL));
@@ -13608,7 +13634,7 @@ void QCC_PR_ParseEnum(pbool flags)
 		name = QCC_PR_ParseName();
 		if (QCC_PR_CheckToken("="))
 		{
-			if (pr_token_type == tt_immediate && pr_immediate_type->type == ev_float)
+			/*if (pr_token_type == tt_immediate && pr_immediate_type->type == ev_float)
 			{
 				iv = fv = pr_immediate._float;
 				QCC_PR_Lex();
@@ -13618,10 +13644,10 @@ void QCC_PR_ParseEnum(pbool flags)
 				fv = iv = pr_immediate._int;
 				QCC_PR_Lex();
 			}
-			else
+			else*/
 			{
 				const QCC_eval_t *eval;
-				sref = QCC_PR_GetSRef(NULL, QCC_PR_ParseName(), NULL, false, 0, GDF_STRIP);
+				sref = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 				eval = QCC_SRef_EvalConst(sref);
 				if (eval)
 				{

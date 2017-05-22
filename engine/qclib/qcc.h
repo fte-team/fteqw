@@ -757,7 +757,8 @@ enum {
 	WARN_CONSTANTCOMPARISON,
 	WARN_UNSAFEFUNCTIONRETURNTYPE,
 	WARN_MISSINGOPTIONAL,
-	WARN_SYSTEMCRC,
+	WARN_SYSTEMCRC,				//unknown system crc
+	WARN_SYSTEMCRC2,			//legacy/dp system crc
 	WARN_CONDITIONALTYPEMISMATCH,
 	WARN_MISSINGMEMBERQUALIFIER,//virtual/static/nonvirtual qualifier is missing
 	WARN_SELFNOTTHIS,			//warned for because 'self' does not have the right type. we convert such references to 'this' instead, which is more usable.

@@ -3445,7 +3445,7 @@ void QCC_PR_Lex (void)
 		return;
 	}
 
-	if (!flag_qccx && c == '#' && !(pr_file_p[1]=='\"' || pr_file_p[1]=='-' || (pr_file_p[1]>='0' && pr_file_p[1] <='9')))	//hash and not number
+	if (!flag_qccx && c == '#' && !(pr_file_p[1]==')' || pr_file_p[1]==',' || pr_file_p[1]=='\"' || pr_file_p[1]=='-' || (pr_file_p[1]>='0' && pr_file_p[1] <='9')))	//hash and not number
 	{
 		pr_file_p++;
 		if (!QCC_PR_CheckCompConst())

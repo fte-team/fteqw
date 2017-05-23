@@ -2955,8 +2955,9 @@ qboolean	NET_PortToAdr (netadrtype_t adrfamily, netproto_t adrprot, const char *
 	return false;
 }
 
+#ifdef HAVE_PACKET
 /*just here to prevent the client from spamming new sockets, which can be a problem with certain q2 servers*/
-qboolean FTENET_Datagram_ChangeLocalAddress(struct ftenet_generic_connection_s *con, netadr_t *adr)
+static qboolean FTENET_Datagram_ChangeLocalAddress(struct ftenet_generic_connection_s *con, netadr_t *adr)
 {
 	struct sockaddr_qstorage address;
 	netadr_t current;
@@ -2980,6 +2981,7 @@ qboolean FTENET_Datagram_ChangeLocalAddress(struct ftenet_generic_connection_s *
 	//doesn't match how its currently bound, so I guess we need to rebind then.
 	return false;
 }
+#endif
 
 ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {

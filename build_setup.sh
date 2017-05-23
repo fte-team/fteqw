@@ -109,6 +109,7 @@ if [ "$REUSE_CONFIG" != "y" ]; then
 		echo "Skipping Cygwin options."
 	fi
 	read -n 1 -p "Build for Windows? [Y/n] " BUILD_WINDOWS && echo
+	read -n 1 -p "Build for Dos? [y/N] " BUILD_WINDOWS && echo
 	read -n 1 -p "Build for SDL? [y/N] " BUILD_SDL && echo
 	read -n 1 -p "Build for Android? [y/N] " BUILD_ANDROID && echo
 	read -n 1 -p "Build for Emscripten? [y/N] " BUILD_WEB && echo
@@ -126,6 +127,7 @@ BUILD_LINUXx32=${BUILD_LINUXx32:-n}
 BUILD_LINUXarmhf=${BUILD_LINUXarmhf:-n}
 BUILD_CYGWIN=${BUILD_CYGWIN:-n}
 BUILD_WINDOWS=${BUILD_WINDOWS:-y}
+BUILD_DOS=${BUILD_DOS:-n}
 BUILD_MSVC=${BUILD_MSVC:-n}
 BUILD_SDL=${BUILD_SDL:-n}
 BUILD_ANDROID=${BUILD_ANDROID:-n}
@@ -154,6 +156,7 @@ if [ "$UID" != "0" ]; then
 	echo "BUILD_LINUXarmhf=\"$BUILD_LINUXarmhf\""		>>$FTECONFIG
 	echo "BUILD_CYGWIN=\"$BUILD_CYGWIN\""			>>$FTECONFIG
 	echo "BUILD_WINDOWS=\"$BUILD_WINDOWS\""			>>$FTECONFIG
+	echo "BUILD_DOS=\"$BUILD_DOS\""				>>$FTECONFIG
 	echo "BUILD_MSVC=\"$BUILD_MSVC\""			>>$FTECONFIG
 	echo "BUILD_ANDROID=\"$BUILD_ANDROID\""			>>$FTECONFIG
 	echo "BUILD_SDL=\"$BUILD_SDL\""				>>$FTECONFIG
@@ -295,6 +298,11 @@ echo "(Say no if you're certain you already set up everything)"
 read -n 1 -p "Rebuild/update any toolchains now? [y/N] " REBUILD_TOOLCHAINS && echo
 REBUILD_TOOLCHAINS=${REBUILD_TOOLCHAINS:-n}
 mkdir -p $FTEROOT
+
+#dos shit
+if [ "$BUILD_DOS" == "y" ] && [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
+	echo "You'll need to manually install djgpp for DOS builds."
+fi
 
 #android shit. WARNING: should come first as it spits out some EULAs that need confirming.
 if [ "$BUILD_ANDROID" == "y" ] && [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then

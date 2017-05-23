@@ -94,7 +94,11 @@ typedef int (VARGS gnutls_certificate_verify_function)(gnutls_session_t session)
 
 #else
 #include <gnutls/gnutls.h>
+#if GNUTLS_VERSION_MAJOR >= 3 && defined(HAVE_DTLS)
 #include <gnutls/dtls.h>
+#else
+#undef HAVE_DTLS
+#endif
 #define gnutls_connection_end_t unsigned int
 
 	#if GNUTLS_VERSION_MAJOR < 3 || (GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR < 3)
@@ -728,12 +732,16 @@ qboolean SSL_InitGlobal(qboolean isserver)
 
 		if (isserver)
 		{
-#define KEYFILE "c:/games/tools/ssl/key.pem"
-#define CERTFILE "c:/games/tools/ssl/cert.pem"
-			int ret = qgnutls_certificate_set_x509_key_file(xcred[isserver], CERTFILE, KEYFILE, GNUTLS_X509_FMT_PEM); 
+			int ret = -1;
+			char keyfile[MAX_OSPATH];
+			char certfile[MAX_OSPATH];
+			*keyfile = *certfile = 0;
+			if (FS_NativePath("key.pem", FS_ROOT, keyfile, sizeof(keyfile))
+			if (FS_NativePath("cert.pem", FS_ROOT, certfile, sizeof(certfile))
+			ret = qgnutls_certificate_set_x509_key_file(xcred[isserver], certfile, keyfile, GNUTLS_X509_FMT_PEM); 
 			if (ret < 0)
 			{
-				Con_Printf("No certificate or key were found\n");
+				Con_Printf("No certificate or key were found in %s and %s\n", certfile, keyfile);
 				initstatus[isserver] = -1;
 			}
 		}
@@ -994,6 +1002,13 @@ neterr_t DTLS_Timeouts(void *ctx)
 	}
 	return NETERR_SENT;
 }
+#else
+void DTLS_DestroyContext(void *ctx){}
+qboolean DTLS_HasServerCertificate(void){return false;}
+void *DTLS_CreateContext(void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver){return NULL;}
+neterr_t DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize){return NETERR_DISCONNECTED;}
+neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize){return NETERR_DISCONNECTED;}
+neterr_t DTLS_Timeouts(void *ctx) {return NETERR_SENT;}
 #endif
 
 #endif

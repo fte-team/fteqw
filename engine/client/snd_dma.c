@@ -3474,7 +3474,7 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 }
 
 #ifdef HAVE_MIXER
-static int S_GetMixerTime(soundcardinfo_t *sc)
+int S_GetMixerTime(soundcardinfo_t *sc)
 {
 	int		samplepos;
 	int		fullsamples;

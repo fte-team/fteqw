@@ -159,6 +159,11 @@ fi
 if [ "$BUILD_WINDOWS" != "n" ]; then
 	build "NPFTE" npfte npfte-rel
 fi
+if [ "$BUILD_DOS" == "y" ]; then
+	#no networking makes dedicated servers useless. and only a crappy sw renderer is implemented right now.
+	#the qcc might be useful to someone though!
+	build "DOS" dos m-rel qcc-rel
+fi
 if [ "$BUILD_WEB" != "n" ]; then
 	source $EMSDK/emsdk_env.sh >> /dev/null
 	build "Emscripten" web FTE_TARGET=web gl-rel CC=emcc

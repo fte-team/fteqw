@@ -625,6 +625,85 @@ void Mod_ClearAll (void)
 	mod_datasequence++;
 }
 
+qboolean Mod_PurgeModel(model_t	*mod, enum mod_purge_e ptype)
+{
+	if (mod->loadstate == MLS_LOADING)
+	{
+		if (ptype == MP_MAPCHANGED && !mod->submodelof)
+			return false;	//don't bother waiting for it on map changes.
+		COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+	}
+
+#ifdef RUNTIMELIGHTING
+	if (lightmodel == mod)
+	{
+#ifdef MULTITHREAD
+		int		i;
+		wantrelight = false;
+		for (i = 0; i < relightthreads; i++)
+		{
+			Sys_WaitOnThread(relightthread[i]);
+			relightthread[i] = NULL;
+		}
+		relightthreads = 0;
+#else
+		free(lightmainthreadctx);
+		lightmainthreadctx = NULL;
+#endif
+		lightmodel = NULL;
+	}
+#endif
+
+#ifdef TERRAIN
+	//we can safely flush all terrain sections at any time
+	if (mod->terrain && ptype != MP_MAPCHANGED)
+		Terr_PurgeTerrainModel(mod, false, true);
+#endif
+
+	//purge any vbos
+	if (mod->type == mod_brush)
+	{
+		//brush models cannot be safely flushed.
+		if (ptype != MP_RESET)
+			return false;
+#ifndef SERVERONLY
+		Surf_Clear(mod);
+#endif
+	}
+
+#ifdef TERRAIN
+	if (mod->type == mod_brush || mod->type == mod_heightmap)
+	{
+		//heightmap/terrain models cannot be safely flushed (brush models might have terrain embedded).
+		if (ptype != MP_RESET)
+			return false;
+		Terr_FreeModel(mod);
+	}
+#endif
+	if (mod->type == mod_alias)
+	{
+		Mod_DestroyMesh(mod->meshinfo);
+		mod->meshinfo = NULL;
+	}
+
+	Mod_SetEntitiesString(mod, NULL, false);
+
+#ifdef PSET_SCRIPT
+	PScript_ClearSurfaceParticles(mod);
+#endif
+
+	//and obliterate anything else remaining in memory.
+	ZG_FreeGroup(&mod->memgroup);
+	mod->meshinfo = NULL;
+	mod->loadstate = MLS_NOTLOADED;
+
+	mod->submodelof = NULL;
+	mod->pvs = NULL;
+	mod->phs = NULL;
+
+	return true;
+}
+
 //can be called in one of two ways.
 //force=true: explicit flush. everything goes, even if its still in use.
 //force=false: map change. lots of stuff is no longer in use and can be freely flushed.
@@ -645,62 +724,9 @@ void Mod_Purge(enum mod_purge_e ptype)
 		//this model isn't active any more.
 		if (unused || ptype != MP_MAPCHANGED)
 		{
-			if (mod->loadstate == MLS_LOADING)
-			{
-				if (ptype == MP_MAPCHANGED && !mod->submodelof)
-					continue;	//don't bother waiting for it on map changes.
-				COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
-			}
-
 			if (unused)
 				Con_DLPrintf(2, "model \"%s\" no longer needed\n", mod->name);
-
-#ifdef TERRAIN
-			//we can safely flush all terrain sections at any time
-			if (mod->terrain && ptype != MP_MAPCHANGED)
-				Terr_PurgeTerrainModel(mod, false, true);
-#endif
-
-			//purge any vbos
-			if (mod->type == mod_brush)
-			{
-				//brush models cannot be safely flushed.
-				if (!unused && ptype != MP_RESET)
-					continue;
-#ifndef SERVERONLY
-				Surf_Clear(mod);
-#endif
-			}
-
-#ifdef TERRAIN
-			if (mod->type == mod_brush || mod->type == mod_heightmap)
-			{
-				//heightmap/terrain models cannot be safely flushed (brush models might have terrain embedded).
-				if (!unused && ptype != MP_RESET)
-					continue;
-				Terr_FreeModel(mod);
-			}
-#endif
-			if (mod->type == mod_alias)
-			{
-				Mod_DestroyMesh(mod->meshinfo);
-				mod->meshinfo = NULL;
-			}
-
-			Mod_SetEntitiesString(mod, NULL, false);
-
-#ifdef PSET_SCRIPT
-			PScript_ClearSurfaceParticles(mod);
-#endif
-
-			//and obliterate anything else remaining in memory.
-			ZG_FreeGroup(&mod->memgroup);
-			mod->meshinfo = NULL;
-			mod->loadstate = MLS_NOTLOADED;
-
-			mod->submodelof = NULL;
-			mod->pvs = NULL;
-			mod->phs = NULL;
+			Mod_PurgeModel(mod, (ptype==MP_FLUSH && unused)?MP_RESET:ptype);
 		}
 	}
 }

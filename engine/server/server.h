@@ -440,7 +440,7 @@ typedef struct client_s
 	qboolean		prespawn_allow_soundlist;
 
 	int				spectator;			// non-interactive
-	int				redirect;
+	int				redirect;			//1=redirected because full, 2=cluster transfer
 
 	qboolean		sendinfo;			// at end of frame, send info to all
 										// this prevents malicious multiple broadcasts
@@ -921,6 +921,15 @@ typedef struct
 
 	char		name[64];			// map name (base filename). static because of restart command after disconnecting.
 	levelcache_t *levcache;
+
+	struct frameendtasks_s
+	{
+		struct frameendtasks_s *next;
+		void(*callback)(struct frameendtasks_s *task);
+		void *ctxptr;
+		intptr_t ctxint;
+		char data[1];
+	} *frameendtasks;
 } server_static_t;
 
 //=============================================================================
@@ -1135,13 +1144,15 @@ typedef struct pubsubserver_s
 {
 	struct
 	{
-		void (*InstructSlave)(struct pubsubserver_s *ps, sizebuf_t *cmd);	//send to
+		void (*InstructSlave)(struct pubsubserver_s *ps, sizebuf_t *cmd);	//send to. first two bytes of the message should be ignored (overwrite them to carry size)
 		int (*SubServerRead)(struct pubsubserver_s *ps);	//read from. fills up net_message
 	} funcs;
 
 	struct pubsubserver_s *next;
 	unsigned int id;
 	char name[64];
+	int activeplayers;
+	int transferingplayers;
 	netadr_t addrv4;
 	netadr_t addrv6;
 } pubsubserver_t;
@@ -1156,6 +1167,7 @@ void SSV_SavePlayerStats(client_t *cl, int reason);	//initial, periodic (in case
 void SSV_RequestShutdown(void); //asks the cluster to not send us new players
 
 pubsubserver_t *Sys_ForkServer(void);
+void Sys_InstructMaster(sizebuf_t *cmd);	//first two bytes will always be the length of the data
 
 #define SSV_IsSubServer() isClusterSlave
 

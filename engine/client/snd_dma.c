@@ -30,7 +30,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static void S_Play(void);
 static void S_PlayVol(void);
 static void S_SoundList_f(void);
+#ifdef HAVE_MIXER
 static void S_Update_(soundcardinfo_t *sc);
+#endif
 void S_StopAllSounds(qboolean clear);
 static void S_StopAllSounds_f (void);
 
@@ -47,6 +49,7 @@ int				snd_blocked = 0;
 static qboolean	snd_ambient = 1;
 qboolean		snd_initialized = false;
 int				snd_speed;
+float			voicevolumemod = 1;
 
 static struct
 {
@@ -1542,6 +1545,7 @@ static sounddriver_t *outputdrivers[] =
 	&OPENAL_Output,	//refuses to run as the default device, at least until its perfected.
 #endif
 
+#ifdef HAVE_MIXER
 #ifdef AVAIL_DSOUND
 	&DSOUND_Output,
 #endif
@@ -1560,6 +1564,7 @@ static sounddriver_t *outputdrivers[] =
 #ifdef __DJGPP__
 	&SBLASTER_Output,	//zomgwtfdos?
 #endif
+#endif
 	NULL
 };
 typedef struct {
@@ -1567,6 +1572,7 @@ typedef struct {
 	sounddriver *ptr;
 } sdriver_t;
 static sdriver_t olddrivers[] = {
+#ifdef HAVE_MIXER
 //in order of preference
 	{"MacOS", &pMacOS_InitCard},	//prefered on mac
 	{"Droid", &pDroid_InitCard},	//prefered on android (java thread)
@@ -1577,6 +1583,7 @@ static sdriver_t olddrivers[] = {
 	{"SNDIO", &pSNDIO_InitCard},	//prefered on OpenBSD
 
 	{"WaveOut", &pWAV_InitCard},	//doesn't work properly in vista, etc.
+#endif
 	{NULL, NULL}
 };
 
@@ -3450,6 +3457,7 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 		Con_Printf ("----(%i+%i)----\n", active, mute);
 	}
 
+#ifdef HAVE_MIXER
 // mix some sound
 
 	if (sc->selfpainting)
@@ -3462,9 +3470,11 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 	}
 
 	S_Update_(sc);
+#endif
 }
 
-int S_GetMixerTime(soundcardinfo_t *sc)
+#ifdef HAVE_MIXER
+static int S_GetMixerTime(soundcardinfo_t *sc)
 {
 	int		samplepos;
 	int		fullsamples;
@@ -3500,6 +3510,7 @@ int S_GetMixerTime(soundcardinfo_t *sc)
 
 	return sc->buffers*fullsamples + samplepos/sc->sn.numchannels;
 }
+#endif
 
 void S_Update (void)
 {
@@ -3513,7 +3524,9 @@ void S_Update (void)
 
 void S_ExtraUpdate (void)
 {
+#ifdef HAVE_MIXER
 	soundcardinfo_t *sc;
+#endif
 
 	if (!sound_started)
 		return;
@@ -3521,7 +3534,7 @@ void S_ExtraUpdate (void)
 #if defined(_WIN32) && !defined(WINRT)
 	INS_Accumulate ();
 #endif
-
+#ifdef HAVE_MIXER
 	if (snd_noextraupdate.ival)
 		return;		// don't pollute timings
 
@@ -3540,10 +3553,11 @@ void S_ExtraUpdate (void)
 		S_Update_(sc);
 		S_UnlockMixer();
 	}
+#endif
 }
 
 
-
+#ifdef HAVE_MIXER
 static void S_Update_(soundcardinfo_t *sc)
 {
 	int soundtime; /*in pairs*/
@@ -3604,6 +3618,7 @@ void S_MixerThread(soundcardinfo_t *sc)
 	S_Update_(sc);
 	S_UnlockMixer();
 }
+#endif
 
 /*
 ===============================================================================

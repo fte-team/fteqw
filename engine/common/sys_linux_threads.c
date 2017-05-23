@@ -415,10 +415,8 @@ pubsubserver_t *Sys_ForkServer(void)
 	return &ctx->pub;
 }
 
-void SSV_InstructMaster(sizebuf_t *cmd)
+void Sys_InstructMaster(sizebuf_t *cmd)
 {
-	cmd->data[0] = cmd->cursize & 0xff;
-	cmd->data[1] = (cmd->cursize>>8) & 0xff;
 	write(STDOUT, cmd->data, cmd->cursize);
 
 	//FIXME: handle partial writes.

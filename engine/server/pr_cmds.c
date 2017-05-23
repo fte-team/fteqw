@@ -5807,7 +5807,16 @@ char *PF_infokey_Internal (int entnum, const char *key)
 	return value;
 }
 
-static void QCBUILTIN PF_infokey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_infokey_s (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t		*e = G_EDICT(prinst, OFS_PARM0);
+	int			e1 = NUM_FOR_EDICT(prinst, e);
+	const char	*key = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char	*value = PF_infokey_Internal (e1, key);
+
+	G_INT(OFS_RETURN) = PR_TempString(prinst, value);
+}
+static void QCBUILTIN PF_infokey_f (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*e;
 	int		e1;
@@ -5820,7 +5829,7 @@ static void QCBUILTIN PF_infokey (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	value = PF_infokey_Internal (e1, key);
 
-	G_INT(OFS_RETURN) = PR_TempString(prinst, value);
+	G_FLOAT(OFS_RETURN) = atof(value);
 }
 
 static void QCBUILTIN PF_sv_serverkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6633,30 +6642,36 @@ static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *p
 PF_redirectcmd
 
 void redirectcmd (entity to, string str)
+
+the mvdsv implementation executes it now. we delay till the end of the frame, to avoid issues with map changes etc.
 =================
 */
-/*
+static void PF_Redirectcmdcallback(struct frameendtasks_s *task)
+{	//called at the end of the frame when there's no qc running
+	host_client = svs.clients + task->ctxint;
+	if (host_client->state >= cs_connected)
+	{
+		SV_BeginRedirect(RD_CLIENT, host_client->language);
+		Cmd_ExecuteString(task->data, RESTRICT_INSECURE);
+		SV_EndRedirect();
+	}
+}
 static void QCBUILTIN PF_redirectcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *s;
-	int entnum;
-	extern redirect_t sv_redirected;
-
-	if (sv_redirected)
-		return;
-
-	entnum = G_EDICTNUM(OFS_PARM0);
+	struct frameendtasks_s *task, **link;
+	int entnum = G_EDICTNUM(prinst, OFS_PARM0);
+	const char *s = PR_GetStringOfs(prinst, OFS_PARM1);
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
-		PR_RunError ("Parm 0 not a client");
+		PR_RunError (prinst, "Parm 0 not a client");
 
-	s = G_STRING(OFS_PARM1);
-
-	Cbuf_AddText (s);
-
-	SV_BeginRedirect(RD_MOD + entnum);
-	Cbuf_Execute();
-	SV_EndRedirect();
-}*/
+	task = Z_Malloc(sizeof(*task)+strlen(s));
+	task->callback = PF_Redirectcmdcallback;
+	strcpy(task->data, s);
+	task->ctxint = entnum-1;
+	for(link = &svs.frameendtasks; *link; link = &(*link)->next)
+		;	//add them on the end, so they're execed in order
+	*link = task;
+}
 
 /*
 =================
@@ -9728,7 +9743,8 @@ static void QCBUILTIN PF_clustertransfer(pubprogfuncs_t *prinst, struct globalva
 
 	if (dest)
 	{
-		if (!SSV_IsSubServer())
+		//FIXME: allow cluster transfers even when not a cluster node ourselves. 
+		if (!SSV_IsSubServer() && !isDedicated)
 		{
 			Con_DPrintf("PF_clustertransfer: not running in mapcluster mode, ignoring transfer to %s\n", dest);
 			return;
@@ -9738,7 +9754,7 @@ static void QCBUILTIN PF_clustertransfer(pubprogfuncs_t *prinst, struct globalva
 			Con_DPrintf("PF_clustertransfer: Already transferring to %s, ignoring transfer to %s\n", svs.clients[p].transfer, dest);
 			return;
 		}
-		svs.clients[p].transfer = Z_StrDup(svs.clients[p].transfer);
+		svs.clients[p].transfer = Z_StrDup(dest);
 		SSV_InitiatePlayerTransfer(&svs.clients[p], svs.clients[p].transfer);
 	}
 
@@ -10005,7 +10021,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tq_fputs",		PF_fputs,			0,		0,		0,		89, D("void(filestream fhandle, string s)",NULL), true},// (QSG_FILE)
 // Tomaz - QuakeC File System End
 
-	{"infokey",			PF_infokey,			0,		80,		0,		80, D("string(entity e, string key)", "If e is world, returns the field 'key' from either the serverinfo or the localinfo. If e is a player, returns the value of 'key' from the player's userinfo string. There are a few special exceptions, like 'ip' which is not technically part of the userinfo.")},	//80
+	{"infokey",			PF_infokey_s,		0,		80,		0,		80,	D("string(entity e, string key)", "If e is world, returns the field 'key' from either the serverinfo or the localinfo. If e is a player, returns the value of 'key' from the player's userinfo string. There are a few special exceptions, like 'ip' which is not technically part of the userinfo.")},	//80
+	{"infokeyf",		PF_infokey_f,		0,		0,		0,		0,	D("float(entity e, string key)", "Identical to regular infokey, except returns a float.")},	//80
 	{"stof",			PF_stof,			0,		81,		0,		81,	"float(string)"},	//81
 	{"multicast",		PF_multicast,		0,		82,		0,		82,	D("#define unicast(pl,reli) do{msg_entity = pl; multicast('0 0 0', reli?MULITCAST_ONE_R:MULTICAST_ONE);}while(0)\n"
 																		"void(vector where, float set)", "Once the MSG_MULTICAST network message buffer has been filled with data, this builtin is used to dispatch it to the given target, filtering by pvs for reduced network bandwidth.")},	//82
@@ -10013,7 +10030,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 #ifndef QUAKETC
 //mvdsv (don't require ebfs usage in qw)
-	{"executecommand",	PF_ExecuteCommand,	0,		0,		0,		83, D("void()",NULL),				true},
+	{"executecommand",	PF_ExecuteCommand,	0,		0,		0,		83, D("void()","Attempt to flush the localcmd buffer NOW. This is unsafe, as many events might cause the map to be purged while still executing qc code."),				true},
 	{"mvdtokenize",		PF_Tokenize, 		0,		0,		0,		84, D("void(string str)",NULL),		true},
 	{"mvdargc",			PF_ArgC,			0,		0,		0,		85, D("float()",NULL),				true},
 	{"mvdargv",			PF_ArgV,			0,		0,		0,		86, D("string(float num)",NULL),	true},
@@ -10031,16 +10048,16 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"mvdnewstr",		PF_mvdsv_newstring,	0,		0,		0,		93, D("string(string s, optional float bufsize)","Allocs a copy of the string. If bufsize is longer than the string then there will be extra space available on the end. The resulting string can then be modified freely."), true},
 	{"mvdfreestr",		PF_mvdsv_freestring,0,		0,		0,		94, D("void(string s)","Frees memory allocated by mvdnewstr."), true},
 	{"conprint",		PF_conprint,		0,		0,		0,		95, D("void(string s, ...)","Prints the string(s) onto the local console, bypassing redirects."), true},
-	{"readcmd",			PF_readcmd,			0,		0,		0,		0/*96*/, D("string(string str)",NULL), true},
+	{"readcmd",			PF_readcmd,			0,		0,		0,		0/*96*/, D("string(string str)","Executes the given command NOW. This is unsafe, as many events might cause the map to be purged while still executing qc code, so be careful about the commands you try reading, and avoid aliases."), true},
 	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		97, D("void(string dst, string src)",NULL), true},
 	{"strstr",			PF_strstr,			0,		0,		0,		98, D("string(string str, string sub)",NULL), true},
 	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		99, D("void(string dst, string src, float count)",NULL), true},
 	{"logtext",			PF_logtext,			0,		0,		0,		100, D("void(string name, float console, string text)",NULL), true},
-//	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101, D("void(entity to, string str)",NULL), true},
 	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102, D("void()",NULL), true},
 	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, D("void(float now)",NULL), true},
 //end of mvdsv
 #endif
+	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101, D("void(entity to, string str)","Executes a single console command, and sends the text generated by it to the specified player. The command will be executed at the end of the frame once QC is no longer running - you may wish to pre/postfix it with 'echo'.")},
 
 	{"getlightstyle",	PF_getlightstyle,	0,		0,		0,		0,	D("string(float style, optional __out vector rgb)", "Obtains the light style string for the given style.")},
 	{"getlightstylergb",PF_getlightstylergb,0,		0,		0,		0,	D("vector(float style)", "Obtains the current rgb value of the specified light style. In csqc, this is correct with regard to the current frame, while ssqc gives no guarentees about time and ignores client cvars. Note: use getlight if you want the actual light value at a point.")},
@@ -12110,6 +12127,11 @@ void PR_DumpPlatform_f(void)
 	VFS_PRINTF(f, "#pragma warning error Q105 /*too few parms*/\n");
 	VFS_PRINTF(f, "#pragma warning error Q106 /*assignment to constant/lvalue*/\n");
 	VFS_PRINTF(f, "#pragma warning error Q208 /*system crc unknown*/\n");
+#ifdef NOLEGACY
+	VFS_PRINTF(f, "#pragma warning error F211 /*system crc outdated (eg: dp's csqc)*/\n");
+#else
+	VFS_PRINTF(f, "#pragma warning disable F211 /*system crc outdated (eg: dp's csqc)*/\n");
+#endif
 	VFS_PRINTF(f, "#pragma warning enable F301 /*non-utf-8 strings*/\n");
 	VFS_PRINTF(f, "#pragma warning enable F302 /*uninitialised locals*/\n");
 

@@ -1,6 +1,15 @@
 #include "quakedef.h"
 #include "netinc.h"
 
+//these are the node names as parsed by MSV_FindSubServerName
+//"5" finds server 5 only
+//"5:" is equivelent to the above
+//"5:dm4" finds server 5
+//			if not running, it will start up using dm4, even if dm4 is already running on node 4, say.
+//"0:dm4" starts a new server running dm4, even if its already running
+//":dm4" finds any server running dm4. starts a new one if none are running dm4.
+//"dm4" is ambiguous, in the case of a map beginning with a number (bah). don't use.
+
 #ifdef SUBSERVERS
 
 #ifdef SQL
@@ -79,33 +88,6 @@ static void MSV_ServerCrashed(pubsubserver_t *server)
 	Z_Free(server);
 }
 
-pubsubserver_t *MSV_StartSubServer(unsigned int id, const char *mapname)
-{
-	sizebuf_t send;
-	char send_buf[64];
-	pubsubserver_t *s = Sys_ForkServer();
-	if (s)
-	{
-		if (!id)
-			id = ++nextserverid;
-		s->id = id;
-		s->next = subservers;
-		subservers = s;
-
-		Q_strncpyz(s->name, mapname, sizeof(s->name));
-
-		memset(&send, 0, sizeof(send));
-		send.data = send_buf;
-		send.maxsize = sizeof(send_buf);
-		send.cursize = 2;
-		MSG_WriteByte(&send, ccmd_acceptserver);
-		MSG_WriteLong(&send, s->id);
-		MSG_WriteString(&send, s->name);
-		s->funcs.InstructSlave(s, &send);
-	}
-	return s;
-}
-
 pubsubserver_t *MSV_FindSubServer(unsigned int id)
 {
 	pubsubserver_t *s;
@@ -118,12 +100,87 @@ pubsubserver_t *MSV_FindSubServer(unsigned int id)
 	return NULL;
 }
 
-//"5" finds server 5 only
-//"5:" is equivelent to the above
-//"5:dm4" finds server 5, and will start it if not known (even if a different node is running the same map)
-//"0:dm4" starts a new server running dm4, even if its already running
-//":dm4" finds any server running dm4. starts a new one if needed.
-//"dm4" is ambiguous, in the case of a map beginning with a number (bah). don't use.
+vfsfile_t *msv_loop_to_ss;
+vfsfile_t *msv_loop_from_ss;
+static void MSV_Loop_Instruct(pubsubserver_t *ps, sizebuf_t *cmd)
+{
+	unsigned short size = cmd->cursize;
+	cmd->data[0] = cmd->cursize & 0xff;
+	cmd->data[1] = (cmd->cursize>>8) & 0xff;
+	VFS_WRITE(msv_loop_to_ss, cmd->data, size);
+}
+static int MSV_Loop_Read(pubsubserver_t *ps)
+{
+	unsigned short size;
+	if (sv.state < ss_loading)
+		return -1; //failure
+	if (!VFS_READ(msv_loop_from_ss, &size, sizeof(size)))
+		return 0;
+	net_message.cursize = size-2;
+	VFS_READ(msv_loop_from_ss, net_message.data, net_message.cursize);
+
+	MSG_BeginReading (msg_nullnetprim);
+	return 1;
+}
+
+static void MSV_Link_Server(pubsubserver_t *s, int id, const char *mapname)
+{
+	sizebuf_t send;
+	char send_buf[1024];
+	if (!id)
+	{
+		do id = ++nextserverid; while(MSV_FindSubServer(id));
+	}
+	s->id = id;
+	s->next = subservers;
+	subservers = s;
+
+	if (mapname)
+	{
+		Q_strncpyz(s->name, mapname, sizeof(s->name));
+
+		memset(&send, 0, sizeof(send));
+		send.data = send_buf;
+		send.maxsize = sizeof(send_buf);
+		send.cursize = 2;
+		MSG_WriteByte(&send, ccmd_acceptserver);
+		MSG_WriteLong(&send, s->id);
+		MSG_WriteString(&send, s->name);
+		s->funcs.InstructSlave(s, &send);
+	}
+}
+
+pubsubserver_t *MSV_Loop_GetLocalServer(void)
+{
+	pubsubserver_t *s = MSV_FindSubServer(svs.clusterserverid);
+	if (s)
+		return s;
+
+	if (!clusterplayers.next)	//make sure we're initialised properly
+		ClearLink(&clusterplayers);
+
+	msv_loop_to_ss = VFSPIPE_Open(1, false);
+	msv_loop_from_ss = VFSPIPE_Open(1, false);
+	s = Z_Malloc(sizeof(*s));
+	s->funcs.InstructSlave = MSV_Loop_Instruct;
+	s->funcs.SubServerRead = MSV_Loop_Read;
+
+	MSV_Link_Server(s, 0, "");
+	Q_strncpyz(s->name, sv.mapname, sizeof(s->name));
+	svs.clusterserverid = s->id;
+	return s;
+}
+
+pubsubserver_t *MSV_StartSubServer(unsigned int id, const char *mapname)
+{
+	pubsubserver_t *s = Sys_ForkServer();
+
+	if (s)
+		MSV_Link_Server(s, id, mapname);
+	return s;
+}
+
+//server names documented at the start of this file
 pubsubserver_t *MSV_FindSubServerName(const char *servername)
 {
 	pubsubserver_t *s;
@@ -298,7 +355,7 @@ void MSV_SubServerCommand_f(void)
 		Con_Printf("Active servers on this cluster:\n");
 		for (s = subservers; s; s = s->next)
 		{
-			Con_Printf("%i: %s", s->id, s->name);
+			Con_Printf("%i: %s %i+%i", s->id, s->name, s->activeplayers, s->transferingplayers);
 			if (s->addrv4.type != NA_INVALID)
 				Con_Printf(" %s", NET_AdrToString(bufmem, sizeof(bufmem), &s->addrv4));
 			if (s->addrv6.type != NA_INVALID)
@@ -334,6 +391,8 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 	netadr_t adr;
 	char *str;
 	int c;
+	pubsubserver_t *toptr;
+	clusterplayer_t *pl;
 
 	c = MSG_ReadByte();
 	switch(c)
@@ -347,7 +406,6 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 		break;
 	case ccmd_saveplayer:
 		{
-			clusterplayer_t *pl;
 			float stats[NUM_SPAWN_PARMS];
 			int i;
 			unsigned char reason = MSG_ReadByte();
@@ -372,25 +430,39 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 			switch (reason)
 			{
 			case 0: //server reports that it accepted the player
-				if (pl->server && pl->server != s)
-				{	//let the previous server know
-					sizebuf_t	send;
-					qbyte		send_buf[64];
-					memset(&send, 0, sizeof(send));
-					send.data = send_buf;
-					send.maxsize = sizeof(send_buf);
-					send.cursize = 2;
-					MSG_WriteByte(&send, ccmd_transferedplayer);
-					MSG_WriteLong(&send, s->id);
-					MSG_WriteLong(&send, plid);
-					pl->server->funcs.InstructSlave(pl->server, &send);
+				if (pl->server != s)
+				{
+					if (pl->server)
+					{	//let the previous server know
+						sizebuf_t	send;
+						qbyte		send_buf[64];
+						memset(&send, 0, sizeof(send));
+						send.data = send_buf;
+						send.maxsize = sizeof(send_buf);
+						send.cursize = 2;
+						MSG_WriteByte(&send, ccmd_transferedplayer);
+						MSG_WriteLong(&send, s->id);
+						MSG_WriteLong(&send, plid);
+						pl->server->funcs.InstructSlave(pl->server, &send);
+						pl->server->activeplayers--;
+					}
+					pl->server = s;
+					pl->server->activeplayers++;
 				}
-				pl->server = s;
+				break;
+			case 1:
+				//belongs to another node now, (but we might not have had the other node's response yet)
+				if (pl->server == s)
+				{
+					s->activeplayers--;
+					pl->server = NULL;
+				}
 				break;
 			case 2:	//drop
 			case 3: //transfer abort
 				if (pl->server == s)
 				{
+					pl->server->activeplayers--;
 					Con_Printf("%s(%s) dropped\n", pl->name, s->name);
 					RemoveLink(&pl->allplayers);
 					Z_Free(pl);
@@ -409,7 +481,6 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 			char *newmap = MSG_ReadStringBuffer(mapname, sizeof(mapname));
 			char *claddr = MSG_ReadString();
 			char *clguid = MSG_ReadStringBuffer(guid, sizeof(guid));
-			pubsubserver_t *toptr;
 
 			memset(&send, 0, sizeof(send));
 			send.data = send_buf;
@@ -434,6 +505,9 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 					MSG_WriteFloat(&send, MSG_ReadFloat());
 
 				toptr->funcs.InstructSlave(toptr, &send);
+
+				s->transferingplayers--;
+				toptr->transferingplayers++;
 			}
 			else
 			{
@@ -475,7 +549,7 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 			if (!to)
 			{
 				if (svadr.type != NA_INVALID)
-				{
+				{	//the client was trying to connect to the cluster master.
 					rmsg = va("fredir\n%s", NET_AdrToString(adrbuf, sizeof(adrbuf), &svadr));
 					Netchan_OutOfBand (NS_SERVER, &cladr, strlen(rmsg), (qbyte *)rmsg);
 				}
@@ -487,8 +561,14 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 				MSG_WriteLong(&send, plid);
 				MSG_WriteString(&send, NET_AdrToString(adrbuf, sizeof(adrbuf), &svadr));
 
-				MSV_InstructSlave(to, &send);
+				toptr = MSV_FindSubServer(to);
+				if (toptr)
+				{
+					toptr->funcs.InstructSlave(toptr, &send);
+					toptr->transferingplayers++;
+				}
 			}
+			s->transferingplayers--;
 		}
 		break;
 	case ccmd_serveraddress:
@@ -586,6 +666,19 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 void MSV_PollSlaves(void)
 {
 	pubsubserver_t **link, *s;
+
+	if (msv_loop_to_ss)
+	{
+		unsigned short size;
+		while (VFS_READ(msv_loop_to_ss, &size, sizeof(size))>0)
+		{
+			VFS_READ(msv_loop_to_ss, net_message.data, size);
+			net_message.cursize = size-2;
+			MSG_BeginReading (msg_nullnetprim);
+			SSV_ReadFromControlServer();
+		}
+	}
+
 	for (link = &subservers; (s=*link); )
 	{
 		switch(s->funcs.SubServerRead(s))
@@ -605,6 +698,16 @@ void MSV_PollSlaves(void)
 			break;
 		}
 	}
+}
+
+void SSV_InstructMaster(sizebuf_t *cmd)
+{
+	cmd->data[0] = cmd->cursize & 0xff;
+	cmd->data[1] = (cmd->cursize>>8) & 0xff;
+	if (msv_loop_from_ss)
+		VFS_WRITE(msv_loop_from_ss, cmd->data, cmd->cursize);
+	else
+		Sys_InstructMaster(cmd);
 }
 
 void SSV_ReadFromControlServer(void)
@@ -842,7 +945,7 @@ void SSV_UpdateAddresses(void)
 	qbyte		send_buf[MAX_QWMSGLEN];
 	int i;
 
-	if (!SSV_IsSubServer())
+	if (!SSV_IsSubServer() && !msv_loop_from_ss)
 		return;
 
 	count = NET_EnumerateAddresses(svs.sockets, con, flags, addr, sizeof(addr)/sizeof(addr[0]));
@@ -934,6 +1037,27 @@ void SSV_InitiatePlayerTransfer(client_t *cl, const char *newserver)
 	send.data = send_buf;
 	send.maxsize = sizeof(send_buf);
 	send.cursize = 2;
+
+	if (!SSV_IsSubServer())
+	{
+		//main->sub.
+		//make sure the main server exists, and the player does too.
+		pubsubserver_t *s = MSV_Loop_GetLocalServer();
+
+		//make sure there's a player entry for this player, as they probably bypassed the initial connection thing
+		if (!MSV_FindPlayerId(cl->userid))
+		{
+			clusterplayer_t *pl = Z_Malloc(sizeof(*pl));
+			Q_strncpyz(pl->name, cl->name, sizeof(pl->name));
+			Q_strncpyz(pl->guid, cl->guid, sizeof(pl->guid));
+			NET_AdrToString(pl->address, sizeof(pl->address), &cl->netchan.remote_address);
+			pl->playerid = cl->userid;
+			InsertLinkBefore(&pl->allplayers, &clusterplayers);
+			pl->server = s;
+			s->activeplayers++;
+		}
+	}
+
 	MSG_WriteByte(&send, ccmd_transferplayer);
 	MSG_WriteLong(&send, cl->userid);
 	MSG_WriteString(&send, cl->name);
@@ -1019,6 +1143,7 @@ qboolean MSV_ClusterLoginReply(netadr_t *legacyclientredirect, unsigned int serv
 		pl->playerid = playerid;
 		InsertLinkBefore(&pl->allplayers, &clusterplayers);
 		pl->server = s;
+		s->activeplayers++;
 		
 		MSG_WriteByte(&send, ccmd_takeplayer);
 		MSG_WriteLong(&send, playerid);

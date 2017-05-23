@@ -135,11 +135,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define SPEEX_STATIC
 
 #if defined(_WIN32) && defined(GLQUAKE)
-//#define USE_EGL
+	//#define USE_EGL
 #endif
 
 #if defined(_MSC_VER) && !defined(BOTLIB_STATIC) //too lazy to fix up the makefile
-#define BOTLIB_STATIC
+	#define BOTLIB_STATIC
 #endif
 
 #ifdef NO_OPENAL
@@ -163,8 +163,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
 #endif
 
-#define HAVE_TCP	//says we can use tcp too (either ipv4 or ipv6)
-#define HAVE_PACKET	//if we have the socket api at all...
+	#define HAVE_TCP		//says we can use tcp too (either ipv4 or ipv6)
+	#define HAVE_PACKET		//if we have the socket api at all...
+	#define HAVE_MIXER	//can be disabled if you have eg openal instead.
 
 //set any additional defines or libs in win32
 	#define LOADERTHREAD
@@ -175,7 +176,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define PACKAGE_TEXWAD	//quake's image wad support
 
 	#ifdef GLQUAKE
-	#define HEADLESSQUAKE
+		#define HEADLESSQUAKE
 	#endif
 	#define AVAIL_MP3_ACM	//microsoft's Audio Compression Manager api
 
@@ -395,6 +396,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_MP3_ACM
 #endif
 
+#ifndef HAVE_MIXER
+	//disable various sound drivers if we can't use them anyway.
+	#undef AVAIL_DSOUND
+	#undef AVAIL_XAUDIO2
+	#undef AVAIL_WASAPI
+#endif
+
 #ifdef NOMEDIA
 	#undef HAVE_CDPLAYER		//includes cd playback. actual cds. faketracks are supported regardless.
 	#undef HAVE_JUKEBOX			//includes built-in jukebox crap
@@ -465,7 +473,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifdef FTE_TARGET_WEB
-	//sandboxing...
+	//sandboxing means some stuff CANNOT work...
 	#undef HAVE_TCP		//websockets are not real tcp.
 	#undef HAVE_PACKET	//no udp support
 
@@ -483,7 +491,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef MAP_PROC		//meh
 	#undef HALFLIFEMODELS	//blurgh
 	#undef WEBSERVER	//hah, yeah, right
-	#undef SUPPORT_ICE	//kinda requires udp, so not usable
+	#undef SUPPORT_ICE	//requires udp, so not usable. webrtc could be used instead, but that logic is out of our hands.
+	#undef HAVE_MIXER	//depend upon openal instead.
 
 	//extra features stripped to try to reduce memory footprints
 	#undef RUNTIMELIGHTING	//too slow anyway

@@ -3194,7 +3194,14 @@ client_connect:	//fixme: make function
 			return;
 		}
 		if (net_from.type != NA_LOOPBACK)
+		{
 			Con_TPrintf ("connection\n");
+
+#ifndef CLIENTONLY
+			if (sv.state)
+				SV_UnspawnServer();
+#endif
+		}
 
 		if (cls.state >= ca_connected)
 		{
@@ -3203,7 +3210,7 @@ client_connect:	//fixme: make function
 #ifndef CLIENTONLY
 				if (sv.state != ss_clustermode)
 #endif
-					CL_Disconnect_f();
+					CL_Disconnect ();
 			}
 			else
 			{
@@ -3911,10 +3918,100 @@ void CL_CrashMeEndgame_f(void)
 
 void CL_Status_f(void)
 {
+	char adr[128];
 	float pi, po, bi, bo;
 	NET_PrintAddresses(cls.sockets);
 	if (NET_GetRates(cls.sockets, &pi, &po, &bi, &bo))
 		Con_Printf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
+
+	if (cls.state)
+	{
+		Con_Printf("Server address: %s\n", NET_AdrToString(adr, sizeof(adr), &cls.netchan.remote_address));	//not relevent as a limit.
+
+		switch(cls.protocol)
+		{
+		case CP_UNKNOWN:
+			Con_Printf("Unknown protocol\n");
+			break;
+		case CP_QUAKEWORLD:
+			Con_Printf("QuakeWorld-based protocol\n");
+			break;
+	#ifdef NQPROT
+		case CP_NETQUAKE:
+			switch(cls.protocol_nq)
+			{
+			case CPNQ_ID:
+				Con_Printf("NetQuake-based protocol\n");
+				if (cls.proquake_angles_hack)
+					Con_Printf("With ProQuake's extended angles\n");
+				break;
+			case CPNQ_BJP1:
+				Con_Printf("BJP1 protocol\n");
+				break;
+			case CPNQ_BJP2:
+				Con_Printf("BJP2 protocol\n");
+				break;
+			case CPNQ_BJP3:
+				Con_Printf("BJP3 protocol\n");
+				break;
+			case CPNQ_FITZ666:
+				Con_Printf("FitzQuake-based protocol\n");
+				break;
+			case CPNQ_DP5:
+				Con_Printf("DPP5 protocol\n");
+				break;
+			case CPNQ_DP6:
+				Con_Printf("DPP6 protocol\n");
+				break;
+			case CPNQ_DP7:
+				Con_Printf("DPP7 protocol\n");
+				break;
+			}
+			break;
+	#endif
+	#ifdef Q2CLIENT
+		case CP_QUAKE2:
+			Con_Printf("Quake2-based protocol\n");
+			if (cls.protocol_q2 && cls.protocol_q2 < PROTOCOL_VERSION_Q2)
+				Con_Printf("\toutdated protocol version\n");
+			else switch (cls.protocol_q2)
+			{
+			case PROTOCOL_VERSION_Q2:
+				Con_Printf("\tStandard Quake2\n");
+				break;
+			case PROTOCOL_VERSION_R1Q2:
+				Con_Printf("\tR1Q2\n");
+				break;
+			case PROTOCOL_VERSION_Q2PRO:
+				Con_Printf("\tQ2Pro\n");
+				break;
+			}
+			break;
+	#endif
+	#ifdef Q3CLIENT
+		case CP_QUAKE3:
+			Con_Printf("Quake3-based protocol\n");
+			break;
+	#endif
+	#ifdef PLUGINS
+		case CP_PLUGIN:
+			Con_Printf("external protocol\n");
+			break;
+	#endif
+		}
+
+		//just show the more interesting extensions.
+		if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
+			Con_Printf("\textended coords\n");
+		if (cls.fteprotocolextensions & PEXT_SPLITSCREEN)
+			Con_Printf("\tsplit screen\n");
+		if (cls.fteprotocolextensions & PEXT_CSQC)
+			Con_Printf("\tcsqc info\n");
+		if (cls.fteprotocolextensions2 & PEXT2_VOICECHAT)
+			Con_Printf("\tvoice chat\n");
+		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			Con_Printf("\treplacement deltas\n");
+	}
 }
 
 void CL_Demo_SetSpeed_f(void)

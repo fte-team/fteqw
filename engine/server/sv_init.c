@@ -961,6 +961,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		//if you want to load a .map, just use 'map foo.map' instead.
 		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ NULL};
 		int depth, bestdepth;
+		flocation_t loc;
+		time_t filetime;
 		Q_strncpyz (svs.name, server, sizeof(svs.name));
 		Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[0], server);
 		bestdepth = COM_FDepthFile(sv.modelname, false);
@@ -973,8 +975,18 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 				Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[i], server);
 			}
 		}
-		COM_FCheckExists(sv.modelname);
 		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_ERROR);
+
+		if (FS_FLocateFile(sv.modelname,FSLF_IFFOUND, &loc) && FS_GetLocMTime(&loc, &filetime))
+		{
+			if (filetime > sv.world.worldmodel->mtime)
+			{
+				COM_WorkerFullSync();	//sync all the workers, just in case.
+				Mod_PurgeModel(sv.world.worldmodel, MP_RESET);	//nuke it now
+				sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_ERROR);	//and we can reload it now
+			}
+			sv.world.worldmodel->mtime = filetime;
+		}
 	}
 	if (!sv.world.worldmodel || sv.world.worldmodel->loadstate != MLS_LOADED)
 		Sys_Error("\"%s\" is missing or corrupt\n", sv.modelname);

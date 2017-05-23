@@ -1314,14 +1314,34 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 
 	return 0;
 }
+
+
+
+static void QVM_RedirectCmdCallback(struct frameendtasks_s *task)
+{	//called at the end of the frame when there's no qc running
+	host_client = svs.clients + task->ctxint;
+	if (host_client->state >= cs_connected)
+	{
+		SV_BeginRedirect(RD_CLIENT, host_client->language);
+		Cmd_ExecuteString(task->data, RESTRICT_INSECURE);
+		SV_EndRedirect();
+	}
+}
 static qintptr_t QVM_RedirectCmd (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	//FIXME: KTX uses this, along with a big fat warning.
-	//it shouldn't be vital to the normal functionality
-	//just restricts admin a little (did these guys never hear of rcon?)
-	//I'm too lazy to implement it though.
+	struct frameendtasks_s *task, **link;
+	unsigned int entnum = ((char*)VM_POINTER(arg[0]) - (char*)evars) / sv.world.edict_size;
+	const char *s = VM_POINTER(arg[1]);
+	if (entnum < 1 || entnum > sv.allocated_client_slots)
+		SV_Error ("QVM_RedirectCmd: Parm 0 not a client");
 
-	Con_DPrintf("QVM_RedirectCmd: not implemented\n");
+	task = Z_Malloc(sizeof(*task)+strlen(s));
+	task->callback = QVM_RedirectCmdCallback;
+	strcpy(task->data, s);
+	task->ctxint = entnum-1;
+	for(link = &svs.frameendtasks; *link; link = &(*link)->next)
+		;	//add them on the end, so they're execed in order
+	*link = task;
 	return 0;
 }
 static qintptr_t QVM_Add_Bot (void *offset, quintptr_t mask, const qintptr_t *arg)

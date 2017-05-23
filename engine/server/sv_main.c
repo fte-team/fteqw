@@ -507,7 +507,7 @@ void SV_DropClient (client_t *drop)
 #endif
 	}
 #ifdef SUBSERVERS
-	SSV_SavePlayerStats(drop, 2);
+	SSV_SavePlayerStats(drop, (drop->redirect==2)?1:2);
 #endif
 #ifdef SVCHAT
 	SV_WipeChat(drop);
@@ -4401,8 +4401,9 @@ void SV_CheckTimeouts (void)
 #ifdef SUBSERVERS
 				SSV_SavePlayerStats(cl, 3);
 #endif
-				cl->state = cs_free;
 				SV_BroadcastTPrintf (PRINT_HIGH, "TransferZombie %s timed out\n", cl->name);
+				cl->state = cs_free;
+				*cl->name = 0;
 			}
 			cl->netchan.remote_address.type = NA_INVALID;	//don't mess up from not knowing their address.
 		}
@@ -4733,12 +4734,15 @@ float SV_Frame (void)
 		Plug_Tick();
 #endif
 
+#ifdef SUBSERVERS
+	MSV_PollSlaves();
+#endif
+
 	if (sv.state < ss_active || !sv.world.worldmodel)
 	{
 #ifdef SUBSERVERS
 		if (sv.state == ss_clustermode)
 		{
-			MSV_PollSlaves();
 			isidle = !SV_ReadPackets (&delay);
 #ifdef SQL
 			PR_SQLCycle();
@@ -4810,6 +4814,15 @@ float SV_Frame (void)
 		{
 			PR_GameCodePausedTic(Sys_DoubleTime() - sv.pausedstart);
 		}
+	}
+
+	//run any end-of-frame tasks that were set up
+	while (svs.frameendtasks)
+	{
+		struct frameendtasks_s *t = svs.frameendtasks;
+		svs.frameendtasks = t->next;
+		t->callback(t);
+		Z_Free(t);
 	}
 
 	if (!isidle || idletime > 0.15)

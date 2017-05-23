@@ -2964,7 +2964,6 @@ void SV_InitOperatorCommands (void)
 
 	Cmd_AddCommand ("banlist", SV_BanList_f);	//shows only bans, not other penalties
 	Cmd_AddCommand ("unban", SV_Unfilter_f);	//merely renamed.
-	Cmd_AddCommand ("banlist", SV_BanList_f);	//shows only bans, not other penalties
 
 	Cmd_AddCommand ("addip", SV_FilterIP_f);
 	Cmd_AddCommand ("removeip", SV_Unfilter_f);

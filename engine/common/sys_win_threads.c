@@ -565,13 +565,11 @@ pubsubserver_t *Sys_ForkServer(void)
 	return &ctx->pub;
 }
 
-void SSV_InstructMaster(sizebuf_t *cmd)
+void Sys_InstructMaster(sizebuf_t *cmd)
 {
 	//FIXME: this is blocking. this is bad if the target is also blocking while trying to write to us.
 	HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
 	DWORD written = 0;
-	cmd->data[0] = cmd->cursize & 0xff;
-	cmd->data[1] = (cmd->cursize>>8) & 0xff;
 	WriteFile(output, cmd->data, cmd->cursize, &written, NULL);
 }
 

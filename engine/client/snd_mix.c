@@ -21,9 +21,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
+#ifdef HAVE_MIXER
+
 #define	PAINTBUFFER_SIZE	2048
 
-float voicevolumemod = 1;
 portable_samplegroup_t paintbuffer[PAINTBUFFER_SIZE];	//FIXME: we really ought to be using SSE and floats or something.
 
 int 	*snd_p, snd_vol;
@@ -682,3 +683,4 @@ static void SND_PaintChannel16_O8I1 (channel_t *ch, sfxcache_t *sc, int count)
 		}
 	}
 }
+#endif

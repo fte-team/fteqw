@@ -147,9 +147,9 @@ void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int 
 //mod_purge flags
 enum mod_purge_e
 {
-	MP_MAPCHANGED,	//new map. old stuff no longer needed
+	MP_MAPCHANGED,	//new map. old stuff no longer needed, can skip stuff if it'll be expensive.
 	MP_FLUSH,		//user flush command. anything flushable goes.
-	MP_RESET		//*everything* is destroyed. renderer is going down.
+	MP_RESET		//*everything* is destroyed. renderer is going down, or at least nothing depends upon it.
 };
 enum mlverbosity_e
 {
@@ -165,6 +165,7 @@ void Mod_SetEntitiesString(struct model_s *mod, const char *str, qboolean docopy
 void Mod_ParseEntities(struct model_s *mod);
 extern void	Mod_ClearAll						(void);
 extern void Mod_Purge							(enum mod_purge_e type);
+extern qboolean Mod_PurgeModel					(struct model_s	*mod, enum mod_purge_e ptype);
 extern struct model_s *Mod_FindName				(const char *name);	//find without loading. needload should be set.
 extern struct model_s *Mod_ForName				(const char *name, enum mlverbosity_e verbosity);	//finds+loads
 extern struct model_s *Mod_LoadModel			(struct model_s *mod, enum mlverbosity_e verbose);	//makes sure a model is loaded

@@ -4155,8 +4155,9 @@ main
 ============
 */
 
+int		qccmline;
 char	*qccmsrc;
-char	*qccmsrc2;
+//char	*qccmsrc2;
 char	qccmfilename[1024];
 char	qccmprogsdat[1024];
 
@@ -4765,10 +4766,12 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 newstyle:
 		newstylesource = true;
 		originalqccmsrc = qccmsrc;
+		pr_source_line = qccmline = 1;
 		StartNewStyleCompile();
 		return true;
 	}
 
+	pr_source_line = qccmline = 1;
 	pr_file_p = qccmsrc;
 	QCC_PR_LexWhitespace(false);
 	qccmsrc = pr_file_p;
@@ -4778,6 +4781,7 @@ newstyle:
 	QCC_PR_SimpleGetToken ();
 	strcpy(qcc_token, pr_token);
 	qccmsrc = pr_file_p;
+	qccmline = pr_source_line;
 
 	if (!qccmsrc)
 		QCC_Error (ERR_NOOUTPUT, "No destination filename.  qcc -help for info.");
@@ -4850,11 +4854,12 @@ void QCC_ContinueCompile(void)
 	}
 
 	pr_file_p = qccmsrc;
-	s_filen = "";
+	s_filen = compilingrootfile;
 	s_filed = 0;
-	pr_source_line = 0;
+	pr_source_line = qccmline;
 	QCC_PR_LexWhitespace(false);
 	qccmsrc = pr_file_p;
+	qccmline = pr_source_line;
 
 	qccmsrc = QCC_COM_Parse(qccmsrc);
 	if (!qccmsrc)

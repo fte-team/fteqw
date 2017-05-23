@@ -861,8 +861,9 @@ typedef struct model_s
 	char		publicname[MAX_QPATH];	//name that the gamecode etc sees
 	int			datasequence;
 	int			loadstate;//MLS_
-	qboolean	tainted;
+	qboolean	tainted;		// differs from the server's version. this model will be invisible as a result, to avoid spiked models.
 	qboolean	pushdepth;		// bsp submodels have this flag set so you don't get z fighting on co-planar surfaces.
+	time_t		mtime;			// modification time. so we can flush models if they're changed on disk. or at least worldmodels.
 
 	struct model_s *submodelof;
 

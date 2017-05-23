@@ -6169,9 +6169,11 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_GETSURFACEPOINTATTRIBUTE",	1,	NULL, {"getsurfacepointattribute"}},
 	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
 	{"DP_QC_MULTIPLETEMPSTRINGS",		0,	NULL, {NULL}, "Superseded by DP_QC_UNLIMITEDTEMPSTRINGS. Functions that return a temporary string will not overwrite/destroy previous temporary strings until at least 16 strings are returned (or control returns to the engine)."},
+	{"DP_SV_PRINT",						1,	NULL, {"print"}, "Says that the print builtin can be used from nqssqc (as well as just csqc), bypassing the developer cvar issues."},
 	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
 	{"DP_QC_RENDER_SCENE",				0,	NULL, {NULL}, "clearscene+addentity+setviewprop+renderscene+setmodel are available to menuqc. WARNING: DP advertises this extension without actually supporting it, FTE does actually support it."},
 	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
+	{"DP_QC_SPRINTF",					1,	NULL, {"sprintf"}, "Provides the sprintf builtin, which allows for rich formatting along the lines of C's function with the same name. Not to be confused with QC's sprint builtin."},
 	{"DP_QC_STRFTIME",					1,	NULL, {"strftime"}},
 	{"DP_QC_STRING_CASE_FUNCTIONS",		2,	NULL, {"strtolower", "strtoupper"}},
 	{"DP_QC_STRINGBUFFERS",				10,	NULL, {"buf_create", "buf_del", "buf_getsize", "buf_copy", "buf_sort", "buf_implode", "bufstr_get", "bufstr_set", "bufstr_add", "bufstr_free"}},
@@ -6244,7 +6246,7 @@ lh_extension_t QSG_Extensions[] = {
 #endif
 	{"FTE_CSQC_SERVERBROWSER",			12,	NULL, {	"gethostcachevalue", "gethostcachestring", "resethostcachemasks", "sethostcachemaskstring", "sethostcachemasknumber",
 													"resorthostcache", "sethostcachesort", "refreshhostcache", "gethostcachenumber", "gethostcacheindexforkey",
-													"addwantedhostcachekey", "getextresponse"}},	//normally only available to the menu. this also adds them to csqc.
+													"addwantedhostcachekey", "getextresponse"}, "Provides builtins to query the engine's serverbrowser servers list from ssqc. Note that these builtins are always available in menuqc."},
 	{"FTE_CSQC_SKELETONOBJECTS",		15,	NULL, {	"skel_create", "skel_build", "skel_get_numbones", "skel_get_bonename", "skel_get_boneparent", "skel_find_bone",
 													"skel_get_bonerel", "skel_get_boneabs", "skel_set_bone", "skel_mul_bone", "skel_mul_bones", "skel_copybones",
 													"skel_delete", "frameforname", "frameduration"}, "Provides container objects for skeletal bone data, which can be modified on a per bone basis if needed. This allows you to dynamically generate animations (or just blend them with greater customisation) instead of being limited to a single animation or two."},
@@ -6281,7 +6283,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_MVD_PLAYBACK",				NOBI	"The server itself is able to play back MVDs."},
 #endif
 #ifdef SVCHAT
-	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
+	{"FTE_QC_NPCCHAT",					1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif
 #ifdef PSET_SCRIPT
 	{"FTE_PART_SCRIPT",					0,	NULL, {NULL}, "Specifies that the r_particledesc cvar can be used to select a list of particle effects to load from particles/*.cfg, the format of which is documented elsewhere."},
@@ -6299,8 +6301,10 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_FS_SEARCH_SIZEMTIME",		2,	NULL, {"search_getfilesize", "search_getfilemtime"}},
 	{"FTE_QC_HARDWARECURSORS",			0,	NULL, {NULL}, "setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits (or hardware cursors are unsupported), it will be emulated using regular draws - this at least still avoids conflicting cursors as only one will ever be used, even if console+menu+csqc are all overlayed."},
 	{"FTE_QC_HASHTABLES",				6,	NULL, {"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}, "Provides efficient string-based lookups."},
+	{"FTE_QC_INFOKEY",					2,	NULL, {"infokey", "stof"}, "QuakeWorld's infokey builtin works, and reports at least name+topcolor+bottomcolor+ping(in ms)+ip(unmasked, but not always ipv4)+team(aka bottomcolor in nq). Does not require actual localinfo/serverinfo/userinfo, but they're _highly_ recommended to any engines with csqc"},
 	{"FTE_QC_INTCONV",					6,	NULL, {"stoi", "itos", "stoh", "htos", "itof", "ftoi"}, "Provides string<>int conversions, including hex representations."},
 	{"FTE_QC_MATCHCLIENTNAME",			1,	NULL, {"matchclientname"}},
+	{"FTE_QC_MULTICAST",				1,	NULL, {"multicast"}, "QuakeWorld's multicast builtin works along with MSG_MULTICAST, but also with unicast support."},
 //	{"FTE_QC_MESHOBJECTS",				0,	NULL, {"mesh_create", "mesh_build", "mesh_getvertex", "mesh_getindex", "mesh_setvertex", "mesh_setindex", "mesh_destroy"}, "Provides qc with the ability to create its own meshes."},
 	{"FTE_QC_PAUSED"},
 #ifdef QCGC

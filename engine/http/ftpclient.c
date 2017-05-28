@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#if 0//def WEBCLIENT
+#ifdef FTPCLIENT
 
 #include "iweb.h"
 

@@ -3977,10 +3977,15 @@ void VK_UploadLightmap(lightmapinfo_t *lm)
 	mips.mip[0].needfree = false;
 	mips.mip[0].width = lm->width;
 	mips.mip[0].height = lm->height;
-	if (lightmap_bgra)
+	switch(lightmap_fmt)
+	{
+	case TF_BGRA32:
 		mips.encoding = PTI_BGRX8;
-	else
-		mips.encoding = PTI_RGBX8;	
+		break;
+	default:
+		Sys_Error("Unsupported encoding\n");
+		break;
+	}
 	mips.mipcount = 1;
 	VK_LoadTextureMips(tex, &mips);
 	tex->status = TEX_LOADED;

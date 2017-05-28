@@ -820,6 +820,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalfloat		(false, input_buttons);
 	globalint		(false, serverid);
 	globalvec		(false, global_gravitydir);
+	globalstring	(false, parm_string);
 
 	memset(&evalc_idealpitch, 0, sizeof(evalc_idealpitch));
 	memset(&evalc_pitch_speed, 0, sizeof(evalc_pitch_speed));
@@ -2664,15 +2665,25 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m)
 
 				if (sv.state != ss_loading)
 				{
+					int j;
 					Con_DPrintf("Delayed model precache: %s\n", m);
-					MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
-					MSG_WriteShort(&sv.reliable_datagram, i);
-					MSG_WriteString(&sv.reliable_datagram, m);
-#ifdef NQPROT
-					MSG_WriteByte(&sv.nqreliable_datagram, svcdp_precache);
-					MSG_WriteShort(&sv.nqreliable_datagram, i);
-					MSG_WriteString(&sv.nqreliable_datagram, m);
-#endif
+
+					for (j = 0; j < sv.allocated_client_slots; j++)
+					{
+						if (svs.clients[j].state < cs_connected)
+							continue;
+						if (ISDPCLIENT(&svs.clients[j]) || (svs.clients[j].fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+						{
+							ClientReliableWrite_Begin (&svs.clients[j], ISNQCLIENT(&svs.clients[j])?svcdp_precache:svcfte_precache, strlen(m)+4);
+							ClientReliableWrite_Short (&svs.clients[j], i);
+							ClientReliableWrite_String (&svs.clients[j], m);
+						}
+						else
+						{
+							//client doesn't support this... reset the connection so they're forced to reload everything.
+							//SV_StuffcmdToClient(&svs.clients[j], "cmd new\n");
+						}
+					}
 				}
 			}
 			else
@@ -3677,6 +3688,25 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 {
 	client_t	*cl;
 	int		slen;
+	unsigned int i;
+
+	if (flags & STUFFCMD_BROADCAST)
+	{
+		for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
+		{
+			if (cl->state != cs_spawned || cl->controller == cl)
+				continue;
+			SV_StuffcmdToClient(cl, str);
+		}
+		if (!(flags & STUFFCMD_IGNOREINDEMO))
+		if (sv.mvdrecording)
+		{
+			sizebuf_t *msg = MVDWrite_Begin (dem_all, 0, 2 + strlen(str));
+			MSG_WriteByte (msg, svc_stufftext);
+			MSG_WriteString (msg, str);
+		}
+		return;
+	}
 
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
 		return;
@@ -5529,9 +5559,7 @@ void QCBUILTIN PF_setspawnparms (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	// copy spawn parms out of the client_t
 	client = svs.clients + (i-1);
 
-	for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-		if (pr_global_ptrs->spawnparamglobals[i])
-			*pr_global_ptrs->spawnparamglobals[i] = client->spawn_parms[i];
+	SV_SpawnParmsToQC(client);
 }
 
 /*
@@ -5744,7 +5772,7 @@ char *PF_infokey_Internal (int entnum, const char *key)
 				value = "";	//could be a writebyted bot...
 				break;
 			case SCP_QUAKEWORLD:
-				if (!svs.clients[entnum-1].fteprotocolextensions && !svs.clients[entnum-1].fteprotocolextensions)
+				if (!svs.clients[entnum-1].fteprotocolextensions && !svs.clients[entnum-1].fteprotocolextensions2)
 					value = "quakeworld";
 				else
 					value = "quakeworld+";
@@ -8550,29 +8578,44 @@ static void QCBUILTIN PF_te_teleport(pubprogfuncs_t *prinst, struct globalvars_s
 //void(vector org, float color, float length) te_explosion2 = #427;
 static void QCBUILTIN PF_te_explosion2(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	qboolean old = false;
 	float *org = G_VECTOR(OFS_PARM0);
 	int start = G_FLOAT(OFS_PARM1);
 	int length = G_FLOAT(OFS_PARM2);
 	start = bound(0, start, 255);
 	length = bound(0, length, 255-start);
 
-	MSG_WriteByte (&sv.multicast, svc_temp_entity);
-	MSG_WriteByte (&sv.multicast, TEQW_EXPLOSION2);
-	MSG_WriteCoord (&sv.multicast, org[0]);
-	MSG_WriteCoord (&sv.multicast, org[1]);
-	MSG_WriteCoord (&sv.multicast, org[2]);
-	MSG_WriteByte (&sv.multicast, start);
-	MSG_WriteByte (&sv.multicast, length);
-#ifdef NQPROT
-	MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte (&sv.nqmulticast, TENQ_EXPLOSION2);
-	MSG_WriteCoord (&sv.nqmulticast, org[0]);
-	MSG_WriteCoord (&sv.nqmulticast, org[1]);
-	MSG_WriteCoord (&sv.nqmulticast, org[2]);
-	MSG_WriteByte (&sv.nqmulticast, start);
-	MSG_WriteByte (&sv.nqmulticast, length);
-#endif
-	SV_MulticastProtExt(org, MULTICAST_PHS, pr_global_struct->dimension_send, 0, 0);
+	for(;;)
+	{
+		MSG_WriteByte (&sv.multicast, svc_temp_entity);
+		MSG_WriteByte (&sv.multicast, old?TE_EXPLOSION:TEQW_EXPLOSION2);
+		MSG_WriteCoord (&sv.multicast, org[0]);
+		MSG_WriteCoord (&sv.multicast, org[1]);
+		MSG_WriteCoord (&sv.multicast, org[2]);
+		if (!old)
+		{
+			MSG_WriteByte (&sv.multicast, start);
+			MSG_WriteByte (&sv.multicast, length);
+		}
+	#ifdef NQPROT
+		MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
+		MSG_WriteByte (&sv.nqmulticast, TENQ_EXPLOSION2);
+		MSG_WriteCoord (&sv.nqmulticast, org[0]);
+		MSG_WriteCoord (&sv.nqmulticast, org[1]);
+		MSG_WriteCoord (&sv.nqmulticast, org[2]);
+		MSG_WriteByte (&sv.nqmulticast, start);
+		MSG_WriteByte (&sv.nqmulticast, length);
+	#endif
+
+		if (old)
+		{
+			SV_MulticastProtExt(org, MULTICAST_PHS, pr_global_struct->dimension_send, 0, PEXT_TE_BULLET);
+			break;
+		}
+		else
+			SV_MulticastProtExt(org, MULTICAST_PHS, pr_global_struct->dimension_send, PEXT_TE_BULLET, 0);
+		old = true;
+	}
 }
 
 //DP_TE_FLAMEJET

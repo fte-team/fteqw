@@ -546,23 +546,14 @@ void GLBE_UploadAllLightmaps(void)
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		}
-		switch (lightmap_bytes)
+		switch(lightmap_fmt)	//bgra32, rgba32, rgb24, lum8
 		{
-		case 4:
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
-				lm->width, lm->height, 0, (lightmap_bgra?GL_BGRA_EXT:GL_RGBA), GL_UNSIGNED_INT_8_8_8_8_REV,
-				lightmap[i]->lightmaps);
-			break;
-		case 3:
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-				lm->width, lm->height, 0, (lightmap_bgra?GL_BGR_EXT:GL_RGB), GL_UNSIGNED_BYTE,
-				lightmap[i]->lightmaps);
-			break;
-		case 1:
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE,
-				lm->width, lm->height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE,
-				lightmap[i]->lightmaps);
-			break;
+		default:		Sys_Error("Bad lightmap_fmt\n");	break;
+		case TF_BGRA32:	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,	  lm->width, lm->height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV,lightmap[i]->lightmaps); break;
+//		case TF_RGBA32:	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,	  lm->width, lm->height, 0, GL_RGBA,	 GL_UNSIGNED_INT_8_8_8_8_REV,lightmap[i]->lightmaps); break;
+//		case TF_BGR24:	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,		  lm->width, lm->height, 0, GL_BGR_EXT,	 GL_UNSIGNED_BYTE,			 lightmap[i]->lightmaps); break;
+		case TF_RGB24:	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,		  lm->width, lm->height, 0, GL_RGB,		 GL_UNSIGNED_BYTE,			 lightmap[i]->lightmaps); break;
+		case TF_LUM8:	qglTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, lm->width, lm->height, 0, GL_LUMINANCE,GL_UNSIGNED_BYTE,			 lightmap[i]->lightmaps); break;
 		}
 		//for completeness.
 		lm->lightmap_texture->width = lm->width;

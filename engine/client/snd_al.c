@@ -4,10 +4,9 @@
 This is based on Jogi's OpenAL support.
 Much of it is stripped, to try and get it clean/compliant.
 
-Missing features:
-FIXME: listener velocity calculations (currently ugly).
-FIXME: does not track entity velocities, so no dopler (awkward, quake doesn't move playing sounds at all).
-FIXME: a capture device would be useful (voice chat).
+Emscripten/WebAudio is buggy or limited.
+This means we force distance models and use hacks to avoid bugs in browsers.
+We also have no doppler with WebAudio.
 */
 
 #ifdef AVAIL_OPENAL

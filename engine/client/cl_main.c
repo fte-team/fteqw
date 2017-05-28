@@ -1657,6 +1657,7 @@ This is also called on Host_Error, so it shouldn't cause any errors
 void CL_Disconnect (void)
 {
 	qbyte	final[12];
+	int i;
 
 	connectinfo.trying = false;
 
@@ -1741,7 +1742,8 @@ void CL_Disconnect (void)
 	COM_FlushTempoaryPacks();
 
 	r_worldentity.model = NULL;
-	cl.spectator = 0;
+	for (i = 0; i < cl.splitclients; i++)
+		cl.playerview[i].spectator = 0;
 	cl.sendprespawn = false;
 	cl.intermissionmode = IM_NONE;
 	cl.oldgametime = 0;
@@ -2034,8 +2036,17 @@ void CL_CheckServerInfo(void)
 #ifdef QUAKESTATS
 	int oldstate;
 #endif
+#ifndef CLIENTONLY
+	extern cvar_t sv_cheats;
+#endif
 	int oldteamplay;
-	qboolean spectating = cl.spectator && cl.spectator != 2;	//spectator 2 = spectator-with-scores, considered to be players. this means we don't want to allow spec cheats while they're inactive, because that would be weird.
+	qboolean spectating = true;
+	int i;
+	
+	//spectator 2 = spectator-with-scores, considered to be players. this means we don't want to allow spec cheats while they're inactive, because that would be weird.
+	for (i = 0; i < cl.splitclients; i++)
+		if (cl.playerview[i].spectator != 1)
+			spectating = false;
 
 	oldteamplay = cl.teamplay;
 	cl.teamplay = atoi(Info_ValueForKey(cl.serverinfo, "teamplay"));
@@ -2073,7 +2084,8 @@ void CL_CheckServerInfo(void)
 
 #ifndef CLIENTONLY
 	//allow cheats in single player regardless of sv_cheats.
-	if (sv.state == ss_active && sv.allocated_client_slots == 1)
+	//(also directly read the sv_cheats cvar to avoid issues with nq protocols that don't support serverinfo.
+	if ((sv.state == ss_active && sv.allocated_client_slots == 1) || sv_cheats.ival)
 		cls.allow_cheats = true;
 #endif
 
@@ -3074,6 +3086,7 @@ void CL_ConnectionlessPacket (void)
 		COM_Parse(s);
 		if (!strcmp(com_token, "ccept"))
 		{
+			/*this is a DP server... but we don't know which version nor nq protocol*/
 			Con_Printf ("accept\n");
 			if (cls.state == ca_connected)
 				return;	//we're already connected. don't do it again!
@@ -3090,10 +3103,9 @@ void CL_ConnectionlessPacket (void)
 			CL_ParseEstablished();
 			Con_DPrintf ("CL_EstablishConnection: connected to %s\n", cls.servername);
 
-			/*this is a DP server... but we don't know which version*/
 			cls.netchan.isnqprotocol = true;
 			cls.protocol = CP_NETQUAKE;
-			cls.protocol_nq = CPNQ_ID;
+			cls.protocol_nq = CPNQ_ID;	//assume vanilla protocol until we know better.
 			cls.proquake_angles_hack = false;
 			cls.challenge = connectinfo.challenge;
 			connectinfo.trying = false;
@@ -3846,14 +3858,12 @@ void CL_ServerInfo_f(void)
 }
 #endif
 
-/*
-#ifdef WEBCLIENT
+#ifdef FTPCLIENT
 void CL_FTP_f(void)
 {
 	FTP_Client_Command(Cmd_Args(), NULL);
 }
 #endif
-*/
 
 //fixme: make a cvar
 void CL_Fog_f(void)
@@ -3930,6 +3940,7 @@ void CL_Status_f(void)
 
 		switch(cls.protocol)
 		{
+		default:
 		case CP_UNKNOWN:
 			Con_Printf("Unknown protocol\n");
 			break;
@@ -4230,9 +4241,9 @@ void CL_Init (void)
 
 	Cvar_Register (&qtvcl_forceversion1,				cl_controlgroup);
 	Cvar_Register (&qtvcl_eztvextensions,				cl_controlgroup);
-//#ifdef WEBCLIENT
-//	Cmd_AddCommand ("ftp", CL_FTP_f);
-//#endif
+#ifdef FTPCLIENT
+	Cmd_AddCommand ("ftp", CL_FTP_f);
+#endif
 
 	Cmd_AddCommandD ("changing", CL_Changing_f, "Part of network protocols. This command should not be used manually.");
 	Cmd_AddCommand ("disconnect", CL_Disconnect_f);
@@ -5538,7 +5549,7 @@ double Host_Frame (double time)
 		extern cvar_t scr_chatmodecvar, r_stereo_method;
 
 		if (scr_chatmodecvar.ival && cl.intermissionmode == IM_NONE)
-			scr_chatmode = (cl.spectator&&cl.splitclients<2&&cls.state == ca_active)?2:1;
+			scr_chatmode = (cl.playerview[0].spectator&&cl.splitclients<2&&cls.state == ca_active)?2:1;
 		else
 			scr_chatmode = 0;
 

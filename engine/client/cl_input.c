@@ -273,7 +273,7 @@ void IN_JumpDown (void)
 
 
 	int pnum = CL_TargettedSplit(false);
-	
+	playerview_t *pv = &cl.playerview[pnum];
 
 
 	condition = (cls.state == ca_active && cl_smartjump.ival && !prox_inmenu.ival);
@@ -283,14 +283,14 @@ void IN_JumpDown (void)
 	else
 #endif
 #ifdef QUAKESTATS
-		if (condition && cl.playerview[pnum].stats[STAT_HEALTH] > 0 && !cls.demoplayback && !cl.spectator && 
-			(cls.protocol==CP_NETQUAKE || cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[pnum].playernum].messagenum == cl.validsequence)
+		if (condition && cl.playerview[pnum].stats[STAT_HEALTH] > 0 && !cls.demoplayback && !pv->spectator && 
+			(cls.protocol==CP_NETQUAKE || cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[pv->playernum].messagenum == cl.validsequence)
 			&& cl.playerview[pnum].waterlevel >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
 	)
 		KeyDown(&in_up);
 	else
 #endif
-		if (condition && cl.spectator && cl.playerview[pnum].cam_state == CAM_FREECAM)
+		if (condition && pv->spectator && pv->cam_state == CAM_FREECAM)
 		KeyDown(&in_up);
 	else
 		KeyDown(&in_jump);
@@ -1404,6 +1404,7 @@ void CL_UpdateSeats(void)
 			targ = MAX_SPLITS;
 		if (cl.splitclients < targ)
 		{
+			char *ver;
 			char buffer[2048];
 			char newinfo[2048];
 			Q_strncpyz(newinfo, cls.userinfo[cl.splitclients], sizeof(newinfo));
@@ -1422,6 +1423,14 @@ void CL_UpdateSeats(void)
 			}
 			if (!*Info_ValueForKey(newinfo, "skin"))	//give players the same skin by default, because we can. q2 cares for teams. qw might as well (its not like anyone actually uses them thanks to enemy-skin forcing).
 				Info_SetValueForKey(newinfo, "skin", Info_ValueForKey(cls.userinfo[0], "skin"), sizeof(newinfo));
+
+#ifdef SVNREVISION
+			if (strcmp(STRINGIFY(SVNREVISION), "-"))
+				ver = va("%s v%i.%02i %s", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR, STRINGIFY(SVNREVISION));
+			else
+#endif
+				ver = va("%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
+			Info_SetValueForKey(newinfo, "*ver", ver, sizeof(newinfo));
 
 			CL_SendClientCommand(true, "addseat %i %s", cl.splitclients, COM_QuotedString(newinfo, buffer, sizeof(buffer), false));
 		}
@@ -1736,6 +1745,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			}
 			for (plnum = 0; plnum < cl.splitclients; plnum++)
 			{
+				playerview_t *pv = &cl.playerview[plnum];
 				cmd = &cl.outframes[i].cmd[plnum];
 
 				memset(cmd, 0, sizeof(*cmd));
@@ -1758,12 +1768,12 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 				VectorClear(mousemovements[plnum]);
 
 				// if we are spectator, try autocam
-				if (cl.spectator)
-					Cam_Track(&cl.playerview[plnum], cmd);
+				if (pv->spectator)
+					Cam_Track(pv, cmd);
 
 				CL_FinishMove(cmd, cmd->msec, plnum);
 
-				Cam_FinishMove(&cl.playerview[plnum], cmd);
+				Cam_FinishMove(pv, cmd);
 
 #ifdef CSQC_DAT
 				CSQC_Input_Frame(plnum, cmd);
@@ -1772,7 +1782,6 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 				if (cls.state == ca_active)
 				{
 					player_state_t *from, *to;
-					playerview_t *pv = &cl.playerview[plnum];
 					from = &cl.inframes[cl.ackedmovesequence & UPDATE_MASK].playerstate[pv->playernum];
 					to = &cl.inframes[cl.movesequence & UPDATE_MASK].playerstate[pv->playernum];
 					CL_PredictUsercmd(pv->playernum, pv->viewentity, from, to, &cl.outframes[cl.ackedmovesequence & UPDATE_MASK].cmd[plnum]);

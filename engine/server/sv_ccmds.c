@@ -759,7 +759,8 @@ void SV_Map_f (void)
 				Z_Free(host_client->spawninfo);
 			host_client->spawninfo = NULL;
 			memset(host_client->spawn_parms, 0, sizeof(host_client->spawn_parms));
-			SV_GetNewSpawnParms(host_client);
+			if (host_client->state > cs_zombie)
+				SV_GetNewSpawnParms(host_client);
 		}
 
 		if (preserveplayers && svprogfuncs && host_client->state == cs_spawned && host_client->spawninfo)
@@ -2855,16 +2856,14 @@ void SV_MemInfo_f(void)
 				sz += lp->length;
 
 			fr = 0;
+			fr += sizeof(client_frame_t)*UPDATE_BACKUP;
 			if (cl->pendingdeltabits)
 			{
-				int maxents = cl->frameunion.frames[0].entities.max_entities;	/*this is the max number of ents updated per frame. we can't track more, so...*/
-				fr =	sizeof(cl)*UPDATE_BACKUP+
-						sizeof(*cl->pendingdeltabits)*cl->max_net_ents+
-						sizeof(unsigned int)*maxents*UPDATE_BACKUP+
-						sizeof(unsigned int)*maxents*UPDATE_BACKUP;
+				fr +=	sizeof(cl)*UPDATE_BACKUP+
+						sizeof(*cl->pendingdeltabits)*cl->max_net_ents;
 			}
-			else
-				fr = (sizeof(client_frame_t)+sizeof(entity_state_t)*cl->frameunion.frames[0].entities.max_entities)*UPDATE_BACKUP;
+			fr += sizeof(*cl->frameunion.frames[0].resend)*cl->frameunion.frames[0].maxresend*UPDATE_BACKUP;
+			fr += sizeof(entity_state_t)*cl->frameunion.frames[0].qwentities.max_entities*UPDATE_BACKUP;
 			fr += sizeof(*cl->sentents.entities) * cl->sentents.max_entities;
 
 			csfr = sizeof(*cl->pendingcsqcbits) * cl->max_net_ents;
@@ -2873,7 +2872,8 @@ void SV_MemInfo_f(void)
 		}
 	}
 
-	//FIXME: report vm memory
+	if (sv.world.progs)
+		Con_Printf("ssqc: %u (used) / %u (reserved)\n", sv.world.progs->stringtablesize, sv.world.progs->stringtablemaxsize);
 }
 
 void SV_Download_f (void)

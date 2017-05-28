@@ -279,10 +279,15 @@ void D3D11_UploadLightmap(lightmapinfo_t *lm)
 	mips.mip[0].width = lm->width;
 	mips.mip[0].height = lm->height;
 	mips.mip[0].datasize = lm->width*lm->height*4;
-	if (lightmap_bgra)
+	switch (lightmap_fmt)
+	{
+	case TF_BGRA32:
 		mips.encoding = PTI_BGRX8;
-	else
-		mips.encoding = PTI_RGBX8;	
+		break;
+	case TF_RGBA32:
+		mips.encoding = PTI_RGBX8;
+		break;
+	}
 	mips.mipcount = 1;
 	D3D11_LoadTextureMips(tex, &mips);
 	tex->width = lm->width;

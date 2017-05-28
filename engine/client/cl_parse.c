@@ -3086,18 +3086,19 @@ static void CLQW_ParseServerData (void)
 		{
 			cl.playerview[j].playernum = cl.allocated_client_slots + j;
 			cl.playerview[j].viewentity = 0;	//free floating.
+			cl.playerview[j].spectator = true;
 			for (i = 0; i < UPDATE_BACKUP; i++)
 			{
 				cl.inframes[i].playerstate[cl.playerview[j].playernum].pm_type = PM_SPECTATOR;
 				cl.inframes[i].playerstate[cl.playerview[j].playernum].messagenum = 1;
 			}
 		}
-		cl.spectator = true;
 
 		cl.splitclients = 1;
 	}
 	else if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
 	{
+		qboolean spec = false;
 		cl.allocated_client_slots = MSG_ReadByte();
 		if (cl.allocated_client_slots > MAX_CLIENTS)
 		{
@@ -3109,13 +3110,14 @@ static void CLQW_ParseServerData (void)
 		cl.splitclients = MSG_ReadByte();
 		if (cl.splitclients & 128)
 		{
-			cl.spectator = true;
+			spec = true;
 			cl.splitclients &= ~128;
 		}
 		if (cl.splitclients > MAX_SPLITS)
 			Host_EndGame("Server sent us too many alternate clients\n");
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 		{
+			cl.playerview[pnum].spectator = true;
 			if (cls.z_ext & Z_EXT_VIEWHEIGHT)
 				cl.playerview[pnum].viewheight = 0;
 			cl.playerview[pnum].playernum = MSG_ReadByte();
@@ -3137,9 +3139,11 @@ static void CLQW_ParseServerData (void)
 			cl.playerview[clnum].playernum = pnum;
 			if (cl.playerview[clnum].playernum & 128)
 			{
-				cl.spectator = true;
+				cl.playerview[clnum].spectator = true;
 				cl.playerview[clnum].playernum &= ~128;
 			}
+			else
+				cl.playerview[clnum].spectator = false;
 
 			if (cl.playerview[clnum].playernum >= cl.allocated_client_slots)
 				Host_EndGame("unsupported local player slot\n");
@@ -3309,8 +3313,8 @@ static void CLQ2_ParseServerData (void)
 	// parse player entity number
 	cl.playerview[0].playernum = MSG_ReadShort ();
 	cl.playerview[0].viewentity = cl.playerview[0].playernum+1;
+	cl.playerview[0].spectator = false;
 	cl.splitclients = 1;
-	cl.spectator = false;
 
 	cl.numq2visibleweapons = 1;	//give it a default.
 	cl.q2visibleweapons[0] = "weapon.md2";
@@ -4884,7 +4888,7 @@ void CL_NewTranslation (int slot)
 	bottom = player->rbottomcolor;
 	if (cl.splitclients < 2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
 	{
-		if (cl.teamplay && cl.spectator)
+		if (cl.teamplay && cl.playerview[0].spectator)
 		{
 			local = Cam_TrackNum(&cl.playerview[0]);
 			if (local < 0)
@@ -4977,11 +4981,14 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 	player->colourised = TP_FindColours(player->name);
 
 	// If it's us
-	if (slot == cl.playerview[0].playernum && player->name[0])
+	for (i = 0; i < cl.splitclients; i++)
+		if (slot == cl.playerview[i].playernum)
+			break;
+	if (i < cl.splitclients && player->name[0])
 	{
-		if (cl.spectator != player->spectator)
+		if (cl.playerview[i].spectator != player->spectator)
 		{
-			cl.spectator = player->spectator;
+			cl.playerview[i].spectator = player->spectator;
 			for (i = 0; i < cl.splitclients; i++)
 			{
 				Cam_Unlock(&cl.playerview[i]);
@@ -4993,7 +5000,7 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 
 		Skin_FlushPlayers();
 	}
-	else if (cl.teamplay && cl.spectator && slot == Cam_TrackNum(&cl.playerview[0]))	//skin forcing cares about the team of the guy we're tracking.
+	else if (cl.teamplay && cl.playerview[0].spectator && slot == Cam_TrackNum(&cl.playerview[0]))	//skin forcing cares about the team of the guy we're tracking.
 		Skin_FlushPlayers();
 	else if (cls.state == ca_active)
 		Skin_Find (player);
@@ -6104,7 +6111,8 @@ static void CL_ParseWeaponStats(void)
 
 static void CL_ParseItemTimer(void)
 {
-	float timeout = atof(Cmd_Argv(0));
+	//it [cur/]duration x y z radius 0xRRGGBB "timername" owningent
+	float timeout;// = atof(Cmd_Argv(0));
 	vec3_t org = {	atof(Cmd_Argv(1)),
 					atof(Cmd_Argv(2)),
 					atof(Cmd_Argv(3))};
@@ -6113,6 +6121,15 @@ static void CL_ParseItemTimer(void)
 //	char *timername =	Cmd_Argv(6);
 	unsigned int entnum = strtoul(Cmd_Argv(7), NULL, 0);
 	struct itemtimer_s *timer;
+	float start = cl.time;
+	char *e;
+	timeout = strtod(Cmd_Argv(0), &e);
+	if (*e == '/')
+	{
+		start += timeout;
+		timeout = atof(e+1);
+		start -= timeout;
+	}
 
 	if (!timeout)
 		timeout = FLT_MAX;
@@ -6121,7 +6138,12 @@ static void CL_ParseItemTimer(void)
 
 	for (timer = cl.itemtimers; timer; timer = timer->next)
 	{
-		if (VectorCompare(timer->origin, org) && timer->entnum == entnum && entnum)
+		if (entnum)
+		{
+			if (timer->entnum == entnum)
+				break;
+		}
+		else if (VectorCompare(timer->origin, org))
 			break;
 	}
 	if (!timer)
@@ -6137,8 +6159,8 @@ static void CL_ParseItemTimer(void)
 	timer->radius = radius;
 	timer->duration = timeout;
 	timer->entnum = entnum;
-	timer->start = cl.time;
-	timer->end = cl.time + timer->duration;
+	timer->start = start;
+	timer->end = start + timer->duration;
 	timer->rgb[0] = ((rgb>>16)&0xff)/255.0;
 	timer->rgb[1] = ((rgb>> 8)&0xff)/255.0;
 	timer->rgb[2] = ((rgb    )&0xff)/255.0;
@@ -6931,7 +6953,7 @@ void CLQW_ParseServerMessage (void)
 			if (cl.intermissionmode == IM_NONE)
 			{
 				TP_ExecTrigger ("f_mapend", false);
-				if (cl.spectator)
+				if (cl.playerview[destsplit].spectator)
 					TP_ExecTrigger ("f_specmapend", true);
 				cl.completed_time = cl.gametime;
 			}

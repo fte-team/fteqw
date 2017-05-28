@@ -803,11 +803,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 				e2 = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "stats_restored", ev_float, NULL);
 				if (e2)
 					e2->_float = 1;
-				for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
-				{
-					if (pr_global_ptrs->spawnparamglobals[j])
-						*pr_global_ptrs->spawnparamglobals[j] = host_client->spawn_parms[j];
-				}
+				SV_SpawnParmsToQC(host_client);
 				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 				ent->area.next = ent->area.prev = NULL;

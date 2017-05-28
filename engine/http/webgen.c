@@ -1,11 +1,11 @@
 #include "quakedef.h"
 
-#ifdef WEBSERVER
+#if defined(WEBSERVER) || defined(FTPSERVER)
 
 #include "iweb.h"
 
-#ifdef CLIENTONLY
-vfsfile_t *IWebGenerateFile(char *name)
+#if defined(CLIENTONLY) || !defined(WEBSERVER)
+vfsfile_t *IWebGenerateFile(const char *name, const char *content, int contentlength)
 {
 	return NULL;
 }

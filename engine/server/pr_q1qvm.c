@@ -2097,6 +2097,7 @@ qboolean PR_LoadQ1QVM(void)
 		pr_global_ptrs->spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)(&global->parm1 + i));
 	for (; i < NUM_SPAWN_PARMS; i++)
 		pr_global_ptrs->spawnparamglobals[i] = NULL;
+	pr_global_ptrs->parm_string = NULL;
 
 #define emufield(n,t) if (field[i].type == t && !strcmp(#n, fname)) {fofs.n = (field[i].ofs - WASTED_EDICT_T_SIZE)/sizeof(float); continue;}
 	if (VM_NonNative(q1qvm))

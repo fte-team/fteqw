@@ -768,7 +768,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 			if (*cl.players[player].ip)
 				Con_Footerf(con, true, "\n%s", cl.players[player].ip);
 
-			if (cl.spectator || cls.demoplayback)
+			if (cl.playerview[0].spectator || cls.demoplayback)
 			{
 				//we're spectating, or an mvd
 				Con_Footerf(con, true, " ^[Spectate\\player\\%i\\action\\spec^]", player);
@@ -803,7 +803,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 
 			//hey look! its you!
 
-			if (cl.spectator || cls.demoplayback)
+			if (cl.playerview[i].spectator || cls.demoplayback)
 			{
 				//need join option here or something
 			}

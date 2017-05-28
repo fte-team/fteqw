@@ -1866,10 +1866,11 @@ int Plug_ConnectionlessClientPacket(char *buffer, int size)
 void Plug_SBar(playerview_t *pv)
 {
 #ifdef QUAKEHUD
-	extern qboolean sb_showscores, sb_showteamscores;
+	#define sb_showscores pv->sb_showscores
+	#define sb_showteamscores pv->sb_showteamscores
 #else
-#define sb_showscores 0
-#define sb_showteamscores 0
+	#define sb_showscores 0
+	#define sb_showteamscores 0
 #endif
 
 	plugin_t *oc=currentplug;
@@ -1877,7 +1878,7 @@ void Plug_SBar(playerview_t *pv)
 	int cleared = false;
 	int hudmode;
 
-	if (!Sbar_ShouldDraw())
+	if (!Sbar_ShouldDraw(pv))
 	{
 		SCR_TileClear (0);
 		return;
@@ -1935,9 +1936,9 @@ void Plug_SBar(playerview_t *pv)
 		}
 	}
 
-	if (!(ret & 2) && pv == cl.playerview)
+	if (!(ret & 2))
 	{
-		Sbar_DrawScoreboard();
+		Sbar_DrawScoreboard(pv);
 	}
 
 

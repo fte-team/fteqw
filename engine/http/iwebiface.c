@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#ifdef WEBSERVER
+#if defined(WEBSERVER) || defined(FTPSERVER)
 
 #include "iweb.h"
 #include "netinc.h"
@@ -503,15 +503,18 @@ IWEBFILE *IWebFOpenRead(char *name)					//fread(name, "rb");
 
 #else
 
+#if defined(WEBSERVER) || defined(FTPSERVER)
+static cvar_t sv_readlevel = CVAR("sv_readlevel", "0");	//default to allow anyone
+static cvar_t sv_writelevel = CVARD("sv_writelevel", "35", "Specifies the required trust level at which user accounts may write to the user-specific subdir of /uploads/USERNAME/*. If blank, then no uploads are permitted");	//allowed to write to uploads/uname
+static cvar_t sv_fulllevel = CVARD("sv_fulllevel", "51", "User accounts with an access level greater than this may write anywhere, including the gamedir. Note that setting this low is increadibly risky. An empty value will be understood to never give this permission.");	//allowed to write anywhere, replace any file...
 #ifdef WEBSERVER
-cvar_t ftpserver = CVAR("sv_ftp", "0");
-cvar_t ftpserver_port = CVAR("sv_ftp_port", "21");
-cvar_t httpserver = CVAR("sv_http", "0");
-cvar_t httpserver_port = CVAR("sv_http_port", "80");
-cvar_t sv_readlevel = CVAR("sv_readlevel", "0");	//default to allow anyone
-cvar_t sv_writelevel = CVAR("sv_writelevel", "35");	//allowed to write to uploads/uname
-cvar_t sv_fulllevel = CVAR("sv_fulllevel", "51");	//allowed to write anywhere, replace any file...
-cvar_t sv_ftp_port_range = CVARD("sv_ftp_port_range", "0", "Specifies the port range for the server to create listening sockets for 'active' ftp connections, to work around NAT/firewall issues.\nMost FTP clients should use passive connections, but there's still some holdouts like windows.");
+static cvar_t httpserver = CVAR("sv_http", "0");
+static cvar_t httpserver_port = CVAR("sv_http_port", "80");
+#endif
+#ifdef FTPSERVER
+static cvar_t ftpserver = CVAR("sv_ftp", "0");
+static cvar_t ftpserver_port = CVAR("sv_ftp_port", "21");
+static cvar_t sv_ftp_port_range = CVARD("sv_ftp_port_range", "0", "Specifies the port range for the server to create listening sockets for 'active' ftp connections, to work around NAT/firewall issues.\nMost FTP clients should use passive connections, but there's still some holdouts like windows.");
 
 int IWebGetSafeListeningPort(void)
 {
@@ -532,6 +535,7 @@ int IWebGetSafeListeningPort(void)
 		range = base;
 	return base + (sequence++ % (range+1-base));
 }
+#endif
 #endif
 
 //this file contains functions called from each side.
@@ -680,9 +684,9 @@ int IWebAuthorize(const char *name, const char *password)
 
 	Rank_GetPlayerInfo(id, &info);
 
-	if (info.s.trustlevel >= sv_fulllevel.value)
+	if (*sv_fulllevel.string && info.s.trustlevel >= sv_fulllevel.value)
 		return IWEBACC_READ	| IWEBACC_WRITE | IWEBACC_FULL;	//allowed to read and write anywhere to the quake filesystem
-	if (info.s.trustlevel >= sv_writelevel.value)
+	if (*sv_writelevel.string && info.s.trustlevel >= sv_writelevel.value)
 		return IWEBACC_READ	| IWEBACC_WRITE;	//allowed to read anywhere write to specific places
 	if (info.s.trustlevel >= sv_readlevel.value)
 		return IWEBACC_READ;	//read only anywhere

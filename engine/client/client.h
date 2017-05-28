@@ -599,6 +599,7 @@ struct playerview_s
 {
 	int			playernum;		//cl.players index for this player.
 	qboolean	nolocalplayer;	//inhibit use of qw-style players, predict based on entities.
+	qboolean	spectator;
 #ifdef PEXT_SETVIEW
 	int			viewentity;		//view is attached to this entity.
 #endif
@@ -610,11 +611,15 @@ struct playerview_s
 	float		item_gettime[32];	// cl.time of aquiring item, for blinking
 	float		faceanimtime;		// use anim frame if cl.time < this
 
+#ifdef QUAKEHUD
+	qboolean	sb_showscores;
+	qboolean	sb_showteamscores;
 #ifdef HEXEN2
 	int			sb_hexen2_cur_item;//hexen2 hud
 	float		sb_hexen2_item_time;
 	qboolean	sb_hexen2_extra_info;//show the extra stuff
 	qboolean	sb_hexen2_infoplaque;
+#endif
 #endif
 
 
@@ -752,7 +757,7 @@ typedef struct
 								// render a frame yet
 	int			movesequence;	// client->server frames
 
-	int			spectator;
+//	int			spectator;
 	int			autotrack_hint;		//the latest hint from the mod, might be negative for invalid.
 	int			autotrack_killer;	//if someone kills the guy we're tracking, this is the guy we should switch to.
 

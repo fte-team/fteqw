@@ -8,7 +8,7 @@
 #endif
 #endif
 
-#ifdef WEBSERVER
+#ifdef FTPSERVER
 
 #include "iweb.h"
 

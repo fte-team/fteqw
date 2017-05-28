@@ -360,8 +360,8 @@ extern lightmapinfo_t **lightmap;
 extern int numlightmaps;
 //extern texid_t		*lightmap_textures;
 //extern texid_t		*deluxmap_textures;
-extern int			lightmap_bytes;		// 1, 3, or 4
-extern qboolean		lightmap_bgra;		/*true=bgra, false=rgba*/
+extern int				lightmap_bytes;		// 1, 3, or 4
+extern uploadfmt_t		lightmap_fmt;	//bgra32, rgba32, rgb24, lum8
 
 void QDECL Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue);
 

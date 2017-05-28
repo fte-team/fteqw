@@ -95,9 +95,9 @@ typedef int (VARGS gnutls_certificate_verify_function)(gnutls_session_t session)
 #else
 #include <gnutls/gnutls.h>
 #if GNUTLS_VERSION_MAJOR >= 3 && defined(HAVE_DTLS)
-#include <gnutls/dtls.h>
+	#include <gnutls/dtls.h>
 #else
-#undef HAVE_DTLS
+	#undef HAVE_DTLS
 #endif
 #define gnutls_connection_end_t unsigned int
 

@@ -246,7 +246,7 @@ static void CSQC_ChangeLocalPlayer(int seat)
 	{
 		if (csqc_playerview->viewentity)
 			*csqcg.player_localentnum = csqc_playerview->viewentity;
-		else if (cl.spectator && Cam_TrackNum(csqc_playerview) >= 0)
+		else if (csqc_playerview->spectator && Cam_TrackNum(csqc_playerview) >= 0)
 			*csqcg.player_localentnum = Cam_TrackNum(csqc_playerview) + 1;
 		else if (csqc_playerview == &csqc_nullview)
 			*csqcg.player_localentnum = 0;
@@ -2185,7 +2185,7 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 #ifdef PLUGINS
 		Plug_SBar (r_refdef.playerview);
 #else
-		if (Sbar_ShouldDraw())
+		if (Sbar_ShouldDraw(r_refdef.playerview))
 		{
 			SCR_TileClear (sb_lines);
 			Sbar_Draw (r_refdef.playerview);
@@ -2203,7 +2203,7 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 			}
 			else if (cl.intermissionmode != IM_NONE)
 			{
-				Sbar_IntermissionOverlay ();
+				Sbar_IntermissionOverlay (r_refdef.playerview);
 			}
 		}
 

@@ -100,6 +100,7 @@ typedef struct nqglobalvars_s
 	float *input_buttons;
 	vec3_t *global_gravitydir;
 	float *spawnparamglobals[NUM_SPAWN_PARMS];
+	string_t *parm_string;
 	int *serverid;
 } globalptrs_t;
 

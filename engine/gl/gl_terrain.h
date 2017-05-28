@@ -287,23 +287,28 @@ typedef struct
 typedef struct heightmap_s
 {
 	char path[MAX_QPATH];
-	char skyname[MAX_QPATH];
-	char groundshadername[MAX_QPATH];
-	char defaultwatershader[MAX_QPATH];	//typically the name of the ocean or whatever.
-	unsigned int culldistance;
-	qboolean forcedefault;
-	float defaultwaterheight;
-	float defaultgroundheight;
-	char defaultgroundtexture[MAX_QPATH];
-	int firstsegx, firstsegy;
-	int maxsegx, maxsegy; //tex/cull sections
+	char skyname[MAX_QPATH];			//name of the skybox
+	char groundshadername[MAX_QPATH];	//this is the shader we're using to draw the terrain itself. you could use other shaders here, for eg debugging or stylised weirdness.
+	unsigned int culldistance;			//entities will be culled if they're this far away (squared distance
+	float	maxdrawdist;				//maximum view distance. extends view if larger than fog implies.
+
+	unsigned char *seed;				//used by whatever terrain generator.
+	qboolean forcedefault;				//sections that cannot be loaded/generated will receive default values for stuff.
+	char defaultgroundtexture[MAX_QPATH];//texture used for defaulted sections
+	char defaultwatershader[MAX_QPATH];	//shader used for defaulted sections that have heights beneath defaultwaterheight.
+	float defaultwaterheight;			//water height. if you want your islands to be surrounded by water.
+	float defaultgroundheight;			//defaulted sections will have a z plane this high
+
+	int firstsegx, firstsegy; //min bounds of the terrain, in sections
+	int maxsegx, maxsegy; //max bounds of the terrain, in sections
 	float sectionsize;	//each section is this big, in world coords
 	hmcluster_t *cluster[MAXCLUSTERS*MAXCLUSTERS];
 	shader_t *skyshader;
 	shader_t *shader;
 	mesh_t skymesh;
 	mesh_t *askymesh;
-	unsigned int exteriorcontents;
+	qboolean	legacyterrain;	//forced exterior=SOLID
+	unsigned int exteriorcontents;	//contents type outside of the terrain sections area (.map should be empty, while terrain will usually block).
 	unsigned int loadingsections;	//number of sections currently being loaded. avoid loading extras while non-zero.
 	size_t traceseq;
 	size_t drawnframe;

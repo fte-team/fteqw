@@ -118,9 +118,6 @@ static int         hipweapons[4] = {HIT_LASER_CANNON_BIT,HIT_MJOLNIR_BIT,4,HIT_P
 static apic_t      *hsb_items[2];
 //end hipnotic
 
-qboolean	sb_showscores;
-qboolean	sb_showteamscores;
-
 static qboolean	sbarfailed;
 #ifdef HEXEN2
 static qboolean	sbar_hexen2;
@@ -131,15 +128,15 @@ float		sbar_rect_left;
 
 int			sb_lines;			// scan lines to draw
 
-void Sbar_DeathmatchOverlay (int start);
-void Sbar_TeamOverlay (void);
+void Sbar_DeathmatchOverlay (playerview_t *pv, int start);
+void Sbar_TeamOverlay (playerview_t *pv);
 static void Sbar_MiniDeathmatchOverlay (playerview_t *pv);
 void Sbar_ChatModeOverlay(playerview_t *pv);
 
 static int Sbar_PlayerNum(playerview_t *pv)
 {
 	int num;
-	num = cl.spectator?Cam_TrackNum(pv):-1;
+	num = pv->spectator?Cam_TrackNum(pv):-1;
 	if (num < 0)
 		num = pv->playernum;
 	return num;
@@ -716,7 +713,8 @@ Tab key down
 */
 void Sbar_ShowTeamScores (void)
 {
-	if (sb_showteamscores)
+	int seat = CL_TargettedSplit(false);
+	if (cl.playerview[seat].sb_showteamscores)
 		return;
 
 #ifdef CSQC_DAT
@@ -724,7 +722,7 @@ void Sbar_ShowTeamScores (void)
 		return;
 #endif
 
-	sb_showteamscores = true;
+	cl.playerview[seat].sb_showteamscores = true;
 	sb_updates = 0;
 }
 
@@ -737,7 +735,8 @@ Tab key up
 */
 void Sbar_DontShowTeamScores (void)
 {
-	sb_showteamscores = false;
+	int seat = CL_TargettedSplit(false);
+	cl.playerview[seat].sb_showteamscores = false;
 	sb_updates = 0;
 
 #ifdef CSQC_DAT
@@ -755,13 +754,14 @@ Tab key down
 */
 void Sbar_ShowScores (void)
 {
+	int seat = CL_TargettedSplit(false);
 	if (scr_scoreboard_teamscores.ival)
 	{
 		Sbar_ShowTeamScores();
 		return;
 	}
 
-	if (sb_showscores)
+	if (cl.playerview[seat].sb_showscores)
 		return;
 
 #ifdef CSQC_DAT
@@ -769,7 +769,7 @@ void Sbar_ShowScores (void)
 		return;
 #endif
 
-	sb_showscores = true;
+	cl.playerview[seat].sb_showscores = true;
 	sb_updates = 0;
 }
 
@@ -893,13 +893,14 @@ Tab key up
 */
 void Sbar_DontShowScores (void)
 {
+	int seat = CL_TargettedSplit(false);
 	if (scr_scoreboard_teamscores.ival)
 	{
 		Sbar_DontShowTeamScores();
 		return;
 	}
 
-	sb_showscores = false;
+	cl.playerview[seat].sb_showscores = false;
 	sb_updates = 0;
 
 #ifdef CSQC_DAT
@@ -2166,7 +2167,7 @@ void Sbar_DrawNormal (playerview_t *pv)
 	, pv->stats[STAT_AMMO] <= 10);
 }
 
-qboolean Sbar_ShouldDraw (void)
+qboolean Sbar_ShouldDraw (playerview_t *pv)
 {
 #ifdef TEXTEDITOR
 	extern qboolean editoractive;
@@ -2182,7 +2183,7 @@ qboolean Sbar_ShouldDraw (void)
 #endif
 
 #ifdef VM_UI
-	if (UI_DrawStatusBar((sb_showscores?1:0) + (sb_showteamscores?2:0))>0)
+	if (UI_DrawStatusBar((pv->sb_showscores?1:0) + (pv->sb_showteamscores?2:0))>0)
 		return false;
 	if (UI_MenuState())
 		return false;
@@ -2195,10 +2196,9 @@ qboolean Sbar_ShouldDraw (void)
 	return true;
 }
 
-void Sbar_DrawScoreboard (void)
+void Sbar_DrawScoreboard (playerview_t *pv)
 {
-	int pnum;
-	int deadcount=0;
+	qboolean isdead;
 
 	if (cls.protocol == CP_QUAKE2)
 		return;
@@ -2214,31 +2214,27 @@ void Sbar_DrawScoreboard (void)
 	}
 #endif
 
-	for (pnum = 0; pnum < cl.splitclients; pnum++)
+	isdead = false;
+	if (pv->spectator && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
 	{
-		if (cl.spectator && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
-		{
-			int t = cl.playerview[pnum].cam_spec_track;
-			if (t < 0 || !CAM_ISLOCKED(&cl.playerview[pnum]))
-				continue;
-			if (cl.players[t].statsf[STAT_HEALTH] <= 0)
-				deadcount++;
-		}
-		else if (!cl.spectator && cl.playerview[pnum].statsf[STAT_HEALTH] <= 0)
-			deadcount++;
+		int t = pv->cam_spec_track;
+		if (t >= 0 && CAM_ISLOCKED(pv) && cl.players[t].statsf[STAT_HEALTH] <= 0)
+			isdead = true;
 	}
+	else if (!pv->spectator && pv->statsf[STAT_HEALTH] <= 0)
+		isdead = true;
 
-	if (deadcount == cl.splitclients)// && !cl.spectator)
+	if (isdead)// && !cl.spectator)
 	{
-		if (cl.teamplay > 0 && !sb_showscores)
-			Sbar_TeamOverlay();
+		if (cl.teamplay > 0 && !pv->sb_showscores)
+			Sbar_TeamOverlay(pv);
 		else
-			Sbar_DeathmatchOverlay (0);
+			Sbar_DeathmatchOverlay (pv, 0);
 	}
-	else if (sb_showscores)
-		Sbar_DeathmatchOverlay (0);
-	else if (sb_showteamscores)
-		Sbar_TeamOverlay();
+	else if (pv->sb_showscores)
+		Sbar_DeathmatchOverlay (pv, 0);
+	else if (pv->sb_showteamscores)
+		Sbar_TeamOverlay(pv);
 	else
 		return;
 
@@ -2563,7 +2559,7 @@ static void Sbar_DrawTeamStatus(playerview_t *pv)
 	y = -32;
 
 	track = Cam_TrackNum(pv);
-	if (track == -1 || !cl.spectator)
+	if (track == -1 || !pv->spectator)
 		track = pv->playernum;
 
 	for (p = 0; p < cl.allocated_client_slots; p++)
@@ -2730,7 +2726,7 @@ extern cvar_t	show_speed_y;
 	t = Sys_DoubleTime();
 	if ((t - lastupstime) >= 1.0/20)
 	{
-		if (cl.spectator)
+		if (pv->spectator)
 			track = Cam_TrackNum(pv);
 		else
 			track = -1;
@@ -2865,7 +2861,7 @@ void Sbar_Draw (playerview_t *pv)
 	// main area
 		if (sb_lines > 0)
 		{
-			if (cl.spectator)
+			if (pv->spectator)
 			{
 				if (pv->cam_state == CAM_FREECAM || pv->cam_state == CAM_PENDING)
 				{
@@ -2879,7 +2875,7 @@ void Sbar_Draw (playerview_t *pv)
 				}
 				else
 				{
-					if (sb_showscores || sb_showteamscores || pv->stats[STAT_HEALTH] <= 0)
+					if (pv->sb_showscores || pv->sb_showteamscores || pv->stats[STAT_HEALTH] <= 0)
 						Sbar_SoloScoreboard ();
 //					else if (cls.gamemode != GAME_DEATHMATCH)
 //						Sbar_CoopScoreboard ();
@@ -2894,7 +2890,7 @@ void Sbar_Draw (playerview_t *pv)
 					}
 				}
 			}
-			else if (sb_showscores || sb_showteamscores || (pv->stats[STAT_HEALTH] <= 0 && cl.splitclients == 1))
+			else if (pv->sb_showscores || pv->sb_showteamscores || (pv->stats[STAT_HEALTH] <= 0 && cl.splitclients == 1))
 			{
 				if (pv == cl.playerview)
 				{
@@ -2915,7 +2911,7 @@ void Sbar_Draw (playerview_t *pv)
 	// top line
 		if (sb_lines > 24)
 		{
-			if (!cl.spectator || pv->cam_state == CAM_WALLCAM || pv->cam_state == CAM_EYECAM)
+			if (!pv->spectator || pv->cam_state == CAM_WALLCAM || pv->cam_state == CAM_EYECAM)
 				Sbar_DrawInventory (pv);
 			else if (cl_sbar.ival)
 				Sbar_DrawPic (0, -24, 320, 24, sb_scorebar);	//make sure we don't get HoM
@@ -3006,7 +3002,7 @@ team frags
 added by Zoid
 ==================
 */
-void Sbar_TeamOverlay (void)
+void Sbar_TeamOverlay (playerview_t *pv)
 {
 	mpic_t			*pic;
 	int				i, k;
@@ -3015,8 +3011,8 @@ void Sbar_TeamOverlay (void)
 	team_t *tm;
 	int plow, phigh, pavg;
 	int pw,ph;
-	playerview_t *pv = r_refdef.playerview;
 
+	vrect_t		gr = r_refdef.grect;
 	int rank_width = 320-32*2;
 	int startx;
 	int trackplayer;
@@ -3027,11 +3023,11 @@ void Sbar_TeamOverlay (void)
 // request new ping times every two second
 	if (!cl.teamplay)
 	{
-		Sbar_DeathmatchOverlay(0);
+		Sbar_DeathmatchOverlay(pv, 0);
 		return;
 	}
 
-	y = 0;
+	y = gr.y;
 
 	if (scr_scoreboard_drawtitle.ival)
 	{
@@ -3039,12 +3035,12 @@ void Sbar_TeamOverlay (void)
 		if (pic && R_GetShaderSizes(pic, &pw, &ph, false)>0)
 		{
 			k = (pw * 24) / ph;
-			R2D_ScalePic ((vid.width-k)/2, 0, k, 24, pic);
+			R2D_ScalePic (gr.x+(gr.width-k)/2, y, k, 24, pic);
 		}
 		y += 24;
 	}
 
-	x = l = (vid.width - 320)/2 + 36;
+	x = l = gr.x + (gr.width - 320)/2 + 36;
 
 	startx = x;
 
@@ -3099,7 +3095,7 @@ void Sbar_TeamOverlay (void)
 // sort the teams
 	Sbar_SortTeams(pv);
 
-	if (cl.spectator)
+	if (pv->spectator)
 		trackplayer = Cam_TrackNum(pv);
 	else
 		trackplayer = pv->playernum;
@@ -3184,7 +3180,7 @@ void Sbar_TeamOverlay (void)
 	}
 	else
 		y += 8;
-	Sbar_DeathmatchOverlay(y);
+	Sbar_DeathmatchOverlay(pv, y-gr.y);
 }
 
 /*
@@ -3287,7 +3283,7 @@ enum
 };
 
 #define ADDCOLUMN(id) showcolumns |= (1<<id)
-void Sbar_DeathmatchOverlay (int start)
+void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 {
 	mpic_t			*pic;
 	int				i, k;
@@ -3299,7 +3295,6 @@ void Sbar_DeathmatchOverlay (int start)
 	int				skip = 10;
 	int showcolumns;
 	int startx, rank_width;
-	playerview_t *pv = r_refdef.playerview;
 
 	vrect_t		gr = r_refdef.grect;
 	int namesize = (cl.teamplay ? 12*8 : 16*8);
@@ -3753,8 +3748,8 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 		Font_BeginString(font_default, x+24, y, &px, &py);
 		Font_DrawChar ( px, py, CON_WHITEMASK, num[2] | 0xe000);
 
-		if ((cl.spectator && k == pv->cam_spec_track && pv->cam_state != CAM_FREECAM) ||
-			(!cl.spectator && k == pv->playernum))
+		if ((pv->spectator && k == pv->cam_spec_track && pv->cam_state != CAM_FREECAM) ||
+			(!pv->spectator && k == pv->playernum))
 		{
 			Font_BeginString(font_default, x, y, &px, &py);
 			Font_DrawChar ( px, py, CON_WHITEMASK, 16 | 0xe000);
@@ -3812,12 +3807,11 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 
 }
 
-void Sbar_CoopIntermission (void)
+void Sbar_CoopIntermission (playerview_t *pv)
 {
 	mpic_t	*pic;
 	int		dig;
 	int		num;
-	int pnum = 0;	//should be the same for all players.
 
 	sbar_rect.width = vid.width;
 	sbar_rect.height = vid.height;
@@ -3842,13 +3836,13 @@ void Sbar_CoopIntermission (void)
 	R2D_ScalePicAtlas ((sbar_rect.width - 320)/2 + 278,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_nums[0][num%10]);
 
 //it is assumed that secrits/monsters are going to be constant for any player...
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 230 - 24*4, (sbar_rect.height - 200)/2 + 104, cl.playerview[pnum].stats[STAT_SECRETS], 4, 0, false);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 230 - 24*4, (sbar_rect.height - 200)/2 + 104, pv->stats[STAT_SECRETS], 4, 0, false);
 	R2D_ScalePicAtlas ((sbar_rect.width - 320)/2 + 230, (sbar_rect.height - 200)/2 + 104, 16, 24, sb_slash);
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 254, (sbar_rect.height - 200)/2 + 104, cl.playerview[pnum].stats[STAT_TOTALSECRETS], 4, 0, true);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 254, (sbar_rect.height - 200)/2 + 104, pv->stats[STAT_TOTALSECRETS], 4, 0, true);
 
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 230 - 24*4, (sbar_rect.height - 200)/2 + 144, cl.playerview[pnum].stats[STAT_MONSTERS], 4, 0, false);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 230 - 24*4, (sbar_rect.height - 200)/2 + 144, pv->stats[STAT_MONSTERS], 4, 0, false);
 	R2D_ScalePicAtlas ((sbar_rect.width - 320)/2 + 230,(sbar_rect.height - 200)/2 + 144, 16, 24, sb_slash);
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 254, (sbar_rect.height - 200)/2 + 144, cl.playerview[pnum].stats[STAT_TOTALMONSTERS], 4, 0, true);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 254, (sbar_rect.height - 200)/2 + 144, pv->stats[STAT_TOTALMONSTERS], 4, 0, true);
 }
 /*
 ==================
@@ -3856,7 +3850,7 @@ Sbar_IntermissionOverlay
 
 ==================
 */
-void Sbar_IntermissionOverlay (void)
+void Sbar_IntermissionOverlay (playerview_t *pv)
 {
 #ifdef VM_UI
 	if (UI_DrawIntermission()>0)
@@ -3866,10 +3860,10 @@ void Sbar_IntermissionOverlay (void)
 	Sbar_Start();
 
 	if (!cls.deathmatch)
-		Sbar_CoopIntermission();
-	else if (cl.teamplay > 0 && !sb_showscores)
-		Sbar_TeamOverlay ();
+		Sbar_CoopIntermission(pv);
+	else if (cl.teamplay > 0 && !pv->sb_showscores)
+		Sbar_TeamOverlay (pv);
 	else
-		Sbar_DeathmatchOverlay (0);
+		Sbar_DeathmatchOverlay (pv, 0);
 }
 #endif

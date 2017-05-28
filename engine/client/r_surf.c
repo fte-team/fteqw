@@ -39,7 +39,6 @@ model_t		*currentmodel;
 
 uploadfmt_t		lightmap_fmt;	//bgra32, rgba32, rgb24, lum8
 int				lightmap_bytes;		// 1, 3 or 4
-qboolean		lightmap_bgra;
 
 size_t			maxblocksize;
 vec3_t			*blocknormals;
@@ -903,8 +902,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 	if (currentmodel->deluxdata)
 		Surf_BuildDeluxMap(currentmodel, surf, deluxdest, lmwidth, blocknormals);
 
-#ifdef PEXT_LIGHTSTYLECOL
-	if (lightmap_bytes == 4 || lightmap_bytes == 3)
+	if (lightmap_fmt != TF_LUM8)
 	{
 		// set to full bright if no light data
 		if (ambient < 0)
@@ -1078,40 +1076,22 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 		if (!r_stains.value || !surf->stained)
 			stainsrc = NULL;
 
-		if (lightmap_bytes == 4)
+		switch(lightmap_fmt)
 		{
-			if (lightmap_bgra)
-			{
-				Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgra4_os, stainsrc, lmwidth);
-			}
-			else
-			{
-				/*if (!r_stains.value || !surf->stained)
-					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgba4, NULL);
-				else
-					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgba4, stainsrc);
-				*/
-			}
-		}
-		else if (lightmap_bytes == 3)
-		{
-			if (lightmap_bgra)
-			{
-				/*
-				if (!r_stains.value || !surf->stained)
-					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgr3, NULL);
-				else
-					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgr3, stainsrc);
-				*/
-			}
-			else
-			{
-				Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgb3_os, stainsrc, lmwidth);
-			}
+		default:
+			Sys_Error("Bad lightmap_fmt\n");
+		case TF_BGRA32:
+			Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgra4_os, stainsrc, lmwidth);
+			break;
+//		case TF_RGBA32:
+//			Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgba4, stainsrc, lmwidth);
+//			break;
+		case TF_RGB24:
+			Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgb3_os, stainsrc, lmwidth);
+			break;
 		}
 	}
 	else
-#endif
 	{
 	// set to full bright if no light data
 		if (!surf->samples || !currentmodel->lightdata)
@@ -1206,8 +1186,7 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte 
 	if (wmodel->deluxdata)
 		Surf_BuildDeluxMap(wmodel, surf, deluxdest, lmwidth, blocknormals);
 
-#ifdef PEXT_LIGHTSTYLECOL
-	if (lightmap_bytes == 4 || lightmap_bytes == 3)
+	if (lightmap_fmt != TF_LUM8)
 	{
 		// set to full bright if no light data
 		if (ambient < 0)
@@ -1377,40 +1356,20 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte 
 		if (!r_stains.value || !surf->stained)
 			stainsrc = NULL;
 
-		if (lightmap_bytes == 4)
+		switch(lightmap_fmt)
 		{
-			if (lightmap_bgra)
-			{
-				Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgra4_os, stainsrc, lmwidth);
-			}
-			else
-			{
-				/*if (!r_stains.value || !surf->stained)
-					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgba4, NULL);
-				else
-					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgba4, stainsrc);
-				*/
-			}
-		}
-		else if (lightmap_bytes == 3)
-		{
-			if (lightmap_bgra)
-			{
-				/*
-				if (!r_stains.value || !surf->stained)
-					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgr3, NULL);
-				else
-					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgr3, stainsrc);
-				*/
-			}
-			else
-			{
-				Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgb3_os, stainsrc, lmwidth);
-			}
+		default:
+			Sys_Error("Bad lightmap_fmt\n");
+			break;
+		case TF_BGRA32:
+			Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgra4_os, stainsrc, lmwidth);
+			break;
+		case TF_RGB24:
+			Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgb3_os, stainsrc, lmwidth);
+			break;
 		}
 	}
 	else
-#endif
 	{
 	// set to full bright if no light data
 		if (!surf->samples || !wmodel->lightdata)
@@ -3305,57 +3264,43 @@ void Surf_Clear(model_t *mod)
 //pick fastest mode for lightmap data
 void Surf_LightmapMode(void)
 {
-	lightmap_bgra = true;
-
 	switch(qrenderer)
 	{
 	default:
-	case QR_SOFTWARE:
+//	case QR_VULKAN:
+//	case QR_SOFTWARE:
+//	case QR_DIRECT3D8:
+//	case QR_DIRECT3D9:
+//	case QR_DIRECT3D11:
 		lightmap_fmt = TF_BGRA32;
-		lightmap_bytes = 4;
-		lightmap_bgra = true;
 		break;
-#ifdef D3DQUAKE
-	case QR_DIRECT3D8:
-	case QR_DIRECT3D9:
-	case QR_DIRECT3D11:
-		/*always bgra, hope your card supports it*/
-		lightmap_fmt = TF_BGRA32;
-		lightmap_bytes = 4;
-		lightmap_bgra = true;
-		break;
-#endif
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		/*favour bgra if the gpu supports it, otherwise use rgb only if it'll be used*/
-		lightmap_bgra = false;
 		if (gl_config.gles)
-		{
-			//rgb is a supported format, where bgr or rgbx are not.
-			lightmap_fmt = TF_RGB24;
-			lightmap_bytes = 3;
-			lightmap_bgra = false;
-		}
+			lightmap_fmt = TF_RGB24;		//rgb24 is a guarenteed supported format, where bgr24 or rgbx32 are not.
 		else if (gl_config.glversion >= 1.2)
-		{
-			/*the more common case*/
-			lightmap_fmt = TF_BGRA32;
-			lightmap_bytes = 4;
-			lightmap_bgra = true;
-		}
+			lightmap_fmt = TF_BGRA32;		//the more common case
 		else if (cl.worldmodel->fromgame == fg_quake3 || (cl.worldmodel->engineflags & MDLF_RGBLIGHTING) || cl.worldmodel->deluxdata || r_loadlits.value)
-		{
-			lightmap_fmt = TF_RGB24;
-			lightmap_bgra = false;
-			lightmap_bytes = 3;
-		}
+			lightmap_fmt = TF_RGB24;		//ooold gl driver, but we need rgb lighting
 		else
-		{
-			lightmap_fmt = TF_LUM8;
-			lightmap_bytes = 1;
-		}
+			lightmap_fmt = TF_LUM8;			//oldskool!
 		break;
 #endif
+	}
+
+	switch(lightmap_fmt)
+	{
+	default:
+	case TF_BGRA32:
+		lightmap_bytes = 4;
+		break;
+	case TF_RGB24:
+		lightmap_bytes = 3;
+		break;
+	case TF_LUM8:
+		lightmap_bytes = 1;
+		break;
 	}
 }
 
@@ -3373,6 +3318,8 @@ int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe)
 		deluxe = false;
 		Con_Print("WARNING: Deluxemapping with odd number of lightmaps\n");
 	}
+
+	Sys_LockMutex(com_resourcemutex);
 
 	i = numlightmaps + count;
 	lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(i));
@@ -3415,6 +3362,8 @@ int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe)
 	}
 
 	numlightmaps += count;
+
+	Sys_UnlockMutex(com_resourcemutex);
 
 	return first;
 }
@@ -3549,45 +3498,45 @@ void Surf_BuildModelLightmaps (model_t *m)
 			src = m->lightdata + i*m->lightmaps.width*m->lightmaps.height*3;
 			if (m->lightdata)
 			{
-				if (lightmap_bgra && lightmap_bytes == 4)
+				switch(lightmap_fmt)
 				{
+				default:
+					Sys_Error("Bad lightmap_fmt\n");
+					break;
+				case TF_BGRA32:
 					for (j = min((m->lightdatasize-i*m->lightmaps.width*m->lightmaps.height*3)/3,m->lightmaps.width*m->lightmaps.height); j > 0; j--, dst += 4, src += 3)
-					//for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
 					{
 						dst[0] = src[2];
 						dst[1] = src[1];
 						dst[2] = src[0];
 						dst[3] = 255;
 					}
-				}
-				else if (!lightmap_bgra && lightmap_bytes == 4)
-				{
+					break;
+				/*case TF_RGBA32:
 					for (j = min((m->lightdatasize-i*m->lightmaps.width*m->lightmaps.height*3)/3,m->lightmaps.width*m->lightmaps.height); j > 0; j--, dst += 4, src += 3)
-					//for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
 					{
 						dst[0] = src[0];
 						dst[1] = src[1];
 						dst[2] = src[2];
 						dst[3] = 255;
 					}
-				}
-				else if (lightmap_bgra && lightmap_bytes == 3)
-				{
+					break;
+				case TF_BGR24:
 					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 3, src += 3)
 					{
 						dst[0] = src[2];
 						dst[1] = src[1];
 						dst[2] = src[0];
 					}
-				}
-				else if (!lightmap_bgra && lightmap_bytes == 3)
-				{
+					break;*/
+				case TF_RGB24:
 					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 3, src += 3)
 					{
 						dst[0] = src[0];
 						dst[1] = src[1];
 						dst[2] = src[2];
 					}
+					break;
 				}
 			}
 		}

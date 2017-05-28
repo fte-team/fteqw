@@ -449,7 +449,7 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 void CL_CatagorizePosition (playerview_t *pv, float *org)
 {
 	//fixme: in nq, we are told by the server and should skip this, which avoids needing to know the player's size.
-	if (cl.spectator)
+	if (pv->spectator)
 	{
 		pv->onground = false;	// in air
 		return;
@@ -912,7 +912,7 @@ void CL_PredictMovePNum (int seat)
 
 	pv->nolocalplayer = !!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || (cls.protocol != CP_QUAKEWORLD);
 
-	if (!cl.spectator && (pv->cam_state != CAM_FREECAM || pv->cam_spec_track != -1))	//just in case
+	if (!pv->spectator && (pv->cam_state != CAM_FREECAM || pv->cam_spec_track != -1))	//just in case
 	{
 		if (pv->cam_state != CAM_FREECAM)
 			pv->viewentity = (cls.demoplayback)?0:(pv->playernum+1);

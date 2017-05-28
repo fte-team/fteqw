@@ -520,7 +520,7 @@ static float vlen(vec3_t v)
 // returns true if weapon model should be drawn in camera mode
 qboolean Cam_DrawViewModel(playerview_t *pv)
 {
-	if (cl.spectator)
+	if (pv->spectator)
 	{
 		if (pv->cam_state == CAM_EYECAM && cl_chasecam.ival)
 			return true;
@@ -536,7 +536,7 @@ qboolean Cam_DrawViewModel(playerview_t *pv)
 
 int Cam_TrackNum(playerview_t *pv)
 {
-	if (cl.spectator && pv->cam_state == CAM_EYECAM)
+	if (pv->spectator && pv->cam_state == CAM_EYECAM)
 		return pv->cam_spec_track;
 	return -1;
 }
@@ -822,7 +822,7 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 	vec3_t vec;
 	float len;
 
-	if (!cl.spectator || !cl.worldmodel)	//can happen when the server changes level
+	if (!pv->spectator || !cl.worldmodel)	//can happen when the server changes level
 		return;
 	
 	if (autotrackmode != TM_USER && pv->cam_state == CAM_FREECAM)
@@ -976,7 +976,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 	if (cls.state != ca_active)
 		return;
 
-	if (!cl.spectator && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) // only in spectator mode
+	if (!pv->spectator && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) // only in spectator mode
 		return;
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
@@ -1197,7 +1197,7 @@ void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg)
 		return;
 	}
 
-	if (!cl.spectator)
+	if (!pv->spectator)
 	{
 		Con_Printf("Not spectating.\n");
 		return;

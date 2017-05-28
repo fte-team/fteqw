@@ -704,7 +704,8 @@ done:
 
 static char *Skin_To_TFSkin (char *myskin)
 {
-	if (!cl.teamfortress || cl.spectator || Q_strncasecmp(myskin, "tf_", 3))
+	playerview_t *pv = &cl.playerview[SP];
+	if (!cl.teamfortress || pv->spectator || Q_strncasecmp(myskin, "tf_", 3))
 	{
 		Q_strncpyz(macro_buf, myskin, sizeof(macro_buf));
 	}
@@ -732,9 +733,10 @@ static char *Macro_TF_Skin (void)
 //Spike: added these:
 static char *Macro_ConnectionType (void)
 {
+	playerview_t *pv = &cl.playerview[SP];
 	if (!cls.state)
 		return "disconnected";
-	if (cl.spectator)
+	if (pv->spectator)
 		return "spectator";
 	return "connected";
 }
@@ -878,6 +880,7 @@ static void CountNearbyPlayers(qboolean dead)
 	player_state_t *state;
 	player_info_t *info;
 	static int lastframecount = -1;
+	playerview_t *pv = &cl.playerview[SP];
 
 	if (cls.framecount == lastframecount)
 		return;
@@ -885,7 +888,7 @@ static void CountNearbyPlayers(qboolean dead)
 
 	vars.numenemies = vars.numfriendlies = 0;
 
-	if (!cl.spectator && !dead)
+	if (!pv->spectator && !dead)
 		vars.numfriendlies++;
 
 	if (!cl.oldparsecount || !cl.parsecount || cls.state < ca_active)
@@ -894,7 +897,7 @@ static void CountNearbyPlayers(qboolean dead)
 	state = cl.inframes[cl.oldparsecount & UPDATE_MASK].playerstate;
 	info = cl.players;
 	for (i = 0; i < cl.allocated_client_slots; i++, info++, state++) {
-		if (i != cl.playerview[SP].playernum && state->messagenum == cl.oldparsecount && !info->spectator && !ISDEAD(state->frame)) {
+		if (i != pv->playernum && state->messagenum == cl.oldparsecount && !info->spectator && !ISDEAD(state->frame)) {
 			if (cl.teamplay && !strcmp(info->team, TP_PlayerTeam()))
 				vars.numfriendlies++;
 			else
@@ -2183,6 +2186,7 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 	int		flags;
 	player_info_t	*player;
 	char	*name;
+	playerview_t *pv = &cl.playerview[SP];
 
 	*offset = 0;
 	*plr = NULL;
@@ -2275,9 +2279,9 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 				!strncmp(name, s+1, len))
 			{
 				// no team messages in teamplay 0, except for our own
-				if (cl.spectator)
+				if (pv->spectator)
 				{
-					unsigned int track = Cam_TrackNum(&cl.playerview[SP]);
+					unsigned int track = Cam_TrackNum(pv);
 					if (i == track || ( cl.teamplay &&
 						!strcmp(cl.players[track].team, player->team)) )
 					{
@@ -2286,8 +2290,8 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 				}
 				else
 				{
-					if (i == cl.playerview[SP].playernum || ( cl.teamplay &&
-						!strcmp(cl.players[cl.playerview[SP].playernum].team, player->team)) )
+					if (i == pv->playernum || ( cl.teamplay &&
+						!strcmp(cl.players[pv->playernum].team, player->team)) )
 					{
 						flags |= TPM_TEAM;
 					}
@@ -2814,8 +2818,9 @@ static qboolean CheckTrigger (void)
 	int	i, count;
 	player_info_t *player;
 	char *myteam;
+	playerview_t *pv = &cl.playerview[SP];
 
-	if (cl.spectator)
+	if (pv->spectator)
 		return false;
 
 	if (tp_forceTriggers.ival)
@@ -2825,9 +2830,9 @@ static qboolean CheckTrigger (void)
 		return false;
 
 	count = 0;
-	myteam = cl.players[cl.playerview[SP].playernum].team;
+	myteam = cl.players[pv->playernum].team;
 	for (i = 0, player= cl.players; i < cl.allocated_client_slots; i++, player++) {
-		if (player->name[0] && !player->spectator && i != cl.playerview[SP].playernum && !strcmp(player->team, myteam))
+		if (player->name[0] && !player->spectator && i != pv->playernum && !strcmp(player->team, myteam))
 			count++;
 	}
 
@@ -2890,13 +2895,14 @@ static void TP_ItemTaken (char *s, int flag, vec3_t org, int entnum, item_t *ite
 void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info)
 {
 #ifndef QUAKETC
+	playerview_t *pv = &cl.playerview[SP];
 //	if (TP_NeedRefreshSkins())
 //	{
 //		if ((state->effects & (EF_BLUE|EF_RED) ) != (oldstate->effects & (EF_BLUE|EF_RED)))
 //			TP_RefreshSkin(info - cl.players);
 //	}
 
-	if (!cl.spectator && cl.teamplay && strcmp(info->team, TP_PlayerTeam()))
+	if (!pv->spectator && cl.teamplay && strcmp(info->team, TP_PlayerTeam()))
 	{
 		qboolean eyes;
 
@@ -2915,11 +2921,11 @@ void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_
 				vars.enemy_powerups |= TP_RING;
 		}
 	}
-	if (!cl.spectator && !cl.teamfortress && info - cl.players == cl.playerview[SP].playernum)
+	if (!pv->spectator && !cl.teamfortress && info - cl.players == pv->playernum)
 	{
 		if ((state->effects & (QWEF_FLAG1|QWEF_FLAG2)) && !(oldstate->effects & (QWEF_FLAG1|QWEF_FLAG2)))
 		{
-			ExecTookTrigger_ (tp_name_flag.string, it_flag, cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[cl.playerview[SP].playernum].origin);
+			ExecTookTrigger_ (tp_name_flag.string, it_flag, cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[pv->playernum].origin);
 		}
 		else if (!(state->effects & (QWEF_FLAG1|QWEF_FLAG2)) && (oldstate->effects & (QWEF_FLAG1|QWEF_FLAG2)))
 		{
@@ -2935,8 +2941,9 @@ void TP_CheckPickupSound (char *s, vec3_t org, int seat)
 #ifndef QUAKETC
 	int entnum;
 	item_t	*item;
+	playerview_t *pv = &cl.playerview[seat];
 	//if we're spectating, we don't want to do any actual triggers, so pretend it was someone else.
-	if (cl.spectator)
+	if (pv->spectator)
 		seat = -1;
 
 	//FIXME: on items/itembk2.wav kill relevant item timer.
@@ -2992,17 +2999,17 @@ more:
 			if (vars.stat_framecounts[STAT_ITEMS] == cls.framecount)
 			{
 				if (vars.items & ~vars.olditems & IT_LIGHTNING)
-					TP_ItemTaken (tp_name_lg.string, it_lg, cl.playerview[SP].simorg, entnum, item, seat);
+					TP_ItemTaken (tp_name_lg.string, it_lg, pv->simorg, entnum, item, seat);
 				else if (vars.items & ~vars.olditems & IT_ROCKET_LAUNCHER)
-					TP_ItemTaken (tp_name_rl.string, it_rl, cl.playerview[SP].simorg, entnum, item, seat);
+					TP_ItemTaken (tp_name_rl.string, it_rl, pv->simorg, entnum, item, seat);
 				else if (vars.items & ~vars.olditems & IT_GRENADE_LAUNCHER)
-					TP_ItemTaken (tp_name_gl.string, it_gl, cl.playerview[SP].simorg, entnum, item, seat);
+					TP_ItemTaken (tp_name_gl.string, it_gl, pv->simorg, entnum, item, seat);
 				else if (vars.items & ~vars.olditems & IT_SUPER_NAILGUN)
-					TP_ItemTaken (tp_name_sng.string, it_sng, cl.playerview[SP].simorg, entnum, item, seat);
+					TP_ItemTaken (tp_name_sng.string, it_sng, pv->simorg, entnum, item, seat);
 				else if (vars.items & ~vars.olditems & IT_NAILGUN)
-					TP_ItemTaken (tp_name_ng.string, it_ng, cl.playerview[SP].simorg, entnum, item, seat);
+					TP_ItemTaken (tp_name_ng.string, it_ng, pv->simorg, entnum, item, seat);
 				else if (vars.items & ~vars.olditems & IT_SUPER_SHOTGUN)
-					TP_ItemTaken (tp_name_ssg.string, it_ssg, cl.playerview[SP].simorg, entnum, item, seat);
+					TP_ItemTaken (tp_name_ssg.string, it_ssg, pv->simorg, entnum, item, seat);
 			}
 		}
 		return;
@@ -3020,11 +3027,11 @@ more:
 			TP_ItemTaken (item->cvar->string, item->itemflag, org, entnum, item, seat);
 		else if (seat >= 0)
 		{
-			if (armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 100)
+			if (armor_updated && pv->stats[STAT_ARMOR] == 100)
 				TP_ItemTaken (tp_name_ga.string, it_ga, org, entnum, NULL, seat);
-			else if (armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 150)
+			else if (armor_updated && pv->stats[STAT_ARMOR] == 150)
 				TP_ItemTaken (tp_name_ya.string, it_ya, org, entnum, NULL, seat);
-			else if (armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 200)
+			else if (armor_updated && pv->stats[STAT_ARMOR] == 200)
 				TP_ItemTaken (tp_name_ra.string, it_ra, org, entnum, NULL, seat);
 		}
 		return;
@@ -3216,6 +3223,7 @@ static void TP_FindPoint (void)
 	item_vis_t visitem;
 	extern cvar_t v_viewheight;
 	int oldskip = pmove.skipent;
+	playerview_t *pv = &cl.playerview[SP];
 
 	if (vars.pointtime == realtime)
 		return;
@@ -3223,11 +3231,11 @@ static void TP_FindPoint (void)
 	if (!cl.validsequence)
 		goto nothing;
 
-	pmove.skipent = cl.playerview[SP].viewentity;
+	pmove.skipent = pv->viewentity;
 
-	ang[0] = cl.playerview[SP].viewangles[0]; ang[1] = cl.playerview[SP].viewangles[1]; ang[2] = 0;
+	ang[0] = pv->viewangles[0]; ang[1] = pv->viewangles[1]; ang[2] = 0;
 	AngleVectors (ang, visitem.forward, visitem.right, visitem.up);
-	VectorCopy (cl.playerview[SP].simorg, visitem.vieworg);
+	VectorCopy (pv->simorg, visitem.vieworg);
 	visitem.vieworg[2] += 22 + (v_viewheight.value ? bound (-7, v_viewheight.value, 4) : 0);
 
 	pointflags_dmm = pointflags;
@@ -3274,7 +3282,7 @@ static void TP_FindPoint (void)
 	info = cl.players;
 	for (j = 0; j < cl.allocated_client_slots; j++, info++, state++)
 	{
-		if (state->messagenum != cl.parsecount || j == cl.playerview[SP].playernum || info->spectator)
+		if (state->messagenum != cl.parsecount || j == pv->playernum || info->spectator)
 			continue;
 
 		if (
@@ -3325,7 +3333,7 @@ static void TP_FindPoint (void)
 
 			if (eyes)
 				name = tp_name_eyes.string;		//duck on 2night2
-			else if (cl.spectator)
+			else if (pv->spectator)
 				name = bestinfo->name;
 			else if (teammate)
 				name = tp_name_teammate.string[0] ? tp_name_teammate.string : "teammate";
@@ -3341,7 +3349,7 @@ static void TP_FindPoint (void)
 
 			if (eyes)
 				name = tp_name_eyes.string;
-			else if (cl.spectator || (teammate && !tp_name_teammate.string[0]))
+			else if (pv->spectator || (teammate && !tp_name_teammate.string[0]))
 				name = bestinfo->name;
 			else
 				name = teammate ? tp_name_teammate.string : tp_name_enemy.string;
@@ -3390,6 +3398,7 @@ void TP_UpdateAutoStatus(void)
 	char newstatusbuf[sizeof(vars.autoteamstatus)];
 	char *newstatus;
 	int level;
+	playerview_t *pv = &cl.playerview[SP];
 
 	if (vars.autoteamstatus_time > realtime || !*tp_autostatus.string)
 		return;
@@ -3415,7 +3424,7 @@ void TP_UpdateAutoStatus(void)
 	if (tp_autostatus.latched_string)
 		return;
 
-	if (cl.spectator)	//don't spam as spectators, that's just silly
+	if (pv->spectator)	//don't spam as spectators, that's just silly
 		return;
 	if (!cl.teamplay)	//don't spam in deathmatch, that's just pointless
 		return;
@@ -3427,6 +3436,7 @@ void TP_UpdateAutoStatus(void)
 void TP_StatChanged (int stat, int value)
 {
 #ifdef QUAKESTATS
+	playerview_t *pv = &cl.playerview[SP];
 	int		i;
 	if (stat == STAT_HEALTH)
 	{
@@ -3437,14 +3447,14 @@ void TP_StatChanged (int stat, int value)
 				// we just respawned
 				vars.respawntrigger_time = realtime;
 
-				if (!cl.spectator && CountTeammates())
+				if (!pv->spectator && CountTeammates())
 					TP_ExecTrigger ("f_respawn", false);
 			}
 		}
 		else if (vars.health > 0)
 		{		// We have just died
 
-			vars.droppedweapon = cl.playerview[SP].stats[STAT_ACTIVEWEAPON];
+			vars.droppedweapon = pv->stats[STAT_ACTIVEWEAPON];
 
 			vars.deathtrigger_time = realtime;
 			strcpy (vars.lastdeathloc, Macro_Location());
@@ -3453,9 +3463,9 @@ void TP_StatChanged (int stat, int value)
 			vars.last_numenemies = vars.numenemies;
 			vars.last_numfriendlies = vars.numfriendlies;
 
-			if (!cl.spectator && CountTeammates())
+			if (!pv->spectator && CountTeammates())
 			{
-				if (cl.teamfortress && (cl.playerview[SP].stats[STAT_ITEMS] & (IT_KEY1|IT_KEY2))
+				if (cl.teamfortress && (pv->stats[STAT_ITEMS] & (IT_KEY1|IT_KEY2))
 					&& Cmd_AliasExist("f_flagdeath", RESTRICT_LOCAL))
 					TP_ExecTrigger ("f_flagdeath", false);
 				else
@@ -3469,14 +3479,14 @@ void TP_StatChanged (int stat, int value)
 		i = value &~ vars.items;
 
 		if (i & (IT_KEY1|IT_KEY2)) {
-			if (cl.teamfortress && !cl.spectator)
+			if (cl.teamfortress && !pv->spectator)
 			{
 				ExecTookTrigger_ (tp_name_flag.string, it_flag,
-						cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[SP].playernum].origin);
+						cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[pv->playernum].origin);
 			}
 		}
 
-		if (!cl.spectator && cl.teamfortress && ~value & vars.items & (IT_KEY1|IT_KEY2))
+		if (!pv->spectator && cl.teamfortress && ~value & vars.items & (IT_KEY1|IT_KEY2))
 		{
 			vars.lastdrop_time = realtime;
 			strcpy (vars.lastdroploc, Macro_Location());
@@ -3487,9 +3497,9 @@ void TP_StatChanged (int stat, int value)
 	}
 	else if (stat == STAT_ACTIVEWEAPON)
 	{
-		if (cl.playerview[SP].stats[STAT_ACTIVEWEAPON] != vars.activeweapon)
+		if (pv->stats[STAT_ACTIVEWEAPON] != vars.activeweapon)
 			TP_ExecTrigger ("f_weaponchange", false);
-		vars.activeweapon = cl.playerview[SP].stats[STAT_ACTIVEWEAPON];
+		vars.activeweapon = pv->stats[STAT_ACTIVEWEAPON];
 	}
 #endif
 	vars.stat_framecounts[stat] = cls.framecount;
@@ -3709,6 +3719,7 @@ void TP_Init (void)
 
 qboolean TP_SuppressMessage(char *buf) {
 	char *s;
+	playerview_t *pv = &cl.playerview[SP];
 
 	for (s = buf; *s && *s != 0x7f; s++)
 		;
@@ -3717,7 +3728,7 @@ qboolean TP_SuppressMessage(char *buf) {
 		*s++ = '\n';
 		*s++ = 0;
 
-		return (!cls.demoplayback && !cl.spectator && *s - 'A' == cl.playerview[SP].playernum);
+		return (!cls.demoplayback && !pv->spectator && *s - 'A' == pv->playernum);
 	}
 	return false;
 }
@@ -3728,6 +3739,7 @@ void CL_Say (qboolean team, char *extra)
 {
 	extern cvar_t cl_fakename;
 	char	text[2048], sendtext[2048], *s;
+	playerview_t *pv = &cl.playerview[SP];
 
 	if (Cmd_Argc() < 2)
 	{
@@ -3748,7 +3760,7 @@ void CL_Say (qboolean team, char *extra)
 	Q_strncpyz (text, TP_ParseFunChars (s), sizeof(text));
 
 	sendtext[0] = 0;
-	if (team && !cl.spectator && cl_fakename.string[0] &&
+	if (team && !pv->spectator && cl_fakename.string[0] &&
 		!strchr(s, '\x0d') /* explicit $\ in message overrides cl_fakename */)
 	{
 		char buf[1024];
@@ -3803,7 +3815,7 @@ void CL_Say (qboolean team, char *extra)
 			if (team)
 				plrflags |= 2;
 
-			CL_PrintChat(&cl.players[cl.playerview[SP].playernum], text, plrflags);
+			CL_PrintChat(&cl.players[pv->playernum], text, plrflags);
 		}
 
 		//strip out the extra markup
@@ -3831,7 +3843,7 @@ void CL_Say (qboolean team, char *extra)
 		*d = '\0';
 
 		//mark the message so that we ignore it when we get the echo.
-		strlcat (sendtext, va("\x7f!%c", 'A'+cl.playerview[SP].playernum), sizeof(sendtext));
+		strlcat (sendtext, va("\x7f!%c", 'A'+pv->playernum), sizeof(sendtext));
 	}
 
 #ifdef Q3CLIENT

@@ -158,11 +158,14 @@ static qboolean QDECL Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 	if (s->lightmap < 0)
 	{
 		struct lmsect_s *lms;
-		if (!hm->unusedlmsects)
+		Sys_LockMutex(com_resourcemutex);
+		while (!hm->unusedlmsects)
 		{
 			int lm;
 			int i;
+			Sys_UnlockMutex(com_resourcemutex);
 			lm = Surf_NewLightmaps(1, SECTTEXSIZE*LMCHUNKS, SECTTEXSIZE*LMCHUNKS, false);
+			Sys_LockMutex(com_resourcemutex);
 			for (i = 0; i < LMCHUNKS*LMCHUNKS; i++)
 			{
 				lms = BZ_Malloc(sizeof(*lms));
@@ -184,6 +187,7 @@ static qboolean QDECL Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 
 		hm->numunusedlmsects--;
 		hm->numusedlmsects++;
+		Sys_UnlockMutex(com_resourcemutex);
 
 		Z_Free(lms);
 		initialise = true;
@@ -2070,6 +2074,9 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean light
 	int cx, cy;
 	int sx, sy;
 
+	COM_WorkerFullSync();	//should probably be inside the caller or something. make sure there's no loaders still loading lightmaps when lightmaps are going to be nuked.
+
+
 validatelinks(&hm->recycle);
 
 //	Con_Printf("PrePurge: %i lm chunks used, %i unused\n", hm->numusedlmsects, hm->numunusedlmsects);
@@ -2177,6 +2184,7 @@ void Terr_FreeModel(model_t *mod)
 			hm->entities = n;
 		}
 		Sys_DestroyMutex(hm->entitylock);
+		Z_Free(hm->seed);
 		Z_Free(hm);
 		mod->terrain = NULL;
 	}
@@ -3015,6 +3023,8 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 		else
 			culldist = 999999999999999.f;
 
+		if (culldist < hm->maxdrawdist)
+			culldist = hm->maxdrawdist;
 		if (culldist > r_refdef.maxdist && r_refdef.maxdist>0)
 			culldist = r_refdef.maxdist;
 
@@ -4828,9 +4838,11 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	G_FLOAT(OFS_RETURN) = 0;
 
-	if (!mod || !mod->terrain)
+	if (!mod)
+		return;
+	if (!mod->terrain)
 	{
-		if (mod && mod->loadstate == MLS_LOADING)
+		if (mod->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
 	}
 	if (mod->loadstate != MLS_LOADED)
@@ -5258,6 +5270,25 @@ void Terr_ParseEntityLump(model_t *mod, heightmap_t *heightmap)
 			heightmap->culldistance = atof(value);
 			heightmap->culldistance *= heightmap->culldistance;
 		}
+		else if (!strcmp("drawdist", key))
+			heightmap->maxdrawdist = atof(value);
+		else if (!strcmp("seed", key))
+		{
+			Z_Free(heightmap->seed);
+			heightmap->seed = Z_StrDup(value);
+		}
+		else if (!strcmp("exterior", key))
+		{
+			heightmap->legacyterrain = false;
+			if (!strcmp(value, "empty") || !strcmp(value, ""))
+				heightmap->exteriorcontents = FTECONTENTS_EMPTY;
+			else if (!strcmp(value, "sky"))
+				heightmap->exteriorcontents = FTECONTENTS_SKY;
+			else if (!strcmp(value, "lava"))
+				heightmap->exteriorcontents = FTECONTENTS_LAVA;
+			else //if (!strcmp(value, "solid"))
+				heightmap->exteriorcontents = FTECONTENTS_SOLID;
+		}
 		else if (!strcmp("skybox", key))
 			Q_strncpyz(heightmap->skyname, value, sizeof(heightmap->skyname));
 		else if (!strcmp("tiles", key))
@@ -5569,69 +5600,65 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 
 				in = br->faces[j].lightdata;
 				out = lm->lightmaps + (br->faces[j].lmbase[1] * lm->width + br->faces[j].lmbase[0]) * lightmap_bytes;
-				if (lightmap_bytes == 4)
+				switch(lightmap_fmt)
 				{
-					if (lightmap_bgra)
+				default:
+					Sys_Error("Bad lightmap_fmt\n");
+					break;
+				case TF_BGRA32:
+					for (t = 0; t < br->faces[j].lmextents[1]; t++)
 					{
-						for (t = 0; t < br->faces[j].lmextents[1]; t++)
+						for (s = 0; s < br->faces[j].lmextents[0]; s++)
 						{
-							for (s = 0; s < br->faces[j].lmextents[0]; s++)
-							{
-								*out++ = in[2];
-								*out++ = in[1];
-								*out++ = in[0];
-								*out++ = 0xff;
-								in+=3;
-							}
-							out += (lm->width - br->faces[j].lmextents[0]) * 4;
+							*out++ = in[2];
+							*out++ = in[1];
+							*out++ = in[0];
+							*out++ = 0xff;
+							in+=3;
 						}
+						out += (lm->width - br->faces[j].lmextents[0]) * 4;
 					}
-					else
+					break;
+				/*case TF_RGBA32:
+					for (t = 0; t < br->faces[j].lmextents[1]; t++)
 					{
-						for (t = 0; t < br->faces[j].lmextents[1]; t++)
+						for (s = 0; s < br->faces[j].lmextents[0]; s++)
 						{
-							for (s = 0; s < br->faces[j].lmextents[0]; s++)
-							{
-								*out++ = in[0];
-								*out++ = in[1];
-								*out++ = in[2];
-								*out++ = 0xff;
-								in+=3;
-							}
-							out += (lm->width - br->faces[j].lmextents[0]) * 4;
+							*out++ = in[0];
+							*out++ = in[1];
+							*out++ = in[2];
+							*out++ = 0xff;
+							in+=3;
 						}
+						out += (lm->width - br->faces[j].lmextents[0]) * 4;
 					}
-				}
-				else if (lightmap_bytes == 3)
-				{
-					if (lightmap_bgra)
+					break;*/
+				/*case TF_BGR24:
+					for (t = 0; t < br->faces[j].lmextents[1]; t++)
 					{
-						for (t = 0; t < br->faces[j].lmextents[1]; t++)
+						for (s = 0; s < br->faces[j].lmextents[0]; s++)
 						{
-							for (s = 0; s < br->faces[j].lmextents[0]; s++)
-							{
-								*out++ = in[2];
-								*out++ = in[1];
-								*out++ = in[0];
-								in+=3;
-							}
-							out += (lm->width - br->faces[j].lmextents[0]) * 3;
+							*out++ = in[2];
+							*out++ = in[1];
+							*out++ = in[0];
+							in+=3;
 						}
+						out += (lm->width - br->faces[j].lmextents[0]) * 3;
 					}
-					else
+					break;*/
+				case TF_RGB24:
+					for (t = 0; t < br->faces[j].lmextents[1]; t++)
 					{
-						for (t = 0; t < br->faces[j].lmextents[1]; t++)
+						for (s = 0; s < br->faces[j].lmextents[0]; s++)
 						{
-							for (s = 0; s < br->faces[j].lmextents[0]; s++)
-							{
-								*out++ = in[0];
-								*out++ = in[1];
-								*out++ = in[2];
-								in+=3;
-							}
-							out += (lm->width - br->faces[j].lmextents[0]) * 3;
+							*out++ = in[0];
+							*out++ = in[1];
+							*out++ = in[2];
+							in+=3;
 						}
+						out += (lm->width - br->faces[j].lmextents[0]) * 3;
 					}
+					break;
 				}
 			}
 		}
@@ -6884,7 +6911,7 @@ void Terr_WriteMapFile(vfsfile_t *file, model_t *mod)
 	heightmap_t *hm;
 	
 	hm = mod->terrain;
-	if (hm && hm->exteriorcontents != FTECONTENTS_EMPTY)
+	if (hm && hm->legacyterrain)
 		VFS_WRITE(file, "terrain\n", 8);
 
 	start = entities;
@@ -7355,7 +7382,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 
 qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize)
 {
-	int exterior = FTECONTENTS_SOLID;
+	int legacyterrain;
 	heightmap_t *hm;
 
 	char token[MAX_QPATH];
@@ -7364,9 +7391,12 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 
 	src = COM_ParseOut(buffer, token, sizeof(token));
 	if (!strcmp(token, "terrain"))
+	{
+		legacyterrain = true;
 		buffer = src;
+	}
 	else if (!strcmp(token, "{"))
-		exterior = FTECONTENTS_EMPTY;
+		legacyterrain = false;
 	else
 	{
 		Con_Printf(CON_ERROR "%s wasn't terrain map\n", mod->name);	//shouldn't happen
@@ -7390,7 +7420,7 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 
 	hm->entitylock = Sys_CreateMutex();
 	hm->sectionsize = sectsize;
-	if (exterior)
+	if (legacyterrain)
 	{
 		hm->firstsegx = -1;
 		hm->firstsegy = -1;
@@ -7404,7 +7434,9 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 		hm->maxsegx = 0;
 		hm->maxsegy = 0;
 	}
-	hm->exteriorcontents = exterior;	//sky outside the map
+	hm->legacyterrain = legacyterrain;
+	if (legacyterrain)
+		hm->exteriorcontents = FTECONTENTS_SOLID;	//sky outside the map
 
 	Terr_ParseEntityLump(mod, hm);
 
@@ -7528,44 +7560,56 @@ void Mod_Terrain_Create_f(void)
 	char *watername;
 	char *groundheight;
 	char *waterheight;
+	char *seed;
 	vfsfile_t *file;
 	model_t mod;
 	memset(&mod, 0, sizeof(mod));
 	if (Cmd_Argc() < 2)
 	{
-		Con_Printf("%s: NAME \"DESCRIPTION\" SKYNAME DEFAULTGROUNDTEX DEFAULTHEIGHT DEFAULTWATER DEFAULTWATERHEIGHT\nGenerates a fresh maps/foo.hmp file. You may wish to edit it with notepad later to customise it. You will need csaddon.dat in order to edit the actual terrain.\n", Cmd_Argv(0));
+		Con_Printf("%s: NAME \"DESCRIPTION\" SKYNAME DEFAULTGROUNDTEX DEFAULTHEIGHT DEFAULTWATER DEFAULTWATERHEIGHT seed\nGenerates a fresh maps/foo.hmp file. You may wish to edit it with notepad later to customise it. You will need csaddon.dat in order to edit the actual terrain.\n", Cmd_Argv(0));
 		return;
 	}
 	mname = va("maps/%s.hmp", Cmd_Argv(1));
 
 	mapdesc = Cmd_Argv(2); if (!*mapdesc) mapdesc = Cmd_Argv(1);
-	skyname = Cmd_Argv(3); if (!*skyname) skyname = "sky1";
-	groundname = Cmd_Argv(4); if (!*groundname) groundname = "default";
-	groundheight = Cmd_Argv(5); if (!*groundheight) groundheight = "0";
-	watername = Cmd_Argv(6); if (!*watername) watername = "";
-	waterheight = Cmd_Argv(7); if (!*waterheight) waterheight = "1024";
+	skyname = Cmd_Argv(3);
+	groundname = Cmd_Argv(4);
+	groundheight = Cmd_Argv(5);
+	watername = Cmd_Argv(6);
+	waterheight = Cmd_Argv(7);
+	seed = Cmd_Argv(7);
 	Mod_SetEntitiesString(&mod, va(
 		"{\n"
 			"classname \"worldspawn\"\n"
 			"message \"%s\"\n"
-			"_sky sky1\n"
+			"_sky \"%s\"\n"
 			"_fog 0.02\n"
-			"_segmentsize 1024\n"
+			"_maxdrawdist 0 /*overrides fog distance (if greater)*/\n"
+			"_segmentsize 1024 /*how big each section is. this affects texturing and resolutions*/\n"
 			"_minxsegment -2048\n"
 			"_minysegment -2048\n"
 			"_maxxsegment 2048\n"
 			"_maxysegment 2048\n"
-			"//_defaultgroundtexture \"city4_2\"\n"
-			"//_defaultwatertexture \"*water2\"\n"
-			"//_defaultgroundheight -1024\n"
-			"//_defaultwaterheight 0\n"	//hurrah, sea level.
+			"_seed \"%s\" /*for auto-gen plugins*/\n"
+			"_exterior solid\n"
+			"_defaultgroundtexture \"%s\"\n"
+			"_defaultgroundheight \"%s\"\n"
+			"_defaultwatertexture \"%s\"\n"
+			"_defaultwaterheight \"%s\"\n"	//hurrah, sea level.
 //			"_tiles 64 64 8 8\n"
 		"}\n"
 		"{\n"
 			"classname info_player_start\n"
-			"origin \"0 0 1024\"\n"
+			"origin \"0 0 1024\" /*EDITME*/\n"
 		"}\n"
-		, Cmd_Argv(2)), true);
+		"/*ADD EXTRA ENTITIES!*/\n"
+		, mapdesc
+		,*skyname?skyname:"terrsky1", seed
+		,*groundname?groundname:"ground1_1"
+		,*groundheight?groundheight:"-1024"
+		,*watername?watername:"*water2"
+		,*waterheight?waterheight:"0"
+		), true);
 
 	mod.type = mod_heightmap;
 	mod.terrain = hm = Z_Malloc(sizeof(*hm));
@@ -7724,7 +7768,11 @@ void Mod_Terrain_Reload_f(void)
 
 terrainfuncs_t *QDECL Terr_GetTerrainFuncs(void)
 {
+#ifdef SERVERONLY
+	return NULL;	//dedicated server builds have all the visual stuff stripped, which makes APIs too inconsistent. Generate then save. Or fix up the API...
+#else
 	return &terrainfuncs;
+#endif
 }
 
 void Terr_Init(void)

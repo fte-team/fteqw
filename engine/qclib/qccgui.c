@@ -703,19 +703,251 @@ HMODULE scintilla;
 
 pbool resetprogssrc;	//progs.src was changed, reload project info.
 
-
 HWND mainwindow;
 HWND gamewindow;
 HWND mdibox;
 HWND watches;
 HWND optionsmenu;
-HWND outputwindow;
 HWND outputbox;
 HWND projecttree;
 HWND search_name;
 HWND search_gotodef;
 HWND search_grep;
 HACCEL accelerators;
+
+
+//our splitter...
+#define SPLITTER_SIZE 4
+static struct splits_s
+{
+	HWND wnd;
+	HWND splitter;
+	int minsize;
+	int cury;
+	int cursize;
+	float frac;
+
+} *splits;
+static size_t numsplits;
+static RECT splitterrect;
+
+static struct splits_s *SplitterGet(HWND id)
+{
+	size_t s;
+	for (s = 0; s < numsplits; s++)
+	{
+		if (splits[s].wnd == id)
+			return &splits[s];
+	}
+	return NULL;
+}
+static int SplitterShrinkPrior(size_t s, int px)
+{
+	int found = 0;
+	int avail;
+	for (; px && s > 0; s--)
+	{
+		avail = splits[s].cursize - splits[s].minsize;
+		if (avail > px)
+			avail = px;
+
+		splits[s].cursize -= avail;
+		found += avail;
+		px -= avail;
+	}
+
+	if (px)
+	{
+		avail = splits[0].cursize - splits[0].minsize;
+		if (avail > px)
+			avail = px;
+
+		splits[0].cursize -= avail;
+		found += avail;
+		px -= avail;
+	}
+
+	return found;
+}
+static SplitterShrinkNext(size_t s, int px)
+{
+	int found = 0;
+	int avail;
+	for (; px && s < numsplits; s++)
+	{
+		avail = splits[s].cursize - splits[s].minsize;
+		if (avail > px)
+			avail = px;
+
+		splits[s].cursize -= avail;
+		found += avail;
+		px -= avail;
+	}
+	return found;
+}
+static void SplitterUpdate(void);
+static LRESULT CALLBACK SplitterWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	size_t s;
+	PAINTSTRUCT ps;
+	RECT rect;
+	int y;
+	int cascade;
+	switch(message)
+	{
+	case WM_LBUTTONDOWN:
+		SetCapture(hWnd);
+		return TRUE;
+	case WM_MOUSEMOVE:
+		if (wParam & MK_LBUTTON)
+			if (GetCapture() == hWnd)
+				goto doresize;
+		return true;
+	case WM_LBUTTONUP:
+		ReleaseCapture();
+	doresize:
+		y = GET_Y_LPARAM(lParam);
+		GetClientRect(hWnd, &rect);
+		y = y - rect.top - SPLITTER_SIZE/2;
+		for (s = 1; s < numsplits; s++)
+		{
+			if (splits[s].splitter == hWnd)
+			{
+				cascade = 0;
+				if (y < 0)
+					splits[s].cursize += SplitterShrinkPrior(s-1, -y);
+				else
+					splits[s-1].cursize += SplitterShrinkNext(s, y);
+				SplitterUpdate();
+				break;
+			}
+		}
+		return TRUE;
+	case WM_PAINT:
+		BeginPaint(hWnd,(LPPAINTSTRUCT)&ps);
+		EndPaint(hWnd,(LPPAINTSTRUCT)&ps);
+		return TRUE;
+	default:
+		return DefWindowProc(hWnd,message,wParam,lParam);
+	}
+}
+static void SplitterUpdate(void)
+{
+	int y = 0;
+	size_t s;
+	if (!numsplits)
+		return;
+
+	//figure out the total height
+	for (s = numsplits; s-- > 0; )
+	{
+		y += splits[s].cursize;
+	}
+	y = splitterrect.bottom-splitterrect.top;
+
+	//now figure out their positions relative to that
+	for (s = numsplits; s-- > 1; )
+	{
+		y -= splits[s].cursize;
+		splits[s].cury = y;
+		y -= SPLITTER_SIZE;
+	}
+
+	splits[0].cursize = y;
+	splits[0].cury = 0;
+	if (splits[0].cursize < splits[0].minsize)
+		splits[0].cursize += SplitterShrinkNext(1, splits[0].minsize-splits[0].cursize);
+
+	for (s = 0; s < numsplits; s++)
+	{
+		if (s)
+		{
+			if (!splits[s].splitter)
+			{
+				WNDCLASSA wclass;
+				wclass.style = 0;
+				wclass.lpfnWndProc = SplitterWndProc;
+				wclass.cbClsExtra = 0;
+				wclass.cbWndExtra = 0;
+				wclass.hInstance = ghInstance;
+				wclass.hIcon = NULL;
+				wclass.hCursor = LoadCursor(0, IDC_SIZENS);
+				wclass.hbrBackground = (HBRUSH)(COLOR_3DFACE + 1);
+				wclass.lpszMenuName = NULL;
+				wclass.lpszClassName = "splitter";
+				RegisterClassA(&wclass);
+				splits[s].splitter = CreateWindowExA(0, wclass.lpszClassName, "", WS_CHILD|WS_VISIBLE, splitterrect.left, splitterrect.top+splits[s].cury-SPLITTER_SIZE, splitterrect.right-splitterrect.left, SPLITTER_SIZE, mainwindow, NULL, ghInstance, NULL);
+			}
+			else
+				SetWindowPos(splits[s].splitter, HWND_TOP, splitterrect.left, splitterrect.top+splits[s].cury-SPLITTER_SIZE, splitterrect.right-splitterrect.left, SPLITTER_SIZE, SWP_NOZORDER);
+		}
+		else
+		{
+			if (splits[s].splitter)
+			{
+				DestroyWindow(splits[s].splitter);
+				splits[s].splitter = NULL;
+			}
+		}
+		SetWindowPos(splits[s].wnd, HWND_TOP, splitterrect.left, splitterrect.top+splits[s].cury, splitterrect.right-splitterrect.left, splits[s].cursize, SWP_NOZORDER);
+	}
+}
+static void SplitterFocus(HWND w, int minsize)
+{
+	struct splits_s *s = SplitterGet(w);
+	if (s)
+	{
+		if (s->cursize < minsize)
+		{
+			s->cursize += SplitterShrinkPrior(s-splits-1, (minsize-s->cursize)/2);
+			if (s->cursize < minsize)
+				s->cursize += SplitterShrinkNext(s-splits+1, minsize-s->cursize);
+			if (s->cursize < minsize)
+				s->cursize += SplitterShrinkPrior(s-splits-1, minsize-s->cursize);
+			SplitterUpdate();
+		}
+	}
+
+	SetFocus(w);
+}
+static void SplitterAdd(HWND w, int minsize)
+{
+	struct splits_s *n = malloc(sizeof(*n)*(numsplits+1));
+	memcpy(n, splits, sizeof(*n)*numsplits);
+	free(splits);
+	splits = n;
+	n += numsplits;
+
+	n->wnd = w;
+	n->splitter = NULL;
+	n->minsize = minsize;
+	n->cursize = minsize;
+	n->cury = 0;
+
+	numsplits++;
+
+	SplitterUpdate();
+	ShowWindow(w, SW_SHOW);
+}
+static void SplitterRemove(HWND w)
+{
+	struct splits_s *s = SplitterGet(w);
+	size_t idx;
+	if (!s)
+		return;
+	if (s->splitter)
+		DestroyWindow(s->splitter);
+	idx = s-splits;
+	numsplits--;
+	memmove(splits+idx, splits+idx+1, sizeof(*s)*(numsplits-idx));
+
+	ShowWindow(w, SW_HIDE);
+
+	SplitterUpdate();
+}
+
+
+
 
 FILE *logfile;
 
@@ -855,21 +1087,21 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 					{
 						*colon1 = '\0';
 						*colon2 = '\0';
-						EditFile(line, atoi(colon1+1)-1, false);
+						EditFile(line, atoi(colon1+1)-1, 2);
 					}
 					else if (!strncmp(line, "Source file: ", 13))
-						EditFile(line+13, -1, false);
+						EditFile(line+13, -1, 2);
 					else if (!strncmp(line, "Including: ", 11))
-						EditFile(line+11, -1, false);
+						EditFile(line+11, -1, 2);
 				}
 				else if (!strncmp(line, "including ", 10))
-					EditFile(line+10, -1, false);
+					EditFile(line+10, -1, 2);
 				else if (!strncmp(line, "compiling ", 10))
-					EditFile(line+10, -1, false);
+					EditFile(line+10, -1, 2);
 				else if (!strncmp(line, "prototyping ", 12))
-					EditFile(line+12, -1, false);
+					EditFile(line+12, -1, 2);
 				else if (!strncmp(line, "Couldn't open file ", 19))
-					EditFile(line+19, -1, false);
+					EditFile(line+19, -1, 2);
 				Edit_SetSel(hWnd, selrange.cpMin, selrange.cpMin);	//deselect it.
 			}
 		}
@@ -1385,11 +1617,7 @@ void GenericMenu(WPARAM wParam)
 
 
 	case IDM_OUTPUT_WINDOW:
-		if (outputwindow && outputbox)
-		{
-			SetFocus(outputwindow);
-			SetFocus(outputbox);
-		}
+		SplitterFocus(outputbox, 128);
 		break;
 	case IDM_SHOWLINENUMBERS:
 		{
@@ -2267,6 +2495,8 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 		GetClientRect(hWnd, &rect);
 		SetWindowPos(editor->editpane, NULL, 0, 0, rect.right-rect.left, rect.bottom-rect.top, 0);
 		goto gdefault;
+	case WM_ERASEBKGND:
+		return TRUE;
 	case WM_PAINT:
 		BeginPaint(hWnd,(LPPAINTSTRUCT)&ps);
 
@@ -2547,6 +2777,10 @@ static void EditorReload(editor_t *editor)
 }
 
 //line is 0-based. use -1 for no reselection
+//setcontrol is the reason we're opening it.
+//0: just load and go to the line.
+//1: show the line as the executing one
+//2: draw extra focus to it
 void EditFile(const char *name, int line, pbool setcontrol)
 {
 	char title[1024];
@@ -2574,7 +2808,10 @@ void EditFile(const char *name, int line, pbool setcontrol)
 		{
 			if (line >= 0)
 			{
-				Edit_SetSel(neweditor->editpane, Edit_LineIndex(neweditor->editpane, line), Edit_LineIndex(neweditor->editpane, line+1)-1);
+				if (setcontrol)
+					Edit_SetSel(neweditor->editpane, Edit_LineIndex(neweditor->editpane, line+1)-1, Edit_LineIndex(neweditor->editpane, line+1)-1);
+				else
+					Edit_SetSel(neweditor->editpane, Edit_LineIndex(neweditor->editpane, line), Edit_LineIndex(neweditor->editpane, line+1)-1);
 				Edit_ScrollCaret(neweditor->editpane);
 
 				if (setcontrol && neweditor->scintilla)
@@ -2635,15 +2872,15 @@ void EditFile(const char *name, int line, pbool setcontrol)
 
 	
 	wndclass.style      = 0;
-    wndclass.lpfnWndProc   = EditorWndProc;
-    wndclass.cbClsExtra    = 0;
-    wndclass.cbWndExtra    = 0;
-    wndclass.hInstance     = ghInstance;
+	wndclass.lpfnWndProc   = EditorWndProc;
+	wndclass.cbClsExtra    = 0;
+	wndclass.cbWndExtra    = 0;
+	wndclass.hInstance     = ghInstance;
 	wndclass.hIcon         = LoadIcon(ghInstance, IDI_ICON_FTEQCC);
-    wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
+	wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
 	wndclass.hbrBackground = (void *)COLOR_WINDOW;
-    wndclass.lpszMenuName  = 0;
-    wndclass.lpszClassName = EDIT_WINDOW_CLASS_NAME;
+	wndclass.lpszMenuName  = 0;
+	wndclass.lpszClassName = EDIT_WINDOW_CLASS_NAME;
 	RegisterClass(&wndclass);
 
 	neweditor->window = NULL;
@@ -2658,7 +2895,7 @@ void EditFile(const char *name, int line, pbool setcontrol)
 		mcs.hOwner = ghInstance;
 		mcs.x = mcs.cx = CW_USEDEFAULT;
 		mcs.y = mcs.cy = CW_USEDEFAULT;
-		mcs.style = WS_OVERLAPPEDWINDOW;
+		mcs.style = WS_OVERLAPPEDWINDOW|WS_MAXIMIZE;
 		mcs.lParam = 0;
 
 		neweditor->window = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, 
@@ -2685,7 +2922,12 @@ void EditFile(const char *name, int line, pbool setcontrol)
 	EditorReload(neweditor);
 
 	if (line >= 0)
-		Edit_SetSel(neweditor->editpane, Edit_LineIndex(neweditor->editpane, line), Edit_LineIndex(neweditor->editpane, line+1));
+	{
+		if (setcontrol)
+			Edit_SetSel(neweditor->editpane, Edit_LineIndex(neweditor->editpane, line+1)-1, Edit_LineIndex(neweditor->editpane, line+1)-1);
+		else
+			Edit_SetSel(neweditor->editpane, Edit_LineIndex(neweditor->editpane, line), Edit_LineIndex(neweditor->editpane, line+1)-1);
+	}
 	else
 		Edit_SetSel(neweditor->editpane, Edit_LineIndex(neweditor->editpane, 0), Edit_LineIndex(neweditor->editpane, 0));
 
@@ -3417,8 +3659,8 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 		}
 		if (hWnd == gamewindow)
 		{
+			SplitterRemove(watches);
 			gamewindow = NULL;
-			PostMessage(mainwindow, WM_SIZE, 0, 0);
 		}
 		break;
 	case WM_USER:
@@ -3724,6 +3966,8 @@ void RunEngine(void)
 
 			gamewindow = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, (LONG_PTR) (LPMDICREATESTRUCT) &mcs); 
 		}
+		SplitterAdd(watches, 0);
+		SplitterFocus(watches, 64);
 	}
 	else
 	{
@@ -5398,12 +5642,14 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 			watches = CreateWindow(WC_LISTVIEW, (LPCTSTR) NULL,
 					WS_CHILD | WS_VSCROLL | WS_HSCROLL | LVS_REPORT | LVS_EDITLABELS,
 					0, 0, 320, 200, hWnd, (HMENU) 0xCAD, ghInstance, NULL);
-			ShowWindow(watches, SW_SHOW);
+
+			SplitterAdd(mdibox, 32);
 
 			if (watches)
 			{
 				LVCOLUMN col;
 				LVITEM newi;
+
 //				ListView_SetUnicodeFormat(watches, TRUE);
 				ListView_SetExtendedListViewStyle(watches, LVS_EX_GRIDLINES);
 				memset(&col, 0, sizeof(col));
@@ -5481,40 +5727,37 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 		GetClientRect(mainwindow, &rect);
 		if (projecttree)
 		{
-			int mdiheight, watchheight;
-			SetWindowPos(projecttree, NULL, 0, 0, 192, rect.bottom-rect.top - 34 - 48, 0);
+			SetWindowPos(projecttree, NULL, 0, 0, 192, rect.bottom-rect.top - 48, SWP_NOZORDER);
 
-			SetWindowPos(search_name, NULL, 0, rect.bottom-rect.top - 33 - 48, 192, 24, 0);
-			SetWindowPos(search_gotodef, NULL, 0, rect.bottom-rect.top - 33 - 24, 192/2, 24, 0);
-			SetWindowPos(search_grep, NULL, 192/2, rect.bottom-rect.top - 33 - 24, 192/2, 24, 0);
+			SetWindowPos(search_name, NULL, 0, rect.bottom-rect.top - 48, 192, 24, SWP_NOZORDER);
+			SetWindowPos(search_gotodef, NULL, 0, rect.bottom-rect.top - 24, 192/2, 24, SWP_NOZORDER);
+			SetWindowPos(search_grep, NULL, 192/2, rect.bottom-rect.top - 24, 192/2, 24, SWP_NOZORDER);
 
-			if (gamewindow)
-				watchheight = (ListView_GetItemCount(watches) + 2) * 16;
-			else
-				watchheight = 0;
-			mdiheight = (rect.bottom-rect.top) - 32;
-			if (watchheight > mdiheight/2)
-				watchheight = mdiheight/2;
-			mdiheight -= watchheight;
-			SetWindowPos(watches, NULL, 192, mdiheight, rect.right-rect.left-192, watchheight, 0);
-			SetWindowPos(mdibox?mdibox:outputbox, NULL, 192, 0, rect.right-rect.left-192, mdiheight, 0);
+			splitterrect.left = 192;
 		}
 		else
-			SetWindowPos(mdibox?mdibox:outputbox, NULL, 0, 0, rect.right-rect.left, rect.bottom-rect.top - 32, 0);
-		width = (rect.right-rect.left);
-		width/=NUMBUTTONS;
+		{
+			splitterrect.left = 0;
+		}
+		splitterrect.right = rect.right-rect.left;
+		splitterrect.bottom = rect.bottom-rect.top-32;
+		SplitterUpdate();
+		width = (rect.right-rect.left)-splitterrect.left;
 		for (i = 0; i < NUMBUTTONS; i++)
 		{
-			SetWindowPos(buttons[i].hwnd, NULL, width*i, rect.bottom-rect.top - 32, width, 32, 0);
+			int l = splitterrect.left+(width*i)/(NUMBUTTONS);
+			int r = splitterrect.left+(width*(i+1))/(NUMBUTTONS);
+			SetWindowPos(buttons[i].hwnd, NULL, l, rect.bottom-rect.top - 32, r-l, 32, SWP_NOZORDER);
 		}
 		break;
 //		goto gdefault;
+	case WM_ERASEBKGND:
+		return TRUE;	//background is clear... or doesn't need clearing (if its fully obscured)
 	case WM_PAINT:
 		BeginPaint(hWnd,(LPPAINTSTRUCT)&ps);
 
 		EndPaint(hWnd,(LPPAINTSTRUCT)&ps);
 		return TRUE;
-		break;
 	case WM_COMMAND:
 		i = LOWORD(wParam);
 		if (i == 0x4403)
@@ -5720,27 +5963,6 @@ static void DoTranslateMessage(MSG *msg)
 		TranslateMessage(msg);
 		DispatchMessage(msg);
 	}
-}
-
-static LRESULT CALLBACK OutputWindowProc(HWND hWnd,UINT message,
-				     WPARAM wParam,LPARAM lParam)
-{
-	RECT rect;
-	switch (message)
-	{
-	case WM_DESTROY:
-		outputwindow = NULL;
-		outputbox = NULL;
-		break;
-	case WM_CREATE:
-		outputbox = CreateAnEditControl(hWnd, NULL);
-	case WM_SIZE:
-		GetClientRect(hWnd, &rect);
-		SetWindowPos(outputbox, NULL, 0, 0, rect.right-rect.left, rect.bottom-rect.top, 0);
-	default:
-		return DefMDIChildProc(hWnd,message,wParam,lParam);
-	}
-	return 0;
 }
 
 void GUIPrint(HWND wnd, char *msg)
@@ -6031,8 +6253,7 @@ int GUIprintf(const char *msg, ...)
 		outlen = 0;
 
 		/*make sure its active so we can actually scroll. stupid windows*/
-		SetFocus(outputwindow);
-		SetFocus(outputbox);
+		SplitterFocus(outputbox, 0);
 
 		/*colour background to default*/
 		TreeView_SetBkColor(projecttree, -1);
@@ -6274,45 +6495,14 @@ void RunCompiler(char *args, pbool quick)
 
 void CreateOutputWindow(pbool doannoates)
 {
-	WNDCLASS wndclass;
-	MDICREATESTRUCT mcs;
-
 	gui_doannotates = doannoates;
 
-	if (!mdibox)	//should already be created
-		return;
-
-	if (!outputwindow)
+	if (!outputbox)
 	{
-		wndclass.style      = 0;
-		wndclass.lpfnWndProc   = OutputWindowProc;
-		wndclass.cbClsExtra    = 0;
-		wndclass.cbWndExtra    = 0;
-		wndclass.hInstance     = ghInstance;
-		wndclass.hIcon         = LoadIcon(ghInstance, IDI_ICON_FTEQCC);
-		wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
-		wndclass.hbrBackground = (void *)COLOR_WINDOW;
-		wndclass.lpszMenuName  = 0;
-		wndclass.lpszClassName = MAIN_WINDOW_CLASS_NAME;
-		RegisterClass(&wndclass);
-
-
-
-		mcs.szClass = MAIN_WINDOW_CLASS_NAME;
-		mcs.szTitle = "Compiler output";
-		mcs.hOwner = ghInstance;
-		mcs.x = mcs.cx = CW_USEDEFAULT;
-		mcs.y = mcs.cy = CW_USEDEFAULT;
-		mcs.style = WS_OVERLAPPEDWINDOW;
-		mcs.lParam = 0;
-
-		outputwindow = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, (LONG_PTR) (LPMDICREATESTRUCT) &mcs); 
-
-		ShowWindow(outputwindow, SW_SHOW);
+		outputbox = CreateAnEditControl(mainwindow, NULL);
+		SplitterAdd(outputbox, 64);
 	}
-
-	//bring it to the front.
-	SendMessage(mdibox, WM_MDIACTIVATE, (WPARAM)outputwindow, 0);
+	SplitterFocus(outputbox, 128);
 }
 
 

@@ -4985,20 +4985,15 @@ static void BE_UpdateLightmaps(void)
 	int lmidx;
 	int glformat, gltype;
 	int internalformat = GL_RGBA;
-	switch (lightmap_bytes)
+	switch (lightmap_fmt)
 	{
-	case 4:
-		glformat = lightmap_bgra?GL_BGRA_EXT:GL_RGBA;
-		gltype = GL_UNSIGNED_INT_8_8_8_8_REV;
-		break;
-	case 3:
-		glformat = lightmap_bgra?GL_BGR_EXT:GL_RGB;
-		gltype = GL_UNSIGNED_BYTE;
-		break;
-	default:
-		glformat = GL_LUMINANCE;
-		gltype = GL_UNSIGNED_BYTE;
-		break;
+	case TF_INVALID:	return;
+	default: Sys_Error("Bad lightmap_fmt\n"); return;
+	case TF_BGRA32:	glformat = GL_BGRA_EXT;	gltype = GL_UNSIGNED_INT_8_8_8_8_REV;	break;
+//	case TF_RGBA32:	glformat = GL_RGBA;		gltype = GL_UNSIGNED_INT_8_8_8_8_REV;	break;
+//	case TF_BGR24:	glformat = GL_BGR_EXT;	gltype = GL_UNSIGNED_BYTE;				break;
+	case TF_RGB24:	glformat = GL_RGB;		gltype = GL_UNSIGNED_BYTE;				break;
+	case TF_LUM8:	glformat = GL_LUMINANCE;gltype = GL_UNSIGNED_BYTE;				break;
 	}
 	if (gl_config.gles)
 		internalformat = glformat;
@@ -5025,16 +5020,12 @@ static void BE_UpdateLightmaps(void)
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				qglTexImage2D(GL_TEXTURE_2D, 0, internalformat,
-						lm->width, lm->height, 0, glformat, gltype,
-						lm->lightmaps);
+				qglTexImage2D(GL_TEXTURE_2D, 0, internalformat,	lm->width, lm->height, 0, glformat, gltype,	lm->lightmaps);
 			}
 			else
 			{
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t,
-						lm->width, b-t, glformat, gltype,
-						lm->lightmaps+t *lm->width*lightmap_bytes);
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t, lm->width, b-t, glformat, gltype, lm->lightmaps+t*lm->width*lightmap_bytes);
 			}
 			lm->modified = false;
 			lm->rectchange.l = lm->width;

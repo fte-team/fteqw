@@ -333,13 +333,18 @@ typedef struct
 	float				move_msecs;		//
 	int					packetsizein;	//amount of data received for this frame
 	int					packetsizeout;	//amount of data that was sent in the frame
-	packet_entities_t	entities;		//package containing entity states that were sent in this frame, for deltaing
+
+	packet_entities_t	qwentities;		//package containing entity states that were sent in this frame, for deltaing
+
 	struct resendinfo_s
 	{
 		unsigned int entnum;
-		unsigned int bits;	//delta
+		unsigned int bits;	//delta (fte or dpp5+)
 		unsigned int flags;	//csqc
 	} *resend;
+	unsigned int		numresend;
+	unsigned int		maxresend;
+
 	unsigned short		resendstats[32];//the number of each entity that was sent in this frame
 	unsigned int		numresendstats;	//the bits of each entity that were sent in this frame
 
@@ -396,7 +401,7 @@ typedef struct	//merge?
 enum
 {
 	PRESPAWN_INVALID=0,
-	PRESPAWN_PROTOCOLSWITCH,	//nq drops unreliables until reliables are acked
+	PRESPAWN_PROTOCOLSWITCH,	//nq drops unreliables until reliables are acked. this gives us a chance to drop any clc_move packets with formats from the previous map
 	PRESPAWN_SERVERINFO,
 	PRESPAWN_SOUNDLIST,	//nq skips these
 	PRESPAWN_VWEPMODELLIST,	//qw ugly extension.
@@ -504,7 +509,8 @@ typedef struct client_s
 
 // spawn parms are carried from level to level
 	float			spawn_parms[NUM_SPAWN_PARMS];
-	char			*spawninfo;
+	char			*spawn_parmstring;	//qc-specified data.
+	char			*spawninfo;			//entity-formatted data (for hexen2's ClientReEnter)
 	float			spawninfotime;
 	float			nextservertimeupdate;	//next time to send STAT_TIME
 	float			lastoutgoingphysicstime;//sv.world.physicstime of the last outgoing message.
@@ -1119,6 +1125,8 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg);
 void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext);
 
 client_t *SV_AddSplit(client_t *controller, char *info, int id);
+void SV_SpawnParmsToQC(client_t *client);
+void SV_SpawnParmsToClient(client_t *client);
 void SV_GetNewSpawnParms(client_t *cl);
 void SV_SaveSpawnparms (void);
 void SV_SaveSpawnparmsClient(client_t *client, float *transferparms);	//if transferparms, calls SetTransferParms instead, and does not modify the player.

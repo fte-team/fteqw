@@ -1968,7 +1968,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 			ptr += sizeof(*client->pendingcsqcbits)*client->max_net_ents;
 			for (i = 0; i < UPDATE_BACKUP; i++)
 			{
-				client->frameunion.frames[i].entities.max_entities = maxents;
+				client->frameunion.frames[i].maxresend = maxents;
 				client->frameunion.frames[i].resend = (void*)ptr;
 				ptr += sizeof(*client->frameunion.frames[i].resend)*maxents;
 				client->frameunion.frames[i].senttime = realtime;
@@ -1982,8 +1982,8 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 			client->frameunion.frames = Z_Malloc((sizeof(client_frame_t))*UPDATE_BACKUP);
 			for (i = 0; i < UPDATE_BACKUP; i++)
 			{
-				client->frameunion.frames[i].entities.max_entities = 0;
-				client->frameunion.frames[i].entities.entities = NULL;
+				client->frameunion.frames[i].qwentities.max_entities = 0;
+				client->frameunion.frames[i].qwentities.entities = NULL;
 				client->frameunion.frames[i].senttime = realtime;
 			}
 		}
@@ -1992,8 +1992,8 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 			client->frameunion.frames = Z_Malloc((sizeof(client_frame_t)+sizeof(entity_state_t)*maxpacketentities)*UPDATE_BACKUP);
 			for (i = 0; i < UPDATE_BACKUP; i++)
 			{
-				client->frameunion.frames[i].entities.max_entities = maxpacketentities;
-				client->frameunion.frames[i].entities.entities = (entity_state_t*)(client->frameunion.frames+UPDATE_BACKUP) + i*client->frameunion.frames[i].entities.max_entities;
+				client->frameunion.frames[i].qwentities.max_entities = maxpacketentities;
+				client->frameunion.frames[i].qwentities.entities = (entity_state_t*)(client->frameunion.frames+UPDATE_BACKUP) + i*client->frameunion.frames[i].qwentities.max_entities;
 				client->frameunion.frames[i].senttime = realtime;
 			}
 		}

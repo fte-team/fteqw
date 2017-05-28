@@ -1,7 +1,9 @@
 #ifndef IWEB_H__
 #define IWEB_H__
 
-#ifdef WEBSERVER
+qboolean SV_AllowDownload (const char *name);
+
+#if defined(WEBSERVER) || defined(FTPSERVER)
 
 #ifdef WEBSVONLY
 //When running standalone
@@ -33,8 +35,6 @@ struct sockaddr_in;
 struct sockaddr;
 struct sockaddr_qstorage;
 int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
-
-qboolean SV_AllowDownload (const char *name);
 
 
 typedef qboolean iwboolean;

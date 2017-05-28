@@ -627,7 +627,7 @@ void Validation_Auto_Response(int playernum, char *s)
 		Validation_Version();
 		versionresponsetime = Sys_DoubleTime() + 5;
 	}
-	else if (cl.spectator)
+	else if (cl.playerview[0].spectator)
 		return;
 	else if (!strncmp(s, "server", 6) && serverresponsetime < Sys_DoubleTime())	//respond to it.
 	{

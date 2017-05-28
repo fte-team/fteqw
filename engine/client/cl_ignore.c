@@ -120,6 +120,7 @@ static void Display_Ignorelist(void)
 	int i;
 	int x;
 	qboolean foundone;
+	playerview_t *pv = &cl.playerview[0];
 
 	x = 0;
 	foundone = false;
@@ -172,7 +173,7 @@ static void Display_Ignorelist(void)
 	if (ignore_opponents.ival)
 		Con_Printf("\x02" "Opponents are Ignored\n");
 
-	if (ignore_spec.ival == 2 || (ignore_spec.ival == 1 && !cl.spectator))
+	if (ignore_spec.ival == 2 || (ignore_spec.ival == 1 && !pv->spectator))
 		Con_Printf ("\x02" "Spectators are Ignored\n");
 
 	if (ignore_qizmo_spec.ival)
@@ -573,7 +574,8 @@ void Ignore_Flood_Add(player_info_t *sender, const char *s)
 
 qboolean Ignore_Message(const char *sendername, const char *s, int flags)
 {
-	int slot, i;	
+	int slot, i;
+	playerview_t *pv = &cl.playerview[0];
 
 	if (!ignore_mode.ival && (flags & 2))
 		return false;		
@@ -581,7 +583,7 @@ qboolean Ignore_Message(const char *sendername, const char *s, int flags)
 
 	if (ignore_spec.ival == 2 && (flags == 4 || (flags == 8 && ignore_mode.ival)))
 		return true;
-	else if (ignore_spec.ival == 1 && (flags == 4) && !cl.spectator)
+	else if (ignore_spec.ival == 1 && (flags == 4) && !pv->spectator)
 		return true;
 
 	if (!sendername)
@@ -595,10 +597,10 @@ qboolean Ignore_Message(const char *sendername, const char *s, int flags)
 
 	if (ignore_opponents.ival && (
 				(int) ignore_opponents.ival == 1 ||
-				(cls.state >= ca_connected && /*!cl.standby &&*/ !cls.demoplayback && !cl.spectator) // match?
+				(cls.state >= ca_connected && /*!cl.standby &&*/ !cls.demoplayback && !pv->spectator) // match?
 				) && 
-			flags == 1 && !cl.spectator && slot != cl.playerview[0].playernum &&
-			(!cl.teamplay || strcmp(cl.players[slot].team, cl.players[cl.playerview[0].playernum].team))
+			flags == 1 && !pv->spectator && slot != pv->playernum &&
+			(!cl.teamplay || strcmp(cl.players[slot].team, cl.players[pv->playernum].team))
 			)
 	{
 		return true;

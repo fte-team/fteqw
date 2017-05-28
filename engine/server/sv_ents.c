@@ -125,18 +125,18 @@ unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsig
 #endif
 
 
-void SVFTE_ExpandFrames(client_t *client, int require)
+void SV_ExpandNackFrames(client_t *client, int require)
 {
 	client_frame_t *newframes;
 	char *ptr;
 	int i;
-	int maxents = require * 2;	/*this is the max number of ents updated per frame. we can't track more, so...*/
-	if (maxents > client->max_net_ents)
-		maxents = client->max_net_ents;
+	int maxlog = require * 2;	/*this is the max number of ents updated per frame. we can't track more, so...*/
+	if (maxlog > client->max_net_ents)
+		maxlog = client->max_net_ents;
 	ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
 					sizeof(*client->pendingdeltabits)*client->max_net_ents+
 					sizeof(*client->pendingcsqcbits)*client->max_net_ents+
-					sizeof(newframes[i].resend)*maxents*UPDATE_BACKUP);
+					sizeof(newframes[i].resend)*maxlog*UPDATE_BACKUP);
 	newframes = (void*)ptr;
 	memcpy(newframes, client->frameunion.frames, sizeof(client_frame_t)*UPDATE_BACKUP);
 	ptr += sizeof(client_frame_t)*UPDATE_BACKUP;
@@ -148,9 +148,11 @@ void SVFTE_ExpandFrames(client_t *client, int require)
 	ptr += sizeof(*client->pendingcsqcbits)*client->max_net_ents;
 	for (i = 0; i < UPDATE_BACKUP; i++)
 	{
-		newframes[i].entities.max_entities = maxents;
+		newframes[i].maxresend = maxlog;
+		newframes[i].qwentities.max_entities = 0;
 		newframes[i].resend = (void*)ptr;
-		memcpy(newframes[i].resend, client->frameunion.frames[i].resend, sizeof(newframes[i].resend)*client->frameunion.frames[i].entities.num_entities);
+		newframes[i].numresend = client->frameunion.frames[i].numresend;
+		memcpy(newframes[i].resend, client->frameunion.frames[i].resend, sizeof(newframes[i].resend)*newframes[i].numresend);
 		newframes[i].senttime = realtime;
 	}
 	Z_Free(client->frameunion.frames);
@@ -348,10 +350,11 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 	qboolean writtenheader = false;
 	int viewerent;
 	int entnum;
-	int lognum = client->frameunion.frames[currentsequence & UPDATE_MASK].entities.num_entities;
+	client_frame_t *frame = &client->frameunion.frames[currentsequence & UPDATE_MASK];
+	int lognum = frame->numresend;
 
-	struct resendinfo_s *resend = client->frameunion.frames[currentsequence & UPDATE_MASK].resend;
-	int maxlog = client->frameunion.frames[currentsequence & UPDATE_MASK].entities.max_entities;
+	struct resendinfo_s *resend = frame->resend;
+	int maxlog = frame->maxresend;
 
 	//we don't check that we got some already - because this is delta compressed!
 
@@ -391,7 +394,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 				if (lognum > maxlog)
 				{
-					SVFTE_ExpandFrames(client, lognum+1);
+					SV_ExpandNackFrames(client, lognum+1);
 					break;
 				}
 				resend[lognum].entnum = entnum;
@@ -444,7 +447,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 			if (lognum > maxlog)
 			{
-				SVFTE_ExpandFrames(client, lognum+1);
+				SV_ExpandNackFrames(client, lognum+1);
 				break;
 			}
 			resend[lognum].entnum = entnum;
@@ -478,7 +481,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 			if (lognum > maxlog)
 			{
-				SVFTE_ExpandFrames(client, lognum+1);
+				SV_ExpandNackFrames(client, lognum+1);
 				break;
 			}
 			resend[lognum].entnum = entnum;
@@ -514,7 +517,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 			if (lognum > maxlog)
 			{
-				SVFTE_ExpandFrames(client, lognum+1);
+				SV_ExpandNackFrames(client, lognum+1);
 				break;
 			}
 			resend[lognum].entnum = entnum;
@@ -540,7 +543,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 	csqcnuments = 0;
 
-	client->frameunion.frames[currentsequence & UPDATE_MASK].entities.num_entities = lognum;
+	frame->numresend = lognum;
 
 	//prevent the qc from trying to use it at inopertune times.
 	csqcmsgbuffer.maxsize = 0;
@@ -551,6 +554,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 {
 	int i;
+	client_frame_t *frame;
 	if (!ISQWCLIENT(client) && !ISNQCLIENT(client))
 		return;
 
@@ -559,39 +563,35 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 		Con_Printf("Server bug: No frames!\n");
 		return;
 	}
+	frame = &client->frameunion.frames[sequence & UPDATE_MASK];
 
 	//skip it if we never generated that frame, to avoid pulling in stale data
-	if (client->frameunion.frames[sequence & UPDATE_MASK].sequence != sequence)
+	if (frame->sequence != sequence)
 	{
 //		Con_Printf("SV: Stale %i\n", sequence);
 		return;
 	}
 
 	//lost entities need flagging for a resend
-	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+	if (frame->numresend)
 	{
-		struct resendinfo_s *resend = client->frameunion.frames[sequence & UPDATE_MASK].resend;
+		struct resendinfo_s *resend = frame->resend;
 //		Con_Printf("SV: Resend %i\n", sequence);
-		i = client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities;
+		i = frame->numresend;
 		while (i > 0)
 		{
 			i--;
-
-//			if (f[i] & UF_RESET)
-//				Con_Printf("Resend %i @ %i\n", i, sequence);
-//			if (f[i] & UF_REMOVE)
-//				Con_Printf("Remove %i @ %i\n", i, sequence);
 			client->pendingdeltabits[resend[i].entnum] |= resend[i].bits;
 			client->pendingcsqcbits[resend[i].entnum] |= resend[i].flags;
 		}
-		client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities = 0;
+		frame->numresend = 0;	//don't resend the same info twice!
 	}
 	//lost stats do too
-	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+	if (frame->numresendstats)
 	{
 		client_t *sp;
-		unsigned short *n = client->frameunion.frames[sequence & UPDATE_MASK].resendstats;
-		i = client->frameunion.frames[sequence & UPDATE_MASK].numresendstats;
+		unsigned short *n = frame->resendstats;
+		i = frame->numresendstats;
 		while(i-->0)
 		{
 			unsigned short s = n[i];
@@ -608,7 +608,7 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 			else
 				client->pendingstats[s>>5u] |= 1u << (s & 0x1fu);
 		}
-		client->frameunion.frames[sequence & UPDATE_MASK].numresendstats = 0;
+		frame->numresendstats = 0;
 	}
 }
 
@@ -1532,7 +1532,7 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 	/*cache frame info*/
 	resend = client->frameunion.frames[sequence & UPDATE_MASK].resend;
 	outno = 0;
-	outmax = client->frameunion.frames[sequence & UPDATE_MASK].entities.max_entities;
+	outmax = client->frameunion.frames[sequence & UPDATE_MASK].maxresend;
 
 	/*start writing the packet*/
 	MSG_WriteByte (msg, svcfte_updateentities);
@@ -1564,7 +1564,7 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 		}
 		if (outno >= outmax)
 		{	//expand the frames. may need some copying...
-			SVFTE_ExpandFrames(client, outno+1);
+			SV_ExpandNackFrames(client, outno+1);
 			break;
 		}
 
@@ -1615,7 +1615,7 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 	else
 		client->nextdeltaindex = j;	//we overflowed or something, start going round-robin
 
-	client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities = outno;
+	client->frameunion.frames[sequence & UPDATE_MASK].numresend = outno;
 	client->frameunion.frames[sequence & UPDATE_MASK].sequence = sequence;
 	return overflow;
 }
@@ -1642,7 +1642,7 @@ void SVQW_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t
 	if (client->delta_sequence != -1)
 	{
 		fromframe = &client->frameunion.frames[client->delta_sequence & UPDATE_MASK];
-		from = &fromframe->entities;
+		from = &fromframe->qwentities;
 		oldmax = from->num_entities;
 
 		MSG_WriteByte (msg, svc_deltapacketentities);
@@ -1916,122 +1916,148 @@ void SVDP_EmitEntityDelta(unsigned int bits, entity_state_t *to, sizebuf_t *msg,
 		MSG_WriteShort(msg, to->u.q1.traileffectnum);
 }
 
-void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t *msg)
+void SVDP_EmitEntitiesUpdate (client_t *client, client_frame_t *frame, packet_entities_t *to, sizebuf_t *msg)
 {
-	packet_entities_t *from;
-	int		oldindex, newindex;
-	int		oldnum, newnum;
-	int		oldmax;
+	packet_entities_t *cur;
+	int		newindex;
+	int		curnum, newnum;
 	int		j;
+	int sequence = client->netchan.incoming_sequence;
 
 	// this is the frame that we are going to delta update from
+	cur = &client->sentents;
 	if (!client->netchan.incoming_sequence)
-	{
-		oldmax = 0;
-		from = NULL;
-	}
-	else
-	{
-		from = &client->sentents;
-		oldmax = from->num_entities;
+	{	//first packet deltas from nothing.
+		//so make sure we start with nothing
+		cur->num_entities = 0;
 	}
 
 	if (to->num_entities)
 	{
 		j = to->entities[to->num_entities-1].number+1;
-		if (j > from->max_entities)
+		if (j > cur->max_entities)
 		{
-			from->entities = BZ_Realloc(from->entities, sizeof(*from->entities) * j);
-			memset(&from->entities[from->max_entities], 0, sizeof(from->entities[0]) * (j - from->max_entities));
-			from->max_entities = j;
+			cur->entities = BZ_Realloc(cur->entities, sizeof(*cur->entities) * j);
+			memset(&cur->entities[cur->max_entities], 0, sizeof(cur->entities[0]) * (j - cur->max_entities));
+			cur->max_entities = j;
 		}
-		while(j > client->sentents.num_entities)
+		while(j > cur->num_entities)
 		{
-			from->entities[from->num_entities].number = 0;
-			from->num_entities++;
+			cur->entities[cur->num_entities].number = 0;
+			cur->num_entities++;
 		}
 	}
 
 	//diff the from+to states, flagging any changed state (which is combined with any state from previous packet loss
 	newindex = 0;
-	oldindex = 0;
-	while (newindex < to->num_entities || oldindex < oldmax)
+	curnum = 0;
+	while (newindex < to->num_entities || curnum < cur->num_entities)
 	{
-		newnum = newindex >= to->num_entities ? 0x7fff : to->entities[newindex].number;
-		oldnum = oldindex >= oldmax ? 0x7fff : from->entities[oldindex].number;
+		newnum = newindex >= to->num_entities ? 0x8000 : to->entities[newindex].number;
 
-		if (newnum < oldnum)
-		{	// this is a new entity, send it from the baseline... as far as dp understands it...
-			client->pendingdeltabits[newnum] |= E5_FULLUPDATE | SVDP_CalcDelta(&nullentitystate, NULL, &to->entities[oldindex], to->bonedata);
-			newindex++;
-		}
-		else if (newnum > oldnum)
-		{	// the old entity isn't present in the new message
-			client->pendingdeltabits[oldnum] = E5_SERVERREMOVE;
-			oldindex++;
-		}
-		else
-		{	// delta update from old position
-			client->pendingdeltabits[newnum] |= SVDP_CalcDelta(&from->entities[oldindex], NULL/*from->bonedata*/, &to->entities[oldindex], to->bonedata);
-			if (client->pendingdeltabits[newnum] & E5_SERVERREMOVE)
-			{	//if it got flagged for removal, but its actually a valid entity, then assume that its an outdated remove and just flag it for a full update in case stuff got lost.
-				client->pendingdeltabits[newnum] &= ~E5_SERVERREMOVE;
-				client->pendingdeltabits[newnum] |= E5_FULLUPDATE;
+		if (newnum == curnum)
+		{
+			if (cur->entities[curnum].number)
+			{	//regular update
+				client->pendingdeltabits[newnum] |= SVDP_CalcDelta(&cur->entities[curnum], NULL/*cur->bonedata*/, &to->entities[newindex], to->bonedata);
+				if (client->pendingdeltabits[newnum] & E5_SERVERREMOVE)
+				{	//if it got flagged for removal, but its actually a valid entity, then assume that its an outdated remove and just flag it for a full update in case stuff got lost.
+					client->pendingdeltabits[newnum] &= ~E5_SERVERREMOVE;
+					client->pendingdeltabits[newnum] |= E5_FULLUPDATE;
+				}
 			}
-			oldindex++;
+			else
+			{	//this ent is new
+				//dpp5+ does not use baselines. it just resets from default state.
+				client->pendingdeltabits[newnum] = E5_FULLUPDATE | SVDP_CalcDelta(&nullentitystate, NULL, &to->entities[newindex], to->bonedata);
+			}
+			cur->entities[curnum] = to->entities[newindex];
 			newindex++;
 		}
+		else if (cur->entities[curnum].number)
+		{	//this entity was apparently removed since last time.
+			cur->entities[curnum].number = 0;
+			client->pendingdeltabits[curnum] = E5_SERVERREMOVE;
+		}
+		curnum++;
 	}
+
+	to = cur;
 
 	//loop through all ents and send them as required
 
 //	Con_Printf ("frame %i\n", client->netchan.incoming_sequence);
 
-	MSG_WriteByte(msg, svcdp_entities);
-	MSG_WriteLong(msg, client->netchan.incoming_sequence);	//sequence for the client to ack (any bits sent in unacked frames will be re-queued)
-	if (client->protocol == SCP_DARKPLACES7)
-		MSG_WriteLong(msg, client->last_sequence);			//movement sequence that we are acking.
-
-	client->netchan.incoming_sequence++;
-
-	//add in the bitmasks of dropped packets.
-
-/*	newindex = 0;
-	oldindex = 0;
-//Con_Printf ("---%i to %i ----\n", client->delta_sequence & UPDATE_MASK
-//			, client->netchan.outgoing_sequence & UPDATE_MASK);
-	while (newindex < to->num_entities || oldindex < oldmax)
 	{
-		newnum = newindex >= to->num_entities ? 0x7fff : to->entities[newindex].number;
-		oldnum = oldindex >= oldmax ? 0x7fff : from->entities[oldindex].number;
+		unsigned int bits;
+		int outno, outmax = frame->maxresend;
+		qboolean overflow = false;
+		struct resendinfo_s *resend = frame->resend;
 
-		if (newnum == oldnum)
-		{	// delta update from old position
-//Con_Printf ("delta %i\n", newnum);
-			SVDP_EmitEntityDelta (&from->entities[oldindex], &to->entities[newindex], msg, false, to->bonedata);
-			oldindex++;
-			newindex++;
-			continue;
-		}
+		MSG_WriteByte(msg, svcdp_entities);
+		MSG_WriteLong(msg, sequence);	//sequence for the client to ack (any bits sent in unacked frames will be re-queued)
+		if (client->protocol == SCP_DARKPLACES7)
+			MSG_WriteLong(msg, client->last_sequence);			//movement sequence that we are acking.
 
-		if (newnum < oldnum)
-		{	// this is a new entity, send it from the baseline... as far as dp understands it...
-//Con_Printf ("baseline %i\n", newnum);
-			SVDP_EmitEntityDelta (&nullentitystate, &to->entities[newindex], msg, true, to->bonedata);
-			newindex++;
-			continue;
-		}
+		client->netchan.incoming_sequence++;
 
-		if (newnum > oldnum)
-		{	// the old entity isn't present in the new message
-//	Con_Printf("sRemove %i\n", oldnum);
-			MSG_WriteShort(msg, oldnum | 0x8000);
-			oldindex++;
-			continue;
+		//add in the bitmasks of dropped packets.
+		for(outno = 0, j = 1; j < to->num_entities; j++)
+		{
+			bits = client->pendingdeltabits[j];
+			if (!bits)
+				continue;
+			if (msg->cursize + 50 > msg->maxsize)
+			{
+				overflow = true;
+				break; /*give up if it gets full. FIXME: bone data is HUGE.*/
+			}
+			if (outno >= outmax)
+			{	//expand the frames. may need some copying...
+				SV_ExpandNackFrames(client, outno+1);
+				break;
+			}
+
+			if (bits & E5_SERVERREMOVE)
+			{	//if reset is set, then reset was set eroneously.
+				MSG_WriteShort(msg, j | 0x8000);
+				resend[outno].bits = E5_SERVERREMOVE;
+	//			Con_Printf("REMOVE %i @ %i\n", j, sequence);
+			}
+			else if (to->entities[j].number) /*only send a new copy of the ent if they actually have one already*/
+			{
+				//if we didn't reach the end in the last packet, start at that point to avoid spam
+				//player slots are exempt from this, so they are in every packet (strictly speaking only the local player 'needs' this, but its nice to have it for high-priority targets too)
+				if (j < client->nextdeltaindex && j > svs.allocated_client_slots)
+					continue;
+
+				if (bits & E5_FULLUPDATE)
+				{
+					/*flag the entity for the next packet, so we always get two resets when it appears, to reduce the effects of packetloss on seeing rockets etc*/
+					bits = E5_FULLUPDATE | SVDP_CalcDelta(&nullentitystate, NULL, &to->entities[j], to->bonedata);
+					resend[outno].bits = E5_FULLUPDATE;
+	//				Con_Printf("RESET %i @ %i\n", j, sequence);
+				}
+				else
+					resend[outno].bits = bits;
+
+				SVDP_EmitEntityDelta (bits, &to->entities[j], msg, to->bonedata);
+			}
+
+			client->pendingdeltabits[j] = 0;
+
+			resend[outno].flags = 0;
+			resend[outno++].entnum = j;
 		}
+		MSG_WriteShort(msg, 0x8000);	//dp5+ uses 'remove world' as a terminator.
+		frame->numresend = outno;
+		frame->sequence = sequence;
+
+		if (j == to->num_entities) //looks like we sent them all
+			client->nextdeltaindex = 0;	//start afresh with the next packet.
+		else
+			client->nextdeltaindex = j;	//we overflowed or something, start going round-robin
 	}
-*/
-	MSG_WriteShort(msg, 0x8000);
 }
 #endif
 
@@ -3965,7 +3991,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	}
 
 	host_client = client;
-	if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || !frame->entities.entities)
+	if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || !frame->qwentities.entities || ISNQCLIENT(client))
 	{
 		pack = &svs.entstatebuffer;
 		if (pack->max_entities < client->max_net_ents)
@@ -3976,7 +4002,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		}
 	}
 	else
-		pack = &frame->entities;
+		pack = &frame->qwentities;
 	SV_Snapshot_Clear(pack);
 
 	if (!pack->entities)
@@ -4024,7 +4050,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			}
 		}
 		else if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
-			SVDP_EmitEntitiesUpdate(client, pack, msg);
+			SVDP_EmitEntitiesUpdate(client, frame, pack, msg);
 		else
 		{
 			for (e = 0; e < pack->num_entities; e++)

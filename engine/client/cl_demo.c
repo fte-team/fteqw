@@ -1159,7 +1159,7 @@ static void CLQW_RecordServerData(sizebuf_t *buf)
 	if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
 	{
 		MSG_WriteByte (buf, cl.allocated_client_slots);
-		MSG_WriteByte (buf, cl.splitclients | (cl.spectator?128:0));
+		MSG_WriteByte (buf, cl.splitclients);
 		for (i = 0; i < cl.splitclients; i++)
 			MSG_WriteByte (buf, cl.playerview[i].playernum);
 	}
@@ -1167,7 +1167,7 @@ static void CLQW_RecordServerData(sizebuf_t *buf)
 	{
 		for (i = 0; i < cl.splitclients; i++)
 		{
-			if (cl.spectator)
+			if (cl.playerview[i].spectator)
 				MSG_WriteByte (buf, cl.playerview[i].playernum | 128);
 			else
 				MSG_WriteByte (buf, cl.playerview[i].playernum);
@@ -1544,7 +1544,7 @@ void CL_Record_f (void)
 	}
 	else
 	{	//automagically generate a name
-		if (cl.spectator)
+		if (cl.playerview[0].spectator)
 		{	// FIXME: if tracking a player, use his name
 			fname = va ("spec_%s_%s",
 				TP_PlayerName(),

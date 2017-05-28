@@ -712,9 +712,6 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 
 void SCR_CheckDrawCenterString (void)
 {
-#ifdef QUAKEHUD
-	extern qboolean sb_showscores;
-#endif
 	int pnum;
 	cprint_t *p;
 
@@ -731,7 +728,7 @@ void SCR_CheckDrawCenterString (void)
 			continue;					//should probably allow the console with a scissor region or something.
 
 #ifdef QUAKEHUD
-		if (sb_showscores)	//this was annoying
+		if (cl.playerview[pnum].sb_showscores)	//this was annoying
 			continue;
 #endif
 
@@ -3066,7 +3063,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	}
 	else if (cl.intermissionmode != IM_NONE)
 	{
-		Sbar_IntermissionOverlay ();
+		Sbar_IntermissionOverlay (r_refdef.playerview);
 	}
 	else
 	{

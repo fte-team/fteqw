@@ -271,14 +271,40 @@ void SVQ1_CreateBaseline (void)
 	}
 }
 
+void SV_SpawnParmsToQC(client_t *client)
+{
+	int i;
+	// copy spawn parms out of the client_t
+	for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
+	{
+		if (pr_global_ptrs->spawnparamglobals[i])
+			*pr_global_ptrs->spawnparamglobals[i] = client->spawn_parms[i];
+	}
+	if (pr_global_ptrs->parm_string)
+		*pr_global_ptrs->parm_string = client->spawn_parmstring?PR_TempString(sv.world.progs, client->spawn_parmstring):0;
+}
+
+void SV_SpawnParmsToClient(client_t *client)
+{
+	int i;
+	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+	{
+		if (pr_global_ptrs->spawnparamglobals[i])
+			client->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
+		else
+			client->spawn_parms[i] = 0;
+	}
+	Z_Free(client->spawn_parmstring);
+	if (pr_global_ptrs->parm_string)
+		client->spawn_parmstring = Z_StrDup(PR_GetString(sv.world.progs, *pr_global_ptrs->parm_string));
+	else
+		client->spawn_parmstring = NULL;
+}
+
 void SV_SaveSpawnparmsClient(client_t *client, float *transferparms)
 {
 	int j;
-	for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-	{
-		if (pr_global_ptrs->spawnparamglobals[j])
-			*pr_global_ptrs->spawnparamglobals[j] = client->spawn_parms[j];
-	}
+	SV_SpawnParmsToQC(client);
 
 #ifdef VM_Q1
 	if (svs.gametype == GT_Q1QVM)
@@ -314,11 +340,7 @@ void SV_SaveSpawnparmsClient(client_t *client, float *transferparms)
 	}
 	else
 	{
-		for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-		{
-			if (pr_global_ptrs->spawnparamglobals[j])
-				client->spawn_parms[j] = *pr_global_ptrs->spawnparamglobals[j];
-		}
+		SV_SpawnParmsToClient(client);
 	}
 
 	// call the progs to get default spawn parms for the new client
@@ -394,8 +416,6 @@ void SV_SaveSpawnparms (void)
 
 void SV_GetNewSpawnParms(client_t *cl)
 {
-	int i;
-
 	if (svprogfuncs)	//q2 dlls don't use parms in this manner. It's all internal to the dll.
 	{
 		// call the progs to get default spawn parms for the new client
@@ -408,13 +428,8 @@ void SV_GetNewSpawnParms(client_t *cl)
 			if (pr_global_ptrs->SetNewParms)
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 		}
-		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		{
-			if (pr_global_ptrs->spawnparamglobals[i])
-				cl->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
-			else
-				cl->spawn_parms[i] = 0;
-		}
+
+		SV_SpawnParmsToClient(cl);
 	}
 }
 
@@ -1645,14 +1660,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 			{
 				sv_player = host_client->edict;
 				SV_ExtractFromUserinfo(host_client, true);
-
-				// copy spawn parms out of the client_t
-				for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
-				{
-					if (pr_global_ptrs->spawnparamglobals[j])
-						*pr_global_ptrs->spawnparamglobals[j] = host_client->spawn_parms[j];
-				}
-
+				SV_SpawnParmsToQC(host_client);
 				SV_SetUpClientEdict(host_client, sv_player);
 #ifndef NOLEGACY
 				sv_player->xv->clientcolors = atoi(Info_ValueForKey(host_client->userinfo, "topcolor"))*16 + atoi(Info_ValueForKey(host_client->userinfo, "bottomcolor"));

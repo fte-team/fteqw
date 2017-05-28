@@ -528,8 +528,8 @@ void SVNQ_New_f (void)
 			qboolean big;	//used as a filter to exclude protocols that don't match our coord+angles mode
 		} preferedprot[] =
 		{
-//			{SCP_DARKPLACES7, true},
-//			{SCP_DARKPLACES6, true},
+			{SCP_DARKPLACES7, true},
+			{SCP_DARKPLACES6, true},
 			{SCP_FITZ666, true},	//actually 999... shh...
 			{SCP_FITZ666, false},
 			{SCP_BJP3, false}
@@ -604,7 +604,7 @@ void SVNQ_New_f (void)
 			protoname = "NQ";
 		}
 		break;
-	/*case SCP_DARKPLACES6:
+	case SCP_DARKPLACES6:
 		SV_LogPlayer(host_client, "new (DP6)");
 		protmain = PROTOCOL_VERSION_DP6;
 		protext1 &= ~PEXT_FLOATCOORDS;	//always enabled, try not to break things
@@ -615,7 +615,7 @@ void SVNQ_New_f (void)
 		protmain = PROTOCOL_VERSION_DP7;
 		protext1 &= ~PEXT_FLOATCOORDS;	//always enabled, try not to break things
 		protoname = "DPP7";
-		break;*/
+		break;
 	default:
 		host_client->drop = true;
 		protoname = "?""?""?";
@@ -1824,14 +1824,12 @@ void SV_SpawnSpectator (void)
 			return;
 		}
 	}
-
 }
 
 void SV_Begin_Core(client_t *split)
 {	//this is the client-protocol-independant core, for q1/q2 gamecode
 
 	client_t	*oh;
-	int		i;
 #ifdef HEXEN2
 	if (progstype == PROG_H2 && split->playerclass)
 		split->edict->xv->playerclass = split->playerclass;	//make sure it's set the same as the userinfo
@@ -1878,11 +1876,7 @@ void SV_Begin_Core(client_t *split)
 
 
 				// copy spawn parms out of the client_t
-				for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-				{
-					if (pr_global_ptrs->spawnparamglobals[i])
-						*pr_global_ptrs->spawnparamglobals[i] = split->spawn_parms[i];
-				}
+				SV_SpawnParmsToQC(split);
 
 				// call the spawn function
 				pr_global_struct->time = sv.world.physicstime;
@@ -1912,11 +1906,7 @@ void SV_Begin_Core(client_t *split)
 					eval2 = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "stats_restored", ev_float, NULL);
 					if (eval2)
 						eval2->_float = 1;
-					for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
-					{
-						if (pr_global_ptrs->spawnparamglobals[j])
-							*pr_global_ptrs->spawnparamglobals[j] = split->spawn_parms[j];
-					}
+					SV_SpawnParmsToQC(split);
 					pr_global_struct->time = sv.world.physicstime;
 					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 					G_FLOAT(OFS_PARM0) = sv.time - split->spawninfotime;
@@ -1925,11 +1915,7 @@ void SV_Begin_Core(client_t *split)
 				else
 				{
 					// copy spawn parms out of the client_t
-					for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-					{
-						if (pr_global_ptrs->spawnparamglobals[i])
-							*pr_global_ptrs->spawnparamglobals[i] = split->spawn_parms[i];
-					}
+					SV_SpawnParmsToQC(split);
 
 					// call the spawn function
 #ifdef VM_Q1
@@ -4991,13 +4977,8 @@ void Cmd_Join_f (void)
 #endif
 			if (pr_global_ptrs->SetNewParms)
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
-		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		{
-			if (pr_global_ptrs->spawnparamglobals[i])
-				host_client->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
-			else
-				host_client->spawn_parms[i] = 0;
-		}
+
+		SV_SpawnParmsToClient(host_client);
 
 #ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
@@ -5131,14 +5112,8 @@ void Cmd_Observe_f (void)
 #endif
 			if (pr_global_ptrs->SetNewParms)
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
-		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		{
-			if (pr_global_ptrs->spawnparamglobals[i])
-				host_client->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
-			else
-				host_client->spawn_parms[i] = 0;
-		}
 
+		SV_SpawnParmsToClient(host_client);
 		SV_SpawnSpectator ();
 
 		// call the spawn function
@@ -5372,7 +5347,6 @@ static void SVNQ_Spawn_f (void)
 static void SVNQ_Begin_f (void)
 {
 	unsigned pmodel = 0, emodel = 0;
-	int		i;
 	qboolean sendangles=false;
 
 	if (host_client->state == cs_spawned)
@@ -5394,11 +5368,7 @@ static void SVNQ_Begin_f (void)
 			if (SpectatorConnect)
 			{
 				// copy spawn parms out of the client_t
-				for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-				{
-					if (pr_global_ptrs->spawnparamglobals[i])
-						*pr_global_ptrs->spawnparamglobals[i] = host_client->spawn_parms[i];
-				}
+				SV_SpawnParmsToQC(host_client);
 
 				// call the spawn function
 				pr_global_struct->time = sv.world.physicstime;
@@ -5412,11 +5382,7 @@ static void SVNQ_Begin_f (void)
 			sv.spawned_client_slots++;
 
 			// copy spawn parms out of the client_t
-			for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-			{
-				if (pr_global_ptrs->spawnparamglobals[i])
-					*pr_global_ptrs->spawnparamglobals[i] = host_client->spawn_parms[i];
-			}
+			SV_SpawnParmsToQC(host_client);
 
 			sv.skipbprintclient = host_client;
 #ifdef VM_Q1
@@ -5951,6 +5917,7 @@ ucmd_t nqucmds[] =
 	{"playermodel",	NULL},
 	{"playerskin",	NULL},
 	{"rate",		SV_Rate_f},
+	{"rate_burstsize",	NULL},
 
 #ifdef SVRANKING
 	{"topten",		Rank_ListTop10_f},

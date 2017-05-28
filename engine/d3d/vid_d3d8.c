@@ -886,7 +886,7 @@ qboolean D3D8_VID_ApplyGammaRamps		(unsigned int gammarampsize, unsigned short *
 		IDirect3DDevice8_SetGammaRamp(pD3DDev8, D3DSGR_NO_CALIBRATION, (D3DGAMMARAMP *)ramps);
 	return true;
 }
-static char	*(D3D8_VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
+static char	*(D3D8_VID_GetRGBInfo)			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
 //FIXME: no screenshots
 	return NULL;
@@ -921,6 +921,7 @@ static char	*(D3D8_VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enu
 					*fmt = TF_RGB24;
 
 					// read surface rect and convert 32 bgra to 24 rgb and flip
+					//FIXME: shouldn't need to convert+flip any more. just return it as upside-down bgra or whatever
 					c = desc.Width*desc.Height*3;
 					p = (qbyte *)rect.pBits;
 
@@ -935,6 +936,7 @@ static char	*(D3D8_VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enu
 						p += rect.Pitch;
 					}
 
+					*bytestride = desc.Width*3;
 					*truevidwidth = desc.Width;
 					*truevidheight = desc.Height;
 				}

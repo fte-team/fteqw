@@ -1422,7 +1422,8 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 //			Mod_LoadModelWorker(mod, MLV_WARN, 0);
 //		else
 		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)
-			COM_AddWork(WG_MAIN, Mod_LoadModelWorker, mod, NULL, verbose, 0);
+			Mod_LoadModelWorker(mod, NULL, verbose, 0);
+//			COM_AddWork(WG_MAIN, Mod_LoadModelWorker, mod, NULL, verbose, 0);
 		else
 			COM_AddWork(WG_LOADER, Mod_LoadModelWorker, mod, NULL, verbose, 0);
 	}

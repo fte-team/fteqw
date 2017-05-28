@@ -160,7 +160,7 @@ float V_CalcBob (playerview_t *pv, qboolean queryold)
 	float	hspeed, bob;
 	vec3_t	hvel;
 
-	if (cl.spectator)
+	if (pv->spectator)
 		return 0;
 
 	if (cl_bobcycle.value <= 0 || cl.intermissionmode != IM_NONE)
@@ -1477,9 +1477,9 @@ void V_CalcRefdef (playerview_t *pv)
 	}
 
 #ifdef QUAKESTATS
-	if (pv->stats[STAT_HEALTH] < 0 && (!cl.spectator || pv->cam_state == CAM_EYECAM) && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
+	if (pv->stats[STAT_HEALTH] < 0 && (!pv->spectator || pv->cam_state == CAM_EYECAM) && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
 	{
-		if (!cl.spectator || cl_chasecam.ival)
+		if (!pv->spectator || cl_chasecam.ival)
 			r_refdef.viewangles[ROLL] = 80*v_deathtilt.value;	// dead view angle
 	}
 	else
@@ -1980,7 +1980,7 @@ void R_DrawNameTags(void)
 		}
 	}
 
-	if (((!cl.spectator && !cls.demoplayback) || !scr_autoid.ival) && (!cl.teamplay || !scr_autoid_team.ival))
+	if (((!r_refdef.playerview->spectator && !cls.demoplayback) || !scr_autoid.ival) && (!cl.teamplay || !scr_autoid_team.ival))
 		return;
 	if (cls.state != ca_active || !cl.validsequence || cl.intermissionmode != IM_NONE)
 		return;
@@ -2029,13 +2029,13 @@ void R_DrawNameTags(void)
 
 		if (!cl.teamplay || !scr_autoid_team.ival)
 			isteam = false;
-		else if ((cl.teamfortress && !cl.spectator) || cls.protocol == CP_NETQUAKE)	//teamfortress should go by their colours instead, because spies. primarily this is to allow enemy spies to appear through walls as well as your own team (note that the qc will also need tinfo stuff for tf, to avoid issues with just checking player names).
+		else if ((cl.teamfortress && !r_refdef.playerview->spectator) || cls.protocol == CP_NETQUAKE)	//teamfortress should go by their colours instead, because spies. primarily this is to allow enemy spies to appear through walls as well as your own team (note that the qc will also need tinfo stuff for tf, to avoid issues with just checking player names).
 			isteam = cl.players[i].rbottomcolor == ourcolour;
 		else
 			isteam = !strcmp(cl.players[i].team, ourteam);
 
 		if (!isteam)
-			if ((!cl.spectator && !cls.demoplayback) || !scr_autoid.ival)
+			if ((!r_refdef.playerview->spectator && !cls.demoplayback) || !scr_autoid.ival)
 				continue;	//only show our team when playing, too cheaty otherwise.
 
 		SCR_DrawAutoID(nametagorg[i], &cl.players[i], isteam);

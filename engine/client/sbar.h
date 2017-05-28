@@ -33,12 +33,12 @@ qboolean Sbar_UpdateTeamStatus(struct player_info_s *player, char *status);
 void Sbar_Changed (void);
 // call whenever any of the client stats represented on the sbar changes
 
-qboolean Sbar_ShouldDraw(void);
+qboolean Sbar_ShouldDraw(playerview_t *pv);
 void Sbar_Draw (playerview_t *pv);	//uses the current r_refdef.grect
-void Sbar_DrawScoreboard (void);
+void Sbar_DrawScoreboard (playerview_t *pv);
 // called every frame by screen
 
-void Sbar_IntermissionOverlay (void);
+void Sbar_IntermissionOverlay (playerview_t *pv);
 // called each frame after the level has been completed
 
 void Sbar_FinaleOverlay (void);

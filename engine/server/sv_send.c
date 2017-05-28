@@ -1569,10 +1569,13 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	edict_t	*ent;
 	int i;
 	float newa;
+	client_t *controller;
 
 	ent = client->edict;
 	if (client->controller)
-		client = client->controller;
+		controller = client->controller;
+	else
+		controller = client;
 
 	if (!ent)
 		return;
@@ -1613,8 +1616,8 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 		if (!client->lockangles)
 		{
 			//try to keep them vaugely reliable.
-			if (client->netchan.message.cursize < client->netchan.message.maxsize/2)
-				msg = &client->netchan.message;
+			if (controller->netchan.message.cursize < controller->netchan.message.maxsize/2)
+				msg = &controller->netchan.message;
 		}
 
 		if (pnum)
@@ -1622,7 +1625,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 			MSG_WriteByte(msg, svcfte_choosesplitclient);
 			MSG_WriteByte(msg, pnum);
 		}
-		if (!client->lockangles && (client->fteprotocolextensions2 & PEXT2_SETANGLEDELTA) && client->delta_sequence != -1 && !client->viewent)
+		if (!client->lockangles && (controller->fteprotocolextensions2 & PEXT2_SETANGLEDELTA) && controller->delta_sequence != -1 && !client->viewent)
 		{
 			MSG_WriteByte (msg, svcfte_setangledelta);
 			for (i=0 ; i < 3 ; i++)

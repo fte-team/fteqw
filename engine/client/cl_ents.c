@@ -1658,7 +1658,8 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		}
 		else
 		{
-//			Con_Printf("Update %i\n", read);
+			if (cl_shownet.ival > 3)
+				Con_Printf("Update %i\n", read);
 			DP5_ParseDelta(to, newpack);
 			to->sequence = cls.netchan.incoming_sequence;
 			to->inactiveflag = 0;
@@ -3780,6 +3781,7 @@ void CL_LinkPacketEntities (void)
 				le = &cl.lerpents[timer->entnum];
 				if (le->sequence != cl.lerpentssequence)
 					continue;
+//				VectorCopy(le->origin, timer->origin);
 			}
 			R_AddItemTimer(timer->origin, cl.time*90 + timer->origin[0] + timer->origin[1] + timer->origin[2], timer->radius, (cl.time - timer->start) / timer->duration, timer->rgb);
 		}
@@ -4716,7 +4718,7 @@ guess_pm_type:
 	for (i = 0; i < cl.splitclients; i++)
 	{
 		playerview_t *pv = &cl.playerview[i];
-		if ((cl.spectator?pv->cam_spec_track:pv->playernum) == num)
+		if ((pv->spectator?pv->cam_spec_track:pv->playernum) == num)
 		{
 			pv->stats[STAT_WEAPONFRAME] = state->weaponframe;
 			pv->statsf[STAT_WEAPONFRAME] = state->weaponframe;
@@ -5290,7 +5292,7 @@ void CL_LinkViewModel(void)
 	ent.flags |= RF_WEAPONMODEL|RF_DEPTHHACK|RF_NOSHADOW;
 
 	plnum = -1;
-	if (cl.spectator)
+	if (pv->spectator)
 		plnum = Cam_TrackNum(pv);
 	if (plnum == -1)
 		plnum = r_refdef.playerview->playernum;
@@ -5519,13 +5521,6 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 
 				CL_PredictUsercmd (0, j+1, state, &exact, &state->command);
 				VectorCopy (exact.origin, pplayer->origin);
-			}
-
-			if (cl.spectator)
-			{
-//				if (!Cam_DrawPlayer(0, j))
-//					VectorCopy(pplayer->origin, cl.simorg[0]);
-
 			}
 		}
 	}

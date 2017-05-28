@@ -449,8 +449,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q2BSPS
 	#undef Q3BSPS
 	#undef RFBSPS
-	#undef WEBSERVER		//http/ftp servers
-	#undef WEBCLIENT		//http/ftp clients.
+	#undef WEBSERVER		//http server
+	#undef FTPSERVER		//ftp server
+	#undef WEBCLIENT		//http client.
+	#undef FTPCLIENT		//ftp client.
 #endif
 
 #ifdef __DJGPP__
@@ -491,7 +493,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef VM_Q1		//no dlls
 	#undef MAP_PROC		//meh
 	#undef HALFLIFEMODELS	//blurgh
-	#undef WEBSERVER	//hah, yeah, right
 	#undef SUPPORT_ICE	//requires udp, so not usable. webrtc could be used instead, but that logic is out of our hands.
 	#undef HAVE_MIXER	//depend upon openal instead.
 
@@ -523,8 +524,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_DINPUT	//nope, not supported.
 	#undef SV_MASTER	//no socket interface
 	#undef CL_MASTER	//no socket interface
-	#undef WEBSERVER		//http/ftp servers
-	#undef WEBCLIENT		//http/ftp clients.
 	#undef MULTITHREAD
 	#undef HEADLESSQUAKE
 #endif
@@ -545,7 +544,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef SUPPORT_ICE
 	#undef CL_MASTER	//no sockets support
 	#undef SV_MASTER	//noone uses this anyway
-	#undef WEBSERVER	//no sockets support (certainly no servers)
+	#undef WEBSERVER		//http server
+	#undef FTPSERVER		//ftp server
+	#undef FTPCLIENT		//ftp client.
 	#undef TCPCONNECT
 	#undef IRCCONNECT
 	#define GLSLONLY	//pointless having the junk
@@ -623,7 +624,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef NPFTE
 	#undef TEXTEDITOR
-	#undef WEBSERVER
+	#undef WEBSERVER		//http server
+	#undef FTPSERVER		//ftp server
+	#undef FTPCLIENT		//ftp client.
 #endif
 
 #ifndef AVAIL_ZLIB
@@ -633,7 +636,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef HAVE_TCP
 	#undef TCPCONNECT
 	#undef IRCCONNECT
-	#undef WEBSERVER
+	#undef WEBSERVER		//http server
+	#undef FTPSERVER		//ftp server
+	#undef FTPCLIENT		//ftp client.
 	#if !defined(FTE_TARGET_WEB) && !defined(NACL)
 		#undef WEBCLIENT
 	#endif
@@ -662,6 +667,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q3SERVER
 	#undef HLSERVER
 	#undef WEBSERVER
+	#undef FTPSERVER
 	#undef VM_Q1
 	#undef SQL
 #endif

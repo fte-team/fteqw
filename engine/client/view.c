@@ -2252,11 +2252,11 @@ void V_RenderView (void)
 #ifdef PLUGINS
 		Plug_SBar (r_refdef.playerview);
 #else
-		if (Sbar_ShouldDraw())
+		if (Sbar_ShouldDraw(r_refdef.playerview))
 		{
 			SCR_TileClear (sb_lines);
 			Sbar_Draw (r_refdef.playerview);
-			Sbar_DrawScoreboard ();
+			Sbar_DrawScoreboard (r_refdef.playerview);
 		}
 		else
 			SCR_TileClear (0);

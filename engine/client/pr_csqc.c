@@ -2189,7 +2189,7 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 		{
 			SCR_TileClear (sb_lines);
 			Sbar_Draw (r_refdef.playerview);
-			Sbar_DrawScoreboard ();
+			Sbar_DrawScoreboard (r_refdef.playerview);
 		}
 		else
 			SCR_TileClear (0);

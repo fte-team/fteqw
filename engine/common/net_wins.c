@@ -1899,6 +1899,7 @@ void FTENET_Loop_Close(ftenet_generic_connection_t *con)
 	int sock = con->thesocket;
 	sock &= 1;
 	loopbacks[sock].inited = false;
+	loopbacks[sock].get = loopbacks[sock^1].send = 0;
 	for (i = 0; i < MAX_LOOPBACK; i++)
 	{
 		BZ_Free(loopbacks[sock].msgs[i].data);
@@ -1922,6 +1923,7 @@ static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean iss
 	if (newcon)
 	{
 		loopbacks[sock].inited = true;
+		loopbacks[sock].get = loopbacks[sock^1].send = 0;
 
 		newcon->GetLocalAddresses = FTENET_Loop_GetLocalAddresses;
 		newcon->GetPacket = FTENET_Loop_GetPacket;

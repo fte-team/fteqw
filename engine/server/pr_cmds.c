@@ -3692,19 +3692,20 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 
 	if (flags & STUFFCMD_BROADCAST)
 	{
-		for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
-		{
-			if (cl->state != cs_spawned || cl->controller == cl)
-				continue;
-			SV_StuffcmdToClient(cl, str);
-		}
+		if (!(flags & STUFFCMD_DEMOONLY))
+			for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
+			{
+				if (cl->state != cs_spawned || cl->controller != cl)
+					continue;
+				SV_StuffcmdToClient(cl, str);
+			}
 		if (!(flags & STUFFCMD_IGNOREINDEMO))
-		if (sv.mvdrecording)
-		{
-			sizebuf_t *msg = MVDWrite_Begin (dem_all, 0, 2 + strlen(str));
-			MSG_WriteByte (msg, svc_stufftext);
-			MSG_WriteString (msg, str);
-		}
+			if (sv.mvdrecording)
+			{
+				sizebuf_t *msg = MVDWrite_Begin (dem_all, 0, 2 + strlen(str));
+				MSG_WriteByte (msg, svc_stufftext);
+				MSG_WriteString (msg, str);
+			}
 		return;
 	}
 
@@ -6667,42 +6668,6 @@ static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 /*
 =================
-PF_redirectcmd
-
-void redirectcmd (entity to, string str)
-
-the mvdsv implementation executes it now. we delay till the end of the frame, to avoid issues with map changes etc.
-=================
-*/
-static void PF_Redirectcmdcallback(struct frameendtasks_s *task)
-{	//called at the end of the frame when there's no qc running
-	host_client = svs.clients + task->ctxint;
-	if (host_client->state >= cs_connected)
-	{
-		SV_BeginRedirect(RD_CLIENT, host_client->language);
-		Cmd_ExecuteString(task->data, RESTRICT_INSECURE);
-		SV_EndRedirect();
-	}
-}
-static void QCBUILTIN PF_redirectcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	struct frameendtasks_s *task, **link;
-	int entnum = G_EDICTNUM(prinst, OFS_PARM0);
-	const char *s = PR_GetStringOfs(prinst, OFS_PARM1);
-	if (entnum < 1 || entnum > sv.allocated_client_slots)
-		PR_RunError (prinst, "Parm 0 not a client");
-
-	task = Z_Malloc(sizeof(*task)+strlen(s));
-	task->callback = PF_Redirectcmdcallback;
-	strcpy(task->data, s);
-	task->ctxint = entnum-1;
-	for(link = &svs.frameendtasks; *link; link = &(*link)->next)
-		;	//add them on the end, so they're execed in order
-	*link = task;
-}
-
-/*
-=================
 PF_forcedemoframe
 
 void PF_forcedemoframe(float now)
@@ -6869,6 +6834,42 @@ static void QCBUILTIN PF_logtext(pubprogfuncs_t *prinst, struct globalvars_s *pr
 		Con_Printf("%s", text);
 }
 #endif
+
+/*
+=================
+PF_redirectcmd
+
+void redirectcmd (entity to, string str)
+
+the mvdsv implementation executes it now. we delay till the end of the frame, to avoid issues with map changes etc.
+=================
+*/
+static void PF_Redirectcmdcallback(struct frameendtasks_s *task)
+{	//called at the end of the frame when there's no qc running
+	host_client = svs.clients + task->ctxint;
+	if (host_client->state >= cs_connected)
+	{
+		SV_BeginRedirect(RD_CLIENT, host_client->language);
+		Cmd_ExecuteString(task->data, RESTRICT_INSECURE);
+		SV_EndRedirect();
+	}
+}
+static void QCBUILTIN PF_redirectcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	struct frameendtasks_s *task, **link;
+	int entnum = G_EDICTNUM(prinst, OFS_PARM0);
+	const char *s = PR_GetStringOfs(prinst, OFS_PARM1);
+	if (entnum < 1 || entnum > sv.allocated_client_slots)
+		PR_RunError (prinst, "Parm 0 not a client");
+
+	task = Z_Malloc(sizeof(*task)+strlen(s));
+	task->callback = PF_Redirectcmdcallback;
+	strcpy(task->data, s);
+	task->ctxint = entnum-1;
+	for(link = &svs.frameendtasks; *link; link = &(*link)->next)
+		;	//add them on the end, so they're execed in order
+	*link = task;
+}
 
 static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -11790,10 +11791,11 @@ void PR_DumpPlatform_f(void)
 		{"SERVERKEY_PAUSESTATE","const string", CS, D("1 if the server claimed to be paused. 0 otherwise"), 0, "\"pausestate\""},
 		{"SERVERKEY_DLSTATE",	"const string", CS,	D("The progress of any current downloads. Empty string if no download is active, otherwise a tokenizable string containing this info:\nfiles-remaining, total-size, unknown-sizes-flag, file-localname, file-remotename, file-percent, file-rate, file-received-bytes, file-total-bytes\nIf the current file info is omitted, then we are waiting for a download to start."), 0, "\"dlstate\""},
 		{"SERVERKEY_PROTOCOL",	"const string", CS,	D("The protocol we are connected to the server with."), 0, "\"protocol\""},
-		{"SERVERKEY_MAXPLAYERS","const string", CS,	D("The protocol we are connected to the server with."), 0, "\"maxplayers\""},
+		{"SERVERKEY_MAXPLAYERS","const string", CS,	D("The number of player/spectator slots allocated on the server."), 0, "\"maxplayers\""},
 
-		{"STUFFCMD_IGNOREINDEMO","const float",	QW|NQ,	D("The protocol we are connected to the server with."), STUFFCMD_IGNOREINDEMO},
-		{"STUFFCMD_DEMOONLY",	"const float",	QW|NQ,	D("The protocol we are connected to the server with."), STUFFCMD_DEMOONLY},
+		{"STUFFCMD_IGNOREINDEMO","const float",	QW|NQ,	D("This stuffcmd will NOT be written to mvds/qtv."), STUFFCMD_IGNOREINDEMO},
+		{"STUFFCMD_DEMOONLY",	"const float",	QW|NQ,	D("This stuffcmd will ONLY be written into mvds/qtv streams."), STUFFCMD_DEMOONLY},
+		{"STUFFCMD_BROADCAST",	"const float",	QW|NQ,	D("The stuffcmd will be broadcast server-wide (according to the mvd filters)."), STUFFCMD_BROADCAST},
 
 /*		{"SOUND_RELIABLE",		"const float",	QW|NQ,	D("The sound will be sent reliably, and without regard to phs."), CF_RELIABLE},
 		{"SOUND_FORCELOOP",		"const float",	QW|NQ|CS,D("The sound will restart once it reaches the end of the sample."), CF_FORCELOOP},

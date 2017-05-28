@@ -952,12 +952,14 @@ int main (int c, const char **v)
 		fcntl(0, F_SETFL, fcntl (0, F_GETFL, 0) | FNDELAY);
 #endif
 
+#ifndef CLIENTONLY
 #ifdef SUBSERVERS
 	if (COM_CheckParm("-clusterslave"))
 		isDedicated = nostdout = isClusterSlave = true;
 #endif
 	if (COM_CheckParm("-dedicated"))
 		isDedicated = true;
+#endif
 
 	if (COM_CheckParm("-nostdout"))
 		nostdout = 1;

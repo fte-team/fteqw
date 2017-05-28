@@ -340,7 +340,9 @@ typedef struct
 	neterr_t(*cbpush)(void *cbctx, const qbyte *data, size_t datasize);
 	qbyte *readdata;
 	size_t readsize;
+#ifdef HAVE_DTLS
 	gnutls_dtls_prestate_st prestate;
+#endif
 //	int mtu;
 } gnutlsfile_t;
 
@@ -687,19 +689,23 @@ static ssize_t DTLS_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
 		return size;
 	}
 }
+#ifdef HAVE_DTLS
 static int DTLS_Pull_Timeout(gnutls_transport_ptr_t p, unsigned int timeout)
 {	//gnutls (pointlessly) requires this function for dtls.
 	gnutlsfile_t *f = p;
 //	Sys_Printf("DTLS_Pull_Timeout %i, %i\n", timeout, f->readsize);
 	return f->readsize>0?1:0;
 }
+#endif
 
 #ifdef USE_ANON
 static gnutls_anon_client_credentials_t anoncred[2];
 #else
 static gnutls_certificate_credentials_t xcred[2];
 #endif
+#ifdef HAVE_DTLS
 static gnutls_datum_t cookie_key;
+#endif
 
 qboolean SSL_InitGlobal(qboolean isserver)
 {
@@ -714,8 +720,10 @@ qboolean SSL_InitGlobal(qboolean isserver)
 		initstatus[isserver] = true;
 		qgnutls_global_init ();
 
+#ifdef HAVE_DTLS
 		if (isserver)
 			qgnutls_key_generate(&cookie_key, GNUTLS_COOKIE_KEY_SIZE);
+#endif
 
 
 #ifdef USE_ANON
@@ -736,9 +744,9 @@ qboolean SSL_InitGlobal(qboolean isserver)
 			char keyfile[MAX_OSPATH];
 			char certfile[MAX_OSPATH];
 			*keyfile = *certfile = 0;
-			if (FS_NativePath("key.pem", FS_ROOT, keyfile, sizeof(keyfile))
-			if (FS_NativePath("cert.pem", FS_ROOT, certfile, sizeof(certfile))
-			ret = qgnutls_certificate_set_x509_key_file(xcred[isserver], certfile, keyfile, GNUTLS_X509_FMT_PEM); 
+                        if (FS_NativePath("key.pem", FS_ROOT, keyfile, sizeof(keyfile)))
+                            if (FS_NativePath("cert.pem", FS_ROOT, certfile, sizeof(certfile)))
+                                ret = qgnutls_certificate_set_x509_key_file(xcred[isserver], certfile, keyfile, GNUTLS_X509_FMT_PEM);
 			if (ret < 0)
 			{
 				Con_Printf("No certificate or key were found in %s and %s\n", certfile, keyfile);
@@ -783,8 +791,10 @@ qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboolean data
 	qgnutls_transport_set_push_function(newf->session, datagram?DTLS_Push:SSL_Push);
 	//qgnutls_transport_set_vec_push_function(newf->session, SSL_PushV);
 	qgnutls_transport_set_pull_function(newf->session, datagram?DTLS_Pull:SSL_Pull);
+#ifdef HAVE_DTLS
 	if (datagram)
 		qgnutls_transport_set_pull_timeout_function(newf->session, DTLS_Pull_Timeout);
+#endif
 
 //	if (isserver)	//don't bother to auth any client certs
 //		qgnutls_certificate_server_set_request(newf->session, GNUTLS_CERT_IGNORE);

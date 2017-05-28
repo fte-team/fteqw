@@ -9956,7 +9956,7 @@ void QCC_PR_ParseStatement (void)
 		{
 			//optres_compound_jumps++;
 			QCC_FreeTemp(e);
-			if (!eval->_float != wasuntil)
+                        if ((!eval->_float) != wasuntil)
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], nullsref, nullsref, &patch1));
 			else
 				patch1 = NULL;

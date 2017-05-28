@@ -1673,7 +1673,6 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 		size_t ps = (fmt == TF_BGR24)?3:4;
 		qbyte *in=screendata, *out=rgbdata=Hunk_TempAlloc(screenwidth*screenheight*3);
 		size_t y, x;
-		size_t sz = screenwidth*screenheight;
 		for (y = 0; y < screenheight; y++)
 		{
 			for (x = 0; x < screenwidth; x++)
@@ -1699,7 +1698,6 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 		size_t ps = (fmt == TF_RGB24)?3:4;
 		qbyte *in=screendata, *out=rgbdata=Hunk_TempAlloc(screenwidth*screenheight*3);
 		size_t y, x;
-		size_t sz = screenwidth*screenheight;
 		for (y = 0; y < screenheight; y++)
 		{
 			for (x = 0; x < screenwidth; x++)

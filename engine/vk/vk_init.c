@@ -251,7 +251,7 @@ static qboolean VK_CreateSwapChain(void)
 	uint32_t i, curpri;
 	VkSwapchainKHR newvkswapchain;
 	VkImage *images;
-	VkImage *memories;
+        VkDeviceMemory *memories;
 	VkImageView attachments[2];
 	VkFramebufferCreateInfo fb_info = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
 
@@ -1977,7 +1977,6 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 	vkscreencapture_t *capt;
 
 	VkBufferImageCopy icpy;
-	VkImageSubresource subres = {0};
 
 	VkMemoryRequirements mem_reqs;
 	VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};

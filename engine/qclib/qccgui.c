@@ -19,6 +19,7 @@
 
 #define IDI_ICON_FTEQCC MAKEINTRESOURCE(101)
 
+void OptionsDialog(void);
 static void GUI_CreateInstaller_Windows(void);
 static void GUI_CreateInstaller_Android(void);
 void AddSourceFile(const char *parentsrc, const char *filename);
@@ -54,7 +55,9 @@ void AddSourceFile(const char *parentsrc, const char *filename);
 #define SCI_GETCHARAT 2007
 #define SCI_GETCURRENTPOS 2008
 #define SCI_GETANCHOR 2009
+#define SCI_REDO 2011
 #define SCI_SETSAVEPOINT 2014
+#define SCI_CANREDO 2016
 #define SCI_GETCURLINE 2027
 #define SCI_CONVERTEOLS 2029
 #define SC_EOL_CRLF 0
@@ -87,9 +90,15 @@ void AddSourceFile(const char *parentsrc, const char *filename);
 #define SCI_AUTOCSETFILLUPS 2112
 #define SCI_GETLINE 2153
 #define SCI_SETSEL 2160
+#define SCI_GETSELTEXT 2161
 #define SCI_LINEFROMPOSITION 2166
 #define SCI_POSITIONFROMLINE 2167
 #define SCI_REPLACESEL 2170
+#define SCI_CANUNDO 2174
+#define SCI_UNDO 2176
+#define SCI_CUT 2177
+#define SCI_COPY 2178
+#define SCI_PASTE 2179
 #define SCI_SETTEXT 2181
 #define SCI_GETTEXT 2182
 #define SCI_CALLTIPSHOW 2200
@@ -120,6 +129,7 @@ void AddSourceFile(const char *parentsrc, const char *filename);
 #define SCI_BRACEBADLIGHT 2352
 #define SCI_BRACEMATCH 2353
 #define SCI_SETVIEWEOL 2356
+#define SCI_USEPOPUP 2371
 #define SCI_ANNOTATIONSETTEXT 2540
 #define SCI_ANNOTATIONGETTEXT 2541
 #define SCI_ANNOTATIONSETSTYLE 2542
@@ -711,8 +721,6 @@ HWND optionsmenu;
 HWND outputbox;
 HWND projecttree;
 HWND search_name;
-HWND search_gotodef;
-HWND search_grep;
 HACCEL accelerators;
 
 
@@ -838,11 +846,6 @@ static void SplitterUpdate(void)
 	if (!numsplits)
 		return;
 
-	//figure out the total height
-	for (s = numsplits; s-- > 0; )
-	{
-		y += splits[s].cursize;
-	}
 	y = splitterrect.bottom-splitterrect.top;
 
 	//now figure out their positions relative to that
@@ -892,25 +895,7 @@ static void SplitterUpdate(void)
 		SetWindowPos(splits[s].wnd, HWND_TOP, splitterrect.left, splitterrect.top+splits[s].cury, splitterrect.right-splitterrect.left, splits[s].cursize, SWP_NOZORDER);
 	}
 }
-static void SplitterFocus(HWND w, int minsize)
-{
-	struct splits_s *s = SplitterGet(w);
-	if (s)
-	{
-		if (s->cursize < minsize)
-		{
-			s->cursize += SplitterShrinkPrior(s-splits-1, (minsize-s->cursize)/2);
-			if (s->cursize < minsize)
-				s->cursize += SplitterShrinkNext(s-splits+1, minsize-s->cursize);
-			if (s->cursize < minsize)
-				s->cursize += SplitterShrinkPrior(s-splits-1, minsize-s->cursize);
-			SplitterUpdate();
-		}
-	}
-
-	SetFocus(w);
-}
-static void SplitterAdd(HWND w, int minsize)
+static void SplitterAdd(HWND w, int minsize, int newsize)
 {
 	struct splits_s *n = malloc(sizeof(*n)*(numsplits+1));
 	memcpy(n, splits, sizeof(*n)*numsplits);
@@ -921,13 +906,34 @@ static void SplitterAdd(HWND w, int minsize)
 	n->wnd = w;
 	n->splitter = NULL;
 	n->minsize = minsize;
-	n->cursize = minsize;
+	n->cursize = newsize;
 	n->cury = 0;
 
 	numsplits++;
 
 	SplitterUpdate();
 	ShowWindow(w, SW_SHOW);
+}
+//adds if needed.
+static void SplitterFocus(HWND w, int minsize, int newsize)
+{
+	struct splits_s *s = SplitterGet(w);
+	if (s)
+	{
+		if (s->cursize < newsize)
+		{
+			s->cursize += SplitterShrinkPrior(s-splits-1, (newsize-s->cursize)/2);
+			if (s->cursize < newsize)
+				s->cursize += SplitterShrinkNext(s-splits+1, newsize-s->cursize);
+			if (s->cursize < newsize)
+				s->cursize += SplitterShrinkPrior(s-splits-1, newsize-s->cursize);
+			SplitterUpdate();
+		}
+	}
+	else
+		SplitterAdd(w, minsize, newsize);
+
+	SetFocus(w);
 }
 static void SplitterRemove(HWND w)
 {
@@ -959,23 +965,25 @@ struct{
 	int washit;
 } buttons[] = {
 	{"Compile"},
-	{"Progs.src"},
 #ifdef EMBEDDEBUG
+	{NULL},
 	{"Debug"},
 #endif
 	{"Options"},
-	{"Quit"}
+	{"Def"},
+	{"Grep"}
 };
 
 enum
 {
 	ID_COMPILE = 0,
-	ID_EDIT,
 #ifdef EMBEDDEBUG
+	ID_NULL,
 	ID_RUN,
 #endif
 	ID_OPTIONS,
-	ID_QUIT
+	ID_DEF,
+	ID_GREP
 };
 
 #define NUMBUTTONS sizeof(buttons)/sizeof(buttons[0])
@@ -1014,6 +1022,9 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 	{
 		switch(wParam)
 		{
+		case VK_ESCAPE:
+			SplitterRemove(outputbox);
+			break;
 		case VK_SPACE:
 			{
 				BYTE keystate[256];
@@ -1260,6 +1271,8 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 		SendMessage(newc, SCI_SETKEYWORDS,	5,	(LPARAM)
 					"TODO FIXME BUG"
 					);
+
+		SendMessage(newc, SCI_USEPOPUP, 0/*SC_POPUP_NEVER*/, 0);	//so we can do right-click menus ourselves.
 
 		SendMessage(newc, SCI_SETMOUSEDWELLTIME, 1000, 0);
 		SendMessage(newc, SCI_AUTOCSETORDER, SC_ORDER_PERFORMSORT, 0);
@@ -1520,11 +1533,15 @@ enum {
 	IDM_QUIT,
 	IDM_UNDO,
 	IDM_REDO,
+	IDM_CUT,
+	IDM_COPY,
+	IDM_PASTE,
 	IDM_ABOUT,
 	IDM_CASCADE,
 	IDM_TILE_HORIZ,
 	IDM_TILE_VERT,
 	IDM_DEBUG_REBUILD,
+	IDM_DEBUG_BUILD_OPTIONS,
 	IDM_DEBUG_SETNEXT,
 	IDM_DEBUG_RUN,
 	IDM_DEBUG_STEPOVER,
@@ -1617,7 +1634,10 @@ void GenericMenu(WPARAM wParam)
 
 
 	case IDM_OUTPUT_WINDOW:
-		SplitterFocus(outputbox, 128);
+		if (GetFocus() == outputbox)
+			SplitterRemove(outputbox);
+		else
+			SplitterFocus(outputbox, 64, 128);
 		break;
 	case IDM_SHOWLINENUMBERS:
 		{
@@ -1646,6 +1666,9 @@ void GenericMenu(WPARAM wParam)
 		return;
 	case IDM_DEBUG_REBUILD:
 		buttons[ID_COMPILE].washit = true;
+		return;
+	case IDM_DEBUG_BUILD_OPTIONS:
+		OptionsDialog();
 		return;
 	case IDM_DEBUG_STEPOVER:
 		EditFile(NULL, -1, true);
@@ -1756,6 +1779,36 @@ static char *WordUnderCursor(editor_t *editor, char *word, int wordsize, char *t
 			termsize--;
 		}
 		term[lineidx++] = 0;
+	}
+	return word;
+}
+static char *ReadTextSelection(editor_t *editor, char *word, int wordsize)
+{
+	int total;
+	if (editor->scintilla)
+	{
+		total = SendMessage(editor->editpane, SCI_GETSELTEXT, 0, (LPARAM)NULL);
+		if (total < wordsize)
+			total = SendMessage(editor->editpane, SCI_GETSELTEXT, 0, (LPARAM)word);
+		else
+			total = 0;
+	}
+	else
+	{
+		CHARRANGE ffs;
+		SendMessage(editor->editpane, EM_EXGETSEL, 0, (LPARAM)&ffs);
+		if (ffs.cpMax-ffs.cpMin > wordsize-1)
+			total = 0;	//don't crash through the use of a crappy API.
+		else
+			total = SendMessage(editor->editpane, EM_GETSELTEXT, (WPARAM)0, (LPARAM)word);
+	}
+	if (total)
+		word[total]='\0';
+	else
+	{
+		if (*WordUnderCursor(editor, word, wordsize, NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0)))
+			return word;
+		return NULL;
 	}
 	return word;
 }
@@ -1920,10 +1973,7 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 	case IDM_OPENDOCU:
 		{
 			char buffer[1024];
-			int total;
-			total = SendMessage(editor->editpane, EM_GETSELTEXT, (WPARAM)sizeof(buffer)-1, (LPARAM)buffer);
-			buffer[total]='\0';
-			if (!total && !WordUnderCursor(editor, buffer, sizeof(buffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0)))
+			if (!ReadTextSelection(editor, buffer, sizeof(buffer)))
 			{
 				MessageBox(NULL, "There is no name currently selected.", "Whoops", 0);
 				break;
@@ -1964,10 +2014,7 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 	case IDM_GREP:
 		{
 			char buffer[1024];
-			int total;
-			total = SendMessage(editor->editpane, EM_GETSELTEXT, (WPARAM)sizeof(buffer)-1, (LPARAM)buffer);
-			buffer[total]='\0';
-			if (!total && !WordUnderCursor(editor, buffer, sizeof(buffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0)))
+			if (!ReadTextSelection(editor, buffer, sizeof(buffer)))
 			{
 				MessageBox(NULL, "There is no search text specified.", "Whoops", 0);
 				break;
@@ -1997,7 +2044,6 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 	case IDM_GOTODEF:
 		{
 			char buffer[1024];
-			int total;
 
 			{
 				navhistory[navhistory_pos&navhistory_size].editor = editor;
@@ -2008,9 +2054,7 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 					navhistory_first = navhistory_pos - navhistory_size;
 			}
 
-			total = SendMessage(editor->editpane, EM_GETSELTEXT, (WPARAM)sizeof(buffer)-1, (LPARAM)buffer);
-			buffer[total]='\0';
-			if (!total && !WordUnderCursor(editor, buffer, sizeof(buffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0)))
+			if (!ReadTextSelection(editor, buffer, sizeof(buffer)))
 			{
 				MessageBox(NULL, "There is no name currently selected.", "Whoops", 0);
 				break;
@@ -2021,10 +2065,29 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 		break;
 
 	case IDM_UNDO:
-		Edit_Undo(editor->editpane);
+		if (editor->scintilla)
+			SendMessage(editor->editpane, SCI_UNDO, 0, 0);
+		else
+			Edit_Undo(editor->editpane);
 		break;
 	case IDM_REDO:
-		Edit_Redo(editor->editpane);
+		if (editor->scintilla)
+			SendMessage(editor->editpane, SCI_REDO, 0, 0);
+		else
+			Edit_Redo(editor->editpane);
+		break;
+
+	case IDM_CUT:
+		if (editor->scintilla)
+			SendMessage(editor->editpane, SCI_CUT, 0, 0);
+		break;
+	case IDM_COPY:
+		if (editor->scintilla)
+			SendMessage(editor->editpane, SCI_COPY, 0, 0);
+		break;
+	case IDM_PASTE:
+		if (editor->scintilla)
+			SendMessage(editor->editpane, SCI_PASTE, 0, 0);
 		break;
 
 	case IDM_DEBUG_TOGGLEBREAK:
@@ -2556,9 +2619,67 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 		}
 		else
 		{
-			if (mdibox)
-				goto gdefault;
+//			if (mdibox)
+//				goto gdefault;
 			EditorMenu(editor, wParam);
+		}
+		break;
+	case WM_CONTEXTMENU:
+		{
+			char buffer[1024];
+			int x = GET_X_LPARAM(lParam), y = GET_Y_LPARAM(lParam);
+			HMENU menu = CreatePopupMenu();
+			if (x == -1 && y == -1)
+			{
+				POINT p;
+				GetCursorPos(&p);	//not the best. but too lazy to work out scintilla/richedit.
+				x = p.x;
+				y = p.y;
+			}
+
+			if (ReadTextSelection(editor, buffer, sizeof(buffer)))
+			{
+				char tmp[1024];
+				QC_snprintfz(tmp, sizeof(tmp), "Go to definition: %s", buffer);
+				AppendMenuA(menu, MF_ENABLED,
+					IDM_GOTODEF, tmp);
+
+				QC_snprintfz(tmp, sizeof(tmp), "Grep for %s", buffer);
+				AppendMenuA(menu, MF_ENABLED,
+					IDM_GREP, tmp);
+
+				AppendMenuA(menu, MF_SEPARATOR, 0, NULL);
+			}
+
+			AppendMenuA(menu, MF_ENABLED,
+				IDM_DEBUG_TOGGLEBREAK,		"Toggle Breakpoint");
+
+			if (gamewindow)
+			{
+				AppendMenuA(menu, MF_ENABLED, IDM_DEBUG_SETNEXT, "Set next statement");
+				AppendMenuA(menu, MF_ENABLED, IDM_DEBUG_RUN, "Resume");
+			}
+			else
+				AppendMenuA(menu, MF_ENABLED, IDM_DEBUG_RUN, "Begin Debugging");
+
+			AppendMenuA(menu, MF_SEPARATOR, 0, NULL);
+
+			AppendMenuA(menu, editor->modified?MF_ENABLED:(MF_DISABLED|MF_GRAYED),
+				IDM_SAVE,		"Save File");
+		//	AppendMenuA(menu, MF_ENABLED, IDM_FIND,		"&Find");
+			AppendMenuA(menu, (editor->scintilla&&!SendMessage(editor->editpane, SCI_CANUNDO,0,0))?(MF_DISABLED|MF_GRAYED):MF_ENABLED,
+				IDM_UNDO,		"Undo");
+			AppendMenuA(menu, (editor->scintilla&&!SendMessage(editor->editpane, SCI_CANREDO,0,0))?(MF_DISABLED|MF_GRAYED):MF_ENABLED,
+				IDM_REDO,		"Redo");
+			AppendMenuA(menu, MF_ENABLED,
+				IDM_CUT,		"Cut");
+			AppendMenuA(menu, MF_ENABLED,
+				IDM_COPY,		"Copy");
+			AppendMenuA(menu, MF_ENABLED,
+				IDM_PASTE,		"Paste");
+			
+			TrackPopupMenu(menu, TPM_LEFTBUTTON|TPM_RIGHTBUTTON, x, y, 0, hWnd, NULL);
+			DestroyMenu(menu);
 		}
 		break;
 	case WM_NOTIFY:
@@ -3966,8 +4087,7 @@ void RunEngine(void)
 
 			gamewindow = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, (LONG_PTR) (LPMDICREATESTRUCT) &mcs); 
 		}
-		SplitterAdd(watches, 0);
-		SplitterFocus(watches, 64);
+		SplitterFocus(watches, 64, 64);
 	}
 	else
 	{
@@ -5557,7 +5677,7 @@ static LRESULT CALLBACK SearchComboSubClass(HWND hWnd,UINT message,
 		switch (wParam) 
 		{
 		case VK_RETURN:
-			PostMessage(mainwindow, WM_COMMAND, 0x4404, (LPARAM)search_gotodef);
+			PostMessage(mainwindow, WM_COMMAND, ID_DEF, (LPARAM)buttons[ID_DEF].hwnd);
 			return true;
 		}
 	}
@@ -5567,7 +5687,6 @@ static LRESULT CALLBACK SearchComboSubClass(HWND hWnd,UINT message,
 static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
-	int width;
 	int i;
 	RECT rect;
 	PAINTSTRUCT ps;
@@ -5586,7 +5705,6 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&File");
 					AppendMenu(m, 0, IDM_OPENNEW,								"Open new file ");
 					AppendMenu(m, 0, IDM_SAVE,									"&Save\tCtrl+S ");
-					AppendMenu(m, 0, IDM_RECOMPILE,								"&Recompile\tCtrl+R ");
 				//	AppendMenu(m, 0, IDM_FIND,									"&Find");
 					AppendMenu(m, 0, IDM_UNDO,									"Undo\tCtrl+Z");
 					AppendMenu(m, 0, IDM_REDO,									"Redo\tCtrl+Y");
@@ -5597,7 +5715,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					AppendMenu(m, 0, IDM_QUIT,									"Exit");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Navigation");
 					AppendMenu(m, 0, IDM_GOTODEF,								"Go to definition\tF12");
-					AppendMenu(m, 0, IDM_RETURNDEF,								"Return from definition\tF12");
+					AppendMenu(m, 0, IDM_RETURNDEF,								"Return from definition\tShift+F12");
 					AppendMenu(m, 0, IDM_GREP,									"Grep for selection\tCtrl+G");
 					AppendMenu(m, 0, IDM_OPENDOCU,								"Open selected file");
 					AppendMenu(m, 0, IDM_OUTPUT_WINDOW,							"Show Output Window\tF6");
@@ -5614,6 +5732,8 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					AppendMenu(m, 0, IDM_TILE_VERT,								"Tile Vertically");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Debug");
 					AppendMenu(m, 0, IDM_DEBUG_REBUILD,							"Rebuild\tF7");
+					AppendMenu(m, 0, IDM_DEBUG_BUILD_OPTIONS,					"Build Options");
+					AppendMenu(m, MF_SEPARATOR, 0, NULL);
 					AppendMenu(m, 0, IDM_DEBUG_SETNEXT,							"Set Next Statement\tF8");
 					AppendMenu(m, 0, IDM_DEBUG_RUN,								"Run/Resume\tF5");
 					AppendMenu(m, 0, IDM_DEBUG_STEPOVER,						"Step Over\tF10");
@@ -5643,7 +5763,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					WS_CHILD | WS_VSCROLL | WS_HSCROLL | LVS_REPORT | LVS_EDITLABELS,
 					0, 0, 320, 200, hWnd, (HMENU) 0xCAD, ghInstance, NULL);
 
-			SplitterAdd(mdibox, 32);
+			SplitterAdd(mdibox, 32, 32);
 
 			if (watches)
 			{
@@ -5690,15 +5810,6 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					combosubclassproc = (WNDPROC) SetWindowLongPtr(comboedit, GWLP_WNDPROC, (DWORD_PTR) SearchComboSubClass);
 				}
 				ShowWindow(search_name, SW_SHOW);
-
-				search_gotodef = CreateWindowEx(WS_EX_CLIENTEDGE, "BUTTON", "Def",
-						WS_CHILD | WS_CLIPCHILDREN/* | BS_DEFPUSHBUTTON*/,
-						0, 0, 320, 200, hWnd, (HMENU) 0x4404, ghInstance, (LPSTR) NULL);
-				ShowWindow(search_gotodef, SW_SHOW);
-				search_grep = CreateWindowEx(WS_EX_CLIENTEDGE, "BUTTON", "Grep",
-						WS_CHILD | WS_CLIPCHILDREN/* | BS_DEFPUSHBUTTON*/,
-						0, 0, 320, 200, hWnd, (HMENU) 0x4405, ghInstance, (LPSTR) NULL);
-				ShowWindow(search_grep, SW_SHOW);
 			}
 		}
 		break;
@@ -5724,30 +5835,33 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 		break;
 
 	case WM_SIZE:
-		GetClientRect(mainwindow, &rect);
-		if (projecttree)
 		{
-			SetWindowPos(projecttree, NULL, 0, 0, 192, rect.bottom-rect.top - 48, SWP_NOZORDER);
+			int y;
+			GetClientRect(mainwindow, &rect);
+			y = rect.bottom;
 
-			SetWindowPos(search_name, NULL, 0, rect.bottom-rect.top - 48, 192, 24, SWP_NOZORDER);
-			SetWindowPos(search_gotodef, NULL, 0, rect.bottom-rect.top - 24, 192/2, 24, SWP_NOZORDER);
-			SetWindowPos(search_grep, NULL, 192/2, rect.bottom-rect.top - 24, 192/2, 24, SWP_NOZORDER);
+			for (i = 0; i < NUMBUTTONS; i+=2)
+			{
+				y -= 24;
+				if (!buttons[i+1].hwnd)
+					SetWindowPos(buttons[i].hwnd, NULL, 0, y, 192, 24, SWP_NOZORDER);
+				else
+				{
+					SetWindowPos(buttons[i].hwnd, NULL, 0, y, 192/2, 24, SWP_NOZORDER);
+					SetWindowPos(buttons[i+1].hwnd, NULL, 192/2, y, 192-192/2, 24, SWP_NOZORDER);
+				}
+			}
+
+			y -= 24;
+			SetWindowPos(search_name, NULL, 0, y, 192, 24, SWP_NOZORDER);
+
+			if (projecttree)
+				SetWindowPos(projecttree, NULL, 0, 0, 192, y, SWP_NOZORDER);
 
 			splitterrect.left = 192;
-		}
-		else
-		{
-			splitterrect.left = 0;
-		}
-		splitterrect.right = rect.right-rect.left;
-		splitterrect.bottom = rect.bottom-rect.top-32;
-		SplitterUpdate();
-		width = (rect.right-rect.left)-splitterrect.left;
-		for (i = 0; i < NUMBUTTONS; i++)
-		{
-			int l = splitterrect.left+(width*i)/(NUMBUTTONS);
-			int r = splitterrect.left+(width*(i+1))/(NUMBUTTONS);
-			SetWindowPos(buttons[i].hwnd, NULL, l, rect.bottom-rect.top - 32, r-l, 32, SWP_NOZORDER);
+			splitterrect.right = rect.right-rect.left;
+			splitterrect.bottom = rect.bottom-rect.top;
+			SplitterUpdate();
 		}
 		break;
 //		goto gdefault;
@@ -5789,19 +5903,20 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 			}
 			goto gdefault;
 		}
-		if (i == 0x4404)
-		{
-			GetWindowText(search_name, finddef, sizeof(finddef)-1);
-			return true;
-		}
-		if (i == 0x4405)
-		{
-			GetWindowText(search_name, greptext, sizeof(greptext)-1);
-			return true;
-		}
 		if (i>=20 && i < 20+NUMBUTTONS)
 		{
-			buttons[i-20].washit = 1;
+			i -= 20;
+			if (i == ID_DEF)
+			{
+				GetWindowText(search_name, finddef, sizeof(finddef)-1);
+				return true;
+			}
+			if (i == ID_GREP)
+			{
+				GetWindowText(search_name, greptext, sizeof(greptext)-1);
+				return true;
+			}
+			buttons[i].washit = 1;
 			break;
 		}
 		if (i < IDM_FIRSTCHILD)
@@ -6253,7 +6368,7 @@ int GUIprintf(const char *msg, ...)
 		outlen = 0;
 
 		/*make sure its active so we can actually scroll. stupid windows*/
-		SplitterFocus(outputbox, 0);
+		SplitterFocus(outputbox, 64, 0);
 
 		/*colour background to default*/
 		TreeView_SetBkColor(projecttree, -1);
@@ -6393,6 +6508,8 @@ void compilecb(void)
 {
 	//used to repaint the output window periodically instead of letting it redraw as stuff gets sent to it. this can save significant time on mods with boatloads of warnings.
 	MSG wmsg;
+	if (!SplitterGet(outputbox))
+		return;
 	SendMessage(outputbox, WM_SETREDRAW, TRUE, 0);
 	RedrawWindow(outputbox, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
 	while (PeekMessage (&wmsg, NULL, 0, 0, PM_REMOVE))
@@ -6467,7 +6584,7 @@ void RunCompiler(char *args, pbool quick)
 	else
 		logfile = NULL;
 
-	if (outputbox)
+	if (SplitterGet(outputbox))
 		SendMessage(outputbox, WM_SETREDRAW, FALSE, 0);
 
 	argc = GUI_BuildParms(args, argv, quick);
@@ -6482,7 +6599,7 @@ void RunCompiler(char *args, pbool quick)
 		}
 	}
 
-	if (outputbox)
+	if (SplitterGet(outputbox))
 	{
 		SendMessage(outputbox, WM_SETREDRAW, TRUE, 0);
 		RedrawWindow(outputbox, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
@@ -6500,9 +6617,8 @@ void CreateOutputWindow(pbool doannoates)
 	if (!outputbox)
 	{
 		outputbox = CreateAnEditControl(mainwindow, NULL);
-		SplitterAdd(outputbox, 64);
 	}
-	SplitterFocus(outputbox, 128);
+	SplitterFocus(outputbox, 64, 128);
 }
 
 
@@ -6715,7 +6831,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		{FCONTROL|FVIRTKEY, 'S', IDM_SAVE},
 		{FCONTROL|FVIRTKEY, 'F', IDM_FIND},
 		{FCONTROL|FVIRTKEY, 'G', IDM_GREP},
-		{FCONTROL|FVIRTKEY, 'R', IDM_RECOMPILE},
 		{FVIRTKEY,			VK_F3, IDM_FINDNEXT},
 		{FSHIFT|FVIRTKEY,	VK_F3, IDM_FINDPREV},
 //		{FVIRTKEY,			VK_F4, IDM_NEXTERROR},
@@ -6885,15 +7000,18 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	for (i = 0; i < NUMBUTTONS; i++)
 	{
-		buttons[i].hwnd = CreateWindowEx(WS_EX_CLIENTEDGE,
-			"BUTTON",
-			buttons[i].text,
-			WS_CHILD | WS_VISIBLE,
-			0, 0, 5, 5,
-			mainwindow,
-			(HMENU)(LONG_PTR)(i+20),
-			ghInstance,
-			NULL); 
+		if (!buttons[i].text)
+			buttons[i].hwnd = NULL;
+		else
+			buttons[i].hwnd = CreateWindowEx(WS_EX_CLIENTEDGE,
+				"BUTTON",
+				buttons[i].text,
+				WS_CHILD | WS_VISIBLE,
+				0, 0, 5, 5,
+				mainwindow,
+				(HMENU)(LONG_PTR)(i+20),
+				ghInstance,
+				NULL); 
 	}
 
 	ShowWindow(mainwindow, SW_SHOWDEFAULT);
@@ -6977,12 +7095,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 				buttons[ID_COMPILE].washit = false;
 			}
-			if (buttons[ID_EDIT].washit)
-			{
-				buttons[ID_EDIT].washit = false;
-				if (*progssrcname)
-					EditFile(progssrcname, -1, false);
-			}
 #ifdef EMBEDDEBUG
 			if (buttons[ID_RUN].washit)
 			{
@@ -6994,11 +7106,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			{
 				buttons[ID_OPTIONS].washit = false;
 				OptionsDialog();
-			}
-			if (buttons[ID_QUIT].washit)
-			{
-				buttons[ID_QUIT].washit = false;
-				DestroyWindow(mainwindow);
 			}
 		}
 

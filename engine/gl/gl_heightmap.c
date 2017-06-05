@@ -574,7 +574,9 @@ static void QDECL Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, con
 			hm->entities = e;
 		}
 
+#ifdef HEXEN2
 		e->ent.drawflags = SCALE_ORIGIN_ORIGIN;
+#endif
 		e->ent.scale = scale;
 		e->ent.playerindex = -1;
 		e->ent.framestate.g[FS_REG].lerpweight[0] = 1;

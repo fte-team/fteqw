@@ -6041,6 +6041,7 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 	//don't warn if we omited optional arguments
 	while (arg < np && func.cast->params[arg].defltvalue.cast && !func.cast->params[arg].optional)
 	{
+		QCC_ForceUnFreeDef(func.cast->params[arg].defltvalue.sym);
 		param[arg] = QCC_DefToRef(&parambuf[arg], func.cast->params[arg].defltvalue);
 		arg++;
 	}
@@ -7508,29 +7509,11 @@ QCC_sref_t QCC_PR_GenerateLogicalNot(QCC_sref_t e, const char *errormessage)
 	}
 }
 
-QCC_sref_t QCC_EvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit)
+//doesn't consider parents
+QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit)
 {
 	QCC_type_t *tmp;
 	int totype;
-
-	if (	(cast->type == ev_accessor && cast->parentclass == src.cast)
-		||	(src.cast->type == ev_accessor && src.cast->parentclass == cast))
-	{
-		if (implicit)
-		{
-			char typea[256];
-			char typeb[256];
-			TypeName(src.cast, typea, sizeof(typea));
-			TypeName(cast, typeb, sizeof(typeb));
-			QCC_PR_ParseWarning(0, "Implicit cast from %s to %s", typea, typeb);
-		}
-		src.cast = cast;
-		return src;
-	}
-
-//casting from an accessor uses the base type of that accessor (this allows us to properly read void* accessors)
-	while (src.cast->type == ev_accessor)
-		src.cast = src.cast->parentclass;
 
 	for (tmp = cast; tmp->type == ev_accessor; tmp = tmp->parentclass)
 		;
@@ -7625,15 +7608,47 @@ QCC_sref_t QCC_EvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit)
 		src.cast = cast;
 	else if (!implicit && cast->type == ev_void)
 		src.cast = type_void;	//anything can be cast to void, but only do it explicitly.
-	else
-	{
-		char typea[256];
-		char typeb[256];
-		TypeName(src.cast, typea, sizeof(typea));
-		TypeName(cast, typeb, sizeof(typeb));
-		QCC_PR_ParseError(0, "Cannot cast from %s to %s", typea, typeb);
-	}
+	else	//failed
+		return nullsref;
 	return src;
+}
+
+QCC_sref_t QCC_EvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit)
+{
+	QCC_sref_t r;
+	if (	(cast->type == ev_accessor && cast->parentclass == src.cast)
+		||	(src.cast->type == ev_accessor && src.cast->parentclass == cast))
+	{
+		if (implicit)
+		{
+			char typea[256];
+			char typeb[256];
+			TypeName(src.cast, typea, sizeof(typea));
+			TypeName(cast, typeb, sizeof(typeb));
+			QCC_PR_ParseWarning(0, "Implicit cast from %s to %s", typea, typeb);
+		}
+		src.cast = cast;
+		return src;
+	}
+
+//casting from an accessor uses the base type of that accessor (this allows us to properly read void* accessors)
+	for(;;)
+	{
+		r = QCC_TryEvaluateCast(src, cast, implicit);
+		if (r.cast)
+			return r;	//success
+
+		if (src.cast->type == ev_accessor)
+			src.cast = src.cast->parentclass;
+		else
+		{
+			char typea[256];
+			char typeb[256];
+			TypeName(src.cast, typea, sizeof(typea));
+			TypeName(cast, typeb, sizeof(typeb));
+			QCC_PR_ParseError(0, "Cannot cast from %s to %s", typea, typeb);
+		}
+	}
 }
 
 /*

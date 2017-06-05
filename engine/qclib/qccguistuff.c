@@ -72,7 +72,13 @@ int Grep(char *filename, char *string)
 }
 void GoToDefinition(char *name)
 {
-	QCC_def_t *def;
+	#define MAXSOURCEFILESLIST 8
+	extern char sourcefileslist[MAXSOURCEFILESLIST][1024];
+	extern QCC_def_t *sourcefilesdefs[MAXSOURCEFILESLIST];
+	extern int sourcefilesnumdefs;
+	int fno;
+
+	QCC_def_t *def, *guess;
 	QCC_function_t *fnc;
 
 	char *strip;	//trim whitespace (for convieniance).
@@ -95,19 +101,64 @@ void GoToDefinition(char *name)
 
 	def = QCC_PR_GetDef(NULL, name, NULL, false, 0, false);
 
+	//no exact match, see if we can get a case-insensitive match
+	if (!def && *name)
+	{
+		for (fno = 0; fno < sourcefilesnumdefs; fno++)
+		{
+			for (def = sourcefilesdefs[fno]; def; def = def->next)
+			{
+				if (def->scope)
+					continue;	//ignore locals, because we don't know where we are, and they're probably irrelevent.
+				if (!QC_strcasecmp(def->name, name))
+				{
+					fno = sourcefilesnumdefs;
+					break;
+				}
+			}
+		}
+	}
+
+	//no exact match, see if we can get a partial
+	if (!def && *name)
+	{
+		int prefixlen = strlen(name);
+		for (fno = 0; fno < sourcefilesnumdefs; fno++)
+		{
+			for (guess = sourcefilesdefs[fno]; guess; guess = guess->next)
+			{
+				if (guess->scope)
+					continue;	//ignore locals, because we don't know where we are, and they're probably irrelevent.
+
+				//make sure it has the right prefix
+				if (!QC_strncasecmp(guess->name, name, prefixlen))
+				{
+					if (guess->type->type == ev_function && guess->constant && !guess->arraysize)
+					{	//if we found a function, use that one above all others.
+						def = guess;
+						fno = sourcefilesnumdefs;
+						break;
+					}
+					else if (!def)
+						def = guess;
+				}
+			}
+		}
+	}
+
 	if (def)
 	{
 		//with functions, the def is the prototype.
 		//we want the body, so zoom to the first statement of the function instead
 		if (def->type->type == ev_function && def->constant && !def->arraysize)
 		{
-			int fnum = def->symboldata[def->ofs].function;
+			int fnum = def->symboldata[0].function;
 			if (fnum > 0 && fnum < numfunctions)
 			{
 				fnc = &functions[fnum];
 				if (fnc->code>=0 && fnc->filen)
 				{
-					EditFile(fnc->filen, statements[fnc->code].linenum-1, false);
+					EditFile(fnc->filen, fnc->line, false);
 					return;
 				}
 			}

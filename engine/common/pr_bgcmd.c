@@ -3773,8 +3773,8 @@ void QCBUILTIN PF_strftime (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 struct strbuf {
 	pubprogfuncs_t *prinst;
 	char **strings;
-	int used;
-	int allocated;
+	size_t used;
+	size_t allocated;
 };
 
 #define BUFSTRBASE 1
@@ -3783,7 +3783,7 @@ struct strbuf strbuflist[NUMSTRINGBUFS];
 
 void PF_buf_shutdown(pubprogfuncs_t *prinst)
 {
-	int i, bufno;
+	size_t i, bufno;
 
 	for (bufno = 0; bufno < NUMSTRINGBUFS; bufno++)
 	{
@@ -3805,7 +3805,7 @@ void PF_buf_shutdown(pubprogfuncs_t *prinst)
 // #440 float() buf_create (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_create  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int i;
+	size_t i;
 
 	const char *type = ((prinst->callargc>0)?PR_GetStringOfs(prinst, OFS_PARM0):"string");
 //	unsigned int flags = ((prinst->callargc>1)?G_FLOAT(OFS_PARM1):1);
@@ -3837,10 +3837,10 @@ void QCBUILTIN PF_buf_create  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 // #441 void(float bufhandle) buf_del (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_del  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int i;
-	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	size_t i;
+	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+	if (bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -3858,9 +3858,9 @@ void QCBUILTIN PF_buf_del  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 // #442 float(float bufhandle) buf_getsize (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_getsize  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+	if (bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -3870,17 +3870,17 @@ void QCBUILTIN PF_buf_getsize  (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 // #443 void(float bufhandle_from, float bufhandle_to) buf_copy (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_copy  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int buffrom = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
-	int bufto = G_FLOAT(OFS_PARM1)-BUFSTRBASE;
-	int i;
+	size_t buffrom = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	size_t bufto = G_FLOAT(OFS_PARM1)-BUFSTRBASE;
+	size_t i;
 
 	if (bufto == buffrom)	//err...
 		return;
-	if ((unsigned int)buffrom >= NUMSTRINGBUFS)
+	if (buffrom >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[buffrom].prinst != prinst)
 		return;
-	if ((unsigned int)bufto >= NUMSTRINGBUFS)
+	if (bufto >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufto].prinst != prinst)
 		return;
@@ -3908,13 +3908,13 @@ static int QDECL PF_buf_sort_descending(const void *b, const void *a)
 // #444 void(float bufhandle, float sortprefixlen, float backward) buf_sort (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_sort  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 	int sortprefixlen = G_FLOAT(OFS_PARM1);
-	int backwards = G_FLOAT(OFS_PARM2);
+	qboolean backwards = G_FLOAT(OFS_PARM2);
 	int s,d;
 	char **strings;
 
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+	if (bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -3944,14 +3944,14 @@ void QCBUILTIN PF_buf_sort  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 // #445 string(float bufhandle, string glue) buf_implode (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_implode  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 	const char *glue = PR_GetStringOfs(prinst, OFS_PARM1);
 	unsigned int gluelen = strlen(glue);
-	unsigned int retlen, l, i;
+	size_t retlen, l, i;
 	char **strings;
 	char *ret;
 
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+	if (bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -3993,8 +3993,8 @@ void QCBUILTIN PF_buf_implode  (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 // #446 string(float bufhandle, float string_index) bufstr_get (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_bufstr_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
-	int index = G_FLOAT(OFS_PARM1);
+	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	size_t index = G_FLOAT(OFS_PARM1);
 
 	if ((unsigned int)bufno >= NUMSTRINGBUFS)
 	{
@@ -4018,18 +4018,23 @@ void QCBUILTIN PF_bufstr_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 // #447 void(float bufhandle, float string_index, string str) bufstr_set (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_bufstr_set  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
-	int index = G_FLOAT(OFS_PARM1);
+	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	size_t index = G_FLOAT(OFS_PARM1);
 	const char *string = PR_GetStringOfs(prinst, OFS_PARM2);
-	int oldcount;
+	size_t oldcount;
 
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+	if (bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
 	if (index >= strbuflist[bufno].allocated)
 	{
+		if (index > 1024*1024)
+		{
+			PR_RunWarning(prinst, "index outside sanity range\n");
+			return;
+		}
 		oldcount = strbuflist[bufno].allocated;
 		strbuflist[bufno].allocated = (index + 256);
 		strbuflist[bufno].strings = BZ_Realloc(strbuflist[bufno].strings, strbuflist[bufno].allocated*sizeof(char*));
@@ -4044,9 +4049,9 @@ void QCBUILTIN PF_bufstr_set  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		strbuflist[bufno].used = index+1;
 }
 
-int PF_bufstr_add_internal(int bufno, const char *string, int appendonend)
+size_t PF_bufstr_add_internal(int bufno, const char *string, int appendonend)
 {
-	int index;
+	size_t index;
 	if (appendonend)
 	{
 		//add on end
@@ -4085,11 +4090,11 @@ int PF_bufstr_add_internal(int bufno, const char *string, int appendonend)
 // #448 float(float bufhandle, string str, float order) bufstr_add (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_bufstr_add  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 	const char *string = PR_GetStringOfs(prinst, OFS_PARM1);
 	int order = G_FLOAT(OFS_PARM2);
 
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+	if (bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -4099,10 +4104,10 @@ void QCBUILTIN PF_bufstr_add  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 // #449 void(float bufhandle, float string_index) bufstr_free (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_bufstr_free  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
-	int index = G_FLOAT(OFS_PARM1);
+	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	size_t index = G_FLOAT(OFS_PARM1);
 
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+	if (bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -4117,7 +4122,7 @@ void QCBUILTIN PF_bufstr_free  (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
+	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 	const char *pattern = PR_GetStringOfs(prinst, OFS_PARM1);
 	const char *antipattern = PR_GetStringOfs(prinst, OFS_PARM2);
 	int i;
@@ -4125,7 +4130,7 @@ void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	cvar_t	*var;
 	extern cvar_group_t *cvar_groups;
 
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+	if (bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -4153,14 +4158,14 @@ void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 void QCBUILTIN PF_buf_loadfile  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *fname = PR_GetStringOfs(prinst, OFS_PARM0);
-	int bufno = G_FLOAT(OFS_PARM1)-BUFSTRBASE;
+	size_t bufno = G_FLOAT(OFS_PARM1)-BUFSTRBASE;
 	vfsfile_t *file;
 	char line[8192];
 	const char *fallback;
 
 	G_FLOAT(OFS_RETURN) = 0;
 
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+	if (bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -4188,19 +4193,19 @@ void QCBUILTIN PF_buf_loadfile  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 void QCBUILTIN PF_buf_writefile  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	unsigned int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	int bufno = G_FLOAT(OFS_PARM1)-BUFSTRBASE;
+	size_t fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
+	size_t bufno = G_FLOAT(OFS_PARM1)-BUFSTRBASE;
 	char **strings;
 	int idx, midx;
 
 	G_FLOAT(OFS_RETURN) = 0;
 
-	if ((unsigned int)bufno >= (unsigned int)NUMSTRINGBUFS)
+	if (bufno >= NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
-	if ((unsigned int)fnum >= (unsigned int)MAX_QC_FILES)
+	if (fnum >= MAX_QC_FILES)
 		return;
 	if (pf_fopen_files[fnum].prinst != prinst)
 		return;
@@ -4213,8 +4218,8 @@ void QCBUILTIN PF_buf_writefile  (pubprogfuncs_t *prinst, struct globalvars_s *p
 		midx = idx + G_FLOAT(OFS_PARM3);
 	else
 		midx = strbuflist[bufno].used - idx;
-	idx = bound(0, idx, strbuflist[bufno].used);
-	midx = min(midx, strbuflist[bufno].used);
+	idx = bound(0, idx, (int)strbuflist[bufno].used);
+	midx = min(midx, (int)strbuflist[bufno].used);
 	for(strings = strbuflist[bufno].strings; idx < midx; idx++)
 	{
 		if (strings[idx])

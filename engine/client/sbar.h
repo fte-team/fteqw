@@ -59,7 +59,7 @@ int Sbar_TranslateHudClick(void);
 #define Sbar_Draw(pv)
 #define Sbar_Flush()
 #define Sbar_ShouldDraw(pv) false
-#define Sbar_DrawScoreboard()
+#define Sbar_DrawScoreboard(pv)
 #define Sbar_FinaleOverlay()
 #define Sbar_IntermissionOverlay(pv)
 #define Sbar_TranslateHudClick() 0

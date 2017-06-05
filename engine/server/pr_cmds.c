@@ -1443,6 +1443,12 @@ static void PR_FallbackSpawn_Misc_Model(pubprogfuncs_t *progfuncs, edict_t *self
 	void *pr_globals;
 	eval_t *val;
 
+	if (sv.world.worldmodel && sv.world.worldmodel->type==mod_brush && sv.world.worldmodel->fromgame == fg_quake3)
+	{	//on q3bsp, these are expected to be handled directly by q3map2, but it doesn't always strip it.
+		ED_Free(progfuncs, self);
+		return;
+	}
+
 	if (!self->v->model && (val = progfuncs->GetEdictFieldValue(progfuncs, self, "mdl", ev_string, NULL)))
 		self->v->model = val->string;
 	if (!*PR_GetString(progfuncs, self->v->model)) //must have a model, because otherwise various things will assume its not valid at all.
@@ -1492,7 +1498,7 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 	eclassname = PR_GetString(progfuncs, ed->v->classname);
 	if (!*eclassname)
 	{
-		printf("No classname\n");
+		Con_Printf("No classname\n");
 		ED_Free(progfuncs, ed);
 	}
 	else
@@ -1562,7 +1568,7 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 				{
 					if (!ctx->spawnwarned[i])
 					{
-						printf("Couldn't find spawn function for %s\n", eclassname);
+						Con_Printf("Couldn't find spawn function for %s\n", eclassname);
 						ctx->spawnwarned[i] = eclassname;
 						break;
 					}
@@ -9455,6 +9461,8 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		msecs -= pmove.cmd.msec;
 		PM_PlayerMove(1);
 
+		if (client)
+			client->jump_held = pmove.jump_held;
 		ent->xv->pmove_flags = 0;
 		ent->xv->pmove_flags += ((int)pmove.jump_held?PMF_JUMP_HELD:0);
 		ent->xv->pmove_flags += ((int)pmove.onladder?PMF_LADDER:0);
@@ -10584,7 +10592,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"buf_implode",		PF_Fixme,			0,		0,		0,		445,	"string(strbuf bufhandle, string glue)"},//DP_QC_STRINGBUFFERS
 	{"bufstr_get",		PF_Fixme,			0,		0,		0,		446,	"string(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
 	{"bufstr_set",		PF_Fixme,			0,		0,		0,		447,	"void(strbuf bufhandle, float string_index, string str)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_add",		PF_Fixme,			0,		0,		0,		448,	"float(strbuf bufhandle, string str, float order)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_add",		PF_Fixme,			0,		0,		0,		448,	"float(strbuf bufhandle, string str, float ordered)"},//DP_QC_STRINGBUFFERS
 	{"bufstr_free",		PF_Fixme,			0,		0,		0,		449,	"void(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
 	{"iscachedpic",		PF_Fixme,			0,		0,		0,		451,	"float(string name)"},// (EXT_CSQC)
 	{"precache_pic",	PF_Fixme,			0,		0,		0,		452,	"string(string name, optional float trywad)"},// (EXT_CSQC)
@@ -10638,7 +10646,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"buf_implode",		PF_buf_implode,		0,		0,		0,		465,	"string(strbuf bufhandle, string glue)"},//DP_QC_STRINGBUFFERS
 	{"bufstr_get",		PF_bufstr_get,		0,		0,		0,		466,	"string(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
 	{"bufstr_set",		PF_bufstr_set,		0,		0,		0,		467,	"void(strbuf bufhandle, float string_index, string str)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_add",		PF_bufstr_add,		0,		0,		0,		468,	"float(strbuf bufhandle, string str, float order)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_add",		PF_bufstr_add,		0,		0,		0,		468,	"float(strbuf bufhandle, string str, float ordered)"},//DP_QC_STRINGBUFFERS
 	{"bufstr_free",		PF_bufstr_free,		0,		0,		0,		469,	"void(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
 	//end non-menu
 
@@ -11674,20 +11682,20 @@ void PR_DumpPlatform_f(void)
 		{"CONTENT_SKY",		"const float", QW|NQ|CS, NULL, Q1CONTENTS_SKY},
 		{"CONTENT_LADDER",	"const float", QW|NQ|CS, D("If this value is assigned to a solid_bsp's .skin field, the entity will become a ladder volume."), Q1CONTENTS_LADDER},
 
-		{"CONTENTBIT_NONE",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_EMPTY)},
-		{"CONTENTBIT_SOLID",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_SOLID)},
-		{"CONTENTBIT_LAVA",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_LAVA)},
-		{"CONTENTBIT_SLIME",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_SLIME)},
-		{"CONTENTBIT_WATER",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_WATER)},
-		{"CONTENTBIT_FTELADDER",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_LADDER)},
-		{"CONTENTBIT_PLAYERCLIP",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_PLAYERCLIP)},
-		{"CONTENTBIT_MONSTERCLIP",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_MONSTERCLIP)},
-		{"CONTENTBIT_BODY",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_BODY)},
-		{"CONTENTBIT_CORPSE",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_CORPSE)},
-		{"CONTENTBIT_Q2LADDER",		"const int", QW|NQ|CS, D("Content bit specific to q2bsp"), 0,STRINGIFY(Q2CONTENTS_LADDER)},
+		{"CONTENTBIT_NONE",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_EMPTY)"i"},
+		{"CONTENTBIT_SOLID",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_SOLID)"i"},
+		{"CONTENTBIT_LAVA",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_LAVA)"i"},
+		{"CONTENTBIT_SLIME",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_SLIME)"i"},
+		{"CONTENTBIT_WATER",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_WATER)"i"},
+		{"CONTENTBIT_FTELADDER",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_LADDER)"i"},
+		{"CONTENTBIT_PLAYERCLIP",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_PLAYERCLIP)"i"},
+		{"CONTENTBIT_MONSTERCLIP",	"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_MONSTERCLIP)"i"},
+		{"CONTENTBIT_BODY",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_BODY)"i"},
+		{"CONTENTBIT_CORPSE",		"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_CORPSE)"i"},
+		{"CONTENTBIT_Q2LADDER",		"const int", QW|NQ|CS, D("Content bit specific to q2bsp"), 0,STRINGIFY(Q2CONTENTS_LADDER)"i"},
 		{"CONTENTBIT_SKY",			"const int", QW|NQ|CS, NULL, 0,STRINGIFY(FTECONTENTS_SKY)"i"},
-		{"CONTENTBITS_POINTSOLID",	"const int", QW|NQ|CS, D("Bits that traceline would normally consider solid"), 0,"CONTENTBIT_SOLID|"STRINGIFY(Q2CONTENTS_WINDOW)"|CONTENTBIT_BODY"},
-		{"CONTENTBITS_BOXSOLID",	"const int", QW|NQ|CS, D("Bits that tracebox would normally consider solid"), 0,"CONTENTBIT_SOLID|"STRINGIFY(Q2CONTENTS_WINDOW)"|CONTENTBIT_BODY|CONTENTBIT_PLAYERCLIP"},
+		{"CONTENTBITS_POINTSOLID",	"const int", QW|NQ|CS, D("Bits that traceline would normally consider solid"), 0,"CONTENTBIT_SOLID|"STRINGIFY(Q2CONTENTS_WINDOW)"i|CONTENTBIT_BODY"},
+		{"CONTENTBITS_BOXSOLID",	"const int", QW|NQ|CS, D("Bits that tracebox would normally consider solid"), 0,"CONTENTBIT_SOLID|"STRINGIFY(Q2CONTENTS_WINDOW)"i|CONTENTBIT_BODY|CONTENTBIT_PLAYERCLIP"},
 		{"CONTENTBITS_FLUID",		"const int", QW|NQ|CS, NULL, 0,"CONTENTBIT_WATER|CONTENTBIT_SLIME|CONTENTBIT_LAVA|CONTENTBIT_SKY"},
 
 		{"SPA_POSITION",			"const int", QW|NQ|CS, D("These SPA_* constants are to specify which attribute is returned by the getsurfacepointattribute builtin"), 0},

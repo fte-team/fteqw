@@ -856,7 +856,7 @@ SV_Push
 
 ============
 */
-static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t amove)
+qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t amove)
 {
 #define PUSHABLE_LIMIT 8192
 	int			i, e;
@@ -1013,6 +1013,8 @@ static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t am
 			else
 #endif
 				PR_ExecuteProgram (w->progs, pusher->v->blocked);
+		} else {
+			*w->g.other = 0;
 		}
 
 	// move back any entities we already moved

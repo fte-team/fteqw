@@ -5890,7 +5890,24 @@ void QCBUILTIN PF_physics_addtorque(pubprogfuncs_t *prinst, struct globalvars_s 
 }
 #endif
 
+/*
+=============
+PF_pushmove
+=============
+*/
+void QCBUILTIN PF_pushmove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	wedict_t *ent;
+	float *move;
+	float *amove;
+	
+	ent = G_WEDICT(prinst, OFS_PARM0);
+	move = G_VECTOR(OFS_PARM1);
+	amove = G_VECTOR(OFS_PARM2);
 
+	G_FLOAT(OFS_RETURN) = WPhys_Push(world, ent, move, amove);
+}
 
 void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored)
 {

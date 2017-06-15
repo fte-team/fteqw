@@ -5946,7 +5946,7 @@ static struct {
 	{"getmodeleventidx",		PF_getmodeleventidx,	0},
 
 	{"crossproduct",			PF_crossproduct,		0},
-
+	{"pushmove", 				PF_pushmove, 			0},
 #ifdef TERRAIN
 	{"terrain_edit",			PF_terrain_edit,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??)
 	{"brush_get",				PF_brush_get,			0},

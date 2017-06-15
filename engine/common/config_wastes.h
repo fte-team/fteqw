@@ -28,6 +28,7 @@
 #undef VKQUAKE
 #undef HEADLESSQUAKE
 
+#define HAVE_PACKET
 #define QUAKETC
 #define AVAIL_OPENAL
 #define AVAIL_ZLIB

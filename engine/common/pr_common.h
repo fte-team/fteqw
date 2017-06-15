@@ -70,6 +70,7 @@ extern int qcinput_scan;
 extern int qcinput_unicode;
 int MP_TranslateFTEtoQCCodes(int code);
 int MP_TranslateQCtoFTECodes(int code);
+qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t amove);
 
 //pr_cmds.c builtins that need to be moved to a common.
 void VARGS PR_BIError(pubprogfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);
@@ -270,6 +271,9 @@ void QCBUILTIN PF_physics_supported(pubprogfuncs_t *prinst, struct globalvars_s 
 void QCBUILTIN PF_physics_enable(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_physics_addforce(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_physics_addtorque(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+
+void QCBUILTIN PF_pushmove(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+
 #ifdef TERRAIN
 void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_brush_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

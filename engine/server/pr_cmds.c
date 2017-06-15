@@ -10337,9 +10337,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"processmodelevents",PF_processmodelevents,0,	0,		0,		0,		D("void(float modidx, float framenum, __inout float basetime, float targettime, void(float timestamp, int code, string data) callback)", "Calls a callback for each event that has been reached. Basetime is set to targettime.")},
 	{"getnextmodelevent",PF_getnextmodelevent,0,	0,		0,		0,		D("float(float modidx, float framenum, __inout float basetime, float targettime, __out int code, __out string data)", "Reports the next event within a model's animation. Returns a boolean if an event was found between basetime and targettime. Writes to basetime,code,data arguments (if an event was found, basetime is set to the event's time, otherwise to targettime).\nWARNING: this builtin cannot deal with multiple events with the same timestamp (only the first will be reported).")},
 	{"getmodeleventidx",PF_getmodeleventidx,0,		0,		0,		0,		D("float(float modidx, float framenum, int eventidx, __out float timestamp, __out int code, __out string data)", "Reports an indexed event within a model's animation. Writes to timestamp,code,data arguments on success. Returns false if the animation/event/model was out of range/invalid. Does not consider looping animations (retry from index 0 if it fails and you know that its a looping animation). This builtin is more annoying to use than getnextmodelevent, but can be made to deal with multiple events with the exact same timestamp.")},
-
 	{"crossproduct",	PF_crossproduct,	0,		0,		0,		0,		D("#define dotproduct(v1,v2) ((vector)(v1)*(vector)(v2))\nvector(vector v1, vector v2)", "Small helper function to calculate the crossproduct of two vectors.")},
-
+	{"pushmove", 		PF_pushmove, 		0, 		0,		0, 		0, 		"float(entity pusher, vector move, vector amove)"},
 #ifdef TERRAIN
 	{"terrain_edit",	PF_terrain_edit,	0,		0,		0,		278,	D("void(float action, optional vector pos, optional float radius, optional float quant, ...)", "Realtime terrain editing. Actions are the TEREDIT_ constants.")},// (??FTE_TERRAIN_EDIT??
 
@@ -10746,7 +10745,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"physics_addforce",PF_physics_addforce,0,		0,		0,		541,	D("void(entity e, vector force, vector relative_ofs)", "Apply some impulse directional force upon a MOVETYPE_PHYSICS entity.")},
 	{"physics_addtorque",PF_physics_addtorque,0,	0,		0,		542,	D("void(entity e, vector torque)", "Apply some impulse rotational force upon a MOVETYPE_PHYSICS entity.")},
 #endif
-
+	
 	{"setkeydest",		PF_Fixme,			0,		0,		0,		601,	"void(float dest)"},
 	{"getkeydest",		PF_Fixme,			0,		0,		0,		602,	"float()"},
 	{"setmousetarget",	PF_Fixme,			0,		0,		0,		603,	"void(float trg)"},
@@ -10797,7 +10796,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"getrmqeffectsversion",PF_Ignore,		0,		0,		0,		666,	"float()" STUB},
 	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin
-
+	
 	{NULL}
 };
 

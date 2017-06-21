@@ -4749,7 +4749,7 @@ void STT_Init_f(void)
 	if (SUCCEEDED(CoCreateInstance(&CLSID_SpSharedRecoContext, NULL, CLSCTX_SERVER, &IID_SpRecoContext, (void*)&stt_recctx)))
 	{
 		ULONGLONG ev = (((ULONGLONG)1) << 38) | (((ULONGLONG)1) << 30) | (((ULONGLONG)1) << 33);
-		if (SUCCEEDED(stt_recctx->lpVtbl->SetNotifyWindowMessage(stt_recctx, mainwindow, WM_USER, 0, 0)))
+		if (SUCCEEDED(stt_recctx->lpVtbl->SetNotifyWindowMessage(stt_recctx, mainwindow, WM_USER_SPEECHTOTEXT, 0, 0)))
 		if (SUCCEEDED(stt_recctx->lpVtbl->SetInterest(stt_recctx, ev, ev)))
 		if (SUCCEEDED(stt_recctx->lpVtbl->CreateGrammar(stt_recctx, 0, &stt_gram)))
 		{

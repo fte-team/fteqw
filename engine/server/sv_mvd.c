@@ -233,7 +233,6 @@ enum qtvstatus_e
 };
 int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *headerend, qtvpendingstate_t *p)
 {
-	unsigned short ushort_result;
 	char *e;
 
 	qboolean server = false;
@@ -244,9 +243,10 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 	enum {
 		QTVAM_NONE,
 		QTVAM_PLAIN,
-		QTVAM_CCITT,
-		QTVAM_MD4,
-		QTVAM_MD5,
+//		QTVAM_CCITT,	//16bit = ddos it
+		QTVAM_MD4,		//fucked
+//		QTVAM_MD5,		//no hash implemented
+		QTVAM_SHA1,
 	} authmethod = QTVAM_NONE;
 
 	start = headerstart;
@@ -319,12 +319,14 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 					thisauth = QTVAM_PLAIN;
 				else if (!strcmp(com_token, "PLAIN"))
 					thisauth = QTVAM_PLAIN;
-				else if (!strcmp(com_token, "CCIT"))
-					thisauth = QTVAM_CCITT;
+//				else if (!strcmp(com_token, "CCIT"))
+//					thisauth = QTVAM_CCITT;
 				else if (!strcmp(com_token, "MD4"))
 					thisauth = QTVAM_MD4;
-//								else if (!strcmp(com_token, "MD5"))
-//									thisauth = QTVAM_MD5;
+//				else if (!strcmp(com_token, "MD5"))
+//					thisauth = QTVAM_MD5;
+				else if (!strcmp(com_token, "SHA1"))
+					thisauth = QTVAM_SHA1;
 				else
 				{
 					thisauth = QTVAM_NONE;
@@ -384,12 +386,15 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 		case QTVAM_PLAIN:
 			p->hasauthed = !strcmp(qtv_password.string, password);
 			break;
-		case QTVAM_CCITT:
-			QCRC_Init(&ushort_result);
-			QCRC_AddBlock(&ushort_result, p->challenge, strlen(p->challenge));
-			QCRC_AddBlock(&ushort_result, qtv_password.string, strlen(qtv_password.string));
-			p->hasauthed = (ushort_result == strtoul(password, NULL, 0));
-			break;
+		/*case QTVAM_CCITT:
+			{
+				unsigned short ushort_result;
+				QCRC_Init(&ushort_result);
+				QCRC_AddBlock(&ushort_result, p->challenge, strlen(p->challenge));
+				QCRC_AddBlock(&ushort_result, qtv_password.string, strlen(qtv_password.string));
+				p->hasauthed = (ushort_result == strtoul(password, NULL, 0));
+			}
+			break;*/
 		case QTVAM_MD4:
 			{
 				char hash[512];
@@ -401,7 +406,18 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 				p->hasauthed = !strcmp(password, hash);
 			}
 			break;
-		case QTVAM_MD5:
+		case QTVAM_SHA1:
+			{
+				char hash[512];
+				int digest[5];
+
+				snprintf(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
+				SHA1((char*)digest, sizeof(digest), hash, strlen(hash));
+				sprintf(hash, "%08X%08X%08X%08X%08X", digest[0], digest[1], digest[2], digest[3], digest[4]);
+				p->hasauthed = !strcmp(password, hash);
+			}
+			break;
+//		case QTVAM_MD5:
 		default:
 			e = ("QTVSV 1\n"
 				 "PERROR: FTEQWSV bug detected.\n\n");
@@ -434,13 +450,13 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 
 			if (0)
 			{
-		case QTVAM_CCITT:
+		/*case QTVAM_CCITT:
 					e =	("QTVSV 1\n"
 						"AUTH: CCITT\n"
 						"CHALLENGE: ");
 			}
 			else if (0)
-			{
+			{*/
 		case QTVAM_MD4:
 					e =	("QTVSV 1\n"
 						"AUTH: MD4\n"
@@ -448,9 +464,16 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 			}
 			else
 			{
-		case QTVAM_MD5:
+		/*case QTVAM_MD5:
 					e =	("QTVSV 1\n"
 						"AUTH: MD5\n"
+						"CHALLENGE: ");
+			}
+			else
+			{*/
+		case QTVAM_SHA1:
+					e =	("QTVSV 1\n"
+						"AUTH: SHA1\n"
 						"CHALLENGE: ");
 			}
 
@@ -2752,7 +2775,7 @@ void SV_MVDInfo_f (void)
 
 
 
-
+#ifdef SERVER_DEMO_PLAYBACK
 void SV_MVDPlayNum_f(void)
 {
 	char namebuf[MAX_QPATH];
@@ -2780,6 +2803,7 @@ void SV_MVDPlayNum_f(void)
 	else
 		Con_Printf("invalid demo num\n");
 }
+#endif
 
 
 
@@ -2787,22 +2811,41 @@ void SV_MVDInit(void)
 {
 	MVD_Init();
 
-#ifdef SERVERONLY	//client command would conflict otherwise.
-	Cmd_AddCommand ("record", SV_MVD_Record_f);
-	Cmd_AddCommand ("stop", SV_MVDStop_f);
+	//names that conflict with the client and thus only exist in dedicated servers (and thus shouldn't be used by mods that want mvds).
+#ifdef SERVERONLY
+	Cmd_AddCommand ("record",			SV_MVD_Record_f);
+	Cmd_AddCommand ("stop",				SV_MVDStop_f);	//client version should still work for mvds too.
 #endif
-	Cmd_AddCommand ("cancel", SV_MVD_Cancel_f);
-	Cmd_AddCommand ("qtvreverse", SV_MVD_QTVReverse_f);
-	Cmd_AddCommand ("mvdrecord", SV_MVD_Record_f);
-	Cmd_AddCommand ("easyrecord", SV_MVDEasyRecord_f);
-	Cmd_AddCommand ("mvdstop", SV_MVDStop_f);
-	Cmd_AddCommand ("mvdcancel", SV_MVD_Cancel_f);
-	//Cmd_AddCommand ("mvdplaynum", SV_MVDPlayNum_f);
-	Cmd_AddCommand ("mvdlist", SV_MVDList_f);
-	Cmd_AddCommand ("demolist", SV_MVDList_f);
-	Cmd_AddCommand ("rmdemo", SV_MVDRemove_f);
-	Cmd_AddCommand ("rmdemonum", SV_MVDRemoveNum_f);
+	//these don't currently conflict, but hey...
+	Cmd_AddCommand ("cancel",			SV_MVD_Cancel_f);
+	Cmd_AddCommand ("easyrecord",		SV_MVDEasyRecord_f);
+	Cmd_AddCommand ("demolist",			SV_MVDList_f);
+	Cmd_AddCommand ("rmdemo",			SV_MVDRemove_f);
+	Cmd_AddCommand ("rmdemonum",		SV_MVDRemoveNum_f);
 
+	//serverside only names that won't conflict (matching mvdsv)
+	Cmd_AddCommand ("sv_demorecord",	SV_MVD_Record_f);
+	Cmd_AddCommand ("sv_demostop",		SV_MVDStop_f);
+	Cmd_AddCommand ("sv_democancel",	SV_MVD_Cancel_f);
+	Cmd_AddCommand ("sv_demoeasyrecord",SV_MVDEasyRecord_f);
+	Cmd_AddCommand ("sv_demolist",		SV_MVDList_f);
+	Cmd_AddCommand ("sv_demoremove",	SV_MVDRemove_f);
+	Cmd_AddCommand ("sv_demonumremove",	SV_MVDRemoveNum_f);
+
+	//old fte names to avoid conflicts.
+	Cmd_AddCommand ("mvdrecord",		SV_MVD_Record_f);
+	Cmd_AddCommand ("mvdstop",			SV_MVDStop_f);
+	Cmd_AddCommand ("mvdcancel",		SV_MVD_Cancel_f);
+	Cmd_AddCommand ("mvdlist",			SV_MVDList_f);
+#ifdef SERVER_DEMO_PLAYBACK
+	Cmd_AddCommand ("mvdplaynum",		SV_MVDPlayNum_f);
+#endif
+
+	Cmd_AddCommand ("sv_demoinfoadd",	SV_MVDInfoAdd_f);
+	Cmd_AddCommand ("sv_demoinforemove",SV_MVDInfoRemove_f);
+	Cmd_AddCommand ("sv_demoinfo",		SV_MVDInfo_f);
+
+	Cmd_AddCommand ("qtvreverse",		SV_MVD_QTVReverse_f);
 	Cvar_Register(&qtv_maxstreams, "MVD Streaming");
 	Cvar_Register(&qtv_password, "MVD Streaming");
 }

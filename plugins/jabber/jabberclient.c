@@ -1499,6 +1499,7 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 		JCL_Info_ValueForKey(link, "xmppsid", what, sizeof(what));
 		if (jcl && jcl->status == JCL_ACTIVE)
 			JCL_Join(jcl, who, what, true, ICEP_INVALID);
+		jclient_updatebuddylist = true;
 		return true;
 	}
 	else if (!strcmp(what, "jdeny") && (jcl->enabledcapabilities & (CAP_VOICE|CAP_VIDEO|CAP_GAMEINVITE|CAP_GOOGLE_VOICE)))
@@ -1506,30 +1507,35 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 		JCL_Info_ValueForKey(link, "xmppsid", what, sizeof(what));
 		if (jcl && jcl->status == JCL_ACTIVE)
 			JCL_Join(jcl, who, what, false, ICEP_INVALID);
+		jclient_updatebuddylist = true;
 		return true;
 	}
 	else if (!strcmp(what, "join") && (jcl->enabledcapabilities & CAP_GAMEINVITE))
 	{
 		if (jcl && jcl->status == JCL_ACTIVE)
 			JCL_Join(jcl, who, NULL, true, ICEP_QWCLIENT);
+		jclient_updatebuddylist = true;
 		return true;
 	}
 	else if (!strcmp(what, "invite") && (jcl->enabledcapabilities & CAP_GAMEINVITE))
 	{
 		if (jcl && jcl->status == JCL_ACTIVE)
 			JCL_Join(jcl, who, NULL, true, ICEP_QWSERVER);
+		jclient_updatebuddylist = true;
 		return true;
 	}
 	else if (!strcmp(what, "call") && (jcl->enabledcapabilities & (CAP_VOICE|CAP_GOOGLE_VOICE)))
 	{
 		if (jcl && jcl->status == JCL_ACTIVE)
 			JCL_Join(jcl, who, NULL, true, ICEP_VOICE);
+		jclient_updatebuddylist = true;
 		return true;
 	}
 	else if (!strcmp(what, "vidcall") && (jcl->enabledcapabilities & (CAP_VIDEO)))
 	{
 		if (jcl && jcl->status == JCL_ACTIVE)
 			JCL_Join(jcl, who, NULL, true, ICEP_VIDEO);
+		jclient_updatebuddylist = true;
 		return true;
 	}
 #endif
@@ -1571,6 +1577,13 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 				JCL_CloseConnection(jcl, "", true);
 				jcl->status = JCL_INACTIVE;
 			}
+		}
+	}
+	else if (!strcmp(what, "forgetacc"))
+	{
+		if (jcl)
+		{
+			JCL_CloseConnection(jcl, "", false);
 		}
 	}
 	else if (!strcmp(what, "newaccount"))
@@ -1921,7 +1934,6 @@ qboolean JCL_Reconnect(jclient_t *jcl)
 	jcl->outbufmax = 0;
 	jcl->instreampos = 0;
 	jcl->bufferedinammount = 0;
-	jcl->tagdepth = 0;
 	Q_strlcpy(jcl->localalias, ">>", sizeof(jcl->localalias));
 	jcl->authmode = -1;
 
@@ -1943,8 +1955,9 @@ qboolean JCL_Reconnect(jclient_t *jcl)
 		}
 		else
 		{
-			Q_strncpyz(jcl->errormsg, "Unable to determine service", sizeof(jcl->errormsg));
-			return false;
+			//SRV lookup failed. attempt to just use the domain directly.
+			Con_DPrintf("XMPP: Trying to connect to %s\n", jcl->domain);
+			jcl->socket = pNet_TCPConnect(jcl->domain, jcl->serverport);	//port is only used if the url doesn't contain one. It's a default.
 		}
 	}
 	else
@@ -1967,6 +1980,7 @@ qboolean JCL_Reconnect(jclient_t *jcl)
 			jcl->issecure = true;
 
 	jcl->status = JCL_AUTHING;
+	jcl->connecting = true;
 
 	JCL_AddClientMessageString(jcl,
 		"<?xml version='1.0' ?>"
@@ -2731,24 +2745,39 @@ qboolean XMPP_NewGoogleMailsReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *
 	return true;
 }
 
-static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp)
+static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp, char *from)
 {
 	xmltree_t *i;
 	buddy_t *buddy;
 	int cnum = 0;
+	char *at = strrchr(from, '@');
+	if (at)
+	{
+		if (strlen(jcl->username) != at-from || strncasecmp(from, jcl->username, at-from))
+			return;
+		from = at+1;
+	}
+	if (strcmp(from, jcl->domain))
+		return;	//ignore if from somewhere invalid
+
 	while ((i = XML_ChildOfTree(listp, "item", cnum++)))
 	{
 		char *name = XML_GetParameter(i, "name", "");
 		char *jid = XML_GetParameter(i, "jid", "");
-//		char *sub = XML_GetParameter(i, "subscription", "");
+		char *sub = XML_GetParameter(i, "subscription", "both");
+		char *ask = XML_GetParameter(i, "ask", "");
 		JCL_FindBuddy(jcl, jid, &buddy, NULL, true);
 
 		if (*name)
 			Q_strlcpy(buddy->name, name, sizeof(buddy->name));
 		else
 			buddy->vcardphotochanged = true;	//try to query their actual name
-		buddy->friended = true;
+		if (strcasecmp(sub, "none"))
+			buddy->friended = true;
+		if (*ask)
+			buddy->askfriend = true;
 	}
+	jclient_updatebuddylist = true;
 }
 static qboolean JCL_RosterReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
@@ -2759,7 +2788,7 @@ static qboolean JCL_RosterReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq
 	c = XML_ChildOfTree(tree, "query", 0);
 	if (c)
 	{
-		JCL_RosterUpdate(jcl, c);
+		JCL_RosterUpdate(jcl, c, jcl->domain);
 		return true;
 	}
 	return false;
@@ -3363,10 +3392,10 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 #endif
 
 		c = XML_ChildOfTree(tree, "query", 0);
-		if (c && !strcmp(c->xmlns, "jabber:iq:roster") && !strcmp(from, jcl->domain))
+		if (c && !strcmp(c->xmlns, "jabber:iq:roster"))
 		{
 			unparsable = false;
-			JCL_RosterUpdate(jcl, c);
+			JCL_RosterUpdate(jcl, c, from);
 		}
 
 		//google-specific - new mail notifications.
@@ -3381,11 +3410,17 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 #ifdef JINGLE
 		c = XML_ChildOfTreeNS(tree, "urn:xmpp:jingle:1", "jingle", 0);
 		if (c && (jcl->enabledcapabilities & (CAP_GAMEINVITE|CAP_VOICE|CAP_VIDEO)))
+		{
 			unparsable = !JCL_ParseJingle(jcl, c, from, id);
+			jclient_updatebuddylist = true;
+		}
 #ifdef VOIP_LEGACY
 		c = XML_ChildOfTreeNS(tree, "http://www.google.com/session", "session", 0);
 		if (c && (jcl->enabledcapabilities & (CAP_GOOGLE_VOICE)))
+		{
 			unparsable = !JCL_HandleGoogleSession(jcl, c, from, id);
+			jclient_updatebuddylist = true;
+		}
 #endif
 #endif
 
@@ -4120,8 +4155,6 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 	int ret;
 	qboolean unparsable;
 
-	int olddepth;
-
 	ret = pNet_Recv(jcl->socket, jcl->bufferedinmessage+jcl->bufferedinammount, sizeof(jcl->bufferedinmessage)-1 - jcl->bufferedinammount);
 	if (ret == 0)
 	{
@@ -4143,8 +4176,6 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 		jcl->bufferedinmessage[jcl->bufferedinammount] = 0;
 	}
 
-	olddepth = jcl->tagdepth;
-
 	//we never end parsing in the middle of a < >
 	//this means we can filter out the <? ?>, <!-- --> and < /> stuff properly
 	for (pos = jcl->instreampos; pos < jcl->bufferedinammount; pos++)
@@ -4158,7 +4189,7 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 			if (pos < 1)
 				break;	//erm...
 
-			if (jcl->bufferedinmessage[pos-1] != '/')	//<blah/> is a tag without a body
+/*			if (jcl->bufferedinmessage[pos-1] != '/')	//<blah/> is a tag without a body
 			{
 				if (jcl->bufferedinmessage[jcl->instreampos+1] != '?')	//<? blah ?> is a tag without a body
 				{
@@ -4171,20 +4202,19 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 					}
 				}
 			}
-
+*/
 			jcl->instreampos=pos+1;
 		}
 	}
 
-	if (jcl->tagdepth == 1 && olddepth == 0)
+	pos = 0;
+	while (jcl->connecting)
 	{	//first bit of info
-
-		pos = 0;
 		tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, true, "");
-		while (tree && !strcmp(tree->name, "?xml"))
+		if (tree && !strcmp(tree->name, "?xml"))
 		{
 			XML_Destroy(tree);
-			tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, true, "");
+			continue;
 		}
 
 		if (jcl->streamdebug == 2)
@@ -4217,44 +4247,40 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 //		XML_ConPrintTree(ot, 0);
 		XML_Destroy(ot);
 
-		if (!tree)
-		{
-			memmove(jcl->bufferedinmessage, jcl->bufferedinmessage+pos, jcl->bufferedinammount - (pos));
-			jcl->bufferedinammount-=pos;
-			jcl->instreampos-=pos;
-
-			return JCL_DONE;
-		}
+		jcl->connecting = false;
 	}
-	else
+
+/*	if (jcl->tagdepth != 1)
 	{
-		if (jcl->tagdepth != 1)
+		if (jcl->tagdepth < 1 && jcl->bufferedinammount==jcl->instreampos)
 		{
-			if (jcl->tagdepth < 1 && jcl->bufferedinammount==jcl->instreampos)
-			{
-				*error = "End of XML stream";
-				return JCL_KILL;
-			}
-			return JCL_DONE;
+			*error = "End of XML stream";
+			return JCL_KILL;
 		}
+		return JCL_DONE;
+	}
+*/
+	tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, false, jcl->defaultnamespace);
 
+	if (jcl->streamdebug == 2 && tree)
+	{
+		char t = jcl->bufferedinmessage[pos];
+		jcl->bufferedinmessage[pos] = 0;
+		XMPP_ConversationPrintf("xmppin", "xmppin", jcl->bufferedinmessage);
+		XMPP_ConversationPrintf("xmppin", "xmppin", "\n");
+		jcl->bufferedinmessage[pos] = t;
+	}
+
+	if (!tree)
+	{
+		//make sure any prior crap is flushed.
+		memmove(jcl->bufferedinmessage, jcl->bufferedinmessage+pos, jcl->bufferedinammount-pos);
+		jcl->bufferedinammount -= pos;
+		jcl->instreampos -= pos;
 		pos = 0;
-		tree = XML_Parse(jcl->bufferedinmessage, &pos, jcl->instreampos, false, jcl->defaultnamespace);
 
-		if (jcl->streamdebug == 2 && tree)
-		{
-			char t = jcl->bufferedinmessage[pos];
-			jcl->bufferedinmessage[pos] = 0;
-			XMPP_ConversationPrintf("xmppin", "xmppin", jcl->bufferedinmessage);
-			XMPP_ConversationPrintf("xmppin", "xmppin", "\n");
-			jcl->bufferedinmessage[pos] = t;
-		}
-
-		if (!tree)
-		{
 //			Con_Printf("No input tree: %s", jcl->bufferedinmessage);
-			return JCL_DONE;
-		}
+		return JCL_DONE;
 	}
 
 //	Con_Printf("read\n");
@@ -4401,7 +4427,6 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 		//Restart everything, basically.
 		jcl->bufferedinammount = 0;
 		jcl->instreampos = 0;
-		jcl->tagdepth = 0;
 
 		if (!BUILTINISVALID(Net_SetTLSClient))
 		{
@@ -4422,6 +4447,7 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 			Con_Printf("XMPP: WARNING: Connecting via TLS without validating certificate\n");
 		jcl->issecure = true;
 
+		jcl->connecting = true;
 		JCL_AddClientMessageString(jcl,
 			"<?xml version='1.0' ?>"
 			"<stream:stream to='");
@@ -4490,8 +4516,8 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 		//Restart everything, basically, AGAIN! (third time lucky?)
 		jcl->bufferedinammount = 0;
 		jcl->instreampos = 0;
-		jcl->tagdepth = 0;
 
+		jcl->connecting = true;
 		JCL_AddClientMessageString(jcl,
 			"<?xml version='1.0' ?>"
 			"<stream:stream to='");

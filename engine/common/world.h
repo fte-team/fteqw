@@ -312,7 +312,7 @@ int VARGS WorldQ2_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, q2edict_t **
 trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hitcontentsmask, q2edict_t *passedict);
 #endif
 #if defined(Q2BSPS) || defined(Q3BSPS)
-unsigned int Q23BSP_FatPVS (model_t *mod, vec3_t org, qbyte *buffer, unsigned int buffersize, qboolean add);
+unsigned int Q23BSP_FatPVS(model_t *mod, vec3_t org, pvsbuffer_t *buffer, qboolean merge);
 qboolean Q23BSP_EdictInFatPVS(model_t *mod, struct pvscache_s *ent, qbyte *pvs);
 void Q23BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, float *mins, float *maxs);
 #endif

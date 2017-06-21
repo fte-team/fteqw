@@ -64,6 +64,7 @@ void AddSourceFile(const char *parentsrc, const char *filename);
 #define SC_EOL_CR 1
 #define SC_EOL_LF 2
 #define SCI_SETEOLMODE 2031
+#define SCI_SETTABWIDTH 2036
 #define SCI_SETCODEPAGE 2037
 #define SCI_MARKERDEFINE 2040
 #define SCI_MARKERSETFORE 2041
@@ -343,14 +344,6 @@ static pbool QCC_RegSetValue(HKEY base, char *keyname, char *valuename, int type
 }
 */
 
-typedef struct vfile_s
-{	//when originally running from a .dat, we load up all the functions and work from those rather than actual files.
-	//(these get re-written into the resulting .dat)
-	struct vfile_s *next;
-	void *fdata;
-	size_t fsize;
-	char name[1];
-} vfile_t;
 static vfile_t *qcc_vfiles;
 vfile_t *QCC_FindVFile(const char *name)
 {
@@ -368,7 +361,7 @@ vfile_t *QCC_FindVFile(const char *name)
 	}
 	return NULL;
 }
-pbool QCC_AddVFile(const char *name, void *data, size_t size)
+vfile_t *QCC_AddVFile(const char *name, void *data, size_t size)
 {
 	vfile_t *f = QCC_FindVFile(name);
 	if (!f)
@@ -382,8 +375,48 @@ pbool QCC_AddVFile(const char *name, void *data, size_t size)
 		free(f->fdata);
 	f->fdata = malloc(size);
 	memcpy(f->fdata, data, size);
-	f->fsize = size;
-	return true;
+	f->fsize = f->msize = size;
+	return f;
+}
+void QCC_CatVFile(vfile_t *f, const char *fmt, ...)
+{
+	va_list argptr;
+	char msg[8192];
+	size_t n;
+
+	va_start (argptr,fmt);
+	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
+	va_end (argptr);
+
+	n = strlen(msg);
+	if (f->fsize+n > f->msize)
+	{
+		size_t msize = f->msize + n + 8192;
+		f->fdata = realloc(f->fdata, msize);
+		f->msize = msize;
+	}
+	memcpy((char*)f->fdata+f->fsize, msg, n);
+	f->fsize += n;
+}
+void QCC_InsertVFile(vfile_t *f, size_t pos, const char *fmt, ...)
+{
+	va_list argptr;
+	char msg[8192];
+	size_t n;
+	va_start (argptr,fmt);
+	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
+	va_end (argptr);
+
+	n = strlen(msg);
+	if (f->fsize+n > f->msize)
+	{
+		size_t msize = f->msize + n + 8192;
+		f->fdata = realloc(f->fdata, msize);
+		f->msize = msize;
+	}
+	memmove((char*)f->fdata+pos+n, (char*)f->fdata+pos, f->fsize-pos);
+	f->fsize += n;
+	memcpy((char*)f->fdata+pos, msg, n);
 }
 
 void QCC_EnumerateFilesResult(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize)
@@ -617,7 +650,7 @@ pbool PDECL QCC_WriteFile (const char *name, void *data, int len)
 	}
 
 	if (QCC_FindVFile(name))
-		return QCC_AddVFile(name, data, len);
+		return !!QCC_AddVFile(name, data, len);
 
 	f = fopen(name, "wb");
 	if (!f)
@@ -698,6 +731,7 @@ void GUIPrint(HWND wnd, char *msg);
 char finddef[256];
 char greptext[256];
 extern pbool fl_extramargins;
+extern int fl_tabsize;
 extern char enginebinary[MAX_PATH];
 extern char enginebasedir[MAX_PATH];
 extern char enginecommandline[8192];
@@ -1278,8 +1312,9 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 		SendMessage(newc, SCI_AUTOCSETORDER, SC_ORDER_PERFORMSORT, 0);
 		SendMessage(newc, SCI_AUTOCSETFILLUPS, 0, (LPARAM)".,[<>(*/+-=\t\n");
 
-		//line numbers
-		SendMessage(newc, SCI_SETMARGINWIDTHN,		0, (LPARAM)fl_extramargins?40:0);
+		//Set up gui options.
+		SendMessage(newc, SCI_SETMARGINWIDTHN,		0, (LPARAM)fl_extramargins?40:0);	//line numbers+folding
+		SendMessage(newc, SCI_SETTABWIDTH,			fl_tabsize, 0);		//tab size
 
 		//add margin for breakpoints
 		SendMessage(newc, SCI_SETMARGINMASKN,		1, (LPARAM)~SC_MASK_FOLDERS);
@@ -1459,18 +1494,18 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETFORE, i, val);
 						val = SendMessage(newc, SCI_STYLEGETBACK,	i,	0);
 						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETBACK, i, val);
-						val = SendMessage(newc, SCI_STYLEGETUNDERLINE,	i,	0);
-						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETUNDERLINE, i, val);
-						val = SendMessage(newc, SCI_STYLEGETITALIC,	i,	0);
-						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETITALIC, i, val);
 						val = SendMessage(newc, SCI_STYLEGETBOLD,	i,	0);
 						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETBOLD, i, val);
+						val = SendMessage(newc, SCI_STYLEGETITALIC,	i,	0);
+						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETITALIC, i, val);
 						val = SendMessage(newc, SCI_STYLEGETSIZE,	i,	0);
 						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETSIZE, i, val);
-						val = SendMessage(newc, SCI_STYLEGETCASE,	i,	0);
-						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETCASE, i, val);
 						val = SendMessage(newc, SCI_STYLEGETFONT,	i,	(LPARAM)buf);
 						fprintf(f, "%i\t%i\t\"%s\"\n", SCI_STYLESETFONT, i, buf);
+						val = SendMessage(newc, SCI_STYLEGETUNDERLINE,	i,	0);
+						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETUNDERLINE, i, val);
+						val = SendMessage(newc, SCI_STYLEGETCASE,	i,	0);
+						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETCASE, i, val);
 					}
 					fclose(f);
 				}
@@ -1524,7 +1559,8 @@ enum {
 	IDM_GOTODEF,
 	IDM_RETURNDEF,
 	IDM_OUTPUT_WINDOW,
-	IDM_SHOWLINENUMBERS,
+	IDM_UI_SHOWLINENUMBERS,
+	IDM_UI_TABSIZE,
 	IDM_SAVE,
 	IDM_RECOMPILE,
 	IDM_FIND,
@@ -1607,6 +1643,10 @@ void GenericMenu(WPARAM wParam)
 		QueryOpenFile();
 		break;
 
+	case IDM_QUIT:
+		PostQuitMessage(0);
+		break;
+
 	case IDM_RECOMPILE:
 		buttons[ID_COMPILE].washit = true;
 		break;
@@ -1619,7 +1659,7 @@ void GenericMenu(WPARAM wParam)
 		break;
 
 	case IDM_ABOUT:
-		MessageBox(NULL, "FTE QuakeC Compiler ("__DATE__" "__TIME__")\nWritten by Forethought Entertainment, whoever that is.\n\nIf you have problems with wordpad corrupting your qc files, try saving them using utf-16 encoding via notepad.", "About", 0);
+		MessageBox(NULL, "FTE QuakeC Compiler ("__DATE__" "__TIME__")\nWritten by Forethought Entertainment, whoever that is.\n\nIf you have problems with wordpad corrupting your qc files, try saving them using utf-16 encoding via notepad.\nDecompiler component derived from frikdec.", "About", 0);
 		break;
 
 	case IDM_CASCADE:
@@ -1639,14 +1679,14 @@ void GenericMenu(WPARAM wParam)
 		else
 			SplitterFocus(outputbox, 64, 128);
 		break;
-	case IDM_SHOWLINENUMBERS:
+	case IDM_UI_SHOWLINENUMBERS:
 		{
 			editor_t *ed;
 			MENUITEMINFO mii = {sizeof(mii)};
 			fl_extramargins = !fl_extramargins;
 			mii.fMask = MIIM_STATE;
 			mii.fState = fl_extramargins?MFS_CHECKED:MFS_UNCHECKED;
-			SetMenuItemInfo(GetMenu(mainwindow), IDM_SHOWLINENUMBERS, FALSE, &mii);
+			SetMenuItemInfo(GetMenu(mainwindow), IDM_UI_SHOWLINENUMBERS, FALSE, &mii);
 
 			for (ed = editors; ed; ed = ed->next)
 			{
@@ -1654,6 +1694,24 @@ void GenericMenu(WPARAM wParam)
 				{
 					SendMessage(ed->editpane, SCI_SETMARGINWIDTHN,		0, (LPARAM)fl_extramargins?40:0);
 					SendMessage(ed->editpane, SCI_SETMARGINWIDTHN,		2, (LPARAM)fl_extramargins?16:0);
+				}
+			}
+		}
+		break;
+	case IDM_UI_TABSIZE:
+		{
+			editor_t *ed;
+			MENUITEMINFO mii = {sizeof(mii)};
+			fl_tabsize = (fl_tabsize>4)?4:8;
+			mii.fMask = MIIM_STATE;
+			mii.fState = (fl_tabsize>4)?MFS_CHECKED:MFS_UNCHECKED;
+			SetMenuItemInfo(GetMenu(mainwindow), IDM_UI_TABSIZE, FALSE, &mii);
+
+			for (ed = editors; ed; ed = ed->next)
+			{
+				if (ed->scintilla)
+				{
+					SendMessage(ed->editpane, SCI_SETTABWIDTH,		fl_tabsize, 0);
 				}
 			}
 		}
@@ -5719,7 +5777,8 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					AppendMenu(m, 0, IDM_GREP,									"Grep for selection\tCtrl+G");
 					AppendMenu(m, 0, IDM_OPENDOCU,								"Open selected file");
 					AppendMenu(m, 0, IDM_OUTPUT_WINDOW,							"Show Output Window\tF6");
-					AppendMenu(m, (fl_extramargins?MF_CHECKED:MF_UNCHECKED), IDM_SHOWLINENUMBERS, "Show Line Numbers");
+					AppendMenu(m, (fl_extramargins?MF_CHECKED:MF_UNCHECKED), IDM_UI_SHOWLINENUMBERS, "Show Line Numbers");
+					AppendMenu(m, ((fl_tabsize>4)?MF_CHECKED:MF_UNCHECKED), IDM_UI_TABSIZE, "Large Tabs");
 					AppendMenu(m, MF_SEPARATOR, 0, NULL);
 					AppendMenu(m, 0, IDM_ENCODING_PRIVATEUSE,					"Convert to UTF-8");
 					AppendMenu(m, 0, IDM_ENCODING_DEPRIVATEUSE,					"Convert to Quake encoding");
@@ -6777,26 +6836,12 @@ void UpdateFileList(void)
 
 	if (projecttree)
 	{
-		int size;
+		size_t size;
 		char *buffer;
 
 		AddSourceFile(NULL, progssrcname);
 
-		f = fopen (progssrcname, "rb");
-		if (!f)
-			return;
-		fseek(f, 0, SEEK_END);
-		size = ftell(f);
-		fseek(f, 0, SEEK_SET);
-		buffer = malloc(size+1);
-		if (!buffer)
-		{
-			fclose(f);
-			return;
-		}
-		buffer[size] = '\0';
-		fread(buffer, 1, size, f);
-		fclose(f);
+		buffer = QCC_ReadFile(progssrcname, NULL, 0, &size);
 
 		pr_file_p = QCC_COM_Parse(buffer);
 		if (*qcc_token == '#')
@@ -6917,9 +6962,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			ofn.lStructSize = sizeof(ofn);
 			ofn.hInstance = ghInstance;
 			ofn.lpstrFile = filename;
-			ofn.lpstrTitle = "Please find progs.src";
+			ofn.lpstrTitle = "Please find progs.src or progs.dat";
 			ofn.nMaxFile = sizeof(filename)-1;
-			ofn.lpstrFilter = "QuakeC source\0*.src\0All files\0*.*\0";
+			ofn.lpstrFilter = "QuakeC Projects\0*.src;*.dat\0All files\0*.*\0";
 			memset(filename, 0, sizeof(filename));
 			GetCurrentDirectory(sizeof(oldpath)-1, oldpath);
 			ofn.lpstrInitialDir = oldpath;
@@ -6953,16 +6998,16 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	resetprogssrc = true;
 
-    wndclass.style      = 0;
-    wndclass.lpfnWndProc   = MainWndProc;
-    wndclass.cbClsExtra    = 0;
-    wndclass.cbWndExtra    = 0;
-    wndclass.hInstance     = ghInstance;
-    wndclass.hIcon         = LoadIcon(ghInstance, IDI_ICON_FTEQCC);
-    wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
+	wndclass.style      = 0;
+	wndclass.lpfnWndProc   = MainWndProc;
+	wndclass.cbClsExtra    = 0;
+	wndclass.cbWndExtra    = 0;
+	wndclass.hInstance     = ghInstance;
+	wndclass.hIcon         = LoadIcon(ghInstance, IDI_ICON_FTEQCC);
+	wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
 	wndclass.hbrBackground = (void *)COLOR_WINDOW;
-    wndclass.lpszMenuName  = 0;
-    wndclass.lpszClassName = MDI_WINDOW_CLASS_NAME;
+	wndclass.lpszMenuName  = 0;
+	wndclass.lpszClassName = MDI_WINDOW_CLASS_NAME;
 	RegisterClass(&wndclass);
 
 	accelerators = CreateAcceleratorTable(acceleratorlist, sizeof(acceleratorlist)/sizeof(acceleratorlist[0])); 
@@ -7032,7 +7077,23 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				buf = malloc(size);
 				fread(buf, 1, size, f);
 				fclose(f);
-				QC_EnumerateFilesFromBlob(buf, size, QCC_EnumerateFilesResult);
+				if (!QC_EnumerateFilesFromBlob(buf, size, QCC_EnumerateFilesResult))
+				{
+					char *c = ReadProgsCopyright(buf, size);
+					if (!c || !*c)
+						c = "COPYRIGHT OWNER NOT KNOWN";	//all work is AUTOMATICALLY copyrighted under the terms of the Berne Convention. It _IS_ copyrighted, even if there's no license etc included. Good luck guessing what rights you have.
+					if (MessageBox(mainwindow, va("The copyright message from this progs is\n%s\n\nPlease respect the wishes and legal rights of the person who created this.", c), "Copyright", MB_OKCANCEL|MB_DEFBUTTON2|MB_ICONSTOP) == IDOK)
+					{
+						CreateOutputWindow(true);
+						compilecb();
+						DecompileProgsDat(progssrcname, buf, size);
+						if (SplitterGet(outputbox))
+						{
+							SendMessage(outputbox, WM_SETREDRAW, TRUE, 0);
+							RedrawWindow(outputbox, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
+						}
+					}
+				}
 				free(buf);
 			}
 			strcpy(progssrcname, "progs.src");

@@ -698,7 +698,7 @@ void SVQ2_BuildClientFrame (client_t *client)
 	int		l;
 	int		seat;
 	int		c_fullsend;
-	qbyte	clientpvs[(MAX_MAP_LEAFS+7)>>3];
+	pvsbuffer_t	clientpvs;
 	qbyte	*clientphs = NULL;
 	int		seats;
 
@@ -706,6 +706,8 @@ void SVQ2_BuildClientFrame (client_t *client)
 		return;
 
 	SVQ2_Ents_Init();
+
+	clientpvs.buffer = alloca(clientpvs.buffersize=sv.world.worldmodel->pvsbytes);
 
 #if 0
 	numprojs = 0; // no projectiles yet
@@ -748,8 +750,9 @@ void SVQ2_BuildClientFrame (client_t *client)
 		// calculate the visible areas
 		frame->areabytes = CM_WriteAreaBits (sv.world.worldmodel, frame->areabits, clientarea[seat], seat != 0);
 
-		sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org[seat], clientpvs, sizeof(clientpvs), seat!=0);
-		clientphs = CM_ClusterPHS (sv.world.worldmodel, clientcluster);
+		sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org[seat], &clientpvs, seat!=0);
+		if (seat==0)	//FIXME
+			clientphs = CM_ClusterPHS (sv.world.worldmodel, clientcluster, NULL);
 
 		frame->ps[seat] = clent[seat]->client->ps;
 		if (sv.paused)
@@ -809,7 +812,7 @@ void SVQ2_BuildClientFrame (client_t *client)
 
 					if (ent->num_clusters == -1)
 					{	// too many leafs for individual check, go by headnode
-						if (!CM_HeadnodeVisible (sv.world.worldmodel, ent->headnode, clientpvs))
+						if (!CM_HeadnodeVisible (sv.world.worldmodel, ent->headnode, clientpvs.buffer))
 							continue;
 						c_fullsend++;
 					}
@@ -818,7 +821,7 @@ void SVQ2_BuildClientFrame (client_t *client)
 						for (i=0 ; i < ent->num_clusters ; i++)
 						{
 							l = ent->clusternums[i];
-							if (clientpvs[l >> 3] & (1 << (l&7) ))
+							if (clientpvs.buffer[l >> 3] & (1 << (l&7) ))
 								break;
 						}
 						if (i == ent->num_clusters)

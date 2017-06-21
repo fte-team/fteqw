@@ -1242,10 +1242,12 @@ struct ircice_s *IRC_ICE_Create(ircclient_t *irc, const char *sender, enum icepr
 	if (creator && type == ICEP_VOICE)
 	{
 		//note: the engine will ignore codecs it does not support.
-		piceapi->ICE_Set(ice, "codec96", "speex@16000");	//wide
-		piceapi->ICE_Set(ice, "codec97", "speex@8000");		//narrow
-		piceapi->ICE_Set(ice, "codec98", "speex@32000");	//ultrawide
-		piceapi->ICE_Set(ice, "codec99", "opus");
+		piceapi->ICE_Set(ice, "codec96", "opus@48000");
+		piceapi->ICE_Set(ice, "codec97", "speex@16000");	//wide
+		piceapi->ICE_Set(ice, "codec98", "speex@8000");		//narrow
+		piceapi->ICE_Set(ice, "codec99", "speex@32000");	//ultrawide
+		piceapi->ICE_Set(ice, "codec8", "pcma@8000");
+		piceapi->ICE_Set(ice, "codec0", "pcmu@8000");
 	}
 
 	//query dns to see if there's a stunserver hosted by the same domain
@@ -1276,6 +1278,7 @@ struct ircice_s *IRC_ICE_Create(ircclient_t *irc, const char *sender, enum icepr
 }
 void IRC_ICE_Update(ircclient_t *irc, struct ircice_s *ice, char updatetype)
 {
+	//I was originally using colons to separate terms, but switched to slashes to avoid smilies for irc clients that print unknown CTCP messages.
 	char message[1024];
 	struct icecandinfo_s *c;
 	char *icetype;
@@ -1307,28 +1310,33 @@ void IRC_ICE_Update(ircclient_t *irc, struct ircice_s *ice, char updatetype)
 		piceapi->ICE_Get(ice->ice, "lufrag",  ufrag, sizeof(ufrag));
 		piceapi->ICE_Get(ice->ice, "lpwd",	 pwd, sizeof(pwd));
 
-		Q_snprintf(message, sizeof(message), " ufrag:%s pwd:%s", ufrag, pwd);
+		Q_snprintf(message, sizeof(message), " ufrag/%s pwd/%s", ufrag, pwd);
 	}
 
 	if (updatetype == '+' || updatetype == '=')
 	{
 		unsigned int i;
-		for (i = 96; i <= 127; i++)
+		for (i = 0; i <= 127; i++)
 		{
 			char codec[256];
 			char codecname[64];
 			char argn[64];
 			Q_snprintf(argn, sizeof(argn), "codec%i", i);
-			piceapi->ICE_Get(ice->ice, argn,  codecname, sizeof(codecname));
+			if (!piceapi->ICE_Get(ice->ice, argn,  codecname, sizeof(codecname)))
+				continue;
 
 			if (!strcmp(codecname, "speex@8000"))		//speex narrowband
-				Q_snprintf(codec, sizeof(codec), "codec:%i:speex:8000", i);
+				Q_snprintf(codec, sizeof(codec), "codec/%i/speex/8000", i);
 			else if (!strcmp(codecname, "speex@16000"))	//speex wideband
-				Q_snprintf(codec, sizeof(codec), "codec:%i:speex:16000", i);
+				Q_snprintf(codec, sizeof(codec), "codec/%i/speex/16000", i);
 			else if (!strcmp(codecname, "speex@32000"))	//speex ultrawideband
-				Q_snprintf(codec, sizeof(codec), "codec:%i:speex:32000", i);
-			else if (!strcmp(codecname, "opus"))		//opus codec.
-				Q_snprintf(codec, sizeof(codec), "codec:%i:opus:48000", i);
+				Q_snprintf(codec, sizeof(codec), "codec/%i/speex/32000", i);
+			else if (!strcmp(codecname, "pcma@8000"))	//speex wideband
+				Q_snprintf(codec, sizeof(codec), "codec/%i/pcma/8000", i);
+			else if (!strcmp(codecname, "pcmu@8000"))	//speex ultrawideband
+				Q_snprintf(codec, sizeof(codec), "codec/%i/pcmu/8000", i);
+			else if (!strcmp(codecname, "opus@48000"))		//opus codec.
+				Q_snprintf(codec, sizeof(codec), "codec/%i/opus/48000", i);
 			else
 				continue;
 
@@ -1356,10 +1364,10 @@ void IRC_ICE_Update(ircclient_t *irc, struct ircice_s *ice, char updatetype)
 		{
 			char type[] = "hspr";
 			char cand[256];
-			Q_snprintf(cand, sizeof(cand), "cand:"
-				"%c%c:%i:%i:"
-				"%i:%i:%i:"
-				"%i:%s:%s", 
+			Q_snprintf(cand, sizeof(cand), "cand/"
+				"%c%c/%i/%i/"
+				"%i/%i/%i/"
+				"%i/%s/%s", 
 				type[c->type], 'u', c->priority, c->port, 
 				c->network, c->generation, c->foundation,
 				c->component, c->candidateid, c->addr);
@@ -1394,13 +1402,13 @@ void IRC_ICE_ParseCandidate(struct icestate_s *ice, char *cand)
 	case 'r':	info.type = ICE_RELAY;	break;
 	}
 	info.transport	= (cand[6] == 't')?1:0;
-	info.priority	= strtol(cand+8, &cand, 0); if (*cand != ':')return;
-	info.port		= strtol(cand+1, &cand, 0); if (*cand != ':')return;
-	info.network	= strtol(cand+1, &cand, 0); if (*cand != ':')return;
-	info.generation	= strtol(cand+1, &cand, 0); if (*cand != ':')return;
-	info.foundation	= strtol(cand+1, &cand, 0); if (*cand != ':')return;
-	info.component	= strtol(cand+1, &cand, 0); if (*cand != ':')return;
-	addr = strchr(cand+1, ':');
+	info.priority	= strtol(cand+8, &cand, 0); if (*cand != '/')return;
+	info.port		= strtol(cand+1, &cand, 0); if (*cand != '/')return;
+	info.network	= strtol(cand+1, &cand, 0); if (*cand != '/')return;
+	info.generation	= strtol(cand+1, &cand, 0); if (*cand != '/')return;
+	info.foundation	= strtol(cand+1, &cand, 0); if (*cand != '/')return;
+	info.component	= strtol(cand+1, &cand, 0); if (*cand != '/')return;
+	addr = strchr(cand+1, '/');
 	if (!addr)
 		return;
 	*addr++ = 0;
@@ -1416,8 +1424,8 @@ void IRC_ICE_ParseCodec(struct icestate_s *ice, char *codec)
 	unsigned int num;
 	char name[64];
 	unsigned int rate;
-	num		= strtoul(codec+6, &codec, 0); if (*codec != ':')return;
-	start = codec+1; codec = strchr(codec, ':'); if (!codec)return;*codec = 0; Q_strlcpy(name, start, sizeof(name));
+	num		= strtoul(codec+6, &codec, 0); if (*codec != '/')return;
+	start = codec+1; codec = strchr(codec, '/'); if (!codec)return;*codec = 0; Q_strlcpy(name, start, sizeof(name));
 	rate = strtoul(codec+1, &codec, 0); 
 
 	Q_strlcat(name, va("@%u", rate), sizeof(name));
@@ -1458,13 +1466,13 @@ void IRC_ICE_Parse(ircclient_t *irc, const char *sender, char *message)
 			while(message)
 			{
 				message = COM_Parse(message, token, sizeof(token));
-				if (!strncmp(token, "cand:", 5))
+				if (!strncmp(token, "cand/", 5))
 					IRC_ICE_ParseCandidate(ice->ice, token);
-				else if (!strncmp(token, "codec:", 6))
+				else if (!strncmp(token, "codec/", 6))
 					IRC_ICE_ParseCodec(ice->ice, token);
-				else if (!strncmp(token, "ufrag:", 6))
+				else if (!strncmp(token, "ufrag/", 6))
 					piceapi->ICE_Set(ice->ice, "rufrag", token+6);
-				else if (!strncmp(token, "pwd:", 4))
+				else if (!strncmp(token, "pwd/", 4))
 					piceapi->ICE_Set(ice->ice, "rpwd", token+4);
 				else if (*token)
 					IRC_Printf(irc, sender, "unknown ice token %s\n", token);
@@ -2207,13 +2215,13 @@ int IRC_ClientFrame(ircclient_t *irc)
 		{
 			str = COM_Parse(str, token, sizeof(token));
 			if (*token == '@')	//they're an operator
-				IRC_Printf(irc, channel, COLOURGREEN"@"COLORWHITE"%s\n", token+1);
+				IRC_Printf(irc, channel, "^[@"COLOURGREEN"%s\\act\\user\\who\\%s\\tip\\Channel Operator^]\n", token+1, token+1);
 			else if (*token == '%')	//they've got half-op
-				IRC_Printf(irc, channel, COLOURGREEN"%"COLORWHITE"%s\n", token+1);
+				IRC_Printf(irc, channel, "^[%%"COLOURGREEN"%s\\act\\user\\who\\%s\\tip\\Channel Half-Operator^]\n", token+1, token+1);
 			else if (*token == '+')	//they've got voice
-				IRC_Printf(irc, channel, COLOURGREEN"+"COLORWHITE"%s\n", token+1);
+				IRC_Printf(irc, channel, "^[+"COLOURGREEN"%s\\act\\user\\who\\%s\\tip\\Voice^]\n", token+1, token+1);
 			else
-				IRC_Printf(irc, channel, " %s\n", token);
+				IRC_Printf(irc, channel, " ^["COLOURGREEN"%s\\act\\user\\who\\%s^]\n", token, token);
 		}
 		if (secret == 1)
 		{

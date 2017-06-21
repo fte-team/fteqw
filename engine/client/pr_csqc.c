@@ -3281,8 +3281,12 @@ static void QCBUILTIN PF_cs_getentitytoken (pubprogfuncs_t *prinst, struct globa
 	if (prinst->callargc)
 	{
 		const char *s = PR_GetStringOfs(prinst, OFS_PARM0);
-		if (*s == 0)
+		if (*s == 0 && cl.worldmodel)
+		{
+			if (cl.worldmodel->loadstate == MLS_LOADING)
+				COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
 			s = Mod_GetEntitiesString(cl.worldmodel);
+		}
 		csqcmapentitydata = s;
 		G_INT(OFS_RETURN) = 0;
 		return;

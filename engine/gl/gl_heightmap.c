@@ -4243,10 +4243,13 @@ typedef struct
 	int id;
 	int min[3], max[3];
 } hmpvsent_t;
-unsigned int Heightmap_FatPVS		(model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned int pvssize, qboolean add)
+unsigned int Heightmap_FatPVS		(model_t *mod, vec3_t org, pvsbuffer_t *pvsbuffer, qboolean add)
 {
 	//embed the org onto the pvs
-	hmpvs_t *hmpvs = (hmpvs_t*)pvsbuffer;
+	hmpvs_t *hmpvs;
+	if (pvsbuffer->buffersize < sizeof(*hmpvs))
+		pvsbuffer->buffer = BZ_Realloc(pvsbuffer->buffer, pvsbuffer->buffersize=sizeof(*hmpvs));
+	hmpvs = (hmpvs_t*)pvsbuffer->buffer;
 	hmpvs->id = 0xdeadbeef;
 	VectorCopy(org, hmpvs->pos);
 	return sizeof(*hmpvs);
@@ -4306,7 +4309,7 @@ void Heightmap_MarkLights			(dlight_t *light, int bit, mnode_t *node)
 {
 }
 
-qbyte *Heightmap_ClusterPVS	(model_t *model, int num, qbyte *buffer, unsigned int buffersize)
+qbyte *Heightmap_ClusterPVS	(model_t *model, int num, pvsbuffer_t *buffer, pvsmerge_t merge)
 {
 	return NULL;
 //	static qbyte heightmappvs = 255;
@@ -6085,13 +6088,6 @@ static qboolean Terr_Brush_DeleteId(heightmap_t *hm, unsigned int brushid)
 	return false;
 }
 
-
-#if defined(_WIN32) || defined(__DJGPP__)
-	#include <malloc.h>
-#else
-	#include <alloca.h>
-#endif
-
 static void Brush_Serialise(sizebuf_t *sb, brushes_t *br)
 {
 	unsigned int i;
@@ -7160,6 +7156,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 							submod->funcs.FatPVS				= Heightmap_FatPVS;
 #endif
 							submod->loadstate = MLS_LOADED;
+							submod->pvsbytes = sizeof(hmpvs_t);
 
 #ifdef RUNTIMELIGHTING
 							subhm->relightcontext = LightStartup(hm->relightcontext, submod, false, false);
@@ -7477,6 +7474,7 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 	mod->hulls[2].funcs.HullPointContents = Heightmap_PointContents;
 	mod->hulls[3].funcs.HullPointContents = Heightmap_PointContents;
 */
+	mod->pvsbytes = sizeof(hmpvs_t);
 
 	mod->terrain = hm;
 

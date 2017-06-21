@@ -17,12 +17,6 @@
 #include "glquake.h"
 #ifndef SERVERONLY
 
-#if defined(_WIN32) || defined(__DJGPP__)
-	#include <malloc.h>
-#else
-	#include <alloca.h>
-#endif
-
 #include "com_mesh.h"
 
 #if defined(RTLIGHTS)

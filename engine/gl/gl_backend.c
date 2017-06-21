@@ -10,11 +10,6 @@ void DumpGLState(void);
 
 #include "glquake.h"
 #include "shader.h"
-#ifdef _WIN32
-#include <malloc.h>
-#else
-#include <alloca.h>
-#endif
 
 #ifdef FORCESTATE
 #pragma warningmsg("FORCESTATE is active")

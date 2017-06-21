@@ -703,7 +703,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PHS:
 			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
 			cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-			mask = CM_ClusterPHS (sv.world.worldmodel, cluster);
+			mask = CM_ClusterPHS (sv.world.worldmodel, cluster, NULL);
 			break;
 
 		case MULTICAST_PVS_R:
@@ -711,7 +711,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PVS:
 			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
 			cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-			mask = CM_ClusterPVS (sv.world.worldmodel, cluster, NULL, 0);
+			mask = CM_ClusterPVS (sv.world.worldmodel, cluster, NULL, PVM_FAST);
 			break;
 
 		case MULTICAST_ONE_R:
@@ -868,7 +868,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			{
 				cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
 				if (cluster >= 0)
-					mask = sv.world.worldmodel->phs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+					mask = sv.world.worldmodel->phs + cluster*sv.world.worldmodel->pvsbytes;
 				else
 					mask = NULL;
 			}
@@ -879,7 +879,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PVS:
 			cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
 			if (cluster >= 0)
-				mask = sv.world.worldmodel->pvs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+				mask = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, cluster, NULL, PVM_FAST);
 			else
 				mask = NULL;
 			break;
@@ -1102,7 +1102,7 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 		{
 			cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
 			if (cluster >= 0)
-				mask = sv.world.worldmodel->phs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+				mask = sv.world.worldmodel->phs + cluster * sv.world.worldmodel->pvsbytes;
 			else
 				mask = NULL;
 		}
@@ -1113,7 +1113,7 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, int dimension_mask, void (*ca
 	case MULTICAST_PVS:
 		cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
 		if (cluster >= 0)
-			mask = sv.world.worldmodel->pvs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+			mask = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, cluster, NULL, PVM_FAST);
 		else
 			mask = NULL;
 		break;

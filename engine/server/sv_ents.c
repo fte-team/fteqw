@@ -34,7 +34,7 @@ typedef struct
 	edict_t *ent[SV_PVS_CAMERAS];	//ents in this list are always sent, even if the server thinks that they are invisible.
 	vec3_t org[SV_PVS_CAMERAS];
 
-	qbyte pvs[(MAX_MAP_LEAFS+7)>>3];
+	pvsbuffer_t pvs;
 } pvscamera_t;
 
 static void *AllocateBoneSpace(packet_entities_t *pack, unsigned char bonecount, unsigned int *allocationpos)
@@ -68,12 +68,10 @@ int needcleanup;
 //int		fatbytes;
 
 #if defined(Q2BSPS) || defined(Q3BSPS)
-unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsigned int buffersize, qboolean add)
+unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, pvsbuffer_t *result, qboolean merge)
 {
 	int	leafs[64];
 	int		i, j, count;
-	unsigned int		longs;
-	qbyte	*src;
 	vec3_t	mins, maxs;
 
 	for (i=0 ; i<3 ; i++)
@@ -86,41 +84,36 @@ unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsig
 	if (count < 1)
 		Sys_Error ("SV_Q2FatPVS: count < 1");
 
-	longs = CM_ClusterBytes(mod);
-	longs = (longs+(sizeof(longs)-1))/sizeof(longs);
-
 	// convert leafs to clusters
 	for (i=0 ; i<count ; i++)
 		leafs[i] = CM_LeafCluster(mod, leafs[i]);
 
-//	CM_ClusterPVS(mod, leafs[0], resultbuf, buffersize);
-
+	//grow the buffer if needed
+	if (result->buffersize < mod->pvsbytes)
+		result->buffer = BZ_Realloc(result->buffer, result->buffersize=mod->pvsbytes);
 
 	if (count == 1 && leafs[0] == -1)
-	{
-		memset(resultbuf, 0xff, longs<<2);
+	{	//if the only leaf is the outside then broadcast it.
+		memset(result->buffer, 0xff, mod->pvsbytes);
 		i = count;
 	}
-	else if (!add)
-	{
-		memcpy (resultbuf, CM_ClusterPVS(mod, leafs[0], NULL, 0), longs<<2);
-		i = 1;
-	}
 	else
-		i = 0;
-	// or in all the other leaf bits
-	for ( ; i<count ; i++)
 	{
-		for (j=0 ; j<i ; j++)
-			if (leafs[i] == leafs[j])
-				break;
-		if (j != i)
-			continue;		// already have the cluster we want
-		src = CM_ClusterPVS(mod, leafs[i], NULL, 0);
-		for (j=0 ; j<longs ; j++)
-			((unsigned int *)resultbuf)[j] |= ((unsigned int *)src)[j];
+		i = 0;
+		if (!merge)
+			mod->funcs.ClusterPVS(mod, leafs[i++], result, PVM_REPLACE);
+		// or in all the other leaf bits
+		for ( ; i<count ; i++)
+		{
+			for (j=0 ; j<i ; j++)
+				if (leafs[i] == leafs[j])
+					break;
+			if (j != i)
+				continue;		// already have the cluster we want
+			mod->funcs.ClusterPVS(mod, leafs[i], result, PVM_MERGE);
+		}
 	}
-	return longs*sizeof(longs);
+	return mod->pvsbytes;
 }
 #endif
 
@@ -1303,7 +1296,7 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 	if (bits & UF_TAGINFO)
 	{
 		MSG_WriteEntity(msg, state->tagentity);
-		MSG_WriteByte(msg, state->tagindex);
+		MSG_WriteByte(msg, state->tagindex&0xff);
 	}
 	if (bits & UF_LIGHT)
 	{
@@ -2691,7 +2684,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 				continue;
 
 			// ignore if not touching a PV leaf
-			if (cameras && !sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &ent->pvsinfo, cameras->pvs))
+			if (cameras && !sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &ent->pvsinfo, cameras->pvs.buffer))
 				continue;
 
 			if (!((int)clent->xv->dimension_see & ((int)ent->xv->dimension_seen | (int)ent->xv->dimension_ghost)))
@@ -3116,13 +3109,13 @@ qboolean SV_GibFilter(edict_t	*ent)
 #if defined(Q2BSPS) || defined(Q3BSPS)
 static int		clientarea;
 
-unsigned int Q23BSP_FatPVS(model_t *mod, vec3_t org, qbyte *buffer, unsigned int buffersize, qboolean add)
+unsigned int Q23BSP_FatPVS(model_t *mod, vec3_t org, pvsbuffer_t *buffer, qboolean merge)
 {//fixme: this doesn't add areas
 	int		leafnum;
 	leafnum = CM_PointLeafnum (mod, org);
 	clientarea = CM_LeafArea (mod, leafnum);
 
-	return SV_Q2BSP_FatPVS (mod, org, buffer, buffersize, add);
+	return SV_Q2BSP_FatPVS (mod, org, buffer, merge);
 }
 
 qboolean Q23BSP_EdictInFatPVS(model_t *mod, pvscache_t *ent, qbyte *pvs)
@@ -3719,13 +3712,13 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 						}
 						else
 						{
-							if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)tracecullent)->pvsinfo, cameras->pvs))
+							if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)tracecullent)->pvsinfo, cameras->pvs.buffer))
 								continue;
 						}
 					}
 					else
 					{
-						if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)ent)->pvsinfo, cameras->pvs))
+						if (!sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)ent)->pvsinfo, cameras->pvs.buffer))
 							continue;
 						tracecullent = ent;
 					}
@@ -3892,7 +3885,7 @@ void SV_AddCameraEntity(pvscamera_t *cameras, edict_t *ent, vec3_t viewofs)
 	else
 		VectorCopy (ent->v->origin, org);
 
-	sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org, cameras->pvs, sizeof(cameras->pvs), cameras->numents!=0);
+	sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org, &cameras->pvs, cameras->numents!=0);
 	if (cameras->numents < SV_PVS_CAMERAS)
 	{
 		cameras->ent[cameras->numents] = ent;
@@ -3964,7 +3957,9 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	packet_entities_t	*pack;
 	edict_t	*clent;
 	client_frame_t	*frame;
-	pvscamera_t camerasbuf, *cameras = &camerasbuf;
+	pvscamera_t camerasbuf;
+	pvscamera_t *cameras = &camerasbuf;
+	cameras->pvs.buffer = alloca(cameras->pvs.buffersize=sv.world.worldmodel->pvsbytes);
 
 	// this is the frame we are creating
 	frame = &client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK];

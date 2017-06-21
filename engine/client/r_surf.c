@@ -2614,7 +2614,7 @@ struct webostate_s
 	model_t *wmodel;
 	mleaf_t *leaf[2];
 	int cluster[2];
-	qbyte pvs[MAX_MAP_LEAFS/8];
+	pvsbuffer_t pvs;
 	vboarray_t ebo;
 	void *ebomem;
 	size_t idxcount;
@@ -2857,20 +2857,13 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 #if defined(Q2BSPS) || defined(Q3BSPS)
 	if (es->wmodel->fromgame == fg_quake2 || es->wmodel->fromgame == fg_quake3)
 	{
-		if (es->cluster[1] != -1 && es->cluster[0] != es->cluster[1])
-		{	//view is near to a water boundary. this implies the water crosses the near clip plane.
-			qbyte tmppvs[MAX_MAP_LEAFS/8], *pvs2;
-			int c;
-			pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], es->pvs, sizeof(es->pvs));
-			pvs2 = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[1], tmppvs, sizeof(tmppvs));
-			c = (es->wmodel->numclusters+31)/32;
-			for (i=0 ; i<c ; i++)
-				((int *)es->pvs)[i] = ((int *)pvs)[i] | ((int *)pvs2)[i];
-			pvs = es->pvs;
+		if (es->cluster[1] != -1 && es->cluster[0] != es->cluster[1])	//view is near to a water boundary. this implies the water crosses the near clip plane.
+		{
+			pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], &es->pvs, PVM_REPLACE);
+			pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[1], &es->pvs, PVM_MERGE);
 		}
 		else
-			pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], es->pvs, sizeof(es->pvs));
-
+			pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], &es->pvs, PVM_FAST);
 		Surf_SimpleWorld_Q3BSP(es, pvs);
 	}
 	else
@@ -2879,21 +2872,10 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 	if (es->wmodel->fromgame == fg_quake || es->wmodel->fromgame == fg_halflife)
 	{
 		//maybe we should just use fatpvs instead, and wait for completion when outside?
-		if (es->leaf[1])
-		{	//view is near to a water boundary. this implies the water crosses the near clip plane.
-			qbyte tmppvs[MAX_MAP_LEAFS/8];
-			int c;
-			Q1BSP_LeafPVS (es->wmodel, es->leaf[0], es->pvs, sizeof(es->pvs));
-			Q1BSP_LeafPVS (es->wmodel, es->leaf[1], tmppvs, sizeof(tmppvs));
-			c = (es->wmodel->numclusters+31)/32;
-			for (i=0 ; i<c ; i++)
-				((int *)es->pvs)[i] |= ((int *)tmppvs)[i];
-			pvs = es->pvs;
-		}
-		else
-		{
-			pvs = Q1BSP_LeafPVS (es->wmodel, es->leaf[0], es->pvs, sizeof(es->pvs));
-		}
+		pvs = Q1BSP_LeafPVS (es->wmodel, es->leaf[0], &es->pvs, false);
+		if (es->leaf[1])	//view is near to a water boundary. this implies the water crosses the near clip plane.
+			pvs = Q1BSP_LeafPVS (es->wmodel, es->leaf[1], &es->pvs, true);
+		
 		Surf_SimpleWorld_Q1BSP(es, pvs);
 	}
 	else
@@ -2916,7 +2898,7 @@ void Surf_DrawWorld (void)
 {
 	//surfvis vs entvis - the key difference is that surfvis is surfaces while entvis is volume. though surfvis should be frustum culled also for lighting. entvis doesn't care.
 	qbyte *surfvis, *entvis;
-	qbyte frustumvis_[MAX_MAP_LEAFS/8];
+	static pvsbuffer_t frustumvis_;
 	RSpeedLocals();
 
 	if (r_refdef.flags & RDF_NOWORLDMODEL)
@@ -2982,10 +2964,12 @@ void Surf_DrawWorld (void)
 								}
 						}
 						webogeneratingstate = true;
-						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1));
+						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1) + currentmodel->pvsbytes);
 						webogenerating->wmodel = currentmodel;
 						webogenerating->leaf[0] = r_viewleaf;
 						webogenerating->leaf[1] = r_viewleaf2;
+						webogenerating->pvs.buffer = (qbyte*)(webogenerating+1) + sizeof(webogenerating->batches[0])*(currentmodel->numbatches-1);
+						webogenerating->pvs.buffersize = currentmodel->pvsbytes;
 						for (i = 0; i < MAX_LIGHTSTYLES; i++)
 							webogenerating->lightstylevalues[i] = d_lightstylevalue[i];
 						Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
@@ -3017,10 +3001,12 @@ void Surf_DrawWorld (void)
 								}
 						}
 						webogeneratingstate = true;
-						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1));
+						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1) + currentmodel->pvsbytes);
 						webogenerating->wmodel = currentmodel;
 						webogenerating->cluster[0] = r_viewcluster;
 						webogenerating->cluster[1] = r_viewcluster2;
+						webogenerating->pvs.buffer = (qbyte*)(webogenerating+1) + sizeof(webogenerating->batches[0])*(currentmodel->numbatches-1);
+						webogenerating->pvs.buffersize = currentmodel->pvsbytes;
 						Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
 						COM_AddWork(WG_LOADER, R_GenWorldEBO, webogenerating, NULL, 0, 0);
 					}
@@ -3030,7 +3016,7 @@ void Surf_DrawWorld (void)
 
 			if (webostate)
 			{
-				entvis = surfvis = webostate->pvs;
+				entvis = surfvis = webostate->pvs.buffer;
 
 				RSpeedEnd(RSPEED_WORLDNODE);
 
@@ -3065,8 +3051,10 @@ void Surf_DrawWorld (void)
 #if defined(Q2BSPS) || defined(Q3BSPS)
 		if (currentmodel->fromgame == fg_quake2 || currentmodel->fromgame == fg_quake3)
 		{
-			frustumvis = frustumvis_;
-			memset(frustumvis, 0, (currentmodel->numclusters + 7)>>3);
+			if (frustumvis_.buffersize < currentmodel->pvsbytes)
+				frustumvis_.buffer = BZ_Realloc(frustumvis_.buffer, frustumvis_.buffersize=currentmodel->pvsbytes);
+			frustumvis = frustumvis_.buffer;
+			memset(frustumvis, 0, currentmodel->pvsbytes);
 
 			if (!r_refdef.areabitsknown)
 			{	//generate the info each frame, as the gamecode didn't tell us what to use.
@@ -3128,8 +3116,10 @@ void Surf_DrawWorld (void)
 				if (!(r_novis.ival & 2))
 					VectorCopy (r_origin, modelorg);
 
-				frustumvis = frustumvis_;
-				memset(frustumvis, 0, (currentmodel->numclusters + 7)>>3);
+				if (frustumvis_.buffersize < currentmodel->pvsbytes)
+					frustumvis_.buffer = BZ_Realloc(frustumvis_.buffer, frustumvis_.buffersize=currentmodel->pvsbytes);
+				frustumvis = frustumvis_.buffer;
+				memset(frustumvis, 0, currentmodel->pvsbytes);
 
 				if (r_refdef.useperspective)
 					Surf_RecursiveWorldNode (currentmodel->nodes, 0x1f);

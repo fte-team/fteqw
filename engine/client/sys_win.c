@@ -365,6 +365,50 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 	CryptReleaseContext(prov, 0);
 	return true;
 }
+//returns 0 on failure, otherwise returns the actual digest size and the digest (overallocate if lazy)
+size_t HashCalculate(const char *hashtype, const void *data, size_t data_size, void *digest_out, size_t digest_size)
+{
+	HCRYPTPROV	prov;
+	HCRYPTHASH	hash;
+	ALG_ID		alg;
+
+	if (!Q_strcasecmp(hashtype, "MD4"))
+		alg = CALG_MD4;
+	else if (!Q_strcasecmp(hashtype, "MD5"))
+		alg = CALG_MD5;
+	else if (!Q_strcasecmp(hashtype, "SHA1"))
+		alg = CALG_SHA1;
+	else if (!Q_strcasecmp(hashtype, "SHA256"))
+		alg = CALG_SHA_256;	//only on xp sp3+
+	else if (!Q_strcasecmp(hashtype, "SHA384"))
+		alg = CALG_SHA_384;	//only on xp sp3+
+	else if (!Q_strcasecmp(hashtype, "SHA512"))
+		alg = CALG_SHA_512;	//only on xp sp3+
+	else
+		return 0;
+
+	memset(digest_out, 0, digest_size);
+
+	if(CryptAcquireContext(&prov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+	{
+		if (CryptCreateHash(prov, alg, 0, 0, &hash))
+		{
+			if (CryptHashData(hash, data, (DWORD)data_size, 0))
+			{
+				DWORD grr = digest_size;
+				if (CryptGetHashParam(hash, HP_HASHVAL, digest_out, &grr, 0))
+				{
+					CryptDestroyHash(hash);
+					CryptReleaseContext(prov, 0);
+					return grr;
+				}
+			}
+			CryptDestroyHash(hash);
+		}
+		CryptReleaseContext(prov, 0);
+	}
+	return 0;
+}
 
 /*
 =================

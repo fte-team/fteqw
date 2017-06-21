@@ -261,6 +261,8 @@ enum
 	VOIP_SPEEX_NARROW = 3,	//narrowband speex. packed data.
 	VOIP_SPEEX_WIDE = 4,	//wideband speex. packed data.
 	VOIP_SPEEX_ULTRAWIDE = 5,//wideband speex. packed data.
+	VOIP_PCMA		= 6,	//G711 is kinda shit, encoding audio at 8khz with funny truncation for 13bit to 8bit
+	VOIP_PCMU		= 7,	//ulaw version of g711 (instead of alaw)
 
 	VOIP_INVALID = 16	//not currently generating audio.
 };
@@ -526,6 +528,114 @@ static qboolean S_Opus_Init(void)
 	return s_voip.opus.loaded;
 }
 
+size_t PCMA_Decode(short *out, unsigned char *in, size_t samples)
+{
+	size_t i = 0;
+	for (i = 0; i < samples; i++)
+	{
+		unsigned char inv = in[i]^0x55;	//g711 alaw inverts every other bit
+		int m = inv&0xf;
+		int e = (inv&0x70)>>4;
+		if (e)
+			m = (((m)<<1)|0x21) << (e-1);
+		else
+			m = (((m)<<1)|1);
+		if (inv & 0x80)
+			out[i] = -m;
+		else
+			out[i] = m;
+	}
+	return i;
+}
+size_t PCMA_Encode(unsigned char *out, size_t outsize, short *in, size_t samples)
+{
+	size_t i = 0;
+	for (i = 0; i < samples; i++)
+	{
+		int o = in[i];
+		unsigned char b;
+		if (o < 0)
+		{
+			o = -o;
+			b = 0x80;
+		}
+		else
+			b = 0;
+
+		if (o >= 0x0800)
+			b |= ((o>>7)&0xf) | 0x70;
+		else if (o >= 0x0400)
+			b |= ((o>>6)&0xf) | 0x60;
+		else if (o >= 0x0200)
+			b |= ((o>>5)&0xf) | 0x50;
+		else if (o >= 0x0100)
+			b |= ((o>>4)&0xf) | 0x40;
+		else if (o >= 0x0080)
+			b |= ((o>>3)&0xf) | 0x30;
+		else if (o >= 0x0040)
+			b |= ((o>>2)&0xf) | 0x20;
+		else if (o >= 0x0020)
+			b |= ((o>>1)&0xf) | 0x10;
+		else
+			b |= ((o>>1)&0xf) | 0x00;
+		out[i] = b^0x55;	//invert every-other bit.
+	}
+
+	return samples;
+}
+size_t PCMU_Decode(short *out, unsigned char *in, size_t samples)
+{
+	size_t i = 0;
+	for (i = 0; i < samples; i++)
+	{
+		unsigned char inv = in[i]^0xff;
+		int m = (((inv&0xf)<<1)|0x21) << ((inv&0x70)>>4);
+		m -= 33;
+		if (inv & 0x80)
+			out[i] = -m;
+		else
+			out[i] = m;
+	}
+	return i;
+}
+size_t PCMU_Encode(unsigned char *out, size_t outsize, short *in, size_t samples)
+{
+	size_t i = 0;
+	for (i = 0; i < samples; i++)
+	{
+		int o = in[i];
+		unsigned char b;
+		if (o < 0)
+		{
+			o = ~o;
+			b = 0x80;
+		}
+		else
+			b = 0;
+		o+=33;
+
+		if (o >= 0x1000)
+			b |= ((o>>8)&0xf) | 0x70;
+		else if (o >= 0x0800)
+			b |= ((o>>7)&0xf) | 0x60;
+		else if (o >= 0x0400)
+			b |= ((o>>6)&0xf) | 0x50;
+		else if (o >= 0x0200)
+			b |= ((o>>5)&0xf) | 0x40;
+		else if (o >= 0x0100)
+			b |= ((o>>4)&0xf) | 0x30;
+		else if (o >= 0x0080)
+			b |= ((o>>3)&0xf) | 0x20;
+		else if (o >= 0x0040)
+			b |= ((o>>2)&0xf) | 0x10;
+		else
+			b |= ((o>>1)&0xf) | 0x00;
+		out[i] = b^0xff;
+	}
+
+	return samples;
+}
+
 void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, unsigned char seq, unsigned int bytes, unsigned char *data)
 {
 	unsigned char *start;
@@ -576,6 +686,11 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			return;
 		case VOIP_RAW16:
 			s_voip.decsamplerate[sender] = 11025;
+			break;
+		case VOIP_PCMA:
+		case VOIP_PCMU:
+			s_voip.decsamplerate[sender] = 8000;
+			s_voip.decframesize[sender] = 8000/20;
 			break;
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
@@ -732,6 +847,19 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 			bytes -= len;
 			start += len;
 			break;
+		case VOIP_PCMA:
+		case VOIP_PCMU:
+			len = min(bytes, sizeof(decodebuf)-(sizeof(decodebuf[0])*decodesamps));
+			if (len > s_voip.decframesize[sender]*2)
+				len = s_voip.decframesize[sender]*2;
+			if (codec == VOIP_PCMA)
+				decodesamps += PCMA_Decode(decodebuf+decodesamps, start, len);
+			else
+				decodesamps += PCMU_Decode(decodebuf+decodesamps, start, len);
+			s_voip.decseq[sender]++;
+			bytes -= len;
+			start += len;
+			break;
 		case VOIP_OPUS:
 			len = bytes;
 			if (decodesamps > 0)
@@ -765,32 +893,46 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 }
 
 #ifdef SUPPORT_ICE
+static int S_Voip_NameToId(const char *codec)
+{
+	if (!Q_strcasecmp(codec, "speex@8000"))
+		return VOIP_SPEEX_NARROW;
+	else if (!Q_strcasecmp(codec, "speex@11025"))
+		return VOIP_SPEEX_OLD;
+	else if (!Q_strcasecmp(codec, "speex@16000"))
+		return VOIP_SPEEX_WIDE;
+	else if (!Q_strcasecmp(codec, "speex@32000"))
+		return VOIP_SPEEX_ULTRAWIDE;
+	else if (!Q_strcasecmp(codec, "opus") || !strcmp(codec, "opus@48000"))
+		return VOIP_OPUS;
+	else if (!Q_strcasecmp(codec, "pcma@8000"))
+		return VOIP_PCMA;
+	else if (!Q_strcasecmp(codec, "pcmu@8000"))
+		return VOIP_PCMU;
+	else
+		return VOIP_INVALID;
+}
 qboolean S_Voip_RTP_CodecOkay(const char *codec)
 {
-	if (!strcmp(codec, "speex@8000") || !strcmp(codec, "speex@11025") || !strcmp(codec, "speex@16000") || !strcmp(codec, "speex@32000"))
+	switch(S_Voip_NameToId(codec))
 	{
-		if (S_Speex_Init())
-			return true;
+	case VOIP_SPEEX_NARROW:
+	case VOIP_SPEEX_OLD:
+	case VOIP_SPEEX_WIDE:
+	case VOIP_SPEEX_ULTRAWIDE:
+		return S_Speex_Init();
+	case VOIP_PCMA:
+	case VOIP_PCMU:
+		return true;
+	case VOIP_OPUS:
+		return S_Opus_Init();
+	default:
+		return false;
 	}
-	else if (!strcmp(codec, "opus") || !strcmp(codec, "opus@48000"))
-	{
-		if (S_Opus_Init())
-			return true;
-	}
-	return false;
 }
 void S_Voip_RTP_Parse(unsigned short sequence, char *codec, unsigned char *data, unsigned int datalen)
 {
-	if (!strcmp(codec, "speex@8000"))
-		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_NARROW, 0, sequence&0xff, datalen, data);
-	if (!strcmp(codec, "speex@11025"))
-		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_OLD, 0, sequence&0xff, datalen, data);	//very much non-standard rtp
-	if (!strcmp(codec, "speex@16000"))
-		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_WIDE, 0, sequence&0xff, datalen, data);
-	if (!strcmp(codec, "speex@32000"))
-		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_ULTRAWIDE, 0, sequence&0xff, datalen, data);
-	if (!strcmp(codec, "opus") || !strcmp(codec, "opus@48000"))
-		S_Voip_Decode(MAX_CLIENTS-1, VOIP_OPUS, 0, sequence&0xff, datalen, data);
+	S_Voip_Decode(MAX_CLIENTS-1, S_Voip_NameToId(codec), 0, sequence&0xff, datalen, data);
 }
 qboolean NET_RTP_Transmit(unsigned int sequence, unsigned int timestamp, const char *codec, char *cdata, int clength);
 qboolean NET_RTP_Active(void);
@@ -1035,6 +1177,11 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				qspeex_encoder_ctl(s_voip.encoder, SPEEX_SET_SAMPLING_RATE, &s_voip.encsamplerate);
 			}
 			break;
+		case VOIP_PCMA:
+		case VOIP_PCMU:
+			s_voip.encsamplerate = 8000;
+			s_voip.encframesize = 8000/20;
+			break;
 		case VOIP_RAW16:
 			s_voip.encsamplerate = 11025;
 			s_voip.encframesize = 256;
@@ -1221,6 +1368,20 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			s_voip.encsequence++;	//increment number of packets, for packetloss detection.
 			samps+=len / 2;	//number of samplepairs eaten in this packet. for stats.
 			break;
+		case VOIP_PCMA:
+		case VOIP_PCMU:
+			len = s_voip.capturepos-encpos;	//amount of data to be eaten in this frame
+			len = min(len, sizeof(outbuf)-outpos);
+			len = min(len, s_voip.encframesize*2);
+			level += S_Voip_Preprocess(start, len/2, micamp);
+			if (s_voip.enccodec == VOIP_PCMA)
+				outpos += PCMA_Encode(outbuf+outpos, sizeof(outbuf)-outpos, start, len/2);
+			else
+				outpos += PCMU_Encode(outbuf+outpos, sizeof(outbuf)-outpos, start, len/2);
+			encpos += len;			//number of bytes consumed
+			s_voip.encsequence++;	//increment number of packets, for packetloss detection.
+			samps+=len / 2;	//number of samplepairs eaten in this packet. for stats.
+			break;
 		case VOIP_OPUS:
 			{
 				//opus rtp only supports/allows a single chunk in each packet.
@@ -1339,8 +1500,14 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			case VOIP_SPEEX_OLD:
 				NET_RTP_Transmit(initseq, inittimestamp, va("speex@%i", s_voip.encsamplerate), outbuf, outpos);
 				break;
+			case VOIP_PCMA:
+				NET_RTP_Transmit(initseq, inittimestamp, "pcma@8000", outbuf, outpos);
+				break;
+			case VOIP_PCMU:
+				NET_RTP_Transmit(initseq, inittimestamp, "pcmu@8000", outbuf, outpos);
+				break;
 			case VOIP_OPUS:
-				NET_RTP_Transmit(initseq, inittimestamp, "opus", outbuf, outpos);
+				NET_RTP_Transmit(initseq, inittimestamp, "opus@48000", outbuf, outpos);
 				break;
 			}
 		}

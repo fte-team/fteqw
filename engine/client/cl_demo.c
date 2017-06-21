@@ -2626,7 +2626,7 @@ char *strchrrev(char *str, char chr)
 	return NULL;
 }
 
-void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result)
+/*void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result)
 {
 	char buffer[2048];
 	char *s;
@@ -2713,10 +2713,12 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result)
 		}
 	}
 	VFS_CLOSE(f);
-}
+}*/
 
 void CL_ParseQTVDescriptor(vfsfile_t *f, const char *name)
-{
+{	//.qtv files are some sneaky way to deal with download links using file extension associations instead of special protocols.
+	//they basically contain some directive:hostname line that tells us what to do and where from.
+	//they should have mime type text/x-quaketvident with extension .qtv
 	char buffer[1024];
 	char *s;
 
@@ -2799,6 +2801,7 @@ void CL_QTVPlay_f (void)
 	char *host;
 	char msg[4096];
 	int msglen=0;
+	char *password;
 
 	if (Cmd_Argc() < 2)
 	{
@@ -2808,12 +2811,12 @@ void CL_QTVPlay_f (void)
 
 	connrequest = Cmd_Argv(1);
 
-	if (*connrequest == '#')
+	/*if (*connrequest == '#')
 	{
 		//#FILENAME is a local system path
 		CL_ParseQTVDescriptor(VFSOS_Open(connrequest+1, "rt"), connrequest+1);
 		return;
-	}
+	}*/
 	strcpy(cls.servername, "qtv:");
 	Q_strncpyz(cls.servername+4, connrequest, sizeof(cls.servername)-4);
 
@@ -2840,6 +2843,8 @@ void CL_QTVPlay_f (void)
 	else
 		host = NULL;
 
+	password = Cmd_Argv(2);
+
 	if (qtvcl_forceversion1.ival)
 	{
 		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
@@ -2854,23 +2859,22 @@ void CL_QTVPlay_f (void)
 	}
 	msglen += strlen(msg+msglen);
 
-	if (qtvcl_eztvextensions.ival)
-	{
-		raw = 0;
-
-		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
-				"QTV_EZQUAKE_EXT: 3\n"
-				"USERINFO: %s\n", cls.userinfo[0]);
-		msglen += strlen(msg+msglen);
-	}
-	else if (raw)
+	if (raw)
 	{
 		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
 				"RAW: 1\n");
 		msglen += strlen(msg+msglen);
 	}
-	if (host)
+	else if (host)
 	{
+		if (qtvcl_eztvextensions.ival)
+		{
+			Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+					"QTV_EZQUAKE_EXT: 3\n"
+					"USERINFO: %s\n", cls.userinfo[0]);
+			msglen += strlen(msg+msglen);
+		}
+
 		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
 			"SOURCE: %s\n", host);
 		msglen += strlen(msg+msglen);

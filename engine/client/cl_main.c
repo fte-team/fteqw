@@ -1039,7 +1039,7 @@ void CL_CheckForResend (void)
 		Con_TPrintf ("Connecting to %s...\n", cls.servername);
 
 	if (connectinfo.tries == 0)
-		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, false))
+		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername))
 		{
 			Con_Printf ("Unable to establish connection to %s\n", cls.servername);
 			connectinfo.trying = false;
@@ -1773,7 +1773,7 @@ void CL_Disconnect (void)
 
 #ifdef TCPCONNECT
 	//disconnects it, without disconnecting the others.
-	FTENET_AddToCollection(cls.sockets, "conn", NULL, NA_INVALID, NP_DGRAM, false);
+	FTENET_AddToCollection(cls.sockets, "conn", NULL, NA_INVALID, NP_DGRAM);
 #endif
 
 	Cvar_ForceSet(&cl_servername, "none");
@@ -3165,10 +3165,17 @@ void CL_ConnectionlessPacket (void)
 			if (!NET_CompareAdr(&connectinfo.adr, &net_from))
 				return;
 
-			connectinfo.dtlsupgrade = DTLS_ACTIVE;
-			connectinfo.adr.prot = NP_DTLS;
-			if (!NET_DTLS_Create(cls.sockets, &net_from))
+			if (NET_DTLS_Create(cls.sockets, &net_from))
+			{
+				connectinfo.dtlsupgrade = DTLS_ACTIVE;
+				connectinfo.adr.prot = NP_DTLS;
+			}
+			else
+			{
+				if (connectinfo.dtlsupgrade == DTLS_TRY)
+					connectinfo.dtlsupgrade = DTLS_DISABLE;
 				Con_Printf ("unable to establish dtls route\n");
+			}
 #else
 			Con_Printf ("dtlsopened (unsupported)\n");
 #endif

@@ -30,15 +30,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define	MAX_MAP_ENTITIES	1024
 //#define	MAX_MAP_ENTSTRING	65536
 
-#define	SANITY_MAX_MAP_PLANES		65536*8		//sanity
-#define	SANITY_MAX_MAP_NODES		65536		//sanity
-#define	SANITY_MAX_MAP_CLIPNODES	65536		//sanity
-#define	MAX_MAP_LEAFS				65536		//pvs buffer size. not sanity.
-#define	SANITY_MAX_MAP_VERTS		65536		//sanity
-#define	SANITY_MAX_MAP_FACES		65536		//sanity
+//FIXME: make sure that any 16bit indexes are bounded properly
+//FIXME: ensure that we don't get any count*size overflows
+#define	SANITY_MAX_MAP_PLANES		65536*64		//sanity
+#define	SANITY_MAX_MAP_NODES		65536*64		//sanity
+//#define	SANITY_MAX_MAP_CLIPNODES	65536*64		//sanity
+//#define	MAX_MAP_LEAFS				1		//pvs buffer size. not sanity.
+#define	SANITY_MAX_MAP_LEAFS		65536*64		//too many leafs results in massive amounts of ram used for pvs/phs caches.
+//#define	SANITY_MAX_MAP_VERTS		65536		//sanity
+#define	SANITY_MAX_MAP_FACES		65536*64		//sanity
 //#define	MAX_MAP_MARKSURFACES 65536	//sanity
 //#define	MAX_MAP_TEXINFO		4096	//sanity
-#define	MAX_MAP_EDGES		256000
+//#define	MAX_MAP_EDGES		256000
 //#define	MAX_MAP_SURFEDGES	512000
 //#define	MAX_MAP_MIPTEX		0x200000
 //#define	MAX_MAP_LIGHTING	0x100000

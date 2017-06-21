@@ -597,10 +597,10 @@ unsigned char *D3_CalcVis(model_t *mod, vec3_t org)
 static void D3_FindTouchedLeafs (struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs)
 {
 }
-static qbyte *D3_ClusterPVS (struct model_s *model, int num, qbyte *buffer, unsigned int buffersize)
+static qbyte *D3_ClusterPVS (struct model_s *model, int num, pvsbuffer_t *buffer, pvsmerge_t merge)
 {
-	memset(buffer, 0xff, buffersize);
-	return buffer;
+	memset(buffer->buffer, 0xff, buffer->buffersize);
+	return buffer->buffer;
 }
 static int	D3_ClusterForPoint (struct model_s *model, vec3_t point)
 {
@@ -618,7 +618,7 @@ static int	D3_ClusterForPoint (struct model_s *model, vec3_t point)
 	}
 	return 0;
 }
-static unsigned int D3_FatPVS (struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge)
+static unsigned int D3_FatPVS (struct model_s *model, vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge)
 {
 	return 0;
 }

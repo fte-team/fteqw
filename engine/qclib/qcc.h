@@ -1113,3 +1113,17 @@ extern void *(*pHash_Get)(hashtable_t *table, const char *name);
 extern void *(*pHash_GetNext)(hashtable_t *table, const char *name, void *old);
 extern void *(*pHash_Add)(hashtable_t *table, const char *name, void *data, bucket_t *);
 extern void (*pHash_RemoveData)(hashtable_t *table, const char *name, void *data);
+
+typedef struct vfile_s
+{	//when originally running from a .dat, we load up all the functions and work from those rather than actual files.
+	//(these get re-written into the resulting .dat)
+	struct vfile_s *next;
+	void *fdata;
+	size_t fsize;
+	size_t msize;
+	char name[1];
+} vfile_t;
+vfile_t *QCC_FindVFile(const char *name);
+vfile_t *QCC_AddVFile(const char *name, void *data, size_t size);
+void QCC_CatVFile(vfile_t *, const char *fmt, ...);
+void QCC_InsertVFile(vfile_t *, size_t pos, const char *fmt, ...);

@@ -2234,6 +2234,7 @@ static qboolean SVQ3_EntityIsVisible(q3client_frame_t *snap, q3sharedEntity_t *e
 	return true;
 }
 
+#ifdef Q3OVERQW
 static q3playerState_t *SVQ3Q1_BuildPlayerState(client_t *client)
 {
 	static q3playerState_t state;
@@ -2286,6 +2287,7 @@ static q3playerState_t *SVQ3Q1_BuildPlayerState(client_t *client)
 	state.ammo[4] = client->edict->v->ammo_cells;
 	return &state;
 }
+#endif
 
 void SVQ3_BuildClientSnapshot( client_t *client )
 {
@@ -2298,7 +2300,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	q3playerState_t		*ps;
 	int					portalarea;
 	int					i;
-	static qbyte pvsbuffer[(MAX_MAP_LEAFS+7)>>3];
+	static pvsbuffer_t pvsbuffer;
 
 	if (!q3_snapshot_entities)
 	{
@@ -2308,15 +2310,17 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	}
 
 	clientNum = client - svs.clients;
-	if (svs.gametype == GT_QUAKE3)
-	{
-		clent = GENTITY_FOR_NUM( clientNum );
-		ps = PS_FOR_NUM( clientNum );
-	}
-	else
+#ifdef Q3OVERQW
+	if (svs.gametype != GT_QUAKE3)
 	{
 		clent = NULL;
 		ps = SVQ3Q1_BuildPlayerState(client);
+	}
+	else
+#endif
+	{
+		clent = GENTITY_FOR_NUM( clientNum );
+		ps = PS_FOR_NUM( clientNum );
 	}
 
 	// this is the frame we are creating
@@ -2342,7 +2346,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	org[2] += ps->viewheight;
 
 	clientarea = CM_PointLeafnum(sv.world.worldmodel, org);
-	bitvector = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, CM_LeafCluster(sv.world.worldmodel, clientarea), pvsbuffer, sizeof(pvsbuffer));
+	bitvector = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, CM_LeafCluster(sv.world.worldmodel, clientarea), &pvsbuffer, PVM_REPLACE);
 	clientarea = CM_LeafArea(sv.world.worldmodel, clientarea);
 /*
 	if (client->areanum != clientarea)
@@ -2367,7 +2371,6 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	// check for SVF_PORTAL entities first
 		for( i=0 ; i<numq3entities ; i++)
 		{
-			unsigned int c;
 			qbyte *merge;
 			ent = GENTITY_FOR_NUM(i);
 
@@ -2381,10 +2384,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 			// merge PVS if portal
 			portalarea = CM_PointLeafnum(sv.world.worldmodel, ent->s.origin2);
 			//merge pvs bits so we can see other ents through it
-			merge = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, CM_LeafCluster(sv.world.worldmodel, portalarea), NULL, 0);
-			c = (sv.world.worldmodel->numclusters+31)/32;
-			while (c-->0)
-				((int *)bitvector)[c] |= ((int *)merge)[c];
+			merge = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, CM_LeafCluster(sv.world.worldmodel, portalarea), &pvsbuffer, PVM_MERGE);
 			//and merge areas, so we can see the world too (client will calc its own pvs)
 			portalarea = CM_LeafArea(sv.world.worldmodel, portalarea);
 			CM_WriteAreaBits(sv.world.worldmodel, snap->areabits, portalarea, true);

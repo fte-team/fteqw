@@ -576,22 +576,29 @@ void IWebInit(void)
 }
 void IWebRun(void)
 {
-#ifdef WEBSERVER
-	extern qboolean httpserverfailed, ftpserverfailed;
-
-	FTP_ServerRun(ftpserver.ival!= 0, ftpserver_port.ival);
-	HTTP_ServerPoll(httpserver.ival!=0, httpserver_port.ival);
-	if (ftpserverfailed)
+#ifdef FTPSERVER
 	{
-		Con_Printf("FTP Server failed to load, setting %s to 0\n", ftpserver.name);
-		Cvar_SetValue(&ftpserver, 0);
-		ftpserverfailed = false;
+		extern qboolean ftpserverfailed;
+		FTP_ServerRun(ftpserver.ival!= 0, ftpserver_port.ival);
+		if (ftpserverfailed)
+		{
+			Con_Printf("FTP Server failed to load, setting %s to 0\n", ftpserver.name);
+			Cvar_SetValue(&ftpserver, 0);
+			ftpserverfailed = false;
+		}
 	}
-	if (httpserverfailed)
+#endif
+
+#ifdef WEBSERVER
 	{
-		Con_Printf("HTTP Server failed to load, setting %s to 0\n", httpserver.name);
-		Cvar_SetValue(&httpserver, 0);
-		httpserverfailed = false;
+		extern qboolean httpserverfailed;
+		HTTP_ServerPoll(httpserver.ival!=0, httpserver_port.ival);
+		if (httpserverfailed)
+		{
+			Con_Printf("HTTP Server failed to load, setting %s to 0\n", httpserver.name);
+			Cvar_SetValue(&httpserver, 0);
+			httpserverfailed = false;
+		}
 	}
 #endif
 }

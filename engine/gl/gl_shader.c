@@ -5516,7 +5516,14 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname)
 	qboolean explicitalpha = false;
 	cvar_t *alphavars[] = {	&r_wateralpha, &r_lavaalpha, &r_slimealpha, &r_telealpha};
 	cvar_t *stylevars[] = {	&r_waterstyle, &r_lavastyle, &r_slimestyle, &r_telestyle};
-	if (!strncmp(shortname, "*lava", 5))
+
+	if (!strncmp(shortname, "*portal", 7))
+	{
+		return	"{\n"
+					"portal\n"
+				"}\n";
+	}
+	else if (!strncmp(shortname, "*lava", 5))
 		type = 1;
 	else if (!strncmp(shortname, "*slime", 6))
 		type = 2;
@@ -5745,7 +5752,14 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 {
 	char *builtin = NULL;
-	if (r_mirroralpha.value < 1 && (!strcmp(shortname, "window02_1") || !strncmp(shortname, "mirror", 6)))
+
+	if (!strcmp(shortname, "mirror_portal"))
+	{
+		builtin =	"{\n"
+						"portal\n"
+					"}\n";
+	}
+	else if (r_mirroralpha.value < 1 && (!strcmp(shortname, "window02_1") || !strncmp(shortname, "mirror", 6)))
 	{
 		if (r_mirroralpha.value < 0)
 		{

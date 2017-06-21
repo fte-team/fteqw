@@ -68,15 +68,6 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 #endif
 }
 
-
-
-
-#if defined(_WIN32) || defined(__DJGPP__)
-#include <malloc.h>
-#else
-#include <alloca.h>
-#endif
-
 extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models;
 extern cvar_t r_noaliasshadows;
 extern cvar_t r_skin_overlays;
@@ -1099,26 +1090,26 @@ static int Alias_FindRawSkelData(galiasinfo_t *inf, framestate_t *fstate, skelle
 	for (bonegroup = 0; bonegroup < FS_COUNT; bonegroup++)
 	{
 		endbone = fstate->g[bonegroup].endbone;
-		if (bonegroup == FS_COUNT-1 || endbone > lastbone)
-			endbone = lastbone;
+		if (bonegroup == FS_COUNT-1)
+			endbone = MAX_BONES;
 
-		if (endbone == cbone)
-			continue;
-
-		if (!inf->numanimations || !Alias_BuildSkelLerps(lerps, &fstate->g[bonegroup], inf->numbones, inf))	//if there's no animations in this model, use the base pose instead.
+		if (cbone <= firstbone || endbone > lastbone)
 		{
-			if (!inf->baseframeofs)
-				continue;	//nope, not happening.
-			lerps->skeltype = SKEL_ABSOLUTE;
-			lerps->frac[0] = 1;
-			lerps->pose[0] = inf->baseframeofs;
-			lerps->lerpcount = 1;
+			if (!inf->numanimations || !Alias_BuildSkelLerps(lerps, &fstate->g[bonegroup], inf->numbones, inf))	//if there's no animations in this model, use the base pose instead.
+			{
+				if (!inf->baseframeofs)
+					continue;	//nope, not happening.
+				lerps->skeltype = SKEL_ABSOLUTE;
+				lerps->frac[0] = 1;
+				lerps->pose[0] = inf->baseframeofs;
+				lerps->lerpcount = 1;
+			}
+			lerps->firstbone = max(cbone, firstbone);
+			lerps->endbone = min(endbone, lastbone);
+			numbonegroups++;
+			lerps++;
 		}
-		lerps->firstbone = cbone;
-		lerps->endbone = endbone;
 		cbone = endbone;
-		numbonegroups++;
-		lerps++;
 	}
 	return numbonegroups;
 }

@@ -3,6 +3,7 @@
 //named functions, this makes it *really* easy to port plugins from one engine to annother.
 
 #include "quakedef.h"
+#include "netinc.h"
 
 #ifndef GNUTLS_STATIC
 	#define GNUTLS_DYNAMIC 	//statically linking is bad, because that just dynamically links to a .so that probably won't exist.
@@ -710,6 +711,7 @@ static gnutls_datum_t cookie_key;
 qboolean SSL_InitGlobal(qboolean isserver)
 {
 	static int initstatus[2];
+	isserver = !!isserver;
 	if (!initstatus[isserver])
 	{
 		if (!Init_GNUTLS())
@@ -744,12 +746,12 @@ qboolean SSL_InitGlobal(qboolean isserver)
 			char keyfile[MAX_OSPATH];
 			char certfile[MAX_OSPATH];
 			*keyfile = *certfile = 0;
-                        if (FS_NativePath("key.pem", FS_ROOT, keyfile, sizeof(keyfile)))
-                            if (FS_NativePath("cert.pem", FS_ROOT, certfile, sizeof(certfile)))
-                                ret = qgnutls_certificate_set_x509_key_file(xcred[isserver], certfile, keyfile, GNUTLS_X509_FMT_PEM);
+			if (FS_NativePath("key.pem", FS_ROOT, keyfile, sizeof(keyfile)))
+				if (FS_NativePath("cert.pem", FS_ROOT, certfile, sizeof(certfile)))
+					ret = qgnutls_certificate_set_x509_key_file(xcred[isserver], certfile, keyfile, GNUTLS_X509_FMT_PEM);
 			if (ret < 0)
 			{
-				Con_Printf("No certificate or key were found in %s and %s\n", certfile, keyfile);
+				Con_Printf("No certificate or key was found in %s and %s\n", certfile, keyfile);
 				initstatus[isserver] = -1;
 			}
 		}
@@ -848,17 +850,11 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean isserver
 
 #ifdef HAVE_DTLS
 
-void DTLS_DestroyContext(void *ctx)
+void GNUDTLS_DestroyContext(void *ctx)
 {
 	SSL_Close(ctx);
 }
-qboolean DTLS_HasServerCertificate(void)
-{
-	if (!SSL_InitGlobal(true))
-		return false;
-	return true;
-}
-void *DTLS_CreateContext(void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
+void *GNUDTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
 {
 	gnutlsfile_t *newf;
 
@@ -875,7 +871,7 @@ void *DTLS_CreateContext(void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *
 
 //	Sys_Printf("DTLS_CreateContext: server=%i\n", isserver);
 
-	Q_strncpyz(newf->certname, "", sizeof(newf->certname));
+	Q_strncpyz(newf->certname, remotehost?remotehost:"", sizeof(newf->certname));
 
 	if (!SSL_InitConnection(newf, isserver, true))
 	{
@@ -886,7 +882,7 @@ void *DTLS_CreateContext(void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *
 	return newf;
 }
 
-neterr_t DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
+neterr_t GNUDTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
 {
 	int ret;
 	gnutlsfile_t *f = (gnutlsfile_t *)ctx;
@@ -918,7 +914,7 @@ neterr_t DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
 	return NETERR_SENT;
 }
 
-neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize)
+neterr_t GNUDTLS_Received(void *ctx, qbyte *data, size_t datasize)
 {
 	int cli_addr = 0xdeadbeef;
 	int ret;
@@ -992,7 +988,7 @@ neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize)
 	return NETERR_SENT;
 }
 
-neterr_t DTLS_Timeouts(void *ctx)
+neterr_t GNUDTLS_Timeouts(void *ctx)
 {
 	gnutlsfile_t *f = (gnutlsfile_t *)ctx;
 	int ret;
@@ -1012,13 +1008,25 @@ neterr_t DTLS_Timeouts(void *ctx)
 	}
 	return NETERR_SENT;
 }
-#else
-void DTLS_DestroyContext(void *ctx){}
-qboolean DTLS_HasServerCertificate(void){return false;}
-void *DTLS_CreateContext(void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver){return NULL;}
-neterr_t DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize){return NETERR_DISCONNECTED;}
-neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize){return NETERR_DISCONNECTED;}
-neterr_t DTLS_Timeouts(void *ctx) {return NETERR_SENT;}
+
+static const dtlsfuncs_t dtlsfuncs_gnutls =
+{
+	GNUDTLS_CreateContext,
+	GNUDTLS_DestroyContext,
+	GNUDTLS_Transmit,
+	GNUDTLS_Received,
+	GNUDTLS_Timeouts,
+};
+const dtlsfuncs_t *DTLS_InitServer(void)
+{
+	if (!SSL_InitGlobal(true))
+		return NULL;	//unable to init a server certificate. don't allow dtls to init.
+	return &dtlsfuncs_gnutls;
+}
+const dtlsfuncs_t *DTLS_InitClient(void)
+{
+	return &dtlsfuncs_gnutls;
+}
 #endif
 
 #endif

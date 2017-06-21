@@ -780,7 +780,7 @@ pbool QCC_PR_Precompiler(void)
 
 			QCC_PR_SkipToEndOfLine(false);
 
-			QCC_PR_ParseError(ERR_HASHERROR, "#Error: %s\n", msg);
+			QCC_PR_ParseError(ERR_HASHERROR, "#Error: %s", msg);
 		}
 		else if (!strncmp(directive, "warning", 7))
 		{
@@ -1050,6 +1050,12 @@ pbool QCC_PR_Precompiler(void)
 			}
 			else if (!QC_strcasecmp(qcc_token, "COPYRIGHT"))
 			{
+				char *e = strrchr(msg+1, '\"');
+				if (*msg == '\"' && e && e != msg)
+				{	//FIXME: handle \ns
+					memmove(msg, msg+1, e-(msg+1));
+					msg[e-(msg+1)] = 0;
+				}
 				if (strlen(msg) >= sizeof(QCC_copyright))
 					QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
 				QC_strlcpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);

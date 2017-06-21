@@ -2151,7 +2151,7 @@ static void CLQ2_AddViewWeapon (int seat, q2player_state_t *ps, q2player_state_t
 	if (!r_drawviewmodel.value)
 		return;
 
-	if (!Cam_DrawViewModel(0))
+	if (!Cam_DrawViewModel(pv))
 		return;
 
 	// don't draw gun if in wide angle view

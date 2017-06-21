@@ -447,9 +447,10 @@ void SV_CalcPHS (void)
 	int		i, j, k, l, index, num;
 	int		bitbyte;
 	unsigned	*dest, *src;
-	qbyte	*scan, *lf;
+	qbyte	*scan, pvs;
 	int		count, vcount;
 	model_t *model = sv.world.worldmodel;
+	pvsbuffer_t buf;
 
 	if (model->pvs || model->fromgame == fg_quake2 || model->fromgame == fg_quake3)
 	{
@@ -457,35 +458,38 @@ void SV_CalcPHS (void)
 		return;
 	}
 
+	if (model->pvsbytes > 4096)
+		return;
+
 	//FIXME: this can take a significant time on some maps, and should ideally be pushed to a worker thread.
 	num = model->numclusters;
-	rowwords = (num+31)>>5;
-	rowbytes = rowwords*4;
+	rowbytes = model->pvsbytes;
+	rowwords = rowbytes/sizeof(*dest);
+	buf.buffersize = model->pvsbytes;
 
 	if (!sv_calcphs.ival || (sv_calcphs.ival == 2 && (rowbytes*num >= 0x100000 || (!deathmatch.ival && !coop.ival))))
 	{
-		model->pvs = ZG_Malloc(&model->memgroup, rowbytes*num);
-		scan = model->pvs;
+		pvs = NULL;/*ZG_Malloc(&model->memgroup, rowbytes*num);
+		scan = pvs;
 		for (i=0 ; i<num ; i++, scan+=rowbytes)
 		{
-			lf = model->funcs.ClusterPVS(model, i, scan, rowbytes);
-			if (lf != scan)
-				memcpy (scan, lf, rowbytes);
-		}
+			buf.buffer = scan;
+			model->funcs.ClusterPVS(model, i, &buf, PVM_REPLACE);
+		}*/
 
 		Con_DPrintf("Skipping PHS\n");
+		model->pvs = pvs;
 		model->phs = NULL;
 		return;
 	}
 
-	model->pvs = ZG_Malloc(&model->memgroup, rowbytes*num);
-	scan = model->pvs;
+	pvs = ZG_Malloc(&model->memgroup, rowbytes*num);
+	scan = pvs;
 	vcount = 0;
 	for (i=0 ; i<num ; i++, scan+=rowbytes)
 	{
-		lf = model->funcs.ClusterPVS(model, i, scan, rowbytes);
-		if (lf != scan)
-			memcpy (scan, lf, rowbytes);
+		buf.buffer = scan;
+		model->funcs.ClusterPVS(model, i, &buf, PVM_REPLACE);
 		if (i == 0)
 			continue;
 		for (j=0 ; j<num ; j++)
@@ -499,6 +503,7 @@ void SV_CalcPHS (void)
 	if (developer.value)
 		Con_TPrintf ("Building PHS...\n");
 
+	model->pvs = pvs;
 	model->phs = ZG_Malloc (&model->memgroup, rowbytes*num);
 
 	/*this routine takes an exponential amount of time, so cache it if its too big*/
@@ -523,7 +528,7 @@ void SV_CalcPHS (void)
 	}
 
 	count = 0;
-	scan = model->pvs;
+	scan = pvs;
 	dest = (unsigned *)model->phs;
 	for (i=0 ; i<num ; i++, dest += rowwords, scan += rowbytes)
 	{
@@ -543,7 +548,7 @@ void SV_CalcPHS (void)
 				index = ((j<<3)+k);
 				if (index >= num)
 					continue;
-				src = (unsigned *)model->pvs + index*rowwords;
+				src = (unsigned *)pvs + index*rowwords;
 				for (l=0 ; l<rowwords ; l++)
 					dest[l] |= src[l];
 			}

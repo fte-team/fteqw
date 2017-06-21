@@ -126,7 +126,7 @@ neterr_t	NET_SendPacket (netsrc_t socket, int length, const void *data, netadr_t
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);
-qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host, qboolean islisten);
+qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host);
 void		NET_PrintConnectionsStatus(struct ftenet_connections_s *collection);
 
 enum addressscope_e
@@ -159,7 +159,7 @@ char	*NET_AdrToStringMasked (char *s, int len, netadr_t *a, netadr_t *amask);
 void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits);
 qboolean NET_CompareAdrMasked(netadr_t *a, netadr_t *b, netadr_t *mask);
 
-qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot, qboolean islisten);
+qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot);
 
 #ifdef HAVE_DTLS
 qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to);

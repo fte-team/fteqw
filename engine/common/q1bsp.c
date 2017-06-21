@@ -1741,10 +1741,8 @@ Server only functions
 #ifndef CLIENTONLY
 
 //does the recursive work of Q1BSP_FatPVS
-static void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node, qbyte *buffer, unsigned int buffersize)
+static void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node, pvsbuffer_t *pvsbuffer)
 {
-	int		i;
-	qbyte	*pvs;
 	mplane_t	*plane;
 	float	d;
 
@@ -1755,9 +1753,7 @@ static void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node, qbyte
 		{
 			if (node->contents != Q1CONTENTS_SOLID)
 			{
-				pvs = Q1BSP_LeafPVS (mod, (mleaf_t *)node, NULL, 0);
-				for (i=0; i<buffersize; i++)
-					buffer[i] |= pvs[i];
+				Q1BSP_LeafPVS (mod, (mleaf_t *)node, pvsbuffer, true);
 			}
 			return;
 		}
@@ -1770,7 +1766,7 @@ static void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node, qbyte
 			node = node->children[1];
 		else
 		{	// go down both
-			SV_Q1BSP_AddToFatPVS (mod, org, node->children[0], buffer, buffersize);
+			SV_Q1BSP_AddToFatPVS (mod, org, node->children[0], pvsbuffer);
 			node = node->children[1];
 		}
 	}
@@ -1784,15 +1780,14 @@ Calculates a PVS that is the inclusive or of all leafs within 8 pixels of the
 given point.
 =============
 */
-static unsigned int Q1BSP_FatPVS (model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean add)
+static unsigned int Q1BSP_FatPVS (model_t *mod, vec3_t org, pvsbuffer_t *pvsbuffer, qboolean add)
 {
-	unsigned int fatbytes = (mod->numleafs+31)>>3;
-	if (fatbytes > buffersize)
-		Sys_Error("map had too much pvs data (too many leaves)\n");;
+	if (pvsbuffer->buffersize < mod->pvsbytes)
+		pvsbuffer->buffer = BZ_Realloc(pvsbuffer->buffer, pvsbuffer->buffersize=mod->pvsbytes);
 	if (!add)
-		Q_memset (pvsbuffer, 0, fatbytes);
-	SV_Q1BSP_AddToFatPVS (mod, org, mod->nodes, pvsbuffer, fatbytes);
-	return fatbytes;
+		Q_memset (pvsbuffer->buffer, 0, mod->pvsbytes);
+	SV_Q1BSP_AddToFatPVS (mod, org, mod->nodes, pvsbuffer);
+	return mod->pvsbytes;
 }
 
 #endif
@@ -1879,7 +1874,7 @@ PVS type stuff
 Mod_DecompressVis
 ===================
 */
-static qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed, unsigned int buffersize)
+static qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed, unsigned int buffersize, qboolean merge)
 {
 	int		c;
 	qbyte	*out;
@@ -1891,9 +1886,6 @@ static qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompresse
 	if (buffersize < row)
 		row = buffersize;
 
-#if 0
-	memcpy (out, in, row);
-#else
 	if (!in)
 	{	// no vis info, so make all visible
 		while (row)
@@ -1904,62 +1896,114 @@ static qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompresse
 		return decompressed;
 	}
 
-	do
+	if (merge)
 	{
-		if (*in)
+		do
 		{
-			*out++ = *in++;
-			continue;
-		}
+			if (*in)
+			{
+				*out++ |= *in++;
+				continue;
+			}
+			out += in[1];
+			in += 2;
+		} while (out - decompressed < row);
+	}
+	else
+	{
+		do
+		{
+			if (*in)
+			{
+				*out++ = *in++;
+				continue;
+			}
 
-		c = in[1];
-		in += 2;
-		while (c)
-		{
-			*out++ = 0;
-			c--;
-		}
-	} while (out - decompressed < row);
-#endif
+			c = in[1];
+			in += 2;
+			while (c)
+			{
+				*out++ = 0;
+				c--;
+			}
+		} while (out - decompressed < row);
+	}
 
 	return decompressed;
 }
 
-static FTE_ALIGN(4) qbyte	mod_novis[MAX_MAP_LEAFS/8];
+static pvsbuffer_t	mod_novis;
+static pvsbuffer_t	mod_tempvis;
 
-qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer, unsigned int buffersize)
+qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, pvsbuffer_t *buffer, qboolean merge)
 {
-	static FTE_ALIGN(4) qbyte	decompressed[MAX_MAP_LEAFS/8];
-
 	if (leaf == model->leafs)
-		return mod_novis;
-
-	if (!buffer)
 	{
-		buffer = decompressed;
-		buffersize = sizeof(decompressed);
+		if (mod_novis.buffersize < model->pvsbytes)
+		{
+			mod_novis.buffer = BZ_Realloc(mod_novis.buffer, mod_novis.buffersize=model->pvsbytes);
+			memset(mod_novis.buffer, 0xff, mod_novis.buffersize);
+		}
+		return mod_novis.buffer;
 	}
 
-	return Q1BSP_DecompressVis (leaf->compressed_vis, model, buffer, buffersize);
+	if (!buffer)
+		buffer = &mod_tempvis;
+
+	if (buffer->buffersize < model->pvsbytes)
+		buffer->buffer = BZ_Realloc(buffer->buffer, buffer->buffersize=model->pvsbytes);
+
+	return Q1BSP_DecompressVis (leaf->compressed_vis, model, buffer->buffer, buffer->buffersize, merge);
 }
 
 //pvs is 1-based. clusters are 0-based. otherwise, q1bsp has a 1:1 mapping.
-static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, qbyte *buffer, unsigned int buffersize)
+static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge)
 {
-	static FTE_ALIGN(4) qbyte	decompressed[MAX_MAP_LEAFS/8];
-
 	if (cluster == -1)
-		return mod_novis;
+	{
+		if (merge == PVM_FAST)
+		{
+			if (mod_novis.buffersize < model->pvsbytes)
+			{
+				mod_novis.buffer = BZ_Realloc(mod_novis.buffer, mod_novis.buffersize=model->pvsbytes);
+				memset(mod_novis.buffer, 0xff, mod_novis.buffersize);
+			}
+			return mod_novis.buffer;
+		}
+		if (buffer->buffersize < model->pvsbytes)
+			buffer->buffer = BZ_Realloc(buffer->buffer, buffer->buffersize=model->pvsbytes);
+		memset(buffer->buffer, 0xff, model->pvsbytes);
+		return buffer->buffer;
+	}
 	cluster++;
 
-	if (!buffer)
-	{
-		buffer = decompressed;
-		buffersize = sizeof(decompressed);
-	}
+	if (merge == PVM_FAST && model->pvs)
+		return model->pvs + cluster * model->pvsbytes;
 
-	return Q1BSP_DecompressVis (model->leafs[cluster].compressed_vis, model, buffer, buffersize);
+	if (!buffer)
+		buffer = &mod_tempvis;
+
+	if (buffer->buffersize < model->pvsbytes)
+		buffer->buffer = BZ_Realloc(buffer->buffer, buffer->buffersize=model->pvsbytes);
+
+	return Q1BSP_DecompressVis (model->leafs[cluster].compressed_vis, model, buffer->buffer, buffer->buffersize, merge==PVM_MERGE);
 }
+
+/*static qbyte *Q1BSP_ClusterPHS (model_t *model, int cluster, pvsbuffer_t *buffer)
+{
+	if (cluster == -1 || !model->phs)
+	{	//without any phs info, this turns into a broadcast.
+		if (mod_novis.buffersize < model->pvsbytes)
+		{
+			mod_novis.buffer = BZ_Realloc(mod_novis.buffer, mod_novis.buffersize=model->pvsbytes);
+			memset(mod_novis.buffer, 0xff, mod_novis.buffersize);
+		}
+		return mod_novis.buffer;
+	}
+	cluster++;
+
+	return model->phs + cluster * model->pvsbytes;
+}*/
 
 //returns the leaf number, which is used as a bit index into the pvs.
 static int Q1BSP_LeafnumForPoint (model_t *model, vec3_t p)
@@ -2039,7 +2083,6 @@ Init stuff
 
 void Q1BSP_Init(void)
 {
-	memset (mod_novis, 0xff, sizeof(mod_novis));
 }
 
 //sets up the functions a server needs.
@@ -2057,6 +2100,7 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 
 	mod->funcs.ClusterForPoint		= Q1BSP_ClusterForPoint;
 	mod->funcs.ClusterPVS			= Q1BSP_ClusterPVS;
+//	mod->funcs.ClusterPHS			= Q1BSP_ClusterPHS;
 	mod->funcs.NativeTrace			= Q1BSP_Trace;
 	mod->funcs.PointContents		= Q1BSP_PointContents;
 }

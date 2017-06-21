@@ -5173,7 +5173,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist
 	vec3_t r;
 	int i;
 	mesh_t *mesh = batch->mesh[batch->firstmesh];
-	qbyte newvis[(MAX_MAP_LEAFS+7)/8];
+	pvsbuffer_t newvis;
 	float ivmat[16], trmat[16];
 
 	if (r_refdef.recurse >= R_MAX_RECURSE-1)
@@ -5260,11 +5260,9 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist
 			int clust, i, j;
 			float d;
 			vec3_t point;
-			int pvsbytes = (cl.worldmodel->numclusters+7)>>3;
-			if (pvsbytes > sizeof(newvis))
-				pvsbytes = sizeof(newvis);
 			r_refdef.forcevis = true;
 			r_refdef.forcedvis = NULL;
+			newvis.buffer = alloca(newvis.buffersize=cl.worldmodel->pvsbytes);
 			for (i = batch->firstmesh; i < batch->meshes; i++)
 			{
 				mesh = batch->mesh[i];
@@ -5278,21 +5276,9 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist
 
 				clust = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, point);
 				if (i == batch->firstmesh)
-					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, newvis, sizeof(newvis));
+					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, &newvis, PVM_REPLACE);
 				else
-				{
-					if (r_refdef.forcedvis != newvis)
-					{
-						memcpy(newvis, r_refdef.forcedvis, pvsbytes);
-					}
-					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, NULL, sizeof(newvis));
-
-					for (j = 0; j < pvsbytes; j+= 4)
-					{
-						*(int*)&newvis[j] |= *(int*)&r_refdef.forcedvis[j];
-					}
-					r_refdef.forcedvis = newvis;
-				}
+					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, &newvis, PVM_MERGE);
 			}
 //			memset(newvis, 0xff, pvsbytes);
 		}

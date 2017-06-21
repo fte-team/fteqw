@@ -3563,7 +3563,7 @@ static void QCBUILTIN PF_TraceToss (pubprogfuncs_t *prinst, struct globalvars_s 
 
 //============================================================================
 
-qbyte	checkpvsbuffer[MAX_MAP_LEAFS/8];
+pvsbuffer_t	checkpvsbuffer;
 qbyte	*checkpvs;
 vec3_t	checkorg;
 extern cvar_t sv_nopvs;
@@ -3615,7 +3615,7 @@ int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
 	else
 	{
 		cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, checkorg);
-		checkpvs = sv.world.worldmodel->funcs.ClusterPVS (sv.world.worldmodel, cluster, checkpvsbuffer, sizeof(checkpvsbuffer));
+		checkpvs = sv.world.worldmodel->funcs.ClusterPVS (sv.world.worldmodel, cluster, &checkpvsbuffer, PVM_FAST);
 	}
 
 	return i;

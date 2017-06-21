@@ -1899,7 +1899,7 @@ void FTENET_Loop_Close(ftenet_generic_connection_t *con)
 	int sock = con->thesocket;
 	sock &= 1;
 	loopbacks[sock].inited = false;
-	loopbacks[sock].get = loopbacks[sock^1].send = 0;
+	loopbacks[sock].get = loopbacks[sock].send = 0;
 	for (i = 0; i < MAX_LOOPBACK; i++)
 	{
 		BZ_Free(loopbacks[sock].msgs[i].data);
@@ -1923,7 +1923,7 @@ static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean iss
 	if (newcon)
 	{
 		loopbacks[sock].inited = true;
-		loopbacks[sock].get = loopbacks[sock^1].send = 0;
+		loopbacks[sock].get = loopbacks[sock].send = 0;
 
 		newcon->GetLocalAddresses = FTENET_Loop_GetLocalAddresses;
 		newcon->GetPacket = FTENET_Loop_GetPacket;
@@ -2234,6 +2234,8 @@ ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver
 #ifdef HAVE_DTLS
 struct dtlspeer_s
 {
+	const dtlsfuncs_t *funcs;
+
 	ftenet_connections_t *col;
 	void *dtlsstate;
 	netadr_t addr;
@@ -2250,8 +2252,29 @@ void NET_DTLS_Timeouts(ftenet_connections_t *col)
 		return;
 	for (peer = col->dtls; peer; peer = peer->next)
 	{
-		DTLS_Timeouts(peer->dtlsstate);
+		peer->funcs->Timeouts(peer->dtlsstate);
 	}
+}
+
+const dtlsfuncs_t *DTLS_InitServer(void)
+{
+#if defined(HAVE_GNUTLS)
+	return GNUDTLS_InitServer();
+#elif defined(HAVE_WINSSPI)
+	return SSPI_DTLS_InitServer();
+#else
+	return NULL;
+#endif
+}
+const dtlsfuncs_t *DTLS_InitClient(void)
+{
+#ifdef HAVE_WINSSPI
+	return SSPI_DTLS_InitClient();
+#elif defined(HAVE_GNUTLS)
+	return GNUDTLS_InitClient();
+#else
+	return NULL;
+#endif
 }
 
 static neterr_t NET_SendPacketCol (ftenet_connections_t *collection, int length, const void *data, netadr_t *to);
@@ -2277,16 +2300,27 @@ qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to)
 		peer->addr = *to;
 		peer->col = col;
 
-		peer->dtlsstate = DTLS_CreateContext(NET_BaseAdrToString(hostname, sizeof(hostname), to), peer, FTENET_DTLS_DoSendPacket, col->islisten);
-		Sys_Printf("Created %p\n", peer->dtlsstate);
-
-		if (peer->next)
-			peer->next->link = &peer->next;
-		peer->link = &col->dtls;
-		peer->next = col->dtls;
-		col->dtls = peer;
+		if (col->islisten)
+			peer->funcs = DTLS_InitServer();
+		else
+			peer->funcs = DTLS_InitClient();
+		if (peer->funcs)
+			peer->dtlsstate = peer->funcs->CreateContext(NET_BaseAdrToString(hostname, sizeof(hostname), to), peer, FTENET_DTLS_DoSendPacket, col->islisten);
+		if (peer->dtlsstate)
+		{
+			if (peer->next)
+				peer->next->link = &peer->next;
+			peer->link = &col->dtls;
+			peer->next = col->dtls;
+			col->dtls = peer;
+		}
+		else
+		{
+			Z_Free(peer);
+			peer = NULL;
+		}
 	}
-	return true;
+	return peer!=NULL;
 }
 static void NET_DTLS_DisconnectPeer(ftenet_connections_t *col, struct dtlspeer_s *peer)
 {
@@ -2296,7 +2330,7 @@ static void NET_DTLS_DisconnectPeer(ftenet_connections_t *col, struct dtlspeer_s
 		peer->next->link = peer->link;
 	*peer->link = peer->next;
 
-	DTLS_DestroyContext(peer->dtlsstate);
+	peer->funcs->DestroyContext(peer->dtlsstate);
 	Z_Free(peer);
 }
 qboolean NET_DTLS_Disconnect(ftenet_connections_t *col, netadr_t *to)
@@ -2327,7 +2361,7 @@ static neterr_t FTENET_DTLS_SendPacket(ftenet_connections_t *col, int length, co
 	}
 	to->prot = NP_DTLS;
 	if (peer)
-		return DTLS_Transmit(peer->dtlsstate, data, length);
+		return peer->funcs->Transmit(peer->dtlsstate, data, length);
 	else
 		return NETERR_NOROUTE;
 }
@@ -2339,7 +2373,7 @@ qboolean NET_DTLS_Decode(ftenet_connections_t *col)
 	{
 		if (NET_CompareAdr(&peer->addr, &net_from))
 		{
-			switch(DTLS_Received(peer->dtlsstate, net_message.data, net_message.cursize))
+			switch(peer->funcs->Received(peer->dtlsstate, net_message.data, net_message.cursize))
 			{
 			case NETERR_DISCONNECTED:
 				Sys_Printf("disconnected %p\n", peer->dtlsstate);
@@ -2415,13 +2449,18 @@ static qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char
 	}
 	return count > 0;
 }
-qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, const char *addresslist, netadrtype_t addrtype, netproto_t addrprot, qboolean islisten)
+qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, const char *addresslist, netadrtype_t addrtype, netproto_t addrprot)
 {
+	qboolean islisten;
 	netadr_t adr[8];
 	ftenet_generic_connection_t *(*establish[countof(adr)])(qboolean isserver, const char *address, netadr_t adr);
 	char address[countof(adr)][256];
 	unsigned int i, j;
 	qboolean success = false;
+
+	if (!col)
+		return false;
+	islisten = col->islisten;
 
 	if (name && strchr(name, ':'))
 		return false;
@@ -2432,14 +2471,17 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 		//resolve the address to something sane so we can determine the address type and thus the connection type to use
 		if (!*address[i])
 			adr[i].type = NA_INVALID;
-		else if (islisten)
-			NET_PortToAdr(addrtype, addrprot, address[i], &adr[i]);
-		else
+		else //if (islisten)
+		{
+			if (!NET_PortToAdr(addrtype, addrprot, address[i], &adr[i]))
+				return false;
+		}
+/*		else
 		{
 			if (!NET_StringToAdr(address[i], 0, &adr[i]))
 				return false;
 		}
-
+*/
 #ifdef HAVE_WEBSOCKCL
 		if (adr[i].prot == NP_WS && adr[i].type == NA_WEBSOCKET)	establish[i] = FTENET_WebSocket_EstablishConnection; else
 		if (adr[i].prot == NP_WSS && adr[i].type == NA_WEBSOCKET)	establish[i] = FTENET_WebSocket_EstablishConnection; else
@@ -2963,7 +3005,7 @@ static qboolean FTENET_Datagram_ChangeLocalAddress(struct ftenet_generic_connect
 {
 	struct sockaddr_qstorage address;
 	netadr_t current;
-	int namelen;
+	int namelen = sizeof(address);
 	if (getsockname (con->thesocket, (struct sockaddr *)&address, &namelen) == 0)
 	{
 		SockadrToNetadr(&address, &current);
@@ -6521,7 +6563,7 @@ neterr_t NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t
 	return NET_SendPacketCol (collection, length, data, to);
 }
 
-qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host, qboolean islisten)
+qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host)
 {
 	netadr_t adr;
 
@@ -6539,7 +6581,7 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 		case NP_WSS:
 		case NP_TLS:
 		case NP_STREAM:
-			if (!FTENET_AddToCollection(collection, routename, host, adr.type, adr.prot, islisten))
+			if (!FTENET_AddToCollection(collection, routename, host, adr.type, adr.prot))
 				return false;
 			Con_Printf("Establishing connection to %s\n", host);
 			break;
@@ -7154,11 +7196,11 @@ void SVNET_AddPort_f(void)
 	{
 		svs.sockets = FTENET_CreateCollection(true);
 #ifndef SERVERONLY
-		FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, NP_DGRAM, true);
+		FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, NP_DGRAM);
 #endif
 	}
 
-	FTENET_AddToCollection(svs.sockets, conname, *s?s:NULL, *s?NA_IP:NA_INVALID, NP_DGRAM, true);
+	FTENET_AddToCollection(svs.sockets, conname, *s?s:NULL, *s?NA_IP:NA_INVALID, NP_DGRAM);
 }
 #endif
 
@@ -7288,27 +7330,27 @@ void NET_InitClient(qboolean loopbackonly)
 	if (!cls.sockets)
 		cls.sockets = FTENET_CreateCollection(false);
 #ifndef CLIENTONLY
-	FTENET_AddToCollection(cls.sockets, "CLLoopback", "1", NA_LOOPBACK, NP_DGRAM, true);
+	FTENET_AddToCollection(cls.sockets, "CLLoopback", "1", NA_LOOPBACK, NP_DGRAM);
 #endif
 	if (loopbackonly)
 		port = "";
 #if defined(HAVE_IPV4) && defined(HAVE_IPV6)
 	if (net_hybriddualstack.ival)
 	{
-		FTENET_AddToCollection(cls.sockets, "CLUDP", port, NA_IP, NP_DGRAM, true);
+		FTENET_AddToCollection(cls.sockets, "CLUDP", port, NA_IP, NP_DGRAM);
 	}
 	else
 #endif
 	{
 		#ifdef HAVE_IPV4
-			FTENET_AddToCollection(cls.sockets, "CLUDP4", port, NA_IP, NP_DGRAM, true);
+			FTENET_AddToCollection(cls.sockets, "CLUDP4", port, NA_IP, NP_DGRAM);
 		#endif
 		#ifdef HAVE_IPV6
-			FTENET_AddToCollection(cls.sockets, "CLUDP6", port, NA_IPV6, NP_DGRAM, true);
+			FTENET_AddToCollection(cls.sockets, "CLUDP6", port, NA_IPV6, NP_DGRAM);
 		#endif
 	}
 #ifdef USEIPX
-	FTENET_AddToCollection(cls.sockets, "CLIPX", port, NA_IPX, NP_DGRAM, true);
+	FTENET_AddToCollection(cls.sockets, "CLIPX", port, NA_IPX, NP_DGRAM);
 #endif
 
 	//	Con_TPrintf("Client port Initialized\n");
@@ -7320,9 +7362,9 @@ void NET_InitClient(qboolean loopbackonly)
 void QDECL SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (!strcmp(var->string, "0"))	//qtv_streamport had an old default value of 0. make sure we don't end up listening on random ports.
-		FTENET_AddToCollection(svs.sockets, var->name, "", NA_IP, NP_STREAM, true);
+		FTENET_AddToCollection(svs.sockets, var->name, "", NA_IP, NP_STREAM);
 	else
-		FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IP, NP_STREAM, true);
+		FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IP, NP_STREAM);
 }
 cvar_t	sv_port_tcp = CVARFC("sv_port_tcp", "", CVAR_SERVERINFO, SV_Tcpport_Callback);
 #ifndef NOLEGACY
@@ -7333,35 +7375,35 @@ cvar_t	qtv_streamport	= CVARAFCD(	"qtv_streamport", "",
 #ifdef IPPROTO_IPV6
 void QDECL SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue)
 {
-	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IPV6, NP_STREAM, true);
+	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IPV6, NP_STREAM);
 }
 cvar_t	sv_port_tcp6 = CVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
 #endif
 #ifdef HAVE_IPV4
 void QDECL SV_Port_Callback(struct cvar_s *var, char *oldvalue)
 {
-	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IP, NP_DGRAM, true);
+	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IP, NP_DGRAM);
 }
 cvar_t  sv_port_ipv4 = CVARC("sv_port", STRINGIFY(PORT_QWSERVER), SV_Port_Callback);
 #endif
 #ifdef IPPROTO_IPV6
 void QDECL SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue)
 {
-	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IPV6, NP_DGRAM, true);
+	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IPV6, NP_DGRAM);
 }
 cvar_t  sv_port_ipv6 = CVARCD("sv_port_ipv6", "", SV_PortIPv6_Callback, "Port to use for incoming ipv6 udp connections. Due to hybrid sockets this might not be needed. You can specify an ipv4 address:port for a second ipv4 port if you want.");
 #endif
 #ifdef USEIPX
 void QDECL SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue)
 {
-	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IPX, NP_DGRAM, true);
+	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IPX, NP_DGRAM);
 }
 cvar_t  sv_port_ipx = CVARC("sv_port_ipx", "", SV_PortIPX_Callback);
 #endif
 #ifdef HAVE_NATPMP
 void QDECL SV_Port_NatPMP_Callback(struct cvar_s *var, char *oldvalue)
 {
-	FTENET_AddToCollection(svs.sockets, var->name, va("natpmp://%s", var->string), NA_IP, NP_NATPMP, true);
+	FTENET_AddToCollection(svs.sockets, var->name, va("natpmp://%s", var->string), NA_IP, NP_NATPMP);
 }
 #if 1//def SERVERONLY
 #define NATPMP_DEFAULT_PORT ""		//don't fuck with dedicated servers
@@ -7443,7 +7485,7 @@ void NET_InitServer(void)
 		{
 			svs.sockets = FTENET_CreateCollection(true);
 #ifndef SERVERONLY
-			FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, NP_DGRAM, true);
+			FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, NP_DGRAM);
 #endif
 		}
 
@@ -7478,7 +7520,7 @@ void NET_InitServer(void)
 
 #ifndef SERVERONLY
 		svs.sockets = FTENET_CreateCollection(true);
-		FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, NP_DGRAM, true);
+		FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, NP_DGRAM);
 #endif
 	}
 }

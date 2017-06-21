@@ -179,27 +179,28 @@ static int QC_ReadRawShort(const unsigned char *blob)
 {
 	return (blob[0]<<0) | (blob[1]<<8);
 }
-pbool QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize))
+int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize))
 {
 	unsigned int cdentries;
 	unsigned int cdlen;
 	const unsigned char *eocd;
 	const unsigned char *cd;
 	int nl,el,cl;
+	int ret = 0;
 	if (blobsize < 22)
-		return false;
+		return ret;
 	eocd = blob;
 	eocd += blobsize-22;
 	if (QC_ReadRawInt(eocd+0) != 0x06054b50)
-		return false;
+		return ret;
 	if (QC_ReadRawShort(eocd+4) || QC_ReadRawShort(eocd+6) || QC_ReadRawShort(eocd+20) || QC_ReadRawShort(eocd+8) != QC_ReadRawShort(eocd+10))
-		return false;
+		return ret;
 	cd = blob;
 	cd += QC_ReadRawInt(eocd+16);
 	cdlen = QC_ReadRawInt(eocd+12);
 	cdentries = QC_ReadRawInt(eocd+10);
 	if (cd+cdlen>=(const unsigned char*)blob+blobsize)
-		return false;
+		return ret;
 
 
 	for(; cdentries --> 0; cd += 46 + nl+el+cl)
@@ -246,9 +247,10 @@ pbool QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(co
 			QC_strlcpy(name, cd+46, (nl+1<sizeof(name))?nl+1:sizeof(name));
 
 			cb(name, le+30+QC_ReadRawShort(le+26)+QC_ReadRawShort(le+28), csize, method, usize);
+			ret++;
 		}
 	}
-	return true;
+	return ret;
 }
 
 char *PDECL filefromprogs(pubprogfuncs_t *ppf, progsnum_t prnum, char *fname, size_t *size, char *buffer)

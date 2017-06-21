@@ -58,8 +58,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 #ifndef WM_MOUSEWHEEL
-#define WM_MOUSEWHEEL                   0x020A
+#define WM_MOUSEWHEEL					0x020A
 #endif
+#ifndef WM_APPCOMMAND
+#define WM_APPCOMMAND					0x0319
+#endif
+
+#define WM_USER_SPEECHTOTEXT			(WM_USER+0)	//used by stt
+#define WM_USER_VIDSHUTDOWN				(WM_USER+4)	//used by multithreading
+#define WM_USER_VKPRESENT				(WM_USER+7)	//used by vulkan
+#define WM_USER_NVVKPRESENT				(WM_USER+8)	//used by vulkan-over-opengl
 
 #undef byte
 
@@ -127,6 +135,7 @@ void WIN_WindowCreated(HWND window);
 void INS_UpdateClipCursor (void);
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify);
 void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum, qboolean genkeystate);
+int INS_AppCommand(LPARAM lParam);
 
 void S_BlockSound (void);
 void S_UnblockSound (void);

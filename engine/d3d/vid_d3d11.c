@@ -411,6 +411,10 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 				INS_TranslateKeyEvent (wParam, lParam, false, 0, false);
 			break;
 
+		case WM_APPCOMMAND:
+			lRet = INS_AppCommand(lParam);
+			break;
+
 		case WM_SYSCHAR:
 		// keep Alt-Space from happening
 			break;

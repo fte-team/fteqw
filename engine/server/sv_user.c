@@ -1602,12 +1602,12 @@ void SVQW_PreSpawn_f (void)
 
 	if (host_client->prespawn_stage == PRESPAWN_MAPCHECK)
 	{
-		check = COM_RemapMapChecksum(atoi(Cmd_Argv(3)));
+		check = atoi(Cmd_Argv(3));
 
 //		Con_DPrintf("Client check = %d\n", check);
 
 		if (sv_mapcheck.value && check != sv.world.worldmodel->checksum &&
-			check != COM_RemapMapChecksum(LittleLong(sv.world.worldmodel->checksum2)))
+			COM_RemapMapChecksum(sv.world.worldmodel, check) != COM_RemapMapChecksum(sv.world.worldmodel, LittleLong(sv.world.worldmodel->checksum2)))
 #ifdef SERVER_DEMO_PLAYBACK
 		if (!sv.demofile || (sv.demofile && !sv.democausesreconnect))	//demo playing causes no check. If it's the return level, check anyway to avoid that loophole.
 #endif
@@ -2098,7 +2098,10 @@ void SV_DarkPlacesDownloadChunk(client_t *cl, sizebuf_t *msg)
 	size = 1024;	//fixme
 
 	if (size > msg->maxsize - msg->cursize)
-		size = msg->maxsize - msg->cursize - 16;
+		size = msg->maxsize - msg->cursize;
+	if (size <= 7)
+		return;	//no space.
+	size -= 7;
 
 	if (size > MAXDPDOWNLOADCHUNK)	//don't clog it too much
 		size = MAXDPDOWNLOADCHUNK;
@@ -2124,6 +2127,7 @@ void SVDP_StartDownload_f(void)
 	if (!host_client->download)
 		return;
 	host_client->downloadstarted = true;
+	host_client->downloadacked = true;
 }
 
 void SV_DarkPlacesDownloadAck(client_t *cl)
@@ -3231,6 +3235,8 @@ void SV_BeginDownload_f(void)
 				ClientReliableWrite_Long (host_client, -1);
 				ClientReliableWrite_Long (host_client, DLERR_REDIRECTFILE);
 				ClientReliableWrite_String (host_client, redirection);
+				if (ISNQCLIENT(host_client))
+					host_client->send_message = true;
 				return;
 			}
 			else if (result == DLERR_REDIRECTFILE && host_client->protocol == SCP_QUAKEWORLD)
@@ -3240,6 +3246,8 @@ void SV_BeginDownload_f(void)
 				char *s = va("download \"%s\"\n", redirection);
 				ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(s));
 				ClientReliableWrite_String (host_client, s);
+				if (ISNQCLIENT(host_client))
+					host_client->send_message = true;
 				return;
 			}
 #endif
@@ -3305,6 +3313,8 @@ void SV_BeginDownload_f(void)
 			ClientReliableWrite_Short (host_client, -1);
 			ClientReliableWrite_Byte (host_client, 0);
 		}
+		if (ISNQCLIENT(host_client))
+			host_client->send_message = true;
 		return;
 	}
 
@@ -6198,6 +6208,10 @@ static qboolean AddEntityToPmove(edict_t *player, edict_t *check)
 		q1contents = Q1CONTENTS_LADDER;	//legacy crap
 	switch(q1contents)
 	{
+	case Q1CONTENTS_SOLID:
+		pe->nonsolid = false;
+		pe->forcecontentsmask = FTECONTENTS_SOLID;
+		break;
 	case Q1CONTENTS_WATER:
 		pe->nonsolid = true;
 		pe->forcecontentsmask = FTECONTENTS_WATER;
@@ -7919,8 +7933,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	move->buttons = bits;
 
 	i = MSG_ReadByte ();
-	if (i)
-		move->impulse = i;
+	move->impulse = i;
 
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7 || (host_client->fteprotocolextensions2 & PEXT2_PRYDONCURSOR))
 	{

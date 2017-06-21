@@ -5955,28 +5955,32 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 			}
 			else
 
+			e = QCC_PR_RefExpression(&parambuf[arg], TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+
 			//with vectorcalls, we store the vector into the args as individual floats
 			//this allows better reuse of vector constants.
-			//copy it into the offset now, because we can.
-			if (opt_vectorcalls && pr_token_type == tt_immediate && pr_immediate_type == type_vector && arg < MAX_PARMS)
+			//the immediate vector def will be discarded while linking, if its still unused.
+			if (opt_vectorcalls && e->cast == type_vector && e->type == REF_GLOBAL && !e->postinc && e->readonly)
 			{
-				QCC_sref_t t = QCC_GetTemp(type_vector);
-				t.sym = &def_parms[arg];
-				t.cast = type_float;
-				t.ofs = 0;
-				QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(pr_immediate.vector[0]), t, NULL, 0));
-				t.ofs = 1;
-				QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(pr_immediate.vector[1]), t, NULL, 0));
-				t.ofs = 2;
-				QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(pr_immediate.vector[2]), t, NULL, 0));
+				const QCC_eval_t *eval = QCC_SRef_EvalConst(e->base);
+				if (eval)
+				{
+					QCC_sref_t t = QCC_GetTemp(type_vector);
+					t.cast = type_float;
+					t.ofs = 0;
+					QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(eval->vector[0]), t, NULL, STFL_PRESERVEB));
+					t.ofs = 1;
+					QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(eval->vector[1]), t, NULL, STFL_PRESERVEB));
+					t.ofs = 2;
+					QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(eval->vector[2]), t, NULL, STFL_PRESERVEB));
 
-				t.ofs = 0;
+					t.ofs = 0;
+					QCC_FreeTemp(e->base);
 
-				QCC_PR_Lex();
-				e = QCC_PR_BuildRef(&parambuf[arg], REF_GLOBAL, t, nullsref, type_vector, true);
+					e = QCC_PR_BuildRef(&parambuf[arg], REF_GLOBAL, t, nullsref, type_vector, true);
+				}
 			}
-			else
-				e = QCC_PR_RefExpression(&parambuf[arg], TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+
 			if (p)
 			{
 				if (typecmp(e->cast, p))
@@ -7210,6 +7214,7 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		d = QCC_PR_ParseImmediate ();
 //		d.sym->referenced = true;
 //		return QCC_DefToRef(refbuf, d);
+		name = NULL;
 	}
 	else if (QCC_PR_CheckToken("["))
 	{
@@ -7247,6 +7252,7 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		d = QCC_PR_GenerateVector(x,y,z);
 //		d.sym->referenced = true;
 //		return QCC_DefToRef(refbuf, d);
+		name = NULL;
 	}
 	else
 	{
@@ -7402,7 +7408,7 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 	d.sym->referenced = true;
 
 	//class code uses self as though it was 'this'. its a hack, but this is QC.
-	if (assumeclass && pr_classtype && !strcmp(name, "self"))
+	if (assumeclass && pr_classtype && name && !strcmp(name, "self"))
 	{
 		//use 'this' instead.
 		QCC_sref_t t = QCC_PR_GetSRef(NULL, "this", pr_scope, false, 0, false);
@@ -7640,6 +7646,20 @@ QCC_sref_t QCC_EvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit)
 
 		if (src.cast->type == ev_accessor)
 			src.cast = src.cast->parentclass;
+		else if (flag_laxcasts)
+		{
+			if (implicit)
+			{
+				char typea[256];
+				char typeb[256];
+				TypeName(src.cast, typea, sizeof(typea));
+				TypeName(cast, typeb, sizeof(typeb));
+				QCC_PR_ParseWarning(0, "Implicit lax cast from %s to %s", typea, typeb);
+			}
+			r = src;
+			r.cast = cast;		//decompilers suck
+			return r;
+		}
 		else
 		{
 			char typea[256];
@@ -9971,7 +9991,7 @@ void QCC_PR_ParseStatement (void)
 		{
 			//optres_compound_jumps++;
 			QCC_FreeTemp(e);
-                        if ((!eval->_float) != wasuntil)
+			if ((!eval->_float) != wasuntil)
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_GOTO], nullsref, nullsref, &patch1));
 			else
 				patch1 = NULL;
@@ -10211,7 +10231,7 @@ void QCC_PR_ParseStatement (void)
 				statements[numstatements-1].op == OP_GOTO;
 
 			//the last statement of the if was a return, so we don't need the goto at the end
-			if (lastwasreturn && opt_compound_jumps && !QCC_AStatementJumpsTo(numstatements, patch1-statements, numstatements))
+			if (lastwasreturn && opt_compound_jumps && patch1 && !QCC_AStatementJumpsTo(numstatements, patch1-statements, numstatements))
 			{
 //				QCC_PR_ParseWarning(0, "optimised the else");
 				optres_compound_jumps++;

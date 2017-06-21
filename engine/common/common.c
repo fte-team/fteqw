@@ -5725,8 +5725,8 @@ void COM_Effectinfo_Enumerate(int (*cb)(const char *pname))
 
 /*************************************************************************/
 
-/*remaps map checksums from known non-cheat GPL maps to authentic id1 maps*/
-unsigned int COM_RemapMapChecksum(unsigned int checksum)
+/*remaps map checksums from known non-cheat GPL maps to authentic id1 maps.*/
+unsigned int COM_RemapMapChecksum(model_t *model, unsigned int checksum)
 {
 #ifndef NOLEGACY
 	static const struct {
@@ -5736,56 +5736,58 @@ unsigned int COM_RemapMapChecksum(unsigned int checksum)
 		unsigned int id12;
 	} sums[] =
 	{
-		{"maps/start.bsp", -603735309, 714749795, 493454459},
+		{"maps/start.bsp",	0xDC03BAF3,	0x2A9A3763,	0x1D69847B},
 
-		{"maps/e1m1.bsp", -1213097692, 523840258, -1391994750},
-		{"maps/e1m2.bsp", -2134038629, 1561595172, 1729102119},
-		{"maps/e1m3.bsp", 526593427, 1008794158, 893792842},
-		{"maps/e1m4.bsp", -1218723400, -442162482, -304478603},
-		{"maps/e1m5.bsp", 1709090059, 1856217547, -1473504118},
-		{"maps/e1m6.bsp", 1014375998, 1304756164, 738207971},
-		{"maps/e1m7.bsp", 1375393448, -1396746908, -1747518694},
-		{"maps/e1m8.bsp", 1470379688, -163803419, 79095617},
+		{"maps/e1m1.bsp",	0xB7B19924,	0x1F392B02,	0xAD07D882},
+		{"maps/e1m2.bsp",	0x80CD279B,	0x5D140D24,	0x67100127},
+		{"maps/e1m3.bsp",	0x1F632D93,	0x3C20FA2E,	0x3546324A},
+		{"maps/e1m4.bsp",	0xB75BC1B8,	0xE5A522CE,	0xEDDA0675},
+		{"maps/e1m5.bsp",	0x65DEA50B,	0x6EA3A1CB,	0xA82C1C8A},
+		{"maps/e1m6.bsp",	0x3C76263E,	0x4DC4FFC4,	0x2C0028E3},
+		{"maps/e1m7.bsp",	0x51FAD6A8,	0xACBF5564,	0x97D6FB1A},
+		{"maps/e1m8.bsp",	0x57A436A8,	0xF63C8EE5,	0x04B6E741},
 
-		{"maps/e2m1.bsp", -1725230579, -797758554, -587894734},
-		{"maps/e2m2.bsp", -1573837115, -355822557, -1349116595},
-		{"maps/e2m3.bsp", 156655662, 1203005272, -57072303},
-		{"maps/e2m4.bsp", -1530012474, -1629664024, -1021928503},
-		{"maps/e3m5.bsp", -594001393, -1405673977, -1854273999},
-		{"maps/e2m6.bsp", 1041933133, 583875451, -1851573375},
-		{"maps/e2m7.bsp", -1583122652, 1814005234, 2051006488},
+		{"maps/e2m1.bsp",	0x992B120D,	0xD0732BA6,	0xDCF57032},
+		{"maps/e2m2.bsp",	0xA23126C5,	0xEACA9423,	0xAF961D4D},
+		{"maps/e2m3.bsp",	0x0956602E,	0x47B46758,	0xFC992551},
+		{"maps/e2m4.bsp",	0xA4CDDCC6,	0x9EDD4CE8,	0xC3169BC9},
+		{"maps/e3m5.bsp",	0xDC98420F,	0xAC371E07,	0x917A0631},
+		{"maps/e2m6.bsp",	0x3E1AA34D,	0x22CD3B7B,	0x91A33B81},
+		{"maps/e2m7.bsp",	0xA1A37724,	0x6C1F85F2,	0x7A3FE018},
 
-		{"maps/e3m1.bsp", -1118143869, -457270773, -1867379423},
-		{"maps/e3m2.bsp", -469484146, 723435606, -1670613704},
-		{"maps/e3m3.bsp", -300762423, -540030088, -1009754856},
-		{"maps/e3m4.bsp", -214067894, 1107310161, -1317466952},
-		{"maps/e3m5.bsp", -594001393, -1405673977, -1854273999},
-		{"maps/e3m6.bsp", -1664550468, 1631142730, 767655416},
-		{"maps/e3m7.bsp", 781051658, -1513131760, 272220593},
+		{"maps/e3m1.bsp",	0xBD5A7A83,	0xE4BE9A0B,	0x90B20D21},
+		{"maps/e3m2.bsp",	0xE4043D8E,	0x2B1EC056,	0x9C6C7538},
+		{"maps/e3m3.bsp",	0xEE12BAC9,	0xDFCFCB78,	0xC3D05D18},
+		{"maps/e3m4.bsp",	0xF33D954A,	0x42003651,	0xB1790CB8},
+		{"maps/e3m5.bsp",	0xDC98420F,	0xAC371E07,	0x917A0631},
+		{"maps/e3m6.bsp",	0x9CC8F9BC,	0x6139434A,	0x2DC17DF8},
+		{"maps/e3m7.bsp",	0x2E8DE70A,	0xA5CF7110,	0x1039C1B1},
 
-		{"maps/e4m1.bsp", 1548541253, 1254243660, -1141873840},
-		{"maps/e4m2.bsp", -1400585206, 92253388, -472296},
-		{"maps/e4m3.bsp", -1230693918, 1961442781, 1505685644},
-		{"maps/e4m4.bsp", 842253404, -374904516, 758847551},
-		{"maps/e4m5.bsp", -439098147, 389110272, 1771890676},
-		{"maps/e4m6.bsp", 1518024640, 1714857656, 102825880},
-		{"maps/e4m7.bsp", -381063035, -585362206, -1645477460},
-		{"maps/e4m8.bsp", 844770132, 1063417045, 1018457175},
+		{"maps/e4m1.bsp",	0x5C4CDD45,	0x4AC23D4C,	0xBBF06350},
+		{"maps/e4m2.bsp",	0xAC84C40A,	0x057FACCC,	0xFFF8CB18},
+		{"maps/e4m3.bsp",	0xB6A519E2,	0x74E93DDD,	0x59BEF08C},
+		{"maps/e4m4.bsp",	0x3233C45C,	0xE9A7693C,	0x2D3B183F},
+		{"maps/e4m5.bsp",	0xE5D3E4DD,	0x17315A00,	0x699CE7F4},
+		{"maps/e4m6.bsp",	0x5A7B37C0,	0x6636A6B8,	0x0620FF98},
+		{"maps/e4m7.bsp",	0xE9497085,	0xDD1C14E2,	0x9DEC01AC},
+		{"maps/e4m8.bsp",	0x325A2B54,	0x3F6274D5,	0x3CB46C57},
 
-		{"maps/gpl_dm1.bsp", 2100781454, -1548219590, -976758093},
-		{"maps/gpl_dm2.bsp", 2066969664, 392410074, 1710634548},
-		{"maps/gpl_dm3.bsp", -1859681874, 2060033246, 367136248},
-		{"maps/gpl_dm4.bsp", -1015750775, 326737183, -1670388545},
-		{"maps/gpl_dm5.bsp", 2009758949, 766929852, -1339209475},
-		{"maps/gpl_dm6.bsp", 537693021, 247150701, 1376311851},
+		{"maps/dm1.bsp",	0x7D37618E,	0xA3B80B3A,	0xC5C7DAB3},	//you should be able to use aquashark's untextured maps.
+		{"maps/dm2.bsp",	0x7B337440,	0x1763B3DA,	0x65F63634},
+		{"maps/dm3.bsp",	0x912781AE,	0x7AC99CDE,	0x15E20DF8},
+		{"maps/dm4.bsp",	0xC374DF89,	0x13799D1F,	0x9C6FE4BF},
+		{"maps/dm5.bsp",	0x77CA7CE5,	0x2DB66BBC,	0xB02D48FD},
+		{"maps/dm6.bsp",	0x200C8B5D,	0x0EBB386D,	0x5208DA2B},
 
-		{"maps/end.bsp", -124054866, -1503553320, -1143688027}
+		{"maps/end.bsp",	0xF89B12AE,	0xA66198D8,	0xBBD4B4A5},	//unmodified gpl version (with the extra room)
+		{"maps/end.bsp",	0x924F4D33,	0xA66198D8,	0xBBD4B4A5} 	//aquashark's gpl version (with the extra room removed)
 	};
 	unsigned int i;
 	for (i = 0; i < sizeof(sums)/sizeof(sums[0]); i++)
 	{
 		if (checksum == sums[i].gpl2)
-			return sums[i].id12;
+			if (!Q_strcasecmp(model->name, sums[i].name))
+				return sums[i].id12;
 	}
 #endif
 	return checksum;

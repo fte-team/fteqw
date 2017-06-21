@@ -310,7 +310,7 @@ void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 				{
 					//tcp masters require a route
 					if (NET_AddrIsReliable(na))
-						NET_EnsureRoute(svs.sockets, master->cv.name, master->cv.string, false);
+						NET_EnsureRoute(svs.sockets, master->cv.name, master->cv.string);
 
 					//q2+qw masters are given a ping to verify that they're still up
 					switch (master->protocol)

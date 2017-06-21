@@ -4014,9 +4014,9 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 			return false;
 		}
 		count = len / sizeof(*in);
-		if (count > MAX_MAP_LEAFS)
+		if (count > SANITY_MAX_MAP_LEAFS)
 		{
-			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, MAX_MAP_LEAFS);
+			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, SANITY_MAX_MAP_LEAFS);
 			return false;
 		}
 		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
@@ -4024,6 +4024,7 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
 		loadmodel->numclusters = count-1;
+		loadmodel->pvsbytes = ((loadmodel->numclusters+31)>>3)&~3;
 
 		for ( i=0 ; i<count ; i++, in++, out++)
 		{
@@ -4077,9 +4078,9 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 			return false;
 		}
 		count = len / sizeof(*in);
-		if (count > MAX_MAP_LEAFS)
+		if (count > SANITY_MAX_MAP_LEAFS)
 		{
-			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, MAX_MAP_LEAFS);
+			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, SANITY_MAX_MAP_LEAFS);
 			return false;
 		}
 		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
@@ -4087,6 +4088,7 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
 		loadmodel->numclusters = count-1;
+		loadmodel->pvsbytes = ((loadmodel->numclusters+31)>>3)&~3;
 
 		for ( i=0 ; i<count ; i++, in++, out++)
 		{
@@ -4140,9 +4142,9 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 			return false;
 		}
 		count = len / sizeof(*in);
-		if (count > MAX_MAP_LEAFS)
+		if (count > SANITY_MAX_MAP_LEAFS)
 		{
-			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, MAX_MAP_LEAFS);
+			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, SANITY_MAX_MAP_LEAFS);
 			return false;
 		}
 		out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
@@ -4150,6 +4152,7 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
 		loadmodel->numclusters = count-1;
+		loadmodel->pvsbytes = ((loadmodel->numclusters+31)>>3)&~3;
 
 		for ( i=0 ; i<count ; i++, in++, out++)
 		{

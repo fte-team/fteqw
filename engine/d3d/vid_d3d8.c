@@ -277,6 +277,10 @@ static LRESULT WINAPI D3D8_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		// keep Alt-Space from happening
 			break;
 
+		case WM_APPCOMMAND:
+			lRet = INS_AppCommand(lParam);
+			break;
+
 	// this is complicated because Win32 seems to pack multiple mouse events into
 	// one update sometimes, so we always check all states and look for events
 		case WM_LBUTTONDOWN:

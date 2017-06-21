@@ -837,13 +837,13 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	c = Info_ValueForKey(info, "connect");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
-		Cbuf_AddText(va("\nconnect %s\n", c), RESTRICT_LOCAL);
+		Cbuf_AddText(va("\nconnect \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
 	c = Info_ValueForKey(info, "join");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
-		Cbuf_AddText(va("\njoin %s\n", c), RESTRICT_LOCAL);
+		Cbuf_AddText(va("\njoin \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
 	/*c = Info_ValueForKey(info, "url");
@@ -855,19 +855,19 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	c = Info_ValueForKey(info, "observe");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
-		Cbuf_AddText(va("\nobserve %s\n", c), RESTRICT_LOCAL);
+		Cbuf_AddText(va("\nobserve \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
 	c = Info_ValueForKey(info, "qtv");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
-		Cbuf_AddText(va("\nqtvplay %s\n", c), RESTRICT_LOCAL);
+		Cbuf_AddText(va("\nqtvplay \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
 	c = Info_ValueForKey(info, "demo");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
-		Cbuf_AddText(va("\nplaydemo %s\n", c), RESTRICT_LOCAL);
+		Cbuf_AddText(va("\nplaydemo \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
 	c = Info_ValueForKey(info, "map");

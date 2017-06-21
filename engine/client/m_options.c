@@ -532,16 +532,20 @@ void M_Menu_Audio_f (void)
 		"Speex (Narrow)",
 		"Speex (Wide)",
 //		"Speex (UltraWide)",
+//		"PCM A-Law",
+//		"PCM U-Law",
 		NULL
 	};
 	static const char *voipcodecvalue[] = {
 		"",
-		"0",
-//		"1",
-		"2",
-		"3",
-		"4",
-//		"5",
+		"0",	//speex non-standard
+//		"1",	//pcm16 sucks
+		"2",	//opus
+		"3",	//speex narrow
+		"4",	//speex wide
+//		"5",	//speex UW
+//		"6",	//pcma
+//		"7",	//pcmu
 		NULL
 	};
 

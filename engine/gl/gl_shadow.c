@@ -79,7 +79,7 @@ cvar_t r_sun_colour							= CVARFD ("r_sun_colour", "0 0 0", CVAR_ARCHIVE, "Spec
 
 static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour);
 
-static qbyte	lvisb[(MAX_MAP_LEAFS+7)>>3];
+static pvsbuffer_t	lvisb;
 
 /*
 called on framebuffer resize.
@@ -1423,7 +1423,7 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	{
 		int clus;
 		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
-		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, lvisb, sizeof(lvisb));
+		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 	}
 
 	firstedge=0;
@@ -2563,7 +2563,7 @@ qboolean Sh_GenerateShadowMap(dlight_t *l)
 		{
 			int clus;
 			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, l->origin);
-			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, lvisb, sizeof(lvisb));
+			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 			//FIXME: surely we can use the phs for this?
 
 			if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
@@ -2655,7 +2655,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qb
 		{
 			int clus;
 			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, l->origin);
-			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, lvisb, sizeof(lvisb));
+			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 			//FIXME: surely we can use the phs for this?
 
 			if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
@@ -3044,7 +3044,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 	else
 	{
 		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
-		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, lvisb, sizeof(lvisb));
+		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 
 		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		{
@@ -3274,7 +3274,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], 
 		qbyte *lvis;
 
 		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
-		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, lvisb, sizeof(lvisb));
+		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 
 		SHM_BuildShadowMesh(dl, lvis, vvis, SMT_SHADOWLESS);
 
@@ -3472,7 +3472,7 @@ void Sh_PreGenerateLights(void)
 					shadowtype = SMT_STENCILVOLUME;
 
 				leaf = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
-				lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+				lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, leaf, &lvisb, PVM_FAST);
 
 				SHM_BuildShadowMesh(dl, lvis, NULL, shadowtype);
 				continue;

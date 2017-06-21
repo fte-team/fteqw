@@ -4,12 +4,6 @@
 #endif
 #include "com_mesh.h"
 
-#if defined(_WIN32) || defined(__DJGPP__)
-#include <malloc.h>
-#else
-#include <alloca.h>
-#endif
-
 #define MAX_Q3MAP_INDICES 0x8000000	//just a sanity limit
 #define	MAX_Q3MAP_VERTEXES	0x800000	//just a sanity limit
 //#define MAX_CM_PATCH_VERTS		(4096)
@@ -1733,7 +1727,7 @@ static qboolean CModQ2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 	// need to save space for box planes
-	if (count > MAX_MAP_LEAFS)
+	if (count > SANITY_MAX_MAP_LEAFS)
 	{
 		Con_Printf (CON_ERROR "Map has too many leafs\n");
 		return false;
@@ -1772,6 +1766,7 @@ static qboolean CModQ2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 			mod->numclusters = out->cluster + 1;
 	}
 	out = mod->leafs;
+	mod->pvsbytes = ((mod->numclusters + 31)>>3)&~3;
 
 	if (out[0].contents != Q2CONTENTS_SOLID)
 	{
@@ -2033,6 +2028,7 @@ static qboolean CModQ2_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 		prv->q2vis->bitofs[i][1] = LittleLong (prv->q2vis->bitofs[i][1]);
 	}
 	mod->numclusters = prv->q2vis->numclusters;
+	mod->pvsbytes = ((mod->numclusters + 31)>>3)&~3;
 
 	return true;
 }
@@ -3208,7 +3204,7 @@ static qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 	}
 	// need to save space for box planes
 
-	if (count > MAX_MAP_LEAFS)
+	if (count > SANITY_MAX_MAP_LEAFS)
 	{
 		Con_Printf (CON_ERROR "Too many leaves on map");
 		return false;
@@ -3453,6 +3449,7 @@ static qboolean CModQ3_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 		prv->q3pvs->rowsize = LittleLong (prv->q3pvs->rowsize);
 	}
 	mod->numclusters = numclusters;
+	mod->pvsbytes = ((mod->numclusters + 31)>>3)&~3;
 
 	return true;
 }
@@ -3724,7 +3721,7 @@ static void CMQ3_CalcPHS (model_t *mod)
 	vcount = 0;
 	for (i=0 ; i<numclusters ; i++)
 	{
-		scan = CM_ClusterPVS (mod, i, NULL, 0);
+		scan = CM_ClusterPVS (mod, i, NULL, PVM_FAST);
 		for (j=0 ; j<numclusters ; j++)
 		{
 			if ( scan[j>>3] & (1<<(j&7)) )
@@ -4430,11 +4427,11 @@ int		CM_ClusterBytes (model_t *model)
 	if (model->fromgame == fg_quake3)
 	{
 		cminfo_t	*prv = (cminfo_t*)model->meshinfo;
-		return prv->q3pvs->rowsize ? prv->q3pvs->rowsize : MAX_MAP_LEAFS / 8;
+		return prv->q3pvs->rowsize ? prv->q3pvs->rowsize : model->pvsbytes;
 	}
 	else
 #endif
-		return (model->numclusters+7)/8;
+		return model->pvsbytes;
 }
 
 static int		CM_NumInlineModels (model_t *model)
@@ -6089,7 +6086,7 @@ qbyte *Mod_ClusterPVS (int cluster, model_t *model)
 		model);
 }
 */
-static void CM_DecompressVis (model_t *mod, qbyte *in, qbyte *out)
+static void CM_DecompressVis (model_t *mod, qbyte *in, qbyte *out, qboolean merge)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int		c;
@@ -6109,70 +6106,101 @@ static void CM_DecompressVis (model_t *mod, qbyte *in, qbyte *out)
 		return;
 	}
 
-	do
+	if (merge)
 	{
-		if (*in)
+		do
 		{
-			*out_p++ = *in++;
-			continue;
-		}
+			if (*in)
+			{
+				*out_p++ |= *in++;
+				continue;
+			}
 
-		c = in[1];
-		in += 2;
-		if ((out_p - out) + c > row)
+			out_p += in[1];
+			in += 2;
+		} while (out_p - out < row);
+	}
+	else
+	{
+		do
 		{
-			c = row - (out_p - out);
-			Con_DPrintf ("warning: Vis decompression overrun\n");
-		}
-		while (c)
-		{
-			*out_p++ = 0;
-			c--;
-		}
-	} while (out_p - out < row);
+			if (*in)
+			{
+				*out_p++ = *in++;
+				continue;
+			}
+
+			c = in[1];
+			in += 2;
+			if ((out_p - out) + c > row)
+			{
+				c = row - (out_p - out);
+				Con_DPrintf ("warning: Vis decompression overrun\n");
+			}
+			while (c)
+			{
+				*out_p++ = 0;
+				c--;
+			}
+		} while (out_p - out < row);
+	}
 }
 
-static FTE_ALIGN(4) qbyte	pvsrow[MAX_MAP_LEAFS/8];
-static FTE_ALIGN(4) qbyte	phsrow[MAX_MAP_LEAFS/8];
+static pvsbuffer_t	pvsrow;
+static pvsbuffer_t	phsrow;
 
 
 
-qbyte	*CM_ClusterPVS (model_t *mod, int cluster, qbyte *buffer, unsigned int buffersize)
+qbyte	*CM_ClusterPVS (model_t *mod, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	if (!buffer)
-	{
-		buffer = pvsrow;
-		buffersize = sizeof(pvsrow);
-	}
-	if (buffersize < (mod->numclusters+7)>>3)
-		Sys_Error("CM_ClusterPVS with too small a buffer\n");
+		buffer = &pvsrow;
+	if (buffer->buffersize < mod->pvsbytes)
+		buffer->buffer = BZ_Realloc(buffer->buffer, buffer->buffersize=mod->pvsbytes);
 
 	if (mod->fromgame == fg_quake2)
 	{
 		if (cluster == -1)
-			memset (buffer, 0, (mod->numclusters+7)>>3);
+			memset (buffer->buffer, 0, (mod->numclusters+7)>>3);
 		else
-			CM_DecompressVis (mod, ((qbyte*)prv->q2vis) + prv->q2vis->bitofs[cluster][DVIS_PVS], buffer);
-		return buffer;
+			CM_DecompressVis (mod, ((qbyte*)prv->q2vis) + prv->q2vis->bitofs[cluster][DVIS_PVS], buffer->buffer, merge==PVM_MERGE);
+		return buffer->buffer;
 	}
 	else
 	{
 		if (cluster != -1 && prv->q3pvs->numclusters)
 		{
-			return (qbyte *)prv->q3pvs->data + cluster * prv->q3pvs->rowsize;
+			if (merge == PVM_FAST)
+				return (qbyte *)prv->q3pvs->data + cluster * prv->q3pvs->rowsize;
+			else if (merge == PVM_REPLACE)
+				memcpy(buffer->buffer, prv->q3pvs->data + cluster * prv->q3pvs->rowsize, mod->pvsbytes);
+			else
+			{
+				int c;
+				char *in = prv->q3pvs->data + cluster * prv->q3pvs->rowsize;
+				for (c = 0; c < mod->pvsbytes; c++)
+					*(int*)&buffer->buffer[c] |= *(int*)&in[c];
+			}
 		}
 		else
 		{
-			memset (buffer, 0, (mod->numclusters+7)>>3);
-			return buffer;
+			if (merge != PVM_REPLACE)
+				memset (buffer->buffer, 0, (mod->numclusters+7)>>3);
 		}
+		return buffer->buffer;
 	}
 }
 
-qbyte	*CM_ClusterPHS (model_t *mod, int cluster)
+qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
+
+	if (!buffer)
+		buffer = &phsrow;
+	if (buffer->buffersize < mod->pvsbytes)
+		buffer->buffer = BZ_Realloc(buffer->buffer, buffer->buffersize=mod->pvsbytes);
+
 	if (mod->fromgame != fg_quake2)
 	{
 		if (cluster != -1 && prv->q3phs->numclusters)
@@ -6181,16 +6209,16 @@ qbyte	*CM_ClusterPHS (model_t *mod, int cluster)
 		}
 		else
 		{
-			memset (phsrow, 0, (mod->numclusters+7)>>3);
-			return phsrow;
+			memset (buffer->buffer, 0, (mod->numclusters+7)>>3);
+			return buffer->buffer;
 		}
 	}
 
 	if (cluster == -1)
-		memset (phsrow, 0, (mod->numclusters+7)>>3);
+		memset (buffer->buffer, 0, (mod->numclusters+7)>>3);
 	else
-		CM_DecompressVis (mod, ((qbyte*)prv->q2vis) + prv->q2vis->bitofs[cluster][DVIS_PHS], phsrow);
-	return phsrow;
+		CM_DecompressVis (mod, ((qbyte*)prv->q2vis) + prv->q2vis->bitofs[cluster][DVIS_PHS], buffer->buffer, false);
+	return buffer->buffer;
 }
 
 

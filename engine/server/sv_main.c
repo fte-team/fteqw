@@ -42,11 +42,23 @@ void SV_Port_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue);
 #ifdef HAVE_DTLS
-void SV_Listen_Dtls_Changed(struct cvar_s *var, char *oldvalue)
+void QDECL SV_Listen_Dtls_Changed(struct cvar_s *var, char *oldvalue)
 {
+	//set up the default value
+	if (!*var->string)
+		var->ival = 1;	//FIXME: change to 2 when better tested.
+
 	if (var->ival)
-		if (!DTLS_HasCertificate())
+	{
+		if (!svs.sockets->dtlsfuncs)
+			svs.sockets->dtlsfuncs = DTLS_InitServer();
+		if (!svs.sockets->dtlsfuncs)
+		{
+			if (var->ival >= 2)
+				Con_Printf("Unable to set %s to \"%s\", no DTLS certificate available.\n", var->name, var->string);
 			var->ival = 0;	//disable the cvar (internally) if we don't have a usable certificate. this allows us to default the cvar to enabled without it breaking otherwise.
+		}
+	}
 }
 #endif
 

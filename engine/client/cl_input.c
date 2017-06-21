@@ -168,7 +168,7 @@ void KeyDown (kbutton_t *b)
 	
 	c = Cmd_Argv(1);
 	if (c[0])
-		k = atoi(c)&255;
+		k = atoi(c);
 	else
 		k = -1;		// typed manually at the console for continuous down
 
@@ -199,7 +199,7 @@ void KeyUp (kbutton_t *b)
 	
 	c = Cmd_Argv(1);
 	if (c[0])
-		k = atoi(c)&255;
+		k = atoi(c);
 	else
 	{ // typed manually at the console, assume for unsticking, so clear all
 		b->down[pnum][0] = b->down[pnum][1] = 0;
@@ -1430,7 +1430,7 @@ void CL_UpdateSeats(void)
 			else
 #endif
 				ver = va("%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
-			Info_SetValueForKey(newinfo, "*ver", ver, sizeof(newinfo));
+			Info_SetValueForStarKey(newinfo, "*ver", ver, sizeof(newinfo));
 
 			CL_SendClientCommand(true, "addseat %i %s", cl.splitclients, COM_QuotedString(newinfo, buffer, sizeof(buffer), false));
 		}

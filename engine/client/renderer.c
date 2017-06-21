@@ -303,6 +303,7 @@ cvar_t	vid_gl_context_debug				= CVARD  ("vid_gl_context_debug", "0", "Requests 
 cvar_t	vid_gl_context_es					= CVARD  ("vid_gl_context_es", "0", "Requests an OpenGLES context. Be sure to set vid_gl_context_version to 2 or so."); //requires version set correctly, no debug, no compat
 cvar_t	vid_gl_context_robustness			= CVARD	("vid_gl_context_robustness", "1", "Attempt to enforce extra buffer protection in the gl driver, but can be slower with pre-gl3 hardware.");
 cvar_t	vid_gl_context_selfreset			= CVARD	("vid_gl_context_selfreset", "1", "Upon hardware failure, have the engine create a new context instead of depending on the drivers to restore everything. This can help to avoid graphics drivers randomly killing your game, and can help reduce memory requirements.");
+cvar_t	vid_gl_context_noerror				= CVARD	("vid_gl_context_noerror", "", "Disables OpenGL's error checks for a small performance speedup. May cause segfaults if stuff wasn't properly implemented/tested.");
 #endif
 
 #if 1
@@ -450,6 +451,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_gl_context_es, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_robustness, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_selfreset, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_gl_context_noerror, GLRENDEREROPTIONS);
 
 //renderer
 
@@ -1623,6 +1625,8 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 void R_ReloadRenderer_f (void)
 {
 	float time = Sys_DoubleTime();
+	if (qrenderer == QR_NONE || qrenderer == QR_HEADLESS)
+		return;	//don't bother reloading the renderer if its not actually rendering anything anyway.
 	R_ShutdownRenderer(false);
 	Con_DPrintf("teardown = %f\n", Sys_DoubleTime() - time);
 	//reloads textures without destroying video context.
@@ -2122,7 +2126,7 @@ mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
 int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 int r_visframecount;
 mleaf_t		*r_vischain;		// linked list of visible leafs
-static FTE_ALIGN(4) qbyte	curframevis[R_MAX_RECURSE][MAX_MAP_LEAFS/8];
+static pvsbuffer_t	curframevis[R_MAX_RECURSE];
 
 /*
 ===============
@@ -2183,7 +2187,7 @@ qbyte *R_MarkLeaves_Q3 (void)
 	}
 	else
 	{
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, curframevis[portal], sizeof(curframevis));
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, &curframevis[portal], PVM_FAST);
 		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 		{
 			cluster = leaf->cluster;
@@ -2224,7 +2228,6 @@ qbyte *R_MarkLeaves_Q2 (void)
 	mleaf_t	*leaf;
 	qbyte *vis;
 
-	int c;
 	int portal = r_refdef.recurse;
 
 	if (r_refdef.forcevis)
@@ -2264,16 +2267,13 @@ qbyte *R_MarkLeaves_Q2 (void)
 			return vis;
 		}
 
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, curframevis[portal], sizeof(curframevis));
-		// may have to combine two clusters because of solid water boundaries
-		if (r_viewcluster2 != r_viewcluster)
+		if (r_viewcluster2 != r_viewcluster)	// may have to combine two clusters because of solid water boundaries
 		{
-			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL, sizeof(curframevis));
-			c = (cl.worldmodel->numclusters+31)/32;
-			for (i=0 ; i<c ; i++)
-				((int *)curframevis[portal])[i] |= ((int *)vis)[i];
-			vis = curframevis[portal];
+			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, &curframevis[portal], PVM_REPLACE);
+			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, &curframevis[portal], PVM_MERGE);
 		}
+		else
+			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, &curframevis[portal], PVM_FAST);
 		cvis[portal] = vis;
 	}
 
@@ -2374,26 +2374,17 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 
 		if (r_novis.ival)
 		{
-			vis = cvis[portal] = curframevis[portal];
-			memset (curframevis[portal], 0xff, (cl.worldmodel->numclusters+7)>>3);
+			vis = cvis[portal] = curframevis[portal].buffer;
+			memset (curframevis[portal].buffer, 0xff, curframevis[portal].buffersize);
 
 			r_oldviewleaf = NULL;
 			r_oldviewleaf2 = NULL;
 		}
-		else if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
-		{
-			int c;
-			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, curframevis[portal], sizeof(curframevis[portal]));
-			vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, 0);
-			c = (cl.worldmodel->numclusters+31)/32;
-			for (i=0 ; i<c ; i++)
-				((int *)curframevis[portal])[i] |= ((int *)vis)[i];
-
-			vis = cvis[portal] = curframevis[portal];
-		}
 		else
 		{
-			vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, curframevis[portal], sizeof(curframevis[portal]));
+			vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, &curframevis[portal], false);
+			if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
+				vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, &curframevis[portal], true);
 		}
 	}
 

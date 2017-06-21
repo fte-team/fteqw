@@ -1074,7 +1074,7 @@ void QCBUILTIN PF_getsurfacepointattribute(pubprogfuncs_t *prinst, struct global
 	}
 }
 
-qbyte qcpvs[(MAX_MAP_LEAFS+7)/8];
+pvsbuffer_t qcpvs;
 //#240 float(vector viewpos, entity viewee) checkpvs (FTE_QC_CHECKPVS)
 //note: this requires a correctly setorigined entity.
 void QCBUILTIN PF_checkpvs(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1091,9 +1091,9 @@ void QCBUILTIN PF_checkpvs(pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	{
 		//FIXME: Make all alternatives of FatPVS not recalulate the pvs.
 		//and yeah, this is overkill what with the whole fat thing and all.
-		world->worldmodel->funcs.FatPVS(world->worldmodel, viewpos, qcpvs, sizeof(qcpvs), false);
+		world->worldmodel->funcs.FatPVS(world->worldmodel, viewpos, &qcpvs, false);
 
-		G_FLOAT(OFS_RETURN) = world->worldmodel->funcs.EdictInFatPVS(world->worldmodel, &ent->pvsinfo, qcpvs);
+		G_FLOAT(OFS_RETURN) = world->worldmodel->funcs.EdictInFatPVS(world->worldmodel, &ent->pvsinfo, qcpvs.buffer);
 	}
 }
 
@@ -4260,10 +4260,17 @@ void QCBUILTIN PF_digest_hex (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		digestsize = 16;
 		Com_BlockFullChecksum(str, strlen(str), digest);
 	}
+	//md5?
 	else if (!strcmp(hashtype, "SHA1"))
 	{
 		digestsize = SHA1(digest, sizeof(digest), str, strlen(str));
 	}
+//	else if (!strcmp(hashtype, "SHA256"))
+//	{
+//		digestsize = SHA2(digest, sizeof(digest), str, strlen(str));
+//	}
+	//sha384
+	//sha512
 	else if (!strcmp(hashtype, "CRC16"))
 	{
 		digestsize = 2;

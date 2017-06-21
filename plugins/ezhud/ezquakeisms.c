@@ -680,7 +680,7 @@ qintptr_t EZHud_Draw(qintptr_t *args)
 	return true;
 }
 
-int keydown[256];
+int keydown[K_MAX];
 float cursor_x;
 float cursor_y;
 float mouse_x;
@@ -708,11 +708,13 @@ qintptr_t EZHud_MenuEvent(qintptr_t *args)
 		mouse_y = 0;
 		break;
 	case 1:
-		keydown[param] = true;
+		if (param < K_MAX)
+			keydown[param] = true;
 		HUD_Editor_Key(param, 0, true);
 		break;
 	case 2:
-		keydown[param] = false;
+		if (param < K_MAX)
+			keydown[param] = false;
 		HUD_Editor_Key(param, 0, false);
 		break;
 	}

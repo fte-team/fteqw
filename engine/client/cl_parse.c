@@ -1327,6 +1327,9 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 //				return stage;
 //				Host_EndGame("Worldmodel wasn't loaded\n");
 		}
+		//the worldmodel can take a while to load, so be sure to wait.
+		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
+			return -1;
 
 		SCR_SetLoadingFile("csprogs world");
 
@@ -1672,7 +1675,7 @@ void CL_RequestNextDownload (void)
 			{
 				if (CL_RemoveClientCommands("qtvspawn"))
 					Con_DPrintf("Multiple prespawns\n");
-				CL_SendClientCommand(true, "qtvspawn %i 0 %i", cl.servercount, COM_RemapMapChecksum(LittleLong(cl.worldmodel->checksum2)));
+				CL_SendClientCommand(true, "qtvspawn %i 0 %i", cl.servercount, COM_RemapMapChecksum(cl.worldmodel, LittleLong(cl.worldmodel->checksum2)));
 				SCR_SetLoadingStage(LS_NONE);
 			}
 			else
@@ -1685,7 +1688,7 @@ void CL_RequestNextDownload (void)
 				else
 				{
 		//			CL_SendClientCommand("prespawn %i 0 %i", cl.servercount, cl.worldmodel->checksum2);
-					CL_SendClientCommand(true, prespawn_name, cl.servercount, COM_RemapMapChecksum(LittleLong(cl.worldmodel->checksum2)));
+					CL_SendClientCommand(true, prespawn_name, cl.servercount, COM_RemapMapChecksum(cl.worldmodel, LittleLong(cl.worldmodel->checksum2)));
 				}
 			}
 		}

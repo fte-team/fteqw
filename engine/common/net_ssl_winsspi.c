@@ -1072,42 +1072,61 @@ vfsfile_t *FS_OpenSSL(const char *servername, vfsfile_t *source, qboolean server
 }
 
 
+#include "netinc.h"
 #if 0
-struct nulldtls_s
+struct fakedtls_s
 {
 	void *cbctx;
 	neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize);
 };
-void *DTLS_CreateContext(void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
+static void *FAKEDTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
 {
-	struct nulldtls_s *ctx = Z_Malloc(sizeof(*ctx));
+	struct fakedtls_s *ctx = Z_Malloc(sizeof(*ctx));
 	ctx->cbctx = cbctx;
 	ctx->push = push;
 	return ctx;
 }
-qboolean DTLS_HasServerCertificate(void)
+static void FAKEDTLS_DestroyContext(void *vctx)
 {
-	//FIXME: at this point, schannel is still returning errors when I try acting as a server.
-	//so just block any attempt to use this as a server.
-	//clients don't need certs!
-	return false;
+	Z_Free(vctx);
 }
-neterr_t DTLS_Transmit(void *vctx, const qbyte *data, size_t datasize)
+static neterr_t FAKEDTLS_Transmit(void *vctx, const qbyte *data, size_t datasize)
 {
-	struct nulldtls_s *ctx = vctx;
+	struct fakedtls_s *ctx = vctx;
 	neterr_t r;
 	*(int*)data ^= 0xdeadbeef;
 	r = ctx->push(ctx->cbctx, data, datasize);
 	*(int*)data ^= 0xdeadbeef;
 	return r;
 }
-neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize)
+static neterr_t FAKEDTLS_Received(void *ctx, qbyte *data, size_t datasize)
 {
 	*(int*)data ^= 0xdeadbeef;
 	return NETERR_SENT;
 }
+static neterr_t FAKEDTLS_Timeouts(void *ctx)
+{
+//	fakedtls_s *f = (fakedtls_s *)ctx;
+	return NETERR_SENT;
+}
+static const dtlsfuncs_t dtlsfuncs_fakedtls =
+{
+	FAKEDTLS_CreateContext,
+	FAKEDTLS_DestroyContext,
+	FAKEDTLS_Transmit,
+	FAKEDTLS_Received,
+	FAKEDTLS_Timeouts,
+};
+const dtlsfuncs_t *FAKEDTLS_InitServer(void)
+{
+	return &dtlsfuncs_fakedtls;
+}
+const dtlsfuncs_t *FAKEDTLS_InitClient(void)
+{
+	return &dtlsfuncs_fakedtls;
+}
 #elif defined(HAVE_DTLS)
-void *DTLS_CreateContext(char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
+static void *SSPI_DTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
 {
 	int i = 0;
 	sslfile_t *ctx;
@@ -1150,13 +1169,13 @@ void *DTLS_CreateContext(char *remotehost, void *cbctx, neterr_t(*push)(void *cb
 	return ctx;
 }
 
-void DTLS_DestroyContext(void *vctx)
+static void SSPI_DTLS_DestroyContext(void *vctx)
 {
 	SSPI_Close(vctx);
 }
 
 
-neterr_t DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
+static neterr_t SSPI_DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
 {
 	int ret;
 	sslfile_t *f = (sslfile_t *)ctx;
@@ -1184,7 +1203,7 @@ neterr_t DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
 	return ret;
 }
 
-neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize)
+static neterr_t SSPI_DTLS_Received(void *ctx, qbyte *data, size_t datasize)
 {
 	int ret;
 	sslfile_t *f = (sslfile_t *)ctx;
@@ -1217,7 +1236,7 @@ neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize)
 	f->incrypt.data = NULL;
 	return ret;
 }
-neterr_t DTLS_Timeouts(void *ctx)
+static neterr_t SSPI_DTLS_Timeouts(void *ctx)
 {
 	sslfile_t *f = (sslfile_t *)ctx;
 	if (f->handshaking)
@@ -1226,6 +1245,26 @@ neterr_t DTLS_Timeouts(void *ctx)
 		return NETERR_CLOGGED;
 	}
 	return NETERR_SENT;
+}
+
+static const dtlsfuncs_t dtlsfuncs_schannel =
+{
+	SSPI_DTLS_CreateContext,
+	SSPI_DTLS_DestroyContext,
+	SSPI_DTLS_Transmit,
+	SSPI_DTLS_Received,
+	SSPI_DTLS_Timeouts,
+};
+const dtlsfuncs_t *SSPI_DTLS_InitServer(void)
+{
+	//FIXME: at this point, schannel is still returning errors when I try acting as a server.
+	//so just block any attempt to use this as a server.
+	//clients don't need/get certs.
+	return NULL;
+}
+const dtlsfuncs_t *SSPI_DTLS_InitClient(void)
+{
+	return &dtlsfuncs_schannel;
 }
 #endif
 

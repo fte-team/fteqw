@@ -208,6 +208,25 @@ BRUSH MODELS
 
 struct mnode_s;
 
+typedef struct
+{
+	qbyte *buffer;	//reallocated if needed.
+	size_t buffersize;
+} pvsbuffer_t;
+#if 1
+typedef char *pvsmerge_t;
+#define PVM_FAST ((char*)0)
+#define PVM_MERGE ((char*)1)
+#define PVM_REPLACE ((char*)2)
+#else
+typedef enum
+{
+	PVM_FAST,
+	PVM_MERGE,	//merge the pvs bits into the provided buffer
+	PVM_REPLACE,//return value is guarenteed to be the provided buffer.
+} pvsmerge_t;
+#endif
+
 typedef struct {
 	//model is being purged from memory.
 	void (*PurgeModel) (struct model_s *mod);
@@ -219,8 +238,8 @@ typedef struct {
 	qboolean (*NativeTrace)		(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace);
 	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 
-	unsigned int (*FatPVS)		(struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge);
-	qboolean (*EdictInFatPVS)	(struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer);
+	unsigned int (*FatPVS)		(struct model_s *model, vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge);
+	qboolean (*EdictInFatPVS)	(struct model_s *model, struct pvscache_s *edict, qbyte *pvs);
 	void (*FindTouchedLeafs)	(struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
 
 	void (*LightPointValues)	(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
@@ -228,7 +247,7 @@ typedef struct {
 	void (*MarkLights)			(struct dlight_s *light, int bit, struct mnode_s *node);
 
 	int	(*ClusterForPoint)		(struct model_s *model, vec3_t point);	//pvs index (leaf-1 for q1bsp). may be negative (ie: no pvs).
-	qbyte *(*ClusterPVS)		(struct model_s *model, int cluster, qbyte *buffer, unsigned int buffersize);
+	qbyte *(*ClusterPVS)		(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer, pvsmerge_t merge);
 } modelfuncs_t;
 
 
@@ -520,7 +539,7 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLQ1BSP_LightPointValues(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
-qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, qbyte *buffer, unsigned int buffersize);
+qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, pvsbuffer_t *buffer, qboolean merge);
 
 /*
 ==============================================================================
@@ -906,7 +925,8 @@ typedef struct model_s
 	int			numplanes;
 	mplane_t	*planes;
 
-	int			numclusters;
+	size_t		pvsbytes;	//total bytes for the per-leaf pvs/phs data. rounded up to sizeof(int).
+	int			numclusters;	//number of bits in the pvs data.
 	int			numleafs;		// number of visible leafs, not counting 0
 	mleaf_t		*leafs;
 
@@ -1064,8 +1084,8 @@ int		CM_LeafCluster (struct model_s *mod, int leafnum);
 int		CM_LeafArea (struct model_s *mod, int leafnum);
 int		CM_WriteAreaBits (struct model_s *mod, qbyte *buffer, int area, qboolean merge);
 int		CM_PointLeafnum (struct model_s *mod, vec3_t p);
-qbyte	*CM_ClusterPVS (struct model_s *mod, int cluster, qbyte *buffer, unsigned int buffersize);
-qbyte	*CM_ClusterPHS (struct model_s *mod, int cluster);
+qbyte	*CM_ClusterPVS (struct model_s *mod, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge);
+qbyte	*CM_ClusterPHS (struct model_s *mod, int cluster, pvsbuffer_t *buffer);
 int		CM_BoxLeafnums (struct model_s *mod, vec3_t mins, vec3_t maxs, int *list, int listsize, int *topnode);
 int		CM_PointContents (struct model_s *mod, vec3_t p);
 int		CM_TransformedPointContents (struct model_s *mod, vec3_t p, int headnode, vec3_t origin, vec3_t angles);

@@ -80,6 +80,10 @@ typedef enum {
 	RT_RAIL_RINGS,
 	RT_LIGHTNING,
 	RT_PORTALSURFACE,		// doesn't draw anything, just info for portals
+	//q3 ones stop here.
+
+	//fte ones start here
+	RT_PORTALCAMERA,		// an alternative to RT_PORTALSURFACE.
 
 	RT_MAX_REF_ENTITY_TYPE
 } refEntityType_t;

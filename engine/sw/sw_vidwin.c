@@ -495,6 +495,10 @@ LONG WINAPI MainWndProc (
 				INS_TranslateKeyEvent(wParam, lParam, false, 0, false);
 			break;
 
+		case WM_APPCOMMAND:
+			lRet = INS_AppCommand(lParam);
+			break;
+
 	// this is complicated because Win32 seems to pack multiple mouse events into
 	// one update sometimes, so we always check all states and look for events
 		case WM_LBUTTONDOWN:

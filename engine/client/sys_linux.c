@@ -850,9 +850,7 @@ char *Sys_ConsoleInput(void)
 
 //	if (!qrenderer)
 	{
-Con_Printf("ConsoleInput\n");
 		len = read (0, text, sizeof(text));
-Con_Printf("ConsoleInput read %i\n", len);
 		if (len < 1)
 			return NULL;
 

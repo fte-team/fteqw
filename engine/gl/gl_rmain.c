@@ -852,11 +852,25 @@ static void R_MirrorMatrix(plane_t *plane)
 	r_refdef.vieworg[1] = result[13];
 	r_refdef.vieworg[2] = result[14];
 }
+static entity_t *R_FindPortalCamera(entity_t *rent)
+{
+	int i;
+	for (i = 0; i < cl_numvisedicts; i++)
+	{
+		if (cl_visedicts[i].rtype == RT_PORTALCAMERA)
+		{
+			if (cl_visedicts[i].keynum == rent->keynum )
+				return &cl_visedicts[i];
+		}
+	}
+	return NULL;
+}
 static entity_t *R_NearestPortal(plane_t *plane)
 {
 	int i;
 	entity_t *best = NULL;
 	float dist, bestd = 0;
+
 	//for q3-compat, portals on world scan for a visedict to use for their view.
 	for (i = 0; i < cl_numvisedicts; i++)
 	{
@@ -913,7 +927,7 @@ void R_ObliqueNearClip(float *viewmat, mplane_t *wplane);
 void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qboolean enqueue);
 void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], int portaltype)
 {
-	entity_t *view;
+	entity_t *view, *surfent;
 //	GLdouble glplane[4];
 	plane_t plane, oplane;
 	float vmat[16];
@@ -921,7 +935,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	vec3_t r;
 	int i;
 	mesh_t *mesh = batch->mesh[batch->firstmesh];
-	qbyte newvis[(MAX_MAP_LEAFS+7)/8];
+	pvsbuffer_t newvis;
 	float ivmat[16], trmat[16];
 
 	if (!mesh->xyz_array)
@@ -1014,11 +1028,9 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			int clust, i, j;
 			float d;
 			vec3_t point;
-			int pvsbytes = (cl.worldmodel->numclusters+7)>>3;
-			if (pvsbytes > sizeof(newvis))
-				pvsbytes = sizeof(newvis);
 			r_refdef.forcevis = true;
 			r_refdef.forcedvis = NULL;
+			newvis.buffer = alloca(newvis.buffersize=cl.worldmodel->pvsbytes);
 			for (i = batch->firstmesh; i < batch->meshes; i++)
 			{
 				mesh = batch->mesh[i];
@@ -1032,21 +1044,9 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 
 				clust = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, point);
 				if (i == batch->firstmesh)
-					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, newvis, sizeof(newvis));
+					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, &newvis, PVM_REPLACE);
 				else
-				{
-					if (r_refdef.forcedvis != newvis)
-					{
-						memcpy(newvis, r_refdef.forcedvis, pvsbytes);
-					}
-					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, NULL, sizeof(newvis));
-
-					for (j = 0; j < pvsbytes; j+= 4)
-					{
-						*(int*)&newvis[j] |= *(int*)&r_refdef.forcedvis[j];
-					}
-					r_refdef.forcedvis = newvis;
-				}
+					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, &newvis, PVM_MERGE);
 			}
 //			memset(newvis, 0xff, pvsbytes);
 		}
@@ -1071,25 +1071,52 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 
 			if (Cvar_Get("temp_useplaneclip", "1", 0, "temp")->ival)
 				portaltype = 1;	//make sure the near clipplane is used.
+			break;
 		}
-		else
 #endif
-			if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))
-		{
-			//a portal with no portal entity, or a portal rentity with an origin equal to its oldorigin, is a mirror.
-//			r_refdef.flipcull ^= SHADER_CULL_FLIP;
-			R_MirrorMatrix(&plane);
-			Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
-
-			VectorCopy(mesh->xyz_array[0], r_refdef.pvsorigin);
-			for (i = 1; i < mesh->numvertexes; i++)
-				VectorAdd(r_refdef.pvsorigin, mesh->xyz_array[i], r_refdef.pvsorigin);
-			VectorScale(r_refdef.pvsorigin, 1.0/mesh->numvertexes, r_refdef.pvsorigin);
-
-			portaltype = 1;
-		}
+		surfent = batch->ent;
+		if (batch->ent->keynum)
+			view = R_FindPortalCamera(batch->ent);
 		else
 		{
+			view = R_NearestPortal(&plane);
+			if (view)
+			{	//for q3bsps where the portal surface is embedded in the bsp itself, we need an extra leyer of indirection.
+				entity_t *oc = R_FindPortalCamera(view);
+				if(oc)
+				{
+					surfent = view;
+					view = oc;
+				}
+			}
+		}
+
+		if (view && view->rtype == RT_PORTALCAMERA)
+		{	//q1-style portal, where the portal is defined via attachments
+			//the portal plane itself is assumed to be facing directly forwards from the entity that we're drawing, and with the same origin.
+			oplane = plane;
+
+			TransformCoord(r_refdef.vieworg, surfent->axis, surfent->origin, view->axis, view->origin, r_refdef.vieworg);
+			TransformDir(vpn, surfent->axis, view->axis, vpn);
+			TransformDir(vright, surfent->axis, view->axis, vright);
+			TransformDir(vup, surfent->axis, view->axis, vup);
+
+			//transform the old surface plane into the new view matrix
+			Matrix4_Invert(r_refdef.m_view, ivmat);
+			Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
+			Matrix4_Multiply(ivmat, vmat, trmat);
+			plane.normal[0] = -(oplane.normal[0] * trmat[0] + oplane.normal[1] * trmat[1] + oplane.normal[2] * trmat[2]);
+			plane.normal[1] = -(oplane.normal[0] * trmat[4] + oplane.normal[1] * trmat[5] + oplane.normal[2] * trmat[6]);
+			plane.normal[2] = -(oplane.normal[0] * trmat[8] + oplane.normal[1] * trmat[9] + oplane.normal[2] * trmat[10]);
+			plane.dist = -oplane.dist + trmat[12]*oplane.normal[0] + trmat[13]*oplane.normal[1] + trmat[14]*oplane.normal[2];
+
+			portaltype = 1;	//make sure the near clipplane is used.
+			break;
+		}
+
+		//portal surfaces with the same origin+oldorigin are explicit mirrors, and skipped in this case.
+		if (view && view->rtype == RT_PORTALSURFACE && !VectorCompare(view->origin, view->oldorigin))
+		{	//q3-style portal, where a single entity provides orientation+two origins
 			float d;
 			vec3_t paxis[3], porigin, vaxis[3], vorg;
 			void PerpendicularVector( vec3_t dst, const vec3_t src );
@@ -1146,7 +1173,20 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 				plane.dist = -oplane.dist + trmat[12]*oplane.normal[0] + trmat[13]*oplane.normal[1] + trmat[14]*oplane.normal[2];
 				portaltype = 1;
 			}
+			break;
 		}
+		//fixme: q3 gamecode has explicit mirrors. we 'should' just ignore the surface if we've not seen it yet.
+
+		//a portal with no portal entity, or a portal rentity with an origin equal to its oldorigin, is a mirror.
+		R_MirrorMatrix(&plane);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
+
+		VectorCopy(mesh->xyz_array[0], r_refdef.pvsorigin);
+		for (i = 1; i < mesh->numvertexes; i++)
+			VectorAdd(r_refdef.pvsorigin, mesh->xyz_array[i], r_refdef.pvsorigin);
+		VectorScale(r_refdef.pvsorigin, 1.0/mesh->numvertexes, r_refdef.pvsorigin);
+
+		portaltype = 1;
 		break;
 	}
 

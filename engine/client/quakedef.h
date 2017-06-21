@@ -139,6 +139,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 #include <time.h>
+
+#ifdef USE_MSVCRT_DEBUG
+#define _CRTDBG_MAP_ALLOC
+#include <crtdbg.h>
+#endif
+#if defined(_WIN32) || defined(__DJGPP__)
+#include <malloc.h>
+#else
+#include <alloca.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -190,11 +201,6 @@ extern "C" {
 #ifndef max
 #define max(a,b) ((a) > (b) ? (a) : (b))
 #define min(a,b) ((a) < (b) ? (a) : (b))
-#endif
-
-#ifdef USE_MSVCRT_DEBUG
-#define _CRTDBG_MAP_ALLOC
-#include <crtdbg.h>
 #endif
 
 //msvcrt lacks any and all c99 support.

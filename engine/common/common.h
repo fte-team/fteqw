@@ -703,7 +703,8 @@ extern qboolean standard_quake;	//fixme: remove
 void COM_Effectinfo_Enumerate(int (*cb)(const char *pname));
 #endif
 
-unsigned int COM_RemapMapChecksum(unsigned int checksum);
+struct model_s;
+unsigned int COM_RemapMapChecksum(struct model_s *model, unsigned int checksum);
 
 #define	MAX_INFO_KEY	256
 char *Info_ValueForKey (const char *s, const char *key);

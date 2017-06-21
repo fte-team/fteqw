@@ -10,6 +10,7 @@ pbool fl_compileonstart;
 pbool fl_showall;
 pbool fl_log;
 pbool fl_extramargins;
+int fl_tabsize;
 
 char parameters[16384];
 char progssrcname[256];
@@ -244,6 +245,12 @@ static void GUI_WriteConfigLine(FILE *file, char *part1, char *part2, char *part
 	}
 	fputs("\n", file);
 }
+static void GUI_WriteConfigInt(FILE *file, char *part1, int part2, char *desc)
+{
+	char buf[64];
+	QC_snprintfz(buf, sizeof(buf), "%i", part2);
+	GUI_WriteConfigLine(file, part1, buf, NULL, desc);
+}
 void GUI_SaveConfig(void)
 {
 	FILE *file = fopen("fteqcc.ini", "wt");
@@ -276,6 +283,7 @@ void GUI_SaveConfig(void)
 	GUI_WriteConfigLine(file, "srcfile",			progssrcname,					NULL, "The progs.src file to load to find ordering of other qc files.");
 	GUI_WriteConfigLine(file, "src",				progssrcdir,					NULL, "Additional subdir to read qc files from. Typically blank (ie: the working directory).");
 
+	GUI_WriteConfigInt (file, "tabsize",			fl_tabsize,							  "Specifies the size of tabs in scintilla windows.");
 	GUI_WriteConfigLine(file, "extramargins",		fl_extramargins?"on":"off",		NULL, "Enables line number and folding margins.");
 	GUI_WriteConfigLine(file, "hexen2",				fl_hexen2?"on":"off",			NULL, "Enable the extra tweaks needed for compatibility with hexen2 engines.");
 	GUI_WriteConfigLine(file, "extendedopcodes",	fl_ftetarg?"on":"off",			NULL, "Utilise an extended instruction set, providing support for pointers and faster arrays and other speedups.");
@@ -324,6 +332,18 @@ static char *GUI_ParseInPlace(char **state)
 	*state = end+1;
 	return str;
 }
+static int GUI_ParseIntInPlace(char **state, int defaultval)
+{
+	char *token = GUI_ParseInPlace(state);
+	if (!stricmp(token, "default"))
+		return defaultval;
+	else if (!stricmp(token, "on") || !stricmp(token, "true") || !stricmp(token, "yes"))
+		return 1;
+	else if (!stricmp(token, "off") || !stricmp(token, "false") || !stricmp(token, "no"))
+		return 0;
+	else
+		return atoi(token);
+}
 static int GUI_ParseBooleanInPlace(char **state, int defaultval)
 {
 	char *token = GUI_ParseInPlace(state);
@@ -342,6 +362,10 @@ void GUI_LoadConfig(void)
 	char *token, *str;
 	FILE *file = fopen("fteqcc.ini", "rb");
 	int p;
+	//initialise gui-only stuff.
+	fl_compileonstart = false;
+	fl_extramargins = false;
+	fl_tabsize = 8;
 	if (!file)
 		return;
 	fl_nondfltopts = false;
@@ -405,6 +429,8 @@ void GUI_LoadConfig(void)
 		else if (!stricmp(token, "showall"))
 			fl_showall = GUI_ParseBooleanInPlace(&str, false);
 
+		else if (!stricmp(token, "tabsize"))
+			fl_tabsize = GUI_ParseIntInPlace(&str, false);
 		else if (!stricmp(token, "extramargins"))
 			fl_extramargins = GUI_ParseBooleanInPlace(&str, false);
 		else if (!stricmp(token, "hexen2"))

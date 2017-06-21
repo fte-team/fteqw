@@ -94,10 +94,25 @@ struct icestate_s
 
 	ftenet_connections_t *connections;
 
-	//FIXME: we should probably include decode state in here somehow so multiple connections don't clobber each other.
-	char *codec[32];	//96-127. don't really need to care about other ones.
+	struct icecodecslot_s
+	{
+		//FIXME: we should probably include decode state in here somehow so multiple connections don't clobber each other.
+		int id;
+		char *name;
+	} codecslot[34];		//96-127. don't really need to care about other ones.
 };
 static struct icestate_s *icelist;
+
+static struct icecodecslot_s *ICE_GetCodecSlot(struct icestate_s *ice, int slot)
+{
+	if (slot >= 96 && slot < 96+32)
+		return &ice->codecslot[slot-96];
+	else if (slot == 0)
+		return &ice->codecslot[32];
+	else if (slot == 8)
+		return &ice->codecslot[33];
+	return NULL;
+}
 
 
 #if !defined(SERVERONLY) && defined(VOICECHAT)
@@ -121,7 +136,6 @@ qboolean NET_RTP_Parse(void)
 		int hlen;
 		int padding = 0;
 		struct icestate_s *con;
-		int proto;
 		//make sure this really came from an accepted rtp stream
 		//note that an rtp connection equal to the game connection will likely mess up when sequences start to get big
 		//(especially problematic in sane clients that start with a random sequence)
@@ -129,11 +143,11 @@ qboolean NET_RTP_Parse(void)
 		{
 			if (con->state != ICE_INACTIVE && (con->proto == ICEP_VIDEO || con->proto == ICEP_VOICE) && NET_CompareAdr(&net_from, &con->chosenpeer))
 			{
-				proto = rtpheader->m1_pt7 & 0x7f;
-				if (proto >= 96 && proto <= 127)	//rtp dynamic assignments
+				struct icecodecslot_s *codec = ICE_GetCodecSlot(con, rtpheader->m1_pt7 & 0x7f);
+				if (codec)	//untracked slot
 				{
-					char *codecname = con->codec[proto-96];
-					if (!codecname)
+					char *codecname = codec->name;
+					if (!codecname)	//inactive slot
 						continue;
 
 					if (rtpheader->v2_p1_x1_cc4 & 0x20)
@@ -179,16 +193,16 @@ qboolean NET_RTP_Transmit(unsigned int sequence, unsigned int timestamp, const c
 	{
 		if (con->state == ICE_CONNECTED && con->proto == ICEP_VOICE)
 		{
-			for (i = 0; i < sizeof(con->codec)/sizeof(con->codec[0]); i++)
+			for (i = 0; i < countof(con->codecslot); i++)
 			{
-				if (con->codec[i] && !strcmp(con->codec[i], codec))
+				if (con->codecslot[i].name && !strcmp(con->codecslot[i].name, codec))
 				{
 					if (!built)
 					{
 						built = true;
 						MSG_WriteByte(&buf, (2u<<6) | (0u<<5) | (0u<<4) | (0<<0));	//v2_p1_x1_cc4
-						MSG_WriteByte(&buf, (0u<<7) | ((i+96)<<0));	//m1_pt7
-						MSG_WriteShort(&buf, BigShort(sequence)&0xffff);	//seq
+						MSG_WriteByte(&buf, (0u<<7) | (con->codecslot[i].id<<0));	//m1_pt7
+						MSG_WriteShort(&buf, BigShort(sequence&0xffff));	//seq
 						MSG_WriteLong(&buf, BigLong(timestamp));	//timestamp
 						MSG_WriteLong(&buf, BigLong(0));			//ssrc
 						SZ_Write(&buf, cdata, clength);
@@ -259,13 +273,15 @@ struct icestate_s *QDECL ICE_Create(void *module, const char *conname, const cha
 	case ICEP_VOICE:
 	case ICEP_VIDEO:
 		collection = cls.sockets;
-		NET_InitClient(false);
+		if (!collection)
+			NET_InitClient(false);
 		break;
 #endif
 #ifndef SERVERONLY
 	case ICEP_QWCLIENT:
 		collection = cls.sockets;
-		NET_InitClient(false);
+		if (!collection)
+			NET_InitClient(false);
 		break;
 #endif
 #ifndef CLIENTONLY
@@ -297,8 +313,8 @@ struct icestate_s *QDECL ICE_Create(void *module, const char *conname, const cha
 	if (!collection)
 	{
 		con->connections = collection = FTENET_CreateCollection(true);
-		FTENET_AddToCollection(collection, "UDP", "0", NA_IP, NP_DGRAM, true);
-		FTENET_AddToCollection(collection, "natpmp", "natpmp://5351", NA_IP, NP_NATPMP, true);
+		FTENET_AddToCollection(collection, "UDP", "0", NA_IP, NP_DGRAM);
+		FTENET_AddToCollection(collection, "natpmp", "natpmp://5351", NA_IP, NP_NATPMP);
 	}
 
 	con->next = icelist;
@@ -633,20 +649,20 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 		con->controlled = !atoi(value);
 	else if (!strncmp(prop, "codec", 5))
 	{
-		int codec = atoi(prop+5);
-		if (codec < 96 || codec > 127)
+		struct icecodecslot_s *codec = ICE_GetCodecSlot(con, atoi(prop+5));
+		if (!codec)
 			return false;
-		codec -= 96;
+		codec->id = atoi(prop+5);
 #if !defined(SERVERONLY) && defined(VOICECHAT)
 		if (!S_Voip_RTP_CodecOkay(value))
 #endif
 		{
-			Z_Free(con->codec[codec]);
-			con->codec[codec] = NULL;
+			Z_Free(codec->name);
+			codec->name = NULL;
 			return false;
 		}
-		Z_Free(con->codec[codec]);
-		con->codec[codec] = Z_StrDup(value);
+		Z_Free(codec->name);
+		codec->name = Z_StrDup(value);
 	}
 	else if (!strcmp(prop, "rufrag"))
 	{
@@ -822,12 +838,12 @@ qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *value, si
 		Q_strncpyz(value, con->lpwd, valuelen);
 	else if (!strncmp(prop, "codec", 5))
 	{
-		int codec = atoi(prop+5);
-		if (codec < 96 || codec > 127)
+		int codecid = atoi(prop+5);
+		struct icecodecslot_s *codec = ICE_GetCodecSlot(con, atoi(prop+5));
+		if (!codec || codec->id != codecid)
 			return false;
-		codec -= 96;
-		if (con->codec[codec])
-			Q_strncpyz(value, con->codec[codec], valuelen);
+		if (codec->name)
+			Q_strncpyz(value, codec->name, valuelen);
 		else
 			Q_strncpyz(value, "", valuelen);
 	}
@@ -877,23 +893,25 @@ qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *value, si
 #endif
 		}
 
-		for (i = 0; i < countof(con->codec); i++)
+		/*fixme: merge the codecs into a single media line*/
+		for (i = 0; i < countof(con->codecslot); i++)
 		{
-			if (!con->codec[i])
+			int id = con->codecslot[i].id;
+			if (!con->codecslot[i].name)
 				continue;
 
-			Q_strncatz(value, va("m=audio %i RTP/AVP %i\n", sender.port, i+96), valuelen);
+			Q_strncatz(value, va("m=audio %i RTP/AVP %i\n", sender.port, id), valuelen);
 			Q_strncatz(value, va("b=RS:0\n"), valuelen);
 			Q_strncatz(value, va("b=RR:0\n"), valuelen);
-			Q_strncpyz(tmpstr, con->codec[i], sizeof(tmpstr));
+			Q_strncpyz(tmpstr, con->codecslot[i].name, sizeof(tmpstr));
 			at = strchr(tmpstr, '@');
 			if (at)
 			{
 				*at = '/';
-				Q_strncatz(value, va("a=rtpmap:%i %s\n", i+96, tmpstr), valuelen);
+				Q_strncatz(value, va("a=rtpmap:%i %s\n", id, tmpstr), valuelen);
 			}
 			else
-				Q_strncatz(value, va("a=rtpmap:%i %s/%i\n", i+96, tmpstr, 8000), valuelen);
+				Q_strncatz(value, va("a=rtpmap:%i %s/%i\n", id, tmpstr, 8000), valuelen);
 
 			for (can = con->lc; can; can = can->next)
 			{

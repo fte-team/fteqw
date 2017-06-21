@@ -293,12 +293,24 @@ typedef struct ftenet_generic_connection_s {
 } ftenet_generic_connection_t;
 
 #ifdef HAVE_DTLS
-void *DTLS_CreateContext(char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver);	//if remotehost is null then their certificate will not be validated.
-void DTLS_DestroyContext(void *ctx);
-neterr_t DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize);
-neterr_t DTLS_Received(void *ctx, qbyte *data, size_t datasize);
-neterr_t DTLS_Timeouts(void *ctx);
-qboolean DTLS_HasServerCertificate(void);
+typedef struct dtlsfuncs_s
+{
+	void *(*CreateContext)(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver);	//if remotehost is null then their certificate will not be validated.
+	void (*DestroyContext)(void *ctx);
+	neterr_t (*Transmit)(void *ctx, const qbyte *data, size_t datasize);
+	neterr_t (*Received)(void *ctx, qbyte *data, size_t datasize);
+	neterr_t (*Timeouts)(void *ctx);
+} dtlsfuncs_t;
+const dtlsfuncs_t *DTLS_InitServer(void);
+const dtlsfuncs_t *DTLS_InitClient(void);
+#ifdef HAVE_WINSSPI
+	const dtlsfuncs_t *SSPI_DTLS_InitServer(void);	//returns NULL if there's no cert available.
+	const dtlsfuncs_t *SSPI_DTLS_InitClient(void);	//should always return something, if implemented.
+#endif
+#ifdef HAVE_GNUTLS
+	const dtlsfuncs_t *GNUDTLS_InitServer(void);	//returns NULL if there's no cert available.
+	const dtlsfuncs_t *GNUDTLS_InitClient(void);	//should always return something, if implemented.
+#endif
 #endif
 
 
@@ -320,6 +332,7 @@ typedef struct ftenet_connections_s
 
 #ifdef HAVE_DTLS
 	struct dtlspeer_s *dtls;	//linked list. linked lists are shit, but at least it keeps pointers valid when things are resized.
+	const dtlsfuncs_t *dtlsfuncs;
 #endif
 } ftenet_connections_t;
 
@@ -330,7 +343,7 @@ void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrn
 
 ftenet_connections_t *FTENET_CreateCollection(qboolean listen);
 void FTENET_CloseCollection(ftenet_connections_t *col);
-qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot, qboolean islisten);
+qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *name, const char *address, netadrtype_t addrtype, netproto_t addrprot);
 int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
 
 vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server);

@@ -205,6 +205,7 @@ K_AUX29			= 235,
 K_AUX30			= 236,
 K_AUX31			= 237,
 K_AUX32			= 238,
+
 K_LWIN			= 239,
 K_RWIN			= 240,
 K_APP			= 241,
@@ -227,7 +228,14 @@ K_GP_DPAD_RIGHT = 254,
 K_GP_UNKNOWN = 255,
 #endif
 
-K_MAX			= 256
+K_MM_BACK,
+K_MM_FAVORITES,
+K_MM_FORWARD,
+K_MM_HOME,
+K_MM_REFRESH,
+K_MM_STOP,
+
+K_MAX
 };
 
 #define KEY_MODIFIER_SHIFT		(1<<0)
@@ -260,7 +268,7 @@ typedef enum	//highest has priority
 
 extern unsigned int key_dest_absolutemouse;	//if the active key dest bit is set, the mouse is absolute.
 extern unsigned int key_dest_mask;
-extern char *keybindings[K_MAX][16];
+extern char *keybindings[K_MAX][KEY_MODIFIERSTATES];
 extern	int		key_repeats[K_MAX];
 extern	int		key_count;			// incremented every key event
 extern	int		key_lastpress;

@@ -976,8 +976,9 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case UI_KEY_ISDOWN:
 		{
-			extern qboolean	keydown[256];
-			if (keydown[VM_LONG(arg[0])])
+			extern qboolean	keydown[K_MAX];
+			unsigned int k = VM_LONG(arg[0]);
+			if (k < K_MAX && keydown[k])
 				VM_LONG(ret) = 1;
 			else
 				VM_LONG(ret) = 0;
@@ -1528,8 +1529,8 @@ int UI_MenuState(void)
 
 qboolean UI_KeyPress(int key, int unicode, qboolean down)
 {
-	extern qboolean	keydown[256];
-	extern int		keyshift[256];		// key to map to if shift held down in console
+	extern qboolean	keydown[K_MAX];
+	extern int		keyshift[K_MAX];		// key to map to if shift held down in console
 //	qboolean result;
 	if (!uivm)
 		return false;

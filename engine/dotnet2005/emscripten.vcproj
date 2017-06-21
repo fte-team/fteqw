@@ -23,7 +23,7 @@
 			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make web-dbg -j8"
+				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make web-dbg"
 				ReBuildCommandLine=""
 				CleanCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make clean -j8"
 				Output=""
@@ -43,7 +43,7 @@
 			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make web-rel FTE_TARGET=web"
+				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make web-rel FTE_TARGET=web ASMJS_MEMORY=1073741824 -j8"
 				ReBuildCommandLine=""
 				CleanCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make clean FTE_TARGET=web"
 				Output=""

@@ -777,6 +777,8 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 	{
 		news->tagentity = MSGCL_ReadEntity();
 		news->tagindex = MSG_ReadByte();
+		if (news->tagindex == 0xff)
+			news->tagindex = ~0;
 	}
 	if (bits & UF_LIGHT)
 	{
@@ -3916,25 +3918,46 @@ void CL_LinkPacketEntities (void)
 
 		// if set to invisible, skip
 		if (state->modelindex<1)
-			continue;
-
-		if (CL_FilterModelindex(state->modelindex, state->frame))
-			continue;
-
-		model = cl.model_precache[state->modelindex];
-		if (!model)
 		{
-			Con_DPrintf("Bad modelindex (%i)\n", state->modelindex);
-			continue;
-		}
-		
-		//DP extension. .modelflags (which is sent in the high parts of effects) allows to specify exactly the q1-compatible flags.
-		//the extra bit allows for setting to 0.
-		//note that hexen2 has additional flags which cannot be expressed.
-		if (state->effects & 0xff800000)
+			if (state->tagindex == 0xffff)
+			{
+				if (state->tagentity)
+				{
+					ent->rtype = RT_PORTALCAMERA;
+					ent->keynum = state->tagentity;
+				}
+				else
+				{
+					ent->rtype = RT_PORTALSURFACE;
+					VectorCopy(ent->origin, ent->oldorigin);
+				}
+			}
+			else
+				continue;
+			model = NULL;
+
 			modelflags = state->effects>>24;
+		}
 		else
-			modelflags = model->flags;
+		{
+			if (CL_FilterModelindex(state->modelindex, state->frame))
+				continue;
+
+			model = cl.model_precache[state->modelindex];
+			if (!model)
+			{
+				Con_DPrintf("Bad modelindex (%i)\n", state->modelindex);
+				continue;
+			}
+
+			//DP extension. .modelflags (which is sent in the high parts of effects) allows to specify exactly the q1-compatible flags.
+			//the extra bit allows for setting to 0.
+			//note that hexen2 has additional flags which cannot be expressed.
+			if (state->effects & 0xff800000)
+				modelflags = state->effects>>24;
+			else
+				modelflags = model->flags;
+		}
 
 		if (cl.model_precache_vwep[0] && state->modelindex2 < MAX_VWEP_MODELS)
 		{
@@ -4109,7 +4132,20 @@ void CL_LinkPacketEntities (void)
 				ent->keynum += MAX_EDICTS;
 		}
 
-		if (state->tagentity)
+		if (state->tagindex == 0xffff)
+		{
+			if (state->tagentity)
+			{
+				ent->rtype = RT_PORTALCAMERA;
+				ent->keynum = state->tagentity;
+			}
+			else
+			{
+				ent->rtype = RT_PORTALSURFACE;
+				VectorCopy(ent->origin, ent->oldorigin);
+			}
+		}
+		else if (state->tagentity)
 		{	//ent is attached to a tag, rotate this ent accordingly.
 			CL_RotateAroundTag(ent, state->number, state->tagentity, state->tagindex);
 		}
@@ -4142,8 +4178,16 @@ void CL_LinkPacketEntities (void)
 			CL_AddVWeapModel (ent, model2);
 
 		//figure out which trail this entity is using
-		trailef = model->particletrail;
-		trailidx = model->traildefaultindex;
+		if (model)
+		{
+			trailef = model->particletrail;
+			trailidx = model->traildefaultindex;
+		}
+		else
+		{
+			trailef = P_INVALID;
+			trailidx = P_INVALID;
+		}
 		if (state->effects & EF_HASPARTICLETRAIL)
 			P_DefaultTrail (state->effects, modelflags, &trailef, &trailidx);
 		if (state->u.q1.traileffectnum)
@@ -4151,7 +4195,7 @@ void CL_LinkPacketEntities (void)
 
 		if (state->u.q1.emiteffectnum)
 			P_EmitEffect (ent->origin, ent->axis, MDLF_EMITFORWARDS, CL_TranslateParticleFromServer(state->u.q1.emiteffectnum), &(le->emitstate));
-		else if (model->particleeffect != P_INVALID && cls.allow_anyparticles && gl_part_flame.ival)
+		else if (model && model->particleeffect != P_INVALID && cls.allow_anyparticles && gl_part_flame.ival)
 			P_EmitEffect (ent->origin, ent->axis, model->engineflags, model->particleeffect, &(le->emitstate));
 
 		// add automatic particle trails

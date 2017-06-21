@@ -1166,12 +1166,12 @@ static void *QDECL DSOUND_Capture_Init (int rate, const char *device)
 	GUID *dsguid, guid;
 
 	wfxFormat.wFormatTag = WAVE_FORMAT_PCM;
-    wfxFormat.nChannels = 1;
-    wfxFormat.nSamplesPerSec = rate;
+	wfxFormat.nChannels = 1;
+	wfxFormat.nSamplesPerSec = rate;
 	wfxFormat.wBitsPerSample = 8*inputwidth;
-    wfxFormat.nBlockAlign = wfxFormat.nChannels * (wfxFormat.wBitsPerSample / 8);
+	wfxFormat.nBlockAlign = wfxFormat.nChannels * (wfxFormat.wBitsPerSample / 8);
 	wfxFormat.nAvgBytesPerSec = wfxFormat.nSamplesPerSec * wfxFormat.nBlockAlign;
-    wfxFormat.cbSize = 0;
+	wfxFormat.cbSize = 0;
 
 	bufdesc.dwSize = sizeof(bufdesc);
 	bufdesc.dwBufferBytes = bufferbytes;

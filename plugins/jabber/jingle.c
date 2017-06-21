@@ -34,10 +34,12 @@ static struct c2c_s *JCL_JingleAddContentToSession(jclient_t *jcl, struct c2c_s 
 		if (creator && mediatype == ICEP_VOICE)
 		{
 			//note: the engine will ignore codecs it does not support.
-			piceapi->ICE_Set(ice, "codec96", "speex@16000");	//wide
-			piceapi->ICE_Set(ice, "codec97", "speex@8000");		//narrow
-			piceapi->ICE_Set(ice, "codec98", "speex@32000");	//ultrawide
-			piceapi->ICE_Set(ice, "codec99", "opus");
+			piceapi->ICE_Set(ice, "codec96", "opus@48000");
+			piceapi->ICE_Set(ice, "codec97", "speex@16000");	//wide
+			piceapi->ICE_Set(ice, "codec98", "speex@8000");		//narrow
+			piceapi->ICE_Set(ice, "codec99", "speex@32000");	//ultrawide
+			piceapi->ICE_Set(ice, "codec0", "pcmu@8000");
+			piceapi->ICE_Set(ice, "codec8", "pcma@8000");
 		}
 	}
 	else
@@ -113,44 +115,65 @@ static void JCL_PopulateAudioDescription(xmltree_t *description, struct icestate
 {
 	xmltree_t *payload;
 	int i;
-	for (i = 96; i <= 127; i++)
+	int pcma = -1, pcmu = -1;
+	for (i = 0; i <= 127; i++)
 	{
 		char codecname[64];
 		char argn[64];
 		Q_snprintf(argn, sizeof(argn), "codec%i", i);
-		piceapi->ICE_Get(ice, argn,  codecname, sizeof(codecname));
-
-		if (!strcmp(codecname, "speex@8000"))
-		{	//speex narrowband
-			payload = XML_CreateNode(description, "payload-type", "", "");
-			XML_AddParameter(payload, "channels", "1");
-			XML_AddParameter(payload, "clockrate", "8000");
-			XML_AddParameter(payload, "id", argn+5);
-			XML_AddParameter(payload, "name", "speex");
+		if (piceapi->ICE_Get(ice, argn,  codecname, sizeof(codecname)))
+		{
+			if (!strcasecmp(codecname, "speex@8000") || !strcasecmp(codecname, "speex@16000") || !strcasecmp(codecname, "speex@32000"))
+			{	//speex narrowband
+				payload = XML_CreateNode(description, "payload-type", "", "");
+				XML_AddParameter(payload, "channels", "1");
+				XML_AddParameter(payload, "clockrate", codecname+6);
+				XML_AddParameter(payload, "id", argn+5);
+				XML_AddParameter(payload, "name", "speex");
+			}
+			else if (!strcasecmp(codecname, "opus") || !strcasecmp(codecname, "opus@48000"))
+			{	//opus codec. implicitly at 48khz
+				payload = XML_CreateNode(description, "payload-type", "", "");
+				XML_AddParameter(payload, "channels", "1");
+				XML_AddParameter(payload, "id", argn+5);
+				XML_AddParameter(payload, "name", "opus");
+			}
+			else if (!strcasecmp(codecname, "pcma@8000") || !strcasecmp(codecname, "pcmu@8000"))
+			{	//pcma/pcmu.
+				//these get flagged to ensure they appear last, because they're not very good, esp compared to opus,
+				// however they are simple and more widely distributed on traditional voice services,
+				// so they're an important fallback
+				if (!strcasecmp(codecname, "pcma@8000") && pcma < 0)
+					pcma = i;
+				else if (!strcasecmp(codecname, "pcmu@8000") && pcmu < 0)
+					pcmu = i;
+				else
+				{
+					payload = XML_CreateNode(description, "payload-type", "", "");
+					XML_AddParameter(payload, "channels", "1");
+					XML_AddParameter(payload, "clockrate", codecname+5);
+					XML_AddParameter(payload, "id", argn+5);
+					codecname[4] = 0;
+					XML_AddParameter(payload, "name", codecname);
+				}
+			}
 		}
-		else if (!strcmp(codecname, "speex@16000"))
-		{	//speex wideband
-			payload = XML_CreateNode(description, "payload-type", "", "");
-			XML_AddParameter(payload, "channels", "1");
-			XML_AddParameter(payload, "clockrate", "16000");
-			XML_AddParameter(payload, "id", argn+5);
-			XML_AddParameter(payload, "name", "speex");
-		}
-		else if (!strcmp(codecname, "speex@32000"))
-		{	//speex ultrawideband
-			payload = XML_CreateNode(description, "payload-type", "", "");
-			XML_AddParameter(payload, "channels", "1");
-			XML_AddParameter(payload, "clockrate", "32000");
-			XML_AddParameter(payload, "id", argn+5);
-			XML_AddParameter(payload, "name", "speex");
-		}
-		else if (!strcmp(codecname, "opus"))
-		{	//opus codec.
-			payload = XML_CreateNode(description, "payload-type", "", "");
-			XML_AddParameter(payload, "channels", "1");
-			XML_AddParameter(payload, "id", argn+5);
-			XML_AddParameter(payload, "name", "opus");
-		}
+	}
+	if (pcma>=0)
+	{
+		payload = XML_CreateNode(description, "payload-type", "", "");
+		XML_AddParameter(payload, "channels", "1");
+		XML_AddParameter(payload, "clockrate", "8000");
+		XML_AddParameteri(payload, "id", pcma);
+		XML_AddParameter(payload, "name", "pcma");
+	}
+	if (pcmu>=0)
+	{
+		payload = XML_CreateNode(description, "payload-type", "", "");
+		XML_AddParameter(payload, "channels", "1");
+		XML_AddParameter(payload, "clockrate", "8000");
+		XML_AddParameteri(payload, "id", pcmu);
+		XML_AddParameter(payload, "name", "pcmu");
 	}
 }
 
@@ -788,16 +811,22 @@ static qboolean JCL_JingleHandleInitiate_GoogleSession(jclient_t *jcl, xmltree_t
 				char parm[64];
 				char val[64];
 				//note: the engine will ignore codecs it does not support, returning false.
-				if (!strcasecmp(name, "SPEEX"))
+				if (!strcasecmp(name, "speex"))
 				{
 					Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
 					Q_snprintf(val, sizeof(val), "speex@%i", atoi(clock));
 					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, val);
 				}
-				else if (!strcasecmp(name, "OPUS"))
+				else if (!strcasecmp(name, "pcma") || !strcasecmp(name, "pcmu"))
 				{
 					Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
-					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, "opus");
+					Q_snprintf(val, sizeof(val), "%s@%i", name, atoi(clock));
+					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, val);
+				}
+				else if (!strcasecmp(name, "opus"))
+				{
+					Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
+					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, "opus@48000");
 				}
 			}
 			//don't do it if we couldn't successfully set any codecs, because the engine doesn't support the ones that were listed, or something.
@@ -915,16 +944,16 @@ static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, ch
 				char parm[64];
 				char val[64];
 				//note: the engine will ignore codecs it does not support, returning false.
-				if (!strcasecmp(name, "SPEEX"))
+				if (!strcasecmp(name, "speex") || !strcasecmp(name, "pcma") || !strcasecmp(name, "pcmu"))
 				{
 					Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
-					Q_snprintf(val, sizeof(val), "speex@%i", atoi(clock));
+					Q_snprintf(val, sizeof(val), "%s@%i", name, atoi(clock));
 					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, val);
 				}
-				else if (!strcasecmp(name, "OPUS"))
+				else if (!strcasecmp(name, "opus"))
 				{
 					Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
-					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, "opus");
+					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, "opus@48000");
 				}
 			}
 		}

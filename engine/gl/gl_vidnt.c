@@ -208,6 +208,7 @@ extern cvar_t		vid_gl_context_forwardcompatible;
 extern cvar_t		vid_gl_context_compatibility;
 extern cvar_t		vid_gl_context_robustness;
 extern cvar_t		vid_gl_context_selfreset;
+extern cvar_t		vid_gl_context_noerror;
 
 static dllhandle_t *hInstGL = NULL;
 static dllhandle_t *hInstwgl = NULL;
@@ -233,22 +234,23 @@ static BOOL (WINAPI *qwglSwapIntervalEXT) (int);
 static BOOL (APIENTRY *qwglChoosePixelFormatARB)(HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int* piFormats, UINT* nNumFormats);
 
 static HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, const int *attribList);
-#define WGL_CONTEXT_MAJOR_VERSION_ARB		0x2091
-#define WGL_CONTEXT_MINOR_VERSION_ARB		0x2092
-#define WGL_CONTEXT_LAYER_PLANE_ARB			0x2093
-#define WGL_CONTEXT_FLAGS_ARB				0x2094
-#define		WGL_CONTEXT_DEBUG_BIT_ARB					0x0001
-#define		WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB		0x0002
-#define		WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB			0x0004 /*WGL_ARB_create_context_robustness*/
-#define WGL_CONTEXT_PROFILE_MASK_ARB		0x9126		/*WGL_ARB_create_context_profile*/
-#define		WGL_CONTEXT_CORE_PROFILE_BIT_ARB			0x00000001
-#define		WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB	0x00000002
-#define		WGL_CONTEXT_ES2_PROFILE_BIT_EXT				0x00000004	/*WGL_CONTEXT_ES2_PROFILE_BIT_EXT*/
-#define ERROR_INVALID_VERSION_ARB			0x2095
-#define	ERROR_INVALID_PROFILE_ARB		0x2096
+#define WGL_CONTEXT_MAJOR_VERSION_ARB					0x2091
+#define WGL_CONTEXT_MINOR_VERSION_ARB					0x2092
+#define WGL_CONTEXT_LAYER_PLANE_ARB						0x2093
+#define WGL_CONTEXT_FLAGS_ARB							0x2094
+#define		WGL_CONTEXT_DEBUG_BIT_ARB						0x0001
+#define		WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB			0x0002
+#define		WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB				0x0004 /*WGL_ARB_create_context_robustness*/
+#define WGL_CONTEXT_PROFILE_MASK_ARB					0x9126		/*WGL_ARB_create_context_profile*/
+#define		WGL_CONTEXT_CORE_PROFILE_BIT_ARB				0x00000001
+#define		WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB		0x00000002
+#define		WGL_CONTEXT_ES2_PROFILE_BIT_EXT					0x00000004	/*WGL_CONTEXT_ES2_PROFILE_BIT_EXT*/
+#define ERROR_INVALID_VERSION_ARB						0x2095
+#define	ERROR_INVALID_PROFILE_ARB						0x2096
 #define WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB		0x8256	/*WGL_ARB_create_context_robustness*/
 #define		WGL_NO_RESET_NOTIFICATION_ARB					0x8261
 #define		WGL_LOSE_CONTEXT_ON_RESET_ARB					0x8252
+#define	WGL_CONTEXT_OPENGL_NO_ERROR_ARB					0x31B3 /*WGL_ARB_create_context_no_error*/
 
 
 //pixel format stuff
@@ -809,9 +811,9 @@ static qboolean Win32VK_CreateSurface(void)
 static void Win32VK_Present(struct vkframe *theframe)
 {
 //	if (theframe)
-//		PostMessage(mainwindow, WM_USER+7, 0, (LPARAM)theframe);
+//		PostMessage(mainwindow, WM_USER_VKPRESENT, 0, (LPARAM)theframe);
 //	else
-		SendMessage(mainwindow, WM_USER+7, 0, (LPARAM)theframe);
+		SendMessage(mainwindow, WM_USER_VKPRESENT, 0, (LPARAM)theframe);
 }
 #else
 #define Win32VK_Present NULL
@@ -866,7 +868,7 @@ static qboolean Win32NVVK_CreateSurface(void)
 }
 static void Win32NVVK_Present(struct vkframe *theframe)
 {
-	SendMessage(mainwindow, WM_USER+8, 0, (LPARAM)theframe);
+	SendMessage(mainwindow, WM_USER_NVVKPRESENT, 0, (LPARAM)theframe);
 }
 static void Win32NVVK_DoPresent(struct vkframe *theframe)
 {
@@ -1886,6 +1888,12 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			attribs[i++] = WGL_LOSE_CONTEXT_ON_RESET_ARB;
 		}
 
+		if (vid_gl_context_noerror.ival &&  WGL_CheckExtension("WGL_ARB_create_context_no_error"))
+		{
+			attribs[i++] = WGL_CONTEXT_OPENGL_NO_ERROR_ARB;
+			attribs[i++] = !vid_gl_context_robustness.ival && !vid_gl_context_debug.ival;
+		}
+
 		/*only switch contexts if there's actually a point*/
 		if (i || !vid_gl_context_compatibility.ival || vid_gl_context_es.ival)
 		{
@@ -2730,6 +2738,10 @@ static LONG WINAPI GLMainWndProc (
 				INS_TranslateKeyEvent(wParam, lParam, false, 0, false);
 			break;
 
+		case WM_APPCOMMAND:
+			lRet = INS_AppCommand(lParam);
+			break;
+
 		case WM_MOUSEACTIVATE:
 			lRet = MA_ACTIVATEANDEAT;
 			break;
@@ -2815,19 +2827,19 @@ static LONG WINAPI GLMainWndProc (
 			break;
 
 #ifdef VKQUAKE
-		case WM_USER+7:
+		case WM_USER_VKPRESENT:
 			VK_DoPresent((struct vkframe*)lParam);
 			break;
 #endif
 #if defined(VKQUAKE) && defined(USE_WGL)
-		case WM_USER+8:
+		case WM_USER_NVVKPRESENT:
 			Win32NVVK_DoPresent((struct vkframe*)lParam);
 			break;
 #endif
-		case WM_USER+4:
+		case WM_USER_VIDSHUTDOWN:
 			PostQuitMessage(0);
 			break;
-		case WM_USER:
+		case WM_USER_SPEECHTOTEXT:
 #ifdef HAVE_SPEECHTOTEXT
 			STT_Event();
 #endif
@@ -3236,7 +3248,7 @@ static qboolean NVVKVID_Init (rendererstate_t *info, unsigned char *palette)
 }
 rendererinfo_t nvvkrendererinfo =
 {
-	"Vulkan (nvidia workaround)",
+	"GL_NV_draw_vulkan_image",
 	{
 		"nvvk",
 	},

@@ -968,7 +968,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case CG_KEY_ISDOWN:
 		{
-			extern qboolean	keydown[256];
+			extern qboolean	keydown[K_MAX];
 			if (keydown[VM_LONG(arg[0])])
 				VM_LONG(ret) = 1;
 			else

@@ -21,7 +21,7 @@
 #endif
 
 
-#define JCL_BUILD "4"
+#define JCL_BUILD "5"
 //#define DEFAULTDOMAIN "triptohell.info"
 #define DEFAULTRESOURCE "Quake"
 #define QUAKEMEDIAXMLNS "http://fteqw.com/protocol/quake"
@@ -78,6 +78,7 @@ typedef struct buddy_s
 	bresource_t *resources;
 	bresource_t *defaultresource;	//this is the one that last replied
 	int defaulttimestamp;
+	qboolean askfriend;
 	qboolean friended;
 	qboolean chatroom;	//chatrooms are bizzare things that need special handling.
 	qboolean vcardphotochanged;
@@ -153,10 +154,9 @@ typedef struct jclient_s
 	char authnonce[256];
 	int authmode;
 
-	int tagdepth;
-	int openbracket;
 	int instreampos;
 
+	qboolean connecting; //still waiting for intial stream tag
 	qboolean connected;	//fully on server and authed and everything.
 	qboolean issecure;	//tls enabled (either upgraded or initially)
 	int streamdebug;	//echo the stream to subconsoles

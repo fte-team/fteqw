@@ -31,8 +31,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //AUTH: specifies an auth method, the exact specs varies based on the method
 //		PLAIN: the password is sent as a PASSWORD line
 //		MD4: the server responds with an "AUTH: MD4\n" line as well as a "CHALLENGE: somerandomchallengestring\n" line, the client sends a new 'initial' request with CHALLENGE: MD4\nRESPONSE: hexbasedmd4checksumhere\n"
-//		MD5: same as md4
-//		CCITT: same as md4, but using the CRC stuff common to all quake engines.
+//		etc: same idea as md4
+//		CCITT: same as md4, but using the CRC stuff common to all quake engines. should not be used.
 //		if the supported/allowed auth methods don't match, the connection is silently dropped.
 //SOURCE: which stream to play from, DEFAULT is special. Without qualifiers, it's assumed to be a tcp address.
 //COMPRESSION: Suggests a compression method (multiple are allowed). You'll get a COMPRESSION response, and compression will begin with the binary data.
@@ -416,7 +416,7 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 					str = qtv->connectpassword;	Net_QueueUpstream(qtv, strlen(str), str);
 					str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);
 				}
-				else if (challenge && strlen(challenge)>=32 && !strcmp(authmethod, "CCITT"))
+				/*else if (challenge && strlen(challenge)>=32 && !strcmp(authmethod, "CCITT"))
 				{
 					unsigned short crcvalue;
 					str = "AUTH: CCITT\n";	Net_QueueUpstream(qtv, strlen(str), str);
@@ -428,7 +428,7 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 
 					str = hash;				Net_QueueUpstream(qtv, strlen(str), str);
 					str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);
-				}
+				}*/
 				else if (challenge && strlen(challenge)>=8 && !strcmp(authmethod, "MD4"))
 				{
 					unsigned int md4sum[4];
@@ -438,6 +438,19 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 					snprintf(hash, sizeof(hash), "%s%s", challenge, qtv->connectpassword);
 					Com_BlockFullChecksum (hash, strlen(hash), (unsigned char*)md4sum);
 					sprintf(hash, "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);
+
+					str = hash;				Net_QueueUpstream(qtv, strlen(str), str);
+					str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);
+				}
+				else if (challenge && strlen(challenge)>=8 && !strcmp(authmethod, "SHA1"))
+				{
+					unsigned int digest[5];
+					str = "AUTH: SHA1\n";	Net_QueueUpstream(qtv, strlen(str), str);
+					str = "PASSWORD: \"";	Net_QueueUpstream(qtv, strlen(str), str);
+
+					snprintf(hash, sizeof(hash), "%s%s", challenge, qtv->connectpassword);
+					SHA1((unsigned char*)digest, sizeof(digest), hash, strlen(hash));
+					sprintf(hash, "%08X%08X%8X%08X%08X", digest[0], digest[1], digest[2], digest[3], digest[4]);
 
 					str = hash;				Net_QueueUpstream(qtv, strlen(str), str);
 					str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);
@@ -457,8 +470,9 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 			}
 			else
 			{
+				str = "AUTH: SHA1\n";		Net_QueueUpstream(qtv, strlen(str), str);
 				str = "AUTH: MD4\n";		Net_QueueUpstream(qtv, strlen(str), str);
-				str = "AUTH: CCITT\n";		Net_QueueUpstream(qtv, strlen(str), str);
+//				str = "AUTH: CCITT\n";		Net_QueueUpstream(qtv, strlen(str), str);
 				str = "AUTH: PLAIN\n";		Net_QueueUpstream(qtv, strlen(str), str);
 				str = "AUTH: NONE\n";		Net_QueueUpstream(qtv, strlen(str), str);
 			}

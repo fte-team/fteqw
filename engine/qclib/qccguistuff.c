@@ -74,7 +74,6 @@ int Grep(char *filename, char *string)
 void GoToDefinition(char *name)
 {
 	#define MAXSOURCEFILESLIST 8
-	extern char sourcefileslist[MAXSOURCEFILESLIST][1024];
 	extern QCC_def_t *sourcefilesdefs[MAXSOURCEFILESLIST];
 	extern int sourcefilesnumdefs;
 	int fno;

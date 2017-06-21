@@ -8,3 +8,7 @@ char *PDECL filefromprogs(pubprogfuncs_t *progfuncs, progsnum_t prnum, char *fna
 char *filefromnewprogs(pubprogfuncs_t *progfuncs, char *prname, char *fname, size_t *size, char *buffer);//fixme - remove parm 1
 
 void DecompileProgsDat(char *name, void *buf, size_t bufsize);
+char *ReadProgsCopyright(char *buf, size_t bufsize);
+int GUIprintf(const char *msg, ...);
+void compilecb(void);
+void AddSourceFile(const char *parentpath, const char *filename);

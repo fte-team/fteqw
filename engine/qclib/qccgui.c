@@ -811,7 +811,7 @@ static int SplitterShrinkPrior(size_t s, int px)
 
 	return found;
 }
-static SplitterShrinkNext(size_t s, int px)
+static int SplitterShrinkNext(size_t s, int px)
 {
 	int found = 0;
 	int avail;
@@ -834,7 +834,6 @@ static LRESULT CALLBACK SplitterWndProc(HWND hWnd, UINT message, WPARAM wParam, 
 	PAINTSTRUCT ps;
 	RECT rect;
 	int y;
-	int cascade;
 	switch(message)
 	{
 	case WM_LBUTTONDOWN:
@@ -855,7 +854,6 @@ static LRESULT CALLBACK SplitterWndProc(HWND hWnd, UINT message, WPARAM wParam, 
 		{
 			if (splits[s].splitter == hWnd)
 			{
-				cascade = 0;
 				if (y < 0)
 					splits[s].cursize += SplitterShrinkPrior(s-1, -y);
 				else
@@ -3588,6 +3586,13 @@ static pbool EngineCommandWndf(HWND wnd, char *message, ...)
 
 #ifdef _MSC_VER	//ffs
 #define strtoull _strtoui64
+#ifndef PRIxPTR
+#define PRIxPTR "Ix"
+#endif
+#else
+#ifndef PRIxPTR
+#define PRIxPTR "Ix"
+#endif
 #endif
 
 DWORD WINAPI threadwrapper(void *args)
@@ -3624,7 +3629,7 @@ DWORD WINAPI threadwrapper(void *args)
 		{
 			char message[256];
 			DWORD written;
-			_snprintf(message, sizeof(message)-1, "debuggerwnd %#p\n",  (void*)mainwindow);
+			_snprintf(message, sizeof(message)-1, "debuggerwnd %#"PRIxPTR"\n",  (uintptr_t)(void*)mainwindow);
 			WriteFile(ctx->pipetoengine, message, strlen(message), &written, NULL);
 		}
 
@@ -3635,7 +3640,7 @@ DWORD WINAPI threadwrapper(void *args)
 			DWORD written;
 			RECT rect;
 			GetClientRect(ctx->window, &rect);
-			_snprintf(message, sizeof(message)-1, "vid_recenter %i %i %i %i %#p\n", 0, 0, rect.right - rect.left, rect.bottom-rect.top, (void*)ctx->window);
+			_snprintf(message, sizeof(message)-1, "vid_recenter %i %i %i %i %#"PRIxPTR"\n", 0, 0, (int)(rect.right - rect.left), (int)(rect.bottom-rect.top), (uintptr_t)(void*)ctx->window);
 			WriteFile(ctx->pipetoengine, message, strlen(message), &written, NULL);
 		}
 
@@ -4270,7 +4275,7 @@ void GUI_CreateInstaller_Android(void)
 
 	if (!mandata)
 	{
-		QC_snprintfz(tmp, sizeof(tmp), "default.fmf", modname);
+		QC_snprintfz(tmp, sizeof(tmp), "default.fmf");
 		mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
 	}
 	if (!mandata)
@@ -4280,7 +4285,7 @@ void GUI_CreateInstaller_Android(void)
 	}
 	if (!mandata)
 	{
-		QC_snprintfz(tmp, sizeof(tmp), "../default.fmf", modname);
+		QC_snprintfz(tmp, sizeof(tmp), "../default.fmf");
 		mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
 	}
 	if (!mandata)
@@ -4875,7 +4880,7 @@ static void GUI_CreateInstaller_Windows(void)
 		}
 	}
 
-	QC_snprintfz(tmp, sizeof(tmp), "default.fmf", modname);
+	QC_snprintfz(tmp, sizeof(tmp), "default.fmf");
 	mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
 	if (!mandata)
 	{
@@ -4884,7 +4889,7 @@ static void GUI_CreateInstaller_Windows(void)
 	}
 	if (!mandata)
 	{
-		QC_snprintfz(tmp, sizeof(tmp), "../default.fmf", modname);
+		QC_snprintfz(tmp, sizeof(tmp), "../default.fmf");
 		mandata = QCC_ReadFile (tmp, NULL, 0, &manlen);
 	}
 	if (!mandata)
@@ -6827,8 +6832,6 @@ void AddSourceFile(const char *parentpath, const char *filename)
 //progssrcname should already have been set.
 void UpdateFileList(void)
 {
-	FILE *f;
-
 	TVINSERTSTRUCT item;
 	TV_ITEM parent;
 	memset(&item, 0, sizeof(item));
@@ -7082,7 +7085,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 					char *c = ReadProgsCopyright(buf, size);
 					if (!c || !*c)
 						c = "COPYRIGHT OWNER NOT KNOWN";	//all work is AUTOMATICALLY copyrighted under the terms of the Berne Convention. It _IS_ copyrighted, even if there's no license etc included. Good luck guessing what rights you have.
-					if (MessageBox(mainwindow, va("The copyright message from this progs is\n%s\n\nPlease respect the wishes and legal rights of the person who created this.", c), "Copyright", MB_OKCANCEL|MB_DEFBUTTON2|MB_ICONSTOP) == IDOK)
+					if (MessageBox(mainwindow, qcva("The copyright message from this progs is\n%s\n\nPlease respect the wishes and legal rights of the person who created this.", c), "Copyright", MB_OKCANCEL|MB_DEFBUTTON2|MB_ICONSTOP) == IDOK)
 					{
 						CreateOutputWindow(true);
 						compilecb();

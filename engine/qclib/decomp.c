@@ -20,8 +20,9 @@
 
 #define MAX_REGS 65536
 #define dstatement_t QCC_dstatement32_t
-#define statements dstatements
-#define functions dfunctions
+#define statements destatements
+#define functions defunctions
+#define strings destrings
 static dstatement_t *statements;
 static float *pr_globals;
 static char		*strings;
@@ -40,18 +41,7 @@ QCC_ddef_t *GetField(const char *name);
 
 #include <stdio.h>
 
-char    *va(char *format, ...)
-{
-	va_list			argptr;
-	static char		string[1024];
-	
-	va_start (argptr, format);
-	vsprintf (string, format,argptr);
-	va_end (argptr);
-
-	return string;
-}
-int snprintf(char *buffer, size_t maxlen, const char *format, ...)
+/*int QC_snprintfz(char *buffer, size_t maxlen, const char *format, ...)
 {
 	int p;
 	va_list		argptr;
@@ -65,7 +55,7 @@ int snprintf(char *buffer, size_t maxlen, const char *format, ...)
 	buffer[maxlen-1] = 0;
 
 	return p;
-}
+}*/
 
 extern QCC_opcode_t pr_opcodes [];
 
@@ -185,15 +175,13 @@ char *type_name (QCC_ddef_t *def)
 {
 	QCC_ddef_t *j;
 
-	static char fname [1024];
-
 	switch(def->type&~DEF_SAVEGLOBAL)
 	{
 	case ev_field:
 	case ev_pointer:
 		j = GetField(def->s_name + strings);
 		if (j)
-			return va(".%s",type_names[j->type]);
+			return qcva(".%s",type_names[j->type]);
 		else
 			return type_names[def->type&~DEF_SAVEGLOBAL];
 	case ev_void:
@@ -284,17 +272,17 @@ static char *PR_ValueString (etype_t type, void *val)
 	switch (type)
 	{
 	case ev_string:
-		snprintf(line, sizeof(line), "%s", PR_String(strings + *(int *)val));
+		QC_snprintfz(line, sizeof(line), "%s", PR_String(strings + *(int *)val));
 		break;
 	case ev_entity:	
-		snprintf(line, sizeof(line), "entity %i", *(int *)val);
+		QC_snprintfz(line, sizeof(line), "entity %i", *(int *)val);
 		break;
 	case ev_function:
 		f = functions + *(int *)val;
 		if (!f)
-			snprintf(line, sizeof(line), "undefined function");
+			QC_snprintfz(line, sizeof(line), "undefined function");
 		else
-			snprintf(line, sizeof(line), "%s()", strings + f->s_name);
+			QC_snprintfz(line, sizeof(line), "%s()", strings + f->s_name);
 		break;
 	/*
 	case ev_field:
@@ -303,29 +291,29 @@ static char *PR_ValueString (etype_t type, void *val)
 		break;
 	*/
 	case ev_void:
-		snprintf(line, sizeof(line), "void");
+		QC_snprintfz(line, sizeof(line), "void");
 		break;
 	case ev_float:
 		{
 			unsigned int high = *(unsigned int*)val & 0xff000000;
 			if (high == 0xff000000 || !high)
 				//FIXME this is probably a string or something, but we don't really know what type it is.
-				snprintf(line, sizeof(line), "(float)(__variant)%ii", *(int*)val);
+				QC_snprintfz(line, sizeof(line), "(float)(__variant)%ii", *(int*)val);
 			else
-				snprintf(line, sizeof(line), "%5.1f", *(float *)val);
+				QC_snprintfz(line, sizeof(line), "%5.1f", *(float *)val);
 		}
 		break;
 	case ev_vector:
-		snprintf(line, sizeof(line), "'%5.1f %5.1f %5.1f'", ((float *)val)[0], ((float *)val)[1], ((float *)val)[2]);
+		QC_snprintfz(line, sizeof(line), "'%5.1f %5.1f %5.1f'", ((float *)val)[0], ((float *)val)[1], ((float *)val)[2]);
 		break;
 	case ev_pointer:
-		snprintf(line, sizeof(line), "pointer");
+		QC_snprintfz(line, sizeof(line), "pointer");
 		break;
 	case ev_field:
-		snprintf(line, sizeof(line), "<FIELD@%i>", *(int*)val);
+		QC_snprintfz(line, sizeof(line), "<FIELD@%i>", *(int*)val);
 		break;
 	default:
-		snprintf(line, sizeof(line), "bad type %i", type);
+		QC_snprintfz(line, sizeof(line), "bad type %i", type);
 		break;
 	}
 	
@@ -494,26 +482,6 @@ QCC_ddef_t *DecompileFindGlobal(const char *name);
 char *DecompilePrintParameter(QCC_ddef_t * def);
 QCC_ddef_t *DecompileFunctionGlobal(int funcnum);
 
-/*int findprogsinpak(char *fname, int h)
-{
-	dpackfile_t cpf;
-	dpackheader_t pfh;
-	int i;
-
-	lseek(h, 0, SEEK_SET);
-	SafeRead(h, &pfh, sizeof(pfh));
-	lseek(h, pfh.dirofs, SEEK_SET);
-	for (i = 0; i < pfh.dirlen / sizeof(sizeof(cpf)); i++)
-	{
-		SafeRead(h, &cpf, sizeof(cpf));
-		if (!strcmp(fname, cpf.name))
-			return cpf.filepos;
-	}
-
-	//no idea
-	return 0;
-}*/
-
 char *ReadProgsCopyright(char *buf, size_t bufsize)
 {
 	char *copyright, *e;
@@ -550,19 +518,11 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 	void *p;
 	char name[1024];
 	QCC_ddef_t *fd;
-	int fbase = 0;
 
 	int stsz = 16, defsz=16;
-	int quakeforge = false;
+//	int quakeforge = false;
 	
 	memcpy(&progs, buf, sizeof(progs));
-	/*if (progs.version == PAKHEADERVER)
-	{
-		fbase = findprogsinpak("progs.dat", h);
-
-		lseek(h, fbase, SEEK_SET);
-		SafeRead(h, &progs, sizeof(progs));
-	}*/
 
 	if (progs.version == PROG_VERSION)
 		stsz = defsz = 16;
@@ -588,7 +548,7 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 	else
 	{
 		stsz = defsz = 16;
-		quakeforge = true;
+//		quakeforge = true;
 	}
 
 	strings = buf + progs.ofs_strings;
@@ -717,7 +677,7 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 
 		for (i = 0; i < 8; i++)
 		{
-			snprintf(name, sizeof(name), ".param_%i", i);
+			QC_snprintfz(name, sizeof(name), ".param_%i", i);
 			fd = DecompileFindGlobal(name);
 			if (fd)
 			{
@@ -749,7 +709,7 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 				functions[i].s_name = fd->s_name;
 				continue;
 			}
-			snprintf(name, sizeof(name), "function%i", i);
+			QC_snprintfz(name, sizeof(name), "function%i", i);
 			name[strlen(name)] = 0;
 			p = malloc(strlen(name + 1));
 			strcpy(p, name);
@@ -811,28 +771,26 @@ void DecompileGetFieldNameIdxByFinalOffset2(char *out, size_t outsize, int ofs)
 	{
 		if (fields[i].ofs == ofs) 
 		{
-			snprintf(out, outsize, "%s", fields[i].s_name+strings);
+			QC_snprintfz(out, outsize, "%s", fields[i].s_name+strings);
 			return;
 		}
 		else if (fields[i].type == ev_vector && fields[i].ofs+1 == ofs)
 		{
-			snprintf(out, outsize, "%s_y", fields[i].s_name+strings);
+			QC_snprintfz(out, outsize, "%s_y", fields[i].s_name+strings);
 			return;
 		}
 		else if (fields[i].type == ev_vector && fields[i].ofs+2 == ofs)
 		{
-			snprintf(out, outsize, "%s_z", fields[i].s_name+strings);
+			QC_snprintfz(out, outsize, "%s_z", fields[i].s_name+strings);
 			return;
 		}
 	}
-	snprintf(out, outsize, "<FIELD@%i>", ofs);
+	QC_snprintfz(out, outsize, "<FIELD@%i>", ofs);
 }
 
 int 
 DecompileAlreadySeen(char *fname, vfile_t **rfile)
 {
-
-	int i;
 	int ret = 1;
 
 	vfile_t *file;
@@ -864,7 +822,7 @@ char *DecompileAgressiveType(dfunction_t *df, dstatement_t *last, gofs_t ofs)
 		return type_name(par);
 	}
 
-	if (ofs == ofs_return && (last->op >= OP_CALL0 && last->op <= OP_CALL8) || (last->op >= OP_CALL1H && last->op <= OP_CALL8H))
+	if (ofs == ofs_return && ((last->op >= OP_CALL0 && last->op <= OP_CALL8) || (last->op >= OP_CALL1H && last->op <= OP_CALL8H)))
 	{	//offset is a return value, go look at the called function's return type.
 		return DecompileReturnType(functions + ((int*)pr_globals)[last->a]);
 	}
@@ -941,7 +899,7 @@ char *DecompileReturnType(dfunction_t *df)
 				else
 				{
 					char buf[64];
-					snprintf(buf, sizeof(buf), "%f", pr_globals[ds->a]);
+					QC_snprintfz(buf, sizeof(buf), "%f", pr_globals[ds->a]);
 					if (strcmp(buf, "0.000000"))
 						couldbeastring = false;	//doesn't fit the profile
 				}
@@ -991,10 +949,10 @@ void DecompileCalcProfiles(void)
 		if (df->first_statement <= 0) 
 		{
 			if (-df->first_statement <= sizeof(builtins)/sizeof(builtins[0]) && builtins[-df->first_statement].text)
-				snprintf(fname, sizeof(fname), "%s %s", builtins[-df->first_statement].text, strings + functions[i].s_name);
+				QC_snprintfz(fname, sizeof(fname), "%s %s", builtins[-df->first_statement].text, strings + functions[i].s_name);
 			else
 			{
-				snprintf(fname, sizeof(fname), "__variant(...) %s", strings + functions[i].s_name, strings + functions[i].s_name);
+				QC_snprintfz(fname, sizeof(fname), "__variant(...) %s", strings + functions[i].s_name);
 				printf("warning: unknown builtin %s\n", strings + functions[i].s_name);
 			}
 		}
@@ -1031,9 +989,9 @@ void DecompileCalcProfiles(void)
 						//Error("Error - No parameter names with offset %i.", j);
 //						printf("No parameter names with offset %i\n", j);
 						if (j < (df->parm_start) + ps - 1)
-							snprintf(line, sizeof(line), "float par%i, ", j - df->parm_start);
+							QC_snprintfz(line, sizeof(line), "float par%i, ", j - df->parm_start);
 						else
-							snprintf(line, sizeof(line), "float par%i", j - df->parm_start);
+							QC_snprintfz(line, sizeof(line), "float par%i", j - df->parm_start);
 					}
 					else
 					{
@@ -1041,11 +999,11 @@ void DecompileCalcProfiles(void)
 							j += 2;
 						if (j < (df->parm_start) + ps - 1)
 						{
-							snprintf(line, sizeof(line), "%s, ", DecompilePrintParameter(par));
+							QC_snprintfz(line, sizeof(line), "%s, ", DecompilePrintParameter(par));
 						}
 						else
 						{
-							snprintf(line, sizeof(line), "%s", DecompilePrintParameter(par));
+							QC_snprintfz(line, sizeof(line), "%s", DecompilePrintParameter(par));
 						}
 					}
 					strcat(fname, line);
@@ -1053,7 +1011,7 @@ void DecompileCalcProfiles(void)
 			}
 			strcat(fname, ") ");
 			line[0] = '\0';
-			snprintf(line, sizeof(line), strings + functions[i].s_name);
+			QC_snprintfz(line, sizeof(line), strings + functions[i].s_name);
 			strcat(fname, line);
 
 		}
@@ -1150,13 +1108,12 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 	QCC_ddef_t *def;
 	static char line[8192];
 	char *res;
-	char found = 0;
 
 	line[0] = '\0';
 
 	/*if (req_t == &def_short)
 	{
-		snprintf(line, sizeof(line), "%ii", ofs);
+		QC_snprintfz(line, sizeof(line), "%ii", ofs);
 		res = (char *)malloc(strlen(line) + 1);
 		strcpy(res, line);
 		return res;
@@ -1178,7 +1135,7 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 				if (!ty)
 					ty = def->type;
 			}
-			snprintf(line, sizeof(line), "%s", DecompileValueString(ty, &pr_globals[def->ofs]));
+			QC_snprintfz(line, sizeof(line), "%s", DecompileValueString(ty, &pr_globals[def->ofs]));
 		}
 		else 
 		{
@@ -1191,28 +1148,28 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 					goto lookslikealocal;
 				else if ((parent = GlobalAtOffset(df, ofs-1)) && parent->type == ev_vector)
 				{	// _y
-					snprintf(line, sizeof(line), "%s_y", strings+parent->s_name);	//globals, which are defined after the locals of the function they are first used in...
+					QC_snprintfz(line, sizeof(line), "%s_y", strings+parent->s_name);	//globals, which are defined after the locals of the function they are first used in...
 					buf = malloc(strlen(line)+1);		//must be static variables, but we can't handle them very well
 					strcpy(buf, line);
 					def->s_name = buf - strings;
 				}
 				else if ((parent = GlobalAtOffset(df, ofs-2)) && parent->type == ev_vector)
 				{	// _z
-					snprintf(line, sizeof(line), "%s_z", strings+parent->s_name);	//globals, which are defined after the locals of the function they are first used in...
+					QC_snprintfz(line, sizeof(line), "%s_z", strings+parent->s_name);	//globals, which are defined after the locals of the function they are first used in...
 					buf = malloc(strlen(line)+1);		//must be static variables, but we can't handle them very well
 					strcpy(buf, line);
 					def->s_name = buf - strings;
 				}
 				else
 				{
-					snprintf(line, sizeof(line), "_sloc_%i", def->ofs);	//globals, which are defined after the locals of the function they are first used in...
+					QC_snprintfz(line, sizeof(line), "_sloc_%i", def->ofs);	//globals, which are defined after the locals of the function they are first used in...
 					buf = malloc(strlen(line)+1);		//must be static variables, but we can't handle them very well
 					strcpy(buf, line);
 					def->s_name = buf - strings;
 				}
 			}
 
-			snprintf(line, sizeof(line), "%s", strings + def->s_name);
+			QC_snprintfz(line, sizeof(line), "%s", strings + def->s_name);
 			if (def->type == ev_field && req_t == type_field && req_t->aux_type == type_float && DecompileGetFieldTypeByDef(def) == ev_vector)
 				strcat(line, "_x");
 			else if (def->type == ev_vector && req_t == type_float)
@@ -1227,18 +1184,17 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 
 	if (ofs >= df->parm_start && ofs < df->parm_start + df->locals)
 	{
-		static QCC_ddef_t parm[8];
 		int parmofs;
 lookslikealocal:
-		snprintf(line, sizeof(line), "local_%i", ofs);
+		QC_snprintfz(line, sizeof(line), "local_%i", ofs);
 		for (i = 0, parmofs = ofs - df->parm_start; i < df->numparms && i < 8; i++)
 		{
 			if (parmofs < df->parm_size[i])
 			{
 				if (parmofs)
-					snprintf(line, sizeof(line), "par%i_%c", i, 'x'+parmofs);
+					QC_snprintfz(line, sizeof(line), "par%i_%c", i, 'x'+parmofs);
 				else
-					snprintf(line, sizeof(line), "par%i", i);
+					QC_snprintfz(line, sizeof(line), "par%i", i);
 				break;
 			}
 			parmofs -= df->parm_size[i];
@@ -1255,7 +1211,7 @@ lookslikealocal:
 	{	//unknown globals are normally assumed to be temps
 		if (ofs >= ofs_parms[7]+ofs_size)
 		{
-			snprintf(line, sizeof(line), "tmp_%i", ofs);
+			QC_snprintfz(line, sizeof(line), "tmp_%i", ofs);
 			res = (char *)malloc(strlen(line) + 1);
 			strcpy(res, line);
 
@@ -1337,7 +1293,6 @@ void DecompileImmediate_Insert(dfunction_t *df, gofs_t ofs, char *knew, QCC_type
 
 char *DecompileImmediate_Get(dfunction_t *df, gofs_t ofs, QCC_type_t *req_t)
 {
-	int i;
 	char *res;
  
 	gofs_t nofs;
@@ -1376,11 +1331,11 @@ char *DecompileImmediate_Get(dfunction_t *df, gofs_t ofs, QCC_type_t *req_t)
 		case ev_void:	//for lack of any better ideas.
 		case ev_float:
 			if ((float)(int)pr_globals[ofs] == pr_globals[ofs])
-				snprintf(temp, sizeof(temp), "%i", (int)(pr_globals[ofs]));
+				QC_snprintfz(temp, sizeof(temp), "%i", (int)(pr_globals[ofs]));
 			else if ((*(int*)&pr_globals[ofs] & 0x7f800000) || !(*(int*)&pr_globals[ofs] & 0x7fffffff))
-				snprintf(temp, sizeof(temp), "%f", pr_globals[ofs]);
+				QC_snprintfz(temp, sizeof(temp), "%f", pr_globals[ofs]);
 			else
-				snprintf(temp, sizeof(temp), "%%%f", *(int*)&pr_globals[ofs]);
+				QC_snprintfz(temp, sizeof(temp), "%%%i", *(int*)&pr_globals[ofs]);
 			if (pr_globals[ofs] == 0 || ((int*)pr_globals)[ofs] < 0 || ((int*)pr_globals)[ofs] >= strofs || strcmp(temp, "0.000000"))
 				break;
 //				printf("Hey! That's not a float! error in %s\n", strings + df->s_name);
@@ -1392,14 +1347,14 @@ char *DecompileImmediate_Get(dfunction_t *df, gofs_t ofs, QCC_type_t *req_t)
 				if (((int*)pr_globals)[ofs] < 0 || ((int*)pr_globals)[ofs] > strofs)
 				{
 					printf("Hey! That's not a string! error in %s\n", strings + df->s_name);
-					snprintf(temp, sizeof(temp), "%f", pr_globals[ofs]);
+					QC_snprintfz(temp, sizeof(temp), "%f", pr_globals[ofs]);
 					break;
 				}
 				in = &strings[((int*)pr_globals)[ofs]];
 				out = temp;
 				if (req_t->type != ev_string)
 				{
-					snprintf(temp, sizeof(temp), "/*%i*/", ((int*)pr_globals)[ofs]);
+					QC_snprintfz(temp, sizeof(temp), "/*%i*/", ((int*)pr_globals)[ofs]);
 					out += strlen(out);
 				}
 
@@ -1468,42 +1423,42 @@ char *DecompileImmediate_Get(dfunction_t *df, gofs_t ofs, QCC_type_t *req_t)
 			}
 			break;
 		case ev_vector:
-			snprintf(temp, sizeof(temp), "\'%f %f %f\'", pr_globals[ofs],pr_globals[ofs+1],pr_globals[ofs+2]);
+			QC_snprintfz(temp, sizeof(temp), "\'%f %f %f\'", pr_globals[ofs],pr_globals[ofs+1],pr_globals[ofs+2]);
 			break;
 //		case ev_quat:
-//			snprintf(temp, sizeof(temp), "\'%f %f %f %f\'", pr_globals[ofs],pr_globals[ofs+1],pr_globals[ofs+2],pr_globals[ofs+3]);
+//			QC_snprintfz(temp, sizeof(temp), "\'%f %f %f %f\'", pr_globals[ofs],pr_globals[ofs+1],pr_globals[ofs+2],pr_globals[ofs+3]);
 //			break;
 		case ev_integer:
-			snprintf(temp, sizeof(temp), "%ii", ((int*)pr_globals)[ofs]);
+			QC_snprintfz(temp, sizeof(temp), "%ii", ((int*)pr_globals)[ofs]);
 			break;
 //		case ev_uinteger:
-//			snprintf(temp, sizeof(temp), "%uu", ((int*)pr_globals)[ofs]);
+//			QC_snprintfz(temp, sizeof(temp), "%uu", ((int*)pr_globals)[ofs]);
 //			break;
 		case ev_pointer:
-			snprintf(temp, sizeof(temp), "(__variant*)0x%xi", ((int*)pr_globals)[ofs]);
+			QC_snprintfz(temp, sizeof(temp), "(__variant*)0x%xi", ((int*)pr_globals)[ofs]);
 			break;
 		case ev_function:
 			if (!((int*)pr_globals)[ofs])
-				snprintf(temp, sizeof(temp), "__NULL__/*func*/");
+				QC_snprintfz(temp, sizeof(temp), "__NULL__/*func*/");
 			else if (((int*)pr_globals)[ofs] > 0 && ((int*)pr_globals)[ofs] < numfunctions && functions[((int*)pr_globals)[ofs]].s_name>0)
-				snprintf(temp, sizeof(temp), "%s/*immediate*/", strings+functions[((int*)pr_globals)[ofs]].s_name);
+				QC_snprintfz(temp, sizeof(temp), "%s/*immediate*/", strings+functions[((int*)pr_globals)[ofs]].s_name);
 			else
-				snprintf(temp, sizeof(temp), "((__variant(...))%i)", ((int*)pr_globals)[ofs]);
+				QC_snprintfz(temp, sizeof(temp), "((__variant(...))%i)", ((int*)pr_globals)[ofs]);
 			break;
 		case ev_entity:
 			if (!pr_globals[ofs])
-				snprintf(temp, sizeof(temp), "__NULL__/*entity*/");
+				QC_snprintfz(temp, sizeof(temp), "__NULL__/*entity*/");
 			else
-				snprintf(temp, sizeof(temp), "(entity)%i", ((int*)pr_globals)[ofs]);
+				QC_snprintfz(temp, sizeof(temp), "(entity)%i", ((int*)pr_globals)[ofs]);
 			break;
 		case ev_field:
 			if (!pr_globals[ofs])
-				snprintf(temp, sizeof(temp), "__NULL__/*field*/");
+				QC_snprintfz(temp, sizeof(temp), "__NULL__/*field*/");
 			else
-				snprintf(temp, sizeof(temp), "/*field %s*/%i", DecompileGetFieldNameIdxByFinalOffset(((int*)pr_globals)[ofs]), ((int*)pr_globals)[ofs]);
+				QC_snprintfz(temp, sizeof(temp), "/*field %s*/%i", DecompileGetFieldNameIdxByFinalOffset(((int*)pr_globals)[ofs]), ((int*)pr_globals)[ofs]);
 			break;
 		default:
-			snprintf(temp, sizeof(temp), "FIXME");
+			QC_snprintfz(temp, sizeof(temp), "FIXME");
 			break;
 		}
 
@@ -1522,7 +1477,7 @@ char *DecompileGet(dfunction_t *df, gofs_t ofs, QCC_type_t *req_t)
 	/*if (req_t == &def_short)
 	{
 		char temp[16];
-		snprintf(temp, sizeof(temp), "%i", ofs);
+		QC_snprintfz(temp, sizeof(temp), "%i", ofs);
 		return strdup(temp);
 	}*/
 	farg1 = NULL;
@@ -1569,9 +1524,9 @@ void DecompileOpcode(dfunction_t *df, int a, int b, int c, char *opcode, QCC_typ
 	else
 	{
 		if (usebrackets)
-			snprintf(line, sizeof(line), "(%s %s %s)", arg1, opcode, arg2);
+			QC_snprintfz(line, sizeof(line), "(%s %s %s)", arg1, opcode, arg2);
 		else
-			snprintf(line, sizeof(line), "%s%s%s", arg1, opcode, arg2);
+			QC_snprintfz(line, sizeof(line), "%s%s%s", arg1, opcode, arg2);
 		DecompileImmediate_Insert(df, c, line, typ3);
 	}
 }
@@ -1698,9 +1653,9 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		else
 		{
 			if (s->b)
-				snprintf(line, sizeof(line), "%s[%s]", arg1, arg2);
+				QC_snprintfz(line, sizeof(line), "%s[%s]", arg1, arg2);
 			else
-				snprintf(line, sizeof(line), "%s", arg1);
+				QC_snprintfz(line, sizeof(line), "%s", arg1);
 			DecompileImmediate_Insert(df, s->c, line, typ3);
 		}
 	}
@@ -1732,7 +1687,7 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		}
 		else
 		{
-			snprintf(line, sizeof(line), "%s[%s]", arg1, arg2);
+			QC_snprintfz(line, sizeof(line), "%s[%s]", arg1, arg2);
 			DecompileImmediate_Insert(df, s->c, line, typ3);
 		}
 	}
@@ -1823,7 +1778,7 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		}
 		else
 		{
-			snprintf(line, sizeof(line), "%s", arg1);
+			QC_snprintfz(line, sizeof(line), "%s", arg1);
 			DecompileImmediate_Insert(df, s->b, line, NULL);
 		}
 
@@ -1842,7 +1797,7 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 	{
 
 		arg1 = DecompileGet(df, s->a, typ1);
-		snprintf(line, sizeof(line), "(int)%s", arg1);
+		QC_snprintfz(line, sizeof(line), "(int)%s", arg1);
 		DecompileImmediate_Insert(df, s->c, line, type_integer);
 
 	}
@@ -1853,21 +1808,21 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 	else if (OP_RAND1 == s->op)
 	{
 		arg1 = DecompileGet(df, s->a, typ1);
-		snprintf(line, sizeof(line), "random(%s)", arg1);
+		QC_snprintfz(line, sizeof(line), "random(%s)", arg1);
 		DecompileImmediate_Insert(df, ofs_return, line, type_float);
 	}
 	else if (OP_RAND2 == s->op)
 	{
 		arg1 = DecompileGet(df, s->a, typ1);
 		arg2 = DecompileGet(df, s->b, typ2);
-		snprintf(line, sizeof(line), "random(%s, %s)", arg1, arg2);
+		QC_snprintfz(line, sizeof(line), "random(%s, %s)", arg1, arg2);
 		DecompileImmediate_Insert(df, ofs_return, line, type_float);
 	}
 	else if (OP_NOT_F <= s->op && s->op <= OP_NOT_FNC)
 	{
 
 		arg1 = DecompileGet(df, s->a, typ1);
-		snprintf(line, sizeof(line), "!%s", arg1);
+		QC_snprintfz(line, sizeof(line), "!%s", arg1);
 		DecompileImmediate_Insert(df, s->c, line, type_float);
 
 	}
@@ -1879,8 +1834,8 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 			nargs = s->op - OP_CALL0;
 
 		arg1 = DecompileGet(df, s->a, type_function);
-		snprintf(line, sizeof(line), "%s(", arg1);
-		snprintf(fnam, sizeof(fnam), "%s", arg1);
+		QC_snprintfz(line, sizeof(line), "%s(", arg1);
+		QC_snprintfz(fnam, sizeof(fnam), "%s", arg1);
 
 		for (i = 0; i < nargs; i++)
 		{
@@ -2262,44 +2217,44 @@ char *DecompileValueString(etype_t type, void *val)
 	switch (type)
 	{
 		case ev_string:
-			snprintf(line, sizeof(line), "%s", DecompileString(*(int *)val));
+			QC_snprintfz(line, sizeof(line), "%s", DecompileString(*(int *)val));
 			break;
 		case ev_void:
-			snprintf(line, sizeof(line), "void");
+			QC_snprintfz(line, sizeof(line), "void");
 			break;
 		case ev_float:
 			if (*(float *)val > 999999 || *(float *)val < -999999) // ugh
-				snprintf(line, sizeof(line), "%.f", *(float *)val);
+				QC_snprintfz(line, sizeof(line), "%.f", *(float *)val);
 			else if ((!(*(int*)val & 0x7f800000) || (*(int*)val & 0x7f800000)==0x7f800000) && (*(int*)val & 0x7fffffff))
-				snprintf(line, sizeof(line), "%%%i", *(int*)val);
+				QC_snprintfz(line, sizeof(line), "%%%i", *(int*)val);
 			else if ((*(float *)val < 0.001) && (*(float *)val > 0))
-				snprintf(line, sizeof(line), "%.6f", *(float *)val);
+				QC_snprintfz(line, sizeof(line), "%.6f", *(float *)val);
 			else			
-				snprintf(line, sizeof(line), "%g", *(float *)val);
+				QC_snprintfz(line, sizeof(line), "%g", *(float *)val);
 			break;
 		case ev_vector:
-			snprintf(line, sizeof(line), "'%g %g %g'", ((float *)val)[0], ((float *)val)[1], ((float *)val)[2]);
+			QC_snprintfz(line, sizeof(line), "'%g %g %g'", ((float *)val)[0], ((float *)val)[1], ((float *)val)[2]);
 			break;
 //		case ev_quat:
-//			snprintf(line, sizeof(line), "'%g %g %g %g'", ((float *)val)[0], ((float *)val)[1], ((float *)val)[2], ((float *)val)[3]);
+//			QC_snprintfz(line, sizeof(line), "'%g %g %g %g'", ((float *)val)[0], ((float *)val)[1], ((float *)val)[2], ((float *)val)[3]);
 //			break;
 		case ev_field:
 			DecompileGetFieldNameIdxByFinalOffset2(line, sizeof(line), *(int *)val);
 			break;
 		case ev_entity:
-			snprintf(line, sizeof(line), "(entity)%ii", *(int *)val);
+			QC_snprintfz(line, sizeof(line), "(entity)%ii", *(int *)val);
 			break;
 		case ev_integer:
-			snprintf(line, sizeof(line), "%ii", *(int *)val);
+			QC_snprintfz(line, sizeof(line), "%ii", *(int *)val);
 			break;
 //		case ev_uinteger:
-//			snprintf(line, sizeof(line), "%uu", *(int *)val);
+//			QC_snprintfz(line, sizeof(line), "%uu", *(int *)val);
 //			break;
 		case ev_pointer:
-			snprintf(line, sizeof(line), "(__variant*)0x%xi", *(int *)val);
+			QC_snprintfz(line, sizeof(line), "(__variant*)0x%xi", *(int *)val);
 			break;
 		default:
-			snprintf(line, sizeof(line), "bad type %i", type);
+			QC_snprintfz(line, sizeof(line), "bad type %i", type);
 			break;
 	}
 
@@ -2315,22 +2270,22 @@ char *DecompilePrintParameter(QCC_ddef_t * def)
 
 	if (debug_offs)
 	{
-		snprintf(debug, sizeof(debug), " /*@%i*/", def->ofs);
+		QC_snprintfz(debug, sizeof(debug), " /*@%i*/", def->ofs);
 	}
 	else
 		*debug = 0;
 
 	if (!strings[def->s_name])	//null string...
 	{
-		snprintf(line, sizeof(line), "%s _p_%i%s", type_name(def), def->ofs, debug);
+		QC_snprintfz(line, sizeof(line), "%s _p_%i%s", type_name(def), def->ofs, debug);
 	}
 	else if (!strcmp(strings + def->s_name, "IMMEDIATE") || !strcmp(strings + def->s_name, ".imm"))
 	{
-		snprintf(line, sizeof(line), "%s%s", DecompileValueString((etype_t)(def->type), &pr_globals[def->ofs]), debug);
+		QC_snprintfz(line, sizeof(line), "%s%s", DecompileValueString((etype_t)(def->type), &pr_globals[def->ofs]), debug);
 	}
 	else
 	{
-		snprintf(line, sizeof(line), "%s %s%s", type_name(def), strings + def->s_name, debug);
+		QC_snprintfz(line, sizeof(line), "%s %s%s", type_name(def), strings + def->s_name, debug);
 	}
 	return line;
 }
@@ -2589,7 +2544,7 @@ void DecompileFunction(const char *name, int *lastglobal)
 						{
 
 							line[0] = '\0';
-							snprintf(line, sizeof(line), "%s", DecompileValueString((etype_t)(par->type), &pr_globals[par->ofs]));
+							QC_snprintfz(line, sizeof(line), "%s", DecompileValueString((etype_t)(par->type), &pr_globals[par->ofs]));
 
 							if (IsConstant(par))
 							{
@@ -2786,7 +2741,7 @@ void DecompileFunction(const char *name, int *lastglobal)
 		{
 			if (!strings[par->s_name])
 			{
-				snprintf(line, sizeof(line), "_p_%i", par->ofs);
+				QC_snprintfz(line, sizeof(line), "_p_%i", par->ofs);
 				arg2 = malloc(strlen(line)+1);
 				strcpy(arg2, line);
 				par->s_name = arg2 - strings;
@@ -2823,7 +2778,7 @@ void DecompileFunction(const char *name, int *lastglobal)
 
 					if (!strings[par->s_name])
 					{
-						snprintf(line, sizeof(line), "_l_%i", par->ofs);
+						QC_snprintfz(line, sizeof(line), "_l_%i", par->ofs);
 						arg2 = malloc(strlen(line)+1);
 						strcpy(arg2, line);
 						par->s_name = arg2 - strings;
@@ -2876,7 +2831,7 @@ boolean TrySynthName(const char *first)
 	{
 		if (!strcmp(filenames[i], first))
 		{
-			snprintf(synth_name, sizeof(synth_name), filenames[i + 1]);
+			QC_snprintfz(synth_name, sizeof(synth_name), filenames[i + 1]);
 			return true;
 		}
 	}
@@ -2947,10 +2902,10 @@ void DecompileDecompileFunctions(const char *origcopyright)
 			{
 				synth_name[0] = 0;
 			}
-			if(!TrySynthName(va("%s", strings + d->s_name)) && !synth_name[0])
-				snprintf(synth_name, sizeof(synth_name), "frik%i.qc", fake_name++);
+			if(!TrySynthName(qcva("%s", strings + d->s_name)) && !synth_name[0])
+				QC_snprintfz(synth_name, sizeof(synth_name), "frik%i.qc", fake_name++);
 
-			snprintf(fname, sizeof(fname), synth_name);
+			QC_snprintfz(fname, sizeof(fname), synth_name);
 		}
 		else
 			synth_name[0] = 0;
@@ -3009,7 +2964,7 @@ char *DecompileGlobalStringNoContents(gofs_t ofs)
 	static char line[128];
 
 	line[0] = '0';
-	snprintf(line, sizeof(line), "%i(???)", ofs);
+	QC_snprintfz(line, sizeof(line), "%i(??""?)", ofs);
 
 	for (i = 0; i < numglobaldefs; i++)
 	{
@@ -3018,7 +2973,7 @@ char *DecompileGlobalStringNoContents(gofs_t ofs)
 		if (def->ofs == ofs)
 		{
 			line[0] = '0';
-			snprintf(line, sizeof(line), "%i(%s)", def->ofs, strings + def->s_name);
+			QC_snprintfz(line, sizeof(line), "%i(%s)", def->ofs, strings + def->s_name);
 			break;
 		}
 	}
@@ -3039,7 +2994,7 @@ char *DecompileGlobalString(gofs_t ofs)
 	static char line[128];
 
 	line[0] = '0';
-	snprintf(line, sizeof(line), "%i(???)", ofs);
+	QC_snprintfz(line, sizeof(line), "%i(??""?)", ofs);
 
 	for (i = 0; i < numglobaldefs; i++)
 	{
@@ -3052,10 +3007,10 @@ char *DecompileGlobalString(gofs_t ofs)
 			if (!strcmp(strings + def->s_name, "IMMEDIATE") || !strcmp(strings + def->s_name, ".imm"))
 			{
 				s = PR_ValueString((etype_t)(def->type), &pr_globals[ofs]);
-				snprintf(line, sizeof(line), "%i(%s)", def->ofs, s);
+				QC_snprintfz(line, sizeof(line), "%i(%s)", def->ofs, s);
 			}
 			else
-				snprintf(line, sizeof(line), "%i(%s)", def->ofs, strings + def->s_name);
+				QC_snprintfz(line, sizeof(line), "%i(%s)", def->ofs, strings + def->s_name);
 		}
 	}
 

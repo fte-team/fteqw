@@ -1588,6 +1588,8 @@ void QCC_PR_LexString (void)
 						c = '\n';
 					else if (c == 'r')
 						c = '\r';
+					else if (c == '#')	//avoid preqcc expansion in strings.
+						c = '#';
 					else if (c == '"')
 						c = '"';
 					else if (c == 't')

@@ -293,7 +293,7 @@ extern D3D_FEATURE_LEVEL d3dfeaturelevel;
 #define VERTEXSTREAMSIZE (1024*1024*2)	//2mb = 1 PAE jumbo page
 
 #define DYNVBUFFSIZE 65536
-#define DYNIBUFFSIZE 65536
+#define DYNIBUFFSIZE 65536*3
 
 static vecV_t tmpbuf[65536];	//max verts per mesh
 
@@ -2605,7 +2605,7 @@ void D3D11BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopba
 
 void D3D11BE_GenBrushModelVBO(model_t *mod)
 {
-	unsigned int vcount;
+	unsigned int vcount, cvcount;
 
 
 	batch_t *batch, *fbatch;
@@ -2621,16 +2621,17 @@ void D3D11BE_GenBrushModelVBO(model_t *mod)
 
 		for (fbatch = batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
 		{
+			for (i = 0, cvcount = 0; i < batch->maxmeshes; i++)
+				cvcount += batch->mesh[i]->numvertexes;
+
 			//firstmesh got reused as the number of verticies in each batch
-			if (vcount + batch->firstmesh > MAX_INDICIES)
+			if (vcount + cvcount > MAX_INDICIES)
 			{
 				D3D11BE_GenBatchVBOs(&mod->vbos, fbatch, batch);
 				fbatch = batch;
 				vcount = 0;
 			}
-
-			for (i = 0; i < batch->maxmeshes; i++)
-				vcount += batch->mesh[i]->numvertexes;
+			vcount += cvcount;
 		}
 
 		D3D11BE_GenBatchVBOs(&mod->vbos, fbatch, batch);

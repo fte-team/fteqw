@@ -565,7 +565,7 @@ void VARGS Stats_Message(char *msg, ...)
 	p->time_start = cl.time;
 }
 
-#define MAX_CPRINT_LINES 256
+#define MAX_CPRINT_LINES 512
 void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 {
 	int				l;
@@ -688,15 +688,11 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 		if (y >= bottom)
 			break;
 		if (p->flags & CPRINT_RALIGN)
-		{
 			x = right - Font_LineWidth(line_start[l], line_end[l]);
-		}
 		else if (p->flags & CPRINT_LALIGN)
 			x = left;
 		else
-		{
 			x = left + (right - left - Font_LineWidth(line_start[l], line_end[l]))/2;
-		}
 
 		remaining -= line_end[l]-line_start[l];
 		if (remaining <= 0)

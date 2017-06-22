@@ -265,14 +265,14 @@ static char *svc_nqstrings[] =
 	"NEW PROTOCOL(75)",	//75
 	"NEW PROTOCOL(76)",	//76
 	"NEW PROTOCOL(77)",	//77
-	"NEW PROTOCOL(78)",	//78
-	"NEW PROTOCOL(79)",	//79
+	"nqsvcfte_updatestatstring(78)",	//78
+	"nqsvcfte_updatestatfloat(79)",	//79
 	"NEW PROTOCOL(80)",	//80
 	"NEW PROTOCOL(81)",	//81
 	"NEW PROTOCOL(82)",	//82
 	"nqsvcfte_cgamepacket(83)",	//83
 	"nqsvcfte_voicechat",	//84
-	"NEW PROTOCOL(85)",	//85
+	"nqsvcfte_setangledelta(85)",	//85
 	"nqsvcfte_updateentities",	//86
 	"NEW PROTOCOL(87)",	//87
 	"NEW PROTOCOL(88)"	//88

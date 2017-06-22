@@ -5822,9 +5822,8 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	int def;
 
 	Cbuf_Execute ();	//make sure any pending console commands are done with. mostly, anyway...
-	SCR_ShowPic_ClearAll(true);
-
-	Cbuf_AddText("unbindall\n", RESTRICT_LOCAL);
+	
+	Cbuf_AddText("unbindall\nshowpic_removeall\n", RESTRICT_LOCAL);
 	Cbuf_AddText("bind volup \"inc volume 0.1\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("bind voldown \"inc volume -0.1\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("alias restart_ents \"changelevel . .\"\n",RESTRICT_LOCAL);

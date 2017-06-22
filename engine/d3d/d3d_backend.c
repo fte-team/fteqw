@@ -226,8 +226,8 @@ typedef struct
 	byte_vec4_t colorsb;
 } vbovdata_t;
 
-#define DYNVBUFFSIZE 65536
-#define DYNIBUFFSIZE 65536
+#define DYNVBUFFSIZE 65536*8
+#define DYNIBUFFSIZE 65536*24
 
 static d3dbackend_t shaderstate;
 
@@ -698,7 +698,7 @@ static unsigned int allocindexbuffer(void **dest, unsigned int entries)
 	unsigned int bytes = entries*sizeof(index_t);
 	unsigned int offset;
 
-	if (shaderstate.dynidx_offs + bytes > DYNIBUFFSIZE)
+	if (shaderstate.dynidx_offs + bytes > shaderstate.dynidx_size)
 	{
 		offset = 0;
 		shaderstate.dynidx_offs = 0;
@@ -2487,6 +2487,9 @@ static void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *
 			maxvboverts += m->numvertexes;
 		}
 	}
+	if (maxvboverts > MAX_INDICIES)
+		Sys_Error("Building a vbo with too many verticies\n");
+
 
 	IDirect3DDevice9_CreateIndexBuffer(pD3DDev9, sizeof(index_t) * maxvboelements, 0, D3DFMT_QINDEX, D3DPOOL_MANAGED, &ebuff, NULL);
 	IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, sizeof(*vbovdata) * maxvboverts, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &vbuff, NULL);
@@ -2556,7 +2559,7 @@ static void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *
 
 void D3D9BE_GenBrushModelVBO(model_t *mod)
 {
-	unsigned int vcount;
+	unsigned int vcount, cvcount;
 
 
 	batch_t *batch, *fbatch;
@@ -2572,16 +2575,18 @@ void D3D9BE_GenBrushModelVBO(model_t *mod)
 
 		for (fbatch = batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
 		{
+			for (i = 0, cvcount = 0; i < batch->maxmeshes; i++)
+				cvcount += batch->mesh[i]->numvertexes;
+
 			//firstmesh got reused as the number of verticies in each batch
-			if (vcount + batch->firstmesh > MAX_INDICIES)
+			if (vcount + cvcount > MAX_INDICIES)
 			{
 				D3D9BE_GenBatchVBOs(&mod->vbos, fbatch, batch);
 				fbatch = batch;
 				vcount = 0;
 			}
 
-			for (i = 0; i < batch->maxmeshes; i++)
-				vcount += batch->mesh[i]->numvertexes;
+			vcount += cvcount;
 		}
 
 		D3D9BE_GenBatchVBOs(&mod->vbos, fbatch, batch);

@@ -153,7 +153,7 @@ static void Mod_BatchList_f(void)
 						if (batch->lmlightstyle[0] != 255)
 						Con_Printf("  %s lm=(%i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->maxmeshes);
 					else
-						Con_Printf("  %s lm=%i surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->maxmeshes);
+						Con_Printf("  %s lm=%i surfs=%u verts=%i indexes=%i\n", batch->texture->shader->name, batch->lightmap[0], batch->maxmeshes, batch->vbo->vertcount, batch->vbo->indexcount);
 					count++;
 				}
 			}
@@ -2662,13 +2662,13 @@ static int Mod_Batches_Generate(model_t *mod)
 					lbatch->shader == shader &&
 					lbatch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
 					Vector4Compare(plane, lbatch->plane) &&
-					lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES) &&
+					lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
 #if MAXRLIGHTMAPS > 1
 					lbatch->lightmap[1] == lmmerge(surf->lightmaptexturenums[1]) &&
 					lbatch->lightmap[2] == lmmerge(surf->lightmaptexturenums[2]) &&
 					lbatch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
 #endif
-					lbatch->fog == surf->fog)
+					lbatch->fog == surf->fog))
 			batch = lbatch;
 		else
 		{

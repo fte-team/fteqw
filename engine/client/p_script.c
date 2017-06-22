@@ -4582,7 +4582,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 
 	while(ptype)
 	{
-		if (r_part_contentswitch.ival && (ptype->flags & (PT_TRUNDERWATER | PT_TROVERWATER)) && cl.worldmodel)
+		if (r_part_contentswitch.ival && (ptype->flags & (PT_TRUNDERWATER | PT_TROVERWATER)) && cl.worldmodel && cl.worldmodel->loadstate==MLS_LOADED)
 		{
 			int cont;
 			cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, org);

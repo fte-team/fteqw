@@ -447,7 +447,7 @@ void SV_CalcPHS (void)
 	int		i, j, k, l, index, num;
 	int		bitbyte;
 	unsigned	*dest, *src;
-	qbyte	*scan, pvs;
+	qbyte	*scan, *pvs;
 	int		count, vcount;
 	model_t *model = sv.world.worldmodel;
 	pvsbuffer_t buf;

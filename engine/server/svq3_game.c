@@ -2371,7 +2371,6 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	// check for SVF_PORTAL entities first
 		for( i=0 ; i<numq3entities ; i++)
 		{
-			qbyte *merge;
 			ent = GENTITY_FOR_NUM(i);
 
 			if(ent == clent )
@@ -2384,7 +2383,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 			// merge PVS if portal
 			portalarea = CM_PointLeafnum(sv.world.worldmodel, ent->s.origin2);
 			//merge pvs bits so we can see other ents through it
-			merge = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, CM_LeafCluster(sv.world.worldmodel, portalarea), &pvsbuffer, PVM_MERGE);
+			sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, CM_LeafCluster(sv.world.worldmodel, portalarea), &pvsbuffer, PVM_MERGE);
 			//and merge areas, so we can see the world too (client will calc its own pvs)
 			portalarea = CM_LeafArea(sv.world.worldmodel, portalarea);
 			CM_WriteAreaBits(sv.world.worldmodel, snap->areabits, portalarea, true);

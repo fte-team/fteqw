@@ -2801,7 +2801,7 @@ void CL_QTVPlay_f (void)
 	char *host;
 	char msg[4096];
 	int msglen=0;
-	char *password;
+//	char *password;
 
 	if (Cmd_Argc() < 2)
 	{
@@ -2843,7 +2843,7 @@ void CL_QTVPlay_f (void)
 	else
 		host = NULL;
 
-	password = Cmd_Argv(2);
+//	password = Cmd_Argv(2);
 
 	if (qtvcl_forceversion1.ival)
 	{

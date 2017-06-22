@@ -3101,7 +3101,7 @@ static void CLQW_ParseServerData (void)
 	}
 	else if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
 	{
-		qboolean spec = false;
+//		qboolean spec = false;
 		cl.allocated_client_slots = MSG_ReadByte();
 		if (cl.allocated_client_slots > MAX_CLIENTS)
 		{
@@ -3113,7 +3113,7 @@ static void CLQW_ParseServerData (void)
 		cl.splitclients = MSG_ReadByte();
 		if (cl.splitclients & 128)
 		{
-			spec = true;
+//			spec = true;
 			cl.splitclients &= ~128;
 		}
 		if (cl.splitclients > MAX_SPLITS)

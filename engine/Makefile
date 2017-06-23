@@ -162,7 +162,8 @@ JAVATOOL=$(JAVA_HOME)/bin/
 ANDROID_SCRIPT=android
 
 ifeq ($(DROID_ARCH),)
-	DROID_ARCH=arm
+	#armeabi armeabi-v7a arm64-v8a x86 x86_64 mips mips64
+	DROID_ARCH=x86 armeabi-v7a
 endif
 ifeq ($(FTE_TARGET),droid)
 	#figure out the host system, required to find a usable compiler
@@ -177,30 +178,66 @@ ifeq ($(FTE_TARGET),droid)
 		ANDROID_HOSTSYSTEM?=linux-$(shell uname -m)
 	endif
 
-	#ask the android ndk which compiler version strings we should be using
-	ANDROID_TOOLCHAINNAME:=$(shell ANDROID_NDK_ROOT=$(ANDROID_NDK_ROOT) . $(ANDROID_NDK_ROOT)/build/tools/dev-defaults.sh && get_default_toolchain_name_for_arch $(DROID_ARCH))
-	ANDROID_TOOLCHAINPREFIX:=$(shell ANDROID_NDK_ROOT=$(ANDROID_NDK_ROOT) . $(ANDROID_NDK_ROOT)/build/tools/dev-defaults.sh && get_default_toolchain_prefix_for_arch $(DROID_ARCH))
-	TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/$(ANDROID_TOOLCHAINNAME)/prebuilt/$(ANDROID_HOSTSYSTEM)/bin/
-	TOOLCHAIN:=$(TOOLCHAINPATH)$(ANDROID_TOOLCHAINPREFIX)-
+	#omfg why the FUCK do we need all this bullshit? Why isn't there some sane way to do this that actually works regardless of ndk updates?!?
+	#name is some random subdir that someone at google arbitrarily picked
+	#arch is some random other name for a group of ABIs...
+	#prefix is the 'standard' tupple that the toolchain was compiled to target (by default)
+	#ver is whatever gcc version it is, or clang. so yeah, pretty much random.
+	#cflags is whatever is needed to actually target that abi properly with the specific toolchain... -m64 etc.
+	DROID_ABI_NAME___armeabi=arm-linux-androideabi
+	DROID_ABI_PREFIX_armeabi=arm-linux-androideabi
+	DROID_ABI_ARCH___armeabi=arm
+	DROID_ABI_VER____armeabi=4.6
+	DROID_ABI_CFLAGS_armeabi=-march=armv5te -mtune=xscale -msoft-float
+	DROID_ABI_NAME___armeabi-v7a=$(DROID_ABI_NAME___armeabi)
+	DROID_ABI_PREFIX_armeabi-v7a=$(DROID_ABI_PREFIX_armeabi)
+	DROID_ABI_ARCH___armeabi-v7a=$(DROID_ABI_ARCH___armeabi)
+	DROID_ABI_VER____armeabi-v7a=$(DROID_ABI_VER____armeabi)
+	DROID_ABI_CFLAGS_armeabi-v7a=-march=armv7-a -mfloat-abi=softfp -mfpu=vfpv3-d16
+	DROID_ABI_NAME___arm64-v8a=$(DROID_ABI_NAME___armeabi)
+	DROID_ABI_PREFIX_arm64-v8a=$(DROID_ABI_PREFIX_armeabi)
+	DROID_ABI_ARCH___arm64-v8a=$(DROID_ABI_ARCH___armeabi)
+	DROID_ABI_VER____arm64-v8a=$(DROID_ABI_VER____armeabi)
+	DROID_ABI_CFLAGS_arm64-v8a=-m64
+	DROID_ABI_NAME___x86=x86
+	DROID_ABI_PREFIX_x86=i686-linux-android
+	DROID_ABI_ARCH___x86=x86
+	DROID_ABI_VER____x86=4.6
+	DROID_ABI_CFLAGS_x86=-march=i686 -mssse3 -mfpmath=sse -m32 -Os
+	DROID_ABI_NAME___x86_64=$(DROID_ABI_NAME___x86)
+	DROID_ABI_PREFIX_x86_64=$(DROID_ABI_PREFIX_x86)
+	DROID_ABI_ARCH___x86_64=$(DROID_ABI_ARCH___x86)
+	DROID_ABI_VER____x86_64=$(DROID_ABI_VER____x86)
+	DROID_ABI_CFLAGS_x86_64=-march=x86-64 -msse4.2 -mpopcnt -m64 -Os
+	#DROID_ABI_NAME___mips=mipsel-linux-android
+	#DROID_ABI_PREFIX_mips=mipsel-linux-android
+	#DROID_ABI_ARCH___mips=mips
+	#DROID_ABI_VER____mips=4.6
+	#DROID_ABI_CFLAGS_mips=
+	#DROID_ABI_NAME___mips64=$(DROID_ABI_NAME___mips)
+	#DROID_ABI_PREFIX_mips64=$(DROID_ABI_PREFIX_mips)
+	#DROID_ABI_ARCH___mips64=$(DROID_ABI_ARCH___mips)
+	#DROID_ABI_VER____mips64=$(DROID_ABI_VER____mips)
+	#DROID_ABI_CFLAGS_mips64=-m64
+
+	#try and make sense of the above nonsense.
+	DROID_ABI:=$(DROID_ABI_CFLAGS_$(DROID_ARCH))
+	TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/$(DROID_ABI_NAME___$(DROID_ARCH))-$(DROID_ABI_VER____$(DROID_ARCH))/prebuilt/$(ANDROID_HOSTSYSTEM)/bin/
+	TOOLCHAIN:=$(TOOLCHAINPATH)$(DROID_ABI_PREFIX_$(DROID_ARCH))-
 
 	#4 is the min that fte requires
 	DROID_API_LEVEL?=4
 	DROID_API_NAME?=android-$(DROID_API_LEVEL)
 
-	DROID_PLAT_INC=arch-$(DROID_ARCH)
+	DROID_PLAT_INC=arch-$(DROID_ABI_ARCH___$(DROID_ARCH))
 	ifeq ($(DROID_ARCH),x86)
 		#google fecked up. anything before api_level 9 will fail to compile on x86
 		DROID_API_LEVEL=9
-	else
-		#there are 3 ABI targets
-		#armv5 (works on all arm droids)
-		#armv7 (more common on 2.2+ droids)
-		#armv7+neon
-		DROID_ABI?=-mfloat-abi=softfp
 	endif
 	DROIDSYSROOT=$(realpath $(ANDROID_NDK_ROOT)/platforms/$(DROID_API_NAME)/$(DROID_PLAT_INC))
 	ifeq ($(DROIDSYSROOT),)	#its possible that google removed whatever api we're trying to target, just switch up to the new default.
-		DROID_API_NAME:=$(shell ANDROID_NDK_ROOT=$(ANDROID_NDK_ROOT) . $(ANDROID_NDK_ROOT)/build/tools/dev-defaults.sh && echo -n $$DEFAULT_PLATFORM)
+		DROID_API_LEVEL=9
+		DROID_API_NAME?=android-$(DROID_API_LEVEL)
 		BITCHANDMOAN:=$(shell echo targetting \"$(DROID_API_NAME)\" instead of \"android-$(DROID_API_LEVEL)\" 1>&2)
 	endif
 	DROIDSYSROOT:=$(DROIDSYSROOT)
@@ -218,14 +255,16 @@ ifeq ($(FTE_TARGET),droid)
 		#make can't cope with absolute win32 paths in dependancy files
 		DEPCC=
 
-		#configure hates android, with its broken default sysroot and lack of path etc
-		DROIDSYSROOT:=$(shell cygpath -m $(DROIDSYSROOT))
-		TOOLOVERRIDES=PATH="/usr/bin:$(shell cygpath -u $(realpath $(TOOLCHAINPATH)))" CFLAGS=--sysroot="$(DROIDSYSROOT)" CPPFLAGS=--sysroot="$(DROIDSYSROOT)" 
-		CONFIGARGS= --with-sysroot="$(shell cygpath -u $(realpath $(ANDROID_NDK_ROOT)/platforms/$(DROID_API_NAME)/$(DROID_PLAT_INC)))" 
+		ifneq ($(realpath $(TOOLCHAINPATH)),)	#don't invoke cygpath when realpath returns nothing due to dodgy paths (which happens when stuff isn't set up right for the top-level makefile)
+			#configure hates android, with its broken default sysroot and lack of path etc
+			DROIDSYSROOT:=$(shell cygpath -m $(DROIDSYSROOT))
+			TOOLOVERRIDES=PATH="/usr/bin:$(shell cygpath -u $(realpath $(TOOLCHAINPATH)))" CFLAGS=--sysroot="$(DROIDSYSROOT)" CPPFLAGS=--sysroot="$(DROIDSYSROOT)" 
+			CONFIGARGS= --with-sysroot="$(shell cygpath -u $(realpath $(ANDROID_NDK_ROOT)/platforms/$(DROID_API_NAME)/$(DROID_PLAT_INC)))" 
+		endif
 	endif
 
 	CC:=$(TOOLCHAIN)gcc --sysroot="$(DROIDSYSROOT)" -DANDROID $(DROID_ABI) -fno-strict-aliasing
-	DO_LD=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS) -llog -lc -lz -lm
+	DO_LD=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS) -llog -lc -lm -lz
 	LD:=$(TOOLCHAIN)ld
 	AR:=$(TOOLCHAIN)ar
 	STRIP=$(TOOLCHAIN)strip
@@ -1433,7 +1472,7 @@ ifeq ($(FTE_TARGET),cyg)
 endif
 
 ifeq ($(FTE_TARGET),droid)
-	BASELDFLAGS=
+	BASELDFLAGS=-lz
 
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 	SV_LDFLAGS=

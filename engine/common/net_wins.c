@@ -7416,7 +7416,7 @@ cvar_t sv_port_natpmp = CVARCD("sv_port_natpmp", NATPMP_DEFAULT_PORT, SV_Port_Na
 #ifdef FTE_TARGET_WEB
 void QDECL SV_PortRTC_Callback(struct cvar_s *var, char *oldvalue)
 {
-	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_WEBSOCKET, NP_DTLS, true);
+	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_WEBSOCKET, NP_DTLS);
 }
 cvar_t  sv_port_rtc = CVARCD("sv_port_rtc", "/", SV_PortRTC_Callback, "This specifies the broker url to use to obtain clients from. If the hostname is ommitted, it'll come from the manifest. If omitted, the broker service will randomize the resource part, so be sure to tell your friends the path reported by eg status rather than just this cvar value. Or just set it to 'rtc:///example' and tell clients to connect to the same sservevalue.");
 #endif

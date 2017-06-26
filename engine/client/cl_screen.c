@@ -2289,11 +2289,11 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer,
 	}
 	else
 #endif
-	/*	if (!Q_strcasecmp(ext, "bmp"))
+		if (!Q_strcasecmp(ext, "bmp"))
 	{
-		return WriteBMPFile(pcxname, buffer[0], width, height);
+		return WriteBMPFile(filename, fsroot, buffer[0], bytestride, width, height, fmt);
 	}
-	else*/
+	else
 		if (!Q_strcasecmp(ext, "pcx"))
 	{
 		int y, x, s;

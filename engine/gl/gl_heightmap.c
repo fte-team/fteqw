@@ -5736,78 +5736,84 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 			{
 				i = 0;
 				br = hm->wbrushes;
-				for (numverts = 0, numindicies = 0; i < hm->numbrushes; i++, br++)
+				for (;i < hm->numbrushes;)
 				{
-					//if a single batch has too many verts, cut it off before it overflows our maximum batch size, and hope we don't get a really really complex brush.
-					if (numverts > 0xf000 || numindicies > 0xf000)
-						break;
-
-					for (j = 0; j < br->numplanes; j++)
+					for (numverts = 0, numindicies = 0; i < hm->numbrushes; i++, br++)
 					{
-						if (br->faces[j].tex == bt && !br->selected && br->faces[j].lightmap == lmnum)
+						//if a single batch has too many verts, cut it off before it overflows our maximum batch size, and hope we don't get a really really complex brush.
+						if (numverts > 0xf000 || numindicies > 0xf000)
+							break;
+
+						for (j = 0; j < br->numplanes; j++)
 						{
-							size_t k, o;
-							float s,t;
-
-							for (k = 0, o = numverts; k < br->faces[j].numpoints; k++, o++)
+							if (br->faces[j].tex == bt && !br->selected && br->faces[j].lightmap == lmnum)
 							{
-								VectorCopy(br->faces[j].points[k], arrays->coord[o]);
-								VectorCopy(br->planes[j], arrays->normal[o]);
-								VectorCopy(br->faces[j].stdir[0], arrays->svector[o]);
-								VectorCopy(br->faces[j].stdir[1], arrays->tvector[o]);
+								size_t k, o;
+								float s,t;
 
-								//compute the texcoord planes
-								s = (DotProduct(arrays->svector[o], arrays->coord[o]) + br->faces[j].stdir[0][3]);
-								t = (DotProduct(arrays->tvector[o], arrays->coord[o]) + br->faces[j].stdir[1][3]);
-								arrays->texcoord[o][0] = s * scale[0];
-								arrays->texcoord[o][1] = t * scale[1];
+								for (k = 0, o = numverts; k < br->faces[j].numpoints; k++, o++)
+								{
+									VectorCopy(br->faces[j].points[k], arrays->coord[o]);
+									VectorCopy(br->planes[j], arrays->normal[o]);
+									VectorCopy(br->faces[j].stdir[0], arrays->svector[o]);
+									VectorCopy(br->faces[j].stdir[1], arrays->tvector[o]);
 
-								//maths, maths, and more maths.
-								arrays->lmcoord[o][0] = (br->faces[j].lmbase[0]+0.5 + s/br->faces[j].lmscale-br->faces[j].lmbias[0]) * hm->brushlmscale;
-								arrays->lmcoord[o][1] = (br->faces[j].lmbase[1]+0.5 + t/br->faces[j].lmscale-br->faces[j].lmbias[1]) * hm->brushlmscale;
+									//compute the texcoord planes
+									s = (DotProduct(arrays->svector[o], arrays->coord[o]) + br->faces[j].stdir[0][3]);
+									t = (DotProduct(arrays->tvector[o], arrays->coord[o]) + br->faces[j].stdir[1][3]);
+									arrays->texcoord[o][0] = s * scale[0];
+									arrays->texcoord[o][1] = t * scale[1];
+
+									//maths, maths, and more maths.
+									arrays->lmcoord[o][0] = (br->faces[j].lmbase[0]+0.5 + s/br->faces[j].lmscale-br->faces[j].lmbias[0]) * hm->brushlmscale;
+									arrays->lmcoord[o][1] = (br->faces[j].lmbase[1]+0.5 + t/br->faces[j].lmscale-br->faces[j].lmbias[1]) * hm->brushlmscale;
+								}
+								for (k = 2; k < br->faces[j].numpoints; k++)
+								{	//triangle fans
+									arrays->index[numindicies++] = numverts + 0;
+									arrays->index[numindicies++] = numverts + k-1;
+									arrays->index[numindicies++] = numverts + k-0;
+								}
+								numverts += br->faces[j].numpoints;
 							}
-							for (k = 2; k < br->faces[j].numpoints; k++)
-							{	//triangle fans
-								arrays->index[numindicies++] = numverts + 0;
-								arrays->index[numindicies++] = numverts + k-1;
-								arrays->index[numindicies++] = numverts + k-0;
-							}
-							numverts += br->faces[j].numpoints;
 						}
 					}
-				}
 
-				if (numverts || numindicies)
-				{
-					bb = Z_Malloc(sizeof(*bb) + (sizeof(bb->mesh.xyz_array[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])) * numverts);
-					bb->next = bt->batches;
-					bt->batches = bb;
-					bb->lightmap = lmnum;
-					BE_VBO_Begin(&ctx, (sizeof(arrays->coord[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])) * numverts);
-					BE_VBO_Data(&ctx, arrays->coord,	sizeof(arrays->coord	[0])*numverts,		&bb->vbo.coord);
-					BE_VBO_Data(&ctx, arrays->texcoord, sizeof(arrays->texcoord	[0])*numverts,		&bb->vbo.texcoord);
-					BE_VBO_Data(&ctx, arrays->lmcoord,	sizeof(arrays->lmcoord	[0])*numverts,		&bb->vbo.lmcoord[0]);
-					BE_VBO_Data(&ctx, arrays->normal,	sizeof(arrays->normal	[0])*numverts,		&bb->vbo.normals);
-					BE_VBO_Data(&ctx, arrays->svector,	sizeof(arrays->svector	[0])*numverts,		&bb->vbo.svector);
-					BE_VBO_Data(&ctx, arrays->tvector,	sizeof(arrays->tvector	[0])*numverts,		&bb->vbo.tvector);
-					BE_VBO_Finish(&ctx, arrays->index,	sizeof(arrays->index	[0])*numindicies,	&bb->vbo.indicies, &bb->vbo.vbomem, &bb->vbo.ebomem);
+					if (numverts || numindicies)
+					{
+						bb = Z_Malloc(sizeof(*bb) + (sizeof(bb->mesh.xyz_array[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])) * numverts);
+						bb->next = bt->batches;
+						bt->batches = bb;
+						bb->lightmap = lmnum;
+						BE_VBO_Begin(&ctx, (sizeof(arrays->coord[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])) * numverts);
+						BE_VBO_Data(&ctx, arrays->coord,	sizeof(arrays->coord	[0])*numverts,		&bb->vbo.coord);
+						BE_VBO_Data(&ctx, arrays->texcoord, sizeof(arrays->texcoord	[0])*numverts,		&bb->vbo.texcoord);
+						BE_VBO_Data(&ctx, arrays->lmcoord,	sizeof(arrays->lmcoord	[0])*numverts,		&bb->vbo.lmcoord[0]);
+						BE_VBO_Data(&ctx, arrays->normal,	sizeof(arrays->normal	[0])*numverts,		&bb->vbo.normals);
+						BE_VBO_Data(&ctx, arrays->svector,	sizeof(arrays->svector	[0])*numverts,		&bb->vbo.svector);
+						BE_VBO_Data(&ctx, arrays->tvector,	sizeof(arrays->tvector	[0])*numverts,		&bb->vbo.tvector);
+						BE_VBO_Finish(&ctx, arrays->index,	sizeof(arrays->index	[0])*numindicies,	&bb->vbo.indicies, &bb->vbo.vbomem, &bb->vbo.ebomem);
 
-					bb->mesh.xyz_array = (vecV_t*)(bb+1);
-					memcpy(bb->mesh.xyz_array, arrays->coord, sizeof(*bb->mesh.xyz_array) * numverts);
-					bb->mesh.st_array = (vec2_t*)(bb->mesh.xyz_array+numverts);
-					memcpy(bb->mesh.st_array, arrays->texcoord, sizeof(*bb->mesh.st_array) * numverts);
-					bb->mesh.lmst_array[0] = (vec2_t*)(bb->mesh.st_array+numverts);
-					memcpy(bb->mesh.lmst_array[0], arrays->lmcoord, sizeof(*bb->mesh.lmst_array) * numverts);
-					bb->mesh.normals_array = (vec3_t*)(bb->mesh.lmst_array[0]+numverts);
-					memcpy(bb->mesh.normals_array, arrays->normal, sizeof(*bb->mesh.normals_array) * numverts);
-					bb->mesh.snormals_array = (vec3_t*)(bb->mesh.normals_array+numverts);
-					memcpy(bb->mesh.snormals_array, arrays->svector, sizeof(*bb->mesh.snormals_array) * numverts);
-					bb->mesh.tnormals_array = (vec3_t*)(bb->mesh.snormals_array+numverts);
-					memcpy(bb->mesh.tnormals_array, arrays->tvector, sizeof(*bb->mesh.tnormals_array) * numverts);
+						bb->mesh.xyz_array = (vecV_t*)(bb+1);
+						memcpy(bb->mesh.xyz_array, arrays->coord, sizeof(*bb->mesh.xyz_array) * numverts);
+						bb->mesh.st_array = (vec2_t*)(bb->mesh.xyz_array+numverts);
+						memcpy(bb->mesh.st_array, arrays->texcoord, sizeof(*bb->mesh.st_array) * numverts);
+						bb->mesh.lmst_array[0] = (vec2_t*)(bb->mesh.st_array+numverts);
+						memcpy(bb->mesh.lmst_array[0], arrays->lmcoord, sizeof(*bb->mesh.lmst_array) * numverts);
+						bb->mesh.normals_array = (vec3_t*)(bb->mesh.lmst_array[0]+numverts);
+						memcpy(bb->mesh.normals_array, arrays->normal, sizeof(*bb->mesh.normals_array) * numverts);
+						bb->mesh.snormals_array = (vec3_t*)(bb->mesh.normals_array+numverts);
+						memcpy(bb->mesh.snormals_array, arrays->svector, sizeof(*bb->mesh.snormals_array) * numverts);
+						bb->mesh.tnormals_array = (vec3_t*)(bb->mesh.snormals_array+numverts);
+						memcpy(bb->mesh.tnormals_array, arrays->tvector, sizeof(*bb->mesh.tnormals_array) * numverts);
 
-					bb->pmesh = &bb->mesh;
-					bb->mesh.numindexes = numindicies;
-					bb->mesh.numvertexes = numverts;
+						bb->pmesh = &bb->mesh;
+						bb->mesh.numindexes = numindicies;
+						bb->mesh.numvertexes = numverts;
+
+						numverts = 0;
+						numindicies = 0;
+					}
 				}
 			}
 		}

@@ -2051,22 +2051,31 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out)
 typedef struct bmpheader_s
 {
 /*	unsigned short	Type;*/
-	unsigned long	Size;
+	unsigned int	Size;
 	unsigned short	Reserved1;
 	unsigned short	Reserved2;
-	unsigned long	OffsetofBMPBits;
-	unsigned long	SizeofBITMAPINFOHEADER;
-	signed long		Width;
-	signed long		Height;
+	unsigned int	OffsetofBMPBits;
+	unsigned int	SizeofBITMAPINFOHEADER;
+	signed int		Width;
+	signed int		Height;
 	unsigned short	Planes;
 	unsigned short	BitCount;
-	unsigned long	Compression;
-	unsigned long	ImageSize;
-	signed long		TargetDeviceXRes;
-	signed long		TargetDeviceYRes;
-	unsigned long	NumofColorIndices;
-	unsigned long	NumofImportantColorIndices;
+	unsigned int	Compression;
+	unsigned int	ImageSize;
+	signed int		TargetDeviceXRes;
+	signed int		TargetDeviceYRes;
+	unsigned int	NumofColorIndices;
+	unsigned int	NumofImportantColorIndices;
 } bmpheader_t;
+typedef struct bmpheaderv4_s
+{
+	unsigned int	RedMask;
+	unsigned int	GreenMask;
+	unsigned int	BlueMask;
+	unsigned int	AlphaMask;
+	qbyte			ColourSpace[4];	//"Win " or "sRGB"
+	qbyte			ColourSpaceCrap[24+4*3];
+} bmpheaderv4_t;
 
 qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 {
@@ -2094,7 +2103,7 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 	h.NumofColorIndices = LittleLong(h.NumofColorIndices);
 	h.NumofImportantColorIndices = LittleLong(h.NumofImportantColorIndices);
 
-	if (h.Compression)	//probably RLE?
+	if (h.Compression)	//RLE? BITFIELDS (gah)?
 		return NULL;
 
 	*width = h.Width;
@@ -2195,134 +2204,108 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 	return NULL;
 }
 
-/*void WriteBMPFile(char *filename, qbyte *in, int width, int height)
+void WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int instride, int width, int height, uploadfmt_t fmt)
 {
-	unsigned int i;
-	bmpheader_t *h;
+	int y;
+	bmpheader_t h;
+	bmpheaderv4_t h4;
 	qbyte *data;
 	qbyte *out;
+	int outstride;
+	int bits = 32;
+	int extraheadersize = sizeof(h4);
 
-	out = BZ_Malloc(sizeof(bmpheader_t)+width*3*height);
-
-
-
-	*(short*)((qbyte *)h-2) = *(short*)"BM";
-	h->Size = LittleLong(in->Size);
-	h->Reserved1 = LittleShort(in->Reserved1);
-	h->Reserved2 = LittleShort(in->Reserved2);
-	h->OffsetofBMPBits = LittleLong(in->OffsetofBMPBits);
-	h->SizeofBITMAPINFOHEADER = LittleLong(in->SizeofBITMAPINFOHEADER);
-	h->Width = LittleLong(in->Width);
-	h->Height = LittleLong(in->Height);
-	h->Planes = LittleShort(in->Planes);
-	h->BitCount = LittleShort(in->BitCount);
-	h->Compression = LittleLong(in->Compression);
-	h->ImageSize = LittleLong(in->ImageSize);
-	h->TargetDeviceXRes = LittleLong(in->TargetDeviceXRes);
-	h->TargetDeviceYRes = LittleLong(in->TargetDeviceYRes);
-	h->NumofColorIndices = LittleLong(in->NumofColorIndices);
-	h->NumofImportantColorIndices = LittleLong(in->NumofImportantColorIndices);
-
-	if (h.Compression)	//probably RLE?
-		return NULL;
-
-	*width = h.Width;
-	*height = h.Height;
-
-	if (h.NumofColorIndices != 0 || h.BitCount == 8)	//8 bit
+	memset(&h4, 0, sizeof(h4));
+	h4.ColourSpace[0] = 'W';
+	h4.ColourSpace[1] = 'i';
+	h4.ColourSpace[2] = 'n';
+	h4.ColourSpace[3] = ' ';
+	switch(fmt)
 	{
-		int x, y;
-		unsigned int *data32;
-		unsigned int	pal[256];
-		if (!h.NumofColorIndices)
-			h.NumofColorIndices = (int)pow(2, h.BitCount);
-		if (h.NumofColorIndices>256)
-			return NULL;
+	case TF_RGBA32:
+		h4.RedMask		= 0x000000ff;
+		h4.GreenMask	= 0x0000ff00;
+		h4.BlueMask		= 0x00ff0000;
+		h4.AlphaMask	= 0xff000000;
+		break;
+	case TF_BGRA32:
+		h4.RedMask		= 0x00ff0000;
+		h4.GreenMask	= 0x0000ff00;
+		h4.BlueMask		= 0x000000ff;
+		h4.AlphaMask	= 0xff000000;
+		break;
+	case TF_RGBX32:
+		h4.RedMask		= 0x000000ff;
+		h4.GreenMask	= 0x0000ff00;
+		h4.BlueMask		= 0x00ff0000;
+		h4.AlphaMask	= 0x00000000;
+		break;
+	case TF_BGRX32:
+		h4.RedMask		= 0x00ff0000;
+		h4.GreenMask	= 0x0000ff00;
+		h4.BlueMask		= 0x000000ff;
+		h4.AlphaMask	= 0x00000000;
+		break;
+	case TF_RGB24:
+		h4.RedMask		= 0x000000ff;
+		h4.GreenMask	= 0x0000ff00;
+		h4.BlueMask		= 0x00ff0000;
+		h4.AlphaMask	= 0x00000000;
+		bits = 3;
+		break;
+	case TF_BGR24:
+		h4.RedMask		= 0x00ff0000;
+		h4.GreenMask	= 0x0000ff00;
+		h4.BlueMask		= 0x000000ff;
+		h4.AlphaMask	= 0x00000000;
+		bits = 3;
+		extraheadersize = 0;
+		break;
 
-		data = buf+2;
-		data += sizeof(h);
-
-		for (i = 0; i < h.NumofColorIndices; i++)
-		{
-			pal[i] = data[i*4+0] + (data[i*4+1]<<8) + (data[i*4+2]<<16) + (255/<<16);
-		}
-
-		buf += h.OffsetofBMPBits;
-		data32 = BZ_Malloc(h.Width * h.Height*4);
-		for (y = 0; y < h.Height; y++)
-		{
-			i = (h.Height-1-y) * (h.Width);
-			for (x = 0; x < h.Width; x++)
-			{
-				data32[i] = pal[buf[x]];
-				i++;
-			}
-			buf += h.Width;
-		}
-
-		return (qbyte *)data32;
+	default:
+		return;
 	}
-	else if (h.BitCount == 4)	//4 bit
+
+
+	outstride = width * (bits/8);
+	outstride = (outstride+3)&~3;	//bmp pads rows to a multiple of 4 bytes.
+
+	data = BZ_Malloc(2+sizeof(h)+extraheadersize+width*outstride);
+	out = data+2+sizeof(h)+extraheadersize;
+
+
+	data[0] = 'B';
+	data[1] = 'M';
+	h.Size = 2+sizeof(h)+extraheadersize + outstride*height;
+	h.Reserved1 = 0;
+	h.Reserved2 = 0;
+	h.OffsetofBMPBits = 2+sizeof(h)+extraheadersize;
+	h.SizeofBITMAPINFOHEADER = sizeof(h)+extraheadersize;
+	h.Width = width;
+	h.Height = height;
+	h.Planes = 1;
+	h.BitCount = bits;
+	h.Compression = extraheadersize?3/*BI_BITFIELDS*/:0/*BI_RGB aka BGR...*/;
+	h.ImageSize = outstride*height;
+	h.TargetDeviceXRes = 2835;//72DPI
+	h.TargetDeviceYRes = 2835;
+	h.NumofColorIndices = 0;
+	h.NumofImportantColorIndices = 0;
+	memcpy(data+2, &h, sizeof(h));
+	if (extraheadersize)
+		memcpy(data+2+sizeof(h), &h4, sizeof(h4));
+
+	for (y = 0; y < height; y++)
 	{
-		int x, y;
-		unsigned int *data32;
-		unsigned int	pal[16];
-		if (!h.NumofColorIndices)
-			h.NumofColorIndices = (int)pow(2, h.BitCount);
-		if (h.NumofColorIndices>16)
-			return NULL;
-		if (h.Width&1)
-			return NULL;
-
-		data = buf+2;
-		data += sizeof(h);
-
-		for (i = 0; i < h.NumofColorIndices; i++)
-		{
-			pal[i] = data[i*4+0] + (data[i*4+1]<<8) + (data[i*4+2]<<16) + (255<<16);
-		}
-
-		buf += h.OffsetofBMPBits;
-		data32 = BZ_Malloc(h.Width * h.Height*4);
-		for (y = 0; y < h.Height; y++)
-		{
-			i = (h.Height-1-y) * (h.Width);
-			for (x = 0; x < h.Width/2; x++)
-			{
-				data32[i++] = pal[buf[x]>>4];
-				data32[i++] = pal[buf[x]&15];
-			}
-			buf += h.Width>>1;
-		}
-
-		return (qbyte *)data32;
+		memcpy(out, in, width * (bits/8));
+		memset(out+width*(bits/8), 0, outstride-width*(bits/8));
+		out += outstride;
+		in += instride;
 	}
-	else if (h.BitCount == 24)	//24 bit... no 16?
-	{
-		int x, y;
-		buf += h.OffsetofBMPBits;
-		data = BZ_Malloc(h.Width * h.Height*4);
-		for (y = 0; y < h.Height; y++)
-		{
-			i = (h.Height-1-y) * (h.Width);
-			for (x = 0; x < h.Width; x++)
-			{
-				data[i*4+0] = buf[x*3+2];
-				data[i*4+1] = buf[x*3+1];
-				data[i*4+2] = buf[x*3+0];
-				data[i*4+3] = 255;
-				i++;
-			}
-			buf += h.Width*3;
-		}
 
-		return data;
-	}
-	else
-		return NULL;
-
-	return NULL;
-}*/
+	COM_WriteFile(filename, fsroot, data, h.Size);
+	BZ_Free(data);
+}
 
 
 #ifndef NPFTE

@@ -2769,7 +2769,8 @@ void SV_FlushBroadcasts (void)
 		}
 	}
 
-	SV_MVD_WriteReliables(true);
+	if (sv.mvdrecording)
+		SV_MVD_WriteReliables(true);
 
 	SZ_Clear (&sv.reliable_datagram);
 	SZ_Clear (&sv.datagram);

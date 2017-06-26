@@ -772,7 +772,7 @@ conline_t *Con_ResizeLineBuffer(console_t *con, conline_t *old, unsigned int len
 {
 	conline_t *l;
 
-	old->maxlength = length;
+	old->maxlength = length & 0xffff;
 	if (old->maxlength < old->length)
 		return NULL;	//overflow.
 	l = BZ_Realloc(old, sizeof(*l)+(old->maxlength)*sizeof(conchar_t));

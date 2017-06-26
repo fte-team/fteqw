@@ -205,7 +205,6 @@ int(int mod, int id, brushface_t *faces, int numfaces, int contents) brush_histo
 	int wasselected = brush_isselected(mod, id);
 	if (wasselected)
 		selectedbrushes[wasselected-1].id = -id;	//hack so that brush_history_delete won't remove this entry.
-	
 	brush_history_delete(mod, id);
 	id = brush_history_create(mod, faces, numfaces, contents, FALSE);
 	if (wasselected)

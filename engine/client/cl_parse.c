@@ -1175,8 +1175,8 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 	float giveuptime = Sys_DoubleTime()+1;	//small things get padded into a single frame
 
-#define atstage() ((cl.contentstage == stage++ && !dontactuallyload)?++cl.contentstage:false)
-#define endstage() if (!cls.timedemo && giveuptime<Sys_DoubleTime()) return -1;
+#define atstage() ((cl.contentstage == stage++ && !dontactuallyload)?true:false)
+#define endstage() ++cl.contentstage;if (!cls.timedemo && giveuptime<Sys_DoubleTime()) return -1;
 
 	pmove.numphysent = 0;
 	pmove.physents[0].model = NULL;

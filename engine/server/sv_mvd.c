@@ -940,11 +940,17 @@ void SV_MVD_WriteReliables(qboolean writebroadcasts)
 	if (writebroadcasts)
 	{
 		//chuck in the broadcast reliables
-		ClientReliableCheckBlock(&demo.recorder, sv.reliable_datagram.cursize);
-		ClientReliableWrite_SZ(&demo.recorder, sv.reliable_datagram.data, sv.reliable_datagram.cursize);
+		if (sv.reliable_datagram.cursize)
+		{
+			ClientReliableCheckBlock(&demo.recorder, sv.reliable_datagram.cursize);
+			ClientReliableWrite_SZ(&demo.recorder, sv.reliable_datagram.data, sv.reliable_datagram.cursize);
+		}
 		//and the broadcast unreliables. everything is reliables when it comes to mvds
-		ClientReliableCheckBlock(&demo.recorder, sv.datagram.cursize);
-		ClientReliableWrite_SZ(&demo.recorder, sv.datagram.data, sv.datagram.cursize);
+		if (sv.datagram.cursize)
+		{
+			ClientReliableCheckBlock(&demo.recorder, sv.datagram.cursize);
+			ClientReliableWrite_SZ(&demo.recorder, sv.datagram.data, sv.datagram.cursize);
+		}
 	}
 
 	if (demo.recorder.netchan.message.cursize)

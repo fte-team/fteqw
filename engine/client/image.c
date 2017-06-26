@@ -2204,7 +2204,7 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 	return NULL;
 }
 
-void WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int instride, int width, int height, uploadfmt_t fmt)
+qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int instride, int width, int height, uploadfmt_t fmt)
 {
 	int y;
 	bmpheader_t h;
@@ -2263,7 +2263,7 @@ void WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int instri
 		break;
 
 	default:
-		return;
+		return false;
 	}
 
 
@@ -2305,6 +2305,8 @@ void WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int instri
 
 	COM_WriteFile(filename, fsroot, data, h.Size);
 	BZ_Free(data);
+
+	return true;
 }
 
 

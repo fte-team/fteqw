@@ -2117,7 +2117,7 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 #ifdef AVAIL_PNGLIB
 int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt);
 #endif
-void WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int bytestride, int width, int height);
+qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int instride, int width, int height, uploadfmt_t fmt);
 
 qboolean WriteTGA(char *filename, enum fs_relative fsroot, qbyte *fte_restrict rgb_buffer, int bytestride, int width, int height, enum uploadfmt fmt)
 {

@@ -1197,6 +1197,10 @@ static void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 						}
 					}
 				}
+				
+				if ( rent->forcedshader ) {
+					b->shader = rent->forcedshader; 
+				}
 
 				b->buildmeshes = R_HL_BuildMesh;
 				b->ent = rent;

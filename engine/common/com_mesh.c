@@ -1095,6 +1095,11 @@ static int Alias_FindRawSkelData(galiasinfo_t *inf, framestate_t *fstate, skelle
 
 		if (cbone <= firstbone || endbone > lastbone)
 		{
+			lerps->firstbone = max(cbone, firstbone);
+			lerps->endbone = max(lerps->firstbone, min(endbone, lastbone));
+			if (lerps->firstbone == lerps->endbone)
+				continue;
+
 			if (!inf->numanimations || !Alias_BuildSkelLerps(lerps, &fstate->g[bonegroup], inf->numbones, inf))	//if there's no animations in this model, use the base pose instead.
 			{
 				if (!inf->baseframeofs)
@@ -1104,8 +1109,6 @@ static int Alias_FindRawSkelData(galiasinfo_t *inf, framestate_t *fstate, skelle
 				lerps->pose[0] = inf->baseframeofs;
 				lerps->lerpcount = 1;
 			}
-			lerps->firstbone = max(cbone, firstbone);
-			lerps->endbone = min(endbone, lastbone);
 			numbonegroups++;
 			lerps++;
 		}

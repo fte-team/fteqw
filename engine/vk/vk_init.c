@@ -2585,7 +2585,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 	{
 		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
 		imgbarrier.pNext = NULL;
-		imgbarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT|VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+		imgbarrier.srcAccessMask = /*VK_ACCESS_TRANSFER_READ_BIT|*/VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 		imgbarrier.dstAccessMask = 0;
 		imgbarrier.oldLayout = fblayout;
 		imgbarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;

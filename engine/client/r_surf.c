@@ -516,9 +516,14 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 		local[0] -= surf->texturemins[0];
 		local[1] -= surf->texturemins[1];
 
-		r = cl_dlights[lnum].color[0]*128;
-		g = cl_dlights[lnum].color[1]*128;
-		b = cl_dlights[lnum].color[2]*128;
+		if (r_dynamic.ival == 2)
+			r = g = b = 128;
+		else
+		{
+			r = cl_dlights[lnum].color[0]*128;
+			g = cl_dlights[lnum].color[1]*128;
+			b = cl_dlights[lnum].color[2]*128;
+		}
 
 /*		if (cl_dlights[lnum].type == 1)	//a wierd effect.
 		{

@@ -345,66 +345,63 @@ void CompleteCommand (qboolean force)
 	const char *desc;
 
 	s = key_lines[edit_line];
+	if (*s == ' ' || *s == '\t')
+		s++;
 	if (*s == '\\' || *s == '/')
 		s++;
+	if (*s == ' ' || *s == '\t')
+		s++;
 
-	for (cmd = s; *cmd; cmd++)
+	//check for singular matches and complete if found
+	cmd = force?NULL:Cmd_CompleteCommand (s, true, true, 2, NULL);
+	if (!cmd)
 	{
-		if (*cmd == ' ' || *cmd == '\t')
-			break;
-	}
-	if (*cmd)
-		cmd = s;
-	else
-	{
-		//check for singular matches and complete if found
-		cmd = force?NULL:Cmd_CompleteCommand (s, true, true, 2, NULL);
-		if (!cmd)
-		{
-			if (!force)
-				cmd = Cmd_CompleteCommand (s, false, true, 1, &desc);
-			else
-				cmd = Cmd_CompleteCommand (s, true, true, con_commandmatch, &desc);
-			if (cmd)
-			{
-				//complete to that (maybe partial) cmd.
-				Key_ClearTyping();
-				Key_ConsoleInsert("/");
-				Key_ConsoleInsert(cmd);
-				s = key_lines[edit_line]+1;
-
-				//if its the only match, add a space ready for arguments.
-				cmd = Cmd_CompleteCommand (s, true, true, 0, NULL);
-				if (cmd && !strcmp(s, cmd))
-				{
-					Key_ConsoleInsert(" ");
-				}
-
-				if (!con_commandmatch)
-					con_commandmatch = 1;
-
-				if (desc)
-					Con_Footerf(NULL, false, "%s: %s", cmd, desc);
-				else
-					Con_Footerf(NULL, false, "");
-				return;
-			}
-		}
-		//complete to a partial match.
-		cmd = Cmd_CompleteCommand (s, false, true, 0, &desc);
+		if (!force)
+			cmd = Cmd_CompleteCommand (s, false, true, 1, &desc);
+		else
+			cmd = Cmd_CompleteCommand (s, true, true, con_commandmatch, &desc);
 		if (cmd)
 		{
-			int i = key_lines[edit_line][0] == '/'?1:0;
-			if (i != 1 || strcmp(key_lines[edit_line]+i, cmd))
-			{	//if successful, use that instead.
-				Key_ClearTyping();
-				Key_ConsoleInsert("/");
-				Key_ConsoleInsert(cmd);
+			if (strlen(cmd) < strlen(s))
+				return;
 
-				s = key_lines[edit_line];	//readjust to cope with the insertion of a /
-				if (*s == '\\' || *s == '/')
-					s++;
+			//complete to that (maybe partial) cmd.
+			Key_ClearTyping();
+			Key_ConsoleInsert("/");
+			Key_ConsoleInsert(cmd);
+			s = key_lines[edit_line]+1;
+
+			//if its the only match, add a space ready for arguments.
+			cmd = Cmd_CompleteCommand (s, true, true, 0, NULL);
+			if (cmd && !strcmp(s, cmd))
+			{
+				Key_ConsoleInsert(" ");
 			}
+
+			if (!con_commandmatch)
+				con_commandmatch = 1;
+
+			if (desc)
+				Con_Footerf(NULL, false, "%s: %s", cmd, desc);
+			else
+				Con_Footerf(NULL, false, "");
+			return;
+		}
+	}
+	//complete to a partial match.
+	cmd = Cmd_CompleteCommand (s, false, true, 0, &desc);
+	if (cmd)
+	{
+		int i = key_lines[edit_line][0] == '/'?1:0;
+		if (i != 1 || strcmp(key_lines[edit_line]+i, cmd))
+		{	//if successful, use that instead.
+			Key_ClearTyping();
+			Key_ConsoleInsert("/");
+			Key_ConsoleInsert(cmd);
+
+			s = key_lines[edit_line];	//readjust to cope with the insertion of a /
+			if (*s == '\\' || *s == '/')
+				s++;
 		}
 	}
 	con_commandmatch++;
@@ -1991,6 +1988,17 @@ void Key_AliasEdit_f (void)
 		Con_Printf("Not an alias\n");
 }
 
+void Key_Bind_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	keyname_t *kn;
+	size_t len = strlen(partial);
+	//FIXME: shift, ctrl, alt prefixes (+combos)
+	for (kn=keynames ; kn->name ; kn++)
+	{
+		if (!Q_strncasecmp(partial,kn->name, len))
+			ctx->cb(kn->name, ctx);
+	}
+}
 /*
 ===================
 Key_Bind_f
@@ -2287,10 +2295,10 @@ void Key_Init (void)
 //
 // register our functions
 //
-	Cmd_AddCommand ("bind",Key_Bind_f);
+	Cmd_AddCommandAD ("bind",Key_Bind_f, Key_Bind_c, NULL);
 	Cmd_AddCommand ("in_bind",Key_Bind_f);
 	Cmd_AddCommand ("bindlevel",Key_BindLevel_f);
-	Cmd_AddCommand ("unbind",Key_Unbind_f);
+	Cmd_AddCommandAD ("unbind",Key_Unbind_f, Key_Bind_c, NULL);
 	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
 	Cmd_AddCommand ("aliasedit",Key_AliasEdit_f);
 

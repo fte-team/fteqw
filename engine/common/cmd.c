@@ -727,6 +727,21 @@ void Cmd_Exec_f (void)
 	BZ_Free(f);
 }
 
+static int QDECL CompleteExecList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct xcommandargcompletioncb_s *ctx = parm;
+	ctx->cb(name, ctx);
+	return true;
+}
+void Cmd_Exec_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	if (argn == 1)
+	{
+		COM_EnumerateFiles(va("configs/%s*.cfg", partial), CompleteExecList, ctx);
+		COM_EnumerateFiles(va("%s*.cfg", partial), CompleteExecList, ctx);
+		COM_EnumerateFiles(va("%s*.rc", partial), CompleteExecList, ctx);
+	}
+}
 
 /*
 ===============
@@ -1198,6 +1213,7 @@ typedef struct cmd_function_s
 	char					*name;
 	char					*description;
 	xcommand_t				function;
+	xcommandargcompletion_t	argcompletion;
 
 	qbyte	restriction;	//restriction of admin level
 } cmd_function_t;
@@ -1667,7 +1683,7 @@ Cmd_AddCommand
 ============
 */
 
-qboolean Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *desc)
+qboolean Cmd_AddCommandAD (char *cmd_name, xcommand_t function, xcommandargcompletion_t argcompletion, char *desc)
 {
 	cmd_function_t	*cmd;
 
@@ -1696,6 +1712,7 @@ qboolean Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *desc)
 
 	cmd = (cmd_function_t*)Z_Malloc (sizeof(cmd_function_t)+strlen(cmd_name)+1);
 	cmd->name = (char*)(cmd+1);
+	cmd->argcompletion = argcompletion;
 	cmd->description = desc;
 	strcpy(cmd->name, cmd_name);
 	cmd->function = function;
@@ -1706,9 +1723,13 @@ qboolean Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *desc)
 	return true;
 }
 
+qboolean Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *desc)
+{
+	return Cmd_AddCommandAD(cmd_name, function, NULL, desc);
+}
 qboolean Cmd_AddCommand (char *cmd_name, xcommand_t function)
 {
-	return Cmd_AddCommandD(cmd_name, function, NULL);
+	return Cmd_AddCommandAD(cmd_name, function, NULL, NULL);
 }
 
 void	Cmd_RemoveCommand (char *cmd_name)
@@ -1942,7 +1963,7 @@ typedef struct {
 	char result[256];
 	const char *desc;
 } match_t;
-void Cmd_CompleteCheck(char *check, match_t *match, const char *desc)	//compare cumulative strings and join the result
+void Cmd_CompleteCheck(const char *check, match_t *match, const char *desc)	//compare cumulative strings and join the result
 {
 	if (*match->result)
 	{
@@ -1971,6 +1992,59 @@ void Cmd_CompleteCheck(char *check, match_t *match, const char *desc)	//compare 
 		match->desc = desc;
 	}
 }
+struct cmdargcompletionctx_s
+{
+	struct xcommandargcompletioncb_s cb;
+	cmd_function_t *cmd;
+	char *prefix;
+	size_t prefixlen;
+	match_t *match;
+	const char *desc;
+};
+void Cmd_CompleteCheckArg(const char *value, void *vctx)	//compare cumulative strings and join the result
+{
+	struct cmdargcompletionctx_s *ctx = vctx;
+	match_t *match = ctx->match;
+	const char *desc = ctx->desc;
+
+	if (ctx->prefixlen >= countof(match->result)-1)
+		return;	//don't allow overflows.
+
+	if (*match->result)
+	{
+		char *r;
+		const char *check;
+		if (match->allowcutdown)
+		{
+			for(r = match->result, check=ctx->prefix; check < ctx->prefix+ctx->prefixlen && *r == *check && *r; r++, check++)
+				;
+			if (check == ctx->prefix+ctx->prefixlen)
+			{
+				for(check=value; *r == *check && *r; r++, check++)
+					;
+			}
+			*r = '\0';
+			match->cutdown = true;
+			if (match->matchnum > 0)
+				match->matchnum--;
+		}
+		else if (match->matchnum > 0)
+		{
+			memcpy(match->result, ctx->prefix, ctx->prefixlen);
+			Q_strncpyz(match->result+ctx->prefixlen, value, sizeof(match->result)-ctx->prefixlen);
+			match->desc = desc;
+			match->matchnum--;
+		}
+	}
+	else
+	{
+		if (match->matchnum > 0)
+			match->matchnum--;
+		memcpy(match->result, ctx->prefix, ctx->prefixlen);
+		Q_strncpyz(match->result+ctx->prefixlen, value, sizeof(match->result)-ctx->prefixlen);
+		match->desc = desc;
+	}
+}
 char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, const char **descptr)
 {
 	extern cvar_group_t *cvar_groups;
@@ -1984,11 +2058,19 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 	cvar_t		*cvar;
 	char *sp;
 
-	sp = strchr(partial, ' ');
-	if (sp)
-		len = sp - partial;
+	for (sp = partial; *sp; sp++)
+	{
+		if (*sp == ' ' || *sp == '\t')
+			break;
+	}
+	len = sp - partial;
+	if (*sp)
+	{
+		while (*sp == ' ' || *sp == '\t')
+			sp++;
+	}
 	else
-		len = Q_strlen(partial);
+		sp = NULL;
 
 	if (descptr)
 		*descptr = NULL;
@@ -2014,7 +2096,21 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 	{
 		for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 			if (!Q_strncasecmp (partial,cmd->name, len) && (matchnum == -1 || !partial[len] || strlen(cmd->name) == len))
-				Cmd_CompleteCheck(cmd->name, &match, cmd->description);
+			{
+				if (sp && cmd->argcompletion)
+				{
+					struct cmdargcompletionctx_s ctx;
+					ctx.cb.cb = Cmd_CompleteCheckArg;
+					ctx.cmd = cmd;
+					ctx.prefix = partial;
+					ctx.prefixlen = sp-partial;
+					ctx.match = &match;
+					ctx.desc = cmd->description;
+					cmd->argcompletion(1, sp, &ctx.cb);
+				}
+				else
+					Cmd_CompleteCheck(cmd->name, &match, cmd->description);
+			}
 		for (a=cmd_alias ; a ; a=a->next)
 			if (!Q_strncasecmp (partial, a->name, len) && (matchnum == -1 || !partial[len] || strlen(a->name) == len))
 				Cmd_CompleteCheck(a->name, &match, "");
@@ -3675,12 +3771,12 @@ void Cmd_Init (void)
 //
 // register our commands
 //
-	Cmd_AddCommand ("cfg_save",Cmd_WriteConfig_f);
+	Cmd_AddCommandAD ("cfg_save",Cmd_WriteConfig_f, Cmd_Exec_c, NULL);
 
-	Cmd_AddCommand ("cfg_load",Cmd_Exec_f);
+	Cmd_AddCommandAD ("cfg_load",Cmd_Exec_f, Cmd_Exec_c, NULL);
 	Cmd_AddCommand ("cfg_reset",Cmd_Reset_f);
 
-	Cmd_AddCommand ("exec",Cmd_Exec_f);
+	Cmd_AddCommandAD ("exec",Cmd_Exec_f, Cmd_Exec_c, NULL);
 	Cmd_AddCommand ("echo",Cmd_Echo_f);
 	Cmd_AddCommand ("alias",Cmd_Alias_f);
 	Cmd_AddCommand ("newalias",Cmd_Alias_f);

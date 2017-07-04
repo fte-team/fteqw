@@ -71,6 +71,12 @@ then searches for a command or variable that matches the first token.
 */
 
 typedef void (*xcommand_t) (void);
+struct xcommandargcompletioncb_s
+{
+	void(*cb)(const char *arg, struct xcommandargcompletioncb_s *ctx);
+	//private stuff follows.
+};
+typedef void (*xcommandargcompletion_t)(int argn, char *partial, struct xcommandargcompletioncb_s *ctx);
 
 int Cmd_Level(char *name);
 void Cmd_EnumerateLevel(int level, char *buf, size_t bufsize);
@@ -83,6 +89,7 @@ void	Cmd_RemoveCommands (xcommand_t function);	//unregister all commands that us
 void	Cmd_RemoveCommand (char *cmd_name);
 qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function);
 qboolean	Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *description);
+qboolean	Cmd_AddCommandAD (char *cmd_name, xcommand_t function, xcommandargcompletion_t argcomplete, char *description);
 // called by the init functions of other parts of the program to
 // register commands and functions to call for them.
 // The cmd_name is referenced later, so it should not be in temp memory

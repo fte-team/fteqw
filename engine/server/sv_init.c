@@ -458,9 +458,6 @@ void SV_CalcPHS (void)
 		return;
 	}
 
-	if (model->pvsbytes > 4096)
-		return;
-
 	//FIXME: this can take a significant time on some maps, and should ideally be pushed to a worker thread.
 	num = model->numclusters;
 	rowbytes = model->pvsbytes;
@@ -514,7 +511,7 @@ void SV_CalcPHS (void)
 		if (f)
 		{
 			VFS_READ(f, hdr, sizeof(hdr));
-			if (memcmp(hdr, "QPHS\1\0\0\0", 8) || VFS_GETLEN(f) != rowbytes*num + 8)
+			if (!memcmp(hdr, "QPHS\1\0\0\0", 8) && VFS_GETLEN(f) == rowbytes*num + 8)
 			{
 				VFS_READ(f, model->phs, rowbytes*num);
 				VFS_CLOSE(f);

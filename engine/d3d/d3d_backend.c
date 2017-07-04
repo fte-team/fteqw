@@ -3621,12 +3621,13 @@ void D3D9BE_VBO_Destroy(vboarray_t *vearray, void *mem)
 void D3D9BE_Scissor(srect_t *srect)
 {
 	RECT rect;
+
 	if (srect)
 	{
 		rect.left = (srect->x) * vid.fbpwidth;
 		rect.right = (srect->x + srect->width) * vid.fbpwidth;
-		rect.top = (srect->y) * vid.fbpheight;
-		rect.bottom = (srect->y + srect->height) * vid.fbpheight;
+		rect.top = (1 - (srect->height + srect->y))*vid.fbpheight;  //our api was made for gl. :(
+		rect.bottom = (1 - (srect->y))*vid.fbpheight;  //our api was made for gl. :(
 	}
 	else
 	{

@@ -1292,6 +1292,38 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 	}
 }
 
+
+static int QDECL CompleteSaveList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct xcommandargcompletioncb_s *ctx = parm;
+	char trimmed[256];
+	size_t l;
+	Q_strncpyz(trimmed, name+6, sizeof(trimmed));
+	l = strlen(trimmed);
+	if (l >= 9 && !Q_strcasecmp(trimmed+l-9, "/info.fsv"))
+	{
+		trimmed[l-9] = 0;
+		ctx->cb(trimmed, ctx);
+	}
+	return true;
+}
+static int QDECL CompleteSaveListLegacy (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct xcommandargcompletioncb_s *ctx = parm;
+	char stripped[64];
+	COM_StripExtension(name, stripped, sizeof(stripped));
+	ctx->cb(stripped, ctx);
+	return true;
+}
+void SV_Savegame_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	if (argn == 1)
+	{
+		COM_EnumerateFiles(va("saves/%s*/info.fsv", partial), CompleteSaveList, ctx);
+		COM_EnumerateFiles(va("%s*.sav", partial), CompleteSaveListLegacy, ctx);
+	}
+}
+
 void SV_Savegame_f (void)
 {
 	if (Cmd_Argc() <= 2)

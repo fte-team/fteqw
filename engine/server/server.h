@@ -628,6 +628,7 @@ typedef struct client_s
 #endif
 	unsigned int	zquake_extensions;
 	unsigned int	max_net_ents; /*highest entity number the client can receive (limited by either protocol or client's buffer size)*/
+	unsigned int	max_net_staticents; /*limit to the number of static ents supported by the client*/
 	unsigned int	max_net_clients; /*max number of player slots supported by the client */
 	unsigned int	maxmodels; /*max models supported by whatever the protocol is*/
 
@@ -1563,6 +1564,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 // savegame.c
 void SV_LegacySavegame_f(void);
 void SV_Savegame_f (void);
+void SV_Savegame_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx);
 void SV_Loadgame_f (void);
 void SV_AutoSave(void);
 void SV_FlushLevelCache(void);

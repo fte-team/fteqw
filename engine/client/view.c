@@ -1172,8 +1172,8 @@ void V_ApplyAFov(playerview_t *pv)
 		if (!afov)	//make sure its sensible.
 			afov = scr_fov.value;
 #ifdef QUAKESTATS
-		if (pv && pv->stats[STAT_VIEWZOOM])
-			afov *= pv->stats[STAT_VIEWZOOM]/255.0f;
+		if (pv && pv->statsf[STAT_VIEWZOOM])
+			afov *= pv->statsf[STAT_VIEWZOOM]/255.0f;
 #endif
 		afov = bound(0.001, afov, 170);
 

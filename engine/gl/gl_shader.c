@@ -1933,6 +1933,7 @@ struct shader_field_names_s shader_unif_names[] =
 	/*ent properties*/
 	{"e_vblend",				SP_E_VBLEND},
 	{"e_lmscale",				SP_E_LMSCALE}, /*overbright shifting*/
+	{"e_vlscale",				SP_E_VLSCALE}, /*no lightmaps, no overbrights*/
 	{"e_origin",				SP_E_ORIGIN},
 	{"e_time",					SP_E_TIME},
 	{"e_eyepos",				SP_E_EYEPOS},
@@ -5278,7 +5279,7 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 			if (!TEXVALID(tex->bump) && *mapname)
 				tex->bump = R_LoadHiResTexture(va("%s_norm", mapname), NULL, imageflags|IF_TRYBUMP);
 			if (!TEXVALID(tex->bump) && (r_shadow_bumpscale_basetexture.ival||*imagename=='#'||gl_load24bit.ival))
-				tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP, (r_shadow_bumpscale_basetexture.ival||*imagename=='#')?mipdata[0]:NULL, palette, width, height, TF_HEIGHT8PAL);
+				tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP|(*imagename=='#'?IF_LINEAR:0), (r_shadow_bumpscale_basetexture.ival||*imagename=='#')?mipdata[0]:NULL, palette, width, height, TF_HEIGHT8PAL);
 		}
 
 		if (loadflags & SHADER_HASTOPBOTTOM)

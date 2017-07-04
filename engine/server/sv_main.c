@@ -1882,6 +1882,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
 		client->max_net_clients = ISQWCLIENT(client)?QWMAX_CLIENTS:NQMAX_CLIENTS;
+		client->max_net_staticents = ~0u;	//unlimited in both fte+qss.
 
 		//you need to reconnect for this to update, of course. so make sure its not *too* low...
 		client->max_net_ents =  bound(512, pr_maxedicts.ival, MAX_EDICTS);
@@ -1895,7 +1896,8 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 			client->max_net_ents += 512;
 		if (client->fteprotocolextensions & PEXT_ENTITYDBL2)
 			client->max_net_ents += 1024;
-	
+		client->max_net_staticents = 512;	//the ezquake limit, too few people use vanilla to really care about that (it would be too unstable anyway). fodquake has no limit.
+
 		if (client->fteprotocolextensions & PEXT_MODELDBL)
 			client->maxmodels = 512;
 	}
@@ -1903,6 +1905,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	{
 		client->max_net_clients = 255;
 		client->max_net_ents = bound(512, pr_maxedicts.ival, 32768);
+		client->max_net_staticents = 1024;			//its quite low, proportionally.
 		client->maxmodels = MAX_PRECACHE_MODELS;	//protocol limit of 16 bits. 15 bits for late precaches. client limit of 1k
 
 		client->datagram.maxsize = sizeof(host_client->datagram_buf);
@@ -1911,6 +1914,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	{
 		client->max_net_clients = NQMAX_CLIENTS;
 		client->max_net_ents = bound(512, pr_maxedicts.ival, 32768);	//fitzquake supports 65535, but our writeentity builtin works differently, which causes problems.
+		client->max_net_staticents = 4096;	//quakespasm has 4k, more than 3k starts to have issues with the msg_init buffer size.
 		client->maxmodels = MAX_PRECACHE_MODELS;
 		maxpacketentities = client->max_net_ents;
 
@@ -1924,6 +1928,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 			client->max_net_ents = bound(512, pr_maxedicts.ival, 8192);
 		else
 			client->max_net_ents = bound(512, pr_maxedicts.ival, 600);
+		client->max_net_staticents = 128;	//yeah, its low.
 	}
 
 	if (client->fteprotocolextensions2 & PEXT2_MAXPLAYERS)
@@ -5107,10 +5112,10 @@ void SV_InitLocal (void)
 #endif
 #endif
 	Cmd_AddCommand ("savegame_legacy", SV_LegacySavegame_f);
-	Cmd_AddCommand ("savegame", SV_Savegame_f);
-	Cmd_AddCommand ("loadgame", SV_Loadgame_f);
-	Cmd_AddCommand ("save", SV_Savegame_f);
-	Cmd_AddCommand ("load", SV_Loadgame_f);
+	Cmd_AddCommandAD ("savegame", SV_Savegame_f, SV_Savegame_c, NULL);
+	Cmd_AddCommandAD ("loadgame", SV_Loadgame_f, SV_Savegame_c, NULL);
+	Cmd_AddCommandAD ("save", SV_Savegame_f, SV_Savegame_c, NULL);
+	Cmd_AddCommandAD ("load", SV_Loadgame_f, SV_Savegame_c, NULL);
 
 	SV_MVDInit();
 

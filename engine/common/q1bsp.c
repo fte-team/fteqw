@@ -1975,10 +1975,11 @@ static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, pvsbuffer_t *buffer
 		memset(buffer->buffer, 0xff, model->pvsbytes);
 		return buffer->buffer;
 	}
-	cluster++;
 
 	if (merge == PVM_FAST && model->pvs)
 		return model->pvs + cluster * model->pvsbytes;
+
+	cluster++;
 
 	if (!buffer)
 		buffer = &mod_tempvis;

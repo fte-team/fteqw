@@ -4254,15 +4254,15 @@ void CL_Init (void)
 
 	Cmd_AddCommandD ("changing", CL_Changing_f, "Part of network protocols. This command should not be used manually.");
 	Cmd_AddCommand ("disconnect", CL_Disconnect_f);
-	Cmd_AddCommand ("record", CL_Record_f);
-	Cmd_AddCommand ("rerecord", CL_ReRecord_f);
-	Cmd_AddCommand ("stop", CL_Stop_f);
-	Cmd_AddCommand ("playdemo", CL_PlayDemo_f);
+	Cmd_AddCommandAD ("record", CL_Record_f, CL_DemoList_c, NULL);
+	Cmd_AddCommandAD ("rerecord", CL_ReRecord_f, CL_DemoList_c, "Reconnects to the previous/current server, but starts recording a clean demo.");
+	Cmd_AddCommandD ("stop", CL_Stop_f, "Stop demo recording.");
+	Cmd_AddCommandAD ("playdemo", CL_PlayDemo_f, CL_DemoList_c, NULL);
 	Cmd_AddCommand ("qtvplay", CL_QTVPlay_f);
 	Cmd_AddCommand ("qtvlist", CL_QTVList_f);
 	Cmd_AddCommand ("qtvdemos", CL_QTVDemos_f);
 	Cmd_AddCommandD ("demo_jump", CL_DemoJump_f, "Jump to a specified time in a demo. Prefix with a + or - for a relative offset. Seeking backwards will restart the demo and the fast forward, which can take some time in long demos.");
-	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
+	Cmd_AddCommandAD ("timedemo", CL_TimeDemo_f, CL_DemoList_c, NULL);
 	Cmd_AddCommand ("crashme_endgame", CL_CrashMeEndgame_f);
 
 	Cmd_AddCommandD ("showpic", SCR_ShowPic_Script_f, 	"showpic <imagename> <placename> <x> <y> <zone> [width] [height] [touchcommand]\nDisplays an image onscreen, that potentially has a key binding attached to it when clicked/touched.\nzone should be one of: TL, TR, BL, BR, MM, TM, BM, ML, MR. This serves as an extra offset to move the image around the screen without any foreknowledge of the screen resolution.");

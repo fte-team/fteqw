@@ -3564,11 +3564,10 @@ static void QCBUILTIN PF_TraceToss (pubprogfuncs_t *prinst, struct globalvars_s 
 //============================================================================
 
 pvsbuffer_t	checkpvsbuffer;
-qbyte	*checkpvs;
 vec3_t	checkorg;
 extern cvar_t sv_nopvs;
 
-int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
+void PF_newcheckclient (pubprogfuncs_t *prinst, world_t *w)
 {
 	int		i;
 //	qbyte	*pvs;
@@ -3577,15 +3576,15 @@ int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
 
 // cycle to the next one
 
-	if (check < 1)
-		check = 1;
-	if (check > sv.allocated_client_slots)
-		check = sv.allocated_client_slots;
+	if (w->lastcheck < 1)
+		w->lastcheck = 1;
+	if (w->lastcheck > sv.allocated_client_slots)
+		w->lastcheck = sv.allocated_client_slots;
 
-	if (check == sv.allocated_client_slots)
+	if (w->lastcheck == sv.allocated_client_slots)
 		i = 1;
 	else
-		i = check + 1;
+		i = w->lastcheck + 1;
 
 	for ( ;  ; i++)
 	{
@@ -3594,7 +3593,7 @@ int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
 
 		ent = EDICT_NUM(prinst, i);
 
-		if (i == check)
+		if (i == w->lastcheck)
 			break;	// didn't find anything else
 
 		if (ED_ISFREE(ent))
@@ -3611,14 +3610,14 @@ int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
 // get the PVS for the entity
 	VectorAdd (ent->v->origin, ent->v->view_ofs, checkorg);
 	if (sv.world.worldmodel->type == mod_heightmap || sv_nopvs.ival)
-		checkpvs = NULL;
+		w->lastcheckpvs = NULL;
 	else
 	{
 		cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, checkorg);
-		checkpvs = sv.world.worldmodel->funcs.ClusterPVS (sv.world.worldmodel, cluster, &checkpvsbuffer, PVM_FAST);
+		w->lastcheckpvs = sv.world.worldmodel->funcs.ClusterPVS (sv.world.worldmodel, cluster, &checkpvsbuffer, PVM_FAST);
 	}
 
-	return i;
+	w->lastcheck = i;
 }
 
 /*
@@ -3637,7 +3636,6 @@ name checkclient ()
 =================
 */
 #define	MAX_CHECK	16
-int c_invis, c_notvis;
 int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 {
 	edict_t	*ent, *self;
@@ -3649,7 +3647,7 @@ int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 // find a new check if on a new frame
 	if (w->physicstime - w->lastchecktime >= 0.1)
 	{
-		w->lastcheck = PF_newcheckclient (prinst, w->lastcheck);
+		PF_newcheckclient (prinst, w);
 		w->lastchecktime = w->physicstime;
 	}
 
@@ -3668,18 +3666,16 @@ int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 	if (DotProduct(dist, dist) > 2048*2048)
 		return 0;
 
-	if (checkpvs)
+	if (w->lastcheckpvs)
 	{
 		clust = w->worldmodel->funcs.ClusterForPoint(w->worldmodel, view);
-		if ( (clust<0) || !(checkpvs[clust>>3] & (1<<(clust&7)) ) )
+		if ( (clust<0) || !(w->lastcheckpvs[clust>>3] & (1<<(clust&7)) ) )
 		{
-	c_notvis++;
 			return 0;
 		}
 	}
 
-// might be able to see it
-c_invis++;
+// might be able to see it. the qc will do some tracelines to ensure that it can.
 	return w->lastcheck;
 }
 

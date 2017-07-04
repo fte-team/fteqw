@@ -197,6 +197,7 @@ struct world_s
 	unsigned int    framenum;
 	int			lastcheck;			// used by PF_checkclient
 	double		lastchecktime;		// for monster ai
+	qbyte		*lastcheckpvs;		// for monster ai
 
 	float		defaultgravityscale; //0 in QW, 1 for anything else (inc csqc)
 

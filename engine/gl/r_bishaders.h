@@ -4229,7 +4229,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "varying vec2 tc;\n"
 "varying vec4 vc;\n"
 "uniform vec4 e_colourident;\n"
-"uniform vec4 e_lmscale;\n"
+"uniform vec4 e_vlscale;\n"
 "void main ()\n"
 "{\n"
 "vec4 col = texture2D(s_t0, tc);\n"
@@ -4237,7 +4237,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "if (col.a < float(MASK))\n"
 "discard;\n"
 "#endif\n"
-"gl_FragColor = fog4blend(col * vc * e_colourident * e_lmscale);\n"
+"gl_FragColor = fog4blend(col * vc * e_colourident * e_vlscale);\n"
 "}\n"
 "#endif\n"
 },

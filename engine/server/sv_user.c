@@ -1312,9 +1312,12 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 	if (client->prespawn_stage == PRESPAWN_SPAWNSTATIC)
 	{
+		int maxstatics = sv.num_static_entities;
+		if (maxstatics > 1024 && ISDPCLIENT(client))
+			maxstatics = 1024;
 		while (client->netchan.message.cursize < maxsize)	//static entities
 		{
-			if (client->prespawn_idx >= sv.num_static_entities)
+			if (client->prespawn_idx >= maxstatics)
 			{
 				client->prespawn_stage++;
 				client->prespawn_idx = 0;

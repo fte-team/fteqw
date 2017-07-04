@@ -2948,7 +2948,7 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 	pipeCreateInfo.renderPass			= (permu&PERMUTATION_BEM_DEPTHONLY)?vk.shadow_renderpass:vk.renderpass[0];
 	pipeCreateInfo.subpass				= 0;
 	pipeCreateInfo.basePipelineHandle	= VK_NULL_HANDLE;
-	pipeCreateInfo.basePipelineIndex	= -1;	//not sure what this is about.
+	pipeCreateInfo.basePipelineIndex	= -1;	//used to create derivatives for pipelines created in the same call.
 
 //				pipeCreateInfo.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT;
 

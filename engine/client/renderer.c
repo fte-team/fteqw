@@ -106,8 +106,8 @@ cvar_t r_refractreflect_scale				= CVARD ("r_refractreflect_scale", "0.5", "Use 
 cvar_t gl_miptexLevel						= CVAR  ("gl_miptexLevel", "0");
 cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
 cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
-cvar_t r_dynamic							= CVARF ("r_dynamic", IFMINIMAL("0","1"),
-													CVAR_ARCHIVE);
+cvar_t r_dynamic							= CVARFD ("r_dynamic", IFMINIMAL("0","1"),
+													  CVAR_ARCHIVE, "-1: the engine will bypass dlights completely, allowing for better batching.\n0: no standard dlights at all.\n1: coloured dlights will be used, they may show through walls. These are not realtime things.\n2: The dlights will be forced to monochrome (this does not affect coronas/flashblends/rtlights attached to the same light).");
 cvar_t r_fastturb							= CVARF ("r_fastturb", "0",
 													CVAR_SHADERSYSTEM);
 cvar_t r_fastsky							= CVARF ("r_fastsky", "0",
@@ -1279,6 +1279,10 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 
 	vid.dpi_x = 0;
 	vid.dpi_y = 0;
+
+#ifndef CLIENTONLY
+	sv.world.lastcheckpvs = NULL;
+#endif
 
 	if (qrenderer != QR_NONE)	//graphics stuff only when not dedicated
 	{

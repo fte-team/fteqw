@@ -713,6 +713,7 @@ const char *presetname[] =
 {
 	"286",		//everything turned off to make it as fast as possible, even if you're crippled without it
 	"Fast",		//typical deathmatch settings.
+	"Spasm",	//faithful NQ aesthetics (fairly strict, but not all out).
 	"Vanilla",	//vanilla effects enabled, no content replacement.
 	"Normal",	//content replacement enabled
 	"Nice",		//potentially expensive, but not painful
@@ -739,6 +740,7 @@ const char *presetexec[] =
 	"seta r_drawflat 1;"
 	"seta r_lightmap 0;"
 	"seta r_nolerp 1;"
+	"seta r_noframegrouplerp 1;"
 	"seta r_nolightdir 1;"
 	"seta r_dynamic 0;"
 	"seta r_bloom 0;"
@@ -797,12 +799,13 @@ const char *presetexec[] =
 	"r_nolightdir 0;"
 	"seta gl_simpleitems 0;"
 
-	, //vanilla options.
+	, //quakespasm-esque options.
 	"r_part_density 1;"
 	"gl_polyblend 1;"
-	"r_dynamic 1;"
+	"r_dynamic 2;"
 	"gl_flashblend 0;"
 	"cl_nolerp 0;"	//projectiles lerped at least.
+	"r_noframegrouplerp 1;" //flames won't lerp
 	"r_waterwarp 1;"
 	"r_drawflame 1;"
 	"v_gunkick 1;"
@@ -810,23 +813,26 @@ const char *presetexec[] =
 	"cl_bob 0.02;"
 	//these things are perhaps a little extreme
 	"r_loadlit 0;"
-	"r_nolerp 1;"
-	"seta vid_hardwaregamma 1;"
-	"r_softwarebanding 1;"		//ugly software banding.
+	"vid_hardwaregamma 1;"
 	"d_mipcap 0 2;"				//gl without anisotropic filtering favours too-distant mips too often, so lets just pretend it doesn't exist. should probably mess with lod instead or something
-	"gl_affinemodels 1;"
-	"gl_texturemode nnl;"		//yup, we went there.
-	"gl_texturemode2d n.l;"		//yeah, 2d too.
-	"r_part_classic_square 1;"	//blocky baby!
 	"r_part_classic_expgrav 1;"	//vanillaery
 	"r_part_classic_opaque 1;"
 //	"r_particlesystem script;"	//q2 or hexen2 particle effects need to be loadable
-	"cl_sbar 1;"				//its a style thing
-	"sv_nqplayerphysics 1;"		//gb wanted this
+	"cl_sbar 2;"				//its a style thing
+	"sv_nqplayerphysics 1;"		//gb wanted this, should give nq physics to people who want nq settings. note that this disables prediction.
 	"cl_demoreel 1;"			//yup, arcadey
 	//"d_mipcap \"0 3\";"		//logically correct, but will fuck up on ATI drivers if increased mid-map, because ATI will just ignore any levels that are not currently enabled.
-	"seta cl_gibfilter 0;"
+	"cl_gibfilter 0;"
 	"seta cl_deadbodyfilter 0;"
+
+	, //vanilla-esque options.
+	"gl_texturemode nnl;"		//yup, we went there.
+	"gl_texturemode2d n.l;"		//yeah, 2d too.
+	"r_nolerp 1;"
+	"cl_sbar 1;"
+	"gl_affinemodels 1;"
+	"r_softwarebanding 1;"		//ugly software banding.
+	"r_part_classic_square 1;"	//blocky baby!
 
 	, // normal (faithful) options, but with content replacement thrown in
 //#ifdef MINIMAL
@@ -841,6 +847,7 @@ const char *presetexec[] =
 	"gl_load24bit 1;"
 	"r_replacemodels \"md3 md2\";"
 	"r_coronas 1;"
+	"r_dynamic 1;"
 	"r_softwarebanding 0;"
 	"d_mipcap 0 1000;"
 	"gl_affinemodels 0;"
@@ -852,6 +859,7 @@ const char *presetexec[] =
 	"cl_demoreel 0;"
 	"r_loadlit 1;"
 	"r_nolerp 0;"
+	"r_noframegrouplerp 0;"
 
 	, // nice options
 //	"r_stains 0.75;"
@@ -865,6 +873,7 @@ const char *presetexec[] =
 	"r_waterstyle 2;"
 	"gl_blendsprites 1;"
 //	"r_fastsky -1;"
+	"r_dynamic 0;"
 	"r_shadow_realtime_dlight 1;"
 //	"gl_detail 1;"
 	"r_lightstylesmooth 1;"
@@ -910,8 +919,9 @@ void M_Menu_Preset_f (void)
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 		MB_CONSOLECMD("simple  (untextured)",	"fps_preset 286;menupop\n",			"Lacks textures, particles, pretty much everything."),
 		MB_CONSOLECMD("fast    (deathmatch)",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
+		MB_CONSOLECMD("spasm    (nq compat)",	"fps_preset spasm;menupop\n",		"Aims for visual compatibility with common NQ engines. Also affects mods slightly."),
 		MB_CONSOLECMD("vanilla  (softwarey)",	"fps_preset vanilla;menupop\n",		"This is for purists! Party like its 1995! No sanity spared!"),
-		MB_CONSOLECMD("normal    (faithful)",	"fps_preset normal;menupop\n",		"An updated but still faithful appearance, using content replacements where applicable"),
+		MB_CONSOLECMD("normal (qw faithful)",	"fps_preset normal;menupop\n",		"An updated but still faithful appearance, using content replacements where applicable"),
 		MB_CONSOLECMD("nice       (dynamic)",	"fps_preset nice;menupop\n",		"For people who like nice things, but still want to actually play"),
 #ifdef RTLIGHTS
 		MB_CONSOLECMD("realtime    (all on)",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
@@ -937,11 +947,13 @@ void M_Menu_Preset_f (void)
 	else if (gl_load24bit.ival)
 		item = 3;	//normal
 	else if (r_softwarebanding_cvar.ival)
-		item = 4;
+		item = 4;	//vanilla
+	else if (cl_sbar.ival == 2)
+		item = 5;	//spasm
 	else if (!r_drawflat.ival)
-		item = 5;
+		item = 6;	//fast
 	else
-		item = 6;
+		item = 7;	//simple
 	item -= bias;
 	while (item --> 0)
 		menu->selecteditem = menu->selecteditem->common.next;

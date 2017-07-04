@@ -3190,6 +3190,13 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				shaderstate.lastuniform = 0;
 			}
 #endif
+			else
+			{
+				vec4_t param4;
+				Vector4Set(param4, shaderstate.identitylighting, shaderstate.identitylighting, shaderstate.identitylighting, 1);
+				qglUniform4fvARB(ph, 1, (GLfloat*)param4);
+			}
+			break;
 		case SP_E_LMSCALE:
 #if MAXRLIGHTMAPS > 1
 			if (perm & PERMUTATION_LIGHTSTYLES)
@@ -3230,19 +3237,17 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			else
 #endif
 			{
-				vec4_t colscale[4];
 				if (shaderstate.curentity->model && (shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT) && !shaderstate.force2d)
 				{
 					float sc = (1<<bound(0, gl_overbright.ival, 2)) * shaderstate.identitylighting;
-					VectorSet(colscale[0], sc, sc, sc);
+					Vector4Set(param4, sc, sc, sc, 1);
 				}
 				else
 				{
-					VectorSet(colscale[0], shaderstate.identitylighting, shaderstate.identitylighting, shaderstate.identitylighting);
+					Vector4Set(param4, shaderstate.identitylighting, shaderstate.identitylighting, shaderstate.identitylighting, 1);
 				}
-				colscale[0][3] = 1;
 
-				qglUniform4fvARB(ph, 1, (GLfloat*)colscale);
+				qglUniform4fvARB(ph, 1, (GLfloat*)param4);
 			}
 			break;
 

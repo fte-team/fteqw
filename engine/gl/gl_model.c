@@ -701,6 +701,10 @@ qboolean Mod_PurgeModel(model_t	*mod, enum mod_purge_e ptype)
 	mod->pvs = NULL;
 	mod->phs = NULL;
 
+#ifndef CLIENTONLY
+	sv.world.lastcheckpvs = NULL;	//if the server has that cached, flush it just in case.
+#endif
+
 	return true;
 }
 
@@ -5181,7 +5185,8 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 
 		submod->radius = RadiusFromBounds (submod->mins, submod->maxs);
 
-		submod->numclusters = bm->visleafs;
+		submod->numclusters = (i==0)?bm->visleafs:0;
+		submod->pvsbytes = ((submod->numclusters+31)>>3)&~3;
 
 		if (i)
 			submod->entities_raw = NULL;

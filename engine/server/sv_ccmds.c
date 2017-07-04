@@ -403,6 +403,37 @@ static void SV_MapList_f(void)
 	COM_EnumerateFiles("maps/*.hmp", ShowMapList, NULL);
 }
 
+static int QDECL CompleteMapList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct xcommandargcompletioncb_s *ctx = parm;
+	char stripped[64];
+	if (name[5] == 'b' && name[6] == '_')	//skip box models
+		return true;
+	
+	COM_StripExtension(name+5, stripped, sizeof(stripped));
+	ctx->cb(stripped, ctx);
+	return true;
+}
+static int QDECL CompleteMapListExt (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct xcommandargcompletioncb_s *ctx = parm;
+	if (name[5] == 'b' && name[6] == '_')	//skip box models
+		return true;
+
+	ctx->cb(name+5, ctx);
+	return true;
+}
+static void SV_Map_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	if (argn == 1)
+	{
+		COM_EnumerateFiles(va("maps/%s*.bsp", partial), CompleteMapList, ctx);
+		COM_EnumerateFiles(va("maps/%s*.map", partial), CompleteMapListExt, ctx);
+		COM_EnumerateFiles(va("maps/%s*.cm", partial), CompleteMapList, ctx);
+		COM_EnumerateFiles(va("maps/%s*.hmp", partial), CompleteMapList, ctx);
+	}
+}
+
 //static void gtcallback(struct cvar_s *var, char *oldvalue)
 //{
 //	Con_Printf("g_gametype changed\n");
@@ -2978,13 +3009,13 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("mod", SV_SendGameCommand_f);
 
 	Cmd_AddCommand ("killserver", SV_KillServer_f);
-	Cmd_AddCommand ("map", SV_Map_f);
 	Cmd_AddCommandD ("precaches", SV_PrecacheList_f, "Displays a list of current server precaches.");
+	Cmd_AddCommandAD ("map", SV_Map_f, SV_Map_c, "Changes map. If a second argument is specified then that is normally the name of the initial start spot.");
 #ifdef Q3SERVER
-	Cmd_AddCommand ("spmap", SV_Map_f);
+	Cmd_AddCommandAD ("spmap", SV_Map_f, SV_Map_c, NULL);
 #endif
-	Cmd_AddCommand ("gamemap", SV_Map_f);
-	Cmd_AddCommand ("changelevel", SV_Map_f);
+	Cmd_AddCommandAD ("gamemap", SV_Map_f, SV_Map_c, NULL);
+	Cmd_AddCommandAD ("changelevel", SV_Map_f, SV_Map_c, NULL);
 	Cmd_AddCommand ("listmaps", SV_MapList_f);
 	Cmd_AddCommand ("maplist", SV_MapList_f);
 

@@ -1195,6 +1195,7 @@ void CL_WriteRecordQ2DemoMessage(sizebuf_t *msg);
 void CL_Stop_f (void);
 void CL_Record_f (void);
 void CL_ReRecord_f (void);
+void CL_DemoList_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx);
 void CL_PlayDemo_f (void);
 void CL_QTVPlay_f (void);
 void CL_QTVPoll (void);

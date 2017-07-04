@@ -1945,9 +1945,12 @@ void SCR_ImageName (const char *mapname)
 
 	if (!scr_disabled_for_loading)
 	{
-		Sbar_Changed ();
 		scr_drawloading = true;
-		SCR_UpdateScreen ();
+		if (qrenderer != QR_NONE)
+		{
+			Sbar_Changed ();
+			SCR_UpdateScreen ();
+		}
 		scr_drawloading = false;
 		scr_disabled_for_loading = true;
 	}

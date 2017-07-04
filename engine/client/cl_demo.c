@@ -1975,6 +1975,22 @@ void CL_Record_f (void)
 	}
 }
 
+static int QDECL CompleteDemoList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct xcommandargcompletioncb_s *ctx = parm;
+	ctx->cb(name, ctx);
+	return true;
+}
+void CL_DemoList_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	if (argn == 1)
+	{
+		COM_EnumerateFiles(va("%s*.qwd", partial), CompleteDemoList, ctx);
+		COM_EnumerateFiles(va("%s*.dem", partial), CompleteDemoList, ctx);
+		COM_EnumerateFiles(va("%s*.mvd", partial), CompleteDemoList, ctx);
+		COM_EnumerateFiles(va("%s*.mvd.gz", partial), CompleteDemoList, ctx);
+	}
+}
 /*
 ====================
 CL_ReRecord_f

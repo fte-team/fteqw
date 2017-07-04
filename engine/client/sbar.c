@@ -40,6 +40,8 @@ cvar_t scr_scoreboard_teamsort = CVARD("scr_scoreboard_teamsort", "0", "On the s
 cvar_t scr_scoreboard_titleseperator = CVAR("scr_scoreboard_titleseperator", "1");
 cvar_t sbar_teamstatus = CVARD("sbar_teamstatus", "1", "Display the last team say from each of your team members just above the sbar area.");
 
+cvar_t cl_sbaralpha = CVARAD("cl_sbaralpha", "0.75", "scr_sbaralpha", "Specifies the transparency of the status bar. Only Takes effect when cl_sbar is set to 2.");	//with premultiplied alpha, this needs to affect the RGB values too.
+
 //===========================================
 //rogue changed and added defines
 #define RIT_SHELLS              (1u<<7)
@@ -1112,6 +1114,7 @@ void Sbar_Init (void)
 	Cvar_Register(&scr_scoreboard_titleseperator, "Scoreboard settings");
 
 	Cvar_Register(&sbar_teamstatus, "Status bar settings");
+	Cvar_Register(&cl_sbaralpha, "Status bar settings");
 
 	Cmd_AddCommand ("+showscores", Sbar_ShowScores);
 	Cmd_AddCommand ("-showscores", Sbar_DontShowScores);
@@ -1675,7 +1678,7 @@ void Sbar_DrawInventory (playerview_t *pv)
 	float	wleft, wtop;
 	apic_t *ibar;
 
-	headsup = !(cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1));
+	headsup = !(cl_sbar.value || (scr_viewsize.value<100));
 	hudswap = cl_hudswap.value; // Get that nasty float out :)
 
 	//coord for the left of the weapons, with hud
@@ -1695,7 +1698,12 @@ void Sbar_DrawInventory (playerview_t *pv)
 		ibar = sb_ibar;
 
 	if (!headsup)
+	{
+		if (cl_sbar.ival != 1 && scr_viewsize.value >= 100)
+			R2D_ImageColours (cl_sbaralpha.value, cl_sbaralpha.value, cl_sbaralpha.value, cl_sbaralpha.value);
 		Sbar_DrawPic (0, -24, 320, 24, ibar);
+		R2D_ImageColours (1, 1, 1, 1);
+	}
 
 // weapons
 	for (i=0 ; i<7 ; i++)
@@ -1921,7 +1929,7 @@ int Sbar_TranslateHudClick(void)
 	float vx = mousecursor_x - sbar_rect.x;
 	float vy = mousecursor_y - (sbar_rect.y + (sbar_rect.height-SBAR_HEIGHT));
 
-	qboolean headsup = !(cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1));
+	qboolean headsup = !(cl_sbar.value || (scr_viewsize.value<100));
 	qboolean hudswap = cl_hudswap.value; // Get that nasty float out :)
 
 	//inventory. clicks do specific-weapon impulses.
@@ -2082,8 +2090,13 @@ Sbar_DrawNormal
 */
 void Sbar_DrawNormal (playerview_t *pv)
 {
-	if (cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1))
+	if (cl_sbar.value || (scr_viewsize.value<100))
+	{
+		if (cl_sbar.ival != 1 && scr_viewsize.value >= 100)
+			R2D_ImageColours (cl_sbaralpha.value, cl_sbaralpha.value, cl_sbaralpha.value, cl_sbaralpha.value);
 		Sbar_DrawPic (0, 0, 320, 24, sb_sbar);
+		R2D_ImageColours (1, 1, 1, 1);
+	}
 
 	//hipnotic's keys appear to the right of health.
 	if (sbar_hipnotic)
@@ -2189,7 +2202,7 @@ qboolean Sbar_ShouldDraw (playerview_t *pv)
 		return false;
 #endif
 
-	headsup = !(cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1));
+	headsup = !(cl_sbar.value || (scr_viewsize.value<100));
 	if ((sb_updates >= vid.numpages) && !headsup)
 		return false;
 
@@ -2755,7 +2768,7 @@ void Sbar_Draw (playerview_t *pv)
 	qboolean minidmoverlay;
 	extern cvar_t scr_centersbar;
 
-	headsup = !(cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1));
+	headsup = !(cl_sbar.value || (scr_viewsize.value<100));
 	if ((sb_updates >= vid.numpages) && !headsup)
 		return;
 

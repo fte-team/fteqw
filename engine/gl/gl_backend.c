@@ -3189,8 +3189,8 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				qglUniform4fvARB(ph, j, (GLfloat*)colscale);
 				shaderstate.lastuniform = 0;
 			}
-#endif
 			else
+#endif
 			{
 				vec4_t param4;
 				Vector4Set(param4, shaderstate.identitylighting, shaderstate.identitylighting, shaderstate.identitylighting, 1);

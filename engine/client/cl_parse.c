@@ -3049,7 +3049,9 @@ static void CLQW_ParseServerData (void)
 	}
 
 	CL_ClearState ();
+#ifdef QUAKEHUD
 	Stats_NewMap();
+#endif
 	cl.servercount = svcnt;
 
 	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
@@ -3309,9 +3311,10 @@ static void CLQ2_ParseServerData (void)
 	cl.maxpitch = 89;
 	cl.servercount = svcnt;
 	Cam_AutoTrack_Update(NULL);
-
+	
+#ifdef QUAKEHUD
 	Stats_NewMap();
-
+#endif
 
 	// parse player entity number
 	cl.playerview[0].playernum = MSG_ReadShort ();
@@ -3554,7 +3557,9 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 	Con_DPrintf ("Serverdata packet %s.\n", cls.demoplayback?"read":"received");
 	SCR_SetLoadingStage(LS_CLIENT);
 	CL_ClearState ();
+#ifdef QUAKEHUD
 	Stats_NewMap();
+#endif
 	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 
 	CLNQ_ParseProtoVersion();
@@ -6073,8 +6078,13 @@ static void CL_ParsePrint(char *msg, int level)
 #ifdef PLUGINS
 				if (Plug_ServerMessage(printtext, level))
 #endif
+#ifdef QUAKEHUD
 					if (!Stats_ParsePickups(printtext) || !msg_filter_pickups.ival)
 						if (!Stats_ParsePrintLine(printtext) || !msg_filter_frags.ival)
+#else
+					if (!msg_filter_pickups.ival)
+						if (!msg_filter_frags.ival)
+#endif
 							CL_PrintStandardMessage(printtext, level);
 			}
 		}

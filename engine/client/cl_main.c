@@ -4370,8 +4370,9 @@ void CL_Init (void)
 #endif
 
 	Ignore_Init();
-
+#ifdef QUAKEHUD
 	Stats_Init();
+#endif
 	CL_ClearState();	//make sure the cl.* fields are set properly if there's no ssqc or whatever.
 }
 
@@ -6163,9 +6164,9 @@ void Host_Shutdown(void)
 	NET_Shutdown ();
 	FS_Shutdown();
 #endif
-
+#ifdef QUAKEHUD
 	Stats_Clear();
-
+#endif
 #ifdef Q3CLIENT
 	VMQ3_FlushStringHandles();
 #endif

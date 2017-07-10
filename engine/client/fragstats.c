@@ -1,5 +1,7 @@
+
 #include "quakedef.h"
 
+#ifdef QUAKEHUD
 #define MAX_WEAPONS 64 //fixme: make dynamic.
 
 typedef enum {
@@ -837,4 +839,4 @@ void Stats_NewMap(void)
 {
 	Stats_LoadFragFile("fragfile");
 }
-
+#endif

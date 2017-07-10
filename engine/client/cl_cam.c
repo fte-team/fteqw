@@ -156,8 +156,10 @@ static float CL_TrackScoreProp(player_info_t *pl, char rule, float *weights)
 		return pl->frags;
 //	case 'F':	//team frags
 //		return 0;
+#ifdef QUAKEHUD
 	case 'g':	//deaths
 		return Stats_GetDeaths(pl - cl.players);
+#endif
 	case 'u':	//userid
 		return pl - cl.players;
 	case 'c':	//'current run time'
@@ -727,10 +729,12 @@ static void Cam_CheckHighTarget(playerview_t *pv)
 	{
 		if (pv->cam_spec_track != j || pv->cam_state == CAM_FREECAM)
 		{
+#ifdef QUAKEHUD
 			if (cl.teamplay)
 				Stats_Message("Now tracking:\n%s\n%s", cl.players[j].name, cl.players[j].team);
 			else
 				Stats_Message("Now tracking:\n%s", cl.players[j].name);
+#endif
 			Cam_Lock(pv, j);
 			//un-lock any higher seats watching our new target. this keeps things ordered.
 			for (spv = pv+1; spv >= cl.playerview && spv < &cl.playerview[cl.splitclients]; spv++)

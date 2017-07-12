@@ -626,8 +626,8 @@ void R_SetupGL (float stereooffset, int i)
 	if (vid_srgb.modified && !gl_config_gles)
 	{
 		vid_srgb.modified = false;
-		if (vid_srgb.ival)
-			qglEnable(GL_FRAMEBUFFER_SRGB);
+		if (vid_srgb.ival == 1 || vid.srgb)
+			qglEnable(GL_FRAMEBUFFER_SRGB);	//specifies that the glsl is writing colours in the linear colour space, even if the framebuffer is not sRGB.
 		else
 			qglDisable(GL_FRAMEBUFFER_SRGB);
 	}

@@ -452,11 +452,36 @@ void GUI_ParseCommandLine(char *args)
 	int l, p;
 	char *next;
 
+	if (!*args)
+	{
+		int len;
+		FILE *f;
+		char *s;
+
+		f = fopen("fteqcc.arg", "rb");
+		if (f)
+		{
+			fseek(f, 0, SEEK_END);
+			len = ftell(f);
+			fseek(f, 0, SEEK_SET);
+			args = _alloca(len+1);
+			fread(args, 1, len, f);
+			args[len] = '\0';
+			fclose(f);
+
+			while((s = strchr(args, '\r')))
+				*s = ' ';
+			while((s = strchr(args, '\n')))
+				*s = ' ';
+		}
+	}
+
 	//find the first argument
 	while (*args == ' ' || *args == '\t')
 		args++;
 	for (next = args; *next&&*next!=' '&&*next !='\t'; next++)
 		;
+
 
 	if (*args != '-')
 	{

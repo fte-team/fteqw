@@ -119,8 +119,6 @@ extern cvar_t vid_width;
 extern cvar_t vid_height;
 extern cvar_t vid_wndalpha;
 
-typedef enum {MS_WINDOWED, MS_FULLDIB, MS_FULLWINDOW, MS_UNINIT} modestate_t;
-
 static qboolean VID_SetWindowedMode (rendererstate_t *info);	//-1 on bpp or hz for default.
 static qboolean VID_SetFullDIBMode (rendererstate_t *info);	//-1 on bpp or hz for default.
 
@@ -162,7 +160,7 @@ viddef_t	vid;				// global video state
 //unsigned short	d_8to16bgrtable[256];
 //unsigned	d_8to24bgrtable[256];
 
-static modestate_t	modestate = MS_UNINIT;
+static enum {MS_WINDOWED, MS_FULLDIB, MS_FULLWINDOW, MS_UNINIT}	modestate = MS_UNINIT;
 
 extern float gammapending;
 
@@ -232,6 +230,7 @@ static int   (WINAPI *qDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIP
 static BOOL (WINAPI *qwglSwapIntervalEXT) (int);
 
 static BOOL (APIENTRY *qwglChoosePixelFormatARB)(HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int* piFormats, UINT* nNumFormats);
+static BOOL (APIENTRY *qwglGetPixelFormatAttribfvARB)(HDC hdc, int iPixelFormat, int iLayerPlane, UINT nAttributes, int *piAttributes, FLOAT *pfValues);
 
 static HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, const int *attribList);
 #define WGL_CONTEXT_MAJOR_VERSION_ARB					0x2091
@@ -1441,6 +1440,7 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 #endif
 		// Set either the fullscreen or windowed mode
 		qwglChoosePixelFormatARB = NULL;
+		qwglGetPixelFormatAttribfvARB = NULL;
 		qwglCreateContextAttribsARB = NULL;
 		stat = CreateMainWindow(info, true);
 
@@ -1454,7 +1454,7 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 				{
 					HMODULE oldgl = hInstGL;
 					hInstGL = NULL;	//don't close the gl library, just in case
-					VID_UnSetMode();
+					VID_UnSetMode();	//SetPixelFormat may only be used once per window. which means we *MUST* destroy the window if we're using a different pixelformat.
 					hInstGL = oldgl;
 
 					if (CreateMainWindow(info, true) && VID_AttachGL(info))
@@ -1480,6 +1480,9 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 			}
 		}
 
+		GL_Init(info, getglfunc);
+		qSwapBuffers(maindc);
+
 #ifdef VKQUAKE
 		if (platform_rendermode == MODE_NVVULKAN && stat)
 		{
@@ -1497,7 +1500,7 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 			stat = EGL_Init (info, palette, mainwindow, maindc);
 
 			if (stat)
-				GL_Init(&EGL_Proc);
+				GL_Init(info, &EGL_Proc);
 		}
 		break;
 #endif
@@ -1950,8 +1953,8 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	}
 #endif
 
-	TRACE(("dbg: VID_AttachGL: GL_Init\n"));
-	GL_Init(getglfunc);
+	qwglChoosePixelFormatARB	= getglfunc("wglChoosePixelFormatARB");
+	qwglGetPixelFormatAttribfvARB = getglfunc("wglGetPixelFormatAttribfvARB");
 
 	if (info->stereo)
 	{
@@ -1961,19 +1964,12 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			Con_Printf("Unable to create stereoscopic/quad-buffered OpenGL context. Please use a different stereoscopic method.\n");
 	}
 
-	qwglChoosePixelFormatARB	= getglfunc("wglChoosePixelFormatARB");
-
 	qwglSwapIntervalEXT		= getglfunc("wglSwapIntervalEXT");
 	if (qwglSwapIntervalEXT && *vid_vsync.string)
 	{
 		TRACE(("dbg: VID_AttachGL: qwglSwapIntervalEXT\n"));
 		qwglSwapIntervalEXT(vid_vsync.value);
 	}
-	TRACE(("dbg: VID_AttachGL: qSwapBuffers\n"));
-	qglClearColor(0, 0, 0, 1);
-	qglClear(GL_COLOR_BUFFER_BIT);
-	qSwapBuffers(maindc);
-
 	return true;
 }
 #endif
@@ -2234,14 +2230,15 @@ static BOOL CheckForcePixelFormat(rendererstate_t *info)
 		int valid;
 		float fAttribute[] = {0,0};
 		UINT numFormats;
-		int pixelformat;
+		int pixelformats[1];
 		int iAttributes = 0;
 		int iAttribute[16*2];
+
 		iAttribute[iAttributes++] = WGL_DRAW_TO_WINDOW_ARB;				iAttribute[iAttributes++] = GL_TRUE;
 		iAttribute[iAttributes++] = WGL_SUPPORT_OPENGL_ARB;				iAttribute[iAttributes++] = GL_TRUE;
 		iAttribute[iAttributes++] = WGL_ACCELERATION_ARB;				iAttribute[iAttributes++] = WGL_FULL_ACCELERATION_ARB;
-		iAttribute[iAttributes++] = WGL_COLOR_BITS_ARB;					iAttribute[iAttributes++] = info->bpp;
-		iAttribute[iAttributes++] = WGL_ALPHA_BITS_ARB;					iAttribute[iAttributes++] = 4;
+		iAttribute[iAttributes++] = WGL_COLOR_BITS_ARB;					iAttribute[iAttributes++] = (info->bpp>24)?24:info->bpp;
+//		iAttribute[iAttributes++] = WGL_ALPHA_BITS_ARB;					iAttribute[iAttributes++] = 4;
 		iAttribute[iAttributes++] = WGL_DEPTH_BITS_ARB;					iAttribute[iAttributes++] = 16;
 		iAttribute[iAttributes++] = WGL_STENCIL_BITS_ARB;				iAttribute[iAttributes++] = 8;
 		iAttribute[iAttributes++] = WGL_DOUBLE_BUFFER_ARB;				iAttribute[iAttributes++] = GL_TRUE;
@@ -2261,7 +2258,7 @@ static BOOL CheckForcePixelFormat(rendererstate_t *info)
 		TRACE(("dbg: bSetupPixelFormat: attempting wglChoosePixelFormatARB (multisample 4)\n"));
 		hDC = GetDC(mainwindow);
 
-		valid = qwglChoosePixelFormatARB(hDC,iAttribute,fAttribute,1,&pixelformat,&numFormats);
+		valid = qwglChoosePixelFormatARB(hDC,iAttribute,fAttribute,countof(pixelformats),pixelformats,&numFormats);
 /*		while ((!valid || numFormats < 1) && iAttribute[19] > 1)
 		{	//failed, switch wgl_samples to 2
 			iAttribute[19] /= 2;
@@ -2269,11 +2266,115 @@ static BOOL CheckForcePixelFormat(rendererstate_t *info)
 			valid = qwglChoosePixelFormatARB(hDC,iAttribute,fAttribute,1,&pixelformat,&numFormats);
 		}
 */
+
+#if 0
+		for (iAttributes = -1; iAttributes < (int)numFormats; iAttributes++)
+		{
+			int j;
+			struct
+			{
+				char *name;
+				int id;
+			} iAttributeTable[] = {
+				{"WGL_DRAW_TO_WINDOW",				WGL_DRAW_TO_WINDOW_ARB},
+				{"WGL_DRAW_TO_BITMAP",				0x2002},
+				{"WGL_ACCELERATION",				WGL_ACCELERATION_ARB},
+				{"WGL_NEED_PALETTE",				0x2004},
+				{"WGL_NEED_SYSTEM_PALETTE",			0x2005},
+				{"WGL_SWAP_LAYER_BUFFERS",			WGL_SWAP_LAYER_BUFFERS_ARB},
+				{"WGL_SWAP_METHOD",					0x2007},
+				{"WGL_NUMBER_OVERLAYS",				0x2008},
+				{"WGL_NUMBER_UNDERLAYS",			0x2009},
+				{"WGL_TRANSPARENT",					0x200A},
+				{"WGL_TRANSPARENT_RED_VALUE",		0x2037},
+				{"WGL_TRANSPARENT_GREEN_VALUE",		0x2038},
+				{"WGL_TRANSPARENT_BLUE_VALUE",		0x2039},
+				{"WGL_TRANSPARENT_ALPHA_VALUE",		0x203a},
+				{"WGL_TRANSPARENT_INDEX_VALUE",		0x203B},
+				{"WGL_SHARE_DEPTH",					0x200C},
+				{"WGL_SHARE_STENCIL",				0x200D},
+				{"WGL_SHARE_ACCUM",					0x200E},
+				{"WGL_SUPPORT_GDI",					0x200F},
+				{"WGL_SUPPORT_OPENGL",				WGL_SUPPORT_OPENGL_ARB},
+				{"WGL_DOUBLE_BUFFER",				WGL_DOUBLE_BUFFER_ARB},
+				{"WGL_STEREO",						WGL_STEREO_ARB},
+				{"WGL_PIXEL_TYPE",					0x2013},
+				{"WGL_COLOR_BITS",					WGL_COLOR_BITS_ARB},
+				{"WGL_RED_BITS",					0x2015},
+				{"WGL_RED_SHIFT",					0x2016},
+				{"WGL_GREEN_BITS",					0x2017},
+				{"WGL_GREEN_SHIFT",					0x2018},
+				{"WGL_BLUE_BITS",					0x2019},
+				{"WGL_BLUE_SHIFT",					0x201A},
+				{"WGL_ALPHA_BITS",					WGL_ALPHA_BITS_ARB},
+				{"WGL_ALPHA_SHIFT",					0x201C},
+				{"WGL_ACCUM_BITS",					0x201D},
+				{"WGL_ACCUM_RED_BITS",				0x201E},
+				{"WGL_ACCUM_GREEN_BITS",			0x201F},
+				{"WGL_ACCUM_BLUE_BITS",				0x2020},
+				{"WGL_ACCUM_ALPHA_BITS",			0x2021},
+				{"WGL_DEPTH_BITS",					WGL_DEPTH_BITS_ARB},
+				{"WGL_STENCIL_BITS",				WGL_STENCIL_BITS_ARB},
+				{"WGL_AUX_BUFFERS",					0x2024},
+				
+				//extra extensions
+				{"WGL_SAMPLE_BUFFERS_ARB",			WGL_SAMPLE_BUFFERS_ARB},	//multisample
+				{"WGL_SAMPLES_ARB",					WGL_SAMPLES_ARB},	//multisample
+
+				{"WGL_DRAW_TO_PBUFFER_ARB",			0x202D},	//pbuffers
+				{"WGL_MAX_PBUFFER_PIXELS_ARB",		0x202E},	//pbuffers
+				{"WGL_MAX_PBUFFER_WIDTH_ARB",		0x202F},	//pbuffers
+				{"WGL_MAX_PBUFFER_HEIGHT_ARB",		0x2030},	//pbuffers
+
+				{"WGL_BIND_TO_TEXTURE_RGB_ARB",		0x2070},
+				{"WGL_BIND_TO_TEXTURE_RGBA_ARB",	0x2071},
+				{"WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB",WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB},
+				{"WGL_COLORSPACE_EXT",				0x309D},	//WGL_EXT_colorspace
+
+				//stuff my drivers don't support
+//				{"WGL_TYPE_RGBA_FLOAT_ARB",			0x21A0},
+//				{"WGL_DEPTH_FLOAT_EXT",				0x2040},
+//				{"WGL_TYPE_RGBA_UNSIGNED_FLOAT_EXT",0x20A8},	//EXT_packed_float
+			};
+			int iAttributeNames[countof(iAttributeTable)];
+			float fAttributeValues[countof(iAttributeTable)];
+			float basevalues[countof(iAttributeTable)];
+
+			for (j = 0; j < countof(iAttributeTable); j++)
+				iAttributeNames[j] = iAttributeTable[j].id;
+
+			Sys_Printf("Pixel Format %i --------------------------\n", iAttributes<0?currentpixelformat:pixelformats[iAttributes]);
+			if (qwglGetPixelFormatAttribfvARB(hDC, iAttributes<0?currentpixelformat:pixelformats[iAttributes], 0, countof(iAttributeTable), iAttributeNames, fAttributeValues))
+			{
+				if (iAttributes==-1)
+					memcpy(basevalues, fAttributeValues, sizeof(basevalues));
+				for (j = 0; j < countof(iAttributeTable); j++)
+				{
+					if (iAttributes==-1 || fAttributeValues[j] != basevalues[j])
+					{
+						if (iAttributeTable[j].id == 0x2007 && fAttributeValues[j] == 0x2028)
+							Sys_Printf("%s: exchange\n", iAttributeTable[j].name);
+						else if (iAttributeTable[j].id == 0x2007 && fAttributeValues[j] == 0x2029)
+							Sys_Printf("%s: copy\n", iAttributeTable[j].name);
+						else if (iAttributeTable[j].id == 0x309D && fAttributeValues[j] == 0x3089)
+							Sys_Printf("%s: WGL_COLORSPACE_SRGB\n", iAttributeTable[j].name);
+						else if (iAttributeTable[j].id == 0x309D && fAttributeValues[j] == 0x308A)
+							Sys_Printf("%s: WGL_COLORSPACE_LINEAR\n", iAttributeTable[j].name);
+						else if (iAttributeTable[j].id == 0x202E)
+							Sys_Printf("%s: %#x\n", iAttributeTable[j].name, (int)fAttributeValues[j]);
+						else
+							Sys_Printf("%s: %g\n", iAttributeTable[j].name, fAttributeValues[j]);
+					}
+				}
+			}
+		}
+#endif
+
 		ReleaseDC(mainwindow, hDC);
-		if (valid && numFormats > 0)
+		if (valid && numFormats > 0 && pixelformats[0] != currentpixelformat)
 		{
 			shouldforcepixelformat = true;
-			forcepixelformat = pixelformat;
+			forcepixelformat = pixelformats[0];
 			return true;
 		}
 	}

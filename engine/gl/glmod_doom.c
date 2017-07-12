@@ -26,8 +26,6 @@ int	PlaneTypeForNormal ( vec3_t normal );
 
 //(aol suck)
 
-void Doom_SetModelFunc(model_t *mod);
-int Doom_SectorNearPoint(vec3_t p);
 
 //assumptions:
 //1. That there is a node, and thus two ssectors.
@@ -205,29 +203,6 @@ typedef struct {
 	short rows;
 } blockmapheader_t;
 
-ddoomnode_t		*nodel;
-dssector_t		*ssectorsl;
-dthing_t			*thingsl;
-mdoomvertex_t	*vertexesl;
-dgl_seg3_t		*segsl;
-dlinedef_t		*linedefsl;
-msidedef_t		*sidedefsm;
-msector_t		*sectorm;
-plane_t			*nodeplanes;
-plane_t			*lineplanes;
-blockmapheader_t *blockmapl;
-unsigned short	*blockmapofs;
-unsigned int nodec;
-unsigned int sectorc;
-unsigned int segsc;
-unsigned int ssectorsc;
-unsigned int thingsc;
-unsigned int linedefsc;
-unsigned int sidedefsc;
-unsigned int vertexesc;
-unsigned int vertexsglbase;
-
-
 typedef struct
 {
 	char name[16];
@@ -240,36 +215,74 @@ typedef struct
 	int maxverts;
 	int maxindicies;
 } doomtexture_t;
-doomtexture_t *doomtextures;
-int numdoomtextures;
 
+typedef struct doommap_s
+{
+	model_t			*model;
+
+	ddoomnode_t		*node;
+	plane_t			*nodeplane;
+	unsigned int	numnodes;
+
+	dssector_t		*ssector;	//aka: leafs
+	unsigned int	numssectors;
+
+	msector_t		*sector;
+	unsigned int	numsectors;
+
+	dthing_t		*thing;
+	unsigned int	numthings;
+
+	mdoomvertex_t	*vertexes;
+	unsigned int	numvertexes;
+
+	dgl_seg3_t		*seg;
+	unsigned int	numsegs;
+
+	dlinedef_t		*linedef;
+	plane_t			*lineplane;
+	unsigned int	 numlinedefs;
+
+	msidedef_t		*sidedef;
+	unsigned int	numsidedefs;
+
+	blockmapheader_t *blockmap;
+	unsigned short	*blockmapofs;
+
+	unsigned int	vertexsglbase;
+
+	doomtexture_t	*textures;
+	unsigned int	numtextures;
+} doommap_t;
+
+void Doom_SetModelFunc(model_t *mod);
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 //physics
 
 /*walk the bsp tree*/
-int Doom_SectorNearPoint(vec3_t p)
+int Doom_SectorNearPoint(doommap_t *dm, vec3_t p)
 {
 	ddoomnode_t *node;
 	plane_t *plane;
 	int num;
 	int seg;
 	float d;
-	num = nodec-1;
+	num = dm->numnodes-1;
 	while (1)
 	{
 		if (num & NODE_IS_SSECTOR)
 		{
 			num -= NODE_IS_SSECTOR;
-			for (seg = ssectorsl[num].first; seg < ssectorsl[num].first + ssectorsl[num].segcount; seg++)
-				if (segsl[seg].linedef != 0xffff)
+			for (seg = dm->ssector[num].first; seg < dm->ssector[num].first + dm->ssector[num].segcount; seg++)
+				if (dm->seg[seg].linedef != 0xffff)
 					break;
 
-			return sidedefsm[linedefsl[segsl[seg].linedef].sidedef[segsl[seg].direction]].sector;
+			return dm->sidedef[dm->linedef[dm->seg[seg].linedef].sidedef[dm->seg[seg].direction]].sector;
 		}
 
-		node = nodel + num;
-		plane = nodeplanes + num;
+		node = dm->node + num;
+		plane = dm->nodeplane + num;
 		
 //		if (plane->type < 3)
 //			d = p[plane->type] - plane->dist;
@@ -286,10 +299,11 @@ int Doom_SectorNearPoint(vec3_t p)
 
 int Doom_PointContents(model_t *model, vec3_t axis[3], vec3_t p)
 {
-	int sec = Doom_SectorNearPoint(p);
-	if (p[2] < sectorm[sec].floorheight)
+	doommap_t *dm = model->meshinfo;
+	int sec = Doom_SectorNearPoint(dm, p);
+	if (p[2] < dm->sector[sec].floorheight)
 		return FTECONTENTS_SOLID;
-	if (p[2] > sectorm[sec].ceilingheight)
+	if (p[2] > dm->sector[sec].ceilingheight)
 		return FTECONTENTS_SOLID;
 	return FTECONTENTS_EMPTY;
 }
@@ -320,7 +334,7 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 
 //	Con_Printf("%i\n", sec1);
 
-	if (start[2] < sectorm[sec1].floorheight-mins[2])	//whoops, started outside... ?
+	if (start[2] < dm->sector[sec1].floorheight-mins[2])	//whoops, started outside... ?
 	{
 		trace->fraction = 0;
 		trace->allsolid = trace->startsolid = true;
@@ -332,11 +346,11 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 		trace->plane.normal[0] = 0;
 		trace->plane.normal[1] = 0;
 		trace->plane.normal[2] = 1;
-		trace->plane.dist = sectorm[sec1].floorheight-mins[2];
+		trace->plane.dist = dm->sector[sec1].floorheight-mins[2];
 
 		return false;
 	}
-	if (start[2] > sectorm[sec1].ceilingheight-maxs[2])	//whoops, started outside... ?
+	if (start[2] > dm->sector[sec1].ceilingheight-maxs[2])	//whoops, started outside... ?
 	{
 		trace->fraction = 0;
 		trace->allsolid = trace->startsolid = true;
@@ -346,7 +360,7 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 		trace->plane.normal[0] = 0;
 		trace->plane.normal[1] = 0;
 		trace->plane.normal[2] = -1;
-		trace->plane.dist = -(sectorm[sec1].ceilingheight-maxs[2]);
+		trace->plane.dist = -(dm->sector[sec1].ceilingheight-maxs[2]);
 		return false;
 	}
 
@@ -364,28 +378,28 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 	trace->fraction = 1;
 	while(1)
 	{
-		bmi = ((int)p1[0] - blockmapl->xorg)/128 + (((int)p1[1] - blockmapl->yorg)/128)*blockmapl->columns;
-//		Con_Printf("%i of %i ", bmi, blockmapl->rows*blockmapl->columns);
-		if (bmi >= 0 && bmi < blockmapl->rows*blockmapl->columns)
+		bmi = ((int)p1[0] - dm->blockmap->xorg)/128 + (((int)p1[1] - dm->blockmap->yorg)/128)*dm->blockmap->columns;
+//		Con_Printf("%i of %i ", bmi, dm->blockmap->rows*dm->blockmap->columns);
+		if (bmi >= 0 && bmi < dm->blockmap->rows*dm->blockmap->columns)
 		if (bmi != obmi)
 		{
 #if 1
 			short dummy;
 			linedefs = &dummy;
-			for (dummy = 0; dummy < linedefsc; dummy++)
+			for (dummy = 0; dummy < dm->numlinedefs; dummy++)
 #else
-			for(linedefs = (short*)blockmapl + blockmapofs[bmi]+1; *linedefs != 0xffff; linedefs++)
+			for(linedefs = (short*)dm->blockmap + dm->blockmapofs[bmi]+1; *linedefs != 0xffff; linedefs++)
 #endif
 			{
-				ld = linedefsl + *linedefs;
+				ld = dm->linedef + *linedefs;
 				if (ld->sidedef[1] != 0xffff)
 				{
-					if (sectorm[sidedefsm[ld->sidedef[0]].sector].floorheight == sectorm[sidedefsm[ld->sidedef[1]].sector].floorheight &&
-						sectorm[sidedefsm[ld->sidedef[0]].sector].ceilingheight == sectorm[sidedefsm[ld->sidedef[1]].sector].ceilingheight)
+					if (dm->sector[dm->sidedef[ld->sidedef[0]].sector].floorheight == dm->sector[dm->sidedef[ld->sidedef[1]].sector].floorheight &&
+						dm->sector[dm->sidedef[ld->sidedef[0]].sector].ceilingheight == dm->sector[dm->sidedef[ld->sidedef[1]].sector].ceilingheight)
 						continue;
 				}
 				
-				lp = lineplanes + *linedefs;
+				lp = dm->lineplane + *linedefs;
 
 				if (1)
 				{	//figure out how far to move the plane out by
@@ -413,8 +427,8 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 						planedist = -planedist+lp->dist;
 						if (/*d1 < planedist*-1 &&*/ d1 > planedist*2)
 						{	//right, we managed to end up just on the other side of a wall's plane.
-							v1 = &vertexesl[ld->vert[0]];
-							v2 = &vertexesl[ld->vert[1]];
+							v1 = &dm->vertexes[ld->vert[0]];
+							v2 = &dm->vertexes[ld->vert[1]];
 							if (!(d1 - d2))
 								continue;
 							if (d1<0)	//back to front.
@@ -436,14 +450,14 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 							pointonplane[2] = start[2]*c2 + p2[2]*c1;
 
 							Con_Printf("Started in wall\n");
-							j = sidedefsm[ld->sidedef[d1 < planedist]].sector;
+							j = dm->sidedef[ld->sidedef[d1 < planedist]].sector;
 							//yup, we are in the thing
 							//prevent ourselves from entering the back-sector's floor/ceiling
-							if (pointonplane[2] < sectorm[j].floorheight-hull->clip_mins[2])	//whoops, started outside... ?
+							if (pointonplane[2] < dm->sector[j].floorheight-hull->clip_mins[2])	//whoops, started outside... ?
 							{
 								Con_Printf("Started in floor\n");
 								trace->allsolid = trace->startsolid = false;
-								trace->endpos[2] = sectorm[j].floorheight-hull->clip_mins[2];
+								trace->endpos[2] = dm->sector[j].floorheight-hull->clip_mins[2];
 								trace->fraction = fabs(trace->endpos[2] - start[2]) / fabs(p2[2] - start[2]);
 								trace->endpos[0] = start[0]+delta[0]*trace->fraction*p2f;
 								trace->endpos[1] = start[1]+delta[1]*trace->fraction*p2f;
@@ -452,22 +466,22 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 								trace->plane.normal[0] = 0;
 								trace->plane.normal[1] = 0;
 								trace->plane.normal[2] = 1;
-								trace->plane.dist = sectorm[j].floorheight-hull->clip_mins[2];
+								trace->plane.dist = dm->sector[j].floorheight-hull->clip_mins[2];
 
 								continue;
 							}
-							if (pointonplane[2] > sectorm[j].ceilingheight-hull->clip_maxs[2])	//whoops, started outside... ?
+							if (pointonplane[2] > dm->sector[j].ceilingheight-hull->clip_maxs[2])	//whoops, started outside... ?
 							{
 								Con_Printf("Started in ceiling\n");
 								trace->allsolid = trace->startsolid = false;
 								trace->endpos[0] = pointonplane[0];
 								trace->endpos[1] = pointonplane[1];
-								trace->endpos[2] = sectorm[j].ceilingheight-hull->clip_maxs[2];
+								trace->endpos[2] = dm->sector[j].ceilingheight-hull->clip_maxs[2];
 								trace->fraction = fabs(trace->endpos[2] - start[2]) / fabs(p2[2] - start[2]);
 								trace->plane.normal[0] = 0;
 								trace->plane.normal[1] = 0;
 								trace->plane.normal[2] = -1;
-								trace->plane.dist = -(sectorm[j].ceilingheight-hull->clip_maxs[2]);
+								trace->plane.dist = -(dm->sector[j].ceilingheight-hull->clip_maxs[2]);
 								continue;
 							}
 						}
@@ -478,8 +492,8 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 
 				//line crosses plane.
 
-				v1 = &vertexesl[ld->vert[0]];
-				v2 = &vertexesl[ld->vert[1]];
+				v1 = &dm->vertexes[ld->vert[0]];
+				v2 = &dm->vertexes[ld->vert[1]];
 
 				if (d1<0)	//back to front.
 				{
@@ -510,13 +524,13 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 					msector_t *sec2;
 
 					if (d1<0)
-						sec2 = &sectorm[sidedefsm[ld->sidedef[1]].sector];
+						sec2 = &dm->sector[dm->sidedef[ld->sidedef[1]].sector];
 					else
-						sec2 = &sectorm[sidedefsm[ld->sidedef[0]].sector];
+						sec2 = &dm->sector[dm->sidedef[ld->sidedef[0]].sector];
 
 					if (pointonplane[2] < sec2->floorheight-hull->clip_mins[2])
 					{	//hit the floor first.
-						c1 = fabs(sectorm[sec1].floorheight-hull->clip_mins[2] - start[2]);
+						c1 = fabs(dm->sector[sec1].floorheight-hull->clip_mins[2] - start[2]);
 						c2 = fabs(p2[2] - start[2]);
 						if (!c2)
 							c1 = 1;
@@ -533,14 +547,14 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 							trace->plane.normal[0] = 0;
 							trace->plane.normal[1] = 0;
 							trace->plane.normal[2] = 1;
-							trace->plane.dist = sectorm[sec1].floorheight-hull->clip_mins[2];
+							trace->plane.dist = dm->sector[sec1].floorheight-hull->clip_mins[2];
 						}
 						continue;
 					}
 
 					if (pointonplane[2] > sec2->ceilingheight-hull->clip_maxs[2])
 					{	//hit the floor first.
-						c1 = fabs((sectorm[sec1].ceilingheight-hull->clip_maxs[2]) - start[2]);
+						c1 = fabs((dm->sector[sec1].ceilingheight-hull->clip_maxs[2]) - start[2]);
 						c2 = fabs(p2[2] - start[2]);
 						if (!c2)
 							c1 = 1;
@@ -559,15 +573,15 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 							trace->plane.normal[0] = 0;
 							trace->plane.normal[1] = 0;
 							trace->plane.normal[2] = -1;
-							trace->plane.dist = -(sectorm[sec1].ceilingheight-hull->clip_maxs[2]);
+							trace->plane.dist = -(dm->sector[sec1].ceilingheight-hull->clip_maxs[2]);
 						}
 						continue;
 					}
 
 					if (d1<0)
-						sec2 = &sectorm[sidedefsm[ld->sidedef[0]].sector];
+						sec2 = &dm->sector[dm->sidedef[ld->sidedef[0]].sector];
 					else
-						sec2 = &sectorm[sidedefsm[ld->sidedef[1]].sector];
+						sec2 = &dm->sector[dm->sidedef[ld->sidedef[1]].sector];
 
 					if(sec2->ceilingheight == sec2->floorheight)
 						sec2->ceilingheight += 64;
@@ -629,9 +643,9 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 	{
 		if (sec1 == Doom_SectorNearPoint(p2))	//special test.
 		{
-			if (p2[2] <= sectorm[sec1].floorheight-hull->clip_mins[2])	//whoops, started outside... ?
+			if (p2[2] <= dm->sector[sec1].floorheight-hull->clip_mins[2])	//whoops, started outside... ?
 			{
-				p1f = fabs(sectorm[sec1].floorheight-hull->clip_mins[2] - start[2]);
+				p1f = fabs(dm->sector[sec1].floorheight-hull->clip_mins[2] - start[2]);
 				p2f = fabs(p2[2] - start[2]);
 				if (!p2f)
 					c1 = 1;
@@ -647,15 +661,15 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 					trace->plane.normal[0] = 0;
 					trace->plane.normal[1] = 0;
 					trace->plane.normal[2] = 1;
-					trace->plane.dist = sectorm[sec1].floorheight-hull->clip_mins[2];
+					trace->plane.dist = dm->sector[sec1].floorheight-hull->clip_mins[2];
 				}
 
 //				if (IS_NAN(trace->endpos[2]))
 //					Con_Printf("Nanny\n");
 			}
-			if (p2[2] >= sectorm[sec1].ceilingheight-hull->clip_maxs[2])	//whoops, started outside... ?
+			if (p2[2] >= dm->sector[sec1].ceilingheight-hull->clip_maxs[2])	//whoops, started outside... ?
 			{
-				p1f = fabs(sectorm[sec1].ceilingheight-hull->clip_maxs[2] - start[2]);
+				p1f = fabs(dm->sector[sec1].ceilingheight-hull->clip_maxs[2] - start[2]);
 				p2f = fabs(p2[2] - start[2]);
 				if (!p2f)
 					c1 = 1;
@@ -671,7 +685,7 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 					trace->plane.normal[0] = 0;
 					trace->plane.normal[1] = 0;
 					trace->plane.normal[2] = -1;
-					trace->plane.dist = -(sectorm[sec1].ceilingheight-hull->clip_maxs[2]);
+					trace->plane.dist = -(dm->sector[sec1].ceilingheight-hull->clip_maxs[2]);
 				}
 
 //				if (IS_NAN(trace->endpos[2]))
@@ -733,7 +747,7 @@ void Doom_LoadPalette(void)
 	}
 }
 #endif
-int Doom_LoadFlat(model_t *mod, char *flatname)
+int Doom_LoadFlat(doommap_t *dm, char *flatname)
 {
 #ifndef SERVERONLY
 	char texname[64];
@@ -741,20 +755,20 @@ int Doom_LoadFlat(model_t *mod, char *flatname)
 
 	sprintf(texname, "flats/%-.8s", flatname);
 
-	for (texnum = 0; texnum < numdoomtextures; texnum++)
+	for (texnum = 0; texnum < dm->numtextures; texnum++)
 	{
-		if (!strcmp(doomtextures[texnum].name, texname))
+		if (!strcmp(dm->textures[texnum].name, texname))
 			return texnum;
 	}
 	
-	doomtextures = BZ_Realloc(doomtextures, sizeof(*doomtextures)*((numdoomtextures+16)&~15));
-	memset(doomtextures + numdoomtextures, 0, sizeof(doomtextures[numdoomtextures]));
-	numdoomtextures++;
+	dm->textures = BZ_Realloc(dm->textures, sizeof(*dm->textures)*((dm->numtextures+16)&~15));
+	memset(dm->textures + dm->numtextures, 0, sizeof(dm->textures[dm->numtextures]));
+	dm->numtextures++;
 
-	Q_strncpyz(doomtextures[texnum].name, texname, sizeof(doomtextures[texnum].name));
+	Q_strncpyz(dm->textures[texnum].name, texname, sizeof(dm->textures[texnum].name));
 
-	doomtextures[texnum].width = 64;
-	doomtextures[texnum].height = 64;
+	dm->textures[texnum].width = 64;
+	dm->textures[texnum].height = 64;
 
 	return texnum;
 #else
@@ -763,9 +777,9 @@ int Doom_LoadFlat(model_t *mod, char *flatname)
 }
 
 #ifndef SERVERONLY
-static void R_DrawWall(int texnum, int s, int t, float x1, float y1, float z1, float x2, float y2, float z2, qboolean unpegged, unsigned int colour4b)
+static void R_DrawWall(doommap_t *dm, int texnum, int s, int t, float x1, float y1, float z1, float x2, float y2, float z2, qboolean unpegged, unsigned int colour4b)
 {
-	doomtexture_t *tex = doomtextures+texnum;
+	doomtexture_t *tex = dm->textures+texnum;
 	mesh_t *mesh = &tex->mesh;
 	float len = sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2));
 	float s1, s2;
@@ -833,7 +847,7 @@ static void R_DrawWall(int texnum, int s, int t, float x1, float y1, float z1, f
 	mesh->numindexes += 6;
 }
 
-static void R_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int ceilheight, int numverts, unsigned short *verts, unsigned int colour4b)
+static void R_DrawFlats(doommap_t *dm, int floortexnum, int floorheight, int ceiltexnum, int ceilheight, int numverts, unsigned short *verts, unsigned int colour4b)
 {
 	mesh_t *mesh;
 	unsigned int col;
@@ -841,7 +855,7 @@ static void R_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int ce
 
 	//floor
 	{
-		doomtexture_t *floortex = doomtextures + floortexnum;
+		doomtexture_t *floortex = dm->textures + floortexnum;
 		mesh = &floortex->mesh;
 		if (mesh->numvertexes+numverts > floortex->maxverts)
 		{
@@ -871,8 +885,8 @@ static void R_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int ce
 		for (i = 0; i < numverts; i++)
 		{
 			v = verts[i];
-			VectorSet(mesh->xyz_array[mesh->numvertexes+i], vertexesl[v].xpos, vertexesl[v].ypos, floorheight);
-			Vector2Set(mesh->st_array[mesh->numvertexes+i], vertexesl[v].xpos/64.0f, vertexesl[v].ypos/64.0f);
+			VectorSet(mesh->xyz_array[mesh->numvertexes+i], dm->vertexes[v].xpos, dm->vertexes[v].ypos, floorheight);
+			Vector2Set(mesh->st_array[mesh->numvertexes+i], dm->vertexes[v].xpos/64.0f, dm->vertexes[v].ypos/64.0f);
 			*(unsigned int*)mesh->colors4b_array[mesh->numvertexes+i] = col;
 		}
 
@@ -890,7 +904,7 @@ static void R_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int ce
 
 	//ceiling
 	{
-		doomtexture_t *ceiltex = doomtextures + ceiltexnum;
+		doomtexture_t *ceiltex = dm->textures + ceiltexnum;
 		mesh = &ceiltex->mesh;
 		if (mesh->numvertexes+numverts > ceiltex->maxverts)
 		{
@@ -920,8 +934,8 @@ static void R_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int ce
 		for (i = 0; i < numverts; i++)
 		{
 			v = verts[numverts-1-i];
-			VectorSet(mesh->xyz_array[mesh->numvertexes+i], vertexesl[v].xpos, vertexesl[v].ypos, ceilheight);
-			Vector2Set(mesh->st_array[mesh->numvertexes+i], vertexesl[v].xpos/64.0f, vertexesl[v].ypos/64.0f);
+			VectorSet(mesh->xyz_array[mesh->numvertexes+i], dm->vertexes[v].xpos, dm->vertexes[v].ypos, ceilheight);
+			Vector2Set(mesh->st_array[mesh->numvertexes+i], dm->vertexes[v].xpos/64.0f, dm->vertexes[v].ypos/64.0f);
 			*(unsigned int*)mesh->colors4b_array[mesh->numvertexes+i] = col;
 		}
 
@@ -938,7 +952,7 @@ static void R_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int ce
 	}
 }
 
-static void R_DrawSSector(unsigned int ssec)
+static void R_DrawSSector(doommap_t *dm, unsigned int ssec)
 {
 	short v0, v1;
 	int sd;
@@ -946,68 +960,72 @@ static void R_DrawSSector(unsigned int ssec)
 	int seg;
 	msector_t *sec, *sec2;
 
-	for (seg = ssectorsl[ssec].first + ssectorsl[ssec].segcount-1; seg >= ssectorsl[ssec].first; seg--)
-		if (segsl[seg].linedef != 0xffff)
+	for (seg = dm->ssector[ssec].first + dm->ssector[ssec].segcount-1; seg >= dm->ssector[ssec].first; seg--)
+		if (dm->seg[seg].linedef != 0xffff)
 			break;
-	sec = sectorm + sidedefsm[linedefsl[segsl[seg].linedef].sidedef[segsl[seg].direction]].sector;
+	sec = dm->sector + dm->sidedef[dm->linedef[dm->seg[seg].linedef].sidedef[dm->seg[seg].direction]].sector;
 
 	if (sec->visframe != r_visframecount)
 	{
-		R_DrawFlats(sec->floortex, sec->floorheight, sec->ceilingtex, sec->ceilingheight, sec->numflattris*3, sec->flats, sec->lightlev);
+		R_DrawFlats(dm, sec->floortex, sec->floorheight, sec->ceilingtex, sec->ceilingheight, sec->numflattris*3, sec->flats, sec->lightlev);
 
 		sec->visframe = r_visframecount;
 	}
-	for (seg = ssectorsl[ssec].first + ssectorsl[ssec].segcount-1; seg >= ssectorsl[ssec].first; seg--)
+	for (seg = dm->ssector[ssec].first + dm->ssector[ssec].segcount-1; seg >= dm->ssector[ssec].first; seg--)
 	{
-		if (segsl[seg].linedef == 0xffff)
+		if (dm->seg[seg].linedef == 0xffff)
 			continue;
 
-		v0 = segsl[seg].vert[0];
-		v1 = segsl[seg].vert[1];
+		v0 = dm->seg[seg].vert[0];
+		v1 = dm->seg[seg].vert[1];
 		if (v0==v1)
 			continue;
-		ld = linedefsl + segsl[seg].linedef;
-		sd = ld->sidedef[segsl[seg].direction];
+		ld = dm->linedef + dm->seg[seg].linedef;
+		sd = ld->sidedef[dm->seg[seg].direction];
 
 		if (ld->sidedef[1] != 0xffff)	//we can see through this linedef
 		{
-			sec2 = sectorm + sidedefsm[ld->sidedef[1-segsl[seg].direction]].sector;
+			sec2 = dm->sector + dm->sidedef[ld->sidedef[1-dm->seg[seg].direction]].sector;
 
 			if (sec->floorheight < sec2->floorheight)
 			{
-				R_DrawWall(sidedefsm[sd].lowertex, 
-					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texx,
-					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texy,
-					vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight,
-					vertexesl[v1].xpos, vertexesl[v1].ypos, sec2->floorheight, ld->flags & LINEDEF_LOWERUNPEGGED, sec->lightlev);
+				R_DrawWall(dm,
+					dm->sidedef[sd].lowertex, 
+					dm->sidedef[ld->sidedef[1-dm->seg[seg].direction]].texx,
+					dm->sidedef[ld->sidedef[1-dm->seg[seg].direction]].texy,
+					dm->vertexes[v0].xpos, dm->vertexes[v0].ypos, sec->floorheight,
+					dm->vertexes[v1].xpos, dm->vertexes[v1].ypos, sec2->floorheight, ld->flags & LINEDEF_LOWERUNPEGGED, sec->lightlev);
 			}
 
 			if (sec->ceilingheight > sec2->ceilingheight)
 			{
-				R_DrawWall(sidedefsm[sd].uppertex, 
-					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texx,
-					sidedefsm[ld->sidedef[1-segsl[seg].direction]].texy,
-					vertexesl[v0].xpos, vertexesl[v0].ypos, sec2->ceilingheight,
-					vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight, ld->flags & LINEDEF_UPPERUNPEGGED, sec->lightlev);
+				R_DrawWall(dm,
+					dm->sidedef[sd].uppertex, 
+					dm->sidedef[ld->sidedef[1-dm->seg[seg].direction]].texx,
+					dm->sidedef[ld->sidedef[1-dm->seg[seg].direction]].texy,
+					dm->vertexes[v0].xpos, dm->vertexes[v0].ypos, sec2->ceilingheight,
+					dm->vertexes[v1].xpos, dm->vertexes[v1].ypos, sec->ceilingheight, ld->flags & LINEDEF_UPPERUNPEGGED, sec->lightlev);
 			}
 
-			if (sidedefsm[sd].middletex)
+			if (dm->sidedef[sd].middletex)
 			{
-				R_DrawWall(sidedefsm[sd].middletex, 
-					sidedefsm[ld->sidedef[segsl[seg].direction]].texx,
-					sidedefsm[ld->sidedef[segsl[seg].direction]].texy,
-					vertexesl[v1].xpos, vertexesl[v1].ypos, (sec2->ceilingheight < sec->ceilingheight)?sec2->ceilingheight:sec->ceilingheight,
-					vertexesl[v0].xpos, vertexesl[v0].ypos, (sec2->floorheight > sec->floorheight)?sec2->floorheight:sec->floorheight, false, sec->lightlev);
+				R_DrawWall(dm,
+					dm->sidedef[sd].middletex, 
+					dm->sidedef[ld->sidedef[dm->seg[seg].direction]].texx,
+					dm->sidedef[ld->sidedef[dm->seg[seg].direction]].texy,
+					dm->vertexes[v1].xpos, dm->vertexes[v1].ypos, (sec2->ceilingheight < sec->ceilingheight)?sec2->ceilingheight:sec->ceilingheight,
+					dm->vertexes[v0].xpos, dm->vertexes[v0].ypos, (sec2->floorheight > sec->floorheight)?sec2->floorheight:sec->floorheight, false, sec->lightlev);
 			}
 		}
 		else
 		{	//solid wall, draw full wall.
 
-			R_DrawWall(sidedefsm[sd].middletex, 
-				sidedefsm[ld->sidedef[segsl[seg].direction]].texx,
-				sidedefsm[ld->sidedef[segsl[seg].direction]].texy,
-				vertexesl[v0].xpos, vertexesl[v0].ypos, sec->floorheight,
-				vertexesl[v1].xpos, vertexesl[v1].ypos, sec->ceilingheight, false, sec->lightlev);
+			R_DrawWall(dm,
+				dm->sidedef[sd].middletex, 
+				dm->sidedef[ld->sidedef[dm->seg[seg].direction]].texx,
+				dm->sidedef[ld->sidedef[dm->seg[seg].direction]].texy,
+				dm->vertexes[v0].xpos, dm->vertexes[v0].ypos, sec->floorheight,
+				dm->vertexes[v1].xpos, dm->vertexes[v1].ypos, sec->ceilingheight, false, sec->lightlev);
 		}
 	}
 }
@@ -1126,41 +1144,41 @@ void R_Set2DFrustum (void)
 }
 
 
-static void R_RecursiveDoomNode(unsigned int node)
+static void R_RecursiveDoomNode(doommap_t *dm, unsigned int node)
 {
 	if (node & NODE_IS_SSECTOR)
 	{
-		R_DrawSSector(node & ~NODE_IS_SSECTOR);		
+		R_DrawSSector(dm, node & ~NODE_IS_SSECTOR);		
 
 		return;
 	}
 
-	if (!R_Cull2DBox(nodel[node].x1lower, nodel[node].y1lower, nodel[node].x1upper, nodel[node].y1upper)||1)
-		R_RecursiveDoomNode(nodel[node].node1);
-	if (!R_Cull2DBox(nodel[node].x2lower, nodel[node].y2lower, nodel[node].x2upper, nodel[node].y2upper)||1)
-		R_RecursiveDoomNode(nodel[node].node2);
+	if (!R_Cull2DBox(dm->node[node].x1lower, dm->node[node].y1lower, dm->node[node].x1upper, dm->node[node].y1upper)||1)
+		R_RecursiveDoomNode(dm, dm->node[node].node1);
+	if (!R_Cull2DBox(dm->node[node].x2lower, dm->node[node].y2lower, dm->node[node].x2upper, dm->node[node].y2upper)||1)
+		R_RecursiveDoomNode(dm, dm->node[node].node2);
 }
 
-void R_DoomWorld(void)
+void R_DoomWorld(doommap_t *dm)
 {
 	int texnum;
 	doomtexture_t *t;
-	if (!nodel || !nodec)
+	if (!dm->node || !dm->numnodes)
 		return;	//err... buggy
 
-	for (texnum = 0; texnum < numdoomtextures; texnum++)	//a hash table might be a good plan.
+	for (texnum = 0; texnum < dm->numtextures; texnum++)	//a hash table might be a good plan.
 	{
-		t = &doomtextures[texnum];
+		t = &dm->textures[texnum];
 		t->mesh.numindexes = 0;
 		t->mesh.numvertexes = 0;
 	}
 	r_visframecount++;
-	R_RecursiveDoomNode(nodec-1);
+	R_RecursiveDoomNode(dm, dm->numnodes-1);
 
 	memset(cl.worldmodel->batches, 0, sizeof(cl.worldmodel->batches));
-	for (texnum = 0; texnum < numdoomtextures; texnum++)	//a hash table might be a good plan.
+	for (texnum = 0; texnum < dm->numtextures; texnum++)	//a hash table might be a good plan.
 	{
-		t = &doomtextures[texnum];
+		t = &dm->textures[texnum];
 		if (t->mesh.numindexes && t->shader)
 		{
 			t->batch.next = cl.worldmodel->batches[t->shader->sort];
@@ -1296,7 +1314,7 @@ static void Triangulate_AddLine(int v1, int v2)	//order makes a difference
 	}
 }
 
-static unsigned short *Triangulate_Finish(int *numtris, unsigned short *old, int oldindexcount)
+static unsigned short *Triangulate_Finish(doommap_t *dm, int *numtris, unsigned short *old, int oldindexcount)
 {
 	unsigned short *out;
 	unsigned int v1, v2, v3, v;
@@ -1329,8 +1347,8 @@ static unsigned short *Triangulate_Finish(int *numtris, unsigned short *old, int
 			v1 = polyregions[r].vertex[v];
 			v2 = polyregions[r].vertex[(v+1)%(polyregions[r].numverts)];
 			v3 = polyregions[r].vertex[(v+2)%(polyregions[r].numverts)];
-			a1 = atan2(vertexesl[v3].ypos - vertexesl[v2].ypos, vertexesl[v3].xpos - vertexesl[v2].xpos);
-			a2 = atan2(vertexesl[v1].ypos - vertexesl[v2].ypos, vertexesl[v1].xpos - vertexesl[v2].xpos);
+			a1 = atan2(dm->vertexes[v3].ypos - dm->vertexes[v2].ypos, dm->vertexes[v3].xpos - dm->vertexes[v2].xpos);
+			a2 = atan2(dm->vertexes[v1].ypos - dm->vertexes[v2].ypos, dm->vertexes[v1].xpos - dm->vertexes[v2].xpos);
 			polyregions[r].angle += fabs(a1 - a2);
 		}
 	}
@@ -1358,8 +1376,8 @@ static unsigned short *Triangulate_Finish(int *numtris, unsigned short *old, int
 			}
 			v3 = polyregions[r].vertex[v];
 
-			a1 = atan2(vertexesl[v3].ypos - vertexesl[v2].ypos, vertexesl[v3].xpos - vertexesl[v2].xpos);
-			a2 = atan2(vertexesl[v1].ypos - vertexesl[v2].ypos, vertexesl[v1].xpos - vertexesl[v2].xpos);
+			a1 = atan2(dm->vertexes[v3].ypos - dm->vertexes[v2].ypos, dm->vertexes[v3].xpos - dm->vertexes[v2].xpos);
+			a2 = atan2(dm->vertexes[v1].ypos - dm->vertexes[v2].ypos, dm->vertexes[v1].xpos - dm->vertexes[v2].xpos);
 			if (fabs(a1-a2) > M_PI+0.01)	//this would be a reflex angle then.;.
 			{
 /*				indexes[numindexes++] = 0;
@@ -1413,86 +1431,86 @@ static unsigned short *Triangulate_Finish(int *numtris, unsigned short *old, int
 	return out;
 }
 
-static void Triangulate_Sectors(model_t *mod, dsector_t *sectorl, qboolean glbspinuse)
+static void Triangulate_Sectors(doommap_t *dm, dsector_t *sectorl, qboolean glbspinuse)
 {
 	int seg, nsec;
 	int i, sec=-1;
 
-	sectorm = Z_Malloc(sectorc * sizeof(*sectorm));
+	dm->sector = Z_Malloc(dm->numsectors * sizeof(*dm->sector));
 
 	if (glbspinuse)
 	{
-		for (i = 0; i < ssectorsc; i++)
+		for (i = 0; i < dm->numssectors; i++)
 		{	//only do linedefs.
-			for (seg = ssectorsl[i].first; seg < ssectorsl[i].first + ssectorsl[i].segcount; seg++)
-				if (segsl[seg].linedef != 0xffff)
+			for (seg = dm->ssector[i].first; seg < dm->ssector[i].first + dm->ssector[i].segcount; seg++)
+				if (dm->seg[seg].linedef != 0xffff)
 					break;
 
-			if (seg == ssectorsl[i].first + ssectorsl[i].segcount)	//throw a fit.
+			if (seg == dm->ssector[i].first + dm->ssector[i].segcount)	//throw a fit.
 			{
 				Con_Printf("SubSector %i has absolutly no walls\n", i);
 				continue;
 			}
 				
-			nsec = sidedefsm[linedefsl[segsl[seg].linedef].sidedef[segsl[seg].direction]].sector;
+			nsec = dm->sidedef[dm->linedef[dm->seg[seg].linedef].sidedef[dm->seg[seg].direction]].sector;
 			if (sec != nsec)
 			{
 				if (sec>=0)
-					sectorm[sec].flats = Triangulate_Finish(&sectorm[sec].numflattris, sectorm[sec].flats, sectorm[sec].numflattris);
+					dm->sector[sec].flats = Triangulate_Finish(dm, &dm->sector[sec].numflattris, dm->sector[sec].flats, dm->sector[sec].numflattris);
 				sec = nsec;
 			}
-			for (seg = ssectorsl[i].first; seg < ssectorsl[i].first + ssectorsl[i].segcount; seg++)
+			for (seg = dm->ssector[i].first; seg < dm->ssector[i].first + dm->ssector[i].segcount; seg++)
 			{	//ignore direction, it's do do with the intersection rather than the draw direction.
-				Triangulate_AddLine(segsl[seg].vert[0], segsl[seg].vert[1]);
+				Triangulate_AddLine(dm->seg[seg].vert[0], dm->seg[seg].vert[1]);
 			}
 		}
 		if (sec>=0)
-			sectorm[sec].flats = Triangulate_Finish(&sectorm[sec].numflattris, sectorm[sec].flats, sectorm[sec].numflattris);
+			dm->sector[sec].flats = Triangulate_Finish(dm, &dm->sector[sec].numflattris, dm->sector[sec].flats, dm->sector[sec].numflattris);
 	}
 	else
 	{
-		for (sec = 0; sec < sectorc; sec++)
+		for (sec = 0; sec < dm->numsectors; sec++)
 		{
-			for (i = 0; i < linedefsc; i++)
+			for (i = 0; i < dm->numlinedefs; i++)
 			{
-				if (sidedefsm[linedefsl[i].sidedef[0]].sector == sec)
-					Triangulate_AddLine(linedefsl[i].vert[0], linedefsl[i].vert[1]);
-				if (linedefsl[i].sidedef[1] != 0xffff && sidedefsm[linedefsl[i].sidedef[1]].sector == sec)
-					Triangulate_AddLine(linedefsl[i].vert[1], linedefsl[i].vert[0]);
+				if (dm->sidedef[dm->linedef[i].sidedef[0]].sector == sec)
+					Triangulate_AddLine(dm->linedef[i].vert[0], dm->linedef[i].vert[1]);
+				if (dm->linedef[i].sidedef[1] != 0xffff && dm->sidedef[dm->linedef[i].sidedef[1]].sector == sec)
+					Triangulate_AddLine(dm->linedef[i].vert[1], dm->linedef[i].vert[0]);
 			}
-			sectorm[sec].flats = Triangulate_Finish(&sectorm[sec].numflattris, sectorm[sec].flats, sectorm[sec].numflattris);
+			dm->sector[sec].flats = Triangulate_Finish(dm, &dm->sector[sec].numflattris, dm->sector[sec].flats, dm->sector[sec].numflattris);
 		}
 	}
 
 	/*
 	for (i = 0; i < ssectorsc; i++)
 	{	//only do linedefs.
-		seg = ssectorsl[i].first;
-		nsec = sidedefsm[linedefsl[segsl[seg].linedef].sidedef[segsl[seg].direction]].sector;
+		seg = dm->ssector[i].first;
+		nsec = dm->sidedef[dm->linedef[dm->seg[seg].linedef].sidedef[dm->seg[seg].direction]].sector;
 		if (sec != nsec)
 		{
 			if (sec>=0)
-				sectorm[sec].flats = Triangulate_Finish(&sectorm[sec].numflattris);
+				dm->sector[sec].flats = Triangulate_Finish(&dm->sector[sec].numflattris);
 			sec = nsec;
 		}
-		for (seg = ssectorsl[i].first; seg < ssectorsl[i].first + ssectorsl[i].segcount; seg++)
+		for (seg = dm->ssector[i].first; seg < dm->ssector[i].first + dm->ssector[i].segcount; seg++)
 		{	//ignore direction, it's do do with the intersection rather than the draw direction.
-			Triangulate_AddLine(segsl[seg].vert[0], segsl[seg].vert[1]);
+			Triangulate_AddLine(dm->seg[seg].vert[0], dm->seg[seg].vert[1]);
 		}
 	}
 	if (sec>=0)
-		sectorm[sec].flats = Triangulate_Finish(&sectorm[sec].numflattris);
+		dm->sector[sec].flats = Triangulate_Finish(&dm->sector[sec].numflattris);
 	*/
 
-	for (i = 0; i < sectorc; i++)
+	for (i = 0; i < dm->numsectors; i++)
 	{
-		sectorm[i].ceilingtex = Doom_LoadFlat(mod, sectorl[i].ceilingtexture);
-		sectorm[i].floortex = Doom_LoadFlat(mod, sectorl[i].floortexture);
-		sectorm[i].lightlev = sectorl[i].lightlevel;
-		sectorm[i].specialtype = sectorl[i].specialtype;
-		sectorm[i].tag = sectorl[i].tag;
-		sectorm[i].ceilingheight = sectorl[i].ceilingheight;
-		sectorm[i].floorheight = sectorl[i].floorheight;
+		dm->sector[i].ceilingtex = Doom_LoadFlat(dm, sectorl[i].ceilingtexture);
+		dm->sector[i].floortex = Doom_LoadFlat(dm, sectorl[i].floortexture);
+		dm->sector[i].lightlev = sectorl[i].lightlevel;
+		dm->sector[i].specialtype = sectorl[i].specialtype;
+		dm->sector[i].tag = sectorl[i].tag;
+		dm->sector[i].ceilingheight = sectorl[i].ceilingheight;
+		dm->sector[i].floorheight = sectorl[i].floorheight;
 	}
 }
 
@@ -1658,28 +1676,28 @@ static texid_t Doom_LoadPatchFromTexWad(char *name, void *texlump, unsigned shor
 
 	return r_nulltex;
 }
-static int Doom_LoadPatch(model_t *mod, char *name)
+static int Doom_LoadPatch(doommap_t *dm, char *name)
 {
 	qboolean hasalpha = false;
 	int texnum;
 	size_t nlen = strnlen(name, 8);
 
-	for (texnum = 0; texnum < numdoomtextures; texnum++)	//a hash table might be a good plan.
+	for (texnum = 0; texnum < dm->numtextures; texnum++)	//a hash table might be a good plan.
 	{
-		if(!memcmp(name, doomtextures[texnum].name, nlen) && !doomtextures[texnum].name[nlen])
+		if(!memcmp(name, dm->textures[texnum].name, nlen) && !dm->textures[texnum].name[nlen])
 		{
 			return texnum;
 		}
 	}
 	//couldn't find it.
-//	texnum = numdoomtextures;
+//	texnum = dm->numtextures;
 
-	doomtextures = BZ_Realloc(doomtextures, sizeof(*doomtextures)*((numdoomtextures+16)&~15));
-	memset(doomtextures + numdoomtextures, 0, sizeof(doomtextures[numdoomtextures]));
-	numdoomtextures++;
+	dm->textures = BZ_Realloc(dm->textures, sizeof(*dm->textures)*((dm->numtextures+16)&~15));
+	memset(dm->textures + dm->numtextures, 0, sizeof(dm->textures[dm->numtextures]));
+	dm->numtextures++;
 
-	memcpy(doomtextures[texnum].name, name, nlen);
-	doomtextures[texnum].name[nlen] = 0;
+	memcpy(dm->textures[texnum].name, name, nlen);
+	dm->textures[texnum].name[nlen] = 0;
 
 	return texnum;
 }
@@ -1687,65 +1705,67 @@ static int Doom_LoadPatch(model_t *mod, char *name)
 static void Doom_LoadShaders(void *ctx, void *data, size_t a, size_t b)
 {
 	model_t *mod = ctx;
+	doommap_t *dm = mod->meshinfo;
 	texnums_t tn;
 	qboolean hasalpha = false;
 	qboolean isflat;
 	int texnum;
 	char tmp[MAX_QPATH];
 
-	for (texnum = 0; texnum < numdoomtextures; texnum++)	//a hash table might be a good plan.
+	for (texnum = 0; texnum < dm->numtextures; texnum++)	//a hash table might be a good plan.
 	{
-		isflat = !strncmp(doomtextures[texnum].name, "flats/", 6);
+		isflat = !strncmp(dm->textures[texnum].name, "flats/", 6);
 		memset(&tn, 0, sizeof(tn));
 		if (isflat)
 		{
-			void *file = FS_LoadMallocFile(va2(tmp, sizeof(tmp), "%s.raw", doomtextures[texnum].name), NULL);
+			void *file = FS_LoadMallocFile(va2(tmp, sizeof(tmp), "%s.raw", dm->textures[texnum].name), NULL);
 			if (file)
 			{
-				tn.base = Image_GetTexture(doomtextures[texnum].name, NULL, 0, file, doompalette, 64, 64, TF_8PAL24);
+				tn.base = Image_GetTexture(dm->textures[texnum].name, NULL, 0, file, doompalette, 64, 64, TF_8PAL24);
 				Z_Free(file);
 			}
-			doomtextures[texnum].width = 64;
-			doomtextures[texnum].height = 64;
+			dm->textures[texnum].width = 64;
+			dm->textures[texnum].height = 64;
 		}
 		else
 		{
 			if (textures1 && !TEXVALID(tn.base))
-				tn.base = Doom_LoadPatchFromTexWad(doomtextures[texnum].name, textures1, &doomtextures[texnum].width, &doomtextures[texnum].height, &hasalpha);
+				tn.base = Doom_LoadPatchFromTexWad(dm->textures[texnum].name, textures1, &dm->textures[texnum].width, &dm->textures[texnum].height, &hasalpha);
 			if (textures2 && !TEXVALID(tn.base))
-				tn.base = Doom_LoadPatchFromTexWad(doomtextures[texnum].name, textures2, &doomtextures[texnum].width, &doomtextures[texnum].height, &hasalpha);
+				tn.base = Doom_LoadPatchFromTexWad(dm->textures[texnum].name, textures2, &dm->textures[texnum].width, &dm->textures[texnum].height, &hasalpha);
 		}
 		if (!TEXVALID(tn.base))
 		{
-			doomtextures[texnum].width = 64;
-			doomtextures[texnum].height = 64;
+			dm->textures[texnum].width = 64;
+			dm->textures[texnum].height = 64;
 			hasalpha = false;
 		}
 
 		if (hasalpha)
-			doomtextures[texnum].shader = R_RegisterShader(doomtextures[texnum].name, SUF_NONE, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\nalphafunc ge128\n}\n}\n");
+			dm->textures[texnum].shader = R_RegisterShader(dm->textures[texnum].name, SUF_NONE, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\nalphafunc ge128\n}\n}\n");
 		else
-			doomtextures[texnum].shader = R_RegisterShader(doomtextures[texnum].name, SUF_NONE, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\n}\n}\n");
+			dm->textures[texnum].shader = R_RegisterShader(dm->textures[texnum].name, SUF_NONE, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\n}\n}\n");
 
-		R_BuildDefaultTexnums(&tn, doomtextures[texnum].shader);
+		R_BuildDefaultTexnums(&tn, dm->textures[texnum].shader);
 	}
 };
 
 static void Doom_Purge (struct model_s *mod)
 {
 	int texnum;
-	for (texnum = 0; texnum < numdoomtextures; texnum++)
+	doommap_t *dm = mod->meshinfo;
+	for (texnum = 0; texnum < dm->numtextures; texnum++)
 	{
-		BZ_Free(doomtextures[texnum].mesh.colors4b_array);
-		BZ_Free(doomtextures[texnum].mesh.st_array);
-		BZ_Free(doomtextures[texnum].mesh.xyz_array);
-		BZ_Free(doomtextures[texnum].mesh.indexes);
+		BZ_Free(dm->textures[texnum].mesh.colors4b_array);
+		BZ_Free(dm->textures[texnum].mesh.st_array);
+		BZ_Free(dm->textures[texnum].mesh.xyz_array);
+		BZ_Free(dm->textures[texnum].mesh.indexes);
 	}
-	BZ_Free(doomtextures);
-	doomtextures = NULL;
+	BZ_Free(dm->textures);
+	dm->textures = NULL;
 }
 #endif
-static void CleanWalls(model_t *mod, dsidedef_t *sidedefsl)
+static void CleanWalls(doommap_t *dm, dsidedef_t *sidedefsl)
 {
 	int i;
 	char texname[64];
@@ -1753,62 +1773,62 @@ static void CleanWalls(model_t *mod, dsidedef_t *sidedefsl)
 	char lastlower[9]="-";
 	char lastupper[9]="-";
 	int lastmidtex=0, lastuptex=0, lastlowtex=0;
-	sidedefsm = BZ_Malloc(sidedefsc * sizeof(*sidedefsm));
-	for (i = 0; i < sidedefsc; i++)
+	dm->sidedef = BZ_Malloc(dm->numsidedefs * sizeof(*dm->sidedef));
+	for (i = 0; i < dm->numsidedefs; i++)
 	{
 #if 1//def GLQUAKE
 		strncpy(texname, sidedefsl[i].middletex, 8);
 		texname[8] = '\0';
 		if (!strcmp(texname, "-"))
-			sidedefsm[i].middletex = 0;
+			dm->sidedef[i].middletex = 0;
 		else
 		{
 			if (!strncmp(texname, lastmiddle, 8))
-				sidedefsm[i].middletex = lastmidtex;
+				dm->sidedef[i].middletex = lastmidtex;
 			else
 			{
 				strncpy(lastmiddle, texname, 8);
-				sidedefsm[i].middletex = lastmidtex = Doom_LoadPatch(mod, texname);
+				dm->sidedef[i].middletex = lastmidtex = Doom_LoadPatch(dm, texname);
 			}
 		}
 
 		strncpy(texname, sidedefsl[i].lowertex, 8);
 		texname[8] = '\0';
 		if (!strcmp(texname, "-"))
-			sidedefsm[i].lowertex = 0;
+			dm->sidedef[i].lowertex = 0;
 		else
 		{
 			if (!strncmp(texname, lastlower, 8))
-				sidedefsm[i].lowertex = lastlowtex;
+				dm->sidedef[i].lowertex = lastlowtex;
 			else
 			{
 				strncpy(lastlower, texname, 8);
-				sidedefsm[i].lowertex = lastlowtex = Doom_LoadPatch(mod, texname);
+				dm->sidedef[i].lowertex = lastlowtex = Doom_LoadPatch(dm, texname);
 			}
 		}
 
 		strncpy(texname, sidedefsl[i].uppertex, 8);
 		texname[8] = '\0';
 		if (!strcmp(texname, "-"))
-			sidedefsm[i].uppertex = 0;
+			dm->sidedef[i].uppertex = 0;
 		else
 		{
 			if (!strncmp(texname, lastupper, 8))
-				sidedefsm[i].uppertex = lastuptex;
+				dm->sidedef[i].uppertex = lastuptex;
 			else
 			{
 				strncpy(lastupper, texname, 8);
-				sidedefsm[i].uppertex = lastuptex = Doom_LoadPatch(mod, texname);
+				dm->sidedef[i].uppertex = lastuptex = Doom_LoadPatch(dm, texname);
 			}
 		}
 #endif
-		sidedefsm[i].sector = sidedefsl[i].sector;
-		sidedefsm[i].texx = sidedefsl[i].texx;
-		sidedefsm[i].texy = sidedefsl[i].texy;
+		dm->sidedef[i].sector = sidedefsl[i].sector;
+		dm->sidedef[i].texx = sidedefsl[i].texx;
+		dm->sidedef[i].texy = sidedefsl[i].texy;
 	}
 }
 
-void QuakifyThings(model_t *mod, dthing_t *thingsl)
+void QuakifyThings(doommap_t *dm)
 {
 	int sector;
 	int spawnflags;
@@ -1826,9 +1846,9 @@ void QuakifyThings(model_t *mod, dthing_t *thingsl)
 					"}\n");
 	ptr += strlen(ptr);
 
-	for (i = 0; i < thingsc; i++)
+	for (i = 0; i < dm->numthings; i++)
 	{
-		switch(thingsl[i].type)
+		switch(dm->thing[i].type)
 		{
 		case THING_PLAYER:	//fixme: spit out a coop spawn too.
 			name = "info_player_start";
@@ -1866,26 +1886,26 @@ void QuakifyThings(model_t *mod, dthing_t *thingsl)
 			break;
 
 		default:
-			name = va2(thingname, sizeof(thingname), "thing_%i", thingsl[i].type);
+			name = va2(thingname, sizeof(thingname), "thing_%i", dm->thing[i].type);
 			break;
 		}
 
-		point[0] = thingsl[i].xpos;
-		point[1] = thingsl[i].ypos;
+		point[0] = dm->thing[i].xpos;
+		point[1] = dm->thing[i].ypos;
 		point[2] = 0;
-		sector = Doom_SectorNearPoint(point);
-		zpos = sectorm[sector].floorheight + 24;	//things have no z coord, so find the sector they're in
+		sector = Doom_SectorNearPoint(dm, point);
+		zpos = dm->sector[sector].floorheight + 24;	//things have no z coord, so find the sector they're in
 
 		spawnflags = SPAWNFLAG_NOT_EASY | SPAWNFLAG_NOT_MEDIUM | SPAWNFLAG_NOT_HARD | SPAWNFLAG_NOT_DEATHMATCH;
-		if (thingsl[i].flags & THING_EASY)
+		if (dm->thing[i].flags & THING_EASY)
 			spawnflags -= SPAWNFLAG_NOT_EASY;
-		if (thingsl[i].flags & THING_MEDIUM)
+		if (dm->thing[i].flags & THING_MEDIUM)
 			spawnflags -= SPAWNFLAG_NOT_MEDIUM;
-		if (thingsl[i].flags & THING_HARD)
+		if (dm->thing[i].flags & THING_HARD)
 			spawnflags -= SPAWNFLAG_NOT_HARD;
-		if (thingsl[i].flags & THING_DEATHMATCH)
+		if (dm->thing[i].flags & THING_DEATHMATCH)
 			spawnflags -= SPAWNFLAG_NOT_DEATHMATCH;
-		if (thingsl[i].flags & THING_DEAF)
+		if (dm->thing[i].flags & THING_DEAF)
 			spawnflags |= 1;
 
 		Q_snprintfz(ptr, newlump+sizeof(newlump)-ptr,	"{\n"
@@ -1895,17 +1915,17 @@ void QuakifyThings(model_t *mod, dthing_t *thingsl)
 						"\"angle\" \"%i\"\n"
 						"}\n",
 							name,
-							thingsl[i].xpos, thingsl[i].ypos, zpos,
+							dm->thing[i].xpos, dm->thing[i].ypos, zpos,
 							spawnflags,
-							thingsl[i].angle
+							dm->thing[i].angle
 						);
 		ptr += strlen(ptr);
 	}
 
-	Mod_SetEntitiesStringLen(mod, newlump, ptr-newlump);
+	Mod_SetEntitiesStringLen(dm->model, newlump, ptr-newlump);
 }
 
-void Doom_GeneratePlanes(ddoomnode_t *nodel)
+void Doom_GeneratePlanes(doommap_t *dm)
 {
 	vec3_t point, up, line;
 	int n;
@@ -1913,29 +1933,29 @@ void Doom_GeneratePlanes(ddoomnode_t *nodel)
 	up[1] = 0;
 	up[2] = 1;
 	line[2] = 0;
-	nodeplanes = BZ_Malloc(sizeof(*nodeplanes)*nodec);
-	lineplanes = BZ_Malloc(sizeof(*lineplanes)*linedefsc);
+	dm->nodeplane = BZ_Malloc(sizeof(*dm->nodeplane)*dm->numnodes);
+	dm->lineplane = BZ_Malloc(sizeof(*dm->lineplane)*dm->numlinedefs);
 	point[2] = 0;
-	for (n = 0; n < nodec; n++)
+	for (n = 0; n < dm->numnodes; n++)
 	{
-		line[0] = nodel[n].dx;
-		line[1] = nodel[n].dy;
-		point[0] = nodel[n].x;
-		point[1] = nodel[n].y;
-		CrossProduct(line, up, nodeplanes[n].normal);
-		VectorNormalize(nodeplanes[n].normal);
-		nodeplanes[n].dist = DotProduct (point, nodeplanes[n].normal);
+		line[0] = dm->node[n].dx;
+		line[1] = dm->node[n].dy;
+		point[0] = dm->node[n].x;
+		point[1] = dm->node[n].y;
+		CrossProduct(line, up, dm->nodeplane[n].normal);
+		VectorNormalize(dm->nodeplane[n].normal);
+		dm->nodeplane[n].dist = DotProduct (point, dm->nodeplane[n].normal);
 	}
 
-	for (n = 0; n < linedefsc; n++)
+	for (n = 0; n < dm->numlinedefs; n++)
 	{
-		point[0] = vertexesl[linedefsl[n].vert[0]].xpos;
-		point[1] = vertexesl[linedefsl[n].vert[0]].ypos;
-		line[0] = vertexesl[linedefsl[n].vert[1]].xpos-point[0];
-		line[1] = vertexesl[linedefsl[n].vert[1]].ypos-point[1];
-		CrossProduct(line, up, lineplanes[n].normal);
-		VectorNormalize(lineplanes[n].normal);
-		lineplanes[n].dist = DotProduct (point, lineplanes[n].normal);
+		point[0] = dm->vertexes[dm->linedef[n].vert[0]].xpos;
+		point[1] = dm->vertexes[dm->linedef[n].vert[0]].ypos;
+		line[0] = dm->vertexes[dm->linedef[n].vert[1]].xpos-point[0];
+		line[1] = dm->vertexes[dm->linedef[n].vert[1]].ypos-point[1];
+		CrossProduct(line, up, dm->lineplane[n].normal);
+		VectorNormalize(dm->lineplane[n].normal);
+		dm->lineplane[n].dist = DotProduct (point, dm->lineplane[n].normal);
 	}
 }
 
@@ -1944,7 +1964,7 @@ doom maps have no network limitations, but has +/-32767 map size limits (same as
 fte defaults to a +/- 4096 world
 a lot of maps are off-centered and can be moved to get them to fit fte's constraints, so if we can, do so
 */
-static void MoveWorld(void)
+static void MoveWorld(doommap_t *dm)
 {
 	int v;
 	short adj[2];
@@ -1954,17 +1974,17 @@ static void MoveWorld(void)
 	max[0] = -4096;
 	max[1] = -4096;
 
-	for (v = 0; v < vertexesc; v++)
+	for (v = 0; v < dm->numvertexes; v++)
 	{
-		if (min[0] > vertexesl[v].xpos)
-			min[0] = vertexesl[v].xpos;
-		if (min[1] > vertexesl[v].ypos)
-			min[1] = vertexesl[v].ypos;
+		if (min[0] > dm->vertexes[v].xpos)
+			min[0] = dm->vertexes[v].xpos;
+		if (min[1] > dm->vertexes[v].ypos)
+			min[1] = dm->vertexes[v].ypos;
 
-		if (max[0] < vertexesl[v].xpos)
-			max[0] = vertexesl[v].xpos;
-		if (max[1] < vertexesl[v].ypos)
-			max[1] = vertexesl[v].ypos;
+		if (max[0] < dm->vertexes[v].xpos)
+			max[0] = dm->vertexes[v].xpos;
+		if (max[1] < dm->vertexes[v].ypos)
+			max[1] = dm->vertexes[v].ypos;
 	}
 
 	if (min[0]>=-4096 && max[0]<=4096)
@@ -1982,40 +2002,40 @@ static void MoveWorld(void)
 
 	Con_Printf("Adjusting map (%i %i)\n", -adj[0], -adj[1]);
 
-	for (v = 0; v < vertexesc; v++)
+	for (v = 0; v < dm->numvertexes; v++)
 	{
-		vertexesl[v].xpos -= adj[0];
-		vertexesl[v].ypos -= adj[1];
+		dm->vertexes[v].xpos -= adj[0];
+		dm->vertexes[v].ypos -= adj[1];
 	}
 
-	for (v = 0; v < nodec; v++)
+	for (v = 0; v < dm->numnodes; v++)
 	{
-		nodel[v].x -= adj[0];
-		nodel[v].y -= adj[1];
+		dm->node[v].x -= adj[0];
+		dm->node[v].y -= adj[1];
 
-		nodel[v].x1lower -= adj[0];
-		nodel[v].x1upper -= adj[1];
-		nodel[v].y1lower -= adj[0];
-		nodel[v].y1upper -= adj[1];
+		dm->node[v].x1lower -= adj[0];
+		dm->node[v].x1upper -= adj[1];
+		dm->node[v].y1lower -= adj[0];
+		dm->node[v].y1upper -= adj[1];
 
-		nodel[v].x2lower -= adj[0];
-		nodel[v].x2upper -= adj[1];
-		nodel[v].y2lower -= adj[0];
-		nodel[v].y2upper -= adj[1];
+		dm->node[v].x2lower -= adj[0];
+		dm->node[v].x2upper -= adj[1];
+		dm->node[v].y2lower -= adj[0];
+		dm->node[v].y2upper -= adj[1];
 	}
 
-	for (v = 0; v < thingsc; v++)
+	for (v = 0; v < dm->numthings; v++)
 	{
-		thingsl[v].xpos -= adj[0];
-		thingsl[v].ypos -= adj[1];
+		dm->thing[v].xpos -= adj[0];
+		dm->thing[v].ypos -= adj[1];
 	}
 
-	blockmapl->xorg -= adj[0];
-	blockmapl->yorg -= adj[1];
+	dm->blockmap->xorg -= adj[0];
+	dm->blockmap->yorg -= adj[1];
 }
 
 
-static void Doom_LoadVerticies(char *name)
+static void Doom_LoadVerticies(doommap_t *dm, char *name)
 {
 	ddoomvertex_t *std, *gl1;
 	int stdc, glc;
@@ -2047,30 +2067,30 @@ static void Doom_LoadVerticies(char *name)
 
 	if (stdc)
 	{
-		vertexesc = stdc + glc;
-		vertexesl = BZ_Malloc(vertexesc*sizeof(*vertexesl));
+		dm->numvertexes = stdc + glc;
+		dm->vertexes = BZ_Malloc(dm->numvertexes*sizeof(*dm->vertexes));
 
-		vertexsglbase = stdc;
+		dm->vertexsglbase = stdc;
 
 		for (i = 0; i < stdc; i++)
 		{
-			vertexesl[i].xpos = std[i].xpos;
-			vertexesl[i].ypos = std[i].ypos;
+			dm->vertexes[i].xpos = std[i].xpos;
+			dm->vertexes[i].ypos = std[i].ypos;
 		}
 		if (gl1)
 		{
 			for (i = 0; i < glc; i++)
 			{
-				vertexesl[stdc+i].xpos = gl1[i].xpos;
-				vertexesl[stdc+i].ypos = gl1[i].ypos;
+				dm->vertexes[stdc+i].xpos = gl1[i].xpos;
+				dm->vertexes[stdc+i].ypos = gl1[i].ypos;
 			}
 		}
 		else
 		{
 			for (i = 0; i < glc; i++)
 			{
-				vertexesl[stdc+i].xpos = (float)gl2[i*2] / 0x10000;
-				vertexesl[stdc+i].ypos = (float)gl2[i*2+1] / 0x10000;
+				dm->vertexes[stdc+i].xpos = (float)gl2[i*2] / 0x10000;
+				dm->vertexes[stdc+i].ypos = (float)gl2[i*2+1] / 0x10000;
 			}
 		}
 	}
@@ -2078,18 +2098,18 @@ static void Doom_LoadVerticies(char *name)
 	Z_Free(gl2);
 }
 
-static void Doom_LoadSSectors(char *name)
+static void Doom_LoadSSectors(doommap_t *dm, char *name)
 {
 	size_t fsize;
 	char tmp[MAX_QPATH];
-	ssectorsl	= (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.gl_ssect",	name), &fsize);
-	if (!ssectorsl)
-		ssectorsl	= (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.ssectors",	name), &fsize);
+	dm->ssector	= (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.gl_ssect",	name), &fsize);
+	if (!dm->ssector)
+		dm->ssector	= (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.ssectors",	name), &fsize);
 	//FIXME: "gNd3" means that it's glbsp version 3.
-	ssectorsc	= fsize/sizeof(*ssectorsl);
+	dm->numssectors	= fsize/sizeof(*dm->ssector);
 }
 
-static void Doom_LoadSSegs(char *name)
+static void Doom_LoadSSegs(doommap_t *dm, char *name)
 {	//these skirt the subsectors
 
 	void *file;
@@ -2104,49 +2124,49 @@ static void Doom_LoadSSegs(char *name)
 	if (!file)
 	{
 		s0 = (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.segs",	name), &fsize);
-		segsc	= fsize/sizeof(*s0);
+		dm->numsegs	= fsize/sizeof(*s0);
 
-		segsl = BZ_Malloc(segsc * sizeof(*segsl));
-		for (i = 0; i < segsc; i++)
+		dm->seg = BZ_Malloc(dm->numsegs * sizeof(*dm->seg));
+		for (i = 0; i < dm->numsegs; i++)
 		{
-			segsl[i].vert[0] = s0[i].vert[0];
-			segsl[i].vert[1] = s0[i].vert[1];
-			segsl[i].linedef = s0[i].linedef;
-			segsl[i].direction = s0[i].direction;
-			segsl[i].Partner = 0xffff;
+			dm->seg[i].vert[0] = s0[i].vert[0];
+			dm->seg[i].vert[1] = s0[i].vert[1];
+			dm->seg[i].linedef = s0[i].linedef;
+			dm->seg[i].direction = s0[i].direction;
+			dm->seg[i].Partner = 0xffff;
 		}
 	}
 	else if (*(int *)file == *(int *)"gNd3")
 	{
 		s3 = file;
-		segsc	= fsize/sizeof(*s3);
+		dm->numsegs	= fsize/sizeof(*s3);
 
-		segsl = s3;
+		dm->seg = s3;
 	}
 	else if (!file)
 		return;
 	else
 	{
 		s1 = file;
-		segsc	= fsize/sizeof(*s1);
+		dm->numsegs	= fsize/sizeof(*s1);
 
-		segsl = BZ_Malloc(segsc * sizeof(*segsl));
-		for (i = 0; i < segsc; i++)
+		dm->seg = BZ_Malloc(dm->numsegs * sizeof(*dm->seg));
+		for (i = 0; i < dm->numsegs; i++)
 		{
 			if (s1[i].vert[0] & 0x8000)
-				segsl[i].vert[0] = (s1[i].vert[0]&0x7fff)+vertexsglbase;
+				dm->seg[i].vert[0] = (s1[i].vert[0]&0x7fff)+dm->vertexsglbase;
 			else
-				segsl[i].vert[0] = s1[i].vert[0];
+				dm->seg[i].vert[0] = s1[i].vert[0];
 			if (s1[i].vert[1] & 0x8000)
-				segsl[i].vert[1] = (s1[i].vert[1]&0x7fff)+vertexsglbase;
+				dm->seg[i].vert[1] = (s1[i].vert[1]&0x7fff)+dm->vertexsglbase;
 			else
-				segsl[i].vert[1] = s1[i].vert[1];
-			segsl[i].linedef = s1[i].linedef;
-			segsl[i].direction = s1[i].direction;
+				dm->seg[i].vert[1] = s1[i].vert[1];
+			dm->seg[i].linedef = s1[i].linedef;
+			dm->seg[i].direction = s1[i].direction;
 			if (s1[i].Partner == 0xffff)
-				segsl[i].Partner = 0xffffffff;
+				dm->seg[i].Partner = 0xffffffff;
 			else
-				segsl[i].Partner = s1[i].Partner;
+				dm->seg[i].Partner = s1[i].Partner;
 		}
 	}
 }
@@ -2158,6 +2178,7 @@ qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize)
 	dsidedef_t		*sidedefsl;
 	char name[MAX_QPATH];
 	char tmp[MAX_QPATH];
+	doommap_t *dm;
 
 	int *gl_nodes;
 
@@ -2167,57 +2188,61 @@ qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize)
 		return false;
 	}
 
+	dm = Z_Malloc(sizeof(*dm));
+	dm->model = mod;
+	mod->meshinfo = dm;
+
 	COM_StripExtension(mod->name, name, sizeof(name));
 
 	gl_nodes	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.gl_nodes",	name), &fsize);
 	if (gl_nodes && fsize>0)
 	{
-		nodel = (void *)gl_nodes;
-		nodec = fsize/sizeof(*nodel);
+		dm->node = (void *)gl_nodes;
+		dm->numnodes = fsize/sizeof(*dm->node);
 	}
 	else
 	{
 		gl_nodes=NULL;
-		nodel		= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.nodes",		name), &fsize);
-		nodec		= fsize/sizeof(*nodel);
+		dm->node		= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.nodes",		name), &fsize);
+		dm->numnodes		= fsize/sizeof(*dm->node);
 	}
 	sectorl		= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.sectors",	name), &fsize);
-	sectorc		= fsize/sizeof(*sectorl);
+	dm->numsectors		= fsize/sizeof(*sectorl);
 
 #ifndef SERVERONLY
-	numdoomtextures=0;
+	dm->numtextures=0;
 	Doom_LoadPalette();
 #endif
 
 
-	Doom_LoadVerticies(name);
+	Doom_LoadVerticies(dm, name);
 
-	Doom_LoadSSegs(name);
-	Doom_LoadSSectors(name);
+	Doom_LoadSSegs(dm, name);
+	Doom_LoadSSectors(dm, name);
 
-	thingsl		= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.things",	name), &fsize);
-	thingsc		= fsize/sizeof(*thingsl);
-	linedefsl	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.linedefs",	name), &fsize);
-	linedefsc	= fsize/sizeof(*linedefsl);
+	dm->thing		= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.things",	name), &fsize);
+	dm->numthings		= fsize/sizeof(*dm->thing);
+	dm->linedef	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.linedefs",	name), &fsize);
+	dm->numlinedefs	= fsize/sizeof(*dm->linedef);
 	sidedefsl	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.sidedefs",	name), &fsize);
-	sidedefsc	= fsize/sizeof(*sidedefsl);
-	blockmapl	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.blockmap",	name), &fsize);
+	dm->numsidedefs	= fsize/sizeof(*sidedefsl);
+	dm->blockmap	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.blockmap",	name), &fsize);
 //	blockmaps	= fsize;
 #ifndef SERVERONLY
 	Doom_LoadTextureInfos();
 #endif
-	blockmapofs = (unsigned short*)(blockmapl+1);
+	dm->blockmapofs = (unsigned short*)(dm->blockmap+1);
 
-	if (!nodel || !sectorl || !segsl || !ssectorsl || !thingsl || !linedefsl || !sidedefsl || !vertexesl)
+	if (!dm->node || !sectorl || !dm->seg || !dm->ssector || !dm->thing || !dm->linedef || !sidedefsl || !dm->vertexes)
 	{
 		Sys_Error("Wad map doesn't contain enough lumps\n");
-		nodel = NULL;
+		dm->node = NULL;
 		return false;
 	}
 
-	MoveWorld();
+	MoveWorld(dm);
 
-	Doom_GeneratePlanes(nodel);
+	Doom_GeneratePlanes(dm);
 
 	mod->hulls[0].clip_mins[0] = 0;
 	mod->hulls[0].clip_mins[1] = 0;
@@ -2236,11 +2261,11 @@ qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize)
 	mod->type = mod_brush;
 	mod->nodes = (void*)0x1;
 
-	CleanWalls(mod, sidedefsl);
+	CleanWalls(dm, sidedefsl);
 
-	Triangulate_Sectors(mod, sectorl, !!gl_nodes);
+	Triangulate_Sectors(dm, sectorl, !!gl_nodes);
 
-	QuakifyThings(mod, thingsl);
+	QuakifyThings(dm);
 
 	COM_AddWork(WG_MAIN, Doom_LoadShaders, mod, NULL, 0, 0);
 	return true;
@@ -2248,8 +2273,9 @@ qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize)
 
 void Doom_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
+	doommap_t *dm = model->meshinfo;
 	msector_t *sec;
-	sec = sectorm + Doom_SectorNearPoint(point);
+	sec = dm->sector + Doom_SectorNearPoint(dm, point);
 
 	res_dir[0] = 0;
 	res_dir[1] = 1;
@@ -2263,7 +2289,7 @@ void Doom_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec
 }
 
 //return pvs bits for point
-unsigned int Doom_FatPVS(struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge)
+unsigned int Doom_FatPVS(struct model_s *model, vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge)
 {
 	//FIXME: use REJECT lump.
 	return 0;

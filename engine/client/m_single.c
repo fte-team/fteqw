@@ -703,15 +703,19 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key, unsigned
 			{
 				extern int		shift_down;
 				int extnum;
+				const char *ext = COM_GetFileExtension(info->selected->name, NULL);
 				for (extnum = 0; extnum < info->numext; extnum++)
-					if (!stricmp(info->selected->name + strlen(info->selected->name)-4, info->ext[extnum]))
+					if (!stricmp(ext, info->ext[extnum]))
 						break;
 
 				if (extnum == info->numext)	//wasn't on our list of extensions.
 					extnum = 0;
 
 				if (!info->command[extnum])
-					return true;	//FIXME: archives
+				{	//acceptable archive formats
+					ShowDemoMenu(menu, va("%s/", info->selected->name));
+					return true;
+				}
 
 				Cbuf_AddText(va("%s \"%s%s\"\n", info->command[extnum], (info->fs->fsroot==FS_SYSTEM)?"#":"", info->selected->name), RESTRICT_LOCAL);
 				if (!shift_down)
@@ -745,7 +749,7 @@ static int QDECL DemoAddItem(const char *filename, qofs_t size, time_t modified,
 	if (i == NULL)
 	{
 		for (extnum = 0; extnum < menu->numext; extnum++)
-			if (!stricmp(filename + strlen(filename)-4, menu->ext[extnum]))
+			if (!stricmp(COM_GetFileExtension(filename, NULL), menu->ext[extnum]))
 				break;
 
 		if (extnum == menu->numext)	//wasn't on our list of extensions.
@@ -950,7 +954,8 @@ static void ShowDemoMenu (menu_t *menu, const char *path)
 	else
 	{
 		Q_snprintfz(match, sizeof(match), "%s*", info->fs->path);
-		COM_EnumerateFiles(match, DemoAddItem, info);
+		CL_ListFilesInPackage(NULL, match, DemoAddItem, info, NULL);
+//		COM_EnumerateFiles(match, DemoAddItem, info);
 	}
 	M_Demo_Flatten(info);
 }
@@ -1012,14 +1017,22 @@ void M_Menu_Demos_f (void)
 	//we don't support them, but if we were to ask quizmo to decode them for us, we could do.
 
 	//and some archive formats... for the luls
+#ifdef PACKAGE_PK3
 	info->command[info->numext] = NULL;
 	info->ext[info->numext++] = ".zip";
 	info->command[info->numext] = NULL;
 	info->ext[info->numext++] = ".pk3";
 	info->command[info->numext] = NULL;
 	info->ext[info->numext++] = ".pk4";
+#endif
+#ifdef PACKAGE_Q1PAK
 	info->command[info->numext] = NULL;
 	info->ext[info->numext++] = ".pak";
+#endif
+#ifdef PACKAGE_DZIP
+	info->command[info->numext] = NULL;
+	info->ext[info->numext++] = ".dz";
+#endif
 
 	MC_AddWhiteText(menu, 24, 170, 8, "Choose a Demo", false);
 	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);

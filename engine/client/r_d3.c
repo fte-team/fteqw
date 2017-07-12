@@ -89,9 +89,9 @@ static void R_BuildDefaultTexnums_Doom3(shader_t *shader)
 			if ((shader->flags & SHADER_HASNORMALMAP) && r_loadbumpmapping)
 			{
 				if (!TEXVALID(tex->bump) && *mapname && (shader->flags & SHADER_HASNORMALMAP))
-					tex->bump = R_LoadHiResTexture(va("%s_local", mapname), NULL, imageflags|IF_TRYBUMP);
+					tex->bump = R_LoadHiResTexture(va("%s_local", mapname), NULL, imageflags|IF_TRYBUMP|IF_NOSRGB);
 				if (!TEXVALID(tex->bump))
-					tex->bump = R_LoadHiResTexture(va("%s_local", imagename), subpath, imageflags|IF_TRYBUMP);
+					tex->bump = R_LoadHiResTexture(va("%s_local", imagename), subpath, imageflags|IF_TRYBUMP|IF_NOSRGB);
 			}
 		}
 

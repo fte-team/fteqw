@@ -2104,7 +2104,7 @@ void COM_CleanUpPath(char *str)
 	while ((dots = strstr(str, "..")))
 	{
 		criticize = 0;
-		for (slash = dots-2; slash >= str; slash--)
+		for (slash = dots-1; slash >= str; slash--)
 		{
 			if (*slash == '/')
 			{

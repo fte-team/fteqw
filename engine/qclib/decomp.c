@@ -2,8 +2,10 @@
 #include "qcc.h"
 //#include "decomp.h"
 
+//This file is derived from frikdec, but has some extra tweaks to make it more friendly with fte's compiler/opcodes (its not perfect though)
 //FIXME: there's still a load of mallocs, so we don't allow this more than once per process.
 //convert vector terms into floats when its revealed that they're using vector ops and not floats
+//FIXME: fteqcc converts do {} while(1); into a goto -1; which is a really weeeird construct.
 
 #if defined(_WIN32) || defined(__DJGPP__)
 #include <malloc.h>
@@ -14,9 +16,8 @@
 #undef printf
 #define printf GUIprintf
 
-#define OPF_FORSTART OP_NUMOPS
-#define OP_MARK_END_DO 40000
-#define OP_MARK_END_ELSE 1000
+#define OP_MARK_END_DO		0x00010000	//do{
+#define OP_MARK_END_ELSE	0x00000400	//}
 
 #define MAX_REGS 65536
 #define dstatement_t QCC_dstatement32_t
@@ -571,7 +572,9 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 			else
 				statements[i].a = (unsigned short)statements6[i].a;
 
-			if (statements[i].op == OP_IF_I || statements[i].op == OP_IFNOT_I || statements[i].op == OP_IF_F || statements[i].op == OP_IFNOT_F || statements[i].op == OP_IF_S || statements[i].op == OP_IFNOT_S)
+			if (statements[i].op == OP_IF_I || statements[i].op == OP_IFNOT_I ||
+				statements[i].op == OP_IF_F || statements[i].op == OP_IFNOT_F ||
+				statements[i].op == OP_IF_S || statements[i].op == OP_IFNOT_S)
 				statements[i].b = (signed short)statements6[i].b;
 			else
 				statements[i].b = (unsigned short)statements6[i].b;
@@ -801,7 +804,8 @@ DecompileAlreadySeen(char *fname, vfile_t **rfile)
 		ret = 0;
 		if (rfile)
 		{
-			*rfile = QCC_AddVFile(fname, NULL, 0);
+			char *header = "//Decompiled code. Please respect the original copyright.\n";
+			*rfile = QCC_AddVFile(fname, header, strlen(header));
 			AddSourceFile("progs.src",	fname);
 		}
 	}
@@ -1239,6 +1243,7 @@ gofs_t DecompileScaleIndex(dfunction_t *df, gofs_t ofs)
 	if ((nofs < 0) || (nofs > MAX_REGS - 1))
 	{
 		printf("Fatal Error - Index (%i) out of bounds.\n", nofs);
+		return 0;
 		exit(1);
 	}
 
@@ -1538,7 +1543,7 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 	char *arg1, *arg2, *arg3;
 	int nargs, i, j;
 	dstatement_t *t;
-	unsigned short dom, doc, ifc, tom;
+	unsigned int dom, doc, ifc, tom;
 	QCC_type_t *typ1, *typ2, *typ3;
 	QCC_ddef_t *par;
 	dstatement_t *k;
@@ -1879,13 +1884,15 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 			QCC_CatVFile(Decompileofile, "%s;\n", line);
 		}
 	}
-	else if (s->op == OP_IF_I || s->op == OP_IFNOT_I || s->op == OP_IF_F || s->op == OP_IFNOT_F/* || s->op == OPQF_IFA || s->op == OPQF_IFB || s->op == OPQF_IFAE || s->op == OPQF_IFBE*/)
+	else if (s->op == OP_IF_I || s->op == OP_IFNOT_I ||
+			 s->op == OP_IF_F || s->op == OP_IFNOT_F ||
+			 s->op == OP_IF_S || s->op == OP_IFNOT_S/* || s->op == OPQF_IFA || s->op == OPQF_IFB || s->op == OPQF_IFAE || s->op == OPQF_IFBE*/)
 	{
 
 		arg1 = DecompileGet(df, s->a, type_float);	//FIXME: this isn't quite accurate...
 		arg2 = DecompileGlobal(df, s->a, NULL);
 
-		if (s->op == OP_IFNOT_I || s->op == OP_IFNOT_F)
+		if (s->op == OP_IFNOT_I || s->op == OP_IFNOT_F || s->op == OP_IFNOT_S)
 		{
 	lameifnot:
 			if ((signed int)s->b < 1)
@@ -1964,7 +1971,10 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 						for (k = t + (signed int)(t->a); k < s; k++)
 						{
 							tom = k->op % OP_MARK_END_ELSE;
-							if (tom == OP_GOTO || tom == OP_IF_I || tom == OP_IFNOT_I || tom == OP_IF_F || tom == OP_IFNOT_F)
+							if (tom == OP_GOTO ||
+								tom == OP_IF_I || tom == OP_IFNOT_I ||
+								tom == OP_IF_F || tom == OP_IFNOT_F ||
+								tom == OP_IF_S || tom == OP_IFNOT_S)
 								dum = 0;
 						}
 						if (dum) 
@@ -2050,13 +2060,19 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		}
 
 	}
-	else if (s->op == OPF_FORSTART)
+	else if (s->op == OPD_GOTO_FORSTART)
 	{
 		DecompileIndent(*indent);
 		QCC_CatVFile(Decompileofile, "do_tail\n", (s-statements) + (signed int)s->a);
 		DecompileIndent(*indent);
 		QCC_CatVFile(Decompileofile, "{\n");
 		(*indent)++;
+	}
+	else if (s->op == OPD_GOTO_WHILE1)
+	{
+		(*indent)--;
+		DecompileIndent(*indent);
+		QCC_CatVFile(Decompileofile, "} while(1);\n");
 	}
 	else if (s->op == OP_GOTO)
 	{
@@ -2592,6 +2608,27 @@ void DecompileFunction(const char *name, int *lastglobal)
 				ts = ds + (signed int)ds->a;
 				ts->op += OP_MARK_END_ELSE;	// mark the end of a if/ite construct 
 			}
+			else
+			{
+				ts = ds + (signed int)ds->a;
+				//if its a negative goto then it should normally be the end of a while{} loop. if we can't find the while statement itself, then its an infinite loop
+				for (k = (ts); k < ds; k++)
+				{
+					tom = k->op % OP_MARK_END_ELSE;
+					if (tom == OP_IF_I || tom == OP_IFNOT_I ||
+						tom == OP_IF_F || tom == OP_IFNOT_F ||
+						tom == OP_IF_S || tom == OP_IFNOT_S)
+					{
+						if (k + (signed int)k->b == ds+1)
+							break;
+					}
+				}
+				if (k == ds)
+				{
+					ds->op += OPD_GOTO_WHILE1-OP_GOTO;
+					ts->op += OP_MARK_END_DO;
+				}
+			}
 		}
 		else if (dom == OP_IFNOT_I || dom == OP_IFNOT_F || dom == OP_IFNOT_S)
 		{
@@ -2616,7 +2653,10 @@ void DecompileFunction(const char *name, int *lastglobal)
 					for (k = (ts - 1) + (signed int)((ts - 1)->a); k < ds; k++)
 					{
 						tom = k->op % OP_MARK_END_ELSE;
-						if (tom == OP_GOTO || tom == OP_IF_I || tom == OP_IFNOT_I || tom == OP_IF_F || tom == OP_IFNOT_F)
+						if (tom == OP_GOTO ||
+							tom == OP_IF_I || tom == OP_IFNOT_I ||
+							tom == OP_IF_F || tom == OP_IFNOT_F ||
+							tom == OP_IF_S || tom == OP_IFNOT_S)
 							dum = 0;
 					}
 					if (!dum)
@@ -2637,7 +2677,7 @@ void DecompileFunction(const char *name, int *lastglobal)
 				//if the statement before the 'do' is a forwards goto, and it jumps to within the loop (instead of after), then we have to assume that it is a for loop and not a loop inside an else block.
 				if ((ts-1)->op%OP_MARK_END_ELSE == OP_GOTO && (signed int)(ts-1)->a > 0 && (ts-1)+(signed int)(ts-1)->a <= ds)
 				{
-					(--ts)->op += OPF_FORSTART - OP_GOTO;
+					(--ts)->op += OPD_GOTO_FORSTART - OP_GOTO;
 					//because it was earlier, we need to unmark that goto's target as an end_else
 					ts = ts + (signed int)ts->a;
 					ts->op -= OP_MARK_END_ELSE;
@@ -2664,7 +2704,10 @@ void DecompileFunction(const char *name, int *lastglobal)
 						for (k = (ts - 1) + (signed int)((ts - 1)->a); k < ds; k++)
 						{
 							tom = k->op % OP_MARK_END_ELSE;
-							if (tom == OP_GOTO || tom == OP_IF_I || tom == OP_IFNOT_I || tom == OP_IF_F || tom == OP_IFNOT_F)
+							if (tom == OP_GOTO ||
+								tom == OP_IF_I || tom == OP_IFNOT_I ||
+								tom == OP_IF_F || tom == OP_IFNOT_F ||
+								tom == OP_IF_S || tom == OP_IFNOT_S)
 								dum = 0;
 						}
 						if (!dum)
@@ -3031,7 +3074,9 @@ void DecompilePrintStatement(dstatement_t * s)
 	for (; i < 10; i++)
 		printf(" ");
 
-	if (s->op == OP_IF_I || s->op == OP_IFNOT_I || s->op == OP_IF_F || s->op == OP_IFNOT_F)
+	if (s->op == OP_IF_I || s->op == OP_IFNOT_I ||
+		s->op == OP_IF_F || s->op == OP_IFNOT_F ||
+		s->op == OP_IF_S || s->op == OP_IFNOT_S)
 		printf("%sbranch %i", DecompileGlobalString(s->a), s->b);
 	else if (s->op == OP_GOTO)
 	{

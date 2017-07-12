@@ -213,6 +213,23 @@ qboolean D3D11_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 		bytesperpixel = 4;
 		break;
 
+	case PTI_RGBA8_SRGB:
+		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+		bytesperpixel = 4;
+		break;
+	case PTI_RGBX8_SRGB:	//d3d11 has no alphaless format. be sure to proprly disable alpha in the shader. 
+		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+		bytesperpixel = 4;
+		break;
+	case PTI_BGRA8_SRGB:
+		tdesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
+		bytesperpixel = 4;
+		break;
+	case PTI_BGRX8_SRGB:
+		tdesc.Format = DXGI_FORMAT_B8G8R8X8_UNORM_SRGB;
+		bytesperpixel = 4;
+		break;
+
 	case PTI_S3RGB1:	//d3d11 provides no way to disable alpha with dxt1. be sure to proprly disable alpha in the shader. 
 	case PTI_S3RGBA1:
 		tdesc.Format = DXGI_FORMAT_BC1_UNORM;

@@ -610,7 +610,28 @@ typedef void		(APIENTRYP PFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei
 #define GLX_FRAMEBUFFER_SRGB_CAPABLE_ARB			0x20B2
 #define WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB			0x20A9
 #define GL_FRAMEBUFFER_SRGB							0x8DB9
+#define GL_FRAMEBUFFER_SRGB_CAPABLE					0x8DBA
 #endif
+
+#ifndef GL_EXT_texture_sRGB
+#define GL_EXT_texture_sRGB 1
+#define GL_SRGB_EXT                       0x8C40
+#define GL_SRGB8_EXT                      0x8C41
+#define GL_SRGB_ALPHA_EXT                 0x8C42
+#define GL_SRGB8_ALPHA8_EXT               0x8C43
+#define GL_SLUMINANCE_ALPHA_EXT           0x8C44
+#define GL_SLUMINANCE8_ALPHA8_EXT         0x8C45
+#define GL_SLUMINANCE_EXT                 0x8C46
+#define GL_SLUMINANCE8_EXT                0x8C47
+#define GL_COMPRESSED_SRGB_EXT            0x8C48
+#define GL_COMPRESSED_SRGB_ALPHA_EXT      0x8C49
+#define GL_COMPRESSED_SLUMINANCE_EXT      0x8C4A
+#define GL_COMPRESSED_SLUMINANCE_ALPHA_EXT 0x8C4B
+#define GL_COMPRESSED_SRGB_S3TC_DXT1_EXT  0x8C4C
+#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT 0x8C4D
+#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT 0x8C4E
+#define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT 0x8C4F
+#endif /* GL_EXT_texture_sRGB */
 
 #ifndef GL_ARB_pixel_buffer_object
 #define GL_PIXEL_PACK_BUFFER_ARB                        0x88EB

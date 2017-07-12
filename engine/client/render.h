@@ -399,17 +399,21 @@ enum imageflags
 	IF_NEAREST = 1<<2,	//force nearest
 	IF_LINEAR = 1<<3,	//force linear
 	IF_UIPIC = 1<<4,	//subject to texturemode2d
+	//IF_DEPTHCMD=1<<5,	//Reserved for d3d11
+	IF_SRGB = 1<<6,		//texture data is srgb
 	/*WARNING: If the above are changed, be sure to change shader pass flags*/
 
-	IF_NOPICMIP = 1<<5,
-	IF_NOALPHA = 1<<6,	/*hint rather than requirement*/
-	IF_NOGAMMA = 1<<7,
-	IF_3DMAP = 1<<8,	/*waning - don't test directly*/
-	IF_CUBEMAP = 1<<9,	/*waning - don't test directly*/
-	IF_TEXTYPE = (1<<8) | (1<<9), /*0=2d, 1=3d, 2=cubeface, 3=?*/
-	IF_TEXTYPESHIFT = 8, /*0=2d, 1=3d, 2-7=cubeface*/
-	IF_MIPCAP = 1<<10,
-	IF_PREMULTIPLYALPHA = 1<<12,	//rgb *= alpha
+	IF_NOPICMIP = 1<<7,
+	IF_NOALPHA = 1<<8,	/*hint rather than requirement*/
+	IF_NOGAMMA = 1<<9,
+	IF_3DMAP = 1<<10,	/*waning - don't test directly*/
+	IF_CUBEMAP = 1<<11,	/*waning - don't test directly*/
+	IF_TEXTYPE = (1<<10) | (1<<11), /*0=2d, 1=3d, 2=cubeface, 3=?*/
+	IF_TEXTYPESHIFT = 10, /*0=2d, 1=3d, 2-7=cubeface*/
+	IF_MIPCAP = 1<<12,
+	IF_PREMULTIPLYALPHA = 1<<13,	//rgb *= alpha
+
+	IF_NOSRGB = 1<<20,	//ignore srgb when loading. this is guarenteed to be linear, for normalmaps etc.
 
 	IF_PALETTIZE = 1<<21,
 	IF_NOPURGE = 1<<22,

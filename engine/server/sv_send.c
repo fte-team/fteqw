@@ -2201,9 +2201,9 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 	#endif
 
 		if (!ent->xv->viewzoom)
-			statsi[STAT_VIEWZOOM] = 255;
+			statsf[STAT_VIEWZOOM] = STAT_VIEWZOOM_SCALE;
 		else
-			statsi[STAT_VIEWZOOM] = max(1,ent->xv->viewzoom*255);
+			statsf[STAT_VIEWZOOM] = max(1,ent->xv->viewzoom*STAT_VIEWZOOM_SCALE);
 #endif
 
 #ifdef NQPROT

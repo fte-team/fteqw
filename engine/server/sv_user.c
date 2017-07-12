@@ -532,7 +532,7 @@ void SVNQ_New_f (void)
 			{SCP_DARKPLACES6, true},
 			{SCP_FITZ666, true},	//actually 999... shh...
 			{SCP_FITZ666, false},
-			{SCP_BJP3, false}
+			{SCP_BJP3, false}	//should we only use this when we have >255 models/sounds?
 		};
 		for (i = 0; i < countof(preferedprot); i++)
 		{

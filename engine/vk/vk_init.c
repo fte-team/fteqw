@@ -251,7 +251,7 @@ static qboolean VK_CreateSwapChain(void)
 	uint32_t i, curpri;
 	VkSwapchainKHR newvkswapchain;
 	VkImage *images;
-        VkDeviceMemory *memories;
+	VkDeviceMemory *memories;
 	VkImageView attachments[2];
 	VkFramebufferCreateInfo fb_info = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
 
@@ -262,7 +262,7 @@ static qboolean VK_CreateSwapChain(void)
 		if (vk.swapchain || vk.backbuf_count)
 			VK_DestroySwapChain();
 
-		vk.backbufformat = vid_srgb.ival?VK_FORMAT_B8G8R8A8_SRGB:VK_FORMAT_B8G8R8A8_UNORM;
+		vk.backbufformat = (vid.srgb||vid_srgb.ival)?VK_FORMAT_B8G8R8A8_SRGB:VK_FORMAT_B8G8R8A8_UNORM;
 		vk.backbuf_count = 4;
 
 		swapinfo.imageExtent.width = vid.pixelwidth;
@@ -388,8 +388,9 @@ static qboolean VK_CreateSwapChain(void)
 			}
 		}
 
+		vk.srgbcapable = false;
 		swapinfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-		swapinfo.imageFormat = vid_srgb.ival?VK_FORMAT_B8G8R8A8_SRGB:VK_FORMAT_B8G8R8A8_UNORM;
+		swapinfo.imageFormat = (vid.srgb||vid_srgb.ival)?VK_FORMAT_B8G8R8A8_SRGB:VK_FORMAT_B8G8R8A8_UNORM;
 		for (i = 0, curpri = 0; i < fmtcount; i++)
 		{
 			uint32_t priority = 0;
@@ -397,11 +398,12 @@ static qboolean VK_CreateSwapChain(void)
 			{
 			case VK_FORMAT_B8G8R8A8_UNORM:
 			case VK_FORMAT_R8G8B8A8_UNORM:
-				priority = 4+!vid_srgb.ival;
+				priority = 4+!(vid.srgb||vid_srgb.ival);
 				break;
 			case VK_FORMAT_B8G8R8A8_SRGB:
 			case VK_FORMAT_R8G8B8A8_SRGB:
-				priority = 4+!!vid_srgb.ival;
+				priority = 4+!!(vid.srgb||vid_srgb.ival);
+				vk.srgbcapable = true;
 				break;
 			case VK_FORMAT_R16G16B16A16_SFLOAT:	//16bit per-channel formats
 			case VK_FORMAT_R16G16B16A16_SNORM:
@@ -521,7 +523,7 @@ static qboolean VK_CreateSwapChain(void)
 			depthinfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 			depthinfo.queueFamilyIndexCount = 0;
 			depthinfo.pQueueFamilyIndices = NULL;
-			depthinfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			depthinfo.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 			VkAssert(vkCreateImage(vk.device, &depthinfo, vkallocationcb, &vk.backbufs[i].depth.image));
 		}
 
@@ -575,6 +577,11 @@ static qboolean VK_CreateSwapChain(void)
 	
 void	VK_Draw_Init(void)
 {
+	qboolean srgb = vid_srgb.ival > 1 && vk.srgbcapable;
+	if (vid.srgb != srgb)
+		vid_srgb.modified = true;
+	vid.srgb = srgb;
+
 	R2D_Init();
 }
 void	VK_Draw_Shutdown(void)
@@ -710,6 +717,11 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 		format = VK_FORMAT_D32_SFLOAT;
 	else if (encoding == PTI_DEPTH24_8)
 		format = VK_FORMAT_D24_UNORM_S8_UINT;
+	//srgb formats
+	else if (encoding == PTI_BGRA8_SRGB || encoding == PTI_BGRX8_SRGB)
+		format = VK_FORMAT_B8G8R8A8_SRGB;
+	else if (encoding == PTI_RGBA8_SRGB || encoding == PTI_RGBX8_SRGB)
+		format = VK_FORMAT_R8G8B8A8_SRGB;
 	//standard formats
 	else if (encoding == PTI_BGRA8 || encoding == PTI_BGRX8)
 		format = VK_FORMAT_B8G8R8A8_UNORM;
@@ -902,16 +914,26 @@ void *VK_AtFrameEnd(void (*passed)(void *work), size_t worksize)
 	return w;
 }
 
+#define USE_STAGING_BUFFERS
 struct texturefence
 {
 	struct vk_fencework w;
 
 	int mips;
+#ifdef USE_STAGING_BUFFERS
+	VkBuffer stagingbuffer;
+	VkDeviceMemory stagingmemory;
+#else
 	vk_image_t staging[32];
+#endif
 };
 static void VK_TextureLoaded(void *ctx)
 {
 	struct texturefence *w = ctx;
+#ifdef USE_STAGING_BUFFERS
+	vkDestroyBuffer(vk.device, w->stagingbuffer, vkallocationcb);
+	vkFreeMemory(vk.device, w->stagingmemory, vkallocationcb);
+#else
 	unsigned int i;
 	for (i = 0; i < w->mips; i++)
 		if (w->staging[i].image != VK_NULL_HANDLE)
@@ -919,13 +941,23 @@ static void VK_TextureLoaded(void *ctx)
 			vkDestroyImage(vk.device, w->staging[i].image, vkallocationcb);
 			vkFreeMemory(vk.device, w->staging[i].memory, vkallocationcb);
 		}
+#endif
 }
 qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 {
+#ifdef USE_STAGING_BUFFERS
+	VkBufferCreateInfo bci = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+	VkMemoryRequirements mem_reqs;
+	VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+	void *mapdata;
+#else
+	uint32_t y;
+#endif
+
 	struct texturefence *fence;
 	VkCommandBuffer vkloadcmd;
 	vk_image_t target;
-	uint32_t i, y;
+	uint32_t i;
 	uint32_t blocksize;
 	uint32_t blockbytes;
 	uint32_t layers;
@@ -950,6 +982,10 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 	case PTI_RGBX8:
 	case PTI_BGRA8:
 	case PTI_BGRX8:
+	case PTI_RGBA8_SRGB:
+	case PTI_RGBX8_SRGB:
+	case PTI_BGRA8_SRGB:
+	case PTI_BGRX8_SRGB:
 		blocksize = 1;	//in texels
 		blockbytes = 4;
 		break;
@@ -1059,7 +1095,68 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 		}
 	}
 
-	//create the staging images and fill them
+#ifdef USE_STAGING_BUFFERS
+	//figure out how big our staging buffer needs to be
+	bci.size = 0;
+	for (i = 0; i < mips->mipcount; i++)
+	{
+		uint32_t blockwidth = (mips->mip[i].width+blocksize-1) / blocksize;
+		uint32_t blockheight = (mips->mip[i].height+blocksize-1) / blocksize;
+
+		bci.size += blockwidth*blockheight*blockbytes;
+	}
+	bci.flags = 0;
+	bci.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	bci.queueFamilyIndexCount = 0;
+	bci.pQueueFamilyIndices = NULL;
+
+	//create+map the staging buffer
+	VkAssert(vkCreateBuffer(vk.device, &bci, vkallocationcb, &fence->stagingbuffer));
+	vkGetBufferMemoryRequirements(vk.device, fence->stagingbuffer, &mem_reqs);
+	memAllocInfo.allocationSize = mem_reqs.size;
+	memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &fence->stagingmemory));
+	VkAssert(vkBindBufferMemory(vk.device, fence->stagingbuffer, fence->stagingmemory, 0));
+	VkAssert(vkMapMemory(vk.device, fence->stagingmemory, 0, bci.size, 0, &mapdata));
+	if (!mapdata)
+		Sys_Error("Unable to map staging image\n");
+
+	bci.size = 0;
+	for (i = 0; i < mips->mipcount; i++)
+	{
+		VkImageSubresource subres = {0};
+		VkBufferImageCopy region;
+		//figure out the number of 'blocks' in the image.
+		//for non-compressed formats this is just the width directly.
+		//for compressed formats (ie: s3tc/dxt) we need to round up to deal with npot.
+		uint32_t blockwidth = (mips->mip[i].width+blocksize-1) / blocksize;
+		uint32_t blockheight = (mips->mip[i].height+blocksize-1) / blocksize;
+
+		memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockwidth*blockbytes*blockheight);
+
+		//queue up a buffer->image copy for this mip
+		region.bufferOffset = bci.size;
+		region.bufferRowLength = 0;//blockwidth*blockbytes;
+		region.bufferImageHeight = 0;//blockheight;
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.mipLevel = i%(mips->mipcount/layers);
+		region.imageSubresource.baseArrayLayer = i/(mips->mipcount/layers);
+		region.imageSubresource.layerCount = 1;
+		region.imageOffset.x = 0;
+		region.imageOffset.y = 0;
+		region.imageOffset.z = 0;
+		region.imageExtent.width = mips->mip[i].width;
+		region.imageExtent.height = mips->mip[i].height;
+		region.imageExtent.depth = 1;
+
+		vkCmdCopyBufferToImage(vkloadcmd, fence->stagingbuffer, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+		bci.size += blockwidth*blockheight*blockbytes;
+	}
+	vkUnmapMemory(vk.device, fence->stagingmemory);
+#else
+//create the staging images and fill them
 	for (i = 0; i < mips->mipcount; i++)
 	{
 		VkImageSubresource subres = {0};
@@ -1112,6 +1209,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 			vkCmdCopyImage(vkloadcmd, fence->staging[i].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 		}
 	}
+#endif
 
 	//layouts are annoying. and weird.
 	{
@@ -2029,7 +2127,7 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 
 	vkCmdCopyImageToBuffer(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, capt->buffer, 1, &icpy);
 
-	set_image_layout(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	set_image_layout(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 }
 
 char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
@@ -2097,7 +2195,7 @@ char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight
 		icpy.extent.depth = 1;
 		vkCmdCopyImage(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tempimage, VK_IMAGE_LAYOUT_GENERAL, 1, &icpy);
 
-		set_image_layout(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+		set_image_layout(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 		set_image_layout(fence->cbuf, tempimage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_HOST_READ_BIT);
 
 		VK_FencedSync(fence);
@@ -2902,6 +3000,12 @@ void VK_CheckTextureFormats(void)
 		{PTI_RGBX8,		VK_FORMAT_R8G8B8A8_UNORM},
 		{PTI_BGRA8,		VK_FORMAT_B8G8R8A8_UNORM},
 		{PTI_BGRX8,		VK_FORMAT_B8G8R8A8_UNORM},
+
+		{PTI_RGBA8_SRGB,		VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RGBX8_SRGB,		VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_BGRA8_SRGB,		VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_BGRX8_SRGB,		VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+
 		{PTI_RGB565,	VK_FORMAT_R5G6B5_UNORM_PACK16},
 		{PTI_RGBA4444,	VK_FORMAT_R4G4B4A4_UNORM_PACK16},
 		{PTI_ARGB4444,	VK_FORMAT_B4G4R4A4_UNORM_PACK16},
@@ -2931,7 +3035,7 @@ void VK_CheckTextureFormats(void)
 
 	for (i = 0; i < countof(texfmt); i++)
 	{
-		unsigned int need = VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT | texfmt[i].needextra;
+		unsigned int need = /*VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT |*/ texfmt[i].needextra;
 		VkFormatProperties fmt;
 		vkGetPhysicalDeviceFormatProperties(vk.gpu, texfmt[i].vulkan, &fmt);
 

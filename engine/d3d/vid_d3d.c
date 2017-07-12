@@ -14,6 +14,9 @@
 #endif
 
 #include    <d3d9.h>
+#ifndef D3DPRESENT_LINEAR_CONTENT
+#define D3DPRESENT_LINEAR_CONTENT 2
+#endif
 
 //#pragma comment(lib, "../libs/dxsdk9/lib/d3d9.lib")
 
@@ -65,6 +68,7 @@ extern qboolean		scr_con_forcedraw;
 static qboolean d3d_resized;
 
 extern cvar_t vid_hardwaregamma;
+extern cvar_t vid_srgb;
 
 
 //sound/error code needs this
@@ -434,7 +438,15 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 
 static void D3D9_VID_SwapBuffers(void)
 {
-	IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
+	if (d3dpp.Windowed && (vid_srgb.ival==1 || vid.srgb))
+	{
+		IDirect3DSwapChain9 *swapchain;
+		IDirect3DDevice9_GetSwapChain(pD3DDev9, 0, &swapchain);
+		IDirect3DSwapChain9_Present(swapchain, NULL, NULL, NULL, NULL, D3DPRESENT_LINEAR_CONTENT);
+		IDirect3DSwapChain9_Release(swapchain);
+	}
+	else
+		IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
 }
 
 static void resetD3D9(void)
@@ -452,7 +464,7 @@ static void resetD3D9(void)
 	IDirect3DDevice9_BeginScene(pD3DDev9);
 	IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
 	IDirect3DDevice9_EndScene(pD3DDev9);
-	IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
+	D3D9_VID_SwapBuffers();
 
 
 
@@ -587,6 +599,36 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 			MoveWindow(d3dpp.hDeviceWindow, rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top, false);
 		}
 		D3D9Shader_Init();
+
+		{
+			int i;
+			struct {
+				unsigned int pti;
+				unsigned int d3d9;
+				unsigned int usage;
+			} fmts[] =
+			{
+				{PTI_BGRX8,      D3DFMT_X8R8G8B8, D3DUSAGE_QUERY_FILTER},
+				{PTI_BGRA8,      D3DFMT_A8R8G8B8, D3DUSAGE_QUERY_FILTER},
+				{PTI_RGB565,     D3DFMT_R5G6B5,   D3DUSAGE_QUERY_FILTER},
+				{PTI_ARGB1555,   D3DFMT_A1R5G5B5, D3DUSAGE_QUERY_FILTER},
+				{PTI_ARGB4444,   D3DFMT_A4R4G4B4, D3DUSAGE_QUERY_FILTER},
+
+				{PTI_BGRX8_SRGB, D3DFMT_X8R8G8B8, D3DUSAGE_QUERY_SRGBREAD},
+				{PTI_BGRA8_SRGB, D3DFMT_A8R8G8B8, D3DUSAGE_QUERY_SRGBREAD},
+			};
+			for (i = 0; i < countof(fmts); i++)
+				if (SUCCEEDED(IDirect3D9_CheckDeviceFormat(pD3D, devno, devtype, d3dpp.BackBufferFormat, fmts[i].usage, D3DRTYPE_TEXTURE, fmts[i].d3d9)))
+					sh_config.texfmt[fmts[i].pti] = true;
+		}
+
+		//fixme: the engine kinda insists on rgba textures, which d3d9 does NOT support.
+		//we currently have some swapping, so these load, just slowly.
+		sh_config.texfmt[PTI_RGBX8] = sh_config.texfmt[PTI_BGRX8];
+		sh_config.texfmt[PTI_RGBA8] = sh_config.texfmt[PTI_BGRA8];
+		sh_config.texfmt[PTI_RGBX8_SRGB] = sh_config.texfmt[PTI_BGRX8_SRGB];
+		sh_config.texfmt[PTI_RGBA8_SRGB] = sh_config.texfmt[PTI_BGRA8_SRGB];
+
 		return true;	//successful
 	}
 	else
@@ -726,7 +768,7 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
 	IDirect3DDevice9_BeginScene(pD3DDev9);
 	IDirect3DDevice9_EndScene(pD3DDev9);
-	IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
+	D3D9_VID_SwapBuffers();
 
 	D3D9_Set2D();
 
@@ -947,6 +989,12 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 		Cvar_ForceCallback(&vid_conwidth);
 	}
 
+	if (vid_srgb.modified)
+	{
+		vid_srgb.modified = false;
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SRGBWRITEENABLE, (vid_srgb.ival==1 || vid.srgb) && !d3dpp.Windowed);
+	}
+
 	switch (IDirect3DDevice9_TestCooperativeLevel(pD3DDev9))
 	{
 	case D3DERR_DEVICELOST:
@@ -992,7 +1040,7 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 			if (R2D_Flush)
 				R2D_Flush();
 			IDirect3DDevice9_EndScene(pD3DDev9);
-			IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
+			D3D9_VID_SwapBuffers();
 			return true;
 		}
 	}
@@ -1031,7 +1079,7 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 		Media_RecordFrame();
 //		R2D_BrightenScreen();
 		IDirect3DDevice9_EndScene(pD3DDev9);
-		IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
+		D3D9_VID_SwapBuffers();
 		return true;
 	}
 
@@ -1091,7 +1139,7 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 	d3d9error(IDirect3DDevice9_EndScene(pD3DDev9));
 	{
 		RSpeedMark();
-		d3d9error(IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL));
+		D3D9_VID_SwapBuffers();
 		RSpeedEnd(RSPEED_PRESENT);
 	}
 
@@ -1111,6 +1159,9 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 
 static void	(D3D9_Draw_Init)				(void)
 {
+	vid.srgb = vid_srgb.ival>1;
+	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SRGBWRITEENABLE, (vid_srgb.ival==1 || vid.srgb) && !d3dpp.Windowed);
+
 	R2D_Init();
 }
 static void	(D3D9_Draw_Shutdown)				(void)
@@ -1245,7 +1296,6 @@ static void	(D3D9_R_RenderView)				(void)
 	D3D9_Set2D ();
 }
 
-void	(D3D9_R_NewMap)					(void);
 void	(D3D9_R_PreNewMap)				(void);
 
 void	(D3D9_R_PushDlights)			(void);

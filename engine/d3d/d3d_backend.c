@@ -53,6 +53,7 @@ extern LPDIRECT3DDEVICE9 pD3DDev9;
 
 #define MAX_TC_TMUS 4
 
+extern texid_t r_whiteimage;
 extern float d3d_trueprojection[16];
 
 static void BE_RotateForEntity (const entity_t *e, const model_t *mod);
@@ -265,6 +266,8 @@ static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
 	unsigned int delta = shaderstate.tmuflags[tu] ^ flags;
 	if (!delta)
 		return;
+	if (delta & SHADER_PASS_SRGB)
+		IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_SRGBTEXTURE, (flags & SHADER_PASS_SRGB)?TRUE:FALSE);
 	if (delta & SHADER_PASS_CLAMP)
 	{
 		if (flags & SHADER_PASS_CLAMP)
@@ -715,11 +718,14 @@ static unsigned int allocindexbuffer(void **dest, unsigned int entries)
 
 static void BindTexture(unsigned int tu, texid_t tex)
 {
+	extern texid_t r_whiteimage;
 	IDirect3DTexture9 *dt;
 	if (tex)
 	{
 		dt = tex->ptr;
-		shaderstate.curtexflags[tu] = tex->flags & SHADER_PASS_IMAGE_FLAGS;
+		if (!dt)
+			dt = r_whiteimage->ptr;
+		shaderstate.curtexflags[tu] = tex->flags & SHADER_PASS_IMAGE_FLAGS_D3D9;
 	}
 	else
 		dt = NULL;

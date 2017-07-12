@@ -1079,7 +1079,7 @@ void GL_SelectProgram(int program);
 
 
 
-void GL_Init(void *(*getglfunction) (char *name));
+void GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name));
 
 #endif
 

@@ -48,19 +48,23 @@ qboolean D3D9_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 		pixelsize = 2;
 		fmt = D3DFMT_A1R5G5B5;
 		break;
+	case PTI_RGBA8_SRGB:
 	case PTI_RGBA8:
 //		fmt = D3DFMT_A8B8G8R8;	/*how do we check 
 		fmt = D3DFMT_A8R8G8B8;
 		swap = true;
 		break;
+	case PTI_RGBX8_SRGB:
 	case PTI_RGBX8:
 //		fmt = D3DFMT_X8B8G8R8;
 		fmt = D3DFMT_X8R8G8B8;
 		swap = true;
 		break;
+	case PTI_BGRA8_SRGB:
 	case PTI_BGRA8:
 		fmt = D3DFMT_A8R8G8B8;
 		break;
+	case PTI_BGRX8_SRGB:
 	case PTI_BGRX8:
 		fmt = D3DFMT_X8R8G8B8;
 		break;

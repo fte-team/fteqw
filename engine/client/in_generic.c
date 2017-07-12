@@ -761,8 +761,8 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 #ifdef QUAKESTATS
 	if (cl.playerview[pnum].statsf[STAT_VIEWZOOM])
 	{
-		mouse_x *= cl.playerview[pnum].statsf[STAT_VIEWZOOM]/255.0f;
-		mouse_y *= cl.playerview[pnum].statsf[STAT_VIEWZOOM]/255.0f;
+		mouse_x *= cl.playerview[pnum].statsf[STAT_VIEWZOOM]/STAT_VIEWZOOM_SCALE;
+		mouse_y *= cl.playerview[pnum].statsf[STAT_VIEWZOOM]/STAT_VIEWZOOM_SCALE;
 	}
 #endif
 

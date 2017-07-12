@@ -1129,7 +1129,10 @@ static void Model_CheckDownloads (void)
 			if (!cl.image_name[i] || !*cl.image_name[i])
 				continue;
 			Q_snprintfz(picname, sizeof(picname), "pics/%s.pcx", cl.image_name[i]);
-			CL_CheckOrEnqueDownloadFile(picname, picname, 0);
+			if (!strncmp(cl.image_name[i], "../", 3))	//some servers are just awkward.
+				CL_CheckOrEnqueDownloadFile(picname, picname+8, 0);
+			else
+				CL_CheckOrEnqueDownloadFile(picname, picname, 0);
 		}
 		if (!CLQ2_RegisterTEntModels())
 			return;
@@ -2429,8 +2432,9 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 				CLQ3_SendClientCommand("stopdl");
 				break;
 #endif
-			case DL_DARKPLACES:
 			case DL_QW:
+				break;
+			case DL_DARKPLACES:
 			case DL_QWCHUNKS:
 				{
 					char *serverversion = Info_ValueForKey(cl.serverinfo, "*version");
@@ -3438,8 +3442,19 @@ static void CLNQ_ParseProtoVersion(void)
 	cls.protocol_nq = CPNQ_ID;
 	cls.z_ext = 0;
 
+#ifndef NOLEGACY
+	if (protover == PROTOCOL_VERSION_NQ && cls.demoplayback)
+	{
+		if (!Q_strcasecmp(FS_GetGamedir(true), "nehahra"))
+			protover = PROTOCOL_VERSION_NEHD;	//if we're using the nehahra gamedir, pretend that it was the nehahra protocol version. clients should otherwise be using a different protocol.
+	}
+#endif
+
 	if (protover == PROTOCOL_VERSION_NEHD)
-		Host_EndGame ("Nehahra demo net protocol is not supported\n");
+	{
+		cls.protocol_nq = CPNQ_NEHAHRA;
+		Con_DPrintf("Nehahra demo net protocol\n");
+	}
 	else if (protover == PROTOCOL_VERSION_FITZ)
 	{
 		//fitzquake 0.85
@@ -3890,10 +3905,10 @@ static void CLNQ_ParseClientdata (void)
 				i = MSG_ReadByte();
 			if (i < 2)
 				i = 2;
-			CL_SetStatInt(0, STAT_VIEWZOOM, i);
+			CL_SetStatFloat(0, STAT_VIEWZOOM, i*(STAT_VIEWZOOM_SCALE/255.0));
 		}
 		else
-			CL_SetStatInt(0, STAT_VIEWZOOM, 255);
+			CL_SetStatFloat(0, STAT_VIEWZOOM, STAT_VIEWZOOM_SCALE);
 	}
 }
 #endif
@@ -4115,6 +4130,8 @@ static void CLQ2_ParseConfigString (void)
 
 	if (i >= 0x8000 && i < 0x8000+MAX_PRECACHE_MODELS)
 	{
+		if (*s == '/')
+			s++;	//*sigh*
 		Q_strncpyz(cl.model_name[i-0x8000], s, MAX_QPATH);
 		if (cl.model_name[i-0x8000][0] == '#')
 		{
@@ -4125,14 +4142,17 @@ static void CLQ2_ParseConfigString (void)
 			}
 			cl.model_precache[i-0x8000] = NULL;
 		}
-		else
+		else if (cl.contentstage)
 			cl.model_precache[i-0x8000] = Mod_ForName (cl.model_name[i-0x8000], MLV_WARN);
 		return;
 	}
 	else if (i >= 0xc000 && i < 0xc000+MAX_PRECACHE_SOUNDS)
 	{
+		if (*s == '/')
+			s++;	//*sigh*
 		Q_strncpyz(cl.sound_name[i-0xc000], s, MAX_QPATH);
-		cl.sound_precache[i-0xc000] = S_PrecacheSound (s);
+		if (cl.contentstage)
+			cl.sound_precache[i-0xc000] = S_PrecacheSound (s);
 		return;
 	}
 
@@ -4186,6 +4206,8 @@ static void CLQ2_ParseConfigString (void)
 	}
 	else if (i >= Q2CS_MODELS && i < Q2CS_MODELS+Q2MAX_MODELS)
 	{
+		if (*s == '/')
+			s++;	//*sigh*
 		Q_strncpyz(cl.model_name[i-Q2CS_MODELS], s, MAX_QPATH);
 		if (cl.model_name[i-Q2CS_MODELS][0] == '#')
 		{
@@ -4196,13 +4218,16 @@ static void CLQ2_ParseConfigString (void)
 			}
 			cl.model_precache[i-Q2CS_MODELS] = NULL;
 		}
-		else
+		else if (cl.contentstage)
 			cl.model_precache[i-Q2CS_MODELS] = Mod_ForName (cl.model_name[i-Q2CS_MODELS], MLV_WARN);
 	}
 	else if (i >= Q2CS_SOUNDS && i < Q2CS_SOUNDS+Q2MAX_SOUNDS)
 	{
+		if (*s == '/')
+			s++;	//*sigh*
 		Q_strncpyz(cl.sound_name[i-Q2CS_SOUNDS], s, MAX_QPATH);
-		cl.sound_precache[i-Q2CS_SOUNDS] = S_PrecacheSound (s);
+		if (cl.contentstage)
+			cl.sound_precache[i-Q2CS_SOUNDS] = S_PrecacheSound (s);
 	}
 	else if (i >= Q2CS_IMAGES && i < Q2CS_IMAGES+Q2MAX_IMAGES)
 	{
@@ -6273,7 +6298,7 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 			cl_dp_csqc_progscrc = atoi(stufftext+13);
 
 		//NQ servers/mods like spamming this. Its annoying, but we might as well use it if we can, while also muting it.
-		else if (!strncmp(stufftext, "cl_fullpitch ", 13) || !strncmp(stufftext, "pq_fullpitch ", 13))	
+		else if (!strncmp(stufftext, "cl_fullpitch ", 13) || !strncmp(stufftext, "pq_fullpitch ", 13))
 		{
 			if (!cl.haveserverinfo)
 			{
@@ -6284,16 +6309,6 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 		}
 #endif
 
-		else if (!strncmp(stufftext, "//querycmd ", 11))	//for servers to check if a command exists or not.
-		{
-			COM_Parse(stufftext + 11);
-			if (Cmd_Exists(com_token))
-			{
-				Cbuf_AddText ("cmd cmdsupported ", RESTRICT_SERVER+destsplit);
-				Cbuf_AddText (com_token, RESTRICT_SERVER+destsplit);
-				Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
-			}
-		}
 		else if (!strncmp(stufftext, "//paknames ", 11))	//so that the client knows what to download...
 		{													//there's a couple of prefixes involved etc
 			Q_strncatz(cl.serverpaknames, stufftext+11, sizeof(cl.serverpaknames));
@@ -6323,6 +6338,43 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 						cl.model_precache_vwep[i] = Mod_ForName(cl.model_name_vwep[i], MLV_WARN);
 					}
 				}
+			}
+		}
+		else if (cls.demoplayback && !strncmp(stufftext, "playdemo ", 9))
+		{	//some demos (like speed-demos-archive's marathon runs) chain multiple demos with playdemo commands
+			//these should still chain properly even when the demo is in some archive(like .dz) or subdir
+			char newdemo[MAX_OSPATH], temp[MAX_OSPATH], *s;
+			Cmd_TokenizeString(stufftext, false, false);
+			s = Cmd_Argv(1);
+			if (strchr(s, ':') || strchr(s, '/') || strchr(s, '\\'))
+				Q_strncpyz(newdemo, s, sizeof(newdemo));
+			else
+			{
+				newdemo[0] = 0;
+				if (cls.lastdemowassystempath)
+					Q_strncatz(newdemo, "#", sizeof(newdemo));
+				Q_strncatz(newdemo, cls.lastdemoname, sizeof(newdemo));
+				*COM_SkipPath(newdemo) = 0;
+				Q_strncatz(newdemo, Cmd_Argv(1), sizeof(newdemo));
+			}
+
+			Cbuf_AddText ("playdemo ", RESTRICT_SERVER+destsplit);
+			Cbuf_AddText (COM_QuotedString(newdemo, temp, sizeof(temp), false), RESTRICT_SERVER+destsplit);
+			Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
+		}
+#ifdef CSQC_DAT
+		else if (CSQC_StuffCmd(destsplit, stufftext, msg))
+		{
+		}
+#endif
+		else if (!strncmp(stufftext, "//querycmd ", 11))	//for servers to check if a command exists or not.
+		{
+			COM_Parse(stufftext + 11);
+			if (Cmd_Exists(com_token))
+			{
+				Cbuf_AddText ("cmd cmdsupported ", RESTRICT_SERVER+destsplit);
+				Cbuf_AddText (com_token, RESTRICT_SERVER+destsplit);
+				Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
 			}
 		}
 		else if (!strncmp(stufftext, "//exectrigger ", 14))		//so that mods can add whatever 'alias grabbedarmour' or whatever triggers that users might want to script responses for, without errors about unknown commands
@@ -6404,11 +6456,6 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 		{
 			Cmd_TokenizeString(stufftext+2, false, false);
 			Plug_Command_f();
-		}
-#endif
-#ifdef CSQC_DAT
-		else if (CSQC_StuffCmd(destsplit, stufftext, msg))
-		{
 		}
 #endif
 		else

@@ -84,7 +84,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	vid.activeapp = true;
 
-	GL_Init(GLES_GetSymbol);
+	GL_Init(info, GLES_GetSymbol);
 	return true;
 }
 #else
@@ -174,7 +174,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid.pixelwidth = w;
 	vid.pixelheight = h;
 
-	GL_Init(GLES_GetSymbol);
+	GL_Init(info, GLES_GetSymbol);
 	return true;
 }
 

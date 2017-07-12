@@ -281,6 +281,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define HLCLIENT 7		//we can run HL gamecode (not protocol compatible, set to 6 or 7)
 //		#define HLSERVER 140	//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
+		#define PACKAGE_DZIP	//support for the dzip format, common with the speed-demos-archive site
 //		#define WEBSERVER		//http server
 		#define FTPSERVER		//ftp server
 		#define WEBCLIENT		//http clients.
@@ -585,6 +586,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #if defined(QWOVERQ3) && !defined(Q3SERVER)
 	#undef QWOVERQ3
+#endif
+
+#if !defined(NQPROT) || defined(SERVERONLY) || !defined(AVAIL_ZLIB) || defined(DYNAMIC_ZLIB)
+	#undef PACKAGE_DZIP
 #endif
 
 //fix things a little...
@@ -981,6 +986,7 @@ STAT_MATCHSTARTTIME = 18,
 STAT_VIEW2			= 20,
 #endif
 STAT_VIEWZOOM		= 21, // DP
+#define STAT_VIEWZOOM_SCALE 255
 //STAT_UNUSED		= 22,
 //STAT_UNUSED		= 23,
 //STAT_UNUSED		= 24,

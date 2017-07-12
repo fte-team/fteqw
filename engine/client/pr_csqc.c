@@ -3327,10 +3327,7 @@ static const char *PF_cs_serverkey_internal(const char *keyname)
 	if (!strcmp(keyname, "ip"))
 	{
 		if (cls.demoplayback)
-		{
-			extern char lastdemoname[];
-			ret = lastdemoname;
-		}
+			ret = cls.lastdemoname;
 		else
 			ret = NET_AdrToString(adr, sizeof(adr), &cls.netchan.remote_address);
 	}

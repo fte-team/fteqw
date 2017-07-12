@@ -2610,7 +2610,7 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t
 }
 
 //the vid routines have initialised a window, and now they are giving us a reference to some of of GetProcAddress to get pointers to the funcs.
-void GL_Init(void *(*getglfunction) (char *name))
+void GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 {
 #ifndef GL_STATIC
 	qglBindTexture			= (void *)getglcore("glBindTexture");	//for compleateness. core in 1.1. needed by fte.
@@ -2830,13 +2830,20 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 	if (gl_config.gles)
 	{
+		qboolean srgb = false;//TEST ME GL_CheckExtension("GL_EXT_sRGB");
+
 		sh_config.texfmt[PTI_RGBX8] = sh_config.texfmt[PTI_RGBA8];	//FIXME: this is faked with PTI_RGBA8
 
 		sh_config.texfmt[PTI_RGB565] = !gl_config.webgl_ie;	//ie sucks and doesn't support things that webgl requires it to support.
 		sh_config.texfmt[PTI_RGBA4444] = !gl_config.webgl_ie;
 		sh_config.texfmt[PTI_RGBA5551] = !gl_config.webgl_ie;
-		sh_config.texfmt[PTI_BGRA8] = false;
-		sh_config.texfmt[PTI_BGRX8] = sh_config.texfmt[PTI_BGRA8];
+		sh_config.texfmt[PTI_BGRX8] = sh_config.texfmt[PTI_BGRA8] = false;
+
+//		sh_config.texfmt[PTI_RGBX8_SRGB] = sh_config.texfmt[PTI_RGBX8] && srgb;
+		sh_config.texfmt[PTI_RGBA8_SRGB] = sh_config.texfmt[PTI_RGBA8] && srgb;
+//		sh_config.texfmt[PTI_BGRX8_SRGB] = sh_config.texfmt[PTI_BGRX8] && srgb;
+		sh_config.texfmt[PTI_BGRA8_SRGB] = sh_config.texfmt[PTI_BGRA8] && srgb;
+		vid.srgb = info->srgb && srgb;
 
 		sh_config.minver = 100;
 		sh_config.maxver = 100;
@@ -2848,6 +2855,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	}
 	else
 	{
+		GLint srgb = gl_config.glversion >= 2.1 || GL_CheckExtension("GL_EXT_texture_sRGB");	//became core in gl 2.1
 		sh_config.can_mipcap = gl_config.glversion >= 1.2;
 
 		sh_config.texfmt[PTI_RGBX8] = true;	//proper support
@@ -2889,6 +2897,11 @@ void GL_Init(void *(*getglfunction) (char *name))
 		sh_config.blobpath = "glsl/%s.blob";
 		sh_config.progpath = "glsl/%s.glsl";
 		sh_config.shadernamefmt = "%s_glsl";
+
+		sh_config.texfmt[PTI_RGBX8_SRGB] = sh_config.texfmt[PTI_RGBX8] && srgb;
+		sh_config.texfmt[PTI_RGBA8_SRGB] = sh_config.texfmt[PTI_RGBA8] && srgb;
+		sh_config.texfmt[PTI_BGRX8_SRGB] = sh_config.texfmt[PTI_BGRX8] && srgb;
+		sh_config.texfmt[PTI_BGRA8_SRGB] = sh_config.texfmt[PTI_BGRA8] && srgb;
 	}
 
 	sh_config.progs_supported	= gl_config.arb_shader_objects;

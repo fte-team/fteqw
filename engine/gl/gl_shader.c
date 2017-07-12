@@ -1766,7 +1766,7 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 
 	if (file)
 	{
-		Con_DPrintf("Loaded %s from disk\n", va(sh_config.progpath, basicname));
+		Con_DPrintf("Loaded %s from disk\n", sh_config.progpath?va(sh_config.progpath, basicname):basicname);
 		g->failed = !Shader_LoadPermutations(g->name, &g->prog, file, qrtype, 0, blobname);
 		FS_FreeFile(file);
 		return;
@@ -2280,7 +2280,7 @@ static void Shader_NormalMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	char *token = Shader_ParseString(ptr);
 	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
-	shader->defaulttextures->bump = Shader_FindImage(token, flags|IF_TRYBUMP);
+	shader->defaulttextures->bump = Shader_FindImage(token, flags|IF_TRYBUMP|IF_NOSRGB);
 }
 static void Shader_FullbrightMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -5084,9 +5084,9 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader)
 			if (r_loadbumpmapping || (shader->flags & SHADER_HASNORMALMAP))
 			{
 				if (!TEXVALID(tex->bump) && *mapname && (shader->flags & SHADER_HASNORMALMAP))
-					tex->bump = R_LoadHiResTexture(va("%s_norm", mapname), NULL, imageflags|IF_TRYBUMP);
+					tex->bump = R_LoadHiResTexture(va("%s_norm", mapname), NULL, imageflags|IF_TRYBUMP|IF_NOSRGB);
 				if (!TEXVALID(tex->bump))
-					tex->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP);
+					tex->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP|IF_NOSRGB);
 			}
 		}
 
@@ -5277,9 +5277,9 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 		{
 			extern cvar_t r_shadow_bumpscale_basetexture;
 			if (!TEXVALID(tex->bump) && *mapname)
-				tex->bump = R_LoadHiResTexture(va("%s_norm", mapname), NULL, imageflags|IF_TRYBUMP);
+				tex->bump = R_LoadHiResTexture(va("%s_norm", mapname), NULL, imageflags|IF_TRYBUMP|IF_NOSRGB);
 			if (!TEXVALID(tex->bump) && (r_shadow_bumpscale_basetexture.ival||*imagename=='#'||gl_load24bit.ival))
-				tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP|(*imagename=='#'?IF_LINEAR:0), (r_shadow_bumpscale_basetexture.ival||*imagename=='#')?mipdata[0]:NULL, palette, width, height, TF_HEIGHT8PAL);
+				tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP|IF_NOSRGB|(*imagename=='#'?IF_LINEAR:0), (r_shadow_bumpscale_basetexture.ival||*imagename=='#')?mipdata[0]:NULL, palette, width, height, TF_HEIGHT8PAL);
 		}
 
 		if (loadflags & SHADER_HASTOPBOTTOM)

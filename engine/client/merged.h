@@ -272,6 +272,9 @@ typedef struct texid_s texid_tf;
 #define TEXVALID(t) 1
 #endif
 
+#define Image_LinearFloatFromsRGBFloat(c) (((c) <= 0.04045f) ? (c) * (1.0f / 12.92f) : (float)pow(((c) + 0.055f)*(1.0f/1.055f), 2.4f))
+#define Image_sRGBFloatFromLinearFloat(c) (((c) < 0.0031308f) ? (c) * 12.92f : 1.055f * (float)pow((c), 1.0f/2.4f) - 0.055f)
+
 struct pendingtextureinfo
 {
 	enum
@@ -280,6 +283,7 @@ struct pendingtextureinfo
 		PTI_3D,
 		PTI_CUBEMAP	//mips are packed (to make d3d11 happy)
 	} type;
+
 	enum
 	{
 		//these formats are specified as direct byte access
@@ -287,6 +291,10 @@ struct pendingtextureinfo
 		PTI_RGBX8,	//rgb pad byte ordering
 		PTI_BGRA8,	//alpha channel
 		PTI_BGRX8,	//no alpha channel
+		PTI_RGBA8_SRGB,	//rgba byte ordering
+		PTI_RGBX8_SRGB,	//rgb pad byte ordering
+		PTI_BGRA8_SRGB,	//alpha channel
+		PTI_BGRX8_SRGB,	//no alpha channel
 		//these formats are specified in native endian order
 		PTI_RGB565,		//16bit alphaless format.
 		PTI_RGBA4444,	//16bit format (gl)
@@ -311,7 +319,7 @@ struct pendingtextureinfo
 		PTI_DEPTH24,
 		PTI_DEPTH32,
 		PTI_DEPTH24_8,
-		PTI_MAX
+		PTI_MAX,
 	} encoding;	//0
 	int mipcount;
 	struct

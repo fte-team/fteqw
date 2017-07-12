@@ -27505,7 +27505,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MDebug|Win32"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -31531,6 +31530,10 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\common\fs_dzip.c"
+					>
 				</File>
 				<File
 					RelativePath="..\common\fs_pak.c"

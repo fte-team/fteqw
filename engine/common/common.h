@@ -599,6 +599,7 @@ void FS_PureMode(int mode, char *purenamelist, char *purecrclist, char *refnamel
 
 //recursively tries to open files until it can get a zip.
 vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name);
+qboolean CL_ListFilesInPackage(searchpathfuncs_t *search, char *name, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, void *recursioninfo);
 
 qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize, size_t *fsize);
 qbyte *COM_LoadTempFile (const char *path, size_t *fsize);

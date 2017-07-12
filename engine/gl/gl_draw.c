@@ -66,6 +66,18 @@ void GLDraw_Init (void)
 	if (gl_config.gles && gl_config.glversion < 3.0)
 		r_softwarebanding = false;
 
+	if (!gl_config.gles)
+	{
+		extern cvar_t vid_srgb;
+		GLint srgb;
+		qglGetIntegerv(GL_FRAMEBUFFER_SRGB_CAPABLE, &srgb);
+		vid.srgb = vid_srgb.ival>1 && srgb;
+		if (vid.srgb)
+			qglEnable(GL_FRAMEBUFFER_SRGB);
+	}
+	else
+		vid.srgb = false;
+
 	R2D_Init();
 
 	qglDisable(GL_SCISSOR_TEST);
@@ -381,8 +393,8 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 			case PTI_BGRX8:
 				qglTexImage3D(targface, i, GL_RGB, size, size, size, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
 				break;
-			case PTI_BGRA8:
 			default:
+			case PTI_BGRA8:
 				qglTexImage3D(targface, i, GL_RGBA, size, size, size, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
 				break;
 			case PTI_RGBA4444:
@@ -442,10 +454,23 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 			case PTI_BGRX8:
 				qglTexImage2D(targface, j, GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
 				break;
-			case PTI_BGRA8:
 			default:
+			case PTI_BGRA8:
 				qglTexImage2D(targface, j, GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
 				break;
+			case PTI_RGBX8_SRGB:
+				qglTexImage2D(targface, j, GL_SRGB_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
+				break;
+			case PTI_RGBA8_SRGB:
+				qglTexImage2D(targface, j, GL_SRGB_ALPHA_EXT, mips->mip[i].width, mips->mip[i].height, 0, gl_config.gles?GL_SRGB_ALPHA_EXT:GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
+				break;
+			case PTI_BGRX8_SRGB:
+				qglTexImage2D(targface, j, GL_SRGB_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
+				break;
+			case PTI_BGRA8_SRGB:
+				qglTexImage2D(targface, j, GL_SRGB_ALPHA_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
+				break;
+
 			case PTI_RGBA16F:
 				qglTexImage2D(targface, j, GL_RGBA16F_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
 				break;

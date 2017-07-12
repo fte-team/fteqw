@@ -3062,6 +3062,10 @@ static void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int fla
 			mips->mipcount = mip+1;
 		}
 		return;
+	case PTI_RGBA8_SRGB:
+	case PTI_RGBX8_SRGB:
+	case PTI_BGRA8_SRGB:
+	case PTI_BGRX8_SRGB:
 	case PTI_RGBA8:
 	case PTI_RGBX8:
 	case PTI_BGRA8:
@@ -4161,6 +4165,37 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		//FIXME: fill alpha channel with 255?
 	}
 
+	if (vid.srgb /*&& (flags & IF_SRGB)*/ && !(flags & IF_NOSRGB))
+	{	//most modern editors write srgb images.
+		//however, that might not be supported.
+		int nf = PTI_MAX;
+		switch(mips->encoding)
+		{
+		case PTI_RGBA8: nf = PTI_RGBA8_SRGB; break;
+		case PTI_RGBX8: nf = PTI_RGBX8_SRGB; break;
+		case PTI_BGRA8: nf = PTI_BGRA8_SRGB; break;
+		case PTI_BGRX8: nf = PTI_BGRX8_SRGB; break;
+		default:
+			if (freedata)
+				BZ_Free(rgbadata);
+			return false;
+		}
+		if (sh_config.texfmt[nf])
+			mips->encoding = nf;
+		else
+		{	//srgb->linear
+			int m = mips->mip[0].width*mips->mip[0].height*4;
+			if (mips->type == PTI_3D)
+				m *= mips->mip[0].height;
+			for (i = 0; i < m; i+=4)
+			{
+				((qbyte*)rgbadata)[i+0] = 255*Image_LinearFloatFromsRGBFloat(((qbyte*)rgbadata)[i+0] * (1.0/255));
+				((qbyte*)rgbadata)[i+1] = 255*Image_LinearFloatFromsRGBFloat(((qbyte*)rgbadata)[i+1] * (1.0/255));
+				((qbyte*)rgbadata)[i+2] = 255*Image_LinearFloatFromsRGBFloat(((qbyte*)rgbadata)[i+2] * (1.0/255));
+			}
+		}
+	}
+
 
 	Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 	if (rgbadata)
@@ -4170,7 +4205,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		else
 		{
 			mips->mip[0].data = BZ_Malloc(((mips->mip[0].width+3)&~3)*mips->mip[0].height*4);
-	//		memset(mips->mip[0].data, 0, mips->mip[0].width*mips->mip[0].height*4);
+			//FIXME: should be sRGB-aware, but probably not a common path on hardware that can actually do srgb.
 			Image_ResampleTexture(rgbadata, imgwidth, imgheight, mips->mip[0].data, mips->mip[0].width, mips->mip[0].height);
 			if (freedata)
 				BZ_Free(rgbadata);
@@ -4240,6 +4275,17 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 
 	tex->width = imgwidth;
 	tex->height = imgheight;
+
+	tex->flags &= ~IF_SRGB;
+	switch(mips->encoding)
+	{
+	case PTI_RGBA8_SRGB:
+	case PTI_RGBX8_SRGB:
+	case PTI_BGRA8_SRGB:
+	case PTI_BGRX8_SRGB:
+		tex->flags |= IF_SRGB;
+		break;
+	}
 
 	if (flags & IF_NOWORKER)
 		Image_LoadTextureMips(tex, mips, 0, 0);
@@ -4786,7 +4832,7 @@ image_t *Image_FindTexture(const char *identifier, const char *subdir, unsigned 
 	tex = Hash_Get(&imagetable, identifier);
 	while(tex)
 	{
-		if (!((tex->flags ^ flags) & (IF_CLAMP|IF_PALETTIZE)))
+		if (!((tex->flags ^ flags) & (IF_CLAMP|IF_PALETTIZE|IF_PREMULTIPLYALPHA)))
 		{
 #ifdef PURGEIMAGES
 			if (!strcmp(subdir, tex->subpath?tex->subpath:""))

@@ -535,7 +535,7 @@ static void BindTexture(unsigned int tu, texid_t tex)
 	if (tex)
 	{
 		dt = tex->ptr;
-		shaderstate.curtexflags[tu] = tex->flags & SHADER_PASS_IMAGE_FLAGS;
+		shaderstate.curtexflags[tu] = tex->flags & SHADER_PASS_IMAGE_FLAGS_D3D8;
 	}
 	else
 		dt = NULL;

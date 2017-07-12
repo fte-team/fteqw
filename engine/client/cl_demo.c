@@ -31,8 +31,6 @@ int cls_lasttype;
 
 void CL_PlayDemo(char *demoname, qboolean usesystempath);
 void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath);
-char lastdemoname[256];
-static qboolean lastdemowassystempath;
 
 extern cvar_t qtvcl_forceversion1;
 extern cvar_t qtvcl_eztvextensions;
@@ -439,10 +437,10 @@ void CL_DemoJump_f(void)
 		{
 			VFS_SEEK(df, 0);
 			cls.demoinfile = NULL;
-			CL_PlayDemoFile(df, lastdemoname, lastdemowassystempath);
+			CL_PlayDemoFile(df, cls.lastdemoname, cls.lastdemowassystempath);
 		}
 		else
-			CL_PlayDemo(lastdemoname, lastdemowassystempath);
+			CL_PlayDemo(cls.lastdemoname, cls.lastdemowassystempath);
 
 		//now fastparse it.
 		cls.demoseektime = newtime;
@@ -1247,6 +1245,7 @@ void CLNQ_WriteServerData(sizebuf_t *buf)
 	{
 	default:
 	case CPNQ_ID:		protmain = PROTOCOL_VERSION_NQ;		break;
+	case CPNQ_NEHAHRA:	protmain = PROTOCOL_VERSION_NEHD;	break;
 	case CPNQ_BJP1:		protmain = PROTOCOL_VERSION_BJP1;	break;
 	case CPNQ_BJP2:		protmain = PROTOCOL_VERSION_BJP2;	break;
 	case CPNQ_BJP3:		protmain = PROTOCOL_VERSION_BJP3;	break;
@@ -1274,14 +1273,14 @@ void CLNQ_WriteServerData(sizebuf_t *buf)
 }
 #endif
 
-void CL_Record_Baseline(sizebuf_t *buf, entity_state_t *state, unsigned int bits)
+void CL_Record_Baseline(sizebuf_t *buf, entity_state_t *state, unsigned int fitzbits)
 {
 	unsigned int j;
-	if (bits & FITZ_B_LARGEMODEL)
+	if (fitzbits & FITZ_B_LARGEMODEL)
 		MSG_WriteShort (buf, state->modelindex);
 	else
 		MSG_WriteByte (buf, state->modelindex);
-	if (bits & FITZ_B_LARGEFRAME)
+	if (fitzbits & FITZ_B_LARGEFRAME)
 		MSG_WriteShort (buf, state->frame);
 	else
 		MSG_WriteByte (buf, state->frame);
@@ -1293,9 +1292,9 @@ void CL_Record_Baseline(sizebuf_t *buf, entity_state_t *state, unsigned int bits
 		MSG_WriteAngle (buf, state->angles[j]);
 	}
 	
-	if (bits & FITZ_B_ALPHA)
+	if (fitzbits & FITZ_B_ALPHA)
 		MSG_WriteByte(buf, state->trans);
-	if (bits & RMQFITZ_B_SCALE)
+	if (fitzbits & RMQFITZ_B_SCALE)
 		MSG_WriteByte(buf, state->scale);
 }
 
@@ -1404,40 +1403,40 @@ static int CL_Record_ParticlesStaticsBaselines(sizebuf_t *buf, int seq)
 			else
 #endif
 			{
-				unsigned int bits = 0;
+				unsigned int fitzbits = 0;	//must take some consistent form for this to work
 #ifdef NQPROT
 				if (es->modelindex > 255)
-					bits |= FITZ_B_LARGEMODEL;
+					fitzbits |= FITZ_B_LARGEMODEL;
 				if (es->frame > 255)
-					bits |= FITZ_B_LARGEFRAME;
+					fitzbits |= FITZ_B_LARGEFRAME;
 				if (es->trans != 255)
-					bits |= FITZ_B_ALPHA;
+					fitzbits |= FITZ_B_ALPHA;
 				if (es->scale != 16)
-					bits |= RMQFITZ_B_SCALE;
+					fitzbits |= RMQFITZ_B_SCALE;
 				if (cls.protocol == CP_NETQUAKE && CPNQ_IS_BJP)
 				{
 					MSG_WriteByte (buf, svc_spawnbaseline);
-					bits = FITZ_B_LARGEMODEL;	//bjp always uses shorts for models.
+					fitzbits = FITZ_B_LARGEMODEL;	//bjp always uses shorts for models.
 				}
-				else if (cls.protocol == CP_NETQUAKE && cls.protocol_nq == CPNQ_FITZ666 && bits)
+				else if (cls.protocol == CP_NETQUAKE && cls.protocol_nq == CPNQ_FITZ666 && fitzbits)
 				{
 					MSG_WriteByte (buf, svcfitz_spawnbaseline2);
-					MSG_WriteByte (buf, bits);
+					MSG_WriteByte (buf, fitzbits);
 				}
-				else if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP && (bits & (FITZ_B_LARGEMODEL|FITZ_B_LARGEFRAME)))
+				else if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP && (fitzbits & (FITZ_B_LARGEMODEL|FITZ_B_LARGEFRAME)))
 				{
 					MSG_WriteByte (buf, svcdp_spawnbaseline2);
-					bits = FITZ_B_LARGEMODEL|FITZ_B_LARGEFRAME;	//dp's baseline2 always has these (regular baseline is unmodified)
+					fitzbits = FITZ_B_LARGEMODEL|FITZ_B_LARGEFRAME;	//dp's baseline2 always has these (regular baseline is unmodified)
 				}
 				else
 #endif
 				{
 					MSG_WriteByte (buf,svc_spawnbaseline);
-					bits = 0;
+					fitzbits = 0;
 				}
 				MSG_WriteEntity (buf, i);
 
-				CL_Record_Baseline(buf, es, bits);
+				CL_Record_Baseline(buf, es, fitzbits);
 			}
 			if (buf->cursize > buf->maxsize/2)
 				CL_WriteRecordDemoMessage (buf, seq++);
@@ -1989,6 +1988,9 @@ void CL_DemoList_c(int argn, char *partial, struct xcommandargcompletioncb_s *ct
 		COM_EnumerateFiles(va("%s*.dem", partial), CompleteDemoList, ctx);
 		COM_EnumerateFiles(va("%s*.mvd", partial), CompleteDemoList, ctx);
 		COM_EnumerateFiles(va("%s*.mvd.gz", partial), CompleteDemoList, ctx);
+
+		//fixme: show files in both .zip and .dz
+//		COM_EnumerateFiles(va("%s*.dz", partial), CompleteDemoList, ctx);
 	}
 }
 /*
@@ -2172,8 +2174,8 @@ void CL_PlayDemoStream(vfsfile_t *file, char *filename, qboolean issyspath, int 
 	}
 	if (filename)
 	{
-		Q_strncpyz (lastdemoname, filename, sizeof(lastdemoname));
-		lastdemowassystempath = issyspath;
+		Q_strncpyz (cls.lastdemoname, filename, sizeof(cls.lastdemoname));
+		cls.lastdemowassystempath = issyspath;
 		Con_Printf ("Playing demo from %s.\n", filename);
 	}
 
@@ -2375,7 +2377,7 @@ void CL_PlayDemo(char *demoname, qboolean usesystempath)
 		TP_ExecTrigger ("f_demoend", true);
 		return;
 	}
-	Q_strncpyz (lastdemoname, demoname, sizeof(lastdemoname));
+	Q_strncpyz (cls.lastdemoname, demoname, sizeof(cls.lastdemoname));
 
 #ifdef AVAIL_GZDEC
 	if (strlen(name) >= 3 && !Q_strcasecmp(name + strlen(name) - 3, ".gz"))

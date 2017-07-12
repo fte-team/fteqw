@@ -2882,6 +2882,7 @@ static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 
 	mod->surfaces = out;
 	mod->numsurfaces = count;
+	mod->lightmaps.first = 0;
 
 	for (surfnum = 0; surfnum < count; surfnum++, out++, in++, pl++)
 	{

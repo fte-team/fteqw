@@ -845,12 +845,16 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 //11.1 formats
 #define DXGI_FORMAT_B4G4R4A4_UNORM 115
 
+	//why does d3d11 have no rgbx format? anyone else think that weird?
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B5G6R5_UNORM, &support);		sh_config.texfmt[PTI_RGB565] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B5G5R5A1_UNORM, &support);	sh_config.texfmt[PTI_ARGB1555] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B4G4R4A4_UNORM, &support);	sh_config.texfmt[PTI_ARGB4444] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R8G8B8A8_UNORM, &support);	sh_config.texfmt[PTI_RGBA8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8A8_UNORM, &support);	sh_config.texfmt[PTI_BGRA8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8X8_UNORM, &support);	sh_config.texfmt[PTI_BGRX8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, &support);	sh_config.texfmt[PTI_RGBA8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8A8_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BGRA8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8X8_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BGRX8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC1_UNORM, &support);		sh_config.texfmt[PTI_S3RGBA1] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC2_UNORM, &support);		sh_config.texfmt[PTI_S3RGBA3] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC3_UNORM, &support);		sh_config.texfmt[PTI_S3RGBA5] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
@@ -858,6 +862,8 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	//these formats are not officially supported as specified, but noone cares
 	sh_config.texfmt[PTI_RGBX8] = sh_config.texfmt[PTI_RGBA8];
 	sh_config.texfmt[PTI_S3RGB1] = sh_config.texfmt[PTI_S3RGBA1];
+
+	vid.srgb = info->srgb>1;
 
 	vid.numpages = scd.BufferCount;
 	if (!D3D11Shader_Init(flevel))

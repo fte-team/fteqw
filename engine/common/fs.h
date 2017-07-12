@@ -60,6 +60,7 @@ extern searchpathfuncs_t *(QDECL VFSOS_OpenPath) (vfsfile_t *file, const char *d
 extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
 extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
 extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL FSDZ_LoadArchive) (vfsfile_t *file, const char *desc, const char *prefix);
 vfsfile_t *QDECL VFSOS_Open(const char *osname, const char *mode);
 vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, vfsfile_t *outfile);
 

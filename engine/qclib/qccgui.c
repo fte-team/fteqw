@@ -22,6 +22,7 @@
 void OptionsDialog(void);
 static void GUI_CreateInstaller_Windows(void);
 static void GUI_CreateInstaller_Android(void);
+static void SetProgsSrcFileAndPath(char *filename);
 void AddSourceFile(const char *parentsrc, const char *filename);
 
 #ifndef TVM_SETBKCOLOR
@@ -345,6 +346,18 @@ static pbool QCC_RegSetValue(HKEY base, char *keyname, char *valuename, int type
 */
 
 static vfile_t *qcc_vfiles;
+void QCC_CloseAllVFiles(void)
+{
+	vfile_t *f;
+	while(qcc_vfiles)
+	{
+		f = qcc_vfiles;
+		qcc_vfiles = f->next;
+
+		free(f->fdata);
+		free(f);
+	}
+}
 vfile_t *QCC_FindVFile(const char *name)
 {
 	vfile_t *f;
@@ -1553,6 +1566,7 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 enum {
 	IDM_OPENDOCU=32,
 	IDM_OPENNEW,
+	IDM_OPENPROJECT,
 	IDM_GREP,
 	IDM_GOTODEF,
 	IDM_RETURNDEF,
@@ -1595,7 +1609,7 @@ enum {
 	IDI_O_LEVEL3,
 	IDI_O_DEFAULT,
 	IDI_O_DEBUG,
-	IDI_O_CHANGE_PROGS_SRC,
+//	IDI_O_CHANGE_PROGS_SRC,
 	IDI_O_ADDITIONALPARAMETERS,
 	IDI_O_OPTIMISATION,
 	IDI_O_COMPILER_FLAG,
@@ -1637,6 +1651,29 @@ void GenericMenu(WPARAM wParam)
 {
 	switch(LOWORD(wParam))
 	{
+	case IDM_OPENPROJECT:
+		{
+			char filename[MAX_PATH];
+			char oldpath[MAX_PATH+10];
+			OPENFILENAME ofn;
+			memset(&ofn, 0, sizeof(ofn));
+			ofn.lStructSize = sizeof(ofn);
+			ofn.hInstance = ghInstance;
+			ofn.lpstrFile = filename;
+			ofn.lpstrTitle = "Please find progs.src or progs.dat";
+			ofn.nMaxFile = sizeof(filename)-1;
+			ofn.lpstrFilter = "QuakeC Projects\0*.src;*.dat\0All files\0*.*\0";
+			memset(filename, 0, sizeof(filename));
+			GetCurrentDirectory(sizeof(oldpath)-1, oldpath);
+			ofn.lpstrInitialDir = oldpath;
+			if (GetOpenFileName(&ofn))
+			{
+				SetProgsSrcFileAndPath(filename);
+			}
+			resetprogssrc = true;
+		}
+		break;
+
 	case IDM_OPENNEW:
 		QueryOpenFile();
 		break;
@@ -5222,7 +5259,7 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 				GUI_SaveConfig();
 			DestroyWindow(hWnd);
 			break;
-		case IDI_O_CHANGE_PROGS_SRC:
+/*		case IDI_O_CHANGE_PROGS_SRC:
 			{
 				char filename[MAX_PATH];
 				char oldpath[MAX_PATH+10];
@@ -5240,10 +5277,10 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 				if (GetOpenFileName(&ofn))
 				{
 					SetProgsSrcFileAndPath(filename);
+					resetprogssrc = true;
 				}
-				resetprogssrc = true;
 			}
-			break;
+			break;*/
 		case IDI_O_LEVEL0:
 		case IDI_O_LEVEL1:
 		case IDI_O_LEVEL2:
@@ -5328,9 +5365,9 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 			case IDI_O_LEVEL3:
 				MessageBox(hWnd, "Sets a specific optimisation level", "Help", MB_OK|MB_ICONINFORMATION);
 				break;
-			case IDI_O_CHANGE_PROGS_SRC:
-				MessageBox(hWnd, "Use this button to change your root source file.\nNote that fteqcc compiles sourcefiles from editors first, rather than saving. This means that changes are saved ONLY when you save them, but means that switching project mid-compile can result in problems.", "Help", MB_OK|MB_ICONINFORMATION);
-				break;
+//			case IDI_O_CHANGE_PROGS_SRC:
+//				MessageBox(hWnd, "Use this button to change your root source file.\nNote that fteqcc compiles sourcefiles from editors first, rather than saving. This means that changes are saved ONLY when you save them, but means that switching project mid-compile can result in problems.", "Help", MB_OK|MB_ICONINFORMATION);
+//				break;
 			case IDI_O_ADDITIONALPARAMETERS:
 				MessageBox(hWnd, "Type in additional commandline parameters here. Use -Dname to define a named precompiler constant before compiling.", "Help", MB_OK|MB_ICONINFORMATION);
 				break;
@@ -5609,14 +5646,14 @@ void OptionsDialog(void)
 		   ghInstance,
 		   NULL);
 	AddTip(tipwnd, wnd,		"Use selected settings and save them to disk so that they're also used the next time you start fteqccgui.");
-	wnd = CreateWindow("BUTTON","progs.src",
+	/*wnd = CreateWindow("BUTTON","progs.src",
 		   WS_CHILD | WS_VISIBLE,
 		   8+64*2,height-40,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_CHANGE_PROGS_SRC,
 		   ghInstance,
 		   NULL);
-	AddTip(tipwnd, wnd,		"Change the initial src file.");
+	AddTip(tipwnd, wnd,		"Change the initial src file.");*/
 
 
 
@@ -5766,8 +5803,9 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 			rootmenu = CreateMenu();
 			
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&File");
-					AppendMenu(m, 0, IDM_OPENNEW,								"Open new file ");
-					AppendMenu(m, 0, IDM_SAVE,									"&Save\tCtrl+S ");
+					AppendMenu(m, 0, IDM_OPENPROJECT,							"Open Project / Decompile");
+					AppendMenu(m, 0, IDM_OPENNEW,								"Open File");
+					AppendMenu(m, 0, IDM_SAVE,									"&Save\tCtrl+S");
 				//	AppendMenu(m, 0, IDM_FIND,									"&Find");
 					AppendMenu(m, 0, IDM_UNDO,									"Undo\tCtrl+Z");
 					AppendMenu(m, 0, IDM_REDO,									"Redo\tCtrl+Y");
@@ -5777,10 +5815,10 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					AppendMenu(m, MF_SEPARATOR, 0, NULL);
 					AppendMenu(m, 0, IDM_QUIT,									"Exit");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Navigation");
-					AppendMenu(m, 0, IDM_GOTODEF,								"Go to definition\tF12");
-					AppendMenu(m, 0, IDM_RETURNDEF,								"Return from definition\tShift+F12");
-					AppendMenu(m, 0, IDM_GREP,									"Grep for selection\tCtrl+G");
-					AppendMenu(m, 0, IDM_OPENDOCU,								"Open selected file");
+					AppendMenu(m, 0, IDM_GOTODEF,								"Go To Definition\tF12");
+					AppendMenu(m, 0, IDM_RETURNDEF,								"Return From Definition\tShift+F12");
+					AppendMenu(m, 0, IDM_GREP,									"Grep For Selection\tCtrl+G");
+					AppendMenu(m, 0, IDM_OPENDOCU,								"Open Selected File");
 					AppendMenu(m, 0, IDM_OUTPUT_WINDOW,							"Show Output Window\tF6");
 					AppendMenu(m, (fl_extramargins?MF_CHECKED:MF_UNCHECKED), IDM_UI_SHOWLINENUMBERS, "Show Line Numbers");
 					AppendMenu(m, ((fl_tabsize>4)?MF_CHECKED:MF_UNCHECKED), IDM_UI_TABSIZE, "Large Tabs");
@@ -6897,12 +6935,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	GUI_SetDefaultOpts();
 
-//	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebinary", enginebinary, sizeof(enginebinary)))
-		strcpy(enginebinary, "");
-//	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebasedir", enginebasedir, sizeof(enginebasedir)))
-		strcpy(enginebasedir, "");
-//	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginecommandline", enginecommandline, sizeof(enginecommandline)))
-		strcpy(enginecommandline, "");
+	strcpy(enginebinary, "");
+	strcpy(enginebasedir, "");
+	strcpy(enginecommandline, "");
 
 	if(strstr(lpCmdLine, "-stdout"))
 	{
@@ -6910,34 +6945,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		RunCompiler(lpCmdLine, false);
 		return 0;
 	}
-
-	if (!*lpCmdLine)
-	{
-		int len;
-		FILE *f;
-		char *s;
-
-		f = fopen("fteqcc.arg", "rb");
-		if (f)
-		{
-			fseek(f, 0, SEEK_END);
-			len = ftell(f);
-			fseek(f, 0, SEEK_SET);
-			lpCmdLine = malloc(len+1);
-			fread(lpCmdLine, 1, len, f);
-			lpCmdLine[len] = '\0';
-			fclose(f);
-
-			while((s = strchr(lpCmdLine, '\r')))
-				*s = ' ';
-			while((s = strchr(lpCmdLine, '\n')))
-				*s = ' ';
-		}
-	}
-
-	GUI_ParseCommandLine(lpCmdLine);
-
-	GUI_RevealOptions();
 
 	for (i = 0, fl_acc = false; compiler_flag[i].enabled; i++)
 	{
@@ -6957,7 +6964,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			strcpy(progssrcname, "progs.src");
 		if (QCC_RawFileSize(progssrcname)==-1)
 		{
-			char *s, *s2;
 			char filename[MAX_PATH];
 			char oldpath[MAX_PATH+10];
 			OPENFILENAME ofn;
@@ -6972,30 +6978,12 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			GetCurrentDirectory(sizeof(oldpath)-1, oldpath);
 			ofn.lpstrInitialDir = oldpath;
 			if (GetOpenFileName(&ofn))
-			{
-				strcpy(progssrcdir, filename);
-				for(s = progssrcdir; s; s = s2)
-				{
-					s2 = strchr(s+1, '\\');
-					if (!s2)
-						break;
-					s = s2;
-				}
-				if (s)
-				{
-					*s = '\0';
-					strcpy(progssrcname, s+1);
-				}
-				else
-					strcpy(progssrcname, filename);
-			}
+				strcpy(progssrcname, filename);
 			else
 			{
 				MessageBox(NULL, "You didn't select a file", "Error", 0);
 				return 0;
 			}
-			SetCurrentDirectory(progssrcdir);
-			*progssrcdir = '\0';
 		}
 	}
 
@@ -7064,71 +7052,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	ShowWindow(mainwindow, SW_SHOWDEFAULT);
 
-	{
-		char *ext = strrchr(progssrcname, '.');
-		if (ext && !QC_strcasecmp(ext, ".dat"))
-		{
-			FILE *f = fopen(progssrcname, "rb");
-			if (f)
-			{
-				char *buf;
-				size_t size;
-
-				fseek(f, 0, SEEK_END);
-				size = ftell(f);
-				fseek(f, 0, SEEK_SET);
-				buf = malloc(size);
-				fread(buf, 1, size, f);
-				fclose(f);
-				if (!QC_EnumerateFilesFromBlob(buf, size, QCC_EnumerateFilesResult))
-				{
-					char *c = ReadProgsCopyright(buf, size);
-					if (!c || !*c)
-						c = "COPYRIGHT OWNER NOT KNOWN";	//all work is AUTOMATICALLY copyrighted under the terms of the Berne Convention. It _IS_ copyrighted, even if there's no license etc included. Good luck guessing what rights you have.
-					if (MessageBox(mainwindow, qcva("The copyright message from this progs is\n%s\n\nPlease respect the wishes and legal rights of the person who created this.", c), "Copyright", MB_OKCANCEL|MB_DEFBUTTON2|MB_ICONSTOP) == IDOK)
-					{
-						CreateOutputWindow(true);
-						compilecb();
-						DecompileProgsDat(progssrcname, buf, size);
-						if (SplitterGet(outputbox))
-						{
-							SendMessage(outputbox, WM_SETREDRAW, TRUE, 0);
-							RedrawWindow(outputbox, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
-						}
-					}
-				}
-				free(buf);
-			}
-			strcpy(progssrcname, "progs.src");
-
-			for (i = 0; ; i++)
-			{
-				if (!strcmp("embedsrc", compiler_flag[i].abbrev))
-				{
-					compiler_flag[i].flags |= FLAG_SETINGUI;
-					break;
-				}
-			}
-		}
-	}
-
-	if (fl_compileonstart)
-	{
-		CreateOutputWindow(false);
-		RunCompiler(lpCmdLine, false);
-	}
-	else
-	{
-		if (!mdibox)
-		{
-			GUIprintf("Welcome to FTE QCC\n");
-			GUIprintf("Source file: ");
-			GUIprintf(progssrcname);
-			GUIprintf("\n");
-
-			RunCompiler("-?", false);
-		}
-	}
+	resetprogssrc = true;
 
 	while(mainwindow || editors)
 	{
@@ -7136,6 +7060,110 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 		if (resetprogssrc)
 		{	//this here, with the compiler below, means that we don't run recursivly.
+			if (projecttree)
+				TreeView_DeleteAllItems(projecttree);
+
+			//if progssrcname is a path, then change working directory now.
+			//this shouldn't affect that much, but should ensure well-defined behaviour.
+			{
+				char *s, *s2;
+				strcpy(progssrcdir, progssrcname);
+				for(s = NULL, s2 = progssrcdir; s2;)
+				{
+					char *bs = strchr(s2, '\\');
+					char *sl = strchr(s2, '/');
+					if (bs)
+						s2 = bs;
+					else if (sl)
+						s2 = sl;
+					else
+						break;
+					s = s2++;
+				}
+				if (s)
+				{
+					*s = '\0';
+					strcpy(progssrcname, s+1);
+				}
+
+				SetCurrentDirectory(progssrcdir);
+				*progssrcdir = '\0';
+			}
+
+			//reset project/directory options
+			GUI_SetDefaultOpts();
+			GUI_ParseCommandLine(lpCmdLine);
+			GUI_RevealOptions();
+
+			//if the project is a .dat or .zip then decompile it now (so we can access the 'source')
+			{
+				char *ext = strrchr(progssrcname, '.');
+				if (ext && (!QC_strcasecmp(ext, ".dat") || !QC_strcasecmp(ext, ".zip") || !QC_strcasecmp(ext, ".pk3")))
+				{
+					FILE *f = fopen(progssrcname, "rb");
+					if (f)
+					{
+						char *buf;
+						size_t size;
+
+						fseek(f, 0, SEEK_END);
+						size = ftell(f);
+						fseek(f, 0, SEEK_SET);
+						buf = malloc(size);
+						fread(buf, 1, size, f);
+						fclose(f);
+						QCC_CloseAllVFiles();
+						strcpy(progssrcname, "progs.src");
+						if (!QC_EnumerateFilesFromBlob(buf, size, QCC_EnumerateFilesResult) && !QC_strcasecmp(ext, ".dat"))
+						{
+							char *c = ReadProgsCopyright(buf, size);
+							if (!c || !*c)
+								c = "COPYRIGHT OWNER NOT KNOWN";	//all work is AUTOMATICALLY copyrighted under the terms of the Berne Convention in all major nations. It _IS_ copyrighted, even if there's no license etc included. Good luck guessing what rights you have.
+							if (MessageBox(mainwindow, qcva("The copyright message from this progs is\n%s\n\nPlease respect the wishes and legal rights of the person who created this.", c), "Copyright", MB_OKCANCEL|MB_DEFBUTTON2|MB_ICONSTOP) == IDOK)
+							{
+								CreateOutputWindow(true);
+								compilecb();
+								DecompileProgsDat(progssrcname, buf, size);
+								if (SplitterGet(outputbox))
+								{
+									SendMessage(outputbox, WM_SETREDRAW, TRUE, 0);
+									RedrawWindow(outputbox, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
+								}
+							}
+						}
+						free(buf);
+					}
+					else
+						strcpy(progssrcname, "progs.src");
+
+					for (i = 0; ; i++)
+					{
+						if (!strcmp("embedsrc", compiler_flag[i].abbrev))
+						{
+							compiler_flag[i].flags |= FLAG_SETINGUI;
+							break;
+						}
+					}
+				}
+			}
+
+			if (fl_compileonstart)
+			{
+				CreateOutputWindow(false);
+				RunCompiler(lpCmdLine, false);
+			}
+			else
+			{
+				if (!mdibox)
+				{
+					GUIprintf("Welcome to FTE QCC\n");
+					GUIprintf("Source file: ");
+					GUIprintf(progssrcname);
+					GUIprintf("\n");
+
+					RunCompiler("-?", false);
+				}
+			}
 			resetprogssrc = false;
 			UpdateFileList();
 		}
@@ -7150,7 +7178,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				DoTranslateMessage(&msg);
 		}
 
-		if (mainwindow) 
+		if (mainwindow)
 		{
 			if (buttons[ID_COMPILE].washit)
 			{

@@ -1548,7 +1548,7 @@ int R_LightPoint (vec3_t p)
 	if (r_refdef.flags & 1)
 		return 255;
 
-	if (!cl.worldmodel || !cl.worldmodel->lightdata)
+	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED || !cl.worldmodel->lightdata)
 		return 255;
 
 	if (cl.worldmodel->fromgame == fg_quake3)

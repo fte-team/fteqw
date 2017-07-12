@@ -448,9 +448,10 @@ typedef struct
 	enum
 	{
 		CPNQ_ID,
-		CPNQ_BJP1,	//16bit models, strict 8bit sounds
+		CPNQ_NEHAHRA,
+		CPNQ_BJP1,	//16bit models, strict 8bit sounds (otherwise based on nehahra)
 		CPNQ_BJP2,	//16bit models, strict 16bit sounds
-		CPNQ_BJP3,	//16bit models, flagged 16bit sounds
+		CPNQ_BJP3,	//16bit models, flagged 16bit sounds, 8bit static sounds.
 		CPNQ_FITZ666, /*and rmqe999 protocol*/
 		CPNQ_DP5,
 		CPNQ_DP6,
@@ -504,6 +505,8 @@ typedef struct
 	qboolean	demoseeking;
 	float		demoseektime;
 	qboolean	timedemo;
+	char		lastdemoname[MAX_OSPATH];
+	qboolean	lastdemowassystempath;
 	vfsfile_t	*demoinfile;
 	float		td_lastframe;		// to meter out one message a frame
 	int			td_startframe;		// host_framecount at start

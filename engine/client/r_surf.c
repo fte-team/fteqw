@@ -3483,6 +3483,28 @@ void Surf_BuildModelLightmaps (model_t *m)
 		int j;
 		unsigned char *src;
 		unsigned char *dst;
+
+
+		//fixup surface lightmaps, and paint
+		for (i=0; i<m->nummodelsurfaces; i++)
+		{
+			surf = m->surfaces + i + m->firstmodelsurface;
+			for (j = 0; j < MAXRLIGHTMAPS; j++)
+			{
+				if (surf->lightmaptexturenums[j] < m->lightmaps.first)
+				{
+					surf->lightmaptexturenums[j] = -1;
+					continue;
+				}
+				if (surf->lightmaptexturenums[j] >= m->lightmaps.first+m->lightmaps.count)
+				{
+					surf->lightmaptexturenums[j] = -1;
+					continue;
+				}
+				surf->lightmaptexturenums[j] = surf->lightmaptexturenums[0] - m->lightmaps.first + newfirst;
+			}
+		}
+
 		if (!m->submodelof)
 		for (i = 0; i < m->lightmaps.count; i++)
 		{

@@ -255,7 +255,7 @@ cvar_t vid_multisample						= CVARFD ("vid_multisample", "0",
 cvar_t vid_refreshrate						= CVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_srgb								= CVARFD ("vid_srgb", "0",
-												CVAR_ARCHIVE, "The framebuffer should use sRGB colourspace. This has the effect of brightening the screen");
+													  CVAR_ARCHIVE, "0: Off. Colour blending will be wrong.\n1: Only the framebuffer should use sRGB colourspace, textures and colours will be assumed to be linear. This has the effect of brightening the screen.\n2: Use sRGB extensions/support to ensure that the sh");
 cvar_t vid_wndalpha							= CVARD ("vid_wndalpha", "1", "When running windowed, specifies the window's transparency level.");
 //more readable defaults to match conwidth/conheight.
 cvar_t vid_width							= CVARFD ("vid_width", "0",

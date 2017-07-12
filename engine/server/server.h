@@ -639,8 +639,10 @@ typedef struct client_s
 		SCP_QUAKE3,
 		//all the below are considered netquake clients.
 		SCP_NETQUAKE,
+		//bjp1, bjp2
 		SCP_BJP3,		//16bit angles,model+sound indexes. nothing else (assume raised ent limits too).
 		SCP_FITZ666,
+		//dp5
 		SCP_DARKPLACES6,
 		SCP_DARKPLACES7	//extra prediction stuff
 		//note, nq is nq+

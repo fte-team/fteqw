@@ -101,7 +101,7 @@ qboolean GLVID_Init(rendererstate_t *info, unsigned char *palette)
 	if (vid.height < 200)
 		vid.height = 200;
 
-	GL_Init(AGL_GetProcAddress);
+	GL_Init(info, AGL_GetProcAddress);
 
 	GLVID_SetPalette(palette);
 

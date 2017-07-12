@@ -734,6 +734,7 @@ static qboolean D3D8_VID_Init(rendererstate_t *info, unsigned char *palette)
 	vid.pixelheight = 480;
 	vid.width = 640;
 	vid.height = 480;
+	vid.srgb = false;
 
 	vid_initializing = false;
 
@@ -819,6 +820,8 @@ static qboolean D3D8_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	vid.width = width;
 	vid.height = height;
+
+	vid.srgb = false;
 
 	vid_initializing = false;
 
@@ -1341,7 +1344,6 @@ static void	(D3D8_R_RenderView)				(void)
 	D3D8_Set2D ();
 }
 
-void	(D3D8_R_NewMap)					(void);
 void	(D3D8_R_PreNewMap)				(void);
 
 void	(D3D8_R_PushDlights)			(void);

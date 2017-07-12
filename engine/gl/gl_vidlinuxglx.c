@@ -1951,7 +1951,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			return false;
 		}
 
-		GL_Init(&GLX_GetSymbol);
+		GL_Init(info, &GLX_GetSymbol);
 		break;
 #ifdef USE_EGL
 	case PSL_EGL:
@@ -1961,7 +1961,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			GLVID_Shutdown();
 			return false;
 		}
-		GL_Init(&EGL_Proc);
+		GL_Init(info, &EGL_Proc);
 		break;
 #endif
 #endif

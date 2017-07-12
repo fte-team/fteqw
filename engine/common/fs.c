@@ -1717,6 +1717,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 				last = fs_manifest->gamepath[i].path;
 				if (*last == '*')
 					last++;
+				break;
 			}
 		}
 		if (!last)
@@ -1735,6 +1736,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 				if (*fs_manifest->gamepath[i].path == '*')
 					continue;
 				last = fs_manifest->gamepath[i].path;
+				break;
 			}
 		}
 		if (!last)
@@ -1753,6 +1755,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 				if (*fs_manifest->gamepath[i].path == '*')
 					continue;
 				last = fs_manifest->gamepath[i].path;
+				break;
 			}
 		}
 		if (!last)
@@ -2435,11 +2438,11 @@ void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parentpath, const 
 						{
 							if (search->handle->FindFile(search->handle, &loc, pakpath+ptlen+1, NULL))
 							{
-								vfs = search->handle->OpenVFS(search->handle, &loc, "r");
+								vfs = search->handle->OpenVFS(search->handle, &loc, "rb");
 								snprintf (lname, sizeof(lname), "%s", lname2);
 							}
 							else if (search->handle->FindFile(search->handle, &loc, pname+ptlen+1, NULL))
-								vfs = search->handle->OpenVFS(search->handle, &loc, "r");
+								vfs = search->handle->OpenVFS(search->handle, &loc, "rb");
 						}
 						else
 						{
@@ -2594,7 +2597,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 					handle = FS_GetOldPath(oldpaths, pakfile, &keptflags);
 					if (!handle)
 					{
-						vfs = search->handle->OpenVFS(search->handle, &loc, "r");
+						vfs = search->handle->OpenVFS(search->handle, &loc, "rb");
 						if (!vfs)
 							break;
 						handle = searchpathformats[j].OpenNew (vfs, pakfile, "");
@@ -3018,6 +3021,8 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*quake requires a few settings for compatibility*/
 #define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\n"
 #define QCFG "set com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE
+//nehahra has to be weird with extra cvars, and buggy fullbrights.
+#define NEHCFG QCFG "set nospr32 0\nset cutscene 1\nalias startmap_sp \"map nehstart\"\nr_fb_bmodels 0\nr_fb_models 0\n"
 /*stuff that makes dp-only mods work a bit better*/
 #define DPCOMPAT QCFG "set _cl_playermodel \"\"\n set dpcompat_set 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
 /*nexuiz/xonotic has a few quirks/annoyances...*/
@@ -3084,6 +3089,10 @@ const gamemode_info_t gamemode_info[] = {
 	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},		"Quake: Scourge of Armagon"},
 	{"-rogue",		"rogue",	"FTE-Rogue",	{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"rogue",	"*fte"},		"Quake: Dissolution of Eternity"},
 
+	//various quake-dependant non-standalone mods that require hacks
+	//quoth needed an extra arg just to enable hipnotic hud drawing, it doesn't actually do anything weird, but most engines have a -quoth arg, so lets have one too.
+	{"-quoth",		"quoth",	"FTE-Quake",	{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"quoth",	"*fte"},		"Quake: Quoth"},
+	{"-nehahra",	"nehahra",	"FTE-Quake",	{"id1/pak0.pak","id1/quake.rc"},NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},		"Quake: Seal Of Nehahra"},
 	//various quake-based standalone mods.
 	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},	"Nexuiz"},
 	{"-xonotic",	"xonotic",	"Xonotic",				{"xonotic.exe"},				NEXCFG,	{"data",						"*ftedata"},	"Xonotic"},
@@ -3325,6 +3334,113 @@ vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name)
 		end = n-1;
 	}
 	return NULL;
+}
+
+//some annoying struct+func to prefix the enumerated file name properly.
+struct CL_ListFilesInPackageCB_s
+{
+	char *nameprefix;
+	size_t nameprefixlen;
+
+	int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath);
+	void *parm;
+	searchpathfuncs_t *spath;
+};
+static int QDECL CL_ListFilesInPackageCB(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct CL_ListFilesInPackageCB_s *cb = parm;
+	char name[MAX_OSPATH];
+	if (cb->nameprefixlen)
+	{
+		memcpy(name, cb->nameprefix, cb->nameprefixlen-1);
+		name[cb->nameprefixlen-1] = '/';
+		Q_strncpyz(name+cb->nameprefixlen, fname, sizeof(name)-(cb->nameprefixlen));
+		return cb->func(name, fsize, mtime, cb->parm, cb->spath);
+	}
+	else
+		return cb->func(fname, fsize, mtime, cb->parm, cb->spath);
+}
+
+//'small' wrapper to list foo.zip/* to list files within zips that are not part of the gamedir.
+//same rules as CL_OpenFileInPackage, except that wildcards should only be in the final part
+qboolean CL_ListFilesInPackage(searchpathfuncs_t *search, char *name, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, void *recursioninfo)
+{
+	int found;
+	vfsfile_t *f;
+	flocation_t loc;
+	char e, *n;
+	char ext[8];
+	char *end;
+	int i;
+	qboolean ret = false;
+	struct CL_ListFilesInPackageCB_s cb;
+	cb.nameprefix = recursioninfo?recursioninfo:name;
+	cb.nameprefixlen = name-cb.nameprefix;
+	cb.func = func;
+	cb.parm = parm;
+
+	//keep chopping off the last part of the filename until we get an actual package
+	//once we do, recurse into that package
+
+	end = name + strlen(name);
+
+	while (end > name)
+	{
+		e = *end;
+		*end = 0;
+
+		COM_FileExtension(name, ext, sizeof(ext));
+		for (i = 0; i < countof(searchpathformats); i++)
+		{
+			if (!searchpathformats[i].extension || !searchpathformats[i].OpenNew)
+				continue;
+			if (!strcmp(ext, searchpathformats[i].extension))
+			{
+				loc.search = NULL;
+				if (search)
+					found = search->FindFile(search, &loc, name, NULL);
+				else
+					found = FS_FLocateFile(name, FSLF_IFFOUND, &loc); 
+				if (found)
+				{
+					f = (search?search:loc.search->handle)->OpenVFS(search?search:loc.search->handle, &loc, "rb");
+					if (f)
+					{
+						searchpathfuncs_t *newsearch = searchpathformats[i].OpenNew(f, name, "");
+						if (newsearch)
+						{
+							ret = CL_ListFilesInPackage(newsearch, end+1, func, parm, cb.nameprefix);
+							newsearch->ClosePath(newsearch);
+							if (ret)
+							{
+								*end = e;
+								return ret;
+							}
+						}
+						else
+							VFS_CLOSE(f);
+					}
+				}
+				break;
+			}
+		}
+
+		n = COM_SkipPath(name);
+		*end = e;
+		end = n-1;
+	}
+
+	//always open the last file properly.
+	loc.search = NULL;
+	if (search)
+		ret = search->EnumerateFiles(search, name, CL_ListFilesInPackageCB, &cb);
+	else
+	{
+		ret = true;
+		if (ret)
+			COM_EnumerateFiles(name, CL_ListFilesInPackageCB, &cb);
+	}
+	return ret;
 }
 
 void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refnamelist, char *refcrclist, int pureseed)
@@ -5930,6 +6046,9 @@ extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *packhandle, cons
 #endif
 void FS_RegisterDefaultFileSystems(void)
 {
+#ifdef PACKAGE_DZIP
+	FS_RegisterFileSystemType(NULL, "dz", FSDZ_LoadArchive, false);
+#endif
 #ifdef PACKAGE_Q1PAK
 	FS_RegisterFileSystemType(NULL, "pak", FSPAK_LoadArchive, true);
 #if !defined(_WIN32) && !defined(ANDROID)

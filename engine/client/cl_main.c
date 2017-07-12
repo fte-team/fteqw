@@ -330,10 +330,7 @@ void CL_UpdateWindowTitle(void)
 				else
 #endif
 				if (cls.demoplayback)
-				{
-					extern char lastdemoname[];
-					Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, lastdemoname);
-				}
+					Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, cls.lastdemoname);
 				else
 					Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, cls.servername);
 				break;
@@ -2564,7 +2561,7 @@ void CL_Startdemos_f (void)
 	for (i=1 ; i<c+1 ; i++)
 		Q_strncpyz (cls.demos[i-1], Cmd_Argv(i), sizeof(cls.demos[0]));
 
-	cls.demonum = 0;
+	cls.demonum = -1;
 	//don't start it here - we might have been given a +connect or whatever argument.
 }
 
@@ -3962,6 +3959,9 @@ void CL_Status_f(void)
 				Con_Printf("NetQuake-based protocol\n");
 				if (cls.proquake_angles_hack)
 					Con_Printf("With ProQuake's extended angles\n");
+				break;
+			case CPNQ_NEHAHRA:
+				Con_Printf("Nehahra protocol\n");
 				break;
 			case CPNQ_BJP1:
 				Con_Printf("BJP1 protocol\n");
@@ -5766,7 +5766,10 @@ void CL_StartCinematicOrMenu(void)
 					M_Menu_Mods_f();
 #endif
 				if (!cls.state && !Key_Dest_Has(kdm_emenu) && cl_demoreel.ival)
+				{
+					cls.demonum = 0;
 					CL_NextDemo();
+				}
 				if (!cls.state && !Key_Dest_Has(kdm_emenu))
 					//if we're (now) meant to be using csqc for menus, make sure that its running.
 					if (!CSQC_UnconnectedInit())

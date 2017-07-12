@@ -4984,7 +4984,7 @@ static void BE_UpdateLightmaps(void)
 	lightmapinfo_t *lm;
 	int lmidx;
 	int glformat, gltype;
-	int internalformat = GL_RGBA;
+	int internalformat = /*vid.srgb?GL_SRGB8_ALPHA8_EXT:*/GL_RGBA;
 	switch (lightmap_fmt)
 	{
 	case TF_INVALID:	return;

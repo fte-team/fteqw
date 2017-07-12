@@ -84,6 +84,7 @@
 	VKFunc(CmdCopyImage)				\
 	VKFunc(CmdCopyBuffer)				\
 	VKFunc(CmdCopyImageToBuffer)		\
+	VKFunc(CmdCopyBufferToImage)		\
 	VKFunc(CmdBlitImage)				\
 	VKFunc(CmdPipelineBarrier)			\
 	VKFunc(CmdSetEvent)					\
@@ -312,6 +313,7 @@ extern struct vulkaninfo_s
 
 	VkFormat depthformat;
 	VkFormat backbufformat;
+	qboolean srgbcapable;
 
 	qboolean neednewswapchain;
 

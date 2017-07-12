@@ -88,6 +88,7 @@ typedef struct
 	unsigned		height; /*virtual 2d screen height*/
 
 	int				numpages;
+	qboolean		srgb;	/*we're forcing linear fragment shaders, both inputs and outputs (and not using srgb as a gamma hack)*/
 
 	unsigned		rotpixelwidth; /*width after rotation in pixels*/
 	unsigned		rotpixelheight; /*pixel after rotation in pixels*/

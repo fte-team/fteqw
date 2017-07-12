@@ -1170,11 +1170,13 @@ void V_ApplyAFov(playerview_t *pv)
 
 		float afov = r_refdef.afov;
 		if (!afov)	//make sure its sensible.
+		{
 			afov = scr_fov.value;
 #ifdef QUAKESTATS
-		if (pv && pv->statsf[STAT_VIEWZOOM])
-			afov *= pv->statsf[STAT_VIEWZOOM]/255.0f;
+			if (pv && pv->statsf[STAT_VIEWZOOM])	//match dp - viewzoom only happens when defaulted.
+				afov *= pv->statsf[STAT_VIEWZOOM]/STAT_VIEWZOOM_SCALE;
 #endif
+		}
 		afov = bound(0.001, afov, 170);
 
 		ws = 1;

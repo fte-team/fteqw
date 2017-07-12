@@ -422,6 +422,10 @@ enum qcop_e {
 	OP_BITNOT_V,
 	OP_BITXOR_V,
 
+	//special/fake opcodes used by the decompiler.
+	OPD_GOTO_FORSTART,
+	OPD_GOTO_WHILE1,
+
 	OP_NUMOPS
 };
 

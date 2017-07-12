@@ -1700,7 +1700,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 	entity_state_t	*base;
 	packet_entities_t	*pack;
 
-	qboolean isnehahra = CPNQ_IS_BJP;//||(cls.protocol_nq == CPNQ_ID && cls.demoplayback);
+	qboolean isnehahra = CPNQ_IS_BJP||(cls.protocol_nq == CPNQ_NEHAHRA);
 
 	if (cls.signon == 4 - 1)
 	{	// first update is the final signon stage
@@ -1716,17 +1716,18 @@ void CLNQ_ParseEntity(unsigned int bits)
 		bits |= (i<<8);
 	}
 
-	if (!isnehahra)
+	if (bits & DPU_EXTEND1)
 	{
-		if (bits & DPU_EXTEND1)
+		if (!isnehahra)
 		{
 			i = MSG_ReadByte ();
 			bits |= (i<<16);
-		}
-		if (bits & DPU_EXTEND2)
-		{
-			i = MSG_ReadByte ();
-			bits |= (i<<24);
+		
+			if (bits & DPU_EXTEND2)
+			{
+				i = MSG_ReadByte ();
+				bits |= (i<<24);
+			}
 		}
 	}
 
@@ -1812,6 +1813,8 @@ void CLNQ_ParseEntity(unsigned int bits)
 				if (MSG_ReadFloat() > 0.5)
 					state->effects |= EF_FULLBRIGHT;
 			}
+			if (!alpha)
+				alpha = 1;
 			state->trans = bound(0, 255 * alpha, 255);
 		}
 	}
@@ -1833,7 +1836,11 @@ void CLNQ_ParseEntity(unsigned int bits)
 			MSG_ReadByte();
 	}
 	else
-	{
+	{	//dp tends to leak stuff, so parse as quakedp if the normal protocol doesn't define it as something better.
+
+//		if (bits & DPU_DELTA)	//should delta from the previous frame. DP doesn't generate this any more, so whatever.
+//			Host_EndGame("CLNQ_ParseEntity: DPU_DELTA not supported");
+
 		if (bits & DPU_ALPHA)
 			state->trans = MSG_ReadByte();
 

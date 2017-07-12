@@ -473,15 +473,6 @@ void D3D9Shader_Init(void)
 	sh_config.nv_tex_env_combine4	= 1;
 	sh_config.env_add				= 1;
 
-	//FIXME: check caps
-	sh_config.texfmt[PTI_RGBX8] = true;	//fixme: shouldn't support
-	sh_config.texfmt[PTI_RGBA8] = true;	//fixme: shouldn't support
-	sh_config.texfmt[PTI_BGRX8] = true;
-	sh_config.texfmt[PTI_BGRA8] = true;
-	sh_config.texfmt[PTI_RGB565] = true;
-	sh_config.texfmt[PTI_ARGB1555] = true;
-	sh_config.texfmt[PTI_ARGB4444] = true;
-
 	sh_config.can_mipcap		= true;	//at creation time, I think.
 
 	IDirect3DDevice9_GetDeviceCaps(pD3DDev9, &caps);

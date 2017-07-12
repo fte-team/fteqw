@@ -3364,7 +3364,7 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 				if (r_loadbumpmapping)
 				{
 					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_norm.lmp", slash, i);
-					frames[0].texnums.bump = R_LoadReplacementTexture(skinname, alttexpath, texflags|IF_TRYBUMP, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_HEIGHT8PAL);
+					frames[0].texnums.bump = R_LoadReplacementTexture(skinname, alttexpath, texflags|IF_TRYBUMP|IF_NOSRGB, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_HEIGHT8PAL);
 				}
 				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_shirt.lmp", slash, i);
 				frames[0].texnums.upperoverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);

@@ -242,7 +242,7 @@ typedef struct
 	unsigned int texflags[MAX_TMUS];
 	unsigned int tmuflags[MAX_TMUS];
 	ID3D11SamplerState *cursamplerstate[MAX_TMUS];
-	ID3D11SamplerState *sampstate[(SHADER_PASS_IMAGE_FLAGS|SHADER_PASS_DEPTHCMP)+1];
+	ID3D11SamplerState *sampstate[SHADER_PASS_IMAGE_FLAGS_D3D11+1];
 	ID3D11DepthStencilState *depthstates[1u<<4];	//index, its fairly short.
 	blendstates_t *blendstates;	//list. this could get big.
 
@@ -305,7 +305,7 @@ void D3D11_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3
 {
 	D3D11_SAMPLER_DESC sampdesc;
 	int flags;
-	for (flags = 0; flags <= (SHADER_PASS_IMAGE_FLAGS|SHADER_PASS_DEPTHCMP); flags++)
+	for (flags = 0; flags <= (SHADER_PASS_IMAGE_FLAGS_D3D11); flags++)
 	{
 		int *filter;
 		sampdesc.Filter = 0;
@@ -386,7 +386,7 @@ static void BE_DestroyVariousStates(void)
 	if (d3ddevctx && i)
 		ID3D11DeviceContext_PSSetSamplers(d3ddevctx, 0, i, shaderstate.cursamplerstate);
 
-	for (flags = 0; flags <= (SHADER_PASS_IMAGE_FLAGS|SHADER_PASS_DEPTHCMP); flags++)
+	for (flags = 0; flags <= SHADER_PASS_IMAGE_FLAGS_D3D11; flags++)
 	{
 		if (shaderstate.sampstate[flags])
 			ID3D11SamplerState_Release(shaderstate.sampstate[flags]);
@@ -459,7 +459,7 @@ static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
 {
 	ID3D11SamplerState *nstate;
 
-	flags = (flags & (SHADER_PASS_IMAGE_FLAGS|SHADER_PASS_DEPTHCMP));
+	flags = (flags & SHADER_PASS_IMAGE_FLAGS_D3D11);
 	flags |= shaderstate.texflags[tu];
 	nstate = shaderstate.sampstate[flags];
 	if (nstate != shaderstate.cursamplerstate[tu])
@@ -958,7 +958,7 @@ static void BindTexture(unsigned int tu, const texid_t id)
 		shaderstate.textureschanged = true;
 		shaderstate.pendingtextures[tu] = view;
 		if (id)
-			shaderstate.texflags[tu] = id->flags&SHADER_PASS_IMAGE_FLAGS;
+			shaderstate.texflags[tu] = id->flags&SHADER_PASS_IMAGE_FLAGS_D3D11;
 	}
 }
 

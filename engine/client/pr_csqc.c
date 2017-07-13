@@ -3190,6 +3190,7 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int msecs;
+	float oldtime = *csqcg.simtime;
 
 	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
 	int mt = ent->v->movetype;
@@ -3274,6 +3275,8 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 
 	//fixme: touch triggers?
 	World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
+
+	*csqcg.simtime = oldtime;
 }
 
 static void QCBUILTIN PF_cs_getentitytoken (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

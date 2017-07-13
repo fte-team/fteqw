@@ -1159,8 +1159,10 @@ static void R_RecursiveDoomNode(doommap_t *dm, unsigned int node)
 		R_RecursiveDoomNode(dm, dm->node[node].node2);
 }
 
-void R_DoomWorld(doommap_t *dm)
+void R_DoomWorld(void)
 {
+	model_t *mod = cl.worldmodel;
+	doommap_t *dm = mod->meshinfo;
 	int texnum;
 	doomtexture_t *t;
 	if (!dm->node || !dm->numnodes)
@@ -1175,14 +1177,14 @@ void R_DoomWorld(doommap_t *dm)
 	r_visframecount++;
 	R_RecursiveDoomNode(dm, dm->numnodes-1);
 
-	memset(cl.worldmodel->batches, 0, sizeof(cl.worldmodel->batches));
+	memset(mod->batches, 0, sizeof(mod->batches));
 	for (texnum = 0; texnum < dm->numtextures; texnum++)	//a hash table might be a good plan.
 	{
 		t = &dm->textures[texnum];
 		if (t->mesh.numindexes && t->shader)
 		{
-			t->batch.next = cl.worldmodel->batches[t->shader->sort];
-			cl.worldmodel->batches[t->shader->sort] = &t->batch;
+			t->batch.next = mod->batches[t->shader->sort];
+			mod->batches[t->shader->sort] = &t->batch;
 
 			BE_DrawMesh_Single(t->shader, &t->mesh, NULL, 0);
 		}

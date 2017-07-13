@@ -2454,10 +2454,20 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 	Vector4Copy(rgba[0], rgba[2]);
 	Vector4Copy(rgba[0], rgba[3]);
 
-	Vector2Set(st[0], 0, 1);
-	Vector2Set(st[1], 0, 0);
-	Vector2Set(st[2], 1, 0);
-	Vector2Set(st[3], 1, 1);
+	if (frame->xmirror)
+	{
+		Vector2Set(st[0], 1, 1);
+		Vector2Set(st[1], 1, 0);
+		Vector2Set(st[2], 0, 0);
+		Vector2Set(st[3], 0, 1);
+	}
+	else
+	{
+		Vector2Set(st[0], 0, 1);
+		Vector2Set(st[1], 0, 0);
+		Vector2Set(st[2], 1, 0);
+		Vector2Set(st[3], 1, 1);
+	}
 
 	VectorMA (sprorigin, frame->down, spraxis[2], point);
 	VectorMA (point, frame->left, spraxis[1], xyz[0]);

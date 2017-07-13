@@ -5434,6 +5434,7 @@ static void * Mod_LoadSpriteFrame (model_t *mod, void *pin, void *pend, mspritef
 	pspriteframe->down = origin[1] - height;
 	pspriteframe->left = origin[0];
 	pspriteframe->right = width + origin[0];
+	pspriteframe->xmirror = false;
 
 	dataptr = (pinframe + 1);
 
@@ -5754,6 +5755,7 @@ qboolean QDECL Mod_LoadSprite2Model (model_t *mod, void *buffer, size_t fsize)
 		frame->up = h - origin[1];
 		frame->left = -origin[0];
 		frame->right = w - origin[0];
+		frame->xmirror = false;
 
 		pframetype++;
 	}
@@ -5772,7 +5774,7 @@ typedef struct {
 	short xpos;
 	short ypos;
 } doomimage_t;
-static int QDECL FindDoomSprites(const char *name, qofs_t size, void *param, searchpathfuncs_t *spath)
+static int QDECL FindDoomSprites(const char *name, qofs_t size, time_t mtime, void *param, searchpathfuncs_t *spath)
 {
 	if (*(int *)param + strlen(name)+1 > 16000)
 		Sys_Error("Too many doom sprites\n");
@@ -5784,18 +5786,8 @@ static int QDECL FindDoomSprites(const char *name, qofs_t size, void *param, sea
 }
 
 
-static void LoadDoomSpriteFrame(model_t *mod, char *imagename, mspriteframedesc_t *pdesc, int anglenum, qboolean xmirrored)
+static void LoadDoomSpriteFrame(model_t *mod, mspriteframe_t frame, mspriteframedesc_t *pdesc, int anglenum)
 {
-	int c;
-	int fr;
-	int rc;
-	unsigned int *colpointers;
-	qbyte *data;
-	doomimage_t *header;
-
-	qbyte image[256*256];
-	qbyte *palette;
-	qbyte *coldata;
 	mspriteframe_t *pframe;
 
 	if (!anglenum)
@@ -5821,61 +5813,7 @@ static void LoadDoomSpriteFrame(model_t *mod, char *imagename, mspriteframedesc_
 		group->frames[anglenum-1] = pframe;
 	}
 
-	palette = COM_LoadTempFile("wad/playpal");
-	header = (doomimage_t *)COM_LoadTempMoreFile(imagename);
-	data = (qbyte *)header;
-	pframe->up = +header->ypos;
-	pframe->down = -header->height + header->ypos;
-
-	if (xmirrored)
-	{
-		pframe->right = -header->xpos;
-		pframe->left = header->width - header->xpos;
-	}
-	else
-	{
-		pframe->left = -header->xpos;
-		pframe->right = header->width - header->xpos;
-	}
-
-	if (header->width*header->height > sizeof(image))
-		return;
-
-	memset(image, 255, header->width*header->height);
-	colpointers = (unsigned int*)(data+sizeof(doomimage_t));
-	for (c = 0; c < header->width; c++)
-	{
-		if (colpointers[c] >= com_filesize)
-			break;
-		coldata = data + colpointers[c];
-		while(1)
-		{
-			fr = *coldata++;
-			if (fr == 255)
-				break;
-
-			rc = *coldata++;
-
-			coldata++;
-
-			if ((fr+rc) > header->height)
-				break;
-
-			while(rc)
-			{
-				image[c + fr*header->width] = *coldata++;
-				fr++;
-				rc--;
-			}
-
-			coldata++;
-		}
-	}
-
-	pframe->shader = R_RegisterShader(imagename, SUF_NONE, 
-		"{\n{\nmap $diffuse\nblendfunc blend\n}\n}\n");
-	pframe->shader->defaulttextures.base = R_LoadTexture8Pal24(imagename, header->width, header->height, image, palette, IF_CLAMP);
-	R_BuildDefaultTexnums(NULL, pframe->shader);
+	*pframe = frame;
 }
 
 /*
@@ -5901,6 +5839,16 @@ void Mod_LoadDoomSprite (model_t *mod)
 	int anglenum;
 
 	msprite_t *psprite;
+	unsigned int image[256*256];
+	size_t fsize;
+	qbyte palette[256*4];
+	doomimage_t *header;
+	qbyte *coldata, fr, rc;
+	mspriteframe_t frame;
+	size_t c;
+	unsigned int *colpointers;
+
+	mod->type = mod_dummy;
 
 
 	COM_StripExtension(mod->name, basename, sizeof(basename));
@@ -5938,38 +5886,93 @@ void Mod_LoadDoomSprite (model_t *mod)
 		}
 	}
 	if (elements != numframes*8)
-		Host_Error("Doom sprite has wrong componant count");
-	if (!numframes)
-		Host_Error("Doom sprite componant has no frames");
-
-	size = sizeof (msprite_t) +	(elements - 1) * sizeof (psprite->frames);
-	psprite = ZG_Malloc(&mod->memgroup, size);
-
-	psprite->numframes = numframes;
-
-	//do the actual loading.
-	for (ofs = 4; ofs < *(int*)files; ofs+=strlen(files+ofs)+1)
+		Con_Printf("Doom sprite %s has wrong componant count", mod->name);
+	else if (numframes)
 	{
-		name = files+ofs;
-		framenum = name[baselen+0] - 'a';
-		anglenum = name[baselen+1] - '0';
+		size = sizeof (msprite_t) +	(elements - 1) * sizeof (psprite->frames);
+		psprite = ZG_Malloc(&mod->memgroup, size);
 
-		LoadDoomSpriteFrame(mod, name, &psprite->frames[framenum], anglenum, false);
+		psprite->numframes = numframes;
 
-		if (name[baselen+2])	//is there a second element?
-		{
-			framenum = name[baselen+2] - 'a';
-			anglenum = name[baselen+3] - '0';
-
-			LoadDoomSpriteFrame(mod, name, &psprite->frames[framenum], anglenum, true);
+		memset(&frame, 0, sizeof(frame));
+		coldata = FS_LoadMallocFile("wad/playpal", &fsize);
+		if (coldata && fsize >= 256*3)
+		{	//expand to 32bit.
+			for (ofs = 0; ofs < 256; ofs++)
+			{
+				palette[ofs*4+0] = coldata[ofs*3+0];
+				palette[ofs*4+1] = coldata[ofs*3+1];
+				palette[ofs*4+2] = coldata[ofs*3+2];
+				palette[ofs*4+3] = 255;
+			}
 		}
+		Z_Free(coldata);
+
+		//do the actual loading.
+		for (ofs = 4; ofs < *(int*)files; ofs+=strlen(files+ofs)+1)
+		{
+			name = files+ofs;
+
+			header = (doomimage_t *)FS_LoadMallocFile(name, &fsize);
+
+			frame.up = +header->ypos;
+			frame.down = -header->height + header->ypos;
+			frame.left = -header->xpos;
+			frame.right = header->width - header->xpos;
+
+
+			if (header->width*header->height <= sizeof(image))
+			{
+				//anything not written will be transparent.
+				memset(image, 0, header->width*header->height*4);
+				colpointers = (unsigned int*)(header+1);
+				for (c = 0; c < header->width; c++)
+				{
+					coldata = (qbyte *)header + colpointers[c];
+					while(1)
+					{
+						fr = *coldata++;
+						if (fr == 255)
+							break;
+						rc = *coldata++;
+						coldata++;
+						if ((fr+rc) > header->height)
+							break;
+						while(rc)
+						{
+							image[c + fr*header->width] = ((unsigned int*)palette)[*coldata++];
+							fr++;
+							rc--;
+						}
+						coldata++;
+					}
+				}
+				frame.image = Image_GetTexture(name, NULL, IF_CLAMP|IF_NOREPLACE, image, palette, header->width, header->height, TF_RGBA32);
+				Z_Free(header);
+			}
+
+
+			framenum = name[baselen+0] - 'a';
+			anglenum = name[baselen+1] - '0';
+			frame.xmirror = false;
+			LoadDoomSpriteFrame(mod, frame, &psprite->frames[framenum], anglenum);
+
+			if (name[baselen+2])	//is there a second element?
+			{
+				framenum = name[baselen+2] - 'a';
+				anglenum = name[baselen+3] - '0';
+				frame.xmirror = true;
+				LoadDoomSpriteFrame(mod, frame, &psprite->frames[framenum], anglenum);
+			}
+		}
+
+
+		psprite->type = SPR_FACING_UPRIGHT;
+		mod->numframes = numframes;
+		mod->type = mod_sprite;
+
+		mod->meshinfo = psprite;
 	}
-
-
-	psprite->type = SPR_FACING_UPRIGHT;
-	mod->type = mod_sprite;
-
-	mod->meshinfo = psprite;
 }
 #endif
 

@@ -554,6 +554,7 @@ SPRITE MODELS
 typedef struct mspriteframe_s
 {
 	float	up, down, left, right;
+	qboolean xmirror;
 	shader_t *shader;
 	image_t *image;
 } mspriteframe_t;

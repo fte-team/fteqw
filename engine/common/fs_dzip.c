@@ -33,6 +33,7 @@ the second part is some entropy differences that just allows zlib to work more e
 
 I've rewritten the archive/outer part to plug it in to fte more nicely
 the demo/inner part should mostly be the same as dzip, just with some minor tweaks to make it thread-safe (the 'dc' pointer stuff, in case that's ever an issue).
+I have explicitly changed longs to ints, to ensure there's no issues with 64bit builds
 */
 
 #include "quakedef.h"
@@ -132,7 +133,6 @@ enum {
 };
 
 //basic types
-#define long int	//gah!
 typedef unsigned int uInt;	//gah!
 typedef qbyte uchar;
 
@@ -140,7 +140,7 @@ typedef struct {
 	uchar voz, pax;
 	uchar ang0, ang1, ang2;
 	uchar vel0, vel1, vel2;
-	long items;
+	int items;
 	uchar uk10, uk11, invbit;
 	uchar wpf, av, wpm;
 	int health;
@@ -174,9 +174,9 @@ typedef struct
 	uchar copybaseline;
 	int maxent, lastent, sble;
 	int entlink[MAX_ENT];
-	long dem_gametime;
-	long outlen;
-	long cam0, cam1, cam2;
+	int dem_gametime;
+	int outlen;
+	int cam0, cam1, cam2;
 	uchar inblk[p_blocksize], outblk[p_blocksize], *inptr;
 	cdata_t oldcd, newcd;
 	ent_t base[MAX_ENT], oldent[MAX_ENT], newent[MAX_ENT];
@@ -192,18 +192,18 @@ static void Outfile_Write(decodectx_t *dc, void *outblk, size_t outlen)
 	}
 }
 
-static copy_msg(decodectx_t *dc, size_t bytes)
+static void copy_msg(decodectx_t *dc, size_t bytes)
 {	//just copy the data over
 	memcpy(dc->outblk+dc->outlen, dc->inptr, bytes);
 	dc->outlen += bytes;
 	dc->inptr += bytes;
 }
-static insert_msg (decodectx_t *dc, void *data, size_t bytes)
+static void insert_msg (decodectx_t *dc, void *data, size_t bytes)
 {
 	memcpy(dc->outblk+dc->outlen, data, bytes);
 	dc->outlen += bytes;
 }
-static discard_msg (decodectx_t *dc, size_t bytes)
+static void discard_msg (decodectx_t *dc, size_t bytes)
 {
 	dc->inptr += bytes;
 }
@@ -236,7 +236,7 @@ static discard_msg (decodectx_t *dc, size_t bytes)
 #define GUI	//because it disables v1
 
 #define getshort(x) LittleShort(*(short*)(x))
-#define getlong(x) LittleLong(*(long*)(x))
+#define getlong(x) LittleLong(*(int*)(x))
 #define getfloat(x) LittleFloat(*(float*)(x))
 #define cnvlong(x) LittleLong(x)
 
@@ -336,7 +336,7 @@ void demx_sound(decodectx_t *dc)
 
 void demx_longtime(decodectx_t *dc)
 {
-	long tmp = getlong(inptr+1);
+	int tmp = getlong(inptr+1);
 	dem_gametime += tmp;
 	tmp = cnvlong(dem_gametime);
 	*inptr = DEM_time;
@@ -347,7 +347,7 @@ void demx_longtime(decodectx_t *dc)
 void demx_time(decodectx_t *dc)
 {
 	uchar buf[5];
-	long tmp = getshort(inptr+1) & 0xffff;
+	int tmp = getshort(inptr+1) & 0xffff;
 
 #ifndef GUI
 	if (dem_decode_type == TYPE_DEMV1) { demx_longtime(); return; }
@@ -420,7 +420,7 @@ void create_clientdata_msg(decodectx_t *dc)
 	uchar buf[32];
 	uchar *ptr = buf+3;
 	int mask = newcd.invbit? 0 : 0x0200;
-	long tmp;
+	int tmp;
 
 	buf[0] = DEM_clientdata;
 
@@ -645,7 +645,7 @@ void demx_updateentity(decodectx_t *dc)
 	int mask, i, entity;
 	int baseval = 0, prev;
 	ent_t n, o;
-	long tmp;
+	int tmp;
 
 #ifndef GUI
 	if (dem_decode_type == TYPE_DEMV1) { demv1_updateentity(); return; }
@@ -841,7 +841,7 @@ void dem_uncompress_init (decodectx_t *dc, int type)
 	
 uInt dem_uncompress_block(decodectx_t *dc)
 {
-	long a1;
+	int a1;
 	uchar cfields;
 #ifdef GUI
 	int uemask = 0x30, cdmask = 0x40;
@@ -971,7 +971,6 @@ uInt dem_uncompress (decodectx_t *dc, uInt maxsize)
 //pack mutex must be held for this function.
 qboolean FSDZ_ExtractFile(qbyte *out, size_t outsize, dzarchive_t *pack, mdzfile_t *src)
 {
-	qboolean dedemo = false;
 	switch(src->ztype)
 	{
 	case TYPE_PAK:
@@ -1024,7 +1023,6 @@ qboolean FSDZ_ExtractFile(qbyte *out, size_t outsize, dzarchive_t *pack, mdzfile
 			unsigned char inbuffer[p_blocksize];
 			int ret;
 			size_t inremaining = src->csize;
-			size_t decompressed = 0;
 			decodectx_t *dc = NULL;
 
 			z_stream strm = {
@@ -1380,7 +1378,7 @@ searchpathfuncs_t *QDECL FSDZ_LoadArchive (vfsfile_t *file, const char *desc, co
 	read = VFS_READ(packhandle, &header, sizeof(header));
 	if (read < sizeof(header) || header.id[0] != 'D' || header.id[1] != 'Z')
 	{
-		Con_Printf("%s is not a dz - %c%c\n", desc);
+		Con_Printf("%s is not a dz - %c%c\n", desc, header.id[0], header.id[1]);
 		return NULL;
 	}
 	if (header.major_ver > 2/* || (header.major_ver == 2 && header.minor_ver > 9)*/)

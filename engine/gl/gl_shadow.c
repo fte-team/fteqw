@@ -1480,7 +1480,8 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 
 			{
 				int cluster = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
-				sh_shmesh->litleaves[cluster>>3] |= 1<<(cluster&7);
+				if (cluster >= 0)
+					sh_shmesh->litleaves[cluster>>3] |= 1<<(cluster&7);
 			}
 			break;
 		}

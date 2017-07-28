@@ -420,6 +420,8 @@ float(entity to, float sendflags) MySendEntity =
 
 	if (sendflags & 128)
 		WriteByte(MSG_ENTITY, self.modelindex);	//sending a modelindex is smaller than sending an entire string.
+
+	return TRUE;	//handled. If you return FALSE here, the entity will be considered invisible to the player.
 };
 
 In your spawn function:

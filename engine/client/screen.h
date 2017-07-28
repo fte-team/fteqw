@@ -176,6 +176,7 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 int Font_LineWidth(conchar_t *start, conchar_t *end);
 float Font_LineScaleWidth(conchar_t *start, conchar_t *end);
 void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end);
+conchar_t *Font_CharAt(int x, conchar_t *start, conchar_t *end);
 extern struct font_s *font_default;
 extern struct font_s *font_console;
 extern struct font_s *font_tiny;

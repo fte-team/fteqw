@@ -87,7 +87,7 @@ typedef struct
 	int				samples;				// mono samples in buffer (individual, non grouped)
 //	int				submission_chunk;		// don't mix less than this #
 	int				samplepos;				// in mono samples
-	int				samplebits;
+	int				samplebits;				//FIXME: replace with a format enum (with separate framebytes field for lazyness).
 	int				speed;					// this many frames per second
 	unsigned char	*buffer;				// pointer to mixed pcm buffer (not directly used by mixer)
 } dma_t;

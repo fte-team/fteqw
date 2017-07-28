@@ -63,7 +63,7 @@ void RSpeedShow(void)
 	RSpNames[RSPEED_STENCILSHADOWS] = "Stencil Shadows";
 
 	RSpNames[RSPEED_FULLBRIGHTS] = "World fullbrights";
-	RSpNames[RSPEED_SETUP] = "Setup";
+	RSpNames[RSPEED_SETUP] = "Setup/Acquire";
 
 	RSpNames[RSPEED_SUBMIT] = "submit/finish";
 	RSpNames[RSPEED_PRESENT] = "present";
@@ -296,9 +296,10 @@ typedef struct {
 	unsigned int	flags;
 
 	conchar_t		*string;
+	conchar_t		*cursorchar;	//pointer into string
 	size_t			stringbytes;
+	size_t			charcount;
 	char			titleimage[MAX_QPATH];
-	unsigned int charcount;
 	float			time_start;   // for slow victory printing
 	float			time_off;
 	int				erase_lines;
@@ -379,6 +380,7 @@ for a few moments
 */
 void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 {
+	size_t i;
 	cprint_t *p;
 	if (!str)
 	{
@@ -411,6 +413,7 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 	p = &scr_centerprint[pnum];
 	p->flags = 0;
 	p->titleimage[0] = 0;
+	p->cursorchar = NULL;
 
 	if (*str != '/')
 	{
@@ -435,6 +438,8 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 			p->flags |= CPRINT_PERSIST | CPRINT_BACKGROUND;
 			p->flags &= ~CPRINT_TALIGN;
 		}
+		else if (str[1] == 'C')
+			p->flags |= CPRINT_CURSOR;	//this can be a little jarring if there's no links, so this forces consistent behaviour.
 		else if (str[1] == 'W')	//wait between each char
 			p->flags ^= CPRINT_TYPEWRITER;
 		else if (str[1] == 'S')	//Stay
@@ -526,6 +531,15 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 		}
 	}
 
+	if (!(p->flags & CPRINT_CURSOR))
+	{	//autodetect links
+		for (i = 0; i < p->charcount; i++)
+		{
+			if (p->string[i] == CON_LINKSTART)
+				p->flags |= CPRINT_CURSOR;
+		}
+	}
+
 	p->time_off = scr_centertime.value;
 	p->time_start = cl.time;
 }
@@ -565,6 +579,55 @@ void VARGS Stats_Message(char *msg, ...)
 	p->time_start = cl.time;
 }
 
+static char *SCR_CopyCenterPrint(cprint_t *p)	//reads the link under the mouse cursor. non-links are ignored.
+{
+	size_t maxlen, outlen;
+	char *result;
+
+	conchar_t *start = p->cursorchar, *end;
+
+	if (!start)	//cursor isn't over anything.
+		return NULL;
+
+	//scan backwards to find any link enclosure
+	for(end = start-1; end >= p->string; end--)
+	{
+		if (*end == CON_LINKSTART)
+		{
+			//found one
+			start = end;
+			break;
+		}
+		if (*end == CON_LINKEND)
+		{
+			//some other link ended here. don't use its start.
+			break;
+		}
+	}
+	//scan forwards to find the end of the selected link
+	if (start < p->string+p->charcount && *start == CON_LINKSTART)
+	{
+		for(end = start; end < p->string + p->charcount; end++)
+		{
+			if (*end == CON_LINKEND)
+			{
+				end++;
+				break;
+			}
+		}
+	}
+	else// if (onlyiflink)
+		return NULL;
+
+	maxlen = 1024*1024;
+	result = Z_Malloc(maxlen+1);
+
+	outlen = COM_DeFunString(start, end, result, maxlen, false, false) - result;
+
+	result[outlen++] = 0;
+	return result;
+}
+
 #define MAX_CPRINT_LINES 512
 void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 {
@@ -576,11 +639,11 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 	int				bottom;
 	int				remaining;
 	shader_t		*pic;
+	int				ch;
 
 	conchar_t *line_start[MAX_CPRINT_LINES];
 	conchar_t *line_end[MAX_CPRINT_LINES];
 	int linecount;
-
 
 // the finale prints the characters one at a time
 	if (p->flags & CPRINT_TYPEWRITER)
@@ -646,24 +709,26 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 	Font_BeginString(font, rect->x+rect->width, rect->y+rect->height, &right, &bottom);
 	linecount = Font_LineBreaks(p->string, p->string + p->charcount, right - left, MAX_CPRINT_LINES, line_start, line_end);
 
+	ch = Font_CharHeight();
+
 	if (p->flags & CPRINT_TALIGN)
 		y = top;
 	else if (p->flags & CPRINT_BALIGN)
-		y = bottom - Font_CharHeight()*linecount;
+		y = bottom - ch*linecount;
 	else if (p->flags & CPRINT_OBITUARTY)
 		//'obituary' messages appear at the bottom of the screen
-		y = (bottom-top - Font_CharHeight()*linecount) * 0.65 + top;
+		y = (bottom-top - ch*linecount) * 0.65 + top;
 	else
 	{
 		if (linecount <= 5)
 		{
 			//small messages appear above and away from the crosshair
-			y = (bottom-top - Font_CharHeight()*linecount) * 0.35 + top;
+			y = (bottom-top - ch*linecount) * 0.35 + top;
 		}
 		else
 		{
 			//longer messages are fully centered
-			y = (bottom-top - Font_CharHeight()*linecount) * 0.5 + top;
+			y = (bottom-top - ch*linecount) * 0.5 + top;
 		}
 	}
 
@@ -683,7 +748,7 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 		Font_BeginString(font, rect->x, y, &left, &top);
 	}
 
-	for (l = 0; l < linecount; l++, y += Font_CharHeight())
+	for (l = 0; l < linecount; l++, y += ch)
 	{
 		if (y >= bottom)
 			break;
@@ -694,6 +759,11 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 		else
 			x = left + (right - left - Font_LineWidth(line_start[l], line_end[l]))/2;
 
+		if (mousecursor_y >= y && mousecursor_y < y+ch)
+		{
+			p->cursorchar = Font_CharAt(mousecursor_x - x, line_start[l], line_end[l]);
+		}
+
 		remaining -= line_end[l]-line_start[l];
 		if (remaining <= 0)
 		{
@@ -703,7 +773,82 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 		}
 		Font_LineDraw(x, y, line_start[l], line_end[l]);
 	}
+
 	Font_EndString(font);
+}
+
+qboolean Key_Centerprint(int key, int unicode, unsigned int devid)
+{
+	int pnum;
+	cprint_t *p;
+	char *link;
+
+	if (key == K_MOUSE1)
+	{
+		//figure out which player has the cursor
+		for (pnum = 0; pnum < cl.splitclients; pnum++)
+		{
+			p = &scr_centerprint[pnum];
+			if (cl.playerview[pnum].gamerectknown == cls.framecount)
+			{
+				link = SCR_CopyCenterPrint(p);
+				if (link)
+				{
+
+					if (link[0] == '^' && link[1] == '[')
+					{
+						//looks like it might be a link!
+						char *end = NULL;
+						char *info;
+						for (info = link + 2; *info; )
+						{
+							if (info[0] == '^' && info[1] == ']')
+								break; //end of tag, with no actual info, apparently
+							if (*info == '\\')
+								break;
+							else if (info[0] == '^' && info[1] == '^')
+								info+=2;
+							else
+								info++;
+						}
+						for(end = info; *end; )
+						{
+							if (end[0] == '^' && end[1] == ']')
+							{
+								//okay, its a valid link that they clicked
+								*end = 0;
+
+#ifdef PLUGINS
+								if (!Plug_ConsoleLink(link+2, info, ""))
+#endif
+#ifdef CSQC_DAT
+								if (!CSQC_ConsoleLink(link+2, info))
+#endif
+									Key_DefaultLinkClicked(NULL, link+2, info);
+
+								break;
+							}
+							if (end[0] == '^' && end[1] == '^')
+								end+=2;
+							else
+								end++;
+						}
+					}
+				}
+			}
+		}
+		return true;	//handled
+	}
+	else if (key == K_MOUSE2)
+	{
+		for (pnum = 0; pnum < cl.splitclients; pnum++)
+		{
+			p = &scr_centerprint[pnum];
+			p->flags &= ~CPRINT_CURSOR;
+		}
+		return true;
+	}
+	return false;
 }
 
 void SCR_CheckDrawCenterString (void)
@@ -711,16 +856,19 @@ void SCR_CheckDrawCenterString (void)
 	int pnum;
 	cprint_t *p;
 
+	Key_Dest_Remove(kdm_centerprint);
+
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
 		p = &scr_centerprint[pnum];
+		p->cursorchar = NULL;
 
 		if (p->time_off <= 0 && !(p->flags & CPRINT_PERSIST))
 			continue;	//'/P' prefix doesn't time out
 
 		p->time_off -= host_frametime;
 
-		if (Key_Dest_Has(~kdm_game))	//don't let progs guis/centerprints interfere with the game menu
+		if (Key_Dest_Has(~(kdm_game|kdm_centerprint)))	//don't let progs guis/centerprints interfere with the game menu
 			continue;					//should probably allow the console with a scissor region or something.
 
 #ifdef QUAKEHUD
@@ -729,7 +877,11 @@ void SCR_CheckDrawCenterString (void)
 #endif
 
 		if (cl.playerview[pnum].gamerectknown == cls.framecount)
+		{
 			SCR_DrawCenterString(&cl.playerview[pnum].gamerect, p, font_default);
+			if (p->flags & CPRINT_CURSOR)
+				Key_Dest_Add(kdm_centerprint);
+		}
 	}
 }
 

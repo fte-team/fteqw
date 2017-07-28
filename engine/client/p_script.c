@@ -5987,13 +5987,15 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlk
 	return 0;
 }
 
-static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk)
+static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int type, int color, int crnd, trailstate_t **tsk)
 {
-	if (PART_VALID(pe_defaulttrail))
+	if (type == P_INVALID)
+		type = pe_defaulttrail;
+	if (PART_VALID(type))
 	{
-		part_type[pe_defaulttrail].colorindex = color;
-		part_type[pe_defaulttrail].colorrand = crnd;
-		P_ParticleTrail(start, end, pe_defaulttrail, 0, NULL, tsk);
+		part_type[type].colorindex = color;
+		part_type[type].colorrand = crnd;
+		P_ParticleTrail(start, end, type, 0, NULL, tsk);
 	}
 }
 

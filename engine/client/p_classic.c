@@ -257,7 +257,7 @@ static void PClassic_RunParticleEffect4 (vec3_t org, float radius, int color, in
 }
 
 //this function is used as a fallback in case a trail effect is unknown.
-static void PClassic_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk)
+static void PClassic_ParticleTrailIndex (vec3_t start, vec3_t end, int type, int color, int crnd, trailstate_t **tsk)
 {
 }
 

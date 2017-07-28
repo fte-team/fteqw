@@ -539,7 +539,6 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLQ1BSP_LightPointValues(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
-qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, pvsbuffer_t *buffer, qboolean merge);
 
 /*
 ==============================================================================

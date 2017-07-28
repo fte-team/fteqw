@@ -22,7 +22,7 @@ static void PNULL_RunParticleEffect3 (vec3_t org, vec3_t box, int color, int eff
 static void PNULL_RunParticleEffect4 (vec3_t org, float radius, int color, int effect, int count){}
 static void PNULL_RunParticleEffectPalette (const char *nameprefix, vec3_t org, vec3_t dir, int color, int count){}
 
-static void PNULL_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk){}
+static void PNULL_ParticleTrailIndex (vec3_t start, vec3_t end, int type, int color, int crnd, trailstate_t **tsk){}
 
 static qboolean PNULL_InitParticles (void)
 {

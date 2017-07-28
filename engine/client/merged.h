@@ -141,6 +141,7 @@ void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int 
 #define CPRINT_OBITUARTY	(1<<16)	//O (show at 2/3rds from top)
 #define CPRINT_PERSIST		(1<<17)	//P (doesn't time out)
 #define CPRINT_TYPEWRITER	(1<<18)	//  (char at a time)
+#define CPRINT_CURSOR		(1<<19)	//C (use a mouse cursor, also enabled by the presence of a (auto) link)
 
 #endif
 

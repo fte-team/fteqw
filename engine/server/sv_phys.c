@@ -75,19 +75,19 @@ cvar_t	pm_walljump			 = CVARF("pm_walljump", "", CVAR_SERVERINFO);
 #define cvargroup_serverphysics  "server physics variables"
 void WPhys_Init(void)
 {
-    Cvar_Register (&sv_maxvelocity,						cvargroup_serverphysics);
-    Cvar_Register (&sv_gravity,							cvargroup_serverphysics);
-    Cvar_Register (&sv_stopspeed,						cvargroup_serverphysics);
-    Cvar_Register (&sv_maxspeed,						cvargroup_serverphysics);
-    Cvar_Register (&sv_spectatormaxspeed,				cvargroup_serverphysics);
-    Cvar_Register (&sv_accelerate,						cvargroup_serverphysics);
-    Cvar_Register (&sv_airaccelerate,					cvargroup_serverphysics);
-    Cvar_Register (&sv_wateraccelerate,					cvargroup_serverphysics);
-    Cvar_Register (&sv_friction,						cvargroup_serverphysics);
-    Cvar_Register (&sv_waterfriction,					cvargroup_serverphysics);
-    Cvar_Register (&sv_sound_watersplash,				cvargroup_serverphysics);
-    Cvar_Register (&sv_sound_land,						cvargroup_serverphysics);
-    Cvar_Register (&sv_stepheight,						cvargroup_serverphysics);
+	Cvar_Register (&sv_maxvelocity,						cvargroup_serverphysics);
+	Cvar_Register (&sv_gravity,							cvargroup_serverphysics);
+	Cvar_Register (&sv_stopspeed,						cvargroup_serverphysics);
+	Cvar_Register (&sv_maxspeed,						cvargroup_serverphysics);
+	Cvar_Register (&sv_spectatormaxspeed,				cvargroup_serverphysics);
+	Cvar_Register (&sv_accelerate,						cvargroup_serverphysics);
+	Cvar_Register (&sv_airaccelerate,					cvargroup_serverphysics);
+	Cvar_Register (&sv_wateraccelerate,					cvargroup_serverphysics);
+	Cvar_Register (&sv_friction,						cvargroup_serverphysics);
+	Cvar_Register (&sv_waterfriction,					cvargroup_serverphysics);
+	Cvar_Register (&sv_sound_watersplash,				cvargroup_serverphysics);
+	Cvar_Register (&sv_sound_land,						cvargroup_serverphysics);
+	Cvar_Register (&sv_stepheight,						cvargroup_serverphysics);
 
 	Cvar_Register (&sv_gameplayfix_noairborncorpse,		cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_multiplethinks,		cvargroup_serverphysics);
@@ -1365,7 +1365,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 #pragma warningmsg("The following line might help boost framerates a lot in rmq, not sure if they violate expected behaviour in other mods though - check that they're safe.")
 		VectorNegate(gravitydir, trace.plane.normal);
 	}
-	if (trace.fraction == 1)
+	if (trace.fraction == 1 || !trace.ent)
 		return;
 	if (ED_ISFREE(ent))
 		return;

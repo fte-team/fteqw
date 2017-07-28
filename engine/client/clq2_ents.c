@@ -759,7 +759,7 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 		to->effects = MSG_ReadShort();
 
 	if ( (bits & (Q2U_RENDERFX8|Q2U_RENDERFX16)) == (Q2U_RENDERFX8|Q2U_RENDERFX16) )
-		to->u.q2.renderfx = MSG_ReadLong();
+		to->u.q2.renderfx = MSG_ReadLong() & 0x0007ffff;	//only the standard ones actually supported by vanilla q2.
 	else if (bits & Q2U_RENDERFX8)
 		to->u.q2.renderfx = MSG_ReadByte();
 	else if (bits & Q2U_RENDERFX16)
@@ -1975,7 +1975,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_ROCKET], ent.keynum, NULL, &cent->trailstate))
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, ent.keynum, NULL, &cent->trailstate))
 					{
-						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xdc, 4, &cent->trailstate);
+						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, P_INVALID, 0xdc, 4, &cent->trailstate);
 						V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.1, 0.05);
 					}
 			}
@@ -1988,7 +1988,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 				{
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_BLASTERTRAIL2], ent.keynum, NULL, &cent->trailstate))
 					{
-						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xd0, 1, &cent->trailstate);
+						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, P_INVALID, 0xd0, 1, &cent->trailstate);
 						V_AddLight (ent.keynum, ent.origin, 200, 0, 0.2, 0);
 					}
 				}
@@ -1996,7 +1996,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 				{
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_BLASTERTRAIL], ent.keynum, NULL, &cent->trailstate))
 					{
-						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe0, 1, &cent->trailstate);
+						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, P_INVALID, 0xe0, 1, &cent->trailstate);
 						V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
 					}
 				}
@@ -2013,13 +2013,13 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_GIB], ent.keynum, NULL, &cent->trailstate))
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_blood, ent.keynum, NULL, &cent->trailstate))
-						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe8, 8, &cent->trailstate);
+						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, P_INVALID, 0xe8, 8, &cent->trailstate);
 			}
 			else if (effects & Q2EF_GRENADE)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_GRENADE], ent.keynum, NULL, &cent->trailstate))
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_grenade, ent.keynum, NULL, &cent->trailstate))
-						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 4, 8, &cent->trailstate);
+						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, P_INVALID, 4, 8, &cent->trailstate);
 			}
 			else if (effects & Q2EF_FLIES)
 			{
@@ -2050,7 +2050,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_FLAG1], ent.keynum, NULL, &cent->trailstate))
 				{
-					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 242, 1, &cent->trailstate);
+					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, P_INVALID, 242, 1, &cent->trailstate);
 					V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.05, 0.05);
 				}
 			}
@@ -2058,7 +2058,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_FLAG2], ent.keynum, NULL, &cent->trailstate))
 				{
-					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 115, 1, &cent->trailstate);
+					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, P_INVALID, 115, 1, &cent->trailstate);
 					V_AddLight (ent.keynum, ent.origin, 225, 0.05, 0.05, 0.2);
 				}
 			}
@@ -2068,7 +2068,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_TAGTRAIL], ent.keynum, NULL, &cent->trailstate))
 				{
-					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 220, 1, &cent->trailstate);
+					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, P_INVALID, 220, 1, &cent->trailstate);
 					V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.2, 0.0);
 				}
 			}
@@ -2093,7 +2093,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_TRACKER], ent.keynum, NULL, &cent->trailstate))
 				{
-					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0, 1, &cent->trailstate);
+					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, P_INVALID, 0, 1, &cent->trailstate);
 					V_AddLight (ent.keynum, ent.origin, 200, -0.2, -0.2, -0.2);
 				}
 			}
@@ -2103,14 +2103,14 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			else if (effects & Q2EF_GREENGIB)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_GREENGIB], ent.keynum, NULL, &cent->trailstate))
-					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 219, 8, &cent->trailstate);
+					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, P_INVALID, 219, 8, &cent->trailstate);
 			}
 			// RAFAEL
 			else if (effects & Q2EF_IONRIPPER)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_IONRIPPER], ent.keynum, NULL, &cent->trailstate))
 				{
-					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 228, 4, &cent->trailstate);
+					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, P_INVALID, 228, 4, &cent->trailstate);
 					V_AddLight (ent.keynum, ent.origin, 100, 0.2, 0.1, 0.1);
 				}
 			}

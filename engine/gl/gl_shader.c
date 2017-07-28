@@ -5810,7 +5810,7 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 					"}\n"
 				);
 		}
-		else if (*r_skyboxname.string)
+		else if (*r_skyboxname.string || *cl.skyname)
 		{
 			builtin = (
 					"{\n"

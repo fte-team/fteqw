@@ -130,19 +130,27 @@ static qboolean QDECL XAUDIO_InitCard(soundcardinfo_t *sc, const char *cardname)
 	int dev = 0;
 #endif
 	xaud_t *xa = Z_Malloc(sizeof(*xa));
-	WAVEFORMATEX wfmt;
+	WAVEFORMATEXTENSIBLE wfmt;
+	const static GUID QKSDATAFORMAT_SUBTYPE_IEEE_FLOAT	= {0x00000003,0x0000,0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}};
 
 	xa->cb.lpVtbl = &cbvtbl;
 
 	sc->sn.numchannels = 2;
 
-	wfmt.wFormatTag = WAVE_FORMAT_PCM;
-    wfmt.nChannels = sc->sn.numchannels;
-    wfmt.nSamplesPerSec = sc->sn.speed;
-	wfmt.wBitsPerSample = sc->sn.samplebits;
-    wfmt.nBlockAlign = wfmt.nChannels * (wfmt.wBitsPerSample / 8);
-	wfmt.nAvgBytesPerSec = wfmt.nSamplesPerSec * wfmt.nBlockAlign;
-    wfmt.cbSize = 0;
+	memset(&wfmt, 0, sizeof(wfmt));
+	wfmt.Format.wFormatTag = WAVE_FORMAT_PCM;
+	wfmt.Format.nChannels = sc->sn.numchannels;
+	wfmt.Format.nSamplesPerSec = sc->sn.speed;
+	wfmt.Format.wBitsPerSample = sc->sn.samplebits;
+	wfmt.Format.nBlockAlign = wfmt.Format.nChannels * (wfmt.Format.wBitsPerSample / 8);
+	wfmt.Format.nAvgBytesPerSec = wfmt.Format.nSamplesPerSec * wfmt.Format.nBlockAlign;
+	wfmt.Format.cbSize = 0;
+	if (wfmt.Format.wBitsPerSample == 32)
+	{
+		wfmt.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+		wfmt.Format.cbSize = 22;
+		memcpy(&wfmt.SubFormat, &QKSDATAFORMAT_SUBTYPE_IEEE_FLOAT, sizeof(wfmt.SubFormat));
+	}
 
 	sc->inactive_sound = true;
 	xa->buffercount = xa->bufferavail = 3;	//submit this many straight up
@@ -198,7 +206,7 @@ static qboolean QDECL XAUDIO_InitCard(soundcardinfo_t *sc, const char *cardname)
 				sd[0].Flags = 0;
 				sd[0].pOutputVoice = (IXAudio2Voice*)xa->master;
 
-				if (SUCCEEDED(IXAudio2_CreateSourceVoice(xa->ixa, &xa->source, &wfmt, 0, XAUDIO2_DEFAULT_FREQ_RATIO, &xa->cb, &vs, NULL)))
+				if (SUCCEEDED(IXAudio2_CreateSourceVoice(xa->ixa, &xa->source, &wfmt.Format, 0, XAUDIO2_DEFAULT_FREQ_RATIO, &xa->cb, &vs, NULL)))
 				{
 					sc->handle = xa;
 					sc->GetDMAPos = XAUDIO_GetDMAPos;

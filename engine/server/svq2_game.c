@@ -691,6 +691,9 @@ static cvar_t *VARGS Q2Cvar_Get (const char *var_name, const char *value, int fl
 	//q2 gamecode knows about these flags. anything else is probably a bug, or 3rd-party extension.
 	flags &= (CVAR_NOSET|CVAR_SERVERINFO|CVAR_USERINFO|CVAR_ARCHIVE|CVAR_LATCH);
 
+	if (!strcmp(var_name, "gamedir"))
+		var_name = "fs_gamedir";
+
 	var = Cvar_Get(var_name, value, flags, "Quake2 game variables");
 	if (!var)
 	{

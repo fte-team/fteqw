@@ -242,6 +242,11 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 	if (sc->sn.speed > 48000) // limit waveout to 48000 until that buffer issue gets solved
 		sc->sn.speed = 48000;
 
+	if (sc->sn.samplebits > 16)
+		sc->sn.samplebits = 16;
+	else
+		sc->sn.samplebits = 8;
+
 	memset (&format, 0, sizeof(format));
 	format.wFormatTag = WAVE_FORMAT_PCM;
 	format.nChannels = sc->sn.numchannels;

@@ -118,11 +118,12 @@ extern cvar_t vid_conwidth, vid_conautoscale;
 extern cvar_t vid_width;
 extern cvar_t vid_height;
 extern cvar_t vid_wndalpha;
+extern cvar_t vid_winthread;
 
 static qboolean VID_SetWindowedMode (rendererstate_t *info);	//-1 on bpp or hz for default.
 static qboolean VID_SetFullDIBMode (rendererstate_t *info);	//-1 on bpp or hz for default.
 
-#ifdef MULTITHREADED
+#ifdef MULTITHREAD
 #define WTHREAD	//While the user is resizing a window, the entire thread that owns said window becomes frozen. in order to cope with window resizing, its easiest to just create a separate thread to be microsoft's plaything. our main game thread can then just keep rendering. hopefully that won't bug out on the present.
 #endif
 #ifdef WTHREAD
@@ -1341,7 +1342,7 @@ static qboolean CreateMainWindow(rendererstate_t *info, qboolean withthread)
 	qboolean		stat;
 
 #ifdef WTHREAD
-	if (withthread)
+	if (withthread && vid_winthread.ival)
 	{
 		void *cond = Sys_CreateConditional();
 		Sys_LockConditional(cond);
@@ -1715,6 +1716,7 @@ static void VID_UpdateWindowStatus (HWND hWnd)
 	case MODE_VULKAN:
 		if (vid.pixelwidth != window_width || vid.pixelheight != window_height)
 			vk.neednewswapchain = true;
+		break;
 #endif
 	default:
 		vid.pixelwidth = window_width;
@@ -2741,9 +2743,9 @@ void MainThreadWndProc(void *ctx, void *data, size_t msg, size_t ex)
 		break;
 
 #ifdef HAVE_CDPLAYER
-		case MM_MCINOTIFY:
-			CDAudio_MessageHandler (mainwindow, uMsg, ctx, data);
-			break;
+	case MM_MCINOTIFY:
+		CDAudio_MessageHandler (mainwindow, msg, (WPARAM)ctx, (LPARAM)data);
+		break;
 #endif
 	}
 }
@@ -3071,7 +3073,7 @@ static LONG WINAPI GLMainWndProc (
 #ifdef HAVE_CDPLAYER
 		case MM_MCINOTIFY:
 #ifdef WTHREAD
-			COM_AddWork(WG_MAIN, MainThreadWndProc, wParam, lParam, uMsg, 0);
+			COM_AddWork(WG_MAIN, MainThreadWndProc, (void*)wParam, (void*)lParam, uMsg, 0);
 			lRet = 0;
 #else
 			lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);	//FIXME: thread

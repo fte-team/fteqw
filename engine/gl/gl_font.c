@@ -1816,6 +1816,22 @@ void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end)
 	}
 }
 
+conchar_t *Font_CharAt(int x, conchar_t *start, conchar_t *end)
+{
+	int lx = 0, nx;
+	struct font_s *font = curfont;
+	unsigned int codeflags, codepoint;
+	conchar_t *nc;
+	for (; start < end; lx = nx, start = nc)
+	{
+		nc = Font_Decode(start, &codeflags, &codepoint);
+		nx = Font_CharEndCoord(font, lx, codeflags, codepoint);
+		if (x >= lx && x < nx)
+			return start;
+	}
+	return NULL;
+}
+
 /*Note: *all* strings after the current one will inherit the same colour, until one changes it explicitly
 correct usage of this function thus requires calling this with 1111 before Font_EndString*/
 void Font_InvalidateColour(vec4_t newcolour)

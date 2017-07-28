@@ -5847,6 +5847,7 @@ void Mod_LoadDoomSprite (model_t *mod)
 	mspriteframe_t frame;
 	size_t c;
 	unsigned int *colpointers;
+	vec3_t t;
 
 	mod->type = mod_dummy;
 
@@ -5908,6 +5909,8 @@ void Mod_LoadDoomSprite (model_t *mod)
 		}
 		Z_Free(coldata);
 
+		ClearBounds(mod->mins, mod->maxs);
+
 		//do the actual loading.
 		for (ofs = 4; ofs < *(int*)files; ofs+=strlen(files+ofs)+1)
 		{
@@ -5915,11 +5918,18 @@ void Mod_LoadDoomSprite (model_t *mod)
 
 			header = (doomimage_t *)FS_LoadMallocFile(name, &fsize);
 
-			frame.up = +header->ypos;
-			frame.down = -header->height + header->ypos;
+			//the 5 is because doom likes drawing sprites slightly downwards, in the floor.
+			frame.up = header->ypos + 5;
+			frame.down = header->ypos-header->height + 5;
 			frame.left = -header->xpos;
 			frame.right = header->width - header->xpos;
 
+			t[0] = t[1] = max(abs(frame.left),abs(frame.right));
+			t[2] = frame.up;
+			AddPointToBounds(t, mod->mins, mod->maxs);
+			t[0] *= -1;
+			t[1] *= -1;
+			t[2] = frame.down;
 
 			if (header->width*header->height <= sizeof(image))
 			{

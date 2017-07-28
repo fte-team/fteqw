@@ -159,8 +159,9 @@ typedef enum
 
 	Q2PT_RESPAWN,
 	Q2PT_PLAYER_TELEPORT,
-	Q2PT_FOOTSTEP
+	Q2PT_FOOTSTEP,
 
+	Q2PT_MAX
 } q2particleeffects_t;
 extern int pt_q2[];
 #endif
@@ -255,7 +256,7 @@ typedef struct {
 	void (*RunParticleEffect4) (vec3_t org, float radius, int color, int effect, int count);
 	void (*RunParticleEffectPalette) (const char *nameprefix, vec3_t org, vec3_t dir, int color, int count);
 
-	void (*ParticleTrailIndex) (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk);
+	void (*ParticleTrailIndex) (vec3_t start, vec3_t end, int type, int color, int crnd, trailstate_t **tsk);	//P_INVALID is fine for the type here, you'll get a default trail.
 	qboolean (*InitParticles) (void);
 	void (*ShutdownParticles) (void);
 	void (*DelinkTrailstate) (trailstate_t **tsk);

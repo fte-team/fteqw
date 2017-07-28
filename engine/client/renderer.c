@@ -49,10 +49,25 @@ void QDECL R_SkyBox_Changed (struct cvar_s *var, char *oldvalue)
 {
 	if (qrenderer != QR_NONE && cl.worldmodel)
 	{
-		if (*var->string)
-			R_SetSky(var->string);
+		R_SetSky(cl.skyname);
+	}
+}
+void R_ForceSky_f(void)
+{
+	if (Cmd_Argc() < 2)
+	{
+		extern cvar_t r_skyboxname;
+		if (*r_skyboxname.string)
+			Con_Printf("Current user skybox is %s\n", cl.skyname);
+		else if (*cl.skyname)
+			Con_Printf("Current per-map skybox is %s\n", cl.skyname);
 		else
-			R_SetSky(cl.skyname);
+			Con_Printf("no skybox forced.\n", cl.skyname);
+	}
+	else
+	{
+		Q_strncpyz(cl.skyname, Cmd_Argv(1), sizeof(cl.skyname));
+		R_SetSky(cl.skyname);
 	}
 }
 
@@ -233,6 +248,7 @@ cvar_t vid_conwidth							= CVARF ("vid_conwidth", "0",
 //see R_RestartRenderer_f for the effective default 'if (newr.renderer == -1)'.
 cvar_t vid_renderer							= CVARFD ("vid_renderer", "",
 													 CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Specifies which backend is used. Values that might work are: sv (dedicated server), headless (null renderer), vk (vulkan), gl (opengl), egl (opengl es), d3d9 (direct3d 9), d3d11 (direct3d 11, with default hardware rendering), d3d11 warp (direct3d 11, with software rendering).");
+cvar_t vid_renderer_opts					= CVARFD ("_vid_renderer_opts", "", CVAR_NOSET, "The possible video renderer apis, in \"value\" \"description\" pairs, for gamecode to read.");
 
 cvar_t vid_bpp								= CVARFD ("vid_bpp", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The number of colour bits to request from the renedering context");
@@ -251,12 +267,15 @@ cvar_t vid_fullscreen_alternative			= CVARFD (NULL, "1",
 cvar_t vid_height							= CVARFD ("vid_height", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The screen height to attempt to use, in physical pixels. 0 means use desktop resolution.");
 cvar_t vid_multisample						= CVARFD ("vid_multisample", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Set to 4 or so for multisample antialiasing (msaa).");
+													CVAR_ARCHIVE, "The number of samples to use for Multisample AntiAliasing (aka: msaa). A value of 1 explicitly disables it.");
 cvar_t vid_refreshrate						= CVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_srgb								= CVARFD ("vid_srgb", "0",
 													  CVAR_ARCHIVE, "0: Off. Colour blending will be wrong.\n1: Only the framebuffer should use sRGB colourspace, textures and colours will be assumed to be linear. This has the effect of brightening the screen.\n2: Use sRGB extensions/support to ensure that the sh");
 cvar_t vid_wndalpha							= CVARD ("vid_wndalpha", "1", "When running windowed, specifies the window's transparency level.");
+#if defined(_WIN32) && defined(MULTITHREAD)
+cvar_t vid_winthread						= CVARFD ("vid_winthread", "", CVAR_ARCHIVE|CVAR_RENDERERLATCH, "When enabled, window messages will be handled by a separate thread. This allows the game to continue rendering when Microsoft Windows blocks while resizing etc.");
+#endif
 //more readable defaults to match conwidth/conheight.
 cvar_t vid_width							= CVARFD ("vid_width", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The screen width to attempt to use, in physical pixels. 0 means use desktop resolution.");
@@ -426,11 +445,15 @@ cvar_t	gl_screenangle = CVAR("gl_screenangle", "0");
 #endif
 
 #ifdef VKQUAKE
-cvar_t vk_stagingbuffers					= CVARD ("vk_stagingbuffers",	"", "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u, e, v, 0.");
-cvar_t vk_submissionthread					= CVARD	("vk_submissionthread",	"", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
-cvar_t vk_debug								= CVARD	("vk_debug",			"0", "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
-cvar_t vk_loadglsl							= CVARD	("vk_loadglsl",			"", "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
-cvar_t vk_dualqueue							= CVARD ("vk_dualqueue",		"", "Attempt to use a separate queue for presentation. Blank for default.");
+cvar_t vk_stagingbuffers					= CVARD ("vk_stagingbuffers",			"", "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u, e, v, 0.");
+cvar_t vk_submissionthread					= CVARD	("vk_submissionthread",			"", "Execute submits+presents on a thread dedicated to executing them. This may be a significant speedup on certain drivers.");
+cvar_t vk_debug								= CVARD	("vk_debug",					"0", "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
+cvar_t vk_dualqueue							= CVARD ("vk_dualqueue",				"", "Attempt to use a separate queue for presentation. Blank for default.");
+cvar_t vk_busywait							= CVARD ("vk_busywait",					"", "Force busy waiting until the GPU finishes doing its thing.");
+cvar_t vk_nv_glsl_shader					= CVARD	("vk_loadglsl",					"", "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
+cvar_t vk_nv_dedicated_allocation			= CVARD	("vk_nv_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
+//cvar_t vk_khr_dedicated_allocation		= CVARD	("vk_khr_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
+cvar_t vk_khr_push_descriptor				= CVARD	("vk_khr_push_descriptor",		"", "Enables better descriptor streaming.");
 #endif
 
 #if defined(D3DQUAKE)
@@ -709,9 +732,33 @@ void Renderer_Init(void)
 	//but register ALL vid_ commands.
 	Cvar_Register (&gl_driver, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_vsync, VIDCOMMANDGROUP);
+	Cvar_Register (&vid_wndalpha, VIDCOMMANDGROUP);
+#if defined(_WIN32) && defined(MULTITHREAD)
+	Cvar_Register (&vid_winthread, VIDCOMMANDGROUP);
+#endif
 	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
-	Cvar_Register (&vid_wndalpha, VIDCOMMANDGROUP);
+	vid_renderer_opts.enginevalue = 
+#ifdef GLQUAKE
+		"gl \"OpenGL\" "
+#endif
+#ifdef VKQUAKE
+		"vk \"Vulkan\" "
+#endif
+#ifdef D3D8QUAKE
+//		"d3d8 \"Direct3D 8\" "
+#endif
+#ifdef D3D9QUAKE
+		"d3d9 \"Direct3D 9\" "
+#endif
+#ifdef D3D11QUAKE
+		"d3d11 \"Direct3D 11\" "
+#endif
+#ifdef SWQUAKE
+		"sw \"Software Rendering\" "
+#endif
+		"";
+	Cvar_Register (&vid_renderer_opts, VIDCOMMANDGROUP);
 
 #ifndef NACL
 	if (COM_CheckParm("-plugin"))
@@ -750,9 +797,11 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_norefresh, GLRENDEREROPTIONS);
 	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
-	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
-	Cbuf_AddText("alias sky r_skybox\n", RESTRICT_LOCAL);	/*alternative name for users*/
 	Cvar_Register (&r_softwarebanding_cvar, GRAPHICALNICETIES);
+
+	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
+	Cmd_AddCommand("sky", R_ForceSky_f);	//QS compat
+	Cmd_AddCommand("loadsky", R_ForceSky_f);//DP compat
 
 	Cvar_Register(&r_dodgytgafiles, "Hacky bug workarounds");
 	Cvar_Register(&r_dodgypcxfiles, "Hacky bug workarounds");
@@ -915,11 +964,16 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_forceprogramify, GLRENDEREROPTIONS);
 #ifdef VKQUAKE
-	Cvar_Register (&vk_stagingbuffers,	VKRENDEREROPTIONS);
-	Cvar_Register (&vk_submissionthread,	VKRENDEREROPTIONS);
-	Cvar_Register (&vk_debug,				VKRENDEREROPTIONS);
-	Cvar_Register (&vk_loadglsl,			VKRENDEREROPTIONS);
-	Cvar_Register (&vk_dualqueue,			VKRENDEREROPTIONS);
+	Cvar_Register (&vk_stagingbuffers,			VKRENDEREROPTIONS);
+	Cvar_Register (&vk_submissionthread,		VKRENDEREROPTIONS);
+	Cvar_Register (&vk_debug,					VKRENDEREROPTIONS);
+	Cvar_Register (&vk_dualqueue,				VKRENDEREROPTIONS);
+	Cvar_Register (&vk_busywait,				VKRENDEREROPTIONS);
+
+	Cvar_Register (&vk_nv_glsl_shader,			VKRENDEREROPTIONS);
+	Cvar_Register (&vk_nv_dedicated_allocation,	VKRENDEREROPTIONS);
+//	Cvar_Register (&vk_khr_dedicated_allocation,VKRENDEREROPTIONS);
+	Cvar_Register (&vk_khr_push_descriptor,		VKRENDEREROPTIONS);
 #endif
 
 // misc
@@ -1966,9 +2020,14 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 	}
 	else if (psprite->frames[frame].type == SPR_ANGLED)
 	{
+		float f = DotProduct(vpn,currententity->axis[0]);
+		float r = DotProduct(vright,currententity->axis[0]);
+		int dir = (atan2(r, f)+1.125*M_PI)*(4/M_PI);
+
 		pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
 //		pspriteframe = pspritegroup->frames[(int)((r_refdef.viewangles[1]-currententity->angles[1])/360*pspritegroup->numframes + 0.5-4)%pspritegroup->numframes];
-		pspriteframe = pspritegroup->frames[(int)((r_refdef.viewangles[1]-currententity->angles[1])/360*8 + 0.5-4)&7];
+		//int dir = (int)((r_refdef.viewangles[1]-currententity->angles[1])/360*8 + 8 + 0.5-4)&7;
+		pspriteframe = pspritegroup->frames[dir&7];
 	}
 	else
 	{
@@ -2125,8 +2184,8 @@ texture_t *R_TextureAnimation_Q2 (texture_t *base)
 
 
 unsigned int	r_viewcontents;
-mleaf_t		*r_viewleaf, *r_oldviewleaf;
-mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
+//mleaf_t		*r_viewleaf, *r_oldviewleaf;
+//mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
 int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 int r_visframecount;
 mleaf_t		*r_vischain;		// linked list of visible leafs
@@ -2357,23 +2416,23 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 	{
 		vis = cvis[portal] = r_refdef.forcedvis;
 
-		r_oldviewleaf = NULL;
-		r_oldviewleaf2 = NULL;
+		r_oldviewcluster = -1;
+		r_oldviewcluster2 = -1;
 	}
 	else
 	{
 		if (!portal)
 		{
-			if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.ival) || r_novis.ival & 2)
+			if (((r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2) && !r_novis.ival) || r_novis.ival & 2)
 				return cvis[portal];
 
-			r_oldviewleaf = r_viewleaf;
-			r_oldviewleaf2 = r_viewleaf2;
+			r_oldviewcluster = r_viewcluster;
+			r_oldviewcluster2 = r_viewcluster2;
 		}
 		else
 		{
-			r_oldviewleaf = NULL;
-			r_oldviewleaf2 = NULL;
+			r_oldviewcluster = -1;
+			r_oldviewcluster2 = -1;
 		}
 
 		if (r_novis.ival)
@@ -2381,14 +2440,18 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 			vis = cvis[portal] = curframevis[portal].buffer;
 			memset (curframevis[portal].buffer, 0xff, curframevis[portal].buffersize);
 
-			r_oldviewleaf = NULL;
-			r_oldviewleaf2 = NULL;
+			r_oldviewcluster = -1;
+			r_oldviewcluster2 = -1;
 		}
 		else
 		{
-			vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, &curframevis[portal], false);
-			if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
-				vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, &curframevis[portal], true);
+			if (r_viewcluster2 != -1 && r_viewcluster2 != r_viewcluster)
+			{
+				vis = cvis[portal] = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, r_viewcluster, &curframevis[portal], PVM_REPLACE);
+				vis = cvis[portal] = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, r_viewcluster2, &curframevis[portal], PVM_MERGE);
+			}
+			else
+				vis = cvis[portal] = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, r_viewcluster, &curframevis[portal], PVM_FAST);
 		}
 	}
 
@@ -2396,7 +2459,7 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 
 	if (getvisonly)
 		return vis;
-	else if (r_viewleaf && r_viewleaf->contents == Q1CONTENTS_SOLID)
+	else if (r_viewcluster == -1)
 	{
 		//to improve spectating, when the camera is in a wall, we ignore any sky leafs.
 		//this prevents seeing the upwards-facing sky surfaces within the sky volumes.

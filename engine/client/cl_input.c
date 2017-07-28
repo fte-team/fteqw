@@ -1540,7 +1540,7 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 		cmd = &cl.outframes[i].cmd[seat];
 		*cmd = independantphysics[seat];
-		
+
 		cmd->lightlevel = (lightlev>255)?255:lightlev;
 
 		cl.outframes[i].senttime = realtime;

@@ -4704,7 +4704,7 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 		{
 			if (model->particletrail == P_INVALID || pe->ParticleTrail (ent->v->origin, src->origin, model->particletrail, src->number, NULL, &(le->trailstate)))
 				if (model->traildefaultindex >= 0)
-					pe->ParticleTrailIndex(ent->v->origin, src->origin, model->traildefaultindex, 0, &(le->trailstate));
+					pe->ParticleTrailIndex(ent->v->origin, src->origin, P_INVALID, model->traildefaultindex, 0, &(le->trailstate));
 		}
 	}
 

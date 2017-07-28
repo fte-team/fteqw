@@ -66,12 +66,10 @@ void GLDraw_Init (void)
 	if (gl_config.gles && gl_config.glversion < 3.0)
 		r_softwarebanding = false;
 
-	if (!gl_config.gles)
+	if (gl_config.arb_framebuffer_srgb)
 	{
 		extern cvar_t vid_srgb;
-		GLint srgb;
-		qglGetIntegerv(GL_FRAMEBUFFER_SRGB_CAPABLE, &srgb);
-		vid.srgb = vid_srgb.ival>1 && srgb;
+		vid.srgb = vid_srgb.ival>1;
 		if (vid.srgb)
 			qglEnable(GL_FRAMEBUFFER_SRGB);
 	}

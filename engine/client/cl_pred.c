@@ -830,7 +830,7 @@ void CL_PredictEntityMovement(entity_state_t *estate, float age)
 	{
 		VectorClear(startstate.velocity);
 		startstate.onground = false;
-                startstate.jump_held = false;
+		startstate.jump_held = false;
 		CL_EntStateToPlayerState(&startstate, estate);
 		CL_EntStateToPlayerCommand(&cmd, estate, age);
 

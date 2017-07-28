@@ -24,8 +24,8 @@ makevulkanblob: makevulkanblob.c
 vulkanblobs/%.fvb: vulkan/%.glsl makevulkanblob vulkan/sys/defs.h vulkan/sys/fog.h vulkan/sys/offsetmapping.h vulkan/sys/skeletal.h
 	./makevulkanblob $< $@
 
-vulkanblobs/%.fvb: glsl/%.glsl makevulkanblob vulkan/sys/defs.h vulkan/sys/fog.h vulkan/sys/offsetmapping.h vulkan/sys/skeletal.h
-	./makevulkanblob $< $@
+#vulkanblobs/%.fvb: glsl/%.glsl makevulkanblob vulkan/sys/defs.h vulkan/sys/fog.h vulkan/sys/offsetmapping.h vulkan/sys/skeletal.h
+#	./makevulkanblob $< $@
 
 
 all: generatebuiltinsl $(ALLNAMES)

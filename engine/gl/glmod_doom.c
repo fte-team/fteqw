@@ -151,6 +151,12 @@ typedef struct {
 } dssector_t;
 
 typedef struct {
+	struct msector_s *sector;
+	unsigned short segcount;
+	unsigned short first;
+} mssector_t;
+
+typedef struct {
 	short x;
 	short y;
 	short dx;
@@ -178,7 +184,7 @@ typedef struct {
 	short tag;
 } dsector_t;
 
-typedef struct {
+typedef struct msector_s {
 	int visframe;
 	int floortex;
 	int ceilingtex;
@@ -224,7 +230,7 @@ typedef struct doommap_s
 	plane_t			*nodeplane;
 	unsigned int	numnodes;
 
-	dssector_t		*ssector;	//aka: leafs
+	mssector_t		*ssector;	//aka: leafs
 	unsigned int	numssectors;
 
 	msector_t		*sector;
@@ -261,12 +267,11 @@ void Doom_SetModelFunc(model_t *mod);
 //physics
 
 /*walk the bsp tree*/
-int Doom_SectorNearPoint(doommap_t *dm, vec3_t p)
+msector_t *Doom_SectorNearPoint(doommap_t *dm, vec3_t p)
 {
 	ddoomnode_t *node;
 	plane_t *plane;
 	int num;
-	int seg;
 	float d;
 	num = dm->numnodes-1;
 	while (1)
@@ -274,11 +279,7 @@ int Doom_SectorNearPoint(doommap_t *dm, vec3_t p)
 		if (num & NODE_IS_SSECTOR)
 		{
 			num -= NODE_IS_SSECTOR;
-			for (seg = dm->ssector[num].first; seg < dm->ssector[num].first + dm->ssector[num].segcount; seg++)
-				if (dm->seg[seg].linedef != 0xffff)
-					break;
-
-			return dm->sidedef[dm->linedef[dm->seg[seg].linedef].sidedef[dm->seg[seg].direction]].sector;
+			return dm->ssector[num].sector;
 		}
 
 		node = dm->node + num;
@@ -294,16 +295,16 @@ int Doom_SectorNearPoint(doommap_t *dm, vec3_t p)
 			num = node->node1;
 	}
 	
-	return num;
+	return NULL;
 }
 
 int Doom_PointContents(model_t *model, vec3_t axis[3], vec3_t p)
 {
 	doommap_t *dm = model->meshinfo;
-	int sec = Doom_SectorNearPoint(dm, p);
-	if (p[2] < dm->sector[sec].floorheight)
+	msector_t *sec = Doom_SectorNearPoint(dm, p);
+	if (p[2] < sec->floorheight)
 		return FTECONTENTS_SOLID;
-	if (p[2] > dm->sector[sec].ceilingheight)
+	if (p[2] > sec->ceilingheight)
 		return FTECONTENTS_SOLID;
 	return FTECONTENTS_EMPTY;
 }
@@ -315,26 +316,27 @@ use blockmap for walls
 */
 qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean iscapsule, unsigned int contentstype, trace_t *trace)
 {
-#if 0
+	doommap_t *dm = model->meshinfo;
+#if 1
 #define TRACESTEP	16
 	unsigned short *linedefs;
 	dlinedef_t *ld;
 	int bmi, obmi;
 	vec3_t delta;
-	int sec1 = Doom_SectorNearPoint(start);
+	msector_t *sec1 = Doom_SectorNearPoint(dm, start);
 	vec3_t p1, pointonplane, ofs;
 	float d1, d2, c1, c2, planedist;
 	plane_t *lp;
 	mdoomvertex_t *v1, *v2;
 	int j;
-	float p2f;
+	float p1f, p2f;
 
 	float clipfrac;
 #define	DIST_EPSILON	(0.03125)
 
 //	Con_Printf("%i\n", sec1);
 
-	if (start[2] < dm->sector[sec1].floorheight-mins[2])	//whoops, started outside... ?
+	if (start[2] < sec1->floorheight-mins[2])	//whoops, started outside... ?
 	{
 		trace->fraction = 0;
 		trace->allsolid = trace->startsolid = true;
@@ -346,11 +348,11 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 		trace->plane.normal[0] = 0;
 		trace->plane.normal[1] = 0;
 		trace->plane.normal[2] = 1;
-		trace->plane.dist = dm->sector[sec1].floorheight-mins[2];
+		trace->plane.dist = sec1->floorheight-mins[2];
 
 		return false;
 	}
-	if (start[2] > dm->sector[sec1].ceilingheight-maxs[2])	//whoops, started outside... ?
+	if (start[2] > sec1->ceilingheight-maxs[2])	//whoops, started outside... ?
 	{
 		trace->fraction = 0;
 		trace->allsolid = trace->startsolid = true;
@@ -360,7 +362,7 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 		trace->plane.normal[0] = 0;
 		trace->plane.normal[1] = 0;
 		trace->plane.normal[2] = -1;
-		trace->plane.dist = -(dm->sector[sec1].ceilingheight-maxs[2]);
+		trace->plane.dist = -(sec1->ceilingheight-maxs[2]);
 		return false;
 	}
 
@@ -375,6 +377,9 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 	trace->endpos[1] = end[1];
 	trace->endpos[2] = end[2];
 
+	VectorCopy(start, p1);
+	p1f = 0;
+
 	trace->fraction = 1;
 	while(1)
 	{
@@ -383,7 +388,7 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 		if (bmi >= 0 && bmi < dm->blockmap->rows*dm->blockmap->columns)
 		if (bmi != obmi)
 		{
-#if 1
+#if 0
 			short dummy;
 			linedefs = &dummy;
 			for (dummy = 0; dummy < dm->numlinedefs; dummy++)
@@ -436,29 +441,29 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 							else
 								c1 = (d1-DIST_EPSILON) / (d1 - d2);
 							c2 = 1-c1;
-							pointonplane[0] = start[0]*c2 + p2[0]*c1;
+							pointonplane[0] = start[0]*c2 + end[0]*c1;
 /*							if (pointonplane[0] > v1->xpos+DIST_EPSILON*2+hull->clip_maxs[0] && pointonplane[0] > v2->xpos+DIST_EPSILON*2+hull->clip_maxs[0])
 								continue;
 							if (pointonplane[0] < v1->xpos-DIST_EPSILON*2+hull->clip_mins[0] && pointonplane[0] < v2->xpos-DIST_EPSILON*2+hull->clip_mins[0])
 								continue;
-*/							pointonplane[1] = start[1]*c2 + p2[1]*c1;
+*/							pointonplane[1] = start[1]*c2 + end[1]*c1;
 /*							if (pointonplane[1] > v1->ypos+DIST_EPSILON*2+hull->clip_maxs[1] && pointonplane[1] > v2->ypos+DIST_EPSILON*2+hull->clip_maxs[1])
 								continue;
 							if (pointonplane[1] < v1->ypos-DIST_EPSILON*2+hull->clip_mins[1] && pointonplane[1] < v2->ypos-DIST_EPSILON*2+hull->clip_mins[1])
 								continue;
 */
-							pointonplane[2] = start[2]*c2 + p2[2]*c1;
+							pointonplane[2] = start[2]*c2 + end[2]*c1;
 
 							Con_Printf("Started in wall\n");
 							j = dm->sidedef[ld->sidedef[d1 < planedist]].sector;
 							//yup, we are in the thing
-							//prevent ourselves from entering the back-sector's floor/ceiling
-							if (pointonplane[2] < dm->sector[j].floorheight-hull->clip_mins[2])	//whoops, started outside... ?
+							//prevent ourselves from entering the back-sector's floor/ceiling at the point of impact
+							if (pointonplane[2] < dm->sector[j].floorheight-mins[2])	//whoops, started outside... ?
 							{
 								Con_Printf("Started in floor\n");
 								trace->allsolid = trace->startsolid = false;
-								trace->endpos[2] = dm->sector[j].floorheight-hull->clip_mins[2];
-								trace->fraction = fabs(trace->endpos[2] - start[2]) / fabs(p2[2] - start[2]);
+								trace->endpos[2] = dm->sector[j].floorheight-mins[2];
+								trace->fraction = fabs(trace->endpos[2] - start[2]) / fabs(end[2] - start[2]);
 								trace->endpos[0] = start[0]+delta[0]*trace->fraction*p2f;
 								trace->endpos[1] = start[1]+delta[1]*trace->fraction*p2f;
 						//		if (IS_NAN(trace->endpos[2]))
@@ -466,22 +471,22 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 								trace->plane.normal[0] = 0;
 								trace->plane.normal[1] = 0;
 								trace->plane.normal[2] = 1;
-								trace->plane.dist = dm->sector[j].floorheight-hull->clip_mins[2];
+								trace->plane.dist = dm->sector[j].floorheight-mins[2];
 
 								continue;
 							}
-							if (pointonplane[2] > dm->sector[j].ceilingheight-hull->clip_maxs[2])	//whoops, started outside... ?
+							if (pointonplane[2] > dm->sector[j].ceilingheight-maxs[2])	//whoops, started outside... ?
 							{
 								Con_Printf("Started in ceiling\n");
 								trace->allsolid = trace->startsolid = false;
 								trace->endpos[0] = pointonplane[0];
 								trace->endpos[1] = pointonplane[1];
-								trace->endpos[2] = dm->sector[j].ceilingheight-hull->clip_maxs[2];
-								trace->fraction = fabs(trace->endpos[2] - start[2]) / fabs(p2[2] - start[2]);
+								trace->endpos[2] = dm->sector[j].ceilingheight-maxs[2];
+								trace->fraction = fabs(trace->endpos[2] - start[2]) / fabs(end[2] - start[2]);
 								trace->plane.normal[0] = 0;
 								trace->plane.normal[1] = 0;
 								trace->plane.normal[2] = -1;
-								trace->plane.dist = -(dm->sector[j].ceilingheight-hull->clip_maxs[2]);
+								trace->plane.dist = -(dm->sector[j].ceilingheight-maxs[2]);
 								continue;
 							}
 						}
@@ -504,17 +509,17 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 				else
 					c1 = (d1-DIST_EPSILON) / (d1 - d2);
 				c2 = 1-c1;
-				pointonplane[0] = start[0]*c2 + p2[0]*c1;
-				if (pointonplane[0] > v1->xpos+DIST_EPSILON*2+hull->clip_maxs[0] && pointonplane[0] > v2->xpos+DIST_EPSILON*2+hull->clip_maxs[0])
+				pointonplane[0] = start[0]*c2 + end[0]*c1;
+				if (pointonplane[0] > v1->xpos+DIST_EPSILON*2+maxs[0] && pointonplane[0] > v2->xpos+DIST_EPSILON*2+maxs[0])
 					continue;
-				if (pointonplane[0] < v1->xpos-DIST_EPSILON*2+hull->clip_mins[0] && pointonplane[0] < v2->xpos-DIST_EPSILON*2+hull->clip_mins[0])
+				if (pointonplane[0] < v1->xpos-DIST_EPSILON*2+mins[0] && pointonplane[0] < v2->xpos-DIST_EPSILON*2+mins[0])
 					continue;
-				pointonplane[1] = start[1]*c2 + p2[1]*c1;
-				if (pointonplane[1] > v1->ypos+DIST_EPSILON*2+hull->clip_maxs[1] && pointonplane[1] > v2->ypos+DIST_EPSILON*2+hull->clip_maxs[1])
+				pointonplane[1] = start[1]*c2 + end[1]*c1;
+				if (pointonplane[1] > v1->ypos+DIST_EPSILON*2+maxs[1] && pointonplane[1] > v2->ypos+DIST_EPSILON*2+maxs[1])
 					continue;
-				if (pointonplane[1] < v1->ypos-DIST_EPSILON*2+hull->clip_mins[1] && pointonplane[1] < v2->ypos-DIST_EPSILON*2+hull->clip_mins[1])
+				if (pointonplane[1] < v1->ypos-DIST_EPSILON*2+mins[1] && pointonplane[1] < v2->ypos-DIST_EPSILON*2+mins[1])
 					continue;
-				pointonplane[2] = start[2]*c2 + p2[2]*c1;
+				pointonplane[2] = start[2]*c2 + end[2]*c1;
 
 				if (ld->flags & LINEDEF_IMPASSABLE || ld->sidedef[1] == 0xffff)	//unconditionally unpassable.
 				{	//unconditionally clipped.
@@ -528,10 +533,10 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 					else
 						sec2 = &dm->sector[dm->sidedef[ld->sidedef[0]].sector];
 
-					if (pointonplane[2] < sec2->floorheight-hull->clip_mins[2])
+					if (pointonplane[2] < sec2->floorheight-mins[2])
 					{	//hit the floor first.
-						c1 = fabs(dm->sector[sec1].floorheight-hull->clip_mins[2] - start[2]);
-						c2 = fabs(p2[2] - start[2]);
+						c1 = fabs(sec1->floorheight-mins[2] - start[2]);
+						c2 = fabs(end[2] - start[2]);
 						if (!c2)
 							c1 = 1;
 						else
@@ -541,21 +546,21 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 //							Con_Printf("Hit floor\n");
 							trace->fraction = c1;
 							trace->allsolid = trace->startsolid = true;
-							trace->endpos[0] = start[0] + trace->fraction*(p2[0]-start[0]);
-							trace->endpos[1] = start[1] + trace->fraction*(p2[1]-start[1]);
-							trace->endpos[2] = start[2] + trace->fraction*(p2[2]-start[2]);
+							trace->endpos[0] = start[0] + trace->fraction*(end[0]-start[0]);
+							trace->endpos[1] = start[1] + trace->fraction*(end[1]-start[1]);
+							trace->endpos[2] = start[2] + trace->fraction*(end[2]-start[2]);
 							trace->plane.normal[0] = 0;
 							trace->plane.normal[1] = 0;
 							trace->plane.normal[2] = 1;
-							trace->plane.dist = dm->sector[sec1].floorheight-hull->clip_mins[2];
+							trace->plane.dist = sec1->floorheight-mins[2];
 						}
 						continue;
 					}
 
-					if (pointonplane[2] > sec2->ceilingheight-hull->clip_maxs[2])
+					if (pointonplane[2] > sec2->ceilingheight-maxs[2])
 					{	//hit the floor first.
-						c1 = fabs((dm->sector[sec1].ceilingheight-hull->clip_maxs[2]) - start[2]);
-						c2 = fabs(p2[2] - start[2]);
+						c1 = fabs((sec1->ceilingheight-maxs[2]) - start[2]);
+						c2 = fabs(end[2] - start[2]);
 						if (!c2)
 							c1 = 1;
 						else
@@ -567,13 +572,13 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 //							Con_Printf("Hit ceiling\n");
 							trace->fraction = c1;
 							trace->allsolid = trace->startsolid = true;
-							trace->endpos[0] = start[0] + trace->fraction*(p2[0]-start[0]);
-							trace->endpos[1] = start[1] + trace->fraction*(p2[1]-start[1]);
-							trace->endpos[2] = start[2] + trace->fraction*(p2[2]-start[2]);
+							trace->endpos[0] = start[0] + trace->fraction*(end[0]-start[0]);
+							trace->endpos[1] = start[1] + trace->fraction*(end[1]-start[1]);
+							trace->endpos[2] = start[2] + trace->fraction*(end[2]-start[2]);
 							trace->plane.normal[0] = 0;
 							trace->plane.normal[1] = 0;
 							trace->plane.normal[2] = -1;
-							trace->plane.dist = -(dm->sector[sec1].ceilingheight-hull->clip_maxs[2]);
+							trace->plane.dist = -(sec1->ceilingheight-maxs[2]);
 						}
 						continue;
 					}
@@ -586,10 +591,10 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 					if(sec2->ceilingheight == sec2->floorheight)
 						sec2->ceilingheight += 64;
 
-					if (pointonplane[2] > sec2->floorheight-hull->clip_mins[2] &&
-						pointonplane[2] < sec2->ceilingheight-hull->clip_maxs[2])
+					if (pointonplane[2] > sec2->floorheight-mins[2] &&
+						pointonplane[2] < sec2->ceilingheight-maxs[2])
 					{
-						Con_Printf("Two sided passed\n");
+//						Con_Printf("Two sided passed\n");
 						continue;
 					}
 
@@ -639,14 +644,14 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 
 //	VectorMA(start, p2f*trace->fraction, delta, p2);
 
-	if (p2[2] != start[2])
+	if (end[2] != start[2])
 	{
-		if (sec1 == Doom_SectorNearPoint(p2))	//special test.
+		if (sec1 == Doom_SectorNearPoint(dm, trace->endpos))	//special test.
 		{
-			if (p2[2] <= dm->sector[sec1].floorheight-hull->clip_mins[2])	//whoops, started outside... ?
+			if (end[2] <= sec1->floorheight-mins[2])	//whoops, started outside... ?
 			{
-				p1f = fabs(dm->sector[sec1].floorheight-hull->clip_mins[2] - start[2]);
-				p2f = fabs(p2[2] - start[2]);
+				p1f = fabs(sec1->floorheight-mins[2] - start[2]);
+				p2f = fabs(end[2] - start[2]);
 				if (!p2f)
 					c1 = 1;
 				else
@@ -655,22 +660,22 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 				{
 					trace->fraction = c1;
 					trace->allsolid = trace->startsolid = false;
-					trace->endpos[0] = start[0] + trace->fraction*(p2[0]-start[0]);
-					trace->endpos[1] = start[1] + trace->fraction*(p2[1]-start[1]);
-					trace->endpos[2] = start[2] + trace->fraction*(p2[2]-start[2]);
+					trace->endpos[0] = start[0] + trace->fraction*(end[0]-start[0]);
+					trace->endpos[1] = start[1] + trace->fraction*(end[1]-start[1]);
+					trace->endpos[2] = start[2] + trace->fraction*(end[2]-start[2]);
 					trace->plane.normal[0] = 0;
 					trace->plane.normal[1] = 0;
 					trace->plane.normal[2] = 1;
-					trace->plane.dist = dm->sector[sec1].floorheight-hull->clip_mins[2];
+					trace->plane.dist = sec1->floorheight-mins[2];
 				}
 
 //				if (IS_NAN(trace->endpos[2]))
 //					Con_Printf("Nanny\n");
 			}
-			if (p2[2] >= dm->sector[sec1].ceilingheight-hull->clip_maxs[2])	//whoops, started outside... ?
+			if (end[2] >= sec1->ceilingheight-maxs[2])	//whoops, started outside... ?
 			{
-				p1f = fabs(dm->sector[sec1].ceilingheight-hull->clip_maxs[2] - start[2]);
-				p2f = fabs(p2[2] - start[2]);
+				p1f = fabs(sec1->ceilingheight-maxs[2] - start[2]);
+				p2f = fabs(end[2] - start[2]);
 				if (!p2f)
 					c1 = 1;
 				else
@@ -679,13 +684,13 @@ qboolean Doom_Trace(model_t *model, int hulloverride, framestate_t *framestate, 
 				{
 					trace->fraction = c1;
 					trace->allsolid = trace->startsolid = false;
-					trace->endpos[0] = start[0] + trace->fraction*(p2[0]-start[0]);
-					trace->endpos[1] = start[1] + trace->fraction*(p2[1]-start[1]);
-					trace->endpos[2] = start[2] + trace->fraction*(p2[2]-start[2]);
+					trace->endpos[0] = start[0] + trace->fraction*(end[0]-start[0]);
+					trace->endpos[1] = start[1] + trace->fraction*(end[1]-start[1]);
+					trace->endpos[2] = start[2] + trace->fraction*(end[2]-start[2]);
 					trace->plane.normal[0] = 0;
 					trace->plane.normal[1] = 0;
 					trace->plane.normal[2] = -1;
-					trace->plane.dist = -(dm->sector[sec1].ceilingheight-hull->clip_maxs[2]);
+					trace->plane.dist = -(sec1->ceilingheight-maxs[2]);
 				}
 
 //				if (IS_NAN(trace->endpos[2]))
@@ -1438,8 +1443,6 @@ static void Triangulate_Sectors(doommap_t *dm, dsector_t *sectorl, qboolean glbs
 	int seg, nsec;
 	int i, sec=-1;
 
-	dm->sector = Z_Malloc(dm->numsectors * sizeof(*dm->sector));
-
 	if (glbspinuse)
 	{
 		for (i = 0; i < dm->numssectors; i++)
@@ -1832,7 +1835,7 @@ static void CleanWalls(doommap_t *dm, dsidedef_t *sidedefsl)
 
 void QuakifyThings(doommap_t *dm)
 {
-	int sector;
+	msector_t *sector;
 	int spawnflags;
 	char *name;
 	int i;
@@ -1850,6 +1853,7 @@ void QuakifyThings(doommap_t *dm)
 
 	for (i = 0; i < dm->numthings; i++)
 	{
+		float zbias = 24;
 		switch(dm->thing[i].type)
 		{
 		case THING_PLAYER:	//fixme: spit out a coop spawn too.
@@ -1889,6 +1893,7 @@ void QuakifyThings(doommap_t *dm)
 
 		default:
 			name = va2(thingname, sizeof(thingname), "thing_%i", dm->thing[i].type);
+			zbias = 0;
 			break;
 		}
 
@@ -1896,7 +1901,7 @@ void QuakifyThings(doommap_t *dm)
 		point[1] = dm->thing[i].ypos;
 		point[2] = 0;
 		sector = Doom_SectorNearPoint(dm, point);
-		zpos = dm->sector[sector].floorheight + 24;	//things have no z coord, so find the sector they're in
+		zpos = sector->floorheight + zbias;	//things have no z coord, so find the sector they're in
 
 		spawnflags = SPAWNFLAG_NOT_EASY | SPAWNFLAG_NOT_MEDIUM | SPAWNFLAG_NOT_HARD | SPAWNFLAG_NOT_DEATHMATCH;
 		if (dm->thing[i].flags & THING_EASY)
@@ -1991,16 +1996,29 @@ static void MoveWorld(doommap_t *dm)
 
 	if (min[0]>=-4096 && max[0]<=4096)
 		if (min[1]>=-4096 && max[1]<=4096)
-			return;	//doesn't need adjusting, live with it.
+			adj[0] = adj[1] = 0;	//doesn't need adjusting, live with it.
 
 	if (max[0]-min[0]>=8192 || max[1]-min[1]>=8192)
 	{
 		Con_Printf(CON_WARNING "Warning: Map is too large for the network protocol\n");
-		return;
+		adj[0] = adj[1] = 0;
+	}
+	else
+	{
+		adj[0] = (max[0]-4096)&~63;	//don't harm the tiling.
+		adj[1] = (max[1]-4096)&~63;
 	}
 
-	adj[0] = (max[0]-4096)&~63;	//don't harm the tiling.
-	adj[1] = (max[1]-4096)&~63;
+	dm->model->mins[0] = min[0] - adj[0];
+	dm->model->mins[1] = min[1] - adj[1];
+	dm->model->mins[2] = -32768;
+
+	dm->model->maxs[0] = max[0] - adj[0];
+	dm->model->maxs[1] = max[1] - adj[1];
+	dm->model->maxs[2] = 32767;
+
+	if (!adj[0] && !adj[1])
+		return;
 
 	Con_Printf("Adjusting map (%i %i)\n", -adj[0], -adj[1]);
 
@@ -2102,13 +2120,37 @@ static void Doom_LoadVerticies(doommap_t *dm, char *name)
 
 static void Doom_LoadSSectors(doommap_t *dm, char *name)
 {
+	dssector_t *in;
 	size_t fsize;
+	unsigned int i;
 	char tmp[MAX_QPATH];
-	dm->ssector	= (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.gl_ssect",	name), &fsize);
-	if (!dm->ssector)
-		dm->ssector	= (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.ssectors",	name), &fsize);
+	in	= (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.gl_ssect",	name), &fsize);
+	if (!in)
+		in	= (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.ssectors",	name), &fsize);
 	//FIXME: "gNd3" means that it's glbsp version 3.
-	dm->numssectors	= fsize/sizeof(*dm->ssector);
+	dm->numssectors	= fsize/sizeof(*in);
+
+	dm->ssector = Z_Malloc(dm->numssectors * sizeof(*dm->ssector));
+	for (i = 0; i < dm->numssectors; i++)
+	{
+		dm->ssector[i].segcount = in[i].segcount;
+		dm->ssector[i].first = in[i].first;
+	}
+	Z_Free(in);
+}
+static void Doom_CalcSubsectorSectors(doommap_t *dm)
+{	//kinda shitty
+	unsigned int num, seg;
+	for (num = 0; num < dm->numssectors; num++)
+	{
+		dm->ssector[num].sector = &dm->sector[dm->sidedef[dm->linedef[dm->seg[dm->ssector[num].first].linedef].sidedef[dm->seg[dm->ssector[num].first].direction]].sector];
+		for (seg = dm->ssector[num].first+1; seg < dm->ssector[num].first + dm->ssector[num].segcount; seg++)
+			if (dm->seg[seg].linedef != 0xffff)
+			{
+				dm->ssector[num].sector = &dm->sector[dm->sidedef[dm->linedef[dm->seg[seg].linedef].sidedef[dm->seg[seg].direction]].sector];
+				break;
+			}
+	}
 }
 
 static void Doom_LoadSSegs(doommap_t *dm, char *name)
@@ -2210,6 +2252,7 @@ qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize)
 	}
 	sectorl		= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.sectors",	name), &fsize);
 	dm->numsectors		= fsize/sizeof(*sectorl);
+	dm->sector = Z_Malloc(dm->numsectors * sizeof(*dm->sector));
 
 #ifndef SERVERONLY
 	dm->numtextures=0;
@@ -2229,7 +2272,7 @@ qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize)
 	sidedefsl	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.sidedefs",	name), &fsize);
 	dm->numsidedefs	= fsize/sizeof(*sidedefsl);
 	dm->blockmap	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.blockmap",	name), &fsize);
-//	blockmaps	= fsize;
+
 #ifndef SERVERONLY
 	Doom_LoadTextureInfos();
 #endif
@@ -2262,8 +2305,11 @@ qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize)
 	mod->fromgame = fg_doom;
 	mod->type = mod_brush;
 	mod->nodes = (void*)0x1;
+	mod->numclusters = dm->numsectors;
 
 	CleanWalls(dm, sidedefsl);
+
+	Doom_CalcSubsectorSectors(dm);
 
 	Triangulate_Sectors(dm, sectorl, !!gl_nodes);
 
@@ -2273,11 +2319,11 @@ qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize)
 	return true;
 }
 
-void Doom_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+static void Doom_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 	doommap_t *dm = model->meshinfo;
 	msector_t *sec;
-	sec = dm->sector + Doom_SectorNearPoint(dm, point);
+	sec = Doom_SectorNearPoint(dm, point);
 
 	res_dir[0] = 0;
 	res_dir[1] = 1;
@@ -2291,31 +2337,41 @@ void Doom_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec
 }
 
 //return pvs bits for point
-unsigned int Doom_FatPVS(struct model_s *model, vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge)
+static unsigned int Doom_FatPVS(struct model_s *model, vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge)
 {
 	//FIXME: use REJECT lump.
 	return 0;
 }
 
 //check if an ent is within the given pvs
-qboolean Doom_EdictInFatPVS(struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer)
+static qboolean Doom_EdictInFatPVS(struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer)
 {	//FIXME: use REJECT lump.
 	return true;
 }
 
+static int Doom_ClusterForPoint(struct model_s *model, vec3_t point)
+{
+	doommap_t *dm = model->meshinfo;
+	return Doom_SectorNearPoint(dm, point) - dm->sector;
+}
+static qbyte *Doom_ClusterPVS(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer, pvsmerge_t merge)
+{	//FIXME: use REJECT lump.
+	return NULL;
+}
+
 //generate useful info for correct functioning of Doom_EdictInFatPVS.
-void Doom_FindTouchedLeafs(struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs)
+static void Doom_FindTouchedLeafs(struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs)
 {
 	//work out the sectors this ent is in for easy pvs.
 }
 
 //requires lightmaps - not supported.
-void Doom_StainNode(struct mnode_s *node, float *parms)
+static void Doom_StainNode(struct mnode_s *node, float *parms)
 {
 }
 
 //requires lightmaps - not supported.
-void Doom_MarkLights(struct dlight_s *light, int bit, struct mnode_s *node)
+static void Doom_MarkLights(struct dlight_s *light, int bit, struct mnode_s *node)
 {
 }
 
@@ -2327,6 +2383,8 @@ void Doom_SetModelFunc(model_t *mod)
 	mod->funcs.FatPVS				= Doom_FatPVS;
 	mod->funcs.EdictInFatPVS		= Doom_EdictInFatPVS;
 	mod->funcs.FindTouchedLeafs		= Doom_FindTouchedLeafs;
+	mod->funcs.ClusterForPoint		= Doom_ClusterForPoint;
+	mod->funcs.ClusterPVS			= Doom_ClusterPVS;
 
 	mod->funcs.LightPointValues		= Doom_LightPointValues;
 	mod->funcs.StainNode			= Doom_StainNode;
@@ -2334,8 +2392,8 @@ void Doom_SetModelFunc(model_t *mod)
 
 //	mod->funcs.LeafPVS)			(struct model_s *model, int num, qbyte *buffer, unsigned int buffersize);
 
-	mod->funcs.NativeTrace = Doom_Trace;
-	mod->funcs.PointContents = Doom_PointContents;
+	mod->funcs.NativeTrace			= Doom_Trace;
+	mod->funcs.PointContents		= Doom_PointContents;
 
 	//Doom_SetCollisionFuncs(mod);
 }

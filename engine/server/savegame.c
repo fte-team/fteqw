@@ -1343,31 +1343,42 @@ void SV_AutoSave(void)
 		return;
 	if (sv.state != ss_active)
 		return;
-
-	//don't bother to autosave multiplayer games.
-	//this may be problematic with splitscreen, but coop rules tend to apply there anyway.
-	if (sv.allocated_client_slots != 1)
+	switch(svs.gametype)
+	{
+	default:	//probably broken. don't ever try.
 		return;
 
-	for (i = 0; i < sv.allocated_client_slots; i++)
-	{
-		if (svs.clients[i].state == cs_spawned)
+#ifdef VM_LUA
+	case GT_LUA:
+#endif
+	case GT_Q1QVM:
+	case GT_PROGS:
+		//don't bother to autosave multiplayer games.
+		//this may be problematic with splitscreen, but coop rules tend to apply there anyway.
+		if (sv.allocated_client_slots != 1)
+			return;
+
+		for (i = 0; i < sv.allocated_client_slots; i++)
 		{
-			if (svs.clients[i].edict->v->health <= 0)
-				return;	//autosaves with a dead player are just cruel.
+			if (svs.clients[i].state == cs_spawned)
+			{
+				if (svs.clients[i].edict->v->health <= 0)
+					return;	//autosaves with a dead player are just cruel.
 
-			if ((int)svs.clients[i].edict->v->flags & (FL_GODMODE | FL_NOTARGET))
-				return;	//autosaves to highlight cheaters is also just spiteful.
+				if ((int)svs.clients[i].edict->v->flags & (FL_GODMODE | FL_NOTARGET))
+					return;	//autosaves to highlight cheaters is also just spiteful.
 
-			if (svs.clients[i].edict->v->movetype != MOVETYPE_WALK)
-				return;	//noclip|fly are cheaters, toss|bounce are bad at playing. etc.
+				if (svs.clients[i].edict->v->movetype != MOVETYPE_WALK)
+					return;	//noclip|fly are cheaters, toss|bounce are bad at playing. etc.
 
-			if (!((int)svs.clients[i].edict->v->flags & FL_ONGROUND))
-				return;	//autosaves while people are jumping are awkward.
+				if (!((int)svs.clients[i].edict->v->flags & FL_ONGROUND))
+					return;	//autosaves while people are jumping are awkward.
 
-			if (svs.clients[i].edict->v->velocity[0] || svs.clients[i].edict->v->velocity[1] || svs.clients[i].edict->v->velocity[2])
-				return;	//people running around are likely to result in poor saves
+				if (svs.clients[i].edict->v->velocity[0] || svs.clients[i].edict->v->velocity[1] || svs.clients[i].edict->v->velocity[2])
+					return;	//people running around are likely to result in poor saves
+			}
 		}
+		break;
 	}
 
 	autosavename = M_ChooseAutoSave();

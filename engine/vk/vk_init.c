@@ -8,9 +8,13 @@
 extern qboolean vid_isfullscreen;
 extern cvar_t vk_submissionthread;
 extern cvar_t vk_debug;
-extern cvar_t vk_loadglsl;
 extern cvar_t vk_dualqueue;
-extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method;
+extern cvar_t vk_busywait;
+extern cvar_t vk_nv_glsl_shader;
+extern cvar_t vk_nv_dedicated_allocation;
+extern cvar_t vk_khr_dedicated_allocation;
+extern cvar_t vk_khr_push_descriptor;
+extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method, vid_multisample;
 void R2D_Console_Resize(void);
 
 const char *vklayerlist[] =
@@ -155,29 +159,27 @@ static void VK_DestroySwapChain(void)
 		Sys_WaitOnThread(vk.submitthread);
 		vk.submitthread = NULL;
 	}
-	if (vk.dopresent)
-		vk.dopresent(NULL);
-	while (vk.aquirenext < vk.aquirelast)
-	{
-		VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
-		vk.aquirenext++;
-	}
 	while (vk.work)
 	{
 		Sys_LockConditional(vk.submitcondition);
 		VK_Submit_DoWork();
 		Sys_UnlockConditional(vk.submitcondition);
 	}
+	if (vk.dopresent)
+		vk.dopresent(NULL);
 	if (vk.device)
 		vkDeviceWaitIdle(vk.device);
+	/*while (vk.aquirenext < vk.aquirelast)
+	{
+		VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
+		vk.aquirenext++;
+	}*/
 	VK_FencedCheck();
 	while(vk.frameendjobs)
 	{	//we've fully synced the gpu now, we can clean up any resources that were pending but not assigned yet.
-		struct vk_fencework *job = vk.frameendjobs;
+		struct vk_frameend *job = vk.frameendjobs;
 		vk.frameendjobs = job->next;
-		job->Passed(job);
-		if (job->fence || job->cbuf)
-			Con_Printf("job with junk\n");
+		job->FrameEnded(job+1);
 		Z_Free(job);
 	}
 
@@ -198,6 +200,7 @@ static void VK_DestroySwapChain(void)
 			vkDestroyImageView(vk.device, vk.backbufs[i].colour.view, vkallocationcb);
 		vk.backbufs[i].colour.view = VK_NULL_HANDLE;
 		VK_DestroyVkTexture(&vk.backbufs[i].depth);
+		VK_DestroyVkTexture(&vk.backbufs[i].mscolour);
 	}
 
 	if (vk.dopresent)
@@ -207,6 +210,8 @@ static void VK_DestroySwapChain(void)
 		VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
 		vk.aquirenext++;
 	}
+	if (vk.device)
+		vkDeviceWaitIdle(vk.device);
 	for (i = 0; i < ACQUIRELIMIT; i++)
 	{
 		if (vk.acquirefences[i])
@@ -221,8 +226,7 @@ static void VK_DestroySwapChain(void)
 
 		VKBE_ShutdownFramePools(frame);
 
-		vkResetCommandBuffer(frame->cbuf, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
-		vkFreeCommandBuffers(vk.device, vk.cmdpool, 1, &frame->cbuf);
+		vkFreeCommandBuffers(vk.device, vk.cmdpool, frame->maxcbufs, frame->cbufs);
 		vkDestroyFence(vk.device, frame->finishedfence, vkallocationcb);
 		Z_Free(frame);
 	}
@@ -252,13 +256,24 @@ static qboolean VK_CreateSwapChain(void)
 	VkSwapchainKHR newvkswapchain;
 	VkImage *images;
 	VkDeviceMemory *memories;
-	VkImageView attachments[2];
+	VkImageView attachments[3];
 	VkFramebufferCreateInfo fb_info = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+	VkSampleCountFlagBits oldms;
 
 	vk.dopresent(NULL);	//make sure they're all pushed through.
 
-	if (vk.headless)
-	{
+
+	vid_vsync.modified = false;
+	vid_triplebuffer.modified = false;
+	vid_srgb.modified = false;
+	vk_submissionthread.modified = false;
+	vid_multisample.modified = false;
+
+	vk.triplebuffer = vid_triplebuffer.ival;
+	vk.vsync = vid_vsync.ival;
+
+	if (!vk.khr_swapchain)
+	{	//headless
 		if (vk.swapchain || vk.backbuf_count)
 			VK_DestroySwapChain();
 
@@ -288,7 +303,9 @@ static qboolean VK_CreateSwapChain(void)
 		{
 			VkMemoryRequirements mem_reqs;
 			VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+			VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
 			VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+			VkDedicatedAllocationImageCreateInfoNV nv_daici = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV};
 
 			ici.flags = 0;
 			ici.imageType = VK_IMAGE_TYPE_2D;
@@ -306,6 +323,13 @@ static qboolean VK_CreateSwapChain(void)
 			ici.pQueueFamilyIndices = NULL;
 			ici.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+			if (vk.nv_dedicated_allocation)
+			{	//render targets should always have dedicated allocations, supposedly. and we're doing it anyway.
+				nv_daici.dedicatedAllocation = true;
+				nv_daici.pNext = ici.pNext;
+				ici.pNext = &nv_daici;
+			}
+
 			VkAssert(vkCreateImage(vk.device, &ici, vkallocationcb, &images[i]));
 
 			vkGetImageMemoryRequirements(vk.device, images[i], &mem_reqs);
@@ -319,12 +343,19 @@ static qboolean VK_CreateSwapChain(void)
 			if (memAllocInfo.memoryTypeIndex == ~0)
 				memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
 
+			if (vk.nv_dedicated_allocation)
+			{	//annoying, but hey.
+				nv_damai.pNext = memAllocInfo.pNext;
+				nv_damai.image = images[i];
+				memAllocInfo.pNext = &nv_damai;
+			}
+
 			VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &memories[i]));
 			VkAssert(vkBindImageMemory(vk.device, images[i], memories[i], 0));
 		}
 	}
 	else
-	{
+	{	//using vulkan's presentation engine.
 		VkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.gpu, vk.surface, &fmtcount, NULL));
 		surffmts = malloc(sizeof(VkSurfaceFormatKHR)*fmtcount);
 		VkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.gpu, vk.surface, &fmtcount, surffmts));
@@ -462,6 +493,26 @@ static qboolean VK_CreateSwapChain(void)
 		}
 	}
 
+	oldms = vk.multisamplebits;
+
+	vk.multisamplebits = VK_SAMPLE_COUNT_1_BIT;
+#ifdef _DEBUG
+	if (vid_multisample.ival>1)
+	{
+		VkSampleCountFlags fl = vk.limits.framebufferColorSampleCounts & vk.limits.framebufferDepthSampleCounts;
+		Con_Printf("Warning: vulkan multisample does not work with rtlights or render targets etc etc\n");
+		for (i = 1; i < 30; i++)
+			if ((fl & (1<<i)) && (1<<i) <= vid_multisample.ival)
+				vk.multisamplebits = (1<<i);
+	}
+#endif
+
+	if (oldms != vk.multisamplebits)
+	{
+		VK_DestroyRenderPass();
+		reloadshaders = true;
+	}
+
 	VK_CreateRenderPass();
 	if (reloadshaders)
 	{
@@ -469,11 +520,15 @@ static qboolean VK_CreateSwapChain(void)
 		Shader_DoReload();
 	}
 
-	attachments[1] = VK_NULL_HANDLE;
-	attachments[0] = VK_NULL_HANDLE;
+	attachments[0] = VK_NULL_HANDLE;	//colour
+	attachments[1] = VK_NULL_HANDLE;	//depth
+	attachments[2] = VK_NULL_HANDLE;	//mscolour
 
 	fb_info.renderPass = vk.renderpass[0];
-	fb_info.attachmentCount = countof(attachments);
+	if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)
+		fb_info.attachmentCount = 3;
+	else
+		fb_info.attachmentCount = 2;
 	fb_info.pAttachments = attachments;
 	fb_info.width = swapinfo.imageExtent.width;
 	fb_info.height = swapinfo.imageExtent.height;
@@ -507,53 +562,143 @@ static qboolean VK_CreateSwapChain(void)
 
 		vk.backbufs[i].firstuse = true;
 
+		//create the depth buffer texture. possibly multisampled.
 		{
-			VkImageCreateInfo depthinfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-			depthinfo.flags = 0;
-			depthinfo.imageType = VK_IMAGE_TYPE_2D;
-			depthinfo.format = vk.depthformat;
-			depthinfo.extent.width = swapinfo.imageExtent.width;
-			depthinfo.extent.height = swapinfo.imageExtent.height;
-			depthinfo.extent.depth = 1;
-			depthinfo.mipLevels = 1;
-			depthinfo.arrayLayers = 1;
-			depthinfo.samples = VK_SAMPLE_COUNT_1_BIT;
-			depthinfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-			depthinfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-			depthinfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-			depthinfo.queueFamilyIndexCount = 0;
-			depthinfo.pQueueFamilyIndices = NULL;
-			depthinfo.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-			VkAssert(vkCreateImage(vk.device, &depthinfo, vkallocationcb, &vk.backbufs[i].depth.image));
+			//depth image
+			{
+				VkImageCreateInfo depthinfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+				VkDedicatedAllocationImageCreateInfoNV nv_daici = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV};
+				depthinfo.flags = 0;
+				depthinfo.imageType = VK_IMAGE_TYPE_2D;
+				depthinfo.format = vk.depthformat;
+				depthinfo.extent.width = swapinfo.imageExtent.width;
+				depthinfo.extent.height = swapinfo.imageExtent.height;
+				depthinfo.extent.depth = 1;
+				depthinfo.mipLevels = 1;
+				depthinfo.arrayLayers = 1;
+				depthinfo.samples = vk.multisamplebits;
+				depthinfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+				depthinfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+				depthinfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+				depthinfo.queueFamilyIndexCount = 0;
+				depthinfo.pQueueFamilyIndices = NULL;
+				depthinfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				if (vk.nv_dedicated_allocation)
+				{
+					nv_daici.dedicatedAllocation = true;
+					nv_daici.pNext = depthinfo.pNext;
+					depthinfo.pNext = &nv_daici;
+				}
+				VkAssert(vkCreateImage(vk.device, &depthinfo, vkallocationcb, &vk.backbufs[i].depth.image));
+			}
+
+			//depth memory
+			{
+				VkMemoryRequirements mem_reqs;
+				VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+				VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
+				vkGetImageMemoryRequirements(vk.device, vk.backbufs[i].depth.image, &mem_reqs);
+				memAllocInfo.allocationSize = mem_reqs.size;
+				memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
+				if (vk.nv_dedicated_allocation)
+				{
+					nv_damai.image = vk.backbufs[i].depth.image;
+					nv_damai.pNext = memAllocInfo.pNext;
+					memAllocInfo.pNext = &nv_damai;
+				}
+				VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &vk.backbufs[i].depth.memory));
+				VkAssert(vkBindImageMemory(vk.device, vk.backbufs[i].depth.image, vk.backbufs[i].depth.memory, 0));
+			}
+
+			//depth view
+			{
+				VkImageViewCreateInfo depthviewinfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+				depthviewinfo.format = vk.depthformat;
+				depthviewinfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+				depthviewinfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+				depthviewinfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+				depthviewinfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+				depthviewinfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;//|VK_IMAGE_ASPECT_STENCIL_BIT;
+				depthviewinfo.subresourceRange.baseMipLevel = 0;
+				depthviewinfo.subresourceRange.levelCount = 1;
+				depthviewinfo.subresourceRange.baseArrayLayer = 0;
+				depthviewinfo.subresourceRange.layerCount = 1;
+				depthviewinfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				depthviewinfo.flags = 0;
+				depthviewinfo.image = vk.backbufs[i].depth.image;
+				VkAssert(vkCreateImageView(vk.device, &depthviewinfo, vkallocationcb, &vk.backbufs[i].depth.view));
+				attachments[1] = vk.backbufs[i].depth.view;
+			}
 		}
 
+		//if we're using multisampling, create the intermediate multisample texture that we're actually going to render to.
+		if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)
 		{
-			VkMemoryRequirements mem_reqs;
-			VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-			vkGetImageMemoryRequirements(vk.device, vk.backbufs[i].depth.image, &mem_reqs);
-			memAllocInfo.allocationSize = mem_reqs.size;
-			memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
-			VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &vk.backbufs[i].depth.memory));
-			VkAssert(vkBindImageMemory(vk.device, vk.backbufs[i].depth.image, vk.backbufs[i].depth.memory, 0));
-		}
+			//mscolour image
+			{
+				VkImageCreateInfo mscolourinfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+				VkDedicatedAllocationImageCreateInfoNV nv_daici = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV};
+				mscolourinfo.flags = 0;
+				mscolourinfo.imageType = VK_IMAGE_TYPE_2D;
+				mscolourinfo.format = vk.backbufformat;
+				mscolourinfo.extent.width = swapinfo.imageExtent.width;
+				mscolourinfo.extent.height = swapinfo.imageExtent.height;
+				mscolourinfo.extent.depth = 1;
+				mscolourinfo.mipLevels = 1;
+				mscolourinfo.arrayLayers = 1;
+				mscolourinfo.samples = vk.multisamplebits;
+				mscolourinfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+				mscolourinfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+				mscolourinfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+				mscolourinfo.queueFamilyIndexCount = 0;
+				mscolourinfo.pQueueFamilyIndices = NULL;
+				mscolourinfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+				if (vk.nv_dedicated_allocation)
+				{
+					nv_daici.dedicatedAllocation = true;
+					nv_daici.pNext = mscolourinfo.pNext;
+					mscolourinfo.pNext = &nv_daici;
+				}
+				VkAssert(vkCreateImage(vk.device, &mscolourinfo, vkallocationcb, &vk.backbufs[i].mscolour.image));
+			}
 
-		{
-			VkImageViewCreateInfo depthviewinfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-			depthviewinfo.format = vk.depthformat;
-			depthviewinfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-			depthviewinfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-			depthviewinfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-			depthviewinfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-			depthviewinfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;//|VK_IMAGE_ASPECT_STENCIL_BIT;
-			depthviewinfo.subresourceRange.baseMipLevel = 0;
-			depthviewinfo.subresourceRange.levelCount = 1;
-			depthviewinfo.subresourceRange.baseArrayLayer = 0;
-			depthviewinfo.subresourceRange.layerCount = 1;
-			depthviewinfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			depthviewinfo.flags = 0;
-			depthviewinfo.image = vk.backbufs[i].depth.image;
-			VkAssert(vkCreateImageView(vk.device, &depthviewinfo, vkallocationcb, &vk.backbufs[i].depth.view));
-			attachments[1] = vk.backbufs[i].depth.view;
+			//mscolour memory
+			{
+				VkMemoryRequirements mem_reqs;
+				VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+				VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
+				vkGetImageMemoryRequirements(vk.device, vk.backbufs[i].mscolour.image, &mem_reqs);
+				memAllocInfo.allocationSize = mem_reqs.size;
+				memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
+				if (vk.nv_dedicated_allocation)
+				{
+					nv_damai.image = vk.backbufs[i].mscolour.image;
+					nv_damai.pNext = memAllocInfo.pNext;
+					memAllocInfo.pNext = &nv_damai;
+				}
+				VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &vk.backbufs[i].mscolour.memory));
+				VkAssert(vkBindImageMemory(vk.device, vk.backbufs[i].mscolour.image, vk.backbufs[i].mscolour.memory, 0));
+			}
+
+			//mscolour view
+			{
+				VkImageViewCreateInfo mscolourviewinfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+				mscolourviewinfo.format = vk.backbufformat;
+				mscolourviewinfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+				mscolourviewinfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+				mscolourviewinfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+				mscolourviewinfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+				mscolourviewinfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				mscolourviewinfo.subresourceRange.baseMipLevel = 0;
+				mscolourviewinfo.subresourceRange.levelCount = 1;
+				mscolourviewinfo.subresourceRange.baseArrayLayer = 0;
+				mscolourviewinfo.subresourceRange.layerCount = 1;
+				mscolourviewinfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+				mscolourviewinfo.flags = 0;
+				mscolourviewinfo.image = vk.backbufs[i].mscolour.image;
+				VkAssert(vkCreateImageView(vk.device, &mscolourviewinfo, vkallocationcb, &vk.backbufs[i].mscolour.view));
+				attachments[2] = vk.backbufs[i].mscolour.view;
+			}
 		}
 
 
@@ -641,6 +786,11 @@ void VK_CreateSampler(unsigned int flags, vk_image_t *img)
 	VkAssert(vkCreateSampler(vk.device, &lmsampinfo, NULL, &img->sampler));
 }
 
+static void VK_DestroySampler(struct vk_frameend *w)
+{
+	VkSampler s = *(VkSampler*)w;
+	vkDestroySampler(vk.device, s, vkallocationcb);
+}
 void VK_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
 {
 	uint32_t i;
@@ -650,24 +800,38 @@ void VK_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], 
 		vk.filterpic[i] = filterpic[i];
 	for (i = 0; i < countof(vk.mipcap); i++)
 		vk.mipcap[i] = mipcap[i];
-	vk.max_anistophy = anis;
+	vk.max_anistophy = bound(1.0, anis, vk.max_anistophy_limit);
 
-	vkDeviceWaitIdle(vk.device);
 	while(imagelist)
 	{
 		if (imagelist->vkimage)
+		{
+			if (imagelist->vkimage->sampler)
+			{	//the sampler might still be in use, so clean it up at the end of the frame.
+				//all this to avoid syncing all the queues...
+				VK_AtFrameEnd(VK_DestroySampler, &imagelist->vkimage->sampler, sizeof(imagelist->vkimage->sampler));
+				imagelist->vkimage->sampler = VK_NULL_HANDLE;
+			}
 			VK_CreateSampler(imagelist->flags, imagelist->vkimage);
+		}
 		imagelist = imagelist->next;
 	}
 }
 
-vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, unsigned int encoding, unsigned int type)
+vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, unsigned int encoding, unsigned int type, qboolean rendertarget)
 {
 	vk_image_t ret;
+#ifdef USE_STAGING_BUFFERS
 	qboolean staging = layers == 0;
+#else
+	const qboolean staging = false;
+#endif
 	VkMemoryRequirements mem_reqs;
 	VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+	VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
+
 	VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+	VkDedicatedAllocationImageCreateInfoNV nv_daici = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV};
 	VkFormat format;
 
 	ret.width = width;
@@ -742,7 +906,12 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	ici.queueFamilyIndexCount = 0;
 	ici.pQueueFamilyIndices = NULL;
 	ici.initialLayout = ret.layout;
-
+	if (vk.nv_dedicated_allocation/* && (size > foo || rendertarget)*/)	//FIXME: should only really be used for rendertargets or large images, other stuff should be merged. however, as we don't support any memory suballocations, we're going to just flag everything for now.
+	{
+		nv_daici.dedicatedAllocation = true;
+		nv_daici.pNext = ici.pNext;
+		ici.pNext = &nv_daici;
+	}
 	VkAssert(vkCreateImage(vk.device, &ici, vkallocationcb, &ret.image));
 
 	vkGetImageMemoryRequirements(vk.device, ret.image, &mem_reqs);
@@ -760,7 +929,12 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 		if (memAllocInfo.memoryTypeIndex == ~0)
 			memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
 	}
-
+	if (nv_daici.dedicatedAllocation)
+	{
+		nv_damai.image = ret.image;
+		nv_damai.pNext = memAllocInfo.pNext;
+		memAllocInfo.pNext = &nv_damai;
+	}
 	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &ret.memory));
 	VkAssert(vkBindImageMemory(vk.device, ret.image, ret.memory, 0));
 
@@ -903,15 +1077,18 @@ void VK_FencedSync(void *work)
 
 //called to schedule the release of a resource that may be referenced by an active command buffer.
 //the command buffer in question may even have not yet been submitted yet.
-void *VK_AtFrameEnd(void (*passed)(void *work), size_t worksize)
+void *VK_AtFrameEnd(void (*frameended)(void *work), void *workdata, size_t worksize)
 {
-	struct vk_fencework *w = Z_Malloc(worksize?worksize:sizeof(*w));
+	struct vk_frameend *w = Z_Malloc(sizeof(*w) + worksize);
 
-	w->Passed = passed;
+	w->FrameEnded = frameended;
 	w->next = vk.frameendjobs;
 	vk.frameendjobs = w;
 
-	return w;
+	if (workdata)
+		memcpy(w+1, workdata, worksize);
+
+	return w+1;
 }
 
 #define USE_STAGING_BUFFERS
@@ -1035,9 +1212,10 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 			tex->vkimage->encoding != mips->encoding ||
 			tex->vkimage->type != mips->type)
 		{
-			vkDeviceWaitIdle(vk.device);	//erk, we can't cope with a commandbuffer poking the texture while things happen
-			VK_FencedCheck();
-			VK_DestroyVkTexture(tex->vkimage);
+			VK_AtFrameEnd(VK_DestroyVkTexture, tex->vkimage, sizeof(*tex->vkimage));
+//			vkDeviceWaitIdle(vk.device);	//erk, we can't cope with a commandbuffer poking the texture while things happen
+//			VK_FencedCheck();
+//			VK_DestroyVkTexture(tex->vkimage);
 			Z_Free(tex->vkimage);
 			tex->vkimage = NULL;
 		}
@@ -1072,7 +1250,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 	}
 	else
 	{
-		target = VK_CreateTexture2DArray(mips->mip[0].width, mips->mip[0].height, layers, mips->mipcount/layers, mips->encoding, mips->type);
+		target = VK_CreateTexture2DArray(mips->mip[0].width, mips->mip[0].height, layers, mips->mipcount/layers, mips->encoding, mips->type, !!(tex->flags&IF_RENDERTARGET));
 
 		{
 			//images have weird layout representations.
@@ -1110,6 +1288,9 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 	bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	bci.queueFamilyIndexCount = 0;
 	bci.pQueueFamilyIndices = NULL;
+
+	//FIXME: nvidia's vkCreateBuffer ends up calling NtYieldExecution.
+	//which is basically a waste of time, and its hurting framerates.
 
 	//create+map the staging buffer
 	VkAssert(vkCreateBuffer(vk.device, &bci, vkallocationcb, &fence->stagingbuffer));
@@ -1370,8 +1551,8 @@ void VK_Set2D(void)
 		scissor[0].offset.y = r_refdef.pxrect.y;
 		scissor[0].extent.width = r_refdef.pxrect.width;
 		scissor[0].extent.height = r_refdef.pxrect.height;
-		vkCmdSetViewport(vk.frame->cbuf, 0, countof(vp), vp);
-		vkCmdSetScissor(vk.frame->cbuf, 0, countof(scissor), scissor);
+		vkCmdSetViewport(vk.rendertarg->cbuf, 0, countof(vp), vp);
+		vkCmdSetScissor(vk.rendertarg->cbuf, 0, countof(scissor), scissor);
 	}
 
 	VKBE_Set2D(true);
@@ -1389,7 +1570,7 @@ static void VK_Shutdown_PostProc(void)
 {
 	unsigned int i;
 	for (i = 0; i < countof(postproc); i++)
-		VKBE_RT_Gen(&postproc[i], 0, 0, true);
+		VKBE_RT_Gen(&postproc[i], 0, 0, true, RT_IMAGEFLAGS);
 
 	vk.scenepp_waterwarp = NULL;
 	vk.scenepp_antialias = NULL;
@@ -1852,6 +2033,9 @@ void	VK_R_RenderView				(void)
 			r_refdef.flags |= RDF_BLOOM;
 	}
 
+	if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)	//these are unsupported right now.
+		r_refdef.flags &= ~(RDF_CUSTOMPOSTPROC|RDF_ANTIALIAS|RDF_BLOOM);
+
 	//
 	// figure out the viewport
 	//
@@ -1881,6 +2065,8 @@ void	VK_R_RenderView				(void)
 	if (renderscale != 1.0)
 	{
 		r_refdef.flags |= RDF_RENDERSCALE;
+		if (renderscale < 0)
+			renderscale *= -1;
 		r_refdef.pxrect.width *= renderscale;
 		r_refdef.pxrect.height *= renderscale;
 		r_refdef.pxrect.maxheight = r_refdef.pxrect.height;
@@ -1898,7 +2084,7 @@ void	VK_R_RenderView				(void)
 		r_refdef.pxrect.x = 0;
 		r_refdef.pxrect.y = 0;
 		rt = &postproc[postproc_buf++%countof(postproc)];
-		VKBE_RT_Gen(rt, r_refdef.pxrect.width, r_refdef.pxrect.height, false);
+		VKBE_RT_Gen(rt, r_refdef.pxrect.width, r_refdef.pxrect.height, false, (r_renderscale.value < 0)?RT_IMAGEFLAGS-IF_LINEAR+IF_NEAREST:RT_IMAGEFLAGS);
 	}
 	else
 		rt = rtscreen;
@@ -1908,10 +2094,11 @@ void	VK_R_RenderView				(void)
 	}
 	else
 	{
-		VKBE_RT_Begin(rt);
-
 		VK_SetupViewPortProjection(false);
 
+		if (rt != rtscreen)
+			VKBE_RT_Begin(rt);
+		else
 		{
 			VkViewport vp[1];
 			VkRect2D scissor[1];
@@ -1925,8 +2112,8 @@ void	VK_R_RenderView				(void)
 			scissor[0].offset.y = r_refdef.pxrect.y;
 			scissor[0].extent.width = r_refdef.pxrect.width;
 			scissor[0].extent.height = r_refdef.pxrect.height;
-			vkCmdSetViewport(vk.frame->cbuf, 0, countof(vp), vp);
-			vkCmdSetScissor(vk.frame->cbuf, 0, countof(scissor), scissor);
+			vkCmdSetViewport(vk.rendertarg->cbuf, 0, countof(vp), vp);
+			vkCmdSetScissor(vk.rendertarg->cbuf, 0, countof(scissor), scissor);
 		}
 
 		if (!vk.rendertarg->depthcleared)
@@ -1943,7 +2130,7 @@ void	VK_R_RenderView				(void)
 			rect.rect.extent.height = r_refdef.pxrect.height;
 			rect.layerCount = 1;
 			rect.baseArrayLayer = 0;
-			vkCmdClearAttachments(vk.frame->cbuf, 1, &clr, 1, &rect);
+			vkCmdClearAttachments(vk.rendertarg->cbuf, 1, &clr, 1, &rect);
 			vk.rendertarg->depthcleared = true;
 		}
 
@@ -1962,6 +2149,9 @@ void	VK_R_RenderView				(void)
 		vk.rendertarg->depthcleared = false;
 
 		VK_Set2D ();
+
+		if (rt != rtscreen)
+			VKBE_RT_End(rt);
 	}
 
 	if (r_refdef.flags & RDF_ALLPOSTPROC)
@@ -1976,13 +2166,16 @@ void	VK_R_RenderView				(void)
 			if (r_refdef.flags & RDF_ALLPOSTPROC)
 			{
 				rt = &postproc[postproc_buf++];
-				VKBE_RT_Gen(rt, 320, 200, false);
+				VKBE_RT_Gen(rt, 320, 200, false, RT_IMAGEFLAGS);
 			}
 			else
 				rt = rtscreen;
-			VKBE_RT_Begin(rt);
+			if (rt != rtscreen)
+				VKBE_RT_Begin(rt);
 			R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 0, 1, 1, vk.scenepp_waterwarp);
 			R2D_Flush();
+			if (rt != rtscreen)
+				VKBE_RT_End(rt);
 		}
 		if (r_refdef.flags & RDF_CUSTOMPOSTPROC)
 		{
@@ -1991,13 +2184,16 @@ void	VK_R_RenderView				(void)
 			if (r_refdef.flags & RDF_ALLPOSTPROC)
 			{
 				rt = &postproc[postproc_buf++];
-				VKBE_RT_Gen(rt, 320, 200, false);
+				VKBE_RT_Gen(rt, 320, 200, false, RT_IMAGEFLAGS);
 			}
 			else
 				rt = rtscreen;
-			VKBE_RT_Begin(rt);
+			if (rt != rtscreen)
+				VKBE_RT_Begin(rt);
 			R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 1, 1, 0, custompostproc);
 			R2D_Flush();
+			if (rt != rtscreen)
+				VKBE_RT_End(rt);
 		}
 		if (r_refdef.flags & RDF_ANTIALIAS)
 		{
@@ -2007,18 +2203,20 @@ void	VK_R_RenderView				(void)
 			if (r_refdef.flags & RDF_ALLPOSTPROC)
 			{
 				rt = &postproc[postproc_buf++];
-				VKBE_RT_Gen(rt, 320, 200, false);
+				VKBE_RT_Gen(rt, 320, 200, false, RT_IMAGEFLAGS);
 			}
 			else
 				rt = rtscreen;
-			VKBE_RT_Begin(rt);
+			if (rt != rtscreen)
+				VKBE_RT_Begin(rt);
 			R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 1, 1, 0, vk.scenepp_antialias);
 			R2D_ImageColours(1, 1, 1, 1);
 			R2D_Flush();
+			if (rt != rtscreen)
+				VKBE_RT_End(rt);
 		}
 		if (r_refdef.flags & RDF_BLOOM)
 		{
-			VKBE_RT_Begin(rtscreen);
 			VK_R_BloomBlend(&rt->q_colour, r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
 			rt = rtscreen;
 		}
@@ -2036,19 +2234,15 @@ void	VK_R_RenderView				(void)
 				);
 		vk.sourcecolour = &rt->q_colour;
 		rt = rtscreen;
-		VKBE_RT_Begin(rt);
 		R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 0, 1, 1, vk.scenepp_rescale);
 		R2D_Flush();
 	}
-
 	vk.sourcecolour = r_nulltex;
 }
 
 
 typedef struct
 {
-	struct vk_fencework w;
-
 	uint32_t imageformat;
 	uint32_t imagestride;
 	uint32_t imagewidth;
@@ -2087,7 +2281,7 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 	if (!vk.frame->backbuf->colour.width || !vk.frame->backbuf->colour.height)
 		return; //erm, some kind of error?
 
-	capt = VK_AtFrameEnd(VKVID_CopiedRGBData, sizeof(*capt));
+	capt = VK_AtFrameEnd(VKVID_CopiedRGBData, NULL, sizeof(*capt));
 	capt->gotrgbdata = gotrgbdata;
 
 	capt->imageformat = TF_BGRA32;
@@ -2109,7 +2303,7 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &capt->memory));
 	VkAssert(vkBindBufferMemory(vk.device, capt->buffer, capt->memory, 0));
 
-	set_image_layout(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
+	set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
 
 	icpy.bufferOffset = 0;
 	icpy.bufferRowLength = 0;	//packed
@@ -2125,9 +2319,9 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 	icpy.imageExtent.height = capt->imageheight;
 	icpy.imageExtent.depth = 1;
 
-	vkCmdCopyImageToBuffer(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, capt->buffer, 1, &icpy);
+	vkCmdCopyImageToBuffer(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, capt->buffer, 1, &icpy);
 
-	set_image_layout(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 }
 
 char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
@@ -2365,6 +2559,24 @@ static void VK_PaintScreen(void)
 	RSpeedShow();
 }
 
+VkCommandBuffer VK_AllocFrameCBuf(void)
+{
+	struct vkframe *frame = vk.frame;
+	if (frame->numcbufs == frame->maxcbufs)
+	{
+		VkCommandBufferAllocateInfo cbai = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+
+		frame->maxcbufs++;
+		frame->cbufs = BZ_Realloc(frame->cbufs, sizeof(*frame->cbufs)*frame->maxcbufs);
+
+		cbai.commandPool = vk.cmdpool;
+		cbai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		cbai.commandBufferCount = frame->maxcbufs - frame->numcbufs;
+		VkAssert(vkAllocateCommandBuffers(vk.device, &cbai, frame->cbufs+frame->numcbufs));
+	}
+	return frame->cbufs[frame->numcbufs++];
+}
+
 qboolean VK_SCR_GrabBackBuffer(void)
 {
 	RSpeedLocals();
@@ -2394,7 +2606,12 @@ qboolean VK_SCR_GrabBackBuffer(void)
 	}
 
 	//wait for the queued acquire to actually finish
-	if (1)//vk.vsync)
+	if (vk_busywait.ival)
+	{	//busy wait, to try to get the highest fps possible
+		while (VK_TIMEOUT == vkGetFenceStatus(vk.device, vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]))
+				;
+	}
+	else
 	{
 		//friendly wait
 		VkResult err = vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX);
@@ -2404,11 +2621,6 @@ qboolean VK_SCR_GrabBackBuffer(void)
 				Sys_Error("Vulkan device lost");
 			return false;
 		}
-	}
-	else
-	{	//busy wait, to try to get the highest fps possible
-		while (VK_TIMEOUT == vkGetFenceStatus(vk.device, vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]))
-				;
 	}
 	vk.bufferidx = vk.acquirebufferidx[vk.aquirenext%ACQUIRELIMIT];
 	VkAssert(vkResetFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]));
@@ -2424,6 +2636,10 @@ qboolean VK_SCR_GrabBackBuffer(void)
 	VkAssert(vkResetFences(vk.device, 1, &vk.frame->finishedfence));
 
 	vk.frame->backbuf = &vk.backbufs[vk.bufferidx];
+	vk.rendertarg = vk.frame->backbuf;
+
+	vk.frame->numcbufs = 0;
+	vk.rendertarg->cbuf = VK_AllocFrameCBuf();
 
 	RSpeedEnd(RSPEED_SETUP);
 
@@ -2443,7 +2659,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		inh.occlusionQueryEnable = VK_FALSE;
 		inh.queryFlags = 0;
 		inh.pipelineStatistics = 0;
-		vkBeginCommandBuffer(vk.frame->cbuf, &begininf);
+		vkBeginCommandBuffer(vk.rendertarg->cbuf, &begininf);
 	}
 
 	VKBE_RestartFrame();
@@ -2452,6 +2668,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 
 //	vkCmdWriteTimestamp(vk.frame->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, querypool, vk.bufferidx*2+0);
 
+	if (vk.multisamplebits == VK_SAMPLE_COUNT_1_BIT)
 	{
 		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
 		imgbarrier.pNext = NULL;
@@ -2474,7 +2691,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 			imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 			vk.frame->backbuf->firstuse = false;
 		}
-		vkCmdPipelineBarrier(vk.frame->cbuf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 	}
 	{
 		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
@@ -2491,13 +2708,15 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		imgbarrier.subresourceRange.layerCount = 1;
 		imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		vkCmdPipelineBarrier(vk.frame->cbuf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 	}
 
 	{
-		VkClearValue	clearvalues[2];
+		VkClearValue	clearvalues[3];
 		extern cvar_t r_clear;
 		VkRenderPassBeginInfo rpbi = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+
+		//attachments are: screen[1], depth[msbits], (screen[msbits])
 
 		clearvalues[0].color.float32[0] = !!(r_clear.ival & 1);
 		clearvalues[0].color.float32[1] = !!(r_clear.ival & 2);
@@ -2505,7 +2724,17 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		clearvalues[0].color.float32[3] = 1;
 		clearvalues[1].depthStencil.depth = 1.0;
 		clearvalues[1].depthStencil.stencil = 0;
-		rpbi.clearValueCount = 2;
+
+		if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)
+		{
+			clearvalues[2].color.float32[0] = !!(r_clear.ival & 1);
+			clearvalues[2].color.float32[1] = !!(r_clear.ival & 2);
+			clearvalues[2].color.float32[2] = !!(r_clear.ival & 4);
+			clearvalues[2].color.float32[3] = 1;
+			rpbi.clearValueCount = 3;
+		}
+		else
+			rpbi.clearValueCount = 2;
 
 		if (r_clear.ival)
 			rpbi.renderPass = vk.renderpass[2];
@@ -2517,7 +2746,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		rpbi.renderArea.extent.width = vid.pixelwidth;
 		rpbi.renderArea.extent.height = vid.pixelheight;
 		rpbi.pClearValues = clearvalues;
-		vkCmdBeginRenderPass(vk.frame->cbuf, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(vk.rendertarg->cbuf, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
 
 		vk.frame->backbuf->width = vid.pixelwidth;
 		vk.frame->backbuf->height = vid.pixelheight;
@@ -2525,7 +2754,6 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		rpbi.clearValueCount = 0;
 		rpbi.pClearValues = NULL;
 		rpbi.renderPass = vk.renderpass[0];
-		vk.rendertarg = vk.frame->backbuf;
 		vk.rendertarg->restartinfo = rpbi;
 		vk.rendertarg->depthcleared = true;
 	}
@@ -2545,11 +2773,9 @@ void VK_Presented(void *fw)
 
 	while(frame->frameendjobs)
 	{
-		struct vk_fencework *job = frame->frameendjobs;
+		struct vk_frameend *job = frame->frameendjobs;
 		frame->frameendjobs = job->next;
-		job->Passed(job);
-		if (job->fence || job->cbuf)
-			Con_Printf("job with junk\n");
+		job->FrameEnded(job+1);
 		Z_Free(job);
 	}
 
@@ -2585,21 +2811,21 @@ void VK_DebugFramerate(void)
 qboolean	VK_SCR_UpdateScreen			(void)
 {
 	uint32_t fblayout;
-	VkCommandBuffer bufs[1];
 
 	VK_FencedCheck();
 
 	//a few cvars need some extra work if they're changed
-	if ((vk.allowsubmissionthread && vk_submissionthread.modified) || vid_vsync.modified || vid_triplebuffer.modified || vid_srgb.modified)
-	{
-		vid_vsync.modified = false;
-		vid_triplebuffer.modified = false;
-		vid_srgb.modified = false;
-		vk_submissionthread.modified = false;
-
-		vk.triplebuffer = vid_triplebuffer.ival;
-		vk.vsync = vid_vsync.ival;
+	if ((vk.allowsubmissionthread && vk_submissionthread.modified) || vid_vsync.modified || vid_triplebuffer.modified || vid_srgb.modified || vid_multisample.modified)
 		vk.neednewswapchain = true;
+
+	if (vk.devicelost)
+	{	//vkQueueSubmit returning vk_error_device_lost means we give up and try resetting everything.
+		//if someone's installing new drivers then wait a little time before reloading everything, in the hope that any other dependant files got copied. or something.
+		//fixme: don't allow this to be spammed...
+		Sys_Sleep(5);
+		Con_Printf("Device was lost. Restarting video\n");
+		Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
+		return false;
 	}
 
 	if (vk.neednewswapchain && !vk.frame)
@@ -2620,6 +2846,8 @@ qboolean	VK_SCR_UpdateScreen			(void)
 			VK_Submit_DoWork();
 			Sys_UnlockConditional(vk.submitcondition);
 		}
+		if (vk.dopresent)
+			vk.dopresent(NULL);
 		vkDeviceWaitIdle(vk.device);
 		VK_CreateSwapChain();
 		vk.neednewswapchain = false;
@@ -2641,7 +2869,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 	if (R2D_Flush)
 		R2D_Flush();
 
-	vkCmdEndRenderPass(vk.frame->cbuf);
+	vkCmdEndRenderPass(vk.rendertarg->cbuf);
 
 	fblayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	/*if (0)
@@ -2680,6 +2908,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		vkCmdCopyImageToBuffer(vk.frame->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
 	}*/
 
+	if (vk.multisamplebits == VK_SAMPLE_COUNT_1_BIT)
 	{
 		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
 		imgbarrier.pNext = NULL;
@@ -2695,15 +2924,13 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		imgbarrier.subresourceRange.layerCount = 1;
 		imgbarrier.srcQueueFamilyIndex = vk.queuefam[0];
 		imgbarrier.dstQueueFamilyIndex = vk.queuefam[1];
-		vkCmdPipelineBarrier(vk.frame->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 	}
 
-//	vkCmdWriteTimestamp(vk.frame->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, querypool, vk.bufferidx*2+1);
-	vkEndCommandBuffer(vk.frame->cbuf);
+//	vkCmdWriteTimestamp(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, querypool, vk.bufferidx*2+1);
+	vkEndCommandBuffer(vk.rendertarg->cbuf);
 
 	VKBE_FlushDynamicBuffers();
-
-	bufs[0] = vk.frame->cbuf;
 
 	{
 		struct vk_presented *fw = Z_Malloc(sizeof(*fw));
@@ -2714,7 +2941,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		vk.frame->frameendjobs = vk.frameendjobs;
 		vk.frameendjobs = NULL;
 
-		VK_Submit_Work(bufs[0], VK_NULL_HANDLE, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, vk.frame->backbuf->presentsemaphore, vk.frame->finishedfence, vk.frame, &fw->fw);
+		VK_Submit_Work(vk.rendertarg->cbuf, VK_NULL_HANDLE, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, vk.frame->backbuf->presentsemaphore, vk.frame->finishedfence, vk.frame, &fw->fw);
 	}
 
 	//now would be a good time to do any compute work or lightmap updates...
@@ -2753,24 +2980,45 @@ static void VK_DestroyRenderPass(void)
 static void VK_CreateRenderPass(void)
 {
 	int pass;
+	int numattachments;
 static	VkAttachmentReference color_reference;
 static	VkAttachmentReference depth_reference;
-static	VkAttachmentDescription attachments[2] = {{0}};
+static	VkAttachmentReference resolve_reference;
+static	VkAttachmentDescription attachments[3] = {{0}};
 static	VkSubpassDescription subpass = {0};
 static 	VkRenderPassCreateInfo rp_info = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+
+//two render passes are compatible for piplines when they match exactly except for:
+//initial and final layouts in attachment descriptions.
+//load and store operations in attachment descriptions.
+//image layouts in attachment references.
+
 
 	for (pass = 0; pass < 3; pass++)
 	{
 		if (vk.renderpass[pass] != VK_NULL_HANDLE)
 			continue;
-		color_reference.attachment = 0;
+
+		numattachments = 0;
+		if (vk.multisamplebits != VK_SAMPLE_COUNT_1_BIT)
+		{
+			resolve_reference.attachment = numattachments++;
+			depth_reference.attachment = numattachments++;
+			color_reference.attachment = numattachments++;
+		}
+		else
+		{
+			color_reference.attachment = numattachments++;
+			depth_reference.attachment = numattachments++;
+			resolve_reference.attachment = ~(uint32_t)0;
+		}
+
 		color_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		
-		depth_reference.attachment = 1;
 		depth_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		resolve_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 		attachments[color_reference.attachment].format = vk.backbufformat;
-		attachments[color_reference.attachment].samples = VK_SAMPLE_COUNT_1_BIT;
+		attachments[color_reference.attachment].samples = vk.multisamplebits;
 //		attachments[color_reference.attachment].loadOp = pass?VK_ATTACHMENT_LOAD_OP_LOAD:VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachments[color_reference.attachment].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		attachments[color_reference.attachment].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -2779,7 +3027,7 @@ static 	VkRenderPassCreateInfo rp_info = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_I
 		attachments[color_reference.attachment].finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 		attachments[depth_reference.attachment].format = vk.depthformat;
-		attachments[depth_reference.attachment].samples = VK_SAMPLE_COUNT_1_BIT;
+		attachments[depth_reference.attachment].samples = vk.multisamplebits;
 //		attachments[depth_reference.attachment].loadOp = pass?VK_ATTACHMENT_LOAD_OP_LOAD:VK_ATTACHMENT_LOAD_OP_CLEAR;
 		attachments[depth_reference.attachment].storeOp = VK_ATTACHMENT_STORE_OP_STORE;//VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		attachments[depth_reference.attachment].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -2787,18 +3035,30 @@ static 	VkRenderPassCreateInfo rp_info = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_I
 		attachments[depth_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		attachments[depth_reference.attachment].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+		if (resolve_reference.attachment != ~(uint32_t)0)
+		{
+			attachments[resolve_reference.attachment].format = vk.backbufformat;
+			attachments[resolve_reference.attachment].samples = VK_SAMPLE_COUNT_1_BIT;
+			attachments[resolve_reference.attachment].loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			attachments[resolve_reference.attachment].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			attachments[resolve_reference.attachment].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+			attachments[resolve_reference.attachment].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+			attachments[resolve_reference.attachment].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			attachments[resolve_reference.attachment].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		}
+
 		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		subpass.flags = 0;
 		subpass.inputAttachmentCount = 0;
 		subpass.pInputAttachments = NULL;
 		subpass.colorAttachmentCount = 1;
 		subpass.pColorAttachments = &color_reference;
-		subpass.pResolveAttachments = NULL;
+		subpass.pResolveAttachments = (resolve_reference.attachment != ~(uint32_t)0)?&resolve_reference:NULL;
 		subpass.pDepthStencilAttachment = &depth_reference;
 		subpass.preserveAttachmentCount = 0;
 		subpass.pPreserveAttachments = NULL;
 
-		rp_info.attachmentCount = countof(attachments);
+		rp_info.attachmentCount = numattachments;
 		rp_info.pAttachments = attachments;
 		rp_info.subpassCount = 1;
 		rp_info.pSubpasses = &subpass;
@@ -2858,6 +3118,7 @@ void VK_DoPresent(struct vkframe *theframe)
 			{
 				Con_Printf("ERROR: vkAcquireNextImageKHR: %x\n", err);
 				vk.neednewswapchain = true;
+				vk.devicelost |= (err == VK_ERROR_DEVICE_LOST);
 			}
 			vk.aquirelast++;
 		}
@@ -2921,6 +3182,7 @@ static void VK_Submit_DoWork(void)
 		{
 			Con_Printf("ERROR: vkQueueSubmit: %i\n", err);
 			errored = vk.neednewswapchain = true;
+			vk.devicelost |= (err==VK_ERROR_DEVICE_LOST);
 		}
 		RSpeedEnd(RSPEED_SUBMIT);
 	}
@@ -2988,6 +3250,14 @@ void VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStage
 	Sys_UnlockConditional(vk.submitcondition);
 }
 
+void VK_Submit_Sync(void)
+{
+	Sys_LockConditional(vk.submitcondition);
+	//FIXME: 
+	vkDeviceWaitIdle(vk.device); //just in case
+	Sys_UnlockConditional(vk.submitcondition);
+}
+
 void VK_CheckTextureFormats(void)
 {
 	struct {
@@ -2996,40 +3266,41 @@ void VK_CheckTextureFormats(void)
 		unsigned int needextra;
 	} texfmt[] =
 	{
-		{PTI_RGBA8,		VK_FORMAT_R8G8B8A8_UNORM},
-		{PTI_RGBX8,		VK_FORMAT_R8G8B8A8_UNORM},
-		{PTI_BGRA8,		VK_FORMAT_B8G8R8A8_UNORM},
-		{PTI_BGRX8,		VK_FORMAT_B8G8R8A8_UNORM},
+		{PTI_RGBA8,			VK_FORMAT_R8G8B8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_RGBX8,			VK_FORMAT_R8G8B8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BGRA8,			VK_FORMAT_B8G8R8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BGRX8,			VK_FORMAT_B8G8R8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 
-		{PTI_RGBA8_SRGB,		VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
-		{PTI_RGBX8_SRGB,		VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
-		{PTI_BGRA8_SRGB,		VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
-		{PTI_BGRX8_SRGB,		VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RGBA8_SRGB,	VK_FORMAT_R8G8B8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RGBX8_SRGB,	VK_FORMAT_R8G8B8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_BGRA8_SRGB,	VK_FORMAT_B8G8R8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_BGRX8_SRGB,	VK_FORMAT_B8G8R8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 
-		{PTI_RGB565,	VK_FORMAT_R5G6B5_UNORM_PACK16},
-		{PTI_RGBA4444,	VK_FORMAT_R4G4B4A4_UNORM_PACK16},
-		{PTI_ARGB4444,	VK_FORMAT_B4G4R4A4_UNORM_PACK16},
-		{PTI_RGBA5551,	VK_FORMAT_R5G5B5A1_UNORM_PACK16},
-		{PTI_ARGB1555,	VK_FORMAT_A1R5G5B5_UNORM_PACK16},
-		{PTI_RGBA16F,	VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
-		{PTI_RGBA32F,	VK_FORMAT_R32G32B32A32_SFLOAT, VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
-		{PTI_R8,		VK_FORMAT_R8_UNORM},
-		{PTI_RG8,		VK_FORMAT_R8G8_UNORM},
+		{PTI_RGB565,		VK_FORMAT_R5G6B5_UNORM_PACK16,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_RGBA4444,		VK_FORMAT_R4G4B4A4_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ARGB4444,		VK_FORMAT_B4G4R4A4_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_RGBA5551,		VK_FORMAT_R5G5B5A1_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ARGB1555,		VK_FORMAT_A1R5G5B5_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_RGBA16F,		VK_FORMAT_R16G16B16A16_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
+		{PTI_RGBA32F,		VK_FORMAT_R32G32B32A32_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
+		{PTI_R8,			VK_FORMAT_R8_UNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RG8,			VK_FORMAT_R8G8_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 
-		{PTI_DEPTH16,	VK_FORMAT_D16_UNORM,			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
-		{PTI_DEPTH24,	VK_FORMAT_X8_D24_UNORM_PACK32,	VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
-		{PTI_DEPTH32,	VK_FORMAT_D32_SFLOAT,			VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
-		{PTI_DEPTH24_8,	VK_FORMAT_D24_UNORM_S8_UINT,	VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+		{PTI_DEPTH16,		VK_FORMAT_D16_UNORM,				VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+		{PTI_DEPTH24,		VK_FORMAT_X8_D24_UNORM_PACK32,		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+		{PTI_DEPTH32,		VK_FORMAT_D32_SFLOAT,				VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+		{PTI_DEPTH24_8,		VK_FORMAT_D24_UNORM_S8_UINT,		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
 
-		{PTI_S3RGB1,	VK_FORMAT_BC1_RGB_UNORM_BLOCK},
-		{PTI_S3RGBA1,	VK_FORMAT_BC1_RGBA_UNORM_BLOCK},
-		{PTI_S3RGBA3,	VK_FORMAT_BC2_UNORM_BLOCK},
-		{PTI_S3RGBA5,	VK_FORMAT_BC3_UNORM_BLOCK},
+		{PTI_S3RGB1,		VK_FORMAT_BC1_RGB_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_S3RGBA1,		VK_FORMAT_BC1_RGBA_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_S3RGBA3,		VK_FORMAT_BC2_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_S3RGBA5,		VK_FORMAT_BC3_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 	};
 	unsigned int i;
 	VkPhysicalDeviceProperties props;
 
 	vkGetPhysicalDeviceProperties(vk.gpu, &props);
+	vk.limits = props.limits;
 
 	sh_config.texture_maxsize = props.limits.maxImageDimension2D;
 
@@ -3052,28 +3323,40 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	VkApplicationInfo app;
 	VkInstanceCreateInfo inst_info;
 	const char *extensions[8];
-	qboolean nvglsl = false;
 	uint32_t extensions_count = 0;
-	vk.allowsubmissionthread = true;
-	vk.headless = false;
-	if (sysextname)
-	{
-		extensions[extensions_count++] = sysextname;
-		extensions[extensions_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
-	}
-	else
-		vk.headless = true;
-	if (vk_debug.ival)
-		extensions[extensions_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
 
+	//device extensions that want to enable
+	struct
+	{
+		qboolean *flag;
+		const char *name;
+		cvar_t *var;
+		qboolean def;
+		qboolean *superseeded;	//if this is set then the extension will not be enabled after all
+		const char *neededfor;
+		qboolean supported;
+	} knowndevexts[] =
+	{
+		{&vk.khr_swapchain,				VK_KHR_SWAPCHAIN_EXTENSION_NAME,			NULL,							true, NULL, " Nothing will be drawn!"},
+		{&vk.nv_glsl_shader,			VK_NV_GLSL_SHADER_EXTENSION_NAME,			&vk_nv_glsl_shader,				false, NULL, " Direct use of glsl is not supported."},
+		{&vk.nv_dedicated_allocation,	VK_NV_DEDICATED_ALLOCATION_EXTENSION_NAME,	&vk_nv_dedicated_allocation,	true, &vk.khr_dedicated_allocation, ""},
+//		{&vk.khr_dedicated_allocation,	VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,	&vk_khr_dedicated_allocation,	true, NULL, ""},
+		{&vk.khr_push_descriptor,		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,		&vk_khr_push_descriptor,		true, NULL, ""},
+	};
+	size_t e;
+
+	for (e = 0; e < countof(knowndevexts); e++)
+		*knowndevexts[e].flag = false;
+	vk.allowsubmissionthread = true;
 	vk.neednewswapchain = true;
 	vk.triplebuffer = info->triplebuffer;
 	vk.vsync = info->wait;
 	vk.dopresent = dopresent?dopresent:VK_DoPresent;
+	vk.max_anistophy_limit = 1.0;
 	memset(&sh_config, 0, sizeof(sh_config));
 
 
-	//get second set of pointers...
+	//get second set of pointers... (instance-level)
 #ifdef VK_NO_PROTOTYPES
 	if (!vkGetInstanceProcAddr)
 	{
@@ -3085,6 +3368,38 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 #undef VKFunc
 #endif
 
+	//try and enable some instance extensions...
+	{
+		qboolean surfext = false;
+		uint32_t count, i;
+		VkExtensionProperties *ext;
+		vkEnumerateInstanceExtensionProperties(NULL, &count, NULL);
+		ext = malloc(sizeof(*ext)*count);
+		vkEnumerateInstanceExtensionProperties(NULL, &count, ext);
+		for (i = 0; i < count && extensions_count < countof(extensions); i++)
+		{
+			if (!strcmp(ext[i].extensionName, VK_EXT_DEBUG_REPORT_EXTENSION_NAME) && vk_debug.ival)
+				extensions[extensions_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
+			else if (!strcmp(ext[i].extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
+				extensions[extensions_count++] = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
+			else if (sysextname && !strcmp(ext[i].extensionName, sysextname))
+			{
+				extensions[extensions_count++] = sysextname;
+				vk.khr_swapchain = true;
+			}
+			else if (sysextname && !strcmp(ext[i].extensionName, VK_KHR_SURFACE_EXTENSION_NAME))
+			{
+				extensions[extensions_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
+				surfext = true;
+			}
+		}
+		free(ext);
+		if (sysextname && (!vk.khr_swapchain || !surfext))
+		{
+			Con_Printf("Vulkan instance driver lacks support for %s\n", sysextname);
+			return false;
+		}
+	}
 
 #define ENGINEVERSION 1
 	memset(&app, 0, sizeof(app));
@@ -3112,24 +3427,6 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		return false;
 	case VK_ERROR_EXTENSION_NOT_PRESENT:
 		Con_Printf("VK_ERROR_EXTENSION_NOT_PRESENT: something on a system level is probably misconfigured\n");
-		{
-			uint32_t count, i, j;
-			VkExtensionProperties *ext;
-			vkEnumerateInstanceExtensionProperties(NULL, &count, NULL);
-			ext = malloc(sizeof(*ext)*count);
-			vkEnumerateInstanceExtensionProperties(NULL, &count, ext);
-			for (i = 0; i < extensions_count; i++)
-			{
-				for (j = 0; j < count; j++)
-				{
-					if (!strcmp(ext[j].extensionName, extensions[i]))
-						break;
-				}
-				if (j == count)
-					Con_Printf("Missing extension: %s\n", extensions[i]);
-			}
-			free(ext);
-		}
 		return false;
 	case VK_ERROR_LAYER_NOT_PRESENT:
 		Con_Printf("VK_ERROR_LAYER_NOT_PRESENT: requested layer is not known/usable\n");
@@ -3193,7 +3490,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 			vkGetPhysicalDeviceProperties(devs[i], &props);
 			vkGetPhysicalDeviceQueueFamilyProperties(devs[i], &queue_count, NULL);
 
-			if (!vk.headless)
+			if (vk.khr_swapchain)
 			{
 				for (j = 0; j < queue_count; j++)
 				{
@@ -3342,7 +3639,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 			for (i = 0; i < queue_count; i++)
 			{
 				VkBool32 supportsPresent = false;
-				if (vk.headless)
+				if (!vk.khr_swapchain)
 					supportsPresent = true;	//won't be used anyway.
 				else
 					VkAssert(vkGetPhysicalDeviceSurfaceSupportKHR(vk.gpu, i, vk.surface, &supportsPresent));
@@ -3377,27 +3674,57 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		vkEnumerateDeviceExtensionProperties(vk.gpu, NULL, &extcount, ext);
 		while (extcount --> 0)
 		{
-			if (!strcmp(ext[extcount].extensionName, VK_NV_GLSL_SHADER_EXTENSION_NAME))
-				nvglsl = !!vk_loadglsl.ival;
+			for (e = 0; e < countof(knowndevexts); e++)
+			{
+				if (!strcmp(ext[extcount].extensionName, knowndevexts[e].name))
+				{
+					if (knowndevexts[e].var)
+						*knowndevexts[e].flag = !!knowndevexts[e].var->ival || (!*knowndevexts[e].var->string && knowndevexts[e].def);
+					knowndevexts[e].supported = true;
+				}
+			}
 		}
 		free(ext);
-
-		if (nvglsl)
-			Con_Printf("Using %s.\n", VK_NV_GLSL_SHADER_EXTENSION_NAME);
-		else if (vk_loadglsl.ival)
-			Con_Printf("unable to enable %s extension. direct use of glsl is not supported.\n", VK_NV_GLSL_SHADER_EXTENSION_NAME);
 	}
 	{
-		const char *devextensions[8];
+		const char *devextensions[1+countof(knowndevexts)];
 		size_t numdevextensions = 0;
 		float queue_priorities[2] = {0.8, 1.0};
 		VkDeviceQueueCreateInfo queueinf[2] = {{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO},{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO}};
 		VkDeviceCreateInfo devinf = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+		VkPhysicalDeviceFeatures features;
+		VkPhysicalDeviceFeatures avail;
+		memset(&features, 0, sizeof(features));
 
-		devextensions[numdevextensions++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
-		if (nvglsl)
-			devextensions[numdevextensions++] = VK_NV_GLSL_SHADER_EXTENSION_NAME;
+		vkGetPhysicalDeviceFeatures(vk.gpu, &avail);
 
+		//try to enable whatever we can use, if we can.
+		features.robustBufferAccess		= avail.robustBufferAccess;
+		features.textureCompressionBC	= avail.textureCompressionBC;
+		features.samplerAnisotropy		= avail.samplerAnisotropy;
+		features.geometryShader			= avail.geometryShader;
+		features.tessellationShader		= avail.tessellationShader;
+
+		//Add in the extensions we support
+		for (e = 0; e < countof(knowndevexts); e++)
+		{	//prints are to let the user know what's going on. only warn if its explicitly enabled
+			if (knowndevexts[e].superseeded && *knowndevexts[e].superseeded)
+			{
+				Con_DPrintf("Superseeded %s.\n", knowndevexts[e].name);
+				*knowndevexts[e].flag = false;
+			}
+			else if (*knowndevexts[e].flag)
+			{
+				Con_DPrintf("Using %s.\n", knowndevexts[e].name);
+				devextensions[numdevextensions++] = knowndevexts[e].name;
+			}
+			else if (knowndevexts[e].var->ival)
+				Con_Printf("unable to enable %s extension.%s\n", knowndevexts[e].name, knowndevexts[e].neededfor);
+			else if (knowndevexts[e].supported)
+				Con_DPrintf("Ignoring %s.\n", knowndevexts[e].name);
+			else
+				Con_DPrintf("Unavailable %s.\n", knowndevexts[e].name);
+		}
 
 		queueinf[0].pNext = NULL;
 		queueinf[0].queueFamilyIndex = vk.queuefam[0];
@@ -3421,7 +3748,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 			else
 			{
 				queueinf[0].queueCount = 1;
-				if (!vk.headless)
+				if (vk.khr_swapchain)
 					vk.dopresent = VK_DoPresent;	//can't split submit+present onto different queues, so do these on a single thread.
 				Con_DPrintf("Using single queue\n");
 			}
@@ -3439,7 +3766,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 		devinf.ppEnabledLayerNames = vklayerlist;
 		devinf.enabledExtensionCount = numdevextensions;
 		devinf.ppEnabledExtensionNames = devextensions;
-		devinf.pEnabledFeatures = NULL;
+		devinf.pEnabledFeatures = &features;
 
 		err = vkCreateDevice(vk.gpu, &devinf, NULL, &vk.device);
 		switch(err)
@@ -3483,7 +3810,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	sh_config.blobpath = "spirv";
 	sh_config.shadernamefmt = NULL;//".spv";
 
-	if (nvglsl)
+	if (vk.nv_glsl_shader)
 	{
 		sh_config.progpath = "glsl/%s.glsl";
 		sh_config.shadernamefmt = "%s_glsl";
@@ -3509,7 +3836,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 
 	sh_config.pDeleteProg = NULL;
 	sh_config.pLoadBlob = NULL;
-	if (nvglsl)
+	if (vk.nv_glsl_shader)
 		sh_config.pCreateProgram = VK_LoadGLSL;
 	else
 		sh_config.pCreateProgram = NULL;
@@ -3554,7 +3881,7 @@ void VK_Shutdown(void)
 	VK_DestroySwapChain();
 
 	for (i = 0; i < countof(postproc); i++)
-		VKBE_RT_Gen(&postproc[i], 0, 0, false);
+		VKBE_RT_Gen(&postproc[i], 0, 0, false, RT_IMAGEFLAGS);
 	VKBE_RT_Gen_Cube(&vk_rt_cubemap, 0, false);
 	VK_R_BloomShutdown();
 

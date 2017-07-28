@@ -1147,13 +1147,14 @@ typedef struct usercmd_s
 	qbyte	lightlevel;
 
 	//freestyle
-	float	msec;
-	int		buttons;
-	int		weapon;
-	int		servertime;
-	float	fservertime;
-	float	fclienttime;
+	float	msec;		//replace msec, but with more precision
+	int		buttons;	//replaces buttons, but with more bits.
+	int		weapon;		//q3 has a separate weapon field to supplement impulse.
+	int		servertime;	//q3 networks the time in order to calculate msecs
+	float	fservertime;//used as part of nq msec calcs
+	float	fclienttime;//not used?
 
+	//prydon cursor crap
 	vec2_t	cursor_screen;
 	vec3_t	cursor_start;
 	vec3_t	cursor_impact;
@@ -1161,17 +1162,17 @@ typedef struct usercmd_s
 } usercmd_t;
 
 typedef struct q2usercmd_s
-{
+{	//visible to gamecode so can't be changed (and the prediction code)
 	qbyte	msec;
 	qbyte	buttons;
 	short	angles[3];
 	short	forwardmove, sidemove, upmove;
 	qbyte	impulse;
-	qbyte lightlevel;
+	qbyte	lightlevel;
 } q2usercmd_t;
 
 typedef struct q1usercmd_s
-{
+{	//as written to qwd demos so can't be changed.
 	qbyte	msec;
 	vec3_t	angles;
 	short	forwardmove, sidemove, upmove;

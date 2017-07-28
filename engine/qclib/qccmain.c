@@ -282,7 +282,7 @@ optimisations_t optimisations[] =
 	{&opt_locals_overlapping,		"lo",	2,	FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
 	{&opt_vectorcalls,				"vc",	4,	FLAG_KILLSDEBUGGERS,	"vectorcalls",		"Where a function is called with just a vector, this causes the function call to store three floats instead of one vector. This can save a good number of pr_globals where those vectors contain many duplicate coordinates but do not match entirly."},
 	{&opt_classfields,				"cf",	2,	FLAG_KILLSDEBUGGERS,	"class_fields",		"Strip class field names. This will harm debugging and can result in 'gibberish' names appearing in saved games. Has no effect on engines other than FTEQW, which will not recognise these anyway."},
-//	{&opt_stripunusedfields,		"uf",	4,	0,						"strip_unused_fields","Strips any fields that have no references. This may result in extra warnings at load time, or disabling support for mapper-specified alpha in engines that do not provide that."},
+//	{&opt_stripunusedfields,		"uf",	4,	0,						"strip_unused_fields","FIXME: needs relocs. Strips any fields that have no references. This may result in extra warnings at load time, or disabling support for mapper-specified alpha in engines that do not provide that."},
 	{NULL}
 };
 

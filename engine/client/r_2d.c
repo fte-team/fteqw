@@ -183,6 +183,8 @@ void R2D_Init(void)
 	extern cvar_t gl_specular_fallback, gl_specular_fallbackexp, gl_texturemode;
 	conback = NULL;
 
+	Cvar_ForceCallback(&gl_texturemode);
+
 	draw_mesh.istrifan = true;
 	draw_mesh.numvertexes = 4;
 	draw_mesh.numindexes = 6;
@@ -377,7 +379,6 @@ void R2D_Init(void)
 	Cvar_ForceCallback(&gl_conback);
 	Cvar_ForceCallback(&vid_conautoscale);
 	Cvar_ForceCallback(&gl_font);
-	Cvar_ForceCallback(&gl_texturemode);
 
 	Cvar_ForceCallback(&crosshair);
 	Cvar_ForceCallback(&crosshaircolor);

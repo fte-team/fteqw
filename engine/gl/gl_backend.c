@@ -1447,8 +1447,9 @@ void GLBE_Init(void)
 	if (gl_config.glversion >= 3.0 && gl_config_nofixedfunc)
 	{
 		//docs say this line should be okay in gl3+. nvidia do not seem to agree. GL_STENCIL_BITS is depricated however. so for now, just assume.
-		//qglGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER_EXT, GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &gl_stencilbits);
-		gl_stencilbits = 8;
+		qglGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER_EXT, GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &gl_stencilbits);
+		if (qglGetError())
+			gl_stencilbits = 8;
 	}
 	else
 		qglGetIntegerv(GL_STENCIL_BITS, &gl_stencilbits);
@@ -1484,9 +1485,17 @@ void GLBE_Init(void)
 	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
 	{
 		if (r_shadow_shadowmapping.ival)
+		{
 			GLBE_RegisterLightShader(LSHADER_SMAP);
+			GLBE_RegisterLightShader(LSHADER_SMAP|LSHADER_CUBE);
+			GLBE_RegisterLightShader(LSHADER_SMAP|LSHADER_SPOT);
+		}
 		else
-			GLBE_RegisterLightShader(0);
+		{
+			GLBE_RegisterLightShader(LSHADER_STANDARD);
+			GLBE_RegisterLightShader(LSHADER_STANDARD|LSHADER_CUBE);
+			GLBE_RegisterLightShader(LSHADER_STANDARD|LSHADER_SPOT);
+		}
 	}
 #endif
 

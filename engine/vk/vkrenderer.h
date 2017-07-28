@@ -54,6 +54,7 @@
 	VKFunc(GetPhysicalDeviceSurfaceCapabilitiesKHR)	\
 	VKFunc(GetPhysicalDeviceMemoryProperties)		\
 	VKFunc(GetPhysicalDeviceFormatProperties)		\
+	VKFunc(GetPhysicalDeviceFeatures)				\
 	VKFunc(DestroySurfaceKHR)						\
 	VKFunc(CreateDevice)							\
 	VKFunc(DestroyInstance)							\
@@ -78,6 +79,7 @@
 	VKFunc(CmdBindIndexBuffer)			\
 	VKFunc(CmdBindVertexBuffers)		\
 	VKFunc(CmdPushConstants)			\
+	VKFunc(CmdPushDescriptorSetKHR)		\
 	VKFunc(CmdClearAttachments)			\
 	VKFunc(CmdClearColorImage)			\
 	VKFunc(CmdClearDepthStencilImage)	\
@@ -191,30 +193,35 @@ typedef struct vk_image_s
 	uint32_t layers;
 	uint32_t mipcount;
 	uint32_t encoding;
-	uint32_t type;
+	uint32_t type;	//PTI_2D/3D/CUBE
 } vk_image_t;
 enum dynbuf_e
 {
 	DB_VBO,
 	DB_EBO,
 	DB_UBO,
+	DB_STAGING,
 	DB_MAX
 };
 struct vk_rendertarg
 {
+	VkCommandBuffer cbuf;	//cbuf allocated for this render target.
 	VkFramebuffer framebuffer;
-	vk_image_t colour, depth;
+	vk_image_t colour, depth, mscolour;
 
-	image_t q_colour, q_depth;	//extra sillyness...
+	image_t q_colour, q_depth, q_mscolour;	//extra sillyness...
 
 	uint32_t width;
 	uint32_t height;
 
+	qboolean multisample;
 	qboolean depthcleared;	//starting a new gameview needs cleared depth relative to other views, but the first probably won't.
 
 	VkRenderPassBeginInfo restartinfo;
 	VkSemaphore presentsemaphore;
 	qboolean firstuse;
+
+	struct vk_rendertarg *prevtarg;
 };
 struct vk_rendertarg_cube
 {
@@ -233,8 +240,13 @@ extern struct vulkaninfo_s
 {
 	unsigned short	triplebuffer;
 	qboolean		vsync;
-	qboolean		headless;
 	qboolean		allowsubmissionthread;
+
+	qboolean		khr_swapchain;				//aka: not headless. we're actually rendering stuff!
+	qboolean		nv_glsl_shader;				//we can load glsl shaders. probably missing lots of reflection info though, so this is probably too limited.
+	qboolean		nv_dedicated_allocation;	//nvidia-specific extension that provides hints that there's no memory aliasing going on.
+	qboolean		khr_dedicated_allocation;	//standardised version of the above where the driver decides whether a resource is worth a dedicated allocation.
+	qboolean		khr_push_descriptor;		//more efficient descriptor streaming
 
 	VkInstance instance;
 	VkDevice device;
@@ -247,6 +259,7 @@ extern struct vulkaninfo_s
 	VkQueue queue_alt[1];
 	VkPhysicalDeviceMemoryProperties memory_properties;
 	VkCommandPool cmdpool;
+	VkPhysicalDeviceLimits limits;
 
 #define ACQUIRELIMIT 8
 	VkFence acquirefences[ACQUIRELIMIT];
@@ -268,6 +281,7 @@ extern struct vulkaninfo_s
 	int filterpic[3];
 	int mipcap[2];
 	float max_anistophy;
+	float max_anistophy_limit;
 
 	struct descpool
 	{
@@ -282,11 +296,12 @@ extern struct vulkaninfo_s
 		size_t offset;	//size written by the cpu (that might not yet be flushed)
 		size_t size;	//maximum buffer size
 		size_t align;
+		qboolean stagingcoherent;
 		VkBuffer stagingbuf;
 		VkDeviceMemory stagingmemory;
 		VkBuffer devicebuf;
 		VkDeviceMemory devicememory;
-		VkBuffer renderbuf;	//either staging or device.
+		VkBuffer renderbuf;	//either staging or device. this is the buffer that we tell vulkan about
 		void *ptr;
 
 		struct dynbuffer *next;
@@ -295,27 +310,34 @@ extern struct vulkaninfo_s
 	struct vk_rendertarg *rendertarg;
 	struct vkframe {
 		struct vkframe *next;
-		VkCommandBuffer cbuf;
 		struct dynbuffer *dynbufs[DB_MAX];
 		struct descpool *descpools;
+		VkCommandBuffer *cbufs;
+		size_t			numcbufs;
+		size_t			maxcbufs;
 		VkFence finishedfence;
-		struct vk_fencework *frameendjobs;
+		struct vk_frameend {
+			struct vk_frameend *next;
+			void (*FrameEnded) (void*);
+		} *frameendjobs;
 
 		struct vk_rendertarg *backbuf;
 	} *frame, *unusedframes;
-	struct vk_fencework *frameendjobs;
+	struct vk_frameend *frameendjobs;
 	uint32_t backbuf_count;
 
 	VkRenderPass shadow_renderpass;	//clears depth etc.
-	VkRenderPass renderpass[3];	//initial, resume
+	VkRenderPass renderpass[3];	//reload-both(resume prior renderpass), clear-depth-dontcare-colour(gl_clear==0), clear-both(cl_clear!=0)
 	VkSwapchainKHR swapchain;
 	uint32_t bufferidx;
 
+	VkSampleCountFlagBits multisamplebits;
 	VkFormat depthformat;
 	VkFormat backbufformat;
 	qboolean srgbcapable;
 
-	qboolean neednewswapchain;
+	qboolean neednewswapchain;	//something changed that invalidates the old one.
+	qboolean devicelost;		//we seriously fucked up somewhere. or the gpu is shite.
 
 	struct vkwork_s
 	{
@@ -367,6 +389,9 @@ qboolean R_CanBloom(void);
 struct programshared_s;
 qboolean VK_LoadGLSL(struct programshared_s *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
 
+VkCommandBuffer VK_AllocFrameCBuf(void);
+void VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStageFlags semwaitstagemask, VkSemaphore semsignal, VkFence fencesignal, struct vkframe *presentframe, struct vk_fencework *fencedwork);
+
 void VKBE_Init(void);
 void VKBE_InitFramePools(struct vkframe *frame);
 void VKBE_RestartFrame(void);
@@ -403,8 +428,9 @@ void VKBE_BeginShadowmapFace(void);
 void VKBE_DoneShadows(void);
 
 void VKBE_RT_Gen_Cube(struct vk_rendertarg_cube *targ, uint32_t size, qboolean clear);
-void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qboolean clear);
+void VKBE_RT_Gen(struct vk_rendertarg *targ, uint32_t width, uint32_t height, qboolean clear, unsigned int flags);
 void VKBE_RT_Begin(struct vk_rendertarg *targ);
+void VKBE_RT_End(struct vk_rendertarg *targ);
 void VKBE_RT_Destroy(struct vk_rendertarg *targ);
 
 
@@ -416,7 +442,7 @@ struct stagingbuf
 	size_t size;
 	VkBufferUsageFlags usage;
 };
-vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, unsigned int encoding, unsigned int type);
+vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, unsigned int encoding, unsigned int type, qboolean rendertarget);
 void set_image_layout(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspectMask, VkImageLayout old_image_layout, VkAccessFlags srcaccess, VkImageLayout new_image_layout, VkAccessFlags dstaccess);
 void VK_CreateSampler(unsigned int flags, vk_image_t *img);
 void *VKBE_CreateStagingBuffer(struct stagingbuf *n, size_t size, VkBufferUsageFlags usage);
@@ -424,7 +450,7 @@ VkBuffer VKBE_FinishStaging(struct stagingbuf *n, VkDeviceMemory *memptr);
 void *VK_FencedBegin(void (*passed)(void *work), size_t worksize);
 void VK_FencedSubmit(void *work);
 void VK_FencedCheck(void);
-void *VK_AtFrameEnd(void (*passed)(void *work), size_t worksize);
+void *VK_AtFrameEnd(void (*passed)(void *work), void *data, size_t worksize);
 
 
 

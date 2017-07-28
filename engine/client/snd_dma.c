@@ -2046,6 +2046,8 @@ void S_DoRestart (qboolean onlyifneeded)
 
 void S_Restart_f (void)
 {
+	S_EnumerateDevices();
+
 	S_DoRestart(false);
 }
 

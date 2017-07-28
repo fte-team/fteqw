@@ -46,10 +46,18 @@ static shader_t *skygridface;
 
 void R_SetSky(char *skyname)
 {
+	extern cvar_t r_skyboxname;
+	forcedskyshader = NULL;
+
+	if (!qrenderer)
+		return;
+
+	if (*r_skyboxname.string)	//user's setting overrides.
+		skyname = r_skyboxname.string;
+
+	Shader_NeedReload(false);
 	if (*skyname)
 		forcedskyshader = R_RegisterCustom(va("skybox_%s", skyname), SUF_NONE, Shader_DefaultSkybox, NULL);
-	else
-		forcedskyshader = NULL;
 
 	skyboxface = R_RegisterShader("skyboxface", SUF_NONE,
 			"{\n"

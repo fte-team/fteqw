@@ -2906,7 +2906,6 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 
 	// read delta sequenced usercmds
 	from = &nullcmd;
-	from->servertime = client->lastcmd.servertime;
 	for(i=0, to=commands; i<cmdCount; i++, to++)
 	{
 		MSG_Q3_ReadDeltaUsercmd(key, from, to);
@@ -2963,11 +2962,13 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 				temp.sidemove *= client->maxspeed/127.0f;
 				temp.forwardmove *= client->maxspeed/127.0f;
 				temp.upmove *= client->maxspeed/127.0f;
+				temp.msec = bound(0, to->servertime - temp.servertime, 255);
 
 				temp.buttons &= ~2;
 				if (temp.buttons & 64)
 					temp.buttons |= 2;
 				SV_RunCmd(&temp, false);
+				client->lastcmd.servertime = to->servertime;
 			}
 		}
 		if (svs.gametype != GT_QUAKE3)

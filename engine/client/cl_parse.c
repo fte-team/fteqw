@@ -8083,10 +8083,8 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svcfitz_skybox:
-			{
-				extern cvar_t r_skyboxname;
-				Cvar_Set(&r_skyboxname, MSG_ReadString());
-			}
+			Q_strncpyz(cl.skyname, MSG_ReadString(), sizeof(cl.skyname));
+			R_SetSky(cl.skyname);
 			break;
 		case svcfitz_bf:
 			Cmd_ExecuteString("bf", RESTRICT_SERVER);

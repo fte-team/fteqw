@@ -303,10 +303,10 @@ static qboolean SV_AddCSQCUpdate (client_t *client, edict_t *ent)
 #ifndef PEXT_CSQC
 	return false;
 #else
-	if (!(client->csqcactive))
+	if (!ent->xv->SendEntity)
 		return false;
 
-	if (!ent->xv->SendEntity)
+	if (!(client->csqcactive))
 		return false;
 
 	csqcent[csqcnuments++] = ent;
@@ -3682,8 +3682,11 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 		}
 		else
 		{
-			// ignore ents without visible models
-			if (!ent->xv->SendEntity && (!ent->v->modelindex || !*PR_GetString(svprogfuncs, ent->v->model)) && !((int)ent->xv->pflags & PFLAGS_FULLDYNAMIC) && ent->v->skin >= 0)
+			// many ents are not intended to be networked.
+			if (!(ent->xv->SendEntity && client->csqcactive) &&	//if SendEntity is set then its definitely important, even if not visible.
+				(!ent->v->modelindex || !*PR_GetString(svprogfuncs, ent->v->model)) && // also definitely valid if it has a model
+				!((int)ent->xv->pflags & PFLAGS_FULLDYNAMIC) &&	//needs to be networked if its giving off realtime lights, even when it has no model.
+				ent->v->skin >= 0)	//ents with negative skins are networked too. eg ladder volumes.
 				continue;
 
 			if (cameras)	//self doesn't get a pvs test, to cover teleporters

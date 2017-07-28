@@ -252,12 +252,13 @@ K_MAX
 typedef enum	//highest has priority
 {
 	kdm_game		= 1u<<0,	//should always be set
-	kdm_message		= 1u<<1,
-	kdm_gmenu		= 1u<<2,	//menu.dat
-	kdm_emenu		= 1u<<3,	//engine's menus
-	kdm_editor		= 1u<<4,
-	kdm_console		= 1u<<5,
-	kdm_cwindows	= 1u<<6,
+	kdm_centerprint	= 1u<<1,	//enabled when there's a centerprint menu with clickable things.
+	kdm_message		= 1u<<2,
+	kdm_gmenu		= 1u<<3,	//menu.dat
+	kdm_emenu		= 1u<<4,	//engine's menus
+	kdm_editor		= 1u<<5,
+	kdm_console		= 1u<<6,
+	kdm_cwindows	= 1u<<7,
 } keydestmask_t;
 
 //unsigned int Key_Dest_Get(void);	//returns highest priority destination
@@ -299,8 +300,10 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all);
 void Key_WriteBindings (struct vfsfile_s *f);
 void Key_SetBinding (int keynum, int modifier, char *binding, int cmdlevel);
 void Key_ClearStates (void);
+qboolean Key_Centerprint(int key, int unicode, unsigned int devid);
 void Key_Unbindall_f (void);	//aka: Key_Shutdown
 void Key_ConsoleReplace(const char *instext);
+void Key_DefaultLinkClicked(console_t *con, char *text, char *info);
 
 struct console_s;
 qboolean Key_GetConsoleSelectionBox(struct console_s *con, int *sx, int *sy, int *ex, int *ey);

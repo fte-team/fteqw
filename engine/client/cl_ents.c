@@ -4235,7 +4235,7 @@ void CL_LinkPacketEntities (void)
 		{
 			if (trailef == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, trailef, ent->keynum, ent->axis, &(le->trailstate)))
 				if (model->traildefaultindex >= 0)
-					pe->ParticleTrailIndex(old_origin, ent->origin, trailidx, 0, &(le->trailstate));
+					pe->ParticleTrailIndex(old_origin, ent->origin, P_INVALID, trailidx, 0, &(le->trailstate));
 
 			//dlights are not so customisable.
 			if (r_rocketlight.value && (modelflags & MF_ROCKET) && !(state->lightpflags & (PFLAGS_FULLDYNAMIC|PFLAGS_CORONA)))

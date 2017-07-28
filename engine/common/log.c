@@ -543,13 +543,16 @@ static void IPLog_Identify_f(void)
 	else
 		Con_Printf("%s: not connected, nor raw address\n", Cmd_Argv(0));
 }
-static qboolean IPLog_Dump(const char *fname)
+static int IPLog_Dump(const char *fname)
 {
 	size_t i;
 	vfsfile_t *f;
 	qbyte line[20];
 	if (!*fname)
 		fname = "iplog.txt";
+
+	if (!iplog_num && !COM_FCheckExists(fname))
+		return 2;	//no entries, nothing to overwrite
 
 	f = FS_OpenVFS(fname, "wb", FS_PUBBASEGAMEONLY);
 	if (!f)
@@ -590,11 +593,18 @@ static void IPLog_Dump_f(void)
 	if (FS_NativePath(fname, FS_GAMEONLY, native, sizeof(native)))
 		Q_strncpyz(native, fname, sizeof(native));
 	IPLog_Merge_File(fname);	//merge from the existing file, so that we're hopefully more robust if multiple processes are poking the same file.
-	if (!IPLog_Dump(fname))
-		Con_Printf("unable to write %s\n", fname);
-	else
+	switch (IPLog_Dump(fname))
 	{
+	case 0:
+		Con_Printf("unable to write %s\n", fname);
+		break;
+	default:
+	case 1:
 		Con_Printf("wrote %s\n", native);
+		break;
+	case 2:
+		Con_Printf("nothing to write\n");
+		break;
 	}
 }
 static void IPLog_Merge_f(void)

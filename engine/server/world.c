@@ -559,7 +559,9 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		VectorAdd (ent->v->origin, ent->v->maxs, ent->v->absmax);
 	}
 
-	if (ent->v->modelindex)
+	if (!ent->v->solid)
+		ent->solidsize = ES_SOLID_BSP;
+	else// if (1)///*ent->v->modelindex || */ent->v->model)
 	{
 		model_t *mod = w->Get_CModel(w, ent->v->modelindex);
 		if (mod && mod->type == mod_brush)
@@ -567,8 +569,6 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		else
 			ent->solidsize = COM_EncodeSize(ent->v->mins, ent->v->maxs);
 	}
-	else
-		ent->solidsize = ES_SOLID_BSP;
 
 //
 // to make items easier to pick up and allow them to be grabbed off
@@ -1167,7 +1167,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	}
 
 // did we clip the move?
-	if (trace.fraction < 1 || trace.startsolid)
+	if (trace.fraction < 1 || trace.startsolid || trace.allsolid)
 		trace.ent = ent;
 
 	return trace;

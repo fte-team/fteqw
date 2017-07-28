@@ -4135,6 +4135,12 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_BGRA8:
 			mips->encoding = PTI_BGRX8;
 			break;
+		case PTI_RGBA8_SRGB:
+			mips->encoding = PTI_RGBX8_SRGB;
+			break;
+		case PTI_BGRA8_SRGB:
+			mips->encoding = PTI_BGRX8_SRGB;
+			break;
 		case PTI_RGBA16F:
 		case PTI_RGBA32F:
 		case PTI_ARGB4444:
@@ -4153,6 +4159,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_RGB565:
 		case PTI_RGBX8:
 		case PTI_BGRX8:
+		case PTI_RGBX8_SRGB:
+		case PTI_BGRX8_SRGB:
 		case PTI_S3RGB1:
 			break;	//already no alpha in these formats
 		case PTI_DEPTH16:
@@ -4276,6 +4284,7 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 	tex->width = imgwidth;
 	tex->height = imgheight;
 
+	//d3d9 needs to reconfigure samplers depending on whether the data is srgb or not.
 	tex->flags &= ~IF_SRGB;
 	switch(mips->encoding)
 	{
@@ -4284,6 +4293,8 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 	case PTI_BGRA8_SRGB:
 	case PTI_BGRX8_SRGB:
 		tex->flags |= IF_SRGB;
+		break;
+	default:
 		break;
 	}
 

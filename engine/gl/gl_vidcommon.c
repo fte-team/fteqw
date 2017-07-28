@@ -1089,6 +1089,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglFramebufferRenderbufferEXT	= (void *)getglext("glFramebufferRenderbuffer");
 		qglCheckFramebufferStatusEXT	= (void *)getglext("glCheckFramebufferStatus");
 		qglGetFramebufferAttachmentParameteriv	= (void *)getglext("glGetFramebufferAttachmentParameteriv");
+
+		gl_config.arb_framebuffer_srgb = GL_CheckExtension("GL_ARB_framebuffer_sRGB");
 	}
 	else if (GL_CheckExtension("GL_EXT_framebuffer_object"))
 	{

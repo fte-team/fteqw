@@ -316,15 +316,8 @@ typedef struct {
 	GUID            SubFormat;
 } QWAVEFORMATEX;
 
-const static GUID  QKSDATAFORMAT_SUBTYPE_PCM = {0x00000001,0x0000,0x0010,
-						{0x80,
-						0x00,
-						0x00,
-						0xaa,
-						0x00,
-						0x38,
-						0x9b,
-						0x71}};
+const static GUID  QKSDATAFORMAT_SUBTYPE_PCM		= {0x00000001,0x0000,0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}};
+const static GUID QKSDATAFORMAT_SUBTYPE_IEEE_FLOAT	= {0x00000003,0x0000,0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}};
 
 #ifdef _IKsPropertySet_
 const static GUID  CLSID_EAXDIRECTSOUND = {0x4ff53b81, 0x1ce0, 0x11d3,
@@ -539,7 +532,7 @@ static unsigned int DSOUND_GetDMAPos(soundcardinfo_t *sc)
 	s = mmtime - dh->mmstarttime;
 
 
-	s >>= (sc->sn.samplebits/8) - 1;
+	s /= (sc->sn.samplebits/8);
 
 	s %= (sc->sn.samples);
 
@@ -662,6 +655,13 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 		format.Format.wFormatTag = WAVE_FORMAT_PCM;
 		format.Format.cbSize = 0;
 		sc->sn.numchannels = 1;
+	}
+
+	if (sc->sn.samplebits == 32)
+	{	//FTE does not support 32bit int audio, rather we interpret samplebits 32 as floats.
+		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+		format.Format.cbSize = 22;
+		memcpy(&format.SubFormat, &QKSDATAFORMAT_SUBTYPE_IEEE_FLOAT, sizeof(GUID));
 	}
 
 	format.Format.nChannels = sc->sn.numchannels;

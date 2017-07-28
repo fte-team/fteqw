@@ -1739,6 +1739,7 @@ Rendering functions (Client only)
 Server only functions
 */
 #ifndef CLIENTONLY
+static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge);
 
 //does the recursive work of Q1BSP_FatPVS
 static void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node, pvsbuffer_t *pvsbuffer)
@@ -1753,7 +1754,7 @@ static void SV_Q1BSP_AddToFatPVS (model_t *mod, vec3_t org, mnode_t *node, pvsbu
 		{
 			if (node->contents != Q1CONTENTS_SOLID)
 			{
-				Q1BSP_LeafPVS (mod, (mleaf_t *)node, pvsbuffer, true);
+				Q1BSP_ClusterPVS(mod, ((mleaf_t *)node - mod->leafs)-1, pvsbuffer, PVM_MERGE);
 			}
 			return;
 		}
@@ -1935,25 +1936,12 @@ static qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompresse
 static pvsbuffer_t	mod_novis;
 static pvsbuffer_t	mod_tempvis;
 
-qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, pvsbuffer_t *buffer, qboolean merge)
+void Q1BSP_Shutdown(void)
 {
-	if (leaf == model->leafs)
-	{
-		if (mod_novis.buffersize < model->pvsbytes)
-		{
-			mod_novis.buffer = BZ_Realloc(mod_novis.buffer, mod_novis.buffersize=model->pvsbytes);
-			memset(mod_novis.buffer, 0xff, mod_novis.buffersize);
-		}
-		return mod_novis.buffer;
-	}
-
-	if (!buffer)
-		buffer = &mod_tempvis;
-
-	if (buffer->buffersize < model->pvsbytes)
-		buffer->buffer = BZ_Realloc(buffer->buffer, buffer->buffersize=model->pvsbytes);
-
-	return Q1BSP_DecompressVis (leaf->compressed_vis, model, buffer->buffer, buffer->buffersize, merge);
+	Z_Free(mod_novis.buffer);
+	memset(&mod_novis, 0, sizeof(mod_novis));
+	Z_Free(mod_tempvis.buffer);
+	memset(&mod_tempvis, 0, sizeof(mod_tempvis));
 }
 
 //pvs is 1-based. clusters are 0-based. otherwise, q1bsp has a 1:1 mapping.
@@ -1990,20 +1978,34 @@ static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, pvsbuffer_t *buffer
 	return Q1BSP_DecompressVis (model->leafs[cluster].compressed_vis, model, buffer->buffer, buffer->buffersize, merge==PVM_MERGE);
 }
 
-/*static qbyte *Q1BSP_ClusterPHS (model_t *model, int cluster, pvsbuffer_t *buffer)
+/*static qbyte *Q1BSP_ClusterPHS (model_t *model, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge)
 {
 	if (cluster == -1 || !model->phs)
-	{	//without any phs info, this turns into a broadcast.
-		if (mod_novis.buffersize < model->pvsbytes)
+	{
+		if (merge == PVM_FAST)
 		{
-			mod_novis.buffer = BZ_Realloc(mod_novis.buffer, mod_novis.buffersize=model->pvsbytes);
-			memset(mod_novis.buffer, 0xff, mod_novis.buffersize);
+			if (mod_novis.buffersize < model->pvsbytes)
+			{
+				mod_novis.buffer = BZ_Realloc(mod_novis.buffer, mod_novis.buffersize=model->pvsbytes);
+				memset(mod_novis.buffer, 0xff, mod_novis.buffersize);
+			}
+			return mod_novis.buffer;
 		}
-		return mod_novis.buffer;
+		if (buffer->buffersize < model->pvsbytes)
+			buffer->buffer = BZ_Realloc(buffer->buffer, buffer->buffersize=model->pvsbytes);
+		memset(buffer->buffer, 0xff, model->pvsbytes);
+		return buffer->buffer;
 	}
-	cluster++;
 
-	return model->phs + cluster * model->pvsbytes;
+	if (merge == PVM_FAST)
+		return model->pvs + cluster * model->pvsbytes;
+
+	if (!buffer)
+		buffer = &mod_tempvis;
+	if (buffer->buffersize < model->pvsbytes)
+		buffer->buffer = BZ_Realloc(buffer->buffer, buffer->buffersize=model->pvsbytes);
+	memcpy(buffer->buffer, model->pvs + cluster * model->pvsbytes, model->pvsbytes);
+	return buffer->buffer;
 }*/
 
 //returns the leaf number, which is used as a bit index into the pvs.

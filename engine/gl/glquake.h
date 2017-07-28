@@ -226,11 +226,12 @@ typedef struct {
 
 	qboolean geometryshaders;
 
+	qboolean ext_framebuffer_objects;
+	qboolean arb_framebuffer_srgb;
 //	qboolean arb_fragment_program;
 	qboolean arb_shader_objects;
 	qboolean arb_shadow;
 	qboolean arb_depth_texture;
-	qboolean ext_framebuffer_objects;
 	qboolean ext_stencil_wrap;
 	qboolean ext_packed_depth_stencil;
 	qboolean arb_depth_clamp;
@@ -300,8 +301,6 @@ extern	vec3_t	r_origin;
 //
 extern	refdef_t	r_refdef;
 extern	unsigned int r_viewcontents;
-extern	mleaf_t		*r_viewleaf, *r_oldviewleaf;
-extern	mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
 extern	int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;	//q2
 extern	texture_t	*r_notexture_mip;
 extern	int		d_lightstylevalue[256];	// 8.8 fraction of base light value

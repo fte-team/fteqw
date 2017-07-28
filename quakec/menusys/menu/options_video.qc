@@ -19,6 +19,8 @@ nonstatic void(mitem_desktop desktop) M_Options_Video =
 	pos += 8;
 	fr.add(spawn(mitem_text, item_text:_("Apply / Restart"), 	item_command:"vid_restart", item_scale:8, item_flags:IF_RIGHTALIGN),	RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MID|RS_Y_MAX_OWN_MIN, [0, pos], [-8, 8]); pos += 8;
 	pos += 8;
+	
+	if (cvar_type("vid_renderer")) fr.add(menuitemcombo_spawn(_("Renderer"),	"vid_renderer",		'280 8', cvar_string("_vid_renderer_opts")),	fl, [0, pos], [0, 8]); pos += 8;
 
 	//add the options
 	if (!dp_workarounds)

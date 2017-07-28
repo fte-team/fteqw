@@ -1708,14 +1708,7 @@ void MSG_Q3_ReadDeltaUsercmd(int key, const usercmd_t *from, usercmd_t *to)
 		to->servertime = MSG_ReadBits(8) + from->servertime;
 	else
 		to->servertime = MSG_ReadBits(32);
-
-	if ((unsigned int)(to->servertime - from->servertime) > 255)
-	{
-		Con_DPrintf("msecs clamped\n");
-		to->msec = 255;
-	}
-	else
-		to->msec = to->servertime - from->servertime;
+	to->msec = 0;	//first of a packet should always be an absolute value, which makes the old value awkward.
 
 	if (!MSG_ReadBits(1))
 	{

@@ -891,6 +891,18 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		Cbuf_AddText(va("\ncmd %s\n", c), RESTRICT_LOCAL);
 		return;
 	}
+	c = Info_ValueForKey(info, "say");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\nsay %s\n", c), RESTRICT_LOCAL);
+		return;
+	}
+	c = Info_ValueForKey(info, "echo");
+	if (*c)
+	{
+		Con_Printf("%s\n", c);
+		return;
+	}
 	c = Info_ValueForKey(info, "dir");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
@@ -2215,8 +2227,8 @@ void Key_Init (void)
 	key_linepos = 0;
 
 	key_dest_mask = kdm_game;
-	key_dest_absolutemouse = kdm_console | kdm_editor | kdm_cwindows | kdm_emenu;
-	
+	key_dest_absolutemouse = kdm_centerprint | kdm_console | kdm_editor | kdm_cwindows | kdm_emenu;
+
 //
 // init ascii characters in console mode
 //
@@ -2624,6 +2636,10 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		Key_Message (key, unicode);
 		return;
 	}
+
+	if (Key_Dest_Has(kdm_centerprint))
+		if (Key_Centerprint(key, unicode, devid))
+			return;
 
 	//anything else is a key binding.
 

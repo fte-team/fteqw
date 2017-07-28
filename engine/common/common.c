@@ -1105,13 +1105,15 @@ int COM_EncodeSize(vec3_t mins, vec3_t maxs)
 	solid = bound(0, (int)-mins[0], 255);
 	solid |= bound(0, (int)-mins[2], 255)<<8;
 	solid |= bound(0, (int)((maxs[2]+32768)), 65535)<<16;	/*up can be negative*/;
+	if (solid == 0x80000000)
+		solid = 0;	//point sized stuff should just be non-solid. you'll thank me for splitscreens.
 #else
 	solid = bound(0, (int)-mins[0]/8, 31);
 	solid |= bound(0, (int)-mins[2]/8, 31)<<5;
 	solid |= bound(0, (int)((maxs[2]+32)/8), 63)<<10;	/*up can be negative*/;
-#endif
 	if (solid == 4096)
 		solid = 0;	//point sized stuff should just be non-solid. you'll thank me for splitscreens.
+#endif
 	return solid;
 }
 

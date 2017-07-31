@@ -496,8 +496,7 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 
 		rad = cl_dlights[lnum].radius;
 		VectorSubtract(cl_dlights[lnum].origin, currententity->origin, lightofs);
-		dist = DotProduct (lightofs, surf->plane->normal) -
-				surf->plane->dist;
+		dist = DotProduct (lightofs, surf->plane->normal) - surf->plane->dist;
 		rad -= fabs(dist);
 		minlight = cl_dlights[lnum].minlight;
 		if (rad < minlight)
@@ -525,16 +524,17 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 			b = cl_dlights[lnum].color[2]*128;
 		}
 
-/*		if (cl_dlights[lnum].type == 1)	//a wierd effect.
+		bl = blocklights;
+		if (r < 0 || g < 0 || b < 0)
 		{
 			for (t = 0 ; t<tmax ; t++)
 			{
-				td = local[1] - t*surf->lmscale;
+				td = local[1] - (t<<surf->lmshift);
 				if (td < 0)
 					td = -td;
 				for (s=0 ; s<smax ; s++)
 				{
-					sd = local[0] - s*surf->lmscale;
+					sd = local[0] - (s<<surf->lmshift);
 					if (sd < 0)
 						sd = -sd;
 					if (sd > td)
@@ -543,16 +543,19 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 						dist = td + (sd>>1);
 					if (dist < minlight)
 					{
-						blocklights[t*smax + s]		+= 2*sin(dist/10+cl.time*20)*(rad - dist)*256 * cl_dlights[lnum].colour[0]*3;
-						greenblklights[t*smax + s]	+= 2*sin(M_PI/3+dist/10+cl.time*20)*(rad - dist)*256 * cl_dlights[lnum].colour[1]*3;
-						blueblklights[t*smax + s]	+= 2*sin(2*M_PI/3+dist/10+cl.time*20)*(rad - dist)*256 * cl_dlights[lnum].colour[2]*3;
+						i = bl[0] + (rad - dist)*r;
+						bl[0] = (i<0)?0:i;
+						i = bl[1] + (rad - dist)*g;
+						bl[1] = (i<0)?0:i;
+						i = bl[2] + (rad - dist)*b;
+						bl[2] = (i<0)?0:i;
 					}
+					bl += 3;
 				}
 			}
 		}
 		else
-*/		{
-			bl = blocklights;
+		{
 			for (t = 0 ; t<tmax ; t++)
 			{
 				td = local[1] - (t<<surf->lmshift);

@@ -247,7 +247,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
 
-//		#define DSPMODELS		//doom sprites (only needs DOOMWADS to generate the right wad file names)
+//		#define DSPMODELS		//doom sprites (only needs PACKAGE_DOOMWAD to generate the right wad file names)
 		#define SPRMODELS		//quake1 sprite models
 		#define SP2MODELS		//quake2 sprite models
 		#define MD1MODELS		//quake1 alias models
@@ -262,7 +262,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define RAGDOLL
 
 		#define HUFFNETWORK		//huffman network compression
-		#define DOOMWADS		//doom wad/sprite support
+//		#define PACKAGE_DOOMWAD	//doom wad support (maps+sprites are separate)
 //		#define MAP_DOOM		//doom map support
 //		#define MAP_PROC		//doom3/quake4 map support
 		//#define WOLF3DSUPPORT	//wolfenstein3d map support (not started yet)
@@ -444,7 +444,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HALFLIFEMODELS
 	#undef RUNTIMELIGHTING
 	#undef HEXEN2
-	#undef DOOMWADS	
+	#undef PACKAGE_DOOMWAD	
 	#undef MAP_PROC	
 	#undef Q1BSPS
 	#undef Q2BSPS

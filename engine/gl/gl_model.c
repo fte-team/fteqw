@@ -5924,7 +5924,7 @@ void Mod_LoadDoomSprite (model_t *mod)
 			frame.left = -header->xpos;
 			frame.right = header->width - header->xpos;
 
-			t[0] = t[1] = max(abs(frame.left),abs(frame.right));
+			t[0] = t[1] = max(fabs(frame.left),fabs(frame.right));
 			t[2] = frame.up;
 			AddPointToBounds(t, mod->mins, mod->maxs);
 			t[0] *= -1;

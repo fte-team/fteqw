@@ -2415,6 +2415,13 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer,
 	char ext[8];
 	void *nbuffers[2];
 
+	switch(fmt)
+	{	//nuke any alpha channel...
+	case TF_RGBA32: fmt = TF_RGBX32; break;
+	case TF_BGRA32: fmt = TF_BGRX32; break;
+	default: break;
+	}
+
 	if (!bytestride)
 		bytestride = width*4;
 	if (bytestride < 0)

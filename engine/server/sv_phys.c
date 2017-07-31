@@ -559,10 +559,11 @@ SV_AddGravity
 
 ============
 */
-static void WPhys_AddGravity (world_t *w, wedict_t *ent, const float *gravitydir, float scale)
+static void WPhys_AddGravity (world_t *w, wedict_t *ent, const float *gravitydir)
 {
+	float scale = ent->xv->gravity;
 	if (!scale)
-		scale = w->defaultgravityscale;
+		scale = 1.0;
 
 	VectorMA(ent->v->velocity, scale * movevars.gravity * host_frametime, gravitydir, ent->v->velocity);
 }
@@ -1331,7 +1332,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 		&& ent->v->movetype != MOVETYPE_FLYMISSILE
 		&& ent->v->movetype != MOVETYPE_BOUNCEMISSILE
 		&& ent->v->movetype != MOVETYPE_H2SWIM)
-		WPhys_AddGravity (w, ent, gravitydir, 1.0);
+		WPhys_AddGravity (w, ent, gravitydir);
 
 // move angles
 	VectorMA (ent->v->angles, host_frametime, ent->v->avelocity, ent->v->angles);
@@ -1455,7 +1456,7 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 	{
 		hitsound = -DotProduct(gravitydir, ent->v->velocity) < movevars.gravity*-0.1;
 
-		WPhys_AddGravity (w, ent, gravitydir, 1.0);
+		WPhys_AddGravity (w, ent, gravitydir);
 		WPhys_CheckVelocity (w, ent);
 		WPhys_FlyMove (w, ent, gravitydir, host_frametime, NULL);
 		World_LinkEdict (w, ent, true);
@@ -2180,7 +2181,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 			gravitydir = w->g.defaultgravitydir;
 
 		if (!WPhys_CheckWater (w, ent) && ! ((int)ent->v->flags & FL_WATERJUMP) )
-			WPhys_AddGravity (w, ent, gravitydir, ent->xv->gravity);
+			WPhys_AddGravity (w, ent, gravitydir);
 		WPhys_CheckStuck (w, ent);
 
 		WPhys_WalkMove (w, ent, gravitydir);

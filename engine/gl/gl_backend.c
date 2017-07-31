@@ -1444,7 +1444,8 @@ void GLBE_Init(void)
 	shaderstate.curentity = &r_worldentity;
 	be_maxpasses = gl_config_nofixedfunc?1:gl_mtexarbable;
 	gl_stencilbits = 0;
-	if (gl_config.glversion >= 3.0 && gl_config_nofixedfunc)
+#ifndef GLESONLY
+	if (!gl_config_gles && gl_config.glversion >= 3.0 && gl_config_nofixedfunc)
 	{
 		//docs say this line should be okay in gl3+. nvidia do not seem to agree. GL_STENCIL_BITS is depricated however. so for now, just assume.
 		qglGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER_EXT, GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &gl_stencilbits);
@@ -1452,6 +1453,7 @@ void GLBE_Init(void)
 			gl_stencilbits = 8;
 	}
 	else
+#endif
 		qglGetIntegerv(GL_STENCIL_BITS, &gl_stencilbits);
 	for (i = 0; i < FTABLE_SIZE; i++)
 	{

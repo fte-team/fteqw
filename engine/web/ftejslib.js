@@ -114,7 +114,9 @@ mergeInto(LibraryManager.library,
 					break;
 				case 'resize':
 					if (FTEC.evcb.resize != 0)
+					{
 						Runtime.dynCall('vii', FTEC.evcb.resize, [Module['canvas'].width, Module['canvas'].height]);
+					}
 					break;
 				case 'mousemove':
 					if (FTEC.evcb.mouse != 0)
@@ -134,7 +136,10 @@ mergeInto(LibraryManager.library,
 							Runtime.dynCall('viidddd', FTEC.evcb.mouse, [0, false, event.movementX, event.movementY, 0, 0]);
 						}
 						else
-							Runtime.dynCall('viidddd', FTEC.evcb.mouse, [0, true, event.pageX, event.pageY, 0, 0]);
+						{
+							var rect = Module['canvas'].getBoundingClientRect();
+							Runtime.dynCall('viidddd', FTEC.evcb.mouse, [0, true, (event.clientX - rect.left)*(Module['canvas'].width/rect.width), (event.clientY - rect.top)*(Module['canvas'].height/rect.height), 0, 0]);
+						}
 					}
 					break;
 				case 'mousedown':
@@ -432,7 +437,7 @@ mergeInto(LibraryManager.library,
 						'keypress', 'keydown', 'keyup', 
 						'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove',
 						'dragenter', 'dragover', 'drop',
-						'message', 
+						'message', 'resize',
 						'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockchange',
 						'focus', 'blur'];   //try to fix alt-tab
 			events.forEach(function(event)
@@ -453,11 +458,11 @@ mergeInto(LibraryManager.library,
 				window.addEventListener(event, FTEC.handleevent, true);
 			});
 
-			Browser.resizeListeners.push(function(w, h) {
-				FTEC.handleevent({
-					type: 'resize',
-				});
-			});
+//			Browser.resizeListeners.push(function(w, h) {
+//				FTEC.handleevent({
+//					type: 'resize',
+//				});
+//			});
 		}
 		var ctx = Browser.createContext(Module['canvas'], true, true);
 		if (ctx == null)
@@ -482,7 +487,10 @@ mergeInto(LibraryManager.library,
 //				Browser.windowedHeight = window.innerHeight;
 //			}
 //			else
-				Browser.setCanvasSize(window.innerWidth, window.innerHeight, false);
+			{
+				var rect = Module['canvas'].getBoundingClientRect();
+				Browser.setCanvasSize(rect.width, rect.height, false);
+			}
 			if (FTEC.evcb.resize != 0)
 				Runtime.dynCall('vii', FTEC.evcb.resize, [Module['canvas'].width, Module['canvas'].height]);
 		};

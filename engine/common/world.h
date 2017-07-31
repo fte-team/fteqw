@@ -199,8 +199,6 @@ struct world_s
 	double		lastchecktime;		// for monster ai
 	qbyte		*lastcheckpvs;		// for monster ai
 
-	float		defaultgravityscale; //0 in QW, 1 for anything else (inc csqc)
-
 	/*antilag*/
 	float lagentsfrac;
 	laggedentinfo_t *lagents;

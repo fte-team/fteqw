@@ -62,7 +62,7 @@ void R_ForceSky_f(void)
 		else if (*cl.skyname)
 			Con_Printf("Current per-map skybox is %s\n", cl.skyname);
 		else
-			Con_Printf("no skybox forced.\n", cl.skyname);
+			Con_Printf("no skybox forced.\n");
 	}
 	else
 	{

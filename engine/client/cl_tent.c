@@ -3426,7 +3426,7 @@ void CLQ2_ParseTEnt (void)
 
 	case Q2TE_FORCEWALL:
 		MSG_ReadPos (pos);
-		MSG_ReadDir (pos2);
+		MSG_ReadPos (pos2);
 		color = MSG_ReadByte ();
 		P_ParticleTrailIndex(pos, pos2, pt, color, 0, NULL);
 		break;

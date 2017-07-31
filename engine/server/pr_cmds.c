@@ -2013,10 +2013,6 @@ void Q_InitProgs(void)
 
 	sv.world.edict_size = PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
-	if (progstype == PROG_QW)
-		sv.world.defaultgravityscale = 0;
-	else
-		sv.world.defaultgravityscale = 1;
 #ifdef HEXEN2
 	SV_RegisterH2CustomTents();
 #endif

@@ -7029,7 +7029,6 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		csqc_world.Event_ContentsTransition = CSQC_Event_ContentsTransition;
 		csqc_world.Get_CModel = CSQC_World_ModelForIndex;
 		csqc_world.Get_FrameState = CSQC_World_GetFrameState;
-		csqc_world.defaultgravityscale = 1;
 		World_ClearWorld(&csqc_world, false);
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
 

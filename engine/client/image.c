@@ -2055,6 +2055,7 @@ typedef struct bmpheader_s
 	unsigned short	Reserved1;
 	unsigned short	Reserved2;
 	unsigned int	OffsetofBMPBits;
+
 	unsigned int	SizeofBITMAPINFOHEADER;
 	signed int		Width;
 	signed int		Height;
@@ -2074,7 +2075,8 @@ typedef struct bmpheaderv4_s
 	unsigned int	BlueMask;
 	unsigned int	AlphaMask;
 	qbyte			ColourSpace[4];	//"Win " or "sRGB"
-	qbyte			ColourSpaceCrap[24+4*3];
+	qbyte			ColourSpaceCrap[12*3];
+	unsigned int	Gamma[3];
 } bmpheaderv4_t;
 
 qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
@@ -2270,17 +2272,11 @@ qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int in
 	outstride = width * (bits/8);
 	outstride = (outstride+3)&~3;	//bmp pads rows to a multiple of 4 bytes.
 
-	data = BZ_Malloc(2+sizeof(h)+extraheadersize+width*outstride);
-	out = data+2+sizeof(h)+extraheadersize;
-
-
-	data[0] = 'B';
-	data[1] = 'M';
 	h.Size = 2+sizeof(h)+extraheadersize + outstride*height;
 	h.Reserved1 = 0;
 	h.Reserved2 = 0;
-	h.OffsetofBMPBits = 2+sizeof(h)+extraheadersize;
-	h.SizeofBITMAPINFOHEADER = sizeof(h)+extraheadersize;
+	h.OffsetofBMPBits = 2+sizeof(h)+extraheadersize;	//yes, this is misaligned.
+	h.SizeofBITMAPINFOHEADER = (sizeof(h)-12)+extraheadersize;
 	h.Width = width;
 	h.Height = height;
 	h.Planes = 1;
@@ -2291,9 +2287,18 @@ qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int in
 	h.TargetDeviceYRes = 2835;
 	h.NumofColorIndices = 0;
 	h.NumofImportantColorIndices = 0;
-	memcpy(data+2, &h, sizeof(h));
-	if (extraheadersize)
-		memcpy(data+2+sizeof(h), &h4, sizeof(h4));
+
+	//bmp is bottom-up so flip it now.
+	in += instride*(height-1);
+	instride *= -1;
+
+	out = data = BZ_Malloc(h.Size);
+	*out++ = 'B';
+	*out++ = 'M';
+	memcpy(out, &h, sizeof(h));
+	out += sizeof(h);
+	memcpy(out, &h4, extraheadersize);
+	out += extraheadersize;
 
 	for (y = 0; y < height; y++)
 	{

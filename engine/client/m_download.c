@@ -260,7 +260,7 @@ qboolean PM_PurgeOnDisable(package_t *p)
 	if (p->flags & DPF_DISABLEDINSTALLED)
 		return false;
 	//hashed packages can also be present and not enabled, but only if they're in the cache and not native
-	if (*p->gamedir && p->qhash && (p->flags & DPF_CACHED))
+	if (*p->gamedir && p->qhash && (p->flags & DPF_PRESENT))
 		return false;
 	//FIXME: add basedir-plugins to the package manager so they can be enabled/disabled properly.
 	//if (p->arch)
@@ -1472,7 +1472,7 @@ static unsigned int PM_ChangeList(char *out, size_t outsize)
 				else
 					change = va(" install %s\n", p->name);
 			}
-			else if ((p->flags & DPF_PURGE) || !(p->qhash && (p->flags & DPF_CACHED)))
+			else if ((p->flags & DPF_PURGE) || !(p->qhash && (p->flags & DPF_PRESENT)))
 				change = va(" uninstall %s\n", p->name);
 			else
 				change = va(" disable %s\n", p->name);
@@ -2285,6 +2285,7 @@ static void PM_StartADownload(void)
 static void PM_ApplyChanges(void)
 {
 	package_t *p, **link;
+	char temp[MAX_OSPATH];
 
 	if (pkg_updating)
 		return;
@@ -2331,7 +2332,6 @@ static void PM_ApplyChanges(void)
 						if (*p->gamedir)
 						{
 							char *f = va("%s/%s", p->gamedir, dep->name);
-							char temp[MAX_OSPATH];
 							if (p->qhash && FS_GenCachedPakName(f, p->qhash, temp, sizeof(temp)) && PM_CheckFile(temp, p->fsroot))
 							{
 								if (!FS_Remove(temp, p->fsroot))
@@ -2346,7 +2346,21 @@ static void PM_ApplyChanges(void)
 				}
 			}
 			else
+			{
+				for (dep = p->deps; dep; dep = dep->next)
+				{
+					if (dep->dtype == DEP_FILE)
+					{
+						if (*p->gamedir)
+						{
+							char *f = va("%s/%s", p->gamedir, dep->name);
+							if ((p->flags & DPF_NATIVE) && p->qhash && FS_GenCachedPakName(f, p->qhash, temp, sizeof(temp)))
+								FS_Rename(f, temp, p->fsroot);
+						}
+					}
+				}
 				Con_Printf("Disabling package %s\n", p->name);
+			}
 			p->flags &= ~(DPF_PURGE|DPF_ENABLED);
 
 			/* FIXME: windows bug:

@@ -6180,7 +6180,7 @@ qbyte	*CM_ClusterPVS (model_t *mod, int cluster, pvsbuffer_t *buffer, pvsmerge_t
 			{
 				int c;
 				char *in = prv->q3pvs->data + cluster * prv->q3pvs->rowsize;
-				for (c = 0; c < mod->pvsbytes; c++)
+				for (c = 0; c < mod->pvsbytes; c+=4)
 					*(int*)&buffer->buffer[c] |= *(int*)&in[c];
 			}
 		}

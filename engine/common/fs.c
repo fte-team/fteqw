@@ -778,7 +778,7 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			Q_snprintfz(link, sizeof(link), "\\map\\%s", name);
 			colour = "^4";	//disconnects
 		}
-		else if (!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "spr") || !Q_strcasecmp(link, "mdl") || !Q_strcasecmp(link, "md3") || !Q_strcasecmp(link, "iqm") || !Q_strcasecmp(link, "psk") || !Q_strcasecmp(link, "dpm") || !Q_strcasecmp(link, "zym") || !Q_strcasecmp(link, "md5mesh") || !Q_strcasecmp(link, "md5anim"))
+		else if (!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "spr") || !Q_strcasecmp(link, "mdl") || !Q_strcasecmp(link, "md3") || !Q_strcasecmp(link, "iqm") || !Q_strcasecmp(link, "vvm") || !Q_strcasecmp(link, "psk") || !Q_strcasecmp(link, "dpm") || !Q_strcasecmp(link, "zym") || !Q_strcasecmp(link, "md5mesh") || !Q_strcasecmp(link, "md5anim"))
 			Q_snprintfz(link, sizeof(link), "\\modelviewer\\%s", name);
 		else if (!Q_strcasecmp(link, "qc") || !Q_strcasecmp(link, "src") || !Q_strcasecmp(link, "qh") || !Q_strcasecmp(link, "h") || !Q_strcasecmp(link, "c")
 			|| !Q_strcasecmp(link, "cfg") || !Q_strcasecmp(link, "rc")

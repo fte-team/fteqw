@@ -1737,10 +1737,10 @@ static qboolean Media_WinAvi_DecodeFrame (cin_t *cin, qboolean nosound, qboolean
 			qacmStreamConvert(cin->avi.audiodecoder, &strhdr, ACM_STREAMCONVERTF_BLOCKALIGN);
 			qacmStreamUnprepareHeader(cin->avi.audiodecoder, &strhdr, 0);
 
-			S_RawAudio(-1, strhdr.pbDst, cin->avi.pWaveFormat->nSamplesPerSec, strhdr.cbDstLengthUsed/4, cin->avi.pWaveFormat->nChannels, 2, 1);
+			S_RawAudio(-1, strhdr.pbDst, cin->avi.pWaveFormat->nSamplesPerSec, strhdr.cbDstLengthUsed/4, cin->avi.pWaveFormat->nChannels, 2, volume.value);
 		}
 		else
-			S_RawAudio(-1, pBuffer, cin->avi.pWaveFormat->nSamplesPerSec, samples, cin->avi.pWaveFormat->nChannels, 2, 1);
+			S_RawAudio(-1, pBuffer, cin->avi.pWaveFormat->nSamplesPerSec, samples, cin->avi.pWaveFormat->nChannels, 2, volume.value);
 	}
 	return true;
 }
@@ -2205,7 +2205,7 @@ static qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound, qboolean fo
 			while (cin->roq.roqfilm->audio_channels && S_HaveOutput() && cin->roq.roqfilm->aud_pos < cin->roq.roqfilm->vid_pos)
 			{
 				if (roq_read_audio(cin->roq.roqfilm)>0)		
-					S_RawAudio(-1, cin->roq.roqfilm->audio, 22050, cin->roq.roqfilm->audio_size/cin->roq.roqfilm->audio_channels, cin->roq.roqfilm->audio_channels, 2, 1);
+					S_RawAudio(-1, cin->roq.roqfilm->audio, 22050, cin->roq.roqfilm->audio_size/cin->roq.roqfilm->audio_channels, cin->roq.roqfilm->audio_channels, 2, volume.value );
 				else
 					break;
 			}

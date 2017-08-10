@@ -4088,7 +4088,7 @@ static void BE_UploadLightmaps(qboolean force)
 		if (!lightmap[i])
 			continue;
 
-		if (force)
+		if (force && !lightmap[i]->external)
 		{
 			lightmap[i]->rectchange.l = 0;
 			lightmap[i]->rectchange.t = 0;

@@ -350,6 +350,20 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 			qglTexParameteri(targ, GL_TEXTURE_WRAP_R, GL_REPEAT);
 	}
 
+	if (targ == GL_TEXTURE_2D && mips->mipcount > 1)
+	{	//npot mipmapped textures are awkward.
+		//opengl floors.
+		for (i = 1; i < mips->mipcount; i++)
+		{
+			if (mips->mip[i].width != (mips->mip[i-1].width>>1) ||
+				mips->mip[i].height != (mips->mip[i-1].height>>1))
+			{	//okay, this mip looks like it was sized wrongly. this can easily happen with dds files made for direct3d.
+				mips->mipcount = i;
+				break;
+			}
+		}
+	}
+
 	//make sure the texture is complete even if the mips are not.
 	//note that some drivers will just ignore levels that are not valid.
 	//this means that we can't make this setting dynamic, so we might as well let the drivers know BEFORE we do the uploads, to be kind to those that are buggy..

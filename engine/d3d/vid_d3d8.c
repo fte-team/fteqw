@@ -2,6 +2,7 @@
 #include "gl_draw.h"
 #include "shader.h"
 #include "renderque.h"
+#include "resource.h"
 
 #include "glquake.h"
 
@@ -750,6 +751,7 @@ static qboolean D3D8_VID_Init(rendererstate_t *info, unsigned char *palette)
 	DWORD wstyle;
 	RECT rect;
 	MSG msg;
+	HICON hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
 
 	//DDGAMMARAMP gammaramp;
 	//int i;
@@ -761,7 +763,7 @@ static qboolean D3D8_VID_Init(rendererstate_t *info, unsigned char *palette)
 		0,
 		0,
 		NULL,
-		NULL,
+		hIcon,
 		NULL,
 		NULL,
 		NULL,

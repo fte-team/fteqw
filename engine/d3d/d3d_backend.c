@@ -2480,8 +2480,6 @@ static void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *
 	index_t *vboedata;
 	vbovdata_t *vbovdata;
 
-	vbo = Z_Malloc(sizeof(*vbo));
-
 	maxvboverts = 0;
 	maxvboelements = 0;
 	for(batch = firstbatch; batch != stopbatch; batch = batch->next)
@@ -2496,6 +2494,10 @@ static void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *
 	if (maxvboverts > MAX_INDICIES)
 		Sys_Error("Building a vbo with too many verticies\n");
 
+	if (!maxvboelements)
+		return;
+
+	vbo = Z_Malloc(sizeof(*vbo));
 
 	IDirect3DDevice9_CreateIndexBuffer(pD3DDev9, sizeof(index_t) * maxvboelements, 0, D3DFMT_QINDEX, D3DPOOL_MANAGED, &ebuff, NULL);
 	IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, sizeof(*vbovdata) * maxvboverts, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &vbuff, NULL);

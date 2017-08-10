@@ -4,6 +4,7 @@
 #include "renderque.h"
 
 #include "glquake.h"
+#include "resource.h"
 
 #ifdef D3D9QUAKE
 #include "winquake.h"
@@ -710,6 +711,7 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	DWORD wstyle;
 	RECT rect;
 	MSG msg;
+	HICON hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
 
 	//DDGAMMARAMP gammaramp;
 	//int i;
@@ -721,7 +723,7 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 		0,
 		0,
 		NULL,
-		NULL,
+		hIcon,
 		NULL,
 		NULL,
 		NULL,
@@ -1072,12 +1074,17 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 	}
 #endif
 */
+
+	D3D9_Set2D();
+
 	if (Media_ShowFilm())
 	{
 		M_Draw(0);
 //		V_UpdatePalette (false);
 		Media_RecordFrame();
 //		R2D_BrightenScreen();
+		if (R2D_Flush)
+			R2D_Flush();
 		IDirect3DDevice9_EndScene(pD3DDev9);
 		D3D9_VID_SwapBuffers();
 		return true;
@@ -1090,8 +1097,6 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 
 	noworld = false;
 	nohud = false;
-
-	D3D9_Set2D();
 
 #ifdef VM_CG
 	if (CG_Refresh())

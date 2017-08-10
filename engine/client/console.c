@@ -942,7 +942,15 @@ void Con_PrintFlags(const char *txt, unsigned int setflags, unsigned int clearfl
 {
 	setflags |= con_main.parseflags;
 	setflags &= ~clearflags;
-	Con_PrintCon(&con_main, txt, setflags);
+
+// also echo to debugging console
+	Sys_Printf ("%s", txt);	// also echo to debugging console
+
+// log all messages to file
+	Con_Log (txt);
+
+	if (con_initialized)
+		Con_PrintCon(&con_main, txt, setflags);
 }
 
 void Con_CycleConsole(void)

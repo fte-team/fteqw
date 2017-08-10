@@ -1145,6 +1145,20 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 
 	layers = (mips->type == PTI_CUBEMAP)?6:1;
 
+	if (layers == 1 && mips->mipcount > 1)
+	{	//npot mipmapped textures are awkward.
+		//vulkan floors.
+		for (i = 1; i < mips->mipcount; i++)
+		{
+			if (mips->mip[i].width != (mips->mip[i-1].width>>1) ||
+				mips->mip[i].height != (mips->mip[i-1].height>>1))
+			{	//okay, this mip looks like it was sized wrongly. this can easily happen with dds files.
+				mips->mipcount = i;
+				break;
+			}
+		}
+	}
+
 	switch(mips->encoding)
 	{
 	case PTI_RGB565:
@@ -1314,12 +1328,15 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 		uint32_t blockwidth = (mips->mip[i].width+blocksize-1) / blocksize;
 		uint32_t blockheight = (mips->mip[i].height+blocksize-1) / blocksize;
 
-		memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockwidth*blockbytes*blockheight);
+		if (mips->mip[i].data)
+			memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockwidth*blockbytes*blockheight);
+		else
+			memset((char*)mapdata + bci.size, 0, blockwidth*blockbytes*blockheight);
 
 		//queue up a buffer->image copy for this mip
 		region.bufferOffset = bci.size;
-		region.bufferRowLength = 0;//blockwidth*blockbytes;
-		region.bufferImageHeight = 0;//blockheight;
+		region.bufferRowLength = blockwidth*blocksize;//*blockbytes;
+		region.bufferImageHeight = blockheight*blocksize;
 		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		region.imageSubresource.mipLevel = i%(mips->mipcount/layers);
 		region.imageSubresource.baseArrayLayer = i/(mips->mipcount/layers);
@@ -1327,8 +1344,8 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 		region.imageOffset.x = 0;
 		region.imageOffset.y = 0;
 		region.imageOffset.z = 0;
-		region.imageExtent.width = mips->mip[i].width;
-		region.imageExtent.height = mips->mip[i].height;
+		region.imageExtent.width = mips->mip[i].width;//blockwidth*blocksize;
+		region.imageExtent.height = mips->mip[i].height;//blockheight*blocksize;
 		region.imageExtent.depth = 1;
 
 		vkCmdCopyBufferToImage(vkloadcmd, fence->stagingbuffer, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);

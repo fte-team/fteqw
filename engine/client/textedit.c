@@ -833,6 +833,8 @@ console_t *Con_TextEditor(const char *fname, const char *line, qboolean newfile)
 
 			if (line)
 				Con_Editor_GoToLine(con, atoi(line));
+			else
+				Con_Editor_GoToLine(con, 1);
 
 			Con_Footerf(con, false, "    ^2%i lines", con->linecount);
 

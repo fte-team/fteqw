@@ -5,6 +5,7 @@
 #include "glquake.h"
 #include "shader.h"
 #include "renderque.h"
+#include "resource.h"
 
 #define COBJMACROS
 #include <d3d11.h>
@@ -937,6 +938,7 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 	DWORD wstyle;
 	RECT rect;
 	MSG msg;
+	HICON hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
 
 	//DDGAMMARAMP gammaramp;
 	//int i;
@@ -948,7 +950,7 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 		0,
 		0,
 		NULL,
-		NULL,
+		hIcon,
 		NULL,
 		NULL,
 		NULL,

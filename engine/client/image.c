@@ -2498,7 +2498,7 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('2'<<24)))	//dx3 with premultiplied alpha
 	{
-//		if (!(tex->flags & IF_PREMULTIPLYALPHA))
+		if (!(tex->flags & IF_PREMULTIPLYALPHA))
 			return false;
 		encoding = PTI_S3RGBA3;
 		pad = 8;

@@ -25,6 +25,9 @@ PLUGINS_LINUXx32="qi ezhud xmpp irc"
 PLUGINS_WINDOWS="avplug ode qi ezhud xmpp irc"
 THREADS="-j 4"
 
+TARGETS_LINUX="qcc-rel rel dbg vk-rel plugins-rel plugins-dbg"
+TARGETS_WINDOWS="sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel"
+
 ########### NaCL stuff
 NACL_SDK_ROOT=/opt/nacl_sdk/pepper_31/
 
@@ -128,25 +131,25 @@ function build_fteqcc {
 echo "--- Engine builds ---"
 #the -fno-finite-math-only is to avoid a glibc dependancy
 if [ "$BUILD_LINUXx86" != "n" ]; then
-	NATIVE_PLUGINS="$PLUGINS_LINUXx86" build "Linux 32-bit" linux_x86 FTE_TARGET=linux32 CPUOPTIMIZATIONS=-fno-finite-math-only qcc-rel rel dbg vk-rel plugins-rel plugins-dbg
+	NATIVE_PLUGINS="$PLUGINS_LINUXx86" build "Linux 32-bit" linux_x86 FTE_TARGET=linux32 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
 if [ "$BUILD_LINUXx64" != "n" ]; then
-	NATIVE_PLUGINS="$PLUGINS_LINUXx64" build "Linux 64-bit" linux_amd64 FTE_TARGET=linux64 LDFLAGS="-Llibs/64" CPUOPTIMIZATIONS=-fno-finite-math-only qcc-rel rel dbg vk-rel plugins-rel plugins-dbg
+	NATIVE_PLUGINS="$PLUGINS_LINUXx64" build "Linux 64-bit" linux_amd64 FTE_TARGET=linux64 LDFLAGS="-Llibs/64" CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
 if [ "$BUILD_LINUXx32" != "n" ]; then
 # 	CFLAGS="-DNO_JPEG"
-	NATIVE_PLUGINS="$PLUGINS_LINUXx32" build "Linux x32" linux_x32 FTE_TARGET=linuxx32 CPUOPTIMIZATIONS=-fno-finite-math-only qcc-rel rel dbg plugins-rel plugins-dbg
+	NATIVE_PLUGINS="$PLUGINS_LINUXx32" build "Linux x32" linux_x32 FTE_TARGET=linuxx32 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
 if [ "$BUILD_LINUXarmhf" != "n" ]; then
 	#debian/ubuntu's armhf targets armv7. we instead target armv6, because that means we work on rpi too (but still with hard-float). It should be compatible although we likely need more ops.
-	NATIVE_PLUGINS="$PLUGINS_LINUXarmhf" build "Linux ARMhf" linux_armhf FTE_TARGET=linuxarmhf CPUOPTIMIZATIONS=-fno-finite-math-only rel dbg qcc-rel plugins-rel plugins-dbg
+	NATIVE_PLUGINS="$PLUGINS_LINUXarmhf" build "Linux ARMhf" linux_armhf FTE_TARGET=linuxarmhf CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
 if [ "$BUILD_CYGWIN" != "n" ]; then
 	NATIVE_PLUGINS="qi ezhud" build "Cygwin" cygwin qcc-rel rel dbg plugins-rel plugins-dbg
 fi
 if [ "$BUILD_WINDOWS" != "n" ]; then
-	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows 32-bit" win32 FTE_TARGET=win32 CFLAGS="$WARNINGLEVEL" sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel NATIVE_PLUGINS="$PLUGINS_WINDOWS"
-	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows 64-bit" win64 FTE_TARGET=win64 CFLAGS="$WARNINGLEVEL" sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel
+	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows 32-bit" win32 FTE_TARGET=win32 CFLAGS="$WARNINGLEVEL" $TARGETS_WINDOWS
+	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows 64-bit" win64 FTE_TARGET=win64 CFLAGS="$WARNINGLEVEL" $TARGETS_WINDOWS
 fi
 if [ "$BUILD_MSVC" != "n" ]; then
 	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows MSVC 32-bit" msvc FTE_TARGET=vc BITS=32 CFLAGS="$WARNINGLEVEL" sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel
@@ -156,9 +159,9 @@ export NATIVE_PLUGINS="qi ezhud xmpp irc"
 if [ "$BUILD_ANDROID" != "n" ]; then
 	build "Android" android droid-rel
 fi
-if [ "$BUILD_WINDOWS" != "n" ]; then
-	build "NPFTE" npfte npfte-rel
-fi
+#if [ "$BUILD_WINDOWS" != "n" ]; then
+#	build "NPFTE" npfte npfte-rel
+#fi
 if [ "$BUILD_DOS" == "y" ]; then
 	#no networking makes dedicated servers useless. and only a crappy sw renderer is implemented right now.
 	#the qcc might be useful to someone though!

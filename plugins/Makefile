@@ -121,16 +121,16 @@ ifeq (0,1)
     AV_EXTRACT=7z e -y
 else
     AV_ARCHIVEEXT=.zip
-    AV_EXTRACT=unzip -j
+    AV_EXTRACT=unzip -ju
 endif
 AV_W32=$(AV_VER)-win32-dev$(AV_ARCHIVEEXT)
-AV_URL32=http://ffmpeg.zeranoe.com/builds/win32/dev/$(AV_W32)
-AV_PRE32=$(AV_VER)-win32-dev/
 AV_W64=$(AV_VER)-win64-dev$(AV_ARCHIVEEXT)
+AV_URL32=http://ffmpeg.zeranoe.com/builds/win32/dev/$(AV_W32)
 AV_URL64=http://ffmpeg.zeranoe.com/builds/win64/dev/$(AV_W64)
+AV_PRE32=$(AV_VER)-win32-dev/
 AV_PRE64=$(AV_VER)-win64-dev/
 ifeq ($(findstring win,$(FTE_TARGET)),win)
-  AV_BASE=$(OUT_DIR)/../fte_libav_$(AV_VER)/
+  AV_BASE=$(abspath $(OUT_DIR)/../fte_libav_$(AV_VER))/
 endif
 
 ifneq ($(AV_BASE),)
@@ -142,6 +142,7 @@ else
 endif
 
 
+AVPLUG_OBJS= avplug/avaudio.c avplug/avencode.c avplug/avdecode.c plugin.c qvm_api.c
 ifeq ($(FTE_TARGET),win32)
 #NATIVE_PLUGINS+=ffmpeg
 endif
@@ -157,16 +158,17 @@ $(AV_BASE)libavformat/avformat.h:
 	mkdir -p $(AV_BASE)libavutil   && cd $(AV_BASE)libavutil   && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)include/libavutil/*   && cd -
 	mkdir -p $(AV_BASE)libswscale  && cd $(AV_BASE)libswscale  && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)include/libswscale/*  && cd -
 	mkdir -p $(AV_BASE)lib32 && cd $(AV_BASE)lib32 && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)lib/avformat.lib $(AV_PRE32)lib/avcodec.lib $(AV_PRE32)lib/avutil.lib $(AV_PRE32)lib/swscale.lib && cd -
-	rm $(AV_BASE)$(AV_W32)
+	#rm $(AV_BASE)$(AV_W32)
 	cd $(AV_BASE) && wget -N $(AV_URL64)
 	mkdir -p $(AV_BASE)lib64 && cd $(AV_BASE)lib64 && $(AV_EXTRACT) ../$(AV_W64) $(AV_PRE64)lib/avformat.lib $(AV_PRE64)lib/avcodec.lib $(AV_PRE64)lib/avutil.lib $(AV_PRE64)lib/swscale.lib && cd -
-	rm $(AV_BASE)$(AV_W64)
+	#rm $(AV_BASE)$(AV_W64)
+
 distclean:
 	rm $(AV_BASE)libavformat/avformat.h
+
 $(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): $(AV_DEP)
 
-AVPLUG_OBJS= avplug/avaudio.c avplug/avencode.c avplug/avdecode.c plugin.c qvm_api.c
-$(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): avplug/avencode.c avplug/avdecode.c avplug/avaudio.c plugin.c qvm_api.c
+$(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): $(AVPLUG_OBJS)
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AV_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(AV_LDFLAGS)
 
 #small script for ode
@@ -182,7 +184,7 @@ ODE_BASE=$(OUT_DIR)/../ode-$(ODE_VER)_$(ODE_ARCH)/
 ODE_LIB=$(ODE_BASE)ode-$(ODE_VER)/ode/src/.libs/libode.a
 $(OUT_DIR)/../ode-$(ODE_VER).tar.gz:
 	mkdir -p $(ODE_BASE)
-	wget $(ODE_URL) -O $@
+	cd $(OUT_DIR)/.. && wget -N $(ODE_URL)
 $(ODE_LIB): $(OUT_DIR)/../ode-$(ODE_VER).tar.gz
 	mkdir -p $(ODE_BASE) && cd $(ODE_BASE) && tar xvfz $<
 	cd $(ODE_BASE)ode-$(ODE_VER)/ && ./bootstrap && ./configure --enable-double-precision --disable-demos --without-x --with-pic CC="$(CC) $(PLUG_CXXFLAGS)" CXX="$(CC) $(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && make
@@ -199,7 +201,7 @@ BULLET_BASE=$(OUT_DIR)/../bullet3-$(ODE_VER)_$(FTE_TARGET)/
 BULLET_LIB=$(ODE_BASE)bullet3-$(ODE_VER)/ode/src/.libs/libode.a
 $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz:
 	mkdir -p $(BULLET_BASE)
-	wget $(BULLET_URL) -O $@
+	wget -N $(BULLET_URL) -O $@
 $(BULLET_LIB): $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz
 	mkdir -p $(BULLET_BASE) && cd $(BULLET_BASE) && tar xvfz $<
 	cd $(BULLET_BASE)bullet3-$(BULLET_VER)/ && ./bootstrap && ./configure --enable-double-precision --disable-demos --without-x CXX="$(CC)" CFLAGS="$(PLUG_CFLAGS)" CXXFLAGS="$(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && make

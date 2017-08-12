@@ -33,7 +33,11 @@ ANDROID_ZIPALIGN=$ANDROIDROOT/build-tools/$ANDROIDBUILDTOOLS/zipalign	#relative 
 
 THREADS="-j 4"
 
-#windows is always cross compiled, so we don't have issues with non-native ffmpeg
+TARGETS_LINUX=qcc-rel rel dbg vk-rel plugins-rel plugins-dbg
+TARGETS_WINDOWS=sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel
+
+
+
 PLUGINS_LINUXx86="ode qi ezhud xmpp irc"
 PLUGINS_LINUXx64="ode qi ezhud xmpp irc"
 PLUGINS_LINUXx32="qi ezhud xmpp irc"
@@ -44,6 +48,7 @@ fi
 if [ "$(uname -m)" == "x86_64" ]; then
 	PLUGINS_LINUX64="ffmpeg ode qi ezhud xmpp irc"
 fi
+#windows is always cross compiled, so we don't have issues with non-native ffmpeg
 #windows doesn't cross compile, so no system dependancy issues
 #skip some dependancies if we're running on cygwin, ode is buggy.
 if [ "$(uname -s)" == "Linux" ]; then
@@ -142,8 +147,8 @@ if [ "$UID" != "0" ]; then
 	echo "BUILDLOGFOLDER=\"$BUILDLOGFOLDER\""		>>$FTECONFIG
 	echo "SVNROOT=\"$SVNROOT\""				>>$FTECONFIG
 	echo "ANDROIDROOT=\"$ANDROIDROOT\""			>>$FTECONFIG
-	echo "export ANDROID_HOSTSYSTEM=\"ANDROID_HOSTSYSTEM\""	>>$FTECONFIG
-	echo "export ANDROID_ZIPALIGN=\"ANDROID_ZIPALIGN\""	>>$FTECONFIG
+	echo "export ANDROID_HOSTSYSTEM=\"$ANDROID_HOSTSYSTEM\""	>>$FTECONFIG
+	echo "export ANDROID_ZIPALIGN=\"$ANDROID_ZIPALIGN\""	>>$FTECONFIG
 	echo "EMSCRIPTENROOT=\"$EMSCRIPTENROOT\""		>>$FTECONFIG
 	echo "OSXCROSSROOT=\"$OSXCROSSROOT\""			>>$FTECONFIG
 	echo "NACLROOT=\"$NACLROOT\""				>>$FTECONFIG
@@ -164,6 +169,8 @@ if [ "$UID" != "0" ]; then
 	echo "BUILD_MAC=\"$BUILD_MAC\""				>>$FTECONFIG
 	echo "BUILD_NACL=\"$BUILD_NACL\""			>>$FTECONFIG
 
+	echo "TARGETS_WINDOWS=\"$TARGETS_WINDOWS\""		>>$FTECONFIG
+	echo "TARGETS_LINUX=\"$TARGETS_LINUX\""			>>$FTECONFIG
 	echo "PLUGINS_WINDOWS=\"$PLUGINS_WINDOWS\""		>>$FTECONFIG
 	echo "PLUGINS_LINUXx86=\"$PLUGINS_LINUXx86\""		>>$FTECONFIG
 	echo "PLUGINS_LINUXx64=\"$PLUGINS_LINUXx64\""		>>$FTECONFIG

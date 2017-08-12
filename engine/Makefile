@@ -155,7 +155,8 @@ DROID_PACKSU?= $(BASE_DIR)/droid/fte.cfg $(BASE_DIR)/droid/default.fmf $(BASE_DI
 ANDROID_HOME?=~/android-sdk-linux
 #ANDROID_NDK_ROOT?=~/android-ndk-r8e
 ANDROID_NDK_ROOT?=$(ANDROID_HOME)/ndk-bundle
-ZIPALIGN?=$(ANDROID_HOME)/tools/zipalign
+ANDROID_ZIPALIGN?=$(ZIPALIGN)
+ANDROID_ZIPALIGN?=$(ANDROID_HOME)/tools/zipalign
 ANT?=ant
 JAVA_HOME?=/usr
 JAVATOOL=$(JAVA_HOME)/bin/
@@ -177,6 +178,7 @@ ifeq ($(FTE_TARGET),droid)
 	else
 		ANDROID_HOSTSYSTEM?=linux-$(shell uname -m)
 	endif
+	DROID_ABI_VER?=4.6
 
 	#omfg why the FUCK do we need all this bullshit? Why isn't there some sane way to do this that actually works regardless of ndk updates?!?
 	#name is some random subdir that someone at google arbitrarily picked
@@ -187,7 +189,7 @@ ifeq ($(FTE_TARGET),droid)
 	DROID_ABI_NAME___armeabi=arm-linux-androideabi
 	DROID_ABI_PREFIX_armeabi=arm-linux-androideabi
 	DROID_ABI_ARCH___armeabi=arm
-	DROID_ABI_VER____armeabi=4.6
+	DROID_ABI_VER____armeabi?=$(DROID_ABI_VER)
 	DROID_ABI_CFLAGS_armeabi=-march=armv5te -mtune=xscale -msoft-float
 	DROID_ABI_NAME___armeabi-v7a=$(DROID_ABI_NAME___armeabi)
 	DROID_ABI_PREFIX_armeabi-v7a=$(DROID_ABI_PREFIX_armeabi)
@@ -202,7 +204,7 @@ ifeq ($(FTE_TARGET),droid)
 	DROID_ABI_NAME___x86=x86
 	DROID_ABI_PREFIX_x86=i686-linux-android
 	DROID_ABI_ARCH___x86=x86
-	DROID_ABI_VER____x86=4.6
+	DROID_ABI_VER____x86?=$(DROID_ABI_VER)
 	DROID_ABI_CFLAGS_x86=-march=i686 -mssse3 -mfpmath=sse -m32 -Os
 	DROID_ABI_NAME___x86_64=$(DROID_ABI_NAME___x86)
 	DROID_ABI_PREFIX_x86_64=$(DROID_ABI_PREFIX_x86)
@@ -212,7 +214,7 @@ ifeq ($(FTE_TARGET),droid)
 	#DROID_ABI_NAME___mips=mipsel-linux-android
 	#DROID_ABI_PREFIX_mips=mipsel-linux-android
 	#DROID_ABI_ARCH___mips=mips
-	#DROID_ABI_VER____mips=4.6
+	#DROID_ABI_VER____mips?=$(DROID_ABI_VER)
 	#DROID_ABI_CFLAGS_mips=
 	#DROID_ABI_NAME___mips64=$(DROID_ABI_NAME___mips)
 	#DROID_ABI_PREFIX_mips64=$(DROID_ABI_PREFIX_mips)
@@ -1840,14 +1842,14 @@ debugdir:
 	@-mkdir -p $(OUT_DIR)
 endif
 
-plugins-dbg:
+plugins-dbg: debugdir
 	@if test -e ../plugins/Makefile; \
 	then $(MAKE) native -C ../plugins  OUT_DIR="$(DEBUG_DIR)" CC="$(CC) $(W32_CFLAGS) $(DEBUG_CFLAGS)" BASE_CFLAGS="$(BASE_CFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
 	fi
 plugins:
 
-plugins-rel:
+plugins-rel: reldir
 	@if test -e ../plugins/Makefile; \
 	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" BASE_CFLAGS="$(BASE_CFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
@@ -2030,7 +2032,7 @@ endif
 	@echo
 	@$(JAVATOOL)jarsigner $(JARSIGNARGS) -digestalg SHA1 -sigalg MD5withRSA -keystore droid/ftekeystore droid/bin/FTEDroid-release-unsigned.apk autogen
 	-rm -f $(RELEASE_DIR)/FTEDroid.apk
-	$(ZIPALIGN) 4 droid/bin/FTEDroid-release-unsigned.apk $(NATIVE_RELEASE_DIR)/FTEDroid.apk
+	$(ANDROID_ZIPALIGN) 4 droid/bin/FTEDroid-release-unsigned.apk $(NATIVE_RELEASE_DIR)/FTEDroid.apk
 
 droid-opt:
 	$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore

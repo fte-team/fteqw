@@ -18,7 +18,7 @@ void D3D9_DestroyTexture (texid_t tex)
 	tex->ptr = NULL;
 }
 
-qboolean D3D9_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
+qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mips)
 {
 	qbyte *fte_restrict out, *fte_restrict in;
 	int x, y, i;

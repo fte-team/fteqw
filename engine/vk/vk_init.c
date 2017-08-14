@@ -1120,7 +1120,7 @@ static void VK_TextureLoaded(void *ctx)
 		}
 #endif
 }
-qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
+qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 {
 #ifdef USE_STAGING_BUFFERS
 	VkBufferCreateInfo bci = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
@@ -1138,22 +1138,23 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 	uint32_t blocksize;
 	uint32_t blockbytes;
 	uint32_t layers;
+	uint32_t mipcount = mips->mipcount;
 	if (mips->type != PTI_2D && mips->type != PTI_CUBEMAP)
 		return false;
-	if (!mips->mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0)
+	if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0)
 		return false;
 
 	layers = (mips->type == PTI_CUBEMAP)?6:1;
 
-	if (layers == 1 && mips->mipcount > 1)
+	if (layers == 1 && mipcount > 1)
 	{	//npot mipmapped textures are awkward.
 		//vulkan floors.
-		for (i = 1; i < mips->mipcount; i++)
+		for (i = 1; i < mipcount; i++)
 		{
-			if (mips->mip[i].width != (mips->mip[i-1].width>>1) ||
-				mips->mip[i].height != (mips->mip[i-1].height>>1))
+			if (mips->mip[i].width != max(1,(mips->mip[i-1].width>>1)) ||
+				mips->mip[i].height != max(1,(mips->mip[i-1].height>>1)))
 			{	//okay, this mip looks like it was sized wrongly. this can easily happen with dds files.
-				mips->mipcount = i;
+				mipcount = i;
 				break;
 			}
 		}
@@ -1212,7 +1213,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 	}
 
 	fence = VK_FencedBegin(VK_TextureLoaded, sizeof(*fence));
-	fence->mips = mips->mipcount;
+	fence->mips = mipcount;
 	vkloadcmd = fence->w.cbuf;
 
 	//create our target image
@@ -1222,7 +1223,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 		if (tex->vkimage->width != mips->mip[0].width ||
 			tex->vkimage->height != mips->mip[0].height ||
 			tex->vkimage->layers != layers ||
-			tex->vkimage->mipcount != mips->mipcount ||
+			tex->vkimage->mipcount != mipcount ||
 			tex->vkimage->encoding != mips->encoding ||
 			tex->vkimage->type != mips->type)
 		{
@@ -1251,7 +1252,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 			imgbarrier.image = target.image;
 			imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			imgbarrier.subresourceRange.baseMipLevel = 0;
-			imgbarrier.subresourceRange.levelCount = mips->mipcount/layers;
+			imgbarrier.subresourceRange.levelCount = mipcount/layers;
 			imgbarrier.subresourceRange.baseArrayLayer = 0;
 			imgbarrier.subresourceRange.layerCount = layers;
 			imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1264,7 +1265,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 	}
 	else
 	{
-		target = VK_CreateTexture2DArray(mips->mip[0].width, mips->mip[0].height, layers, mips->mipcount/layers, mips->encoding, mips->type, !!(tex->flags&IF_RENDERTARGET));
+		target = VK_CreateTexture2DArray(mips->mip[0].width, mips->mip[0].height, layers, mipcount/layers, mips->encoding, mips->type, !!(tex->flags&IF_RENDERTARGET));
 
 		{
 			//images have weird layout representations.
@@ -1275,7 +1276,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 			imgbarrier.image = target.image;
 			imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			imgbarrier.subresourceRange.baseMipLevel = 0;
-			imgbarrier.subresourceRange.levelCount = mips->mipcount/layers;
+			imgbarrier.subresourceRange.levelCount = mipcount/layers;
 			imgbarrier.subresourceRange.baseArrayLayer = 0;
 			imgbarrier.subresourceRange.layerCount = layers;
 			imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1290,7 +1291,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 #ifdef USE_STAGING_BUFFERS
 	//figure out how big our staging buffer needs to be
 	bci.size = 0;
-	for (i = 0; i < mips->mipcount; i++)
+	for (i = 0; i < mipcount; i++)
 	{
 		uint32_t blockwidth = (mips->mip[i].width+blocksize-1) / blocksize;
 		uint32_t blockheight = (mips->mip[i].height+blocksize-1) / blocksize;
@@ -1318,7 +1319,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 		Sys_Error("Unable to map staging image\n");
 
 	bci.size = 0;
-	for (i = 0; i < mips->mipcount; i++)
+	for (i = 0; i < mipcount; i++)
 	{
 		VkImageSubresource subres = {0};
 		VkBufferImageCopy region;
@@ -1338,8 +1339,8 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 		region.bufferRowLength = blockwidth*blocksize;//*blockbytes;
 		region.bufferImageHeight = blockheight*blocksize;
 		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		region.imageSubresource.mipLevel = i%(mips->mipcount/layers);
-		region.imageSubresource.baseArrayLayer = i/(mips->mipcount/layers);
+		region.imageSubresource.mipLevel = i%(mipcount/layers);
+		region.imageSubresource.baseArrayLayer = i/(mipcount/layers);
 		region.imageSubresource.layerCount = 1;
 		region.imageOffset.x = 0;
 		region.imageOffset.y = 0;
@@ -1355,7 +1356,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 	vkUnmapMemory(vk.device, fence->stagingmemory);
 #else
 //create the staging images and fill them
-	for (i = 0; i < mips->mipcount; i++)
+	for (i = 0; i < mipcount; i++)
 	{
 		VkImageSubresource subres = {0};
 		VkSubresourceLayout layout;
@@ -1393,8 +1394,8 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 			region.srcOffset.y = 0;
 			region.srcOffset.z = 0;
 			region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			region.dstSubresource.mipLevel = i%(mips->mipcount/layers);
-			region.dstSubresource.baseArrayLayer = i/(mips->mipcount/layers);
+			region.dstSubresource.mipLevel = i%(mipcount/layers);
+			region.dstSubresource.baseArrayLayer = i/(mipcount/layers);
 			region.dstSubresource.layerCount = 1;
 			region.dstOffset.x = 0;
 			region.dstOffset.y = 0;
@@ -1419,7 +1420,7 @@ qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips)
 		imgbarrier.image = target.image;
 		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		imgbarrier.subresourceRange.baseMipLevel = 0;
-		imgbarrier.subresourceRange.levelCount = mips->mipcount/layers;
+		imgbarrier.subresourceRange.levelCount = mipcount/layers;
 		imgbarrier.subresourceRange.baseArrayLayer = 0;
 		imgbarrier.subresourceRange.layerCount = layers;
 		imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;

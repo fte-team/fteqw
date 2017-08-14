@@ -81,9 +81,6 @@ float LerpAngle (float a2, float a1, float frac)
 
 #define Q2MAX_STATS	32
 
-
-void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float timeofs);
-
 typedef struct q2centity_s
 {
 	entity_state_t	baseline;		// delta from this if not from a previous frame
@@ -100,6 +97,10 @@ typedef struct q2centity_s
 	float		fly_stoptime;
 } q2centity_t;
 
+static void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float delay)
+{
+	S_StartSound(entnum, entchannel, sfx, origin, NULL, fvol, attenuation, -delay, 0, 0);
+}
 sfx_t *S_PrecacheSexedSound(int entnum, const char *soundname)
 {
 	if (soundname[0] == '*')
@@ -213,6 +214,23 @@ static q2centity_t cl_entities[MAX_Q2EDICTS];
 entity_state_t	clq2_parse_entities[MAX_PARSE_ENTITIES];
 
 void CL_SmokeAndFlash(vec3_t origin);
+
+void CL_GetNumberedEntityInfo (int num, float *org, float *ang)
+{
+	q2centity_t	*ent;
+
+	if (num < 0 || num >= MAX_Q2EDICTS)
+		Host_EndGame ("CL_GetNumberedEntityInfo: bad ent");
+	ent = &cl_entities[num];
+
+	if (org)
+		VectorCopy (ent->current.origin, org);
+	if (ang)
+		VectorCopy (ent->current.angles, ang);
+
+
+	// FIXME: bmodel issues...
+}
 
 void CLQ2_WriteDemoBaselines(sizebuf_t *buf)
 {
@@ -641,6 +659,220 @@ void CLQ2_RunMuzzleFlash2 (int ent, int flash_number)
 	}
 }
 
+void CLQ2_ParseMuzzleFlash (void)
+{
+	vec3_t		fv, rv, dummy;
+	dlight_t	*dl;
+	int			i, weapon;
+	vec3_t		org, ang;
+	int			silenced;
+	float		volume;
+	char		soundname[64];
+
+	i = (unsigned short)(short)MSG_ReadShort ();
+	if (i < 1 || i >= Q2MAX_EDICTS)
+		Host_Error ("CL_ParseMuzzleFlash: bad entity");
+
+	weapon = MSG_ReadByte ();
+	silenced = weapon & Q2MZ_SILENCED;
+	weapon &= ~Q2MZ_SILENCED;
+
+	CL_GetNumberedEntityInfo(i, org, ang);
+
+	dl = CL_AllocDlight (i);
+	VectorCopy (org,  dl->origin);
+	AngleVectors (ang, fv, rv, dummy);
+	VectorMA (dl->origin, 18, fv, dl->origin);
+	VectorMA (dl->origin, 16, rv, dl->origin);
+	if (silenced)
+		dl->radius = 100 + (rand()&31);
+	else
+		dl->radius = 200 + (rand()&31);
+	dl->minlight = 32;
+	dl->die = cl.time+0.05; //+ 0.1;
+	dl->decay = 1;
+
+	dl->channelfade[0] = 2;
+	dl->channelfade[1] = 2;
+	dl->channelfade[2] = 2;
+
+	if (silenced)
+		volume = 0.2;
+	else
+		volume = 1;
+
+
+	switch (weapon)
+	{
+	case Q2MZ_BLASTER:
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/blastf1a.wav"), volume, ATTN_NORM, 0);
+		break;
+	case Q2MZ_BLUEHYPERBLASTER:
+		dl->color[0] = 0;dl->color[1] = 0;dl->color[2] = 1;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/hyprbf1a.wav"), volume, ATTN_NORM, 0);
+		break;
+	case Q2MZ_HYPERBLASTER:
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/hyprbf1a.wav"), volume, ATTN_NORM, 0);
+		break;
+	case Q2MZ_MACHINEGUN:
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
+		break;
+
+	case Q2MZ_SHOTGUN:
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/shotgf1b.wav"), volume, ATTN_NORM, 0);
+		Q2S_StartSound (NULL, i, CHAN_AUTO,   S_PrecacheSound("weapons/shotgr1b.wav"), volume, ATTN_NORM, 0.1);
+		break;
+	case Q2MZ_SSHOTGUN:
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/sshotf1b.wav"), volume, ATTN_NORM, 0);
+		break;
+	case Q2MZ_CHAINGUN1:
+		dl->radius = 200 + (rand()&31);
+		dl->color[0] = 1;dl->color[1] = 0.25;dl->color[2] = 0;
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
+		break;
+	case Q2MZ_CHAINGUN2:
+		dl->radius = 225 + (rand()&31);
+		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0;
+		dl->die = cl.time  + 0.1;	// long delay
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q2S_StartSound (NULL, i, CHAN_AUTO, S_PrecacheSound(soundname), volume, ATTN_NORM, 0.05);
+		break;
+	case Q2MZ_CHAINGUN3:
+		dl->radius = 250 + (rand()&31);
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
+		dl->die = cl.time  + 0.1;	// long delay
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q2S_StartSound (NULL, i, CHAN_AUTO, S_PrecacheSound(soundname), volume, ATTN_NORM, 0.033);
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q2S_StartSound (NULL, i, CHAN_AUTO, S_PrecacheSound(soundname), volume, ATTN_NORM, 0.066);
+		break;
+
+	case Q2MZ_RAILGUN:
+		dl->color[0] = 0.5;dl->color[1] = 0.5;dl->color[2] = 1;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/railgf1a.wav"), volume, ATTN_NORM, 0);
+		break;
+	case Q2MZ_ROCKET:
+		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0.2;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/rocklf1a.wav"), volume, ATTN_NORM, 0);
+		Q2S_StartSound (NULL, i, CHAN_AUTO,   S_PrecacheSound("weapons/rocklr1b.wav"), volume, ATTN_NORM, 0.1);
+		break;
+	case Q2MZ_GRENADE:
+		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), volume, ATTN_NORM, 0);
+		Q2S_StartSound (NULL, i, CHAN_AUTO,   S_PrecacheSound("weapons/grenlr1b.wav"), volume, ATTN_NORM, 0.1);
+		break;
+	case Q2MZ_BFG:
+		dl->color[0] = 0;dl->color[1] = 1;dl->color[2] = 0;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/bfg__f1y.wav"), volume, ATTN_NORM, 0);
+		break;
+
+	case Q2MZ_LOGIN:
+		dl->color[0] = 0;dl->color[1] = 1; dl->color[2] = 0;
+		dl->die = cl.time + 1.0;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), 1, ATTN_NORM, 0);
+//		CL_LogoutEffect (pl->current.origin, weapon);
+		break;
+	case Q2MZ_LOGOUT:
+		dl->color[0] = 1;dl->color[1] = 0; dl->color[2] = 0;
+		dl->die = cl.time + 1.0;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), 1, ATTN_NORM, 0);
+//		CL_LogoutEffect (pl->current.origin, weapon);
+		break;
+	case Q2MZ_RESPAWN:
+		dl->color[0] = 1;dl->color[1] = 1; dl->color[2] = 0;
+		dl->die = cl.time + 1.0;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), 1, ATTN_NORM, 0);
+//		CL_LogoutEffect (pl->current.origin, weapon);
+		break;
+	// RAFAEL
+	case Q2MZ_PHALANX:
+		dl->color[0] = 1;dl->color[1] = 0.5; dl->color[2] = 0.5;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/plasshot.wav"), volume, ATTN_NORM, 0);
+		break;
+	// RAFAEL
+	case Q2MZ_IONRIPPER:
+		dl->color[0] = 1;dl->color[1] = 0.5; dl->color[2] = 0.5;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/rippfire.wav"), volume, ATTN_NORM, 0);
+		break;
+
+// ======================
+// PGM
+	case Q2MZ_ETF_RIFLE:
+		dl->color[0] = 0.9;dl->color[1] = 0.7;dl->color[2] = 0;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/nail1.wav"), volume, ATTN_NORM, 0);
+		break;
+	case Q2MZ_SHOTGUN2:
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/shotg2.wav"), volume, ATTN_NORM, 0);
+		break;
+	case Q2MZ_HEATBEAM:
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
+		dl->die = cl.time + 100;
+	//	Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/bfg__l1a.wav"), volume, ATTN_NORM, 0);
+		break;
+	case Q2MZ_BLASTER2:
+		dl->color[0] = 0;dl->color[1] = 1;dl->color[2] = 0;
+		// FIXME - different sound for blaster2 ??
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/blastf1a.wav"), volume, ATTN_NORM, 0);
+		break;
+	case Q2MZ_TRACKER:
+		// negative flashes handled the same in gl/soft until CL_AddDLights
+		dl->color[0] = -1;dl->color[1] = -1;dl->color[2] = -1;
+		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/disint2.wav"), volume, ATTN_NORM, 0);
+		break;
+	case Q2MZ_NUKE1:
+		dl->color[0] = 1;dl->color[1] = 0;dl->color[2] = 0;
+		dl->die = cl.time + 100;
+		break;
+	case Q2MZ_NUKE2:
+		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
+		dl->die = cl.time + 100;
+		break;
+	case Q2MZ_NUKE4:
+		dl->color[0] = 0;dl->color[1] = 0;dl->color[2] = 1;
+		dl->die = cl.time + 100;
+		break;
+	case Q2MZ_NUKE8:
+		dl->color[0] = 0;dl->color[1] = 1;dl->color[2] = 1;
+		dl->die = cl.time + 100;
+		break;
+// PGM
+// ======================
+	}
+}
+
+void CLQ2_ParseMuzzleFlash2 (void)
+{
+	int			ent;
+	int			flash_number;
+
+	ent = (unsigned short)(short)MSG_ReadShort ();
+	if (ent < 1 || ent >= Q2MAX_EDICTS)
+		Host_EndGame ("CL_ParseMuzzleFlash2: bad entity");
+
+	flash_number = MSG_ReadByte ();
+
+	CLQ2_RunMuzzleFlash2(ent, flash_number);
+}
+
+void CLQ2_ParseInventory (int seat)
+{
+	unsigned int		i;
+	for (i=0 ; i<Q2MAX_ITEMS ; i++)
+		cl.inventory[seat][i] = MSG_ReadShort ();
+}
+
 /*
 =========================================================================
 
@@ -702,7 +934,7 @@ CL_ParseDelta
 Can go from either a baseline or a previous packet_entity
 ==================
 */
-void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int bits)
+static void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int bits)
 {
 	// set everything to the state we are delta'ing from
 	*to = *from;
@@ -2323,20 +2555,4 @@ void CLQ2_AddEntities (void)
 #endif
 }
 
-void CL_GetNumberedEntityInfo (int num, float *org, float *ang)
-{
-	q2centity_t	*ent;
-
-	if (num < 0 || num >= MAX_Q2EDICTS)
-		Host_EndGame ("CL_GetNumberedEntityInfo: bad ent");
-	ent = &cl_entities[num];
-
-	if (org)
-		VectorCopy (ent->current.origin, org);
-	if (ang)
-		VectorCopy (ent->current.angles, ang);
-
-
-	// FIXME: bmodel issues...
-}
 #endif

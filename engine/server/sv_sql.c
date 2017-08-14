@@ -914,7 +914,7 @@ int SQL_NewServer(const char *driver, const char **paramstr)
 	return serverref;
 }
 
-int SQL_NewQuery(sqlserver_t *server, qboolean (*callback)(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof), char *str, queryrequest_t **reqout)
+int SQL_NewQuery(sqlserver_t *server, qboolean (*callback)(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof), const char *str, queryrequest_t **reqout)
 {
 	int qsize = Q_strlen(str);
 	queryrequest_t *qreq;

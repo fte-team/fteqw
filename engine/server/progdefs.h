@@ -76,6 +76,12 @@ typedef struct nqglobalvars_s
 	int	*trace_ent;
 	float	*trace_inopen;
 	float	*trace_inwater;
+#ifndef NOLEGACY
+	string_t*trace_dphittexturename;
+	float *trace_dpstartcontents;
+	float *trace_dphitcontents;
+	float *trace_dphitq3surfaceflags;
+#endif
 	int	*msg_entity;
 	func_t	*main;
 	func_t	*StartFrame;
@@ -203,7 +209,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldstring(noise1,NULL)\
 	comfieldstring(noise2,NULL)\
 	comfieldstring(noise3,NULL)
-/*DO NOT ADD TO THE ABOVE STRUCTURE*/
+/*DO NOT ADD TO THE ABOVE STRUCTURE (unless you want to break qvms)*/
 
 #ifdef HEXEN2
 #define comextqcfieldshexen2	\
@@ -231,6 +237,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(dimension_hit,"This is the bitmask of dimensions which the entity will be blocked by. If other.dimension_solid & self.dimension_hit, our traces will impact and not proceed. If its false, the traces will NOT impact, allowing self to pass straight through.")/*EXT_DIMENSION_PHYSICS*/\
 	/*comfieldfloat_legacy(hitcontentsmask,"Traces performed for this entity will impact against surfaces that match this contents mask.")*/ \
 	comfieldint(hitcontentsmaski,"Traces performed for this entity will impact against surfaces that match this contents mask.")\
+	comfieldfloat_legacy(dphitcontentsmask, "Some crappy field that inefficiently requires translating to the native contents flags. Ditch the 'dp', do it properly.")\
 	comfieldfloat(scale,"Multiplier that resizes the entity. 1 is normal sized, 2 is double sized. scale 0 is remapped to 1. In SSQC, this is limited to 1/16th precision, with a maximum just shy of 16.")/*DP_ENT_SCALE*/\
 	comfieldfloat(fatness,"How many QuakeUnits to push the entity's verticies along their normals by.")/*FTE_PEXT_FATNESS*/\
 	comfieldfloat(alpha,"The transparency of the entity. 1 means opaque, 0.0001 means virtually invisible. 0 is remapped to 1, for compatibility.")/*DP_ENT_ALPHA*/\
@@ -269,9 +276,9 @@ and the extension fields are added on the end and can have extra vm-specific stu
 
 #define svextqcfields \
 	comfieldfloat(maxspeed,NULL)/*added in quake 1.09*/\
-	comfieldentity(view2,NULL)/*FTE_PEXT_VIEW2*/\
+	comfieldentity(view2,"defines a second viewpoint, typically displayed in a corner of the screen (also punches open pvs).")/*FTE_PEXT_VIEW2*/\
 	comfieldvector(movement,"These are the directions that the player is currently trying to move in (ie: which +forward/+moveright/+moveup etc buttons they have held), expressed relative to that player's angles. Order is forward, right, up.")\
-	comfieldfloat(vw_index,NULL)\
+	comfieldfloat(vw_index,"This acts as a second modelindex, using the same frames etc.")\
 	comfieldentity(nodrawtoclient,"This entity will not be sent to the player named by this field. They will be invisible and not emit dlights/particles. Does not work in MVD-recorded game.")\
 	comfieldentity(drawonlytoclient,"This entity will be sent *only* to the player named by this field. To other players they will be invisible and not emit dlights/particles. Does not work in MVD-recorded game.")\
 	comfieldentity(viewmodelforclient,"This entity will be sent only to the player named by this field, and this entity will be attached to the player's view as an additional weapon model.")/*DP_ENT_VIEWMODEL*/\

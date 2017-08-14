@@ -365,6 +365,15 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 	CryptReleaseContext(prov, 0);
 	return true;
 }
+#ifndef CALG_SHA_512
+#define ALG_SID_SHA_256                 12
+#define ALG_SID_SHA_384                 13
+#define ALG_SID_SHA_512                 14
+#define CALG_SHA_256            (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_SHA_256)
+#define CALG_SHA_384            (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_SHA_384)
+#define CALG_SHA_512            (ALG_CLASS_HASH | ALG_TYPE_ANY | ALG_SID_SHA_512)
+#endif
+
 //returns 0 on failure, otherwise returns the actual digest size and the digest (overallocate if lazy)
 size_t HashCalculate(const char *hashtype, const void *data, size_t data_size, void *digest_out, size_t digest_size)
 {
@@ -378,12 +387,18 @@ size_t HashCalculate(const char *hashtype, const void *data, size_t data_size, v
 		alg = CALG_MD5;
 	else if (!Q_strcasecmp(hashtype, "SHA1"))
 		alg = CALG_SHA1;
+#ifdef CALG_SHA_256
 	else if (!Q_strcasecmp(hashtype, "SHA256"))
 		alg = CALG_SHA_256;	//only on xp sp3+
+#endif
+#ifdef CALG_SHA_384
 	else if (!Q_strcasecmp(hashtype, "SHA384"))
 		alg = CALG_SHA_384;	//only on xp sp3+
+#endif
+#ifdef CALG_SHA_512
 	else if (!Q_strcasecmp(hashtype, "SHA512"))
 		alg = CALG_SHA_512;	//only on xp sp3+
+#endif
 	else
 		return 0;
 

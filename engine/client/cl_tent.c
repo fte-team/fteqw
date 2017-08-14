@@ -57,8 +57,8 @@ static const char	*q2efnames[] =
 	"TEQ2_PLASMA_EXPLOSION",
 	"TEQ2_TUNNEL_SPARKS",
 	"TEQ2_BLASTER2",
-	"TEQ2_RAILTRAIL2",
-	"TEQ2_FLAME",
+	"TEQ2_RAILTRAIL2",	//not implemented in vanilla
+	NULL,//"TEQ2_FLAME",	//not implemented in vanilla
 	NULL,//"TEQ2_LIGHTNING",
 	"TEQ2_DEBUGTRAIL",
 	"TEQ2_PLAIN_EXPLOSION",
@@ -2493,795 +2493,6 @@ static struct{
 	{0xe8, "q2part.te_splashblood"}
 };
 
-#define ATTN_NONE	0
-#define ATTN_NORM 1
-#define ATTN_STATIC 1
-void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float delay)
-{
-	S_StartSound(entnum, entchannel, sfx, origin, NULL, fvol, attenuation, -delay, 0, 0);
-}
-static qboolean CLQ2_ParseTEnt_RemoveMe(q2particleeffects_t type)
-{	//FIXME: this function needs to die, once we're sure its no longer needed.
-	vec3_t	pos, pos2, dir;
-	explosion_t	*ex;
-	int		cnt;
-	int		color;
-	int		r;
-
-	Con_DPrintf("Q2TE legacy code: te %i\n", type);
-	switch(type)
-	{
-	case Q2TE_BLOOD:			// bullet hitting flesh
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLOOD]))
-			if (P_RunParticleEffectType(pos, dir, 1, ptqw_blood))
-				P_RunParticleEffect(pos, dir, 0xe8, 60);
-		if (cl_legacystains.ival) Surf_AddStain(pos, 0, -10, -10, 40);
-		break;
-
-	case Q2TE_GUNSHOT:			// bullet hitting wall
-	case Q2TE_SPARKS:
-	case Q2TE_BULLET_SPARKS:
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		if (type == Q2TE_GUNSHOT)
-			P_RunParticleEffect (pos, dir, 0, 40);
-		else
-			P_RunParticleEffect (pos, dir, 0xe0, 6);
-
-		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
-
-		if (type != Q2TE_SPARKS)
-		{
-			CL_SmokeAndFlash(pos);
-
-			// impact sound (nope, not the same as Q1...)
-			cnt = rand()&15;
-			if (cnt == 1)
-				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/ric1.wav"), 1, ATTN_NORM, 0);
-			else if (cnt == 2)
-				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/ric2.wav"), 1, ATTN_NORM, 0);
-			else if (cnt == 3)
-				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/ric3.wav"), 1, ATTN_NORM, 0);
-		}
-
-		break;
-
-	case Q2TE_SCREEN_SPARKS:
-	case Q2TE_SHIELD_SPARKS:
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		if (type == Q2TE_SCREEN_SPARKS)
-			P_RunParticleEffect (pos, dir, 0xd0, 40);
-		else
-			P_RunParticleEffect (pos, dir, 0xb0, 40);
-		//FIXME : replace or remove this sound
-		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, NULL, 1, 1, 0, 0, 0);
-		break;
-
-	case Q2TE_SHOTGUN:			// bullet hitting wall
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		P_RunParticleEffect (pos, dir, 0, 20);
-		CL_SmokeAndFlash(pos);
-		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 20);
-		break;
-
-	case Q2TE_SPLASH:			// bullet hitting water
-		cnt = MSG_ReadByte ();
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		r = MSG_ReadByte ();
-		if (r > sizeof(q2splash_info)/sizeof(q2splash_info[0]))
-			r = 0;
-		if (P_RunParticleEffectType(pos, dir, cnt, pt_q2[Q2SPLASH_UNKNOWN+r]))
-			P_RunParticleEffect (pos, dir, q2splash_info[r].colour, cnt);
-		if (r == Q2SPLASH_SPARKS)
-		{
-			r = rand() & 3;
-			if (r == 1)
-				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/spark5.wav"), 1, ATTN_NORM, 0);
-			else if (r == 2)
-				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/spark6.wav"), 1, ATTN_NORM, 0);
-			else
-				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/spark7.wav"), 1, ATTN_NORM, 0);
-		}
-		break;
-
-	case Q2TE_LASER_SPARKS:
-		cnt = MSG_ReadByte ();
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		color = MSG_ReadByte ();
-		P_RunParticleEffect (pos, dir, color, cnt);
-		break;
-
-	// RAFAEL
-	case Q2TE_BLUEHYPERBLASTER:
-		MSG_ReadPos (pos);
-		MSG_ReadPos (dir);
-		if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLUEHYPERBLASTER]))
-			if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLASTER]))
-				P_RunParticleEffect (pos, dir, 0xe0, 40);
-		break;
-
-	case Q2TE_BLASTER:			// blaster hitting wall
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-
-		if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLASTER]))
-			P_RunParticleEffect (pos, dir, 0xe0, 40);
-
-		if (cl_legacystains.ival) Surf_AddStain(pos, 0, -5, -10, 20);
-
-		ex = CL_AllocExplosion (pos);
-		ex->start = cl.time;
-		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, MLV_WARN);
-		ex->firstframe = 0;
-		ex->numframes = 4;
-		ex->flags = Q2RF_FULLBRIGHT|RF_ADDITIVE|RF_NOSHADOW|RF_TRANSLUCENT;
-
-		ex->angles[0] = acos(dir[2])/M_PI*180;
-	// PMM - fixed to correct for pitch of 0
-		if (dir[0])
-			ex->angles[1] = atan2(dir[1], dir[0])/M_PI*180;
-		else if (dir[1] > 0)
-			ex->angles[1] = 90;
-		else if (dir[1] < 0)
-			ex->angles[1] = 270;
-		else
-			ex->angles[1] = 0;
-		ex->angles[0]*=r_meshpitch.value;
-
-		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, NULL, 1, 1, 0, 0, 0);
-
-	// light
-		if (r_explosionlight.value)
-		{
-			dlight_t *dl;
-			dl = CL_AllocDlight (0);
-			VectorCopy (pos, dl->origin);
-			dl->radius = 150 * r_explosionlight.value;
-			dl->die = cl.time + 0.4;
-			dl->decay = 400;
-			dl->color[0] = 1;
-			dl->color[1] = 1;
-			dl->color[2] = 0.0;
-			dl->channelfade[0] = 0.5;
-			dl->channelfade[1] = 0.51;
-			dl->channelfade[2] = 0.0;
-		}
-
-		break;
-
-	case Q2TE_RAILTRAIL:			// railgun effect
-		MSG_ReadPos (pos);
-		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, pt_q2[Q2TE_RAILTRAIL], 0, NULL, NULL))
-			P_ParticleTrailIndex(pos, pos2, P_INVALID, 0x74, 8, NULL);
-		Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("weapons/railgf1a.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2TE_EXPLOSION2:
-	case Q2TE_GRENADE_EXPLOSION:
-	case Q2TE_GRENADE_EXPLOSION_WATER:
-		MSG_ReadPos (pos);
-
-		if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
-			P_RunParticleEffect(pos, NULL, 0xe0, 256);
-
-		if (cl_legacystains.ival) Surf_AddStain(pos, -1, -1, -1, 100);
-
-	// light
-		if (r_explosionlight.value)
-		{
-			dlight_t *dl;
-			dl = CL_AllocDlight (0);
-			VectorCopy (pos, dl->origin);
-			dl->radius = 150 + r_explosionlight.value*200;
-			dl->die = cl.time + 0.5;
-			dl->decay = 300;
-			dl->color[0] = 1.0;
-			dl->color[1] = 0.5;
-			dl->color[2] = 0.5;
-			dl->channelfade[0] = 0.36;
-			dl->channelfade[1] = 0.19;
-			dl->channelfade[2] = 0.19;
-		}
-
-	// sound
-		if (type == Q2TE_GRENADE_EXPLOSION_WATER)
-			S_StartSound (0, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, NULL, 1, 1, 0, 0, 0);
-		else
-			S_StartSound (0, 0, S_PrecacheSound ("weapons/grenlx1a.wav"), pos, NULL, 1, 1, 0, 0, 0);
-
-	// sprite
-
-//		if (!R_ParticleExplosionHeart(pos))
-		{
-			ex = CL_AllocExplosion (pos);
-			VectorClear(ex->angles);
-			ex->start = cl.time;
-			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, MLV_WARN);
-			ex->firstframe = 30;
-			ex->flags |= RF_TRANSLUCENT;
-			ex->numframes = 19;
-			ex->skinnum = -1;
-		}
-		break;
-/*
-		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->ent.origin);
-		ex->type = ex_poly;
-		ex->ent.flags = RF_FULLBRIGHT;
-		ex->start = cl.frame.servertime - 100;
-		ex->light = 350;
-		ex->lightcolor[0] = 1.0;
-		ex->lightcolor[1] = 0.5;
-		ex->lightcolor[2] = 0.5;
-		ex->ent.model = cl_mod_explo4;
-		ex->frames = 19;
-		ex->baseframe = 30;
-		ex->ent.angles[1] = rand() % 360;
-		CL_ExplosionParticles (pos);
-		if (type == TE_GRENADE_EXPLOSION_WATER)
-			Q2S_StartSound (pos, 0, 0, cl_sfx_watrexp, 1, ATTN_NORM, 0);
-		else
-			Q2S_StartSound (pos, 0, 0, cl_sfx_grenexp, 1, ATTN_NORM, 0);
-		break;
-*/
-	// RAFAEL
-	case Q2TE_PLASMA_EXPLOSION:
-		MSG_ReadPos (pos);
-/*		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->ent.origin);
-		ex->type = ex_poly;
-		ex->ent.flags = RF_FULLBRIGHT;
-		ex->start = cl.frame.servertime - 100;
-		ex->light = 350;
-		ex->lightcolor[0] = 1.0;
-		ex->lightcolor[1] = 0.5;
-		ex->lightcolor[2] = 0.5;
-		ex->ent.angles[1] = rand() % 360;
-		ex->ent.model = cl_mod_explo4;
-		if (frand() < 0.5)
-			ex->baseframe = 15;
-		ex->frames = 15;
-		CL_ExplosionParticles (pos);
-		Q2S_StartSound (pos, 0, 0, cl_sfx_rockexp, 1, ATTN_NORM, 0);
-*/		break;
-
-	case Q2TE_EXPLOSION1:
-	case Q2TE_EXPLOSION1_BIG:						// PMM
-	case Q2TE_ROCKET_EXPLOSION:
-	case Q2TE_ROCKET_EXPLOSION_WATER:
-	case Q2TE_EXPLOSION1_NP:						// PMM
-		MSG_ReadPos (pos);
-
-	// particle effect
-		if (type != Q2TE_EXPLOSION1_BIG && type != Q2TE_EXPLOSION1_NP)
-		{
-			if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
-				P_RunParticleEffect(pos, NULL, 0xe0, 256);
-
-			if (cl_legacystains.ival) Surf_AddStain(pos, -1, -1, -1, 100);
-		}
-
-	// light
-		if (r_explosionlight.value)
-		{
-			dlight_t *dl;
-			dl = CL_AllocDlight (0);
-			VectorCopy (pos, dl->origin);
-			dl->radius = 150 + r_explosionlight.value*200;
-			dl->die = cl.time + 0.5;
-			dl->decay = 300;
-			dl->color[0] = 1.0;
-			dl->color[1] = 0.5;
-			dl->color[2] = 0.4;
-			dl->channelfade[0] = 0.36;
-			dl->channelfade[1] = 0.19;
-			dl->channelfade[2] = 0.19;
-		}
-
-	// sound
-		if (type == Q2TE_ROCKET_EXPLOSION_WATER)
-			S_StartSound (0, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, NULL, 1, 1, 0, 0, 0);
-		else
-			S_StartSound (0, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, NULL, 1, 1, 0, 0, 0);
-
-	// sprite
-//		if (!R_ParticleExplosionHeart(pos))
-		{
-			ex = CL_AllocExplosion (pos);
-			VectorClear(ex->angles);
-			ex->start = cl.time;
-			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, MLV_WARN);
-			ex->flags |= RF_TRANSLUCENT;
-			if (rand()&1)
-				ex->firstframe = 15;
-			else
-				ex->firstframe = 0;
-			ex->numframes = 15;
-			ex->skinnum = -1;
-		}
-		break;
-/*
-		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->ent.origin);
-		ex->type = ex_poly;
-		ex->ent.flags = RF_FULLBRIGHT;
-		ex->start = cl.frame.servertime - 100;
-		ex->light = 350;
-		ex->lightcolor[0] = 1.0;
-		ex->lightcolor[1] = 0.5;
-		ex->lightcolor[2] = 0.5;
-		ex->ent.angles[1] = rand() % 360;
-		if (type != TE_EXPLOSION1_BIG)				// PMM
-			ex->ent.model = cl_mod_explo4;			// PMM
-		else
-			ex->ent.model = cl_mod_explo4_big;
-		if (frand() < 0.5)
-			ex->baseframe = 15;
-		ex->frames = 15;
-		if ((type != TE_EXPLOSION1_BIG) && (type != TE_EXPLOSION1_NP))		// PMM
-			CL_ExplosionParticles (pos);									// PMM
-		if (type == TE_ROCKET_EXPLOSION_WATER)
-			Q2S_StartSound (pos, 0, 0, cl_sfx_watrexp, 1, ATTN_NORM, 0);
-		else
-			Q2S_StartSound (pos, 0, 0, cl_sfx_rockexp, 1, ATTN_NORM, 0);
-		break;
-
-*/	case Q2TE_BFG_EXPLOSION:
-		MSG_ReadPos (pos);
-/*		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->ent.origin);
-		ex->type = ex_poly;
-		ex->flags = RF_FULLBRIGHT;
-		ex->start = cl.q2frame.servertime - 100;
-		ex->light = 350;
-		ex->lightcolor[0] = 0.0;
-		ex->lightcolor[1] = 1.0;
-		ex->lightcolor[2] = 0.0;
-		ex->model = cl_mod_bfg_explo;
-		ex->flags |= RF_TRANSLUCENT;
-		ex->alpha = 0.30;
-		ex->frames = 4;
-*/		break;
-
-	case Q2TE_BFG_BIGEXPLOSION:
-		MSG_ReadPos (pos);
-//		CL_BFGExplosionParticles (pos);
-		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_bfg_bigexplosion"))
-			P_RunParticleEffect(pos, dir, 0xd0, 256); // TODO: x+(r%8) unstead of x&7+(r&7)
-		break;
-
-	case Q2TE_BFG_LASER:
-		MSG_ReadPos (pos);
-		MSG_ReadPos (pos2);
-		CL_Laser(pos, pos2, 0xd0d1d2d3);
-		break;
-
-	case Q2TE_BUBBLETRAIL:
-		MSG_ReadPos (pos);
-		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, pt_q2[Q2TE_BUBBLETRAIL], 0, NULL, NULL))
-			P_ParticleTrailIndex(pos, pos2, P_INVALID, 4, 8, NULL);
-		break;
-
-	case Q2TE_PARASITE_ATTACK:
-	case Q2TE_MEDIC_CABLE_ATTACK:
-		CL_ParseBeam (BT_Q2PARASITE);
-		break;
-
-	case Q2TE_BOSSTPORT:			// boss teleporting to station
-		MSG_ReadPos (pos);
-/*		CL_BigTeleportParticles (pos);
-*/		Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("misc/bigtele.wav"), 1, ATTN_NONE, 0);
-		break;
-
-	case Q2TE_GRAPPLE_CABLE:
-		CL_ParseBeam (BT_Q2GRAPPLE);
-		MSG_ReadPos (pos);
-		break;
-
-	// RAFAEL
-	case Q2TE_WELDING_SPARKS:
-		cnt = MSG_ReadByte ();
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		color = MSG_ReadByte ();
-
-		// TODO: fix to Q2's standards
-		P_RunParticleEffect(pos, dir, color, cnt);
-/*		CL_ParticleEffect2 (pos, dir, color, cnt);
-
-		ex = CL_AllocExplosion ();
-		VectorCopy (pos, ex->ent.origin);
-		ex->type = ex_flash;
-		// note to self
-		// we need a better no draw flag
-		ex->ent.flags = RF_BEAM;
-		ex->start = cl.frame.servertime - 0.1;
-		ex->light = 100 + (rand()%75);
-		ex->lightcolor[0] = 1.0;
-		ex->lightcolor[1] = 1.0;
-		ex->lightcolor[2] = 0.3;
-		ex->ent.model = cl_mod_flash;
-		ex->frames = 2;
-*/		break;
-
-	case Q2TE_GREENBLOOD:
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_greenblood"))
-			P_RunParticleEffect(pos, dir, 0xdf, 30); // TODO: x+(r%8) unstead of x&7+(r&7)
-//		CL_ParticleEffect2 (pos, dir, 0xdf, 30);
-		break;
-
-	// RAFAEL
-	case Q2TE_TUNNEL_SPARKS:
-		cnt = MSG_ReadByte ();
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		color = MSG_ReadByte ();
-//		CL_ParticleEffect3 (pos, dir, color, cnt);
-		break;
-
-//=============
-//PGM
-		// PMM -following code integrated for flechette (different color)
-	case Q2TE_BLASTER2:			// green blaster hitting wall
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-
-		if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLASTER2]))
-			if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLASTER]))
-				P_RunParticleEffect (pos, dir, 0xd0, 40);
-
-		if (cl_legacystains.ival) Surf_AddStain(pos, -10, 0, -10, 20);
-
-		ex = CL_AllocExplosion (pos);
-		ex->start = cl.time;
-		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, MLV_WARN);
-		ex->firstframe = 0;
-		ex->numframes = 4;
-		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
-
-		ex->angles[0] = acos(dir[2])/M_PI*180;
-	// PMM - fixed to correct for pitch of 0
-		if (dir[0])
-			ex->angles[1] = atan2(dir[1], dir[0])/M_PI*180;
-		else if (dir[1] > 0)
-			ex->angles[1] = 90;
-		else if (dir[1] < 0)
-			ex->angles[1] = 270;
-		else
-			ex->angles[1] = 0;
-		ex->angles[0]*=r_meshpitch.value;
-
-		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, NULL, 1, 1, 0, 0, 0);
-
-	// light
-		if (r_explosionlight.value)
-		{
-			dlight_t *dl;
-			dl = CL_AllocDlight (0);
-			VectorCopy (pos, dl->origin);
-			dl->radius = 150 * r_explosionlight.value;
-			dl->die = cl.time + 0.4;
-			dl->decay = 400;
-			dl->color[0] = 0.05;
-			dl->color[1] = 1.0;
-			dl->color[2] = 0.05;
-			dl->channelfade[0] = 0.1;
-			dl->channelfade[1] = 0.5;
-			dl->channelfade[2] = 0.1;
-		}
-		break;
-
-	case Q2TE_FLECHETTE:			// blue blaster effect
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-
-		if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_FLECHETTE]))
-			if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLASTER]))
-				P_RunParticleEffect (pos, dir, 0x6f, 40);
-
-		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -2, 0, 20);
-
-		ex = CL_AllocExplosion (pos);
-		ex->start = cl.time;
-		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, MLV_WARN);
-		ex->firstframe = 0;
-		ex->numframes = 4;
-		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
-
-		ex->angles[0] = acos(dir[2])/M_PI*180;
-	// PMM - fixed to correct for pitch of 0
-		if (dir[0])
-			ex->angles[1] = atan2(dir[1], dir[0])/M_PI*180;
-		else if (dir[1] > 0)
-			ex->angles[1] = 90;
-		else if (dir[1] < 0)
-			ex->angles[1] = 270;
-		else
-			ex->angles[1] = 0;
-		ex->angles[0]*=r_meshpitch.value;
-
-		S_StartSound (0, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, NULL, 1, 1, 0, 0, 0);
-
-	// light
-		if (r_explosionlight.value)
-		{
-			dlight_t *dl;
-			dl = CL_AllocDlight (0);
-			VectorCopy (pos, dl->origin);
-			dl->radius = 150 * r_explosionlight.value;
-			dl->die = cl.time + 0.4;
-			dl->decay = 400;
-			dl->color[0] = 0.19;
-			dl->color[1] = 0.41;
-			dl->color[2] = 0.75;
-			dl->channelfade[0] = 0.085;
-			dl->channelfade[1] = 0.180;
-			dl->channelfade[2] = 0.300;
-		}
-		break;
-
-
-	case Q2TE_LIGHTNING:
-		CL_ParseBeam(BT_Q1LIGHTNING1);
-		Q2S_StartSound (pos, 0, 0, S_PrecacheSound("weapons/tesla.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2TE_DEBUGTRAIL:
-		MSG_ReadPos (pos);
-		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_debugtrail"), 0, NULL, NULL))
-			P_ParticleTrailIndex(pos, pos2, P_INVALID, 116, 8, NULL);
-		break;
-
-	case Q2TE_PLAIN_EXPLOSION:
-		MSG_ReadPos (pos);
-
-		ex = CL_AllocExplosion (pos);
-//		ex->type = ex_poly;
-		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
-		ex->angles[1] = rand() % 360;
-		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, MLV_WARN);
-		if (rand() < RAND_MAX/2)
-			ex->firstframe = 15;
-		ex->numframes = 15;
-		Q2S_StartSound (pos, 0, 0, S_PrecacheSound("weapons/rocklx1a.wav"), 1, ATTN_NORM, 0);
-
-	// light
-		if (r_explosionlight.value)
-		{
-			dlight_t *dl;
-			dl = CL_AllocDlight (0);
-			VectorCopy (pos, dl->origin);
-			dl->radius = 150 + r_explosionlight.value*200;
-			dl->die = cl.time + 0.5;
-			dl->decay = 300;
-			dl->color[0] = 1.0;
-			dl->color[1] = 0.5;
-			dl->color[2] = 0.4;
-			dl->channelfade[0] = 0.36;
-			dl->channelfade[1] = 0.19;
-			dl->channelfade[2] = 0.19;
-		}
-
-		break;
-/*
-	case Q2TE_FLASHLIGHT:
-		MSG_ReadPos(&net_message, pos);
-		ent = MSG_ReadShort(&net_message);
-		CL_Flashlight(ent, pos);
-		break;
-
-	case Q2TE_FORCEWALL:
-		MSG_ReadPos(&net_message, pos);
-		MSG_ReadPos(&net_message, pos2);
-		color = MSG_ReadByte (&net_message);
-		CL_ForceWall(pos, pos2, color);
-		break;
-*/
-	case Q2TE_HEATBEAM:
-		MSG_ReadPos(pos);
-		MSG_ReadPos(pos2);
-//		ent = CL_ParsePlayerBeam (cl_mod_heatbeam);
-		break;
-/*
-	case Q2TE_MONSTER_HEATBEAM:
-		ent = CL_ParsePlayerBeam (cl_mod_monster_heatbeam);
-		break;
-
-	case Q2TE_HEATBEAM_SPARKS:
-//		cnt = MSG_ReadByte (&net_message);
-		cnt = 50;
-		MSG_ReadPos (&net_message, pos);
-		MSG_ReadDir (&net_message, dir);
-//		r = MSG_ReadByte (&net_message);
-//		magnitude = MSG_ReadShort (&net_message);
-		r = 8;
-		magnitude = 60;
-		color = r & 0xff;
-		CL_ParticleSteamEffect (pos, dir, color, cnt, magnitude);
-		S_StartSound (pos,  0, 0, cl_sfx_lashit, 1, ATTN_NORM, 0);
-		break;
-
-	case Q2TE_HEATBEAM_STEAM:
-//		cnt = MSG_ReadByte (&net_message);
-		cnt = 20;
-		MSG_ReadPos (&net_message, pos);
-		MSG_ReadDir (&net_message, dir);
-//		r = MSG_ReadByte (&net_message);
-//		magnitude = MSG_ReadShort (&net_message);
-//		color = r & 0xff;
-		color = 0xe0;
-		magnitude = 60;
-		CL_ParticleSteamEffect (pos, dir, color, cnt, magnitude);
-		S_StartSound (pos,  0, 0, cl_sfx_lashit, 1, ATTN_NORM, 0);
-		break;
-
-	case Q2TE_STEAM:
-		CL_ParseSteam();
-		break;
-
-	case Q2TE_BUBBLETRAIL2:
-//		cnt = MSG_ReadByte (&net_message);
-		cnt = 8;
-		MSG_ReadPos (&net_message, pos);
-		MSG_ReadPos (&net_message, pos2);
-		CL_BubbleTrail2 (pos, pos2, cnt);
-		S_StartSound (pos,  0, 0, cl_sfx_lashit, 1, ATTN_NORM, 0);
-		break;
-*/
-	case Q2TE_MOREBLOOD:
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_moreblood"))
-			if (P_RunParticleEffectType(pos, dir, 4, ptqw_blood))
-				P_RunParticleEffect(pos, dir, 0xe8, 250);
-		break;
-
-	case Q2TE_CHAINFIST_SMOKE:
-		dir[0]=0; dir[1]=0; dir[2]=1;
-		MSG_ReadPos(pos);
-		P_RunParticleEffectTypeString(pos, NULL, 1, "TEQ2_CHAINFIST_SMOKE");
-		break;
-	case Q2TE_ELECTRIC_SPARKS:
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		P_RunParticleEffect(pos, dir, 0x75, 40);
-		Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("weapons/lashit.wav"), 1, ATTN_NORM, 0);
-		break;
-
-	case Q2TE_TRACKER_EXPLOSION:
-		MSG_ReadPos (pos);
-
-		// effect
-		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_tracker_explosion"))
-			P_RunParticleEffect(pos, NULL, 0, 128); // TODO: needs to be nonrandom instead of 0+r%8
-
-		// light
-	// light
-		if (r_explosionlight.value)
-		{
-			dlight_t *dl;
-			dl = CL_AllocDlight (0);
-			VectorCopy (pos, dl->origin);
-			dl->radius = 150 * r_explosionlight.value;
-			dl->die = cl.time + 0.1;
-			dl->minlight = 250;
-			dl->color[0] = -1.0;
-			dl->color[1] = -1.0;
-			dl->color[2] = -1.0;
-		}
-
-		// sound
-		Q2S_StartSound (pos, 0, 0, S_PrecacheSound("weapons/disrupthit.wav"), 1, ATTN_NORM, 0);
-		break;
-	case Q2TE_TELEPORT_EFFECT:
-	case Q2TE_DBALL_GOAL:
-		MSG_ReadPos (pos);
-		if (P_RunParticleEffectType(pos, NULL, 1, pt_teleportsplash))
-			P_RunParticleEffect(pos, NULL, 8, 768);
-		// This effect won't match ---
-		// Color should be 7+(rand()%8)
-		// not 8&~7+(rand()%8)
-		break;
-
-	case Q2TE_WIDOWBEAMOUT:
-		// this one is really annoying, it's supposed to be a random choice
-		// between 2*8, 13*8, 21*8, 18*8, and it respreads every frame
-		// into a circle but it could be faked well enough, well except for
-		// the fact that these effects have ids associated with them
-		// sort of how beams have ents associated
-		MSG_ReadShort(); // id
-		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_widowbeamout"))
-			P_RunParticleEffect(pos, NULL, 13*8, 300);
-		break;
-
-	case Q2TE_NUKEBLAST:
-		// same problem as te_widowbeamout, but colors are a bit easier to manage
-		// and there's no id to read in
-		MSG_ReadPos (pos);
-		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_nukeblast"))
-			P_RunParticleEffect(pos, NULL, 110, 700);
-		break;
-
-	case Q2TE_WIDOWSPLASH:
-		// there's the color issue like with te_widowbeamout, but the particles
-		// are spawned in an immediate circle and not substained, so it's much
-		// easier to manage
-		MSG_ReadPos (pos);
-		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_widowsplash"))
-			P_RunParticleEffect(pos, NULL, 13*8, 256);
-		break;
-//PGM
-//==============
-
-
-	case CRTE_LEADERBLASTER:
-		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
-	case CRTE_BLASTER_MUZZLEFLASH:
-		MSG_ReadPos (pos);
-		ex = CL_AllocExplosion (pos);
-		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
-		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0.1*5, 0*5);
-		P_RunParticleEffectTypeString(pos, NULL, 1, "te_muzzleflash");
-		break;
-	case CRTE_BLUE_MUZZLEFLASH:
-		MSG_ReadPos (pos);
-		ex = CL_AllocExplosion (pos);
-		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
-		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0.1*5, 0*5);
-		P_RunParticleEffectTypeString(pos, NULL, 1, "te_blue_muzzleflash");
-		break;
-	case CRTE_SMART_MUZZLEFLASH:
-		MSG_ReadPos (pos);
-		ex = CL_AllocExplosion (pos);
-		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
-		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0*5, 0.2*5);
-		P_RunParticleEffectTypeString(pos, NULL, 1, "te_smart_muzzleflash");
-		break;
-	case CRTE_LEADERFIELD:
-		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
-	case CRTE_DEATHFIELD:
-		MSG_ReadPos (pos);
-		ex = CL_AllocExplosion (pos);
-		VectorCopy (pos, ex->origin);
-		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
-		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0*5, 0.2*5);
-		P_RunParticleEffectTypeString(pos, NULL, 1, "te_deathfield");
-		break;
-	case CRTE_BLASTERBEAM:
-		MSG_ReadPos (pos);
-		MSG_ReadPos (pos2);
-		P_ParticleTrail(pos, pos2, P_FindParticleType("q2part.TR_BLASTERTRAIL2"), 0, NULL, NULL);
-		break;
-/*	case CRTE_STAIN:
-		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
-	case CRTE_FIRE:
-		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
-	case CRTE_CABLEGUT:
-		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
-	case CRTE_SMOKE:
-		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
-*/
-	default:
-		return false;
-	}
-	return true;
-}
-
 void CLQ2_ParseTEnt (void)
 {
 	beam_t *b;
@@ -3293,19 +2504,12 @@ void CLQ2_ParseTEnt (void)
 	int		r;
 	int		ent;
 //	int		magnitude;
+	explosion_t	*ex;
 
 	type = MSG_ReadByte ();
 
 	if (type <= Q2TE_MAX)
-	{
 		pt = pt_q2[type];
-		if (pt == P_INVALID && q2efnames[type])
-		{
-			Con_Printf("Q2TE legacy code: te %i\n", type);
-			if (CLQ2_ParseTEnt_RemoveMe(type))
-				return;
-		}
-	}
 	else
 		pt = P_INVALID;
 	switch (type)
@@ -3431,21 +2635,80 @@ void CLQ2_ParseTEnt (void)
 		P_ParticleTrailIndex(pos, pos2, pt, color, 0, NULL);
 		break;
 
-	case Q2TE_RAILTRAIL2:
-	case Q2TE_FLAME:
-	case Q2TE_FLASHLIGHT:
-	case Q2TE_WIDOWBEAMOUT:
+	case Q2TE_FLASHLIGHT:	//white 400-radius dlight
+		MSG_ReadPos(pos);
+		ent = MSG_ReadShort();
+		P_ParticleTrail(pos, pos, pt, ent, NULL, NULL);
+		break;
+	case Q2TE_WIDOWBEAMOUT:		/*requires state tracking to keep it splurting constantly for 2.1 secs*/
+		ent = MSG_ReadShort();
+		MSG_ReadPos(pos);
+		Con_Printf("FIXME: Q2TE_WIDOWBEAMOUT not implemented\n");
+		break;
 
-#ifdef __GNUC__
-	case (Q2TE_FLECHETTE+1) ... Q2PT_MAX:
-//	case (Q2TE_MAX+1) ... Q2PT_MAX:
-//	default:
-#else
+	case Q2TE_RAILTRAIL2:		/*not implemented in vanilla*/
+	case Q2TE_FLAME:			/*not implemented in vanilla*/
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+		break;
+
+
+
+
+	//My old attempt at running AlienArena years ago. probably not enough now. Other engines will have other effects.
+	case CRTE_LEADERBLASTER:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+	case CRTE_BLASTER_MUZZLEFLASH:
+		MSG_ReadPos (pos);
+		ex = CL_AllocExplosion (pos);
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
+		ex->start = cl.q2frame.servertime - 100;
+		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0.1*5, 0*5);
+		P_RunParticleEffectTypeString(pos, NULL, 1, "te_muzzleflash");
+		break;
+	case CRTE_BLUE_MUZZLEFLASH:
+		MSG_ReadPos (pos);
+		ex = CL_AllocExplosion (pos);
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
+		ex->start = cl.q2frame.servertime - 100;
+		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0.1*5, 0*5);
+		P_RunParticleEffectTypeString(pos, NULL, 1, "te_blue_muzzleflash");
+		break;
+	case CRTE_SMART_MUZZLEFLASH:
+		MSG_ReadPos (pos);
+		ex = CL_AllocExplosion (pos);
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
+		ex->start = cl.q2frame.servertime - 100;
+		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0*5, 0.2*5);
+		P_RunParticleEffectTypeString(pos, NULL, 1, "te_smart_muzzleflash");
+		break;
+	case CRTE_LEADERFIELD:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+	case CRTE_DEATHFIELD:
+		MSG_ReadPos (pos);
+		ex = CL_AllocExplosion (pos);
+		VectorCopy (pos, ex->origin);
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
+		ex->start = cl.q2frame.servertime - 100;
+		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0*5, 0.2*5);
+		P_RunParticleEffectTypeString(pos, NULL, 1, "te_deathfield");
+		break;
+	case CRTE_BLASTERBEAM:
+		MSG_ReadPos (pos);
+		MSG_ReadPos (pos2);
+		P_ParticleTrail(pos, pos2, P_FindParticleType("q2part.TR_BLASTERTRAIL2"), 0, NULL, NULL);
+		break;
+/*	case CRTE_STAIN:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+	case CRTE_FIRE:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+	case CRTE_CABLEGUT:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+	case CRTE_SMOKE:
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+*/
+
 	default:
-#endif
-//		Con_Printf("CLQ2_ParseTEnt: bad/non-implemented type %i\n", type);
-		if (!CLQ2_ParseTEnt_RemoveMe(type))
-			Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
+		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 		break;
 	}
 }

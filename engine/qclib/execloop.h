@@ -140,13 +140,15 @@ reeval:
 		break;
 
 	case OP_DIV_F:
-/*		errorif (!OPB->_float)
+/*		errorif (OPB->_float == 0)
 		{
 			pr_xstatement = st-pr_statements;
 			printf ("Division by 0 in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
-			PR_StackTrace (&progfuncs->funcs);
+			PR_StackTrace (&progfuncs->funcs, 1);
+			OPC->_float = 0.0;
 		}
-*/		OPC->_float = OPA->_float / OPB->_float;
+		else
+*/			OPC->_float = OPA->_float / OPB->_float;
 		break;
 	case OP_DIV_VF:
 		tmpf = OPB->_float;
@@ -154,7 +156,7 @@ reeval:
 		{
 			pr_xstatement = st-pr_statements;
 			printf ("Division by 0 in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
-			PR_StackTrace (&progfuncs->funcs);
+			PR_StackTrace (&progfuncs->funcs, 1);
 		}
 */
 		OPC->_vector[0] = OPA->_vector[0] / tmpf;
@@ -437,11 +439,13 @@ reeval:
 
 			//boot it over to the debugger
 			{
-				ddef16_t *d16;
-				fdef_t *f;
-				d16 = ED_GlobalAtOfs16(progfuncs, st->a);
-				f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->funcs.fieldadjust);
-				if (PR_ExecRunWarning(&progfuncs->funcs, st-pr_statements, "assignment to read-only entity %i in %s (%s.%s)\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d16?PR_StringToNative(&progfuncs->funcs, d16->s_name):NULL, f?f->name:NULL))
+#if INTSIZE == 16
+				ddef16_t *d = ED_GlobalAtOfs16(progfuncs, st->a);
+#else
+				ddef32_t *d = ED_GlobalAtOfs32(progfuncs, st->a);
+#endif
+				fdef_t *f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->funcs.fieldadjust);
+				if (PR_ExecRunWarning(&progfuncs->funcs, st-pr_statements, "assignment to read-only entity %i in %s (%s.%s)\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d?PR_StringToNative(&progfuncs->funcs, d->s_name):NULL, f?f->name:NULL))
 					return pr_xstatement;
 				OPC->_int = ~0;
 				break;

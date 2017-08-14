@@ -576,7 +576,7 @@ struct q3refdef_s {
 	// text messages for deform text shaders
 	char		text[MAX_RENDER_STRINGS][MAX_RENDER_STRING_LENGTH];
 };
-void D3D9_Set2D (void);
+void R_DrawNameTags(void);
 void VQ3_RenderView(const q3refdef_t *ref)
 {
 	int i;
@@ -619,11 +619,12 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	for (i = 0; i < MAX_MAP_AREA_BYTES/sizeof(int); i++)
 		((int*)r_refdef.areabits)[i] = ((int*)ref->areamask)[i] ^ ~0;
 	R_RenderView();
+	R_DrawNameTags();
 	r_refdef.playerview = NULL;
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		GL_Set2D (false);
+//		GL_Set2D (false);
 	}
 #endif
 

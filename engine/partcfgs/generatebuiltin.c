@@ -72,7 +72,7 @@ int main(void)
 			j = 0;
 			while (line[j] == ' ' || line[j] == '\t')
 				j++;
-			if ((line[j] == '/' && line[j] == '/') || line[j] == '\r' || line[j] == '\n')
+			if ((line[j] == '/' && line[j+1] == '/') || line[j] == '\r' || line[j] == '\n')
 			{
 				while (line[j])
 					fputc(line[j++], c);

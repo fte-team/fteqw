@@ -60,6 +60,9 @@ void main ()
 	invsurface[2] = v_normal;
 #endif
 	tc = v_texcoord;
+#ifdef FLOW
+	tc.s += e_time * -0.5;
+#endif
 #ifdef VERTEXLIT
 	#ifdef LIGHTSTYLED
 	//FIXME, only one colour.

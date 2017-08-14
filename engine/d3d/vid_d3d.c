@@ -354,6 +354,10 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			if (!vid_initializing)
 				INS_RawInput_Read((HANDLE)lParam);
 			break;
+		case WM_DEVICECHANGE:
+			COM_AddWork(WG_MAIN, INS_DeviceChanged, NULL, NULL, uMsg, 0);
+			lRet = TRUE;
+			break;
 
 		case WM_SETCURSOR:
 			//only use a custom cursor if the cursor is inside the client area

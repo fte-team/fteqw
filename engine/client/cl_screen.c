@@ -378,7 +378,7 @@ Called for important messages that should stay in the center of the screen
 for a few moments
 ==============
 */
-void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
+void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 {
 	size_t i;
 	cprint_t *p;
@@ -486,7 +486,7 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 		}
 		else if (str[1] == 'I')
 		{
-			char *e;
+			const char *e;
 			int l;
 			str+=2;
 			e = strchr(str, ':');

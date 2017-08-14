@@ -65,6 +65,7 @@ char *PF_TempStr(pubprogfuncs_t *prinst);	//returns a tempstring which can be fi
 extern cvar_t pr_tempstringsize;
 extern cvar_t pr_tempstringcount;
 extern cvar_t pr_enable_profiling;
+extern cvar_t pr_fixbrokenqccarrays;
 
 extern int qcinput_scan;
 extern int qcinput_unicode;
@@ -176,7 +177,7 @@ void QCBUILTIN PF_htos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 void QCBUILTIN PF_ftoi (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_itof (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PR_fclose_progs (pubprogfuncs_t *prinst);
-char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
+const char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
 void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename);
 void PR_AutoCvar(pubprogfuncs_t *prinst, cvar_t *var);
 void QCBUILTIN PF_numentityfields (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -404,6 +405,7 @@ void QCBUILTIN PF_cl_getcursormode (pubprogfuncs_t *prinst, struct globalvars_s 
 void QCBUILTIN PF_cl_setwindowcaption (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_playingdemo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_getgamedirinfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_destroy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_command (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

@@ -480,8 +480,8 @@ void MP_Keyup(int key, int unicode, unsigned int devid);
 qboolean MP_MouseMove(float x, float y, unsigned int devid);
 qboolean MP_MousePosition(float x, float y, unsigned int devid);
 qboolean MP_JoystickAxis(int axis, float value, unsigned int devid);
-int MP_BuiltinValid(char *name, int num);
-qboolean MP_ConsoleCommand(char *cmdtext);
+int MP_BuiltinValid(const char *name, int num);
+qboolean MP_ConsoleCommand(const char *cmdtext);
 #endif
 
 #define MGT_BAD    ~0

@@ -14,9 +14,11 @@
 
 static char *cvargroup_progs = "Progs variables";
 
+cvar_t sv_gameplayfix_nolinknonsolid = CVARD("sv_gameplayfix_nolinknonsolid", "1", "When 0, setorigin et al will not link the entity into the collision nodes (which is faster, especially if you have a lot of non-solid entities. When 1, allows entities to freely switch between .solid values (except for SOLID_BSP) without relinking. A lot of DP mods assume a value of 1 and will bug out otherwise, while 0 will restore a bugs present in various mods.");
 cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods.");
 cvar_t pr_droptofloorunits = CVARD("pr_droptofloorunits", "256", "Distance that droptofloor is allowed to drop to be considered successul.");
 cvar_t pr_brokenfloatconvert = CVAR("pr_brokenfloatconvert", "0");
+cvar_t	pr_fixbrokenqccarrays = CVARFD("pr_fixbrokenqccarrays", "0", CVAR_LATCH, "As part of its nq/qw/h2/csqc support, FTE remaps QC fields to match an internal order. This is a faster way to handle extended fields. However, some QCCs are buggy and don't report all field defs.\n0: do nothing. QCC must be well behaved.\n1: Duplicate engine fields, remap the ones we can to known offsets. This is sufficient for QCCX/FrikQCC mods that use hardcoded or even occasional calculated offsets (fixes ktpro).\n2: Scan the mod for field accessing instructions, and assume those are the fields (and that they don't alias non-fields). This can be used to work around gmqcc's WTFs (fixes xonotic).");
 cvar_t pr_tempstringcount = CVARD("pr_tempstringcount", "", "Obsolete. Set to 16 if you want to recycle+reuse the same 16 tempstring references and break lots of mods.");
 cvar_t pr_tempstringsize = CVARD("pr_tempstringsize", "4096", "Obsolete");
 cvar_t	pr_sourcedir = CVARD("pr_sourcedir", "src", "Subdirectory where your qc source is located. Used by the internal compiler and qc debugging functionality.");
@@ -42,6 +44,7 @@ void PF_Common_RegisterCvars(void)
 
 
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
+	Cvar_Register (&sv_gameplayfix_nolinknonsolid, cvargroup_progs);
 	Cvar_Register (&pr_droptofloorunits, cvargroup_progs);
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
@@ -51,6 +54,7 @@ void PF_Common_RegisterCvars(void)
 #endif
 	Cvar_Register (&pr_enable_profiling, cvargroup_progs);
 	Cvar_Register (&pr_sourcedir, cvargroup_progs);
+	Cvar_Register (&pr_fixbrokenqccarrays, cvargroup_progs);
 
 #ifdef RAGDOLL
 	Cmd_AddCommand("skel_info", skel_info_f);
@@ -75,14 +79,17 @@ static void PF_Warningf(pubprogfuncs_t *prinst, const char *fmt, ...)
 	Con_Printf("%s", string);
 }
 
-char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_globals)
+const char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_globals)
 {
-#define VARSTRINGLEN 16384+8
+#define VARSTRINGLEN 65536+8
 	int		i;
 	static char buffer[2][VARSTRINGLEN];
 	static int bufnum;
 	const char *s;
 	char *out;
+
+	if (prinst->callargc - first == 1)
+		return PR_GetStringOfs(prinst, OFS_PARM0+first*3);	//no need to copy/etc.
 
 	out = buffer[(bufnum++)&1];
 
@@ -730,7 +737,6 @@ void QCBUILTIN PF_getsurfacetexture(pubprogfuncs_t *prinst, struct globalvars_s 
 
 	ent = G_WEDICT(prinst, OFS_PARM0);
 	surfnum = G_FLOAT(OFS_PARM1);
-
 	model = w->Get_CModel(w, ent->v->modelindex);
 
 	G_INT(OFS_RETURN) = 0;
@@ -852,31 +858,14 @@ static float getsurface_clippointtri(model_t *model, msurface_t *surf, vec3_t po
 	}
 	return bestdist;
 }
-// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
-void QCBUILTIN PF_getsurfacenearpoint(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+msurface_t *Mod_GetSurfaceNearPoint(model_t *model, vec3_t point)
 {
-	model_t *model;
-	wedict_t *ent;
 	msurface_t *surf;
 	int i;
-	float *point;
 
 	vec3_t cpoint = {0,0,0};
 	float bestdist = 0x7fffffff, dist;
-	int bestsurf = -1;
-	world_t *w = prinst->parms->user;
-
-	ent = G_WEDICT(prinst, OFS_PARM0);
-	point = G_VECTOR(OFS_PARM1);
-
-	G_FLOAT(OFS_RETURN) = -1;
-
-	model = w->Get_CModel(w, ent->v->modelindex);
-
-	if (!model || model->type != mod_brush)
-		return;
-
-	bestdist = 256;
+	msurface_t *bestsurf = NULL;
 
 	if (model->fromgame == fg_quake || model->fromgame == fg_quake2)
 	{
@@ -888,7 +877,7 @@ void QCBUILTIN PF_getsurfacenearpoint(pubprogfuncs_t *prinst, struct globalvars_
 			if (dist < bestdist)
 			{
 				bestdist = dist;
-				bestsurf = i;
+				bestsurf = surf;
 			}
 		}
 	}
@@ -902,11 +891,29 @@ void QCBUILTIN PF_getsurfacenearpoint(pubprogfuncs_t *prinst, struct globalvars_
 			if (dist < bestdist)
 			{
 				bestdist = dist;
-				bestsurf = i;
+				bestsurf = surf;
 			}
 		}
 	}
-	G_FLOAT(OFS_RETURN) = bestsurf;
+	return bestsurf;
+}
+// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
+void QCBUILTIN PF_getsurfacenearpoint(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
+	float *point = G_VECTOR(OFS_PARM1);
+
+	world_t *w = prinst->parms->user;
+	model_t *model = w->Get_CModel(w, ent->v->modelindex);
+	msurface_t *surf;
+
+	G_FLOAT(OFS_RETURN) = -1;
+	if (model && model->type == mod_brush)
+	{
+		surf = Mod_GetSurfaceNearPoint(model, point);
+		if (surf)
+			G_FLOAT(OFS_RETURN) = surf - (model->surfaces + model->firstmodelsurface);
+	}
 }
 
 // #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
@@ -1159,98 +1166,104 @@ void QCBUILTIN PF_touchtriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 ////////////////////////////////////////////////////
 //Finding
 
-/*
 //entity(string field, float match) findchainflags = #450
 //chained search for float, int, and entity reference fields
 void PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int i, f;
+	int i, ff, cf;
 	int s;
-	edict_t	*ent, *chain;
+	wedict_t	*ent, *chain;
 
-	chain = (edict_t *) *prinst->parms->sv_edicts;
+	chain = (wedict_t *) *prinst->parms->sv_edicts;
 
-	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	ff = G_INT(OFS_PARM0)+prinst->fieldadjust;
 	s = G_FLOAT(OFS_PARM1);
+	if (prinst->callargc > 2)
+		cf = G_INT(OFS_PARM2)+prinst->fieldadjust;
+	else
+		cf = &((comentvars_t*)NULL)->chain - (int*)NULL;
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		ent = WEDICT_NUM(prinst, i);
+		if (ED_ISFREE(ent))
 			continue;
-		if (!((int)((float *)ent->v)[f] & s))
+		if (!((int)((float *)ent->v)[ff] & s))
 			continue;
 
-		ent->v->chain = EDICT_TO_PROG(prinst, chain);
+		((int*)ent->v)[cf] = EDICT_TO_PROG(prinst, chain);
 		chain = ent;
 	}
 
 	RETURN_EDICT(prinst, chain);
 }
-*/
 
-/*
 //entity(string field, float match) findchainfloat = #403
 void PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int i, f;
+	int i, ff, cf;
 	float s;
-	edict_t	*ent, *chain;
+	wedict_t	*ent, *chain;
 
-	chain = (edict_t *) *prinst->parms->sv_edicts;
+	chain = (wedict_t *) *prinst->parms->sv_edicts;
 
-	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	ff = G_INT(OFS_PARM0)+prinst->fieldadjust;
 	s = G_FLOAT(OFS_PARM1);
+	if (prinst->callargc > 2)
+		cf = G_INT(OFS_PARM2)+prinst->fieldadjust;
+	else
+		cf = &((comentvars_t*)NULL)->chain - (int*)NULL;
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		ent = WEDICT_NUM(prinst, i);
+		if (ED_ISFREE(ent))
 			continue;
-		if (((float *)ent->v)[f] != s)
+		if (((float *)ent->v)[ff] != s)
 			continue;
 
-		ent->v->chain = EDICT_TO_PROG(prinst, chain);
+		((int*)ent->v)[cf] = EDICT_TO_PROG(prinst, chain);
 		chain = ent;
 	}
 
 	RETURN_EDICT(prinst, chain);
 }
-*/
 
-/*
 //entity(string field, string match) findchain = #402
 //chained search for strings in entity fields
 void PF_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int i, f;
-	char *s;
+	int i, ff, cf;
+	const char *s;
 	string_t t;
-	edict_t *ent, *chain;
+	wedict_t *ent, *chain;
+	
+	chain = (wedict_t *) *prinst->parms->sv_edicts;
 
-	chain = (edict_t *) *prinst->parms->sv_edicts;
-
-	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
+	ff = G_INT(OFS_PARM0)+prinst->fieldadjust;
 	s = PR_GetStringOfs(prinst, OFS_PARM1);
+	if (prinst->callargc > 2)
+		cf = G_INT(OFS_PARM2)+prinst->fieldadjust;
+	else
+		cf = &((comentvars_t*)NULL)->chain - (int*)NULL;
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = EDICT_NUM(prinst, i);
-		if (ent->isfree)
+		ent = WEDICT_NUM(prinst, i);
+		if (ED_ISFREE(ent))
 			continue;
-		t = *(string_t *)&((float*)ent->v)[f];
+		t = *(string_t *)&((float*)ent->v)[ff];
 		if (!t)
 			continue;
 		if (strcmp(PR_GetString(prinst, t), s))
 			continue;
 
-		ent->v->chain = EDICT_TO_PROG(prinst, chain);
+		((int*)ent->v)[cf] = EDICT_TO_PROG(prinst, chain);
 		chain = ent;
 	}
 
 	RETURN_EDICT(prinst, chain);
 }
-*/
 
 //EXTENSION: DP_QC_FINDFLAGS
 //entity(entity start, float fld, float match) findflags = #449
@@ -1888,14 +1901,14 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	if (i == MAX_QC_FILES)	//too many already open
 	{
-		Con_Printf("qcfopen: too many files open (trying %s)\n", name);
+		Con_Printf("qcfopen(\"%s\"): too many files open\n", name);
 		G_FLOAT(OFS_RETURN) = -1;
 		return;
 	}
 
 	if (!QC_FixFileName(name, &name, &fallbackread))
 	{
-		Con_Printf("qcfopen: Access denied: %s\n", name);
+		Con_Printf("qcfopen(\"%s\"): Access denied\n", name);
 		G_FLOAT(OFS_RETURN) = -1;
 		return;
 	}
@@ -2167,7 +2180,7 @@ static qboolean PF_fresizebuffer_internal (pf_fopen_files_t *f, size_t newlen)
 	}
 	return true;
 }
-static int PF_fwrite_internal (pubprogfuncs_t *prinst, int fnum, char *msg, size_t len)
+static int PF_fwrite_internal (pubprogfuncs_t *prinst, int fnum, const char *msg, size_t len)
 {
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
@@ -2249,7 +2262,7 @@ static int PF_fread_internal (pubprogfuncs_t *prinst, int fnum, char *msg, size_
 void QCBUILTIN PF_fputs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	char *msg = PF_VarString(prinst, 1, pr_globals);
+	const char *msg = PF_VarString(prinst, 1, pr_globals);
 	int len = strlen(msg);
 
 	PF_fwrite_internal (prinst, fnum, msg, len);
@@ -2845,12 +2858,18 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	float	*org;
 	vec3_t	eorg;
 	int		i, j;
+	int f;
 
 	chain = w->edicts;
 
 	org = G_VECTOR(OFS_PARM0);
 	rad = G_FLOAT(OFS_PARM1);
 	rad = rad*rad;
+
+	if (prinst->callargc > 2)
+		f = G_INT(OFS_PARM2)+prinst->fieldadjust;
+	else
+		f = &((comentvars_t*)NULL)->chain - (int*)NULL;
 
 	for (i=1 ; i<w->num_edicts ; i++)
 	{
@@ -2864,7 +2883,7 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		if (DotProduct(eorg,eorg) > rad)
 			continue;
 
-		ent->v->chain = EDICT_TO_PROG(prinst, chain);
+		((int*)ent->v)[f] = EDICT_TO_PROG(prinst, chain);
 		chain = ent;
 	}
 
@@ -3073,7 +3092,7 @@ void QCBUILTIN PF_strpad (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	char destbuf[4096];
 	char *dest = destbuf;
 	int pad = G_FLOAT(OFS_PARM0);
-	char *src = PF_VarString(prinst, 1, pr_globals);
+	const char *src = PF_VarString(prinst, 1, pr_globals);
 
 	//UTF-8-FIXME: pad is chars not bytes...
 
@@ -3220,7 +3239,7 @@ void QCBUILTIN PF_strconv (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	int ccase = G_FLOAT(OFS_PARM0);		//0 same, 1 lower, 2 upper
 	int redalpha = G_FLOAT(OFS_PARM1);	//0 same, 1 white, 2 red,  5 alternate, 6 alternate-alternate
 	int rednum = G_FLOAT(OFS_PARM2);	//0 same, 1 white, 2 red, 3 redspecial, 4 whitespecial, 5 alternate, 6 alternate-alternate
-	unsigned char *string = PF_VarString(prinst, 3, pr_globals);
+	const unsigned char *string = PF_VarString(prinst, 3, pr_globals);
 	int len = strlen(string);
 	int i;
 	unsigned char resbuf[8192];
@@ -3417,7 +3436,7 @@ void QCBUILTIN PF_stoh (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 void QCBUILTIN PF_stov (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
-	char *s;
+	const char *s;
 	float *out;
 
 	s = PF_VarString(prinst, 0, pr_globals);
@@ -3507,7 +3526,7 @@ void QCBUILTIN PF_strzone(pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 #endif
 }
 
-//string(string str1, string str2) strcat
+//string(string str1, string str2, str3, etc) strcat
 void QCBUILTIN PF_strcat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *buf;
@@ -3740,7 +3759,7 @@ void QCBUILTIN PF_strtoupper (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 //DP_QC_STRFTIME
 void QCBUILTIN PF_strftime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *in = PF_VarString(prinst, 1, pr_globals);
+	const char *in = PF_VarString(prinst, 1, pr_globals);
 	char result[8192];
 	char uresult[8192];
 
@@ -3778,14 +3797,14 @@ struct strbuf {
 };
 
 #define BUFSTRBASE 1
-#define NUMSTRINGBUFS 64
-struct strbuf strbuflist[NUMSTRINGBUFS];
+struct strbuf	*strbuflist;
+size_t			strbufmax;
 
 void PF_buf_shutdown(pubprogfuncs_t *prinst)
 {
 	size_t i, bufno;
 
-	for (bufno = 0; bufno < NUMSTRINGBUFS; bufno++)
+	for (bufno = 0; bufno < strbufmax; bufno++)
 	{
 		if (strbuflist[bufno].prinst == prinst)
 		{
@@ -3799,6 +3818,13 @@ void PF_buf_shutdown(pubprogfuncs_t *prinst)
 
 			strbuflist[bufno].prinst = NULL;
 		}
+	}
+	while (strbufmax>0 && !strbuflist[strbufmax-1].prinst)
+		strbufmax--;
+	if (!strbufmax)
+	{
+		Z_Free(strbuflist);
+		strbuflist = NULL;
 	}
 }
 
@@ -3820,19 +3846,24 @@ void QCBUILTIN PF_buf_create  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	//flags&1 == saved. apparently.
 
-	for (i = 0; i < NUMSTRINGBUFS; i++)
+	for (i = 0; i < strbufmax; i++)
 	{
 		if (!strbuflist[i].prinst)
+			break;
+	}
+	if (i == strbufmax)
+	{
+		if (!ZF_ReallocElements((void**)&strbuflist, &strbufmax, strbufmax+1, sizeof(*strbuflist)))
 		{
-			strbuflist[i].prinst = prinst;
-			strbuflist[i].used = 0;
-			strbuflist[i].allocated = 0;
-			strbuflist[i].strings = NULL;
-			G_FLOAT(OFS_RETURN) = i+BUFSTRBASE;
+			G_FLOAT(OFS_RETURN) = -1;
 			return;
 		}
 	}
-	G_FLOAT(OFS_RETURN) = -1;
+	strbuflist[i].prinst = prinst;
+	strbuflist[i].used = 0;
+	strbuflist[i].allocated = 0;
+	strbuflist[i].strings = NULL;
+	G_FLOAT(OFS_RETURN) = i+BUFSTRBASE;
 }
 // #441 void(float bufhandle) buf_del (DP_QC_STRINGBUFFERS)
 void QCBUILTIN PF_buf_del  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3840,7 +3871,7 @@ void QCBUILTIN PF_buf_del  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	size_t i;
 	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 
-	if (bufno >= NUMSTRINGBUFS)
+	if (bufno >= strbufmax)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -3860,7 +3891,7 @@ void QCBUILTIN PF_buf_getsize  (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 {
 	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 
-	if (bufno >= NUMSTRINGBUFS)
+	if (bufno >= strbufmax)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -3876,11 +3907,11 @@ void QCBUILTIN PF_buf_copy  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	if (bufto == buffrom)	//err...
 		return;
-	if (buffrom >= NUMSTRINGBUFS)
+	if (buffrom >= strbufmax)
 		return;
 	if (strbuflist[buffrom].prinst != prinst)
 		return;
-	if (bufto >= NUMSTRINGBUFS)
+	if (bufto >= strbufmax)
 		return;
 	if (strbuflist[bufto].prinst != prinst)
 		return;
@@ -3914,7 +3945,7 @@ void QCBUILTIN PF_buf_sort  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	int s,d;
 	char **strings;
 
-	if (bufno >= NUMSTRINGBUFS)
+	if (bufno >= strbufmax)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -3951,7 +3982,7 @@ void QCBUILTIN PF_buf_implode  (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	char **strings;
 	char *ret;
 
-	if (bufno >= NUMSTRINGBUFS)
+	if (bufno >= strbufmax)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -3996,7 +4027,7 @@ void QCBUILTIN PF_bufstr_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 	size_t index = G_FLOAT(OFS_PARM1);
 
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+	if ((unsigned int)bufno >= strbufmax)
 	{
 		RETURN_CSTRING("");
 		return;
@@ -4023,7 +4054,7 @@ void QCBUILTIN PF_bufstr_set  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	const char *string = PR_GetStringOfs(prinst, OFS_PARM2);
 	size_t oldcount;
 
-	if (bufno >= NUMSTRINGBUFS)
+	if (bufno >= strbufmax)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -4094,7 +4125,7 @@ void QCBUILTIN PF_bufstr_add  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	const char *string = PR_GetStringOfs(prinst, OFS_PARM1);
 	int order = G_FLOAT(OFS_PARM2);
 
-	if (bufno >= NUMSTRINGBUFS)
+	if (bufno >= strbufmax)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -4107,7 +4138,7 @@ void QCBUILTIN PF_bufstr_free  (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	size_t bufno = G_FLOAT(OFS_PARM0)-BUFSTRBASE;
 	size_t index = G_FLOAT(OFS_PARM1);
 
-	if (bufno >= NUMSTRINGBUFS)
+	if (bufno >= strbufmax)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -4130,7 +4161,7 @@ void QCBUILTIN PF_buf_cvarlist  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	cvar_t	*var;
 	extern cvar_group_t *cvar_groups;
 
-	if (bufno >= NUMSTRINGBUFS)
+	if (bufno >= strbufmax)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -4165,7 +4196,7 @@ void QCBUILTIN PF_buf_loadfile  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 	G_FLOAT(OFS_RETURN) = 0;
 
-	if (bufno >= NUMSTRINGBUFS)
+	if (bufno >= strbufmax)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -4200,7 +4231,7 @@ void QCBUILTIN PF_buf_writefile  (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	G_FLOAT(OFS_RETURN) = 0;
 
-	if (bufno >= NUMSTRINGBUFS)
+	if (bufno >= strbufmax)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
@@ -4238,7 +4269,7 @@ void QCBUILTIN PF_buf_writefile  (pubprogfuncs_t *prinst, struct globalvars_s *p
 void QCBUILTIN PF_crc16 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int insens = G_FLOAT(OFS_PARM0);
-	char *str = PF_VarString(prinst, 1, pr_globals);
+	const char *str = PF_VarString(prinst, 1, pr_globals);
 	int len = strlen(str);
 
 	if (insens)
@@ -4254,27 +4285,28 @@ void QCBUILTIN PF_digest_hex (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	int digestsize, i;
 	unsigned char digest[64];
 	unsigned char hexdig[sizeof(digest)*2+1];
+	size_t len = strlen(str);
 
 	if (!strcmp(hashtype, "MD4"))
 	{
 		digestsize = 16;
-		Com_BlockFullChecksum(str, strlen(str), digest);
+		Com_BlockFullChecksum(str, len, digest);
 	}
 	//md5?
 	else if (!strcmp(hashtype, "SHA1"))
 	{
-		digestsize = SHA1(digest, sizeof(digest), str, strlen(str));
+		digestsize = SHA1(digest, sizeof(digest), str, len);
 	}
 //	else if (!strcmp(hashtype, "SHA256"))
 //	{
-//		digestsize = SHA2(digest, sizeof(digest), str, strlen(str));
+//		digestsize = SHA2(digest, sizeof(digest), str, len);
 //	}
 	//sha384
 	//sha512
 	else if (!strcmp(hashtype, "CRC16"))
 	{
 		digestsize = 2;
-		*(unsigned short*)digest = QCRC_Block(str, strlen(str));
+		*(unsigned short*)digest = QCRC_Block(str, len);
 	}
 	else
 		digestsize = 0;
@@ -5173,7 +5205,7 @@ void QCBUILTIN PF_externset (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 {
 	int n = G_PROG(OFS_PARM0);
 	int v = G_INT(OFS_PARM1);
-	char *varname = PF_VarString(prinst, 2, pr_globals);
+	const char *varname = PF_VarString(prinst, 2, pr_globals);
 	eval_t *var;
 
 	var = PR_FindGlobal(prinst, varname, n, NULL);
@@ -5185,7 +5217,7 @@ void QCBUILTIN PF_externset (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_externvalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//return a value in annother progs
 {
 	int n = G_PROG(OFS_PARM0);
-	char *varname = PF_VarString(prinst, 1, pr_globals);
+	const char *varname = PF_VarString(prinst, 1, pr_globals);
 	eval_t *var;
 
 	if (*varname == '&')
@@ -5286,7 +5318,7 @@ void QCBUILTIN PF_break (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 
 void QCBUILTIN PF_error (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*s;
+	const char	*s;
 
 	s = PF_VarString(prinst, 0, pr_globals);
 /*	Con_Printf ("======SERVER ERROR in %s:\n%s\n", PR_GetString(pr_xfunction->s_name) ,s);
@@ -5318,7 +5350,7 @@ void QCBUILTIN PF_error (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 //Sends text over to the client's execution buffer
 void QCBUILTIN PF_localcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*str;
+	const char	*str;
 
 	str = PF_VarString(prinst, 0, pr_globals);
 	if (developer.ival >= 2)
@@ -5785,13 +5817,41 @@ void QCBUILTIN PF_getentityfieldstring (pubprogfuncs_t *prinst, struct globalvar
 	eval_t *eval;
 	unsigned int count = 0;
 	fdef_t *fdef = prinst->FieldInfo(prinst, &count);
+	G_INT(OFS_RETURN) = 0;
 	if (fidx < count)
 	{
+#if !defined(CLIENTONLY) && !defined(NOLEGACY)
+		qboolean isserver = (prinst == sv.world.progs);
+#endif
 		eval = (eval_t *)&((float *)ent->v)[fdef[fidx].ofs];
+#ifndef NOLEGACY	//extra code to be lazy so that xonotic doesn't go crazy and spam the fuck out of e
+		if ((fdef->type & 0xff) == ev_vector)
+		{
+			if (eval->_vector[0]==0&&eval->_vector[1]==0&&eval->_vector[2]==0)
+				return;
+		}
+#ifndef CLIENTONLY
+		else if (isserver && (float*)eval == &((edict_t*)ent)->xv->drawflags && eval->_float == 96)
+			return;
+		else if (isserver && (float*)eval == &((edict_t*)ent)->xv->uniquespawnid)
+			return;
+#endif
+		else if (((float*)eval == &ent->xv->dimension_solid ||
+				  (float*)eval == &ent->xv->dimension_hit
+#ifndef CLIENTONLY
+				  || (isserver && ((float*)eval == &((edict_t*)ent)->xv->dimension_see
+				  || (float*)eval == &((edict_t*)ent)->xv->dimension_seen))
+#endif
+				  )  && eval->_float == 255)
+			return;
+		else
+		{
+			if (!eval->_int)
+				return;
+		}
+#endif
 		RETURN_TSTRING(prinst->UglyValueString(prinst, fdef[fidx].type, eval));
 	}
-	else
-		G_INT(OFS_RETURN) = 0;
 }
 //float(float fieldnum, entity ent, string s)
 void QCBUILTIN PF_putentityfieldstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6227,6 +6287,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QUAKE2_SPRITE"},
 	{"DP_QUAKE3_MODEL"},
 	{"DP_REGISTERCVAR",					1,	NULL, {"registercvar"}},
+	{"DP_SND_SOUND7_WIP2"},	//listed only to silence xonotic, if anyone tries running that.
 	{"DP_SND_STEREOWAV"},
 	{"DP_SND_OGGVORBIS"},
 	{"DP_SOLIDCORPSE"},

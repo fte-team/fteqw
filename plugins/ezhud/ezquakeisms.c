@@ -494,10 +494,10 @@ void EZHud_UseNquake_f(void)
 struct 
 {
 	xcommand_t cmd;
-	char *name;
+	const char *name;
 } concmds[128];
 int numconcmds;
-qboolean Cmd_AddCommand	(char *funcname, xcommand_t function)
+qboolean Cmd_AddCommand	(const char *funcname, xcommand_t function)
 {
 	if (numconcmds < sizeof(concmds)/sizeof(concmds[0]))
 	{

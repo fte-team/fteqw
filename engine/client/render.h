@@ -449,18 +449,18 @@ image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploa
 #ifdef D3D8QUAKE
 void		D3D8_Set2D (void);
 void		D3D8_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
-qboolean	D3D8_LoadTextureMips	(texid_t tex, struct pendingtextureinfo *mips);
+qboolean	D3D8_LoadTextureMips	(texid_t tex, const struct pendingtextureinfo *mips);
 void		D3D8_DestroyTexture		(texid_t tex);
 #endif
 #ifdef D3D9QUAKE
 void		D3D9_Set2D (void);
 void		D3D9_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
-qboolean	D3D9_LoadTextureMips	(texid_t tex, struct pendingtextureinfo *mips);
+qboolean	D3D9_LoadTextureMips	(texid_t tex, const struct pendingtextureinfo *mips);
 void		D3D9_DestroyTexture		(texid_t tex);
 #endif
 #ifdef D3D11QUAKE
 void		D3D11_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
-qboolean	D3D11_LoadTextureMips	(texid_t tex, struct pendingtextureinfo *mips);
+qboolean	D3D11_LoadTextureMips	(texid_t tex, const struct pendingtextureinfo *mips);
 void		D3D11_DestroyTexture	(texid_t tex);
 #endif
 

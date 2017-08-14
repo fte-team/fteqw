@@ -4967,7 +4967,7 @@ static void GUI_CreateInstaller_Windows(void)
 		fprintf(f, "///downloadsurl is a list of optional updates, including engine updates, displayed via the updates menu. should always be https\n");
 		fprintf(f, "//downloadsurl \"https://fte.triptohell.info/downloadables.php\"\n");
 		fprintf(f, "///eula displayed when first installing\n");
-		fprintf(f, "//eula \"By using this game software, you assign your eternal soul to me for me to do as I wish, including but not limited to trading it for a pint of beer.\"\n");
+		fprintf(f, "//eula \"By using this game software, you assign your eternal soul to me for me to do as I wish, including but not limited to trading it for a pint of beer. This example is not legally binding.\"\n");
 		fclose(f);
 		EditFile(tmp, -1, false);
 		return;
@@ -6792,6 +6792,9 @@ void AddSourceFile(const char *parentpath, const char *filename)
 	char parentstring[256];
 	char *slash;
 
+	while (!strncmp(filename, "./", 2))
+		filename += 2;
+
 	QC_strlcpy(string, filename, sizeof(string));
 
 
@@ -6939,7 +6942,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	strcpy(enginebasedir, "");
 	strcpy(enginecommandline, "");
 
-	if(strstr(lpCmdLine, "-stdout"))
+	if(strstr(lpCmdLine, "-stdout") || strstr(lpCmdLine, "--version"))
 	{
 		GUI_ParseCommandLine(lpCmdLine);
 		RunCompiler(lpCmdLine, false);
@@ -7113,7 +7116,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 						fread(buf, 1, size, f);
 						fclose(f);
 						QCC_CloseAllVFiles();
-						strcpy(progssrcname, "progs.src");
 						if (!QC_EnumerateFilesFromBlob(buf, size, QCC_EnumerateFilesResult) && !QC_strcasecmp(ext, ".dat"))
 						{
 							char *c = ReadProgsCopyright(buf, size);
@@ -7132,6 +7134,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 							}
 						}
 						free(buf);
+						strcpy(progssrcname, "progs.src");
 					}
 					else
 						strcpy(progssrcname, "progs.src");

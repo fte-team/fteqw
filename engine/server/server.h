@@ -433,6 +433,7 @@ enum
 #define STUFFCMD_IGNOREINDEMO (   1<<0) // do not put in mvd demo
 #define STUFFCMD_DEMOONLY     (   1<<1) // put in mvd demo only
 #define STUFFCMD_BROADCAST    (   1<<2) // everyone sees it.
+#define STUFFCMD_UNRELIABLE   (   1<<3) // someone might not see it. oh well.
 
 typedef struct client_s
 {
@@ -567,6 +568,7 @@ typedef struct client_s
 	//true/false/persist
 	unsigned int	penalties;
 	qbyte			istobeloaded;	//loadgame creates place holders for clients to connect to. Effectivly loading a game reconnects all clients, but has precreated ents.
+	qboolean		spawned;		//the player's entity was spawned.
 
 	double			floodprotmessage;
 	double			lastspoke;
@@ -1139,7 +1141,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 
 void SV_Physics_Client (edict_t	*ent, int num);
 
-void SV_ExecuteUserCommand (char *s, qboolean fromQC);
+void SV_ExecuteUserCommand (const char *s, qboolean fromQC);
 void SV_InitOperatorCommands (void);
 
 void SV_SendServerinfo (client_t *client);
@@ -1242,7 +1244,7 @@ void SV_CalcNetRates(client_t *cl, double *ftime, int *frames, double *minf, dou
 qboolean SV_ChallengePasses(int challenge);
 void SV_QCStatName(int type, char *name, int statnum);
 void SV_QCStatFieldIdx(int type, unsigned int fieldindex, int statnum);
-void SV_QCStatGlobal(int type, char *globalname, int statnum);
+void SV_QCStatGlobal(int type, const char *globalname, int statnum);
 void SV_QCStatPtr(int type, void *ptr, int statnum);
 void SV_ClearQCStats(void);
 
@@ -1258,6 +1260,7 @@ void QDECL SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const 
 void SV_PrintToClient(client_t *cl, int level, const char *string);
 void SV_TPrintToClient(client_t *cl, int level, const char *string);
 void SV_StuffcmdToClient(client_t *cl, const char *string);
+void SV_StuffcmdToClient_Unreliable(client_t *cl, const char *string);
 void VARGS SV_ClientPrintf (client_t *cl, int level, const char *fmt, ...) LIKEPRINTF(3);
 void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);
 void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...) LIKEPRINTF(2);
@@ -1566,7 +1569,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 // savegame.c
 void SV_LegacySavegame_f(void);
 void SV_Savegame_f (void);
-void SV_Savegame_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx);
+void SV_Savegame_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
 void SV_Loadgame_f (void);
 void SV_AutoSave(void);
 void SV_FlushLevelCache(void);

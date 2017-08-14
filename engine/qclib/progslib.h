@@ -78,11 +78,10 @@ enum {
 
 typedef struct fdef_s
 {
-	unsigned int	type;		// if DEF_SAVEGLOBAL bit is set
-								// the variable needs to be saved in savegames
-	int	ofs;			//runtime offset. add fieldadj to get the real array index.
+	unsigned int	type;		//if DEF_SAVEGLOBAL bit is set then the variable needs to be saved in savegames
+	int				ofs;		//runtime offset. add fieldadj to get the real array index.
 	unsigned int	progsofs;	//used at loading time, so maching field offsets (unions/members) are positioned at the same runtime offset.
-	char *		name;
+	char *			name;		//proper name for the field.
 } fdef_t;
 
 //the number of pointers to variables (as opposed to functions - those are fine) in these structures is excessive.
@@ -156,7 +155,7 @@ struct pubprogfuncs_s
 	char *stringtable;	//qc strings are all relative. add to a qc string. this is required for support of frikqcc progs that strip string immediates.
 	int stringtablesize;
 	int stringtablemaxsize;
-	int fieldadjust;	//FrikQCC style arrays can cause problems due to field remapping. This causes us to leave gaps but offsets identical.
+	int fieldadjust;	//FrikQCC style arrays can cause problems due to field remapping. This causes us to leave gaps but offsets identical. except for system fields, qc-addressable variables use their old offsets, this is the bias so that the offset pokes the correct memory.
 
 	struct qcthread_s *(PDECL *Fork)			(pubprogfuncs_t *prinst);	//returns a pointer to a thread which can be resumed via RunThread.
 	void	(PDECL *RunThread)					(pubprogfuncs_t *prinst, struct qcthread_s *thread);

@@ -967,8 +967,6 @@ void Con_CycleConsole(void)
 	}
 }
 
-void Con_Log(char *s);
-
 /*
 ================
 Con_Printf

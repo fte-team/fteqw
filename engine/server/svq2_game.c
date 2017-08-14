@@ -809,13 +809,6 @@ qboolean SVQ2_InitGameProgs(void)
 		return false;
 	}
 
-	// unload anything we have now
-	if (!sv.world.worldmodel || (sv.world.worldmodel->fromgame == fg_quake || sv.world.worldmodel->fromgame == fg_halflife))	//we don't support q1 or hl maps yet... If ever.
-	{
-		SVQ2_ShutdownGameProgs();
-		return false;
-	}
-
 	if (ge)
 	{
 		SVQ2_InitWorld();

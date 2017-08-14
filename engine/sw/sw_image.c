@@ -35,7 +35,7 @@ void		SW_UpdateFiltering		(image_t *imagelist, int filtermip[3], int filterpic[3
 	//always nearest...
 }
 
-qboolean	SW_LoadTextureMips		(texid_t tex, struct pendingtextureinfo *mips)
+qboolean	SW_LoadTextureMips		(texid_t tex, const struct pendingtextureinfo *mips)
 {
 	swimage_t *img;
 	int i;

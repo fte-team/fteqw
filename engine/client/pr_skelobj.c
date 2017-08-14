@@ -198,7 +198,6 @@ static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[
 	out[10] = vz[2];
 	out[11] = t[2];
 }
-#if !defined(SERVERONLY) && defined(RAGDOLL)
 static void bonemat_fromaxisorg(float *out, vec3_t axis[3], const float t[3])
 {
 	out[0] = axis[0][0];
@@ -214,7 +213,6 @@ static void bonemat_fromaxisorg(float *out, vec3_t axis[3], const float t[3])
 	out[10]= axis[2][2];
 	out[11]= t[2];
 }
-#endif
 static void bonemat_fromentity(world_t *w, wedict_t *ed, float *trans)
 {
 	vec3_t d[3], a;
@@ -242,6 +240,21 @@ static void bonemat_toqcvectors(const float *in, float vx[3], float vy[3], float
 	t [0] = in[3];
 	t [1] = in[7];
 	t [2] = in[11];
+}
+static void bonemat_toaxisorg(const float *src, vec3_t axis[3], float t[3])
+{
+	axis[0][0] = src[0];
+	axis[0][1] = src[4];
+	axis[0][2] = src[8];
+	axis[1][0] = src[1];
+	axis[1][1] = src[5];
+	axis[1][2] = src[9];
+	axis[2][0] = src[2];
+	axis[2][1] = src[6];
+	axis[2][2] = src[10];
+	t[0] = src[3];
+	t[1] = src[7];
+	t[2] = src[11];
 }
 
 static void bonematident_toqcvectors(float vx[3], float vy[3], float vz[3], float t[3])
@@ -2269,11 +2282,8 @@ void QCBUILTIN PF_gettaginfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	world_t *w = prinst->parms->user;
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
 	int tagnum = G_FLOAT(OFS_PARM1);
+	int tagent = ent->xv->tag_entity;
 	int chain = 10;
-
-	int modelindex = ent->v->modelindex;
-
-	model_t *mod = w->Get_CModel(w, modelindex);
 
 	float transent[12];
 	float transforms[12];
@@ -2283,29 +2293,62 @@ void QCBUILTIN PF_gettaginfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	framestate_t fstate;
 
 	w->Get_FrameState(w, ent, &fstate);
-
-	if (!Mod_GetTag(mod, tagnum, &fstate, transforms))
-	{
+	if (!Mod_GetTag(w->Get_CModel(w, ent->v->modelindex), tagnum, &fstate, transforms))
 		bonemat_fromidentity(transforms);
-	}
 
 	bonemat_fromentity(w, ent, transent);
 	R_ConcatTransforms((void*)transent, (void*)transforms, (void*)result);
 
-	while (ent->xv->tag_entity && chain --> 0)
+	while (tagent && chain --> 0)
 	{
+		ent = PROG_TO_WEDICT(prinst, tagent);
 		w->Get_FrameState(w, ent, &fstate);
-		if (!Mod_GetTag(mod, tagnum, &fstate, transforms))
+		if (!Mod_GetTag(w->Get_CModel(w, ent->v->modelindex), tagnum, &fstate, transforms))
 			bonemat_fromidentity(transforms);
 
 		bonemat_fromentity(w, ent, transent);
 		R_ConcatTransforms((void*)transforms, (void*)result, (void*)result2);
 		R_ConcatTransforms((void*)transent, (void*)result2, (void*)result);
 
-		ent = PROG_TO_WEDICT(prinst, ent->xv->tag_entity);
+		tagent = ent->xv->tag_entity;
+		tagnum = ent->xv->tag_index;
 	}
 
 	bonemat_toqcvectors(result, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
+}
+
+//writes to axis+origin. returns root entity.
+wedict_t *skel_gettaginfo_args (pubprogfuncs_t *prinst, vec3_t axis[3], vec3_t origin, int tagent, int tagnum)
+{
+	world_t *w = prinst->parms->user;
+	wedict_t *ent = NULL;
+	int chain = 10;
+
+	float transent[12];
+	float transforms[12];
+	float result[12];
+	float result2[12];
+	framestate_t fstate;
+
+	bonemat_fromaxisorg(result, axis, origin);
+
+	while (tagent && chain --> 0)
+	{
+		ent = PROG_TO_WEDICT(prinst, tagent);
+		w->Get_FrameState(w, ent, &fstate);
+		if (!Mod_GetTag(w->Get_CModel(w, ent->v->modelindex), tagnum, &fstate, transforms))
+			bonemat_fromidentity(transforms);
+
+		bonemat_fromentity(w, ent, transent);
+		R_ConcatTransforms((void*)transforms, (void*)result, (void*)result2);
+		R_ConcatTransforms((void*)transent, (void*)result2, (void*)result);
+
+		tagent = ent->xv->tag_entity;
+		tagnum = ent->xv->tag_index;
+	}
+
+	bonemat_toaxisorg(result, axis, origin);
+	return ent;
 }
 
 //vector(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
@@ -2342,7 +2385,7 @@ void QCBUILTIN PF_frameforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	world_t *w = prinst->parms->user;
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	int surfaceidx = 0;
-	char *str = PF_VarString(prinst, 1, pr_globals);
+	const char *str = PF_VarString(prinst, 1, pr_globals);
 	model_t *mod = w->Get_CModel(w, modelindex);
 
 	if (mod)
@@ -2627,7 +2670,7 @@ void QCBUILTIN PF_skinforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 #ifndef SERVERONLY
 	world_t *w = prinst->parms->user;
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
-	char *str = PF_VarString(prinst, 1, pr_globals);
+	const char *str = PF_VarString(prinst, 1, pr_globals);
 	int surfaceidx = 0;
 	model_t *mod = w->Get_CModel(w, modelindex);
 

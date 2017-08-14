@@ -754,8 +754,8 @@ typedef enum {
 	LOG_RCON,
 	LOG_TYPES
 } logtype_t;
-void Log_String (logtype_t lognum, char *s);
-void Con_Log (char *s);
+void Log_String (logtype_t lognum, const char *s);
+void Con_Log (const char *s);
 void Log_Logfile_f (void);
 void Log_Init(void);
 void Log_ShutDown(void);

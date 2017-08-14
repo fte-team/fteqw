@@ -376,7 +376,6 @@ struct pipeline_s
 uint32_t vk_find_memory_try(uint32_t typeBits, VkFlags requirements_mask);
 uint32_t vk_find_memory_require(uint32_t typeBits, VkFlags requirements_mask);
 
-qboolean VK_LoadTextureMips (texid_t tex, struct pendingtextureinfo *mips);
 void VK_DoPresent(struct vkframe *theframe);
 
 qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*createSurface)(void), void (*dopresent)(struct vkframe *theframe));
@@ -458,7 +457,7 @@ void	VK_Draw_Init(void);
 void	VK_Draw_Shutdown(void);
 
 void	VK_UpdateFiltering			(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
-qboolean VK_LoadTextureMips			(texid_t tex, struct pendingtextureinfo *mips);
+qboolean VK_LoadTextureMips			(texid_t tex, const struct pendingtextureinfo *mips);
 void    VK_DestroyTexture			(texid_t tex);
 void	VK_DestroyVkTexture			(vk_image_t *img);
 

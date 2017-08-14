@@ -136,6 +136,7 @@ void INS_UpdateClipCursor (void);
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify);
 void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum, qboolean genkeystate);
 int INS_AppCommand(LPARAM lParam);
+void INS_DeviceChanged(void *ctx, void *data, size_t a ,size_t b);
 
 void S_BlockSound (void);
 void S_UnblockSound (void);

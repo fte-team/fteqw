@@ -2647,7 +2647,7 @@ void CL_Reconnect_f (void)
 	if (cls.download && cls.download->method <= DL_QWPENDING)  // don't change when downloading
 		return;
 #ifdef NQPROT
-	if (cls.protocol == CP_NETQUAKE && Cmd_FromGamecode())
+	if (cls.protocol == CP_NETQUAKE && Cmd_IsInsecure())
 	{
 		CL_Changing_f();
 		return;
@@ -5505,7 +5505,7 @@ double Host_Frame (double time)
 			{
 				//nq can send 'frames' without any entities before we're on the server, leading to short periods where the local player's position is not known. this is bad. so be more cautious with nq. this might break csqc.
 				CL_TransitionEntities();
-				if (cl.currentpackentities->num_entities
+				if (cl.currentpackentities->num_entities || cl.currentpackentities->servertime
 #ifdef CSQC_DAT
 					|| (cls.fteprotocolextensions & PEXT_CSQC)
 #endif

@@ -108,7 +108,7 @@ void SQL_CloseRequest(sqlserver_t *server, queryrequest_t *qres, qboolean force)
 void SQL_CloseAllResults(sqlserver_t *server);
 char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col, qboolean fields, size_t *resultsize);
 int SQL_NewServer(const char *driver, const char **paramstr);
-int SQL_NewQuery(sqlserver_t *server, qboolean (*callback)(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof), char *str, queryrequest_t **reqout);	//callback will be called on the main thread once the result is back
+int SQL_NewQuery(sqlserver_t *server, qboolean (*callback)(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof), const char *str, queryrequest_t **reqout);	//callback will be called on the main thread once the result is back
 void SQL_Disconnect(sqlserver_t *server);
 void SQL_Escape(sqlserver_t *server, const char *src, char *dst, int dstlen);
 const char *SQL_Info(sqlserver_t *server);

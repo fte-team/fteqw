@@ -67,57 +67,6 @@ int needcleanup;
 
 //int		fatbytes;
 
-#if defined(Q2BSPS) || defined(Q3BSPS)
-unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, pvsbuffer_t *result, qboolean merge)
-{
-	int	leafs[64];
-	int		i, j, count;
-	vec3_t	mins, maxs;
-
-	for (i=0 ; i<3 ; i++)
-	{
-		mins[i] = org[i] - 8;
-		maxs[i] = org[i] + 8;
-	}
-
-	count = CM_BoxLeafnums (mod, mins, maxs, leafs, countof(leafs), NULL);
-	if (count < 1)
-		Sys_Error ("SV_Q2FatPVS: count < 1");
-
-	// convert leafs to clusters
-	for (i=0 ; i<count ; i++)
-		leafs[i] = CM_LeafCluster(mod, leafs[i]);
-
-	//grow the buffer if needed
-	if (result->buffersize < mod->pvsbytes)
-		result->buffer = BZ_Realloc(result->buffer, result->buffersize=mod->pvsbytes);
-
-	if (count == 1 && leafs[0] == -1)
-	{	//if the only leaf is the outside then broadcast it.
-		memset(result->buffer, 0xff, mod->pvsbytes);
-		i = count;
-	}
-	else
-	{
-		i = 0;
-		if (!merge)
-			mod->funcs.ClusterPVS(mod, leafs[i++], result, PVM_REPLACE);
-		// or in all the other leaf bits
-		for ( ; i<count ; i++)
-		{
-			for (j=0 ; j<i ; j++)
-				if (leafs[i] == leafs[j])
-					break;
-			if (j != i)
-				continue;		// already have the cluster we want
-			mod->funcs.ClusterPVS(mod, leafs[i], result, PVM_MERGE);
-		}
-	}
-	return mod->pvsbytes;
-}
-#endif
-
-
 void SV_ExpandNackFrames(client_t *client, int require)
 {
 	client_frame_t *newframes;
@@ -3104,56 +3053,6 @@ qboolean SV_GibFilter(edict_t	*ent)
 
 	return false;
 }
-
-
-#if defined(Q2BSPS) || defined(Q3BSPS)
-static int		clientarea;
-
-unsigned int Q23BSP_FatPVS(model_t *mod, vec3_t org, pvsbuffer_t *buffer, qboolean merge)
-{//fixme: this doesn't add areas
-	int		leafnum;
-	leafnum = CM_PointLeafnum (mod, org);
-	clientarea = CM_LeafArea (mod, leafnum);
-
-	return SV_Q2BSP_FatPVS (mod, org, buffer, merge);
-}
-
-qboolean Q23BSP_EdictInFatPVS(model_t *mod, pvscache_t *ent, qbyte *pvs)
-{
-	int i,l;
-	int nullarea = (mod->fromgame == fg_quake2)?0:-1;
-	if (clientarea == ent->areanum)
-	{
-		if (clientarea == nullarea)
-			return false;
-	}
-	else  if (!CM_AreasConnected (mod, clientarea, ent->areanum))
-	{	// doors can legally straddle two areas, so
-		// we may need to check another one
-		if (ent->areanum2 == nullarea
-			|| !CM_AreasConnected (mod, clientarea, ent->areanum2))
-			return false;		// blocked by a door
-	}
-
-	if (ent->num_leafs == -1)
-	{	// too many leafs for individual check, go by headnode
-		if (!CM_HeadnodeVisible (mod, ent->headnode, pvs))
-			return false;
-	}
-	else
-	{	// check individual leafs
-		for (i=0 ; i < ent->num_leafs ; i++)
-		{
-			l = ent->leafnums[i];
-			if (pvs[l >> 3] & (1 << (l&7) ))
-				break;
-		}
-		if (i == ent->num_leafs)
-			return false;		// not visible
-	}
-	return true;
-}
-#endif
 
 #ifdef SERVER_DEMO_PLAYBACK
 static void SV_Snapshot_Build_Playback(client_t *client, packet_entities_t *pack)

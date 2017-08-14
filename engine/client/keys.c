@@ -306,10 +306,10 @@ void Key_PrintQCDefines(vfsfile_t *f)
 ==============================================================================
 */
 
-qboolean Cmd_IsCommand (char *line)
+qboolean Cmd_IsCommand (const char *line)
 {
 	char	command[128];
-	char	*cmd, *s;
+	const char	*cmd, *s;
 	int		i;
 
 	s = line;
@@ -1987,20 +1987,7 @@ void Key_Unbindall_f (void)
 			Key_SetBinding (i, ~0, NULL, Cmd_ExecLevel);
 }
 
-void Key_AliasEdit_f (void)
-{
-	char *alias = Cmd_AliasExist(Cmd_Argv(1), RESTRICT_LOCAL);
-	char quotedalias[2048];
-	if (alias)
-	{
-		COM_QuotedString(alias, quotedalias, sizeof(quotedalias), false);
-		Key_ConsoleReplace(va("alias %s %s", Cmd_Argv(1), quotedalias));
-	}
-	else
-		Con_Printf("Not an alias\n");
-}
-
-void Key_Bind_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx)
+void Key_Bind_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
 {
 	keyname_t *kn;
 	size_t len = strlen(partial);
@@ -2312,7 +2299,6 @@ void Key_Init (void)
 	Cmd_AddCommand ("bindlevel",Key_BindLevel_f);
 	Cmd_AddCommandAD ("unbind",Key_Unbind_f, Key_Bind_c, NULL);
 	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
-	Cmd_AddCommand ("aliasedit",Key_AliasEdit_f);
 
 	Cvar_Register (&con_selectioncolour, "Console variables");
 	Cvar_Register (&con_echochat, "Console variables");

@@ -240,15 +240,19 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 
 	if (!name)	//engine can use this to offset all progs fields
 	{			//which fixes constant field offsets (some ktpro arrays)
-		progfuncs->funcs.fieldadjust = prinst.fields_size/4;
+		if (engineofs == 2)
+			prinst.reorganisefields = 2;
+		else if (engineofs)
+		{
+			progfuncs->funcs.fieldadjust = prinst.fields_size/4;
 #ifdef MAPPING_DEBUG
-		printf("FIELD ADJUST: %i %i %i\n", progfuncs->funcs.fieldadjust, prinst.fields_size, (int)prinst.fields_size/4);
+			printf("FIELD ADJUST: %i %i %i\n", progfuncs->funcs.fieldadjust, prinst.fields_size, (int)prinst.fields_size/4);
 #endif
+		}
 		return 0;
 	}
-
-
-	prinst.reorganisefields = true;
+	else if (!prinst.reorganisefields)
+		prinst.reorganisefields = true;
 
 	//look for an existing match
 	for (i = 0; i < prinst.numfields; i++)
@@ -395,7 +399,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 }
 
 
-//called if a global is defined as a field
+//called for each global defined as a field
 void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
@@ -422,65 +426,78 @@ void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 	{
 	case PST_KKQWSV:
 	case PST_DEFAULT:
-		for (i=1 ; i<pr_progs->numfielddefs; i++)
 		{
-			if (!strcmp(pr_fielddefs16[i].s_name+stringtable, pr_globaldefs16[num].s_name+stringtable))
-			{		
-#ifdef MAPPING_DEBUG
-				int old = *(int *)&pr_globals[pr_globaldefs16[num].ofs];
-#endif
-				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = QC_RegisterFieldVar(&progfuncs->funcs, pr_fielddefs16[i].type, pr_globaldefs16[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
-#ifdef MAPPING_DEBUG
-				printf("Field=%s global %i -> %i\n", pr_globaldefs16[num].s_name+stringtable, old, *(volatile int *)&pr_globals[pr_globaldefs16[num].ofs]);
-#endif
-				return;
-			}
-		}
+			ddef16_t *gd = pr_globaldefs16;
+			ddef16_t *fld = pr_fielddefs16;
+			char *gname = gd[num].s_name+stringtable;
+			int *eval = (int*)&pr_globals[gd[num].ofs];
+			if (*gname == '.')
+				gname++;
 
-		for (i = 0; i < prinst.numfields; i++)
-		{
-			o = prinst.field[i].progsofs;
-			if (o == *(unsigned int *)&pr_globals[pr_globaldefs16[num].ofs])
+			for (i=1 ; i<pr_progs->numfielddefs; i++)
 			{
+				if (!strcmp(fld[i].s_name+stringtable, gname))
+				{		
 #ifdef MAPPING_DEBUG
-				int old = *(int *)&pr_globals[pr_globaldefs16[num].ofs];
+					int old = *eval;
 #endif
-				*(int *)&pr_globals[pr_globaldefs16[num].ofs] = prinst.field[i].ofs-progfuncs->funcs.fieldadjust;
+					*eval = QC_RegisterFieldVar(&progfuncs->funcs, fld[i].type, gname, -1, *eval);
 #ifdef MAPPING_DEBUG
-				printf("Field global=%s %i -> %i\n", pr_globaldefs16[num].s_name+stringtable, old, *(volatile int *)&pr_globals[pr_globaldefs16[num].ofs]);
+					printf("Field=%s global %i -> %i\n", gd[num].s_name+stringtable, old, *eval);
 #endif
-				return;
+					return;
+				}
 			}
-		}
 
-		//oh well, must be a parameter.
-//		if (*(int *)&pr_globals[pr_globaldefs16[num].ofs])
-//			Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", pr_globaldefs16[num].s_name+stringtable, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
+			for (i = 0; i < prinst.numfields; i++)
+			{
+				o = prinst.field[i].progsofs;
+				if (o == *eval)
+				{
+#ifdef MAPPING_DEBUG
+					int old = *eval;
+#endif
+					*eval = prinst.field[i].ofs-progfuncs->funcs.fieldadjust;
+#ifdef MAPPING_DEBUG
+					printf("Field global=%s %i -> %i\n", gname, old, *eval);
+#endif
+					return;
+				}
+			}
+
+			//oh well, must be a parameter.
+//			if (*(int *)&pr_globals[pr_globaldefs16[num].ofs])
+//				Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", pr_globaldefs16[num].s_name+stringtable, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
+		}
 		return;
 	case PST_FTE32:
 	case PST_QTEST:
-		for (i=1 ; i<pr_progs->numfielddefs; i++)
 		{
-			if (!strcmp(pr_fielddefs32[i].s_name+stringtable, pr_globaldefs32[num].s_name+stringtable))
+			ddef32_t *gd = pr_globaldefs32;
+			ddef32_t *fld = pr_fielddefs32;
+			for (i=1 ; i<pr_progs->numfielddefs; i++)
 			{
-				*(int *)&pr_globals[pr_globaldefs32[num].ofs] = QC_RegisterFieldVar(&progfuncs->funcs, pr_fielddefs32[i].type, pr_globaldefs32[num].s_name+stringtable, -1, *(int *)&pr_globals[pr_globaldefs32[num].ofs]);
-				return;
+				if (!strcmp(fld[i].s_name+stringtable, gd[num].s_name+stringtable))
+				{
+					*(int *)&pr_globals[gd[num].ofs] = QC_RegisterFieldVar(&progfuncs->funcs, fld[i].type, gd[num].s_name+stringtable, -1, *(int *)&pr_globals[gd[num].ofs]);
+					return;
+				}
 			}
-		}
 
-		for (i = 0; i < prinst.numfields; i++)
-		{
-			o = prinst.field[i].progsofs;
-			if (o == *(unsigned int *)&pr_globals[pr_globaldefs32[num].ofs])
+			for (i = 0; i < prinst.numfields; i++)
 			{
-				*(int *)&pr_globals[pr_globaldefs32[num].ofs] = prinst.field[i].ofs-progfuncs->funcs.fieldadjust;
-				return;
+				o = prinst.field[i].progsofs;
+				if (o == *(unsigned int *)&pr_globals[gd[num].ofs])
+				{
+					*(int *)&pr_globals[gd[num].ofs] = prinst.field[i].ofs-progfuncs->funcs.fieldadjust;
+					return;
+				}
 			}
-		}
 
-		//oh well, must be a parameter.
-		if (*(int *)&pr_globals[pr_globaldefs32[num].ofs])
-			Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", pr_globaldefs32[num].s_name+stringtable, *(int *)&pr_globals[pr_globaldefs32[num].ofs]);
+			//oh well, must be a parameter.
+			if (*(int *)&pr_globals[gd[num].ofs])
+				Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", gd[num].s_name+stringtable, *(int *)&pr_globals[gd[num].ofs]);
+		}
 		return;
 	default:
 		Sys_Error("Bad bits");
@@ -489,3 +506,25 @@ void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *ppf, int num, char *stringtable)
 	Sys_Error("Should be unreachable");	
 }
 
+void QC_AddFieldGlobal(pubprogfuncs_t *ppf, int *globdata)
+{
+	unsigned int i;
+	int o;
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
+	for (i = 0; i < prinst.numfields; i++)
+	{
+		o = prinst.field[i].progsofs;
+		if (o == *globdata)
+		{
+#ifdef MAPPING_DEBUG
+			int old = *globdata;
+#endif
+			*globdata = prinst.field[i].ofs-progfuncs->funcs.fieldadjust;
+#ifdef MAPPING_DEBUG
+			printf("Field global %i -> %i\n", old, *globdata);
+#endif
+			return;
+		}
+	}
+	printf("Unable to map fieldglobal\n");
+}

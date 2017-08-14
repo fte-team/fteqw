@@ -141,7 +141,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		cl->name = cl->namebuf;
 		cl->state = cs_loadzombie;
 		cl->connection_started = realtime+20;
-		cl->istobeloaded = true;
+		cl->spawned = cl->istobeloaded = true;
 
 		for (i=0 ; i<16 ; i++)
 		{
@@ -167,6 +167,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 			cl = &svs.clients[clnum];
 			VFS_GETS(f, plname, sizeof(plname));
 
+			cl->spawned = false;
 			cl->istobeloaded = false;
 
 			cl->state = cs_free;
@@ -332,6 +333,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	World_ClearWorld(&sv.world, true);
 
 	sv.spawned_client_slots = 0;
+	sv.spawned_observer_slots = 0;
 	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
 		cl = &svs.clients[i];
@@ -344,6 +346,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		else
 			ent = NULL;
 		cl->edict = ent;
+		cl->spawned = false;
 
 		cl->name = PR_AddString(svprogfuncs, cl->namebuf, sizeof(cl->namebuf), false);
 		cl->team = PR_AddString(svprogfuncs, cl->teambuf, sizeof(cl->teambuf), false);
@@ -570,7 +573,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 
 	int modelpos;
 
-	int filelen, filepos;
+	qofs_t filelen, filepos;
 	char *file;
 	gametype_e gametype;
 
@@ -607,6 +610,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 #ifdef Q2SERVER
 	if (gametype == GT_QUAKE2)
 	{
+		char *s;
 		flocation_t loc;
 		SV_SpawnServer (level, startspot, false, false);
 
@@ -627,6 +631,59 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 			Con_Printf("%s is inside a package and cannot be used by the quake2 gamecode.\n", name);
 			return false;
 		}
+
+		if (savename)
+			Q_snprintfz (name, sizeof(name), "saves/%s/%s.lvx", savename, level);
+		else
+			Q_snprintfz (name, sizeof(name), "saves/%s.lvx", level);
+		file = FS_MallocFile(name, FS_GAME, &filelen);
+		if (file)
+		{
+			s = file;
+			//Read config strings
+			for (i = 0; i < countof(sv.strings.configstring) && s < file+filelen; i++)
+			{
+				Z_Free((char*)sv.strings.configstring[i]);
+				sv.strings.configstring[i] = Z_StrDup(s);
+				s += strlen(s)+1;
+			}
+			for (i = 0; s < file+filelen; i++)
+			{
+				if (!*s)
+					break;
+				if (i < countof(sv.strings.q2_extramodels))
+				{
+					Z_Free((char*)sv.strings.q2_extramodels[i]);
+					sv.strings.q2_extramodels[i] = Z_StrDup(s);
+				}
+				s += strlen(s)+1;
+			}
+			for (; i < countof(sv.strings.q2_extramodels); i++)
+			{
+				Z_Free((char*)sv.strings.q2_extramodels[i]);
+				sv.strings.q2_extramodels[i] = NULL;
+			}
+			for (i = 0; s < file+filelen; i++)
+			{
+				if (!*s)
+					break;
+				if (i < countof(sv.strings.q2_extrasounds))
+				{
+					Z_Free((char*)sv.strings.q2_extrasounds[i]);
+					sv.strings.q2_extrasounds[i] = Z_StrDup(s);
+				}
+				s += strlen(s)+1;
+			}
+			for (; i < countof(sv.strings.q2_extrasounds); i++)
+			{
+				Z_Free((char*)sv.strings.q2_extrasounds[i]);
+				sv.strings.q2_extrasounds[i] = NULL;
+			}
+			//Read portal state
+			CM_ReadPortalState(sv.world.worldmodel, s, (file+filelen)-s);
+			FS_FreeFile(file);
+		}
+
 		ge->ReadLevel(loc.rawname);
 
 		for (i=0 ; i<100 ; i++)	//run for 10 secs to iron out a few bugs.
@@ -776,6 +833,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 		svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf), false);
 		svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf), false);
 
+		svs.clients[i].spawned = (svs.clients[i].state == cs_loadzombie);
 #ifdef HEXEN2
 		if (ent)
 			svs.clients[i].playerclass = ent->xv->playerclass;
@@ -910,6 +968,44 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		if (!FS_NativePath(name, FS_GAMEONLY, syspath, sizeof(syspath)))
 			return;
 		ge->WriteLevel(syspath);
+
+		if (savedir)
+			Q_snprintfz (name, sizeof(name), "saves/%s/%s.lvx", savedir, svs.name);
+		else
+			Q_snprintfz (name, sizeof(name), "saves/%s.lvx", svs.name);
+		//write configstrings
+		f = FS_OpenVFS (name, "wbp", FS_GAMEONLY);
+		if (f)
+		{
+			for (i = 0; i < countof(sv.strings.configstring); i++)
+			{
+				if (sv.strings.configstring[i])
+					VFS_WRITE(f, sv.strings.configstring[i], strlen(sv.strings.configstring[i])+1);
+				else
+					VFS_WRITE(f, "", 1);
+			}
+
+			for (i = 0; i < countof(sv.strings.q2_extramodels); i++)
+			{
+				if (!sv.strings.q2_extramodels[i])
+					break;
+				VFS_WRITE(f, sv.strings.q2_extramodels[i], strlen(sv.strings.q2_extramodels[i])+1);
+			}
+			VFS_WRITE(f, "", 1);
+
+			for (i = 0; i < countof(sv.strings.q2_extrasounds); i++)
+			{
+				if (!sv.strings.q2_extrasounds[i])
+					break;
+				VFS_WRITE(f, sv.strings.q2_extrasounds[i], strlen(sv.strings.q2_extrasounds[i])+1);
+			}
+			VFS_WRITE(f, "", 1);
+
+			CM_WritePortalState(sv.world.worldmodel, f);
+			VFS_CLOSE(f);
+		}
+
+
 		FS_FlushFSHashFull();
 		return;
 	}
@@ -946,7 +1042,7 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 				continue;
 			else if (progstype == PROG_H2)
 				cl->edict->ereftype = ER_FREE;	//hexen2 has some annoying prints. it never formally dropped clients on map changes (we'll reset this later, so they'll just not appear in the saved game).
-			else if (cl->state < cs_spawned && !cl->istobeloaded)	//don't drop if they are still connecting
+			else if (!cl->spawned)	//don't drop if they are still connecting
 			{
 				cl->edict->v->solid = 0;
 			}
@@ -1315,7 +1411,7 @@ static int QDECL CompleteSaveListLegacy (const char *name, qofs_t flags, time_t 
 	ctx->cb(stripped, ctx);
 	return true;
 }
-void SV_Savegame_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx)
+void SV_Savegame_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
 {
 	if (argn == 1)
 	{
@@ -1503,7 +1599,7 @@ void SV_Loadgame_f (void)
 		{
 			cl->state = cs_loadzombie;
 			cl->connection_started = realtime+20;
-			cl->istobeloaded = true;
+			cl->spawned = cl->istobeloaded = true;
 			cl->userid = 0;
 			loadzombies++;
 			memset(&cl->netchan, 0, sizeof(cl->netchan));

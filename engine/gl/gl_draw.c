@@ -290,7 +290,7 @@ static void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 	}
 }
 
-qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
+qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 {
 	static int cubeface[] =
 	{
@@ -303,6 +303,9 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 	};
 	int targ, targface;
 	int i, j;
+	int nummips = mips->mipcount;
+	int encoding = mips->encoding;
+
 
 	if (gl_config.gles)
 	{
@@ -310,10 +313,10 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 		//this means we can't specify 24.0 modes with a 24.8 datatype.
 		//arguably we shouldn't do this anyway, but there are differences that q3 shaders can notice.
 		//fixme: move elsewhere?
-		if (mips->encoding == PTI_RGBX8)
-			mips->encoding = PTI_RGBA8;
-		if (mips->encoding == PTI_BGRX8)
-			mips->encoding = PTI_BGRA8;
+		if (encoding == PTI_RGBX8)
+			encoding = PTI_RGBA8;
+		if (encoding == PTI_BGRX8)
+			encoding = PTI_BGRA8;
 	}
 	
 	if (!tex->num)
@@ -350,15 +353,15 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 			qglTexParameteri(targ, GL_TEXTURE_WRAP_R, GL_REPEAT);
 	}
 
-	if (targ == GL_TEXTURE_2D && mips->mipcount > 1)
+	if (targ == GL_TEXTURE_2D && nummips > 1)
 	{	//npot mipmapped textures are awkward.
 		//opengl floors.
-		for (i = 1; i < mips->mipcount; i++)
+		for (i = 1; i < nummips; i++)
 		{
-			if (mips->mip[i].width != (mips->mip[i-1].width>>1) ||
-				mips->mip[i].height != (mips->mip[i-1].height>>1))
+			if (mips->mip[i].width != max(1,(mips->mip[i-1].width>>1)) ||
+				mips->mip[i].height != max(1,(mips->mip[i-1].height>>1)))
 			{	//okay, this mip looks like it was sized wrongly. this can easily happen with dds files made for direct3d.
-				mips->mipcount = i;
+				nummips = i;
 				break;
 			}
 		}
@@ -374,13 +377,13 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 		{
 			if (tex->flags & IF_MIPCAP)
 			{
-				qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, min(mips->mipcount-1, gl_mipcap_min));
-				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, min(mips->mipcount-1, gl_mipcap_max));
+				qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, min(nummips-1, gl_mipcap_min));
+				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, min(nummips-1, gl_mipcap_max));
 			}
 			else
 			{
 				qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, 0);
-				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, mips->mipcount-1);
+				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, nummips-1);
 			}
 		}
 	}
@@ -391,10 +394,10 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 	if (targ == GL_TEXTURE_3D)
 	{
 		targface = targ;
-		for (i = 0; i < mips->mipcount; i++)
+		for (i = 0; i < nummips; i++)
 		{
 			int size = mips->mip[i].height;
-			switch(mips->encoding)
+			switch(encoding)
 			{
 			case PTI_RGBX8:
 				qglTexImage3D(targface, i, GL_RGB, size, size, size, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
@@ -424,7 +427,7 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 	else
 	{
 		//2d or cubemaps
-		for (i = 0; i < mips->mipcount; i++)
+		for (i = 0; i < nummips; i++)
 		{
 			if (tex->flags & IF_TEXTYPE)
 			{
@@ -436,7 +439,7 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 				targface = targ;
 				j = i;
 			}
-			switch(mips->encoding)
+			switch(encoding)
 			{
 #ifdef FTE_TARGET_WEB
 			case PTI_WHOLEFILE:

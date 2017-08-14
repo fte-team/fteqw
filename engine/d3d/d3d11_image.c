@@ -109,7 +109,7 @@ static void Upload_Texture_32(ID3D11Texture2D *tex, unsigned int *data, int data
 }
 #endif
 
-qboolean D3D11_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
+qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mips)
 {
 	int bytesperpixel = 4;
 	int bcbytes = 0;

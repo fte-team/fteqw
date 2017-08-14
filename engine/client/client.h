@@ -114,7 +114,7 @@ typedef struct
 	short		gravity;
 	short		delta_angles[3];	// add to command angles to get view direction
 									// changed by spawns, rotating objects, and teleporters
-//	short		pad;
+	short		pad;
 } q2pmove_state_t;
 
 typedef struct
@@ -1198,7 +1198,7 @@ void CL_WriteRecordQ2DemoMessage(sizebuf_t *msg);
 void CL_Stop_f (void);
 void CL_Record_f (void);
 void CL_ReRecord_f (void);
-void CL_DemoList_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx);
+void CL_DemoList_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
 void CL_PlayDemo_f (void);
 void CL_QTVPlay_f (void);
 void CL_QTVPoll (void);
@@ -1380,12 +1380,13 @@ void	 CSQC_MapEntityEdited(int modelindex, int idx, const char *newe);
 qboolean CSQC_LoadResource(char *resname, char *restype);
 qboolean CSQC_ParsePrint(char *message, int printlevel);
 qboolean CSQC_ParseGamePacket(void);
-qboolean CSQC_CenterPrint(int lplayernum, char *cmd);
-qboolean CSQC_Parse_Damage(float save, float take, vec3_t source);
-void	 CSQC_Input_Frame(int lplayernum, usercmd_t *cmd);
+qboolean CSQC_CenterPrint(int seat, const char *cmd);
+qboolean CSQC_Parse_Damage(int seat, float save, float take, vec3_t source);
+qboolean CSQC_Parse_SetAngles(int seat, vec3_t newangles, qboolean wasdelta);
+void	 CSQC_Input_Frame(int seat, usercmd_t *cmd);
 void	 CSQC_WorldLoaded(void);
 qboolean CSQC_ParseTempEntity(void);
-qboolean CSQC_ConsoleCommand(char *cmd);
+qboolean CSQC_ConsoleCommand(const char *cmd);
 qboolean CSQC_KeyPress(int key, int unicode, qboolean down, unsigned int devid);
 qboolean CSQC_MouseMove(float xdelta, float ydelta, unsigned int devid);
 qboolean CSQC_MousePosition(float xabs, float yabs, unsigned int devid);
@@ -1537,7 +1538,9 @@ void CLQ2_ParseBaseline (void);
 void CLQ2_ClearParticleState(void);
 void CLR1Q2_ParsePlayerUpdate(void);
 void CLQ2_ParseFrame (int extrabits);
-void CLQ2_RunMuzzleFlash2 (int ent, int flash_number);
+void CLQ2_ParseMuzzleFlash (void);
+void CLQ2_ParseMuzzleFlash2 (void);
+void CLQ2_ParseInventory (int seat);
 int CLQ2_RegisterTEntModels (void);
 void CLQ2_WriteDemoBaselines(sizebuf_t *buf);
 #endif

@@ -3024,9 +3024,10 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 //nehahra has to be weird with extra cvars, and buggy fullbrights.
 #define NEHCFG QCFG "set nospr32 0\nset cutscene 1\nalias startmap_sp \"map nehstart\"\nr_fb_bmodels 0\nr_fb_models 0\n"
 /*stuff that makes dp-only mods work a bit better*/
-#define DPCOMPAT QCFG "set _cl_playermodel \"\"\n set dpcompat_set 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
+#define DPCOMPAT QCFG "gl_specular 1\nset _cl_playermodel \"\"\n set dpcompat_set 1\ndpcompat_console 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
 /*nexuiz/xonotic has a few quirks/annoyances...*/
-#define NEXCFG DPCOMPAT "cl_loopbackprotocol dpp7\nset sv_listen_dp 1\nset sv_listen_qw 0\nset sv_listen_nq 0\nset sv_listen_q3 0\nset dpcompat_nopreparse 1\nset r_particlesdesc effectinfo\nset sv_bigcoords 1\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\npr_enable_uriget 0\n"
+#define NEXCFG DPCOMPAT "cl_nopred 1\ncl_loopbackprotocol dpp7\nset sv_listen_dp 1\nset sv_listen_qw 0\nset sv_listen_nq 0\nset dpcompat_nopreparse 1\nset r_particlesdesc effectinfo\nset sv_bigcoords 1\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\npr_enable_uriget 0\n"
+#define XONCFG NEXCFG "set qport $qport_\ncom_parseutf8 1\npr_fixbrokenqccarrays 2\n"
 /*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
 /*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
@@ -3095,7 +3096,7 @@ const gamemode_info_t gamemode_info[] = {
 	{"-nehahra",	"nehahra",	"FTE-Quake",	{"id1/pak0.pak","id1/quake.rc"},NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},		"Quake: Seal Of Nehahra"},
 	//various quake-based standalone mods.
 	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},	"Nexuiz"},
-	{"-xonotic",	"xonotic",	"Xonotic",				{"xonotic.exe"},				NEXCFG,	{"data",						"*ftedata"},	"Xonotic"},
+	{"-xonotic",	"xonotic",	"Xonotic",				{"xonotic.exe"},				XONCFG,	{"data",						"*ftedata"},	"Xonotic"},
 //	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",
 //														 "base/qwprogs.dat",
 //														 "base/pak0.pak"},				DMFCFG,	{"base",						         },	"Spark"},
@@ -4152,6 +4153,38 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 #else
 #if defined(__linux__) || defined(__unix__) || defined(__apple__)
 #include <sys/stat.h>
+
+static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)
+{
+	/*
+	Find where Valve's Steam distribution platform is installed.
+	Then take a look at that location for the relevent installed app.
+	*/
+	FILE *f;
+	DWORD resultlen;
+	HKEY key = NULL;
+
+	char *ev = getenv("HOME");
+	if (ev && *ev)
+	{
+		Q_snprintfz(basepath, basepathlen, "%s/.steam/steam/SteamApps/common/%s", ev, steamdir);
+		if ((f = fopen(va("%s/%s", basepath, fname), "rb")))
+		{
+			fclose(f);
+			return true;
+		}
+
+		Q_snprintfz(basepath, basepathlen, "%s/.local/share/Steam/SteamApps/common/%s", ev, steamdir);
+		if ((f = fopen(va("%s/%s", basepath, fname), "rb")))
+		{
+			fclose(f);
+			return true;
+		}
+
+		/.local/share/Steam
+	}
+	return false;
+}
 #endif
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
 {
@@ -4162,6 +4195,9 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		gamename = "quake";	//just a paranoia fallback, shouldn't be needed.
 	if (!strcmp(gamename, "quake"))
 	{
+		if (Sys_SteamHasFile(basepath, basepathlen, "quake", "id1/pak0.pak"))
+			return true;
+
 		if (stat("/usr/share/quake/", &sb) == 0)
 		{
 			if (S_ISDIR(sb.st_mode))
@@ -4171,6 +4207,17 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			}
 		}
 	}
+	else if (!strcmp(gamename, "quake2"))
+	{
+		if (Sys_SteamHasFile(basepath, basepathlen, "quake 2", "baseq2/pak0.pak"))
+				return true;
+	}
+	else if (!strcmp(gamename, "hexen2") || !strcmp(gamename, "h2mp"))
+	{
+		if (Sys_SteamHasFile(basepath, basepathlen, "hexen 2", "data/pak0.pak"))
+			return true;
+	}
+
 	s = va("/usr/share/games/%s/", gamename);
 	if (stat(s, &sb) == 0)
 	{

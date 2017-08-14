@@ -4972,6 +4972,7 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 {
 	int i;
 	char *col;
+	int ospec = player->spectator;
 	Q_strncpyz (player->name, Info_ValueForKey (player->userinfo, "name"), sizeof(player->name));
 	Q_strncpyz (player->team, Info_ValueForKey (player->userinfo, "team"), sizeof(player->team));
 
@@ -5029,7 +5030,8 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 		}
 
 		// Update the rules since spectators can bypass everything but players can't
-		CL_CheckServerInfo();
+		if (ospec != player->spectator)
+			CL_CheckServerInfo();
 
 		Skin_FlushPlayers();
 	}
@@ -5377,223 +5379,6 @@ static void CL_MuzzleFlash (int entnum)
 #endif
 	}
 }
-
-#ifdef Q2CLIENT
-void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float timeofs);
-static void CLQ2_ParseMuzzleFlash (void)
-{
-	vec3_t		fv, rv, dummy;
-	dlight_t	*dl;
-	int			i, weapon;
-	vec3_t		org, ang;
-	int			silenced;
-	float		volume;
-	char		soundname[64];
-
-	i = (unsigned short)(short)MSG_ReadShort ();
-	if (i < 1 || i >= Q2MAX_EDICTS)
-		Host_Error ("CL_ParseMuzzleFlash: bad entity");
-
-	weapon = MSG_ReadByte ();
-	silenced = weapon & Q2MZ_SILENCED;
-	weapon &= ~Q2MZ_SILENCED;
-
-	CL_GetNumberedEntityInfo(i, org, ang);
-
-	dl = CL_AllocDlight (i);
-	VectorCopy (org,  dl->origin);
-	AngleVectors (ang, fv, rv, dummy);
-	VectorMA (dl->origin, 18, fv, dl->origin);
-	VectorMA (dl->origin, 16, rv, dl->origin);
-	if (silenced)
-		dl->radius = 100 + (rand()&31);
-	else
-		dl->radius = 200 + (rand()&31);
-	dl->minlight = 32;
-	dl->die = cl.time+0.05; //+ 0.1;
-	dl->decay = 1;
-
-	dl->channelfade[0] = 2;
-	dl->channelfade[1] = 2;
-	dl->channelfade[2] = 2;
-
-	if (silenced)
-		volume = 0.2;
-	else
-		volume = 1;
-
-
-	switch (weapon)
-	{
-	case Q2MZ_BLASTER:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/blastf1a.wav"), volume, ATTN_NORM, 0);
-		break;
-	case Q2MZ_BLUEHYPERBLASTER:
-		dl->color[0] = 0;dl->color[1] = 0;dl->color[2] = 1;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/hyprbf1a.wav"), volume, ATTN_NORM, 0);
-		break;
-	case Q2MZ_HYPERBLASTER:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/hyprbf1a.wav"), volume, ATTN_NORM, 0);
-		break;
-	case Q2MZ_MACHINEGUN:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ_SHOTGUN:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/shotgf1b.wav"), volume, ATTN_NORM, 0);
-		Q2S_StartSound (NULL, i, CHAN_AUTO,   S_PrecacheSound("weapons/shotgr1b.wav"), volume, ATTN_NORM, 0.1);
-		break;
-	case Q2MZ_SSHOTGUN:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/sshotf1b.wav"), volume, ATTN_NORM, 0);
-		break;
-	case Q2MZ_CHAINGUN1:
-		dl->radius = 200 + (rand()&31);
-		dl->color[0] = 1;dl->color[1] = 0.25;dl->color[2] = 0;
-		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
-		break;
-	case Q2MZ_CHAINGUN2:
-		dl->radius = 225 + (rand()&31);
-		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0;
-		dl->die = cl.time  + 0.1;	// long delay
-		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
-		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
-		Q2S_StartSound (NULL, i, CHAN_AUTO, S_PrecacheSound(soundname), volume, ATTN_NORM, 0.05);
-		break;
-	case Q2MZ_CHAINGUN3:
-		dl->radius = 250 + (rand()&31);
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		dl->die = cl.time  + 0.1;	// long delay
-		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
-		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
-		Q2S_StartSound (NULL, i, CHAN_AUTO, S_PrecacheSound(soundname), volume, ATTN_NORM, 0.033);
-		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
-		Q2S_StartSound (NULL, i, CHAN_AUTO, S_PrecacheSound(soundname), volume, ATTN_NORM, 0.066);
-		break;
-
-	case Q2MZ_RAILGUN:
-		dl->color[0] = 0.5;dl->color[1] = 0.5;dl->color[2] = 1;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/railgf1a.wav"), volume, ATTN_NORM, 0);
-		break;
-	case Q2MZ_ROCKET:
-		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0.2;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/rocklf1a.wav"), volume, ATTN_NORM, 0);
-		Q2S_StartSound (NULL, i, CHAN_AUTO,   S_PrecacheSound("weapons/rocklr1b.wav"), volume, ATTN_NORM, 0.1);
-		break;
-	case Q2MZ_GRENADE:
-		dl->color[0] = 1;dl->color[1] = 0.5;dl->color[2] = 0;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), volume, ATTN_NORM, 0);
-		Q2S_StartSound (NULL, i, CHAN_AUTO,   S_PrecacheSound("weapons/grenlr1b.wav"), volume, ATTN_NORM, 0.1);
-		break;
-	case Q2MZ_BFG:
-		dl->color[0] = 0;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/bfg__f1y.wav"), volume, ATTN_NORM, 0);
-		break;
-
-	case Q2MZ_LOGIN:
-		dl->color[0] = 0;dl->color[1] = 1; dl->color[2] = 0;
-		dl->die = cl.time + 1.0;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), 1, ATTN_NORM, 0);
-//		CL_LogoutEffect (pl->current.origin, weapon);
-		break;
-	case Q2MZ_LOGOUT:
-		dl->color[0] = 1;dl->color[1] = 0; dl->color[2] = 0;
-		dl->die = cl.time + 1.0;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), 1, ATTN_NORM, 0);
-//		CL_LogoutEffect (pl->current.origin, weapon);
-		break;
-	case Q2MZ_RESPAWN:
-		dl->color[0] = 1;dl->color[1] = 1; dl->color[2] = 0;
-		dl->die = cl.time + 1.0;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/grenlf1a.wav"), 1, ATTN_NORM, 0);
-//		CL_LogoutEffect (pl->current.origin, weapon);
-		break;
-	// RAFAEL
-	case Q2MZ_PHALANX:
-		dl->color[0] = 1;dl->color[1] = 0.5; dl->color[2] = 0.5;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/plasshot.wav"), volume, ATTN_NORM, 0);
-		break;
-	// RAFAEL
-	case Q2MZ_IONRIPPER:
-		dl->color[0] = 1;dl->color[1] = 0.5; dl->color[2] = 0.5;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/rippfire.wav"), volume, ATTN_NORM, 0);
-		break;
-
-// ======================
-// PGM
-	case Q2MZ_ETF_RIFLE:
-		dl->color[0] = 0.9;dl->color[1] = 0.7;dl->color[2] = 0;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/nail1.wav"), volume, ATTN_NORM, 0);
-		break;
-	case Q2MZ_SHOTGUN2:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/shotg2.wav"), volume, ATTN_NORM, 0);
-		break;
-	case Q2MZ_HEATBEAM:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		dl->die = cl.time + 100;
-	//	Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/bfg__l1a.wav"), volume, ATTN_NORM, 0);
-		break;
-	case Q2MZ_BLASTER2:
-		dl->color[0] = 0;dl->color[1] = 1;dl->color[2] = 0;
-		// FIXME - different sound for blaster2 ??
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/blastf1a.wav"), volume, ATTN_NORM, 0);
-		break;
-	case Q2MZ_TRACKER:
-		// negative flashes handled the same in gl/soft until CL_AddDLights
-		dl->color[0] = -1;dl->color[1] = -1;dl->color[2] = -1;
-		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound("weapons/disint2.wav"), volume, ATTN_NORM, 0);
-		break;
-	case Q2MZ_NUKE1:
-		dl->color[0] = 1;dl->color[1] = 0;dl->color[2] = 0;
-		dl->die = cl.time + 100;
-		break;
-	case Q2MZ_NUKE2:
-		dl->color[0] = 1;dl->color[1] = 1;dl->color[2] = 0;
-		dl->die = cl.time + 100;
-		break;
-	case Q2MZ_NUKE4:
-		dl->color[0] = 0;dl->color[1] = 0;dl->color[2] = 1;
-		dl->die = cl.time + 100;
-		break;
-	case Q2MZ_NUKE8:
-		dl->color[0] = 0;dl->color[1] = 1;dl->color[2] = 1;
-		dl->die = cl.time + 100;
-		break;
-// PGM
-// ======================
-	}
-}
-
-static void CLQ2_ParseMuzzleFlash2 (void)
-{
-	int			ent;
-	int			flash_number;
-
-	ent = (unsigned short)(short)MSG_ReadShort ();
-	if (ent < 1 || ent >= Q2MAX_EDICTS)
-		Host_EndGame ("CL_ParseMuzzleFlash2: bad entity");
-
-	flash_number = MSG_ReadByte ();
-
-	CLQ2_RunMuzzleFlash2(ent, flash_number);
-}
-
-static void CLQ2_ParseInventory (int seat)
-{
-	unsigned int		i;
-	for (i=0 ; i<Q2MAX_ITEMS ; i++)
-		cl.inventory[seat][i] = MSG_ReadShort ();
-}
-#endif
 
 //return if we want to print the message.
 static char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
@@ -6249,9 +6034,9 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 	{
 		*msg = '\0';
 		Con_DLPrintf((cls.state==ca_active)?1:2, "stufftext: %s\n", stufftext);
-		if (!strncmp(stufftext, "fullserverinfo ", 15))
+		if (!strncmp(stufftext, "fullserverinfo ", 15) || !strncmp(stufftext, "//fullserverinfo ", 17))
 		{
-			Cmd_TokenizeString(stufftext, false, false);
+			Cmd_TokenizeString(stufftext+2, false, false);
 			if (Cmd_Argc() == 2)
 			{
 				cl.haveserverinfo = true;
@@ -6624,6 +6409,7 @@ void CLQW_ParseServerMessage (void)
 	char		*s;
 	int			i, j;
 	int			destsplit;
+	vec3_t ang;
 	float f;
 	qboolean	csqcpacket = false;
 	inframe_t	*inf;
@@ -6800,33 +6586,41 @@ void CLQW_ParseServerMessage (void)
 #endif
 		case svcfte_setangledelta:
 			for (i=0 ; i<3 ; i++)
-				cl.playerview[destsplit].viewangles[i] += MSG_ReadAngle16 ();
+				ang[i] = cl.playerview[destsplit].viewangles[i] + MSG_ReadAngle16 ();
+			if (!CSQC_Parse_SetAngles(destsplit, ang, true))
+				VectorCopy (ang, cl.playerview[destsplit].viewangles);
 			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].simangles);
 			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].intermissionangles);
 			break;
 		case svc_setangle:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			{
-				//I really don't get the point of fixangles in an mvd. to disable interpolation for that frame?
-				vec3_t ang;
-				i = MSG_ReadByte();
+				//I really don't get the point of fixangles in an mvd. just to disable interpolation for that frame?
+				int pl = MSG_ReadByte();
 				for (i=0 ; i<3 ; i++)
 					ang[i] = MSG_ReadAngle();
 				for (j = 0; j < cl.splitclients; j++)
 				{
 					playerview_t *pv = &cl.playerview[j];
-					if (Cam_TrackNum(pv) == i)
+					if (Cam_TrackNum(pv) == pl)
 					{
 						inf->packet_entities.fixangles[j] = true;
 						VectorCopy(ang, inf->packet_entities.fixedangles[j]);
 					}
 				}
-				break;
 			}
-			inf->packet_entities.fixangles[destsplit] = true;
-			for (i=0 ; i<3 ; i++)
+			else
 			{
-				cl.playerview[destsplit].viewangles[i] = cl.playerview[destsplit].intermissionangles[i] = inf->packet_entities.fixedangles[destsplit][i] = MSG_ReadAngle ();
+				inframe_t *inf = &cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK];
+				for (i=0 ; i<3 ; i++)
+					ang[i] = MSG_ReadAngle();
+				if (!CSQC_Parse_SetAngles(destsplit, ang, false))
+				{
+					inf->packet_entities.fixangles[destsplit] = true;
+					VectorCopy (ang, cl.playerview[destsplit].viewangles);
+					VectorCopy (ang, inf->packet_entities.fixedangles[destsplit]);
+				}
+				VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].intermissionangles);
 			}
 			break;
 
@@ -7648,6 +7442,7 @@ void CLNQ_ParseServerMessage (void)
 	int			cmd;
 	char		*s;
 	int			i, j;
+	vec3_t		ang;
 
 //	received_framecount = host_framecount;
 //	cl.last_servermessage = realtime;
@@ -7945,11 +7740,16 @@ void CLNQ_ParseServerMessage (void)
 				a = MSG_ReadByte ();
 				if (i < cl.allocated_client_slots)
 				{
-					cl.players[i].rtopcolor = a&0x0f;
-					cl.players[i].rbottomcolor = (a&0xf0)>>4;
-					CLNQ_CheckPlayerIsSpectator(i);
+//					cl.players[i].rtopcolor = a&0x0f;
+//					cl.players[i].rbottomcolor = (a&0xf0)>>4;
+//					sprintf(cl.players[i].team, "%2d", cl.players[i].rbottomcolor);
 
-					sprintf(cl.players[i].team, "%2d", cl.players[i].rbottomcolor);
+					Info_SetValueForKey(cl.players[i].userinfo, "topcolor", va("%i", a&0x0f), sizeof(cl.players[i].userinfo));
+					Info_SetValueForKey(cl.players[i].userinfo, "bottomcolor", va("%i", (a&0xf0)>>4), sizeof(cl.players[i].userinfo));
+					Info_SetValueForKey(cl.players[i].userinfo, "team", va("%i", (a&0xf0)>>4), sizeof(cl.players[i].userinfo));
+					CL_ProcessUserInfo (i, &cl.players[i]);
+
+//					CLNQ_CheckPlayerIsSpectator(i);
 
 					if (cls.state == ca_active)
 						Skin_Find (&cl.players[i]);
@@ -7996,16 +7796,24 @@ void CLNQ_ParseServerMessage (void)
 			break;
 		case svcfte_setangledelta:
 			for (i=0 ; i<3 ; i++)
-				cl.playerview[destsplit].viewangles[i] += MSG_ReadAngle16 ();
+				ang[i] = cl.playerview[destsplit].viewangles[i] + MSG_ReadAngle16 ();
+			if (!CSQC_Parse_SetAngles(destsplit, ang, true))
+				VectorCopy (ang, cl.playerview[destsplit].viewangles);
 			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].simangles);
 			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].intermissionangles);
 			break;
 		case svc_setangle:
 			{
 				inframe_t *inf = &cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK];
-				inf->packet_entities.fixangles[destsplit] = true;
 				for (i=0 ; i<3 ; i++)
-					cl.playerview[destsplit].viewangles[i] = cl.playerview[destsplit].intermissionangles[i] = inf->packet_entities.fixedangles[destsplit][i] = MSG_ReadAngle ();
+					ang[i] = MSG_ReadAngle();
+				if (!CSQC_Parse_SetAngles(destsplit, ang, false))
+				{
+					inf->packet_entities.fixangles[destsplit] = true;
+					VectorCopy (ang, cl.playerview[destsplit].viewangles);
+					VectorCopy (ang, inf->packet_entities.fixedangles[destsplit]);
+				}
+				VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].intermissionangles);
 			}
 			break;
 

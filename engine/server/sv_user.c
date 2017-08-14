@@ -988,6 +988,11 @@ void SV_SendClientPrespawnInfo(client_t *client)
 					ClientReliableWrite_Begin(client, svc_stufftext, 20 + strlen(svs.info));
 					ClientReliableWrite_String (client, va("fullserverinfo \"%s\"\n", svs.info) );
 				}
+				else if (sv.csqcdebug)
+				{
+					ClientReliableWrite_Begin(client, svc_stufftext, 22 + strlen(svs.info));
+					ClientReliableWrite_String (client, va("//fullserverinfo \"%s\"\n", svs.info) );
+				}
 			}
 			else if (client->prespawn_idx == 1)
 			{
@@ -1831,12 +1836,15 @@ void SV_SpawnSpectator (void)
 
 void SV_Begin_Core(client_t *split)
 {	//this is the client-protocol-independant core, for q1/q2 gamecode
-
 	client_t	*oh;
 #ifdef HEXEN2
 	if (progstype == PROG_H2 && split->playerclass)
 		split->edict->xv->playerclass = split->playerclass;	//make sure it's set the same as the userinfo
 #endif
+
+	if (split->spawned)
+		return;
+	split->spawned = true;
 
 #ifdef Q2SERVER
 	if (ge)
@@ -3927,6 +3935,7 @@ static void SV_UpdateSeats(client_t *controller)
 			ClientReliableWrite_Angle(controller, cl->edict->v->angles[0]);
 			ClientReliableWrite_Angle(controller, cl->edict->v->angles[1]);
 			ClientReliableWrite_Angle(controller, 0);//cl->edict->v->angles[2]);
+			cl->edict->v->fixangle = 0;
 		}
 		else
 		{
@@ -4852,7 +4861,7 @@ static void Cmd_AddSeat_f(void)
 			prev = cl;
 			count++;
 		}
-	
+
 		if (!changed && count <= num)
 			changed = !!SV_AddSplit(host_client, Cmd_Argv(2), num);
 	}
@@ -5352,6 +5361,8 @@ static void SVNQ_Spawn_f (void)
 		ClientReliableWrite_Long (host_client, pr_global_struct->killed_monsters);
 	}
 
+	//SV_Begin_Core(host_client);
+
 	ClientReliableWrite_Begin (host_client, svc_signonnum, 2);
 	ClientReliableWrite_Byte (host_client, 3);
 
@@ -5367,58 +5378,7 @@ static void SVNQ_Begin_f (void)
 
 	host_client->state = cs_spawned;
 
-	if (host_client->istobeloaded)
-	{
-		sendangles = true;
-		host_client->istobeloaded = false;
-	}
-	else
-	{
-		if (host_client->spectator)
-		{
-			SV_SpawnSpectator ();
-
-			if (SpectatorConnect)
-			{
-				// copy spawn parms out of the client_t
-				SV_SpawnParmsToQC(host_client);
-
-				// call the spawn function
-				pr_global_struct->time = sv.world.physicstime;
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-				PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
-			}
-			sv.spawned_observer_slots++;
-		}
-		else
-		{
-			sv.spawned_client_slots++;
-
-			// copy spawn parms out of the client_t
-			SV_SpawnParmsToQC(host_client);
-
-			sv.skipbprintclient = host_client;
-#ifdef VM_Q1
-			if (svs.gametype == GT_Q1QVM)
-				Q1QVM_ClientConnect(host_client);
-			else
-#endif
-			{
-				// call the spawn function
-				pr_global_struct->time = sv.world.physicstime;
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-				if (pr_global_ptrs->ClientConnect)
-					PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
-				sv.skipbprintclient = NULL;
-
-				// actually spawn the player
-				pr_global_struct->time = sv.world.physicstime;
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-				if (pr_global_ptrs->PutClientInServer)
-					PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
-			}
-		}
-	}
+	SV_Begin_Core(host_client);
 
 	// clear the net statistics, because connecting gives a bogus picture
 	host_client->netchan.frame_latency = 0;
@@ -5964,7 +5924,7 @@ ucmd_t nqucmds[] =
 SV_ExecuteUserCommand
 ==================
 */
-void SV_ExecuteUserCommand (char *s, qboolean fromQC)
+void SV_ExecuteUserCommand (const char *s, qboolean fromQC)
 {
 	ucmd_t	*u;
 	client_t *oldhost = host_client;
@@ -7799,7 +7759,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			host_client = cl;
 			sv_player = cl->edict;
 
-			if (cl->state >= cs_connected)
+			if (cl->state < cs_connected)
 				return;	// disconnect command
 			break;
 

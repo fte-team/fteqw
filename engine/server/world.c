@@ -32,6 +32,7 @@ line of sight checks trace->crosscontent, but bullets don't
 */
 
 extern cvar_t sv_compatiblehulls;
+extern cvar_t sv_gameplayfix_nolinknonsolid;
 
 typedef struct
 {
@@ -600,8 +601,8 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, ent->v->absmin, ent->v->absmax);
 	}
 
-//	if (ent->v->solid == SOLID_NOT && !sv_gameplayfix_nolinknonsolid.ival)
-//		return;
+	if (ent->v->solid == SOLID_NOT && !sv_gameplayfix_nolinknonsolid.ival)
+		return;
 
 // find the first node that the ent's box crosses
 	if (ent->v->solid == SOLID_PORTAL)
@@ -1084,6 +1085,7 @@ qboolean World_TransformedTrace (struct model_s *model, int hulloverride, frames
 		VectorCopy (end_l, trace->endpos);
 		result = Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
 		VectorAdd (trace->endpos, origin, trace->endpos);
+		trace->contents = FTECONTENTS_BODY;
 	}
 	else
 		result = false;
@@ -1125,6 +1127,12 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 		model = NULL;
 		VectorSubtract (ent->v->mins, maxs, boxmins);
 		VectorSubtract (ent->v->maxs, mins, boxmaxs);
+
+		if (hitcontentsmask & ((ent->v->solid == SOLID_CORPSE)?FTECONTENTS_CORPSE:FTECONTENTS_BODY))
+			hitcontentsmask = FTECONTENTS_CORPSE|FTECONTENTS_BODY;
+		else
+			hitcontentsmask = 0;
+
 //		if (ent->xv->geomtype == GEOMTYPE_CAPSULE && !hitmodel)
 //			model = World_CapsuleForBox(boxmins, boxmaxs);
 //		else
@@ -1686,12 +1694,17 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 		{
 			if (w->usesolidcorpse)
 			{
+#if 1
+//				if (!(clip->hitcontentsmask & ((touch->v->solid == SOLID_CORPSE)?FTECONTENTS_CORPSE:FTECONTENTS_BODY)))
+//					continue;
+#else
 				// don't clip corpse against character
 				if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
 					continue;
 				// don't clip character against corpse
 				if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
 					continue;
+#endif
 			}
 			if (!((int)clip->passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
 				continue;
@@ -1982,16 +1995,59 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 
 	if (passedict->xv->hitcontentsmaski)
 		clip.hitcontentsmask = passedict->xv->hitcontentsmaski;
+#ifndef NOLEGACY
+	else if (passedict->xv->dphitcontentsmask)
+	{
+		unsigned int nm=0, fl = passedict->xv->dphitcontentsmask;
+		if (fl & DPCONTENTS_SOLID)
+			nm |= FTECONTENTS_SOLID;
+		if (fl & DPCONTENTS_WATER)
+			nm |= FTECONTENTS_WATER;
+		if (fl & DPCONTENTS_SLIME)
+			nm |= FTECONTENTS_SLIME;
+		if (fl & DPCONTENTS_LAVA)
+			nm |= FTECONTENTS_LAVA;
+		if (fl & DPCONTENTS_SKY)
+			nm |= FTECONTENTS_SKY;
+		if (fl & DPCONTENTS_BODY)
+			nm |= FTECONTENTS_BODY;
+		if (fl & DPCONTENTS_CORPSE)
+			nm |= FTECONTENTS_CORPSE;
+		if (fl & DPCONTENTS_NODROP)
+			nm |= Q3CONTENTS_NODROP;
+		if (fl & DPCONTENTS_PLAYERCLIP)
+			nm |= FTECONTENTS_PLAYERCLIP;
+		if (fl & DPCONTENTS_MONSTERCLIP)
+			nm |= FTECONTENTS_MONSTERCLIP;
+		if (fl & DPCONTENTS_DONOTENTER)
+			nm |= Q3CONTENTS_DONOTENTER;
+		if (fl & DPCONTENTS_BOTCLIP)
+			nm |= Q3CONTENTS_BOTCLIP;
+//		if (fl & DPCONTENTS_OPAQUE)
+//			nm |= DPCONTENTS_OPAQUE;
+
+		clip.hitcontentsmask = nm;
+	}
+#endif
 /*#ifndef NOLEGACY
 	else if (passedict->xv->hitcontentsmask)
 		clip.hitcontentsmask = passedict->xv->hitcontentsmask;
 #endif*/
-	else if (type & MOVE_NOMONSTERS)
-		clip.hitcontentsmask = MASK_WORLDSOLID; /*solid only to world*/
-	else if (maxs[0] - mins[0] > 0)
-		clip.hitcontentsmask = MASK_BOXSOLID;	/*impacts playerclip*/
+	else if (passedict->v->solid == SOLID_SLIDEBOX)
+	{
+		if ((int)passedict->v->flags & FL_MONSTER)
+			clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY | FTECONTENTS_MONSTERCLIP; /*solid only to world*/
+		else if (maxs[0] - mins[0] > 0)
+			clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY | FTECONTENTS_PLAYERCLIP;	/*impacts playerclip*/
+		else
+			clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY;	//slidebox passes through corpses
+	}
+	else if (passedict->v->solid == SOLID_CORPSE)
+		clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY;	//corpses ignore corpses
+	else if (passedict->v->solid == SOLID_TRIGGER)
+		clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY;	//triggers ignore corpses too, apparently
 	else
-		clip.hitcontentsmask = MASK_POINTSOLID;		/*ignores playerclip but hits everything else*/
+		clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY | FTECONTENTS_CORPSE; //regular projectiles.
 	clip.capsule = (passedict->xv->geomtype == GEOMTYPE_CAPSULE);
 
 	if (type & MOVE_OTHERONLY)
@@ -2016,6 +2072,9 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 
 	if (type & MOVE_MISSILE)
 	{
+		if (type & MOVE_NOMONSTERS)
+			return clip.trace;	//not sure why you'd really want this, but for the sake of dp compat...
+
 		for (i=0 ; i<3 ; i++)
 		{
 			clip.mins2[i] = -15;
@@ -2154,8 +2213,8 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 //	if (clip.trace.startsolid)
 //		clip.trace.fraction = 0;
 
-	if (!clip.trace.ent)
-		return clip.trace;
+//	if (!clip.trace.ent)
+//		return clip.trace;
 
 	return clip.trace;
 }

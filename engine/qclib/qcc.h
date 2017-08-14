@@ -475,6 +475,7 @@ struct QCC_function_s
 	struct QCC_type_s	*type;		//same as the def's type
 	struct QCC_def_s	*def;
 	struct QCC_def_s	*firstlocal;
+	QCC_sref_t			returndef;	//default return value
 	pbool				privatelocals;	//false means locals may overlap with other functions, true is needed for compat if stuff is uninitialised.
 //	unsigned int		parm_ofs[MAX_PARMS];	// always contiguous, right?
 };
@@ -507,10 +508,12 @@ typedef struct
 	char *value;
 	char params[MAXCONSTANTPARAMS][MAXCONSTANTPARAMLENGTH];
 	int numparams;
+	int inside:10; //cuts off at some point
 	pbool used:1;
-	pbool inside:1;
 	pbool evil:1;
 	pbool varg:1;
+	char *fromfile;
+	int fromline;
 
 	int namelen;
 } CompilerConstant_t;
@@ -602,6 +605,9 @@ extern pbool flag_brokenarrays;
 extern pbool flag_rootconstructor;
 extern pbool flag_guiannotate;
 extern pbool flag_qccx;
+extern pbool flag_attributes;
+extern pbool flag_assumevar;
+extern pbool flag_dblstarexp;
 extern pbool flag_embedsrc;
 
 extern pbool opt_overlaptemps;
@@ -770,6 +776,7 @@ enum {
 	WARN_POINTERASSIGNMENT,		//&somefloat = 5; disabled for qccx compat sanity.
 	WARN_COMPATIBILITYHACK,		//work around old defs.qc or invalid dpextensions.qc
 	WARN_REDECLARATIONMISMATCH,
+	WARN_PARAMWITHNONAME,
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 
@@ -847,7 +854,6 @@ enum {
 	ERR_THINKTIMETYPEMISMATCH,
 	ERR_STATETYPEMISMATCH,
 	ERR_BADBUILTINIMMEDIATE,
-	ERR_PARAMWITHNONAME,
 	ERR_BADPARAMORDER,
 	ERR_ILLEGALCONTINUES,
 	ERR_ILLEGALBREAKS,
@@ -1041,11 +1047,12 @@ extern precache_t	*precache_file;
 extern int			numfiles;
 
 typedef struct qcc_includechunk_s {
-	struct qcc_includechunk_s *prev;
-	char *filename;
+	struct qcc_includechunk_s *prev;//chunk it was expanded/included from
+	const char *currentfilename;	//filename it was expended from
+	int currentlinenumber;			//line it was expanded from
 	char *currentdatapoint;
-	int currentlinenumber;
-	CompilerConstant_t *cnst;
+	CompilerConstant_t *cnst;		//define we're expanding from
+	char *datastart;				//the start of the expanded data
 } qcc_includechunk_t;
 extern qcc_includechunk_t *currentchunk;
 

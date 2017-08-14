@@ -37,9 +37,9 @@ void PR_Init(void);
 void QDECL ED_Spawned (struct edict_s *ent, int loading);
 void SSQC_MapEntityEdited(int modelidx, int idx, const char *newdata);
 qboolean SV_RunFullQCMovement(struct client_s *client, usercmd_t *ucmd);
-qboolean PR_KrimzonParseCommand(char *s);
-qboolean PR_ParseClusterEvent(char *dest, char *source, char *cmd, char *info);
-qboolean PR_UserCmd(char *cmd);
+qboolean PR_KrimzonParseCommand(const char *s);
+qboolean PR_ParseClusterEvent(const char *dest, const char *source, const char *cmd, const char *info);
+qboolean PR_UserCmd(const char *cmd);
 qboolean PR_ConsoleCmd(const char *cmd);
 
 void PRSV_RunThreads(void);

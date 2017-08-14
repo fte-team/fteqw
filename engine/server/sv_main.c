@@ -536,7 +536,7 @@ void SV_DropClient (client_t *drop)
 	case GT_PROGS:
 		if (svprogfuncs)
 		{
-			if ((drop->state == cs_spawned || drop->istobeloaded) && host_initialized)
+			if (drop->spawned && host_initialized)
 			{
 #ifdef VM_Q1
 				if (svs.gametype == GT_Q1QVM)
@@ -569,6 +569,7 @@ void SV_DropClient (client_t *drop)
 				if (progstype == PROG_NQ)
 					ED_Clear(svprogfuncs, drop->edict);
 			}
+			drop->spawned = false;
 
 			if (svprogfuncs && drop->edict && drop->edict->v)
 				drop->edict->v->frags = 0;
@@ -1486,8 +1487,21 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 	const qboolean respond_qwoverq3 = false;
 #endif
 
-	respond_std &= !!sv_listen_qw.value;
-	respond_dp &= !!sv_listen_dp.value;
+	if (sv_listen_qw.value && !sv_listen_dp.value)
+	{
+		respond_std = true;
+		respond_dp = false;
+	}
+	else if (sv_listen_dp.value && !sv_listen_qw.value)
+	{
+		respond_std = false;
+		respond_dp = true;
+	}
+	else
+	{
+		respond_std &= !!sv_listen_qw.value;
+		respond_dp &= !!sv_listen_dp.value;
+	}
 
 	if (progstype == PROG_H2)
 		respond_dp = false;	//don't bother. dp doesn't support the maps anyway.
@@ -1627,7 +1641,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 		if (sv_listen_qw.value)
 			dp = va("challenge FTE%i", challenge);	//an FTE prefix will cause FTE clients to ignore the packet, to give preference to the qw challenge + protocols
 		else
-			dp = va("challenge %iFTE", challenge);	//we still need to add a postfix to prevent it from being interpreted as a Q2 server
+			dp = va("challenge %iDP", challenge);	//we still need to add a postfix to prevent it from being interpreted as a Q2 server
 		Netchan_OutOfBand(NS_SERVER, &net_from, strlen(dp)+1, dp);
 	}
 
@@ -2050,6 +2064,8 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	client_t *cl, *prev;
 	int i;
 	int curclients;
+	qboolean loadgame;
+	const char *name;
 
 	if (!(controller->fteprotocolextensions & PEXT_SPLITSCREEN))
 	{
@@ -2075,20 +2091,57 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	if (!sv_allow_splitscreen.ival && controller->netchan.remote_address.type != NA_LOOPBACK)
 		return NULL;	//FIXME: allow spectators to do this anyway?
 
+/*		if (cl->state == cs_loadzombie)
+		{
+			if (!newcl)
+			{
+				if (((!strcmp(cl->name, name) || !*cl->name) && (!*cl->guid || !strcmp(guid, cl->guid))) || sv.allocated_client_slots <= 1)	//named, or first come first serve.
+				{
+					if (cl->istobeloaded)
+						Con_DPrintf("%s:Using loadzombie\n", svs.name);
+					else
+						Con_DPrintf("%s:Using parmzombie\n", svs.name);
+					newcl = cl;
+					preserveparms = true;
+					temp.istobeloaded = cl->istobeloaded;
+					memcpy(temp.spawn_parms, cl->spawn_parms, sizeof(temp.spawn_parms));
+					if (cl->userid)
+						temp.userid = cl->userid;
+					break;
+				}
+			}
+		}
+*/
+
+	name = Info_ValueForKey(info, "name");
 	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 	{
-		if (cl->state == cs_free)
-		{
-			break;
+		if (cl->state == cs_loadzombie && !controller->spectator)
+		{	//if this is a loadzombie with the same name as the new seat is trying to use then lets use that slot.
+			if (!strcmp(cl->name, name))
+				break;
 		}
 	}
 	if (i == sv.allocated_client_slots)
 	{
-		SV_PrintToClient(controller, PRINT_HIGH, "not enough free player slots\n");
-		return NULL;
+		for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
+		{
+			if (cl->state == cs_free)
+			{
+				break;
+			}
+		}
+		if (i == sv.allocated_client_slots)
+		{
+			SV_PrintToClient(controller, PRINT_HIGH, "not enough free player slots\n");
+			return NULL;
+		}
 	}
 
-	cl->spectator = controller->spectator;
+	loadgame = (cl->state == cs_loadzombie);
+
+	if (!loadgame)
+		cl->spectator = controller->spectator;
 	cl->netchan.remote_address = controller->netchan.remote_address;
 	cl->netchan.message.prim = controller->netchan.message.prim;
 	cl->zquake_extensions = controller->zquake_extensions;
@@ -2107,8 +2160,8 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	cl->name = cl->namebuf;
 	cl->team = cl->teambuf;
 
-	nextuserid++;	// so every client gets a unique id
-	cl->userid = nextuserid;
+	if (!cl->userid || !loadgame)
+		cl->userid = ++nextuserid;
 
 	cl->playerclass = 0;
 	cl->pendingdeltabits = NULL;
@@ -2154,17 +2207,13 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	Q_strncpyS (cl->userinfo, info, sizeof(cl->userinfo)-1);
 	cl->userinfo[sizeof(cl->userinfo)-1] = '\0';
 
-	if (controller->spectator)
-	{
-		Info_RemoveKey (cl->userinfo, "spectator");
-		//this is a hint rather than a game breaker should it fail.
-		Info_SetValueForStarKey (cl->userinfo, "*spectator", "1", sizeof(cl->userinfo));
-	}
-	else
-		Info_RemoveKey (cl->userinfo, "*spectator");
+	Info_RemoveKey (cl->userinfo, "spectator");
+	//this is a hint rather than a game breaker should it fail.
+	Info_SetValueForStarKey (cl->userinfo, "*spectator", va("%i", cl->spectator), sizeof(cl->userinfo));
 
 	SV_ExtractFromUserinfo (cl, true);
-	SV_GetNewSpawnParms(cl);
+	if (!loadgame)
+		SV_GetNewSpawnParms(cl);
 
 	cl->state = controller->state;
 

@@ -1567,6 +1567,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, framestate_t *framestate,
 		traceinfo.solidcontents = hitcontentsmask;
 		Q1BSP_RecursiveBrushCheck(&traceinfo, model->rootnode, 0, 1, start, end);
 		memcpy(trace, &traceinfo.trace, sizeof(trace_t));
+		trace->contents = FTECONTENTS_SOLID;
 		if (trace->fraction < 1)
 		{
 			float d1 = DotProduct(start, trace->plane.normal) - trace->plane.dist;
@@ -1604,6 +1605,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, framestate_t *framestate,
 		end_l[0] = DotProduct(tmp, axis[0]);
 		end_l[1] = DotProduct(tmp, axis[1]);
 		end_l[2] = DotProduct(tmp, axis[2]);
+		trace->contents = FTECONTENTS_SOLID;
 		Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
 
 		if (trace->fraction == 1)

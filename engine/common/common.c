@@ -3883,6 +3883,7 @@ skipwhite:
 //same as COM_Parse, but parses two quotes next to each other as a single quote as part of the string
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize)
 {
+	extern cvar_t dpcompat_console;
 	int		c;
 	int		len;
 	char *s;
@@ -3950,40 +3951,62 @@ skipwhite:
 	if (c == '\"')
 	{
 		data++;
-		while (1)
+		if (dpcompat_console.ival)
 		{
-			if (len >= tokenlen-1)
+			while (1)
 			{
-				token[len] = '\0';
-				return (char*)data;
-			}
+				if (len >= tokenlen-1)
+				{
+					token[len] = '\0';
+					return (char*)data;
+				}
 
-
-			c = *data++;
-			if (c=='\"')
-			{
-				c = *(data);
-				if (c!='\"')
+				c = *data++;
+				if (c=='\\' && (*data == '\"' || *data == '\\'))
+					c = *data++;	//eat limited escaping inside strings.
+				else if (c=='\"')
 				{
 					token[len] = 0;
 					return (char*)data;
 				}
-				data++;
-/*				while (c=='\"')
+				else if (!c)
 				{
-					token[len] = c;
-					len++;
-					c = *++data;
+					token[len] = 0;
+					return (char*)data-1;
 				}
-*/
+				token[len] = c;
+				len++;
 			}
-			if (!c)
+		}
+		else
+		{
+			while (1)
 			{
-				token[len] = 0;
-				return (char*)data-1;
+				if (len >= tokenlen-1)
+				{
+					token[len] = '\0';
+					return (char*)data;
+				}
+
+				c = *data++;
+				if (c=='\"')
+				{
+					c = *(data);
+					if (c!='\"')
+					{
+						token[len] = 0;
+						return (char*)data;
+					}
+					data++;
+				}
+				if (!c)
+				{
+					token[len] = 0;
+					return (char*)data-1;
+				}
+				token[len] = c;
+				len++;
 			}
-			token[len] = c;
-			len++;
 		}
 	}
 
@@ -4220,8 +4243,9 @@ skipwhite:
 
 const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean omitquotes)
 {
+	extern cvar_t dpcompat_console;
 	const char *result = buf;
-	if (strchr(string, '\r') || strchr(string, '\n') || strchr(string, '\"'))
+	if (strchr(string, '\r') || strchr(string, '\n') || (!dpcompat_console.ival && strchr(string, '\"')))
 	{
 		if (!omitquotes)
 		{
@@ -4285,10 +4309,26 @@ const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean
 		}
 		else
 			buflen -= 1;
-		while(*string && buflen >= 1)
+		if (dpcompat_console.ival)
 		{
-			*buf++ = *string++;
-			buflen--;
+			while(*string && buflen >= 1)
+			{
+				if (*string == '\\' || *string == '\"')
+				{
+					*buf++ = '\\';
+					buflen--;
+				}
+				*buf++ = *string++;
+				buflen--;
+			}
+		}
+		else
+		{
+			while(*string && buflen >= 1)
+			{
+				*buf++ = *string++;
+				buflen--;
+			}
 		}
 		if (!omitquotes)
 			*buf++ = '\"';	//closing quote

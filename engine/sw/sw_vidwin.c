@@ -569,6 +569,10 @@ LONG WINAPI MainWndProc (
 			// raw input handling
 			INS_RawInput_Read((HANDLE)lParam);
 			break;
+		case WM_DEVICECHANGE:
+			COM_AddWork(WG_MAIN, INS_DeviceChanged, NULL, NULL, uMsg, 0);
+			lRet = TRUE;
+			break;
 /*		case WM_DISPLAYCHANGE:
 			if (!in_mode_set && (modestate == MS_WINDOWED) && !vid_fulldib_on_focus_mode)
 			{

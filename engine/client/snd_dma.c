@@ -783,6 +783,10 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 		}
 		switch(codec)
 		{
+		case VOIP_RAW16:
+		case VOIP_PCMA:
+		case VOIP_PCMU:
+			break;
 		case VOIP_SPEEX_OLD:
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:

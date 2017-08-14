@@ -26,6 +26,7 @@ cvar_t ruleset_allow_in		= CVAR("ruleset_allow_in", "1");
 cvar_t rcon_level			= CVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= CVAR("cmd_maxbuffersize", "65536");
 cvar_t dpcompat_set         = CVAR("dpcompat_set", "0");
+cvar_t dpcompat_console     = CVARD("dpcompat_console", "0", "Enables hacks to emulate DP's console.");
 int	Cmd_ExecLevel;
 qboolean cmd_didwait;
 qboolean cmd_blockwait;
@@ -37,11 +38,11 @@ void Cmd_ForwardToServer (void);
 typedef struct cmdalias_s
 {
 	struct cmdalias_s	*next;
-	char	name[MAX_ALIAS_NAME];
 	char	*value;
 	qbyte execlevel;
 	qbyte restriction;
 	int flags;
+	char	name[1];
 } cmdalias_t;
 
 #define ALIAS_FROMSERVER	1
@@ -733,7 +734,7 @@ static int QDECL CompleteExecList (const char *name, qofs_t flags, time_t mtime,
 	ctx->cb(name, ctx);
 	return true;
 }
-void Cmd_Exec_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx)
+void Cmd_Exec_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
 {
 	if (argn == 1)
 	{
@@ -767,7 +768,19 @@ void Cmd_Echo_f (void)
 	Con_Printf ("\n");
 }
 
-void Cmd_ShowAlias_f (void)
+static void Key_Alias_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	cmdalias_t	*a;
+	size_t len = strlen(partial);
+	if (argn != 1)
+		return;
+	for (a = cmd_alias ; a ; a=a->next)
+	{
+		if (!Q_strncasecmp(partial,a->name, len))
+			ctx->cb(a->name, ctx);
+	}
+}
+static void Cmd_ShowAlias_f (void)
 {
 	cmdalias_t	*a;
 	char *s;
@@ -880,9 +893,9 @@ void Cmd_Alias_f (void)
 	}
 
 	s = Cmd_Argv(1);
-	if (strlen(s) >= MAX_ALIAS_NAME || !strcmp(s, "say"))	//reject aliasing the say command. We use it as an easy way to warn that our player is cheating.
+	if (!strcmp(s, "say"))	//reject aliasing the say command. We use it as an easy way to warn that our player is cheating.
 	{
-		Con_TPrintf ("Alias name is too long\n");
+		Con_TPrintf ("Refusing to create an alias with the name '%s'\n", s);
 		return;
 	}
 
@@ -941,16 +954,25 @@ void Cmd_Alias_f (void)
 
 	if (!a)
 	{
-		a = (cmdalias_t*)Z_Malloc (sizeof(cmdalias_t));
-		a->next = cmd_alias;
-		cmd_alias = a;
+		cmdalias_t **link;
+
+		a = (cmdalias_t*)Z_Malloc (sizeof(cmdalias_t) + strlen(s));
+		strcpy (a->name, s);
+		for (link = &cmd_alias; ; link = &(*link)->next)
+		{
+			if (!*link || strcmp((*link)->name, s) >= 0)
+			{
+				a->next = *link;
+				*link = a;
+				break;
+			}
+		}
 	}
 	if (Cmd_FromGamecode())
 		a->flags |= ALIAS_FROMSERVER;
 	else
 		a->flags &= ~ALIAS_FROMSERVER;
 
-	strcpy (a->name, s);
 	multiline = false;
 	if (Cmd_Argc() == 2)	//check the next statement for being '{'
 	{
@@ -986,7 +1008,7 @@ void Cmd_Alias_f (void)
 				strcat (cmd, " ");
 		}
 
-		if (!*cmd)	//someone wants to wipe it. let them
+		if (!*cmd && !dpcompat_console.ival)	//someone wants to wipe it. let them
 		{
 			if (a == cmd_alias)
 			{
@@ -1020,6 +1042,21 @@ void Cmd_Alias_f (void)
 		a->restriction = 1;	//this is possibly a security risk if the admin also changes execlevel
 	}
 }
+
+#ifndef SERVERONLY
+static void Cmd_AliasEdit_f (void)
+{
+	char *alias = Cmd_AliasExist(Cmd_Argv(1), RESTRICT_LOCAL);
+	char quotedalias[2048];
+	if (alias)
+	{
+		COM_QuotedString(alias, quotedalias, sizeof(quotedalias), false);
+		Key_ConsoleReplace(va("alias %s %s", Cmd_Argv(1), quotedalias));
+	}
+	else
+		Con_Printf("Not an alias\n");
+}
+#endif
 
 void Cmd_DeleteAlias(char *name)
 {
@@ -1210,8 +1247,8 @@ void Cvar_PurgeDefaults_f(void);
 typedef struct cmd_function_s
 {
 	struct cmd_function_s	*next;
-	char					*name;
-	char					*description;
+	const char				*name;
+	const char				*description;
 	xcommand_t				function;
 	xcommandargcompletion_t	argcompletion;
 
@@ -1320,34 +1357,95 @@ void Cmd_ShiftArgs (int ammount, qboolean expandstring)
 	}
 }
 
-char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *newaccesslevel, int *len)
+const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newaccesslevel, int *len)
 {
-	char *ret = NULL, *end, *namestart;
-	char *fixup = NULL, fixval=0;
+	const char *ret = NULL;
+	char *fixup = NULL, fixval=0, *t;
 	cvar_t	*var;
 	static char temp[12];
+	static char quoted[256];
 	unsigned int	result;
+	int termlen, pl;
 
-	namestart = cvarname;
-	if (*cvarname == '{')
-	{
-		fixup = &cvarname[strlen(cvarname)-1];
+	int quotetype = 0;
+	const char *cvarname;
+
+	cvarname = cvarterm;
+	if (*cvarterm == '{')
+	{	//set foo ba"r; ${foo q} -> ba\"r
+		//set foo bar; ${foo asis} -> ba"r
+		//${bar q} -> <EMPTY>
+		//${bar ?} -> ""
+		//${bar !} -> <ERROR>
+		fixup = &cvarterm[strlen(cvarterm)-1];
 		if (*fixup != '}')
 			return NULL;
+		cvarterm++;
 		fixval = *fixup;
 		*fixup = 0;
-		cvarname++;
+		termlen = fixup - cvarname;
+		if (fixval)
+			termlen++;
+		if (fixup-cvarterm > 2 && !strncmp(fixup-2, " ?", 2))
+		{	//force expansion, even if not defined.
+			pl = 2;
+			quotetype = 2;
+		}
+		else if (fixup-cvarterm > 2 && !strncmp(fixup-2, " !", 2))
+		{	//abort is not defined
+			pl = 2;
+			quotetype = 3;
+		}
+		else if (fixup-cvarterm > 2 && !strncmp(fixup-2, " q", 2))
+		{	//escaping it if not empty, otherwise empty.
+			pl = 2;
+			quotetype = 1;
+		}
+		else if (fixup-cvarterm > 2 && !strncmp(fixup-5, " asis", 5))
+		{	//no escaping...
+			pl = 5;
+			quotetype = 0;
+		}
+		else
+		{
+			pl = 0;
+			quotetype = 1;	//default to escaping.
+		}
+		if (pl)
+		{
+			*fixup = fixval;
+			fixup -= pl;
+			fixval = *fixup;
+			*fixup = 0;
+		}
+		if (*cvarterm == '$')
+			cvarname = Cmd_ExpandCvar(cvarterm+1, maxaccesslevel, newaccesslevel, &pl);
+		else
+			cvarname = cvarterm;
 	}
 	else
 	{
-		fixup = &cvarname[strlen(cvarname)];
+		fixup = &cvarterm[strlen(cvarterm)];
 		fixval = *fixup;
+
+		termlen = fixup - cvarname;
+		if (fixval)
+			termlen++;
 	}
 
-	result = strtoul(cvarname, &end, 10);
-	if (fixval && *end == 0) //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
-	{	//purely numerical
-		ret = Cmd_Argv(result);
+	result = strtoul(cvarname, &t, 10);
+	if ((dpcompat_console.ival||fixval) && (*t == 0 || (*t == '-' && t[1] == 0))) //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
+	{
+		if (*t == '-')	//pure number with a trailing minus means
+		{				//args starting after that.
+			ret = Cmd_Args();
+			while (ret && result-- > 1)
+				ret = COM_StringParse(ret, com_token, sizeof(com_token), false, false);
+			while(ret && (*ret == ' ' || *ret == '\t'))
+				ret++;
+		}
+		else	//purely numerical
+			ret = Cmd_Argv(result);
 	}
 	else if (!strcmp(cvarname, "*") || !stricmp(cvarname, "cmd_args"))
 	{
@@ -1357,7 +1455,7 @@ char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *newaccesslevel, in
 	{
 		ret = Cmd_Argv(atoi(cvarname+8));
 	}
-	else if (!stricmp(cvarname, "cmd_argc"))
+	else if (!strcmp(cvarname, "#") || !stricmp(cvarname, "cmd_argc"))
 	{
 		Q_snprintfz(temp, sizeof(temp), "%u", Cmd_Argc());
 		ret = temp;
@@ -1373,12 +1471,25 @@ char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *newaccesslevel, in
 		}
 	}
 	*fixup = fixval;
-	if (ret)
+
+	if (quotetype == 3)
 	{
-		*len = fixup - namestart;
-		if (fixval)
-			(*len)++;
+		if (ret)
+			quotetype = 1;
+		else
+			return NULL;
 	}
+	else if (quotetype == 2)
+	{
+		quotetype = 1;
+		if (!ret)
+			ret = "";
+	}
+	if (ret)
+		*len = termlen;
+
+	if (quotetype)
+		ret = COM_QuotedString(ret?ret:"", quoted, sizeof(quoted), true);
 	return ret;
 }
 
@@ -1391,14 +1502,14 @@ If not SERVERONLY, also expands $macro expressions
 Note: dest must point to a 1024 byte buffer
 ================
 */
-char *Cmd_ExpandString (char *data, char *dest, int destlen, int *accesslevel, qboolean expandcvars, qboolean expandmacros)
+char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accesslevel, qboolean expandcvars, qboolean expandmacros)
 {
 	unsigned int	c;
 	char	buf[255];
 	int		i, len;
 	int		quotes = 0;
-	char	*str;
-	char	*bestvar;
+	const char	*str;
+	const char	*bestvar;
 	int		name_length, var_length;
 	qboolean striptrailing;
 	int		maxaccesslevel = *accesslevel;
@@ -1410,7 +1521,7 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int *accesslevel, q
 		if (c == '"')
 			quotes++;
 
-		if (c == '$' && !(quotes&1))
+		if (c == '$' && (!(quotes&1) || dpcompat_console.ival))
 		{
 			data++;
 
@@ -1422,10 +1533,19 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int *accesslevel, q
 			buf[1] = 0;
 			bestvar = NULL;
 			var_length = 0;
-			while ((c = *data) > 32)
+			while((c = *data))
 			{
-				if (c == '$')
+				if (c < ' ')
 					break;
+				if (c == ' ' && buf[0] != '{')
+					break;
+				if (c == '$' && i == 0)
+				{
+					data++;
+					name_length = 0;
+					str = "$";
+					break;
+				}
 				data++;
 				buf[i++] = c;
 				buf[i] = 0;
@@ -1683,7 +1803,7 @@ Cmd_AddCommand
 ============
 */
 
-qboolean Cmd_AddCommandAD (char *cmd_name, xcommand_t function, xcommandargcompletion_t argcompletion, char *desc)
+qboolean Cmd_AddCommandAD (const char *cmd_name, xcommand_t function, xcommandargcompletion_t argcompletion, const char *desc)
 {
 	cmd_function_t	*cmd;
 
@@ -1712,9 +1832,9 @@ qboolean Cmd_AddCommandAD (char *cmd_name, xcommand_t function, xcommandargcompl
 
 	cmd = (cmd_function_t*)Z_Malloc (sizeof(cmd_function_t)+strlen(cmd_name)+1);
 	cmd->name = (char*)(cmd+1);
+	strcpy((char*)(cmd+1), cmd_name);
 	cmd->argcompletion = argcompletion;
 	cmd->description = desc;
-	strcpy(cmd->name, cmd_name);
 	cmd->function = function;
 	cmd->next = cmd_functions;
 	cmd->restriction = 0;
@@ -1723,16 +1843,16 @@ qboolean Cmd_AddCommandAD (char *cmd_name, xcommand_t function, xcommandargcompl
 	return true;
 }
 
-qboolean Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *desc)
+qboolean Cmd_AddCommandD (const char *cmd_name, xcommand_t function, const char *desc)
 {
 	return Cmd_AddCommandAD(cmd_name, function, NULL, desc);
 }
-qboolean Cmd_AddCommand (char *cmd_name, xcommand_t function)
+qboolean Cmd_AddCommand (const char *cmd_name, xcommand_t function)
 {
 	return Cmd_AddCommandAD(cmd_name, function, NULL, NULL);
 }
 
-void	Cmd_RemoveCommand (char *cmd_name)
+void	Cmd_RemoveCommand (const char *cmd_name)
 {
 	cmd_function_t	*cmd, **back;
 
@@ -1893,7 +2013,7 @@ void Cmd_EnumerateLevel(int level, char *buf, size_t bufsize)
 	}
 }
 
-int Cmd_Level(char *name)
+int Cmd_Level(const char *name)
 {
 	cmdalias_t *a;
 	cmd_function_t *cmds;
@@ -1937,7 +2057,7 @@ qboolean	Cmd_Exists (const char *cmd_name)
 Cmd_Exists
 ============
 */
-char *Cmd_Describe (char *cmd_name)
+const char *Cmd_Describe (const char *cmd_name)
 {
 	cmd_function_t	*cmd;
 
@@ -1996,7 +2116,7 @@ struct cmdargcompletionctx_s
 {
 	struct xcommandargcompletioncb_s cb;
 	cmd_function_t *cmd;
-	char *prefix;
+	const char *prefix;
 	size_t prefixlen;
 	match_t *match;
 	const char *desc;
@@ -2045,7 +2165,7 @@ void Cmd_CompleteCheckArg(const char *value, void *vctx)	//compare cumulative st
 		match->desc = desc;
 	}
 }
-char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, const char **descptr)
+char *Cmd_CompleteCommand (const char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, const char **descptr)
 {
 	extern cvar_group_t *cvar_groups;
 	cmd_function_t	*cmd;
@@ -2056,7 +2176,7 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 
 	cvar_group_t	*grp;
 	cvar_t		*cvar;
-	char *sp;
+	const char *sp;
 
 	for (sp = partial; *sp; sp++)
 	{
@@ -2332,7 +2452,7 @@ A complete command line has been parsed, so try to execute it
 FIXME: lookupnoadd the token to speed search?
 ============
 */
-void	Cmd_ExecuteString (char *text, int level)
+void	Cmd_ExecuteString (const char *text, int level)
 {
 	//WARNING: PF_checkcommand should match the order.
 	cmd_function_t	*cmd;
@@ -2340,7 +2460,12 @@ void	Cmd_ExecuteString (char *text, int level)
 
 	char dest[8192];
 
-	text = Cmd_ExpandString(text, dest, sizeof(dest), &level, !Cmd_IsInsecure()?true:false, true);
+	while (*text == ' ' || *text == '\n')
+		text++;
+	if (dpcompat_console.ival && !strncmp(text, "alias", 5) && (text[5] == ' ' || text[5] == '\t'))
+		;	//certain commands don't get pre-expanded in dp. evil hack. quote them to pre-expand anyway. double evil.
+	else
+		text = Cmd_ExpandString(text, dest, sizeof(dest), &level, !Cmd_IsInsecure()?true:false, true);
 	Cmd_TokenizeString (text, level == RESTRICT_LOCAL?true:false, false);
 
 // execute the command line
@@ -2431,15 +2556,37 @@ void	Cmd_ExecuteString (char *text, int level)
 
 			// if the alias value is a command or cvar and
 			// the alias is called with parameters, add them
-			if (Cmd_Argc() > 1 && (!strncmp(a->value, "cmd ", 4) || (!strchr(a->value, ' ') && !strchr(a->value, '\t')	&&
-				(Cvar_FindVar(a->value) || (Cmd_Exists(a->value) && a->value[0] != '+' && a->value[0] != '-'))))
-			)
+			//unless we're mimicing dp, or the alias has explicit expansions (or macros) in which case it can do its own damn args
+			if (dpcompat_console.ival)
 			{
-				Cbuf_InsertText (Cmd_Args(), execlevel, false);
-				Cbuf_InsertText (" ", execlevel, false);
+				char *ignoringquoteswasstupid;
+				Cmd_ExpandString(a->value, dest, sizeof(dest), &execlevel, !Cmd_IsInsecure()?true:false, true);
+				for (ignoringquoteswasstupid = dest; *ignoringquoteswasstupid; )
+				{	//double up dollars, to prevent expansion when its actually execed.
+					if (*ignoringquoteswasstupid == '$')
+					{
+						memmove(ignoringquoteswasstupid+1, ignoringquoteswasstupid, strlen(ignoringquoteswasstupid)+1);
+						ignoringquoteswasstupid++;
+					}
+					ignoringquoteswasstupid++;
+				}
+				if ((a->restriction?a->restriction:rcon_level.ival) > execlevel)
+					return;
 			}
+			else if (!strchr(a->value, '$'))
+			{
+				if (Cmd_Argc() > 1 && (!strncmp(a->value, "cmd ", 4) || (!strchr(a->value, ' ') && !strchr(a->value, '\t')	&&
+					(Cvar_FindVar(a->value) || (Cmd_Exists(a->value) && a->value[0] != '+' && a->value[0] != '-'))))
+					)
+				{
+					Cbuf_InsertText (Cmd_Args(), execlevel, false);
+					Cbuf_InsertText (" ", execlevel, false);
+				}
 
-			Cmd_ExpandStringArguments (a->value, dest, sizeof(dest));
+				Cmd_ExpandStringArguments (a->value, dest, sizeof(dest));
+			}
+			else
+				Q_strncpyz(dest, a->value, sizeof(dest));
 			Cbuf_InsertText (dest, execlevel, false);
 
 #ifndef SERVERONLY
@@ -2451,7 +2598,7 @@ void	Cmd_ExecuteString (char *text, int level)
 			}
 #endif
 
-			Con_DPrintf("Execing alias %s:\n%s\n", a->name, a->value);
+			Con_DPrintf("Execing alias %s ^3%s:\n^1%s\n^2%s\n", a->name, Cmd_Args(), a->value, dest);
 			return;
 		}
 	}
@@ -2570,7 +2717,7 @@ Returns the position (1 to argc-1) in the command's argument list
 where the given parameter apears, or 0 if not present
 ================
 */
-int Cmd_CheckParm (char *parm)
+int Cmd_CheckParm (const char *parm)
 {
 	int i;
 
@@ -3411,7 +3558,8 @@ void Cmd_set_f(void)
 		else
 			var = Cvar_Get(Cmd_Argv(1), text, CVAR_USERCREATED, "User variables");
 
-		var->flags |= forceflags;
+		if (var)
+			var->flags |= forceflags;
 	}
 
 	If_Token_Clear(mark);
@@ -3784,11 +3932,12 @@ void Cmd_Init (void)
 #ifndef SERVERONLY
 	Cmd_AddCommand ("cmd", Cmd_ForwardToServer_f);
 	Cmd_AddCommand ("condump", Cmd_Condump_f);
+	Cmd_AddCommandAD ("aliasedit", Cmd_AliasEdit_f, Key_Alias_c, NULL);
 #endif
 	Cmd_AddCommand ("restrict", Cmd_RestrictCommand_f);
-	Cmd_AddCommand ("aliaslevel", Cmd_AliasLevel_f);
+	Cmd_AddCommandAD ("aliaslevel", Cmd_AliasLevel_f, Key_Alias_c, NULL);
 
-	Cmd_AddCommand ("showalias", Cmd_ShowAlias_f);
+	Cmd_AddCommandAD ("showalias", Cmd_ShowAlias_f, Key_Alias_c, NULL);
 
 //	Cmd_AddCommand ("msg_trigger", Cmd_Msg_Trigger_f);
 //	Cmd_AddCommand ("filter", Cmd_Msg_Filter_f);
@@ -3831,6 +3980,7 @@ void Cmd_Init (void)
 	Cmd_AddCommandD ("in", Cmd_In_f, "Issues the given command after a time delay. Disabled if ruleset_allow_in is 0.");
 
 	Cvar_Register(&dpcompat_set, "Darkplaces compatibility");
+	Cvar_Register(&dpcompat_console, "Darkplaces compatibility");
 	Cvar_Register (&cl_warncmd, "Warnings");
 	Cvar_Register (&cfg_save_all, "client operation options");
 	Cvar_Register (&cfg_save_auto, "client operation options");

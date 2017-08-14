@@ -408,6 +408,10 @@ enum qcop_e {
 	OP_BITXOR_F,
 	OP_RSHIFT_F,
 	OP_LSHIFT_F,
+	OP_RSHIFT_IF,
+	OP_LSHIFT_IF,
+	OP_RSHIFT_FI,
+	OP_LSHIFT_FI,
 
 	OP_AND_ANY,
 	OP_OR_ANY,
@@ -421,6 +425,11 @@ enum qcop_e {
 	OP_BITOR_V,
 	OP_BITNOT_V,
 	OP_BITXOR_V,
+
+	OP_POW_F,
+
+	OP_EQ_FLD,
+	OP_NE_FLD,
 
 	//special/fake opcodes used by the decompiler.
 	OPD_GOTO_FORSTART,

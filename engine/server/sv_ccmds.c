@@ -423,7 +423,7 @@ static int QDECL CompleteMapListExt (const char *name, qofs_t flags, time_t mtim
 	ctx->cb(name+5, ctx);
 	return true;
 }
-static void SV_Map_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx)
+static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
 {
 	if (argn == 1)
 	{

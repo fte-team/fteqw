@@ -2480,6 +2480,9 @@ static shaderkey_t shaderkeys[] =
 	{"water",			Shader_DP_Water,			"dp"},
 	{"reflect",			Shader_DP_Reflect,			"dp"},
 	{"refract",			Shader_DP_Refract,			"dp"},
+	{"offsetmapping",	NULL,						"dp"},
+	{"glossintensitymod",NULL,						"dp"},
+	{"glossexponentmod",NULL,						"dp"},
 
 	/*doom3 compat*/
 	{"diffusemap",		Shader_DiffuseMap,			"doom3"},	//macro for "{\nstage diffusemap\nmap <map>\n}"
@@ -3177,6 +3180,12 @@ static void Shaderpass_TcMod (shader_t *shader, shaderpass_t *pass, char **ptr)
 		for (i = 0; i < 4; i++)
 			tcmod->args[i] = Shader_ParseFloat (shader, ptr, 0);
 		tcmod->type = SHADER_TCMOD_TURB;
+	}
+	else if (!Q_stricmp (token, "page"))
+	{
+		for (i = 0; i < 3; i++)
+			tcmod->args[i] = Shader_ParseFloat (shader, ptr, 0);
+		tcmod->type = SHADER_TCMOD_PAGE;
 	}
 	else
 	{
@@ -4138,12 +4147,15 @@ static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey
 {
 	shaderkey_t *key;
 	char *prefix;
+	qboolean toolchainprefix = false;
 
 	//handle known prefixes.
 	if		(!Q_strncasecmp(token, "fte", 3))		{prefix = token; token += 3; }
 	else if	(!Q_strncasecmp(token, "dp", 2))		{prefix = token; token += 2; }
 	else if (!Q_strncasecmp(token, "doom3", 5))		{prefix = token; token += 5; }
 	else if (!Q_strncasecmp(token, "rscript", 7))	{prefix = token; token += 7; }
+	else if (!Q_strncasecmp(token, "qer_", 4))		{prefix = token; token += 3; toolchainprefix = true; }
+	else if (!Q_strncasecmp(token, "q3map_", 6))	{prefix = token; token += 5; toolchainprefix = true; }
 	else	prefix = NULL;
 	if (prefix && *token == '_')
 		token++;
@@ -4162,10 +4174,13 @@ static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey
 		}
 	}
 
-	if (prefix)
-		Con_DPrintf("Unknown shader directive parsing %s: \"%s\"\n", shader->name, prefix);
-	else
-		Con_DPrintf("Unknown shader directive parsing %s: \"%s\"\n", shader->name, token);
+	if (!toolchainprefix)	//we don't really give a damn about prefixes owned by various toolchains - they shouldn't affect us.
+	{
+		if (prefix)
+			Con_DPrintf("Unknown shader directive parsing %s: \"%s\"\n", shader->name, prefix);
+		else
+			Con_DPrintf("Unknown shader directive parsing %s: \"%s\"\n", shader->name, token);
+	}
 
 	// Next Line
 	while (ptr)
@@ -6555,7 +6570,14 @@ char *Shader_Decompose(shader_t *s)
 				switch(p[j].texgen)
 				{
 				default:
-				case T_GEN_SINGLEMAP: sprintf(o, "singlemap "); break;
+				case T_GEN_SINGLEMAP:
+					if (p[j].anim_frames[0])
+					{
+						sprintf(o, "singlemap \"%s\" %ix%i", p[j].anim_frames[0]->ident, p[j].anim_frames[0]->width, p[j].anim_frames[0]->height);
+					}
+					else
+						sprintf(o, "singlemap ");
+					break;
 				case T_GEN_ANIMMAP: sprintf(o, "animmap "); break;
 				case T_GEN_LIGHTMAP: sprintf(o, "lightmap "); break;
 				case T_GEN_DELUXMAP: sprintf(o, "deluxmap "); break;

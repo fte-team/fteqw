@@ -2348,6 +2348,9 @@ QCC_ddef_t *GetField(const char *name)
 	if (!*name)
 		return NULL;
 
+	if (*name == '.')
+		name++;	//some idiot _intentionally_ decided to fuck shit up. go them!
+
 	for (i = 0; i < numfielddefs; i++)
 	{
 		d = &fields[i];

@@ -195,6 +195,19 @@ enum
 };
 
 typedef struct
+{	//there should be only one copy of this struct for each thread that renders anything in vulkan.
+
+	//descriptor sets are: 0) entity+light 1) batch textures + pass textures
+	VkDescriptorSet descriptorsets[1];
+
+	//commandbuffer state, to avoid redundant state changes.
+	VkPipeline activepipeline;
+
+	float depthrange;
+
+} vkrendercontext_t;
+
+typedef struct
 {
 	unsigned int inited;
 
@@ -243,11 +256,7 @@ typedef struct
 	texid_t tex_refraction;	//separate from rt_reflection, because $reasons
 	texid_t tex_ripplemap;
 
-	//descriptor sets are: 0) entity+light 1) batch textures + pass textures
-	VkDescriptorSet descriptorsets[1];
-
-	//commandbuffer state, to avoid redundant state changes.
-	VkPipeline activepipeline;
+	vkrendercontext_t rc;
 
 	struct shadowmaps_s
 	{
@@ -265,8 +274,6 @@ typedef struct
 		} buf[8];
 	} shadow[2]; //omni, spot
 	texid_t currentshadowmap;
-
-	float depthrange;
 
 	VkDescriptorSetLayout textureLayout;
 } vkbackend_t;
@@ -1578,7 +1585,7 @@ void VKBE_RestartFrame(void)
 		vk.dynbuf[i]->offset = vk.dynbuf[i]->flushed = 0;
 	}
 
-	shaderstate.activepipeline = VK_NULL_HANDLE;
+	shaderstate.rc.activepipeline = VK_NULL_HANDLE;
 	vk.descpool = vk.frame->descpools;
 	if (vk.descpool)
 	{
@@ -2370,7 +2377,13 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 			}
 			break;
 
+		case SHADER_TCMOD_PAGE:
 		default:
+			for (j = 0; j < cnt; j++, dst += 2, src+=2)
+			{
+				dst[0] = src[0];
+				dst[1] = src[1];
+			}
 			break;
 	}
 }
@@ -2988,7 +3001,7 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 
 	if (err)
 	{
-		shaderstate.activepipeline = VK_NULL_HANDLE;
+		shaderstate.rc.activepipeline = VK_NULL_HANDLE;
 		if (err != VK_ERROR_INVALID_SHADER_NV)
 			Sys_Error("Error %i creating pipeline for %s. Check spir-v modules / drivers.\n", err, shaderstate.curshader->name);
 		else
@@ -2996,7 +3009,7 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 		return;
 	}
 
-	vkCmdBindPipeline(vk.rendertarg->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderstate.activepipeline=pipe->pipeline);
+	vkCmdBindPipeline(vk.rendertarg->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderstate.rc.activepipeline=pipe->pipeline);
 }
 static void BE_BindPipeline(program_t *p, unsigned int shaderflags, unsigned int blendflags, unsigned int permu)
 {
@@ -3021,11 +3034,11 @@ static void BE_BindPipeline(program_t *p, unsigned int shaderflags, unsigned int
 			if (pipe->blendbits == blendflags)
 				if (pipe->permu == permu)
 				{
-					if (pipe->pipeline != shaderstate.activepipeline)
+					if (pipe->pipeline != shaderstate.rc.activepipeline)
 					{
-						shaderstate.activepipeline = pipe->pipeline;
-						if (shaderstate.activepipeline)
-							vkCmdBindPipeline(vk.rendertarg->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderstate.activepipeline);
+						shaderstate.rc.activepipeline = pipe->pipeline;
+						if (shaderstate.rc.activepipeline)
+							vkCmdBindPipeline(vk.rendertarg->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, shaderstate.rc.activepipeline);
 					}
 					return;
 				}
@@ -3088,13 +3101,13 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 	perm &= p->supportedpermutations;
 
 	BE_BindPipeline(p, shaderbits, VKBE_ApplyShaderBits(pass->shaderbits), perm);
-	if (!shaderstate.activepipeline)
+	if (!shaderstate.rc.activepipeline)
 		return false;	//err, something bad happened.
 
 	//most gpus will have a fairly low descriptor set limit of 4 (this is the minimum required)
 	//that isn't enough for all our textures, so we need to make stuff up as required.
 	{
-		VkDescriptorSet set = shaderstate.descriptorsets[0] = vk.khr_push_descriptor?VK_NULL_HANDLE:VKBE_TempDescriptorSet(p->desclayout);
+		VkDescriptorSet set = shaderstate.rc.descriptorsets[0] = vk.khr_push_descriptor?VK_NULL_HANDLE:VKBE_TempDescriptorSet(p->desclayout);
 		VkWriteDescriptorSet descs[MAX_TMUS], *desc = descs;
 		VkDescriptorImageInfo imgs[MAX_TMUS], *img = imgs;
 		unsigned int i;
@@ -3182,7 +3195,7 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 			vkUpdateDescriptorSets(vk.device, desc-descs, descs, 0, NULL);
 	}
 	if (!vk.khr_push_descriptor)
-		vkCmdBindDescriptorSets(vk.rendertarg->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, p->layout, 0, countof(shaderstate.descriptorsets), shaderstate.descriptorsets, 0, NULL);
+		vkCmdBindDescriptorSets(vk.rendertarg->cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, p->layout, 0, countof(shaderstate.rc.descriptorsets), shaderstate.rc.descriptorsets, 0, NULL);
 
 	RQuantAdd(RQUANT_PRIMITIVEINDICIES, idxcount);
 	RQuantAdd(RQUANT_DRAWS, 1);
@@ -4437,10 +4450,10 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	Vector2Set(cbe->pad7, 0, 0);
 
 	ndr = (e->flags & RF_DEPTHHACK)?0.333:1;
-	if (ndr != shaderstate.depthrange)
+	if (ndr != shaderstate.rc.depthrange)
 	{
 		VkViewport viewport;
-		shaderstate.depthrange = ndr;
+		shaderstate.rc.depthrange = ndr;
 
 		viewport.x = r_refdef.pxrect.x;
 		viewport.y = r_refdef.pxrect.y;
@@ -4940,7 +4953,7 @@ void VKBE_RT_Begin(struct vk_rendertarg *targ)
 	if (vk.rendertarg)
 		vkCmdEndRenderPass(vk.rendertarg->cbuf);
 #else
-	shaderstate.activepipeline = VK_NULL_HANDLE;
+	shaderstate.rc.activepipeline = VK_NULL_HANDLE;
 	targ->cbuf = VK_AllocFrameCBuf();
 
 	{
@@ -4978,7 +4991,7 @@ void VKBE_RT_Begin(struct vk_rendertarg *targ)
 		viewport.width = r_refdef.pxrect.width;
 		viewport.height = r_refdef.pxrect.height;
 		viewport.minDepth = 0;
-		viewport.maxDepth = shaderstate.depthrange;
+		viewport.maxDepth = shaderstate.rc.depthrange;
 		vkCmdSetViewport(vk.rendertarg->cbuf, 0, 1, &viewport);
 		wrekt.offset.x = viewport.x;
 		wrekt.offset.y = viewport.y;
@@ -5000,7 +5013,7 @@ void VKBE_RT_End(struct vk_rendertarg *targ)
 
 #if 0
 #else
-	shaderstate.activepipeline = VK_NULL_HANDLE;
+	shaderstate.rc.activepipeline = VK_NULL_HANDLE;
 	vkCmdEndRenderPass(targ->cbuf);
 	vkEndCommandBuffer(targ->cbuf);
 
@@ -6087,7 +6100,7 @@ void VKBE_DoneShadows(void)
 		viewport.width = r_refdef.pxrect.width;
 		viewport.height = r_refdef.pxrect.height;
 		viewport.minDepth = 0;
-		viewport.maxDepth = shaderstate.depthrange;
+		viewport.maxDepth = shaderstate.rc.depthrange;
 		vkCmdSetViewport(vk.rendertarg->cbuf, 0, 1, &viewport);
 	}
 
@@ -6144,7 +6157,7 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 
 	shaderstate.curentity = NULL;
 
-	shaderstate.depthrange = 0;
+	shaderstate.rc.depthrange = 0;
 
 	if (!r_refdef.recurse)
 	{

@@ -211,6 +211,8 @@ struct {
 	{" F316", WARN_IDENTICALPRECOMPILER},
 	{" F317", WARN_STALEMACRO},
 	{" F318", WARN_DUPLICATEMACRO},
+	{" F319", WARN_CONSTANTCOMPARISON},
+	{" F320", WARN_PARAMWITHNONAME},
 
 	{" F208", WARN_NOTREFERENCEDCONST},
 	{" F209", WARN_EXTRAPRECACHE},	
@@ -362,6 +364,10 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_typeexplicit,	FLAG_MIDCOMPILE,"typeexplicit",	"Explicit types",		"All type conversions must be explicit or directly supported by instruction set."},
 	{&flag_noboundchecks,	FLAG_MIDCOMPILE,"noboundchecks","Disable Bound Checks",	"Disable array index checks, speeding up array access but can result in your code misbehaving."},
 	{&flag_qccx,			FLAG_MIDCOMPILE,"qccx",			"QCCX syntax",			"WARNING: This syntax makes mods inherantly engine specific.\nDo NOT use unless you know what you're doing.This is provided for compatibility only\nAny entity hacks will be unsupported in FTEQW, DP, and others, resulting in engine crashes if the code in question is executed."},
+	{&flag_attributes,		FLAG_MIDCOMPILE|FLAG_HIDDENINGUI,"attributes",	"[[attributes]]",		"WARNING: This syntax conflicts with vector constructors."},
+	{&flag_assumevar,		FLAG_MIDCOMPILE|FLAG_HIDDENINGUI,"assumevar",	"explicit consts",		"Initialised globals will be considered non-const by default."},
+	{&flag_dblstarexp,		FLAG_MIDCOMPILE|FLAG_HIDDENINGUI,"ssp","** exponent",	"Treat ** as an operator for exponents, instead of multiplying by a dereferenced pointer."},
+
 	{&flag_embedsrc,		FLAG_MIDCOMPILE,"embedsrc",		"Embed Sources",		"Write the sourcecode into the output file."},
 //	{&flag_noreflection,	FLAG_MIDCOMPILE,"omitinternals","Omit Reflection Info",	"Keeps internal symbols private (equivelent to unix's hidden visibility). This has the effect of reducing filesize, thwarting debuggers, and breaking saved games. This allows you to use arrays without massively bloating the size of your progs.\nWARNING: The bit about breaking saved games was NOT a joke, but does not apply to menuqc or csqc. It also interferes with FTE_MULTIPROGS."},
 	{NULL}
@@ -3903,7 +3909,14 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			strcat (qccmsourcedir, "/");
 		}
 		else if ( !strcmp(myargv[i], "-o") )
-			;	//explicit output file
+		{	//explicit output file
+			i++;
+			strcpy(destfile, myargv[i]);
+		}
+		else if ( !strncmp(myargv[i], "-o", 2) )
+		{	//explicit output file
+			strcpy(destfile, myargv[i]+2);
+		}
 		else if ( !strcmp(myargv[i], "-qc") )
 			QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Argument %s is experimental", myargv[i]);	//compile without linking. output cannot be read by engines.
 		else if ( !strcmp(myargv[i], "-progdefs") )
@@ -4004,6 +4017,59 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 
 			if (!compiler_flag[p].enabled)
 				QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised keyword parameter (%s)", myargv[i]);
+		}
+		else if ( !strnicmp(myargv[i], "-std=", 5))
+		{
+			for (p = 0; compiler_flag[p].enabled; p++)
+			{
+				if (compiler_flag[p].flags & FLAG_ASDEFAULT)
+					*compiler_flag[p].enabled = true;
+				else
+					*compiler_flag[p].enabled = false;
+			}
+			if (!strcmp(myargv[i]+5, "fteqcc"))
+				;	//as above, its the default.
+			else if (!strcmp(myargv[i]+5, "id"))
+			{
+				flag_ifvector = flag_vectorlogic = false;
+
+				keyword_asm = keyword_break = keyword_continue = keyword_for = keyword_goto = false;
+				keyword_const = keyword_var = keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_extern = keyword_shared = keyword_noref = keyword_unused = keyword_used = keyword_static = keyword_nonstatic = keyword_ignore = keyword_strip = false;
+				keyword_switch = keyword_case = keyword_default = keyword_class = keyword_const = false;
+
+				keyword_vector = keyword_entity = keyword_float = keyword_string = false;	//not to be confused with actual types, but rather the absence of the keyword local.
+				keyword_int = keyword_integer = keyword_typedef = keyword_struct = keyword_union = keyword_enum = keyword_enumflags = false;
+				keyword_thinktime = keyword_until = keyword_loop = false;
+				keyword_wrap = keyword_weak = false;
+			}
+			else if (!strcmp(myargv[i]+5, "gmqcc"))
+			{
+				flag_ifvector = flag_vectorlogic = true;
+				flag_dblstarexp = flag_attributes = flag_assumevar = pr_subscopedlocals = true;
+				qccwarningaction[WARN_CONSTANTCOMPARISON] = WA_IGNORE;
+				qccwarningaction[WARN_POINTLESSSTATEMENT] = WA_IGNORE;
+				qccwarningaction[WARN_OVERFLOW] = WA_IGNORE;
+				qccwarningaction[WARN_STRICTTYPEMISMATCH] = WA_IGNORE;
+				qccwarningaction[WARN_PARAMWITHNONAME] = WA_IGNORE;
+
+				keyword_asm = false;
+				keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_extern = keyword_shared = keyword_unused = keyword_used = keyword_nonstatic = keyword_ignore = keyword_strip = false;
+				keyword_class = false;
+
+				keyword_vector = keyword_entity = keyword_float = keyword_string = false;	//not to be confused with actual types, but rather the absence of the keyword local.
+				keyword_int = keyword_integer = keyword_struct = keyword_union = keyword_enum = keyword_enumflags = false;
+				keyword_thinktime = keyword_until = keyword_loop = false;
+
+				keyword_wrap = keyword_weak = true;	//wrong, but needed because we don't accept useless function bodies without weak
+
+				keyword_enum = true;
+				keyword_break = keyword_continue = keyword_for = keyword_goto = true;
+				keyword_typedef = true;
+				keyword_switch = keyword_case = keyword_default = true;
+				keyword_const = keyword_var = keyword_static = keyword_noref = true;
+			}
+			else
+				QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised std parameter (%s)", myargv[i]);
 		}
 		else if ( !strnicmp(myargv[i], "-F", 2) || WINDOWSARG(!strnicmp(myargv[i], "/F", 2)) )
 		{
@@ -4137,8 +4203,21 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised warning parameter (%s)", myargv[i]);
 			}
 		}
+		else if ( !strcmp(myargv[i], "-stdout") )
+		{
+		}
+		else if ( !strcmp(myargv[i], "--version") )
+		{
+			printf("%s\n", QCC_VersionString());
+			exit(EXIT_SUCCESS);
+		}
 		else if (*myargv[i] == '-' || WINDOWSARG(*myargv[i] == '/'))
 			QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised parameter (%s)", myargv[i]);
+		else
+		{
+			if (numsourcefiles < MAXSOURCEFILESLIST)
+				strcpy(sourcefileslist[numsourcefiles++], myargv[i]);
+		}
 	}
 
 	if (werror)
@@ -4459,7 +4538,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	MAX_FIELDS		= 1<<12;
 	MAX_STATEMENTS	= 0x80000;
 	MAX_FUNCTIONS	= 16384;
-	maxtypeinfos	= 16384;
+	maxtypeinfos	= 32768;
 	MAX_CONSTANTS	= 4096;
 
 	compressoutput = 0;

@@ -128,7 +128,7 @@ void *PRAddressableExtend(progfuncs_t *progfuncs, void *src, size_t srcsize, int
 		}
 
 		if (prinst.addressableused + ammount > prinst.addressablesize)
-			Sys_Error("Not enough addressable memory for progs VM");
+			Sys_Error("Not enough addressable memory for progs VM (using %gmb)", prinst.addressablesize/(1024.0*1024));
 	}
 
 	prinst.addressableused += ammount;

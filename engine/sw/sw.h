@@ -158,7 +158,7 @@ void SW_VID_UpdateViewport(wqcom_t *com);
 
 
 void		SW_UpdateFiltering		(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
-qboolean	SW_LoadTextureMips		(texid_t tex, struct pendingtextureinfo *mips);
+qboolean	SW_LoadTextureMips		(texid_t tex, const struct pendingtextureinfo *mips);
 void		SW_DestroyTexture		(texid_t tex);
 
 

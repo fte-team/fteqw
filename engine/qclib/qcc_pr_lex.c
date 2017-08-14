@@ -20,6 +20,11 @@ void QCC_FreeDef(QCC_def_t *def);
 
 #define MAXINCLUDEDIRS 8
 char	qccincludedir[MAXINCLUDEDIRS][256];	//the -src path, for #includes
+struct qccincludeonced_s
+{
+	struct qccincludeonced_s *next;
+	char name[1];
+} *qccincludeonced;	//the -src path, for #includes
 
 char *compilingfile;
 
@@ -66,13 +71,13 @@ static void Q_strlcpy(char *dest, const char *src, int sizeofdest)
 
 char	*pr_punctuation[] =
 // longer symbols must be before a shorter partial match
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "|=", "&~=", "&=", "++", "--", "->", "^=", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^", "~", ":", NULL};
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "|=", "&~=", "&=", "++", "--", "->", "^=", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "><", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^^", "^", "~", ":", NULL};
 
 char *pr_punctuationremap[] =	//a nice bit of evilness.
 //(+) -> |=
 //-> -> .
 //(-) -> &~=
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "&=", "++", "--", ".",  "^=", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^", "~", ":", NULL};
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "&=", "++", "--", ".",  "^=", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "><", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^^", "^", "~", ":", NULL};
 
 // simple types.  function types are dynamically allocated
 QCC_type_t	*type_void;				//void
@@ -109,6 +114,7 @@ void QCC_PR_CloseProcessor(void)
 	for (i = 0; i < MAXINCLUDEDIRS; i++)
 		*qccincludedir[i] = 0;
 	currentchunk = NULL;
+	qccincludeonced = NULL;
 }
 void QCC_PR_AddIncludePath(const char *newinc)
 {
@@ -116,10 +122,11 @@ void QCC_PR_AddIncludePath(const char *newinc)
 
 	if (!*newinc)
 	{
-		QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Invalid include path.");
-		return;
+		newinc = ".";
+//		QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Invalid include path.");
+//		return;
 	}
-	
+
 	for (i = 0; i < MAXINCLUDEDIRS; i++)
 	{
 		if (!*qccincludedir[i])
@@ -145,10 +152,23 @@ static void QCC_PR_IncludeChunkEx (char *data, pbool duplicate, char *filename, 
 	currentchunk = chunk;
 
 	chunk->currentdatapoint = pr_file_p;
+	chunk->currentfilename = s_filen;
 	chunk->currentlinenumber = pr_source_line;
 	chunk->cnst = cnst;
 	if( cnst )
 	{
+#if 0
+		s_filen = cnst->fromfile;
+		pr_source_line = cnst->fromline;
+#else
+		int b = strlen(s_filen)+1+8+strlen(cnst->name);
+		char *p;
+		if (b > 128)
+			b = 128;
+		s_filen = p = qccHunkAlloc(b);
+		QC_snprintfz(p, b, "%s:%i:%s", chunk->currentfilename, chunk->currentlinenumber, cnst->name);
+		pr_source_line = 1;
+#endif
 		cnst->inside++;
 	}
 
@@ -159,6 +179,7 @@ static void QCC_PR_IncludeChunkEx (char *data, pbool duplicate, char *filename, 
 	}
 	else
 		pr_file_p = data;
+	chunk->datastart = pr_file_p;
 }
 void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename)
 {
@@ -175,6 +196,7 @@ pbool QCC_PR_UnInclude(void)
 
 	pr_file_p = currentchunk->currentdatapoint;
 	pr_source_line = currentchunk->currentlinenumber;
+	s_filen = currentchunk->currentfilename;
 
 	currentchunk = currentchunk->prev;
 
@@ -187,11 +209,19 @@ static void QCC_Canonicalize(char *fullname, size_t fullnamesize, char *newfile,
 	char *end = fullname;
 	
 	doubledots = 0;
+
 	/*count how far up we need to go*/
-	while(!strncmp(newfile, "../", 3) || !strncmp(newfile, "..\\", 3))
+	while(1)
 	{
-		newfile+=3;
-		doubledots++;
+		if (!strncmp(newfile, "./", 2) || !strncmp(newfile, ".\\", 2))
+			newfile+=2;
+		else if(!strncmp(newfile, "../", 3) || !strncmp(newfile, "..\\", 3))
+		{
+			newfile+=3;
+			doubledots++;
+		}
+		else
+			break;
 	}
 
 	if (base)
@@ -228,6 +258,7 @@ extern char qccmsourcedir[];
 //also meant to include it.
 void QCC_FindBestInclude(char *newfile, char *currentfile, pbool verbose)
 {
+	struct qccincludeonced_s *onced;
 	int includepath = 0;
 	char fullname[1024];
 
@@ -255,6 +286,12 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, pbool verbose)
 			}
 		}
 		break;
+	}
+
+	for(onced = qccincludeonced; onced; onced = onced->next)
+	{
+		if (!strcmp(onced->name, fullname))
+			return;
 	}
 
 	if (verbose)
@@ -1069,6 +1106,19 @@ pbool QCC_PR_Precompiler(void)
 			{
 				ForcedCRC = atoi(msg);
 			}
+			else if (!QC_strcasecmp(qcc_token, "once"))
+			{
+				struct qccincludeonced_s *onced = qccHunkAlloc(sizeof(*onced) + strlen(compilingfile));
+				strcpy(onced->name, compilingfile);
+				onced->next = qccincludeonced;
+				qccincludeonced = onced;
+			}
+			else if (!QC_strcasecmp(qcc_token, "file"))
+			{
+			}
+			else if (!QC_strcasecmp(qcc_token, "line"))
+			{
+			}
 			else if (!QC_strcasecmp(qcc_token, "includedir"))
 			{
 				char newinc[1024];
@@ -1384,37 +1434,37 @@ void QCC_PR_LexString (void)
 			text++;
 			if (fromfile) pr_file_p++;
 		}
-	do
-	{
-		c = *text++;
-		if (fromfile) pr_file_p++;
-		if (!c)
-			QCC_PR_ParseError ("EOF inside quote");
-		if (c=='\n')
-			QCC_PR_ParseError ("newline inside quote");
-		if (c=='\\')
-		{	// escape char
+		do
+		{
 			c = *text++;
 			if (fromfile) pr_file_p++;
 			if (!c)
 				QCC_PR_ParseError ("EOF inside quote");
-			if (c == 'n')
-				c = '\n';
-			else if (c == '"')
-				c = '"';
-			else if (c == '\\')
-				c = '\\';
-			else
-				QCC_PR_ParseError ("Unknown escape char");
-		}
-		else if (c=='\"')
-		{
-			if (fromfile) pr_file_p++;
-			break;
-		}
-		tmpbuf[len] = c;
-		len++;
-	} while (1);
+			if (c=='\n')
+				QCC_PR_ParseError ("newline inside quote");
+			if (c=='\\')
+			{	// escape char
+				c = *text++;
+				if (fromfile) pr_file_p++;
+				if (!c)
+					QCC_PR_ParseError ("EOF inside quote");
+				if (c == 'n')
+					c = '\n';
+				else if (c == '"')
+					c = '"';
+				else if (c == '\\')
+					c = '\\';
+				else
+					QCC_PR_ParseError ("Unknown escape char");
+			}
+			else if (c=='\"')
+			{
+				if (fromfile) pr_file_p++;
+				break;
+			}
+			tmpbuf[len] = c;
+			len++;
+		} while (1);
 		tmpbuf[len] = 0;
 //		if (fromfile) pr_file_p++;
 
@@ -2192,6 +2242,13 @@ void QCC_PR_LexPunctuation (void)
 
 	pr_token_type = tt_punct;
 
+	if (pr_file_p[0] == '*' && pr_file_p[1] == '*' && flag_dblstarexp)
+	{
+		strcpy (pr_token, "**");
+		pr_file_p += 2;
+		return;
+	}
+
 	for (i=0 ; (p = pr_punctuation[i]) != NULL ; i++)
 	{
 		len = strlen(p);
@@ -2207,11 +2264,18 @@ void QCC_PR_LexPunctuation (void)
 		}
 	}
 
-	if ((unsigned char)*pr_file_p == (unsigned char)0xa0)
-		QCC_PR_ParseWarning (ERR_UNKNOWNPUCTUATION, "Unsupported punctuation: '\\x%x' - non-breaking space", (unsigned char)*pr_file_p);
+	if ((unsigned char)*pr_file_p == (unsigned char)'\\' && pr_file_p[1] == '\r' && pr_file_p[2] == '\n')
+		pr_file_p+=3;
+	else if ((unsigned char)*pr_file_p == (unsigned char)'\\' && (pr_file_p[1] == '\r' || pr_file_p[1] == '\n'))
+		pr_file_p+=2;
 	else
-		QCC_PR_ParseWarning (ERR_UNKNOWNPUCTUATION, "Unknown punctuation: '\\x%x'", *pr_file_p);
-	pr_file_p++;
+	{
+		if ((unsigned char)*pr_file_p == (unsigned char)0xa0)
+			QCC_PR_ParseWarning (ERR_UNKNOWNPUCTUATION, "Unsupported punctuation: '\\x%x' - non-breaking space", (unsigned char)*pr_file_p);
+		else
+			QCC_PR_ParseWarning (ERR_UNKNOWNPUCTUATION, "Unknown punctuation: '\\x%x'", *pr_file_p);
+		pr_file_p++;
+	}
 
 	QCC_PR_Lex();
 }
@@ -2742,6 +2806,11 @@ void QCC_PR_PreProcessor_Define(pbool append)
 				{
 					memcpy(cnst->params[cnst->numparams], s, nl);
 					cnst->params[cnst->numparams][nl] = '\0';
+					for (nl = 0; nl < cnst->numparams; nl++)
+					{
+						if (!strcmp(cnst->params[nl], cnst->params[cnst->numparams]))
+							QCC_PR_ParseError(ERR_MACROTOOMANYPARMS, "duplicate macro paramter name '%s'", cnst->params[nl]);
+					}
 					cnst->numparams++;
 				}
 				if (*pr_file_p++ == ')')
@@ -2804,6 +2873,9 @@ void QCC_PR_PreProcessor_Define(pbool append)
 		*d++ = ' ';
 	}
 
+	cnst->fromfile = s_filen;
+	cnst->fromline = pr_source_line;
+
 	while(*s == ' ' || *s == '\t')
 		s++;
 	while(1)
@@ -2859,7 +2931,7 @@ so if present, the preceeding \\\n and following \\\n must become an actual \n i
 					cnst->evil = true;
 					preprocessorhack = true;
 				}
-				else if (preprocessorhack)
+				else// if (preprocessorhack)
 				{
 					*d++ = '\n';
 					preprocessorhack = false;
@@ -2921,6 +2993,7 @@ so if present, the preceeding \\\n and following \\\n must become an actual \n i
 static void QCC_PR_ExpandStrCat(char **buffer, size_t *bufferlen, size_t *buffermax,   char *newdata, size_t newlen)
 {
 	size_t newmax = *bufferlen + newlen;
+
 	if (newmax < *bufferlen)//check for overflow
 	{
 		QCC_PR_ParseWarning(ERR_INTERNAL, "exceeds 4gb");
@@ -2951,6 +3024,75 @@ static void QCC_PR_ExpandStrCat(char **buffer, size_t *bufferlen, size_t *buffer
 	}
 	memcpy(*buffer + *bufferlen, newdata, newlen);
 	*bufferlen += newlen;
+	/*no null terminator, remember to cat one if required*/
+}
+/* *buffer, *bufferlen and *buffermax should be NULL/0 at the start */
+static void QCC_PR_ExpandStrCatMarkup(char **buffer, size_t *bufferlen, size_t *buffermax,   char *newdata, size_t newlen)
+{
+	size_t newmax = *bufferlen + newlen*2;
+
+	if (newmax < *bufferlen)//check for overflow
+	{
+		QCC_PR_ParseWarning(ERR_INTERNAL, "exceeds 4gb");
+		return;
+	}
+	if (newmax > *buffermax)
+	{
+		char *newbuf;
+		if (newmax < 64)
+			newmax = 64;
+		if (newmax < *bufferlen * 2)
+		{
+			newmax = *bufferlen * 2;
+			if (newmax < *bufferlen) /*overflowed?*/
+			{
+				QCC_PR_ParseWarning(ERR_INTERNAL, "exceeds 4gb");
+				return;
+			}
+		}
+		newbuf = realloc(*buffer, newmax);
+		if (!newbuf)
+		{
+			QCC_PR_ParseWarning(ERR_INTERNAL, "out of memory");
+			return; /*OOM*/
+		}
+		*buffer = newbuf;
+		*buffermax = newmax;
+	}
+
+	while (newlen--)
+	{
+		if (*newdata == '\n')
+		{
+			(*buffer)[*bufferlen+0] = '\\';
+			(*buffer)[*bufferlen+1] = '\n';
+			*bufferlen += 2;
+		}
+		else if (*newdata == '\\')
+		{
+			(*buffer)[*bufferlen+0] = '\\';
+			(*buffer)[*bufferlen+1] = '\\';
+			*bufferlen += 2;
+		}
+		else if (*newdata == '\0')
+		{
+			(*buffer)[*bufferlen+0] = '\\';
+			(*buffer)[*bufferlen+1] = '0';
+			*bufferlen += 2;
+		}
+		else if (*newdata == '\"')
+		{
+			(*buffer)[*bufferlen+0] = '\\';
+			(*buffer)[*bufferlen+1] = '\"';
+			*bufferlen += 2;
+		}
+		else
+		{
+			(*buffer)[*bufferlen] = *newdata;
+			*bufferlen += 1;
+		}
+		newdata++;
+	}
 	/*no null terminator, remember to cat one if required*/
 }
 
@@ -3017,7 +3159,8 @@ static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t 
 
 int QCC_PR_CheckCompConst(void)
 {
-	char		*oldpr_file_p = pr_file_p;
+	char		*initial_file_p = pr_file_p;
+	int			initial_line = pr_source_line;
 	int whitestart = 5;
 
 	CompilerConstant_t *c;
@@ -3060,9 +3203,9 @@ int QCC_PR_CheckCompConst(void)
 //	printf("%s\n", pr_token);
 	c = pHash_Get(&compconstantstable, pr_token);
 
-	if (c && !c->inside)
+	if (c && (!currentchunk || currentchunk->cnst != c))	//macros don't expand themselves
 	{
-		pr_file_p = oldpr_file_p+strlen(c->name);
+		pr_file_p = initial_file_p+strlen(c->name);
 		while(*pr_file_p == ' ' || *pr_file_p == '\t')
 			pr_file_p++;
 		if (c->numparams>=0)
@@ -3073,10 +3216,12 @@ int QCC_PR_CheckCompConst(void)
 				char *start;
 				char *starttok;
 				char *buffer;
+				char *argsend;
+				int argsendline;
 				size_t buffermax;
 				size_t bufferlen;
 				char *paramoffset[MAXCONSTANTPARAMS+1];
-				int param=0;
+				int param=0, extraparam=0;
 				int plevel=0;
 				pbool noargexpand;
 
@@ -3097,7 +3242,7 @@ int QCC_PR_CheckCompConst(void)
 					else if (!plevel && (*pr_file_p == ',' || *pr_file_p == ')'))
 					{
 						if (*pr_file_p == ',' && c->varg && param >= c->numparams)
-							;	//skip extra trailing , arguments if we're varging.
+							extraparam++;	//skip extra trailing , arguments if we're varging.
 						else
 						{
 							paramoffset[param++] = start;
@@ -3135,7 +3280,9 @@ int QCC_PR_CheckCompConst(void)
 				bufferlen = 0;
 				buffermax = 0;
 
-				oldpr_file_p = pr_file_p;
+//				QCC_PR_LexWhitespace(false);
+				argsend = pr_file_p;
+				argsendline = pr_source_line;
 				pr_file_p = c->value;
 				for(;;)
 				{
@@ -3187,7 +3334,7 @@ int QCC_PR_CheckCompConst(void)
 								if (!STRCMP(qcc_token, c->params[p]))
 								{
 									QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   "\"", 1);
-									QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   paramoffset[p], strlen(paramoffset[p]));
+									QCC_PR_ExpandStrCatMarkup(&buffer, &bufferlen, &buffermax,   paramoffset[p], strlen(paramoffset[p]));
 									QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   "\"", 1);
 									break;
 								}
@@ -3253,7 +3400,23 @@ int QCC_PR_CheckCompConst(void)
 						}
 					}
 					if (c->varg && !STRCMP(qcc_token, "__VA_ARGS__"))
-						QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   paramoffset[c->numparams], strlen(paramoffset[c->numparams]));
+					{
+						if (param-1 == c->numparams)
+							QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   paramoffset[c->numparams], strlen(paramoffset[c->numparams]));
+						else if (noargexpand)
+						{
+							if(bufferlen>0 && buffer[bufferlen-1] == ',')
+								bufferlen--;
+						}
+					}
+					else if (c->varg && !STRCMP(qcc_token, "__VA_COUNT__"))
+					{
+						char tmp[64];
+						if (param < c->numparams)
+							QCC_PR_ParseError(ERR_TOOFEWPARAMS, "__VA_COUNT__ without any variable args");
+						QC_snprintfz(tmp, sizeof(tmp), "%i", param-1+extraparam);
+						QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   tmp, strlen(tmp));
+					}
 					else if (p == c->numparams)
 						QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   qcc_token, strlen(qcc_token));
 				}
@@ -3262,7 +3425,16 @@ int QCC_PR_CheckCompConst(void)
 					paramoffset[p][strlen(paramoffset[p])] = ',';
 				paramoffset[p][strlen(paramoffset[p])] = ')';
 
-				pr_file_p = oldpr_file_p;
+				if (c->inside>8)
+				{
+					pr_file_p = initial_file_p;
+					pr_source_line = initial_line;
+					free(buffer);
+					return false;
+				}
+
+				pr_file_p = argsend;
+				pr_source_line = argsendline;
 				if (!bufferlen)
 					expandedemptymacro = true;
 				else
@@ -3286,6 +3458,13 @@ int QCC_PR_CheckCompConst(void)
 		}
 		else
 		{
+			if (c->inside >= 8)
+			{
+				pr_file_p = initial_file_p;
+				pr_source_line = initial_line;
+				return false;
+			}
+
 			if (*c->value)
 				QCC_PR_IncludeChunkEx(c->value, false, NULL, c);
 			expandedemptymacro = true;
@@ -3539,8 +3718,25 @@ void QCC_PR_ParsePrintSRef (int type, QCC_sref_t def)
 }
 
 void *errorscope;
+static void QCC_PR_PrintMacro (qcc_includechunk_t *chunk)
+{
+	extern pbool verbose;
+	if (chunk)
+	{
+		QCC_PR_PrintMacro(chunk->prev);
+		if (chunk->cnst)
+		{
+			printf ("%s:%i: expanding %s\n", chunk->currentfilename, chunk->currentlinenumber, chunk->cnst->name);
+			if (verbose)
+				printf ("%s\n", chunk->datastart);
+		}
+		else
+			printf ("%s:%i:\n", chunk->currentfilename, chunk->currentlinenumber);
+	}
+}
 void QCC_PR_PrintScope (void)
 {
+	QCC_PR_PrintMacro(currentchunk);
 	if (pr_scope)
 	{
 		if (errorscope != pr_scope)
@@ -4390,6 +4586,10 @@ For error recovery, also pops out of nested braces
 */
 void QCC_PR_SkipToSemicolon (void)
 {
+	//escape out of any #define
+	while (currentchunk && currentchunk->cnst)
+		QCC_PR_UnInclude();
+
 	do
 	{
 		if (!pr_bracelevel && QCC_PR_CheckToken (";"))
@@ -5519,7 +5719,10 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	if (i == numtypeinfos)
 	{
 		if (!*name)
+		{
+			QCC_PR_ParseError(ERR_NOTANAME, "type missing name");
 			return NULL;
+		}
 
 		//some reacc types...
 		if (!stricmp("Void", name))

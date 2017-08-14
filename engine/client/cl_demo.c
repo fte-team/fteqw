@@ -1980,7 +1980,7 @@ static int QDECL CompleteDemoList (const char *name, qofs_t flags, time_t mtime,
 	ctx->cb(name, ctx);
 	return true;
 }
-void CL_DemoList_c(int argn, char *partial, struct xcommandargcompletioncb_s *ctx)
+void CL_DemoList_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
 {
 	if (argn == 1)
 	{

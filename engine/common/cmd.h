@@ -76,9 +76,9 @@ struct xcommandargcompletioncb_s
 	void(*cb)(const char *arg, struct xcommandargcompletioncb_s *ctx);
 	//private stuff follows.
 };
-typedef void (*xcommandargcompletion_t)(int argn, char *partial, struct xcommandargcompletioncb_s *ctx);
+typedef void (*xcommandargcompletion_t)(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
 
-int Cmd_Level(char *name);
+int Cmd_Level(const char *name);
 void Cmd_EnumerateLevel(int level, char *buf, size_t bufsize);
 
 void	Cmd_Init (void);
@@ -86,10 +86,10 @@ void	Cmd_Shutdown(void);
 void	Cmd_StuffCmds (void);
 
 void	Cmd_RemoveCommands (xcommand_t function);	//unregister all commands that use the same function. for wrappers and stuff.
-void	Cmd_RemoveCommand (char *cmd_name);
-qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function);
-qboolean	Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *description);
-qboolean	Cmd_AddCommandAD (char *cmd_name, xcommand_t function, xcommandargcompletion_t argcomplete, char *description);
+void	Cmd_RemoveCommand (const char *cmd_name);
+qboolean	Cmd_AddCommand (const char *cmd_name, xcommand_t function);
+qboolean	Cmd_AddCommandD (const char *cmd_name, xcommand_t function, const char *description);
+qboolean	Cmd_AddCommandAD (const char *cmd_name, xcommand_t function, xcommandargcompletion_t argcomplete, const char *description);
 // called by the init functions of other parts of the program to
 // register commands and functions to call for them.
 // The cmd_name is referenced later, so it should not be in temp memory
@@ -100,10 +100,10 @@ qboolean Cmd_Exists (const char *cmd_name);
 char *Cmd_AliasExist(const char *name, int restrictionlevel);
 // used by the cvar code to check for cvar / command name overlap
 
-char *Cmd_Describe (char *cmd_name);
+const char *Cmd_Describe (const char *cmd_name);
 
-char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, const char **descptr);
-qboolean Cmd_IsCommand (char *line);
+char *Cmd_CompleteCommand (const char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, const char **descptr);
+qboolean Cmd_IsCommand (const char *line);
 // attempts to match a partial command for automatic command line completion
 // returns NULL if nothing fits
 
@@ -122,7 +122,7 @@ extern cvar_t cmd_gamecodelevel, cmd_allowaccess;
 // functions. Cmd_Argv () will return an empty string, not a NULL
 // if arg > argc, so string operations are always safe.
 
-int Cmd_CheckParm (char *parm);
+int Cmd_CheckParm (const char *parm);
 // Returns the position (1 to argc-1) in the command's argument list
 // where the given parameter apears, or 0 if not present
 
@@ -136,7 +136,7 @@ const char *Cmd_TokenizeString (const char *text, qboolean expandmacros, qboolea
 // Takes a null terminated string.  Does not need to be /n terminated.
 // breaks the string up into arg tokens.
 
-void	Cmd_ExecuteString (char *text, int restrictionlevel);
+void	Cmd_ExecuteString (const char *text, int restrictionlevel);
 
 void Cmd_Args_Set(const char *newargs, size_t len);
 
@@ -170,7 +170,7 @@ void Cmd_MessageTrigger (char *message, int type);
 
 void Cmd_ShiftArgs (int ammount, qboolean expandstring);
 
-char *Cmd_ExpandString (char *data, char *dest, int destlen, int *accesslevel, qboolean expandcvars, qboolean expandmacros);
+char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accesslevel, qboolean expandcvars, qboolean expandmacros);
 qboolean If_EvaluateBoolean(const char *text, int restriction);
 
 extern cvar_t rcon_level;

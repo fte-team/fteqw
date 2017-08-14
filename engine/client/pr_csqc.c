@@ -111,6 +111,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(parse_print,			"CSQC_Parse_Print");	\
 	globalfunction(parse_event,			"CSQC_Parse_Event");	\
 	globalfunction(parse_damage,		"CSQC_Parse_Damage");	\
+	globalfunction(parse_setangles,		"CSQC_Parse_SetAngles");	\
 	globalfunction(input_event,			"CSQC_InputEvent");	\
 	globalfunction(input_frame,			"CSQC_Input_Frame");/*EXT_CSQC_1*/	\
 	globalfunction(rendererrestarted,	"CSQC_RendererRestarted");	\
@@ -509,6 +510,8 @@ csqcextfields
 #undef fieldentity
 #undef fieldstring
 #undef fieldfunction
+
+	PR_RegisterFieldVar(csqcprogs, ev_void, NULL, pr_fixbrokenqccarrays.ival, -1);
 }
 
 static csqcedict_t **csqcent;
@@ -731,7 +734,7 @@ static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars
 
 static void QCBUILTIN PF_cl_cprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *str = PF_VarString(prinst, 0, pr_globals);
+	const char *str = PF_VarString(prinst, 0, pr_globals);
 	if (csqc_playerseat >= 0)
 		SCR_CenterPrint(csqc_playerseat, str, true);
 }
@@ -766,6 +769,8 @@ static float CSQC_PitchScaleForModelIndex(int index)
 		return r_meshpitch.value;	//these are buggy.
 	return 1;
 }
+
+wedict_t *skel_gettaginfo_args (pubprogfuncs_t *prinst, vec3_t axis[3], vec3_t origin, int tagent, int tagnum);
 
 static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 {
@@ -844,6 +849,13 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 			out->scale = 1;
 		else
 			out->scale = in->xv->scale;
+	}
+
+	if (csqc_isdarkplaces && in->xv->tag_entity)
+	{
+		csqcedict_t *p = (csqcedict_t*)skel_gettaginfo_args(csqcprogs, out->axis, out->origin, in->xv->tag_entity, in->xv->tag_index);
+		if (p && (int)p->xv->renderflags & CSQCRF_VIEWMODEL)
+			out->flags |= RF_DEPTHHACK|RF_WEAPONMODEL;
 	}
 
 	ival = in->v->colormap;
@@ -2230,7 +2242,7 @@ static void QCBUILTIN PF_cs_getstati(pubprogfuncs_t *prinst, struct globalvars_s
 		G_FLOAT(OFS_RETURN) = 0;
 		PR_RunWarning(prinst, "invalid stat index");
 	}
-	else if (stnum >= 128 && csqc_isdarkplaces)
+	else if (stnum >= 128 && csqc_isdarkplaces && cls.protocol != CP_NETQUAKE && !CPNQ_IS_DP)
 	{	//dpp7 stats are fucked.
 		G_FLOAT(OFS_RETURN) = csqc_playerview->statsf[stnum];
 		csqc_deprecated("hacked stat type");
@@ -2259,7 +2271,7 @@ static void QCBUILTIN PF_cs_getstatbits(pubprogfuncs_t *prinst, struct globalvar
 			count = 1;
 		G_FLOAT(OFS_RETURN) = (((unsigned int)val)&(((1<<count)-1)<<first))>>first;
 	}
-	else if (csqc_isdarkplaces)
+	else if (csqc_isdarkplaces && cls.protocol != CP_NETQUAKE && !CPNQ_IS_DP)
 	{
 		G_FLOAT(OFS_RETURN) = (int)csqc_playerview->statsf[stnum];	//stupid. mods like xonotic end up with an ugly hud if they're actually given any precision
 		if (G_FLOAT(OFS_RETURN) != csqc_playerview->statsf[stnum])
@@ -2657,6 +2669,8 @@ static void QCBUILTIN PF_cs_precachefile(pubprogfuncs_t *prinst, struct globalva
 static void QCBUILTIN PF_cs_PrecacheSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *soundname = PR_GetStringOfs(prinst, OFS_PARM0);
+	if (!*soundname)	//invalid
+		return;
 	Sound_CheckDownload(soundname);
 	S_PrecacheSound(soundname);
 }
@@ -2829,7 +2843,7 @@ static void QCBUILTIN PF_ReadPicture(pubprogfuncs_t *prinst, struct globalvars_s
 
 static void QCBUILTIN PF_objerror (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*s;
+	const char	*s;
 	struct edict_s	*ed;
 
 	s = PF_VarString(prinst, 0, pr_globals);
@@ -3524,6 +3538,13 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 		else
 			sprintf(ret, "'%g %g %g'", ((col&0xff0000)>>16)/255.0, ((col&0x00ff00)>>8)/255.0, ((col&0x0000ff)>>0)/255.0);
 	}
+#ifndef NOLEGACY
+	else if (csqc_isdarkplaces && !strcmp(keyname, "colors"))	//checks to see if a player has locally been set to ignored (for text chat)
+	{
+		ret = buffer;
+		sprintf(ret, "%i", cl.players[pnum].ttopcolor + cl.players[pnum].tbottomcolor*16);
+	}
+#endif
 	else if (!strcmp(keyname, "ignored"))	//checks to see if a player has locally been set to ignored (for text chat)
 	{
 		ret = buffer;
@@ -3559,7 +3580,7 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 //string(string keyname)
 static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *keyname = PF_VarString(prinst, 0, pr_globals);
+	const char *keyname = PF_VarString(prinst, 0, pr_globals);
 	const char *ret = PF_cs_serverkey_internal(keyname);
 	if (*ret)
 		RETURN_TSTRING(ret);
@@ -3902,94 +3923,6 @@ static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct global
 	}
 
 	VectorScale(cl_lightstyle[stnum].colours, value*(1.0/256), G_VECTOR(OFS_RETURN));
-}
-
-//entity(string field, float match) findchainflags = #450
-//chained search for float, int, and entity reference fields
-static void QCBUILTIN PF_cs_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i, f;
-	int s;
-	csqcedict_t	*ent, *chain;
-
-	chain = (csqcedict_t *) *prinst->parms->sv_edicts;
-
-	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
-	s = G_FLOAT(OFS_PARM1);
-
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
-	{
-		ent = (csqcedict_t*)EDICT_NUM(prinst, i);
-		if (ED_ISFREE(ent))
-			continue;
-		if (!((int)((float *)ent->v)[f] & s))
-			continue;
-
-		ent->v->chain = EDICT_TO_PROG(prinst, (edict_t*)chain);
-		chain = ent;
-	}
-
-	RETURN_EDICT(prinst, (edict_t*)chain);
-}
-
-//entity(string field, float match) findchainfloat = #403
-static void QCBUILTIN PF_cs_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i, f;
-	float s;
-	csqcedict_t	*ent, *chain;
-
-	chain = (csqcedict_t *) *prinst->parms->sv_edicts;
-
-	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
-	s = G_FLOAT(OFS_PARM1);
-
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
-	{
-		ent = (csqcedict_t*)EDICT_NUM(prinst, i);
-		if (ED_ISFREE(ent))
-			continue;
-		if (((float *)ent->v)[f] != s)
-			continue;
-
-		ent->v->chain = EDICT_TO_PROG(prinst, (edict_t*)chain);
-		chain = ent;
-	}
-
-	RETURN_EDICT(prinst, (edict_t*)chain);
-}
-
-
-//entity(string field, string match) findchain = #402
-//chained search for strings in entity fields
-static void QCBUILTIN PF_cs_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i, f;
-	const char *s;
-	string_t t;
-	csqcedict_t *ent, *chain;
-
-	chain = (csqcedict_t *) *prinst->parms->sv_edicts;
-
-	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
-	s = PR_GetStringOfs(prinst, OFS_PARM1);
-
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
-	{
-		ent = (csqcedict_t*)EDICT_NUM(prinst, i);
-		if (ED_ISFREE(ent))
-			continue;
-		t = *(string_t *)&((float*)ent->v)[f];
-		if (!t)
-			continue;
-		if (strcmp(PR_GetString(prinst, t), s))
-			continue;
-
-		ent->v->chain = EDICT_TO_PROG(prinst, (edict_t*)chain);
-		chain = ent;
-	}
-
-	RETURN_EDICT(prinst, (edict_t*)chain);
 }
 
 static void QCBUILTIN PF_cl_te_gunshot (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4598,7 +4531,7 @@ static void CS_ConsoleCommand_f(void)
 }
 static void QCBUILTIN PF_cs_registercommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *str = PF_VarString(prinst, 0, pr_globals);
+	const char *str = PF_VarString(prinst, 0, pr_globals);
 	if (!Cmd_Exists(str))
 		Cmd_AddCommand(str, CS_ConsoleCommand_f);
 }
@@ -5386,9 +5319,16 @@ static void QCBUILTIN PF_cs_getplayerstat(pubprogfuncs_t *prinst, struct globalv
 
 
 static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
+{	//this function is essentially an overcomplicated way to shirk from defining your own view bobbing.
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
-	Con_DPrintf("Warning: V_CalcRefdef (builtin 640) not implemented.\n");
+	enum
+	{
+		TELEPORTED,
+		JUMPING,
+		DEAD,
+		INTERMISSION
+	} flags = G_FLOAT(OFS_PARM1);
+	csqc_deprecated("V_CalcRefdef is so lame. man up and define your own behaviour.\n");
 //	if (ent->xv->entnum >= 1 && ent->xv->entnum <= MAX_CLIENTS)
 //		CSQC_ChangeLocalPlayer(ent->xv->entnum-1);
 
@@ -6122,8 +6062,8 @@ static struct {
 //400
 	{"copyentity",				PF_copyentity,				400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
 	{"setcolors",				PF_NoCSQC,					401},	// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
-	{"findchain",				PF_cs_findchain,			402},	// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
-	{"findchainfloat",			PF_cs_findchainfloat,		403},	// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
+	{"findchain",				PF_findchain,				402},	// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
+	{"findchainfloat",			PF_findchainfloat,			403},	// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
 	{"effect",					PF_cl_effect,				404},		// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
 
 	{"te_blood",				PF_cl_te_blooddp,			405},	// #405 void(vector org, vector velocity, float howmany) te_blood (DP_TE_BLOOD)
@@ -6182,7 +6122,7 @@ static struct {
 	{"cvar_string",				PF_cvar_string,		448},		// #448 string(float n) cvar_string (DP_QC_CVAR_STRING)
 	{"findflags",				PF_FindFlags,		449},		// #449 entity(entity start, .entity fld, float match) findflags (DP_QC_FINDFLAGS)
 
-	{"findchainflags",			PF_cs_findchainflags,	450},		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
+	{"findchainflags",			PF_findchainflags,	450},		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
 	{"gettagindex",				PF_gettagindex,		451},		// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
 	{"gettaginfo",				PF_gettaginfo,		452},		// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
 	{"dropclient",				PF_NoCSQC,			453},		// #453 void(entity player) dropclient (DP_SV_BOTCLIENT) (don't implement)
@@ -6366,7 +6306,7 @@ static struct {
 	{"getextresponse",			PF_cl_getextresponse,		624},
 #endif
 	{"netaddress_resolve",		PF_netaddress_resolve,		625},
-
+	{"getgamedirinfo",			PF_cl_getgamedirinfo,		626},
 	{"sprintf",					PF_sprintf,					627},
 	{"getsurfacenumtriangles",	PF_getsurfacenumtriangles,628},
 	{"getsurfacetriangle",		PF_getsurfacetriangle,		629},
@@ -7130,6 +7070,15 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 			G_FLOAT(OFS_PARM2) = version_number();
 			PR_ExecuteProgram(csqcprogs, csqcg.init_function);
 		}
+/*
+		{
+			char *watchname = "something";
+			void *dbg = PR_FindGlobal(csqcprogs, watchname, 0, NULL);
+			if (!csqcprogs->SetWatchPoint(csqcprogs, watchname))
+				Con_Printf("Unable to watch %s\n", watchname);
+		}
+*/
+//		csqcprogs->ToggleBreak(csqcprogs, "something", 0, 2);
 
 		Con_DPrintf("Loaded csqc\n");
 		csqcmapentitydataloaded = false;
@@ -7782,7 +7731,7 @@ qboolean CSQC_ConsoleLink(char *text, char *info)
 	return G_FLOAT(OFS_RETURN);
 }
 
-qboolean CSQC_ConsoleCommand(char *cmd)
+qboolean CSQC_ConsoleCommand(const char *cmd)
 {
 	void *pr_globals;
 	if (!csqcprogs || !csqcg.console_command)
@@ -7898,11 +7847,13 @@ qboolean CSQC_LoadResource(char *resname, char *restype)
 	return !!G_FLOAT(OFS_RETURN);
 }
 
-qboolean CSQC_Parse_Damage(float save, float take, vec3_t source)
+qboolean CSQC_Parse_Damage(int seat, float save, float take, vec3_t source)
 {
 	void *pr_globals;
 	if (!csqcprogs || !csqcg.parse_damage)
 		return false;
+
+	CSQC_ChangeLocalPlayer(seat);
 	
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	((float *)pr_globals)[OFS_PARM0] = save;
@@ -7994,13 +7945,13 @@ qboolean CSQC_StuffCmd(int lplayernum, char *cmd, char *cmdend)
 	PR_ExecuteProgram (csqcprogs, csqcg.parse_stuffcmd);
 	return true;
 }
-qboolean CSQC_CenterPrint(int lplayernum, char *cmd)
+qboolean CSQC_CenterPrint(int seat, const char *cmd)
 {
 	void *pr_globals;
 	if (!csqcprogs || !csqcg.parse_centerprint)
 		return false;
 
-	CSQC_ChangeLocalPlayer(lplayernum);
+	CSQC_ChangeLocalPlayer(seat);
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, cmd));
@@ -8009,12 +7960,30 @@ qboolean CSQC_CenterPrint(int lplayernum, char *cmd)
 	return G_FLOAT(OFS_RETURN) || csqc_isdarkplaces;
 }
 
-void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd)
+qboolean CSQC_Parse_SetAngles(int seat, vec3_t newangles, qboolean wasdelta)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.parse_setangles)
+		return false;
+
+	CSQC_ChangeLocalPlayer(seat);
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	((float *)pr_globals)[OFS_PARM0+0] = newangles[0];
+	((float *)pr_globals)[OFS_PARM0+1] = newangles[1];
+	((float *)pr_globals)[OFS_PARM0+2] = newangles[2];
+	((float *)pr_globals)[OFS_PARM1] = wasdelta;
+
+	PR_ExecuteProgram (csqcprogs, csqcg.parse_setangles);
+	return G_FLOAT(OFS_RETURN);
+}
+
+void CSQC_Input_Frame(int seat, usercmd_t *cmd)
 {
 	if (!csqcprogs || !csqcg.input_frame)
 		return;
 
-	CSQC_ChangeLocalPlayer(lplayernum);
+	CSQC_ChangeLocalPlayer(seat);
 
 	if (csqcg.simtime)
 		*csqcg.simtime = cl.servertime;

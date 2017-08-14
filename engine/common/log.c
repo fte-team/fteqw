@@ -61,7 +61,7 @@ static void QDECL Log_Name_Callback (struct cvar_s *var, char *oldvalue)
 }
 
 // Con_Log: log string to console log
-void Log_String (logtype_t lognum, char *s)
+void Log_String (logtype_t lognum, const char *s)
 {
 	vfsfile_t *fi;
 	char *d; // directory
@@ -226,7 +226,7 @@ void Log_String (logtype_t lognum, char *s)
 	}
 }
 
-void Con_Log (char *s)
+void Con_Log (const char *s)
 {
 	Log_String(LOG_CONSOLE, s);
 }

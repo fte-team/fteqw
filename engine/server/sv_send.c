@@ -411,6 +411,52 @@ void SV_StuffcmdToClient(client_t *cl, const char *string)
 		break;
 	}
 }
+void SV_StuffcmdToClient_Unreliable(client_t *cl, const char *string)
+{
+	switch (cl->protocol)
+	{
+	case SCP_BAD:	//bot
+		break;
+	case SCP_QUAKE2:
+#ifdef Q2SERVER
+		ClientReliableWrite_Begin (cl, svcq2_stufftext, strlen(string)+3);
+		ClientReliableWrite_String (cl, string);
+#endif
+		break;
+	case SCP_QUAKE3:
+		break;
+	case SCP_QUAKEWORLD:
+	case SCP_DARKPLACES6:
+	case SCP_DARKPLACES7:
+	case SCP_NETQUAKE:
+	case SCP_BJP3:
+	case SCP_FITZ666:
+		if (cl->controller)
+		{	//this is a slave client.
+			//find the right number and send.
+			int pnum = 0;
+			client_t *sp;
+			for (sp = cl->controller; sp; sp = sp->controlled)
+			{
+				if (sp == cl)
+					break;
+				pnum++;
+			}
+			sp = cl->controller;
+
+			MSG_WriteByte (&sp->datagram, svcfte_choosesplitclient);
+			MSG_WriteByte (&sp->datagram, pnum);
+			MSG_WriteByte (&sp->datagram, svc_stufftext);
+			MSG_WriteString (&sp->datagram, string);
+		}
+		else
+		{
+			MSG_WriteByte(&cl->datagram, svc_stufftext);
+			MSG_WriteString(&cl->datagram, string);
+		}
+		break;
+	}
+}
 
 
 /*
@@ -1613,6 +1659,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	}
 	else if (ent->v->fixangle)
 	{
+		int fix = ent->v->fixangle;
 		if (!client->lockangles)
 		{
 			//try to keep them vaugely reliable.
@@ -1625,7 +1672,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 			MSG_WriteByte(msg, svcfte_choosesplitclient);
 			MSG_WriteByte(msg, pnum);
 		}
-		if (!client->lockangles && (controller->fteprotocolextensions2 & PEXT2_SETANGLEDELTA) && controller->delta_sequence != -1 && !client->viewent)
+		if (((!client->lockangles && fix!=3) || fix==2) && (controller->fteprotocolextensions2 & PEXT2_SETANGLEDELTA) && controller->delta_sequence != -1 && !client->viewent)
 		{
 			MSG_WriteByte (msg, svcfte_setangledelta);
 			for (i=0 ; i < 3 ; i++)
@@ -1989,7 +2036,7 @@ typedef struct {
 } qcstat_t;
 qcstat_t qcstats[MAX_CL_STATS];
 int numqcstats;
-void SV_QCStatEval(int type, char *name, evalc_t *field, eval_t *global, int statnum)
+void SV_QCStatEval(int type, const char *name, evalc_t *field, eval_t *global, int statnum)
 {
 	int i;
 	if (numqcstats == sizeof(qcstats)/sizeof(qcstats[0]))
@@ -2023,7 +2070,7 @@ void SV_QCStatEval(int type, char *name, evalc_t *field, eval_t *global, int sta
 		memcpy(&qcstats[i].eval.c, field, sizeof(evalc_t));
 }
 
-void SV_QCStatGlobal(int type, char *globalname, int statnum)
+void SV_QCStatGlobal(int type, const char *globalname, int statnum)
 {
 	eval_t *glob;
 
@@ -2259,7 +2306,7 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 	SV_CalcClientStats(client, statsi, statsf, statss);
 
 	m = MAX_QW_STATS;
-	if (client->fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC))
+	if ((client->fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC)) || client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
 		m = MAX_CL_STATS;
 
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
@@ -2566,6 +2613,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 {
 	qbyte		buf[MAX_OVERALLMSGLEN];
 	sizebuf_t	msg;
+	size_t		clientlimit;
 	unsigned int sentbytes;
 	unsigned int outframeseq = client->netchan.incoming_sequence;	//this is so weird... but at least covers nq/qw sequence vs unreliables weirdness...
 
@@ -2589,13 +2637,14 @@ qboolean SV_SendClientDatagram (client_t *client)
 	}
 
 	if (client->netchan.fragmentsize)
-		msg.maxsize = client->netchan.fragmentsize;	//try not to overflow
+		clientlimit = client->netchan.fragmentsize;	//try not to overflow
 	else if (client->protocol == SCP_NETQUAKE)
-		msg.maxsize = MAX_NQDATAGRAM;				//vanilla client is limited.
+		clientlimit = MAX_NQDATAGRAM;				//vanilla client is limited.
 	else
-		msg.maxsize = MAX_DATAGRAM;			//udp limit, ish.
-	if (msg.maxsize > countof(buf))
-		msg.maxsize = countof(buf);
+		clientlimit = MAX_DATAGRAM;			//udp limit, ish.
+	if (clientlimit > countof(buf))
+		clientlimit = countof(buf);
+	msg.maxsize = clientlimit - client->datagram.cursize;
 
 	if (sv.world.worldmodel && !client->controller)
 	{
@@ -2638,7 +2687,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 
 	// copy the accumulated multicast datagram
 	// for this client out to the message
-	if (!client->datagram.overflowed && msg.cursize + client->datagram.cursize <= msg.maxsize)
+	if (!client->datagram.overflowed && msg.cursize + client->datagram.cursize <= clientlimit)
 	{
 		SZ_Write (&msg, client->datagram.data, client->datagram.cursize);
 		SZ_Clear (&client->datagram);

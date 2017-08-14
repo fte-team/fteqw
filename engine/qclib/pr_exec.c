@@ -362,7 +362,7 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 	const mfunction_t	*f;
 	int			i;
 	int progs;
-	int arg;
+	int ofs;
 	int *globalbase;
 	int tracing = progfuncs->funcs.debug_trace;
 	progs = -1;
@@ -414,19 +414,39 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 			//locals:2 = ALL locals.
 			if ((i == pr_depth && showlocals == 1) || showlocals >= 2)
 			{
-				for (arg = 0; arg < f->locals; arg++)
+				for (ofs = 0; ofs < f->locals; ofs++)
 				{
 					ddef16_t *local;
-					local = ED_GlobalAtOfs16(progfuncs, f->parm_start+arg);
+					local = ED_GlobalAtOfs16(progfuncs, f->parm_start+ofs);
 					if (!local)
 					{
-						//printf("    ofs %i: %f : %i\n", f->parm_start+arg, *(float *)(globalbase - f->locals+arg), *(int *)(globalbase - f->locals+arg) );
+						int arg, aofs;
+						for (arg = 0, aofs = 0; arg < f->numparms; arg++)
+						{
+							if (ofs >= aofs && ofs < aofs + f->parm_size[arg])
+								break;
+							aofs += f->parm_size[arg];
+						}
+						if (arg < f->numparms)
+						{
+							if (f->parm_size[arg] == 3)
+							{	//looks like a vector. print it as such
+								printf("    arg%i(%i): [%g, %g, %g]\n", arg, f->parm_start+ofs, *(float *)(globalbase+ofs), *(float *)(globalbase+ofs+1), *(float *)(globalbase+ofs+2));
+								ofs += 2;
+							}
+							else
+								printf("    arg%i(%i): %g===%i\n", arg, f->parm_start+ofs, *(float *)(globalbase+ofs), *(int *)(globalbase+ofs) );
+						}
+						else
+						{
+							printf("     unk(%i): %g===%i\n", f->parm_start+ofs, *(float *)(globalbase+ofs), *(int *)(globalbase+ofs) );
+						}
 					}
 					else
 					{
-						printf("    %s: %s\n", local->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase+arg), false));
+						printf("    %s: %s\n", local->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase+ofs), false));
 						if (local->type == ev_vector)
-							arg+=2;
+							ofs+=2;
 					}
 				}
 			}
@@ -778,7 +798,7 @@ pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *ppf, char *key)
 	prinst.watch_name = strdup(key);
 	prinst.watch_ptr = val;
 	prinst.watch_old = *prinst.watch_ptr;
-	prinst.watch_type = type;
+	prinst.watch_type = type &~ DEF_SAVEGLOBAL;
 	return true;
 }
 
@@ -1523,6 +1543,20 @@ static casecmprange_t casecmprange[] =
 		return -1;								\
 	}
 
+#if defined(FTE_TARGET_WEB) || defined(SIMPLE_QCVM)
+static int PR_NoDebugVM(progfuncs_t *fte_restrict progfuncs)
+{
+	char stack[4*1024];
+	int ofs;
+	strcpy(stack, "This platform does not support QC debugging\nStack Trace:");
+	ofs = strlen(stack);
+	PR_SaveCallStack (progfuncs, stack, &ofs, sizeof(stack));
+	PR_RunError (&progfuncs->funcs, stack);
+	free(stack);
+	return -1;
+}
+#endif
+
 static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *fte_restrict runaway)
 {
 	unsigned int switchcomparison = 0;
@@ -1552,14 +1586,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 		reeval16:
 		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
 		pr_xstatement = st-pr_statements16;
-		char *stack = malloc(4*1024);	//this'll leak, but whatever, we're dead anyway.
-		int ofs;
-		strcpy(stack, "This platform does not support QC debugging\nStack Trace:");
-		ofs = strlen(stack);
-		PR_SaveCallStack (progfuncs, stack, &ofs, 4*1024);
-		PR_RunError (&progfuncs->funcs, stack);
-		free(stack);
-		return -1;
+		return PR_NoDebugVM(progfuncs);
 #else
 		#define DEBUGABLE
 		#ifdef SEPARATEINCLUDES

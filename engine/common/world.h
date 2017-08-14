@@ -120,15 +120,16 @@ typedef struct q2trace_s
 
 
 #define	MOVE_NORMAL		0
-#define	MOVE_NOMONSTERS	1
-#define	MOVE_MISSILE	2
-#define	MOVE_HITMODEL	4
-#define MOVE_RESERVED	8			//so we are less likly to get into tricky situations when we want to steal annother future DP extension.
-#define MOVE_TRIGGERS	16			//triggers must be marked with FINDABLE_NONSOLID	(an alternative to solid-corpse)
-#define MOVE_EVERYTHING	32			//can return triggers and non-solid items if they're marked with FINDABLE_NONSOLID (works even if the items are not properly linked)
-#define MOVE_LAGGED		64			//trace touches current last-known-state, instead of actual ents (just affects players for now)
-#define MOVE_ENTCHAIN	128			//chain of impacted ents, otherwise result shows only world
-#define MOVE_OTHERONLY	256			//test the trace against a single entity, ignoring non-solid/owner/etc flags (but respecting contents).
+#define	MOVE_NOMONSTERS	(1<<0)
+#define	MOVE_MISSILE	(1<<1)
+#define MOVE_WORLDONLY	(MOVE_NOMONSTERS|MOVE_MISSILE)
+#define	MOVE_HITMODEL	(1<<2)
+#define MOVE_RESERVED	(1<<3)			//so we are less likly to get into tricky situations when we want to steal annother future DP extension.
+#define MOVE_TRIGGERS	(1<<4)			//triggers must be marked with FINDABLE_NONSOLID	(an alternative to solid-corpse)
+#define MOVE_EVERYTHING	(1<<5)			//can return triggers and non-solid items if they're marked with FINDABLE_NONSOLID (works even if the items are not properly linked)
+#define MOVE_LAGGED		(1<<6)			//trace touches current last-known-state, instead of actual ents (just affects players for now)
+#define MOVE_ENTCHAIN	(1<<7)			//chain of impacted ents, otherwise result shows only world
+#define MOVE_OTHERONLY	(1<<8)			//test the trace against a single entity, ignoring non-solid/owner/etc flags (but respecting contents).
 #define MOVE_IGNOREHULL	(1u<<31)	//used on tracelines etc to simplify the code a little
 
 typedef struct areanode_s

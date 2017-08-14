@@ -235,6 +235,7 @@ void QC_InitShares(progfuncs_t *progfuncs);
 void QC_StartShares(progfuncs_t *progfuncs);
 void PDECL QC_AddSharedVar(pubprogfuncs_t *progfuncs, int num, int type);
 void PDECL QC_AddSharedFieldVar(pubprogfuncs_t *progfuncs, int num, char *stringtable);
+void QC_AddFieldGlobal(pubprogfuncs_t *ppf, int *globdata);
 int PDECL QC_RegisterFieldVar(pubprogfuncs_t *progfuncs, unsigned int type, char *name, signed long requestedpos, signed long originalofs);
 pbool PDECL QC_Decompile(pubprogfuncs_t *progfuncs, char *fname);
 int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *progfuncs, char *filename, int linenum, int flag);

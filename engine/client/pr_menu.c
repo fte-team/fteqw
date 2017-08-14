@@ -320,6 +320,7 @@ void CL_LoadFont_f(void)
 		char *slotname = Cmd_Argv(1);
 		char *facename = Cmd_Argv(2);
 		int sizenum = 3;
+		extern cvar_t dpcompat_console, gl_font;
 
 		//loadfont slot face size1 size2...
 
@@ -386,6 +387,9 @@ void CL_LoadFont_f(void)
 				fontslot[slotnum].sizes++;
 			}
 		}
+
+		if (dpcompat_console.ival)
+			Cvar_Set(&gl_font, facename);
 	}
 }
 
@@ -479,6 +483,12 @@ void QCBUILTIN PF_CL_stringwidth(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	const char *text = PR_GetStringOfs(prinst, OFS_PARM0);
 	int usecolours = G_FLOAT(OFS_PARM1);
 	float *size = (prinst->callargc > 2)?G_VECTOR(OFS_PARM2):NULL;
+
+	if (!qrenderer)
+	{
+		G_FLOAT(OFS_RETURN) = 0;
+		return;
+	}
 
 	end = COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), !usecolours);
 
@@ -1260,7 +1270,7 @@ static void QCBUILTIN PF_menu_cvar_string (pubprogfuncs_t *prinst, struct global
 
 void QCBUILTIN PF_nonfatalobjerror (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*s;
+	const char	*s;
 	struct edict_s	*ed;
 	eval_t *selfp;
 
@@ -1921,7 +1931,7 @@ void QCBUILTIN PF_R_GetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 static void QCBUILTIN PF_menu_cprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *str = PF_VarString(prinst, 0, pr_globals);
+	const char *str = PF_VarString(prinst, 0, pr_globals);
 	SCR_CenterPrint(0, str, true);
 }
 static void QCBUILTIN PF_cl_changelevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1963,7 +1973,7 @@ static void MP_ConsoleCommand_f(void)
 }
 static void QCBUILTIN PF_menu_registercommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *str = PF_VarString(prinst, 0, pr_globals);
+	const char *str = PF_VarString(prinst, 0, pr_globals);
 	if (!Cmd_Exists(str))
 		Cmd_AddCommand(str, MP_ConsoleCommand_f);
 }
@@ -2279,7 +2289,7 @@ static struct {
 	{"getextresponse",			PF_cl_getextresponse,		624},
 #endif
 	{"netaddress_resolve",		PF_netaddress_resolve,		625},
-															//gap
+	{"getgamedirinfo",			PF_cl_getgamedirinfo,		626},
 	{"sprintf",					PF_sprintf,					627},
 															//gap
 	{"setkeybind",				PF_Fixme,					630},
@@ -2297,7 +2307,7 @@ static struct {
 static builtin_t menu_builtins[1024];
 
 
-int MP_BuiltinValid(char *name, int num)
+int MP_BuiltinValid(const char *name, int num)
 {
 	int i;
 	for (i = 0; BuiltinList[i].name; i++)
@@ -2620,7 +2630,7 @@ static void MP_GameCommand_f(void)
 	inmenuprogs--;
 }
 
-qboolean MP_ConsoleCommand(char *cmdtext)
+qboolean MP_ConsoleCommand(const char *cmdtext)
 {
 	void *pr_globals;
 	if (!menu_world.progs)
@@ -2739,6 +2749,7 @@ void MP_Draw(void)
 	((float *)pr_globals)[OFS_PARM0+0] = vid.width;
 	((float *)pr_globals)[OFS_PARM0+1] = vid.height;
 	((float *)pr_globals)[OFS_PARM0+2] = 0;
+	((float *)pr_globals)[OFS_PARM1+0] = vid.height;	//dp compat, ish
 	if (mp_drawloading_function && (scr_drawloading||scr_disabled_for_loading))
 	{
 		((float *)pr_globals)[OFS_PARM1] = scr_disabled_for_loading;

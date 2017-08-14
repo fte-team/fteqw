@@ -67,9 +67,6 @@ cvar_t	pr_ssqc_memsize = CVARD("pr_ssqc_memsize", "-1", "The ammount of memory a
 /*cvars purely for compat with others*/
 cvar_t	pr_imitatemvdsv = CVARFD("pr_imitatemvdsv", "0", CVAR_LATCH, "Enables mvdsv-specific builtins, and fakes identifiers so that mods made for mvdsv can run properly and with the full feature set.");
 
-/*compat with frikqcc's arrays (ensures that unknown fields are at the same offsets*/
-cvar_t	pr_fixbrokenqccarrays = CVARFD("pr_fixbrokenqccarrays", "0", CVAR_LATCH, "When set, ensures that fields are not relocated unless remapped, working around stripped/immediate field offsets. This results in higher memory usage, but may be needed for compat with certain mods, namely ktpro.");
-
 /*other stuff*/
 cvar_t	pr_maxedicts = CVARAFD("pr_maxedicts", "32768", "max_edicts", CVAR_LATCH, "Maximum number of entities spawnable on the map at once. Low values will crash the server on some maps/mods. High values will result in excessive memory useage (see pr_ssqc_memsize). Illegible server messages may occur with old/other clients above 32k. FTE's network protocols have a maximum at a little over 4 million. Please don't ever make a mod that actually uses that many...");
 
@@ -795,6 +792,12 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalint		(false, trace_surface_id);
 	globalint		(false, trace_bone_id);
 	globalint		(false, trace_triangle_id);
+#ifndef NOLEGACY
+	globalstring	(false, trace_dphittexturename);
+	globalfloat		(false, trace_dpstartcontents);
+	globalfloat		(false, trace_dphitcontents);
+	globalfloat		(false, trace_dphitq3surfaceflags);
+#endif
 	globalfloat		(false, cycle_wrapped);
 	globalint		(false, msg_entity);
 	globalfunc		(false, main);
@@ -1379,7 +1382,6 @@ void PR_Init(void)
 #endif
 */
 	Cvar_Register(&pr_imitatemvdsv, cvargroup_progs);
-	Cvar_Register(&pr_fixbrokenqccarrays, cvargroup_progs);
 
 	Cvar_Register(&pr_maxedicts, cvargroup_progs);
 	Cvar_Register(&pr_no_playerphysics, cvargroup_progs);
@@ -1476,7 +1478,11 @@ struct spawnents_s
 {
 	int killonspawnflags;
 	eval_t *fulldata;
-	func_t CheckSpawn;
+	qboolean foundfuncs;
+	func_t CheckSpawn;	//fte's alternative to spawn functions.
+	func_t SV_OnEntityPreSpawnFunction;		//dp's more clumsy crap
+	func_t SV_OnEntityNoSpawnFunction;	//dp's more clumsy crap
+	func_t SV_OnEntityPostSpawnFunction;	//dp's more clumsy crap
 	const char *spawnwarned[32];
 };
 static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edict_s *ed, void *vctx, const char *start, const char *end)
@@ -1492,8 +1498,23 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 		return;
 	}
 
-	if (!ctx->CheckSpawn)
+	if (!ctx->foundfuncs)
+	{
+		ctx->foundfuncs = true;
 		ctx->CheckSpawn = PR_FindFunction(progfuncs, "CheckSpawn", -2);
+		ctx->SV_OnEntityPreSpawnFunction = PR_FindFunction(progfuncs, "SV_OnEntityPreSpawnFunction", -2);
+		ctx->SV_OnEntityNoSpawnFunction = PR_FindFunction(progfuncs, "SV_OnEntityNoSpawnFunction", -2);
+		ctx->SV_OnEntityPostSpawnFunction = PR_FindFunction(progfuncs, "SV_OnEntityPostSpawnFunction", -2);
+	}
+
+	if (ctx->SV_OnEntityPreSpawnFunction)
+	{
+		void *pr_globals = PR_globals(progfuncs, PR_CURRENT);
+		*sv.world.g.self = EDICT_TO_PROG(progfuncs, ed);
+		PR_ExecuteProgram(progfuncs, ctx->SV_OnEntityPreSpawnFunction);
+		if (ed->ereftype == ER_FREE)
+			return;
+	}
 
 	eclassname = PR_GetString(progfuncs, ed->v->classname);
 	if (!*eclassname)
@@ -1538,6 +1559,8 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 		f = PR_FindFunction(progfuncs, spawnfuncname, PR_ANYBACK);
 		if (!f)
 			f = PR_FindFunction(progfuncs, eclassname, PR_ANYBACK);
+		if (!f)
+			f = ctx->SV_OnEntityNoSpawnFunction;
 		if (f)
 		{
 			if (ctx->CheckSpawn)
@@ -1548,7 +1571,16 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 				//call the spawn func or remove.
 			}
 			else
+			{
+				if (developer.value)
+				{
+					int argcount;
+					progfuncs->GetFunctionInfo(progfuncs, f, &argcount, NULL, spawnfuncname, sizeof(spawnfuncname));
+					if (argcount != 0)
+						Con_Printf("Spawn function %s defined with unsatisfied arguments\n", spawnfuncname);
+				}
 				PR_ExecuteProgram(progfuncs, f);
+			}
 		}
 		else if (ctx->CheckSpawn)
 		{
@@ -1577,6 +1609,15 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 				}
 			ED_Free(progfuncs, ed);
 		}
+	}
+
+	if (ctx->SV_OnEntityPostSpawnFunction)
+	{
+		void *pr_globals = PR_globals(progfuncs, PR_CURRENT);
+		if (ed->ereftype == ER_FREE)
+			return;
+		*sv.world.g.self = EDICT_TO_PROG(progfuncs, ed);
+		PR_ExecuteProgram(progfuncs, ctx->SV_OnEntityPreSpawnFunction);
 	}
 }
 void PR_SpawnInitialEntities(const char *file)
@@ -1640,6 +1681,18 @@ void PR_SpawnInitialEntities(const char *file)
 		sv.world.edict_size = 0;
 }
 
+static qofs_t PR_ReadBytesString(char *str)
+{
+	size_t u = strtoul(str, &str, 0);
+	if (*str == 'g')
+		u *= 1024*1024*1024;
+	if (*str == 'm')
+		u *= 1024*1024;
+	if (*str == 'k')
+		u *= 1024;
+	return u;
+}
+
 void SV_RegisterH2CustomTents(void);
 void Q_InitProgs(void)
 {
@@ -1660,7 +1713,7 @@ void Q_InitProgs(void)
 	memset(pr_builtin, 0, sizeof(pr_builtin));
 
 // load progs to get entity field count
-	PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS, pr_enable_profiling.ival);
+	PR_Configure(svprogfuncs, PR_ReadBytesString(pr_ssqc_memsize.string), MAX_PROGS, pr_enable_profiling.ival);
 
 	PR_RegisterFields();
 
@@ -2008,10 +2061,14 @@ void Q_InitProgs(void)
 		}
 	}
 
-//	svprogfuncs->ToggleBreak(svprogfuncs, "", 0, 2);
-//	svprogfuncs->SetWatchPoint(svprogfuncs, "");
-
 	sv.world.edict_size = PR_InitEnts(svprogfuncs, sv.world.max_edicts);
+
+/*	{
+		char watch[] = "something";
+		svprogfuncs->SetWatchPoint(svprogfuncs, watch);
+	}
+*/
+//		svprogfuncs->ToggleBreak(svprogfuncs, "something", 0, 2);
 
 #ifdef HEXEN2
 	SV_RegisterH2CustomTents();
@@ -2109,7 +2166,7 @@ qboolean PR_GameCodePacket(char *s)
 	return G_FLOAT(OFS_RETURN);
 }
 
-qboolean PR_ParseClusterEvent(char *dest, char *source, char *cmd, char *info)
+qboolean PR_ParseClusterEvent(const char *dest, const char *source, const char *cmd, const char *info)
 {
 	globalvars_t *pr_globals;
 
@@ -2134,7 +2191,7 @@ void SSQC_MapEntityEdited(int modelidx, int idx, const char *newdata)
 {
 }
 
-qboolean PR_KrimzonParseCommand(char *s)
+qboolean PR_KrimzonParseCommand(const char *s)
 {
 	globalvars_t *pr_globals;
 
@@ -2163,8 +2220,8 @@ qboolean PR_KrimzonParseCommand(char *s)
 
 	return false;
 }
-int tokenizeqc(char *str, qboolean dpfuckage);
-qboolean PR_UserCmd(char *s)
+int tokenizeqc(const char *str, qboolean dpfuckage);
+qboolean PR_UserCmd(const char *s)
 {
 	globalvars_t *pr_globals;
 #ifdef Q2SERVER
@@ -2511,7 +2568,7 @@ objerror(value)
 */
 static void QCBUILTIN PF_objerror (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*s;
+	const char	*s;
 	edict_t	*ed;
 
 	s = PF_VarString(prinst, 0, pr_globals);
@@ -2824,7 +2881,7 @@ bprint(value)
 */
 static void QCBUILTIN PF_bprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char		*s;
+	const char		*s;
 	int			level;
 
 #ifdef SERVER_DEMO_PLAYBACK
@@ -2858,7 +2915,7 @@ sprint(clientent, value)
 */
 static void QCBUILTIN PF_sprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char		*s;
+	const char		*s;
 	client_t	*client;
 	int			entnum;
 	int			level;
@@ -2996,7 +3053,7 @@ void PF_centerprint_Internal (int entnum, qboolean plaque, const char *s)
 
 static void QCBUILTIN PF_centerprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char		*s;
+	const char		*s;
 	int			entnum;
 
 	entnum = G_EDICTNUM(prinst, OFS_PARM0);
@@ -3283,14 +3340,15 @@ void PF_ambientsound_Internal (float *pos, const char *samp, float vol, float at
 	int		soundnum;
 
 // check to see if samp was properly precached
-	for (soundnum=1 ; *sv.strings.sound_precache[soundnum] ; soundnum++)
+	for (soundnum=1 ; ; soundnum++)
+	{
+		if (soundnum == MAX_PRECACHE_SOUNDS || !sv.strings.sound_precache[soundnum])
+		{
+			Con_TPrintf ("no precache: %s\n", samp);
+			return;
+		}
 		if (!strcmp(sv.strings.sound_precache[soundnum],samp))
 			break;
-
-	if (!*sv.strings.sound_precache[soundnum])
-	{
-		Con_TPrintf ("no precache: %s\n", samp);
-		return;
 	}
 
 	if (sv.num_static_sounds == sv_max_staticsounds)
@@ -3421,6 +3479,38 @@ static void QCBUILTIN PF_ss_LocalSound(pubprogfuncs_t *prinst, struct globalvars
 #define PF_ss_LocalSound PF_Fixme
 #endif
 
+unsigned int FTEToDPContents(unsigned int contents)
+{
+	unsigned int r = 0;
+	if (contents & FTECONTENTS_SOLID)
+		r |= DPCONTENTS_SOLID;
+	if (contents & FTECONTENTS_WATER)
+		r |= DPCONTENTS_WATER;
+	if (contents & FTECONTENTS_SLIME)
+		r |= DPCONTENTS_SLIME;
+	if (contents & FTECONTENTS_LAVA)
+		r |= DPCONTENTS_LAVA;
+	if (contents & FTECONTENTS_SKY)
+		r |= DPCONTENTS_SKY;
+	if (contents & FTECONTENTS_BODY)
+		r |= DPCONTENTS_BODY;
+	if (contents & FTECONTENTS_CORPSE)
+		r |= DPCONTENTS_CORPSE;
+	if (contents & Q3CONTENTS_NODROP)
+		r |= DPCONTENTS_NODROP;
+	if (contents & FTECONTENTS_PLAYERCLIP)
+		r |= DPCONTENTS_PLAYERCLIP;
+	if (contents & FTECONTENTS_MONSTERCLIP)
+		r |= DPCONTENTS_MONSTERCLIP;
+	if (contents & Q3CONTENTS_DONOTENTER)
+		r |= DPCONTENTS_DONOTENTER;
+	if (contents & Q3CONTENTS_BOTCLIP)
+		r |= DPCONTENTS_BOTCLIP;
+//	if (contents & FTECONTENTS_OPAQUE)
+//		r |= DPCONTENTS_OPAQUE;
+	return r;
+}
+
 static void set_trace_globals(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, trace_t *trace)
 {
 	pr_global_struct->trace_allsolid = trace->allsolid;
@@ -3439,6 +3529,17 @@ static void set_trace_globals(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	pr_global_struct->trace_surface_id = trace->surface_id;
 	pr_global_struct->trace_bone_id = trace->bone_id;
 	pr_global_struct->trace_triangle_id = trace->triangle_id;
+
+#ifndef NOLEGACY
+	if (pr_global_ptrs->trace_dphittexturename)
+		prinst->SetStringField(prinst, NULL, &pr_global_struct->trace_dphittexturename, trace->surface?trace->surface->name:NULL, true);
+	if (pr_global_ptrs->trace_dpstartcontents)
+		pr_global_struct->trace_dpstartcontents = FTEToDPContents(0);	//fixme, maybe
+	if (pr_global_ptrs->trace_dphitcontents)
+		pr_global_struct->trace_dphitcontents = FTEToDPContents(pr_global_struct->trace_endcontentsi);
+	if (pr_global_ptrs->trace_dphitq3surfaceflags)
+		pr_global_struct->trace_dphitq3surfaceflags = pr_global_struct->trace_surfaceflagsf;
+#endif
 
 //	if (trace.fraction != 1)
 //		VectorMA (trace->endpos, 4, trace->plane.normal, P_VEC(trace_endpos));
@@ -3535,6 +3636,8 @@ static void QCBUILTIN PF_traceboxdp (pubprogfuncs_t *prinst, struct globalvars_s
 	v2 = G_VECTOR(OFS_PARM3);
 	nomonsters = G_FLOAT(OFS_PARM4);
 	ent = G_EDICT(prinst, OFS_PARM5);
+
+//	PR_StackTrace(prinst, 2);
 
 	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters|MOVE_IGNOREHULL, (wedict_t*)ent);
 
@@ -3695,7 +3798,10 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 			{
 				if (cl->state != cs_spawned || cl->controller != cl)
 					continue;
-				SV_StuffcmdToClient(cl, str);
+				if (flags & STUFFCMD_UNRELIABLE)
+					SV_StuffcmdToClient_Unreliable(cl, str);
+				else
+					SV_StuffcmdToClient(cl, str);
 			}
 		if (!(flags & STUFFCMD_IGNOREINDEMO))
 			if (sv.mvdrecording)
@@ -3760,7 +3866,12 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 	slen = strlen(str);
 
 	if (!(flags & STUFFCMD_DEMOONLY))
-		SV_StuffcmdToClient(cl, str);
+	{
+		if (flags & STUFFCMD_UNRELIABLE)
+			SV_StuffcmdToClient_Unreliable(cl, str);
+		else
+			SV_StuffcmdToClient(cl, str);
+	}
 
 	if (!(flags & STUFFCMD_IGNOREINDEMO))
 	if (sv.mvdrecording)
@@ -3781,7 +3892,12 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 			if (spec->state != cs_spawned || !spec->spectator)
 				continue;
 			if (spec->spec_track == entnum && (spec->spec_print & SPECPRINT_STUFFCMD))
-				SV_StuffcmdToClient(spec, str);
+			{
+				if (flags & STUFFCMD_UNRELIABLE)
+					SV_StuffcmdToClient_Unreliable(spec, str);
+				else
+					SV_StuffcmdToClient(spec, str);
+			}
 		}
 	}
 }
@@ -3833,13 +3949,16 @@ static void QCBUILTIN PF_dropclient (pubprogfuncs_t *prinst, struct globalvars_s
 //entity() spawnclient = #454;
 static void QCBUILTIN PF_spawnclient (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	extern int nextuserid;
 	int i;
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
 		if (!*svs.clients[i].name && !svs.clients[i].protocol && svs.clients[i].state == cs_free)
 		{
+			svs.clients[i].userid = ++nextuserid;
 			svs.clients[i].protocol = SCP_BAD;	//marker for bots
 			svs.clients[i].state = cs_spawned;
+			svs.clients[i].spawned = true;
 			sv.spawned_client_slots++;
 			svs.clients[i].netchan.message.allowoverflow = true;
 			svs.clients[i].netchan.message.maxsize = 0;
@@ -4111,7 +4230,8 @@ int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
 
 	if (s[0] <= ' ')
 	{
-		PR_BIError (prinst, "PF_precache_sound: Bad string");
+		if (*s)
+			PR_BIError (prinst, "PF_precache_sound: Bad string");
 		return 0;
 	}
 
@@ -5204,7 +5324,7 @@ void PF_WriteString_Internal (int target, const char *str)
 
 static void QCBUILTIN PF_WriteString (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *str = PF_VarString(prinst, 1, pr_globals);
+	const char *str = PF_VarString(prinst, 1, pr_globals);
 	PF_WriteString_Internal(G_FLOAT(OFS_PARM0), str);
 }
 
@@ -5280,7 +5400,7 @@ void QCBUILTIN PF_WriteEntity (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 static void QCBUILTIN PF_WriteString2 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int old;
-	char *str;
+	const char *str;
 
 	if (G_FLOAT(OFS_PARM0) != MSG_CSQC && (pr_nonetaccess.value
 #ifdef SERVER_DEMO_PLAYBACK
@@ -6079,7 +6199,7 @@ void QCBUILTIN PF_sqlopenquery (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	sqlserver_t *server;
 	int callfunc = G_INT(OFS_PARM1);
 	int querytype = G_FLOAT(OFS_PARM2);
-	char *querystr = PF_VarString(prinst, 3, pr_globals);
+	const char *querystr = PF_VarString(prinst, 3, pr_globals);
 
 	if (SQL_Available())
 	{
@@ -6810,7 +6930,8 @@ void log(string name, float console, string text)
 
 static void QCBUILTIN PF_logtext(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char name[MAX_OSPATH], *text;
+	char name[MAX_OSPATH];
+	const char *text;
 	vfsfile_t *file;
 
 	snprintf(name, MAX_OSPATH, "%s.log", PR_GetStringOfs(prinst, OFS_PARM0));
@@ -6938,101 +7059,6 @@ static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s
 		CMQ3_SetAreaPortalState(sv.world.worldmodel, portal->pvsinfo.areanum, portal->pvsinfo.areanum2, state);
 	}
 #endif
-}
-
-
-//EXTENSION: DP_QC_FINDCHAIN
-
-//entity(string field, string match) findchain = #402
-//chained search for strings in entity fields
-static void QCBUILTIN PF_sv_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i, f;
-	const char *s;
-	string_t t;
-	edict_t *ent, *chain;
-
-	chain = (edict_t *) *prinst->parms->sv_edicts;
-
-	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
-	s = PR_GetStringOfs(prinst, OFS_PARM1);
-
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
-	{
-		ent = EDICT_NUM(prinst, i);
-		if (ED_ISFREE(ent))
-			continue;
-		t = *(string_t *)&((float*)ent->v)[f];
-		if (!t)
-			continue;
-		if (strcmp(PR_GetString(prinst, t), s))
-			continue;
-
-		ent->v->chain = EDICT_TO_PROG(prinst, chain);
-		chain = ent;
-	}
-
-	RETURN_EDICT(prinst, chain);
-}
-
-//EXTENSION: DP_QC_FINDCHAINFLOAT
-
-//entity(string field, float match) findchainfloat = #403
-//chained search for float, int, and entity reference fields
-static void QCBUILTIN PF_sv_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i, f;
-	float s;
-	edict_t	*ent, *chain;
-
-	chain = (edict_t *) *prinst->parms->sv_edicts;
-
-	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
-	s = G_FLOAT(OFS_PARM1);
-
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
-	{
-		ent = EDICT_NUM(prinst, i);
-		if (ED_ISFREE(ent))
-			continue;
-		if (((float *)ent->v)[f] != s)
-			continue;
-
-		ent->v->chain = EDICT_TO_PROG(prinst, chain);
-		chain = ent;
-	}
-
-	RETURN_EDICT(prinst, chain);
-}
-
-//EXTENSION: DP_QC_FINDCHAINFLAGS
-
-//entity(string field, float match) findchainflags = #450
-//chained search for float, int, and entity reference fields
-static void QCBUILTIN PF_sv_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i, f;
-	int s;
-	edict_t	*ent, *chain;
-
-	chain = (edict_t *) *prinst->parms->sv_edicts;
-
-	f = G_INT(OFS_PARM0)+prinst->fieldadjust;
-	s = G_FLOAT(OFS_PARM1);
-
-	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
-	{
-		ent = EDICT_NUM(prinst, i);
-		if (ED_ISFREE(ent))
-			continue;
-		if (!((int)((float *)ent->v)[f] & s))
-			continue;
-
-		ent->v->chain = EDICT_TO_PROG(prinst, chain);
-		chain = ent;
-	}
-
-	RETURN_EDICT(prinst, chain);
 }
 
 //EXTENSION: KRIMZON_SV_PARSECLIENTCOMMAND
@@ -9072,7 +9098,7 @@ int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *v
 			{
 				int ns = !!atoi(value);
 
-				if (svs.clients[entnum-1].state == cs_spawned)
+				if (svs.clients[entnum-1].spawned && svs.clients[entnum-1].state == cs_spawned)
 				{
 					if (svs.clients[entnum-1].spectator)
 						sv.spawned_observer_slots--;
@@ -9331,7 +9357,7 @@ static void QCBUILTIN PF_clientstat(pubprogfuncs_t *prinst, struct globalvars_s 
 //void(float num, float type, string name) globalstat
 static void QCBUILTIN PF_globalstat(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *name = PF_VarString(prinst, 2, pr_globals);
+	const char *name = PF_VarString(prinst, 2, pr_globals);
 #if 0 //this is the old code
 	SV_QCStatName(G_FLOAT(OFS_PARM0), name, G_FLOAT(OFS_PARM1));
 #else
@@ -9955,7 +9981,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_model",	PF_precache_model,	20,		20,		20,		0,	D("string(string s)", "Precaches a model, making it known to clients and loading it from disk if it has a .bsp extension. This builtin (strongly) should be called during spawn functions. This must be called for each model name before setmodel may use that model name.\nModelindicies precached in SSQC will always be positive. CSQC precaches will be negative if they are not also on the server.")},
 	{"stuffcmd",		PF_stuffcmd,		21,		21,		21,		0,	D("void(entity client, string s)", "Sends a console command (or cvar) to the client, where it will be executed. Different clients support different commands. Do NOT forget the final \\n.\nThis builtin is generally considered evil.")},
 	{"stuffcmdflags",	PF_stuffcmdflags,	0,		0,		0,		0,	D("void(entity client, float flags, string s)", "Sends a console command (or cvar) to the client, where it will be executed. Different clients support different commands. Do NOT forget the final \\n.\nThis (just as evil) variant allows specifying some flags too. See the STUFFCMD_* constants.")},
-	{"findradius",		PF_findradius,		22,		22,		22,		0,	D("entity(vector org, float rad)", "Finds all entities within a distance of the 'org' specified. One entity is returned directly, while other entities are returned via that entity's .chain field.")},
+	{"findradius",		PF_findradius,		22,		22,		22,		0,	D("entity(vector org, float rad, optional .entity chainfield)", "Finds all entities within a distance of the 'org' specified. One entity is returned directly, while other entities are returned via that entity's .chain field.")},
 	//both bprint and sprint accept different arguments in QW vs NQ/H2
 	{"bprint",			PF_bprint,			23,		0,		23,		0,	D("void(string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", "NQ: Concatenates all arguments, and prints the messsage on the console of all connected clients.")},
 	{"bprint",			PF_bprint,			0,		23,		0,		0,	D("void(float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "QW: Concatenates all string arguments, and prints the messsage on the console of only all clients who's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
@@ -10520,9 +10546,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_SV_SETCOLOR
 	{"setcolors",		PF_setcolors,		0,		0,		0,		401,	D("void(entity ent, float colours)", "Changes a player's colours. The bits 0-3 are the lower/trouser colour, bits 4-7 are the upper/shirt colours.")},//DP_SV_SETCOLOR
 //DP_QC_FINDCHAIN
-	{"findchain",		PF_sv_findchain,	0,		0,		0,		402,	"entity(.string field, string match)"},// (DP_QC_FINDCHAIN)
+	{"findchain",		PF_findchain,	0,		0,		0,		402,	"entity(.string field, string match, optional .entity chainfield)"},// (DP_QC_FINDCHAIN)
 //DP_QC_FINDCHAINFLOAT
-	{"findchainfloat",	PF_sv_findchainfloat,0,		0,		0,		403,	"entity(.float fld, float match)"},// (DP_QC_FINDCHAINFLOAT)
+	{"findchainfloat",	PF_findchainfloat,0,		0,		0,		403,	"entity(.float fld, float match, optional .entity chainfield)"},// (DP_QC_FINDCHAINFLOAT)
 //DP_SV_EFFECT
 	{"effect",			PF_effect,			0,		0,		0,		404,	D("void(vector org, string modelname, float startframe, float endframe, float framerate)", "Spawns a self-animating sprite")},// (DP_SV_EFFECT)
 //DP_TE_BLOOD
@@ -10619,7 +10645,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"search_getfilemtime", PF_search_getfilemtime,0,0,		0,		0,		D("string(searchhandle handle, float num)", "Retrieves modification time of one of the files.")},
 	{"cvar_string",		PF_cvar_string,		0,		0,		0,		448,	"string(string cvarname)"},//DP_QC_CVAR_STRING
 	{"findflags",		PF_FindFlags,		0,		0,		0,		449,	"entity(entity start, .float fld, float match)"},//DP_QC_FINDFLAGS
-	{"findchainflags",	PF_sv_findchainflags,0,		0,		0,		450,	"entity(.float fld, float match)"},//DP_QC_FINDCHAINFLAGS
+	{"findchainflags",	PF_findchainflags,0,		0,		0,		450,	"entity(.float fld, float match, optional .entity chainfield)"},//DP_QC_FINDCHAINFLAGS
 	{"gettagindex",		PF_gettagindex,		0,		0,		0,		451,	"float(entity ent, string tagname)"},// (DP_MD3_TAGSINFO)
 	{"gettaginfo",		PF_gettaginfo,		0,		0,		0,		452,	D("vector(entity ent, float tagindex)", "Obtains the current worldspace position+orientation of the bone or tag from the given entity. The return value is the world coord, v_forward, v_right, v_up are also set according to the bone/tag's orientation.")},// (DP_MD3_TAGSINFO)
 	{"dropclient",		PF_dropclient,		0,		0,		0,		453,	"void(entity player)"},//DP_SV_BOTCLIENT
@@ -10767,7 +10793,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"addwantedhostcachekey",PF_Fixme,		0,		0,		0,		623,	"void(string key)"},
 	{"getextresponse",	PF_Fixme,			0,		0,		0,		624,	"string()"},
 	{"netaddress_resolve",PF_netaddress_resolve,0,	0,		0,		625,	"string(string dnsname, optional float defport)"},
-//	{"getgamedirinfo",	PF_Fixme,			0,		0,		0,		626,	"string(float n, float prop)"},
+	{"getgamedirinfo",	PF_Fixme,			0,		0,		0,		626,	"string(float n, float prop)"  STUB},
 	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	"string(string fmt, ...)"},
 	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,0,0,0,		628,	"float(entity e, float s)"},
 	{"getsurfacetriangle",PF_getsurfacetriangle,0,	0,		0,		629,	"vector(entity e, float s, float n)"},
@@ -11219,8 +11245,10 @@ svextqcfields
 	//Tell the qc library to split the entity fields each side.
 	//the fields above become < 0, the remaining fields specified by the qc stay where the mod specified, as far as possible (with addons at least).
 	//this means that custom array offsets still work in mods like ktpro.
-	if (pr_fixbrokenqccarrays.ival || pr_imitatemvdsv.ival)
-		PR_RegisterFieldVar(svprogfuncs, 0, NULL, 0,0);
+	if (!pr_fixbrokenqccarrays.ival && pr_imitatemvdsv.ival)
+		PR_RegisterFieldVar(svprogfuncs, 0, NULL, 1,0);
+	else
+		PR_RegisterFieldVar(svprogfuncs, 0, NULL, pr_fixbrokenqccarrays.ival,0);
 }
 
 //targets
@@ -11410,8 +11438,8 @@ void PR_DumpPlatform_f(void)
 		{"button1",				".float", QW|NQ},
 		{"button2",				".float", QW|NQ},
 		{"impulse",				".float", QW|NQ},
-		{"fixangle",			".float", QW|NQ},
-		{"v_angle",				".vector", QW|NQ, "The angles a player is viewing. +x is DOWN (pitch, yaw, roll)"},
+		{"fixangle",			".float", QW|NQ,	"Forces the clientside view angles to change to the value of .angles (has some lag). If set to 1/TRUE, the server will guess whether to send a delta or an explicit angle. If 2, will always send a delta (due to lag between transmission and acknowledgement, this cannot be spammed reliably). If 3, will always send an explicit angle."},
+		{"v_angle",				".vector", QW|NQ,	"The angles a player is viewing. +x is DOWN (pitch, yaw, roll)"},
 		{"idealpitch",			".float", NQ},
 		{"netname",				".string", QW|NQ},
 		{"enemy",				".entity", QW|NQ|CS},
@@ -11709,8 +11737,8 @@ void PR_DumpPlatform_f(void)
 		{"SOUNDFLAG_FORCELOOP",		"const float",	QW|NQ|CS,	D("The sound will restart once it reaches the end of the sample."), CF_FORCELOOP},
 		{"SOUNDFLAG_NOSPACIALISE",	"const float",	/*QW|NQ|*/CS,D("The different audio channels are played at the same volume regardless of which way the player is facing, without needing to use 0 attenuation."), CF_NOSPACIALISE},
 		{"SOUNDFLAG_NOREVERB",		"const float",	QW|NQ|CS,	D("Disables the use of underwater/reverb effects on this sound effect."), CF_NOREVERB},
-		{"SOUNDFLAG_UNICAST",		"const float",	QW|NQ,		D("The sound will be heard only by the player specified by msg_entity."), CF_UNICAST},
 		{"SOUNDFLAG_FOLLOW",		"const float",	QW|NQ|CS,	D("The sound's origin will updated to follow the emitting entity."), CF_FOLLOW},
+		{"SOUNDFLAG_UNICAST",		"const float",	QW|NQ,		D("The sound will be heard only by the player specified by msg_entity."), CF_UNICAST},
 		{"SOUNDFLAG_SENDVELOCITY",	"const float",	QW|NQ,		D("The entity's current velocity will be sent to the client, only useful if doppler is enabled."), CF_SENDVELOCITY},
 
 		{"ATTN_NONE",		"const float", QW|NQ|CS, D("Sounds with this attenuation can be heard throughout the map"), ATTN_NONE},
@@ -11795,6 +11823,7 @@ void PR_DumpPlatform_f(void)
 		{"STUFFCMD_IGNOREINDEMO","const float",	QW|NQ,	D("This stuffcmd will NOT be written to mvds/qtv."), STUFFCMD_IGNOREINDEMO},
 		{"STUFFCMD_DEMOONLY",	"const float",	QW|NQ,	D("This stuffcmd will ONLY be written into mvds/qtv streams."), STUFFCMD_DEMOONLY},
 		{"STUFFCMD_BROADCAST",	"const float",	QW|NQ,	D("The stuffcmd will be broadcast server-wide (according to the mvd filters)."), STUFFCMD_BROADCAST},
+		{"STUFFCMD_UNRELIABLE",	"const float",	QW|NQ,	D("The stuffcmd might not arrive. It might also get there faster than ones sent over the reliable channel."), STUFFCMD_UNRELIABLE},
 
 /*		{"SOUND_RELIABLE",		"const float",	QW|NQ,	D("The sound will be sent reliably, and without regard to phs."), CF_RELIABLE},
 		{"SOUND_FORCELOOP",		"const float",	QW|NQ|CS,D("The sound will restart once it reaches the end of the sample."), CF_FORCELOOP},

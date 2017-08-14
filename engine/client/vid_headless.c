@@ -22,7 +22,7 @@ static void Headless_Draw_Shutdown(void)
 static void		Headless_IMG_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
 {
 }
-static qboolean	Headless_IMG_LoadTextureMips	(texid_t tex, struct pendingtextureinfo *mips)
+static qboolean	Headless_IMG_LoadTextureMips	(texid_t tex, const struct pendingtextureinfo *mips)
 {
 	return true;
 }

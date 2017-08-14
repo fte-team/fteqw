@@ -377,6 +377,26 @@ typedef struct cminfo_s
 	qbyte		portalopen[MAX_Q2MAP_AREAPORTALS];	//memset will work if it's a qbyte, really it should be a qboolean
 
 	int			mapisq3;
+
+
+
+#ifdef Q3BSPS
+	//this is for loading stuff. it used to be globals, but we have threads now. and multiple q3bsps at the same time is a problem.
+	int			numvertexes;
+	vecV_t		*verts;	//3points
+	vec2_t		*vertstmexcoords;
+	vec2_t		*vertlstmexcoords[MAXRLIGHTMAPS];
+	vec4_t		*colors4f_array[MAXRLIGHTMAPS];
+	vec3_t		*normals_array;
+	//vec3_t		*map_svector_array;
+	//vec3_t		*map_tvector_array;
+
+	index_t *surfindexes;
+	//int	map_numsurfindexes;
+
+	q3cface_t	*faces;
+	int			numfaces;
+#endif
 } cminfo_t;
 
 static q2mapsurface_t	nullsurface;
@@ -399,20 +419,6 @@ qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2
 }
 
 #ifdef Q3BSPS
-static int			numvertexes;
-static vecV_t		*map_verts;	//3points
-static vec2_t		*map_vertstmexcoords;
-static vec2_t		*map_vertlstmexcoords[MAXRLIGHTMAPS];
-static vec4_t		*map_colors4f_array[MAXRLIGHTMAPS];
-static vec3_t		*map_normals_array;
-//static vec3_t		*map_svector_array;
-//static vec3_t		*map_tvector_array;
-
-static index_t *map_surfindexes;
-//static int	map_numsurfindexes;
-
-static q3cface_t	*map_faces;
-static int			numfaces;
 
 int	PlaneTypeForNormal ( vec3_t normal )
 {
@@ -954,12 +960,12 @@ static qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
 	q2mapsurface_t *surf;
 	q3cpatch_t *patch;
 	q3cmesh_t *cmesh;
-	int *checkout = alloca(sizeof(int)*numfaces);
+	int *checkout = alloca(sizeof(int)*prv->numfaces);
 
 	if (map_noCurves.ival)
 		return true;
 
-	memset (checkout, -1, sizeof(int)*numfaces);
+	memset (checkout, -1, sizeof(int)*prv->numfaces);
 
 	for (i = 0, leaf = loadmodel->leafs; i < loadmodel->numleafs; i++, leaf++)
 	{
@@ -974,12 +980,12 @@ static qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
 		for (j=0 ; j<leaf->nummarksurfaces ; j++)
 		{
 			k = leaf->firstmarksurface[j] - loadmodel->surfaces;
-			if (k >= numfaces)
+			if (k >= prv->numfaces)
 			{
 				Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: corrupt map\n");
 				break;
 			}
-			face = &map_faces[k];
+			face = &prv->faces[k];
 
 			if (face->numverts <= 0)
 				continue;
@@ -1037,16 +1043,16 @@ static qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
 					cmesh->xyz_array = ZG_Malloc(&loadmodel->memgroup, cmesh->numverts * sizeof(*cmesh->xyz_array) + cmesh->numincidies * sizeof(*cmesh->indicies));
 					cmesh->indicies = (index_t*)(cmesh->xyz_array + cmesh->numverts);
 
-					VectorCopy(map_verts[face->firstvert+0], cmesh->xyz_array[0]);
+					VectorCopy(prv->verts[face->firstvert+0], cmesh->xyz_array[0]);
 					VectorCopy(cmesh->xyz_array[0], cmesh->absmaxs);
 					VectorCopy(cmesh->xyz_array[0], cmesh->absmins);
 					for (k = 1; k < cmesh->numverts; k++)
 					{
-						VectorCopy(map_verts[face->firstvert+k], cmesh->xyz_array[k]);
+						VectorCopy(prv->verts[face->firstvert+k], cmesh->xyz_array[k]);
 						AddPointToBounds(cmesh->xyz_array[k], cmesh->absmins, cmesh->absmaxs);
 					}
 					for (k = 0; k < cmesh->numincidies; k++)
-						cmesh->indicies[k] = map_surfindexes[face->soup.firstindex+k];
+						cmesh->indicies[k] = prv->surfindexes[face->soup.firstindex+k];
 				}
 				leaf->contents |= surf->c.value;
 				leaf->numleafcmeshes++;
@@ -1092,7 +1098,7 @@ static qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
 					checkout[k] = prv->numpatches++;
 
 	//gcc warns without this cast
-					CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(map_verts + face->firstvert), face->patch.cp );
+					CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(prv->verts + face->firstvert), face->patch.cp );
 				}
 				leaf->contents |= patch->surface->c.value;
 				leaf->numleafpatches++;
@@ -1358,7 +1364,7 @@ static qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, ch
 			Q_snprintfz(sname, sizeof(sname), "sky/%s", in->texture);
 		else
 			Q_snprintfz(sname, sizeof(sname), "%s", in->texture);
-		if (out->flags & (TI_WARP|TI_FLOWING))
+		if (out->flags & (TI_WARP))
 			Q_strncatz(sname, "#WARP", sizeof(sname));
 		if (out->flags & TI_FLOWING)
 			Q_strncatz(sname, "#FLOW", sizeof(sname));
@@ -1366,14 +1372,14 @@ static qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, ch
 			Q_strncatz(sname, "#ALPHA=0.66", sizeof(sname));
 		else if (out->flags & TI_TRANS33)
 			Q_strncatz(sname, "#ALPHA=0.33", sizeof(sname));
-		else if (out->flags & (TI_WARP|TI_FLOWING))
+		else if (out->flags & (TI_WARP))
 			Q_strncatz(sname, "#ALPHA=1", sizeof(sname));
 		if (in->nexttexinfo != -1)	//used to ensure non-looping and looping don't conflict and get confused.
 			Q_strncatz(sname, "#ANIMLOOP", sizeof(sname));
 
 		//in q2, 'TEX_SPECIAL' is TI_LIGHT, and that conflicts.
 		out->flags &= ~TI_LIGHT;
-		if (out->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP|TI_FLOWING))
+		if (out->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP))
 			out->flags |= TEX_SPECIAL;
 
 		//compact the textures.
@@ -2212,6 +2218,7 @@ static qboolean CModQ3_LoadShaders (model_t *mod, qbyte *mod_base, lump_t *l)
 
 static qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	q3dvertex_t	*in;
 	vecV_t		*out;
 	vec3_t		*nout;
@@ -2242,17 +2249,17 @@ static qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 	nout = ZG_Malloc(&mod->memgroup, count*sizeof(*nout));
 //	sout = ZG_Malloc(&mod->memgroup, count*sizeof(*nout));
 //	tout = ZG_Malloc(&mod->memgroup, count*sizeof(*nout));
-	map_verts = out;
-	map_vertstmexcoords = stout;
+	prv->verts = out;
+	prv->vertstmexcoords = stout;
 	for (i = 0; i < MAXRLIGHTMAPS; i++)
 	{
-		map_vertlstmexcoords[i] = lmout;
-		map_colors4f_array[i] = cout;
+		prv->vertlstmexcoords[i] = lmout;
+		prv->colors4f_array[i] = cout;
 	}
-	map_normals_array = nout;
-//	map_svector_array = sout;
-//	map_tvector_array = tout;
-	numvertexes = count;
+	prv->normals_array = nout;
+//	prv->svector_array = sout;
+//	prv->tvector_array = tout;
+	prv->numvertexes = count;
 
 	for ( i=0 ; i<count ; i++, in++)
 	{
@@ -2281,6 +2288,7 @@ static qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 #ifdef RFBSPS
 static qboolean CModRBSP_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	rbspvertex_t	*in;
 	vecV_t		*out;
 	vec3_t		*nout;
@@ -2311,17 +2319,17 @@ static qboolean CModRBSP_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 	nout = ZG_Malloc(&mod->memgroup, count*sizeof(*nout));
 //	sout = ZG_Malloc(&mod->memgroup, count*sizeof(*sout));
 //	tout = ZG_Malloc(&mod->memgroup, count*sizeof(*tout));
-	map_verts = out;
-	map_vertstmexcoords = stout;
+	prv->verts = out;
+	prv->vertstmexcoords = stout;
 	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 	{
-		map_vertlstmexcoords[sty] = lmout + sty*count;
-		map_colors4f_array[sty] = cout + sty*count;
+		prv->vertlstmexcoords[sty] = lmout + sty*count;
+		prv->colors4f_array[sty] = cout + sty*count;
 	}
-	map_normals_array = nout;
-//	map_svector_array = sout;
-//	map_tvector_array = tout;
-	numvertexes = count;
+	prv->normals_array = nout;
+//	prv->svector_array = sout;
+//	prv->tvector_array = tout;
+	prv->numvertexes = count;
 
 	for ( i=0 ; i<count ; i++, in++)
 	{
@@ -2334,13 +2342,13 @@ static qboolean CModRBSP_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 		{
 			stout[i][j] = LittleFloat ( ((float *)in->texcoords)[j] );
 			for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
-				map_vertlstmexcoords[sty][i][j] = LittleFloat ( ((float *)in->texcoords)[j+2*(sty+1)] );
+				prv->vertlstmexcoords[sty][i][j] = LittleFloat ( ((float *)in->texcoords)[j+2*(sty+1)] );
 		}
 		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 		{
 			for ( j=0 ; j < 4 ; j++)
 			{
-				map_colors4f_array[sty][i][j] = in->color[sty][j]/255.0f;
+				prv->colors4f_array[sty][i][j] = in->color[sty][j]/255.0f;
 			}
 		}
 	}
@@ -2352,6 +2360,7 @@ static qboolean CModRBSP_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 #ifndef SERVERONLY
 static qboolean CModQ3_LoadIndexes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)loadmodel->meshinfo;
 	int		i, count;
 	int		*in;
 	index_t	*out;
@@ -2372,8 +2381,8 @@ static qboolean CModQ3_LoadIndexes (model_t *loadmodel, qbyte *mod_base, lump_t 
 
 	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
 
-	map_surfindexes = out;
-//	map_numsurfindexes = count;
+	prv->surfindexes = out;
+//	prv->numsurfindexes = count;
 
 	for ( i=0 ; i<count ; i++)
 		out[i] = LittleLong (in[i]);
@@ -2389,6 +2398,7 @@ CMod_LoadFaces
 */
 static qboolean CModQ3_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	q3dface_t		*in;
 	q3cface_t		*out;
 	int			i, count;
@@ -2408,8 +2418,8 @@ static qboolean CModQ3_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	}
 
 	out = BZ_Malloc ( count*sizeof(*out) );
-	map_faces = out;
-	numfaces = count;
+	prv->faces = out;
+	prv->numfaces = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -2439,6 +2449,7 @@ static qboolean CModQ3_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 #ifdef RFBSPS
 static qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	rbspface_t		*in;
 	q3cface_t		*out;
 	int			i, count;
@@ -2458,8 +2469,8 @@ static qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	}
 
 	out = BZ_Malloc ( count*sizeof(*out) );
-	map_faces = out;
-	numfaces = count;
+	prv->faces = out;
+	prv->numfaces = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -2573,7 +2584,7 @@ mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org)
 
 static index_t tempIndexesArray[MAX_ARRAY_VERTS*6];
 
-static void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
+static void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert, cminfo_t *prv)
 {
 	int patch_cp[2], step[2], size[2], flat[2];
 	float subdivlevel;
@@ -2593,7 +2604,7 @@ static void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numv
 		subdivlevel = 1;
 
 // find the degree of subdivision in the u and v directions
-	Patch_GetFlatness ( subdivlevel, map_verts[firstvert], sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
+	Patch_GetFlatness ( subdivlevel, prv->verts[firstvert], sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
 
 // allocate space for mesh
 	step[0] = (1 << flat[0]);
@@ -2608,6 +2619,7 @@ static void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numv
 //mesh_t *GL_CreateMeshForPatch ( model_t *mod, q3dface_t *surf )
 static void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int numindexes, patch_cp[2], step[2], size[2], flat[2], i, u, v, p;
 	index_t	*indexes;
 	float subdivlevel;
@@ -2628,7 +2640,7 @@ static void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, i
 		subdivlevel = 1;
 
 // find the degree of subdivision in the u and v directions
-	Patch_GetFlatness ( subdivlevel, map_verts[firstvert], sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
+	Patch_GetFlatness ( subdivlevel, prv->verts[firstvert], sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
 
 // allocate space for mesh
 	step[0] = (1 << flat[0]);
@@ -2654,24 +2666,24 @@ static void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, i
 
 // fill in
 
-	Patch_Evaluate ( map_verts[firstvert], patch_cp, step, mesh->xyz_array[0], sizeof(vecV_t)/sizeof(vec_t));
+	Patch_Evaluate ( prv->verts[firstvert], patch_cp, step, mesh->xyz_array[0], sizeof(vecV_t)/sizeof(vec_t));
 	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 	{
 		if (mesh->colors4f_array[sty])
-			Patch_Evaluate ( map_colors4f_array[sty][firstvert], patch_cp, step, mesh->colors4f_array[sty][0], 4 );
+			Patch_Evaluate ( prv->colors4f_array[sty][firstvert], patch_cp, step, mesh->colors4f_array[sty][0], 4 );
 	}
-	Patch_Evaluate ( map_normals_array[firstvert], patch_cp, step, mesh->normals_array[0], 3 );
-	Patch_Evaluate ( map_vertstmexcoords[firstvert], patch_cp, step, mesh->st_array[0], 2 );
+	Patch_Evaluate ( prv->normals_array[firstvert], patch_cp, step, mesh->normals_array[0], 3 );
+	Patch_Evaluate ( prv->vertstmexcoords[firstvert], patch_cp, step, mesh->st_array[0], 2 );
 	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 	{
 		if (mesh->lmst_array[sty])
-			Patch_Evaluate ( map_vertlstmexcoords[sty][firstvert], patch_cp, step, mesh->lmst_array[sty][0], 2 );
+			Patch_Evaluate ( prv->vertlstmexcoords[sty][firstvert], patch_cp, step, mesh->lmst_array[sty][0], 2 );
 	}
 
 // compute new indexes avoiding adding invalid triangles
 	numindexes = 0;
 	indexes = tempIndexesArray;
-    for (v = 0, i = 0; v < size[1]-1; v++)
+	for (v = 0, i = 0; v < size[1]-1; v++)
 	{
 		for (u = 0; u < size[0]-1; u++, i += 6)
 		{
@@ -2711,6 +2723,7 @@ static void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, i
 #ifdef RFBSPS
 static void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	rbspface_t *in = (rbspface_t*)(bd+1);
 	int idx = (out - mod->surfaces) - mod->firstmodelsurface;
 	int sty;
@@ -2725,20 +2738,20 @@ static void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *b
 		unsigned int fv = LittleLong(in->firstvertex), i;
 		for (i = 0; i < out->mesh->numvertexes; i++)
 		{
-			VectorCopy(map_verts[fv + i], out->mesh->xyz_array[i]);
-			Vector2Copy(map_vertstmexcoords[fv + i], out->mesh->st_array[i]);
+			VectorCopy(prv->verts[fv + i], out->mesh->xyz_array[i]);
+			Vector2Copy(prv->vertstmexcoords[fv + i], out->mesh->st_array[i]);
 			for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 			{
-				Vector2Copy(map_vertlstmexcoords[sty][fv + i], out->mesh->lmst_array[sty][i]);
-				Vector4Copy(map_colors4f_array[sty][fv + i], out->mesh->colors4f_array[sty][i]);
+				Vector2Copy(prv->vertlstmexcoords[sty][fv + i], out->mesh->lmst_array[sty][i]);
+				Vector4Copy(prv->colors4f_array[sty][fv + i], out->mesh->colors4f_array[sty][i]);
 			}
 
-			VectorCopy(map_normals_array[fv + i], out->mesh->normals_array[i]);
+			VectorCopy(prv->normals_array[fv + i], out->mesh->normals_array[i]);
 		}
 		fv = LittleLong(in->firstindex);
 		for (i = 0; i < out->mesh->numindexes; i++)
 		{
-			out->mesh->indexes[i] = map_surfindexes[fv + i];
+			out->mesh->indexes[i] = prv->surfindexes[fv + i];
 		}
 	}
 	else
@@ -2785,6 +2798,7 @@ static void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *b
 
 static void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	q3dface_t *in = (q3dface_t*)(bd+1);
 	int idx = (out - mod->surfaces) - mod->firstmodelsurface;
 	in += idx;
@@ -2795,20 +2809,19 @@ static void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 	}
 	else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
 	{
-		unsigned int fv = LittleLong(in->firstvertex), i;
+		unsigned int fv = LittleLong(in->firstvertex), fi = LittleLong(in->firstindex), i;
 		for (i = 0; i < out->mesh->numvertexes; i++)
 		{
-			VectorCopy(map_verts[fv + i], out->mesh->xyz_array[i]);
-			Vector2Copy(map_vertstmexcoords[fv + i], out->mesh->st_array[i]);
-			Vector2Copy(map_vertlstmexcoords[0][fv + i], out->mesh->lmst_array[0][i]);
-			Vector4Copy(map_colors4f_array[0][fv + i], out->mesh->colors4f_array[0][i]);
+			VectorCopy(prv->verts[fv + i], out->mesh->xyz_array[i]);
+			Vector2Copy(prv->vertstmexcoords[fv + i], out->mesh->st_array[i]);
+			Vector2Copy(prv->vertlstmexcoords[0][fv + i], out->mesh->lmst_array[0][i]);
+			Vector4Copy(prv->colors4f_array[0][fv + i], out->mesh->colors4f_array[0][i]);
 
-			VectorCopy(map_normals_array[fv + i], out->mesh->normals_array[i]);
+			VectorCopy(prv->normals_array[fv + i], out->mesh->normals_array[i]);
 		}
-		fv = LittleLong(in->firstindex);
 		for (i = 0; i < out->mesh->numindexes; i++)
 		{
-			out->mesh->indexes[i] = map_surfindexes[fv + i];
+			out->mesh->indexes[i] = prv->surfindexes[fi + i];
 		}
 	}
 	else
@@ -2916,9 +2929,9 @@ static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		fv = LittleLong(in->firstvertex);
 		{
 			vec3_t v[3];
-			VectorCopy(map_verts[fv+0], v[0]);
-			VectorCopy(map_verts[fv+1], v[1]);
-			VectorCopy(map_verts[fv+2], v[2]);
+			VectorCopy(prv->verts[fv+0], v[0]);
+			VectorCopy(prv->verts[fv+1], v[1]);
+			VectorCopy(prv->verts[fv+2], v[2]);
 			PlaneFromPoints(v, pl);
 			CategorizePlane(pl);
 		}
@@ -2944,7 +2957,7 @@ static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		else if (facetype == MST_PATCH)
 		{
 			out->mesh = &mesh[surfnum];
-			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex), prv);
 		}
 		else if (facetype == MST_PLANAR || facetype == MST_TRIANGLE_SOUP)
 		{
@@ -3027,9 +3040,9 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		fv = LittleLong(in->firstvertex);
 		{
 			vec3_t v[3];
-			VectorCopy(map_verts[fv+0], v[0]);
-			VectorCopy(map_verts[fv+1], v[1]);
-			VectorCopy(map_verts[fv+2], v[2]);
+			VectorCopy(prv->verts[fv+0], v[0]);
+			VectorCopy(prv->verts[fv+1], v[1]);
+			VectorCopy(prv->verts[fv+2], v[2]);
 			PlaneFromPoints(v, pl);
 			CategorizePlane(pl);
 		}
@@ -3055,7 +3068,7 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		else if (facetype == MST_PATCH)
 		{
 			out->mesh = &mesh[surfnum];
-			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex), prv);
 		}
 		else if (facetype == MST_PLANAR || facetype == MST_TRIANGLE_SOUP)
 		{
@@ -4031,7 +4044,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			CMod_LoadEntityString	(mod, cmod_base, &header.lumps[Q3LUMP_ENTITIES]);
 */
 
-		map_faces = NULL;
+		prv->faces = NULL;
 
 		Q1BSPX_Setup(mod, mod_base, filelen, header.lumps, Q3LUMPS_TOTAL);
 
@@ -4123,8 +4136,8 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 
 		if (!noerrors)
 		{
-			if (map_faces)
-				BZ_Free(map_faces);
+			if (prv->faces)
+				BZ_Free(prv->faces);
 			return NULL;
 		}
 
@@ -4182,14 +4195,14 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 
 		if (!CM_CreatePatchesForLeafs (mod, prv))	//for clipping
 		{
-			BZ_Free(map_faces);
+			BZ_Free(prv->faces);
 			return NULL;
 		}
 #ifndef CLIENTONLY
 		CMQ3_CalcPHS(mod);
 #endif
 //			BZ_Free(map_verts);
-		BZ_Free(map_faces);
+		BZ_Free(prv->faces);
 		break;
 #endif
 #ifdef Q2BSPS
@@ -6222,6 +6235,99 @@ qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 	return buffer->buffer;
 }
 
+unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, pvsbuffer_t *result, qboolean merge)
+{
+	int	leafs[64];
+	int		i, j, count;
+	vec3_t	mins, maxs;
+
+	for (i=0 ; i<3 ; i++)
+	{
+		mins[i] = org[i] - 8;
+		maxs[i] = org[i] + 8;
+	}
+
+	count = CM_BoxLeafnums (mod, mins, maxs, leafs, countof(leafs), NULL);
+	if (count < 1)
+		Sys_Error ("SV_Q2FatPVS: count < 1");
+
+	// convert leafs to clusters
+	for (i=0 ; i<count ; i++)
+		leafs[i] = CM_LeafCluster(mod, leafs[i]);
+
+	//grow the buffer if needed
+	if (result->buffersize < mod->pvsbytes)
+		result->buffer = BZ_Realloc(result->buffer, result->buffersize=mod->pvsbytes);
+
+	if (count == 1 && leafs[0] == -1)
+	{	//if the only leaf is the outside then broadcast it.
+		memset(result->buffer, 0xff, mod->pvsbytes);
+		i = count;
+	}
+	else
+	{
+		i = 0;
+		if (!merge)
+			mod->funcs.ClusterPVS(mod, leafs[i++], result, PVM_REPLACE);
+		// or in all the other leaf bits
+		for ( ; i<count ; i++)
+		{
+			for (j=0 ; j<i ; j++)
+				if (leafs[i] == leafs[j])
+					break;
+			if (j != i)
+				continue;		// already have the cluster we want
+			mod->funcs.ClusterPVS(mod, leafs[i], result, PVM_MERGE);
+		}
+	}
+	return mod->pvsbytes;
+}
+
+static int		clientarea;
+unsigned int Q23BSP_FatPVS(model_t *mod, vec3_t org, pvsbuffer_t *buffer, qboolean merge)
+{//fixme: this doesn't add areas
+	int		leafnum;
+	leafnum = CM_PointLeafnum (mod, org);
+	clientarea = CM_LeafArea (mod, leafnum);
+
+	return SV_Q2BSP_FatPVS (mod, org, buffer, merge);
+}
+
+qboolean Q23BSP_EdictInFatPVS(model_t *mod, pvscache_t *ent, qbyte *pvs)
+{
+	int i,l;
+	int nullarea = (mod->fromgame == fg_quake2)?0:-1;
+	if (clientarea == ent->areanum)
+	{
+		if (clientarea == nullarea)
+			return false;
+	}
+	else  if (!CM_AreasConnected (mod, clientarea, ent->areanum))
+	{	// doors can legally straddle two areas, so
+		// we may need to check another one
+		if (ent->areanum2 == nullarea
+			|| !CM_AreasConnected (mod, clientarea, ent->areanum2))
+			return false;		// blocked by a door
+	}
+
+	if (ent->num_leafs == -1)
+	{	// too many leafs for individual check, go by headnode
+		if (!CM_HeadnodeVisible (mod, ent->headnode, pvs))
+			return false;
+	}
+	else
+	{	// check individual leafs
+		for (i=0 ; i < ent->num_leafs ; i++)
+		{
+			l = ent->leafnums[i];
+			if (pvs[l >> 3] & (1 << (l&7) ))
+				break;
+		}
+		if (i == ent->num_leafs)
+			return false;		// not visible
+	}
+	return true;
+}
 
 /*
 ===============================================================================
@@ -6415,17 +6521,20 @@ Reads the portal state from a savegame file
 and recalculates the area connections
 ===================
 */
-void	CM_ReadPortalState (model_t *mod, vfsfile_t *f)
+qofs_t	CM_ReadPortalState (model_t *mod, qbyte *ptr, qofs_t ptrsize)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
-	size_t result;
 
-	result = VFS_READ(f, prv->portalopen, sizeof(prv->portalopen)); // do something with result
+	if (ptrsize < sizeof(prv->portalopen))
+		Con_Printf("CM_ReadPortalState() expected %u, but only %u available\n",(unsigned int)sizeof(prv->portalopen),(unsigned int)ptrsize);
+	else
+	{
+		memcpy(prv->portalopen, ptr, sizeof(prv->portalopen));
 
-	if (result != sizeof(prv->portalopen))
-		Con_Printf("CM_ReadPortalState() fread: expected %u, result was %u\n",(unsigned int)sizeof(prv->portalopen),(unsigned int)result);
-
-	FloodAreaConnections (prv);
+		FloodAreaConnections (prv);
+		return sizeof(prv->portalopen);
+	}
+	return 0;
 }
 
 /*

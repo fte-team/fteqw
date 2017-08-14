@@ -1093,8 +1093,14 @@ int		CM_HeadnodeForBox (struct model_s *mod, vec3_t mins, vec3_t maxs);
 //struct trace_s	CM_TransformedBoxTrace (struct model_s *mod, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int brushmask, vec3_t origin, vec3_t angles);
 struct model_s *CM_TempBoxModel(vec3_t mins, vec3_t maxs);
 
+//for gamecode to control portals/areas
 void	CMQ2_SetAreaPortalState (model_t *mod, unsigned int portalnum, qboolean open);
 void	CMQ3_SetAreaPortalState (model_t *mod, unsigned int area1, unsigned int area2, qboolean open);
+
+//for saved games to write the raw state.
+void	CM_WritePortalState (model_t *mod, vfsfile_t *f);
+qofs_t	CM_ReadPortalState (model_t *mod, qbyte *ptr, qofs_t ptrsize);
+
 #endif
 
 

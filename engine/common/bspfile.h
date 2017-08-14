@@ -593,6 +593,21 @@ typedef struct
 #define	Q3CONTENTS_TRIGGER								  0x40000000
 #define	Q3CONTENTS_NODROP		FTECONTENTS_SKY			//0x80000000
 
+//qc compat only. not used internally.
+#define DPCONTENTS_SOLID		1 // hit a bmodel, not a bounding box
+#define DPCONTENTS_WATER		2
+#define DPCONTENTS_SLIME		4
+#define DPCONTENTS_LAVA			8
+#define DPCONTENTS_SKY			16
+#define DPCONTENTS_BODY			32 // hit a bounding box, not a bmodel
+#define DPCONTENTS_CORPSE		64 // hit a SOLID_CORPSE entity
+#define DPCONTENTS_NODROP		128 // an area where backpacks should not spawn
+#define DPCONTENTS_PLAYERCLIP	256 // blocks player movement
+#define DPCONTENTS_MONSTERCLIP	512 // blocks monster movement
+#define DPCONTENTS_DONOTENTER	1024 // AI hint brush
+#define DPCONTENTS_BOTCLIP		2048 // AI hint brush
+#define DPCONTENTS_OPAQUE		4096 // only fully opaque brushes get this (may be useful for line of sight checks)
+
 
 //Texinfo flags - warning: these mix with q3 surface flags
 #define	TI_LIGHT		0x1		// value will hold the light strength

@@ -998,7 +998,12 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 			unsigned int frame = fs->frame[b];
 			float time = fs->frametime[b];
 			if (frame >= inf->numanimations)
-				continue;//frame = (unsigned)frame%inf->groups;
+			{
+				if (inf->numanimations)
+					frame = 0;
+				else
+					continue;//frame = (unsigned)frame%inf->groups;
+			}
 
 			g = &inf->ofsanimations[frame];
 			if (!g->numposes)
@@ -6433,7 +6438,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 			}
 			vert = (dpmvertex_t*)bonevert;
 		}
-		Alias_BuildGPUWeights(mod, root, numtransforms, firsttransform, false);
+		Alias_BuildGPUWeights(mod, m, numtransforms, firsttransform, false);
 		Z_Free(firsttransform);
 	}
 

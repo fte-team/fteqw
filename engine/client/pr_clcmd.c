@@ -899,7 +899,7 @@ void QCBUILTIN PF_cl_sprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	//this is a bit pointless for menus as it doesn't know player names or anything.
 #ifndef CLIENTONLY
 	int clientnum = G_FLOAT(OFS_PARM0);
-	char *str = PF_VarString(prinst, 1, pr_globals);
+	const char *str = PF_VarString(prinst, 1, pr_globals);
 	if (sv.active && clientnum < sv.allocated_client_slots && svs.clients[clientnum].state >= cs_connected)
 		SV_PrintToClient(&svs.clients[clientnum], PRINT_HIGH, str);
 #endif
@@ -907,7 +907,7 @@ void QCBUILTIN PF_cl_sprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_cl_bprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifndef CLIENTONLY
-	char *str = PF_VarString(prinst, 0, pr_globals);
+	const char *str = PF_VarString(prinst, 0, pr_globals);
 	if (sv.active)
 		SV_BroadcastPrintf(PRINT_HIGH, "%s", str);
 #endif
@@ -929,6 +929,16 @@ void QCBUILTIN PF_cl_localsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	float vol = (prinst->callargc>=2)?G_FLOAT(OFS_PARM2):1;
 
 	S_LocalSound2(s, chan, vol);
+}
+
+void QCBUILTIN PF_cl_getgamedirinfo(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//IMPLEMENTME
+//	int diridx = G_FLOAT(OFS_PARM0);
+//	int propidx = G_FLOAT(OFS_PARM1);
+
+	//propidx 0 == name
+	//propidx 1 == description (contents of modinfo.txt)
+	G_INT(OFS_RETURN) = 0;
 }
 
 #endif

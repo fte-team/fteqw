@@ -1264,6 +1264,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 
 	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
+		svs.clients[i].spawned = false;
 		svs.clients[i].edict = NULL;
 		svs.clients[i].name = svs.clients[i].namebuf;
 		svs.clients[i].team = svs.clients[i].teambuf;
@@ -1394,6 +1395,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		ent->v->movetype = MOVETYPE_PUSH;
 		VectorCopy(sv.world.worldmodel->mins, ent->v->mins);
 		VectorCopy(sv.world.worldmodel->maxs, ent->v->maxs);
+		VectorCopy(sv.world.worldmodel->mins, ent->v->absmin);
+		VectorCopy(sv.world.worldmodel->maxs, ent->v->absmax);
 
 		if (progstype == PROG_QW && pr_imitatemvdsv.value>0)
 		{
@@ -1685,6 +1688,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 				host_client->sendinfo = true;
 
 				host_client->state = cs_spawned;
+				host_client->spawned = true;
 
 				SV_UpdateToReliableMessages();	//so that we don't flood too much with 31 bots and one player.
 			}

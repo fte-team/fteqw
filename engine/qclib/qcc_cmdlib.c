@@ -511,7 +511,7 @@ skipwhite:
 				qcc_token[len++] = c;
 			data++;
 			c = *data;
-		} while ((c>= 'a' && c <= 'z') || (c>= 'A' && c <= 'Z') || c == '_');
+		} while ((c>= 'a' && c <= 'z') || (c>= 'A' && c <= 'Z') || (c>= '0' && c <= '9') || c == '_');
 
 		qcc_token[len] = 0;
 		return data;

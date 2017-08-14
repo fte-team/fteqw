@@ -79,7 +79,7 @@ static qboolean xinput_useaudio;
 
 #ifdef AVAIL_DINPUT
 
-#ifndef _MSC_VER
+#ifndef DIRECTINPUT_VERSION
 #define DIRECTINPUT_VERSION 0x0700
 #endif
 
@@ -166,6 +166,12 @@ static DWORD		joy_flags;
 #define MAX_JOYSTICKS 8
 static struct wjoy_s {
 	qboolean			isxinput;	//xinput device
+	enum
+	{
+		DS_UNKNOWN,
+		DS_PRESENT,
+		DS_NOTPRESENT
+	} devstate;
 	unsigned int		id;		//windows id. device id is the index.
 	unsigned int		devid;	//quake id (generally player index)
 	DWORD	numbuttons;
@@ -1975,91 +1981,111 @@ void INS_Commands (void)
 }
 
 
+void INS_DeviceChanged(void *ctx, void *data, size_t a ,size_t b)
+{	//called on WM_DEVICECHANGE
+	unsigned int idx;
+	for (idx = 0; idx < joy_count; idx++)
+	{
+		wjoy[idx].devstate = DS_UNKNOWN;
+	}
+}
 /*
 ===============
 INS_ReadJoystick
 ===============
 */
-qboolean INS_ReadJoystick (struct wjoy_s *joy)
+static qboolean INS_ReadJoystick (struct wjoy_s *joy)
 {
+	if (joy->devstate != DS_NOTPRESENT)
+	{	//xinput samples all basically say to poll, but that gives really shit performance.
+		//instead we wait until our window thread gets a WM_DEVICECHANGE before we restart polling an inactive device.
+		//this can safe us a couple ms each frame.
+
 #ifdef AVAIL_XINPUT
-	if (joy->isxinput)
-	{
-		XINPUT_STATE xistate;
-		XINPUT_VIBRATION vibrator;
-		HRESULT hr;
-		memset(&xistate, 0, sizeof(xistate));
-		hr = pXInputGetState(joy->id, &xistate);
-
-		if (in_xinput.ival == 2)
+		if (joy->isxinput)
 		{
-			Con_Printf("xi%i %s, b:%#x r:%u,%u l:%u,%u t:%u,%u\n", joy->id, (hr==ERROR_SUCCESS)?"success":va("%lx", hr), xistate.Gamepad.wButtons,
-				xistate.Gamepad.sThumbRX, xistate.Gamepad.sThumbRY, 
-				xistate.Gamepad.sThumbLX,xistate.Gamepad.sThumbLY,
-				xistate.Gamepad.bLeftTrigger,xistate.Gamepad.bRightTrigger);
-		}
-		else if (in_xinput.ival == 3 && joy->id == 0)
-		{
-		//I don't have a controller to test this with, so we fake stuff.
-			POINT p;
-			GetCursorPos(&p);
-			hr = ERROR_SUCCESS;
-			xistate.Gamepad.wButtons = rand() & 0xfff0;
-			xistate.Gamepad.sThumbRX = 0;//(p.x/1920.0)*0xffff - 0x8000;
-			xistate.Gamepad.sThumbRY = 0;//(p.y/1080.0)*0xffff - 0x8000;
-			xistate.Gamepad.sThumbLX = (p.x/1920.0)*0xffff - 0x8000;
-			xistate.Gamepad.sThumbLY = (p.y/1080.0)*0xffff - 0x8000;
-			xistate.Gamepad.bLeftTrigger = 0;
-			xistate.Gamepad.bRightTrigger = 0;
-		}
+			XINPUT_STATE xistate;
+			XINPUT_VIBRATION vibrator;
+			HRESULT hr;
+			memset(&xistate, 0, sizeof(xistate));
+			hr = pXInputGetState(joy->id, &xistate);
 
-		if (hr == ERROR_SUCCESS)
-		{	//ERROR_SUCCESS
-			//do we care about the dwPacketNumber?
-			joy->buttonstate = xistate.Gamepad.wButtons & 0xffff;
-
-			if (xistate.Gamepad.bLeftTrigger >= 128)
-				joy->buttonstate |= 0x10000;
-			if (xistate.Gamepad.bRightTrigger >= 128)
-				joy->buttonstate |= 0x20000;
-
-			if (joy->devid != DEVID_UNSET)
+			if (in_xinput.ival == 2)
 			{
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_RIGHT, xistate.Gamepad.sThumbLX / 32768.0);
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_DOWN, xistate.Gamepad.sThumbLY / 32768.0);
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_TRIGGER, xistate.Gamepad.bLeftTrigger/255.0);
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_RIGHT, xistate.Gamepad.sThumbRX / 32768.0);
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_DOWN, xistate.Gamepad.sThumbRY / 32768.0);
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_TRIGGER, xistate.Gamepad.bRightTrigger/255.0);
-
-				vibrator.wLeftMotorSpeed = xinput_leftvibrator.value * 0xffff;
-				vibrator.wRightMotorSpeed = xinput_rightvibrator.value * 0xffff;
-				pXInputSetState(joy->id, &vibrator);
+				Con_Printf("xi%i %s, b:%#x r:%u,%u l:%u,%u t:%u,%u\n", joy->id, (hr==ERROR_SUCCESS)?"success":va("%lx", hr), xistate.Gamepad.wButtons,
+					xistate.Gamepad.sThumbRX, xistate.Gamepad.sThumbRY, 
+					xistate.Gamepad.sThumbLX,xistate.Gamepad.sThumbLY,
+					xistate.Gamepad.bLeftTrigger,xistate.Gamepad.bRightTrigger);
 			}
-			return true;
+			else if (in_xinput.ival == 3 && joy->id == 0)
+			{
+			//I don't have a controller to test this with, so we fake stuff.
+				POINT p;
+				GetCursorPos(&p);
+				hr = ERROR_SUCCESS;
+				xistate.Gamepad.wButtons = rand() & 0xfff0;
+				xistate.Gamepad.sThumbRX = 0;//(p.x/1920.0)*0xffff - 0x8000;
+				xistate.Gamepad.sThumbRY = 0;//(p.y/1080.0)*0xffff - 0x8000;
+				xistate.Gamepad.sThumbLX = (p.x/1920.0)*0xffff - 0x8000;
+				xistate.Gamepad.sThumbLY = (p.y/1080.0)*0xffff - 0x8000;
+				xistate.Gamepad.bLeftTrigger = 0;
+				xistate.Gamepad.bRightTrigger = 0;
+			}
+
+			if (hr == ERROR_SUCCESS)
+			{	//ERROR_SUCCESS
+				//do we care about the dwPacketNumber?
+				joy->devstate = DS_PRESENT;
+				joy->buttonstate = xistate.Gamepad.wButtons & 0xffff;
+
+				if (xistate.Gamepad.bLeftTrigger >= 128)
+					joy->buttonstate |= 0x10000;
+				if (xistate.Gamepad.bRightTrigger >= 128)
+					joy->buttonstate |= 0x20000;
+
+				if (joy->devid != DEVID_UNSET)
+				{
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_RIGHT, xistate.Gamepad.sThumbLX / 32768.0);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_DOWN, xistate.Gamepad.sThumbLY / 32768.0);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_TRIGGER, xistate.Gamepad.bLeftTrigger/255.0);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_RIGHT, xistate.Gamepad.sThumbRX / 32768.0);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_DOWN, xistate.Gamepad.sThumbRY / 32768.0);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_TRIGGER, xistate.Gamepad.bRightTrigger/255.0);
+
+					vibrator.wLeftMotorSpeed = xinput_leftvibrator.value * 0xffff;
+					vibrator.wRightMotorSpeed = xinput_rightvibrator.value * 0xffff;
+					pXInputSetState(joy->id, &vibrator);
+				}
+				return true;
+			}
+			else if (hr == ERROR_DEVICE_NOT_CONNECTED)
+				joy->devstate = DS_NOTPRESENT;
 		}
-	}
-	else
+		else
 #endif
-	{
-		memset (&ji, 0, sizeof(ji));
-		ji.dwSize = sizeof(ji);
-		ji.dwFlags = joy_flags;
-
-		if (joyGetPosEx (joy->id, &ji) == JOYERR_NOERROR)
 		{
-			joy->povstate = ji.dwPOV;
-			joy->buttonstate = ji.dwButtons;
-			if (joy->devid != DEVID_UNSET)
+			memset (&ji, 0, sizeof(ji));
+			ji.dwSize = sizeof(ji);
+			ji.dwFlags = joy_flags;
+
+			if (joyGetPosEx (joy->id, &ji) == JOYERR_NOERROR)
 			{
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_RIGHT, (ji.dwXpos - 32768.0) / 32768);
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_DOWN, (ji.dwYpos - 32768.0) / 32768);
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_AUX, (ji.dwZpos - 32768.0) / 32768);
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_RIGHT, (ji.dwRpos - 32768.0) / 32768);
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_DOWN, (ji.dwUpos - 32768.0) / 32768);
-				IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_AUX, (ji.dwVpos - 32768.0) / 32768);
+				joy->devstate = DS_PRESENT;
+				joy->povstate = ji.dwPOV;
+				joy->buttonstate = ji.dwButtons;
+				if (joy->devid != DEVID_UNSET)
+				{
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_RIGHT, (ji.dwXpos - 32768.0) / 32768);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_DOWN, (ji.dwYpos - 32768.0) / 32768);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_AUX, (ji.dwZpos - 32768.0) / 32768);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_RIGHT, (ji.dwRpos - 32768.0) / 32768);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_DOWN, (ji.dwUpos - 32768.0) / 32768);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_AUX, (ji.dwVpos - 32768.0) / 32768);
+				}
+				return true;
 			}
-			return true;
+			else
+				joy->devstate = DS_NOTPRESENT;
 		}
 	}
 

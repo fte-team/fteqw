@@ -443,7 +443,7 @@ void V_ParseDamage (playerview_t *pv)
 #endif
 
 #ifdef CSQC_DAT
-	if (CSQC_Parse_Damage(armor, blood, from))
+	if (CSQC_Parse_Damage(pv-cl.playerview, armor, blood, from))
 		return;
 #endif
 
@@ -1854,6 +1854,8 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 }
 
 #include "pr_common.h"
+msurface_t *Mod_GetSurfaceNearPoint(model_t *model, vec3_t point);
+char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize);
 extern vec3_t nametagorg[MAX_CLIENTS];
 extern qboolean nametagseen[MAX_CLIENTS];
 void R_DrawNameTags(void)
@@ -1864,7 +1866,7 @@ void R_DrawNameTags(void)
 	char *ourteam;
 	int ourcolour;
 
-	extern cvar_t r_showfields, r_projection;
+	extern cvar_t r_showshaders, r_showfields, r_projection;
 
 	if (r_projection.ival)	//we don't actually know how to transform the points unless the projection is coded in advance. and it isn't.
 		return;
@@ -1980,6 +1982,34 @@ void R_DrawNameTags(void)
 				}
 			}
 		}
+	}
+
+	if (r_showshaders.ival && cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
+	{
+		trace_t trace;
+		char *str;
+		vec3_t targ;
+		vec2_t scale = {12,12};
+		msurface_t *surf;
+		VectorMA(r_refdef.vieworg, 8192, vpn, targ);
+		cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, PE_FRAMESTATE, NULL, r_refdef.vieworg, targ, vec3_origin, vec3_origin, false, ~0, &trace);
+
+		surf = Mod_GetSurfaceNearPoint(cl.worldmodel, trace.endpos);
+		if (surf)
+		{
+			shader_t *shader = surf->texinfo->texture->shader;
+			char *body = shader?Shader_GetShaderBody(shader, NULL, 0):NULL;
+			if (body)
+			{
+				str = va("%s\n{%s\n", surf->texinfo->texture->name, body);
+				Z_Free(body);
+			}
+			else
+				str = va("hit '%s'", surf->texinfo->texture->name);
+		}
+		else
+			str = "hit nothing";
+		R_DrawTextField(r_refdef.vrect.x + r_refdef.vrect.width/4, r_refdef.vrect.y, r_refdef.vrect.width/2, r_refdef.vrect.height, str, CON_WHITEMASK, CPRINT_LALIGN, font_default, scale);
 	}
 
 	if (((!r_refdef.playerview->spectator && !cls.demoplayback) || !scr_autoid.ival) && (!cl.teamplay || !scr_autoid_team.ival))

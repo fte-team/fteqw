@@ -740,8 +740,11 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 		}
 		break;
 	case ev_field:
-		fielddef = ED_FieldAtOfs (progfuncs, val->_int );
-		sprintf (line, "%s", fielddef->name);
+		fielddef = ED_FieldAtOfs (progfuncs, val->_int + progfuncs->funcs.fieldadjust);
+		if (fielddef)
+			sprintf (line, "%s", fielddef->name);
+		else
+			sprintf (line, "bad field %i", type);
 		break;
 	case ev_void:
 		sprintf (line, "void");
@@ -806,7 +809,7 @@ char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		QC_snprintfz (line, sizeof(line), "%s", f->s_name+progfuncs->funcs.stringtable);
 		break;
 	case ev_field:
-		fielddef = ED_FieldAtOfs (progfuncs, val->_int );
+		fielddef = ED_FieldAtOfs (progfuncs, val->_int + progfuncs->funcs.fieldadjust);
 		QC_snprintfz (line, sizeof(line), "%s", fielddef->name);
 		break;
 	case ev_void:
@@ -1403,17 +1406,18 @@ const char *ED_ParseEdict (progfuncs_t *progfuncs, const char *data, edictrun_t 
 		if (keyname[0] == '_')
 			continue;
 
+		if (!strcmp(keyname, "angle"))	//Quake anglehack - we've got to leave it in cos it doesn't work for quake otherwise, and this is a QuakeC lib!
+		{
+			if ((key = ED_FindField (progfuncs, "angles")))
+			{
+				QC_snprintfz (qcc_token, sizeof(qcc_token), "0 %f 0", atof(qcc_token));	//change it from yaw to 3d angle
+				goto cont;
+			}
+		}
+
 		key = ED_FindField (progfuncs, keyname);
 		if (!key)
 		{
-			if (!strcmp(keyname, "angle"))	//Quake anglehack - we've got to leave it in cos it doesn't work for quake otherwise, and this is a QuakeC lib!
-			{
-				if ((key = ED_FindField (progfuncs, "angles")))
-				{
-					QC_snprintfz (qcc_token, sizeof(qcc_token), "0 %f 0", atof(qcc_token));	//change it from yaw to 3d angle
-					goto cont;
-				}
-			}
 			if (!strcmp(keyname, "light"))	//Quake lighthack - allows a field name and a classname to go by the same thing in the level editor
 				if ((key = ED_FindField (progfuncs, "light_lev")))
 					goto cont;
@@ -1487,7 +1491,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_t 
 			len = strlen(name);
 			if (!*name)
 				continue;
-			if (name[len-2] == '_' && (name[len-1] == 'x' || name[len-1] == 'y' || name[len-1] == 'z'))
+			if (len >= 2 && name[len-2] == '_' && (name[len-1] == 'x' || name[len-1] == 'y' || name[len-1] == 'z'))
 				continue;	// skip _x, _y, _z vars (vector components, which are saved as one vector not 3 floats)
 
 			type = def16->type;
@@ -2531,6 +2535,8 @@ int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_
 
 	int stringadjust;
 
+	int *basictypetable;
+
 	current_progstate = progstate;
 
 	strcpy(current_progstate->filename, filename);
@@ -2959,7 +2965,7 @@ retry:
 					type = fld16[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
 
 				if (progfuncs->funcs.fieldadjust && !prinst.pr_typecurrent)	//we need to make sure all fields appear in their original place.
-					QC_RegisterFieldVar(&progfuncs->funcs, type, fld16[i].s_name+pr_strings, 4*(fld16[i].ofs+progfuncs->funcs.fieldadjust), -1);
+					QC_RegisterFieldVar(&progfuncs->funcs, type, fld16[i].s_name+pr_strings, 4*(fld16[i].ofs+progfuncs->funcs.fieldadjust), fld16[i].ofs);
 				else if (type == ev_vector)	//emit vector vars early, so their fields cannot be alocated before the vector itself. (useful against scramblers)
 				{
 					QC_RegisterFieldVar(&progfuncs->funcs, type, fld16[i].s_name+pr_strings, -1, fld16[i].ofs);
@@ -3147,6 +3153,47 @@ retry:
 	if (!prinst.pr_typecurrent)	//progs 0 always acts as string stripped.
 		isfriked = -1;			//partly to avoid some bad/optimised progs.
 
+
+	basictypetable = NULL;
+	if (prinst.reorganisefields == 2)
+	{
+		switch(current_progstate->structtype)
+		{	//gmqcc fucks up the globals. it writes FLOAT defs instead of field defs. stupid stupid stupid.
+		case PST_DEFAULT:
+			{
+				dstatement16_t *st = current_progstate->statements;
+				basictypetable = externs->memalloc(sizeof(*basictypetable) * pr_progs->numglobals);
+				memset(basictypetable, 0, sizeof(*basictypetable) * pr_progs->numglobals);
+				for (i = 0; i < pr_progs->numstatements; i++)
+				{
+					switch(st[i].op)
+					{
+					case OP_ADDRESS:
+					case OP_LOAD_F:
+					case OP_LOAD_V:
+					case OP_LOAD_S:
+					case OP_LOAD_ENT:
+					case OP_LOAD_FLD:
+					case OP_LOAD_FNC:
+					case OP_LOAD_I:
+					case OP_LOAD_P:
+						if (st[i].b < pr_progs->numglobals)
+							basictypetable[st[i].b] = ev_field;
+						break;
+					}
+				}
+
+				for (i = 0; i < pr_progs->numglobals; i++)
+				{
+					if (basictypetable[i] == ev_field)
+						QC_AddFieldGlobal(&progfuncs->funcs, (int *)glob + i);
+				}
+				externs->memfree(basictypetable);
+			}
+			break;
+		}
+	}
+
 //	len = 0;
 	switch(current_progstate->structtype)
 	{
@@ -3170,7 +3217,7 @@ retry:
 			switch(type)
 			{
 			case ev_field:
-				if (reorg)
+				if (reorg && !basictypetable)
 					QC_AddSharedFieldVar(&progfuncs->funcs, i, pr_strings - stringadjust);
 				break;
 			case ev_string:

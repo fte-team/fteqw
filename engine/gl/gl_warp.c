@@ -100,7 +100,7 @@ qboolean R_DrawSkyChain (batch_t *batch)
 	else
 		skyshader = batch->shader;
 
-	if (skyshader->prog)
+	if (skyshader->prog || !skyboxface)
 		return false;
 
 	if (skyshader->skydome)

@@ -883,10 +883,10 @@ static void Win32NVVK_DoPresent(struct vkframe *theframe)
 //	qwglMakeCurrent(maindc, baseRC);
 
 	//get the gl driver to wait for the vk driver to finish rendering the frame
-	qglWaitVkSemaphoreNV(theframe->backbuf->presentsemaphore);
+	qglWaitVkSemaphoreNV((GLuint64)theframe->backbuf->presentsemaphore);
 
 	//tell the gl driver to copy it over now
-	qglDrawVkImageNV(theframe->backbuf->colour.image, theframe->backbuf->colour.sampler, 
+	qglDrawVkImageNV((GLuint64)theframe->backbuf->colour.image, (GLuint64)theframe->backbuf->colour.sampler, 
 			0, 0, vid.pixelwidth, vid.pixelheight,	//xywh (window coords)
 			0,	//z
 			0, 1, 1, 0);	//stst (remember that gl textures are meant to be upside down)
@@ -896,7 +896,7 @@ static void Win32NVVK_DoPresent(struct vkframe *theframe)
 	fence = vk.acquirefences[vk.aquirelast%ACQUIRELIMIT];
 	vk.aquirelast++;
 	//and actually signal it, so our code can wake up.
-	qglSignalVkFenceNV(fence);
+	qglSignalVkFenceNV((GLuint64)fence);
 
 
 	//and the gl driver has its final image and should do something with it now.
@@ -2927,6 +2927,10 @@ static LONG WINAPI GLMainWndProc (
 				INS_RawInput_Read((HANDLE)lParam);
 				lRet = 0;
 			}
+			break;
+		case WM_DEVICECHANGE:
+			COM_AddWork(WG_MAIN, INS_DeviceChanged, NULL, NULL, uMsg, 0);
+			lRet = TRUE;
 			break;
 
 #ifdef VKQUAKE

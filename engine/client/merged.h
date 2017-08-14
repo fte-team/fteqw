@@ -1,17 +1,17 @@
 #ifdef VKQUAKE
 #if defined(__LP64__) || defined(_WIN64)
-#define VulkanWasDesignedByARetard void*
+#define VulkanAPIRandomness void*
 #elif defined(_MSC_VER) && _MSC_VER < 1300
-#define VulkanWasDesignedByARetard __int64
+#define VulkanAPIRandomness __int64
 #else
-#define VulkanWasDesignedByARetard long long
+#define VulkanAPIRandomness long long
 #endif
-#define VkRetardedDescriptorSet VulkanWasDesignedByARetard
-#define VkRetardedShaderModule VulkanWasDesignedByARetard
-#define VkRetardedPipelineLayout VulkanWasDesignedByARetard
-#define VkRetardedDescriptorSetLayout VulkanWasDesignedByARetard
-#define VkRetardedBuffer VulkanWasDesignedByARetard
-#define VkRetardedDeviceMemory VulkanWasDesignedByARetard
+#define VkRetardedDescriptorSet VulkanAPIRandomness
+#define VkRetardedShaderModule VulkanAPIRandomness
+#define VkRetardedPipelineLayout VulkanAPIRandomness
+#define VkRetardedDescriptorSetLayout VulkanAPIRandomness
+#define VkRetardedBuffer VulkanAPIRandomness
+#define VkRetardedDeviceMemory VulkanAPIRandomness
 #endif
 
 //These are defined later in the source tree. This file should probably be moved to a later spot.
@@ -129,7 +129,7 @@ extern void SCR_BeginLoadingPlaque					(void);
 extern void SCR_EndLoadingPlaque					(void);
 extern void SCR_DrawConsole							(qboolean noback);
 extern void SCR_SetUpToDrawConsole					(void);
-extern void SCR_CenterPrint							(int pnum, char *str, qboolean skipgamecode);
+extern void SCR_CenterPrint							(int pnum, const char *str, qboolean skipgamecode);
 
 void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int defaultmask, unsigned int fieldflags, struct font_s *font, vec2_t fontscale);
 #define CPRINT_LALIGN		(1<<0)	//L
@@ -418,7 +418,7 @@ typedef struct rendererinfo_s {
 	void	(*Draw_Shutdown)			(void);
 
 	void	 (*IMG_UpdateFiltering)		(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
-	qboolean (*IMG_LoadTextureMips)		(texid_t tex, struct pendingtextureinfo *mips);
+	qboolean (*IMG_LoadTextureMips)		(texid_t tex, const struct pendingtextureinfo *mips);
 	void	 (*IMG_DestroyTexture)		(texid_t tex);
 
 	void	 (*R_Init)					(void); //FIXME - merge implementations

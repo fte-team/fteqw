@@ -247,7 +247,7 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 				if (bytesread != 0)	//0==eof
 				{
 					dec->failed = true;
-					Con_Printf("ogg decoding failed\n");
+					Con_Printf("ogg decoding failed %i\n", bytesread);
 					break;
 				}
 				if (start >= dec->decodedbytestart+dec->decodedbytecount)
@@ -274,7 +274,7 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 				if (bytesread != 0)	//0==eof
 				{
 					dec->failed = true;
-					Con_Printf("ogg decoding failed\n");
+					Con_Printf("ogg decoding failed %i\n", bytesread);
 					return NULL;
 				}
 				if (start >= dec->decodedbytestart+dec->decodedbytecount)

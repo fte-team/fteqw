@@ -83,7 +83,8 @@ typedef struct
 		SHADER_TCMOD_STRETCH,	//constant factor
 		SHADER_TCMOD_ROTATE,
 		SHADER_TCMOD_TRANSFORM,
-		SHADER_TCMOD_TURB
+		SHADER_TCMOD_TURB,
+		SHADER_TCMOD_PAGE		//use a texture atlas. horizontal frames, vertical frames, time divisor
 	} type;
 	float			args[6];
 } tcmod_t;

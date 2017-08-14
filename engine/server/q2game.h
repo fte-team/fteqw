@@ -257,6 +257,9 @@ typedef struct
 	void	(VARGS *AddCommandString) (const char *text);
 
 	void	(VARGS *DebugGraph) (float value, int color);
+
+
+	//kmq2 adds pak file stuff, which is certainly useful, but is only half the solution when homedirs are involved.
 } game_import_t;
 
 //

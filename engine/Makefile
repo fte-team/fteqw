@@ -1830,26 +1830,28 @@ qccgui-scintilla: scintilla$(BITS)_static
 
 ifdef windir
 debugdir:
-	@-mkdir -p $(subst /,\, $(OUT_DIR))
+	@-mkdir -p "$(subst /,\, $(OUT_DIR))"
 reldir:
-	@-mkdir -p $(subst /,\, $(OUT_DIR))
+	@-mkdir -p "$(subst /,\, $(OUT_DIR))"
 else
 reldir:
-	@-mkdir -p $(RELEASE_DIR)
-	@-mkdir -p $(OUT_DIR)
+	@-mkdir -p "$(RELEASE_DIR)"
+	@-mkdir -p "$(OUT_DIR)"
 debugdir:
-	@-mkdir -p $(DEBUG_DIR)
-	@-mkdir -p $(OUT_DIR)
+	@-mkdir -p "$(DEBUG_DIR)"
+	@-mkdir -p "$(OUT_DIR)"
 endif
 
-plugins-dbg: debugdir
+plugins-dbg:
+	@-mkdir -p $(DEBUG_DIR)
 	@if test -e ../plugins/Makefile; \
 	then $(MAKE) native -C ../plugins  OUT_DIR="$(DEBUG_DIR)" CC="$(CC) $(W32_CFLAGS) $(DEBUG_CFLAGS)" BASE_CFLAGS="$(BASE_CFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
 	fi
 plugins:
 
-plugins-rel: reldir
+plugins-rel:
+	@-mkdir -p $(RELEASE_DIR)
 	@if test -e ../plugins/Makefile; \
 	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" BASE_CFLAGS="$(BASE_CFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \

@@ -4161,8 +4161,6 @@ static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir
 	Then take a look at that location for the relevent installed app.
 	*/
 	FILE *f;
-	DWORD resultlen;
-	HKEY key = NULL;
 
 	char *ev = getenv("HOME");
 	if (ev && *ev)
@@ -4180,8 +4178,6 @@ static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir
 			fclose(f);
 			return true;
 		}
-
-		/.local/share/Steam
 	}
 	return false;
 }

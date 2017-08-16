@@ -1123,13 +1123,13 @@ void Com_CompleateOSFileName(char *name)
 qboolean M_Media_Key (int key, menu_t *menu)
 {
 	int dir;
-	if (key == K_ESCAPE)
+	if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)
 	{
 		return false;
 	}
-	else if (key == K_RIGHTARROW || key == K_LEFTARROW)
+	else if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT || key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT)
 	{
-		if (key == K_RIGHTARROW)
+		if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT)
 			dir = 1;
 		else dir = -1;
 		switch(selectedoption)
@@ -1151,7 +1151,7 @@ qboolean M_Media_Key (int key, menu_t *menu)
 			break;
 		}
 	}
-	else if (key == K_DOWNARROW)
+	else if (key == K_DOWNARROW || key == K_KP_DOWNARROW || key == K_GP_DPAD_DOWN)
 	{
 		selectedoption++;
 		if (selectedoption>=numtracks)
@@ -1163,7 +1163,7 @@ qboolean M_Media_Key (int key, menu_t *menu)
 		if (selectedoption>=numtracks)
 			selectedoption = numtracks-1;
 	}
-	else if (key == K_UPARROW)
+	else if (key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP)
 	{
 		selectedoption--;
 		if (selectedoption < MEDIA_MIN)
@@ -1203,7 +1203,7 @@ qboolean M_Media_Key (int key, menu_t *menu)
 			}
 		}
 	}
-	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
 		if (key == K_MOUSE1)
 		{
@@ -2706,9 +2706,9 @@ void Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event)
 	{
 		Media_Send_Reset(cin);
 	}
-	else if (button == K_LEFTARROW && !event)
+	else if ((button == K_LEFTARROW || button == K_KP_LEFTARROW || button == K_GP_DPAD_LEFT) && !event)
 		cin->filmstarttime += (cin->playstate == CINSTATE_PAUSE)?-10:10;
-	else if (button == K_RIGHTARROW && !event)
+	else if ((button == K_RIGHTARROW || button == K_KP_RIGHTARROW || button == K_GP_DPAD_RIGHT) && !event)
 		cin->filmstarttime -= (cin->playstate == CINSTATE_PAUSE)?-10:10;
 }
 void Media_Send_MouseMove(cin_t *cin, float x, float y)

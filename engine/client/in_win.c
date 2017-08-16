@@ -98,7 +98,7 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 
 // mouse variables
 static cvar_t	in_dinput = CVARFD("in_dinput","0", CVAR_ARCHIVE, "Enables the use of dinput for mouse movements");
-static cvar_t	in_xinput = CVARFD("in_xinput","0", CVAR_ARCHIVE, "Enables the use of xinput for controllers.\nNote that if you have a headset plugged in, that headset will be used for audio playback if no specific audio device is configured.");
+static cvar_t	in_xinput = CVARFD("in_xinput","1", CVAR_ARCHIVE, "Enables the use of xinput for controllers.\nNote that if you have a headset plugged in, that headset will be used for audio playback if no specific audio device is configured.");
 static cvar_t	in_builtinkeymap = CVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
 static cvar_t in_simulatemultitouch = CVAR("in_simulatemultitouch", "0");
 static cvar_t	in_nonstandarddeadkeys = CVARD("in_nonstandarddeadkeys", "1", "Discard input events that result in multiple keys. Only the last key will be used. This results in behaviour that differs from eg notepad. To use a dead key, press it twice instead of the dead key followed by space.");
@@ -2280,6 +2280,7 @@ static int MapKey (int vkey)
 	}
 	if (key == 0)
 		Con_DPrintf("key 0x%02x has no translation\n", key);
+
 	return key;
 }
 

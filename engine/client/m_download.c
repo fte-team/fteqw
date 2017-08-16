@@ -2950,7 +2950,7 @@ static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsig
 	if (c->dint != downloadablessequence)
 		return false;	//probably stale
 	p = c->dptr;
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
 		if (p->alternative && (p->flags & DPF_HIDDEN))
 			p = p->alternative;
@@ -3054,7 +3054,7 @@ static void MD_AutoUpdate_Draw (int x, int y, struct menucustom_s *c, struct men
 }
 static qboolean MD_AutoUpdate_Key (struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
 		char nv[8] = "0";
 		if (pm_autoupdate.ival < UPD_TESTING && pm_autoupdate.ival >= 0)
@@ -3069,7 +3069,7 @@ static qboolean MD_AutoUpdate_Key (struct menucustom_s *c, struct menu_s *m, int
 
 qboolean MD_PopMenu (union menuoption_s *mo,struct menu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
 		M_RemoveMenu(m);
 		return true;
@@ -3079,7 +3079,7 @@ qboolean MD_PopMenu (union menuoption_s *mo,struct menu_s *m,int key)
 
 static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
 		PM_PromptApplyChanges();
 		return true;
@@ -3089,7 +3089,7 @@ static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int k
 
 static qboolean MD_MarkUpdatesButton (union menuoption_s *mo,struct menu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
 		PM_MarkUpdates();
 		return true;
@@ -3098,7 +3098,7 @@ static qboolean MD_MarkUpdatesButton (union menuoption_s *mo,struct menu_s *m,in
 }
 static qboolean MD_RevertUpdates (union menuoption_s *mo,struct menu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
 		PM_RevertChanges();
 		return true;

@@ -2256,30 +2256,53 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 #ifdef NQPROT
 		if (client->protocol == SCP_DARKPLACES7 || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 		{
+			extern cvar_t sv_stepheight;
 			float	*statsfi;
 			if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
 				statsfi = statsf;
 			else
+			{
 				statsfi = (float*)statsi;	/*dp requires a union of ints and floats, which is rather hideous...*/
-	//		statsfi[STAT_MOVEVARS_WALLFRICTION] = sv_wall
-			statsfi[STAT_MOVEVARS_FRICTION] = sv_friction.value;
-			statsfi[STAT_MOVEVARS_WATERFRICTION] = sv_waterfriction.value;
-			statsfi[STAT_MOVEVARS_TICRATE] = 72;
-			statsfi[STAT_MOVEVARS_TIMESCALE] = sv_gamespeed.value;
-			statsfi[STAT_MOVEVARS_GRAVITY] = sv_gravity.value;
-			statsfi[STAT_MOVEVARS_STOPSPEED] = sv_stopspeed.value;
-			statsfi[STAT_MOVEVARS_MAXSPEED] = client->maxspeed;
-			statsfi[STAT_MOVEVARS_SPECTATORMAXSPEED] = sv_spectatormaxspeed.value;
-			statsfi[STAT_MOVEVARS_ACCELERATE] = sv_accelerate.value;
-			statsfi[STAT_MOVEVARS_AIRACCELERATE] = sv_airaccelerate.value;
-			statsfi[STAT_MOVEVARS_WATERACCELERATE] = sv_wateraccelerate.value;
-			statsfi[STAT_MOVEVARS_ENTGRAVITY] = client->entgravity/sv_gravity.value;
-			statsfi[STAT_MOVEVARS_JUMPVELOCITY] = 270;//sv_jumpvelocity.value;	//bah
-			statsfi[STAT_MOVEVARS_EDGEFRICTION] = sv_edgefriction.value;
-			statsfi[STAT_MOVEVARS_MAXAIRSPEED] = client->maxspeed;
-			statsfi[STAT_MOVEVARS_STEPHEIGHT] = 18;
-			statsfi[STAT_MOVEVARS_AIRACCEL_QW] = 1;
-			statsfi[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION] = sv_gravity.value;
+
+				statsfi[STAT_FRAGLIMIT] = fraglimit.value;
+				statsfi[STAT_TIMELIMIT] = timelimit.value;
+			}
+//commented out things are basically for xonotic's use. they're not implemented by the server's movement stuff, not in dp, not in fte.
+//that's not to say the client shouldn't support them (when mods have hacked up velocity stuff and no willingness to implement the same thing in csqc too).
+//			statsfi[STAT_MOVEVARS_AIRACCEL_QW_STRETCHFACTOR]	= 0;
+//			statsfi[STAT_MOVEVARS_AIRCONTROL_PENALTY]			= 0;
+//			statsfi[STAT_MOVEVARS_AIRSPEEDLIMIT_NONQW]			= 0;
+//			statsfi[STAT_MOVEVARS_AIRSTRAFEACCEL_QW]			= 0;
+//			statsfi[STAT_MOVEVARS_AIRCONTROL_POWER]				= 2;
+			statsi [STAT_MOVEFLAGS]								= MOVEFLAG_QWCOMPAT;
+//			statsfi[STAT_MOVEVARS_WARSOWBUNNY_AIRFORWARDACCEL]	= 0;
+//			statsfi[STAT_MOVEVARS_WARSOWBUNNY_ACCEL]			= 0;
+//			statsfi[STAT_MOVEVARS_WARSOWBUNNY_TOPSPEED]			= 0;
+//			statsfi[STAT_MOVEVARS_WARSOWBUNNY_TURNACCEL]		= 0;
+//			statsfi[STAT_MOVEVARS_WARSOWBUNNY_BACKTOSIDERATIO]	= 0;
+//			statsfi[STAT_MOVEVARS_AIRSTOPACCELERATE]			= 0;
+//			statsfi[STAT_MOVEVARS_AIRSTRAFEACCELERATE]			= 0;
+//			statsfi[STAT_MOVEVARS_MAXAIRSTRAFESPEED]			= 0;
+//			statsfi[STAT_MOVEVARS_AIRCONTROL]					= 0;
+//			statsfi[STAT_MOVEVARS_WALLFRICTION]					= 0;
+			statsfi[STAT_MOVEVARS_FRICTION]						= sv_friction.value;
+			statsfi[STAT_MOVEVARS_WATERFRICTION]				= sv_waterfriction.value;
+			statsfi[STAT_MOVEVARS_TICRATE]						= sv_mintic.value?sv_mintic.value:(1.0/72);
+			statsfi[STAT_MOVEVARS_TIMESCALE]					= sv_gamespeed.value;
+			statsfi[STAT_MOVEVARS_GRAVITY]						= sv_gravity.value;
+			statsfi[STAT_MOVEVARS_STOPSPEED]					= sv_stopspeed.value;
+			statsfi[STAT_MOVEVARS_MAXSPEED]						= client->maxspeed;
+			statsfi[STAT_MOVEVARS_SPECTATORMAXSPEED]			= sv_spectatormaxspeed.value;
+			statsfi[STAT_MOVEVARS_ACCELERATE]					= sv_accelerate.value;
+			statsfi[STAT_MOVEVARS_AIRACCELERATE]				= sv_airaccelerate.value;
+			statsfi[STAT_MOVEVARS_WATERACCELERATE]				= sv_wateraccelerate.value;
+			statsfi[STAT_MOVEVARS_ENTGRAVITY]					= client->entgravity/sv_gravity.value;
+			statsfi[STAT_MOVEVARS_JUMPVELOCITY]					= 270;//sv_jumpvelocity.value;	//bah
+			statsfi[STAT_MOVEVARS_EDGEFRICTION]					= sv_edgefriction.value;
+			statsfi[STAT_MOVEVARS_MAXAIRSPEED]					= 30;	//max speed before airaccel cuts out. this is hardcoded in qw pmove
+			statsfi[STAT_MOVEVARS_STEPHEIGHT]					= *sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
+			statsfi[STAT_MOVEVARS_AIRACCEL_QW]					= 1;		//we're a quakeworld engine...
+			statsfi[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION]	= 0;
 		}
 #endif
 

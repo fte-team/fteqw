@@ -2530,6 +2530,7 @@ void HUD_Editor_Key(int key, int unichar, qbool down)
 		switch (key)
 		{
 			case K_ESCAPE:
+			case K_GP_BACK:
 				HUD_Editor_Toggle_f();
 				break;
 			case 'p' :
@@ -2562,15 +2563,23 @@ void HUD_Editor_Key(int key, int unichar, qbool down)
 				Cvar_SetValue(hud_editor_allowplace, !hud_editor_allowplace->value);
 				break;
 			case K_UPARROW :
+			case K_KP_UPARROW:
+			case K_GP_DPAD_UP:
 				// TODO : Add "nudging" in hud editor.
 				break;
 			case K_DOWNARROW :
+			case K_KP_DOWNARROW:
+			case K_GP_DPAD_DOWN:
 				// TODO : Add "nudging" in hud editor.
 				break;
 			case K_LEFTARROW :
+			case K_KP_LEFTARROW:
+			case K_GP_DPAD_LEFT:
 				// TODO : Add "nudging" in hud editor.
 				break;
 			case K_RIGHTARROW :
+			case K_KP_RIGHTARROW:
+			case K_GP_DPAD_RIGHT:
 				// TODO : Add "nudging" in hud editor.
 				break;
 		}

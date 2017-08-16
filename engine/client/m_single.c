@@ -643,11 +643,15 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key, unsigned
 	{
 	case K_MWHEELUP:
 	case K_UPARROW:
+	case K_KP_UPARROW:
+	case K_GP_DPAD_UP:
 		if (info->selected && info->selected->prev)
 			info->selected = info->selected->prev;
 		break;
 	case K_MWHEELDOWN:
 	case K_DOWNARROW:
+	case K_KP_DOWNARROW:
+	case K_GP_DPAD_DOWN:
 		if (info->selected && info->selected->next)
 			info->selected = info->selected->next;
 		break;

@@ -140,7 +140,6 @@ int MP_TranslateFTEtoQCCodes(int code)
 	case K_AUX31:			return 814;
 	case K_AUX32:			return 815;
 
-#ifndef K_GP_DPAD_UP	//	these are probably just aliases, so dupe cases. left for completeness.
 	case K_GP_DPAD_UP:		return 816;
 	case K_GP_DPAD_DOWN:	return 817;
 	case K_GP_DPAD_LEFT:	return 818;
@@ -157,7 +156,6 @@ int MP_TranslateFTEtoQCCodes(int code)
 	case K_GP_Y:			return 829;
 	case K_GP_LEFT_TRIGGER:	return 830;
 	case K_GP_RIGHT_TRIGGER:return 831;
-#endif
 
 	case K_VOLUP:			return -code;
 	case K_VOLDOWN:			return -code;
@@ -294,7 +292,6 @@ int MP_TranslateQCtoFTECodes(int code)
 	case 814:		return K_AUX31;
 	case 815:		return K_AUX32;
 
-	//WARNING: these are currently aliases in FTE.
 	case 816:		return K_GP_DPAD_UP;
 	case 817:		return K_GP_DPAD_DOWN;
 	case 818:		return K_GP_DPAD_LEFT;

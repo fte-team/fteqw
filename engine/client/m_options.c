@@ -320,19 +320,19 @@ qboolean M_Audio_Key (int key, struct menu_s *menu)
 	}
 
 
-	if (key == K_DOWNARROW)
+	if (key == K_DOWNARROW || key == K_KP_DOWNARROW || key == K_GP_DPAD_DOWN)
 	{
 		info->testsoundsource->common.posy+=10;
 	}
-	if (key == K_UPARROW)
+	if (key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP)
 	{
 		info->testsoundsource->common.posy-=10;
 	}
-	if (key == K_RIGHTARROW)
+	if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT)
 	{
 		info->testsoundsource->common.posx+=10;
 	}
-	if (key == K_LEFTARROW)
+	if (key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT)
 	{
 		info->testsoundsource->common.posx-=10;
 	}
@@ -1000,7 +1000,7 @@ qboolean M_PresetApply (union menuoption_s *op, struct menu_s *menu, int key)
 {
 	fpsmenuinfo_t *info = (fpsmenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
 		return false;
 
 	Cbuf_AddText("fps_preset ", RESTRICT_LOCAL);
@@ -1242,7 +1242,7 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,
 {
 	lightingmenuinfo_t *info = (lightingmenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
 		return false;
 
 #ifdef RTLIGHTS
@@ -1672,7 +1672,7 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
 {
 	singleplayerinfo_t *info = menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
 		return false;
 
 	switch(info->skillcombo->selectedoption)
@@ -1791,7 +1791,7 @@ qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct menu_s *menu,int ke
 {
 	singleplayerq2info_t *info = menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
 		return false;
 
 	switch(info->skillcombo->selectedoption)
@@ -1914,7 +1914,7 @@ qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct menu_s *menu,int ke
 {
 	singleplayerh2info_t *info = menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
 		return false;
 
 	switch(info->skillcombo->selectedoption)
@@ -2395,7 +2395,7 @@ qboolean M_VideoApply (union menuoption_s *op, struct menu_s *menu, int key)
 	extern cvar_t vid_desktopsettings;
 	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
 		return false;
 
 	// force update display options
@@ -3385,13 +3385,13 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 		mods->boneidx--;
 	else if (key == ']')
 		mods->boneidx++;
-	else if (key == K_UPARROW)
+	else if (key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP)
 		mods->pitch += 5;
-	else if (key == K_DOWNARROW)
+	else if (key == K_DOWNARROW || key == K_KP_DOWNARROW || key == K_GP_DPAD_DOWN)
 		mods->pitch -= 5;
-	else if (key == K_LEFTARROW)
+	else if (key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT)
 		mods->yaw -= 5;
-	else if (key == K_RIGHTARROW)
+	else if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT)
 		mods->yaw += 5;
 	else if (key == K_END)
 	{
@@ -3646,7 +3646,7 @@ static qboolean Installer_Go(menuoption_t *opt, menu_t *menu, int key)
 {
 	struct installermenudata *md = menu->data;
 	
-	if (key == K_MOUSE1 || key == K_ENTER)
+	if (key == K_MOUSE1 || key == K_ENTER || key == K_GP_START)
 	{
 		extern int startuppending;
 		vfsfile_t *f;

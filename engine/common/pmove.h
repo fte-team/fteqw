@@ -96,6 +96,7 @@ typedef struct
 } playermove_t;
 
 typedef struct {
+	//standard quakeworld
 	float gravity;
 	float stopspeed;
 	float maxspeed;
@@ -107,6 +108,8 @@ typedef struct {
 	float waterfriction;
 	float flyfriction;
 	float entgravity;
+
+	//extended stuff, sent via serverinfo
 	float bunnyspeedcap;
 	float watersinkspeed;
 	float ktjump;
@@ -115,8 +118,16 @@ typedef struct {
 	qboolean airstep;
 	qboolean slidyslopes;
 	int stepheight;
+
+	unsigned int	flags;
 } movevars_t;
 
+#define MOVEFLAG_VALID							0x80000000	//to signal that these are actually known. otherwise reserved.
+#define MOVEFLAG_Q2AIRACCELERATE				0x00000001	
+#define MOVEFLAG_NOGRAVITYONGROUND				0x00000002	//no slope sliding
+#define MOVEFLAG_GRAVITYUNAFFECTEDBYTICRATE		0x00000004	//apply half-gravity both before AND after the move, which better matches the curve
+#define MOVEFLAG_QWEDGEBOX						0x00010000	//calculate edgefriction using tracebox and a buggy start pos
+#define MOVEFLAG_QWCOMPAT						(MOVEFLAG_VALID|MOVEFLAG_NOGRAVITYONGROUND|MOVEFLAG_QWEDGEBOX)
 
 extern	movevars_t		movevars;
 extern	playermove_t	pmove;

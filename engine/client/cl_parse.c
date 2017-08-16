@@ -463,11 +463,10 @@ void CL_AckedInputFrame(int inseq, int outseq, qboolean worldstateokay)
 	unsigned int newmod;
 	outframe_t *frame;
 
-	newmod = outseq & UPDATE_MASK;
-
 	//calc the latency for this frame, but only if its not a dupe ack. we want the youngest, not the oldest, so we can calculate network latency rather than simply packet frequency
 	if (outseq != cl.lastackedmovesequence)
 	{
+		newmod = outseq & UPDATE_MASK;
 		frame = &cl.outframes[newmod];
 	// calculate latency
 		frame->latency = realtime - frame->senttime;
@@ -5172,10 +5171,53 @@ static void CL_SetStat_Internal (int pnum, int stat, int ivalue, float fvalue)
 }
 
 #ifdef NQPROT
-static void CL_SetStatMovevar(int pnum, int stat, float value)
+static void CL_SetStatMovevar(int pnum, int stat, int ivalue, float value)
 {
 	switch(stat)
 	{
+	case STAT_FRAGLIMIT:
+		if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
+			Info_SetValueForKey(cl.serverinfo, "fraglimit", va("%g", value), sizeof(cl.serverinfo));
+		break;
+	case STAT_TIMELIMIT:
+		if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
+			Info_SetValueForKey(cl.serverinfo, "timelimit", va("%g", value), sizeof(cl.serverinfo));
+		break;
+	case STAT_MOVEVARS_AIRACCEL_QW_STRETCHFACTOR:	//0
+	case STAT_MOVEVARS_AIRCONTROL_PENALTY:			//0
+	case STAT_MOVEVARS_AIRSPEEDLIMIT_NONQW:			//0
+	case STAT_MOVEVARS_AIRSTRAFEACCEL_QW:			//0
+	case STAT_MOVEVARS_AIRCONTROL_POWER:			//2
+	case STAT_MOVEVARS_WARSOWBUNNY_AIRFORWARDACCEL:	//0
+	case STAT_MOVEVARS_WARSOWBUNNY_ACCEL:			//0
+	case STAT_MOVEVARS_WARSOWBUNNY_TOPSPEED:		//0
+	case STAT_MOVEVARS_WARSOWBUNNY_TURNACCEL:		//0
+	case STAT_MOVEVARS_WARSOWBUNNY_BACKTOSIDERATIO:	//0
+	case STAT_MOVEVARS_AIRSTOPACCELERATE:			//0
+	case STAT_MOVEVARS_AIRSTRAFEACCELERATE:			//0
+	case STAT_MOVEVARS_MAXAIRSTRAFESPEED:			//0
+	case STAT_MOVEVARS_AIRCONTROL:					//0
+	case STAT_MOVEVARS_WALLFRICTION:				//0
+	case STAT_MOVEVARS_TIMESCALE:					//sv_gamespeed
+	case STAT_MOVEVARS_JUMPVELOCITY:				//270
+	case STAT_MOVEVARS_EDGEFRICTION:				//2
+	case STAT_MOVEVARS_MAXAIRSPEED:					//30
+	case STAT_MOVEVARS_AIRACCEL_QW:					//1
+	case STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION:	//0
+		break;
+
+	case STAT_MOVEVARS_STEPHEIGHT:					//18
+		movevars.stepheight = value;
+		break;
+	case STAT_MOVEVARS_TICRATE:		//cl_maxfps limiter hint
+		if (value <= 0)
+			cls.maxfps = 1.0/value;
+		else
+			cls.maxfps = 72;
+		break;
+	case STAT_MOVEFLAGS:
+//		movevars.flags = ivalue;
+		break;
 	case STAT_MOVEVARS_GRAVITY:
 		movevars.gravity = value;
 		break;
@@ -5259,9 +5301,9 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
 	{
 		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
-			CL_SetStatMovevar(pnum, stat, fvalue);
+			CL_SetStatMovevar(pnum, stat, ivalue, fvalue);
 		else
-			CL_SetStatMovevar(pnum, stat, *(float*)&ivalue);	//DP sucks.
+			CL_SetStatMovevar(pnum, stat, ivalue, *(float*)&ivalue);	//DP sucks.
 	}
 #endif
 }

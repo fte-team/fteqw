@@ -2479,20 +2479,6 @@ void CLQ2_ParseSteam(void)
 	Con_Printf("FIXME: CLQ2_ParseSteam: stub\n");
 }
 
-static struct{
-	qbyte colour;
-	char *name;
-} q2splash_info[] =
-{
-	{0x00, "q2part.te_splashunknown"}, 
-	{0xe0, "q2part.te_splashsparks"},
-	{0xb0, "q2part.te_splashbluewater"},
-	{0x50, "q2part.te_splashbrownwater"},
-	{0xd0, "q2part.te_splashslime"},
-	{0xe0, "q2part.te_splashlava"},
-	{0xe8, "q2part.te_splashblood"}
-};
-
 void CLQ2_ParseTEnt (void)
 {
 	beam_t *b;

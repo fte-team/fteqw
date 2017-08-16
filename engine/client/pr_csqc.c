@@ -5321,14 +5321,14 @@ static void QCBUILTIN PF_cs_getplayerstat(pubprogfuncs_t *prinst, struct globalv
 static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//this function is essentially an overcomplicated way to shirk from defining your own view bobbing.
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
-	enum
+	/*enum
 	{
 		TELEPORTED,
 		JUMPING,
 		DEAD,
 		INTERMISSION
-	} flags = G_FLOAT(OFS_PARM1);
-	csqc_deprecated("V_CalcRefdef is so lame. man up and define your own behaviour.\n");
+	} flags = G_FLOAT(OFS_PARM1);*/
+	csqc_deprecated("V_CalcRefdef has too much undefined behaviour.\n");
 //	if (ent->xv->entnum >= 1 && ent->xv->entnum <= MAX_CLIENTS)
 //		CSQC_ChangeLocalPlayer(ent->xv->entnum-1);
 

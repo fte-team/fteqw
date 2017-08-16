@@ -132,7 +132,7 @@ qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key
 {
 	char bot[64], top[64];
 	setupmenu_t *info = menu->data;
-	if (key != K_ENTER && key != K_KP_ENTER)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START)
 		return false;
 	Cvar_Set(&name, info->nameedit->text);
 	Cvar_Set(&team, info->teamedit->text);
@@ -225,7 +225,7 @@ qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int ke
 	//but we give the top free reign.
 	//unless they hold shift, in which case it switches around
 	//this allows for whatever you want
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT)
 	{
 		if ((keydown[K_LSHIFT] || keydown[K_RSHIFT]) ^ (ptr == &info->topcolour))
 		{
@@ -249,7 +249,7 @@ qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int ke
 		S_LocalSound ("misc/menu2.wav");
 		return true;
 	}
-	if (key == K_LEFTARROW)
+	if (key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT)
 	{
 		if ((keydown[K_LSHIFT] || keydown[K_RSHIFT]) ^ (ptr == &info->topcolour))
 		{
@@ -312,13 +312,13 @@ qboolean MSetupQ2_ChangeSkin (struct menucustom_s *option,struct menu_s *menu, i
 	setupmenu_t *info = menu->data;
 	q2skinsearch_t *s = Z_Malloc(sizeof(*s));
 	COM_EnumerateFiles(va("players/%s/*_i.*", info->modeledit->values[info->modeledit->selectedoption]), q2skin_enumerate, s);
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT)
 	{
 		s->match ++;
 		if (s->match>=s->entries)
 			s->match=0;
 	}
-	else if (key == K_LEFTARROW)
+	else if (key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT)
 	{
 		s->match --;
 		if (s->match<=0)
@@ -563,7 +563,7 @@ static const char *numplayeroptions[] = {
 qboolean MultiBeginGame (union menuoption_s *option,struct menu_s *menu, int key)
 {
 	newmultimenu_t *info = menu->data;
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
 		return false;
 
 	if (cls.state)

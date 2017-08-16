@@ -646,8 +646,8 @@ public class FTEDroidActivity extends Activity
 		private static final int K_SEARCH		= 242;
 		private static final int K_VOLUP		= 243;
 		private static final int K_VOLDOWN		= 244;
-		
-		private static final int K_JOY1			= 203;
+
+/*		private static final int K_JOY1			= 203;
 		private static final int K_JOY2			= 204;
 		private static final int K_JOY3			= 205;
 		private static final int K_JOY4			= 206;
@@ -655,19 +655,40 @@ public class FTEDroidActivity extends Activity
 		private static final int K_AUX2			= 208;
 		private static final int K_AUX3			= 209;
 		private static final int K_AUX4			= 210;
-				
+		private static final int K_AUX5			= 211;
+*/
+		private static final int K_GP_A				= 190;
+		private static final int K_GP_B				= 191;
+		private static final int K_GP_X				= 192;
+		private static final int K_GP_Y				= 193;
+		private static final int K_GP_LEFT_SHOULDER	= 194;
+		private static final int K_GP_RIGHT_SHOULDER= 195;
+		private static final int K_GP_LEFT_TRIGGER	= 196;
+		private static final int K_GP_RIGHT_TRIGGER	= 197;
+		private static final int K_GP_BACK			= 198;
+		private static final int K_GP_START			= 199;
+		private static final int K_GP_LEFT_THUMB	= 200;
+		private static final int K_GP_RIGHT_THUMB	= 201;
+		private static final int K_GP_DPAD_UP		= 251;
+		private static final int K_GP_DPAD_DOWN		= 252;
+		private static final int K_GP_DPAD_LEFT		= 253;
+		private static final int K_GP_DPAD_RIGHT	= 254;
+		private static final int K_GP_GUIDE			= 202;
+		private static final int K_GP_UNKNOWN		= 255;
+
 		private int mapKey(int acode, int unicode)
 		{
 			switch(acode)
 			{
-			case KeyEvent.KEYCODE_DPAD_UP:
+			case 280/*KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP*/:
 				return K_UPARROW;
-			case KeyEvent.KEYCODE_DPAD_DOWN:
+			case 281/*KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN*/:
 				return K_DOWNARROW;
-			case KeyEvent.KEYCODE_DPAD_LEFT:
+			case 282/*KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT*/:
 				return K_LEFTARROW;
-			case KeyEvent.KEYCODE_DPAD_RIGHT:
+			case 283/*KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT*/:
 				return K_RIGHTARROW;
+
 			case KeyEvent.KEYCODE_DPAD_CENTER:
 			case KeyEvent.KEYCODE_ENTER:
 				return K_ENTER;
@@ -685,23 +706,47 @@ public class FTEDroidActivity extends Activity
 				return K_VOLDOWN;	//"voldown"
 			case KeyEvent.KEYCODE_VOLUME_UP:
 				return K_VOLUP;		//"volup"
-				
-			case 99/*KeyEvent.KEYCODE_BUTTON_X*/:
-				return K_JOY1;
+
+			case KeyEvent.KEYCODE_DPAD_UP:
+				return K_GP_DPAD_UP;
+			case KeyEvent.KEYCODE_DPAD_DOWN:
+				return K_GP_DPAD_DOWN;
+			case KeyEvent.KEYCODE_DPAD_LEFT:
+				return K_GP_DPAD_LEFT;
+			case KeyEvent.KEYCODE_DPAD_RIGHT:
+				return K_GP_DPAD_RIGHT;
 			case 96/*KeyEvent.KEYCODE_BUTTON_A*/:
-				return K_JOY2;
-			case 100/*KeyEvent.KEYCODE_BUTTON_Y*/:
-				return K_JOY3;
+				return K_GP_A;
 			case 97/*KeyEvent.KEYCODE_BUTTON_B*/:
-				return K_JOY4;
+				return K_GP_B;
+//			case 98/*KeyEvent.KEYCODE_BUTTON_C*/:
+//				return K_GP_C;
+			case 99/*KeyEvent.KEYCODE_BUTTON_X*/:
+				return K_GP_X;
+			case 100/*KeyEvent.KEYCODE_BUTTON_Y*/:
+				return K_GP_Y;
+//			case 101/*KeyEvent.KEYCODE_BUTTON_Z*/:
+//				return K_GP_Z;
 			case 102/*KeyEvent.KEYCODE_BUTTON_L1*/:
-				return K_AUX1;
+				return K_GP_LEFT_SHOULDER;
 			case 103/*KeyEvent.KEYCODE_BUTTON_R1*/:
-				return K_AUX2;
+				return K_GP_RIGHT_SHOULDER;
+			case 104/*KeyEvent.KEYCODE_BUTTON_L2*/:
+				return K_GP_LEFT_TRIGGER;
+			case 105/*KeyEvent.KEYCODE_BUTTON_R2*/:
+				return K_GP_RIGHT_TRIGGER;
 			case 106/*KeyEvent.KEYCODE_BUTTON_THUMBL*/:
-				return K_AUX3;
+				return K_GP_LEFT_THUMB;
 			case 107/*KeyEvent.KEYCODE_BUTTON_THUMBR*/:
-				return K_AUX4;
+				return K_GP_RIGHT_THUMB;
+			case 108/*KeyEvent.KEYCODE_BUTTON_START*/:
+				return K_GP_START;
+			case 109/*KeyEvent.KEYCODE_BUTTON_SELECT*/:
+				return K_GP_BACK;
+			case 110/*KeyEvent.KEYCODE_BUTTON_MODE*/:
+				return K_GP_GUIDE;
+//			case KeyEvent.KEYCODE_BUTTON_OTHER:
+//				return K_GP_UNKNOWN;
 
 			default:
 				if (unicode < 128)

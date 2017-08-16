@@ -2408,6 +2408,9 @@ qboolean SV_Physics (void)
 	qboolean moved = false;
 	int maxtics;
 	double trueframetime = host_frametime;
+	double maxtic = sv_maxtic.value;
+	if (maxtic < sv_mintic.value)
+		maxtic = sv_mintic.value;
 
 	//keep gravity tracking the cvar properly
 	movevars.gravity = sv_gravity.value;
@@ -2418,6 +2421,9 @@ qboolean SV_Physics (void)
 #endif
 		)	//make tics multiples of sv_maxtic (defaults to 0.1)
 	{
+		if (svs.gametype == GT_QUAKE2)
+			maxtic = 0.1;	//fucking fuckity fuck. we should warn about this.
+
 		host_frametime = sv.time - sv.world.physicstime;
 		if (host_frametime<0)
 		{
@@ -2426,14 +2432,14 @@ qboolean SV_Physics (void)
 			host_frametime = 0;
 		}
 		if (svs.gametype != GT_QUAKE3)
-		if (host_frametime < sv_maxtic.value && realtime)
+		if (host_frametime < maxtic && realtime)
 		{
 //			sv.time+=host_frametime;
 			host_frametime = trueframetime;
 			return false;	//don't bother with the whole server thing for a bit longer
 		}
-		if (host_frametime > sv_maxtic.value)
-			host_frametime = sv_maxtic.value;
+		if (host_frametime > maxtic)
+			host_frametime = maxtic;
 		sv.world.physicstime = sv.time;
 
 		switch(svs.gametype)
@@ -2520,7 +2526,7 @@ qboolean SV_Physics (void)
 		}
 		if (host_frametime <= 0 || host_frametime < sv_mintic.value)
 			break;
-		if (host_frametime > sv_maxtic.value)
+		if (host_frametime > maxtic)
 		{
 			if (maxtics-- <= 0)
 			{
@@ -2528,7 +2534,7 @@ qboolean SV_Physics (void)
 				sv.world.physicstime = sv.time;
 				break;
 			}
-			host_frametime = sv_maxtic.value;
+			host_frametime = maxtic;
 		}
 		if (!host_frametime)
 			continue;

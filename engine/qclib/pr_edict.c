@@ -3191,6 +3191,10 @@ retry:
 				externs->memfree(basictypetable);
 			}
 			break;
+		case PST_QTEST:		//not likely to need this
+		case PST_KKQWSV:	//fixme...
+		case PST_FTE32:		//fingers crossed...
+			break;
 		}
 	}
 

@@ -1509,7 +1509,7 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 
 	if (ctx->SV_OnEntityPreSpawnFunction)
 	{
-		void *pr_globals = PR_globals(progfuncs, PR_CURRENT);
+//		void *pr_globals = PR_globals(progfuncs, PR_CURRENT);
 		*sv.world.g.self = EDICT_TO_PROG(progfuncs, ed);
 		PR_ExecuteProgram(progfuncs, ctx->SV_OnEntityPreSpawnFunction);
 		if (ed->ereftype == ER_FREE)
@@ -1613,7 +1613,7 @@ static void PDECL PR_DoSpawnInitialEntity(pubprogfuncs_t *progfuncs, struct edic
 
 	if (ctx->SV_OnEntityPostSpawnFunction)
 	{
-		void *pr_globals = PR_globals(progfuncs, PR_CURRENT);
+//		void *pr_globals = PR_globals(progfuncs, PR_CURRENT);
 		if (ed->ereftype == ER_FREE)
 			return;
 		*sv.world.g.self = EDICT_TO_PROG(progfuncs, ed);

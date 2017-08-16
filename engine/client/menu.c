@@ -667,12 +667,15 @@ qboolean M_Help_Key (int key, menu_t *m)
 	switch (key)
 	{
 	case K_ESCAPE:
+	case K_GP_BACK:
 	case K_MOUSE2:
 		M_Menu_Main_f ();
 		return true;
 
 	case K_UPARROW:
 	case K_RIGHTARROW:
+	case K_KP_RIGHTARROW:
+	case K_GP_DPAD_RIGHT:
 	case K_MOUSE1:
 		S_LocalSound ("misc/menu2.wav");
 		if (++help_page >= num_help_pages)
@@ -681,6 +684,8 @@ qboolean M_Help_Key (int key, menu_t *m)
 
 	case K_DOWNARROW:
 	case K_LEFTARROW:
+	case K_KP_LEFTARROW:
+	case K_GP_DPAD_LEFT:
 		S_LocalSound ("misc/menu2.wav");
 		if (--help_page < 0)
 			help_page = num_help_pages-1;
@@ -991,6 +996,7 @@ qboolean MC_Quit_Key (int key, menu_t *menu)
 	switch (key)
 	{
 	case K_ESCAPE:
+	case K_GP_BACK:
 	case 'n':
 	case 'N':
 		M_RemoveMenu(menu);
@@ -1021,6 +1027,7 @@ qboolean MC_SaveQuit_Key (int key, menu_t *menu)
 	case 'o':
 	case 'O':
 	case K_ESCAPE:
+	case K_GP_BACK:
 	case K_MOUSE2:
 		M_RemoveMenu(menu);
 		break;

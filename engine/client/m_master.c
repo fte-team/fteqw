@@ -356,7 +356,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 		}
 	}
 
-	else if (key == K_ENTER || key == K_KP_ENTER || (ctrl && (key == 's' || key == 'j')) || key == K_SPACE)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || (ctrl && (key == 's' || key == 'j')) || key == K_SPACE)
 	{
 		server = Master_SortedServer(info->selectedpos);
 		if (server)
@@ -735,7 +735,7 @@ static qboolean SL_Key	(int key, menu_t *menu)
 		extern qboolean	keydown[];
 		qboolean ctrldown = keydown[K_LCTRL] || keydown[K_RCTRL];
 
-		if (key == K_ESCAPE || key == K_MOUSE2)
+		if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)
 		{
 			serverpreview = false;
 			return true;
@@ -766,7 +766,7 @@ static qboolean SL_Key	(int key, menu_t *menu)
 			serverpreview = ((serverpreview==3)?1:3);
 			return true;
 		}
-		else if (key == K_LEFTARROW)
+		else if (key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT)
 		{
 			if (--serverpreview < 1)
 				serverpreview = 4;
@@ -775,7 +775,7 @@ static qboolean SL_Key	(int key, menu_t *menu)
 				Master_FindRoute(server->adr);
 			return true;
 		}
-		else if (key == K_RIGHTARROW)
+		else if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT)
 		{
 			if (++serverpreview > 4)
 				serverpreview = 1;
@@ -789,7 +789,7 @@ static qboolean SL_Key	(int key, menu_t *menu)
 			Master_FindRoute(server->adr);
 			serverpreview = 4;
 		}
-		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER)	//join
+		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER || key != K_GP_START)	//join
 		{
 			if (key == 's' || key == 'o')
 			{
@@ -847,7 +847,7 @@ dojoin:
 			return true;
 		}
 		//eat (nearly) all keys
-		else if (!(key == K_UPARROW || key == K_DOWNARROW))
+		else if (!(key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP || key == K_DOWNARROW || key == K_KP_DOWNARROW || key == K_GP_DPAD_DOWN))
 			return true;
 	}
 	if (key == K_HOME)
@@ -864,9 +864,9 @@ dojoin:
 		info->selectedpos += 10;
 	else if (key == K_PGUP)
 		info->selectedpos -= 10;
-	else if (key == K_DOWNARROW)
+	else if (key == K_DOWNARROW || key == K_KP_DOWNARROW || key == K_GP_DPAD_DOWN)
 		info->selectedpos += 1;
-	else if (key == K_UPARROW)
+	else if (key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP)
 		info->selectedpos -= 1;
 	else if (key == K_MWHEELUP)
 		info->selectedpos -= 3;

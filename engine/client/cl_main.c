@@ -2093,24 +2093,33 @@ void CL_CheckServerInfo(void)
 		cls.allow_cheats	= false;
 	}
 
-	cls.maxfps = atof(Info_ValueForKey(cl.serverinfo, "maxfps"));
-	if (cls.maxfps < 20)
-		cls.maxfps = 72;
-
 	cls.z_ext = atoi(Info_ValueForKey(cl.serverinfo, "*z_ext"));
 
-	// movement vars for prediction
-	cl.bunnyspeedcap = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_bunnyspeedcap"));
-	movevars.slidefix = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_slidefix")) != 0);
-	movevars.airstep = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_airstep")) != 0);
-	movevars.walljump = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_walljump")));
-	movevars.ktjump = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_ktjump"));
-	s = Info_ValueForKey(cl.serverinfo, "pm_stepheight");
-	movevars.stepheight = *s?Q_atof(s):PM_DEFAULTSTEPHEIGHT;
-	s = Info_ValueForKey(cl.serverinfo, "pm_watersinkspeed");
-	movevars.watersinkspeed = *s?Q_atof(s):60;
-	s = Info_ValueForKey(cl.serverinfo, "pm_flyfriction");
-	movevars.flyfriction = *s?Q_atof(s):4;
+#ifdef NQPROT
+	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
+	{
+		//movevars come from stats.
+	}
+	else
+#endif
+	{
+		cls.maxfps = atof(Info_ValueForKey(cl.serverinfo, "maxfps"));
+		if (cls.maxfps < 20)
+			cls.maxfps = 72;
+
+		// movement vars for prediction
+		cl.bunnyspeedcap = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_bunnyspeedcap"));
+		movevars.slidefix = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_slidefix")) != 0);
+		movevars.airstep = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_airstep")) != 0);
+		movevars.walljump = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_walljump")));
+		movevars.ktjump = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_ktjump"));
+		s = Info_ValueForKey(cl.serverinfo, "pm_stepheight");
+		movevars.stepheight = *s?Q_atof(s):PM_DEFAULTSTEPHEIGHT;
+		s = Info_ValueForKey(cl.serverinfo, "pm_watersinkspeed");
+		movevars.watersinkspeed = *s?Q_atof(s):60;
+		s = Info_ValueForKey(cl.serverinfo, "pm_flyfriction");
+		movevars.flyfriction = *s?Q_atof(s):4;
+	}
 
 	// Initialize cl.maxpitch & cl.minpitch
 	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)

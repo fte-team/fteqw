@@ -465,6 +465,8 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 			Con_EditorMoveCursor(con, con->userline, con->userline->length, shiftdown, false);
 		return true;
 	case K_UPARROW:
+	case K_KP_UPARROW:
+	case K_GP_DPAD_UP:
 		if (con->userline->older)
 		{
 			if (con->useroffset > con->userline->older->length)
@@ -474,6 +476,8 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 		}
 		return true;
 	case K_DOWNARROW:
+	case K_KP_DOWNARROW:
+	case K_GP_DPAD_DOWN:
 		if (con->userline->newer)
 		{
 			if (con->useroffset > con->userline->newer->length)
@@ -483,6 +487,8 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 		}
 		return true;
 	case K_LEFTARROW:
+	case K_KP_LEFTARROW:
+	case K_GP_DPAD_LEFT:
 		if (con->useroffset == 0)
 		{
 			if (con->userline->older)
@@ -492,6 +498,8 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 			Con_EditorMoveCursor(con, con->userline, con->useroffset-1, shiftdown, true);
 		return true;
 	case K_RIGHTARROW:
+	case K_KP_RIGHTARROW:
+	case K_GP_DPAD_RIGHT:
 		if (con->useroffset == con->userline->length)
 		{
 			if (con->userline->newer)

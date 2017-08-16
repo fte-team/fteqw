@@ -205,7 +205,7 @@ keyname_t keynames[] =
 	{"POWER",	K_POWER},
 	{"VOLUP",	K_VOLUP},
 	{"VOLDOWN",	K_VOLDOWN},
- 
+
 	{"JOY1",	K_JOY1},
 	{"JOY2",	K_JOY2},
 	{"JOY3",	K_JOY3},
@@ -1203,7 +1203,7 @@ qboolean Key_EntryLine(unsigned char **line, int lineoffset, int *linepos, int k
 	qboolean shift = keydown[K_LSHIFT] || keydown[K_RSHIFT];
 	char utf8[8];
 
-	if (key == K_LEFTARROW || key == K_KP_LEFTARROW)
+	if (key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT)
 	{
 		if (ctrl)
 		{
@@ -1560,7 +1560,7 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		return false;
 	}
 	
-	if (key == K_ENTER || key == K_KP_ENTER)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START)
 	{	// backslash text are commands, else chat
 		int oldl = edit_line;
 
@@ -1626,7 +1626,7 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 	if (key != K_CTRL && key != K_SHIFT && con_commandmatch)
 		con_commandmatch=1;
 	
-	if (key == K_UPARROW || key == K_KP_UPARROW)
+	if (key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP)
 	{
 		do
 		{
@@ -1644,7 +1644,7 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		return true;
 	}
 
-	if (key == K_DOWNARROW || key == K_KP_DOWNARROW)
+	if (key == K_DOWNARROW || key == K_KP_DOWNARROW || key == K_GP_DPAD_DOWN)
 	{
 		if (history_line == edit_line)
 		{
@@ -1697,7 +1697,7 @@ void Key_Message (int key, int unicode)
 		chat_bufferpos = 0;
 	}
 
-	if (key == K_ENTER || key == K_KP_ENTER)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START)
 	{
 		if (chat_buffer && chat_buffer[0])
 		{	//send it straight into the command.
@@ -1727,7 +1727,7 @@ void Key_Message (int key, int unicode)
 		return;
 	}
 
-	if (key == K_ESCAPE)
+	if (key == K_ESCAPE || key == K_GP_BACK)
 	{
 		Key_Dest_Remove(kdm_message);
 		chat_bufferpos = 0;
@@ -2254,6 +2254,14 @@ void Key_Init (void)
 	consolekeys['`'] = false;
 	consolekeys['~'] = false;
 
+	//most gamepad keys are not console keys, just because.
+	consolekeys[K_GP_DPAD_UP] = true;
+	consolekeys[K_GP_DPAD_DOWN] = true;
+	consolekeys[K_GP_DPAD_LEFT] = true;
+	consolekeys[K_GP_DPAD_RIGHT] = true;
+	consolekeys[K_GP_START] = true;
+	consolekeys[K_GP_BACK] = true;
+
 	for (i=K_MOUSE1 ; i<K_MOUSE10 ; i++)
 	{
 		consolekeys[i] = true;
@@ -2663,28 +2671,55 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		bl = bindcmdlevel[key][modifierstate];
 	}
 
-	//simulate singular shift+alt+ctrl for binds (no left/right). really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
-	if (key == K_RALT && (!dc || !*dc))
+	bkey = key;
+	if (!dc || !*dc)
 	{
-		bkey = K_LALT;
-		dc = keybindings[bkey][modifierstate];
-		bl = bindcmdlevel[bkey][modifierstate];
-	}
-	else if (key == K_RCTRL && (!dc || !*dc))
-	{
-		bkey = K_LCTRL;
-		dc = keybindings[bkey][modifierstate];
-		bl = bindcmdlevel[bkey][modifierstate];
-	}
-	else if (key == K_RSHIFT && (!dc || !*dc))
-	{
-		bkey = K_LSHIFT;
-		dc = keybindings[bkey][modifierstate];
-		bl = bindcmdlevel[bkey][modifierstate];
-	}
-	else
-		bkey = key;
+		bl = RESTRICT_LOCAL;
+		//I've split some keys in the past. Some keys won't be known to csqc/menuqc/configs or whatever so we instead remap them to something else to prevent them from being dead-by-default.
+		//csqc key codes may even have no standard keycode so cannot easily be bound from qc.
+		switch(key)
+		{
+		//left+right alts got split
+		case K_RALT:
+			bkey = K_LALT;
+			break;
+		case K_RCTRL:
+			bkey = K_LCTRL;
+			break;
+		case K_RSHIFT:
+			bkey = K_LSHIFT;
+			break;
 
+		//gamepad buttons should get fallbacks out of the box, even if they're not initially listed on the binds menu.
+		//these may be redefined later...
+		case K_GP_START:			dc = "togglemenu";		goto defaultedbind;
+		case K_GP_A:				dc = "+button4";		goto defaultedbind;
+		case K_GP_B:				dc = "+button3";		goto defaultedbind;
+		case K_GP_LEFT_SHOULDER:
+		case K_GP_X:				dc = "+attack";			goto defaultedbind;
+		case K_GP_RIGHT_SHOULDER:
+		case K_GP_Y:				dc = "+jump";			goto defaultedbind;
+		case K_GP_BACK:				dc = "impulse 10";		goto defaultedbind;
+		case K_GP_DPAD_UP:			dc = "+forward";		goto defaultedbind;
+		case K_GP_DPAD_DOWN:		dc = "+back";			goto defaultedbind;
+		case K_GP_DPAD_LEFT:		dc = "+moveleft";		goto defaultedbind;
+		case K_GP_DPAD_RIGHT:		dc = "+moveright";		goto defaultedbind;
+		case K_GP_LEFT_TRIGGER:		dc = "+left";			goto defaultedbind;
+		case K_GP_RIGHT_TRIGGER:	dc = "+right";			goto defaultedbind;
+		case K_GP_LEFT_THUMB:		dc = "toggleconsole";	goto defaultedbind;
+		case K_GP_UNKNOWN:
+		case K_GP_RIGHT_THUMB:
+		case K_GP_GUIDE:			dc = "togglemenu";		goto defaultedbind;
+
+		default:
+			break;
+		}
+
+		dc = keybindings[bkey][modifierstate];
+		bl = bindcmdlevel[bkey][modifierstate];
+	}
+
+defaultedbind:
 	if (key == K_MOUSE1 && IN_MouseDevIsTouch(devid))
 	{
 		char *button = SCR_ShowPics_ClickCommand(mousecursor_x, mousecursor_y);

@@ -70,7 +70,7 @@ cvar_t	sv_mintic					= CVARD("sv_mintic","0.013", "The minimum interval between 
 #else
 cvar_t	sv_mintic					= CVARD("sv_mintic","0", "The minimum interval between running physics frames.");	//client builds can think as often as they want.
 #endif
-cvar_t	sv_maxtic					= CVARD("sv_maxtic","0.1", "The maximum interval between running physics frames. If the value is too low, multiple physics interations might be run at a time (based upon sv_limittics). Set identical to sv_mintic for fixed-interval ticks, which may be required if ODE is used.");//never run a tick slower than this
+cvar_t	sv_maxtic					= CVARD("sv_maxtic","0.1", "The maximum interval between running physics frames. If the value is too low, multiple physics interations might be run at a time (based upon sv_limittics). Set to 0 for fixed-interval ticks, which may be required if ODE is used.");//never run a tick slower than this
 cvar_t	sv_limittics				= CVARD("sv_limittics","3", "The maximum number of ticks that may be run within a frame, to allow the server to catch up if it stalled or if sv_maxtic is too low.");//
 
 cvar_t	sv_nailhack					= CVARD("sv_nailhack","0", "If set to 1, disables the nail entity networking optimisation. This hack was popularised by qizmo which recommends it for better compression. Also allows clients to interplate nail positions and add trails.");

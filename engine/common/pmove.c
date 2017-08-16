@@ -23,6 +23,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 movevars_t		movevars;
 playermove_t	pmove;
 
+#define movevars_dpflags		MOVEFLAG_QWCOMPAT
+#define movevars_edgefriction	2
+#define movevars_maxairspeed	30
+#define movevars_jumpspeed		270
+
 float		frametime;
 
 vec3_t		forward, right, up;
@@ -294,8 +299,8 @@ int PM_SlideMove (void)
 				&& Length(pmove.velocity)>200 && pmove.cmd.buttons & 2 && !pmove.jump_held && !pmove.waterjumptime)
 			{
 				PM_ClipVelocity (original_velocity, planes[i], pmove.velocity, 2);
-				if (pmove.velocity[2] < 270)
-					pmove.velocity[2] = 270;
+				if (pmove.velocity[2] < movevars_jumpspeed)
+					pmove.velocity[2] = movevars_jumpspeed;
 				pmove.jump_msec = pmove.cmd.msec;
 				pmove.jump_held = true;
 				pmove.waterjumptime = 0;
@@ -503,18 +508,31 @@ void PM_Friction (void)
 	else if (pmove.onground) {
 		// apply ground friction
 		friction = movevars.friction;
-
-		// if the leading edge is over a dropoff, increase friction
-		start[0] = stop[0] = pmove.origin[0] + pmove.velocity[0]/speed*16;
-		start[1] = stop[1] = pmove.origin[1] + pmove.velocity[1]/speed*16;
-		//FIXME: gravitydir.
-		//id bug: this is a tracebox, NOT a traceline.
-		start[2] = pmove.origin[2] + pmove.player_mins[2];
-		stop[2] = start[2] - 34;
-		trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
-		if (trace.fraction == 1 && !trace.startsolid)
-			friction *= 2;
-
+		if (movevars_edgefriction != 1.0)
+		{
+			// if the leading edge is over a dropoff, increase friction
+			start[0] = stop[0] = pmove.origin[0] + pmove.velocity[0]/speed*16;
+			start[1] = stop[1] = pmove.origin[1] + pmove.velocity[1]/speed*16;
+			//FIXME: gravitydir.
+			//id quirk: this is a tracebox, NOT a traceline, yet still starts BELOW the player.
+			start[2] = pmove.origin[2] + pmove.player_mins[2];
+			stop[2] = start[2] - 34;
+			if (movevars_dpflags & MOVEFLAG_QWEDGEBOX)	//quirky qw behaviour uses a tracebox, which 
+				trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
+			else
+			{
+				vec3_t min, max;
+				VectorCopy(pmove.player_mins, min);
+				VectorCopy(pmove.player_maxs, max);
+				VectorClear(pmove.player_mins);
+				VectorClear(pmove.player_maxs);
+				trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
+				VectorCopy(min, pmove.player_mins);
+				VectorCopy(max, pmove.player_maxs);
+			}
+			if (trace.fraction == 1 && !trace.startsolid)
+				friction *= movevars_edgefriction;
+		}
 		control = speed < movevars.stopspeed ? movevars.stopspeed : speed;
 		drop = control*friction*frametime;
 	}
@@ -581,8 +599,8 @@ void PM_AirAccelerate (vec3_t wishdir, float wishspeed, float accel)
 	else
 		originalspeed = 0;	//shh compiler.
 
-	if (wishspd > 30)
-		wishspd = 30;
+	if (wishspd > movevars_maxairspeed)
+		wishspd = movevars_maxairspeed;
 	currentspeed = DotProduct (pmove.velocity, wishdir);
 	addspeed = wishspd - currentspeed;
 	if (addspeed <= 0)
@@ -1070,15 +1088,15 @@ void PM_CheckJump (void)
 	}
 
 	pmove.onground = false;
-	VectorMA(pmove.velocity, -270, pmove.gravitydir, pmove.velocity);
+	VectorMA(pmove.velocity, -movevars_jumpspeed, pmove.gravitydir, pmove.velocity);
 
 	if (movevars.ktjump > 0 && pmove.pm_type != PM_WALLWALK)
 	{
 		if (movevars.ktjump > 1)
 			movevars.ktjump = 1;
-		if (pmove.velocity[2] < 270)
+		if (pmove.velocity[2] < movevars_jumpspeed)
 			pmove.velocity[2] = pmove.velocity[2] * (1 - movevars.ktjump)
-				+ 270 * movevars.ktjump;
+				+ movevars_jumpspeed * movevars.ktjump;
 	}
 
 	pmove.jump_held = true;		// don't jump again until released

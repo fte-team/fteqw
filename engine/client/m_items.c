@@ -1366,7 +1366,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 	else
 		delta = 0.1;
 
-	if (key == K_LEFTARROW || key == K_MWHEELDOWN)
+	if (key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT || key == K_MWHEELDOWN)
 	{
 		range -= delta;
 		if (option->min > option->max)
@@ -1375,7 +1375,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 			range = bound(option->min, range, option->max);
 		option->current = range;
 	}
-	else if (key == K_RIGHTARROW || key == K_MWHEELUP)
+	else if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT || key == K_MWHEELUP)
 	{
 		range += delta;
 		if (option->min > option->max)
@@ -1394,7 +1394,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 			range = bound(option->min, range, option->max);
 		option->current = range;
 	}
-	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 	{
 		if (range == option->max)
 			range = option->min;
@@ -1422,7 +1422,7 @@ void MC_Slider_Key(menuslider_t *option, int key)
 
 void MC_CheckBox_Key(menucheck_t *option, menu_t *menu, int key)
 {
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_LEFTARROW && key != K_RIGHTARROW && key != K_MWHEELUP && key != K_MWHEELDOWN && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_LEFTARROW && key != K_KP_LEFTARROW && key != K_GP_DPAD_LEFT && key != K_RIGHTARROW && key != K_KP_LEFTARROW && key != K_GP_DPAD_RIGHT && key != K_MWHEELUP && key != K_MWHEELDOWN && key != K_MOUSE1)
 		return;
 	if (option->func)
 		option->func(option, menu, CHK_TOGGLE);
@@ -1488,7 +1488,7 @@ void MC_EditBox_Key(menuedit_t *edit, int key, unsigned int unicode)
 
 void MC_Combo_Key(menucombo_t *combo, int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW || key == K_MWHEELDOWN || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT || key == K_MWHEELDOWN || key == K_MOUSE1)
 	{
 		combo->selectedoption++;
 		if (combo->selectedoption >= combo->numoptions)
@@ -1499,7 +1499,7 @@ changed:
 			Cvar_Set(combo->cvar, (char *)combo->values[combo->selectedoption]);
 		S_LocalSound ("misc/menu2.wav");
 	}
-	else if (key == K_LEFTARROW || key == K_MWHEELUP)
+	else if (key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT || key == K_MWHEELUP)
 	{
 		combo->selectedoption--;
 		if (combo->selectedoption < 0)
@@ -1738,7 +1738,7 @@ void M_Complex_Key(int key, int unicode)
 		if (currentmenu->key(key, currentmenu))
 			return;
 
-	if (currentmenu->selecteditem && currentmenu->selecteditem->common.type == mt_custom && (key == K_DOWNARROW || key == K_UPARROW || key == K_TAB))
+	if (currentmenu->selecteditem && currentmenu->selecteditem->common.type == mt_custom && (key == K_DOWNARROW || key == K_KP_DOWNARROW || key == K_GP_DPAD_DOWN || key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP || key == K_TAB))
 		if (currentmenu->selecteditem->custom.key)
 			if (currentmenu->selecteditem->custom.key(&currentmenu->selecteditem->custom, currentmenu, key, unicode))
 				return;
@@ -1786,6 +1786,7 @@ void M_Complex_Key(int key, int unicode)
 	{
 	case K_MOUSE2:
 	case K_ESCAPE:
+	case K_GP_BACK:
 		//remove
 		M_RemoveMenu(currentmenu);
 #ifdef HEXEN2
@@ -1797,6 +1798,8 @@ void M_Complex_Key(int key, int unicode)
 		break;
 	case K_TAB:
 	case K_DOWNARROW:
+	case K_KP_DOWNARROW:
+	case K_GP_DPAD_DOWN:
 		currentmenu->selecteditem = M_NextSelectableItem(currentmenu, currentmenu->selecteditem);
 
 		if (currentmenu->selecteditem)
@@ -1813,6 +1816,8 @@ void M_Complex_Key(int key, int unicode)
 		}
 		break;
 	case K_UPARROW:
+	case K_KP_UPARROW:
+	case K_GP_DPAD_UP:
 		currentmenu->selecteditem = M_PrevSelectableItem(currentmenu, currentmenu->selecteditem);
 
 		if (currentmenu->selecteditem)
@@ -1876,7 +1881,7 @@ void M_Complex_Key(int key, int unicode)
 		case mt_qbuttonbigfont:
 			if (!currentmenu->selecteditem->button.command)
 				currentmenu->selecteditem->button.key(currentmenu->selecteditem, currentmenu, key);
-			else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
+			else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 			{
 				Cbuf_AddText(currentmenu->selecteditem->button.command, RESTRICT_LOCAL);
 #ifdef HEXEN2
@@ -1898,7 +1903,7 @@ void M_Complex_Key(int key, int unicode)
 			MC_Combo_Key(&currentmenu->selecteditem->combo, key);
 			break;
 		case mt_bind:
-			if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
+			if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
 				bindingactive = true;
 			else if (key == K_BACKSPACE || key == K_DEL)
 				M_UnbindCommand (currentmenu->selecteditem->bind.command);
@@ -1915,7 +1920,7 @@ void M_Complex_Key(int key, int unicode)
 extern int m_save_demonum;
 qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 {
-	if (key == K_ESCAPE || key == K_MOUSE2)
+	if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)
 	{
 		extern cvar_t con_stayhidden;
 

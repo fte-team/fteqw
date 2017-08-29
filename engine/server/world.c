@@ -319,6 +319,7 @@ void World_ClearWorld_Nodes (world_t *w, qboolean relink)
 	}
 #endif
 }
+#endif
 
 #ifdef USEAREAGRID
 static void World_ClearWorld_AreaGrid (world_t *w, qboolean relink)
@@ -401,7 +402,6 @@ void World_ClearWorld (world_t *w, qboolean relink)
 	}
 }
 
-#endif
 #if !defined(USEAREAGRID)
 
 /*

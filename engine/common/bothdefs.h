@@ -195,7 +195,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PSET_SCRIPT
 //		#define PLUGINS			//qvm/dll plugins.
 //		#define SUPPORT_ICE		//Interactive Connectivity Establishment protocol, for peer-to-peer connections
-		#define CSQC_DAT	//support for csqc
+		#define CSQC_DAT		//support for csqc
 //		#define VOICECHAT
 
 		#undef AVAIL_JPEGLIB
@@ -261,6 +261,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define INTERQUAKEMODELS
 		#define RAGDOLL
 
+		#define USEAREAGRID		//world collision optimisation. REQUIRED for performance with xonotic. hopefully it helps a few other mods too.
 		#define HUFFNETWORK		//huffman network compression
 //		#define PACKAGE_DOOMWAD	//doom wad support (maps+sprites are separate)
 //		#define MAP_DOOM		//doom map support
@@ -312,7 +313,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define PSET_SCRIPT
 		#define PSET_CLASSIC
-		//#define PSET_DARKPLACES
 
 
 		#define HAVE_CDPLAYER	//includes cd playback. actual cds. faketracks are supported regardless.
@@ -378,7 +378,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define DISTRIBUTIONLONG "Forethought Entertainment"	//effectively the 'company' name
 #endif
 #ifndef FULLENGINENAME
-	#define FULLENGINENAME "FTE QuakeWorld"	//the posh name for the engine
+	#define FULLENGINENAME "FTE Quake"	//the posh name for the engine
 #endif
 #ifndef ENGINEWEBSITE
 	#define ENGINEWEBSITE "http://fte.triptohell.info"	//url for program

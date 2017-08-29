@@ -16,6 +16,7 @@ static char *cvargroup_progs = "Progs variables";
 
 cvar_t sv_gameplayfix_nolinknonsolid = CVARD("sv_gameplayfix_nolinknonsolid", "1", "When 0, setorigin et al will not link the entity into the collision nodes (which is faster, especially if you have a lot of non-solid entities. When 1, allows entities to freely switch between .solid values (except for SOLID_BSP) without relinking. A lot of DP mods assume a value of 1 and will bug out otherwise, while 0 will restore a bugs present in various mods.");
 cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods.");
+cvar_t dpcompat_findradiusarealinks = CVARD("dpcompat_findradiusarealinks", "0", "Use the world collision info to accelerate findradius instead of looping through every single entity. May actually be slower for large radiuses, or fail to find entities which have not been linked properly with setorigin.");
 cvar_t pr_droptofloorunits = CVARD("pr_droptofloorunits", "256", "Distance that droptofloor is allowed to drop to be considered successul.");
 cvar_t pr_brokenfloatconvert = CVAR("pr_brokenfloatconvert", "0");
 cvar_t	pr_fixbrokenqccarrays = CVARFD("pr_fixbrokenqccarrays", "0", CVAR_LATCH, "As part of its nq/qw/h2/csqc support, FTE remaps QC fields to match an internal order. This is a faster way to handle extended fields. However, some QCCs are buggy and don't report all field defs.\n0: do nothing. QCC must be well behaved.\n1: Duplicate engine fields, remap the ones we can to known offsets. This is sufficient for QCCX/FrikQCC mods that use hardcoded or even occasional calculated offsets (fixes ktpro).\n2: Scan the mod for field accessing instructions, and assume those are the fields (and that they don't alias non-fields). This can be used to work around gmqcc's WTFs (fixes xonotic).");
@@ -45,6 +46,7 @@ void PF_Common_RegisterCvars(void)
 
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_nolinknonsolid, cvargroup_progs);
+	Cvar_Register (&dpcompat_findradiusarealinks, cvargroup_progs);
 	Cvar_Register (&pr_droptofloorunits, cvargroup_progs);
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
@@ -62,6 +64,18 @@ void PF_Common_RegisterCvars(void)
 #endif
 
 	WPhys_Init();
+}
+
+qofs_t PR_ReadBytesString(char *str)
+{
+	size_t u = strtoul(str, &str, 0);
+	if (*str == 'g')
+		u *= 1024*1024*1024;
+	if (*str == 'm')
+		u *= 1024*1024;
+	if (*str == 'k')
+		u *= 1024;
+	return u;
 }
 
 //just prints out a warning with stack trace. so I can throttle spammy stack traces.
@@ -1895,6 +1909,8 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	int i;
 	size_t insize;
 
+	Con_DPrintf("qcfopen(\"%s\", %i) called\n", name, fmode);
+
 	for (i = 0; i < MAX_QC_FILES; i++)
 		if (!pf_fopen_files[i].data)
 			break;
@@ -2849,10 +2865,14 @@ Returns a chain of entities that have origins within a spherical area
 findradius (origin, radius)
 =================
 */
+#define AREA_ALL 0
+#define AREA_SOLID 1
+#define AREA_TRIGGER 2
 void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	extern cvar_t sv_gameplayfix_blowupfallenzombies;
+	extern cvar_t dpcompat_findradiusarealinks;
 	wedict_t	*ent, *chain;
 	float	rad;
 	float	*org;
@@ -2864,27 +2884,60 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	org = G_VECTOR(OFS_PARM0);
 	rad = G_FLOAT(OFS_PARM1);
-	rad = rad*rad;
 
 	if (prinst->callargc > 2)
 		f = G_INT(OFS_PARM2)+prinst->fieldadjust;
 	else
 		f = &((comentvars_t*)NULL)->chain - (int*)NULL;
 
-	for (i=1 ; i<w->num_edicts ; i++)
+	if (dpcompat_findradiusarealinks.ival)
 	{
-		ent = WEDICT_NUM(prinst, i);
-		if (ED_ISFREE(ent))
-			continue;
-		if (ent->v->solid == SOLID_NOT && (!((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
-			continue;
-		for (j=0 ; j<3 ; j++)
-			eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);
-		if (DotProduct(eorg,eorg) > rad)
-			continue;
+		static wedict_t *nearent[32768];
+		vec3_t mins, maxs;
+		int numents;
+		extern int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list, int maxcount, int areatype);
 
-		((int*)ent->v)[f] = EDICT_TO_PROG(prinst, chain);
-		chain = ent;
+		mins[0] = org[0] - rad;
+		mins[1] = org[1] - rad;
+		mins[2] = org[2] - rad;
+		maxs[0] = org[0] + rad;
+		maxs[1] = org[1] + rad;
+		maxs[2] = org[2] + rad;
+
+		numents = World_AreaEdicts(w, mins, maxs, nearent, countof(nearent), AREA_ALL);
+		rad = rad*rad;
+		for (i=0 ; i<numents ; i++)
+		{
+			ent = nearent[i];
+			if (ent->v->solid == SOLID_NOT && (!((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
+				continue;
+			for (j=0 ; j<3 ; j++)
+				eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);
+			if (DotProduct(eorg,eorg) > rad)
+				continue;
+
+			((int*)ent->v)[f] = EDICT_TO_PROG(prinst, chain);
+			chain = ent;
+		}
+	}
+	else
+	{
+		rad = rad*rad;
+		for (i=1 ; i<w->num_edicts ; i++)
+		{
+			ent = WEDICT_NUM(prinst, i);
+			if (ED_ISFREE(ent))
+				continue;
+			if (ent->v->solid == SOLID_NOT && (!((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
+				continue;
+			for (j=0 ; j<3 ; j++)
+				eorg[j] = org[j] - (ent->v->origin[j] + (ent->v->mins[j] + ent->v->maxs[j])*0.5);
+			if (DotProduct(eorg,eorg) > rad)
+				continue;
+
+			((int*)ent->v)[f] = EDICT_TO_PROG(prinst, chain);
+			chain = ent;
+		}
 	}
 
 	RETURN_EDICT(prinst, chain);
@@ -4903,6 +4956,41 @@ void QCBUILTIN PF_crossproduct (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 //Maths functions
 ////////////////////////////////////////////////////
+
+#ifndef NOLEGACY
+unsigned int FTEToDPContents(unsigned int contents)
+{
+	unsigned int r = 0;
+	if (contents & FTECONTENTS_SOLID)
+		r |= DPCONTENTS_SOLID;
+	if (contents & FTECONTENTS_WATER)
+		r |= DPCONTENTS_WATER;
+	if (contents & FTECONTENTS_SLIME)
+		r |= DPCONTENTS_SLIME;
+	if (contents & FTECONTENTS_LAVA)
+		r |= DPCONTENTS_LAVA;
+	if (contents & FTECONTENTS_SKY)
+		r |= DPCONTENTS_SKY;
+	if (contents & FTECONTENTS_BODY)
+		r |= DPCONTENTS_BODY;
+	if (contents & FTECONTENTS_CORPSE)
+		r |= DPCONTENTS_CORPSE;
+	if (contents & Q3CONTENTS_NODROP)
+		r |= DPCONTENTS_NODROP;
+	if (contents & FTECONTENTS_PLAYERCLIP)
+		r |= DPCONTENTS_PLAYERCLIP;
+	if (contents & FTECONTENTS_MONSTERCLIP)
+		r |= DPCONTENTS_MONSTERCLIP;
+	if (contents & Q3CONTENTS_DONOTENTER)
+		r |= DPCONTENTS_DONOTENTER;
+	if (contents & Q3CONTENTS_BOTCLIP)
+		r |= DPCONTENTS_BOTCLIP;
+//	if (contents & FTECONTENTS_OPAQUE)
+//		r |= DPCONTENTS_OPAQUE;
+	return r;
+}
+#endif
+
 /*
 ===============
 PF_droptofloor
@@ -5742,7 +5830,7 @@ finished:
 
 void QCBUILTIN PF_sprintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char outbuf[4096];
+	char outbuf[65536];	//FIXME: no idea how big this actually needs to be.
 	PF_sprintf_internal(prinst, pr_globals, PR_GetStringOfs(prinst, OFS_PARM0), 1, outbuf, sizeof(outbuf));
 	RETURN_TSTRING(outbuf);
 }

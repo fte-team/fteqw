@@ -281,7 +281,7 @@ void main ()
 
 #ifdef SPECULAR
 	vec3 halfdir = normalize(normalize(eyevector) + nl);
-	float spec = pow(max(dot(halfdir, bumps), 0.0), 32.0 * specs.a);
+	float spec = pow(max(dot(halfdir, bumps), 0.0), FTE_SPECULAR_EXPONENT * specs.a)*float(SPECMUL);
 	diff += l_lightcolourscale.z * spec * specs.rgb;
 #endif
 

@@ -4446,25 +4446,25 @@ char *particle_set_q2part =
 "{ //FIXME\n"
 "assoc placeholder\n"
 "}\n"
-"/*\n"
-"r_part teq2_heatbeam_steam\n"
-"{\n"
-"count 20\n"
-"colorindex 0xe0 7\n"
-//	magnitude 60
-"texture \"classicparticle\"\n"
-"tcoords 0 0 16 16 32\n"
-"scale 1\n"
-"alpha 1\n"
-"die 0.3 0.8\n"
-"randomvel 20 magnitude/3\n"
-"veladd magnitude\n"
-"orgadd magnitude/10\n"
-"spawnorg 4\n"
-"gravity -400\n"
-"scalefactor 0.8\n"
-"}\n"
-"*/\n"
+
+//r_part teq2_heatbeam_steam
+//{
+//	count 20
+//	colorindex 0xe0 7
+////	magnitude 60
+//	texture "classicparticle"
+//	tcoords 0 0 16 16 32
+//	scale 1
+//	alpha 1
+//	die 0.3 0.8
+//	randomvel 20 magnitude/3
+//	veladd magnitude
+//	orgadd magnitude/10
+//	spawnorg 4
+//	gravity -400
+//	scalefactor 0.8
+//}
+
 
 //this is apparently just a trail effect (palette index specified by netcode)
 "r_part teq2_forcewall\n"

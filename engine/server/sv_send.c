@@ -2020,8 +2020,6 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 		if (bits & FITZSU_WEAPONFRAME2)	MSG_WriteByte (msg, (int)ent->v->weaponframe >> 8);
 		if (bits & FITZSU_WEAPONALPHA)	MSG_WriteByte (msg, ent->xv->alpha*255);
 	}
-
-//	}
 #endif
 }
 
@@ -2726,7 +2724,13 @@ qboolean SV_SendClientDatagram (client_t *client)
 
 	// send the datagram
 	sentbytes = Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
-	if (ISQWCLIENT(client) || ISNQCLIENT(client))
+	if (ISNQCLIENT(client))
+	{
+		client_frame_t *frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
+		frame->packetsizeout += sentbytes;
+		frame->senttime = realtime;
+	}
+	else if (ISQWCLIENT(client))
 	{
 		client_frame_t *frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
 		frame->packetsizeout += sentbytes;
@@ -2886,6 +2890,11 @@ void SV_UpdateToReliableMessages (void)
 					SV_BroadcastUserinfoChange(host_client, true, "*bothcolours", NULL);
 				}
 			}
+
+			if (host_client->dp_ping)
+				*host_client->dp_ping = SV_CalcPing (host_client, false);
+			if (host_client->dp_pl)
+				*host_client->dp_pl = host_client->lossage;
 #endif
 
 			name = PR_GetString(svprogfuncs, host_client->edict->v->netname);

@@ -1519,9 +1519,12 @@ void CL_Record_f (void)
 		return;
 	}
 
+#ifdef Q2SERVER
 	if (cls.protocol == CP_QUAKE2)
 		defaultext = ".dm2";
-	else if (cls.protocol == CP_NETQUAKE && !CPNQ_IS_DP)
+	else
+#endif
+		if (cls.protocol == CP_NETQUAKE && !CPNQ_IS_DP)
 		defaultext = ".dem";
 	else if (cls.protocol == CP_QUAKEWORLD)
 		defaultext = ".qwd";
@@ -1894,7 +1897,7 @@ void CL_Record_f (void)
 
 		// done
 		break;
-#ifdef Q2CLIENT
+#if defined(Q2CLIENT) && defined(Q2SERVER)
 	case CP_QUAKE2:
 		cls.demorecording = DPB_QUAKE2;
 

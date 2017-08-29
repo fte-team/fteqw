@@ -37,7 +37,7 @@ void Mod_UpdateCRC(void *ctx, void *data, size_t a, size_t b)
 	if (strcmp(st, Info_ValueForKey(cls.userinfo[0], ctx)))
 	{
 		Info_SetValueForKey (cls.userinfo[0], ctx, st, sizeof(cls.userinfo[0]));
-		if (cls.state >= ca_connected)
+		if (cls.state >= ca_connected && (cls.protocol == CP_QUAKEWORLD || (cls.fteprotocolextensions2 & PEXT2_PREDINFO)))
 			CL_SendClientCommand(true, "setinfo %s %s", (char*)ctx, st);
 	}
 }
@@ -2519,6 +2519,7 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 	char fname[MAX_QPATH];
 	char tok[64];
 	size_t fsize;
+	com_tokentype_t ttype;
 	Q_snprintfz(fname, sizeof(fname), "%s.framegroups", modelname);
 	line = file = COM_LoadFile(fname, 5, &fsize);
 	if (!file)
@@ -2546,7 +2547,11 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 			frames[count].loop = true;
 		else
 			frames[count].loop = !!atoi(tok);
-		line = COM_ParseOut(line, frames[count].name, sizeof(frames[count].name));
+		line = COM_ParseType(line, tok, sizeof(tok), &ttype);
+		if (ttype != TTP_EOF)
+			Q_strncpyz(frames[count].name, tok, sizeof(frames[count].name));
+		else
+			Q_snprintfz(frames[count].name, sizeof(frames[count].name), "groupified_%d_anim", count);	//to match DP. frameforname cares.
 		if (frames[count].posecount>0 && frames[count].fps)
 			count++;
 
@@ -4519,7 +4524,15 @@ int Mod_TagNumForName(model_t *model, const char *name)
 	if (!model)
 		return 0;
 	if (model->loadstate != MLS_LOADED)
-		return 0;
+	{
+		if (model->loadstate == MLS_NOTLOADED)
+			Mod_LoadModel(model, MLV_SILENT);
+		if (model->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
+		if (model->loadstate != MLS_LOADED)
+			return 0;
+	}
+
 #ifdef HALFLIFEMODELS
 	if (model->type == mod_halflife)
 		return HLMDL_BoneForName(model, name);
@@ -4624,8 +4637,15 @@ int Mod_SkinNumForName(model_t *model, int surfaceidx, const char *name)
 	galiasinfo_t *inf;
 	galiasskin_t *skin;
 
-	if (!model || model->type != mod_alias)
-		return -1;
+	if (!model || model->loadstate != MLS_LOADED)
+	{
+		if (model && model->loadstate == MLS_NOTLOADED)
+			Mod_LoadModel(model, MLV_SILENT);
+		if (model && model->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
+		if (!model || model->loadstate != MLS_LOADED || model->type != mod_alias)
+			return -1;
+	}
 	inf = Mod_Extradata(model);
 
 	while(surfaceidx-->0 && inf)
@@ -4648,8 +4668,15 @@ const char *Mod_FrameNameForNum(model_t *model, int surfaceidx, int num)
 	galiasanimation_t *group;
 	galiasinfo_t *inf;
 
-	if (!model)
-		return NULL;
+	if (!model || model->loadstate != MLS_LOADED)
+	{
+		if (model && model->loadstate == MLS_NOTLOADED)
+			Mod_LoadModel(model, MLV_SILENT);
+		if (model && model->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
+		if (!model || model->loadstate != MLS_LOADED)
+			return NULL;
+	}
 	if (model->type == mod_alias)
 	{
 		inf = Mod_Extradata(model);
@@ -4674,8 +4701,15 @@ qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **nam
 	galiasanimation_t *group;
 	galiasinfo_t *inf;
 
-	if (!model)
-		return false;
+	if (!model || model->loadstate != MLS_LOADED)
+	{
+		if (model && model->loadstate == MLS_NOTLOADED)
+			Mod_LoadModel(model, MLV_SILENT);
+		if (model && model->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
+		if (!model || model->loadstate != MLS_LOADED)
+			return false;
+	}
 	if (model->type == mod_alias)
 	{
 		inf = Mod_Extradata(model);
@@ -4706,21 +4740,32 @@ shader_t *Mod_ShaderForSkin(model_t *model, int surfaceidx, int num)
 	galiasinfo_t *inf;
 	galiasskin_t *skin;
 
-	if (!model || model->type != mod_alias)
+	if (!model || model->loadstate != MLS_LOADED)
 	{
-		if (model->type == mod_brush && surfaceidx < model->numtextures && !num)
-			return model->textures[surfaceidx]->shader;
-		return NULL;
+		if (model && model->loadstate == MLS_NOTLOADED)
+			Mod_LoadModel(model, MLV_SILENT);
+		if (model && model->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
+		if (!model || model->loadstate != MLS_LOADED)
+			return NULL;
 	}
-	inf = Mod_Extradata(model);
 
-	while(surfaceidx-->0 && inf)
-		inf = inf->nextsurf;
+	if (model->type == mod_alias)
+	{
+		inf = Mod_Extradata(model);
 
-	if (!inf || num >= inf->numskins)
+		while(surfaceidx-->0 && inf)
+			inf = inf->nextsurf;
+
+		if (!inf || num >= inf->numskins)
+			return NULL;
+		skin = inf->ofsskins;
+		return skin[num].frame[0].shader;
+	}
+	else if (model->type == mod_brush && surfaceidx < model->numtextures && !num)
+		return model->textures[surfaceidx]->shader;
+	else
 		return NULL;
-	skin = inf->ofsskins;
-	return skin[num].frame[0].shader;
 }
 #endif
 const char *Mod_SkinNameForNum(model_t *model, int surfaceidx, int num)

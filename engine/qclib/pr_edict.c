@@ -3169,8 +3169,18 @@ retry:
 					switch(st[i].op)
 					{
 					case OP_ADDRESS:
+						if (st[i+1].op == OP_STOREP_V && st[i+1].b == st[i].c)
+						{	//following stores a vector to this field.
+							if (st[i].b+2 < pr_progs->numglobals)
+							{	//vectors are usually 3 fields. if they're not then we're screwed.
+								basictypetable[st[i].b+0] = ev_field;
+								basictypetable[st[i].b+1] = ev_field;
+								basictypetable[st[i].b+2] = ev_field;
+							}
+							break;
+						}
+						//fallthrough
 					case OP_LOAD_F:
-					case OP_LOAD_V:
 					case OP_LOAD_S:
 					case OP_LOAD_ENT:
 					case OP_LOAD_FLD:
@@ -3179,6 +3189,25 @@ retry:
 					case OP_LOAD_P:
 						if (st[i].b < pr_progs->numglobals)
 							basictypetable[st[i].b] = ev_field;
+						break;
+					case OP_LOAD_V:
+						if (st[i].b+2 < pr_progs->numglobals)
+						{	//vectors are usually 3 fields. if they're not then we're screwed.
+							basictypetable[st[i].b+0] = ev_field;
+							basictypetable[st[i].b+1] = ev_field;
+							basictypetable[st[i].b+2] = ev_field;
+						}
+						break;
+					}
+				}
+
+				for (i = 0; i < pr_progs->numglobaldefs; i++)
+				{
+					ddef16_t *gd = gd16+i;
+					switch(gd->type & ~(DEF_SAVEGLOBAL|DEF_SHARED))
+					{
+					case ev_field:	//depend on _y _z to mark those globals.
+						basictypetable[gd->ofs] = ev_field;
 						break;
 					}
 				}

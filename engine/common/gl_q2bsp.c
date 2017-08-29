@@ -4115,6 +4115,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				i = header.lumps[Q3LUMP_LIGHTMAPS].filelen / (mod->lightmaps.width*mod->lightmaps.height*3);
 				mod->lightmaps.deluxemapping = !(i&1);
 				mod->lightmaps.count = max(mod->lightmaps.count, i);
+				mod->lightmaps.deluxemapping_modelspace = true;	//we assume true for q3bsp.
 
 				for (i = 0; i < mod->numsurfaces && mod->lightmaps.deluxemapping; i++)
 				{
@@ -4159,6 +4160,28 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		mod->funcs.NativeContents			= CM_NativeContents;
 
 #ifndef SERVERONLY
+		{
+			char deluxeMaps[64], *key;
+			key = (char*)Mod_ParseWorldspawnKey(mod, "deluxeMaps", deluxeMaps, sizeof(deluxeMaps));
+			if (*key)
+			{
+				switch(atoi(key))
+				{
+				case 0:
+					mod->lightmaps.deluxemapping = false;
+					break;
+				case 1:
+//					mod->lightmaps.deluxemapping = true;
+					mod->lightmaps.deluxemapping_modelspace = true;
+					break;
+				case 2:
+//					mod->lightmaps.deluxemapping = true;
+					mod->lightmaps.deluxemapping_modelspace = false;
+					break;
+				}
+			}
+		}
+
 		//light grid info
 		if (mod->lightgrid)
 		{
@@ -6599,8 +6622,5 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&r_subdivisions, MAPOPTIONS);
 
 	CM_InitBoxHull ();
-}
-void CM_Shutdown(void)
-{
 }
 #endif

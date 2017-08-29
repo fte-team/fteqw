@@ -366,7 +366,19 @@ void CL_LoadFont_f(void)
 		
 		while(sizenum < Cmd_Argc())
 		{
-			int sz = atoi(Cmd_Argv(sizenum++));
+			const char *a = Cmd_Argv(sizenum++);
+			int sz;
+			if (!strcmp(a, "scale"))
+			{
+				sizenum++;
+				continue;
+			}
+			if (!strcmp(a, "voffset"))
+			{
+				sizenum++;
+				continue;
+			}
+			sz = atoi(a);
 			if (sz <= 0)
 				sz = 8;
 
@@ -388,7 +400,8 @@ void CL_LoadFont_f(void)
 			}
 		}
 
-		if (dpcompat_console.ival)
+		//FIXME: slotnum0==default is problematic.
+		if (dpcompat_console.ival && (slotnum == 1 || (slotnum == 0 && !*gl_font.string)))
 			Cvar_Set(&gl_font, facename);
 	}
 }

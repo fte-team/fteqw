@@ -2663,9 +2663,9 @@ client_t *SVC_DirectConnect(void)
 			protocol = SCP_FITZ666;
 		else if (!strcmp(sv_protocol_nq.string, "bjp") || !strcmp(sv_protocol_nq.string, "bjp3"))
 			protocol = SCP_BJP3;
-		else if (!strcmp(sv_protocol_nq.string, "dp6"))
+		else if (!strcmp(sv_protocol_nq.string, "dpp6") || !strcmp(sv_protocol_nq.string, "dp6"))
 			protocol = SCP_DARKPLACES6;
-		else if (!strcmp(sv_protocol_nq.string, "dp7"))
+		else if (!strcmp(sv_protocol_nq.string, "dpp7") || !strcmp(sv_protocol_nq.string, "dp7"))
 			protocol = SCP_DARKPLACES7;
 		else if (!strcmp(sv_protocol_nq.string, "id") || !strcmp(sv_protocol_nq.string, "vanilla"))
 			protocol = SCP_NETQUAKE;
@@ -5147,12 +5147,6 @@ void SV_InitLocal (void)
 
 	Cmd_AddCommand ("sv_impulse", SV_Impulse_f);
 
-#ifdef SUBSERVERS
-	Cmd_AddCommand ("ssv", MSV_SubServerCommand_f);
-	Cmd_AddCommand ("ssv_all", MSV_SubServerCommand_f);
-	Cmd_AddCommand ("mapcluster", MSV_MapCluster_f);
-#endif
-
 	Cmd_AddCommand ("openroute", SV_OpenRoute_f);
 
 #ifndef NOBUILTINMENUS
@@ -5347,39 +5341,42 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 		newname[0] = 0;
 
 	deleetstring(basic, newname);
-	if ((!basic[0] && cl->protocol != SCP_BAD) || strstr(basic, "console"))
-		strcpy(newname, "unnamed");
+	if (cl->protocol != SCP_BAD)
+	{	//don't bother validating bot names. The gamecode is expected to not be stupid.
+		if (!basic[0] || strstr(basic, "console"))
+			strcpy(newname, "unnamed");
 
-	// check to see if another user by the same name exists
-	while (1)
-	{
-		for (i=0, client = svs.clients ; i<svs.allocated_client_slots ; i++, client++)
+		// check to see if another user by the same name exists
+		while (1)
 		{
-			if (client->state < cs_connected || client == cl)
-				continue;
-			if (!stricmp(client->name, newname))
+			for (i=0, client = svs.clients ; i<svs.allocated_client_slots ; i++, client++)
+			{
+				if (client->state < cs_connected || client == cl)
+					continue;
+				if (!stricmp(client->name, newname))
+					break;
+			}
+			if (i != svs.allocated_client_slots)
+			{ // dup name
+				if (strlen(newname) > sizeof(cl->namebuf) - 1)
+					newname[sizeof(cl->namebuf) - 4] = 0;
+				p = newname;
+
+				if (newname[0] == '(')
+				{
+					if (newname[2] == ')')
+						p = newname + 3;
+					else if (val[3] == ')')
+						p = newname + 4;
+				}
+
+				memmove(newname+10, p, strlen(p)+1);
+
+				sprintf(newname, "(%d)%-.40s", dupc++, newname+10);
+			}
+			else
 				break;
 		}
-		if (i != svs.allocated_client_slots)
-		{ // dup name
-			if (strlen(newname) > sizeof(cl->namebuf) - 1)
-				newname[sizeof(cl->namebuf) - 4] = 0;
-			p = newname;
-
-			if (newname[0] == '(')
-			{
-				if (newname[2] == ')')
-					p = newname + 3;
-				else if (val[3] == ')')
-					p = newname + 4;
-			}
-
-			memmove(newname+10, p, strlen(p)+1);
-
-			sprintf(newname, "(%d)%-.40s", dupc++, newname+10);
-		}
-		else
-			break;
 	}
 
 	if (!cl->drop && strncmp(newname, cl->name, sizeof(cl->namebuf)-1))

@@ -268,6 +268,8 @@ static struct font_s *curfont;
 static float curfont_scale[2];
 static qboolean curfont_scaled;
 
+extern cvar_t r_font_linear;
+
 
 //^Ue2XX
 static struct
@@ -359,10 +361,10 @@ void Font_Init(void)
 
 	for (i = 0; i < FONTPLANES; i++)
 	{
-		TEXASSIGN(fontplanes.texnum[i], Image_CreateTexture("***fontplane***", NULL, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA));
+		TEXASSIGN(fontplanes.texnum[i], Image_CreateTexture("***fontplane***", NULL, IF_UIPIC|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA));
 	}
 
-	fontplanes.shader = R_RegisterShader("ftefont", SUF_NONE,
+	fontplanes.shader = R_RegisterShader("ftefont", SUF_2D,
 		"{\n"
 			"if $nofixed\n"
 				"program default2d\n"
@@ -377,7 +379,7 @@ void Font_Init(void)
 		"}\n"
 		);
 
-	fontplanes.backshader = R_RegisterShader("ftefontback", SUF_NONE,
+	fontplanes.backshader = R_RegisterShader("ftefontback", SUF_2D,
 		"{\n"
 			"nomipmaps\n"
 			"{\n"
@@ -498,15 +500,20 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, in
 	int x, y;
 	unsigned char *out;
 	struct charcache_s *c = &f->chars[charidx];
+	int pad = 0;
+#define BORDERCOLOUR 0
+	
+	if (fontplanes.texnum[0]->flags & IF_LINEAR)
+		pad += 1;	//pad the image data to avoid sampling outside
 
-	if (fontplanes.planerowx + (int)bmw >= PLANEWIDTH)
+	if (fontplanes.planerowx + (int)bmw+pad*2 >= PLANEWIDTH)
 	{
 		fontplanes.planerowx = 0;
 		fontplanes.planerowy += fontplanes.planerowh;
 		fontplanes.planerowh = 0;
 	}
 
-	if (fontplanes.planerowy+(int)bmh >= PLANEHEIGHT)
+	if (fontplanes.planerowy+(int)bmh+pad*2 >= PLANEHEIGHT)
 		Font_FlushPlane();
 
 	if (fontplanes.newestchar)
@@ -517,39 +524,69 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, in
 	c->nextchar = NULL;
 
 	c->texplane = fontplanes.activeplane;
-	c->bmx = fontplanes.planerowx;
-	c->bmy = fontplanes.planerowy;
+	c->bmx = fontplanes.planerowx+pad;
+	c->bmy = fontplanes.planerowy+pad;
 	c->bmw = bmw;
 	c->bmh = bmh;
 
-	if (fontplanes.planerowh < (int)bmh)
-		fontplanes.planerowh = bmh;
-	fontplanes.planerowx += bmw;
+	if (fontplanes.planerowh < (int)bmh+pad*2)
+		fontplanes.planerowh = bmh+pad*2;
+	fontplanes.planerowx += bmw+pad*2;
 
-	out = (unsigned char *)&fontplanes.plane[c->bmx+(int)c->bmy*PLANEHEIGHT];
+	out = (unsigned char *)&fontplanes.plane[c->bmx+((int)c->bmy-pad)*PLANEHEIGHT];
 	if (alphaonly)
 	{
-		for (y = 0; y < bmh; y++)
+		for (y = -pad; y < 0; y++)
 		{
-			for (x = 0; x < bmw; x++)
+			for (x = -pad; x < bmw+pad; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
+			out += PLANEWIDTH*4;
+		}
+		for (; y < bmh; y++)
+		{
+			for (x = -pad; x < 0; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
+			for (; x < bmw; x++)
 			{
 				*(unsigned int *)&out[x*4] = 0xffffffff;
 				out[x*4+3] = ((unsigned char*)data)[x];
 			}
+			for (; x < bmw+pad; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
 			data = (char*)data + pitch;
+			out += PLANEWIDTH*4;
+		}
+		for (; y < bmh+pad; y++)
+		{
+			for (x = -pad; x < bmw+pad; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
 			out += PLANEWIDTH*4;
 		}
 	}
 	else
 	{
 		pitch*=4;
-		for (y = 0; y < bmh; y++)
+		for (y = -pad; y < 0; y++)
 		{
-			for (x = 0; x < bmw; x++)
-			{
+			for (x = -pad; x < bmw+pad; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
+			out += PLANEWIDTH*4;
+		}
+		for (; y < bmh; y++)
+		{
+			for (x = -pad; x < 0; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
+			for (; x < bmw; x++)
 				((unsigned int*)out)[x] = ((unsigned int*)data)[x];
-			}
+			for (; x < bmw+pad; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
 			data = (char*)data + pitch;
+			out += PLANEWIDTH*4;
+		}
+		for (; y < bmh+pad; y++)
+		{
+			for (x = -pad; x < bmw+pad; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
 			out += PLANEWIDTH*4;
 		}
 	}
@@ -987,6 +1024,7 @@ static texid_t Font_LoadQuakeConchars(void)
 	return r_nulltex;
 }
 
+#ifdef HEXEN2
 static texid_t Font_LoadHexen2Conchars(qboolean iso88591)
 {
 	//gulp... so it's come to this has it? rework the hexen2 conchars into the q1 system.
@@ -1074,6 +1112,7 @@ static texid_t Font_LoadHexen2Conchars(qboolean iso88591)
 	}
 	return r_nulltex;
 }
+#endif
 
 FTE_ALIGN(4) qbyte default_conchar[/*11356*/] =
 {
@@ -1328,6 +1367,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 		}
 	}
 #endif
+#ifdef HEXEN2
 	if (!strcmp(fontfilename, "gfx/tinyfont"))
 	{
 		unsigned int *img;
@@ -1387,6 +1427,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 		}
 		return f;
 	}
+#endif
 
 	if (aname)
 	{
@@ -1469,11 +1510,13 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 		if (!TEXLOADED(fontplanes.defaultfont))
 			fontplanes.defaultfont = Font_LoadDefaultConchars();
 
+#ifdef HEXEN2
 		if (!strcmp(fontfilename, "gfx/hexen2"))
 		{
 			f->singletexture = Font_LoadHexen2Conchars(false);
 			defaultplane = DEFAULTPLANE;
 		}
+#endif
 		if (!TEXLOADED(f->singletexture))
 			f->singletexture = fontplanes.defaultfont;
 	}

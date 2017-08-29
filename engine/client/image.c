@@ -2107,44 +2107,13 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 
 	if (h.Compression)	//RLE? BITFIELDS (gah)?
 		return NULL;
+	if (length < h.Size)
+		return NULL;	//truncated...
 
 	*width = h.Width;
 	*height = h.Height;
 
-	if (h.NumofColorIndices != 0 || h.BitCount == 8)	//8 bit
-	{
-		int x, y;
-		unsigned int *data32;
-		unsigned int	pal[256];
-		if (!h.NumofColorIndices)
-			h.NumofColorIndices = (int)pow(2, h.BitCount);
-		if (h.NumofColorIndices>256)
-			return NULL;
-
-		data = buf+2;
-		data += sizeof(h);
-
-		for (i = 0; i < h.NumofColorIndices; i++)
-		{
-			pal[i] = data[i*4+2] + (data[i*4+1]<<8) + (data[i*4+0]<<16) + (255/*data[i*4+3]*/<<24);
-		}
-
-		buf += h.OffsetofBMPBits;
-		data32 = BZ_Malloc(h.Width * h.Height*4);
-		for (y = 0; y < h.Height; y++)
-		{
-			i = (h.Height-1-y) * (h.Width);
-			for (x = 0; x < h.Width; x++)
-			{
-				data32[i] = pal[buf[x]];
-				i++;
-			}
-			buf += h.Width;
-		}
-
-		return (qbyte *)data32;
-	}
-	else if (h.BitCount == 4)	//4 bit
+	if (h.BitCount == 4)	//4 bit
 	{
 		int x, y;
 		unsigned int *data32;
@@ -2175,6 +2144,39 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 				data32[i++] = pal[buf[x]&15];
 			}
 			buf += h.Width>>1;
+		}
+
+		return (qbyte *)data32;
+	}
+	else if (h.BitCount == 8)	//8 bit
+	{
+		int x, y;
+		unsigned int *data32;
+		unsigned int	pal[256];
+		if (!h.NumofColorIndices)
+			h.NumofColorIndices = (int)pow(2, h.BitCount);
+		if (h.NumofColorIndices>256)
+			return NULL;
+
+		data = buf+2;
+		data += sizeof(h);
+
+		for (i = 0; i < h.NumofColorIndices; i++)
+		{
+			pal[i] = data[i*4+2] + (data[i*4+1]<<8) + (data[i*4+0]<<16) + (255/*data[i*4+3]*/<<24);
+		}
+
+		buf += h.OffsetofBMPBits;
+		data32 = BZ_Malloc(h.Width * h.Height*4);
+		for (y = 0; y < h.Height; y++)
+		{
+			i = (h.Height-1-y) * (h.Width);
+			for (x = 0; x < h.Width; x++)
+			{
+				data32[i] = pal[buf[x]];
+				i++;
+			}
+			buf += h.Width;
 		}
 
 		return (qbyte *)data32;
@@ -2498,8 +2500,8 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('2'<<24)))	//dx3 with premultiplied alpha
 	{
-		if (!(tex->flags & IF_PREMULTIPLYALPHA))
-			return false;
+//		if (!(tex->flags & IF_PREMULTIPLYALPHA))
+//			return false;
 		encoding = PTI_S3RGBA3;
 		pad = 8;
 		divsize = 4;
@@ -2507,8 +2509,8 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('3'<<24)))
 	{
-		if (tex->flags & IF_PREMULTIPLYALPHA)
-			return false;
+//		if (tex->flags & IF_PREMULTIPLYALPHA)
+//			return false;
 		encoding = PTI_S3RGBA3;
 		pad = 8;
 		divsize = 4;
@@ -2517,7 +2519,8 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('4'<<24)))	//dx5 with premultiplied alpha
 	{
 //		if (!(tex->flags & IF_PREMULTIPLYALPHA))
-			return false;
+//			return false;
+
 		encoding = PTI_S3RGBA5;
 		pad = 8;
 		divsize = 4;
@@ -2525,8 +2528,8 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('5'<<24)))
 	{
-		if (tex->flags & IF_PREMULTIPLYALPHA)
-			return false;
+//		if (tex->flags & IF_PREMULTIPLYALPHA)
+//			return false;
 
 		encoding = PTI_S3RGBA5;
 		pad = 8;
@@ -4410,8 +4413,7 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 	return false;
 }
 
-//loads from a single mip. takes ownership of the data.
-static qboolean Image_LoadCubemapTexture(texid_t tex, char *nicename)
+struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicename, char *subpath, unsigned int texflags)
 {
 	static struct
 	{
@@ -4446,6 +4448,8 @@ static qboolean Image_LoadCubemapTexture(texid_t tex, char *nicename)
 	size_t filesize;
 	int width, height;
 	qboolean hasalpha;
+	char *nextprefix, *prefixend;
+	size_t prefixlen;
 	mips = Z_Malloc(sizeof(*mips));
 	mips->type = PTI_CUBEMAP;
 	mips->mipcount = 6;
@@ -4454,51 +4458,79 @@ static qboolean Image_LoadCubemapTexture(texid_t tex, char *nicename)
 
 	for (i = 0; i < 6; i++)
 	{
-		for (e = (tex->flags & IF_EXACTEXTENSION)?tex_extensions_count-1:0; e < tex_extensions_count; e++)
+		prefixlen = 0;
+		nextprefix = subpath;
+		for(;;)
 		{
-			//try and open one
-			qbyte *buf = NULL, *data;
-			filesize = 0;
-			for (j = 0; j < sizeof(cmscheme)/sizeof(cmscheme[0])/6; j++)
+			for (e = (texflags & IF_EXACTEXTENSION)?tex_extensions_count-1:0; e < tex_extensions_count; e++)
 			{
-				Q_snprintfz(fname, sizeof(fname), "%s%s%s", nicename, cmscheme[i + 6*j].suffix, tex_extensions[e].name);
-				buf = COM_LoadFile(fname, 5, &filesize);
-				if (buf)
-					break;
-			}
+				//try and open one
+				qbyte *buf = NULL, *data;
+				filesize = 0;
 
-			//now read it
-			if (buf)
-			{
-				if ((data = Read32BitImageFile(buf, filesize, &width, &height, &hasalpha, fname)))
+				for (j = 0; j < sizeof(cmscheme)/sizeof(cmscheme[0])/6; j++)
 				{
-					extern cvar_t vid_hardwaregamma;
-					if (!(tex->flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
-						BoostGamma(data, width, height);
-					mips->mip[i].data = R_FlipImage32(data, &width, &height, cmscheme[i + 6*j].flipx, cmscheme[i + 6*j].flipy, cmscheme[i + 6*j].flipd);
-					mips->mip[i].datasize = width*height*4;
-					mips->mip[i].width = width;
-					mips->mip[i].height = height;
-					mips->mip[i].needfree = true;
+					Q_snprintfz(fname+prefixlen, sizeof(fname)-prefixlen, "%s_%s%s", nicename, cmscheme[i + 6*j].suffix, tex_extensions[e].name);
+					buf = COM_LoadFile(fname, 5, &filesize);
+					if (buf)
+						break;
 
-					if (i == 0)
+					Q_snprintfz(fname+prefixlen, sizeof(fname)-prefixlen, "%s%s%s", nicename, cmscheme[i + 6*j].suffix, tex_extensions[e].name);
+					buf = COM_LoadFile(fname, 5, &filesize);
+					if (buf)
+						break;
+				}
+
+				//now read it
+				if (buf)
+				{
+					if ((data = Read32BitImageFile(buf, filesize, &width, &height, &hasalpha, fname)))
 					{
-						tex->width = width;
-						tex->height = height;
+						extern cvar_t vid_hardwaregamma;
+						if (width == height && (!i || width == mips->mip[0].width))	//cubemaps must be square and all the same size (npot is fine though)
+						{	//(skies have a fallback for invalid sizes, but it'll run a bit slower)
+							if (!(texflags&IF_NOGAMMA) && !vid_hardwaregamma.value)
+								BoostGamma(data, width, height);
+							mips->mip[i].data = R_FlipImage32(data, &width, &height, cmscheme[i + 6*j].flipx, cmscheme[i + 6*j].flipy, cmscheme[i + 6*j].flipd);
+							mips->mip[i].datasize = width*height*4;
+							mips->mip[i].width = width;
+							mips->mip[i].height = height;
+							mips->mip[i].needfree = true;
+
+							BZ_Free(buf);
+							goto nextface;
+						}
+						BZ_Free(data);
 					}
 					BZ_Free(buf);
-					break;
 				}
-				BZ_Free(buf);
 			}
-		}
-	}
 
-	if (tex->flags & IF_NOWORKER)
-		Image_LoadTextureMips(tex, mips, 0, 0);
-	else
-		COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
-	return true;
+			//get ready for the next prefix...
+			if (!nextprefix || !*nextprefix)
+				break;	//no more...
+			prefixend = strchr(nextprefix, ':');
+			if (!prefixend)
+				prefixend = nextprefix+strlen(nextprefix);
+
+			prefixlen = prefixend-nextprefix;
+			if (prefixlen >= sizeof(fname)-2)
+				prefixlen = sizeof(fname)-2;
+			memcpy(fname, nextprefix, prefixlen);
+			fname[prefixlen++] = '/';
+
+			if (*prefixend)
+				prefixend++;
+			nextprefix = prefixend;
+		}
+
+		while(i>0)
+			BZ_Free(mips->mip[i--].data);
+		Z_Free(mips);
+		return NULL;
+nextface:;
+	}
+	return mips;
 }
 
 static qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *bestname, size_t bestnamesize, unsigned int *bestflags)
@@ -4740,6 +4772,9 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 		//the exception is single-file dds cubemaps, but we don't support those.
 		for(altname = tex->ident;altname;altname = nextalt)
 		{
+			char *prefixes[] = {"textures/", "", NULL};
+			struct pendingtextureinfo *mips;
+
 			nextalt = strchr(altname, ':');
 			if (nextalt)
 			{
@@ -4751,14 +4786,23 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 				altname = fname;
 			}
 
-			if (!Image_LoadCubemapTexture(tex, altname))
+			mips = Image_LoadCubemapTextureData(altname, tex->subpath, tex->flags);
+			if (mips)
 			{
+				tex->width = mips->mip[0].width;
+				tex->height = mips->mip[0].height;
+
 				if (tex->flags & IF_NOWORKER)
-					Image_LoadTexture_Failed(tex, NULL, 0, 0);
+					Image_LoadTextureMips(tex, mips, 0, 0);
 				else
-					COM_AddWork(WG_MAIN, Image_LoadTexture_Failed, tex, NULL, 0, 0);
+					COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
+				return;
 			}
 		}
+		if (tex->flags & IF_NOWORKER)
+			Image_LoadTexture_Failed(tex, NULL, 0, 0);
+		else
+			COM_AddWork(WG_MAIN, Image_LoadTexture_Failed, tex, NULL, 0, 0);
 		return;
 	}
 

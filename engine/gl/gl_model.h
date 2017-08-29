@@ -997,6 +997,7 @@ typedef struct model_s
 		int height;				//y size of lightmaps
 		int surfstyles;			//numbers of style per surface.
 		qboolean deluxemapping;	//lightmaps are interleaved with deluxemap data (lightmap indicies should only be even values)
+		qboolean deluxemapping_modelspace; //deluxemaps are in modelspace - we need different glsl.
 	} lightmaps;
 
 	unsigned	checksum;

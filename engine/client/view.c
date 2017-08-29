@@ -1948,8 +1948,9 @@ void R_DrawNameTags(void)
 				score = DotProduct(diff, vpn);// r_refdef.viewaxis[0]);
 				if (score > bestscore)
 				{
+					int hitent;
 					vec3_t imp;
-					if (CL_TraceLine(r_refdef.vieworg, org, imp, NULL, NULL)>=1)
+					if (CL_TraceLine(r_refdef.vieworg, org, imp, NULL, &hitent)>=1 || hitent == i)
 					{
 						best = i;
 						bestscore = score;

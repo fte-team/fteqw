@@ -46,28 +46,49 @@ void RSpeedShow(void)
 		return;
 
 	memset(RSpNames, 0, sizeof(RSpNames));
-	RSpNames[RSPEED_TOTALREFRESH] = "Total refresh";
-	RSpNames[RSPEED_PROTOCOL] = "Protocol";
-	RSpNames[RSPEED_LINKENTITIES] = "Entity setup";
-	RSpNames[RSPEED_WORLDNODE] = "World walking";
-	RSpNames[RSPEED_WORLD] = "World rendering";
-	RSpNames[RSPEED_DYNAMIC] = "Lightmap updates";
-	RSpNames[RSPEED_PARTICLES] = "Particle phys/sort";
-	RSpNames[RSPEED_PARTICLESDRAW] = "Particle drawing";
-	RSpNames[RSPEED_2D] = "2d elements";
-	RSpNames[RSPEED_SERVER] = "Server";
 
-	RSpNames[RSPEED_DRAWENTITIES] = "Entity rendering";
+		RSPEED_TOTALREFRESH,
+	RSPEED_CSQCPHYSICS,
+	RSPEED_CSQCREDRAW,
+	RSPEED_LINKENTITIES,
+	RSPEED_WORLDNODE,
+	RSPEED_DYNAMIC,
+	RSPEED_OPAQUE,
+	RSPEED_RTLIGHTS,
+	RSPEED_TRANSPARENTS,
+	RSPEED_PROTOCOL,
+	RSPEED_PARTICLES,
+	RSPEED_PARTICLESDRAW,
+	RSPEED_PALETTEFLASHES,
+	RSPEED_2D,
+	RSPEED_SERVER,
+	RSPEED_SETUP,
+	RSPEED_SUBMIT,
+	RSPEED_PRESENT,
+	RSPEED_ACQUIRE,
 
-	RSpNames[RSPEED_PALETTEFLASHES] = "Palette flashes";
-	RSpNames[RSPEED_STENCILSHADOWS] = "Stencil Shadows";
 
-	RSpNames[RSPEED_FULLBRIGHTS] = "World fullbrights";
-	RSpNames[RSPEED_SETUP] = "Setup/Acquire";
+	RSpNames[RSPEED_TOTALREFRESH]	= "Total refresh";
+	RSpNames[RSPEED_CSQCPHYSICS]	= " CSQC Physics";
+	RSpNames[RSPEED_CSQCREDRAW]		= " CSQC Drawing";
+	RSpNames[RSPEED_LINKENTITIES]	= "  Entity setup";
+	RSpNames[RSPEED_WORLDNODE]		= "  World walking";
+	RSpNames[RSPEED_DYNAMIC]		= "  Lightmap updates";
+	RSpNames[RSPEED_OPAQUE]			= "  Opaque Batches";
+	RSpNames[RSPEED_RTLIGHTS]		= "  RT Lights";
+	RSpNames[RSPEED_TRANSPARENTS]	= "  Transparent Batches";
+	RSpNames[RSPEED_PARTICLES]		= "  Particle phys/sort";
+	RSpNames[RSPEED_PARTICLESDRAW]	= "  Particle drawing";
+	RSpNames[RSPEED_2D]				= " 2d Elements";
+	RSpNames[RSPEED_PALETTEFLASHES]	= " Palette flashes";
 
-	RSpNames[RSPEED_SUBMIT] = "submit/finish";
-	RSpNames[RSPEED_PRESENT] = "present";
-	RSpNames[RSPEED_ACQUIRE] = "acquire";
+	RSpNames[RSPEED_SETUP]			= "Acquire Wait";
+	RSpNames[RSPEED_SUBMIT]			= "submit/finish";
+	RSpNames[RSPEED_PRESENT]		= "Present";
+	RSpNames[RSPEED_ACQUIRE]		= "Acquire Request";
+
+	RSpNames[RSPEED_PROTOCOL]		= "Client Protocol";
+	RSpNames[RSPEED_SERVER]			= "Server";
 
 	memset(RQntNames, 0, sizeof(RQntNames));
 	RQntNames[RQUANT_MSECS] = "Microseconds";
@@ -91,8 +112,9 @@ void RSpeedShow(void)
 	{
 		for (i = 0; i < RSPEED_MAX; i++)
 		{
-			s = va("%g %-20s", samplerspeeds[i]/(float)frameinterval, RSpNames[i]);
-			Draw_FunString(vid.width-strlen(s)*8, i*8, s);
+			Draw_FunStringWidth(vid.width-20*8, i*8, RSpNames[i], 20*8, false, false);
+			s = va("%g ", samplerspeeds[i]/(float)frameinterval);
+			Draw_FunStringWidth(0, i*8, s, vid.width-20*8, true, false);
 		}
 	}
 	for (i = 0; i < RQUANT_MAX; i++)
@@ -102,7 +124,7 @@ void RSpeedShow(void)
 	}
 	if (r_speeds.ival > 1)
 	{
-		s = va("%f %-20s", (frameinterval*1000*1000.0f)/(samplerspeeds[RSPEED_TOTALREFRESH]+samplerspeeds[RSPEED_PRESENT]), "Framerate (refresh only)");
+		s = va("%f %-20s", (frameinterval*1000*1000.0f)/samplerspeeds[RSPEED_TOTALREFRESH], "Framerate (refresh only)");
 		Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 	}
 	memcpy(rquant, savedsamplerquant, sizeof(rquant));
@@ -224,7 +246,7 @@ float           scr_disabled_time;
 float oldsbar = 0;
 
 cvar_t	con_stayhidden = CVARFD("con_stayhidden", "0", CVAR_NOTFROMSERVER, "0: allow console to pounce on the user\n1: console stays hidden unless explicitly invoked\n2:toggleconsole command no longer works\n3: shift+escape key no longer works");
-cvar_t	show_fps	= CVARF("show_fps", "0", CVAR_ARCHIVE);
+cvar_t	show_fps	= CVARFD("show_fps", "0", CVAR_ARCHIVE, "Displays the current framerate on-screen.\n1: framerate average over a second.\n2: Slowest frame over the last second (the game will play like shit if this is significantly lower than the average).\n3: Shows the rate of the fastest frame (not very useful).\n4: Shows the current frame's timings (this depends upon timer precision).\n5: Display a graph of how long it took to render each frame, large spikes are BAD BAD BAD.\n6: Displays the standard deviation of the frame times, if its greater than 3 then something is probably badly made, or you've a virus scanner running...\n7: Framegraph, for use with slower frames.");
 cvar_t	show_fps_x	= CVAR("show_fps_x", "-1");
 cvar_t	show_fps_y	= CVAR("show_fps_y", "-1");
 cvar_t	show_clock	= CVAR("cl_clock", "0");

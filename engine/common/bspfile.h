@@ -47,7 +47,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define	MAX_MAP_LIGHTING	0x100000
 //#define	MAX_MAP_VISIBILITY	0x200000
 
-#define	SANITY_MAX_MAP_BRUSHSIDES	0x100000
+#define	SANITY_MAX_MAP_BRUSHSIDES	((~0u)/sizeof(q2cbrushside_t))
 
 // key / value pair sizes
 
@@ -371,13 +371,13 @@ typedef struct q2miptex_s
 // 16 bit short limits
 #define	SANITY_MAX_Q2MAP_MODELS		1024
 //#define	MAX_Q2MAP_ENTITIES	2048
-#define SANITY_MAX_MAP_BRUSHES 0x10000
+#define SANITY_MAX_MAP_BRUSHES (~0u/sizeof(*out))
+#define	SANITY_MAX_MAP_LEAFFACES	262144		//sanity only
 
 #define	MAX_Q2MAP_AREAS		256
 #define	MAX_Q2MAP_AREAPORTALS	1024
 //#define	MAX_Q2MAP_VERTS		MAX_MAP_VERTS
 //#define	MAX_Q2MAP_FACES		MAX_MAP_FACES
-#define	SANITY_MAX_MAP_LEAFFACES	262144		//sanity only
 #ifdef FTE_TARGET_WEB
 #define	MAX_Q2MAP_LEAFBRUSHES (32768)		//used in an array
 #else

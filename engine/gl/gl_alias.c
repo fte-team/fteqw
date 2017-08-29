@@ -576,7 +576,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 		skinfile_t *sk = Mod_LookupSkin(e->customskin);
 		if (sk)
 		{
-			int i;
+			int i, fallback=-1;
 			if (inf->geomset < MAX_GEOMSETS && sk->geomset[inf->geomset] != inf->geomid)
 				return NULL;	//don't allow this surface to be drawn.
 			for (i = 0; i < sk->nummappings; i++)
@@ -586,6 +586,13 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					*forcedtex = &sk->mappings[i].texnums;
 					return sk->mappings[i].shader;
 				}
+				if (!*sk->mappings[i].surface)
+					fallback = i;
+			}
+			if (fallback >= 0)
+			{
+				*forcedtex = &sk->mappings[fallback].texnums;
+				return sk->mappings[fallback].shader;
 			}
 			if (!sk->qwskin && *sk->qwskinname)
 				sk->qwskin = Skin_Lookup(sk->qwskinname);

@@ -101,10 +101,10 @@ cvar_t	record_flush = CVARD("record_flush", "0", "If set, explicitly flushes dem
 cvar_t cl_demospeed = CVARF("cl_demospeed", "1", 0);
 cvar_t	cl_demoreel = CVARFD("cl_demoreel", "0", CVAR_SAVE, "When enabled, the engine will begin playing a demo loop on startup.");
 
-cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "qw", "Which protocol to use for single-player/the internal client. Should be one of: qw, qwid, nqid, nq, fitz, dp6, dp7. If empty, will use qw protocols for qw mods, and nq protocols for nq mods.");
+cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "qw", "Which protocol to use for single-player/the internal client. Should be one of: qw, qwid, nqid, nq, fitz, bjp3, dp6, dp7, auto. If 'auto', will use qw protocols for qw mods, and nq protocols for nq mods.");
 
 
-cvar_t	cl_threadedphysics = CVAR("cl_threadedphysics", "0");
+cvar_t	cl_threadedphysics = CVARD("cl_threadedphysics", "0", "When set, client input frames are generated and sent on a worker thread");
 
 #ifdef QUAKESPYAPI
 cvar_t  localid = SCVAR("localid", "");
@@ -124,8 +124,8 @@ cvar_t	password	= CVARAF("password",	"",	"pq_password", CVAR_USERINFO | CVAR_NOU
 cvar_t	spectator	= CVARF("spectator",	"",			CVAR_USERINFO);
 cvar_t	name		= CVARFC("name",		"Player",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
 cvar_t	team		= CVARF("team",			"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	skin		= CVARF("skin",			"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	model		= CVARF("model",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	skin		= CVARAF("skin",		"",			"_cl_playerskin", CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	model		= CVARAF("model",		"",			"_cl_playermodel", CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	topcolor	= CVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	bottomcolor	= CVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	rate		= CVARFD("rate",		"30000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while playing. Too high a value may result in 'buffer bloat'.");
@@ -422,7 +422,7 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 
 	connectinfo.time = realtime;	// for retransmit requests
 
-	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5 RMQ FITZ NEHAHRABJP NEHAHRABJP2 NEHAHRABJP3 QUAKE\\challenge\\%s", 255, 255, 255, 255, challenge);
+	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5 RMQ FITZ NEHAHRABJP2 NEHAHRABJP NEHAHRABJP3 QUAKE\\challenge\\%s\\name\\%s", 255, 255, 255, 255, challenge, name.string);
 
 	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 
@@ -714,6 +714,7 @@ void CL_CheckForResend (void)
 	qboolean keeptrying = true;
 	char *host;
 	extern int	r_blockvidrestart;
+	const char *lbp;
 
 #ifndef CLIENTONLY
 	if (!cls.state && (!connectinfo.trying || sv.state != ss_clustermode) && sv.state)
@@ -753,24 +754,28 @@ void CL_CheckForResend (void)
 #endif
 		default:
 			cl.movesequence = 0;
-			if (!strcmp(cl_loopbackprotocol.string, "qw") || progstype == PROG_H2)
+			lbp = cl_loopbackprotocol.string;
+			if (!strcmp(lbp, "") || !strcmp(lbp, "qw") || progstype == PROG_H2)
 			{	//qw with all supported extensions -default
+				//for hexen2 we always force fte's native qw protocol. other protocols won't cut it.
+				connectinfo.protocol = CP_QUAKEWORLD;
+				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 				connectinfo.fteext1 = Net_PextMask(1, false);
 				connectinfo.fteext2 = Net_PextMask(2, false);
-				connectinfo.protocol = CP_QUAKEWORLD;
-				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "qwid") || !strcmp(cl_loopbackprotocol.string, "idqw"))
-			{
+			else if (!strcmp(lbp, "qwid") || !strcmp(cl_loopbackprotocol.string, "idqw"))
+			{	//for recording .qwd files in any client
 				connectinfo.protocol = CP_QUAKEWORLD;
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
+				connectinfo.fteext1 = 0;
+				connectinfo.fteext2 = 0;
 			}
 #ifdef Q3CLIENT
-			else if (!strcmp(cl_loopbackprotocol.string, "q3"))
+			else if (!strcmp(lbp, "q3"))
 				cls.protocol = CP_QUAKE3;
 #endif
 #ifdef NQPROT
-			else if (!strcmp(cl_loopbackprotocol.string, "random"))
+			else if (!strcmp(lbp, "random"))
 			{	//for debugging.
 				if (rand() & 1)
 				{
@@ -785,33 +790,33 @@ void CL_CheckForResend (void)
 					connectinfo.fteext2 = Net_PextMask(2, false);
 				}
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "fitz") || !strcmp(cl_loopbackprotocol.string, "666") || !strcmp(cl_loopbackprotocol.string, "999"))
-			{
+			else if (!strcmp(lbp, "fitz") || !strcmp(lbp, "666") || !strcmp(lbp, "999"))
+			{	//we don't really distinguish between fitz and rmq protocols. we just use 999 with bigcoords and 666 othewise.
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "bjp3") || !strcmp(cl_loopbackprotocol.string, "bjp"))
+			else if (!strcmp(lbp, "bjp3") || !strcmp(lbp, "bjp"))
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_BJP3;
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "nq"))
+			else if (!strcmp(lbp, "nq"))
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_ID;
 				proquakeangles = true;
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "nqid") || !strcmp(cl_loopbackprotocol.string, "idnq"))
+			else if (!strcmp(lbp, "nqid") || !strcmp(lbp, "idnq"))
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_ID;
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "dp6") || !strcmp(cl_loopbackprotocol.string, "dpp6"))
+			else if (!strcmp(lbp, "dp6") || !strcmp(lbp, "dpp6"))
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_DP6;
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "dp7") || !strcmp(cl_loopbackprotocol.string, "dpp7"))
+			else if (!strcmp(lbp, "dp7") || !strcmp(lbp, "dpp7"))
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_DP7;
@@ -820,7 +825,8 @@ void CL_CheckForResend (void)
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;
-				//FIXME: pext
+				connectinfo.fteext1 = Net_PextMask(1, true);
+				connectinfo.fteext2 = Net_PextMask(2, true);
 			}
 #endif
 			else
@@ -932,7 +938,7 @@ void CL_CheckForResend (void)
 			}
 			else
 				CL_ConnectToDarkPlaces("", &connectinfo.adr);
-			connectinfo.trying = false;
+//			connectinfo.trying = false;
 		}
 		else
 #endif
@@ -1904,6 +1910,9 @@ void CL_Color_f (void)
 
 	qboolean server_owns_colour;
 
+	char *t;
+	char *b;
+
 	if (Cmd_Argc() == 1)
 	{
 		char *t = Info_ValueForKey (cls.userinfo[pnum], "topcolor");
@@ -1923,13 +1932,14 @@ void CL_Color_f (void)
 		server_owns_colour = false;
 
 
-	if (Cmd_Argc() == 2)
-		top = bottom = CL_ParseColour(Cmd_Argv(1));
-	else
-	{
-		top = CL_ParseColour(Cmd_Argv(1));
-		bottom = CL_ParseColour(Cmd_Argv(2));
-	}
+	t = Cmd_Argv(1);
+	b = (Cmd_Argc()==2)?t:Cmd_Argv(2);
+	if (!strcmp(t, "-1"))
+		t = Info_ValueForKey (cls.userinfo[pnum], "topcolor");
+	top = CL_ParseColour(t);
+	if (!strcmp(b, "-1"))
+		b = Info_ValueForKey (cls.userinfo[pnum], "bottomcolor");
+	bottom = CL_ParseColour(b);
 
 	Q_snprintfz (num, sizeof(num), (top&0xff000000)?"0x%06x":"%i", top & 0xffffff);
 	if (top == 0)
@@ -5419,7 +5429,7 @@ double Host_Frame (double time)
 		)
 	{
 //		realtime += spare/1000;	//don't use it all!
-		double newspare = CL_FilterTime((spare/1000 + realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);
+		double newspare = CL_FilterTime((spare/1000 + realtime - oldrealtime)*1000, maxfps, 1.5, maxfpsignoreserver);
 		if (!newspare)
 		{
 			while(COM_DoWork(0, false))

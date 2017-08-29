@@ -1370,68 +1370,51 @@ const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newaccesslev
 	int quotetype = 0;
 	const char *cvarname;
 
-	cvarname = cvarterm;
-	if (*cvarterm == '{')
-	{	//set foo ba"r; ${foo q} -> ba\"r
-		//set foo bar; ${foo asis} -> ba"r
-		//${bar q} -> <EMPTY>
-		//${bar ?} -> ""
-		//${bar !} -> <ERROR>
-		fixup = &cvarterm[strlen(cvarterm)-1];
-		if (*fixup != '}')
-			return NULL;
-		cvarterm++;
-		fixval = *fixup;
-		*fixup = 0;
-		termlen = fixup - cvarname;
-		if (fixval)
-			termlen++;
-		if (fixup-cvarterm > 2 && !strncmp(fixup-2, " ?", 2))
-		{	//force expansion, even if not defined.
-			pl = 2;
-			quotetype = 2;
-		}
-		else if (fixup-cvarterm > 2 && !strncmp(fixup-2, " !", 2))
-		{	//abort is not defined
-			pl = 2;
-			quotetype = 3;
-		}
-		else if (fixup-cvarterm > 2 && !strncmp(fixup-2, " q", 2))
-		{	//escaping it if not empty, otherwise empty.
-			pl = 2;
-			quotetype = 1;
-		}
-		else if (fixup-cvarterm > 2 && !strncmp(fixup-5, " asis", 5))
-		{	//no escaping...
-			pl = 5;
-			quotetype = 0;
-		}
-		else
-		{
-			pl = 0;
-			quotetype = 1;	//default to escaping.
-		}
-		if (pl)
-		{
-			*fixup = fixval;
-			fixup -= pl;
-			fixval = *fixup;
-			*fixup = 0;
-		}
-		if (*cvarterm == '$')
-			cvarname = Cmd_ExpandCvar(cvarterm+1, maxaccesslevel, newaccesslevel, &pl);
-		else
-			cvarname = cvarterm;
+	//set foo ba"r; ${foo q} -> ba\"r
+	//set foo bar; ${foo asis} -> ba"r
+	//${bar q} -> <EMPTY>
+	//${bar ?} -> ""
+	//${bar !} -> <ERROR>
+	fixup = cvarterm+strlen(cvarterm);
+	fixval = 0;
+	termlen = fixup - cvarterm;
+	if (fixup-cvarterm > 2 && !strncmp(fixup-2, " ?", 2))
+	{	//force expansion, even if not defined.
+		pl = 2;
+		quotetype = 2;
+	}
+	else if (fixup-cvarterm > 2 && !strncmp(fixup-2, " !", 2))
+	{	//abort is not defined
+		pl = 2;
+		quotetype = 3;
+	}
+	else if (fixup-cvarterm > 2 && !strncmp(fixup-2, " q", 2))
+	{	//escaping it if not empty, otherwise empty.
+		pl = 2;
+		quotetype = 1;
+	}
+	else if (fixup-cvarterm > 2 && !strncmp(fixup-5, " asis", 5))
+	{	//no escaping...
+		pl = 5;
+		quotetype = 0;
 	}
 	else
 	{
-		fixup = &cvarterm[strlen(cvarterm)];
-		fixval = *fixup;
-
-		termlen = fixup - cvarname;
-		if (fixval)
-			termlen++;
+		pl = 0;
+		quotetype = dpcompat_console.ival;	//default to escaping.
 	}
+	if (pl)
+	{
+		fixup -= pl;
+		fixval = *fixup;
+		*fixup = 0;
+	}
+	else
+		fixup = NULL;
+	if (*cvarterm == '$')
+		cvarname = Cmd_ExpandCvar(cvarterm+1, maxaccesslevel, newaccesslevel, &pl);
+	else
+		cvarname = cvarterm;
 
 	result = strtoul(cvarname, &t, 10);
 	if ((dpcompat_console.ival||fixval) && (*t == 0 || (*t == '-' && t[1] == 0))) //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
@@ -1470,7 +1453,9 @@ const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newaccesslev
 				*newaccesslevel = 0;
 		}
 	}
-	*fixup = fixval;
+
+	if (fixup)
+		*fixup = fixval;
 
 	if (quotetype == 3)
 	{
@@ -1524,46 +1509,77 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 		if (c == '$' && (!(quotes&1) || dpcompat_console.ival))
 		{
 			data++;
-
-			striptrailing = (*data == '-')?true:false;
-
-			// Copy the text after '$' to a temp buffer
-			i = 0;
-			buf[0] = 0;
-			buf[1] = 0;
-			bestvar = NULL;
-			var_length = 0;
-			while((c = *data))
-			{
-				if (c < ' ')
-					break;
-				if (c == ' ' && buf[0] != '{')
-					break;
-				if (c == '$' && i == 0)
+			if (*data == '$')
+			{	//double-dollar expands to a single dollar.
+				data++;
+				str = "$";
+				striptrailing = false;
+				name_length = 0;
+				buf[0] = 0;
+				buf[1] = 0;
+			}
+			else if (*data == '{')
+			{	//${foo} can do some especially weird expansions.
+				data++;
+				i = 0;
+				buf[i++] = '{';
+				striptrailing = (*data == '-')?true:false;
+				while (*data && *data != '}')
+				{
+					if (i < sizeof(buf)-2)
+						buf[i++] = *data;
+					data++;
+				}
+				buf[i] = 0;
+				bestvar = NULL;
+				if (expandcvars && (str = Cmd_ExpandCvar(buf+1+striptrailing, maxaccesslevel, accesslevel, &var_length)))
+					bestvar = str;
+				if (expandmacros && (str = TP_MacroString (buf+1+striptrailing, accesslevel, &var_length)))
+					bestvar = str;
+				str = bestvar;
+				if (*data == '}')
 				{
 					data++;
-					name_length = 0;
-					str = "$";
-					break;
+					buf[i++] = '}';
+					buf[i] = 0;
 				}
-				data++;
-				buf[i++] = c;
-				buf[i] = 0;
-				if (expandcvars && (str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, accesslevel, &var_length)))
-					bestvar = str;
-				if (expandmacros && (str = TP_MacroString (buf+striptrailing, accesslevel, &var_length)))
-					bestvar = str;
-			}
-
-			if (bestvar)
-			{
-				str = bestvar;
-				name_length = var_length;
+				name_length = i;
 			}
 			else
 			{
-				str = NULL;
-				name_length = 0;
+				striptrailing = (*data == '-')?true:false;
+
+				// Copy the text after '$' to a temp buffer
+				i = 0;
+				buf[0] = 0;
+				buf[1] = 0;
+				bestvar = NULL;
+				var_length = 0;
+				while((c = *data))
+				{
+					if (c < ' ' || c == '$')
+						break;
+					if (c == ' ' && buf[0] != '{')
+						break;
+					data++;
+					buf[i++] = c;
+					buf[i] = 0;
+					if (expandcvars && (str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, accesslevel, &var_length)))
+						bestvar = str;
+					if (expandmacros && (str = TP_MacroString (buf+striptrailing, accesslevel, &var_length)))
+						bestvar = str;
+				}
+
+				if (bestvar)
+				{
+					str = bestvar;
+					name_length = var_length;
+				}
+				else
+				{
+					str = NULL;
+					name_length = 0;
+				}
 			}
 
 			if (str)
@@ -2406,7 +2422,7 @@ void Cmd_ForwardToServer_f (void)
 		return;
 	}
 #endif
-	if (Q_strcasecmp(Cmd_Argv(1), "pext") == 0 && (cls.protocol != CP_NETQUAKE || cls.protocol_nq != CPNQ_ID || cls.proquake_angles_hack || cls.netchan.remote_address.type != NA_LOOPBACK))
+	if (Q_strcasecmp(Cmd_Argv(1), "pext") == 0 && (cls.protocol != CP_NETQUAKE || cls.fteprotocolextensions2 || cls.protocol_nq != CPNQ_ID || cls.proquake_angles_hack || cls.netchan.remote_address.type != NA_LOOPBACK))
 	{	//don't send any extension flags this if we're using cl_loopbackprotocol nqid, purely for a compat test.
 		//if you want to record compat-demos, disable extensions instead.
 		unsigned int fp1 = Net_PextMask(1, cls.protocol == CP_NETQUAKE), fp2 = Net_PextMask(2, cls.protocol == CP_NETQUAKE);
@@ -2466,7 +2482,7 @@ void	Cmd_ExecuteString (const char *text, int level)
 		;	//certain commands don't get pre-expanded in dp. evil hack. quote them to pre-expand anyway. double evil.
 	else
 		text = Cmd_ExpandString(text, dest, sizeof(dest), &level, !Cmd_IsInsecure()?true:false, true);
-	Cmd_TokenizeString (text, level == RESTRICT_LOCAL?true:false, false);
+	Cmd_TokenizeString (text, (level == RESTRICT_LOCAL&&!dpcompat_console.ival)?true:false, false);
 
 // execute the command line
 	if (!Cmd_Argc())
@@ -3898,6 +3914,13 @@ static char *Macro_Version (void)
 		q2 servers checking for cheats. */
 	return va("%.2f %s", 2.57, version_string());
 }
+static char *Macro_Dedicated (void)
+{
+	if (isDedicated)
+		return "1";
+	else
+		return "0";
+}
 static char *Macro_Quote (void)
 {
 	return "\"";
@@ -3973,6 +3996,7 @@ void Cmd_Init (void)
 	Cmd_AddMacro("properdate", Macro_ProperDate, false);
 	Cmd_AddMacro("version", Macro_Version, false);
 	Cmd_AddMacro("qt", Macro_Quote, false);
+	Cmd_AddMacro("dedicated", Macro_Dedicated, false);
 
 	Cvar_Register(&tp_disputablemacros, "Teamplay");
 

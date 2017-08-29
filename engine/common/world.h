@@ -132,6 +132,28 @@ typedef struct q2trace_s
 #define MOVE_OTHERONLY	(1<<8)			//test the trace against a single entity, ignoring non-solid/owner/etc flags (but respecting contents).
 #define MOVE_IGNOREHULL	(1u<<31)	//used on tracelines etc to simplify the code a little
 
+#ifdef USEAREAGRID
+//this macro does it in two steps to avoid float precision issues.
+//it also ensures that it will return at least one grid section.
+#define CALCAREAGRIDBOUNDS(w,min,max) \
+		ming[0] = floor(((min)[0]+(w)->gridbias[0]) / (w)->gridscale[0]);	\
+		ming[1] = floor(((min)[1]+(w)->gridbias[1]) / (w)->gridscale[1]);	\
+		maxg[0] = floor(((max)[0]+(w)->gridbias[0]) / (w)->gridscale[0]);	\
+		maxg[1] = floor(((max)[1]+(w)->gridbias[1]) / (w)->gridscale[1]);	\
+		ming[0] = bound(0, ming[0], (w)->gridsize[0]-1);	\
+		ming[1] = bound(0, ming[1], (w)->gridsize[1]-1);	\
+		maxg[0] = bound(ming[0], maxg[0], (w)->gridsize[0]-1)+1;	\
+		maxg[1] = bound(ming[1], maxg[1], (w)->gridsize[1]-1)+1;
+#else
+#define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,wedict_t,area)
+#endif
+
+#if defined(Q2SERVER) || !defined(USEAREAGRID)
+//q2 game code embeds a link_t struct inside the public edicts.
+//this is why we can't have nice things.
+
+//a binary tree. ents straddling a node are inserted into the parent.
+//this is a problem when your root note passes through '0 0 0' and you have shitty mods with 2000 such ents.
 typedef struct areanode_s
 {
 	int		axis;		// -1 = leaf node
@@ -139,8 +161,7 @@ typedef struct areanode_s
 	struct areanode_s	*children[2];
 	link_t	edicts;
 } areanode_t;
-
-#define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,wedict_t,area)
+#endif
 
 typedef struct wedict_s wedict_t;
 #define PROG_TO_WEDICT (wedict_t*)PROG_TO_EDICT
@@ -189,10 +210,23 @@ struct world_s
 	struct pubprogfuncs_s *progs;
 	qboolean		usesolidcorpse;	//to disable SOLID_CORPSE when running hexen2 due to conflict.
 	model_t			*worldmodel;
+
+#ifdef USEAREAGRID
+	vec2_t			gridbias;
+	vec2_t			gridscale;
+	size_t			gridsize[2];
+	areagridlink_t	*gridareas;		//[gridsize[0]*gridsize[1]]
+	areagridlink_t	jumboarea;		//node containing ents too large to fit.
+	areagridlink_t	portallist;
+#else
+	areanode_t		portallist;
+#endif
+
+#if defined(Q2SERVER) || !defined(USEAREAGRID)
 	areanode_t		*areanodes;
 	int				areanodedepth;
-	int			numareanodes;
-	areanode_t	portallist;
+	int				numareanodes;
+#endif
 
 	double		physicstime;		// the last time global physics were run
 	unsigned int    framenum;
@@ -263,6 +297,7 @@ void World_RBE_Shutdown(world_t *world);
 
 void World_ClearWorld (world_t *w, qboolean relink);
 // called after the world model has been loaded, before linking any entities
+void World_ClearWorld_Nodes (world_t *w, qboolean relink); //legacy code for q2 compat.
 
 void World_UnlinkEdict (wedict_t *ent);
 // call before removing an entity, and before trying to move one,
@@ -275,7 +310,13 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers);
 // sets ent->v.absmin and ent->v.absmax
 // if touchtriggers, calls prog functions for the intersected triggers
 
+#ifdef USEAREAGRID
+void World_TouchAllLinks (world_t *w, wedict_t *ent);
+extern size_t areagridsequence;
+#else
 void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node);
+#define World_TouchAllLinks(w,e) World_TouchLinks(w,e,(w)->areanodes)
+#endif
 
 int World_PointContents (world_t *w, vec3_t p);
 // returns the CONTENTS_* value from the world at the given point.

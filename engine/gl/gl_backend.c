@@ -1194,7 +1194,12 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t);
 		return;
 	case T_GEN_REFLECTMASK:
-		t = shaderstate.curtexnums->reflectmask;
+		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->reflectmask))
+			t = shaderstate.curtexnums->reflectmask;
+		else if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->base))
+			t = shaderstate.curtexnums->base;
+		else
+			t = r_whiteimage;
 		break;
 	case T_GEN_SHADOWMAP:
 		t = shaderstate.curshadowmap;
@@ -1649,6 +1654,28 @@ static void GenerateTCFog(int passnum, mfog_t *fog)
 }
 #endif
 
+static float *tcgen3(const shaderpass_t *pass, int cnt, float *dst, const mesh_t *mesh)
+{
+	int i;
+	vecV_t *src;
+	switch (pass->tcgen)
+	{
+	default:
+	case TC_GEN_SKYBOX:
+		src = mesh->xyz_array;
+		for (i = 0; i < cnt; i++, dst += 3)
+		{
+			dst[0] = src[i][0] - r_refdef.vieworg[0];
+			dst[1] = r_refdef.vieworg[1] - src[i][1];
+			dst[2] = src[i][2] - r_refdef.vieworg[2];
+		}
+		return dst-cnt*3;
+
+//	case TC_GEN_WOBBLESKY:
+//	case TC_GEN_REFLECT:
+//		break;
+	}
+}
 static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t *mesh)
 {
 	int i;
@@ -1684,7 +1711,7 @@ static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t 
 			dst[0] = DotProduct(pass->tcgenvec[0], src[i]);
 			dst[1] = DotProduct(pass->tcgenvec[1], src[i]);
 		}
-		return dst;
+		return dst-cnt*2;
 
 //	case TC_GEN_SKYBOX:
 //	case TC_GEN_WOBBLESKY:
@@ -1772,9 +1799,73 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 			}
 			break;
 
+		case SHADER_TCMOD_PAGE:
+			{	//simple atlas bias with no scaling. use a separate tcmod for that.
+				int w = tcmod->args[0];
+				int h = tcmod->args[1];
+				float f = shaderstate.curtime / (tcmod->args[2]*w*h);
+				int idx = (f - floor(f))*w*h;
+				t1 = (idx%w)/tcmod->args[0];
+				t2 = (idx/w)/tcmod->args[1];
+
+				for (j = 0; j < cnt; j++, dst += 2, src+=2)
+				{
+					dst[0] = src[0] + t1;
+					dst[1] = src[1] + t2;
+				}
+			}
+			break;
+
 		default:
 			break;
 	}
+}
+
+static void GenerateTCMods3(const shaderpass_t *pass, int passnum)
+{
+#if 1
+	int m;
+	float *src;
+	mesh_t *mesh;
+	for (m = 0; m < shaderstate.meshcount; m++)
+	{
+		mesh = shaderstate.meshes[m];
+
+		src = tcgen3(pass, mesh->numvertexes, texcoordarray[passnum]+mesh->vbofirstvert*3, mesh);
+
+		if (src != texcoordarray[passnum]+mesh->vbofirstvert*3)
+		{
+			//this shouldn't actually ever be true
+			memcpy(texcoordarray[passnum]+mesh->vbofirstvert*3, src, 8*mesh->numvertexes);
+		}
+	}
+	shaderstate.pendingtexcoordparts[passnum] = 3;
+	shaderstate.pendingtexcoordvbo[passnum] = 0;
+	shaderstate.pendingtexcoordpointer[passnum] = texcoordarray[passnum];
+#else
+	GL_DeselectVAO();
+	if (!shaderstate.vbo_texcoords[passnum])
+	{
+		shaderstate.vbo_texcoords[passnum] = 0;
+		qglGenBuffersARB(1, &shaderstate.vbo_texcoords[passnum]);
+	}
+	GL_SelectVBO(shaderstate.vbo_texcoords[passnum]);
+
+	{
+		qglBufferDataARB(GL_ARRAY_BUFFER_ARB, MAX_ARRAY_VERTS*sizeof(float)*3, NULL, GL_STREAM_DRAW_ARB);
+		for (; meshlist; meshlist = meshlist->next)
+		{
+			int i;
+			float *src;
+			src = tcge3n(pass, meshlist->numvertexes, texcoordarray[passnum], meshlist);
+			qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB, meshlist->vbofirstvert*8, meshlist->numvertexes*8, src);
+		}
+	}
+
+	shaderstate.pendingtexcoordparts[passnum] = 2;
+	shaderstate.pendingtexcoordvbo[passnum] = shaderstate.vbo_texcoords[passnum];
+	shaderstate.pendingtexcoordpointer[passnum] = NULL;
+#endif
 }
 
 static void GenerateTCMods(const shaderpass_t *pass, int passnum)
@@ -2565,7 +2656,9 @@ static void BE_GeneratePassTC(const shaderpass_t *pass, int tmu)
 			shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->tvector.gl.vbo;
 			shaderstate.pendingtexcoordpointer[tmu] = shaderstate.sourcevbo->tvector.gl.addr;
 			break;
-		//	case TC_GEN_SKYBOX:
+		case TC_GEN_SKYBOX:
+			GenerateTCMods3(pass, tmu);
+			break;
 			//position - viewpos
 //	case TC_GEN_WOBBLESKY:
 //	case TC_GEN_REFLECT:
@@ -4674,6 +4767,7 @@ static void GLBE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 {
 	batch_t *batch, *masklists[2];
 	int i;
+	float il;
 
 	if (!dynamiclist && !worldlist[SHADER_SORT_PORTAL])
 		return;	//no portals to draw
@@ -4691,9 +4785,11 @@ static void GLBE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 				if (batch->buildmeshes)
 					batch->buildmeshes(batch);
 
+				il = shaderstate.identitylighting;
 				masklists[0] = worldlist[SHADER_SORT_PORTAL];
 				masklists[1] = dynamiclist;
 				GLR_DrawPortal(batch, worldlist, masklists, 0);
+				shaderstate.identitylighting = il;
 
 				/*clear depth again*/
 				GL_ForceDepthWritable();
@@ -4837,7 +4933,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			}
 			if (bs->flags & (SHADER_HASREFRACT|SHADER_HASREFRACTDEPTH))
 			{
-				if (r_refract_fboival)
+				if (r_refract_fboival || (bs->flags&SHADER_HASPORTAL))
 				{
 					float renderscale = min(1, r_refractreflect_scale.value);
 					vrect_t ovrect = r_refdef.vrect;
@@ -4899,7 +4995,10 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					GL_ForceDepthWritable();
 					qglClearColor(0, 0, 0, 1);
 					qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-					GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, ((bs->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
+					if (bs->flags&SHADER_HASPORTAL)
+						GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, 0);
+					else
+						GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, ((bs->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
 					GLBE_FBO_Pop(oldfbo);
 
 					r_refdef.vrect = ovrect;
@@ -5565,10 +5664,13 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 			shaderstate.identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif
-			shaderstate.identitylighting = 1;
+			shaderstate.identitylighting = r_lightmap_scale.value;
 		shaderstate.identitylighting *= r_refdef.hdr_value;
 		shaderstate.identitylightmap = shaderstate.identitylighting;
 //		shaderstate.identitylightmap *= 1<<gl_overbright.ival;
+
+//		if (cl.worldmodel && cl.worldmodel->fromgame == fg_quake3)
+//			shaderstate.identitylighting *= 2;
 
 #ifdef RTLIGHTS
 		if (r_lightprepass)
@@ -5585,7 +5687,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 
 			RSpeedRemark();
 			GLBE_SubmitMeshes(worldbatches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
-			RSpeedEnd(RSPEED_WORLD);
+			RSpeedEnd(RSPEED_OPAQUE);
 
 #ifdef RTLIGHTS
 			if (worldbatches)
@@ -5594,7 +5696,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 				TRACE(("GLBE_DrawWorld: drawing lights\n"));
 				GLBE_SelectEntity(&r_worldentity);
 				Sh_DrawLights(r_refdef.scenevis);
-				RSpeedEnd(RSPEED_STENCILSHADOWS);
+				RSpeedEnd(RSPEED_RTLIGHTS);
 				TRACE(("GLBE_DrawWorld: lights drawn\n"));
 			}
 #endif
@@ -5602,7 +5704,9 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 
 		shaderstate.identitylighting = 1;
 
+		RSpeedRemark();
 		GLBE_SubmitMeshes(worldbatches, SHADER_SORT_SEETHROUGH+1, SHADER_SORT_NEAREST);
+		RSpeedEnd(RSPEED_TRANSPARENTS);
 
 /*		if (r_refdef.gfog_alpha)
 		{

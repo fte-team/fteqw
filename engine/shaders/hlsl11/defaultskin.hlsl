@@ -44,7 +44,6 @@ struct v2f
 
 	SamplerState SampleType;
 
-//uniform vec4 e_colourident;
 	float4 main (v2f inp) : SV_TARGET
 	{
 		float4 col;
@@ -69,10 +68,12 @@ struct v2f
 #endif
 		col.rgb *= inp.light;
 //#ifdef FULLBRIGHT
-		float4 fb = t_fullbright.Sample(SampleType, inp.tc);
-		col.rgb = lerp(col.rgb, fb.rgb, fb.a);
+		float4 fb = t_fullbright.Sample(SampleType, inp.tc)*e_glowmod;
+//		col.rgb = lerp(col.rgb, fb.rgb, fb.a);	//matches vanilla quake...
+		col.rgb += fb.rgb * fb.a;				//but nothing expects it to.
 //#endif
+		col *= e_colourmod;
+//		col = fog4(col);
 		return col;
-//		return fog4(col * e_colourident);
 	}
 #endif

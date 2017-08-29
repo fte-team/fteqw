@@ -25,10 +25,6 @@
 	float e_time;
 	float3 e_eyepos;
 
-	float l_lightradius;
-	float3 l_lightcolour;
-	float3 l_lightposition;
-
 	sampler s_diffuse; /*diffuse*/
 	sampler s_fullbright; /*normal*/
 	float4 main (v2f inp) : COLOR0

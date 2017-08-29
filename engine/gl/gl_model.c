@@ -47,7 +47,6 @@ texture_t	*r_notexture_mip = &r_notexture_mip_real;
 #endif
 
 void CM_Init(void);
-void CM_Shutdown(void);
 
 void Mod_LoadSpriteShaders(model_t *spr);
 qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer, size_t fsize);
@@ -821,9 +820,6 @@ void Mod_Shutdown (qboolean final)
 		Mod_Purge(MP_RESET);
 
 		Mod_UnRegisterAllModelFormats(NULL);
-#ifdef Q2BSPS
-		CM_Shutdown();
-#endif
 	}
 	else
 	{
@@ -1529,35 +1525,28 @@ static void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safe
 
 	if (!safetoloadfromwads)
 	{
+		//remap to avoid bugging out on textures with the same name and different images (vanilla content sucks)
+		shadername = Mod_RemapBuggyTexture(shadername, tx->mips[0], tx->width*tx->height);
+		if (shadername)
+			origname = tx->name;
+		else
+			shadername = tx->name;
 
-		/*skies? just replace with the override sky*/
-		if (!strncmp(tx->name, "sky", 3) && *cl.skyname)
-			tx->shader = R_RegisterCustom (va("skybox_%s", cl.skyname), SUF_NONE, Shader_DefaultSkybox, NULL);	//just load the regular name.
+		//find the *
+		if (!*gl_shadeq1_name.string || !strcmp(gl_shadeq1_name.string, "*"))
+			;
+		else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(tx->name)+1>=sizeof(altname)))	//it's got to fit.
+			shadername = gl_shadeq1_name.string;
 		else
 		{
-			//remap to avoid bugging out on textures with the same name and different images (vanilla content sucks)
-			shadername = Mod_RemapBuggyTexture(shadername, tx->mips[0], tx->width*tx->height);
-			if (shadername)
-				origname = tx->name;
-			else
-				shadername = tx->name;
-
-			//find the *
-			if (!*gl_shadeq1_name.string || !strcmp(gl_shadeq1_name.string, "*"))
-				;
-			else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(tx->name)+1>=sizeof(altname)))	//it's got to fit.
-				shadername = gl_shadeq1_name.string;
-			else
-			{
-				strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
-				altname[star-gl_shadeq1_name.string] = '\0';
-				strcat(altname, shadername);	//insert the *
-				strcat(altname, star+1);	//add any final text.
-				shadername = altname;
-			}
-
-			tx->shader = R_RegisterCustom (shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
+			strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
+			altname[star-gl_shadeq1_name.string] = '\0';
+			strcat(altname, shadername);	//insert the *
+			strcat(altname, star+1);	//add any final text.
+			shadername = altname;
 		}
+
+		tx->shader = R_RegisterCustom (shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 
 		if (!tx->mips[0] && !safetoloadfromwads)
 			return;
@@ -3979,11 +3968,21 @@ static qboolean Mod_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 
 			for (j=0 ; j<2 ; j++)
 			{
-				p = LittleShort (in->children[j]);
-				if (p >= 0)
+				p = (unsigned short)LittleShort (in->children[j]);
+
+				if (p >= 0 && p < loadmodel->numnodes)
 					out->children[j] = loadmodel->nodes + p;
 				else
-					out->children[j] = (mnode_t *)(loadmodel->leafs + (-1 - p));
+				{
+					p = (-1 - (signed)(0xffff0000|p));
+					if (p >= 0 && p < loadmodel->numleafs)
+						out->children[j] = (mnode_t *)(loadmodel->leafs + p);
+					else
+					{
+						Con_Printf (CON_ERROR "MOD_LoadBmodel: invalid node child %i in %s\n", LittleShort (in->children[j]), loadmodel->name);
+						return false;
+					}
+				}
 			}
 		}
 	}
@@ -4814,13 +4813,27 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 
 		if (mod->fromgame == fg_quake3)
 		{
-			for(a = 0; a < mod->numtexinfo; a++)
+			if (mod->lightmaps.deluxemapping && mod->lightmaps.deluxemapping_modelspace)
 			{
-				mod->textures[a]->shader = R_RegisterShader_Lightmap(mod->textures[a]->name);
-				R_BuildDefaultTexnums(NULL, mod->textures[a]->shader);
+				for(a = 0; a < mod->numtexinfo; a++)
+				{
+					mod->textures[a]->shader = R_RegisterShader_Lightmap(va("%s#BUMPMODELSPACE", mod->textures[a]->name));
+					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader);
 
-				mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod->textures[a+mod->numtexinfo]->name);
-				R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader);
+					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod->textures[a+mod->numtexinfo]->name);
+					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader);
+				}
+			}
+			else
+			{
+				for(a = 0; a < mod->numtexinfo; a++)
+				{
+					mod->textures[a]->shader = R_RegisterShader_Lightmap(mod->textures[a]->name);
+					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader);
+
+					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod->textures[a+mod->numtexinfo]->name);
+					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader);
+				}
 			}
 			mod->textures[2*mod->numtexinfo]->shader = R_RegisterShader_Flare("noshader");
 		}

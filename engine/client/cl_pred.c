@@ -23,12 +23,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 cvar_t	cl_predict_extrapolate = CVARD("cl_predict_extrapolate", "", "If 1, enables prediction based upon partial input frames which can change over time resulting in a swimmy feel but does not need to interpolate. If 0, prediction will stay in the past and thus use only completed frames. Interpolation will then be used to smooth movement.\nThis cvar only applies when video and input frames are independant (ie: cl_netfps is set).");
 cvar_t	cl_predict_timenudge = CVARD("cl_predict_timenudge", "0", "A debug feature. You should normally leave this as 0. Nudges local player prediction into the future if positive (resulting in extrapolation), or into the past if negative (resulting in laggy interpolation). Value is in seconds, so small decimals are required. This cvar applies even if input frames are tied to video frames.");
 cvar_t	cl_predict_smooth = CVARD("cl_lerp_smooth", "2", "If 2, will act as 1 when playing demos/singleplayer and otherwise act as if set to 0 (ie: deathmatch).\nIf 1, interpolation will run in the past, resulting in really smooth movement at the cost of latency (even on bunchy german ISDNs).\nIf 0, interpolation will be based upon packet arrival times and may judder due to packet loss.");
-cvar_t	cl_nopred = CVAR("cl_nopred","0");
+cvar_t	cl_nopred = CVARD("cl_nopred","0", "Disables clientside movement prediction.");
 cvar_t	cl_pushlatency = CVAR("pushlatency","-999");
 
 extern float	pm_airaccelerate;
 
-extern usercmd_t independantphysics[MAX_SPLITS];
+extern usercmd_t cl_pendingcmd[MAX_SPLITS];
 
 #ifdef Q2CLIENT
 #define	MAX_PARSE_ENTITIES	1024
@@ -297,10 +297,10 @@ static void CLQ2_PredictMovement (int seat)	//q2 doesn't support split clients.
 		VectorCopy (pm.s.origin, cl_predicted_origins[seat][frame]);
 	}
 
-	if (independantphysics[seat].msec)
+	if (cl_pendingcmd[seat].msec)
 	{
-		cmd = (q2usercmd_t*)&independantphysics[seat];
-		cmd->msec = independantphysics[seat].msec;
+		cmd = (q2usercmd_t*)&cl_pendingcmd[seat];
+		cmd->msec = cl_pendingcmd[seat].msec;
 
 		pm.cmd = *cmd;
 		Q2_Pmove (&pm);
@@ -891,12 +891,14 @@ void CL_PredictMovePNum (int seat)
 //			netfps = fps;
 		if (!*cl_predict_extrapolate.string)
 			extrap = netfps < 30;
+		if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
+			extrap = true;	//DP servers do a nasty thing where they send packets without any entities. This messes with our timings. Its much smoother to just always use extrapolation in this case (otherwise we'd have to backdate too much for prediction to do much).
 		if (!extrap)
 		{
 			//interpolate. The input rate is completely smoothed out, at the cost of some latency.
 			//You can still get juddering if the video rate doesn't match the monitor refresh rate (and isn't so high that it doesn't matter).
 			//note that the code below will back-date input frames if the server acks too fast.
-			simtime = realtime - (1/netfps);
+			simtime = realtime - (1.0/netfps);
 		}
 		else
 		{
@@ -907,7 +909,7 @@ void CL_PredictMovePNum (int seat)
 	}
 
 	if (cls.demoplayback == DPB_QUAKEWORLD || pv->cam_state == CAM_EYECAM)
-		simtime -= cls.latency;
+		simtime -= cls.latency;	//push back when playing demos.
 	simtime += bound(-0.5, cl_predict_timenudge.value, 0.5);
 
 	pv->nolocalplayer = !!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || (cls.protocol != CP_QUAKEWORLD);
@@ -1209,8 +1211,8 @@ void CL_PredictMovePNum (int seat)
 				cmdfrom = cmdto;
 
 				tostate = &framebuf[i++&1];
-				if (independantphysics[seat].msec && !cls.demoplayback)
-					indcmd = independantphysics[seat];
+				if (cl_pendingcmd[seat].msec && !cls.demoplayback)
+					indcmd = cl_pendingcmd[seat];
 				else
 					indcmd = *cmdto;
 				cmdto = &indcmd;

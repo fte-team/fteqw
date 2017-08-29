@@ -42,6 +42,7 @@ sh_config_t sh_config;
 //cvars that affect shader generation
 cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
 cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitup", CVAR_SHADERSYSTEM, "Reduce the shader to a single texture, and then make stuff up about its mother. The resulting fist fight results in more colour when you shine a light upon its face.\nSet to 2 to ignore 'depthfunc equal' and 'tcmod scale' in order to tolerate bizzare shaders made for a bizzare engine.\nBecause most shaders made for DP are by people who _clearly_ have no idea what the heck they're doing, you'll typically need the '2' setting.");
+cvar_t dpcompat_nopremulpics = CVARFD("dpcompat_nopremulpics", "0", CVAR_SHADERSYSTEM, "By default FTE uses premultiplied alpha for hud/2d images, while DP does not (which results in halos with low-res content). Unfortunately DDS files would need to be recompressed, resulting in visible issues.");
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_fastturb, r_fastsky, r_skyboxname;
 extern cvar_t r_drawflat;
@@ -234,6 +235,9 @@ static struct
 	vec3_t refractcolour;
 	vec3_t reflectcolour;
 	float wateralpha;
+
+	float specularexpscale; //*32 ish
+	float specularvalscale; //*1 ish
 } parsestate;
 
 typedef struct shaderkey_s
@@ -552,17 +556,19 @@ static void Shader_ParseVector(shader_t *shader, char **ptr, vec3_t v)
 }
 
 qboolean Shader_ParseSkySides (char *shadername, char *texturename, texid_t *images)
-{
+{	//FIXME: use Image_LoadCubemapTextureData to load the faces
+	//if possible directly use a 7th/cubemap texture instead
+	//this requires fixing the sky code to not do the random transforms thing though.
 	qboolean allokay = true;
 	int i, ss, sp;
 	char path[MAX_QPATH];
 
 	static char	*skyname_suffix[][6] = {
 		{"rt", "bk", "lf", "ft", "up", "dn"},
-		{"px", "py", "nx", "ny", "pz", "nz"},
-		{"posx", "posy", "negx", "negy", "posz", "negz"},
-		{"_px", "_py", "_nx", "_ny", "_pz", "_nz"},
-		{"_posx", "_posy", "_negx", "_negy", "_posz", "_negz"},
+//		{"px", "py", "nx", "ny", "pz", "nz"},
+//		{"posx", "posy", "negx", "negy", "posz", "negz"},
+//		{"_px", "_py", "_nx", "_ny", "_pz", "_nz"},
+//		{"_posx", "_posy", "_negx", "_negy", "_posz", "_negz"},
 		{"_rt", "_bk", "_lf", "_ft", "_up", "_dn"}
 	};
 
@@ -588,6 +594,7 @@ qboolean Shader_ParseSkySides (char *shadername, char *texturename, texid_t *ima
 		if ( texturename[0] == '-' )
 		{
 			images[i] = r_nulltex;
+			allokay = true;
 		}
 		else
 		{
@@ -596,16 +603,14 @@ qboolean Shader_ParseSkySides (char *shadername, char *texturename, texid_t *ima
 				for (ss = 0; ss < sizeof(skyname_suffix)/sizeof(skyname_suffix[0]); ss++)
 				{
 					Q_snprintfz ( path, sizeof(path), skyname_pattern[sp], texturename, skyname_suffix[ss][i] );
-					images[i] = R_LoadHiResTexture ( path, NULL, IF_NOALPHA|IF_CLAMP|IF_NOWORKER);
-					if (images[i]->status == TEX_LOADING)	//FIXME: unsafe, as it can recurse through shader loading and mess up internal parse state.
-						COM_WorkerPartialSync(images[i], &images[i]->status, TEX_LOADING);
-					if (TEXLOADED(images[i]))
+					images[i] = R_LoadHiResTexture ( path, NULL, IF_NOALPHA|IF_CLAMP|IF_LOADNOW);
+					if (images[i]->width)
 						break;
 				}
-				if (TEXLOADED(images[i]))
+				if (images[i]->width)
 					break;
 			}
-			if (!TEXVALID(images[i]))
+			if (!images[i]->width)
 			{
 				Con_Printf("Sky \"%s\" missing texture: %s\n", shadername, path);
 				images[i] = missing_texture;
@@ -916,7 +921,7 @@ static void Shader_SkyParms(shader_t *shader, shaderpass_t *pass, char **ptr)
 	/*skyheight =*/ Shader_ParseFloat(shader, ptr, 512);
 
 	boxname = Shader_ParseString(ptr);
-	Shader_ParseSkySides(shader->name, boxname, skydome->nearbox_textures);
+//	Shader_ParseSkySides(shader->name, boxname, skydome->nearbox_textures);
 
 	shader->flags |= SHADER_SKY;
 	shader->sort = SHADER_SORT_SKY;
@@ -2320,6 +2325,7 @@ static void Shader_Translucent(shader_t *shader, shaderpass_t *pass, char **ptr)
 static void Shader_DP_Camera(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	shader->sort = SHADER_SORT_PORTAL;
+	parsestate.dpwatertype |= 4;
 }
 static void Shader_DP_Water(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -2352,6 +2358,38 @@ static void Shader_DP_Refract(shader_t *shader, shaderpass_t *pass, char **ptr)
 	parsestate.refractfactor = Shader_ParseFloat(shader, ptr, 0);
 	Shader_ParseVector(shader, ptr, parsestate.refractcolour);
 }
+
+static void Shader_DP_OffsetMapping(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token = Shader_ParseString(ptr);
+	if (!strcmp(token, "disable") || !strcmp(token, "none") || !strcmp(token, "off"))
+		;
+	else if (!strcmp(token, "default") || !strcmp(token, "normal"))
+		;
+	else if (!strcmp(token, "linear"))
+		;
+	else if (!strcmp(token, "relief"))
+		;
+	/*scale = */Shader_ParseFloat(shader, ptr, 1);
+	token = Shader_ParseString(ptr);
+	if (!strcmp(token, "bias"))
+		/*bias = */Shader_ParseFloat(shader, ptr, 0.5);
+	else if (!strcmp(token, "match"))
+		/*bias = 1.0 - */Shader_ParseFloat(shader, ptr, 0.5);
+	else if (!strcmp(token, "match8"))
+		/*bias = 1.0 - (1.0/255) * */Shader_ParseFloat(shader, ptr, 128);
+	else if (!strcmp(token, "match16"))
+		/*bias = 1.0 - (1.0/65535) * */Shader_ParseFloat(shader, ptr, 32768);
+}
+static void Shader_DP_GlossScale(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	parsestate.specularvalscale = Shader_ParseFloat(shader, ptr, 0);
+}
+static void Shader_DP_GlossExponent(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	parsestate.specularexpscale = Shader_ParseFloat(shader, ptr, 0);
+}
+
 
 static void Shader_BEMode(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -2480,9 +2518,11 @@ static shaderkey_t shaderkeys[] =
 	{"water",			Shader_DP_Water,			"dp"},
 	{"reflect",			Shader_DP_Reflect,			"dp"},
 	{"refract",			Shader_DP_Refract,			"dp"},
-	{"offsetmapping",	NULL,						"dp"},
-	{"glossintensitymod",NULL,						"dp"},
-	{"glossexponentmod",NULL,						"dp"},
+	{"offsetmapping",	Shader_DP_OffsetMapping,	"dp"},
+	{"noshadow",		NULL,						"dp"},
+	{"polygonoffset",	NULL,						"dp"},
+	{"glossintensitymod",Shader_DP_GlossScale,		"dp"},	//scales r_shadow_glossintensity(=1), aka: gl_specular
+	{"glossexponentmod",Shader_DP_GlossExponent,	"dp"},	//scales r_shadow_glossexponent(=32)
 
 	/*doom3 compat*/
 	{"diffusemap",		Shader_DiffuseMap,			"doom3"},	//macro for "{\nstage diffusemap\nmap <map>\n}"
@@ -2567,6 +2607,14 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	{
 		shader->flags |= SHADER_HASTOPBOTTOM;
 		pass->texgen = T_GEN_LOWEROVERLAY;
+	}
+	else if (!Q_stricmp (tname, "$reflectcube"))
+	{
+		pass->texgen = T_GEN_REFLECTCUBE;
+	}
+	else if (!Q_stricmp (tname, "$reflectmask"))
+	{
+		pass->texgen = T_GEN_REFLECTMASK;
 	}
 	else if (!Q_stricmp (tname, "$shadowmap"))
 	{
@@ -3291,6 +3339,8 @@ static void Shaderpass_TcGen ( shader_t *shader, shaderpass_t *pass, char **ptr 
 		pass->tcgen = TC_GEN_SVECTOR;
 	} else if ( !Q_stricmp (token, "tvector") ) {
 		pass->tcgen = TC_GEN_TVECTOR;
+	} else if ( !Q_stricmp (token, "skybox") ) {
+		pass->tcgen = TC_GEN_SKYBOX;
 	}
 }
 static void Shaderpass_EnvMap ( shader_t *shader, shaderpass_t *pass, char **ptr )	//for alienarena
@@ -3783,6 +3833,8 @@ void Shader_Shutdown (void)
 
 	Shader_FlushCache();
 	Shader_FlushGenerics();
+
+	R_SkyShutdown();
 
 	r_maxshaders = 0;
 	r_numshaders = 0;
@@ -4292,13 +4344,13 @@ const char *Shader_AlphaMaskProgArgs(shader_t *s)
 		{
 		default:
 			break;
-		//cases inverted. the test is to enable 
+		//cases inverted. the atest is to retain the pixel, glsl is to discard (alpha OP MASK).
 		case SBITS_ATEST_GT0:
-			return "#MASK=0.0#MASKOP=>";
+			return "#MASK=0.0#MASKLT=1";
 		case SBITS_ATEST_LT128:
-			return "#MASK=0.5#MASKOP=<";
-		case SBITS_ATEST_GE128:
 			return "#MASK=0.5";
+		case SBITS_ATEST_GE128:
+			return "#MASK=0.5#MASKLT=1";	//ignore the eq part.
 		}
 	}
 	return "";
@@ -4306,9 +4358,10 @@ const char *Shader_AlphaMaskProgArgs(shader_t *s)
 
 void Shader_Programify (shader_t *s)
 {
-	qboolean reflectrefract = false;
+	unsigned int reflectrefract = 0;
 	char *prog = NULL;
 	const char *mask;
+	char args[1024];
 /*	enum
 	{
 		T_UNKNOWN,
@@ -4325,9 +4378,19 @@ void Shader_Programify (shader_t *s)
 		else if (pass->rgbgen == RGB_GEN_ENTITY)
 			modellighting = pass;
 		else if (pass->rgbgen == RGB_GEN_VERTEX_LIGHTING || pass->rgbgen == RGB_GEN_VERTEX_EXACT)
-			vertexlighting = pass;
+		{
+			if (s->usageflags & (SUF_LIGHTMAP|SUF_2D))
+				vertexlighting = pass;
+			else
+				modellighting = pass;	//fucking DP morons who don't know what lightmaps are.
+		}
 		else if (pass->texgen == T_GEN_LIGHTMAP && pass->tcgen == TC_GEN_LIGHTMAP)
-			lightmap = pass;
+		{
+			if (s->usageflags & SUF_LIGHTMAP)
+				lightmap = pass;
+			else
+				modellighting = pass;	//fucking DP morons who don't know what lightmaps are.
+		}
 
 		/*if (pass->numtcmods || (pass->shaderbits & SBITS_ATEST_BITS))
 			return;
@@ -4360,7 +4423,16 @@ void Shader_Programify (shader_t *s)
 		s->passes[0].shaderbits &= ~(SBITS_BLEND_BITS|SBITS_MISC_NODEPTHTEST|SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY);
 		s->passes[0].shaderbits |= SBITS_MISC_DEPTHWRITE;
 
-		reflectrefract = true;
+		if (parsestate.dpwatertype & 1)
+			reflectrefract |= SHADER_HASREFLECT;
+		if (parsestate.dpwatertype & 2)
+			reflectrefract |= SHADER_HASREFRACT;
+		if (parsestate.dpwatertype & 4)
+		{
+			reflectrefract |= SHADER_HASREFRACT|SHADER_HASPORTAL;	//doubles up as a 'camera'
+			if (s->sort == SHADER_SORT_PORTAL)
+				s->sort = SHADER_SORT_OPAQUE;	//don't do it twice.
+		}
 	}
 	else if (modellighting)
 	{
@@ -4384,9 +4456,19 @@ void Shader_Programify (shader_t *s)
 		return;
 	}
 
+	args[0] = 0;
+	if (parsestate.specularvalscale != 1)
+		Q_strncatz(args, va("#specmul=%g", parsestate.specularvalscale), sizeof(args));
+	if (parsestate.specularexpscale != 1)
+		Q_strncatz(args, va("#specexp=%g", parsestate.specularexpscale), sizeof(args));
+
+	mask = strchr(s->name, '#');
+	if (mask)
+		Q_strncatz(args, mask, sizeof(args));
+
 	mask = Shader_AlphaMaskProgArgs(s);
 
-	s->prog = Shader_FindGeneric(va("%s%s", prog, mask), qrenderer);
+	s->prog = Shader_FindGeneric(va("%s%s%s", prog, mask, args), qrenderer);
 	if (s->prog)
 	{
 		s->numpasses = 0;
@@ -4401,8 +4483,7 @@ void Shader_Programify (shader_t *s)
 			s->passes[s->numpasses++].texgen = T_GEN_REFLECTION;
 //			s->passes[s->numpasses++].texgen = T_GEN_RIPPLEMAP;
 //			s->passes[s->numpasses++].texgen = T_GEN_REFRACTIONDEPTH;
-			s->flags |= SHADER_HASREFRACT;
-			s->flags |= SHADER_HASREFLECT;
+			s->flags |= reflectrefract;
 		}
 		else
 		{
@@ -4422,6 +4503,7 @@ void Shader_Finish (shader_t *s)
 	//then the ambient stages.
 	//and forget about the bump/specular stages as we don't support them and already stripped them.
 
+#if 0
 	if (s->flags & SHADER_SKY)
 	{
 		/*skies go all black if fastsky is set*/
@@ -4449,6 +4531,7 @@ void Shader_Finish (shader_t *s)
 			return;
 		}
 	}
+#endif
 
 	if (s->prog && !s->numpasses)
 	{
@@ -4809,7 +4892,6 @@ done:;
 
 	if (!s->prog && sh_config.progs_supported && (r_forceprogramify.ival || parsestate.forceprogramify))
 	{
-		Shader_Programify(s);
 		if (r_forceprogramify.ival >= 2)
 		{
 			if (s->passes[0].numtcmods == 1 && s->passes[0].tcmods[0].type == SHADER_TCMOD_SCALE)
@@ -4818,6 +4900,7 @@ done:;
 				s->passes[0].shaderbits = (s->passes[0].shaderbits & ~SBITS_ATEST_BITS) | SBITS_ATEST_GE128;
 			s->passes[0].shaderbits &= ~SBITS_MISC_DEPTHEQUALONLY;	//DP ignores this too.
 		}
+		Shader_Programify(s);
 	}
 
 	if (s->prog)
@@ -5515,13 +5598,27 @@ void Shader_DefaultCinematic(const char *shortname, shader_t *s, const void *arg
 /*shortname should begin with 'skybox_'*/
 void Shader_DefaultSkybox(const char *shortname, shader_t *s, const void *args)
 {
+	int i;
 	Shader_DefaultScript(shortname, s,
 		va(
 			"{\n"
+				"sort sky\n"
+				"surfaceparm nodlight\n"
 				"skyparms %s - -\n"
 			"}\n"
 		, shortname+7)
 	);
+
+	for (i = 0; i < 6; i++)
+	{
+		if (s->skydome->farbox_textures[i] == missing_texture)
+		{
+			if (s->skydome)
+				Z_Free(s->skydome);
+			s->skydome = NULL;
+			return;
+		}
+	}
 }
 
 char *Shader_DefaultBSPWater(shader_t *s, const char *shortname)
@@ -5741,7 +5838,6 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 				"{\n"
 					"surfaceparm nodlight\n"
 					"skyparms - - -\n"
-					"surfaceparm nodlight\n"
 				"}\n"
 			);
 	}
@@ -5812,7 +5908,7 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 	if (!builtin && !strncmp(shortname, "sky", 3))
 	{
 		//q1 sky
-		if (r_fastsky.ival)
+		/*if (r_fastsky.ival)
 		{
 			builtin = (
 					"{\n"
@@ -5824,23 +5920,23 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 						"surfaceparm nodlight\n"
 					"}\n"
 				);
-		}
-		else if (*r_skyboxname.string || *cl.skyname)
+		}*/
+		/*else if (*r_skyboxname.string || *cl.skyname)
 		{
-			builtin = (
-					"{\n"
-						"sort sky\n"
-						"skyparms $r_skybox - -\n"
-						"surfaceparm nodlight\n"
-					"}\n"
-				);
-			Shader_DefaultScript(shortname, s, builtin);
-			if (s->flags & SHADER_SKY)
+			qboolean okay;
+			Z_Free(s->skydome);
+			s->skydome = (skydome_t *)Z_Malloc(sizeof(skydome_t));
+
+			okay = Shader_ParseSkySides(shortname, "", s->skydome->farbox_textures);
+			s->flags |= SHADER_SKY|SHADER_NODLIGHT;
+			s->sort = SHADER_SORT_SKY;
+
+			if (okay)
 				return;
 			builtin = NULL;
-			/*if the r_skybox failed to load or whatever, reset and fall through and just use the regular sky*/
+			//if the r_skybox failed to load or whatever, reset and fall through and just use the regular sky
 			Shader_Reset(s);
-		}
+		}*/
 		if (!builtin)
 			builtin = (
 				"{\n"
@@ -6066,7 +6162,7 @@ void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 {
 	if (Shader_ParseShader("default2d", s))
 		return;
-	if (sh_config.progs_supported && qrenderer != QR_DIRECT3D9)
+	if (sh_config.progs_supported && qrenderer != QR_DIRECT3D9 && !dpcompat_nopremulpics.ival)
 	{
 		//hexen2 needs premultiplied alpha to avoid looking ugly
 		//but that results in problems where things are drawn with alpha not 0, so scale vertex colour by alpha in the fragment program
@@ -6211,6 +6307,8 @@ static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 
 	memset(&parsestate, 0, sizeof(parsestate));
 	parsestate.mode = parsemode;
+	parsestate.specularexpscale = 1;
+	parsestate.specularvalscale = 1;
 
 	if (!s->defaulttextures)
 	{
@@ -6432,11 +6530,161 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 }
 
 #ifdef _DEBUG
+static char *Shader_DecomposePass(char *o, shaderpass_t *p, qboolean simple)
+{
+	if (!simple)
+	{
+		switch(p->rgbgen)
+		{
+		case RGB_GEN_ENTITY: sprintf(o, "RGB_GEN_ENTITY "); break;
+		case RGB_GEN_ONE_MINUS_ENTITY: sprintf(o, "RGB_GEN_ONE_MINUS_ENTITY "); break;
+		case RGB_GEN_VERTEX_LIGHTING: sprintf(o, "RGB_GEN_VERTEX_LIGHTING "); break;
+		case RGB_GEN_VERTEX_EXACT: sprintf(o, "RGB_GEN_VERTEX_EXACT "); break;
+		case RGB_GEN_ONE_MINUS_VERTEX: sprintf(o, "RGB_GEN_ONE_MINUS_VERTEX "); break;
+		case RGB_GEN_IDENTITY_LIGHTING: sprintf(o, "RGB_GEN_IDENTITY_LIGHTING "); break;
+		case RGB_GEN_IDENTITY_OVERBRIGHT: sprintf(o, "RGB_GEN_IDENTITY_OVERBRIGHT "); break;
+		default:
+		case RGB_GEN_IDENTITY: sprintf(o, "RGB_GEN_IDENTITY "); break;
+		case RGB_GEN_CONST: sprintf(o, "RGB_GEN_CONST "); break;
+		case RGB_GEN_LIGHTING_DIFFUSE: sprintf(o, "RGB_GEN_LIGHTING_DIFFUSE "); break;
+		case RGB_GEN_WAVE: sprintf(o, "RGB_GEN_WAVE "); break;
+		case RGB_GEN_TOPCOLOR: sprintf(o, "RGB_GEN_TOPCOLOR "); break;
+		case RGB_GEN_BOTTOMCOLOR: sprintf(o, "RGB_GEN_BOTTOMCOLOR "); break;
+		}
+		o+=strlen(o);
+		sprintf(o, "\n"); o+=strlen(o);
+	}
+
+	if (p->shaderbits & SBITS_MISC_DEPTHWRITE)		{	sprintf(o, "SBITS_MISC_DEPTHWRITE\n"); o+=strlen(o); }
+	if (p->shaderbits & SBITS_MISC_NODEPTHTEST)		{	sprintf(o, "SBITS_MISC_NODEPTHTEST\n"); o+=strlen(o); }
+	if (p->shaderbits & SBITS_MISC_DEPTHEQUALONLY)	{	sprintf(o, "SBITS_MISC_DEPTHEQUALONLY\n"); o+=strlen(o); }
+	if (p->shaderbits & SBITS_MISC_DEPTHCLOSERONLY)	{	sprintf(o, "SBITS_MISC_DEPTHCLOSERONLY\n"); o+=strlen(o); }
+	if (p->shaderbits & SBITS_TESSELLATION)			{	sprintf(o, "SBITS_TESSELLATION\n"); o+=strlen(o); }
+	if (p->shaderbits & SBITS_AFFINE)				{	sprintf(o, "SBITS_AFFINE\n"); o+=strlen(o); }
+	if (p->shaderbits & SBITS_MASK_BITS)			{	sprintf(o, "SBITS_MASK_BITS\n"); o+=strlen(o); }
+
+	if (p->shaderbits & SBITS_BLEND_BITS)
+	{
+		sprintf(o, "blendfunc"); 
+		o+=strlen(o);
+		switch(p->shaderbits & SBITS_SRCBLEND_BITS)
+		{
+		case SBITS_SRCBLEND_NONE:							sprintf(o, " SBITS_SRCBLEND_NONE"); break;
+		case SBITS_SRCBLEND_ZERO:							sprintf(o, " SBITS_SRCBLEND_ZERO"); break;
+		case SBITS_SRCBLEND_ONE:							sprintf(o, " SBITS_SRCBLEND_ONE"); break;
+		case SBITS_SRCBLEND_DST_COLOR:						sprintf(o, " SBITS_SRCBLEND_DST_COLOR"); break;
+		case SBITS_SRCBLEND_ONE_MINUS_DST_COLOR:			sprintf(o, " SBITS_SRCBLEND_ONE_MINUS_DST_COLOR"); break;
+		case SBITS_SRCBLEND_SRC_ALPHA:						sprintf(o, " SBITS_SRCBLEND_SRC_ALPHA"); break;
+		case SBITS_SRCBLEND_ONE_MINUS_SRC_ALPHA:			sprintf(o, " SBITS_SRCBLEND_ONE_MINUS_SRC_ALPHA"); break;
+		case SBITS_SRCBLEND_DST_ALPHA:						sprintf(o, " SBITS_SRCBLEND_DST_ALPHA"); break;
+		case SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA:			sprintf(o, " SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA"); break;
+		case SBITS_SRCBLEND_SRC_COLOR_INVALID:				sprintf(o, " SBITS_SRCBLEND_SRC_COLOR_INVALID"); break;
+		case SBITS_SRCBLEND_ONE_MINUS_SRC_COLOR_INVALID:	sprintf(o, " SBITS_SRCBLEND_ONE_MINUS_SRC_COLOR_INVALID"); break;
+		case SBITS_SRCBLEND_ALPHA_SATURATE:					sprintf(o, " SBITS_SRCBLEND_ALPHA_SATURATE"); break;
+		default:											sprintf(o, " SBITS_SRCBLEND_INVALID"); break;
+		}
+		o+=strlen(o);
+		switch(p->shaderbits & SBITS_DSTBLEND_BITS)
+		{
+		case SBITS_DSTBLEND_NONE:							sprintf(o, " SBITS_DSTBLEND_NONE"); break;
+		case SBITS_DSTBLEND_ZERO:							sprintf(o, " SBITS_DSTBLEND_ZERO"); break;
+		case SBITS_DSTBLEND_ONE:							sprintf(o, " SBITS_DSTBLEND_ONE"); break;
+		case SBITS_DSTBLEND_DST_COLOR_INVALID:				sprintf(o, " SBITS_DSTBLEND_DST_COLOR_INVALID"); break;
+		case SBITS_DSTBLEND_ONE_MINUS_DST_COLOR_INVALID:	sprintf(o, " SBITS_DSTBLEND_ONE_MINUS_DST_COLOR_INVALID"); break;
+		case SBITS_DSTBLEND_SRC_ALPHA:						sprintf(o, " SBITS_DSTBLEND_SRC_ALPHA"); break;
+		case SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA:			sprintf(o, " SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA"); break;
+		case SBITS_DSTBLEND_DST_ALPHA:						sprintf(o, " SBITS_DSTBLEND_DST_ALPHA"); break;
+		case SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA:			sprintf(o, " SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA"); break;
+		case SBITS_DSTBLEND_SRC_COLOR:						sprintf(o, " SBITS_DSTBLEND_SRC_COLOR"); break;
+		case SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR:			sprintf(o, " SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR"); break;
+		case SBITS_DSTBLEND_ALPHA_SATURATE_INVALID:			sprintf(o, " SBITS_DSTBLEND_ALPHA_SATURATE_INVALID"); break;
+		default:											sprintf(o, " SBITS_DSTBLEND_INVALID"); break;
+		}
+		o+=strlen(o);
+
+		sprintf(o, "\n"); 
+		o+=strlen(o);
+	}
+
+
+	switch(p->shaderbits & SBITS_ATEST_BITS)
+	{
+	case SBITS_ATEST_GE128: sprintf(o, "SBITS_ATEST_GE128\n"); break;
+	case SBITS_ATEST_LT128: sprintf(o, "SBITS_ATEST_LT128\n"); break;
+	case SBITS_ATEST_GT0: sprintf(o, "SBITS_ATEST_GT0\n"); break;
+	}
+	o+=strlen(o);
+	return o;
+}
+static char *Shader_DecomposeSubPass(char *o, shaderpass_t *p, qboolean simple)
+{
+	if (!simple)
+	{
+		switch(p->blendmode)
+		{
+		default:
+		case PBM_MODULATE: sprintf(o, "modulate "); break;
+		case PBM_OVERBRIGHT: sprintf(o, "overbright "); break;
+		case PBM_DECAL: sprintf(o, "decal "); break;
+		case PBM_ADD:sprintf(o, "add "); break;
+		case PBM_DOTPRODUCT: sprintf(o, "dotproduct "); break;
+		case PBM_REPLACE: sprintf(o, "replace "); break;
+		case PBM_REPLACELIGHT: sprintf(o, "replacelight "); break;
+		case PBM_MODULATE_PREV_COLOUR: sprintf(o, "modulate_prev "); break;
+		}
+		o+=strlen(o);
+	}
+
+	switch(p->texgen)
+	{
+	default:
+	case T_GEN_SINGLEMAP:
+		if (p->anim_frames[0])
+		{
+			sprintf(o, "singlemap \"%s\" %ix%i", p->anim_frames[0]->ident, p->anim_frames[0]->width, p->anim_frames[0]->height);
+		}
+		else
+			sprintf(o, "singlemap ");
+		break;
+	case T_GEN_ANIMMAP: sprintf(o, "animmap "); break;
+	case T_GEN_LIGHTMAP: sprintf(o, "lightmap "); break;
+	case T_GEN_DELUXMAP: sprintf(o, "deluxmap "); break;
+	case T_GEN_SHADOWMAP: sprintf(o, "shadowmap "); break;
+	case T_GEN_LIGHTCUBEMAP: sprintf(o, "lightcubemap "); break;
+	case T_GEN_DIFFUSE: sprintf(o, "diffuse "); break;
+	case T_GEN_NORMALMAP: sprintf(o, "normalmap "); break;
+	case T_GEN_SPECULAR: sprintf(o, "specular "); break;
+	case T_GEN_UPPEROVERLAY: sprintf(o, "upperoverlay "); break;
+	case T_GEN_LOWEROVERLAY: sprintf(o, "loweroverlay "); break;
+	case T_GEN_FULLBRIGHT: sprintf(o, "fullbright "); break;
+	case T_GEN_PALETTED: sprintf(o, "paletted "); break;
+	case T_GEN_REFLECTCUBE: sprintf(o, "reflectcube "); break;
+	case T_GEN_REFLECTMASK: sprintf(o, "reflectmask "); break;
+	case T_GEN_CURRENTRENDER: sprintf(o, "currentrender "); break;
+	case T_GEN_SOURCECOLOUR: sprintf(o, "sourcecolour "); break;
+	case T_GEN_SOURCEDEPTH: sprintf(o, "sourcedepth "); break;
+	case T_GEN_REFLECTION: sprintf(o, "reflection "); break;
+	case T_GEN_REFRACTION: sprintf(o, "refraction "); break;
+	case T_GEN_REFRACTIONDEPTH: sprintf(o, "refractiondepth "); break;
+	case T_GEN_RIPPLEMAP: sprintf(o, "ripplemap "); break;
+	case T_GEN_SOURCECUBE: sprintf(o, "sourcecube "); break;
+	case T_GEN_VIDEOMAP: sprintf(o, "videomap "); break;
+	case T_GEN_CUBEMAP: sprintf(o, "cubemap "); break;
+	case T_GEN_3DMAP: sprintf(o, "3dmap "); break;
+	}
+	o+=strlen(o);
+
+	sprintf(o, "\n"); o+=strlen(o);
+	return o;
+}
 char *Shader_Decompose(shader_t *s)
 {
 	static char decomposebuf[32768];
 	char *o = decomposebuf;
-	sprintf(o, "<---\n"); o+=strlen(o);
+	shaderpass_t *p;
+	unsigned int i, j;
+
+	sprintf(o, "\n<---\n"); o+=strlen(o);
 
 	switch (s->sort)
 	{
@@ -6461,153 +6709,22 @@ char *Shader_Decompose(shader_t *s)
 	{
 		sprintf(o, "program\n");
 		o+=strlen(o);
+
+		p = s->passes;
+		o = Shader_DecomposePass(o, p, true);
+		for (j = 0; j < s->numpasses; j++)
+			o = Shader_DecomposeSubPass(o, p+j, true);
 	}
 	else
 	{
-		unsigned int i, j;
-		shaderpass_t *p;
 		for (i = 0; i < s->numpasses; i+= p->numMergedPasses)
 		{
 			p = &s->passes[i];
 			sprintf(o, "{\n"); o+=strlen(o);
 
-			switch(p->rgbgen)
-			{
-			case RGB_GEN_ENTITY: sprintf(o, "RGB_GEN_ENTITY "); break;
-			case RGB_GEN_ONE_MINUS_ENTITY: sprintf(o, "RGB_GEN_ONE_MINUS_ENTITY "); break;
-			case RGB_GEN_VERTEX_LIGHTING: sprintf(o, "RGB_GEN_VERTEX_LIGHTING "); break;
-			case RGB_GEN_VERTEX_EXACT: sprintf(o, "RGB_GEN_VERTEX_EXACT "); break;
-			case RGB_GEN_ONE_MINUS_VERTEX: sprintf(o, "RGB_GEN_ONE_MINUS_VERTEX "); break;
-			case RGB_GEN_IDENTITY_LIGHTING: sprintf(o, "RGB_GEN_IDENTITY_LIGHTING "); break;
-			case RGB_GEN_IDENTITY_OVERBRIGHT: sprintf(o, "RGB_GEN_IDENTITY_OVERBRIGHT "); break;
-			default:
-			case RGB_GEN_IDENTITY: sprintf(o, "RGB_GEN_IDENTITY "); break;
-			case RGB_GEN_CONST: sprintf(o, "RGB_GEN_CONST "); break;
-			case RGB_GEN_LIGHTING_DIFFUSE: sprintf(o, "RGB_GEN_LIGHTING_DIFFUSE "); break;
-			case RGB_GEN_WAVE: sprintf(o, "RGB_GEN_WAVE "); break;
-			case RGB_GEN_TOPCOLOR: sprintf(o, "RGB_GEN_TOPCOLOR "); break;
-			case RGB_GEN_BOTTOMCOLOR: sprintf(o, "RGB_GEN_BOTTOMCOLOR "); break;
-			}
-			o+=strlen(o);
-			sprintf(o, "\n"); o+=strlen(o);
-
-			if (p->shaderbits & SBITS_MISC_DEPTHWRITE)		{	sprintf(o, "SBITS_MISC_DEPTHWRITE\n"); o+=strlen(o); }
-			if (p->shaderbits & SBITS_MISC_NODEPTHTEST)		{	sprintf(o, "SBITS_MISC_NODEPTHTEST\n"); o+=strlen(o); }
-			if (p->shaderbits & SBITS_MISC_DEPTHEQUALONLY)	{	sprintf(o, "SBITS_MISC_DEPTHEQUALONLY\n"); o+=strlen(o); }
-			if (p->shaderbits & SBITS_MISC_DEPTHCLOSERONLY)	{	sprintf(o, "SBITS_MISC_DEPTHCLOSERONLY\n"); o+=strlen(o); }
-			if (p->shaderbits & SBITS_TESSELLATION)			{	sprintf(o, "SBITS_TESSELLATION\n"); o+=strlen(o); }
-			if (p->shaderbits & SBITS_AFFINE)				{	sprintf(o, "SBITS_AFFINE\n"); o+=strlen(o); }
-			if (p->shaderbits & SBITS_MASK_BITS)			{	sprintf(o, "SBITS_MASK_BITS\n"); o+=strlen(o); }
-
-			if (p->shaderbits & SBITS_BLEND_BITS)
-			{
-				sprintf(o, "blendfunc"); 
-				o+=strlen(o);
-				switch(p->shaderbits & SBITS_SRCBLEND_BITS)
-				{
-				case SBITS_SRCBLEND_NONE:							sprintf(o, " SBITS_SRCBLEND_NONE"); break;
-				case SBITS_SRCBLEND_ZERO:							sprintf(o, " SBITS_SRCBLEND_ZERO"); break;
-				case SBITS_SRCBLEND_ONE:							sprintf(o, " SBITS_SRCBLEND_ONE"); break;
-				case SBITS_SRCBLEND_DST_COLOR:						sprintf(o, " SBITS_SRCBLEND_DST_COLOR"); break;
-				case SBITS_SRCBLEND_ONE_MINUS_DST_COLOR:			sprintf(o, " SBITS_SRCBLEND_ONE_MINUS_DST_COLOR"); break;
-				case SBITS_SRCBLEND_SRC_ALPHA:						sprintf(o, " SBITS_SRCBLEND_SRC_ALPHA"); break;
-				case SBITS_SRCBLEND_ONE_MINUS_SRC_ALPHA:			sprintf(o, " SBITS_SRCBLEND_ONE_MINUS_SRC_ALPHA"); break;
-				case SBITS_SRCBLEND_DST_ALPHA:						sprintf(o, " SBITS_SRCBLEND_DST_ALPHA"); break;
-				case SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA:			sprintf(o, " SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA"); break;
-				case SBITS_SRCBLEND_SRC_COLOR_INVALID:				sprintf(o, " SBITS_SRCBLEND_SRC_COLOR_INVALID"); break;
-				case SBITS_SRCBLEND_ONE_MINUS_SRC_COLOR_INVALID:	sprintf(o, " SBITS_SRCBLEND_ONE_MINUS_SRC_COLOR_INVALID"); break;
-				case SBITS_SRCBLEND_ALPHA_SATURATE:					sprintf(o, " SBITS_SRCBLEND_ALPHA_SATURATE"); break;
-				default:											sprintf(o, " SBITS_SRCBLEND_INVALID"); break;
-				}
-				o+=strlen(o);
-				switch(p->shaderbits & SBITS_DSTBLEND_BITS)
-				{
-				case SBITS_DSTBLEND_NONE:							sprintf(o, " SBITS_DSTBLEND_NONE"); break;
-				case SBITS_DSTBLEND_ZERO:							sprintf(o, " SBITS_DSTBLEND_ZERO"); break;
-				case SBITS_DSTBLEND_ONE:							sprintf(o, " SBITS_DSTBLEND_ONE"); break;
-				case SBITS_DSTBLEND_DST_COLOR_INVALID:				sprintf(o, " SBITS_DSTBLEND_DST_COLOR_INVALID"); break;
-				case SBITS_DSTBLEND_ONE_MINUS_DST_COLOR_INVALID:	sprintf(o, " SBITS_DSTBLEND_ONE_MINUS_DST_COLOR_INVALID"); break;
-				case SBITS_DSTBLEND_SRC_ALPHA:						sprintf(o, " SBITS_DSTBLEND_SRC_ALPHA"); break;
-				case SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA:			sprintf(o, " SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA"); break;
-				case SBITS_DSTBLEND_DST_ALPHA:						sprintf(o, " SBITS_DSTBLEND_DST_ALPHA"); break;
-				case SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA:			sprintf(o, " SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA"); break;
-				case SBITS_DSTBLEND_SRC_COLOR:						sprintf(o, " SBITS_DSTBLEND_SRC_COLOR"); break;
-				case SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR:			sprintf(o, " SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR"); break;
-				case SBITS_DSTBLEND_ALPHA_SATURATE_INVALID:			sprintf(o, " SBITS_DSTBLEND_ALPHA_SATURATE_INVALID"); break;
-				default:											sprintf(o, " SBITS_DSTBLEND_INVALID"); break;
-				}
-				o+=strlen(o);
-
-				sprintf(o, "\n"); 
-				o+=strlen(o);
-			}
-
-
-			switch(p->shaderbits & SBITS_ATEST_BITS)
-			{
-			case SBITS_ATEST_GE128: sprintf(o, "SBITS_ATEST_GE128\n"); break;
-			case SBITS_ATEST_LT128: sprintf(o, "SBITS_ATEST_LT128\n"); break;
-			case SBITS_ATEST_GT0: sprintf(o, "SBITS_ATEST_GT0\n"); break;
-			}
-			o+=strlen(o);
-
+			o = Shader_DecomposePass(o, p, false);
 			for (j = 0; j < p->numMergedPasses; j++)
-			{
-				switch(p[j].blendmode)
-				{
-				default:
-				case PBM_MODULATE: sprintf(o, "modulate "); break;
-				case PBM_OVERBRIGHT: sprintf(o, "overbright "); break;
-				case PBM_DECAL: sprintf(o, "decal "); break;
-				case PBM_ADD:sprintf(o, "add "); break;
-				case PBM_DOTPRODUCT: sprintf(o, "dotproduct "); break;
-				case PBM_REPLACE: sprintf(o, "replace "); break;
-				case PBM_REPLACELIGHT: sprintf(o, "replacelight "); break;
-				case PBM_MODULATE_PREV_COLOUR: sprintf(o, "modulate_prev "); break;
-				}
-				o+=strlen(o);
-
-				switch(p[j].texgen)
-				{
-				default:
-				case T_GEN_SINGLEMAP:
-					if (p[j].anim_frames[0])
-					{
-						sprintf(o, "singlemap \"%s\" %ix%i", p[j].anim_frames[0]->ident, p[j].anim_frames[0]->width, p[j].anim_frames[0]->height);
-					}
-					else
-						sprintf(o, "singlemap ");
-					break;
-				case T_GEN_ANIMMAP: sprintf(o, "animmap "); break;
-				case T_GEN_LIGHTMAP: sprintf(o, "lightmap "); break;
-				case T_GEN_DELUXMAP: sprintf(o, "deluxmap "); break;
-				case T_GEN_SHADOWMAP: sprintf(o, "shadowmap "); break;
-				case T_GEN_LIGHTCUBEMAP: sprintf(o, "lightcubemap "); break;
-				case T_GEN_DIFFUSE: sprintf(o, "diffuse "); break;
-				case T_GEN_NORMALMAP: sprintf(o, "normalmap "); break;
-				case T_GEN_SPECULAR: sprintf(o, "specular "); break;
-				case T_GEN_UPPEROVERLAY: sprintf(o, "upperoverlay "); break;
-				case T_GEN_LOWEROVERLAY: sprintf(o, "loweroverlay "); break;
-				case T_GEN_FULLBRIGHT: sprintf(o, "fullbright "); break;
-				case T_GEN_PALETTED: sprintf(o, "paletted "); break;
-				case T_GEN_REFLECTCUBE: sprintf(o, "reflectcube "); break;
-				case T_GEN_REFLECTMASK: sprintf(o, "reflectmask "); break;
-				case T_GEN_CURRENTRENDER: sprintf(o, "currentrender "); break;
-				case T_GEN_SOURCECOLOUR: sprintf(o, "sourcecolour "); break;
-				case T_GEN_SOURCEDEPTH: sprintf(o, "sourcedepth "); break;
-				case T_GEN_REFLECTION: sprintf(o, "reflection "); break;
-				case T_GEN_REFRACTION: sprintf(o, "refraction "); break;
-				case T_GEN_REFRACTIONDEPTH: sprintf(o, "refractiondepth "); break;
-				case T_GEN_RIPPLEMAP: sprintf(o, "ripplemap "); break;
-				case T_GEN_SOURCECUBE: sprintf(o, "sourcecube "); break;
-				case T_GEN_VIDEOMAP: sprintf(o, "videomap "); break;
-				case T_GEN_CUBEMAP: sprintf(o, "cubemap "); break;
-				case T_GEN_3DMAP: sprintf(o, "3dmap "); break;
-				}
-				o+=strlen(o);
-
-				sprintf(o, "\n"); o+=strlen(o);
-			}
+				o = Shader_DecomposeSubPass(o, p+j, false);
 			sprintf(o, "}\n"); o+=strlen(o);
 		}
 	}
@@ -6618,7 +6735,7 @@ char *Shader_Decompose(shader_t *s)
 
 char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize)
 {
-	char *adr, *parsename=NULL;
+	char *adr, *parsename=NULL, *argsstart;
 	char cleanname[MAX_QPATH];
 	char shortname[MAX_QPATH];
 	char drivername[MAX_QPATH];
@@ -6632,8 +6749,11 @@ char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize)
 	saveshaderbody = &adr;
 
 	strcpy(cleanname, s->name);
+	argsstart = strchr(cleanname, '#');
+	if (argsstart)
+		*argsstart = 0;
 	COM_StripExtension (cleanname, shortname, sizeof(shortname));
-	if (ruleset_allow_shaders.ival)
+	if (ruleset_allow_shaders.ival && !(s->usageflags & SUR_FORCEFALLBACK))
 	{
 		if (sh_config.shadernamefmt)
 		{
@@ -6777,7 +6897,7 @@ void Shader_DoReload(void)
 	shader_t *s;
 	unsigned int i;
 	char shortname[MAX_QPATH];
-	char cleanname[MAX_QPATH];
+	char cleanname[MAX_QPATH], *argsstart;
 	int oldsort;
 	qboolean resort = false;
 
@@ -6821,8 +6941,11 @@ void Shader_DoReload(void)
 			continue;
 
 		strcpy(cleanname, s->name);
+		argsstart = strchr(cleanname, '#');
+		if (argsstart)
+			*argsstart = 0;
 		COM_StripExtension (cleanname, shortname, sizeof(shortname));
-		if (ruleset_allow_shaders.ival)
+		if (ruleset_allow_shaders.ival && !(s->usageflags & SUR_FORCEFALLBACK))
 		{
 			if (sh_config.shadernamefmt)
 			{

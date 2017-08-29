@@ -923,9 +923,8 @@ float CL_TraceLine (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, int 
 					if (normal)
 						VectorCopy (trace.plane.normal, normal);
 					VectorAdd (pe->origin, trace.endpos, impact);
+					result = pe->info;
 				}
-
-				result = pe->info;
 			}
 			if (trace.startsolid)
 			{

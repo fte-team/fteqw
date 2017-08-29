@@ -31,6 +31,8 @@ line of sight checks trace->crosscontent, but bullets don't
 
 */
 
+size_t areagridsequence;	//used to avoid poking the same ent twice.
+
 extern cvar_t sv_compatiblehulls;
 extern cvar_t sv_gameplayfix_nolinknonsolid;
 
@@ -209,6 +211,7 @@ ENTITY AREA CHECKING
 ===============================================================================
 */
 
+#if defined(Q2SERVER) || !defined(USEAREAGRID)
 /*
 ===============
 SV_CreateAreaNode
@@ -260,10 +263,12 @@ SV_ClearWorld
 
 ===============
 */
-void World_ClearWorld (world_t *w, qboolean relink)
+void World_ClearWorld_Nodes (world_t *w, qboolean relink)
 {
+#if !defined(USEAREAGRID)
 	int i;
 	wedict_t *ent;
+#endif
 	int maxdepth;
 	vec3_t mins, maxs;
 	if (w->worldmodel)
@@ -278,10 +283,12 @@ void World_ClearWorld (world_t *w, qboolean relink)
 	}
 
 	World_InitBoxHull ();
-	
+
+#if !defined(USEAREAGRID)
 	memset (&w->portallist, 0, sizeof(w->portallist));
 	ClearLink (&w->portallist.edicts);
 	w->portallist.axis = -1;
+#endif
 
 	maxdepth = 8;
 
@@ -296,7 +303,7 @@ void World_ClearWorld (world_t *w, qboolean relink)
 	w->numareanodes = 0;
 	World_CreateAreaNode (w, 0, mins, maxs);
 
-
+#if !defined(USEAREAGRID)
 	if (relink)
 	{
 		for (i=0 ; i<w->num_edicts ; i++)
@@ -310,8 +317,92 @@ void World_ClearWorld (world_t *w, qboolean relink)
 			World_LinkEdict (w, ent, false);	// relink ents so touch functions continue to work.
 		}
 	}
+#endif
 }
 
+#ifdef USEAREAGRID
+static void World_ClearWorld_AreaGrid (world_t *w, qboolean relink)
+{
+	int numareas = 1;
+	int i, j;
+	wedict_t *ent;
+	vec3_t mins, maxs, size;
+	if (w->worldmodel)
+	{
+		VectorCopy(w->worldmodel->mins, mins);
+		VectorCopy(w->worldmodel->maxs, maxs);
+	}
+	else
+	{
+		VectorSet(mins, -4096, -4096, -4096);
+		VectorSet(maxs, 4096, 4096, 4096);
+	}
+	Vector2Set(w->gridsize, 128, 128);
+	for (i = 0; i < 2; i++)
+	{
+		size[i] = maxs[i] - mins[i];
+		size[i] /= w->gridsize[i];
+	//enforce a minimum grid size, so things don't end up getting added to every single node
+		if (size[i] < 128)
+			size[i] = 128;
+		w->gridscale[i] = size[i];
+		w->gridbias[i] = -mins[i];
+
+		numareas *= w->gridsize[i];
+	}
+
+	World_InitBoxHull ();
+
+	if (w->gridareas)
+		memset (w->gridareas, 0, sizeof(*w->gridareas)*numareas);
+	else
+		w->gridareas = Z_Malloc(sizeof(*w->gridareas)*numareas);
+
+	for (i = 0; i < numareas; i++)
+		ClearLink (&w->gridareas[i].l);
+	ClearLink (&w->jumboarea.l);
+	ClearLink (&w->portallist.l);
+
+
+	if (relink)
+	{
+		for (i=0 ; i<w->num_edicts ; i++)
+		{
+			ent = WEDICT_NUM(w->progs, i);
+			if (!ent)
+				continue;
+			for (j = 0; j < countof(ent->gridareas); j++)
+			{
+				if (!ent->gridareas[j].l.prev)
+					break;		// not linked in anywhere
+				ClearLink(&ent->gridareas[j].l);
+			}
+			if (ED_ISFREE(ent))
+				continue;
+			World_LinkEdict (w, ent, false);	// relink ents so touch functions continue to work.
+		}
+	}
+}
+#endif
+
+void World_ClearWorld (world_t *w, qboolean relink)
+{
+#ifdef Q2SERVER
+	if (w == &sv.world && svs.gametype == GT_QUAKE2)
+		World_ClearWorld_Nodes(w, relink);
+	else
+#endif
+	{
+#ifdef USEAREAGRID
+		World_ClearWorld_AreaGrid(w, relink);
+#else
+		World_ClearWorld_Nodes(w, relink);
+#endif
+	}
+}
+
+#endif
+#if !defined(USEAREAGRID)
 
 /*
 ===============
@@ -327,16 +418,14 @@ void World_UnlinkEdict (wedict_t *ent)
 	ent->area.prev = ent->area.next = NULL;
 }
 
-
 /*
 ====================
 SV_TouchLinks
 ====================
 */
-#define MAX_NODELINKS	256	//all this means is that any more than this will not touch.
-static wedict_t *nodelinks[MAX_NODELINKS];
 void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 {
+	static wedict_t *nodelinks[256];	//all this means is that any more than this will not touch. probably you won't have that many valid triggers
 	link_t		*l, *next;
 	wedict_t		*touch;
 
@@ -345,7 +434,7 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 	//work out who they are first.
 	for (l = node->edicts.next ; l != &node->edicts ; l = next)
 	{
-		if (linkcount == MAX_NODELINKS)
+		if (linkcount == countof(nodelinks))
 			break;
 		next = l->next;
 		touch = EDICT_FROM_AREA(l);
@@ -406,75 +495,6 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 	if (ent->v->absmin[node->axis] < node->dist)
 		World_TouchLinks (w, ent, node->children[1]);
 }
-
-#if defined(Q2BSPS) || defined(Q3BSPS)
-void Q23BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, float *mins, float *maxs)
-{
-#define MAX_TOTAL_ENT_LEAFS		128
-	int			leafs[MAX_TOTAL_ENT_LEAFS];
-	int			clusters[MAX_TOTAL_ENT_LEAFS];
-	int num_leafs;
-	int			topnode;
-	int i, j;
-	int			area;
-	int nullarea = (model->fromgame == fg_quake2)?0:-1;
-
-	//ent->num_leafs == q2's ent->num_clusters
-	ent->num_leafs = 0;
-	ent->areanum = nullarea;
-	ent->areanum2 = nullarea;
-
-	if (!mins || !maxs)
-		return;
-
-	//get all leafs, including solids
-	num_leafs = CM_BoxLeafnums (model, mins, maxs,
-		leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
-
-	// set areas
-	for (i=0 ; i<num_leafs ; i++)
-	{
-		clusters[i] = CM_LeafCluster (model, leafs[i]);
-		area = CM_LeafArea (model, leafs[i]);
-		if (area != nullarea)
-		{	// doors may legally straggle two areas,
-			// but nothing should ever need more than that
-			if (ent->areanum != nullarea && ent->areanum != area)
-				ent->areanum2 = area;
-			else
-				ent->areanum = area;
-		}
-	}
-
-	if (num_leafs >= MAX_TOTAL_ENT_LEAFS)
-	{	// assume we missed some leafs, and mark by headnode
-		ent->num_leafs = -1;
-		ent->headnode = topnode;
-	}
-	else
-	{
-		ent->num_leafs = 0;
-		for (i=0 ; i<num_leafs ; i++)
-		{
-			if (clusters[i] == -1)
-				continue;		// not a visible leaf
-			for (j=0 ; j<i ; j++)
-				if (clusters[j] == clusters[i])
-					break;
-			if (j == i)
-			{
-				if (ent->num_leafs == MAX_ENT_LEAFS)
-				{	// assume we missed some leafs, and mark by headnode
-					ent->num_leafs = -1;
-					ent->headnode = topnode;
-					break;
-				}
-
-				ent->leafnums[ent->num_leafs++] = clusters[i];
-			}
-		}
-	}
-}
 #endif
 
 /*
@@ -485,10 +505,14 @@ SV_LinkEdict
 */
 void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 {
+#ifdef USEAREAGRID
+	World_UnlinkEdict (ent);	// unlink from old position
+#else
 	areanode_t	*node;
 	
 	if (ent->area.prev)
 		World_UnlinkEdict (ent);	// unlink from old position
+#endif
 	
 	if (ent == w->edicts)
 		return;		// don't add the world
@@ -604,6 +628,34 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	if (ent->v->solid == SOLID_NOT && !sv_gameplayfix_nolinknonsolid.ival)
 		return;
 
+#ifdef USEAREAGRID
+	// find the first node that the ent's box crosses
+	if (ent->v->solid == SOLID_PORTAL)
+	{
+		ent->gridareas[0].ed = ent;
+		InsertLinkBefore (&ent->gridareas[0].l, &w->portallist.l);
+	}
+	else
+	{
+		int ming[2], maxg[2], g[2], ga;
+		CALCAREAGRIDBOUNDS(w, ent->v->absmin, ent->v->absmax);
+
+		if ((maxg[0]-ming[0])*(maxg[1]-ming[1]) > countof(ent->gridareas))
+		{	//entity is too large to fit in our grid. shove it in the overflow
+			ent->gridareas[0].ed = ent;
+			InsertLinkBefore (&ent->gridareas[0].l, &w->jumboarea.l);
+		}
+		else
+		{
+			for (ga = 0, g[0] = ming[0]; g[0] < maxg[0]; g[0]++)
+				for (    g[1] = ming[1]; g[1] < maxg[1]; g[1]++, ga++)
+				{
+					ent->gridareas[ga].ed = ent;
+					InsertLinkBefore (&ent->gridareas[ga].l, &w->gridareas[g[0] + g[1]*w->gridsize[0]].l);
+				}
+		}
+	}
+#else
 // find the first node that the ent's box crosses
 	if (ent->v->solid == SOLID_PORTAL)
 		node = &w->portallist;
@@ -626,10 +678,11 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 // link it in	
 
 	InsertLinkBefore (&ent->area, &node->edicts);
+#endif
 	
 // if touch_triggers, touch all entities at this node and decend for more
 	if (touch_triggers && ent->v->solid != SOLID_NOT)
-		World_TouchLinks (w, ent, w->areanodes);
+		World_TouchAllLinks (w, ent);
 }
 
 
@@ -645,8 +698,8 @@ void VARGS WorldQ2_UnlinkEdict(world_t *w, q2edict_t *ent)
 void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent)
 {
 	areanode_t	*node;
-	int			leafs[MAX_TOTAL_ENT_LEAFS];
-	int			clusters[MAX_TOTAL_ENT_LEAFS];
+	int			leafs[128];
+	int			clusters[countof(leafs)];
 	int			num_leafs;
 	int			i, j;
 	int			area;
@@ -744,7 +797,7 @@ void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent)
 
 	//get all leafs, including solids
 	num_leafs = CM_BoxLeafnums (w->worldmodel, ent->absmin, ent->absmax,
-		leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
+		leafs, countof(leafs), &topnode);
 
 	// set areas
 	for (i=0 ; i<num_leafs ; i++)
@@ -761,7 +814,7 @@ void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent)
 		}
 	}
 
-	if (num_leafs >= MAX_TOTAL_ENT_LEAFS)
+	if (num_leafs >= countof(leafs))
 	{	// assume we missed some leafs, and mark by headnode
 		ent->num_clusters = -1;
 		ent->headnode = topnode;
@@ -993,6 +1046,79 @@ void WorldQ2_Q1BSP_LinkEdict(world_t *w, q2edict_t *ent)
 }
 #endif
 
+
+
+
+#if defined(Q2BSPS) || defined(Q3BSPS)
+void Q23BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, float *mins, float *maxs)
+{
+#define MAX_TOTAL_ENT_LEAFS		128
+	int			leafs[MAX_TOTAL_ENT_LEAFS];
+	int			clusters[MAX_TOTAL_ENT_LEAFS];
+	int num_leafs;
+	int			topnode;
+	int i, j;
+	int			area;
+	int nullarea = (model->fromgame == fg_quake2)?0:-1;
+
+	//ent->num_leafs == q2's ent->num_clusters
+	ent->num_leafs = 0;
+	ent->areanum = nullarea;
+	ent->areanum2 = nullarea;
+
+	if (!mins || !maxs)
+		return;
+
+	//get all leafs, including solids
+	num_leafs = CM_BoxLeafnums (model, mins, maxs,
+		leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
+
+	// set areas
+	for (i=0 ; i<num_leafs ; i++)
+	{
+		clusters[i] = CM_LeafCluster (model, leafs[i]);
+		area = CM_LeafArea (model, leafs[i]);
+		if (area != nullarea)
+		{	// doors may legally straggle two areas,
+			// but nothing should ever need more than that
+			if (ent->areanum != nullarea && ent->areanum != area)
+				ent->areanum2 = area;
+			else
+				ent->areanum = area;
+		}
+	}
+
+	if (num_leafs >= MAX_TOTAL_ENT_LEAFS)
+	{	// assume we missed some leafs, and mark by headnode
+		ent->num_leafs = -1;
+		ent->headnode = topnode;
+	}
+	else
+	{
+		ent->num_leafs = 0;
+		for (i=0 ; i<num_leafs ; i++)
+		{
+			if (clusters[i] == -1)
+				continue;		// not a visible leaf
+			for (j=0 ; j<i ; j++)
+				if (clusters[j] == clusters[i])
+					break;
+			if (j == i)
+			{
+				if (ent->num_leafs == MAX_ENT_LEAFS)
+				{	// assume we missed some leafs, and mark by headnode
+					ent->num_leafs = -1;
+					ent->headnode = topnode;
+					break;
+				}
+
+				ent->leafnums[ent->num_leafs++] = clusters[i];
+			}
+		}
+	}
+}
+#endif
+
 /*
 ===============================================================================
 
@@ -1180,36 +1306,111 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 
 	return trace;
 }
-#ifdef Q2SERVER
-static trace_t WorldQ2_ClipMoveToEntity (world_t *w, q2edict_t *ent, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, unsigned int hitcontentsmask)
+
+#define AREA_ALL 0
+#define AREA_SOLID 1
+#define AREA_TRIGGER 2
+
+#ifdef USEAREAGRID
+
+/*
+================
+SV_AreaEdicts
+================
+*/
+int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list, int maxcount, int areatype)
 {
-	trace_t		trace;
-	model_t		*model = NULL;
+	wedict_t *check;
+	areagridlink_t *start, *l;
+	size_t count = 0;
+	int ming[2], maxg[2], g[2], ga;
+	CALCAREAGRIDBOUNDS(w, mins, maxs);
 
-// get the clipping hull
-	if (ent->s.solid == Q2SOLID_BSP)
-		model = w->Get_CModel(w, ent->s.modelindex);
+	areagridsequence++;
 
-	if (!model || model->type != mod_brush || model->loadstate != MLS_LOADED)
+	//check ents that are just too large first
+	start = &w->jumboarea;
+	for (l=(areagridlink_t*)start->l.next  ; l != start ; l = (areagridlink_t*)l->l.next)
 	{
-		vec3_t boxmins, boxmaxs;
-		VectorSubtract (ent->mins, maxs, boxmins);
-		VectorSubtract (ent->maxs, mins, boxmaxs);
-		World_HullForBox(boxmins, boxmaxs);
-		model = NULL;
+		check = l->ed;
+
+//		if (check->gridareasequence == areagridsequence)
+//			continue;
+		check->gridareasequence = areagridsequence;
+	
+		if (areatype != AREA_ALL)
+		{
+			if (check->v->solid == SOLID_NOT)
+				continue;		// deactivated
+
+			if ((check->v->solid == SOLID_TRIGGER) != (areatype == AREA_TRIGGER))
+				continue;
+		}
+
+		if (check->v->absmin[0] > maxs[0]
+		|| check->v->absmin[1] > maxs[1]
+		|| check->v->absmin[2] > maxs[2]
+		|| check->v->absmax[0] < mins[0]
+		|| check->v->absmax[1] < mins[1]
+		|| check->v->absmax[2] < mins[2])
+			continue;		// not touching
+
+		if (count == maxcount)
+		{
+			Con_Printf ("World_AreaEdicts: MAXCOUNT\n");
+			return count;
+		}
+
+		list[count] = check;
+		count++;
 	}
 
-// trace a line through the apropriate clipping hull
-	World_TransformedTrace(model, 0, 0, start, end, mins, maxs, false, &trace, ent->s.origin, ent->s.angles, hitcontentsmask);
+	//check the actual grid now.
+	for (ga = 0, g[0] = ming[0]; g[0] < maxg[0]; g[0]++)
+	{
+		for (    g[1] = ming[1]; g[1] < maxg[1]; g[1]++, ga++)
+		{
+			start = &w->gridareas[g[0] + g[1]*w->gridsize[0]];
+			for (l=(areagridlink_t*)start->l.next  ; l != start ; l = (areagridlink_t*)l->l.next)
+			{
+				check = l->ed;
 
-// did we clip the move?
-	if (trace.fraction < 1 || trace.startsolid  )
-		trace.ent = (edict_t *)ent;
+				if (check->gridareasequence == areagridsequence)
+					continue;
+				check->gridareasequence = areagridsequence;
+			
+				if (areatype != AREA_ALL)
+				{
+					if (check->v->solid == SOLID_NOT)
+						continue;		// deactivated
 
-	return trace;
+					if ((check->v->solid == SOLID_TRIGGER) != (areatype == AREA_TRIGGER))
+						continue;
+				}
+
+				if (check->v->absmin[0] > maxs[0]
+				|| check->v->absmin[1] > maxs[1]
+				|| check->v->absmin[2] > maxs[2]
+				|| check->v->absmax[0] < mins[0]
+				|| check->v->absmax[1] < mins[1]
+				|| check->v->absmax[2] < mins[2])
+					continue;		// not touching
+
+				if (count == maxcount)
+				{
+					Con_Printf ("World_AreaEdicts: MAXCOUNT\n");
+					return count;
+				}
+
+				list[count] = check;
+				count++;
+			}
+		}
+	}
+	return count;
 }
-#endif
-#ifdef Q2BSPS
+
+#else
 float	*area_mins, *area_maxs;
 wedict_t	**area_list;
 #ifdef Q2SERVER
@@ -1217,8 +1418,6 @@ q2edict_t	**area_q2list;
 #endif
 int		area_count, area_maxcount;
 int		area_type;
-#define AREA_SOLID 1
-#define AREA_TRIGGER 2
 static void World_AreaEdicts_r (areanode_t *node)
 {
 	link_t		*l, *next, *start;
@@ -1272,8 +1471,7 @@ static void World_AreaEdicts_r (areanode_t *node)
 SV_AreaEdicts
 ================
 */
-int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list,
-	int maxcount, int areatype)
+int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list, int maxcount, int areatype)
 {
 	area_mins = mins;
 	area_maxs = maxs;
@@ -1286,8 +1484,13 @@ int World_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, wedict_t **list,
 
 	return area_count;
 }
+#endif
 
 #ifdef Q2SERVER
+float	*area_mins, *area_maxs;
+q2edict_t	**area_q2list;
+int		area_count, area_maxcount;
+int		area_type;
 static void WorldQ2_AreaEdicts_r (areanode_t *node)
 {
 	link_t		*l, *next, *start;
@@ -1459,7 +1662,6 @@ void WorldQ2_ClipMoveToEntities (world_t *w, moveclip_t *clip )
 	}
 #undef ped
 }
-#endif
 #endif
 //===========================================================================
 
@@ -1647,6 +1849,192 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 	}
 }
 
+#ifdef USEAREAGRID
+
+void World_TouchAllLinks (world_t *w, wedict_t *ent)
+{
+	wedict_t *touchedicts[512], *touch;
+	int num;
+	num = World_AreaEdicts(w, ent->v->absmin, ent->v->absmax, touchedicts, countof(touchedicts), AREA_TRIGGER);
+	while (num-- > 0)
+	{
+		touch = touchedicts[num];
+
+		//make sure nothing moved it away
+		if (ED_ISFREE(touch))
+			continue;
+		if (!touch->v->touch || touch->v->solid != SOLID_TRIGGER)
+			continue;
+
+		if (ent->v->absmin[0] > touch->v->absmax[0]
+		|| ent->v->absmin[1] > touch->v->absmax[1]
+		|| ent->v->absmin[2] > touch->v->absmax[2]
+		|| ent->v->absmax[0] < touch->v->absmin[0]
+		|| ent->v->absmax[1] < touch->v->absmin[1]
+		|| ent->v->absmax[2] < touch->v->absmin[2] )
+			continue;
+
+		if (!((int)ent->xv->dimension_solid & (int)touch->xv->dimension_hit))	//didn't change did it?...
+			continue;
+
+		w->Event_Touch(w, touch, ent);
+
+		if (ED_ISFREE(ent))
+			break;
+	}
+}
+
+void World_UnlinkEdict (wedict_t *ent)
+{
+	size_t i;
+	for (i = 0; i < countof(ent->gridareas); i++)
+	{
+		if (!ent->gridareas[i].l.prev)
+			return;		// not linked in anywhere
+		RemoveLink (&ent->gridareas[i].l);
+		ent->gridareas[i].l.prev = ent->gridareas[i].l.next = NULL;
+	}
+}
+
+static void World_ClipToLinks (world_t *w, areagridlink_t *node, moveclip_t *clip)
+{
+	link_t		*l, *next;
+	wedict_t		*touch;
+	trace_t		trace;
+
+// touch linked edicts
+	for (l = node->l.next ; l != &node->l ; l = next)
+	{
+		next = l->next;
+		touch = ((areagridlink_t*)l)->ed;
+
+		if (touch->gridareasequence == areagridsequence)
+			continue;
+		touch->gridareasequence = areagridsequence;
+
+		if (touch->v->solid == SOLID_NOT)
+			continue;
+		if (touch == clip->passedict)
+			continue;
+
+		/*if its a trigger, we only clip against it if the flags are aligned*/
+		if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
+		{
+			if (!(clip->type & MOVE_TRIGGERS))
+				continue;
+			if (!((int)touch->v->flags & FL_FINDABLE_NONSOLID))
+				continue;
+		}
+
+		if (clip->type & MOVE_LAGGED)
+		{
+			//can't touch lagged ents - we do an explicit test for them later.
+			if (touch->entnum-1 < w->maxlagents)
+				if (w->lagents[touch->entnum-1].present)
+					continue;
+		}
+
+		if ((clip->type & MOVE_NOMONSTERS) && (touch->v->solid != SOLID_BSP && touch->v->solid != SOLID_PORTAL))
+			continue;
+
+		if (clip->passedict)
+		{
+			if (w->usesolidcorpse)
+			{
+#if 1
+//				if (!(clip->hitcontentsmask & ((touch->v->solid == SOLID_CORPSE)?FTECONTENTS_CORPSE:FTECONTENTS_BODY)))
+//					continue;
+#else
+				// don't clip corpse against character
+				if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
+					continue;
+				// don't clip character against corpse
+				if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
+					continue;
+#endif
+			}
+			if (!((int)clip->passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
+				continue;
+		}
+
+		if (clip->boxmins[0] > touch->v->absmax[0]
+		|| clip->boxmins[1] > touch->v->absmax[1]
+		|| clip->boxmins[2] > touch->v->absmax[2]
+		|| clip->boxmaxs[0] < touch->v->absmin[0]
+		|| clip->boxmaxs[1] < touch->v->absmin[1]
+		|| clip->boxmaxs[2] < touch->v->absmin[2] )
+			continue;
+
+		if (clip->passedict && clip->passedict->v->size[0] && !touch->v->size[0])
+			continue;	// points never interact
+
+	// might intersect, so do an exact clip
+//		if (clip->trace.allsolid)
+//			return;
+		if (clip->passedict)
+		{
+		 	if ((wedict_t*)PROG_TO_EDICT(w->progs, touch->v->owner) == clip->passedict)
+				continue;	// don't clip against own missiles
+			if ((wedict_t*)PROG_TO_EDICT(w->progs, clip->passedict->v->owner) == touch)
+				continue;	// don't clip against owner
+		}
+
+		if (touch->v->solid == SOLID_PORTAL)
+		{
+			//make sure we don't hit the world if we're inside the portal
+			World_PortalCSG(touch, clip->mins, clip->maxs, clip->start, clip->end, &clip->trace);
+		}
+
+		if ((int)touch->v->flags & FL_MONSTER)
+			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->capsule, clip->hitcontentsmask);
+		else
+			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->capsule, clip->hitcontentsmask);
+
+		if (trace.fraction < clip->trace.fraction)
+		{
+			//trace traveled less, but don't forget if we started in a solid.
+			trace.startsolid |= clip->trace.startsolid;
+			trace.allsolid |= clip->trace.allsolid;
+
+			if (clip->type & MOVE_ENTCHAIN)
+			{
+				touch->v->chain = EDICT_TO_PROG(w->progs, clip->trace.ent?clip->trace.ent:w->edicts);
+				clip->trace.ent = touch;
+			}
+			else
+			{
+				if (clip->trace.startsolid && !trace.startsolid)
+					trace.ent = clip->trace.ent;	//something else hit earlier, that one gets the trace entity, but not the fraction. yeah, combining traces like this was always going to be weird.
+				else
+					trace.ent = touch;
+				clip->trace = trace;
+			}
+		}
+		else if (trace.startsolid || trace.allsolid)
+		{
+			//even if the trace traveled less, we still care if it was in a solid.
+			clip->trace.startsolid |= trace.startsolid;
+			clip->trace.allsolid |= trace.allsolid;
+			if (!clip->trace.ent)
+				clip->trace.ent = touch;
+		}
+	}
+}
+static void World_ClipToAllLinks (world_t *w, moveclip_t *clip)
+{
+	int ming[2], maxg[2], g[2];
+	areagridsequence++;
+	World_ClipToLinks(w, &w->jumboarea, clip);
+
+	CALCAREAGRIDBOUNDS(w, clip->boxmins, clip->boxmaxs);
+
+	for (    g[0] = ming[0]; g[0] < maxg[0]; g[0]++)
+		for (g[1] = ming[1]; g[1] < maxg[1]; g[1]++)
+		{
+			World_ClipToLinks(w, &w->gridareas[g[0] + g[1]*w->gridsize[0]], clip);
+		}
+}
+#else
 /*
 ====================
 SV_ClipToLinks
@@ -1770,69 +2158,6 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 			clip->trace.allsolid |= trace.allsolid;
 			if (!clip->trace.ent)
 				clip->trace.ent = touch;
-		}
-	}
-	
-// recurse down both sides
-	if (node->axis == -1)
-		return;
-
-	if ( clip->boxmaxs[node->axis] > node->dist )
-		World_ClipToLinks (w, node->children[0], clip );
-	if ( clip->boxmins[node->axis] < node->dist )
-		World_ClipToLinks (w, node->children[1], clip );
-}
-#ifdef Q2SERVER
-static void WorldQ2_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
-{
-	link_t		*l, *next;
-	q2edict_t		*touch;
-	trace_t		trace;
-
-// touch linked edicts
-	for (l = node->edicts.next ; l != &node->edicts ; l = next)
-	{
-		next = l->next;
-		touch = Q2EDICT_FROM_AREA(l);
-		if (touch->s.solid == Q2SOLID_NOT)
-			continue;
-		if (touch == clip->q2passedict)
-			continue;
-		if (touch->s.solid == Q2SOLID_TRIGGER)
-			SV_Error ("Trigger in clipping list");
-
-		if (clip->type & MOVE_NOMONSTERS && touch->s.solid != Q2SOLID_BSP)
-			continue;
-
-		if (clip->boxmins[0] > touch->absmax[0]
-		|| clip->boxmins[1] > touch->absmax[1]
-		|| clip->boxmins[2] > touch->absmax[2]
-		|| clip->boxmaxs[0] < touch->absmin[0]
-		|| clip->boxmaxs[1] < touch->absmin[1]
-		|| clip->boxmaxs[2] < touch->absmin[2] )
-			continue;
-
-		if (clip->q2passedict && clip->q2passedict->size[0] && !touch->size[0])
-			continue;	// points never interact
-
-	// might intersect, so do an exact clip
-		if (clip->trace.allsolid)
-			return;
-		if (clip->passedict)
-		{
-		 	if (touch->owner == clip->q2passedict)
-				continue;	// don't clip against own missiles
-			if (clip->q2passedict->owner == touch)
-				continue;	// don't clip against owner
-		}
-
-		trace = WorldQ2_ClipMoveToEntity (w, touch, clip->start, clip->mins, clip->maxs, clip->end, clip->hitcontentsmask);
-
-		if (trace.allsolid || trace.startsolid ||
-		trace.fraction < clip->trace.fraction)
-		{
-			trace.ent = (edict_t *)touch;
-			clip->trace = trace;
 		}
 	}
 	
@@ -2127,7 +2452,11 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 			wedict_t *touch;
 			vec3_t lp;
 
-			World_ClipToLinks (w, w->areanodes, &clip );
+#ifdef USEAREAGRID
+			World_ClipToAllLinks (w, &clip);
+#else
+			World_ClipToLinks (w, w->areanodes, &clip);
+#endif
 
 			for (i = 0; i < w->maxlagents; i++)
 			{
@@ -2206,7 +2535,13 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 			}
 		}
 		else
+		{
+#ifdef USEAREAGRID
+			World_ClipToAllLinks (w, &clip );
+#else
 			World_ClipToLinks (w, w->areanodes, &clip );
+#endif
+		}
 		World_ClipToLinks(w, &w->portallist, &clip);
 	}
 
@@ -2249,12 +2584,7 @@ trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t
 	World_MoveBounds ( start, clip.mins2, clip.maxs2, end, clip.boxmins, clip.boxmaxs );
 
 // clip to entities
-#ifdef Q2BSPS
-	if (w->worldmodel->fromgame == fg_quake2 || w->worldmodel->fromgame == fg_quake3)
-		WorldQ2_ClipMoveToEntities(w, &clip);
-	else
-#endif
-		WorldQ2_ClipToLinks (w, w->areanodes, &clip );
+	WorldQ2_ClipMoveToEntities(w, &clip);
 
 	return clip.trace;
 }
@@ -2320,9 +2650,13 @@ void World_Destroy(world_t *world)
 {
 	World_RBE_Shutdown(world);
 
+#ifdef USEAREAGRID
+	Z_Free(world->gridareas);
+#else
 	Z_Free(world->areanodes);
 	world->areanodes = NULL;
 	world->areanodedepth = 0;
+#endif
 
 	memset(world, 0, sizeof(*world));
 }

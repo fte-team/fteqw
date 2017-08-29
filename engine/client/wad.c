@@ -799,6 +799,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 {
 	char token[4096];
 	char key[128];
+	char skyname[128];
 	const char *data = Mod_GetEntitiesString(wmodel);
 #ifdef PACKAGE_TEXWAD
 	mapskys_t *msky;
@@ -815,10 +816,10 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 #endif
 
 	// this hack is necessary to ensure Quake 2 maps get their default skybox, without breaking q1 etc
-	if (wmodel->fromgame == fg_quake2)
-		strcpy(cl.skyname, "unit1_");
+	if (wmodel && wmodel->fromgame == fg_quake2)
+		strcpy(skyname, "unit1_");
 	else
-		cl.skyname[0] = '\0';
+		skyname[0] = '\0';
 
 	if (data)
 	if ((data=COM_ParseOut(data, token, sizeof(token))))	//read the map info.
@@ -887,11 +888,11 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 		}
 		else if (!strcmp("skyname", key)) // for HalfLife maps
 		{
-			Q_strncpyz(cl.skyname, token, sizeof(cl.skyname));
+			Q_strncpyz(skyname, token, sizeof(skyname));
 		}
 		else if (!strcmp("sky", key)) // for Quake2 maps
 		{
-			Q_strncpyz(cl.skyname, token, sizeof(cl.skyname));
+			Q_strncpyz(skyname, token, sizeof(skyname));
 		}
 		else if (!strcmp("skyrotate", key))	//q2 feature
 		{
@@ -917,17 +918,22 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 		}
 	}
 
-	COM_FileBase (wmodel->name, token, sizeof(token));
+	if (wmodel)
+	{
+		COM_FileBase (wmodel->name, token, sizeof(token));
 
 #ifdef PACKAGE_TEXWAD
-	//map-specific sky override feature
-	for (msky = mapskies; msky; msky = msky->next)
-	{
-		if (!strcmp(msky->mapname, token))
+		//map-specific sky override feature
+		for (msky = mapskies; msky; msky = msky->next)
 		{
-			Q_strncpyz(cl.skyname, msky->skyname, sizeof(cl.skyname));
-			break;
+			if (!strcmp(msky->mapname, token))
+			{
+				Q_strncpyz(skyname, msky->skyname, sizeof(skyname));
+				break;
+			}
 		}
-	}
 #endif
+	}
+
+	R_SetSky(skyname);
 }

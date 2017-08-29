@@ -160,7 +160,7 @@ typedef struct
 	vec3_t l_lightcolourscale; float l_lightradius;
 	vec4_t l_shadowmapproj;
 	vec2_t l_shadowmapscale; vec2_t pad3;
-} cbuf_light_t;
+} vkcbuf_light_t;
 
 //entity-specific constant-buffer
 typedef struct
@@ -180,7 +180,7 @@ typedef struct
 	vec4_t e_colourident;
 	vec4_t w_fogcolours;
 	float w_fogdensity;		float w_fogdepthbias;	vec2_t pad7;
-} cbuf_entity_t;
+} vkcbuf_entity_t;
 
 enum 
 {
@@ -3094,6 +3094,8 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 		perm |= PERMUTATION_FULLBRIGHT;
 	if (TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay))
 		perm |= PERMUTATION_UPPERLOWER;
+	if (TEXLOADED(shaderstate.curtexnums->reflectcube) || TEXLOADED(shaderstate.curtexnums->reflectmask))
+		perm |= PERMUTATION_REFLECTCUBEMASK;
 	if (r_refdef.globalfog.density)
 		perm |= PERMUTATION_FOG;
 //	if (r_glsl_offsetmapping.ival && TEXLOADED(shaderstate.curtexnums->bump))
@@ -4166,7 +4168,7 @@ batch_t *VKBE_GetTempBatch(void)
 void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 {
 	extern cvar_t gl_specular;
-	cbuf_light_t *cbl = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbl) + 0x0ff) & ~0xff, &shaderstate.ubo_light.buffer, &shaderstate.ubo_light.offset);
+	vkcbuf_light_t *cbl = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbl) + 0x0ff) & ~0xff, &shaderstate.ubo_light.buffer, &shaderstate.ubo_light.offset);
 	shaderstate.ubo_light.range = sizeof(*cbl);
 
 	if (!l)
@@ -4216,7 +4218,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	float ndr;
 	float modelmatrix[16];
 	float *m = modelmatrix;
-	cbuf_entity_t *cbe = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbe) + 0x0ff) & ~0xff, &shaderstate.ubo_entity.buffer, &shaderstate.ubo_entity.offset);
+	vkcbuf_entity_t *cbe = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbe) + 0x0ff) & ~0xff, &shaderstate.ubo_entity.buffer, &shaderstate.ubo_entity.offset);
 	shaderstate.ubo_entity.range = sizeof(*cbe);
 
 	shaderstate.curentity = e;
@@ -5163,12 +5165,13 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if (batch->shader->flags & SHADER_SKY)
 		{
-			if (!batch->shader->prog)
+			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK)
 			{
-				if (shaderstate.mode == BEM_STANDARD)
-					R_DrawSkyChain (batch);
-				continue;
+				if (R_DrawSkyChain (batch))
+					continue;
 			}
+			else if (shaderstate.mode != BEM_FOG && shaderstate.mode != BEM_CREPUSCULAR && shaderstate.mode != BEM_WIREFRAME)
+				continue;
 		}
 
 		if ((batch->shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT | SHADER_HASRIPPLEMAP)) && shaderstate.mode != BEM_WIREFRAME)
@@ -6195,7 +6198,7 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 			shaderstate.identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif
-			shaderstate.identitylighting = 1;
+			shaderstate.identitylighting = r_lightmap_scale.value;
 		shaderstate.identitylighting *= r_refdef.hdr_value;
 		shaderstate.identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
 
@@ -6214,18 +6217,19 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 
 			
 			VKBE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
-			RSpeedEnd(RSPEED_WORLD);
+			RSpeedEnd(RSPEED_OPAQUE);
 
 #ifdef RTLIGHTS
 			RSpeedRemark();
 			VKBE_SelectEntity(&r_worldentity);
 			Sh_DrawLights(r_refdef.scenevis);
-			RSpeedEnd(RSPEED_STENCILSHADOWS);
+			RSpeedEnd(RSPEED_RTLIGHTS);
 #endif
 		}
 
+		RSpeedRemark();
 		VKBE_SubmitMeshes(worldbatches, batches, SHADER_SORT_SEETHROUGH+1, SHADER_SORT_COUNT);
-
+		RSpeedEnd(RSPEED_TRANSPARENTS);
 
 		if (r_wireframe.ival)
 		{
@@ -6239,7 +6243,7 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 		shaderstate.identitylighting = 1;
 		shaderstate.identitylightmap = 1;
 		VKBE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_COUNT);
-		RSpeedEnd(RSPEED_DRAWENTITIES);
+		RSpeedEnd(RSPEED_TRANSPARENTS);
 	}
 
 	R_RenderDlights ();

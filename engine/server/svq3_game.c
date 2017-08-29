@@ -5,6 +5,9 @@
 
 #ifdef Q3SERVER
 
+#ifndef MAX_ENT_CLUSTERS
+#define	MAX_ENT_CLUSTERS	16
+#endif
 
 #define USEBOTLIB
 
@@ -119,9 +122,14 @@ const char *mapentspointer;
 
 
 
-
+//these entities are private to the engine. gamecode shall not see this.
 typedef struct {
+#ifdef USEAREAGRID
+	areagridlink_t areas[16];
+	size_t areagridsequence;
+#else
 	link_t area;
+#endif
 	qboolean linked;
 	int areanum;
 	int areanum2;
@@ -144,11 +152,23 @@ static void Q3G_UnlinkEntity(q3sharedEntity_t *ent)
 		return;		// not linked in anywhere
 	}
 
+#ifdef USEAREAGRID
+	{int i;
+		for (i = 0; i < countof(sent->areas); i++)
+		{
+			if (!sent->areas[i].ed)
+				break;
+			RemoveLink(&sent->areas[i].l);
+			sent->areas[i].ed = NULL;
+		}
+	}
+#else
 	if (sent->area.prev == NULL || sent->area.next == NULL)
 		SV_Error("Null entity links in linked entity\n");
 
 	RemoveLink(&sent->area);
 	sent->area.prev = sent->area.next = NULL;
+#endif
 
 	sent->linked = false;
 }
@@ -181,7 +201,11 @@ static model_t *Q3G_GetCModel(unsigned int modelindex)
 
 static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 {
+#ifdef USEAREAGRID
+	int ming[2], maxg[2], g[2], ga;
+#else
 	areanode_t	*node;
+#endif
 	q3serverEntity_t	*sent;
 	int			leafs[MAX_TOTAL_ENT_LEAFS];
 	int			clusters[MAX_TOTAL_ENT_LEAFS];
@@ -346,6 +370,23 @@ static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 	sent->linked = true;
 
 // find the first node that the ent's box crosses
+#ifdef USEAREAGRID
+	CALCAREAGRIDBOUNDS(&sv.world, ent->r.absmin, ent->r.absmax);
+	if ((maxg[0]-ming[0])*(maxg[1]-ming[1]) > countof(sent->areas))
+	{	//entity is too large to fit in our grid. shove it in the overflow
+		sent->areas[0].ed = sent;
+		InsertLinkBefore (&sent->areas[0].l, &sv.world.jumboarea.l);
+	}
+	else
+	{
+		for (ga = 0, g[0] = ming[0]; g[0] < maxg[0]; g[0]++)
+			for (    g[1] = ming[1]; g[1] < maxg[1]; g[1]++, ga++)
+			{
+				sent->areas[ga].ed = sent;
+				InsertLinkBefore (&sent->areas[ga].l, &sv.world.gridareas[g[0] + g[1]*sv.world.gridsize[0]].l);
+			}
+	}
+#else
 	node = sv.world.areanodes;
 	while(1)
 	{
@@ -361,8 +402,53 @@ static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 	}
 	// link it in
 	InsertLinkBefore((link_t *)&sent->area, &node->edicts);
+#endif
 }
 
+#ifdef USEAREAGRID
+static int SVQ3_EntitiesInBoxNode(areagridlink_t *node, vec3_t mins, vec3_t maxs, int *list, int maxcount)
+{
+	link_t		*l, *next;
+	q3serverEntity_t		*sent;
+	q3sharedEntity_t		*gent;
+
+	int linkcount = 0;
+
+	//work out who they are first.
+	for (l = node->l.next ; l != &node->l ; l = next)
+	{
+		if (maxcount == linkcount)
+			return linkcount;
+
+		next = l->next;
+		sent = ((areagridlink_t*)l)->ed;
+		if (sent->areagridsequence != areagridsequence)
+		{
+			sent->areagridsequence = areagridsequence;
+			gent = GENTITY_FOR_SENTITY(sent);
+
+			if (!BoundsIntersect(mins, maxs, gent->r.absmin, gent->r.absmax))
+				continue;
+
+			list[linkcount++] = NUM_FOR_GENTITY(gent);
+		}
+	}
+
+	return linkcount;
+}
+static int SVQ3_EntitiesInBox(vec3_t mins, vec3_t maxs, int *list, int maxcount)
+{
+	int ming[2], maxg[2], g[2], ga;
+	int linkcount = 0;
+	areagridsequence++;
+	linkcount += SVQ3_EntitiesInBoxNode(&sv.world.jumboarea, mins, maxs, list+linkcount, maxcount-linkcount);
+	CALCAREAGRIDBOUNDS(&sv.world, mins, maxs);
+	for (ga = 0, g[0] = ming[0]; g[0] < maxg[0]; g[0]++)
+		for (    g[1] = ming[1]; g[1] < maxg[1]; g[1]++, ga++)
+			linkcount += SVQ3_EntitiesInBoxNode(&sv.world.gridareas[g[0] + g[1]*sv.world.gridsize[0]], mins, maxs, list+linkcount, maxcount-linkcount);
+	return linkcount;
+}
+#else
 static int SVQ3_EntitiesInBoxNode(areanode_t *node, vec3_t mins, vec3_t maxs, int *list, int maxcount)
 {
 	link_t		*l, *next;
@@ -405,6 +491,7 @@ static int SVQ3_EntitiesInBox(vec3_t mins, vec3_t maxs, int *list, int maxcount)
 		return 0;
 	return SVQ3_EntitiesInBoxNode(sv.world.areanodes, mins, maxs, list, maxcount);
 }
+#endif
 
 #define	ENTITYNUM_NONE		(MAX_GENTITIES-1)
 #define	ENTITYNUM_WORLD		(MAX_GENTITIES-2)

@@ -3371,7 +3371,7 @@ void D3D8BE_DrawWorld (batch_t **worldbatches)
 			shaderstate_identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif
-			shaderstate_identitylighting = 1;
+			shaderstate_identitylighting = r_lightmap_scale.value;
 		shaderstate_identitylighting *= r_refdef.hdr_value;
 //		shaderstate_identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
 
@@ -3382,7 +3382,7 @@ void D3D8BE_DrawWorld (batch_t **worldbatches)
 
 		RSpeedRemark();
 		D3D8BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
-		RSpeedEnd(RSPEED_WORLD);
+		RSpeedEnd(RSPEED_OPAQUE);
 
 #ifdef RTLIGHTS
 		if (r_refdef.scenevis)
@@ -3390,19 +3390,21 @@ void D3D8BE_DrawWorld (batch_t **worldbatches)
 			RSpeedRemark();
 			D3D8BE_SelectEntity(&r_worldentity);
 			Sh_DrawLights(r_refdef.scenevis);
-			RSpeedEnd(RSPEED_STENCILSHADOWS);
+			RSpeedEnd(RSPEED_RTLIGHTS);
 		}
 #endif
 
 		BE_SelectMode(BEM_STANDARD);
 
+		RSpeedRemark();
 		D3D8BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_SEETHROUGH+1, SHADER_SORT_COUNT);
+		RSpeedEnd(RSPEED_TRANSPARENTS);
 	}
 	else
 	{
 		RSpeedRemark();
 		D3D8BE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_COUNT);
-		RSpeedEnd(RSPEED_DRAWENTITIES);
+		RSpeedEnd(RSPEED_OPAQUE);
 	}
 
 	R_RenderDlights ();

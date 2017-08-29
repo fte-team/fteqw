@@ -489,6 +489,10 @@ typedef struct client_s
 										// extracted from userinfo
 	char			guid[64]; /*+2 for split+pad*/
 	int				messagelevel;		// for filtering printed messages
+#ifndef NOLEGACY
+	float			*dp_ping;
+	float			*dp_pl;
+#endif
 
 	// the datagram is written to after every frame, but only cleared
 	// when it is sent out to the client.  overflow is tolerated.
@@ -586,7 +590,7 @@ typedef struct client_s
 	int				chokecount;
 	qboolean		waschoked;
 	int				delta_sequence;		// -1 = no compression
-	int				last_sequence;
+	int				last_sequence;		//last inputframe sequence received
 	netchan_t		netchan;
 	qboolean		isindependant;
 
@@ -655,7 +659,7 @@ typedef struct client_s
 	unsigned int lastruncmd;	//for non-qw physics. timestamp they were last run, so switching between physics modes isn't a (significant) cheat
 //speed cheat testing
 #define NEWSPEEDCHEATPROT
-	int msecs;
+	float msecs;
 #ifndef NEWSPEEDCHEATPROT
 	int msec_cheating;
 	float last_check;
@@ -1168,6 +1172,7 @@ typedef struct pubsubserver_s
 	int transferingplayers;
 	netadr_t addrv4;
 	netadr_t addrv6;
+	char printtext[4096]; //to split it into lines.
 } pubsubserver_t;
 extern qboolean isClusterSlave;
 void SSV_UpdateAddresses(void);
@@ -1587,8 +1592,13 @@ void SV_CheckTimer(void);
 void SV_LogPlayer(client_t *cl, char *msg);
 
 extern vec3_t pmove_mins, pmove_maxs;	//abs min/max extents
-void AddLinksToPmove ( edict_t *player, areanode_t *node );
-void AddLinksToPmove_Force ( edict_t *player, areanode_t *node );
+#ifdef USEAREAGRID
+void AddAllLinksToPmove (world_t *w, wedict_t *player);
+#else
+void AddLinksToPmove (world_t *w, wedict_t *player, areanode_t *node);
+void AddLinksToPmove_Force (world_t *w, wedict_t *player, areanode_t *node);
+#define AddAllLinksToPmove(w,p) do{AddLinksToPmove(w,p,(w)->areanodes);AddLinksToPmove_Force(w,p,&(w)->portallist);}while(0)
+#endif
 
 
 #ifdef HLSERVER

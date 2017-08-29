@@ -791,6 +791,7 @@ static model_t *QDECL SVQ2_GetCModel(world_t *w, int modelindex)
 
 void SVQ2_InitWorld(void)
 {
+	World_ClearWorld_Nodes (&sv.world, false);
 	sv.world.Get_CModel = SVQ2_GetCModel;
 }
 

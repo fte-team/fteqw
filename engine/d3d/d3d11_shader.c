@@ -155,6 +155,8 @@ HRESULT STDMETHODCALLTYPE d3dinclude_Open(ID3DInclude *this, D3D_INCLUDE_TYPE In
 					"float4 e_lmscale[4];\n"
 					"float4 e_uppercolour;\n"
 					"float4 e_lowercolour;\n"
+					"float4 e_colourmod;\n"
+					"float4 e_glowmod;\n"
 				"};\n"
 				"cbuffer fteviewdefs : register(b1)\n"
 				"{\n"
@@ -208,18 +210,21 @@ void D3D11Shader_DeleteProg(program_t *prog)
 	ID3D11InputLayout *layout;
 	ID3D11PixelShader *frag;
 	ID3D11VertexShader *vert;
-	unsigned int permu;
+	unsigned int permu, l;
 	for (permu = 0; permu < countof(prog->permu); permu++)
 	{
 		vert = prog->permu[permu].h.hlsl.vert;
 		frag = prog->permu[permu].h.hlsl.frag;
-		layout = prog->permu[permu].h.hlsl.layout;
 		if (vert)
 			ID3D11VertexShader_Release(vert);
 		if (frag)
 			ID3D11PixelShader_Release(frag);
-		if (layout)
-			ID3D11InputLayout_Release(layout);
+		for (l = 0; l < countof(prog->permu[permu].h.hlsl.layouts); l++)
+		{
+			layout = prog->permu[permu].h.hlsl.layouts[l];
+			if (layout)
+				ID3D11InputLayout_Release(layout);
+		}
 	}
 }
 
@@ -231,6 +236,7 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 										  void *gblob, size_t gsize,
 										  void *fblob, size_t fsize)
 {
+	int l;
 	qboolean success = true;
 
 	if (FAILED(ID3D11Device_CreateVertexShader(pD3DDev11, vblob, vsize, NULL, (ID3D11VertexShader**)&prog->permu[permu].h.hlsl.vert)))
@@ -254,7 +260,7 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 	if (FAILED(ID3D11Device_CreatePixelShader(pD3DDev11, fblob, fsize, NULL, (ID3D11PixelShader**)&prog->permu[permu].h.hlsl.frag)))
 		success = false;
 
-	if (success)
+	for (l = 0; l < 2 && success; l++)
 	{
 		D3D11_INPUT_ELEMENT_DESC decl[13];
 		int elements = 0;
@@ -288,7 +294,7 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 
 		decl[elements].SemanticName = "COLOR";
 		decl[elements].SemanticIndex = 0;
-		decl[elements].Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		decl[elements].Format = l?DXGI_FORMAT_R32G32B32A32_FLOAT:DXGI_FORMAT_R8G8B8A8_UNORM;
 		decl[elements].InputSlot = D3D11_BUFF_COL;
 		decl[elements].AlignedByteOffset = 0;
 		decl[elements].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
@@ -341,7 +347,7 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 		decl[elements].InstanceDataStepRate = 0;
 		elements++;
 */
-		if (FAILED(ID3D11Device_CreateInputLayout(pD3DDev11, decl, elements, vblob, vsize, (ID3D11InputLayout**)&prog->permu[permu].h.hlsl.layout)))
+		if (FAILED(ID3D11Device_CreateInputLayout(pD3DDev11, decl, elements, vblob, vsize, (ID3D11InputLayout**)&prog->permu[permu].h.hlsl.layouts[l])))
 		{
 			Con_Printf("HLSL Shader %s requires unsupported inputs\n", name);
 			success = false;
@@ -450,7 +456,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 	prog->permu[permu].h.hlsl.hull = NULL;
 	prog->permu[permu].h.hlsl.domain = NULL;
 	prog->permu[permu].h.hlsl.geom = NULL;
-	prog->permu[permu].h.hlsl.layout = NULL;
+	memset(prog->permu[permu].h.hlsl.layouts, 0, sizeof(prog->permu[permu].h.hlsl.layouts));
 
 	if (pD3DCompile)
 	{
@@ -732,6 +738,7 @@ qboolean D3D11Shader_Init(unsigned int flevel)
 	sh_config.pProgAutoFields	= NULL;
 
 	sh_config.can_mipcap		= true;	//at creation time
+	sh_config.havecubemaps		= true;
 
 //	sh_config.tex_env_combine		= 1;
 //	sh_config.nv_tex_env_combine4	= 1;

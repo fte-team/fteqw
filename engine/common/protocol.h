@@ -1082,22 +1082,22 @@ typedef struct entity_state_s
 	qbyte				basebone;
 	qbyte				pad;
 
-	unsigned int		skinnum; /*q2 needs 32 bits, which is quite impressive*/
+	unsigned int		skinnum; /*for q2 this often contains rgba*/
 
 	unsigned short		colormap;
 	qbyte glowsize;
 	qbyte glowcolour;
 
-	qbyte	scale;
+	qbyte	scale;	//4.4 precision
 	char	fatness;
 	qbyte	hexen2flags;
 	qbyte	abslight;
 
 	qbyte	dpflags;
-	qbyte	colormod[3];//multiply this by 8 to read as 0 to 1...
+	qbyte	colormod[3];//3.5 precision
 
-	qbyte	glowmod[3];
-	qbyte	trans;
+	qbyte	glowmod[3];	//3.5 precision
+	qbyte	trans;	//254==1, 255==1-or-wateralpha
 
 	unsigned short light[4];
 

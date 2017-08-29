@@ -370,7 +370,8 @@ extern uploadfmt_t		lightmap_fmt;	//bgra32, rgba32, rgb24, lum8
 void QDECL Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue);
 
 
-void R_SetSky(char *skyname);		/*override all sky shaders*/
+void R_SkyShutdown(void);
+void R_SetSky(const char *skyname);
 
 #if defined(GLQUAKE)
 void GLR_Init (void);
@@ -634,6 +635,7 @@ extern	cvar_t	r_lightstylesmooth;
 extern	cvar_t	r_lightstylesmooth_limit;
 extern	cvar_t	r_lightstylespeed;
 extern	cvar_t	r_lightstylescale;
+extern	cvar_t	r_lightmap_scale;
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_load24bit;
 extern	cvar_t	gl_finish;
@@ -647,14 +649,15 @@ extern cvar_t r_meshpitch;
 
 enum {
 	RSPEED_TOTALREFRESH,
+	RSPEED_CSQCPHYSICS,
+	RSPEED_CSQCREDRAW,
 	RSPEED_LINKENTITIES,
-	RSPEED_PROTOCOL,
 	RSPEED_WORLDNODE,
-	RSPEED_WORLD,
-	RSPEED_DRAWENTITIES,
-	RSPEED_STENCILSHADOWS,
-	RSPEED_FULLBRIGHTS,
 	RSPEED_DYNAMIC,
+	RSPEED_OPAQUE,
+	RSPEED_RTLIGHTS,
+	RSPEED_TRANSPARENTS,
+	RSPEED_PROTOCOL,
 	RSPEED_PARTICLES,
 	RSPEED_PARTICLESDRAW,
 	RSPEED_PALETTEFLASHES,

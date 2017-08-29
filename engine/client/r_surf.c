@@ -3371,7 +3371,7 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 
 		lightmap[i]->modified = false;
 		lightmap[i]->external = true;
-		lightmap[i]->hasdeluxe = (deluxe && ((i - numlightmaps)&1));
+		lightmap[i]->hasdeluxe = (deluxe && !((i - numlightmaps)&1));
 
 		Q_snprintfz(nname, sizeof(nname), filepattern, i - numlightmaps);
 
@@ -3685,6 +3685,12 @@ void Surf_NewMap (void)
 	r_viewcluster2 = -1;
 	r_oldviewcluster2 = 0;
 
+	TRACE(("dbg: Surf_NewMap: clear particles\n"));
+	P_ClearParticles ();
+	CL_RegisterParticles();
+
+	Shader_DoReload();
+
 	if (cl.worldmodel)
 	{
 		if (cl.worldmodel->loadstate == MLS_LOADING)
@@ -3695,11 +3701,8 @@ void Surf_NewMap (void)
 	if (!pe)
 		Cvar_ForceCallback(&r_particlesystem);
 	R_Clutter_Purge();
-TRACE(("dbg: Surf_NewMap: clear particles\n"));
-	P_ClearParticles ();
 TRACE(("dbg: Surf_NewMap: wiping them stains (getting the cloth out)\n"));
 	Surf_WipeStains();
-	CL_RegisterParticles();
 TRACE(("dbg: Surf_NewMap: building lightmaps\n"));
 	Surf_BuildLightmaps ();
 
@@ -3710,7 +3713,6 @@ TRACE(("dbg: Surf_NewMap: ui\n"));
 #endif
 TRACE(("dbg: Surf_NewMap: tp\n"));
 	TP_NewMap();
-	R_SetSky(cl.skyname);
 
 	for (i = 0; i < cl.num_statics; i++)
 	{
@@ -3751,6 +3753,8 @@ void Surf_PreNewMap(void)
 	r_oldviewcluster = -1;
 	r_viewcluster2 = -1;
 	r_oldviewcluster2 = -1;
+
+	Shader_DoReload();
 }
 
 

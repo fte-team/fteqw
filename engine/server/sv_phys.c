@@ -813,10 +813,18 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 			continue;
 		}
 
-		//these pushes are contents brushes, and are not solid. water cannot crush. the player just enters the water.
+		//some pushers are contents brushes, and are not solid. water cannot crush. the player just enters the water.
 		//but, the player will be moved along with the water if possible.
 		if (pusher->v->skin < 0)
 			continue;
+
+		if (check->v->solid == SOLID_NOT || check->v->solid == SOLID_TRIGGER)
+		{	// corpse
+			check->v->mins[0] = check->v->mins[1] = 0;
+			VectorCopy (check->v->mins, check->v->maxs);
+			World_LinkEdict (w, check, false);
+			continue;
+		}
 
 //		Con_Printf("Pusher hit %s\n", PR_GetString(w->progs, check->v->classname));
 		if (pusher->v->blocked)
@@ -846,7 +854,7 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 //FIXME: is there a better way to handle this?
 	// see if anything we moved has touched a trigger
 	for (p=pushed_p-1 ; p>=pushed ; p--)
-		World_TouchLinks (w, p->ent, w->areanodes);
+		World_TouchAllLinks (w, p->ent);
 
 	return true;
 }
@@ -1329,6 +1337,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 
 // add gravity
 	if (ent->v->movetype != MOVETYPE_FLY
+		&& ent->v->movetype != MOVETYPE_FLY_WORLDONLY
 		&& ent->v->movetype != MOVETYPE_FLYMISSILE
 		&& ent->v->movetype != MOVETYPE_BOUNCEMISSILE
 		&& ent->v->movetype != MOVETYPE_H2SWIM)
@@ -2190,7 +2199,6 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		if (!(ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots) && w == &sv.world)
 			World_LinkEdict (w, ent, true);
 #endif
-
 		break;
 #ifdef USERBE
 	case MOVETYPE_PHYSICS:

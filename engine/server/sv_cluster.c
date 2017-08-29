@@ -10,6 +10,10 @@
 //":dm4" finds any server running dm4. starts a new one if none are running dm4.
 //"dm4" is ambiguous, in the case of a map beginning with a number (bah). don't use.
 
+//FIXME: nq protocols not supported.
+//FIXME: deadlocks when both gw and ss both fill their pipe buffers.
+//FIXME: no networking for remote nodes.
+
 #ifdef SUBSERVERS
 
 #ifdef SQL
@@ -384,6 +388,23 @@ void MSV_SubServerCommand_f(void)
 	MSV_InstructSlave(id, &buf);
 }
 
+static void MSV_PrintFromSubServer(pubsubserver_t *s, const char *newtext)
+{
+	char *nl;
+	Q_strncatz(s->printtext, newtext, sizeof(s->printtext));
+	while((nl = strchr(s->printtext, '\n')))
+	{	//FIXME: handle overflows.
+		*nl++ = 0;
+		Con_Printf("^6%i(%s)^7: %s\n", s->id, s->name, s->printtext);
+		memmove(s->printtext, nl, strlen(nl)+1);
+	}
+	if (strlen(s->printtext) > sizeof(s->printtext)/2)
+	{
+		Con_Printf("^6%i(%s)^7: %s\n", s->id, s->name, s->printtext);
+		*s->printtext = 0;
+	}
+}
+
 void MSV_ReadFromSubServer(pubsubserver_t *s)
 {
 	sizebuf_t	send;
@@ -402,7 +423,7 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 		Sys_Error("Corrupt message (%i) from SubServer %i:%s", c, s->id, s->name);
 		break;
 	case ccmd_print:
-		Con_Printf("^6%i(%s)^7: %s", s->id, s->name, MSG_ReadString());
+		MSV_PrintFromSubServer(s, MSG_ReadString());
 		break;
 	case ccmd_saveplayer:
 		{
@@ -779,7 +800,6 @@ void SSV_ReadFromControlServer(void)
 					Q_strncpyz(cl->guid, clguid, sizeof(cl->guid));
 					Q_strncpyz(cl->namebuf, plname, sizeof(cl->namebuf));
 					cl->name = cl->namebuf;
-					sv.spawned_client_slots++;
 					memset(&cl->netchan, 0, sizeof(cl->netchan));
 					SV_GetNewSpawnParms(cl);
 				}
@@ -787,7 +807,7 @@ void SSV_ReadFromControlServer(void)
 			}
 			else
 			{
-				Con_Printf("%s: server full!\n", sv.modelname);
+				Con_Printf("%s: server full!\n", svs.name);
 			}
 
 			j = MSG_ReadByte();
@@ -969,7 +989,7 @@ void SSV_UpdateAddresses(void)
 	send.cursize = 2;
 	MSG_WriteByte(&send, ccmd_serveraddress);
 
-	MSG_WriteString(&send, sv.modelname);
+	MSG_WriteString(&send, svs.name);
 	for (i = 0; i < count; i++)
 		MSG_WriteString(&send, NET_AdrToString(buf, sizeof(buf), &addr[i]));
 	MSG_WriteByte(&send, 0);

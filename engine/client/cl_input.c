@@ -28,6 +28,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 float in_sensitivityscale = 1;
 
 static void QDECL CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue);
+#ifdef NQPROT
+cvar_t	cl_movement = CVARD("cl_movement","1", "Specifies whether to send movement sequence info over DPP7 protocols (other protocols are unaffected). Unlike cl_nopred, this can result in different serverside behaviour.");
+#endif
 
 cvar_t	cl_nodelta = CVAR("cl_nodelta","0");
 
@@ -48,8 +51,7 @@ cvar_t in_xflip = {"in_xflip", "0"};
 
 cvar_t	prox_inmenu = CVAR("prox_inmenu", "0");
 
-usercmd_t independantphysics[MAX_SPLITS];
-vec3_t mousemovements[MAX_SPLITS];
+usercmd_t cl_pendingcmd[MAX_SPLITS];
 
 /*kinda a hack...*/
 unsigned int		con_splitmodifier;
@@ -659,37 +661,31 @@ CL_BaseMove
 Send the intended movement message to the server
 ================
 */
-void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps)
+void CL_BaseMove (usercmd_t *cmd, int pnum, float priortime, float extratime)
 {
-	float scale = 1;//extra/1000.0f * 1/wantfps;
+	float nscale = extratime?extratime / (extratime+priortime):0;
+	float oscale = 1 - nscale;
 
 //
 // adjust for speed key
 //
 	if ((in_speed.state[pnum] & 1) ^ cl_run.ival)
-		scale *= cl_movespeedkey.value;
+		nscale *= cl_movespeedkey.value;
 
 	if (in_strafe.state[pnum] & 1)
-	{
-		cmd->sidemove += scale*cl_sidespeed.value * CL_KeyState (&in_right, pnum, true);
-		cmd->sidemove -= scale*cl_sidespeed.value * CL_KeyState (&in_left, pnum, true);
-	}
+		cmd->sidemove = cmd->sidemove*oscale + nscale*cl_sidespeed.value * (CL_KeyState (&in_right, pnum, true) - CL_KeyState (&in_left, pnum, true)) * (in_xflip.ival?-1:1);
+	cmd->sidemove = cmd->sidemove*oscale + nscale*cl_sidespeed.value * (CL_KeyState (&in_moveright, pnum, true) - CL_KeyState (&in_moveleft, pnum, true)) * (in_xflip.ival?-1:1);
 
-	cmd->sidemove += scale*cl_sidespeed.value * CL_KeyState (&in_moveright, pnum, true);
-	cmd->sidemove -= scale*cl_sidespeed.value * CL_KeyState (&in_moveleft, pnum, true);
-
-	if(in_xflip.ival) cmd->sidemove *= -1;
-
-	cmd->upmove += scale*cl_upspeed.value * CL_KeyState (&in_up, pnum, true);
-	cmd->upmove -= scale*cl_upspeed.value * CL_KeyState (&in_down, pnum, true);
+	cmd->upmove = cmd->upmove*oscale + nscale*cl_upspeed.value * (CL_KeyState (&in_up, pnum, true) - CL_KeyState (&in_down, pnum, true));
 
 	if (! (in_klook.state[pnum] & 1) )
 	{	
-		cmd->forwardmove += scale*cl_forwardspeed.value * CL_KeyState (&in_forward, pnum, true);
-		cmd->forwardmove -= scale*(*cl_backspeed.string?cl_backspeed.value:cl_forwardspeed.value) * CL_KeyState (&in_back, pnum, true);
+		cmd->forwardmove = cmd->forwardmove*oscale + nscale*(cl_forwardspeed.value * CL_KeyState (&in_forward, pnum, true)) - 
+								  ((*cl_backspeed.string?cl_backspeed.value:cl_forwardspeed.value) * CL_KeyState (&in_back, pnum, true));
 	}
 
-	CL_GatherButtons(cmd, pnum);
+	if (!priortime)	//only gather buttons if we've not had any this frame. this avoids jump feeling weird with prediction. FIXME: should probably still allow +attack to reduce latency
+		CL_GatherButtons(cmd, pnum);
 }
 
 void CL_ClampPitch (int pnum)
@@ -902,7 +898,7 @@ void CL_ClampPitch (int pnum)
 CL_FinishMove
 ==============
 */
-void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
+static void CL_FinishMove (usercmd_t *cmd, int pnum)
 {
 	int	i;
 
@@ -922,9 +918,6 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 //
 
 	CL_GatherButtons(cmd, pnum);
-
-	// send milliseconds of time to apply the move
-	cmd->msec = msecs;
 
 	for (i=0 ; i<3 ; i++)
 		cmd->angles[i] = ((int)(cl.playerview[pnum].viewangles[i]*65536.0/360)&65535);
@@ -1017,7 +1010,6 @@ void CL_UpdatePrydonCursor(usercmd_t *from, int pnum)
 #ifdef NQPROT
 void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 {
-	static float oldgametime;
 	int i;
 
 	if (cls.demoplayback!=DPB_NONE)
@@ -1036,8 +1028,7 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 
 	if (cls.protocol_nq >= CPNQ_DP7)
 	{
-		extern cvar_t cl_nopred;
-		if (cl_nopred.ival)
+		if (!cl_movement.ival)
 			MSG_WriteLong(buf, 0);
 		else
 			MSG_WriteLong(buf, cl.movesequence);
@@ -1045,9 +1036,7 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	else if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
 		MSG_WriteShort(buf, cl.movesequence&0xffff);
 
-	MSG_WriteFloat (buf, cl.gametime);	// so server can get ping times
-	cmd->msec = bound(0, cl.gametime - oldgametime, .25)*1000;
-	oldgametime = cl.gametime;
+	MSG_WriteFloat (buf, cmd->fservertime);	// use latest time. because ping reports!
 
 	for (i=0 ; i<3 ; i++)
 	{
@@ -1108,18 +1097,18 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 	cl.outframes[i].latency = -1;
 	cl.outframes[i].server_message_num = cl.validsequence;
 	cl.outframes[i].cmd_sequence = cl.movesequence;
+	cl.outframes[i].sentgametime = cl.movesequence_time;
 
 	for (seat = 0; seat < cl.splitclients; seat++)
 	{
 		cmd = &cl.outframes[i].cmd[seat];
-		*cmd = independantphysics[seat];
-		cmd->lightlevel = 0;
+		*cmd = cl_pendingcmd[seat];
+		cmd->fservertime = cl.movesequence_time;
+//		cmd->msec = (cl.time - cl.outframes[(i-1)&UPDATE_MASK].sentgametime)*1000;
 #ifdef CSQC_DAT
 		CSQC_Input_Frame(seat, cmd);
 #endif
-		memset(&independantphysics[seat], 0, sizeof(independantphysics[seat]));
 	}
-
 
 	//inputs are only sent once we receive an entity.
 	if (cls.signon == 4)
@@ -1148,7 +1137,7 @@ void Name_Callback(struct cvar_s *var, char *oldvalue)
 }
 #endif
 
-float CL_FilterTime (double time, float wantfps, qboolean ignoreserver)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.
+float CL_FilterTime (double time, float wantfps, float limit, qboolean ignoreserver)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.
 {
 	float fps, fpscap;
 
@@ -1184,8 +1173,8 @@ float CL_FilterTime (double time, float wantfps, qboolean ignoreserver)	//now re
 		return 0;
 
 	//clamp it if we have over 1.5 frame banked somehow
-	if (time - (1000 / fps) > (1000 / fps)*1.5)
-		return (1000 / fps) * 1.5;
+	if (limit && time - (1000 / fps) > (1000 / fps)*limit)
+		return (1000 / fps) * limit;
 
 	//report how much spare time the caller now has
 	return time - (1000 / fps);
@@ -1325,7 +1314,7 @@ int CL_IndepPhysicsThread(void *param)
 	while(runningindepphys)
 	{
 		time = Sys_DoubleTime();
-		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value, false);
+		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value, 1.5, false);
 		if (spare)
 		{
 			time -= spare/1000.0f;
@@ -1539,13 +1528,13 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 
 		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 		cmd = &cl.outframes[i].cmd[seat];
-		*cmd = independantphysics[seat];
+		*cmd = cl_pendingcmd[seat];
 
 		cmd->lightlevel = (lightlev>255)?255:lightlev;
 
 		cl.outframes[i].senttime = realtime;
 		cl.outframes[i].latency = -1;
-		memset(&independantphysics[seat], 0, sizeof(independantphysics[0]));
+		memset(&cl_pendingcmd[seat], 0, sizeof(cl_pendingcmd[seat]));
 
 		if (cmd->buttons)
 			cmd->buttons |= 128;	//fixme: this isn't really what's meant by the anykey.
@@ -1613,14 +1602,14 @@ qboolean CLQW_SendCmd (sizebuf_t *buf, qboolean actuallysend)
 		}
 
 		cmd = &cl.outframes[curframe].cmd[plnum];
-		*cmd = independantphysics[plnum];
+		*cmd = cl_pendingcmd[plnum];
 		
 		cmd->lightlevel = 0;
 #ifdef CSQC_DAT
 		if (!runningindepphys)
 			CSQC_Input_Frame(plnum, cmd);
 #endif
-		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
+		memset(&cl_pendingcmd[plnum], 0, sizeof(cl_pendingcmd[plnum]));
 	}
 
 	cmd = &cl.outframes[curframe].cmd[0];
@@ -1706,9 +1695,10 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	static int	dropcount = 0;
 	static double msecs;
 	static double msecsround;
-	int msecstouse;
 	qboolean	dontdrop=false;
-	float usetime;
+	float usetime;		//how many msecs we can use for the new frame
+	int msecstouse;		//usetime truncated to network precision (how much we'll actually eat)
+	float framemsecs;	//how long we're saying the input frame should be (differs from realtime with nq as we want to send frames reguarly, but note this might end up with funny-duration frames).
 
 	clcmdbuf_t *next;
 
@@ -1745,6 +1735,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			}
 			for (plnum = 0; plnum < cl.splitclients; plnum++)
 			{
+				vec3_t mousemovements;
 				playerview_t *pv = &cl.playerview[plnum];
 				cmd = &cl.outframes[i].cmd[plnum];
 
@@ -1754,24 +1745,24 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 					msecs = 50;
 				cmd->msec = msecs;
 				msecs -= cmd->msec;
-				independantphysics[0].msec = 0;
+				cl_pendingcmd[plnum].msec = 0;
 
 				CL_AdjustAngles (plnum, frametime);
 				// get basic movement from keyboard
-				CL_BaseMove (cmd, plnum, 1, 1);
+				CL_BaseMove (cmd, plnum, 0, 1);
 
 				// allow mice or other external controllers to add to the move
-				IN_Move (mousemovements[plnum], plnum, frametime);
-				independantphysics[plnum].forwardmove += mousemovements[plnum][0];
-				independantphysics[plnum].sidemove += mousemovements[plnum][1];
-				independantphysics[plnum].upmove += mousemovements[plnum][2];
-				VectorClear(mousemovements[plnum]);
+				VectorClear(mousemovements);
+				IN_Move (mousemovements, plnum, frametime);
+				cl_pendingcmd[plnum].forwardmove += mousemovements[0];
+				cl_pendingcmd[plnum].sidemove += mousemovements[1];
+				cl_pendingcmd[plnum].upmove += mousemovements[2];
 
 				// if we are spectator, try autocam
 				if (pv->spectator)
 					Cam_Track(pv, cmd);
 
-				CL_FinishMove(cmd, cmd->msec, plnum);
+				CL_FinishMove(cmd, plnum);
 
 				Cam_FinishMove(pv, cmd);
 
@@ -1812,109 +1803,136 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	buf.data = data;
 	buf.prim = cls.netchan.message.prim;
 
-#ifdef IRCCONNECT
-	if (cls.netchan.remote_address.type != NA_IRC)
-#endif
-
-	msecs += frametime*1000;
-//	Con_Printf("%f\n", msecs);
-
-	wantfps = cl_netfps.value;
-	fullsend = true;
-
-	msecstouse = 0;
-
-#ifndef CLIENTONLY
-	if (sv.state && cls.state != ca_active)
+	if (cls.protocol == CP_NETQUAKE && cl.time && !cl.paused)
 	{
-		fullsend = -1;
-		msecstouse = usetime = msecs;
-		msecs = 0;
-	}
-	else 
-#endif
-	{
-		// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
-		if (cls.state < ca_active && !cls.download)
+		if (cl.movesequence_time > cl.time + 0.5)
+			cl.movesequence_time = cl.time + 0.5;	//shouldn't really happen
+		if (cl.movesequence_time < cl.time - 0.5)
+			cl.movesequence_time = cl.time - 0.5;	//shouldn't really happen
+		framemsecs = (cl.time - cl.movesequence_time)*1000;
+
+		wantfps = cl_netfps.value;
+		usetime = CL_FilterTime(framemsecs, wantfps, 1.5, false);
+		if (usetime > 0)
 		{
-			#ifdef IRCCONNECT	//don't spam irc.
-			if (cls.netchan.remote_address.type == NA_IRC)
-				wantfps = 0.5;
-			else
-			#endif
-				wantfps = 12.5;
-		}
-		if (!runningindepphys && (cl_netfps.value > 0 || !fullsend))
-		{
-			float spare;
-			spare = CL_FilterTime(msecs, wantfps, false);
-			usetime = msecsround + (msecs - spare);
-			msecstouse = (int)usetime;
-			if (!spare)
-				fullsend = false;
-			else
-			{
-				msecsround = usetime - msecstouse;
-				msecs = spare + msecstouse;
-			}
+			usetime = framemsecs - usetime;
+			fullsend = true;
 		}
 		else
 		{
-			usetime = msecsround + msecs;
-			msecstouse = (int)usetime;
-			msecsround = usetime - msecstouse;
+			usetime = framemsecs - usetime;
+			fullsend = false;
 		}
+		framemsecs = usetime;
 	}
+	else
+	{
+		msecs += frametime*1000;
 
-	if (msecstouse > 200) // cap at 200 to avoid servers splitting movement more than four times
-		msecstouse = 200;
+	//	Con_Printf("%f\n", msecs);
 
-	// align msecstouse to avoid servers wasting our msecs
-	if (msecstouse > 100)
-		msecstouse &= ~3; // align to 4
-	else if (msecstouse > 50)
-		msecstouse &= ~1; // align to 2
+		wantfps = cl_netfps.value;
+		fullsend = true;
 
-	if (msecstouse < 0)	//FIXME
-		fullsend = false;
-	if (usetime <= 0)
-		return;	//infinite frame times = weirdness.
+		msecstouse = 0;
+
+	#ifndef CLIENTONLY
+		if (sv.state && cls.state != ca_active)
+		{
+			fullsend = -1;
+			msecstouse = usetime = msecs;
+			msecs = 0;
+		}
+		else 
+	#endif
+		{
+			// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
+			if (cls.state < ca_active && !cls.download)
+			{
+				#ifdef IRCCONNECT	//don't spam irc.
+				if (cls.netchan.remote_address.type == NA_IRC)
+					wantfps = 0.5;
+				else
+				#endif
+					wantfps = 12.5;
+			}
+			if (!runningindepphys && (cl_netfps.value > 0 || !fullsend))
+			{
+				float spare;
+				spare = CL_FilterTime(msecs, wantfps, (cls.protocol == CP_NETQUAKE?0:1.5), false);
+				usetime = msecsround + (msecs - spare);
+				msecstouse = (int)usetime;
+				if (!spare)
+					fullsend = false;
+				else
+				{
+					msecsround = usetime - msecstouse;
+					msecs = spare + msecstouse;
+				}
+			}
+			else
+			{
+				usetime = msecsround + msecs;
+				msecstouse = (int)usetime;
+				msecsround = usetime - msecstouse;
+			}
+		}
+
+		if (msecstouse > 200) // cap at 200 to avoid servers splitting movement more than four times
+			msecstouse = 200;
+
+		// align msecstouse to avoid servers wasting our msecs
+		if (msecstouse > 100)
+			msecstouse &= ~3; // align to 4
+		else if (msecstouse > 50)
+			msecstouse &= ~1; // align to 2
+
+		if (msecstouse <= 0)	//FIXME
+			fullsend = false;
+		if (usetime <= 0)
+			return;	//infinite frame times = weirdness.
+
+		cl.movesequence_time = cl.time;
+		framemsecs = msecstouse;
+
+		if (cls.protocol == CP_NETQUAKE)
+			framemsecs = 0;
+	}
 
 #ifdef HLCLIENT
 	if (!CLHL_BuildUserInput(msecstouse, &independantphysics[0]))
 #endif
 	for (plnum = 0; plnum < cl.splitclients; plnum++)
 	{
-//		CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
+		vec3_t mousemovements;
 		CL_AdjustAngles (plnum, frametime);
-		IN_Move (mousemovements[plnum], plnum, frametime);
+		VectorClear(mousemovements);
+		IN_Move (mousemovements, plnum, frametime);
 		CL_ClampPitch(plnum);
-		independantphysics[plnum].forwardmove += mousemovements[plnum][0];
-		independantphysics[plnum].sidemove += mousemovements[plnum][1];
-		independantphysics[plnum].upmove += mousemovements[plnum][2];
-		VectorClear(mousemovements[plnum]);
-		
+		cl_pendingcmd[plnum].forwardmove += mousemovements[0];	//FIXME: this will get nuked by CL_BaseMove.
+		cl_pendingcmd[plnum].sidemove += mousemovements[1];
+		cl_pendingcmd[plnum].upmove += mousemovements[2];
+
 		for (i=0 ; i<3 ; i++)
-			independantphysics[plnum].angles[i] = ((int)(cl.playerview[plnum].viewangles[i]*65536.0/360)&65535);
+			cl_pendingcmd[plnum].angles[i] = ((int)(cl.playerview[plnum].viewangles[i]*65536.0/360)&65535);
 
-		if (!independantphysics[plnum].msec)
+		CL_BaseMove (&cl_pendingcmd[plnum], plnum, cl_pendingcmd[plnum].msec, framemsecs);
+		if (!cl_pendingcmd[plnum].msec)
 		{
-			CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
-			CL_FinishMove(&independantphysics[plnum], msecstouse, plnum);
-
+			CL_FinishMove(&cl_pendingcmd[plnum], plnum);
 			Cbuf_Waited();	//its okay to stop waiting now
 		}
+		cl_pendingcmd[plnum].msec = framemsecs;
 
 		// if we are spectator, try autocam
 	//	if (cl.spectator)
-		Cam_Track(&cl.playerview[plnum], &independantphysics[plnum]);
-		Cam_FinishMove(&cl.playerview[plnum], &independantphysics[plnum]);
-		independantphysics[plnum].msec = usetime;
+		Cam_Track(&cl.playerview[plnum], &cl_pendingcmd[plnum]);
+		Cam_FinishMove(&cl.playerview[plnum], &cl_pendingcmd[plnum]);
 
 		//HACK: 1000/77 = 12.98. nudge it just under so we never appear to be using 83fps at 77fps (which can trip cheat detection in mods that expect 72 fps when many servers are configured for 77)
 		//so lets just never use 12.
-		if (fullsend && (independantphysics[plnum].msec > 12.9 && independantphysics[plnum].msec < 13) && cls.maxfps == 77)
-			independantphysics[plnum].msec = 13;
+		if (fullsend && (cl_pendingcmd[plnum].msec > 12.9 && cl_pendingcmd[plnum].msec < 13) && cls.maxfps == 77)
+			cl_pendingcmd[plnum].msec = 13;
 	}
 
 	//the main loop isn't allowed to send
@@ -1977,24 +1995,29 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		}
 		cursor_active = false;
 
-		cmd = &independantphysics[0];
-		if (((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR)||(cls.protocol == CP_NETQUAKE && cls.protocol_nq >= CPNQ_DP6)) && 
-			(*cl_prydoncursor.string && cl_prydoncursor.ival >= 0) && cls.state == ca_active)
-			CL_UpdatePrydonCursor(cmd, 0);
-		else
+		for (plnum = 0; plnum < cl.splitclients; plnum++)
 		{
-			Vector2Clear(cmd->cursor_screen);
-			VectorClear(cmd->cursor_start);
-			VectorClear(cmd->cursor_impact);
-			cmd->cursor_entitynumber = 0;
+			cmd = &cl_pendingcmd[plnum];
+			if (((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR)||(cls.protocol == CP_NETQUAKE && cls.protocol_nq >= CPNQ_DP6)) && 
+				(*cl_prydoncursor.string && cl_prydoncursor.ival >= 0) && cls.state == ca_active)
+				CL_UpdatePrydonCursor(cmd, plnum);
+			else
+			{
+				Vector2Clear(cmd->cursor_screen);
+				VectorClear(cmd->cursor_start);
+				VectorClear(cmd->cursor_impact);
+				cmd->cursor_entitynumber = 0;
+			}
 		}
 
+		cl.movesequence_time += framemsecs/1000.0;
 		switch (cls.protocol)
 		{
 #ifdef NQPROT
 		case CP_NETQUAKE:
 			msecs -= (double)msecstouse;
 			CLNQ_SendCmd (&buf);
+			dontdrop = true;
 			break;
 #endif
 		case CP_QUAKEWORLD:
@@ -2010,8 +2033,8 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 #ifdef Q3CLIENT
 		case CP_QUAKE3:
 			msecs -= (double)msecstouse;
-			CLQ3_SendCmd(&independantphysics[0]);
-			memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
+			CLQ3_SendCmd(&cl_pendingcmd[0]);
+			memset(&cl_pendingcmd[0], 0, sizeof(cl_pendingcmd[0]));
 
 			//don't bank too much, because that results in banking speedcheats
 			if (msecs > 200)
@@ -2022,16 +2045,21 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			Host_EndGame("Invalid protocol in CL_SendCmd: %i", cls.protocol);
 			return;
 		}
+
+		if (cls.demorecording)
+			CL_WriteDemoCmd(&cl.outframes[cl.movesequence & UPDATE_MASK].cmd[0]);
+
+//		Con_DPrintf("generated sequence %i\n", cl.movesequence);
+		cl.movesequence++;
+
+		//clear enough of the pending command for the next frame.
+		for (plnum = 0; plnum < cl.splitclients; plnum++)
+		{
+			cl_pendingcmd[plnum].msec = 0;
+			cl_pendingcmd[plnum].impulse = 0;
+			cl_pendingcmd[plnum].buttons = 0;
+		}
 	}
-
-	i = cl.movesequence & UPDATE_MASK;
-	cmd = &cl.outframes[i].cmd[0];
-
-	if (cls.demorecording)
-		CL_WriteDemoCmd(cmd);
-
-//	Con_DPrintf("generated sequence %i\n", cl.movesequence);
-	cl.movesequence++;
 
 #ifdef IRCCONNECT
 	if (cls.netchan.remote_address.type == NA_IRC)
@@ -2043,7 +2071,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		else
 		{
 			// don't count this message when calculating PL
-			cl.outframes[i].latency = -3;
+			cl.outframes[cls.netchan.outgoing_sequence&UPDATE_MASK].latency = -3;
 			// drop this message
 			cls.netchan.outgoing_sequence++;
 			dropcount++;
@@ -2156,6 +2184,10 @@ void CL_InitInput (void)
 	Cvar_Register (&cl_netfps, inputnetworkcvargroup);
 	Cvar_Register (&cl_sparemsec, inputnetworkcvargroup);
 	Cvar_Register (&cl_run, inputnetworkcvargroup);
+
+#ifdef NQPROT
+	Cvar_Register (&cl_movement, inputnetworkcvargroup);
+#endif
 
 	Cvar_Register (&cl_smartjump, inputnetworkcvargroup);
 

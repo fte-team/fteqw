@@ -18,6 +18,7 @@ char shaders[][64] =
 	"defaultadditivesprite",
 	"defaultskin",
 	"defaultsky",
+	"defaultskybox",
 	"defaultfill",
 	"defaultsprite",
 	"defaultwall",

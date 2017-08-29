@@ -5334,7 +5334,11 @@ void Terr_FinishTerrain(model_t *mod)
 	if (qrenderer != QR_NONE)
 	{
 		if (*hm->skyname)
+		{
 			hm->skyshader = R_RegisterCustom(va("skybox_%s", hm->skyname), SUF_NONE, Shader_DefaultSkybox, NULL);
+			if (!hm->skyshader->skydome)
+				hm->skyshader = NULL;
+		}
 		else
 			hm->skyshader = NULL;
 

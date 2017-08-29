@@ -504,7 +504,7 @@ typedef struct programshared_s
 					void *hull;
 					void *domain;
 					void *geom;
-					void *layout;
+					void *layouts[2];
 				#endif
 			} hlsl;
 		#endif
@@ -606,6 +606,7 @@ struct shader_s
 		SHADER_HASDIFFUSE		= 1 << 27,	//has a T_GEN_DIFFUSE pass
 		SHADER_HASPALETTED		= 1 << 28,	//has a T_GEN_PALETTED pass
 		SHADER_HASCURRENTRENDER	= 1 << 29,	//has a $currentrender pass
+		SHADER_HASPORTAL		= 1 << 30,	//reflection image is actually a portal rather than a simple reflection (must be paired with SHADER_HASREFRACT)
 	} flags;
 
 	program_t *prog;
@@ -733,6 +734,7 @@ typedef struct
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;
 	qboolean can_mipcap;		//
+	qboolean havecubemaps;	//since gl1.3, so pretty much everyone will have this... should probably only be set if we also have seamless or clamp-to-edge.
 
 	void	 (*pDeleteProg)		(program_t *prog);
 	qboolean (*pLoadBlob)		(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile);

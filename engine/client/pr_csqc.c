@@ -43,6 +43,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "pr_common.h"
 
+extern usercmd_t cl_pendingcmd[MAX_SPLITS];
+
+
 #ifndef TEXTEDITOR
 //client only builds don't have a qc debugger
 #define QCEditor NULL
@@ -68,7 +71,11 @@ world_t csqc_world;
 int	csqc_playerseat;	//can be negative.
 static playerview_t *csqc_playerview;
 qboolean csqc_dp_lastwas3d;	//to emulate DP correctly, we need to track whether drawpic/drawfill or clearscene was called last. blame 515.
+#ifdef NOLEGACY
+#define csqc_isdarkplaces false	//hopefully this will allow a smart enough compiler to optimise it out cleanly
+#else
 static qboolean csqc_isdarkplaces;
+#endif
 static qboolean csqc_singlecheats; /*single player or cheats active, allowing custom addons*/
 static qboolean csqc_mayread;	//csqc is allowed to ReadByte();
 static qboolean csqc_worldchanged;	//make sure any caches are rebuilt properly before the next renderscene
@@ -98,6 +105,19 @@ extern sfx_t			*cl_sfx_ric2;
 extern sfx_t			*cl_sfx_ric3;
 extern sfx_t			*cl_sfx_r_exp3;
 
+#define ENDLIST
+#ifdef NOLEGACY
+#define legacycsqcglobals
+#else
+#define legacycsqcglobals	\
+	globalstring(trace_dphittexturename,	"trace_dphittexturename");			/*for dp compat*/	\
+	globalfloat(trace_dpstartcontents,	"trace_dpstartcontents");			/*for dp compat*/	\
+	globalfloat(trace_dphitcontents,	"trace_dphitcontents");				/*for dp compat*/	\
+	globalfloat(trace_dphitq3surfaceflags,	"trace_dphitq3surfaceflags");	/*for dp compat*/	\
+	globalfloat(trace_surfaceflagsf,	"trace_surfaceflagsf");				/*float		written by traceline, for mods that lack ints*/	\
+	globalfloat(trace_endcontentsf,		"trace_endcontentsf");				/*float		written by traceline EXT_CSQC_1, for mods that lack ints*/	\
+	ENDLIST
+#endif
 
 //If I do it like this, I'll never forget to register something...
 #define csqcglobals	\
@@ -119,6 +139,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(console_link,		"CSQC_ConsoleLink");	\
 	globalfunction(gamecommand,			"GameCommand");	/*DP extension*/\
 	\
+	globalfunction(ent_spawn,			"CSQC_Ent_Spawn");	\
 	globalfunction(ent_update,			"CSQC_Ent_Update");	\
 	globalfunction(ent_remove,			"CSQC_Ent_Remove");	\
 	\
@@ -158,16 +179,15 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalvector(trace_plane_normal,	"trace_plane_normal");	/*vector	written by traceline*/	\
 	globalfloat(trace_plane_dist,		"trace_plane_dist");	/*float		written by traceline*/	\
 	globalentity(trace_ent,				"trace_ent");			/*entity	written by traceline*/	\
-	globalfloat(trace_surfaceflagsf,	"trace_surfaceflagsf");	/*float		written by traceline*/	\
 	globalint(trace_surfaceflagsi,		"trace_surfaceflagsi");	/*int		written by traceline*/	\
 	globalstring(trace_surfacename,		"trace_surfacename");	/*string	written by traceline*/	\
-	globalfloat(trace_endcontentsf,		"trace_endcontentsf");	/*float		written by traceline EXT_CSQC_1*/	\
 	globalint(trace_endcontentsi,		"trace_endcontentsi");	/*int		written by traceline EXT_CSQC_1*/	\
 	globalint(trace_brush_id,			"trace_brush_id");		/*int		written by traceline*/	\
 	globalint(trace_brush_faceid,		"trace_brush_faceid");	/*int		written by traceline*/	\
 	globalint(trace_surface_id,			"trace_surface_id");	/*int		written by traceline*/	\
 	globalint(trace_bone_id,			"trace_bone_id");		/*int		written by traceline*/	\
 	globalint(trace_triangle_id,		"trace_triangle_id");	/*int		written by traceline*/	\
+	legacycsqcglobals \
 	\
 	globalfloat(clientcommandframe,		"clientcommandframe");	/*float		the next frame that will be sent*/ \
 	globalfloat(servercommandframe,		"servercommandframe");	/*float		the most recent frame received from the server*/ \
@@ -183,6 +203,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalvector(pmove_maxs,			"pmove_maxs");			/*deprecated. read/written by runplayerphysics*/ \
 	globalfloat(pmove_jump_held,		"pmove_jump_held");		/*deprecated. read/written by runplayerphysics*/ \
 	globalfloat(pmove_waterjumptime,	"pmove_waterjumptime");	/*deprecated. read/written by runplayerphysics*/ \
+	globalfloat(pmove_onground,			"pmove_onground");		/*deprecated. read/written by runplayerphysics*/ \
 	\
 	globalfloat(input_timelength,		"input_timelength");	/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalvector(input_angles,			"input_angles");		/*vector	filled by getinputstate, read by runplayerphysics*/ \
@@ -203,7 +224,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfloat(autocvar_vid_conwidth,	"autocvar_vid_conwidth");	/*float		hackfix for dp mods*/	\
 	globalfloat(autocvar_vid_conheight,	"autocvar_vid_conheight");	/*float		hackfix for dp mods*/	\
 	globalfloat(cycle_wrapped,			"cycle_wrapped");	\
-
+	ENDLIST
 
 typedef struct {
 #define globalfloat(name,qcname) float *name
@@ -265,30 +286,33 @@ static void CSQC_ChangeLocalPlayer(int seat)
 	}
 	if ((unsigned int)seat < MAX_SPLITS)
 	{
-		extern usercmd_t independantphysics[MAX_SPLITS];
-		int i;
-		usercmd_t *cmd = &independantphysics[seat];
-		usercmd_t tmp;
-		for (i=0 ; i<3 ; i++)
-			cmd->angles[i] = ((int)(csqc_playerview->viewangles[i]*65536.0/360)&65535);
-		if (!cmd->msec)
-			CL_BaseMove (cmd, seat, 0, 72);
-		tmp = *cmd;
-		cmd = &tmp;
-		cmd->msec = (realtime - cl.outframes[(cl.movesequence-1)&UPDATE_MASK].senttime)*1000;
+//		int i;
+		usercmd_t *cmd = &cl_pendingcmd[seat];
+//		usercmd_t tmp;
+//		for (i=0 ; i<3 ; i++)
+//			cmd->angles[i] = ((int)(csqc_playerview->viewangles[i]*65536.0/360)&65535);
+//		if (!cmd->msec)
+//			CL_BaseMove (cmd, seat, cmd->msec, newtime);
+//		tmp = *cmd;
+//		cmd = &tmp;
+//		cmd->msec = (realtime - cl.outframes[(cl.movesequence-1)&UPDATE_MASK].senttime)*1000;
 		cs_set_input_state(cmd);
 
 		if (csqcg.pmove_org)
-		{
-			csqcg.pmove_org[0] = csqc_playerview->simorg[0];
-			csqcg.pmove_org[1] = csqc_playerview->simorg[1];
-			csqcg.pmove_org[2] = csqc_playerview->simorg[2];
+			VectorCopy(csqc_playerview->simorg, csqcg.pmove_org);
+		if (csqc_isdarkplaces)
+		{	//dp mods tend to require these to be totally unlerped
+			if (csqcg.pmove_vel)
+				VectorCopy(cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[csqc_playerview->playernum].velocity, csqcg.pmove_vel);
+			if (csqcg.pmove_onground)
+				*csqcg.pmove_onground = cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[csqc_playerview->playernum].onground;
 		}
-		if (csqcg.pmove_vel)
+		else
 		{
-			csqcg.pmove_vel[0] = csqc_playerview->simvel[0];
-			csqcg.pmove_vel[1] = csqc_playerview->simvel[1];
-			csqcg.pmove_vel[2] = csqc_playerview->simvel[2];
+			if (csqcg.pmove_vel)
+				VectorCopy(csqc_playerview->simvel, csqcg.pmove_vel);
+			if (csqcg.pmove_onground)
+				*csqcg.pmove_onground = csqc_playerview->onground;
 		}
 	}
 }
@@ -320,6 +344,15 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 #define ensurevector(name)	if (!csqcg.name) csqcg.name = junk._vector;
 #define ensureentity(name)	if (!csqcg.name) csqcg.name = &junk.edict;
 
+#ifdef NOLEGACY
+	{
+		etype_t etype = ev_void;
+		if (!csqcg.trace_surfaceflagsi)
+			csqcg.trace_surfaceflagsi = PR_FindGlobal(csqcprogs, "trace_surfaceflags", 0, &etype);
+		if (!csqcg.trace_endcontentsi)
+			csqcg.trace_endcontentsi = PR_FindGlobal(csqcprogs, "trace_endcontents", 0, &etype);
+	}
+#else
 	if (!csqcg.trace_surfaceflagsf && !csqcg.trace_surfaceflagsi)
 	{
 		etype_t etype = ev_void;
@@ -338,6 +371,9 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 		else if (etype == ev_integer)
 			csqcg.trace_endcontentsi = &v->_int;
 	}
+	ensurefloat(trace_surfaceflagsf);
+	ensurefloat(trace_endcontentsf);
+#endif
 
 	ensurefloat(trace_allsolid);
 	ensurefloat(trace_startsolid);
@@ -347,9 +383,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	ensurevector(trace_endpos);
 	ensurevector(trace_plane_normal);
 	ensurefloat(trace_plane_dist);
-	ensurefloat(trace_surfaceflagsf);
 	ensureint(trace_surfaceflagsi);
-	ensurefloat(trace_endcontentsf);
 	ensureint(trace_endcontentsi);
 	ensureint(trace_brush_id);
 	ensureint(trace_brush_faceid);
@@ -456,7 +490,12 @@ typedef struct csqcedict_s
 	};
 #endif
 	/*the above is shared with qclib*/
+#ifdef USEAREAGRID
+	areagridlink_t	gridareas[AREAGRIDPERENT];	//on overflow, use the inefficient overflow list.
+	size_t			gridareasequence;	//used to avoid iterrating the same ent twice.
+#else
 	link_t	area;
+#endif
 	pvscache_t pvsinfo;
 	int lastruntime;
 	int solidsize;
@@ -866,7 +905,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		out->topcolour = cl.players[ival-1].ttopcolor;
 		out->bottomcolour = cl.players[ival-1].tbottomcolor;
 	}
-	else if (ival >= 1024)
+	else if (ival /*>= 1024*/)
 	{
 		//DP COLORMAP extension
 		out->topcolour = (ival>>4) & 0x0f;
@@ -879,29 +918,24 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	}
 
 	if (!in->xv->colormod[0] && !in->xv->colormod[1] && !in->xv->colormod[2])
-	{
-		out->shaderRGBAf[0] = 1;
-		out->shaderRGBAf[1] = 1;
-		out->shaderRGBAf[2] = 1;
-	}
+		VectorSet(out->shaderRGBAf, 1, 1, 1);
 	else
 	{
 		out->flags |= RF_FORCECOLOURMOD;
-		out->shaderRGBAf[0] = in->xv->colormod[0];
-		out->shaderRGBAf[1] = in->xv->colormod[1];
-		out->shaderRGBAf[2] = in->xv->colormod[2];
+		VectorCopy(in->xv->colormod, out->shaderRGBAf);
 	}
 	if (!in->xv->alpha || in->xv->alpha == 1)
-	{
 		out->shaderRGBAf[3] = 1.0f;
-	}
 	else
 	{
 		out->flags |= RF_TRANSLUCENT;
 		out->shaderRGBAf[3] = in->xv->alpha;
 	}
 
-	VectorCopy(in->xv->glowmod, out->glowmod);
+	if (!in->xv->glowmod[0] && !in->xv->glowmod[1] && !in->xv->glowmod[2])
+		VectorSet(out->glowmod, 1, 1, 1);
+	else
+		VectorCopy(in->xv->glowmod, out->glowmod);
 
 #ifdef HEXEN2
 	out->drawflags = in->xv->drawflags;
@@ -1217,6 +1251,7 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 	int maxe;
 
 	int oldself = *csqcg.self;
+	RSpeedMark();
 
 	if (cl.worldmodel)
 	{
@@ -1307,6 +1342,8 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 			CL_UpdateTEnts ();
 		}
 	}
+
+	RSpeedEnd(RSPEED_LINKENTITIES);
 }
 
 //enum {vb_vertexcoord, vb_texcoord, vb_rgba, vb_normal, vb_sdir, vb_tdir, vb_indexes, vb_rgb, vb_alpha};
@@ -1385,8 +1422,10 @@ static void CSQC_PolyFlush(void)
 // #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
 void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	shader_t *shader;
+	const char *shadername = PR_GetStringOfs(prinst, OFS_PARM0);
 	int qcflags = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
+	shader_t *shader;
+	extern shader_t *shader_draw_fill_trans;
 	int beflags;
 	qboolean twod;
 
@@ -1407,10 +1446,12 @@ void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	if (csqc_isdarkplaces || (qcflags & DRAWFLAG_TWOSIDED))
 		beflags |= BEF_FORCETWOSIDED;
 
-	if (twod)
-		shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
+	if (!*shadername)
+		shader = shader_draw_fill_trans;	//dp compat...
+	else if (twod)
+		shader = R_RegisterPic(shadername, NULL);
 	else
-		shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
+		shader = R_RegisterSkin(shadername, NULL);
 
 	if (R2D_Flush && (R2D_Flush != CSQC_PolyFlush || csqc_poly_shader != shader || csqc_poly_flags != beflags || csqc_poly_2d != twod))
 		R2D_Flush();
@@ -2361,11 +2402,9 @@ static void cs_settracevars(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	VectorCopy (tr->endpos, csqcg.trace_endpos);
 	VectorCopy (tr->plane.normal, csqcg.trace_plane_normal);
 	*csqcg.trace_plane_dist =  tr->plane.dist;
-	*csqcg.trace_surfaceflagsf = tr->surface?tr->surface->flags:0;
 	*csqcg.trace_surfaceflagsi = tr->surface?tr->surface->flags:0;
 	if (csqcg.trace_surfacename)
 		prinst->SetStringField(prinst, NULL, csqcg.trace_surfacename, tr->surface?tr->surface->name:NULL, true);
-	*csqcg.trace_endcontentsf = tr->contents;
 	*csqcg.trace_endcontentsi = tr->contents;
 	*csqcg.trace_brush_id = tr->brush_id;
 	*csqcg.trace_brush_faceid = tr->brush_face;
@@ -2376,6 +2415,20 @@ static void cs_settracevars(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)tr->ent);
 	else
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)csqc_world.edicts);
+
+#ifndef NOLEGACY
+	*csqcg.trace_endcontentsf = tr->contents;
+	*csqcg.trace_surfaceflagsf = tr->surface?tr->surface->flags:0;
+
+	if (csqcg.trace_dphittexturename)
+		prinst->SetStringField(prinst, NULL, csqcg.trace_dphittexturename, tr->surface?tr->surface->name:NULL, true);
+	if (csqcg.trace_dpstartcontents)
+		*csqcg.trace_dpstartcontents = FTEToDPContents(0);	//fixme, maybe
+	if (csqcg.trace_dphitcontents)
+		*csqcg.trace_dphitcontents = FTEToDPContents(tr->contents);
+	if (csqcg.trace_dphitq3surfaceflags)
+		*csqcg.trace_dphitq3surfaceflags = tr->surface?tr->surface->flags:0;
+#endif
 }
 
 static void QCBUILTIN PF_cs_traceline(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3091,7 +3144,7 @@ static void cs_set_input_state (usercmd_t *cmd)
 	if (csqcg.input_weapon)
 		*csqcg.input_weapon = cmd->weapon;
 	if (csqcg.input_servertime)
-		*csqcg.input_servertime = cmd->servertime/1000.0f;
+		*csqcg.input_servertime = cmd->fservertime;
 	if (csqcg.input_clienttime)
 		*csqcg.input_clienttime = cmd->fclienttime/1000.0f;
 
@@ -3134,7 +3187,7 @@ static void cs_get_input_state (usercmd_t *cmd)
 	if (csqcg.input_weapon)
 		cmd->weapon = *csqcg.input_weapon;
 	if (csqcg.input_servertime)
-		cmd->servertime = *csqcg.input_servertime*1000;
+		cmd->fservertime = *csqcg.input_servertime;
 
 	if (csqcg.input_cursor_screen)
 		Vector2Copy(csqcg.input_cursor_screen, cmd->cursor_screen);
@@ -3149,8 +3202,8 @@ static void cs_get_input_state (usercmd_t *cmd)
 //get the input commands, and stuff them into some globals.
 static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	usercmd_t *cmd, tmp;
-	extern usercmd_t independantphysics[MAX_SPLITS];
+	usercmd_t *cmd;
+	extern usercmd_t cl_pendingcmd[MAX_SPLITS];
 	int f = G_FLOAT(OFS_PARM0);
 	int seat = ((prinst->callargc>1)?G_FLOAT(OFS_PARM1):csqc_playerseat);
 
@@ -3170,9 +3223,10 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 	/*outgoing_sequence says how many packets have actually been sent, but there's an extra pending packet which has not been sent yet - be warned though, its data will change in the coming frames*/
 	if (f == cl.movesequence)
 	{
-		int i;
-		cmd = &independantphysics[seat];
-
+//		int i;
+//		usercmd_t tmp;
+		cmd = &cl_pendingcmd[seat];
+/*
 		tmp = *cmd;
 		cmd = &tmp;
 		for (i=0 ; i<3 ; i++)
@@ -3180,9 +3234,13 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 		if (!cmd->msec)
 		{
 //			*cmd = cl.outframes[(f-1)&UPDATE_MASK].cmd[seat];
-			CL_BaseMove (cmd, seat, 0, 72);
+			CL_BaseMove (cmd, seat, cmd->msec, newtime);
 		}
-		cmd->msec = (realtime - cl.outframes[(f-1)&UPDATE_MASK].senttime)*1000;
+//		if (cl.predservertimes)
+//			cmd->msec = (cl.time - cl.outframes[(f-1)&UPDATE_MASK].cmd[seat].fservertime)*1000;
+//		else
+			cmd->msec = (realtime - cl.outframes[(f-1)&UPDATE_MASK].senttime)*1000;
+*/
 	}
 	else
 	{
@@ -3203,7 +3261,7 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 //not intended to affect client state at all
 static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	unsigned int msecs;
+	float msecs;
 	float oldtime = *csqcg.simtime;
 
 	csqcedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
@@ -3228,7 +3286,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	pmove.jump_msec = 0;//(cls.z_ext & Z_EXT_PM_TYPE) ? 0 : from->jump_msec;
 
 //set up the movement command
-	msecs = *csqcg.input_timelength*1000 + 0.5f;
+	msecs = *csqcg.input_timelength*1000;
 	//precision inaccuracies. :(
 	pmove.cmd.angles[0] = ANGLE2SHORT(csqcg.input_angles[0]);
 	pmove.cmd.angles[1] = ANGLE2SHORT(csqcg.input_angles[1]);
@@ -3270,7 +3328,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 
 	CL_SetSolidEntities();
 
-	while(msecs)	//break up longer commands
+	while(msecs > 0)	//break up longer commands
 	{
 		pmove.cmd.msec = msecs;
 		if (pmove.cmd.msec > 50)
@@ -3587,8 +3645,17 @@ static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars
 	else
 		G_INT(OFS_RETURN) = 0;
 }
+static void QCBUILTIN PF_cs_serverkeyfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *ret = PF_cs_serverkey_internal(keyname);
+	if (*ret)
+		G_FLOAT(OFS_RETURN) = strtod(ret, NULL);
+	else
+		G_FLOAT(OFS_RETURN) = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):0;
+}
 //string(float pnum, string keyname)
-static void QCBUILTIN PF_cs_getplayerkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_cs_getplayerkeystring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int pnum = G_FLOAT(OFS_PARM0);
 	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -3611,6 +3678,30 @@ static void QCBUILTIN PF_cs_getplayerkey (pubprogfuncs_t *prinst, struct globalv
 		RETURN_TSTRING(ret);
 	else
 		G_INT(OFS_RETURN) = 0;
+}
+static void QCBUILTIN PF_cs_getplayerkeyfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int pnum = G_FLOAT(OFS_PARM0);
+	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *ret;
+	if (pnum < 0)
+	{
+		if (csqc_resortfrags)
+		{
+			Sbar_SortFrags(true, false);
+			csqc_resortfrags = false;
+		}
+		if (pnum >= -scoreboardlines)
+		{//sort by
+			pnum = fragsort[-(pnum+1)];
+		}
+	}
+
+	ret = PF_cs_getplayerkey_internal(pnum, keyname);
+	if (*ret)
+		G_FLOAT(OFS_RETURN) = strtod(ret, NULL);
+	else
+		G_FLOAT(OFS_RETURN) = (prinst->callargc >= 3)?G_FLOAT(OFS_PARM2):0;
 }
 
 static void QCBUILTIN PF_cs_infokey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4873,7 +4964,8 @@ qboolean CSQC_DeltaUpdate(entity_state_t *src)
 		else
 		{
 			ent = (csqcedict_t *)ED_Alloc(csqcprogs, false, 0);
-			ent->xv->drawmask = MASK_DELTA;
+			if (!csqc_isdarkplaces)
+				ent->xv->drawmask = MASK_DELTA;
 		}
 
 		CSQC_EntStateToCSQC(deltaflags[src->modelindex], csqcdelta_time, src, ent);
@@ -6000,7 +6092,8 @@ static struct {
 
 	{"runstandardplayerphysics",PF_cs_runplayerphysics,			347},	// #347 void() runstandardplayerphysics (EXT_CSQC)
 
-	{"getplayerkeyvalue",		PF_cs_getplayerkey,				348},	// #348 string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
+	{"getplayerkeyvalue",		PF_cs_getplayerkeystring,		348},	// #348 string(float playernum, string keyname) getplayerkeyvalue (EXT_CSQC)
+	{"getplayerkeyfloat",		PF_cs_getplayerkeyfloat,		0},	// #348 string(float playernum, string keyname) getplayerkeyvalue
 
 	{"isdemo",					PF_cl_playingdemo,				349},	// #349 float() isdemo (EXT_CSQC)
 //350
@@ -6012,6 +6105,7 @@ static struct {
 	{"wasfreed",				PF_WasFreed,					353},	// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
 
 	{"serverkey",				PF_cs_serverkey,				354},	// #354 string(string key) serverkey;
+	{"serverkeyfloat",			PF_cs_serverkeyfloat,			0},		// #0 float(string key) serverkeyfloat;
 	{"getentitytoken",			PF_cs_getentitytoken,			355},	// #355 string() getentitytoken;
 	{"findfont",				PF_CL_findfont,					356},
 	{"loadfont",				PF_CL_loadfont,					357},
@@ -6521,6 +6615,8 @@ static model_t *QDECL CSQC_World_ModelForIndex(world_t *w, int modelindex)
 	model_t *mod = CSQC_GetModelForIndex(modelindex);
 	if (mod && mod->loadstate != MLS_LOADED)
 	{
+		if (mod->loadstate == MLS_NOTLOADED)
+			Mod_LoadModel(mod, MLV_SILENT);
 		if (mod->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
 		if (mod->loadstate != MLS_LOADED)
@@ -6831,6 +6927,7 @@ void ASMCALL CSQC_ThinkTimeOp(pubprogfuncs_t *progs, edict_t *ed, float var)
 
 pbool PDECL CSQC_CheckHeaderCrc(pubprogfuncs_t *progs, progsnum_t num, int crc)
 {
+#ifndef csqc_isdarkplaces
 	if (!num)
 	{
 		if (crc == 22390)
@@ -6846,6 +6943,7 @@ pbool PDECL CSQC_CheckHeaderCrc(pubprogfuncs_t *progs, progsnum_t num, int crc)
 				Con_Printf(CON_WARNING "Running outdated or unknown csprogs.dat version\n");
 		}
 	}
+#endif
 	return true;
 }
 
@@ -6961,7 +7059,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		csqcprogs = InitProgs(&csqcprogparms);
 		csqc_world.progs = csqcprogs;
 		csqc_world.usesolidcorpse = true;
-		PR_Configure(csqcprogs, pr_csqc_memsize.ival, MAX_PROGS, pr_enable_profiling.ival);
+		PR_Configure(csqcprogs, PR_ReadBytesString(pr_csqc_memsize.string), MAX_PROGS, pr_enable_profiling.ival);
 		csqc_world.worldmodel = cl.worldmodel;
 		csqc_world.Event_Touch = CSQC_Event_Touch;
 		csqc_world.Event_Think = CSQC_Event_Think;
@@ -6978,7 +7076,9 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 			return false;
 		}
 
+#ifndef csqc_isdarkplaces
 		csqc_isdarkplaces = false;
+#endif
 		if (csdatenabled || csqc_singlecheats || anycsqc)
 		{
 			csprogsnum = PR_LoadProgs(csqcprogs, "csprogs.dat");
@@ -7057,6 +7157,8 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		if (str)
 		{
 			char *s = Info_ValueForKey(cl.serverinfo, "map");
+			if (!*s)
+				s = cl.model_name[1];
 			if (!*s)
 				s = "unknown";
 			*str = PR_NewString(csqcprogs, s);
@@ -7440,6 +7542,7 @@ qboolean CSQC_DrawView(void)
 	int ticlimit = 10;
 	float mintic = 0.01;
 	double clframetime = host_frametime;
+	RSpeedLocals();
 
 	csqc_resortfrags = true;
 	csqctime = Sys_DoubleTime();
@@ -7457,6 +7560,7 @@ qboolean CSQC_DrawView(void)
 
 	csqc_dp_lastwas3d = false;
 
+	RSpeedRemark();
 	if (csqc_isdarkplaces && *csqc_world.g.physics_mode == 1)
 	{
 		csqc_world.physicstime = cl.servertime;
@@ -7490,11 +7594,11 @@ qboolean CSQC_DrawView(void)
 			csqc_world.physicstime += host_frametime;
 		}
 	}
+	RSpeedEnd(RSPEED_CSQCPHYSICS);
+
+	RSpeedRemark();
 
 	host_frametime = clframetime;
-
-	//always revert to a usable default.
-	CSQC_ChangeLocalPlayer(cl_forceseat.ival?(cl_forceseat.ival - 1) % cl.splitclients:0);
 
 	if (csqcg.frametime)
 	{
@@ -7516,28 +7620,6 @@ qboolean CSQC_DrawView(void)
 	if (csqcg.numclientseats)
 		*csqcg.numclientseats = cl.splitclients;
 
-	DropPunchAngle (csqc_playerview);
-	if (cl.worldmodel)
-		Surf_LessenStains();
-
-	if (!cl.paused)
-	{
-		if (csqcg.clientcommandframe)
-			*csqcg.clientcommandframe = cl.movesequence;
-		if (csqcg.servercommandframe)
-			*csqcg.servercommandframe = cl.ackedmovesequence;
-		if (csqcg.gamespeed)
-			*csqcg.gamespeed = cl.gamespeed;
-	}
-	else 
-	{
-		if (csqcg.clientcommandframe)
-			*csqcg.clientcommandframe = cl.movesequence;
-		if (csqcg.servercommandframe)
-			*csqcg.servercommandframe = cl.ackedmovesequence;
-		if (csqcg.gamespeed)
-			*csqcg.gamespeed = 0;
-	}
 	if (csqcg.intermission)
 		*csqcg.intermission = cl.intermissionmode;
 
@@ -7551,7 +7633,17 @@ qboolean CSQC_DrawView(void)
 		*csqcg.cltime = realtime;
 	if (csqcg.simtime)
 		*csqcg.simtime = cl.servertime;
-
+	if (csqcg.clientcommandframe)
+		*csqcg.clientcommandframe = cl.movesequence;
+	if (csqcg.servercommandframe)
+		*csqcg.servercommandframe = cl.ackedmovesequence;
+	if (csqcg.gamespeed)
+		*csqcg.gamespeed = cl.gamespeed;
+	if (cl.paused)
+	{
+		if (csqcg.gamespeed)
+			*csqcg.gamespeed = 0;
+	}
 	if (cl.currentpackentities && cl.previouspackentities)
 	{
 		if (csqcg.netnewtime)
@@ -7562,25 +7654,32 @@ qboolean CSQC_DrawView(void)
 			*csqcg.netdeltatime = cl.currentpackentities->servertime - cl.previouspackentities->servertime;
 	}
 
+	//always revert to a usable default.
+	CSQC_ChangeLocalPlayer(cl_forceseat.ival?(cl_forceseat.ival - 1) % cl.splitclients:0);
+	DropPunchAngle (csqc_playerview);	//FIXME: this seems like the wrong place for this.
+	if (cl.worldmodel)
+		Surf_LessenStains();
+
 	CSQC_RunThreads();	//wake up any qc threads
 
+#ifndef NOLEGACY
 	if (csqcg.autocvar_vid_conwidth)
 		*csqcg.autocvar_vid_conwidth = vid.width;
 	if (csqcg.autocvar_vid_conheight)
 		*csqcg.autocvar_vid_conheight = vid.height;
+#endif
 
-	//EXT_CSQC_1
 	{
 		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = vid.width;
 		G_FLOAT(OFS_PARM1) = vid.height;
 		G_FLOAT(OFS_PARM2) = !Key_Dest_Has(kdm_emenu) && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
+
+		if (csqcg.f_updateviewloading && cls.state && cls.state < ca_active)
+			PR_ExecuteProgram(csqcprogs, csqcg.f_updateviewloading);
+		else
+			PR_ExecuteProgram(csqcprogs, csqcg.f_updateview);
 	}
-	//end EXT_CSQC_1
-	if (csqcg.f_updateviewloading && cls.state && cls.state < ca_active)
-		PR_ExecuteProgram(csqcprogs, csqcg.f_updateviewloading);
-	else
-		PR_ExecuteProgram(csqcprogs, csqcg.f_updateview);
 
 	if (*r_refdef.rt_destcolour[0].texname)
 	{
@@ -7589,6 +7688,8 @@ qboolean CSQC_DrawView(void)
 		Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));
 		BE_RenderToTextureUpdate2d(true);
 	}
+
+	RSpeedEnd(RSPEED_CSQCREDRAW);
 
 
 	return true;
@@ -8111,10 +8212,13 @@ void CSQC_ParseEntities(void)
 	if (csqcg.netdeltatime)
 		*csqcg.netdeltatime = cl.gametime - cl.oldgametime;
 
-	if (csqcg.clientcommandframe)
-		*csqcg.clientcommandframe = cl.movesequence;
-	if (csqcg.servercommandframe)
-		*csqcg.servercommandframe = cl.ackedmovesequence;
+	if (!csqc_isdarkplaces)
+	{
+		if (csqcg.clientcommandframe)
+			*csqcg.clientcommandframe = cl.movesequence;
+		if (csqcg.servercommandframe)
+			*csqcg.servercommandframe = cl.ackedmovesequence;
+	}
 
 	for(;;)
 	{
@@ -8175,9 +8279,20 @@ void CSQC_ParseEntities(void)
 			ent = csqcent[entnum];
 			if (!ent)
 			{
-				ent = (csqcedict_t*)ED_Alloc(csqcprogs, false, 0);
-				csqcent[entnum] = ent;
-				ent->xv->entnum = entnum;
+				if (csqcg.ent_spawn)
+				{
+					*csqcg.self = 0;
+					G_FLOAT(OFS_PARM0) = entnum;
+					PR_ExecuteProgram(csqcprogs, csqcg.ent_spawn);
+					ent = csqcent[entnum] = (csqcedict_t*)PROG_TO_WEDICT(csqcprogs, *csqcg.self);	//allow the mod to change the ent.
+				}
+				else
+				{
+					ent = (csqcedict_t*)ED_Alloc(csqcprogs, false, 0);
+					csqcent[entnum] = ent;
+					ent->xv->entnum = entnum;
+				}
+
 				G_FLOAT(OFS_PARM0) = true;
 
 				if (cl_csqcdebug.ival)
@@ -8194,6 +8309,8 @@ void CSQC_ParseEntities(void)
 			csqc_mayread = true;
 			PR_ExecuteProgram(csqcprogs, csqcg.ent_update);
 			csqc_mayread = false;
+			if (csqcg.ent_spawn)
+				csqcent[entnum] = (csqcedict_t*)PROG_TO_WEDICT(csqcprogs, *csqcg.self);	//allow the mod to change the ent.
 
 			if (cl.csqcdebug)
 			{

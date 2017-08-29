@@ -864,7 +864,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 				SV_SpawnParmsToQC(host_client);
 				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-				ent->area.next = ent->area.prev = NULL;
+				World_UnlinkEdict((wedict_t*)ent);
 				G_FLOAT(OFS_PARM0) = sv.time-host_client->spawninfotime;
 				PR_ExecuteProgram(svprogfuncs, eval->function);
 

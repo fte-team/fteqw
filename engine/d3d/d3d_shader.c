@@ -474,6 +474,7 @@ void D3D9Shader_Init(void)
 	sh_config.env_add				= 1;
 
 	sh_config.can_mipcap		= true;	//at creation time, I think.
+	sh_config.havecubemaps		= true;
 
 	IDirect3DDevice9_GetDeviceCaps(pD3DDev9, &caps);
 

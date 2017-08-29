@@ -10,6 +10,8 @@
 !!argb vertexlit=0
 !!samps paletted 1
 !!argb eightbit=0
+!!argf mask=1.0
+!!argb masklt=false
 !!permu FOG
 //!!permu DELUXE
 //!!permu LIGHTSTYLED //this seems to be breaking nvidia drivers if set from the engine, despite us not using it...
@@ -185,6 +187,20 @@ void main ()
 
 //entity modifiers
 	gl_FragColor = gl_FragColor * e_colourident;
+
+	if (arg_mask != 1.0)
+	{
+		if (arg_masklt)
+		{
+			if (gl_FragColor.a < arg_mask)
+				discard;
+		}
+		else
+		{
+			if (gl_FragColor.a >= arg_mask)
+				discard;
+		}
+	}
 
 //and finally hide it all if we're fogged.
 #ifdef FOG

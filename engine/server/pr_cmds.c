@@ -511,6 +511,8 @@ model_t *QDECL SVPR_GetCModel(world_t *w, int modelindex)
 		mod = sv.models[modelindex];
 		if (mod && mod->loadstate != MLS_LOADED)
 		{
+			if (mod->loadstate == MLS_NOTLOADED)
+				Mod_LoadModel(mod, MLV_SILENT);
 			if (mod->loadstate == MLS_LOADING)
 				COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
 			if (mod->loadstate != MLS_LOADED)
@@ -1679,18 +1681,6 @@ void PR_SpawnInitialEntities(const char *file)
 		sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, &ctx, PR_DoSpawnInitialEntity);
 	else
 		sv.world.edict_size = 0;
-}
-
-static qofs_t PR_ReadBytesString(char *str)
-{
-	size_t u = strtoul(str, &str, 0);
-	if (*str == 'g')
-		u *= 1024*1024*1024;
-	if (*str == 'm')
-		u *= 1024*1024;
-	if (*str == 'k')
-		u *= 1024;
-	return u;
 }
 
 void SV_RegisterH2CustomTents(void);
@@ -3478,38 +3468,6 @@ static void QCBUILTIN PF_ss_LocalSound(pubprogfuncs_t *prinst, struct globalvars
 #else
 #define PF_ss_LocalSound PF_Fixme
 #endif
-
-unsigned int FTEToDPContents(unsigned int contents)
-{
-	unsigned int r = 0;
-	if (contents & FTECONTENTS_SOLID)
-		r |= DPCONTENTS_SOLID;
-	if (contents & FTECONTENTS_WATER)
-		r |= DPCONTENTS_WATER;
-	if (contents & FTECONTENTS_SLIME)
-		r |= DPCONTENTS_SLIME;
-	if (contents & FTECONTENTS_LAVA)
-		r |= DPCONTENTS_LAVA;
-	if (contents & FTECONTENTS_SKY)
-		r |= DPCONTENTS_SKY;
-	if (contents & FTECONTENTS_BODY)
-		r |= DPCONTENTS_BODY;
-	if (contents & FTECONTENTS_CORPSE)
-		r |= DPCONTENTS_CORPSE;
-	if (contents & Q3CONTENTS_NODROP)
-		r |= DPCONTENTS_NODROP;
-	if (contents & FTECONTENTS_PLAYERCLIP)
-		r |= DPCONTENTS_PLAYERCLIP;
-	if (contents & FTECONTENTS_MONSTERCLIP)
-		r |= DPCONTENTS_MONSTERCLIP;
-	if (contents & Q3CONTENTS_DONOTENTER)
-		r |= DPCONTENTS_DONOTENTER;
-	if (contents & Q3CONTENTS_BOTCLIP)
-		r |= DPCONTENTS_BOTCLIP;
-//	if (contents & FTECONTENTS_OPAQUE)
-//		r |= DPCONTENTS_OPAQUE;
-	return r;
-}
 
 static void set_trace_globals(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, trace_t *trace)
 {
@@ -5979,16 +5937,21 @@ static void QCBUILTIN PF_infokey_f (pubprogfuncs_t *prinst, struct globalvars_s 
 	G_FLOAT(OFS_RETURN) = atof(value);
 }
 
-static void QCBUILTIN PF_sv_serverkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_sv_serverkeystring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*value;
-	const char	*key;
-
-	key = PR_GetStringOfs(prinst, OFS_PARM1);
-	value = Info_ValueForKey (svs.info, key);
-	G_INT(OFS_RETURN) = PR_TempString(prinst, value);
+	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char	*value = Info_ValueForKey (svs.info, key);
+	G_INT(OFS_RETURN) = *value?PR_TempString(prinst, value):0;
 }
-
+static void QCBUILTIN PF_sv_serverkeyfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char	*key = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char	*value = Info_ValueForKey (svs.info, key);
+	if (*value)
+		G_FLOAT(OFS_RETURN) = strtod(value, NULL);
+	else
+		G_FLOAT(OFS_RETURN) = (prinst->callargc>=2)?G_FLOAT(OFS_PARM1):0;
+}
 
 /*
 ==============
@@ -7117,8 +7080,8 @@ const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned 
 		case SCP_NETQUAKE:		bp = "nq";			break;
 		case SCP_BJP3:			bp = "bjp3";		break;
 		case SCP_FITZ666:		bp = "fitz666";		break;
-		case SCP_DARKPLACES6:	bp = "dp6";			break;
-		case SCP_DARKPLACES7:	bp = "dp7";			break;
+		case SCP_DARKPLACES6:	bp = "dpp6";		break;
+		case SCP_DARKPLACES7:	bp = "dpp7";		break;
 		}
 		Info_SetValueForKey(clfeatures, "basicprotocol", bp, sizeof(clfeatures));
 		Info_SetValueForKey(clfeatures, "guid", guid, sizeof(clfeatures));
@@ -9168,14 +9131,14 @@ static void QCBUILTIN PF_setcolors (pubprogfuncs_t *prinst, struct globalvars_s 
 	client->edict->v->team = (i & 15) + 1;
 
 	sprintf(number, "%i", i>>4);
-	if (!strcmp(number, Info_ValueForKey(client->userinfo, "topcolor")))
+	if (strcmp(number, Info_ValueForKey(client->userinfo, "topcolor")))
 	{
 		Info_SetValueForKey(client->userinfo, "topcolor", number, sizeof(client->userinfo));
 		key = "topcolor";
 	}
 
 	sprintf(number, "%i", i&15);
-	if (!strcmp(number, Info_ValueForKey(client->userinfo, "bottomcolor")))
+	if (strcmp(number, Info_ValueForKey(client->userinfo, "bottomcolor")))
 	{
 		Info_SetValueForKey(client->userinfo, "bottomcolor", number, sizeof(client->userinfo));
 		key = key?"*bothcolours":"bottomcolor";
@@ -9464,9 +9427,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		pmove_mins[i] = pmove.origin[i] - 256;
 		pmove_maxs[i] = pmove.origin[i] + 256;
 	}
-	AddLinksToPmove(ent, sv.world.areanodes);
-//	AddAllEntsToPmove();
-	AddLinksToPmove_Force ( ent, &sv.world.portallist );
+	AddAllLinksToPmove(&sv.world, (wedict_t*)ent);
 
 	SV_PreRunCmd();
 
@@ -9841,6 +9802,11 @@ static void QCBUILTIN PF_setpause(pubprogfuncs_t *prinst, struct globalvars_s *p
 	G_FLOAT(OFS_RETURN) = !!(sv.paused&PAUSE_EXPLICIT);
 	if (sv.paused != pause)
 	{
+		if (pause&PAUSE_EXPLICIT)
+			SV_BroadcastTPrintf (PRINT_HIGH, "game paused\n");
+		else
+			SV_BroadcastTPrintf (PRINT_HIGH, "game unpaused\n");
+
 		sv.paused = pause;
 		sv.pausedstart = Sys_DoubleTime();
 	}
@@ -9976,7 +9942,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"remove",			PF_Remove,			15,		15,		15,		0,	D("void(entity e)", "Destroys the given entity and clears some limited fields (including model, modelindex, solid, classname). Any references to the entity following the call are an error. After two seconds, the entity will be reused, in the interim you can unfortunatly still read its fields to see if the reference is no longer valid.")},
 	{"traceline",		PF_svtraceline,		16,		16,		16,		0,	D("void(vector v1, vector v2, float flags, entity ent)", "Traces a thin line through the world from v1 towards v2.\nWill not collide with ent, ent.owner, or any entity who's owner field refers to ent.\nThe passed entity will also be used to determine whether to use a capsule trace, the contents that the trace should impact, and a couple of other extra fields that define the trace.\nThere are no side effects beyond the trace_* globals being written.\nflags&MOVE_NOMONSTERS will not impact on non-bsp entities.\nflags&MOVE_MISSILE will impact with increased size.\nflags&MOVE_HITMODEL will impact upon model meshes, instead of their bounding boxes.\nflags&MOVE_TRIGGERS will also stop on triggers\nflags&MOVE_EVERYTHING will stop if it hits anything, even non-solid entities.\nflags&MOVE_LAGGED will backdate entity positions for the purposes of this builtin according to the indicated player ent's latency, to provide lag compensation.")},
 	{"checkclient",		PF_checkclient,		17,		17,		17,		0,	D("entity()", "Returns one of the player entities. The returned player will change periodically.")},
-	{"find",			PF_FindString,		18,		18,		18,		0,	D("entity(entity start, .string fld, string match)", "Scan for the next entity with a given field set to the given 'match' value. start should be either world, or the previous entity that was found. Returns world on failure/if there are no more.")},
+	{"find",			PF_FindString,		18,		18,		18,		0,	D("entity(entity start, .string fld, string match)", "Scan for the next entity with a given field set to the given 'match' value. start should be either world, or the previous entity that was found. Returns world on failure/if there are no more.\nIf you have many many entities then you may find that hashtables will give more performance (but requires extra upkeep).")},
 	{"precache_sound",	PF_precache_sound,	19,		19,		19,		0,	D("string(string s)", "Precaches a sound, making it known to clients and loading it from disk. This builtin (strongly) should be called during spawn functions. This builtin must be called for the sound before the sound builtin is called, or it might not even be heard.")},
 	{"precache_model",	PF_precache_model,	20,		20,		20,		0,	D("string(string s)", "Precaches a model, making it known to clients and loading it from disk if it has a .bsp extension. This builtin (strongly) should be called during spawn functions. This must be called for each model name before setmodel may use that model name.\nModelindicies precached in SSQC will always be positive. CSQC precaches will be negative if they are not also on the server.")},
 	{"stuffcmd",		PF_stuffcmd,		21,		21,		21,		0,	D("void(entity client, string s)", "Sends a console command (or cvar) to the client, where it will be executed. Different clients support different commands. Do NOT forget the final \\n.\nThis builtin is generally considered evil.")},
@@ -10305,7 +10271,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240,	"float(vector viewpos, entity entity)"},
 	{"matchclientname",	PF_matchclient,		0,		0,		0,		241,	"entity(string match, optional float matchnum)"},
-	{"sendpacket",		PF_SendPacket,		0,		0,		0,		242,	"void(string dest, string content)"},// (FTE_QC_SENDPACKET)
+	{"sendpacket",		PF_SendPacket,		0,		0,		0,		242,	"void(string destaddress, string content)"},// (FTE_QC_SENDPACKET)
 
 //	{"bulleten",		PF_bulleten,		0,		0,		0,		243}, (removed builtin)
 
@@ -10360,15 +10326,15 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #ifdef TERRAIN
 	{"terrain_edit",	PF_terrain_edit,	0,		0,		0,		278,	D("void(float action, optional vector pos, optional float radius, optional float quant, ...)", "Realtime terrain editing. Actions are the TEREDIT_ constants.")},// (??FTE_TERRAIN_EDIT??
 
-#define qcbrushface				\
-	"typedef struct\n{\n"		\
-	"\tstring\tshadername;\n"	\
-	"\tvector\tplanenormal;\n"	\
-	"\tfloat\tplanedist;\n"		\
-	"\tvector\tsdir;\n"			\
-	"\tfloat\tsbias;\n"		\
-	"\tvector\ttdir;\n"			\
-	"\tfloat\ttbias;\n"		\
+#define qcbrushface					\
+	"typedef struct\n{\n"			\
+		"\tstring\tshadername;\n"	\
+		"\tvector\tplanenormal;\n"	\
+		"\tfloat\tplanedist;\n"		\
+		"\tvector\tsdir;\n"			\
+		"\tfloat\tsbias;\n"			\
+		"\tvector\ttdir;\n"			\
+		"\tfloat\ttbias;\n"			\
 	"} brushface_t;\n"
 	{"brush_get",		PF_brush_get,		0,		0,		0,		0,		D(qcbrushface "int(float modelidx, int brushid, brushface_t *out_faces, int maxfaces, int *out_contents)", "Queries a brush's information. You must pre-allocate the face array for the builtin to write to. Return value is the number of faces retrieved, 0 on error.")},
 	{"brush_create",	PF_brush_create,	0,		0,		0,		0,		D("int(float modelidx, brushface_t *in_faces, int numfaces, int contents, optional int brushid)", "Inserts a new brush into the model. Return value is the new brush's id.")},
@@ -10484,6 +10450,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"runstandardplayerphysics",PF_runclientphys,0,0,0,		347,	D("void(entity ent)", "Perform the engine's standard player movement prediction upon the given entity using the input_* globals to describe movement.")},
 	{"getplayerkeyvalue",	PF_Fixme,0,		0,		0,		348,	D("string(float playernum, string keyname)", "Look up a player's userinfo, to discover things like their name, topcolor, bottomcolor, skin, team, *ver.\nAlso includes scoreboard info like frags, ping, pl, userid, entertime, as well as voipspeaking and voiploudness.")},// (EXT_CSQC)
+	{"getplayerkeyfloat",	PF_Fixme,0,		0,		0,		0,		D("float(float playernum, string keyname, optional float assumevalue)", "Cheaper version of getplayerkeyvalue that avoids the need for so many tempstrings.")},
 
 	{"isdemo",			PF_Fixme,	0,		0,		0,		349,	D("float()", "Returns if the client is currently playing a demo or not")},// (EXT_CSQC)
 	{"isserver",		PF_Fixme,	0,		0,		0,		350,	D("float()", "Returns if the client is acting as the server (aka: listen server)")},//(EXT_CSQC)
@@ -10491,10 +10458,12 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setup_reverb",	PF_Fixme, 	0,		0,		0,		0,		D("typedef struct {\n\tfloat flDensity;\n\tfloat flDiffusion;\n\tfloat flGain;\n\tfloat flGainHF;\n\tfloat flGainLF;\n\tfloat flDecayTime;\n\tfloat flDecayHFRatio;\n\tfloat flDecayLFRatio;\n\tfloat flReflectionsGain;\n\tfloat flReflectionsDelay;\n\tvector flReflectionsPan;\n\tfloat flLateReverbGain;\n\tfloat flLateReverbDelay;\n\tvector flLateReverbPan;\n\tfloat flEchoTime;\n\tfloat flEchoDepth;\n\tfloat flModulationTime;\n\tfloat flModulationDepth;\n\tfloat flAirAbsorptionGainHF;\n\tfloat flHFReference;\n\tfloat flLFReference;\n\tfloat flRoomRolloffFactor;\n\tint   iDecayHFLimit;\n} reverbinfo_t;\nvoid(float reverbslot, reverbinfo_t *reverbinfo, int sizeofreverinfo_t)", "Reconfigures a reverb slot for weird effects. Slot 0 is reserved for no effects. Slot 1 is reserved for underwater effects. Reserved slots will be reinitialised on snd_restart, but can otherwise be changed. These reverb slots can be activated with SetListener. Note that reverb will currently only work when using OpenAL.")},
 	{"registercommand",	PF_Fixme,	0,		0,		0,		352,	D("void(string cmdname)", "Register the given console command, for easy console use.\nConsole commands that are later used will invoke CSQC_ConsoleCommand.")},//(EXT_CSQC)
 	{"wasfreed",		PF_WasFreed,0,		0,		0,		353,	D("float(entity ent)", "Quickly check to see if the entity is currently free. This function is only valid during the two-second non-reuse window, after that it may give bad results. Try one second to make it more robust.")},//(EXT_CSQC) (should be availabe on server too)
-	{"serverkey",		PF_sv_serverkey,0,	0,		0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string")},//
+	{"serverkey",		PF_sv_serverkeystring,0,0,	0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string")},//
+	{"serverkeyfloat",	PF_sv_serverkeyfloat,0,0,	0,		0,		D("float(string key, optional float assumevalue)", "Version of serverkey that returns the value as a float (which avoids tempstrings).")},//
 	{"getentitytoken",	PF_Fixme,	0,		0,		0,		355,	D("string(optional string resetstring)", "Grab the next token in the map's entity lump.\nIf resetstring is not specified, the next token will be returned with no other sideeffects.\nIf empty, will reset from the map before returning the first token, probably {.\nIf not empty, will tokenize from that string instead.\nAlways returns tempstrings.")},//;
 	{"findfont",		PF_Fixme,	0,		0,		0,		356,	D("float(string s)", "Looks up a named font slot. Matches the actual font name as a last resort.")},//;
 	{"loadfont",		PF_Fixme,	0,		0,		0,		357,	D("float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset)", "too convoluted for me to even try to explain correct usage. Try drawfont = loadfont(\"\", \"cour\", \"16\", -1, 0, 0); to switch to the courier font (optimised for 16 virtual pixels high), if you have the freetype2 library in windows..")},
+	//358
 	{"sendevent",		PF_Fixme,	0,		0,		0,		359,	D("void(string evname, string evargs, ...)", "Invoke Cmd_evname_evargs in ssqc. evargs must be a string of initials refering to the types of the arguments to pass. v=vector, e=entity(.entnum field is sent), f=float, i=int. 6 arguments max - you can get more if you pack your floats into vectors.")},// (EXT_CSQC_1)
 
 	{"readbyte",		PF_Fixme,	0,		0,		0,		360,	"float()"},// (EXT_CSQC)
@@ -11561,7 +11530,8 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_RendererRestarted",	"void(string rendererdescription)", CS, "Called by the engine after the video was restarted. This serves to notify the CSQC that any render targets that it may have cached were purged, and will need to be regenerated."},
 		{"CSQC_ConsoleCommand",		"float(string cmd)", CS, "Called if the user uses any console command registed via registercommand."},
 		{"CSQC_ConsoleLink",		"float(string text, string info)", CS, "Called if the user clicks a ^[text\\infokey\\infovalue^] link. Use infoget to read/check each supported key. Return true if you wish the engine to not attempt to handle the link itself.\nWARNING: link text can potentially come from other players, so be careful about what you allow to be changed."},
-		{"CSQC_Ent_Update",			"void(float isnew)", CS},
+		{"CSQC_Ent_Spawn",			"void(float entnum)", CS, "Clumsily defined function for compat with DP. Should call spawn, set that ent's entnum field, and return the entity inside the 'self' global which will then be used for fllowing Ent_Updates. MUST NOT PARSE ANY NETWORK DATA (which makes it kinda useless)."},
+		{"CSQC_Ent_Update",			"void(float isnew)", CS, "Parses the data sent by ssqc's various SendEntity functions (must use the exact same reads as the ssqc used writes - to debug this rule more easily, you may wish to use sv_csqcdebug). 'self' provides context between frames, and self.entnum should normally report which ssqc entity . Be aware that interpolation will need to happen separately."},
 		{"CSQC_Ent_Remove",			"void()", CS},
 		{"CSQC_Event_Sound",		"float(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags"/*", float timeofs*/")", CS},
 //		{"CSQC_ServerSound",		"//void()", CS},

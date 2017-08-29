@@ -2137,32 +2137,37 @@ qboolean GLVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramp
 {
 	if (ramps)
 	{
-		if (!gammaworks || gammarampsize != 256)
-			return false;
-
-		if (vid_hardwaregamma.value == 1 && modestate == MS_WINDOWED)
-			return false;	//don't do hardware gamma in windowed mode
-
-		if (vid.activeapp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
+		switch(vid_hardwaregamma.ival)
 		{
-			if (gammaworks)
-			{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
-				if (vid_desktopgamma.value)
-				{
-					HDC hDC = GetDC(GetDesktopWindow());
-					qSetDeviceGammaRamp (hDC, ramps);
-					ReleaseDC(GetDesktopWindow(), hDC);
-				}
-				else
-				{
-					qSetDeviceGammaRamp (maindc, ramps);
-				}
+		case 0:	//never use hardware/glsl gamma
+		case 2:	//ALWAYS use glsl gamma
+			return false;
+		default:
+		case 1:	//no hardware gamma when windowed
+			if (modestate == MS_WINDOWED)
+				return false;
+			break;
+		case 3:	//ALWAYS try to use hardware gamma, even when it fails...
+			break;
+		}
+
+		if (vid.activeapp)	//this is needed because ATI drivers don't work properly (or when task-switched out).
+		{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
+			if (vid_desktopgamma.value)
+			{
+				HDC hDC = GetDC(GetDesktopWindow());
+				qSetDeviceGammaRamp (hDC, ramps);
+				ReleaseDC(GetDesktopWindow(), hDC);
+			}
+			else
+			{
+				qSetDeviceGammaRamp (maindc, ramps);
 			}
 			return true;
 		}
 		return false;
 	}
-	else
+	else if (gammaworks)
 	{
 		//revert to default
 		if (qSetDeviceGammaRamp)
@@ -2182,6 +2187,7 @@ qboolean GLVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramp
 		}
 		return true;
 	}
+	return false;
 }
 
 void GLVID_Crashed(void)

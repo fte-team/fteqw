@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "cl_ignore.h"
+#include "shader.h"
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLDP_ParseDarkPlaces5Entities(void);
@@ -3736,8 +3737,8 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 		CL_SendClientCommand(true, "color %i %i\n", topcolor.ival, bottomcolor.ival);
 		if (cl.haveserverinfo)
 			Info_Enumerate(cls.userinfo[0], NULL, CLNQ_SendInitialUserInfo);
-		else if (CPNQ_IS_DP)	//dp needs a couple of extras to work properly. don't send them on other servers because that generally results in error messages.
-		{
+		else if (CPNQ_IS_DP)
+		{	//dp needs a couple of extras to work properly in certain cases. don't send them on other servers because that generally results in error messages.
 			CL_SendClientCommand(true, "rate %s", rate.string);
 			CL_SendClientCommand(true, "playermodel %s", model.string);
 			CL_SendClientCommand(true, "playerskin %s", skin.string);
@@ -4170,9 +4171,7 @@ static void CLQ2_ParseConfigString (void)
 		Q_strncpyz (cl.levelname, s, sizeof(cl.levelname));
 	}
 	else if (i == Q2CS_SKY)
-	{
-		Q_strncpyz (cl.skyname, s, sizeof(cl.skyname));
-	}
+		R_SetSky(s);
 	else if (i == Q2CS_SKYAXIS)
 	{
 		s = COM_Parse(s);
@@ -4819,15 +4818,13 @@ void CL_ParseClientdata (void)
 		oldparsecountmod = cl.oldparsecount & UPDATE_MASK;
 	}
 	cl.parsecount = i;
-	i &= UPDATE_MASK;
-	parsecountmod = i;
+	parsecountmod = i&UPDATE_MASK;
 	parsecounttime = realtime;//cl.outframes[i].senttime;
 
 	if (cls.protocol == CP_QUAKEWORLD)
 		CL_AckedInputFrame(cls.netchan.incoming_sequence, cl.parsecount, false);
 }
 
-#include "shader.h"
 static qboolean CLQ2_PlayerSkinIsOkay(skinid_t id)
 {
 	skinfile_t *sk = Mod_LookupSkin(id);
@@ -5026,10 +5023,10 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 			{
 				Cam_Unlock(&cl.playerview[i]);
 			}
+			CL_CheckServerInfo();
 		}
-
 		// Update the rules since spectators can bypass everything but players can't
-		if (ospec != player->spectator)
+		else if (ospec != player->spectator)
 			CL_CheckServerInfo();
 
 		Skin_FlushPlayers();
@@ -7498,8 +7495,6 @@ void CLNQ_ParseServerMessage (void)
 	else if (cl_shownet.value == 2)
 		Con_Printf ("------------------\n");
 
-
-	CL_ParseClientdata ();
 //
 // parse the message
 //
@@ -7648,6 +7643,7 @@ void CLNQ_ParseServerMessage (void)
 				cls.signon = 4;
 				CLNQ_SignonReply ();
 			}
+			CL_ParseClientdata ();
 			CLFTE_ParseEntities();
 			break;
 		case svcfte_spawnstatic2:
@@ -7670,6 +7666,8 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_time:
+			CL_ParseClientdata ();
+
 			//fixme: move this stuff to a common place
 //			cl.playerview[destsplit].oldfixangle = cl.playerview[destsplit].fixangle;
 //			VectorCopy(cl.playerview[destsplit].fixangles, cl.playerview[destsplit].oldfixangles);
@@ -7933,8 +7931,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svcfitz_skybox:
-			Q_strncpyz(cl.skyname, MSG_ReadString(), sizeof(cl.skyname));
-			R_SetSky(cl.skyname);
+			R_SetSky(MSG_ReadString());
 			break;
 		case svcfitz_bf:
 			Cmd_ExecuteString("bf", RESTRICT_SERVER);

@@ -765,6 +765,12 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 	case T_GEN_FULLBRIGHT:
 		BindTexture(tu, shaderstate.curtexnums->fullbright);
 		break;
+	case T_GEN_REFLECTCUBE:
+		BindTexture(tu, shaderstate.curtexnums->reflectcube);
+		break;
+	case T_GEN_REFLECTMASK:
+		BindTexture(tu, shaderstate.curtexnums->reflectmask);
+		break;
 	case T_GEN_ANIMMAP:
 		BindTexture(tu, pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes]);
 		break;
@@ -3146,12 +3152,13 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if (batch->shader->flags & SHADER_SKY)
 		{
-			if (!batch->shader->prog)
+			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK)
 			{
-				if (shaderstate.mode == BEM_STANDARD)
-					R_DrawSkyChain (batch);
-				continue;
+				if (R_DrawSkyChain (batch))
+					continue;
 			}
+			else if (shaderstate.mode != BEM_FOG && shaderstate.mode != BEM_CREPUSCULAR && shaderstate.mode != BEM_WIREFRAME)
+				continue;
 		}
 
 		BE_SubmitBatch(batch);
@@ -3546,7 +3553,7 @@ void D3D9BE_DrawWorld (batch_t **worldbatches)
 			shaderstate_identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif
-			shaderstate_identitylighting = 1;
+			shaderstate_identitylighting = r_lightmap_scale.value;
 		shaderstate_identitylighting *= r_refdef.hdr_value;
 //		shaderstate_identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
 
@@ -3557,7 +3564,7 @@ void D3D9BE_DrawWorld (batch_t **worldbatches)
 
 		RSpeedRemark();
 		D3D9BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
-		RSpeedEnd(RSPEED_WORLD);
+		RSpeedEnd(RSPEED_OPAQUE);
 
 #ifdef RTLIGHTS
 		if (r_refdef.scenevis)
@@ -3565,19 +3572,21 @@ void D3D9BE_DrawWorld (batch_t **worldbatches)
 			RSpeedRemark();
 			D3D9BE_SelectEntity(&r_worldentity);
 			Sh_DrawLights(r_refdef.scenevis);
-			RSpeedEnd(RSPEED_STENCILSHADOWS);
+			RSpeedEnd(RSPEED_RTLIGHTS);
 		}
 #endif
 
 		BE_SelectMode(BEM_STANDARD);
 
+		RSpeedRemark();
 		D3D9BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_SEETHROUGH+1, SHADER_SORT_COUNT);
+		RSpeedEnd(RSPEED_TRANSPARENTS);
 	}
 	else
 	{
 		RSpeedRemark();
 		D3D9BE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_COUNT);
-		RSpeedEnd(RSPEED_DRAWENTITIES);
+		RSpeedEnd(RSPEED_OPAQUE);
 	}
 
 	R_RenderDlights ();

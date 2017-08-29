@@ -227,6 +227,7 @@ static void VK_DestroySwapChain(void)
 		VKBE_ShutdownFramePools(frame);
 
 		vkFreeCommandBuffers(vk.device, vk.cmdpool, frame->maxcbufs, frame->cbufs);
+		BZ_Free(frame->cbufs);
 		vkDestroyFence(vk.device, frame->finishedfence, vkallocationcb);
 		Z_Free(frame);
 	}
@@ -3520,10 +3521,11 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 				if (j == queue_count)
 				{
 					//no queues can present to that surface, so I guess we can't use that device
-					Con_DPrintf("vulkan: ignoring device %s as it can't present to window\n", props.deviceName);
+					Con_DPrintf("vulkan: ignoring device \"%s\" as it can't present to window\n", props.deviceName);
 					continue;
 				}
 			}
+			Con_DPrintf("Found Vulkan Device \"%s\"\n", props.deviceName);
 
 			if (!vk.gpu)
 				vk.gpu = devs[i];
@@ -3848,6 +3850,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	sh_config.env_add = false;				//fixme: figure out what this means...
 
 	sh_config.can_mipcap = true;
+	sh_config.havecubemaps = true;
 
 	VK_CheckTextureFormats();
 

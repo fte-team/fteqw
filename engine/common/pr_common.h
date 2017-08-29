@@ -4,6 +4,8 @@ extern "C" {
 #include "progtype.h"
 #include "progslib.h"
 
+#define AREAGRIDPERENT 16
+
 struct wedict_s
 {
 	enum ereftype_e	ereftype;
@@ -21,7 +23,12 @@ struct wedict_s
 	};
 #endif
 	/*the above is shared with qclib*/
+#ifdef USEAREAGRID
+	areagridlink_t	gridareas[AREAGRIDPERENT];	//on overflow, use the inefficient overflow list.
+	size_t			gridareasequence;	//used to avoid iterrating the same ent twice.
+#else
 	link_t	area;
+#endif
 	pvscache_t pvsinfo;
 	int lastruntime;
 	int solidsize;
@@ -516,6 +523,10 @@ void PF_WriteString_Internal (int target, const char *str);
 pbool QDECL ED_CanFree (edict_t *ed);
 #endif
 
+#ifndef NOLEGACY
+unsigned int FTEToDPContents(unsigned int contents);
+#endif
+
 #define	MOVETYPE_NONE			0		// never moves
 #define	MOVETYPE_ANGLENOCLIP	1
 #define	MOVETYPE_ANGLECLIP		2
@@ -588,6 +599,8 @@ typedef struct
 	void (QDECL *AngleVectors)(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
 } rbeplugfuncs_t;
 #define RBEPLUGFUNCS_VERSION 1
+
+qofs_t PR_ReadBytesString(char *str);
 
 
 #define	DAMAGE_NO				0

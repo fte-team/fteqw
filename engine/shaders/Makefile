@@ -2,7 +2,7 @@ CC=i686-pc-mingw32-gcc
 
 all:
 
-NAMES=	fixedemu	altwater	bloom_blur	bloom_filter	bloom_final	colourtint	crepuscular_opaque	crepuscular_rays	crepuscular_sky	depthonly	default2d	defaultadditivesprite		defaultskin	defaultsky	defaultfill	defaultsprite	defaultwall	defaultwarp	defaultgammacb	drawflat_wall	lpp_depthnorm	lpp_light	lpp_wall	postproc_fisheye	postproc_panorama	postproc_laea	postproc_stereographic	postproc_equirectangular	fxaa	underwaterwarp	menutint	terrain	rtlight
+NAMES=	fixedemu	altwater	bloom_blur	bloom_filter	bloom_final	colourtint	crepuscular_opaque	crepuscular_rays	crepuscular_sky	depthonly	default2d	defaultadditivesprite		defaultskin	defaultsky	defaultskybox	defaultfill	defaultsprite	defaultwall	defaultwarp	defaultgammacb	drawflat_wall	lpp_depthnorm	lpp_light	lpp_wall	postproc_fisheye	postproc_panorama	postproc_laea	postproc_stereographic	postproc_equirectangular	fxaa	underwaterwarp	menutint	terrain	rtlight
 
 
 ALLNAMES+=$(foreach v,$(NAMES),glsl/$v.glsl)

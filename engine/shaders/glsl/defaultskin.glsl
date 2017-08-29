@@ -6,6 +6,7 @@
 !!permu SKELETAL
 !!permu FOG
 !!permu BUMP
+!!permu REFLECTCUBEMASK
 !!cvarf r_glsl_offsetmapping_scale
 !!cvarf gl_specular
 !!cvardf gl_affinemodels=0
@@ -36,8 +37,11 @@
 
 affine varying vec2 tc;
 varying vec3 light;
-#if defined(SPECULAR) || defined(OFFSETMAPPING)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 varying vec3 eyevector;
+#endif
+#ifdef REFLECTCUBEMASK
+	varying mat3 invsurface;
 #endif
 #ifdef TESS
 varying vec3 vertex;
@@ -46,7 +50,7 @@ varying vec3 normal;
 
 void main ()
 {
-#if defined(SPECULAR)||defined(OFFSETMAPPING)
+#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	vec3 n, s, t, w;
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
@@ -56,6 +60,11 @@ void main ()
 #else
 	vec3 n, s, t, w;
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
+#endif
+#ifdef REFLECTCUBEMASK
+	invsurface[0] = s;
+	invsurface[1] = t;
+	invsurface[2] = n;
 #endif
 
 	tc = v_texcoord;
@@ -92,9 +101,13 @@ affine in vec2 tc[];
 affine out vec2 t_tc[];
 in vec3 light[];
 out vec3 t_light[];
-#if defined(SPECULAR) || defined(OFFSETMAPPING)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 in vec3 eyevector[];
 out vec3 t_eyevector[];
+#endif
+#ifdef REFLECTCUBEMASK
+in mat3 invsurface[];
+out mat3 t_invsurface[];
 #endif
 void main()
 {
@@ -104,8 +117,13 @@ void main()
 	t_normal[id] = normal[id];
 	t_tc[id] = tc[id];
 	t_light[id] = light[id];
-#if defined(SPECULAR) || defined(OFFSETMAPPING)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	t_eyevector[id] = eyevector[id];
+#endif
+#ifdef REFLECTCUBEMASK
+	t_invsurface[id][0] = invsurface[id][0];
+	t_invsurface[id][1] = invsurface[id][1];
+	t_invsurface[id][2] = invsurface[id][2];
 #endif
 
 	gl_TessLevelOuter[0] = float(r_tessellation_level);
@@ -132,9 +150,13 @@ affine in vec2 t_tc[];
 affine out vec2 tc;
 in vec3 t_light[];
 out vec3 light;
-#if defined(SPECULAR) || defined(OFFSETMAPPING)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 in vec3 t_eyevector[];
 out vec3 eyevector;
+#endif
+#ifdef REFLECTCUBEMASK
+in mat3 t_invsurface[];
+out mat3 invsurface;
 #endif
 
 #define LERP(a) (gl_TessCoord.x*a[0] + gl_TessCoord.y*a[1] + gl_TessCoord.z*a[2])
@@ -151,8 +173,13 @@ void main()
 
 	//FIXME: we should be recalcing these here, instead of just lerping them
 	light = LERP(t_light);
-#if defined(SPECULAR) || defined(OFFSETMAPPING)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	eyevector = LERP(t_eyevector);
+#endif
+#ifdef REFLECTCUBEMASK
+	invsurface[0] = LERP(t_invsurface[0]);
+	invsurface[1] = LERP(t_invsurface[1]);
+	invsurface[2] = LERP(t_invsurface[2]);
 #endif
 
 	gl_Position = m_modelviewprojection * vec4(w,1.0);
@@ -187,8 +214,11 @@ uniform sampler2D s_colourmap;
 
 affine varying vec2 tc;
 varying vec3 light;
-#if defined(SPECULAR) || defined(OFFSETMAPPING)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 varying vec3 eyevector;
+#endif
+#ifdef REFLECTCUBEMASK
+	varying mat3 invsurface;
 #endif
 
 
@@ -227,8 +257,17 @@ void main ()
 		vec4 specs = texture2D(s_specular, tc);
 
 		vec3 halfdir = normalize(normalize(eyevector) + vec3(0.0, 0.0, 1.0));
-		float spec = pow(max(dot(halfdir, bumps), 0.0), 32.0 * specs.a);
-		col.rgb += cvar_gl_specular * spec * specs.rgb;
+		float spec = pow(max(dot(halfdir, bumps), 0.0), FTE_SPECULAR_EXPONENT * specs.a);
+		col.rgb += FTE_SPECULAR_MULTIPLIER * spec * specs.rgb;
+	#elif defined(REFLECTCUBEMASK)
+		vec3 bumps = vec3(0, 0, 1);
+	#endif
+
+	#ifdef REFLECTCUBEMASK
+		vec3 rtc = reflect(-eyevector, bumps);
+		rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];
+		rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;
+		col.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;
 	#endif
 
 	col.rgb *= light;
@@ -236,7 +275,7 @@ void main ()
 	#ifdef FULLBRIGHT
 		vec4 fb = texture2D(s_fullbright, tc);
 //		col.rgb = mix(col.rgb, fb.rgb, fb.a);
-		col.rgb += fb.rgb * fb.a;
+		col.rgb += fb.rgb * fb.a * e_glowmod.rgb;
 	#endif
 #endif
 

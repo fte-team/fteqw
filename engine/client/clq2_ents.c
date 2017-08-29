@@ -232,6 +232,7 @@ void CL_GetNumberedEntityInfo (int num, float *org, float *ang)
 	// FIXME: bmodel issues...
 }
 
+#ifdef Q2SERVER
 void CLQ2_WriteDemoBaselines(sizebuf_t *buf)
 {
 	int i;
@@ -270,6 +271,7 @@ void CLQ2_WriteDemoBaselines(sizebuf_t *buf)
 		MSGQ2_WriteDeltaEntity(&nullstate, &es, buf, true, true);
 	}
 }
+#endif
 
 void CLQ2_ClearState(void)
 {

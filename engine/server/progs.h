@@ -75,7 +75,12 @@ typedef struct edict_s
 	/*qc lib doesn't care about the rest*/
 
 	/*these are shared with csqc*/
+#ifdef USEAREAGRID
+	areagridlink_t	gridareas[AREAGRIDPERENT];	//on overflow, use the inefficient overflow list.
+	size_t			gridareasequence;	//used to avoid iterrating the same ent twice.
+#else
 	link_t	area;
+#endif
 	pvscache_t pvsinfo;
 	int lastruntime;
 	int solidsize;

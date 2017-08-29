@@ -1243,6 +1243,14 @@ static const char *glsl_hdrs[] =
 			"#ifndef USE_ARB_SHADOW\n"	//fall back on regular samplers if we must
 				"#define sampler2DShadow sampler2D\n"
 			"#endif\n"
+			"#ifndef SPECEXP\n"
+				"#define SPECEXP 1.0\n"
+			"#endif\n"
+			"#define FTE_SPECULAR_EXPONENT (32.0*float(SPECEXP))\n"
+			"#ifndef SPECMUL\n"
+				"#define SPECMUL 1.0\n"
+			"#endif\n"
+			"#define FTE_SPECULAR_MULTIPLIER (cvar_gl_specular*float(SPECMUL))\n"
 #ifndef NOLEGACY
 			"uniform sampler2DShadow s_shadowmap;"
 			"uniform samplerCube s_projectionmap;"
@@ -2854,11 +2862,15 @@ void GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		sh_config.shadernamefmt = "%s_gles";
 
 		sh_config.can_mipcap = gl_config.glversion >= 3.0;
+
+		sh_config.havecubemaps = gl_config.glversion >= 2.0;
 	}
 	else
 	{
 		GLint srgb = gl_config.glversion >= 2.1 || GL_CheckExtension("GL_EXT_texture_sRGB");	//became core in gl 2.1
 		sh_config.can_mipcap = gl_config.glversion >= 1.2;
+
+		sh_config.havecubemaps = gl_config.glversion >= 1.3;	//cubemaps AND clamp-to-edge.
 
 		sh_config.texfmt[PTI_RGBX8] = true;	//proper support
 

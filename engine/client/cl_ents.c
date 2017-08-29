@@ -5416,7 +5416,7 @@ void CL_SetSolidEntities (void)
 	pmove.physents[0].info = 0;
 	pmove.numphysent = 1;
 
-	frame = &cl.inframes[parsecountmod];
+	frame = &cl.inframes[cl.validsequence&UPDATE_MASK];
 	pak = &frame->packet_entities;
 
 	for (i=0 ; i<pak->num_entities ; i++)

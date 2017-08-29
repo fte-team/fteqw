@@ -794,7 +794,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 			Info_SetValueForKey (cls.userinfo[0], var->name, value, sizeof(cls.userinfo[0]));
 			if (cls.state >= ca_connected)
 			{
-#ifdef Q2CLIENT
+#if defined(Q2CLIENT) || defined(Q3CLIENT)
 				if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)	//q2 just resends the lot. Kinda bad...
 				{
 					cls.resendinfo = true;

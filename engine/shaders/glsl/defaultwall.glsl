@@ -24,7 +24,7 @@
 		varying vec3 eyevector;
 	#endif
 
-	#ifdef REFLECTCUBEMASK
+	#if defined(REFLECTCUBEMASK) || defined(BUMPMODELSPACE)
 		varying mat3 invsurface;
 	#endif
 
@@ -54,7 +54,7 @@ void main ()
 	eyevector.y = dot(eyeminusvertex, v_tvector.xyz);
 	eyevector.z = dot(eyeminusvertex, v_normal.xyz);
 #endif
-#ifdef REFLECTCUBEMASK
+#if defined(REFLECTCUBEMASK) || defined(BUMPMODELSPACE)
 	invsurface[0] = v_svector;
 	invsurface[1] = v_tvector;
 	invsurface[2] = v_normal;
@@ -275,8 +275,10 @@ void main ()
 	#else
 	vec3 lightmaps = vc.rgb;
 	#endif
+	#define delux vec3(0.0,0.0,1.0)
 #else
 	#ifdef LIGHTSTYLED
+		#define delux vec3(0.0,0.0,1.0)
 		vec3 lightmaps;
 		#ifdef DELUXE
 			lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb * dot(norm, 2.0*texture2D(s_deluxmap0, lm0).rgb-0.5);
@@ -293,9 +295,15 @@ void main ()
 		vec3 lightmaps = (texture2D(s_lightmap, lm0) * e_lmscale).rgb;
 		//modulate by the  bumpmap dot light
 		#ifdef DELUXE
-			vec3 delux = 2.0*(texture2D(s_deluxmap, lm0).rgb-0.5);
-			lightmaps *= 1.0 / max(0.25, delux.z);	//counter the darkening from deluxmaps
+			vec3 delux = (texture2D(s_deluxmap, lm0).rgb-0.5);
+			#ifdef BUMPMODELSPACE
+				delux = normalize(delux*invsurface);
+			#else
+				lightmaps *= 2.0 / max(0.25, delux.z);	//counter the darkening from deluxmaps
+			#endif
 			lightmaps *= dot(norm, delux);
+		#else
+			#define delux vec3(0.0,0.0,1.0)
 		#endif
 	#endif
 #endif
@@ -303,14 +311,9 @@ void main ()
 //add in specular, if applicable.
 #ifdef SPECULAR
 	vec4 specs = texture2D(s_specular, tc);
-	#if defined(DELUXE) && !defined(VERTEXLIT)
-//not lightstyled...
-		vec3 halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_deluxmap0, lm0).rgb-0.5));	//this norm should be the deluxemap info instead
-	#else
-		vec3 halfdir = normalize(normalize(eyevector) + vec3(0.0, 0.0, 1.0));	//this norm should be the deluxemap info instead
-	#endif
-	float spec = pow(max(dot(halfdir, norm), 0.0), 32.0 * specs.a);
-	spec *= cvar_gl_specular;
+	vec3 halfdir = normalize(normalize(eyevector) + delux);	//this norm should be the deluxemap info instead
+	float spec = pow(max(dot(halfdir, norm), 0.0), 2.0*FTE_SPECULAR_EXPONENT * specs.a);
+	spec *= FTE_SPECULAR_MULTIPLIER;
 //NOTE: rtlights tend to have a *4 scaler here to over-emphasise the effect because it looks cool.
 //As not all maps will have deluxemapping, and the double-cos from the light util makes everything far too dark anyway,
 //we default to something that is not garish when the light value is directly infront of every single pixel.
@@ -345,10 +348,19 @@ void main ()
 //entity modifiers
 	gl_FragColor = gl_FragColor * e_colourident;
 
+#if defined(MASK)
+#if defined(MASKLT)
+	if (gl_FragColor.a < MASK)
+		discard;
+#else
+	if (gl_FragColor.a >= MASK)
+		discard;
+#endif
+#endif
+
 //and finally hide it all if we're fogged.
 #ifdef FOG
 	gl_FragColor = fog4(gl_FragColor);
 #endif
 }
 #endif
-

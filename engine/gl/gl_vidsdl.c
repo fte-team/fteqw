@@ -333,21 +333,24 @@ qboolean GLVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramp
 #if SDL_MAJOR_VERSION >= 2
 	if (ramps && gammarampsize == 256)
 	{
-		if (vid_hardwaregamma.value)
+		switch(vid_hardwaregamma.ival)
 		{
-			if (gammaworks)
-			{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
-				SDL_SetWindowGammaRamp (sdlwindow, &ramps[0], &ramps[256], &ramps[512]);
-				return true;
-			}
-			gammaworks = !SDL_SetWindowGammaRamp (sdlwindow, &ramps[0], &ramps[256], &ramps[512]);
+		case 0:	//never use hardware/glsl gamma
+		case 2:	//ALWAYS use glsl gamma
+			return false;
+		default:
+		case 1:	//no hardware gamma when windowed
+			if (!vid_isfullscreen)
+				return false;
+			break;
+		case 3:	//ALWAYS try to use hardware gamma, even when it fails...
+			break;
 		}
-		else
-			gammaworks = false;
 
+		gammaworks |= !SDL_SetWindowGammaRamp (sdlwindow, &ramps[0], &ramps[256], &ramps[512]);
 		return gammaworks;
 	}
-	else
+	else if (gammaworks)
 	{
 		SDL_SetWindowGammaRamp (sdlwindow, NULL, NULL, NULL);
 		return true;
@@ -355,18 +358,21 @@ qboolean GLVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramp
 #else
 	if (ramps && gammarampsize == 256)
 	{
-		if (vid_hardwaregamma.value)
+		switch(vid_hardwaregamma.ival)
 		{
-			if (gammaworks)
-			{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
-				SDL_SetGammaRamp (&ramps[0], &ramps[256], &ramps[512]);
-				return true;
-			}
-			gammaworks = !SDL_SetGammaRamp (&ramps[0], &ramps[256], &ramps[512]);
+		case 0:	//never use hardware/glsl gamma
+		case 2:	//ALWAYS use glsl gamma
+			return false;
+		default:
+		case 1:	//no hardware gamma when windowed
+			if (!vid_isfullscreen)
+				return false;
+			break;
+		case 3:	//ALWAYS try to use hardware gamma, even when it fails...
+			break;
 		}
-		else
-			gammaworks = false;
 
+		gammaworks |= !SDL_SetGammaRamp (&ramps[0], &ramps[256], &ramps[512]);
 		return gammaworks;
 	}
 	else

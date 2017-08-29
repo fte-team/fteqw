@@ -3211,6 +3211,10 @@ static void P_ImportEffectInfo(char *config, char *line)
 			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "stainless") && args == 2)
 			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+		else if (!strcmp(arg[0], "relativeoriginoffset") && args == 4)
+			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+		else if (!strcmp(arg[0], "relativevelocityoffset") && args == 4)
+			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
 #endif
 		else if (!strcmp(arg[0], "rotate") && args == 5)
 		{

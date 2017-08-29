@@ -4239,10 +4239,38 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 	if (!filedata)
 		return NULL;
 
+	hasalpha = false;
 	rgbadata_start = Read32BitImageFile(filedata, filelen, &width, &height, &hasalpha, "cursor");
 	FS_FreeFile(filedata);
 	if (!rgbadata_start)
 		return NULL;
+
+	if (!hasalpha && !strchr(filename, ':'))
+	{	//people seem to insist on using jpgs, which don't have alpha.
+		//screw over the alpha channel if needed.
+		unsigned int alpha_width, alpha_height, p;
+		char aname[MAX_QPATH];
+		unsigned char *alphadata;
+		char *alph;
+		size_t alphsize;
+		char ext[8];
+		COM_StripExtension(filename, aname, sizeof(aname));
+		COM_FileExtension(filename, ext, sizeof(ext));
+		Q_strncatz(aname, "_alpha.", sizeof(aname));
+		Q_strncatz(aname, ext, sizeof(aname));
+		alphsize = FS_LoadFile(filename, &alph);
+		if (alph)
+		{
+			if ((alphadata = Read32BitImageFile(alph, alphsize, &alpha_width, &alpha_height, &hasalpha, aname)))
+			{
+				if (alpha_width == width && alpha_height == height)
+					for (p = 0; p < alpha_width*alpha_height; p++)
+						rgbadata_start[(p<<2) + 3] = (alphadata[(p<<2) + 0] + alphadata[(p<<2) + 1] + alphadata[(p<<2) + 2])/3;
+				BZ_Free(alphadata);
+			}
+			FS_FreeFile(alph);
+		}
+	}
 
 	if (scale != 1)
 	{

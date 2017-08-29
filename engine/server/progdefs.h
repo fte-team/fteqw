@@ -424,6 +424,11 @@ comextqcfields
 } comentvars_t;
 #endif
 
+
+#ifdef USEAREAGRID
+#define AREAGRIDPERENT 16
+#endif
+
 #ifdef USERBE
 typedef struct
 {

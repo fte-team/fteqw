@@ -1113,7 +1113,10 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, char *filename, int linenum, 
 			//we need to use the function table in order to set breakpoints in the right file.
 			for (f = pr_progstate[pn].functions, fl = 0; fl < pr_progstate[pn].progs->numfunctions; f++, fl++)
 			{
-				if (!stricmp(f->s_file+progfuncs->funcs.stringtable, filename))
+				const char *fncfile = f->s_file+progfuncs->funcs.stringtable;
+				if (fncfile[0] == '.' && fncfile[1] == '/')
+					fncfile+=2;
+				if (!stricmp(fncfile, filename))
 				{
 					for (i = f->first_statement; i < pr_progstate[pn].progs->numstatements; i++)
 					{
@@ -1354,7 +1357,7 @@ static const char *lastfile = 0;
 			if (debugaction == DEBUG_TRACE_NORESUME)
 				continue;
 			else if(debugaction == DEBUG_TRACE_ABORT)
-				progfuncs->funcs.parms->Abort ("Debugger Abort");
+				progfuncs->funcs.parms->Abort (fault?fault:"Debugger Abort");
 			else if (debugaction == DEBUG_TRACE_OFF)
 			{
 				//if we're resuming, don't hit any lingering step-over triggers

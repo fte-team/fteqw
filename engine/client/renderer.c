@@ -47,10 +47,7 @@ void QDECL SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL R_SkyBox_Changed (struct cvar_s *var, char *oldvalue)
 {
-	if (qrenderer != QR_NONE && cl.worldmodel)
-	{
-		R_SetSky(cl.skyname);
-	}
+	Shader_NeedReload(false);
 }
 void R_ForceSky_f(void)
 {
@@ -58,7 +55,7 @@ void R_ForceSky_f(void)
 	{
 		extern cvar_t r_skyboxname;
 		if (*r_skyboxname.string)
-			Con_Printf("Current user skybox is %s\n", cl.skyname);
+			Con_Printf("Current user skybox is %s\n", r_skyboxname.string);
 		else if (*cl.skyname)
 			Con_Printf("Current per-map skybox is %s\n", cl.skyname);
 		else
@@ -66,8 +63,7 @@ void R_ForceSky_f(void)
 	}
 	else
 	{
-		Q_strncpyz(cl.skyname, Cmd_Argv(1), sizeof(cl.skyname));
-		R_SetSky(cl.skyname);
+		R_SetSky(Cmd_Argv(1));
 	}
 }
 
@@ -98,6 +94,7 @@ static cvar_t gl_driver						= CVARF ("gl_driver", "",
 cvar_t gl_shadeq1_name						= CVARD  ("gl_shadeq1_name", "*", "Rename all surfaces from quake1 bsps using this pattern for the purposes of shader names.");
 extern cvar_t r_vertexlight;
 extern cvar_t r_forceprogramify;
+extern cvar_t dpcompat_nopremulpics;
 
 cvar_t mod_md3flags							= CVARD  ("mod_md3flags", "1", "The flags field of md3s was never officially defined. If this is set to 1, the flags will be treated identically to mdl files. Otherwise they will be ignored. Naturally, this is required to provide rotating pickups in quake.");
 
@@ -126,7 +123,7 @@ cvar_t r_dynamic							= CVARFD ("r_dynamic", IFMINIMAL("0","1"),
 cvar_t r_fastturb							= CVARF ("r_fastturb", "0",
 													CVAR_SHADERSYSTEM);
 cvar_t r_fastsky							= CVARF ("r_fastsky", "0",
-													CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
+													CVAR_ARCHIVE);
 cvar_t r_fastskycolour						= CVARF ("r_fastskycolour", "0",
 													CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fb_bmodels							= CVARAF("r_fb_bmodels", "1",
@@ -159,6 +156,7 @@ cvar_t r_lightstylesmooth					= CVARF	("r_lightstylesmooth", "0", CVAR_ARCHIVE);
 cvar_t r_lightstylesmooth_limit				= CVAR	("r_lightstylesmooth_limit", "2");
 cvar_t r_lightstylespeed					= CVAR	("r_lightstylespeed", "10");
 cvar_t r_lightstylescale					= CVAR	("r_lightstylescale", "1");
+cvar_t r_lightmap_scale						= CVARFD ("r_shadow_realtime_nonworld_lightmaps", "1", 0, "Scaler for lightmaps used when not using realtime world lighting. Probably broken.");
 cvar_t r_hdr_irisadaptation					= CVARF	("r_hdr_irisadaptation", "0", CVAR_ARCHIVE);
 cvar_t r_hdr_irisadaptation_multiplier		= CVAR	("r_hdr_irisadaptation_multiplier", "2");
 cvar_t r_hdr_irisadaptation_minvalue		= CVAR	("r_hdr_irisadaptation_minvalue", "0.5");
@@ -398,6 +396,7 @@ cvar_t gl_mipcap							= CVARAFC("d_mipcap", "0 1000", "gl_miptexLevel",
 cvar_t gl_texturemode2d						= CVARFCD("gl_texturemode2d", "GL_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, Image_TextureMode_Callback,
 												"Specifies how 2d images are sampled. format is a 3-tupple ");
+cvar_t r_font_linear						= CVARF("r_font_linear", "1", CVAR_RENDERERLATCH);
 
 cvar_t vid_triplebuffer						= CVARAFD ("vid_triplebuffer", "1", "gl_triplebuffer", CVAR_ARCHIVE, "Specifies whether the hardware is forcing tripplebuffering on us, this is the number of extra page swaps required before old data has been completely overwritten.");
 
@@ -435,7 +434,7 @@ cvar_t r_vertexdlights						= CVARD	("r_vertexdlights", "0", "Determine model li
 
 cvar_t vid_preservegamma					= CVARD ("vid_preservegamma", "0", "Restore initial hardware gamma ramps when quitting.");
 cvar_t vid_hardwaregamma					= CVARFD ("vid_hardwaregamma", "1",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Use hardware gamma ramps. 0=loadtime-gamma, 1=glsl(windowed) or hardware(fullscreen), 2=always glsl, 3=always hardware gamma.");
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Use hardware gamma ramps. 0=ugly texture-based gamma, 1=glsl(windowed) or hardware(fullscreen), 2=always glsl, 3=always hardware gamma (disabled if hardware doesn't support).");
 cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Apply gamma ramps upon the desktop rather than the window.");
 
@@ -816,6 +815,7 @@ void Renderer_Init(void)
 	Cvar_Register(&r_lightstylesmooth_limit, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylespeed, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylescale, GRAPHICALNICETIES);
+	Cvar_Register(&r_lightmap_scale, GRAPHICALNICETIES);
 
 	Cvar_Register(&r_hdr_irisadaptation, GRAPHICALNICETIES);
 	Cvar_Register(&r_hdr_irisadaptation_multiplier, GRAPHICALNICETIES);
@@ -936,6 +936,7 @@ void Renderer_Init(void)
 	Cvar_Register (&gl_miptexLevel, GRAPHICALNICETIES);
 	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
+	Cvar_Register (&r_font_linear, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_mipcap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
 	Cvar_Register (&r_max_gpu_bones, GRAPHICALNICETIES);
@@ -965,6 +966,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_polygonoffset_stencil_offset, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_forceprogramify, GLRENDEREROPTIONS);
+	Cvar_Register (&dpcompat_nopremulpics, GLRENDEREROPTIONS);
 #ifdef VKQUAKE
 	Cvar_Register (&vk_stagingbuffers,			VKRENDEREROPTIONS);
 	Cvar_Register (&vk_submissionthread,		VKRENDEREROPTIONS);
@@ -1474,10 +1476,6 @@ TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 #ifndef CLIENTONLY
 	if (sv.world.worldmodel)
 	{
-#ifdef Q2SERVER
-		q2edict_t *q2ent;
-#endif
-
 TRACE(("dbg: R_ApplyRenderer: reloading server map\n"));
 		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_WARNSYNC);
 TRACE(("dbg: R_ApplyRenderer: loaded\n"));
@@ -1507,6 +1505,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 #ifdef Q2SERVER
 		else if (svs.gametype == GT_QUAKE2)
 		{
+			q2edict_t *q2ent;
 			for (i = 0; i < Q2MAX_MODELS; i++)
 			{
 				if (sv.strings.configstring[Q2CS_MODELS+i] && *sv.strings.configstring[Q2CS_MODELS+i] && (!strcmp(sv.strings.configstring[Q2CS_MODELS+i] + strlen(sv.strings.configstring[Q2CS_MODELS+i]) - 4, ".bsp") || i-1 < sv.world.worldmodel->numsubmodels))

@@ -996,7 +996,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 
 		if (FS_FLocateFile(sv.modelname,FSLF_IFFOUND, &loc) && FS_GetLocMTime(&loc, &filetime))
 		{
-			if (filetime > sv.world.worldmodel->mtime)
+			if (filetime > sv.world.worldmodel->mtime && sv.world.worldmodel->mtime)
 			{
 				COM_WorkerFullSync();	//sync all the workers, just in case.
 				Mod_PurgeModel(sv.world.worldmodel, MP_RESET);	//nuke it now
@@ -1668,7 +1668,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 				SV_SpawnParmsToQC(host_client);
 				SV_SetUpClientEdict(host_client, sv_player);
 #ifndef NOLEGACY
-				sv_player->xv->clientcolors = atoi(Info_ValueForKey(host_client->userinfo, "topcolor"))*16 + atoi(Info_ValueForKey(host_client->userinfo, "bottomcolor"));
+				sv_player->xv->clientcolors = host_client->playercolor;
 #endif
 
 				// call the spawn function

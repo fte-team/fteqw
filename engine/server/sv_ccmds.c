@@ -1984,7 +1984,7 @@ static void SV_Status_f (void)
 	else
 	{
 #define COLUMNS C_FRAGS C_USERID C_ADDRESS C_NAME C_RATE C_PING C_DROP C_DLP C_DLS C_PROT C_ADDRESS2
-#define C_FRAGS		COLUMN(0, "frags", Con_Printf("%5i ", (int)cl->old_frags))
+#define C_FRAGS		COLUMN(0, "frags", if (cl->spectator==1)Con_Printf("%-5s ", "spec"); else Con_Printf("%5i ", (int)cl->old_frags))
 #define C_USERID	COLUMN(1, "userid", Con_Printf("%6i ", (int)cl->userid))
 #define C_ADDRESS	COLUMN(2, "address        ", Con_Printf("%-16.16s", s))
 #define C_NAME		COLUMN(3, "name           ", Con_Printf("%-16.16s", cl->name))
@@ -2052,24 +2052,17 @@ static void SV_Status_f (void)
 			case SCP_BAD:
 				p = "";
 				break;
-			case SCP_QUAKEWORLD:
-				if (cl->spectator)
-					p = "s";
-				else if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-					p = "fte";
-				else
-					p = "qw";
-				break;
+			case SCP_QUAKEWORLD:	p = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"fteq":"qw"; break;
 			case SCP_QUAKE2:		p = "q2"; break;
 			case SCP_QUAKE3:		p = "q3"; break;
-			case SCP_NETQUAKE:		p = "nq"; break;
-			case SCP_BJP3:			p = "bjp3"; break;
-			case SCP_FITZ666:		p = "fitz"; break;
-			case SCP_DARKPLACES6:	p = "dp6"; break;
-			case SCP_DARKPLACES7:	p = "dp7"; break;
+			case SCP_NETQUAKE:		p = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ften":"nq"; break;
+			case SCP_BJP3:			p = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ften":"bjp3"; break;
+			case SCP_FITZ666:		p = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ften":"fitz"; break;
+			case SCP_DARKPLACES6:	p = "dpp6"; break;
+			case SCP_DARKPLACES7:	p = "dpp7"; break;
 			}
 			if (cl->state == cs_connected && cl->protocol>=SCP_NETQUAKE)
-				p = "nq";
+				p = "nq";	//not actually known yet.
 			else if (cl->state == cs_zombie || cl->state == cs_loadzombie)
 				p = "zom";
 
@@ -3008,6 +3001,11 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("sv", SV_SendGameCommand_f);
 	Cmd_AddCommand ("mod", SV_SendGameCommand_f);
 
+#ifdef SUBSERVERS
+	Cmd_AddCommand ("ssv", MSV_SubServerCommand_f);
+	Cmd_AddCommand ("ssv_all", MSV_SubServerCommand_f);
+	Cmd_AddCommandAD ("mapcluster", MSV_MapCluster_f, SV_Map_c, "Sets this server up as a cluster-server gateway. Additional processes will be used to host individual maps. If an argument is given then that will be the name of the map that new clients will initially be directed to. This can also be used for single-player to off-load nearly all server functions - use the 'ssv' command to direct each subserver.");
+#endif
 	Cmd_AddCommand ("killserver", SV_KillServer_f);
 	Cmd_AddCommandD ("precaches", SV_PrecacheList_f, "Displays a list of current server precaches.");
 	Cmd_AddCommandAD ("map", SV_Map_f, SV_Map_c, "Changes map. If a second argument is specified then that is normally the name of the initial start spot.");

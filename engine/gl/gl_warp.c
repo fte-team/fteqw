@@ -36,7 +36,7 @@ extern cvar_t gl_skyboxdist;
 extern cvar_t r_fastsky;
 extern cvar_t r_fastskycolour;
 
-static shader_t *forcedskyshader;
+static shader_t *forcedsky;
 static shader_t *skyboxface;
 static shader_t *skygridface;
 
@@ -44,47 +44,77 @@ static shader_t *skygridface;
 
 //=========================================================
 
-void R_SetSky(char *skyname)
+//called on video shutdown to reset internal state
+void R_SkyShutdown(void)
 {
-	extern cvar_t r_skyboxname;
-	forcedskyshader = NULL;
-
-	if (!qrenderer)
-		return;
-
-	if (*r_skyboxname.string)	//user's setting overrides.
-		skyname = r_skyboxname.string;
-
-	Shader_NeedReload(false);
-	if (*skyname)
-		forcedskyshader = R_RegisterCustom(va("skybox_%s", skyname), SUF_NONE, Shader_DefaultSkybox, NULL);
-
-	skyboxface = R_RegisterShader("skyboxface", SUF_NONE,
-			"{\n"
-				"program default2d\n"
-				"{\n"
-					"map $diffuse\n"
-					"nodepth\n"	//don't write depth. this stuff is meant to be an infiniteish distance away.
-				"}\n"
-			"}\n"
-		);
-
-	skygridface = R_RegisterShader("skygridface", SUF_NONE,
-			"{\n"
-				"program default2d\n"
-				"{\n"
-					"map $diffuse\n"
-					"nodepth\n"	//don't write depth. this stuff is meant to be an infiniteish distance away.
-				"}\n"
-				"{\n"
-					"map $fullbright\n"
-					"blendfunc blend\n"
-					"nodepth\n"	//don't write depth. this stuff is meant to be an infiniteish distance away.
-				"}\n"
-			"}\n"
-		);
+	skyboxface = NULL;
+	skygridface = NULL;
+	forcedsky = NULL;
 }
 
+void R_SetSky(const char *sky)
+{
+	int i;
+	const char *shadername;
+	extern cvar_t r_skyboxname;
+	Q_strncpyz(cl.skyname, sky, sizeof(cl.skyname));
+	if (*r_skyboxname.string)	//override it with the user's preference
+		sky = r_skyboxname.string;
+
+	shadername = va("skybox_%s", sky);
+	if (!forcedsky || strcmp(shadername, forcedsky->name))
+	{
+		forcedsky = NULL;	//fall back to regular skies if forcing fails.
+
+		if (!*sky)
+			return; //no need to do anything
+
+		//if we have cubemaps then we can just go and use a cubemap for our skybox
+		if (sh_config.havecubemaps)
+		{
+			texnums_t tex;
+			memset(&tex, 0, sizeof(tex));
+			tex.reflectcube = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_CUBEMAP|IF_CLAMP);
+			if (tex.reflectcube->width)
+			{
+				forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, va("{\nsort sky\nprogram defaultskybox\n{\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparms nodlight\nsurfaceparms sky\n}", sky));
+				R_BuildDefaultTexnums(&tex, forcedsky);
+				return;
+			}
+		}
+
+		//crappy old path that I still need to fix up a bit
+		//unlike cubemaps, this works on gl1.1/gles1, and also works with the different faces as different sizes.
+		forcedsky = R_RegisterShader(shadername, 0, va("{\nsort sky\nskyparms \"%s\" 512 -\nsurfaceparms nodlight\n}", sky));
+		//check that we actually got some textures.
+		//we accept the skybox if even 1 face is valid.
+		//we ignore the replacement only request if all are invalid.
+		for (i = 0; i < 6; i++)
+		{
+			extern texid_t missing_texture;
+			if (forcedsky->skydome && forcedsky->skydome->farbox_textures[i] != missing_texture)
+				break;
+		}
+		if (i == 6)	//couldn't find ANY sky textures.
+			forcedsky = NULL;
+	}
+}
+
+void R_DrawFastSky(batch_t *batch)
+{
+	batch_t b = *batch;
+	b.shader = R_RegisterShader("fastsky", 0, "{\n"
+					"sort sky\n"
+					"{\n"
+						"map $whiteimage\n"
+						"rgbgen const $r_fastskycolour\n"
+					"}\n"
+					"surfaceparm nodlight\n"
+				"}\n");
+	b.skin = NULL;
+	b.texture = NULL;
+	BE_SubmitBatch(&b);
+}
 /*
 =================
 GL_DrawSkyChain
@@ -95,13 +125,32 @@ qboolean R_DrawSkyChain (batch_t *batch)
 	shader_t *skyshader;
 	texid_t *skyboxtex;
 
-	if (forcedskyshader)
-		skyshader = forcedskyshader;
-	else
-		skyshader = batch->shader;
+	if (r_fastsky.value)
+	{
+		R_DrawFastSky(batch);
+		return true;	//depth will always be drawn with this pathway.
+	}
 
-	if (skyshader->prog || !skyboxface)
-		return false;
+	if (forcedsky)
+	{
+		skyshader = forcedsky;
+
+		if (forcedsky->numpasses)
+		{	//cubemap skies!
+			batch_t b = *batch;
+			b.shader = forcedsky;
+			b.skin = NULL;
+			b.texture = NULL;
+			BE_SubmitBatch(&b);
+			return true;
+		}
+	}
+	else
+	{
+		skyshader = batch->shader;
+		if (skyshader->prog)	//glsl is expected to do the whole skybox/warpsky thing itself, with no assistance from this legacy code.
+			return false;
+	}
 
 	if (skyshader->skydome)
 		skyboxtex = skyshader->skydome->farbox_textures;
@@ -125,6 +174,11 @@ qboolean R_DrawSkyChain (batch_t *batch)
 		}
 		else
 			GL_DrawSkySphere(batch, skyshader);
+	}
+	else if (batch->meshes)
+	{	//if you had wanted it invisible, you should have used nodraw.
+		R_DrawFastSky(batch);
+		return true;	//depth will always be drawn with this pathway.
 	}
 
 	//neither skydomes nor skyboxes nor skygrids will have been drawn with the correct depth values for the sky.
@@ -387,7 +441,7 @@ static void R_CalcSkyChainBounds (batch_t *batch)
 	for (m = batch->firstmesh; m < batch->meshes; m++)
 	{
 		mesh = batch->mesh[m];
-		if (!mesh->xyz_array)
+		if (!mesh->xyz_array || !mesh->indexes)
 			continue;
 		//triangulate
 		for (i = 0; i < mesh->numindexes; i+=3)
@@ -714,6 +768,22 @@ static void GL_DrawSkyGrid (texnums_t *tex)
 	skyent.axis[2][2] = 1;
 	skyent.scale = 1;
 
+	if (!skygridface)
+		skygridface = R_RegisterShader("skygridface", SUF_NONE,
+				"{\n"
+					"program default2d\n"
+					"{\n"
+						"map $diffuse\n"
+						"nodepth\n"	//don't write depth. this stuff is meant to be an infiniteish distance away.
+					"}\n"
+					"{\n"
+						"map $fullbright\n"
+						"blendfunc blend\n"
+						"nodepth\n"	//don't write depth. this stuff is meant to be an infiniteish distance away.
+					"}\n"
+				"}\n"
+			);
+
 //FIXME: We should use the skybox clipping code and split the sphere into 6 sides.
 	b.meshes = 1;
 	b.firstmesh = 0;
@@ -772,6 +842,17 @@ static void GL_DrawSkyBox (texid_t *texnums, batch_t *s)
 	skyfacemesh.colors4f_array[0] = skyface_colours;
 	skyfacemesh.numindexes = 6;
 	skyfacemesh.numvertexes = 4;
+
+	if (!skyboxface)
+		skyboxface = R_RegisterShader("skyboxface", SUF_NONE,
+				"{\n"
+					"program default2d\n"
+					"{\n"
+						"map $diffuse\n"
+						"nodepth\n"	//don't write depth. this stuff is meant to be an infiniteish distance away.
+					"}\n"
+				"}\n"
+			);
 
 	for (i=0 ; i<6 ; i++)
 	{

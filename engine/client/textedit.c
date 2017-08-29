@@ -628,8 +628,10 @@ qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 				fname += 4;
 			else if (!strncmp(fname, "source/", 7))
 				fname += 7;
-			else if (!strncmp(fname, "qcsrc/", 7))
-				fname += 7;
+			else if (!strncmp(fname, "qcsrc/", 6))
+				fname += 6;
+			else if (!strncmp(fname, "progs/", 6))
+				fname += 6;
 
 
 			cl = con->userline;
@@ -878,6 +880,9 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		return DEBUG_TRACE_OFF;	//get lost
 	}
 
+	if (!strncmp(filename, "./", 2))
+		filename+=2;
+
 	//we can cope with no line info by displaying asm
 	if (editormodal || !statement
 		|| !line || *line == -1	//FIXME
@@ -960,10 +965,10 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		{
 			if (fatal)
 			{
-				Con_Printf(CON_ERROR "Unable to find %s\n", filename);
+				Con_Printf(CON_ERROR "Unable to find file \"%s\"\n", filename);
 				return DEBUG_TRACE_ABORT;
 			}
-			Con_Printf(CON_WARNING "Unable to find %s\n", filename);
+			Con_Printf(CON_WARNING "Unable to find file \"%s\"\n", filename);
 			return DEBUG_TRACE_OFF;	//whoops
 		}
 	}

@@ -55,7 +55,7 @@ cvar_t	sv_cheatspeedchecktime	= CVARD("sv_cheatspeedchecktime", "30", "The inter
 #endif
 cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "0");
 cvar_t	sv_ping_ignorepl		= CVARD("sv_ping_ignorepl", "0", "If 1, ping times reported for players will ignore the effects of packetloss on ping times. 0 is slightly more honest, but less useful for connection diagnosis.");
-cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "", "Specifies the default protocol to use for new NQ clients. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
+cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "", "Specifies the default protocol to use for new NQ clients. This is only relevent for clients that do not report their supported protocols. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
 
 cvar_t	sv_minpitch		 = CVARAFD("minpitch", "",	"sv_minpitch", CVAR_SERVERINFO, "Assumed to be -70");
 cvar_t	sv_maxpitch		 = CVARAFD("maxpitch", "",	"sv_maxpitch", CVAR_SERVERINFO, "Assumed to be 80");
@@ -464,6 +464,7 @@ void SVNQ_New_f (void)
 	extern cvar_t sv_listen_nq;
 	const char *gamedir;
 	unsigned int modelcount, soundcount;
+	extern cvar_t allow_download;
 
 	host_client->prespawn_stage = PRESPAWN_INVALID;
 	host_client->prespawn_idx = 0;
@@ -608,17 +609,19 @@ void SVNQ_New_f (void)
 		SV_LogPlayer(host_client, "new (DP6)");
 		protmain = PROTOCOL_VERSION_DP6;
 		protext1 &= ~PEXT_FLOATCOORDS;	//always enabled, try not to break things
+		protext2 = host_client->fteprotocolextensions2 = host_client->fteprotocolextensions2 & ~(PEXT2_PREDINFO|PEXT2_REPLACEMENTDELTAS);	//always disabled. kinda interferes with expectations.
 		protoname = "DPP6";
 		break;
 	case SCP_DARKPLACES7:
 		SV_LogPlayer(host_client, "new (DP7)");
 		protmain = PROTOCOL_VERSION_DP7;
 		protext1 &= ~PEXT_FLOATCOORDS;	//always enabled, try not to break things
+		protext2 = host_client->fteprotocolextensions2 = host_client->fteprotocolextensions2 & ~(PEXT2_PREDINFO|PEXT2_REPLACEMENTDELTAS);	//always disabled. kinda interferes with expectations.
 		protoname = "DPP7";
 		break;
 	default:
 		host_client->drop = true;
-		protoname = "?""?""?";
+		protoname = "Unknown";
 		break;
 	}
 
@@ -654,9 +657,17 @@ void SVNQ_New_f (void)
 		//note that those clients will also glitch out from vanilla servers too.
 		//vanilla prints something like: VERSION 1.08 SERVER (%i CRC)
 		//which isn't all that useful. so lets customise it to advertise properly, as well as provide gamedir and map (file)name info
-		Q_snprintfz (message, sizeof(message), "%c\n%s - "DISTRIBUTION" (%s%s%s%s %s) - %s", 2, gamedir,
-			protoname,(protext1||(protext2&~(PEXT2_REPLACEMENTDELTAS|PEXT2_VOICECHAT)))?"+":"",(protext2&PEXT2_REPLACEMENTDELTAS)?"F":"",(protext2&PEXT2_VOICECHAT)?"V":"",
-			build,	mapname);
+		if (protext2 & PEXT2_REPLACEMENTDELTAS)
+		{
+			Q_snprintfz (message, sizeof(message), "%c\n%s - "DISTRIBUTION" (FTENQ, %s) - %s", 2, gamedir,
+				build,	mapname);
+		}
+		else
+		{
+			Q_snprintfz (message, sizeof(message), "%c\n%s - "DISTRIBUTION" (%s%s%s, %s) - %s", 2, gamedir,
+				protoname,(protext1||(protext2&~PEXT2_VOICECHAT))?"+":"",(protext2&PEXT2_VOICECHAT)?"Voip":"",
+				build,	mapname);
+		}
 		MSG_WriteByte (&host_client->netchan.message, svc_print);
 		MSG_WriteString (&host_client->netchan.message,message);
 	}
@@ -664,14 +675,10 @@ void SVNQ_New_f (void)
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
 	{
 		size_t sz;
-		extern cvar_t allow_download;
 		char *f;
 
-		if (allow_download.value)
-		{
-			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
-		}
+		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+		MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
 
 		f = COM_LoadTempFile("csprogs.dat", &sz);
 		if (f)
@@ -686,6 +693,12 @@ void SVNQ_New_f (void)
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString (&host_client->netchan.message, "cmd enablecsqc\n");
 		}
+	}
+	else if (allow_download.value && (protext1||protext2))
+	{	//technically this is a DP extension, but is separate from actual protocols and shouldn't harm anything.
+		//it is annoying to have prints about unknown commands however, hence the above pext checks (which are unfortunate).
+		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+		MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
 	}
 
 	MSG_WriteByte (&host_client->netchan.message, svc_serverdata);
@@ -1873,6 +1886,32 @@ void SV_Begin_Core(client_t *split)
 	}
 	else
 	{
+#ifndef NOLEGACY
+		sv_player->xv->clientcolors = host_client->playercolor;
+		if (progstype != PROG_QW)
+		{	//some redundant things, purely for dp compat
+			eval_t *eval;
+			edict_t *ent = split->edict;
+			sv_player->v->team = host_client->playercolor&15;
+
+			eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "playermodel", ev_string, NULL);
+			if (eval)
+				svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, Info_ValueForKey(split->userinfo, "model"), false);
+
+			eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "playerskin", ev_string, NULL);
+			if (eval)
+				svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, Info_ValueForKey(split->userinfo, "skin"), false);
+
+			eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "netaddress", ev_string, NULL);
+			if (eval)
+			{
+				char buf[256];
+				svprogfuncs->SetStringField(svprogfuncs, ent, &eval->string, NET_AdrToString(buf, sizeof(buf), &split->netchan.remote_address), false);
+			}
+		}
+#endif
+
+
 		if (split->spectator)
 		{
 			SV_SpawnSpectator ();
@@ -1985,6 +2024,14 @@ void SV_Begin_Core(client_t *split)
 				}
 			}
 		}
+	}
+
+	split->dp_ping = NULL;
+	split->dp_pl = NULL;
+	if (progstype == PROG_NQ)
+	{
+		split->dp_ping = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, sv_player, "ping", ev_float, NULL);
+		split->dp_pl = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, sv_player, "ping_packetloss", ev_float, NULL);
 	}
 }
 
@@ -4184,11 +4231,6 @@ void SV_SetInfo_f (void)
 //	SV_FullClientUpdate (host_client, &sv.reliable_datagram);
 //	host_client->sendinfo = true;
 
-	if (progstype != PROG_QW && !strcmp(key, "bottomcolor"))
-	{	//team fortress has a nasty habit of booting people without this
-		sv_player->v->team = atoi(Cmd_Argv(2))+1;
-	}
-
 	if (!strcmp(Info_ValueForKey(host_client->userinfo, key), oldval))
 		return; // key hasn't changed
 
@@ -4198,6 +4240,25 @@ void SV_SetInfo_f (void)
 		ge->ClientUserinfoChanged (host_client->q2edict, host_client->userinfo);	//tell the gamecode
 		SV_ExtractFromUserinfo(host_client, true);	//let the server routines know
 		return;
+	}
+#endif
+
+	if (progstype != PROG_QW && !strcmp(key, "bottomcolor"))
+	{	//team fortress has a nasty habit of booting people without this
+		sv_player->v->team = atoi(Cmd_Argv(2))+1;
+	}
+#ifndef NOLEGACY
+	if (progstype != PROG_QW && !strcmp(key, "model"))
+	{
+		eval_t *eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, sv_player, "playermodel", ev_string, NULL);
+		if (eval)
+			svprogfuncs->SetStringField(svprogfuncs, sv_player, &eval->string, Cmd_Argv(2), false);
+	}
+	if (progstype != PROG_QW && !strcmp(key, "skin"))
+	{
+		eval_t *eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, sv_player, "playerskin", ev_string, NULL);
+		if (eval)
+			svprogfuncs->SetStringField(svprogfuncs, sv_player, &eval->string, Cmd_Argv(2), false);
 	}
 #endif
 
@@ -4800,6 +4861,14 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 		if (bc < 0 || bc > 13)
 			bc = 0;
 		ent->xv->clientcolors = 16*tc + bc;
+	}
+
+	cl->dp_ping = NULL;
+	cl->dp_pl = NULL;
+	if (progstype == PROG_NQ)
+	{
+		cl->dp_ping = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, ent, "ping", ev_float, NULL);
+		cl->dp_pl = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, ent, "ping_packetloss", ev_float, NULL);
 	}
 #endif
 
@@ -5541,6 +5610,17 @@ static void SVNQ_NQColour_f (void)
 	SV_ExtractFromUserinfo (host_client, true);
 }
 
+static void SVNQ_DPModel_f (void)
+{
+	Cmd_TokenizeString(va("setinfo model \"%s\"\n", Cmd_Argv(1)), false, false);
+	SV_SetInfo_f();
+}
+static void SVNQ_DPSkin_f (void)
+{
+	Cmd_TokenizeString(va("setinfo skin \"%s\"\n", Cmd_Argv(1)), false, false);
+	SV_SetInfo_f();
+}
+
 static void SVNQ_Ping_f(void)
 {
 	int i;
@@ -5597,9 +5677,16 @@ static void SVNQ_Status_f(void)
 	SV_PrintToClient(host_client, PRINT_HIGH, va("players: %i active (%i max)\n\n", count, min(maxclients.ival+maxspectators.ival,sv.allocated_client_slots)));//must be last
 	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 	{
+		int hours, mins, secs;
 		if (!cl->state)
 			continue;
-		SV_PrintToClient(host_client, PRINT_HIGH, va("#%i\n", i+1));
+		secs = realtime - cl->connection_started;
+		mins = secs/60;
+		secs -= mins*60;
+		hours = mins/60;
+		mins -= hours*60;
+
+		SV_PrintToClient(host_client, PRINT_HIGH, va("#%-2u %-16.16s  %3i  %2i:%02i:%02i\n", i+1, cl->name, cl->old_frags, hours, mins, secs));
 		SV_PrintToClient(host_client, PRINT_HIGH, va("   %s\n", SV_PlayerPublicAddress(cl)));
 	}
 }
@@ -5887,8 +5974,8 @@ ucmd_t nqucmds[] =
 	{"setinfo",		SV_SetInfo_f},
 	{"name",		SVNQ_NQInfo_f},
 	{"color",		SVNQ_NQColour_f},
-	{"playermodel",	NULL},
-	{"playerskin",	NULL},
+	{"playermodel",	SVNQ_DPModel_f},
+	{"playerskin",	SVNQ_DPSkin_f},
 	{"rate",		SV_Rate_f},
 	{"rate_burstsize",	NULL},
 
@@ -6146,7 +6233,7 @@ float V_CalcRoll (vec3_t angles, vec3_t velocity)
 
 vec3_t	pmove_mins, pmove_maxs;
 
-static qboolean AddEntityToPmove(edict_t *player, edict_t *check)
+static qboolean AddEntityToPmove(world_t *w, wedict_t *player, wedict_t *check)
 {
 	physent_t	*pe;
 	int			solid = check->v->solid;
@@ -6163,7 +6250,7 @@ static qboolean AddEntityToPmove(edict_t *player, edict_t *check)
 	pmove.numphysent++;
 
 	VectorCopy (check->v->origin, pe->origin);
-	pe->info = NUM_FOR_EDICT(svprogfuncs, check);
+	pe->info = NUM_FOR_EDICT(w->progs, check);
 	pe->nonsolid = solid == SOLID_TRIGGER;
 	pe->isportal = solid == SOLID_PORTAL;
 	q1contents = (int)check->v->skin;
@@ -6215,28 +6302,30 @@ static qboolean AddEntityToPmove(edict_t *player, edict_t *check)
 	}
 	return true;
 }
-/*
-====================
-AddLinksToPmove
 
-====================
-*/
-void AddLinksToPmove ( edict_t *player, areanode_t *node )
+#if 1
+#ifdef USEAREAGRID
+extern size_t areagridsequence;
+static void AddLinksToPmove (world_t *w, wedict_t *player, areagridlink_t *node)
 {
 	int Q1_HullPointContents (hull_t *hull, int num, vec3_t p);
 	link_t		*l, *next;
-	edict_t		*check;
+	wedict_t		*check;
 	int			pl;
 	int			i;
 	int			solid;
 
-	pl = EDICT_TO_PROG(svprogfuncs, player);
+	pl = EDICT_TO_PROG(w->progs, player);
 
 	// touch linked edicts
-	for (l = node->edicts.next ; l != &node->edicts ; l = next)
+	for (l = node->l.next ; l != &node->l ; l = next)
 	{
 		next = l->next;
-		check = (edict_t*)EDICT_FROM_AREA(l);
+		check = ((areagridlink_t*)l)->ed;
+
+		if (check->gridareasequence == areagridsequence)
+			continue;
+		check->gridareasequence = areagridsequence;
 
 		if (check->v->owner == pl)
 			continue;		// player's own missile
@@ -6261,38 +6350,33 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			if (i != 3)
 				continue;
 
-			if (!AddEntityToPmove(player, check))
+			if (!AddEntityToPmove(w, player, check))
 				break;
 		}
 	}
-
-// recurse down both sides
-	if (node->axis == -1)
-		return;
-
-	if (pmove_maxs[node->axis] > node->dist)
-		AddLinksToPmove (player, node->children[0]);
-	if (pmove_mins[node->axis] < node->dist)
-		AddLinksToPmove (player, node->children[1]);
 }
 
 //ignores mins/maxs.
 //portals are expected to be weird. player movement code is nasty.
-void AddLinksToPmove_Force ( edict_t *player, areanode_t *node )
+static void AddPortalsToPmove (world_t *w, wedict_t *player, areagridlink_t *node)
 {
 	link_t		*l, *next;
-	edict_t		*check;
+	wedict_t	*check;
 	int			pl;
 //	int			i;
 	int			solid;
 
-	pl = EDICT_TO_PROG(svprogfuncs, player);
+	pl = EDICT_TO_PROG(w->progs, player);
 
 	// touch linked edicts
-	for (l = node->edicts.next ; l != &node->edicts ; l = next)
+	for (l = node->l.next ; l != &node->l ; l = next)
 	{
 		next = l->next;
-		check = (edict_t*)EDICT_FROM_AREA(l);
+		check = ((areagridlink_t*)l)->ed;
+
+		if (check->gridareasequence == areagridsequence)
+			continue;
+		check->gridareasequence = areagridsequence;
 
 		if (check->v->owner == pl)
 			continue;		// player's own missile
@@ -6309,7 +6393,73 @@ void AddLinksToPmove_Force ( edict_t *player, areanode_t *node )
 			//|| (solid == SOLID_PHASEH2 && progstype == PROG_H2) //logically matches hexen2, but I hate it
 			)
 		{
-			if (!AddEntityToPmove(player, check))
+			if (!AddEntityToPmove(w, player, check))
+				break;
+		}
+	}
+}
+void AddAllLinksToPmove (world_t *w, wedict_t *player)
+{
+	int ming[2], maxg[2], g[2];
+	CALCAREAGRIDBOUNDS(w, pmove_mins, pmove_maxs);
+
+	areagridsequence++;
+
+	AddLinksToPmove(w, player, &w->jumboarea);
+	for (g[0] = ming[0]; g[0] < maxg[0]; g[0]++)
+		for (g[1] = ming[1]; g[1] < maxg[1]; g[1]++)
+			AddLinksToPmove(w, player, &w->gridareas[g[0] + g[1]*w->gridsize[0]]);
+
+	AddPortalsToPmove(w, player, &w->portallist);
+}
+#else
+/*
+====================
+AddLinksToPmove
+
+====================
+*/
+void AddLinksToPmove (world_t *w, wedict_t *player, areanode_t *node)
+{
+	int Q1_HullPointContents (hull_t *hull, int num, vec3_t p);
+	link_t		*l, *next;
+	wedict_t		*check;
+	int			pl;
+	int			i;
+	int			solid;
+
+	pl = EDICT_TO_PROG(w->progs, player);
+
+	// touch linked edicts
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
+	{
+		next = l->next;
+		check = (wedict_t*)EDICT_FROM_AREA(l);
+
+		if (check->v->owner == pl)
+			continue;		// player's own missile
+		if (check == player)
+			continue;
+		solid = check->v->solid;
+		if (
+			(solid == SOLID_TRIGGER && check->v->skin < 0)
+			|| solid == SOLID_BSP
+			|| solid == SOLID_PORTAL
+			|| solid == SOLID_BBOX
+			|| solid == SOLID_SLIDEBOX
+			|| solid == SOLID_LADDER
+			//|| (solid == SOLID_PHASEH2 && progstype == PROG_H2) //logically matches hexen2, but I hate it
+			)
+		{
+
+			for (i=0 ; i<3 ; i++)
+				if (check->v->absmin[i] > pmove_maxs[i]
+				|| check->v->absmax[i] < pmove_mins[i])
+					break;
+			if (i != 3)
+				continue;
+
+			if (!AddEntityToPmove(w, player, check))
 				break;
 		}
 	}
@@ -6319,12 +6469,61 @@ void AddLinksToPmove_Force ( edict_t *player, areanode_t *node )
 		return;
 
 	if (pmove_maxs[node->axis] > node->dist)
-		AddLinksToPmove_Force (player, node->children[0]);
+		AddLinksToPmove (w, player, node->children[0]);
 	if (pmove_mins[node->axis] < node->dist)
-		AddLinksToPmove_Force (player, node->children[1]);
+		AddLinksToPmove (w, player, node->children[1]);
 }
 
+//ignores mins/maxs.
+//portals are expected to be weird. player movement code is nasty.
+void AddLinksToPmove_Force (world_t *w, wedict_t *player, areanode_t *node)
+{
+	link_t		*l, *next;
+	wedict_t		*check;
+	int			pl;
+//	int			i;
+	int			solid;
 
+	pl = EDICT_TO_PROG(w->progs, player);
+
+	// touch linked edicts
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
+	{
+		next = l->next;
+		check = (wedict_t*)EDICT_FROM_AREA(l);
+
+		if (check->v->owner == pl)
+			continue;		// player's own missile
+		if (check == player)
+			continue;
+		solid = check->v->solid;
+		if (
+			(solid == SOLID_TRIGGER && check->v->skin < 0)
+			|| solid == SOLID_BSP
+			|| solid == SOLID_PORTAL
+			|| solid == SOLID_BBOX
+			|| solid == SOLID_SLIDEBOX
+			|| solid == SOLID_LADDER
+			//|| (solid == SOLID_PHASEH2 && progstype == PROG_H2) //logically matches hexen2, but I hate it
+			)
+		{
+			if (!AddEntityToPmove(w, player, check))
+				break;
+		}
+	}
+
+// recurse down both sides
+	if (node->axis == -1)
+		return;
+
+	if (pmove_maxs[node->axis] > node->dist)
+		AddLinksToPmove_Force (w, player, node->children[0]);
+	if (pmove_mins[node->axis] < node->dist)
+		AddLinksToPmove_Force (w, player, node->children[1]);
+}
+#endif
+
+#else
 /*
 ================
 AddAllEntsToPmove
@@ -6332,17 +6531,17 @@ AddAllEntsToPmove
 For debugging
 ================
 */
-void AddAllEntsToPmove (edict_t *player)
+void AddAllEntsToPmove (wedict_t *player, world_t *w)
 {
 	int			e;
-	edict_t		*check;
+	wedict_t		*check;
 	int			i;
 	int			pl;
 
-	pl = EDICT_TO_PROG(svprogfuncs, player);
-	for (e=1 ; e<sv.world.num_edicts ; e++)
+	pl = EDICT_TO_PROG(w->progs, player);
+	for (e=1 ; e<w->num_edicts ; e++)
 	{
-		check = EDICT_NUM(svprogfuncs, e);
+		check = EDICT_NUM(w->progs, e);
 		if (ED_ISFREE(check))
 			continue;
 		if (check->v->owner == pl)
@@ -6366,6 +6565,7 @@ void AddAllEntsToPmove (edict_t *player)
 		}
 	}
 }
+#endif
 
 int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 {
@@ -6483,7 +6683,14 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		if (ucmd->msec && host_client->msecs > 500)
 			host_client->msecs = 500;
 		if (ucmd->msec > host_client->msecs)
-			return;
+		{	//they're over their timeslice allocation
+			//if they're not taking the piss then be prepared to truncate the frame. this should hide clockskew without allowing full-on speedcheats.
+			if (ucmd->msec > 10)
+				ucmd->msec -= 1;
+			if (ucmd->msec > host_client->msecs)
+				return;
+			ucmd->msec = host_client->msecs;
+		}
 		host_client->msecs -= ucmd->msec;
 #else
 		// DMW copied this KK hack copied from QuakeForge anti-cheat
@@ -6852,12 +7059,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		pmove_maxs[i] = pmove.origin[i] + 256;
 	}
 	sv_player->xv->pmove_flags = (int)sv_player->xv->pmove_flags & ~PMF_LADDER;	//assume not touching ladder trigger
-#if 1
-	AddLinksToPmove ( sv_player, sv.world.areanodes );
-#else
-	AddAllEntsToPmove (sv_player);
-#endif
-	AddLinksToPmove_Force ( sv_player, &sv.world.portallist );
+	AddAllLinksToPmove (&sv.world, (wedict_t*)sv_player);
 
 	if ((int)sv_player->xv->pmove_flags & PMF_LADDER)
 		pmove.onladder = true;
@@ -7949,6 +8151,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	}
 	else
 	{
+		host_client->last_sequence = 0;	//let the client know that prediction is fucked, by not acking any input frames.
 		if (i)
 			host_client->edict->v->impulse = i;
 		host_client->isindependant = false;
@@ -7959,14 +8162,14 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 {
 	int		c;
 	char	*s;
-	client_frame_t	*frame;
+//	client_frame_t	*frame;
 
 	cl->netchan.outgoing_sequence++;
 	cl->netchan.incoming_acknowledged = cl->netchan.outgoing_sequence-1;
 
 	// calc ping time
-	frame = &cl->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
-	frame->ping_time = -1;
+//	frame = &cl->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
+//	frame->ping_time = -1;
 
 	// make sure the reply sequence number matches the incoming
 	// sequence number
@@ -7976,11 +8179,11 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 //		cl->send_message = false;	// don't reply, sequences have slipped
 
 	// save time for ping calculations
-	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
-	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
-	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].move_msecs = -1;
-	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].packetsizein = net_message.cursize;
-	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].packetsizeout = 0;
+//	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
+//	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
+//	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].move_msecs = -1;
+//	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].packetsizein = net_message.cursize;
+//	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].packetsizeout = 0;
 
 	host_client = cl;
 	sv_player = host_client->edict;
@@ -8047,6 +8250,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			if (cl->delta_sequence == -1 && cl->pendingdeltabits)
 				cl->pendingdeltabits[0] = UF_REMOVE;
 			SV_AckEntityFrame(cl, cl->delta_sequence);
+			cl->frameunion.frames[cl->delta_sequence&UPDATE_MASK].ping_time = realtime - cl->frameunion.frames[cl->delta_sequence&UPDATE_MASK].senttime;
 			break;
 		case clcdp_ackdownloaddata:
 			SV_DarkPlacesDownloadAck(cl);

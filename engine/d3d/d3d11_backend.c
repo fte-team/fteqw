@@ -161,6 +161,8 @@ typedef struct
 	vec4_t e_lmscale[4];
 	vec4_t e_uppercolour;
 	vec4_t e_lowercolour;
+	vec4_t e_colourmod;
+	vec4_t e_glowmod;
 } cbuf_entity_t;
 
 //vertex attributes
@@ -250,6 +252,7 @@ typedef struct
 	ID3D11Buffer		*stream_buffer[D3D11_BUFF_MAX];
 	unsigned int		stream_stride[D3D11_BUFF_MAX];
 	unsigned int		stream_offset[D3D11_BUFF_MAX];
+	qboolean			stream_rgbaf;
 
 	program_t			*programfixedemu[4];
 
@@ -1056,6 +1059,12 @@ static void SelectPassTexture(unsigned int tu, const shaderpass_t *pass)
 	case T_GEN_FULLBRIGHT:
 		BindTexture(tu, shaderstate.curtexnums->fullbright);
 		break;
+	case T_GEN_REFLECTCUBE:
+		BindTexture(tu, shaderstate.curtexnums->reflectcube);
+		break;
+	case T_GEN_REFLECTMASK:
+		BindTexture(tu, shaderstate.curtexnums->reflectmask);
+		break;
 	case T_GEN_ANIMMAP:
 		BindTexture(tu, pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes]);
 		break;
@@ -1414,6 +1423,7 @@ static void BE_GenerateColourMods(unsigned int vertcount, const shaderpass_t *pa
 	const mesh_t *m = shaderstate.meshlist[0];
 	if (pass->flags & SHADER_PASS_NOCOLORARRAY)
 	{
+#if 1
 		ID3D11Buffer *buf;
 		unsigned char *map;
 		unsigned int offset;
@@ -1429,6 +1439,25 @@ static void BE_GenerateColourMods(unsigned int vertcount, const shaderpass_t *pa
 		shaderstate.stream_buffer[D3D11_BUFF_COL] = buf;
 		shaderstate.stream_offset[D3D11_BUFF_COL] = offset;
 		shaderstate.stream_stride[D3D11_BUFF_COL] = 0;	//omg that's so lame!
+		shaderstate.stream_rgbaf = false;
+#else
+		ID3D11Buffer *buf;
+		unsigned char *map;
+		unsigned int offset;
+		vec4_t passcolour;
+		static vec4_t fakesource = {1,1,1,1};
+		allocvertexbuffer(&buf, &offset, (void**)&map, sizeof(fakesource));
+
+		colourgen(pass, 1, (vec4_t*)&fakesource, NULL, (vec4_t*)&passcolour, m);
+		alphagen(pass, 1, (vec4_t*)&fakesource, NULL, (vec4_t*)&passcolour, m);
+		Vector4Copy(passcolour, map);
+
+		ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)buf, 0);
+		shaderstate.stream_buffer[D3D11_BUFF_COL] = buf;
+		shaderstate.stream_offset[D3D11_BUFF_COL] = offset;
+		shaderstate.stream_stride[D3D11_BUFF_COL] = 0;	//omg that's so lame!
+		shaderstate.stream_rgbaf = true;
+#endif
 	}
 	else
 	{
@@ -1441,6 +1470,7 @@ static void BE_GenerateColourMods(unsigned int vertcount, const shaderpass_t *pa
 			shaderstate.stream_buffer[D3D11_BUFF_COL] = shaderstate.batchvbo->colours[0].d3d.buff;
 			shaderstate.stream_offset[D3D11_BUFF_COL] = shaderstate.batchvbo->colours[0].d3d.offs;
 			shaderstate.stream_stride[D3D11_BUFF_COL] = sizeof(vbovdata_t);
+			shaderstate.stream_rgbaf = false;
 		}
 		else
 		{
@@ -1460,6 +1490,7 @@ static void BE_GenerateColourMods(unsigned int vertcount, const shaderpass_t *pa
 			shaderstate.stream_buffer[D3D11_BUFF_COL] = buf;
 			shaderstate.stream_offset[D3D11_BUFF_COL] = offset;
 			shaderstate.stream_stride[D3D11_BUFF_COL] = sizeof(byte_vec4_t);
+			shaderstate.stream_rgbaf = false;
 		}
 	}
 }
@@ -1888,7 +1919,7 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 		shaderstate.lcbuffer							//light buffer that changes rarelyish
 	};
 	//FIXME: how many of these calls can we avoid?
-	ID3D11DeviceContext_IASetInputLayout(d3ddevctx, prog->permu[permu].h.hlsl.layout);
+	ID3D11DeviceContext_IASetInputLayout(d3ddevctx, prog->permu[permu].h.hlsl.layouts[shaderstate.stream_rgbaf]);
 	ID3D11DeviceContext_VSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.vert, NULL, 0);
 	ID3D11DeviceContext_HSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.hull, NULL, 0);
 	ID3D11DeviceContext_DSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.domain, NULL, 0);
@@ -2230,6 +2261,7 @@ static void BE_DrawMeshChain_Internal(void)
 			shaderstate.stream_buffer[D3D11_BUFF_COL] = shaderstate.batchvbo->colours[0].d3d.buff;
 			shaderstate.stream_offset[D3D11_BUFF_COL] = shaderstate.batchvbo->colours[0].d3d.offs;
 			shaderstate.stream_stride[D3D11_BUFF_COL] = sizeof(vbovdata_t);
+			shaderstate.stream_rgbaf = false;
 			shaderstate.stream_buffer[D3D11_BUFF_TC] = shaderstate.batchvbo->texcoord.d3d.buff;
 			shaderstate.stream_offset[D3D11_BUFF_TC] = shaderstate.batchvbo->texcoord.d3d.offs;
 			shaderstate.stream_stride[D3D11_BUFF_TC] = sizeof(vbovdata_t);
@@ -2251,19 +2283,19 @@ static void BE_DrawMeshChain_Internal(void)
 
 			if (shaderstate.meshlist[0]->colors4f_array[0])
 			{
-				byte_vec4_t *map;
-				allocvertexbuffer(&buf, &offset, (void**)&map, vertcount*sizeof(byte_vec4_t));
+				vec4_t *map;
+				allocvertexbuffer(&buf, &offset, (void**)&map, vertcount*sizeof(*map));
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
-					for (i = 0; i < m->numvertexes; i++)
-						((int*)map)[i] = D3DCOLOR_COLORVALUE(m->colors4f_array[0][i][2], m->colors4f_array[0][i][1], m->colors4f_array[0][i][0], m->colors4f_array[0][i][3]);
+					memcpy(map, m->colors4f_array[0], sizeof(*map)*m->numvertexes);
 					map += m->numvertexes;
 				}
 				ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)buf, 0);
 				shaderstate.stream_buffer[D3D11_BUFF_COL] = buf;
 				shaderstate.stream_offset[D3D11_BUFF_COL] = offset;
-				shaderstate.stream_stride[D3D11_BUFF_COL] = sizeof(byte_vec4_t);
+				shaderstate.stream_stride[D3D11_BUFF_COL] = sizeof(*map);
+				shaderstate.stream_rgbaf = true;
 			}
 			else if (shaderstate.meshlist[0]->colors4b_array)
 			{
@@ -2280,12 +2312,14 @@ static void BE_DrawMeshChain_Internal(void)
 				shaderstate.stream_buffer[D3D11_BUFF_COL] = buf;
 				shaderstate.stream_offset[D3D11_BUFF_COL] = offset;
 				shaderstate.stream_stride[D3D11_BUFF_COL] = sizeof(byte_vec4_t);
+				shaderstate.stream_rgbaf = false;
 			}
 			else
 			{
 				shaderstate.stream_buffer[D3D11_BUFF_COL] = 0;
 				shaderstate.stream_offset[D3D11_BUFF_COL] = 0;
 				shaderstate.stream_stride[D3D11_BUFF_COL] = 0;
+				shaderstate.stream_rgbaf = false;
 			}
 
 			if (shaderstate.meshlist[0]->lmst_array[0])
@@ -2669,7 +2703,7 @@ static void BE_UploadLightmaps(qboolean force)
 		if (!lightmap[i])
 			continue;
 
-		if (force)
+		if (force && !lightmap[i]->external)
 		{
 			lightmap[i]->rectchange.l = 0;
 			lightmap[i]->rectchange.t = 0;
@@ -3001,6 +3035,9 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 
 	R_FetchPlayerColour(e->topcolour, cbe->e_uppercolour);
 	R_FetchPlayerColour(e->bottomcolour, cbe->e_lowercolour);
+	R_FetchPlayerColour(e->bottomcolour, cbe->e_colourmod);
+	VectorCopy(e->shaderRGBAf, cbe->e_colourmod);
+	VectorCopy(e->glowmod, cbe->e_glowmod);cbe->e_glowmod[3] = 1;
 
 	//various stuff in modelspace
 	Matrix4x4_CM_Transform3(modelinv, r_origin, cbe->e_eyepos);
@@ -3138,12 +3175,13 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if (batch->shader->flags & SHADER_SKY)
 		{
-			if (!batch->shader->prog)
+			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK)
 			{
-				if (shaderstate.mode == BEM_STANDARD)
-					R_DrawSkyChain (batch);
-				continue;
+				if (R_DrawSkyChain (batch))
+					continue;
 			}
+			else if (shaderstate.mode != BEM_FOG && shaderstate.mode != BEM_CREPUSCULAR && shaderstate.mode != BEM_WIREFRAME)
+				continue;
 		}
 
 		BE_SubmitBatch(batch);
@@ -3611,7 +3649,7 @@ void D3D11BE_DrawWorld (batch_t **worldbatches)
 			shaderstate.identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif
-			shaderstate.identitylighting = 1;
+			shaderstate.identitylighting = r_lightmap_scale.value;
 		shaderstate.identitylighting *= r_refdef.hdr_value;
 //		shaderstate.identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
 
@@ -3619,23 +3657,25 @@ void D3D11BE_DrawWorld (batch_t **worldbatches)
 
 		RSpeedRemark();
 		D3D11BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
-		RSpeedEnd(RSPEED_WORLD);
+		RSpeedEnd(RSPEED_OPAQUE);
 
 #ifdef RTLIGHTS
 		RSpeedRemark();
 		D3D11BE_SelectEntity(&r_worldentity);
 		Sh_DrawLights(r_refdef.scenevis);
-		RSpeedEnd(RSPEED_STENCILSHADOWS);
+		RSpeedEnd(RSPEED_RTLIGHTS);
 #endif
 
+		RSpeedRemark();
 		D3D11BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_SEETHROUGH+1, SHADER_SORT_COUNT);
+		RSpeedEnd(RSPEED_TRANSPARENTS);
 	}
 	else
 	{
 		RSpeedRemark();
 		shaderstate.identitylighting = 1;
 		D3D11BE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_COUNT);
-		RSpeedEnd(RSPEED_DRAWENTITIES);
+		RSpeedEnd(RSPEED_OPAQUE);
 	}
 
 	R_RenderDlights ();

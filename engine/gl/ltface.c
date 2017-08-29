@@ -143,7 +143,8 @@ struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, model_t *model, qb
 		ctx->shadows = shadows;
 		ctx->skiplit = skiplit;
 	}
-	ctx->models[ctx->nummodels++] = model;
+	if (ctx->nummodels < countof(ctx->models))
+		ctx->models[ctx->nummodels++] = model;
 	return ctx;
 }
 void LightReloadEntities(struct relight_ctx_s *ctx, const char *entstring, qboolean ignorestyles)

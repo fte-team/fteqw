@@ -1403,29 +1403,38 @@ qboolean GLVID_ApplyGammaRamps(unsigned int rampcount, unsigned short *ramps)
 	if (!vm.originalapplied)
 		return false;
 
-	if (ramps || rampcount != vm.originalrampsize)
+	if (ramps && rampcount == vm.originalrampsize)
 	{
-		//hardwaregamma==1 skips hardware gamma when we're not fullscreen, in favour of software glsl based gamma.
-//		if (vid_hardwaregamma.value == 1 && !vid.activeapp && !(fullscreenflags & FULLSCREEN_ACTIVE))
-//			return false;
-//		if (!vid.activeapp)
-//			return false;
-//		if (!vid_hardwaregamma.value)
-//			return false;
-	
-		//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma if it randomly fails (yuck)
-		if (gammaworks)
-			vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, rampcount, &ramps[0], &ramps[rampcount], &ramps[rampcount*2]);
-		else
-			gammaworks = !!vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, rampcount, &ramps[0], &ramps[rampcount], &ramps[rampcount*2]);
+		switch(vid_hardwaregamma.ival)
+		{
+		case 0:	//never use hardware/glsl gamma
+		case 2:	//ALWAYS use glsl gamma
+			return false;
+		default:
+		case 1:	//no hardware gamma when windowed
+			if (!(fullscreenflags & FULLSCREEN_ACTIVE))
+				return false;
+			break;
+		case 3:	//ALWAYS try to use hardware gamma, even when it fails...
+			break;
+		}
 
-		return gammaworks;
+		if (vid.activeapp)
+		{
+			if (gammaworks)
+				vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, rampcount, &ramps[0], &ramps[rampcount], &ramps[rampcount*2]);
+			else
+				gammaworks = !!vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, rampcount, &ramps[0], &ramps[rampcount], &ramps[rampcount*2]);
+			return gammaworks;
+		}
+		return false;
 	}
-	else
+	else if (gammaworks)
 	{
 		vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 		return true;
 	}
+	return false;
 }
 
 void GLVID_SwapBuffers (void)

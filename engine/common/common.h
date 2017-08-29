@@ -179,6 +179,14 @@ typedef struct link_s
 	struct link_s	*prev, *next;
 } link_t;
 
+#ifdef USEAREAGRID
+typedef struct
+{
+	link_t l;
+	void *ed;
+} areagridlink_t;
+#endif
+
 
 void ClearLink (link_t *l);
 void RemoveLink (link_t *l);

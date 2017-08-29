@@ -234,6 +234,7 @@ typedef struct
 
 	int server_time;
 	int client_time;
+	float sentgametime;	//nq timings are based upon server time echos.
 } outframe_t;
 
 typedef struct
@@ -759,6 +760,7 @@ typedef struct
 								// packetentity_t we got.  If this is 0, we can't
 								// render a frame yet
 	int			movesequence;	// client->server frames
+	float		movesequence_time;	// client->server frame timestamp (vs cl.time)
 
 //	int			spectator;
 	int			autotrack_hint;		//the latest hint from the mod, might be negative for invalid.
@@ -1166,7 +1168,7 @@ void CL_ClampPitch (int pnum);
 
 int  CL_ReadFromServer (void);
 void CL_WriteToServer (usercmd_t *cmd);
-void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps);
+void CL_BaseMove (usercmd_t *cmd, int pnum, float priortime, float extratime);
 
 int Master_FindBestRoute(char *server, char *out, size_t outsize, int *directcost, int *chainedcost);
 
@@ -1181,7 +1183,7 @@ void CL_UseIndepPhysics(qboolean allow);
 
 void CL_FlushClientCommands(void);
 void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...) LIKEPRINTF(2);
-float CL_FilterTime (double time, float wantfps, qboolean ignoreserver);
+float CL_FilterTime (double time, float wantfps, float limit, qboolean ignoreserver);
 int CL_RemoveClientCommands(char *command);
 void CL_AllowIndependantSendCmd(qboolean allow);
 

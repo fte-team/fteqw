@@ -4772,7 +4772,6 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 		//the exception is single-file dds cubemaps, but we don't support those.
 		for(altname = tex->ident;altname;altname = nextalt)
 		{
-			char *prefixes[] = {"textures/", "", NULL};
 			struct pendingtextureinfo *mips;
 
 			nextalt = strchr(altname, ':');

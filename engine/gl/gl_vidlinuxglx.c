@@ -71,6 +71,9 @@ static qboolean XVK_SetupSurface_XCB(void);
 #include "glquake.h"
 #endif
 
+#define USE_VMODE
+#define USE_XRANDR
+
 #include <X11/keysym.h>
 #include <X11/cursorfont.h>
 
@@ -105,6 +108,19 @@ extern int sys_parenttop;
 extern int sys_parentwidth;
 extern int sys_parentheight;
 extern long    sys_parentwindow;
+
+qboolean X11_CheckFeature(const char *featurename, qboolean defaultval)
+{
+	cvar_t *var;
+	if (COM_CheckParm(va("-no%s", featurename)))
+		return false;
+	if (COM_CheckParm(va("-force%s", featurename)))
+		return true;
+	var = Cvar_Get(va("x11_allow_%s", featurename), defaultval?"1":"0", 0, NULL);
+	if (var)
+		return !!var->ival;
+	return defaultval;
+}
 
 #define KEY_MASK (KeyPressMask | KeyReleaseMask)
 #define MOUSE_MASK (ButtonPressMask | ButtonReleaseMask | \
@@ -316,12 +332,18 @@ static qboolean x11xcb_initlib(void)
 #endif
 
 
-#define FULLSCREEN_VMODE	1	//using xf86 vidmode (we can actually change modes)
-#define FULLSCREEN_VMODEACTIVE	2	//xf86 vidmode currently forced
-#define FULLSCREEN_LEGACY	4	//override redirect used
-#define FULLSCREEN_WM		8	//fullscreen hint used
-#define FULLSCREEN_ACTIVE	16	//currently fullscreen
-static int fullscreenflags;
+#define FULLSCREEN_DESKTOP	(1u<<0)	//we didn't need to change video modes at all.
+#define FULLSCREEN_VMODE	(1u<<1)	//using xf86 vidmode (we can actually change modes)
+#define FULLSCREEN_VMODEACTIVE	(1u<<2)	//xf86 vidmode currently forced
+#define FULLSCREEN_XRANDR	(1u<<3)	//using xf86 vidmode (we can actually change modes)
+#define FULLSCREEN_XRANDRACTIVE	(1u<<4)	//xf86 vidmode currently forced
+#define FULLSCREEN_LEGACY	(1u<<5)	//override redirect used (window is hidden from other programs, with a dummy window for alt+tab detection)
+#define FULLSCREEN_WM		(1u<<6)	//fullscreen hint used (desktop environment is expected to 'do the right thing', but it won't change actual video modes)
+#define FULLSCREEN_ACTIVE	(1u<<7)	//currently considered fullscreen
+#define FULLSCREEN_ANYMODE	(FULLSCREEN_DESKTOP|FULLSCREEN_VMODE|FULLSCREEN_XRANDR)
+static unsigned int fullscreenflags;
+static int fullscreenx;
+static int fullscreeny;
 static int fullscreenwidth;
 static int fullscreenheight;
 
@@ -331,6 +353,7 @@ void X_GoWindowed(void);
 static unsigned int modeswitchtime;
 static int modeswitchpending;
 
+#ifdef USE_VMODE
 typedef struct
 {
 	unsigned int        dotclock;
@@ -384,7 +407,7 @@ static qboolean VMODE_Init(void)
 	vm.usemode = -1;
 	vm.originalapplied = false;
 
-	if (COM_CheckParm("-novmode"))
+	if (!X11_CheckFeature("vmode", true))
 		return false;
 
 	if (!x11.pXQueryExtension(vid_dpy, "XFree86-VidModeExtension", &vm.opcode, &vm.event, &vm.error))
@@ -411,7 +434,565 @@ static qboolean VMODE_Init(void)
 	return vm.vmajor;
 }
 
+static void VMODE_SelectMode(int *width, int *height, float rate)
+{
+	if (COM_CheckParm("-current"))
+		return;
+	if (vm.vmajor)
+	{
+		int best_fit, best_dist, dist, x, y, z, r, i;
 
+		vm.pXF86VidModeGetAllModeLines(vid_dpy, scrnum, &vm.num_modes, &vm.modes);
+		best_dist = 9999999;
+		best_fit = -1;
+	
+		if ((!*width || *width == DisplayWidth(vid_dpy, scrnum)) && (!*height || *height == DisplayHeight(vid_dpy, scrnum)) && !rate)
+		{
+			Con_Printf("XF86VM: mode change not needed\n");
+			fullscreenflags |= FULLSCREEN_DESKTOP;
+			return;
+		}
+
+		for (i = 0; i < vm.num_modes; i++)
+		{
+			//fixme: check this formula. should be the full refresh rate
+			r = vm.modes[i]->dotclock * 1000 / (vm.modes[i]->htotal * vm.modes[i]->vtotal);
+			if (*width > vm.modes[i]->hdisplay ||
+				*height > vm.modes[i]->vdisplay ||
+				rate > r)
+				continue;
+
+			x = *width - vm.modes[i]->hdisplay;
+			y = *height - vm.modes[i]->vdisplay;
+			z = rate?(rate - r):0;
+			dist = (x * x) + (y * y) + (z * z);
+			if (dist < best_dist)
+			{
+				best_dist = dist;
+				best_fit = i;
+			}
+		}
+
+		if (best_fit != -1)
+		{
+			// change to the mode
+			if (vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[vm.usemode=best_fit]))
+			{
+				*width = vm.modes[best_fit]->hdisplay;
+				*height = vm.modes[best_fit]->vdisplay;
+				// Move the viewport to top left
+				vm.pXF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
+				x11.pXSync(vid_dpy, False);
+
+				fullscreenflags |= FULLSCREEN_VMODE | FULLSCREEN_VMODEACTIVE;
+				Con_Printf("XF86VM: changed mode\n");
+			}
+			else
+				Con_Printf("Failed to apply mode %i*%i\n", vm.modes[best_fit]->hdisplay, vm.modes[best_fit]->vdisplay);
+		}
+	}
+}
+#endif
+
+#ifdef USE_XRANDR
+#if 0
+	#include <X11/extensions/Xrandr.h>
+#else
+	//stuff to avoid dependancies
+	typedef struct _XRRScreenConfiguration XRRScreenConfiguration;
+	typedef unsigned short Rotation;
+	typedef unsigned short SizeID;
+	typedef unsigned short SubpixelOrder;
+	typedef unsigned short Connection;
+	#define RR_Connected 0
+	typedef XID RROutput;
+	typedef XID RRCrtc;
+	typedef XID RRMode;
+	typedef unsigned long XRRModeFlags;
+
+	typedef struct {
+		int width, height;
+		int mwidth, mheight;
+	} XRRScreenSize;
+	typedef struct _XRROutputInfo {
+		Time            timestamp;
+		RRCrtc          crtc;
+		char            *name;
+		int             nameLen;
+		unsigned long   mm_width;
+		unsigned long   mm_height;
+		Connection      connection;
+		SubpixelOrder   subpixel_order;
+		int             ncrtc;
+		RRCrtc          *crtcs;
+		int             nclone;
+		RROutput        *clones;
+		int             nmode;
+		int             npreferred;
+		RRMode  	        *modes;
+	} XRROutputInfo;
+	typedef struct _XRRModeInfo {
+		RRMode              id;
+		unsigned int        width;
+		unsigned int        height;
+		unsigned long       dotClock;
+		unsigned int        hSyncStart;
+		unsigned int        hSyncEnd;
+		unsigned int        hTotal;
+		unsigned int        hSkew;
+		unsigned int        vSyncStart;
+		unsigned int        vSyncEnd;
+		unsigned int        vTotal;
+		char                *name;
+		unsigned int        nameLength;
+		XRRModeFlags        modeFlags;
+	} XRRModeInfo;
+	typedef struct _XRRScreenResources {
+    		Time        timestamp;
+		Time        configTimestamp;
+		int         ncrtc;
+		RRCrtc      *crtcs;
+		int         noutput;
+		RROutput    *outputs;
+		int         nmode;
+		XRRModeInfo *modes;
+	} XRRScreenResources;
+	typedef struct _XRRCrtcInfo {
+		Time            timestamp;
+		int             x, y;
+		unsigned int    width, height;
+		RRMode          mode;
+		Rotation        rotation;
+		int             noutput;
+		RROutput        *outputs;
+		Rotation        rotations;
+		int             npossible;
+		RROutput        *possible;
+	} XRRCrtcInfo;
+	typedef struct _XRRCrtcGamma {
+		int             size;
+		unsigned short  *red;
+		unsigned short  *green;
+		unsigned short  *blue;
+	} XRRCrtcGamma;
+#endif
+static struct
+{
+	//caps
+	qboolean canmodechange11;
+	qboolean canmodechange12;
+	qboolean cangamma;
+//	qboolean cangetmonitor;
+
+	//general stuff
+	void *lib;
+	int opcode, event, error;
+	int vmajor, vminor;
+	Bool (*pQueryExtension)				(Display *dpy, int *event_base_return, int *error_base_return);
+	Status (*pQueryVersion)				(Display *dpy, int *major_version_return, int *minor_version_return);
+
+	//for v1.1
+	//this is only aware of a single screen, so that's a bit poo really.
+	//if we go fullscreen, we have no real way to restore multi-display things after
+	XRRScreenConfiguration	*screenconfig;
+	Time origtime;
+	int origmode;
+	Rotation origrot;
+	int origrate;
+	
+	int targmode;
+	int targrate;
+
+	//stuff to query video modes
+	XRRScreenConfiguration *(*pGetScreenInfo)	(Display *dpy, Window window);
+	XRRScreenSize *(*pConfigSizes)			(XRRScreenConfiguration *config, int *nsizes);
+	short *(*pConfigRates)				(XRRScreenConfiguration *config, int sizeID, int *nrates);
+	SizeID (*pConfigCurrentConfiguration)		(XRRScreenConfiguration *config, Rotation *rotation);
+	short (*pConfigCurrentRate)			(XRRScreenConfiguration *config);
+
+	//stuff to change modes
+	Time (*pConfigTimes)				(XRRScreenConfiguration *config, Time *config_timestamp);
+	short (*pSetScreenConfigAndRate)		(Display *dpy, XRRScreenConfiguration *config, Drawable draw, int size_index, Rotation rotation, short rate, Time timestamp);
+
+	//for v1.2
+	//we gain gamma and multiple outputs+crts+etc
+	XRRScreenResources	*res;		//all the resources on the system (including modes etc)
+	XRROutputInfo 		**outputs;	//list of info for all outputs
+	XRROutputInfo		*output;	//the output device that we're using
+	RRCrtc			crtc;		//the output device's screen that we're focusing on (modes and gamma)
+	XRRCrtcInfo		*crtcinfo;	//the info to restore
+	XRRModeInfo 		*crtcmode;	//the mode we want to use
+	XRRCrtcGamma		*origgamma;
+
+//	Status			(*pGetScreenSizeRange)	(Display *dpy, Window window, int *minwidth, int *minheight, int *maxwidth, int *maxheight);
+//	void			(*pSetScreenSize)	(Display *dpy, Window window, int width, int height, int mmwidth, int mmheight);
+	XRRScreenResources	*(*pGetScreenResources)	(Display *dpy, Window window);
+	void			*(*pFreeScreenResources)(XRRScreenResources *);
+	XRROutputInfo 		*(*pGetOutputInfo)	(Display *dpy, XRRScreenResources *resources, RROutput output);
+	void			*(*pFreeOutputInfo)	(XRROutputInfo *outputinfo);
+	XRRCrtcInfo 		*(*pGetCrtcInfo)	(Display *dpy, XRRScreenResources *resources, RRCrtc crtc);
+	void			*(*pFreeCrtcInfo)	(XRRCrtcInfo *crtcinfo);
+	Status 			(*pSetCrtcConfig)	(Display *dpy, XRRScreenResources *resources, RRCrtc crtc, Time timestamp, int x, int y, RRMode mode, Rotation rotation, RROutput *output, int noutputs);
+	XRRCrtcGamma *		(*pGetCrtcGamma)	(Display *dpy, RRCrtc crtc);
+	void			(*pFreeGamma)		(XRRCrtcGamma *gamma);
+	void			(*pSetCrtcGamma)	(Display *dpy, RRCrtc crtc, XRRCrtcGamma *gamma);
+} xrandr;
+static qboolean XRandR_Init(void)
+{
+	static dllfunction_t xrandr_functable[] =
+	{
+		{(void**)&xrandr.pQueryExtension,		"XRRQueryExtension"},
+		{(void**)&xrandr.pQueryVersion,			"XRRQueryVersion"},
+
+		//1.0
+		{(void**)&xrandr.pGetScreenInfo,		"XRRGetScreenInfo"},
+		{(void**)&xrandr.pConfigTimes,			"XRRConfigTimes"},
+		{(void**)&xrandr.pConfigSizes,			"XRRConfigSizes"},
+		{(void**)&xrandr.pConfigRates,			"XRRConfigRates"},
+		{(void**)&xrandr.pConfigCurrentConfiguration,	"XRRConfigCurrentConfiguration"},
+		{(void**)&xrandr.pConfigCurrentRate,		"XRRConfigCurrentRate"},
+		//1.1
+		{(void**)&xrandr.pSetScreenConfigAndRate,	"XRRSetScreenConfigAndRate"},
+
+		{NULL, NULL}
+	};
+	xrandr.vmajor = 0;
+	xrandr.vminor = 0;
+	xrandr.canmodechange11 = false;
+	xrandr.canmodechange12 = false;
+//	xrandr.cangamma = false;
+	xrandr.crtcinfo = NULL;
+	xrandr.res = NULL;
+	xrandr.outputs = NULL;
+
+	//enable by default once this is properly tested, and supports hwgamma.
+	if (!X11_CheckFeature("xrandr", false))
+		return false;
+
+	if (!xrandr.lib)
+		xrandr.lib = Sys_LoadLibrary("libXrandr", xrandr_functable);
+
+	if (xrandr.lib)
+	{
+		if (xrandr.pQueryExtension(vid_dpy, &xrandr.event, &xrandr.error))
+		{
+			xrandr.pQueryVersion(vid_dpy, &xrandr.vmajor, &xrandr.vminor);
+			if (xrandr.vmajor > 1 || (xrandr.vmajor == 1 && xrandr.vminor >= 1))
+				xrandr.canmodechange11 = true;
+			if (xrandr.vmajor > 1 || (xrandr.vmajor == 1 && xrandr.vminor >= 2))
+			{	//1.2 functions
+				xrandr.pGetScreenResources	= Sys_GetAddressForName(xrandr.lib, "XRRGetScreenResources");
+				xrandr.pFreeScreenResources	= Sys_GetAddressForName(xrandr.lib, "XRRFreeScreenResources");
+				xrandr.pGetOutputInfo		= Sys_GetAddressForName(xrandr.lib, "XRRGetOutputInfo");
+				xrandr.pFreeOutputInfo		= Sys_GetAddressForName(xrandr.lib, "XRRFreeOutputInfo");
+				xrandr.pGetCrtcInfo		= Sys_GetAddressForName(xrandr.lib, "XRRGetCrtcInfo");
+				xrandr.pFreeCrtcInfo		= Sys_GetAddressForName(xrandr.lib, "XRRFreeCrtcInfo");
+				xrandr.pSetCrtcConfig		= Sys_GetAddressForName(xrandr.lib, "XRRSetCrtcConfig");
+				xrandr.pGetCrtcGamma		= Sys_GetAddressForName(xrandr.lib, "XRRGetCrtcGamma");
+				xrandr.pFreeGamma		= Sys_GetAddressForName(xrandr.lib, "XRRFreeGamma");
+				xrandr.pSetCrtcGamma		= Sys_GetAddressForName(xrandr.lib, "XRRSetCrtcGamma");
+
+				if (	xrandr.pGetScreenResources && xrandr.pFreeScreenResources && xrandr.pFreeOutputInfo
+				    &&	xrandr.pGetCrtcInfo && xrandr.pFreeCrtcInfo && xrandr.pSetCrtcConfig
+				    &&	xrandr.pGetCrtcGamma && xrandr.pFreeGamma && xrandr.pSetCrtcGamma
+				    	)
+					xrandr.canmodechange12 = true;
+			}
+			return true;
+		}
+	}
+	else
+		Con_Printf("XRandR library not available.\n");
+
+	return false;
+}
+
+static float XRandR_CalcRate(XRRModeInfo *mode)
+{
+	if (!mode->hTotal || !mode->vTotal)
+		return 0;
+	return mode->dotClock / ((float)mode->hTotal*mode->vTotal);
+}
+static XRRModeInfo *XRandR_FindMode(RRMode mode)
+{	//just looks up the right mode info.
+	int i;
+	for (i = 0; i < xrandr.res->nmode; i++)
+	{
+		if (xrandr.res->modes[i].id == mode)
+			return &xrandr.res->modes[i];
+	}
+	return NULL;
+}
+static XRRModeInfo *XRandR_FindBestMode(int width, int height, int rate)
+{
+	int best_dist, dist, x, y, z, r, i;
+	XRRModeInfo *mode, *best_mode;
+
+	best_dist = 9999999;
+	best_mode = NULL;
+	for (i = 0; i < xrandr.output->nmode; i++)
+	{
+		mode = XRandR_FindMode(xrandr.output->modes[i]);
+		if (!mode)
+			continue;
+		r = XRandR_CalcRate(mode);
+		if (width > mode->width ||
+			height > mode->height ||
+			rate > r)
+			continue;
+
+		//FIXME: do rates differently - match width+height then come back for rate
+		x = width - mode->width;
+		y = height - mode->height;
+		z = rate - r;
+		dist = (x * x) + (y * y) + (z * z);
+		if (dist < best_dist)
+		{
+			best_dist = dist;
+			best_mode = mode;
+		}
+	}
+	return best_mode;
+}
+
+static void XRandR_RevertMode(void)
+{
+	Time config_timestamp;
+	if (fullscreenflags & FULLSCREEN_XRANDRACTIVE)
+	{
+		XRRCrtcInfo *c = xrandr.crtcinfo;
+		if (c)
+		{
+			if (Success == xrandr.pSetCrtcConfig(vid_dpy, xrandr.res, xrandr.crtc, CurrentTime, c->x, c->y, c->mode, c->rotation, c->outputs, c->noutput))
+				Con_DPrintf("Reverted mode\n");
+			else
+				Con_Printf("Couldn't revert XRandR mode!\n");
+		}
+		else
+		{
+			if (!xrandr.pSetScreenConfigAndRate(vid_dpy, xrandr.screenconfig, DefaultRootWindow(vid_dpy), xrandr.origmode, xrandr.origrot, xrandr.origrate, xrandr.origtime))
+				xrandr.origtime = xrandr.pConfigTimes(xrandr.screenconfig, &config_timestamp);
+		}
+		fullscreenflags &= ~FULLSCREEN_XRANDRACTIVE;
+	}
+}
+static void XRandR_ApplyMode(void)
+{
+	Time config_timestamp;
+	if (!(fullscreenflags & FULLSCREEN_XRANDRACTIVE))
+	{
+		XRRCrtcInfo *c = xrandr.crtcinfo;
+		if (c)
+		{
+			if (xrandr.crtcmode)
+			{
+				if (Success == xrandr.pSetCrtcConfig(vid_dpy, xrandr.res, xrandr.crtc, CurrentTime, c->x, c->y, xrandr.crtcmode->id, c->rotation, c->outputs, c->noutput))
+					Con_DPrintf("Applied mode\n");
+				else
+					Con_Printf("Couldn't apply mode\n");
+			}
+		}
+		else
+		{
+			if (!xrandr.pSetScreenConfigAndRate(vid_dpy, xrandr.screenconfig, DefaultRootWindow(vid_dpy), xrandr.targmode, xrandr.origrot, xrandr.targrate, xrandr.origtime))
+				xrandr.origtime = xrandr.pConfigTimes(xrandr.screenconfig, &config_timestamp);
+		}
+		fullscreenflags |= FULLSCREEN_XRANDRACTIVE;
+	}
+}
+
+static void XRandR_Shutdown(void)
+{
+	int i;
+	if (xrandr.origgamma)
+	{
+		xrandr.pSetCrtcGamma(vid_dpy, xrandr.crtc, xrandr.origgamma);
+		xrandr.pFreeGamma(xrandr.origgamma);
+		xrandr.origgamma = NULL;
+	}
+	if (vid_dpy)
+		XRandR_RevertMode();
+	if (xrandr.outputs)
+	{
+		for (i = 0; i < xrandr.res->noutput; i++)
+			xrandr.pFreeOutputInfo(xrandr.outputs[i]);
+		Z_Free(xrandr.outputs);
+		xrandr.outputs = NULL;
+	}
+	if (xrandr.crtcinfo)
+	{
+		xrandr.pFreeCrtcInfo(xrandr.crtcinfo);
+		xrandr.crtcinfo = NULL;
+	}
+	if (xrandr.res)
+	{
+		xrandr.pFreeScreenResources(xrandr.res);
+		xrandr.res = NULL;
+	}
+}
+static qboolean XRandR_FindOutput(const char *name)
+{
+	int i;
+	xrandr.output = NULL;
+	if (!xrandr.outputs)
+	{
+		xrandr.outputs = Z_Malloc(sizeof(*xrandr.outputs) * xrandr.res->noutput);
+		for (i = 0; i < xrandr.res->noutput; i++)
+			xrandr.outputs[i] = xrandr.pGetOutputInfo(vid_dpy, xrandr.res, xrandr.res->outputs[i]);
+	}
+	xrandr.output = NULL;
+	xrandr.crtc = None;
+	if (xrandr.crtcinfo)
+		xrandr.pFreeCrtcInfo(xrandr.crtcinfo);
+	xrandr.crtcinfo = NULL;
+	for (i = 0; i < xrandr.res->noutput; i++)
+	{
+		if (xrandr.outputs[i]->connection != RR_Connected)
+			continue;
+		if (!xrandr.output || !strncmp(xrandr.outputs[i]->name, name, xrandr.outputs[i]->nameLen))
+		{
+			if (xrandr.outputs[i]->ncrtc)	//should be able to use this one
+			{
+				xrandr.output = xrandr.outputs[i];
+				if (!strncmp(xrandr.outputs[i]->name, name, xrandr.outputs[i]->nameLen))
+					break;
+			}
+		}
+	}
+	if (xrandr.output)
+	{
+		xrandr.crtc = xrandr.output->crtcs[0];
+		xrandr.crtcinfo = xrandr.pGetCrtcInfo(vid_dpy, xrandr.res, xrandr.crtc);
+		if (xrandr.crtcinfo)
+		{
+			xrandr.origgamma = xrandr.pGetCrtcGamma(vid_dpy, xrandr.crtc);
+			return true;
+		}
+	}
+	return false;
+}
+
+//called if we're not using randr to change video modes.
+//(sets up crtc data 
+static qboolean XRandr_PickScreen(const char *devicename, int *x, int *y, int *width, int *height)
+{
+	if (xrandr.canmodechange12)
+	{
+		xrandr.res = xrandr.pGetScreenResources(vid_dpy, DefaultRootWindow(vid_dpy));
+		if (XRandR_FindOutput(devicename))
+		{
+			XRRCrtcInfo *c = xrandr.crtcinfo;
+			*x = c->x;
+			*y = c->y;
+			*width = c->width;
+			*height = c->height;
+			Con_Printf("Found monitor %s %ix%i +%i,%i\n", xrandr.output->name, c->width, c->height, c->x, c->y);
+			return true;
+		}
+	}
+	return false;
+}
+
+//called when first changing video mode
+static void XRandR_SelectMode(const char *devicename, int *x, int *y, int *width, int *height, int rate)
+{
+	if (COM_CheckParm("-current"))
+		return;
+
+	if (xrandr.canmodechange12)
+	{
+		XRRCrtcInfo *c;
+		xrandr.res = xrandr.pGetScreenResources(vid_dpy, DefaultRootWindow(vid_dpy));
+		if (xrandr.res)
+		{
+			if (XRandR_FindOutput(devicename))
+			{
+				xrandr.crtcmode = XRandR_FindBestMode(*width, *height, rate);
+				c = xrandr.crtcinfo;
+				if (!*width || !*height || c->mode == xrandr.crtcmode->id)
+				{
+					fullscreenflags |= FULLSCREEN_DESKTOP;
+					Con_Printf("XRRSetCrtcConfig not needed\n");
+				}
+				else if (xrandr.crtcmode && Success == xrandr.pSetCrtcConfig(vid_dpy, xrandr.res, xrandr.crtc, c->timestamp, c->x, c->y, xrandr.crtcmode->id, c->rotation, c->outputs, c->noutput))
+				{
+					*x = c->x;
+					*y = c->y;
+					*width = xrandr.crtcmode->width;
+					*height = xrandr.crtcmode->height;
+					fullscreenflags |= FULLSCREEN_XRANDR | FULLSCREEN_XRANDRACTIVE;
+					Con_Printf("XRRSetCrtcConfig succeeded\n");
+				}
+				else
+					Con_Printf("XRRSetCrtcConfig failed\n");
+			}
+		}
+	}
+	else if (xrandr.canmodechange11)
+	{
+		int best_fit, best_dist, best_rate, dist, x, y;
+		int i, nummodes;
+		XRRScreenSize *modes;
+		Time config_timestamp;
+		Drawable draw = DefaultRootWindow(vid_dpy);
+
+		xrandr.screenconfig = xrandr.pGetScreenInfo(vid_dpy, DefaultRootWindow(vid_dpy));
+		xrandr.origtime = xrandr.pConfigTimes(xrandr.screenconfig, &config_timestamp);
+		xrandr.origmode = xrandr.pConfigCurrentConfiguration(xrandr.screenconfig, &xrandr.origrot);
+		xrandr.origrate = xrandr.pConfigCurrentRate(xrandr.screenconfig);
+		modes = xrandr.pConfigSizes(xrandr.screenconfig, &nummodes);
+
+		best_dist = 9999999;
+		best_fit = -1;
+		best_rate = -1;
+
+		for (i = 0; i < nummodes; i++)
+		{
+			//fixme: check this formula. should be the full refresh rate
+			if (*width > modes[i].width || *height > modes[i].height)
+				continue;
+
+			x = *width - modes[i].width;
+			y = *height - modes[i].height;
+			dist = (x * x) + (y * y);
+			if (dist < best_dist)
+			{
+				best_dist = dist;
+				best_fit = i;
+			}
+		}
+
+		if (best_fit != -1)
+		{
+			//okay, there's a usable mode, and now we need to figure out what rate to use...
+			//pick the higest rate under the target rate
+			short *rates = xrandr.pConfigRates(xrandr.screenconfig, best_fit, &nummodes);
+			for (i = 0; i < nummodes; i++)
+			{
+				if (rate>0 && rates[i] > rate)
+					continue;
+				if (best_rate < rates[i])
+					best_rate = rates[i];
+			}
+
+			//change to the mode
+			Con_DPrintf("Setting XRandR Mode %i: %i*%i@%i\n", best_fit, modes[best_fit].width, modes[best_fit].height, best_rate);
+			if (!xrandr.pSetScreenConfigAndRate(vid_dpy, xrandr.screenconfig, draw, best_fit, xrandr.origrot, best_rate, xrandr.origtime))
+			{
+				xrandr.targmode = best_fit;
+				xrandr.targrate = best_rate;
+				*width = modes[best_fit].width;
+				*height = modes[best_fit].height;
+				x11.pXSync(vid_dpy, False);
+
+				fullscreenflags |= FULLSCREEN_XRANDR | FULLSCREEN_XRANDRACTIVE;
+			}
+			else
+				Con_Printf("Failed to apply mode %i*%i@%i\n", modes[best_fit].width, modes[best_fit].height, best_rate);
+		}
+	}
+}
+#endif
 
 
 
@@ -651,7 +1232,8 @@ static long X_InitUnicode(void)
 	long requiredevents = 0;
 	X_ShutdownUnicode();
 
-	if (!COM_CheckParm("-noxim"))
+	//FIXME: enable by default if ubuntu's issue can ever be resolved.
+	if (X11_CheckFeature("xim", false))
 	{
 		if (x11.pXSetLocaleModifiers && x11.pXSupportsLocale && x11.pXOpenIM && x11.pXGetIMValues && x11.pXCreateIC && x11.pXSetICFocus && x11.pXUnsetICFocus && x11.pXGetICValues && x11.pXFilterEvent && (x11.pXutf8LookupString || x11.pXwcLookupString) && x11.pXDestroyIC && x11.pXCloseIM)
 		{
@@ -1228,8 +1810,10 @@ static void GetEvent(void)
 			break;
 		}
 
+#ifdef USE_VMODE
 		if (vm.originalapplied)
 			vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
+#endif
 
 		mw = vid_window;
 		if ((fullscreenflags & FULLSCREEN_LEGACY) && (fullscreenflags & FULLSCREEN_ACTIVE))
@@ -1316,8 +1900,10 @@ void GLVID_Shutdown(void)
 	if (old_windowed_mouse)
 		uninstall_grabs();
 
+#ifdef USE_VMODE
 	if (vm.originalapplied)
 		vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
+#endif
 
 	X_ShutdownUnicode();
 
@@ -1346,12 +1932,19 @@ void GLVID_Shutdown(void)
 		break;
 	}
 
+#ifdef USE_XRANDR
+	XRandR_Shutdown();
+#endif
+
 	if (vid_window)
 		x11.pXDestroyWindow(vid_dpy, vid_window);
+	if (vid_decoywindow)
+		x11.pXDestroyWindow(vid_dpy, vid_decoywindow);
 	if (vid_nullcursor)
 		x11.pXFreeCursor(vid_dpy, vid_nullcursor);
 	if (vid_dpy)
 	{
+#ifdef USE_VMODE
 		if (fullscreenflags & FULLSCREEN_VMODEACTIVE)
 			vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[0]);
 		fullscreenflags &= ~FULLSCREEN_VMODEACTIVE;
@@ -1360,6 +1953,7 @@ void GLVID_Shutdown(void)
 			x11.pXFree(vm.modes);
 		vm.modes = NULL;
 		vm.num_modes = 0;
+#endif
 	}
 	x11.pXCloseDisplay(vid_dpy);
 	vid_dpy = NULL;
@@ -1397,13 +1991,8 @@ static Cursor CreateNullCursor(Display *display, Window root)
 qboolean GLVID_ApplyGammaRamps(unsigned int rampcount, unsigned short *ramps)
 {
 	extern qboolean gammaworks;
-	//extern cvar_t vid_hardwaregamma;
 
-	//if we don't know the original ramps yet, don't allow changing them, because we're probably invalid anyway, and even if it worked, it'll break something later.
-	if (!vm.originalapplied)
-		return false;
-
-	if (ramps && rampcount == vm.originalrampsize)
+	if (ramps)
 	{
 		switch(vid_hardwaregamma.ival)
 		{
@@ -1418,22 +2007,32 @@ qboolean GLVID_ApplyGammaRamps(unsigned int rampcount, unsigned short *ramps)
 		case 3:	//ALWAYS try to use hardware gamma, even when it fails...
 			break;
 		}
+	}
 
-		if (vid.activeapp)
-		{
-			if (gammaworks)
-				vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, rampcount, &ramps[0], &ramps[rampcount], &ramps[rampcount*2]);
-			else
-				gammaworks = !!vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, rampcount, &ramps[0], &ramps[rampcount], &ramps[rampcount*2]);
-			return gammaworks;
-		}
-		return false;
-	}
-	else if (gammaworks)
+#ifdef USE_VMODE
+	//if we don't know the original ramps yet, don't allow changing them, because we're probably invalid anyway, and even if it worked, it'll break something later.
+	if (vm.originalapplied)
 	{
-		vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
-		return true;
+
+		if (ramps && rampcount == vm.originalrampsize)
+		{
+			if (vid.activeapp)
+			{
+				if (gammaworks)
+					vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, rampcount, &ramps[0], &ramps[rampcount], &ramps[rampcount*2]);
+				else
+					gammaworks = !!vm.pXF86VidModeSetGammaRamp (vid_dpy, scrnum, rampcount, &ramps[0], &ramps[rampcount], &ramps[rampcount*2]);
+				return gammaworks;
+			}
+			return false;
+		}
+		else if (gammaworks)
+		{
+			vm.pXF86VidModeSetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
+			return true;
+		}
 	}
+#endif
 	return false;
 }
 
@@ -1523,14 +2122,16 @@ void X_GoFullscreen(void)
 	xev.xclient.data.l[2] = 0;
 
 	//for any other window managers, and broken NETWM
-	x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+	//Note that certain window managers ignore this entirely, and instead fullscreen us on whichever monitor has the mouse cursor at the time. Which is awkward.
+	x11.pXMoveResizeWindow(vid_dpy, vid_window, fullscreenx, fullscreeny, fullscreenwidth, fullscreenheight);
+//	x11.pXMoveResizeWindow(vid_dpy, vid_window, fullscreenx+fullscreenwidth/2, fullscreeny+fullscreenheight/2, 1, 1);
 	x11.pXSync(vid_dpy, False);
 	x11.pXSendEvent(vid_dpy, DefaultRootWindow(vid_dpy), False, SubstructureNotifyMask, &xev);
 	x11.pXSync(vid_dpy, False);
-	x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+	x11.pXMoveResizeWindow(vid_dpy, vid_window, fullscreenx, fullscreeny, fullscreenwidth, fullscreenheight);
 	x11.pXSync(vid_dpy, False);
 
-Con_Printf("Gone fullscreen\n");
+//Con_Printf("Gone fullscreen\n");
 }
 void X_GoWindowed(void)
 {
@@ -1550,7 +2151,7 @@ void X_GoWindowed(void)
 	x11.pXSync(vid_dpy, False);
 
 	x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, 640, 480);
-Con_Printf("Gone windowed\n");
+//Con_Printf("Gone windowed\n");
 }
 qboolean X_CheckWMFullscreenAvailable(void)
 {
@@ -1573,7 +2174,7 @@ qboolean X_CheckWMFullscreenAvailable(void)
 	unsigned char *wmname;
 	int i;
 
-	if (COM_CheckParm("-nowmfullscreen"))
+	if (!X11_CheckFeature("wmfullscreen", true))
 	{
 		Con_Printf("Window manager fullscreen support disabled. Will attempt to hide from it instead.\n");
 		return success;
@@ -1597,7 +2198,7 @@ qboolean X_CheckWMFullscreenAvailable(void)
 	{
 		if (x11.pXGetWindowProperty(vid_dpy, vid_root, xa_net_supported, 0, 16384, False, AnyPropertyType, &type, &format, &nitems, &bytes_after, &prop) != Success || prop == NULL)
 		{
-			Con_Printf("Window manager \"%s\" support nothing\n", wmname);
+			Con_Printf("Window manager \"%s\" supports nothing\n", wmname);
 		}
 		else
 		{
@@ -1614,11 +2215,11 @@ qboolean X_CheckWMFullscreenAvailable(void)
 				Con_Printf("Window manager \"%s\" does not appear to support fullscreen\n", wmname);
 			else if (!strcmp(wmname, "Fluxbox"))
 			{
-				Con_Printf("Window manager \"%s\" claims to support fullscreen, but is known buggy\n", wmname);
+				Con_Printf("Window manager \"%s\" claims to support fullscreen, but is known to be buggy\n", wmname);
 				success = false;
 			}
 			else
-				Con_Printf("Window manager \"%s\" supports fullscreen\n", wmname);
+				Con_DPrintf("Window manager \"%s\" supports fullscreen. Set x11_allow_wmfullscreen 0 if it is buggy.\n", wmname);
 			x11.pXFree(prop);
 		}
 		x11.pXFree(wmname);
@@ -1626,14 +2227,13 @@ qboolean X_CheckWMFullscreenAvailable(void)
 	return success;
 }
 
-Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int width, unsigned int height, qboolean fullscreen)
+Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, int x, int y, unsigned int width, unsigned int height, qboolean fullscreen)
 {
 	Window wnd, parent;
 	XSetWindowAttributes attr;
 	XSizeHints szhints;
 	unsigned int mask;
 	Atom prots[1];
-	int x, y;
 
 	/* window attributes */
 	attr.background_pixel = 0;
@@ -1655,8 +2255,8 @@ Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int widt
 	szhints.flags = PMinSize;
 	szhints.min_width = 320;
 	szhints.min_height = 200;
-	szhints.x = 0;
-	szhints.y = 0;
+	szhints.x = x;
+	szhints.y = y;
 	szhints.width = width;
 	szhints.height = height;
 
@@ -1668,11 +2268,7 @@ Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int widt
 		parent = sys_parentwindow;
 	}
 	else
-	{
 		parent = vid_root;
-		x = 0;
-		y = 0;
-	}
 
 	wnd = x11.pXCreateWindow(vid_dpy, parent, x, y, width, height,
 						0, visinfo->depth, InputOutput,
@@ -1693,10 +2289,11 @@ Window X_CreateWindow(qboolean override, XVisualInfo *visinfo, unsigned int widt
 
 qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 {
+	int x = 0;
+	int y = 0;
 	int width = info->width;	//can override these if vmode isn't available
 	int height = info->height;
 	int rate = info->rate;
-	int i;
 #ifdef GLQUAKE
 	int attrib[] = {
 		GLX_RGBA,
@@ -1778,74 +2375,42 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	scrnum = DefaultScreen(vid_dpy);
 	vid_root = RootWindow(vid_dpy, scrnum);
 
-	VMODE_Init();
-
 	fullscreenflags = 0;
 
-	vm.usemode = -1;
-	if (vm.vmajor && !COM_CheckParm("-current"))
-	{
-		int best_fit, best_dist, dist, x, y, z, r;
+	if (info->fullscreen == 2)
+		fullscreenflags |= FULLSCREEN_DESKTOP;
+#ifdef USE_XRANDR
+	XRandR_Init();
+	if (fullscreen && !(fullscreenflags & FULLSCREEN_ANYMODE))
+		XRandR_SelectMode(info->devicename, &x, &y, &width, &height, rate);
+#endif
 
-		vm.pXF86VidModeGetAllModeLines(vid_dpy, scrnum, &vm.num_modes, &vm.modes);
-		// Are we going fullscreen?  If so, let's change video mode
-		if (fullscreen)
-		{
-			best_dist = 9999999;
-			best_fit = -1;
-
-			for (i = 0; i < vm.num_modes; i++)
-			{
-				//fixme: check this formula. should be the full refresh rate
-				r = vm.modes[i]->dotclock * 1000 / (vm.modes[i]->htotal * vm.modes[i]->vtotal);
-				if (width > vm.modes[i]->hdisplay ||
-					height > vm.modes[i]->vdisplay ||
-					rate > r)
-					continue;
-
-				x = width - vm.modes[i]->hdisplay;
-				y = height - vm.modes[i]->vdisplay;
-				z = rate - r;
-				dist = (x * x) + (y * y) + (z * z);
-				if (dist < best_dist)
-				{
-					best_dist = dist;
-					best_fit = i;
-				}
-			}
-
-			if (best_fit != -1)
-			{
-				// change to the mode
-				if (vm.pXF86VidModeSwitchToMode(vid_dpy, scrnum, vm.modes[vm.usemode=best_fit]))
-				{
-					width = vm.modes[best_fit]->hdisplay;
-					height = vm.modes[best_fit]->vdisplay;
-					// Move the viewport to top left
-					vm.pXF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
-					x11.pXSync(vid_dpy, False);
-
-					fullscreenflags |= FULLSCREEN_VMODE | FULLSCREEN_VMODEACTIVE;
-				}
-				else
-					Con_Printf("Failed to apply mode %i*%i\n", vm.modes[best_fit]->hdisplay, vm.modes[best_fit]->vdisplay);
-			}
-		}
-	}
+#ifdef USE_VMODE
+	VMODE_Init();
+	if (fullscreen && !(fullscreenflags & FULLSCREEN_ANYMODE))
+		VMODE_SelectMode(&width, &height, rate);
+#endif
 
 	if (fullscreen)
 	{
-		if (!(fullscreenflags & FULLSCREEN_VMODE))
+		if (!(fullscreenflags & (FULLSCREEN_ANYMODE&~FULLSCREEN_DESKTOP)))
 		{
-			//if we can't actually change the mode, our fullscreen is the size of the root window
+			//if we arn't using any mode switching extension then our fullscreen has to be the size of the root window
+			//FIXME: with xrandr (even when not fullscreen), we should pick an arbitrary display to size the game appropriately.
 			XWindowAttributes xwa;
 			x11.pXGetWindowAttributes(vid_dpy, DefaultRootWindow(vid_dpy), &xwa);
 			width = xwa.width;
 			height = xwa.height;
+			x = 0;
+			y = 0;
+#ifdef USE_XRANDR
+			XRandr_PickScreen(info->devicename, &x, &y, &width, &height);
+#endif
 		}
 
 		//window managers fuck up too much if we change the video mode and request the windowmanager make us fullscreen.
-		if ((!(fullscreenflags & FULLSCREEN_VMODE) || vm.usemode <= 0) && X_CheckWMFullscreenAvailable())
+		//we assume that window manages will understand xrandr, as that actually provides notifications that things have changed.
+		if (!(fullscreenflags & FULLSCREEN_VMODE) && X_CheckWMFullscreenAvailable())
 			fullscreenflags |= FULLSCREEN_WM;
 		else
 			fullscreenflags |= FULLSCREEN_LEGACY;
@@ -1898,11 +2463,11 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	vid.activeapp = false;
 	if (fullscreenflags & FULLSCREEN_LEGACY)
 	{
-		vid_decoywindow = X_CreateWindow(false, visinfo, 640, 480, false);
-		vid_window = X_CreateWindow(true, visinfo, width, height, fullscreen);
+		vid_decoywindow = X_CreateWindow(false, visinfo, x, y, 320, 200, false);
+		vid_window = X_CreateWindow(true, visinfo, x, y, width, height, fullscreen);
 	}
 	else
-		vid_window = X_CreateWindow(false, visinfo, width, height, fullscreen);
+		vid_window = X_CreateWindow(false, visinfo, x, y, width, height, fullscreen);
 
 	vid_x_eventmask |= X_InitUnicode();
 	x11.pXSelectInput(vid_dpy, vid_window, vid_x_eventmask);
@@ -1910,19 +2475,22 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	CL_UpdateWindowTitle();
 	/*make it visible*/
 
+#ifdef USE_VMODE
 	if (fullscreenflags & FULLSCREEN_VMODE)
 	{
 		x11.pXRaiseWindow(vid_dpy, vid_window);
 		x11.pXWarpPointer(vid_dpy, None, vid_window, 0, 0, 0, 0, 0, 0);
 		x11.pXFlush(vid_dpy);
-		// Move the viewport to top left
+		// Move the viewport to top left, in case its not already.
 		vm.pXF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
 	}
+#endif
 
 	vid_nullcursor = CreateNullCursor(vid_dpy, vid_window);
 
 	x11.pXFlush(vid_dpy);
 
+#ifdef USE_VMODE
 	if (vm.vmajor >= 2)
 	{
 		int rampsize = 256;
@@ -1938,8 +2506,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			vm.originalapplied = vm.pXF86VidModeGetGammaRamp(vid_dpy, scrnum, vm.originalrampsize, vm.originalramps[0], vm.originalramps[1], vm.originalramps[2]);
 		}
 	}
-	else
-		vm.originalapplied = false;
+#endif
 
 	switch(currentpsl)
 	{
@@ -1995,24 +2562,27 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	//probably going to be resized in the event handler
 	vid.pixelwidth = fullscreenwidth = width;
 	vid.pixelheight = fullscreenheight = height;
+	fullscreenx = x;
+	fullscreeny = y;
 
 	vid.numpages = 2;
 
-	Con_SafePrintf ("Video mode %dx%d initialized.\n", width, height);
+//	Con_SafePrintf ("Video mode %dx%d+%d,%d initialized.\n", width, height, x, y);
+	x11.pXRaiseWindow(vid_dpy, vid_window);
 	if (fullscreenflags & FULLSCREEN_WM)
 		X_GoFullscreen();
 	if (fullscreenflags & FULLSCREEN_LEGACY)
-		x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+		x11.pXMoveResizeWindow(vid_dpy, vid_window, fullscreenx, fullscreeny, fullscreenwidth, fullscreenheight);
 	if (fullscreenflags)
 		fullscreenflags |= FULLSCREEN_ACTIVE;
 
 	// TODO: make this into a cvar, like "in_dgamouse", instead of parameters
-	if (!COM_CheckParm("-noxi2") && XI2_Init())
+	if (X11_CheckFeature("xi2", true) && XI2_Init())
 	{
 		x11_input_method = XIM_XI2;
 		Con_DPrintf("Using XInput2\n");
 	}
-	else if (!COM_CheckParm("-nodga") && !COM_CheckParm("-nomdga") && DGAM_Init())
+	else if (X11_CheckFeature("dga", true) && DGAM_Init())
 	{
 		x11_input_method = XIM_DGA;
 		Con_DPrintf("Using DGA mouse\n");
@@ -2023,9 +2593,8 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		Con_DPrintf("Using X11 mouse\n");
 	}
 
-	x11.pXRaiseWindow(vid_dpy, vid_window);
 	if (fullscreenflags & FULLSCREEN_LEGACY)
-		x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+		x11.pXMoveResizeWindow(vid_dpy, vid_window, fullscreenx, fullscreeny, fullscreenwidth, fullscreenheight);
 	if (Cvar_Get("vidx_grabkeyboard", "0", 0, "Additional video options")->value)
 		x11.pXGrabKeyboard(vid_dpy, vid_window,
 				  False,
@@ -2085,6 +2654,7 @@ void Sys_SendKeyEvents(void)
 			if (modeswitchpending > 0 && !(fullscreenflags & FULLSCREEN_ACTIVE))
 			{
 				//entering fullscreen mode
+#ifdef USE_VMODE
 				if (fullscreenflags & FULLSCREEN_VMODE)
 				{
 					if (!(fullscreenflags & FULLSCREEN_VMODEACTIVE))
@@ -2096,6 +2666,11 @@ void Sys_SendKeyEvents(void)
 					}
 					vm.pXF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
 				}
+#endif
+#ifdef USE_XRANDR
+				if (fullscreenflags & FULLSCREEN_XRANDR)
+					XRandR_ApplyMode();
+#endif
 				Cvar_ForceCallback(&v_gamma);
 
 				/*release the mouse now, because we're paranoid about clip regions*/
@@ -2103,13 +2678,14 @@ void Sys_SendKeyEvents(void)
 					X_GoFullscreen();
 				if (fullscreenflags & FULLSCREEN_LEGACY)
 				{
-					x11.pXMoveWindow(vid_dpy, vid_window, 0, 0);
-					x11.pXReparentWindow(vid_dpy, vid_window, vid_root, 0, 0);
+					x11.pXReparentWindow(vid_dpy, vid_window, vid_root, fullscreenx, fullscreeny);
+				//	if (vid_decoywindow)
+				//		x11.pXMoveWindow(vid_dpy, vid_decoywindow, fullscreenx, fullscreeny);
 					//x11.pXUnmapWindow(vid_dpy, vid_decoywindow);
 					//make sure we have it
 					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
 					x11.pXRaiseWindow(vid_dpy, vid_window);
-					x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+					x11.pXMoveResizeWindow(vid_dpy, vid_window, fullscreenx, fullscreeny, fullscreenwidth, fullscreenheight);
 				}
 				if (fullscreenflags)
 					fullscreenflags |= FULLSCREEN_ACTIVE;
@@ -2120,6 +2696,7 @@ void Sys_SendKeyEvents(void)
 		 		if (!COM_CheckParm("-stayactive"))
  				{	//a parameter that leaves the program fullscreen if you taskswitch.
  					//sounds pointless, works great with two moniters. :D
+#ifdef USE_VMODE
 					if (fullscreenflags & FULLSCREEN_VMODE)
 					{
 	 					if (vm.originalapplied)
@@ -2130,16 +2707,21 @@ void Sys_SendKeyEvents(void)
 							fullscreenflags &= ~FULLSCREEN_VMODEACTIVE;
 						}
 					}
+#endif
+#ifdef USE_XRANDR
+					if (fullscreenflags & FULLSCREEN_XRANDR)
+						XRandR_RevertMode();
+#endif
+					if (fullscreenflags & FULLSCREEN_WM)
+						X_GoWindowed();
+					if (fullscreenflags & FULLSCREEN_LEGACY)
+					{
+						x11.pXReparentWindow(vid_dpy, vid_window, vid_decoywindow, 0, 0);
+//						x11.pXMoveResizeWindow(vid_dpy, vid_decoywindow, fullscreenx + (fullscreenwidth-640)/2, fullscreeny + (fullscreenheight-480)/2, 640, 480);
+						x11.pXMapWindow(vid_dpy, vid_decoywindow);
+					}
+					fullscreenflags &= ~FULLSCREEN_ACTIVE;
 				}
-				if (fullscreenflags & FULLSCREEN_WM)
-					X_GoWindowed();
-				if (fullscreenflags & FULLSCREEN_LEGACY)
-				{
-					x11.pXMapWindow(vid_dpy, vid_decoywindow);
-					x11.pXReparentWindow(vid_dpy, vid_window, vid_decoywindow, 0, 0);
-					x11.pXResizeWindow(vid_dpy, vid_decoywindow, 640, 480);
-				}
-				fullscreenflags &= ~FULLSCREEN_ACTIVE;
 			}
 			modeswitchpending = 0;
 		}
@@ -2409,8 +2991,8 @@ qboolean X11_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 
 	scr = DefaultScreen(xtemp);
 
-	*width = DisplayWidth(xtemp, scr);
-	*height = DisplayHeight(xtemp, scr);
+	*width = 0;//DisplayWidth(xtemp, scr);
+	*height = 0;//DisplayHeight(xtemp, scr);
 	*bpp = DefaultDepth(xtemp, scr);
 	*refreshrate = 0;
 

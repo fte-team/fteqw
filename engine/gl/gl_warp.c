@@ -77,7 +77,7 @@ void R_SetSky(const char *sky)
 			tex.reflectcube = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_CUBEMAP|IF_CLAMP);
 			if (tex.reflectcube->width)
 			{
-				forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, va("{\nsort sky\nprogram defaultskybox\n{\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparms nodlight\nsurfaceparms sky\n}", sky));
+				forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, "{\nsort sky\nprogram defaultskybox\n{\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparms nodlight\nsurfaceparms sky\n}");
 				R_BuildDefaultTexnums(&tex, forcedsky);
 				return;
 			}

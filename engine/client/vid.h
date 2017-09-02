@@ -52,6 +52,7 @@ typedef struct {
 	int multisample;	//for opengl antialiasing (which requires context stuff)
 	int triplebuffer;
 	char subrenderer[MAX_QPATH];
+	char devicename[MAX_QPATH];
 	struct rendererinfo_s *renderer;
 } rendererstate_t;
 #ifndef SERVERONLY

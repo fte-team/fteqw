@@ -89,8 +89,8 @@ cvar_t gl_nocolors							= CVARF  ("gl_nocolors", "0", CVAR_ARCHIVE);
 cvar_t gl_part_flame						= CVARFD  ("gl_part_flame", "1", CVAR_ARCHIVE, "Enable particle emitting from models. Mainly used for torch and flame effects.");
 
 //opengl library, blank means try default.
-static cvar_t gl_driver						= CVARF ("gl_driver", "",
-													 CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+static cvar_t gl_driver						= CVARFD ("gl_driver", "", CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Specifies the graphics driver name to load. This is typically a filename. Blank for default.");
+static cvar_t vid_devicename					= CVARFD ("vid_devicename", "", CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Specifies which video device to try to use. If blank or invalid then one will be guessed.");
 cvar_t gl_shadeq1_name						= CVARD  ("gl_shadeq1_name", "*", "Rename all surfaces from quake1 bsps using this pattern for the purposes of shader names.");
 extern cvar_t r_vertexlight;
 extern cvar_t r_forceprogramify;
@@ -730,7 +730,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_novis, GLRENDEREROPTIONS);
 
 	//but register ALL vid_ commands.
-	Cvar_Register (&gl_driver, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_driver, VIDCOMMANDGROUP);
+	Cvar_Register (&vid_devicename, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_vsync, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_wndalpha, VIDCOMMANDGROUP);
 #if defined(_WIN32) && defined(MULTITHREAD)
@@ -1789,7 +1790,13 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	if (*com_token)
 		Q_strncpyz(newr->subrenderer, com_token, sizeof(newr->subrenderer));
 	else if (newr->renderer && newr->renderer->rtype == QR_OPENGL)
+	{
 		Q_strncpyz(newr->subrenderer, gl_driver.string, sizeof(newr->subrenderer));
+		if (strchr(newr->subrenderer, '/') || strchr(newr->subrenderer, '\\'))
+			*newr->subrenderer = 0;	//don't allow this to contain paths. that would be too exploitable - this often takes the form of dll/so names.
+	}
+	
+	Q_strncpyz(newr->devicename, vid_devicename.string, sizeof(newr->devicename));
 
 	// use desktop settings if set to 0 and not dedicated
 	if (newr->renderer && newr->renderer->rtype != QR_NONE)

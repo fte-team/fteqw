@@ -289,6 +289,10 @@ static int browser_release(browser_t *br)
 	return false;
 }
 
+#if CEF_COMMIT_NUMBER >= 1658	//not sure what number it is.
+	#define cef_base_t cef_base_ref_counted_t
+#endif
+
 #define browser_subs(sub) \
 	static void CEF_CALLBACK browser_##sub##_addref(cef_base_t* self) {browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, sub.base)); browser_addref(br);};	\
 	static int CEF_CALLBACK browser_##sub##_release(cef_base_t* self) {browser_t *br = (browser_t*)((char*)self - offsetof(browser_t, sub.base)); return browser_release(br);};	\
@@ -668,8 +672,8 @@ static browser_t *browser_create(void)
 
 #define browser_subs(sub) \
 	nb->sub.base.add_ref = browser_##sub##_addref;		\
-    nb->sub.base.release = browser_##sub##_release;	\
-    nb->sub.base.has_one_ref = browser_##sub##_hasoneref;	\
+	nb->sub.base.release = browser_##sub##_release;	\
+	nb->sub.base.has_one_ref = browser_##sub##_hasoneref;	\
 	nb->sub.base.size = sizeof(nb->sub);
 browser_subs(client);
 browser_subs(render_handler);
@@ -718,7 +722,11 @@ browser_subs(life_span_handler);
 static cef_request_context_t *request_context;
 static cef_request_context_handler_t request_context_handler;
 //request_context_handler methods
-static int CEF_CALLBACK request_context_handler_on_before_plugin_load(cef_request_context_handler_t* self, const cef_string_t* mime_type, const cef_string_t* plugin_url, const cef_string_t* top_origin_url, cef_web_plugin_info_t* plugin_info, cef_plugin_policy_t* plugin_policy)
+static int CEF_CALLBACK request_context_handler_on_before_plugin_load(cef_request_context_handler_t* self, const cef_string_t* mime_type, const cef_string_t* plugin_url,
+#if CEF_COMMIT_NUMBER >= 1658 
+																	  int is_main_frame,
+#endif
+																	  const cef_string_t* top_origin_url, cef_web_plugin_info_t* plugin_info, cef_plugin_policy_t* plugin_policy)
 {
 //	Con_DPrintf("%s (%s), \"%s\" \"%s\" \"%s\" \"%s\"\n", policy_url.ToString().c_str(), url.ToString().c_str(), 
 //		info->GetName().ToString().c_str(), info->GetPath().ToString().c_str(), info->GetVersion().ToString().c_str(), info->GetDescription().ToString().c_str());
@@ -758,9 +766,16 @@ static cef_render_process_handler_t* CEF_CALLBACK app_get_render_process_handler
 static void CEF_CALLBACK app_on_register_custom_schemes(struct _cef_app_t* self, cef_scheme_registrar_t* registrar)
 {
 	cef_string_t fte = makecefstring("fte");
-	registrar->add_custom_scheme(registrar, &fte, false, true, true);
+	registrar->add_custom_scheme(registrar, &fte, false, true, true
+#if CEF_COMMIT_NUMBER >= 1658	//not sure what number it is.
+		, true, true, false
+#endif
+		);
 	cef_string_clear(&fte);
+
+#ifndef cef_base_t
 	cef_release(registrar);
+#endif
 }
 
 static void CEF_CALLBACK browser_process_handler_on_context_initialized(cef_browser_process_handler_t* self)
@@ -1308,6 +1323,9 @@ static void *Cef_Create(const char *name)
 		cef_main_args_t mainargs = {0};
 		cef_settings_t settings = {sizeof(settings)};
 
+		//const char *ua = "FTEBrowser";
+		//cef_string_from_utf8(ua, strlen(ua), &settings.user_agent);
+
 		if (pFS_NativePath("cefcache", FS_ROOT, utf8, sizeof(utf8)))
 			cef_string_from_utf8(utf8, strlen(utf8), &settings.cache_path);
 		if (pFS_NativePath("cef_debug.log", FS_ROOT, utf8, sizeof(utf8)))
@@ -1332,8 +1350,12 @@ static void *Cef_Create(const char *name)
 #endif
 		settings.background_color = 0xffffffff;
 //		settings.single_process = true;
-//		settings.multi_threaded_message_loop = true;
+#ifdef _WIN32
+//		settings.multi_threaded_message_loop = true;	//fixme: use this.
+#endif
+		settings.windowless_rendering_enabled = true;
 //		settings.command_line_args_disabled = true;
+//		settings.persist_session_cookies = false;
 
 		{
 			char *s;
@@ -1358,7 +1380,9 @@ static void *Cef_Create(const char *name)
 	//tbh, web browser's are so horribly insecure that it seems pointless to even try disabling stuff that might be useful
 	browserSettings.windowless_frame_rate = 60;
 	browserSettings.javascript_close_windows = STATE_DISABLED;
+#if CEF_COMMIT_NUMBER < 1658
 	browserSettings.javascript_open_windows = STATE_DISABLED;
+#endif
 	browserSettings.javascript_access_clipboard = STATE_DISABLED;
 //	browserSettings.universal_access_from_file_urls = STATE_DISABLED;
 //	browserSettings.file_access_from_file_urls = STATE_DISABLED;
@@ -1368,7 +1392,9 @@ static void *Cef_Create(const char *name)
 
 	window_info.windowless_rendering_enabled = true;
 	memset(&window_info.parent_window, 0, sizeof(window_info.parent_window));
+#if CEF_COMMIT_NUMBER < 1658
 	window_info.transparent_painting_enabled = true;
+#endif
 
 	newbrowser = browser_create();
 	if (!newbrowser)

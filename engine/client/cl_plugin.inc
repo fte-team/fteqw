@@ -147,12 +147,12 @@ static qintptr_t VARGS Plug_Draw_LoadImageData(void *offset, quintptr_t mask, co
 	{
 //		name = va("%s", name);
 		
-		t = Image_FindTexture(name, NULL, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
+		t = Image_FindTexture(name, NULL, IF_PREMULTIPLYALPHA|IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
 		if (!TEXVALID(t))
-			t = Image_CreateTexture(name, NULL, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
+			t = Image_CreateTexture(name, NULL, IF_PREMULTIPLYALPHA|IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
 		if (TEXVALID(t))
 		{
-			Image_Upload(t, TF_RGBA32, rgbdata, NULL, width, height, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
+			Image_Upload(t, TF_RGBA32, rgbdata, NULL, width, height, IF_PREMULTIPLYALPHA|IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
 			ret = Plug_Draw_LoadImage(name, 3, NULL);
 		}
 		
@@ -1118,6 +1118,10 @@ static qintptr_t VARGS Plug_Con_GetConsoleString(void *offset, quintptr_t mask, 
 	{
 		Q_strncpyz(value, con->title, size);
 	}
+	else if (!strcmp(attrib, "icon"))
+	{
+		Q_strncpyz(value, con->icon, size);
+	}
 	else if (!strcmp(attrib, "prompt"))
 	{
 		Q_strncpyz(value, con->prompt, size);
@@ -1152,6 +1156,8 @@ static qintptr_t VARGS Plug_Con_SetConsoleString(void *offset, quintptr_t mask, 
 		Con_Footerf(con, false, "%s", value);
 	else if (!strcmp(attrib, "title"))
 		Q_strncpyz(con->title, value, sizeof(con->title));
+	else if (!strcmp(attrib, "icon"))
+		Q_strncpyz(con->icon, value, sizeof(con->icon));
 	else if (!strcmp(attrib, "prompt"))
 		Q_strncpyz(con->prompt, value, sizeof(con->prompt));
 	else if (!strcmp(attrib, "backimage"))

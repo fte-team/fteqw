@@ -2137,9 +2137,9 @@ struct cmdargcompletionctx_s
 	match_t *match;
 	const char *desc;
 };
-void Cmd_CompleteCheckArg(const char *value, void *vctx)	//compare cumulative strings and join the result
+void Cmd_CompleteCheckArg(const char *value, struct xcommandargcompletioncb_s *vctx)	//compare cumulative strings and join the result
 {
-	struct cmdargcompletionctx_s *ctx = vctx;
+	struct cmdargcompletionctx_s *ctx = (struct cmdargcompletionctx_s*)vctx;
 	match_t *match = ctx->match;
 	const char *desc = ctx->desc;
 

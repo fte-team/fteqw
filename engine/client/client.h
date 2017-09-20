@@ -1409,6 +1409,7 @@ void	 CSQC_CvarChanged(cvar_t *var);
 #define CSQC_UnconnectedOkay(inprinciple) false
 #define CSQC_UnconnectedInit() false
 #define CSQC_UseGamecodeLoadingScreen() false
+#define CSQC_Parse_SetAngles(seat,newangles,wasdelta) false
 #endif
 
 //
@@ -1659,6 +1660,19 @@ void Stats_Clear(void);
 void Stats_Init(void);
 
 enum uploadfmt;
+/*struct mediacallbacks_s
+{	//functions provided by the engine/renderer, for faster/off-thread updates
+	qboolean pbocanoffthread;
+	qboolean (VARGS *PBOLock)(struct mediacallbacks_s *ctx, size_t width, size_t height, uploadfmt_t fmt, qboolean *lost);
+	void (VARGS *PBOUpdate)(struct mediacallbacks_s *ctx, void *data, size_t width, size_t height, int stride);
+	void (VARGS *PBOUnlock)(struct mediacallbacks_s *ctx);
+
+	void (VARGS *AudioStream) (void *auddata, int rate, int frames, int channels, int width);
+
+	void (VARGS *WorkQueue) (void *wctx, void (VARGS *callback)(void *data), void *data);
+	void (VARGS *WorkSync)  (void *wctx, int *address, int oldvalue);	//blocks until the address changes. make sure you queued something that will change it from that value. oldvalue is present to avoid races. if you're reading the address then you should probably volatile it to avoid compiler opts reading it twice (fixme: needs a proper barrier).
+};
+*/
 typedef struct
 {
 	size_t structsize;
@@ -1676,6 +1690,8 @@ typedef struct
 	void (VARGS *changestream) (void *ctx, const char *streamname);
 
 	qboolean (VARGS *getproperty) (void *ctx, const char *field, char *out, size_t *outsize);	//if out is null, returns required buffer size. returns 0 on failure / buffer too small
+
+//	void *(VARGS *createdecoderCB)(const char *name, struct mediacallbacks_s *callbacks);
 } media_decoder_funcs_t;
 typedef struct
 {

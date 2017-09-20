@@ -115,6 +115,7 @@ cvar_t	allow_download_other		= CVARD("allow_download_other", "0", "0 blocks down
 
 extern cvar_t sv_allow_splitscreen;
 
+cvar_t sv_guidhash			= CVARD("sv_guidkey", "", "If set, clients will calculate their GUID values against this string instead of the server's IP address. This allows consistency between multiple servers (for stats tracking), but do NOT treat the client's GUID as something that is secure.");
 cvar_t sv_serverip			= CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
 cvar_t sv_public			= CVAR("sv_public", "0");
 cvar_t sv_listen_qw			= CVARAFD("sv_listen_qw", "1", "sv_listen", 0, "Specifies whether normal clients are allowed to connect.");
@@ -124,7 +125,7 @@ cvar_t sv_listen_dp			= CVARD("sv_listen_dp", "0", "Allows the server to respond
 cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
 #endif
 #ifdef HAVE_DTLS
-cvar_t sv_listen_dtls		= CVARCD("net_enable_dtls", "", SV_Listen_Dtls_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: available in desired.\n2: used where possible.\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
+cvar_t sv_listen_dtls		= CVARCD("net_enable_dtls", "", SV_Listen_Dtls_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: available in desired.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
 #endif
 cvar_t sv_reportheartbeats	= CVAR("sv_reportheartbeats", "1");
 cvar_t sv_highchars			= CVAR("sv_highchars", "1");
@@ -1633,6 +1634,24 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 			over+=sizeof(lng);
 		}
 #endif
+		if (*sv_guidhash.string
+#ifdef HAVE_DTLS
+			&& (sv_listen_dtls.ival < 3 || net_from.prot == NP_DTLS)
+#endif
+			)
+		{
+			lng = LittleLong(PROTOCOL_VERSION_VARLENGTH);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+			lng = strlen(sv_guidhash.string);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+			lng = LittleLong(PROTOCOL_INFO_GUID);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+			memcpy(over, sv_guidhash.string, strlen(sv_guidhash.string));
+			over+=strlen(sv_guidhash.string);
+		}
 	}
 
 	if (respond_dp)
@@ -1661,6 +1680,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 	return true;
 }
 
+#ifdef SVRANKING
 static void VARGS SV_OutOfBandPrintf (int q2, netadr_t *adr, char *format, ...)
 {
 	va_list		argptr;
@@ -1705,6 +1725,7 @@ static void VARGS SV_OutOfBandTPrintf (int q2, netadr_t *adr, int language, tran
 
 	Netchan_OutOfBand (NS_SERVER, adr, strlen(string), (qbyte *)string);
 }
+#endif
 
 qboolean SV_ChallengePasses(int challenge)
 {
@@ -1721,6 +1742,7 @@ qboolean SV_ChallengePasses(int challenge)
 	return false;
 }
 
+#ifdef NQPROT
 //DP sends us a getchallenge followed by a CCREQ_CONNECT at about the same time.
 //this means that DP clients tend to connect as generic NQ clients.
 //and because DP _REQUIRES_ sv_bigcoords, they tend to end up being given fitz/rmq protocols
@@ -1739,6 +1761,7 @@ static qboolean SV_ChallengeRecent(void)
 	}
 	return false;
 }
+#endif
 
 void VARGS SV_RejectMessage(int protocol, char *format, ...)
 {
@@ -5154,11 +5177,11 @@ void SV_InitLocal (void)
 	Cvar_Register(&sv_autosave, cvargroup_servercontrol);
 #endif
 #endif
-	Cmd_AddCommand ("savegame_legacy", SV_LegacySavegame_f);
-	Cmd_AddCommandAD ("savegame", SV_Savegame_f, SV_Savegame_c, NULL);
-	Cmd_AddCommandAD ("loadgame", SV_Loadgame_f, SV_Savegame_c, NULL);
-	Cmd_AddCommandAD ("save", SV_Savegame_f, SV_Savegame_c, NULL);
-	Cmd_AddCommandAD ("load", SV_Loadgame_f, SV_Savegame_c, NULL);
+	Cmd_AddCommandAD ("savegame_legacy", SV_LegacySavegame_f, SV_Savegame_c, "Saves the game in a format compatible with vanilla Quake. Anything not supported by that format will be lost.");
+	Cmd_AddCommandAD ("savegame", SV_Savegame_f, SV_Savegame_c, "Saves the game to the named location.");
+	Cmd_AddCommandAD ("loadgame", SV_Loadgame_f, SV_Savegame_c, "Loads an existing saved game.");
+	Cmd_AddCommandAD ("save", SV_Savegame_f, SV_Savegame_c, "Saves the game to the named location.");
+	Cmd_AddCommandAD ("load", SV_Loadgame_f, SV_Savegame_c, "Loads an existing saved game.");
 
 	SV_MVDInit();
 

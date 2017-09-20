@@ -2,7 +2,7 @@
 #include "glquake.h"
 #include "gl_draw.h"
 #ifdef D3D8QUAKE
-//#define FIXME
+//#define FIXME //for Eukara to fix, if he ever wants to get the d3d8 renderer working fully.
 #include "shader.h"
 #if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
     #define HMONITOR_DECLARED
@@ -48,6 +48,7 @@ extern float d3d_trueprojection[16];
 static void BE_RotateForEntity (const entity_t *e, const model_t *mod);
 
 /*========================================== tables for deforms =====================================*/
+#define R_FastSin(x) sin((x)*(2*M_PI))
 #define frand() (rand()*(1.0/RAND_MAX))
 #define FTABLE_SIZE		1024
 #define FTABLE_CLAMP(x)	(((int)((x)*FTABLE_SIZE) & (FTABLE_SIZE-1)))
@@ -59,6 +60,7 @@ static	float	r_squaretable[FTABLE_SIZE];
 static	float	r_sawtoothtable[FTABLE_SIZE];
 static	float	r_inversesawtoothtable[FTABLE_SIZE];
 
+#if FIXME
 static float *FTableForFunc ( unsigned int func )
 {
 	switch (func)
@@ -82,6 +84,7 @@ static float *FTableForFunc ( unsigned int func )
 	//bad values allow us to crash (so I can debug em)
 	return NULL;
 }
+#endif
 
 static void FTable_Init(void)
 {
@@ -110,6 +113,7 @@ static void FTable_Init(void)
 	}
 }
 
+#if FIXME
 typedef vec3_t mat3_t[3];
 static mat3_t axisDefault={{1, 0, 0},
 					{0, 1, 0},
@@ -139,6 +143,7 @@ static int Matrix3_Compare(const mat3_t in, const mat3_t out)
 {
 	return !memcmp(in, out, sizeof(mat3_t));
 }
+#endif
 
 /*================================================*/
 
@@ -708,6 +713,7 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 	}
 }
 
+#if FIXME
 static void colourgenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *srcb, vec4_t *srcf, byte_vec4_t *dst, const mesh_t *mesh)
 {
 	D3DCOLOR block;
@@ -1025,9 +1031,11 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 #endif
 	return ret;
 }
+#endif
 /*********************************************************************************************************/
 /*========================================== texture coord generation =====================================*/
 
+#if FIXME
 static void tcgen_environment(float *st, unsigned int numverts, float *xyz, float *normal)
 {
 	int			i;
@@ -1105,7 +1113,6 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 	float t1, t2;
 	float cost, sint;
 	int j;
-#define R_FastSin(x) sin((x)*(2*M_PI))
 	switch (tcmod->type)
 	{
 		case SHADER_TCMOD_ROTATE:
@@ -1188,7 +1195,7 @@ static void GenerateTCMods(const shaderpass_t *pass, float *dest)
 	mesh_t *mesh;
 	unsigned int mno;
 	// unsigned int fvertex = 0; //unused variable
-	int i;
+//	int i;
 	float *src;
 	float *out;
 	for (mno = 0; mno < shaderstate.nummeshes; mno++)
@@ -1459,7 +1466,7 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 //		break;
 	}
 }
-
+#endif
 
 
 /*does not do the draw call, does not consider indicies (except for billboard generation) */
@@ -1489,7 +1496,7 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 	/*all meshes in a chain must have the same features*/
 	vdec = D3DFVF_QVBO;
 
-	allocvertexbuffer(shaderstate.dynvbo_buff, shaderstate.dynvbo_size, &shaderstate.dynvbo_offs, &map, vertcount*sizeof(*map));
+	allocvertexbuffer(shaderstate.dynvbo_buff, shaderstate.dynvbo_size, &shaderstate.dynvbo_offs, (void**)&map, vertcount*sizeof(*map));
 	*vertfirst = (shaderstate.dynvbo_offs - vertcount*sizeof(*map))/sizeof(*map);
 
 
@@ -1590,6 +1597,7 @@ static void BE_SubmitMeshChain(unsigned int firstvert, unsigned int vertcount, u
 	RQuantAdd(RQUANT_PRIMITIVEINDICIES, idxcount);
 }
 
+#ifdef FIXME
 static void R_FetchPlayerColour(unsigned int cv, vec3_t rgb)
 {
 	int i;
@@ -1623,7 +1631,6 @@ static void R_FetchPlayerColour(unsigned int cv, vec3_t rgb)
 	}*/
 }
 
-#ifdef FIXME
 static void BE_ApplyUniforms(program_t *prog, int permu)
 {
 	struct programpermu_s *perm = &prog->permu[permu];
@@ -2364,7 +2371,7 @@ static void D3D8BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *
 			for (i = 0; i < m->numvertexes; i++)
 			{
 				VectorCopy(m->xyz_array[i],			vbovdata->coord);
-				vbovdata->coord[3] = 1;
+				//vbovdata->coord[3] = 1;
 				Vector2Copy(m->st_array[i],			vbovdata->tc[0]);
 				Vector2Copy(m->lmst_array[0][i],		vbovdata->tc[1]);
 				Vector4Scale(m->colors4f_array[0][i],	255, vbovdata->colorsb);

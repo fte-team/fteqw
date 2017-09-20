@@ -128,7 +128,6 @@ static qboolean VID_SetFullDIBMode (rendererstate_t *info);	//-1 on bpp or hz fo
 #endif
 #ifdef WTHREAD
 static HANDLE	windowthread;
-static void		*windowmutex;
 #endif
 
 static DEVMODE	gdevmode;
@@ -821,6 +820,7 @@ static void Win32VK_Present(struct vkframe *theframe)
 
 static qboolean Win32VK_AttachVulkan (rendererstate_t *info)
 {	//make sure we can get a valid renderer.
+	const char *extnames[] = {VK_KHR_WIN32_SURFACE_EXTENSION_NAME, NULL};
 #ifdef VK_NO_PROTOTYPES
 	hInstVulkan = NULL;
 	if (!hInstVulkan)
@@ -835,7 +835,7 @@ static qboolean Win32VK_AttachVulkan (rendererstate_t *info)
 	vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr) GetProcAddress(hInstVulkan, "vkGetInstanceProcAddr");
 #endif
 
-	return VK_Init(info, VK_KHR_WIN32_SURFACE_EXTENSION_NAME, Win32VK_CreateSurface, Win32VK_Present);
+	return VK_Init(info, extnames, Win32VK_CreateSurface, Win32VK_Present);
 }
 #endif
 
@@ -1481,7 +1481,8 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 			}
 		}
 
-		GL_Init(info, getglfunc);
+		if (!GL_Init(info, getglfunc))
+			return false;
 		qSwapBuffers(maindc);
 
 #ifdef VKQUAKE
@@ -1501,7 +1502,8 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 			stat = EGL_Init (info, palette, mainwindow, maindc);
 
 			if (stat)
-				GL_Init(info, &EGL_Proc);
+				if (GL_Init(info, &EGL_Proc))
+					return false;
 		}
 		break;
 #endif
@@ -2109,6 +2111,9 @@ void GLVID_SwapBuffers (void)
 #endif
 #ifdef VKQUAKE
 	case MODE_VULKAN:
+#ifdef USE_WGL
+	case MODE_NVVULKAN:
+#endif
 		//FIXME: force a buffer swap now (might be called while loading (eg: q3), where we won't get a chance to redraw for a bit)
 		break;
 #endif

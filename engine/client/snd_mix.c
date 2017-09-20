@@ -52,57 +52,86 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 	if (!pbuf)
 		return;
 
-	if (sc->sn.samplebits == 16)
+	switch(sc->sn.sampleformat)
 	{
-		short *out = (short *) pbuf;
-		while (count)
+	case QSF_INVALID:	//erk...
+	case QSF_EXTERNALMIXER:	//shouldn't reach this.
+		break;
+	case QSF_U8:
 		{
-			for (i = 0; i < numc; i++)
+			unsigned char *out = (unsigned char *) pbuf;
+			while (count)
 			{
-				val = *p++;// * snd_vol) >> 8;
-				if (val > 0x7fff)
-					val = 0x7fff;
-				else if (val < (short)0x8000)
-					val = (short)0x8000;
-				out[out_idx] = val;
-				out_idx = (out_idx + 1) % outlimit;
+				for (i = 0; i < numc; i++)
+				{
+					val = *p++;// * snd_vol) >> 8;
+					if (val > 0x7fff)
+						val = 0x7fff;
+					else if (val < (short)0x8000)
+						val = (short)0x8000;
+					out[out_idx] = (val>>8) + 128;
+					out_idx = (out_idx + 1) % outlimit;
+				}
+				p += MAXSOUNDCHANNELS - numc;
+				count -= numc;
 			}
-			p += MAXSOUNDCHANNELS - numc;
-			count -= numc;
 		}
-	}
-	else if (sc->sn.samplebits == 8)
-	{
-		unsigned char *out = (unsigned char *) pbuf;
-		while (count)
+		break;
+	case QSF_S8:
 		{
-			for (i = 0; i < numc; i++)
+			char *out = (char *) pbuf;
+			while (count)
 			{
-				val = *p++;// * snd_vol) >> 8;
-				if (val > 0x7fff)
-					val = 0x7fff;
-				else if (val < (short)0x8000)
-					val = (short)0x8000;
-				out[out_idx] = (val>>8) + 128;
-				out_idx = (out_idx + 1) % outlimit;
+				for (i = 0; i < numc; i++)
+				{
+					val = *p++;// * snd_vol) >> 8;
+					if (val > 0x7fff)
+						val = 0x7fff;
+					else if (val < (short)0x8000)
+						val = (short)0x8000;
+					out[out_idx] = (val>>8);
+					out_idx = (out_idx + 1) % outlimit;
+				}
+				p += MAXSOUNDCHANNELS - numc;
+				count -= numc;
 			}
-			p += MAXSOUNDCHANNELS - numc;
-			count -= numc;
 		}
-	}
-	else if (sc->sn.samplebits == 32)
-	{
-		float *out = (float *) pbuf;
-		while (count)
+		break;
+	case QSF_S16:
 		{
-			for (i = 0; i < numc; i++)
+			short *out = (short *) pbuf;
+			while (count)
 			{
-				out[out_idx] = *p++ * (1.0 / 32768);
-				out_idx = (out_idx + 1) % outlimit;
+				for (i = 0; i < numc; i++)
+				{
+					val = *p++;// * snd_vol) >> 8;
+					if (val > 0x7fff)
+						val = 0x7fff;
+					else if (val < (short)0x8000)
+						val = (short)0x8000;
+					out[out_idx] = val;
+					out_idx = (out_idx + 1) % outlimit;
+				}
+				p += MAXSOUNDCHANNELS - numc;
+				count -= numc;
 			}
-			p += MAXSOUNDCHANNELS - numc;
-			count -= numc;
 		}
+		break;
+	case QSF_F32:
+		{
+			float *out = (float *) pbuf;
+			while (count)
+			{
+				for (i = 0; i < numc; i++)
+				{
+					out[out_idx] = *p++ * (1.0 / 32768);
+					out_idx = (out_idx + 1) % outlimit;
+				}
+				p += MAXSOUNDCHANNELS - numc;
+				count -= numc;
+			}
+		}
+		break;
 	}
 
 	sc->Unlock(sc, pbuf);

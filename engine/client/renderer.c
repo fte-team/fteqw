@@ -1124,7 +1124,9 @@ extern rendererinfo_t swrendererinfo;
 #ifdef VKQUAKE
 extern rendererinfo_t vkrendererinfo;
 //rendererinfo_t headlessvkrendererinfo;
+#if defined(_WIN32) && defined(GLQUAKE) && !defined(FTE_SDL)
 extern rendererinfo_t nvvkrendererinfo;
+#endif
 #endif
 #ifdef HEADLESSQUAKE
 extern rendererinfo_t headlessrenderer;
@@ -1154,7 +1156,7 @@ rendererinfo_t *rendererinfo[] =
 #endif
 #ifdef VKQUAKE
 	&vkrendererinfo,
-	#if defined(_WIN32) && defined(GLQUAKE)
+	#if defined(_WIN32) && defined(GLQUAKE) && !defined(FTE_SDL)
 		&nvvkrendererinfo,
 	#endif
 #endif

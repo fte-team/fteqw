@@ -1933,7 +1933,6 @@ void SVDP_EmitEntitiesUpdate (client_t *client, client_frame_t *frame, packet_en
 	{
 		unsigned int bits;
 		int outno, outmax = frame->maxresend;
-		qboolean overflow = false;
 		struct resendinfo_s *resend = frame->resend;
 
 		MSG_WriteByte(msg, svcdp_entities);
@@ -1950,10 +1949,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, client_frame_t *frame, packet_en
 			if (!bits)
 				continue;
 			if (msg->cursize + 50 > msg->maxsize)
-			{
-				overflow = true;
 				break; /*give up if it gets full. FIXME: bone data is HUGE.*/
-			}
 			if (outno >= outmax)
 			{	//expand the frames. may need some copying...
 				SV_ExpandNackFrames(client, outno+1);

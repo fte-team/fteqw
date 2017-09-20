@@ -1555,7 +1555,6 @@ static int PR_NoDebugVM(progfuncs_t *fte_restrict progfuncs)
 	ofs = strlen(stack);
 	PR_SaveCallStack (progfuncs, stack, &ofs, sizeof(stack));
 	PR_RunError (&progfuncs->funcs, stack);
-	free(stack);
 	return -1;
 }
 #endif

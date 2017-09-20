@@ -250,7 +250,11 @@ static int QDECL VFSW32_WriteBytes (struct vfsfile_s *file, const void *buffer, 
 	}
 
 	if (!WriteFile(intfile->hand, buffer, bytestoread, &written, NULL))
+	{
+//		DWORD err = GetLastError();
+		// ERROR_INVALID_USER_BUFFER or ERROR_NOT_ENOUGH_MEMORY 
 		return 0;
+	}
 	return written;
 }
 static qboolean QDECL VFSW32_Seek (struct vfsfile_s *file, qofs_t pos)

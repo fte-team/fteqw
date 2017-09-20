@@ -4871,6 +4871,11 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			int idx = G_INT(OFS_PARM1);
 			int id;
 			const char *newvals;
+			if (idx >= MAX_EDICTS)	//we need some sanity limit... many ents will get removed like lights so this one isn't quite correct, but it'll be in the right sort of ballpark.
+			{
+				G_INT(OFS_RETURN) = 0;
+				return;
+			}
 			//if there's no ents, then that's a problem. make sure that there's at least a worldspawn.
 			if (!mod->numentityinfo)
 				Mod_ParseEntities(mod);
@@ -4902,7 +4907,8 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			else
 			{
 				newvals = NULL;
-				mod->entityinfo[idx].id = 0;
+				if (idx < mod->numentityinfo)
+					mod->entityinfo[idx].id = 0;
 			}
 
 #ifndef CLIENTONLY

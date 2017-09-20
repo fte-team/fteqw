@@ -4502,14 +4502,14 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	G_FLOAT(OFS_RETURN) = 0;
 #else
 	world_t *w = prinst->parms->user;
-	struct dl_download *dl;
+	struct dl_download *dl = NULL;
 
 	const unsigned char *url = PR_GetStringOfs(prinst, OFS_PARM0);
 	float id = G_FLOAT(OFS_PARM1);
 	const char *mimetype = (prinst->callargc >= 3)?PR_GetStringOfs(prinst, OFS_PARM2):"";
 	const char *dataorsep = (prinst->callargc >= 4)?PR_GetStringOfs(prinst, OFS_PARM3):"";
 	int strbufid = (prinst->callargc >= 5)?G_FLOAT(OFS_PARM4):0;
-	//float cryptokey = (prinst->callargc >= 5)?G_FLOAT(OFS_PARM5):0;	//DP feature, not supported in FTE.
+	//float cryptokeyidx = (prinst->callargc >= 5)?G_FLOAT(OFS_PARM5):0;	//DP feature, not supported in FTE. adds a X-D0-Blind-ID-Detached-Signature header signing [postdata\0]querystring
 
 	if (!pr_enable_uriget.ival)
 	{
@@ -4528,20 +4528,57 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	if (*mimetype)
 	{
-		const char *data;
 		Con_DPrintf("PF_uri_post(%s,%g)\n", url, id);
 		if (strbufid)
 		{
-			//convert the string buffer into a simple string using dataorsep as a separator
-			//not supported at this time
-			dl = NULL;
-			Con_DPrintf("PF_uri_post: stringbuffers not supported\n");
+			size_t bufno = strbufid-BUFSTRBASE;
+			if (bufno < strbufmax && strbuflist[bufno].prinst == prinst)
+			{
+				const char *glue = dataorsep;
+				unsigned int gluelen = strlen(dataorsep);
+				size_t datalen, l, i;
+				char **strings;
+				char *data;
+
+				//count neededlength
+				strings = strbuflist[bufno].strings;
+				for (i = 0, datalen = 0; i < strbuflist[bufno].used; i++)
+				{
+					if (strings[i])
+					{
+						if (datalen)
+							datalen += gluelen;
+						datalen += strlen(strings[i]);
+					}
+				}
+
+				//concat it, with dataorsep separating each element
+				data = malloc(datalen+1);
+				for (i = 0, datalen = 0; i < strbuflist[bufno].used; i++)
+				{
+					if (strings[i])
+					{
+						if (datalen)
+						{
+							memcpy(data+datalen, glue, gluelen);
+							datalen += gluelen;
+						}
+						l = strlen(strings[i]);
+						memcpy(data+datalen, strings[i], l);
+						datalen += l;
+					}
+				}
+
+				//add the null and send it
+				data[datalen] = 0;
+				dl = HTTP_CL_Put(url, mimetype, data, strlen(data), PR_uri_get_callback);
+				free(data);
+			}
 		}
 		else
 		{
 			//simple data post.
-			data = dataorsep;
-			dl = HTTP_CL_Put(url, mimetype, data, strlen(data), PR_uri_get_callback);
+			dl = HTTP_CL_Put(url, mimetype, dataorsep, strlen(dataorsep), PR_uri_get_callback);
 		}
 	}
 	else

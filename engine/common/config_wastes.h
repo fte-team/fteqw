@@ -44,6 +44,7 @@
 #define MULTITHREAD	//misc basic multithreading - dsound, downloads, basic stuff that's unlikely to have race conditions.
 #endif
 #define LOADERTHREAD	//worker threads for loading misc stuff. falls back on main thread if not supported.
+//#define USEAREAGRID		//world collision optimisation. REQUIRED for performance with xonotic. hopefully it helps a few other mods too.
 
 #define NOBUILTINMENUS
 #define NOLEGACY	//just spike trying to kill off crappy crap...

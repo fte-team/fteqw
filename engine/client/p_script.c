@@ -1376,7 +1376,16 @@ void P_ParticleEffect_f(void)
 		}
 
 		else if (!strcmp(var, "alpha"))
+		{
 			ptype->alpha = atof(value);
+			if (Cmd_Argc()>2)
+				ptype->alpharand = atof(Cmd_Argv(2)) - ptype->alpha;
+			if (Cmd_Argc()>3)
+			{
+				ptype->alphachange = atof(Cmd_Argv(3));
+				setalphadelta = true;
+			}
+		}
 		else if (!strcmp(var, "alpharand"))
 			ptype->alpharand = atof(value);
 #ifndef NOLEGACY

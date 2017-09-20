@@ -7,6 +7,7 @@
 #include "libavutil/imgutils.h"
 
 #define TARGET_FFMPEG (LIBAVFORMAT_VERSION_MICRO >= 100)
+#define HAVE_DECOUPLED_API (LIBAVCODEC_VERSION_MAJOR>57 || (LIBAVCODEC_VERSION_MAJOR==57&&LIBAVCODEC_VERSION_MINOR>=36))
 
 //between av 52.31 and 54.35, lots of constants etc got renamed to gain an extra AV_ prefix.
 /*
@@ -224,16 +225,29 @@ having them tied to the libavformat network IO.
 		if(avformat_find_stream_info(ctx->pFormatCtx, NULL)>=0)
 		{
 			ctx->audioStream=-1;
-			for(i=0; i<ctx->pFormatCtx->nb_streams; i++)
+			for(i=0; i<ctx->pFormatCtx->nb_streams && ctx->audioStream==-1; i++)
+			{
+#if LIBAVFORMAT_VERSION_MAJOR >= 57
+				if(ctx->pFormatCtx->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_AUDIO)
+#else
 				if(ctx->pFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_AUDIO)
-				{
+#endif
 					ctx->audioStream=i;
-					break;
-				}
+			}
 			if(ctx->audioStream!=-1)
 			{
+#if LIBAVFORMAT_VERSION_MAJOR >= 57
+				pCodec=avcodec_find_decoder(ctx->pFormatCtx->streams[ctx->audioStream]->codecpar->codec_id);
+				ctx->pACodecCtx = avcodec_alloc_context3(pCodec);
+				if (avcodec_parameters_to_context(ctx->pACodecCtx, ctx->pFormatCtx->streams[ctx->audioStream]->codecpar) < 0)
+				{
+					avcodec_free_context(&ctx->pACodecCtx);
+					pCodec = NULL;
+				}
+#else
 				ctx->pACodecCtx=ctx->pFormatCtx->streams[ctx->audioStream]->codec;
 				pCodec=avcodec_find_decoder(ctx->pACodecCtx->codec_id);
+#endif
 
 				ctx->pAFrame=av_frame_alloc();
 				if(pCodec!=NULL && ctx->pAFrame && avcodec_open2(ctx->pACodecCtx, pCodec, NULL) >= 0)
@@ -245,21 +259,31 @@ having them tied to the libavformat network IO.
 			}
 
 			ctx->videoStream=-1;
-			for(i=0; i<ctx->pFormatCtx->nb_streams; i++)
+			for(i=0; i<ctx->pFormatCtx->nb_streams && ctx->videoStream==-1; i++)
+			{
+#if LIBAVFORMAT_VERSION_MAJOR >= 57
+				if(ctx->pFormatCtx->streams[i]->codecpar->codec_type==AVMEDIA_TYPE_VIDEO)
+#else
 				if(ctx->pFormatCtx->streams[i]->codec->codec_type==AVMEDIA_TYPE_VIDEO)
-				{
+#endif
 					ctx->videoStream=i;
-					break;
-				}
+			}
 			if(ctx->videoStream!=-1)
 			{
-				// Get a pointer to the codec context for the video stream
+#if LIBAVFORMAT_VERSION_MAJOR >= 57
+				pCodec=avcodec_find_decoder(ctx->pFormatCtx->streams[ctx->videoStream]->codecpar->codec_id);
+				ctx->pVCodecCtx = avcodec_alloc_context3(pCodec);
+				if (avcodec_parameters_to_context(ctx->pVCodecCtx, ctx->pFormatCtx->streams[ctx->videoStream]->codecpar) < 0)
+				{
+					avcodec_free_context(&ctx->pVCodecCtx);
+					pCodec = NULL;
+				}
+#else
 				ctx->pVCodecCtx=ctx->pFormatCtx->streams[ctx->videoStream]->codec;
+				pCodec=avcodec_find_decoder(ctx->pVCodecCtx->codec_id);
+#endif
 				ctx->num = ctx->pFormatCtx->streams[ctx->videoStream]->time_base.num;
 				ctx->denum = ctx->pFormatCtx->streams[ctx->videoStream]->time_base.den;
-
-				// Find the decoder for the video stream
-				pCodec=avcodec_find_decoder(ctx->pVCodecCtx->codec_id);
 
 				// Open codec
 				if(pCodec!=NULL && avcodec_open2(ctx->pVCodecCtx, pCodec, NULL) >= 0)
@@ -285,7 +309,10 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 {
 	struct decctx *ctx = (struct decctx*)vctx;
 	AVPacket        packet;
+#if HAVE_DECOUPLED_API
+#else
 	int             frameFinished;
+#endif
 	qboolean		repainted = false;
 	int64_t curtime;
 
@@ -303,6 +330,101 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 				break;
 			return false;
 		}
+
+#if HAVE_DECOUPLED_API
+		if(packet.stream_index==ctx->videoStream)
+		{
+			avcodec_send_packet(ctx->pVCodecCtx, &packet);
+			
+			while(0==avcodec_receive_frame(ctx->pVCodecCtx, ctx->pVFrame))
+			{
+				//rescale+convert it to what we're rendering (no more yuv)
+				ctx->pScaleCtx = sws_getCachedContext(ctx->pScaleCtx, ctx->pVCodecCtx->width, ctx->pVCodecCtx->height, ctx->pVCodecCtx->pix_fmt, ctx->width, ctx->height, AV_PIX_FMT_BGRA, SWS_POINT, 0, 0, 0);
+				sws_scale(ctx->pScaleCtx, (void*)ctx->pVFrame->data, ctx->pVFrame->linesize, 0, ctx->pVCodecCtx->height, &ctx->rgb_data, &ctx->rgb_linesize);
+
+				ctx->lasttime = av_frame_get_best_effort_timestamp(ctx->pVFrame);
+				repainted = true;
+			}
+		}
+		else if(packet.stream_index==ctx->audioStream && !nosound)
+		{
+			avcodec_send_packet(ctx->pACodecCtx, &packet);
+			while(0==avcodec_receive_frame(ctx->pACodecCtx, ctx->pAFrame))
+			{
+				int width = 2;
+				int channels = ctx->pACodecCtx->channels;
+				unsigned int auddatasize = av_samples_get_buffer_size(NULL, ctx->pACodecCtx->channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
+				void *auddata = ctx->pAFrame->data[0];
+				switch(ctx->pACodecCtx->sample_fmt)
+				{
+				default:
+					auddatasize = 0;
+					break;
+				case AV_SAMPLE_FMT_U8P:
+					auddatasize /= channels;
+					channels = 1;
+				case AV_SAMPLE_FMT_U8:
+					width = 1;
+					break;
+				case AV_SAMPLE_FMT_S16P:
+					auddatasize /= channels;
+					channels = 1;
+				case AV_SAMPLE_FMT_S16:
+					width = 2;
+					break;
+
+				case AV_SAMPLE_FMT_FLTP:
+					auddatasize /= channels;
+					channels = 1;
+				case AV_SAMPLE_FMT_FLT:
+					//FIXME: support float audio internally.
+					{
+						float *in = (void*)auddata;
+						signed short *out = (void*)auddata;
+						int v;
+						unsigned int i;
+						for (i = 0; i < auddatasize/sizeof(*in); i++)
+						{
+							v = (short)(in[i]*32767);
+							if (v < -32767)
+								v = -32767;
+							else if (v > 32767)
+								v = 32767;
+							out[i] = v;
+						}
+						auddatasize/=2;
+						width = 2;
+					}
+
+				case AV_SAMPLE_FMT_DBLP:
+					auddatasize /= channels;
+					channels = 1;
+				case AV_SAMPLE_FMT_DBL:
+					{
+						double *in = (double*)auddata;
+						signed short *out = (void*)auddata;
+						int v;
+						unsigned int i;
+						for (i = 0; i < auddatasize/sizeof(*in); i++)
+						{
+							v = (short)(in[i]*32767);
+							if (v < -32767)
+								v = -32767;
+							else if (v > 32767)
+								v = 32767;
+							out[i] = v;
+						}
+						auddatasize/=4;
+						width = 2;
+					}
+					break;
+				}
+				pS_RawAudio(-1, auddata, ctx->pACodecCtx->sample_rate, auddatasize/(channels*width), channels, width, 1);
+			}
+		}
+
+		av_packet_unref(&packet);
+#else
 
 		// Is this a packet from the video stream?
 		if(packet.stream_index==ctx->videoStream)
@@ -423,6 +545,7 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 
 		// Free the packet that was allocated by av_read_frame
 		av_packet_unref(&packet);
+#endif
 	}
 
 	if (forcevideo || repainted)
@@ -451,15 +574,10 @@ static void AVDec_ChangeStream(void *vctx, char *newstream)
 static void AVDec_Rewind(void *vctx)
 {
 	struct decctx *ctx = (struct decctx*)vctx;
-	if (ctx->videoStream >= 0)
+	if (ctx->lasttime != -1)
 	{
-		av_seek_frame(ctx->pFormatCtx, ctx->videoStream, 0, AVSEEK_FLAG_FRAME|AVSEEK_FLAG_BACKWARD);
+		av_seek_frame(ctx->pFormatCtx, -1, 0, AVSEEK_FLAG_FRAME|AVSEEK_FLAG_BACKWARD);
 		avcodec_flush_buffers(ctx->pVCodecCtx);
-	}
-	if (ctx->audioStream >= 0)
-	{
-		av_seek_frame(ctx->pFormatCtx, ctx->audioStream, 0, AVSEEK_FLAG_FRAME|AVSEEK_FLAG_BACKWARD);
-		avcodec_flush_buffers(ctx->pACodecCtx);
 	}
 	ctx->lasttime = -1;
 }

@@ -304,6 +304,9 @@ void D3D11_UploadLightmap(lightmapinfo_t *lm)
 	case TF_RGBA32:
 		mips.encoding = PTI_RGBX8;
 		break;
+	default:
+		Sys_Error("D3D11_UploadLightmap: Unsupported format");
+		return;
 	}
 	mips.mipcount = 1;
 	D3D11_LoadTextureMips(tex, &mips);

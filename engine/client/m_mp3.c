@@ -2434,9 +2434,7 @@ cin_t *Media_StartCin(char *name)
 	if (!cin)
 		cin = Media_Plugin_TryLoad(name);
 #endif
-	if (!cin)
-		Con_Printf("Unable to decode \"%s\"\n", name);
-	else
+	if (cin)
 		cin->filmstarttime = realtime;
 	return cin;
 }
@@ -2465,7 +2463,6 @@ qboolean Media_BeginNextFilm(void)
 	}
 
 	videoshader = R_RegisterCustom(sname, SUF_NONE, Shader_DefaultCinematic, p->name);
-	Z_Free(p);
 
 	cin = R_ShaderGetCinematic(videoshader);
 	if (cin)
@@ -2474,16 +2471,15 @@ qboolean Media_BeginNextFilm(void)
 		Media_Send_Reset(cin);
 		if (cin->changestream)
 			cin->changestream(cin, "cmd:focus");
-
-		return true;
 	}
 	else
 	{
+		Con_Printf("Unable to play cinematic %s\n", p->name);
 		R_UnloadShader(videoshader);
 		videoshader = NULL;
-
-		return false;
 	}
+	Z_Free(p);
+	return !!videoshader;
 }
 qboolean Media_StopFilm(qboolean all)
 {
@@ -2515,6 +2511,8 @@ qboolean Media_StopFilm(qboolean all)
 	}
 
 	//for q2 cinematic-maps.
+	//q2 sends 'nextserver' when the client's cinematics end so that the game can progress to the next map.
+	//qc might want to make use of it too, but its probably best to just send a playfilm command at the start of the map and then just wait it out. maybe treat nextserver as an unpause request.
 	if (!videoshader && cls.state == ca_active)
 	{
 		CL_SendClientCommand(true, "nextserver %i", cl.servercount);
@@ -2693,7 +2691,7 @@ void Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event)
 		cin = R_ShaderGetCinematic(videoshader);
 	if (!cin)
 		return;
- 	if (cin->key)
+	if (cin->key)
 		cin->key(cin, button, unicode, event);
 	else if (button == K_SPACE && !event)
 	{
@@ -2819,8 +2817,19 @@ void Media_PlayFilm_f (void)
 void Media_PlayVideoWindowed_f (void)
 {
 	char *videomap = Cmd_Argv(1);
+	shader_t *s;
+	console_t *con;
+	if (!qrenderer)
+		return;
+	s = R_RegisterCustom(va("consolevid_%s", videomap), SUF_NONE, Shader_DefaultCinematic, videomap);
+	if (!R_ShaderGetCinematic(s))
+	{
+		R_UnloadShader(s);
+		Con_Printf("Unable to load video %s\n", videomap);
+		return;
+	}
 
-	console_t *con = Con_Create(videomap, 0);
+	con = Con_Create(videomap, 0);
 	if (!con)
 		return;
 	con->parseflags = PFS_FORCEUTF8;
@@ -2834,7 +2843,7 @@ void Media_PlayVideoWindowed_f (void)
 	Q_strncpyz(con->backimage, "", sizeof(con->backimage));
 	if (con->backshader)
 		R_UnloadShader(con->backshader);
-	con->backshader = R_RegisterCustom(va("consolevid_%s", videomap), SUF_NONE, Shader_DefaultCinematic, videomap);
+	con->backshader = s;
 
 	Con_SetActive(con);
 }
@@ -3526,9 +3535,8 @@ void Media_RecordFrame (void)
 			buffer = qglMapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY_ARB);
 			if (buffer)
 			{
-				qbyte *firstrow = (offscreen_queue[frame].stride<0)?buffer - offscreen_queue[frame].stride*(offscreen_queue[frame].height-1):buffer;
 				//FIXME: thread these (with audio too, to avoid races)
-				currentcapture_funcs->capture_video(currentcapture_ctx, offscreen_captureframe, firstrow, offscreen_queue[frame].stride, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
+				currentcapture_funcs->capture_video(currentcapture_ctx, offscreen_captureframe, buffer, offscreen_queue[frame].stride, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
 				qglUnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
 			}
 			offscreen_captureframe++;
@@ -3536,12 +3544,14 @@ void Media_RecordFrame (void)
 
 		frame = captureframe%countof(offscreen_queue);
 		//if we have no pbo yet, create one.
-		if (!offscreen_queue[frame].pbo_handle)
+		if (!offscreen_queue[frame].pbo_handle || offscreen_queue[frame].width != vid.fbpwidth || offscreen_queue[frame].height != vid.fbpheight)
 		{
 			int imagesize = 0;
+			if (offscreen_queue[frame].pbo_handle)
+				qglDeleteBuffersARB(1, &offscreen_queue[frame].pbo_handle);
 			offscreen_queue[frame].format = offscreen_format;
-			offscreen_queue[frame].width = vid.pixelwidth;
-			offscreen_queue[frame].height = vid.pixelheight;
+			offscreen_queue[frame].width = vid.fbpwidth;
+			offscreen_queue[frame].height = vid.fbpheight;
 			switch(offscreen_queue[frame].format)
 			{
 			case TF_BGR24:
@@ -3556,13 +3566,13 @@ void Media_RecordFrame (void)
 				break;
 			}
 
-			offscreen_queue[frame].stride = vid.pixelwidth*-imagesize;//gl is upside down
+			offscreen_queue[frame].stride = vid.fbpwidth*-imagesize;//gl is upside down
 
 			imagesize *= offscreen_queue[frame].width * offscreen_queue[frame].height;
 
 			qglGenBuffersARB(1, &offscreen_queue[frame].pbo_handle);
 			qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, offscreen_queue[frame].pbo_handle);
-			qglBufferDataARB(GL_PIXEL_PACK_BUFFER_ARB, imagesize, NULL, GL_STATIC_READ_ARB);
+			qglBufferDataARB(GL_PIXEL_PACK_BUFFER_ARB, imagesize, NULL, GL_STREAM_READ_ARB);
 		}
 
 		//get the gpu to copy the texture into the pbo. the driver should pipeline this read until we actually map the pbo, hopefully avoiding stalls
@@ -3671,7 +3681,7 @@ static unsigned int MSD_GetDMAPos(soundcardinfo_t *sc)
 	s = captureframe*(sc->sn.speed*captureframeinterval);
 
 
-//	s >>= (sc->sn.samplebits/8) - 1;
+//	s >>= sc->sn.samplebytes - 1;
 	s *= sc->sn.numchannels;
 	return s;
 }
@@ -3701,7 +3711,7 @@ static void MSD_Submit(soundcardinfo_t *sc, int start, int end)
 		if (framestosubmit > maxframes)
 			framestosubmit = maxframes;
 
-		bytesperframe = sc->sn.numchannels*sc->sn.samplebits/8;
+		bytesperframe = sc->sn.numchannels*sc->sn.samplebytes;
 
 		offset = (lastpos % (sc->sn.samples/sc->sn.numchannels));
 
@@ -3759,7 +3769,22 @@ void Media_InitFakeSoundDevice (int speed, int channels, int samplebits)
 
 	sc->sn.samples = speed*0.5;
 	sc->sn.speed = speed;
-	sc->sn.samplebits = samplebits;
+	switch(samplebits)
+	{
+	case 32:
+		sc->sn.samplebytes = 4;
+		sc->sn.sampleformat = QSF_F32;
+		break;
+	default:
+	case 16:
+		sc->sn.samplebytes = 2;
+		sc->sn.sampleformat = QSF_S16;
+		break;
+	case 8:
+		sc->sn.samplebytes = 1;
+		sc->sn.sampleformat = QSF_U8;
+		break;
+	}
 	sc->sn.samplepos = 0;
 	sc->sn.numchannels = channels;
 	sc->inactive_sound = true;
@@ -3767,7 +3792,7 @@ void Media_InitFakeSoundDevice (int speed, int channels, int samplebits)
 	sc->sn.samples -= sc->sn.samples%1152;	//truncate slightly to keep vfw happy.
 	sc->samplequeue = -1;
 
-	sc->sn.buffer = (unsigned char *) BZ_Malloc(sc->sn.samples*sc->sn.numchannels*(sc->sn.samplebits/8));
+	sc->sn.buffer = (unsigned char *) BZ_Malloc(sc->sn.samples*sc->sn.numchannels*sc->sn.samplebytes);
 
 	Z_ReallocElements((void**)&sc->channel, &sc->max_chans, MAX_DYNAMIC_CHANNELS+NUM_AMBIENTS+NUM_MUSICS, sizeof(*sc->channel));
 
@@ -3801,8 +3826,7 @@ void Media_StopRecordFilm_f (void)
 			buffer = qglMapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY_ARB);
 			if (buffer)
 			{
-				qbyte *firstrow = (offscreen_queue[frame].stride<0)?buffer - offscreen_queue[frame].stride*(offscreen_queue[frame].height-1):buffer;
-				currentcapture_funcs->capture_video(currentcapture_ctx, offscreen_captureframe, firstrow, offscreen_queue[frame].stride, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
+				currentcapture_funcs->capture_video(currentcapture_ctx, offscreen_captureframe, buffer, offscreen_queue[frame].stride, offscreen_queue[frame].width, offscreen_queue[frame].height, offscreen_queue[frame].format);
 				qglUnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
 			}
 			offscreen_captureframe++;
@@ -3931,8 +3955,8 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 			capturingfbo = true;
 			capturetexture = R2D_RT_Configure("$democapture", capturewidth.ival, captureheight.ival, TF_BGRA32, RT_IMAGEFLAGS);
 			captureoldfbo = GLBE_FBO_Update(&capturefbo, FBO_RB_DEPTH|(Sh_StencilShadowsActive()?FBO_RB_STENCIL:0), &capturetexture, 1, r_nulltex, capturewidth.ival, captureheight.ival, 0);
-			vid.fbpwidth = capturewidth.ival;
-			vid.fbpheight = captureheight.ival;
+			vid.fbpwidth = capturetexture->width;
+			vid.fbpheight = capturetexture->height;
 			vid.framebuffer = capturetexture;
 		}
 #endif

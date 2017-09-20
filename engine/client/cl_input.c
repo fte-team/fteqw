@@ -1902,7 +1902,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 #ifdef HLCLIENT
 	if (!CLHL_BuildUserInput(msecstouse, &independantphysics[0]))
 #endif
-	for (plnum = 0; plnum < cl.splitclients; plnum++)
+	for (plnum = 0; plnum < (cl.splitclients?cl.splitclients:1); plnum++)
 	{
 		vec3_t mousemovements;
 		CL_AdjustAngles (plnum, frametime);
@@ -1934,6 +1934,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		if (fullsend && (cl_pendingcmd[plnum].msec > 12.9 && cl_pendingcmd[plnum].msec < 13) && cls.maxfps == 77)
 			cl_pendingcmd[plnum].msec = 13;
 	}
+	msecstouse = cl_pendingcmd[0].msec;
 
 	//the main loop isn't allowed to send
 	if (runningindepphys && mainloop)
@@ -1944,9 +1945,6 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 	if (!fullsend)
 		return; // when we're actually playing we try to match netfps exactly to avoid gameplay problems
-
-	if (msecstouse == 12)
-		msecstouse = 13;
 
 //	if (msecstouse > 127)
 //		Con_Printf("%i\n", msecstouse, msecs);

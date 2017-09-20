@@ -157,7 +157,7 @@ cvar_t  cl_gunangley			= CVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez			= CVAR("cl_gunanglez", "0");
 
 cvar_t	cl_proxyaddr			= CVAR("cl_proxyaddr", "");
-cvar_t	cl_sendguid				= CVARD("cl_sendguid", "0", "Send a randomly generated 'globally unique' id to servers, which can be used by servers for score rankings and stuff. Different servers will see different guids. Delete the 'qkey' file in order to appear as a different user.\nIf set to 2, all servers will see the same guid. Be warned that this can show other people the guid that you're using.");
+cvar_t	cl_sendguid				= CVARD("cl_sendguid", "", "Send a randomly generated 'globally unique' id to servers, which can be used by servers for score rankings and stuff. Different servers will see different guids. Delete the 'qkey' file in order to appear as a different user.\nIf set to 2, all servers will see the same guid. Be warned that this can show other people the guid that you're using.");
 cvar_t	cl_downloads			= CVARFD("cl_downloads", "1", CVAR_NOTFROMSERVER, "Allows you to block all automatic downloads.");
 cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
 cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. Also allows the server to send nearly arbitary download commands.\n2: allows redirection only to named packages files (and demos/*.mvd), which is a bit safer.");
@@ -452,7 +452,7 @@ void CL_SupportedFTEExtensions(int *pext1, int *pext2)
 }
 #endif
 
-char *CL_GUIDString(netadr_t *adr)
+char *CL_GUIDString(netadr_t *adr, const char *guidstring)
 {
 	static qbyte buf[2048];
 	static int buflen;
@@ -461,7 +461,16 @@ char *CL_GUIDString(netadr_t *adr)
 	void *blocks[2];
 	int lens[2];
 
-	if (!cl_sendguid.ival)
+	if (!*cl_sendguid.string && guidstring && *guidstring)
+	{
+		serveraddr[0] = '#';	//leading hash is to stop servers from being able to scrape from other servers.
+		Q_strncpyz(serveraddr+1, guidstring, sizeof(serveraddr)-1);
+	}
+	else if (cl_sendguid.ival == 2)
+		*serveraddr = 0;
+	else if (cl_sendguid.ival)
+		NET_AdrToString(serveraddr, sizeof(serveraddr), adr);
+	else
 		return NULL;
 
 	if (*connectinfo.guid && connectinfo.istransfer)
@@ -498,11 +507,6 @@ char *CL_GUIDString(netadr_t *adr)
 		}
 	}
 
-	if (cl_sendguid.ival == 2)
-		*serveraddr = 0;
-	else
-		NET_AdrToString(serveraddr, sizeof(serveraddr), adr);
-
 	blocks[0] = buf;lens[0] = buflen;
 	blocks[1] = serveraddr;lens[1] = strlen(serveraddr);
 	Com_BlocksChecksum(2, blocks, lens, (void*)digest);
@@ -522,8 +526,9 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 #ifdef PROTOCOL_VERSION_FTE
 						   int ftepext, int ftepext2,
 #endif
-						   int compressioncrc
-						  /*, ...*/)	//dmw new parms
+						   int compressioncrc,
+						   const char *guidhash
+						  /*, ...*/)
 {
 	extern cvar_t qport;
 	netadr_t	addr;
@@ -683,7 +688,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 #endif
 		connectinfo.compresscrc = 0;
 
-	info = CL_GUIDString(to);
+	info = CL_GUIDString(to, guidhash);
 	if (info)
 		Q_strncatz(data, va("0x%x \"%s\"\n", PROTOCOL_INFO_GUID, info), sizeof(data));
 
@@ -714,17 +719,18 @@ void CL_CheckForResend (void)
 	qboolean keeptrying = true;
 	char *host;
 	extern int	r_blockvidrestart;
-	const char *lbp;
 
 #ifndef CLIENTONLY
 	if (!cls.state && (!connectinfo.trying || sv.state != ss_clustermode) && sv.state)
 	{
+		const char *lbp;
 #ifdef NQPROT
 		qboolean proquakeangles = false;
 #endif
 #ifdef NETPREPARSE
 		extern cvar_t dpcompat_nopreparse;
 #endif
+		extern cvar_t sv_guidhash;
 		memset(&connectinfo, 0, sizeof(connectinfo));
 		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
 		Cvar_ForceSet(&cl_servername, cls.servername);
@@ -945,7 +951,7 @@ void CL_CheckForResend (void)
 		{
 			if (!connectinfo.challenge)
 				connectinfo.challenge = rand();
-			CL_SendConnectPacket (NULL, 8192-16, connectinfo.fteext1, connectinfo.fteext2, false);
+			CL_SendConnectPacket (NULL, 8192-16, connectinfo.fteext1, connectinfo.fteext2, 0, sv_guidhash.string);
 		}
 
 		return;
@@ -976,7 +982,11 @@ void CL_CheckForResend (void)
 	if (connectinfo.time && realtime - connectinfo.time < 5.0)
 		return;
 
-	NET_InitClient(false);
+#ifdef HAVE_DTLS
+	if (connectinfo.dtlsupgrade != DTLS_ACTIVE)
+#endif
+		//FIXME: this is switching ports far too much
+		NET_InitClient(false);
 
 	t1 = Sys_DoubleTime ();
 	if (!connectinfo.istransfer)
@@ -2833,6 +2843,7 @@ void CL_ConnectionlessPacket (void)
 #ifdef HAVE_DTLS
 		qboolean candtls = false;
 #endif
+		char guidhash[256];
 
 		s = MSG_ReadString ();
 		COM_Parse(s);
@@ -2867,7 +2878,7 @@ void CL_ConnectionlessPacket (void)
 
 				connectinfo.protocol = CP_QUAKE3;
 				connectinfo.challenge = atoi(s+17);
-				CL_SendConnectPacket (&net_from, 0, 0, 0, 0/*, ...*/);
+				CL_SendConnectPacket (&net_from, 0, 0, 0, 0/*, ...*/, NULL);
 			}
 			else
 			{
@@ -2993,6 +3004,17 @@ void CL_ConnectionlessPacket (void)
 				c = MSG_ReadLong();/*ident*/
 				switch(c)
 				{
+				case PROTOCOL_INFO_GUID:
+					if (len > sizeof(guidhash)-1)
+					{
+						MSG_ReadData(guidhash, sizeof(guidhash));
+						MSG_ReadSkip(len-sizeof(guidhash));
+						len = sizeof(guidhash)-1;
+					}
+					else
+						MSG_ReadData(guidhash, len);
+					guidhash[len] = 0;
+					break;
 				default:
 					MSG_ReadSkip(len); /*payload*/
 					break;
@@ -3007,11 +3029,12 @@ void CL_ConnectionlessPacket (void)
 				case PROTOCOL_VERSION_FTE2:			pext2 = l;		break;
 				case PROTOCOL_VERSION_FRAGMENT:		mtu = l;		break;
 #ifdef HAVE_DTLS
-				case PROTOCOL_VERSION_DTLSUPGRADE:	candtls = l;	break;	//0:not enabled. 1:use if you want. 2:require it.
+				case PROTOCOL_VERSION_DTLSUPGRADE:	candtls = l;	break;	//0:not enabled. 1:explicit use allowed. 2:favour it. 3: require it
 #endif
 #ifdef HUFFNETWORK
 				case PROTOCOL_VERSION_HUFFMAN:		huffcrc = l;	break;
 #endif
+				case PROTOCOL_INFO_GUID:			Q_snprintfz(guidhash, sizeof(guidhash), "0x%x", l);	break;
 				default:
 					break;
 				}
@@ -3041,7 +3064,7 @@ void CL_ConnectionlessPacket (void)
 		}
 #endif
 
-		CL_SendConnectPacket (&net_from, mtu, pext, pext2, huffcrc/*, ...*/);
+		CL_SendConnectPacket (&net_from, mtu, pext, pext2, huffcrc/*, ...*/, guidhash);
 		return;
 	}
 #ifdef Q2CLIENT

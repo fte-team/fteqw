@@ -613,6 +613,171 @@ static void IPLog_Merge_f(void)
 	if (!IPLog_Merge_File(fname))
 		Con_Printf("unable to read %s\n", fname);
 }
+
+#ifndef SERVERONLY
+struct certlog_s
+{
+	link_t l;
+	char *hostname;
+	size_t certsize;
+	qbyte cert[1];
+};
+static link_t certlog;
+static struct certlog_s *CertLog_Find(const char *hostname)
+{
+	struct certlog_s *l;
+	for (l = (struct certlog_s*)certlog.next ; l != (struct certlog_s*)&certlog ; l = (struct certlog_s*)l->l.next)
+	{
+		if (!strcmp(l->hostname, hostname))
+			return l;
+	}
+	return NULL;
+}
+static void CertLog_Update(const char *hostname, const void *cert, size_t certsize)
+{
+	struct certlog_s *l = CertLog_Find(hostname);
+	if (l)
+	{
+		RemoveLink(&l->l);
+		Z_Free(l);
+	}
+	l = Z_Malloc(sizeof(*l) + certsize + strlen(hostname));
+	l->certsize = certsize;
+	l->hostname = l->cert + l->certsize;
+	memcpy(l->cert, cert, certsize);
+	strcpy(l->hostname, hostname);
+	InsertLinkAfter(&l->l, &certlog);
+}
+static void CertLog_Write(void)
+{
+	struct certlog_s *l;
+	vfsfile_t *f = NULL;//FS_OpenVFS("knowncerts.txt", "wb", FS_ROOT);
+	if (f)
+	{
+		VFS_PRINTF(f, "version 1.0\n");
+
+		for (l=(struct certlog_s*)certlog.next ; l != (struct certlog_s*)&certlog ; l = (struct certlog_s*)l->l.next)
+		{
+			char certhex[32768];
+			size_t i;
+			const char *hex = "0123456789abcdef";
+			for (i = 0; i < l->certsize; i++)
+			{
+				certhex[i*2+0] = hex[l->cert[i]>>4];
+				certhex[i*2+1] = hex[l->cert[i]&0xf];
+			}
+			certhex[i*2] = 0;
+			VFS_PRINTF(f, "%s \"%s\"\n", l->hostname, certhex);
+		}
+	}
+}
+static void CertLog_Purge(void)
+{
+	while (certlog.next != &certlog)
+	{
+		struct certlog_s *l = (struct certlog_s*)certlog.next;
+		RemoveLink(&l->l);
+		Z_Free(l);
+	}
+}
+static int hexdecode(char c)
+{
+	if (c >= '0' && c <= '9')
+		return c - '0';
+	else if (c >= 'a' && c <= 'f')
+		return c - 'a' + 10;
+	else if (c >= 'A' && c <= 'F')
+		return c - 'A' + 10;
+	return 0;
+}
+static void CertLog_Import(const char *filename)
+{
+	char addressstring[512];
+	char certhex[32768];
+	char certdata[16384];
+	char line[65536], *l;
+	size_t i, certsize;
+	vfsfile_t *f = FS_OpenVFS(filename, "rb", FS_ROOT);
+	//CertLog_Purge();
+	VFS_GETS(f, line, sizeof(line));
+	if (strncmp(line, "version 1.", 10))
+		return;	//unsupported...
+	while (VFS_GETS(f, line, sizeof(line)))
+	{
+		l = line;
+		l = COM_ParseOut(l, addressstring, sizeof(addressstring));
+		l = COM_ParseOut(l, certhex, sizeof(certhex));
+
+		certsize = 0;
+		for (i = 0; certsize < sizeof(certdata); i++)
+		{
+			if (!certhex[(i<<1)+0] || !certhex[(i<<1)+1])
+				break;
+			certdata[certsize++] = (hexdecode(certhex[(i<<1)+0])<<4)|hexdecode(certhex[(i<<1)+1]);
+		}
+		CertLog_Update(addressstring, certdata, certsize);
+	}
+}
+static void CertLog_UntrustAll_f(void)
+{
+	CertLog_Purge();
+}
+static void CertLog_Import_f(void)
+{
+	const char *fname = Cmd_Argv(1);
+	if (!*fname)
+		fname = "knowncerts.txt";
+	CertLog_Import(fname);
+}
+struct certprompt_s
+{
+	char *hostname;
+
+	size_t certsize;
+	qbyte cert[1];
+};
+static struct certprompt_s *certlog_curprompt;
+static void CertLog_Add_Prompted(void *vctx, int button)
+{
+	struct certprompt_s *ctx = vctx;
+	if (button == 0)	//button_yes / button_left
+	{
+		CertLog_Update(ctx->hostname, ctx->cert, ctx->certsize);
+		CertLog_Write();
+	}
+	else
+		CL_Disconnect();
+
+	certlog_curprompt = NULL;
+}
+qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize)
+{
+	struct certlog_s *l = CertLog_Find(hostname);
+
+	if (certlog_curprompt)
+		return false;
+
+	if (!l || l->certsize != certsize || memcmp(l->cert, cert, certsize))
+	{
+		if (qrenderer)
+		{
+			struct certprompt_s *ctx = certlog_curprompt = Z_Malloc(sizeof(*ctx)+certsize + strlen(hostname));
+			ctx->hostname = ctx->cert + certsize;
+			ctx->certsize = certsize;
+			memcpy(ctx->cert, cert, certsize);
+			strcpy(ctx->hostname, hostname);
+
+			if (!l)
+				M_Menu_Prompt(CertLog_Add_Prompted, ctx, "Server certificate is new", "Trust", NULL, "Disconnect");
+			else
+				M_Menu_Prompt(CertLog_Add_Prompted, ctx, "^1Server certificate HAS CHANGED\nZomg\nFlee in Terror", "ReTrust", NULL, "Disconnect");
+		}
+		return false;	//can't connect yet...
+	}
+	return true;
+}
+#endif
+
 void Log_ShutDown(void)
 {
 	IPLog_Dump("iplog.txt");
@@ -660,4 +825,10 @@ void Log_Init(void)
 
 	if (COM_CheckParm("-condebug"))
 		Cvar_ForceSet(&log_enable[LOG_CONSOLE], "1");
+
+#ifndef SERVERONLY
+	ClearLink(&certlog);
+	Cmd_AddCommand("dtls_untrustall", CertLog_UntrustAll_f);
+	Cmd_AddCommand("dtls_importtrust", CertLog_Import_f);
+#endif
 }

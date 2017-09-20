@@ -287,7 +287,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	vid.activeapp = true;
 
-	GL_Init(info, GLVID_getsdlglfunction);
+	if (!GL_Init(info, GLVID_getsdlglfunction))
+		return false;
 
 	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 

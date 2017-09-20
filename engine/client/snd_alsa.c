@@ -137,7 +137,7 @@ static void ALSA_RW_Submit (soundcardinfo_t *sc, int start, int end)
 	unsigned int frames, offset, ringsize;
 	unsigned chunk;
 	int result;
-	int stride = sc->sn.numchannels * (sc->sn.samplebits/8);
+	int stride = sc->sn.numchannels * sc->sn.samplebytes;
 
 	while(1)
 	{
@@ -323,7 +323,20 @@ static qboolean QDECL ALSA_InitCard (soundcardinfo_t *sc, const char *pcmname)
 	Con_Printf ("ALSA: Using PCM %s.\n", pcmname);
 
 #if 1
-	err = psnd_pcm_set_params(pcm, ((sc->sn.samplebits==8)?SND_PCM_FORMAT_U8:SND_PCM_FORMAT_S16), (mmap?SND_PCM_ACCESS_MMAP_INTERLEAVED:SND_PCM_ACCESS_RW_INTERLEAVED), sc->sn.numchannels, sc->sn.speed, true, 0.04*1000000);
+	if (!sc->sn.sampleformat)
+		sc->sn.sampleformat = (sc->sn.samplebytes==1)?QSF_U8:QSF_S16;
+	switch(sc->sn.sampleformat)
+	{
+	case QSF_U8:	err = SND_PCM_FORMAT_U8;	break;
+	case QSF_S8:	err = SND_PCM_FORMAT_S8;	break;
+	case QSF_S16:	err = SND_PCM_FORMAT_S16;	break;
+	case QSF_F32:	err = SND_PCM_FORMAT_FLOAT;	break;
+	default:
+		Con_Printf (CON_ERROR "ALSA: unsupported sample format %i\n", sc->sn.sampleformat);
+		goto error;
+	}
+
+	err = psnd_pcm_set_params(pcm, err, (mmap?SND_PCM_ACCESS_MMAP_INTERLEAVED:SND_PCM_ACCESS_RW_INTERLEAVED), sc->sn.numchannels, sc->sn.speed, true, 0.04*1000000);
 	if (0 > err)
 	{
 		Con_Printf (CON_ERROR "ALSA: error setting params. %s\n", psnd_strerror (err));
@@ -332,7 +345,7 @@ static qboolean QDECL ALSA_InitCard (soundcardinfo_t *sc, const char *pcmname)
 
 //	sc->sn.numchannels = stereo;
 //	sc->sn.samplepos = 0;
-//	sc->sn.samplebits = bps;
+//	sc->sn.samplebytes = bps/8;
 
 	sc->samplequeue = buffer_size = 2048;
 #else	
@@ -351,7 +364,7 @@ static qboolean QDECL ALSA_InitCard (soundcardinfo_t *sc, const char *pcmname)
 	}
 
 	// get sample bit size
-	bps = sc->sn.samplebits;
+	bps = sc->sn.samplebytes*8;
 	{
 		snd_pcm_format_t spft;
 		if (bps == 16)
@@ -456,7 +469,7 @@ static qboolean QDECL ALSA_InitCard (soundcardinfo_t *sc, const char *pcmname)
 
 	sc->sn.numchannels = stereo;
 	sc->sn.samplepos = 0;
-	sc->sn.samplebits = bps;
+	sc->sn.samplebytes = bps/8;
 
 	buffer_size = sc->sn.samples / stereo;
 	if (buffer_size)
@@ -509,7 +522,7 @@ static qboolean QDECL ALSA_InitCard (soundcardinfo_t *sc, const char *pcmname)
 		sc->Submit	= ALSA_RW_Submit;
 
 		sc->samplequeue = sc->sn.samples;
-		sc->sn.buffer = malloc(sc->sn.samples * (sc->sn.samplebits/8));
+		sc->sn.buffer = malloc(sc->sn.samples * sc->sn.samplebytes);
 
 		err = psnd_pcm_prepare(pcm);
 		if (0 > err)

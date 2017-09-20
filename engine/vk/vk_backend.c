@@ -1143,8 +1143,9 @@ qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
 	prog->pipelines = NULL;	//generated as needed, depending on blend states etc.
 	return true;
 }
-static void VKBE_ReallyDeleteProg(program_t *prog)
+static void VKBE_ReallyDeleteProg(void *vprog)
 {	//nothing else is refering to this data any more, its safe to obliterate it.
+	program_t *prog = vprog;
 	struct pipeline_s *pipe;
 	while(prog->pipelines)
 	{
@@ -5030,7 +5031,7 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 	extern cvar_t r_refractreflect_scale;
 	float oldil;
 	int oldbem;
-	struct vk_rendertarg *targ;
+//	struct vk_rendertarg *targ;
 	//these flags require rendering some view as an fbo
 	if (r_refdef.recurse)
 		return false;
@@ -5042,7 +5043,7 @@ static qboolean BE_GenerateRefraction(batch_t *batch, shader_t *bs)
 		return false;	//multisample rendering can't deal with this.
 	oldbem = shaderstate.mode;
 	oldil = shaderstate.identitylighting;
-	targ = vk.rendertarg;
+//	targ = vk.rendertarg;
 
 	if (bs->flags & SHADER_HASREFLECT)
 	{
@@ -5812,7 +5813,7 @@ void VKBE_DestroyShadowBuffer(struct vk_shadowbuffer *buf)
 {
 	if (buf && buf->isstatic)
 	{
-		struct vk_shadowbuffer_destroy *ctx = VK_AtFrameEnd(VKBE_DestroyShadowBuffer_Delayed, buf, sizeof(*buf));
+		VK_AtFrameEnd(VKBE_DestroyShadowBuffer_Delayed, buf, sizeof(*buf));
 		Z_Free(buf);
 	}
 }

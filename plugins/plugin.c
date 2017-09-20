@@ -315,6 +315,9 @@ BUILTIN(void, Net_Close, (qhandle_t socket));
 #define ARGNAMES ,sock,certhostname
 BUILTINR(int, Net_SetTLSClient, (qhandle_t sock, const char *certhostname));
 #undef ARGNAMES
+#define ARGNAMES ,sock,outdata,datalen
+BUILTINR(int, Net_GetTLSBinding, (qhandle_t sock, char *outdata, int *datalen));
+#undef ARGNAMES
 
 #define ARGNAMES ,inputbuffer,buffersize
 BUILTINR(int, ReadInputBuffer, (void *inputbuffer, int buffersize));
@@ -468,6 +471,7 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Net_Send);
 	CHECKBUILTIN(Net_Close);
 	CHECKBUILTIN(Net_SetTLSClient);
+	CHECKBUILTIN(Net_GetTLSBinding);
 
 	//random things
 	CHECKBUILTIN(CL_GetStats);

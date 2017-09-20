@@ -115,7 +115,7 @@ static void AHI_Submit(soundcardinfo_t *sc)
 {
 }
 
-static int AHI_InitCard(soundcardinfo_t *sc, int cardnum)
+static qboolean AHI_InitCard(soundcardinfo_t *sc, const char *cardname)
 {
 	struct AHIdata *ad;
 
@@ -129,8 +129,8 @@ static int AHI_InitCard(soundcardinfo_t *sc, int cardnum)
 
 	struct AHISampleInfo sample;
 
-	if (cardnum)
-		return 2; /* Which means "no more cards" */
+	if (cardname && *cardname)
+		return false; /* only allow the default audio device */
 
 	ad = AllocVec(sizeof(*ad), MEMF_ANY);
 	if (ad)
@@ -171,7 +171,7 @@ static int AHI_InitCard(soundcardinfo_t *sc, int cardnum)
 								channels = 2;
 
 							sc->sn.speed = speed;
-							sc->sn.samplebits = bits;
+							sc->sn.samplebytes = bits/8;
 							sc->sn.numchannels = channels;
 							sc->sn.samples = speed*channels;
 
@@ -194,6 +194,7 @@ static int AHI_InitCard(soundcardinfo_t *sc, int cardnum)
 									else
 										sample.ahisi_Type = AHIST_S16S;
 								}
+								sc->sn.sampleformat = (bits==8)?QSF_S8:QSF_S16;
 
 								sample.ahisi_Address = ad->samplebuffer;
 								sample.ahisi_Length = (speed*(bits/8)*channels)/AHI_SampleFrameSize(sample.ahisi_Type);
@@ -236,7 +237,7 @@ static int AHI_InitCard(soundcardinfo_t *sc, int cardnum)
 										Con_Printf("Using AHI mode \"%s\" for audio output\n", sc->name);
 										Con_Printf("Channels: %d bits: %d frequency: %d\n", channels, bits, speed);
 
-										return 1;
+										return true;
 									}
 								}
 							}
@@ -256,7 +257,12 @@ static int AHI_InitCard(soundcardinfo_t *sc, int cardnum)
 		FreeVec(ad);
 	}
 
-	return 0;
+	return false;
 }
 
-sounddriver pAHI_InitCard = &AHI_InitCard;
+sounddriver_t AHI_AudioOutput =
+{
+	"AHI",
+	AHI_InitCard,
+	NULL
+};

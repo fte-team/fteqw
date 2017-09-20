@@ -496,7 +496,7 @@ void QCBUILTIN PF_cs_media_create (pubprogfuncs_t *prinst, struct globalvars_s *
 						"videomap %s\n"
 						"rgbgen vertex\n"
 						"alphagen vertex\n"
-						"blendfunc blend\n"
+						"blendfunc gl_one gl_one_minus_src_alpha\n"
 						"nodepth\n"
 					"}\n"
 				"}\n",		
@@ -537,17 +537,20 @@ void QCBUILTIN PF_cs_media_command (pubprogfuncs_t *prinst, struct globalvars_s 
 		return;
 	Media_Send_Command(cin, command);
 }
-// #490 float(string name, float key, float eventtype) gecko_keyevent
+// #490 float(string name, float key, float eventtype, optional float charcode) gecko_keyevent
 void QCBUILTIN PF_cs_media_keyevent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	int key = G_FLOAT(OFS_PARM1);
 	int eventtype = G_FLOAT(OFS_PARM2);
+	int charcode = (prinst->callargc>3)?G_FLOAT(OFS_PARM3):((key>127)?0:key);
 	cin_t *cin;
 	cin = R_ShaderFindCinematic(shader);
+	G_FLOAT(OFS_RETURN) = 0;
 	if (!cin)
 		return;
-	Media_Send_KeyEvent(cin, MP_TranslateQCtoFTECodes(key), (key>127)?0:key, eventtype);
+	Media_Send_KeyEvent(cin, MP_TranslateQCtoFTECodes(key), charcode, eventtype);
+	G_FLOAT(OFS_RETURN) = 1;
 }
 // #491 void(string name, float x, float y) gecko_mousemove
 void QCBUILTIN PF_cs_media_mousemove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

@@ -142,14 +142,8 @@ how many sample are required to fill it up.
 static unsigned int WAV_GetDMAPos(soundcardinfo_t *sc)
 {
 	int		s;
-
 	s = sc->snd_sent * WAV_BUFFER_SIZE;
-
-
-	s >>= (sc->sn.samplebits/8) - 1;
-
-//	s = (s/shm->numchannels % (shm->samples-1))*shm->numchannels;
-
+	s >>= sc->sn.samplebytes - 1;
 	return s;
 }
 
@@ -194,7 +188,7 @@ static void WAV_Submit(soundcardinfo_t *sc, int start, int end)
 	else
 		chunkstosubmit = 4 + (sc->sn.speed/6000);
 
-	while (((sc->snd_sent - sc->snd_completed) >> ((sc->sn.samplebits/8) - 1)) < chunkstosubmit)
+	while (((sc->snd_sent - sc->snd_completed) >> (sc->sn.samplebytes - 1)) < chunkstosubmit)
 	{
 		h = wh->lpWaveHdr + ( sc->snd_sent&WAV_MASK );
 
@@ -224,15 +218,15 @@ SNDDM_InitWav
 Crappy windows multimedia base
 ==================
 */
-int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
+qboolean WAV_InitCard (soundcardinfo_t *sc, const char *cardname)
 {
 	WAVEFORMATEX  format;
 	int				i;
 	HRESULT			hr;
 	wavhandle_t *wh;
 
-	if (cardnum != 0)
-		return 2;	//we only support one card, at the moment.
+	if (*cardname)
+		return false;	//we only support one card, at the moment.
 
 	wh = sc->handle = Z_Malloc(sizeof(wavhandle_t));
 
@@ -242,15 +236,21 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 	if (sc->sn.speed > 48000) // limit waveout to 48000 until that buffer issue gets solved
 		sc->sn.speed = 48000;
 
-	if (sc->sn.samplebits > 16)
-		sc->sn.samplebits = 16;
+	if (sc->sn.samplebytes > 2)
+	{
+		sc->sn.samplebytes = 2;
+		sc->sn.sampleformat = QSF_S16;
+	}
 	else
-		sc->sn.samplebits = 8;
+	{
+		sc->sn.samplebytes = 1;
+		sc->sn.sampleformat = QSF_U8;
+	}
 
 	memset (&format, 0, sizeof(format));
 	format.wFormatTag = WAVE_FORMAT_PCM;
 	format.nChannels = sc->sn.numchannels;
-	format.wBitsPerSample = sc->sn.samplebits;
+	format.wBitsPerSample = sc->sn.samplebytes*8;
 	format.nSamplesPerSec = sc->sn.speed;
 	format.nBlockAlign = format.nChannels
 		*format.wBitsPerSample / 8;
@@ -350,7 +350,7 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 		}
 	}
 
-	sc->sn.samples = wh->gSndBufSize/(sc->sn.samplebits/8);
+	sc->sn.samples = wh->gSndBufSize/sc->sn.samplebytes;
 	sc->sn.samplepos = 0;
 	sc->sn.buffer = (unsigned char *) wh->lpData;
 	Q_strncpyz(sc->name, "wav out", sizeof(sc->name));
@@ -364,5 +364,11 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	return true;
 }
-int (*pWAV_InitCard) (soundcardinfo_t *sc, int cardnum) = &WAV_InitCard;
+//int (*pWAV_InitCard) (soundcardinfo_t *sc, int cardnum) = &WAV_InitCard;
+sounddriver_t WaveOut_Output =
+{
+	"WaveOut",
+	WAV_InitCard,
+	NULL
+};
 #endif

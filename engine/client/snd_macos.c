@@ -45,7 +45,7 @@ static OSStatus AudioRender(void	*inRefCon,
 	struct MacOSSound_Private *pdata = sc->handle;
 
 	int start = pdata->readpos;
-	int buffersize = sc->sn.samples * (sc->sn.samplebits/8);
+	int buffersize = sc->sn.samples * sc->sn.samplebytes;
 	int bytes = ioData->mBuffers[0].mDataByteSize;
 	int remaining;
 
@@ -64,7 +64,7 @@ static OSStatus AudioRender(void	*inRefCon,
 	memcpy(ioData->mBuffers[0].mData, sc->sn.buffer + start, bytes);
 	memcpy((char*)ioData->mBuffers[0].mData+bytes, sc->sn.buffer, remaining);
 	
-	pdata->readpos += inNumberFrames*sc->sn.numchannels * (sc->sn.samplebits/8);
+	pdata->readpos += inNumberFrames*sc->sn.numchannels * sc->sn.samplebytes;
 
 	return noErr;
 }
@@ -93,7 +93,7 @@ static void MacOS_Shutdown(soundcardinfo_t *sc)
 static unsigned int MacOS_GetDMAPos(soundcardinfo_t *sc)
 {
 	struct MacOSSound_Private *pdata = sc->handle;
-	sc->sn.samplepos = pdata->readpos/(sc->sn.samplebits/8);
+	sc->sn.samplepos = pdata->readpos/sc->sn.samplebytes;
 	return sc->sn.samplepos;
 }
 
@@ -110,17 +110,17 @@ static void MacOS_Unlock(soundcardinfo_t *sc, void *buffer)
 {
 }
 
-static int MacOS_InitCard(soundcardinfo_t *sc, int cardnum)
+static qboolean MacOS_InitCard(soundcardinfo_t *sc, const char *cardname)
 {
 	ComponentResult err = noErr;
 
-	if (cardnum)
-		return 2;	/* no more */
+	if (cardname && *cardname)
+		return false;	//only the default device will be used for now.
 
 	struct MacOSSound_Private *pdata = Z_Malloc(sizeof(*pdata));
 	if (!pdata)
 		return FALSE;
-    
+
 	// Open the default output unit
 	ComponentDescription desc;
 	desc.componentType = kAudioUnitType_Output;
@@ -144,12 +144,12 @@ static int MacOS_InitCard(soundcardinfo_t *sc, int cardnum)
 		Z_Free(pdata);
 		return FALSE;
 	}
-  
+
 	// Set up a callback function to generate output to the output unit
 	AURenderCallbackStruct input;
 	input.inputProc = AudioRender;
 	input.inputProcRefCon = sc;
-    
+
 	err = AudioUnitSetProperty (	pdata->gOutputUnit, 
 					kAudioUnitProperty_SetRenderCallback, 
 					kAudioUnitScope_Input,
@@ -163,8 +163,8 @@ static int MacOS_InitCard(soundcardinfo_t *sc, int cardnum)
 		Z_Free(pdata);
 		return FALSE;
 	}
-  
-    // describe our audio data
+
+	// describe our audio data
 	AudioStreamBasicDescription streamFormat;
 	streamFormat.mSampleRate = sc->sn.speed;
 	streamFormat.mFormatID = kAudioFormatLinearPCM;
@@ -198,13 +198,14 @@ static int MacOS_InitCard(soundcardinfo_t *sc, int cardnum)
 
 	// set the shm structure
 	sc->sn.speed = streamFormat.mSampleRate;
-	sc->sn.samplebits = streamFormat.mBitsPerChannel;
+	sc->sn.samplebytes = streamFormat.mBitsPerChannel/8;
+	sc->sn.sampleformat = QCF_S16;
 	sc->sn.numchannels = streamFormat.mChannelsPerFrame;
 	sc->sn.samples = 256 * 1024;
-	sc->sn.buffer = Z_Malloc(sc->sn.samples*sc->sn.samplebits/8);
+	sc->sn.buffer = Z_Malloc(sc->sn.samples*sc->sn.samplebytes);
 
 	int i;
-	for (i = 0; i < sc->sn.samples*sc->sn.samplebits/8; i++)
+	for (i = 0; i < sc->sn.samples*sc->sn.samplebytes; i++)
 		sc->sn.buffer[i] = rand();
 
 	if (sc->sn.buffer == 0)
@@ -237,7 +238,7 @@ static int MacOS_InitCard(soundcardinfo_t *sc, int cardnum)
 		Z_Free(pdata);
 		return FALSE;
 	}
-    
+
 	sc->handle = pdata;
 	sc->Lock = MacOS_Lock;
 	sc->Unlock = MacOS_Unlock;
@@ -249,5 +250,9 @@ static int MacOS_InitCard(soundcardinfo_t *sc, int cardnum)
 	return TRUE;
 }
 
-sounddriver pMacOS_InitCard = &MacOS_InitCard;
-
+sounddriver_t MacOS_AudioOutput =
+{
+	"CoreAudio",
+	MacOS_InitCard,
+	NULL
+};

@@ -14,6 +14,11 @@
 #include <sys/stat.h>
 #endif
 
+#ifndef AFMT_FLOAT
+	#define AFMT_FLOAT 0x00004000	//OSS4 supports it, but linux is too shit to define it.
+#endif
+
+
 static int tryrates[] = { 11025, 22051, 44100, 8000, 48000 };
 
 static unsigned int OSS_MMap_GetDMAPos(soundcardinfo_t *sc)
@@ -30,9 +35,9 @@ static unsigned int OSS_MMap_GetDMAPos(soundcardinfo_t *sc)
 			sc->audio_fd = -1;
 			return 0;
 		}
-//		shm->samplepos = (count.bytes / (shm->samplebits / 8)) & (shm->samples-1);
+//		shm->samplepos = (count.bytes / shm->samplebytes) & (shm->samples-1);
 //		fprintf(stderr, "%d    \r", count.ptr);
-		sc->sn.samplepos = count.ptr / (sc->sn.samplebits / 8);
+		sc->sn.samplepos = count.ptr / sc->sn.samplebytes;
 	}
 	return sc->sn.samplepos;
 
@@ -48,7 +53,7 @@ static unsigned int OSS_Alsa_GetDMAPos(soundcardinfo_t *sc)
 	if (ioctl (sc->audio_fd, SNDCTL_DSP_GETOSPACE, &info) != -1)
 	{
 		bytes = sc->snd_sent + info.bytes;
-		sc->sn.samplepos = bytes / (sc->sn.samplebits / 8);
+		sc->sn.samplepos = bytes / sc->sn.samplebytes;
 	}
 	return sc->sn.samplepos;
 }
@@ -61,12 +66,12 @@ static void OSS_Alsa_Submit(soundcardinfo_t *sc, int start, int end)
 	int result;
 
 	/*we can't change the data that was already written*/
-	bytes = end * sc->sn.numchannels * (sc->sn.samplebits/8);
+	bytes = end * sc->sn.numchannels * sc->sn.samplebytes;
 	bytes -= sc->snd_sent;
 	if (!bytes)
 		return;
 
-	ringsize = sc->sn.samples * (sc->sn.samplebits/8);
+	ringsize = sc->sn.samples * sc->sn.samplebytes;
 
 	chunk = bytes;
 	offset = sc->snd_sent % ringsize;
@@ -99,7 +104,7 @@ static void OSS_Shutdown(soundcardinfo_t *sc)
 		if (sc->Submit == OSS_Alsa_Submit)
 			free(sc->sn.buffer); /*if using alsa-compat, just free the buffer*/
 		else
-			munmap(sc->sn.buffer, sc->sn.samples * (sc->sn.samplebits/8));
+			munmap(sc->sn.buffer, sc->sn.samples * sc->sn.samplebytes);
 	}
 	if (sc->audio_fd != -1)
 		close(sc->audio_fd);
@@ -214,20 +219,15 @@ static qboolean OSS_InitCard(soundcardinfo_t *sc, const char *snddev)
 		sc->sn.numchannels = 1;
 #endif
 
-//choose bits
 	// ask the device what it supports
 	ioctl(sc->audio_fd, SNDCTL_DSP_GETFMTS, &fmt);
-	if (!(fmt & AFMT_S16_LE) && sc->sn.samplebits > 8)
-		sc->sn.samplebits = 8;	// they asked for 16bit (the default) but their card does not support it
-	if (!(fmt & AFMT_U8) && sc->sn.samplebits == 8)
-	{	//their card doesn't support 8bit which we're trying to use.
-		Con_Printf(CON_ERROR "OSS: No needed sample formats supported\n");
-		OSS_Shutdown(sc);
-		return false;
-	}
-	if (sc->sn.samplebits == 16)
+
+	//choose a format
+	if (sc->sn.samplebytes >= 4 && (fmt & AFMT_FLOAT))
 	{
-		rc = AFMT_S16_LE;
+		sc->sn.samplebytes = 4;
+		sc->sn.sampleformat = QSF_F32;
+		rc = AFMT_FLOAT;
 		rc = ioctl(sc->audio_fd, SNDCTL_DSP_SETFMT, &rc);
 		if (rc < 0)
 		{
@@ -237,9 +237,39 @@ static qboolean OSS_InitCard(soundcardinfo_t *sc, const char *snddev)
 			return false;
 		}
 	}
-	else if (sc->sn.samplebits == 8)
+	else if (sc->sn.samplebytes >= 2 && (fmt & AFMT_S16_NE))
 	{
+		sc->sn.samplebytes = 2;
+		sc->sn.sampleformat = QSF_S16;
+		rc = AFMT_S16_NE;
+		rc = ioctl(sc->audio_fd, SNDCTL_DSP_SETFMT, &rc);
+		if (rc < 0)
+		{
+			perror(snddev);
+			Con_Printf(CON_ERROR "OSS: Could not support 16-bit data.  Try 8-bit.\n");
+			OSS_Shutdown(sc);
+			return false;
+		}
+	}
+	else if (/*sc->sn.samplebytes == 1 && */(fmt & AFMT_U8))
+	{
+		sc->sn.samplebytes = 1;
+		sc->sn.sampleformat = QSF_U8;
 		rc = AFMT_U8;
+		rc = ioctl(sc->audio_fd, SNDCTL_DSP_SETFMT, &rc);
+		if (rc < 0)
+		{
+			perror(snddev);
+			Con_Printf(CON_ERROR "OSS: Could not support 8-bit data.\n");
+			OSS_Shutdown(sc);
+			return false;
+		}
+	}
+	else if (/*sc->sn.samplebytes == 1 && */(fmt & AFMT_S8))
+	{
+		sc->sn.samplebytes = 1;
+		sc->sn.sampleformat = QSF_S8;
+		rc = AFMT_S8;
 		rc = ioctl(sc->audio_fd, SNDCTL_DSP_SETFMT, &rc);
 		if (rc < 0)
 		{
@@ -252,7 +282,7 @@ static qboolean OSS_InitCard(soundcardinfo_t *sc, const char *snddev)
 	else
 	{
 		perror(snddev);
-		Con_Printf(CON_ERROR "OSS: %d-bit sound not supported.\n", sc->sn.samplebits);
+		Con_Printf(CON_ERROR "OSS: %d-bit sound not supported.\n", sc->sn.samplebytes*8);
 		OSS_Shutdown(sc);
 		return false;
 	}
@@ -286,7 +316,7 @@ static qboolean OSS_InitCard(soundcardinfo_t *sc, const char *snddev)
 		return false;
 	}
 	sc->sn.samples = info.fragstotal * info.fragsize;
-	sc->sn.samples /= (sc->sn.samplebits/8);
+	sc->sn.samples /= sc->sn.samplebytes;
 	/*samples is the number of samples*channels */
 
 // memory map the dma buffer
@@ -297,7 +327,7 @@ static qboolean OSS_InitCard(soundcardinfo_t *sc, const char *snddev)
 	}
 	else if ((caps & DSP_CAP_TRIGGER) && (caps & DSP_CAP_MMAP))
 	{
-		sc->sn.buffer = (unsigned char *) mmap(NULL, sc->sn.samples*(sc->sn.samplebits/8), PROT_WRITE, MAP_FILE|MAP_SHARED, sc->audio_fd, 0);
+		sc->sn.buffer = (unsigned char *) mmap(NULL, sc->sn.samples*sc->sn.samplebytes, PROT_WRITE, MAP_FILE|MAP_SHARED, sc->audio_fd, 0);
 		if (sc->sn.buffer == MAP_FAILED)
 		{
 			Con_Printf("%s: device reported mmap capability, but mmap failed.\n", snddev);
@@ -315,9 +345,9 @@ static qboolean OSS_InitCard(soundcardinfo_t *sc, const char *snddev)
 	{
 		sc->sn.buffer = NULL;
 
-		sc->samplequeue = info.bytes / (sc->sn.samplebits/8);
+		sc->samplequeue = info.bytes / sc->sn.samplebytes;
 		sc->sn.samples*=2;
-		sc->sn.buffer = malloc(sc->sn.samples*(sc->sn.samplebits/8));
+		sc->sn.buffer = malloc(sc->sn.samples*sc->sn.samplebytes);
 		sc->Submit		= OSS_Alsa_Submit;
 		sc->GetDMAPos	= OSS_Alsa_GetDMAPos;
 	}

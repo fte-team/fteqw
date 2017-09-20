@@ -60,10 +60,12 @@ client compat:
 #include <time.h>
 #include "xmpp.h"
 
+//#define USE_GOOGLE_MAIL_NOTIFY
+
 #ifdef DEFAULTDOMAIN
 	#define EXAMPLEDOMAIN DEFAULTDOMAIN	//used in examples / default text field (but not otherwise assumed when omitted)
 #else
-	#define EXAMPLEDOMAIN "gmail.com"	//used in examples
+	#define EXAMPLEDOMAIN "example.com"	//used in examples
 #endif
 
 
@@ -79,14 +81,23 @@ enum
 	ACT_NONE,
 	ACT_OAUTH,
 	ACT_NEWACCOUNT,
-	ACT_PASSWORD,
+	ACT_SETAUSERNAME,
+	ACT_SETADOMAIN,
+	ACT_SETASERVER,
+	ACT_SETARESOURCE,
+	ACT_SETAPASSWORD,
 	ACT_ADDFRIEND,
-	ACT_SETALIAS,
+	ACT_SETBALIAS,
 } jclient_action;
 
 #define BUDDYLISTTITLE "Buddy List"
 
-
+#define COL_NAME_THEM	"^1" //red
+#define COL_NAME_US		"^5" //cyan
+#define COL_TEXT_THEM	"^7" //white
+#define COL_TEXT_US		"^3" //yellow
+#define IMG_FB_THEM "gfx/menudot1.lmp"
+#define IMG_FB_US "gfx/menuplyr.lmp"
 
 #define Q_strncpyz(o, i, l) do {strncpy(o, i, l-1);o[l-1]='\0';}while(0)
 
@@ -630,38 +641,39 @@ jclient_t *jclients[8];
 int jclient_curtime;
 int jclient_poketime;
 
-typedef struct
+typedef struct saslmethod_s
 {
 	char *method;
-	int (*sasl_initial)(jclient_t *jcl, char *buf, int bufsize);
-	int (*sasl_challenge)(jclient_t *jcl, char *inbuf, int insize, char *outbuf, int outsize);
+	int (*sasl_initial)(struct sasl_ctx_s *ctx, char *buf, int bufsize);
+	int (*sasl_challenge)(struct sasl_ctx_s *ctx, char *inbuf, int insize, char *outbuf, int outsize);
+	int (*sasl_success)(struct sasl_ctx_s *ctx, char *inbuf, int insize);
 } saslmethod_t;
 
 //#define OAUTH_CLIENT_ID_MSN "0"
 #ifdef OAUTH_CLIENT_ID_MSN
-static int sasl_plain_initial(jclient_t *jcl, char *buf, int bufsize)
+static int sasl_plain_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
 	//"https://oauth.live.com/authorize?client_id=" OAUTH_CLIENT_ID_MSN "&scope=wl.messenger,wl.basic,wl.offline_access,wl.contacts_create,wl.share&response_type=token&redirect_uri=http://localhost/";
 }
 #endif
 
 //\0username\0password
-static int sasl_plain_initial(jclient_t *jcl, char *buf, int bufsize)
+static int sasl_plain_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
 	int len = 0;
 
-	if (jcl->issecure?jcl->allowauth_plaintls:jcl->allowauth_plainnontls)
+	if (ctx->issecure?ctx->allowauth_plaintls:ctx->allowauth_plainnontls)
 	{
-		if (!*jcl->password)
+		if (!*ctx->password_plain)
 			return -2;
 
 		//realm isn't specified
 		buf[len++] = 0;
-		memcpy(buf+len, jcl->username, strlen(jcl->username));
-		len += strlen(jcl->username);
+		memcpy(buf+len, ctx->username, strlen(ctx->username));
+		len += strlen(ctx->username);
 		buf[len++] = 0;
-		memcpy(buf+len, jcl->password, strlen(jcl->password));
-		len += strlen(jcl->password);
+		memcpy(buf+len, ctx->password_plain, strlen(ctx->password_plain));
+		len += strlen(ctx->password_plain);
 
 		return len;
 	}
@@ -713,17 +725,17 @@ static int saslattr(char *out, int outlen, char *srcbuf, int srclen, char *arg)
 	return 0;
 }
 
-static int sasl_digestmd5_initial(jclient_t *jcl, char *buf, int bufsize)
+static int sasl_digestmd5_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
-	if (jcl->allowauth_digestmd5)
+	if (ctx->allowauth_digestmd5)
 	{
-		if (!*jcl->password)
+		if (!*ctx->password_plain && ctx->password_hash_size != 16)
 			return -2;
 
 		//FIXME: randomize the cnonce and check the auth key
 		//although really I'm not entirely sure what the point is.
 		//if we just authenticated with a mitm attacker relay, we're screwed either way.
-		strcpy(jcl->authnonce, "abcdefghijklmnopqrstuvwxyz");
+		strcpy(ctx->digest.authnonce, "abcdefghijklmnopqrstuvwxyz");
 		//nothing. server does the initial data.
 		return 0;
 	}
@@ -731,11 +743,10 @@ static int sasl_digestmd5_initial(jclient_t *jcl, char *buf, int bufsize)
 }
 char *MD5_ToHex(char *input, int inputlen, char *ret, int retlen);
 char *MD5_ToBinary(char *input, int inputlen, char *ret, int retlen);
-static int sasl_digestmd5_challenge(jclient_t *jcl, char *in, int inlen, char *out, int outlen)
+static int sasl_digestmd5_challenge(struct sasl_ctx_s *ctx, char *in, int inlen, char *out, int outlen)
 {
-	char *username = jcl->username;
-	char *password = jcl->password;
-	char *cnonce = jcl->authnonce;
+	char *username = ctx->username;
+	char *cnonce = ctx->digest.authnonce;
 	char rspauth[512];
 	char realm[512];
 	char nonce[512];
@@ -767,11 +778,26 @@ static int sasl_digestmd5_challenge(jclient_t *jcl, char *in, int inlen, char *o
 	saslattr(algorithm, sizeof(algorithm), in, inlen, "algorithm");
 
 	if (!*realm)
-		Q_strlcpy(realm, jcl->domain, sizeof(realm));
+		Q_strlcpy(realm, ctx->domain, sizeof(realm));
 	Q_snprintf(digesturi, sizeof(digesturi), "xmpp/%s", realm);
 
-	Q_snprintf(X, sizeof(X), "%s:%s:%s", username, realm, password);
-	MD5_ToBinary(X, strlen(X), Y, sizeof(Y));
+
+	Q_snprintf(X, sizeof(X), "%s:%s:", username, realm);
+	if (ctx->password_hash_size == 16 && !strcmp(X, ctx->password_validity))
+		memcpy(Y, ctx->password_hash, 16);	//use the hashed password, instead of the (missing) plain one
+	else if (ctx->password_plain)
+	{
+		Q_strlcpy(ctx->password_validity, X, sizeof(ctx->password_validity));
+
+		Q_snprintf(X, sizeof(X), "%s:%s:%s", username, realm, ctx->password_plain);
+		MD5_ToBinary(X, strlen(X), Y, sizeof(Y));
+
+		ctx->password_hash_size = 16;
+		memcpy(ctx->password_hash, Y, 16);	//save that hash for later.
+	}
+	else
+		return -1;	//err, we didn't have a password...
+
 	memcpy(A1, Y, 16);
 	if (*authzid)
 		Q_snprintf(A1+16, sizeof(A1)-16, ":%s:%s:%s", nonce, cnonce, authzid);
@@ -793,25 +819,81 @@ static int sasl_digestmd5_challenge(jclient_t *jcl, char *in, int inlen, char *o
 	return strlen(out);
 }
 
-static int sasl_scramsha1_initial(jclient_t *jcl, char *buf, int bufsize)
-{
-	if (jcl->allowauth_scramsha1)
-	{
-		if (!*jcl->password)
-			return -2;
-		strcpy(jcl->authnonce, "abcdefghijklmnopqrstuvwxyz");	//FIXME: should be random, to validate that the server knows our password too
-
-		Q_snprintf(buf, bufsize, "n,,n=%s,r=%s", jcl->username, jcl->authnonce);
-		return strlen(buf);
-	}
-	return -1;
-}
-
 typedef struct
 {
 	int len;
 	char buf[512];
 } buf_t;
+static int sasl_scram_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize, hashfunc_t *hashfunc, size_t hashsize, qboolean plus)
+{
+	if (ctx->allowauth_scramsha1)
+	{
+		unsigned int t;
+		buf_t bindingdata;
+		int bs;
+		if (!*ctx->password_plain && ctx->password_hash_size != hashsize)
+			return -2;
+
+#if 1//FIXME: test that we're compliant when we're verifying channel bindings.
+		//the channel binding thing helps to avoid MITM attacks by tying the auth to the tls keys.
+		//a MITM attacker will have different binding ids each side, resulting in screwed hashes (they would need to use the public keys (which would require knowing private keys too), or something).
+		if (ctx->issecure)
+		{
+			bindingdata.len = sizeof(bindingdata.buf);
+			if (BUILTINISVALID(Net_GetTLSBinding))
+				bs = pNet_GetTLSBinding(ctx->socket, bindingdata.buf, &bindingdata.len);
+			else
+				bs = -1;
+		}
+		else
+#endif
+		{
+			bindingdata.len = 0;
+			bs = -1;
+		}
+		//couldn't use plus for some reason
+		if (bs < 0)
+		{	//not implemented by our tls implementation.
+			if (plus)
+				return -1;	//can't auth with this mechanism
+			Q_strlcpy(ctx->scram.authcbindtype, "n", sizeof(ctx->scram.authcbindtype));
+		}
+		else if (plus && bs > 0)
+		{	//both sides should support it.
+			Q_strlcpy(ctx->scram.authcbindtype, "p=tls-unique", sizeof(ctx->scram.authcbindtype));
+			Base64_Add(bindingdata.buf, bindingdata.len);
+			Q_snprintf(ctx->scram.authcbinding, sizeof(ctx->scram.authcbinding), "%s", Base64_Finish());
+		}
+		else
+		{	//we support it, but the server does not appear to (we failed the plus method, or it just wasn't listed).
+			//server will fail the auth if it can do channel bindings (assuming someone stripped the plus method).
+			Q_strlcpy(ctx->scram.authcbindtype, "y", sizeof(ctx->scram.authcbindtype));
+		}
+
+		//FIXME: this should be more random, to validate that the server actually knows our password too
+		//we can't really do anything until we've already signed in, so why bother?
+		t = pSys_Milliseconds();
+		Base64_Add((void*)&t, sizeof(t));
+		Base64_Add("0123456789abcdef", 16);
+		Base64_Add((void*)&jclient_curtime, sizeof(jclient_curtime));
+		strcpy(ctx->scram.authnonce, Base64_Finish());
+		ctx->scram.hashfunc = hashfunc;
+		ctx->scram.hashsize = hashsize;
+
+		Q_snprintf(buf, bufsize, "%s,,n=%s,r=%s", ctx->scram.authcbindtype, ctx->username, ctx->scram.authnonce);
+		return strlen(buf);
+	}
+	return -1;
+}
+static int sasl_scramsha1minus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
+{
+	return sasl_scram_initial(ctx, buf, bufsize, SHA1_m, 20, false);
+}
+static int sasl_scramsha1plus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
+{
+	return sasl_scram_initial(ctx, buf, bufsize, SHA1_m, 20, true);
+}
+
 static void buf_cat(buf_t *buf, char *data, int len)
 {
 	memcpy(buf->buf + buf->len, data, len);
@@ -822,27 +904,32 @@ static void buf_cats(buf_t *buf, char *data)
 {
 	buf_cat(buf, data, strlen(data));
 }
-static void SHA1_Hi(char *out, char *password, int passwordlen, buf_t *salt, int times)
+static size_t HMAC_Hi(hashfunc_t *hashfunc, char *out, char *password, int passwordlen, buf_t *salt, int times)
 {
-	char prev[20];
+	size_t digestsize;
+	char prev[64];
 	int i, j;
 
 	//first iteration is special
 	buf_cat(salt, "\0\0\0\1", 4);
-	SHA1_HMAC(prev, sizeof(prev), salt->buf, salt->len, password, passwordlen);
-	memcpy(out, prev, sizeof(prev));
+	digestsize = HMAC(hashfunc, prev, sizeof(prev), salt->buf, salt->len, password, passwordlen);
+	memcpy(out, prev, digestsize);
 	
 	//later iterations just use the previous iteration
 	for (i = 1; i < times; i++)
 	{
-		SHA1_HMAC(prev, sizeof(prev), prev, sizeof(prev), password, passwordlen);
+		HMAC(hashfunc, prev, digestsize, prev, digestsize, password, passwordlen);
 
-		for (j = 0; j < sizeof(prev); j++)
+		for (j = 0; j < digestsize; j++)
 			out[j] ^= prev[j];
 	}
+	return digestsize;
 }
-static int sasl_scramsha1_challenge(jclient_t *jcl, char *in, int inlen, char *out, int outlen)
+static int sasl_scram_challenge(struct sasl_ctx_s *ctx, char *in, int inlen, char *out, int outlen)
 {
+#define MAX_DIGEST_SIZE 20
+	size_t digestsize = ctx->scram.hashsize;
+	hashfunc_t *func = ctx->scram.hashfunc;
 	//sasl SCRAM-SHA-1 challenge
 	//send back the same 'r' attribute
 	buf_t saslchal;
@@ -852,13 +939,15 @@ static int sasl_scramsha1_challenge(jclient_t *jcl, char *in, int inlen, char *o
 	buf_t itr;
 	buf_t final;
 	buf_t sigkey;
-	char salted_password[20];
-	char proof[20];
-	char clientkey[20];
-	char storedkey[20];
-	char clientsignature[20];
-	char *username = jcl->username;
-	char *password = jcl->password;
+	unsigned char salted_password[MAX_DIGEST_SIZE];
+	unsigned char proof[MAX_DIGEST_SIZE];
+	unsigned char clientkey[MAX_DIGEST_SIZE];
+	unsigned char serverkey[MAX_DIGEST_SIZE];
+	unsigned char storedkey[MAX_DIGEST_SIZE];
+	unsigned char clientsignature[MAX_DIGEST_SIZE];
+	char *username = ctx->username;
+	char validationstr[256];
+	const unsigned char *tmp;
 
 	saslchal.len = 0;
 	buf_cat(&saslchal, in, inlen);
@@ -869,16 +958,19 @@ static int sasl_scramsha1_challenge(jclient_t *jcl, char *in, int inlen, char *o
 	itr.len = saslattr(itr.buf, sizeof(itr.buf), saslchal.buf, saslchal.len, "i");
 
 	salt.len = Base64_Decode(salt.buf, sizeof(salt.buf), salt.buf, salt.len);
-	
-	//FIXME: we should validate that csn is prefixed with our cnonce
+
+	//csn MUST be prefixed with out authnone, to avoid mess.
+	if (strncmp(csn.buf, ctx->scram.authnonce, strlen(ctx->scram.authnonce)))
+		return -1;
 
 	//this is the first part of the message we're about to send, with no proof.
 	//c(channel) is mandatory but nulled and forms part of the hash
 	final.len = 0;
 	buf_cats(&final, "c=");
-	Base64_Add("n,,", 3);
-	Base64_Finish();
-	buf_cat(&final, base64, strlen(base64));
+	Base64_Add(ctx->scram.authcbindtype, strlen(ctx->scram.authcbindtype));
+	Base64_Add(",,", 2);
+	Base64_Add(ctx->scram.authcbinding, strlen(ctx->scram.authcbinding));
+	buf_cats(&final, Base64_Finish());
 	buf_cats(&final, ",r=");
 	buf_cat(&final, csn.buf, csn.len);
 
@@ -887,27 +979,60 @@ static int sasl_scramsha1_challenge(jclient_t *jcl, char *in, int inlen, char *o
 	buf_cats(&sigkey, "n=");
 	buf_cats(&sigkey, username);
 	buf_cats(&sigkey, ",r=");
-	buf_cats(&sigkey, jcl->authnonce);
+	buf_cats(&sigkey, ctx->scram.authnonce);
 	buf_cats(&sigkey, ",");
 	buf_cat(&sigkey, saslchal.buf, saslchal.len);
 	buf_cats(&sigkey, ",");
 	buf_cat(&sigkey, final.buf, final.len);
 
-	SHA1_Hi(salted_password, password, strlen(password), &salt, atoi(itr.buf));
-	SHA1_HMAC(clientkey, sizeof(clientkey), "Client Key", strlen("Client Key"), salted_password, sizeof(salted_password));
-	SHA1(storedkey, sizeof(storedkey), clientkey, sizeof(clientkey));	//FIXME: switch the account's plain password to store this digest instead (with salt+itr).
-	SHA1_HMAC(clientsignature, sizeof(clientsignature), sigkey.buf, sigkey.len, storedkey, sizeof(storedkey));
+	Base64_Add(salt.buf, salt.len);
+	Q_snprintf(validationstr, sizeof(validationstr), "%i:%s", atoi(itr.buf), Base64_Finish());
+	if (ctx->password_hash_size == digestsize && !strcmp(validationstr, ctx->password_validity))
+	{
+		//restore the hash
+		memcpy(salted_password, ctx->password_hash, digestsize);
+	}
+	else if (*ctx->password_plain)
+	{
+		ctx->password_hash_size = HMAC_Hi(func, salted_password, ctx->password_plain, strlen(ctx->password_plain), &salt, atoi(itr.buf));
 
-	for (i = 0; i < sizeof(proof); i++)
+		//save that hash for later.
+		Q_strlcpy(ctx->password_validity, validationstr, sizeof(ctx->password_validity));
+		memcpy(ctx->password_hash, salted_password, ctx->password_hash_size);
+	}
+	else
+		return -2;	//panic. password not known any more. the server should not be changing salt/itr.
+
+	HMAC(func, clientkey, sizeof(clientkey), "Client Key", strlen("Client Key"), salted_password, digestsize);
+//Note: if we wanted to be fancy, we could store both clientkey and serverkey instead of salted_password, but I'm not sure there's all that much point.
+	tmp = clientkey;
+	func(storedkey, sizeof(storedkey), 1, &tmp, &digestsize);
+	HMAC(func, clientsignature, sizeof(clientsignature), sigkey.buf, sigkey.len, storedkey, digestsize);
+
+	for (i = 0; i < digestsize; i++)
 		proof[i] = clientkey[i] ^ clientsignature[i];
 
-	Base64_Add(proof, sizeof(proof));
+	Base64_Add(proof, digestsize);
 	Base64_Finish();
 
+	//to validate the server...
+	HMAC(func, serverkey, sizeof(serverkey), "Server Key", strlen("Server Key"), salted_password, sizeof(salted_password));
+	HMAC(func, ctx->scram.authvhash, sizeof(ctx->scram.authvhash), sigkey.buf, sigkey.len, serverkey, sizeof(serverkey)); //aka:serversignature
 
 	//"c=biws,r=fyko+d2lbbFgONRv9qkxdawL3rfcNHYJY1ZVvWVs7j,p=v0X8v3Bz2T0CJGbJQyF0X+HI4Ts="
 	Q_snprintf(out, outlen, "%s,p=%s", final.buf, base64);
 	return strlen(out);
+}
+
+static int sasl_scram_final(struct sasl_ctx_s *ctx, char *in, int inlen)
+{
+	buf_t valid;
+
+	valid.len = saslattr(valid.buf, sizeof(valid.buf), in, inlen, "v");
+	valid.len = Base64_Decode(valid.buf, sizeof(valid.buf), valid.buf, valid.len);
+	if (valid.len != 20 || memcmp(ctx->scram.authvhash, valid.buf, valid.len))
+		return -1;	//server didn't give us the right answer. this is NOT the server we're looking for. give up now.
+	return true;
 }
 
 void URL_Split(char *url, char *proto, int protosize, char *host, int hostsize, char *res, int ressize)
@@ -971,7 +1096,7 @@ void Q_strlcat_urlencode(char *d, const char *s, int n)
 	}
 	*d = 0;
 }
-static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
+static int sasl_oauth2_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
 	char proto[256];
 	char host[256];
@@ -981,27 +1106,27 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 
 	xmltree_t *x;
 
-	if (*jcl->password)
+	if (*ctx->password_plain)
 		return -1;
 
-	if (0)//*jcl->password)
+	if (0)//*jcl->password_plain)
 	{
 		char body[4096];
 		char header[4096];
 
-		URL_Split(jcl->oauth2.refreshurl, proto, sizeof(proto), host, sizeof(host), resource, sizeof(resource));
+		URL_Split(ctx->oauth2.refreshurl, proto, sizeof(proto), host, sizeof(host), resource, sizeof(resource));
 
 		*body = 0;
 		Q_strlcat(body, "client_id=", sizeof(body));
-		Q_strlcat_urlencode(body, jcl->oauth2.clientid, sizeof(body));
+		Q_strlcat_urlencode(body, ctx->oauth2.clientid, sizeof(body));
 		Q_strlcat(body, "&client_secret=", sizeof(body));
-		Q_strlcat_urlencode(body, jcl->oauth2.clientsecret, sizeof(body));
+		Q_strlcat_urlencode(body, ctx->oauth2.clientsecret, sizeof(body));
 		Q_strlcat(body, "&", sizeof(body));
 
 		Q_strlcat(body, "grant_type=password&username=", sizeof(body));
-		Q_strlcat_urlencode(body, jcl->oauth2.useraccount, sizeof(body));
+		Q_strlcat_urlencode(body, ctx->oauth2.useraccount, sizeof(body));
 		Q_strlcat(body, "&password=", sizeof(body));
-		Q_strlcat_urlencode(body, jcl->password, sizeof(body));
+		Q_strlcat_urlencode(body, ctx->password_plain, sizeof(body));
 
 		Q_strlcat(body, "&response_type=code", sizeof(body));
 
@@ -1009,7 +1134,7 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 		Q_strlcat_urlencode(body, "urn:ietf:wg:oauth:2.0:oob", sizeof(body));
 
 		Q_strlcat(body, "&scope=", sizeof(body));
-		Q_strlcat_urlencode(body, jcl->oauth2.scope, sizeof(body));
+		Q_strlcat_urlencode(body, ctx->oauth2.scope, sizeof(body));
 
 		Q_snprintf(header, sizeof(header),
 			"POST %s HTTP/1.1\r\n"
@@ -1042,29 +1167,29 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 	}
 	
 	//if we have nothing, load up a browser to ask for the first token
-	if (!*jcl->oauth2.refreshtoken && !*jcl->oauth2.authtoken)
+	if (!*ctx->oauth2.refreshtoken && !*ctx->oauth2.authtoken)
 	{
 		char url[4096];
 		*url = 0;
-		Q_strlcat(url, jcl->oauth2.obtainurl, sizeof(url));
+		Q_strlcat(url, ctx->oauth2.obtainurl, sizeof(url));
 		Q_strlcat(url, "?redirect_uri=", sizeof(url));
 		Q_strlcat_urlencode(url, "urn:ietf:wg:oauth:2.0:oob", sizeof(url));
 		Q_strlcat(url, "&%72esponse_type=code&client_id=", sizeof(url));	//%72 = r. fucking ezquake colour codes. works with firefox anyway. no idea if that's the server changing it to an r or not. :s
-		Q_strlcat_urlencode(url, jcl->oauth2.clientid, sizeof(url));
+		Q_strlcat_urlencode(url, ctx->oauth2.clientid, sizeof(url));
 		Q_strlcat(url, "&scope=", sizeof(url));
-		Q_strlcat_urlencode(url, jcl->oauth2.scope, sizeof(url));
+		Q_strlcat_urlencode(url, ctx->oauth2.scope, sizeof(url));
 		Q_strlcat(url, "&access_type=offline", sizeof(url));
 		Q_strlcat(url, "&login_hint=", sizeof(url));
-		Q_strlcat_urlencode(url, jcl->oauth2.useraccount, sizeof(url));
+		Q_strlcat_urlencode(url, ctx->oauth2.useraccount, sizeof(url));
 
-		Con_Printf("Please visit ^[^4%s\\url\\%s^] and then enter:\n^[/"COMMANDPREFIX"%i /oa2token <TOKEN>^]\nNote: you can right-click the link to copy it to your browser, and you can use ctrl+v to paste the resulting auth token as part of the given command.\n", url, url, jcl->accountnum);
+//		Con_Printf("Please visit ^[^4%s\\url\\%s^] and then enter:\n^[/"COMMANDPREFIX"%i /oa2token <TOKEN>^]\nNote: you can right-click the link to copy it to your browser, and you can use ctrl+v to paste the resulting auth token as part of the given command.\n", url, url, jcl->accountnum);
 
 		//wait for user to act.
 		return -2;
 	}
 
 	//refresh token is not known, try and get one
-	if (!*jcl->oauth2.refreshtoken && *jcl->oauth2.authtoken)
+	if (!*ctx->oauth2.refreshtoken && *ctx->oauth2.authtoken)
 	{
 		xmltree_t *x;
 		char body[4096];
@@ -1074,16 +1199,16 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 
 		*body = 0;
 		Q_strlcat(body, "code=", sizeof(body));
-		Q_strlcat_urlencode(body, jcl->oauth2.authtoken, sizeof(body));
+		Q_strlcat_urlencode(body, ctx->oauth2.authtoken, sizeof(body));
 		Q_strlcat(body, "&client_id=", sizeof(body));
-		Q_strlcat_urlencode(body, jcl->oauth2.clientid, sizeof(body));
+		Q_strlcat_urlencode(body, ctx->oauth2.clientid, sizeof(body));
 		Q_strlcat(body, "&client_secret=", sizeof(body));
-		Q_strlcat_urlencode(body, jcl->oauth2.clientsecret, sizeof(body));
+		Q_strlcat_urlencode(body, ctx->oauth2.clientsecret, sizeof(body));
 		Q_strlcat(body, "&redirect_uri=", sizeof(body));
 		Q_strlcat_urlencode(body, "urn:ietf:wg:oauth:2.0:oob", sizeof(body));
 		Q_strlcat(body, "&grant_type=", sizeof(body));
 		Q_strlcat_urlencode(body, "authorization_code", sizeof(body));
-		URL_Split(jcl->oauth2.refreshurl, proto, sizeof(proto), host, sizeof(host), resource, sizeof(resource));
+		URL_Split(ctx->oauth2.refreshurl, proto, sizeof(proto), host, sizeof(host), resource, sizeof(resource));
 
 		Q_snprintf(header, sizeof(header),
 			"POST %s HTTP/1.1\r\n"
@@ -1125,20 +1250,20 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 			l = rl;
 		x = XML_FromJSON(NULL, "oauth2", result, &l, rl);
 		XML_ConPrintTree(x, "", 1);
-		free(jcl->oauth2.accesstoken);
-		free(jcl->oauth2.refreshtoken);
-		jcl->oauth2.accesstoken = strdup(XML_GetChildBody(x, "access_token", ""));
-//		jcl->oauth2.token_type = strdup(XML_GetChildBody(x, "token_type", ""));
-//		jcl->oauth2.expires_in = strdup(XML_GetChildBody(x, "expires_in", ""));
-		jcl->oauth2.refreshtoken = strdup(XML_GetChildBody(x, "refresh_token", ""));
+		free(ctx->oauth2.accesstoken);
+		free(ctx->oauth2.refreshtoken);
+		ctx->oauth2.accesstoken = strdup(XML_GetChildBody(x, "access_token", ""));
+//		ctx->oauth2.token_type = strdup(XML_GetChildBody(x, "token_type", ""));
+//		ctx->oauth2.expires_in = strdup(XML_GetChildBody(x, "expires_in", ""));
+		ctx->oauth2.refreshtoken = strdup(XML_GetChildBody(x, "refresh_token", ""));
 
 		//in theory, the auth token is no longer valid/needed
-		free(jcl->oauth2.authtoken);
-		jcl->oauth2.authtoken = strdup("");
+		free(ctx->oauth2.authtoken);
+		ctx->oauth2.authtoken = strdup("");
 	}
 
 	//refresh our refresh token, obtaining a usable sign-in token at the same time.
-	else if (!*jcl->oauth2.accesstoken)
+	else if (!*ctx->oauth2.accesstoken)
 	{
 		char body[4096];
 		char header[4096];
@@ -1148,14 +1273,14 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 
 		*body = 0;
 		Q_strlcat(body, "client_id=", sizeof(body));
-		Q_strlcat_urlencode(body, jcl->oauth2.clientid, sizeof(body));
+		Q_strlcat_urlencode(body, ctx->oauth2.clientid, sizeof(body));
 		Q_strlcat(body, "&client_secret=", sizeof(body));
-		Q_strlcat_urlencode(body, jcl->oauth2.clientsecret, sizeof(body));
+		Q_strlcat_urlencode(body, ctx->oauth2.clientsecret, sizeof(body));
 		Q_strlcat(body, "&grant_type=", sizeof(body));
 		Q_strlcat_urlencode(body, "refresh_token", sizeof(body));
 		Q_strlcat(body, "&refresh_token=", sizeof(body));
-		Q_strlcat_urlencode(body, jcl->oauth2.refreshtoken, sizeof(body));
-		URL_Split(jcl->oauth2.refreshurl, proto, sizeof(proto), host, sizeof(host), resource, sizeof(resource));
+		Q_strlcat_urlencode(body, ctx->oauth2.refreshtoken, sizeof(body));
+		URL_Split(ctx->oauth2.refreshurl, proto, sizeof(proto), host, sizeof(host), resource, sizeof(resource));
 
 		Q_snprintf(header, sizeof(header),
 			"POST %s HTTP/1.1\r\n"
@@ -1192,38 +1317,38 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 //		XML_ConPrintTree(x, "", 1);
 
 		newrefresh = XML_GetChildBody(x, "refresh_token", NULL);
-		free(jcl->oauth2.accesstoken);
-		jcl->oauth2.accesstoken = strdup(XML_GetChildBody(x, "access_token", ""));
-		if (newrefresh || !*jcl->oauth2.accesstoken)
+		free(ctx->oauth2.accesstoken);
+		ctx->oauth2.accesstoken = strdup(XML_GetChildBody(x, "access_token", ""));
+		if (newrefresh || !*ctx->oauth2.accesstoken)
 		{
-			free(jcl->oauth2.refreshtoken);
-			jcl->oauth2.refreshtoken = strdup(XML_GetChildBody(x, "refresh_token", ""));
+			free(ctx->oauth2.refreshtoken);
+			ctx->oauth2.refreshtoken = strdup(XML_GetChildBody(x, "refresh_token", ""));
 		}
-//		jcl->oauth2.token_type = strdup(XML_GetChildBody(x, "token_type", ""));
-//		jcl->oauth2.expires_in = strdup(XML_GetChildBody(x, "expires_in", ""));
+//		ctx->oauth2.token_type = strdup(XML_GetChildBody(x, "token_type", ""));
+//		ctx->oauth2.expires_in = strdup(XML_GetChildBody(x, "expires_in", ""));
 
 		//refresh token may mutate. follow the mutation.
 	}
-	else if (*jcl->oauth2.accesstoken)
+	else if (*ctx->oauth2.accesstoken)
 		Con_Printf("XMPP: Using explicit access token\n");
 
-	if (*jcl->oauth2.accesstoken)
+	if (*ctx->oauth2.accesstoken)
 	{
 		int len = 0;
-		if (*jcl->oauth2.useraccount)
+		if (*ctx->oauth2.useraccount)
 		{
 			//realm isn't specified
 			buf[len++] = 0;
-			memcpy(buf+len, jcl->oauth2.useraccount, strlen(jcl->oauth2.useraccount));
-			len += strlen(jcl->oauth2.useraccount);
+			memcpy(buf+len, ctx->oauth2.useraccount, strlen(ctx->oauth2.useraccount));
+			len += strlen(ctx->oauth2.useraccount);
 			buf[len++] = 0;
 		}
-		memcpy(buf+len, jcl->oauth2.accesstoken, strlen(jcl->oauth2.accesstoken));
-		len += strlen(jcl->oauth2.accesstoken);
+		memcpy(buf+len, ctx->oauth2.accesstoken, strlen(ctx->oauth2.accesstoken));
+		len += strlen(ctx->oauth2.accesstoken);
 
 		Con_Printf("XMPP: Signing in\n");
-		free(jcl->oauth2.accesstoken);
-		jcl->oauth2.accesstoken = strdup("");
+		free(ctx->oauth2.accesstoken);
+		ctx->oauth2.accesstoken = strdup("");
 		return len;
 	}
 
@@ -1234,10 +1359,15 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 //in descending priority order
 saslmethod_t saslmethods[] =
 {
-	{"SCRAM-SHA-1",		sasl_scramsha1_initial,		sasl_scramsha1_challenge},	//lots of unreadable hashing
-	{"DIGEST-MD5",		sasl_digestmd5_initial,		sasl_digestmd5_challenge},	//kinda silly
-	{"PLAIN",			sasl_plain_initial,			NULL},						//realm\0username\0password
-	{NULL,				sasl_oauth2_initial,		NULL}						//potentially avoids having to ask+store their password. a browser is required to obtain auth token for us.
+//	{"SCRAM-SHA-512-PLUS",	sasl_scramsha512plus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing, with added channel bindings
+//	{"SCRAM-SHA-256-PLUS",	sasl_scramsha256plus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing, with added channel bindings
+	{"SCRAM-SHA-1-PLUS",	sasl_scramsha1plus_initial,		sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing, with added channel bindings
+//	{"SCRAM-SHA-512",		sasl_scramsha512minus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing
+//	{"SCRAM-SHA-256",		sasl_scramsha256minus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing
+	{"SCRAM-SHA-1",			sasl_scramsha1minus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing
+	{"DIGEST-MD5",			sasl_digestmd5_initial,			sasl_digestmd5_challenge,	NULL},				//kinda silly
+	{"PLAIN",				sasl_plain_initial,				NULL,						NULL},				//realm\0username\0password
+	{NULL,					sasl_oauth2_initial,			NULL,						NULL}				//potentially avoids having to ask+store their password. a browser is required to obtain auth token for us.
 };
 
 /*
@@ -1401,7 +1531,7 @@ qintptr_t JCL_ConsoleLinkMouseOver(qintptr_t *args)
 	JCL_FindBuddy(jcl, who, &b, &br, false);
 	if (!b)
 		return false;
-	JCL_FindBuddy(jcl, jcl->jid, &me, NULL, true);
+	JCL_FindBuddy(jcl, jcl->fulljid, &me, NULL, true);
 
 	if ((jcl->enabledcapabilities & CAP_AVATARS) && BUILTINISVALID(Draw_LoadImageData))
 	{
@@ -1594,6 +1724,110 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 		jclient_action_buddy = NULL;
 		jclient_action = ACT_NEWACCOUNT;
 	}
+	else if (!strcmp(what, "setausername"))
+	{
+		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your user name");
+		jclient_action_cl = jcl;
+		jclient_action_buddy = NULL;
+		jclient_action = ACT_SETAUSERNAME;
+	}
+	else if (!strcmp(what, "setadomain"))
+	{
+		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter the domain for which your account is valid");
+		jclient_action_cl = jcl;
+		jclient_action_buddy = NULL;
+		jclient_action = ACT_SETADOMAIN;
+	}
+	else if (!strcmp(what, "setaserver"))
+	{
+		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter the server to connect to.");
+		jclient_action_cl = jcl;
+		jclient_action_buddy = NULL;
+		jclient_action = ACT_SETASERVER;
+	}
+	else if (!strcmp(what, "setaresource"))
+	{
+		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter some resource name.");
+		jclient_action_cl = jcl;
+		jclient_action_buddy = NULL;
+		jclient_action = ACT_SETARESOURCE;
+	}
+	else if (!strcmp(what, "setapassword"))
+	{
+		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your XMPP account name\neg: example@"EXAMPLEDOMAIN);
+		jclient_action_cl = jcl;
+		jclient_action_buddy = NULL;
+		jclient_action = ACT_SETAPASSWORD;
+	}
+	else if (!strcmp(what, "setasavepassword"))
+		jcl->savepassword = !jcl->savepassword;
+	else if (!strcmp(what, "accopts"))
+	{
+		if (jcl)
+		{
+			char footer[2048];
+			char link[512];
+			if (jcl->status == JCL_INACTIVE)
+				JCL_GenLink(jcl, link, sizeof(link), "forgetacc", NULL, NULL, NULL, "%s", "Forget Account");
+			else if (jcl->status == JCL_DEAD)
+				JCL_GenLink(jcl, link, sizeof(link), "disconnect", NULL, NULL, NULL, "%s", "Disable");
+			else
+				JCL_GenLink(jcl, link, sizeof(link), "disconnect", NULL, NULL, NULL, "%s", "Disconnect");
+			Q_strlcpy(footer, "\n", sizeof(footer));
+			Q_strlcat(footer, link, sizeof(footer));
+
+			if (jcl->status == JCL_INACTIVE)
+				JCL_GenLink(jcl, link, sizeof(link), "connect", NULL, NULL, NULL, "%s", "Connect");
+			else if (jcl->status == JCL_DEAD)
+				JCL_GenLink(jcl, link, sizeof(link), "connect", NULL, NULL, NULL, "%s", "Reconnect");
+			else if (jcl->status == JCL_ACTIVE)
+				JCL_GenLink(jcl, link, sizeof(link), "addfriend", NULL, NULL, NULL, "%s", "Add Friend");
+			else
+				*link = 0;
+
+			if (*link)
+			{
+				Q_strlcat(footer, "\n", sizeof(footer));
+				Q_strlcat(footer, link, sizeof(footer));
+			}
+
+			if (jcl->status == JCL_INACTIVE)
+			{
+				JCL_GenLink(jcl, link, sizeof(link), "setausername", NULL, NULL, NULL, "Username: %s", jcl->username);
+				Q_strlcat(footer, "\n", sizeof(footer));
+				Q_strlcat(footer, link, sizeof(footer));
+
+				JCL_GenLink(jcl, link, sizeof(link), "setadomain", NULL, NULL, NULL, "Domain: %s", jcl->domain);
+				Q_strlcat(footer, "\n", sizeof(footer));
+				Q_strlcat(footer, link, sizeof(footer));
+
+				JCL_GenLink(jcl, link, sizeof(link), "setaserver", NULL, NULL, NULL, "Server: %s", *jcl->serveraddr?jcl->serveraddr:"<AUTO>");
+				Q_strlcat(footer, "\n", sizeof(footer));
+				Q_strlcat(footer, link, sizeof(footer));
+
+				JCL_GenLink(jcl, link, sizeof(link), "setaresource", NULL, NULL, NULL, "Resource: %s", jcl->resource);
+				Q_strlcat(footer, "\n", sizeof(footer));
+				Q_strlcat(footer, link, sizeof(footer));
+			}
+//			if (jcl->status == JCL_INACTIVE)
+			{
+				JCL_GenLink(jcl, link, sizeof(link), "setapassword", NULL, NULL, NULL, "Password: %s", jcl->sasl.password_plain);
+				Q_strlcat(footer, "\n", sizeof(footer));
+				Q_strlcat(footer, link, sizeof(footer));
+
+				JCL_GenLink(jcl, link, sizeof(link), "setasavepassword", NULL, NULL, NULL, "Save Password: %s", jcl->savepassword?"true":"false");
+				Q_strlcat(footer, "\n", sizeof(footer));
+				Q_strlcat(footer, link, sizeof(footer));
+			}
+
+			pCon_SetConsoleString(BUDDYLISTTITLE, "footer", footer);
+		}
+	}
 	else if (!strcmp(what, "buddyopts"))
 	{
 		char footer[2048];
@@ -1760,8 +1994,8 @@ qintptr_t JCL_ConExecuteCommand(qintptr_t *args)
 			jcl = jclient_action_cl;
 			if (jcl)
 			{
-				free(jcl->oauth2.authtoken);
-				jcl->oauth2.authtoken = strdup(args);
+				free(jcl->sasl.oauth2.authtoken);
+				jcl->sasl.oauth2.authtoken = strdup(args);
 				if (jcl->status == JCL_INACTIVE)
 					jcl->status = JCL_DEAD;
 			}
@@ -1787,13 +2021,28 @@ qintptr_t JCL_ConExecuteCommand(qintptr_t *args)
 				pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter password");
 				jclient_action_cl = jclients[i];
 				jclient_action_buddy = NULL;
-				jclient_action = ACT_PASSWORD;
+				jclient_action = ACT_SETAPASSWORD;
 				return true;
 			}
 			break;
-		case ACT_PASSWORD:
+		case ACT_SETAUSERNAME:
+			Q_strncpyz(jclient_action_cl->username, args, sizeof(jclient_action_cl->username));
+			break;
+		case ACT_SETADOMAIN:
+			Q_strncpyz(jclient_action_cl->domain, args, sizeof(jclient_action_cl->domain));
+			break;
+		case ACT_SETASERVER:
+			Q_strncpyz(jclient_action_cl->serveraddr, args, sizeof(jclient_action_cl->serveraddr));
+			break;
+		case ACT_SETARESOURCE:
+			Q_strncpyz(jclient_action_cl->resource, args, sizeof(jclient_action_cl->resource));
+			break;
+		case ACT_SETAPASSWORD:
 			if (*args)
-				Q_strncpyz(jclient_action_cl->password, args, sizeof(jclient_action_cl->password));
+			{
+				Q_strncpyz(jclient_action_cl->sasl.password_plain, args, sizeof(jclient_action_cl->sasl.password_plain));
+				jclient_action_cl->sasl.password_hash_size = 0; //invalidate it
+			}
 			if (jclient_action_cl->status == JCL_INACTIVE)
 				jclient_action_cl->status = JCL_DEAD;
 			jclient_action = ACT_NONE;
@@ -1802,7 +2051,7 @@ qintptr_t JCL_ConExecuteCommand(qintptr_t *args)
 			if (*args)
 				XMPP_AddFriend(jclient_action_cl, args, "");
 			break;
-		case ACT_SETALIAS:
+		case ACT_SETBALIAS:
 			Q_strncpyz(jclient_action_buddy->name, args, sizeof(jclient_action_buddy->name));
 			JCL_SendIQf(jclient_action_cl, NULL, "set", NULL, "<query xmlns='jabber:iq:roster'><item jid='%s' name='%s'></item></query>", jclient_action_buddy->accountdomain, jclient_action_buddy->name);
 			break;
@@ -1935,7 +2184,7 @@ qboolean JCL_Reconnect(jclient_t *jcl)
 	jcl->instreampos = 0;
 	jcl->bufferedinammount = 0;
 	Q_strlcpy(jcl->localalias, ">>", sizeof(jcl->localalias));
-	jcl->authmode = -1;
+	jcl->sasl.authmethod = NULL;
 
 	if (*jcl->redirserveraddr)
 		serveraddr = jcl->redirserveraddr;
@@ -2088,7 +2337,7 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 	Q_strlcpy(jcl->domain, XML_GetChildBody(acc, "domain", "localhost"), sizeof(jcl->domain));
 	Q_strlcpy(jcl->resource, XML_GetChildBody(acc, "resource", ""), sizeof(jcl->resource));
 
-	//half these networks seem to have weird domains. especially microsoft.
+	//half of these networks seem to have weird domains. especially microsoft.
 	if (strchr(jcl->username, '@'))
 		Q_strlcpy(oauthname, jcl->username, sizeof(oauthname));
 	else
@@ -2099,18 +2348,18 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 			break;
 	}
 	oauth2 = XML_ChildOfTree(acc, "oauth2", 0);
-	Q_strlcpy(jcl->oauth2.saslmethod, XML_GetParameter(oauth2, "method", oa->saslmethod), sizeof(jcl->oauth2.saslmethod));
-	Q_strlcpy(jcl->oauth2.obtainurl, XML_GetChildBody(oauth2, "obtain-url", oa->obtainurl), sizeof(jcl->oauth2.obtainurl));
-	Q_strlcpy(jcl->oauth2.refreshurl, XML_GetChildBody(oauth2, "refresh-url", oa->refreshurl), sizeof(jcl->oauth2.refreshurl));
-	Q_strlcpy(jcl->oauth2.clientid, XML_GetChildBody(oauth2, "client-id", oa->clientid), sizeof(jcl->oauth2.clientid));
-	Q_strlcpy(jcl->oauth2.clientsecret, XML_GetChildBody(oauth2, "client-secret", oa->clientsecret), sizeof(jcl->oauth2.clientsecret));
-	jcl->oauth2.scope = strdup(XML_GetChildBody(oauth2, "scope", oa->scope));
-	jcl->oauth2.useraccount = strdup(XML_GetChildBody(oauth2, "authname", oauthname));
-	jcl->oauth2.authtoken = strdup(XML_GetChildBody(oauth2, "auth-token", ""));
-	jcl->oauth2.refreshtoken = strdup(XML_GetChildBody(oauth2, "refresh-token", ""));
-	jcl->oauth2.accesstoken = strdup(XML_GetChildBody(oauth2, "access-token", ""));
+	Q_strlcpy(jcl->sasl.oauth2.saslmethod, XML_GetParameter(oauth2, "method", oa->saslmethod), sizeof(jcl->sasl.oauth2.saslmethod));
+	Q_strlcpy(jcl->sasl.oauth2.obtainurl, XML_GetChildBody(oauth2, "obtain-url", oa->obtainurl), sizeof(jcl->sasl.oauth2.obtainurl));
+	Q_strlcpy(jcl->sasl.oauth2.refreshurl, XML_GetChildBody(oauth2, "refresh-url", oa->refreshurl), sizeof(jcl->sasl.oauth2.refreshurl));
+	Q_strlcpy(jcl->sasl.oauth2.clientid, XML_GetChildBody(oauth2, "client-id", oa->clientid), sizeof(jcl->sasl.oauth2.clientid));
+	Q_strlcpy(jcl->sasl.oauth2.clientsecret, XML_GetChildBody(oauth2, "client-secret", oa->clientsecret), sizeof(jcl->sasl.oauth2.clientsecret));
+	jcl->sasl.oauth2.scope = strdup(XML_GetChildBody(oauth2, "scope", oa->scope));
+	jcl->sasl.oauth2.useraccount = strdup(XML_GetChildBody(oauth2, "authname", oauthname));
+	jcl->sasl.oauth2.authtoken = strdup(XML_GetChildBody(oauth2, "auth-token", ""));
+	jcl->sasl.oauth2.refreshtoken = strdup(XML_GetChildBody(oauth2, "refresh-token", ""));
+	jcl->sasl.oauth2.accesstoken = strdup(XML_GetChildBody(oauth2, "access-token", ""));
 
-	Q_strlcpy(jcl->password, XML_GetChildBody(acc, "password", ""), sizeof(jcl->password));
+	Q_strlcpy(jcl->sasl.password_plain, XML_GetChildBody(acc, "password", ""), sizeof(jcl->sasl.password_plain));
 
 	if (!*jcl->resource)
 	{	//the default resource matches the game that they're trying to play.
@@ -2133,11 +2382,11 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 	}
 	Q_strlcpy(jcl->certificatedomain, XML_GetChildBody(acc, "certificatedomain", jcl->domain), sizeof(jcl->certificatedomain));
 	jcl->status = atoi(XML_GetChildBody(acc, "inactive", "0"))?JCL_INACTIVE:JCL_DEAD;
-	jcl->allowauth_plainnontls	= atoi(XML_GetChildBody(acc, "allowauth_plain_nontls",	"0"));
-	jcl->allowauth_plaintls		= atoi(XML_GetChildBody(acc, "allowauth_plain_tls",		"1"));	//required 1 for googletalk, otherwise I'd set it to 0.
-	jcl->allowauth_digestmd5	= atoi(XML_GetChildBody(acc, "allowauth_digest_md5",	"1"));
-	jcl->allowauth_scramsha1	= atoi(XML_GetChildBody(acc, "allowauth_scram_sha_1",	"1"));
-	jcl->allowauth_oauth2		= atoi(XML_GetChildBody(acc, "allowauth_oauth2",		jcl->oauth2.saslmethod?"1":"0"));
+	jcl->sasl.allowauth_plainnontls	= atoi(XML_GetChildBody(acc, "allowauth_plain_nontls",	"0"));
+	jcl->sasl.allowauth_plaintls		= atoi(XML_GetChildBody(acc, "allowauth_plain_tls",		"1"));	//required 1 for googletalk, otherwise I'd set it to 0.
+	jcl->sasl.allowauth_digestmd5	= atoi(XML_GetChildBody(acc, "allowauth_digest_md5",	"1"));
+	jcl->sasl.allowauth_scramsha1	= atoi(XML_GetChildBody(acc, "allowauth_scram_sha_1",	"1"));
+	jcl->sasl.allowauth_oauth2		= atoi(XML_GetChildBody(acc, "allowauth_oauth2",		jcl->sasl.oauth2.saslmethod?"1":"0"));
 
 	jcl->savepassword	= atoi(XML_GetChildBody(acc, "savepassword",	"0"));
 
@@ -2643,15 +2892,15 @@ struct iq_s *JCL_SendIQ(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xm
 
 	if (*target)
 	{
-		if (*jcl->jid)
-			JCL_AddClientMessagef(jcl, "<iq type='%s' id='%s' from='%s' to='%s'>", iqtype, iq->id, jcl->jid, target);
+		if (*jcl->fulljid)
+			JCL_AddClientMessagef(jcl, "<iq type='%s' id='%s' from='%s' to='%s'>", iqtype, iq->id, jcl->fulljid, target);
 		else
 			JCL_AddClientMessagef(jcl, "<iq type='%s' id='%s' to='%s'>", iqtype, iq->id, target);
 	}
 	else
 	{
-		if (*jcl->jid)
-			JCL_AddClientMessagef(jcl, "<iq type='%s' id='%s' from='%s'>", iqtype, iq->id, jcl->jid);
+		if (*jcl->fulljid)
+			JCL_AddClientMessagef(jcl, "<iq type='%s' id='%s' from='%s'>", iqtype, iq->id, jcl->fulljid);
 		else
 			JCL_AddClientMessagef(jcl, "<iq type='%s' id='%s'>", iqtype, iq->id);
 	}
@@ -2681,6 +2930,7 @@ struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl
 	return n;
 }
 
+#ifdef USE_GOOGLE_MAIL_NOTIFY
 qboolean XMPP_NewGoogleMailsReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
 	int i, j;
@@ -2744,6 +2994,16 @@ qboolean XMPP_NewGoogleMailsReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *
 	}
 	return true;
 }
+#endif
+
+qboolean XMPP_CarbonsEnabledReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+{
+	//don't care. if we don't get carbons then no real loss.
+	//xmltree_t *etype, *error = XML_ChildOfTreeNS(tree, NULL, "error", 0);
+	//etype = XML_ChildOfTreeNS(error, NULL, "forbidden", 0);
+	//etype = XML_ChildOfTreeNS(error, NULL, "not-allowed", 0);
+	return true;
+}
 
 static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp, char *from)
 {
@@ -2804,9 +3064,9 @@ static qboolean JCL_BindReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 		if (c)
 		{
 			char myjid[512];
-			Q_strlcpy(jcl->jid, c->body, sizeof(jcl->jid));
-			JCL_GenLink(jcl, myjid, sizeof(myjid), NULL, jcl->jid, NULL, NULL, "%s", jcl->jid);
-			Con_DPrintf("Bound to jid %s\n", jcl->jid);
+			Q_strlcpy(jcl->fulljid, c->body, sizeof(jcl->fulljid));
+			JCL_GenLink(jcl, myjid, sizeof(myjid), NULL, jcl->fulljid, NULL, NULL, "%s", jcl->fulljid);
+			Con_DPrintf("Bound to jid %s\n", jcl->fulljid);
 			return true;
 		}
 	}
@@ -2968,6 +3228,8 @@ static qboolean JCL_MyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *i
 		Q_strlcpy(jcl->localalias, nickname->body, sizeof(jcl->localalias));
 	else if (fn && *fn->body)
 		Q_strlcpy(jcl->localalias, fn->body, sizeof(jcl->localalias));
+	else
+		Q_strlcpy(jcl->localalias, jcl->barejid, sizeof(jcl->localalias));	//barejid or just username?
 	return true;
 }
 static qboolean JCL_ServerFeatureReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
@@ -2976,7 +3238,10 @@ static qboolean JCL_ServerFeatureReply(jclient_t *jcl, xmltree_t *tree, struct i
 	xmltree_t *feature;
 	char *featurename;
 	int f;
+#ifdef USE_GOOGLE_MAIL_NOTIFY
 	qboolean gmail = false;
+#endif
+	qboolean carbons = false;
 
 	if (!query)
 		return false;
@@ -2987,23 +3252,32 @@ static qboolean JCL_ServerFeatureReply(jclient_t *jcl, xmltree_t *tree, struct i
 		if (!feature)
 			break;
 		featurename = XML_GetParameter(feature, "var", "");
+#ifdef USE_GOOGLE_MAIL_NOTIFY
 		if (!strcmp(featurename, "google:mail:notify"))
 			gmail = true;
+		else
+#endif
+			if (!strcmp(featurename, "urn:xmpp:carbons:2"))
+			carbons = true;
 		else
 		{
 			Con_DPrintf("Server supports feature %s\n", featurename);
 		}
 	}
 
+#ifdef USE_GOOGLE_MAIL_NOTIFY
 	if (gmail)
 		JCL_SendIQf(jcl, XMPP_NewGoogleMailsReply, "get", NULL, "<query xmlns='google:mail:notify'/>");
+#endif
+	if (carbons)
+		JCL_SendIQf(jcl, XMPP_CarbonsEnabledReply, "set", NULL, "<enable xmlns='urn:xmpp:carbons:2'/>");
 	
 	return true;
 }
 static qboolean JCL_SessionReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
 	JCL_SendIQf(jcl, JCL_RosterReply, "get", NULL, "<query xmlns='jabber:iq:roster'/>");
-	JCL_SendIQf(jcl, JCL_MyVCardReply, "get", NULL, "<vCard xmlns='vcard-temp'/>");
+	JCL_SendIQf(jcl, JCL_MyVCardReply, "get", jcl->barejid, "<vCard xmlns='vcard-temp'/>");
 	JCL_SendIQf(jcl, JCL_ServerFeatureReply, "get", jcl->domain, "<query xmlns='http://jabber.org/protocol/disco#info'/>");
 	return true;
 }
@@ -3027,7 +3301,7 @@ static struct
 			#ifdef VOIP_LEGACY
 				{"http://www.google.com/xmpp/protocol/session", CAP_GOOGLE_VOICE},	//so google's non-standard clients can chat with us
 				{"http://www.google.com/xmpp/protocol/voice/v1", CAP_GOOGLE_VOICE}, //so google's non-standard clients can chat with us
-				{"http://www.google.com/xmpp/protocol/camera/v1", CAP_GOOGLE_VOICE},	//can send video
+//				{"http://www.google.com/xmpp/protocol/camera/v1", CAP_GOOGLE_VOICE},	//can send video
 //				{"http://www.google.com/xmpp/protocol/video/v1", CAP_GOOGLE_VOICE},	//can receive video
 			#endif
 			#ifndef VOIP_LEGACY_ONLY
@@ -3035,8 +3309,8 @@ static struct
 				{"urn:xmpp:jingle:apps:rtp:audio", CAP_VOICE},
 				{"urn:xmpp:jingle:apps:rtp:video", CAP_VIDEO},
 			#endif
+//			{"urn:xmpp:jingle:apps:rtp:video", CAP_VIDEO},	//we don't support rtp video chat
 		#endif
-		//"urn:xmpp:jingle:apps:rtp:video",//we don't support rtp video chat
 		{"urn:xmpp:jingle:transports:raw-udp:1", CAP_GAMEINVITE|CAP_VOICE|CAP_VIDEO},
 		#ifndef NOICE
 			{"urn:xmpp:jingle:transports:ice-udp:1", CAP_GAMEINVITE|CAP_VOICE|CAP_VIDEO},
@@ -3055,6 +3329,16 @@ static struct
 		{"http://jabber.org/protocol/ibb", CAP_SIFT},
 		{"http://jabber.org/protocol/bytestreams", CAP_SIFT},
 	#endif
+
+	{"urn:xmpp:avatar:data"},
+	{"urn:xmpp:avatar:metadata"},
+	{"urn:xmpp:avatar:metadata+notify"},
+//	{"http://jabber.org/protocol/mood"},
+//	{"http://jabber.org/protocol/mood+notify"},
+///	{"http://jabber.org/protocol/tune"},
+//	{"http://jabber.org/protocol/tune+notify"},
+	{"http://jabber.org/protocol/nick"},
+	{"http://jabber.org/protocol/nick+notify"},
 #else
 	//for testing, this is the list of features pidgin supports (which is the other client I'm testing against).
 
@@ -3106,7 +3390,7 @@ static void buildcaps(jclient_t *jcl, char *out, int outlen)
 
 	for (i = 0; caps[i].name; i++)
 	{
-		if (!(caps[i].withcap & jcl->enabledcapabilities))
+		if (caps[i].withcap && !(caps[i].withcap & jcl->enabledcapabilities))
 			continue;
 		Q_strlcat(out, "<feature var='", outlen);
 		Q_strlcat(out, caps[i].name, outlen);
@@ -3129,7 +3413,7 @@ char *buildcapshash(jclient_t *jcl)
 	qsort(caps, sizeof(caps)/sizeof(caps[0]) - 1, sizeof(caps[0]), qsortcaps); 
 	for (i = 0; caps[i].name; i++)
 	{
-		if (!(caps[i].withcap & jcl->enabledcapabilities))
+		if (caps[i].withcap && !(caps[i].withcap & jcl->enabledcapabilities))
 			continue;
 		Q_strlcat(out, caps[i].name, outlen);
 		Q_strlcat(out, "<", outlen);
@@ -3508,7 +3792,30 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 	char *type = XML_GetParameter(tree, "type", "normal");
 	char *ctx = f;
 
-	if (!strcmp(f, jcl->jid))
+	xmltree_t *received = XML_ChildOfTree(tree, "received", 0);
+	xmltree_t *sent = XML_ChildOfTree(tree, "sent", 0);
+	char *showicon = NULL;	//their icon
+
+	if (received && sent)
+		return;	//no, just no.
+	if (received)
+	{
+		xmltree_t *forwarded = XML_ChildOfTree(received, "forwarded", 0);
+		if (!forwarded || strcmp(f, jcl->barejid))
+			return;	//no bugs, no spoofing
+		tree = XML_ChildOfTree(forwarded, "message", 0);
+		f = XML_GetParameter(tree, "from", jcl->domain);
+	}
+	if (sent)
+	{
+		xmltree_t *forwarded = XML_ChildOfTree(sent, "forwarded", 0);
+		if (!forwarded || strcmp(f, jcl->barejid))
+			return;	//no bugs, no spoofing
+		tree = XML_ChildOfTree(forwarded, "message", 0);
+		f = XML_GetParameter(tree, "to", jcl->domain);
+	}
+
+	if (!strcmp(f, jcl->fulljid))
 		unparsable = false;
 	else
 	{
@@ -3531,6 +3838,7 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 				}
 				else
 				{
+					showicon = b->accountdomain;
 					f = b->name;
 					if (br)
 						b->defaultresource = br;
@@ -3541,6 +3849,8 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 		if (!strcmp(type, "error"))
 		{
 			char *reason = NULL;
+			if (sent)
+				return;
 			ot = XML_ChildOfTree(tree, "error", 0);
 			if (ot->child)
 				reason = ot->child->name;
@@ -3589,7 +3899,7 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			return;
 		}
 
-		if (f)
+		if (f && !sent)
 		{
 			ot = XML_ChildOfTree(tree, "composing", 0);
 			if (ot && !strcmp(ot->xmlns, "http://jabber.org/protocol/chatstates"))
@@ -3623,9 +3933,10 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			}
 		}
 
-		ot = XML_ChildOfTree(tree, "attention", 0);
-		if (ot)
+		ot = XML_ChildOfTreeNS(tree, "urn:xmpp:attention:0", "attention", 0);
+		if (ot && !sent)
 		{
+			unparsable = false;
 			if (jclient_poketime < jclient_curtime)	//throttle these.
 			{
 				jclient_poketime = jclient_curtime + 10*1000;
@@ -3641,9 +3952,53 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 		if (ot && !strcmp(type, "groupchat"))
 		{
 			unparsable = false;
-			XMPP_ConversationPrintf(ctx, f, "^2%s^7 has set the topic to: %s\n", f, ot->body);
+			if (sent)
+				XMPP_ConversationPrintf(ctx, f, "^2You^7 have set the topic to: %s\n", ot->body);
+			else
+				XMPP_ConversationPrintf(ctx, f, "^2%s^7 has set the topic to: %s\n", f, ot->body);
 		}
 
+		ot = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/pubsub#event", "event", 0);
+		if (ot)
+		{
+			buddy_t *b;
+			unparsable = false;
+			JCL_FindBuddy(jcl, f, &b, NULL, false);
+			if (!sent)
+			{
+				xmltree_t *items = XML_ChildOfTree(ot, "items", 0);
+				const char *node = XML_GetParameter(items, "node", "");
+				if (!strcmp(node, "http://jabber.org/protocol/nick"))
+				{
+					xmltree_t *item = XML_ChildOfTree(items, "item", 0);
+					const char *nick = XML_GetChildBody(item, "nick", NULL);
+					if (nick && b)
+						Q_strlcpy(b->name, nick, sizeof(b->name));
+				}
+				else if (!strcmp(node, "http://jabber.org/protocol/tune"))
+				{
+//					xmltree_t *item = XML_ChildOfTree(items, "item", 0);
+//					xmltree_t *tune = XML_ChildOfTreeNS(item, "http://jabber.org/protocol/tune", "tune", 0);
+				}
+				else if (!strcmp(node, "http://jabber.org/protocol/mood"))
+				{
+//					xmltree_t *item = XML_ChildOfTree(items, "item", 0);
+//					xmltree_t *mood = XML_ChildOfTreeNS(item, "http://jabber.org/protocol/mood", "mood", 0);
+//					const char *text = XML_GetChildBody(mood, "text", NULL);
+					//there's a whole army of options here. crazy stuff that makes it unusable.
+				}
+				else if (!strcmp(node, "urn:xmpp:avatar:metadata"))
+				{
+//					xmltree_t *item = XML_ChildOfTree(items, "item", 0);
+//					xmltree_t *tune = XML_ChildOfTreeNS(item, "urn:xmpp:avatar:metadata", "metadata", 0);
+					//this can get messy.
+				}
+				else
+				{
+					Con_DPrintf("Unknown pubsub/pep node \"%s\"\n", node);
+				}
+			}
+		}
 
 		ot = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/muc#user", "x", 0);
 		if (ot && f && !strchr(f, '/'))
@@ -3658,7 +4013,7 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 				char *password = XML_GetChildBody(ot, "password", 0);
 				char link[512];
 				buddy_t *b;
-				if (JCL_FindBuddy(jcl, f, &b, NULL, true))
+				if (!sent && JCL_FindBuddy(jcl, f, &b, NULL, true))
 				{
 					if (b->chatroom)
 						return;	//we already know about it. don't spam.
@@ -3685,10 +4040,20 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			unparsable = false;
 
 			JCL_GenLink(jcl, link, sizeof(link), "mucjoin", chatjit, NULL, password, "%s", chatjit);
-			if (reason)
-				XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s: %s.\n", f, link, reason);
+			if (sent)
+			{
+				if (reason)
+					XMPP_ConversationPrintf(ctx, f, "* You have invited ^2%s^7 to join %s: %s.\n", f, link, reason);
+				else
+					XMPP_ConversationPrintf(ctx, f, "* You have invited ^2%s^7 to join %s.\n", f, link);
+			}
 			else
-				XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s.\n", f, link);
+			{
+				if (reason)
+					XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s: %s.\n", f, link, reason);
+				else
+					XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s.\n", f, link);
+			}
 			if (BUILTINISVALID(Con_SetActive))
 				pCon_SetActive(ctx);
 			return;	//ignore any body
@@ -3700,13 +4065,30 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			unparsable = false;
 			if (f)
 			{
-				if (!strncmp(ot->body, "/me ", 4))
-					XMPP_ConversationPrintf(ctx, f, "* ^2%s^7%s\n", f, ot->body+3);
+				if (sent)
+				{
+					if (!strncmp(ot->body, "/me ", 4))
+						XMPP_ConversationPrintf(ctx, f, "* "COL_NAME_US"%s"COL_TEXT_US"%s\n", jcl->localalias, ot->body+3);
+					else if (showicon)
+						XMPP_ConversationPrintf(ctx, f, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_US"\\w\\32\\h\\32^]"COL_NAME_US"%s"COL_TEXT_US":\v%s\n", jcl->barejid, jcl->localalias, ot->body);
+					else
+						XMPP_ConversationPrintf(ctx, f, COL_NAME_US"%s"COL_TEXT_US": %s\n", jcl->localalias, ot->body);
+				}
 				else
-					XMPP_ConversationPrintf(ctx, f, "^2%s^7: %s\n", f, ot->body);
+				{
+					if (!strncmp(ot->body, "/me ", 4))
+						XMPP_ConversationPrintf(ctx, f, "* "COL_NAME_THEM"%s"COL_TEXT_THEM"%s\n", f, ot->body+3);
+					else if (showicon)
+						XMPP_ConversationPrintf(ctx, f, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_THEM"\\w\\32\\h\\32^]"COL_NAME_THEM"%s"COL_TEXT_THEM":\v%s\n", showicon, f, ot->body);
+					else
+						XMPP_ConversationPrintf(ctx, f, COL_NAME_THEM"%s"COL_TEXT_THEM": %s\n", f, ot->body);
+				}
 			}
 			else
-				XMPP_ConversationPrintf(ctx, f, "NOTICE: %s\n", ot->body);
+			{	
+				if (!sent)
+					XMPP_ConversationPrintf(ctx, f, "NOTICE: %s\n", ot->body);
+			}
 
 			if (BUILTINISVALID(LocalSound))
 				pLocalSound("misc/talk.wav");
@@ -3724,6 +4106,64 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 	}
 }
 
+#if 0
+static qboolean JCL_ValidateCaps(xmltree_t *query, const char *node, const char *ver, const char *hash)
+{
+	const char *respnode = XML_GetParameter(query, "node", "");
+	int l;
+	char out[8192];
+	int outlen = sizeof(out);
+	unsigned char digest[64];
+	const char *features[1024];
+	size_t i, numfeatures = 0;
+	size_t nlen = strlen(node);
+	if (strcmp(hash, "sha-1"))
+		return false;	//unable to validate.
+	if (strncmp(respnode, node, nlen))
+		return false; //the client's name changed...
+	respnode+=nlen;
+	if (*respnode++ != '#')
+		return false; //o.O
+	if (strcmp(respnode, ver))
+		return false; //the client's name changed...
+	for(i = 0; i < 64; i++)
+	{
+		xmltree_t *ident = XML_ChildOfTree(query, "identity", i);
+		if (ident)
+		{
+			const char *category = XML_GetParameter(ident, "category", "");
+			const char *name = XML_GetParameter(ident, "name", "");
+			const char *type = XML_GetParameter(ident, "type", "");
+			const char *lang = XML_GetParameter(ident, "xml:lang", "");
+			Q_snprintf(out, outlen, "%s/%s/%s/%s<", category, type, lang, name);
+		}
+		else
+			break;
+	}
+	for(i = 0; i < countof(features); i++)
+	{
+		xmltree_t *feature = XML_ChildOfTree(query, "feature", i);
+		if (feature)
+		{
+			const char *var = XML_GetParameter(feature, "var", "");
+			features[numfeatures++] = var;
+		}
+		else
+			break;
+	}
+//	qsort(caps, sizeof(caps)/sizeof(caps[0]) - 1, sizeof(caps[0]), qsortcaps); 
+	for (i = 0; i < numfeatures; i++)
+	{
+		Q_strlcat(out, features[i], outlen);
+		Q_strlcat(out, "<", outlen);
+	}
+	//fixme: add any form crap
+	l = SHA1(digest, sizeof(digest), out, strlen(out));
+	for (i = 0; i < l; i++)
+		Base64_Byte(digest[i]);
+	return !strcmp(respnode, Base64_Finish());	//make sure its mostly valid.
+}
+#endif
 unsigned int JCL_ParseCaps(jclient_t *jcl, char *account, char *resource, xmltree_t *query)
 {
 	xmltree_t *feature;
@@ -3811,7 +4251,10 @@ qboolean JCL_ClientDiscoInfo(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 	else
 	{
 //		XML_ConPrintTree(tree, 0);
-		caps = JCL_ParseCaps(jcl, b->accountdomain, r->resource, query);
+//		if (!JCL_ValidateCaps(query, r->client_node, r->client_ver, r->client_hash))
+//			caps = 0;
+//		else
+			caps = JCL_ParseCaps(jcl, b->accountdomain, r->resource, query);
 	}
 
 	if (b && r)
@@ -4062,7 +4505,7 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 					buddy->vcardphotochanged = true;
 				}
 
-				JCL_FindBuddy(jcl, jcl->jid, &me, NULL, true);
+				JCL_FindBuddy(jcl, jcl->fulljid, &me, NULL, true);
 				if (buddy == me)
 				{
 					if (strcmp(buddy->vcardphotohash, jcl->vcardphotohash))
@@ -4297,6 +4740,8 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 	unparsable = true;
 	if (!strcmp(tree->name, "features"))
 	{
+		Q_snprintf(jcl->barejid, sizeof(jcl->barejid), "%s@%s", jcl->username, jcl->domain);
+		Q_snprintf(jcl->fulljid, sizeof(jcl->fulljid), "%s@%s/%s", jcl->username, jcl->domain, jcl->resource);
 		if ((ot=XML_ChildOfTree(tree, "bind", 0)))
 		{
 			unparsable = false;
@@ -4342,18 +4787,30 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 					XML_Destroy(tree);
 					return JCL_KILL;
 				}
+
+				//init some sasl fields from the jcl state.
+				jcl->sasl.username = jcl->username;	//auth user name
+				jcl->sasl.domain = jcl->domain;		//auth domain
+				jcl->sasl.issecure = jcl->issecure;	//says that its connected over tls, and that sock is the tls connection.
+				jcl->sasl.socket = jcl->socket;			//just for channel bindings
+				jcl->sasl.authmethod = NULL;		//unknown at this point
+
+				//attempt to use a method based on the ones that we prefer.
 				for (sm = 0; sm < sizeof(saslmethods)/sizeof(saslmethods[0]); sm++)
 				{
-					method = saslmethods[sm].method?saslmethods[sm].method:jcl->oauth2.saslmethod;
+					method = saslmethods[sm].method?saslmethods[sm].method:jcl->sasl.oauth2.saslmethod;
 					if (!*method)
 						continue;
 					for (m = ot->child; m; m = m->sibling)
 					{
 						if (!strcmp(m->body, method))
 						{
-							outlen = saslmethods[sm].sasl_initial(jcl, out, sizeof(out));
+							outlen = saslmethods[sm].sasl_initial(&jcl->sasl, out, sizeof(out));
 							if (outlen >= 0)
+							{
+								jcl->sasl.authmethod = &saslmethods[sm];
 								break;
+							}
 							if (outlen == -2)
 								needpass = true;
 						}
@@ -4362,7 +4819,7 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 						break;
 				}
 
-				if (outlen < 0)
+				if (outlen < 0 || !jcl->sasl.authmethod)
 				{
 					XML_Destroy(tree);
 					//can't authenticate for some reason
@@ -4374,13 +4831,12 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 
 				if (outlen >= 0)
 				{
-					jcl->authmode = sm;
 					Base64_Add(out, outlen);
 					Base64_Finish();
 
 					Con_DPrintf("XMPP: Authing with %s%s.\n", method, jcl->issecure?" over tls":" without encription");
 					JCL_AddClientMessagef(jcl, "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='%s'"
-						    " auth:service='oauth2'"
+							" auth:service='oauth2'"
 							" xmlns:auth='http://www.google.com/talk/protocol/auth'"
 							">%s</auth>", method, base64);
 					unparsable = false;
@@ -4401,14 +4857,14 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 			}
 		}
 	}
-	else if (!strcmp(tree->name, "challenge") && !strcmp(tree->xmlns, "urn:ietf:params:xml:ns:xmpp-sasl") && jcl->authmode >= 0)
+	else if (!strcmp(tree->name, "challenge") && !strcmp(tree->xmlns, "urn:ietf:params:xml:ns:xmpp-sasl") && jcl->sasl.authmethod)
 	{
 		char in[512];
 		int inlen;
 		char out[512];
 		int outlen;
 		inlen = Base64_Decode(in, sizeof(in), tree->body, strlen(tree->body));
-		outlen = saslmethods[jcl->authmode].sasl_challenge(jcl, in, inlen, out, sizeof(out));
+		outlen = jcl->sasl.authmethod->sasl_challenge(&jcl->sasl, in, inlen, out, sizeof(out));
 		if (outlen < 0)
 		{
 			*error = "Unable to auth with server";
@@ -4511,8 +4967,21 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 				return JCL_KILL;
 		}
 	}
-	else if (!strcmp(tree->name, "success"))
+	else if (!strcmp(tree->name, "success") && !strcmp(tree->xmlns, "urn:ietf:params:xml:ns:xmpp-sasl"))
 	{
+		if (!jcl->sasl.authmethod || jcl->sasl.authmethod->sasl_success)
+		{
+			char in[512];
+			int inlen;
+			inlen = Base64_Decode(in, sizeof(in), tree->body, strlen(tree->body));
+			if (!jcl->sasl.authmethod || jcl->sasl.authmethod->sasl_success(&jcl->sasl, in, inlen) < 0)
+			{
+				*error = "Server validation failed";
+				XML_Destroy(tree);
+				return JCL_KILL;
+			}
+		}
+
 		//Restart everything, basically, AGAIN! (third time lucky?)
 		jcl->bufferedinammount = 0;
 		jcl->instreampos = 0;
@@ -4649,26 +5118,26 @@ void JCL_GeneratePresence(jclient_t *jcl, qboolean force)
 
 		if (!*jcl->curquakeserver)
 			JCL_AddClientMessagef(jcl,
-					"<presence>"
+					"<presence from='%s'>"
 						"%s"
 						"%s"
-					"</presence>", prior, caps);
+					"</presence>", jcl->fulljid, prior, caps);
 		else if (*servermap)	//if we're running a server, say so
 			JCL_AddClientMessagef(jcl, 
-						"<presence>"
+						"<presence from='%s'>"
 							"%s"
 							"<quake xmlns='fteqw.com:game' servermap='%s'/>"
 							"%s"
 						"</presence>"
-						, prior, servermap, caps);
+						, jcl->fulljid, prior, servermap, caps);
 		else	//if we're connected to a server, say so
 			JCL_AddClientMessagef(jcl, 
-						"<presence>"
+						"<presence from='%s'>"
 							"%s"
 							"<quake xmlns='fteqw.com:game' serverip='%s' />"
 							"%s"
 						"</presence>"
-				, prior, jcl->curquakeserver, caps);
+				, jcl->fulljid, prior, jcl->curquakeserver, caps);
 	}
 }
 
@@ -4756,7 +5225,10 @@ static void JCL_RegenerateBuddyList(qboolean force)
 			Con_SubPrintf(console, "%s.\n", *jcl->errormsg?jcl->errormsg:"Connect failed", jcl->accountnum);
 		else if (jcl->status == JCL_AUTHING)
 			Con_SubPrintf(console, "Connecting... Please wait.\n");
-		
+
+		JCL_GenLink(jcl, convolink, sizeof(convolink), "accopts", NULL, NULL, NULL, "%s", "Options");
+		Con_SubPrintf(console, "%s\n", convolink);
+/*
 		if (jcl->status == JCL_INACTIVE)
 			JCL_GenLink(jcl, convolink, sizeof(convolink), "forgetacc", NULL, NULL, NULL, "%s", "Forget Account");
 		else if (jcl->status == JCL_DEAD)
@@ -4774,16 +5246,17 @@ static void JCL_RegenerateBuddyList(qboolean force)
 			JCL_GenLink(jcl, convolink, sizeof(convolink), "connect", NULL, NULL, NULL, "%s", "Reconnect");
 			Con_SubPrintf(console, " %s", convolink);
 		}
+*/
 		if (jcl->status != JCL_ACTIVE)
 			Con_SubPrintf(console, "\n");
 		else
 		{
 			qboolean youarealoner = true;
 
-			JCL_GenLink(jcl, convolink, sizeof(convolink), "addfriend", NULL, NULL, NULL, "%s", "Add Friend");
-			Con_SubPrintf(console, " %s\n", convolink);
+//			JCL_GenLink(jcl, convolink, sizeof(convolink), "addfriend", NULL, NULL, NULL, "%s", "Add Friend");
+//			Con_SubPrintf(console, " %s\n", convolink);
 
-			JCL_FindBuddy(jcl, jcl->jid, &me, NULL, true);
+			JCL_FindBuddy(jcl, jcl->fulljid, &me, NULL, true);
 
 			for (b = jcl->buddies, buds = 0; b && buds < sizeof(sortlist)/sizeof(sortlist[0]); b = b->next)
 			{
@@ -4868,10 +5341,7 @@ static void JCL_RegenerateBuddyList(qboolean force)
 
 					Q_snprintf(convolink, sizeof(convolink), "^[%s\\xmppacc\\%i\\xmpp\\%s^]", b->name, jcl->accountnum, b->accountdomain);
 
-					if (!b->image)
-						Con_SubPrintf(console, "^[\\img\\gfx/menudot1.lmp\\w\\32\\h\\32^]");
-					else
-						Con_SubPrintf(console, "^[\\img\\xmpp/%s.png\\w\\32\\h\\32^]", b->accountdomain);
+					Con_SubPrintf(console, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_THEM"\\w\\32\\h\\32^] ", b->accountdomain);
 					Con_SubPrintf(console, "%s", convolink);
 
 					if (*chatres->fstatus)
@@ -5141,31 +5611,31 @@ void JCL_WriteConfig(void)
 			Q_snprintf(foo, sizeof(foo), "%i", jcl->forcetls);
 			XML_CreateNode(n, "forcetls", "", foo);
 			XML_CreateNode(n, "savepassword", "", jcl->savepassword?"1":"0");
-			XML_CreateNode(n, "allowauth_plain_nontls", "", jcl->allowauth_plainnontls?"1":"0");
-			XML_CreateNode(n, "allowauth_plain_tls", "", jcl->allowauth_plaintls?"1":"0");
-			XML_CreateNode(n, "allowauth_digest_md5", "", jcl->allowauth_digestmd5?"1":"0");
-			XML_CreateNode(n, "allowauth_scram_sha_1", "", jcl->allowauth_scramsha1?"1":"0");
+			XML_CreateNode(n, "allowauth_plain_nontls", "", jcl->sasl.allowauth_plainnontls?"1":"0");
+			XML_CreateNode(n, "allowauth_plain_tls", "", jcl->sasl.allowauth_plaintls?"1":"0");
+			XML_CreateNode(n, "allowauth_digest_md5", "", jcl->sasl.allowauth_digestmd5?"1":"0");
+			XML_CreateNode(n, "allowauth_scram_sha_1", "", jcl->sasl.allowauth_scramsha1?"1":"0");
 
-			if (*jcl->oauth2.saslmethod)
+			if (*jcl->sasl.oauth2.saslmethod)
 			{
-				XML_CreateNode(n, "allowauth_oauth2", "", jcl->allowauth_oauth2?"1":"0");
+				XML_CreateNode(n, "allowauth_oauth2", "", jcl->sasl.allowauth_oauth2?"1":"0");
 				oauth2 = XML_CreateNode(n, "oauth2", "", "");
-				XML_AddParameter(oauth2, "method", jcl->oauth2.saslmethod);
-				XML_CreateNode(oauth2, "obtain-url", "", jcl->oauth2.obtainurl);
-				XML_CreateNode(oauth2, "refresh-url", "", jcl->oauth2.refreshurl);
-				XML_CreateNode(oauth2, "client-id", "", jcl->oauth2.clientid);
-				XML_CreateNode(oauth2, "client-secret", "", jcl->oauth2.clientsecret);
-				XML_CreateNode(oauth2, "scope", "", jcl->oauth2.scope);
-				XML_CreateNode(oauth2, "auth-token", "", jcl->oauth2.authtoken);
-				XML_CreateNode(oauth2, "refresh-token", "", jcl->oauth2.refreshtoken);
-				XML_CreateNode(oauth2, "access-token", "", jcl->oauth2.accesstoken);
+				XML_AddParameter(oauth2, "method", jcl->sasl.oauth2.saslmethod);
+				XML_CreateNode(oauth2, "obtain-url", "", jcl->sasl.oauth2.obtainurl);
+				XML_CreateNode(oauth2, "refresh-url", "", jcl->sasl.oauth2.refreshurl);
+				XML_CreateNode(oauth2, "client-id", "", jcl->sasl.oauth2.clientid);
+				XML_CreateNode(oauth2, "client-secret", "", jcl->sasl.oauth2.clientsecret);
+				XML_CreateNode(oauth2, "scope", "", jcl->sasl.oauth2.scope);
+				XML_CreateNode(oauth2, "auth-token", "", jcl->sasl.oauth2.authtoken);
+				XML_CreateNode(oauth2, "refresh-token", "", jcl->sasl.oauth2.refreshtoken);
+				XML_CreateNode(oauth2, "access-token", "", jcl->sasl.oauth2.accesstoken);
 			}
 
 			XML_CreateNode(n, "username", "", jcl->username);
 			XML_CreateNode(n, "domain", "", jcl->domain);
 			XML_CreateNode(n, "resource", "", jcl->resource);
-			if (!*jcl->oauth2.saslmethod || !jcl->allowauth_oauth2 || *jcl->password)	//avoid writing password lest we encourage someone to supply it when its not useful
-				XML_CreateNode(n, "password", "", jcl->password);	//FIXME: should we base64 this just to obscure it?
+			if (jcl->savepassword)
+				XML_CreateNode(n, "password", "", jcl->sasl.password_plain);	//FIXME: should we base64 this just to obscure it? probably not. trivial obscurity does few favours.
 			XML_CreateNode(n, "serveraddr", "", jcl->serveraddr);
 			Q_snprintf(foo, sizeof(foo), "%i", jcl->serverport);
 			XML_CreateNode(n, "serverport", "", foo);
@@ -5329,7 +5799,7 @@ void JCL_SendMessage(jclient_t *jcl, char *to, char *msg)
 	if (!strncmp(msg, "/me ", 4))
 		XMPP_ConversationPrintf(con, title, "* ^5%s^7"COLOURYELLOW"%s\n", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), msg+3);
 	else
-		XMPP_ConversationPrintf(con, title, "^5%s^7: "COLOURYELLOW"%s\n", jcl->localalias, msg);
+		XMPP_ConversationPrintf(con, title, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_US"\\w\\32\\h\\32^]^5%s^7:\v"COLOURYELLOW"%s\n", jcl->barejid, jcl->localalias, msg);
 }
 void JCL_AttentionMessage(jclient_t *jcl, char *to, char *msg)
 {
@@ -5405,7 +5875,7 @@ void XMPP_Menu_Password(jclient_t *acc)
 		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
 		jclient_action_cl = acc;
 		jclient_action_buddy = NULL;
-		jclient_action = ACT_PASSWORD;
+		jclient_action = ACT_SETAPASSWORD;
 	}
 
 	/*
@@ -5566,8 +6036,8 @@ void JCL_Command(int accid, char *console)
 		}
 		else if (!strcmp(arg[0]+1, "oa2token"))
 		{
-			free(jcl->oauth2.authtoken);
-			jcl->oauth2.authtoken = strdup(arg[1]);
+			free(jcl->sasl.oauth2.authtoken);
+			jcl->sasl.oauth2.authtoken = strdup(arg[1]);
 			if (jcl->status == JCL_INACTIVE)
 				jcl->status = JCL_DEAD;
 		}
@@ -5576,7 +6046,15 @@ void JCL_Command(int accid, char *console)
 			if (!strcmp(arg[1], "savepassword"))
 				jcl->savepassword = atoi(arg[2]);
 			else if (!strcmp(arg[1], "avatars"))
+			{
 				jcl->enabledcapabilities = (jcl->enabledcapabilities & ~CAP_AVATARS) | (atoi(arg[2])?CAP_AVATARS:0);
+				JCL_GeneratePresence(jcl, true);
+			}
+			else if (!strcmp(arg[1], "ft"))
+			{
+				jcl->enabledcapabilities = (jcl->enabledcapabilities & ~CAP_SIFT) | (atoi(arg[2])?CAP_SIFT:0);
+				JCL_GeneratePresence(jcl, false);
+			}
 			else if (!strcmp(arg[1], "debug"))
 				jcl->streamdebug = atoi(arg[2]);
 			else if (!strcmp(arg[1], "resource"))
@@ -5586,7 +6064,8 @@ void JCL_Command(int accid, char *console)
 		}
 		else if (!strcmp(arg[0]+1, "password"))
 		{
-			Q_strncpyz(jcl->password, arg[1], sizeof(jcl->password));
+			Q_strncpyz(jcl->sasl.password_plain, arg[1], sizeof(jcl->sasl.password_plain));
+			jcl->sasl.password_hash_size = 0;
 			if (jcl->status == JCL_INACTIVE)
 				jcl->status = JCL_DEAD;
 		}

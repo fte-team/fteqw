@@ -2028,6 +2028,14 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 								picw = ex-sx;
 							}
 						}
+
+						//a fall back image (mostly for delay-loading or whatever.
+						if (R_GetShaderSizes(pic, NULL, NULL, false) <= 0)
+						{
+							imgname = Info_ValueForKey(linkinfo, "fbimg");
+							if (*imgname)
+								pic = R_RegisterPic(imgname, NULL);
+						}
 					}
 					break;
 				}
@@ -2348,12 +2356,17 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 		if (Key_Dest_Has(kdm_cwindows))
 		{
+			int top = 8;	//padding at the top
 			if (con_curwindow==w)
 				R2D_ImageColours(0.0, 0.05, 0.1, 0.8);
 			else
 				R2D_ImageColours(0.0, 0.05, 0.1, 0.5);
 			R2D_FillBlock(w->wnd_x, w->wnd_y, w->wnd_w, w->wnd_h);
 			R2D_ImageColours(1, 1, 1, 1);
+
+			//fixme: scale up this font...
+			Draw_FunStringWidth(w->wnd_x, w->wnd_y, w->title, w->wnd_w-top, 2, (con_curwindow==w)?true:false);
+			Draw_FunStringWidth(w->wnd_x+w->wnd_w-top, w->wnd_y, "X", top, 2, ((w->buttonsdown == CB_CLOSE && w->mousecursor[0] > w->wnd_w-(8+top) && w->mousecursor[1] < top) || (con_curwindow==w && w->mousecursor[0] >= w->wnd_w-(8+top) && w->mousecursor[0] < w->wnd_w-8 && w->mousecursor[1] >= 0 && w->mousecursor[1] < 8))?true:false);
 
 			if (w->backshader || *w->backimage)
 			{
@@ -2362,7 +2375,10 @@ void Con_DrawConsole (int lines, qboolean noback)
 					shader = w->backshader = R_RegisterPic(w->backimage, NULL);// R_RegisterCustom(w->backimage, SUF_NONE, Shader_DefaultCinematic, w->backimage);
 				if (shader)
 				{
-					int top = 8;
+					float backx = w->wnd_x+8;
+					float backy = w->wnd_y+top;
+					float backw = w->wnd_w-16;
+					float backh = w->wnd_h-8-top;
 #ifdef HAVE_MEDIA_DECODER
 					cin_t *cin = R_ShaderGetCinematic(shader);
 					if (cin)
@@ -2372,8 +2388,8 @@ void Con_DrawConsole (int lines, qboolean noback)
 						{
 							float x = 0;
 //							float r = x+w->wnd_w-16;
-							const char *buttons[] = {"bck", "fwd", "rld", "home", ((w->linebuffered == Con_Navigate)?(char*)key_lines[edit_line]:url)};
-							const char *buttoncmds[] = {"cmd:back", "cmd:forward", "cmd:refresh", ENGINEWEBSITE, NULL};
+							const char *buttons[] = {"bck", "fwd", "rld", "home", "", ((w->linebuffered == Con_Navigate)?(char*)key_lines[edit_line]:url)};
+							const char *buttoncmds[] = {"cmd:back", "cmd:forward", "cmd:refresh", ENGINEWEBSITE, NULL, NULL};
 							float tw;
 							int i, fl;
 
@@ -2382,6 +2398,14 @@ void Con_DrawConsole (int lines, qboolean noback)
 								if (i == countof(buttons)-1)
 									tw = ~0u;
 								else if (i == countof(buttons)-2)
+								{
+									tw = 8+8;
+									if (*w->icon)
+										R2D_Image(w->wnd_x+8+x, w->wnd_y+top, tw, tw, 0, 0, 1, 1, R_RegisterPic(w->icon, NULL));
+									else
+										tw = 0;
+								}
+								else if (i == countof(buttons)-3)
 									tw = 40;
 								else
 									tw = 32;
@@ -2407,22 +2431,38 @@ void Con_DrawConsole (int lines, qboolean noback)
 								x += tw;
 							}
 							top += 8;
+							backy += 8;
+							backh -= 8;
 						}
 
-						Media_Send_Resize(cin, ((w->wnd_w-16.0)*(int)vid.rotpixelwidth) / (float)vid.width, ((w->wnd_h-8-top)*(int)vid.rotpixelheight) / (float)vid.height);
-						Media_Send_MouseMove(cin, (w->mousecursor[0]) / (w->wnd_w-16.0), (w->mousecursor[1]-top) / (w->wnd_h-8.0-top));
+						//convert these to pixels.
+						backx = (backx*(int)vid.rotpixelwidth) / (float)vid.width;
+						backy = (backy*(int)vid.rotpixelheight) / (float)vid.height;
+						backw = (backw*(int)vid.rotpixelwidth) / (float)vid.width;
+						backh = (backh*(int)vid.rotpixelheight) / (float)vid.height;
+						//snap to pixels. this avoids issues with linear filtering
+						backx = (int)backx;
+						backy = (int)backy;
+						backw = (int)backw;
+						backh = (int)backh;
+						Media_Send_Resize(cin, backw, backh);
+						//convert back to screen coords now.
+						backx = (backx*(int)vid.width) / (float)vid.rotpixelwidth;
+						backy = (backy*(int)vid.height) / (float)vid.rotpixelheight;
+						backw = (backw*(int)vid.width) / (float)vid.rotpixelwidth;
+						backh = (backh*(int)vid.height) / (float)vid.rotpixelheight;
+
+						Media_Send_MouseMove(cin, (w->mousecursor[0]) / backw, (w->mousecursor[1]-top) / backh);
 						if (con_curwindow==w)
 							Media_Send_Command(cin, "cmd:focus");
 						else
 							Media_Send_Command(cin, "cmd:unfocus");
 					}
 #endif
-					R2D_Image(w->wnd_x+8, w->wnd_y+top, w->wnd_w-16, w->wnd_h-8-top, 0, 0, 1, 1, shader);
+					R2D_Image(backx, backy, backw, backh, 0, 0, 1, 1, shader);
 				}
 			}
 
-			Draw_FunStringWidth(w->wnd_x, w->wnd_y, w->title, w->wnd_w-8, 2, (con_curwindow==w)?true:false);
-			Draw_FunStringWidth(w->wnd_x+w->wnd_w-8, w->wnd_y, "X", 8, 2, ((w->buttonsdown == CB_CLOSE && w->mousecursor[0] > w->wnd_w-16 && w->mousecursor[1] < 8) || (con_curwindow==w && w->mousecursor[0] >= w->wnd_w-16 && w->mousecursor[0] < w->wnd_w-8 && w->mousecursor[1] >= 0 && w->mousecursor[1] < 8))?true:false);
 			w->unseentext = false;
 		}
 		else

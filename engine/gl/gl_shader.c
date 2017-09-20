@@ -2850,9 +2850,9 @@ static void Shaderpass_VideoMap (shader_t *shader, shaderpass_t *pass, char **pt
 
 	pass->cin = Media_StartCin(token);
 	if (!pass->cin)
-		pass->cin = Media_StartCin(va("video/%s.roq", token));
-	if (!pass->cin)
+	{
 		Con_DPrintf (CON_WARNING "(shader %s) Couldn't load video %s\n", shader->name, token);
+	}
 
 	if (pass->cin)
 	{
@@ -4362,6 +4362,7 @@ void Shader_Programify (shader_t *s)
 	char *prog = NULL;
 	const char *mask;
 	char args[1024];
+	qboolean eightbit = false;
 /*	enum
 	{
 		T_UNKNOWN,
@@ -4437,12 +4438,20 @@ void Shader_Programify (shader_t *s)
 	else if (modellighting)
 	{
 		pass = modellighting;
-		prog = "defaultskin";
+		eightbit = r_softwarebanding && (qrenderer == QR_OPENGL) && sh_config.progs_supported;
+		if (eightbit)
+			prog = "defaultskin#EIGHTBIT";
+		else
+			prog = "defaultskin";
 	}
 	else if (lightmap)
 	{
 		pass = modellighting;
-		prog = "defaultwall";
+		eightbit = r_softwarebanding && (qrenderer == QR_OPENGL || qrenderer == QR_VULKAN) && sh_config.progs_supported;
+		if (eightbit)
+			prog = "defaultwall#EIGHTBIT";
+		else
+			prog = "defaultwall";
 	}
 	else if (vertexlighting)
 	{
@@ -4487,7 +4496,13 @@ void Shader_Programify (shader_t *s)
 		}
 		else
 		{
-			s->passes[s->numpasses++].texgen = T_GEN_DIFFUSE;
+			if (eightbit)
+			{
+				s->passes[s->numpasses].anim_frames[0] = R_LoadColourmapImage();
+				s->passes[s->numpasses++].texgen = T_GEN_SINGLEMAP;
+			}
+			else			
+				s->passes[s->numpasses++].texgen = T_GEN_DIFFUSE;
 			s->flags |= SHADER_HASDIFFUSE;
 		}
 	}

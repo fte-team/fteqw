@@ -11,6 +11,9 @@
 #ifndef WIN32
 #include <fcntl.h>
 #include <sys/stat.h>
+#ifdef __unix__
+#include <unistd.h>
+#endif
 #else
 #include <direct.h>
 #endif

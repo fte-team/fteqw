@@ -34,6 +34,7 @@ uniform mat4 l_cubematrix;
 #endif
 uniform sampler2DShadow s_shadowmap;
 
+//FIXME: shadowmaps need to be atlased!
 uniform vec4 l_shadowmapproj; //light projection matrix info
 uniform vec2 l_shadowmapscale;	//xy are the texture scale, z is 1, w is the scale.
 vec3 ShadowmapCoord(vec4 cubeproj)
@@ -178,6 +179,9 @@ void main ()
 	lightDir = normalize(lightDir);
 	float nDotL = dot(norm, lightDir);
 	float lightDiffuse = max(0.0, nDotL) * atten;
+
+	/*calc specular term*/
+	//fixme
 
 	//fixme: apply fog
 	//fixme: output a specular term

@@ -484,7 +484,7 @@ qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
 	return true;
 }
 
-void OpenAL_CvarInit(void)
+static void QDECL OpenAL_CvarInit(void)
 {
 	Cvar_Register(&s_al_debug, SOUNDVARS);
 	Cvar_Register(&s_al_use_reverb, SOUNDVARS);
@@ -1347,6 +1347,7 @@ static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 
 	sc->inactive_sound = true;
 	sc->selfpainting = true;
+	sc->sn.sampleformat = QSF_EXTERNALMIXER;
 
 	OnChangeALSettings(NULL, NULL);
 
@@ -1397,7 +1398,8 @@ sounddriver_t OPENAL_Output =
 {
 	SDRVNAME,
 	OpenAL_InitCard,
-	OpenAL_Enumerate
+	OpenAL_Enumerate,
+	OpenAL_CvarInit
 };
 
 

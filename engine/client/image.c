@@ -35,7 +35,7 @@ char *r_defaultimageextensions =
 	;
 static void QDECL R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue);
 cvar_t r_imageexensions				= CVARCD("r_imageexensions", NULL, R_ImageExtensions_Callback, "The list of image file extensions which fte should attempt to load.");
-cvar_t r_image_downloadsizelimit	= CVARFD("r_image_downloadsizelimit", "64000", CVAR_NOTFROMSERVER, "The maximum allowed file size of images loaded from a web-based url. 0 disables completely, while empty imposes no limit.");
+cvar_t r_image_downloadsizelimit	= CVARFD("r_image_downloadsizelimit", "131072", CVAR_NOTFROMSERVER, "The maximum allowed file size of images loaded from a web-based url. 0 disables completely, while empty imposes no limit.");
 extern cvar_t gl_lerpimages;
 extern cvar_t gl_picmip2d;
 extern cvar_t gl_picmip;
@@ -717,14 +717,18 @@ void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) P
 void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
 png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_bit_depth);
 png_byte (PNGAPI *qpng_get_channels) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_channels);
-png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
+#if PNG_LIBPNG_VER < 10400
+	png_uint_32 (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
+#else
+	png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_const_structp png_ptr, png_const_inforp info_ptr)) PSTATIC(png_get_rowbytes);
+#endif
 void (PNGAPI *qpng_read_update_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_update_info);
 void (PNGAPI *qpng_set_strip_16) PNGARG((png_structp png_ptr)) PSTATIC(png_set_strip_16);
 void (PNGAPI *qpng_set_expand) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand);
 void (PNGAPI *qpng_set_gray_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_to_rgb);
 void (PNGAPI *qpng_set_tRNS_to_alpha) PNGARG((png_structp png_ptr)) PSTATIC(png_set_tRNS_to_alpha);
 png_uint_32 (PNGAPI *qpng_get_valid) PNGARG((png_const_structp png_ptr, png_const_infop info_ptr, png_uint_32 flag)) PSTATIC(png_get_valid);
-#if PNG_LIBPNG_VER > 10400
+#if PNG_LIBPNG_VER >= 10400
 void (PNGAPI *qpng_set_expand_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand_gray_1_2_4_to_8);
 #else
 void (PNGAPI *qpng_set_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_1_2_4_to_8);
@@ -2050,12 +2054,6 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out)
 
 typedef struct bmpheader_s
 {
-/*	unsigned short	Type;*/
-	unsigned int	Size;
-	unsigned short	Reserved1;
-	unsigned short	Reserved2;
-	unsigned int	OffsetofBMPBits;
-
 	unsigned int	SizeofBITMAPINFOHEADER;
 	signed int		Width;
 	signed int		Height;
@@ -2079,20 +2077,13 @@ typedef struct bmpheaderv4_s
 	unsigned int	Gamma[3];
 } bmpheaderv4_t;
 
-qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
+static qbyte *ReadRawBMPFile(qbyte *buf, int length, int *width, int *height, size_t OffsetofBMPBits)
 {
 	unsigned int i;
 	bmpheader_t h;
 	qbyte *data;
 
-	if (buf[0] != 'B' || buf[1] != 'M')
-		return NULL;
-
-	memcpy(&h, (bmpheader_t *)(buf+2), sizeof(h));	
-	h.Size = LittleLong(h.Size);
-	h.Reserved1 = LittleShort(h.Reserved1);
-	h.Reserved2 = LittleShort(h.Reserved2);
-	h.OffsetofBMPBits = LittleLong(h.OffsetofBMPBits);
+	memcpy(&h, (bmpheader_t *)buf, sizeof(h));	
 	h.SizeofBITMAPINFOHEADER = LittleLong(h.SizeofBITMAPINFOHEADER);
 	h.Width = LittleLong(h.Width);
 	h.Height = LittleLong(h.Height);
@@ -2107,8 +2098,9 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 
 	if (h.Compression)	//RLE? BITFIELDS (gah)?
 		return NULL;
-	if (length < h.Size)
-		return NULL;	//truncated...
+
+	if (!OffsetofBMPBits)
+		h.Height /= 2;	//icons are weird.
 
 	*width = h.Width;
 	*height = h.Height;
@@ -2125,15 +2117,18 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 		if (h.Width&1)
 			return NULL;
 
-		data = buf+2;
+		data = buf;
 		data += sizeof(h);
 
 		for (i = 0; i < h.NumofColorIndices; i++)
 		{
-			pal[i] = data[i*4+0] + (data[i*4+1]<<8) + (data[i*4+2]<<16) + (255/*data[i*4+3]*/<<16);
+			pal[i] = data[i*4+2] + (data[i*4+1]<<8) + (data[i*4+0]<<16) + (255/*data[i*4+3]*/<<24);
 		}
 
-		buf += h.OffsetofBMPBits;
+		if (OffsetofBMPBits)
+			buf += OffsetofBMPBits;
+		else
+			buf = data+h.NumofColorIndices*4;
 		data32 = BZ_Malloc(h.Width * h.Height*4);
 		for (y = 0; y < h.Height; y++)
 		{
@@ -2143,7 +2138,22 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 				data32[i++] = pal[buf[x]>>4];
 				data32[i++] = pal[buf[x]&15];
 			}
-			buf += h.Width>>1;
+			buf += (h.Width+1)>>1;
+		}
+
+		if (!OffsetofBMPBits)
+		{
+			for (y = 0; y < h.Height; y++)
+			{
+				i = (h.Height-1-y) * (h.Width);
+				for (x = 0; x < h.Width; x++)
+				{
+					if (buf[x>>3]&(1<<(7-(x&7))))
+						data32[i] &= 0x00ffffff;
+					i++;
+				}
+				buf += (h.Width+7)>>3;
+			}
 		}
 
 		return (qbyte *)data32;
@@ -2158,7 +2168,7 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 		if (h.NumofColorIndices>256)
 			return NULL;
 
-		data = buf+2;
+		data = buf;
 		data += sizeof(h);
 
 		for (i = 0; i < h.NumofColorIndices; i++)
@@ -2166,7 +2176,10 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 			pal[i] = data[i*4+2] + (data[i*4+1]<<8) + (data[i*4+0]<<16) + (255/*data[i*4+3]*/<<24);
 		}
 
-		buf += h.OffsetofBMPBits;
+		if (OffsetofBMPBits)
+			buf += OffsetofBMPBits;
+		else
+			buf += h.SizeofBITMAPINFOHEADER + h.NumofColorIndices*4;
 		data32 = BZ_Malloc(h.Width * h.Height*4);
 		for (y = 0; y < h.Height; y++)
 		{
@@ -2179,12 +2192,30 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 			buf += h.Width;
 		}
 
+		if (!OffsetofBMPBits)
+		{
+			for (y = 0; y < h.Height; y++)
+			{
+				i = (h.Height-1-y) * (h.Width);
+				for (x = 0; x < h.Width; x++)
+				{
+					if (buf[x>>3]&(1<<(7-(x&7))))
+						data32[i] &= 0x00ffffff;
+					i++;
+				}
+				buf += (h.Width+7)>>3;
+			}
+		}
+
 		return (qbyte *)data32;
 	}
 	else if (h.BitCount == 24)	//24 bit... no 16?
 	{
 		int x, y;
-		buf += h.OffsetofBMPBits;
+		if (OffsetofBMPBits)
+			buf += OffsetofBMPBits;
+		else
+			buf += h.SizeofBITMAPINFOHEADER;
 		data = BZ_Malloc(h.Width * h.Height*4);
 		for (y = 0; y < h.Height; y++)
 		{
@@ -2202,10 +2233,48 @@ qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
 
 		return data;
 	}
+	else if (h.BitCount == 32)
+	{
+		int x, y;
+		if (OffsetofBMPBits)
+			buf += OffsetofBMPBits;
+		else
+			buf += h.SizeofBITMAPINFOHEADER;
+		data = BZ_Malloc(h.Width * h.Height*4);
+		for (y = 0; y < h.Height; y++)
+		{
+			i = (h.Height-1-y) * (h.Width);
+			for (x = 0; x < h.Width; x++)
+			{
+				data[i*4+0] = buf[x*4+2];
+				data[i*4+1] = buf[x*4+1];
+				data[i*4+2] = buf[x*4+0];
+				data[i*4+3] = buf[x*4+3];
+				i++;
+			}
+			buf += h.Width*4;
+		}
+
+		return data;
+	}
 	else
 		return NULL;
 
 	return NULL;
+}
+
+qbyte *ReadBMPFile(qbyte *buf, int length, int *width, int *height)
+{
+	unsigned short Type				= buf[0] | (buf[1]<<8);
+	unsigned short Size				= buf[2] | (buf[3]<<8) | (buf[4]<<16) | (buf[5]<<24);
+//	unsigned short Reserved1		= buf[6] | (buf[7]<<8);
+//	unsigned short Reserved2		= buf[8] | (buf[9]<<8);
+	unsigned short OffsetofBMPBits	= buf[10] | (buf[11]<<8) | (buf[12]<<16) | (buf[13]<<24);
+	if (Type != ('B'|('M'<<8)))
+		return NULL;
+	if (Size > length)
+		return NULL;	//it got truncated at some point
+	return ReadRawBMPFile(buf + 14, length-14, width, height, OffsetofBMPBits - 14);
 }
 
 qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int instride, int width, int height, uploadfmt_t fmt)
@@ -2218,6 +2287,7 @@ qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int in
 	int outstride;
 	int bits = 32;
 	int extraheadersize = sizeof(h4);
+	size_t fsize;
 
 	memset(&h4, 0, sizeof(h4));
 	h4.ColourSpace[0] = 'W';
@@ -2274,10 +2344,10 @@ qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int in
 	outstride = width * (bits/8);
 	outstride = (outstride+3)&~3;	//bmp pads rows to a multiple of 4 bytes.
 
-	h.Size = 2+sizeof(h)+extraheadersize + outstride*height;
-	h.Reserved1 = 0;
-	h.Reserved2 = 0;
-	h.OffsetofBMPBits = 2+sizeof(h)+extraheadersize;	//yes, this is misaligned.
+//	h.Size = 14+sizeof(h)+extraheadersize + outstride*height;
+//	h.Reserved1 = 0;
+//	h.Reserved2 = 0;
+//	h.OffsetofBMPBits = 2+sizeof(h)+extraheadersize;	//yes, this is misaligned.
 	h.SizeofBITMAPINFOHEADER = (sizeof(h)-12)+extraheadersize;
 	h.Width = width;
 	h.Height = height;
@@ -2294,14 +2364,38 @@ qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int in
 	in += instride*(height-1);
 	instride *= -1;
 
-	out = data = BZ_Malloc(h.Size);
+	fsize = 14+sizeof(h)+extraheadersize + outstride*height;	//size
+	out = data = BZ_Malloc(fsize);
+	//Type
 	*out++ = 'B';
 	*out++ = 'M';
+	//Size
+	*out++ = fsize&0xff;
+	*out++ = (fsize>>8)&0xff;
+	*out++ = (fsize>>16)&0xff;
+	*out++ = (fsize>>24)&0xff;
+	//Reserved1
+	y = 0;
+	*out++ = y&0xff;
+	*out++ = (y>>8)&0xff;
+	//Reserved1
+	y = 0;
+	*out++ = y&0xff;
+	*out++ = (y>>8)&0xff;
+	//OffsetofBMPBits
+	y = 2+sizeof(h)+extraheadersize;	//yes, this is misaligned.
+	*out++ = y&0xff;
+	*out++ = (y>>8)&0xff;
+	*out++ = (y>>16)&0xff;
+	*out++ = (y>>24)&0xff;
+	//bmpheader
 	memcpy(out, &h, sizeof(h));
 	out += sizeof(h);
+	//v4 header
 	memcpy(out, &h4, extraheadersize);
 	out += extraheadersize;
 
+	//data
 	for (y = 0; y < height; y++)
 	{
 		memcpy(out, in, width * (bits/8));
@@ -2310,12 +2404,69 @@ qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int in
 		in += instride;
 	}
 
-	COM_WriteFile(filename, fsroot, data, h.Size);
+	COM_WriteFile(filename, fsroot, data, fsize);
 	BZ_Free(data);
 
 	return true;
 }
 
+static qbyte *ReadICOFile(qbyte *buf, int length, int *width, int *height, const char *fname)
+{
+	qbyte *ret;
+	size_t imgcount = buf[4] | (buf[5]<<8);
+	struct
+	{
+		qbyte bWidth;
+		qbyte bHeight;
+		qbyte bColorCount;
+		qbyte bReserved;
+		unsigned short wPlanes;
+		unsigned short wBitCount;
+		unsigned short dwSize_low;
+		unsigned short dwSize_high;
+		unsigned short dwOffset_low;
+		unsigned short dwOffset_high;
+	} *img = (void*)(buf+6), *bestimg = NULL;
+	size_t bestpixels = 0;
+	size_t bestdepth = 0;
+
+	//always favour the png first
+	for (imgcount = buf[4] | (buf[5]<<8), img = (void*)(buf+6); imgcount-->0; img++)
+	{
+		size_t cc = img->wBitCount;
+		size_t px = (img->bWidth?img->bWidth:256) * (img->bHeight?img->bHeight:256);
+		if (!cc)	//if that was omitted, try and guess it based on raw image size. this is an over estimate.
+			cc = 8 * (bestimg->dwSize_low | (bestimg->dwSize_high<<16)) / px;
+
+		if (!bestimg || cc > bestdepth || (cc == bestdepth && px > bestpixels))
+		{
+			bestimg = img;
+			bestdepth = cc;
+			bestpixels = px;
+		}
+	}
+
+	if (bestimg)
+	{
+		qbyte *indata = buf + (bestimg->dwOffset_low | (bestimg->dwOffset_high<<16));
+		size_t insize = (bestimg->dwSize_low | (bestimg->dwSize_high<<16));
+#ifdef AVAIL_PNGLIB
+		if (insize > 4 && (indata[0] == 137 && indata[1] == 'P' && indata[2] == 'N' && indata[3] == 'G') && (ret = ReadPNGFile(indata, insize, width, height, fname)))
+		{
+			TRACE(("dbg: Read32BitImageFile: icon png\n"));
+			return ret;
+		}
+		else
+#endif
+		if ((ret = ReadRawBMPFile(indata, insize, width, height, 0)))
+		{
+			TRACE(("dbg: Read32BitImageFile: icon png\n"));
+			return ret;
+		}
+	}
+
+	return NULL;
+}
 
 #ifndef NPFTE
 
@@ -2784,7 +2935,13 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean
 
 	if (len > 2 && (buf[0] == 'B' && buf[1] == 'M') && (data = ReadBMPFile(buf, len, width, height)))
 	{
-		TRACE(("dbg: Read32BitImageFile: bitmap\n"));
+		TRACE(("dbg: Read32BitImageFile: bmp\n"));
+		return data;
+	}
+
+	if (len > 6 && buf[0]==0&&buf[1]==0 && buf[2]==1&&buf[3]==0 && (data = ReadICOFile(buf, len, width, height, fname)))
+	{
+		TRACE(("dbg: Read32BitImageFile: ico\n"));
 		return data;
 	}
 
@@ -4220,12 +4377,29 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 			mips->mip[0].data = rgbadata;
 		else
 		{
-			mips->mip[0].data = BZ_Malloc(((mips->mip[0].width+3)&~3)*mips->mip[0].height*4);
-			//FIXME: should be sRGB-aware, but probably not a common path on hardware that can actually do srgb.
-			Image_ResampleTexture(rgbadata, imgwidth, imgheight, mips->mip[0].data, mips->mip[0].width, mips->mip[0].height);
-			if (freedata)
-				BZ_Free(rgbadata);
-			freedata = true;
+			switch(mips->encoding)
+			{
+			case PTI_RGBA8:
+			case PTI_RGBX8:
+			case PTI_BGRA8:
+			case PTI_BGRX8:
+			case PTI_RGBA8_SRGB:
+			case PTI_RGBX8_SRGB:
+			case PTI_BGRA8_SRGB:
+			case PTI_BGRX8_SRGB:
+				mips->mip[0].data = BZ_Malloc(((mips->mip[0].width+3)&~3)*mips->mip[0].height*4);
+				//FIXME: should be sRGB-aware, but probably not a common path on hardware that can actually do srgb.
+				Image_ResampleTexture(rgbadata, imgwidth, imgheight, mips->mip[0].data, mips->mip[0].width, mips->mip[0].height);
+				if (freedata)
+					BZ_Free(rgbadata);
+				freedata = true;
+				break;
+			default:	//scaling not supported...
+				mips->mip[0].data = rgbadata;
+				mips->mip[0].width = imgwidth;
+				mips->mip[0].height = imgheight;
+				break;
+			}
 		}
 	}
 	else

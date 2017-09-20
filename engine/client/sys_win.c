@@ -475,7 +475,7 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 			Con_Printf("Error ERROR_PROC_NOT_FOUND loading %s\n", name);
 			break;
 		default:
-			Con_Printf("Error %u loading %s\n", err, name);
+			Con_Printf("Error %u loading %s\n", (unsigned)err, name);
 			break;
 		}
 
@@ -1845,6 +1845,7 @@ char *Sys_GetClipboard(void)
 						{
 							cp = (cp&0x3ff)<<10;
 							cp |= *clipWText++ & 0x3ff;
+							cp += 0x10000;
 						}
 						else
 							cp = 0xFFFDu;
@@ -4258,7 +4259,7 @@ void *WIN_CreateCursor(const char *filename, float hotx, float hoty, float scale
 		COM_FileExtension(filename, ext, sizeof(ext));
 		Q_strncatz(aname, "_alpha.", sizeof(aname));
 		Q_strncatz(aname, ext, sizeof(aname));
-		alphsize = FS_LoadFile(filename, &alph);
+		alphsize = FS_LoadFile(filename, (void**)&alph);
 		if (alph)
 		{
 			if ((alphadata = Read32BitImageFile(alph, alphsize, &alpha_width, &alpha_height, &hasalpha, aname)))

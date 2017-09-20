@@ -713,6 +713,13 @@ extern void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei
 extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
 extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 
+#define GLintptr qintptr_t
+#define GLsizeiptr quintptr_t
+#ifndef GL_MAP_READ_BIT
+#define GL_MAP_READ_BIT 1
+#endif
+void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
+
 #endif
 extern void (APIENTRY *qglGenQueriesARB)(GLsizei n, GLuint *ids);
 extern void (APIENTRY *qglDeleteQueriesARB)(GLsizei n, const GLuint *ids);
@@ -1078,7 +1085,7 @@ void GL_SelectProgram(int program);
 
 
 
-void GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name));
+qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name));
 
 #endif
 

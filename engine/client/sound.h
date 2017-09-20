@@ -80,14 +80,21 @@ typedef struct sfxcache_s
 
 typedef struct
 {
-//	qboolean		gamealive;
-//	qboolean		soundalive;
-//	qboolean		splitbuffer;
 	int				numchannels;			// this many samples per frame
 	int				samples;				// mono samples in buffer (individual, non grouped)
-//	int				submission_chunk;		// don't mix less than this #
 	int				samplepos;				// in mono samples
-	int				samplebits;				//FIXME: replace with a format enum (with separate framebytes field for lazyness).
+	int				samplebytes;			// per channel (NOT per frame)
+	enum
+	{
+		QSF_INVALID,	//not selected yet...
+		QSF_EXTERNALMIXER,	//this sample format is totally irrelevant as this device uses some sort of external mixer.
+		QSF_U8,		//FIXME: more unsigned formats need changes to S_ClearBuffer
+		QSF_S8,		//signed 8bit format is actually quite rare.
+		QSF_S16,	//normal format
+//		QSF_X8_S24,	//upper 8 bits unused. hopefully we don't need any packed thing
+//		QSF_S32,	//lower 8 bits probably unused. this makes overflow detection messy.
+		QSF_F32,	//modern mixers can use SSE/SIMD stuff, and we can skip clamping so this can be quite nippy.
+	} sampleformat;
 	int				speed;					// this many frames per second
 	unsigned char	*buffer;				// pointer to mixed pcm buffer (not directly used by mixer)
 } dma_t;
@@ -278,11 +285,6 @@ void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 
 
 
-#ifdef AVAIL_OPENAL
-void OpenAL_CvarInit(void);
-#endif
-
-
 // ====================================================================
 // User-setable variables
 // ====================================================================
@@ -338,8 +340,9 @@ typedef struct
 	const char *name;	//must be a single token, with no :
 	qboolean (QDECL *InitCard) (soundcardinfo_t *sc, const char *cardname);	//NULL for default device.
 	qboolean (QDECL *Enumerate) (void (QDECL *callback) (const char *drivername, const char *devicecode, const char *readablename));
+	void (QDECL *RegisterCvars) (void);
 } sounddriver_t;
-typedef int (*sounddriver) (soundcardinfo_t *sc, int cardnum);
+/*typedef int (*sounddriver) (soundcardinfo_t *sc, int cardnum);
 extern sounddriver pOPENAL_InitCard;
 extern sounddriver pDSOUND_InitCard;
 extern sounddriver pALSA_InitCard;
@@ -348,6 +351,7 @@ extern sounddriver pOSS_InitCard;
 extern sounddriver pSDL_InitCard;
 extern sounddriver pWAV_InitCard;
 extern sounddriver pAHI_InitCard;
+*/
 
 struct soundcardinfo_s { //windows has one defined AFTER directsound
 	char name[256];	//a description of the card.

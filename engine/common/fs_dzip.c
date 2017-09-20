@@ -856,7 +856,7 @@ uInt dem_uncompress_block(decodectx_t *dc)
 	if (cfields & 4) { cam2 += getlong(inptr); inptr += 4; }
 
 	outlen = 0;
-	insert_msg(&a1,4);
+	a1 = 0/*length*/; insert_msg(&a1,4);
 	a1 = cnvlong(cam0); insert_msg(&a1,4);
 	a1 = cnvlong(cam1); insert_msg(&a1,4);
 	a1 = cnvlong(cam2); insert_msg(&a1,4);

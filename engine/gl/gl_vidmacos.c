@@ -66,11 +66,11 @@ qboolean GLVID_Init(rendererstate_t *info, unsigned char *palette)
 
 	vid.numpages = 2;
 
-    // initialise the NSApplication and the screen
+	// initialise the NSApplication and the screen
 	initCocoa(info);
 
 
-    // calculate the conwidth AFTER the screen has been opened
+	// calculate the conwidth AFTER the screen has been opened
 	if (vid.pixelwidth <= 640)
 	{
 		vid.width = vid.pixelwidth;
@@ -81,23 +81,23 @@ qboolean GLVID_Init(rendererstate_t *info, unsigned char *palette)
 		vid.width = vid.pixelwidth/2;
 		vid.height = vid.pixelheight/2;
 	}
-    
+
 	if ((i = COM_CheckParm("-conwidth")) && i + 1 < com_argc)
 	{
 		vid.width = Q_atoi(com_argv[i + 1]);
-        
+
 		// pick a conheight that matches with correct aspect
 		vid.height = vid.width * 3 / 4;
 	}
-    
+
 	vid.width &= 0xfff8; // make it a multiple of eight
-    
+
 	if ((i = COM_CheckParm("-conheight")) && i + 1 < com_argc)
 		vid.height = Q_atoi(com_argv[i + 1]);
-    
+
 	if (vid.width < 320)
 		vid.width = 320;
-    
+
 	if (vid.height < 200)
 		vid.height = 200;
 
@@ -182,7 +182,7 @@ void GLVID_SwapBuffers(void)
 
 void GLVID_SetDeviceGammaRamp(unsigned short *ramps)
 {
-    cocoaGamma(ramps,ramps+256,ramps+512);
+	cocoaGamma(ramps,ramps+256,ramps+512);
 }
 
 void GLVID_ShiftPalette(unsigned char *p)

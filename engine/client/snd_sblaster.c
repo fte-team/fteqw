@@ -359,7 +359,7 @@ static unsigned int SBLASTER_GetDMAPos(soundcardinfo_t *sc)
 		outportb(0xc, 0);
 		count = inportb(dma*2+1);
 		count += inportb(dma*2+1) << 8;
-		if (sc->sn.samplebits == 16)
+		if (sc->sn.samplebytes == 2)
 			count /= 2;
 		count = sc->sn.samples - (count+1);
 	}
@@ -368,7 +368,7 @@ static unsigned int SBLASTER_GetDMAPos(soundcardinfo_t *sc)
 		outportb(0xd8, 0);
 		count = inportb(0xc0+(dma-4)*4+2);
 		count += inportb(0xc0+(dma-4)*4+2) << 8;
-		if (sc->sn.samplebits == 8)
+		if (sc->sn.samplebytes == 1)
 			count *= 2;
 		count = sc->sn.samples - (count+1);
 	}
@@ -523,22 +523,27 @@ static qboolean SBLASTER_InitCard(soundcardinfo_t *sc, const char *pcmname)
 	{
 		if (sc->sn.numchannels != 1)
 			sc->sn.numchannels = 2;
-		if (sc->sn.samplebits != 8)
-			sc->sn.samplebits = 16;
+		if (sc->sn.samplebytes != 1)
+			sc->sn.samplebytes = 2;
 	}
 // version 3 cards (sb pro) do 8 bit stereo
 	else if (dsp_version == 3)
 	{
 		if (sc->sn.numchannels != 1)
 			sc->sn.numchannels = 2;
-		sc->sn.samplebits = 8;	
+		sc->sn.samplebytes = 1;	
 	}
 // v2 cards do 8 bit mono
 	else
 	{
 		sc->sn.numchannels = 1;
-		sc->sn.samplebits = 8;	
+		sc->sn.samplebytes = 1;
 	}
+
+	if (sc->sn.samplebytes == 2)
+		sc->sn.sampleformat = QSF_S16;
+	else
+		sc->sn.sampleformat = QSF_U8;
 
 	sc->Lock		= SBLASTER_LockBuffer;
 	sc->Unlock		= SBLASTER_UnlockBuffer;
@@ -560,10 +565,10 @@ static qboolean SBLASTER_InitCard(soundcardinfo_t *sc, const char *pcmname)
 	dma_size = size;
 	memset(dma_buffer, 0, dma_size);
 
-	sc->sn.samples = size/(sc->sn.samplebits/8);
+	sc->sn.samples = size/sc->sn.samplebytes;
 	sc->sn.samplepos = 0;
 	sc->sn.buffer = (unsigned char *) dma_buffer;
-	sc->sn.samples = size/(sc->sn.samplebits/8);
+	sc->sn.samples = size/sc->sn.samplebytes;
 
 	StartDMA();
 	StartSB(sc);

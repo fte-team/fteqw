@@ -11,6 +11,8 @@
 #endif
 
 #ifdef HAVE_GNUTLS
+#define privname "privkey.pem"
+#define pubname "cert.pem"
 
 #if defined(_WIN32) && !defined(MINGW) && 0
 
@@ -94,36 +96,38 @@ typedef enum
 typedef int (VARGS gnutls_certificate_verify_function)(gnutls_session_t session);
 
 #else
-#include <gnutls/gnutls.h>
-#if GNUTLS_VERSION_MAJOR >= 3 && defined(HAVE_DTLS)
-	#include <gnutls/dtls.h>
-#else
-	#undef HAVE_DTLS
-#endif
-#define gnutls_connection_end_t unsigned int
+	#include <gnutls/gnutls.h>
+	#include <gnutls/abstract.h>
+	#include <gnutls/x509.h>
+	#if GNUTLS_VERSION_MAJOR >= 3 && defined(HAVE_DTLS)
+		#include <gnutls/dtls.h>
+	#else
+		#undef HAVE_DTLS
+	#endif
+	#define gnutls_connection_end_t unsigned int
 
-	#if GNUTLS_VERSION_MAJOR < 3 || (GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR < 3)
-		#define GNUTLS_SONUM 26	//cygwin or something.
-	#endif
-	#if GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR == 3
-		#define GNUTLS_SOPREFIX "-deb0"	//not sure what this is about.
-		#define GNUTLS_SONUM 28	//debian jessie
-	#endif
-	#if GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR == 4
-		#define GNUTLS_SONUM 30	//ubuntu 16.04
-	#endif
-	#if GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR == 5
-		#define GNUTLS_SONUM 30	//debian stretch
-	#endif
-	#if GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR > 5
-		#define GNUTLS_SONUM 30	//no idea what the future holds. maybe we'll be lucky...
-	#endif
-	#ifndef GNUTLS_SONUM
-		#pragma message "GNUTLS version not recognised. Will probably not be loadable."
-	#endif
-	#ifndef GNUTLS_SOPREFIX
-		#define GNUTLS_SOPREFIX
-	#endif
+		#if GNUTLS_VERSION_MAJOR < 3 || (GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR < 3)
+			#define GNUTLS_SONUM 26	//cygwin or something.
+		#endif
+		#if GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR == 3
+			#define GNUTLS_SOPREFIX "-deb0"	//not sure what this is about.
+			#define GNUTLS_SONUM 28	//debian jessie
+		#endif
+		#if GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR == 4
+			#define GNUTLS_SONUM 30	//ubuntu 16.04
+		#endif
+		#if GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR == 5
+			#define GNUTLS_SONUM 30	//debian stretch
+		#endif
+		#if GNUTLS_VERSION_MAJOR == 3 && GNUTLS_VERSION_MINOR > 5
+			#define GNUTLS_SONUM 30	//no idea what the future holds. maybe we'll be lucky...
+		#endif
+		#ifndef GNUTLS_SONUM
+			#pragma message "GNUTLS version not recognised. Will probably not be loadable."
+		#endif
+		#ifndef GNUTLS_SOPREFIX
+			#define GNUTLS_SOPREFIX
+		#endif
 #endif
 
 #if GNUTLS_VERSION_MAJOR >= 3
@@ -155,6 +159,7 @@ static ssize_t (VARGS *qgnutls_record_recv)(gnutls_session_t session, void *data
 static void (VARGS *qgnutls_certificate_set_verify_function)(gnutls_certificate_credentials_t cred, gnutls_certificate_verify_function *func);
 static void *(VARGS *qgnutls_session_get_ptr)(gnutls_session_t session);
 static void (VARGS *qgnutls_session_set_ptr)(gnutls_session_t session, void *ptr);
+int (VARGS *qgnutls_session_channel_binding)(gnutls_session_t session, gnutls_channel_binding_t cbtype, gnutls_datum_t * cb);
 #ifdef GNUTLS_HAVE_SYSTEMTRUST
 static int (VARGS *qgnutls_certificate_set_x509_system_trust)(gnutls_certificate_credentials_t cred);
 #else
@@ -172,6 +177,7 @@ static int (VARGS *qgnutls_x509_crt_import)(gnutls_x509_crt_t cert, const gnutls
 #endif
 static const gnutls_datum_t *(VARGS *qgnutls_certificate_get_peers)(gnutls_session_t session, unsigned int * list_size);
 static gnutls_certificate_type_t (VARGS *qgnutls_certificate_type_get)(gnutls_session_t session);
+static void		*(VARGS *qgnutls_malloc)(size_t);
 static void (VARGS *qgnutls_free)(void * ptr);
 static int (VARGS *qgnutls_server_name_set)(gnutls_session_t session, gnutls_server_name_type_t type, const void * name, size_t name_length); 
 
@@ -183,6 +189,27 @@ static int (VARGS *qgnutls_dtls_cookie_send)(gnutls_datum_t * key, void *client_
 static void (VARGS *qgnutls_dtls_prestate_set)(gnutls_session_t session, gnutls_dtls_prestate_st * prestate);
 static void (VARGS *qgnutls_dtls_set_mtu)(gnutls_session_t session, unsigned int mtu);
 #endif
+
+static unsigned int	(VARGS *qgnutls_sec_param_to_pk_bits)(gnutls_pk_algorithm_t algo, gnutls_sec_param_t param);
+static int		(VARGS *qgnutls_x509_crt_init)(gnutls_x509_crt_t * cert);
+static void		(VARGS *qgnutls_x509_crt_deinit)(gnutls_x509_crt_t cert);
+static int		(VARGS *qgnutls_x509_crt_set_version)(gnutls_x509_crt_t crt, unsigned int version);
+static int		(VARGS *qgnutls_x509_crt_set_activation_time)(gnutls_x509_crt_t cert, time_t act_time);
+static int		(VARGS *qgnutls_x509_crt_set_expiration_time)(gnutls_x509_crt_t cert, time_t exp_time);
+static int		(VARGS *qgnutls_x509_crt_set_serial)(gnutls_x509_crt_t cert, const void *serial, size_t serial_size);
+static int		(VARGS *qgnutls_x509_crt_set_dn)(gnutls_x509_crt_t crt, const char *dn, const char **err);
+static int		(VARGS *qgnutls_x509_crt_set_issuer_dn)(gnutls_x509_crt_t crt, const char *dn, const char **err);
+static int		(VARGS *qgnutls_x509_crt_set_key)(gnutls_x509_crt_t crt, gnutls_x509_privkey_t key);
+static int		(VARGS *qgnutls_x509_crt_export2)(gnutls_x509_crt_t cert, gnutls_x509_crt_fmt_t format, gnutls_datum_t * out);
+static int		(VARGS *qgnutls_x509_privkey_init)(gnutls_x509_privkey_t * key);
+static void		(VARGS *qgnutls_x509_privkey_deinit)(gnutls_x509_privkey_t key);
+static int		(VARGS *qgnutls_x509_privkey_generate)(gnutls_x509_privkey_t key, gnutls_pk_algorithm_t algo, unsigned int bits, unsigned int flags);
+static int		(VARGS *qgnutls_x509_privkey_export2)(gnutls_x509_privkey_t key, gnutls_x509_crt_fmt_t format, gnutls_datum_t * out);
+static int		(VARGS *qgnutls_x509_crt_privkey_sign)(gnutls_x509_crt_t crt, gnutls_x509_crt_t issuer, gnutls_privkey_t issuer_key, gnutls_digest_algorithm_t dig, unsigned int flags);
+static int		(VARGS *qgnutls_privkey_init)(gnutls_privkey_t * key);
+static void		(VARGS *qgnutls_privkey_deinit)(gnutls_privkey_t key);
+static int		(VARGS *qgnutls_privkey_import_x509)(gnutls_privkey_t pkey, gnutls_x509_privkey_t key, unsigned int flags);
+static int		(VARGS *qgnutls_certificate_set_x509_key_mem)(gnutls_certificate_credentials_t res, const gnutls_datum_t * cert, const gnutls_datum_t * key, gnutls_x509_crt_fmt_t type);
 
 static qboolean Init_GNUTLS(void)
 {
@@ -217,6 +244,30 @@ static qboolean Init_GNUTLS(void)
 #endif
 
 
+#define GNUTLS_X509_STUFF \
+	GNUTLS_FUNC(gnutls_sec_param_to_pk_bits)	\
+	GNUTLS_FUNC(gnutls_x509_crt_init)	\
+	GNUTLS_FUNC(gnutls_x509_crt_deinit)	\
+	GNUTLS_FUNC(gnutls_x509_crt_set_version)	\
+	GNUTLS_FUNC(gnutls_x509_crt_set_activation_time)	\
+	GNUTLS_FUNC(gnutls_x509_crt_set_expiration_time)	\
+	GNUTLS_FUNC(gnutls_x509_crt_set_serial)	\
+	GNUTLS_FUNC(gnutls_x509_crt_set_dn)	\
+	GNUTLS_FUNC(gnutls_x509_crt_set_issuer_dn)	\
+	GNUTLS_FUNC(gnutls_x509_crt_set_key)	\
+	GNUTLS_FUNC(gnutls_x509_crt_export2)	\
+	GNUTLS_FUNC(gnutls_x509_privkey_init)	\
+	GNUTLS_FUNC(gnutls_x509_privkey_deinit)	\
+	GNUTLS_FUNC(gnutls_x509_privkey_generate2)	\
+	GNUTLS_FUNC(gnutls_x509_privkey_export2)	\
+	GNUTLS_FUNC(gnutls_x509_crt_privkey_sign)	\
+	GNUTLS_FUNC(gnutls_privkey_init)	\
+	GNUTLS_FUNC(gnutls_privkey_deinit)	\
+	GNUTLS_FUNC(gnutls_privkey_import_x509)	\
+	GNUTLS_FUNC(gnutls_certificate_set_x509_key_mem)
+
+
+
 #define GNUTLS_FUNCS \
 	GNUTLS_FUNC(gnutls_bye)	\
 	GNUTLS_FUNC(gnutls_perror)	\
@@ -243,7 +294,8 @@ static qboolean Init_GNUTLS(void)
 	GNUTLS_FUNC(gnutls_certificate_type_get)	\
 	GNUTLS_FUNC(gnutls_free)	\
 	GNUTLS_FUNC(gnutls_server_name_set)	\
-	GNUTLS_DTLS_STUFF
+	GNUTLS_DTLS_STUFF	\
+	GNUTLS_X509_STUFF
 
 #ifdef GNUTLS_DYNAMIC
 	dllhandle_t *hmod;
@@ -274,6 +326,7 @@ static qboolean Init_GNUTLS(void)
 		{(void**)&qgnutls_certificate_set_verify_function, "gnutls_certificate_set_verify_function"},
 		{(void**)&qgnutls_session_get_ptr, "gnutls_session_get_ptr"},
 		{(void**)&qgnutls_session_set_ptr, "gnutls_session_set_ptr"},
+		{(void**)&qgnutls_session_channel_binding, "gnutls_session_channel_binding"},
 #ifdef GNUTLS_HAVE_SYSTEMTRUST
 		{(void**)&qgnutls_certificate_set_x509_system_trust, "gnutls_certificate_set_x509_system_trust"},
 #else
@@ -291,6 +344,7 @@ static qboolean Init_GNUTLS(void)
 #endif
 		{(void**)&qgnutls_certificate_get_peers, "gnutls_certificate_get_peers"},
 		{(void**)&qgnutls_certificate_type_get, "gnutls_certificate_type_get"},
+		{(void**)&qgnutls_malloc, "gnutls_malloc"},
 		{(void**)&qgnutls_free, "gnutls_free"},
 		{(void**)&qgnutls_server_name_set, "gnutls_server_name_set"},
 
@@ -302,6 +356,27 @@ static qboolean Init_GNUTLS(void)
 		{(void**)&qgnutls_dtls_prestate_set, "gnutls_dtls_prestate_set"},
 		{(void**)&qgnutls_dtls_set_mtu, "gnutls_dtls_set_mtu"},
 #endif
+
+		{(void**)&qgnutls_sec_param_to_pk_bits, "gnutls_sec_param_to_pk_bits"},
+		{(void**)&qgnutls_x509_crt_init, "gnutls_x509_crt_init"},
+		{(void**)&qgnutls_x509_crt_deinit, "gnutls_x509_crt_deinit"},
+		{(void**)&qgnutls_x509_crt_set_version, "gnutls_x509_crt_set_version"},
+		{(void**)&qgnutls_x509_crt_set_activation_time, "gnutls_x509_crt_set_activation_time"},
+		{(void**)&qgnutls_x509_crt_set_expiration_time, "gnutls_x509_crt_set_expiration_time"},
+		{(void**)&qgnutls_x509_crt_set_serial, "gnutls_x509_crt_set_serial"},
+		{(void**)&qgnutls_x509_crt_set_dn, "gnutls_x509_crt_set_dn"},
+		{(void**)&qgnutls_x509_crt_set_issuer_dn, "gnutls_x509_crt_set_issuer_dn"},
+		{(void**)&qgnutls_x509_crt_set_key, "gnutls_x509_crt_set_key"},
+		{(void**)&qgnutls_x509_crt_export2, "gnutls_x509_crt_export2"},
+		{(void**)&qgnutls_x509_privkey_init, "gnutls_x509_privkey_init"},
+		{(void**)&qgnutls_x509_privkey_deinit, "gnutls_x509_privkey_deinit"},
+		{(void**)&qgnutls_x509_privkey_generate, "gnutls_x509_privkey_generate"},
+		{(void**)&qgnutls_x509_privkey_export2, "gnutls_x509_privkey_export2"},
+		{(void**)&qgnutls_x509_crt_privkey_sign, "gnutls_x509_crt_privkey_sign"},
+		{(void**)&qgnutls_privkey_init, "gnutls_privkey_init"},
+		{(void**)&qgnutls_privkey_deinit, "gnutls_privkey_deinit"},
+		{(void**)&qgnutls_privkey_import_x509, "gnutls_privkey_import_x509"},
+		{(void**)&qgnutls_certificate_set_x509_key_mem, "gnutls_certificate_set_x509_key_mem"},
 
 		{NULL, NULL}
 	};
@@ -375,6 +450,36 @@ static struct
 	{"triptohell.info", sizeof(triptohell_certdata), triptohell_certdata},
 	{"fte.triptohell.info", sizeof(fte_triptohell_certdata), fte_triptohell_certdata},
 };
+
+static int SSL_CheckUserTrust(gnutls_session_t session, gnutlsfile_t *file, int ret)
+{
+#ifndef SERVERONLY
+	//when using dtls, we expect self-signed certs and persistent trust.
+	if (file->datagram)
+	{
+		qbyte *certdata;
+		size_t certsize;
+		unsigned int certcount, j;
+		const gnutls_datum_t *const certlist = qgnutls_certificate_get_peers(session, &certcount);
+		for (certsize = 0, j = 0; j < certcount; j++)
+			certsize += certlist[j].size;
+		certdata = malloc(certsize);
+		for (certsize = 0, j = 0; j < certcount; j++)
+		{
+			memcpy(certdata+certsize, certlist[j].data, certlist[j].size);
+			certsize += certlist[j].size;
+		}
+		if (CertLog_ConnectOkay(file->certname, certdata, certsize))
+			ret = 0;	//user has previously authorised it.
+		else
+			ret = GNUTLS_E_CERTIFICATE_ERROR;	//user didn't trust it yet
+		free(certdata);
+	}
+#endif
+
+	return ret;
+}
+
 static int QDECL SSL_CheckCert(gnutls_session_t session)
 {
 	gnutlsfile_t *file = qgnutls_session_get_ptr (session);
@@ -438,6 +543,8 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 			if (preverified && (certstatus&~GNUTLS_CERT_EXPIRED) == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
 				return 0;
 			if (certstatus == 0)
+				return SSL_CheckUserTrust(session, file, 0);
+			if (certstatus == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND) && SSL_CheckUserTrust(session, file, GNUTLS_E_CERTIFICATE_ERROR))
 				return 0;
 
 			type = qgnutls_certificate_type_get (session);
@@ -463,6 +570,8 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 				if (preverified && certstatus == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
 					return 0;
 				if (certstatus == 0)
+					return SSL_CheckUserTrust(session, file, 0);
+				if (certstatus == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND) && SSL_CheckUserTrust(session, file, GNUTLS_E_CERTIFICATE_ERROR))
 					return 0;
 
 				if (certstatus & GNUTLS_CERT_SIGNER_NOT_FOUND)
@@ -708,6 +817,137 @@ static gnutls_certificate_credentials_t xcred[2];
 static gnutls_datum_t cookie_key;
 #endif
 
+qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
+{
+	int ret = -1;
+	gnutls_datum_t priv, pub;
+	vfsfile_t *privf = FS_OpenVFS(privname, "rb", FS_ROOT);
+	vfsfile_t *pubf = FS_OpenVFS(pubname, "rb", FS_ROOT);
+
+	memset(&priv, 0, sizeof(priv));
+	memset(&pub, 0, sizeof(pub));
+
+	if (!privf || !pubf)
+	{	//not found? generate a new one.
+		//FIXME: how to deal with race conditions with multiple servers on the same host?
+		//delay till the first connection? we at least write both files at the sameish time.
+		//even so they might get different certs the first time the server(s) run.
+		gnutls_x509_privkey_t key;
+		gnutls_x509_crt_t cert;
+		char serial[64];
+		const char *errstr;
+		gnutls_pk_algorithm_t privalgo = GNUTLS_PK_RSA;
+		
+		if (privf)VFS_CLOSE(privf);privf=NULL;
+		if (pubf)VFS_CLOSE(pubf);pubf=NULL;
+
+		Con_Printf("Generating new GNUTLS key+cert...\n");
+
+		qgnutls_x509_privkey_init(&key);
+		ret = qgnutls_x509_privkey_generate(key, privalgo, qgnutls_sec_param_to_pk_bits(privalgo, GNUTLS_SEC_PARAM_HIGH), 0);
+		if (ret < 0)
+			Con_Printf("gnutls_x509_privkey_generate2 failed: %i\n", ret);
+		ret = qgnutls_x509_privkey_export2(key, GNUTLS_X509_FMT_PEM, &priv);
+		if (ret < 0)
+			Con_Printf("gnutls_x509_privkey_export2 failed: %i\n", ret);
+
+		//stoopid browsers insisting that serial numbers are different even on throw-away self-signed certs.
+		//we should probably just go and make our own root ca/master. post it a cert and get a signed one (with sequential serial) back or something.
+		//we'll probably want something like that for client certs anyway, for stat tracking.
+		Q_snprintfz(serial, sizeof(serial), "%u", (unsigned)time(NULL));
+
+		qgnutls_x509_crt_init(&cert);
+		qgnutls_x509_crt_set_version(cert, 1);
+		qgnutls_x509_crt_set_activation_time(cert, time(NULL)-1);
+		qgnutls_x509_crt_set_expiration_time(cert, time(NULL)+(time_t)10*365*24*60*60);
+		qgnutls_x509_crt_set_serial(cert, serial, strlen(serial));
+		if (qgnutls_x509_crt_set_dn(cert, "CN=localhost", &errstr) < 0)
+			Con_Printf("gnutls_x509_crt_set_dn failed: %s\n", errstr);
+		if (qgnutls_x509_crt_set_issuer_dn(cert, "CN=localhost", &errstr) < 0)
+			Con_Printf("gnutls_x509_crt_set_issuer_dn failed: %s\n", errstr);
+//		qgnutls_x509_crt_set_key_usage(cert, GNUTLS_KEY_KEY_ENCIPHERMENT|GNUTLS_KEY_DATA_ENCIPHERMENT|);
+		qgnutls_x509_crt_set_key(cert, key);
+
+		/*sign it with our private key*/
+		{
+			gnutls_privkey_t akey;
+			qgnutls_privkey_init(&akey);
+			qgnutls_privkey_import_x509(akey, key, GNUTLS_PRIVKEY_IMPORT_COPY);
+			ret = qgnutls_x509_crt_privkey_sign(cert, cert, akey, GNUTLS_DIG_SHA256, 0);
+			if (ret < 0)
+				Con_Printf("gnutls_x509_crt_privkey_sign failed: %i\n", ret);
+			qgnutls_privkey_deinit(akey);
+		}
+		ret = qgnutls_x509_crt_export2(cert, GNUTLS_X509_FMT_PEM, &pub);
+		if (ret < 0)
+			Con_Printf("gnutls_x509_crt_export2 failed: %i\n", ret);
+		qgnutls_x509_crt_deinit(cert);
+		qgnutls_x509_privkey_deinit(key);
+
+		if (priv.size && pub.size)
+		{
+			privf = FS_OpenVFS(privname, "wb", FS_ROOT);
+			if (privf)
+			{
+				Con_Printf("Wrote %s\n", privname);
+				VFS_WRITE(privf, priv.data, priv.size);
+				VFS_CLOSE(privf);
+			}
+			memset(priv.data, 0, priv.size);
+			qgnutls_free(priv.data);
+			memset(&priv, 0, sizeof(priv));
+
+			pubf = FS_OpenVFS(pubname, "wb", FS_ROOT);
+			if (pubf)
+			{
+				Con_Printf("Wrote %s\n", pubname);
+				VFS_WRITE(pubf, pub.data, pub.size);
+				VFS_CLOSE(pubf);
+			}
+			qgnutls_free(pub.data);
+			memset(&pub, 0, sizeof(pub));
+
+			privf = FS_OpenVFS(privname, "rb", FS_ROOT);
+			pubf = FS_OpenVFS(pubname, "rb", FS_ROOT);
+
+			Con_Printf("Certificate generated\n");
+		}
+	}
+
+	if (privf && pubf)
+	{
+		//read the two files now
+		priv.size = VFS_GETLEN(privf);
+		priv.data = qgnutls_malloc(priv.size+1);
+		if (priv.size != VFS_READ(privf, priv.data, priv.size))
+			priv.size = 0;
+		priv.data[priv.size] = 0;
+
+		pub.size = VFS_GETLEN(pubf);
+		pub.data = qgnutls_malloc(pub.size+1);
+		if (pub.size != VFS_READ(pubf, pub.data, pub.size))
+			pub.size = 0;
+		pub.data[pub.size] = 0;
+	}
+
+	//FIXME: extend the expiration time if its old?
+
+	if (priv.size && pub.size)
+	{	//submit them to gnutls
+		ret = qgnutls_certificate_set_x509_key_mem(cred, &pub, &priv, GNUTLS_X509_FMT_PEM);
+		if (ret < 0)
+			Con_Printf("gnutls_certificate_set_x509_key_mem failed: %i\n", ret);
+	}
+	else
+		Con_Printf("Unable to read/generate cert\n");
+
+	memset(priv.data, 0, priv.size);//just in case. FIXME: we didn't scrub the filesystem code. libc has its own caches etc. lets hope that noone comes up with some way to scrape memory remotely (although if they can inject code then we've lost either way so w/e)
+	qgnutls_free(priv.data);
+	qgnutls_free(pub.data);
+
+	return ret>=0;
+}
+
 qboolean SSL_InitGlobal(qboolean isserver)
 {
 	static int initstatus[2];
@@ -742,6 +982,10 @@ qboolean SSL_InitGlobal(qboolean isserver)
 
 		if (isserver)
 		{
+#if 1
+			if (!SSL_LoadPrivateCert(xcred[isserver]))
+				initstatus[isserver] = -1;
+#else
 			int ret = -1;
 			char keyfile[MAX_OSPATH];
 			char certfile[MAX_OSPATH];
@@ -754,6 +998,7 @@ qboolean SSL_InitGlobal(qboolean isserver)
 				Con_Printf("No certificate or key was found in %s and %s\n", certfile, keyfile);
 				initstatus[isserver] = -1;
 			}
+#endif
 		}
 		else
 			qgnutls_certificate_set_verify_function (xcred[isserver], SSL_CheckCert);
@@ -844,6 +1089,28 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean isserver
 	}
 
 	return &newf->funcs;
+}
+
+int TLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
+{
+	gnutls_datum_t cb;
+	gnutlsfile_t *f = (gnutlsfile_t*)vf;
+	if (vf->Close != SSL_Close)
+		return -1;	//err, not a tls connection.
+
+	if (qgnutls_session_channel_binding(f->session, GNUTLS_CB_TLS_UNIQUE, &cb))
+	{	//error of some kind
+		//if the error is because of the other side not supporting it, then we should return 0 here.
+		return -1;
+	}
+	else
+	{
+		if (cb.size > *bindsize)
+			return 0;	//overflow
+		*bindsize = cb.size;
+		memcpy(binddata, cb.data, cb.size);
+		return 1;
+	}
 }
 
 
@@ -1017,13 +1284,13 @@ static const dtlsfuncs_t dtlsfuncs_gnutls =
 	GNUDTLS_Received,
 	GNUDTLS_Timeouts,
 };
-const dtlsfuncs_t *DTLS_InitServer(void)
+const dtlsfuncs_t *GNUDTLS_InitServer(void)
 {
 	if (!SSL_InitGlobal(true))
 		return NULL;	//unable to init a server certificate. don't allow dtls to init.
 	return &dtlsfuncs_gnutls;
 }
-const dtlsfuncs_t *DTLS_InitClient(void)
+const dtlsfuncs_t *GNUDTLS_InitClient(void)
 {
 	return &dtlsfuncs_gnutls;
 }

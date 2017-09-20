@@ -202,7 +202,7 @@ struct vk_rendertarg vk_rt_bloom[2][MAXLEVELS], vk_rt_filter;
 void VK_R_BloomBlend (texid_t source, int x, int y, int w, int h)
 {
 	int i;
-	struct vk_rendertarg *oldfbo = vk.rendertarg;
+//	struct vk_rendertarg *oldfbo = vk.rendertarg;
 	texid_t intex;
 	int pixels = 1;
 	int targetpixels = r_bloom_size.value * vid.pixelwidth / 320;

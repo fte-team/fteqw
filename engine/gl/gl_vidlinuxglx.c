@@ -2527,7 +2527,8 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			return false;
 		}
 
-		GL_Init(info, &GLX_GetSymbol);
+		if (!GL_Init(info, &GLX_GetSymbol))
+			return false;
 		break;
 #ifdef USE_EGL
 	case PSL_EGL:
@@ -2537,19 +2538,26 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			GLVID_Shutdown();
 			return false;
 		}
-		GL_Init(info, &EGL_Proc);
+		if (!GL_Init(info, &EGL_Proc))
+			return false;
 		break;
 #endif
 #endif
 #ifdef VKQUAKE
 	case PSL_VULKAN:
 #ifdef VK_USE_PLATFORM_XLIB_KHR
-		if (VK_Init(info, VK_KHR_XLIB_SURFACE_EXTENSION_NAME, XVK_SetupSurface_XLib, NULL))
-			break;
+		{
+			const char *extnames[] = {VK_KHR_XLIB_SURFACE_EXTENSION_NAME, NULL};
+			if (VK_Init(info, extnames, XVK_SetupSurface_XLib, NULL))
+				break;
+		}
 #endif
 #ifdef VK_USE_PLATFORM_XCB_KHR
-		if (x11xcb_initlib() && VK_Init(info, VK_KHR_XCB_SURFACE_EXTENSION_NAME, XVK_SetupSurface_XCB, NULL))
-			break;
+		{
+			const char *extnames[] = {VK_KHR_XCB_SURFACE_EXTENSION_NAME, NULL};
+			if (x11xcb_initlib() && VK_Init(info, extnames, XVK_SetupSurface_XCB, NULL))
+				break;
+		}
 #endif
 		Con_Printf("Failed to create a vulkan context.\n");
 		GLVID_Shutdown();

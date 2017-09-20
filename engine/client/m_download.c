@@ -187,7 +187,9 @@ static char *manifestpackages;	//metapackage named by the manicfest.
 static char *declinedpackages;	//metapackage named by the manicfest.
 static int domanifestinstall;	//SECURITY_MANIFEST_*
 
+#ifdef PLUGINS
 static qboolean pluginpromptshown;	//so we only show prompts for new externally-installed plugins once, instead of every time the file is reloaded.
+#endif
 static qboolean doautoupdate;	//updates will be marked (but not applied without the user's actions)
 static qboolean pkg_updating;	//when flagged, further changes are blocked until completion.
 
@@ -2550,6 +2552,7 @@ void PM_ManifestPackage(const char *metaname, int security)
 
 void PM_Command_f(void)
 {
+	size_t i;
 	package_t *p;
 	const char *act = Cmd_Argv(1);
 	const char *key;
@@ -2706,8 +2709,13 @@ void PM_Command_f(void)
 	{
 		PM_RevertChanges();
 	}
+	else if (!strcmp(act, "update"))
+	{	//flush package cache, make a new request.
+		for (i = 0; i < numdownloadablelists; i++)
+			downloadablelist[i].received = 0;
+	}
 	else if (!strcmp(act, "upgrade"))
-	{
+	{	//auto-mark any updated packages.
 		unsigned int changes = PM_MarkUpdates();
 		if (changes)
 		{
@@ -2718,7 +2726,7 @@ void PM_Command_f(void)
 			Con_Printf("Already using latest versions of all packages\n");
 	}
 	else if (!strcmp(act, "add") || !strcmp(act, "get") || !strcmp(act, "install") || !strcmp(act, "enable"))
-	{
+	{	//FIXME: make sure this updates.
 		int arg = 2;
 		for (arg = 2; arg < Cmd_Argc(); arg++)
 		{
@@ -2732,7 +2740,7 @@ void PM_Command_f(void)
 		PM_PrintChanges();
 	}
 	else if (!strcmp(act, "reinstall"))
-	{
+	{	//fixme: favour the current verson.
 		int arg = 2;
 		for (arg = 2; arg < Cmd_Argc(); arg++)
 		{
@@ -2784,7 +2792,7 @@ void PM_Command_f(void)
 		PM_PrintChanges();
 	}
 	else
-		Con_Printf("%s: Unknown action %s\nShould be one of list, show, search, revert, add, rem, del, changes, apply\n", Cmd_Argv(0), act);
+		Con_Printf("%s: Unknown action %s\nShould be one of list, show, search, upgrade, revert, add, rem, del, changes, apply\n", Cmd_Argv(0), act);
 }
 
 qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize)

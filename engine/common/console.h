@@ -139,6 +139,7 @@ typedef struct console_s
 	char name[128];
 	char title[128];
 	char prompt[128];
+	char icon[MAX_QPATH];	//should really dynamically allocate this stuff.
 	char backimage[MAX_QPATH];
 	shader_t *backshader;
 	float wnd_x;

@@ -186,6 +186,8 @@ void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data,
 void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
 void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
 GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
+
+void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
 #endif
 
 void (APIENTRY *qglGenVertexArrays)(GLsizei n, GLuint *arrays);
@@ -855,6 +857,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglMapBufferARB = NULL;
 		qglUnmapBufferARB = NULL;
 	}
+
+	//ARB_map_buffer_range: core in gl3.0/gles3.0, the extension is backported, and thus no ARB postfix on functions.
+	qglMapBufferRange = (void *)getglext("glMapBufferRange");
 #endif
 
 #ifdef GL_STATIC
@@ -2620,7 +2625,7 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t
 }
 
 //the vid routines have initialised a window, and now they are giving us a reference to some of of GetProcAddress to get pointers to the funcs.
-void GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
+qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 {
 #ifndef GL_STATIC
 	qglBindTexture			= (void *)getglcore("glBindTexture");	//for compleateness. core in 1.1. needed by fte.
@@ -2942,6 +2947,8 @@ void GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		sh_config.nv_tex_env_combine4	= gl_config.nv_tex_env_combine4;
 		sh_config.env_add				= gl_config.env_add;
 	}
+
+	return true;
 }
 
 

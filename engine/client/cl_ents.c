@@ -867,7 +867,9 @@ void CLFTE_ParseEntities(void)
 	qboolean	isvalid = false;
 	qboolean removeflag;
 	int inputframe = cls.netchan.incoming_sequence;
+#if defined(QUAKESTATS) || defined(NQPROT)
 	int i;
+#endif
 
 //	int i;
 //	for (i = cl.validsequence+1; i < cls.netchan.incoming_sequence; i++)

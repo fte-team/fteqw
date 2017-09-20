@@ -512,7 +512,7 @@ typedef struct
 	pbool used:1;
 	pbool evil:1;
 	pbool varg:1;
-	char *fromfile;
+	const char *fromfile;
 	int fromline;
 
 	int namelen;

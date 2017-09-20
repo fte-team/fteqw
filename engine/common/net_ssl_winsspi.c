@@ -150,7 +150,7 @@ typedef struct {
 
 #ifdef HAVE_DTLS
 	void *cbctx;
-	void (*transmit)(void *cbctx, qbyte *data, size_t datasize);
+	neterr_t (*transmit)(void *cbctx, const qbyte *data, size_t datasize);
 #endif
 } sslfile_t;
 
@@ -407,11 +407,15 @@ static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data,
 	int i;
 	if (datagram)
 	{
-		Con_Printf("FIXME: Ring of trust not yet implemented\n");
-		if (status == CERT_E_UNTRUSTEDROOT)
+		if (status == CERT_E_UNTRUSTEDROOT || SUCCEEDED(status))
 		{
-			Con_Printf("Allowing (probably) self-signed cert.\n");
-			status = SEC_E_OK;
+#ifndef SERVERONLY
+			char realdomain[256];
+			if (CertLog_ConnectOkay(narrowen(realdomain, sizeof(realdomain), domain), data, datasize))
+				status = SEC_E_OK;
+			else
+#endif
+				status = TRUST_E_FAIL;
 		}
 		return status;
 	}
@@ -1003,7 +1007,8 @@ vfsfile_t *FS_OpenSSL(const char *servername, vfsfile_t *source, qboolean server
 	int i = 0;
 	int err;
 	unsigned int c;
-	const char *localname, *peername;
+//	const char *localname;
+	const char *peername;
 
 	if (!source || !SSL_Inited())
 	{
@@ -1013,12 +1018,12 @@ vfsfile_t *FS_OpenSSL(const char *servername, vfsfile_t *source, qboolean server
 	}
 	if (server)
 	{
-		localname = servername;
+//		localname = servername;
 		peername = "";
 	}
 	else
 	{
-		localname = "";
+//		localname = "";
 		peername = servername;
 	}
 
@@ -1071,6 +1076,46 @@ vfsfile_t *FS_OpenSSL(const char *servername, vfsfile_t *source, qboolean server
 	return &newf->funcs;
 }
 
+#ifndef SECPKG_ATTR_UNIQUE_BINDINGS
+#define SECPKG_ATTR_UNIQUE_BINDINGS 25
+typedef struct _SecPkgContext_Bindings
+{
+	unsigned long        BindingsLength;
+	SEC_CHANNEL_BINDINGS *Bindings;
+} SecPkgContext_Bindings, *PSecPkgContext_Bindings;
+#endif
+int TLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
+{
+	int ret;
+	sslfile_t *f = (sslfile_t*)vf;
+	SecPkgContext_Bindings bindings;
+	if (vf->Close != SSPI_Close)
+		return -2;	//not one of ours.
+
+	bindings.BindingsLength = 0;
+	bindings.Bindings = NULL;
+	ret = 0;
+	switch(secur.pQueryContextAttributesA(&f->sechnd, SECPKG_ATTR_UNIQUE_BINDINGS, &bindings))
+	{
+	case SEC_E_OK:
+		if (bindings.Bindings->cbApplicationDataLength <= *bindsize)
+		{
+			//will contain 'tls-unique:BINARYDATA'
+			*bindsize = bindings.Bindings->cbApplicationDataLength-11;
+			memcpy(binddata, ((unsigned char*) bindings.Bindings) + bindings.Bindings->dwApplicationDataOffset+11, bindings.Bindings->cbApplicationDataLength-11);
+			ret = 1;
+		}
+		//FIXME: leak
+		//secur.pFreeContextBuffer(bindings.Bindings);
+		break;
+	case SEC_E_UNSUPPORTED_FUNCTION:
+		ret = -1;	//schannel doesn't support it. too old an OS, I guess.
+		break;
+	default:
+		break;
+	}
+	return ret;
+}
 
 #include "netinc.h"
 #if 0

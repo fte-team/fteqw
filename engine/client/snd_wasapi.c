@@ -31,6 +31,18 @@ FORCE_DEFINE_GUID(IID_IAudioRenderClient,			0xF294ACFC, 0x3146, 0x4483, 0xA7, 0x
 FORCE_DEFINE_GUID(KSDATAFORMAT_SUBTYPE_PCM,			0x00000001, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
 FORCE_DEFINE_GUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT,	0x00000003, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71);
 
+static cvar_t wasapi_forcerate		= CVARD("wasapi_forcerate", "0", "Attempts to force snd_khz instead of using the system's default channel count.\nFor this to work, you will need to set wasapi_exclusive 1");
+static cvar_t wasapi_forcechannels	= CVARD("wasapi_forcechannels", "0", "Attempts to force snd_numchannels instead of using the system's default channel count.\nFor this to work, you will need to set wasapi_exclusive 1");
+static cvar_t wasapi_exclusive		= CVARD("wasapi_exclusive", "0", "When set, attempts to take exclusive control of the output device, to the detriment of other programs (causing errors or even crashes in them).\nExclusive mode leaves the game free to change the hardware's playback details, instead of being required to use a single system-wide 'mixer' rate.\nIt should also reduce latency a little.");
+static cvar_t wasapi_buffersize		= CVAR("wasapi_buffersize", "0.01");
+static void QDECL WASAPI_RegisterCvars(void)
+{
+	Cvar_Register(&wasapi_forcerate, "WASAPI audio output");
+	Cvar_Register(&wasapi_forcechannels, "WASAPI audio output");
+	Cvar_Register(&wasapi_exclusive, "WASAPI audio output");
+	Cvar_Register(&wasapi_buffersize, "WASAPI audio output");
+}
+
 static void *WASAPI_Lock(soundcardinfo_t *sc, unsigned int *startoffset)
 {
 	return sc->sn.buffer;
@@ -55,19 +67,28 @@ static void WASAPI_Shutdown(soundcardinfo_t *sc)
 	sc->thread = NULL;
 }
 
-static qboolean WASAPI_AcceptableFormat(soundcardinfo_t *sc, IAudioClient *dev, WAVEFORMATEX *pwfx)
+static qboolean WASAPI_AcceptableFormat(soundcardinfo_t *sc, IAudioClient *dev, WAVEFORMATEX *pwfx, qboolean isexclusive)
 {
 	if (pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE && !memcmp(&((WAVEFORMATEXTENSIBLE*)pwfx)->SubFormat, &KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, sizeof(GUID)) && pwfx->wBitsPerSample == 32)
-	{
-		sc->sn.samplebits = 32;//oo, floating point audio. I guess this means we can have fun with clamping, right?
+	{	//oo, floating point audio. I guess this means we can have fun with clamping, right?
+		sc->sn.samplebytes = 4;
+		sc->sn.sampleformat = QSF_F32;
 	}
 	else if (pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE && memcmp(&((WAVEFORMATEXTENSIBLE*)pwfx)->SubFormat, &KSDATAFORMAT_SUBTYPE_PCM, sizeof(GUID))) 
 	{
 		Con_Printf("WASAPI: unsupported sample type\n");
 		return false;	//we only support pcm / floats
 	}
-	else if (pwfx->wBitsPerSample == 8 || pwfx->wBitsPerSample == 16)
-		sc->sn.samplebits = pwfx->wBitsPerSample;	//these sample sizes work
+	else if (pwfx->wBitsPerSample == 8)
+	{
+		sc->sn.samplebytes = 1;
+		sc->sn.sampleformat = QSF_U8;
+	}
+	else if (pwfx->wBitsPerSample == 16)
+	{
+		sc->sn.samplebytes = 2;
+		sc->sn.sampleformat = QSF_S16;
+	}
 	else
 	{
 		Con_Printf("WASAPI: unsupported sample size\n");
@@ -83,7 +104,7 @@ static qboolean WASAPI_AcceptableFormat(soundcardinfo_t *sc, IAudioClient *dev, 
 	sc->sn.numchannels = pwfx->nChannels;
 	sc->sn.speed = pwfx->nSamplesPerSec;
 
-	Con_Printf("WASAPI: %i channel %ibit %ukhz\n", sc->sn.numchannels, pwfx->wBitsPerSample, (unsigned int)pwfx->nSamplesPerSec);
+	Con_Printf("WASAPI: %i channel %ibit %ukhz%s\n", sc->sn.numchannels, pwfx->wBitsPerSample, (unsigned int)pwfx->nSamplesPerSec, isexclusive?" exclusive":" non-exclusive");
 	return true;
 }
 static qboolean WASAPI_DetermineFormat(soundcardinfo_t *sc, IAudioClient *dev, qboolean exclusive, WAVEFORMATEX **ret)
@@ -93,7 +114,7 @@ static qboolean WASAPI_DetermineFormat(soundcardinfo_t *sc, IAudioClient *dev, q
 	if (!SUCCEEDED(dev->lpVtbl->GetMixFormat(dev, &pwfx)))
 		return false;
 
-	if (snd_speed || Cvar_Get("wasapi_forcerate", "0", 0, "WASAPI audio output")->ival)
+	if (snd_speed || wasapi_forcerate.ival)
 	{	//if some other driver has already committed us to a set rate, we need to drive wasapi at that rate too.
 		//this may cause failures later in this function.
 		Con_Printf("WASAPI: overriding sampler rate\n");
@@ -101,7 +122,7 @@ static qboolean WASAPI_DetermineFormat(soundcardinfo_t *sc, IAudioClient *dev, q
 		pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * pwfx->nBlockAlign;
 	}
 
-	if (Cvar_Get("wasapi_forcechannels", "0", 0, "WASAPI audio output")->ival)
+	if (wasapi_forcechannels.ival)
 	{
 		Con_Printf("WASAPI: overriding channels\n");
 
@@ -150,8 +171,7 @@ static qboolean WASAPI_DetermineFormat(soundcardinfo_t *sc, IAudioClient *dev, q
 				pwfx = pwfx2;
 			}
 		}
-
-		if (!WASAPI_AcceptableFormat(sc, dev, pwfx))
+		if (!WASAPI_AcceptableFormat(sc, dev, pwfx, false))
 			return false;
 	}
 	else
@@ -170,6 +190,8 @@ static qboolean WASAPI_DetermineFormat(soundcardinfo_t *sc, IAudioClient *dev, q
 
 			if (FAILED(dev->lpVtbl->IsFormatSupported(dev, exclusive?AUDCLNT_SHAREMODE_EXCLUSIVE:AUDCLNT_SHAREMODE_SHARED, pwfx, NULL)))
 			{
+				//fixme: try float audio...
+
 				//try to switch over to 24bit pcm (although with no more 16bit audio)
 /*				pwfx->wBitsPerSample = 24;
 				pwfx->nBlockAlign = pwfx->wBitsPerSample/8 * pwfx->nChannels;
@@ -184,112 +206,128 @@ static qboolean WASAPI_DetermineFormat(soundcardinfo_t *sc, IAudioClient *dev, q
 				}
 			}
 		}
-
-		if (!WASAPI_AcceptableFormat(sc, dev, pwfx))
+		if (!WASAPI_AcceptableFormat(sc, dev, pwfx, true))
 			return false;
 	}
-	
+
 	*ret = pwfx;
 	return true;
 }
 
+static IMMDevice *WASAPI_GetDevice(soundcardinfo_t *sc)
+{
+	IMMDeviceEnumerator *pEnumerator = NULL;
+	IMMDevice *pDevice = NULL;
+	CoInitialize(NULL);	//sigh.
+	if (SUCCEEDED(CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, &IID_IMMDeviceEnumerator, (void**)&pEnumerator)))
+	{
+		if (*sc->name)
+		{
+			WCHAR wname[256];
+			pEnumerator->lpVtbl->GetDevice(pEnumerator, widen(wname, sizeof(wname), sc->name), &pDevice);
+		}
+		else
+			pEnumerator->lpVtbl->GetDefaultAudioEndpoint(pEnumerator, eRender, eConsole, &pDevice);
+		pEnumerator->lpVtbl->Release(pEnumerator);
+	}
+	return pDevice;
+}
 static int WASAPI_Thread(void *arg)
 {
 	soundcardinfo_t *sc = arg;
 	qboolean inited = false;
 
 //	REFERENCE_TIME hnsRequestedDuration = REFTIMES_PER_SEC;
-	IMMDeviceEnumerator *pEnumerator = NULL;
-	IMMDevice *pDevice = NULL;
 	IAudioClient *pAudioClient = NULL;
 	IAudioRenderClient *pRenderClient = NULL;
 	UINT32 bufferFrameCount = 0;
 	HANDLE hEvent = NULL;
 	WAVEFORMATEX *pwfx;
 
-	qboolean exclusive = Cvar_Get("wasapi_exclusive", "1", 0, "WASAPI audio output")->ival;
+	qboolean exclusive = wasapi_exclusive.ival;
 
 	void *cond = sc->handle;
 
 	//main thread will wait for us to finish initing, so lets do that...
-	CoInitialize(NULL);
-	if (SUCCEEDED(CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_ALL, &IID_IMMDeviceEnumerator, (void**)&pEnumerator)))
-	if (SUCCEEDED(pEnumerator->lpVtbl->GetDefaultAudioEndpoint(pEnumerator, eRender, eConsole, &pDevice)))
-	if (SUCCEEDED(pDevice->lpVtbl->Activate(pDevice, &IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&pAudioClient)))
+	IMMDevice *pDevice = WASAPI_GetDevice(sc);
+	if (pDevice)
 	{
-		if (!WASAPI_DetermineFormat(sc, pAudioClient, exclusive, &pwfx))
+		if (SUCCEEDED(pDevice->lpVtbl->Activate(pDevice, &IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&pAudioClient)))
 		{
-			Con_Printf("WASAPI: unable to determine mutually supported audio format\n");
-		}
-		else
-		{
-
-
-			if (sc->sn.samplebits && (!snd_speed || sc->sn.speed == snd_speed))
+			if (!WASAPI_DetermineFormat(sc, pAudioClient, exclusive, &pwfx))
 			{
-				HRESULT hr;
-				REFERENCE_TIME buffersize = REFTIMES_PER_SEC * Cvar_Get("wasapi_buffersize", "0.01", 0, "WASAPI audio output")->ival;
-				if (exclusive)
-					pAudioClient->lpVtbl->GetDevicePeriod(pAudioClient, NULL, &buffersize);
+				Con_Printf("WASAPI: unable to determine mutually supported audio format\n");
+			}
+			else
+			{
+				if (sc->sn.samplebytes && (!snd_speed || sc->sn.speed == snd_speed))
+				{
+					HRESULT hr;
+					REFERENCE_TIME buffersize = REFTIMES_PER_SEC * wasapi_buffersize.value;
+					if (exclusive)
+						pAudioClient->lpVtbl->GetDevicePeriod(pAudioClient, NULL, &buffersize);
 
-				hr = pAudioClient->lpVtbl->Initialize(pAudioClient, exclusive?AUDCLNT_SHAREMODE_EXCLUSIVE:AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, buffersize, (exclusive?buffersize:0), pwfx, NULL);
+					hr = pAudioClient->lpVtbl->Initialize(pAudioClient, exclusive?AUDCLNT_SHAREMODE_EXCLUSIVE:AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, buffersize, (exclusive?buffersize:0), pwfx, NULL);
 
-				if (hr == AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED)
-				{	//this is stupid, but does what the documentation says should be done.
-					if (SUCCEEDED(pAudioClient->lpVtbl->GetBufferSize(pAudioClient, &bufferFrameCount)))
-					{
-						if (pAudioClient)
-							pAudioClient->lpVtbl->Release(pAudioClient);
-						pAudioClient = NULL;
-						if (SUCCEEDED(pDevice->lpVtbl->Activate(pDevice, &IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&pAudioClient)))
+					if (hr == AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED)
+					{	//this is stupid, but does what the documentation says should be done.
+						if (SUCCEEDED(pAudioClient->lpVtbl->GetBufferSize(pAudioClient, &bufferFrameCount)))
 						{
-							buffersize = (REFERENCE_TIME)((10000.0 * 1000 / pwfx->nSamplesPerSec * bufferFrameCount) + 0.5);
-							hr = pAudioClient->lpVtbl->Initialize(pAudioClient, exclusive?AUDCLNT_SHAREMODE_EXCLUSIVE:AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, buffersize, (exclusive?buffersize:0), pwfx, NULL);
+							if (pAudioClient)
+								pAudioClient->lpVtbl->Release(pAudioClient);
+							pAudioClient = NULL;
+							if (SUCCEEDED(pDevice->lpVtbl->Activate(pDevice, &IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&pAudioClient)))
+							{
+								buffersize = (REFERENCE_TIME)((10000.0 * 1000 / pwfx->nSamplesPerSec * bufferFrameCount) + 0.5);
+								hr = pAudioClient->lpVtbl->Initialize(pAudioClient, exclusive?AUDCLNT_SHAREMODE_EXCLUSIVE:AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK, buffersize, (exclusive?buffersize:0), pwfx, NULL);
+							}
+						}
+					}
+
+					if (SUCCEEDED(hr))
+					{
+						hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+						if (hEvent)
+						{
+							pAudioClient->lpVtbl->SetEventHandle(pAudioClient, hEvent);
+							if (SUCCEEDED(pAudioClient->lpVtbl->GetBufferSize(pAudioClient, &bufferFrameCount)))
+							if (SUCCEEDED(pAudioClient->lpVtbl->GetService(pAudioClient, &IID_IAudioRenderClient, (void**)&pRenderClient)))
+								inited = true;
+						}
+					}
+					else
+					{
+						switch(hr)
+						{
+						case AUDCLNT_E_UNSUPPORTED_FORMAT:
+							Con_Printf("WASAPI Initialize: AUDCLNT_E_UNSUPPORTED_FORMAT\n");
+							break;
+						case AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED:
+							Con_Printf("WASAPI Initialize: AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED\n");
+							break;
+						case AUDCLNT_E_EXCLUSIVE_MODE_ONLY:
+							Con_Printf("WASAPI Initialize: AUDCLNT_E_EXCLUSIVE_MODE_ONLY\n");
+							break;
+						case AUDCLNT_E_DEVICE_IN_USE:
+							Con_Printf("WASAPI Initialize: AUDCLNT_E_DEVICE_IN_USE\n");
+							break;
+						case AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED:
+							Con_Printf("WASAPI Initialize: AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED\n");
+							break;
+						case E_INVALIDARG:
+							Con_Printf("WASAPI Initialize: E_INVALIDARG\n");
+							break;
+						default:
+							Con_Printf("pAudioClient->lpVtbl->Initialize failed (%x)\n", (unsigned int)hr);
 						}
 					}
 				}
 
-				if (SUCCEEDED(hr))
-				{
-					hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-					if (hEvent)
-					{
-						pAudioClient->lpVtbl->SetEventHandle(pAudioClient, hEvent);
-						if (SUCCEEDED(pAudioClient->lpVtbl->GetBufferSize(pAudioClient, &bufferFrameCount)))
-						if (SUCCEEDED(pAudioClient->lpVtbl->GetService(pAudioClient, &IID_IAudioRenderClient, (void**)&pRenderClient)))
-							inited = true;
-					}
-				}
-				else
-				{
-					switch(hr)
-					{
-					case AUDCLNT_E_UNSUPPORTED_FORMAT:
-						Con_Printf("WASAPI Initialize: AUDCLNT_E_UNSUPPORTED_FORMAT\n");
-						break;
-					case AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED:
-						Con_Printf("WASAPI Initialize: AUDCLNT_E_EXCLUSIVE_MODE_NOT_ALLOWED\n");
-						break;
-					case AUDCLNT_E_EXCLUSIVE_MODE_ONLY:
-						Con_Printf("WASAPI Initialize: AUDCLNT_E_EXCLUSIVE_MODE_ONLY\n");
-						break;
-					case AUDCLNT_E_DEVICE_IN_USE:
-						Con_Printf("WASAPI Initialize: AUDCLNT_E_DEVICE_IN_USE\n");
-						break;
-					case AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED:
-						Con_Printf("WASAPI Initialize: AUDCLNT_E_BUFFER_SIZE_NOT_ALIGNED\n");
-						break;
-					case E_INVALIDARG:
-						Con_Printf("WASAPI Initialize: E_INVALIDARG\n");
-						break;
-					default:
-						Con_Printf("pAudioClient->lpVtbl->Initialize failed (%x)\n", (unsigned int)hr);
-					}
-				}
+				CoTaskMemFree(pwfx);
 			}
-
-			CoTaskMemFree(pwfx);
 		}
+		pDevice->lpVtbl->Release(pDevice);
+		pDevice = NULL;
 	}
 
 	if (inited)
@@ -359,19 +397,12 @@ static int WASAPI_Thread(void *arg)
 		pRenderClient->lpVtbl->Release(pRenderClient);
 	if (pAudioClient)
 		pAudioClient->lpVtbl->Release(pAudioClient);
-	if (pDevice)
-		pDevice->lpVtbl->Release(pDevice);
-	if (pEnumerator)
-		pEnumerator->lpVtbl->Release(pEnumerator);
 	return 0;
 }
 
 static qboolean QDECL WASAPI_InitCard (soundcardinfo_t *sc, const char *cardname)
 {
 	void *cond;
-	if (cardname && *cardname)
-		return false;	//we don't support explicit devices at this time
-
 	Q_strncpyz(sc->name, cardname?cardname:"", sizeof(sc->name));
 
 	sc->selfpainting = true;
@@ -504,7 +535,8 @@ sounddriver_t WASAPI_Output =
 {
 	AUDIODRIVERNAME,
 	WASAPI_InitCard,
-	WASAPI_Enumerate
+	WASAPI_Enumerate,
+	WASAPI_RegisterCvars
 };
 
 #endif

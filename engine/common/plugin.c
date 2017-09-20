@@ -1093,6 +1093,36 @@ qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, quintptr_t mask, const qintp
 	}
 	return 0;
 }
+
+qintptr_t VARGS Plug_Net_GetTLSBinding(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	pluginstream_t *stream;
+	unsigned int handle = VM_LONG(arg[0]);
+	qbyte *binddata = VM_POINTER(arg[1]);
+	unsigned int *bindsize = VM_POINTER(arg[2]);
+	size_t sz;
+	int r;
+	if (VM_OOB(arg[2], sizeof(int)))
+		return -2;
+	if (VM_OOB(arg[1], *bindsize))
+		return -2;
+	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
+	{
+		Con_Printf("Plug_Net_GetTLSBinding: socket does not belong to you (or is invalid)\n");
+		return -2;
+	}
+	stream = &pluginstreamarray[handle];
+	if (stream->type != STREAM_VFS)
+	{	//not a socket - invalid
+		Con_Printf("Plug_Net_GetTLSBinding: Not a socket handle\n");
+		return -2;
+	}
+
+	sz = *bindsize;
+	r = TLS_GetChannelBinding(stream->vfs, binddata, &sz);
+	*bindsize = sz;
+	return r;
+}
 #endif
 #endif
 
@@ -1607,6 +1637,7 @@ void Plug_Initialise(qboolean fromgamedir)
 		Plug_RegisterBuiltin("Net_TCPConnect",			Plug_Net_TCPConnect, 0);
 #ifdef HAVE_SSL
 		Plug_RegisterBuiltin("Net_SetTLSClient",		Plug_Net_SetTLSClient, 0);
+		Plug_RegisterBuiltin("Net_GetTLSBinding",		Plug_Net_GetTLSBinding, 0);
 #endif
 		Plug_RegisterBuiltin("Net_Recv",				Plug_Net_Recv, 0);
 		Plug_RegisterBuiltin("Net_Send",				Plug_Net_Send, 0);
@@ -1746,7 +1777,7 @@ qboolean Plug_ConsoleLinkMouseOver(float x, float y, char *text, char *info)
 			char *ptr;
 			ptr = (char*)COM_QuotedString(text, buffer, sizeof(buffer)-10, false);
 			ptr += strlen(ptr);
-			*ptr = ' ';
+			*ptr++ = ' ';
 			COM_QuotedString(info, ptr, sizeof(buffer)-(ptr-buffer), false);
 
 			Cmd_TokenizeString(buffer, false, false);

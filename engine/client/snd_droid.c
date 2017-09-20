@@ -21,7 +21,7 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_audioinfo(JNIEnv *env, jcla
 	case 1:
 		return sc->sn.numchannels;
 	case 2:
-		return sc->sn.samplebits;
+		return sc->sn.samplebytes*8;
 	default:
 		return sc->sn.speed;
 	}
@@ -37,10 +37,10 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_paintaudio(JNIEnv *env, jcl
 
 	if (sc)
 	{
-		int buffersize = sc->sn.samples*sc->sn.samplebits/8;
+		int buffersize = sc->sn.samples*sc->sn.samplebytes;
 
 		int curtime = S_GetMixerTime(sc);
-		framesz = sc->sn.numchannels * sc->sn.samplebits/8;
+		framesz = sc->sn.numchannels * sc->sn.samplebytes;
 
 		S_PaintChannels (sc, curtime + (len / framesz));
 
@@ -80,7 +80,7 @@ static void Droid_Shutdown(soundcardinfo_t *sc)
 //return the number of samples that have already been submitted to the device.
 static unsigned int Droid_GetDMAPos(soundcardinfo_t *sc)
 {
-	sc->sn.samplepos = sc->snd_sent / (sc->sn.samplebits/8);
+	sc->sn.samplepos = sc->snd_sent / sc->sn.samplebytes;
 	return sc->sn.samplepos;
 }
 
@@ -107,15 +107,25 @@ static void Droid_Submit(soundcardinfo_t *sc, int start, int end)
 //8bit is not guarenteed.
 //there's no reference to sample rates.	I assume 44.1khz will always work, though we want to avoid that cpu+mem load if we can
 //nor any guarentee about channels supported. I assume mono will always work.
-static int Droid_InitCard (soundcardinfo_t *sc, int cardnum)
+static qboolean Droid_InitCard (soundcardinfo_t *sc, const char *cardname)
 {
 	if (sys_sc)
-		return 2;
+		return false;	//can only cope with one device.
+	if (cardname && *cardname)
+		return false;	//only the default device
 
 	sc->selfpainting = true;
 //	sc->sn.speed = 11025;
-//	sc->sn.samplebits = 16;
+//	sc->sn.samplebytes = 2;
 //	sc->sn.numchannels = 1;
+
+	if (sc->sn.samplebytes == 1)
+		sc->sn.sampleformat = QSF_U8;
+	else /*if (sc->sn.samplebytes == 2)*/
+	{
+		sc->sn.samplebytes = 2;
+		sc->sn.sampleformat = QSF_S16;
+	}
 
 	/*internal buffer should have 1 sec audio*/
 	sc->sn.samples = sc->sn.speed*sc->sn.numchannels;
@@ -127,7 +137,7 @@ static int Droid_InitCard (soundcardinfo_t *sc, int cardnum)
 	sc->Shutdown = Droid_Shutdown;
 	sc->GetDMAPos = Droid_GetDMAPos;
 
-	sc->sn.buffer = malloc(sc->sn.samples*sc->sn.samplebits/8);
+	sc->sn.buffer = malloc(sc->sn.samples*sc->sn.samplebytes);
 	
 	sys_sc = sc;
 
@@ -135,5 +145,10 @@ static int Droid_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	return 1;
 }
-int (*pDroid_InitCard) (soundcardinfo_t *sc, int cardnum) = &Droid_InitCard;
 
+sounddriver_t Droid_AudioOutput =
+{
+	"Android",
+	Droid_InitCard,
+	NULL
+};

@@ -17,6 +17,11 @@ extern cvar_t vk_khr_push_descriptor;
 extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method, vid_multisample;
 void R2D_Console_Resize(void);
 
+#ifndef MULTITHREAD
+#define Sys_LockConditional(c)
+#define Sys_UnlockConditional(c)
+#endif
+
 const char *vklayerlist[] =
 {
 #if 1
@@ -142,11 +147,16 @@ void VK_DestroyVkTexture(vk_image_t *img)
 	if (img->memory)
 		vkFreeMemory(vk.device, img->memory, vkallocationcb);
 }
+static void VK_DestroyVkTexture_Delayed(void *w)
+{
+	VK_DestroyVkTexture(w);
+}
 
 static void VK_DestroySwapChain(void)
 {
 	uint32_t i;
 
+#ifdef MULTITHREAD
 	if (vk.submitcondition)
 	{
 		Sys_LockConditional(vk.submitcondition);
@@ -159,6 +169,7 @@ static void VK_DestroySwapChain(void)
 		Sys_WaitOnThread(vk.submitthread);
 		vk.submitthread = NULL;
 	}
+#endif
 	while (vk.work)
 	{
 		Sys_LockConditional(vk.submitcondition);
@@ -787,7 +798,7 @@ void VK_CreateSampler(unsigned int flags, vk_image_t *img)
 	VkAssert(vkCreateSampler(vk.device, &lmsampinfo, NULL, &img->sampler));
 }
 
-static void VK_DestroySampler(struct vk_frameend *w)
+static void VK_DestroySampler(void *w)
 {
 	VkSampler s = *(VkSampler*)w;
 	vkDestroySampler(vk.device, s, vkallocationcb);
@@ -1228,7 +1239,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 			tex->vkimage->encoding != mips->encoding ||
 			tex->vkimage->type != mips->type)
 		{
-			VK_AtFrameEnd(VK_DestroyVkTexture, tex->vkimage, sizeof(*tex->vkimage));
+			VK_AtFrameEnd(VK_DestroyVkTexture_Delayed, tex->vkimage, sizeof(*tex->vkimage));
 //			vkDeviceWaitIdle(vk.device);	//erk, we can't cope with a commandbuffer poking the texture while things happen
 //			VK_FencedCheck();
 //			VK_DestroyVkTexture(tex->vkimage);
@@ -1322,7 +1333,6 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	bci.size = 0;
 	for (i = 0; i < mipcount; i++)
 	{
-		VkImageSubresource subres = {0};
 		VkBufferImageCopy region;
 		//figure out the number of 'blocks' in the image.
 		//for non-compressed formats this is just the width directly.
@@ -2318,7 +2328,9 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 	VkAssert(vkCreateBuffer(vk.device, &bci, vkallocationcb, &capt->buffer));
 	vkGetBufferMemoryRequirements(vk.device, capt->buffer, &mem_reqs);
 	memAllocInfo.allocationSize = mem_reqs.size;
-	memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+	if (memAllocInfo.memoryTypeIndex == ~0u)
+		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &capt->memory));
 	VkAssert(vkBindBufferMemory(vk.device, capt->buffer, capt->memory, 0));
 
@@ -2849,6 +2861,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 
 	if (vk.neednewswapchain && !vk.frame)
 	{
+#ifdef MULTITHREAD
 		//kill the thread
 		if (vk.submitthread)
 		{
@@ -2858,6 +2871,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 			Sys_WaitOnThread(vk.submitthread);
 			vk.submitthread = NULL;
 		}
+#endif
 		//make sure any work is actually done BEFORE the swapchain gets destroyed
 		while (vk.work)
 		{
@@ -2871,10 +2885,12 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		VK_CreateSwapChain();
 		vk.neednewswapchain = false;
 
+#ifdef MULTITHREAD
 		if (vk.allowsubmissionthread && (vk_submissionthread.ival || !*vk_submissionthread.string))
 		{
 			vk.submitthread = Sys_CreateThread("vksubmission", VK_Submit_Thread, NULL, THREADP_HIGHEST, 0);
 		}
+#endif
 	}
 
 	if (!VK_SCR_GrabBackBuffer())
@@ -3225,6 +3241,7 @@ static void VK_Submit_DoWork(void)
 	}
 }
 
+#ifdef MULTITHREAD
 //oh look. a thread.
 //nvidia's drivers seem to like doing a lot of blocking in queuesubmit and queuepresent(despite the whole QUEUE thing).
 //so thread this work so the main thread doesn't have to block so much.
@@ -3241,6 +3258,7 @@ int VK_Submit_Thread(void *arg)
 	Sys_UnlockConditional(vk.submitcondition);
 	return true;
 }
+#endif
 
 void VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStageFlags semwaitstagemask, VkSemaphore semsignal, VkFence fencesignal, struct vkframe *presentframe, struct vk_fencework *fencedwork)
 {
@@ -3262,9 +3280,11 @@ void VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStage
 		;
 	*link = work;
 
+#ifdef MULTITHREAD
 	if (vk.submitthread && !vk.neednewswapchain)
 		Sys_ConditionSignal(vk.submitcondition);
 	else
+#endif
 		VK_Submit_DoWork();
 	Sys_UnlockConditional(vk.submitcondition);
 }
@@ -3335,7 +3355,7 @@ void VK_CheckTextureFormats(void)
 }
 
 //initialise the vulkan instance, context, device, etc.
-qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*createSurface)(void), void (*dopresent)(struct vkframe *theframe))
+qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*createSurface)(void), void (*dopresent)(struct vkframe *theframe))
 {
 	VkQueueFamilyProperties *queueprops;
 	VkResult err;
@@ -3366,7 +3386,9 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 
 	for (e = 0; e < countof(knowndevexts); e++)
 		*knowndevexts[e].flag = false;
+#ifdef MULTITHREAD
 	vk.allowsubmissionthread = true;
+#endif
 	vk.neednewswapchain = true;
 	vk.triplebuffer = info->triplebuffer;
 	vk.vsync = info->wait;
@@ -3390,7 +3412,7 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	//try and enable some instance extensions...
 	{
 		qboolean surfext = false;
-		uint32_t count, i;
+		uint32_t count, i, j;
 		VkExtensionProperties *ext;
 		vkEnumerateInstanceExtensionProperties(NULL, &count, NULL);
 		ext = malloc(sizeof(*ext)*count);
@@ -3401,21 +3423,27 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 				extensions[extensions_count++] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
 			else if (!strcmp(ext[i].extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
 				extensions[extensions_count++] = VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME;
-			else if (sysextname && !strcmp(ext[i].extensionName, sysextname))
-			{
-				extensions[extensions_count++] = sysextname;
-				vk.khr_swapchain = true;
-			}
-			else if (sysextname && !strcmp(ext[i].extensionName, VK_KHR_SURFACE_EXTENSION_NAME))
+			else if (sysextnames && !strcmp(ext[i].extensionName, VK_KHR_SURFACE_EXTENSION_NAME))
 			{
 				extensions[extensions_count++] = VK_KHR_SURFACE_EXTENSION_NAME;
 				surfext = true;
 			}
+			else if (sysextnames)
+			{
+				for (j = 0; sysextnames[j]; j++)
+				{
+					if (!strcmp(ext[i].extensionName, sysextnames[j]))
+					{
+						extensions[extensions_count++] = sysextnames[j];
+						vk.khr_swapchain = true;
+					}
+				}
+			}
 		}
 		free(ext);
-		if (sysextname && (!vk.khr_swapchain || !surfext))
+		if (sysextnames && (!vk.khr_swapchain || !surfext))
 		{
-			Con_Printf("Vulkan instance driver lacks support for %s\n", sysextname);
+			Con_Printf("Vulkan instance driver lacks support for %s\n", sysextnames[0]);
 			return false;
 		}
 	}
@@ -3873,7 +3901,9 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	else	//16bit depth is guarenteed in vulkan
 		vk.depthformat = VK_FORMAT_D16_UNORM;
 
+#ifdef MULTITHREAD
 	vk.submitcondition = Sys_CreateConditional();
+#endif
 
 	{
 		VkPipelineCacheCreateInfo pci = {VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
@@ -3888,10 +3918,12 @@ qboolean VK_Init(rendererstate_t *info, const char *sysextname, qboolean (*creat
 	{
 		vk.neednewswapchain = false;
 
+#ifdef MULTITHREAD
 		if (vk.allowsubmissionthread && (vk_submissionthread.ival || !*vk_submissionthread.string))
 		{
 			vk.submitthread = Sys_CreateThread("vksubmission", VK_Submit_Thread, NULL, THREADP_HIGHEST, 0);
 		}
+#endif
 	}
 	return true;
 }
@@ -3935,8 +3967,10 @@ void VK_Shutdown(void)
 		vkDestroySurfaceKHR(vk.instance, vk.surface, vkallocationcb);
 	if (vk.instance)
 		vkDestroyInstance(vk.instance, vkallocationcb);
+#ifdef MULTITHREAD
 	if (vk.submitcondition)
 		Sys_DestroyConditional(vk.submitcondition);
+#endif
 
 	memset(&vk, 0, sizeof(vk));
 

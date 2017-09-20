@@ -6894,12 +6894,21 @@ void log(string name, float console, string text)
 static void QCBUILTIN PF_logtext(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char name[MAX_OSPATH];
-	const char *text;
+	const char *otext, *text;
 	vfsfile_t *file;
+	char unitext[8192], *out = unitext;
+	int err;
 
 	snprintf(name, MAX_OSPATH, "%s.log", PR_GetStringOfs(prinst, OFS_PARM0));
-	text = PF_VarString(prinst, 2, pr_globals);
-	PR_CleanText(text);
+	otext = text = PF_VarString(prinst, 2, pr_globals);
+	while (*text)
+	{
+		int cp = unicode_decode(&err, text, (char**)&text, false);
+		if ((cp >= 0xe000 && cp < 0xe100) || cp == '\r')
+			cp = readable2[cp&0xff];	//dequake it
+		out += utf8_encode(out, cp, sizeof(unitext)-1-(out-unitext));
+	}
+	*out++ = 0;
 
 	file = FS_OpenVFS(name, "ab", FS_GAME);
 	if (file == NULL)
@@ -6908,12 +6917,12 @@ static void QCBUILTIN PF_logtext(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	}
 	else
 	{
-		VFS_WRITE(file, text, strlen(text));
+		VFS_WRITE(file, unitext, out-unitext);
 		VFS_CLOSE (file);
 	}
 
 	if (G_FLOAT(OFS_PARM1))
-		Con_Printf("%s", text);
+		Con_Printf("%s", otext);
 }
 #endif
 
@@ -10654,10 +10663,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strreplace",		PF_strreplace,		0,		0,		0,		484,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
 	{"strireplace",		PF_strireplace,		0,		0,		0,		485,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
 	{"getsurfacepointattribute",PF_getsurfacepointattribute,0,0,0,	486,	"vector(entity e, float s, float n, float a)"},//DP_QC_GETSURFACEPOINTATTRIBUTE
-	{"gecko_create",	PF_Fixme,			0,		0,		0,		487,	D("float(string name)", "Create a new 'browser tab' shader with the specified name that can then be drawn via drawpic (shader should not already exist - including from map/model textures or disk). In order to function correctly, this builtin depends upon external plugins being available. Use gecko_navigate to navigate it to a page of your choosing.")},//DP_GECKO_SUPPORT
+	{"gecko_create",	PF_Fixme,			0,		0,		0,		487,	D("float(string name, optional string initialURI)", "Create a new 'browser tab' shader with the specified name that can then be drawn via drawpic (shader should not already exist - including from map/model textures or disk). In order to function correctly, this builtin depends upon external plugins being available. Use gecko_navigate to navigate it to a page of your choosing.")},//DP_GECKO_SUPPORT
 	{"gecko_destroy",	PF_Fixme,			0,		0,		0,		488,	D("void(string name)", "Destroy a shader.")},//DP_GECKO_SUPPORT
 	{"gecko_navigate",	PF_Fixme,			0,		0,		0,		489,	D("void(string name, string URI)", "Sends a command to the media decoder attached to the specified shader. In the case of a browser decoder, this changes the url that the browser displays. 'cmd:[un]focus' will tell the decoder that it has focus.")},//DP_GECKO_SUPPORT
-	{"gecko_keyevent",	PF_Fixme,			0,		0,		0,		490,	D("float(string name, float key, float eventtype)", "Send a key event to a media decoder. This applies only to interactive decoders like browsers.")},//DP_GECKO_SUPPORT
+	{"gecko_keyevent",	PF_Fixme,			0,		0,		0,		490,	D("float(string name, float key, float eventtype, optional float charcode)", "Send a key event to a media decoder. This applies only to interactive decoders like browsers.")},//DP_GECKO_SUPPORT
 	{"gecko_mousemove",	PF_Fixme,			0,		0,		0,		491,	D("void(string name, float x, float y)", "Sets a media decoder shader's mouse position. Values should be 0-1.")},//DP_GECKO_SUPPORT
 	{"gecko_resize",	PF_Fixme,			0,		0,		0,		492,	D("void(string name, float w, float h)", "Request to resize a media decoder.")},//DP_GECKO_SUPPORT
 	{"gecko_get_texture_extent",PF_Fixme,	0,		0,		0,		493,	D("vector(string name)", "Retrieves a media decoder current image pixel sizes.")},//DP_GECKO_SUPPORT
@@ -10691,7 +10700,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"uri_unescape",	PF_uri_unescape,	0,		0,		0,		511,	"string(string in)"},//DP_QC_URI_ESCAPE
 	{"num_for_edict",	PF_num_for_edict,	0,		0,		0,		512,	"float(entity ent)"},//DP_QC_NUM_FOR_EDICT
 	{"uri_get",			PF_uri_get,			0,		0,		0,		513,	D("#define uri_post uri_get\nfloat(string uril, float id, optional string postmimetype, optional string postdata)", "uri_get() gets content from an URL and calls a callback \"uri_get_callback\" with it set as string; an unique ID of the transfer is returned\nreturns 1 on success, and then calls the callback with the ID, 0 or the HTTP status code, and the received data in a string\nFor a POST request, you will typically want the postmimetype set to application/x-www-form-urlencoded.\nFor a GET request, omit the mime+data entirely.\nConsult your webserver/php/etc documentation for best-practise.")},//DP_QC_URI_GET
-	{"uri_post",		PF_uri_get,			0,		0,		0,		513,	D("float(string uril, float id, optional string postmimetype, optional string postdata)", "uri_get() gets content from an URL and calls a callback \"uri_get_callback\" with it set as string; an unique ID of the transfer is returned\nreturns 1 on success, and then calls the callback with the ID, 0 or the HTTP status code, and the received data in a string"), true},//DP_QC_URI_POST
+	{"uri_post",		PF_uri_get,			0,		0,		0,		513,	D("float(string uril, float id, optional string postmimetype, optional string postdata, optional float strbuf)", "uri_get() gets content from an URL and calls a callback \"uri_get_callback\" with it set as string; an unique ID of the transfer is returned\nreturns 1 on success, and then calls the callback with the ID, 0 or the HTTP status code, and the received data in a string"), true},//DP_QC_URI_POST
 	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514,	D("float(string str)", "Tokenize a string exactly as the console's tokenizer would do so. The regular tokenize builtin became bastardized for convienient string parsing, which resulted in a large disparity that can be exploited to bypass checks implemented in a naive SV_ParseClientCommand function, therefore you can use this builtin to make sure it exactly matches.")},
 	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515,	D("float(float idx)", "Returns the character index that the tokenized arg started at.")},
 	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516,	D("float(float idx)", "Returns the character index that the tokenized arg stopped at.")},
@@ -11539,6 +11548,8 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_Parse_TempEntity",	"float()", CS,	"Please don't use this. Use CSQC_Parse_Event and multicasts instead."},
 
 		{"GameCommand",				"void(string cmdtext)", CS|MENU},
+		{"Cef_GeneratePage",		"string(string uri, string method, string postdata, __in string requestheaders, __inout string responseheaders)", QW|NQ|CS|MENU, "Provides an entrypoint to generate pages for the CEF plugin from within QC. Headers are \n-separated key/value pairs (use tokenizebyseparator)."},
+//		{"HTTP_GeneratePage",		"string(string uri, string method, string postdata, __in string requestheaders, __inout string responseheaders)", QW|NQ, "Provides an entrypoint to generate pages for pages requested over http (sv_listen_tcp+net_enable_http). Headers are \n-separated key/value pairs (use tokenizebyseparator)."},
 
 		{"init",					"void(float prevprogs)", QW|NQ|CS, "Part of FTE_MULTIPROGS. Called as soon as a progs is loaded, called at a time when entities are not valid. This is the only time when it is safe to call addprogs without field assignment. As it is also called as part of addprogs, this also gives you a chance to hook functions in modules that are already loaded (via externget+externget)."},
 		{"initents",				"void()", QW|NQ|CS, "Part of FTE_MULTIPROGS. Called after fields have been finalized. This is the first point at which it is safe to call spawn(), and is called before any entity fields have been parsed. You can use this entrypoint to send notifications to other modules."},

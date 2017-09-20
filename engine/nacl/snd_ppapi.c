@@ -21,11 +21,11 @@ static void PPAPI_audio_callback(void *sample_buffer, uint32_t len,
 	if (sc)
 	{
 		int curtime = S_GetMixerTime(sc);
-		framesz = sc->sn.numchannels * sc->sn.samplebits/8;
+		framesz = sc->sn.numchannels * sc->sn.samplebytes;
 
 		//might as well dump it directly...
 		sc->sn.buffer = sample_buffer;
-		sc->sn.samples = len / (sc->sn.samplebits/8);
+		sc->sn.samples = len / sc->sn.samplebytes;
 		S_PaintChannels (sc, curtime + (len / framesz));
 		sc->sn.samples = 0;
 		sc->sn.buffer = NULL;
@@ -42,7 +42,7 @@ static void PPAPI_Shutdown(soundcardinfo_t *sc)
 
 static unsigned int PPAPI_GetDMAPos(soundcardinfo_t *sc)
 {
-	sc->sn.samplepos = sc->snd_sent / (sc->sn.samplebits/8);
+	sc->sn.samplepos = sc->snd_sent / sc->sn.samplebytes;
 	return sc->sn.samplepos;
 }
 
@@ -60,22 +60,23 @@ static void PPAPI_Submit(soundcardinfo_t *sc, int start, int end)
 {
 }
 
-int PPAPI_InitCard (soundcardinfo_t *sc, int cardnum)
+static qboolean PPAPI_InitCard (soundcardinfo_t *sc, const char *cardname)
 {
 	PP_Resource config;
 	int framecount;
 
 	/*I'm not aware of any limits on the number of 'devices' we can create, but virtual devices on the same physical device are utterly pointless, so don't load more than one*/
-	if (cardnum != 0)
-		return 2;
+	if (cardname && *cardname)
+		return false;	//only use the default device
 
 	/*the docs say only two sample rates are allowed*/
 	if (sc->sn.speed <= 44100)
 		sc->sn.speed = 44100;
 	else
 		sc->sn.speed = 48000;
-	/*we can't choose these two settings*/
-	sc->sn.samplebits = 16;
+	/*we can't choose these settings at all*/
+	sc->sn.samplebytes = 2;
+	sc->sn.sampleformat = QSF_S16;
 	sc->sn.numchannels = 2;
 
 #ifdef PPB_AUDIO_CONFIG_INTERFACE_1_1
@@ -107,10 +108,15 @@ int PPAPI_InitCard (soundcardinfo_t *sc, int cardnum)
 		if (sc->handle)
 		{
 			if (audio_interface->StartPlayback((PP_Resource)sc->handle))
-				return 1;
+				return true;
 		}
 	}
-	return 0;
+	return false;
 }
 
-int (*pPPAPI_InitCard) (soundcardinfo_t *sc, int cardnum) = &PPAPI_InitCard;
+sounddriver_t PPAPI_AudioOutput =
+{
+	"Pepper",
+	PPAPI_InitCard,
+	NULL
+};

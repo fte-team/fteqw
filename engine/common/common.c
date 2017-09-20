@@ -2395,11 +2395,13 @@ unsigned int unicode_decode(int *error, const void *in, char **out, qboolean mar
 	unsigned int charcode;
 	if (markup && ((char*)in)[0] == '^' && ((char*)in)[1] == 'U' && ishexcode(((char*)in)[2]) && ishexcode(((char*)in)[3]) && ishexcode(((char*)in)[4]) && ishexcode(((char*)in)[5]))
 	{
+		*error = 0;
 		*out = (char*)in + 6;
 		charcode = (dehex(((char*)in)[2]) << 12) | (dehex(((char*)in)[3]) << 8) | (dehex(((char*)in)[4]) << 4) | (dehex(((char*)in)[5]) << 0);
 	}
 	else if (markup && ((char*)in)[0] == '^' && ((char*)in)[1] == '{')
 	{
+		*error = 0;
 		*out = (char*)in + 2;
 		charcode = 0;
 		while (ishexcode(**out))
@@ -3344,10 +3346,6 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				}
 				continue;
 			}
-			else if (str[1] == 'a')
-			{
-				ext ^= CON_2NDCHARSETTEXT;
-			}
 			else if (str[1] == 'b')
 			{
 				ext ^= CON_BLINKTEXT;
@@ -3359,7 +3357,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				else
 					ext = defaultflags;
 			}
-			else if (str[1] == 'm')
+			else if (str[1] == 'm'||str[1] == 'a')
 				ext ^= CON_2NDCHARSETTEXT;
 			else if (str[1] == 'h')
 				ext ^= CON_HALFALPHA;

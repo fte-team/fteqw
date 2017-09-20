@@ -108,13 +108,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define AVAIL_OGGVORBIS
 	#endif
 
-#if !defined(NO_DIRECTX) && !defined(NODIRECTX) && defined(_WIN32)
+#ifdef WINRT
+	#define AVAIL_XAUDIO2
+	#define AVAIL_WASAPI
+#elif !defined(NO_DIRECTX) && !defined(NODIRECTX) && defined(_WIN32)
 	#define AVAIL_DINPUT
 	#define AVAIL_DSOUND
 	#define AVAIL_WASAPI
-#endif
-#ifdef WINRT
-	#define AVAIL_XAUDIO2
+	//#define AVAIL_XAUDIO2 //gcc doesn't provide any headers
 #endif
 #define AVAIL_XZDEC
 
@@ -568,7 +569,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI)
 	//FIXME: HAVE_WINSSPI does not work as a server.
 	//FIXME: advertising dtls without a valid certificate will probably bug out if a client tries to auto-upgrade.
-//	#define HAVE_DTLS
+	//FIXME: we don't cache server certs
+	#define HAVE_DTLS
 #endif
 
 #if defined(USE_SQLITE) || defined(USE_MYSQL)

@@ -15,7 +15,10 @@ else
 	BASE_DIR:=$(realpath .)
 endif
 
-SVNREVISION:=-DSVNREVISION=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR) || echo -)
+ifeq ($(SVNREVISION),)
+	SVNREVISION:=-DSVNREVISION=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR) || echo -)
+endif
+MAKE:=$(MAKE) SVNREVISION=$(SVNREVISION)
 
 WHOAMI:=$(shell whoami)
 
@@ -875,17 +878,22 @@ GLCL_EXE_NAME=../$(EXE_NAME)cl-gl$(FTE_FULLTARGET)
 #SDLCONFIG:=libs/sdl2_mingw/$(CC_MACHINE)/bin/sdl2-config --prefix=libs/sdl2_mingw/$(CC_MACHINE)
 ifdef windir
 	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+	VK_LDFLAGS=$(VKLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 	SV_LDFLAGS=`$(SDLCONFIG) --static-libs`
 else
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) `$(SDLCONFIG) --static-libs`
-	M_LDFLAGS=$(MLDFLAGS) `$(SDLCONFIG) --static-libs` $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
+	VK_LDFLAGS=$(VKLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) `$(SDLCONFIG) --static-libs`
+	M_LDFLAGS=$(MLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) `$(SDLCONFIG) --static-libs`
 	SV_LDFLAGS=`$(SDLCONFIG) --static-libs`
 endif
 GL_CFLAGS=-DFTE_SDL $(GLCFLAGS) `$(SDLCONFIG) --cflags`
 GLB_DIR=gl_$(FTE_FULLTARGET)
 GLCL_DIR=glcl_$(FTE_FULLTARGET)
 SV_DIR?=sv_$(FTE_FULLTARGET)
+
+VKCL_OBJS=$(VKQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) 
+VK_CFLAGS=-DFTE_SDL $(VKCFLAGS) `$(SDLCONFIG) --cflags`
 
 SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS) $(BOTLIB_OBJS) 
 SV_EXE_NAME=../$(EXE_NAME)-sv$(FTE_FULLTARGET)
@@ -904,6 +912,7 @@ QCC_DIR=qcc$(BITS)
 ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
 	SV_LDFLAGS+=-lz
 	GL_LDFLAGS+=-lz
+	VK_LDFLAGS+=-lz
 	M_LDFLAGS+=-lz
 	QCC_LDFLAGS+=-L$(ARCHLIBS) -lz
 endif
@@ -998,20 +1007,19 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	GLCL_EXE_NAME=../$(EXE_NAME)-sdl-glcl$(BITS)$(EXEPOSTFIX)
 	ifdef windir
 		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+		VK_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 		SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --static-libs`
 		QCC_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a
 	else
 		GL_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
-		M_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDL_CONFIG) --libs` $(IMAGELDFLAGS)
+		VK_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
+		M_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDLCONFIG) --libs`
 		SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --libs`
 		QCC_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a
 	endif
 	
 	GL_CFLAGS=-DFTE_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) $(LIBVORBISFILE_STATIC) $(DX7SDK) $(SPEEXCFLAGS)
-	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
-		GL_CFLAGS+= -D_MINGW_VFPRINTF
-	endif
 	
 	GLB_DIR=gl_mgw_sdl$(BITS)
 	GLCL_DIR=glcl_mgw_sdl$(BITS)
@@ -1025,39 +1033,35 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../$(EXE_NAME)-sdl$(BITS)$(EXEPOSTFIX)
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	M_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) $(LIBVORBISFILE_STATIC) -D_MERGED_SDL $(DX7SDK) $(SPEEXCFLAGS)
-
-	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
-		M_CFLAGS+= -D_MINGW_VFPRINTF
-	endif
-
-	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
-	
+#with d3d...
+	#MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+	#M_CFLAGS=$(D3DCFLAGS) $(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL -I$(LIBS_DIR) -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(LIBVORBISFILE_STATIC) $(DX7SDK) $(SPEEXCFLAGS)
+#without d3d...
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL -I$(LIBS_DIR) -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(LIBVORBISFILE_STATIC) $(DX7SDK) $(SPEEXCFLAGS)
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../$(EXE_NAME)-sdl-d3d$(BITS)$(EXEPOSTFIX)
 	D3DCL_EXE_NAME=../$(EXE_NAME)-sdl-d3dcl$(BITS)$(EXEPOSTFIX)
 	D3D_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
 	D3D_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) $(LIBVORBISFILE_STATIC) $(DX7SDK) $(SPEEXCFLAGS)
-	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
-		D3D_CFLAGS+= -D_MINGW_VFPRINTF
-	endif
 	D3DB_DIR=sdl_d3d_mgw$(BITS)
 	D3DCL_DIR=sdl_d3dcl_mgw$(BITS)
 
 
-	VKCL_OBJS=$(D3DQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
+	VKCL_OBJS=$(VKQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_bloom.o gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
 	VK_EXE_NAME=../$(EXE_NAME)-sdl-vk$(BITS)$(EXEPOSTFIX)
 	VKCL_EXE_NAME=../$(EXE_NAME)-sdl-vkcl$(BITS)$(EXEPOSTFIX)
-	VK_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
 	VK_CFLAGS=$(VKCFLAGS) -DFTE_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) $(LIBVORBISFILE_STATIC) $(DX7SDK) $(SPEEXCFLAGS)
-	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
-		VK_CFLAGS+= -D_MINGW_VFPRINTF
-	endif
 	VKB_DIR=sdl_vk_mgw$(BITS)
 	VKCL_DIR=sdl_vkcl_mgw$(BITS)
 	
+	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
+		GL_CFLAGS+= -D_MINGW_VFPRINTF
+		VK_CFLAGS+= -D_MINGW_VFPRINTF
+		D3D_CFLAGS+= -D_MINGW_VFPRINTF
+		M_CFLAGS+= -D_MINGW_VFPRINTF
+	endif
 endif
 
 #FTE_TARGET=vc (Visual C)

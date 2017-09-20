@@ -2026,6 +2026,7 @@ void SV_Begin_Core(client_t *split)
 		}
 	}
 
+#ifndef NOLEGACY
 	split->dp_ping = NULL;
 	split->dp_pl = NULL;
 	if (progstype == PROG_NQ)
@@ -2033,6 +2034,7 @@ void SV_Begin_Core(client_t *split)
 		split->dp_ping = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, sv_player, "ping", ev_float, NULL);
 		split->dp_pl = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, sv_player, "ping_packetloss", ev_float, NULL);
 	}
+#endif
 }
 
 /*

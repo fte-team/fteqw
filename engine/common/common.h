@@ -734,8 +734,12 @@ qbyte	COM_BlockSequenceCheckByte (qbyte *base, int length, int sequence, unsigne
 qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 
-int SHA1(char *digest, int maxdigestsize, const char *string, int stringlen);
-int SHA1_HMAC(unsigned char *digest, int maxdigestsize, const unsigned char *data, int datalen, const unsigned char *key, int keylen);
+typedef size_t hashfunc_t(unsigned char *digest, size_t maxdigestsize, size_t numstrings, const unsigned char **strings, size_t *stringlens);
+hashfunc_t SHA1_m;
+//int SHA1_m(char *digest, size_t maxdigestsize, size_t numstrings, const char **strings, size_t *stringlens);
+//#define SHA1(digest,maxdigestsize,string,stringlen) SHA1_m(digest, maxdigestsize, 1, &string, &stringlen)
+int SHA1(unsigned char *digest, int maxdigestsize, const unsigned char *string, size_t stringlen);
+size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datalen, const unsigned char *key, size_t keylen);
 
 int version_number(void);
 char *version_string(void);
@@ -769,6 +773,7 @@ void Log_Init(void);
 void Log_ShutDown(void);
 void IPLog_Add(const char *ip, const char *name);	//for associating player ip addresses with names.
 qboolean IPLog_Merge_File(const char *fname);
+qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize);
 
 
 /*used by and for botlib and q3 gamecode*/

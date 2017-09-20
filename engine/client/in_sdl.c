@@ -2,6 +2,11 @@
 
 #include <SDL.h>
 
+#if SDL_VERSION_ATLEAST(2,0,6) && defined(VKQUAKE)
+#include <SDL_vulkan.h>
+#include "../vk/vkrenderer.h"
+#endif
+
 #if SDL_MAJOR_VERSION >=2
 SDL_Window *sdlwindow;
 #else
@@ -776,15 +781,27 @@ void Sys_SendKeyEvents(void)
 			default:
 				break;
 			case SDL_WINDOWEVENT_SIZE_CHANGED:
-				#if SDL_PATCHLEVEL >= 1
-					SDL_GL_GetDrawableSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);	//get the proper physical size.
-				#else
-					SDL_GetWindowSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);
-				#endif
+#if SDL_VERSION_ATLEAST(2,0,6) && defined(VKQUAKE)
+				if (qrenderer == QR_VULKAN)
 				{
-					extern cvar_t vid_conautoscale, vid_conwidth;	//make sure the screen is updated properly.
-					Cvar_ForceCallback(&vid_conautoscale);
-					Cvar_ForceCallback(&vid_conwidth);
+					unsigned window_width, window_height;
+					SDL_Vulkan_GetDrawableSize(sdlwindow, &window_width, &window_height);	//get the proper physical size.
+					if (vid.pixelwidth != window_width || vid.pixelheight != window_height)
+						vk.neednewswapchain = true;
+				}
+				else
+#endif
+				{
+					#if SDL_PATCHLEVEL >= 1
+						SDL_GL_GetDrawableSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);	//get the proper physical size.
+					#else
+						SDL_GetWindowSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);
+					#endif
+					{
+						extern cvar_t vid_conautoscale, vid_conwidth;	//make sure the screen is updated properly.
+						Cvar_ForceCallback(&vid_conautoscale);
+						Cvar_ForceCallback(&vid_conwidth);
+					}
 				}
 				break;
 			case SDL_WINDOWEVENT_FOCUS_GAINED:

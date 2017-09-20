@@ -347,6 +347,7 @@ qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *na
 int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
 
 vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server);
+int TLS_GetChannelBinding(vfsfile_t *stream, qbyte *data, size_t *datasize);	//datasize should be preinitialised to the max length allowed. -1 for not implemented. 0 for peer problems. 1 for success
 #ifdef HAVE_PACKET
 vfsfile_t *FS_OpenTCPSocket(SOCKET socket, qboolean conpending, const char *peername);	//conpending allows us to reject any writes until the connection has succeeded
 #endif

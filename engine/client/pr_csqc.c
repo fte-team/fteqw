@@ -348,9 +348,9 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	{
 		etype_t etype = ev_void;
 		if (!csqcg.trace_surfaceflagsi)
-			csqcg.trace_surfaceflagsi = PR_FindGlobal(csqcprogs, "trace_surfaceflags", 0, &etype);
+			csqcg.trace_surfaceflagsi = (int*)PR_FindGlobal(csqcprogs, "trace_surfaceflags", 0, &etype);
 		if (!csqcg.trace_endcontentsi)
-			csqcg.trace_endcontentsi = PR_FindGlobal(csqcprogs, "trace_endcontents", 0, &etype);
+			csqcg.trace_endcontentsi = (int*)PR_FindGlobal(csqcprogs, "trace_endcontents", 0, &etype);
 	}
 #else
 	if (!csqcg.trace_surfaceflagsf && !csqcg.trace_surfaceflagsi)
@@ -1885,14 +1885,24 @@ void QCBUILTIN PF_R_GetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	case VF_SIZE_X:
 		*r = r_refdef.grect.width;
+		if (csqc_isdarkplaces)
+			*r *= (float)vid.pixelwidth / vid.width;
 		break;
 	case VF_SIZE_Y:
 		*r = r_refdef.grect.height;
+		if (csqc_isdarkplaces)
+			*r *= (float)vid.pixelheight / vid.height;
 		break;
 	case VF_SIZE:
 		r[0] = r_refdef.grect.width;
 		r[1] = r_refdef.grect.height;
 		r[2] = 0;
+
+		if (csqc_isdarkplaces)
+		{
+			r[0] *= (float)vid.pixelwidth / vid.width;
+			r[1] *= (float)vid.pixelheight / vid.height;
+		}
 		break;
 
 	case VF_MIN_X:
@@ -2076,6 +2086,12 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		r_refdef.grect.width = p[0];
 		r_refdef.grect.height = p[1];
 		r_refdef.dirty |= RDFD_FOV;
+
+		if (csqc_isdarkplaces)
+		{
+			r_refdef.grect.width *= (float)vid.width / vid.pixelwidth;
+			r_refdef.grect.height *= (float)vid.height / vid.pixelheight;
+		}
 		break;
 
 	case VF_MIN_X:
@@ -7671,8 +7687,16 @@ qboolean CSQC_DrawView(void)
 
 	{
 		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-		G_FLOAT(OFS_PARM0) = vid.width;
-		G_FLOAT(OFS_PARM1) = vid.height;
+		if (csqc_isdarkplaces)
+		{	//fucked for compatibility.
+			G_FLOAT(OFS_PARM0) = vid.pixelwidth;
+			G_FLOAT(OFS_PARM1) = vid.pixelheight;
+		}
+		else
+		{
+			G_FLOAT(OFS_PARM0) = vid.width;
+			G_FLOAT(OFS_PARM1) = vid.height;
+		}
 		G_FLOAT(OFS_PARM2) = !Key_Dest_Has(kdm_emenu) && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
 
 		if (csqcg.f_updateviewloading && cls.state && cls.state < ca_active)

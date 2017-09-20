@@ -309,7 +309,8 @@ int i;
 
 	if((fp = FS_OpenVFS(fname, "rb", FS_GAME)) == NULL)
 	{
-		return NULL;
+		if((fp = FS_OpenVFS(va("video/%s.roq", fname), "rb", FS_GAME)) == NULL)	//for q3 compat
+			return NULL;
 	}
 
 	if((ri = BZF_Malloc(sizeof(roq_info))) == NULL)

@@ -23,7 +23,7 @@
 			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make web-dbg"
+				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make web-dbg DEPCC="
 				ReBuildCommandLine=""
 				CleanCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make clean -j8"
 				Output=""

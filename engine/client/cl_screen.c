@@ -2275,7 +2275,7 @@ int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, vo
 #endif
 qboolean WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int instride, int width, int height, uploadfmt_t fmt);
 
-qboolean WriteTGA(char *filename, enum fs_relative fsroot, qbyte *fte_restrict rgb_buffer, int bytestride, int width, int height, enum uploadfmt fmt)
+qboolean WriteTGA(char *filename, enum fs_relative fsroot, const qbyte *fte_restrict rgb_buffer, int bytestride, int width, int height, enum uploadfmt fmt)
 {
 	size_t c, i;
 	vfsfile_t *vfs;
@@ -2321,7 +2321,7 @@ qboolean WriteTGA(char *filename, enum fs_relative fsroot, qbyte *fte_restrict r
 		{	//if we're upside down, lets just use an upside down tga.
 			rgb_buffer += bytestride*(height-1);
 			bytestride = -bytestride;
-			//now we can just do everything else in-place
+			//now we can just do everything without worrying about rows
 		}
 		else	//our data is top-down, set up the header to also be top-down.
 			header[17] = 0x20;
@@ -2330,45 +2330,44 @@ qboolean WriteTGA(char *filename, enum fs_relative fsroot, qbyte *fte_restrict r
 		{	//can just directly write it
 			//bgr24, bgra24
 			c = width*height*opx;
+
+			VFS_WRITE(vfs, header, sizeof(header));
+			VFS_WRITE(vfs, rgb_buffer, c);
 		}
 		else
 		{
+			qbyte *fte_restrict rgb_out = malloc(width*opx*height);
+
 			//no need to swap alpha, and if we're just swapping alpha will be fine in-place.
 			if (rgb)
 			{	//rgb24, rgbx32, rgba32
-				qbyte tmp[3];
-				// compact in place, and swap
+				// compact, and swap
 				c = width*height;
 				for (i=0 ; i<c ; i++)
 				{
-					tmp[2] = rgb_buffer[i*ipx+0];
-					tmp[1] = rgb_buffer[i*ipx+1];
-					tmp[0] = rgb_buffer[i*ipx+2];
-					rgb_buffer[i*opx+0] = tmp[0];
-					rgb_buffer[i*opx+1] = tmp[1];
-					rgb_buffer[i*opx+2] = tmp[2];
+					rgb_out[i*opx+2] = rgb_buffer[i*ipx+0];
+					rgb_out[i*opx+1] = rgb_buffer[i*ipx+1];
+					rgb_out[i*opx+0] = rgb_buffer[i*ipx+2];
 				}
 			}
 			else
 			{	//(bgr24), bgrx32, (bgra32)
-				qbyte tmp[3];
-				// compact in place
+				// compact
 				c = width*height;
 				for (i=0 ; i<c ; i++)
 				{
-					tmp[0] = rgb_buffer[i*ipx+0];
-					tmp[1] = rgb_buffer[i*ipx+1];
-					tmp[2] = rgb_buffer[i*ipx+2];
-					rgb_buffer[i*opx+0] = tmp[0];
-					rgb_buffer[i*opx+1] = tmp[1];
-					rgb_buffer[i*opx+2] = tmp[2];
+					rgb_out[i*opx+0] = rgb_buffer[i*ipx+0];
+					rgb_out[i*opx+1] = rgb_buffer[i*ipx+1];
+					rgb_out[i*opx+2] = rgb_buffer[i*ipx+2];
 				}
 			}
 			c *= opx;
+
+			VFS_WRITE(vfs, header, sizeof(header));
+			VFS_WRITE(vfs, rgb_out, c);
+			free(rgb_out);
 		}
 
-		VFS_WRITE(vfs, header, sizeof(header));
-		VFS_WRITE(vfs, rgb_buffer, c);
 		VFS_CLOSE(vfs);
 	}
 	return true;

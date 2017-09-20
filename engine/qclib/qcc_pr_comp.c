@@ -14244,13 +14244,13 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 						/*aliasof =*/ QCC_PR_ParseName();
 					else if (pr_token_type == tt_immediate)
 					{
-						/*aliasof =*/ pr_immediate_string;
+						//aliasof = copy(pr_immediate_string);
 						QCC_PR_Lex();
 					}
 					QCC_PR_Expect(")");
 				}
 				else if (QCC_PR_CheckName("accumulate"))
-					doweak = dowrap = true;
+					doweak = dowrap = true; //FIXME: should instead append to the previous function, I think, which requires not finishing it properly until later, or something.
 				else
 				{
 					QCC_PR_ParseWarning(0, "Unknown attribute \"%s\"", pr_token);

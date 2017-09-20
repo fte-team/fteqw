@@ -1,14 +1,27 @@
 #include "quakedef.h"
-#include "glquake.h"
 
 #include <SDL.h>
 #include <SDL_syswm.h>
 
+#ifdef GLQUAKE
+	#include "glquake.h"
+	#define OPENGL_SDL
+#endif
+
 #if SDL_MAJOR_VERSION >= 2
-SDL_Window *sdlwindow;
-static SDL_GLContext *sdlcontext;
+	#if SDL_VERSION_ATLEAST(2,0,6)
+		#ifdef VKQUAKE
+			#include <SDL_vulkan.h>
+			#include "../vk/vkrenderer.h"
+			#define VULKAN_SDL
+		#endif
+	#endif
+	SDL_Window *sdlwindow;
+	#ifdef OPENGL_SDL
+		static SDL_GLContext *sdlcontext;
+	#endif
 #else
-SDL_Surface *sdlsurf;
+	SDL_Surface *sdlsurf;
 #endif
 
 extern cvar_t		vid_vsync;
@@ -34,7 +47,7 @@ unsigned short intitialgammaramps[3][256];
 qboolean mouseactive;
 extern qboolean mouseusedforgui;
 
-
+#ifdef OPENGL_SDL
 static void *GLVID_getsdlglfunction(char *functionname)
 {
 #ifdef GL_STATIC
@@ -44,6 +57,7 @@ static void *GLVID_getsdlglfunction(char *functionname)
 	return SDL_GL_GetProcAddress(functionname);
 #endif
 }
+#endif
 
 #if SDL_MAJOR_VERSION >= 2
 void *GLVID_CreateCursor			(const char *filename, float hotx, float hoty, float scale)
@@ -101,7 +115,7 @@ void GLVID_DestroyCursor			(void *cursor)
 #endif
 
 
-qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
+static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qrenderer_t qrenderer)
 {
 	int flags = 0;
 
@@ -110,72 +124,91 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	SDL_SetVideoMode(0, 0, 0, 0);	//to get around some SDL bugs
 #endif
 
+#ifdef OPENGL_SDL
+	if (qrenderer == QR_OPENGL)
+	{
 #if SDL_MAJOR_VERSION >= 2
-	SDL_GL_LoadLibrary(NULL);
+		SDL_GL_LoadLibrary(NULL);
 #endif
 
-	if (info->bpp >= 32)
-	{
-		SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-		SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-		SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
-		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);	//technically we don't always need stencil support.
-	}
-	else
-	{
-		SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 5);
-		SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 5);
-		SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 5);
-		SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
-		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
-	}
-	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
-	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-
-	if (info->stereo)
-		SDL_GL_SetAttribute(SDL_GL_STEREO, 1);
-
-#if 0//SDL_MAJOR_VERSION >= 2
-	//FIXME: this stuff isn't part of info.
-	//this means it shouldn't be exposed to the menu or widely advertised.
-	if (*vid_gl_context_version.string)
-	{
-		int major, minor;
-		char *ver = vid_gl_context_version.string;
-		major = strtoul(ver, &ver, 10);
-		if (*ver == '.')
+		if (info->bpp >= 32)
 		{
-			ver++;
-			minor = strtoul(ver, &ver, 10);
+			SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+			SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+			SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+			SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
+			SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);	//technically we don't always need stencil support.
 		}
 		else
-			minor = 0;
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, major);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, minor);
-	}
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS,
-			(vid_gl_context_debug.ival?SDL_GL_CONTEXT_DEBUG_FLAG:0) |
-			(vid_gl_context_forwardcompatible.ival?SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG:0) |
-			0);
+		{
+			SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 5);
+			SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 5);
+			SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 5);
+			SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 0);
+			SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
+		}
+		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
+		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-	if (vid_gl_context_es.ival)
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-	else if (vid_gl_context_compatibility.ival)
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
-	else
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+		if (info->stereo)
+			SDL_GL_SetAttribute(SDL_GL_STEREO, 1);
+
+#if 0//SDL_MAJOR_VERSION >= 2
+		//FIXME: this stuff isn't part of info.
+		//this means it shouldn't be exposed to the menu or widely advertised.
+		if (*vid_gl_context_version.string)
+		{
+			int major, minor;
+			char *ver = vid_gl_context_version.string;
+			major = strtoul(ver, &ver, 10);
+			if (*ver == '.')
+			{
+				ver++;
+				minor = strtoul(ver, &ver, 10);
+			}
+			else
+				minor = 0;
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, major);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, minor);
+		}
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS,
+				(vid_gl_context_debug.ival?SDL_GL_CONTEXT_DEBUG_FLAG:0) |
+				(vid_gl_context_forwardcompatible.ival?SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG:0) |
+				0);
+
+		if (vid_gl_context_es.ival)
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+		else if (vid_gl_context_compatibility.ival)
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+		else
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 #endif
-	if (info->multisample)
-	{
-		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, info->multisample);
-		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
+		if (info->multisample)
+		{
+			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, info->multisample);
+			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
+		}
 	}
+#endif
 
 #if SDL_MAJOR_VERSION >= 2
+	switch(qrenderer)
+	{
+	default:
+		break;
+#ifdef OPENGL_SDL
+	case QR_OPENGL:
+		flags |= SDL_WINDOW_OPENGL;
+		break;
+#endif
+#ifdef VULKAN_SDL
+	case QR_VULKAN:
+		flags |= SDL_WINDOW_VULKAN;
+		break;
+#endif
+	}
 	if (info->fullscreen)
 		flags |= SDL_WINDOW_FULLSCREEN;
-	flags |= SDL_WINDOW_OPENGL;
 	flags |= SDL_WINDOW_RESIZABLE;
 	flags |= SDL_WINDOW_INPUT_GRABBED;
 	flags |= SDL_WINDOW_SHOWN;
@@ -189,18 +222,37 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 	CL_UpdateWindowTitle();
-	#if SDL_PATCHLEVEL >= 1
-		SDL_GL_GetDrawableSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);	//get the proper physical size.
-	#else
-		SDL_GetWindowSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);
-	#endif
 
-	sdlcontext = SDL_GL_CreateContext(sdlwindow);
-	if (!sdlcontext)
+	switch(qrenderer)
 	{
-		Con_Printf("Couldn't initialize GL context: %s\n", SDL_GetError());
-		return false;
+#ifdef OPENGL_SDL
+#if SDL_PATCHLEVEL >= 1
+	case QR_OPENGL:
+		SDL_GL_GetDrawableSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);	//get the proper physical size.
+		break;
+#endif
+#endif
+#ifdef VULKAN_SDL
+	case QR_VULKAN:
+		SDL_Vulkan_GetDrawableSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);
+		break;
+#endif
+	default:
+		SDL_GetWindowSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);
+		break;
 	}
+
+#ifdef OPENGL_SDL
+	if (qrenderer == QR_OPENGL)
+	{
+		sdlcontext = SDL_GL_CreateContext(sdlwindow);
+		if (!sdlcontext)
+		{
+			Con_Printf("Couldn't initialize GL context: %s\n", SDL_GetError());
+			return false;
+		}
+	}
+#endif
 
 	{
 		SDL_Surface *iconsurf;
@@ -229,10 +281,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 #endif
 	vid.activeapp = true;
-
-	GL_Init(info, GLVID_getsdlglfunction);
-
-	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 
 	mouseactive = false;
 	if (vid_isfullscreen)
@@ -272,6 +320,17 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	return true;
 }
 
+#ifdef OPENGL_SDL
+qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
+{
+	if (SDLVID_Init(info, palette, QR_OPENGL))
+	{
+		return GL_Init(info, GLVID_getsdlglfunction);
+	}
+	return false;
+}
+#endif
+
 void GLVID_DeInit (void)
 {
 	vid.activeapp = false;
@@ -281,7 +340,21 @@ void GLVID_DeInit (void)
 
 #if SDL_MAJOR_VERSION >= 2
 	SDL_SetWindowGammaRamp(sdlwindow, NULL, NULL, NULL);
-	SDL_GL_DeleteContext(sdlcontext);
+	switch(qrenderer)
+	{
+#ifdef OPENGL_SDL
+	case QR_OPENGL:
+		SDL_GL_DeleteContext(sdlcontext);
+		break;
+#endif
+#ifdef VULKAN_SDL
+	case QR_VULKAN:
+		
+		break;
+#endif
+	default:
+		break;
+	}
 	SDL_DestroyWindow(sdlwindow);
 	sdlwindow = NULL;
 #else
@@ -294,22 +367,31 @@ void GLVID_DeInit (void)
 
 void GLVID_SwapBuffers (void)
 {
-#if SDL_MAJOR_VERSION >= 2
-	if (vid_vsync.modified)
+	switch(qrenderer)
 	{
-		if (*vid_vsync.string)
+#ifdef OPENGL_SDL
+	case QR_OPENGL:
+#if SDL_MAJOR_VERSION >= 2
+		if (vid_vsync.modified)
 		{
-			//if swap_tear isn't supported, try without.
-			if (SDL_GL_SetSwapInterval(vid_vsync.ival) == -1 && vid_vsync.ival < 0)
-				SDL_GL_SetSwapInterval(-vid_vsync.ival);
+			if (*vid_vsync.string)
+			{
+				//if swap_tear isn't supported, try without.
+				if (SDL_GL_SetSwapInterval(vid_vsync.ival) == -1 && vid_vsync.ival < 0)
+					SDL_GL_SetSwapInterval(-vid_vsync.ival);
+			}
+			vid_vsync.modified = false;
 		}
-		vid_vsync.modified = false;
-	}
 
-	SDL_GL_SwapWindow(sdlwindow);
+		SDL_GL_SwapWindow(sdlwindow);
 #else
-	SDL_GL_SwapBuffers();
+		SDL_GL_SwapBuffers();
 #endif
+		break;
+#endif
+	default:
+		break;
+	}
 
 
 	if (!vid_isfullscreen)
@@ -381,6 +463,7 @@ qboolean GLVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramp
 		return true;
 	}
 #endif
+	return false;
 }
 
 void GLVID_SetCaption(const char *text)
@@ -394,3 +477,87 @@ void GLVID_SetCaption(const char *text)
 
 
 
+#ifdef VULKAN_SDL
+static qboolean VKSDL_CreateSurface(void)
+{
+	return SDL_Vulkan_CreateSurface(sdlwindow, vk.instance, &vk.surface);
+}
+static qboolean VKVID_Init (rendererstate_t *info, unsigned char *palette)
+{
+	unsigned extcount;
+	const char **extnames;
+	if (!SDLVID_Init(info, palette, QR_VULKAN))
+		return false;
+	if (!SDL_Vulkan_GetInstanceExtensions(sdlwindow, &extcount, NULL))
+		return false;
+	extnames = alloca(sizeof(*extnames)*(extcount+1));
+	if (!SDL_Vulkan_GetInstanceExtensions(sdlwindow, &extcount, extnames))
+		return false;
+
+	vkGetInstanceProcAddr = SDL_Vulkan_GetVkGetInstanceProcAddr();
+	if (!VK_Init(info, extnames, VKSDL_CreateSurface, NULL))
+	{
+		SDL_ShowSimpleMessageBox(0, "FTEQuake", extnames[1], sdlwindow);
+		return false;
+	}
+	return true;
+}
+rendererinfo_t vkrendererinfo =
+{
+	"Vulkan-SDL",
+	{
+		"vk",
+		"Vulkan"
+	},
+	QR_VULKAN,
+
+	VK_Draw_Init,
+	VK_Draw_Shutdown,
+
+	VK_UpdateFiltering,
+	VK_LoadTextureMips,
+	VK_DestroyTexture,
+
+	VK_R_Init,
+	VK_R_DeInit,
+	VK_R_RenderView,
+
+	VKVID_Init,
+	GLVID_DeInit,
+	GLVID_SwapBuffers,
+	GLVID_ApplyGammaRamps,
+	NULL,
+	NULL,
+	NULL,
+	GLVID_SetCaption,
+	VKVID_GetRGBInfo,
+
+	VK_SCR_UpdateScreen,
+
+	VKBE_SelectMode,
+	VKBE_DrawMesh_List,
+	VKBE_DrawMesh_Single,
+	VKBE_SubmitBatch,
+	VKBE_GetTempBatch,
+	VKBE_DrawWorld,
+	VKBE_Init,
+	VKBE_GenBrushModelVBO,
+	VKBE_ClearVBO,
+	VKBE_UploadAllLightmaps,
+	VKBE_SelectEntity,
+	VKBE_SelectDLight,
+	VKBE_Scissor,
+	VKBE_LightCullModel,
+
+	VKBE_VBO_Begin,
+	VKBE_VBO_Data,
+	VKBE_VBO_Finish,
+	VKBE_VBO_Destroy,
+
+	VKBE_RenderToTextureUpdate2d,
+
+	"no more"
+};
+#else
+rendererinfo_t vkrendererinfo;
+#endif

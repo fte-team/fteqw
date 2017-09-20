@@ -2931,7 +2931,7 @@ so if present, the preceeding \\\n and following \\\n must become an actual \n i
 					cnst->evil = true;
 					preprocessorhack = true;
 				}
-				else// if (preprocessorhack)
+				else if (preprocessorhack)
 				{
 					*d++ = '\n';
 					preprocessorhack = false;

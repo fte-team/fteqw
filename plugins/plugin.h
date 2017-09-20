@@ -357,6 +357,7 @@ EBUILTIN(int, Net_Recv, (qhandle_t socket, void *buffer, int len));
 EBUILTIN(int, Net_Send, (qhandle_t socket, void *buffer, int len));
 EBUILTIN(void, Net_Close, (qhandle_t socket));
 EBUILTIN(int, Net_SetTLSClient, (qhandle_t sock, const char *certhostname));
+EBUILTIN(int, Net_GetTLSBinding, (qhandle_t sock, char *outdata, int *datalen));
 #define N_WOULDBLOCK 0
 #define NET_CLIENTPORT -1
 #define NET_SERVERPORT -2

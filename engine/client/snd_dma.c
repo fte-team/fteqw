@@ -220,7 +220,7 @@ void S_SoundInfo_f(void)
 	for (sc = sndcardinfo; sc; sc = sc->next)
 	{
 		Con_Printf("Audio Device: %s\n", sc->name);
-		Con_Printf(" %d channels, %gkhz, %d bit audio%s\n", sc->sn.numchannels, sc->sn.speed/1000.0, sc->sn.samplebits, sc->selfpainting?", threaded":"");
+		Con_Printf(" %d channels, %gkhz, %d bit audio%s\n", sc->sn.numchannels, sc->sn.speed/1000.0, sc->sn.samplebytes*8, sc->selfpainting?", threaded":"");
 		Con_Printf(" %d samples in buffer\n", sc->sn.samples);
 		for (i = 0, active = 0, known = 0; i < sc->total_chans; i++)
 		{
@@ -1697,17 +1697,23 @@ extern sounddriver_t OPENAL_Output;
 #ifdef __DJGPP__
 extern sounddriver_t SBLASTER_Output;
 #endif
-
-sounddriver pSNDIO_InitCard;
-sounddriver pOSS_InitCard;
-sounddriver pMacOS_InitCard;
-sounddriver pSDL_InitCard;
-sounddriver pWAV_InitCard;
-sounddriver pDroid_InitCard;
-sounddriver pAHI_InitCard;
-#ifdef NACL
-extern sounddriver pPPAPI_InitCard;
+#if defined(_WIN32) && !defined(WINRT) && !defined(FTE_SDL)
+extern sounddriver_t WaveOut_Output;
 #endif
+
+#ifdef MACOSX
+sounddriver_t MacOS_AudioOutput;	//prefered on mac
+#endif
+#ifdef ANDROID
+sounddriver_t Droid_AudioOutput;	//prefered on android (java thread)
+#endif
+#if defined(__MORPHOS__)
+sounddriver_t AHI_AudioOutput;		//prefered on morphos
+#endif
+#ifdef NACL
+extern sounddriver_t PPAPI_AudioOutput;	//nacl
+#endif
+sounddriver_t SNDIO_AudioOutput;	//bsd
 
 //in order of preference
 static sounddriver_t *outputdrivers[] =
@@ -1731,37 +1737,35 @@ static sounddriver_t *outputdrivers[] =
 #ifdef __linux__
 	&ALSA_Output,		//pure shite
 #endif
-	&OSS_Output,		//good, but not likely to work any more
+	&OSS_Output,		//good, but not likely to work any more on linux (unlike every other unix system with a decent opengl driver)
 #ifdef __DJGPP__
 	&SBLASTER_Output,	//zomgwtfdos?
 #endif
+#if defined(_WIN32) && !defined(WINRT) && !defined(FTE_SDL)
+	&WaveOut_Output,	//doesn't work properly in vista, etc.
+#endif
+
+#ifdef MACOSX
+	&MacOS_AudioOutput,	//prefered on mac
+#endif
+#ifdef ANDROID
+	&Droid_AudioOutput,	//prefered on android (java thread)
+#endif
+#if defined(__MORPHOS__)
+	&AHI_AudioOutput,	//prefered on morphos
+#endif
+#ifdef NACL
+	&PPAPI_AudioOutput,	//google's native client
+#endif
+	&SNDIO_AudioOutput,	//prefered on OpenBSD
+
 #endif
 	NULL
-};
-typedef struct {
-	char *name;
-	sounddriver *ptr;
-} sdriver_t;
-static sdriver_t olddrivers[] = {
-#ifdef HAVE_MIXER
-//in order of preference
-	{"MacOS", &pMacOS_InitCard},	//prefered on mac
-	{"Droid", &pDroid_InitCard},	//prefered on android (java thread)
-	{"AHI", &pAHI_InitCard},		//prefered on morphos
-#ifdef NACL
-	{"PPAPI", &pPPAPI_InitCard},	//google's native client
-#endif
-	{"SNDIO", &pSNDIO_InitCard},	//prefered on OpenBSD
-
-	{"WaveOut", &pWAV_InitCard},	//doesn't work properly in vista, etc.
-#endif
-	{NULL, NULL}
 };
 
 static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 {
 	soundcardinfo_t *sc = Z_Malloc(sizeof(soundcardinfo_t));
-	sdriver_t *od;
 	sounddriver_t *sd;
 	int i;
 	int st;
@@ -1803,10 +1807,12 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 		sc->sn.numchannels = 1;
 
 	// set requested sample bits
-	if (snd_samplebits.ival >= 16)
-		sc->sn.samplebits = 16;
+	if (snd_samplebits.ival >= 32)
+		sc->sn.samplebytes = 4;
+	else if (snd_samplebits.ival >= 16)
+		sc->sn.samplebytes = 2;
 	else
-		sc->sn.samplebits = 8;
+		sc->sn.samplebytes = 1;
 
 	// set requested buffer size
 	if (snd_buffersize.ival > 0)
@@ -1826,7 +1832,12 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 			st = (**sd->InitCard)(sc, device);
 			if (st)
 			{
-cardinited:
+				if (!sc->sn.sampleformat)
+				{
+					Con_TPrintf("S_Startup: Ignoring soundcard %s due to unspecified sample format.\n", sc->name);
+					S_ShutdownCard(sc);
+					continue;
+				}
 				S_DefaultSpeakerConfiguration(sc);
 				if (snd_speed)
 				{	//if the sample speeds of multiple soundcards do not match, it'll fail.
@@ -1834,7 +1845,7 @@ cardinited:
 					{
 						Con_TPrintf("S_Startup: Ignoring soundcard %s due to mismatched sample speeds.\n", sc->name);
 						S_ShutdownCard(sc);
-						continue;
+						return NULL;
 					}
 				}
 				else
@@ -1846,21 +1857,6 @@ cardinited:
 				Z_ReallocElements((void**)&sc->channel, &sc->max_chans, MAX_DYNAMIC_CHANNELS+NUM_AMBIENTS+NUM_MUSICS, sizeof(*sc->channel));
 				return sc;
 			}
-		}
-	}
-
-	for (i = 0; olddrivers[i].name; i++)
-	{
-		od = &olddrivers[i];
-		if (!driver || !Q_strcasecmp(od->name, driver))
-		{
-			//skip drivers which are not present.
-			if (!*od->ptr)
-				continue;
-
-			st = (**od->ptr)(sc, device?atoi(device):0);
-			if (st == 1)
-				goto cardinited;
 		}
 	}
 
@@ -2152,7 +2148,7 @@ S_Init
 */
 void S_Init (void)
 {
-	int p;
+	int p, i;
 
 	Con_DPrintf("\nSound Initialization\n");
 
@@ -2208,9 +2204,12 @@ void S_Init (void)
 	mixermutex = Sys_CreateMutex();
 #endif
 
-#ifdef AVAIL_OPENAL
-	OpenAL_CvarInit();
-#endif
+	for (i = 0; outputdrivers[i]; i++)
+	{
+		sounddriver_t *sd = outputdrivers[i];
+		if (sd && sd->name && sd->RegisterCvars)
+			sd->RegisterCvars();
+	}
 
 	if (COM_CheckParm("-nosound"))
 	{
@@ -3072,7 +3071,7 @@ static void S_ClearBuffer (soundcardinfo_t *sc)
 	if (!sound_started || !sc->sn.buffer)
 		return;
 
-	if (sc->sn.samplebits == 8)
+	if (sc->sn.sampleformat == QSF_U8)
 		clear = 0x80;
 	else
 		clear = 0;
@@ -3081,7 +3080,7 @@ static void S_ClearBuffer (soundcardinfo_t *sc)
 	buffer = sc->Lock(sc, &dummy);
 	if (buffer)
 	{
-		Q_memset(buffer, clear, sc->sn.samples * sc->sn.samplebits/8);
+		Q_memset(buffer, clear, sc->sn.samples * sc->sn.samplebytes);
 		sc->Unlock(sc, buffer);
 	}
 }

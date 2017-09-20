@@ -129,18 +129,13 @@ typedef struct jclient_s
 	int serverport;
 	char domain[256];
 	char username[256];
-	char password[256];
 	char resource[256];
 	char certificatedomain[256];
 	int forcetls;	//-1=off, 0=ifpossible, 1=fail if can't upgrade, 2=old-style tls
 	qboolean savepassword;
-	qboolean allowauth_plainnontls;	//allow plain plain
-	qboolean allowauth_plaintls;	//allow tls plain
-	qboolean allowauth_digestmd5;	//allow digest-md5 auth
-	qboolean allowauth_scramsha1;	//allow scram-sha-1 auth
-	qboolean allowauth_oauth2;		//use oauth2 where possible
-	
-	char jid[256];	//this is our full username@domain/resource string
+
+	char fulljid[256];	//this is our full username@domain/resource string
+	char barejid[256];	//this is our bare username@domain string
 	char localalias[256];//this is what's shown infront of outgoing messages. >> by default until we can get our name.
 	char vcardphotohash[20];	//20-byte sha1 hash.
 	enum
@@ -150,9 +145,6 @@ typedef struct jclient_s
 		VCP_KNOWN
 	} vcardphotohashstatus;
 	qboolean vcardphotohashchanged;	//forces a presence send.
-
-	char authnonce[256];
-	int authmode;
 
 	int instreampos;
 
@@ -166,19 +158,56 @@ typedef struct jclient_s
 	char curquakeserver[2048];
 	char defaultnamespace[2048];	//should be 'jabber:client' or blank (and spammy with all the extra xmlns attribs)
 
-	struct
+	struct sasl_ctx_s
 	{
-		char saslmethod[64];
-		char obtainurl[256];
-		char refreshurl[256];
-		char clientid[256];
-		char clientsecret[256];
-		char *useraccount;
-		char *scope;
-		char *accesstoken;	//one-shot access token
-		char *refreshtoken;	//long-term token that we can use to get new access tokens
-		char *authtoken;	//short-term authorisation token, usable to get an access token (and a refresh token if we're lucky)
-	} oauth2;
+		char *username;	//might be different from the account name, but probably isn't.
+		char *domain;	//might be different from the account domain, but probably isn't.
+		qboolean issecure;	//tls enabled (either upgraded or initially)
+		int socket;
+
+		//this stuff should be saved
+		char password_plain[256];		//plain password. scrubbed if we auth using a hashed auth.
+		qbyte password_hash[256];		//safer password, not encrypted, but stored hashed.
+		size_t password_hash_size;
+		char password_validity[256];	//internal string used to check that the salt was unchanged
+
+		struct saslmethod_s *authmethod;	//null name = oauth2->saslmethod
+		qboolean allowauth_plainnontls;	//allow plain plain
+		qboolean allowauth_plaintls;	//allow tls plain
+		qboolean allowauth_digestmd5;	//allow digest-md5 auth
+		qboolean allowauth_scramsha1;	//allow scram-sha-1 auth
+		qboolean allowauth_oauth2;		//use oauth2 where possible
+
+		struct
+		{
+			char authnonce[256];
+		} digest;
+
+		struct
+		{
+			qboolean plus;
+			char authnonce[256];
+			char authvhash[20];
+			char authcbindtype[20];
+			char authcbinding[256];
+			hashfunc_t *hashfunc;
+			size_t hashsize;
+		} scram;
+
+		struct
+		{
+			char saslmethod[64];
+			char obtainurl[256];
+			char refreshurl[256];
+			char clientid[256];
+			char clientsecret[256];
+			char *useraccount;
+			char *scope;
+			char *accesstoken;	//one-shot access token
+			char *refreshtoken;	//long-term token that we can use to get new access tokens
+			char *authtoken;	//short-term authorisation token, usable to get an access token (and a refresh token if we're lucky)
+		} oauth2;
+	} sasl;
 
 	struct iq_s
 	{

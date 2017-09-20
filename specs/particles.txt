@@ -37,15 +37,35 @@ scalefactor typically needs to be explicitly set to 1. this value affects how th
 texture <TEXTURENAME>
 	specifies to use an image named TEXTURENAME for this effect.
 
+shader [shadername] [\n{\nshaderbody\n}\n]
+	Specifies to use a named shader.
+	If shaderbody is included (as a nested block on the following line) then that shader text will be used to create the shader if it doesn't otherwise exist.
+	This overrides blendmodes, as no default shader will need to be created.
+
 tcoords <s1> <t1> <s2> <t2> [tscale] [rsmax] [rsstep]
 	specifies to use a subsection of the image.
 	if tscale is set, all units are divided by this. it is the virtual size of your texture. So a value of 1 means that your texture coords must be between 0 and 1. But if it properly matches your texture's size, the coords are in pixels.
 	if rsmax is present, each particle will use a random image. These images must be on a single row in your particle font.
 	rsstep specifies the stride (gap from one to the next) in your particle font, and is only needed if rsmax is present and greater than 1.
 
+atlas count_in_each_axis firstidx [last]
+	An alternative to tcoords.
+	The specified texture (or shader) is to be considered as a grid of sprites (x*x, where x is specified in that first arg).
+	firstidx specifies the first image to use (horizontal THEN vertical).
+	last specifies the last image to use (inclusive). The engine will pick one at random. They should not span multiple rows.
+
+rotation <startmin> <startmax> <speedmin> <speedmax>
+	the particle will start with a rotation rotated between startmin and startmax.
+	It will then rotate with some per-particle value randomly picked between the speedmin+speedmax values.
+	Should NOT be used on beam particles.
+
 rotationstart <min> [max]
+	obsolete, see rotation.
 	the particle will start with a rotation rotated between min and max.
 	if max is missing, the particle will always start with the min value.
+
+rotationspeed <min> [max]
+	obsolete, see rotation.
 
 beamtexstep <value>
 	only valid if the effect is a beam.
@@ -69,6 +89,10 @@ scalefactor <frac>
 	1 makes the particle scale the same as anything else
 	0 makes the particle not change size no matter how far it is
 
+stretchfactor <factor>
+	controls how spark particles stretch according to their velocity.
+	negative values give fixed length sparks.
+
 scaledelta <value>
 	controls how the particle scales over time
 	specifies the change in the particle scale per second.
@@ -84,6 +108,9 @@ count <min> <max>
 alpha <value>
 	specifies the initial alpha value of the effect
 
+alpharand <value>
+	specifies a randomized additonal value added to each particle's initial alpha.
+
 alphadelta <value>
 	specifies how much the alpha value of the effect changes per second (subtracted)
 
@@ -96,7 +123,7 @@ diesubrand <value>
 	basically the particle will live up to this much less time. the alpha value will also be aged by the amount chosen by this value
 
 randomvel <horiz> [vert]
-	controls how fast the particle moves when it spawns. This works regardless of any requested velocities.
+	controls how fast the particle moves when it spawns (according to its spawn pattern). This works regardless of any requested velocities.
 	if vert is not specified, horiz is used instead.
 
 veladd <value>
@@ -104,6 +131,20 @@ veladd <value>
 
 orgadd <value>
 	biases how much to add to the starting origin relative to the requested velocity.
+
+orgbias <x> <y> <z>
+	biases the particle's origin by this absolute worldspace vector, regardless of spawn mode.
+
+velbias
+	biases the particle's velocity by this absolute worldspace vector, regardless of spawn mode.
+
+orgwrand
+	randomised offset for the particle's origin, in worldspace.
+
+velwrand
+	randomised offset for the particle's origin, in worldspace.
+
+
 
 friction <<xyz>|<xy> <z> | <x> <y> <z>>
 	Proportion of the particle's speed that should be lost from friction. Negative values are accepted.
@@ -135,7 +176,7 @@ inwater <effectname>
 	Specifies a replacement effect to use when this one is spawned underwater.
 	assoc used is the replacement effect. the assoc value from the replaced effect is ignored (this includes +foo chains).
 
-overwater [content names]
+notunderwater [content names]
 	Specifies that this particle should ONLY be spawned when out of water.
 	The particle will not spawn under water (this does not affect assoc chains).
 	Content names are a space-separated list of: water slime lava sky solid fluid. Default is fluid if not specified.
@@ -163,19 +204,24 @@ green <value>
 blue <value>
 rgb <red> <green> <blue>
 rgb <value>
+rgbf <red> <green> <blue>
 	Specifies the initial red, green, and/or blue values for each particle.
 	Fully opaque is 255 or above.
-	Values above 255 are valid, but will remain opaque until the value drops below 255 from the colour deltas.
+	Values above 255 are valid, but will remain opaque until the value drops below 255 from the 
+colour deltas.
+	The rgbf form takes values scaled by 1 instead of 255.
 
 redrand <value>
 greenrand <value>
 bluerand <value>
 rgbrand <red> <green> <blue>
 rgbrand <value>
+rgbrandf <red> <green> <blue>
 	Specifies how much extra red, green, and/or blue there may be for particles.
 	The initial colour will be multiplied by this amount before addition.
 	Each componant is separately randomized. EG, red might  add nothing, while the full green is added, and only half the blue.
 	Fully opaque is 255 or above.
+	The rgbrandf form takes values scaled by 1 instead of 255.
 
 redrandsync <value>
 greenrandsync <value>
@@ -192,6 +238,7 @@ greendelta <value>
 bluedelta <value>
 rgbdelta <red> <green> <blue>
 rgbdelta <value>
+rgbdeltaf <red> <green> <blue>
 	Specifies how much the red, green, and/or blue values of each particle change over time.
 	The value 255 is the value required to go from opaque to invisible in 1 second.
 
@@ -201,7 +248,8 @@ rgbdeltatime <value>
 rampmode <mode>
 	mode may be one of:
 	none: uses rgb+rand+sync+delta+scale+scaledelta values.
-	absolute: the ramp overrides all colour+scale values. The effect moves from one absolute ramp index to the next.
+	nearest(or absolute): the ramp overrides all colour+scale values. The effect moves from one absolute ramp index to the next.
+	lerp: smoothly interpolates from one value to the next.
 	delta: uses rgb+rand+sync+scale, but not delta values. All delta values come from the colour ramp instead.
 
 	if not none, the ramp index used is based upon the particle's age, its lifetime, and how many ramp elements there are.
@@ -221,8 +269,20 @@ stains <value>
 	The stained colour is based upon the colour of the particle upon impact.
 
 blend <mode>
-	mode may be one of: add, subtract, blendcolour/blendcolor, blend
-	if the texture used is actually a shader, this is ignored.
+	If the texture used is actually a shader then that shader's blend mode will take precidence.
+	As a general rule you should try to use only the premul blend modes (as well as atlasing).
+	mode may be one of:
+		adda: 
+		addc:
+		subtract:
+		invmoda:
+		invmodc:
+		blendcolour:
+		blendalpha:
+		premul_subtract:
+		premul_add:
+		premul_blend:
+		rtsmoke:
 
 spawnmode <mode> [arg1] [arg2]
 	This affects how particles are positioned when they first spawn, and their initial velocities.
@@ -254,6 +314,7 @@ spawnparam2 <value>
 	obsolete. see spawnmode.
 
 up <value>
+	obsoleted by orgbias.
 	the particle's starting origin is moved upwards by this amount (worldspace).
 
 type <mode>
@@ -265,11 +326,16 @@ type <mode>
 		texturedspark: textured particles are aligned along their direction of movement, their length depending upon their speed, width equal to their scale.
 		cdecal/decal: particles are spawned only upon bsp geometry. They are clipped by it.
 		udecal: unclipped decal. exact semantics are subject to change.
-		*default*: Particles are regular, rotating, 2d images.
+		normal/*default*: Particles are regular, rotating, 2d images.
 
 isbeam
 	obsolete.
 	please use 'type beam' instead.
+
+clippeddecal <mask> [match]
+	implies 'type decal'.
+	The two extra args allow you to spawn these decals ONLY on surfaces with matching surfaceflags.
+	Separation of mask+match allows you to create many descrete surface types instead of being limited to 32 bits/types.
 
 spawntime <value>
 spawnchance <value>
@@ -316,20 +382,69 @@ sound <soundname> <vol> <attenuation> [pitch] [delay]
 	When the effect is first spawned, the named sound will play with the given volume and attenuation at the center point. This may not work with all spawn methods, as it will ignore any count scales.
 
 lightradius <radius>
-lightradiusfade <radiuspersecond>
-lightrgb <r> <g> <b>
-lightrgbfade <r/s> <g/s> <b/s>
-lighttime <maxage>
 	Spawns a dlight when the effect is spawned.
 	dlight is removed when radius drops to 0 or the age is exceeded.
 	at this time it is not possible to override the corona/specular levels.
+
+lightradiusfade <radiuspersecond>
+	how fast the light radius shrinks per second
+
+lightrgb <r> <g> <b>
+	dlight rgb colours. 1=white. higher values can over-saturate.
+
+lightrgbfade <r/s> <g/s> <b/s>
+	how fast lightrgb changes over time.
+
+lighttime <maxage>
+	Specifies the maximum lifetime of your dlight.
 
 lightcubemap <cubemapnum>
 	value 0 means no cubemap.
 	otherwise with eg cubemap 5, uses image files cubemaps/5ft.tga, cubemaps/5bk.tga, etc.
 	fixme: at the current time, the cubemap is world-aligned and cannot rotate.
 
-model <name> <firstframe> <endframe> <framerate> <alpha>
+lightscales <ambient> <diffuse> <specular>
+	multipliers for the rtlight's various types of lighting
+
+lightshadows <castshadows>
+	0 or 1, specifies whether the rtlight will cast shadows or not. Its faster if it doesn't.
+
+lightcorona <intensity> <scale>
+
+model <name> [options]
+	options are:
+		frame=
+		framestart=
+		framecount=
+		frameend=
+		frames=
+		framerate=
+		skin=
+		alpha=
+		scalemin=
+		scalemax=
+		trail=
+		orient
+		additive
+		transparent
+		fullbright
+		shadow
+		noshadow
 	spawns sprites or models that fly away with random angles and run through some frame sequence. handy for simple gib effects.
 
+sound <name> [options]
+	options are:
+		vol=
+		attn=
+		pitch=
+		delay=
+		weight=
+	Plays a sound when the effect is spawned. Only ONE sound will be used, picked randomly from the included sounds according to their weights.
+
 spawnstain <radius> <r> <g> <b>
+
+rainfrequency <multiplier>
+	Specifies the interval between spawning new particle puffs on surfaces.
+
+flurry <magnitude>
+	These particles will periodically all change their direction, in a vauge attempt to approximate snow flurries.

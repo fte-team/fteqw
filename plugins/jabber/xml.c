@@ -631,6 +631,8 @@ void XML_ConPrintTree(xmltree_t *t, char *subconsole, int indent)
 {
 	int start, c, chunk;
 	struct buf_ctx buf = {NULL, 0, 0};
+	if (!t)
+		return;
 	XML_DumpToBuf(&buf, t, indent);
 	buf_cat(&buf, "", 1);
 

@@ -39,6 +39,10 @@ extern unsigned int r2d_be_flags;
 #include <ft2build.h>
 #include FT_FREETYPE_H 
 
+#ifndef FT_LOAD_COLOR
+#define FT_LOAD_COLOR (1L<<20)
+#endif
+
 static FT_Library fontlib;
 
 
@@ -48,10 +52,21 @@ FT_Error (VARGS *pFT_Init_FreeType)		(FT_Library  *alibrary);
 FT_Error (VARGS *pFT_Load_Char)			(FT_Face face, FT_ULong char_code, FT_Int32 load_flags);
 FT_UInt	 (VARGS *pFT_Get_Char_Index)	(FT_Face face, FT_ULong charcode);
 FT_Error (VARGS *pFT_Set_Pixel_Sizes)	(FT_Face face, FT_UInt pixel_width, FT_UInt pixel_height);
+FT_Error (VARGS *pFT_Select_Size)		(FT_Face face, FT_Int strike_index);
 FT_Error (VARGS *pFT_New_Face)			(FT_Library library, const char *pathname, FT_Long face_index, FT_Face *aface);
 FT_Error (VARGS *pFT_New_Memory_Face)	(FT_Library library, const FT_Byte* file_base, FT_Long file_size, FT_Long face_index, FT_Face *aface);
 FT_Error (VARGS *pFT_Done_Face)			(FT_Face face);
+#else
+typedef unsigned int FT_Pixel_Mode; //for consistency even without freetype support.
 #endif
+
+#ifndef FT_PIXEL_MODE_GRAY
+#define FT_PIXEL_MODE_GRAY 2
+#endif
+#ifndef FT_PIXEL_MODE_BGRA
+#define FT_PIXEL_MODE_BGRA 7	//added in FT 2.5
+#endif
+#define FT_PIXEL_MODE_RGBA_SA (~(FT_Pixel_Mode)0)	//RGBA, straight alpha. not in freetype.
 
 static const char *imgs[] =
 {
@@ -158,18 +173,25 @@ static const char *imgs[] =
 	"e16f"
 };
 
-#define FONTCHARS (1<<16)
-#define FONTPLANES (1<<2)	//this is total, not per font.
-#define PLANEIDXTYPE unsigned short
-#define CHARIDXTYPE unsigned short
+#define FONT_MAXCHARS 0x110000 //as defined by UTF-16, and thus applied to all unicode because UTF-16 is the crappy limited one.
+#define FONTBLOCKS ((FONT_MAXCHARS+FONTBLOCKSIZE-1)/FONTBLOCKSIZE)
+#define FONTBLOCKSIZE 0x100	//must be power-of-two
+#define FONTBLOCKMASK (FONTBLOCKSIZE-1)
+#define FONTIMAGES (1<<2)	//this is total, not per font.
+#define FIMAGEIDXTYPE unsigned char
+#define CHARIDXTYPE unsigned int
 
-#define INVALIDPLANE ((1<<(8*sizeof(PLANEIDXTYPE)))-1)
-#define BITMAPPLANE ((1<<(8*sizeof(PLANEIDXTYPE)))-2)
-#define DEFAULTPLANE ((1<<(8*sizeof(PLANEIDXTYPE)))-3)
-#define SINGLEPLANE ((1<<(8*sizeof(PLANEIDXTYPE)))-4)
-#define TRACKERIMAGE ((1<<(8*sizeof(PLANEIDXTYPE)))-5)
-#define PLANEWIDTH (1<<8)
-#define PLANEHEIGHT PLANEWIDTH
+#define INVALIDPLANE ((1<<(8*sizeof(FIMAGEIDXTYPE)))-1)
+#define BITMAPPLANE ((1<<(8*sizeof(FIMAGEIDXTYPE)))-2)
+#define DEFAULTPLANE ((1<<(8*sizeof(FIMAGEIDXTYPE)))-3)
+#define SINGLEPLANE ((1<<(8*sizeof(FIMAGEIDXTYPE)))-4)
+#define TRACKERIMAGE ((1<<(8*sizeof(FIMAGEIDXTYPE)))-5)
+#define FIMAGEWIDTH (1<<10)
+#define FIMAGEHEIGHT FIMAGEWIDTH
+
+#define FONTPLANES FONTIMAGES
+#define PLANEWIDTH FIMAGEWIDTH
+#define PLANEHEIGHT FIMAGEHEIGHT
 
 #ifdef AVAIL_FREETYPE
 //windows' font linking allows linking multiple extra fonts to a main font.
@@ -203,18 +225,20 @@ typedef struct font_s
 	{
 		struct charcache_s *nextchar;
 
-		PLANEIDXTYPE texplane;
+		FIMAGEIDXTYPE texplane;
 		unsigned char advance;	//how wide this char is, when drawn
-		char pad;
+		unsigned short block;	//to quickly find the char again
 
-		unsigned char bmx;
-		unsigned char bmy;
+		//glyph offset+sizes. I guess these are not strictly needed, but whatever
+		unsigned short bmx;
+		unsigned short bmy;
 		unsigned char bmw;
 		unsigned char bmh;
 
+		//positions inside the atlas
 		short top;
 		short left;
-	} chars[FONTCHARS];
+	} *chars[FONTBLOCKS];
 	char name[MAX_OSPATH];
 
 	short charheight;
@@ -231,15 +255,15 @@ typedef struct font_s
 
 //shared between fonts.
 typedef struct {
-	texid_t texnum[FONTPLANES];
+	texid_t texnum[FONTIMAGES];
 	texid_t defaultfont;
 	texid_t trackerimage;
 
 	unsigned char plane[PLANEWIDTH*PLANEHEIGHT][4];	//tracks the current plane
-	PLANEIDXTYPE activeplane;
-	unsigned char planerowx;
-	unsigned char planerowy;
-	unsigned char planerowh;
+	FIMAGEIDXTYPE activeplane;
+	unsigned short planerowx;
+	unsigned short planerowy;
+	unsigned short planerowh;
 	qboolean planechanged;
 
 	struct charcache_s *oldestchar;
@@ -492,14 +516,54 @@ void Font_FlushPlane(void)
 		fontplanes.newestchar = NULL;
 }
 
+static struct charcache_s *Font_GetCharIfLoaded(font_t *f, unsigned int charidx)
+{
+	struct charcache_s *c = f->chars[charidx/FONTBLOCKSIZE];
+	if (c)
+	{
+		c += charidx&FONTBLOCKMASK;
+		if (c->texplane == INVALIDPLANE)
+			c = NULL;
+	}
+	return c;
+}
+static struct charcache_s *Font_GetCharStore(font_t *f, unsigned int charidx)
+{	//should only be called if generating a char cache
+	struct charcache_s *c;
+	size_t i;
+	c = f->chars[charidx/FONTBLOCKSIZE];
+	if (!c)
+	{
+		c = Z_Malloc(sizeof(struct charcache_s) * FONTBLOCKSIZE);
+		f->chars[charidx/FONTBLOCKSIZE] = c;
+		for (i = 0; i < FONTBLOCKSIZE; i++)
+		{
+			c[i].texplane = INVALIDPLANE;
+		}
+	}
+	c += charidx&FONTBLOCKMASK;
+	c->block = charidx/FONTBLOCKSIZE;
+	return c;
+}
+static struct charcache_s *Font_CopyChar(font_t *f, unsigned int oldcharidx, unsigned int newcharidx)
+{
+	struct charcache_s *new, *old = Font_GetCharIfLoaded(f, oldcharidx);
+	if (!old)
+		return NULL;
+	new = Font_GetCharStore(f, newcharidx);
+	*new = *old;
+	new->block = newcharidx/FONTBLOCKSIZE;
+	return new;
+}
+
 //loads a new image into a given character slot for the given font.
 //note: make sure it doesn't already exist or things will get cyclic
 //alphaonly says if its a greyscale image. false means rgba.
-static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, int alphaonly, void *data, unsigned int bmw, unsigned int bmh, unsigned int pitch)
+static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT_Pixel_Mode pixelmode, void *data, unsigned int bmw, unsigned int bmh, unsigned int pitch)
 {
 	int x, y;
 	unsigned char *out;
-	struct charcache_s *c = &f->chars[charidx];
+	struct charcache_s *c = Font_GetCharStore(f, charidx);
 	int pad = 0;
 #define BORDERCOLOUR 0
 	
@@ -534,8 +598,8 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, in
 	fontplanes.planerowx += bmw+pad*2;
 
 	out = (unsigned char *)&fontplanes.plane[c->bmx+((int)c->bmy-pad)*PLANEHEIGHT];
-	if (alphaonly)
-	{
+	if (pixelmode == FT_PIXEL_MODE_GRAY)
+	{	//8bit font
 		for (y = -pad; y < 0; y++)
 		{
 			for (x = -pad; x < bmw+pad; x++)
@@ -563,8 +627,8 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, in
 			out += PLANEWIDTH*4;
 		}
 	}
-	else
-	{
+	else if (pixelmode == FT_PIXEL_MODE_RGBA_SA)
+	{	//rgba font
 		pitch*=4;
 		for (y = -pad; y < 0; y++)
 		{
@@ -590,7 +654,129 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, in
 			out += PLANEWIDTH*4;
 		}
 	}
+	else if (pixelmode == FT_PIXEL_MODE_BGRA)
+	{	//bgra srgb font, already premultiplied
+		for (y = -pad; y < 0; y++)
+		{
+			for (x = -pad; x < bmw+pad; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
+			out += PLANEWIDTH*4;
+		}
+		for (; y < bmh; y++)
+		{
+			for (x = -pad; x < 0; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
+			for (; x < bmw; x++)
+			{
+				out[x*4+0] = ((unsigned char*)data)[x*4+2];
+				out[x*4+1] = ((unsigned char*)data)[x*4+1];
+				out[x*4+2] = ((unsigned char*)data)[x*4+0];
+				out[x*4+3] = ((unsigned char*)data)[x*4+3];
+			}
+			for (; x < bmw+pad; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
+			data = (char*)data + pitch;
+			out += PLANEWIDTH*4;
+		}
+		for (; y < bmh+pad; y++)
+		{
+			for (x = -pad; x < bmw+pad; x++)
+				*(unsigned int *)&out[x*4] = BORDERCOLOUR;
+			out += PLANEWIDTH*4;
+		}
+	}
 	fontplanes.planechanged = true;
+	return c;
+}
+
+unsigned short hex[16] = {
+/*0*/	(7<<0)|(5<<3)|(5<<6)|(5<<9)|(7<<12),
+/*1*/	(2<<0)|(2<<3)|(2<<6)|(2<<9)|(2<<12),
+/*2*/	(7<<0)|(1<<3)|(7<<6)|(4<<9)|(7<<12),
+/*3*/	(7<<0)|(1<<3)|(3<<6)|(1<<9)|(7<<12),
+/*4*/	(5<<0)|(5<<3)|(7<<6)|(1<<9)|(1<<12),
+/*5*/	(7<<0)|(4<<3)|(7<<6)|(1<<9)|(7<<12),
+/*6*/	(4<<0)|(4<<3)|(7<<6)|(5<<9)|(7<<12),
+/*7*/	(7<<0)|(1<<3)|(1<<6)|(1<<9)|(1<<12),
+/*8*/	(7<<0)|(5<<3)|(7<<6)|(5<<9)|(7<<12),
+/*9*/	(7<<0)|(5<<3)|(7<<6)|(1<<9)|(1<<12),
+/*A*/	(7<<0)|(5<<3)|(7<<6)|(5<<9)|(5<<12),
+/*B*/	(6<<0)|(5<<3)|(7<<6)|(5<<9)|(6<<12),
+/*C*/	(7<<0)|(5<<3)|(4<<6)|(5<<9)|(7<<12),
+/*D*/	(6<<0)|(5<<3)|(5<<6)|(5<<9)|(6<<12),
+/*E*/	(7<<0)|(4<<3)|(6<<6)|(4<<9)|(7<<12),
+/*F*/	(7<<0)|(4<<3)|(6<<6)|(4<<9)|(4<<12)
+};
+static struct charcache_s *Font_LoadPlaceholderGlyph(font_t *f, CHARIDXTYPE charidx)
+{
+	struct charcache_s *c;
+	unsigned int out[169*4], i, o, g, b, w, h, d, n;
+	d = (f->charheight >= 11);
+	if (d)
+	{	//two rows
+		h = 11;
+		if (charidx > 0xffff)
+			n = 3;
+		else if (charidx > 0xff)
+			n = 2;
+		else
+			n = 1;
+		w = n*4-1;
+		n*=2;
+	}
+	else
+	{	//single row. bye bye fixed-width.
+		if (charidx > 0xfffff)
+			n = 6;
+		else if (charidx > 0xffff)
+			n = 5;
+		else if (charidx > 0xfff)
+			n = 4;
+		else if (charidx > 0xff)
+			n = 3;
+		else
+			n = 2;
+		w = n*4-1;
+		h = 5;
+	}
+
+	//figure out if we can get away with giving it a little more border to boost readability
+	b = (h+2 < f->charheight);
+	w += b*2;
+	h += b*2;
+
+	memset(out, 0xff, sizeof(out));
+
+	for (i = 0; i < n; i++)
+	{
+		g = hex[0xf & (charidx>>(i<<2))];
+		o = b + w*b;
+		if (d)
+		{	//stradle them over the two rows.
+			if (i >= (n>>1))
+				o += 4*(n-i-1);
+			else
+			{
+				o += 4*((n>>1)-i-1);
+				o += w * 6;
+			}
+		}
+		else
+			o += 4*(n-i-1);	//just arrange them in order
+		for (; g; g>>=3, o+=w)
+		{
+			if (g & 4)	out[o+0] = 0xff0000ff;
+			if (g & 2)	out[o+1] = 0xff0000ff;
+			if (g & 1)	out[o+2] = 0xff0000ff;
+		}
+	}
+	c = Font_LoadGlyphData(f, charidx, FT_PIXEL_MODE_RGBA_SA, out, w, h, w);
+	if (c)
+	{
+		c->advance = w+1;
+		c->left = 0;
+		c->top = (f->charheight-h-1)/2;
+	}
 	return c;
 }
 
@@ -629,7 +815,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 				}
 				s+=128;
 			}
-			c = Font_LoadGlyphData(f, charidx, false, img, 8*scale, 8*scale, 8*scale);
+			c = Font_LoadGlyphData(f, charidx, FT_PIXEL_MODE_RGBA_SA, img, 8*scale, 8*scale, 8*scale);
 			if (c)
 			{
 				c->advance = 8*scale;
@@ -691,7 +877,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 				}
 			}
 
-			c = Font_LoadGlyphData(f, charidx, false, img, nw, nh, 64);
+			c = Font_LoadGlyphData(f, charidx, FT_PIXEL_MODE_RGBA_SA, img, nw, nh, 64);
 			if (c)
 			{
 				c->left = 0;
@@ -704,7 +890,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 	/*make tab invisible*/
 	if (charidx == '\t' || charidx == '\n')
 	{
-		c = &f->chars[charidx];
+		c = &f->chars[charidx/FONTBLOCKSIZE][charidx&FONTBLOCKMASK];
 		c->left = 0;
 		c->advance = f->charheight;
 		c->top = 0;
@@ -724,41 +910,56 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 		for (file = 0; file < f->ftfaces; file++)
 		{
 			FT_Face face = f->face[file]->face;
-			if (f->face[file]->activeheight != f->charheight)
-			{
-				f->face[file]->activeheight = f->charheight;
-				pFT_Set_Pixel_Sizes(face, 0, f->charheight);
-			}
-			if (charidx == 0xfffe || pFT_Get_Char_Index(face, charidx))	//ignore glyph 0 (undefined)
-			if (pFT_Load_Char(face, charidx, FT_LOAD_RENDER) == 0)
-			{
-				FT_GlyphSlot slot;
-				FT_Bitmap *bm;
 
-				slot = face->glyph;
-				bm = &slot->bitmap;
-				c = Font_LoadGlyphData(f, charidx, true, bm->buffer, bm->width, bm->rows, bm->pitch); 
-
-				if (c)
+//			if (f->face[file]->activeheight)
+				if (f->face[file]->activeheight != f->charheight)
 				{
-					c->advance = slot->advance.x >> 6;
-					c->left = slot->bitmap_left;
-					c->top = f->charheight*3/4 - slot->bitmap_top;
-					return c;
+					f->face[file]->activeheight = f->charheight;
+//					if (FT_HAS_FIXED_SIZES(face))
+//						pFT_Select_Size(face, 0);
+//					else
+						pFT_Set_Pixel_Sizes(face, 0, f->charheight);
 				}
-			}
+			if (charidx == 0xfffe || pFT_Get_Char_Index(face, charidx))	//ignore glyph 0 (undefined)
+				if (pFT_Load_Char(face, charidx, FT_LOAD_RENDER|FT_LOAD_COLOR) == 0)
+				{
+					FT_GlyphSlot slot;
+					FT_Bitmap *bm;
+
+					slot = face->glyph;
+					bm = &slot->bitmap;
+					if (!f->face[file]->activeheight && bm->pixel_mode == FT_PIXEL_MODE_BGRA)
+					{
+						unsigned int *out = alloca(f->charheight*f->charheight*4);
+						Image_ResampleTexture((void*)bm->buffer, bm->width, bm->rows, out, f->charheight, f->charheight);
+						c = Font_LoadGlyphData(f, charidx, bm->pixel_mode, out, f->charheight, f->charheight, f->charheight*4); 
+						if (c)
+						{
+							c->advance = f->charheight;
+							c->left = 0;
+							c->top = 0;
+							return c;
+						}
+					}
+					else
+					{
+						c = Font_LoadGlyphData(f, charidx, bm->pixel_mode, bm->buffer, bm->width, bm->rows, bm->pitch); 
+
+						if (c)
+						{
+							c->advance = slot->advance.x >> 6;
+							c->left = slot->bitmap_left;
+							c->top = f->charheight*3/4 - slot->bitmap_top;
+							return c;
+						}
+					}
+				}
 		}
 	}
 #endif
 
 	if (charidx == '\r')
-	{
-		if (f->chars[charidx|0xe000].texplane != INVALIDPLANE)
-		{
-			f->chars[charidx] = f->chars[charidx|0xe000];
-			return &f->chars[charidx];
-		}
-	}
+		return Font_CopyChar(f, charidx|0xe000, charidx);
 
 	return NULL;
 }
@@ -768,12 +969,12 @@ static struct charcache_s *Font_GetChar(font_t *f, unsigned int codepoint)
 {
 	CHARIDXTYPE charidx;
 	struct charcache_s *c;
-	if (codepoint > CON_CHARMASK)
+	if (codepoint > FONT_MAXCHARS)
 		charidx = 0xfffd;
 	else
 		charidx = codepoint;
-	c = &f->chars[charidx];
-	if (c->texplane == INVALIDPLANE)
+	c = Font_GetCharIfLoaded(f, charidx);
+	if (!c)
 	{
 		if (charidx >= TRACKERFIRST && charidx < TRACKERFIRST+100)
 		{
@@ -806,23 +1007,25 @@ static struct charcache_s *Font_GetChar(font_t *f, unsigned int codepoint)
 			charidx = wc2koi_table[charidx - 0x400];
 			if (charidx != '?')
 			{
-				c = &f->chars[charidx];
-				if (c->texplane == INVALIDPLANE)
+				c = Font_GetCharIfLoaded(f, charidx);
+				if (!c)
 					c = Font_TryLoadGlyph(f, charidx);
 			}
 		}
 		if (!c)
+			c = Font_LoadPlaceholderGlyph(f, charidx);
+		if (!c)
 		{
 			charidx = 0xfffd;	//unicode's replacement char
-			c = &f->chars[charidx];
-			if (c->texplane == INVALIDPLANE)
+			c = Font_GetCharIfLoaded(f, charidx);
+			if (!c)
 				c = Font_TryLoadGlyph(f, charidx);
 		}
 		if (!c)
 		{
 			charidx = '?';	//meh
-			c = &f->chars[charidx];
-			if (c->texplane == INVALIDPLANE)
+			c = Font_GetCharIfLoaded(f, charidx);
+			if (!c)
 				c = Font_TryLoadGlyph(f, charidx);
 		}
 	}
@@ -840,6 +1043,9 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 	if (!*fontfilename)
 		return false;
 
+	if (height < 1)
+		height = 1;
+
 	//ran out of font slots.
 	if (f->ftfaces == MAX_FTFACES)
 		return false;
@@ -856,12 +1062,24 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 
 	if (!fontlib)
 	{
+#if 0
+		pFT_Init_FreeType	= FT_Init_FreeType;
+		pFT_Load_Char		= FT_Load_Char;
+		pFT_Get_Char_Index	= FT_Get_Char_Index;
+		pFT_Set_Pixel_Sizes	= FT_Set_Pixel_Sizes;
+		pFT_Select_Size		= FT_Select_Size;
+		pFT_New_Face		= FT_New_Face;
+		pFT_New_Memory_Face	= FT_New_Memory_Face;
+		pFT_Init_FreeType	= FT_Init_FreeType;
+		pFT_Done_Face		= FT_Done_Face;
+#else
 		dllfunction_t ft2funcs[] =
 		{
 			{(void**)&pFT_Init_FreeType, "FT_Init_FreeType"},
 			{(void**)&pFT_Load_Char, "FT_Load_Char"},
 			{(void**)&pFT_Get_Char_Index, "FT_Get_Char_Index"},
 			{(void**)&pFT_Set_Pixel_Sizes, "FT_Set_Pixel_Sizes"},
+			{(void**)&pFT_Select_Size, "FT_Select_Size"},
 			{(void**)&pFT_New_Face, "FT_New_Face"},
 			{(void**)&pFT_New_Memory_Face, "FT_New_Memory_Face"},
 			{(void**)&pFT_Init_FreeType, "FT_Init_FreeType"},
@@ -873,7 +1091,9 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 		triedtoloadfreetype = true;
 
 #ifdef _WIN32
-		fontmodule = Sys_LoadLibrary("freetype6", ft2funcs);
+		fontmodule = Sys_LoadLibrary("libfreetype-6", ft2funcs);
+		if (!fontmodule)
+			fontmodule = Sys_LoadLibrary("freetype6", ft2funcs);
 #else
 		fontmodule = Sys_LoadLibrary("libfreetype.so.6", ft2funcs);
 #endif
@@ -882,6 +1102,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 			Con_DPrintf("Couldn't load freetype library.\n");
 			return false;
 		}
+#endif
 		error = pFT_Init_FreeType(&fontlib);
 		if (error)
 		{
@@ -952,7 +1173,13 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 #endif
 	if (!error)
 	{
-		error = pFT_Set_Pixel_Sizes(face, 0, height);
+		if (FT_HAS_FIXED_SIZES(face))
+		{
+			height = 0;	//will need to rescale manually I guess
+			error = pFT_Select_Size(face, 0);
+		}
+		else
+			error = pFT_Set_Pixel_Sizes(face, 0, height);
 		if (!error)
 		{
 			/*success!*/
@@ -1181,11 +1408,13 @@ static texid_t Font_LoadDefaultConchars(void)
 		COM_WorkerPartialSync(tex, &tex->status, TEX_LOADING);
 	if (TEXLOADED(tex))
 		return tex;
+#ifdef HEXEN2
 	tex = Font_LoadHexen2Conchars(true);
 	if (tex && tex->status == TEX_LOADING)
 		COM_WorkerPartialSync(tex, &tex->status, TEX_LOADING);
 	if (TEXLOADED(tex))
 		return tex;
+#endif
 	tex = Font_LoadFallbackConchars();
 	if (tex && tex->status == TEX_LOADING)
 		COM_WorkerPartialSync(tex, &tex->status, TEX_LOADING);
@@ -1246,6 +1475,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 	char *parms;
 	int height = ((vheight * vid.rotpixelheight)/vid.height) + 0.5;
 	char facename[MAX_QPATH];
+	struct charcache_s *c;
 
 	Q_strncpy(facename, fontfilename, sizeof(facename));
 
@@ -1391,39 +1621,37 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 
 		for (i = 0x00; i <= 0xff; i++)
 		{
-			f->chars[i].advance = (height*3)/4;
-			f->chars[i].left = 0;
-			f->chars[i].top = 0;
-			f->chars[i].nextchar = 0;	//these chars are not linked in
-			f->chars[i].pad = 0;
-			f->chars[i].texplane = BITMAPPLANE;	/*if its a 'raster' font, don't use the default chars, always use the raster images*/
+			c = Font_GetCharStore(f, i);
+			c->advance = (height*3)/4;
+			c->left = 0;
+			c->top = 0;
+			c->nextchar = 0;	//these chars are not linked in
+			c->texplane = BITMAPPLANE;	/*if its a 'raster' font, don't use the default chars, always use the raster images*/
 
 
 			if (i >= 'a' && i <= 'z')
 			{
-				f->chars[i].bmx = ((i - 64)&15)*8;
-				f->chars[i].bmy = ((i - 64)/16)*8;
-				f->chars[i].bmh = 8;
-				f->chars[i].bmw = 8;
+				c->bmx = ((i - 64)&15)*8;
+				c->bmy = ((i - 64)/16)*8;
+				c->bmh = 8;
+				c->bmw = 8;
 			}
 			else if (i >= 32 && i < 96)
 			{
-				f->chars[i].bmx = ((i - 32)&15)*8;
-				f->chars[i].bmy = ((i - 32)/16)*8;
-				f->chars[i].bmh = 8;
-				f->chars[i].bmw = 8;
+				c->bmx = ((i - 32)&15)*8;
+				c->bmy = ((i - 32)/16)*8;
+				c->bmh = 8;
+				c->bmw = 8;
 			}
 			else
 			{
-				f->chars[i].bmh = 0;
-				f->chars[i].bmw = 0;
-				f->chars[i].bmx = 0;
-				f->chars[i].bmy = 0;
+				c->bmh = 0;
+				c->bmw = 0;
+				c->bmx = 0;
+				c->bmy = 0;
 			}
-		}
-		for (i = 0xe000; i <= 0xe0ff; i++)
-		{
-			f->chars[i] = f->chars[i&0xff];
+
+			Font_CopyChar(f, i, i|0xe0ff);
 		}
 		return f;
 	}
@@ -1486,21 +1714,22 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 
 		for ( ; i < 32; i++)
 		{
-			f->chars[i].texplane = INVALIDPLANE;
+//			f->chars[i].texplane = INVALIDPLANE;
 		}
 		/*force it to load, even if there's nothing there*/
 		for ( ; i < 128; i++)
 		{
-			f->chars[i].advance = f->charheight;
-			f->chars[i].bmh = PLANEWIDTH/16;
-			f->chars[i].bmw = PLANEWIDTH/16;
-			f->chars[i].bmx = (i&15)*(PLANEWIDTH/16);
-			f->chars[i].bmy = (i/16)*(PLANEWIDTH/16);
-			f->chars[i].left = 0;
-			f->chars[i].top = 0;
-			f->chars[i].nextchar = 0;	//these chars are not linked in
-			f->chars[i].pad = 0;
-			f->chars[i].texplane = BITMAPPLANE;
+			c = Font_GetCharStore(f, i);
+
+			c->advance = f->charheight;
+			c->bmh = PLANEWIDTH/16;
+			c->bmw = PLANEWIDTH/16;
+			c->bmx = (i&15)*(PLANEWIDTH/16);
+			c->bmy = (i/16)*(PLANEWIDTH/16);
+			c->left = 0;
+			c->top = 0;
+			c->nextchar = 0;	//these chars are not linked in
+			c->texplane = BITMAPPLANE;
 		}
 	}
 
@@ -1521,24 +1750,19 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 			f->singletexture = fontplanes.defaultfont;
 	}
 
-	for (; i < FONTCHARS; i++)
-	{
-		f->chars[i].texplane = INVALIDPLANE;
-	}
-
 	/*pack the default chars into it*/
 	for (i = 0xe000; i <= 0xe0ff; i++)
 	{
-		f->chars[i].advance = f->charheight;
-		f->chars[i].bmh = PLANEWIDTH/16;
-		f->chars[i].bmw = PLANEWIDTH/16;
-		f->chars[i].bmx = (i&15)*(PLANEWIDTH/16);
-		f->chars[i].bmy = ((i/16)*(PLANEWIDTH/16)) & 0xff;
-		f->chars[i].left = 0;
-		f->chars[i].top = 0;
-		f->chars[i].nextchar = 0;	//these chars are not linked in
-		f->chars[i].pad = 0;
-		f->chars[i].texplane = defaultplane;
+		c = Font_GetCharStore(f, i);
+		c->advance = f->charheight;
+		c->bmh = PLANEWIDTH/16;
+		c->bmw = PLANEWIDTH/16;
+		c->bmx = ((i&15))*(PLANEWIDTH/16);
+		c->bmy = ((i&0xf0)/16)*(PLANEWIDTH/16);
+		c->left = 0;
+		c->top = 0;
+		c->nextchar = 0;	//these chars are not linked in
+		c->texplane = defaultplane;
 	}
 	return f;
 }
@@ -1559,7 +1783,7 @@ void Font_Free(struct font_s *f)
 	for (link = &fontplanes.oldestchar; *link; )
 	{
 		c = *link;
-		if (c >= f->chars && c <= f->chars + FONTCHARS)
+		if (f->chars[c->block] && c >= f->chars[c->block] && c <= f->chars[c->block] + FONTBLOCKSIZE)
 		{
 			c = c->nextchar;
 			if (!c)

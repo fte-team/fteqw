@@ -179,7 +179,7 @@ memset(&finalcount, 0, 8);
 }
 
 
-int SHA1(char *digest, int maxdigestsize, const char *string, int stringlen)
+size_t SHA1(unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen)
 {
 	SHA1_CTX context;
 	if (maxdigestsize < DIGEST_SIZE)
@@ -187,6 +187,21 @@ int SHA1(char *digest, int maxdigestsize, const char *string, int stringlen)
 
 	SHA1Init(&context);
 	SHA1Update(&context, (unsigned char*) string, stringlen);
+	SHA1Final(digest, &context);
+
+	return DIGEST_SIZE;
+}
+
+size_t SHA1_m(unsigned char *digest, size_t maxdigestsize, size_t numstrings, const unsigned char **strings, size_t *stringlens)
+{
+	size_t i;
+	SHA1_CTX context;
+	if (maxdigestsize < DIGEST_SIZE)
+		return 0;
+
+	SHA1Init(&context);
+	for (i = 0; i < numstrings; i++)
+		SHA1Update(&context, (unsigned char*) strings[i], stringlens[i]);
 	SHA1Final(digest, &context);
 
 	return DIGEST_SIZE;
@@ -225,56 +240,45 @@ static void memxor(char *dest, const char *src, size_t length)
 	}
 }
 
-int SHA1_HMAC(unsigned char *digest, int maxdigestsize,
-			  const unsigned char *data, int datalen,
-			  const unsigned char *key, int keylen)
+typedef size_t hashfunc_t(unsigned char *digest, size_t maxdigestsize, size_t numstrings, const unsigned char **strings, size_t *stringlens);
+size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize,
+				 const unsigned char *data, size_t datalen,
+				 const unsigned char *key, size_t keylen)
 {
-	SHA1_CTX inner;
-	SHA1_CTX outer;
-	char optkeybuf[DIGEST_SIZE];
-	char block[64];
-	char innerhash[DIGEST_SIZE];
+#define HMAC_DIGEST_MAXSIZE 20
+	char optkeybuf[HMAC_DIGEST_MAXSIZE];
+	char innerhash[HMAC_DIGEST_MAXSIZE];
 
-	if (maxdigestsize < DIGEST_SIZE)
-		return 0;
+	char block[64];
+	int innerhashsize;
 
 	/* Reduce the key's size, so that it is never larger than a block. */
 
-	if (keylen > 64)
+	if (keylen > sizeof(block))
 	{
-		SHA1_CTX keyhash;
-
-		SHA1Init (&keyhash);
-		SHA1Update (&keyhash, key, keylen);
-		SHA1Final (optkeybuf, &keyhash);
-
-		key = optkeybuf;
-		keylen = sizeof(optkeybuf);
+		keylen = hashfunc(optkeybuf, sizeof(optkeybuf), 1, &key, &keylen);
+		key=optkeybuf;
 	}
 
 	/* Compute INNERHASH from KEY and IN. */
 
-	SHA1Init (&inner);
-
 	memset (block, IPAD, sizeof (block));
 	memxor (block, key, keylen);
 
-	SHA1Update (&inner, block, 64);
-	SHA1Update (&inner, data, datalen);
-
-	SHA1Final (innerhash, &inner);
+	{
+		const unsigned char *strings_i[2] = {block, data};
+		size_t stringlens_i[2] = {sizeof(block), datalen};
+		innerhashsize = hashfunc(innerhash, sizeof(innerhash), 2, strings_i, stringlens_i);
+	}
 
 	/* Compute result from KEY and INNERHASH. */
-
-	SHA1Init (&outer);
 
 	memset (block, OPAD, sizeof (block));
 	memxor (block, key, keylen);
 
-	SHA1Update (&outer, block, 64);
-	SHA1Update (&outer, innerhash, 20);
-
-	SHA1Final (digest, &outer);
-
-	return DIGEST_SIZE;
+	{
+		const unsigned char *strings_o[2] = {block, innerhash};
+		size_t stringlens_o[2] = {sizeof(block), innerhashsize};
+		return hashfunc(digest, maxdigestsize, 2, strings_o, stringlens_o);
+	}
 }

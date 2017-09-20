@@ -531,11 +531,8 @@ static unsigned int DSOUND_GetDMAPos(soundcardinfo_t *sc)
 	IDirectSoundBuffer_GetCurrentPosition(dh->pDSBuf, &mmtime, &dwWrite);
 	s = mmtime - dh->mmstarttime;
 
-
-	s /= (sc->sn.samplebits/8);
-
+	s /= sc->sn.samplebytes;
 	s %= (sc->sn.samples);
-
 	return s;
 }
 
@@ -657,15 +654,25 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 		sc->sn.numchannels = 1;
 	}
 
-	if (sc->sn.samplebits == 32)
-	{	//FTE does not support 32bit int audio, rather we interpret samplebits 32 as floats.
+	switch(sc->sn.samplebytes)
+	{
+	case 4:
+		//FTE does not support 32bit int audio, rather we interpret samplebits 32 as floats.
 		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
 		format.Format.cbSize = 22;
 		memcpy(&format.SubFormat, &QKSDATAFORMAT_SUBTYPE_IEEE_FLOAT, sizeof(GUID));
+		sc->sn.sampleformat = QSF_F32;
+		break;
+	case 2:
+		sc->sn.sampleformat = QSF_S16;
+		break;
+	case 1:
+		sc->sn.sampleformat = QSF_U8;
+		break;
 	}
 
 	format.Format.nChannels = sc->sn.numchannels;
-	format.Format.wBitsPerSample = sc->sn.samplebits;
+	format.Format.wBitsPerSample = sc->sn.samplebytes*8;
 	format.Format.nSamplesPerSec = sc->sn.speed;
 	format.Format.nBlockAlign = format.Format.nChannels * format.Format.wBitsPerSample / 8;
 	format.Format.nAvgBytesPerSec = format.Format.nSamplesPerSec * format.Format.nBlockAlign;
@@ -842,7 +849,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 		}
 
 		sc->sn.numchannels = format.Format.nChannels;
-		sc->sn.samplebits = format.Format.wBitsPerSample;
+		sc->sn.samplebytes = format.Format.wBitsPerSample/8;
 		sc->sn.speed = format.Format.nSamplesPerSec;
 
 		if (DS_OK != IDirectSoundBuffer_GetCaps (dh->pDSBuf, &dsbcaps))
@@ -902,7 +909,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 	Con_DPrintf("   %d channel(s)\n"
 				"   %d bits/sample\n"
 				"   %d bytes/sec\n",
-				sc->sn.numchannels, sc->sn.samplebits, sc->sn.speed);
+				sc->sn.numchannels, sc->sn.samplebytes*8, sc->sn.speed);
 
 
 // initialize the buffer
@@ -938,7 +945,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 	IDirectSoundBuffer_GetCurrentPosition(dh->pDSBuf, &dh->mmstarttime, &dwWrite);
 	IDirectSoundBuffer_Play(dh->pDSBuf, 0, 0, DSBPLAY_LOOPING);
 
-	sc->sn.samples = dh->gSndBufSize/(sc->sn.samplebits/8);
+	sc->sn.samples = dh->gSndBufSize/sc->sn.samplebytes;
 	sc->sn.samplepos = 0;
 	sc->sn.buffer = NULL;
 

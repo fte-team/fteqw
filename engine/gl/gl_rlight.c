@@ -712,7 +712,6 @@ qboolean R_ImportRTLights(const char *entlump)
 	//failing that, it will insert lights with some crappy fixed radius around only all 'classname light' entities, without any colours or anything, vanilla only.
 	//such lights are ONLY created if they're not near some other existing light (like a static entity one).
 	//this can result in FTE having noticably more and bigger lights than tenebrae. shadowmapping doesn't help performance either.
-	float lightmaplevel = -1;
 
 	COM_Parse(entlump);
 	if (!strcmp(com_token, "Version"))
@@ -929,7 +928,7 @@ qboolean R_ImportRTLights(const char *entlump)
 			else if (entnum == 0 && !strcmp("lightmapbright", key))
 			{
 				//tenebrae compat. this overrides r_shadow_realtime_world_lightmap
-				lightmaplevel = atof(value);
+				r_shadow_realtime_world_lightmaps.value = atof(value);
 			}
 		}
 		if (!islight)

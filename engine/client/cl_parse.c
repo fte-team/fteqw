@@ -35,10 +35,12 @@ static char *CLNQ_ParseProQuakeMessage (char *s);
 static void DLC_Poll(qdownload_t *dl);
 static void CL_ProcessUserInfo (int slot, player_info_t *player);
 
+#ifdef NQPROT
 static char cl_dp_csqc_progsname[128];
 static int cl_dp_csqc_progssize;
 static int cl_dp_csqc_progscrc;
 static int cl_dp_serverextension_download;
+#endif
 
 #ifdef AVAIL_ZLIB
 #ifndef ZEXPORT
@@ -178,6 +180,7 @@ static char *svc_qwstrings[] =
 	"???",
 };
 
+#ifdef NQPROT
 static char *svc_nqstrings[] =
 {
 	"nqsvc_bad",
@@ -278,6 +281,7 @@ static char *svc_nqstrings[] =
 	"NEW PROTOCOL(87)",	//87
 	"NEW PROTOCOL(88)"	//88
 };
+#endif
 
 extern cvar_t requiredownloads, cl_standardchat, msg_filter, msg_filter_frags, msg_filter_pickups, cl_countpendingpl, cl_download_mapsrc;
 int	oldparsecountmod;
@@ -2650,6 +2654,7 @@ qboolean CL_ParseOOBDownload(void)
 	return true;
 }
 
+#ifdef NQPROT
 static void CLDP_ParseDownloadData(void)
 {
 	qdownload_t *dl = cls.download;
@@ -2781,6 +2786,7 @@ static void CLDP_ParseDownloadFinished(char *s)
 
 	CL_RequestNextDownload ();
 }
+#endif
 
 static vfsfile_t *upload_file;
 static qbyte *upload_data;
@@ -2870,6 +2876,7 @@ void CL_StopUpload(void)
 	upload_pos = upload_size = 0;
 }
 
+#if 0	//in case we ever want to add any uploads other than snaps
 static qboolean CL_StartUploadFile(char *filename)
 {
 	if (!COM_CheckParm("-fileul"))
@@ -2897,6 +2904,7 @@ static qboolean CL_StartUploadFile(char *filename)
 	}
 	return false;
 }
+#endif
 
 /*
 =====================================================================
@@ -2905,9 +2913,6 @@ static qboolean CL_StartUploadFile(char *filename)
 
 =====================================================================
 */
-#ifdef CLIENTONLY
-static float nextdemotime;
-#endif
 
 void CL_ClearParseState(void)
 {
@@ -4340,6 +4345,7 @@ static void CL_ParseBaselineDelta (void)
 	memcpy(cl_baselines + es.number, &es, sizeof(es));
 }
 
+#ifdef Q2CLIENT
 static void CLQ2_Precache_f (void)
 {
 	Model_CheckDownloads();
@@ -4353,6 +4359,7 @@ static void CLQ2_Precache_f (void)
 	CG_Start();
 #endif
 }
+#endif
 
 
 

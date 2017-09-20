@@ -5033,7 +5033,7 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(qboolean isse
 	ftenet_tcpconnect_connection_t *newcon;
 
 	unsigned long _true = true;
-	int newsocket;
+	SOCKET newsocket;
 	qboolean tls = (adr.prot == NP_TLS || adr.prot == NP_WSS);
 
 #ifndef HAVE_SSL

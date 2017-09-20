@@ -2,13 +2,14 @@
 
 //frankly, xaudio2 gives nothing over directsound, unless we're getting it to do all the mixing instead. which gets really messy and far too involved.
 //I suppose it has a use with WINRT... although that doesn't apply to any actual users.
+//(on xp, its actually implemented as a wrapper over directsound, so why even bother. on vista+ its implemented as a wrapper over wasapi)
 
 //we're lazy and don't do any special threading, this makes it inferior to the directsound implementation - potentially, the callback feature could allow for slightly lower latencies.
 //also no reverb (fixme: XAUDIO2FX_REVERB_PARAMETERS).
 
-//dxsdk  = 2.7 = win7+
-//w8sdk  = 2.8 = win8+
-//w10sdk = 2.9 = win10+
+//dxsdk  = 2.7 = win7+ (redistributable)
+//w8sdk  = 2.8 = win8+ (system component, not available on vista/win7)
+//w10sdk = 2.9 = win10+ (system component, not available on vista/win7/win8/win8.1)
 
 #if defined(AVAIL_XAUDIO2) && !defined(SERVERONLY)
 #include "winquake.h"
@@ -58,11 +59,11 @@ static void XAUDIO_Submit(soundcardinfo_t *sc, int start, int end)
 	XAUDIO2_BUFFER buf;
 
 	//determine total buffer size
-	int buffersize = sc->sn.samples*sc->sn.samplebits/8;
+	int buffersize = sc->sn.samples*sc->sn.samplebytes;
 
 	//determine time offsets in bytes
-	start *= sc->sn.numchannels*sc->sn.samplebits/8;
-	end *= sc->sn.numchannels*sc->sn.samplebits/8;
+	start *= sc->sn.numchannels*sc->sn.samplebytes;
+	end *= sc->sn.numchannels*sc->sn.samplebytes;
 
 	while (start < end)
 	{
@@ -70,14 +71,14 @@ static void XAUDIO_Submit(soundcardinfo_t *sc, int start, int end)
 			break;	//o.O that's not meant to happen
 		memset(&buf, 0, sizeof(buf));
 		buf.AudioBytes = end - start;
-		if (buf.AudioBytes > xa->subbuffersize * sc->sn.numchannels*sc->sn.samplebits/8)
+		if (buf.AudioBytes > xa->subbuffersize * sc->sn.numchannels*sc->sn.samplebytes)
 		{
-			if (buf.AudioBytes < xa->subbuffersize * sc->sn.numchannels*sc->sn.samplebits/8)
+			if (buf.AudioBytes < xa->subbuffersize * sc->sn.numchannels*sc->sn.samplebytes)
 			{	//dma code should ensure that only multiples of 'samplequeue' are processed.
 				Con_Printf("XAudio2 underrun\n");
 				break;	
 			}
-			buf.AudioBytes = xa->subbuffersize * sc->sn.numchannels*sc->sn.samplebits/8;
+			buf.AudioBytes = xa->subbuffersize * sc->sn.numchannels*sc->sn.samplebytes;
 		}
 		buf.pAudioData = xa->bufferstart + (start%buffersize);
 		if ((qbyte*)buf.pAudioData + buf.AudioBytes > xa->bufferstart + buffersize)
@@ -114,12 +115,12 @@ void WINAPI XAUDIO_CB_OnVoiceError (IXAudio2VoiceCallback *ths, void* pBufferCon
 static IXAudio2VoiceCallbackVtbl cbvtbl =
 {
 	XAUDIO_CB_OnVoiceProcessingPassStart,
-    XAUDIO_CB_OnVoiceProcessingPassEnd,
-    XAUDIO_CB_OnStreamEnd,
-    XAUDIO_CB_OnBufferStart,
-    XAUDIO_CB_OnBufferEnd,
-    XAUDIO_CB_OnLoopEnd,
-    XAUDIO_CB_OnVoiceError
+	XAUDIO_CB_OnVoiceProcessingPassEnd,
+	XAUDIO_CB_OnStreamEnd,
+	XAUDIO_CB_OnBufferStart,
+	XAUDIO_CB_OnBufferEnd,
+	XAUDIO_CB_OnLoopEnd,
+	XAUDIO_CB_OnVoiceError
 };
 
 static qboolean QDECL XAUDIO_InitCard(soundcardinfo_t *sc, const char *cardname)
@@ -141,7 +142,7 @@ static qboolean QDECL XAUDIO_InitCard(soundcardinfo_t *sc, const char *cardname)
 	wfmt.Format.wFormatTag = WAVE_FORMAT_PCM;
 	wfmt.Format.nChannels = sc->sn.numchannels;
 	wfmt.Format.nSamplesPerSec = sc->sn.speed;
-	wfmt.Format.wBitsPerSample = sc->sn.samplebits;
+	wfmt.Format.wBitsPerSample = sc->sn.samplebytes*8;
 	wfmt.Format.nBlockAlign = wfmt.Format.nChannels * (wfmt.Format.wBitsPerSample / 8);
 	wfmt.Format.nAvgBytesPerSec = wfmt.Format.nSamplesPerSec * wfmt.Format.nBlockAlign;
 	wfmt.Format.cbSize = 0;
@@ -159,7 +160,7 @@ static qboolean QDECL XAUDIO_InitCard(soundcardinfo_t *sc, const char *cardname)
 
 	sc->sn.samples = xa->buffercount * xa->subbuffersize * sc->sn.numchannels;
 
-	xa->bufferstart = BZ_Malloc(sc->sn.samples * (sc->sn.samplebits/8));
+	xa->bufferstart = BZ_Malloc(sc->sn.samples * sc->sn.samplebytes);
 
 	if (xa->bufferstart)
 	{

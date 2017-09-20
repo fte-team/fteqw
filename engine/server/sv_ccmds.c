@@ -1808,7 +1808,10 @@ static void SV_Status_f (void)
 	float pi, po, bi, bo;
 
 	int columns = 80;
-	extern cvar_t sv_listen_qw, sv_listen_nq, sv_listen_dp;
+	extern cvar_t sv_listen_qw;
+#ifdef NQPROT
+	extern cvar_t sv_listen_nq, sv_listen_dp;
+#endif
 #ifdef QWOVERQ3
 	extern cvar_t sv_listen_q3;
 #endif
@@ -1874,8 +1877,8 @@ static void SV_Status_f (void)
 		if (sv_listen_q3.ival) Con_Printf(" Q3");
 #endif
 #ifdef HAVE_DTLS
-		if (sv_listen_dtls.ival >= 2)
-			Con_Printf(" +DTLS");
+		if (sv_listen_dtls.ival >= 3)
+			Con_Printf(" DTLS-only");
 		else if (sv_listen_dtls.ival)
 			Con_Printf(" DTLS");
 #endif

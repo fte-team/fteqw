@@ -357,7 +357,7 @@ static qboolean JCL_JingleSend(jclient_t *jcl, struct c2c_s *c2c, char *action)
 
 	if (!strcmp(action, "session-initiate"))
 	{	//these attributes are meant to only be present in initiate. for call forwarding etc. which we don't properly support.
-		XML_AddParameter(jingle, "initiator", jcl->jid);
+		XML_AddParameter(jingle, "initiator", jcl->fulljid);
 	}
 
 	if (!strcmp(action, "session-terminate"))
@@ -392,7 +392,7 @@ static qboolean JCL_JingleSend(jclient_t *jcl, struct c2c_s *c2c, char *action)
 			if (!strcmp(action, "session-accept"))
 			{
 				if (c2c->content[c].method == transportmode)
-					XML_AddParameter(jingle, "responder", jcl->jid);
+					XML_AddParameter(jingle, "responder", jcl->fulljid);
 				else
 					action = "transport-replace";
 			}

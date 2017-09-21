@@ -2989,7 +2989,7 @@ static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stri
 		char base[MAX_QPATH];
 		Q_strncpyz(base, ctx->videonameprefix, sizeof(base));
 		*COM_SkipPath(base) = 0;
-		if (FS_NativePath(base, FS_GAMEONLY, filename, sizeof(filename)))
+		if (FS_NativePath(base, ctx->fsroot, filename, sizeof(filename)))
 		{
 			#ifdef HAVE_STATVFS
 				//posix 2001

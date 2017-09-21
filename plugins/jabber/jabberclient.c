@@ -3682,6 +3682,7 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 			JCL_RosterUpdate(jcl, c, from);
 		}
 
+#ifdef USE_GOOGLE_MAIL_NOTIFY
 		//google-specific - new mail notifications.
 		c = XML_ChildOfTree(tree, "new-mail", 0);
 		if (c && !strcmp(c->xmlns, "google:mail:notify") && !strcmp(from, jcl->domain))
@@ -3690,6 +3691,7 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 			JCL_SendIQf(jcl, XMPP_NewGoogleMailsReply, "get", "", "<query xmlns='google:mail:notify'/>");
 			return;
 		}
+#endif
 
 #ifdef JINGLE
 		c = XML_ChildOfTreeNS(tree, "urn:xmpp:jingle:1", "jingle", 0);

@@ -15,7 +15,7 @@ cvar_t		log_enable[LOG_TYPES]	= {	CVARF("log_enable", "0", CVAR_NOTFROMSERVER),
 cvar_t		log_name[LOG_TYPES] = { CVARFC("log_name", "", CVAR_NOTFROMSERVER, Log_Name_Callback),
 									CVARFC("log_name_players", "players", CVAR_NOTFROMSERVER, Log_Name_Callback),
 									CVARFC("log_name_rcon", "rcon", CVAR_NOTFROMSERVER, Log_Name_Callback)};
-cvar_t		log_dir = CVARFC("log_dir", "", CVAR_NOTFROMSERVER, Log_Dir_Callback);
+cvar_t		log_dir_var = CVARFC("log_dir", "", CVAR_NOTFROMSERVER, Log_Dir_Callback);
 cvar_t		log_readable = CVARFD("log_readable", "7", CVAR_NOTFROMSERVER, "Bitfield describing what to convert/strip. If 0, exact byte representation will be used.\n&1: Dequakify text.\n&2: Strip special markup.\n&4: Strip ansi control codes.");
 cvar_t		log_developer = CVARFD("log_developer", "0", CVAR_NOTFROMSERVER, "Enables logging of console prints when set to 1. Otherwise unimportant messages will not fill up your log files.");
 cvar_t		log_rotate_files = CVARF("log_rotate_files", "0", CVAR_NOTFROMSERVER);
@@ -28,8 +28,9 @@ cvar_t		log_dosformat = CVARF("log_dosformat", "0", CVAR_NOTFROMSERVER);
 #endif
 qboolean	log_newline[LOG_TYPES];
 
-// externals
-extern char gamedirfile[];
+static char log_dir[MAX_OSPATH];
+static enum fs_relative log_root = FS_GAMEONLY;
+
 
 // Log_Dir_Callback: called when a log_dir is changed
 static void QDECL Log_Dir_Callback (struct cvar_s *var, char *oldvalue)
@@ -43,6 +44,17 @@ static void QDECL Log_Dir_Callback (struct cvar_s *var, char *oldvalue)
 		Con_Printf(CON_NOTICE "%s forced to default due to invalid characters.\n", var->name);
 		// recursion is avoided by assuming the default value is sane
 		Cvar_ForceSet(var, var->defaultstr);
+	}
+
+	if (!strncmp(var->string, "./", 2)||!strncmp(var->string, ".\\", 2))
+	{
+		strcpy(log_dir, var->string+2);
+		log_root = FS_ROOT;
+	}
+	else
+	{
+		strcpy(log_dir, var->string);
+		log_root = FS_GAMEONLY;
 	}
 }
 
@@ -64,7 +76,6 @@ static void QDECL Log_Name_Callback (struct cvar_s *var, char *oldvalue)
 void Log_String (logtype_t lognum, const char *s)
 {
 	vfsfile_t *fi;
-	char *d; // directory
 	char *f; // filename
 	char *t;
 	char utf8[2048];
@@ -92,12 +103,6 @@ void Log_String (logtype_t lognum, const char *s)
 
 	if (!log_enable[lognum].value)
 		return;
-
-	// get directory/filename
-	if (log_dir.string[0])
-		d = log_dir.string;
-	else
-		d = "";//gamedirfile;
 
 	if (log_name[lognum].string[0])
 		f = log_name[lognum].string;
@@ -145,8 +150,8 @@ void Log_String (logtype_t lognum, const char *s)
 	}
 	*t = 0;
 
-	if (*d)
-		Q_snprintfz(fbase, sizeof(fname)-4, "%s/%s", d, f);
+	if (*log_dir)
+		Q_snprintfz(fbase, sizeof(fname)-4, "%s/%s", log_dir, f);
 	else
 		Q_snprintfz(fbase, sizeof(fname)-4, "%s", f);
 	Q_snprintfz(fname, sizeof(fname), "%s.log", fbase);
@@ -158,7 +163,7 @@ void Log_String (logtype_t lognum, const char *s)
 		vfsfile_t *fi;
 
 		// check file size, use x as temp
-		if ((fi = FS_OpenVFS(fname, "rb", FS_GAMEONLY)))
+		if ((fi = FS_OpenVFS(fname, "rb", log_root)))
 		{
 			x = VFS_GETLEN(fi);
 			VFS_CLOSE(fi);
@@ -176,7 +181,7 @@ void Log_String (logtype_t lognum, const char *s)
 
 			// unlink file at the top of the chain
 			Q_snprintfz(oldf, sizeof(oldf), "%s.%i.log", fbase, i);
-			FS_Remove(oldf, FS_GAMEONLY);
+			FS_Remove(oldf, log_root);
 
 			// rename files through chain
 			for (x = i-1; x > 0; x--)
@@ -185,12 +190,12 @@ void Log_String (logtype_t lognum, const char *s)
 				Q_snprintfz(oldf, sizeof(oldf), "%s.%i.log", fbase, x);
 
 				// check if file exists, otherwise skip
-				if ((fi = FS_OpenVFS(oldf, "rb", FS_GAMEONLY)))
+				if ((fi = FS_OpenVFS(oldf, "rb", log_root)))
 					VFS_CLOSE(fi);
 				else
 					continue; // skip nonexistant files
 
-				if (!FS_Rename(oldf, newf, FS_GAMEONLY))
+				if (!FS_Rename(oldf, newf, log_root))
 				{
 					// rename failed, disable log and bug out
 					Cvar_ForceSet(&log_enable[lognum], "0");
@@ -201,7 +206,7 @@ void Log_String (logtype_t lognum, const char *s)
 
 			// TODO: option to compress file somewhere in here?
 			// rename our base file, which had better exist...
-			if (!FS_Rename(fname, oldf, FS_GAMEONLY))
+			if (!FS_Rename(fname, oldf, log_root))
 			{
 				// rename failed, disable log and bug out
 				Cvar_ForceSet(&log_enable[lognum], "0");
@@ -211,8 +216,8 @@ void Log_String (logtype_t lognum, const char *s)
 		}
 	}
 
-	FS_CreatePath(fname, FS_GAMEONLY);
-	if ((fi = FS_OpenVFS(fname, "ab", FS_GAMEONLY)))
+	FS_CreatePath(fname, log_root);
+	if ((fi = FS_OpenVFS(fname, "ab", log_root)))
 	{
 		VFS_WRITE(fi, utf8, strlen(utf8));
 		VFS_CLOSE(fi);
@@ -262,8 +267,6 @@ void SV_LogPlayer(client_t *cl, char *msg)
 
 void Log_Logfile_f (void)
 {
-	extern char gamedirfile[];
-
 	if (log_enable[LOG_CONSOLE].value)
 	{
 		Cvar_SetValue(&log_enable[LOG_CONSOLE], 0);
@@ -271,17 +274,22 @@ void Log_Logfile_f (void)
 	}
 	else
 	{
-		char *d, *f;
-
-		d = gamedirfile;
-		if (log_dir.string[0])
-			d = log_dir.string;
+		char *f;
+		char syspath[MAX_OSPATH];
 
 		f = "qconsole";
 		if (log_name[LOG_CONSOLE].string[0])
 			f = log_name[LOG_CONSOLE].string;
 
-		Con_Printf("%s", va("Logging to %s/%s.log.\n", d, f));
+		if (*log_dir)
+			f = va("%s/%s.log", log_dir, f);
+		else
+			f = va("%s.log", f);
+
+		if (FS_NativePath(f, log_root, syspath, sizeof(syspath)))
+			Con_Printf("%s", va("Logging to %s\n", syspath));
+		else
+			Con_Printf("%s", va("Logging to %s\n", f));
 		Cvar_SetValue(&log_enable[LOG_CONSOLE], 1);
 	}
 
@@ -803,7 +811,7 @@ void Log_Init(void)
 		Cvar_Register (&log_name[i], CONLOGGROUP);
 		log_newline[i] = true;
 	}
-	Cvar_Register (&log_dir, CONLOGGROUP);
+	Cvar_Register (&log_dir_var, CONLOGGROUP);
 	Cvar_Register (&log_readable, CONLOGGROUP);
 	Cvar_Register (&log_developer, CONLOGGROUP);
 	Cvar_Register (&log_rotate_size, CONLOGGROUP);

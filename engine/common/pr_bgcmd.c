@@ -17,6 +17,9 @@ static char *cvargroup_progs = "Progs variables";
 cvar_t sv_gameplayfix_nolinknonsolid = CVARD("sv_gameplayfix_nolinknonsolid", "1", "When 0, setorigin et al will not link the entity into the collision nodes (which is faster, especially if you have a lot of non-solid entities. When 1, allows entities to freely switch between .solid values (except for SOLID_BSP) without relinking. A lot of DP mods assume a value of 1 and will bug out otherwise, while 0 will restore a bugs present in various mods.");
 cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods.");
 cvar_t dpcompat_findradiusarealinks = CVARD("dpcompat_findradiusarealinks", "0", "Use the world collision info to accelerate findradius instead of looping through every single entity. May actually be slower for large radiuses, or fail to find entities which have not been linked properly with setorigin.");
+#ifndef NOLEGACY
+cvar_t dpcompat_strcatlimitation = CVARD("dpcompat_crippledstrcat", "", "When set, cripples strcat (and related function) string lengths to the value specified.\nSet to 16383 to replicate DP's limit, otherwise leave as 0 to avoid limits.");
+#endif
 cvar_t pr_droptofloorunits = CVARD("pr_droptofloorunits", "256", "Distance that droptofloor is allowed to drop to be considered successul.");
 cvar_t pr_brokenfloatconvert = CVAR("pr_brokenfloatconvert", "0");
 cvar_t	pr_fixbrokenqccarrays = CVARFD("pr_fixbrokenqccarrays", "0", CVAR_LATCH, "As part of its nq/qw/h2/csqc support, FTE remaps QC fields to match an internal order. This is a faster way to handle extended fields. However, some QCCs are buggy and don't report all field defs.\n0: do nothing. QCC must be well behaved.\n1: Duplicate engine fields, remap the ones we can to known offsets. This is sufficient for QCCX/FrikQCC mods that use hardcoded or even occasional calculated offsets (fixes ktpro).\n2: Scan the mod for field accessing instructions, and assume those are the fields (and that they don't alias non-fields). This can be used to work around gmqcc's WTFs (fixes xonotic).");
@@ -47,6 +50,9 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_nolinknonsolid, cvargroup_progs);
 	Cvar_Register (&dpcompat_findradiusarealinks, cvargroup_progs);
+#ifndef NOLEGACY
+	Cvar_Register (&dpcompat_strcatlimitation, cvargroup_progs);
+#endif
 	Cvar_Register (&pr_droptofloorunits, cvargroup_progs);
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
@@ -3592,6 +3598,14 @@ void QCBUILTIN PF_strcat (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 		s[i] = PR_GetStringOfs(prinst, OFS_PARM0+i*3);
 		l[i] = strlen(s[i]);
 		len += l[i];
+
+#ifndef NOLEGACY
+		if (dpcompat_strcatlimitation.ival && len > dpcompat_strcatlimitation.ival)
+		{
+			l[i] -= len-dpcompat_strcatlimitation.ival;
+			len -= len-dpcompat_strcatlimitation.ival;
+		}
+#endif
 	}
 	len++; /*for the null*/
 	((int *)pr_globals)[OFS_RETURN] = prinst->AllocTempString(prinst, &buf, len);

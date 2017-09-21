@@ -2695,8 +2695,47 @@ static void CLDP_ParseDownloadBegin(char *s)
 
 	if (!dl || strcmp(fname, dl->remotename))
 	{
-		Con_Printf("Warning: server started sending a file we did not request. Ignoring.\n");
-		return;
+		if (cls.demoplayback && !dl && cl_dp_csqc_progssize && size == cl_dp_csqc_progssize && !strcmp(fname, cl_dp_csqc_progsname))
+		{	//its somewhat common for demos to contain a copy of the csprogs, so that the same version is available when trying to play the demo back.
+			extern cvar_t cl_download_csprogs, cl_nocsqc;
+			if (!cl_nocsqc.ival && cl_download_csprogs.ival)
+			{
+				fname = va("csprogsvers/%x.dat", cl_dp_csqc_progscrc);
+				if (CL_CheckDLFile(fname))
+					return;	//we already have this version
+
+				//Begin downloading it...
+			}
+			else
+				return;	//silently ignore it
+		}
+		else
+		{
+			Con_Printf("Warning: server started sending a file we did not request. Ignoring.\n");
+			return;
+		}
+	}
+
+	if (!dl)
+	{
+		dl = Z_Malloc(sizeof(*dl));
+		dl->filesequence = 0;
+
+		Q_strncpyz(dl->remotename, fname, sizeof(dl->remotename));
+		Q_strncpyz(dl->localname, fname, sizeof(dl->localname));
+		Con_TPrintf ("Downloading %s...\n", dl->localname);
+
+		// download to a temp name, and only rename
+		// to the real name when done, so if interrupted
+		// a runt file wont be left
+		COM_StripExtension (dl->localname, dl->tempname, sizeof(dl->tempname)-5);
+		Q_strncatz (dl->tempname, ".tmp", sizeof(dl->tempname));
+
+		dl->method = DL_DARKPLACES;
+		dl->percent = 0;
+		dl->sizeunknown = true;
+		dl->flags = DLLF_REQUIRED;
+		cls.download = dl;
 	}
 
 	if (dl->method == DL_QWPENDING)

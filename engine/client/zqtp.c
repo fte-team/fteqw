@@ -50,7 +50,7 @@ typedef qboolean qbool;
 
 
 extern int		cl_spikeindex, cl_playerindex, cl_h_playerindex, cl_flagindex, cl_rocketindex, cl_grenadeindex, cl_gib1index, cl_gib2index, cl_gib3index;
-extern cvar_t	v_viewheight;
+extern cvar_t	v_viewheight, dpcompat_console;
 trace_t PM_TraceLine (vec3_t start, vec3_t end);
 #define ISDEAD(i) ( (i) >= 41 && (i) <= 102 )
 
@@ -3855,7 +3855,14 @@ void CL_Say (qboolean team, char *extra)
 		int split = CL_TargettedSplit(true);
 		if (split >= cl.splitclients)
 			return;
-		CL_SendClientCommand(true, "%s%s \"%s%s\"", split?va("%i ", split+1):"", team ? "say_team" : "say", extra?extra:"", sendtext);
+		//messagemode always adds quotes. the console command never did.
+		//the server is expected to use Cmd_Args and to strip first+last chars if the first is a quote. this is annoying and clumsy for mods to parse.
+#ifndef NOLEGACY
+		if (!dpcompat_console.ival)
+			CL_SendClientCommand(true, "%s%s \"%s%s\"", split?va("%i ", split+1):"", team ? "say_team" : "say", extra?extra:"", sendtext);
+		else
+#endif
+			CL_SendClientCommand(true, "%s%s %s%s", split?va("%i ", split+1):"", team ? "say_team" : "say", extra?extra:"", sendtext);
 	}
 }
 

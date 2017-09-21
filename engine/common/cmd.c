@@ -1357,7 +1357,7 @@ void Cmd_ShiftArgs (int ammount, qboolean expandstring)
 	}
 }
 
-const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newaccesslevel, int *len)
+const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newaccesslevel, qboolean enclosed, int *len)
 {
 	const char *ret = NULL;
 	char *fixup = NULL, fixval=0, *t;
@@ -1401,7 +1401,7 @@ const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newaccesslev
 	else
 	{
 		pl = 0;
-		quotetype = dpcompat_console.ival;	//default to escaping.
+		quotetype = enclosed && dpcompat_console.ival;	//default to escaping.
 	}
 	if (pl)
 	{
@@ -1412,7 +1412,7 @@ const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newaccesslev
 	else
 		fixup = NULL;
 	if (*cvarterm == '$')
-		cvarname = Cmd_ExpandCvar(cvarterm+1, maxaccesslevel, newaccesslevel, &pl);
+		cvarname = Cmd_ExpandCvar(cvarterm+1, maxaccesslevel, newaccesslevel, false, &pl);
 	else
 		cvarname = cvarterm;
 
@@ -1532,7 +1532,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 				}
 				buf[i] = 0;
 				bestvar = NULL;
-				if (expandcvars && (str = Cmd_ExpandCvar(buf+1+striptrailing, maxaccesslevel, accesslevel, &var_length)))
+				if (expandcvars && (str = Cmd_ExpandCvar(buf+1+striptrailing, maxaccesslevel, accesslevel, true, &var_length)))
 					bestvar = str;
 				if (expandmacros && (str = TP_MacroString (buf+1+striptrailing, accesslevel, &var_length)))
 					bestvar = str;
@@ -1564,7 +1564,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 					data++;
 					buf[i++] = c;
 					buf[i] = 0;
-					if (expandcvars && (str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, accesslevel, &var_length)))
+					if (expandcvars && (str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, accesslevel, false, &var_length)))
 						bestvar = str;
 					if (expandmacros && (str = TP_MacroString (buf+striptrailing, accesslevel, &var_length)))
 						bestvar = str;
@@ -2249,7 +2249,7 @@ char *Cmd_CompleteCommand (const char *partial, qboolean fullonly, qboolean case
 			}
 		for (a=cmd_alias ; a ; a=a->next)
 			if (!Q_strncasecmp (partial, a->name, len) && (matchnum == -1 || !partial[len] || strlen(a->name) == len))
-				Cmd_CompleteCheck(a->name, &match, "");
+				Cmd_CompleteCheck(a->name, &match, a->value);
 		for (grp=cvar_groups ; grp ; grp=grp->next)
 		for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
 		{

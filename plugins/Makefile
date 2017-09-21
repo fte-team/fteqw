@@ -226,26 +226,43 @@ $(OUT_DIR)/fteplug_qi$(PLUG_NATIVE_EXT): qi/qi.c jabber/xml.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 NATIVE_PLUGINS+=qi
 
+
+#Regarding CEF Versions: Cef 2526 is reportedly the most recent _WORKING_ version of libcef. Later versions have screwed webgl etc, and are just generally unstable.
+#However, that's now impossible to get hold of since the old cefbuilds server went down. New builds are hosted by spotify and they're all randomly broken, so we might as well just use whatever seems fairly recent.
+
+#WARNING: Changing CEF_VER requires updating downloadables.php etc
 ifeq ($(FTE_TARGET),win32)
-#Yes, this is old, but it actually works without the gpu process crashing all the fucking time.
-#multiple more recent versions are defective. and they don't support WinXP either.
-CEF_VER=win32_2526
+	CEF_ARCH=windows32
 endif
 ifeq ($(FTE_TARGET),win64)
-#I'm just too lazy to test this minor platform.
-#CEF_VER=win64_2704
+	CEF_ARCH=windows64
 endif
+ifeq ($(FTE_TARGET),linux32)
+	#CEF_ARCH=linux32
+endif
+ifeq ($(FTE_TARGET),linux64)
+	#CEF_ARCH=linux64
+endif
+#ifeq ($(FTE_TARGET),macosx64)
+	#CEF_ARCH=macosx64
+#endif
+CEF_VER=3.3163.1666.g052c2d2
+CEF_NAME=cef_binary_$(CEF_VER)_$(CEF_ARCH)_minimal
+CEF_URL=http://opensource.spotify.com/cefbuilds/$(CEF_NAME).tar.bz2
 
-ifneq ($(CEF_VER),)
-.PHONEY: $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT)
-$(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT): $(OUT_DIR)/fteplug_cef_$(BITS).zip
+ifneq ($(CEF_ARCH),)
+cef/$(CEF_NAME)/include/cef_version.h:
+	cd cef && wget -N $(CEF_URL)
+	cd cef && tar -xjf $(CEF_NAME).tar.bz2
+cef/$(CEF_NAME)/rel.zip: cef/$(CEF_NAME)/include/cef_version.h
+	cd cef/$(CEF_NAME)/Release && zip -9 ../rel.zip *.dll *.bin
+	cd cef/$(CEF_NAME)/Resources && zip -r9 ../rel.zip .
+$(OUT_DIR)/cef_$(CEF_VER).zip: cef/$(CEF_NAME)/rel.zip
+	cp cef/$(CEF_NAME)/rel.zip $@
 
-$(OUT_DIR)/fteplug_cef_$(BITS).zip: cef/cef.c plugin.c qvm_api.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Icef/2623 $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -Wl,-rpath,. $(PLUG_LDFLAGS_DL)
-	cp cef/2623/libcef_$(BITS).zip $@
-	chmod 644 $@
-	zip -9 -j $@ $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT)
-	rm $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT)
+CEF_SOURCES=cef/cef.c plugin.c qvm_api.c
+$(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT): $(CEF_SOURCES) $(OUT_DIR)/cef_$(CEF_VER).zip cef/$(CEF_NAME)/include/cef_version.h
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Icef/$(CEF_NAME) $(CEF_SOURCES) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -Wl,-rpath,. $(PLUG_LDFLAGS_DL)
 #NATIVE_PLUGINS+=cef
 else
 .PHONEY: $(OUT_DIR)/fteplug_cef$(PLUG_NATIVE_EXT)

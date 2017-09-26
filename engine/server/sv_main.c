@@ -5095,6 +5095,7 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_resetparms,	cvargroup_servercontrol);
 
+	Cvar_Register (&sv_guidhash,	cvargroup_servercontrol);
 	Cvar_Register (&sv_serverip,	cvargroup_servercontrol);
 	Cvar_Register (&sv_public,	cvargroup_servercontrol);
 	Cvar_Register (&sv_listen_qw,	cvargroup_servercontrol);

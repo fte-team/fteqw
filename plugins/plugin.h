@@ -140,6 +140,7 @@ extern "C" {
 #endif
 extern qintptr_t (QDECL *plugin_syscall)( qintptr_t arg, ... );
 
+void Q_strlncpy(char *d, const char *s, int sizeofd, int lenofs);
 void Q_strlcpy(char *d, const char *s, int n);
 void Q_strlcat(char *d, const char *s, int n);
 int Q_snprintf(char *buffer, size_t maxlen, const char *format, ...);
@@ -198,6 +199,7 @@ EBUILTIN(void *, Plug_GetNativePointer, (const char *funcname));
 #endif
 EBUILTIN(void, Con_Print, (const char *text));	//on to main console.
 
+EBUILTIN(qhandle_t, Con_POpen, (const char *conname, unsigned int flags));
 EBUILTIN(void, Con_SubPrint, (const char *subname, const char *text));	//on to sub console.
 EBUILTIN(void, Con_RenameSub, (const char *oldname, const char *newname));	//rename a console.
 EBUILTIN(int, Con_IsActive, (const char *conname));

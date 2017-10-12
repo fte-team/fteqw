@@ -21,9 +21,7 @@ qboolean isDedicated = true;
 qboolean isDedicated = false;
 #endif
 #endif
-void *sys_window; /*public so the renderer can attach to the correct place*/
 static int sys_running = false;
-int sys_glesversion;
 extern int r_blockvidrestart;
 float sys_dpi_x, sys_dpi_y;
 int sys_soundflags;	/*1 means active. 2 means reset (so claim that its not active for one frame to force a reset)*/
@@ -34,13 +32,14 @@ static char errormessage[256];
 static char sys_basedir[MAX_OSPATH];
 static char sys_basepak[MAX_OSPATH];
 extern  jmp_buf 	host_abort;
+JNIEnv *sys_jenv;
 
 cvar_t sys_vibrate = CVARFD("sys_vibrate", "1", CVAR_ARCHIVE, "Enables the system vibrator for damage events and such things. The value provided is a duration scaler.");
 cvar_t sys_osk = CVAR("sys_osk", "0");	//to be toggled
 cvar_t sys_keepscreenon = CVARFD("sys_keepscreenon", "1", CVAR_ARCHIVE, "If set, the screen will never darken. This might cost some extra battery power, but then so will running a 3d engine.");	//to be toggled
 cvar_t sys_orientation = CVARFD("sys_orientation", "landscape", CVAR_ARCHIVE, "Specifies what angle to render quake at.\nValid values are: sensor (autodetect), landscape, portrait, reverselandscape, reverseportrait");
-cvar_t sys_glesversion_cvar = CVARFD("sys_glesversion", "1", CVAR_ARCHIVE, "Specifies which version of gles to use. 1 or 2 are valid values.");
 extern cvar_t vid_conautoscale;
+void VID_Register(void);
 
 
 #define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, DISTRIBUTION"Droid", __VA_ARGS__))
@@ -72,13 +71,7 @@ JNIEXPORT jstring JNICALL Java_com_fteqw_FTEDroidEngine_geterrormessage(JNIEnv *
 JNIEXPORT jstring JNICALL Java_com_fteqw_FTEDroidEngine_getpreferedorientation(JNIEnv *env, jobject obj)
 {
 	sys_orientation.modified = false;
-	sys_glesversion_cvar.modified = false;
 	return (*env)->NewStringUTF(env, sys_orientation.string);
-}
-
-JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_getpreferedglesversion(JNIEnv *env, jobject obj)
-{
-	return sys_glesversion_cvar.ival;
 }
 
 /*the java passes in all input directly via a 'UI' thread. we don't need to poll it at all*/
@@ -114,19 +107,32 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_motion(JNIEnv *env, jobject
 	else
 		IN_MouseMove(ptrid, true, x, y, 0, size);
 }
+JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_accelerometer(JNIEnv *env, jobject obj,
+                 jfloat x, jfloat y, jfloat z)
+{
+	IN_Accelerometer(0, x, y, z);
+}
+JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_gryoscope(JNIEnv *env, jobject obj,
+                 jfloat pitch, jfloat yaw, jfloat roll)
+{
+	IN_Gyroscope(0, pitch, yaw, roll);
+}
 
-JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj,
-				jfloat ax, jfloat ay, jfloat az,
-				jfloat gx, jfloat gy, jfloat gz)
+JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj)
 {
 	int ret;
-	static vec3_t oacc;
-	static vec3_t ogyro;
+
+	sys_jenv = env;
 
 	//if we had an error, don't even run a frame any more.
-	if (*errormessage || !sys_running)
+	if (*errormessage)
 	{
-		Sys_Printf("Crashed or quit\n");
+		Sys_Printf("Crashed: %s\n", errormessage);
+		return 8;
+	}
+	if (!sys_running)
+	{
+		Sys_Printf("quit\n");
 		return 8;
 	}
 
@@ -137,23 +143,6 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 	#else
 	unsigned int now = Sys_Milliseconds();
 	double tdelta = (now - sys_lastframe) * 0.001;
-	if (oacc[0] != ax || oacc[1] != ay || oacc[2] != az)
-	{
-		//down: x= +9.8
-		//left: y= -9.8
-		//up:   z= +9.8
-		CSQC_Accelerometer(ax, ay, az);
-		oacc[0] = ax;
-		oacc[1] = ay;
-		oacc[2] = az;
-	}
-	if (ogyro[0] != gx || ogyro[1] != gy || ogyro[2] != gz)
-	{
-		CSQC_Gyroscope(gx * 180.0/M_PI, gy * 180.0/M_PI, gz * 180.0/M_PI);
-		ogyro[0] = gx;
-		ogyro[1] = gy;
-		ogyro[2] = gz;
-	}
 	Host_Frame(tdelta);
 	sys_lastframe = now;
 	#endif
@@ -167,7 +156,7 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 		ret |= 4;
 	if (*errormessage || !sys_running)
 		ret |= 8;
-	if (sys_orientation.modified || sys_glesversion_cvar.modified)
+	if (sys_orientation.modified)
 		ret |= 16;
 	if (sys_soundflags)
 	{
@@ -180,30 +169,6 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 	return ret;
 }
 
-//tells us that our old gl context is about to be nuked.
-JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_killglcontext(JNIEnv *env, jobject obj)
-{
-	if (!sys_running)
-		return;
-	if (qrenderer == QR_NONE)
-		return;	//not initialised yet...
-	Sys_Printf("Killing resources\n");
-	R_ShutdownRenderer(true);
-	qrenderer = QR_NONE;
-	sys_glesversion = 0;
-	if (!r_blockvidrestart)
-		r_blockvidrestart = 3;	//so video is restarted properly for the next frame
-}
-
-//tells us that our old gl context got completely obliterated
-JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_newglcontext(JNIEnv *env, jobject obj)
-{
-	if (sys_running)
-		sys_running = 2;
-
-	//fixme: wipe image handles, and vbos
-}
-
 //called when the user tries to use us to open one of our file types
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_openfile(JNIEnv *env, jobject obj,
 				jstring openfile)
@@ -214,37 +179,20 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_openfile(JNIEnv *env, jobje
 	(*env)->ReleaseStringUTFChars(env, openfile, fname);
 }
 
+qboolean r_forceheadless = true;
+
 //called for init or resizes
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject obj,
-				jint width, jint height, jfloat dpix, jfloat dpiy, jint glesversion, jstring japkpath, jstring jusrpath)
+				jfloat dpix, jfloat dpiy, jstring japkpath, jstring jusrpath)
 {
 	const char *tmp;
 
 	if (*errormessage)
 		return;
 
-	vid.pixelwidth = width;
-	vid.pixelheight = height;
-	sys_glesversion = glesversion;
 	sys_dpi_x = dpix;
 	sys_dpi_y = dpiy;
-	if (sys_running)
-	{
-		if (!glesversion)
-			return;	//gah!
-		Sys_Printf("vid size changed (%i %i gles%i)\n", width, height, glesversion);
-		if (!r_blockvidrestart)
-		{
-			//if our textures got destroyed, we need to reload them all
-			Cmd_ExecuteString("vid_reload\n", RESTRICT_LOCAL);
-		}
-		else
-		{
-			//otherwise we just need to set the size properly again.
-			Cvar_ForceCallback(&vid_conautoscale);
-		}
-	}
-	else
+	if (!sys_running)
 	{
 		const char *args [] =
 		{
@@ -277,6 +225,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 
 		Sys_Printf("Starting up (apk=%s, usr=%s)\n", args[2], parms.basedir);
 
+		VID_Register();
 		COM_InitArgv(parms.argc, parms.argv);
 		TL_InitLanguages(sys_basedir);
 		#ifdef SERVERONLY
@@ -289,7 +238,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		sys_orientation.modified = true;
 
 		while(r_blockvidrestart == 1)
-			Java_com_fteqw_FTEDroidEngine_frame(env, obj, 0,0,0, 0,0,0);
+			Java_com_fteqw_FTEDroidEngine_frame(env, obj);
 
 		Sys_Printf("Engine started\n");
 	}
@@ -386,7 +335,7 @@ void Sys_Error (const char *error, ...)
 
 	Q_strncpyz(errormessage, string, sizeof(errormessage));
 
-	LOGE("%s", string);
+	LOGE("e: %s", string);
 
 	longjmp(host_abort, 1);
 	exit(1);
@@ -394,13 +343,23 @@ void Sys_Error (const char *error, ...)
 void Sys_Printf (char *fmt, ...)
 {
 	va_list         argptr;
-	char             string[1024];
+	static char linebuf[2048];	//android doesn't do \ns properly *sigh*
+	static char *endbuf = linebuf;	//android doesn't do \ns properly *sigh*
+	char *e;
 
 	va_start (argptr, fmt);
-	vsnprintf (string,sizeof(string)-1, fmt,argptr);
+	vsnprintf (endbuf,sizeof(linebuf)-(endbuf-linebuf)-1, fmt,argptr);
 	va_end (argptr);
+	endbuf += strlen(endbuf);
 
-	LOGI("%s", string);
+	while ((e = strchr(linebuf, '\n')))
+	{
+		*e = 0;
+		LOGI("%s", linebuf);
+		memmove(linebuf, e+1, endbuf-(e+1));
+		linebuf[endbuf-(e+1)] = 0;
+		endbuf -= (e+1)-linebuf;
+	}
 }
 void Sys_Warn (char *fmt, ...)
 {
@@ -411,22 +370,41 @@ void Sys_Warn (char *fmt, ...)
 	vsnprintf (string,sizeof(string)-1, fmt,argptr);
 	va_end (argptr);
 
-	LOGW("%s", string);
+	LOGW("w: %s", string);
 }
 
 void Sys_CloseLibrary(dllhandle_t *lib)
 {
-	dlclose(lib);
-}
-dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
-{
-	dllhandle_t *h;
-	h = dlopen(name, RTLD_LAZY);
-	return h;
+	if (lib)
+		dlclose(lib);
 }
 void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 {
 	return dlsym(module, exportname);
+}
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
+{
+	size_t i;
+	dllhandle_t *h;
+	h = dlopen(va("%s.so", name), RTLD_LAZY|RTLD_LOCAL);
+	if (!h)
+		h = dlopen(name, RTLD_LAZY|RTLD_LOCAL);
+
+	if (h && funcs)
+	{
+		for (i = 0; funcs[i].name; i++)
+		{
+			*funcs[i].funcptr = dlsym(h, funcs[i].name);
+			if (!*funcs[i].funcptr)
+				break;
+		}
+		if (funcs[i].name)
+		{
+			Sys_CloseLibrary(h);
+			h = NULL;
+		}
+	}
+	return h;
 }
 char *Sys_ConsoleInput (void)
 {
@@ -462,7 +440,6 @@ void Sys_Init(void)
 	Cvar_Register(&sys_osk, "android stuff");
 	Cvar_Register(&sys_keepscreenon, "android stuff");
 	Cvar_Register(&sys_orientation, "android stuff");
-	Cvar_Register(&sys_glesversion_cvar, "android stuff");
 }
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
@@ -490,6 +467,7 @@ void Sys_ServerActivity(void)
 {
 	/*FIXME: flash window*/
 }
+#ifndef MULTITHREAD
 void Sys_Sleep (double seconds)
 {
 	struct timespec ts;
@@ -500,6 +478,7 @@ void Sys_Sleep (double seconds)
 
 	nanosleep(&ts, NULL);
 }
+#endif
 qboolean Sys_InitTerminal(void)
 {
 	/*switching to dedicated mode, show text window*/

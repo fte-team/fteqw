@@ -1155,6 +1155,17 @@ static void Plug_DownloadComplete(struct dl_download *dl)
 }
 #endif
 
+static qintptr_t VARGS Plug_Con_POpen(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *conname = VM_POINTER(arg[0]);
+	int handle;
+	if (!currentplug)
+		return -3;	//streams depend upon current plugin context. which isn't valid in a thread.
+	handle = Plug_NewStreamHandle(STREAM_VFS);
+	pluginstreamarray[handle].vfs = Con_POpen(conname);
+	return handle;
+}
+
 qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	//modes:
@@ -1613,6 +1624,7 @@ void Plug_Initialise(qboolean fromgamedir)
 		Plug_RegisterBuiltin("Plug_ExportNative",		Plug_ExportNative, PLUG_BIF_DLLONLY);
 		Plug_RegisterBuiltin("Plug_GetPluginName",		Plug_GetPluginName, 0);
 		Plug_RegisterBuiltin("Con_Print",				Plug_Con_Print, 0);	//printf is not possible - qvm floats are never doubles, vararg floats in a cdecl call are always converted to doubles.
+		Plug_RegisterBuiltin("Con_POpen",				Plug_Con_POpen, PLUG_BIF_DLLONLY);
 		Plug_RegisterBuiltin("Sys_Error",				Plug_Sys_Error, 0);
 		Plug_RegisterBuiltin("Sys_Milliseconds",		Plug_Sys_Milliseconds, 0);
 		Plug_RegisterBuiltin("Com_Error",				Plug_Sys_Error, 0);	//make zquake programmers happy.

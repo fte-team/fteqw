@@ -16,6 +16,7 @@ vec3_t		r_origin, vpn, vright, vup;
 entity_t	r_worldentity;
 entity_t	*currententity;	//nnggh
 int			r_framecount;
+qboolean	r_forceheadless;
 struct texture_s	*r_notexture_mip;
 
 int	r_blockvidrestart;	//'block' is a bit of a misnomer. 0=filesystem, configs, cinematics, video are all okay as they are. 1=starting up, waiting for filesystem, will restart after. 2=configs execed, but still need cinematics. 3=video will be restarted without any other init needed
@@ -301,8 +302,11 @@ extern cvar_t r_novis;
 extern cvar_t r_speeds;
 extern cvar_t r_waterwarp;
 
-cvar_t	r_polygonoffset_submodel_factor = CVAR("r_polygonoffset_submodel_factor", "0");
-cvar_t	r_polygonoffset_submodel_offset = CVAR("r_polygonoffset_submodel_offset", "0");
+#ifdef BEF_PUSHDEPTH
+cvar_t	r_polygonoffset_submodel_factor = CVARD("r_polygonoffset_submodel_factor", "0", "z-fighting avoidance. Pushes submodel depth values slightly towards the camera depending on the slope of the surface.");
+cvar_t	r_polygonoffset_submodel_offset = CVARD("r_polygonoffset_submodel_offset", "0", "z-fighting avoidance. Pushes submodel depth values slightly towards the camera by a consistent distance.");
+cvar_t	r_polygonoffset_submodel_maps = CVARD("r_polygonoffset_submodel_map", "e?m? r?m? hip?m?", "List of maps on which z-fighting reduction should be used. wildcards accepted.");
+#endif
 cvar_t	r_polygonoffset_shadowmap_offset = CVAR("r_polygonoffset_shadowmap_factor", "0.05");
 cvar_t	r_polygonoffset_shadowmap_factor = CVAR("r_polygonoffset_shadowmap_offset", "0");
 
@@ -329,7 +333,7 @@ cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
 cvar_t r_tessellation_level					= CVAR  ("r_tessellation_level", "5");
 cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
 cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Blend sprites instead of alpha testing them");
-cvar_t r_deluxmapping_cvar					= CVARAFD ("r_deluxmapping", "0", "r_deluxemapping",	//fixme: rename to r_glsl_deluxmapping once configs catch up
+cvar_t r_deluxmapping_cvar					= CVARAFD ("r_deluxemapping", "0", "r_glsl_deluxemapping",
 												CVAR_ARCHIVE, "Enables bumpmapping based upon precomputed light directions.\n0=off\n1=use if available\n2=auto-generate (if possible)");
 qboolean r_deluxmapping;
 cvar_t r_shaderblobs						= CVARD ("r_shaderblobs", "0", "If enabled, can massively accelerate vid restarts / loading (especially with the d3d renderer). Can cause issues when upgrading engine versions, so this is disabled by default.");
@@ -375,10 +379,11 @@ cvar_t gl_savecompressedtex					= CVARD  ("gl_savecompressedtex", "0", "Write ou
 //cvar_t gl_schematics						= CVARD  ("gl_schematics", "0", "Gimmick rendering mode that draws the length of various world edges.");
 cvar_t gl_skyboxdist						= CVARD  ("gl_skyboxdist", "0", "The distance of the skybox. If 0, the engine will determine it based upon the far clip plane distance.");	//0 = guess.
 cvar_t gl_smoothcrosshair					= CVAR  ("gl_smoothcrosshair", "1");
-cvar_t	gl_maxdist							= CVARD	("gl_maxdist", "0", "The distance of the far clip plane. If set to 0, some fancy maths will be used to place it at an infinite distance.");
+cvar_t	gl_maxdist							= CVARAD	("gl_maxdist", "0", "gl_farclip", "The distance of the far clip plane. If set to 0, some fancy maths will be used to place it at an infinite distance.");
 
 #ifdef SPECULAR
-cvar_t gl_specular							= CVARF  ("gl_specular", "0.3", CVAR_ARCHIVE);
+cvar_t gl_specular							= CVARF  ("gl_specular", "0.3", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
+cvar_t gl_specular_power					= CVARF  ("gl_specular_power", "32", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
 cvar_t gl_specular_fallback					= CVARF  ("gl_specular_fallback", "0.05", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 cvar_t gl_specular_fallbackexp				= CVARF  ("gl_specular_fallbackexp", "1", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 #endif
@@ -836,6 +841,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_flashblend, GRAPHICALNICETIES);
 	Cvar_Register (&r_flashblendscale, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
+	Cvar_Register (&gl_specular_power, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular_fallback, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular_fallbackexp, GRAPHICALNICETIES);
 
@@ -957,9 +963,10 @@ void Renderer_Init(void)
 	Cvar_Register (&r_showbboxes, GLRENDEREROPTIONS);
 	Cvar_Register (&r_showfields, GLRENDEREROPTIONS);
 	Cvar_Register (&r_showshaders, GLRENDEREROPTIONS);
-#ifndef NOLEGACY
+#ifdef BEF_PUSHDEPTH
 	Cvar_Register (&r_polygonoffset_submodel_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_offset, GLRENDEREROPTIONS);
+	Cvar_Register (&r_polygonoffset_submodel_maps, GLRENDEREROPTIONS);
 #endif
 	Cvar_Register (&r_polygonoffset_shadowmap_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_shadowmap_offset, GLRENDEREROPTIONS);
@@ -1132,7 +1139,7 @@ extern rendererinfo_t nvvkrendererinfo;
 extern rendererinfo_t headlessrenderer;
 #endif
 
-rendererinfo_t *rendererinfo[] =
+rendererinfo_t *rendererinfo[16] =
 {
 #ifdef GLQUAKE
 #ifdef FTE_RPI
@@ -1174,6 +1181,24 @@ rendererinfo_t *rendererinfo[] =
 #endif
 };
 
+void R_RegisterRenderer(rendererinfo_t *ri)
+{
+	size_t i;
+	for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+	{	//already registered
+		if (rendererinfo[i] == ri)
+			return;
+	}
+	for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+	{	//register it in the first empty slot
+		if (!rendererinfo[i])
+		{
+			rendererinfo[i] = ri;
+			return;
+		}
+	}
+	Sys_Printf("unable to register renderer %s\n", ri->description);
+}
 
 void R_SetRenderer(rendererinfo_t *ri)
 {
@@ -1353,7 +1378,8 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 		isDedicated = false;
 #endif
 		if (newr)
-			Con_TPrintf("Setting mode %i*%i*%i*%i %s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->renderer->description);
+			if (!r_forceheadless || newr->renderer->rtype != QR_HEADLESS)
+				Con_TPrintf("Setting mode %i*%i*%i*%i %s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->renderer->description);
 
 		vid.fullbright=0;
 
@@ -1674,7 +1700,8 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 	if (newr && qrenderer != QR_NONE)
 	{
-		Con_TPrintf("%s renderer initialized\n", newr->renderer->description);
+		if (!r_forceheadless || newr->renderer->rtype != QR_HEADLESS)
+			Con_TPrintf("%s renderer initialized\n", newr->renderer->description);
 	}
 
 	TRACE(("dbg: R_ApplyRenderer: done\n"));
@@ -1728,11 +1755,22 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	newr->renderer = NULL;
 
 	rendererstring = COM_Parse(rendererstring);
-	if (!*com_token)
+	if (r_forceheadless)
+	{	//special hack so that android doesn't weird out when not focused.
+		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+		{
+			if (rendererinfo[i] && rendererinfo[i]->name[0] && !stricmp(rendererinfo[i]->name[0], "headless"))
+			{
+				newr->renderer = rendererinfo[i];
+				break;
+			}
+		}
+	}
+	else if (!*com_token)
 	{
 		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 		{
-			if (rendererinfo[i]->name[0] && stricmp(rendererinfo[i]->name[0], "none"))
+			if (rendererinfo[i] && rendererinfo[i]->name[0] && stricmp(rendererinfo[i]->name[0], "none"))
 			{
 				newr->renderer = rendererinfo[i];
 				break;
@@ -1744,7 +1782,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 		int count;
 		for (i = 0, count = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 		{
-			if (!rendererinfo[i]->description)
+			if (!rendererinfo[i] || !rendererinfo[i]->description)
 				continue;	//not valid in this build. :(
 			if (rendererinfo[i]->rtype == QR_NONE		||	//dedicated servers are not useful
 				rendererinfo[i]->rtype == QR_HEADLESS	||	//headless appears buggy
@@ -1755,7 +1793,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 		count = rand()%count;
 		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 		{
-			if (!rendererinfo[i]->description)
+			if (!rendererinfo[i] || !rendererinfo[i]->description)
 				continue;	//not valid in this build. :(
 			if (rendererinfo[i]->rtype == QR_NONE		||
 				rendererinfo[i]->rtype == QR_HEADLESS	||
@@ -1773,7 +1811,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	{
 		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 		{
-			if (!rendererinfo[i]->description)
+			if (!rendererinfo[i] || !rendererinfo[i]->description)
 				continue;	//not valid in this build. :(
 			for (j = 4-1; j >= 0; j--)
 			{
@@ -1954,7 +1992,7 @@ void R_SetRenderer_f (void)
 		Con_Printf ("\nValid setrenderer parameters are:\n");
 		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 		{
-			if (rendererinfo[i]->description)
+			if (rendererinfo[i] && rendererinfo[i]->description)
 				Con_Printf("^[%s\\type\\/setrenderer %s^]^7: %s%s\n", rendererinfo[i]->name[0], rendererinfo[i]->name[0], rendererinfo[i]->description, (currentrendererstate.renderer == rendererinfo[i])?" ^2(current)":"");
 		}
 		return;

@@ -405,12 +405,14 @@ char *narrowen(char *out, size_t outlen, wchar_t *wide);
 static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data, size_t datasize, qboolean datagram)
 {
 	int i;
+#ifndef SERVERONLY
+	char realdomain[256];
+#endif
 	if (datagram)
 	{
 		if (status == CERT_E_UNTRUSTEDROOT || SUCCEEDED(status))
 		{
 #ifndef SERVERONLY
-			char realdomain[256];
 			if (CertLog_ConnectOkay(narrowen(realdomain, sizeof(realdomain), domain), data, datasize))
 				status = SEC_E_OK;
 			else
@@ -455,6 +457,15 @@ static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data,
 			}
 		}
 	}
+
+#ifndef SERVERONLY
+	//self-signed and expired certs are understandable in many situations.
+	//prompt and cache (although this connection attempt will fail).
+	if (status == CERT_E_UNTRUSTEDROOT || status == CERT_E_UNTRUSTEDTESTROOT || status == CERT_E_EXPIRED)
+		if (CertLog_ConnectOkay(narrowen(realdomain, sizeof(realdomain), domain), data, datasize))
+			return SEC_E_OK;
+#endif
+
 	return status;
 }
 

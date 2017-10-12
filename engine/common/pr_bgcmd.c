@@ -18,7 +18,7 @@ cvar_t sv_gameplayfix_nolinknonsolid = CVARD("sv_gameplayfix_nolinknonsolid", "1
 cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods.");
 cvar_t dpcompat_findradiusarealinks = CVARD("dpcompat_findradiusarealinks", "0", "Use the world collision info to accelerate findradius instead of looping through every single entity. May actually be slower for large radiuses, or fail to find entities which have not been linked properly with setorigin.");
 #ifndef NOLEGACY
-cvar_t dpcompat_strcatlimitation = CVARD("dpcompat_crippledstrcat", "", "When set, cripples strcat (and related function) string lengths to the value specified.\nSet to 16383 to replicate DP's limit, otherwise leave as 0 to avoid limits.");
+cvar_t dpcompat_strcat_limit = CVARD("dpcompat_strcat_limit", "", "When set, cripples strcat (and related function) string lengths to the value specified.\nSet to 16383 to replicate DP's limit, otherwise leave as 0 to avoid limits.");
 #endif
 cvar_t pr_droptofloorunits = CVARD("pr_droptofloorunits", "256", "Distance that droptofloor is allowed to drop to be considered successul.");
 cvar_t pr_brokenfloatconvert = CVAR("pr_brokenfloatconvert", "0");
@@ -51,7 +51,7 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&sv_gameplayfix_nolinknonsolid, cvargroup_progs);
 	Cvar_Register (&dpcompat_findradiusarealinks, cvargroup_progs);
 #ifndef NOLEGACY
-	Cvar_Register (&dpcompat_strcatlimitation, cvargroup_progs);
+	Cvar_Register (&dpcompat_strcat_limit, cvargroup_progs);
 #endif
 	Cvar_Register (&pr_droptofloorunits, cvargroup_progs);
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
@@ -3600,10 +3600,10 @@ void QCBUILTIN PF_strcat (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 		len += l[i];
 
 #ifndef NOLEGACY
-		if (dpcompat_strcatlimitation.ival && len > dpcompat_strcatlimitation.ival)
+		if (dpcompat_strcat_limit.ival && len > dpcompat_strcat_limit.ival)
 		{
-			l[i] -= len-dpcompat_strcatlimitation.ival;
-			len -= len-dpcompat_strcatlimitation.ival;
+			l[i]-= len-dpcompat_strcat_limit.ival;
+			len -= len-dpcompat_strcat_limit.ival;
 		}
 #endif
 	}
@@ -6251,7 +6251,7 @@ void PDECL PR_FoundDoTranslateGlobal(pubprogfuncs_t *progfuncs, char *name, eval
 //called after each progs is loaded
 void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename)
 {
-	vfsfile_t *f = NULL;
+	vfsfile_t *f = NULL, *f2 = NULL;
 	char lang[64], *h;
 	extern cvar_t language;
 	if (!prinst || newprogs < 0)
@@ -6265,8 +6265,11 @@ void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename)
 		{
 			if (!*lang)
 				break;
-			f = FS_OpenVFS(va("%s.%s.po", modulename, lang), "rb", FS_GAME);
-			if (f)
+			if (!f)
+				f = FS_OpenVFS(va("%s.%s.po", modulename, lang), "rb", FS_GAME);
+			if (!f2)
+				f2 = FS_OpenVFS(va("common.%s.po", lang), "rb", FS_GAME);
+			if (f && f2)
 				break;
 			h = strchr(lang, '_');
 			if (h)
@@ -6276,9 +6279,11 @@ void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename)
 		}
 	}
 
-	if (f)
+	if (f || f2)
 	{
-		void *pofile = PO_Load(f);
+		void *pofile = PO_Create();
+		PO_Merge(pofile, f);
+		PO_Merge(pofile, f2);
 		prinst->FindPrefixGlobals (prinst, newprogs, "dotranslate_", PR_FoundDoTranslateGlobal, pofile);
 		PO_Close(pofile);
 	}

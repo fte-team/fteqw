@@ -76,12 +76,22 @@ typedef struct bresource_s
 typedef struct buddy_s
 {
 	bresource_t *resources;
-	bresource_t *defaultresource;	//this is the one that last replied
+	bresource_t *defaultresource;	//this is the one that last replied (must be null for chatrooms, so we only talk to the room in general)
+	bresource_t *ourselves;			//this is set back to ourselves when in a chatroom
 	int defaulttimestamp;
 	qboolean askfriend;
 	qboolean friended;
-	qboolean chatroom;	//chatrooms are bizzare things that need special handling.
 	qboolean vcardphotochanged;
+	enum {
+		BT_UNKNOWN, //this buddy isn't known...
+		BT_ROSTER,	//this is a friend! or at least on our list of potential friends anyway.
+		BT_CHATROOM //we're treating this 'guy' as a MUC, each of their resources is a different person. which is weird.
+	} btype;
+
+	qboolean room_autojoin;
+	char *room_nick;
+	char *room_password;
+	char *room_topic;
 
 	char name[256];
 	char vcardphotohash[41];
@@ -109,6 +119,9 @@ typedef struct jclient_s
 	unsigned int enabledcapabilities;
 
 	qhandle_t socket;
+
+	qhandle_t rcon_pipe;	//contains console prints
+	char rcon_peer[256];	//the name of the guy currently receiving console prints
 
 	//we buffer output for times when the outgoing socket is full.
 	//mostly this only happens at the start of the connection when the socket isn't actually open yet.
@@ -226,6 +239,7 @@ typedef struct jclient_s
 		qboolean accepted;	//connection is going
 		qboolean creator;	//true if we're the creator.
 		unsigned int peercaps;
+		qboolean displayed;	//temp flag for displaying jingle sessions with people that are not on our buddy list for whatever reasons
 
 		struct
 		{
@@ -313,32 +327,33 @@ extern icefuncs_t *piceapi;
 #endif
 
 
-qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen);
+qboolean NET_DNSLookup_SRV(const char *host, char *out, int outlen);
 
 //xmpp functionality
-struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, xmltree_t *node, qboolean destroynode);
-void JCL_AddClientMessagef(jclient_t *jcl, char *fmt, ...);
-void JCL_AddClientMessageString(jclient_t *jcl, char *msg);
-qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres, qboolean create);
+struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), const char *iqtype, const char *target, xmltree_t *node, qboolean destroynode);
+void JCL_AddClientMessagef(jclient_t *jcl, const char *fmt, ...);
+void JCL_AddClientMessageString(jclient_t *jcl, const char *msg);
+qboolean JCL_FindBuddy(jclient_t *jcl, const char *jid, buddy_t **buddy, bresource_t **bres, qboolean create);
+void JCL_ForgetBuddy(jclient_t *jcl, buddy_t *buddy, bresource_t *bres);
 
 //quake functionality
-void JCL_GenLink(jclient_t *jcl, char *out, int outlen, char *action, char *context, char *contextres, char *sid, char *txtfmt, ...);
-void Con_SubPrintf(const char *subname, char *format, ...);
+void JCL_GenLink(jclient_t *jcl, char *out, int outlen, const char *action, const char *context, const char *contextres, const char *sid, const char *txtfmt, ...);
+void Con_SubPrintf(const char *subname, const char *format, ...);
 void XMPP_ConversationPrintf(const char *context, const char *title, char *format, ...);
 
 //jingle functions
-void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int protocol);
+void JCL_Join(jclient_t *jcl, const char *target, const char *sid, qboolean allow, int protocol);
 void JCL_JingleTimeouts(jclient_t *jcl, qboolean killall);
 //jingle iq message handlers
-qboolean JCL_HandleGoogleSession(jclient_t *jcl, xmltree_t *tree, char *from, char *id);
-qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id);
+qboolean JCL_HandleGoogleSession(jclient_t *jcl, xmltree_t *tree, const char *from, const char *id);
+qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, const char *from, const char *id);
 
 void XMPP_FT_AcceptFile(jclient_t *jcl, int fileid, qboolean accept);
 qboolean XMPP_FT_OfferAcked(jclient_t *jcl, xmltree_t *x, struct iq_s *iq);
-qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, char *iqfrom, char *iqid, xmltree_t *tree);
-void XMPP_FT_SendFile(jclient_t *jcl, char *console, char *to, char *fname);
+qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, const char *iqfrom, const char *iqid, xmltree_t *tree);
+void XMPP_FT_SendFile(jclient_t *jcl, const char *console, const char *to, const char *fname);
 void XMPP_FT_Frame(jclient_t *jcl);
 
-void Base64_Add(char *s, int len);
+void Base64_Add(const char *s, int len);
 char *Base64_Finish(void);
-int Base64_Decode(char *out, int outlen, char *src, int srclen);
+int Base64_Decode(char *out, int outlen, const char *src, int srclen);

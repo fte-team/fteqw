@@ -3101,6 +3101,7 @@ static void CLQW_ParseServerData (void)
 	Stats_NewMap();
 #endif
 	cl.servercount = svcnt;
+	cl.protocol_qw = protover;
 
 	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 
@@ -3216,17 +3217,33 @@ static void CLQW_ParseServerData (void)
 	str = MSG_ReadString ();
 	Q_strncpyz (cl.levelname, str, sizeof(cl.levelname));
 
-	// get the movevars
-	movevars.gravity			= MSG_ReadFloat();
-	movevars.stopspeed			= MSG_ReadFloat();
-	maxspeed					= MSG_ReadFloat();
-	movevars.spectatormaxspeed	= MSG_ReadFloat();
-	movevars.accelerate			= MSG_ReadFloat();
-	movevars.airaccelerate		= MSG_ReadFloat();
-	movevars.wateraccelerate	= MSG_ReadFloat();
-	movevars.friction			= MSG_ReadFloat();
-	movevars.waterfriction		= MSG_ReadFloat();
-	entgrav						= MSG_ReadFloat();
+	if (cl.protocol_qw >= 25)
+	{
+		// get the movevars
+		movevars.gravity			= MSG_ReadFloat();
+		movevars.stopspeed			= MSG_ReadFloat();
+		maxspeed					= MSG_ReadFloat();
+		movevars.spectatormaxspeed	= MSG_ReadFloat();
+		movevars.accelerate			= MSG_ReadFloat();
+		movevars.airaccelerate		= MSG_ReadFloat();
+		movevars.wateraccelerate	= MSG_ReadFloat();
+		movevars.friction			= MSG_ReadFloat();
+		movevars.waterfriction		= MSG_ReadFloat();
+		entgrav						= MSG_ReadFloat();
+	}
+	else
+	{
+		movevars.gravity			= 800;
+		movevars.stopspeed			= 100;
+		maxspeed					= 320;
+		movevars.spectatormaxspeed	= 500;
+		movevars.accelerate			= 10;
+		movevars.airaccelerate		= 0.7f;
+		movevars.wateraccelerate	= 10;
+		movevars.friction			= 6.0f;
+		movevars.waterfriction		= 1;
+		entgrav						= 1;
+	}
 
 	for (clnum = 0; clnum < cl.splitclients; clnum++)
 	{
@@ -3973,7 +3990,7 @@ static void CL_ParseSoundlist (qboolean lots)
 	if (lots)
 		numsounds = MSG_ReadShort();
 	else
-		numsounds = MSG_ReadByte();
+		numsounds = (cl.protocol_qw>=26)?MSG_ReadByte():0;
 
 	for (;;)
 	{
@@ -3991,7 +4008,7 @@ static void CL_ParseSoundlist (qboolean lots)
 		strcpy (cl.sound_name[numsounds], str);
 	}
 
-	n = MSG_ReadByte();
+	n = (cl.protocol_qw>=26)?MSG_ReadByte():0;
 
 	if (n)
 	{
@@ -4047,7 +4064,7 @@ static void CL_ParseModellist (qboolean lots)
 	if (lots)
 		nummodels = MSG_ReadShort();
 	else
-		nummodels = MSG_ReadByte();
+		nummodels = (cl.protocol_qw>=26)?MSG_ReadByte():0;
 
 	for (;;)
 	{
@@ -4089,7 +4106,7 @@ static void CL_ParseModellist (qboolean lots)
 	if (nummodels)
 		SCR_ImageName(cl.model_name[1]);
 
-	n = MSG_ReadByte();
+	n = (cl.protocol_qw>=26)?MSG_ReadByte():0;
 
 	if (n)
 	{

@@ -281,6 +281,10 @@ typedef struct editor_s {
 	int savefmt;
 	time_t filemodifiedtime;
 	struct editor_s *next;
+
+	//for avoiding silly redraws etc when titles don't actually change...
+	int oldsavefmt;
+	int oldline;
 } editor_t;
 editor_t *editors;
 
@@ -2530,6 +2534,11 @@ static void UpdateEditorTitle(editor_t *editor)
 {
 	char title[2048];
 	char *encoding = "unknown";
+	if (editor->oldsavefmt == editor->savefmt && editor->oldline == editor->curline)
+		return;	//nothing changed.
+	editor->oldsavefmt = editor->savefmt;
+	editor->oldline = editor->curline;
+
 	switch(editor->savefmt)
 	{
 	case UTF8_RAW:
@@ -2633,7 +2642,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 
 		editor->tooltip = CreateWindowEx(0, TOOLTIPS_CLASS, NULL, WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, hWnd, NULL, ghInstance, NULL);
 		if (editor->tooltip)
-		{                          
+		{
 			TOOLINFO toolInfo = { 0 };
 			toolInfo.cbSize = sizeof(toolInfo);
 			toolInfo.hwnd = hWnd;
@@ -2844,7 +2853,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 					SendMessage(editor->editpane, SCI_CALLTIPCANCEL, 0, 0);
 					break;
 				}
-				UpdateEditorTitle(editor);
+				//UpdateEditorTitle(editor);
 			}
 			else
 			{
@@ -5513,6 +5522,7 @@ void OptionsDialog(void)
 	tipwnd = CreateWindow(TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
 		CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, optionsmenu, NULL, ghInstance, NULL);
 	SetWindowPos(tipwnd, HWND_TOPMOST,0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+	SendMessage(tipwnd, TTM_SETMAXTIPWIDTH, 0, 500);
 
 	subsection = CreateWindow("BUTTON", "Optimisations", WS_CHILD|WS_VISIBLE|BS_GROUPBOX,
 		0, 0, 400, height-40*4+24, optionsmenu, NULL, ghInstance, NULL);
@@ -6941,6 +6951,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	ghInstance= hInstance;
 
 	GUI_SetDefaultOpts();
+	GUI_ParseCommandLine(lpCmdLine);
 
 	strcpy(enginebinary, "");
 	strcpy(enginebasedir, "");

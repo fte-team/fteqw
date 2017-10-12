@@ -23,7 +23,7 @@ static void QDECL TL_LanguageChanged(struct cvar_s *var, char *oldvalue)
 #endif
 }
 
-cvar_t language = CVARFC("lang", sys_language, CVAR_USERINFO, TL_LanguageChanged);
+cvar_t language = CVARAFC("lang", sys_language, "prvm_language", CVAR_USERINFO, TL_LanguageChanged);
 
 void TranslateInit(void)
 {
@@ -77,7 +77,13 @@ static int TL_LoadLanguage(char *lang)
 		return TL_LoadLanguage(lang);
 	}
 	languages[j].name = strdup(lang);
-	languages[j].po = f?PO_Load(f):NULL;
+	languages[j].po = NULL;
+	
+	if (f)
+	{
+		languages[j].po = PO_Create();
+		PO_Merge(languages[j].po, f);
+	}
 
 	return j;
 }
@@ -328,19 +334,16 @@ static void PO_AddText(struct po_s *po, const char *orig, const char *trans)
 	line->next = po->lines;
 	po->lines = line;
 }
-struct po_s *PO_Load(vfsfile_t *file)
+void PO_Merge(struct po_s *po, vfsfile_t *file)
 {
-	struct po_s *po;
-	unsigned int buckets = 1024;
 	char *instart, *in, *end;
 	int inlen;
 	char msgid[32768];
 	char msgstr[32768];
 
 	qboolean allowblanks = !!COM_CheckParm("-translatetoblank");
-
-	po = Z_Malloc(sizeof(*po) + Hash_BytesForBuckets(buckets));
-	Hash_InitTable(&po->hash, buckets, po+1);
+	if (!file)
+		return;
 
 	inlen = file?VFS_GETLEN(file):0;
 	instart = in = BZ_Malloc(inlen+1);
@@ -409,6 +412,14 @@ struct po_s *PO_Load(vfsfile_t *file)
 	}
 
 	BZ_Free(instart);
+}
+struct po_s *PO_Create(void)
+{
+	struct po_s *po;
+	unsigned int buckets = 1024;
+
+	po = Z_Malloc(sizeof(*po) + Hash_BytesForBuckets(buckets));
+	Hash_InitTable(&po->hash, buckets, po+1);
 	return po;
 }
 void PO_Close(struct po_s *po)

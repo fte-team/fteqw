@@ -37,11 +37,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#include <stdint.h>
 	#define qintptr_t intptr_t
 	#define quintptr_t uintptr_t
+	#define qint16_t int16_t
+	#define quint16_t uint16_t
 	#define qint32_t int32_t
 	#define quint32_t uint32_t
 	#define qint64_t int64_t
 	#define quint64_t uint64_t
 #else
+	#define qint16_t short
+	#define quint16_t unsigned short
 	#define qint32_t int
 	#define quint32_t unsigned qint32_t
 	#if defined(_WIN64)
@@ -289,7 +293,7 @@ float MSG_ReadCoord (void);
 void MSG_ReadPos (float *pos);
 float MSG_ReadAngle (void);
 float MSG_ReadAngle16 (void);
-void MSG_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *cmd);
+void MSG_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *cmd, int qwprotocolver);
 void MSGQ2_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *move);
 void MSG_ReadData (void *data, int len);
 void MSG_ReadSkip (int len);
@@ -753,8 +757,9 @@ void T_FreeInfoStrings(void);
 char *T_GetInfoString(int num);
 
 struct po_s;
+struct po_s *PO_Create(void);
+void PO_Merge(struct po_s *po, vfsfile_t *file);
 const char *PO_GetText(struct po_s *po, const char *msg);
-struct po_s *PO_Load(vfsfile_t *file);
 void PO_Close(struct po_s *po);
 
 //

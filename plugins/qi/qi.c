@@ -235,13 +235,13 @@ void QI_RefreshMapList(qboolean forcedisplay)
 
 	for (file = thedatabase->child; file; file = file->sibling)
 	{
-		char *id = XML_GetParameter(file, "id", "unnamed");
-		char *rating = XML_GetParameter(file, "rating", "");
+		const char *id = XML_GetParameter(file, "id", "unnamed");
+		const char *rating = XML_GetParameter(file, "rating", "");
 		int ratingnum = atoi(rating);
-		char *author = XML_GetChildBody(file, "author", "unknown");
-		char *desc = XML_GetChildBody(file, "description", "<NO DESCRIPTION>");
-		char *type;
-		char *date;
+		const char *author = XML_GetChildBody(file, "author", "unknown");
+		const char *desc = XML_GetChildBody(file, "description", "<NO DESCRIPTION>");
+		const char *type;
+		const char *date;
 		int year, month, day;
 		int startmapnum, i;
 		char ratingtext[65];
@@ -397,7 +397,7 @@ static xmltree_t *QI_FindArchive(const char *name)
 	xmltree_t *file;
 	for (file = thedatabase->child; file; file = file->sibling)
 	{
-		char *id = XML_GetParameter(file, "id", "unnamed");
+		const char *id = XML_GetParameter(file, "id", "unnamed");
 		if (strcmp(file->name, "file"))
 			continue;	//erk?
 
@@ -408,7 +408,7 @@ static xmltree_t *QI_FindArchive(const char *name)
 }
 static void QI_AddPackages(xmltree_t *qifile)
 {
-	char *id;
+	const char *id;
 	char extra[1024];
 	char clean[512];
 	unsigned int i;

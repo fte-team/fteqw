@@ -2810,6 +2810,8 @@ static void SCR_ScreenShot_VR_f(void)
 		VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
 
 		//FIXME: it should be possible to do this more inteligently, and get both strips with a single render.
+		//FIXME: we should render to a PBO instead, so that the gpu+cpu don't need to sync until the very end.
+		//FIXME: we should be using scissoring to avoid redrawing the entire screen (also tweak cull planes)
 
 		ang = M_PI*2*(baseang[1]/360.0 + (lx+0.5*(rx-lx))/width);
 		r_refdef.eyeoffset[0] = sin(ang) * r_stereo_separation.value * 0.5;

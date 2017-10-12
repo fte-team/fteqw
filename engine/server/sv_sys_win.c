@@ -1110,34 +1110,64 @@ void ApplyColour(unsigned int chr)
 //this could be much more efficient.
 static void Sys_PrintColouredChars(conchar_t *start, conchar_t *end)
 {
-	conchar_t m;
 	wchar_t wc[256];
 	int l;
 	DWORD dummy;
+	unsigned int cp, flags, m;
+
+	m = CON_WHITEMASK;
+	l = 0;
 
 	while(start < end)
 	{
-		l = 0;
-		m = *start & CON_FLAGSMASK;
-		for (;;)
+		start = Font_Decode(start, &flags, &cp);
+
+		if (l+2 >= countof(wc) || flags != m)
 		{
-			if (start == end || m != (*start & CON_FLAGSMASK) || l >= countof(wc))
+			ApplyColour(m);
+			if (WinNT)
+				WriteConsoleW(hconsoleout, wc, l, &dummy, NULL);
+			else
 			{
-				ApplyColour(m);
-				if (WinNT)
-					WriteConsoleW(hconsoleout, wc, l, &dummy, NULL);
-				else
-				{
-					//win95 doesn't support wide chars *sigh*. blank consoles suck.
-					char ac[256];
-					l = WideCharToMultiByte(CP_ACP, 0, wc, l, ac, sizeof(ac), NULL, NULL);
-					WriteConsole(hconsoleout, ac, l, &dummy, NULL);
-				}
-				break;
+				//win95 doesn't support wide chars *sigh*. blank consoles suck.
+				char ac[256];
+				l = WideCharToMultiByte(CP_ACP, 0, wc, l, ac, sizeof(ac), NULL, NULL);
+				WriteConsole(hconsoleout, ac, l, &dummy, NULL);
 			}
-			if (!(*start & CON_HIDDEN))
-				wc[l++] = *start & CON_CHARMASK;
-			start++;
+			l = 0;
+		}
+
+		if (!(flags & CON_HIDDEN))
+		{
+			if (cp >= 0xe000 && cp < 0xe100)
+			{
+				cp -= 0xe000;
+				if (cp >= 0x80)
+				{
+					char c1[32] = "---..........>  "   "[]0123456789.---";
+					cp -= 0x80;
+					if (cp <= countof(c1))
+						cp = c1[cp];
+				}
+			}
+			if (cp > 0xffff)
+				cp = '?';	//too lazy for utf-16 crap when its mostly smilies anyway.
+			wc[l++] = cp;
+		}
+	}
+
+	//and flush it.
+	if (l)
+	{
+		ApplyColour(m);
+		if (WinNT)
+			WriteConsoleW(hconsoleout, wc, l, &dummy, NULL);
+		else
+		{
+			//win95 doesn't support wide chars *sigh*. blank consoles suck.
+			char ac[256];
+			l = WideCharToMultiByte(CP_ACP, 0, wc, l, ac, sizeof(ac), NULL, NULL);
+			WriteConsole(hconsoleout, ac, l, &dummy, NULL);
 		}
 	}
 

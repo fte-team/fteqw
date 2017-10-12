@@ -1790,7 +1790,7 @@ float MSG_ReadAngle (void)
 	}
 }
 
-void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
+void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move, int protover)
 {
 	int bits;
 
@@ -1798,31 +1798,61 @@ void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
 
 	bits = MSG_ReadByte ();
 
-// read current angles
-	if (bits & CM_ANGLE1)
-		move->angles[0] = MSG_ReadShort ();
-	if (bits & CM_ANGLE2)
-		move->angles[1] = MSG_ReadShort ();
-	if (bits & CM_ANGLE3)
-		move->angles[2] = MSG_ReadShort ();
+	if (protover <= 26)
+	{
+		if (bits & CM_ANGLE1)
+			move->angles[0] = MSG_ReadShort();
+		if (1)
+			move->angles[1] = MSG_ReadShort();
+		if (bits & CM_ANGLE3)
+			move->angles[2] = MSG_ReadShort();
 
-// read movement
-	if (bits & CM_FORWARD)
-		move->forwardmove = MSG_ReadShort ();
-	if (bits & CM_SIDE)
-		move->sidemove = MSG_ReadShort ();
-	if (bits & CM_UP)
-		move->upmove = MSG_ReadShort ();
+		if (bits & CM_FORWARD)
+			move->forwardmove = MSG_ReadByte()<<3;
+		if (bits & CM_SIDE)
+			move->sidemove = MSG_ReadByte()<<3;
+		if (bits & CM_UP)
+			move->upmove = MSG_ReadByte()<<3;
 
-// read buttons
-	if (bits & CM_BUTTONS)
-		move->buttons = MSG_ReadByte ();
+		// read buttons
+		if (bits & CM_BUTTONS)
+			move->buttons = MSG_ReadByte();
 
-	if (bits & CM_IMPULSE)
-		move->impulse = MSG_ReadByte ();
+		if (bits & CM_IMPULSE)
+			move->impulse = MSG_ReadByte();
 
 // read time to run command
-	move->msec = MSG_ReadByte ();
+		if (bits & CM_ANGLE2)
+			move->msec = MSG_ReadByte();
+	}
+	else
+	{
+// read current angles
+		if (bits & CM_ANGLE1)
+			move->angles[0] = MSG_ReadShort();
+		if (bits & CM_ANGLE2)
+			move->angles[1] = MSG_ReadShort();
+		if (bits & CM_ANGLE3)
+			move->angles[2] = MSG_ReadShort();
+
+// read movement
+		if (bits & CM_FORWARD)
+			move->forwardmove = MSG_ReadShort();
+		if (bits & CM_SIDE)
+			move->sidemove = MSG_ReadShort();
+		if (bits & CM_UP)
+			move->upmove = MSG_ReadShort();
+
+// read buttons
+		if (bits & CM_BUTTONS)
+			move->buttons = MSG_ReadByte();
+
+		if (bits & CM_IMPULSE)
+			move->impulse = MSG_ReadByte();
+
+// read time to run command
+		move->msec = MSG_ReadByte();
+	}
 }
 
 void MSGQ2_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
@@ -3159,6 +3189,9 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 
 	conchar_t ext;
 	conchar_t *oldout = out;
+#ifndef NOLEGACY
+	extern cvar_t dpcompat_console;
+#endif
 
 	if (flags & PFS_EZQUAKEMARKUP)
 	{
@@ -3182,7 +3215,11 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 	return out;
 #endif
 
-	if (*str == 1 || *str == 2)
+	if (*str == 1 || *str == 2
+#ifndef NOLEGACY
+		|| (*str == 3 && dpcompat_console.ival)
+#endif
+		)
 	{
 		defaultflags ^= CON_2NDCHARSETTEXT;
 		str++;
@@ -5832,6 +5869,316 @@ unsigned int COM_RemapMapChecksum(model_t *model, unsigned int checksum)
 #endif
 	return checksum;
 }
+
+/*
+  Info Buffers
+*/
+/*
+typedef struct
+{
+	struct infobuf_s
+	{
+		char *name;
+		char *value;
+	} *keys;
+	size_t numkeys;
+	qboolean nolegacy;	//no \\ or \" limitations.
+} infobuf_t;
+char *InfoBuf_GetValue (infobuf_t *info, const char *key, char *outbuf, size_t outsize)
+{
+	size_t k;
+	for (k = 0; k < info->numkeys; k++)
+	{
+		if (!strcmp(info->keys[k].name, key))
+		{
+			Q_strncpyz(outbuf, info->keys[k].value, outsize);
+			return outbuf;
+		}
+	}
+	*outbuf = 0;
+	return outbuf;
+}
+char *InfoBuf_GetValueTmp (infobuf_t *info, const char *key)
+{
+	static	char value[4][1024];	// use multiple buffers so compares work without stomping on each other
+	static	int	valueindex;
+	COM_AssertMainThread("InfoBuf_GetValue");
+	valueindex = (valueindex+1)&3;
+	return InfoBuf_GetValue(info, key, value[valueindex], sizeof(value[valueindex]));
+}
+qboolean InfoBuf_RemoveKey (infobuf_t *info, const char *key)
+{
+	size_t k;
+	for (k = 0; k < info->numkeys; k++)
+	{
+		if (!strcmp(info->keys[k].name, key))
+		{
+			Z_Free(info->keys[k].name);
+			Z_Free(info->keys[k].value);
+			info->numkeys--;
+			memmove(info->keys+k+0, info->keys+k+1, sizeof(*info->keys) * (info->numkeys-k));
+			return true;	//only one entry per key, so we can give up here
+		}
+	}
+	return false;
+}
+void InfoBuf_SetKey (infobuf_t *info, const char *key, const char *val, qboolean force)
+{
+	qboolean removed;
+	size_t k;
+
+	if (!val)
+		val = "";
+
+	if (!info->nolegacy)
+	{
+		//block invalid keys
+		//\\ makes parsing really really messy and isn't supported by most clients (although we could do it anyway)
+		//\" requires string escapes, again compat issues.
+		//0xff bugs out vanilla.
+		if (strchr(key, '\\') || strchr(key, '\"') || strchr(key, 0xff))
+			return;
+		if (strchr(val, '\\') || strchr(val, '\"') || strchr(val, 0xff))
+			return;
+
+		if (strlen(key) >= 64)
+			return;	//key length limits is a thing in vanilla qw.
+		if (strlen(val) >= 512)
+			return;	//value length limits is a thing in vanilla qw.
+					//note that qw reads values up to 512, but only sets them up to 64 bytes...
+					//probably just so that people don't spot buffer overflows so easily.
+	}
+
+	// *keys are meant to be secure (or rather unsettable by the user, preventing spoofing of stuff like *ip)
+	//		but note that this is pointless as a hacked client can send whatever initial *keys it wants (they are blocked mid-connection at least)
+	// * userinfos are always sent even to clients that can't support large infokey blobs
+	if (*key == '*' && !force)
+		return;
+
+	removed = InfoBuf_RemoveKey(info, key);
+	if (*val)
+	{
+		k = info->numkeys;
+		if (removed)
+			info->numkeys+=1;	//the memory is still allocated, because we're too lazy to free it.
+		else
+		{
+			if (!ZF_ReallocElements((void**)&info->keys, &info->numkeys, info->numkeys+1, sizeof(*info->keys)))
+				return; //out of memory!
+		}
+		info->keys[k].name = Z_StrDup(key);
+		info->keys[k].value = Z_StrDup(val);
+	}
+}
+void InfoBuf_Clear(infobuf_t *info, qboolean all)
+{//if all is false, leaves *keys
+	size_t k;
+	for (k = info->numkeys-1; k >= 0; k--)
+	{
+		if (all || *info->keys[k].name != '*')
+		{
+			Z_Free(info->keys[k].name);
+			Z_Free(info->keys[k].value);
+			info->numkeys--;
+			memmove(info->keys+k+0, info->keys+k+1, sizeof(*info->keys) * (info->numkeys-k));
+		}
+	}
+	if (!info->numkeys)
+	{
+		Z_Free(info->keys);
+		info->keys = NULL;
+	}
+}
+void InfoBuf_FromString(infobuf_t *info, const char *infostring)
+{
+	if (*infostring++ != '\\')
+		return;	//invalid... not an info string
+	while (*infostring)
+	{
+		const char *keystart = infostring;
+		const char *keyend;
+		const char *valstart;
+		const char *valend;
+		char *key;
+		char *val;
+		char *o;
+		while (*infostring)
+		{
+			if (*infostring == '\\')
+			{
+				if (infostring[1] == '\\')
+					infostring += 2;
+				break;
+			}
+			else infostring += 1;
+		}
+		keyend = infostring;
+		if (*infostring++ != '\\')
+			break;	//missing value...
+		valstart = infostring;
+		while (*infostring)
+		{
+			if (*infostring == '\\')
+			{
+				if (infostring[1] == '\\')
+					infostring += 2;
+				break;
+			}
+			else infostring += 1;
+		}
+		valend = infostring;
+		// *infostring might be '\\' or '\0'. doesn't really matter
+
+		if (!strncmp(keystart, " \\\\", 3))
+			keystart += 3;
+		if (!strncmp(valstart, " \\\\", 3))
+			valstart += 3;
+
+		key = Z_Malloc(1+keyend-keystart);
+		for (o = key; keystart < keyend; )
+		{
+			if (keystart[0] == '\\')
+				keystart+=1;
+			*o++ = *keystart++;
+		}
+		*o=0;
+		val = Z_Malloc(1+valend-valstart);
+		for (o = val; valstart < valend; )
+		{
+			if (valstart[0] == '\\')
+				valstart+=1;
+			*o++ = *valstart++;
+		}
+		*o=0;
+		InfoBuf_SetKey(info, key, val, true);
+		Z_Free(key);
+		Z_Free(val);
+	}
+}
+static size_t InfoBuf_ToStringToken(const char *n, char *out, char *end)
+{
+	size_t r = 1;
+	if (out < end)
+		*out++ = '\\';
+	if (*n == '\\' || (n[0] == ' ' && n[1] == '\\'))
+	{	//" \\" prefix is stripped by the reader, and present to allow keys or values with a leading \\ in a well-defined-but-annoying way
+		// (vanilla qw doesn't allow double-backslash anywhere in infostrings)
+		r += 3;
+		if (out < end)
+			*out++ = ' ';
+		if (out < end)
+			*out++ = '\\';
+		if (out < end)
+			*out++ = '\\';
+	}
+	while (*n)
+	{
+		if (*n == '\\')
+		{
+			if (out < end)
+				*out++ = '\\';
+		}
+		if (out < end)
+			*out++ = *n;
+		n++;
+	}
+	return r;
+}
+size_t InfoBuf_ToString(infobuf_t *info, char *infostring, size_t maxsize, const char **priority, const char **ignore, const char **exclusive)
+{
+	//if infostring is null, returns the needed buffer size
+	//\foo\\\bar is ambiguous. and interpreted as foo\ + bar
+	//\foo\ \\\\bar is interpreted as foo + \bar - leading " \\" is ignored if present.
+
+	//FIXME: add a filter, for short/compated buffers. prioritisation or something
+	size_t k, r = 1, l;
+	char *o = infostring;
+	char *e = infostring?infostring + maxsize-1:infostring;
+	int pri, p;
+	for (pri = 0; pri < 2; pri++)
+	{
+		for (k = 0; k < info->numkeys; k++)
+		{
+			if (exclusive)
+			{
+				for (l = 0; exclusive[l]; l++)
+					if (!strcmp(exclusive[l], info->keys[k].name))
+						break;
+				if (!exclusive[l])
+					continue;	//ignore when not in the list
+			}
+			if (ignore)
+			{
+				for (l = 0; ignore[l]; l++)
+					if (!strcmp(ignore[l], info->keys[k].name))
+						break;
+				if (ignore[l])
+					continue;	//ignore when in the list
+			}
+			if (priority)
+			{
+				for (l = 0; priority[l]; l++)
+					if (!strcmp(priority[l], info->keys[k].name))
+						break;
+				if (priority[l])
+					p = 0;	//high priority
+				else
+					p = 1;	//low priority
+			}
+			else
+			{
+				if (*info->keys[k].name == '*')
+					p = 0;	//keys that cannot be changed always have the highest priority (fixme: useless stuff like version doesn't need to be in here
+				else
+					p = 1;
+			}
+			if (pri != p)
+				continue;
+
+			l = InfoBuf_ToStringToken(info->keys[k].name, o, e);
+			l += InfoBuf_ToStringToken(info->keys[k].value, o, e);
+			r += l;
+			if (o && o + l < e)
+				o += l;
+		}
+	}
+	*o = 0;
+	return r;
+}
+
+void InfoBuf_WriteToFile(vfsfile_t *f, infobuf_t *info, const char *commandname, int cvarflags)
+{
+	char buffer[1024];
+	const char *key;
+	const char *val;
+	cvar_t *var;
+	size_t k;
+
+	for (k = 0; k < info->numkeys; k++)
+	{
+		key = info->keys[k].name;
+		val = info->keys[k].value;
+		if (*key == '*')	//unsettable, so don't write it for later setting.
+			continue;
+
+		if (cvarflags)
+		{
+			var = Cvar_FindVar(key);
+			if (var && var->flags & cvarflags)
+				continue;	//this is saved via a cvar.
+		}
+
+		VFS_WRITE(f, commandname, strlen(commandname));
+		VFS_WRITE(f, " ", 1);
+		key = COM_QuotedString(key, buffer, sizeof(buffer), false);
+		VFS_WRITE(f, key, strlen(key));
+		VFS_WRITE(f, " ", 1);
+		val = COM_QuotedString(val, buffer, sizeof(buffer), false);
+		VFS_WRITE(f, val, strlen(val));
+		VFS_WRITE(f, "\n", 1);
+	}
+}
+*/
 
 /*
 =====================================================================

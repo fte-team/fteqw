@@ -1741,6 +1741,12 @@ static void QCBUILTIN PF_cs_project (pubprogfuncs_t *prinst, struct globalvars_s
 		out[0] = out[0]*r_refdef.vrect.width + r_refdef.vrect.x;
 		out[1] = out[1]*r_refdef.vrect.height + r_refdef.vrect.y;
 
+		if (csqc_isdarkplaces)
+		{
+			out[0] *= (float)vid.pixelwidth / vid.width;
+			out[1] *= (float)vid.pixelheight / vid.height;
+		}
+
 		if (tempv[3] < 0)
 			out[2] *= -1;
 	}
@@ -1753,12 +1759,18 @@ static void QCBUILTIN PF_cs_unproject (pubprogfuncs_t *prinst, struct globalvars
 	{
 		float *in = G_VECTOR(OFS_PARM0);
 		float *out = G_VECTOR(OFS_RETURN);
-		float tx, ty;
+		float tx = in[0], ty = in[1];
 
 		float v[4], tempv[4];
 
-		tx = ((in[0]-r_refdef.vrect.x)/r_refdef.vrect.width);
-		ty = ((in[1]-r_refdef.vrect.y)/r_refdef.vrect.height);
+		if (csqc_isdarkplaces)
+		{
+			tx *= (float)vid.width / vid.pixelwidth;
+			ty *= (float)vid.height / vid.pixelheight;
+		}
+
+		tx = ((tx-r_refdef.vrect.x)/r_refdef.vrect.width);
+		ty = ((ty-r_refdef.vrect.y)/r_refdef.vrect.height);
 		ty = 1-ty;
 		v[0] = tx*2-1;
 		v[1] = ty*2-1;

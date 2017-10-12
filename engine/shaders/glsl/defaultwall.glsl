@@ -8,7 +8,6 @@
 !!permu SPECULAR
 !!permu REFLECTCUBEMASK
 !!cvarf r_glsl_offsetmapping_scale
-!!cvarf gl_specular
 !!cvardf r_tessellation_level=5
 !!samps diffuse lightmap specular normalmap fullbright reflectmask reflectcube paletted lightmap1 lightmap2 lightmap3
 
@@ -230,9 +229,6 @@ void main()
 #define s_colourmap	s_t0
 uniform sampler2D	s_colourmap;
 
-#ifdef SPECULAR
-uniform float cvar_gl_specular;
-#endif
 #ifdef OFFSETMAPPING
 #include "sys/offsetmapping.h"
 #endif
@@ -298,7 +294,7 @@ void main ()
 			vec3 delux = (texture2D(s_deluxmap, lm0).rgb-0.5);
 			#ifdef BUMPMODELSPACE
 				delux = normalize(delux*invsurface);
-			#else
+#else
 				lightmaps *= 2.0 / max(0.25, delux.z);	//counter the darkening from deluxmaps
 			#endif
 			lightmaps *= dot(norm, delux);
@@ -312,7 +308,7 @@ void main ()
 #ifdef SPECULAR
 	vec4 specs = texture2D(s_specular, tc);
 	vec3 halfdir = normalize(normalize(eyevector) + delux);	//this norm should be the deluxemap info instead
-	float spec = pow(max(dot(halfdir, norm), 0.0), 2.0*FTE_SPECULAR_EXPONENT * specs.a);
+	float spec = pow(max(dot(halfdir, norm), 0.0), FTE_SPECULAR_EXPONENT * specs.a);
 	spec *= FTE_SPECULAR_MULTIPLIER;
 //NOTE: rtlights tend to have a *4 scaler here to over-emphasise the effect because it looks cool.
 //As not all maps will have deluxemapping, and the double-cos from the light util makes everything far too dark anyway,
@@ -322,7 +318,7 @@ void main ()
 #endif
 
 #ifdef REFLECTCUBEMASK
-	vec3 rtc = reflect(-eyevector, norm);
+	vec3 rtc = reflect(normalize(-eyevector), norm);
 	rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];
 	rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;
 	gl_FragColor.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;
@@ -364,3 +360,4 @@ void main ()
 #endif
 }
 #endif
+

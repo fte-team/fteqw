@@ -7,7 +7,7 @@ void (*Con_TrySubPrint)(const char *conname, const char *message);
 
 void XML_Destroy(xmltree_t *t);
 
-char *XML_GetParameter(xmltree_t *t, char *paramname, char *def)
+const char *XML_GetParameter(xmltree_t *t, const char *paramname, const char *def)
 {
 	xmlparams_t *p;
 	if (t)
@@ -18,11 +18,11 @@ char *XML_GetParameter(xmltree_t *t, char *paramname, char *def)
 	}
 	return def;
 }
-void XML_AddParameter(xmltree_t *t, char *paramname, char *value)
+void XML_AddParameter(xmltree_t *t, const char *paramname, const char *value)
 {
 	xmlparams_t *p = malloc(sizeof(xmlparams_t));
 	Q_strlcpy(p->name, paramname, sizeof(p->name));
-	Q_strlcpy(p->val, value, sizeof(p->val));
+	Q_strlcpy(p->val, value?value:"", sizeof(p->val));
 
 	if (t->params)	//reverse insert
 	{
@@ -38,16 +38,23 @@ void XML_AddParameter(xmltree_t *t, char *paramname, char *value)
 		t->params = p;
 	}
 }
-void XML_AddParameteri(xmltree_t *t, char *paramname, int value)
+void XML_AddParameteri(xmltree_t *t, const char *paramname, int value)
 {
 	char svalue[64];
 	Q_snprintf(svalue, sizeof(svalue), "%i", value);
 	XML_AddParameter(t, paramname, svalue);
 }
-xmltree_t *XML_CreateNode(xmltree_t *parent, char *name, char *xmlns, char *body)
+xmltree_t *XML_CreateNode(xmltree_t *parent, const char *name, const char *xmlns, const char *body)
 {
-	int bodylen = strlen(body);
+	int bodylen;
 	struct subtree_s *node = malloc(sizeof(*node));
+
+	if (!body)
+		body = "";
+	if (!xmlns)
+		xmlns = "";
+
+	bodylen = strlen(body);
 
 	//clear out links
 	node->params = NULL;
@@ -101,7 +108,7 @@ const struct
 };
 //converts < to &lt; etc.
 //returns the end of d.
-char *XML_Markup(char *s, char *d, int dlen)
+char *XML_Markup(const char *s, char *d, int dlen)
 {
 	int i;
 	dlen--;
@@ -248,7 +255,7 @@ char *XML_GenerateString(xmltree_t *root, qboolean readable)
 	buf_cat(&buf, "", 1);
 	return buf.buf;
 }
-xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronly, char *defaultnamespace)
+xmltree_t *XML_Parse(const char *buffer, int *startpos, int maxpos, qboolean headeronly, const char *defaultnamespace)
 {
 	xmlparams_t *p;
 	xmltree_t *child;
@@ -258,8 +265,8 @@ xmltree_t *XML_Parse(char *buffer, int *startpos, int maxpos, qboolean headeronl
 	int bodymax = 0;
 	int pos, i;
 	char *tagend;
-	char *tagstart;
-	char *ns;
+	const char *tagstart;
+	const char *ns;
 	char token[1024];
 	pos = *startpos;
 	while (buffer[pos] >= '\0' && buffer[pos] <= ' ')
@@ -337,11 +344,9 @@ skippedcomment:
 	ns = strchr(token, ':');
 	if (ns)
 	{
-		*ns = 0;
-		ns++;
-
 		memcpy(ret->xmlns, "xmlns:", 6);
-		Q_strlcpy(ret->xmlns+6, token, sizeof(ret->xmlns)-6);
+		Q_strlncpy(ret->xmlns+6, token, sizeof(ret->xmlns)-6, ns-token);
+		ns++;
 		Q_strlcpy(ret->name, ns, sizeof(ret->name));
 	}
 	else
@@ -589,7 +594,7 @@ void XML_Destroy(xmltree_t *t)
 	free(t);
 }
 
-xmltree_t *XML_ChildOfTree(xmltree_t *t, char *name, int childnum)
+xmltree_t *XML_ChildOfTree(xmltree_t *t, const char *name, int childnum)
 {
 	if (t)
 	{
@@ -604,7 +609,7 @@ xmltree_t *XML_ChildOfTree(xmltree_t *t, char *name, int childnum)
 	}
 	return NULL;
 }
-xmltree_t *XML_ChildOfTreeNS(xmltree_t *t, char *xmlns, char *name, int childnum)
+xmltree_t *XML_ChildOfTreeNS(xmltree_t *t, const char *xmlns, const char *name, int childnum)
 {
 	if (t)
 	{
@@ -619,7 +624,7 @@ xmltree_t *XML_ChildOfTreeNS(xmltree_t *t, char *xmlns, char *name, int childnum
 	}
 	return NULL;
 }
-char *XML_GetChildBody(xmltree_t *t, char *paramname, char *def)
+const char *XML_GetChildBody(xmltree_t *t, const char *paramname, const char *def)
 {
 	xmltree_t *c = XML_ChildOfTree(t, paramname, 0);
 	if (c)
@@ -627,7 +632,7 @@ char *XML_GetChildBody(xmltree_t *t, char *paramname, char *def)
 	return def;
 }
 
-void XML_ConPrintTree(xmltree_t *t, char *subconsole, int indent)
+void XML_ConPrintTree(xmltree_t *t, const char *subconsole, int indent)
 {
 	int start, c, chunk;
 	struct buf_ctx buf = {NULL, 0, 0};
@@ -653,7 +658,7 @@ void XML_ConPrintTree(xmltree_t *t, char *subconsole, int indent)
 }
 
 
-static void XML_SkipWhite(char *msg, int *pos, int max)
+static void XML_SkipWhite(const char *msg, int *pos, int max)
 {
 	while (*pos < max && (
 		msg[*pos] == ' ' ||
@@ -663,7 +668,7 @@ static void XML_SkipWhite(char *msg, int *pos, int max)
 		))
 		*pos+=1;
 }
-static qboolean XML_ParseString(char *msg, int *pos, int max, char *out, int outlen)
+static qboolean XML_ParseString(const char *msg, int *pos, int max, char *out, int outlen)
 {
 	*out = 0;
 	if (*pos < max && msg[*pos] == '\"')
@@ -712,7 +717,7 @@ static qboolean XML_ParseString(char *msg, int *pos, int max, char *out, int out
 	}
 	return false;
 }
-xmltree_t *XML_FromJSON(xmltree_t *t, char *name, char *json, int *jsonpos, int jsonlen)
+xmltree_t *XML_FromJSON(xmltree_t *t, const char *name, const char *json, int *jsonpos, int jsonlen)
 {
 	char child[4096];
 	XML_SkipWhite(json, jsonpos, jsonlen);

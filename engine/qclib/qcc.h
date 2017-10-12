@@ -378,8 +378,8 @@ typedef struct QCC_def_s
 	struct QCC_function_s	*scope;		// function the var was defined in, or NULL
 	struct QCC_def_s	*deftail;	// arrays and structs create multiple globaldef objects providing different types at the different parts of the single object (struct), or alternative names (vectors). this allows us to correctly set the const type based upon how its initialised.
 	struct QCC_def_s	*generatedfor;
-	int			initialized;	// 1 when a declaration included "= immediate". 2 = extern. 3 = don't warn (unless actually used)
-	int			constant;		// 1 says we can use the value over and over again
+	int			initialized;	// 1 when a declaration included "= immediate". 2 = extern.
+	int			constant;		// 1 says we can use the value over and over again. 2 is used on fields, for some reason.
 
 	struct QCC_def_s	*symbolheader;	//this is the original symbol within which the def is stored.
 	union QCC_eval_s	*symboldata;	//null if uninitialised. use sym->symboldata[sym->ofs] to index.
@@ -402,14 +402,17 @@ typedef struct QCC_def_s
 	pbool saved:1;				//def may be saved to saved games.
 	pbool isstatic:1;			//global, even if scoped. also specific to the file it was seen in.
 	pbool subscoped_away:1;		//this local is no longer linked into the locals hash table. don't do remove it twice.
-//	pbool followptr:1;
+//	pbool followptr:1;			//float &foo;
 	pbool strip:1;				//info about this def should be stripped. it may still consume globals space however, and its storage can still be used, its just not visible.
 	pbool allowinline:1;		//calls to this function will attempt to inline the specified function. requires const, supposedly.
 	pbool used:1;				//if it remains 0, it may be stripped. this is forced for functions and fields. commonly 0 on fields.
+	pbool unused:1;				//silently strip it if it wasn't referenced.
 	pbool localscope:1;			//is a local, as opposed to a static (which is only visible within its scope)
 	pbool arraylengthprefix:1;	//hexen2 style arrays have a length prefixed to them for auto bounds checks. this can only work reliably for simple non-struct arrays.
 	pbool assumedtype:1;		//#merged. the type is not reliable.
 	pbool weak:1;				//ignore any initialiser value (only permitted on functions)
+	pbool accumulate:1;			//don't finalise the function's statements.
+	pbool nofold:1;
 
 	int	fromstatement;		//statement that it is valid from.
 	temp_t *temp;
@@ -470,6 +473,7 @@ struct QCC_function_s
 	string_t			s_filed;	// source file with definition
 	const char			*filen;
 	int					line;
+	int					line_end;
 	char				*name;		//internal name of function
 	struct QCC_function_s *parentscope;	//for nested functions
 	struct QCC_type_s	*type;		//same as the def's type
@@ -478,6 +482,9 @@ struct QCC_function_s
 	QCC_sref_t			returndef;	//default return value
 	pbool				privatelocals;	//false means locals may overlap with other functions, true is needed for compat if stuff is uninitialised.
 //	unsigned int		parm_ofs[MAX_PARMS];	// always contiguous, right?
+
+	QCC_statement_t *statements;	//if set, then this function isn't finialised yet.
+	size_t numstatements;
 };
 
 
@@ -578,6 +585,7 @@ extern pbool keyword_strip;	//don't write the def to the output.
 extern pbool keyword_union;	//you surly know what a union is!
 extern pbool keyword_wrap;
 extern pbool keyword_weak;
+extern pbool keyword_accumulate;
 
 extern pbool keyword_unused;
 extern pbool keyword_used;
@@ -670,6 +678,7 @@ extern pbool type_inlinefunction;
 QCC_type_t *QCC_TypeForName(char *name);
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype);
 QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype);
+QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s *args, int numargs);
 char *QCC_PR_ParseName (void);
 CompilerConstant_t *QCC_PR_DefineName(char *name);
 
@@ -752,6 +761,7 @@ enum {
 	WARN_NOTSTANDARDBEHAVIOUR,
 	WARN_DUPLICATEPRECOMPILER,
 	WARN_IDENTICALPRECOMPILER,
+	WARN_GMQCC_SPECIFIC,	//extension created by gmqcc that conflicts or isn't properly implemented.
 	WARN_FTE_SPECIFIC,	//extension that only FTEQCC will have a clue about.
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands
 	WARN_IFSTRING_USED,
@@ -938,8 +948,9 @@ void QCC_PR_NewLine (pbool incomment);
 #define GDF_INLINE		32	//attempt to inline calls to this function
 #define GDF_USED		64	//don't strip this, ever.
 #define GDF_BASICTYPE	128	//don't care about #merge types not being known correctly.
-QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
-QCC_sref_t QCC_PR_GetSRef (QCC_type_t *type, char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
+#define GDF_SCANLOCAL	256	//don't use the locals hash table
+QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
+QCC_sref_t QCC_PR_GetSRef (QCC_type_t *type, const char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
 void QCC_FreeTemp(QCC_sref_t t);
 void QCC_FreeDef(QCC_def_t *def);
 char *QCC_PR_CheckCompConstTooltip(char *word, char *outstart, char *outend);
@@ -973,8 +984,9 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *defscope, QCC_def_t *thearray, char 
 void QCC_PR_EmitArraySetFunction(QCC_def_t *defscope, QCC_def_t *thearray, char *arrayname);
 void QCC_PR_EmitClassFromFunction(QCC_def_t *defscope, QCC_type_t *basetype);
 
-QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_function_t *scope, int arraysize, QCC_def_t *rootsymbol, unsigned int ofs, int referable, unsigned int flags);
+QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *scope, int arraysize, QCC_def_t *rootsymbol, unsigned int ofs, int referable, unsigned int flags);
 void QCC_PR_ParseInitializerDef(QCC_def_t *def, unsigned int flags);
+void QCC_PR_FinaliseFunctions(void);
 
 
 void PostCompile(void);

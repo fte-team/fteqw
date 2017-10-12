@@ -162,7 +162,7 @@ fte_inline conchar_t *Font_Decode(conchar_t *start, unsigned int *codeflags, uns
 	if (*start & CON_LONGCHAR)
 		if (!(*start & CON_RICHFORECOLOUR))
 		{
-			*codeflags = start[1];
+			*codeflags = start[1] & CON_FLAGSMASK;
 			*codepoint = ((start[0] & CON_CHARMASK)<<16) | (start[1] & CON_CHARMASK);
 			return start+2;
 		}

@@ -236,6 +236,10 @@ static struct
 	vec3_t reflectcolour;
 	float wateralpha;
 
+	//FIXME: rtlights can't respond to these
+	int offsetmappingmode;
+	float offsetmappingscale;
+	float offsetmappingbias;
 	float specularexpscale; //*32 ish
 	float specularvalscale; //*1 ish
 } parsestate;
@@ -1149,7 +1153,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	int cvartypes[64];
 	int cvarcount = 0;
 	qboolean onefailed = false;
-	extern cvar_t gl_specular;
+	extern cvar_t gl_specular, gl_specular_power;
 #endif
 
 #ifdef VKQUAKE
@@ -1461,7 +1465,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	if (gl_specular.value)
 	{
 		if (nummodifiers < MAXMODIFIERS)
-			permutationdefines[nummodifiers++] = Z_StrDup("#define SPECULAR\n");
+			permutationdefines[nummodifiers++] = Z_StrDup(va("#define SPECULAR\n#define SPECULAR_BASE_MUL %f\n#define SPECULAR_BASE_POW %f\n", 1.0*gl_specular.value, max(1,gl_specular_power.value)));
 	}
 	for (end = strchr(name, '#'); end && *end; )
 	{
@@ -2363,23 +2367,23 @@ static void Shader_DP_OffsetMapping(shader_t *shader, shaderpass_t *pass, char *
 {
 	char *token = Shader_ParseString(ptr);
 	if (!strcmp(token, "disable") || !strcmp(token, "none") || !strcmp(token, "off"))
-		;
+		parsestate.offsetmappingmode = 0;
 	else if (!strcmp(token, "default") || !strcmp(token, "normal"))
-		;
+		parsestate.offsetmappingmode = -1;
 	else if (!strcmp(token, "linear"))
-		;
+		parsestate.offsetmappingmode = 1;
 	else if (!strcmp(token, "relief"))
-		;
-	/*scale = */Shader_ParseFloat(shader, ptr, 1);
+		parsestate.offsetmappingmode = 2;
+	parsestate.offsetmappingscale = Shader_ParseFloat(shader, ptr, 1);
 	token = Shader_ParseString(ptr);
 	if (!strcmp(token, "bias"))
-		/*bias = */Shader_ParseFloat(shader, ptr, 0.5);
+		parsestate.offsetmappingbias = Shader_ParseFloat(shader, ptr, 0.5);
 	else if (!strcmp(token, "match"))
-		/*bias = 1.0 - */Shader_ParseFloat(shader, ptr, 0.5);
+		parsestate.offsetmappingbias = 1.0 - Shader_ParseFloat(shader, ptr, 0.5);
 	else if (!strcmp(token, "match8"))
-		/*bias = 1.0 - (1.0/255) * */Shader_ParseFloat(shader, ptr, 128);
+		parsestate.offsetmappingbias = 1.0 - (1.0/255) * Shader_ParseFloat(shader, ptr, 128);
 	else if (!strcmp(token, "match16"))
-		/*bias = 1.0 - (1.0/65535) * */Shader_ParseFloat(shader, ptr, 32768);
+		parsestate.offsetmappingbias = 1.0 - (1.0/65535) * Shader_ParseFloat(shader, ptr, 32768);
 }
 static void Shader_DP_GlossScale(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -4470,7 +4474,23 @@ void Shader_Programify (shader_t *s)
 		Q_strncatz(args, va("#specmul=%g", parsestate.specularvalscale), sizeof(args));
 	if (parsestate.specularexpscale != 1)
 		Q_strncatz(args, va("#specexp=%g", parsestate.specularexpscale), sizeof(args));
-
+/*	switch(parsestate.offsetmappingmode)
+	{
+	case 0:	//force off.
+		Q_strncatz(args, va("#NOOFFSETMAPPING", parsestate.specularexpscale), sizeof(args));
+		break;
+	case 1:	//force linear
+		Q_strncatz(args, va("#NORELIEFMAPPING", parsestate.specularexpscale), sizeof(args));
+		break;
+	case 2:	//force relief
+		Q_strncatz(args, va("#RELIEFMAPPING", parsestate.specularexpscale), sizeof(args));
+		break;
+	}
+	if (parsestate.offsetmappingscale != 1)
+		Q_strncatz(args, va("#OFFSETMAPPING_SCALE=%g", parsestate.offsetmappingscale), sizeof(args));
+	if (parsestate.offsetmappingbias != 0)
+		Q_strncatz(args, va("#OFFSETMAPPING_BIAS=%g", parsestate.offsetmappingbias), sizeof(args));
+*/
 	mask = strchr(s->name, '#');
 	if (mask)
 		Q_strncatz(args, mask, sizeof(args));

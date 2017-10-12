@@ -686,7 +686,7 @@ void PR_Deinit(void)
 
 	PRSV_ClearThreads();
 #ifdef VM_Q1
-	Q1QVM_Shutdown();
+	Q1QVM_Shutdown(true);
 #endif
 	if (svprogfuncs)
 	{
@@ -4197,7 +4197,12 @@ int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
 	{
 		if (!sv.strings.sound_precache[i])
 		{
-			sv.strings.sound_precache[i] = PR_AddString(prinst, s, 0, false);
+#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+				sv.strings.sound_precache[i] = s;
+			else
+#endif
+				sv.strings.sound_precache[i] = PR_AddString(prinst, s, 0, false);
 
 			/*touch the file, so any packs will be referenced*/
 			FS_FLocateFile(s, FSLF_IFFOUND, NULL);

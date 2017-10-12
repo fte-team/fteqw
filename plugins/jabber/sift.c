@@ -210,7 +210,7 @@ void XMPP_FT_AcceptFile(jclient_t *jcl, int fileid, qboolean accept)
 
 static qboolean XMPP_FT_IBBChunked(jclient_t *jcl, xmltree_t *x, struct iq_s *iq)
 {
-	char *from = XML_GetParameter(x, "from", jcl->domain);
+	const char *from = XML_GetParameter(x, "from", jcl->domain);
 	struct ft_s *ft = iq->usrptr, **link, *v;
 	for (link = &jcl->ft; (v=*link); link = &(*link)->next)
 	{
@@ -267,7 +267,7 @@ static qboolean XMPP_FT_IBBChunked(jclient_t *jcl, xmltree_t *x, struct iq_s *iq
 static qboolean XMPP_FT_IBBBegun(jclient_t *jcl, xmltree_t *x, struct iq_s *iq)
 {
 	struct ft_s *ft = iq->usrptr, **link, *v;
-	char *from = XML_GetParameter(x, "from", jcl->domain);
+	const char *from = XML_GetParameter(x, "from", jcl->domain);
 	for (link = &jcl->ft; (v=*link); link = &(*link)->next)
 	{
 		if (v == ft && !strcmp(ft->with, from))
@@ -296,7 +296,7 @@ static qboolean XMPP_FT_IBBBegun(jclient_t *jcl, xmltree_t *x, struct iq_s *iq)
 qboolean XMPP_FT_OfferAcked(jclient_t *jcl, xmltree_t *x, struct iq_s *iq)
 {
 	struct ft_s *ft = iq->usrptr, **link, *v;
-	char *from = XML_GetParameter(x, "from", jcl->domain);
+	const char *from = XML_GetParameter(x, "from", jcl->domain);
 	for (link = &jcl->ft; (v=*link); link = &(*link)->next)
 	{
 		if (v == ft && !strcmp(ft->with, from))
@@ -328,7 +328,7 @@ qboolean XMPP_FT_OfferAcked(jclient_t *jcl, xmltree_t *x, struct iq_s *iq)
 	return false;
 }
 
-void XMPP_FT_SendFile(jclient_t *jcl, char *console, char *to, char *fname)
+void XMPP_FT_SendFile(jclient_t *jcl, const char *console, const char *to, const char *fname)
 {
 	xmltree_t *xsi, *xfile, *c;
 	struct ft_s *ft;
@@ -371,7 +371,7 @@ void XMPP_FT_SendFile(jclient_t *jcl, char *console, char *to, char *fname)
 	JCL_SendIQNode(jcl, XMPP_FT_OfferAcked, "set", to, xsi, true)->usrptr = ft;
 }
 
-qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, char *iqfrom, char *iqid, xmltree_t *tree)
+qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, const char *iqfrom, const char *iqid, xmltree_t *tree)
 {
 	xmltree_t *ot;
 
@@ -384,17 +384,17 @@ qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, char *iqfrom, char *iqid, xmltree_t 
 	{
 		xmltree_t *c;
 		struct ft_s *ft;
-		char *sid = XML_GetParameter(ot, "sid", "");
+		const char *sid = XML_GetParameter(ot, "sid", "");
 		for (ft = jcl->ft; ft; ft = ft->next)
 		{
 			if (!strcmp(ft->sid, sid) && !strcmp(ft->with, iqfrom))
 			{
 				if (ft->allowed && !ft->begun && ft->transmitting == false)
 				{
-					char *jid;
-					char *host;
+					const char *jid;
+					const char *host;
 					int port;
-					char *mode = XML_GetParameter(ot, "mode", "tcp");
+					const char *mode = XML_GetParameter(ot, "mode", "tcp");
 					int i;
 					if (strcmp(mode, "tcp"))
 						break;
@@ -432,9 +432,9 @@ qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, char *iqfrom, char *iqid, xmltree_t 
 	if (ot)
 	{
 		struct ft_s *ft;
-		char *sid = XML_GetParameter(ot, "sid", "");
+		const char *sid = XML_GetParameter(ot, "sid", "");
 		int blocksize = atoi(XML_GetParameter(ot, "block-size", "4096"));	//technically this is required.
-		char *stanza = XML_GetParameter(ot, "stanza", "iq");
+		const char *stanza = XML_GetParameter(ot, "stanza", "iq");
 		for (ft = jcl->ft; ft; ft = ft->next)
 		{
 			if (!strcmp(ft->sid, sid) && !strcmp(ft->with, iqfrom))
@@ -480,7 +480,7 @@ qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, char *iqfrom, char *iqid, xmltree_t 
 	if (ot)
 	{
 		struct ft_s **link, *ft;
-		char *sid = XML_GetParameter(ot, "sid", "");
+		const char *sid = XML_GetParameter(ot, "sid", "");
 		for (link = &jcl->ft; *link; link = &(*link)->next)
 		{
 			ft = *link;
@@ -522,7 +522,7 @@ qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, char *iqfrom, char *iqid, xmltree_t 
 	if (ot)
 	{
 		char block[65536];
-		char *sid = XML_GetParameter(ot, "sid", "");
+		const char *sid = XML_GetParameter(ot, "sid", "");
 //		unsigned short seq = atoi(XML_GetParameter(ot, "seq", "0"));
 		int blocksize;
 		struct ft_s *ft;
@@ -549,16 +549,16 @@ qboolean XMPP_FT_ParseIQSet(jclient_t *jcl, char *iqfrom, char *iqid, xmltree_t 
 	ot = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/si", "si", 0);
 	if (ot)
 	{
-		char *profile = XML_GetParameter(ot, "profile", "");
+		const char *profile = XML_GetParameter(ot, "profile", "");
 
 		if (!strcmp(profile, "http://jabber.org/protocol/si/profile/file-transfer"))
 		{
 //			char *mimetype = XML_GetParameter(ot, "mime-type", "text/plain");
-			char *sid = XML_GetParameter(ot, "id", "");
+			const char *sid = XML_GetParameter(ot, "id", "");
 			xmltree_t *file = XML_ChildOfTreeNS(ot, "http://jabber.org/protocol/si/profile/file-transfer", "file", 0);
-			char *fname = XML_GetParameter(file, "name", "file.txt");
+			const char *fname = XML_GetParameter(file, "name", "file.txt");
 //			char *date = XML_GetParameter(file, "date", "");
-			char *md5hash = XML_GetParameter(file, "hash", "");
+			const char *md5hash = XML_GetParameter(file, "hash", "");
 			int fsize = strtoul(XML_GetParameter(file, "size", "0"), NULL, 0);
 //			char *desc = XML_GetChildBody(file, "desc", "");
 			char authlink[512];

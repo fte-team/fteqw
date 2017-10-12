@@ -213,6 +213,7 @@ struct {
 	{" F318", WARN_DUPLICATEMACRO},
 	{" F319", WARN_CONSTANTCOMPARISON},
 	{" F320", WARN_PARAMWITHNONAME},
+	{" F321", WARN_GMQCC_SPECIFIC},
 
 	{" F208", WARN_NOTREFERENCEDCONST},
 	{" F209", WARN_EXTRAPRECACHE},	
@@ -335,6 +336,7 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_vector,		defaultkeyword, "vector",		"Keyword: vector",		"Disables the 'vector' keyword."},
 	{&keyword_wrap,			defaultkeyword, "wrap",			"Keyword: wrap",		"Disables the 'wrap' keyword."},
 	{&keyword_weak,			defaultkeyword, "weak",			"Keyword: weak",		"Disables the 'weak' keyword."},
+	{&keyword_accumulate,	nondefaultkeyword,"accumulate",	"Keyword: accumulate",	"Disables the 'accumulate' keyword."},
 
 	//options
 	{&keywords_coexist,		FLAG_ASDEFAULT, "kce",			"Keywords Coexist",		"If you want keywords to NOT be disabled when they a variable by the same name is defined, check here."},
@@ -936,6 +938,8 @@ void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 	{
 		for (; sym; sym = sym->next)
 		{
+			if (sym->unused && !sym->initialized)
+				sym->initialized = 1;	//even if its not.
 			sym->used = true;
 			sym->referenced = true;	//silence warnings about unreferenced things that can't be stripped
 			if (sym == endsyssym)
@@ -973,9 +977,22 @@ void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 	}
 }
 
+const QCC_eval_t *QCC_SRef_EvalConst(QCC_sref_t ref);
 //allocates final space for the def, making it a true def
 void QCC_FinaliseDef(QCC_def_t *def)
 {
+//#define DEBUG_DUMP_GLOBALMAP
+#if defined(DEBUG_DUMP) || defined(DEBUG_DUMP_GLOBALMAP)
+	int ssize = def->symbolsize;
+	const QCC_eval_t *v;
+	QCC_sref_t sr;
+#endif
+
+	if (def->symboldata == qcc_pr_globals + def->ofs)
+		return;	//was already finalised.
+
+	if (def->symbolheader != def)
+		QCC_FinaliseDef(def->symbolheader);
 	if (def->symbolheader == def && def->deftail)
 	{
 		//for head symbols, we go through and touch all of their children
@@ -1068,8 +1085,17 @@ void QCC_FinaliseDef(QCC_def_t *def)
 		def->ofs += def->symbolheader->ofs;
 	else
 	{
+/*		globalspertype[def->type->type].size += def->symbolsize;
+		globalspertype[def->type->type].entries += 1;
+		globalspertype[def->type->type].vars += !def->constant;
+		globalspertype[def->type->type].consts += def->constant;
+*/
+		if (def->ofs)
+			QCC_Error(ERR_INTERNAL, "root symbol %s has an offset", def->name);
+
 		if (def->arraylengthprefix)
 		{
+			//for hexen2 arrays, we need to emit a length first
 			if (numpr_globals+1+def->symbolsize >= MAX_REGS)
 			{
 				if (!opt_overlaptemps || !opt_locals_overlapping)
@@ -1077,20 +1103,21 @@ void QCC_FinaliseDef(QCC_def_t *def)
 				else
 					QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS");
 			}
-
-			//for hexen2 arrays, we need to emit a length first
 			if (def->type->type == ev_vector)
 				((int *)qcc_pr_globals)[numpr_globals] = def->arraysize-1;
 			else
 				((int *)qcc_pr_globals)[numpr_globals] = (def->arraysize*def->type->size)-1;	//using float arrays for structs.
 			numpr_globals+=1;
 		}
-		else if (numpr_globals+def->symbolsize >= MAX_REGS)
+		else
 		{
-			if (!opt_overlaptemps || !opt_locals_overlapping)
-				QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS - you'll need to use more optimisations");
-			else
-				QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS");
+			if (numpr_globals+def->symbolsize >= MAX_REGS)
+			{
+				if (!opt_overlaptemps || !opt_locals_overlapping)
+					QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS - you'll need to use more optimisations");
+				else
+					QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS");
+			}
 		}
 		def->ofs += numpr_globals;
 		numpr_globals += def->symbolsize;
@@ -1103,10 +1130,27 @@ void QCC_FinaliseDef(QCC_def_t *def)
 	def->symboldata = qcc_pr_globals + def->ofs;
 	def->symbolsize = numpr_globals - def->ofs;
 
-#ifdef DEBUG_DUMP
+#ifdef DEBUG_DUMP_GLOBALMAP
 	if (!def->referenced)
 		printf("Unreferenced ");
-	printf("Finalise %s(%p) @ %i+%i\n", def->name, def, def->ofs, ssize);
+	sr.sym = def;
+	sr.ofs = 0;
+	sr.cast = def->type;
+	v = QCC_SRef_EvalConst(sr);
+	if (v && def->type->type == ev_float)
+		printf("Finalise %s(%f) @ %i+%i\n", def->name, v->_float, def->ofs, ssize);
+	else if (v && def->type->type == ev_vector)
+		printf("Finalise %s(%f %f %f) @ %i+%i\n", def->name, v->vector[0], v->vector[1], v->vector[2], def->ofs, ssize);
+	else if (v && def->type->type == ev_integer)
+		printf("Finalise %s(%i) @ %i+%i\n", def->name, v->_int, def->ofs, ssize);
+	else if (v && def->type->type == ev_function)
+		printf("Finalise %s(@%i) @ %i+%i\n", def->name, v->_int, def->ofs, ssize);
+	else if (v && def->type->type == ev_field)
+		printf("Finalise %s(.%i) @ %i+%i\n", def->name, v->_int, def->ofs, ssize);
+	else if (v && def->type->type == ev_string)
+		printf("Finalise %s(%s) @ %i+%i\n", def->name, strings+v->_int, def->ofs, ssize);
+	else
+		printf("Finalise %s @ %i+%i\n", def->name, def->ofs, ssize);
 #endif
 }
 
@@ -1115,9 +1159,29 @@ void QCC_FinaliseDef(QCC_def_t *def)
 void QCC_UnmarshalLocals(void)
 {
 	QCC_def_t *d;
-	unsigned int onum, biggest, eog = numpr_globals;
+	unsigned int onum, biggest, eog;
 	size_t i;
-	//first, finalize private locals.
+
+	//finalise all the globals that we've seen so far
+	for (d = pr.def_head.next ; d ; d = d->next)
+	{
+		if (!d->localscope || d->isstatic)
+			QCC_FinaliseDef(d);
+	}
+
+	//first, finalize all static locals that shouldn't form part of the local defs.
+	for (i=0 ; i<numfunctions ; i++)
+	{
+		if (functions[i].privatelocals)
+		{
+			for (d = functions[i].firstlocal; d; d = d->nextlocal)
+				if (d->isstatic || (d->constant && d->initialized))
+					QCC_FinaliseDef(d);
+		}
+	}
+
+	eog = numpr_globals;
+	//next, finalize non-static locals.
 	for (i=0 ; i<numfunctions ; i++)
 	{
 		if (functions[i].privatelocals)
@@ -1127,7 +1191,8 @@ void QCC_UnmarshalLocals(void)
 			printf("function %s locals:\n", functions[i].name);
 #endif
 			for (d = functions[i].firstlocal; d; d = d->nextlocal)
-				QCC_FinaliseDef(d);
+				if (!d->isstatic && !(d->constant && d->initialized))
+					QCC_FinaliseDef(d);
 			if (verbose >= VERBOSE_DEBUG)
 			{
 				if (onum == numpr_globals)
@@ -1294,13 +1359,10 @@ pbool QCC_WriteData (int crc)
 	def = QCC_PR_GetDef(NULL, "end_sys_fields", NULL, false, 0, false);
 	if (def)
 		def->referenced = true;
+
+	QCC_PR_FinaliseFunctions();
 	QCC_DetermineNeededSymbols(def);
 
-	for (def = pr.def_head.next ; def ; def = def->next)
-	{
-		if (!def->localscope)
-			QCC_FinaliseDef(def);
-	}
 	QCC_UnmarshalLocals();
 	QCC_FinaliseTemps();
 
@@ -2003,7 +2065,7 @@ strofs = (strofs+3)&~3;
 				{
 					char line[2048];
 
-					QC_snprintfz(line, sizeof(line), "code: %s:%i: @%i  %s  t%i  t%i  %i  (%s", QCC_FileForStatement(i), statements[i].linenum, i, pr_opcodes[statements[i].op].opname, a, b, c, QCC_VarAtOffset(statements[i].a));
+					QC_snprintfz(line, sizeof(line), "code: %s:%i: @%i  %s  %i  %i  %i  (%s", QCC_FileForStatement(i), statements[i].linenum, i, pr_opcodes[statements[i].op].opname, a, b, c, QCC_VarAtOffset(statements[i].a));
 					QC_snprintfz(line+strlen(line), sizeof(line)-strlen(line), " %s", QCC_VarAtOffset(statements[i].b));
 					QC_snprintfz(line+strlen(line), sizeof(line)-strlen(line), " %s)\n", QCC_VarAtOffset(statements[i].c));
 					printf("%s", line);
@@ -2518,7 +2580,6 @@ static void QCC_MergeStatements16(dstatement16_t *in, unsigned int num)
 	out->linenum = 0;
 	numstatements++;
 }
-QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_function_t *scope, int arraysize, QCC_def_t *rootsymbol, unsigned int ofs, int referable, unsigned int flags);
 static etype_t QCC_MergeFindFieldType(unsigned int ofs, const char *fldname, ddef16_t *fields, size_t numfields)
 {
 	size_t i;
@@ -3119,6 +3180,11 @@ int QCC_PR_FinishCompilation (void)
 						pr_scope = NULL;
 						continue;
 					}
+				}
+				if (d->unused)
+				{
+					d->initialized = 1;
+					continue;
 				}
 				QCC_PR_Warning(ERR_NOFUNC, d->filen, d->s_line, "function %s has no body",d->name);
 				QCC_PR_ParsePrintDef(ERR_NOFUNC, d);
@@ -4027,7 +4093,21 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				else
 					*compiler_flag[p].enabled = false;
 			}
-			if (!strcmp(myargv[i]+5, "fteqcc"))
+			if (!strcmp(myargv[i]+5, "qccx"))
+			{
+				flag_qccx = true;	//fixme: extra stuff
+				qccwarningaction[WARN_DENORMAL] = WA_IGNORE;	//this is just too spammy
+				qccwarningaction[WARN_LAXCAST] = WA_IGNORE;	//more plausable, but still too spammy. easier to fix at least.
+			}
+			else if (!strcmp(myargv[i]+5, "preqcc"))
+			{
+				flag_hashonly = true;
+			}
+			else if (!strcmp(myargv[i]+5, "reacc"))
+			{
+				flag_acc = true;
+			}
+			else if (!strcmp(myargv[i]+5, "fteqcc"))
 				;	//as above, its the default.
 			else if (!strcmp(myargv[i]+5, "id"))
 			{
@@ -4537,10 +4617,11 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	MAX_GLOBALS		= 1<<17;
 	MAX_FIELDS		= 1<<12;
 	MAX_STATEMENTS	= 0x80000;
-	MAX_FUNCTIONS	= 16384;
+	MAX_FUNCTIONS	= 32768;
 	maxtypeinfos	= 32768;
 	MAX_CONSTANTS	= 4096;
 
+	strcpy(destfile, "");
 	compressoutput = 0;
 
 	p = externs->FileSize("qcc.cfg");

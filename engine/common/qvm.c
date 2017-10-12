@@ -1136,7 +1136,7 @@ qintptr_t VARGS VM_Call(vm_t *vm, qintptr_t instruction, ...)
 	arg[3]=va_arg(argptr, qintptr_t);
 	arg[4]=va_arg(argptr, qintptr_t);
 	arg[5]=va_arg(argptr, qintptr_t);
- 	arg[6]=va_arg(argptr, qintptr_t);
+	arg[6]=va_arg(argptr, qintptr_t);
 	arg[7]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 

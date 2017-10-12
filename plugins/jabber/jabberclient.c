@@ -108,7 +108,7 @@ void Fallback_ConPrint(const char *conname, const char *message)
 }
 
 void XMPP_ConversationPrintf(const char *context, const char *title, char *format, ...);
-void Con_SubPrintf(const char *subname, char *format, ...)
+void Con_SubPrintf(const char *subname, const char *format, ...)
 {
 	va_list		argptr;
 	static char		string[1024];
@@ -122,12 +122,7 @@ void Con_SubPrintf(const char *subname, char *format, ...)
 
 
 //porting zone:
-	#define COLOURGREEN	"^2"
-	#define COLORWHITE "^7"
 	#define COLOURWHITE "^7" // word
-	#define COLOURRED "^1"
-	#define COLOURYELLOW "^3"
-	#define COLOURPURPLE "^5"
 	#define COMMANDPREFIX "xmpp"
 	#define COMMANDPREFIX2 "jab"
 	#define COMMANDPREFIX3 "jabbercl"
@@ -188,8 +183,7 @@ void Con_SubPrintf(const char *subname, char *format, ...)
 	}
 
 
-//GPL: ripped from quake
-char *JCL_Info_ValueForKey (char *s, const char *key, char *valuebuf, int valuelen)
+char *JCL_Info_ValueForKey (char *s, const char *key, char *valuebuf, int valuelen)	//GPL: ripped from quake
 {
 	char	pkey[1024];
 	char	*o;
@@ -247,12 +241,345 @@ char *JCL_Info_ValueForKey (char *s, const char *key, char *valuebuf, int valuel
 	}
 }
 
+
+
+
+/*
+this is a fairly basic implementation.
+don't expect it to do much.
+You can probably get a better version from somewhere.
+This has been tweaked to do xml markup in %s. Use %+s if you want to include xml-formatted text as-is.
+*/
+int Q_vsnprintxf(char *buffer, size_t maxlen, const char *format, va_list vargs)
+{
+	int tokens=0;
+	char *string;
+	char tempbuffer[64];
+	char sign;
+	unsigned int _uint;
+	int _int;
+	float _float;
+	int i;
+	int use0s;
+	int width, useprepad, plus;
+	int precision;
+
+	if (!maxlen)
+		return 0;
+maxlen--;
+
+	while(*format)
+	{
+		switch(*format)
+		{
+		case '%':
+			plus = 0;
+			width= 0;
+			precision=-1;
+			useprepad=0;
+			use0s= 0;
+retry:
+			switch(*(++format))
+			{
+			case '-':
+				useprepad=true;
+				goto retry;
+			case '+':
+				plus = true;
+				goto retry;
+			case '.':
+				precision = 0;
+				while (format[1] >= '0' && format[1] <= '9')
+					precision = precision*10+*++format-'0';
+				goto retry;
+			case '0':
+				if (!width)
+				{
+					use0s=true;
+					goto retry;
+				}
+			case '1':
+			case '2':
+			case '3':
+			case '4':
+			case '5':
+			case '6':
+			case '7':
+			case '8':
+			case '9':
+				width=width*10+*format-'0';
+				goto retry;
+			case '%':	/*emit a %*/
+				if (maxlen-- == 0) 
+					{*buffer++='\0';return tokens;}
+				*buffer++ = *format;
+				break;
+			case 's':
+				string = va_arg(vargs, char *);
+				if (!string)
+					string = "(null)";
+				if (!plus)
+				{
+					while (*string)
+					{
+						char *rep;
+						size_t replen;
+						char c = *string++;
+						switch(c)
+						{
+						default:
+							if (maxlen-- == 0) 
+								{*buffer++='\0';return tokens;}
+							*buffer++ = c;
+							continue;
+						case '<': rep = "&lt;"; break;
+						case '>': rep = "&gt;"; break;
+						case '&': rep = "&amp;"; break;
+						case '\'': rep = "&apos;"; break;
+						case '\"': rep = "&quot;"; break;
+						}
+						replen = strlen(rep);
+						if (maxlen < replen)
+							{*buffer++='\0';return tokens;}
+						maxlen -= replen;
+						memcpy(buffer, rep, replen);
+						buffer += replen;
+					}
+				}
+				else if (width)
+				{
+					while (*string && width--)
+					{
+						if (maxlen-- == 0) 
+							{*buffer++='\0';return tokens;}
+						*buffer++ = *string++;
+					}
+				}
+				else
+				{
+					while (*string)
+					{
+						if (maxlen-- == 0) 
+							{*buffer++='\0';return tokens;}
+						*buffer++ = *string++;
+					}
+				}
+				tokens++;
+				break;
+			/*case 'c':
+				_int = va_arg(vargs, int);
+				if (maxlen-- == 0) 
+					{*buffer++='\0';return tokens;}
+				*buffer++ = _int;
+				tokens++;
+				break;*/
+			case 'p':
+				if (1)
+				_uint = (size_t)va_arg(vargs, void*);
+				else
+			case 'x':
+				_uint = va_arg(vargs, unsigned int);
+				i = sizeof(tempbuffer)-2;
+				tempbuffer[i+1] = '\0';
+				while(_uint)
+				{
+					tempbuffer[i] = (_uint&0xf) + '0';
+					if (tempbuffer[i] > '9')
+						tempbuffer[i] = tempbuffer[i] - ':' + 'a';
+					_uint/=16;
+					i--;
+				}
+				string = tempbuffer+i+1;
+
+				if (!*string)
+				{
+					i=61;
+					string = tempbuffer+i+1;
+					string[0] = '0';
+					string[1] = '\0';
+				}
+
+				width -= 62-i;
+				while (width>0)
+				{
+					string--;
+					if (use0s)
+						*string = '0';
+					else
+						*string = ' ';
+					width--;
+				}
+
+				while (*string)
+				{
+					if (maxlen-- == 0) 
+						{*buffer++='\0';return tokens;}
+					*buffer++ = *string++;
+				}
+				tokens++;
+				break;
+			case 'd':
+			case 'u':
+			case 'i':
+				_int = va_arg(vargs, int);
+				if (useprepad)
+				{
+
+				}
+				if (_int < 0)
+				{
+					sign = '-';
+					_int *= -1;
+				}
+				else if (plus)
+					sign = '+';
+				else
+					sign = 0;
+				i = sizeof(tempbuffer)-2;
+				tempbuffer[sizeof(tempbuffer)-1] = '\0';
+				while(_int)
+				{
+					tempbuffer[i--] = _int%10 + '0';
+					_int/=10;
+				}
+				if (sign)
+					tempbuffer[i--] = sign;
+				string = tempbuffer+i+1;
+
+				if (!*string)
+				{
+					i=61;
+					string = tempbuffer+i+1;
+					string[0] = '0';
+					string[1] = '\0';
+				}
+
+				width -= 62-i;
+/*				while (width>0)
+				{
+					string--;
+					*string = ' ';
+					width--;
+				}
+*/
+				while(width>0)
+				{
+					if (maxlen-- == 0) 
+						{*buffer++='\0';return tokens;}
+					if (use0s)
+						*buffer++ = '0';
+					else
+						*buffer++ = ' ';
+					width--;
+				}
+
+				while (*string)
+				{
+					if (maxlen-- == 0) 
+						{*buffer++='\0';return tokens;}
+					*buffer++ = *string++;
+				}
+				tokens++;
+				break;
+			case 'f':
+				_float = (float)va_arg(vargs, double);
+
+//integer part.
+				_int = (int)_float;
+				if (_int < 0)
+				{
+					if (maxlen-- == 0) 
+						{*buffer++='\0';return tokens;}
+					*buffer++ = '-';
+					_int *= -1;
+				}
+				i = sizeof(tempbuffer)-2;
+				tempbuffer[sizeof(tempbuffer)-1] = '\0';
+				if (!_int)
+				{
+					tempbuffer[i--] = '0';
+				}
+				else
+				{
+					while(_int)
+					{
+						tempbuffer[i--] = _int%10 + '0';
+						_int/=10;
+					}
+				}
+				string = tempbuffer+i+1;
+				while (*string)
+				{
+					if (maxlen-- == 0) 
+						{*buffer++='\0';return tokens;}
+					*buffer++ = *string++;
+				}
+
+				_int = sizeof(tempbuffer)-2-i;
+
+//floating point part.
+				_float -= (int)_float;
+				i = 0;
+				tempbuffer[i++] = '.';
+				if (precision < 0)
+					precision = 7;
+				while(_float - (int)_float)
+				{
+					if (i > precision)	//remove the excess presision.
+						break;
+
+					_float*=10;
+					tempbuffer[i++] = (int)_float%10 + '0';
+				}
+				if (i == 1)	//no actual fractional part
+				{
+					tokens++;
+					break;
+				}
+
+				//concatinate to our string
+				tempbuffer[i] = '\0';
+				string = tempbuffer;
+				while (*string)
+				{
+					if (maxlen-- == 0) 
+						{*buffer++='\0';return tokens;}
+					*buffer++ = *string++;
+				}
+
+				tokens++;
+				break;
+			default:
+				string = "ERROR IN FORMAT";
+				while (*string)
+				{
+					if (maxlen-- == 0) 
+						{*buffer++='\0';return tokens;}
+					*buffer++ = *string++;
+				}
+				break;
+			}
+			break;
+		default:
+			if (maxlen-- == 0) 
+				{*buffer++='\0';return tokens;}
+			*buffer++ = *format;
+			break;
+		}
+		format++;
+	}
+	{*buffer++='\0';return tokens;}
+}
+
+
+
+
 #if defined(_WIN32) && defined(HAVE_PACKET)
 #include <windns.h>
 static DNS_STATUS (WINAPI *pDnsQuery_UTF8) (PCSTR pszName, WORD wType, DWORD Options, PIP4_ARRAY aipServers, PDNS_RECORD *ppQueryResults, PVOID *pReserved);
 static VOID (WINAPI *pDnsRecordListFree)(PDNS_RECORD pRecordList, DNS_FREE_TYPE FreeType);
 static HMODULE dnsapi_lib;
-qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
+qboolean NET_DNSLookup_SRV(const char *host, char *out, int outlen)
 {
 	DNS_RECORD *result = NULL;
 	if (!dnsapi_lib)
@@ -408,7 +735,7 @@ void Base64_Byte(unsigned int byt)
 	}
 }
 
-void Base64_Add(char *s, int len)
+void Base64_Add(const char *s, int len)
 {
 	unsigned char *us = (unsigned char *)s;
 	while(len-->0)
@@ -467,7 +794,7 @@ static int Base64_DecodeByte(char byt)
     return -1;
 }
 //FIXME: we should be able to skip whitespace.
-int Base64_Decode(char *out, int outlen, char *src, int srclen)
+int Base64_Decode(char *out, int outlen, const char *src, int srclen)
 {
 	int len = 0;
 	int result;
@@ -1267,7 +1594,7 @@ static int sasl_oauth2_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 	{
 		char body[4096];
 		char header[4096];
-		char *newrefresh;
+		const char *newrefresh;
 
 		//send a refresh request
 
@@ -1378,16 +1705,16 @@ https://oauth.live.com/authorize?client_id=000000004C07035A&scope=wl.messenger,w
 
 struct subtree_s;
 
-void JCL_AddClientMessagef(jclient_t *jcl, char *fmt, ...);
-qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres, qboolean create);
+//void JCL_AddClientMessagef(jclient_t *jcl, char *fmt, ...);
+//qboolean JCL_FindBuddy(jclient_t *jcl, const char *jid, buddy_t **buddy, bresource_t **bres, qboolean create);
 void JCL_GeneratePresence(jclient_t *jcl, qboolean force);
-struct iq_s *JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, struct subtree_s *tree, struct iq_s *iq), char *iqtype, char *target, char *fmt, ...);
-struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, xmltree_t *node, qboolean destroynode);
+struct iq_s *JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, struct subtree_s *tree, struct iq_s *iq), const char *iqtype, const char *target, const char *fmt, ...);
+//struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), const char *iqtype, const char *target, xmltree_t *node, qboolean destroynode);
 void JCL_CloseConnection(jclient_t *jcl, const char *reason, qboolean reconnect);
-void JCL_JoinMUCChat(jclient_t *jcl, char *room, char *server, char *myhandle, char *password);
+void JCL_JoinMUCChat(jclient_t *jcl, const char *room, const char *server, const char *myhandle, const char *password);
 static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq);
 
-void JCL_GenLink(jclient_t *jcl, char *out, int outlen, char *action, char *context, char *contextres, char *sid, char *txtfmt, ...)
+void JCL_GenLink(jclient_t *jcl, char *out, int outlen, const char *action, const char *context, const char *contextres, const char *sid, const char *txtfmt, ...)
 {
 	va_list		argptr;
 	qboolean textonly = false;
@@ -1577,6 +1904,7 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 	char what[256];
 	char which[256];
 	int i;
+	buddy_t *b = NULL;
 //	pCmd_Argv(0, text, sizeof(text));
 	pCmd_Argv(1, link, sizeof(link));
 
@@ -1834,16 +2162,66 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 		char chatlink[512];
 		char unfriend[512];
 		char realias[512];
-		buddy_t *b = NULL;
 		JCL_FindBuddy(jcl, *who?who:jcl->defaultdest, &b, NULL, false);
 		if (b)
 		{
-			JCL_GenLink(jcl, chatlink, sizeof(chatlink), NULL, b->accountdomain, NULL, NULL, "Chat with %s", b->name);
-			JCL_GenLink(jcl, unfriend, sizeof(unfriend), NULL, b->accountdomain, NULL, NULL, "Unfriend %s", b->name);
-			JCL_GenLink(jcl, realias, sizeof(realias), NULL, b->accountdomain, NULL, NULL, "Set alias for %s", b->name);
+			if (b->btype == BT_CHATROOM)
+			{
+				JCL_GenLink(jcl, chatlink, sizeof(chatlink), NULL, b->accountdomain, NULL, NULL, "Chat in %s", b->name);
+				JCL_GenLink(jcl, unfriend, sizeof(unfriend), "unfriend", b->accountdomain, NULL, NULL, "Forget %s", b->name);
+				JCL_GenLink(jcl, realias, sizeof(realias), "setbalias", b->accountdomain, NULL, NULL, "Set alias for %s", b->name);
+			}
+			else
+			{
+				JCL_GenLink(jcl, chatlink, sizeof(chatlink), NULL, b->accountdomain, NULL, NULL, "Chat with %s", b->name);
+				JCL_GenLink(jcl, unfriend, sizeof(unfriend), "unfriend", b->accountdomain, NULL, NULL, "Unfriend %s", b->name);
+				JCL_GenLink(jcl, realias, sizeof(realias), "setbalias", b->accountdomain, NULL, NULL, "Set alias for %s", b->name);
+			}
 			Q_snprintf(footer, sizeof(footer), "\n%s\n%s\n%s", chatlink, unfriend, realias);
 
 			pCon_SetConsoleString(BUDDYLISTTITLE, "footer", footer);
+		}
+	}
+	else if (!strcmp(what, "unfriend"))
+	{
+		JCL_FindBuddy(jcl, *who?who:jcl->defaultdest, &b, NULL, false);
+		if (b)
+		{
+			if (b->btype == BT_CHATROOM)
+			{
+				JCL_AddClientMessagef(jcl, "<presence to='%s/%s' type='unavailable'/>", b->accountdomain, b->ourselves?b->ourselves->resource:"");
+				JCL_ForgetBuddy(jcl, b, NULL);
+			}
+			else if (b->btype == BT_ROSTER)
+			{
+				//hide from em
+				JCL_AddClientMessagef(jcl, "<presence to='%s' type='unsubscribed'/>", b->accountdomain);
+
+				//stop looking for em
+				JCL_AddClientMessagef(jcl, "<presence to='%s' type='unsubscribe'/>", b->accountdomain);
+
+				//stop listing em
+				JCL_SendIQf(jcl, NULL, "set", NULL, "<query xmlns='jabber:iq:roster'><item jid='%s' subscription='remove' /></query>", b->accountdomain);
+//				b->btype = BT_UNKNOWN;
+				JCL_ForgetBuddy(jcl, b, NULL);
+			}
+			else
+			{
+				JCL_AddClientMessagef(jcl, "<presence to='%s' type='unavailable'/>", b->accountdomain);
+				JCL_ForgetBuddy(jcl, b, NULL);
+			}
+		}
+	}
+	else if (!strcmp(what, "setbalias"))
+	{
+		JCL_FindBuddy(jcl, *who?who:jcl->defaultdest, &b, NULL, false);
+		if (b)
+		{
+			pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
+			pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter what you want to see them as");
+			jclient_action_cl = jcl;
+			jclient_action_buddy = b;
+			jclient_action = ACT_SETBALIAS;
 		}
 	}
 	else if ((*who && !*what) || !strcmp(what, "msg"))
@@ -1857,7 +2235,8 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 			if (b)
 			{
 				f = b->accountdomain;
-				b->defaultresource = br;
+				if (b->btype != BT_CHATROOM)
+					b->defaultresource = br;
 
 				if (BUILTINISVALID(Con_SetConsoleFloat))
 				{
@@ -2053,7 +2432,10 @@ qintptr_t JCL_ConExecuteCommand(qintptr_t *args)
 			break;
 		case ACT_SETBALIAS:
 			Q_strncpyz(jclient_action_buddy->name, args, sizeof(jclient_action_buddy->name));
-			JCL_SendIQf(jclient_action_cl, NULL, "set", NULL, "<query xmlns='jabber:iq:roster'><item jid='%s' name='%s'></item></query>", jclient_action_buddy->accountdomain, jclient_action_buddy->name);
+			if (jclient_action_buddy->btype == BT_ROSTER)
+				JCL_SendIQf(jclient_action_cl, NULL, "set", NULL, "<query xmlns='jabber:iq:roster'><item jid='%s' name='%s'></item></query>", jclient_action_buddy->accountdomain, jclient_action_buddy->name);
+			if (BUILTINISVALID(Con_SetConsoleString))
+				pCon_SetConsoleString(jclient_action_buddy->accountdomain, "title", jclient_action_buddy->name);
 			break;
 		}
 		jclient_action = ACT_NONE;
@@ -2105,7 +2487,7 @@ void JCL_FlushOutgoing(jclient_t *jcl)
 		{
 			char t = jcl->outbuf[jcl->outbufpos+sent];
 			jcl->outbuf[jcl->outbufpos+sent] = 0;
-			XMPP_ConversationPrintf("xmppout", "xmppout", COLOURYELLOW "%s\n", jcl->outbuf + jcl->outbufpos);
+			XMPP_ConversationPrintf("xmppout", "xmppout", "^3%s\n", jcl->outbuf + jcl->outbufpos);
 			jcl->outbuf[jcl->outbufpos+sent] = t;
 		}
 
@@ -2117,7 +2499,7 @@ void JCL_FlushOutgoing(jclient_t *jcl)
 //	else
 //		Con_Printf("Unable to send anything\n");
 }
-void JCL_AddClientMessage(jclient_t *jcl, char *msg, int datalen)
+void JCL_AddClientMessage(jclient_t *jcl, const char *msg, int datalen)
 {
 	//handle overflows
 	if (jcl->outbufpos+jcl->outbuflen+datalen > jcl->outbufmax)
@@ -2157,17 +2539,17 @@ void JCL_AddClientMessage(jclient_t *jcl, char *msg, int datalen)
 	//try and flush it now
 	JCL_FlushOutgoing(jcl);
 }
-void JCL_AddClientMessageString(jclient_t *jcl, char *msg)
+void JCL_AddClientMessageString(jclient_t *jcl, const char *msg)
 {
 	JCL_AddClientMessage(jcl, msg, strlen(msg));
 }
-void JCL_AddClientMessagef(jclient_t *jcl, char *fmt, ...)
+void JCL_AddClientMessagef(jclient_t *jcl, const char *fmt, ...)
 {
 	va_list		argptr;
 	char body[4096];
 
 	va_start (argptr, fmt);
-	Q_vsnprintf (body, sizeof(body), fmt, argptr);
+	Q_vsnprintxf (body, sizeof(body), fmt, argptr);
 	va_end (argptr);
 
 	JCL_AddClientMessageString(jcl, body);
@@ -2322,6 +2704,7 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 
 	memset(jcl, 0, sizeof(jclient_t));
 	jcl->socket = -1;
+	jcl->rcon_pipe = -1;
 
 	jcl->enabledcapabilities = CAP_DEFAULTENABLEDCAPS;
 
@@ -2393,7 +2776,7 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 	features = XML_ChildOfTree(acc, "features", 0);
 	if (features && XML_GetParameter(features, "ver", JCL_BUILD))
 	{
-		char *val;
+		const char *val;
 		int j;
 		for (j = 0; capnames[j].names; j++)
 		{
@@ -2409,16 +2792,67 @@ jclient_t *JCL_ConnectXML(xmltree_t *acc)
 	}
 
 
+	//parse chatrooms
+	features = XML_ChildOfTree(acc, "chats", 0);
+	if (features)
+	{
+		for (bn=0; ; bn++)
+		{
+			xmltree_t *b = XML_ChildOfTree(features, "room", bn);
+			if (b)
+			{
+				buddy_t *room;
+				const char *jid = XML_GetParameter(b, "name", "");
+				const char *alias = XML_GetParameter(b, "alias", jid);
+				const char *topic = XML_GetParameter(b, "topic", NULL);
+				const char *nick = XML_GetParameter(b, "nick", NULL);
+				const char *password = XML_GetParameter(b, "password", NULL);
+				qboolean autojoin = atoi(XML_GetParameter(b, "autojoin", "1"));
+
+				if (JCL_FindBuddy(jcl, jid, &room, NULL, true) && room)
+				{
+					room->btype = BT_CHATROOM;
+					Q_strlcpy(room->name, alias, sizeof(room->name));
+					room->room_topic = topic?strdup(topic):NULL;
+					room->room_nick = nick?strdup(nick):NULL;
+					room->room_password = password?strdup(password):NULL;
+					room->room_autojoin = autojoin;
+				}
+			}
+			else
+				break;
+		}
+	}
+	else
+	{
+		/*buddy_t *room;
+		const char *jid = "quake@somedomain";
+		const char *alias = "FTE Users";
+		const char *topic = NULL;
+		const char *nick = NULL;
+		const char *password = NULL;
+
+		if (JCL_FindBuddy(jcl, jid, &room, NULL, true) && room)
+		{
+			room->btype = BT_CHATROOM;
+			Q_strlcpy(room->name, alias, sizeof(room->name));
+			room->room_topic = topic?strdup(topic):NULL;
+			room->room_nick = nick?strdup(nick):NULL;
+			room->room_password = password?strdup(password):NULL;
+		}*/
+	}
+
+
 	features = XML_ChildOfTree(acc, "buddyinfo", 0);
 	for (bn=0; ; bn++)
 	{
 		xmltree_t *b = XML_ChildOfTree(features, "buddy", bn);
 		if (b)
 		{
-			char *buddyid = XML_GetParameter(b, "name", JCL_BUILD);
-			char *buddyimage = XML_GetChildBody(b, "image", NULL);
-			char *buddyimagemime = XML_GetChildBody(b, "imagemime", NULL);
-			char *buddyimagehash = XML_GetChildBody(b, "imagehash", NULL);
+			const char *buddyid = XML_GetParameter(b, "name", JCL_BUILD);
+			const char *buddyimage = XML_GetChildBody(b, "image", NULL);
+			const char *buddyimagemime = XML_GetChildBody(b, "imagemime", NULL);
+			const char *buddyimagehash = XML_GetChildBody(b, "imagehash", NULL);
 
 			bi = malloc(sizeof(*bi) + strlen(buddyid));
 			strcpy(bi->accountdomain, buddyid);
@@ -2529,6 +2963,13 @@ void JCL_ForgetBuddy(jclient_t *jcl, buddy_t *buddy, bresource_t *bres)
 		{
 			*link = b->next;
 			JCL_ForgetBuddyResource(jcl, b, bres);
+			if (jclient_action_buddy == b)
+			{
+				pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", false);
+				jclient_action = ACT_NONE;
+				jclient_action_buddy = NULL;
+				jclient_action_cl = NULL;
+			}
 			free(b);
 			if (buddy)
 				break;
@@ -2536,6 +2977,8 @@ void JCL_ForgetBuddy(jclient_t *jcl, buddy_t *buddy, bresource_t *bres)
 		else
 			link = &b->next;
 	}
+
+	jclient_updatebuddylist = true;
 }
 
 struct stringprep_range
@@ -2795,23 +3238,20 @@ static qboolean JCL_NameResourcePrep(const char *in, char *nout, size_t noutsize
 }
 
 //FIXME: add flags to avoid creation
-qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t **bres, qboolean create)
+qboolean JCL_FindBuddy(jclient_t *jcl, const char *jid, buddy_t **buddy, bresource_t **bres, qboolean create)
 {
 	char name[256];
 	char *res;
 	buddy_t *b;
 	bresource_t *r = NULL;
-	if (!jid)
-	{
+	if (!jid || !*jid || !JCL_NameResourcePrep(jid, name, sizeof(name), &res))
+	{	//no name / nameprep failed.
 		if (buddy)
 			*buddy = NULL;
 		if (bres)
 			*bres = NULL;
 		return false;
 	}
-
-	if (!JCL_NameResourcePrep(jid, name, sizeof(name), &res))
-		return false;	//nameprep failed.
 
 	for (b = jcl->buddies; b; b = b->next)
 	{
@@ -2829,7 +3269,7 @@ qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t *
 		Q_strlcpy(b->name, name, sizeof(b->name));	//default
 	}
 	*buddy = b;
-	if (res && bres)
+	if (res && bres && b)
 	{
 		for (r = b->resources; r; r = r->next)
 		{
@@ -2875,7 +3315,7 @@ void JCL_IQTimeouts(jclient_t *jcl)
 			link = &(*link)->next;
 	}
 }
-struct iq_s *JCL_SendIQ(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, char *body)
+struct iq_s *JCL_SendIQ(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), const char *iqtype, const char *target, const char *body)
 {
 	struct iq_s *iq;
 
@@ -2908,18 +3348,18 @@ struct iq_s *JCL_SendIQ(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xm
 	JCL_AddClientMessageString(jcl, "</iq>");
 	return iq;
 }
-struct iq_s *JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, char *fmt, ...)
+struct iq_s *JCL_SendIQf(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), const char *iqtype, const char *target, const char *fmt, ...)
 {
 	va_list		argptr;
 	char body[2048];
 
 	va_start (argptr, fmt);
-	Q_vsnprintf (body, sizeof(body), fmt, argptr);
+	Q_vsnprintxf (body, sizeof(body), fmt, argptr);
 	va_end (argptr);
 
 	return JCL_SendIQ(jcl, callback, iqtype, target, body);
 }
-struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), char *iqtype, char *target, xmltree_t *node, qboolean destroynode)
+struct iq_s *JCL_SendIQNode(jclient_t *jcl, qboolean (*callback) (jclient_t *jcl, xmltree_t *tree, struct iq_s *iq), const char *iqtype, const char *target, xmltree_t *node, qboolean destroynode)
 {
 	struct iq_s *n;
 	char *s = XML_GenerateString(node, false);
@@ -3005,12 +3445,12 @@ qboolean XMPP_CarbonsEnabledReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *
 	return true;
 }
 
-static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp, char *from)
+static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp, const char *from)
 {
 	xmltree_t *i;
 	buddy_t *buddy;
 	int cnum = 0;
-	char *at = strrchr(from, '@');
+	const char *at = strrchr(from, '@');
 	if (at)
 	{
 		if (strlen(jcl->username) != at-from || strncasecmp(from, jcl->username, at-from))
@@ -3022,11 +3462,12 @@ static void JCL_RosterUpdate(jclient_t *jcl, xmltree_t *listp, char *from)
 
 	while ((i = XML_ChildOfTree(listp, "item", cnum++)))
 	{
-		char *name = XML_GetParameter(i, "name", "");
-		char *jid = XML_GetParameter(i, "jid", "");
-		char *sub = XML_GetParameter(i, "subscription", "both");
-		char *ask = XML_GetParameter(i, "ask", "");
+		const char *name = XML_GetParameter(i, "name", "");
+		const char *jid = XML_GetParameter(i, "jid", "");
+		const char *sub = XML_GetParameter(i, "subscription", "both");
+		const char *ask = XML_GetParameter(i, "ask", "");
 		JCL_FindBuddy(jcl, jid, &buddy, NULL, true);
+		buddy->btype = BT_ROSTER;
 
 		if (*name)
 			Q_strlcpy(buddy->name, name, sizeof(buddy->name));
@@ -3236,7 +3677,7 @@ static qboolean JCL_ServerFeatureReply(jclient_t *jcl, xmltree_t *tree, struct i
 {
 	xmltree_t *query = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/disco#info", "query", 0);
 	xmltree_t *feature;
-	char *featurename;
+	const char *featurename;
 	int f;
 #ifdef USE_GOOGLE_MAIL_NOTIFY
 	qboolean gmail = false;
@@ -3274,11 +3715,80 @@ static qboolean JCL_ServerFeatureReply(jclient_t *jcl, xmltree_t *tree, struct i
 	
 	return true;
 }
+static qboolean JCL_ServerPeerReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+{
+	xmltree_t *query = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/disco#info", "query", 0);
+	xmltree_t *feature;
+	xmltree_t *identity;
+	const char *from = iq->to;
+	const char *name;
+	const char *type;
+	const char *category;
+	int f;
+
+	if (!query)
+		return false;
+
+	for (f = 0; ; f++)
+	{
+		identity = XML_ChildOfTree(query, "identity", f);
+		if (!identity)
+			break;
+		name = XML_GetParameter(identity, "name", "");
+		type = XML_GetParameter(identity, "type", "");
+		category = XML_GetParameter(identity, "category", "");
+		Con_Printf("Server %s supports identity type=%s category=%s name=%s\n", from, type, category, name);
+	}
+
+	for (f = 0; ; f++)
+	{
+		feature = XML_ChildOfTree(query, "feature", f);
+		if (!feature)
+			break;
+		name = XML_GetParameter(feature, "var", "");
+		Con_Printf("Server %s supports feature %s\n", from, name);
+	}
+
+	return true;
+}
+static qboolean JCL_ServerItemsReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+{
+	xmltree_t *query = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/disco#items", "query", 0);
+	xmltree_t *item;
+	const char *itemname;
+	int f;
+
+	if (!query)
+		return false;
+
+	for (f = 0; ; f++)
+	{
+		item = XML_ChildOfTree(query, "item", f);
+		if (!item)
+			break;
+		itemname = XML_GetParameter(item, "jid", "");
+		if (*itemname)
+		{
+			Con_DPrintf("Server reports peer %s\n", itemname);
+			JCL_SendIQf(jcl, JCL_ServerPeerReply, "get", itemname, "<query xmlns='http://jabber.org/protocol/disco#info'/>");
+		}
+	}
+	return true;
+}
 static qboolean JCL_SessionReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
+	buddy_t *b;
 	JCL_SendIQf(jcl, JCL_RosterReply, "get", NULL, "<query xmlns='jabber:iq:roster'/>");
 	JCL_SendIQf(jcl, JCL_MyVCardReply, "get", jcl->barejid, "<vCard xmlns='vcard-temp'/>");
 	JCL_SendIQf(jcl, JCL_ServerFeatureReply, "get", jcl->domain, "<query xmlns='http://jabber.org/protocol/disco#info'/>");
+//	JCL_SendIQf(jcl, JCL_ServerItemsReply, "get", jcl->domain, "<query xmlns='http://jabber.org/protocol/disco#items'/>");
+
+	for (b = jcl->buddies; b; b = b->next)
+	{
+		if (b->btype == BT_CHATROOM)
+			if (b->room_autojoin)
+				JCL_JoinMUCChat(jcl, b->accountdomain, NULL, b->room_nick, b->room_password);
+	}
 	return true;
 }
 
@@ -3291,7 +3801,7 @@ static struct
 #if 1
 	{"http://jabber.org/protocol/caps"},
 	{"http://jabber.org/protocol/disco#info"},
-//	{"http://jabber.org/protocol/disco#items"},
+	{"http://jabber.org/protocol/disco#items"},
 
 	{"jabber:iq:version"},
 	#ifdef JINGLE
@@ -3339,6 +3849,8 @@ static struct
 //	{"http://jabber.org/protocol/tune+notify"},
 	{"http://jabber.org/protocol/nick"},
 	{"http://jabber.org/protocol/nick+notify"},
+
+	{"http://jabber.org/protocol/commands"},
 #else
 	//for testing, this is the list of features pidgin supports (which is the other client I'm testing against).
 
@@ -3488,10 +4000,10 @@ char *buildcapsvcardpresence(jclient_t *jcl, char *caps, size_t sizeofcaps)
 void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 {
 	qboolean unparsable = true;
-	char *from;
-//	char *to;
-	char *id;
-	char *f;
+	const char *from;
+//	const char *to;
+	const char *id;
+	const char *f;
 	xmltree_t *ot;
 
 	//FIXME: block from people who we don't know.
@@ -3510,24 +4022,25 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 			{	//http://xmpp.org/extensions/xep-0030.html
 				char msg[2048];
 				char hashednode[1024];
-				char *node = XML_GetParameter(ot, "node", NULL);
-				unparsable = false;
+				const char *node = XML_GetParameter(ot, "node", NULL);
 
 				buildcaps(jcl, msg, sizeof(msg));
 				Q_snprintf(hashednode, sizeof(hashednode),DISCONODE"#%s", buildcapshash(jcl));
 
 				if (!node || !strcmp(node, hashednode) || !strcmp(node, DISCONODE"#") )
 				{
+					unparsable = false;
 					JCL_AddClientMessagef(jcl,
 							"<iq type='result' to='%s' id='%s'>"
 								"<query xmlns='http://jabber.org/protocol/disco#info' node='%s'>"
-									"%s"
+									"%+s"
 								"</query>"
 							"</iq>", from, id, node?node:hashednode, msg);
 				}
 #ifdef VOIP_LEGACY
 				else if (!strcmp(node, DISCONODE"#voice-v1") && (jcl->enabledcapabilities & CAP_GOOGLE_VOICE))
 				{
+					unparsable = false;
 					JCL_AddClientMessagef(jcl,
 							"<iq type='result' to='%s' id='%s'>"
 								"<query xmlns='http://jabber.org/protocol/disco#info' node='%s'>"
@@ -3537,6 +4050,7 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 				}
 				else if (!strcmp(node, DISCONODE"#camera-v1") && (jcl->enabledcapabilities & CAP_GOOGLE_VOICE))
 				{
+					unparsable = false;
 					JCL_AddClientMessagef(jcl,
 							"<iq type='result' to='%s' id='%s'>"
 								"<query xmlns='http://jabber.org/protocol/disco#info' node='%s'>"
@@ -3546,6 +4060,7 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 				}
 				else if (!strcmp(node, DISCONODE"#video-v1") && (jcl->enabledcapabilities & CAP_GOOGLE_VOICE))
 				{
+					unparsable = false;
 					JCL_AddClientMessagef(jcl,
 							"<iq type='result' to='%s' id='%s'>"
 								"<query xmlns='http://jabber.org/protocol/disco#info' node='%s'>"
@@ -3562,6 +4077,28 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 									"<item-not-found/>"
 								"</error>"
 							"</iq>", from, id);
+				}
+			}
+			else if (from && !strcmp(ot->xmlns, "http://jabber.org/protocol/disco#items"))
+			{	//http://xmpp.org/extensions/xep-0030.html
+				const char *node = XML_GetParameter(ot, "node", NULL);
+				if (!strcmp(node, "http://jabber.org/protocol/commands"))
+				{
+					const char *to = XML_GetParameter(tree, "to", "");
+					unparsable = false;
+					JCL_AddClientMessagef(jcl,
+							"<iq type='result' to='%s' id='%s'>"
+								"<query xmlns='http://jabber.org/protocol/disco#items' node='%s'>"
+									"<item jid='%s' node='rcon' name='Toggle Remote Control'/>"
+								"</query>"
+							"</iq>", from, id, node, to);
+				}
+				else
+				{	//send back an empty list if its something we don't recognise
+					JCL_AddClientMessagef(jcl,
+							"<iq type='result' to='%s' id='%s'>"
+								"<query xmlns='http://jabber.org/protocol/disco#items' node='%s' />"
+							"</iq>", from, id, node);
 				}
 			}
 			else if (from && !strcmp(ot->xmlns, "jabber:iq:version"))
@@ -3679,7 +4216,123 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 		if (c && !strcmp(c->xmlns, "jabber:iq:roster"))
 		{
 			unparsable = false;
-			JCL_RosterUpdate(jcl, c, from);
+			if (strcmp(from, jcl->domain))
+				Con_Printf("Roster push from unknown entity: \"%s\"\n", from);
+			else
+				JCL_RosterUpdate(jcl, c, from);
+		}
+
+		c = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/commands", "command", 0);
+		if (c)
+		{
+			char *s;
+			const char *key, *val;
+			xmltree_t *rep, *cmd, *x, *fld;
+			const char *node = XML_GetParameter(c, "node", "");
+			char *completed = NULL;
+			char *canceled = NULL;
+			char infostring[65536];
+			int i;
+			unparsable = false;
+
+			*infostring = 0;
+			x = XML_ChildOfTreeNS(c, "jabber:x:data", "x", 0);
+			for (i = 0; ; i++)
+			{
+				fld = XML_ChildOfTree(x, "field", i);
+				if (!fld)
+					break;
+				key = XML_GetParameter(fld, "var", "");
+				val = XML_GetChildBody(fld, "value", "");
+				if (*key && *val)
+				{
+					Q_strlcat(infostring, "\\", sizeof(infostring));
+					Q_strlcat(infostring, key, sizeof(infostring));
+					Q_strlcat(infostring, "\\", sizeof(infostring));
+					Q_strlcat(infostring, val, sizeof(infostring));
+				}
+			}
+
+			if (!strcmp(XML_GetParameter(c, "action", "submit"), "cancel"))
+				canceled = "";
+			else if (!strcmp(node, "rcon"))
+			{
+				char pwd[64];
+				JCL_Info_ValueForKey(infostring, "password", pwd, sizeof(pwd));
+				if (*pwd)
+				{
+					char rcon_password[64];
+					pCvar_GetString("rcon_password", rcon_password, sizeof(rcon_password));
+					if (*rcon_password && !strcmp(JCL_Info_ValueForKey(infostring, "password", pwd, sizeof(pwd)), rcon_password))
+					{
+						Q_strlcpy(jcl->rcon_peer, from, sizeof(jcl->rcon_peer));
+						if (jcl->rcon_pipe >= 0)
+							pFS_Close(jcl->rcon_pipe);
+						if (BUILTINISVALID(Con_POpen))
+							jcl->rcon_pipe = pCon_POpen(NULL, 0);
+
+						if (jcl->rcon_pipe < 0)
+							canceled = "Unable to read console";
+						else
+							completed = "Rcon Enabled";
+					}
+					else
+						completed = "Invalid Password";
+				}
+			}
+			else
+				canceled = "Unrecognised request";
+
+			rep = XML_CreateNode(NULL, "iq", NULL, "");
+			XML_AddParameter(rep, "type", "result");
+			XML_AddParameter(rep, "id", id);
+			XML_AddParameter(rep, "to", from);
+			cmd = XML_CreateNode(rep, "command", "http://jabber.org/protocol/commands", "");
+			XML_AddParameter(cmd, "sessionid", XML_GetParameter(c, "sessionid", id));
+			XML_AddParameter(cmd, "node", node);
+
+			if (canceled)
+			{
+				if (*canceled)
+				{
+					XML_AddParameter(cmd, "status", "completed");
+					XML_AddParameter(XML_CreateNode(cmd, "note", NULL, canceled), "type", "error");
+				}
+				else
+					XML_AddParameter(cmd, "status", "canceled");
+			}
+			else if (completed)
+			{
+				XML_AddParameter(cmd, "status", "completed");
+				if (*completed)
+					XML_AddParameter(XML_CreateNode(cmd, "note", NULL, completed), "type", "info");
+			}
+			else
+			{
+				XML_AddParameter(cmd, "status", "executing");
+
+//				x = XML_CreateNode(cmd, "actions", NULL, "");
+//				XML_AddParameter(x, "execute", "complete");
+//				XML_CreateNode(x, "complete", NULL, NULL);
+
+//				x = XML_CreateNode(cmd, "actions", NULL, "");
+//				XML_AddParameter(x, "execute", "next");
+//				XML_CreateNode(x, "next", NULL, NULL);
+
+				x = XML_CreateNode(cmd, "x", "jabber:x:data", "");
+				XML_AddParameter(x, "type", "result");
+				XML_CreateNode(x, "title", NULL, "Enable RCon");
+				XML_CreateNode(x, "instructions", NULL, "RCon password required...\nWARNING: This is NOT end-to-end encrypted.");
+				fld = XML_CreateNode(x, "field", NULL, NULL);
+				XML_AddParameter(fld, "var", "password");
+				XML_AddParameter(fld, "type", "text-private");
+				XML_AddParameter(fld, "label", "Rcon Password");
+				XML_CreateNode(fld, "value", NULL, "");
+			}
+			s = XML_GenerateString(rep, false);
+			XML_Destroy(rep);
+			JCL_AddClientMessagef(jcl, s, from, id);
+			free(s);
 		}
 
 #ifdef USE_GOOGLE_MAIL_NOTIFY
@@ -3728,9 +4381,9 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 	}
 	else if (!strcmp(f, "result") || !strcmp(f, "error"))
 	{
-		char *id = XML_GetParameter(tree, "id", "");
+		const char *id = XML_GetParameter(tree, "id", "");
 		struct iq_s **link, *iq;
-		char *from = XML_GetParameter(tree, "from", jcl->domain);
+		const char *from = XML_GetParameter(tree, "from", jcl->domain);
 		unparsable = false;
 		for (link = &jcl->pendingiqs; *link; link = &(*link)->next)
 		{
@@ -3790,13 +4443,13 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 {
 	xmltree_t *ot;
 	qboolean unparsable = true;
-	char *f = XML_GetParameter(tree, "from", jcl->domain);
-	char *type = XML_GetParameter(tree, "type", "normal");
-	char *ctx = f;
+	const char *f = XML_GetParameter(tree, "from", jcl->domain);
+	const char *type = XML_GetParameter(tree, "type", "normal");
+	const char *ctx = f;
 
 	xmltree_t *received = XML_ChildOfTree(tree, "received", 0);
 	xmltree_t *sent = XML_ChildOfTree(tree, "sent", 0);
-	char *showicon = NULL;	//their icon
+	const char *showicon = NULL;	//their icon
 
 	if (received && sent)
 		return;	//no, just no.
@@ -3826,21 +4479,27 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			buddy_t *b = NULL;
 			bresource_t *br = NULL;
 			Q_strlcpy(jcl->defaultdest, f, sizeof(jcl->defaultdest));
-
 			JCL_FindBuddy(jcl, f, &b, &br, true);
+			if (b && b->btype == BT_CHATROOM && strchr(jcl->defaultdest, '/'))
+				*strchr(jcl->defaultdest, '/') = 0;
 			if (b)
 			{
 				ctx = b->accountdomain;
 				if (!strcmp(type, "groupchat"))
-					f = br->resource;
-				else if (b->chatroom)
+				{	//clients can act as a MUC too, which is awkward.
+					if (br)
+						f = br->resource;
+				}
+				else if (b->btype == BT_CHATROOM)
 				{
 					ctx = f;	//one server with multiple rooms requires that we retain resource info.
-					f = br->resource;
+					if (br)
+						f = br->resource;
 				}
 				else
 				{
-					showicon = b->accountdomain;
+					if (BUILTINISVALID(Con_SetConsoleString))
+						showicon = b->accountdomain;
 					f = b->name;
 					if (br)
 						b->defaultresource = br;
@@ -3850,7 +4509,8 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 
 		if (!strcmp(type, "error"))
 		{
-			char *reason = NULL;
+			const char *reason = NULL;
+			unparsable = false;
 			if (sent)
 				return;
 			ot = XML_ChildOfTree(tree, "error", 0);
@@ -3879,11 +4539,11 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			if (XML_ChildOfTree(ot, "subscription-required", 0))		reason = "subscription-required";
 			if (XML_ChildOfTree(ot, "undefined-condition", 0))			reason = "undefined-condition";
 			if (XML_ChildOfTree(ot, "unexpected-request", 0))			reason = "unexpected-request";
+			reason = XML_GetChildBody(ot, "text", reason);
 
 			ot = XML_ChildOfTree(tree, "body", 0);
 			if (ot)
 			{
-				unparsable = false;
 				if (reason)
 					XMPP_ConversationPrintf(ctx, f, "^1Error: %s (%s): ", reason, f);
 				else
@@ -3891,13 +4551,18 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 				if (f)
 				{
 					if (!strncmp(ot->body, "/me ", 4))
-						XMPP_ConversationPrintf(ctx, f, "* ^2%s^7%s\n", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), ot->body+3);
+						XMPP_ConversationPrintf(ctx, f, "* ^2%s^7%s\r", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), ot->body+3);
 					else
-						XMPP_ConversationPrintf(ctx, f, "%s\n", ot->body);
+						XMPP_ConversationPrintf(ctx, f, "%s\r", ot->body);
 				}
 			}
 			else
-				XMPP_ConversationPrintf(ctx, f, "error sending message to %s\r", f);
+			{
+				if (reason)
+					XMPP_ConversationPrintf(ctx, f, "^1Error: %s (%s)\r", reason, f);
+				else
+					XMPP_ConversationPrintf(ctx, f, "error sending message to %s\r", f);
+			}
 			return;
 		}
 
@@ -3953,11 +4618,20 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 		ot = XML_ChildOfTree(tree, "subject", 0);
 		if (ot && !strcmp(type, "groupchat"))
 		{
+			buddy_t *b;
+			JCL_FindBuddy(jcl, ctx, &b, NULL, true);
+			if (b && b->btype == BT_CHATROOM)
+			{
+				free(b->room_topic);
+				b->room_topic = strdup(ot->body);
+				jclient_updatebuddylist = true;
+			}
+
 			unparsable = false;
 			if (sent)
-				XMPP_ConversationPrintf(ctx, f, "^2You^7 have set the topic to: %s\n", ot->body);
+				XMPP_ConversationPrintf(ctx, f, COL_NAME_US"You"COL_TEXT_US" have set the topic to: %s\n", ot->body);
 			else
-				XMPP_ConversationPrintf(ctx, f, "^2%s^7 has set the topic to: %s\n", f, ot->body);
+				XMPP_ConversationPrintf(ctx, f, COL_NAME_THEM"%s"COL_TEXT_THEM" has set the topic to: %s\n", f, ot->body);
 		}
 
 		ot = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/pubsub#event", "event", 0);
@@ -4010,14 +4684,14 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			xmltree_t *inv = XML_ChildOfTree(ot, "invite", 0);
 			if (inv)
 			{
-				char *who = XML_GetParameter(inv, "from", jcl->domain);
-				char *reason = XML_GetChildBody(inv, "reason", NULL);
-				char *password = XML_GetChildBody(ot, "password", 0);
+				const char *who = XML_GetParameter(inv, "from", jcl->domain);
+				const char *reason = XML_GetChildBody(inv, "reason", NULL);
+				const char *password = XML_GetChildBody(ot, "password", 0);
 				char link[512];
 				buddy_t *b;
 				if (!sent && JCL_FindBuddy(jcl, f, &b, NULL, true))
 				{
-					if (b->chatroom)
+					if (b->btype == BT_CHATROOM)
 						return;	//we already know about it. don't spam.
 					JCL_GenLink(jcl, link, sizeof(link), "mucjoin", f, NULL, password, "%s", f);
 //					ctx = who;
@@ -4036,9 +4710,9 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 		if (ot)
 		{
 			char link[512];
-			char *chatjit = XML_GetParameter(ot, "jid", "");
-			char *reason = XML_GetParameter(ot, "reason", NULL);
-			char *password = XML_GetParameter(ot, "password", NULL);
+			const char *chatjit = XML_GetParameter(ot, "jid", "");
+			const char *reason = XML_GetParameter(ot, "reason", NULL);
+			const char *password = XML_GetParameter(ot, "password", NULL);
 			unparsable = false;
 
 			JCL_GenLink(jcl, link, sizeof(link), "mucjoin", chatjit, NULL, password, "%s", chatjit);
@@ -4181,7 +4855,7 @@ unsigned int JCL_ParseCaps(jclient_t *jcl, char *account, char *resource, xmltre
 	qboolean sift = false;
 	qboolean ibb = false;
 	int i = 0;
-	char *var;
+	const char *var;
 //	XML_ConPrintTree(query, 0);
 	while((feature = XML_ChildOfTree(query, "feature", i++)))
 	{
@@ -4408,19 +5082,21 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 	buddy_t *buddy;
 	bresource_t *bres;
 
-	char *from = XML_GetParameter(tree, "from", jcl->domain);
+	const char *from = XML_GetParameter(tree, "from", jcl->domain);
 	xmltree_t *show = XML_ChildOfTree(tree, "show", 0);
 	xmltree_t *status = XML_ChildOfTree(tree, "status", 0);
 	xmltree_t *quake = XML_ChildOfTree(tree, "quake", 0);
-	xmltree_t *muc = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/muc#user", "x", 0);
+	xmltree_t *mucmain = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/muc", "x", 0);
+	xmltree_t *mucuser = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/muc#user", "x", 0);
 	xmltree_t *caps = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/caps", "c", 0);
-	char *type = XML_GetParameter(tree, "type", "");
-	char *serverip = NULL;
-	char *servermap = NULL;
+	const char *type = XML_GetParameter(tree, "type", "");
+	const char *serverip = NULL;
+	const char *servermap = NULL;
 	char startconvo[512];
 	char oldbstatus[128];
 	char oldfstatus[128];
 
+	//should really be using pep for this.
 	if (quake && !strcmp(quake->xmlns, "fteqw.com:game") && (jcl->enabledcapabilities & CAP_GAMEINVITE))
 	{
 		serverip = XML_GetParameter(quake, "serverip", NULL);
@@ -4429,7 +5105,19 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 
 	jclient_updatebuddylist = true;
 
-	if (type && !strcmp(type, "subscribe"))
+	if (type && !strcmp(type, "error"))
+	{
+		JCL_FindBuddy(jcl, from, &buddy, &bres, false);
+		if (buddy && bres)
+		{
+			xmltree_t *error = XML_ChildOfTree(tree, "error", 0);
+			if (error->child)
+			{
+				Q_strlcpy(bres->fstatus, error->child->name, sizeof(bres->fstatus));
+			}
+		}
+	}
+	else if (type && !strcmp(type, "subscribe"))
 	{
 		//they want us to let them see us.
 		char pauth[512], pdeny[512];
@@ -4495,7 +5183,7 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 			else
 			{
 				xmltree_t *vcu;
-				char *photohash;
+				const char *photohash;
 				buddy_t *me;
 				vcu = XML_ChildOfTreeNS(tree, "vcard-temp:x:update", "x", 0);
 				photohash = XML_GetChildBody(vcu, "photo", buddy->vcardphotohash);
@@ -4521,10 +5209,10 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 
 				if (caps)
 				{
-					char *ext = XML_GetParameter(caps, "ext", "");	//deprecated
-					char *ver = XML_GetParameter(caps, "ver", "");
-					char *node = XML_GetParameter(caps, "node", "");
-					char *hash = XML_GetParameter(caps, "hash", "");
+					const char *ext = XML_GetParameter(caps, "ext", "");	//deprecated
+					const char *ver = XML_GetParameter(caps, "ver", "");
+					const char *node = XML_GetParameter(caps, "node", "");
+					const char *hash = XML_GetParameter(caps, "hash", "");
 
 					if (!bres->client_hash || strcmp(ext, bres->client_ext) || strcmp(hash, bres->client_hash) || strcmp(node, bres->client_node) || strcmp(ver, bres->client_ver))
 					{
@@ -4542,8 +5230,28 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 				JCL_CheckClientCaps(jcl, buddy, bres);
 			}
 
-			if (muc)
+			if (mucuser)
 			{
+				//<item affiliation='' jid='' role=''/>
+				//<status code='xxx'/>
+				//100=public jids
+				//101=affiliation changed
+				//102=shows unavailable members
+				//103=no longer shows unavailable
+				//104=room config changed
+				//110=this is you
+				//170=room logging enabled
+				//171=room logging disabled
+				//172=now annon
+				//173=now semi-anon
+				//201=new room created
+				//210=roomnick changed
+				//301=you're banned
+				//303=
+				//307=you're kicked
+				//321=removed by affiliation change
+				//322=not a member
+				//332=shutdown
 				JCL_GenLink(jcl, startconvo, sizeof(startconvo), NULL, from, NULL, NULL, "%s", bres->resource);
 				if (type && !strcmp(type, "unavailable"))
 					XMPP_ConversationPrintf(buddy->name, buddy->name, "%s has left the conversation\n", bres->resource);
@@ -5121,23 +5829,23 @@ void JCL_GeneratePresence(jclient_t *jcl, qboolean force)
 		if (!*jcl->curquakeserver)
 			JCL_AddClientMessagef(jcl,
 					"<presence from='%s'>"
-						"%s"
-						"%s"
+						"%+s"
+						"%+s"
 					"</presence>", jcl->fulljid, prior, caps);
 		else if (*servermap)	//if we're running a server, say so
 			JCL_AddClientMessagef(jcl, 
 						"<presence from='%s'>"
-							"%s"
+							"%+s"
 							"<quake xmlns='fteqw.com:game' servermap='%s'/>"
-							"%s"
+							"%+s"
 						"</presence>"
 						, jcl->fulljid, prior, servermap, caps);
 		else	//if we're connected to a server, say so
 			JCL_AddClientMessagef(jcl, 
 						"<presence from='%s'>"
-							"%s"
+							"%+s"
 							"<quake xmlns='fteqw.com:game' serverip='%s' />"
-							"%s"
+							"%+s"
 						"</presence>"
 				, jcl->fulljid, prior, jcl->curquakeserver, caps);
 	}
@@ -5185,6 +5893,7 @@ static void JCL_RegenerateBuddyList(qboolean force)
 	bresource_t *r;
 	int i, j;
 	char convolink[512];
+	struct c2c_s *c2c;
 
 	buddy_t *sortlist[256];
 	int buds;
@@ -5218,9 +5927,9 @@ static void JCL_RegenerateBuddyList(qboolean force)
 		if (!jcl)
 			continue;
 		if (*jcl->localalias && *jcl->localalias != '>')
-			Con_SubPrintf(console, "\n^3%s\n", jcl->localalias);
+			Con_SubPrintf(console, "\n"COL_NAME_US"%s\n", jcl->localalias);
 		else
-			Con_SubPrintf(console, "\n^3%s@%s\n", jcl->username, jcl->domain);
+			Con_SubPrintf(console, "\n"COL_NAME_US"%s@%s\n", jcl->username, jcl->domain);
 		if (jcl->status == JCL_INACTIVE)
 			Con_SubPrintf(console, "Not connected.\n", jcl->accountnum);
 		else if (jcl->status == JCL_DEAD)
@@ -5249,6 +5958,10 @@ static void JCL_RegenerateBuddyList(qboolean force)
 			Con_SubPrintf(console, " %s", convolink);
 		}
 */
+
+		for (c2c = jcl->c2c; c2c; c2c = c2c->next)
+			c2c->displayed = false;
+
 		if (jcl->status != JCL_ACTIVE)
 			Con_SubPrintf(console, "\n");
 		else
@@ -5266,8 +5979,8 @@ static void JCL_RegenerateBuddyList(qboolean force)
 					continue;
 				if (!b->resources)	//can't be online.
 					continue;
-				if (b->chatroom)
-					continue;		//these don't count
+				if (b->btype == BT_UNKNOWN)
+					continue;		//don't list people we don't actually know
 
 				for (j = buds; j > 0; j--)
 				{
@@ -5285,20 +5998,22 @@ static void JCL_RegenerateBuddyList(qboolean force)
 				bresource_t *gameres = NULL;
 				bresource_t *voiceres = NULL;
 				bresource_t *chatres = NULL;
-				struct c2c_s *c2c;
 
 				b = sortlist[buds];
-				for (r = b->resources; r; r = r->next)
-				{
-					if (!strcmp(r->bstatus, "offline"))
-						continue;
+				if (b->btype == BT_ROSTER)
+				{	//gather capabilities from all of their resources
+					for (r = b->resources; r; r = r->next)
+					{
+						if (!strcmp(r->bstatus, "offline"))
+							continue;
 
-					if ((r->caps & CAP_VOICE) && (!voiceres || r->priority > voiceres->priority))
-						voiceres = r;
-					if ((r->caps & CAP_GAMEINVITE) && (!gameres || r->priority > gameres->priority))
-						gameres = r;
-					if (!chatres || r->priority > chatres->priority)
-						chatres = r;
+						if ((r->caps & CAP_VOICE) && (!voiceres || r->priority > voiceres->priority))
+							voiceres = r;
+						if ((r->caps & CAP_GAMEINVITE) && (!gameres || r->priority > gameres->priority))
+							gameres = r;
+						if (!chatres || r->priority > chatres->priority)
+							chatres = r;
+					}
 				}
 				if (b->defaultresource)
 				{
@@ -5309,7 +6024,7 @@ static void JCL_RegenerateBuddyList(qboolean force)
 						gameres = r;
 					chatres = r;
 				}
-				if (chatres)
+				if (chatres || b->btype == BT_CHATROOM)
 				{
 					youarealoner = false;
 
@@ -5346,19 +6061,25 @@ static void JCL_RegenerateBuddyList(qboolean force)
 					Con_SubPrintf(console, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_THEM"\\w\\32\\h\\32^] ", b->accountdomain);
 					Con_SubPrintf(console, "%s", convolink);
 
-					if (*chatres->fstatus)
+					if (chatres && *chatres->fstatus)
 						Con_SubPrintf(console, "\v  %s", chatres->fstatus);
+					else if (b->btype == BT_CHATROOM && b->room_topic)
+						Con_SubPrintf(console, "\v  %s", b->room_topic);
 
 					JCL_GenLink(jcl, convolink, sizeof(convolink), "buddyopts", b->accountdomain, NULL, NULL, "^h%s^h", "Options");
-					Con_SubPrintf(console, "\v  %s    %s", chatres->bstatus, convolink);
+					if (chatres)
+						Con_SubPrintf(console, "\v  %s    %s", chatres->bstatus, convolink);
+					else if (b->btype == BT_CHATROOM)
+						Con_SubPrintf(console, "\v  %s    %s", "chatroom", convolink);
+					else
+						Con_SubPrintf(console, "\v  %s    %s", "unknown", convolink);
 
 					for (c2c = jcl->c2c; c2c; c2c = c2c->next)
 					{
 						buddy_t *peer = NULL;
 						qboolean voice = false, video = false, server = false;
 						int c;
-						JCL_FindBuddy(jcl, c2c->with, &peer, NULL, true);
-						if (peer == b)
+						if (JCL_FindBuddy(jcl, c2c->with, &peer, NULL, false) && peer == b)
 						{
 							for (c = 0; c < c2c->contents; c++)
 							{
@@ -5371,6 +6092,7 @@ static void JCL_RegenerateBuddyList(qboolean force)
 								case ICEP_QWCLIENT: /*client = true;*/ 	break;
 								}
 							}
+							c2c->displayed = true;
 							if (server)
 							{
 								JCL_GenLink(jcl, convolink, sizeof(convolink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Kick");
@@ -5408,6 +6130,37 @@ static void JCL_RegenerateBuddyList(qboolean force)
 			if (youarealoner)
 				Con_SubPrintf(console, "    You have no friends\n");
 		}
+
+		//and show any lingering c2cs with anyone not on our list.
+		for (c2c = jcl->c2c; c2c; c2c = c2c->next)
+		{
+			if (!c2c->displayed)
+			{
+				buddy_t *peer = NULL;
+				qboolean voice = false, video = false, server = false;
+				int c;
+
+				for (c = 0; c < c2c->contents; c++)
+				{
+					switch(c2c->content[c].mediatype)
+					{
+					case ICEP_INVALID:					break;
+					case ICEP_VOICE:	voice = true; 	break;
+					case ICEP_VIDEO:	video = true; 	break;
+					case ICEP_QWSERVER: server = true; 	break;
+					case ICEP_QWCLIENT: /*client = true;*/ 	break;
+					}
+				}
+				c2c->displayed = true;
+				if (server)
+					JCL_GenLink(jcl, convolink, sizeof(convolink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Kick");
+				else if (video || voice)
+					JCL_GenLink(jcl, convolink, sizeof(convolink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Hang Up");
+				else /*if (client)*/
+					JCL_GenLink(jcl, convolink, sizeof(convolink), "jdeny", c2c->with, NULL, c2c->sid, "%s", "Disconnect");
+				Con_SubPrintf(console, "%s: %s\n", c2c->with, convolink);
+			}
+		}
 	}
 
 	for (i = 0; i < sizeof(jclients)/sizeof(jclients[0]); i++)
@@ -5433,10 +6186,18 @@ static void JCL_PrintBuddyList(char *console, jclient_t *jcl, qboolean all)
 	for (b = jcl->buddies; b; b = b->next)
 	{	
 		//if we don't actually know them, don't list them.
-		if (!b->friended && !b->chatroom)
+		if (b->btype == BT_UNKNOWN)
 			continue;
 
-		if (!b->resources)	//offline
+		if (b->btype == BT_CHATROOM)
+		{
+			r = b->resources;
+			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, b->accountdomain, r->resource, NULL, "%s", b->name);
+			Con_SubPrintf(console, "%s: ", convolink);
+			JCL_PrintBuddyStatus(console, jcl, b, r);
+			Con_SubPrintf(console, "\n");
+		}
+		else if (!b->resources)	//offline
 		{
 			if (all)
 			{
@@ -5574,6 +6335,35 @@ qintptr_t JCL_Frame(qintptr_t *args)
 						JCL_SendIQf(jcl, NULL, "get", NULL, "<ping xmlns='urn:xmpp:ping'/>");
 						jcl->timeout = jclient_curtime + 60*1000;
 					}
+
+					if (jcl->status == JCL_ACTIVE)
+					{
+						if (jcl->rcon_pipe >= 0)
+						{
+							char rcondata[64000];
+							int rconsize = pNet_Recv(jcl->rcon_pipe, rcondata, sizeof(rcondata)-1);
+							if (rconsize > 0)
+							{
+								char *ls, *le;
+								rcondata[rconsize] = 0;
+								ls = rcondata;
+								while (ls)
+								{
+									le = strchr(ls, '\n');
+									if (le)
+										*le++ = 0;
+									JCL_AddClientMessagef(jcl, "<message to='%s'><body>%s</body></message>", jcl->rcon_peer, ls);
+									ls = le;
+								}
+							}
+							else if (rconsize < 0)
+							{
+								JCL_AddClientMessagef(jcl, "<message to='%s'><body>%s</body></message>", jcl->rcon_peer, "RCON ERROR");
+								pFS_Close(jcl->rcon_pipe);
+								jcl->rcon_pipe = -1;
+							}
+						}
+					}
 				}
 			}
 
@@ -5592,6 +6382,7 @@ void JCL_WriteConfig(void)
 	int i, j;
 	qhandle_t config;
 	struct buddyinfo_s *bi;
+	buddy_t *bud;
 
 	//don't write the config if we're meant to be reading it. avoid wiping it if we're killed fast.
 	if (jclient_needreadconfig)
@@ -5644,6 +6435,7 @@ void JCL_WriteConfig(void)
 			XML_CreateNode(n, "certificatedomain", "", jcl->certificatedomain);
 			XML_CreateNode(n, "inactive", "", jcl->status == JCL_INACTIVE?"1":"0");
 
+			//write out what optional/risky features should be enabled (like file transfers, jingle, etc)
 			features = XML_CreateNode(n, "features", "", "");
 			XML_AddParameter(features, "ver", JCL_BUILD);
 			for (j = 0; capnames[j].names; j++)
@@ -5651,6 +6443,23 @@ void JCL_WriteConfig(void)
 				XML_CreateNode(features, capnames[j].names, "", (jcl->enabledcapabilities & capnames[j].cap)?"1":"0");
 			}
 
+			//write a list of chatrooms that can't be saved in rosters
+			features = XML_CreateNode(n, "chats", "", "");
+			for (bud = jcl->buddies; bud; bud = bud->next)
+			{
+				if (bud->btype == BT_CHATROOM)
+				{
+					xmltree_t *b = XML_CreateNode(features, "room", "", "");
+					XML_AddParameter(b, "name", bud->accountdomain);
+					XML_AddParameter(b, "alias", bud->name);
+					XML_AddParameter(b, "nick", bud->room_nick);
+					XML_AddParameter(b, "password", bud->room_password);
+					XML_AddParameteri(b, "autojoin", bud->room_autojoin);
+				}
+			}
+
+			//write an avatar cache
+			//FIXME: some sort of timeout? only people on our roster?
 			features = XML_CreateNode(n, "buddyinfo", "", "");
 			for (bi = jcl->buddyinfo; bi; bi = bi->next)
 			{
@@ -5769,15 +6578,15 @@ void JCL_SendMessage(jclient_t *jcl, char *to, char *msg)
 		Con_Printf("Can't find buddy \"%s\"\n", to);
 		return;
 	}
-	if (b->chatroom)
+	if (b->btype == BT_CHATROOM)
 	{
 		if (br)
-		{
+		{	//unicast...
 			JCL_AddClientMessagef(jcl, "<message to='%s/%s' type='chat'><body>", b->accountdomain, br->resource);
 			con = to;
 		}
 		else
-		{
+		{	//send to all recipients
 			JCL_AddClientMessagef(jcl, "<message to='%s' type='groupchat'><body>", b->accountdomain);
 			con = b->name;
 		}
@@ -5796,12 +6605,14 @@ void JCL_SendMessage(jclient_t *jcl, char *to, char *msg)
 	}
 	JCL_AddClientMessage(jcl, markup, XML_Markup(msg, markup, sizeof(markup)) - markup);
 	JCL_AddClientMessageString(jcl, "</body></message>");
-	if (b->chatroom && !br)
+	if (b->btype == BT_CHATROOM && !br)
 		return;
 	if (!strncmp(msg, "/me ", 4))
-		XMPP_ConversationPrintf(con, title, "* ^5%s^7"COLOURYELLOW"%s\n", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), msg+3);
+		XMPP_ConversationPrintf(con, title, "* "COL_NAME_US"%s^7"COL_TEXT_US"%s\n", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), msg+3);
+	else if (b->btype == BT_ROSTER && BUILTINISVALID(Con_SetConsoleString))
+		XMPP_ConversationPrintf(con, title, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_US"\\w\\32\\h\\32^]"COL_NAME_US"%s^7:\v"COL_TEXT_US"%s\n", jcl->barejid, jcl->localalias, msg);
 	else
-		XMPP_ConversationPrintf(con, title, "^[\\img\\xmpp/%s.png\\fbimg\\"IMG_FB_US"\\w\\32\\h\\32^]^5%s^7:\v"COLOURYELLOW"%s\n", jcl->barejid, jcl->localalias, msg);
+		XMPP_ConversationPrintf(con, title, COL_NAME_US"%s^7: "COL_TEXT_US"%s\n", jcl->localalias, msg);
 }
 void JCL_AttentionMessage(jclient_t *jcl, char *to, char *msg)
 {
@@ -5841,30 +6652,68 @@ void JCL_AttentionMessage(jclient_t *jcl, char *to, char *msg)
 	if (msg)
 	{
 		if (!strncmp(msg, "/me ", 4))
-			Con_SubPrintf(b->accountdomain, "*^5%s^7"COLOURYELLOW"%s\n", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), msg+3);
+			Con_SubPrintf(b->accountdomain, "*"COL_NAME_US"%s^7"COL_TEXT_US"%s\n", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), msg+3);
 		else
-			Con_SubPrintf(b->accountdomain, "^5%s^7: "COLOURYELLOW"%s\n", jcl->localalias, msg);
+			Con_SubPrintf(b->accountdomain, COL_NAME_US"%s^7: "COL_TEXT_US"%s\n", jcl->localalias, msg);
 	}
 }
 
+static qboolean JCL_IsChatroom(jclient_t *jcl, char *room)
+{
+	buddy_t *b;
+
+	if (!jcl)
+		return false;
+
+	if (!JCL_FindBuddy(jcl, room, &b, NULL, true))
+		return false;
+
+	return b->btype == BT_CHATROOM;
+}
+
 //server may be null, in which case its expected to be folded into room.
-void JCL_JoinMUCChat(jclient_t *jcl, char *room, char *server, char *myhandle, char *password)
+void JCL_JoinMUCChat(jclient_t *jcl, const char *room, const char *server, const char *myhandle, const char *password)
 {
 	char caps[512];
 	char roomserverhandle[512];
 	buddy_t *b;
-	bresource_t *r;
-	if (!myhandle)
-		myhandle = jcl->username;
+//	bresource_t *r;
 	if (server)
-		Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s@%s/%s", room, server, myhandle);
+		Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s@%s", room, server);
 	else
-		Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s/%s", room, myhandle);
-	if (!JCL_FindBuddy(jcl, roomserverhandle, &b, &r, true))
+		Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s", room);
+	if (!JCL_FindBuddy(jcl, roomserverhandle, &b, NULL, true))
 		return;
-	b->chatroom = true;
+	if (!myhandle)
+	{
+		if (b->room_nick)
+			myhandle = b->room_nick;
+		else
+			myhandle = jcl->username;
+	}
+	b->btype = BT_CHATROOM;
 	buildcapsvcardpresence(jcl, caps, sizeof(caps));
-	JCL_AddClientMessagef(jcl, "<presence to='%s'><x xmlns='http://jabber.org/protocol/muc'><password>%s</password></x>%s</presence>", roomserverhandle, password, caps);
+	//FIXME: check for errors
+	JCL_AddClientMessagef(jcl, 
+				"<presence to='%s/%s'>"
+					"<x xmlns='http://jabber.org/protocol/muc'>"
+						"<password>%s</password>"
+						//"<history maxstanzas= maxchars= seconds= since=/>"
+					"</x>"
+					"%+s"
+				"</presence>"
+				, roomserverhandle, myhandle, password?password:"", caps);
+
+	if (b->room_nick != myhandle)
+	{
+		free(b->room_nick);
+		b->room_nick = myhandle?strdup(myhandle):NULL;
+	}
+	if (b->room_password != password)
+	{
+		free(b->room_password);
+		b->room_password = myhandle?strdup(password):NULL;
+	}
 }
 
 void XMPP_Menu_Password(jclient_t *acc)
@@ -5922,7 +6771,7 @@ void XMPP_Menu_Connect(void)
 void JCL_Command(int accid, char *console)
 {
 	char imsg[8192];
-	char arg[6][1024];
+	char arg[6][1024], *argstart[6];
 	char *msg;
 	int i;
 	char nname[256];
@@ -5938,14 +6787,151 @@ void JCL_Command(int accid, char *console)
 	for (i = 0; i < 6; i++)
 	{
 		if (!msg)
+		{
+			argstart[i] = "";
 			*arg[i] = 0;
+		}
 		else
+		{
+			while (*msg == ' ')
+				msg++;
+			argstart[i] = msg;
 			msg = JCL_ParseOut(msg, arg[i], sizeof(arg[i]));
+		}
 	}
 
 	if (arg[0][0] == '/' && arg[0][1] != '/' && strcmp(arg[0]+1, "me"))
 	{
-		if (!strcmp(arg[0]+1, "open") || !strcmp(arg[0]+1, "connect") || !strcmp(arg[0]+1, "autoopen") || !strcmp(arg[0]+1, "autoconnect") || !strcmp(arg[0]+1, "plainopen") || !strcmp(arg[0]+1, "plainconnect") || !strcmp(arg[0]+1, "tlsopen") || !strcmp(arg[0]+1, "tlsconnect"))
+		if (*console && !strcmp(arg[0]+1, "ban") && JCL_IsChatroom(jcl, console))
+		{
+			char *roomnick = arg[1];
+			char *comment = arg[2];
+			char *jid;
+			if (strchr(roomnick, '@'))
+				jid = roomnick;
+			else
+			{
+				Con_TrySubPrint(console, "Unable to translate roomnicks. Please use their bare jid.\n");
+				return;	//FIXME: translate from roomnick to real barejid
+			}
+
+			JCL_SendIQf(jcl, NULL, "set", console,
+					"<query xmlns='http://jabber.org/protocol/muc#admin'>"
+						"<item affiliation='outcast' jid='%s'>"
+							"<reason>%s</reason>"
+						"</item>"
+					"</query>"
+					, jid, comment
+				);
+		}
+		else if (*console && !strcmp(arg[0]+1, "invite") && JCL_IsChatroom(jcl, console))
+		{
+			char *jid = arg[1];
+			char *reason = arg[2];
+			JCL_AddClientMessagef(jcl, 
+				"<message to='%s'>"
+					"<x xmlns='http://jabber.org/protocol/muc#user'>"
+						"<invite to='%s'>"
+							"<reason>%s</reason>"
+						"</invite>"
+					"</x>"
+				"</message>"
+				, console, jid, reason
+				);
+		}
+		else if (*console && !strcmp(arg[0]+1, "join") && JCL_IsChatroom(jcl, console))
+		{
+			char *room = arg[1];
+			char *nick = "";
+			char *pass = arg[2];
+			JCL_AddClientMessagef(jcl,
+				"<presence to='%s/%s'>"
+					"<x xmlns='http://jabber.org/protocol/muc#user'>"
+						"<password>%s</password>"
+					"</x>"
+				"</presence>"
+				, room, nick, pass
+				);
+		}
+		else if (*console && !strcmp(arg[0]+1, "kick") && JCL_IsChatroom(jcl, console))
+		{
+			char *roomnick = arg[1];
+			char *comment = arg[2];
+			JCL_SendIQf(jcl, NULL, "set", console,
+					"<query xmlns='http://jabber.org/protocol/muc#admin'>"
+						"<item nick='%s' role='none'>"
+							"<reason>%s</reason>"
+						"</item>"
+					"</query>"
+					,roomnick, comment
+				);
+		}
+		else if (*console && !strcmp(arg[0]+1, "msg") && JCL_IsChatroom(jcl, console))
+		{
+			char *whom = arg[1];
+			char *msgtext = argstart[2];
+			JCL_AddClientMessagef(jcl,
+				"<message to='%s/%s' type='chat'>"
+					"<body>%s</body>"
+				"</message>"
+				, console, whom, msgtext
+				);
+		}
+		else if (*console && !strcmp(arg[0]+1, "nick") && JCL_IsChatroom(jcl, console))
+		{	//FIXME: needs escape
+			char *mynewnick = arg[1];
+			JCL_AddClientMessagef(jcl,
+				"<presence to='%s/%s'/>"
+				, console, mynewnick
+				);
+		}
+		else if (*console && !strcmp(arg[0]+1, "part") && JCL_IsChatroom(jcl, console))
+		{	//FIXME: escapes
+			buddy_t *b;
+			char *myroomnick = "";
+			char *comment = argstart[1];
+
+			if (JCL_FindBuddy(jcl, console, &b, NULL, false))
+				if (b && b->ourselves)
+					myroomnick = b->ourselves->resource;
+
+			JCL_AddClientMessagef(jcl,
+				"<presence to='%s/%s' type='unavailable'>"
+					"<status>%s</status>"
+				"</presence>"
+				, console, myroomnick, comment
+				);
+
+			if (b && b->btype == BT_CHATROOM)
+				JCL_ForgetBuddy(jcl, b, NULL);
+		}
+		else if (*console && !strcmp(arg[0]+1, "topic") && JCL_IsChatroom(jcl, console))
+		{	//FIXME: escapes
+			char *newtopic = argstart[1];
+			JCL_AddClientMessagef(jcl,
+				"<message to='%s' type='groupchat'>"
+					"<subject>%s</subject>"
+				"</message>"
+				, console, newtopic
+				);
+		}
+		else if (*console && !strcmp(arg[0]+1, "userlist") && JCL_IsChatroom(jcl, console))
+		{
+			buddy_t *b;
+			bresource_t *r;
+			if (JCL_FindBuddy(jcl, console, &b, NULL, false))
+			{
+				Con_SubPrintf(console, "Users on channel %s\n", console);
+				for (r = b->resources; r; r = r->next)
+				{
+					Con_SubPrintf(console, " %s:", r->resource);
+					JCL_PrintBuddyStatus(console, jcl, b, r);
+					Con_SubPrintf(console, "\n");
+				}
+				Con_SubPrintf(console, "<END>\n");
+			}
+		}
+		else if (!strcmp(arg[0]+1, "open") || !strcmp(arg[0]+1, "connect") || !strcmp(arg[0]+1, "autoopen") || !strcmp(arg[0]+1, "autoconnect") || !strcmp(arg[0]+1, "plainopen") || !strcmp(arg[0]+1, "plainconnect") || !strcmp(arg[0]+1, "tlsopen") || !strcmp(arg[0]+1, "tlsconnect"))
 		{	//tlsconnect is 'old'.
 			int tls;
 			if (!*arg[1])
@@ -6106,16 +7092,25 @@ void JCL_Command(int accid, char *console)
 		}
 		else if (!strcmp(arg[0]+1, "unfriend")) 
 		{
-			//FIXME: validate the name. deal with xml markup.
+			buddy_t *b;
+			if (JCL_FindBuddy(jcl, arg[1], &b, NULL, false))
+			{
+				if (b->btype == BT_CHATROOM)
+					JCL_ForgetBuddy(jcl, b, NULL);
+				else if (b->btype == BT_ROSTER)
+				{
+					//hide from em
+					JCL_AddClientMessagef(jcl, "<presence to='%s' type='unsubscribed'/>", arg[1]);
 
-			//hide from em
-			JCL_AddClientMessagef(jcl, "<presence to='%s' type='unsubscribed'/>", arg[1]);
+					//stop looking for em
+					JCL_AddClientMessagef(jcl, "<presence to='%s' type='unsubscribe'/>", arg[1]);
 
-			//stop looking for em
-			JCL_AddClientMessagef(jcl, "<presence to='%s' type='unsubscribe'/>", arg[1]);
-
-			//stop listing em
-			JCL_SendIQf(jcl, NULL, "set", NULL, "<query xmlns='jabber:iq:roster'><item jid='%s' subscription='remove' /></query>", arg[1]);
+					//stop listing em
+					JCL_SendIQf(jcl, NULL, "set", NULL, "<query xmlns='jabber:iq:roster'><item jid='%s' subscription='remove' /></query>", arg[1]);
+				}
+				else
+					JCL_AddClientMessagef(jcl, "<presence to='%s' type='unavailable'/>", arg[1]);
+			}
 		}
 #ifdef JINGLE
 		else if (!strcmp(arg[0]+1, "join")) 
@@ -6165,7 +7160,10 @@ void JCL_Command(int accid, char *console)
 #endif
 		else if (!strcmp(arg[0]+1, "joinchatroom") || !strcmp(arg[0]+1, "muc") || !strcmp(arg[0]+1, "joinmuc")) 
 		{
-			JCL_JoinMUCChat(jcl, arg[1], arg[2], arg[3], arg[4]);
+			if (!*arg[1])
+				Con_SubPrintf(console, "xmpp %s room@server roomnick password\n");
+			else
+				JCL_JoinMUCChat(jcl, arg[1], NULL, *arg[2]?arg[2]:NULL, arg[3]);
 		}
 		else if (!strcmp(arg[0]+1, "leavechatroom") || !strcmp(arg[0]+1, "leavemuc")) 
 		{
@@ -6175,7 +7173,6 @@ void JCL_Command(int accid, char *console)
 			Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s@%s/%s", arg[1], arg[2], arg[3]);
 			if (JCL_FindBuddy(jcl, roomserverhandle, &b, &r, false))
 			{
-				b->chatroom = true;
 				JCL_AddClientMessagef(jcl, "<presence to='%s' type='unavailable'/>", roomserverhandle);
 				JCL_ForgetBuddy(jcl, b, NULL);
 			}

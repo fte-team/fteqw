@@ -440,10 +440,10 @@ typedef struct
 
 	/*QuakeWorld protocol flags*/
 #ifdef PROTOCOLEXTENSIONS
-	unsigned long fteprotocolextensions;
-	unsigned long fteprotocolextensions2;
+	unsigned int fteprotocolextensions;
+	unsigned int fteprotocolextensions2;
 #endif
-	unsigned long z_ext;
+	unsigned int z_ext;
 
 	/*NQ Protocol flags*/
 	enum
@@ -453,7 +453,7 @@ typedef struct
 		CPNQ_BJP1,	//16bit models, strict 8bit sounds (otherwise based on nehahra)
 		CPNQ_BJP2,	//16bit models, strict 16bit sounds
 		CPNQ_BJP3,	//16bit models, flagged 16bit sounds, 8bit static sounds.
-		CPNQ_FITZ666, /*and rmqe999 protocol*/
+		CPNQ_FITZ666, /*and rmqe999 protocol, which is a strict superset*/
 		CPNQ_DP5,
 		CPNQ_DP6,
 		CPNQ_DP7
@@ -738,6 +738,8 @@ typedef struct
 {
 	int			fpd;
 	int			servercount;	// server identification for prespawns
+
+	int			protocol_qw;
 
 	float		gamespeed;
 	qboolean	csqcdebug;

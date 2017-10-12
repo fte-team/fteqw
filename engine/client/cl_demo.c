@@ -591,7 +591,7 @@ qboolean CL_GetDemoMessage (void)
 
 		if (msglength > net_message.maxsize)
 		{
-			Con_Printf ("Demo message > MAX_MSGLEN");
+			Con_Printf ("Demo message > MAX_MSGLEN\n");
 			CL_StopPlayback ();
 			return 0;
 		}

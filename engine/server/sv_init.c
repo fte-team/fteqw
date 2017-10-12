@@ -622,7 +622,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		SVHL_ShutdownGame();
 #endif
 #ifdef VM_Q1
-		Q1QVM_Shutdown();
+		Q1QVM_Shutdown(true);
 #endif
 		sv.world.worldmodel = NULL;
 		sv.state = ss_dead;
@@ -1147,7 +1147,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 #endif
 #ifdef VM_Q1
 		if (newgametype != GT_Q1QVM)
-			Q1QVM_Shutdown();
+			Q1QVM_Shutdown(true);
 #endif
 
 		SV_UpdateMaxPlayers(0);

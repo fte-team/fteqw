@@ -43,22 +43,20 @@ oh, wait, ktx no longer supports those properly.
 
 #include "pr_common.h"
 
-#define	GAME_API_VERSION	13
+/*version changes:
+13: 2009/june gamecode no longer aware of edict_t data (just 'qc' fields).
+14: 2017/march gamedata_t.maxentities added
+15: 2017/june for-64bit string indirection changes. added GAME_CLEAR_EDICT.
+*/
+#define	GAME_API_VERSION		15
+#define	GAME_API_VERSION_MIN	8
 #define MAX_Q1QVM_EDICTS	768 //according to ktx at api version 12 (fte's protocols go to 2048)
 #define MAPNAME_LEN 64
 
 void PR_SV_FillWorldGlobals(world_t *w);
 
-#if GAME_API_VERSION >= 13
-	#define WASTED_EDICT_T_SIZE (VM_NonNative(q1qvm)?sizeof(int):sizeof(void*))
-	//in version 13, the actual edict_t struct is gone, and there's a pointer to it in its place (which we don't need, but it changes size based on vm/native).
-#else
-	//this is probably broken on 64bit native code
-	#define WASTED_EDICT_T_SIZE 114
-								//qclib has split edict_t and entvars_t.
-								//mvdsv and the api we're implementing has them in one lump
-								//so we need to bias our entvars_t and fake the offsets a little.
-#endif
+static int qvm_api_version;
+static size_t wasted_edict_t_size;
 
 //===============================================================
 
@@ -209,6 +207,8 @@ typedef enum
 	GAME_EDICT_BLOCKED,                     //(self,other)
 	GAME_CLIENT_SAY, 		//(int isteam)
 	GAME_PAUSED_TIC,		//(int milliseconds)
+
+	GAME_CLEAR_EDICT,		//v15 (sets self.fields to safe values after they're cleared)
 } q1qvmgameExport_t;
 
 
@@ -320,6 +320,9 @@ typedef struct
 	unsigned int	global;
 	unsigned int	fields;
 	int				APIversion;
+#if GAME_API_VERSION >= 14
+	unsigned int	maxentities;
+#endif
 } gameData32_t;
 
 typedef struct
@@ -329,6 +332,9 @@ typedef struct
 	quintptr_t		global;
 	quintptr_t		fields;
 	int				APIversion;
+#if GAME_API_VERSION >= 14
+	unsigned int	maxentities;
+#endif
 } gameDataN_t;
 
 typedef enum {
@@ -354,10 +360,18 @@ typedef enum {
 
 
 #define emufields \
-		emufield(gravity,	F_FLOAT)	\
-		emufield(maxspeed,	F_FLOAT)	\
-		emufield(movement,	F_VECTOR)	\
-		emufield(vw_index,	F_FLOAT)
+		emufield(gravity,		F_FLOAT)	\
+		emufield(maxspeed,		F_FLOAT)	\
+		emufield(movement,		F_VECTOR)	\
+		emufield(vw_index,		F_FLOAT)	\
+		emufield(isBot,			F_INT)
+//		emufield(items2,		F_FLOAT)	
+//		emufield(brokenankle,	F_FLOAT)	
+//		emufield(mod_admin,		F_INT)		
+//		emufield(hideentity,	F_INT)		
+//		emufield(trackent,		F_INT)		
+//		emufield(hideplayers,	F_INT)		
+//		emufield(visclients,	F_INT)
 
 struct
 {
@@ -371,7 +385,7 @@ static const char *q1qvmentstring;
 static vm_t *q1qvm;
 static pubprogfuncs_t q1qvmprogfuncs;
 
-
+static q1qvmglobalvars_t *gvars;
 static void *evars;	//pointer to the gamecodes idea of an edict_t
 static quintptr_t vevars;	//offset into the vm base of evars
 
@@ -399,7 +413,7 @@ static edict_t *QDECL Q1QVMPF_EdictNum(pubprogfuncs_t *pf, unsigned int num)
 	if (!e)
 	{
 		e = q1qvmprogfuncs.edicttable[num] = Z_TagMalloc(sizeof(edict_t)+sizeof(extentvars_t), VMFSID_Q1QVM);
-		e->v = (stdentvars_t*)((char*)evars + (num * sv.world.edict_size) + WASTED_EDICT_T_SIZE);
+		e->v = (stdentvars_t*)((char*)evars + (num * sv.world.edict_size) + wasted_edict_t_size);
 		e->xv = (extentvars_t*)(e+1);
 		e->entnum = num;
 	}
@@ -428,7 +442,14 @@ static void Q1QVMED_ClearEdict (edict_t *e, qboolean wipe)
 {
 	int num = e->entnum;
 	if (wipe)
-		memset (e->v, 0, sv.world.edict_size - WASTED_EDICT_T_SIZE);
+		memset (e->v, 0, sv.world.edict_size - wasted_edict_t_size);
+	if (qvm_api_version >= 15)
+	{
+		int oself = pr_global_struct->self;
+		pr_global_struct->self = Q1QVMPF_EdictToProgs(svprogfuncs, e);
+		VM_Call(q1qvm, GAME_CLEAR_EDICT, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		pr_global_struct->self = oself;
+	}
 	e->ereftype = ER_ENTITY;
 	e->entnum = num;
 }
@@ -520,7 +541,7 @@ static eval_t *QDECL Q1QVMPF_GetEdictFieldValue(pubprogfuncs_t *pf, edict_t *e, 
 {
 	if (cache && !cache->varname)
 	{
-		return (eval_t*)((char*)e->v + cache->spare[0]-WASTED_EDICT_T_SIZE);
+		return (eval_t*)((char*)e->v + cache->spare[0]-wasted_edict_t_size);
 	}
 	if (!strcmp(fieldname, "message"))
 	{
@@ -560,13 +581,149 @@ static void *ASMCALL QDECL Q1QVMPF_PointerToNative(pubprogfuncs_t *prinst, quint
 
 static const char *ASMCALL QDECL Q1QVMPF_StringToNative(pubprogfuncs_t *prinst, string_t str)
 {
-	char *ret;
+	quintptr_t ref;
 	if (str == ~0)
 		return " ";	//models are weird. yes, this is a hack.
-	if (!str || (quintptr_t)str >= VM_MemoryMask(q1qvm))
+	if (qvm_api_version >= 15)
+	{
+		qboolean stringishacky = sizeof(quintptr_t) != sizeof(string_t) && qvm_api_version >= 15 && !VM_NonNative(q1qvm);	//silly bullshit. Really, native gamecode should have its own implementation of this builtin or something, especially as its pretty much only ever used for classnames.
+		if (!str)
+			return "";	//invalid...
+		else if (stringishacky)
+		{
+			if (str >= 0 && str < sv.world.edict_size*sv.world.max_edicts - sizeof(quintptr_t))
+				ref = *(quintptr_t*)((char*)evars + (int)str);	//extra indirection added in api 15.
+			else
+				return ""; //error
+		}
+		else
+		{
+			if (str >= 0 && str < sv.world.edict_size*sv.world.max_edicts - sizeof(quintptr_t))
+				ref = *(string_t*)((char*)evars + (int)str);	//extra indirection added in api 15.
+			else
+				return ""; //error
+		}
+	}
+	else
+		ref = str;
+	if (!ref || (quintptr_t)ref >= VM_MemoryMask(q1qvm))
 		return "";	//null or invalid pointers.
-	ret = (char*)VM_MemoryBase(q1qvm) + str;
-	return ret;
+	return (char*)VM_MemoryBase(q1qvm) + ref;
+}
+static void QDECL Q1QVMPF_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static)
+{
+	if (!str_is_static)
+		return;
+	if (qvm_api_version >= 15)
+	{
+		qboolean stringishacky = sizeof(quintptr_t) != sizeof(string_t) && qvm_api_version >= 15 && !VM_NonNative(q1qvm);	//silly bullshit. Really, native gamecode should have its own implementation of this builtin or something, especially as its pretty much only ever used for classnames.
+		quintptr_t nval = (str - (char*)VM_MemoryBase(q1qvm));
+		if (nval >= VM_MemoryMask(q1qvm))
+			return;
+
+		if (!*fld)
+			Con_DPrintf("Ignoring string set. mod pointer not set.\n");
+		else if (stringishacky)
+		{
+			if (*fld >= 0 && *fld < sv.world.edict_size*sv.world.max_edicts - sizeof(quintptr_t))
+				*(quintptr_t*)((char*)evars + *fld) = nval;
+			else
+				Con_DPrintf("Ignoring string set outside of progs VM\n");
+		}
+		else
+		{
+			if (nval >= 0xffffffff)
+				return;	//invalid string! blame 64bit.
+			if (*fld >= 0 && *fld < sv.world.edict_size*sv.world.max_edicts - sizeof(string_t))
+				*(string_t*)((char*)evars + *fld) = (string_t)nval;
+			else
+				Con_DPrintf("Ignoring string set outside of progs VM\n");
+		}
+	}
+	else
+	{
+		string_t newval = progfuncs->StringToProgs(progfuncs, str);
+		if (newval || !str)
+			*fld = newval;
+		else if (!str)
+			*fld = 0;
+		else
+		{
+			*fld = ~0;
+			//Con_DPrintf("Ignoring string set outside of progs VM\n");
+		}
+	}
+}
+
+static void Q1QVMPF_SetStringGlobal(pubprogfuncs_t *progfuncs, string_t *fld, const char *str, size_t copysize)
+{
+	if (qvm_api_version >= 15)
+	{
+		qboolean stringishacky = sizeof(quintptr_t) != sizeof(string_t) && qvm_api_version >= 15 && !VM_NonNative(q1qvm);	//silly bullshit. Really, native gamecode should have its own implementation of this builtin or something, especially as its pretty much only ever used for classnames.
+		if (!*fld)
+			Con_Printf("Q1QVM: string reference not set. Fix the mod.\n");
+		else if (stringishacky)
+		{	//quintptr_t
+//			if (*fld >= 0 && *fld < sv.world.edict_size*sv.world.max_edicts - sizeof(intptr_t))
+			{
+				if (!*(quintptr_t*)((char*)gvars + *fld))
+				{
+					Con_DPrintf("String buffer not set. Hacking the data in instead.\n");
+					*(quintptr_t*)((char*)gvars + *fld) = (str - (char*)VM_MemoryBase(q1qvm));
+				}
+				else
+				{
+					char *ptr = (char*)*(quintptr_t*)((char*)gvars + *fld);
+					Q_strncpyz(ptr, str, copysize);
+				}
+			}
+		}
+		else
+		{	//string_t
+//			if (*fld >= 0 && *fld < sv.world.edict_size*sv.world.max_edicts - sizeof(string_t))
+			{
+				if (!*(quintptr_t*)((char*)gvars + *fld))
+				{
+					quintptr_t nval = (str - (char*)VM_MemoryBase(q1qvm));;
+					if (nval > VM_MemoryMask(q1qvm))
+					{
+						Con_Printf("Q1QVM: String buffer not set. Data out of QVM memory space. Fix the mod.\n");
+					}
+					else
+					{
+						Con_DPrintf("String buffer not set. Hacking the data in instead.\n");
+						*(quintptr_t*)((char*)gvars + *fld) = (str - (char*)VM_MemoryBase(q1qvm));;
+					}
+				}
+				else
+				{
+					char *ptr = (char*)*(quintptr_t*)((char*)gvars + *fld);
+					Q_strncpyz(ptr, str, copysize);
+				}
+			}
+		}
+	}
+	else
+	{
+		if (!*fld)
+		{
+			quintptr_t nval = (str - (char*)VM_MemoryBase(q1qvm));
+			if (nval > VM_MemoryMask(q1qvm))
+			{
+				Con_Printf("Q1QVM: String buffer not set. Data out of QVM memory space. Fix the mod.\n");
+			}
+			else
+			{
+				Con_DPrintf("String buffer not set. Hacking the data in instead.\n");
+				*fld = (str - (char*)VM_MemoryBase(q1qvm));
+			}
+		}
+		else
+		{
+			char *ptr = (char*)VM_MemoryBase(q1qvm) + *fld;
+			Q_strncpyz(ptr, str, copysize);
+		}
+	}
 }
 
 static int WrapQCBuiltin(builtin_t func, void *offset, quintptr_t mask, const qintptr_t *arg, char *argtypes)
@@ -607,7 +764,7 @@ static int WrapQCBuiltin(builtin_t func, void *offset, quintptr_t mask, const qi
 #define VALIDATEPOINTER(o,l) if ((qintptr_t)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap passes invalid pointer\n");	//out of bounds.
 static qintptr_t QVM_GetAPIVersion (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	return GAME_API_VERSION;
+	return qvm_api_version;
 }
 
 static qintptr_t QVM_DPrint (void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -1245,26 +1402,30 @@ static qintptr_t QVM_strnicmp (void *offset, quintptr_t mask, const qintptr_t *a
 static qintptr_t QVM_Find (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	edict_t *e = VM_POINTER(arg[0]);
-	int ofs = VM_LONG(arg[1]) - WASTED_EDICT_T_SIZE;
+	int ofs = (VM_LONG(arg[1]) - wasted_edict_t_size);
 	char *match = VM_POINTER(arg[2]);
 	char *field;
 	int first = e?((char*)e - (char*)evars)/sv.world.edict_size:0;
 	int i;
+	qboolean stringishacky = sizeof(quintptr_t) != sizeof(string_t) && qvm_api_version >= 15 && !VM_NonNative(q1qvm);	//silly bullshit. Really, native gamecode should have its own implementation of this builtin or something, especially as its pretty much only ever used for classnames.
 	if (!match)
 		match = "";
 	for (i = first+1; i < sv.world.num_edicts; i++)
 	{
 		e = q1qvmprogfuncs.edicttable[i];
-		field = VM_POINTER(*((string_t*)e->v + ofs/4));
+		if (stringishacky)
+			field = VM_POINTER(*(quintptr_t*)((char*)e->v + ofs));
+		else
+			field = VM_POINTER(*(string_t*)((char*)e->v + ofs));
 		if (field == NULL)
 		{
 			if (*match == '\0')
-				return ((char*)e->v - (char*)offset)-WASTED_EDICT_T_SIZE;
+				return ((char*)e->v - (char*)offset)-wasted_edict_t_size;
 		}
 		else
 		{
 			if (!strcmp(field, match))
-				return ((char*)e->v - (char*)offset)-WASTED_EDICT_T_SIZE;
+				return ((char*)e->v - (char*)offset)-wasted_edict_t_size;
 		}
 	}
 	return 0;
@@ -1346,26 +1507,93 @@ static qintptr_t QVM_RedirectCmd (void *offset, quintptr_t mask, const qintptr_t
 }
 static qintptr_t QVM_Add_Bot (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
+	char *name = VM_POINTER(arg[0]);
+	int bottom = VM_LONG(arg[1]);
+	int top = VM_LONG(arg[2]);
+	char *skin = VM_POINTER(arg[3]);
+
+#if 1
+	extern int nextuserid;
+	int i;
+	for (i = 0; i < sv.allocated_client_slots; i++)
+	{
+		client_t *cl = &svs.clients[i];
+		if (!*cl->name && !cl->protocol && cl->state == cs_free)
+		{
+			cl->userid = ++nextuserid;
+			cl->protocol = SCP_BAD;	//marker for bots
+			cl->state = cs_spawned;
+			cl->spawned = true;
+			sv.spawned_client_slots++;
+			cl->netchan.message.allowoverflow = true;
+			cl->netchan.message.maxsize = 0;
+			cl->datagram.allowoverflow = true;
+			cl->datagram.maxsize = 0;
+
+			cl->edict = EDICT_NUM(sv.world.progs, i+1);
+
+			Info_SetValueForKey(cl->userinfo, "name", name, sizeof(cl->userinfo));
+			Info_SetValueForKey(cl->userinfo, "topcolor", va("%i", top), sizeof(cl->userinfo));
+			Info_SetValueForKey(cl->userinfo, "bottomcolor", va("%i", bottom), sizeof(cl->userinfo));
+			Info_SetValueForKey(cl->userinfo, "skin", skin, sizeof(cl->userinfo));
+			Info_SetValueForStarKey(cl->userinfo, "*bot", "1", sizeof(cl->userinfo));
+			SV_ExtractFromUserinfo(cl, true);
+			SV_SetUpClientEdict (cl, cl->edict);
+
+			SV_FullClientUpdate(cl, NULL);
+			Q1QVM_ClientConnect(cl);
+
+			return cl->edict->entnum;
+		}
+	}
+#else
 	//FIXME: not implemented, always returns failure.
 	//the other bot functions only ever work on bots anyway, so don't need to be implemented until this one is
 
 	//return WrapQCBuiltin(PF_spawnclient, offset, mask, arg, "");
 	Con_DPrintf("QVM_Add_Bot: not implemented\n");
+#endif
 	return 0;
 }
 static qintptr_t QVM_Remove_Bot (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	//fixme: should become general kick
+	//kicks NOW. which generally makes it unsafe for players (calling from StartFrame should be okay).
+	int entnum = VM_LONG(arg[0]);
+	if (entnum >= 1 && entnum <= svs.allocated_client_slots)
+	{
+		client_t *cl = &svs.clients[entnum-1];
+		SV_DropClient(cl);
+	}
 
-	Con_DPrintf("QVM_Remove_Bot: not implemented\n");
-
-	//WrapQCBuiltin(PF_dropclient, offset, mask, arg, "n");
 	return 0;
 }
 static qintptr_t QVM_SetBotCMD (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	//in mvdsv, this is run *after* the frame.
-	Con_DPrintf("QVM_SetBotCMD: not implemented\n");
+	//this just queues the command for later, even in mvdsv. ignore the msecs value because its basically pointless
+	int edn		= VM_LONG(arg[0]);
+	int msec	= VM_LONG(arg[1]);
+	float angles_x = VM_FLOAT(arg[2]);
+	float angles_y = VM_FLOAT(arg[3]);
+	float angles_z = VM_FLOAT(arg[4]);
+	int forwardmove = VM_LONG(arg[5]);
+	int sidemove = VM_LONG(arg[6]);
+	int upmove = VM_LONG(arg[7]);
+	int buttons = VM_LONG(arg[8]);
+	int impulse = VM_LONG(arg[9]);
+
+	if (edn >= 1 && edn <= svs.allocated_client_slots)
+	{
+		client_t *cl = &svs.clients[edn-1];
+		cl->lastcmd.msec = msec;
+		cl->lastcmd.angles[0] = ANGLE2SHORT(angles_x);
+		cl->lastcmd.angles[1] = ANGLE2SHORT(angles_y);
+		cl->lastcmd.angles[2] = ANGLE2SHORT(angles_z);
+		cl->lastcmd.forwardmove = forwardmove;
+		cl->lastcmd.sidemove = sidemove;
+		cl->lastcmd.upmove = upmove;
+		cl->lastcmd.buttons = buttons;
+		cl->lastcmd.impulse = impulse;
+	}
 	return 0;
 }
 static qintptr_t QVM_SetUserInfo (void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -1551,19 +1779,19 @@ static qintptr_t QVM_uri_query (void *offset, quintptr_t mask, const qintptr_t *
 	
 	if (!pr_enable_uriget.ival)
 	{
-		Con_Printf("QVM_uri_query(\"%s\",%"PRIxPTR"): %s disabled\n", url, (qintptr_t)cb_context, pr_enable_uriget.name);
+		Con_Printf("QVM_uri_query(\"%s\"): %s disabled\n", url, pr_enable_uriget.name);
 		return 0;
 	}
 
 	if (mimetype && *mimetype)
 	{
 		VALIDATEPOINTER(arg[4],datasize);
-		Con_DPrintf("QVM_uri_query(%s,%"PRIxPTR")\n", url, (qintptr_t)cb_context);
+		Con_DPrintf("QVM_uri_query(%s)\n", url);
 		dl = HTTP_CL_Put(url, mimetype, data, datasize, QVM_uri_query_callback);
 	}
 	else
 	{
-		Con_DPrintf("QVM_uri_query(%s,%"PRIxPTR")\n", url, (qintptr_t)cb_context);
+		Con_DPrintf("QVM_uri_query(%s)\n", url);
 		dl = HTTP_CL_Get(url, NULL, QVM_uri_query_callback);
 	}
 	if (dl)
@@ -1740,8 +1968,8 @@ struct
 
 	//sql?
 	//model querying?
+	//skeletal objects/tags?
 	//heightmap / brush editing?
-	//custom stats (mod can always writebyte, I guess, sounds horrible though)
 	//csqc ents
 	{NULL, NULL}
 };
@@ -1823,7 +2051,7 @@ static qintptr_t EXPORT_FN syscallnative (qintptr_t arg, ...)
 	return traps[arg](NULL, ~(quintptr_t)0, args);
 }
 
-void Q1QVM_Shutdown(void)
+void Q1QVM_Shutdown(qboolean notifygame)
 {
 	int i;
 	if (q1qvm)
@@ -1834,7 +2062,8 @@ void Q1QVM_Shutdown(void)
 				Q_strncpyz(svs.clients[i].namebuf, svs.clients[i].name, sizeof(svs.clients[i].namebuf));
 			svs.clients[i].name = svs.clients[i].namebuf;
 		}
-		VM_Call(q1qvm, GAME_SHUTDOWN, 0, 0, 0);
+		if (notifygame)
+			VM_Call(q1qvm, GAME_SHUTDOWN, 0, 0, 0);
 		VM_Destroy(q1qvm);
 		q1qvm = NULL;
 		VM_fcloseall(VMFSID_Q1QVM);
@@ -1848,6 +2077,25 @@ void Q1QVM_Shutdown(void)
 		}
 		vevars = 0;
 	}
+}
+
+static void QDECL Q1QVM_Get_FrameState(world_t *w, wedict_t *ent, framestate_t *fstate)
+{
+	memset(fstate, 0, sizeof(*fstate));
+	fstate->g[FS_REG].frame[0] = ent->v->frame;
+	fstate->g[FS_REG].frametime[0] = ent->xv->frame1time;
+	fstate->g[FS_REG].lerpweight[0] = 1;
+	fstate->g[FS_REG].endbone = 0x7fffffff;
+
+	fstate->g[FST_BASE].frame[0] = ent->xv->baseframe;
+	fstate->g[FST_BASE].frametime[0] = ent->xv->/*base*/frame1time;
+	fstate->g[FST_BASE].lerpweight[0] = 1;
+	fstate->g[FST_BASE].endbone = ent->xv->basebone;
+
+#if defined(SKELETALOBJECTS) || defined(RAGDOLL)
+	if (ent->xv->skeletonindex)
+		skel_lookup(w, ent->xv->skeletonindex, fstate);
+#endif
 }
 
 static void QDECL Q1QVM_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
@@ -1876,20 +2124,6 @@ static qboolean QDECL Q1QVM_Event_ContentsTransition(world_t *w, wedict_t *ent, 
 	return false;	//always do legacy behaviour
 }
 
-static void QDECL Q1QVMPF_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static)
-{
-	string_t newval = progfuncs->StringToProgs(progfuncs, str);
-	if (newval || !str)
-		*fld = newval;
-	else if (!str)
-		*fld = 0;
-	else
-	{
-		*fld = ~0;
-//		Con_DPrintf("Ignoring string set outside of progs VM\n");
-	}
-}
-
 qboolean PR_LoadQ1QVM(void)
 {
 	static int writable_int;
@@ -1902,12 +2136,11 @@ qboolean PR_LoadQ1QVM(void)
 	gameDataPrivate_t gd;
 	gameDataN_t *gdn;
 	gameData32_t *gd32;
-	q1qvmglobalvars_t *global;
 	qintptr_t ret;
 	qintptr_t limit;
 	extern cvar_t	pr_maxedicts;
 
-	Q1QVM_Shutdown();
+	Q1QVM_Shutdown(true);
 
 	q1qvm = VM_Create("qwprogs", com_nogamedirnativecode.ival?NULL:syscallnative, syscallqvm);
 	if (!q1qvm)
@@ -1955,6 +2188,7 @@ qboolean PR_LoadQ1QVM(void)
 	sv.world.Event_Sound = SVQ1_StartSound;
 	sv.world.Event_ContentsTransition = Q1QVM_Event_ContentsTransition;
 	sv.world.Get_CModel = SVPR_GetCModel;
+	sv.world.Get_FrameState = Q1QVM_Get_FrameState;
 
 	sv.world.num_edicts = 0;	//we're not ready for most of the builtins yet
 	sv.world.max_edicts = 0;	//so clear these out, just in case
@@ -1964,10 +2198,12 @@ qboolean PR_LoadQ1QVM(void)
 
 	q1qvmprogfuncs.stringtable = VM_MemoryBase(q1qvm);
 
+	qvm_api_version = GAME_API_VERSION;
+
 	ret = VM_Call(q1qvm, GAME_INIT, (qintptr_t)(sv.time*1000), rand(), 0, 0, 0);
 	if (!ret)
 	{
-		Q1QVM_Shutdown();
+		Q1QVM_Shutdown(false);
 		return false;
 	}
 
@@ -1982,7 +2218,10 @@ qboolean PR_LoadQ1QVM(void)
 		gd.global = gd32->global;
 		gd.fields = gd32->fields;
 
-		gd.maxedicts = pr_maxedicts.ival;	//FIXME
+		if (qvm_api_version >= 14)
+			gd.maxedicts = gd32->maxentities;
+		else
+			gd.maxedicts = MAX_Q1QVM_EDICTS;
 	}
 	else
 	{
@@ -1994,7 +2233,30 @@ qboolean PR_LoadQ1QVM(void)
 		gd.global = gdn->global;
 		gd.fields = gdn->fields;
 
-		gd.maxedicts = pr_maxedicts.ival;	//FIXME
+		if (qvm_api_version >= 14)
+			gd.maxedicts = gdn->maxentities;
+		else
+			gd.maxedicts = MAX_Q1QVM_EDICTS;
+	}
+	gd.maxedicts = bound(1, pr_maxedicts.ival, gd.maxedicts);
+
+	qvm_api_version = gd.APIversion;
+	if (!(GAME_API_VERSION_MIN <= qvm_api_version && qvm_api_version <= GAME_API_VERSION))
+	{
+		Con_Printf("QVM-API version %i not supported\n", qvm_api_version);
+		Q1QVM_Shutdown(false);
+		return false;
+	}
+
+	//in version 13, the actual edict_t struct is gone, and there's a pointer to it in its place (which is unusable, and changes depending on modes).
+	if (qvm_api_version)
+		wasted_edict_t_size = (VM_NonNative(q1qvm)?sizeof(int):sizeof(void*));
+	else
+	{
+		//fte/qclib has split edict_t and entvars_t.
+		//older versions of the qvm api has them in one lump
+		//so we need to bias the mod's entvars_t offsets a little.
+		wasted_edict_t_size = 114;
 	}
 
 	sv.world.num_edicts = 1;
@@ -2014,21 +2276,21 @@ qboolean PR_LoadQ1QVM(void)
 	sv.world.edict_size = gd.sizeofent;
 	vevars = gd.ents;
 	evars = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, vevars);
-	global = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, gd.global);
+	gvars = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, gd.global);
 
-	if (!evars || !global)
+	if (!evars || !gvars)
 	{
-		Q1QVM_Shutdown();
+		Q1QVM_Shutdown(false);
 		return false;
 	}
 
 //WARNING: global is not remapped yet...
 //This code is written evilly, but works well enough
-#define globalint(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)	//the logic of this is somewhat crazy
-#define globalfloat(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)
-#define globalstring(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)
-#define globalvec(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)
-#define globalfunc(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)
+#define globalint(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name)	//the logic of this is somewhat crazy
+#define globalfloat(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name)
+#define globalstring(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name)
+#define globalvec(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name)
+#define globalfunc(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name)
 #define globalnull(required, name) pr_global_ptrs->name = NULL
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -2084,6 +2346,9 @@ qboolean PR_LoadQ1QVM(void)
 	pr_global_ptrs->physics_mode = &physics_mode;
 	pr_global_ptrs->trace_brush_id = &writable_int;
 	pr_global_ptrs->trace_brush_faceid = &writable_int;
+	pr_global_ptrs->trace_surface_id = &writable_int;
+	pr_global_ptrs->trace_bone_id = &writable_int;
+	pr_global_ptrs->trace_triangle_id = &writable_int;
 	pr_global_ptrs->global_gravitydir = &defaultgravity;
 
 //	ensureglobal(input_timelength, input_timelength_default);
@@ -2094,12 +2359,12 @@ qboolean PR_LoadQ1QVM(void)
 
 	dimensionsend = dimensiondefault = 255;
 	for (i = 0; i < 16; i++)
-		pr_global_ptrs->spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)(&global->parm1 + i));
+		pr_global_ptrs->spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)(&gvars->parm1 + i));
 	for (; i < NUM_SPAWN_PARMS; i++)
 		pr_global_ptrs->spawnparamglobals[i] = NULL;
 	pr_global_ptrs->parm_string = NULL;
 
-#define emufield(n,t) if (field[i].type == t && !strcmp(#n, fname)) {fofs.n = (field[i].ofs - WASTED_EDICT_T_SIZE)/sizeof(float); continue;}
+#define emufield(n,t) if (field[i].type == t && !strcmp(#n, fname)) {fofs.n = (field[i].ofs - wasted_edict_t_size)/sizeof(float); continue;}
 	if (VM_NonNative(q1qvm))
 	{
 		field32_t *field = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, gd.fields);
@@ -2127,10 +2392,26 @@ qboolean PR_LoadQ1QVM(void)
 	sv.world.edicts = (wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, 0);
 	sv.world.usesolidcorpse = true;
 
-	if ((quintptr_t)global->mapname && (quintptr_t)global->mapname+MAPNAME_LEN < VM_MemoryMask(q1qvm))
-		Q_strncpyz((char*)VM_MemoryBase(q1qvm) + global->mapname, svs.name, MAPNAME_LEN);
+	if (qvm_api_version >= 15)
+	{
+		int e;
+		for (e = 0; e <= 32; e++)
+		{
+			pr_global_struct->self = Q1QVMPF_EdictToProgs(svprogfuncs, Q1QVMPF_EdictNum(svprogfuncs, e));
+			VM_Call(q1qvm, GAME_CLEAR_EDICT, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		}
+		pr_global_struct->self = 0;
+
+
+		Q1QVMPF_SetStringGlobal(sv.world.progs, &gvars->mapname, svs.name, MAPNAME_LEN);
+	}
 	else
-		global->mapname = Q1QVMPF_StringToProgs(sv.world.progs, svs.name);
+	{
+		if ((quintptr_t)gvars->mapname && (quintptr_t)gvars->mapname+MAPNAME_LEN < VM_MemoryMask(q1qvm))
+			Q_strncpyz((char*)VM_MemoryBase(q1qvm) + gvars->mapname, svs.name, MAPNAME_LEN);
+		else
+			gvars->mapname = Q1QVMPF_StringToProgs(sv.world.progs, svs.name);
+	}
 
 	PR_SV_FillWorldGlobals(&sv.world);
 	return true;
@@ -2141,12 +2422,25 @@ qboolean PR_LoadQ1QVM(void)
 
 void Q1QVM_ClientConnect(client_t *cl)
 {
-	if (cl->edict->v->netname)
+	if (qvm_api_version >= 15 && !VM_NonNative(q1qvm))
 	{
-		strcpy(cl->namebuf, cl->name);
-		cl->name = (char*)Q1QVMPF_StringToNative(svprogfuncs, cl->edict->v->netname);
-		//FIXME: check this pointer
-		strcpy(cl->name, cl->namebuf);
+		Q_strncpyz(cl->namebuf, cl->name, sizeof(cl->namebuf));
+		Q1QVMPF_SetStringField(sv.world.progs, cl->edict, &cl->edict->v->netname, cl->namebuf, true);
+	}
+	else if (cl->edict->v->netname)
+	{
+		char *name;
+		char *base = VM_MemoryBase(q1qvm);
+		quintptr_t mask = VM_MemoryMask(q1qvm);
+		name = (char*)Q1QVMPF_StringToNative(svprogfuncs, cl->edict->v->netname);
+		if (cl->name > base && cl->name < base+mask)
+		{
+			Q_strncpyz(cl->namebuf, name, sizeof(cl->namebuf));
+			strcpy(name, cl->namebuf);
+			cl->name = name;	//so the gamecode can do changes if it wants.
+		}
+		else
+			Con_Printf("WARNING: Mod provided no netname buffer. Player names will not be set properly.\n");
 	}
 	else if (!VM_NonNative(q1qvm))
 	{
@@ -2160,9 +2454,11 @@ void Q1QVM_ClientConnect(client_t *cl)
 		Con_Printf("WARNING: Mod provided no netname buffer. Player names will not be set properly.\n");
 
 	if (fofs.gravity)
-		((float*)sv_player->v)[fofs.gravity] = sv_player->xv->gravity;
+		((float*)cl->edict->v)[fofs.gravity] = cl->edict->xv->gravity;
 	if (fofs.maxspeed)
-		((float*)sv_player->v)[fofs.maxspeed] = sv_player->xv->maxspeed;
+		((float*)cl->edict->v)[fofs.maxspeed] = cl->edict->xv->maxspeed;
+	if (fofs.isBot)
+		((float*)cl->edict->v)[fofs.isBot] = !cl->protocol;
 
 	// call the spawn function
 	pr_global_struct->time = sv.world.physicstime;
@@ -2251,9 +2547,11 @@ void Q1QVM_PostThink(void)
 		sv_player->xv->vw_index = ((float*)sv_player->v)[fofs.vw_index];
 }
 
-void Q1QVM_StartFrame(void)
+void Q1QVM_StartFrame(qboolean botsarespecialsnowflakes)
 {
-	VM_Call(q1qvm, GAME_START_FRAME, (qintptr_t)(sv.time*1000), 0, 0, 0);
+	if (botsarespecialsnowflakes && qvm_api_version < 15)
+		return; //this stupidity brought to you with api 15!
+	VM_Call(q1qvm, GAME_START_FRAME, (qintptr_t)(sv.time*1000), botsarespecialsnowflakes, 0, 0);
 }
 
 void Q1QVM_Blocked(void)

@@ -980,12 +980,25 @@ extern redirect_t	sv_redirected;
 extern char	sv_redirected_buf[8000];
 void SV_FlushRedirect (void);
 #endif
+vfsfile_t *con_pipe;
 
 #define	MAXPRINTMSG	4096
 static void Con_PrintFromThread (void *ctx, void *data, size_t a, size_t b)
 {
 	Con_Printf("%s", (char*)data);
 	BZ_Free(data);
+}
+
+vfsfile_t *Con_POpen(char *conname)
+{
+	if (!conname || !*conname)
+	{
+		if (con_pipe)
+			VFS_CLOSE(con_pipe);
+		con_pipe = VFSPIPE_Open(2, false);
+		return con_pipe;
+	}
+	return NULL;
 }
 
 // FIXME: make a buffer size safe vsprintf?
@@ -1021,6 +1034,9 @@ void VARGS Con_Printf (const char *fmt, ...)
 // log all messages to file
 	Con_Log (msg);
 
+	if (con_pipe)
+		VFS_PUTS(con_pipe, msg);
+
 	if (!con_initialized)
 		return;
 
@@ -1029,7 +1045,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 }
 
 void VARGS Con_SafePrintf (const char *fmt, ...)
-{
+{	//obsolete version of the function
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
 

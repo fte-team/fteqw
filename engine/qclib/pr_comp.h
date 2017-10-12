@@ -427,6 +427,7 @@ enum qcop_e {
 	OP_BITXOR_V,
 
 	OP_POW_F,
+	OP_CROSS_V,
 
 	OP_EQ_FLD,
 	OP_NE_FLD,
@@ -461,10 +462,10 @@ typedef struct qtest_function_s
 	int		unused1;
 	int		locals;	// assumed! (always 0 in real qtest progs)
 	int		profile; // assumed! (always 0 in real qtest progs)
-	
+
 	int		s_name;
 	int		s_file;
-	
+
 	int		numparms;
 	int		parm_start; // different order
 	int		parm_size[MAX_PARMS]; // ints instead of bytes...
@@ -540,12 +541,12 @@ typedef struct
 	int		first_statement;	// negative numbers are builtins
 	int		parm_start;
 	int		locals;				// total ints of parms + locals
-	
+
 	int		profile;		// runtime
-	
+
 	string_t	s_name;
 	string_t	s_file;			// source file defined in
-	
+
 	int		numparms;
 	qbyte	parm_size[MAX_PARMS];
 } dfunction_t;
@@ -555,14 +556,14 @@ typedef struct
 	int		first_statement;	// negative numbers are builtins
 	int		parm_start;
 	int		locals;				// total ints of parms + locals
-	
+
 	int		profile;						//number of qc instructions executed.
 	prclocks_t profiletime;			//total time inside (cpu cycles)
 	prclocks_t profilechildtime;	//time inside children (excluding builtins, cpu cycles)
-	
+
 	string_t	s_name;
 	string_t	s_file;			// source file defined in
-	
+
 	int		numparms;
 	qbyte	parm_size[MAX_PARMS];
 } mfunction_t;
@@ -577,25 +578,25 @@ typedef struct
 {
 	int		version;
 	int		crc;			// check of header file
-	
+
 	unsigned int		ofs_statements;	//comp 1
 	unsigned int		numstatements;	// statement 0 is an error
 
 	unsigned int		ofs_globaldefs;	//comp 2
 	unsigned int		numglobaldefs;
-	
+
 	unsigned int		ofs_fielddefs;	//comp 4
 	unsigned int		numfielddefs;
-	
+
 	unsigned int		ofs_functions;	//comp 8
 	unsigned int		numfunctions;	// function 0 is an empty
-	
+
 	unsigned int		ofs_strings;	//comp 16
 	unsigned int		numstrings;		// first string is a null string
 
 	unsigned int		ofs_globals;	//comp 32
 	unsigned int		numglobals;
-	
+
 	unsigned int		entityfields;
 
 	//debug / version 7 extensions

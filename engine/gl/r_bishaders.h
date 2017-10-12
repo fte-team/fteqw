@@ -5695,7 +5695,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu SPECULAR\n"
 "!!permu REFLECTCUBEMASK\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
-"!!cvarf gl_specular\n"
 "!!cvardf r_tessellation_level=5\n"
 "!!samps diffuse lightmap specular normalmap fullbright reflectmask reflectcube paletted lightmap1 lightmap2 lightmap3\n"
 
@@ -5917,9 +5916,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#define s_colourmap s_t0\n"
 "uniform sampler2D s_colourmap;\n"
 
-"#ifdef SPECULAR\n"
-"uniform float cvar_gl_specular;\n"
-"#endif\n"
 "#ifdef OFFSETMAPPING\n"
 "#include \"sys/offsetmapping.h\"\n"
 "#endif\n"
@@ -5999,7 +5995,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef SPECULAR\n"
 "vec4 specs = texture2D(s_specular, tc);\n"
 "vec3 halfdir = normalize(normalize(eyevector) + delux); //this norm should be the deluxemap info instead\n"
-"float spec = pow(max(dot(halfdir, norm), 0.0), 2.0*FTE_SPECULAR_EXPONENT * specs.a);\n"
+"float spec = pow(max(dot(halfdir, norm), 0.0), FTE_SPECULAR_EXPONENT * specs.a);\n"
 "spec *= FTE_SPECULAR_MULTIPLIER;\n"
 //NOTE: rtlights tend to have a *4 scaler here to over-emphasise the effect because it looks cool.
 //As not all maps will have deluxemapping, and the double-cos from the light util makes everything far too dark anyway,
@@ -6009,7 +6005,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "#ifdef REFLECTCUBEMASK\n"
-"vec3 rtc = reflect(-eyevector, norm);\n"
+"vec3 rtc = reflect(normalize(-eyevector), norm);\n"
 "rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];\n"
 "rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;\n"
 "gl_FragColor.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;\n"
@@ -6051,6 +6047,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "}\n"
 "#endif\n"
+
 },
 #endif
 #ifdef VKQUAKE
@@ -8440,6 +8437,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "uniform sampler2DShadow s_shadowmap;\n"
 
+//FIXME: shadowmaps need to be atlased!
 "uniform vec4 l_shadowmapproj; //light projection matrix info\n"
 "uniform vec2 l_shadowmapscale; //xy are the texture scale, z is 1, w is the scale.\n"
 "vec3 ShadowmapCoord(vec4 cubeproj)\n"
@@ -8584,6 +8582,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "lightDir = normalize(lightDir);\n"
 "float nDotL = dot(norm, lightDir);\n"
 "float lightDiffuse = max(0.0, nDotL) * atten;\n"
+
+/*calc specular term*/
+//fixme
 
 //fixme: apply fog
 //fixme: output a specular term

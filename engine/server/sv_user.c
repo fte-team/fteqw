@@ -5393,7 +5393,7 @@ static void SVNQ_Spawn_f (void)
 
 		ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
 		ent->v->team = 0;	// FIXME
-		ent->v->netname = PR_SetString(svprogfuncs, host_client->name);
+		svprogfuncs->SetStringField(svprogfuncs, ent, &ent->v->netname, host_client->name, true);
 
 		host_client->entgravity = ent->xv->gravity = 1.0;
 		host_client->entgravity*=sv_gravity.value;
@@ -7585,9 +7585,9 @@ void SV_ExecuteClientMessage (client_t *cl)
 				if (split)
 					split->lossage = cl->lossage;
 			}
-			MSG_ReadDeltaUsercmd (&nullcmd, &oldest);
-			MSG_ReadDeltaUsercmd (&oldest, &oldcmd);
-			MSG_ReadDeltaUsercmd (&oldcmd, &newcmd);
+			MSG_ReadDeltaUsercmd (&nullcmd, &oldest, PROTOCOL_VERSION_QW);
+			MSG_ReadDeltaUsercmd (&oldest, &oldcmd, PROTOCOL_VERSION_QW);
+			MSG_ReadDeltaUsercmd (&oldcmd, &newcmd, PROTOCOL_VERSION_QW);
 			if (!split)
 				break;		// either someone is trying to cheat, or they sent input commands for splitscreen clients they no longer own.
 

@@ -156,6 +156,19 @@ Handles cursor positioning, line wrapping, etc
 #define	MAXPRINTMSG	4096
 // FIXME: make a buffer size safe vsprintf?
 #ifdef SERVERONLY
+vfsfile_t *con_pipe;
+vfsfile_t *Con_POpen(char *conname)
+{
+	if (!conname || !*conname)
+	{
+		if (con_pipe)
+			VFS_CLOSE(con_pipe);
+		con_pipe = VFSPIPE_Open(2, false);
+		return con_pipe;
+	}
+	return NULL;
+}
+
 static void Con_PrintFromThread (void *ctx, void *data, size_t a, size_t b)
 {
 	Con_Printf("%s", (char*)data);
@@ -188,6 +201,9 @@ void VARGS Con_Printf (const char *fmt, ...)
 
 	Sys_Printf ("%s", msg);	// also echo to debugging console
 	Con_Log(msg); // log to console
+
+	if (con_pipe)
+		VFS_PUTS(con_pipe, msg);
 }
 void Con_TPrintf (translation_t stringnum, ...)
 {
@@ -227,6 +243,9 @@ void Con_TPrintf (translation_t stringnum, ...)
 
 	Sys_Printf ("%s", msg);	// also echo to debugging console
 	Con_Log(msg); // log to console
+
+	if (con_pipe)
+		VFS_PUTS(con_pipe, msg);
 }
 /*
 ================
@@ -2706,9 +2725,10 @@ qboolean SV_SendClientDatagram (client_t *client)
 #endif
 	}
 
+	msg.maxsize = clientlimit;
 	// copy the accumulated multicast datagram
 	// for this client out to the message
-	if (!client->datagram.overflowed && msg.cursize + client->datagram.cursize <= clientlimit)
+	if (!client->datagram.overflowed && !msg.overflowed && msg.cursize + client->datagram.cursize <= clientlimit)
 	{
 		SZ_Write (&msg, client->datagram.data, client->datagram.cursize);
 		SZ_Clear (&client->datagram);

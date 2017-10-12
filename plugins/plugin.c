@@ -59,6 +59,9 @@ BUILTINR(void *, Plug_GetNativePointer, (const char *funcname));
 BUILTIN(void, Con_Print, (const char *text));	//on to main console.
 #undef ARGNAMES
 
+#define ARGNAMES ,conname,flags
+BUILTINR(qhandle_t, Con_POpen, (const char *conname, unsigned int flags));
+#undef ARGNAMES
 #define ARGNAMES ,conname,text
 BUILTIN(void, Con_SubPrint, (const char *conname, const char *text));	//on to named sub console (creating it too).
 #undef ARGNAMES
@@ -528,6 +531,7 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Con_SetConsoleFloat);
 	CHECKBUILTIN(Con_GetConsoleString);
 	CHECKBUILTIN(Con_SetConsoleString);
+	CHECKBUILTIN(Con_POpen);
 }
 
 #ifndef Q3_VM

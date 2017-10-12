@@ -567,6 +567,22 @@ int rand(void)
 }
 #endif
 
+void Q_strlncpy(char *d, const char *s, int sizeofd, int lenofs)
+{
+	int i;
+	sizeofd--;
+	if (sizeofd < 0)
+		return;	//this could be an error
+
+	for (i=0; lenofs-- > 0; i++)
+	{
+		if (i == sizeofd)
+			break;
+		*d++ = *s++;
+	}
+	*d='\0';
+}
+
 void Q_strlcpy(char *d, const char *s, int n)
 {
 	int i;

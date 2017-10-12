@@ -4647,7 +4647,7 @@ void SV_Impulse_f (void)
 
 	SV_SetUpClientEdict(&svs.clients[i], svs.clients[i].edict);
 
-	svs.clients[i].edict->v->netname = PR_SetString(svprogfuncs, "Console");
+	svprogfuncs->SetStringField(svprogfuncs, svs.clients[i].edict, &svs.clients[i].edict->v->netname, "Console", true);
 
 	sv.skipbprintclient = &svs.clients[i];
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
@@ -5439,7 +5439,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 			}
 		}
 
-		if (!cl->drop && strncmp(val, cl->name, sizeof(cl->namebuf)-1))
+		if (!cl->drop && strncmp(val, cl->name, sizeof(cl->namebuf)-1) && cl->state > cs_zombie)
 		{
 			if (*cl->name && cl->state >= cs_spawned && !cl->spectator && verbose)
 			{

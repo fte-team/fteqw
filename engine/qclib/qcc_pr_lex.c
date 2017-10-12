@@ -71,13 +71,13 @@ static void Q_strlcpy(char *dest, const char *src, int sizeofdest)
 
 char	*pr_punctuation[] =
 // longer symbols must be before a shorter partial match
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "|=", "&~=", "&=", "++", "--", "->", "^=", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "><", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^^", "^", "~", ":", NULL};
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "|=", "&~=", "&=", "++", "--", "->", "^=", "::", ";", ",", "!", "*^", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "><", "<<=", "<<", "<", ">>=", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^^", "^", "~", ":", NULL};
 
 char *pr_punctuationremap[] =	//a nice bit of evilness.
 //(+) -> |=
 //-> -> .
 //(-) -> &~=
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "&=", "++", "--", ".",  "^=", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "><", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^^", "^", "~", ":", NULL};
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "&=", "++", "--", ".",  "^=", "::", ";", ",", "!", "*^", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "><", "<<=", "<<", "<", ">>=", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^^", "^", "~", ":", NULL};
 
 // simple types.  function types are dynamically allocated
 QCC_type_t	*type_void;				//void
@@ -473,7 +473,7 @@ static void QCC_PR_GetDefinesListEnumerate(void *vctx, void *data)
 	QC_snprintfz(term, sizeof(term), "\n%s", def->name);
 	if (def->numparams >= 0)
 	{
-		unsigned int i;
+		int i;
 		QC_strlcat(term, "(", sizeof(term));
 		for (i = 0; i < def->numparams; i++)
 		{
@@ -989,10 +989,9 @@ pbool QCC_PR_Precompiler(void)
 				pr_file_p++;
 			}
 			msg[a] = 0;
+			pr_file_p++;
 
 			QCC_FindBestInclude(msg, compilingfile, false);
-
-			pr_file_p++;
 
 			QCC_PR_SkipToEndOfLine(true);
 		}
@@ -1866,6 +1865,7 @@ void QCC_PR_LexString (void)
 
 	if (qccwarningaction[WARN_NOTUTF8])
 	{
+		size_t c;
 		for (c = 0; c < pr_immediate_strlen; )
 		{
 			len = utf8_check(&pr_token[c], &code);
@@ -2243,8 +2243,9 @@ void QCC_PR_LexPunctuation (void)
 	pr_token_type = tt_punct;
 
 	if (pr_file_p[0] == '*' && pr_file_p[1] == '*' && flag_dblstarexp)
-	{
-		strcpy (pr_token, "**");
+	{	//for compat with gmqcc. fteqcc uses *^ internally (which does not conflict with multiplying by dereferenced pointers - sucks for MSCLR c++ syntax)
+		QCC_PR_ParseWarning(WARN_GMQCC_SPECIFIC, "** operator conflicts with pointers. Consider using *^ instead.", pr_token);
+		strcpy (pr_token, "*^");
 		pr_file_p += 2;
 		return;
 	}
@@ -2896,7 +2897,7 @@ void QCC_PR_PreProcessor_Define(pbool append)
 			{
 				char *exploitcheck;
 				s++;
-				QCC_PR_NewLine(false);
+				QCC_PR_NewLine(true);
 				s++;
 				if( s[-1] == '\r' && s[0] == '\n' )
 				{
@@ -2921,7 +2922,7 @@ foo\nbar\nmoo
 so if present, the preceeding \\\n and following \\\n must become an actual \n instead of being stripped.
 */
 
-				for (exploitcheck = s; *exploitcheck && qcc_iswhite(*exploitcheck); exploitcheck++)
+				for (exploitcheck = s; *exploitcheck && qcc_iswhitesameline(*exploitcheck); exploitcheck++)
 					;
 				if (*exploitcheck == '#')
 				{
@@ -3454,7 +3455,12 @@ int QCC_PR_CheckCompConst(void)
 				}
 			}
 			else
-				QCC_PR_ParseError(ERR_TOOFEWPARAMS, "Macro without argument list");
+			{
+				//QCC_PR_ParseError(ERR_TOOFEWPARAMS, "Macro without argument list");
+				pr_file_p = initial_file_p;
+				pr_source_line = initial_line;
+				return false;
+			}
 		}
 		else
 		{
@@ -3726,7 +3732,11 @@ static void QCC_PR_PrintMacro (qcc_includechunk_t *chunk)
 		QCC_PR_PrintMacro(chunk->prev);
 		if (chunk->cnst)
 		{
+#if 1
+			printf ("%s:%i: %s is defined here\n", chunk->cnst->fromfile, chunk->cnst->fromline, chunk->cnst->name);
+#else
 			printf ("%s:%i: expanding %s\n", chunk->currentfilename, chunk->currentlinenumber, chunk->cnst->name);
+#endif
 			if (verbose)
 				printf ("%s\n", chunk->datastart);
 		}
@@ -4877,8 +4887,13 @@ QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s 
 	ftype->vargcount = false;
 	for (i = 0; i < numargs; i++, p++)
 	{
-		p->paramname = qccHunkAlloc(strlen(args[i].paramname)+1);
-		strcpy(p->paramname, args[i].paramname);
+		if (args[i].paramname)
+		{
+			p->paramname = qccHunkAlloc(strlen(args[i].paramname)+1);
+			strcpy(p->paramname, args[i].paramname);
+		}
+		else
+			p->paramname = "";
 		p->type = args[i].type;
 		p->out = args[i].out;
 		p->optional = args[i].optional;
@@ -5395,7 +5410,6 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 						{
 							pr_classtype = newt;
 							QCC_PR_ParseInitializerDef(def, 0);
-							QCC_FreeDef(def);
 							pr_classtype = NULL;
 							/*
 							f = QCC_PR_ParseImmediateStatements (def, newparm);

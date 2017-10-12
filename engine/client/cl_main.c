@@ -1613,6 +1613,7 @@ void CL_ClearState (void)
 	CL_ResetFog(0);
 	CL_ResetFog(1);
 
+	cl.protocol_qw = PROTOCOL_VERSION_QW;	//until we get an svc_serverdata
 	cl.allocated_client_slots = QWMAX_CLIENTS;
 #ifndef CLIENTONLY
 	//FIXME: we should just set it to 0 to make sure its set up properly elsewhere.
@@ -5964,6 +5965,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 
 void Host_FinishLoading(void)
 {
+	extern qboolean r_forceheadless;
 	extern int	r_blockvidrestart;
 	if (r_blockvidrestart == true)
 	{
@@ -6016,12 +6018,9 @@ void Host_FinishLoading(void)
 	if (PM_IsApplying(true))
 		return;
 
-#ifdef ANDROID
-	//android needs to wait a bit longer before it's allowed to init its video properly.
-	extern int sys_glesversion;
-	if (!sys_glesversion)
+	//android may find that it has no renderer at various points.
+	if (r_forceheadless)
 		return;
-#endif
 
 	if (r_blockvidrestart == 2)
 	{	//2 is part of the initial startup

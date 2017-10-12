@@ -1,6 +1,6 @@
 #include "xmpp.h"
 #ifdef JINGLE
-static struct c2c_s *JCL_JingleAddContentToSession(jclient_t *jcl, struct c2c_s *c2c, char *with, bresource_t *bres, qboolean creator, char *sid, char *cname, int method, int mediatype)
+static struct c2c_s *JCL_JingleAddContentToSession(jclient_t *jcl, struct c2c_s *c2c, const char *with, bresource_t *bres, qboolean creator, const char *sid, const char *cname, int method, int mediatype)
 {
 	struct icestate_s *ice = NULL;
 	char generatedname[64];
@@ -186,7 +186,7 @@ enum
 	JE_UNKNOWNSESSION,
 	JE_UNSUPPORTEDINFO
 };
-static void JCL_JingleError(jclient_t *jcl, xmltree_t *tree, char *from, char *id, int type)
+static void JCL_JingleError(jclient_t *jcl, xmltree_t *tree, const char *from, const char *id, int type)
 {
 	switch(type)
 	{
@@ -522,7 +522,7 @@ void JCL_JingleTimeouts(jclient_t *jcl, qboolean killall)
 	}
 }
 
-void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int protocol)
+void JCL_Join(jclient_t *jcl, const char *target, const char *sid, qboolean allow, int protocol)
 {
 	struct c2c_s *c2c = NULL, **link;
 	char autotarget[256];
@@ -618,7 +618,7 @@ void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int proto
 	}
 }
 
-static void JCL_JingleParsePeerPorts(jclient_t *jcl, struct c2c_s *c2c, xmltree_t *inj, char *from, char *sid)
+static void JCL_JingleParsePeerPorts(jclient_t *jcl, struct c2c_s *c2c, xmltree_t *inj, const char *from, const char *sid)
 {
 	xmltree_t *incontent;
 	xmltree_t *intransport;
@@ -626,7 +626,7 @@ static void JCL_JingleParsePeerPorts(jclient_t *jcl, struct c2c_s *c2c, xmltree_
 	struct icecandinfo_s rem;
 	struct icestate_s *ice;
 	int i, contid;
-	char *cname;
+	const char *cname;
 
 	if (!c2c->sid)
 		return;
@@ -665,7 +665,7 @@ static void JCL_JingleParsePeerPorts(jclient_t *jcl, struct c2c_s *c2c, xmltree_
 
 		for (i = 0; (incandidate = XML_ChildOfTree(intransport, "candidate", i)); i++)
 		{
-			char *s;
+			const char *s;
 			memset(&rem, 0, sizeof(rem));
 			Q_strlcpy(rem.addr, XML_GetParameter(incandidate, "ip", ""), sizeof(rem.addr));
 			Q_strlcpy(rem.candidateid, XML_GetParameter(incandidate, "id", ""), sizeof(rem.candidateid));
@@ -869,12 +869,12 @@ static qboolean JCL_JingleHandleInitiate_GoogleSession(jclient_t *jcl, xmltree_t
 	return true;
 }
 #endif
-static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, char *from)
+static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, const char *from)
 {
-	char *sid = XML_GetParameter(inj, "sid", "");
+	const char *sid = XML_GetParameter(inj, "sid", "");
 
 	qboolean okay;
-	char *initiator;
+	const char *initiator;
 
 	struct c2c_s *c2c = NULL;
 	int mt = ICEP_INVALID;
@@ -894,12 +894,12 @@ static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, ch
 	for (i = 0; ; i++)
 	{
 		xmltree_t *incontent = XML_ChildOfTree(inj, "content", i);
-		char *cname = XML_GetParameter(incontent, "name", "");
+		const char *cname = XML_GetParameter(incontent, "name", "");
 		xmltree_t *intransport = XML_ChildOfTree(incontent, "transport", 0);
 		xmltree_t *indescription = XML_ChildOfTree(incontent, "description", 0);
-		char *transportxmlns = intransport?intransport->xmlns:"";
-		char *descriptionxmlns = indescription?indescription->xmlns:"";
-		char *descriptionmedia = XML_GetParameter(indescription, "media", "");
+		const char *transportxmlns = intransport?intransport->xmlns:"";
+		const char *descriptionxmlns = indescription?indescription->xmlns:"";
+		const char *descriptionmedia = XML_GetParameter(indescription, "media", "");
 		if (!incontent)
 			break;
 
@@ -907,7 +907,7 @@ static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, ch
 
 		if (incontent && !strcmp(descriptionmedia, MEDIATYPE_QUAKE) && !strcmp(descriptionxmlns, QUAKEMEDIAXMLNS))
 		{
-			char *host = XML_GetParameter(indescription, "host", "you");
+			const char *host = XML_GetParameter(indescription, "host", "you");
 			if (!strcmp(host, "you"))
 				mt = ICEP_QWSERVER;
 			else if (!strcmp(host, "me"))
@@ -938,9 +938,9 @@ static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, ch
 			//chuck it at the engine and see what sticks. at least one must...
 			while((payload = XML_ChildOfTree(indescription, "payload-type", i++)))
 			{
-				char *name = XML_GetParameter(payload, "name", "");
-				char *clock = XML_GetParameter(payload, "clockrate", "");
-				char *id = XML_GetParameter(payload, "id", "");
+				const char *name = XML_GetParameter(payload, "name", "");
+				const char *clock = XML_GetParameter(payload, "clockrate", "");
+				const char *id = XML_GetParameter(payload, "id", "");
 				char parm[64];
 				char val[64];
 				//note: the engine will ignore codecs it does not support, returning false.
@@ -1028,7 +1028,7 @@ static qboolean JCL_JingleHandleSessionTerminate(jclient_t *jcl, xmltree_t *tree
 	free(c2c);
 	return true;
 }
-static qboolean JCL_JingleHandleSessionAccept(jclient_t *jcl, xmltree_t *tree, char *from, struct c2c_s *c2c, buddy_t *b)
+static qboolean JCL_JingleHandleSessionAccept(jclient_t *jcl, xmltree_t *tree, const char *from, struct c2c_s *c2c, buddy_t *b)
 {
 	//peer accepted our session
 	//make sure it actually was ours, and not theirs. sneaky sneaky.
@@ -1053,7 +1053,7 @@ static qboolean JCL_JingleHandleSessionAccept(jclient_t *jcl, xmltree_t *tree, c
 	}
 	else
 	{
-		char *responder = XML_GetParameter(tree, "responder", from);
+		const char *responder = XML_GetParameter(tree, "responder", from);
 		int c;
 		if (strcmp(responder, from))
 		{
@@ -1134,10 +1134,10 @@ qboolean JCL_HandleGoogleSession(jclient_t *jcl, xmltree_t *tree, char *from, ch
 	return true;
 }
 #endif
-qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
+qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, const char *from, const char *id)
 {
-	char *action = XML_GetParameter(tree, "action", "");
-	char *sid = XML_GetParameter(tree, "sid", "");
+	const char *action = XML_GetParameter(tree, "action", "");
+	const char *sid = XML_GetParameter(tree, "sid", "");
 
 	struct c2c_s *c2c = NULL, **link;
 	buddy_t *b;

@@ -3987,6 +3987,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("cvar_purgedefaults", Cvar_PurgeDefaults_f);
 
 	Cmd_AddCommandD ("apropos", Cmd_Apropos_f, "Lists all cvars or commands with the specified substring somewhere in their name or descrition.");
+	Cmd_AddCommandD ("find", Cmd_Apropos_f, "Lists all cvars or commands with the specified substring somewhere in their name or descrition.");
 
 	Cmd_AddMacro("random", Macro_Random, true);
 	Cmd_AddMacro("time", Macro_Time, true);

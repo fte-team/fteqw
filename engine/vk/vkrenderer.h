@@ -6,7 +6,10 @@
 #define VKInstWin32Funcs VKFunc(CreateWin32SurfaceKHR)
 #endif
 
-#ifdef __linux__
+#ifdef ANDROID
+#define VK_USE_PLATFORM_ANDROID_KHR
+#define VKInstXLibFuncs VKFunc(CreateAndroidSurfaceKHR)
+#elif defined(__linux__)
 #define VK_USE_PLATFORM_XLIB_KHR
 #define VKInstXLibFuncs VKFunc(CreateXlibSurfaceKHR)
 

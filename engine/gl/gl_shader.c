@@ -290,6 +290,7 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 {
 	char *token;
 	cvar_t *cv;
+	float lhs;
 	qboolean conditiontrue = true;
 	token = COM_ParseExt(ptr, false, false);
 	if (*token == '!')
@@ -297,9 +298,14 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 		conditiontrue = false;
 		token++;
 	}
-	if (*token == '$')
+
+	if (*token >= '0' && *token <= '9')
+		lhs = strtod(token, NULL);
+	else
 	{
-		token++;
+		if (*token == '$')
+			token++;
+
 		if (*token == '#')
 			conditiontrue = conditiontrue == !!Shader_FloatArgument(shader, token);
 		else if (!Q_stricmp(token, "lpp"))
@@ -349,17 +355,6 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 			conditiontrue = conditiontrue == false;
 		else
 		{
-			Con_Printf("Unrecognised builtin shader condition '%s'\n", token);
-			conditiontrue = conditiontrue == false;
-		}
-	}
-	else
-	{
-		float lhs;
-		if (*token >= '0' && *token <= '9')
-			lhs = strtod(token, NULL);
-		else
-		{
 			cv = Cvar_Get(token, "", 0, "Shader Conditions");
 			if (cv)
 			{
@@ -369,37 +364,37 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 			else
 			{
 				Con_Printf("Shader_EvaluateCondition: '%s' is not a cvar\n", token);
-				return conditiontrue;
+				lhs = 0;
 			}
 		}
-		if (*token)
-			token = COM_ParseExt(ptr, false, false);
-		if (*token)
-		{
-			float rhs;
-			char cmp[4];
-			memcpy(cmp, token, 4);
-			token = COM_ParseExt(ptr, false, false);
-			rhs = atof(token);
-			if (!strcmp(cmp, "!="))
-				conditiontrue = lhs != rhs;
-			else if (!strcmp(cmp, "=="))
-				conditiontrue = lhs == rhs;
-			else if (!strcmp(cmp, "<"))
-				conditiontrue = lhs < rhs;
-			else if (!strcmp(cmp, "<="))
-				conditiontrue = lhs <= rhs;
-			else if (!strcmp(cmp, ">"))
-				conditiontrue = lhs > rhs;
-			else if (!strcmp(cmp, ">="))
-				conditiontrue = lhs >= rhs;
-			else
-				conditiontrue = false;
-		}
+	}
+	if (*token)
+		token = COM_ParseExt(ptr, false, false);
+	if (*token)
+	{
+		float rhs;
+		char cmp[4];
+		memcpy(cmp, token, 4);
+		token = COM_ParseExt(ptr, false, false);
+		rhs = atof(token);
+		if (!strcmp(cmp, "!="))
+			conditiontrue = lhs != rhs;
+		else if (!strcmp(cmp, "=="))
+			conditiontrue = lhs == rhs;
+		else if (!strcmp(cmp, "<"))
+			conditiontrue = lhs < rhs;
+		else if (!strcmp(cmp, "<="))
+			conditiontrue = lhs <= rhs;
+		else if (!strcmp(cmp, ">"))
+			conditiontrue = lhs > rhs;
+		else if (!strcmp(cmp, ">="))
+			conditiontrue = lhs >= rhs;
 		else
-		{
-			conditiontrue = conditiontrue == !!lhs;
-		}
+			conditiontrue = false;
+	}
+	else
+	{
+		conditiontrue = conditiontrue == !!lhs;
 	}
 	if (*token)
 		token = COM_ParseExt(ptr, false, false);

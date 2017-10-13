@@ -93,8 +93,7 @@ struct {
 
 		program_t *programfixedemu[8];
 
-		texid_t tex_gbuf_normals;
-		texid_t tex_gbuf_diffuse;
+		texid_t tex_gbuf[2];
 		int fbo_current;	//the one currently being rendered to
 		texid_t tex_sourcecol; /*this is used by $sourcecolour tgen*/
 		texid_t tex_sourcedepth;
@@ -204,14 +203,14 @@ struct {
 	batch_t *wbatches;
 } shaderstate;
 
-static void BE_PolyOffset(qboolean pushdepth)
+static void BE_PolyOffset(void)
 {
 	polyoffset_t po;
 	po.factor = shaderstate.curshader->polyoffset.factor;
 	po.unit = shaderstate.curshader->polyoffset.unit;
 
-#ifndef NOLEGACY
-	if (pushdepth)
+#ifdef BEF_PUSHDEPTH
+	if (shaderstate.flags & BEF_PUSHDEPTH)
 	{
 		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
 		we move them back very slightly using polygonoffset to avoid really ugly z-fighting*/
@@ -242,14 +241,19 @@ static void BE_PolyOffset(qboolean pushdepth)
 	}
 }
 
-void GLBE_PolyOffsetStencilShadow(qboolean pushdepth)
+void GLBE_PolyOffsetStencilShadow
+					#ifdef BEF_PUSHDEPTH
+							(qboolean pushdepth)
+					#else
+							(void)
+					#endif
 {
 	extern cvar_t r_polygonoffset_stencil_offset, r_polygonoffset_stencil_factor;
 	polyoffset_t po;
 	po.factor = r_polygonoffset_stencil_factor.value;
 	po.unit = r_polygonoffset_stencil_offset.value;
 
-#ifndef NOLEGACY
+#ifdef BEF_PUSHDEPTH
 	if (pushdepth)
 	{
 		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
@@ -274,11 +278,16 @@ void GLBE_PolyOffsetStencilShadow(qboolean pushdepth)
 			qglDisable(GL_POLYGON_OFFSET_FILL);
 	}
 }
-static void GLBE_PolyOffsetShadowMap(qboolean pushdepth)
+static void GLBE_PolyOffsetShadowMap
+					#ifdef BEF_PUSHDEPTH
+							(qboolean pushdepth)
+					#else
+							(void)
+					#endif
 {
 	extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
 	polyoffset_t po;
-#ifndef NOLEGACY
+#ifdef BEF_PUSHDEPTH
 	if (pushdepth)
 	{
 		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
@@ -1415,15 +1424,13 @@ void GLBE_DestroyFBOs(void)
 
 
 	//nuke deferred rendering stuff
-	if (shaderstate.tex_gbuf_diffuse)
+	for (i = 0; i < countof(shaderstate.tex_gbuf); i++)
 	{
-		Image_DestroyTexture(shaderstate.tex_gbuf_diffuse);
-		shaderstate.tex_gbuf_diffuse = r_nulltex;
-	}
-	if (shaderstate.tex_gbuf_normals)
-	{
-		Image_DestroyTexture(shaderstate.tex_gbuf_normals);
-		shaderstate.tex_gbuf_normals = r_nulltex;
+		if (shaderstate.tex_gbuf[i])
+		{
+			Image_DestroyTexture(shaderstate.tex_gbuf[i]);
+			shaderstate.tex_gbuf[i] = r_nulltex;
+		}
 	}
 }
 
@@ -4147,7 +4154,7 @@ static void DrawMeshes(void)
 		return;
 #endif
 
-	BE_PolyOffset(shaderstate.flags & BEF_PUSHDEPTH);
+	BE_PolyOffset();
 	switch(shaderstate.mode)
 	{
 	case BEM_STENCIL:
@@ -5493,6 +5500,7 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 
 void GLBE_DrawLightPrePass(void)
 {
+	unsigned int i;
 	qboolean redefine = false;
 	/*
 	walls(bumps) -> normalbuffer
@@ -5507,45 +5515,37 @@ void GLBE_DrawLightPrePass(void)
 	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_PORTAL, SHADER_SORT_PORTAL);
 
 	BE_SelectMode(BEM_GBUFFER);
-	if (!TEXVALID(shaderstate.tex_gbuf_normals) || vid.fbpwidth != shaderstate.tex_gbuf_normals->width || vid.fbpheight != shaderstate.tex_gbuf_normals->height)
+	for (i = 0; i < countof(shaderstate.tex_gbuf); i++)
 	{
-		if (!shaderstate.tex_gbuf_normals)
+		if (!TEXVALID(shaderstate.tex_gbuf[i]) || vid.fbpwidth != shaderstate.tex_gbuf[i]->width || vid.fbpheight != shaderstate.tex_gbuf[i]->height)
 		{
-			shaderstate.tex_gbuf_normals = Image_CreateTexture("***prepass normals***", NULL, 0);
-			qglGenTextures(1, &shaderstate.tex_gbuf_normals->num);
+			if (!shaderstate.tex_gbuf[i])
+			{
+				shaderstate.tex_gbuf[i] = Image_CreateTexture(va("***prepass %u***", i), NULL, 0);
+				qglGenTextures(1, &shaderstate.tex_gbuf[i]->num);
+			}
+			shaderstate.tex_gbuf[i]->width = vid.fbpwidth;
+			shaderstate.tex_gbuf[i]->height = vid.fbpheight;
+			redefine = true;
 		}
-		shaderstate.tex_gbuf_normals->width = vid.fbpwidth;
-		shaderstate.tex_gbuf_normals->height = vid.fbpheight;
-		redefine = true;
-	}
-	if (!TEXVALID(shaderstate.tex_gbuf_diffuse) || vid.fbpwidth != shaderstate.tex_gbuf_diffuse->width || vid.fbpheight != shaderstate.tex_gbuf_diffuse->height)
-	{
-		if (!shaderstate.tex_gbuf_diffuse)
-		{
-			shaderstate.tex_gbuf_diffuse = Image_CreateTexture("***prepass diffuse***", NULL, 0);
-			qglGenTextures(1, &shaderstate.tex_gbuf_diffuse->num);
-		}
-		shaderstate.tex_gbuf_diffuse->width = vid.fbpwidth;
-		shaderstate.tex_gbuf_diffuse->height = vid.fbpheight;
-		redefine = true;
 	}
 
 	//something changed, redefine the textures.
 	if (redefine)
 	{
-		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_gbuf_diffuse);
+		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_gbuf[1]);
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, vid.fbpwidth, vid.fbpheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
-		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_gbuf_normals);
+		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_gbuf[0]);
 		qglTexImage2D(GL_TEXTURE_2D, 0, (r_lightprepass==2)?GL_RGBA32F_ARB:GL_RGBA16F_ARB, vid.fbpwidth, vid.fbpheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	}
 
 	/*set the FB up to draw surface info*/
-	oldfbo = GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_gbuf_normals, 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
+	oldfbo = GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_gbuf[0], 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
 	GL_ForceDepthWritable();
 	//FIXME: should probably clear colour buffer too.
 	qglClear(GL_DEPTH_BUFFER_BIT);
@@ -5560,8 +5560,8 @@ void GLBE_DrawLightPrePass(void)
 	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_OPAQUE, SHADER_SORT_OPAQUE);
 
 	/*reconfigure - now drawing diffuse light info using the previous fb image as a source image*/
-	GLBE_FBO_Sources(shaderstate.tex_gbuf_normals, r_nulltex);
-	GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_gbuf_diffuse, 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
+	GLBE_FBO_Sources(shaderstate.tex_gbuf[0], r_nulltex);
+	GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_gbuf[1], 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
 
 	BE_SelectMode(BEM_STANDARD);
 	qglClearColor (0,0,0,1);
@@ -5573,7 +5573,7 @@ void GLBE_DrawLightPrePass(void)
 
 	/*final reconfigure - now drawing final surface data onto true framebuffer*/
 	GLBE_FBO_Pop(oldfbo);
-	GLBE_FBO_Sources(shaderstate.tex_gbuf_diffuse, r_nulltex);
+	GLBE_FBO_Sources(shaderstate.tex_gbuf[1], r_nulltex);
 	if (!oldfbo)
 		qglDrawBuffer(GL_BACK);
 

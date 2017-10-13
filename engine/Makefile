@@ -225,27 +225,33 @@ ifeq ($(FTE_TARGET),droid)
 	#DROID_ABI_VER____mips64=$(DROID_ABI_VER____mips)
 	#DROID_ABI_CFLAGS_mips64=-m64
 
-	#try and make sense of the above nonsense.
-	DROID_ABI:=$(DROID_ABI_CFLAGS_$(DROID_ARCH))
-	TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/$(DROID_ABI_NAME___$(DROID_ARCH))-$(DROID_ABI_VER____$(DROID_ARCH))/prebuilt/$(ANDROID_HOSTSYSTEM)/bin/
-	TOOLCHAIN:=$(TOOLCHAINPATH)$(DROID_ABI_PREFIX_$(DROID_ARCH))-
+	ifeq (1,$(words [$(DROID_ARCH)]))
+		#try and make sense of the above nonsense.
+		DROID_ABI:=$(DROID_ABI_CFLAGS_$(DROID_ARCH))
+		TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/$(DROID_ABI_NAME___$(DROID_ARCH))-$(DROID_ABI_VER____$(DROID_ARCH))/prebuilt/$(ANDROID_HOSTSYSTEM)/bin/
+		TOOLCHAIN:=$(TOOLCHAINPATH)$(DROID_ABI_PREFIX_$(DROID_ARCH))-
 
-	#4 is the min that fte requires
-	DROID_API_LEVEL?=4
-	DROID_API_NAME?=android-$(DROID_API_LEVEL)
-
-	DROID_PLAT_INC=arch-$(DROID_ABI_ARCH___$(DROID_ARCH))
-	ifeq ($(DROID_ARCH),x86)
-		#google fecked up. anything before api_level 9 will fail to compile on x86
-		DROID_API_LEVEL=9
-	endif
-	DROIDSYSROOT=$(realpath $(ANDROID_NDK_ROOT)/platforms/$(DROID_API_NAME)/$(DROID_PLAT_INC))
-	ifeq ($(DROIDSYSROOT),)	#its possible that google removed whatever api we're trying to target, just switch up to the new default.
-		DROID_API_LEVEL=9
+		#4 is the min that fte requires
+		DROID_API_LEVEL?=9
+		ifeq ($(DROID_ARCH),x86)
+			#google fecked up. anything before api_level 9 will fail to compile on x86
+			DROID_API_LEVEL=9
+		endif
 		DROID_API_NAME?=android-$(DROID_API_LEVEL)
-		BITCHANDMOAN:=$(shell echo targetting \"$(DROID_API_NAME)\" instead of \"android-$(DROID_API_LEVEL)\" 1>&2)
+		DROID_PLAT_INC=arch-$(DROID_ABI_ARCH___$(DROID_ARCH))
+		DROIDSYSROOT=$(realpath $(ANDROID_NDK_ROOT)/platforms/$(DROID_API_NAME)/$(DROID_PLAT_INC))
+		ifeq ($(DROIDSYSROOT),)	#its possible that google removed whatever api we're trying to target, just switch up to the new default.
+			BITCHANDMOAN:=$(shell echo targetting \"android-9\" instead of \"android-$(DROID_API_LEVEL)\" 1>&2)
+			DROID_API_LEVEL=9
+			DROID_API_NAME=android-$(DROID_API_LEVEL)
+
+			DROIDSYSROOT=$(realpath $(ANDROID_NDK_ROOT)/platforms/$(DROID_API_NAME)/$(DROID_PLAT_INC))
+			ifeq ($(DROIDSYSROOT),)	#its possible that google removed whatever api we're trying to target, just switch up to the new default.
+				BITCHANDMOAN:=$(shell echo $(DROID_API_NAME) not available either - $(DROID_ARCH) 1>&2)
+			endif
+		endif
+		DROIDSYSROOT:=$(DROIDSYSROOT)
 	endif
-	DROIDSYSROOT:=$(DROIDSYSROOT)
 
 	#if we're running under windows, then we want to run some other binary
 	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
@@ -1481,17 +1487,26 @@ endif
 ifeq ($(FTE_TARGET),droid)
 	BASELDFLAGS=-lz
 
+	SYS_DROID_O=sys_droid.o sys_linux_threads.o
+	GL_DROID_O=gl_viddroid.o $(SYS_DROID_O)
+
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 	SV_LDFLAGS=
 	SV_DIR=sv_droid-$(DROID_ARCH)
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(BOTLIB_OBJS) sys_droid.o 
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(BOTLIB_OBJS) $(SYS_DROID_O)
 	SV_EXE_NAME=libftedroid.so
 
 	GL_CFLAGS=$(GLCFLAGS)
-	GL_LDFLAGS=$(GLLDFLAGS)
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_viddroid.o sys_droid.o cd_null.o snd_droid.o
+	GL_LDFLAGS=$(GLLDFLAGS) -landroid -lEGL
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(GL_DROID_O) cd_null.o snd_droid.o
 	GLB_DIR=gl_droid-$(DROID_ARCH)
-	GL_EXE_NAME=libftedroid.so
+	GL_EXE_NAME=libftedroid.so	
+
+	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -DMULTITHREAD
+	M_LDFLAGS=$(GLLDFLAGS) -landroid -lEGL
+	MCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(GL_DROID_O) cd_null.o snd_droid.o
+	MB_DIR=m_droid-$(DROID_ARCH)
+	M_EXE_NAME=libftedroid.so
 endif
 
 ifeq ($(FTE_TARGET),web)
@@ -2015,9 +2030,9 @@ endif
 
 droid-rel:
 	$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore
-	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid gl-rel DROID_ARCH=$a; )
+	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid m-rel DROID_ARCH=$a; )
 	@$(foreach a, $(DROID_ARCH), mkdir -p droid/libs/$a; )
-	-@$(foreach a, $(DROID_ARCH), cp $(RELEASE_DIR)/gl_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )
+	-@$(foreach a, $(DROID_ARCH), cp $(RELEASE_DIR)/m_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )
 
 	@cd droid && $(ANT) release
 ifneq ($(DROID_PACKSU),)
@@ -2051,9 +2066,9 @@ droid-opt:
 #build FTE as a library, then build the java+package (release). also installs it onto the 'current' device.
 droid-dbg:
 	$(MAKE) FTE_TARGET=droid droid/build.xml
-	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid gl-dbg DROID_ARCH=$a; )
+	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid m-dbg DROID_ARCH=$a; )
 	@$(foreach a, $(DROID_ARCH), mkdir -p droid/libs/$a; )
-	-@$(foreach a, $(DROID_ARCH), cp $(DEBUG_DIR)/gl_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )
+	-@$(foreach a, $(DROID_ARCH), cp $(DEBUG_DIR)/m_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )
 	@cd droid && $(ANT) debug #&& $(ANT) debug install
 	cp droid/bin/FTEDroid-debug.apk $(DEBUG_DIR)/FTEDroid.apk
 

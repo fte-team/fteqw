@@ -1262,35 +1262,41 @@ static void M_QuickConnect_PreDraw(menu_t *menu)
 	serverinfo_t *best = NULL;
 	serverinfo_t *s;
 	char adr[MAX_ADR_SIZE];
+	int ping;
 
 	Master_CheckPollSockets();	//see if we were told something important.
 	CL_QueryServers();
 
 	if (Sys_DoubleTime() > quickconnecttimeout)
 	{
-		for (s = firstserver; s; s = s->next)
+		quickconnecttimeout = Sys_DoubleTime() + 15;
+
+		for (ping = 50; ping < 200 && !best; ping += 50)
 		{
-			if (!s->maxplayers)	//no response?
-				continue;
-			if (s->players == s->maxplayers)
-				continue;	//server is full already
-			if (s->special & SS_PROXY)
-				continue;	//don't quickconnect to a proxy. their player counts are often wrong (especially with qtv)
-			if (s->ping < 50)	//don't like servers with too high a ping
+			for (s = firstserver; s; s = s->next)
 			{
-				if (s->players > 0)
+				if (!s->maxplayers)	//no response?
+					continue;
+				if (s->players == s->maxplayers)
+					continue;	//server is full already
+				if (s->special & SS_PROXY)
+					continue;	//don't quickconnect to a proxy. their player counts are often wrong (especially with qtv)
+				if (s->ping < ping)	//don't like servers with too high a ping
 				{
-					if (best)
-						if (best->players > s->players)
-							continue;	//go for the one with most players
-					best = s;
+					if (s->numhumans > 0)
+					{
+						if (best)
+							if (best->numhumans > s->numhumans)
+								continue;	//go for the one with most players
+						best = s;
+					}
 				}
 			}
 		}
 
 		if (best)
 		{
-			Con_Printf("Quick connect found %s (gamedir %s, players %i/%i, ping %ims)\n", best->name, best->gamedir, best->players, best->maxplayers, best->ping);
+			Con_Printf("Quick connect found %s (gamedir %s, players %i/%i/%i, ping %ims)\n", best->name, best->gamedir, best->numhumans, best->players, best->maxplayers, best->ping);
 
 			if ((best->special & SS_PROTOCOLMASK) == SS_NETQUAKE)
 				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), &best->adr)), RESTRICT_LOCAL);
@@ -1304,8 +1310,6 @@ static void M_QuickConnect_PreDraw(menu_t *menu)
 		//retry
 		MasterInfo_Refresh();
 		isrefreshing = true;
-
-		quickconnecttimeout = Sys_DoubleTime() + 5;
 	}
 }
 

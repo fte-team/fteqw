@@ -683,13 +683,15 @@ void Shader_ReleaseGeneric(program_t *prog);
 
 mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 
+#ifndef NOLEGACY
 #define BEF_FORCEDEPTHWRITE		1
 #define BEF_FORCEDEPTHTEST		2
 #define BEF_FORCEADDITIVE		4	//blend dest = GL_ONE
 #define BEF_FORCETRANSPARENT	8	//texenv replace -> modulate
 #define BEF_FORCENODEPTH		16	//disables any and all depth.
-//FIXME: the above should really be legacy-only
 #define BEF_PUSHDEPTH			32	//additional polygon offset
+#endif
+//FIXME: the above should really be legacy-only
 #define BEF_NODLIGHT			64  //don't use a dlight pass
 #define BEF_NOSHADOWS			128 //don't appear in shadows
 #define BEF_FORCECOLOURMOD		256 //q3 shaders default to 'rgbgen identity', and ignore ent colours. this forces ent colours to be considered
@@ -890,7 +892,11 @@ void BE_GenerateProgram(shader_t *shader);
 void Sh_RegisterCvars(void);
 #ifdef RTLIGHTS
 //
+#ifdef BEF_PUSHDEPTH
 void GLBE_PolyOffsetStencilShadow(qboolean foobar);
+#else
+void GLBE_PolyOffsetStencilShadow(void);
+#endif
 //sets up gl for depth-only FIXME
 int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale);
 //Called from shadowmapping code into backend

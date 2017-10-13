@@ -292,6 +292,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define CL_MASTER		//query master servers and stuff for a dynamic server listing.
 		#define R_XFLIP			//allow view to be flipped horizontally
 		#define TEXTEDITOR
+		#define IMAGEFMT_KTX	//Khronos TeXture. common on gles3 devices for etc2 compression
 		#define IMAGEFMT_DDS	//a sort of image file format.
 		#define IMAGEFMT_BLP	//a sort of image file format.
 #ifndef RTLIGHTS
@@ -530,13 +531,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HEADLESSQUAKE
 #endif
 #ifdef ANDROID
-	#undef RTLIGHTS
-	#ifndef SPEEX_STATIC
-		#undef VOICECHAT
-	#endif
-	#undef TEXTEDITOR
 	#define GLESONLY	//should reduce the conditions a little
-	#undef HEADLESSQUAKE
+//	#undef HEADLESSQUAKE
 #endif
 #if defined(NACL)
 	//stuff is sandboxed.

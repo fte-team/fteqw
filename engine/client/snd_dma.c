@@ -250,8 +250,28 @@ void S_SoundInfo_f(void)
 }
 
 #ifdef VOICECHAT
+#ifdef SPEEX_STATIC
 #include <speex.h>
 #include <speex_preprocess.h>
+#else
+typedef struct {int stuff[15];} SpeexBits;
+typedef struct SpeexMode SpeexMode;
+typedef struct SpeexPreprocessState SpeexPreprocessState;
+typedef qint16_t spx_int16_t;
+
+#define SPEEX_MODEID_NB 0
+#define SPEEX_MODEID_WB 1
+#define SPEEX_MODEID_UWB 2
+#define SPEEX_GET_FRAME_SIZE 3
+
+#define SPEEX_SET_SAMPLING_RATE 24
+#define SPEEX_GET_SAMPLING_RATE 25
+
+
+#define SPEEX_PREPROCESS_SET_DENOISE 0
+#define SPEEX_PREPROCESS_SET_AGC 2
+#define SPEEX_PREPROCESS_SET_AGC_MAX_GAIN 30
+#endif
 
 enum
 {

@@ -1498,7 +1498,7 @@ void SV_ProgStartFrame (void)
 	pr_global_struct->time = sv.world.physicstime;
 #ifdef VM_Q1
 	if (svs.gametype == GT_Q1QVM)
-		Q1QVM_StartFrame();
+		Q1QVM_StartFrame(false);
 	else
 #endif
 	{
@@ -2480,6 +2480,17 @@ qboolean SV_Physics (void)
 		int newbottime, ms;
 		client_t *oldhost;
 		edict_t *oldplayer;
+
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+		{
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
+			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
+			pr_global_struct->time = sv.world.physicstime;
+			Q1QVM_StartFrame(true);
+		}
+#endif
+
 		host_frametime = (Sys_Milliseconds() - old_bot_time) / 1000.0f;
 		if (1 || host_frametime >= 1 / 72.0f)
 		{
@@ -2499,16 +2510,24 @@ qboolean SV_Physics (void)
 
 					SV_PreRunCmd();
 
-					ucmd.msec = ms;
-					ucmd.angles[0] = (short)(sv_player->v->v_angle[0] * (65535/360.0f));
-					ucmd.angles[1] = (short)(sv_player->v->v_angle[1] * (65535/360.0f));
-					ucmd.angles[2] = (short)(sv_player->v->v_angle[2] * (65535/360.0f));
-					ucmd.forwardmove = sv_player->xv->movement[0];
-					ucmd.sidemove = sv_player->xv->movement[1];
-					ucmd.upmove = sv_player->xv->movement[2];
-					ucmd.buttons = (sv_player->v->button0?1:0) | (sv_player->v->button2?2:0);
+					if (svs.gametype == GT_Q1QVM)
+					{
+						ucmd = svs.clients[i-1].lastcmd;
+						ucmd.msec = ms;
+					}
+					else
+					{
+						ucmd.msec = ms;
+						ucmd.angles[0] = (short)(sv_player->v->v_angle[0] * (65535/360.0f));
+						ucmd.angles[1] = (short)(sv_player->v->v_angle[1] * (65535/360.0f));
+						ucmd.angles[2] = (short)(sv_player->v->v_angle[2] * (65535/360.0f));
+						ucmd.forwardmove = sv_player->xv->movement[0];
+						ucmd.sidemove = sv_player->xv->movement[1];
+						ucmd.upmove = sv_player->xv->movement[2];
+						ucmd.buttons = (sv_player->v->button0?1:0) | (sv_player->v->button2?2:0);
 
-					svs.clients[i-1].lastcmd = ucmd;	//allow the other clients to predict this bot.
+						svs.clients[i-1].lastcmd = ucmd;	//allow the other clients to predict this bot.
+					}
 
 					SV_RunCmd(&ucmd, false);
 					SV_PostRunCmd();

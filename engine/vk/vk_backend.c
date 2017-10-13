@@ -4183,6 +4183,7 @@ void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 
 	cbl->l_lightradius = l->radius;
 
+#ifdef RTLIGHTS
 	if (shaderstate.curlmode & LSHADER_SPOT)
 	{
 		float view[16];
@@ -4193,6 +4194,7 @@ void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 		Matrix4_Multiply(proj, view, cbl->l_cubematrix);
 	}
 	else
+#endif
 		Matrix4x4_CM_LightMatrixFromAxis(cbl->l_cubematrix, l->axis[0], l->axis[1], l->axis[2], l->origin);
 	VectorCopy(l->origin, cbl->l_lightposition);
 	cbl->padl1 = 0;

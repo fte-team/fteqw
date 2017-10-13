@@ -2516,17 +2516,6 @@ void M_Menu_Video_f (void)
 		"reverseportrait",
 		NULL
 	};
-	extern cvar_t sys_glesversion_cvar;
-	static const char *glesopts[] = {
-		"GLES 1",
-		"GLES 2",
-		NULL
-	};
-	static const char *glesvalues[] = {
-		"1",
-		"2",
-		NULL
-	};
 #else
 	extern cvar_t vid_renderer;
 	static const char *rendererops[] =
@@ -2701,7 +2690,6 @@ void M_Menu_Video_f (void)
 			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 #ifdef ANDROID
 			MB_COMBOCVAR("Orientation", sys_orientation, orientationopts, orientationvalues, NULL),
-			MB_COMBOCVAR("GLES Version", sys_glesversion_cvar, glesopts, glesvalues, NULL),
 #else
 			MB_COMBOCVAR("Renderer", vid_renderer, rendererops, renderervalues, NULL),
 			MB_COMBOCVARRETURN("Display Mode", vid_fullscreen, fullscreenopts, fullscreenvalues, info->dispmode, vid_fullscreen.description),

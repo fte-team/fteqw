@@ -175,11 +175,11 @@ qboolean R_DrawSkyChain (batch_t *batch)
 		else
 			GL_DrawSkySphere(batch, skyshader);
 	}
-	else if (batch->meshes)
+	/*else if (batch->meshes)
 	{	//if you had wanted it invisible, you should have used nodraw.
 		R_DrawFastSky(batch);
 		return true;	//depth will always be drawn with this pathway.
-	}
+	}*/
 
 	//neither skydomes nor skyboxes nor skygrids will have been drawn with the correct depth values for the sky.
 	//this can result in rooms behind the sky surfaces being visible.

@@ -76,6 +76,8 @@ void M_Menu_MultiPlayer_f (void)
 	}
 	else
 	{
+		int width;
+
 		p = R2D_SafeCachePic("gfx/mp_menu.lmp");
 		if (p)
 		{
@@ -84,26 +86,29 @@ void M_Menu_MultiPlayer_f (void)
 			MC_AddPicture(menu, 72, 32, 232, 64, "gfx/mp_menu.lmp");
 		}
 
+		if (R_GetShaderSizes(p, &width, NULL, true) <= 0)
+			width = 232;
+
 		b = MC_AddConsoleCommand(menu, 72, 320, 32, "", "menu_slist\n");
 		menu->selecteditem = (menuoption_t*)b;
 		b->common.height = 20;
-		b->common.width = p?p->width:320;
+		b->common.width = width;
 		b = MC_AddConsoleCommand(menu, 72, 320, 52, "", "menu_newmulti\n");
 		b->common.height = 20;
-		b->common.width = p?p->width:320;
+		b->common.width = width;
 		b = MC_AddConsoleCommand(menu, 72, 320, 72, "", "menu_setup\n");
 		b->common.height = 20;
-		b->common.width = p?p->width:320;
+		b->common.width = width;
 
 		b = MC_AddConsoleCommand(menu, 72, 320, 92, "", "menu_demo\n");
-		MC_AddWhiteText(menu, 72, 0, 92+20/2-6, "Demos", false);
-		b->common.height = 20/2+2;
-		b->common.width = p?p->width:320;
+		MC_AddWhiteText(menu, 72, 0, 92+20/2-6, "^aDemos", false);
+		b->common.height = 20;
+		b->common.width = width;
 
 		b = MC_AddConsoleCommand(menu, 72, 320, 112, "", "quickconnect qw\n");
-		MC_AddWhiteText(menu, 72, 0, 112+20/2-6, "Quick Connect", false);
-		b->common.height = 20/2+2;
-		b->common.width = p?p->width:320;
+		MC_AddWhiteText(menu, 72, 0, 112+20/2-6, "^aQuick Connect", false);
+		b->common.height = 20;
+		b->common.width = width;
 	}
 
 	menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);
@@ -132,7 +137,7 @@ qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key
 {
 	char bot[64], top[64];
 	setupmenu_t *info = menu->data;
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START)
+	if (key != K_MOUSE1 && key != K_ENTER && key != K_KP_ENTER && key != K_GP_START)
 		return false;
 	Cvar_Set(&name, info->nameedit->text);
 	Cvar_Set(&team, info->teamedit->text);
@@ -395,7 +400,10 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 		else
 #endif
 		{
-			FS_LoadFile(va("gfx/player/%s.lmp", info->skinedit->text), &f);
+			if (*info->skinedit->text)
+				FS_LoadFile(va("gfx/player/%s.lmp", info->skinedit->text), &f);
+			else
+				f = NULL;
 			if (!f)
 				FS_LoadFile("gfx/menuplyr.lmp", &f);
 		}
@@ -509,10 +517,10 @@ void M_Menu_Setup_f (void)
 	MC_AddCommand(menu, 64, 160, 96, "Top colour", SetupMenuColour);
 	MC_AddCommand(menu, 64, 160, 120, "Lower colour", SetupMenuColour);
 
-	MC_AddCommand(menu, 64, 160, 152, "Accept changes", ApplySetupMenu);
-	b = MC_AddConsoleCommand(menu, 64, 160, 168, "Network Settings", "menu_network\n");
+	MC_AddCommand(menu, 64, 320, 152, "Accept changes", ApplySetupMenu);
+	b = MC_AddConsoleCommand(menu, 64, 320, 168, "Network Settings", "menu_network\n");
 	b->common.tooltip = "Change network and client prediction settings.";
-	b = MC_AddConsoleCommand(menu, 64, 160, 176, "Teamplay Settings", "menu_teamplay\n");
+	b = MC_AddConsoleCommand(menu, 64, 320, 176, "Teamplay Settings", "menu_teamplay\n");
 	b->common.tooltip = "Change teamplay macro settings.";
 	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54, 32);
 

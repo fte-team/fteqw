@@ -125,7 +125,9 @@ struct eventlist_s
 		IEV_KEYRELEASE,
 		IEV_MOUSEABS,
 		IEV_MOUSEDELTA,
-		IEV_JOYAXIS
+		IEV_JOYAXIS,
+		IEV_ACCELEROMETER,
+		IEV_GYROSCOPE,
 	} type;
 	unsigned int devid;
 
@@ -145,6 +147,14 @@ struct eventlist_s
 			int axis;
 			float value;
 		} joy;
+		struct
+		{	//metres per second, ish.
+			float x, y, z;
+		} accel;
+		struct
+		{	//these are in radians, not degrees.
+			float pitch, yaw, roll;
+		} gyro;
 	};
 } eventlist[EVENTQUEUELENGTH];
 volatile int events_avail; /*volatile to make sure the cc doesn't try leaving these cached in a register*/
@@ -510,6 +520,16 @@ void IN_Commands(void)
 					Key_Event(ev->devid, K_MOUSE1, 0, true);
 				}
 			}
+			break;
+
+		case IEV_ACCELEROMETER:
+			//down: x= +9.8
+			//left: y= -9.8
+			//up:   z= +9.8
+			CSQC_Accelerometer(ev->accel.x, ev->accel.y, ev->accel.z);
+			break;
+		case IEV_GYROSCOPE:
+			CSQC_Gyroscope(ev->gyro.pitch * 180.0/M_PI, ev->gyro.yaw * 180.0/M_PI, ev->gyro.roll * 180.0/M_PI);
 			break;
 		}
 		events_used++;
@@ -986,5 +1006,30 @@ void IN_MouseMove(unsigned int devid, int abs, float x, float y, float z, float 
 	ev->mouse.y = y;
 	ev->mouse.z = z;
 	ev->mouse.tsize = size;
+	in_finishevent();
+}
+
+void IN_Accelerometer(unsigned int devid, float x, float y, float z)
+{
+	struct eventlist_s *ev = in_newevent();
+	if (!ev)
+		return;
+	ev->devid = devid;
+	ev->type = IEV_ACCELEROMETER;
+	ev->accel.x = x;
+	ev->accel.y = y;
+	ev->accel.z = z;
+	in_finishevent();
+}
+void IN_Gyroscope(unsigned int devid, float pitch, float yaw, float roll)
+{
+	struct eventlist_s *ev = in_newevent();
+	if (!ev)
+		return;
+	ev->devid = devid;
+	ev->type = IEV_GYROSCOPE;
+	ev->gyro.pitch = pitch;
+	ev->gyro.yaw = yaw;
+	ev->gyro.roll = roll;
 	in_finishevent();
 }

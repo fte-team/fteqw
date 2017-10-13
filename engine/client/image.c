@@ -1,5 +1,6 @@
 #include "quakedef.h"
 #include "shader.h"
+#include "glquake.h"	//we need some of the gl format enums
 
 //#define PURGEIMAGES	//somewhat experimental still. we're still flushing more than we should.
 
@@ -18,6 +19,9 @@ cvar_t r_dodgypcxfiles = CVARD("r_dodgypcxfiles", "0", "When enabled, this will 
 cvar_t r_dodgymiptex = CVARD("r_dodgymiptex", "1", "When enabled, this will force regeneration of mipmaps, discarding mips1-4 like glquake did. This may eg solve fullbright issues with some maps, but may reduce distant detail levels.");
 
 char *r_defaultimageextensions =
+#ifdef IMAGEFMT_KTX
+	"ktx "	//compressed or something
+#endif
 #ifdef IMAGEFMT_DDS
 	"dds "	//compressed or something
 #endif
@@ -2595,6 +2599,198 @@ static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 	//FIXME: check loaded wad files too.
 }
 
+#ifdef IMAGEFMT_KTX
+typedef struct
+{
+	char magic[12];
+	unsigned int endianness;
+
+	unsigned int gltype;
+	unsigned int gltypesize;
+	unsigned int glformat;
+	unsigned int glinternalformat;
+
+	unsigned int glbaseinternalformat;
+	unsigned int pixelwidth;
+	unsigned int pixelheight;
+	unsigned int pixeldepth;
+
+	unsigned int numberofarrayelements;
+	unsigned int numberoffaces;
+	unsigned int numberofmipmaplevels;
+	unsigned int bytesofkeyvaluedata;
+} ktxheader_t;
+static qboolean Image_ReadKTXFile(texid_t tex, unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
+{
+	static const char magic[12] = {0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A};
+	ktxheader_t *header;
+	int nummips;
+	int mipnum;
+	int face;
+	int datasize;
+	unsigned int w, h, x, y;
+	struct pendingtextureinfo *mips;
+	int encoding;
+	qbyte *out, *in;
+
+	if (memcmp(filedata, magic, sizeof(magic)))
+		return false;	//not a ktx file
+
+	header = (ktxheader_t*)filedata;
+	nummips = header->numberofmipmaplevels;
+	if (nummips < 1)
+		nummips = 1;
+
+	if (header->numberofarrayelements != 0)
+		return false;	//don't support array textures
+	if (header->numberoffaces == 1)
+		;	//non-cubemap
+	else if (header->numberoffaces == 6)
+	{
+		if (header->pixeldepth != 0)
+			return false;
+		if (header->numberofmipmaplevels != 1)
+			return false;	//only allow cubemaps that have no mips
+	}
+	else
+		return false;	//don't allow weird cubemaps
+	if (header->pixeldepth && header->pixelwidth != header->pixeldepth && header->pixelheight != header->pixeldepth)
+		return false;	//we only support 3d textures where width+height+depth are the same. too lazy to change it now.
+
+	switch(header->glinternalformat)
+	{
+	case GL_ETC1_RGB8_OES:
+		encoding = PTI_ETC1_RGB8;
+		break;
+	case GL_COMPRESSED_RGB8_ETC2:
+	case GL_COMPRESSED_SRGB8_ETC2:
+		encoding = PTI_ETC2_RGB8;
+		break;
+	case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2:
+	case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2:
+		encoding = PTI_ETC2_RGB8A1;
+		break;
+	case GL_COMPRESSED_RGBA8_ETC2_EAC:
+	case GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC:
+		encoding = PTI_ETC2_RGB8A8;
+		break;
+	case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
+		encoding = PTI_S3RGB1;
+		break;
+	case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
+		encoding = PTI_S3RGBA1;
+		break;
+	case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
+		encoding = PTI_S3RGBA3;
+		break;
+	case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
+		encoding = PTI_S3RGBA5;
+		break;
+	case GL_BGRA_EXT:
+		encoding = PTI_BGRA8;
+		break;
+	case GL_RGBA:
+		encoding = PTI_RGBA8;
+		break;
+	case GL_SRGB8_ALPHA8_EXT:
+		encoding = PTI_RGBA8_SRGB;
+		break;
+	case 0x8045/*GL_LUMINANCE8_ALPHA8*/:
+		encoding = PTI_RGBA8;
+		break;
+	case 0x8051/*GL_RGB8*/:
+		encoding = PTI_RGBX8;
+		break;
+	//note: this could be pretty much anything, including 24bit data.
+	default:
+		Con_Printf("Unsupported ktx internalformat %x in %s\n", header->glinternalformat, fname);
+		return false;
+	}
+
+	if (!sh_config.texfmt[encoding])
+	{
+		Con_Printf("KTX %s: encoding %x not supported on this system\n", fname, header->glinternalformat);
+		return false;
+	}
+
+	mips = Z_Malloc(sizeof(*mips));
+	mips->mipcount = 0;
+	if (header->pixeldepth)
+		mips->type = PTI_3D;
+	else if (header->numberoffaces==6)
+		mips->type = PTI_CUBEMAP;
+	else
+		mips->type = PTI_2D;
+	mips->extrafree = filedata;
+	mips->encoding = encoding;
+
+	filedata += sizeof(*header);			//skip the header...
+	filedata += header->bytesofkeyvaluedata;	//skip the keyvalue stuff
+
+	w = header->pixelwidth;
+	h = header->pixelheight;
+	for (mipnum = 0; mipnum < nummips; mipnum++)
+	{
+		datasize = *(int*)filedata;
+		filedata += 4;
+		for (face = 0; face < header->numberoffaces; face++)
+		{
+			if (mips->mipcount >= countof(mips->mip))
+				break;
+			mips->mip[mips->mipcount].data = in = filedata;
+			mips->mip[mips->mipcount].datasize = datasize;
+			mips->mip[mips->mipcount].width = w;
+			mips->mip[mips->mipcount].height = h;
+			
+			//some formats are old and not really supported. we convert.
+			switch(header->glinternalformat)
+			{
+			case 0x8045/*GL_LUMINANCE8_ALPHA8*/:
+				mips->mip[mips->mipcount].needfree = true;
+				mips->mip[mips->mipcount].data = out = BZ_Malloc(datasize*2);
+				mips->mip[mips->mipcount].datasize = datasize * 2;
+				//fixme: input must be a multiple of 2...
+				for (y = 0; y < h; y++)
+					for (x = 0; x < w; x++, out+=4)
+					{
+						out[0] = out[1] = out[2] = *in++;
+						out[3] = *in++;
+					}
+				break;
+			case 0x8051/*GL_RGB8*/:
+//			case GL_BGR8_EXT:
+				mips->mip[mips->mipcount].needfree = true;
+				mips->mip[mips->mipcount].datasize = (datasize/3)*4;
+				mips->mip[mips->mipcount].data = out = BZ_Malloc((datasize/3)*4);
+				//fixme: input must be a multiple of 4...
+				for (y = 0; y < h; y++)
+					for (x = 0; x < w; x++, out+=4)
+					{
+						out[0] = *in++;
+						out[1] = *in++;
+						out[2] = *in++;
+						out[3] = 255;
+					}
+				break;
+			}
+			mips->mipcount++;
+
+			filedata += datasize;
+			if (datasize & 3)
+				filedata += 4-(datasize&3);
+		}
+		w = (w+1)>>1;
+		h = (h+1)>>1;
+	}
+
+	if (flags & IF_NOWORKER)
+		Image_LoadTextureMips(tex, mips, 0, 0);
+	else
+		COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
+	return true;
+}
+#endif
+
 #ifdef IMAGEFMT_DDS
 typedef struct {
 	unsigned int dwSize;
@@ -4316,6 +4512,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_S3RGBA1:	//mostly compatible, but I don't want to push it.
 		case PTI_S3RGBA3:
 		case PTI_S3RGBA5:
+		case PTI_ETC2_RGB8A1:
+		case PTI_ETC2_RGB8A8:
 		case PTI_WHOLEFILE:
 			//erk. meh.
 			break;
@@ -4327,6 +4525,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_RGBX8_SRGB:
 		case PTI_BGRX8_SRGB:
 		case PTI_S3RGB1:
+		case PTI_ETC1_RGB8:
+		case PTI_ETC2_RGB8:
 			break;	//already no alpha in these formats
 		case PTI_DEPTH16:
 		case PTI_DEPTH24:
@@ -4497,6 +4697,10 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 	int imgwidth, imgheight;
 
 	//these formats have special handling, because they cannot be implemented via Read32BitImageFile - they don't result in rgba images.
+#ifdef IMAGEFMT_KTX
+	if (Image_ReadKTXFile(tex, flags, fname, filedata, filesize))
+		return true;
+#endif
 #ifdef IMAGEFMT_DDS
 	if (Image_ReadDDSFile(tex, flags, fname, filedata, filesize))
 		return true;

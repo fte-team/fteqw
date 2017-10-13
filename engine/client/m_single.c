@@ -473,7 +473,7 @@ void M_Menu_SinglePlayer_f (void)
 			MC_AddCenterPicture(menu, 4, 24, "gfx/ttl_sgl.lmp");
 
 			menu->selecteditem = (menuoption_t*)
-			MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",		va("closemenu;disconnect;maxclients 1;deathmatch 0;coop %i;startmap_sp\n", cl_splitscreen.ival>0));
+			MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",  "closemenu;disconnect;maxclients 1;samelevel \"\";deathmatch \"\";set_calc coop ($cl_splitscreen>0);startmap_sp\n");
 			MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Load Game", "menu_load\n");
 			MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"Save Game", "menu_save\n");
 
@@ -499,18 +499,43 @@ void M_Menu_SinglePlayer_f (void)
 	}
 	else
 	{
+		const char *opts[] =
+		{
+			"Single",
+			"Dual",
+			"Tripple",
+			"QUAD",
+			NULL
+		};
+		const char *vals[] =
+		{
+			"0",
+			"1",
+			"2",
+			"3",
+			NULL
+		};
+		int width;
+		if (R_GetShaderSizes(p, &width, NULL, true) <= 0)
+			width = 232;
+
 		MC_AddPicture(menu, 72, 32, 232, 64, "gfx/sp_menu.lmp");
 
-		b = MC_AddConsoleCommand	(menu, 16, 304, 32,	"", va("closemenu;disconnect;maxclients 1;samelevel 0;deathmatch 0;coop %i;startmap_sp\n", cl_splitscreen.ival>0));
+		b = MC_AddConsoleCommand	(menu, 72, 304, 32,	"", "closemenu;disconnect;maxclients 1;samelevel \"\";deathmatch \"\";set_calc coop ($cl_splitscreen>0);startmap_sp\n");
 		menu->selecteditem = (menuoption_t *)b;
-		b->common.width = p->width;
+		b->common.width = width;
 		b->common.height = 20;
-		b = MC_AddConsoleCommand	(menu, 16, 304, 52,	"", "menu_load\n");
-		b->common.width = p->width;
+		b = MC_AddConsoleCommand	(menu, 72, 304, 52,	"", "menu_load\n");
+		b->common.width = width;
 		b->common.height = 20;
-		b = MC_AddConsoleCommand	(menu, 16, 304, 72,	"", "menu_save\n");
-		b->common.width = p->width;
+		b = MC_AddConsoleCommand	(menu, 72, 304, 72,	"", "menu_save\n");
+		b->common.width = width;
 		b->common.height = 20;
+
+		b = (menubutton_t*)MC_AddCvarCombo(menu, 72, 72+width/2, 92, "", &cl_splitscreen, opts, vals);
+		MC_AddWhiteText(menu, 72, 0, 92, "^aSplitscreen", false);
+		b->common.height = 20;
+		b->common.width = width;
 
 		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);
 	}

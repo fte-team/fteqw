@@ -552,6 +552,7 @@ qbyte *R_MarkLeaves_Q2 (void);
 qbyte *R_MarkLeaves_Q3 (void);
 void R_SetFrustum (float projmat[16], float viewmat[16]);
 void R_SetRenderer(rendererinfo_t *ri);
+void R_RegisterRenderer(rendererinfo_t *ri);
 void R_AnimateLight (void);
 void R_UpdateHDR(vec3_t org);
 void R_UpdateLightStyle(unsigned int style, const char *stylestring, float r, float g, float b);

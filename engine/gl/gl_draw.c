@@ -231,14 +231,6 @@ void GL_Set2D (qboolean flipped)
 
 //====================================================================
 
-
-#ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
-#define GL_COMPRESSED_RGB_S3TC_DXT1_EXT                   0x83F0
-#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT                  0x83F1
-#define GL_COMPRESSED_RGBA_S3TC_DXT3_EXT                  0x83F2
-#define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT                  0x83F3
-#endif
-
 //note: needs to be bound first, so the 'targ' argument shouldn't be a problem.
 static void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 {
@@ -360,7 +352,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		{
 			if (mips->mip[i].width != max(1,(mips->mip[i-1].width>>1)) ||
 				mips->mip[i].height != max(1,(mips->mip[i-1].height>>1)))
-			{	//okay, this mip looks like it was sized wrongly. this can easily happen with dds files made for direct3d.
+			{	//okay, this mip looks like it was sized wrongly. this can easily happen with npot dds files made for direct3d.
 				nummips = i;
 				break;
 			}
@@ -508,7 +500,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			case PTI_RGB565:
 				qglTexImage2D(targface, j, GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, mips->mip[i].data);
 				break;
-			//compressed formats
+			//(desktop) compressed formats
 			case PTI_S3RGB1:
 				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB_S3TC_DXT1_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
 				break;
@@ -520,6 +512,21 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 				break;
 			case PTI_S3RGBA5:
 				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			//(mobile) compressed formats
+			case PTI_ETC1_RGB8:
+			case PTI_ETC2_RGB8:
+				//etc2 is a superset of etc1. we distinguish only for hardware that cannot recognise etc2's 'invalid' encodings
+				if (sh_config.texfmt[PTI_ETC2_RGB8])
+					qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB8_ETC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				else
+					qglCompressedTexImage2DARB(targface, j, GL_ETC1_RGB8_OES, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_ETC2_RGB8A1:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_ETC2_RGB8A8:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA8_ETC2_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
 				break;
 			}
 		}

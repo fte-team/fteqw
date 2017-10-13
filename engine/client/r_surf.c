@@ -30,6 +30,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if (defined(GLQUAKE) || defined(VKQUAKE)) && defined(MULTITHREAD)
 #define THREADEDWORLD
 #endif
+#ifdef BEF_PUSHDEPTH
+qboolean r_pushdepth;
+#endif
 
 extern cvar_t r_ambient;
 
@@ -2545,7 +2548,14 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 		currententity = NULL;
 	}
 
-	bef = BEF_PUSHDEPTH;
+#ifdef BEF_PUSHDEPTH
+	if (r_pushdepth)
+		bef = BEF_PUSHDEPTH;
+	else
+		bef = 0;
+#else
+	bef = 0;
+#endif
 	if (ent->flags & RF_ADDITIVE)
 		bef |= BEF_FORCEADDITIVE;
 #ifdef HEXEN2
@@ -3662,6 +3672,10 @@ void Surf_NewMap (void)
 {
 	char namebuf[MAX_QPATH];
 	extern cvar_t host_mapname;
+#ifdef BEF_PUSHDEPTH
+	extern cvar_t r_polygonoffset_submodel_maps;
+	char *s;
+#endif
 	int		i;
 
 	memset (&r_worldentity, 0, sizeof(r_worldentity));
@@ -3684,6 +3698,19 @@ void Surf_NewMap (void)
 	r_oldviewcluster = 0;
 	r_viewcluster2 = -1;
 	r_oldviewcluster2 = 0;
+#ifdef BEF_PUSHDEPTH
+	r_pushdepth = false;
+	for (s = r_polygonoffset_submodel_maps.string; s && *s; )
+	{
+		s = COM_Parse(s);
+		if (*com_token)
+			if (wildcmp(com_token, namebuf))
+			{
+				r_pushdepth = true;
+				break;
+			}
+	}
+#endif
 
 	TRACE(("dbg: Surf_NewMap: clear particles\n"));
 	P_ClearParticles ();

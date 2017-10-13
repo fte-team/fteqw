@@ -3141,8 +3141,8 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 					break;
 				details.players[clnum].time = atoi(token);
 				msg = token;
-				token = strchr(msg+1, ' ');
-				if (!token)	//probably q2 response
+				token = COM_Parse(token);
+				if (!*token)	//probably q2 response
 				{
 					//see if this is actually a Quake2 server.
 					token = strchr(msg+1, '\"');
@@ -3275,6 +3275,15 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 				msg++;
 			}
 		}
+		if ((info->special & SS_PROTOCOLMASK) == SS_DARKPLACES && !info->numbots)
+		{
+			info->numbots = atoi(Info_ValueForKey(details.info, "bots"));
+			if (info->numbots > info->players)
+				info->numbots = info->players;
+			info->numhumans -= info->numbots;
+		}
+
+
 		if (!info->moreinfo && ((slist_cacheinfo.value == 2 || NET_CompareAdr(&info->adr, &selectedserver.adr)) || (info->special & SS_KEEPINFO)))
 			info->moreinfo = Z_Malloc(sizeof(serverdetailedinfo_t));
 		if (NET_CompareAdr(&info->adr, &selectedserver.adr))

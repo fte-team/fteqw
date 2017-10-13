@@ -615,6 +615,14 @@ typedef void		(APIENTRYP PFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei
 #define GL_FRAMEBUFFER_SRGB_CAPABLE_EXT				0x8DBA
 #endif
 
+
+#ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
+#define GL_COMPRESSED_RGB_S3TC_DXT1_EXT                   0x83F0
+#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT                  0x83F1
+#define GL_COMPRESSED_RGBA_S3TC_DXT3_EXT                  0x83F2
+#define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT                  0x83F3
+#endif
+
 #ifndef GL_EXT_texture_sRGB
 #define GL_EXT_texture_sRGB 1
 #define GL_SRGB_EXT                       0x8C40
@@ -634,6 +642,22 @@ typedef void		(APIENTRYP PFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei
 #define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT 0x8C4E
 #define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT 0x8C4F
 #endif /* GL_EXT_texture_sRGB */
+
+#ifndef GL_ETC1_RGB8_OES
+#define GL_ETC1_RGB8_OES 0x8D64	//4*4 blocks of 8 bytes
+#endif
+#ifndef GL_COMPRESSED_RGB8_ETC2
+//#define GL_COMPRESSED_R11_EAC							0x9270
+//#define GL_COMPRESSED_SIGNED_R11_EAC					0x9271
+//#define GL_COMPRESSED_RG11_EAC						0x9272
+//#define GL_COMPRESSED_SIGNED_RG11_EAC					0x9273
+#define GL_COMPRESSED_RGB8_ETC2							0x9274	//4*4 blocks of 8 bytes. also accepts valid etc1 images
+#define GL_COMPRESSED_SRGB8_ETC2						0x9275
+#define GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2		0x9276	//
+#define GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2	0x9277
+#define GL_COMPRESSED_RGBA8_ETC2_EAC					0x9278	//4*4 blocks of 8+8 bytes.
+#define GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC				0x9279
+#endif
 
 #ifndef GL_ARB_pixel_buffer_object
 #define GL_PIXEL_PACK_BUFFER_ARB                        0x88EB

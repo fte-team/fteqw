@@ -73,12 +73,16 @@ void *EGL_Proc(char *f)
 	}
 	*/
 
-	if (qeglGetProcAddress)
-		proc = qeglGetProcAddress(f);
 	if (!proc)
 		proc = Sys_GetAddressForName(eslibrary, f);
 	if (!proc)
 		proc = Sys_GetAddressForName(egllibrary, f);
+
+	//eglGetProcAddress functions must work regardless of context...
+	//FIXME: this means lots of false-positives.
+	//as well as lots of thunks, which will result in slowdowns.
+	if (qeglGetProcAddress)
+		proc = qeglGetProcAddress(f);
 
 	return proc;
 }
@@ -96,7 +100,12 @@ void EGL_UnloadLibrary(void)
 
 qboolean EGL_LoadLibrary(char *driver)
 {
-	/* apps seem to load glesv2 first for dependency issues */
+	/*	linux seem to load glesv2 first for dependency issues.
+		(most things are expected to statically link to their libs)
+		strictly speaking, EGL says that functions should work regardless of context.
+		(which of course makes portability a nightmare, especially on windows where static linking is basically impossible)
+		(android's EGL bugs out if you use eglGetProcAddress for core functions too)
+	*/
 	Sys_Printf("Attempting to dlopen libGLESv2... ");
 	eslibrary = Sys_LoadLibrary("libGLESv2", NULL);
 	if (!eslibrary)

@@ -58,7 +58,9 @@ const char *vklayerlist[] =
 #endif
 
 void VK_Submit_Work(VkCommandBuffer cmdbuf, VkSemaphore semwait, VkPipelineStageFlags semwaitstagemask, VkSemaphore semsignal, VkFence fencesignal, struct vkframe *presentframe, struct vk_fencework *fencedwork);
+#ifdef MULTITHREAD
 static int VK_Submit_Thread(void *arg);
+#endif
 static void VK_Submit_DoWork(void);
 
 static void VK_DestroyRenderPass(void);
@@ -884,6 +886,14 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 		format = VK_FORMAT_BC2_UNORM_BLOCK;
 	else if (encoding == PTI_S3RGBA5)
 		format = VK_FORMAT_BC3_UNORM_BLOCK;
+	else if (encoding == PTI_ETC1_RGB8)	//vulkan doesn't support etc1, but etc2 is a superset so its all okay.
+		format = VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+	else if (encoding == PTI_ETC2_RGB8)
+		format = VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+	else if (encoding == PTI_ETC2_RGB8A1)
+		format = VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK;
+	else if (encoding == PTI_ETC2_RGB8A8)
+		format = VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
 	//depth formats
 	else if (encoding == PTI_DEPTH16)
 		format = VK_FORMAT_D16_UNORM;
@@ -3334,6 +3344,11 @@ void VK_CheckTextureFormats(void)
 		{PTI_S3RGBA1,		VK_FORMAT_BC1_RGBA_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_S3RGBA3,		VK_FORMAT_BC2_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_S3RGBA5,		VK_FORMAT_BC3_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+
+		{PTI_ETC1_RGB8,		VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},	//vulkan doesn't support etc1.
+		{PTI_ETC2_RGB8,		VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ETC2_RGB8A1,	VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK,VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ETC2_RGB8A8,	VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK,VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 	};
 	unsigned int i;
 	VkPhysicalDeviceProperties props;

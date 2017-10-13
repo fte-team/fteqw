@@ -49,6 +49,8 @@ int CL_TargettedSplit(qboolean nowrap);
 void IN_KeyEvent(unsigned int devid, int down, int keycode, int unicode);		//don't use IN_KeyEvent for mice if you ever use abs mice...
 void IN_MouseMove(unsigned int devid, int abs, float x, float y, float z, float size);
 void IN_JoystickAxisEvent(unsigned int devid, int axis, float value);
+void IN_Accelerometer(unsigned int devid, float x, float y, float z);
+void IN_Gyroscope(unsigned int devid, float pitch, float yaw, float roll);
 
 //system-specific functions
 void INS_Move (float *movements, int pnum);

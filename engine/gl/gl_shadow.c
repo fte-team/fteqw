@@ -44,6 +44,10 @@ static void SHM_Shutdown(void);
 
 #define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
 
+#ifdef BEF_PUSHDEPTH
+extern qboolean r_pushdepth;
+#endif
+
 #ifdef GLQUAKE
 static texid_t shadowmap[2];
 static int shadow_fbo_id;
@@ -2806,7 +2810,11 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 	GL_SelectEBO(0);
 	qglEnableClientState(GL_VERTEX_ARRAY);
 
-	GLBE_PolyOffsetStencilShadow(true);
+#ifdef BEF_PUSHDEPTH
+	GLBE_PolyOffsetStencilShadow(r_pushdepth);
+#else
+	GLBE_PolyOffsetStencilShadow();
+#endif
 
 	model = e->model;
 	surf = model->surfaces+model->firstmodelsurface;

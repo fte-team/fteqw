@@ -2850,6 +2850,26 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		sh_config.texfmt[PTI_S3RGBA5] = GL_CheckExtension("GL_ANGLE_texture_compression_dxt5");
 	}
 
+#ifdef FTE_TARGET_WEB
+	if (GL_CheckExtension("WEBGL_compressed_texture_etc"))
+#else
+	if ((gl_config.gles && gl_config.glversion >= 3.0) || (!gl_config.gles && (gl_config.glversion >= 4.3 || GL_CheckExtension("GL_ARB_ES3_compatibility"))))
+#endif
+	{	//gles3 and gl4.3 have mandatory support for etc2. probably desktop drivers will pre-decompress, but whatever.
+		//webgl tries to cater to d3d, so doesn't support this gles3 feature, because browser writers are lazy.
+		sh_config.texfmt[PTI_ETC1_RGB8] = true;
+		sh_config.texfmt[PTI_ETC2_RGB8] = true;
+		sh_config.texfmt[PTI_ETC2_RGB8A1] = true;
+		sh_config.texfmt[PTI_ETC2_RGB8A8] = true;
+	}
+	else
+	{
+		sh_config.texfmt[PTI_ETC2_RGB8]		= GL_CheckExtension("GL_OES_compressed_ETC2_RGB8_texture");
+		sh_config.texfmt[PTI_ETC2_RGB8A1]	= GL_CheckExtension("GL_OES_compressed_ETC2_punchthroughA_RGBA8_texture");
+		sh_config.texfmt[PTI_ETC2_RGB8]		= GL_CheckExtension("GL_OES_compressed_ETC2_RGBA8_texture");
+		sh_config.texfmt[PTI_ETC1_RGB8]		= sh_config.texfmt[PTI_ETC2_RGB8] || GL_CheckExtension("GL_OES_compressed_ETC1_RGB8_texture");
+	}
+
 	if (gl_config.gles)
 	{
 		qboolean srgb = false;//TEST ME GL_CheckExtension("GL_EXT_sRGB");

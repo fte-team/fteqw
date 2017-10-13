@@ -308,11 +308,16 @@ struct pendingtextureinfo
 		//small formats.
 		PTI_R8,
 		PTI_RG8,
-		//compressed formats
+		//(desktop) compressed formats
 		PTI_S3RGB1,
 		PTI_S3RGBA1,
 		PTI_S3RGBA3,
 		PTI_S3RGBA5,
+		//(mobile) compressed formats
+		PTI_ETC1_RGB8,	//limited form
+		PTI_ETC2_RGB8,	//extended form
+		PTI_ETC2_RGB8A1,
+		PTI_ETC2_RGB8A8,
 		//weird specialcase mess to take advantage of webgl so we don't need redundant bloat where we're already strugging with potential heap limits
 		PTI_WHOLEFILE,
 		//depth formats

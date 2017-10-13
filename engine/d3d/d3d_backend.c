@@ -2202,7 +2202,7 @@ static void BE_DrawMeshChain_Internal(void)
 	float pushdepth = shaderstate.curshader->polyoffset.factor;
 //	float pushfactor;
 
-#ifndef NOLEGACY
+#ifdef BEF_PUSHDEPTH
 	if (shaderstate.flags & BEF_PUSHDEPTH)
 	{
 		extern cvar_t r_polygonoffset_submodel_factor;
@@ -3484,7 +3484,7 @@ void D3D9BE_BaseEntTextures(void)
 void D3D9BE_RenderShadowBuffer(unsigned int numverts, IDirect3DVertexBuffer9 *vbuf, unsigned int numindicies, IDirect3DIndexBuffer9 *ibuf)
 {
 	float pushdepth = shaderstate.curshader->polyoffset.factor;
-#ifndef NOLEGACY
+#ifdef BEF_PUSHDEPTH
 	extern cvar_t r_polygonoffset_submodel_factor;
 //	if (shaderstate.flags & BEF_PUSHDEPTH)
 		pushdepth += r_polygonoffset_submodel_factor.value;

@@ -604,7 +604,7 @@ qboolean NET_DNSLookup_SRV(const char *host, char *out, int outlen)
 #elif defined(__unix__) || defined(ANDROID) || defined(__MACH__) || defined(__linux__)
 #include <resolv.h>
 #include <arpa/nameser.h>
-qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
+qboolean NET_DNSLookup_SRV(const char *host, char *out, int outlen)
 {
 	int questions;
 	int answers;
@@ -691,7 +691,7 @@ qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
 	return true;
 }
 #else
-qboolean NET_DNSLookup_SRV(char *host, char *out, int outlen)
+qboolean NET_DNSLookup_SRV(const char *host, char *out, int outlen)
 {
 	return false;
 }
@@ -3751,7 +3751,7 @@ static qboolean JCL_ServerPeerReply(jclient_t *jcl, xmltree_t *tree, struct iq_s
 
 	return true;
 }
-static qboolean JCL_ServerItemsReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+/*static qboolean JCL_ServerItemsReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
 	xmltree_t *query = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/disco#items", "query", 0);
 	xmltree_t *item;
@@ -3774,7 +3774,7 @@ static qboolean JCL_ServerItemsReply(jclient_t *jcl, xmltree_t *tree, struct iq_
 		}
 	}
 	return true;
-}
+}*/
 static qboolean JCL_SessionReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
 	buddy_t *b;
@@ -5086,7 +5086,7 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 	xmltree_t *show = XML_ChildOfTree(tree, "show", 0);
 	xmltree_t *status = XML_ChildOfTree(tree, "status", 0);
 	xmltree_t *quake = XML_ChildOfTree(tree, "quake", 0);
-	xmltree_t *mucmain = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/muc", "x", 0);
+	//xmltree_t *mucmain = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/muc", "x", 0);
 	xmltree_t *mucuser = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/muc#user", "x", 0);
 	xmltree_t *caps = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/caps", "c", 0);
 	const char *type = XML_GetParameter(tree, "type", "");
@@ -6136,7 +6136,6 @@ static void JCL_RegenerateBuddyList(qboolean force)
 		{
 			if (!c2c->displayed)
 			{
-				buddy_t *peer = NULL;
 				qboolean voice = false, video = false, server = false;
 				int c;
 

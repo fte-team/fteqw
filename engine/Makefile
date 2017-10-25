@@ -531,7 +531,16 @@ ifeq ($(FTE_TARGET),vc)
 		ARCH?=i686-w64-mingw32
 	endif
 else
-	ARCH?=$(shell $(CC) -dumpmachine)
+	#some idiot decided that -dumpmachine shouldn't respect -m32 etc.
+	#at the same time, -print-multiarch is not present, buggy, or just screwed in many gcc builds (ones that target a single arch will unhelpfully just give an empty string).
+	#so try multiarch first, and if that fails risk dumpmachine giving the wrong values.
+	#really we want dumpmachine's more specific cpu arch included here, so lets hope that idiot burns for all eternity. or something equally melodramatic.
+	ARCH:=$(shell $(CC) -print-multiarch)
+	ifneq ($(words $(ARCH)),1)
+		foo:=$(shell echo falling back on dumpmachine 1>&2 )
+		ARCH:=$(shell $(CC) -dumpmachine)
+	endif
+	foo:=$(shell echo ARCH is $(ARCH) 1>&2 )
 endif
 ARCHLIBS=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)
 

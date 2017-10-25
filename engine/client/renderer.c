@@ -1266,14 +1266,14 @@ void R_ShutdownRenderer(qboolean devicetoo)
 	if (Draw_Shutdown)
 		Draw_Shutdown();
 
+	TRACE(("dbg: R_ApplyRenderer: SCR_DeInit\n"));
+	SCR_DeInit();
+
 	if (VID_DeInit && devicetoo)
 	{
 		TRACE(("dbg: R_ApplyRenderer: VID_DeInit\n"));
 		VID_DeInit();
 	}
-
-	TRACE(("dbg: R_ApplyRenderer: SCR_DeInit\n"));
-	SCR_DeInit();
 
 	COM_FlushTempoaryPacks();
 

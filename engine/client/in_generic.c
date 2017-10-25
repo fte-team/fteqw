@@ -1,6 +1,13 @@
 //Generic input code.
 //mostly mouse support, but can also handle a few keyboard events.
 
+//Issues:
+
+//VirtualBox mouse integration is bugged. X11 code can handle tablets, but VirtualBox sends mouse clicks on the ps/2 device instead.
+//  you should be able to fix this with 'in_deviceids * 0 *', remapping both tablet+ps/2 to the same device id. 
+
+//Android touchscreen inputs suck. should have some onscreen buttons, but they're still a bit poo or something. blame mods for not using csqc to do things themselves.
+
 #include "quakedef.h"
 
 extern qboolean mouse_active;
@@ -113,7 +120,6 @@ static cvar_t	joy_movethreshold[3] =
 
 static cvar_t joy_exponent = CVARD("joyexponent", "2", "Scales joystick/controller sensitivity non-linearly to increase precision in the center.\nA value of 1 is linear.");
 static cvar_t joy_radialdeadzone = CVARD("joyradialdeadzone", "1", "Treat controller dead zones as a pair, rather than per-axis.");
-extern cvar_t _windowed_mouse;
 
 
 #define EVENTQUEUELENGTH 512
@@ -180,18 +186,20 @@ struct mouse_s
 		M_INVALID,
 		M_MOUSE,	//using deltas
 		M_TOUCH		//using absolutes
+		//the only functional difference between touch and tablets is that tablets should draw the cursor when hovering too.
 	} type;
 	unsigned int qdeviceid;	//so we can just use pointers.
-	vec2_t oldpos;
-	vec2_t downpos;
+	vec2_t oldpos;		//last-known-cursor-position
+	vec2_t heldpos;		//position the cursor was at when the button was held (touch-start pos)
 	float moveddist;	//how far it has moved while held. this provides us with our emulated mouse1 when they release the press
 	vec2_t delta;		//how far its moved recently
 	vec2_t old_delta;	//how far its moved previously, for mouse smoothing
 	float wheeldelta;
-	int down;
+	int held;		//button is held (for touch stuff). 1=mouse movements permitted. 2=mouse1 was sent to the game
 	unsigned int updates;	//tracks updates per second
+	qboolean updated;
 } ptr[MAXPOINTERS];
-int touchcursor;	//the cursor follows whichever finger was most recently pressed in preference to any mouse also on the same system
+int touchcursor = -1;	//the cursor follows whichever finger was most recently pressed in preference to any mouse also on the same system
 
 #define MAXJOYAXIS 6
 #define MAXJOYSTICKS 8
@@ -238,8 +246,8 @@ static void IN_DeviceIDs_DoRemap(void *vctx, const char *type, const char *devic
 {
 	struct remapctx *ctx = vctx;
 
-	if (!strcmp(ctx->type, type))
-		if (!strcmp(ctx->devicename, devicename))
+	if (!strcmp(ctx->type, type) || !strcmp(ctx->type, "*"))
+		if (!strcmp(ctx->devicename, devicename) || !strcmp(ctx->devicename, "*"))
 		{
 			if (qdevid)
 				*qdevid = ctx->newdevid;
@@ -279,6 +287,10 @@ void IN_DeviceIDs_f(void)
 			Con_Printf("%s \"%s\" not known\n", ctx.type, ctx.devicename);
 		else if (!cl_warncmd.ival)
 			Con_Printf("device remapped\n");
+	}
+	else if (Cmd_Argc() > 1)
+	{
+		Con_Printf("%s TYPE NEWID DEVICENAME\n", Cmd_Argv(0));
 	}
 	else
 	{
@@ -356,13 +368,13 @@ qboolean IN_MouseDevIsTouch(unsigned int devid)
 int IN_TranslateMButtonPress(unsigned int devid)
 {
 	int ret;
-	if (!ptr[devid].down)
+	if (!ptr[devid].held)
 	{
 		//set the cursor-pressed state, so we begin to look/strafe around
-		ptr[devid].down = 1;
+		ptr[devid].held = 1;
 		ptr[devid].moveddist = 0;
-		ptr[devid].downpos[0] = ptr[devid].oldpos[0];
-		ptr[devid].downpos[1] = ptr[devid].oldpos[1];
+		ptr[devid].heldpos[0] = ptr[devid].oldpos[0];
+		ptr[devid].heldpos[1] = ptr[devid].oldpos[1];
 		ptr[devid].delta[0] = 0;
 		ptr[devid].delta[1] = 0;
 		ret = 0;	//eat it
@@ -370,7 +382,7 @@ int IN_TranslateMButtonPress(unsigned int devid)
 	else
 	{
 		//this is the key binding that the press should use
-		ret = (m_strafeonright.ival && ptr[devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
+		ret = (m_strafeonright.ival && ptr[devid].heldpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
 	}
 
 	return ret;
@@ -392,6 +404,7 @@ void IN_Commands(void)
 		{
 		case IEV_KEYDOWN:
 		case IEV_KEYRELEASE:
+//Con_Printf("IEV_KEY%s %i: %i '%c'\n", (ev->type==IEV_KEYDOWN)?"DOWN":"RELEASE", ev->devid, ev->keyboard.scancode, ev->keyboard.unicode?ev->keyboard.unicode:' ');
 			//on touchscreens, mouse1 is used as up/down state. we have to emulate actual mouse clicks based upon distance moved, so we can get movement events.
 			if (ev->keyboard.scancode == K_MOUSE1 && ev->devid < MAXPOINTERS && (ptr[ev->devid].type == M_TOUCH))
 			{
@@ -405,23 +418,23 @@ void IN_Commands(void)
 					mousecursor_y = bound(0, fl, vid.height-1);
 				}
 				else if (touchcursor == ev->devid)
-					touchcursor = 0;	//revert it to the mouse, or whatever device was 0.
+					touchcursor = -1;	//revert it to the mouse, or whatever device was 0.
 
 				if (Key_MouseShouldBeFree())
-					ptr[ev->devid].down = 0;
-				else if (ptr[ev->devid].down)
+					ptr[ev->devid].held = 0;
+				else if (ptr[ev->devid].held)
 				{
 					if (ev->type == IEV_KEYDOWN)
 						Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, ev->type == IEV_KEYDOWN); 
 					else
 					{
-						if (ptr[ev->devid].down == 1 && ptr[ev->devid].moveddist < m_slidethreshold.value)
+						if (ptr[ev->devid].held == 1 && ptr[ev->devid].moveddist < m_slidethreshold.value)
 						{
-							ptr[ev->devid].down = 2;
+							ptr[ev->devid].held = 2;	//so we don't just flag it as held again
 							Key_Event(ev->devid, K_MOUSE1, 0, true);
 						}
 						Key_Event(ev->devid, K_MOUSE1, 0, false);
-						ptr[ev->devid].down = 0;
+						ptr[ev->devid].held = 0;
 					}
 					break;
 				}
@@ -445,14 +458,28 @@ void IN_Commands(void)
 			}
 			break;
 		case IEV_MOUSEDELTA:
+//Con_Printf("IEV_MOUSEDELTA %i: %f %f\n", ev->devid, ev->mouse.x, ev->mouse.y);
 			if (ev->devid < MAXPOINTERS)
 			{
+				if (ev->mouse.x || ev->mouse.y)
+					ptr[ev->devid].updated = true;
 				if (ptr[ev->devid].type != M_MOUSE)
 				{
 					ptr[ev->devid].type = M_MOUSE;
 				}
 				ptr[ev->devid].delta[0] += ev->mouse.x;
 				ptr[ev->devid].delta[1] += ev->mouse.y;
+
+				//if we're emulating a cursor, make sure that's updated too.
+				if (touchcursor < 0 && Key_MouseShouldBeFree())
+				{
+					mousecursor_x += ev->mouse.x;
+					mousecursor_y += ev->mouse.y;
+					mousecursor_x = bound(0, mousecursor_x, vid.pixelwidth-1);
+					mousecursor_y = bound(0, mousecursor_y, vid.pixelheight-1);
+				}
+				ptr[ev->devid].oldpos[0] = mousecursor_x;
+				ptr[ev->devid].oldpos[1] = mousecursor_y;
 
 				if (m_forcewheel.value >= 2)
 					ptr[ev->devid].wheeldelta -= ev->mouse.z;
@@ -471,8 +498,9 @@ void IN_Commands(void)
 			}
 			break;
 		case IEV_MOUSEABS:
+//Con_Printf("IEV_MOUSEABS %i: %f %f\n", ev->devid, ev->mouse.x, ev->mouse.y);
 			/*mouse cursors only really work with one pointer*/
-			if (ev->devid == touchcursor)
+			if (ev->devid == touchcursor || (touchcursor < 0 && ev->devid < MAXPOINTERS && (ptr[ev->devid].oldpos[0] != ev->mouse.x || ptr[ev->devid].oldpos[1] != ev->mouse.y)))
 			{
 				float fl;
 				fl = ev->mouse.x * vid.width / vid.pixelwidth;
@@ -487,13 +515,13 @@ void IN_Commands(void)
 				{
 					//if its now become an absolute device, clear stuff so we don't get confused.
 					ptr[ev->devid].type = M_TOUCH;
-					ptr[ev->devid].down = 0;
+					ptr[ev->devid].held = 0;
 					ptr[ev->devid].moveddist = 0;
 					ptr[ev->devid].oldpos[0] = ev->mouse.x;
 					ptr[ev->devid].oldpos[1] = ev->mouse.y;
 				}
 
-				if (ptr[ev->devid].down)
+				if (ptr[ev->devid].held)
 				{
 					ptr[ev->devid].delta[0] += ev->mouse.x - ptr[ev->devid].oldpos[0];
 					ptr[ev->devid].delta[1] += ev->mouse.y - ptr[ev->devid].oldpos[1];
@@ -501,22 +529,25 @@ void IN_Commands(void)
 					ptr[ev->devid].moveddist += fabs(ev->mouse.x - ptr[ev->devid].oldpos[0]) + fabs(ev->mouse.y - ptr[ev->devid].oldpos[1]);
 				}
 
-				if (ptr[ev->devid].delta[0] != ev->mouse.x - ptr[ev->devid].oldpos[0] ||
-					ptr[ev->devid].delta[1] != ev->mouse.y - ptr[ev->devid].oldpos[1])
+				if (ev->mouse.x != ptr[ev->devid].oldpos[0] ||
+					ev->mouse.y != ptr[ev->devid].oldpos[1])
+				{
 					ptr[ev->devid].updates++;
+					ptr[ev->devid].updated = true;
+				}
 
 				ptr[ev->devid].oldpos[0] = ev->mouse.x;
 				ptr[ev->devid].oldpos[1] = ev->mouse.y;
 
 
-				if (ptr[ev->devid].down > 1 && ev->mouse.tsize < m_fatpressthreshold.value)
+				if (ptr[ev->devid].held > 1 && ev->mouse.tsize < m_fatpressthreshold.value)
 				{
-					ptr[ev->devid].down = 1;
+					ptr[ev->devid].held = 1;
 					Key_Event(ev->devid, K_MOUSE1, 0, false);
 				}
-				if (ptr[ev->devid].down == 1 && ev->mouse.tsize > m_fatpressthreshold.value)
+				if (ptr[ev->devid].held == 1 && ev->mouse.tsize > m_fatpressthreshold.value)
 				{
-					ptr[ev->devid].down = 2;
+					ptr[ev->devid].held = 2;
 					Key_Event(ev->devid, K_MOUSE1, 0, true);
 				}
 			}
@@ -603,31 +634,10 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 
 	if (Key_MouseShouldBeFree())
 	{
-		if ((mx || my) && mouse->type != M_TOUCH)
-		{
-			mousecursor_x += mx;
-			mousecursor_y += my;
-
-			if (mousecursor_y<0)
-				mousecursor_y=0;
-			if (mousecursor_x<0)
-				mousecursor_x=0;
-
-			if (mousecursor_x >= vid.width)
-				mousecursor_x = vid.width - 1;
-
-			if (mousecursor_y >= vid.height)
-				mousecursor_y = vid.height - 1;
-			mx=my=0;
-		}
+		mx=my=0;
 	}
 	else
 	{
-		if (mouse->type != M_TOUCH)
-		{
-			mousecursor_x += mx;
-			mousecursor_y += my;
-		}
 #ifdef VM_UI
 		if (UI_MousePosition(mx, my))
 		{
@@ -639,16 +649,16 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 
 	if (mouse->type == M_TOUCH)
 	{
-		if (m_strafeonright.ival && mouse->downpos[0] > vid.pixelwidth/2 && movements != NULL && !Key_Dest_Has(~kdm_game))
+		if (m_strafeonright.ival && mouse->heldpos[0] > vid.pixelwidth/2 && movements != NULL && !Key_Dest_Has(~kdm_game))
 		{
 			//if they're strafing, calculate the speed to move at based upon their displacement
-			if (mouse->down)
+			if (mouse->held)
 			{
 				mx = mouse->oldpos[0] - (vid.pixelwidth*3)/4;
 				my = mouse->oldpos[1] - (vid.pixelheight*3)/4;
 
-				//mx = (mouse->oldpos[0] - mouse->downpos[0])*0.1;
-				//my = (mouse->oldpos[1] - mouse->downpos[1])*0.1;
+				//mx = (mouse->oldpos[0] - mouse->heldpos[0])*0.1;
+				//my = (mouse->oldpos[1] - mouse->heldpos[1])*0.1;
 			}
 			else
 			{
@@ -684,22 +694,27 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 		strafe_y = !((in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1));
 	}
 
-	if (mouse->type == M_TOUCH)
+	if (mouse->type == M_TOUCH || Key_MouseShouldBeFree())
 	{
+		if (mouse->updated)
+		{	//many mods assume only a single mouse device.
+			//when we have multiple active abs devices, we need to avoid sending all of them, because that just confuses everyone. such mods will see only devices that are actually moving, so uni-cursor mods will see only the one that moved most recently.
+			mouse->updated = false;
 #ifdef MENU_DAT
-		if (!runningindepphys && MP_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
-		{
-			mx = 0;
-			my = 0;
-		}
+			if (!runningindepphys && MP_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
+			{
+				mx = 0;
+				my = 0;
+			}
 #endif
 #ifdef PEXT_CSQC
-		if (!runningindepphys && CSQC_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
-		{
-			mx = 0;
-			my = 0;
-		}
+			if (!runningindepphys && CSQC_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
+			{
+				mx = 0;
+				my = 0;
+			}
 #endif
+		}
 	}
 	else
 	{

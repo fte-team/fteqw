@@ -78,7 +78,9 @@ static qboolean XVK_SetupSurface_XCB(void);
 #include <X11/cursorfont.h>
 
 static Display *vid_dpy = NULL;
-static Cursor vid_nullcursor;
+static Cursor vid_nullcursor;	//'cursor' to use when none should be shown
+static Cursor vid_newcursor;	//cursor that the game is trying to use
+static Cursor vid_activecursor;	//cursor that is currently active
 static Window vid_window;
 static Window vid_decoywindow;	//for legacy mode, this is a boring window that we can reparent into as needed
 static Window vid_root;
@@ -999,7 +1001,7 @@ static void XRandR_SelectMode(const char *devicename, int *x, int *y, int *width
 extern cvar_t	_windowed_mouse;
 
 
-static float old_windowed_mouse = 0;
+static float mouse_grabbed = 0;
 
 static enum
 {
@@ -1007,6 +1009,7 @@ static enum
 	XIM_DGA,
 	XIM_XI2,
 } x11_input_method;
+int x11_mouseqdev = 0;
 
 #define XF86DGADirectMouse		0x0004
 static struct
@@ -1051,10 +1054,15 @@ typedef struct
 	int					mask_len;
 	unsigned char*		mask;
 } XIEventMask;
-#define XIAllMasterDevices 1
-#define XI_RawButtonPress 15
-#define XI_RawButtonRelease 16
-#define XI_RawMotion 17
+#define XIMasterPointer		1
+#define XIMasterKeyboard	2
+#define XISlavePointer		3
+#define XISlaveKeyboard		4
+#define XIAllDevices		0
+#define XIAllMasterDevices	1
+#define XI_RawButtonPress	15
+#define XI_RawButtonRelease	16
+#define XI_RawMotion		17
 #define XI_LASTEVENT XI_RawMotion
 typedef struct {
 	int				type;			/* GenericEvent */
@@ -1071,6 +1079,35 @@ typedef struct {
 	XIValuatorState	valuators;
 	double			*raw_values;
 } XIRawEvent;
+typedef struct
+{
+	int         type;
+	int         sourceid;
+} XIAnyClassInfo;
+typedef struct
+{
+	int                 deviceid;
+	char                *name;
+	int                 use;
+	int                 attachment;
+	Bool                enabled;
+	int                 num_classes;
+	XIAnyClassInfo      **classes;
+} XIDeviceInfo;
+#define XIValuatorClass		2
+typedef struct
+{
+	int         type;
+	int         sourceid;
+	int         number;
+	Atom        label;
+	double      min;
+	double      max;
+	double      value;
+	int         resolution;
+	int         mode;
+} XIValuatorClassInfo;
+#define XIModeAbsolute		1
 #endif
 static struct
 {
@@ -1078,15 +1115,75 @@ static struct
 	int vmajor, vminor;
 	void *libxi;
 
+	int devicegroup;
+	size_t ndeviceinfos;
+	struct xidevinfo
+	{
+		int qdev;
+		struct
+		{
+			qboolean abs;
+			double min, max;
+			float old;
+		} axis[2];
+		qboolean abs;
+	} *deviceinfo;
+	int nextqdev;
+
 	Status (*pXIQueryVersion)( Display *display, int *major_version_inout, int *minor_version_inout);
 	int (*pXISelectEvents)(Display *dpy, Window win, XIEventMask *masks, int num_masks);
+	XIDeviceInfo *(*pXIQueryDevice)(Display *dpy, int deviceid, int *ndevices_return);
+	void (*pXIFreeDeviceInfo)(XIDeviceInfo *info);
 } xi2;
+static struct xidevinfo *XI2_GetDeviceInfo(int devid)
+{
+	if (devid >= xi2.ndeviceinfos)
+	{
+		struct xidevinfo *n = Z_Malloc((devid+1) * sizeof(*xi2.deviceinfo));
+		memcpy(n, xi2.deviceinfo, xi2.ndeviceinfos*sizeof(*xi2.deviceinfo));
+		Z_Free(xi2.deviceinfo);
+		xi2.deviceinfo = n;
+		while (xi2.ndeviceinfos <= devid)
+		{
+			xi2.deviceinfo[xi2.ndeviceinfos].qdev = DEVID_UNSET;
+			if (devid >= 2)
+			{
+				int devs;
+				XIDeviceInfo *dev = xi2.pXIQueryDevice(vid_dpy, xi2.ndeviceinfos, &devs);
+				if (devs==1)
+				{
+					int j;
+					for (j = 0; j < dev->num_classes; j++)
+					{
+						if (dev->classes[j]->sourceid == xi2.ndeviceinfos && dev->classes[j]->type == XIValuatorClass)
+						{
+							XIValuatorClassInfo *v = (XIValuatorClassInfo*)dev->classes[j];
+							if (v->mode == XIModeAbsolute)
+							{
+								xi2.deviceinfo[xi2.ndeviceinfos].abs = xi2.deviceinfo[xi2.ndeviceinfos].axis[v->number].abs = true;
+								xi2.deviceinfo[xi2.ndeviceinfos].axis[v->number].min = v->min;
+								xi2.deviceinfo[xi2.ndeviceinfos].axis[v->number].max = v->max;
+							}
+						}
+					}	
+				}
+				xi2.pXIFreeDeviceInfo(dev);
+			}
+			
+			xi2.ndeviceinfos++;
+		}
+	}
+		
+	return &xi2.deviceinfo[devid];
+}
 static qboolean XI2_Init(void)
 {
 	static dllfunction_t xi2_functable[] =
 	{
 		{(void**)&xi2.pXIQueryVersion, "XIQueryVersion"},
 		{(void**)&xi2.pXISelectEvents, "XISelectEvents"},
+		{(void**)&xi2.pXIQueryDevice, "XIQueryDevice"},
+		{(void**)&xi2.pXIFreeDeviceInfo, "XIFreeDeviceInfo"},
 		{NULL, NULL}
 	};
 	XIEventMask evm;
@@ -1113,14 +1210,18 @@ static qboolean XI2_Init(void)
 	}
 	if (xi2.libxi)
 	{
+//		xi2.nextqdev = 0;	//start with 0, for player0
+//		xi2.nqdevices = 0;
 		xi2.vmajor = 2;
 		xi2.vminor = 0;
+//		xi2.devicegroup = XIAllMasterDevices;
+		xi2.devicegroup = XIAllDevices;
 		if (xi2.pXIQueryVersion(vid_dpy, &xi2.vmajor, &xi2.vminor))
 		{
 			Con_Printf("XInput library or server is too old\n");
 			return false;
 		}
-		evm.deviceid = XIAllMasterDevices;
+		evm.deviceid = xi2.devicegroup;
 		evm.mask_len = sizeof(maskbuf);
 		evm.mask = maskbuf;
 		memset(maskbuf, 0, sizeof(maskbuf));
@@ -1503,42 +1604,88 @@ static void X_KeyEvent(XKeyEvent *ev, qboolean pressed, qboolean filtered)
 
 static void install_grabs(void)
 {
-	//XGrabPointer can cause alt+tab type shortcuts to be skipped by the window manager. This means we don't want to use it unless we have no choice.
-	//the grab is purely to constrain the pointer to the window
-	if (GrabSuccess != x11.pXGrabPointer(vid_dpy, DefaultRootWindow(vid_dpy),
-				True,
-				0,
-				GrabModeAsync, GrabModeAsync,
-				vid_window,
-				None,
-				CurrentTime))
-		Con_Printf("Pointer grab failed\n");
-
-	if (x11_input_method == XIM_DGA)
+	if (!mouse_grabbed)
 	{
-		dgam.pXF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), XF86DGADirectMouse);
-	}
-	else
-	{
-		x11.pXWarpPointer(vid_dpy, None, vid_window,
-					 0, 0, 0, 0,
-					 vid.width / 2, vid.height / 2);
-	}
+		Con_DPrintf("Grabbing mouse\n");
+		mouse_grabbed = true;
+		//XGrabPointer can cause alt+tab type shortcuts to be skipped by the window manager. This means we don't want to use it unless we have no choice.
+		//the grab is purely to constrain the pointer to the window
+		if (GrabSuccess != x11.pXGrabPointer(vid_dpy, DefaultRootWindow(vid_dpy),
+					True,
+					0,
+					GrabModeAsync, GrabModeAsync,
+					vid_window,
+					None,
+					CurrentTime))
+			Con_Printf("Pointer grab failed\n");
 
-//	x11.pXSync(vid_dpy, True);
+		if (x11_input_method == XIM_DGA)
+		{
+			dgam.pXF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), XF86DGADirectMouse);
+		}
+		else
+		{
+			x11.pXWarpPointer(vid_dpy, None, vid_window,
+						 0, 0, 0, 0,
+						 vid.width / 2, vid.height / 2);
+		}
+
+//		x11.pXSync(vid_dpy, True);
+	}
 }
 
 static void uninstall_grabs(void)
 {
-	if (x11_input_method == XIM_DGA)
+	if (mouse_grabbed && vid_dpy)
 	{
-		dgam.pXF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), 0);
-	}
+		Con_DPrintf("Releasing mouse grab\n");
+		mouse_grabbed = false;
+		if (x11_input_method == XIM_DGA)
+		{
+			dgam.pXF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), 0);
+		}
 
-	if (vid_dpy)
 		x11.pXUngrabPointer(vid_dpy, CurrentTime);
 
-//	x11.pXSync(vid_dpy, True);
+//		x11.pXSync(vid_dpy, True);
+	}
+}
+
+static void UpdateGrabs(void)
+{
+	qboolean wantmgrabs, allownullcursor;
+	Cursor wantcursor;
+
+	wantmgrabs = (fullscreenflags&FULLSCREEN_ACTIVE) || !!_windowed_mouse.value;
+	if (!vid.activeapp)
+		wantmgrabs = false;
+	allownullcursor = wantmgrabs;	//this says whether we can possibly want it. if false then we disallow the null cursor. Yes, this might break mods that do their own sw cursors. such mods are flawed in other ways too.
+	if (Key_MouseShouldBeFree())
+		wantmgrabs = false;
+	if (modeswitchpending)
+		wantmgrabs = false;
+
+	if (wantmgrabs)
+		install_grabs();
+	else
+		uninstall_grabs();
+
+	if (mouse_grabbed)
+		wantcursor = vid_nullcursor;
+	else if (vid_newcursor)
+		wantcursor = vid_newcursor;
+	else if (!allownullcursor)
+		wantcursor = None;
+	else
+		wantcursor = vid_nullcursor;
+	if (wantcursor != vid_activecursor)
+	{
+		vid_activecursor = wantcursor;
+		if (vid_activecursor)
+			x11.pXDefineCursor(vid_dpy, vid_window, vid_activecursor);
+		else
+			x11.pXUndefineCursor(vid_dpy, vid_window);
+	}
 }
 
 static void ClearAllStates (void)
@@ -1580,10 +1727,15 @@ static void GetEvent(void)
 				{
 				case XI_RawButtonPress:
 				case XI_RawButtonRelease:
-					if (old_windowed_mouse)
+					if (mouse_grabbed)
 					{
 						XIRawEvent *raw = event.xcookie.data;
+						int *qdev = &XI2_GetDeviceInfo(raw->sourceid)->qdev;
 						int button = raw->detail;	//1-based
+						if (raw->sourceid != raw->deviceid)
+							return;	//ignore master devices to avoid dupes.
+						if (*qdev == DEVID_UNSET)
+							*qdev = xi2.nextqdev++;
 						switch(button)
 						{
 						case 1: button = K_MOUSE1; break;
@@ -1601,29 +1753,47 @@ static void GetEvent(void)
 						default:button = 0; break;
 						}
 						if (button)
-				                        IN_KeyEvent(raw->deviceid, (event.xcookie.evtype==XI_RawButtonPress), button, 0);
+				                        IN_KeyEvent(*qdev, (event.xcookie.evtype==XI_RawButtonPress), button, 0);
 					}
 					break;
 				case XI_RawMotion:
-					if (old_windowed_mouse)
+					if (mouse_grabbed)
 					{
 						XIRawEvent *raw = event.xcookie.data;
+						struct xidevinfo *dev = XI2_GetDeviceInfo(raw->sourceid);
 						double *val, *raw_val;
-						double rawx = 0, rawy = 0;
+						double axis[2] = {0, 0};
 						int i;
+						if (raw->sourceid != raw->deviceid)
+							return;	//ignore master devices to avoid dupes (we have our own device remapping stuff which should be slightly more friendly).
+						if (dev->qdev == DEVID_UNSET)
+							dev->qdev = xi2.nextqdev++;
 						val = raw->valuators.values;
 						raw_val = raw->raw_values;
+						if (dev->abs)
+							axis[0] = axis[1] = FLT_MIN;
 						for (i = 0; i < raw->valuators.mask_len * 8; i++)
 						{
 							if (XIMaskIsSet(raw->valuators.mask, i))
 							{
-								if (i == 0) rawx = *raw_val;
-								if (i == 1) rawy = *raw_val;
+								if (i == 0) axis[0] = *raw_val;
+								if (i == 1) axis[1] = *raw_val;
 								val++;
 								raw_val++;
 							}
 						}
-						IN_MouseMove(raw->deviceid, false, rawx, rawy, 0, 0);
+						if (dev->abs)
+						{	//tablets use weird 16bit coords or whatever. rescale to window coords (we have grabs, so offscreen stuff shouldn't matter).
+							for (i = 0; i < 2; i++)
+							{
+								if (axis[i] == FLT_MIN)
+									axis[i] = dev->axis[i].old;
+								dev->axis[i].old = axis[i];
+								axis[i] = (axis[i]-dev->axis[i].min) / (dev->axis[1].max+1-dev->axis[i].min);
+								axis[i] *= i?vid.pixelheight:vid.pixelwidth;
+							}
+						}
+						IN_MouseMove(dev->qdev, dev->abs, axis[0], axis[1], 0, 0);
 					}
 					break;
 				default:
@@ -1672,19 +1842,19 @@ static void GetEvent(void)
 		break;
 
 	case MotionNotify:
-		if (x11_input_method == XIM_DGA && old_windowed_mouse)
+		if (x11_input_method == XIM_DGA && mouse_grabbed)
 		{
-			IN_MouseMove(0, false, event.xmotion.x_root, event.xmotion.y_root, 0, 0);
+			IN_MouseMove(x11_mouseqdev, false, event.xmotion.x_root, event.xmotion.y_root, 0, 0);
 		}
 		else
 		{
-			if (old_windowed_mouse)
+			if (mouse_grabbed)
 			{
 				if (x11_input_method != XIM_XI2)
 				{
 					int cx = vid.pixelwidth/2, cy=vid.pixelheight/2;
 
-					IN_MouseMove(0, false, event.xmotion.x - cx, event.xmotion.y - cy, 0, 0);
+					IN_MouseMove(x11_mouseqdev, false, event.xmotion.x - cx, event.xmotion.y - cy, 0, 0);
 
 					/* move the mouse to the window center again (disabling warp first so we don't see it*/
 					x11.pXSelectInput(vid_dpy, vid_window, vid_x_eventmask & ~PointerMotionMask);
@@ -1695,13 +1865,13 @@ static void GetEvent(void)
 			}
 			else
 			{
-				IN_MouseMove(0, true, event.xmotion.x, event.xmotion.y, 0, 0);
+				IN_MouseMove(x11_mouseqdev, true, event.xmotion.x, event.xmotion.y, 0, 0);
 			}
 		}
 		break;
 
 	case ButtonPress:
-		if (x11_input_method == XIM_XI2 && old_windowed_mouse)
+		if (x11_input_method == XIM_XI2 && mouse_grabbed)
 			break;	//no dupes!
 		b=-1;
 		if (event.xbutton.button == 1)
@@ -1734,7 +1904,7 @@ static void GetEvent(void)
 			b = x11violations?K_MOUSE10:-1;
 
 		if (b>=0)
-			IN_KeyEvent(0, true, b, 0);
+			IN_KeyEvent(x11_mouseqdev, true, b, 0);
 
 /*
 		if (fullscreenflags & FULLSCREEN_LEGACY)
@@ -1779,7 +1949,7 @@ static void GetEvent(void)
 			b = x11violations?K_MOUSE10:-1;
 
 		if (b>=0)
-			IN_KeyEvent(0, false, b, 0);
+			IN_KeyEvent(x11_mouseqdev, false, b, 0);
 		break;
 
 	case FocusIn:
@@ -1822,13 +1992,7 @@ static void GetEvent(void)
 		if (event.xfocus.window == mw || event.xfocus.window == vid_window)
 		{
 			vid.activeapp = false;
-			if (old_windowed_mouse)
-			{
-				Con_DPrintf("uninstall grabs\n");
-				uninstall_grabs();
-				x11.pXUndefineCursor(vid_dpy, vid_window);
-				old_windowed_mouse = false;
-			}
+			UpdateGrabs();
 			ClearAllStates();
 		}
 		modeswitchpending = -1;
@@ -1846,11 +2010,11 @@ static void GetEvent(void)
 					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
 				}
 				else
-					Con_Printf("Got message %s\n", protname);
+					Con_DPrintf("Got unknown x11wm message %s\n", protname);
 				x11.pXFree(protname);
 			}
 			else
-				Con_Printf("Got message %s\n", name);
+				Con_DPrintf("Got unknown x11 message %s\n", name);
 			x11.pXFree(name);
 		}
 		break;
@@ -1895,10 +2059,10 @@ void GLVID_Shutdown(void)
 {
 	if (!vid_dpy)
 		return;
-
+	vid_activecursor = None;
+	vid_newcursor = None;
 	x11.pXUngrabKeyboard(vid_dpy, CurrentTime);
-	if (old_windowed_mouse)
-		uninstall_grabs();
+	uninstall_grabs();
 
 #ifdef USE_VMODE
 	if (vm.originalapplied)
@@ -1987,6 +2151,184 @@ static Cursor CreateNullCursor(Display *display, Window root)
 	x11.pXFreeGC(display,gc);
 	return cursor;
 }
+
+#include <X11/Xcursor/Xcursor.h>
+static struct
+{
+	void *lib;
+
+	XcursorBool (*SupportsARGB) (Display *dpy);
+	XcursorImage *(*ImageCreate) (int width, int height);
+	Cursor (*ImageLoadCursor) (Display *dpy, const XcursorImage *image);
+	void (*ImageDestroy) (XcursorImage *image);
+} xcursor;
+static void *X11VID_CreateCursorRGBA(const qbyte *rgbacursor, size_t w, size_t h, float hotx, float hoty)
+{
+	Cursor *cursor;
+	size_t x, y;
+	XcursorImage *img;
+	XcursorPixel *dest;
+
+	img = xcursor.ImageCreate(w, h);
+	img->xhot = hotx;
+	img->yhot = hoty;
+	dest = img->pixels;
+
+	for (y = 0; y < h; y++)
+		for (x = 0; x < w; x++, rgbacursor+=4)
+			*dest++ = (rgbacursor[3]<<24)|(rgbacursor[0]<<16)|(rgbacursor[1]<<8)|(rgbacursor[0]<<0);	//0xARGB
+
+	cursor = Z_Malloc(sizeof(*cursor));
+	*cursor = xcursor.ImageLoadCursor(vid_dpy, img);
+	xcursor.ImageDestroy(img);
+	if (*cursor)
+		return (void*)cursor;
+	Z_Free(cursor);
+	return NULL;
+}
+static void *X11VID_CreateCursor(const char *filename, float hotx, float hoty, float scale)
+{
+	void *r;
+	qbyte *rgbadata;
+	qboolean hasalpha;
+	void *filedata;
+	int filelen, width, height;
+	if (!filename || !*filename)
+		return NULL;
+	filelen = FS_LoadFile(filename, &filedata);
+	if (!filedata)
+		return NULL;
+
+	hasalpha = false;
+	rgbadata = Read32BitImageFile(filedata, filelen, &width, &height, &hasalpha, filename);
+	FS_FreeFile(filedata);
+	if (!rgbadata)
+		return NULL;
+
+	if (!hasalpha && !strchr(filename, ':'))
+	{	//people seem to insist on using jpgs, which don't have alpha.
+		//so screw over the alpha channel if needed.
+		unsigned int alpha_width, alpha_height, p;
+		char aname[MAX_QPATH];
+		unsigned char *alphadata;
+		char *alph;
+		size_t alphsize;
+		char ext[8];
+		COM_StripExtension(filename, aname, sizeof(aname));
+		COM_FileExtension(filename, ext, sizeof(ext));
+		Q_strncatz(aname, "_alpha.", sizeof(aname));
+		Q_strncatz(aname, ext, sizeof(aname));
+		alphsize = FS_LoadFile(filename, (void**)&alph);
+		if (alph)
+		{
+			if ((alphadata = Read32BitImageFile(alph, alphsize, &alpha_width, &alpha_height, &hasalpha, aname)))
+			{
+				if (alpha_width == width && alpha_height == height)
+					for (p = 0; p < alpha_width*alpha_height; p++)
+						rgbadata[(p<<2) + 3] = (alphadata[(p<<2) + 0] + alphadata[(p<<2) + 1] + alphadata[(p<<2) + 2])/3;
+				BZ_Free(alphadata);
+			}
+			FS_FreeFile(alph);
+		}
+	}
+
+	if (scale != 1)
+	{
+		int nw,nh;
+		qbyte *nd;
+		nw = width * scale;
+		nh = height * scale;
+		if (nw <= 0 || nh <= 0 || nw > 128 || nh > 128) //don't go crazy.
+			return NULL;
+		nd = BZ_Malloc(nw*nh*4);
+		Image_ResampleTexture((unsigned int*)rgbadata, width, height, (unsigned int*)nd, nw, nh);
+		width = nw;
+		height = nh;
+		BZ_Free(rgbadata);
+		rgbadata = nd;
+	}
+
+	r = X11VID_CreateCursorRGBA(rgbadata, width, height, hotx, hoty);
+	BZ_Free(rgbadata);
+
+	return r;
+}
+static void X11VID_DestroyCursor(void *qcursor)
+{
+	Cursor c = *(Cursor*)qcursor;
+	if (vid_newcursor == c)
+		vid_newcursor = None;
+	if (vid_dpy)
+		x11.pXFreeCursor(vid_dpy, c);
+	Z_Free(qcursor);
+}
+static qboolean X11VID_SetCursor(void *qcursor)
+{
+	vid_newcursor = *(Cursor*)qcursor;
+
+	if (vid_dpy)
+		UpdateGrabs();
+	return true;
+}
+static qboolean XCursor_Init(void)
+{
+	static dllfunction_t xcursor_functable[] =
+	{
+		{(void**)&xcursor.SupportsARGB,		"XcursorSupportsARGB"},
+		{(void**)&xcursor.ImageCreate,		"XcursorImageCreate"},
+		{(void**)&xcursor.ImageLoadCursor,	"XcursorImageLoadCursor"},
+		{(void**)&xcursor.ImageDestroy,		"XcursorImageDestroy"},
+		{NULL, NULL}
+	};
+	qboolean defaulthwcursor = true;
+
+	if (!strcmp(gl_vendor, "Humper") && !strcmp(gl_renderer, "Chromium"))
+	{	//I don't really understand the significance of these two values, but we get them when running inside VirtualBox
+		//in such cases, the opengl window has a nasty habit of appearing top-most, even above mouse cursors...
+		//so we NEED to disable hardware cursors by default in this case, because otherwise we won't see any
+		//(the cursor should be visible with mouse integration enabled, but then XWarpPointer fails without error. unplayable both ways to some extent)
+		Con_Printf("VirtualBox Detected: OpenGL obscures hardware cursors. seta x11_allow_xcursor 1 to ignore.\n");
+		defaulthwcursor = false;
+	}
+
+	//in case they were previously set...
+	rf->VID_CreateCursor = NULL;
+	rf->VID_DestroyCursor = NULL;
+	rf->VID_SetCursor = NULL;
+
+	if (!X11_CheckFeature("xcursor", defaulthwcursor))
+	{
+		Con_Printf("Hardware cursors disabled.\n");
+		return false;
+	}
+
+	if (!xcursor.lib)
+	{
+#ifdef __CYGWIN__
+		if (!xcursor.lib)
+			xcursor.lib = Sys_LoadLibrary("cygXcursor.dll", xcursor_functable);
+#endif
+		if (!xcursor.lib)
+			xcursor.lib = Sys_LoadLibrary("libXcursor.so.1", xcursor_functable);
+		if (!xcursor.lib)
+			xcursor.lib = Sys_LoadLibrary("libXcursor.so", xcursor_functable);
+		if (!xcursor.lib)
+			Con_Printf("Xcursor library not available or too old.\n");
+	}
+	if (xcursor.lib)
+	{
+		if (xcursor.SupportsARGB(vid_dpy))
+		{	//okay, we should be able to use argb hardware cursors, so set up our public function pointers
+			rf->VID_CreateCursor = X11VID_CreateCursor;
+			rf->VID_DestroyCursor = X11VID_DestroyCursor;
+			rf->VID_SetCursor = X11VID_SetCursor;
+			return true;
+		}
+	}
+	Con_Printf("Hardware cursors unsupported.\n");
+	return false;
+}
+
 
 qboolean GLVID_ApplyGammaRamps(unsigned int rampcount, unsigned short *ramps)
 {
@@ -2487,6 +2829,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 #endif
 
 	vid_nullcursor = CreateNullCursor(vid_dpy, vid_window);
+	vid_newcursor = vid_activecursor = None;	//at this point, the cursor is undefined (aka: inherited from parent)
 
 	x11.pXFlush(vid_dpy);
 
@@ -2584,7 +2927,6 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	if (fullscreenflags)
 		fullscreenflags |= FULLSCREEN_ACTIVE;
 
-	// TODO: make this into a cvar, like "in_dgamouse", instead of parameters
 	if (X11_CheckFeature("xi2", true) && XI2_Init())
 	{
 		x11_input_method = XIM_XI2;
@@ -2600,6 +2942,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		x11_input_method = XIM_ORIG;
 		Con_DPrintf("Using X11 mouse\n");
 	}
+	XCursor_Init();
 
 	if (fullscreenflags & FULLSCREEN_LEGACY)
 		x11.pXMoveResizeWindow(vid_dpy, vid_window, fullscreenx, fullscreeny, fullscreenwidth, fullscreenheight);
@@ -2645,20 +2988,12 @@ void Sys_SendKeyEvents(void)
 	}
 	if (vid_dpy && vid_window)
 	{
-		qboolean wantwindowed;
-
 		while (x11.pXPending(vid_dpy))
 			GetEvent();
 
 		if (modeswitchpending && modeswitchtime < Sys_Milliseconds())
 		{
-			if (old_windowed_mouse)
-			{
-				Con_DPrintf("uninstall grabs\n");
-				uninstall_grabs();
-				x11.pXUndefineCursor(vid_dpy, vid_window);
-				old_windowed_mouse = false;
-			}
+			UpdateGrabs();
 			if (modeswitchpending > 0 && !(fullscreenflags & FULLSCREEN_ACTIVE))
 			{
 				//entering fullscreen mode
@@ -2737,32 +3072,7 @@ void Sys_SendKeyEvents(void)
 		if (modeswitchpending)
 			return;
 
-		wantwindowed = !!_windowed_mouse.value;
-		if (!vid.activeapp)
-			wantwindowed = false;
-		if (Key_MouseShouldBeFree() && !fullscreenflags)
-			wantwindowed = false;
-
-		if (old_windowed_mouse != wantwindowed)
-		{
-			old_windowed_mouse = wantwindowed;
-
-			if (!wantwindowed)
-			{
-				Con_DPrintf("uninstall grabs\n");
-				/* ungrab the pointer */
-				uninstall_grabs();
-				x11.pXUndefineCursor(vid_dpy, vid_window);
-			}
-			else
-			{
-				Con_DPrintf("install grabs\n");
-				/* grab the pointer */
-				install_grabs();
-				/*hide the cursor*/
-				x11.pXDefineCursor(vid_dpy, vid_window, vid_nullcursor);
-			}
-		}
+		UpdateGrabs();
 	}
 }
 
@@ -2790,6 +3100,38 @@ void INS_Shutdown(void)
 }
 void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid))
 {
+	callback(ctx, "keyboard", "x11", NULL);
+	switch(x11_input_method)
+	{
+	case XIM_ORIG:
+		callback(ctx, "mouse", "x11", &x11_mouseqdev);
+		break;
+	case XIM_DGA:
+		callback(ctx, "mouse", "dga", &x11_mouseqdev);
+		break;
+	case XIM_XI2:
+		{
+			int i, devs;
+			XIDeviceInfo *dev = xi2.pXIQueryDevice(vid_dpy, xi2.devicegroup, &devs);
+			for (i = 0; i < devs; i++)
+			{
+				if (!dev[i].enabled)
+					return;
+				if (/*dev[i].use == XIMasterPointer ||*/ dev[i].use == XISlavePointer)
+				{
+					struct xidevinfo *devi = XI2_GetDeviceInfo(dev[i].deviceid);
+					callback(ctx, devi->abs?"tablet":"mouse", dev[i].name, &devi->qdev);
+				}
+//				else if (dev[i].use == XIMasterKeyboard || dev[i].use == XISlaveKeyboard)
+//				{
+//					int qdev = dev[i].deviceid;
+//					callback(ctx, "xi2kb", dev[i].name, &qdev);
+//				}
+			}
+			xi2.pXIFreeDeviceInfo(dev);
+		}
+		break;
+	}
 }
 
 void GLVID_SetCaption(const char *text)

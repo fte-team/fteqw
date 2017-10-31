@@ -195,7 +195,7 @@ mesh_t flashblend_mesh;
 mesh_t flashblend_fsmesh;
 shader_t *occluded_shader;
 shader_t *flashblend_shader;
-shader_t *lpplight_shader[LSHADER_MODES];
+shader_t *deferredlight_shader[LSHADER_MODES];
 
 void R_GenerateFlashblendTexture(void)
 {
@@ -275,7 +275,7 @@ void R_InitFlashblends(void)
 			"}\n"
 		"}\n"
 		);
-	memset(lpplight_shader, 0, sizeof(lpplight_shader));
+	memset(deferredlight_shader, 0, sizeof(deferredlight_shader));
 }
 
 static qboolean R_BuildDlightMesh(dlight_t *light, float colscale, float radscale, int dtype)
@@ -521,14 +521,36 @@ void R_RenderDlights (void)
 
 
 qboolean Sh_GenerateShadowMap(dlight_t *l);
+qboolean Sh_CullLight(dlight_t *dl, qbyte *vvis);
 void R_GenDlightMesh(struct batch_s *batch)
 {
 	static mesh_t *meshptr;
 	dlight_t	*l = cl_dlights + batch->surf_first;
+	vec3_t colour;
 
 	int lightflags = batch->surf_count;
 
-	BE_SelectDLight(l, l->color, l->axis, lightflags);
+	VectorCopy(l->color, colour);
+	if (l->style)
+	{
+		colour[0] *= cl_lightstyle[l->style-1].colours[0] * d_lightstylevalue[l->style-1]/255.0f;
+		colour[1] *= cl_lightstyle[l->style-1].colours[1] * d_lightstylevalue[l->style-1]/255.0f;
+		colour[2] *= cl_lightstyle[l->style-1].colours[2] * d_lightstylevalue[l->style-1]/255.0f;
+	}
+	else
+	{
+		colour[0] *= r_lightstylescale.value;
+		colour[1] *= r_lightstylescale.value;
+		colour[2] *= r_lightstylescale.value;
+	}
+
+	if (colour[0] < 0.001 && colour[1] < 0.001 && colour[2] < 0.001)
+	{	//just switch these off.
+		batch->meshes = 0;
+		return;
+	}
+
+	BE_SelectDLight(l, colour, l->axis, lightflags);
 #ifdef RTLIGHTS
 	if (lightflags & LSHADER_SMAP)
 	{
@@ -539,6 +561,11 @@ void R_GenDlightMesh(struct batch_s *batch)
 		}
 		BE_SelectEntity(&r_worldentity);
 		BE_SelectMode(BEM_STANDARD);
+	}
+	else if (Sh_CullLight(l, r_refdef.scenevis))
+	{
+		batch->meshes = 0;
+		return;
 	}
 #endif
 
@@ -560,6 +587,8 @@ void R_GenDlightMesh(struct batch_s *batch)
 		meshptr = &flashblend_mesh;
 	}
 	batch->mesh = &meshptr;
+
+	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
 }
 void R_GenDlightBatches(batch_t *batches[])
 {
@@ -570,33 +599,24 @@ void R_GenDlightBatches(batch_t *batches[])
 	if (!r_lightprepass)
 		return;
 
-	if (!lpplight_shader[0])
+	if (!deferredlight_shader[0])
 	{
-		lpplight_shader[0] = R_RegisterShader("lpp_light", SUF_NONE,
+		const char *deferredlight_shader_code = 
 						"{\n"
-							"program lpp_light\n"
+							"deferredlight\n"
+							"surfaceparm nodlight\n"
 							"{\n"
-								"map $sourcecolour\n"
+								"program lpp_light\n"
 								"blendfunc gl_one gl_one\n"
 								"nodepthtest\n"
+								"map $gbuffer0\n"	//depth
+								"map $gbuffer1\n"	//normals.rgb specexp.a
 							"}\n"
-							"surfaceparm nodlight\n"
-							"lpp_light\n"
 						"}\n"
-					);
+			;
+		deferredlight_shader[0] = R_RegisterShader("deferredlight", SUF_NONE, deferredlight_shader_code);
 #ifdef RTLIGHTS
-		lpplight_shader[LSHADER_SMAP] = R_RegisterShader("lpp_light#PCF", SUF_NONE,
-						"{\n"
-							"program lpp_light\n"
-							"{\n"
-								"map $sourcecolour\n"
-								"blendfunc gl_one gl_one\n"
-								"nodepthtest\n"
-							"}\n"
-							"surfaceparm nodlight\n"
-							"lpp_light\n"
-						"}\n"
-					);
+		deferredlight_shader[LSHADER_SMAP] = R_RegisterShader("deferredlight#PCF", SUF_NONE, deferredlight_shader_code);
 #endif
 	}
 
@@ -607,7 +627,10 @@ void R_GenDlightBatches(batch_t *batches[])
 			continue;
 
 		if (R_CullSphere(l->origin, l->radius))
+		{
+			RQuantAdd(RQUANT_RTLIGHT_CULL_FRUSTUM, 1);
 			continue;
+		}
 
 		lmode = 0;
 #ifdef RTLIGHTS
@@ -622,7 +645,7 @@ void R_GenDlightBatches(batch_t *batches[])
 			return;
 
 		b->flags = 0;
-		b->shader = lpplight_shader[lmode];
+		b->shader = deferredlight_shader[lmode];
 		sort = b->shader->sort;
 		b->buildmeshes = R_GenDlightMesh;
 		b->ent = &r_worldentity;

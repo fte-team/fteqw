@@ -135,8 +135,9 @@ qboolean R_DrawSkyChain (batch_t *batch)
 	{
 		skyshader = forcedsky;
 
-		if (forcedsky->numpasses)
+		if (forcedsky->numpasses && !forcedsky->skydome)
 		{	//cubemap skies!
+			//this is just a simple pass. we use glsl/texgen for any actual work
 			batch_t b = *batch;
 			b.shader = forcedsky;
 			b.skin = NULL;
@@ -158,7 +159,7 @@ qboolean R_DrawSkyChain (batch_t *batch)
 		skyboxtex = NULL;
 
 	if (skyboxtex && TEXVALID(*skyboxtex))
-	{
+	{	//draw a skybox if we were given the textures
 		R_CalcSkyChainBounds(batch);
 		GL_DrawSkyBox (skyboxtex, batch);
 
@@ -166,20 +167,22 @@ qboolean R_DrawSkyChain (batch_t *batch)
 			GL_DrawSkySphere(batch, skyshader);
 	}
 	else if (skyshader->numpasses)
-	{
+	{	//if we have passes, then they're normally projected.
 		if (*r_fastsky.string && TEXVALID(batch->shader->defaulttextures->base) && TEXVALID(batch->shader->defaulttextures->fullbright))
-		{
+		{	//we have a small perf trick to accelerate q1 skies, also helps avoids distortions, but doesn't work too well for any other type of sky.
 			R_CalcSkyChainBounds(batch);
 			GL_DrawSkyGrid(skyshader->defaulttextures);
 		}
 		else
 			GL_DrawSkySphere(batch, skyshader);
 	}
-	/*else if (batch->meshes)
-	{	//if you had wanted it invisible, you should have used nodraw.
-		R_DrawFastSky(batch);
-		return true;	//depth will always be drawn with this pathway.
-	}*/
+	else if (batch->meshes)
+	{	//skys are weird.
+		//they're the one type of surface with implicit nodraw when there's no passes.
+		if (batch->shader->skydome || batch->shader->numpasses)
+			R_DrawFastSky(batch);
+		return true;	//depth will always be drawn with this pathway... or we were not drawing anything anyway...
+	}
 
 	//neither skydomes nor skyboxes nor skygrids will have been drawn with the correct depth values for the sky.
 	//this can result in rooms behind the sky surfaces being visible.

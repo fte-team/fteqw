@@ -93,7 +93,7 @@ struct {
 
 		program_t *programfixedemu[8];
 
-		texid_t tex_gbuf[2];
+		texid_t tex_gbuf[GBUFFER_COUNT];
 		int fbo_current;	//the one currently being rendered to
 		texid_t tex_sourcecol; /*this is used by $sourcecolour tgen*/
 		texid_t tex_sourcedepth;
@@ -278,16 +278,11 @@ void GLBE_PolyOffsetStencilShadow
 			qglDisable(GL_POLYGON_OFFSET_FILL);
 	}
 }
-static void GLBE_PolyOffsetShadowMap
-					#ifdef BEF_PUSHDEPTH
-							(qboolean pushdepth)
-					#else
-							(void)
-					#endif
+static void GLBE_PolyOffsetShadowMap(void)
 {
 	extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
 	polyoffset_t po;
-#ifdef BEF_PUSHDEPTH
+#if 0//def BEF_PUSHDEPTH
 	if (pushdepth)
 	{
 		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
@@ -913,7 +908,7 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 	shaderstate.dummyvbo.indicies.gl.vbo = ibo;
 
 	if (shaderstate.mode != BEM_STENCIL)
-		GLBE_PolyOffsetShadowMap(false);
+		GLBE_PolyOffsetShadowMap();
 
 	if (shaderstate.allblackshader.glsl.handle)
 	{
@@ -1265,6 +1260,9 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		break;
 	case T_GEN_RIPPLEMAP:
 		t = shaderstate.tex_ripplemap[r_refdef.recurse];
+		break;
+	case T_GEN_GBUFFERCASE:
+		t = shaderstate.tex_gbuf[pass->texgen-T_GEN_GBUFFER0];
 		break;
 	}
 	GL_LazyBind(tmu, GL_TEXTURE_2D, t);
@@ -3727,7 +3725,11 @@ void GLBE_SelectMode(backendmode_t mode)
 #ifdef RTLIGHTS
 		case BEM_STENCIL:
 			/*BEM_STENCIL doesn't support mesh writing*/
+#ifdef BEF_PUSHDEPTH
 			GLBE_PolyOffsetStencilShadow(false);
+#else
+			GLBE_PolyOffsetStencilShadow();
+#endif
 
 			if (gl_config_nofixedfunc && !shaderstate.allblackshader.glsl.handle)
 			{
@@ -4182,16 +4184,30 @@ static void DrawMeshes(void)
 		break;
 	case BEM_GBUFFER:
 		altshader = shaderstate.curshader->bemoverrides[bemoverride_gbuffer];
-		if (altshader && altshader->prog)
+		if (altshader)
 		{
-			shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
-			shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
-			shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
-			shaderstate.pendingtexcoordparts[0] = 2;
-			shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
-			shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
-			BE_RenderMeshProgram(altshader, altshader->passes, altshader->prog);
+			if (altshader->prog)
+			{
+				shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
+				shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
+				shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
+				shaderstate.pendingtexcoordparts[0] = 2;
+				shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+				shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+				BE_RenderMeshProgram(altshader, altshader->passes, altshader->prog);
+			}
+			else if (altshader->numpasses && altshader->passes[0].prog)
+			{
+				shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
+				shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
+				shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
+				shaderstate.pendingtexcoordparts[0] = 2;
+				shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+				shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+				BE_RenderMeshProgram(altshader, altshader->passes, altshader->passes[0].prog);
+			}
 		}
+
 		break;
 #endif
 	case BEM_CREPUSCULAR:
@@ -5132,7 +5148,7 @@ static void BE_UpdateLightmaps(void)
 			if (!TEXVALID(lm->lightmap_texture))
 			{
 				extern cvar_t gl_lightmap_nearest;
-				TEXASSIGN(lm->lightmap_texture, Image_CreateTexture("***lightmap***", NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
+				TEXASSIGN(lm->lightmap_texture, Image_CreateTexture(va("***lightmap %i***", lmidx), NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
 				qglGenTextures(1, &lm->lightmap_texture->num);
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -5500,8 +5516,12 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 
 void GLBE_DrawLightPrePass(void)
 {
+	cvar_t *var;
 	unsigned int i;
 	qboolean redefine = false;
+	texid_t depth, targets[countof(shaderstate.tex_gbuf)];
+	const char *s;
+	int w = r_refdef.pxrect.width, h = r_refdef.pxrect.height;
 	/*
 	walls(bumps) -> normalbuffer
 	lights+normalbuffer -> lightlevelbuffer
@@ -5510,6 +5530,7 @@ void GLBE_DrawLightPrePass(void)
 	normalbuffer contains depth in the alpha channel. an actual depthbuffer is also generated at this time, which is used for depth test stuff but not as a shader input.
 	*/
 	int oldfbo;
+
 	/*do portals*/
 	BE_SelectMode(BEM_STANDARD);
 	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_PORTAL, SHADER_SORT_PORTAL);
@@ -5517,15 +5538,15 @@ void GLBE_DrawLightPrePass(void)
 	BE_SelectMode(BEM_GBUFFER);
 	for (i = 0; i < countof(shaderstate.tex_gbuf); i++)
 	{
-		if (!TEXVALID(shaderstate.tex_gbuf[i]) || vid.fbpwidth != shaderstate.tex_gbuf[i]->width || vid.fbpheight != shaderstate.tex_gbuf[i]->height)
+		if (!TEXVALID(shaderstate.tex_gbuf[i]) || w != shaderstate.tex_gbuf[i]->width || h != shaderstate.tex_gbuf[i]->height)
 		{
 			if (!shaderstate.tex_gbuf[i])
 			{
-				shaderstate.tex_gbuf[i] = Image_CreateTexture(va("***prepass %u***", i), NULL, 0);
+				shaderstate.tex_gbuf[i] = Image_CreateTexture(va("***gbuffer %u***", i), NULL, IF_CLAMP|IF_NEAREST|IF_NOMIPMAP|IF_RENDERTARGET);
 				qglGenTextures(1, &shaderstate.tex_gbuf[i]->num);
 			}
-			shaderstate.tex_gbuf[i]->width = vid.fbpwidth;
-			shaderstate.tex_gbuf[i]->height = vid.fbpheight;
+			shaderstate.tex_gbuf[i]->width = w;
+			shaderstate.tex_gbuf[i]->height = h;
 			redefine = true;
 		}
 	}
@@ -5533,47 +5554,112 @@ void GLBE_DrawLightPrePass(void)
 	//something changed, redefine the textures.
 	if (redefine)
 	{
-		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_gbuf[1]);
-		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, vid.fbpwidth, vid.fbpheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		static const char *defualtfmts[countof(shaderstate.tex_gbuf)] =
+			//depth,	normals,	difflight,	speclight
+			{"depth",	"rgba16f",	"rgba16f",	"rgba8",	"", "", "", ""};
+		for (i = 0; i < countof(shaderstate.tex_gbuf); i++)
+		{
+			GLint ifmt = 0;
+			GLenum dfmt = GL_RGBA;
+			var = Cvar_Get(va("gl_deferred_gbuffmt_%i", i), defualtfmts[i]?defualtfmts[i]:"", 0, "Deferred Rendering");
+			if (!var)
+				continue;
+			if (!strcmp(var->string, "rgba32f"))
+				ifmt = GL_RGBA32F_ARB;
+			else if (!strcmp(var->string, "rgba16f"))
+				ifmt = GL_RGBA16F_ARB;
+//			else if (!strcmp(var->string, "rgba8s"))
+//				ifmt = GL_RGBA8_SNORM;
+			else if (!strcmp(var->string, "depth"))
+			{
+				ifmt = GL_DEPTH_COMPONENT;
+				dfmt = GL_DEPTH_COMPONENT;
+			}
+			else if (!strcmp(var->string, "depth16"))
+			{
+				ifmt = GL_DEPTH_COMPONENT16_ARB;
+				dfmt = GL_DEPTH_COMPONENT;
+			}
+			else if (!strcmp(var->string, "depth24"))
+			{
+				ifmt = GL_DEPTH_COMPONENT24_ARB;
+				dfmt = GL_DEPTH_COMPONENT;
+			}
+			else if (!strcmp(var->string, "depth32"))
+			{
+				ifmt = GL_DEPTH_COMPONENT32_ARB;
+				dfmt = GL_DEPTH_COMPONENT;
+			}
+			else if (!strcmp(var->string, "rgba8") || *var->string)
+				ifmt = GL_RGBA8;
+			else
+				continue;
 
-		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_gbuf[0]);
-		qglTexImage2D(GL_TEXTURE_2D, 0, (r_lightprepass==2)?GL_RGBA32F_ARB:GL_RGBA16F_ARB, vid.fbpwidth, vid.fbpheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			shaderstate.tex_gbuf[i]->status = TEX_LOADED;
+			GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_gbuf[i]);
+			qglTexImage2D(GL_TEXTURE_2D, 0, ifmt, w, h, 0, dfmt, GL_UNSIGNED_BYTE, NULL);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		}
 	}
 
 	/*set the FB up to draw surface info*/
-	oldfbo = GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_gbuf[0], 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
-	GL_ForceDepthWritable();
-	//FIXME: should probably clear colour buffer too.
-	qglClear(GL_DEPTH_BUFFER_BIT);
+	var = Cvar_Get2("gl_deferred_pre_depth", "0", 0, "gbuffer index used for depth. negative means to use an annonamous renderbuffer", "Deferred Rendering");
+	if (var->ival < 0 || var->ival >= countof(shaderstate.tex_gbuf))
+		depth = r_nulltex;
+	else
+		depth = shaderstate.tex_gbuf[var->ival];
+	var = Cvar_Get2("gl_deferred_pre_targets", "1", 0, "space-separated list of gbuffer indexes to use for deferred surface information", "Deferred Rendering");
+	for (i = 0, s = var->string; *s && i < countof(targets); )
+	{
+		char token[32];
+		int b;
+		s = COM_ParseOut(s, token, sizeof(token));
+		if (!*token)
+			continue;
+		b = atoi(token);
+		if (b >= 0 && b < countof(shaderstate.tex_gbuf))
+			targets[i++] = shaderstate.tex_gbuf[b];
+	}
 
+	oldfbo = GLBE_FBO_Update(&shaderstate.fbo_lprepass, depth?FBO_TEX_DEPTH:FBO_RB_DEPTH, targets, i, depth, w, h, 0);
 	if (GL_FRAMEBUFFER_COMPLETE_EXT != qglCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT))
 	{
 		Con_Printf("Bad framebuffer\n");
 		return;
 	}
+	GL_ForceDepthWritable();
+	//FIXME: should probably clear colour buffer too.
+	qglClear(GL_DEPTH_BUFFER_BIT);
 
 	/*draw surfaces that can be drawn this way*/
 	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_OPAQUE, SHADER_SORT_OPAQUE);
 
 	/*reconfigure - now drawing diffuse light info using the previous fb image as a source image*/
-	GLBE_FBO_Sources(shaderstate.tex_gbuf[0], r_nulltex);
-	GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_gbuf[1], 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
+	var = Cvar_Get2("gl_deferred_light_targets", "2 3", 0, "space-separated list of gbuffer indexes for lighting to write to", "Deferred Rendering");
+	for (i = 0, s = var->string; *s && i < countof(targets); )
+	{
+		char token[32];
+		int b;
+		s = COM_ParseOut(s, token, sizeof(token));
+		if (!*token)
+			continue;
+		b = atoi(token);
+		if (b >= 0 && b < countof(shaderstate.tex_gbuf))
+			targets[i++] = shaderstate.tex_gbuf[b];
+	}
+	GLBE_FBO_Update(&shaderstate.fbo_lprepass, depth?FBO_TEX_DEPTH:FBO_RB_DEPTH, targets, i, depth, w, h, 0);
 
 	BE_SelectMode(BEM_STANDARD);
-	qglClearColor (0,0,0,1);
+	qglClearColor (0,0,0,0);
 	qglClear(GL_COLOR_BUFFER_BIT);
 
 	GLBE_SelectEntity(&r_worldentity);
 	/*now draw the prelights*/
-	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_PRELIGHT, SHADER_SORT_PRELIGHT);
+	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_DEFERREDLIGHT, SHADER_SORT_DEFERREDLIGHT);
 
 	/*final reconfigure - now drawing final surface data onto true framebuffer*/
 	GLBE_FBO_Pop(oldfbo);
-	GLBE_FBO_Sources(shaderstate.tex_gbuf[1], r_nulltex);
 	if (!oldfbo)
 		qglDrawBuffer(GL_BACK);
 
@@ -5587,7 +5673,6 @@ void GLBE_DrawLightPrePass(void)
 	Sh_DrawLights(r_refdef.scenevis);
 #endif
 
-	GLBE_FBO_Sources(r_nulltex, r_nulltex);
 	qglClearColor (1,0,0,1);
 }
 

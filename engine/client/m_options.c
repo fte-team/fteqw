@@ -1620,7 +1620,8 @@ static const char *maplist_q2[] =
 	"city2",
 	"city3",
 	"boss1",
-	"boss2"
+	"boss2",
+	NULL
 };
 static const char *mapoptions_q2[] =
 {
@@ -1692,7 +1693,7 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
 	}
 
 #ifndef CLIENTONLY
-	if ((unsigned int)info->mapcombo->selectedoption >= sizeof(maplist_q1)/sizeof(maplist_q1[0]))
+	if ((unsigned int)info->mapcombo->selectedoption < countof(maplist_q1)-1)
 		Cbuf_AddText(va("map %s\n", maplist_q1[info->mapcombo->selectedoption]), RESTRICT_LOCAL);
 #endif
 
@@ -1733,7 +1734,7 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	else
 		currentskill = skill.value;
 
-	for (currentmap = sizeof(maplist_q1)/sizeof(maplist_q1[0]) - 1; currentmap > 0; currentmap--)
+	for (currentmap = countof(maplist_q1); currentmap --> 0; )
 		if (!strcmp(host_mapname.string, maplist_q1[currentmap]))
 			break;
 	/*anything that doesn't match will end up with 0*/
@@ -1807,7 +1808,7 @@ qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct menu_s *menu,int ke
 		break;
 	}
 
-	if ((unsigned int)info->mapcombo->selectedoption >= sizeof(maplist_q2)/sizeof(maplist_q2[0]))
+	if ((unsigned int)info->mapcombo->selectedoption < countof(maplist_q2)-1)
 		Cbuf_AddText(va("map %s\n", maplist_q2[info->mapcombo->selectedoption]), RESTRICT_LOCAL);
 
 	M_RemoveMenu(menu);
@@ -1847,7 +1848,7 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	else
 		currentskill = skill.value;
 
-	for (currentmap = sizeof(maplist_q2)/sizeof(maplist_q2[0]) - 1; currentmap > 0; currentmap--)
+	for (currentmap = countof(maplist_q2); currentmap --> 0; )
 		if (!strcmp(host_mapname.string, maplist_q2[currentmap]))
 			break;
 	/*anything that doesn't match will end up with 0*/

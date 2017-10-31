@@ -1188,7 +1188,7 @@ void QCBUILTIN PF_touchtriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 //entity(string field, float match) findchainflags = #450
 //chained search for float, int, and entity reference fields
-void PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, ff, cf;
 	int s;
@@ -1219,7 +1219,7 @@ void PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //entity(string field, float match) findchainfloat = #403
-void PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, ff, cf;
 	float s;
@@ -1251,7 +1251,7 @@ void PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //entity(string field, string match) findchain = #402
 //chained search for strings in entity fields
-void PF_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, ff, cf;
 	const char *s;

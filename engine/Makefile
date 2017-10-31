@@ -537,10 +537,9 @@ else
 	#really we want dumpmachine's more specific cpu arch included here, so lets hope that idiot burns for all eternity. or something equally melodramatic.
 	ARCH:=$(shell $(CC) -print-multiarch)
 	ifneq ($(words $(ARCH)),1)
-		foo:=$(shell echo falling back on dumpmachine 1>&2 )
 		ARCH:=$(shell $(CC) -dumpmachine)
 	endif
-	foo:=$(shell echo ARCH is $(ARCH) 1>&2 )
+	#foo:=$(shell echo ARCH is $(ARCH) 1>&2 )
 endif
 ARCHLIBS=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)
 

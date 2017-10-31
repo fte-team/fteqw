@@ -835,7 +835,7 @@ char *DecompileAgressiveType(dfunction_t *df, dstatement_t *last, gofs_t ofs)
 	{
 		if (last->c == ofs && 
 			pr_opcodes[last->op].associative == ASSOC_LEFT &&
-			pr_opcodes[last->op].priority_>0)
+			pr_opcodes[last->op].priorityclass)
 		{
 			//previous was an operation into the temp
 			return type_names[(*pr_opcodes[last->op].type_c)->type];
@@ -1452,13 +1452,13 @@ char *DecompileImmediate_Get(dfunction_t *df, gofs_t ofs, QCC_type_t *req_t)
 			break;
 		case ev_entity:
 			if (!pr_globals[ofs])
-				QC_snprintfz(temp, sizeof(temp), "__NULL__/*entity*/");
+				QC_snprintfz(temp, sizeof(temp), "((entity)__NULL__)");
 			else
 				QC_snprintfz(temp, sizeof(temp), "(entity)%i", ((int*)pr_globals)[ofs]);
 			break;
 		case ev_field:
 			if (!pr_globals[ofs])
-				QC_snprintfz(temp, sizeof(temp), "__NULL__/*field*/");
+				QC_snprintfz(temp, sizeof(temp), "((.void)__NULL__)");
 			else
 				QC_snprintfz(temp, sizeof(temp), "/*field %s*/%i", DecompileGetFieldNameIdxByFinalOffset(((int*)pr_globals)[ofs]), ((int*)pr_globals)[ofs]);
 			break;
@@ -2269,6 +2269,12 @@ char *DecompileValueString(etype_t type, void *val)
 		case ev_pointer:
 			QC_snprintfz(line, sizeof(line), "(__variant*)0x%xi", *(int *)val);
 			break;
+		case ev_function:
+			if (*(int *)val>0 && *(int *)val<numfunctions)
+				QC_snprintfz(line, sizeof(line), "(/*func 0x%x*/%s)", *(int *)val, strings+functions[*(int *)val].s_name);
+			else
+				QC_snprintfz(line, sizeof(line), "((void())0x%xi)", *(int *)val);
+			break;
 		default:
 			QC_snprintfz(line, sizeof(line), "bad type %i", type);
 			break;
@@ -2979,6 +2985,13 @@ void DecompileProgsDat(char *name, void *buf, size_t bufsize)
 	char *c = ReadProgsCopyright(buf, bufsize);
 	if (c)
 		printf("Copyright: %s\n", c);
+
+	PreCompile();
+	pHash_Get = &Hash_Get;
+	pHash_GetNext = &Hash_GetNext;
+	pHash_Add = &Hash_Add;
+	pHash_RemoveData = &Hash_RemoveData;
+	Hash_InitTable(&typedeftable, 1024, qccHunkAlloc(Hash_BytesForBuckets(1024)));
 
 	maxtypeinfos = 64;
 	qcc_typeinfo = (void *)malloc(sizeof(QCC_type_t)*maxtypeinfos);

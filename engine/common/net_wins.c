@@ -2657,6 +2657,7 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 				struct sockaddr_in6 from;
 				from.sin6_family = AF_INET6;
 				from.sin6_port = port;
+				from.sin6_scope_id = 0;
 				memcpy(&from.sin6_addr, h->h_addr_list[b], sizeof(((struct sockaddr_in6*)&from)->sin6_addr));
 				SockadrToNetadr((struct sockaddr_qstorage*)&from, addresses);
 				*adrflags++ = 0;

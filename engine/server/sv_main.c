@@ -313,6 +313,7 @@ void VARGS SV_Error (char *error, ...)
 	va_list		argptr;
 	static	char		string[1024];
 	static	qboolean inerror = false;
+	int i;
 
 	if (inerror)
 	{
@@ -345,6 +346,13 @@ void VARGS SV_Error (char *error, ...)
 
 	if (sv.state)
 		SV_FinalMessage (va("server crashed: %s\n", string));
+
+	//flag all players as unspawned, so gamecode doesn't recurse while already crashing. that sort of thing just results in more crashes.
+	for (i = 0; i < sv.allocated_client_slots; i++)
+		svs.clients[i].spawned = false;
+	sv.spawned_client_slots = 0;
+	sv.spawned_observer_slots = 0;
+
 
 	SV_UnspawnServer();
 #ifndef SERVERONLY

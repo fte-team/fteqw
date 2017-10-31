@@ -558,7 +558,7 @@ void CD_f (void)
 					Con_Printf("  %u -> %s\n", n, cdremap[n].fname);
 			return;
 		}
-		for (n = 1; n <= ret; n++)
+		for (n = 1; n <= ret && n < REMAPPED_TRACKS; n++)
 			Q_strncpyz(cdremap[n].fname, Cmd_Argv (n+1), sizeof(cdremap[n].fname));
 		return;
 	}

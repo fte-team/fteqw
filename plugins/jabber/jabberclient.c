@@ -3715,7 +3715,7 @@ static qboolean JCL_ServerFeatureReply(jclient_t *jcl, xmltree_t *tree, struct i
 	
 	return true;
 }
-static qboolean JCL_ServerPeerReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+/*static qboolean JCL_ServerPeerReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
 	xmltree_t *query = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/disco#info", "query", 0);
 	xmltree_t *feature;
@@ -3751,7 +3751,7 @@ static qboolean JCL_ServerPeerReply(jclient_t *jcl, xmltree_t *tree, struct iq_s
 
 	return true;
 }
-/*static qboolean JCL_ServerItemsReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
+static qboolean JCL_ServerItemsReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
 	xmltree_t *query = XML_ChildOfTreeNS(tree, "http://jabber.org/protocol/disco#items", "query", 0);
 	xmltree_t *item;

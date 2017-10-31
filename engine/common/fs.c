@@ -762,7 +762,7 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 	if (*name && name[strlen(name)-1] == '/')
 	{
 		colour = "^7";	//superseeded
-		Q_snprintfz(link, sizeof(link), "\\dir\\%s*", name);
+		Q_snprintfz(link, sizeof(link), "\\tip\\Scan Sub-Directory\\dir\\%s*", name);
 	}
 	else if (!FS_FLocateFile(name, FSLF_IFFOUND, &loc))
 	{
@@ -775,17 +775,18 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 		COM_FileExtension(name, link, sizeof(link));
 		if ((!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "map") || !Q_strcasecmp(link, "hmp")) && !strncmp(name, "maps/", 5) && strncmp(name, "maps/b_", 7))
 		{
-			Q_snprintfz(link, sizeof(link), "\\map\\%s", name);
+			Q_snprintfz(link, sizeof(link), "\\tip\\Change Map\\map\\%s", name+5);
 			colour = "^4";	//disconnects
 		}
 		else if (!Q_strcasecmp(link, "bsp") || !Q_strcasecmp(link, "spr") || !Q_strcasecmp(link, "mdl") || !Q_strcasecmp(link, "md3") || !Q_strcasecmp(link, "iqm") || !Q_strcasecmp(link, "vvm") || !Q_strcasecmp(link, "psk") || !Q_strcasecmp(link, "dpm") || !Q_strcasecmp(link, "zym") || !Q_strcasecmp(link, "md5mesh") || !Q_strcasecmp(link, "md5anim"))
-			Q_snprintfz(link, sizeof(link), "\\modelviewer\\%s", name);
+			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Model Viewer\\modelviewer\\%s", name);
 		else if (!Q_strcasecmp(link, "qc") || !Q_strcasecmp(link, "src") || !Q_strcasecmp(link, "qh") || !Q_strcasecmp(link, "h") || !Q_strcasecmp(link, "c")
 			|| !Q_strcasecmp(link, "cfg") || !Q_strcasecmp(link, "rc")
 			|| !Q_strcasecmp(link, "txt") || !Q_strcasecmp(link, "log")
 			|| !Q_strcasecmp(link, "ent") || !Q_strcasecmp(link, "rtlights")
+			|| !Q_strcasecmp(link, "glsl") || !Q_strcasecmp(link, "hlsl")
 			|| !Q_strcasecmp(link, "shader") || !Q_strcasecmp(link, "framegroups"))
-			Q_snprintfz(link, sizeof(link), "\\edit\\%s", name);
+			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Text Editor\\edit\\%s", name);
 		else if (!Q_strcasecmp(link, "tga") || !Q_strcasecmp(link, "png") || !Q_strcasecmp(link, "jpg") || !Q_strcasecmp(link, "jpeg") || !Q_strcasecmp(link, "lmp") || !Q_strcasecmp(link, "pcx") || !Q_strcasecmp(link, "bmp") || !Q_strcasecmp(link, "dds"))
 		{
 			//FIXME: image replacements are getting in the way here.
@@ -794,11 +795,11 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 		}
 		else if (!Q_strcasecmp(link, "qwd") || !Q_strcasecmp(link, "dem") || !Q_strcasecmp(link, "mvd") || !Q_strcasecmp(link, "dm2"))
 		{
-			Q_snprintfz(link, sizeof(link), "\\demo\\%s", name);
+			Q_snprintfz(link, sizeof(link), "\\tip\\Play Demo\\demo\\%s", name);
 			colour = "^4";	//disconnects
 		}
 		else if (!Q_strcasecmp(link, "roq") || !Q_strcasecmp(link, "cin") || !Q_strcasecmp(link, "avi") || !Q_strcasecmp(link, "mp4") || !Q_strcasecmp(link, "mkv"))
-			Q_snprintfz(link, sizeof(link), "\\film\\%s", name);
+			Q_snprintfz(link, sizeof(link), "\\tip\\Play Film\\film\\%s", name);
 		else
 		{
 			colour = "^3";	//nothing

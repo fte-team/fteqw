@@ -867,18 +867,22 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		Cbuf_AddText(va("\nplaydemo \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
+#ifndef CLIENTONLY
 	c = Info_ValueForKey(info, "map");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
 		Cbuf_AddText(va("\nmap \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
+#endif
+#ifndef NOBUILTINMENUS
 	c = Info_ValueForKey(info, "modelviewer");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
 		Cbuf_AddText(va("\nmodelviewer \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
+#endif
 	c = Info_ValueForKey(info, "type");
 	if (*c)
 	{
@@ -909,24 +913,28 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		Cbuf_AddText(va("\necho Contents of %s:\ndir \"%s\"\n", c, c), RESTRICT_LOCAL);
 		return;
 	}
+#ifdef TEXTEDITOR
 	c = Info_ValueForKey(info, "edit");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
 		Cbuf_AddText(va("\nedit \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
+#endif
 	c = Info_ValueForKey(info, "impulse");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
 		Cbuf_AddText(va("\nimpulse %s\n", c), RESTRICT_LOCAL);
 		return;
 	}
+#ifdef HAVE_MEDIA_DECODER
 	c = Info_ValueForKey(info, "film");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
 		Cbuf_AddText(va("\nplayfilm \"%s\"\n", c), RESTRICT_LOCAL);
 		return;
 	}
+#endif
 	c = Info_ValueForKey(info, "desc");
 	if (*c)
 	{

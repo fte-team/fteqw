@@ -19,11 +19,11 @@ cvar_t r_dodgypcxfiles = CVARD("r_dodgypcxfiles", "0", "When enabled, this will 
 cvar_t r_dodgymiptex = CVARD("r_dodgymiptex", "1", "When enabled, this will force regeneration of mipmaps, discarding mips1-4 like glquake did. This may eg solve fullbright issues with some maps, but may reduce distant detail levels.");
 
 char *r_defaultimageextensions =
-#ifdef IMAGEFMT_KTX
-	"ktx "	//compressed or something
-#endif
 #ifdef IMAGEFMT_DDS
 	"dds "	//compressed or something
+#endif
+#ifdef IMAGEFMT_KTX
+	"ktx "	//compressed or something. not to be confused with the qw mod by the same name. GL requires that etc2 compression is supported by modern drivers, but not necessarily the hardware. as such, dds with its s3tc bias should always come first (as the patents mean that drivers are much less likely to advertise it when they don't support it properly).
 #endif
 	"tga"	//fairly fast to load
 #if defined(AVAIL_PNGLIB) || defined(FTE_TARGET_WEB)
@@ -2659,40 +2659,40 @@ static qboolean Image_ReadKTXFile(texid_t tex, unsigned int flags, char *fname, 
 
 	switch(header->glinternalformat)
 	{
-	case GL_ETC1_RGB8_OES:
+	case 0x8D64/*GL_ETC1_RGB8_OES*/:
 		encoding = PTI_ETC1_RGB8;
 		break;
-	case GL_COMPRESSED_RGB8_ETC2:
-	case GL_COMPRESSED_SRGB8_ETC2:
+	case 0x9274/*GL_COMPRESSED_RGB8_ETC2*/:
+	case 0x9275/*GL_COMPRESSED_SRGB8_ETC2*/:
 		encoding = PTI_ETC2_RGB8;
 		break;
-	case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2:
-	case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2:
+	case 0x9276/*GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2*/:
+	case 0x9277/*GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2*/:
 		encoding = PTI_ETC2_RGB8A1;
 		break;
-	case GL_COMPRESSED_RGBA8_ETC2_EAC:
-	case GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC:
+	case 0x9278/*GL_COMPRESSED_RGBA8_ETC2_EAC*/:
+	case 0x9279/*GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC*/:
 		encoding = PTI_ETC2_RGB8A8;
 		break;
-	case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
+	case 0x83F0/*GL_COMPRESSED_RGB_S3TC_DXT1_EXT*/:
 		encoding = PTI_S3RGB1;
 		break;
-	case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
+	case 0x83F1/*GL_COMPRESSED_RGBA_S3TC_DXT1_EXT*/:
 		encoding = PTI_S3RGBA1;
 		break;
-	case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
+	case 0x83F2/*GL_COMPRESSED_RGBA_S3TC_DXT3_EXT*/:
 		encoding = PTI_S3RGBA3;
 		break;
-	case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
+	case 0x83F3/*GL_COMPRESSED_RGBA_S3TC_DXT5_EXT*/:
 		encoding = PTI_S3RGBA5;
 		break;
-	case GL_BGRA_EXT:
+	case 0x80E1/*GL_BGRA_EXT*/:
 		encoding = PTI_BGRA8;
 		break;
-	case GL_RGBA:
+	case 0x1908/*GL_RGBA*/:
 		encoding = PTI_RGBA8;
 		break;
-	case GL_SRGB8_ALPHA8_EXT:
+	case 0x8C43/*GL_SRGB8_ALPHA8_EXT*/:
 		encoding = PTI_RGBA8_SRGB;
 		break;
 	case 0x8045/*GL_LUMINANCE8_ALPHA8*/:
@@ -5711,14 +5711,14 @@ void Image_Init(void)
 	memset(imagetablebuckets, 0, sizeof(imagetablebuckets));
 	Hash_InitTable(&imagetable, sizeof(imagetablebuckets)/sizeof(imagetablebuckets[0]), imagetablebuckets);
 
-	Cmd_AddCommandD("image_list", Image_List_f, "Prints out a list of the currently-known textures.");
+	Cmd_AddCommandD("r_image_list", Image_List_f, "Prints out a list of the currently-known textures.");
 }
 //destroys all textures
 void Image_Shutdown(void)
 {
 	image_t *tex;
 	int i = 0, j = 0;
-	Cmd_RemoveCommand("image_list");
+	Cmd_RemoveCommand("r_image_list");
 	while (imagelist)
 	{
 		tex = imagelist;

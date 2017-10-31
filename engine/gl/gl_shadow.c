@@ -83,7 +83,7 @@ cvar_t r_sun_colour							= CVARFD ("r_sun_colour", "0 0 0", CVAR_ARCHIVE, "Spec
 
 static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour);
 
-static pvsbuffer_t	lvisb;
+static pvsbuffer_t	lvisb, lvisb2;
 
 /*
 called on framebuffer resize.
@@ -137,7 +137,8 @@ typedef struct shadowmesh_s
 	{
 		SMT_STENCILVOLUME,	//build edges mesh (and surface list)
 		SMT_SHADOWMAP,		//build front faces mesh (and surface list)
-		SMT_SHADOWLESS		//build surface list only
+		SMT_SHADOWLESS,		//build vis+surface list only
+		SMT_DEFERRED		//build vis without caring about any surfaces at all.
 	} type;
 	unsigned int numindicies;
 	unsigned int maxindicies;
@@ -638,6 +639,9 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 		pleaf = (mleaf_t *)node;
 		SHM_Shadow_Cache_Leaf(pleaf);
 
+		if (sh_shmesh->type == SMT_DEFERRED)	//such rtlights don't need ANY surface info, just a tight pvs
+			return;
+
 		mark = pleaf->firstmarksurface;
 		c = pleaf->nummarksurfaces;
 
@@ -990,7 +994,7 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 	SHM_RecursiveWorldNodeQ2_r (dl, node->children[!side]);
 }
 
-static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis, unsigned char *vvis)
+static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis)
 {
 	mnode_t *node;
 	int i;
@@ -1007,7 +1011,7 @@ static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis, unsigned char *v
 			cluster = leaf->cluster;
 			if (cluster == -1)
 				continue;
-			if (lvis[cluster>>3] & (1<<(cluster&7)))// && vvis[cluster>>3] & (1<<(cluster&7)))
+			if (lvis[cluster>>3] & (1<<(cluster&7)))
 			{
 				node = (mnode_t *)leaf;
 				do
@@ -1029,7 +1033,7 @@ static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis, unsigned char *v
 			cluster = leaf->cluster;
 			if (cluster == -1)
 				continue;
-			if (lvis[cluster>>3] & /*vvis[cluster>>3] &*/ (1<<(cluster&7)))
+			if (lvis[cluster>>3] & (1<<(cluster&7)))
 			{
 				node = (mnode_t *)leaf;
 				do
@@ -1415,7 +1419,7 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 }
 #endif
 
-static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvis, unsigned char *vvis, int type)
+static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvis, int type)
 {
 	float *v1, *v2;
 	vec3_t v3, v4;
@@ -1426,8 +1430,17 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	if (!lvis)
 	{
 		int clus;
-		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
-		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
+//		if ((type == SMT_SHADOWLESS || dl->lightcolourscales[0]) && cl.worldmodel->funcs.ClustersInSphere)
+			//shadowless lights don't cast shadows, so they're seen through everything - their vis must reflect that.
+//			lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb, NULL);
+//		else
+		{
+			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
+
+//			if (cl.worldmodel->funcs.ClustersInSphere)
+//				lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, lvis);
+		}
 	}
 
 	firstedge=0;
@@ -1463,7 +1476,7 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 #ifdef Q2BSPS
 		case fg_quake2:
 			SHM_BeginShadowMesh(dl, type);
-			SHM_MarkLeavesQ2(dl, lvis, vvis);
+			SHM_MarkLeavesQ2(dl, lvis);
 			SHM_RecursiveWorldNodeQ2_r(dl, cl.worldmodel->nodes);
 			break;
 #endif
@@ -2391,7 +2404,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 	memcpy(oproj, r_refdef.m_projection, sizeof(oproj));
 	memcpy(oview, r_refdef.m_view, sizeof(oview));
 	oprect = r_refdef.pxrect;
-	smesh = SHM_BuildShadowMesh(l, lvis, NULL, SMT_SHADOWMAP);
+	smesh = SHM_BuildShadowMesh(l, lvis, SMT_SHADOWMAP);
 
 	Matrix4x4_CM_Projection_Far(r_refdef.m_projection, l->fov?l->fov:90, l->fov?l->fov:90, r_shadow_shadowmapping_nearclip.value, l->radius);
 
@@ -2662,6 +2675,8 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qb
 			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, l->origin);
 			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 			//FIXME: surely we can use the phs for this?
+//			if (cl.worldmodel->funcs.ClustersInSphere)
+//				lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, l->origin, l->radius, &lvisb2, lvis);
 
 			if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 			{
@@ -2891,7 +2906,11 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 		qglEnd();
 	}
 
+#ifdef BEF_PUSHDEPTH
 	GLBE_PolyOffsetStencilShadow(false);
+#else
+	GLBE_PolyOffsetStencilShadow();
+#endif
 }
 #endif
 
@@ -2909,7 +2928,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	model_t *emodel;
 #endif
 
-	sm = SHM_BuildShadowMesh(dl, lvis, vvis, SMT_STENCILVOLUME);
+	sm = SHM_BuildShadowMesh(dl, lvis, SMT_STENCILVOLUME);
 	if (!sm)
 	{
 #ifdef GLQUAKE
@@ -3054,6 +3073,8 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 	{
 		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
 		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
+//		if (cl.worldmodel->funcs.ClustersInSphere)
+//			lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, lvis);
 
 		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		{
@@ -3257,6 +3278,44 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 #define Sh_DrawStencilLight Sh_DrawShadowlessLight
 #endif
 
+qboolean Sh_CullLight(dlight_t *dl, qbyte *vvis)
+{
+	if (R_CullSphere(dl->origin, dl->radius))
+	{
+		RQuantAdd(RQUANT_RTLIGHT_CULL_FRUSTUM, 1);
+		return true;	//this should be the more common case
+	}
+
+	if (!dl->rebuildcache)
+	{
+		//fixme: check head node first?
+		if (!Sh_LeafInView(dl->worldshadowmesh->litleaves, vvis))
+		{
+			RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
+			return true;
+		}
+	}
+	else
+	{
+		int clus;
+		qbyte *lvis;
+
+		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
+//		if (cl.worldmodel->funcs.ClustersInSphere)
+//			lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, lvis);
+
+		SHM_BuildShadowMesh(dl, lvis, SMT_DEFERRED);
+
+		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
+		{
+			RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
+			return true;
+		}
+	}
+	return false;	//please draw this...
+}
+
 static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], qbyte *vvis)
 {
 	vec3_t mins, maxs;
@@ -3282,10 +3341,15 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], 
 		int clus;
 		qbyte *lvis;
 
-		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
-		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
+		if (cl.worldmodel->funcs.ClustersInSphere)
+			lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, NULL);
+		else
+		{
+			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
+		}
 
-		SHM_BuildShadowMesh(dl, lvis, vvis, SMT_SHADOWLESS);
+		SHM_BuildShadowMesh(dl, lvis, SMT_SHADOWLESS);
 
 		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		{
@@ -3483,7 +3547,7 @@ void Sh_PreGenerateLights(void)
 				leaf = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
 				lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, leaf, &lvisb, PVM_FAST);
 
-				SHM_BuildShadowMesh(dl, lvis, NULL, shadowtype);
+				SHM_BuildShadowMesh(dl, lvis, shadowtype);
 				continue;
 			}
 		}

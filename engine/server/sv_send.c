@@ -2053,7 +2053,7 @@ typedef struct {
 } qcstat_t;
 qcstat_t qcstats[MAX_CL_STATS];
 int numqcstats;
-void SV_QCStatEval(int type, const char *name, evalc_t *field, eval_t *global, int statnum)
+static void SV_QCStatEval(int type, const char *name, evalc_t *field, eval_t *global, int statnum)
 {
 	int i;
 	if (numqcstats == sizeof(qcstats)/sizeof(qcstats[0]))
@@ -2081,10 +2081,13 @@ void SV_QCStatEval(int type, const char *name, evalc_t *field, eval_t *global, i
 	qcstats[i].type = type;
 	qcstats[i].statnum = statnum;
 	Q_strncpyz(qcstats[i].name, name, sizeof(qcstats[i].name));
-	if (type < 0)
+	memset(&qcstats[i].eval, 0, sizeof(qcstats[i].eval));
+	if (type <= 0)
 		qcstats[i].eval.g = global;
-	else
+	else if (field)
 		memcpy(&qcstats[i].eval.c, field, sizeof(evalc_t));
+	else
+		qcstats[i].type = ev_void;
 }
 
 void SV_QCStatGlobal(int type, const char *globalname, int statnum)
@@ -2154,7 +2157,7 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char const** statss, float *sta
 	{
 		eval_t *eval;
 		t = qcstats[i].type;
-		if (t < 0)
+		if (t <= 0)
 		{
 			t = -t;
 			eval = qcstats[i].eval.g;

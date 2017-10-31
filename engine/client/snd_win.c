@@ -218,7 +218,7 @@ SNDDM_InitWav
 Crappy windows multimedia base
 ==================
 */
-qboolean WAV_InitCard (soundcardinfo_t *sc, const char *cardname)
+qboolean QDECL WAV_InitCard (soundcardinfo_t *sc, const char *cardname)
 {
 	WAVEFORMATEX  format;
 	int				i;

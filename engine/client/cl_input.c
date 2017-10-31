@@ -1180,8 +1180,6 @@ float CL_FilterTime (double time, float wantfps, float limit, qboolean ignoreser
 	return time - (1000 / fps);
 }
 
-qboolean allowindepphys;
-
 typedef struct clcmdbuf_s {
 	struct clcmdbuf_s *next;
 	int len;
@@ -1211,8 +1209,7 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 	}
 #endif
 
-	oldallow = allowindepphys;
-	CL_AllowIndependantSendCmd(false);
+	oldallow = CL_AllowIndependantSendCmd(false);
 
 	buf = Z_Malloc(sizeof(*buf)+strlen(string));
 	strcpy(buf->command, string);
@@ -1289,10 +1286,12 @@ qboolean runningindepphys;
 void *indeplock;
 void *indepthread;
 
-void CL_AllowIndependantSendCmd(qboolean allow)
+qboolean allowindepphys;
+qboolean CL_AllowIndependantSendCmd(qboolean allow)
 {
+	qboolean ret = allowindepphys;
 	if (!runningindepphys)
-		return;
+		return ret;
 
 	if (allowindepphys != allow && runningindepphys)
 	{
@@ -1302,6 +1301,7 @@ void CL_AllowIndependantSendCmd(qboolean allow)
 			Sys_LockMutex(indeplock);
 		allowindepphys = allow;
 	}
+	return ret;
 }
 
 int CL_IndepPhysicsThread(void *param)
@@ -1362,8 +1362,9 @@ void CL_UseIndepPhysics(qboolean allow)
 	}
 }
 #else
-void CL_AllowIndependantSendCmd(qboolean allow)
+qboolean CL_AllowIndependantSendCmd(qboolean allow)
 {
+	return false;
 }
 void CL_UseIndepPhysics(qboolean allow)
 {

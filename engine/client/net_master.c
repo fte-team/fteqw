@@ -1437,7 +1437,10 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 	}
 
 	//add the main ip address
-	work->adr = adrs[0];
+	if (found)
+		work->adr = adrs[0];
+	else
+		memset(&work->adr, 0, sizeof(work->adr));
 	COM_AddWork(WG_MAIN, CLMaster_AddMaster_Worker_Resolved, NULL, work, a, b);
 
 	//add dupes too (eg: ipv4+ipv6)

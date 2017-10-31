@@ -114,6 +114,7 @@ extern int numCompilerConstants;
 hashtable_t compconstantstable;
 hashtable_t globalstable;
 hashtable_t localstable;
+hashtable_t typedeftable;
 #ifdef WRITEASM
 FILE *asmfile;
 pbool asmfilebegun;
@@ -214,6 +215,8 @@ struct {
 	{" F319", WARN_CONSTANTCOMPARISON},
 	{" F320", WARN_PARAMWITHNONAME},
 	{" F321", WARN_GMQCC_SPECIFIC},
+	{" F322", WARN_IFSTRING_USED},
+	{" F323", WARN_UNREACHABLECODE},
 
 	{" F208", WARN_NOTREFERENCEDCONST},
 	{" F209", WARN_EXTRAPRECACHE},	
@@ -232,6 +235,10 @@ struct {
 	//Q616: No function named
 	//Q617: Malloc failure
 	//Q618: Ran out of mem pointer space (malloc failure again)
+
+	//we can put longer alternative names here...
+	{" field-redeclared", WARN_DEPRECATEDWARNING},
+
 	{NULL}
 };
 
@@ -289,8 +296,11 @@ optimisations_t optimisations[] =
 	{NULL}
 };
 
-#define defaultkeyword FLAG_HIDDENINGUI|FLAG_ASDEFAULT|FLAG_MIDCOMPILE
-#define nondefaultkeyword FLAG_HIDDENINGUI|0|FLAG_MIDCOMPILE
+#define defaultkeyword		FLAG_HIDDENINGUI|FLAG_ASDEFAULT|FLAG_MIDCOMPILE
+#define nondefaultkeyword	FLAG_HIDDENINGUI|0|FLAG_MIDCOMPILE
+#define hideflag			FLAG_HIDDENINGUI|FLAG_MIDCOMPILE
+#define defaultflag			FLAG_ASDEFAULT|FLAG_MIDCOMPILE
+#define hidedefaultflag		FLAG_HIDDENINGUI|FLAG_ASDEFAULT|FLAG_MIDCOMPILE
 //global to store useage to, flags, codename, human-readable name, help text
 compiler_flag_t compiler_flag[] = {
 	//keywords
@@ -339,6 +349,8 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_accumulate,	nondefaultkeyword,"accumulate",	"Keyword: accumulate",	"Disables the 'accumulate' keyword."},
 
 	//options
+	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows ¦ as EOF. Whilst case insensitivity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
+	{&flag_qccx,			FLAG_MIDCOMPILE,"qccx",			"QCCX syntax",			"WARNING: This syntax makes mods inherantly engine specific.\nDo NOT use unless you know what you're doing.This is provided for compatibility only\nAny entity hacks will be unsupported in FTEQW, DP, and others, resulting in engine crashes if the code in question is executed."},
 	{&keywords_coexist,		FLAG_ASDEFAULT, "kce",			"Keywords Coexist",		"If you want keywords to NOT be disabled when they a variable by the same name is defined, check here."},
 	{&output_parms,			0,				"parms",		"Define offset parms",	"if PARM0 PARM1 etc should be defined by the compiler. These are useful if you make use of the asm keyword for function calls, or you wish to create your own variable arguments. This is an easy way to break decompilers."},	//controls weather to define PARMx for the parms (note - this can screw over some decompilers)
 	{&autoprototype,		0,				"autoproto",	"Automatic Prototyping","Causes compilation to take two passes instead of one. The first pass, only the definitions are read. The second pass actually compiles your code. This means you never have to remember to prototype functions again."},	//so you no longer need to prototype functions and things in advance.
@@ -346,12 +358,11 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_guiannotate,		FLAG_MIDCOMPILE,"annotate",		"Annotate Sourcecode",	"Annotate source code with assembler statements on compile (requires gui)."},
 	{&flag_nullemptystr,	FLAG_MIDCOMPILE,"nullemptystr",	"Null String Immediates",		"Empty string immediates will have the raw value 0 instead of 1."},
 	{&flag_ifstring,		FLAG_MIDCOMPILE,"ifstring",		"if(string) fix",		"Causes if(string) to behave identically to if(string!="") This is most useful with addons of course, but also has adverse effects with FRIK_FILE's fgets, where it becomes impossible to determin the end of the file. In such a case, you can still use asm {IF string 2;RETURN} to detect eof and leave the function."},		//correction for if(string) no-ifstring to get the standard behaviour.
-	{&flag_iffloat,			FLAG_MIDCOMPILE,"iffloat","if(-0.0) fix","Fixes certain floating point logic."},
-	{&flag_ifvector,		FLAG_MIDCOMPILE|FLAG_ASDEFAULT,"ifvector","if('0 1 0') fix","Fixes conditional vector logic."},
-	{&flag_vectorlogic,		FLAG_MIDCOMPILE|FLAG_ASDEFAULT,"vectorlogic","v&&v||v fix",	"Fixes conditional vector logic."},
+	{&flag_iffloat,			FLAG_MIDCOMPILE,"iffloat",		"if(-0.0) fix","Fixes certain floating point logic."},
+	{&flag_ifvector,		defaultflag,	"ifvector",		"if('0 1 0') fix","Fixes conditional vector logic."},
+	{&flag_vectorlogic,		defaultflag,	"vectorlogic",	"v&&v||v fix",	"Fixes conditional vector logic."},
 	{&flag_brokenarrays,	FLAG_MIDCOMPILE,"brokenarray",	"array[0] omission",	"Treat references to arrays as references to the first index of said array, to replicate an old fteqcc bug."},
 	{&flag_rootconstructor,	FLAG_MIDCOMPILE,"rootconstructor","root constructor first",	"When enabled, the root constructor should be called first like in c++."},
-	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows ¦ as EOF. Whilst case insensitivity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
 	{&flag_caseinsensitive,	0,				"caseinsens",	"Case insensitivity",	"Causes fteqcc to become case insensitive whilst compiling names. It's generally not advised to use this as it compiles a little more slowly and provides little benefit. However, it is required for full reacc support."},	//symbols will be matched to an insensitive case if the specified case doesn't exist. This should b usable for any mod
 	{&flag_laxcasts,		FLAG_MIDCOMPILE,"lax",			"Lax type checks",		"Disables many errors (generating warnings instead) when function calls or operations refer to two normally incompatible types. This is required for reacc support, and can also allow certain (evil) mods to compile that were originally written for frikqcc."},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
 	{&flag_hashonly,		FLAG_MIDCOMPILE,"hashonly",		"Hash-only constants",	"Allows use of only #constant for precompiler constants, allows certain preqcc using mods to compile"},
@@ -365,12 +376,16 @@ compiler_flag_t compiler_flag[] = {
 	{&verbose,				FLAG_MIDCOMPILE,"verbose",		"Verbose",				"Lots of extra compiler messages."},
 	{&flag_typeexplicit,	FLAG_MIDCOMPILE,"typeexplicit",	"Explicit types",		"All type conversions must be explicit or directly supported by instruction set."},
 	{&flag_noboundchecks,	FLAG_MIDCOMPILE,"noboundchecks","Disable Bound Checks",	"Disable array index checks, speeding up array access but can result in your code misbehaving."},
-	{&flag_qccx,			FLAG_MIDCOMPILE,"qccx",			"QCCX syntax",			"WARNING: This syntax makes mods inherantly engine specific.\nDo NOT use unless you know what you're doing.This is provided for compatibility only\nAny entity hacks will be unsupported in FTEQW, DP, and others, resulting in engine crashes if the code in question is executed."},
-	{&flag_attributes,		FLAG_MIDCOMPILE|FLAG_HIDDENINGUI,"attributes",	"[[attributes]]",		"WARNING: This syntax conflicts with vector constructors."},
-	{&flag_assumevar,		FLAG_MIDCOMPILE|FLAG_HIDDENINGUI,"assumevar",	"explicit consts",		"Initialised globals will be considered non-const by default."},
-	{&flag_dblstarexp,		FLAG_MIDCOMPILE|FLAG_HIDDENINGUI,"ssp","** exponent",	"Treat ** as an operator for exponents, instead of multiplying by a dereferenced pointer."},
+	{&flag_attributes,		hideflag,		"attributes",	"[[attributes]]",		"WARNING: This syntax conflicts with vector constructors."},
+	{&flag_assumevar,		hideflag,		"assumevar",	"explicit consts",		"Initialised globals will be considered non-const by default."},
+	{&flag_dblstarexp,		hideflag,		"ssp",			"** exponent",			"Treat ** as an operator for exponents, instead of multiplying by a dereferenced pointer."},
+	{&flag_cpriority,		hideflag,		"cpriority",	"C Operator Priority",	"QC treats !a&&b as equivelent to !(a&&b). When this is set, behaviour will be (!a)&&b as in C. Other operators are also affected in similar ways."},
+	{&flag_allowuninit,		hideflag,		"allowuninit",	"Uninitialised Locals",	"Permit optimisations that may result in locals being uninitialised. This may allow for greater reductions in temps."},
+	{&flag_nopragmafileline,FLAG_MIDCOMPILE,"nofileline",	"Ignore #pragma file",	"Ignores #pragma file(foo) and #pragma line(foo), so that errors and symbols reflect the actual lines, instead of the original source."},
+//	{&flag_lno,				hidedefaultflag,"lno",			"Gen Debugging Info",	"Writes debugging info."},
+//	{&flag_utf8,			hidedefaultflag,"utf8",			"Unicode",				"Assume files to be UTF-8 encoded, instead of iso8859-1."},
 
-	{&flag_embedsrc,		FLAG_MIDCOMPILE,"embedsrc",		"Embed Sources",		"Write the sourcecode into the output file."},
+	{&flag_embedsrc,		FLAG_MIDCOMPILE,"embedsrc",		"Embed Sources",		"Write the sourcecode into the output file. The resulting .dat can be opened as a standard zip archive (or by fteqccgui).\nGood for GPL compliance!"},
 //	{&flag_noreflection,	FLAG_MIDCOMPILE,"omitinternals","Omit Reflection Info",	"Keeps internal symbols private (equivelent to unix's hidden visibility). This has the effect of reducing filesize, thwarting debuggers, and breaking saved games. This allows you to use arrays without massively bloating the size of your progs.\nWARNING: The bit about breaking saved games was NOT a joke, but does not apply to menuqc or csqc. It also interferes with FTE_MULTIPROGS."},
 	{NULL}
 };
@@ -1628,6 +1643,12 @@ pbool QCC_WriteData (int crc)
 
 	for (dupewarncount = 0, def = pr.def_head.next ; def ; def = def->next)
 	{
+		if (def->scope && !def->isstatic && !def->scope->privatelocals)
+		{	//if we're merging locals, then we shouldn't ever bother writing those globals. it just confuses debuggers etc. they're utterly pointless.
+			//which may be a problem if they're things that the engine is going to be swapping around... which they shouldn't be.
+			continue;
+		}
+
 /*		if (def->type->type == ev_vector || (def->type->type == ev_field && def->type->aux_type->type == ev_vector))
 		{	//do the references, so we don't get loadsa not referenced VEC_HULL_MINS_x
 			s_file = def->s_file;
@@ -1801,7 +1822,7 @@ pbool QCC_WriteData (int crc)
 		if (def->shared)
 			dd->type |= DEF_SHARED;
 
-		if (opt_locals && (def->scope || !strcmp(def->name, "IMMEDIATE")))
+		if (opt_locals && ((def->scope&&!def->isstatic) || !strcmp(def->name, "IMMEDIATE")))
 		{
 			dd->s_name = 0;
 			optres_locals += strlen(def->name);
@@ -3035,6 +3056,8 @@ QCC_type_t *QCC_PR_NewType (char *name, int basictype, pbool typedefed)
 	qcc_typeinfo[numtypeinfos].size = type_size[basictype];
 	qcc_typeinfo[numtypeinfos].typedefed = typedefed;
 
+	if (typedefed)
+		pHash_Add(&typedeftable, name, &qcc_typeinfo[numtypeinfos], qccHunkAlloc(sizeof(bucket_t)));
 
 	numtypeinfos++;
 
@@ -3123,6 +3146,8 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	pr_error_count = 0;
 	pr_warning_count = 0;
 	recursivefunctiontype = 0;
+
+	QCC_PrioritiseOpcodes();
 }
 
 /*
@@ -4031,32 +4056,32 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			if (myargv[i][2] >= '0' && myargv[i][2] <= '3')
 			{
 			}
-			else if (!strnicmp(myargv[i]+2, "no-", 3))
-			{
-				if (myargv[i][5])
-				{
-					for (p = 0; optimisations[p].enabled; p++)
-					{
-						if ((*optimisations[p].abbrev && !stricmp(myargv[i]+5, optimisations[p].abbrev)) || !stricmp(myargv[i]+5, optimisations[p].fullname))
-						{
-							*optimisations[p].enabled = false;
-							break;
-						}
-					}
-				}
-			}
 			else
 			{
-				if (myargv[i][2])
-					for (p = 0; optimisations[p].enabled; p++)
-						if ((*optimisations[p].abbrev && !stricmp(myargv[i]+2, optimisations[p].abbrev)) || !stricmp(myargv[i]+2, optimisations[p].fullname))
-						{
-							*optimisations[p].enabled = true;
-							break;
-						}
+				char *a = myargv[i]+2;
+				pbool state = true;
+				if (!strnicmp(a, "no-", 3))
+				{
+					a+=3;
+					state = false;
+				}
+
+				for (p = 0; optimisations[p].enabled; p++)
+				{
+					if ((*optimisations[p].abbrev && !stricmp(a, optimisations[p].abbrev)) || !stricmp(a, optimisations[p].fullname))
+					{
+						*optimisations[p].enabled = state;
+						break;
+					}
+				}
+				if (!optimisations[p].enabled)
+				{
+					if (!stricmp(a, "overlap-locals"))
+						opt_locals_overlapping = state;
+					else
+						QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised optimisation parameter (%s)", myargv[i]);
+				}
 			}
-			if (!optimisations[p].enabled)
-				QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised optimisation parameter (%s)", myargv[i]);
 		}
 
 		else if ( !strnicmp(myargv[i], "-K", 2) || WINDOWSARG(!strnicmp(myargv[i], "/K", 2)) )
@@ -4125,7 +4150,8 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			else if (!strcmp(myargv[i]+5, "gmqcc"))
 			{
 				flag_ifvector = flag_vectorlogic = true;
-				flag_dblstarexp = flag_attributes = flag_assumevar = pr_subscopedlocals = true;
+				flag_dblstarexp = flag_attributes = flag_assumevar = pr_subscopedlocals = flag_cpriority = flag_allowuninit = true;
+				opt_logicops = true;
 				qccwarningaction[WARN_CONSTANTCOMPARISON] = WA_IGNORE;
 				qccwarningaction[WARN_POINTLESSSTATEMENT] = WA_IGNORE;
 				qccwarningaction[WARN_OVERFLOW] = WA_IGNORE;
@@ -4140,7 +4166,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				keyword_int = keyword_integer = keyword_struct = keyword_union = keyword_enum = keyword_enumflags = false;
 				keyword_thinktime = keyword_until = keyword_loop = false;
 
-				keyword_wrap = keyword_weak = true;	//wrong, but needed because we don't accept useless function bodies without weak
+				keyword_wrap = keyword_weak = false;
 
 				keyword_enum = true;
 				keyword_break = keyword_continue = keyword_for = keyword_goto = true;
@@ -4185,6 +4211,16 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 					flag_ifstring = state;
 				else if (!stricmp(arg, "true-empty-strings"))
 					flag_brokenifstring = state;
+				else if (!stricmp(arg, "lno"))
+					;	//currently we always try to write lno files...
+				else if (!stricmp(arg, "utf8"))
+					;	//we always interpret input as utf-8, and thus output strings are 'utf-8' too. -fno-utf8 might be useful to asciify inputs, but that'll just break quake-encoded text, so why bother
+				else if (!stricmp(arg, "return-assignments"))
+					;	//should really be a warning instead
+				else if (!stricmp(arg, "relaxed-switch"))
+					;	//again should be a warning/werror
+				else if (!stricmp(arg, "bail-on-werror"))
+					;
 				else
 					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised flag parameter (%s)", myargv[i]);
 			}
@@ -4212,7 +4248,8 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 
 		else if ( !strnicmp(myargv[i], "-W", 2) || WINDOWSARG(!strnicmp(myargv[i], "/W", 2)) )
 		{
-			if (!stricmp(myargv[i]+2, "all"))
+			char *a = myargv[i]+2;
+			if (!stricmp(a, "all"))
 			{
 				for (j = 0; j < ERR_PARSEERRORS; j++)
 					if (qccwarningaction[j] == WA_IGNORE)
@@ -4223,22 +4260,22 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 							qccwarningaction[j] = WA_WARN;
 					}
 			}
-			else if (!stricmp(myargv[i]+2, "extra"))
+			else if (!stricmp(a, "extra"))
 			{
 				for (j = 0; j < ERR_PARSEERRORS; j++)
 					if (qccwarningaction[j] == WA_IGNORE)
 						qccwarningaction[j] = WA_WARN;
 			}
-			else if (!stricmp(myargv[i]+2, "none"))
+			else if (!stricmp(a, "none"))
 			{
 				for (j = 0; j < ERR_PARSEERRORS; j++)
 					qccwarningaction[j] = WA_IGNORE;
 			}
-			else if(!stricmp(myargv[i]+2, "error"))
+			else if(!stricmp(a, "error"))
 			{
 				werror = true;
 			}
-			else if (!stricmp(myargv[i]+2, "no-mundane"))
+			else if (!stricmp(a, "no-mundane"))
 			{	//disable mundane performance/efficiency/blah warnings that don't affect code.
 				qccwarningaction[WARN_SAMENAMEASGLOBAL] = WA_IGNORE;
 				qccwarningaction[WARN_DUPLICATEDEFINITION] = WA_IGNORE;
@@ -4259,25 +4296,21 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			}
 			else
 			{
+				unsigned char action = WA_WARN;
 				p = -1;
-				if (!strnicmp(myargv[i]+2, "error-", 6))
+				if (!strnicmp(a, "error-", 6))
 				{
-					p = QCC_WarningForName(myargv[i]+8);
-					if (p >= 0)
-						qccwarningaction[p] = WA_ERROR;
+					a+= 6;
+					action = WA_ERROR;
 				}
-				else if (!strnicmp(myargv[i]+2, "no-", 3))
+				else if (!strnicmp(a, "no-", 3))
 				{
-					p = QCC_WarningForName(myargv[i]+5);
-					if (p >= 0)
-						qccwarningaction[p] = WA_IGNORE;
+					a+=3;
+					action = WA_IGNORE;
 				}
-				else
-				{
-					p = QCC_WarningForName(myargv[i]+2);
-					if (p >= 0)
-						qccwarningaction[p] = WA_WARN;
-				}
+				p = QCC_WarningForName(a);
+				if (p >= 0)
+					qccwarningaction[p] = action;
 
 				if (p < 0)
 					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised warning parameter (%s)", myargv[i]);
@@ -4613,13 +4646,13 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	pHash_RemoveData = &Hash_RemoveData;
 
 	MAX_REGS		= 1<<17;
-	MAX_STRINGS		= 1000000;
+	MAX_STRINGS		= 1<<21;
 	MAX_GLOBALS		= 1<<17;
-	MAX_FIELDS		= 1<<12;
-	MAX_STATEMENTS	= 0x80000;
-	MAX_FUNCTIONS	= 32768;
-	maxtypeinfos	= 32768;
-	MAX_CONSTANTS	= 4096;
+	MAX_FIELDS		= 1<<13;
+	MAX_STATEMENTS	= 0x100000;
+	MAX_FUNCTIONS	= 1<<15;
+	maxtypeinfos	= 1<<16;
+	MAX_CONSTANTS	= 1<<12;
 
 	strcpy(destfile, "");
 	compressoutput = 0;
@@ -4741,6 +4774,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	qcc_pr_globals = (void *)qccHunkAlloc(sizeof(float) * (MAX_REGS + MAX_LOCALS + MAX_TEMPS));
 	numpr_globals=0;
 
+	Hash_InitTable(&typedeftable, 1024, qccHunkAlloc(Hash_BytesForBuckets(1024)));
 	Hash_InitTable(&globalstable, MAX_REGS/2, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS/2)));
 	Hash_InitTable(&localstable, 128, qccHunkAlloc(Hash_BytesForBuckets(128)));
 	Hash_InitTable(&floatconstdefstable, MAX_REGS/2+1, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS/2+1)));
@@ -4924,6 +4958,8 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 	{
 		void StartNewStyleCompile(void);
 newstyle:
+		if (flag_filetimes)
+			QCC_PR_Warning(0, qccmsrc, 0, "-ffiletimes unsupported with this input");
 		newstylesource = true;
 		originalqccmsrc = qccmsrc;
 		pr_source_line = qccmline = 1;

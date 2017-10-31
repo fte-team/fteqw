@@ -9144,14 +9144,14 @@ static void QCBUILTIN PF_setcolors (pubprogfuncs_t *prinst, struct globalvars_s 
 	client = &svs.clients[entnum-1];
 	client->edict->v->team = (i & 15) + 1;
 
-	sprintf(number, "%i", i>>4);
+	Q_snprintfz(number, sizeof(number), "%i", i>>4);
 	if (strcmp(number, Info_ValueForKey(client->userinfo, "topcolor")))
 	{
 		Info_SetValueForKey(client->userinfo, "topcolor", number, sizeof(client->userinfo));
 		key = "topcolor";
 	}
 
-	sprintf(number, "%i", i&15);
+	Q_snprintfz(number, sizeof(number), "%i", i&15);
 	if (strcmp(number, Info_ValueForKey(client->userinfo, "bottomcolor")))
 	{
 		Info_SetValueForKey(client->userinfo, "bottomcolor", number, sizeof(client->userinfo));

@@ -1350,7 +1350,10 @@ void R_Clear (qboolean fbo)
 			//for performance, we clear the depth at the same time we clear colour, so we can skip clearing depth here the first time around each frame.
 			//but for multiple scenes, we do need to clear depth still.
 			//fbos always get cleared depth, just in case (colour fbos may contain junk, but hey).
-			qglClear (GL_DEPTH_BUFFER_BIT);
+			if (fbo && r_clear.ival)
+				qglClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+			else
+				qglClear (GL_DEPTH_BUFFER_BIT);
 		}
 		if (!fbo)
 			depthcleared = false;
@@ -1713,8 +1716,6 @@ qboolean R_RenderScene_Cubemap(void)
 		r_refdef.viewangles[2] = saveang[2]+ang[i][2];
 
 		R_Clear (usefbo);
-		if (r_clear.ival)
-			qglClear(GL_COLOR_BUFFER_BIT);
 
 		GL_SetShaderState2D(false);
 

@@ -1326,27 +1326,39 @@ qintptr_t VARGS Plug_memmove(void *offset, quintptr_t mask, const qintptr_t *arg
 
 qintptr_t VARGS Plug_sqrt(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int ret;
-	VM_FLOAT(ret) = sqrt(VM_FLOAT(arg[0]));
-	return ret;
+	union {
+		qintptr_t i;
+		float f;
+	} ret = {0};
+	ret.f = sqrt(VM_FLOAT(arg[0]));
+	return ret.i;
 }
 qintptr_t VARGS Plug_sin(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int ret;
-	VM_FLOAT(ret) = sin(VM_FLOAT(arg[0]));
-	return ret;
+	union {
+		qintptr_t i;
+		float f;
+	} ret = {0};
+	ret.f = sin(VM_FLOAT(arg[0]));
+	return ret.i;
 }
 qintptr_t VARGS Plug_cos(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int ret;
-	VM_FLOAT(ret) = cos(VM_FLOAT(arg[0]));
-	return ret;
+	union {
+		qintptr_t i;
+		float f;
+	} ret = {0};
+	ret.f = cos(VM_FLOAT(arg[0]));
+	return ret.i;
 }
 qintptr_t VARGS Plug_atan2(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int ret;
-	VM_FLOAT(ret) = atan2(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
-	return ret;
+	union {
+		qintptr_t i;
+		float f;
+	} ret = {0};
+	ret.f = atan2(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
+	return ret.i;
 }
 
 void Plug_Net_Close_Internal(int handle)

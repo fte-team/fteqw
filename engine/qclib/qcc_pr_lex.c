@@ -1046,7 +1046,8 @@ pbool QCC_PR_Precompiler(void)
 					msg[a] = '\0';
 					strcpy(qcc_token, msg);
 					a=0;
-					continue;
+					if (*pr_file_p != '(')
+						continue;
 				}
 				msg[a++] = *pr_file_p;
 			}
@@ -1113,10 +1114,39 @@ pbool QCC_PR_Precompiler(void)
 				qccincludeonced = onced;
 			}
 			else if (!QC_strcasecmp(qcc_token, "file"))
-			{
+			{	//#pragma file(foobar.qc)
+				if (!flag_nopragmafileline)
+				{
+					char *e;
+					char *m = msg;
+					if (*m == '(')
+					{
+						m++;
+						e = strchr(m, ')');
+						if (e)
+							*e = 0;
+					}
+
+					s_filen = e = qccHunkAlloc(strlen(m)+1);
+					strcpy(e, m);
+					if (opt_filenames)
+					{
+						optres_filenames += strlen(m);
+						s_filed = 0;
+					}
+					else
+						s_filed = QCC_CopyString (m);
+				}
 			}
 			else if (!QC_strcasecmp(qcc_token, "line"))
-			{
+			{	//#pragma line(666)
+				if (!flag_nopragmafileline)
+				{
+					char *m = msg;
+					if (*m == '(')
+						m++;
+					pr_source_line = strtoul(m, &m, 0)-1;
+				}
 			}
 			else if (!QC_strcasecmp(qcc_token, "includedir"))
 			{
@@ -1323,7 +1353,11 @@ pbool QCC_PR_Precompiler(void)
 						if (!QC_strcasecmp(compiler_flag[f].abbrev, qcc_token))
 						{
 							if (compiler_flag[f].flags & FLAG_MIDCOMPILE)
+							{
 								*compiler_flag[f].enabled = st;
+								if (compiler_flag[f].enabled == &flag_cpriority)
+									QCC_PrioritiseOpcodes();
+							}
 							else
 								QCC_PR_ParseWarning(WARN_BADPRAGMA, "Cannot enable/disable keyword/flag via a pragma");
 							break;
@@ -2244,7 +2278,7 @@ void QCC_PR_LexPunctuation (void)
 
 	if (pr_file_p[0] == '*' && pr_file_p[1] == '*' && flag_dblstarexp)
 	{	//for compat with gmqcc. fteqcc uses *^ internally (which does not conflict with multiplying by dereferenced pointers - sucks for MSCLR c++ syntax)
-		QCC_PR_ParseWarning(WARN_GMQCC_SPECIFIC, "** operator conflicts with pointers. Consider using *^ instead.", pr_token);
+		QCC_PR_ParseWarning(WARN_GMQCC_SPECIFIC, "** is unsafe around pointers, use *^ instead.", pr_token);
 		strcpy (pr_token, "*^");
 		pr_file_p += 2;
 		return;
@@ -3097,22 +3131,35 @@ static void QCC_PR_ExpandStrCatMarkup(char **buffer, size_t *bufferlen, size_t *
 	/*no null terminator, remember to cat one if required*/
 }
 
+const struct tm *QCC_CurrentTime(void)
+{
+	//if SOURCE_DATE_EPOCH environment is defined, use that as seconds from epoch (and show utc)
+	//this helps give reproducable builds (which is for some debian project, demonstrating that noone is hacking binaries).
+	const char *env = getenv("SOURCE_DATE_EPOCH");
+	time_t t;
+	if (env && *env)
+	{
+		t = strtoull(env, NULL, 0);
+		if (t)
+			return gmtime(&t);
+	}
+
+	t = time(NULL);
+	return localtime(&t);
+}
+
 static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t retbufsize)
 {
 	if (constname[0] != '_' || constname[1] != '_')
 		return NULL;
 	if (!strcmp(constname, "__TIME__"))
 	{
-		time_t long_time;
-		time( &long_time );
-		strftime( retbuf, retbufsize,	"\"%H:%M\"", localtime( &long_time ));
+		strftime( retbuf, retbufsize,	"\"%H:%M\"", QCC_CurrentTime());
 		return retbuf;
 	}
 	if (!strcmp(constname, "__DATE__"))
 	{
-		time_t long_time;
-		time( &long_time );
-		strftime( retbuf, retbufsize,	"\"%a %d %b %Y\"", localtime( &long_time ));
+		strftime( retbuf, retbufsize,	"\"%a %d %b %Y\"", QCC_CurrentTime());
 		return retbuf;
 	}
 	if (!strcmp(constname, "__RAND__"))
@@ -3122,6 +3169,10 @@ static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t 
 	}
 	if (!strcmp(constname, "__QCCVER__"))
 	{
+#ifdef SVNVERSION
+		if (strcmp(SVNVERSION, "-"))
+			return "FTEQCC " STRINGIFY(SVNVERSION);
+#endif
 		return "\"FTEQCC "__DATE__","__TIME__"\"";
 	}
 	if (!strcmp(constname, "__FILE__"))
@@ -4574,6 +4625,8 @@ QCC_type_t *QCC_PR_NextSubType(QCC_type_t *type, QCC_type_t *prev)
 
 QCC_type_t *QCC_TypeForName(char *name)
 {
+	return pHash_Get(&typedeftable, name);
+/*
 	int i;
 
 	for (i = 0; i < numtypeinfos; i++)
@@ -4584,7 +4637,7 @@ QCC_type_t *QCC_TypeForName(char *name)
 		}
 	}
 
-	return NULL;
+	return NULL;*/
 }
 
 /*
@@ -4697,6 +4750,12 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 
 			if (paramlist[numparms].type->type == ev_void)
 				break; //float(void) has no actual args
+
+			if (!foundinout && QCC_PR_CheckToken("&"))
+			{	//accept c++ syntax, at least on arguments. its not quite the same, but it'll do.
+				paramlist[numparms].out = true;
+				foundinout = true;
+			}
 
 //			type->name = "FUNC PARAMETER";
 
@@ -4985,18 +5044,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		strcpy(accessorname, funcname);
 
 		/* Look to see if this type is already defined */
-		for(i=0;i<numtypeinfos;i++)
-		{
-			if (!qcc_typeinfo[i].typedefed)
-				continue;
-			if (STRCMP(qcc_typeinfo[i].name, accessorname) == 0)
-			{
-				if (qcc_typeinfo[i].type != ev_accessor)
-					QCC_PR_ParseError(ERR_NOTANAME, "Type %s cannot be redefined as an accessor", accessorname);
-				newt = &qcc_typeinfo[i];
-				break;
-			}
-		}
+		newt = QCC_TypeForName(accessorname);
+		if (newt && newt->type != ev_accessor)
+			QCC_PR_ParseError(ERR_NOTANAME, "Type %s cannot be redefined as an accessor", accessorname);
 
 		if (QCC_PR_CheckToken(":"))
 		{
@@ -5210,18 +5260,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			forwarddeclaration = !QCC_PR_CheckToken("{");
 		}
 
-		/* Look to see if this type is already defined */
-		for(i=0;i<numtypeinfos;i++)
-		{
-			if (!qcc_typeinfo[i].typedefed)
-				continue;
-			if (STRCMP(qcc_typeinfo[i].name, classname) == 0)
-			{
-				newt = &qcc_typeinfo[i];
-				break;
-			}
-		}
-
+		newt = QCC_TypeForName(classname);
 		if (newt && newt->num_parms != 0)
 			redeclaration = true;
 		else
@@ -5718,19 +5757,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		return newt;
 	}
 
-	type = NULL;
-	for (i = 0; i < numtypeinfos; i++)
-	{
-		if (!qcc_typeinfo[i].typedefed)
-			continue;
-		if (!STRCMP(qcc_typeinfo[i].name, name))
-		{
-			type = &qcc_typeinfo[i];
-			break;
-		}
-	}
-
-	if (i == numtypeinfos)
+	type = QCC_TypeForName(name);
+	if (!type)
 	{
 		if (!*name)
 		{
@@ -5739,17 +5767,17 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		}
 
 		//some reacc types...
-		if (!stricmp("Void", name))
+		if (flag_acc && !stricmp("Void", name))
 			type = type_void;
-		else if (!stricmp("Real", name))
+		else if (flag_acc && !stricmp("Real", name))
 			type = type_float;
-		else if (!stricmp("Vector", name))
+		else if (flag_acc && !stricmp("Vector", name))
 			type = type_vector;
-		else if (!stricmp("Object", name))
+		else if (flag_acc && !stricmp("Object", name))
 			type = type_entity;
-		else if (!stricmp("String", name))
+		else if (flag_acc && !stricmp("String", name))
 			type = type_string;
-		else if (!stricmp("PFunc", name))
+		else if (flag_acc && !stricmp("PFunc", name))
 			type = type_function;
 		else
 		{

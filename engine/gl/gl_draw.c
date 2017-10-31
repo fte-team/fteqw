@@ -297,6 +297,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 	int i, j;
 	int nummips = mips->mipcount;
 	int encoding = mips->encoding;
+	qboolean compress;
 
 
 	if (gl_config.gles)
@@ -421,6 +422,14 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		//2d or cubemaps
 		for (i = 0; i < nummips; i++)
 		{
+			//arb_texture_compression is core in gl1.3
+			//gles doesn't support autocompression as of gles3.
+			//only autocompress if we have actually have data (gl errors otherwise).
+			if (gl_config.arb_texture_compression && mips->mip[i].data)
+				compress = true;
+			else
+				compress = false;
+
 			if (tex->flags & IF_TEXTYPE)
 			{
 				targface = cubeface[i];
@@ -453,29 +462,29 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 				break;
 			//32bit formats
 			case PTI_RGBX8:
-				qglTexImage2D(targface, j, GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGB_ARB:GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
 				break;
 			case PTI_RGBA8:
-				qglTexImage2D(targface, j, GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
 				break;
 			case PTI_BGRX8:
-				qglTexImage2D(targface, j, GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGB_ARB:GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
 				break;
 			default:
 			case PTI_BGRA8:
-				qglTexImage2D(targface, j, GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
 				break;
 			case PTI_RGBX8_SRGB:
-				qglTexImage2D(targface, j, GL_SRGB_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_SRGB_EXT:GL_SRGB_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
 				break;
 			case PTI_RGBA8_SRGB:
-				qglTexImage2D(targface, j, GL_SRGB_ALPHA_EXT, mips->mip[i].width, mips->mip[i].height, 0, gl_config.gles?GL_SRGB_ALPHA_EXT:GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_SRGB_ALPHA_EXT:GL_SRGB_ALPHA_EXT, mips->mip[i].width, mips->mip[i].height, 0, gl_config.gles?GL_SRGB_ALPHA_EXT:GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
 				break;
 			case PTI_BGRX8_SRGB:
-				qglTexImage2D(targface, j, GL_SRGB_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_SRGB_EXT:GL_SRGB_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
 				break;
 			case PTI_BGRA8_SRGB:
-				qglTexImage2D(targface, j, GL_SRGB_ALPHA_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_SRGB_ALPHA_EXT:GL_SRGB_ALPHA_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
 				break;
 
 			case PTI_RGBA16F:
@@ -486,19 +495,19 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 				break;
 			//16bit formats
 			case PTI_RGBA4444:
-				qglTexImage2D(targface, j, GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, mips->mip[i].data);
 				break;
 			case PTI_RGBA5551:
-				qglTexImage2D(targface, j, GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, mips->mip[i].data);
 				break;
 			case PTI_ARGB4444:
-				qglTexImage2D(targface, j, GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_SHORT_4_4_4_4_REV, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_SHORT_4_4_4_4_REV, mips->mip[i].data);
 				break;
 			case PTI_ARGB1555:
-				qglTexImage2D(targface, j, GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_SHORT_1_5_5_5_REV, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_SHORT_1_5_5_5_REV, mips->mip[i].data);
 				break;
 			case PTI_RGB565:
-				qglTexImage2D(targface, j, GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, mips->mip[i].data);
+				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, mips->mip[i].data);
 				break;
 			//(desktop) compressed formats
 			case PTI_S3RGB1:

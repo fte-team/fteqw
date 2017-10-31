@@ -2282,7 +2282,8 @@ static qboolean XCursor_Init(void)
 	};
 	qboolean defaulthwcursor = true;
 
-	if (!strcmp(gl_vendor, "Humper") && !strcmp(gl_renderer, "Chromium"))
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL && !strcmp(gl_vendor, "Humper") && !strcmp(gl_renderer, "Chromium"))
 	{	//I don't really understand the significance of these two values, but we get them when running inside VirtualBox
 		//in such cases, the opengl window has a nasty habit of appearing top-most, even above mouse cursors...
 		//so we NEED to disable hardware cursors by default in this case, because otherwise we won't see any
@@ -2290,6 +2291,7 @@ static qboolean XCursor_Init(void)
 		Con_Printf("VirtualBox Detected: OpenGL obscures hardware cursors. seta x11_allow_xcursor 1 to ignore.\n");
 		defaulthwcursor = false;
 	}
+#endif
 
 	//in case they were previously set...
 	rf->VID_CreateCursor = NULL;

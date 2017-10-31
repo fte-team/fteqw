@@ -29,6 +29,17 @@ extern progfuncs_t *qccprogfuncs;
 #define strnicmp strncasecmp
 #endif
 
+#ifdef _MSC_VER	//ffs
+#define strtoull _strtoui64
+#ifndef PRIxPTR
+#define PRIxPTR "Ix"
+#endif
+#else
+#ifndef PRIxPTR
+#define PRIxPTR "Ix"
+#endif
+#endif
+
 void *qccHunkAlloc(size_t mem);
 void qccClearHunk(void);
 
@@ -279,7 +290,7 @@ There are no ++ / -- operators, or operate/assign operators.
 #if 1
 #include "hash.h"
 extern hashtable_t compconstantstable;
-extern hashtable_t globalstable, localstable;
+extern hashtable_t globalstable, localstable, typedeftable;
 #endif
 
 #ifdef WRITEASM
@@ -616,7 +627,10 @@ extern pbool flag_qccx;
 extern pbool flag_attributes;
 extern pbool flag_assumevar;
 extern pbool flag_dblstarexp;
+extern pbool flag_allowuninit;
+extern pbool flag_cpriority;
 extern pbool flag_embedsrc;
+extern pbool flag_nopragmafileline;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;
@@ -684,6 +698,7 @@ CompilerConstant_t *QCC_PR_DefineName(char *name);
 
 const char *QCC_VarAtOffset(QCC_sref_t ref);
 
+void QCC_PrioritiseOpcodes(void);
 int QCC_PR_IntConstExpr(void);
 
 #ifndef COMMONINLINES
@@ -711,6 +726,7 @@ char *QCC_NameForWarning(int idx);
 enum {
 	WARN_DEBUGGING,
 	WARN_ERROR,
+	WARN_DEPRECATEDWARNING,	//to silence warnings about old warnings.
 	WARN_WRITTENNOTREAD,
 	WARN_READNOTWRITTEN,
 	WARN_NOTREFERENCED,

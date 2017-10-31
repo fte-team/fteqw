@@ -3018,10 +3018,6 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		out->plane = pl;
 		facetype = LittleLong(in->facetype);
 		out->texinfo = mod->texinfo + LittleLong(in->shadernum);
-		if (facetype == MST_FLARE)
-			out->texinfo = mod->texinfo + mod->numtexinfo*2;
-		else if (facetype == MST_TRIANGLE_SOUP || r_vertexlight.value)
-			out->texinfo += mod->numtexinfo;	//soup/vertex light uses a different version of the same shader (with all the lightmaps collapsed)
 		for (j = 0; j < 4 && j < MAXRLIGHTMAPS; j++)
 		{
 			out->lightmaptexturenums[j] = LittleLong(in->lightmapnum[j]);
@@ -3032,6 +3028,11 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			if (mod->lightmaps.count < out->lightmaptexturenums[j]+1)
 				mod->lightmaps.count = out->lightmaptexturenums[j]+1;
 		}
+		if (facetype == MST_FLARE)
+			out->texinfo = mod->texinfo + mod->numtexinfo*2;
+		else if (out->lightmaptexturenums[0]<0 || r_vertexlight.value)
+			out->texinfo += mod->numtexinfo;	//soup/vertex light uses a different version of the same shader (with all the lightmaps collapsed)
+
 		out->lmshift = LMSHIFT_DEFAULT;
 		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<out->lmshift;
 		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<out->lmshift;
@@ -3497,14 +3498,62 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
 
 	loadmodel->engineflags |= MDLF_RGBLIGHTING;
-	loadmodel->lightdata = out = ZG_Malloc(&loadmodel->memgroup, samples);
-	loadmodel->lightdatasize = samples;
+
+	if (loadmodel->lightmaps.deluxemapping)
+		maps /= 2;
+
+	{
+		int limit = min(sh_config.texture_maxsize / loadmodel->lightmaps.height, 16);//mod_mergeq3lightmaps.ival);
+		loadmodel->lightmaps.merge = 1;
+		while (loadmodel->lightmaps.merge*2 <= limit && loadmodel->lightmaps.merge < maps)
+			loadmodel->lightmaps.merge *= 2;
+	}
+
+	//q3bsp itself does not support deluxemapping.
+	//the way it works is by interleaving the data in lightmap+deluxemap pairs.
+	//the surface data makes no references to the deluxemap maps, they're implied by lightmap+1
+	//if no surface references an odd lightmap index then we know we have deluxemaps... assuming there are at least two lightmaps.
+	//q3map2 likes generating null lightmaps, so beware false positives.
+
+	//note that external lighting makes this even more fun.
+
+	//if we have deluxemapping data then we split it here. beware externals.
+	if (loadmodel->lightmaps.deluxemapping)
+	{
+		m = loadmodel->lightmaps.merge;
+		while (m < maps)
+			m += loadmodel->lightmaps.merge;
+		loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, mapsize*m*2);
+		loadmodel->lightdatasize = mapsize*m*2;
+	}
+	else
+	{
+		loadmodel->lightdatasize = samples;
+		loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, samples);
+	}
+
+	if (!loadmodel->lightdata)
+		return;
+
 
 	//be careful here, q3bsp deluxemapping is done using interleaving. we want to unoverbright ONLY lightmaps and not deluxemaps.
 	for (m = 0; m < maps; m++)
 	{
-		if (loadmodel->lightmaps.deluxemapping && (m & 1))
+		out = loadmodel->lightdata;
+		//figure out which merged lightmap we're putting it into
+		out += (m/loadmodel->lightmaps.merge)*loadmodel->lightmaps.merge*mapsize * (loadmodel->lightmaps.deluxemapping?2:1);
+		//and the submap
+		out += (m%loadmodel->lightmaps.merge)*mapsize;
+
+		for(s = 0; s < mapsize; s++)
+			out[s] = lmgamma[*in++];
+		if (r_lightmap_saturation.value != 1.0f)
+			SaturateR8G8B8(out, mapsize, r_lightmap_saturation.value);
+		
+		if (loadmodel->lightmaps.deluxemapping)
 		{
+			out+= loadmodel->lightmaps.merge*mapsize;
+
 			//no gamma for deluxemap
 			for(s = 0; s < mapsize; s+=3)
 			{
@@ -3514,24 +3563,21 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 				in += 3;
 			}
 		}
-		else
-		{
-			for(s = 0; s < mapsize; s++)
-			{
-				*out++ = lmgamma[*in++];
-			}
-
-			if (r_lightmap_saturation.value != 1.0f)
-				SaturateR8G8B8(out - mapsize, mapsize, r_lightmap_saturation.value);
-		}
 	}
-
-	if (loadmodel->lightdata)
+	for (; m%loadmodel->lightmaps.merge; m++)
 	{
-		int limit = min(sh_config.texture_maxsize / loadmodel->lightmaps.height, 16);//mod_mergeq3lightmaps.ival);
-		loadmodel->lightmaps.merge = 1;
-		while (loadmodel->lightmaps.merge*2 <= limit)
-			loadmodel->lightmaps.merge *= 2;
+		out = loadmodel->lightdata;
+		//figure out which merged lightmap we're putting it into
+		out += (m/loadmodel->lightmaps.merge)*loadmodel->lightmaps.merge*mapsize * (loadmodel->lightmaps.deluxemapping?2:1);
+		//and the submap
+		out += (m%loadmodel->lightmaps.merge)*mapsize;
+
+		for(s = 0; s < mapsize; s+=3)
+		{
+			out[s+0] = 0;
+			out[s+1] = 255;
+			out[s+2] = 0;
+		}
 	}
 }
 
@@ -4077,6 +4123,9 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		else
 #endif
 			noerrors = noerrors && CModQ3_LoadFaces				(mod, mod_base, &header.lumps[Q3LUMP_SURFACES]);
+
+		if (noerrors)
+			Mod_LoadEntities								(mod, mod_base, &header.lumps[Q3LUMP_ENTITIES]);
 #ifndef SERVERONLY
 		if (qrenderer != QR_NONE)
 		{
@@ -4110,7 +4159,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				facesize = sizeof(q3dface_t);
 				mod->lightmaps.surfstyles = 1;
 			}
-			if (noerrors && mod->fromgame == fg_quake3)
+			if (noerrors)
 			{
 				i = header.lumps[Q3LUMP_LIGHTMAPS].filelen / (mod->lightmaps.width*mod->lightmaps.height*3);
 				mod->lightmaps.deluxemapping = !(i&1);
@@ -4122,6 +4171,28 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 					if (mod->surfaces[i].lightmaptexturenums[0] >= 0 && (mod->surfaces[i].lightmaptexturenums[0] & 1))
 						mod->lightmaps.deluxemapping = false;
 				}
+
+				{
+					char deluxeMaps[64], *key;
+					key = (char*)Mod_ParseWorldspawnKey(mod, "deluxeMaps", deluxeMaps, sizeof(deluxeMaps));
+					if (*key)
+					{
+						switch(atoi(key))
+						{
+						case 0:
+							mod->lightmaps.deluxemapping = false;
+							break;
+						case 1:
+		//					mod->lightmaps.deluxemapping = true;
+							mod->lightmaps.deluxemapping_modelspace = true;
+							break;
+						case 2:
+		//					mod->lightmaps.deluxemapping = true;
+							mod->lightmaps.deluxemapping_modelspace = false;
+							break;
+						}
+					}
+				}
 			}
 
 			if (noerrors)
@@ -4132,8 +4203,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		noerrors = noerrors && CModQ3_LoadNodes					(mod, mod_base, &header.lumps[Q3LUMP_NODES]);
 		noerrors = noerrors && CModQ3_LoadSubmodels				(mod, mod_base, &header.lumps[Q3LUMP_MODELS]);
 		noerrors = noerrors && CModQ3_LoadVisibility			(mod, mod_base, &header.lumps[Q3LUMP_VISIBILITY]);
-		if (noerrors)
-			Mod_LoadEntities								(mod, mod_base, &header.lumps[Q3LUMP_ENTITIES]);
 
 		if (!noerrors)
 		{
@@ -4160,28 +4229,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		mod->funcs.NativeContents			= CM_NativeContents;
 
 #ifndef SERVERONLY
-		{
-			char deluxeMaps[64], *key;
-			key = (char*)Mod_ParseWorldspawnKey(mod, "deluxeMaps", deluxeMaps, sizeof(deluxeMaps));
-			if (*key)
-			{
-				switch(atoi(key))
-				{
-				case 0:
-					mod->lightmaps.deluxemapping = false;
-					break;
-				case 1:
-//					mod->lightmaps.deluxemapping = true;
-					mod->lightmaps.deluxemapping_modelspace = true;
-					break;
-				case 2:
-//					mod->lightmaps.deluxemapping = true;
-					mod->lightmaps.deluxemapping_modelspace = false;
-					break;
-				}
-			}
-		}
-
 		//light grid info
 		if (mod->lightgrid)
 		{
@@ -6502,7 +6549,7 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area, qboolean merge)
 
 	bytes = (prv->numareas+7)>>3;
 
-	if (map_noareas.value)
+	if (map_noareas.value || (area < 0 && !merge))
 	{	// for debugging, send everything
 		if (!merge)
 			memset (buffer, 255, bytes);

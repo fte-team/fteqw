@@ -320,8 +320,8 @@ const static GUID  QKSDATAFORMAT_SUBTYPE_PCM		= {0x00000001,0x0000,0x0010, {0x80
 const static GUID QKSDATAFORMAT_SUBTYPE_IEEE_FLOAT	= {0x00000003,0x0000,0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}};
 
 #ifdef _IKsPropertySet_
-const static GUID  CLSID_EAXDIRECTSOUND = {0x4ff53b81, 0x1ce0, 0x11d3,
-{0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5}};
+//const static GUID  CLSID_EAXDIRECTSOUND = {0x4ff53b81, 0x1ce0, 0x11d3,
+//{0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5}};
 const static GUID  DSPROPSETID_EAX20_LISTENERPROPERTIES = {0x306a6a8, 0xb224, 0x11d2,
 {0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22}};
 
@@ -393,11 +393,11 @@ typedef enum
     DSPROPERTY_EAXLISTENER_FLAGS
 } DSPROPERTY_EAX_LISTENERPROPERTY;
 
-const static GUID DSPROPSETID_EAX20_BUFFERPROPERTIES ={
+/*const static GUID DSPROPSETID_EAX20_BUFFERPROPERTIES ={
     0x306a6a7,
     0xb224,
     0x11d2,
-    {0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22}};
+    {0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22}};*/
 
 const static GUID CLSID_EAXDirectSound ={
 		0x4ff53b81,
@@ -685,7 +685,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 
 	usereverb = !!snd_eax.ival;
  //EAX attempt
-#if _MSC_VER > 1200
+#if 1//_MSC_VER > 1200
 #ifdef _IKsPropertySet_
 	dh->pDS = NULL;
 	if (usereverb)
@@ -961,7 +961,7 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 	sc->GetDMAPos	= DSOUND_GetDMAPos;
 	sc->Restore		= DSOUND_Restore;
 
-#if _MSC_VER > 1200
+#if 1//_MSC_VER > 1200
 #ifdef _IKsPropertySet_
 	//attempt at eax support
 	if (usereverb == 2)

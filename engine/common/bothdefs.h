@@ -82,7 +82,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define STRINGIFY(s) STRINGIFY2(s)
 
 #ifdef CONFIG_FILE_NAME
-	//yup, C89 allows this.
+	//yup, C89 allows this (doesn't like C's token concat though).
 	#include STRINGIFY(CONFIG_FILE_NAME)
 #elif defined(HAVE_CONFIG_H)	//if it was configured properly, then we have a more correct list of features we want to use.
 	#include "config.h"
@@ -220,7 +220,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define MD1MODELS		//quake ain't much use without this
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
 		#define PLUGINS
-		#define NOQCDESCRIPTIONS	//trim space from no fteextensions.qc info
+		#define NOQCDESCRIPTIONS 2	//trim space from no fteextensions.qc info
 
 		#define PSET_CLASSIC
 

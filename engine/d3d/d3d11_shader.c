@@ -492,7 +492,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 					t++;
 				nl = strchr(t, '\n');
 				if (!nl)
-					nl = nl+strlen(nl);
+					nl = t+strlen(t);
 
 				if (nl && nl != t)
 				{

@@ -35,7 +35,7 @@ typedef struct builddata_s builddata_t;
 typedef enum {
 	SHADER_SORT_NONE,
 	SHADER_SORT_RIPPLE,
-	SHADER_SORT_PRELIGHT,
+	SHADER_SORT_DEFERREDLIGHT,
 	SHADER_SORT_PORTAL,
 	SHADER_SORT_SKY,
 	SHADER_SORT_OPAQUE,
@@ -248,6 +248,7 @@ typedef struct {
 
 	int	(*ClusterForPoint)		(struct model_s *model, vec3_t point);	//pvs index (leaf-1 for q1bsp). may be negative (ie: no pvs).
 	qbyte *(*ClusterPVS)		(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer, pvsmerge_t merge);
+	qbyte *(*ClustersInSphere)	(struct model_s *model, vec3_t point, float radius, pvsbuffer_t *pvsbuffer, qbyte *unionwith);
 } modelfuncs_t;
 
 

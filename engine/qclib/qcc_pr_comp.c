@@ -119,12 +119,15 @@ pbool flag_typeexplicit;	//no implicit type conversions, you must do the casts y
 pbool flag_noboundchecks;	//Disable generation of bound check instructions.
 pbool flag_guiannotate;
 pbool flag_brokenarrays;	//return array; returns array[0] instead of &array;
-pbool flag_rootconstructor; //if true, class constructors are ordered to call the super constructor first, rather than the child constructor
-pbool flag_qccx;
-pbool flag_attributes;
-pbool flag_assumevar;
-pbool flag_dblstarexp;
-pbool flag_embedsrc;
+pbool flag_rootconstructor;	//if true, class constructors are ordered to call the super constructor first, rather than the child constructor
+pbool flag_qccx;			//accept qccx syntax. you may wish to disable warnings separately.
+pbool flag_attributes;		//gmqcc-style attributes
+pbool flag_assumevar;		//initialised globals will no longer be considered constant
+pbool flag_dblstarexp;		// a**b is pow(a,b) instead of a*(*b)
+pbool flag_cpriority;		//operator precidence should adhere to C standards, instead of QC compatibility.
+pbool flag_allowuninit;		//ignore uninitialised locals, avoiding all private locals.
+pbool flag_embedsrc;		//embed all source files inside the .dat (can be opened with any zip program)
+pbool flag_nopragmafileline;//ignore #pragma file and #pragma line, so that I can actually read+debug xonotic's code.
 
 pbool opt_overlaptemps;		//reduce numpr_globals by reuse of temps. When they are not needed they are freed for reuse. The way this is implemented is better than frikqcc's. (This is the single most important optimisation)
 pbool opt_assignments;		//STORE_F isn't used if an operation wrote to a temp.
@@ -214,13 +217,20 @@ QCC_statement_t *QCC_Generate_OP_IFNOT(QCC_sref_t e, pbool preserve);
 QCC_statement_t *QCC_Generate_OP_IF(QCC_sref_t e, pbool preserve);
 QCC_statement_t *QCC_Generate_OP_GOTO(void);
 QCC_sref_t QCC_PR_GenerateLogicalNot(QCC_sref_t e, const char *errormessage);
-QCC_function_t *QCC_PR_GenerateQCFunction (QCC_def_t *def, QCC_type_t *type, unsigned int pif_flags);
+static QCC_function_t *QCC_PR_GenerateQCFunction (QCC_def_t *def, QCC_type_t *type, unsigned int *pif_flags);
 
 //NOTE: prints may use from the func argument's symbol, which can be awkward if its a temp.
 QCC_sref_t	QCC_PR_GenerateFunctionCallSref (QCC_sref_t newself, QCC_sref_t func, QCC_sref_t *arglist, int argcount);
 QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, QCC_ref_t **arglist, unsigned int argcount);
 QCC_sref_t QCC_PR_GenerateFunctionCall1 (QCC_sref_t newself, QCC_sref_t func, QCC_sref_t a, QCC_type_t *type_a);
 QCC_sref_t QCC_PR_GenerateFunctionCall2 (QCC_sref_t newself, QCC_sref_t func, QCC_sref_t a, QCC_type_t *type_a, QCC_sref_t b, QCC_type_t *type_b);
+
+QCC_sref_t QCC_MakeTranslateStringConst(char *value);
+QCC_sref_t QCC_MakeStringConst(char *value);
+QCC_sref_t QCC_MakeStringConstLength(char *value, int length);
+QCC_sref_t QCC_MakeFloatConst(float value);
+QCC_sref_t QCC_MakeIntConst(int value);
+QCC_sref_t QCC_MakeVectorConst(float a, float b, float c);
 
 enum
 {
@@ -296,420 +306,444 @@ QCC_sref_t extra_parms[MAX_EXTRA_PARMS];
 
 //========================================
 
+#undef PC_NONE
+enum
+{
+	PC_NONE,
+	PC_STORE,	//stores are handled specially, but its still nice to mark them
+	PC_UNARY,	//these happen elsewhere
+	PC_MEMBER,	//these happen elsewhere
+	PC_TERNARY,
+	PC_UNARYNOT,
+
+	PC_MULDIV,
+	PC_ADDSUB,
+	PC_SHIFT,
+	PC_RELATION,
+	PC_EQUALITY,
+	PC_BITAND,
+	PC_BITXOR,
+	PC_BITOR,
+	PC_LOGICAND,
+	PC_LOGICOR,
+	MAX_PRIORITY_CLASSES
+};
+static int priority_class[MAX_PRIORITY_CLASSES+1];	//to simplify implementation slightly
+
 //FIXME: modifiy list so most common GROUPS are first
 //use look up table for value of first char and sort by first char and most common...?
 
 //if true, effectivly {b=a; return a;}
 QCC_opcode_t pr_opcodes[] =
 {
- {6, "<DONE>", "DONE", -1, ASSOC_LEFT,			&type_void, &type_void, &type_void},
+ {6, "<DONE>", "DONE",		PC_NONE,	ASSOC_LEFT,		&type_void, &type_void, &type_void},
 
- {6, "*", "MUL_F",			3, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, "*", "MUL_V",			3, ASSOC_LEFT,				&type_vector, &type_vector, &type_float},
- {6, "*", "MUL_FV",			3, ASSOC_LEFT,				&type_float, &type_vector, &type_vector},
- {6, "*", "MUL_VF",			3, ASSOC_LEFT,				&type_vector, &type_float, &type_vector},
+ {6, "*", "MUL_F",			PC_MULDIV,	ASSOC_LEFT,		&type_float, &type_float, &type_float},
+ {6, "*", "MUL_V",			PC_MULDIV,	ASSOC_LEFT,		&type_vector, &type_vector, &type_float},
+ {6, "*", "MUL_FV",			PC_MULDIV,	ASSOC_LEFT,		&type_float, &type_vector, &type_vector},
+ {6, "*", "MUL_VF",			PC_MULDIV,	ASSOC_LEFT,		&type_vector, &type_float, &type_vector},
 
- {6, "/", "DIV_F",			3, ASSOC_LEFT,				&type_float, &type_float, &type_float},
+ {6, "/", "DIV_F",			PC_MULDIV,	ASSOC_LEFT,		&type_float, &type_float, &type_float},
 
- {6, "+", "ADD_F",			4, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, "+", "ADD_V",			4, ASSOC_LEFT,				&type_vector, &type_vector, &type_vector},
+ {6, "+", "ADD_F",			PC_ADDSUB,	ASSOC_LEFT,		&type_float, &type_float, &type_float},
+ {6, "+", "ADD_V",			PC_ADDSUB,	ASSOC_LEFT,		&type_vector, &type_vector, &type_vector},
 
- {6, "-", "SUB_F",			4, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, "-", "SUB_V",			4, ASSOC_LEFT,				&type_vector, &type_vector, &type_vector},
+ {6, "-", "SUB_F",			PC_ADDSUB,	ASSOC_LEFT,		&type_float, &type_float, &type_float},
+ {6, "-", "SUB_V",			PC_ADDSUB,	ASSOC_LEFT,		&type_vector, &type_vector, &type_vector},
 
- {6, "==", "EQ_F",			5, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, "==", "EQ_V",			5, ASSOC_LEFT,				&type_vector, &type_vector, &type_float},
- {6, "==", "EQ_S",			5, ASSOC_LEFT,				&type_string, &type_string, &type_float},
- {6, "==", "EQ_E",			5, ASSOC_LEFT,				&type_entity, &type_entity, &type_float},
- {6, "==", "EQ_FNC",		5, ASSOC_LEFT,				&type_function, &type_function, &type_float},
+ {6, "==", "EQ_F",			PC_EQUALITY, ASSOC_LEFT,				&type_float, &type_float, &type_float},
+ {6, "==", "EQ_V",			PC_EQUALITY, ASSOC_LEFT,				&type_vector, &type_vector, &type_float},
+ {6, "==", "EQ_S",			PC_EQUALITY, ASSOC_LEFT,				&type_string, &type_string, &type_float},
+ {6, "==", "EQ_E",			PC_EQUALITY, ASSOC_LEFT,				&type_entity, &type_entity, &type_float},
+ {6, "==", "EQ_FNC",		PC_EQUALITY, ASSOC_LEFT,				&type_function, &type_function, &type_float},
 
- {6, "!=", "NE_F",			5, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, "!=", "NE_V",			5, ASSOC_LEFT,				&type_vector, &type_vector, &type_float},
- {6, "!=", "NE_S",			5, ASSOC_LEFT,				&type_string, &type_string, &type_float},
- {6, "!=", "NE_E",			5, ASSOC_LEFT,				&type_entity, &type_entity, &type_float},
- {6, "!=", "NE_FNC",		5, ASSOC_LEFT,				&type_function, &type_function, &type_float},
+ {6, "!=", "NE_F",			PC_EQUALITY, ASSOC_LEFT,				&type_float, &type_float, &type_float},
+ {6, "!=", "NE_V",			PC_EQUALITY, ASSOC_LEFT,				&type_vector, &type_vector, &type_float},
+ {6, "!=", "NE_S",			PC_EQUALITY, ASSOC_LEFT,				&type_string, &type_string, &type_float},
+ {6, "!=", "NE_E",			PC_EQUALITY, ASSOC_LEFT,				&type_entity, &type_entity, &type_float},
+ {6, "!=", "NE_FNC",		PC_EQUALITY, ASSOC_LEFT,				&type_function, &type_function, &type_float},
 
- {6, "<=", "LE_F",			5, ASSOC_LEFT,					&type_float, &type_float, &type_float},
- {6, ">=", "GE_F",			5, ASSOC_LEFT,					&type_float, &type_float, &type_float},
- {6, "<", "LT_F",			5, ASSOC_LEFT,					&type_float, &type_float, &type_float},
- {6, ">", "GT_F",			5, ASSOC_LEFT,					&type_float, &type_float, &type_float},
+ {6, "<=", "LE_F",			PC_RELATION, ASSOC_LEFT,				&type_float, &type_float, &type_float},
+ {6, ">=", "GE_F",			PC_RELATION, ASSOC_LEFT,				&type_float, &type_float, &type_float},
+ {6, "<", "LT_F",			PC_RELATION, ASSOC_LEFT,				&type_float, &type_float, &type_float},
+ {6, ">", "GT_F",			PC_RELATION, ASSOC_LEFT,				&type_float, &type_float, &type_float},
 
- {6, ".", "LOADF_F",		1, ASSOC_LEFT,			&type_entity, &type_field, &type_float},
- {6, ".", "LOADF_V",		1, ASSOC_LEFT,			&type_entity, &type_field, &type_vector},
- {6, ".", "LOADF_S",		1, ASSOC_LEFT,			&type_entity, &type_field, &type_string},
- {6, ".", "LOADF_E",		1, ASSOC_LEFT,			&type_entity, &type_field, &type_entity},
- {6, ".", "LOADF_FI",	1, ASSOC_LEFT,			&type_entity, &type_field, &type_field},
- {6, ".", "LOADF_FU",	1, ASSOC_LEFT,			&type_entity, &type_field, &type_function},
+ {6, ".", "LOADF_F",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_float},
+ {6, ".", "LOADF_V",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_vector},
+ {6, ".", "LOADF_S",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_string},
+ {6, ".", "LOADF_E",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_entity},
+ {6, ".", "LOADF_FI",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_field},
+ {6, ".", "LOADF_FU",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_function},
 
- {6, ".", "FLDADDRESS",		1, ASSOC_LEFT,				&type_entity, &type_field, &type_pointer},
+ {6, ".", "FLDADDRESS",		PC_MEMBER, ASSOC_LEFT,				&type_entity, &type_field, &type_pointer},
 
- {6, "=", "STORE_F",		6, ASSOC_RIGHT,				&type_float, &type_float, &type_float},
- {6, "=", "STORE_V",		6, ASSOC_RIGHT,				&type_vector, &type_vector, &type_vector},
- {6, "=", "STORE_S",		6, ASSOC_RIGHT,				&type_string, &type_string, &type_string},
- {6, "=", "STORE_ENT",		6, ASSOC_RIGHT,				&type_entity, &type_entity, &type_entity},
- {6, "=", "STORE_FLD",		6, ASSOC_RIGHT,				&type_field, &type_field, &type_field},
- {6, "=", "STORE_FNC",		6, ASSOC_RIGHT,				&type_function, &type_function, &type_function},
+ {6, "=", "STORE_F",		PC_STORE, ASSOC_RIGHT,				&type_float, &type_float, &type_float},
+ {6, "=", "STORE_V",		PC_STORE, ASSOC_RIGHT,				&type_vector, &type_vector, &type_vector},
+ {6, "=", "STORE_S",		PC_STORE, ASSOC_RIGHT,				&type_string, &type_string, &type_string},
+ {6, "=", "STORE_ENT",		PC_STORE, ASSOC_RIGHT,				&type_entity, &type_entity, &type_entity},
+ {6, "=", "STORE_FLD",		PC_STORE, ASSOC_RIGHT,				&type_field, &type_field, &type_field},
+ {6, "=", "STORE_FNC",		PC_STORE, ASSOC_RIGHT,				&type_function, &type_function, &type_function},
 
- {6, "=", "STOREP_F",		6, ASSOC_RIGHT,				&type_pointer, &type_float, &type_float},
- {6, "=", "STOREP_V",		6, ASSOC_RIGHT,				&type_pointer, &type_vector, &type_vector},
- {6, "=", "STOREP_S",		6, ASSOC_RIGHT,				&type_pointer, &type_string, &type_string},
- {6, "=", "STOREP_ENT",		6, ASSOC_RIGHT,			&type_pointer, &type_entity, &type_entity},
- {6, "=", "STOREP_FLD",		6, ASSOC_RIGHT,			&type_pointer, &type_field, &type_field},
- {6, "=", "STOREP_FNC",		6, ASSOC_RIGHT,			&type_pointer, &type_function, &type_function},
+ {6, "=", "STOREP_F",		PC_STORE, ASSOC_RIGHT,				&type_pointer, &type_float, &type_float},
+ {6, "=", "STOREP_V",		PC_STORE, ASSOC_RIGHT,				&type_pointer, &type_vector, &type_vector},
+ {6, "=", "STOREP_S",		PC_STORE, ASSOC_RIGHT,				&type_pointer, &type_string, &type_string},
+ {6, "=", "STOREP_ENT",		PC_STORE, ASSOC_RIGHT,			&type_pointer, &type_entity, &type_entity},
+ {6, "=", "STOREP_FLD",		PC_STORE, ASSOC_RIGHT,			&type_pointer, &type_field, &type_field},
+ {6, "=", "STOREP_FNC",		PC_STORE, ASSOC_RIGHT,			&type_pointer, &type_function, &type_function},
 
- {6, "<RETURN>", "RETURN",	-1, ASSOC_LEFT,		&type_vector, &type_void, &type_void},
+ {6, "<RETURN>", "RETURN",	PC_NONE, ASSOC_LEFT,		&type_vector, &type_void, &type_void},
 
- {6, "!", "NOT_F",			-1, ASSOC_LEFT,				&type_float, &type_void, &type_float},
- {6, "!", "NOT_V",			-1, ASSOC_LEFT,				&type_vector, &type_void, &type_float},
- {6, "!", "NOT_S",			-1, ASSOC_LEFT,				&type_vector, &type_void, &type_float},
- {6, "!", "NOT_ENT",		-1, ASSOC_LEFT,				&type_entity, &type_void, &type_float},
- {6, "!", "NOT_FNC",		-1, ASSOC_LEFT,				&type_function, &type_void, &type_float},
+ {6, "!", "NOT_F",			PC_UNARY, ASSOC_LEFT,				&type_float, &type_void, &type_float},
+ {6, "!", "NOT_V",			PC_UNARY, ASSOC_LEFT,				&type_vector, &type_void, &type_float},
+ {6, "!", "NOT_S",			PC_UNARY, ASSOC_LEFT,				&type_vector, &type_void, &type_float},
+ {6, "!", "NOT_ENT",		PC_UNARY, ASSOC_LEFT,				&type_entity, &type_void, &type_float},
+ {6, "!", "NOT_FNC",		PC_UNARY, ASSOC_LEFT,				&type_function, &type_void, &type_float},
 
-  {6, "<IF>", "IF",			-1, ASSOC_RIGHT,				&type_float, NULL, &type_void},
-  {6, "<IFNOT>", "IFNOT",	-1, ASSOC_RIGHT,			&type_float, NULL, &type_void},
+  {6, "<IF>", "IF",			PC_NONE, ASSOC_RIGHT,				&type_float, NULL, &type_void},
+  {6, "<IFNOT>", "IFNOT",	PC_NONE, ASSOC_RIGHT,			&type_float, NULL, &type_void},
 
 // calls returns REG_RETURN
- {6, "<CALL0>", "CALL0",	-1, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL1>", "CALL1",	-1, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL2>", "CALL2",	-1, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL3>", "CALL3",	-1, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL4>", "CALL4",	-1, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL5>", "CALL5",	-1, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL6>", "CALL6",	-1, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL7>", "CALL7",	-1, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL8>", "CALL8",	-1, ASSOC_LEFT,			&type_function, &type_void, &type_void},
+ {6, "<CALL0>", "CALL0",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
+ {6, "<CALL1>", "CALL1",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
+ {6, "<CALL2>", "CALL2",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
+ {6, "<CALL3>", "CALL3",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
+ {6, "<CALL4>", "CALL4",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
+ {6, "<CALL5>", "CALL5",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
+ {6, "<CALL6>", "CALL6",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
+ {6, "<CALL7>", "CALL7",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
+ {6, "<CALL8>", "CALL8",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
 
- {6, "<STATE>", "STATE",	-1, ASSOC_LEFT,			&type_float, &type_float, &type_void},
+ {6, "<STATE>", "STATE",	PC_NONE, ASSOC_LEFT,			&type_float, &type_float, &type_void},
 
- {6, "<GOTO>", "GOTO",		-1, ASSOC_RIGHT,			NULL, &type_void, &type_void},
+ {6, "<GOTO>", "GOTO",		PC_NONE, ASSOC_RIGHT,			NULL, &type_void, &type_void},
 
- {6, "&&", "AND_F",			7, ASSOC_LEFT,					&type_float,	&type_float, &type_float},
- {6, "||", "OR_F",			7, ASSOC_LEFT,					&type_float,	&type_float, &type_float},
+ {6, "&&", "AND_F",			PC_LOGICAND, ASSOC_LEFT,					&type_float,	&type_float, &type_float},
+ {6, "||", "OR_F",			PC_LOGICOR, ASSOC_LEFT,					&type_float,	&type_float, &type_float},
 
- {6, "&", "BITAND",			3, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, "|", "BITOR",			3, ASSOC_LEFT,				&type_float, &type_float, &type_float},
+ {6, "&", "BITAND",			PC_BITAND, ASSOC_LEFT,				&type_float, &type_float, &type_float},
+ {6, "|", "BITOR",			PC_BITOR, ASSOC_LEFT,				&type_float, &type_float, &type_float},
 
  //version 6 are in normal progs.
 
 
 
 //these are hexen2
- {7, "*=", "MULSTORE_F",	6, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
- {7, "*=", "MULSTORE_VF",	6, ASSOC_RIGHT_RESULT,				&type_vector, &type_float, &type_vector},
- {7, "*=", "MULSTOREP_F",	6, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
- {7, "*=", "MULSTOREP_VF",	6, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_vector},
+ {7, "*=", "MULSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
+ {7, "*=", "MULSTORE_VF",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_vector, &type_float, &type_vector},
+ {7, "*=", "MULSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
+ {7, "*=", "MULSTOREP_VF",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_vector},
 
- {7, "/=", "DIVSTORE_F",	6, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
- {7, "/=", "DIVSTOREP_F",	6, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
+ {7, "/=", "DIVSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
+ {7, "/=", "DIVSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
 
- {7, "+=", "ADDSTORE_F",	6, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
- {7, "+=", "ADDSTORE_V",	6, ASSOC_RIGHT_RESULT,				&type_vector, &type_vector, &type_vector},
- {7, "+=", "ADDSTOREP_F",	6, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
- {7, "+=", "ADDSTOREP_V",	6, ASSOC_RIGHT_RESULT,				&type_pointer, &type_vector, &type_vector},
+ {7, "+=", "ADDSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
+ {7, "+=", "ADDSTORE_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_vector, &type_vector, &type_vector},
+ {7, "+=", "ADDSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
+ {7, "+=", "ADDSTOREP_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_vector, &type_vector},
 
- {7, "-=", "SUBSTORE_F",	6, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
- {7, "-=", "SUBSTORE_V",	6, ASSOC_RIGHT_RESULT,				&type_vector, &type_vector, &type_vector},
- {7, "-=", "SUBSTOREP_F",	6, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
- {7, "-=", "SUBSTOREP_V",	6, ASSOC_RIGHT_RESULT,				&type_pointer, &type_vector, &type_vector},
+ {7, "-=", "SUBSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
+ {7, "-=", "SUBSTORE_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_vector, &type_vector, &type_vector},
+ {7, "-=", "SUBSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
+ {7, "-=", "SUBSTOREP_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_vector, &type_vector},
 
- {7, "<FETCH_GBL_F>", "FETCH_GBL_F",		-1, ASSOC_LEFT,	&type_float, &type_float, &type_float},
- {7, "<FETCH_GBL_V>", "FETCH_GBL_V",		-1, ASSOC_LEFT,	&type_vector, &type_float, &type_vector},
- {7, "<FETCH_GBL_S>", "FETCH_GBL_S",		-1, ASSOC_LEFT,	&type_string, &type_float, &type_string},
- {7, "<FETCH_GBL_E>", "FETCH_GBL_E",		-1, ASSOC_LEFT,	&type_entity, &type_float, &type_entity},
- {7, "<FETCH_GBL_FNC>", "FETCH_GBL_FNC",	-1, ASSOC_LEFT,	&type_function, &type_float, &type_function},
+ {7, "<FETCH_GBL_F>", "FETCH_GBL_F",		PC_NONE, ASSOC_LEFT,	&type_float, &type_float, &type_float},
+ {7, "<FETCH_GBL_V>", "FETCH_GBL_V",		PC_NONE, ASSOC_LEFT,	&type_vector, &type_float, &type_vector},
+ {7, "<FETCH_GBL_S>", "FETCH_GBL_S",		PC_NONE, ASSOC_LEFT,	&type_string, &type_float, &type_string},
+ {7, "<FETCH_GBL_E>", "FETCH_GBL_E",		PC_NONE, ASSOC_LEFT,	&type_entity, &type_float, &type_entity},
+ {7, "<FETCH_GBL_FNC>", "FETCH_GBL_FNC",	PC_NONE, ASSOC_LEFT,	&type_function, &type_float, &type_function},
 
- {7, "<CSTATE>", "CSTATE",					-1, ASSOC_LEFT,	&type_float, &type_float, &type_void},
+ {7, "<CSTATE>", "CSTATE",					PC_NONE, ASSOC_LEFT,	&type_float, &type_float, &type_void},
 
- {7, "<CWSTATE>", "CWSTATE",				-1, ASSOC_LEFT,	&type_float, &type_float, &type_void},
+ {7, "<CWSTATE>", "CWSTATE",				PC_NONE, ASSOC_LEFT,	&type_float, &type_float, &type_void},
 
- {7, "<THINKTIME>", "THINKTIME",			-1, ASSOC_LEFT,	&type_entity, &type_float, &type_void},
+ {7, "<THINKTIME>", "THINKTIME",			PC_NONE, ASSOC_LEFT,	&type_entity, &type_float, &type_void},
 
- {7, "|=", "BITSETSTORE_F",					6,	ASSOC_RIGHT,	&type_float, &type_float, &type_float},
- {7, "|=", "BITSETSTOREP_F",				6,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float},
- {7, "&~=", "BITCLRSTORE_F",				6,	ASSOC_RIGHT,	&type_float, &type_float, &type_float},
- {7, "&~=", "BITCLRSTOREP_F",				6,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float},
+ {7, "|=", "BITSETSTORE_F",					PC_STORE,	ASSOC_RIGHT,	&type_float, &type_float, &type_float},
+ {7, "|=", "BITSETSTOREP_F",				PC_STORE,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float},
+ {7, "&~=", "BITCLRSTORE_F",				PC_STORE,	ASSOC_RIGHT,	&type_float, &type_float, &type_float},
+ {7, "&~=", "BITCLRSTOREP_F",				PC_STORE,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float},
 
- {7, "<RAND0>", "RAND0",					-1, ASSOC_LEFT,	&type_void, &type_void, &type_float},
- {7, "<RAND1>", "RAND1",					-1, ASSOC_LEFT,	&type_float, &type_void, &type_float},
- {7, "<RAND2>", "RAND2",					-1, ASSOC_LEFT,	&type_float, &type_float, &type_float},
- {7, "<RANDV0>", "RANDV0",					-1, ASSOC_LEFT,	&type_void, &type_void, &type_vector},
- {7, "<RANDV1>", "RANDV1",					-1, ASSOC_LEFT,	&type_vector, &type_void, &type_vector},
- {7, "<RANDV2>", "RANDV2",					-1, ASSOC_LEFT,	&type_vector, &type_vector, &type_vector},
+ {7, "<RAND0>", "RAND0",					PC_NONE, ASSOC_LEFT,	&type_void, &type_void, &type_float},
+ {7, "<RAND1>", "RAND1",					PC_NONE, ASSOC_LEFT,	&type_float, &type_void, &type_float},
+ {7, "<RAND2>", "RAND2",					PC_NONE, ASSOC_LEFT,	&type_float, &type_float, &type_float},
+ {7, "<RANDV0>", "RANDV0",					PC_NONE, ASSOC_LEFT,	&type_void, &type_void, &type_vector},
+ {7, "<RANDV1>", "RANDV1",					PC_NONE, ASSOC_LEFT,	&type_vector, &type_void, &type_vector},
+ {7, "<RANDV2>", "RANDV2",					PC_NONE, ASSOC_LEFT,	&type_vector, &type_vector, &type_vector},
 
- {7, "<SWITCH_F>", "SWITCH_F",				-1, ASSOC_RIGHT,	&type_float, NULL, &type_void},
- {7, "<SWITCH_V>", "SWITCH_V",				-1, ASSOC_RIGHT,	&type_vector, NULL, &type_void},
- {7, "<SWITCH_S>", "SWITCH_S",				-1, ASSOC_RIGHT,	&type_string, NULL, &type_void},
- {7, "<SWITCH_E>", "SWITCH_E",				-1, ASSOC_RIGHT,	&type_entity, NULL, &type_void},
- {7, "<SWITCH_FNC>", "SWITCH_FNC",			-1, ASSOC_RIGHT,	&type_function, NULL, &type_void},
+ {7, "<SWITCH_F>", "SWITCH_F",				PC_NONE, ASSOC_RIGHT,	&type_float, NULL, &type_void},
+ {7, "<SWITCH_V>", "SWITCH_V",				PC_NONE, ASSOC_RIGHT,	&type_vector, NULL, &type_void},
+ {7, "<SWITCH_S>", "SWITCH_S",				PC_NONE, ASSOC_RIGHT,	&type_string, NULL, &type_void},
+ {7, "<SWITCH_E>", "SWITCH_E",				PC_NONE, ASSOC_RIGHT,	&type_entity, NULL, &type_void},
+ {7, "<SWITCH_FNC>", "SWITCH_FNC",			PC_NONE, ASSOC_RIGHT,	&type_function, NULL, &type_void},
 
- {7, "<CASE>", "CASE",						-1, ASSOC_RIGHT,	&type_variant, NULL, &type_void},
- {7, "<CASERANGE>", "CASERANGE",			-1, ASSOC_RIGHT,	&type_float, &type_float, NULL},
+ {7, "<CASE>", "CASE",						PC_NONE, ASSOC_RIGHT,	&type_variant, NULL, &type_void},
+ {7, "<CASERANGE>", "CASERANGE",			PC_NONE, ASSOC_RIGHT,	&type_float, &type_float, NULL},
 
 
 //Later are additions by DMW.
 
- {7, "<CALL1H>", "CALL1H",	-1, ASSOC_RIGHT,			&type_function, &type_variant, &type_void},
- {7, "<CALL2H>", "CALL2H",	-1, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL3H>", "CALL3H",	-1, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL4H>", "CALL4H",	-1, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL5H>", "CALL5H",	-1, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL6H>", "CALL6H",	-1, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL7H>", "CALL7H",	-1, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL8H>", "CALL8H",	-1, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
+ {7, "<CALL1H>", "CALL1H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_void},
+ {7, "<CALL2H>", "CALL2H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
+ {7, "<CALL3H>", "CALL3H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
+ {7, "<CALL4H>", "CALL4H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
+ {7, "<CALL5H>", "CALL5H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
+ {7, "<CALL6H>", "CALL6H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
+ {7, "<CALL7H>", "CALL7H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
+ {7, "<CALL8H>", "CALL8H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
 
- {7, "=",	"STORE_I", 6, ASSOC_RIGHT,				&type_integer, &type_integer, &type_integer},
- {7, "=",	"STORE_IF", 6, ASSOC_RIGHT,			&type_float, &type_integer, &type_integer},
- {7, "=",	"STORE_FI", 6, ASSOC_RIGHT,			&type_integer, &type_float, &type_float},
+ {7, "=",	"STORE_I",		PC_STORE, ASSOC_RIGHT,				&type_integer, &type_integer, &type_integer},
+ {7, "=",	"STORE_IF",		PC_STORE, ASSOC_RIGHT,			&type_float, &type_integer, &type_integer},
+ {7, "=",	"STORE_FI",		PC_STORE, ASSOC_RIGHT,			&type_integer, &type_float, &type_float},
 
- {7, "+", "ADD_I", 4, ASSOC_LEFT,				&type_integer, &type_integer, &type_integer},
- {7, "+", "ADD_FI", 4, ASSOC_LEFT,				&type_float, &type_integer, &type_float},
- {7, "+", "ADD_IF", 4, ASSOC_LEFT,				&type_integer, &type_float, &type_float},
+ {7, "+", "ADD_I",			PC_ADDSUB, ASSOC_LEFT,				&type_integer, &type_integer, &type_integer},
+ {7, "+", "ADD_FI",			PC_ADDSUB, ASSOC_LEFT,				&type_float, &type_integer, &type_float},
+ {7, "+", "ADD_IF",			PC_ADDSUB, ASSOC_LEFT,				&type_integer, &type_float, &type_float},
 
- {7, "-", "SUB_I", 4, ASSOC_LEFT,				&type_integer, &type_integer, &type_integer},
- {7, "-", "SUB_FI", 4, ASSOC_LEFT,				&type_float, &type_integer, &type_float},
- {7, "-", "SUB_IF", 4, ASSOC_LEFT,				&type_integer, &type_float, &type_float},
+ {7, "-", "SUB_I",			PC_ADDSUB, ASSOC_LEFT,				&type_integer, &type_integer, &type_integer},
+ {7, "-", "SUB_FI",			PC_ADDSUB, ASSOC_LEFT,				&type_float, &type_integer, &type_float},
+ {7, "-", "SUB_IF",			PC_ADDSUB, ASSOC_LEFT,				&type_integer, &type_float, &type_float},
 
- {7, "<CIF>", "C_ITOF", -1, ASSOC_LEFT,				&type_integer, &type_void, &type_float},
- {7, "<CFI>", "C_FTOI", -1, ASSOC_LEFT,				&type_float, &type_void, &type_integer},
- {7, "<CPIF>", "CP_ITOF", -1, ASSOC_LEFT,			&type_pointer, &type_integer, &type_float},
- {7, "<CPFI>", "CP_FTOI", -1, ASSOC_LEFT,			&type_pointer, &type_float, &type_integer},
+ {7, "<CIF>", "C_ITOF",		PC_STORE, ASSOC_LEFT,				&type_integer, &type_void, &type_float},
+ {7, "<CFI>", "C_FTOI",		PC_STORE, ASSOC_LEFT,				&type_float, &type_void, &type_integer},
+ {7, "<CPIF>", "CP_ITOF",	PC_STORE, ASSOC_LEFT,			&type_pointer, &type_integer, &type_float},
+ {7, "<CPFI>", "CP_FTOI",	PC_STORE, ASSOC_LEFT,			&type_pointer, &type_float, &type_integer},
 
- {7, ".", "LOADF_I", 1, ASSOC_LEFT,				&type_entity,	&type_field, &type_integer},
- {7, "=", "STOREP_I", 6, ASSOC_RIGHT,				&type_pointer,	&type_integer, &type_integer},
- {7, "=", "STOREP_IF", 6, ASSOC_RIGHT,				&type_pointer,	&type_float, &type_integer},
- {7, "=", "STOREP_FI", 6, ASSOC_RIGHT,				&type_pointer,	&type_integer, &type_float},
+ {7, ".", "LOADF_I",	PC_MEMBER, ASSOC_LEFT,				&type_entity,	&type_field, &type_integer},
+ {7, "=", "STOREP_I",	PC_STORE, ASSOC_RIGHT,				&type_pointer,	&type_integer, &type_integer},
+ {7, "=", "STOREP_IF",	PC_STORE, ASSOC_RIGHT,				&type_pointer,	&type_float, &type_integer},
+ {7, "=", "STOREP_FI",	PC_STORE, ASSOC_RIGHT,				&type_pointer,	&type_integer, &type_float},
 
- {7, "&", "BITAND_I", 3, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
- {7, "|", "BITOR_I", 3, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
+ {7, "&", "BITAND_I",	PC_BITAND, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
+ {7, "|", "BITOR_I",	PC_BITOR, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
 
- {7, "*", "MUL_I", 3, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
- {7, "/", "DIV_I", 3, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
- {7, "==", "EQ_I", 5, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
- {7, "!=", "NE_I", 5, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
+ {7, "*", "MUL_I",		PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
+ {7, "/", "DIV_I",		PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
+ {7, "==", "EQ_I",		PC_EQUALITY, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
+ {7, "!=", "NE_I",		PC_EQUALITY, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
 
- {7, "<IFNOTS>", "IFNOTS", -1, ASSOC_RIGHT,		&type_string,	NULL, &type_void},
- {7, "<IFS>", "IFS", -1, ASSOC_RIGHT,				&type_string,	NULL, &type_void},
+ {7, "<IFNOTS>", "IFNOTS",	PC_NONE, ASSOC_RIGHT,		&type_string,	NULL, &type_void},
+ {7, "<IFS>", "IFS",		PC_NONE, ASSOC_RIGHT,				&type_string,	NULL, &type_void},
 
- {7, "!", "NOT_I", -1, ASSOC_LEFT,				&type_integer,	&type_void, &type_integer},
+ {7, "!", "NOT_I",			PC_UNARY, ASSOC_LEFT,				&type_integer,	&type_void, &type_integer},
 
- {7, "/", "DIV_VF", 3, ASSOC_LEFT,				&type_vector,	&type_float, &type_vector},
+ {7, "/", "DIV_VF",			PC_MULDIV, ASSOC_LEFT,				&type_vector,	&type_float, &type_vector},
 
- {7, "^", "BITXOR_I", 3, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
- {7, ">>", "RSHIFT_I", 3, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
- {7, "<<", "LSHIFT_I", 3, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
+ {7, "^", "BITXOR_I",		PC_BITXOR, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
+ {7, ">>", "RSHIFT_I",		PC_SHIFT, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
+ {7, "<<", "LSHIFT_I",		PC_SHIFT, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
 
 										//var,		offset			return
- {7, "<ARRAY>", "GLOBALADDRESS", -1, ASSOC_LEFT,	&type_float,		&type_integer, &type_pointer},
- {7, "<ARRAY>", "ADD_PIW", -1, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_pointer},
+ {7, "<ARRAY>", "GLOBALADDRESS", PC_NONE, ASSOC_LEFT,	&type_float,		&type_integer, &type_pointer},
+ {7, "<ARRAY>", "ADD_PIW", PC_NONE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_pointer},
 
- {7, "=", "LOADA_F", 6, ASSOC_LEFT,			&type_float,	&type_integer, &type_float},
- {7, "=", "LOADA_V", 6, ASSOC_LEFT,			&type_vector,	&type_integer, &type_vector},
- {7, "=", "LOADA_S", 6, ASSOC_LEFT,			&type_string,	&type_integer, &type_string},
- {7, "=", "LOADA_ENT", 6, ASSOC_LEFT,		&type_entity,	&type_integer, &type_entity},
- {7, "=", "LOADA_FLD", 6, ASSOC_LEFT,		&type_field,	&type_integer, &type_field},
- {7, "=", "LOADA_FNC", 6, ASSOC_LEFT,		&type_function,	&type_integer, &type_function},
- {7, "=", "LOADA_I", 6, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
+ {7, "=", "LOADA_F",		PC_STORE, ASSOC_LEFT,			&type_float,	&type_integer, &type_float},
+ {7, "=", "LOADA_V",		PC_STORE, ASSOC_LEFT,			&type_vector,	&type_integer, &type_vector},
+ {7, "=", "LOADA_S",		PC_STORE, ASSOC_LEFT,			&type_string,	&type_integer, &type_string},
+ {7, "=", "LOADA_ENT",		PC_STORE, ASSOC_LEFT,		&type_entity,	&type_integer, &type_entity},
+ {7, "=", "LOADA_FLD",		PC_STORE, ASSOC_LEFT,		&type_field,	&type_integer, &type_field},
+ {7, "=", "LOADA_FNC",		PC_STORE, ASSOC_LEFT,		&type_function,	&type_integer, &type_function},
+ {7, "=", "LOADA_I",		PC_STORE, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
 
- {7, "=", "STORE_P", 6, ASSOC_RIGHT,			&type_pointer,	&type_pointer, &type_void},
- {7, ".", "LOADF_P", 1, ASSOC_LEFT,			&type_entity,	&type_field, &type_pointer},
+ {7, "=", "STORE_P",		PC_STORE, ASSOC_RIGHT,			&type_pointer,	&type_pointer, &type_void},
+ {7, ".", "LOADF_P",		PC_MEMBER, ASSOC_LEFT,			&type_entity,	&type_field, &type_pointer},
 
- {7, "=", "LOADP_F", 6, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_float},
- {7, "=", "LOADP_V", 6, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_vector},
- {7, "=", "LOADP_S", 6, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_string},
- {7, "=", "LOADP_ENT", 6, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_entity},
- {7, "=", "LOADP_FLD", 6, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_field},
- {7, "=", "LOADP_FNC", 6, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_function},
- {7, "=", "LOADP_I", 6, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_integer},
+ {7, "=", "LOADP_F",		PC_STORE, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_float},
+ {7, "=", "LOADP_V",		PC_STORE, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_vector},
+ {7, "=", "LOADP_S",		PC_STORE, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_string},
+ {7, "=", "LOADP_ENT",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_entity},
+ {7, "=", "LOADP_FLD",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_field},
+ {7, "=", "LOADP_FNC",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_function},
+ {7, "=", "LOADP_I",		PC_STORE, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_integer},
 
 
- {7, "<=", "LE_I", 5, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
- {7, ">=", "GE_I", 5, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
- {7, "<", "LT_I", 5, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
- {7, ">", "GT_I", 5, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
+ {7, "<=", "LE_I",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
+ {7, ">=", "GE_I",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
+ {7, "<", "LT_I",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
+ {7, ">", "GT_I",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
 
- {7, "<=", "LE_IF", 5, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
- {7, ">=", "GE_IF", 5, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
- {7, "<", "LT_IF", 5, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
- {7, ">", "GT_IF", 5, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
+ {7, "<=", "LE_IF",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
+ {7, ">=", "GE_IF",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
+ {7, "<", "LT_IF",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
+ {7, ">", "GT_IF",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
 
- {7, "<=", "LE_FI", 5, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
- {7, ">=", "GE_FI", 5, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
- {7, "<", "LT_FI", 5, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
- {7, ">", "GT_FI", 5, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
+ {7, "<=", "LE_FI",			PC_RELATION, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
+ {7, ">=", "GE_FI",			PC_RELATION, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
+ {7, "<", "LT_FI",			PC_RELATION, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
+ {7, ">", "GT_FI",			PC_RELATION, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
 
- {7, "==", "EQ_IF", 5, ASSOC_LEFT,				&type_integer,	&type_float, &type_integer},
- {7, "==", "EQ_FI", 5, ASSOC_LEFT,				&type_float,	&type_integer, &type_float},
+ {7, "==", "EQ_IF",			PC_EQUALITY, ASSOC_LEFT,				&type_integer,	&type_float, &type_integer},
+ {7, "==", "EQ_FI",			PC_EQUALITY, ASSOC_LEFT,				&type_float,	&type_integer, &type_float},
 
  	//-------------------------------------
 	//string manipulation.
- {7, "+", "ADD_SF",	4, ASSOC_LEFT,				&type_string,	&type_float, &type_string},
- {7, "-", "SUB_S",	4, ASSOC_LEFT,				&type_string,	&type_string, &type_float},
- {7, "<STOREP_C>", "STOREP_C",	1, ASSOC_RIGHT,	&type_string,	&type_float, &type_float},
- {7, "<LOADP_C>", "LOADP_C",	1, ASSOC_LEFT,	&type_string,	&type_float, &type_float},
+ {7, "+", "ADD_SF",	PC_ADDSUB, ASSOC_LEFT,				&type_string,	&type_float, &type_string},
+ {7, "-", "SUB_S",	PC_ADDSUB, ASSOC_LEFT,				&type_string,	&type_string, &type_float},
+ {7, "<STOREP_C>", "STOREP_C",	PC_STORE, ASSOC_RIGHT,	&type_string,	&type_float, &type_float},
+ {7, "<LOADP_C>", "LOADP_C",	PC_STORE, ASSOC_LEFT,	&type_string,	&type_float, &type_float},
 	//-------------------------------------
 
 
 
-{7, "*", "MUL_IF", 5, ASSOC_LEFT,				&type_integer,	&type_float,	&type_float},
-{7, "*", "MUL_FI", 5, ASSOC_LEFT,				&type_float,	&type_integer,	&type_float},
-{7, "*", "MUL_VI", 5, ASSOC_LEFT,				&type_vector,	&type_integer,	&type_vector},
-{7, "*", "MUL_IV", 5, ASSOC_LEFT,				&type_integer,	&type_vector,	&type_vector},
+{7, "*", "MUL_IF",	PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_float,	&type_float},
+{7, "*", "MUL_FI",	PC_MULDIV, ASSOC_LEFT,				&type_float,	&type_integer,	&type_float},
+{7, "*", "MUL_VI",	PC_MULDIV, ASSOC_LEFT,				&type_vector,	&type_integer,	&type_vector},
+{7, "*", "MUL_IV",	PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_vector,	&type_vector},
 
-{7, "/", "DIV_IF", 5, ASSOC_LEFT,				&type_integer,	&type_float,	&type_float},
-{7, "/", "DIV_FI", 5, ASSOC_LEFT,				&type_float,	&type_integer,	&type_float},
+{7, "/", "DIV_IF",	PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_float,	&type_float},
+{7, "/", "DIV_FI",	PC_MULDIV, ASSOC_LEFT,				&type_float,	&type_integer,	&type_float},
 
-{7, "&", "BITAND_IF", 5, ASSOC_LEFT,			&type_integer,	&type_float,	&type_integer},
-{7, "|", "BITOR_IF", 5, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
-{7, "&", "BITAND_FI", 5, ASSOC_LEFT,			&type_float,	&type_integer,	&type_integer},
-{7, "|", "BITOR_FI", 5, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
+{7, "&", "BITAND_IF",	PC_BITAND, ASSOC_LEFT,			&type_integer,	&type_float,	&type_integer},
+{7, "|", "BITOR_IF",	PC_BITOR, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
+{7, "&", "BITAND_FI",	PC_BITAND, ASSOC_LEFT,			&type_float,	&type_integer,	&type_integer},
+{7, "|", "BITOR_FI",	PC_BITOR, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
 
-{7, "&&", "AND_I", 7, ASSOC_LEFT,				&type_integer,	&type_integer,	&type_integer},
-{7, "||", "OR_I", 7, ASSOC_LEFT,				&type_integer,	&type_integer,	&type_integer},
-{7, "&&", "AND_IF", 7, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
-{7, "||", "OR_IF", 7, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
-{7, "&&", "AND_FI", 7, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
-{7, "||", "OR_FI", 7, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
-{7, "!=", "NE_IF", 5, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
-{7, "!=", "NE_FI", 5, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
-
-
+{7, "&&", "AND_I",	PC_LOGICAND, ASSOC_LEFT,				&type_integer,	&type_integer,	&type_integer},
+{7, "||", "OR_I",	PC_LOGICOR, ASSOC_LEFT,				&type_integer,	&type_integer,	&type_integer},
+{7, "&&", "AND_IF",	PC_LOGICAND, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
+{7, "||", "OR_IF",	PC_LOGICOR, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
+{7, "&&", "AND_FI",	PC_LOGICAND, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
+{7, "||", "OR_FI",	PC_LOGICOR, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
+{7, "!=", "NE_IF",	PC_EQUALITY, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
+{7, "!=", "NE_FI",	PC_EQUALITY, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
 
 
 
 
-{7, "<>",	"GSTOREP_I", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_F", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_ENT", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_FLD", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_S", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_FNC", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_V", -1, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
 
-{7, "<>",	"GADDRESS", -1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{7, "<>",	"GLOAD_I",		-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_F",		-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_FLD",	-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_ENT",	-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_S",		-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_FNC",	-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_I",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_F",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_ENT",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_FLD",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_S",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_FNC",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_V",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
 
-{7, "<>",	"BOUNDCHECK",	-1, ASSOC_LEFT,				&type_integer,	NULL,	NULL},
+{7, "<>",	"GADDRESS",		PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{7, "<UNUSED>",	"UNUSED",		6,	ASSOC_RIGHT,				&type_void,	&type_void,	&type_void},
-{7, "<PUSH>",	"PUSH",		-1, ASSOC_RIGHT,			&type_float,	&type_void,		&type_pointer},
-{7, "<POP>",	"POP",		-1, ASSOC_RIGHT,			&type_float,	&type_void,		&type_void},
+{7, "<>",	"GLOAD_I",		PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_F",		PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_FLD",	PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_ENT",	PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_S",		PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_FNC",	PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{7, "<SWITCH_I>", "SWITCH_I",				-1, ASSOC_LEFT,	&type_void, NULL, &type_void},
-{7, "<>",	"GLOAD_S",		-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"BOUNDCHECK",	PC_NONE, ASSOC_LEFT,				&type_integer,	NULL,	NULL},
 
-{7, "<IF_F>",	"IF_F",		-1, ASSOC_RIGHT,				&type_float, NULL, &type_void},
-{7, "<IFNOT_F>","IFNOT_F",	-1, ASSOC_RIGHT,				&type_float, NULL, &type_void},
+{7, "<UNUSED>",	"UNUSED",	PC_NONE,	ASSOC_RIGHT,				&type_void,	&type_void,	&type_void},
+{7, "<PUSH>",	"PUSH",		PC_NONE, ASSOC_RIGHT,			&type_float,	&type_void,		&type_pointer},
+{7, "<POP>",	"POP",		PC_NONE, ASSOC_RIGHT,			&type_float,	&type_void,		&type_void},
+
+{7, "<SWITCH_I>", "SWITCH_I",PC_NONE, ASSOC_LEFT,	&type_void, NULL, &type_void},
+{7, "<>",	"GLOAD_S",		PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+
+{7, "<IF_F>",	"IF_F",		PC_NONE, ASSOC_RIGHT,				&type_float, NULL, &type_void},
+{7, "<IFNOT_F>","IFNOT_F",	PC_NONE, ASSOC_RIGHT,				&type_float, NULL, &type_void},
 /*
-{7, "<=>",	"STOREF_F",		-1, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
-{7, "<=>",	"STOREF_V",		-1, ASSOC_RIGHT,				&type_entity, &type_field, &type_vector},
-{7, "<=>",	"STOREF_IF",	-1, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
-{7, "<=>",	"STOREF_FI",	-1, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
+{7, "<=>",	"STOREF_F",		PC_STORE, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
+{7, "<=>",	"STOREF_V",		PC_STORE, ASSOC_RIGHT,				&type_entity, &type_field, &type_vector},
+{7, "<=>",	"STOREF_IF",	PC_STORE, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
+{7, "<=>",	"STOREF_FI",	PC_STORE, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
 */
 /* emulated ops begin here */
- {7, "<>",	"OP_EMULATED",		-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+ {7, "<>",	"OP_EMULATED",	PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
 
- {7, "|=", "BITSET_I",		6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
- {7, "|=", "BITSETP_I",		6,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
- {7, "&~=", "BITCLR_I",		6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "|=", "BITSET_I",		PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "|=", "BITSETP_I",		PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
+ {7, "&~=", "BITCLR_I",		PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
 
 
- {7, "*=", "MULSTORE_I",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
- {7, "/=", "DIVSTORE_I",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
- {7, "+=", "ADDSTORE_I",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
- {7, "-=", "SUBSTORE_I",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "*=", "MULSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "/=", "DIVSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "+=", "ADDSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "-=", "SUBSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
 
- {7, "*=", "MULSTOREP_I",	6,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
- {7, "/=", "DIVSTOREP_I",	6,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
- {7, "+=", "ADDSTOREP_I",	6,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
- {7, "-=", "SUBSTOREP_I",	6,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
+ {7, "*=", "MULSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
+ {7, "/=", "DIVSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
+ {7, "+=", "ADDSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
+ {7, "-=", "SUBSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
 
- {7, "*=", "MULSTORE_IF",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
- {7, "*=", "MULSTOREP_IF",	6,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
- {7, "/=", "DIVSTORE_IF",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
- {7, "/=", "DIVSTOREP_IF",	6,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
- {7, "+=", "ADDSTORE_IF",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
- {7, "+=", "ADDSTOREP_IF",	6,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
- {7, "-=", "SUBSTORE_IF",	6,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
- {7, "-=", "SUBSTOREP_IF",	6,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
+ {7, "*=", "MULSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
+ {7, "*=", "MULSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
+ {7, "/=", "DIVSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
+ {7, "/=", "DIVSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
+ {7, "+=", "ADDSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
+ {7, "+=", "ADDSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
+ {7, "-=", "SUBSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
+ {7, "-=", "SUBSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
 
- {7, "*=", "MULSTORE_FI",	6,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
- {7, "*=", "MULSTOREP_FI",	6,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
- {7, "/=", "DIVSTORE_FI",	6,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
- {7, "/=", "DIVSTOREP_FI",	6,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
- {7, "+=", "ADDSTORE_FI",	6,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
- {7, "+=", "ADDSTOREP_FI",	6,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
- {7, "-=", "SUBSTORE_FI",	6,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
- {7, "-=", "SUBSTOREP_FI",	6,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
+ {7, "*=", "MULSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
+ {7, "*=", "MULSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
+ {7, "/=", "DIVSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
+ {7, "/=", "DIVSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
+ {7, "+=", "ADDSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
+ {7, "+=", "ADDSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
+ {7, "-=", "SUBSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
+ {7, "-=", "SUBSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
 
- {7, "*=", "MULSTORE_VI",	6, ASSOC_RIGHT_RESULT,		&type_vector, &type_integer, &type_vector},
- {7, "*=", "MULSTOREP_VI",	6, ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_vector},
+ {7, "*=", "MULSTORE_VI",	PC_STORE, ASSOC_RIGHT_RESULT,		&type_vector, &type_integer, &type_vector},
+ {7, "*=", "MULSTOREP_VI",	PC_STORE, ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_vector},
 
- {7, "=", "LOADA_STRUCT",	6, ASSOC_LEFT,				&type_float,	&type_integer, &type_float},
+ {7, "=", "LOADA_STRUCT",	PC_STORE, ASSOC_LEFT,				&type_float,	&type_integer, &type_float},
 
- {7, "=",	"LOADP_P",		6, ASSOC_LEFT,				&type_pointer,	&type_integer, &type_pointer},
- {7, "=",	"STOREP_P",		6,	ASSOC_RIGHT,			&type_pointer,	&type_pointer,	&type_pointer},
- {7, "~",	"BITNOT_F",		-1, ASSOC_LEFT,				&type_float,	&type_void, &type_float},
- {7, "~",	"BITNOT_I",		-1, ASSOC_LEFT,				&type_integer,	&type_void, &type_integer},
+ {7, "=",	"LOADP_P",		PC_STORE, ASSOC_LEFT,				&type_pointer,	&type_integer, &type_pointer},
+ {7, "=",	"STOREP_P",		PC_STORE,	ASSOC_RIGHT,			&type_pointer,	&type_pointer,	&type_pointer},
+ {7, "~",	"BITNOT_F",		PC_UNARY, ASSOC_LEFT,				&type_float,	&type_void, &type_float},
+ {7, "~",	"BITNOT_I",		PC_UNARY, ASSOC_LEFT,				&type_integer,	&type_void, &type_integer},
 
- {7, "==", "EQ_P", 5, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
- {7, "!=", "NE_P", 5, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
- {7, "<=", "LE_P", 5, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
- {7, ">=", "GE_P", 5, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
- {7, "<", "LT_P", 5, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
- {7, ">", "GT_P", 5, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
+ {7, "==", "EQ_P",			PC_EQUALITY, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
+ {7, "!=", "NE_P",			PC_EQUALITY, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
+ {7, "<=", "LE_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
+ {7, ">=", "GE_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
+ {7, "<", "LT_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
+ {7, ">", "GT_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
 
- {7, "&=", "ANDSTORE_F",	6, ASSOC_RIGHT_RESULT,		&type_float, &type_float, &type_float},
- {7, "&~", "BITCLR_F",	6, ASSOC_LEFT,					&type_float, &type_float, &type_float},
- {7, "&~", "BITCLR_I",	6, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
+ {7, "&=", "ANDSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,		&type_float, &type_float, &type_float},
+ {7, "&~=", "BITCLR_F",		PC_STORE, ASSOC_LEFT,					&type_float, &type_float, &type_float},
+ {7, "&~=", "BITCLR_I",		PC_STORE, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
 
- {7, "+", "ADD_SI",	4, ASSOC_LEFT,						&type_string,	&type_integer,	&type_string},
- {7, "+", "ADD_IS",	7, ASSOC_LEFT,						&type_integer,	&type_string,	&type_string},
- {7, "+", "ADD_PF",	6, ASSOC_LEFT,						&type_pointer,	&type_float,	&type_pointer},
- {7, "+", "ADD_FP",	6, ASSOC_LEFT,						&type_float,	&type_pointer,	&type_pointer},
- {7, "+", "ADD_PI",	6, ASSOC_LEFT,						&type_pointer,	&type_integer,	&type_pointer},
- {7, "+", "ADD_IP",	6, ASSOC_LEFT,						&type_integer,	&type_pointer,	&type_pointer},
- {7, "-", "SUB_SI",	7, ASSOC_LEFT,						&type_string,	&type_integer,	&type_string},
- {7, "-", "SUB_PF",	6, ASSOC_LEFT,						&type_pointer,	&type_float,	&type_pointer},
- {7, "-", "SUB_PI",	6, ASSOC_LEFT,						&type_pointer,	&type_integer,	&type_pointer},
- {7, "-", "SUB_PP",	6, ASSOC_LEFT,						&type_pointer,	&type_pointer,	&type_integer},
+ {7, "+", "ADD_SI",	PC_ADDSUB, ASSOC_LEFT,						&type_string,	&type_integer,	&type_string},
+ {7, "+", "ADD_IS",	PC_ADDSUB, ASSOC_LEFT,						&type_integer,	&type_string,	&type_string},
+ {7, "+", "ADD_PF",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_float,	&type_pointer},
+ {7, "+", "ADD_FP",	PC_ADDSUB, ASSOC_LEFT,						&type_float,	&type_pointer,	&type_pointer},
+ {7, "+", "ADD_PI",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_integer,	&type_pointer},
+ {7, "+", "ADD_IP",	PC_ADDSUB, ASSOC_LEFT,						&type_integer,	&type_pointer,	&type_pointer},
+ {7, "-", "SUB_SI",	PC_ADDSUB, ASSOC_LEFT,						&type_string,	&type_integer,	&type_string},
+ {7, "-", "SUB_PF",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_float,	&type_pointer},
+ {7, "-", "SUB_PI",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_integer,	&type_pointer},
+ {7, "-", "SUB_PP",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_pointer,	&type_integer},
 
- {7, "%", "MOD_F",	6, ASSOC_LEFT,						&type_float,	&type_float,	&type_float},
- {7, "%", "MOD_I",	6, ASSOC_LEFT,						&type_integer,	&type_integer,	&type_integer},
- {7, "%", "MOD_V",	6, ASSOC_LEFT,						&type_vector,	&type_vector,	&type_vector},
+ {7, "%", "MOD_F",	PC_MULDIV, ASSOC_LEFT,						&type_float,	&type_float,	&type_float},
+ {7, "%", "MOD_I",	PC_MULDIV, ASSOC_LEFT,						&type_integer,	&type_integer,	&type_integer},
+ {7, "%", "MOD_V",	PC_MULDIV, ASSOC_LEFT,						&type_vector,	&type_vector,	&type_vector},
 
- {7, "^", "BITXOR_F", 3, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
- {7, ">>", "RSHIFT_F", 3, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
- {7, "<<", "LSHIFT_F", 3, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
- {7, ">>", "RSHIFT_IF", 3, ASSOC_LEFT,					&type_integer,	&type_float,	&type_integer},
- {7, "<<", "LSHIFT_IF", 3, ASSOC_LEFT,					&type_integer,	&type_float,	&type_integer},
- {7, ">>", "RSHIFT_FI", 3, ASSOC_LEFT,					&type_float,	&type_integer,	&type_integer},
- {7, "<<", "LSHIFT_FI", 3, ASSOC_LEFT,					&type_float,	&type_integer,	&type_integer},
+ {7, "^", "BITXOR_F",	PC_BITXOR, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
+ {7, ">>", "RSHIFT_F",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
+ {7, "<<", "LSHIFT_F",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
+ {7, ">>", "RSHIFT_IF",	PC_SHIFT, ASSOC_LEFT,					&type_integer,	&type_float,	&type_integer},
+ {7, "<<", "LSHIFT_IF",	PC_SHIFT, ASSOC_LEFT,					&type_integer,	&type_float,	&type_integer},
+ {7, ">>", "RSHIFT_FI",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_integer,	&type_integer},
+ {7, "<<", "LSHIFT_FI",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_integer,	&type_integer},
 
- {7, "&&", "AND_ANY",	7, ASSOC_LEFT,					&type_variant,	&type_variant,	&type_float},
- {7, "||", "OR_ANY",	7, ASSOC_LEFT,					&type_variant,	&type_variant,	&type_float},
+ {7, "&&", "AND_ANY",	PC_LOGICAND, ASSOC_LEFT,					&type_variant,	&type_variant,	&type_float},
+ {7, "||", "OR_ANY",	PC_LOGICOR, ASSOC_LEFT,					&type_variant,	&type_variant,	&type_float},
 
- {7, "+", "ADD_EI",	4, ASSOC_LEFT,						&type_entity,	&type_integer,	&type_entity},
- {7, "+", "ADD_EF",	4, ASSOC_LEFT,						&type_entity,	&type_float,	&type_entity},
- {7, "-", "SUB_EI",	4, ASSOC_LEFT,						&type_entity,	&type_integer,	&type_entity},
- {7, "-", "SUB_EF",	4, ASSOC_LEFT,						&type_entity,	&type_float,	&type_entity},
+ {7, "+", "ADD_EI",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_integer,	&type_entity},
+ {7, "+", "ADD_EF",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_float,	&type_entity},
+ {7, "-", "SUB_EI",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_integer,	&type_entity},
+ {7, "-", "SUB_EF",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_float,	&type_entity},
 
- {7, "&", "BITAND_V", 5, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector},
- {7, "|", "BITOR_V", 5, ASSOC_LEFT,						&type_vector,	&type_vector,	&type_vector},
- {7, "~", "BITNOT_V", -1, ASSOC_LEFT,					&type_vector,	&type_void,		&type_vector},
- {7, "^", "BITXOR_V", 3, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector},
+ {7, "&", "BITAND_V",	PC_BITAND, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector},
+ {7, "|", "BITOR_V",	PC_BITOR, ASSOC_LEFT,						&type_vector,	&type_vector,	&type_vector},
+ {7, "~", "BITNOT_V",	PC_UNARY, ASSOC_LEFT,					&type_vector,	&type_void,		&type_vector},
+ {7, "^", "BITXOR_V",	PC_BITXOR, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector},
 
- {7, "*^", "POW_F",		3, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
- {7, "><", "CROSS_V",	3, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector},
+ {7, "*^", "POW_F",		PC_MULDIV, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
+ {7, "><", "CROSS_V",	PC_MULDIV, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector},
 
- {6, "==", "EQ_FLD",		5, ASSOC_LEFT,				&type_field,	&type_field,	&type_float},
- {6, "!=", "NE_FLD",		5, ASSOC_LEFT,				&type_field,	&type_field,	&type_float},
+ {7, "==", "EQ_FLD",	PC_EQUALITY, ASSOC_LEFT,				&type_field,	&type_field,	&type_float},
+ {7, "!=", "NE_FLD",	PC_EQUALITY, ASSOC_LEFT,				&type_field,	&type_field,	&type_float},
 
  {0, NULL}
 };
@@ -846,22 +880,25 @@ static void OpAssignsTo_Debug(void)
 */
 #undef ASSOC_RIGHT_RESULT
 
+//#define TERM_PRIORITY		0
 #define FUNC_PRIORITY		1
 #define UNARY_PRIORITY		1	//~ !
-#define	NOT_PRIORITY		5	//UNARY_PRIORITY
-#define MULDIV_PRIORITY		3	//* / %
-#define ADDSUB_PRIORITY		4	//+ -
-#define BITSHIFT_PRIORITY	3	//<< >>
-#define COMPARISON_PRIORITY	5	//< <= > >=
-#define EQUALITY_PRIORITY	5	//== !=
-#define BITAND_PRIORITY		3	//&
-#define BITXOR_PRIORITY		3	//^
-#define BITOR_PRIORITY		3	//|
-#define LOGICAND_PRIORITY	7	//&&
-#define LOGICOR_PRIORITY	7	//||
-#define TERNARY_PRIORITY	6	//?:
-#define	ASSIGN_PRIORITY		6	//WRONG compared to C
-#define	TOP_PRIORITY		7
+//#define MULDIV_PRIORITY		priority_class[PC_MULDIV]	//* / %
+//#define ADDSUB_PRIORITY		priority_class[PC_ADDSUB]	//+ -
+//#define BITSHIFT_PRIORITY	priority_class[PC_BITSHIFT]	//<< >>
+//#define COMPARISON_PRIORITY	priority_class[PC_COMPARISON]	//< <= > >=
+//#define EQUALITY_PRIORITY	priority_class[PC_EQUALITY]	//== !=
+//#define BITAND_PRIORITY		priority_class[PC_BITAND]	//&
+//#define BITXOR_PRIORITY		priority_class[PC_BITXOR]	//^
+//#define BITOR_PRIORITY		priority_class[PC_BITOR]	//|
+//#define LOGICAND_PRIORITY	priority_class[PC_LOGICAND]	//&&
+//#define LOGICOR_PRIORITY	priority_class[PC_LOGICOR]	//||
+#define TERNARY_PRIORITY	priority_class[PC_TERNARY]	//?: (in C: (a||b)?(c):(d||e) )
+#define	ASSIGN_PRIORITY		priority_class[PC_STORE]	//QC is WRONG compared to C
+//#define COMMA_PRIORITY
+
+#define	TOP_PRIORITY		priority_class[MAX_PRIORITY_CLASSES]
+#define	NOT_PRIORITY		priority_class[PC_UNARYNOT]
 
 QCC_opcode_t *opcodes_store[] =
 {
@@ -1019,275 +1056,84 @@ QCC_opcode_t *opcodes_none[] =
 	NULL
 };
 
-//this system cuts out 10/120
 //these evaluate as top first.
-QCC_opcode_t *opcodeprioritized[TOP_PRIORITY+1][128] =
+QCC_opcode_t *opcodeprioritized[13+1][128];
+int 
+#ifdef _MSC_VER
+__cdecl
+#endif
+sort_opcodenames(const void*a,const void*b)
 {
-	{	//don't use
-/*		&pr_opcodes[OP_DONE],
-		&pr_opcodes[OP_RETURN],
+	QCC_opcode_t *opa = *(QCC_opcode_t**)a;
+	QCC_opcode_t *opb = *(QCC_opcode_t**)b;
+	if (opa == NULL)
+		return opb?1:0;
+	if (opb == NULL)
+		return -1;
+	return strcmp(opa->name, opb->name);
+}
+void QCC_PrioritiseOpcodes(void)
+{
+	int pcount[MAX_PRIORITY_CLASSES];
+	int i, j;
+	QCC_opcode_t *op;
 
-		&pr_opcodes[OP_NOT_F],
-		&pr_opcodes[OP_NOT_V],
-		&pr_opcodes[OP_NOT_S],
-		&pr_opcodes[OP_NOT_ENT],
-		&pr_opcodes[OP_NOT_FNC],
+	priority_class[PC_NONE] = 0;
+	priority_class[PC_UNARY] = 0;
+	priority_class[PC_MEMBER] = 0;
 
-		&pr_opcodes[OP_IF],
-		&pr_opcodes[OP_IFNOT],
-		&pr_opcodes[OP_CALL0],
-		&pr_opcodes[OP_CALL1],
-		&pr_opcodes[OP_CALL2],
-		&pr_opcodes[OP_CALL3],
-		&pr_opcodes[OP_CALL4],
-		&pr_opcodes[OP_CALL5],
-		&pr_opcodes[OP_CALL6],
-		&pr_opcodes[OP_CALL7],
-		&pr_opcodes[OP_CALL8],
-		&pr_opcodes[OP_STATE],
-		&pr_opcodes[OP_GOTO],
-
-		&pr_opcodes[OP_IFNOTS],
-		&pr_opcodes[OP_IFS],
-
-		&pr_opcodes[OP_NOT_I],
-*/		NULL
-	}, {	//1
-
-//		&pr_opcodes[OP_LOAD_F],
-//		&pr_opcodes[OP_LOAD_V],
-//		&pr_opcodes[OP_LOAD_S],
-//		&pr_opcodes[OP_LOAD_ENT],
-//		&pr_opcodes[OP_LOAD_FLD],
-//		&pr_opcodes[OP_LOAD_FNC],
-//		&pr_opcodes[OP_LOAD_I],
-//		&pr_opcodes[OP_LOAD_P],
-//		&pr_opcodes[OP_ADDRESS],
-		NULL
-	}, {	//2
-/*	//conversion. don't use
-		&pr_opcodes[OP_C_ITOF],
-		&pr_opcodes[OP_C_FTOI],
-		&pr_opcodes[OP_CP_ITOF],
-		&pr_opcodes[OP_CP_FTOI],
-*/		NULL
-	}, {	//3
-		&pr_opcodes[OP_MUL_F],
-		&pr_opcodes[OP_MUL_V],
-		&pr_opcodes[OP_MUL_FV],
-		&pr_opcodes[OP_MUL_IV],
-		&pr_opcodes[OP_MUL_VF],
-		&pr_opcodes[OP_MUL_VI],
-		&pr_opcodes[OP_MUL_I],
-		&pr_opcodes[OP_MUL_FI],
-		&pr_opcodes[OP_MUL_IF],
-
-		&pr_opcodes[OP_DIV_F],
-		&pr_opcodes[OP_DIV_I],
-		&pr_opcodes[OP_DIV_FI],
-		&pr_opcodes[OP_DIV_IF],
-		&pr_opcodes[OP_DIV_VF],
-
-		&pr_opcodes[OP_BITAND_F],
-		&pr_opcodes[OP_BITAND_I],
-		&pr_opcodes[OP_BITAND_IF],
-		&pr_opcodes[OP_BITAND_FI],
-		&pr_opcodes[OP_BITAND_V],
-
-		&pr_opcodes[OP_BITOR_F],
-		&pr_opcodes[OP_BITOR_I],
-		&pr_opcodes[OP_BITOR_IF],
-		&pr_opcodes[OP_BITOR_FI],
-		&pr_opcodes[OP_BITOR_V],
-
-		&pr_opcodes[OP_BITXOR_I],
-		&pr_opcodes[OP_BITXOR_F],
-		&pr_opcodes[OP_BITXOR_V],
-
-		&pr_opcodes[OP_RSHIFT_I],
-		&pr_opcodes[OP_RSHIFT_F],
-		&pr_opcodes[OP_RSHIFT_IF],
-		&pr_opcodes[OP_RSHIFT_FI],
-
-		&pr_opcodes[OP_LSHIFT_I],
-		&pr_opcodes[OP_LSHIFT_F],
-		&pr_opcodes[OP_LSHIFT_IF],
-		&pr_opcodes[OP_LSHIFT_FI],
-
-		&pr_opcodes[OP_MOD_F],
-		&pr_opcodes[OP_MOD_I],
-		&pr_opcodes[OP_MOD_V],
-
-		&pr_opcodes[OP_POW_F],
-		&pr_opcodes[OP_CROSS_V],
-
-		NULL
-	}, {	//4
-
-		&pr_opcodes[OP_ADD_F],
-		&pr_opcodes[OP_ADD_V],
-		&pr_opcodes[OP_ADD_I],
-		&pr_opcodes[OP_ADD_FI],
-		&pr_opcodes[OP_ADD_IF],
-		&pr_opcodes[OP_ADD_SF],
-		&pr_opcodes[OP_ADD_PF],
-		&pr_opcodes[OP_ADD_FP],
-		&pr_opcodes[OP_ADD_PI],
-		&pr_opcodes[OP_ADD_IP],
-		&pr_opcodes[OP_ADD_EI],
-		&pr_opcodes[OP_ADD_EF],
-
-		&pr_opcodes[OP_SUB_F],
-		&pr_opcodes[OP_SUB_V],
-		&pr_opcodes[OP_SUB_I],
-		&pr_opcodes[OP_SUB_FI],
-		&pr_opcodes[OP_SUB_IF],
-		&pr_opcodes[OP_SUB_S],
-		&pr_opcodes[OP_SUB_PF],
-		&pr_opcodes[OP_SUB_PI],
-		&pr_opcodes[OP_SUB_PP],
-		&pr_opcodes[OP_SUB_EI],
-		&pr_opcodes[OP_SUB_EF],
-		NULL
-	}, {	//5
-
-		&pr_opcodes[OP_EQ_F],
-		&pr_opcodes[OP_EQ_V],
-		&pr_opcodes[OP_EQ_S],
-		&pr_opcodes[OP_EQ_E],
-		&pr_opcodes[OP_EQ_FNC],
-		&pr_opcodes[OP_EQ_I],
-		&pr_opcodes[OP_EQ_IF],
-		&pr_opcodes[OP_EQ_FI],
-		&pr_opcodes[OP_EQ_FLD],
-		&pr_opcodes[OP_EQ_P],
-
-		&pr_opcodes[OP_NE_F],
-		&pr_opcodes[OP_NE_V],
-		&pr_opcodes[OP_NE_S],
-		&pr_opcodes[OP_NE_E],
-		&pr_opcodes[OP_NE_FNC],
-		&pr_opcodes[OP_NE_I],
-		&pr_opcodes[OP_NE_IF],
-		&pr_opcodes[OP_NE_FI],
-		&pr_opcodes[OP_NE_FLD],
-		&pr_opcodes[OP_NE_P],
-
-		&pr_opcodes[OP_LE_F],
-		&pr_opcodes[OP_LE_I],
-		&pr_opcodes[OP_LE_IF],
-		&pr_opcodes[OP_LE_FI],
-		&pr_opcodes[OP_LE_P],
-		&pr_opcodes[OP_GE_F],
-		&pr_opcodes[OP_GE_I],
-		&pr_opcodes[OP_GE_IF],
-		&pr_opcodes[OP_GE_FI],
-		&pr_opcodes[OP_GE_P],
-		&pr_opcodes[OP_LT_F],
-		&pr_opcodes[OP_LT_I],
-		&pr_opcodes[OP_LT_IF],
-		&pr_opcodes[OP_LT_FI],
-		&pr_opcodes[OP_LT_P],
-		&pr_opcodes[OP_GT_F],
-		&pr_opcodes[OP_GT_I],
-		&pr_opcodes[OP_GT_IF],
-		&pr_opcodes[OP_GT_FI],
-		&pr_opcodes[OP_GT_P],
-
-		NULL
-	}, {	//6
-		&pr_opcodes[OP_STOREP_P],
-
-		&pr_opcodes[OP_STORE_F],
-		&pr_opcodes[OP_STORE_V],
-		&pr_opcodes[OP_STORE_S],
-		&pr_opcodes[OP_STORE_ENT],
-		&pr_opcodes[OP_STORE_FLD],
-		&pr_opcodes[OP_STORE_FNC],
-		&pr_opcodes[OP_STORE_I],
-		&pr_opcodes[OP_STORE_IF],
-		&pr_opcodes[OP_STORE_FI],
-		&pr_opcodes[OP_STORE_P],
-
-		&pr_opcodes[OP_STOREP_F],
-		&pr_opcodes[OP_STOREP_V],
-		&pr_opcodes[OP_STOREP_S],
-		&pr_opcodes[OP_STOREP_ENT],
-		&pr_opcodes[OP_STOREP_FLD],
-		&pr_opcodes[OP_STOREP_FNC],
-		&pr_opcodes[OP_STOREP_I],
-		&pr_opcodes[OP_STOREP_IF],
-		&pr_opcodes[OP_STOREP_FI],
-
-		&pr_opcodes[OP_DIVSTORE_F],
-		&pr_opcodes[OP_DIVSTORE_I],
-		&pr_opcodes[OP_DIVSTORE_FI],
-		&pr_opcodes[OP_DIVSTORE_IF],
-		&pr_opcodes[OP_DIVSTOREP_F],
-		&pr_opcodes[OP_DIVSTOREP_I],
-		&pr_opcodes[OP_DIVSTOREP_IF],
-		&pr_opcodes[OP_DIVSTOREP_FI],
-		&pr_opcodes[OP_MULSTORE_F],
-		&pr_opcodes[OP_MULSTORE_VF],
-		&pr_opcodes[OP_MULSTORE_VI],
-		&pr_opcodes[OP_MULSTORE_I],
-		&pr_opcodes[OP_MULSTORE_IF],
-		&pr_opcodes[OP_MULSTORE_FI],
-		&pr_opcodes[OP_MULSTOREP_F],
-		&pr_opcodes[OP_MULSTOREP_VF],
-		&pr_opcodes[OP_MULSTOREP_VI],
-		&pr_opcodes[OP_MULSTOREP_I],
-		&pr_opcodes[OP_MULSTOREP_IF],
-		&pr_opcodes[OP_MULSTOREP_FI],
-		&pr_opcodes[OP_ADDSTORE_F],
-		&pr_opcodes[OP_ADDSTORE_V],
-		&pr_opcodes[OP_ADDSTORE_I],
-		&pr_opcodes[OP_ADDSTORE_IF],
-		&pr_opcodes[OP_ADDSTORE_FI],
-		&pr_opcodes[OP_ADDSTOREP_F],
-		&pr_opcodes[OP_ADDSTOREP_V],
-		&pr_opcodes[OP_ADDSTOREP_I],
-		&pr_opcodes[OP_ADDSTOREP_IF],
-		&pr_opcodes[OP_ADDSTOREP_FI],
-		&pr_opcodes[OP_SUBSTORE_F],
-		&pr_opcodes[OP_SUBSTORE_V],
-		&pr_opcodes[OP_SUBSTORE_I],
-		&pr_opcodes[OP_SUBSTORE_IF],
-		&pr_opcodes[OP_SUBSTORE_FI],
-		&pr_opcodes[OP_SUBSTOREP_F],
-		&pr_opcodes[OP_SUBSTOREP_V],
-		&pr_opcodes[OP_SUBSTOREP_I],
-		&pr_opcodes[OP_SUBSTOREP_IF],
-		&pr_opcodes[OP_SUBSTOREP_FI],
-
-		&pr_opcodes[OP_ANDSTORE_F],
-
-		&pr_opcodes[OP_BITSETSTORE_F],
-		&pr_opcodes[OP_BITSETSTORE_I],
-//		&pr_opcodes[OP_BITSETSTORE_IF],
-//		&pr_opcodes[OP_BITSETSTORE_FI],
-		&pr_opcodes[OP_BITSETSTOREP_F],
-		&pr_opcodes[OP_BITSETSTOREP_I],
-//		&pr_opcodes[OP_BITSETSTOREP_IF],
-//		&pr_opcodes[OP_BITSETSTOREP_FI],
-		&pr_opcodes[OP_BITCLRSTORE_F],
-		&pr_opcodes[OP_BITCLRSTOREP_F],
-
-		NULL
-	}, {	//7
-		&pr_opcodes[OP_AND_F],
-		&pr_opcodes[OP_AND_I],
-		&pr_opcodes[OP_AND_IF],
-		&pr_opcodes[OP_AND_FI],
-		&pr_opcodes[OP_AND_ANY],
-		&pr_opcodes[OP_OR_F],
-		&pr_opcodes[OP_OR_I],
-		&pr_opcodes[OP_OR_IF],
-		&pr_opcodes[OP_OR_FI],
-		&pr_opcodes[OP_OR_ANY],
-		NULL
+	if (flag_cpriority)
+	{
+		priority_class[PC_UNARYNOT] = 1;
+		priority_class[PC_MULDIV] = 2;
+		priority_class[PC_ADDSUB] = 3;
+		priority_class[PC_SHIFT] = 4;
+		priority_class[PC_RELATION] = 5;
+		priority_class[PC_EQUALITY] = 6;
+		priority_class[PC_BITAND] = 7;
+		priority_class[PC_BITXOR] = 8;
+		priority_class[PC_BITOR] = 9;
+		priority_class[PC_LOGICAND] = 10;
+		priority_class[PC_LOGICOR] = 11;
+		priority_class[PC_TERNARY] = 12;
+		priority_class[PC_STORE] = 13;
 	}
-};
+	else
+	{
+		priority_class[PC_UNARYNOT] = 5;
+		priority_class[PC_MULDIV] = 3;
+		priority_class[PC_ADDSUB] = 4;
+		priority_class[PC_SHIFT] = 3;
+		priority_class[PC_RELATION] = 5;
+		priority_class[PC_EQUALITY] = 5;
+		priority_class[PC_BITAND] = 3;
+		priority_class[PC_BITXOR] = 3;
+		priority_class[PC_BITOR] = 3;
+		priority_class[PC_LOGICAND] = 7;
+		priority_class[PC_LOGICOR] = 7;
+		priority_class[PC_TERNARY] = 6;
+		priority_class[PC_STORE] = 6;
+	}
+	priority_class[MAX_PRIORITY_CLASSES] = 0;
+	for (j = 0; j < MAX_PRIORITY_CLASSES; j++)
+		if (priority_class[MAX_PRIORITY_CLASSES] < priority_class[j])
+			priority_class[MAX_PRIORITY_CLASSES] = priority_class[j];
+
+	memset(pcount, 0, sizeof(pcount));
+	memset(opcodeprioritized, 0, sizeof(opcodeprioritized));
+	for (i = 0; pr_opcodes[i].name; i++)
+	{
+		op = &pr_opcodes[i];
+		j = priority_class[op->priorityclass];
+		if (j <= 0 || j > priority_class[MAX_PRIORITY_CLASSES])
+			continue;	//class doesn't need prioritising
+		opcodeprioritized[j][pcount[j]++] = op;
+	}
+
+	//operators need to be sorted so we don't have to scan through all of them. should probably have some better table for that.
+	for (j = 0; j <= TOP_PRIORITY; j++)
+		qsort (&opcodeprioritized[j][0], pcount[j], sizeof(opcodeprioritized[j][0]), sort_opcodenames);
+}
 
 pbool QCC_OPCodeValid(QCC_opcode_t *op)
 {
@@ -1639,6 +1485,9 @@ static int QCC_ShouldConvert(QCC_type_t *from, etype_t wanted)
 
 		if (from->type == ev_integer && wanted == ev_float)
 			return OP_CONV_ITOF;
+	
+		if (from->type == ev_float && wanted == ev_vector)
+			return OP_MUL_FV;
 	}
 
 	/*impossible*/
@@ -1647,6 +1496,7 @@ static int QCC_ShouldConvert(QCC_type_t *from, etype_t wanted)
 QCC_sref_t QCC_SupplyConversionForAssignment(QCC_ref_t *to, QCC_sref_t from, QCC_type_t *wanted, pbool fatal)
 {
 	int o;
+	QCC_sref_t rhs;
 
 	if (wanted->type == ev_accessor && wanted->parentclass && from.cast->type != ev_accessor)
 		wanted = wanted->parentclass;
@@ -1682,12 +1532,17 @@ QCC_sref_t QCC_SupplyConversionForAssignment(QCC_ref_t *to, QCC_sref_t from, QCC
 		return from;
 	}
 
-	return QCC_PR_Statement(&pr_opcodes[o], from, nullsref, NULL);	//conversion return value
+	if (o == OP_MUL_FV)
+		rhs = QCC_MakeVectorConst(1,1,1);
+	else
+		rhs = nullsref;
+	return QCC_PR_Statement(&pr_opcodes[o], from, rhs, NULL);	//conversion return value
 }
 QCC_sref_t QCC_SupplyConversion(QCC_sref_t  var, etype_t wanted, pbool fatal)
 {
 	extern char *basictypenames[];
 	int o;
+	QCC_sref_t rhs;
 
 	o = QCC_ShouldConvert(var.cast, wanted);
 
@@ -1710,14 +1565,12 @@ QCC_sref_t QCC_SupplyConversion(QCC_sref_t  var, etype_t wanted, pbool fatal)
 		return var;
 	}
 
-	return QCC_PR_Statement(&pr_opcodes[o], var, nullsref, NULL);	//conversion return value
+	if (o == OP_MUL_FV)
+		rhs = QCC_MakeVectorConst(1,1,1);
+	else
+		rhs = nullsref;
+	return QCC_PR_Statement(&pr_opcodes[o], var, rhs, NULL);	//conversion return value
 }
-QCC_sref_t QCC_MakeTranslateStringConst(char *value);
-QCC_sref_t QCC_MakeStringConst(char *value);
-QCC_sref_t QCC_MakeStringConstLength(char *value, int length);
-QCC_sref_t QCC_MakeFloatConst(float value);
-QCC_sref_t QCC_MakeIntConst(int value);
-QCC_sref_t QCC_MakeVectorConst(float a, float b, float c);
 
 size_t tempslocked;	//stats
 size_t tempsused;
@@ -3636,11 +3489,13 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			op = &pr_opcodes[OP_SUB_I];
 			var_b = var_a;
 			var_a = QCC_MakeIntConst(~0);
+			var_a.sym->referenced = true;
 			break;
 		case OP_BITNOT_F:
 			op = &pr_opcodes[OP_SUB_F];
 			var_b = var_a;
 			var_a = QCC_MakeFloatConst(-1);	//divVerent says -1 is safe, even with floats. I guess I'm just too paranoid.
+			var_a.sym->referenced = true;
 			break;
 		case OP_BITNOT_V:
 			op = &pr_opcodes[OP_SUB_V];
@@ -4011,11 +3866,26 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			else
 			{
 				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "bitshift", NULL, false, 0, 0);
-				if (!fnc.cast)
-					QCC_PR_ParseError(0, "bitshift function not defined: cannot emulate OP_LSHIFT_F*");
-				var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
-				var_c.cast = *op->type_c;
-				return var_c;
+				if (fnc.cast)
+				{
+					var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
+					var_c.cast = *op->type_c;
+					return var_c;
+				}
+				fnc = QCC_PR_GetSRef(NULL, "pow", NULL, false, 0, 0);
+				if (fnc.cast)
+				{	//a<<b === floor(a*pow(2,b))
+					QCC_sref_t fnc2 = QCC_PR_GetSRef(NULL, "floor", NULL, false, 0, 0);
+					if (fnc2.cast)
+					{
+						var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, QCC_MakeFloatConst(2), type_float, var_b, type_float);
+						var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_F], var_a, var_c, NULL, flags&STFL_PRESERVEA);
+						var_c = QCC_PR_GenerateFunctionCall1(nullsref, fnc2, var_c, type_float);
+						return var_c;
+					}
+				}
+				QCC_PR_ParseError(0, "bitshift function not defined: cannot emulate OP_LSHIFT_F*");
+				break;
 			}
 		case OP_RSHIFT_F:
 			if (QCC_OPCodeValid(&pr_opcodes[OP_RSHIFT_I]))
@@ -4026,6 +3896,28 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			}
 			else
 			{
+				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "bitshift", NULL, false, 0, 0);
+				if (fnc.cast)
+				{
+					var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_F], QCC_MakeFloatConst(0), var_b, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEB:0);
+					var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
+					var_c.cast = *op->type_c;
+					return var_c;
+				}
+				fnc = QCC_PR_GetSRef(NULL, "pow", NULL, false, 0, 0);
+				if (fnc.cast)
+				{	//a<<b === floor(a/pow(2,b))
+					QCC_sref_t fnc2 = QCC_PR_GetSRef(NULL, "floor", NULL, false, 0, 0);
+					if (fnc2.cast)
+					{
+						var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, QCC_MakeFloatConst(2), type_float, var_b, type_float);
+						var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_F], var_a, var_c, NULL, flags&STFL_PRESERVEA);
+						var_c = QCC_PR_GenerateFunctionCall1(nullsref, fnc2, var_c, type_float);
+						return var_c;
+					}
+				}
+				QCC_PR_ParseError(0, "bitshift function not defined: cannot emulate OP_RSHIFT_F*");
+				break;
 			}
 
 
@@ -6311,6 +6203,7 @@ QCC_sref_t QCC_MakeIntConst(int value)
 	return QCC_MakeSRefForce(cn, 0, type_integer);
 }
 
+//immediates with no overlapping. this means aliases can be set up to mark them as strings/fields/functions and the engine can safely remap them as needed
 QCC_sref_t QCC_MakeUniqueConst(QCC_type_t *type, void *data)
 {
 	QCC_def_t	*cn;
@@ -6746,7 +6639,7 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 
 	pr_source_line = pr_token_line_last = scope->s_line;
 
-	pr_scope = QCC_PR_GenerateQCFunction(scope, scope->type, 0);
+	pr_scope = QCC_PR_GenerateQCFunction(scope, scope->type, NULL);
 	//reset the locals chain
 	pr.local_head.nextlocal = NULL;
 	pr.local_tail = &pr.local_head;
@@ -7741,6 +7634,18 @@ QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit)
 	/*cast from float->int will convert*/
 	else if ((totype == ev_integer || (totype == ev_entity && !implicit)) && src.cast->type == ev_float)
 		src = QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], src, nullsref, NULL);
+	else if (totype == ev_vector && src.cast->type == ev_float)
+	{
+		if (implicit)
+		{
+			char typea[256];
+			char typeb[256];
+			TypeName(src.cast, typea, sizeof(typea));
+			TypeName(cast, typeb, sizeof(typeb));
+			QCC_PR_ParseWarning(WARN_IMPLICITVARIANTCAST, "Implicit cast from %s to %s", typea, typeb);
+		}
+		src = QCC_PR_Statement (&pr_opcodes[OP_MUL_FV], src, QCC_MakeVectorConst(1,1,1), NULL);
+	}
 	else if (totype == ev_entity && src.cast->type == ev_entity)
 	{
 		if (implicit)
@@ -7935,9 +7840,9 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 			if (t == ev_float)
 				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_F], e, nullsref, NULL);
 			else if (t == ev_integer)
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_I], e, nullsref, NULL);	//functions are integer values too.
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_I], e, nullsref, NULL);
 			else if (t == ev_vector)
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_V], e, nullsref, NULL);	//functions are integer values too.
+				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_V], e, nullsref, NULL);
 			else
 			{
 				e2 = nullsref;		// shut up compiler warning;
@@ -9342,6 +9247,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 			QCC_statement_t *fromj, *elsej, *truthstore;
 			QCC_sref_t val = QCC_RefToDef(lhsr, true);
 			const QCC_eval_t *eval = QCC_SRef_EvalConst(val);
+			pbool lvalisnull = false;
 			if (pr_scope)
 				eval = NULL; //FIXME: we need the gotos to avoid sideeffects, which is annoying.
 			if (QCC_PR_CheckToken(":"))
@@ -9364,6 +9270,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				eval = NULL;
 				//r=a?:b -> if (a) r=a else r=b;
 				fromj = QCC_Generate_OP_IFNOT(val, true);
+				lvalisnull = QCC_SRef_IsNull(val);
 				r = QCC_GetTemp(val.cast);
 				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r.cast->size>=3)?OP_STORE_V:OP_STORE_F], val, r, &truthstore, STFL_PRESERVEB));
 			}
@@ -9393,6 +9300,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				val = QCC_PR_Expression(TOP_PRIORITY, 0);
 				if (val.cast->type == ev_integer && !QCC_OPCodeValid(&pr_opcodes[OP_STORE_I]))
 					val = QCC_SupplyConversion(val, ev_float, true);
+				lvalisnull = QCC_SRef_IsNull(val);
 				r = QCC_GetTemp(val.cast);
 				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r.cast->size>=3)?OP_STORE_V:OP_STORE_F], val, r, &truthstore, STFL_PRESERVEB));
 				//r can be stomped upon until its reused anyway
@@ -9421,10 +9329,10 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 
 			if (typecmp(val.cast, r.cast) != 0)
 			{
-				if (QCC_SRef_IsNull(val))
-					val = QCC_EvaluateCast(val, r.cast, true);
-				else if (QCC_SRef_IsNull(r))
-					r = QCC_EvaluateCast(r, val.cast, true);
+				if (QCC_SRef_IsNull(val) && r.cast->size == val.cast->size)
+					val.cast = r.cast;	//null is null... unless its a vector...
+				else if (lvalisnull && r.cast->size == val.cast->size)
+					r.cast = val.cast;	//null is null... unless its a vector...
 				else if (typecmp_lax(val.cast, r.cast) != 0)
 				{
 					char typebuf1[256];
@@ -9462,7 +9370,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				QCC_PR_ParseWarning(WARN_UNEXPECTEDPUNCT, "Expected punctuation");
 		}
 
-		if (priority == 6)
+		if (priority == ASSIGN_PRIORITY)
 		{	//assignments
 			QCC_opcode_t **ops = NULL, **ops_ptr;
 			char *opname = NULL;
@@ -9540,13 +9448,13 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 					QCC_PR_ParseError(ERR_INTERNAL, "Assignment to post-inc result");
 				if (lhsr->readonly)
 				{
-					QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANT, "Assignment to lvalue");
+					QCC_PR_ParseWarning(WARN_ASSIGNMENTTOCONSTANT, "Assignment to const");
 					QCC_PR_ParsePrintSRef(WARN_ASSIGNMENTTOCONSTANT, lhsr->base);
 					if (lhsr->index.cast)
 						QCC_PR_ParsePrintSRef(WARN_ASSIGNMENTTOCONSTANT, lhsr->index);
 				}
 
-				rhsr = QCC_PR_RefExpression (&rhsbuf, priority, exprflags | EXPR_DISALLOW_ARRAYASSIGN);
+				rhsr = QCC_PR_RefExpression (&rhsbuf, priority, exprflags | EXPR_DISALLOW_ARRAYASSIGN|EXPR_DISALLOW_COMMA);
 
 				if (conditional&1)
 					QCC_PR_ParseWarning(WARN_ASSIGNMENTINCONDITIONAL, "suggest parenthesis for assignment used as truth value .");
@@ -9666,16 +9574,14 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 					continue;
 
 				logicjump = NULL;
-				if (opt_logicops && lhsr->type == REF_GLOBAL)
+				lhsd = QCC_RefToDef(lhsr, true);
+				if (opt_logicops && lhsd.cast->size == 1)
 				{
-					lhsd = QCC_RefToDef(lhsr, true);
-					if (op == &pr_opcodes[OP_AND_F])		//guarenteed to be false if the lhs is false
+					if (!strcmp(op->name, "&&"))		//guarenteed to be false if the lhs is false
 						logicjump = QCC_Generate_OP_IFNOT(lhsd, true);
-					else if (op == &pr_opcodes[OP_OR_F])	//guarenteed to be true if the lhs is true
+					else if (!strcmp(op->name, "||"))	//guarenteed to be true if the lhs is true
 						logicjump = QCC_Generate_OP_IF(lhsd, true);
 				}
-				else
-					lhsd = QCC_RefToDef(lhsr, true);
 
 				rhsr = QCC_PR_RefExpression (&rhsbuf, priority-1, exprflags | EXPR_DISALLOW_ARRAYASSIGN);
 
@@ -10007,12 +9913,21 @@ void QCC_PR_ParseStatement_For(void)
 		do
 		{
 			type = QCC_PR_ParseType (false, true);
-			if (!type)
-				type = lt;
-			pr_assumetermtype = lt = type;
-			pr_assumetermscope = pr_scope;
-			pr_assumetermflags = 0;
-			QCC_PR_DiscardExpression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+			if (type)
+			{
+				d = QCC_PR_GetDef (type, QCC_PR_ParseName(), pr_scope, true, 0, 0);
+				if (QCC_PR_CheckToken("="))
+					QCC_PR_ParseInitializerDef(d, 0);
+				QCC_FreeDef(d);
+				lt = type;
+			}
+			else
+			{
+				pr_assumetermtype = lt;
+				pr_assumetermscope = pr_scope;
+				pr_assumetermflags = 0;
+				QCC_PR_DiscardExpression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+			}
 		} while(QCC_PR_CheckToken(","));
 		pr_assumetermtype = NULL;
 		QCC_PR_Expect(";");
@@ -10159,10 +10074,24 @@ void QCC_PR_ParseStatement (void)
 		{
 			PR_GenerateReturnOuts();
 			if (pr_scope->type->aux_type->type != ev_void)
+			{
 				QCC_PR_ParseWarning(WARN_MISSINGRETURNVALUE, "\'%s\' returned nothing, expected %s", pr_scope->name, pr_scope->type->aux_type->name);
-			if (opt_return_only)
-				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_DONE], nullsref, nullsref, NULL));
-			else
+				//this should not normally happen
+				if (!pr_scope->returndef.cast)
+				{	//but if it does, allocate a local that can be return=foo; before the return. depend upon qc's null initialisation rules for the default value.
+					pr_scope->returndef = QCC_PR_GetSRef(pr_scope->type->aux_type, "ret*", pr_scope, true, 0, GDF_NONE);
+					QCC_FreeTemp(pr_scope->returndef);
+				}
+			}
+			if (pr_scope->returndef.cast)
+			{
+				QCC_ForceUnFreeDef(pr_scope->returndef.sym);
+				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_RETURN], pr_scope->returndef, nullsref, NULL));
+				return;
+			}
+//			if (opt_return_only)
+//				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_DONE], nullsref, nullsref, NULL));
+//			else
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_RETURN], nullsref, nullsref, NULL));
 			return;
 		}
@@ -10171,7 +10100,7 @@ void QCC_PR_ParseStatement (void)
 		{
 			QCC_ref_t r;
 			if (!pr_scope->returndef.cast)
-				pr_scope->returndef = QCC_PR_GetSRef(pr_scope->type->aux_type, "return", pr_scope, true, 0, GDF_NONE);
+				pr_scope->returndef = QCC_PR_GetSRef(pr_scope->type->aux_type, "ret*", pr_scope, true, 0, GDF_NONE);
 			else
 				QCC_ForceUnFreeDef(pr_scope->returndef.sym);
 
@@ -11870,68 +11799,65 @@ void QCC_Marshal_Locals(int firststatement, int laststatement)
 	QCC_def_t *local;
 	pbool error = false;
 
-
-
-	if (!pr.local_head.nextlocal)	//nothing to marshal
-	{
-		return;
-	}
-
-	if (1)
-	{
-		if (qccwarningaction[WARN_UNINITIALIZED])
-			QCC_CheckUninitialised(firststatement, laststatement);	//still need to call it for warnings, but if those warnings are off we can skip the cost
-	}
-	else if (!pr_scope->def->accumulate && !opt_locals_overlapping)
-	{
-		if (qccwarningaction[WARN_UNINITIALIZED])
-			QCC_CheckUninitialised(firststatement, laststatement);	//still need to call it for warnings, but if those warnings are off we can skip the cost
-		error = true;	//always use the legacy behaviour
-	}
-	else if (QCC_CheckUninitialised(firststatement, laststatement) && !pr_scope->def->accumulate)
-	{
-		error = true;
-//		QCC_PR_Note(ERR_INTERNAL, strings+s_file, pr_source_line, "Not overlapping locals from %s due to uninitialised locals", pr_scope->name);
-	}
-	else
-	{
-		//make sure we're allowed to marshall this function's locals
-		for (local = pr.local_head.nextlocal; local; local = local->nextlocal)
+	if (pr.local_head.nextlocal)	//only check if there's actually somthing to check
+	{	//FIXME: we should just insert extra statements to clear any we deem uninitialised, instead of generating errors etc.
+		//then we can overlap all functions always without worrying.
+		if (flag_allowuninit)
 		{
-			if (local->isstatic)
-				continue;	//static variables are globals
-			if (local->constant && local->initialized)
-				continue;	//as are initialised consts, because its pointless otherwise.
-
-			//FIXME: check for uninitialised locals.
-			//these matter when the function goes recursive (and locals marshalling counts as recursive every time).
-			if (local->symboldata[0]._int)
+			if (qccwarningaction[WARN_UNINITIALIZED])
+				QCC_CheckUninitialised(firststatement, laststatement);	//still need to call it for warnings, but if those warnings are off we can skip the cost
+		}
+		else if (!pr_scope->def->accumulate && !opt_locals_overlapping)
+		{
+			if (qccwarningaction[WARN_UNINITIALIZED])
+				QCC_CheckUninitialised(firststatement, laststatement);	//still need to call it for warnings, but if those warnings are off we can skip the cost
+			error = true;	//always use the legacy behaviour
+		}
+		else if (QCC_CheckUninitialised(firststatement, laststatement) && !pr_scope->def->accumulate)
+		{
+			error = true;
+	//		QCC_PR_Note(ERR_INTERNAL, strings+s_file, pr_source_line, "Not overlapping locals from %s due to uninitialised locals", pr_scope->name);
+		}
+		else
+		{
+			//make sure we're allowed to marshall this function's locals
+			for (local = pr.local_head.nextlocal; local; local = local->nextlocal)
 			{
-				QCC_PR_Note(ERR_INTERNAL, local->filen, local->s_line, "Marshaling non-const initialised %s", local->name);
-				error = true;
-			}
+				if (local->isstatic)
+					continue;	//static variables are actually globals
+				if (local->constant && local->initialized)
+					continue;	//as are initialised consts, because its pointless otherwise.
 
-			if (local->constant)
-			{
-				QCC_PR_Note(ERR_INTERNAL, local->filen, local->s_line, "Marshaling const %s", local->name);
-				error = true;
+				//FIXME: check for uninitialised locals.
+				//these matter when the function goes recursive (and locals marshalling counts as recursive every time).
+				if (local->symboldata[0]._int)
+				{
+					QCC_PR_Note(ERR_INTERNAL, local->filen, local->s_line, "Marshaling non-const initialised %s", local->name);
+					error = true;
+				}
+
+				/*if (local->constant)
+				{
+					QCC_PR_Note(ERR_INTERNAL, local->filen, local->s_line, "Marshaling const %s", local->name);
+					error = true;
+				}*/
 			}
 		}
-	}
 
-	//func(&somelocal) reuses the same memory address for both caller and callee. there's nothing we safely do to fix recursive functions, but we can at least stop -Olo from breaking things more.
-	if (!error)
-	{
-		int i;
-		QCC_statement_t *st;
-		for (i = firststatement; i < laststatement; i++)
+		//func(&somelocal) reuses the same memory address for both caller and callee. there's nothing we safely do to fix recursive functions, but we can at least stop -Olo from breaking things more.
+		if (!error)
 		{
-			st = &statements[i];
-
-			if (st->op == OP_GLOBALADDRESS && st->a.sym->scope)
+			int i;
+			QCC_statement_t *st;
+			for (i = firststatement; i < laststatement; i++)
 			{
-				error = true;
-				break;
+				st = &statements[i];
+
+				if (st->op == OP_GLOBALADDRESS && st->a.sym->scope)
+				{
+					error = true;
+					break;
+				}
 			}
 		}
 	}
@@ -12129,10 +12055,15 @@ QCC_function_t *QCC_PR_GenerateBuiltinFunction (QCC_def_t *def, int builtinnum, 
 	func->def = def;
 	return func;
 }
-QCC_function_t *QCC_PR_GenerateQCFunction (QCC_def_t *def, QCC_type_t *type, unsigned int pif_flags)
+static QCC_function_t *QCC_PR_GenerateQCFunction (QCC_def_t *def, QCC_type_t *type, unsigned int *pif_flags)
 {
-	QCC_function_t *func;
-	if ((pif_flags & PIF_ACCUMULATE) && !(pif_flags & PIF_WRAP))
+	QCC_function_t *func = NULL;
+	if (numfunctions >= MAX_FUNCTIONS)
+		QCC_PR_ParseError(ERR_INTERNAL, "Too many functions - %i\nAdd \"MAX_FUNCTIONS\" \"%i\" to qcc.cfg", numfunctions, (numfunctions+4096)&~4095);
+
+	if (!pif_flags)
+		;
+	else if ((*pif_flags & PIF_ACCUMULATE) && !(*pif_flags & PIF_WRAP))
 	{
 		if (def->symboldata[0].function)
 		{
@@ -12145,15 +12076,24 @@ QCC_function_t *QCC_PR_GenerateQCFunction (QCC_def_t *def, QCC_type_t *type, uns
 			return func;
 		}
 	}
-
-	if (numfunctions >= MAX_FUNCTIONS)
-		QCC_PR_ParseError(ERR_INTERNAL, "Too many functions - %i\nAdd \"MAX_FUNCTIONS\" \"%i\" to qcc.cfg", numfunctions, (numfunctions+4096)&~4095);
-	if ((pif_flags&PIF_WRAP) && def->symboldata[0].function)
+	else if ((*pif_flags&PIF_WRAP) && def->symboldata[0].function)
 	{
 		QCC_def_t *locals;
-		QCC_function_t *prior = &functions[numfunctions++];
+		QCC_function_t *prior;
 		func = &functions[def->symboldata[0].function];
+		if ((*pif_flags&PIF_AUTOWRAP) && func->statements && func->def == def && func->type == type && func->parentscope == pr_scope)
+		{
+			*pif_flags &= ~(PIF_WRAP|PIF_AUTOWRAP);
+			return func;	//looks like we should be able to just reuse it. no need to wrap.
+		}
+		prior = &functions[numfunctions++];
 		memcpy(prior, func, sizeof(*prior));
+
+		//FIXME: we need a proper algorithm to generate valid anonymous function names.
+		prior->name = qccHunkAlloc(6+strlen(func->name)+1);
+		strcpy(prior->name, "prior*");
+		strcpy(prior->name+6, func->name);
+
 		memset(func, 0, sizeof(*func));
 
 		for (locals = prior->firstlocal; locals; locals = locals->nextlocal)
@@ -12163,12 +12103,12 @@ QCC_function_t *QCC_PR_GenerateQCFunction (QCC_def_t *def, QCC_type_t *type, uns
 			locals->scope = prior;
 		}
 	}
-	else if (pif_flags&PIF_WRAP)
+	else if (*pif_flags&PIF_WRAP)
 	{
 		QCC_PR_ParseError(ERR_INTERNAL, "cannot wrap bodyless function %s", def->name);
 		return NULL;
 	}
-	else
+	if (!func)
 		func = &functions[numfunctions++];
 	func->filen = s_filen;
 	func->s_filed = s_filed;
@@ -12333,7 +12273,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 //	if (type->vargs)
 //		QCC_PR_ParseError (ERR_FUNCTIONWITHVARGS, "QC function with variable arguments and function body");
 
-	f = QCC_PR_GenerateQCFunction(def, type, pif_flags);
+	f = QCC_PR_GenerateQCFunction(def, type, &pif_flags);
 
 	QCC_PR_ResumeFunction(f);
 
@@ -12513,11 +12453,17 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 	//accumulate implies wrap when the first function wasn't defined to accumulate (should really be explicit, but gmqcc compat)
 	if (pif_flags & PIF_AUTOWRAP)
 	{
+		QCC_def_t *arg;
 		QCC_sref_t args[MAX_PARMS+MAX_EXTRA_PARMS];
 		QCC_sref_t r;
 		unsigned int i;
-		for (i = 0; i < type->num_parms; i++)
-			args[i] = QCC_PR_GetSRef (type->params[i].type, pr_parm_names[i], pr_scope, 2, 0, false);
+		for (i=0, arg=pr.local_head.nextlocal ; i<type->num_parms; i++, arg = arg->deftail->nextlocal)
+		{
+			QCC_ForceUnFreeDef(arg);
+			args[i].sym = arg;
+			args[i].ofs = 0;
+			args[i].cast = type->params[i].type;
+		}
 		r = QCC_PR_GenerateFunctionCallSref(nullsref, QCC_MakeSRefForce(prior, 0, prior->type), args, type->num_parms);
 		prior->referenced = true;
 
@@ -12526,7 +12472,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 		else
 		{
 			if (!f->returndef.cast)
-				f->returndef = QCC_PR_GetSRef(f->type->aux_type, "return", pr_scope, true, 0, 0);
+				f->returndef = QCC_PR_GetSRef(f->type->aux_type, "ret*", pr_scope, true, 0, 0);
 			QCC_StoreToSRef(f->returndef, r, type, false, false);
 		}
 	}
@@ -12765,7 +12711,7 @@ QCC_def_t *QCC_PR_EmitArrayGetVector(QCC_sref_t array)
 	if (numfunctions >= MAX_FUNCTIONS)
 		QCC_Error(ERR_INTERNAL, "Too many function defs");
 
-	pr_scope = QCC_PR_GenerateQCFunction(func, ftype, 0);
+	pr_scope = QCC_PR_GenerateQCFunction(func, ftype, NULL);
 	pr_source_line = pr_token_line_last = pr_scope->line = array.sym->s_line;	//thankfully these functions are emitted after compilation.
 	pr_scope->filen = array.sym->filen;
 	pr_scope->s_filed = array.sym->s_filed;
@@ -12822,7 +12768,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 //		vectortrick.cast = vectortrick.sym->type;
 //	}
 
-	pr_scope = QCC_PR_GenerateQCFunction(scope, scope->type, 0);
+	pr_scope = QCC_PR_GenerateQCFunction(scope, scope->type, NULL);
 	pr_source_line = pr_token_line_last = pr_scope->line = thearray.sym->s_line;	//thankfully these functions are emitted after compilation.
 	pr_scope->filen = thearray.sym->filen;
 	pr_scope->s_filed = thearray.sym->s_filed;
@@ -12930,7 +12876,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 			errmsg = QCC_MakeStringConst("bounds check failed\n");
 		if (!errfnc.cast)
 		{
-			errfnc = QCC_MakeIntConst(0);
+			errfnc = QCC_MakeIntConst(~0);
 			errfnc.cast = type_function;
 		}
 		QCC_FreeTemp(QCC_PR_GenerateFunctionCall1(nullsref, errfnc, errmsg, type_string));
@@ -13012,7 +12958,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 
 	s_filen = arraydef->filen;
 	s_filed = arraydef->s_filed;
-	pr_scope = QCC_PR_GenerateQCFunction(scope, scope->type, 0);
+	pr_scope = QCC_PR_GenerateQCFunction(scope, scope->type, NULL);
 	pr_source_line = pr_token_line_last = pr_scope->line = thearray.sym->s_line;	//thankfully these functions are emitted after compilation.
 	pr_scope->filen = thearray.sym->filen;
 	pr_scope->s_filed = thearray.sym->s_filed;
@@ -13063,7 +13009,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 		QCC_sref_t errmsg = QCC_MakeStringConst("bounds check failed\n");
 		if (!errfnc.cast)
 		{
-			errfnc = QCC_MakeIntConst(0);
+			errfnc = QCC_MakeIntConst(~0);
 			errfnc.cast = type_function;
 		}
 		QCC_FreeTemp(QCC_PR_GenerateFunctionCall1(nullsref, errfnc, errmsg, type_string));
@@ -13484,10 +13430,12 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 							QCC_PR_ParseWarning (WARN_COMPATIBILITYHACK, "%s builtin was redefined as %s. ignoring alternative definition",name, TypeName(type, typebuf1, sizeof(typebuf1)));
 							QCC_PR_ParsePrintDef(WARN_COMPATIBILITYHACK, def);
 						}
-						else if (1)//def->unused)
-						{	//previous def was norefed
+						else if (def->unused && !def->referenced && allocate && !def->scope)
+						{	//previous def was norefed and still wasn't used yet.
+							QCC_PR_ParseWarning (WARN_COMPATIBILITYHACK, "Type redeclaration of %s %s replaces existing variable", TypeName(type, typebuf1, sizeof(typebuf1)), name);
+							QCC_PR_ParsePrintDef(WARN_COMPATIBILITYHACK, def);
 							def = pHash_GetNext(&localstable, name, def);
-							continue;		// in a different function
+							continue;
 						}
 						else
 						{
@@ -14367,6 +14315,7 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 				type = QCC_PR_DuplicateType(type, false);
 				type->name = name;
 				type->typedefed = true;
+				pHash_Add(&typedeftable, name, type, qccHunkAlloc(sizeof(bucket_t)));
 			}
 		} while(QCC_PR_CheckToken(","));
 		QCC_PR_Expect(";");

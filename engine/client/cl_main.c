@@ -5429,7 +5429,7 @@ double Host_Frame (double time)
 	}
 	else
 #endif
-		if ((cl_netfps.value>0 || cls.demoplayback || cl_threadedphysics.ival))
+		if ((cl_netfps.value>0 || cls.demoplayback || runningindepphys))
 	{	//limit the fps freely, and expect the netfps to cope.
 		maxfpsignoreserver = true;
 		maxfps = cl_maxfps.ival;
@@ -5516,7 +5516,7 @@ double Host_Frame (double time)
 
 	RSpeedRemark();
 
-	CL_UseIndepPhysics(!!cl_threadedphysics.ival);
+	CL_UseIndepPhysics(cls.state != ca_disconnected && !!cl_threadedphysics.ival);	//starts/stops the input frame thread.
 
 	cl.do_lerp_players = cl_lerp_players.ival || (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) || (cls.demoplayback && !cl_nolerp.ival && !cls.timedemo);
 	CL_AllowIndependantSendCmd(false);
@@ -6166,6 +6166,8 @@ void Host_Shutdown(void)
 	if (!host_initialized)
 		return;
 	host_initialized = false;
+
+	CL_UseIndepPhysics(false);
 
 #ifdef WEBCLIENT
 	HTTP_CL_Terminate();

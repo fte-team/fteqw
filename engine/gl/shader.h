@@ -279,7 +279,18 @@ typedef struct shaderpass_s {
 
 		T_GEN_VIDEOMAP,		//use the media playback as an image source, updating each frame for which it is visible
 		T_GEN_CUBEMAP,		//use a cubemap instead, otherwise like T_GEN_SINGLEMAP
-		T_GEN_3DMAP			//use a 3d texture instead, otherwise T_GEN_SINGLEMAP.
+		T_GEN_3DMAP,		//use a 3d texture instead, otherwise T_GEN_SINGLEMAP.
+
+#define GBUFFER_COUNT 8
+#define T_GEN_GBUFFERCASE T_GEN_GBUFFER0:case T_GEN_GBUFFER1:case T_GEN_GBUFFER2:case T_GEN_GBUFFER3:case T_GEN_GBUFFER4:case T_GEN_GBUFFER5:case T_GEN_GBUFFER6:case T_GEN_GBUFFER7 
+		T_GEN_GBUFFER0,		//one of the gbuffer images (deferred lighting).
+		T_GEN_GBUFFER1,		//one of the gbuffer images (deferred lighting).
+		T_GEN_GBUFFER2,		//one of the gbuffer images (deferred lighting).
+		T_GEN_GBUFFER3,		//one of the gbuffer images (deferred lighting).
+		T_GEN_GBUFFER4,		//one of the gbuffer images (deferred lighting).
+		T_GEN_GBUFFER5,		//one of the gbuffer images (deferred lighting).
+		T_GEN_GBUFFER6,		//one of the gbuffer images (deferred lighting).
+		T_GEN_GBUFFER7,		//one of the gbuffer images (deferred lighting).
 	} texgen;
 
 	enum {
@@ -683,12 +694,12 @@ void Shader_ReleaseGeneric(program_t *prog);
 
 mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 
-#ifndef NOLEGACY
 #define BEF_FORCEDEPTHWRITE		1
 #define BEF_FORCEDEPTHTEST		2
 #define BEF_FORCEADDITIVE		4	//blend dest = GL_ONE
 #define BEF_FORCETRANSPARENT	8	//texenv replace -> modulate
 #define BEF_FORCENODEPTH		16	//disables any and all depth.
+#ifndef NOLEGACY
 #define BEF_PUSHDEPTH			32	//additional polygon offset
 #endif
 //FIXME: the above should really be legacy-only

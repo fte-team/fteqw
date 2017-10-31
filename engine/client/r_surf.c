@@ -2347,7 +2347,7 @@ void Surf_SetupFrame(void)
 		r_viewcluster = -1;
 		r_viewcluster2 = -1;
 	}
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 	else if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
 	{
 		leaf = Mod_PointInLeaf (cl.worldmodel, pvsorg);
@@ -3473,7 +3473,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 	if (m->fromgame == fg_quake3)
 	{
 		int j;
-		unsigned char *src;
+		unsigned char *src, *stop;
 		unsigned char *dst;
 
 
@@ -3505,6 +3505,9 @@ void Surf_BuildModelLightmaps (model_t *m)
 
 			dst = lightmap[newfirst+i]->lightmaps;
 			src = m->lightdata + i*m->lightmaps.width*m->lightmaps.height*3;
+			stop = m->lightdata + (i+1)*m->lightmaps.width*m->lightmaps.height*3;
+			if (stop-m->lightdata > m->lightdatasize)
+				stop = m->lightdata + m->lightdatasize;
 			if (m->lightdata)
 			{
 				switch(lightmap_fmt)
@@ -3513,7 +3516,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 					Sys_Error("Bad lightmap_fmt\n");
 					break;
 				case TF_BGRA32:
-					for (j = min((m->lightdatasize-i*m->lightmaps.width*m->lightmaps.height*3)/3,m->lightmaps.width*m->lightmaps.height); j > 0; j--, dst += 4, src += 3)
+					for (; src < stop; dst += 4, src += 3)
 					{
 						dst[0] = src[2];
 						dst[1] = src[1];
@@ -3522,7 +3525,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 					}
 					break;
 				/*case TF_RGBA32:
-					for (j = min((m->lightdatasize-i*m->lightmaps.width*m->lightmaps.height*3)/3,m->lightmaps.width*m->lightmaps.height); j > 0; j--, dst += 4, src += 3)
+					for (; src < stop; dst += 4, src += 3)
 					{
 						dst[0] = src[0];
 						dst[1] = src[1];
@@ -3531,7 +3534,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 					}
 					break;
 				case TF_BGR24:
-					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 3, src += 3)
+					for (; src < stop; dst += 3, src += 3)
 					{
 						dst[0] = src[2];
 						dst[1] = src[1];
@@ -3539,7 +3542,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 					}
 					break;*/
 				case TF_RGB24:
-					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 3, src += 3)
+					for (; src < stop; dst += 3, src += 3)
 					{
 						dst[0] = src[0];
 						dst[1] = src[1];

@@ -767,7 +767,18 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	if (GL_CheckExtension("GL_ARB_depth_clamp") || GL_CheckExtension("GL_NV_depth_clamp"))
 		gl_config.arb_depth_clamp = true;
 
-	if (GL_CheckExtension("GL_ARB_texture_compression"))
+	if (gl_config.gles)
+	{	//GL_ARB_texture_compression is not quite supported in gles, but works for custom compressed formats (like etc2).
+		qglCompressedTexImage2DARB = (void *)getglext("glCompressedTexImage2D");
+		qglGetCompressedTexImageARB = NULL;
+	}
+	else if (!gl_config.gles && gl_config.glversion > 1.3)
+	{	//GL_ARB_texture_compression is core in gl1.3
+		qglCompressedTexImage2DARB = (void *)getglext("glCompressedTexImage2D");
+		qglGetCompressedTexImageARB = (void *)getglext("glGetCompressedTexImage");
+		gl_config.arb_texture_compression = true;
+	}
+	else if (GL_CheckExtension("GL_ARB_texture_compression"))
 	{
 		qglCompressedTexImage2DARB = (void *)getglext("glCompressedTexImage2DARB");
 		qglGetCompressedTexImageARB = (void *)getglext("glGetCompressedTexImageARB");
@@ -1667,7 +1678,7 @@ static const char *glsl_hdrs[] =
 	"sys/pcf.h",
 			//!!cvardf r_glsl_pcf
 			"#ifndef PCF\n"
-				"#define ShadowmapFilter(smap) 1.0\n"	//s_shadowmap generally. returns a scaler to say how much light should be used for this pixel.
+				"#define ShadowmapFilter(smap,proj) 1.0\n"	//s_shadowmap generally. returns a scaler to say how much light should be used for this pixel.
 			"#else\n"
 				"#ifndef r_glsl_pcf\n"
 					"#define r_glsl_pcf 9\n"
@@ -1680,12 +1691,12 @@ static const char *glsl_hdrs[] =
 				"uniform vec4 l_shadowmapproj;\n" //light projection matrix info
 				"uniform vec2 l_shadowmapscale;\n"	//xy are the texture scale, z is 1, w is the scale.
 				"#endif\n"
-				"vec3 ShadowmapCoord(void)\n"
+				"vec3 ShadowmapCoord(vec4 cubeproj)\n"
 				"{\n"
 				"#ifdef SPOT\n"
 					//bias it. don't bother figuring out which side or anything, its not needed
 					//l_projmatrix contains the light's projection matrix so no other magic needed
-					"return ((vtexprojcoord.xyz-vec3(0.0,0.0,0.015))/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
+					"return ((cubeproj.xyz-vec3(0.0,0.0,0.015))/cubeproj.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
 				//"#elif defined(CUBESHADOW)\n"
 				//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
 				//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
@@ -1694,21 +1705,21 @@ static const char *glsl_hdrs[] =
 					//texture is arranged thusly:
 					//forward left  up
 					//back    right down
-					"vec3 dir = abs(vtexprojcoord.xyz);\n"
+					"vec3 dir = abs(cubeproj.xyz);\n"
 					//assume z is the major axis (ie: forward from the light)
-					"vec3 t = vtexprojcoord.xyz;\n"
+					"vec3 t = cubeproj.xyz;\n"
 					"float ma = dir.z;\n"
 					"vec3 axis = vec3(0.5/3.0, 0.5/2.0, 0.5);\n"
 					"if (dir.x > ma)\n"
 					"{\n"
 						"ma = dir.x;\n"
-						"t = vtexprojcoord.zyx;\n"
+						"t = cubeproj.zyx;\n"
 						"axis.x = 0.5;\n"
 					"}\n"
 					"if (dir.y > ma)\n"
 					"{\n"
 						"ma = dir.y;\n"
-						"t = vtexprojcoord.xzy;\n"
+						"t = cubeproj.xzy;\n"
 						"axis.x = 2.5/3.0;\n"
 					"}\n"
 					//if the axis is negative, flip it.
@@ -1727,9 +1738,9 @@ static const char *glsl_hdrs[] =
 				"#endif\n"
 				"}\n"
 
-				"float ShadowmapFilter(sampler2DShadow smap)\n"
+				"float ShadowmapFilter(sampler2DShadow smap, vec4 cubeproj)\n"
 				"{\n"
-					"vec3 shadowcoord = ShadowmapCoord();\n"
+					"vec3 shadowcoord = ShadowmapCoord(cubeproj);\n"
 
 					"#if 0\n"//def GL_ARB_texture_gather
 						"vec2 ipart, fpart;\n"
@@ -1951,8 +1962,29 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 				"#define textureCube texture\n"
 				"#define shadow2D texture\n"
 				//gl_FragColor and gl_FragData got deprecated too, need to make manual outputs
-				"out vec4 fte_fragdata;\n"
-				"#define gl_FragColor fte_fragdata\n"
+				"#if __VERSION__ >= 300\n"	//gl3.3, gles3 (gles3 requires layout stuff)
+					"layout(location = 0) out vec4 fte_fragdata0;"
+					"layout(location = 1) out vec4 fte_fragdata1;"
+					"layout(location = 2) out vec4 fte_fragdata2;"
+					"layout(location = 3) out vec4 fte_fragdata3;"
+				"\n#else\n"
+					"out vec4 fte_fragdata0;"
+					"out vec4 fte_fragdata1;"
+					"out vec4 fte_fragdata2;"
+					"out vec4 fte_fragdata3;"
+				"\n#endif\n"	//gles3 requires this
+				"#define gl_FragColor fte_fragdata0\n"
+			;
+			length[strings] = strlen(prstrings[strings]);
+			strings++;
+		}
+		else
+		{
+			prstrings[strings] =
+				"#define fte_fragdata0 gl_FragData[0]\n"
+				"#define fte_fragdata1 gl_FragData[1]\n"
+				"#define fte_fragdata2 gl_FragData[2]\n"
+				"#define fte_fragdata3 gl_FragData[3]\n"
 			;
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
@@ -2200,7 +2232,7 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 				Sys_Error("%s shader (%s) compilation error:\n----------\n%s----------\n", typedesc, name, str);
 
 			if (developer.ival)
-			{
+			{	//could use echo console-link I guess (with embedded line numbers). shaders can get quite big though.
 				unsigned int line;
 				char *eol, *start;
 				qglGetShaderSource(shader, sizeof(str), NULL, str);
@@ -2857,6 +2889,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 #endif
 	{	//gles3 and gl4.3 have mandatory support for etc2. probably desktop drivers will pre-decompress, but whatever.
 		//webgl tries to cater to d3d, so doesn't support this gles3 feature, because browser writers are lazy.
+		//warning: while support is mandatory, it may just be a driver trick with the hardware using uncompressed data.
 		sh_config.texfmt[PTI_ETC1_RGB8] = true;
 		sh_config.texfmt[PTI_ETC2_RGB8] = true;
 		sh_config.texfmt[PTI_ETC2_RGB8A1] = true;

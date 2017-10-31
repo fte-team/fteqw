@@ -83,7 +83,6 @@ char *COM_ParseExt (char **data_p, qboolean nl, qboolean comma)
 	int		c;
 	int		len;
 	char	*data;
-	qboolean newlines = false;
 
 	COM_AssertMainThread("COM_ParseExt");
 
@@ -106,15 +105,12 @@ skipwhite:
 			*data_p = NULL;
 			return "";
 		}
-		if (c == '\n')
-			newlines = true;
+		if (c == '\n' && !nl)
+		{
+			*data_p = data;
+			return com_token;
+		}
 		data++;
-	}
-
-	if (newlines && !nl)
-	{
-		*data_p = data;
-		return com_token;
 	}
 
 // skip // comments
@@ -127,14 +123,19 @@ skipwhite:
 // skip /* comments
 	if (c == '/' && data[1] == '*')
 	{
+		char *start = data;
 		data+=2;
-		newlines = true;
 		for(;data[0];)
 		{
 			if (data[0] == '*' && data[1] == '/')
 			{
 				data+=2;
 				break;
+			}
+			if (*data == '\n' && !nl)
+			{
+				*data_p = start;
+				return com_token;
 			}
 			data++;
 		}
@@ -297,6 +298,8 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 	{
 		conditiontrue = false;
 		token++;
+		if (!*token)
+			token = COM_ParseExt(ptr, false, false);
 	}
 
 	if (*token >= '0' && *token <= '9')
@@ -307,52 +310,52 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 			token++;
 
 		if (*token == '#')
-			conditiontrue = conditiontrue == !!Shader_FloatArgument(shader, token);
+			lhs = !!Shader_FloatArgument(shader, token);
 		else if (!Q_stricmp(token, "lpp"))
-			conditiontrue = conditiontrue == r_lightprepass;
+			lhs = r_lightprepass;
 		else if (!Q_stricmp(token, "lightmap"))
-			conditiontrue = conditiontrue == !r_fullbright.value;
-		else if (!Q_stricmp(token, "deluxmap"))
-			conditiontrue = conditiontrue == r_deluxmapping;
+			lhs = !r_fullbright.value;
+		else if (!Q_stricmp(token, "deluxmap") || !Q_stricmp(token, "deluxe"))
+			lhs = r_deluxmapping;
 		else if (!Q_stricmp(token, "softwarebanding"))
-			conditiontrue = conditiontrue == r_softwarebanding;
+			lhs = r_softwarebanding;
 
 		//normalmaps are generated if they're not already known.
 		else if (!Q_stricmp(token, "normalmap"))
-			conditiontrue = conditiontrue == r_loadbumpmapping;
+			lhs = r_loadbumpmapping;
 
 		else if (!Q_stricmp(token, "vulkan"))
-			conditiontrue = conditiontrue == (qrenderer == QR_VULKAN);
+			lhs = (qrenderer == QR_VULKAN);
 		else if (!Q_stricmp(token, "opengl"))
-			conditiontrue = conditiontrue == (qrenderer == QR_OPENGL);
+			lhs = (qrenderer == QR_OPENGL);
 		else if (!Q_stricmp(token, "d3d8"))
-			conditiontrue = conditiontrue == (qrenderer == QR_DIRECT3D8);
+			lhs = (qrenderer == QR_DIRECT3D8);
 		else if (!Q_stricmp(token, "d3d9"))
-			conditiontrue = conditiontrue == (qrenderer == QR_DIRECT3D9);
+			lhs = (qrenderer == QR_DIRECT3D9);
 		else if (!Q_stricmp(token, "d3d11"))
-			conditiontrue = conditiontrue == (qrenderer == QR_DIRECT3D11);
+			lhs = (qrenderer == QR_DIRECT3D11);
 		else if (!Q_stricmp(token, "gles"))
-			conditiontrue = conditiontrue == ((qrenderer == QR_OPENGL) && sh_config.minver == 100);
+			lhs = ((qrenderer == QR_OPENGL) && sh_config.minver == 100);
 		else if (!Q_stricmp(token, "nofixed"))
-			conditiontrue = conditiontrue == sh_config.progs_required;
+			lhs = sh_config.progs_required;
 		else if (!Q_stricmp(token, "glsl"))
-			conditiontrue = conditiontrue == ((qrenderer == QR_OPENGL) && sh_config.progs_supported);
+			lhs = ((qrenderer == QR_OPENGL) && sh_config.progs_supported);
 		else if (!Q_stricmp(token, "hlsl"))
-			conditiontrue = conditiontrue == ((qrenderer == QR_DIRECT3D9 || qrenderer == QR_DIRECT3D11) && sh_config.progs_supported);	
+			lhs = ((qrenderer == QR_DIRECT3D9 || qrenderer == QR_DIRECT3D11) && sh_config.progs_supported);	
 		else if (!Q_stricmp(token, "haveprogram"))
-			conditiontrue = conditiontrue == !!shader->prog;
+			lhs = !!shader->prog;
 		else if (!Q_stricmp(token, "programs"))
-			conditiontrue = conditiontrue == sh_config.progs_supported;
+			lhs = sh_config.progs_supported;
 		else if (!Q_stricmp(token, "diffuse"))
-			conditiontrue = conditiontrue == true;
+			lhs = true;
 		else if (!Q_stricmp(token, "specular"))
-			conditiontrue = conditiontrue == false;
+			lhs = false;
 		else if (!Q_stricmp(token, "fullbright"))
-			conditiontrue = conditiontrue == false;
+			lhs = false;
 		else if (!Q_stricmp(token, "topoverlay"))
-			conditiontrue = conditiontrue == false;
+			lhs = false;
 		else if (!Q_stricmp(token, "loweroverlay"))
-			conditiontrue = conditiontrue == false;
+			lhs = false;
 		else
 		{
 			cv = Cvar_Get(token, "", 0, "Shader Conditions");
@@ -425,6 +428,8 @@ static char *Shader_ParseString(char **ptr)
 
 	if (!ptr || !(*ptr))
 		return "";
+	while(**ptr == ' ' || **ptr == '\t')
+		*ptr+=1;
 	if (!**ptr || **ptr == '}')
 		return "";
 
@@ -1004,8 +1009,8 @@ static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
 		shader->sort = SHADER_SORT_NEAREST;
 	else if( !Q_stricmp( token, "blend" ) )
 		shader->sort = SHADER_SORT_BLEND;
-	else if ( !Q_stricmp( token, "lpp_light" ) )
-		shader->sort = SHADER_SORT_PRELIGHT;
+	else if ( !Q_stricmp( token, "deferredlight" ) )
+		shader->sort = SHADER_SORT_DEFERREDLIGHT;
 	else if ( !Q_stricmp( token, "ripple" ) )
 		shader->sort = SHADER_SORT_RIPPLE;
 	else
@@ -1015,9 +1020,9 @@ static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
 	}
 }
 
-static void Shader_Prelight ( shader_t *shader, shaderpass_t *pass, char **ptr )
+static void Shader_Deferredlight ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
-	shader->sort = SHADER_SORT_PRELIGHT;
+	shader->sort = SHADER_SORT_DEFERREDLIGHT;
 }
 
 static void Shader_Portal ( shader_t *shader, shaderpass_t *pass, char **ptr )
@@ -2305,6 +2310,56 @@ static void Shader_LowerMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 	shader->defaulttextures->loweroverlay = Shader_FindImage(token, flags);
 }
 
+static void Shaderpass_QF_Material(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	unsigned int flags;
+	char *progname = "defaultwall";
+	char *token;
+	char *hash = strchr(shader->name, '#');
+	if (hash)
+	{
+		//pass the # postfixes from the shader name onto the generic glsl to use
+		char newname[512];
+		Q_snprintfz(newname, sizeof(newname), "%s%s", progname, hash);
+		pass->prog = Shader_FindGeneric(newname, qrenderer);
+	}
+	else
+		pass->prog = Shader_FindGeneric(progname, qrenderer);
+
+	token = Shader_ParseString(ptr);
+	if (*token && strcmp(token, "-"))
+	{
+		flags = Shader_SetImageFlags (shader, NULL, &token);
+		if (*token)
+			shader->defaulttextures->base = Shader_FindImage(token, flags);
+		else
+		{
+			token = shader->name;
+			if (hash)
+				*hash = 0;
+			shader->defaulttextures->base = Shader_FindImage(token, flags);
+			if (hash)
+				*hash = '#';
+		}
+	}
+
+	if (*token)
+		token = Shader_ParseString(ptr);
+	if (*token && strcmp(token, "-"))
+	{
+		flags = Shader_SetImageFlags (shader, NULL, &token);
+		shader->defaulttextures->bump = Shader_FindImage(token, flags);
+	}
+
+	if (*token)
+		token = Shader_ParseString(ptr);
+	if (*token && strcmp(token, "-"))
+	{
+		flags = Shader_SetImageFlags (shader, NULL, &token);
+		shader->defaulttextures->specular = Shader_FindImage(token, flags);
+	}
+}
+
 static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *tname);
 static void Shader_ProgMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -2479,64 +2534,81 @@ static void Shader_BEMode(shader_t *shader, shaderpass_t *pass, char **ptr)
 
 static shaderkey_t shaderkeys[] =
 {
-	{"cull",			Shader_Cull},
-	{"skyparms",		Shader_SkyParms},
-	{"fogparms",		Shader_FogParms},
-	{"surfaceparm",		Shader_SurfaceParm},
-	{"nomipmaps",		Shader_NoMipMaps},
-	{"nopicmip",		Shader_NoPicMip},
-	{"polygonoffset",	Shader_PolygonOffset},
-	{"sort",			Shader_Sort},
-	{"deformvertexes",	Shader_DeformVertexes},
-	{"portal",			Shader_Portal},
-	{"entitymergable",	Shader_EntityMergable},
+#define Q3 NULL
+	{"cull",				Shader_Cull,				Q3},
+	{"skyparms",			Shader_SkyParms,			Q3},
+	{"fogparms",			Shader_FogParms,			Q3},
+	{"surfaceparm",			Shader_SurfaceParm,			Q3},
+	{"nomipmaps",			Shader_NoMipMaps,			Q3},
+	{"nopicmip",			Shader_NoPicMip,			Q3},
+	{"polygonoffset",		Shader_PolygonOffset,		Q3},
+	{"sort",				Shader_Sort,				Q3},
+	{"deformvertexes",		Shader_DeformVertexes,		Q3},
+	{"portal",				Shader_Portal,				Q3},
+	{"entitymergable",		Shader_EntityMergable,		Q3},
 
 	//fte extensions
-	{"clutter",			Shader_ClutterParms,		"fte"},
-	{"lpp_light",		Shader_Prelight,			"fte"},
-	{"glslprogram",		Shader_GLSLProgramName,		"fte"},
-	{"program",			Shader_ProgramName,			"fte"},	//gl or d3d
-	{"hlslprogram",		Shader_HLSL9ProgramName,	"fte"},	//for d3d
-	{"hlsl11program",	Shader_HLSL11ProgramName,	"fte"},	//for d3d
-	{"param",			Shader_ProgramParam,		"fte"},	//legacy
-	{"affine",			Shader_Affine,				"fte"},	//some hardware is horribly slow, and can benefit from certain hints.
+	{"clutter",				Shader_ClutterParms,		"fte"},
+	{"deferredlight",		Shader_Deferredlight,		"fte"},	//(sort = prelight)
+//	{"lpp_light",			Shader_Deferredlight,		"fte"},	//(sort = prelight)
+	{"glslprogram",			Shader_GLSLProgramName,		"fte"},
+	{"program",				Shader_ProgramName,			"fte"},	//gl or d3d
+	{"hlslprogram",			Shader_HLSL9ProgramName,	"fte"},	//for d3d
+	{"hlsl11program",		Shader_HLSL11ProgramName,	"fte"},	//for d3d
+	{"param",				Shader_ProgramParam,		"fte"},	//legacy
+	{"affine",				Shader_Affine,				"fte"},	//some hardware is horribly slow, and can benefit from certain hints.
 
-	{"bemode",			Shader_BEMode,				"fte"},
+	{"bemode",				Shader_BEMode,				"fte"},
 
-	{"diffusemap",		Shader_DiffuseMap,			"fte"},
-	{"normalmap",		Shader_NormalMap,			"fte"},
-	{"specularmap",		Shader_SpecularMap,			"fte"},
-	{"fullbrightmap",	Shader_FullbrightMap,		"fte"},
-	{"uppermap",		Shader_UpperMap,			"fte"},
-	{"lowermap",		Shader_LowerMap,			"fte"},
-	{"reflectmask",		Shader_ReflectMask,			"fte"},
-
-	//dp compat
-	{"reflectcube",		Shader_ReflectCube,			"dp"},
-	{"camera",			Shader_DP_Camera,			"dp"},
-	{"water",			Shader_DP_Water,			"dp"},
-	{"reflect",			Shader_DP_Reflect,			"dp"},
-	{"refract",			Shader_DP_Refract,			"dp"},
-	{"offsetmapping",	Shader_DP_OffsetMapping,	"dp"},
-	{"noshadow",		NULL,						"dp"},
-	{"polygonoffset",	NULL,						"dp"},
-	{"glossintensitymod",Shader_DP_GlossScale,		"dp"},	//scales r_shadow_glossintensity(=1), aka: gl_specular
-	{"glossexponentmod",Shader_DP_GlossExponent,	"dp"},	//scales r_shadow_glossexponent(=32)
-
-	/*doom3 compat*/
-	{"diffusemap",		Shader_DiffuseMap,			"doom3"},	//macro for "{\nstage diffusemap\nmap <map>\n}"
-	{"bumpmap",			Shader_NormalMap,			"doom3"},	//macro for "{\nstage bumpmap\nmap <map>\n}"
-	{"discrete",		NULL,						"doom3"},
-	{"nonsolid",		NULL,						"doom3"},
-	{"noimpact",		NULL,						"doom3"},
-	{"translucent",		Shader_Translucent,			"doom3"},
-	{"noshadows",		NULL,						"doom3"},
-	{"nooverlays",		NULL,						"doom3"},
-	{"nofragment",		NULL,						"doom3"},
+	{"diffusemap",			Shader_DiffuseMap,			"fte"},
+	{"normalmap",			Shader_NormalMap,			"fte"},
+	{"specularmap",			Shader_SpecularMap,			"fte"},
+	{"fullbrightmap",		Shader_FullbrightMap,		"fte"},
+	{"uppermap",			Shader_UpperMap,			"fte"},
+	{"lowermap",			Shader_LowerMap,			"fte"},
+	{"reflectmask",			Shader_ReflectMask,			"fte"},
 
 	/*simpler parsing for fte shaders*/
-	{"progblendfunc",	Shader_ProgBlendFunc,		"fte"},
-	{"progmap",			Shader_ProgMap,				"fte"},
+	{"progblendfunc",		Shader_ProgBlendFunc,		"fte"},
+	{"progmap",				Shader_ProgMap,				"fte"},
+
+	//dp compat
+	{"reflectcube",			Shader_ReflectCube,			"dp"},
+	{"camera",				Shader_DP_Camera,			"dp"},
+	{"water",				Shader_DP_Water,			"dp"},
+	{"reflect",				Shader_DP_Reflect,			"dp"},
+	{"refract",				Shader_DP_Refract,			"dp"},
+	{"offsetmapping",		Shader_DP_OffsetMapping,	"dp"},
+	{"noshadow",			NULL,						"dp"},
+	{"polygonoffset",		NULL,						"dp"},
+	{"glossintensitymod",	Shader_DP_GlossScale,		"dp"},	//scales r_shadow_glossintensity(=1), aka: gl_specular
+	{"glossexponentmod",	Shader_DP_GlossExponent,	"dp"},	//scales r_shadow_glossexponent(=32)
+
+	/*doom3 compat*/
+	{"diffusemap",			Shader_DiffuseMap,			"doom3"},	//macro for "{\nstage diffusemap\nmap <map>\n}"
+	{"bumpmap",				Shader_NormalMap,			"doom3"},	//macro for "{\nstage bumpmap\nmap <map>\n}"
+	{"discrete",			NULL,						"doom3"},
+	{"nonsolid",			NULL,						"doom3"},
+	{"noimpact",			NULL,						"doom3"},
+	{"translucent",			Shader_Translucent,			"doom3"},
+	{"noshadows",			NULL,						"doom3"},
+	{"nooverlays",			NULL,						"doom3"},
+	{"nofragment",			NULL,						"doom3"},
+
+	/*qfusion / warsow compat*/
+//	{"skyparms2",			NULL,						"qf"},	//skyparms without the underscore.
+//	{"skyparmssides",		NULL,						"qf"},	//skyparms with explicitly-named faces
+//	{"nocompress",			NULL,						"qf"},	//disables opportunistic compression (doesn't affect compressed source images, apparently)
+//	{"nofiltering",			NULL,						"qf"},	//misnomer. there is always 'filtering'. this means to use nearest filtering for min and mag, as well as no mipmaps.
+//	{"smallestmipmapsize",	NULL,						"qf"},	//mips with a size less than the specified value are dropped.
+//	{"stenciltest",			NULL,						"qf"},	//enables GL_STENCIL_TEST, which is special-case stuff that I see no reason to support
+//	{"offsetmappingscale",	NULL,						"qf"},
+//	{"glossexponent",		NULL,						"qf"},
+//	{"glossintensity",		NULL,						"qf"},
+//	{"template",			NULL,						"qf"},	//parses some other shader, with $3 etc arg expansion
+	{"skip",				NULL,						"qf"},	//just skips the line. acts like a comment. no idea why they can't just use a comment.
+//	{"softparticle",		NULL,						"qf"},	//uses screen depth, if possible. 
+//	{"forceworldoutlines",	NULL,						"qf"},	//looks like an ugly hack to me.
 
 	{NULL,				NULL}
 };
@@ -2641,6 +2713,13 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	{
 		pass->texgen = T_GEN_SOURCEDEPTH;
 	}
+	else if (!Q_strnicmp (tname, "$gbuffer", 8))
+	{
+		unsigned idx = strtoul(tname+8, &tname, 10);
+		if (*tname || idx >= GBUFFER_COUNT)
+			return false;
+		pass->texgen = T_GEN_GBUFFER0 + idx;
+	}
 	else if (!Q_stricmp (tname, "$reflection"))
 	{
 		shader->flags |= SHADER_HASREFLECT;
@@ -2740,14 +2819,13 @@ static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 	}
 }
 
-static void Shaderpass_AnimMap (shader_t *shader, shaderpass_t *pass, char **ptr)
+static void Shaderpass_AnimMap_Flag (shader_t *shader, shaderpass_t *pass, char **ptr, unsigned int flags)
 {
-	int flags;
 	char *token;
 	texid_t image;
 	qboolean isdiffuse = false;
 
-	flags = Shader_SetImageFlags (shader, pass, NULL);
+	flags |= Shader_SetImageFlags (shader, pass, NULL);
 
 	if (pass->tcgen == TC_GEN_UNSPECIFIED)
 		pass->tcgen = TC_GEN_BASE;
@@ -2796,6 +2874,14 @@ static void Shaderpass_AnimMap (shader_t *shader, shaderpass_t *pass, char **ptr
 			}
 		}
 	}
+}
+static void Shaderpass_AnimMap (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	Shaderpass_AnimMap_Flag(shader, pass, ptr, 0);
+}
+static void Shaderpass_QF_AnimClampMap (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	Shaderpass_AnimMap_Flag(shader, pass, ptr, IF_CLAMP);
 }
 
 static void Shaderpass_ClampMap (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -3449,30 +3535,34 @@ static void Shaderpass_CubeMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 
 static shaderkey_t shaderpasskeys[] =
 {
-	{"rgbgen",		Shaderpass_RGBGen },
-	{"blendfunc",	Shaderpass_BlendFunc },
-	{"depthfunc",	Shaderpass_DepthFunc },
-	{"depthwrite",	Shaderpass_DepthWrite },
-	{"nodepthtest",	Shaderpass_NoDepthTest },
-	{"nodepth",		Shaderpass_NoDepth },
-	{"alphafunc",	Shaderpass_AlphaFunc },
-	{"tcmod",		Shaderpass_TcMod },
-	{"map",			Shaderpass_Map },
-	{"animmap",		Shaderpass_AnimMap },
-	{"clampmap",	Shaderpass_ClampMap },
-	{"videomap",	Shaderpass_VideoMap },
-	{"tcgen",		Shaderpass_TcGen },
+#define Q3 NULL
+	{"rgbgen",		Shaderpass_RGBGen,			Q3},
+	{"alphagen",	Shaderpass_AlphaGen,		Q3},
+	{"blendfunc",	Shaderpass_BlendFunc,		Q3},
+	{"depthfunc",	Shaderpass_DepthFunc,		Q3},
+	{"depthwrite",	Shaderpass_DepthWrite,		Q3},
+	{"alphafunc",	Shaderpass_AlphaFunc,		Q3},
+	{"tcmod",		Shaderpass_TcMod,			Q3},
+	{"map",			Shaderpass_Map,				Q3},
+	{"animmap",		Shaderpass_AnimMap,			Q3},
+	{"clampmap",	Shaderpass_ClampMap,		Q3},
+	{"videomap",	Shaderpass_VideoMap,		Q3},
+	{"tcgen",		Shaderpass_TcGen,			Q3},
+	{"texgen",		Shaderpass_TcGen,			Q3},
+	{"detail",		Shaderpass_Detail,			Q3},
+
+	{"nodepthtest",	Shaderpass_NoDepthTest,		NULL},
+	{"nodepth",		Shaderpass_NoDepth,			NULL},
+
 	{"envmap",		Shaderpass_EnvMap,			"rscript"},//for alienarena
 	{"nolightmap",	Shaderpass_NoLightMap,		"rscript"},//for alienarena
 	{"scale",		Shaderpass_Scale,			"rscript"},//for alienarena
 	{"scroll",		Shaderpass_Scroll,			"rscript"},//for alienarena
-	{"alphagen",	Shaderpass_AlphaGen,		"rscript"},
 	{"alphashift",	Shaderpass_AlphaShift,		"rscript"},//for alienarena
 	{"alphamask",	Shaderpass_AlphaMask,		"rscript"},//for alienarena
-	{"detail",		Shaderpass_Detail,			"rscript"},
 
 	{"program",		Shaderpass_ProgramName,		"fte"},
-
+	
 	/*doom3 compat*/
 	{"blend",		Shaderpass_BlendFunc,		"doom3"},
 	{"maskcolor",	Shaderpass_MaskColor,		"doom3"},
@@ -3488,6 +3578,20 @@ static shaderkey_t shaderpasskeys[] =
 	{"green",		Shaderpass_Green,			"doom3"},
 	{"blue",		Shaderpass_Blue,			"doom3"},
 	{"alpha",		Shaderpass_Alpha,			"doom3"},
+
+
+	//qfusion/warsow compat
+	{"material",	Shaderpass_QF_Material,		"qf"},
+	{"animclampmap",Shaderpass_QF_AnimClampMap,	"qf"},
+//	{"cubemap",		Shaderpass_CubeMap,			"qf"},
+//	{"shadecubemap",Shaderpass_ShadeCubeMap,	"qf"},
+//	{"surroundmap",	Shaderpass_SurroundMap,		"qf"},
+//	{"distortion",	Shaderpass_Distortion,		"qf"},
+//	{"celshade",	Shaderpass_Celshade,		"qf"},
+//	{"grayscale",	Shaderpass_Greyscale,		"qf"},
+//	{"greyscale",	Shaderpass_Greyscale,		"qf"},
+//	{"skip",		Shaderpass_Skip,			"qf"},
+
 	{NULL,			NULL}
 };
 
@@ -4000,17 +4104,106 @@ void Shader_FixupProgPasses(shader_t *shader, shaderpass_t *pass)
 	shader->numpasses = (pass-shader->passes)+pass->numMergedPasses;
 }
 
+struct scondinfo_s
+{
+	int depth;
+	int level[8];
+#define COND_IGNORE			1
+#define COND_IGNOREPARENT	2
+#define COND_ALLOWELSE		4
+#define COND_TAKEN			8
+};
+static qboolean Shader_Conditional_Read(shader_t *shader, struct scondinfo_s *cond, char *token, char **ptr)
+{
+	if (!Q_stricmp(token, "if"))
+	{
+		if (cond->depth+1 == countof(cond->level))
+		{
+			Con_Printf("if statements nest too deeply in shader %s\n", shader->name);
+			*ptr += strlen(*ptr);
+			return true;
+		}
+		cond->depth++;
+		cond->level[cond->depth] = (Shader_EvaluateCondition(shader, ptr)?0:COND_IGNORE);
+		cond->level[cond->depth] |= COND_ALLOWELSE;
+		if (cond->level[cond->depth-1] & (COND_IGNORE|COND_IGNOREPARENT))
+			cond->level[cond->depth] |= COND_IGNOREPARENT;	//if ignoring the parent, ignore this one too, even if valid
+		if (!(cond->level[cond->depth] & (COND_IGNORE|COND_IGNOREPARENT)))
+			cond->level[cond->depth] |= COND_TAKEN;		//if we're not ignoring the contained commands then flag it so we don't take any elifs/elses
+	}
+	else if (!Q_stricmp(token, "elif"))
+	{
+		if (cond->level[cond->depth] & COND_ALLOWELSE)
+		{
+			if (cond->level[cond->depth] & COND_TAKEN)
+			{	//if we took the if/elif then don't take this elif either
+				Shader_EvaluateCondition(shader, ptr);
+				cond->level[cond->depth] = COND_ALLOWELSE|COND_TAKEN|COND_IGNORE;
+			}
+			else
+			{
+				cond->level[cond->depth] = (Shader_EvaluateCondition(shader, ptr)?0:COND_IGNORE);
+				cond->level[cond->depth] |= COND_ALLOWELSE;
+			}
+			if (cond->level[cond->depth-1] & (COND_IGNORE|COND_IGNOREPARENT))
+				cond->level[cond->depth] |= COND_IGNOREPARENT;
+			if (!(cond->level[cond->depth] & (COND_IGNORE|COND_IGNOREPARENT)))
+				cond->level[cond->depth] |= COND_TAKEN;
+		}
+		else
+		{
+			Con_Printf("unexpected elif statement in shader %s\n", shader->name);
+			*ptr += strlen(*ptr);
+		}
+	}
+	else if (!Q_stricmp(token, "endif"))
+	{
+		if (!cond->depth)
+		{
+			Con_Printf("endif without if in shader %s\n", shader->name);
+			*ptr += strlen(*ptr);
+			return true;
+		}
+		cond->depth--;
+	}
+	else if (!Q_stricmp(token, "else"))
+	{
+		if (cond->level[cond->depth] & COND_ALLOWELSE)
+		{
+			if (cond->level[cond->depth] & COND_TAKEN)
+				cond->level[cond->depth] |= COND_IGNORE;
+			else
+				cond->level[cond->depth] ^= COND_IGNORE;
+			cond->level[cond->depth] &= ~COND_ALLOWELSE;
+		}
+		else
+		{
+			Con_Printf("unexpected else statement in shader %s\n", shader->name);
+			*ptr += strlen(*ptr);
+		}
+	}
+	else if (cond->level[cond->depth] & (COND_IGNORE|COND_IGNOREPARENT))
+	{
+		//eat it
+		while (ptr)
+		{
+			token = COM_ParseExt(ptr, false, true);
+			if ( !token[0] )
+				break;
+		}
+	}
+	else
+		return false;
+	return true;
+}
+
 void Shader_Readpass (shader_t *shader, char **ptr)
 {
 	char *token;
 	shaderpass_t *pass;
 	static shader_t dummy;
-	int conddepth = 0;
-	int cond[8] = {0};
+	struct scondinfo_s cond = {0};
 	unsigned int oldflags = shader->flags;
-#define COND_IGNORE 1
-#define COND_IGNOREPARENT 2
-#define COND_ALLOWELSE 4
 
 	if ( shader->numpasses >= SHADER_PASS_MAX )
 	{
@@ -4047,49 +4240,7 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		{
 			continue;
 		}
-		else if (!Q_stricmp(token, "if"))
-		{
-			if (conddepth+1 == sizeof(cond)/sizeof(cond[0]))
-			{
-				Con_Printf("if statements nest too deeply in shader %s\n", shader->name);
-				break;
-			}
-			conddepth++;
-			cond[conddepth] = (Shader_EvaluateCondition(shader, ptr)?0:COND_IGNORE);
-			cond[conddepth] |= COND_ALLOWELSE;
-			if (cond[conddepth-1] & (COND_IGNORE|COND_IGNOREPARENT))
-				cond[conddepth] |= COND_IGNOREPARENT;
-		}
-		else if (!Q_stricmp(token, "endif"))
-		{
-			if (!conddepth)
-			{
-				Con_Printf("endif without if in shader %s\n", shader->name);
-				break;
-			}
-			conddepth--;
-		}
-		else if (!Q_stricmp(token, "else"))
-		{
-			if (cond[conddepth] & COND_ALLOWELSE)
-			{
-				cond[conddepth] ^= COND_IGNORE;
-				cond[conddepth] &= ~COND_ALLOWELSE;
-			}
-			else
-				Con_Printf("unexpected else statement in shader %s\n", shader->name);
-		}
-		else if (cond[conddepth] & (COND_IGNORE|COND_IGNOREPARENT))
-		{
-			//eat it
-			while (ptr)
-			{
-				token = COM_ParseExt(ptr, false, true);
-				if ( !token[0] )
-					break;
-			}
-		}
-		else
+		else if (!Shader_Conditional_Read(shader, &cond, token, ptr))
 		{
 			if ( token[0] == '}' )
 				break;
@@ -4102,7 +4253,7 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 	if (!pass->numMergedPasses)
 		pass->numMergedPasses = 1;
 
-	if (conddepth)
+	if (cond.depth)
 	{
 		Con_Printf("if statements without endif in shader %s\n", shader->name);
 	}
@@ -5520,17 +5671,18 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 	{
 		builtin = (
 			"{\n"
-				"fte_program lpp_wall\n"
 				"{\n"
-					"map $sourcecolour\n"
+					"fte_program lpp_wall\n"
+					"map $gbuffer2\n"	//diffuse lighting info
+					"map $gbuffer3\n"	//specular lighting info
 				"}\n"
 
-				//this is drawn during the gbuffer pass to prepare it
+				//this is drawn during the initial gbuffer pass to prepare it
 				"fte_bemode gbuffer\n"
 				"{\n"
-					"fte_program lpp_depthnorm\n"
 					"{\n"
-						"map $normalmap\n"
+						"fte_program lpp_depthnorm\n"
+//						"map $normalmap\n"
 						"tcgen base\n"
 					"}\n"
 				"}\n"
@@ -6122,6 +6274,29 @@ void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args)
 			);
 		return;
 	}
+	if (r_lightprepass)
+	{
+		Shader_DefaultScript(shortname, s,
+			"{\n"
+				"{\n"
+					"fte_program lpp_wall\n"
+					"map $gbuffer2\n"	//diffuse lighting info
+					"map $gbuffer3\n"	//specular lighting info
+				"}\n"
+
+				//this is drawn during the initial gbuffer pass to prepare it
+				"fte_bemode gbuffer\n"
+				"{\n"
+					"{\n"
+						"fte_program lpp_depthnorm\n"
+						"tcgen base\n"
+					"}\n"
+				"}\n"
+			"}\n"
+		);
+		return;
+	}
+
 	if (r_tessellation.ival && sh_config.progs_supported)
 	{
 		Shader_DefaultScript(shortname, s,
@@ -6229,13 +6404,9 @@ void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 	}
 }
 
-qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode, int *conddepth, int maxconddepth, int *cond)
+static qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode, struct scondinfo_s *cond)
 {
 	char *token;
-
-#define COND_IGNORE 1
-#define COND_IGNOREPARENT 2
-#define COND_ALLOWELSE 4
 
 	if (!*shadersource)
 		return false;
@@ -6244,49 +6415,7 @@ qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode,
 
 	if ( !token[0] )
 		return true;
-	else if (!Q_stricmp(token, "if"))
-	{
-		if (*conddepth+1 == maxconddepth)
-		{
-			Con_Printf("if statements nest too deeply in shader %s\n", s->name);
-			return false;
-		}
-		*conddepth+=1;
-		cond[*conddepth] = (!Shader_EvaluateCondition(s, shadersource)?COND_IGNORE:0);
-		cond[*conddepth] |= COND_ALLOWELSE;
-		if (cond[*conddepth-1] & (COND_IGNORE|COND_IGNOREPARENT))
-			cond[*conddepth] |= COND_IGNOREPARENT;
-	}
-	else if (!Q_stricmp(token, "endif"))
-	{
-		if (!*conddepth)
-		{
-			Con_Printf("endif without if in shader %s\n", s->name);
-			return false;
-		}
-		*conddepth-=1;
-	}
-	else if (!Q_stricmp(token, "else"))
-	{
-		if (cond[*conddepth] & COND_ALLOWELSE)
-		{
-			cond[*conddepth] ^= COND_IGNORE;
-			cond[*conddepth] &= ~COND_ALLOWELSE;
-		}
-		else
-			Con_Printf("unexpected else statement in shader %s\n", s->name);
-	}
-	else if (cond[*conddepth] & (COND_IGNORE|COND_IGNOREPARENT))
-	{
-		//eat it.
-		while (**shadersource)
-		{
-			token = COM_ParseExt(shadersource, false, true);
-			if ( !token[0] )
-				break;
-		}
-	}
-	else
+	else if (!Shader_Conditional_Read(s, cond, token, shadersource))
 	{
 		int i;
 		for (i = 0; shadermacros[i].name; i++)
@@ -6297,7 +6426,6 @@ qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode,
 				int argn = 0;
 				char *body;
 				char arg[SHADER_MACRO_ARGS][256];
-				int cond = 0;
 				//parse args until the end of the line
 				while (*shadersource)
 				{
@@ -6313,7 +6441,7 @@ qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode,
 					}
 				}
 				body = shadermacros[i].body;
-				Shader_ReadShaderTerms(s, &body, parsemode, &cond, 0, &cond);
+				Shader_ReadShaderTerms(s, &body, parsemode, cond);
 				return true;
 			}
 		}
@@ -6330,10 +6458,8 @@ qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode,
 //loads a shader string into an existing shader object, and finalises it and stuff
 static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 {
+	struct scondinfo_s cond = {0};
 	char *shaderstart = shadersource;
-	int conddepth = 0;
-	int cond[8];
-	cond[0] = 0;
 
 	memset(&parsestate, 0, sizeof(parsestate));
 	parsestate.mode = parsemode;
@@ -6349,11 +6475,11 @@ static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 // set defaults
 	s->flags = SHADER_CULL_FRONT;
 
-	while (Shader_ReadShaderTerms(s, &shadersource, parsemode, &conddepth, sizeof(cond)/sizeof(cond[0]), cond))
+	while (Shader_ReadShaderTerms(s, &shadersource, parsemode, &cond))
 	{
 	}
 
-	if (conddepth)
+	if (cond.depth)
 	{
 		Con_Printf("if statements without endif in shader %s\n", s->name);
 	}
@@ -6718,20 +6844,20 @@ char *Shader_Decompose(shader_t *s)
 
 	switch (s->sort)
 	{
-	case SHADER_SORT_NONE:		sprintf(o, "sort %i (SHADER_SORT_NONE)\n", s->sort); break;
-	case SHADER_SORT_RIPPLE:	sprintf(o, "sort %i (SHADER_SORT_RIPPLE)\n", s->sort); break;
-	case SHADER_SORT_PRELIGHT:	sprintf(o, "sort %i (SHADER_SORT_PRELIGHT)\n", s->sort); break;
-	case SHADER_SORT_PORTAL:	sprintf(o, "sort %i (SHADER_SORT_PORTAL)\n", s->sort); break;
-	case SHADER_SORT_SKY:		sprintf(o, "sort %i (SHADER_SORT_SKY)\n", s->sort); break;
-	case SHADER_SORT_OPAQUE:	sprintf(o, "sort %i (SHADER_SORT_OPAQUE)\n", s->sort); break;
-	case SHADER_SORT_DECAL:		sprintf(o, "sort %i (SHADER_SORT_DECAL)\n", s->sort); break;
-	case SHADER_SORT_SEETHROUGH:sprintf(o, "sort %i (SHADER_SORT_SEETHROUGH)\n", s->sort); break;
-	case SHADER_SORT_BANNER:	sprintf(o, "sort %i (SHADER_SORT_BANNER)\n", s->sort); break;
-	case SHADER_SORT_UNDERWATER:sprintf(o, "sort %i (SHADER_SORT_UNDERWATER)\n", s->sort); break;
-	case SHADER_SORT_BLEND:		sprintf(o, "sort %i (SHADER_SORT_BLEND)\n", s->sort); break;
-	case SHADER_SORT_ADDITIVE:	sprintf(o, "sort %i (SHADER_SORT_ADDITIVE)\n", s->sort); break;
-	case SHADER_SORT_NEAREST:	sprintf(o, "sort %i (SHADER_SORT_NEAREST)\n", s->sort); break;
-	default:					sprintf(o, "sort %i\n", s->sort); break;
+	case SHADER_SORT_NONE:			sprintf(o, "sort %i (SHADER_SORT_NONE)\n", s->sort); break;
+	case SHADER_SORT_RIPPLE:		sprintf(o, "sort %i (SHADER_SORT_RIPPLE)\n", s->sort); break;
+	case SHADER_SORT_DEFERREDLIGHT:	sprintf(o, "sort %i (SHADER_SORT_DEFERREDLIGHT)\n", s->sort); break;
+	case SHADER_SORT_PORTAL:		sprintf(o, "sort %i (SHADER_SORT_PORTAL)\n", s->sort); break;
+	case SHADER_SORT_SKY:			sprintf(o, "sort %i (SHADER_SORT_SKY)\n", s->sort); break;
+	case SHADER_SORT_OPAQUE:		sprintf(o, "sort %i (SHADER_SORT_OPAQUE)\n", s->sort); break;
+	case SHADER_SORT_DECAL:			sprintf(o, "sort %i (SHADER_SORT_DECAL)\n", s->sort); break;
+	case SHADER_SORT_SEETHROUGH:	sprintf(o, "sort %i (SHADER_SORT_SEETHROUGH)\n", s->sort); break;
+	case SHADER_SORT_BANNER:		sprintf(o, "sort %i (SHADER_SORT_BANNER)\n", s->sort); break;
+	case SHADER_SORT_UNDERWATER:	sprintf(o, "sort %i (SHADER_SORT_UNDERWATER)\n", s->sort); break;
+	case SHADER_SORT_BLEND:			sprintf(o, "sort %i (SHADER_SORT_BLEND)\n", s->sort); break;
+	case SHADER_SORT_ADDITIVE:		sprintf(o, "sort %i (SHADER_SORT_ADDITIVE)\n", s->sort); break;
+	case SHADER_SORT_NEAREST:		sprintf(o, "sort %i (SHADER_SORT_NEAREST)\n", s->sort); break;
+	default:						sprintf(o, "sort %i\n", s->sort); break;
 	}
 	o+=strlen(o);
 

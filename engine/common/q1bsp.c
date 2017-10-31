@@ -2045,6 +2045,62 @@ mleaf_t *Q1BSP_LeafForPoint (model_t *model, vec3_t p)
 	return model->leafs + Q1BSP_LeafnumForPoint(model, p);
 }
 
+static void Q1BSP_ClustersInSphere_Union(mleaf_t *firstleaf, vec3_t center, float radius, mnode_t *node, qbyte *out, qbyte *unionwith)
+{	//this is really for rtlights.
+	float		t1, t2;
+	mplane_t	*plane;
+	while (1)
+	{
+		if (node->contents < 0)
+		{	//leaf! mark/merge it.
+			size_t c = (mleaf_t *)node - firstleaf;
+			if (unionwith)
+				out[c>>3] |= (1<<(c&7)) & unionwith[c>>3];
+			else
+				out[c>>3] |= (1<<(c&7));
+			return;
+		}
+
+		plane = node->plane;
+		if (plane->type < 3)
+			t1 = center[plane->type] - plane->dist;
+		else
+			t1 = DotProduct (plane->normal, center) - plane->dist;
+		t2 = t1 - radius;
+		t1 = t1 + radius;
+
+		//if the sphere is fully to one side, only walk that side.
+		if (t1 > 0 && t2 > 0)
+		{
+			node = node->children[0];
+			continue;
+		}
+		if (t1 < 0 && t2 < 0)
+		{
+			node = node->children[1];
+			continue;
+		}
+
+		//both sides are within the sphere
+		Q1BSP_ClustersInSphere_Union(firstleaf, center, radius, node->children[0], out, unionwith);
+		node = node->children[1];
+		continue;
+	}
+}
+static qbyte *Q1BSP_ClustersInSphere(model_t *mod, vec3_t center, float radius, pvsbuffer_t *pvsbuffer, qbyte *unionwith)
+{
+	if (!mod)
+		Sys_Error ("Mod_PointInLeaf: bad model");
+	if (!mod->nodes)
+		return NULL;
+
+	if (pvsbuffer->buffersize < mod->pvsbytes)
+		pvsbuffer->buffer = BZ_Realloc(pvsbuffer->buffer, pvsbuffer->buffersize=mod->pvsbytes);
+	Q_memset (pvsbuffer->buffer, 0, mod->pvsbytes);
+	Q1BSP_ClustersInSphere_Union(mod->leafs-1, center, radius, mod->nodes, pvsbuffer->buffer, NULL);//unionwith);
+	return pvsbuffer->buffer;
+}
+
 //returns the leaf number, which is used as a direct bit index into the pvs.
 //-1 for invalid
 static int Q1BSP_ClusterForPoint (model_t *model, vec3_t p)
@@ -2103,6 +2159,7 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 	mod->funcs.StainNode			= NULL;
 	mod->funcs.MarkLights			= NULL;
 
+	mod->funcs.ClustersInSphere		= Q1BSP_ClustersInSphere;
 	mod->funcs.ClusterForPoint		= Q1BSP_ClusterForPoint;
 	mod->funcs.ClusterPVS			= Q1BSP_ClusterPVS;
 //	mod->funcs.ClusterPHS			= Q1BSP_ClusterPHS;

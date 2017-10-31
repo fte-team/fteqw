@@ -1698,7 +1698,12 @@ void GenericMenu(WPARAM wParam)
 		break;
 
 	case IDM_ABOUT:
-		MessageBox(NULL, "FTE QuakeC Compiler ("__DATE__" "__TIME__")\nWritten by Forethought Entertainment, whoever that is.\n\nIf you have problems with wordpad corrupting your qc files, try saving them using utf-16 encoding via notepad.\nDecompiler component derived from frikdec.", "About", 0);
+#ifdef SVNVERSION
+		if (strcmp(SVNVERSION, "-"))
+			MessageBox(NULL, "FTE QuakeC Compiler "STRINGIFY(SVNVERSION)" ("__DATE__" "__TIME__")\nWritten by Forethought Entertainment, whoever that is.\n\nIf you have problems with wordpad corrupting your qc files, try saving them using utf-16 encoding via notepad.\nDecompiler component derived from frikdec.", "About", 0);
+		else
+#endif
+			MessageBox(NULL, "FTE QuakeC Compiler ("__DATE__" "__TIME__")\nWritten by Forethought Entertainment, whoever that is.\n\nIf you have problems with wordpad corrupting your qc files, try saving them using utf-16 encoding via notepad.\nDecompiler component derived from frikdec.", "About", 0);
 		break;
 
 	case IDM_CASCADE:
@@ -2853,7 +2858,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 					SendMessage(editor->editpane, SCI_CALLTIPCANCEL, 0, 0);
 					break;
 				}
-				//UpdateEditorTitle(editor);
+				UpdateEditorTitle(editor);
 			}
 			else
 			{
@@ -3629,17 +3634,6 @@ static pbool EngineCommandWndf(HWND wnd, char *message, ...)
 	va_end (va);
 	return EngineCommandWnd(wnd, finalmessage);
 }
-
-#ifdef _MSC_VER	//ffs
-#define strtoull _strtoui64
-#ifndef PRIxPTR
-#define PRIxPTR "Ix"
-#endif
-#else
-#ifndef PRIxPTR
-#define PRIxPTR "Ix"
-#endif
-#endif
 
 DWORD WINAPI threadwrapper(void *args)
 {
@@ -5447,7 +5441,8 @@ void OptionsDialog(void)
 	int x;
 	int y;
 	int my;
-	int height;
+	int lheight;
+	int rheight;
 	int num;
 	int cflagsshown;
 
@@ -5471,16 +5466,21 @@ void OptionsDialog(void)
 	wndclass.lpszClassName = OPTIONS_WINDOW_CLASS_NAME;
 	RegisterClass(&wndclass);
 
-	height = 0;
+	lheight = 0;
 	for (i = 0; optimisations[i].enabled; i++)
 	{
 		if (optimisations[i].flags & FLAG_HIDDENINGUI)
 			continue;
 
-		height++;
+		lheight++;
 	}
+	lheight = (lheight+1)/2;	//double columns for optimisations
+	lheight *= 16;
+	lheight += 112;
+	lheight += 88;
 
 	cflagsshown = 0;
+	cflagsshown += 2; //hexenc, extended opcodes
 	for (i = 0; compiler_flag[i].enabled; i++)
 	{
 		if (compiler_flag[i].flags & FLAG_HIDDENINGUI)
@@ -5489,27 +5489,28 @@ void OptionsDialog(void)
 		cflagsshown++;
 	}
 
-	height = (height+1)/2;
-
-	height *= 16;
-
-	height += 112;
-
-	while (cflagsshown*16 > height*flagcolums)
+	do
+	{
 		flagcolums++;
+		cflagsshown += flagcolums-1;	//round up
+		rheight = (cflagsshown/flagcolums)*16;
 
-	if (height < (cflagsshown*16)/flagcolums)
-		height = (cflagsshown*16)/flagcolums;
+		rheight += 16+4+20;	//extra parms cap,gap,parmsbox(min)
+	}while (rheight > lheight*flagcolums);
 
 	r.right = 408 + flagcolums*168;
 	if (r.right < 640)
 		r.right = 640;
 
-	height += 88;
-
 	r.left = GetSystemMetrics(SM_CXSCREEN)/2-320;
 	r.top = GetSystemMetrics(SM_CYSCREEN)/2-240;
-	r.bottom = r.top + height;
+	if (rheight > lheight)
+		r.bottom = r.top + rheight;
+	else
+	{
+		r.bottom = r.top + lheight;
+		rheight = lheight;
+	}
 	r.right  += r.left;
 
 
@@ -5525,7 +5526,7 @@ void OptionsDialog(void)
 	SendMessage(tipwnd, TTM_SETMAXTIPWIDTH, 0, 500);
 
 	subsection = CreateWindow("BUTTON", "Optimisations", WS_CHILD|WS_VISIBLE|BS_GROUPBOX,
-		0, 0, 400, height-40*4+24, optionsmenu, NULL, ghInstance, NULL);
+		0, 0, 400, lheight-40*4+24, optionsmenu, NULL, ghInstance, NULL);
 
 	num = 0;
 	for (i = 0; optimisations[i].enabled; i++)
@@ -5563,7 +5564,7 @@ void OptionsDialog(void)
 
 	wnd = CreateWindow("BUTTON","O0",
 		   WS_CHILD | WS_VISIBLE,
-		   8,height-40*5+24,64,32,
+		   8,lheight-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL0,
 		   ghInstance,
@@ -5571,7 +5572,7 @@ void OptionsDialog(void)
 	AddTip(tipwnd, wnd,	"Disable optimisations completely, giving code more similar to vanilla.");
 	wnd = CreateWindow("BUTTON","O1",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64,height-40*5+24,64,32,
+		   8+64,lheight-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL1,
 		   ghInstance,
@@ -5579,7 +5580,7 @@ void OptionsDialog(void)
 	AddTip(tipwnd, wnd,	"Enable simple optimisations (primarily size). Probably still breaks decompilers.");
 	wnd = CreateWindow("BUTTON","O2",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*2,height-40*5+24,64,32,
+		   8+64*2,lheight-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL2,
 		   ghInstance,
@@ -5587,7 +5588,7 @@ void OptionsDialog(void)
 	AddTip(tipwnd, wnd,	"Enable most optimisations. Does not optimise anything that is likely to break any engines.");
 	wnd = CreateWindow("BUTTON","O3",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*3,height-40*5+24,64,32,
+		   8+64*3,lheight-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL3,
 		   ghInstance,
@@ -5595,7 +5596,7 @@ void OptionsDialog(void)
 	AddTip(tipwnd, wnd,	"Enable unsafe optimisations. The extra optimisations may cause the progs to fail in certain cases, especially if used to compile addon modules.");
 	wnd = CreateWindow("BUTTON","Debug",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*4,height-40*5+24,64,32,
+		   8+64*4,lheight-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_DEBUG,
 		   ghInstance,
@@ -5603,7 +5604,7 @@ void OptionsDialog(void)
 	AddTip(tipwnd, wnd,	"Disable any optimisations that might interfere with debugging somehow.");
 	wnd = CreateWindow("BUTTON","Default",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*5,height-40*5+24,64,32,
+		   8+64*5,lheight-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_DEFAULT,
 		   ghInstance,
@@ -5615,7 +5616,7 @@ void OptionsDialog(void)
 		"EDIT",
 		enginebinary,
 		WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | ES_LEFT | ES_AUTOHSCROLL,
-		8, height-40-30*3, 400-16, 22,
+		8, lheight-40-30*3, 400-16, 22,
 		optionsmenu,
 		(HMENU)IDI_O_ENGINE,
 		ghInstance,
@@ -5624,7 +5625,7 @@ void OptionsDialog(void)
 		"EDIT",
 		enginebasedir,
 		WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | ES_LEFT | ES_AUTOHSCROLL,
-		8, height-40-30*2, 400-16, 22,
+		8, lheight-40-30*2, 400-16, 22,
 		optionsmenu,
 		(HMENU)IDI_O_ENGINEBASEDIR,
 		ghInstance,
@@ -5633,7 +5634,7 @@ void OptionsDialog(void)
 		"EDIT",
 		enginecommandline,
 		WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | ES_LEFT | ES_AUTOHSCROLL,
-		8, height-40-30, 400-16, 22,
+		8, lheight-40-30, 400-16, 22,
 		optionsmenu,
 		(HMENU)IDI_O_ENGINECOMMANDLINE,
 		ghInstance,
@@ -5646,7 +5647,7 @@ void OptionsDialog(void)
 
 	wnd = CreateWindow("BUTTON","Apply",
 		   WS_CHILD | WS_VISIBLE,
-		   8,height-40,64,32,
+		   8,lheight-40,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_APPLY,
 		   ghInstance,
@@ -5654,7 +5655,7 @@ void OptionsDialog(void)
 	AddTip(tipwnd, wnd,		"Use selected settings without saving them to disk.");
 	wnd = CreateWindow("BUTTON","Save",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64,height-40,64,32,
+		   8+64,lheight-40,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_APPLYSAVE,
 		   ghInstance,
@@ -5662,7 +5663,7 @@ void OptionsDialog(void)
 	AddTip(tipwnd, wnd,		"Use selected settings and save them to disk so that they're also used the next time you start fteqccgui.");
 	/*wnd = CreateWindow("BUTTON","progs.src",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*2,height-40,64,32,
+		   8+64*2,lheight-40,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_CHANGE_PROGS_SRC,
 		   ghInstance,
@@ -5723,7 +5724,7 @@ void OptionsDialog(void)
 			continue;
 		}
 
-		if (y > height-(88+40))
+		if (y > (cflagsshown/flagcolums)*16)
 		{
 			y = 4;
 			x += 168;
@@ -5759,7 +5760,7 @@ void OptionsDialog(void)
 	extraparmsitem = CreateWindowEx(WS_EX_CLIENTEDGE, "EDIT",parameters,
 		   WS_CHILD | WS_VISIBLE|ES_LEFT | ES_WANTRETURN |
 		ES_MULTILINE | ES_AUTOVSCROLL,
-		   408,my,r.right-r.left - 408 - 8,height-my-4,
+		   408,my,r.right-r.left - 408 - 8,rheight-my-4,
 		   optionsmenu,
 		   (HMENU)IDI_O_ADDITIONALPARAMETERS,
 		   ghInstance,

@@ -3865,13 +3865,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			}
 			else
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "bitshift", NULL, false, 0, 0);
-				if (fnc.cast)
-				{
-					var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
-					var_c.cast = *op->type_c;
-					return var_c;
-				}
+				QCC_sref_t fnc;
 				fnc = QCC_PR_GetSRef(NULL, "pow", NULL, false, 0, 0);
 				if (fnc.cast)
 				{	//a<<b === floor(a*pow(2,b))
@@ -3883,6 +3877,13 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 						var_c = QCC_PR_GenerateFunctionCall1(nullsref, fnc2, var_c, type_float);
 						return var_c;
 					}
+				}
+				fnc = QCC_PR_GetSRef(NULL, "bitshift", NULL, false, 0, 0);
+				if (fnc.cast)
+				{	//warning: DP's implementation of bitshift is fucked, hence why we favour the more expensibe floor+pow above.
+					var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
+					var_c.cast = *op->type_c;
+					return var_c;
 				}
 				QCC_PR_ParseError(0, "bitshift function not defined: cannot emulate OP_LSHIFT_F*");
 				break;
@@ -3896,14 +3897,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			}
 			else
 			{
-				QCC_sref_t fnc = QCC_PR_GetSRef(NULL, "bitshift", NULL, false, 0, 0);
-				if (fnc.cast)
-				{
-					var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_F], QCC_MakeFloatConst(0), var_b, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEB:0);
-					var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
-					var_c.cast = *op->type_c;
-					return var_c;
-				}
+				QCC_sref_t fnc;
 				fnc = QCC_PR_GetSRef(NULL, "pow", NULL, false, 0, 0);
 				if (fnc.cast)
 				{	//a<<b === floor(a/pow(2,b))
@@ -3915,6 +3909,14 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 						var_c = QCC_PR_GenerateFunctionCall1(nullsref, fnc2, var_c, type_float);
 						return var_c;
 					}
+				}
+				fnc = QCC_PR_GetSRef(NULL, "bitshift", NULL, false, 0, 0);
+				if (fnc.cast)
+				{	//warning: DP's implementation of bitshift is fucked, hence why we favour the more expensibe floor+pow above
+					var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_F], QCC_MakeFloatConst(0), var_b, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEB:0);
+					var_c = QCC_PR_GenerateFunctionCall2(nullsref, fnc, var_a, type_float, var_b, type_float);
+					var_c.cast = *op->type_c;
+					return var_c;
 				}
 				QCC_PR_ParseError(0, "bitshift function not defined: cannot emulate OP_RSHIFT_F*");
 				break;
@@ -4958,6 +4960,53 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 		QCC_sref_t ref;
 		int firststatement;
 	} args[MAX_PARMS+MAX_EXTRA_PARMS];
+
+	const char *funcname = QCC_GetSRefName(func);
+	if (opt_constantarithmatic && argcount == 1 && arglist[0]->type == REF_GLOBAL)
+	{
+		const QCC_eval_t *a = QCC_SRef_EvalConst(arglist[0]->base);
+		if (a)
+		{
+//			if (!strcmp(funcname, "isnan"))
+//				return QCC_MakeFloatConst(isnan(a->_float));
+//			if (!strcmp(funcname, "isinf"))
+//				return QCC_MakeFloatConst(isinf(a->_float));
+			if (!strcmp(funcname, "floor"))
+				return QCC_MakeFloatConst(floor(a->_float));
+			if (!strcmp(funcname, "ceil"))
+				return QCC_MakeFloatConst(ceil(a->_float));
+			if (!strcmp(funcname, "sin"))
+				return QCC_MakeFloatConst(sin(a->_float));
+			if (!strcmp(funcname, "cos"))
+				return QCC_MakeFloatConst(cos(a->_float));
+			if (!strcmp(funcname, "log"))
+				return QCC_MakeFloatConst(log(a->_float));
+			if (!strcmp(funcname, "sqrt"))
+				return QCC_MakeFloatConst(sqrt(a->_float));
+//			if (!strcmp(funcname, "ftos"))
+//				return QCC_MakeStringConst(ftos(a->_float));	//engines differ too much in their ftos implementation for this to be worthwhile
+		}
+	}
+	else if (opt_constantarithmatic && argcount == 2 && arglist[0]->type == REF_GLOBAL && arglist[1]->type == REF_GLOBAL)
+	{
+		const QCC_eval_t *a = QCC_SRef_EvalConst(arglist[0]->base);
+		const QCC_eval_t *b = QCC_SRef_EvalConst(arglist[1]->base);
+		if (a && b)
+		{
+			if (!strcmp(funcname, "pow"))
+				return QCC_MakeFloatConst(pow(a->_float, b->_float));
+			if (!strcmp(funcname, "mod"))
+				return QCC_MakeFloatConst(fmodf((int)a->_float, (int)b->_float));
+			if (!strcmp(funcname, "bitshift"))
+			{
+				if (b->_float < 0)
+					return QCC_MakeFloatConst((int)a->_float >> (int)-b->_float);
+				else
+					return QCC_MakeFloatConst((int)a->_float << (int)b->_float);
+			}
+		}
+	}
+
 
 	func.sym->timescalled++;
 

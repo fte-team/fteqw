@@ -426,7 +426,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			//gles doesn't support autocompression as of gles3.
 			//only autocompress if we have actually have data (gl errors otherwise).
 			if (gl_config.arb_texture_compression && mips->mip[i].data)
-				compress = true;
+				compress = !!gl_compress.ival;
 			else
 				compress = false;
 

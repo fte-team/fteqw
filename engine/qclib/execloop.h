@@ -825,15 +825,27 @@ reeval:
 	case OP_LOADA_ENT:
 	case OP_LOADA_S:
 	case OP_LOADA_FNC:
-		ptr = (eval_t *)(&OPA->_int + OPB->_int); /*pointer arithmatic*/
-		OPC->_int = ptr->_int;
+		i = st->a + OPB->_int;
+		if ((size_t)(i<<2) >= (size_t)current_progstate->globals_size)
+		{
+			QCFAULT(&progfuncs->funcs, "bad array read in %s (index %i)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int);
+		}
+		else
+			OPC->_int = ((eval_t *)&glob[i])->_int;
 		break;
 
 	case OP_LOADA_V:
-		ptr = (eval_t *)(&OPA->_int + OPB->_int);
-		OPC->_vector[0] = ptr->_vector[0];
-		OPC->_vector[1] = ptr->_vector[1];
-		OPC->_vector[2] = ptr->_vector[2];
+		i = st->a + OPB->_int;
+		if ((size_t)(i<<2) >= (size_t)current_progstate->globals_size)
+		{
+			QCFAULT(&progfuncs->funcs, "bad array read in %s (index %i)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int);
+		}
+		else
+		{
+			OPC->_vector[0] = ((eval_t *)&glob[i])->_vector[0];
+			OPC->_vector[1] = ((eval_t *)&glob[i])->_vector[1];
+			OPC->_vector[2] = ((eval_t *)&glob[i])->_vector[2];
+		}
 		break;
 
 

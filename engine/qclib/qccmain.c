@@ -375,7 +375,7 @@ compiler_flag_t compiler_flag[] = {
 	{&pr_subscopedlocals,	FLAG_MIDCOMPILE,"subscope",		"Subscoped Locals",		"Restrict the scope of locals to the block they are actually defined within, as in C."},
 	{&verbose,				FLAG_MIDCOMPILE,"verbose",		"Verbose",				"Lots of extra compiler messages."},
 	{&flag_typeexplicit,	FLAG_MIDCOMPILE,"typeexplicit",	"Explicit types",		"All type conversions must be explicit or directly supported by instruction set."},
-	{&flag_noboundchecks,	FLAG_MIDCOMPILE,"noboundchecks","Disable Bound Checks",	"Disable array index checks, speeding up array access but can result in your code misbehaving."},
+	{&flag_boundchecks,		defaultflag,	"boundchecks","Disable Bound Checks",	"Disable array index checks, speeding up array access but can result in your code misbehaving."},
 	{&flag_attributes,		hideflag,		"attributes",	"[[attributes]]",		"WARNING: This syntax conflicts with vector constructors."},
 	{&flag_assumevar,		hideflag,		"assumevar",	"explicit consts",		"Initialised globals will be considered non-const by default."},
 	{&flag_dblstarexp,		hideflag,		"ssp",			"** exponent",			"Treat ** as an operator for exponents, instead of multiplying by a dereferenced pointer."},
@@ -1478,14 +1478,14 @@ pbool QCC_WriteData (int crc)
 			if (qcc_targetformat == QCF_DARKPLACES)
 				printf("DarkPlaces or FTE will be required\n");
 			else
-				printf("An FTE executor will be required\n");
+				printf("FTE's QCLib will be required\n");
 		}
 		break;
 	case QCF_KK7:
 		if (bodylessfuncs)
 			printf("Warning: There are some functions without bodies.\n");
 		if (numpr_globals > 65530)
-			printf("Warning: Saving is not supported. Ensure all engine read fields and globals are defined early on.\n");
+			printf("Warning: Saving is not fully supported. Ensure all engine read fields and globals are defined early on.\n");
 
 		printf("A KK compatible executor will be required (FTE/KK)\n");
 		outputsttype = PST_KKQWSV;
@@ -4151,6 +4151,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 			{
 				flag_ifvector = flag_vectorlogic = true;
 				flag_dblstarexp = flag_attributes = flag_assumevar = pr_subscopedlocals = flag_cpriority = flag_allowuninit = true;
+				flag_boundchecks = false;	//gmqcc doesn't support these, so xonotic is buggy shite.
 				opt_logicops = true;
 				qccwarningaction[WARN_CONSTANTCOMPARISON] = WA_IGNORE;
 				qccwarningaction[WARN_POINTLESSSTATEMENT] = WA_IGNORE;

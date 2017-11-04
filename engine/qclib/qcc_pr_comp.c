@@ -116,7 +116,7 @@ pbool flag_debugmacros;		//Print out #defines as they are expanded, for debuggin
 pbool flag_assume_integer;	//5 - is that an integer or a float? qcc says float. but we support int too, so maybe we want that instead?
 pbool flag_filetimes;
 pbool flag_typeexplicit;	//no implicit type conversions, you must do the casts yourself.
-pbool flag_noboundchecks;	//Disable generation of bound check instructions.
+pbool flag_boundchecks;	//Disable generation of bound check instructions.
 pbool flag_guiannotate;
 pbool flag_brokenarrays;	//return array; returns array[0] instead of &array;
 pbool flag_rootconstructor;	//if true, class constructors are ordered to call the super constructor first, rather than the child constructor
@@ -7025,7 +7025,7 @@ vectorarrayindex:
 					if (i < 0 || i >= 3)
 						QCC_PR_ParseErrorPrintSRef(0, r->base, "(vector) array index out of bounds");
 				}
-				else if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]) && !flag_noboundchecks)
+				else if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]) && flag_boundchecks)
 				{
 					tmp = QCC_SupplyConversion(tmp, ev_integer, true);
 					QCC_PR_SimpleStatement (&pr_opcodes[OP_BOUNDCHECK], tmp, QCC_MakeSRef(NULL, 3, NULL), nullsref, false);
@@ -7047,7 +7047,7 @@ vectorarrayindex:
 					if (i < 0 || i >= 3)
 						QCC_PR_ParseErrorPrintSRef(0, r->base, "(vector) array index out of bounds");
 				}
-				else if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]) && !flag_noboundchecks)
+				else if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]) && flag_boundchecks)
 				{
 					tmp = QCC_SupplyConversion(tmp, ev_integer, true);
 					QCC_PR_SimpleStatement (&pr_opcodes[OP_BOUNDCHECK], tmp, QCC_MakeSRef(NULL, 3, NULL), nullsref, false);
@@ -7072,7 +7072,7 @@ vectorarrayindex:
 			}
 			else
 			{
-				if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]) && !flag_noboundchecks)
+				if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]) && flag_boundchecks)
 				{
 					tmp = QCC_SupplyConversion(tmp, ev_integer, true);
 					QCC_PR_SimpleStatement (&pr_opcodes[OP_BOUNDCHECK], tmp, QCC_MakeSRef(NULL, arraysize, NULL), nullsref, false);
@@ -8634,7 +8634,7 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 
 		base.sym->referenced = true;
 
-		if (base.cast->type == ev_field && base.sym->constant && !base.sym->initialized && flag_noboundchecks && flag_fasttrackarrays)
+		if (base.cast->type == ev_field && base.sym->constant && !base.sym->initialized && !flag_boundchecks && flag_fasttrackarrays)
 		{
 			int i;
 			//denormalised floats means we could do:
@@ -8649,9 +8649,13 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 			//its contiguous. we'll do this in two instructions.
 			if (i == base.sym->arraysize)
 			{
-				//denormalised floats means we could do:
-				//return (add_f: base + (mul_f: index*1i))
-				return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_F], base, QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_F], index, QCC_MakeIntConst(1), NULL, 0), NULL, 0);
+				if (QCC_OPCodeValid(&pr_opcodes[OP_ADD_I]))
+					return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], base, index, NULL, 0);
+				else
+				{
+					QCC_PR_ParseWarning(WARN_DENORMAL, "using denormals to accelerate field-array access");	
+					return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_F], base, QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_F], index, QCC_MakeIntConst(1), NULL, 0), NULL, 0);
+				}
 			}
 		}
 
@@ -9320,7 +9324,12 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				//r=a?:b -> if (a) r=a else r=b;
 				fromj = QCC_Generate_OP_IFNOT(val, true);
 				lvalisnull = QCC_SRef_IsNull(val);
+#if 1
+				//hack: make local, not temp. this disables assignment/temp folding...
+				r = QCC_MakeSRefForce(QCC_PR_DummyDef(r.cast=val.cast, "ternary", pr_scope, 0, NULL, 0, true, GDF_STRIP), 0, val.cast);
+#else
 				r = QCC_GetTemp(val.cast);
+#endif
 				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r.cast->size>=3)?OP_STORE_V:OP_STORE_F], val, r, &truthstore, STFL_PRESERVEB));
 			}
 			else
@@ -9350,7 +9359,12 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				if (val.cast->type == ev_integer && !QCC_OPCodeValid(&pr_opcodes[OP_STORE_I]))
 					val = QCC_SupplyConversion(val, ev_float, true);
 				lvalisnull = QCC_SRef_IsNull(val);
+#if 1
+				//hack: make local, not temp. this disables assignment/temp folding...
+				r = QCC_MakeSRefForce(QCC_PR_DummyDef(r.cast=val.cast, "ternary", pr_scope, 0, NULL, 0, true, GDF_STRIP), 0, val.cast);
+#else
 				r = QCC_GetTemp(val.cast);
+#endif
 				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r.cast->size>=3)?OP_STORE_V:OP_STORE_F], val, r, &truthstore, STFL_PRESERVEB));
 				//r can be stomped upon until its reused anyway
 
@@ -9624,12 +9638,20 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 
 				logicjump = NULL;
 				lhsd = QCC_RefToDef(lhsr, true);
-				if (opt_logicops && lhsd.cast->size == 1)
+				if (opt_logicops && (lhsd.cast->size == 1 || lhsd.cast->type == ev_vector))
 				{
 					if (!strcmp(op->name, "&&"))		//guarenteed to be false if the lhs is false
+					{
+						if (lhsd.cast->type == ev_vector)
+							lhsd = QCC_PR_StatementFlags (&pr_opcodes[OP_MUL_V], lhsd, lhsd, NULL, STFL_PRESERVEA);
 						logicjump = QCC_Generate_OP_IFNOT(lhsd, true);
+					}
 					else if (!strcmp(op->name, "||"))	//guarenteed to be true if the lhs is true
+					{
+						if (lhsd.cast->type == ev_vector)
+							lhsd = QCC_PR_StatementFlags (&pr_opcodes[OP_MUL_V], lhsd, lhsd, NULL, STFL_PRESERVEA);
 						logicjump = QCC_Generate_OP_IF(lhsd, true);
+					}
 				}
 
 				rhsr = QCC_PR_RefExpression (&rhsbuf, priority-1, exprflags | EXPR_DISALLOW_ARRAYASSIGN);
@@ -12845,7 +12867,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 	}
 */
 
-	if (!flag_noboundchecks)
+	if (flag_boundchecks)
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IF_I, QCC_PR_StatementFlags(pr_opcodes+OP_LT_F, index, QCC_MakeFloatConst(0), NULL, STFL_PRESERVEA), nullsref, &bc1));
 
 	if (vectortrick.cast)
@@ -12856,7 +12878,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 		//we need to work out which part, x/y/z that it's stored in.
 		//0,1,2 = i - ((int)i/3 *) 3;
 
-		if (!flag_noboundchecks)
+		if (flag_boundchecks)
 			QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IF_I, QCC_PR_StatementFlags(pr_opcodes+OP_GE_F, index, QCC_MakeFloatConst(numslots), NULL, STFL_PRESERVEA), nullsref, &bc2));
 
 		div3 = QCC_PR_GetSRef(type_float, "div3___", pr_scope, true, 0, false);
@@ -13026,7 +13048,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 		//note that the array size is coded into the globals, one index before the array.
 
 		QCC_PR_SimpleStatement(&pr_opcodes[OP_CONV_FTOI], index, nullsref, index, true);	//address stuff is integer based, but standard qc (which this accelerates in supported engines) only supports floats
-		if (!flag_noboundchecks)
+		if (flag_boundchecks)
 			QCC_PR_SimpleStatement (&pr_opcodes[OP_BOUNDCHECK], index, QCC_MakeSRef(NULL, numslots, NULL), nullsref, true);//annoy the programmer. :p
 		if (thearray.cast->type == ev_vector)//shift it upwards for larger types
 			QCC_PR_SimpleStatement(&pr_opcodes[OP_MUL_I], index, QCC_MakeIntConst(thearray.cast->size), index, true);
@@ -13041,9 +13063,9 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 		st->b.ofs = &statements[numstatements] - st;
 	}
 
-	if (!flag_noboundchecks)
+	if (flag_boundchecks)
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IF_I, QCC_PR_StatementFlags(pr_opcodes+OP_LT_F, index, QCC_MakeFloatConst(0), NULL, STFL_PRESERVEA), nullsref, &bc1));
-	if (!flag_noboundchecks)
+	if (flag_boundchecks)
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IF_I, QCC_PR_StatementFlags(pr_opcodes+OP_GE_F, index, QCC_MakeFloatConst(numslots), NULL, STFL_PRESERVEA), nullsref, &bc2));
 
 	QCC_PR_ArraySetRecurseDivide(thearray, index, value, 0, numslots);

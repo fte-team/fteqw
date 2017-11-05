@@ -8338,6 +8338,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "lpp_depthnorm",
+"!!ver 100 130\n"
 "!!permu BUMP\n"
 "!!permu SKELETAL\n"
 "!!permu FRAMEBLEND\n"

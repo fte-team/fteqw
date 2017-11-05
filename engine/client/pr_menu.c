@@ -2763,10 +2763,14 @@ void MP_Draw(void)
 	((float *)pr_globals)[OFS_PARM0+1] = vid.height;
 	((float *)pr_globals)[OFS_PARM0+2] = 0;
 	((float *)pr_globals)[OFS_PARM1+0] = vid.height;	//dp compat, ish
-	if (mp_drawloading_function && (scr_drawloading||scr_disabled_for_loading))
-	{
-		((float *)pr_globals)[OFS_PARM1] = scr_disabled_for_loading;
-		PR_ExecuteProgram(menu_world.progs, mp_drawloading_function);
+	if (scr_drawloading||scr_disabled_for_loading)
+	{	//don't draw the menu if we're meant to be drawing a loading screen
+		//the menu should provide a special function if it wants to draw custom loading screens. this is for compat with old/dp/lazy/crappy menus.
+		if (mp_drawloading_function)
+		{
+			((float *)pr_globals)[OFS_PARM1] = scr_disabled_for_loading;
+			PR_ExecuteProgram(menu_world.progs, mp_drawloading_function);
+		}
 	}
 	else if (mp_draw_function)
 		PR_ExecuteProgram(menu_world.progs, mp_draw_function);

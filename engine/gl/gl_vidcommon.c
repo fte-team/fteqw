@@ -575,7 +575,16 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	gl_config.maxglslversion = 0;
 	if (gl_config.gles && gl_config.glversion >= 2)
-		gl_config.maxglslversion = 100;
+	{
+		if (gl_config.glversion >= 3.2)
+			gl_config.maxglslversion = 320;
+		else if (gl_config.glversion >= 3.1)
+			gl_config.maxglslversion = 310;
+		else if (gl_config.glversion >= 3)
+			gl_config.maxglslversion = 300;
+		else
+			gl_config.maxglslversion = 100;
+	}
 	else if (gl_config.glversion >= 2)
 	{
 #define GL_SHADING_LANGUAGE_VERSION 0x8B8C
@@ -1899,16 +1908,28 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 #endif
 		{
 			//known versions:
+			//<undefined> == gl
 			//100 == gles2
 			//110 == gl2.0
 			//120 == gl2.1
 			//130 == gl3.0
 			//140 == gl3.1
 			//150 [core|compatibility] == gl3.2
-			//330, 400, 410, 420, 430 [core|compatibility] == gl?.??
 			//300 ES == gles3
+			//310 ES == gles3.1
+			//330, 400, 410, 420, 430 [core|compatibility] == gl?.??
+
+			if (gl_config_gles)
+			{
+				if (ver <= 110)		//gles2 is rougly gl2 so 100(es)==110ish
+					ver = 100;
+				else if (ver <= 330)	//gles3 is rougly gl3.3 so 300es==330ish
+					ver = 300;
+			}
+
+
 			if (gl_config_gles && ver != 100)
-				Q_snprintfz(verline, sizeof(verline), "#version %u ES\n", ver);
+				Q_snprintfz(verline, sizeof(verline), "#version %u es\n", ver);
 			else if (!gl_config_gles && ver >= 150 && !gl_config_nofixedfunc)
 				//favour compatibility profile, simply because we want ftransform to work properly
 				//note that versions 130+140 are awkward due to deprecation stuff, both assume compatibility profiles where supported.
@@ -2921,7 +2942,12 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		vid.srgb = info->srgb && srgb;
 
 		sh_config.minver = 100;
-		sh_config.maxver = 100;
+		if (gl_config.glversion >= 3.1)
+			sh_config.maxver = 310;
+		else if (gl_config.glversion >= 3.0)
+			sh_config.maxver = 300;
+		else
+			sh_config.maxver = 100;
 		sh_config.blobpath = "gles/%s.blob";
 		sh_config.progpath = "glsl/%s.glsl";
 		sh_config.shadernamefmt = "%s_gles";

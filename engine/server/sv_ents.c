@@ -284,7 +284,7 @@ static void SV_EmitDeltaEntIndex(sizebuf_t *msg, unsigned int entnum, qboolean r
 void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 {
 #ifdef PEXT_CSQC
-	qbyte messagebuffer[1024];
+	qbyte messagebuffer[MAX_DATAGRAM];
 	int en;
 	int currentsequence = client->netchan.outgoing_sequence;
 	globalvars_t *pr_globals;

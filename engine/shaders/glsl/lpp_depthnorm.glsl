@@ -1,3 +1,4 @@
+!!ver 100 130
 !!permu BUMP
 !!permu SKELETAL
 !!permu FRAMEBLEND

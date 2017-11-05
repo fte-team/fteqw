@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"//would prefer not to have this
 #endif
 #include "shader.h"
+#include "gl_draw.h"
 
 //name of the current backdrop for the loading screen
 char levelshotname[MAX_QPATH];
@@ -237,9 +238,14 @@ cvar_t	show_gameclock_y	= CVAR("cl_gameclock_y", "-1");
 cvar_t	show_speed	= CVAR("show_speed", "0");
 cvar_t	show_speed_x	= CVAR("show_speed_x", "-1");
 cvar_t	show_speed_y	= CVAR("show_speed_y", "-9");
-cvar_t	scr_loadingrefresh = CVAR("scr_loadingrefresh", "0");
-cvar_t	scr_showloading	= CVAR("scr_showloading", "1");
 cvar_t	scr_showobituaries = CVAR("scr_showobituaries", "0");
+
+cvar_t	scr_loadingrefresh = CVARD("scr_loadingrefresh", "0", "Force redrawing of the loading screen, in order to display EVERY resource that is loaded");
+cvar_t	scr_showloading	= CVAR("scr_showloading", "1");
+//things to configure the legacy loading screen
+cvar_t	scr_loadingscreen_picture = CVAR("scr_loadingscreen_picture", "gfx/loading");
+cvar_t	scr_loadingscreen_scale = CVAR("scr_loadingscreen_scale", "1");
+cvar_t	scr_loadingscreen_scale_limit = CVAR("scr_loadingscreen_scale_limit", "2");
 
 void *scr_curcursor;
 
@@ -261,6 +267,9 @@ void CLSCR_Init(void)
 	Cvar_Register(&con_stayhidden, cl_screengroup);
 	Cvar_Register(&scr_loadingrefresh, cl_screengroup);
 	Cvar_Register(&scr_showloading, cl_screengroup);
+	Cvar_Register(&scr_loadingscreen_picture, cl_screengroup);
+	Cvar_Register(&scr_loadingscreen_scale, cl_screengroup);
+	Cvar_Register(&scr_loadingscreen_scale_limit, cl_screengroup);
 	Cvar_Register(&show_fps, cl_screengroup);
 	Cvar_Register(&show_fps_x, cl_screengroup);
 	Cvar_Register(&show_fps_y, cl_screengroup);
@@ -1645,6 +1654,9 @@ void SCR_DrawFPS (void)
 
 	switch (sfps)
 	{
+	case 1:
+	default:
+		break;
 	case 2: // lowest FPS, highest MS encountered
 		if (lastfps > 1/frametime)
 		{
@@ -1856,8 +1868,6 @@ void SCR_DrawLoading (qboolean opaque)
 	int sizex, x, y, w, h;
 	mpic_t  *pic;
 	char *s;
-	int qdepth;
-	int h2depth;
 
 	if (CSQC_UseGamecodeLoadingScreen())
 		return;	//will be drawn as part of the regular screen updates
@@ -1876,73 +1886,29 @@ void SCR_DrawLoading (qboolean opaque)
 	if (*levelshotname)
 	{
 		pic = R2D_SafeCachePic (levelshotname);
-		R_GetShaderSizes(pic, NULL, NULL, true);
-		R2D_ImageColours(1, 1, 1, 1);
-		R2D_ScalePic (0, 0, vid.width, vid.height, pic);
+		if (!R_GetShaderSizes(pic, &w, &h, true))
+			w = h = 1;
+		R2D_Letterbox(0, 0, vid.width, vid.height, pic, w, h);
 	}
 	else if (opaque)
+	{
+		R2D_ImageColours(0, 0, 0, 1);
+		R2D_FillBlock(0, 0, vid.width, vid.height);
+		R2D_ImageColours(1, 1, 1, 1);
 		R2D_ConsoleBackground (0, vid.height, true);
+	}
 
 	if (scr_showloading.ival)
 	{
-		qdepth = COM_FDepthFile("gfx/loading.lmp", true);
-		h2depth = COM_FDepthFile("gfx/menu/loading.lmp", true);
+		char *qname = scr_loadingscreen_picture.string;
 
-		if (qdepth < h2depth || h2depth > 0xffffff)
-		{	//quake files
+#ifdef HEXEN2
+		int qdepth = COM_FDepthFile(qname, true);
+		int h2depth = COM_FDepthFile("gfx/menu/loading.lmp", true);
 
-			pic = R2D_SafeCachePic ("gfx/loading.lmp");
-			if (R_GetShaderSizes(pic, &w, &h, true))
-			{
-				x = (vid.width - w)/2;
-				y = (vid.height - 48 - h)/2;
-				R2D_ScalePic (x, y, w, h, pic);
-				x = (vid.width/2) - 96;
-				y += h + 8;
-			}
-			else
-			{
-				x = (vid.width/2) - 96;
-				y = (vid.height/2) - 8;
-
-				Draw_FunString((vid.width-7*8)/2, y-16, "Loading");
-			}
-
-			if (!total_loading_size)
-				total_loading_size = 1;
-			if (loading_stage > LS_CONNECTION)
-			{
-				sizex = current_loading_size * 192 / total_loading_size;
-				if (loading_stage == LS_SERVER)
-				{
-					R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
-					R2D_FillBlock(x, y, sizex, 16);
-					R2D_ImageColours(0.0, 0.0, 0.0, 1.0);
-					R2D_FillBlock(x+sizex, y, 192-sizex, 16);
-				}
-				else
-				{
-					R2D_ImageColours(1.0, 1.0, 0.0, 1.0);
-					R2D_FillBlock(x, y, sizex, 16);
-					R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
-					R2D_FillBlock(x+sizex, y, 192-sizex, 16);
-				}
-
-				R2D_ImageColours(1, 1, 1, 1);
-				Draw_FunString(x+8, y+4, va("Loading %s... %i%%",
-					(loading_stage == LS_SERVER) ? "server" : "client",
-					current_loading_size * 100 / total_loading_size));
-			}
-			y += 16;
-
-			if (loadingfile)
-			{
-				Draw_FunString(x+8, y+4, loadingfile);
-				y+=8;
-			}
-		}
-		else
-		{	//hexen2 files
+		if (!(qdepth < h2depth || h2depth > 0xffffff))
+		{	//hexen2 files.
+			//hexen2 has some fancy sliders built into its graphics in specific places. so this is messy.
 			pic = R2D_SafeCachePic ("gfx/menu/loading.lmp");
 			if (R_GetShaderSizes(pic, &w, &h, true))
 			{
@@ -1985,6 +1951,88 @@ void SCR_DrawLoading (qboolean opaque)
 				R2D_FillBlock (offset+42, 97+1, count, 4);
 
 				y = 104;
+			}
+		}
+		else
+#endif
+		{	//quake files
+			pic = R2D_SafeCachePic (qname);
+			if (R_GetShaderSizes(pic, &w, &h, true))
+			{
+				float f = 1;
+				w *= scr_loadingscreen_scale.value;
+				h *= scr_loadingscreen_scale.value;
+				switch(scr_loadingscreen_scale_limit.ival)
+				{
+				default:
+					break;
+				case 1:
+					f = max(w/vid.width,h/vid.height);
+					break;
+				case 2:
+					f = min(w/vid.width,h/vid.height);
+					break;
+				case 3:
+					f = w/vid.width;
+					break;
+				case 4:
+					f = h/vid.height;
+					break;
+				}
+				if (f > 1)
+				{
+					w /= f;
+					h /= f;
+				}
+				x = ((int)vid.width - w)/2;
+				y = ((int)vid.height - 48 - h)/2;
+				R2D_ScalePic (x, y, w, h, pic);
+				x = (vid.width/2) - 96;
+				y += h + 8;
+
+				//make sure our loading crap will be displayed.
+				if (y > vid.height-32)
+					y = vid.height-32;
+			}
+			else
+			{
+				x = (vid.width/2) - 96;
+				y = (vid.height/2) - 8;
+
+				Draw_FunString((vid.width-7*8)/2, y-16, "Loading");
+			}
+
+			if (!total_loading_size)
+				total_loading_size = 1;
+			if (loading_stage > LS_CONNECTION)
+			{
+				sizex = current_loading_size * 192 / total_loading_size;
+				if (loading_stage == LS_SERVER)
+				{
+					R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
+					R2D_FillBlock(x, y, sizex, 16);
+					R2D_ImageColours(0.0, 0.0, 0.0, 1.0);
+					R2D_FillBlock(x+sizex, y, 192-sizex, 16);
+				}
+				else
+				{
+					R2D_ImageColours(1.0, 1.0, 0.0, 1.0);
+					R2D_FillBlock(x, y, sizex, 16);
+					R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
+					R2D_FillBlock(x+sizex, y, 192-sizex, 16);
+				}
+
+				R2D_ImageColours(1, 1, 1, 1);
+				Draw_FunString(x+8, y+4, va("Loading %s... %i%%",
+					(loading_stage == LS_SERVER) ? "server" : "client",
+					current_loading_size * 100 / total_loading_size));
+			}
+			y += 16;
+
+			if (loadingfile)
+			{
+				Draw_FunString(x+8, y+4, loadingfile);
+				y+=16;
 			}
 		}
 	}
@@ -2096,32 +2144,12 @@ void SCR_ImageName (const char *mapname)
 			return;
 	}
 
-	if (!scr_disabled_for_loading)
+	scr_drawloading = true;
+	if (qrenderer != QR_NONE)
 	{
-		scr_drawloading = true;
-		if (qrenderer != QR_NONE)
-		{
-			Sbar_Changed ();
-			SCR_UpdateScreen ();
-		}
-		scr_drawloading = false;
-		scr_disabled_for_loading = true;
+		Sbar_Changed ();
+		SCR_UpdateScreen ();
 	}
-	else
-	{
-		scr_disabled_for_loading = false;
-		scr_drawloading = true;
-#ifdef GLQUAKE
-		if (qrenderer == QR_OPENGL)
-		{
-			SCR_DrawLoading(false);
-			SCR_SetUpToDrawConsole();
-			if (Key_Dest_Has(kdm_console) || !*levelshotname)
-				SCR_DrawConsole(!!*levelshotname);
-		}
-#endif
-	}
-	scr_drawloading = false;
 
 	scr_disabled_time = Sys_DoubleTime();	//realtime tends to change... Hmmm....
 	scr_disabled_for_loading = true;

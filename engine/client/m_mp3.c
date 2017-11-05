@@ -10,6 +10,7 @@
 #include "../vk/vkrenderer.h"
 #endif
 #include "shader.h"
+#include "gl_draw.h"
 
 #if defined(HAVE_JUKEBOX)
 	#if defined(_WIN32) && !defined(WINRT) && !defined(NOMEDIAMENU)
@@ -2569,7 +2570,7 @@ qboolean Media_ShowFilm(void)
 		else if (cin)
 		{
 			int cw, ch;
-			float ratiox, ratioy, aspect;
+			float aspect;
 			if (cin->cursormove)
 				cin->cursormove(cin, mousecursor_x/(float)vid.width, mousecursor_y/(float)vid.height);
 			if (cin->setsize)
@@ -2584,40 +2585,7 @@ qboolean Media_ShowFilm(void)
 				ch = 3;
 			}
 
-			ratiox = (float)cw / vid.pixelwidth;
-			ratioy = (float)ch / vid.pixelheight;
-
-			if (!ch || !cw)
-			{
-				R2D_ImageColours(0, 0, 0, 1);
-				R2D_FillBlock(0, 0, vid.width, vid.height);
-				R2D_ScalePic(0, 0, 0, 0, videoshader);
-			}
-			else if (ratiox > ratioy)
-			{
-				int h = (vid.width * ch) / cw;
-				int p = vid.height - h;
-
-				//letterbox
-				R2D_ImageColours(0, 0, 0, 1);
-				R2D_FillBlock(0, 0, vid.width, p/2);
-				R2D_FillBlock(0, h + (p/2), vid.width, p/2);
-
-				R2D_ImageColours(1, 1, 1, 1);
-				R2D_ScalePic(0, p/2, vid.width, h, videoshader);
-			}
-			else
-			{
-				int w = (vid.height * cw) / ch;
-				int p = vid.width - w;
-				//sidethingies
-				R2D_ImageColours(0, 0, 0, 1);
-				R2D_FillBlock(0, 0, (p/2), vid.height);
-				R2D_FillBlock(w + (p/2), 0, p/2, vid.height);
-
-				R2D_ImageColours(1, 1, 1, 1);
-				R2D_ScalePic(p/2, 0, w, vid.height, videoshader);
-			}
+			R2D_Letterbox(0, 0, vid.pixelwidth, vid.pixelheight, videoshader, cw, ch);
 
 			SCR_SetUpToDrawConsole();
 			if  (scr_con_current)
@@ -4892,72 +4860,75 @@ sfxcache_t *QDECL S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, 
 		extern cvar_t snd_linearresample_stream;
 		int framesz = (dec->srcwidth/8 * dec->srcchannels);
 
-		if (dec->dststart > start)
+		if (length)
 		{
-			/*I don't know where the compressed data is for each sample. acm doesn't have a seek. so reset to start, for music this should be the most common rewind anyway*/
-			dec->dststart = 0;
-			dec->dstcount = 0;
-			dec->srcoffset = 0;
-		}
-
-		if (dec->dstcount > snd_speed*6)
-		{
-			int trim = dec->dstcount - snd_speed; //retain a second of buffer in case we have multiple sound devices
-			if (dec->dststart + trim > start)
+			if (dec->dststart > start)
 			{
-				trim = start - dec->dststart;
-				if (trim < 0)
-					trim = 0;
-			}
-//			if (trim < 0)
-//				trim = 0;
-///			if (trim > dec->dstcount)
-//				trim = dec->dstcount;
-			memmove(dec->dstdata, dec->dstdata + trim*framesz, (dec->dstcount - trim)*framesz);
-			dec->dststart += trim;
-			dec->dstcount -= trim;
-		}
-
-		while(start+length >= dec->dststart+dec->dstcount)
-		{
-			memset(&strhdr, 0, sizeof(strhdr));
-			strhdr.cbStruct = sizeof(strhdr);
-			strhdr.pbSrc = dec->srcdata + dec->srcoffset;
-			strhdr.cbSrcLength = dec->srclen - dec->srcoffset;
-			if (!strhdr.cbSrcLength)
-				break;
-			strhdr.pbDst = buffer;
-			strhdr.cbDstLength = sizeof(buffer);
-
-			qacmStreamPrepareHeader(dec->acm, &strhdr, 0);
-			qacmStreamConvert(dec->acm, &strhdr, ACM_STREAMCONVERTF_BLOCKALIGN);
-			qacmStreamUnprepareHeader(dec->acm, &strhdr, 0);
-			dec->srcoffset += strhdr.cbSrcLengthUsed;
-			if (!strhdr.cbDstLengthUsed)
-			{
-				if (strhdr.cbSrcLengthUsed)
-					continue;
-				break;
+				/*I don't know where the compressed data is for each sample. acm doesn't have a seek. so reset to start, for music this should be the most common rewind anyway*/
+				dec->dststart = 0;
+				dec->dstcount = 0;
+				dec->srcoffset = 0;
 			}
 
-			newlen = dec->dstcount + (strhdr.cbDstLengthUsed * ((float)snd_speed / dec->srcspeed))/framesz;
-			if (dec->dstbuffer < newlen+64)
+			if (dec->dstcount > snd_speed*6)
 			{
-				dec->dstbuffer = newlen+64 + snd_speed;
-				dec->dstdata = BZ_Realloc(dec->dstdata, dec->dstbuffer*framesz);
+				int trim = dec->dstcount - snd_speed; //retain a second of buffer in case we have multiple sound devices
+				if (dec->dststart + trim > start)
+				{
+					trim = start - dec->dststart;
+					if (trim < 0)
+						trim = 0;
+				}
+	//			if (trim < 0)
+	//				trim = 0;
+	///			if (trim > dec->dstcount)
+	//				trim = dec->dstcount;
+				memmove(dec->dstdata, dec->dstdata + trim*framesz, (dec->dstcount - trim)*framesz);
+				dec->dststart += trim;
+				dec->dstcount -= trim;
 			}
 
-			SND_ResampleStream(strhdr.pbDst, 
-				dec->srcspeed, 
-				dec->srcwidth/8, 
-				dec->srcchannels, 
-				strhdr.cbDstLengthUsed / framesz,
-				dec->dstdata+dec->dstcount*framesz,
-				snd_speed,
-				dec->srcwidth/8,
-				dec->srcchannels,
-				snd_linearresample_stream.ival);
-			dec->dstcount = newlen;
+			while(start+length >= dec->dststart+dec->dstcount)
+			{
+				memset(&strhdr, 0, sizeof(strhdr));
+				strhdr.cbStruct = sizeof(strhdr);
+				strhdr.pbSrc = dec->srcdata + dec->srcoffset;
+				strhdr.cbSrcLength = dec->srclen - dec->srcoffset;
+				if (!strhdr.cbSrcLength)
+					break;
+				strhdr.pbDst = buffer;
+				strhdr.cbDstLength = sizeof(buffer);
+
+				qacmStreamPrepareHeader(dec->acm, &strhdr, 0);
+				qacmStreamConvert(dec->acm, &strhdr, ACM_STREAMCONVERTF_BLOCKALIGN);
+				qacmStreamUnprepareHeader(dec->acm, &strhdr, 0);
+				dec->srcoffset += strhdr.cbSrcLengthUsed;
+				if (!strhdr.cbDstLengthUsed)
+				{
+					if (strhdr.cbSrcLengthUsed)
+						continue;
+					break;
+				}
+
+				newlen = dec->dstcount + (strhdr.cbDstLengthUsed * ((float)snd_speed / dec->srcspeed))/framesz;
+				if (dec->dstbuffer < newlen+64)
+				{
+					dec->dstbuffer = newlen+64 + snd_speed;
+					dec->dstdata = BZ_Realloc(dec->dstdata, dec->dstbuffer*framesz);
+				}
+
+				SND_ResampleStream(strhdr.pbDst, 
+					dec->srcspeed, 
+					dec->srcwidth/8, 
+					dec->srcchannels, 
+					strhdr.cbDstLengthUsed / framesz,
+					dec->dstdata+dec->dstcount*framesz,
+					snd_speed,
+					dec->srcwidth/8,
+					dec->srcchannels,
+					snd_linearresample_stream.ival);
+				dec->dstcount = newlen;
+			}
 		}
 
 		buf->data = dec->dstdata;

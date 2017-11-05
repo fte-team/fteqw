@@ -33,6 +33,7 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 void R2D_Line(float x1, float y1, float x2, float y2, mpic_t *pic);
 void R2D_ScalePic (float x, float y, float width, float height, mpic_t *pic);
 void R2D_SubPic(float x, float y, float width, float height, mpic_t *pic, float srcx, float srcy, float srcwidth, float srcheight);
+void R2D_Letterbox(float sx, float sy, float sw, float sh, mpic_t *pic, float pw, float ph);
 void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque);
 void R2D_EditorBackground (void);
 void R2D_TileClear (float x, float y, float w, float h);

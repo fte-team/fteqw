@@ -1398,6 +1398,13 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 
 			script = end;
 		}
+		else if (!strncmp(script, "!!", 2))
+		{
+			Con_DPrintf("Unknown directinve in glsl program %s\n", name);
+			script += 2;
+			while (*script == ' ' || *script == '\t')
+				script++;
+		}
 		else if (!strncmp(script, "//", 2))
 		{
 			script += 2;

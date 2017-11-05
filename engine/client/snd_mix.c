@@ -192,23 +192,23 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 				//does it still make a sound if it cannot be heard?...
 				//technically no...
 				//this code is hacky.
-				if (!s->decoder.decodedata && s->decoder.buf)
-				{
+				if (s->decoder.decodedata)
+					scache = s->decoder.decodedata(s, &scachebuf, ch->pos>>PITCHSHIFT, 0);	/*1 for luck - balances audio termination below*/
+				else
 					scache = s->decoder.buf;
-					ch->pos += (end-sc->paintedtime)*ch->rate;
-					if ((ch->pos>>PITCHSHIFT) > scache->length)
+				ch->pos += (end-sc->paintedtime)*ch->rate;
+				if (!scache || (ch->pos>>PITCHSHIFT) > scache->soundoffset+scache->length)
+				{
+					ch->pos = 0;
+					if (s->loopstart != -1)
+						ch->pos = s->loopstart<<PITCHSHIFT;
+					else if (!(ch->flags & CF_FORCELOOP))
 					{
-						ch->pos = 0;
-						if (s->loopstart != -1)
-							ch->pos = s->loopstart<<PITCHSHIFT;
-						else if (!(ch->flags & CF_FORCELOOP))
+						ch->sfx = NULL;
+						if (s->decoder.ended)
 						{
-							ch->sfx = NULL;
-							if (s->decoder.ended)
-							{
-								if (!S_IsPlayingSomewhere(s))
-									s->decoder.ended(s);
-							}
+							if (!S_IsPlayingSomewhere(s))
+								s->decoder.ended(s);
 						}
 					}
 				}

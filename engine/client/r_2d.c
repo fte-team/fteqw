@@ -758,6 +758,45 @@ void R2D_SubPic(float x, float y, float width, float height, mpic_t *pic, float 
 	R2D_Image(x, y, width, height, newsl, newtl, newsh, newth, pic);
 }
 
+void R2D_Letterbox(float sx, float sy, float sw, float sh, mpic_t *pic, float pw, float ph)
+{
+	float ratiox = (float)pw / sw;
+	float ratioy = (float)ph / sh;
+
+	if (pw<=0 || ph<=0)
+	{	//no size info...
+		R2D_ImageColours(0, 0, 0, 1);
+		R2D_FillBlock(sx, sy, sw, sh);
+		R2D_ScalePic(sx, sy, 0, 0, pic);	//in case its a videoshader with audio
+	}
+	else if (ratiox > ratioy)
+	{	//x ratio is greatest
+		float h = (sw * ph) / pw;
+		float p = sh - h;
+
+		//letterbox
+		R2D_ImageColours(0, 0, 0, 1);
+		R2D_FillBlock(sx, sy, sw, p/2);
+		R2D_FillBlock(sx, sy + h + (p/2), sw, p/2);
+
+		R2D_ImageColours(1, 1, 1, 1);
+		R2D_ScalePic(sx, sy + p/2, sw, h, pic);
+	}
+	else
+	{	//y ratio is greatest
+		float w = (sh * pw) / ph;
+		float p = sw - w;
+
+		//sidethingies
+		R2D_ImageColours(0, 0, 0, 1);
+		R2D_FillBlock(sx, sy, (p/2), sh);
+		R2D_FillBlock(sx + w + (p/2), sy, p/2, sh);
+
+		R2D_ImageColours(1, 1, 1, 1);
+		R2D_ScalePic(sx + p/2, sy, w, sh, pic);
+	}
+}
+
 /* this is an ugly special case drawing func that's only used for the player color selection menu */
 void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic, unsigned int *palette)
 {

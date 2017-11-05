@@ -405,7 +405,7 @@ static qboolean VK_CreateSwapChain(void)
 		swapinfo.oldSwapchain = vk.swapchain;
 		swapinfo.clipped = vid_isfullscreen?VK_FALSE:VK_TRUE;	//allow fragment shaders to be skipped on parts that are obscured by another window. screenshots might get weird, so use proper captures if required/automagic.
 
-		swapinfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;	//supposed to be guarenteed support.
+		swapinfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;	//support is guarenteed by spec, in theory.
 		for (i = 0, curpri = 0; i < presentmodes; i++)
 		{
 			uint32_t priority = 0;
@@ -432,6 +432,9 @@ static qboolean VK_CreateSwapChain(void)
 				swapinfo.presentMode = presentmode[i];
 			}
 		}
+
+		if (!vk.vsync && swapinfo.presentMode != VK_PRESENT_MODE_IMMEDIATE_KHR)
+			Con_Printf("Warning: vulkan graphics driver does not fully support disabling vsync.\n");
 
 		vk.srgbcapable = false;
 		swapinfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;

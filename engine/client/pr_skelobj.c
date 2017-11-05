@@ -84,6 +84,7 @@ typedef struct skelobject_s
 {
 	int inuse;
 
+	int modelindex; //for vid_restarts
 	model_t *model;
 	world_t *world; /*be it ssqc or csqc*/
 	skeltype_t type;
@@ -990,6 +991,21 @@ void skel_info_f(void)
 	}
 }
 
+/*models were purged. reset any pointers to them*/
+void skel_reload(void)
+{
+	int i;
+	for (i = 0; i < countof(skelobjects); i++)
+	{
+		if (!skelobjects[i].model)
+			continue;
+		if (skelobjects[i].modelindex && skelobjects[i].world)
+			skelobjects[i].model = skelobjects[i].world->Get_CModel(skelobjects[i].world, skelobjects[i].modelindex);
+		else
+			skelobjects[i].model = NULL;
+	}
+}
+
 /*destroys all skeletons*/
 void skel_reset(world_t *world)
 {
@@ -1069,6 +1085,7 @@ static skelobject_t *skel_create(world_t *world, int bonecount)
 			skelobjects[skelidx].world = world;
 			if (numskelobjectsused <= skelidx)
 				numskelobjectsused = skelidx + 1;
+			skelobjects[skelidx].modelindex = 0;
 			skelobjects[skelidx].model = NULL;
 			skelobjects[skelidx].inuse = 1;
 			return &skelobjects[skelidx];
@@ -1444,6 +1461,7 @@ void rag_removedeltaent(lerpents_t *le)
 	if (skelobj)
 	{
 		skelobj->inuse = 2;	//2 means don't reuse yet.
+		skelobj->modelindex = 0;
 		skelobj->model = NULL;
 		pendingkill = true;
 	}
@@ -1466,6 +1484,7 @@ void rag_lerpdeltaent(lerpents_t *le, unsigned int bonecount, short *newstate, f
 		if (sko->numbones != bonecount)
 		{	//unusable, discard it and create a new one.
 			sko->inuse = 2;	//2 means don't reuse yet.
+			sko->modelindex = 0;
 			sko->model = NULL;
 			pendingkill = true;
 			sko = NULL;
@@ -1479,6 +1498,7 @@ void rag_lerpdeltaent(lerpents_t *le, unsigned int bonecount, short *newstate, f
 		sko = skel_create(&csqc_world, bonecount);
 		if (!sko)
 			return;	//couldn't get one, ran out of memory or something?
+		sko->modelindex = 0;
 		sko->model = NULL;
 		sko->type = SKEL_RELATIVE;
 		le->skeletalobject = (sko - skelobjects) + 1;
@@ -1541,6 +1561,7 @@ void rag_updatedeltaent(world_t *w, entity_t *ent, lerpents_t *le)
 			sko = skel_create(w, Mod_GetNumBones(mod, false));
 			if (!sko)
 				return;	//couldn't get one, ran out of memory or something?
+			sko->modelindex = 0;
 			sko->model = mod;
 			sko->type = SKEL_RELATIVE;
 			le->skeletalobject = (sko - skelobjects) + 1;
@@ -1563,6 +1584,7 @@ void rag_updatedeltaent(world_t *w, entity_t *ent, lerpents_t *le)
 		else if (sko->doll)
 			sko->numanimated = sko->doll->numdefaultanimated;
 		Mod_GetBoneRelations(mod, 0, skorel.numbones, &ent->framestate, skorel.bonematrix);
+		skorel.modelindex = sko->modelindex;
 		skorel.model = sko->model;
 		if (sko->numanimated || sko->doll != mod->dollinfo)
 		{
@@ -1789,6 +1811,7 @@ void QCBUILTIN PF_skel_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (!skelobj)
 		return;	//couldn't get one, ran out of memory or something?
 
+	skelobj->modelindex = midx;
 	skelobj->model = model;
 	skelobj->type = type;
 
@@ -2271,6 +2294,7 @@ void QCBUILTIN PF_skel_delete (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (skelobj)
 	{
 		skelobj->inuse = 2;	//2 means don't reuse yet.
+		skelobj->modelindex = 0;
 		skelobj->model = NULL;
 		pendingkill = true;
 	}

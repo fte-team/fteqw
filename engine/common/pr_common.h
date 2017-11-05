@@ -274,6 +274,7 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	void skel_lookup(world_t *prinst, int skelidx, framestate_t *out);
 	void skel_dodelete(world_t *world);
 	void skel_reset(world_t *world);
+	void skel_reload(void);
 #endif
 void QCBUILTIN PF_physics_supported(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_physics_enable(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

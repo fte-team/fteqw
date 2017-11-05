@@ -86,12 +86,12 @@ qboolean GLSCR_UpdateScreen (void)
 		}
 		else
 		{
-			scr_drawloading = true;
+//			scr_drawloading = true;
 			SCR_DrawLoading (true);
 			SCR_SetUpToDrawConsole();
 			if (Key_Dest_Has(kdm_console))
 				SCR_DrawConsole(false);
-			scr_drawloading = false;
+//			scr_drawloading = false;
 			if (R2D_Flush)
 				R2D_Flush();
 			VID_SwapBuffers();

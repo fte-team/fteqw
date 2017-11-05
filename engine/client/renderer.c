@@ -1698,6 +1698,10 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 #endif
 	}
 
+#ifdef SKELETALOBJECTS
+	skel_reload();
+#endif
+
 	if (newr && qrenderer != QR_NONE)
 	{
 		if (!r_forceheadless || newr->renderer->rtype != QR_HEADLESS)

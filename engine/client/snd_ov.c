@@ -175,128 +175,131 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 	start *= 2*dec->srcchannels;
 	length *= 2*dec->srcchannels;
 
-	if (start < dec->decodedbytestart)
+	if (length)
 	{
-//		Con_Printf("Rewound to %i\n", start);
-		dec->failed = false;
+		if (start < dec->decodedbytestart)
+		{
+	//		Con_Printf("Rewound to %i\n", start);
+			dec->failed = false;
 
-		//check pos
-		if (p_ov_pcm_seek(&dec->vf, start * (dec->srcspeed/(2.0*dec->srcchannels*outspeed))) == 0)
-		{
-			/*something rewound, purge clear the buffer*/
-			dec->decodedbytecount = 0;
-			dec->decodedbytestart = start;
-		}
-	}
-
-/*	if (start > dec->decodedbytestart + dec->decodedbytecount)
-	{
-		dec->decodedbytestart = start;
-		p_ov_pcm_seek(&dec->vf, (dec->decodedbytestart * dec->srcspeed) / outspeed);
-	}
-*/
-	if (dec->decodedbytecount > outspeed*8)
-	{
-		/*everything is okay, but our buffer is getting needlessly large.
-		keep anything after the 'new' position, but discard all before that
-		trim shouldn't be able to go negative
-		*/
-		int trim = start - dec->decodedbytestart;
-		if (trim < 0)
-		{
-			dec->decodedbytecount = 0;
-			dec->decodedbytestart = start;
-//			Con_Printf("trim < 0\n");
-		}
-		else if (trim > dec->decodedbytecount)
-		{
-			if (0==p_ov_pcm_seek(&dec->vf, start * (dec->srcspeed/(2.0*dec->srcchannels*outspeed))))
+			//check pos
+			if (p_ov_pcm_seek(&dec->vf, start * (dec->srcspeed/(2.0*dec->srcchannels*outspeed))) == 0)
 			{
+				/*something rewound, purge clear the buffer*/
 				dec->decodedbytecount = 0;
 				dec->decodedbytestart = start;
 			}
-//			Con_Printf("trim > count\n");
-		}
-		else
-		{
-//			Con_Printf("trim retain\n");
-			//FIXME: retain an extra half-second for dual+ sound devices running slightly out of sync
-			memmove(dec->decodedbuffer, dec->decodedbuffer + trim, dec->decodedbytecount - trim);
-			dec->decodedbytecount -= trim;
-			dec->decodedbytestart += trim;
-		}
-	}
-
-	for (;;)
-	{
-		if (dec->failed || start+length <= dec->decodedbytestart + dec->decodedbytecount)
-			break;
-
-		if (dec->decodedbufferbytes < start+length - dec->decodedbytestart + 128)	//expand if needed.
-		{
-	//		Con_Printf("Expand buffer\n");
-			dec->decodedbufferbytes = (start+length - dec->decodedbytestart) + outspeed;
-			dec->decodedbuffer = BZ_Realloc(dec->decodedbuffer, dec->decodedbufferbytes);
 		}
 
-		if (outspeed == dec->srcspeed)
+	/*	if (start > dec->decodedbytestart + dec->decodedbytecount)
 		{
-			bytesread = p_ov_read(&dec->vf, dec->decodedbuffer+dec->decodedbytecount, (start+length) - (dec->decodedbytestart+dec->decodedbytecount), bigendianp, 2, 1, &current_section);
-			if (bytesread <= 0)
+			dec->decodedbytestart = start;
+			p_ov_pcm_seek(&dec->vf, (dec->decodedbytestart * dec->srcspeed) / outspeed);
+		}
+	*/
+		if (dec->decodedbytecount > outspeed*8)
+		{
+			/*everything is okay, but our buffer is getting needlessly large.
+			keep anything after the 'new' position, but discard all before that
+			trim shouldn't be able to go negative
+			*/
+			int trim = start - dec->decodedbytestart;
+			if (trim < 0)
 			{
-				if (bytesread != 0)	//0==eof
+				dec->decodedbytecount = 0;
+				dec->decodedbytestart = start;
+	//			Con_Printf("trim < 0\n");
+			}
+			else if (trim > dec->decodedbytecount)
+			{
+				if (0==p_ov_pcm_seek(&dec->vf, start * (dec->srcspeed/(2.0*dec->srcchannels*outspeed))))
 				{
-					dec->failed = true;
-					Con_Printf("ogg decoding failed %i\n", bytesread);
+					dec->decodedbytecount = 0;
+					dec->decodedbytestart = start;
+				}
+	//			Con_Printf("trim > count\n");
+			}
+			else
+			{
+	//			Con_Printf("trim retain\n");
+				//FIXME: retain an extra half-second for dual+ sound devices running slightly out of sync
+				memmove(dec->decodedbuffer, dec->decodedbuffer + trim, dec->decodedbytecount - trim);
+				dec->decodedbytecount -= trim;
+				dec->decodedbytestart += trim;
+			}
+		}
+
+		for (;;)
+		{
+			if (dec->failed || start+length <= dec->decodedbytestart + dec->decodedbytecount)
+				break;
+
+			if (dec->decodedbufferbytes < start+length - dec->decodedbytestart + 128)	//expand if needed.
+			{
+		//		Con_Printf("Expand buffer\n");
+				dec->decodedbufferbytes = (start+length - dec->decodedbytestart) + outspeed;
+				dec->decodedbuffer = BZ_Realloc(dec->decodedbuffer, dec->decodedbufferbytes);
+			}
+
+			if (outspeed == dec->srcspeed)
+			{
+				bytesread = p_ov_read(&dec->vf, dec->decodedbuffer+dec->decodedbytecount, (start+length) - (dec->decodedbytestart+dec->decodedbytecount), bigendianp, 2, 1, &current_section);
+				if (bytesread <= 0)
+				{
+					if (bytesread != 0)	//0==eof
+					{
+						dec->failed = true;
+						Con_Printf("ogg decoding failed %i\n", bytesread);
+						break;
+					}
+					if (start >= dec->decodedbytestart+dec->decodedbytecount)
+						return NULL;	//let the mixer know that we hit the end
 					break;
 				}
-				if (start >= dec->decodedbytestart+dec->decodedbytecount)
-					return NULL;	//let the mixer know that we hit the end
-				break;
 			}
-		}
-		else
-		{
-			double scale = dec->srcspeed / (double)outspeed;
-			int decodesize = ceil((dec->decodedbufferbytes-dec->decodedbytecount) * scale);
-			/*round down...*/
-			decodesize &= ~(2 * dec->srcchannels - 1);
-			if (decodesize > dec->tempbufferbytes)
+			else
 			{
-				dec->tempbuffer = BZ_Realloc(dec->tempbuffer, decodesize);
-				dec->tempbufferbytes = decodesize;
-			}
-
-			bytesread = p_ov_read(&dec->vf, dec->tempbuffer, decodesize, bigendianp, 2, 1, &current_section);
-
-			if (bytesread <= 0)
-			{
-				if (bytesread != 0)	//0==eof
+				double scale = dec->srcspeed / (double)outspeed;
+				int decodesize = ceil((dec->decodedbufferbytes-dec->decodedbytecount) * scale);
+				/*round down...*/
+				decodesize &= ~(2 * dec->srcchannels - 1);
+				if (decodesize > dec->tempbufferbytes)
 				{
-					dec->failed = true;
-					Con_Printf("ogg decoding failed %i\n", bytesread);
-					return NULL;
+					dec->tempbuffer = BZ_Realloc(dec->tempbuffer, decodesize);
+					dec->tempbufferbytes = decodesize;
 				}
-				if (start >= dec->decodedbytestart+dec->decodedbytecount)
-					return NULL;	//let the mixer know that we hit the end
-				break;
+
+				bytesread = p_ov_read(&dec->vf, dec->tempbuffer, decodesize, bigendianp, 2, 1, &current_section);
+
+				if (bytesread <= 0)
+				{
+					if (bytesread != 0)	//0==eof
+					{
+						dec->failed = true;
+						Con_Printf("ogg decoding failed %i\n", bytesread);
+						return NULL;
+					}
+					if (start >= dec->decodedbytestart+dec->decodedbytecount)
+						return NULL;	//let the mixer know that we hit the end
+					break;
+				}
+
+				SND_ResampleStream(dec->tempbuffer,
+					dec->srcspeed,
+					2,
+					dec->srcchannels,
+					bytesread / (2 * dec->srcchannels),
+					dec->decodedbuffer+dec->decodedbytecount,
+					outspeed,
+					2,
+					dec->srcchannels,
+					snd_linearresample_stream.ival);
+
+				bytesread = (int)floor(bytesread / scale) & ~(2 * dec->srcchannels - 1);
 			}
 
-			SND_ResampleStream(dec->tempbuffer,
-				dec->srcspeed,
-				2,
-				dec->srcchannels,
-				bytesread / (2 * dec->srcchannels),
-				dec->decodedbuffer+dec->decodedbytecount,
-				outspeed,
-				2,
-				dec->srcchannels,
-				snd_linearresample_stream.ival);
-
-			bytesread = (int)floor(bytesread / scale) & ~(2 * dec->srcchannels - 1);
+			dec->decodedbytecount += bytesread;
 		}
-
-		dec->decodedbytecount += bytesread;
 	}
 
 	if (buf)

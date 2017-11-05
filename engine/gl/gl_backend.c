@@ -5531,6 +5531,9 @@ void GLBE_DrawLightPrePass(void)
 	*/
 	int oldfbo;
 
+	if (r_refdef.recurse)
+		return;	//fixme: messy stuff...
+
 	/*do portals*/
 	BE_SelectMode(BEM_STANDARD);
 	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_PORTAL, SHADER_SORT_PORTAL);
@@ -5557,49 +5560,119 @@ void GLBE_DrawLightPrePass(void)
 		static const char *defualtfmts[countof(shaderstate.tex_gbuf)] =
 			//depth,	normals,	difflight,	speclight
 			{"depth",	"rgba16f",	"rgba16f",	"rgba8",	"", "", "", ""};
+
+		checkglerror();
+
 		for (i = 0; i < countof(shaderstate.tex_gbuf); i++)
 		{
 			GLint ifmt = 0;
 			GLenum dfmt = GL_RGBA;
+			GLenum dtype = GL_UNSIGNED_BYTE;
 			var = Cvar_Get(va("gl_deferred_gbuffmt_%i", i), defualtfmts[i]?defualtfmts[i]:"", 0, "Deferred Rendering");
 			if (!var)
 				continue;
 			if (!strcmp(var->string, "rgba32f"))
-				ifmt = GL_RGBA32F_ARB;
+			{
+				if (gl_config_gles)
+				{	//gles3
+					ifmt = GL_RGBA32F_ARB;
+					dfmt = GL_RGBA;
+					dtype = GL_FLOAT;
+				}
+				else
+					ifmt = GL_RGBA32F_ARB;
+			}
 			else if (!strcmp(var->string, "rgba16f"))
-				ifmt = GL_RGBA16F_ARB;
+			{
+				if (gl_config_gles)
+				{	//gles3
+					ifmt = GL_RGBA16F_ARB;
+					dfmt = GL_RGBA;
+					dtype = GL_FLOAT;
+				}
+				else
+					ifmt = GL_RGBA16F_ARB;
+			}
 //			else if (!strcmp(var->string, "rgba8s"))
 //				ifmt = GL_RGBA8_SNORM;
 			else if (!strcmp(var->string, "depth"))
 			{
+				dtype = GL_UNSIGNED_INT;
 				ifmt = GL_DEPTH_COMPONENT;
 				dfmt = GL_DEPTH_COMPONENT;
 			}
 			else if (!strcmp(var->string, "depth16"))
 			{
-				ifmt = GL_DEPTH_COMPONENT16_ARB;
+				if (gl_config_gles)
+				{
+					dtype = GL_UNSIGNED_SHORT;
+					ifmt = GL_DEPTH_COMPONENT;
+				}
+				else
+					ifmt = GL_DEPTH_COMPONENT16_ARB;
 				dfmt = GL_DEPTH_COMPONENT;
 			}
 			else if (!strcmp(var->string, "depth24"))
 			{
-				ifmt = GL_DEPTH_COMPONENT24_ARB;
+				if (gl_config_gles)
+				{
+					dtype = GL_UNSIGNED_INT;
+					ifmt = GL_DEPTH_COMPONENT;
+				}
+				else
+					ifmt = GL_DEPTH_COMPONENT24_ARB;
 				dfmt = GL_DEPTH_COMPONENT;
 			}
 			else if (!strcmp(var->string, "depth32"))
 			{
-				ifmt = GL_DEPTH_COMPONENT32_ARB;
+				if (gl_config_gles)
+				{
+					dtype = GL_FLOAT;
+					ifmt = GL_DEPTH_COMPONENT;
+				}
+				else
+					ifmt = GL_DEPTH_COMPONENT32_ARB;
 				dfmt = GL_DEPTH_COMPONENT;
 			}
+			else if (!strcmp(var->string, "rgb565"))
+			{
+				dtype = GL_UNSIGNED_SHORT_5_6_5;
+				ifmt = GL_RGB;
+				dfmt = GL_RGB;
+			}
+			else if (!strcmp(var->string, "rgba4"))
+			{
+				dtype = GL_UNSIGNED_SHORT_4_4_4_4;
+				ifmt = GL_RGBA;
+				dfmt = GL_RGBA;
+			}
+			else if (!strcmp(var->string, "rgba5551"))
+			{
+				dtype = GL_UNSIGNED_SHORT_5_5_5_1;
+				ifmt = GL_RGBA;
+				dfmt = GL_RGBA;
+			}
 			else if (!strcmp(var->string, "rgba8") || *var->string)
-				ifmt = GL_RGBA8;
+			{
+#ifndef GLESONLY
+				if (!gl_config_gles)
+					ifmt = GL_RGBA8;
+				else
+#endif
+					ifmt = GL_RGBA;
+				dfmt = GL_RGBA;
+			}
 			else
 				continue;
 
 			shaderstate.tex_gbuf[i]->status = TEX_LOADED;
 			GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_gbuf[i]);
-			qglTexImage2D(GL_TEXTURE_2D, 0, ifmt, w, h, 0, dfmt, GL_UNSIGNED_BYTE, NULL);
+			qglTexImage2D(GL_TEXTURE_2D, 0, ifmt, w, h, 0, dfmt, dtype, NULL);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+			if (qglGetError())
+				Con_Printf("unable to configure gbuffer image as '%s'\n", var->string);
 		}
 	}
 
@@ -5660,7 +5733,7 @@ void GLBE_DrawLightPrePass(void)
 
 	/*final reconfigure - now drawing final surface data onto true framebuffer*/
 	GLBE_FBO_Pop(oldfbo);
-	if (!oldfbo)
+	if (!oldfbo && qglDrawBuffer)
 		qglDrawBuffer(GL_BACK);
 
 	/*now draw the postlight passes (this includes blended stuff which will NOT be lit)*/

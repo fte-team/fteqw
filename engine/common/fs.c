@@ -1208,8 +1208,13 @@ int FS_FLocateFile(const char *filename, unsigned int lflags, flocation_t *loc)
 
 	if (com_fs_cache.ival && !com_fschanged && !(lflags & FSLF_IGNOREPURE))
 	{
-		pf = Hash_GetInsensitive(&filesystemhash, filename);
-		if (!pf)
+		bucket_t *b = Hash_GetInsensitiveBucket(&filesystemhash, filename);
+		if (b)
+		{
+			pf = b->data;
+			filename = b->key.string;	//update the filename to use the correct file case...
+		}
+		else
 			goto fail;
 	}
 	else

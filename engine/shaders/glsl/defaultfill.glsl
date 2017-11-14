@@ -1,3 +1,5 @@
+!!ver 100-450
+
 #ifdef VERTEX_SHADER
 attribute vec4 v_colour;
 varying vec4 vc;

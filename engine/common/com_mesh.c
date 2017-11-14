@@ -2805,60 +2805,14 @@ int Mod_CountSkinFiles(model_t *mod)
 	return i;
 }
 
-//support for foo.md3_0.skin
-shader_t *Mod_ShaderFromQ3SkinFile(galiasinfo_t *surf, model_t *mod, int skinnum)
-{
-	shader_t *result = NULL;
-	skinid_t skinid;
-	skinfile_t *skinfile;
-	int i;
-	char *filedata;
-	char skinfilename[MAX_QPATH];
-	char *modelname = mod->name;
-
-	if (qrenderer == QR_NONE)
-		return NULL;
-
-	Q_snprintfz(skinfilename, sizeof(skinfilename), "%s_%i.skin", modelname, skinnum);
-	filedata = FS_LoadMallocFile(skinfilename, NULL);
-	if (!filedata)
-	{
-		COM_StripExtension(modelname, skinfilename, sizeof(skinfilename));
-		Q_snprintfz(skinfilename+strlen(skinfilename), sizeof(skinfilename)-strlen(skinfilename), "_%i.skin", skinnum);
-		filedata = FS_LoadMallocFile(skinfilename, NULL);
-	}
-	if (filedata)
-	{
-		skinid = Mod_ReadSkinFile(skinfilename, filedata);
-		Z_Free(filedata);
-
-		skinfile = Mod_LookupSkin(skinid);
-		if (skinfile)
-		{
-			//check if this skinfile has a mapping.
-			for (i = 0; i < skinfile->nummappings; i++)
-			{
-				if (!strcmp(surf->surfacename, skinfile->mappings[i].surface))
-				{
-					skinfile->mappings[i].shader->uses++;	//so it doesn't blow up when the skin gets freed.
-					result = skinfile->mappings[i].shader;
-					break;
-				}
-			}
-			Mod_WipeSkin(skinid);
-		}
-	}
-
-	return result;
-}
-
 void Mod_LoadAliasShaders(model_t *mod)
 {
 	qbyte *mipdata[4];
 	galiasinfo_t *ai = mod->meshinfo;
 	galiasskin_t *s;
 	skinframe_t *f;
-	int i, j;
+	int i, j, k;
+	int numskins;
 
 	unsigned int loadflags;
 	unsigned int imageflags;
@@ -2906,15 +2860,64 @@ void Mod_LoadAliasShaders(model_t *mod)
 
 
 
-	for (ai = mod->meshinfo; ai; ai = ai->nextsurf)
+	for (ai = mod->meshinfo, numskins = 0; ai; ai = ai->nextsurf)
 	{
+		if (numskins < ai->numskins)
+			numskins = ai->numskins;
 		Mod_GenerateMeshVBO(ai);	//FIXME: shares verts
-		for (i = 0, s = ai->ofsskins; i < ai->numskins; i++, s++)
+	}
+	for (i = 0; i < numskins; i++)
+	{
+		shader_t *result = NULL;
+		skinid_t skinid;
+		skinfile_t *skinfile;
+		char *filedata;
+		char skinfilename[MAX_QPATH];
+		char *modelname = mod->name;
+
+		skinid = 0;
+		skinfile = NULL;
+		if (qrenderer != QR_NONE)
 		{
+			Q_snprintfz(skinfilename, sizeof(skinfilename), "%s_%i.skin", modelname, i);
+			filedata = FS_LoadMallocFile(skinfilename, NULL);
+			if (!filedata)
+			{
+				COM_StripExtension(modelname, skinfilename, sizeof(skinfilename));
+				Q_snprintfz(skinfilename+strlen(skinfilename), sizeof(skinfilename)-strlen(skinfilename), "_%i.skin", i);
+				filedata = FS_LoadMallocFile(skinfilename, NULL);
+			}
+			if (filedata)
+			{
+				skinid = Mod_ReadSkinFile(skinfilename, filedata);
+				Z_Free(filedata);
+				skinfile = Mod_LookupSkin(skinid);
+			}
+		}
+
+		for (ai = mod->meshinfo; ai; ai = ai->nextsurf)
+		{
+			if (i >= ai->numskins)
+				continue;
+
+			s = ai->ofsskins+i;
 			for (j = 0, f = s->frame; j < s->numframes; j++, f++)
 			{
-				if (j == 0)
-					f->shader = Mod_ShaderFromQ3SkinFile(ai, mod, i);
+				if (j == 0 && skinfile)
+				{
+					//check if this skinfile has a mapping.
+					for (k = 0; k < skinfile->nummappings; k++)
+					{
+						if (!strcmp(ai->surfacename, skinfile->mappings[k].surface))
+						{
+							skinfile->mappings[k].shader->uses++;	//so it doesn't blow up when the skin gets freed.
+							f->shader = skinfile->mappings[k].shader;
+							f->texnums = skinfile->mappings[k].texnums;
+							skinfile->mappings[k].needsfree = 0;	//don't free any composed texture. it'll live on as part of the model.
+							break;
+						}
+					}
+				}
 				else
 					f->shader = NULL;
 				if (!f->shader)
@@ -2944,6 +2947,7 @@ void Mod_LoadAliasShaders(model_t *mod)
 					R_BuildDefaultTexnums(&f->texnums, f->shader);
 			}
 		}
+		Mod_WipeSkin(skinid);
 	}
 }
 #endif

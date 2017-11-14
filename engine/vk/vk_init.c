@@ -10,6 +10,7 @@ extern cvar_t vk_submissionthread;
 extern cvar_t vk_debug;
 extern cvar_t vk_dualqueue;
 extern cvar_t vk_busywait;
+extern cvar_t vk_waitfence;
 extern cvar_t vk_nv_glsl_shader;
 extern cvar_t vk_nv_dedicated_allocation;
 extern cvar_t vk_khr_dedicated_allocation;
@@ -220,7 +221,8 @@ static void VK_DestroySwapChain(void)
 		vk.dopresent(NULL);
 	while (vk.aquirenext < vk.aquirelast)
 	{
-		VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
+		if (vk.acquirefences[vk.aquirenext%ACQUIRELIMIT])
+			VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
 		vk.aquirenext++;
 	}
 	if (vk.device)
@@ -281,6 +283,7 @@ static qboolean VK_CreateSwapChain(void)
 	vid_triplebuffer.modified = false;
 	vid_srgb.modified = false;
 	vk_submissionthread.modified = false;
+	vk_waitfence.modified = false;
 	vid_multisample.modified = false;
 
 	vk.triplebuffer = vid_triplebuffer.ival;
@@ -305,9 +308,19 @@ static qboolean VK_CreateSwapChain(void)
 		vk.aquirelast = vk.aquirenext = 0;
 		for (i = 0; i < ACQUIRELIMIT; i++)
 		{
-			VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-			fci.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-			VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefences[i]));
+			if (1)
+			{
+				VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+				fci.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+				VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefences[i]));
+				vk.acquiresemaphores[i] = VK_NULL_HANDLE;
+			}
+			else
+			{
+				VkSemaphoreCreateInfo sci = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+				VkAssert(vkCreateSemaphore(vk.device, &sci, vkallocationcb, &vk.acquiresemaphores[i]));
+				vk.acquirefences[i] = VK_NULL_HANDLE;
+			}
 
 			vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT] = vk.aquirelast%vk.backbuf_count;
 			vk.aquirelast++;
@@ -411,8 +424,12 @@ static qboolean VK_CreateSwapChain(void)
 			uint32_t priority = 0;
 			switch(presentmode[i])
 			{
-			default://ignore it.
+			default://ignore it if we don't know it.
 				break;
+				//this is awkward. normally we use vsync<0 to allow tearing-with-vsync, but that leaves us with a problem as far as what 0 should signify - tearing or not.
+				//if we're using mailbox then we could instead discard the command buffers and skip rendering of the actual scenes.
+				//we could have our submission thread wait some time period after the last vswap (ie: before the next) before submitting the command.
+				//this could reduce gpu load at higher resolutions without lying too much about cpu usage...
 			case VK_PRESENT_MODE_IMMEDIATE_KHR:
 				priority = (vk.vsync?0:2) + 2;	//for most quake players, latency trumps tearing.
 				break;
@@ -434,7 +451,7 @@ static qboolean VK_CreateSwapChain(void)
 		}
 
 		if (!vk.vsync && swapinfo.presentMode != VK_PRESENT_MODE_IMMEDIATE_KHR)
-			Con_Printf("Warning: vulkan graphics driver does not fully support disabling vsync.\n");
+			Con_Printf("Warning: vulkan graphics driver does not support VK_PRESENT_MODE_IMMEDIATE_KHR.\n");
 
 		vk.srgbcapable = false;
 		swapinfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
@@ -499,13 +516,23 @@ static qboolean VK_CreateSwapChain(void)
 		vk.aquirelast = vk.aquirenext = 0;
 		for (i = 0; i < ACQUIRELIMIT; i++)
 		{
-			VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
-			VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefences[i]));
+			if (vk_waitfence.ival)
+			{
+				VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+				VkAssert(vkCreateFence(vk.device,&fci,vkallocationcb,&vk.acquirefences[i]));
+				vk.acquiresemaphores[i] = VK_NULL_HANDLE;
+			}
+			else
+			{
+				VkSemaphoreCreateInfo sci = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+				VkAssert(vkCreateSemaphore(vk.device, &sci, vkallocationcb, &vk.acquiresemaphores[i]));
+				vk.acquirefences[i] = VK_NULL_HANDLE;
+			}
 		}
 		/*-1 to hide any weird thread issues*/
 		while (vk.aquirelast < ACQUIRELIMIT-1 && vk.aquirelast < vk.backbuf_count && vk.aquirelast <= vk.backbuf_count-surfcaps.minImageCount)
 		{
-			VkAssert(vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, VK_NULL_HANDLE, vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]));
+			VkAssert(vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, vk.acquiresemaphores[vk.aquirelast%ACQUIRELIMIT], vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]));
 			vk.aquirelast++;
 		}
 	}
@@ -1074,7 +1101,8 @@ void *VK_FencedBegin(void (*passed)(void *work), size_t worksize)
 
 	return w;
 }
-//end+submit a commandbuffer, and set up a fence so we know when its complete
+//end+submit a commandbuffer, and set up a fence so we know when its complete. this is not within the context of any frame, so make sure any textures are safe to rewrite early...
+//completion can be signalled before the current frame finishes, so watch out for that too.
 void VK_FencedSubmit(void *work)
 {
 	struct vk_fencework *w = work;
@@ -2623,6 +2651,7 @@ VkCommandBuffer VK_AllocFrameCBuf(void)
 
 qboolean VK_SCR_GrabBackBuffer(void)
 {
+	VkSemaphore sem;
 	RSpeedLocals();
 
 	if (vk.frame)	//erk, we already have one...
@@ -2643,31 +2672,37 @@ qboolean VK_SCR_GrabBackBuffer(void)
 
 	while (vk.aquirenext == vk.aquirelast)
 	{	//we're still waiting for the render thread to increment acquirelast.
+		//shouldn't really happen, but can if the gpu is slow.
 		Sys_Sleep(0);	//o.O
 #ifdef _WIN32
 		Sys_SendKeyEvents();
 #endif
 	}
 
-	//wait for the queued acquire to actually finish
-	if (vk_busywait.ival)
-	{	//busy wait, to try to get the highest fps possible
-		while (VK_TIMEOUT == vkGetFenceStatus(vk.device, vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]))
-				;
-	}
-	else
+	if (vk.acquirefences[vk.aquirenext%ACQUIRELIMIT] != VK_NULL_HANDLE)
 	{
-		//friendly wait
-		VkResult err = vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX);
-		if (err)
-		{
-			if (err == VK_ERROR_DEVICE_LOST)
-				Sys_Error("Vulkan device lost");
-			return false;
+		//wait for the queued acquire to actually finish
+		if (vk_busywait.ival)
+		{	//busy wait, to try to get the highest fps possible
+			while (VK_TIMEOUT == vkGetFenceStatus(vk.device, vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]))
+					;
 		}
+		else
+		{
+			//friendly wait
+			VkResult err = vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX);
+			if (err)
+			{
+				if (err == VK_ERROR_DEVICE_LOST)
+					Sys_Error("Vulkan device lost");
+				return false;
+			}
+		}
+		VkAssert(vkResetFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]));
 	}
 	vk.bufferidx = vk.acquirebufferidx[vk.aquirenext%ACQUIRELIMIT];
-	VkAssert(vkResetFences(vk.device, 1, &vk.acquirefences[vk.aquirenext%ACQUIRELIMIT]));
+
+	sem = vk.acquiresemaphores[vk.aquirenext%ACQUIRELIMIT];
 	vk.aquirenext++;
 
 	//grab the first unused
@@ -2684,6 +2719,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 
 	vk.frame->numcbufs = 0;
 	vk.rendertarg->cbuf = VK_AllocFrameCBuf();
+	vk.frame->acquiresemaphore = sem;
 
 	RSpeedEnd(RSPEED_SETUP);
 
@@ -2859,7 +2895,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 	VK_FencedCheck();
 
 	//a few cvars need some extra work if they're changed
-	if ((vk.allowsubmissionthread && vk_submissionthread.modified) || vid_vsync.modified || vid_triplebuffer.modified || vid_srgb.modified || vid_multisample.modified)
+	if ((vk.allowsubmissionthread && vk_submissionthread.modified) || vid_vsync.modified || vk_waitfence.modified || vid_triplebuffer.modified || vid_srgb.modified || vid_multisample.modified)
 		vk.neednewswapchain = true;
 
 	if (vk.devicelost)
@@ -2989,7 +3025,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		vk.frame->frameendjobs = vk.frameendjobs;
 		vk.frameendjobs = NULL;
 
-		VK_Submit_Work(vk.rendertarg->cbuf, VK_NULL_HANDLE, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, vk.frame->backbuf->presentsemaphore, vk.frame->finishedfence, vk.frame, &fw->fw);
+		VK_Submit_Work(vk.rendertarg->cbuf, vk.frame->acquiresemaphore, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, vk.frame->backbuf->presentsemaphore, vk.frame->finishedfence, vk.frame, &fw->fw);
 	}
 
 	//now would be a good time to do any compute work or lightmap updates...
@@ -3161,7 +3197,7 @@ void VK_DoPresent(struct vkframe *theframe)
 		}
 		else
 		{
-			err = vkAcquireNextImageKHR(vk.device, vk.swapchain, 0, VK_NULL_HANDLE, vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]);
+			err = vkAcquireNextImageKHR(vk.device, vk.swapchain, 0, vk.acquiresemaphores[vk.aquirelast%ACQUIRELIMIT], vk.acquirefences[vk.aquirelast%ACQUIRELIMIT], &vk.acquirebufferidx[vk.aquirelast%ACQUIRELIMIT]);
 			if (err)
 			{
 				Con_Printf("ERROR: vkAcquireNextImageKHR: %x\n", err);

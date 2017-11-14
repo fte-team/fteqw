@@ -1664,7 +1664,7 @@ texid_t R2D_RT_GetTexture(const char *id, unsigned int *width, unsigned int *hei
 	if (!strcmp(id, "-"))
 	{
 		tid = internalrt;
-		internalrt = r_nulltex;
+//		internalrt = r_nulltex;
 	}
 	else
 		tid = Image_FindTexture(id, NULL, RT_IMAGEFLAGS);

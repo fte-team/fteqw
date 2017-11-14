@@ -1,3 +1,5 @@
+!!ver 100-450
+
 //this shader is present for support for gles/gl3core contexts
 //it is single-texture-with-vertex-colours, and doesn't do anything special.
 //beware that a few things use this, including apparently fonts and bloom rescaling.

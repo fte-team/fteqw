@@ -10145,8 +10145,9 @@ void QCC_PR_ParseStatement (void)
 		{
 			PR_GenerateReturnOuts();
 			if (pr_scope->type->aux_type->type != ev_void)
-			{
-				QCC_PR_ParseWarning(WARN_MISSINGRETURNVALUE, "\'%s\' returned nothing, expected %s", pr_scope->name, pr_scope->type->aux_type->name);
+			{	//accumulated functions are not required to return anything, on the assumption that a previous 'part' of the function did so
+				if (!pr_scope->def || !pr_scope->def->accumulate || !pr_scope->returndef.cast)
+					QCC_PR_ParseWarning(WARN_MISSINGRETURNVALUE, "\'%s\' returned nothing, expected %s", pr_scope->name, pr_scope->type->aux_type->name);
 				//this should not normally happen
 				if (!pr_scope->returndef.cast)
 				{	//but if it does, allocate a local that can be return=foo; before the return. depend upon qc's null initialisation rules for the default value.
@@ -11849,6 +11850,8 @@ pbool QCC_CheckUninitialised(int firststatement, int laststatement)
 	{
 		if (local->constant)
 			continue;	//will get some other warning, so we don't care.
+		if (local->isstatic)
+			continue;	//not a real local, so will be properly initialised.
 		if (local->symbolheader != local)
 			continue;	//ignore slave symbols, cos they're not interesting and should have been checked as part of the parent.
 		if (local->ofs < paramend)
@@ -11878,13 +11881,13 @@ void QCC_Marshal_Locals(int firststatement, int laststatement)
 			if (qccwarningaction[WARN_UNINITIALIZED])
 				QCC_CheckUninitialised(firststatement, laststatement);	//still need to call it for warnings, but if those warnings are off we can skip the cost
 		}
-		else if (!pr_scope->def->accumulate && !opt_locals_overlapping)
+		else if (!opt_locals_overlapping)
 		{
 			if (qccwarningaction[WARN_UNINITIALIZED])
 				QCC_CheckUninitialised(firststatement, laststatement);	//still need to call it for warnings, but if those warnings are off we can skip the cost
 			error = true;	//always use the legacy behaviour
 		}
-		else if (QCC_CheckUninitialised(firststatement, laststatement) && !pr_scope->def->accumulate)
+		else if (QCC_CheckUninitialised(firststatement, laststatement))
 		{
 			error = true;
 	//		QCC_PR_Note(ERR_INTERNAL, strings+s_file, pr_source_line, "Not overlapping locals from %s due to uninitialised locals", pr_scope->name);
@@ -13884,7 +13887,7 @@ pbool QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t 
 
 					//generate a goto statement around the nested function, so that nothing is hurt.
 					patch = QCC_Generate_OP_GOTO();
-					f = QCC_PR_ParseImmediateStatements (NULL, type, flags&PIF_WRAP);
+					f = QCC_PR_ParseImmediateStatements (def.sym->isstatic?def.sym:NULL, type, flags&PIF_WRAP);
 					patch->a.ofs = &statements[numstatements] - patch;
 					if (patch->a.ofs == 1)
 						numstatements--;	//never mind then.

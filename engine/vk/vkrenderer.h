@@ -208,6 +208,7 @@ enum dynbuf_e
 };
 struct vk_rendertarg
 {
+
 	VkCommandBuffer cbuf;	//cbuf allocated for this render target.
 	VkFramebuffer framebuffer;
 	vk_image_t colour, depth, mscolour;
@@ -265,6 +266,7 @@ extern struct vulkaninfo_s
 	VkPhysicalDeviceLimits limits;
 
 #define ACQUIRELIMIT 8
+	VkSemaphore acquiresemaphores[ACQUIRELIMIT];
 	VkFence acquirefences[ACQUIRELIMIT];
 	uint32_t acquirebufferidx[ACQUIRELIMIT];
 	unsigned int aquirenext;
@@ -315,6 +317,7 @@ extern struct vulkaninfo_s
 		struct vkframe *next;
 		struct dynbuffer *dynbufs[DB_MAX];
 		struct descpool *descpools;
+		VkSemaphore acquiresemaphore;
 		VkCommandBuffer *cbufs;
 		size_t			numcbufs;
 		size_t			maxcbufs;

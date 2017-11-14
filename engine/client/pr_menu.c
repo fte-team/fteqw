@@ -1070,7 +1070,11 @@ void QCBUILTIN PF_SubConPrintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	const char *fmt = PR_GetStringOfs(prinst, OFS_PARM1);
 	console_t *con = Con_FindConsole(conname);
 	if (!con)
-		return;
+	{
+		con = Con_Create(conname, 0);
+		if (!con)
+			return;
+	}
 	PF_sprintf_internal(prinst, pr_globals, fmt, 2, outbuf, sizeof(outbuf));
 	Con_PrintCon(con, outbuf, con->parseflags);
 }

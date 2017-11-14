@@ -472,6 +472,8 @@ enum {
 #define DLERR_REDIRECTPACK	-5	//client should download the specified package instead.
 #define DLERR_PACKAGE		-6	//not networked. packages require special file access.
 
+#define DLBLOCKSIZE			1024 //chunked downloads use fixed-size chunks (which I somewhat regret, but too late now I guess, really ought to use ranges.).
+
 //these flags are sent as part of the svc_precache index, for any-time precaches. using the upper two bits means we still have 16k available models/sounds/etc
 #define PC_TYPE			0xc000
 #define PC_MODEL		0x0000

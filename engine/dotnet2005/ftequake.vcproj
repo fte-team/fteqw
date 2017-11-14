@@ -1080,6 +1080,7 @@
 				AdditionalIncludeDirectories="../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk9/include;../libs/dxsdk7/include"
 				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;GLQUAKE;D3D9QUAKE;D3D11QUAKE;SWQUAKE;VKQUAKE;USE_EGL"
 				StringPooling="true"
+				ExceptionHandling="0"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				FloatingPointModel="2"
@@ -1102,6 +1103,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalOptions="/DYNAMICBASE /NXCOMPAT"
 				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
 				OutputFile="../../fteqw.exe"
 				LinkIncremental="1"
@@ -1517,6 +1519,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalOptions="/DYNAMICBASE /NXCOMPAT"
 				AdditionalDependencies="comctl32.lib wsock32.lib odbc32.lib odbccp32.lib winmm.lib"
 				OutputFile="../../fteqw_dbg.exe"
 				LinkIncremental="2"
@@ -1527,6 +1530,7 @@
 				GenerateDebugInformation="true"
 				GenerateMapFile="true"
 				SubSystem="2"
+				LargeAddressAware="2"
 				TargetMachine="1"
 			/>
 			<Tool

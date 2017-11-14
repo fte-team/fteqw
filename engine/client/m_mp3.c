@@ -2585,7 +2585,7 @@ qboolean Media_ShowFilm(void)
 				ch = 3;
 			}
 
-			R2D_Letterbox(0, 0, vid.pixelwidth, vid.pixelheight, videoshader, cw, ch);
+			R2D_Letterbox(0, 0, vid.fbvwidth, vid.fbvheight, videoshader, cw, ch);
 
 			SCR_SetUpToDrawConsole();
 			if  (scr_con_current)
@@ -3778,9 +3778,8 @@ void Media_InitFakeSoundDevice (int speed, int channels, int samplebits)
 	S_DefaultSpeakerConfiguration(sc);
 }
 
-
-
-void Media_StopRecordFilm_f (void)
+//stops capturing and destroys everything.
+static void Media_FlushCapture(void)
 {
 #ifdef GLQUAKE_PBOS
 	if (offscreen_format && qrenderer == QR_OPENGL)
@@ -3835,6 +3834,20 @@ void Media_StopRecordFilm_f (void)
 	}
 #endif
 
+#ifdef GLQUAKE
+	if (capturingfbo && qrenderer == QR_OPENGL)
+	{
+		GLBE_FBO_Pop(captureoldfbo);
+		GLBE_FBO_Destroy(&capturefbo);
+		vid.framebuffer = NULL;
+	}
+#endif
+}
+
+void Media_StopRecordFilm_f (void)
+{
+	Media_FlushCapture();
+	capturingfbo = false;
 
 	if (capture_fakesounddevice)
 		S_ShutdownCard(capture_fakesounddevice);
@@ -3850,17 +3863,31 @@ void Media_StopRecordFilm_f (void)
 	currentcapture_ctx = NULL;
 	currentcapture_funcs = NULL;
 
-#ifdef GLQUAKE
-	if (capturingfbo && qrenderer == QR_OPENGL)
-	{
-		GLBE_FBO_Pop(captureoldfbo);
-		GLBE_FBO_Destroy(&capturefbo);
-	}
-#endif
-	vid.framebuffer = NULL;
-	capturingfbo = false;
-
 	Cvar_ForceCallback(&vid_conautoscale);
+}
+void Media_VideoRestarting(void)
+{
+	Media_FlushCapture();
+}
+void Media_VideoRestarted(void)
+{
+#ifdef GLQUAKE
+	if (capturingfbo && qrenderer == QR_OPENGL && gl_config.ext_framebuffer_objects)
+	{	//restore it how it was, if we can.
+		int w = capturefbo.rb_size[0], h = capturefbo.rb_size[1];
+		capturingfbo = true;
+		capturetexture = R2D_RT_Configure("$democapture", w, h, TF_BGRA32, RT_IMAGEFLAGS);
+		captureoldfbo = GLBE_FBO_Update(&capturefbo, FBO_RB_DEPTH|(Sh_StencilShadowsActive()?FBO_RB_STENCIL:0), &capturetexture, 1, r_nulltex, capturetexture->width, capturetexture->height, 0);
+		vid.fbpwidth = capturetexture->width;
+		vid.fbpheight = capturetexture->height;
+		vid.framebuffer = capturetexture;
+	}
+	else
+#endif
+		capturingfbo = false;
+
+	if (capturingfbo)
+		Cvar_ForceCallback(&vid_conautoscale);
 }
 static void Media_RecordFilm (char *recordingname, qboolean demo)
 {
@@ -4067,6 +4094,8 @@ void Media_CaptureDemoEnd(void) {}
 qboolean Media_PausedDemo(qboolean fortiming) {return false;}
 double Media_TweekCaptureFrameTime(double oldtime, double time) { return oldtime+time ; }
 void Media_RecordFrame (void) {}
+void Media_VideoRestarting(void) {}
+void Media_VideoRestarted(void) {}
 
 #endif
 

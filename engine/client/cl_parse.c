@@ -1802,7 +1802,6 @@ downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl)
 }
 
 #ifdef PEXT_CHUNKEDDOWNLOADS
-#define DLBLOCKSIZE 1024
 
 int CL_DownloadRate(void)
 {

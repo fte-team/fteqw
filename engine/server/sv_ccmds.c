@@ -2904,7 +2904,7 @@ void SV_MemInfo_f(void)
 }
 
 void SV_Download_f (void)
-{
+{	//command for dedicated servers. apparently.
 #ifdef WEBCLIENT
 	char *url = Cmd_Argv(1);
 	char *localname = Cmd_Argv(2);

@@ -5,6 +5,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "fixedemu",
+"!!ver 100-450\n"
+
 //this shader is present for support for gles/gl3core contexts
 //it is single-texture-with-vertex-colours, and doesn't do anything special.
 //beware that a few things use this, including apparently fonts and bloom rescaling.
@@ -2418,6 +2420,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "default2d",
+"!!ver 100-450\n"
+
 //this shader is present for support for gles/gl3core contexts
 //it is single-texture-with-vertex-colours, and doesn't do anything special.
 //beware that a few things use this, including apparently fonts and bloom rescaling.
@@ -4964,6 +4968,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultfill",
+"!!ver 100-450\n"
+
 "#ifdef VERTEX_SHADER\n"
 "attribute vec4 v_colour;\n"
 "varying vec4 vc;\n"
@@ -7392,6 +7398,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultgammacb",
+"!!ver 100-450\n"
 //this shader is applies gamma/contrast/brightness to the source image, and dumps it out.
 
 "varying vec2 tc;\n"

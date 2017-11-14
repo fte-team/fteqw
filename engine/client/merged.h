@@ -373,6 +373,11 @@ typedef union vboarray_s
 		unsigned int offs;
 	} vk;
 #endif
+	struct
+	{	//matches the biggest version. currently vulkan. this ensures that plugins can allocate model data without caring about renderers.
+		qint64_t buff;
+		unsigned int offs;
+	} pad;
 } vboarray_t;
 
 //scissor rects

@@ -455,6 +455,7 @@ cvar_t vk_submissionthread					= CVARD	("vk_submissionthread",			"", "Execute su
 cvar_t vk_debug								= CVARD	("vk_debug",					"0", "Register a debug handler to display driver/layer messages. 2 enables the standard validation layers.");
 cvar_t vk_dualqueue							= CVARD ("vk_dualqueue",				"", "Attempt to use a separate queue for presentation. Blank for default.");
 cvar_t vk_busywait							= CVARD ("vk_busywait",					"", "Force busy waiting until the GPU finishes doing its thing.");
+cvar_t vk_waitfence							= CVARD ("vk_waitfence",				"", "Waits on fences, instead of semaphores. This is more likely to result in gpu stalls while the cpu waits.");
 cvar_t vk_nv_glsl_shader					= CVARD	("vk_loadglsl",					"", "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
 cvar_t vk_nv_dedicated_allocation			= CVARD	("vk_nv_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
 //cvar_t vk_khr_dedicated_allocation		= CVARD	("vk_khr_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
@@ -981,6 +982,7 @@ void Renderer_Init(void)
 	Cvar_Register (&vk_debug,					VKRENDEREROPTIONS);
 	Cvar_Register (&vk_dualqueue,				VKRENDEREROPTIONS);
 	Cvar_Register (&vk_busywait,				VKRENDEREROPTIONS);
+	Cvar_Register (&vk_waitfence,				VKRENDEREROPTIONS);
 
 	Cvar_Register (&vk_nv_glsl_shader,			VKRENDEREROPTIONS);
 	Cvar_Register (&vk_nv_dedicated_allocation,	VKRENDEREROPTIONS);
@@ -1257,6 +1259,8 @@ void R_ShutdownRenderer(qboolean devicetoo)
 
 	IN_Shutdown();
 
+	Media_VideoRestarting();
+
 	if (R_DeInit)
 	{
 		TRACE(("dbg: R_ApplyRenderer: R_DeInit\n"));
@@ -1466,6 +1470,7 @@ TRACE(("dbg: R_ApplyRenderer: screen inited\n"));
 		Sbar_Flush();
 
 		IN_ReInit();
+		Media_VideoRestarted();
 
 		Cvar_ForceCallback(&v_gamma);
 	}

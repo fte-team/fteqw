@@ -168,6 +168,7 @@ typedef struct console_s
 	conchar_t defaultcharbits;
 	int		commandcompletion;	//allows tab completion of quake console commands
 
+	//WARNING: note that links do NOT represent any sort of security. text can be inserted from anywhere. Its fine to use such things for context, but don't treat them as sescure.
 	int				(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear. return 2 to not save the line in history.
 	qboolean		(*redirect) (struct console_s *con, unsigned int unicode, int key);	//if present, called every character.
 	qboolean		(*mouseover)(struct console_s *con, char **out_tiptext, shader_t **out_shader);

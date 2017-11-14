@@ -542,6 +542,8 @@ qboolean Media_PausedDemo (qboolean fortiming);
 int Media_Capturing (void);
 double Media_TweekCaptureFrameTime(double oldtime, double time);
 void Media_WriteCurrentTrack(sizebuf_t *buf);
+void Media_VideoRestarting(void);
+void Media_VideoRestarted(void);
 
 void MYgluPerspective(double fovx, double fovy, double zNear, double zFar);
 

@@ -5233,7 +5233,7 @@ void SV_FixupName(char *in, char *out, unsigned int outlen)
 	s = out;
 	while(iswhite(*in) || isinvalid(*in) || *in == '\1' || *in == '\2')	//1 and 2 are to stop clients from printing the entire line as chat. only do that for the leading charater.
 		in++;
-	while(*in && len > 0)
+	while(*in && len > 1)
 	{
 		if (isinvalid(*in))
 		{

@@ -1,3 +1,4 @@
+!!ver 100-450
 //this shader is applies gamma/contrast/brightness to the source image, and dumps it out.
 
 varying vec2 tc;

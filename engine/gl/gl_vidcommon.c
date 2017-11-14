@@ -2997,8 +2997,23 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		if (GL_CheckExtension("GL_EXT_packed_depth_stencil"))
 			sh_config.texfmt[PTI_DEPTH24_8] = true;
 
-		sh_config.minver = gl_config.arb_shader_objects?110:0;
-		sh_config.maxver = gl_config.arb_shader_objects?gl_config.maxglslversion:0;
+		if (gl_config.nofixedfunc)
+		{	//core contexts don't normally support glsl < 140 (such glsl versions have lots of compat syntax still, which will not function on core. drivers might accept it anyway, but yeah, lots of crap that shouldn't work)
+			//FIXME: GL_NUM_SHADING_LANGUAGE_VERSIONS and GL_SHADING_LANGUAGE_VERSION might allow for earlier versions.
+			sh_config.minver = 140;
+			sh_config.maxver = gl_config.maxglslversion;
+		}
+		else if (gl_config.arb_shader_objects)
+		{
+			//FIXME: we could accept 100 here, but that gets messy when gles is considered, and old drivers suck anyway.
+			sh_config.minver = 110;
+			sh_config.maxver = gl_config.maxglslversion;
+		}
+		else
+		{
+			sh_config.minver = 0;
+			sh_config.maxver = 0;
+		}
 		sh_config.blobpath = "glsl/%s.blob";
 		sh_config.progpath = "glsl/%s.glsl";
 		sh_config.shadernamefmt = "%s_glsl";

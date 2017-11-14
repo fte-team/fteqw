@@ -2623,8 +2623,11 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 
 	if (Key_Dest_Has(kdm_emenu))
 	{
-		M_Keydown (key, unicode);
-		return;
+		if (key < K_F1 || key > K_F15)
+		{	//function keys don't get intercepted by the menu...
+			M_Keydown (key, unicode);
+			return;
+		}
 	}
 #ifdef MENU_DAT
 	if (Key_Dest_Has(kdm_gmenu))

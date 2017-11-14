@@ -3092,7 +3092,12 @@ static qboolean Image_ReadBLPFile(texid_t tex, unsigned int flags, char *fname, 
 		mips->mipcount = miplevel;
 	}
 
-	COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
+	tex->width = w;
+	tex->height = h;
+	if (flags & IF_NOWORKER)
+		Image_LoadTextureMips(tex, mips, 0, 0);
+	else
+		COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
 
 	return true;
 }

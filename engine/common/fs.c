@@ -6111,6 +6111,7 @@ void FS_RegisterDefaultFileSystems(void)
 	FS_RegisterFileSystemType(NULL, "pk4", FSZIP_LoadArchive, true);
 	FS_RegisterFileSystemType(NULL, "apk", FSZIP_LoadArchive, false);
 	FS_RegisterFileSystemType(NULL, "zip", FSZIP_LoadArchive, false);
+	FS_RegisterFileSystemType(NULL, "exe", FSZIP_LoadArchive, false);	//for self-extracting zips.
 #endif
 #ifdef PACKAGE_DOOMWAD
 	FS_RegisterFileSystemType(NULL, "wad", FSDWD_LoadArchive, true);

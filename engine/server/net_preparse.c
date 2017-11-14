@@ -588,8 +588,10 @@ extern qboolean ssqc_deprecated_warned;
 #define svc_setfrags 14
 #define svc_updatecolors 17
 
+#ifdef HEXEN2
 #define svch2_clearviewflags 41	//hexen2.
 #define svch2_setangles_lerp 50
+#endif
 
 //these are present in the darkplaces engine.
 //I wanna knick their mods.
@@ -706,9 +708,9 @@ void NPP_NQFlush(void)
 		{
 			client_t *cl;
 			int i;
+#ifdef HEXEN2
 			char *h2finale = NULL;
 			char *h2title = NULL;
-#ifdef HEXEN2
 			if (progstype == PROG_H2)
 			{
 				/*FIXME: hexen2 intermission+finale includes the viewheight. NQ does not, and QW has explicit position with scores but no finale*/
@@ -728,6 +730,7 @@ void NPP_NQFlush(void)
 			{
 				if (cl->state == cs_spawned && ISQWCLIENT(cl))
 				{
+#ifdef HEXEN2
 					if (h2finale)
 					{
 						ClientReliableCheckBlock(cl, 6 + strlen(h2title) + 3 + strlen(h2finale) + 1);
@@ -747,7 +750,9 @@ void NPP_NQFlush(void)
 
 						ClientReliableWrite_String(cl, h2finale);
 					}
-					else if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+					else
+#endif
+						if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 					{	//special intermission mode to leave the view attached to the viewentity (as required for nq - especially rogue's finale) instead of hacking it to some specific point
 						ClientReliableCheckBlock(cl, 5);
 						ClientReliableWrite_Byte(cl, svc_finale);

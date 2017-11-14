@@ -218,6 +218,7 @@ struct {
 	{" F322", WARN_IFSTRING_USED},
 	{" F323", WARN_UNREACHABLECODE},
 
+	{" F207", WARN_NOTREFERENCEDFIELD},
 	{" F208", WARN_NOTREFERENCEDCONST},
 	{" F209", WARN_EXTRAPRECACHE},	
 	{" F210", WARN_NOTPRECACHED},
@@ -962,7 +963,7 @@ void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 		}
 	}
 	//non-system fields should maybe be present too.
-	for (; sym; sym = sym->next)
+/*	for (; sym; sym = sym->next)
 	{
 		if (sym->constant && sym->type->type == ev_field && !opt_stripunusedfields)
 		{
@@ -977,6 +978,7 @@ void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 //				sym->symbolheader->used = true;
 //		}
 	}
+*/
 
 	for (i=0 ; i<numstatements ; i++)
 	{
@@ -1007,12 +1009,15 @@ void QCC_FinaliseDef(QCC_def_t *def)
 		return;	//was already finalised.
 
 	if (def->symbolheader != def)
+	{
 		QCC_FinaliseDef(def->symbolheader);
+		def->referenced = true;
+	}
 	if (def->symbolheader == def && def->deftail)
 	{
 		//for head symbols, we go through and touch all of their children
 		QCC_def_t *prev, *sub;
-		if (!def->referenced)
+		if (def->used && !def->referenced)
 		{
 			pbool ignoreone = true;
 			//touch all but one child
@@ -1022,18 +1027,16 @@ void QCC_FinaliseDef(QCC_def_t *def)
 					def->referenced=true;	//if one child is referenced, the composite is referenced
 				else if (!sub->referenced && ignoreone)
 					ignoreone = false;	//this is the one we're going to warn about
-				else
-					sub->referenced |= def->referenced;			
 			}
-			if (!def->referenced)	//no child defs were referenced at all. if we're going to be warning about this then at least mute warnings for any other fields
-				for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
-					sub->referenced = true;
+//			if (def->referenced)	//no child defs were referenced at all. if we're going to be warning about this then at least mute warnings for any other fields
+//				for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
+//					sub->referenced = true;
 		}
 		else
 		{
-			//touch children
+			//touch children to silence annoying warnings.
 			for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
-				sub->referenced |= def->referenced;
+				sub->referenced |= true;
 		}
 
 #ifdef TODO_READWRITETRACK
@@ -1698,9 +1701,11 @@ pbool QCC_WriteData (int crc)
 			QCC_PR_Warning(WARN_WRITTENNOTREAD, def->filen, def->s_line, "%s %s = %s written, but not read.", TypeName(def->type, typestr, sizeof(typestr)), def->name, QCC_VarAtOffset(sr));
 		}
 #endif
-		if (!def->symbolheader->read && !def->symbolheader->written && !def->symbolheader->referenced)
+		if (!def->symbolheader->read && !def->symbolheader->written && !def->referenced)
 		{
 			int wt = def->constant?WARN_NOTREFERENCEDCONST:WARN_NOTREFERENCED;
+			if (def->type->type == ev_field && def->constant)
+				wt = WARN_NOTREFERENCEDFIELD;
 			pr_scope = def->scope;
 			if (!strncmp(def->name, "spawnfunc_", 10))
 				;	//no warnings from unreferenced entry points.

@@ -158,7 +158,7 @@ cvar_t snd_voip_showmeter		= CVARAFD("cl_voip_showmeter", "1", NULL, CVAR_ARCHIV
 cvar_t snd_voip_play			= CVARAFCD("cl_voip_play", "1", NULL, CVAR_ARCHIVE, S_Voip_Play_Callback, "Enables voip playback. Value is a volume scaler.");
 cvar_t snd_voip_ducking			= CVARAFD("cl_voip_ducking", "0.5", NULL, CVAR_ARCHIVE, "Scales game audio by this much when someone is talking to you. Does not affect your speaker volume when you speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
 cvar_t snd_voip_micamp			= CVARAFD("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "Amplifies your microphone when using voip.");
-cvar_t snd_voip_codec			= CVARAFD("cl_voip_codec", "", NULL, CVAR_ARCHIVE, "0: speex(@11khz). 1: raw. 2: opus. 3: speex(@8khz). 4: speex(@16). 5:speex(@32).");
+cvar_t snd_voip_codec			= CVARAFD("cl_voip_codec", "", NULL, CVAR_ARCHIVE, "0: speex(@11khz). 1: raw. 2: opus. 3: speex(@8khz). 4: speex(@16). 5:speex(@32). 6: pcma. 7: pcmu.");
 cvar_t snd_voip_noisefilter		= CVARAFD("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.");
 cvar_t snd_voip_autogain		= CVARAFD("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.");
 cvar_t snd_voip_opus_bitrate	= CVARAFD("cl_voip_opus_bitrate", "3000", NULL, CVAR_ARCHIVE, "For codecs with non-specific bitrates, this specifies the target bitrate to use.");
@@ -1349,6 +1349,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		switch(s_voip.enccodec)
 		{
 		case VOIP_SPEEX_OLD:
+			//this is from before I understood speex properly.
 			level += S_Voip_Preprocess(start, s_voip.encframesize, micamp);
 			qspeex_bits_reset(&s_voip.speex.encbits);
 			qspeex_encode_int(s_voip.encoder, start, &s_voip.speex.encbits);
@@ -1364,6 +1365,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		case VOIP_SPEEX_NARROW:
 		case VOIP_SPEEX_WIDE:
 		case VOIP_SPEEX_ULTRAWIDE:
+			//write multiple speex frames into a single merged frame
 			qspeex_bits_reset(&s_voip.speex.encbits);
 			for (; encpos+s_voip.encframesize*2 <= s_voip.capturepos; )
 			{
@@ -1394,6 +1396,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			break;
 		case VOIP_PCMA:
 		case VOIP_PCMU:
+			//FIXME: what's with this /2? these are just 8-bit mono (logarithmic) pcm...
 			len = s_voip.capturepos-encpos;	//amount of data to be eaten in this frame
 			len = min(len, sizeof(outbuf)-outpos);
 			len = min(len, s_voip.encframesize*2);
@@ -1463,6 +1466,8 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			break;
 		}
 
+		//opus has no way to detect the end properly.
+		//standard rtp favours many small packets.
 		if (rtpstream || s_voip.enccodec == VOIP_OPUS)
 			break;
 	}
@@ -1503,10 +1508,20 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		{
 			if (buf->maxsize - buf->cursize >= 5+outpos)
 			{
+				qbyte cgen = ((s_voip.enccodec&0x7)<<4) | (s_voip.generation & 0x0f);
+				if (s_voip.enccodec >= 8 || 0)
+					cgen |= 0x80;
+
 				MSG_WriteByte(buf, clc);
-				MSG_WriteByte(buf, (s_voip.enccodec<<4) | (s_voip.generation & 0x0f)); /*gonna leave that nibble clear here... in this version, the client will ignore packets with those bits set. can use them for codec or something*/
+				MSG_WriteByte(buf, cgen);
 				MSG_WriteByte(buf, initseq&0xff);
-				MSG_WriteShort(buf, outpos);
+				/*if (cgen & 0x80)
+				{
+					MSG_WriteShort(buf, 1+outpos);
+					MSG_WriteByte(buf, s_voip.enccodec>>3);
+				}
+				else*/
+					MSG_WriteShort(buf, outpos);	//even with codecs where the size is easy to determine, this is still useful for servers (which are unaware of the actual codec)
 				SZ_Write(buf, outbuf, outpos);
 			}
 			else

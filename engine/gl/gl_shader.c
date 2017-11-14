@@ -1797,7 +1797,7 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 				ver = sbuiltins[i].apiver;
 
 				if (ver < sh_config.minver || ver > sh_config.maxver)
-					if (!(qrenderer==QR_OPENGL&&ver==110&&sh_config.maxver==100))
+					if (!(qrenderer==QR_OPENGL&&ver==110))
 						continue;
 
 				g->failed = !Shader_LoadPermutations(g->name, &g->prog, sbuiltins[i].body, qrtype, ver, blobname);

@@ -85,7 +85,10 @@ void Mod_WipeSkin(skinid_t id)
 	for (i = 0; i < sk->nummappings; i++)
 	{
 		if (sk->mappings[i].needsfree)
+		{
 			Image_UnloadTexture(sk->mappings[i].texnums.base);
+			sk->mappings[i].texnums.base = r_nulltex;
+		}
 		R_UnloadShader(sk->mappings[i].shader);
 	}
 	Z_Free(registeredskins[id]);
@@ -115,16 +118,18 @@ skinfile_t *Mod_LookupSkin(skinid_t id)
 		return registeredskins[id];
 	return NULL;
 }
-static void Mod_ComposeSkin(char *texture, struct cctx_s *cctx)
+struct composeline_s
 {
-	float x=0, y=0;
-	float w, h;
-	int iw=0, ih=0;
-	float s1 = 0, t1 = 0, s2 = 1, t2 = 1;
-	float r=1,g=1,b=1,a=1;
+	shader_t *sourceimg;
+
+	vec2_t pos, size;
+	vec4_t tc;
+	vec4_t rgba;
+};
+static void Mod_ParseComposeLine(char *texture, struct composeline_s *line)
+{
 	int l;
 	char *s, tname[MAX_QPATH];
-	shader_t *sourceimg;
 	for (s = texture; *s; s++)
 	{
 		if (*s == '@' || *s == ':' || *s == '?' || *s == '*')
@@ -138,59 +143,55 @@ static void Mod_ComposeSkin(char *texture, struct cctx_s *cctx)
 	tname[l] = 0;
 
 	//load the image and set some default sizes, etc.
-	sourceimg = R2D_SafeCachePic(tname);
-
-	if (!sourceimg || R_GetShaderSizes(sourceimg, &iw, &ih, true) != 1)	//no shader? no point in doing anything.
-	{
-		w = 0;
-		h = 0;
-		sourceimg = NULL;
-	}
+	if (*tname)
+		line->sourceimg = R2D_SafeCachePic(tname);
 	else
-	{
-		w = iw;
-		h = ih;
-	}
+		line->sourceimg = NULL;
+
+	Vector2Set(line->pos, 0, 0);
+	Vector2Set(line->size, -1, -1);
+	Vector4Set(line->tc, 0, 0, 1, 1);
+	Vector4Set(line->rgba, 1, 1, 1, 1);
 
 	while(*s)
 	{
 		switch(*s)
 		{
 		case '@':
-			x = strtod(s+1, &s); 
+			line->pos[0] = strtod(s+1, &s); 
 			if (*s == ',')
 				s++;
-			y = strtod(s, &s); 
+			line->pos[1] = strtod(s, &s); 
 			break;
 		case ':':
-			w = strtod(s+1, &s); 
+			line->size[0] = strtod(s+1, &s); 
 			if (*s == ',')
 				s++;
-			h = strtod(s, &s); 
+			line->size[1] = strtod(s, &s); 
 			break;
 		case '$':
-			s1 = strtod(s+1, &s); 
+			line->tc[0] = strtod(s+1, &s); 
 			if (*s == ',')
 				s++;
-			t1 = strtod(s, &s);
+			line->tc[1] = strtod(s, &s);
 			if (*s == ',')
 				s++;
-			s2 = strtod(s, &s); 
+			line->tc[2] = strtod(s, &s); 
 			if (*s == ',')
 				s++;
-			t2 = strtod(s, &s); 
+			line->tc[3] = strtod(s, &s); 
 			break;
 		case '?':
-			r = strtod(s+1, &s); 
+			line->rgba[0] = strtod(s+1, &s); 
 			if (*s == ',')
 				s++;
-			g = strtod(s, &s); 
+			line->rgba[1] = strtod(s, &s); 
 			if (*s == ',')
 				s++;
-			b = strtod(s, &s); 
+			line->rgba[2] = strtod(s, &s); 
 			if (*s == ',')
 				s++;
-			a = strtod(s, &s);
+			line->rgba[3] = strtod(s, &s);
 			break;
 //		case '*':
 //			break;
@@ -199,26 +200,46 @@ static void Mod_ComposeSkin(char *texture, struct cctx_s *cctx)
 			break;
 		}
 	}
+}
+static void Mod_ComposeSkin(char *texture, struct cctx_s *cctx, struct composeline_s *line)
+{
+	int iw=0, ih=0;
 
-	if (!w || !h)
-		return;
-
-	//create a render target if one is not already selected
-	if (!TEXVALID(cctx->diffuse))
+	if (!line->sourceimg || R_GetShaderSizes(line->sourceimg, &iw, &ih, false) != 1)	//no shader? no point in doing anything.
 	{
-		strcpy(r_refdef.rt_destcolour[0].texname, "-");
-		cctx->width = x+w;
-		cctx->height = y+h;
-		cctx->diffuse = R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, cctx->width, cctx->height, TF_RGBA32, RT_IMAGEFLAGS);
-		BE_RenderToTextureUpdate2d(true);
+		iw = ih = 0;
+		line->sourceimg = NULL;
+	}
+	if (line->size[0] < 0)
+		line->size[0] = iw;
+	if (line->size[1] < 0)
+		line->size[1] = ih;
+
+	if (line->size[0]>0 && line->size[1]>0)
+	{
+		//create a render target if one is not already selected
+		if (!TEXVALID(cctx->diffuse))
+		{
+			if (R2D_Flush)
+				R2D_Flush();
+
+			strcpy(r_refdef.rt_destcolour[0].texname, "-");
+			cctx->width = line->pos[0]+line->size[0];
+			cctx->height = line->pos[1]+line->size[1];
+			cctx->diffuse = R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, cctx->width, cctx->height, TF_RGBA32, RT_IMAGEFLAGS);
+			BE_RenderToTextureUpdate2d(true);
+		}
+
+		if (line->sourceimg)
+		{
+			R2D_ImageColours(line->rgba[0],line->rgba[1],line->rgba[2],line->rgba[3]);
+			R2D_Image(line->pos[0], line->pos[1], line->size[0], line->size[1], line->tc[0], line->tc[1], line->tc[2], line->tc[3], line->sourceimg);
+		}
 	}
 
-	if (!sourceimg)
-		return;
-
-	R2D_ImageColours(r,g,b,a);
-	R2D_Image(x, cctx->height-(y+h), w, h, s1, t2, s2, t1, sourceimg);
-	R_UnloadShader(sourceimg);	//we're done with it now
+	if (R2D_Flush)
+		R2D_Flush();
+	R_UnloadShader(line->sourceimg);	//we're done with it now
 }
 //create a new skin with explicit name and text. even if its already loaded. this means you can free it safely.
 skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
@@ -279,6 +300,8 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 			//body
 			if (com_tokentype != TTP_LINEENDING)
 			{
+				size_t l,lines;
+				struct composeline_s line[64];
 				//fixme: this blocks waiting for the textures to load.
 				struct cctx_s cctx;
 				memset(&cctx, 0, sizeof(cctx));
@@ -290,7 +313,8 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader);
 				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
 
-				for(;;)
+				//parse the lines, and start to load the various shaders.
+				for(lines = 0;lines<countof(line);)
 				{
 					while(*skintext == ' ' || *skintext == '\t')
 						skintext++;
@@ -299,15 +323,20 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 					else
 						break;
 					skintext = COM_Parse(skintext);
-					Mod_ComposeSkin(com_token, &cctx);
+					Mod_ParseComposeLine(com_token, &line[lines++]);
 				}
+				//all the textures should be loading now... block while waiting for them (sucks)
+				for (l = 0; l < lines; l++)
+					R_GetShaderSizes(line[l].sourceimg, NULL, NULL, true);
+				//okay, they're loaded, do the compose now.
+				for (l = 0; l < lines; l++)
+					Mod_ComposeSkin(com_token, &cctx, &line[l]);
+				*r_refdef.rt_destcolour[0].texname = 0;
+				BE_RenderToTextureUpdate2d(true);
 
 				skin->mappings[skin->nummappings].needsfree = 1;
 				skin->mappings[skin->nummappings].texnums.base = cctx.diffuse;
 				skin->nummappings++;
-
-				*r_refdef.rt_destcolour[0].texname = 0;
-				BE_RenderToTextureUpdate2d(true);
 			}
 		}
 		else if (!strcmp(com_token, "geomset"))

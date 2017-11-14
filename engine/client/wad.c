@@ -776,7 +776,7 @@ qboolean Wad_NextDownload (void)
 				{
 					k = wads[i];
 					wads[i] = 0;
-					strcpy(wadname+9, &wads[j]);
+					Q_strncpyz(wadname+9, &wads[j], sizeof(wadname)-9);
 					if (wadname[9])
 					{
 						if (COM_FCheckExists(wadname+9))

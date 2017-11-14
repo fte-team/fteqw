@@ -3439,13 +3439,20 @@ static qboolean CModQ3_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 	if (l->filelen == 0)
 	{
 		int i;
+#if 0
+		//the 'correct' code
 		numclusters = 0;
 		for (i = 0; i < mod->numleafs; i++)
-			if (numclusters <= mod->leafs[i].cluster)
+			if (numclusters < mod->leafs[i].cluster+1)
 				numclusters = mod->leafs[i].cluster+1;
 
 		numclusters++;
-
+#else
+		//but its much faster to merge all leafs into a single pvs cluster. no vis is no vis.
+		numclusters = 2;
+		for (i = 0; i < mod->numleafs; i++)
+			mod->leafs[i].cluster = !!mod->leafs[i].cluster;
+#endif
 		prv->q3pvs = ZG_Malloc(&mod->memgroup, sizeof(*prv->q3pvs) + (numclusters+7)/8 * numclusters);
 		memset (prv->q3pvs, 0xff, sizeof(*prv->q3pvs) + (numclusters+7)/8 * numclusters);
 		prv->q3pvs->numclusters = numclusters;
@@ -3564,7 +3571,7 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 			}
 		}
 	}
-	for (; m%loadmodel->lightmaps.merge; m++)
+	/*for (; m%loadmodel->lightmaps.merge; m++)
 	{
 		out = loadmodel->lightdata;
 		//figure out which merged lightmap we're putting it into
@@ -3578,7 +3585,7 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 			out[s+1] = 255;
 			out[s+2] = 0;
 		}
-	}
+	}*/
 }
 
 static qboolean CModQ3_LoadLightgrid (model_t *loadmodel, qbyte *mod_base, lump_t *l)
@@ -4199,7 +4206,8 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				CModQ3_LoadLighting								(mod, mod_base, &header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
 		}
 #endif
-		noerrors = noerrors && CModQ3_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q3LUMP_LEAFSURFACES]);		noerrors = noerrors && CModQ3_LoadLeafs					(mod, mod_base, &header.lumps[Q3LUMP_LEAFS]);
+		noerrors = noerrors && CModQ3_LoadMarksurfaces			(mod, mod_base, &header.lumps[Q3LUMP_LEAFSURFACES]);
+		noerrors = noerrors && CModQ3_LoadLeafs					(mod, mod_base, &header.lumps[Q3LUMP_LEAFS]);
 		noerrors = noerrors && CModQ3_LoadNodes					(mod, mod_base, &header.lumps[Q3LUMP_NODES]);
 		noerrors = noerrors && CModQ3_LoadSubmodels				(mod, mod_base, &header.lumps[Q3LUMP_MODELS]);
 		noerrors = noerrors && CModQ3_LoadVisibility			(mod, mod_base, &header.lumps[Q3LUMP_VISIBILITY]);

@@ -44,7 +44,7 @@ void PF_Common_RegisterCvars(void)
 	a.i = 1;
 	b.i = 1;
 	if (!(a.f && b.f))
-		Con_Printf(CON_WARNING "WARNING: denormalised floats are disabled. Mods may malfunction\n");
+		Con_Printf(CON_WARNING "WARNING: denormalised floats are disabled. Some mods might may malfunction\n");
 
 
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
@@ -4632,13 +4632,13 @@ void QCBUILTIN PF_netaddress_resolve(pubprogfuncs_t *prinst, struct globalvars_s
 ////////////////////////////////////////////////////
 //Console functions
 
-#define MAXQCTOKENS 64
 static struct {
 	char *token;
 	unsigned int start;
 	unsigned int end;
-} qctoken[MAXQCTOKENS];
-unsigned int qctoken_count;
+} *qctoken;
+static unsigned int qctoken_count;
+static unsigned int qctoken_max;
 
 void tokenize_flush(void)
 {
@@ -4647,7 +4647,11 @@ void tokenize_flush(void)
 		qctoken_count--;
 		free(qctoken[qctoken_count].token);
 	}
+
 	qctoken_count = 0;
+	free(qctoken);
+	qctoken = NULL;
+	qctoken_max = 0;
 }
 
 void QCBUILTIN PF_ArgC  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)				//85			//float() argc;
@@ -4663,9 +4667,16 @@ int tokenizeqc(const char *str, qboolean dpfuckage)
 		qctoken_count--;
 		free(qctoken[qctoken_count].token);
 	}
-	qctoken_count = 0;
-	while (qctoken_count < MAXQCTOKENS)
+	for (qctoken_count = 0; ; )
 	{
+		if (qctoken_count == qctoken_max)
+		{
+			void *n = realloc(qctoken, sizeof(*qctoken)*(qctoken_max+8));
+			if (!n)
+				break;
+			qctoken_max+=8;
+			qctoken = n;
+		}
 		/*skip whitespace here so the token's start is accurate*/
 		while (*str && *(unsigned char*)str <= ' ')
 			str++;
@@ -4714,13 +4725,30 @@ void QCBUILTIN PF_tokenizebyseparator  (pubprogfuncs_t *prinst, struct globalvar
 		seps++;
 	}
 
-	tokenize_flush();
+	while(qctoken_count > 0)
+	{
+		qctoken_count--;
+		free(qctoken[qctoken_count].token);
+	}
+
+	if (qctoken_count == qctoken_max)
+	{
+		void *n = realloc(qctoken, sizeof(*qctoken)*(qctoken_max+8));
+		if (!n)
+		{
+			G_FLOAT(OFS_RETURN) = qctoken_count;
+			return;
+		}
+		qctoken_max+=8;
+		qctoken = n;
+	}
 
 	qctoken[qctoken_count].start = 0;
 	if (*str)
 	for(;;)
 	{
 		found = false;
+
 		/*see if its a separator*/
 		if (!*str)
 		{
@@ -4749,8 +4777,16 @@ void QCBUILTIN PF_tokenizebyseparator  (pubprogfuncs_t *prinst, struct globalvar
 			qctoken[qctoken_count].token[tlen] = 0;
 
 			qctoken_count++;
+			if (qctoken_count == qctoken_max)
+			{
+				void *n = realloc(qctoken, sizeof(*qctoken)*(qctoken_max+8));
+				if (!n)
+					break;
+				qctoken_max+=8;
+				qctoken = n;
+			}
 
-			if (*str && qctoken_count < MAXQCTOKENS)
+			if (*str)
 				qctoken[qctoken_count].start = str - start;
 			else
 				break;

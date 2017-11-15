@@ -64,7 +64,7 @@
 #define Q3BSPS
 #undef Q1BSPS
 #undef Q2BSPS
-#undef RFBSPS	//qfusion's bsp format / jk2o etc.
+#define RFBSPS	//qfusion's bsp format / jk2o etc.
 #undef TERRAIN
 #undef DOOMWADS
 #undef MAP_PROC

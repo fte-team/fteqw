@@ -247,6 +247,7 @@ typedef struct
 extern	int	net_drop;		// packets dropped before this one
 
 void Net_Master_Init(void);
+qboolean Net_AddressIsMaster(netadr_t *adr);
 
 void Netchan_Init (void);
 int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate);

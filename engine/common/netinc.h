@@ -334,6 +334,15 @@ typedef struct ftenet_connections_s
 	struct dtlspeer_s *dtls;	//linked list. linked lists are shit, but at least it keeps pointers valid when things are resized.
 	const dtlsfuncs_t *dtlsfuncs;
 #endif
+
+	struct ftenet_delayed_packet_s
+	{
+		unsigned int sendtime;	//in terms of Sys_Milliseconds()
+		struct ftenet_delayed_packet_s *next;
+		netadr_t dest;
+		size_t cursize;
+		qbyte data[1];
+	} *delayed_packets;
 } ftenet_connections_t;
 
 void ICE_Tick(void);

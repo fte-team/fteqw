@@ -102,6 +102,7 @@ cvar_t	net_enable_http			= CVARD("net_enable_http",			"1", "If enabled, tcp port
 cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, tcp ports will accept websocket game clients.");
 cvar_t	net_enable_webrtcbroker	= CVARD("net_enable_webrtcbroker",	"1", "If 1, tcp ports will accept websocket connections from clients trying to broker direct webrtc connections. This should be low traffic, but might involve a lot of mostly-idle connections.");
 #endif
+cvar_t	cl_delay_packets		= CVARD("cl_delay_packets",			"0", "Extra latency, in milliseconds.");
 
 extern cvar_t sv_public, sv_listen_qw, sv_listen_nq, sv_listen_dp;
 #ifdef QWOVERQ3
@@ -129,7 +130,7 @@ loopback_t	loopbacks[2];
 #ifdef HAVE_DTLS
 static neterr_t FTENET_DTLS_SendPacket(ftenet_connections_t *col, int length, const void *data, netadr_t *to);
 #endif
-
+static neterr_t NET_SendPacketCol (ftenet_connections_t *collection, int length, const void *data, netadr_t *to);
 
 
 //=============================================================================
@@ -6395,6 +6396,7 @@ qboolean NET_UpdateRates(ftenet_connections_t *collection, qboolean inbound, siz
 /*firstsock is a cookie*/
 int NET_GetPacket (netsrc_t netsrc, int firstsock)
 {
+	struct ftenet_delayed_packet_s *p;
 	ftenet_connections_t *collection;
 	unsigned int ctime;
 	if (netsrc == NS_SERVER)
@@ -6418,6 +6420,18 @@ int NET_GetPacket (netsrc_t netsrc, int firstsock)
 
 	if (!collection)
 		return -1;
+
+	while ((p = collection->delayed_packets) && (int)(Sys_Milliseconds()-p->sendtime) > 0)
+	{
+		collection->delayed_packets = p->next;
+#ifdef HAVE_DTLS
+		if (p->dest.prot == NP_DTLS)
+			FTENET_DTLS_SendPacket(collection, p->cursize, p->data, &p->dest);
+		else
+#endif
+			NET_SendPacketCol (collection, p->cursize, p->data, &p->dest);
+		Z_Free(p);
+	}
 
 	while (firstsock < MAX_CONNECTIONS)
 	{
@@ -6555,6 +6569,23 @@ neterr_t NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t
 		return NETERR_NOROUTE;
 #else
 		collection = cls.sockets;
+
+		if (cl_delay_packets.value >= 1)
+		{
+			struct ftenet_delayed_packet_s *p, **l;
+			if (!collection)
+				return NETERR_NOROUTE;	//erk...
+			p = BZ_Malloc(sizeof(*p) - sizeof(p->data) + length);
+			p->sendtime = Sys_Milliseconds() + (int)cl_delay_packets.value;
+			p->next = NULL;
+			p->cursize = length;
+			p->dest = *to;
+			memcpy(p->data, data, length);
+			for (l = &collection->delayed_packets; *l; l = &((*l)->next))
+				;
+			*l = p;
+			return NETERR_SENT; //fixme: mtu, noroute, etc... panic? only allow if udp dest?
+		}
 #endif
 	}
 #ifdef HAVE_DTLS
@@ -7282,6 +7313,7 @@ void NET_Init (void)
 
 	Cvar_Register(&net_hybriddualstack, "networking");
 	Cvar_Register(&net_fakeloss, "networking");
+	Cvar_Register(&cl_delay_packets, "networking");
 
 #ifndef CLIENTONLY
 	Cmd_AddCommand("sv_addport", SVNET_AddPort_f);

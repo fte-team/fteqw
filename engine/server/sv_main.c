@@ -117,7 +117,7 @@ extern cvar_t sv_allow_splitscreen;
 
 cvar_t sv_guidhash			= CVARD("sv_guidkey", "", "If set, clients will calculate their GUID values against this string instead of the server's IP address. This allows consistency between multiple servers (for stats tracking), but do NOT treat the client's GUID as something that is secure.");
 cvar_t sv_serverip			= CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
-cvar_t sv_public			= CVAR("sv_public", "0");
+cvar_t sv_public			= CVARD("sv_public", "0", "Controls whether the server will publically advertise itself to master servers or not. Additionally, if set to -1, will block all new connection requests even on lan.");
 cvar_t sv_listen_qw			= CVARAFD("sv_listen_qw", "1", "sv_listen", 0, "Specifies whether normal clients are allowed to connect.");
 cvar_t sv_listen_nq			= CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server.\n0 = don't let them in.\n1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks).\n2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
 cvar_t sv_listen_dp			= CVARD("sv_listen_dp", "0", "Allows the server to respond with the DP-specific handshake protocol.\nWarning: this can potentially get confused with quake2, and results in race conditions with both vanilla netquake and quakeworld protocols.\nOn the plus side, DP clients can usually be identified correctly, enabling a model+sound limit boost.");
@@ -1188,7 +1188,7 @@ static void SVC_Status (void)
 	SV_EndRedirect ();
 }
 
-#ifdef NQPROT
+#if 1//def NQPROT
 static void SVC_GetInfo (char *challenge, int fullstatus)
 {
 	//dpmaster support
@@ -1202,8 +1202,10 @@ static void SVC_GetInfo (char *challenge, int fullstatus)
 	const char *gamestatus;
 	eval_t *v;
 
+#ifdef NQPROT
 	if (!sv_listen_nq.ival && !sv_listen_dp.ival)
 		return;
+#endif
 
 	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
@@ -1247,7 +1249,9 @@ static void SVC_GetInfo (char *challenge, int fullstatus)
 	Info_SetValueForKey(resp, "gamename", protocolname, sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "modname", FS_GetGamedir(true), sizeof(response) - (resp-response));
 //	Info_SetValueForKey(resp, "gamedir", FS_GetGamedir(true), sizeof(response) - (resp-response));
+#ifdef NQPROT
 	Info_SetValueForKey(resp, "protocol", va("%d", NQ_NETCHAN_VERSION), sizeof(response) - (resp-response));
+#endif
 	Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "mapname", Info_ValueForKey(svs.info, "map"), sizeof(response) - (resp-response));
@@ -3563,8 +3567,12 @@ qboolean SVC_ThrottleInfo (void)
 {
 #define THROTTLE_PPS 20
 	static unsigned int blockuntil;
-	unsigned int curtime = Sys_Milliseconds(); 
-	unsigned int inc = 1000/THROTTLE_PPS;
+	unsigned int curtime, i, inc = 1000/THROTTLE_PPS;
+
+	if (Net_AddressIsMaster(&net_from))
+		return true; //allow it without contributing to any throttling.
+
+	curtime = Sys_Milliseconds();
 
 	/*don't go too far back*/
 	//if (blockuntil < curtime - 1000)
@@ -3718,8 +3726,8 @@ qboolean SV_ConnectionlessPacket (void)
 		//its a subtle difference, but means we can avoid wasteful spam for real qw clients.
 		SVC_GetChallenge ((net_message.cursize==16)?true:false);
 	}
-#ifdef NQPROT
-	/*for DP*/
+#if 1//def NQPROT
+	/*for DP origionally, but dpmaster expects it, and we need dpmaster for custom protocol names*/
 	else if (!strcmp(c, "getstatus"))
 	{
 		if (sv_public.ival >= 0)

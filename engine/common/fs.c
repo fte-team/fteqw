@@ -529,8 +529,10 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 	}
 	else if (!Q_strcasecmp(cmd, "install"))
 	{
-		Z_Free(man->installupd);
-		man->installupd = Z_StrDup(Cmd_Argv(1));
+		if (man->installupd)
+			Z_StrCat(&man->defaultoverrides, va(";%s", Cmd_Args()));
+		else
+			man->installupd = Z_StrDup(Cmd_Argv(1));
 	}
 	else if (!Q_strcasecmp(cmd, "protocolname"))
 	{
@@ -587,6 +589,7 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 			}
 		}
 	}
+	//FIXME: these should generate package-manager entries.
 #ifndef NOLEGACY
 	else if (!Q_strcasecmp(cmd, "filedependancies") || !Q_strcasecmp(cmd, "archiveddependancies"))
 		FS_Manifest_ParsePackage(man, mdt_installation);
@@ -3026,7 +3029,8 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 
 /*quake requires a few settings for compatibility*/
 #define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\n"
-#define QCFG "set com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE
+#define QRPCOMPAT "cl_cursor_scale 0.2\ncl_cursor_bias_x 7.5\ncl_cursor_bias_y 0.8"
+#define QCFG "set com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT
 //nehahra has to be weird with extra cvars, and buggy fullbrights.
 #define NEHCFG QCFG "set nospr32 0\nset cutscene 1\nalias startmap_sp \"map nehstart\"\nr_fb_bmodels 0\nr_fb_models 0\n"
 /*stuff that makes dp-only mods work a bit better*/

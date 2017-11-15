@@ -974,7 +974,7 @@ void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	else if (!strcmp(field, "next"))
 	{
 		con = con->next;
-		if (con)
+		if (con && con != &con_main)
 			RETURN_TSTRING(con->name);
 	}
 	else if (!strcmp(field, "unseen"))

@@ -158,6 +158,21 @@ net_masterlist_t net_masterlist[] = {
 
 	{MP_UNSPECIFIED, CVAR(NULL, NULL)}
 };
+qboolean Net_AddressIsMaster(netadr_t *adr)
+{
+	size_t i, j;
+	//never throttle packets from master servers. we don't want to go missing.
+	for (i = 0; net_masterlist[i].cv.name; i++)
+	{
+		if (!net_masterlist[i].protocol || net_masterlist[i].resolving || net_masterlist[i].needsresolve)
+			continue;
+		for (j = 0; j < MAX_MASTER_ADDRESSES; j++)
+			if (net_masterlist[i].adr[j].type != NA_INVALID)
+				if (NET_CompareAdr(&net_from, &net_masterlist[i].adr[j]))
+					return true;
+	}
+	return false;
+}
 void Net_Master_Init(void)
 {
 	int i;
@@ -1441,7 +1456,6 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 		work->adr = adrs[0];
 	else
 		memset(&work->adr, 0, sizeof(work->adr));
-	COM_AddWork(WG_MAIN, CLMaster_AddMaster_Worker_Resolved, NULL, work, a, b);
 
 	//add dupes too (eg: ipv4+ipv6)
 	for (i = 1; i < found; i++)
@@ -1459,7 +1473,7 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 		if (j == i)
 		{	//not already added, hurrah
 			master_t *alt = Z_Malloc(sizeof(master_t)+strlen(work->name)+1+strlen(work->address)+1);
-			alt->address = work->name + strlen(work->name)+1;
+			alt->address = alt->name + strlen(work->name)+1;
 			alt->mastertype = work->mastertype;
 			alt->protocoltype = work->protocoltype;
 			strcpy(alt->name, work->name);
@@ -1467,9 +1481,13 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 			alt->sends = 1;
 			alt->nosave = true;
 			alt->adr = adrs[i];
-			COM_AddWork(WG_MAIN, CLMaster_AddMaster_Worker_Resolved, NULL, alt, a, b);
+
+			COM_AddWork(WG_MAIN, CLMaster_AddMaster_Worker_Resolved, NULL, work, a, b);
+			work = alt;
 		}
 	}
+
+	COM_AddWork(WG_MAIN, CLMaster_AddMaster_Worker_Resolved, NULL, work, a, b);
 }
 
 void Master_AddMaster (char *address, enum mastertype_e mastertype, enum masterprotocol_e protocol, char *description)

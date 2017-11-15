@@ -83,7 +83,7 @@ static qboolean csqc_worldchanged;	//make sure any caches are rebuilt properly b
 static char csqc_printbuffer[8192];
 
 #define CSQCPROGSGROUP "CSQC progs control"
-cvar_t	pr_csqc_maxedicts = CVAR("pr_csqc_maxedicts", "65536");	//not tied to protocol nor server.
+cvar_t	pr_csqc_maxedicts = CVAR("pr_csqc_maxedicts", "65536");	//not tied to protocol nor server. can be set arbitrarily high, except for memory allocations.
 cvar_t	pr_csqc_memsize = CVAR("pr_csqc_memsize", "-1");
 cvar_t	cl_csqcdebug = CVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
 cvar_t  cl_nocsqc = CVAR("cl_nocsqc", "0");

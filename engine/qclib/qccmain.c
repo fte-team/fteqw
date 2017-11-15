@@ -1199,7 +1199,7 @@ void QCC_UnmarshalLocals(void)
 	}
 
 	eog = numpr_globals;
-	//next, finalize non-static locals.
+	//next, finalize non-static non-shared locals.
 	for (i=0 ; i<numfunctions ; i++)
 	{
 		if (functions[i].privatelocals)
@@ -1229,7 +1229,8 @@ void QCC_UnmarshalLocals(void)
 		{
 			numpr_globals = onum;
 			for (d = functions[i].firstlocal; d; d = d->nextlocal)
-				QCC_FinaliseDef(d);
+				if (!d->isstatic && !(d->constant && d->initialized))
+					QCC_FinaliseDef(d);
 			if (biggest < numpr_globals)
 				biggest = numpr_globals;
 
@@ -1598,18 +1599,18 @@ pbool QCC_WriteData (int crc)
 							funcs[i].parm_size[p++] = size;
 						a++;
 					}
-					for (; local && !local->used; local = local->nextlocal)
+					for (; local && (!local->used || local->isstatic || (local->constant && local->initialized)); local = local->nextlocal)
 						;
 					if (!p && local)
 						funcs[i].parm_start = local->ofs;
 					for (; local; local = local->nextlocal)
 					{
+						if (!local->used || local->isstatic || (local->constant && local->initialized))
+							continue;
 						size = local->type->size;
 						if (local->arraysize)	//arrays are annoying
 							size = local->arraylengthprefix+size*local->arraysize;
-
-						if (local->used)
-							funcs[i].locals += size;
+						funcs[i].locals += size;
 					}
 					funcs[i].numparms = p;
 				}

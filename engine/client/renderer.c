@@ -82,9 +82,9 @@ cvar_t _windowed_mouse						= CVARF ("_windowed_mouse","1",
 cvar_t con_ocranaleds						= CVAR  ("con_ocranaleds", "2");
 
 cvar_t cl_cursor							= CVAR  ("cl_cursor", "");
-cvar_t cl_cursorscale						= CVAR  ("cl_cursor_scale", "0.2");
-cvar_t cl_cursorbiasx						= CVAR  ("cl_cursor_bias_x", "7.5");
-cvar_t cl_cursorbiasy						= CVAR  ("cl_cursor_bias_y", "0.8");
+cvar_t cl_cursorscale						= CVAR  ("cl_cursor_scale", "1.0");
+cvar_t cl_cursorbiasx						= CVAR  ("cl_cursor_bias_x", "0.0");
+cvar_t cl_cursorbiasy						= CVAR  ("cl_cursor_bias_y", "0.0");
 
 cvar_t gl_nocolors							= CVARF  ("gl_nocolors", "0", CVAR_ARCHIVE);
 cvar_t gl_part_flame						= CVARFD  ("gl_part_flame", "1", CVAR_ARCHIVE, "Enable particle emitting from models. Mainly used for torch and flame effects.");

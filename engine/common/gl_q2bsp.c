@@ -3449,7 +3449,7 @@ static qboolean CModQ3_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 		numclusters++;
 #else
 		//but its much faster to merge all leafs into a single pvs cluster. no vis is no vis.
-		numclusters = 2;
+		numclusters = 8*sizeof(int);
 		for (i = 0; i < mod->numleafs; i++)
 			mod->leafs[i].cluster = !!mod->leafs[i].cluster;
 #endif

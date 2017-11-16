@@ -705,6 +705,10 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	int			j;
 	qboolean	reliable;
 	client_t	*oneclient = NULL, *split;
+	int seat;
+
+	if (!sv.multicast.cursize)
+		return;
 
 	if (to == MULTICAST_INIT)
 	{
@@ -807,7 +811,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			if (client->controller)
 				continue;	//FIXME: send if at least one of the players is near enough.
 
-			for (split = client; split; split = split->controlled)
+			for (split = client, seat = 0; split; split = split->controlled, seat++)
 			{
 				if (client->protocol == SCP_QUAKEWORLD)
 				{
@@ -902,11 +906,26 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			case SCP_QUAKEWORLD:
 				if (reliable)
 				{
-					ClientReliableCheckBlock(client, sv.multicast.cursize);
+					if (oneclient && seat)
+					{
+						ClientReliableCheckBlock(client, 2+sv.multicast.cursize);
+						ClientReliableWrite_Byte(client, svcfte_choosesplitclient);
+						ClientReliableWrite_Byte(client, seat);
+					}
+					else
+						ClientReliableCheckBlock(client, sv.multicast.cursize);
+
 					ClientReliableWrite_SZ(client, sv.multicast.data, sv.multicast.cursize);
 				}
 				else
+				{
+					if (oneclient && seat)
+					{
+						MSG_WriteByte (&client->datagram, svcfte_choosesplitclient);
+						MSG_WriteByte (&client->datagram, seat);
+					}
 					SZ_Write (&client->datagram, sv.multicast.data, sv.multicast.cursize);
+				}
 				break;
 			}
 		}
@@ -976,7 +995,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			if (client->controller)
 				continue;
 
-			for (split = client; split; split = split->controlled)
+			for (split = client, seat = 0; split; split = split->controlled, seat++)
 			{
 				if (split->protocol == SCP_QUAKEWORLD)
 				{
@@ -1078,11 +1097,26 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			case SCP_QUAKEWORLD:
 				if (reliable)
 				{
-					ClientReliableCheckBlock(client, sv.multicast.cursize);
+					if (oneclient && seat)
+					{
+						ClientReliableCheckBlock(client, 2+sv.multicast.cursize);
+						ClientReliableWrite_Byte(client, svcfte_choosesplitclient);
+						ClientReliableWrite_Byte(client, seat);
+					}
+					else
+						ClientReliableCheckBlock(client, sv.multicast.cursize);
+
 					ClientReliableWrite_SZ(client, sv.multicast.data, sv.multicast.cursize);
 				}
 				else
+				{
+					if (oneclient && seat)
+					{
+						MSG_WriteByte (&client->datagram, svcfte_choosesplitclient);
+						MSG_WriteByte (&client->datagram, seat);
+					}
 					SZ_Write (&client->datagram, sv.multicast.data, sv.multicast.cursize);
+				}
 				break;
 			}
 		}

@@ -1056,6 +1056,71 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		}
 	}
 
+	if (client->prespawn_stage == PRESPAWN_CSPROGS)
+	{
+		extern cvar_t sv_demo_write_csqc;
+		if (client == &demo.recorder && sv_demo_write_csqc.ival)	//we only really want to do this for demos. actual clients can make the request themselves.
+		if (client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)	//there's many different download mechanisms...
+		{
+			if (!client->prespawn_idx && !client->download)
+			{
+				extern cvar_t sv_csqc_progname;
+				Q_strncpyz(client->downloadfn, sv_csqc_progname.string, sizeof(client->downloadfn));
+				client->download = FS_OpenVFS(sv_csqc_progname.string, "rb", FS_GAME);
+				client->downloadcount = 0;
+				client->prespawn_idx = 1;
+				if (client->download)
+				{
+					client->downloadsize = VFS_GETLEN(client->download);
+
+					//send the size+filename
+					ClientReliableWrite_Begin (client, svc_download, 18+strlen(client->downloadfn));
+					ClientReliableWrite_Long (client, -1);	//offset
+					if (client->downloadsize >= 0x7fffffff)
+					{	//avoid unsigned values.
+						ClientReliableWrite_Long (client, 0x80000000);	//signal that its 64bit
+						ClientReliableWrite_Long (client, qofs_Low(client->downloadsize));
+						ClientReliableWrite_Long (client, qofs_High(client->downloadsize));
+					}
+					else
+						ClientReliableWrite_Long (client, client->downloadsize);
+					ClientReliableWrite_String (client, client->downloadfn);
+				}
+			}
+			//send the data while possible+needed
+			if (client->prespawn_idx && client->download)
+			{
+				while (client->downloadcount < client->downloadsize)
+				{
+					qbyte chunk[DLBLOCKSIZE];
+					int sz;
+					if (client->netchan.message.maxsize - client->netchan.message.cursize < 1100)
+						return;	//don't flood...
+					sz = VFS_READ(client->download, chunk, DLBLOCKSIZE);
+					if (sz <= 0)
+						break;
+					if (sz < DLBLOCKSIZE)
+					{
+						memset(chunk+sz, 0, DLBLOCKSIZE-sz);	//zero-fill if the chunk is at the end.
+						sz = DLBLOCKSIZE;
+					}
+
+					ClientReliableWrite_Begin (client, svc_download, 5+sz);
+					ClientReliableWrite_Long(client, client->downloadcount/DLBLOCKSIZE);
+					ClientReliableWrite_SZ(client, chunk, sz);
+					client->downloadcount += sz;
+				}
+
+				//don't need to write completion. the client should be tracking that itself with chunks.
+				VFS_CLOSE(client->download);
+				client->download = NULL;
+			}
+		}
+
+		client->prespawn_stage++;
+		client->prespawn_idx = 0;
+	}
+
 	if (client->prespawn_stage == PRESPAWN_SOUNDLIST)
 	{
 		if (!ISQWCLIENT(client))
@@ -2239,9 +2304,8 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 
 static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum, int chunks)
 {
-#define CHUNKSIZE 1024
-	char buffer[CHUNKSIZE];
-	qbyte oobdata[1+ (sizeof("\\chunk")-1) + 4 + 1 + 4 + CHUNKSIZE];
+	char buffer[DLBLOCKSIZE];
+	qbyte oobdata[1+ (sizeof("\\chunk")-1) + 4 + 1 + 4 + DLBLOCKSIZE];
 	sizebuf_t *msg, msg_oob;
 	int i;
 	int error = false;
@@ -2252,24 +2316,24 @@ static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezf
 
 	if (chunknum == -1)
 		error = 2;	//silent, don't report it
-	else if (chunknum*CHUNKSIZE > host_client->downloadsize)
+	else if (chunknum*DLBLOCKSIZE > host_client->downloadsize)
 	{
-		SV_ClientTPrintf (host_client, PRINT_HIGH, "Warning: Invalid file chunk requested %u to %u of %u.\n", chunknum*CHUNKSIZE, (chunknum+1)*CHUNKSIZE, host_client->downloadsize);
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "Warning: Invalid file chunk requested %u to %u of %u.\n", chunknum*DLBLOCKSIZE, (chunknum+1)*DLBLOCKSIZE, host_client->downloadsize);
 		error = 2;
 	}
 
-	if (!error && VFS_SEEK (host_client->download, (qofs_t)chunknum*CHUNKSIZE) == false)
+	if (!error && VFS_SEEK (host_client->download, (qofs_t)chunknum*DLBLOCKSIZE) == false)
 		error = true;
 	else
 	{
-		if (host_client->downloadcount < chunknum*CHUNKSIZE)
-			host_client->downloadcount = chunknum*CHUNKSIZE;
+		if (host_client->downloadcount < chunknum*DLBLOCKSIZE)
+			host_client->downloadcount = chunknum*DLBLOCKSIZE;
 	}
 
 	
 	while (!error && chunks > 0)
 	{
-		if ((host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize) || (host_client->datagram.cursize + CHUNKSIZE+5 > 1400))
+		if ((host_client->datagram.cursize + DLBLOCKSIZE+5+50 > host_client->datagram.maxsize) || (host_client->datagram.cursize + DLBLOCKSIZE+5 > 1400))
 		{
 			//would overflow the packet, or result in (ethernet) fragmentation and high packet loss.
 			msg = &msg_oob;
@@ -2284,7 +2348,7 @@ static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezf
 				return;
 		}
 
-		i = VFS_READ (host_client->download, buffer, CHUNKSIZE);
+		i = VFS_READ (host_client->download, buffer, DLBLOCKSIZE);
 
 		if (i > 0)
 		{
@@ -2303,12 +2367,12 @@ static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezf
 				MSG_WriteLong(msg, ezfilenum);	//echoing the file num is used so the packets don't go out of sync.
 			}
 
-			if (i != CHUNKSIZE)
-				memset(buffer+i, 0, CHUNKSIZE-i);
+			if (i != DLBLOCKSIZE)
+				memset(buffer+i, 0, DLBLOCKSIZE-i);
 
 			MSG_WriteByte(msg, svc_download);
 			MSG_WriteLong(msg, chunknum);
-			SZ_Write(msg, buffer, CHUNKSIZE);
+			SZ_Write(msg, buffer, DLBLOCKSIZE);
 
 			if (msg == &msg_oob)
 			{
@@ -3422,8 +3486,7 @@ void SV_BeginDownload_f(void)
 	}
 	else
 #endif
-
-	if (ISNQCLIENT(host_client))
+		if (ISNQCLIENT(host_client))
 	{
 		//FIXME support 64bit files
 		char *s = va("\ncl_downloadbegin %u %s\n", (unsigned int)host_client->downloadsize, host_client->downloadfn);
@@ -7363,6 +7426,7 @@ void SV_ReadQCRequest(void)
 	func_t f;
 	int i;
 	globalvars_t *pr_globals;
+	client_t *cl = host_client;
 
 	if (!svprogfuncs)
 	{
@@ -7372,19 +7436,31 @@ void SV_ReadQCRequest(void)
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-	for (i = 0; ; i++)
+	for (i = 0; ; )
 	{
+		qbyte ev = MSG_ReadByte();
+		if (ev >= 200 && ev < 200+MAX_SPLITS)
+		{
+			ev -= 200;
+			while (ev-- && cl)
+				cl = cl->controlled;
+			continue;
+		}
 		if (i >= sizeof(args)-1)
 		{
-			if (MSG_ReadByte() != ev_void)
+			if (ev != ev_void)
 			{
 				msg_badread = true;
 				return;
 			}
 			goto done;
 		}
-		switch(MSG_ReadByte())
+		switch(ev)
 		{
+		default:
+			args[i] = '?';
+			G_INT(OFS_PARM0+i*3) = MSG_ReadLong();
+			break;
 		case ev_void:
 			goto done;
 		case ev_float:
@@ -7413,6 +7489,7 @@ void SV_ReadQCRequest(void)
 			G_INT(OFS_PARM0+i*3) = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, e));
 			break;
 		}
+		i++;
 	}
 
 done:
@@ -7431,9 +7508,11 @@ done:
 			rname = va("Cmd_%s", rname);
 		f = PR_FindFunction(svprogfuncs, rname, PR_ANY);
 	}
-	if (f)
+	if (!cl)
+		;	//bad seat! not going to warn as they might have been removed recently
+	else if (f)
 	{
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
 		PR_ExecuteProgram(svprogfuncs, f);
 	}
 	else

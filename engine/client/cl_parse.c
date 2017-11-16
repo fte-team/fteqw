@@ -7073,7 +7073,7 @@ void CLQW_ParseServerMessage (void)
 				break;
 #endif
 #ifdef CSQC_DAT
-			if (CSQC_ParseGamePacket())
+			if (CSQC_ParseGamePacket(destsplit))
 				break;
 #endif
 			Con_Printf("Unable to parse gamecode packet\n");
@@ -7721,7 +7721,7 @@ void CLNQ_ParseServerMessage (void)
 				break;
 #endif
 #ifdef CSQC_DAT
-			if (CSQC_ParseGamePacket())
+			if (CSQC_ParseGamePacket(destsplit))
 				break;
 #endif
 			Con_Printf("Unable to parse gamecode packet\n");

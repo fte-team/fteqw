@@ -475,6 +475,17 @@ void IRC_AddClientMessage(ircclient_t *irc, char *msg)
 	if (irc_debug.value == 1) { IRC_Printf(irc, DEFAULTCONSOLE,COLOURYELLOW "<< %s \n",msg); }
 }
 
+ircclient_t *IRC_FindAccount(const char *server)
+{
+	ircclient_t *irc;
+	for (irc = ircclients; irc; irc = irc->next)
+	{
+		if (!strcmp(irc->server, server))
+			return irc;
+	}
+	return NULL;	//no match
+}
+
 ircclient_t *IRC_Create(const char *server, const char *nick, const char *realname, const char *hostname, const char *password, const char *channels)
 {
 	ircclient_t *irc;
@@ -2327,6 +2338,12 @@ void IRC_Command(ircclient_t *ircclient, char *dest)
 				Q_strlcpy(nick, irc_nick.string, sizeof(nick));
 			if (!*nick)
 				pCvar_GetString("name", nick, sizeof(nick));
+
+			if (IRC_FindAccount(server))
+			{
+				IRC_Printf(ircclient, dest, "IRC connection to %s already registered\n");
+				return;	//silently ignore it if the account already exists
+			}
 
 			ircclient = IRC_Create(server, nick, defaultuser, irc_hostname.string, password, channels);
 			if (ircclient)

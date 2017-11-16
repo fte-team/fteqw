@@ -3567,7 +3567,7 @@ qboolean SVC_ThrottleInfo (void)
 {
 #define THROTTLE_PPS 20
 	static unsigned int blockuntil;
-	unsigned int curtime, i, inc = 1000/THROTTLE_PPS;
+	unsigned int curtime, inc = 1000/THROTTLE_PPS;
 
 	if (Net_AddressIsMaster(&net_from))
 		return true; //allow it without contributing to any throttling.

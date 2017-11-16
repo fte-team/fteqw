@@ -269,8 +269,6 @@ unsigned int			locals_marshalled;	// largest local block size that needs to be a
 
 jmp_buf		pr_parse_abort;		// longjump with this on parse error
 
-void QCC_PR_ParseDefs (char *classname, pbool fatal);
-
 pbool qcc_usefulstatement;
 
 pbool debug_armour_defined;

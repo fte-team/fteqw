@@ -720,7 +720,7 @@ void Sbar_ShowTeamScores (void)
 		return;
 
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
 		return;
 #endif
 
@@ -742,7 +742,7 @@ void Sbar_DontShowTeamScores (void)
 	sb_updates = 0;
 
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
 		return;
 #endif
 }
@@ -767,7 +767,7 @@ void Sbar_ShowScores (void)
 		return;
 
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
 		return;
 #endif
 
@@ -778,8 +778,9 @@ void Sbar_ShowScores (void)
 #ifdef HEXEN2
 static void Sbar_Hexen2InvLeft_f(void)
 {
+	int seat = CL_TargettedSplit(false);
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
 		return;
 #endif
 	if (cls.protocol == CP_QUAKE2)
@@ -789,8 +790,7 @@ static void Sbar_Hexen2InvLeft_f(void)
 	else
 	{
 		int tries = 15;
-		int pnum = CL_TargettedSplit(false);
-		playerview_t *pv = &cl.playerview[pnum];
+		playerview_t *pv = &cl.playerview[seat];
 		pv->sb_hexen2_item_time = realtime;
 		while (tries-- > 0)
 		{
@@ -805,8 +805,9 @@ static void Sbar_Hexen2InvLeft_f(void)
 }
 static void Sbar_Hexen2InvRight_f(void)
 {
+	int seat = CL_TargettedSplit(false);
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
 		return;
 #endif
 	if (cls.protocol == CP_QUAKE2)
@@ -816,8 +817,7 @@ static void Sbar_Hexen2InvRight_f(void)
 	else
 	{
 		int tries = 15;
-		int pnum = CL_TargettedSplit(false);
-		playerview_t *pv = &cl.playerview[pnum];
+		playerview_t *pv = &cl.playerview[seat];
 		pv->sb_hexen2_item_time = realtime;
 		while (tries-- > 0)
 		{
@@ -832,8 +832,9 @@ static void Sbar_Hexen2InvRight_f(void)
 }
 static void Sbar_Hexen2InvUse_f(void)
 {
+	int seat = CL_TargettedSplit(false);
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
 		return;
 #endif
 
@@ -843,43 +844,46 @@ static void Sbar_Hexen2InvUse_f(void)
 	}
 	else
 	{
-		int pnum = CL_TargettedSplit(false);
-		playerview_t *pv = &cl.playerview[pnum];
+		playerview_t *pv = &cl.playerview[seat];
 		Cmd_ExecuteString(va("impulse %d\n", 100+pv->sb_hexen2_cur_item), Cmd_ExecLevel);
 	}
 }
 static void Sbar_Hexen2ShowInfo_f(void)
 {
-	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
+	int seat = CL_TargettedSplit(false);
+	playerview_t *pv = &cl.playerview[seat];
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
 		return;
 #endif
 	pv->sb_hexen2_extra_info = true;
 }
 static void Sbar_Hexen2DontShowInfo_f(void)
 {
-	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
+	int seat = CL_TargettedSplit(false);
+	playerview_t *pv = &cl.playerview[seat];
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
 		return;
 #endif
 	pv->sb_hexen2_extra_info = false;
 }
 static void Sbar_Hexen2PInfoPlaque_f(void)
 {
-	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
+	int seat = CL_TargettedSplit(false);
+	playerview_t *pv = &cl.playerview[seat];
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
 		return;
 #endif
 	pv->sb_hexen2_infoplaque = true;
 }
 static void Sbar_Hexen2MInfoPlaque_f(void)
 {
-	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
+	int seat = CL_TargettedSplit(false);
+	playerview_t *pv = &cl.playerview[seat];
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
 		return;
 #endif
 	pv->sb_hexen2_infoplaque = false;
@@ -906,7 +910,7 @@ void Sbar_DontShowScores (void)
 	sb_updates = 0;
 
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
 		return;
 #endif
 }

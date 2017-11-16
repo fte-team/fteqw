@@ -2868,7 +2868,6 @@ void Mod_LoadAliasShaders(model_t *mod)
 	}
 	for (i = 0; i < numskins; i++)
 	{
-		shader_t *result = NULL;
 		skinid_t skinid;
 		skinfile_t *skinfile;
 		char *filedata;

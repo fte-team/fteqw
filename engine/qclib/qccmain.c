@@ -5282,8 +5282,6 @@ void QCC_FinishCompile(void)
 
 extern char		*pr_file_p;
 extern int			pr_source_line;
-void QCC_PR_ParseDefs (char *classname);
-
 
 
 
@@ -5386,7 +5384,7 @@ void new_QCC_ContinueCompile(void)
 
 	pr_scope = NULL;	// outside all functions
 
-	QCC_PR_ParseDefs (NULL);
+	QCC_PR_ParseDefs (NULL, false);
 }
 
 /*void new_QCC_ContinueCompile(void)

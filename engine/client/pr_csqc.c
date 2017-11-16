@@ -1012,6 +1012,22 @@ static void QCBUILTIN PF_R_AddEntity(pubprogfuncs_t *prinst, struct globalvars_s
 		V_AddAxisEntity(&ent);
 	}
 }
+static void QCBUILTIN PF_R_RemoveEntity(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
+	entity_t ent;
+	if (ED_ISFREE(in) || in->entnum == 0)
+	{
+		csqc_deprecated("Tried drawing a free/removed/world entity\n");
+		return;
+	}
+
+	if (CopyCSQCEdictToEntity(in, &ent))
+	{
+		CLQ1_AddShadow(&ent);
+		V_AddAxisEntity(&ent);
+	}
+}
 void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t rgbvalue, float alphavalue);
 static void QCBUILTIN PF_R_AddDecal(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3097,6 +3113,7 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 		return;
 
 	MSG_WriteByte(&cls.netchan.message, clcfte_qcrequest);
+
 	for (i = 0; i < 6; i++)
 	{
 		if (argtypes[i] == 's')
@@ -3130,6 +3147,8 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 		else
 			break;
 	}
+	if (csqc_playerseat > 0)
+		MSG_WriteByte(&cls.netchan.message, 200+csqc_playerseat);
 	MSG_WriteByte(&cls.netchan.message, 0);
 	MSG_WriteString(&cls.netchan.message, eventname);
 }
@@ -3239,24 +3258,17 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 	/*outgoing_sequence says how many packets have actually been sent, but there's an extra pending packet which has not been sent yet - be warned though, its data will change in the coming frames*/
 	if (f == cl.movesequence)
 	{
-//		int i;
-//		usercmd_t tmp;
+		int i;
+		usercmd_t tmp;
 		cmd = &cl_pendingcmd[seat];
-/*
+
 		tmp = *cmd;
 		cmd = &tmp;
 		for (i=0 ; i<3 ; i++)
 			cmd->angles[i] = ((int)(csqc_playerview->viewangles[i]*65536.0/360)&65535);
 		if (!cmd->msec)
-		{
-//			*cmd = cl.outframes[(f-1)&UPDATE_MASK].cmd[seat];
-			CL_BaseMove (cmd, seat, cmd->msec, newtime);
-		}
-//		if (cl.predservertimes)
-//			cmd->msec = (cl.time - cl.outframes[(f-1)&UPDATE_MASK].cmd[seat].fservertime)*1000;
-//		else
-			cmd->msec = (realtime - cl.outframes[(f-1)&UPDATE_MASK].senttime)*1000;
-*/
+			*cmd = cl.outframes[(f-1)&UPDATE_MASK].cmd[seat];
+		cmd->msec = (realtime - cl.outframes[(f-1)&UPDATE_MASK].senttime)*1000;
 	}
 	else
 	{
@@ -3337,6 +3349,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	}
 	pmove.jump_held = (int)ent->xv->pmove_flags & PMF_JUMP_HELD;
 	pmove.waterjumptime = 0;
+	pmove.onground = (int)ent->v->flags & FL_ONGROUND;
 	VectorCopy(ent->v->origin, pmove.origin);
 	VectorCopy(ent->v->velocity, pmove.velocity);
 	VectorCopy(ent->v->maxs, pmove.player_maxs);
@@ -3357,6 +3370,10 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	ent->v->angles[0] *= r_meshpitch.value * 1/3.0f;	//FIXME
 	VectorCopy(pmove.origin, ent->v->origin);
 	VectorCopy(pmove.velocity, ent->v->velocity);
+	if (pmove.onground)
+		ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
+	else
+		ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
 	ent->xv->pmove_flags = 0;
 	ent->xv->pmove_flags += pmove.jump_held ? PMF_JUMP_HELD : 0;
 	ent->xv->pmove_flags += pmove.onladder ? PMF_LADDER : 0;
@@ -4633,8 +4650,9 @@ static void QCBUILTIN PF_cs_movetogoal (pubprogfuncs_t *prinst, struct globalvar
 static void CS_ConsoleCommand_f(void)
 {
 	char cmd[2048];
+	int seat = CL_TargettedSplit(false);
 	Q_snprintfz(cmd, sizeof(cmd), "%s %s", Cmd_Argv(0), Cmd_Args());
-	CSQC_ConsoleCommand(cmd);
+	CSQC_ConsoleCommand(seat, cmd);
 }
 static void QCBUILTIN PF_cs_registercommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6033,7 +6051,8 @@ static struct {
 //300
 	{"clearscene",				PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",				PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
-	{"addentity",				PF_R_AddEntity,	302},					// #302 void(entity ent) addentity (EXT_CSQC)
+	{"addentity",				PF_R_AddEntity,		302},					// #302 void(entity ent) addentity (EXT_CSQC)
+//	{"removeentity",			PF_R_RemoveEntity,	0},
 	{"setproperty",				PF_R_SetViewFlag,	303},				// #303 float(float property, ...) setproperty (EXT_CSQC)
 	{"renderscene",				PF_R_RenderScene,	304},				// #304 void() renderscene (EXT_CSQC)
 
@@ -7856,7 +7875,7 @@ qboolean CSQC_ConsoleLink(char *text, char *info)
 	return G_FLOAT(OFS_RETURN);
 }
 
-qboolean CSQC_ConsoleCommand(const char *cmd)
+qboolean CSQC_ConsoleCommand(int seat, const char *cmd)
 {
 	void *pr_globals;
 	if (!csqcprogs || !csqcg.console_command)
@@ -7865,6 +7884,10 @@ qboolean CSQC_ConsoleCommand(const char *cmd)
 	if (editormodal)
 		return false;
 #endif
+
+	if (seat < 0)
+		seat = CL_TargettedSplit(false);
+	CSQC_ChangeLocalPlayer(seat);
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, cmd));
@@ -7904,7 +7927,7 @@ qboolean CSQC_ParseTempEntity(void)
 	return false;
 }
 
-qboolean CSQC_ParseGamePacket(void)
+qboolean CSQC_ParseGamePacket(int seat)
 {
 	int parsefnc = csqcg.parse_event?csqcg.parse_event:csqcg.parse_tempentity;
 
@@ -7920,6 +7943,7 @@ qboolean CSQC_ParseGamePacket(void)
 		}
 
 		csqc_mayread = true;
+		CSQC_ChangeLocalPlayer(seat);
 		PR_ExecuteProgram (csqcprogs, parsefnc);
 
 		if (msg_readcount != start + len)
@@ -7936,6 +7960,7 @@ qboolean CSQC_ParseGamePacket(void)
 			return false;
 		}
 		csqc_mayread = true;
+		CSQC_ChangeLocalPlayer(seat);
 		PR_ExecuteProgram (csqcprogs, parsefnc);
 	}
 	csqc_mayread = false;

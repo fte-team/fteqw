@@ -43,6 +43,7 @@ cvar_t	sv_demoMaxSize = CVARD("sv_demoMaxSize", "", "Demos will be truncated to 
 cvar_t	sv_demoExtraNames = CVAR("sv_demoExtraNames", "");
 cvar_t	sv_demoExtensions = CVARD("sv_demoExtensions", "", "Enables protocol extensions within MVDs. This will cause older/non-fte clients to error upon playback.\n0: off.\n1: all extensions.\n2: extensions also supported by a certain other engine.");
 cvar_t	sv_demoAutoCompress = CVARD("sv_demoAutoCompress", "", "Specifies whether to compress demos as they're recorded.\n0 = no compression.\n1 = gzip compression.");
+cvar_t	sv_demo_write_csqc = CVARD("sv_demo_write_csqc", "", "Writes a copy of the csprogs into recorded demos. This ensures that the demo can be played back despite future gamecode changes.");
 
 cvar_t qtv_password		= CVAR(		"qtv_password", "");
 cvar_t qtv_maxstreams	= CVARAFD(	"qtv_maxstreams", "0",
@@ -1181,6 +1182,7 @@ void MVD_Init (void)
 	Cvar_Register (&sv_demoExtraNames,	MVDVARGROUP);
 	Cvar_Register (&sv_demoExtensions,	MVDVARGROUP);
 	Cvar_Register (&sv_demoAutoCompress,MVDVARGROUP);
+	Cvar_Register (&sv_demo_write_csqc,MVDVARGROUP);
 }
 
 static char *SV_PrintTeams(void)
@@ -1646,7 +1648,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	demo.resetdeltas = true;
 
 	host_client = &demo.recorder;
-	if (host_client->fteprotocolextensions & PEXT_CSQC)
+	if (demo.recorder.fteprotocolextensions & PEXT_CSQC)
 		SV_EnableClientsCSQC();
 
 
@@ -1669,6 +1671,19 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	gamedir = Info_ValueForKey (svs.info, "*gamedir");
 	if (!gamedir[0])
 		gamedir = FS_GetGamedir(true);
+
+	//generate some meta info so the file can be identified later
+	{
+		char timestr[64];
+		time_t t;
+		MSG_WriteByte (&buf, svc_stufftext);
+		MSG_WriteString(&buf, va("//protocolname %s\n", com_protocolname.string));	//so that the game is known when playing back, to deal with games that conventionally have entirely separate installations.
+
+		MSG_WriteByte (&buf, svc_stufftext);
+		t = time(NULL);
+		strftime(timestr, sizeof(timestr), "%Y-%m-%dT%H:%M:%SZ", gmtime(&t));
+		MSG_WriteString(&buf, va("//recorddate %s\n", timestr));					//in order to avoid needing to depend upon file times that get destroyed in many different ways.
+	}
 
 	MSG_WriteByte (&buf, svc_serverdata);
 

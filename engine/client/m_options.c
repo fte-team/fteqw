@@ -2624,9 +2624,10 @@ void M_Menu_Video_f (void)
 		"85Hz",
 		"100Hz",
 		"120Hz",
+		"144Hz",
 		NULL
 	};
-	static const char *refreshvalues[] = {"", "59", "60", "70", "72", "75", "85", "100", "120", NULL};
+	static const char *refreshvalues[] = {"", "59", "60", "70", "72", "75", "85", "100", "120", "144", NULL};
 
 	static const char *res2dmodeopts[] = {
 		ASPECT_LIST

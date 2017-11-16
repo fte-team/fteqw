@@ -2518,7 +2518,7 @@ void	Cmd_ExecuteString (const char *text, int level)
 				if (Cmd_AliasExist(cmd_argv[0], level))
 					break;	//server stuffed an alias for a command that it would already have received. use that instead.
 #if defined(CSQC_DAT) && !defined(SERVERONLY)
-				if (CSQC_ConsoleCommand(text))
+				if (CSQC_ConsoleCommand(-1, text))
 					return;	//let the csqc handle it if it wants.
 #endif
 #if defined(MENU_DAT) && !defined(SERVERONLY)
@@ -2679,7 +2679,7 @@ void	Cmd_ExecuteString (const char *text, int level)
 	}
 
 #if defined(CSQC_DAT) && !defined(SERVERONLY)
-	if (CSQC_ConsoleCommand(text))
+	if (CSQC_ConsoleCommand(-1, text))
 		return;
 #endif
 #if defined(MENU_DAT) && !defined(SERVERONLY)

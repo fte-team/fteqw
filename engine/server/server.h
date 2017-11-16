@@ -403,10 +403,11 @@ enum
 	PRESPAWN_INVALID=0,
 	PRESPAWN_PROTOCOLSWITCH,	//nq drops unreliables until reliables are acked. this gives us a chance to drop any clc_move packets with formats from the previous map
 	PRESPAWN_SERVERINFO,
-	PRESPAWN_SOUNDLIST,	//nq skips these
-	PRESPAWN_VWEPMODELLIST,	//qw ugly extension.
+	PRESPAWN_CSPROGS,			//demos contain a copy of the csprogs.
+	PRESPAWN_SOUNDLIST,			//nq skips these
+	PRESPAWN_VWEPMODELLIST,		//qw ugly extension.
 	PRESPAWN_MODELLIST,
-	PRESPAWN_MAPCHECK,	//wait for old prespawn command
+	PRESPAWN_MAPCHECK,			//wait for old prespawn command
 	PRESPAWN_PARTICLES,
 	PRESPAWN_CUSTOMTENTS,
 	PRESPAWN_SIGNON_BUF,

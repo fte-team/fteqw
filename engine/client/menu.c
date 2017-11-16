@@ -331,7 +331,7 @@ void M_ToggleMenu_f (void)
 	}
 
 #ifdef CSQC_DAT
-	if (CSQC_ConsoleCommand("togglemenu"))
+	if (CSQC_ConsoleCommand(-1, "togglemenu"))
 	{
 		Key_Dest_Remove(kdm_console|kdm_cwindows);
 		return;

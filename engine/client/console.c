@@ -557,7 +557,7 @@ void Con_ToggleConsole_f (void)
 	}
 
 #ifdef CSQC_DAT
-	if (!(key_dest_mask & kdm_editor) && CSQC_ConsoleCommand("toggleconsole"))
+	if (!(key_dest_mask & kdm_editor) && CSQC_ConsoleCommand(-1, "toggleconsole"))
 	{
 		Key_Dest_Remove(kdm_console);
 		return;

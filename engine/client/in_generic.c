@@ -573,7 +573,7 @@ void IN_Commands(void)
 
 void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frametime)
 {
-	int mx, my;
+	float mx, my;
 	double mouse_x, mouse_y, mouse_deltadist;
 	int mfwt;
 	qboolean strafe_x, strafe_y;
@@ -658,8 +658,8 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 			//if they're strafing, calculate the speed to move at based upon their displacement
 			if (mouse->held)
 			{
-				mx = mouse->oldpos[0] - (vid.pixelwidth*3)/4;
-				my = mouse->oldpos[1] - (vid.pixelheight*3)/4;
+				mx = mouse->oldpos[0] - (vid.pixelwidth*3)/4.0;
+				my = mouse->oldpos[1] - (vid.pixelheight*3)/4.0;
 
 				//mx = (mouse->oldpos[0] - mouse->heldpos[0])*0.1;
 				//my = (mouse->oldpos[1] - mouse->heldpos[1])*0.1;
@@ -673,7 +673,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 			if (m_touchmajoraxis.ival)
 			{
 				//major axis only
-				if (abs(mx) > abs(my))
+				if (fabs(mx) > fabs(my))
 					my = 0;
 				else
 					mx = 0;

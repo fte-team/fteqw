@@ -470,14 +470,6 @@ static void INS_ActivateMouse (void)
 #endif
 		{
 #ifdef USINGRAWINPUT
-			if (rawmicecount > 0)
-			{
-				if (INS_RawInput_MouseRegister())
-				{
-					Con_SafePrintf("Raw input: unable to register raw input for mice, deinitializing\n");
-					INS_RawInput_MouseDeRegister();
-				}
-			}
 			if (rawkbdcount > 0)
 			{
 				if (INS_RawInput_KeyboardRegister())
@@ -549,8 +541,8 @@ static void INS_DeactivateMouse (void)
 #endif
 		{
 #ifdef USINGRAWINPUT
-			if (rawmicecount > 0)
-				INS_RawInput_MouseDeRegister();
+//			if (rawmicecount > 0)
+//				INS_RawInput_MouseDeRegister();
 #endif
 
 			if (restore_spi)
@@ -906,7 +898,8 @@ int INS_RawInput_MouseRegister(void)
 	//register to get wm_input messages
 	Rid.usUsagePage = 0x01;
 	Rid.usUsage = 0x02;
-	Rid.dwFlags = RIDEV_NOLEGACY; // adds HID mouse and also ignores legacy mouse messages
+	//note: we don't exclude legacy events any more. while we don't really want them, we also don't want to get confused about click states. this way we can track the states properly without breaking.
+	Rid.dwFlags = 0;//RIDEV_NOLEGACY; // adds HID mouse and also ignores legacy mouse messages
 	Rid.hwndTarget = NULL;
 
 	// Register to receive the WM_INPUT message for any change in mouse (buttons, wheel, and movement will all generate the same message)
@@ -1201,6 +1194,18 @@ void INS_ReInit (void)
 	INS_StartupMouse ();
 	INS_StartupJoystick ();
 //	INS_ActivateMouse();
+
+#ifdef USINGRAWINPUT
+	//mouse rawinput is always enabled, because its too messy otherwise.
+	if (rawmicecount > 0)
+	{
+		if (INS_RawInput_MouseRegister())
+		{
+			Con_SafePrintf("Raw input: unable to register raw input for mice, deinitializing\n");
+			INS_RawInput_MouseDeRegister();
+		}
+	}
+#endif
 }
 
 void INS_Init (void)
@@ -1302,7 +1307,10 @@ void INS_MouseEvent (int mstate)
 			if ( (mstate & (1<<i)) &&
 				!(sysmouse.oldbuttons & (1<<i)) )
 			{
-				IN_KeyEvent (sysmouse.qdeviceid, true, K_MOUSE1 + i, 0);
+				if (!rawmicecount)
+					IN_KeyEvent (sysmouse.qdeviceid, true, K_MOUSE1 + i, 0);
+				else
+					mstate &= ~(1<<i);
 			}
 
 			if ( !(mstate & (1<<i)) &&
@@ -1508,68 +1516,73 @@ void INS_RawInput_MouseRead(void)
 
 	multicursor_active[mouse->qdeviceid&7] = 0;
 
-	// movement
-	if (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
+	if (vid.activeapp)
 	{
-		if (in_simulatemultitouch.ival)
+		// movement
+		if (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
 		{
-			multicursor_active[mouse->qdeviceid&7] = true;
-			multicursor_x[mouse->qdeviceid&7] = raw->data.mouse.lLastX;
-			multicursor_y[mouse->qdeviceid&7] = raw->data.mouse.lLastY;
+			if (in_simulatemultitouch.ival)
+			{
+				multicursor_active[mouse->qdeviceid&7] = true;
+				multicursor_x[mouse->qdeviceid&7] = raw->data.mouse.lLastX;
+				multicursor_y[mouse->qdeviceid&7] = raw->data.mouse.lLastY;
+			}
+			IN_MouseMove(mouse->qdeviceid, true, raw->data.mouse.lLastX, raw->data.mouse.lLastY, 0, 0);
 		}
-		IN_MouseMove(mouse->qdeviceid, true, raw->data.mouse.lLastX, raw->data.mouse.lLastY, 0, 0);
-	}
-	else // RELATIVE
-	{
-		if (in_simulatemultitouch.ival)
+		else if (mouseactive)// RELATIVE
 		{
-			multicursor_active[mouse->qdeviceid&7] = true;
-			multicursor_x[mouse->qdeviceid&7] += raw->data.mouse.lLastX;
-			multicursor_y[mouse->qdeviceid&7] += raw->data.mouse.lLastY;
-			multicursor_x[mouse->qdeviceid&7] = bound(0, multicursor_x[mouse->qdeviceid&7], vid.pixelwidth);
-			multicursor_y[mouse->qdeviceid&7] = bound(0, multicursor_y[mouse->qdeviceid&7], vid.pixelheight);
-			IN_MouseMove(mouse->qdeviceid, true, multicursor_x[mouse->qdeviceid&7], multicursor_y[mouse->qdeviceid&7], 0, 0);
+			if (in_simulatemultitouch.ival)
+			{
+				multicursor_active[mouse->qdeviceid&7] = true;
+				multicursor_x[mouse->qdeviceid&7] += raw->data.mouse.lLastX;
+				multicursor_y[mouse->qdeviceid&7] += raw->data.mouse.lLastY;
+				multicursor_x[mouse->qdeviceid&7] = bound(0, multicursor_x[mouse->qdeviceid&7], vid.pixelwidth);
+				multicursor_y[mouse->qdeviceid&7] = bound(0, multicursor_y[mouse->qdeviceid&7], vid.pixelheight);
+				IN_MouseMove(mouse->qdeviceid, true, multicursor_x[mouse->qdeviceid&7], multicursor_y[mouse->qdeviceid&7], 0, 0);
+			}
+			else
+				IN_MouseMove(mouse->qdeviceid, false, raw->data.mouse.lLastX, raw->data.mouse.lLastY, 0, 0);
 		}
-		else
-			IN_MouseMove(mouse->qdeviceid, false, raw->data.mouse.lLastX, raw->data.mouse.lLastY, 0, 0);
-	}
 
-	// buttons
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN)
-		IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE1, 0);
+		// button presses
+		if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN)
+			IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE1, 0);
+		if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN)
+			IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE2, 0);
+		if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN)
+			IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE3, 0);
+		if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN)
+			IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE4, 0);
+		if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN)
+			IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE5, 0);
+
+
+		// mouse wheel
+		if (raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)
+		{      // If the current message has a mouse_wheel message
+			if ((SHORT)raw->data.mouse.usButtonData > 0)
+			{
+				IN_KeyEvent(mouse->qdeviceid, true, K_MWHEELUP, 0);
+				IN_KeyEvent(mouse->qdeviceid, false, K_MWHEELUP, 0);
+			}
+			if ((SHORT)raw->data.mouse.usButtonData < 0)
+			{
+				IN_KeyEvent(mouse->qdeviceid, true, K_MWHEELDOWN, 0);
+				IN_KeyEvent(mouse->qdeviceid, false, K_MWHEELDOWN, 0);
+			}
+		}
+	}
+	//button releass
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP)
 		IN_KeyEvent(mouse->qdeviceid, false, K_MOUSE1, 0);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN)
-		IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE2, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP)
 		IN_KeyEvent(mouse->qdeviceid, false, K_MOUSE2, 0);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN)
-		IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE3, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP)
 		IN_KeyEvent(mouse->qdeviceid, false, K_MOUSE3, 0);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN)
-		IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE4, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_UP)
 		IN_KeyEvent(mouse->qdeviceid, false, K_MOUSE4, 0);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN)
-		IN_KeyEvent(mouse->qdeviceid, true, K_MOUSE5, 0);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_UP)
 		IN_KeyEvent(mouse->qdeviceid, false, K_MOUSE5, 0);
-
-	// mouse wheel
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)
-	{      // If the current message has a mouse_wheel message
-		if ((SHORT)raw->data.mouse.usButtonData > 0)
-		{
-			IN_KeyEvent(mouse->qdeviceid, true, K_MWHEELUP, 0);
-			IN_KeyEvent(mouse->qdeviceid, false, K_MWHEELUP, 0);
-		}
-		if ((SHORT)raw->data.mouse.usButtonData < 0)
-		{
-			IN_KeyEvent(mouse->qdeviceid, true, K_MWHEELDOWN, 0);
-			IN_KeyEvent(mouse->qdeviceid, false, K_MWHEELDOWN, 0);
-		}
-	}
 
 	// extra buttons
 	tbuttons = raw->data.mouse.ulRawButtons & RI_RAWBUTTON_MASK;
@@ -1577,7 +1590,8 @@ void INS_RawInput_MouseRead(void)
 	{
 		if ( (tbuttons & (1<<j)) && !(rawmice[i].oldbuttons & (1<<j)) )
 		{
-			IN_KeyEvent (mouse->qdeviceid, true, K_MOUSE1 + j, 0);
+			if (vid.activeapp)
+				IN_KeyEvent (mouse->qdeviceid, true, K_MOUSE1 + j, 0);
 		}
 
 		if ( !(tbuttons & (1<<j)) && (rawmice[i].oldbuttons & (1<<j)) )

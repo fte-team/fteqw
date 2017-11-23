@@ -1906,7 +1906,7 @@ void SCR_DrawLoading (qboolean opaque)
 		int qdepth = COM_FDepthFile(qname, true);
 		int h2depth = COM_FDepthFile("gfx/menu/loading.lmp", true);
 
-		if (!(qdepth < h2depth || h2depth > 0xffffff))
+		if (!(qdepth < h2depth || h2depth > FDEPTH_MISSING))
 		{	//hexen2 files.
 			//hexen2 has some fancy sliders built into its graphics in specific places. so this is messy.
 			pic = R2D_SafeCachePic ("gfx/menu/loading.lmp");

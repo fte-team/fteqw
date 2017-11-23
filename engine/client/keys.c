@@ -196,6 +196,8 @@ keyname_t keynames[] =
 	{"MOUSE8",	K_MOUSE8},
 	{"MOUSE9",	K_MOUSE9},
 	{"MOUSE10",	K_MOUSE10},
+	{"MWHEELUP",	K_MWHEELUP},
+	{"MWHEELDOWN",	K_MWHEELDOWN},
 
 	{"LWIN",	K_LWIN},
 	{"RWIN",	K_RWIN},
@@ -245,9 +247,6 @@ keyname_t keynames[] =
 	{"AUX32",	K_AUX32},
 
 	{"PAUSE",		K_PAUSE},
-
-	{"MWHEELUP",	K_MWHEELUP},
-	{"MWHEELDOWN",	K_MWHEELDOWN},
 
 	{"PRINTSCREEN",	K_PRINTSCREEN},
 	{"CAPSLOCK",	K_CAPSLOCK},
@@ -512,6 +511,8 @@ int Con_ExecuteLine(console_t *con, char *line)
 				waschat = true;
 				Cbuf_AddText (line, RESTRICT_LOCAL);
 			}
+			else
+				exec = line;	//exec it anyway. let the cbuf give the error message in case its 'INVALID;VALID'
 		}
 
 		if (exec)

@@ -1131,7 +1131,7 @@ void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const cha
 					if (d->dtype == DEP_FILE)
 					{
 						Q_snprintfz(temp, sizeof(temp), "%s/%s", p->gamedir, d->name);
-						FS_AddHashedPackage(oldpaths, parent_pure, parent_logical, search, loadstuff, temp, p->qhash, NULL);
+						FS_AddHashedPackage(oldpaths, parent_pure, parent_logical, search, loadstuff, temp, p->qhash, NULL, SPF_COPYPROTECTED|SPF_UNTRUSTED);
 					}
 				}
 			}

@@ -2816,11 +2816,13 @@ qboolean MP_Keydown(int key, int unicode, unsigned int devid)
 	{
 		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = CSIE_KEYDOWN;
-		G_FLOAT(OFS_PARM1) = MP_TranslateFTEtoQCCodes(key);
-		G_FLOAT(OFS_PARM2) = unicode;
+		G_FLOAT(OFS_PARM1) = qcinput_scan = MP_TranslateFTEtoQCCodes(key);
+		G_FLOAT(OFS_PARM2) = qcinput_unicode = unicode;
 		G_FLOAT(OFS_PARM3) = devid;
 		PR_ExecuteProgram(menu_world.progs, mp_inputevent_function);
 		result = G_FLOAT(OFS_RETURN);
+		qcinput_scan = 0;
+		qcinput_unicode = 0;
 	}
 	else if (mp_keydown_function)
 	{

@@ -1892,7 +1892,7 @@ void Q_InitProgs(void)
 		}
 	}
 
-	if (COM_FDepthFile("fteadd.dat", true)!=0x7fffffff)
+	if (COM_FDepthFile("fteadd.dat", true)!=FDEPTH_MISSING)
 	{
 		prnum = AddProgs("fteadd.dat");
 		if (prnum>=0)
@@ -1913,21 +1913,21 @@ void Q_InitProgs(void)
 	switch (sv.world.worldmodel->fromgame)	//spawn functions for - spawn funcs still come from the first progs found.
 	{
 	case fg_quake2:
-		if (COM_FDepthFile("q2bsp.dat", true)!=0x7fffffff)
+		if (COM_FDepthFile("q2bsp.dat", true)!=FDEPTH_MISSING)
 			prnum = AddProgs("q2bsp.dat");
 		break;
 	case fg_quake3:
-		if (COM_FDepthFile("q3bsp.dat", true)!=0x7fffffff)
+		if (COM_FDepthFile("q3bsp.dat", true)!=FDEPTH_MISSING)
 			prnum = AddProgs("q3bsp.dat");
-		else if (COM_FDepthFile("q2bsp.dat", true)!=0x7fffffff)	//fallback
+		else if (COM_FDepthFile("q2bsp.dat", true)!=FDEPTH_MISSING)	//fallback
 			prnum = AddProgs("q2bsp.dat");
 		break;
 	case fg_doom:
-		if (COM_FDepthFile("doombsp.dat", true)!=0x7fffffff)
+		if (COM_FDepthFile("doombsp.dat", true)!=FDEPTH_MISSING)
 			prnum = AddProgs("doombsp.dat");
 		break;
 	case fg_halflife:
-		if (COM_FDepthFile("hlbsp.dat", true)!=0x7fffffff)
+		if (COM_FDepthFile("hlbsp.dat", true)!=FDEPTH_MISSING)
 			prnum = AddProgs("hlbsp.dat");
 		break;
 

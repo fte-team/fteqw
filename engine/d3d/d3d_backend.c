@@ -236,15 +236,16 @@ extern int be_maxpasses;
 
 enum
 {
-	D3D_VDEC_COL4B = 1<<0,
-	D3D_VDEC_ST0 = 1<<1,
-	D3D_VDEC_ST1 = 1<<2,
-	D3D_VDEC_ST2 = 1<<3,
-	D3D_VDEC_ST3 = 1<<4,
-	D3D_VDEC_NORM = 1<<5,
-	D3D_VDEC_SKEL = 1<<6,
-	D3D_VDEC_POS2 = 1<<7,
-	D3D_VDEC_MAX = 1<<8,
+	D3D_VDEC_COL4B	= 1<<0,
+	D3D_VDEC_ST0	= 1<<1,
+	D3D_VDEC_ST1	= 1<<2,
+	D3D_VDEC_ST2	= 1<<3,
+	D3D_VDEC_ST3	= 1<<4,
+	D3D_VDEC_NORM	= 1<<5,
+	D3D_VDEC_SKEL	= 1<<6,
+	D3D_VDEC_POS2	= 1<<7,
+	D3D_VDEC_CM		= 1<<8,
+	D3D_VDEC_MAX	= 1<<9,
 };
 #define STRM_VERT	0
 #define STRM_COL	1
@@ -583,7 +584,10 @@ void D3D9BE_Reset(qboolean before)
 				{
 					decl[elements].Stream = STRM_TC0+tmu;
 					decl[elements].Offset = 0;
-					decl[elements].Type = D3DDECLTYPE_FLOAT2;
+					if (i & D3D_VDEC_CM)
+						decl[elements].Type = D3DDECLTYPE_FLOAT3;
+					else
+						decl[elements].Type = D3DDECLTYPE_FLOAT2;
 					decl[elements].Method = D3DDECLMETHOD_DEFAULT;
 					decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
 					decl[elements].UsageIndex = tmu;
@@ -1292,6 +1296,25 @@ static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t 
 	}
 }
 
+static float *tcgen3(const shaderpass_t *pass, int cnt, float *dst, const mesh_t *mesh)
+{
+	int i;
+	vecV_t *src;
+	switch (pass->tcgen)
+	{
+	default:
+	case TC_GEN_SKYBOX:
+		src = mesh->xyz_array;
+		for (i = 0; i < cnt; i++, dst += 3)
+		{
+			dst[0] = src[i][0] - r_refdef.vieworg[0];
+			dst[1] = r_refdef.vieworg[1] - src[i][1];
+			dst[2] = src[i][2] - r_refdef.vieworg[2];
+		}
+		return dst-cnt*3;
+	}
+}
+
 /*src and dst can be the same address when tcmods are chained*/
 static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, const mesh_t *mesh)
 {
@@ -1407,6 +1430,41 @@ static void GenerateTCMods(const shaderpass_t *pass, float *dest)
 			}
 		}
 		else if (src != out)
+		{
+			memcpy(out, src, sizeof(vec2_t)*mesh->numvertexes);
+		}
+	}
+}
+static void GenerateTCMods3(const shaderpass_t *pass, float *dest)
+{
+	mesh_t *mesh;
+	unsigned int mno;
+	// unsigned int fvertex = 0; //unused variable
+	int i;
+	float *src;
+	float *out;
+	for (mno = 0; mno < shaderstate.nummeshes; mno++)
+	{
+		mesh = shaderstate.meshlist[mno];
+
+#if 0
+		out = dest + mesh->vbofirstvert*3;
+#else
+		out = dest;
+		dest += mesh->numvertexes*3;
+#endif
+
+		src = tcgen3(pass, mesh->numvertexes, out, mesh);
+		//tcgen might return unmodified info
+		/*if (pass->numtcmods)
+		{
+			for (i = 0; i < pass->numtcmods; i++)
+			{
+				tcmod3(&pass->tcmods[i], mesh->numvertexes, src, out, mesh);
+				src = out;
+			}
+		}
+		else */if (src != out)
 		{
 			memcpy(out, src, sizeof(vec2_t)*mesh->numvertexes);
 		}
@@ -1703,6 +1761,14 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.batchvbo->texcoord.d3d.buff, shaderstate.batchvbo->texcoord.d3d.offs, sizeof(vbovdata_t)));
 		else if (shaderstate.batchvbo && pass[passno].tcgen == TC_GEN_LIGHTMAP && !pass[passno].numtcmods)
 			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.batchvbo->lmcoord[0].d3d.buff, shaderstate.batchvbo->lmcoord[0].d3d.offs, sizeof(vbovdata_t)));
+		else if (pass[passno].tcgen == TC_GEN_SKYBOX)
+		{
+			vdec |= D3D_VDEC_CM;
+			allocvertexbuffer(shaderstate.dynst_buff[tmu], shaderstate.dynst_size, &shaderstate.dynst_offs[tmu], &map, vertcount*sizeof(vec3_t));
+			GenerateTCMods3(pass+passno, map);
+			d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[tmu]));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.dynst_buff[tmu], shaderstate.dynst_offs[tmu] - vertcount*sizeof(vec3_t), sizeof(vec3_t)));
+		}
 		else
 		{
 			allocvertexbuffer(shaderstate.dynst_buff[tmu], shaderstate.dynst_size, &shaderstate.dynst_offs[tmu], &map, vertcount*sizeof(vec2_t));

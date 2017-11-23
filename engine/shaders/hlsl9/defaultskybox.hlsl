@@ -11,22 +11,23 @@
 	};
 
 #ifdef VERTEX_SHADER
-	float3 e_eyepos;
 	float4x4  m_modelviewprojection;
 	v2f main (a2v inp)
 	{
 		v2f outp;
 		outp.pos = mul(m_modelviewprojection, inp.pos);
-		outp.texc= inp.pos - e_eyepos;
-		outp.texc.y = -outp.texc;
+		outp.texc = inp.pos.xyz;
 		return outp;
 	}
 #endif
 
 #ifdef FRAGMENT_SHADER
+	float3 e_eyepos;
 	sampler s_reflectcube;
 	float4 main (v2f inp) : COLOR0
 	{
-		return texCUBE(s_reflectcube, inp.texc);
+		float3 tc = inp.texc - e_eyepos.xyz;
+		tc.y = -tc.y;
+		return texCUBE(s_reflectcube, tc);
 	}
 #endif

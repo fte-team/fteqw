@@ -5304,6 +5304,8 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 			d.cast = type_vector;
 		}
 		d.cast = args[i].ref.cast;
+		if (!d.cast)
+			continue;
 
 		if (QCC_RemapTemp(args[i].firststatement, numstatements, args[i].ref, d))
 		{
@@ -5352,6 +5354,8 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 	{
 		for (i = 0; i < parm && i < 2; i++)
 		{
+			if (!args[i].ref.cast)
+				continue;
 			args[i].ref.sym->referenced=true;
 			QCC_FreeTemp(args[i].ref);
 		}
@@ -5415,7 +5419,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 
 				if (arglist[i]->readonly)
 				{
-					QCC_PR_ParseWarning(ERR_TYPEMISMATCHPARM, "Unanle to write to out argument\n");
+					QCC_PR_ParseWarning(ERR_TYPEMISMATCHPARM, "Unable to write to out argument\n");
 					continue;
 				}
 				if (parm>=MAX_PARMS)

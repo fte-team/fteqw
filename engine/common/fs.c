@@ -530,7 +530,7 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 	else if (!Q_strcasecmp(cmd, "install"))
 	{
 		if (man->installupd)
-			Z_StrCat(&man->defaultoverrides, va(";%s", Cmd_Args()));
+			Z_StrCat(&man->installupd, va(";%s", Cmd_Argv(1)));
 		else
 			man->installupd = Z_StrDup(Cmd_Argv(1));
 	}
@@ -1661,6 +1661,7 @@ vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 
 qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen)
 {
+	flocation_t loc;
 	char *last;
 	int i;
 	char cleanname[MAX_QPATH];
@@ -1694,8 +1695,14 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 
 	switch (relativeto)
 	{
+	case FS_GAME: //this is really for diagnostic type stuff...
+		if (FS_FLocateFile(fname, FSLF_IFFOUND, &loc))
+		{
+			snprintf(out, outlen, "%s/%s", loc.search->logicalpath, fname);
+			break;
+		}
+		//fallthrough
 	case FS_GAMEONLY:
-	case FS_GAME:
 		if (com_homepathenabled)
 			snprintf(out, outlen, "%s%s/%s", com_homepath, gamedirfile, fname);
 		else
@@ -2388,7 +2395,7 @@ searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, const char *pakname)
 }
 
 //
-void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parentpath, const char *logicalpaths, searchpath_t *search, unsigned int loadstuff, const char *pakpath, const char *qhash, const char *pakprefix)
+void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parentpath, const char *logicalpaths, searchpath_t *search, unsigned int loadstuff, const char *pakpath, const char *qhash, const char *pakprefix, unsigned int packflags)
 {
 	searchpathfuncs_t	*handle;
 	searchpath_t *oldp;
@@ -2481,7 +2488,7 @@ void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parentpath, const 
 					}
 				}
 				if (handle)
-					FS_AddPathHandle(oldpaths, pakpath, lname, handle, pakprefix, SPF_COPYPROTECTED|SPF_UNTRUSTED|keptflags, (unsigned int)-1);
+					FS_AddPathHandle(oldpaths, pakpath, lname, handle, pakprefix, packflags|keptflags, (unsigned int)-1);
 			}
 			return;
 		}
@@ -2504,7 +2511,7 @@ static void FS_AddManifestPackages(searchpath_t **oldpaths, const char *purepath
 		if (palen > ptlen && (fs_manifest->package[i].path[ptlen] == '/' || fs_manifest->package[i].path[ptlen] == '\\' )&& !strncmp(purepath, fs_manifest->package[i].path, ptlen))
 		{
 			Q_snprintfz(qhash, sizeof(qhash), "%#x", fs_manifest->package[i].crc);
-			FS_AddHashedPackage(oldpaths,purepath,logicalpaths,search,loadstuff, fs_manifest->package[i].path,fs_manifest->package[i].crcknown?qhash:NULL,fs_manifest->package[i].prefix);
+			FS_AddHashedPackage(oldpaths,purepath,logicalpaths,search,loadstuff, fs_manifest->package[i].path,fs_manifest->package[i].crcknown?qhash:NULL,fs_manifest->package[i].prefix, SPF_COPYPROTECTED|(fs_manifest->security==MANIFEST_SECURITY_NOT?SPF_UNTRUSTED:0));
 		}
 	}
 }

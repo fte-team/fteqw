@@ -642,7 +642,50 @@ void Cmd_Exec_f (void)
 		COM_DefaultExtension(name, ".cfg", sizeof(name));
 	}
 	else
+	{
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
+#ifndef QUAKETC
+		//fte writes to a different config file from that specified by the quake.rc, to avoid conflicts.
+		//so make sure that fte's settings override those from whatever other engine that wrote the legacy config.cfg file.
+		if (!strcmp(name, "config.cfg") || !strcmp(name, "q3config.cfg"))
+		{
+			int cfgdepth = COM_FDepthFile(name, true);
+			int defdepth = COM_FDepthFile("default.cfg", true);
+			Cbuf_InsertText("exec fte.cfg", Cmd_ExecLevel, true);
+			if (defdepth < cfgdepth && cfgdepth != FDEPTH_MISSING)
+			{
+				if (cl_warncmd.ival)
+				{
+					char fulldefault[MAX_OSPATH];
+					char fullconfig[MAX_OSPATH];
+					*fulldefault = *fullconfig = 0;
+					FS_NativePath("default.cfg", FS_GAME, fulldefault, sizeof(fulldefault));
+					FS_NativePath(name, FS_GAME, fullconfig, sizeof(fullconfig));
+					Con_Printf("Refusing to execute \"%s\", superceded by %s\n", fullconfig, fulldefault);
+				}
+				return;
+			}
+		}
+		else if (!strcmp(name, "fte.cfg"))
+		{
+			int cfgdepth = COM_FDepthFile(name, true);
+			int defdepth = COM_FDepthFile("default.cfg", true);
+			if (defdepth < cfgdepth && cfgdepth != FDEPTH_MISSING)
+			{
+				if (cl_warncmd.ival)
+				{
+					char fulldefault[MAX_OSPATH];
+					char fullconfig[MAX_OSPATH];
+					*fulldefault = *fullconfig = 0;
+					FS_NativePath("default.cfg", FS_GAME, fulldefault, sizeof(fulldefault));
+					FS_NativePath(name, FS_GAME, fullconfig, sizeof(fullconfig));
+					Con_Printf("Refusing to execute \"%s\", superceded by %s\n", fullconfig, fulldefault);
+				}
+				return;
+			}
+		}
+#endif
+	}
 
 	if (!strncmp(name, "../", 3) || !strncmp(name, "..\\", 3) || !strncmp(name, "./", 2) || !strncmp(name, ".\\", 2))
 	{	//filesystem will correctly block this (and more), but it does look dodgy when servers try doing this dodgy shit anyway.
@@ -683,7 +726,7 @@ void Cmd_Exec_f (void)
 		s+=3;
 	}
 
-	if (!strcmp(name, "config.cfg") || !strcmp(name, "fte.cfg"))
+	if (!strcmp(name, "config.cfg") || !strcmp(name, "q3config.cfg") || !strcmp(name, "fte.cfg"))
 	{
 		//if the config is from id1 and the default.cfg was from some mod, make sure the default.cfg overrides the config.
 		//we won't just exec the default instead, because we can at least retain things which are not specified (ie: a few binds)

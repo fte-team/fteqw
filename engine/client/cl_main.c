@@ -58,7 +58,7 @@ cvar_t	cl_pure		= CVARD("cl_pure", "0", "0=standard quake rules.\n1=clients shou
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
 cvar_t	cl_maxfps	= CVARF("cl_maxfps", "500", CVAR_ARCHIVE);
-cvar_t	cl_idlefps	= CVARFD("cl_idlefps", "0", CVAR_ARCHIVE, "This is the maximum framerate to attain while idle/paused/unfocused.");
+cvar_t	cl_idlefps	= CVARFD("cl_idlefps", "30", CVAR_ARCHIVE, "This is the maximum framerate to attain while idle/paused/unfocused.");
 cvar_t	cl_yieldcpu = CVARFD("cl_yieldcpu", "0", CVAR_ARCHIVE, "Attempt to yield between frames. This can resolve issues with certain drivers and background software, but can mean less consistant frame times. Will reduce power consumption/heat generation so should be set on laptops or similar (over-hot/battery powered) devices.");
 cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
@@ -5776,11 +5776,11 @@ void CL_StartCinematicOrMenu(void)
 		idroq_depth = COM_FDepthFile("video/idlogo.roq", true);	//q3
 		ol_depth = COM_FDepthFile("video/openinglogos.roq", true);	//jk2
 
-		if (ol_depth != 0x7fffffff && (ol_depth <= idroq_depth || ol_depth <= idcin_depth))
+		if (ol_depth != FDEPTH_MISSING && (ol_depth <= idroq_depth || ol_depth <= idcin_depth))
 			Media_PlayFilm("video/openinglogos.roq", true);
-		else if (idroq_depth != 0x7fffffff && idroq_depth <= idcin_depth)
+		else if (idroq_depth != FDEPTH_MISSING && idroq_depth <= idcin_depth)
 			Media_PlayFilm("video/idlogo.roq", true);
-		else if (idcin_depth != 0x7fffffff)
+		else if (idcin_depth != FDEPTH_MISSING)
 			Media_PlayFilm("video/idlog.cin", true);
 
 #ifndef NOLEGACY
@@ -5899,12 +5899,12 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	qrc = COM_FDepthFile("quake.rc", true);	//q1
 	hrc = COM_FDepthFile("hexen.rc", true);	//h2
 
-	if (qrc <= def && qrc <= hrc && qrc!=0x7fffffff)
+	if (qrc <= def && qrc <= hrc && qrc!=FDEPTH_MISSING)
 	{
 		Cbuf_AddText ("exec quake.rc\n", RESTRICT_LOCAL);
 		def = qrc;
 	}
-	else if (hrc <= def && hrc!=0x7fffffff)
+	else if (hrc <= def && hrc!=FDEPTH_MISSING)
 	{
 		Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
 		def = hrc;
@@ -5914,22 +5914,16 @@ void CL_ExecInitialConfigs(char *resetcommand)
 		int cfg = COM_FDepthFile ("config.cfg", true);
 		int q3cfg = COM_FDepthFile ("q3config.cfg", true);
 	//	Cbuf_AddText ("bind ` toggleconsole\n", RESTRICT_LOCAL);	//in case default.cfg does not exist. :(
-		if (def!=0x7fffffff)
+		if (def!=FDEPTH_MISSING)
 			Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
-		if (cfg <= def && cfg!=0x7fffffff)
-			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
-		if (q3cfg <= def && q3cfg!=0x7fffffff)
+		if (q3cfg <= def && q3cfg!=FDEPTH_MISSING)
 			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
-		if (def!=0x7fffffff)
+		else //if (cfg <= def && cfg!=0x7fffffff)
+			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
+//		else
+//			Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
+		if (def!=FDEPTH_MISSING)
 			Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
-	}
-	qrc = COM_FDepthFile("fte.cfg", true);
-	if (qrc != 0x7fffffff)
-	{
-		if (qrc <= def)	//don't use it if we're running a mod with a default.cfg that is in a stronger path than fte.cfg, as this indicates that fte.cfg is from fte/ and not $currentmod/.
-			Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
-		else
-			Cbuf_AddText ("echo skipping fte.cfg from wrong gamedir\n", RESTRICT_LOCAL);
 	}
 #endif
 #ifdef QUAKESPYAPI

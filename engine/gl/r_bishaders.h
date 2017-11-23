@@ -4902,23 +4902,24 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "};\n"
 
 "#ifdef VERTEX_SHADER\n"
-"float3 e_eyepos;\n"
 "float4x4  m_modelviewprojection;\n"
 "v2f main (a2v inp)\n"
 "{\n"
 "v2f outp;\n"
 "outp.pos = mul(m_modelviewprojection, inp.pos);\n"
-"outp.texc= inp.pos - e_eyepos;\n"
-"outp.texc.y = -outp.texc;\n"
+"outp.texc = inp.pos.xyz;\n"
 "return outp;\n"
 "}\n"
 "#endif\n"
 
 "#ifdef FRAGMENT_SHADER\n"
+"float3 e_eyepos;\n"
 "sampler s_reflectcube;\n"
 "float4 main (v2f inp) : COLOR0\n"
 "{\n"
-"return texCUBE(s_reflectcube, inp.texc);\n"
+"float3 tc = inp.texc - e_eyepos.xyz;\n"
+"tc.y = -tc.y;\n"
+"return texCUBE(s_reflectcube, tc);\n"
 "}\n"
 "#endif\n"
 },
@@ -8505,6 +8506,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "lpp_wall",
+"!!ver 100 150\n"
 "!!permu BUMP //for offsetmapping rather than bumpmapping (real bumps are handled elsewhere)\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!samps 2\n"

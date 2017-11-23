@@ -522,6 +522,7 @@ char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean
 qboolean FS_GenCachedPakName(const char *pname, const char *crc, char *local, int llen);	//returns false if the name is invalid.
 void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags);
 
+#define FDEPTH_MISSING 0x7fffffff
 #define COM_FDepthFile(filename,ignorepacks) FS_FLocateFile(filename,FSLF_DONTREFERENCE|FSLF_DEEPONFAILURE|(ignorepacks?0:FSLF_DEPTH_INEXPLICIT), NULL)
 #define COM_FCheckExists(filename) FS_FLocateFile(filename,FSLF_IFFOUND, NULL)
 

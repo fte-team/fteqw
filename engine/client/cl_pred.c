@@ -862,6 +862,7 @@ void CL_PredictMovePNum (int seat)
 	int			fromframe, toframe;
 	outframe_t	*backdate;
 	player_state_t *fromstate, *tostate, framebuf[2];	//need two framebufs so we can interpolate between two states.
+	static player_state_t nullstate;
 	usercmd_t	*cmdfrom = NULL, *cmdto = NULL;
 	double		fromtime, totime;
 	int			oldphysent;
@@ -1114,6 +1115,12 @@ void CL_PredictMovePNum (int seat)
 				break;
 			}
 		}
+		if (i == pe->num_entities && pv->nolocalplayer)
+		{
+			fromstate = &nullstate;
+			nopred = true;
+		}
+
 		pe = &cl.inframes[toframe & UPDATE_MASK].packet_entities;
 		for (i = 0; i < pe->num_entities; i++)
 		{
@@ -1137,8 +1144,17 @@ void CL_PredictMovePNum (int seat)
 				break;
 			}
 		}
+		if (i == pe->num_entities && pv->nolocalplayer)
+		{
+			tostate = &nullstate;
+			nopred = true;
+		}
 		if (pv->nolocalplayer && trackent < cl.maxlerpents)
+		{
 			le = &cl.lerpents[trackent];
+			if (le->sequence != cl.lerpentssequence)
+				nopred = true;	//err, guys, this guy ain't valid... we don't know who we are! no point predicting.
+		}
 	}
 
 	// predict forward until cl.time <= to->senttime

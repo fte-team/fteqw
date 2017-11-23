@@ -2863,29 +2863,27 @@ static void CL_AddDecal_Callback(void *vctx, vec3_t *fte_restrict points, size_t
 void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t rgbvalue, float alphavalue)
 {
 	scenetris_t *t;
-	float l, s;
+	float l, s, radius;
 	cl_adddecal_ctx_t ctx;
 
 	VectorNegate(up, ctx.axis[0]);
 	VectorCopy(side, ctx.axis[2]);
+
+	s = DotProduct(ctx.axis[2], ctx.axis[2]);
+	l = DotProduct(ctx.axis[0], ctx.axis[0]);
+	radius = 1/sqrt(s);
+
+	VectorScale(ctx.axis[0], 1/sqrt(l), ctx.axis[0]);
+	VectorScale(ctx.axis[2], radius, ctx.axis[2]);
+
 	CrossProduct(ctx.axis[0], ctx.axis[2], ctx.axis[1]);
 
-	s = sqrt(DotProduct(ctx.axis[2], ctx.axis[2]));
-	l = sqrt(DotProduct(ctx.axis[1], ctx.axis[1]));
-
-	VectorScale(ctx.axis[1], s/l, ctx.axis[1]);
-
-	VectorScale(ctx.axis[1], 0.5/(s*s), ctx.axis[1]);
-	VectorScale(ctx.axis[2], 0.5/(s*s), ctx.axis[2]);
-	l = sqrt(DotProduct(ctx.axis[0], ctx.axis[0]));
-	VectorScale(ctx.axis[0], 1/(l*l), ctx.axis[0]);
-
-	ctx.offset[1] = DotProduct(origin, ctx.axis[1]) + 0.5;
-	ctx.offset[2] = DotProduct(origin, ctx.axis[2]) + 0.5;
+	ctx.offset[1] = DotProduct(origin, ctx.axis[1]) + 0.5*radius;
+	ctx.offset[2] = DotProduct(origin, ctx.axis[2]) + 0.5*radius;
 	ctx.offset[0] = DotProduct(origin, ctx.axis[0]);
 
-	ctx.scale[1] = 1;
-	ctx.scale[2] = 1;
+	ctx.scale[1] = 1/radius;
+	ctx.scale[2] = 1/radius;
 	ctx.scale[0] = 1;
 
 	/*reuse the previous trigroup if its the same shader*/
@@ -2910,7 +2908,7 @@ void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t
 	ctx.t = t;
 	VectorCopy(rgbvalue, ctx.rgbavalue);
 	ctx.rgbavalue[3] = alphavalue;
-	Mod_ClipDecal(cl.worldmodel, origin, ctx.axis[0], ctx.axis[1], ctx.axis[2], 2, 0,0, CL_AddDecal_Callback, &ctx);
+	Mod_ClipDecal(cl.worldmodel, origin, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius*2, 0,0, CL_AddDecal_Callback, &ctx);
 
 	if (!t->numidx)
 		cl_numstris--;

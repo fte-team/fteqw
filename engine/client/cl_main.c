@@ -5911,7 +5911,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	}
 	else
 	{	//they didn't give us an rc file!
-		int cfg = COM_FDepthFile ("config.cfg", true);
+//		int cfg = COM_FDepthFile ("config.cfg", true);
 		int q3cfg = COM_FDepthFile ("q3config.cfg", true);
 	//	Cbuf_AddText ("bind ` toggleconsole\n", RESTRICT_LOCAL);	//in case default.cfg does not exist. :(
 		if (def!=FDEPTH_MISSING)

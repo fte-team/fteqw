@@ -214,6 +214,7 @@ typedef struct
 
 	int mipfilter[3];
 	int picfilter[3];
+	D3DSAMPLERSTATETYPE anisfilter;
 } d3dbackend_t;
 
 typedef struct
@@ -290,17 +291,17 @@ static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
 		int *filter = (flags & SHADER_PASS_UIPIC)?shaderstate.picfilter:shaderstate.mipfilter;
 
 		if ((filter[2] && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
-			mag = D3DTEXF_ANISOTROPIC;//D3DTEXF_LINEAR;
+			mag = shaderstate.anisfilter;
 		else
 			mag = D3DTEXF_POINT;
 		if (filter[1] == -1 || (flags & IF_NOMIPMAP))
 			mip = D3DTEXF_NONE;
 		else if ((filter[1] && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
-			mip = D3DTEXF_ANISOTROPIC;//D3DTEXF_LINEAR;
+			mip = D3DTEXF_LINEAR;
 		else
 			mip = D3DTEXF_POINT;
 		if ((filter[0] && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
-			min = D3DTEXF_ANISOTROPIC;//D3DTEXF_LINEAR;
+			min = shaderstate.anisfilter;
 		else
 			min = D3DTEXF_POINT;
 
@@ -317,13 +318,21 @@ void D3D9_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3]
 	int i;
 	memcpy(shaderstate.mipfilter, filtermip, sizeof(shaderstate.mipfilter));
 	memcpy(shaderstate.picfilter, filterpic, sizeof(shaderstate.picfilter));
+	if (anis <= 1)
+	{
+		anis = 1;
+		shaderstate.anisfilter = D3DTEXF_LINEAR;
+	}
+	else
+		shaderstate.anisfilter = D3DTEXF_ANISOTROPIC;
 
 	for (i = 0; i < MAX_TMUS; i++)
 	{
-		shaderstate.tmuflags[i] = ~shaderstate.tmuflags[i];
-		BE_ApplyTMUState(i, ~shaderstate.tmuflags[i]);
-
 		IDirect3DDevice9_SetSamplerState(pD3DDev9, i, D3DSAMP_MAXANISOTROPY, anis);
+//		IDirect3DDevice9_SetSamplerState(pD3DDev9, i, D3DSAMP_MIPMAPLODBIAS, 0);	//negative lod bias? :s
+
+//		shaderstate.tmuflags[i] = ~shaderstate.tmuflags[i];
+		BE_ApplyTMUState(i, ~shaderstate.tmuflags[i]);
 	}
 }
 
@@ -1440,7 +1449,7 @@ static void GenerateTCMods3(const shaderpass_t *pass, float *dest)
 	mesh_t *mesh;
 	unsigned int mno;
 	// unsigned int fvertex = 0; //unused variable
-	int i;
+//	int i;
 	float *src;
 	float *out;
 	for (mno = 0; mno < shaderstate.nummeshes; mno++)

@@ -2297,6 +2297,7 @@ static qboolean CModRBSP_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 	vec2_t		*lmout, *stout;
 	vec4_t *cout;
 	int sty;
+	extern qbyte lmgamma[256];
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -2346,10 +2347,10 @@ static qboolean CModRBSP_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 		}
 		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 		{
-			for ( j=0 ; j < 4 ; j++)
-			{
-				prv->colors4f_array[sty][i][j] = in->color[sty][j]/255.0f;
-			}
+			prv->colors4f_array[sty][i][0] = lmgamma[in->color[sty][0]]/255.0f;
+			prv->colors4f_array[sty][i][1] = lmgamma[in->color[sty][1]]/255.0f;
+			prv->colors4f_array[sty][i][2] = lmgamma[in->color[sty][2]]/255.0f;
+			prv->colors4f_array[sty][i][3] = in->color[sty][3]/255.0f;
 		}
 	}
 

@@ -4438,20 +4438,21 @@ void QCC_SetDefaultProperties (void)
 		qccwarningaction[i] = WA_ERROR;
 
 	//play with default warnings.
-	qccwarningaction[WARN_NOTREFERENCEDCONST] = WA_IGNORE;
-	qccwarningaction[WARN_MACROINSTRING] = WA_IGNORE;
-//	qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = WA_IGNORE;
-	qccwarningaction[WARN_EXTRAPRECACHE] = WA_IGNORE;
-	qccwarningaction[WARN_DEADCODE] = WA_IGNORE;
-	qccwarningaction[WARN_FTE_SPECIFIC] = WA_IGNORE;
-	qccwarningaction[WARN_EXTENSION_USED] = WA_IGNORE;
-	qccwarningaction[WARN_IFSTRING_USED] = WA_IGNORE;
-	qccwarningaction[WARN_CORRECTEDRETURNTYPE] = WA_IGNORE;
-	qccwarningaction[WARN_NOTUTF8] = WA_IGNORE;
-	qccwarningaction[WARN_UNINITIALIZED] = WA_IGNORE;	//not sure about this being ignored by default.
-	qccwarningaction[WARN_SELFNOTTHIS] = WA_IGNORE;
-	qccwarningaction[WARN_EVILPREPROCESSOR] = WA_WARN;//FIXME: make into WA_ERROR;
-	qccwarningaction[WARN_IDENTICALPRECOMPILER] = WA_IGNORE;
+	qccwarningaction[WARN_NOTREFERENCEDCONST]	= WA_IGNORE;
+	qccwarningaction[WARN_MACROINSTRING]		= WA_IGNORE;
+//	qccwarningaction[WARN_ASSIGNMENTTOCONSTANT]	= WA_IGNORE;
+	qccwarningaction[WARN_EXTRAPRECACHE]		= WA_IGNORE;
+	qccwarningaction[WARN_DEADCODE]				= WA_IGNORE;
+	qccwarningaction[WARN_FTE_SPECIFIC]			= WA_IGNORE;
+	qccwarningaction[WARN_EXTENSION_USED]		= WA_IGNORE;
+	qccwarningaction[WARN_IFSTRING_USED]		= WA_IGNORE;
+	qccwarningaction[WARN_CORRECTEDRETURNTYPE]	= WA_IGNORE;
+	qccwarningaction[WARN_NOTUTF8]				= WA_IGNORE;
+	qccwarningaction[WARN_UNINITIALIZED]		= WA_IGNORE;	//not sure about this being ignored by default.
+	qccwarningaction[WARN_SELFNOTTHIS]			= WA_IGNORE;
+	qccwarningaction[WARN_EVILPREPROCESSOR]		= WA_ERROR;		//evil people do evil things. evil must be thwarted!
+	qccwarningaction[WARN_IDENTICALPRECOMPILER]	= WA_IGNORE;
+	qccwarningaction[WARN_DENORMAL]				= WA_ERROR;		//DAZ provides a speedup on modern machines, so any engine compiled for sse2+ will have problems with denormals, so make their use look serious.
 
 	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)
 		qccwarningaction[WARN_CASEINSENSITIVEFRAMEMACRO] = WA_IGNORE;	//hexenc consides these fair game.

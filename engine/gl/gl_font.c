@@ -1712,24 +1712,49 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 				COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
 		}
 
-		for ( ; i < 32; i++)
+		//halflife fonts are awkward. 256 chars are placed horizontally, and are 2 chars narrower than the height.
+		//FIXME: we ought to reprocess the image, for old gpus to avoid downscaling...
+		/*if (f->singletexture && f->singletexture->status == TEX_LOADED && f->singletexture->width == (f->singletexture->height-2) * 256)
 		{
-//			f->chars[i].texplane = INVALIDPLANE;
-		}
-		/*force it to load, even if there's nothing there*/
-		for ( ; i < 128; i++)
-		{
-			c = Font_GetCharStore(f, i);
+			f->txwidth = f->singletexture->width;
+			f->txheight = f->singletexture->height;
+			for ( ; i < 256; i++)
+			{
+				c = Font_GetCharStore(f, i);
 
-			c->advance = f->charheight;
-			c->bmh = PLANEWIDTH/16;
-			c->bmw = PLANEWIDTH/16;
-			c->bmx = (i&15)*(PLANEWIDTH/16);
-			c->bmy = (i/16)*(PLANEWIDTH/16);
-			c->left = 0;
-			c->top = 0;
-			c->nextchar = 0;	//these chars are not linked in
-			c->texplane = BITMAPPLANE;
+				c->advance = f->charheight;
+				c->bmh = f->singletexture->height;
+				c->bmw = f->singletexture->height-2;
+				c->bmx = i*(f->singletexture->height-2);
+				c->bmy = 0;
+				c->left = 0;
+				c->top = 0;
+				c->nextchar = 0;	//these chars are not linked in
+				c->texplane = BITMAPPLANE;
+			}
+			return f; //fixme: no 0xe0XX range
+		}
+		else*/
+		{
+			for ( ; i < 32; i++)
+			{
+	//			f->chars[i].texplane = INVALIDPLANE;
+			}
+			/*force it to load, even if there's nothing there*/
+			for ( ; i < 128; i++)
+			{
+				c = Font_GetCharStore(f, i);
+
+				c->advance = f->charheight;
+				c->bmh = PLANEWIDTH/16;
+				c->bmw = PLANEWIDTH/16;
+				c->bmx = (i&15)*(PLANEWIDTH/16);
+				c->bmy = (i/16)*(PLANEWIDTH/16);
+				c->left = 0;
+				c->top = 0;
+				c->nextchar = 0;	//these chars are not linked in
+				c->texplane = BITMAPPLANE;
+			}
 		}
 	}
 
@@ -2108,7 +2133,8 @@ void Font_InvalidateColour(vec4_t newcolour)
 
 	if (font_colourmask & CON_NONCLEARBG)
 	{
-		Font_Flush();
+		if (R2D_Flush)
+			R2D_Flush();
 		R2D_Flush = Font_Flush;
 	}
 	font_colourmask = CON_WHITEMASK;

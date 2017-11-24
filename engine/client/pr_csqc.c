@@ -1015,17 +1015,28 @@ static void QCBUILTIN PF_R_AddEntity(pubprogfuncs_t *prinst, struct globalvars_s
 static void QCBUILTIN PF_R_RemoveEntity(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
-	entity_t ent;
+	int keynum, i;
 	if (ED_ISFREE(in) || in->entnum == 0)
 	{
 		csqc_deprecated("Tried drawing a free/removed/world entity\n");
 		return;
 	}
 
-	if (CopyCSQCEdictToEntity(in, &ent))
+	//work out the internal key that relates to the given ent. we'll remove all ents with the same key.
+	if (in->xv->entnum && !in->xv->camera_transform)	//yes, camera_transform is this hacky
+		keynum = in->xv->entnum;
+	else
+		keynum = -in->entnum;
+
+	for (i = 0; i < cl_numvisedicts; )
 	{
-		CLQ1_AddShadow(&ent);
-		V_AddAxisEntity(&ent);
+		if (cl_visedicts[i].keynum == keynum)
+		{
+			cl_numvisedicts--;
+			memmove(&cl_visedicts[i], &cl_visedicts[i+1], sizeof(*cl_visedicts)*(cl_numvisedicts-i));
+		}
+		else
+			i++;
 	}
 }
 void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t rgbvalue, float alphavalue);
@@ -6052,7 +6063,7 @@ static struct {
 	{"clearscene",				PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",				PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
 	{"addentity",				PF_R_AddEntity,		302},					// #302 void(entity ent) addentity (EXT_CSQC)
-//	{"removeentity",			PF_R_RemoveEntity,	0},
+	{"removeentity",			PF_R_RemoveEntity,	0},
 	{"setproperty",				PF_R_SetViewFlag,	303},				// #303 float(float property, ...) setproperty (EXT_CSQC)
 	{"renderscene",				PF_R_RenderScene,	304},				// #304 void() renderscene (EXT_CSQC)
 

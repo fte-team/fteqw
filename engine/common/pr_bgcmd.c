@@ -34,8 +34,28 @@ void PF_buf_shutdown(pubprogfuncs_t *prinst);
 
 void skel_info_f(void);
 void skel_generateragdoll_f(void);
+
+#ifdef __SSE2__
+#include "xmmintrin.h"
+#endif
+
 void PF_Common_RegisterCvars(void)
 {
+#ifndef QUAKETC
+#ifdef __SSE2__
+	//disable FTZ and DAZ, in case some compiler left them on...
+	unsigned int mxcsr = _mm_getcsr();
+	if (mxcsr & 0x8040)
+	{
+		if (COM_CheckParm("-nodaz"))
+		{
+			Con_Printf("Disabling DAZ. This may have performance implications.\n");
+			_mm_setcsr(mxcsr & ~(0x8040));
+		}
+		else
+			Con_Printf(CON_WARNING "WARNING: denormalised floats are disabled. Use -nodaz to re-enable if mods malfunction\n");
+	}
+#else
 	volatile union
 	{
 		int i;
@@ -45,6 +65,8 @@ void PF_Common_RegisterCvars(void)
 	b.i = 1;
 	if (!(a.f && b.f))
 		Con_Printf(CON_WARNING "WARNING: denormalised floats are disabled. Some mods might may malfunction\n");
+#endif
+#endif
 
 
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);

@@ -3093,10 +3093,15 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		case OP_ADD_EF:
 		case OP_SUB_EF:
 			if (flag_qccx)	//no implicit cast. qccx always uses denormalised floats everywhere.
-				QCC_PR_ParseWarning(WARN_DENORMAL, "OP_ADD_EF: qccx entity offsets are unsafe, and denormals have limited precision");	
+				QCC_PR_ParseWarning(WARN_DENORMAL, "OP_ADD_EF: qccx entity offsets are unsafe, and denormals are unsafe");	
+			else if (1)
+			{	//slightly better defined.
+				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], var_b, nullsref, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+				return QCC_PR_StatementFlags(&pr_opcodes[(op==&pr_opcodes[OP_ADD_EF])?OP_ADD_EI:OP_SUB_EI], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+			}
 			else
 			{
-				QCC_PR_ParseWarning(WARN_DENORMAL, "OP_ADD_EF: denormals have limited precision");
+				QCC_PR_ParseWarning(WARN_DENORMAL, "OP_ADD_EF: denormals are unsafe");
 				var_c = QCC_PR_GetSRef(NULL, "nextent", NULL, false, 0, false);
 				if (!var_c.cast)
 					QCC_PR_ParseError(0, "the nextent builtin is not defined");
@@ -3105,7 +3110,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_F], var_c, var_b, NULL, 0);
 				flags&=~STFL_PRESERVEB;
 			}
-			var_c = QCC_PR_StatementFlags(&pr_opcodes[(op==&pr_opcodes[OP_ADD_EF])?OP_ADD_F:OP_SUB_F], var_a, var_b, NULL, flags);
+			var_c = QCC_PR_StatementFlags(&pr_opcodes[(op==&pr_opcodes[OP_ADD_EF])?OP_ADD_IF:OP_SUB_F], var_a, var_b, NULL, flags);
 			var_c.cast = type_entity;
 			return var_c;
 
@@ -3346,8 +3351,8 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					var_c = QCC_PR_GetSRef(NULL, "itof", NULL, false, 0, 0);
 					if (!var_c.cast)
 					{
-						//with denormals, 5 * 1i -> 5i
-						QCC_PR_ParseWarning(WARN_DENORMAL, "itof emulation: denormals have limited precision");
+						//with denormals, 5.0 * 1i -> 5i, and 5i / 1i = 5.0
+						QCC_PR_ParseWarning(WARN_DENORMAL, "itof emulation: denormals are unsafe");
 						var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_F], var_a, QCC_MakeIntConst(1), NULL, 0);
 					}
 					else
@@ -3373,7 +3378,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					if (!var_c.cast)
 					{
 						//with denormals, 5 * 1i -> 5i
-						QCC_PR_ParseWarning(WARN_DENORMAL, "ftoi emulation: denormals have limited precision");
+						QCC_PR_ParseWarning(WARN_DENORMAL, "ftoi emulation: denormals are unsafe");
 						var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_F], var_a, QCC_MakeIntConst(1), NULL, 0);
 					}
 					else
@@ -5962,14 +5967,14 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 
 			e = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 			QCC_PR_Expect(")");
-			e = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_F], e, QCC_MakeIntConst(1), NULL, 0);
+			e = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_I], e, QCC_MakeIntConst(1), NULL, 0);
 			d = QCC_PR_GetSRef(NULL, "nextent", NULL, false, 0, false);
 			if (!d.cast)
 				QCC_PR_ParseError(0, "the nextent builtin is not defined");
 			QCC_UnFreeTemp(e);
 			d = QCC_PR_GenerateFunctionCall1 (nullsref, d, e, type_entity);
-			d = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_F], d, QCC_MakeIntConst(1), NULL, 0);
-			e = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_F], e, d, NULL, 0);
+			d = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_I], d, QCC_MakeIntConst(1), NULL, 0);
+			e = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_I], e, d, NULL, 0);
 
 			return e;
 		}
@@ -6997,7 +7002,7 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 					QCC_sref_t base = QCC_RefToDef(r, true);
 					if (tmp.cast && tmp.cast->type == ev_float)
 					{
-						QCC_PR_ParseWarning(WARN_DENORMAL, "string offsetting emulation: denormals have limited precision");
+						QCC_PR_ParseWarning(WARN_DENORMAL, "string offsetting emulation: denormals are unsafe");
 						idx = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], base, QCC_SupplyConversion(tmp, ev_float, true), NULL);
 					}
 					else
@@ -8655,7 +8660,7 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 					return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], base, index, NULL, 0);
 				else
 				{
-					QCC_PR_ParseWarning(WARN_DENORMAL, "using denormals to accelerate field-array access");	
+					QCC_PR_ParseWarning(WARN_DENORMAL, "using denormals to accelerate field-array access, which is unsafe");	
 					return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_F], base, QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_F], index, QCC_MakeIntConst(1), NULL, 0), NULL, 0);
 				}
 			}

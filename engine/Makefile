@@ -185,7 +185,7 @@ ifeq ($(FTE_TARGET),droid)
 	else
 		ANDROID_HOSTSYSTEM?=linux-$(shell uname -m)
 	endif
-	DROID_ABI_VER?=4.6
+	DROID_ABI_VER?=4.9
 
 	#omfg why the FUCK do we need all this bullshit? Why isn't there some sane way to do this that actually works regardless of ndk updates?!?
 	#name is some random subdir that someone at google arbitrarily picked

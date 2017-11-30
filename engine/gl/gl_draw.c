@@ -333,10 +333,20 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 
 	if (tex->flags&IF_CLAMP)
 	{
-		qglTexParameteri(targ, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		qglTexParameteri(targ, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		if (targ != GL_TEXTURE_2D)
-			qglTexParameteri(targ, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		if (gl_config.glversion < 1.2 && !gl_config_gles)
+		{	//warning: crappy path! gl1.1 is shite and doesn't support clamp-to-edge! there's ALWAYS some wrap component!
+			qglTexParameteri(targ, GL_TEXTURE_WRAP_S, GL_CLAMP);
+			qglTexParameteri(targ, GL_TEXTURE_WRAP_T, GL_CLAMP);
+			if (targ != GL_TEXTURE_2D)
+				qglTexParameteri(targ, GL_TEXTURE_WRAP_R, GL_CLAMP);
+		}
+		else
+		{
+			qglTexParameteri(targ, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			qglTexParameteri(targ, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			if (targ != GL_TEXTURE_2D)
+				qglTexParameteri(targ, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		}
 	}
 	else
 	{

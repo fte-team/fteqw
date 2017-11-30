@@ -654,7 +654,7 @@ void SWBE_Init(void)
 void SWBE_GenBrushModelVBO(struct model_s *mod)
 {
 }
-void SWBE_ClearVBO(struct vbo_s *vbo)
+void SWBE_ClearVBO(struct vbo_s *vbo, qboolean dataonly)
 {
 }
 void SWBE_UploadAllLightmaps(void)

@@ -2620,7 +2620,7 @@ void D3D8BE_GenBrushModelVBO(model_t *mod)
 }
 #endif
 /*Wipes a vbo*/
-void D3D8BE_ClearVBO(vbo_t *vbo)
+void D3D8BE_ClearVBO(vbo_t *vbo, qboolean dataonly)
 {
 	IDirect3DVertexBuffer8 *vbuff = vbo->coord.d3d.buff;
 	IDirect3DIndexBuffer8 *ebuff = vbo->indicies.d3d.buff;
@@ -2631,7 +2631,8 @@ void D3D8BE_ClearVBO(vbo_t *vbo)
 	vbo->coord.d3d.buff = NULL;
 	vbo->indicies.d3d.buff = NULL;
 
-	free(vbo);
+	if (!dataonly)
+		free(vbo);
 }
 
 /*upload all lightmaps at the start to reduce lags*/

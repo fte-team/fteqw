@@ -23,7 +23,7 @@
 			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make droid-dbg ANDROID_HOME=C:/Games/tools/android-sdk ANDROID_NDK_ROOT=C:/Games/tools/android-ndk-r8e ANT=C:/Games/tools/apache-ant-1.8.2/bin/ant JAVATOOL=&quot;C:/Program\ Files/Java/jdk1.7.0_02/bin/&quot; -j8 DROID_ARCH=&quot;armeabi x86 armeabi-v7a&quot;"
+				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make droid-dbg ANDROID_HOME=C:/Games/tools/android-sdk ANDROID_NDK_ROOT=C:/Games/tools/android-ndk-r8e ANT=C:/Games/tools/apache-ant-1.8.2/bin/ant JAVATOOL=&quot;C:/Program\ Files/Java/jdk1.7.0_02/bin/&quot; -j8 DROID_ARCH=&quot;armeabi x86 armeabi-v7a&quot; ZIPALIGN=C:/Games/tools/android-sdk/build-tools/23.0.3/zipalign DROID_ABI_VER=4.6"
 				ReBuildCommandLine=""
 				CleanCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make clean -j8"
 				Output=""
@@ -43,7 +43,7 @@
 			>
 			<Tool
 				Name="VCNMakeTool"
-				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make droid-rel ANDROID_HOME=C:/Games/tools/android-sdk ANDROID_NDK_ROOT=C:/Games/tools/android-ndk-r8e ANT=C:/Games/tools/apache-ant-1.8.2/bin/ant JAVATOOL=&quot;C:/Program\ Files/Java/jdk1.7.0_02/bin/&quot; -j8 DROID_ARCH=&quot;armeabi x86&quot;"
+				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make droid-rel ANDROID_HOME=C:/Games/tools/android-sdk ANDROID_NDK_ROOT=C:/Games/tools/android-ndk-r8e ANT=C:/Games/tools/apache-ant-1.8.2/bin/ant JAVATOOL=&quot;C:/Program\ Files/Java/jdk1.7.0_02/bin/&quot; -j8 DROID_ARCH=&quot;armeabi x86&quot; ZIPALIGN=C:/Games/tools/android-sdk/build-tools/23.0.3/zipalign CFLAGS=-DCRAZYDEBUGGING DROID_ABI_VER=4.6"
 				ReBuildCommandLine=""
 				CleanCommandLine=""
 				Output="$(TargetDir)\FTEDroid.apk"

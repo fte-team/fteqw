@@ -53,7 +53,8 @@ typedef struct {
 		float lerpweight[FRAME_BLENDS];
 
 #ifdef HALFLIFEMODELS
-		float subblendfrac;	//hl models are weird
+		float subblendfrac;		//hl models are weird
+		float subblend2frac;	//very weird.
 #endif
 
 		int endbone;
@@ -465,7 +466,7 @@ typedef struct rendererinfo_s {
 	//Generates an optimised VBO, one for each texture on the map
 	void	(*BE_GenBrushModelVBO)(struct model_s *mod);
 	//Destroys the given vbo
-	void	(*BE_ClearVBO)(struct vbo_s *vbo);
+	void	(*BE_ClearVBO)(struct vbo_s *vbo, qboolean dataonly);
 	//Uploads all modified lightmaps
 	void	(*BE_UploadAllLightmaps)(void);
 	void	(*BE_SelectEntity)(struct entity_s *ent);

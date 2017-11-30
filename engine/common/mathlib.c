@@ -940,7 +940,7 @@ void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt )
 		qt[3] = p[2];
 		sclp = sin( (1.0 - t) * 0.5 * M_PI);
 		sclq = sin( t * 0.5 * M_PI);
-		for (i = 0; i < 3; i++) {
+		for (i = 0; i < 4; i++) {
 			qt[i] = sclp * p[i] + sclq * qt[i];
 		}
 	}

@@ -1619,28 +1619,34 @@ static void tcgen_fog(float *st, unsigned int numverts, float *xyz, mfog_t *fog)
 
 	Vector4Scale(zmat, shaderstate.fogfar, zmat);
 
-	if (fog->visibleplane)
-		eye = (DotProduct(r_refdef.vieworg, fog->visibleplane->normal) - fog->visibleplane->dist);
-	else
-		eye = 1;
-//	if (eye < 1)
-//		eye = 1;
-
-	for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), st += 2 )
+	if (fog && fog->visibleplane)
 	{
-		z = DotProduct(xyz, zmat) + zmat[3];
-		st[0] = z;
+		eye = (DotProduct(r_refdef.vieworg, fog->visibleplane->normal) - fog->visibleplane->dist);
+		if (eye < 1)
+			eye = 1;	//avoids a nan
 
-		if (fog->visibleplane)
-			point = (DotProduct(xyz, fog->visibleplane->normal) - fog->visibleplane->dist);
-		else
-			point = 1;
-		if (eye < 0)
-			st[1] = (point < 0)?1:0;
-		else
+		for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), st += 2 )
+		{
+			z = DotProduct(xyz, zmat) + zmat[3];
+			st[0] = z;
+
+			if (fog->visibleplane)
+				point = (DotProduct(xyz, fog->visibleplane->normal) - fog->visibleplane->dist);
+			else
+				point = 1;
 			st[1] = point / (point - eye);
-		if (st[1] > 31/32.0)
+			if (st[1] > 31/32.0)
+				st[1] = 31/32.0;
+		}
+	}
+	else
+	{
+		for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), st += 2 )
+		{
+			z = DotProduct(xyz, zmat) + zmat[3];
+			st[0] = z;
 			st[1] = 31/32.0;
+		}
 	}
 }
 static void GenerateTCFog(int passnum, mfog_t *fog)
@@ -3832,18 +3838,21 @@ void GLBE_SelectEntity(entity_t *ent)
 
 	shaderstate.lastuniform = 0;
 }
-#if 0
+#if 1
 static void BE_SelectFog(vec3_t colour, float alpha, float density)
 {
 	float zscale;
 
-	density /= 64;
+	GL_DeSelectProgram();
 
 	zscale = 2048;	/*this value is meant to be the distance at which fog the value becomes as good as fully fogged, just hack it to 2048...*/
 	GenerateFogTexture(&shaderstate.fogtexture, density, zscale);
 	shaderstate.fogfar = 1/zscale; /*scaler for z coords*/
 
-	qglColor4f(colour[0], colour[1], colour[2], alpha);
+	VectorCopy(colour, shaderstate.pendingcolourflat);
+	shaderstate.pendingcolourflat[3] = alpha;
+	shaderstate.pendingcolourvbo = 0;
+	shaderstate.pendingcolourpointer = NULL;
 }
 #endif
 #ifdef RTLIGHTS
@@ -4256,10 +4265,8 @@ static void DrawMeshes(void)
 
 	case BEM_FOG:
 #ifndef GLSLONLY
-		GL_DeSelectProgram();
-
 		GenerateTCFog(0, NULL);
-		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX), 0);
+		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR) | (1u<<VATTR_LEG_TMU0), 0);
 		BE_SubmitMeshChain(false);
 #endif
 		break;
@@ -4460,6 +4467,8 @@ static void DrawMeshes(void)
 		}
 		if (shaderstate.curbatch->fog && shaderstate.curbatch->fog->shader)
 		{
+			//FIXME: if glsl, do this fog volume crap properly!
+
 			GL_DeSelectProgram();
 
 			GenerateFogTexture(&shaderstate.fogtexture, shaderstate.curbatch->fog->shader->fog_dist, 2048);
@@ -5761,7 +5770,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 
 	shaderstate.depthrange = 0;
 
-	TRACE(("GLBE_DrawWorld: %i %p\n", drawworld, vis));
+	TRACE(("GLBE_DrawWorld: %p\n", worldbatches));
 
 	//reset batches if we needed more mem, to avoid allocations mid-frame.
 	if (!r_refdef.recurse)
@@ -5866,13 +5875,16 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 		GLBE_SubmitMeshes(worldbatches, SHADER_SORT_SEETHROUGH+1, SHADER_SORT_NEAREST);
 		RSpeedEnd(RSPEED_TRANSPARENTS);
 
-/*		if (r_refdef.gfog_alpha)
-		{
+#ifndef GLSLONLY
+		if (r_refdef.globalfog.density && !gl_config.arb_shader_objects)
+		{	//fixed function-only. with global fog. that means we need to hack something in.
+			//FIXME: should really be doing this on a per-shader basis, for custom shaders that don't use glsl
 			BE_SelectMode(BEM_FOG);
-			BE_SelectFog(r_refdef.gfog_rgb, r_refdef.gfog_alpha, r_refdef.gfog_density);
-			GLBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+
+			BE_SelectFog(r_refdef.globalfog.colour, r_refdef.globalfog.alpha, r_refdef.globalfog.density);
+			GLBE_SubmitMeshes(worldbatches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
 		}
-*/
+#endif
 
 #ifdef GL_LINE	//no gles
 		if (r_wireframe.ival && qglPolygonMode)

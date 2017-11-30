@@ -242,7 +242,7 @@ public class FTEDroidActivity extends Activity
 				{
 					int flags = FTEDroidEngine.frame();
 					//fixme: check return value for events to respond to
-
+					
 					if (flags != notifiedflags)
 					{
 						if (((flags ^ notifiedflags) & 1) != 0)

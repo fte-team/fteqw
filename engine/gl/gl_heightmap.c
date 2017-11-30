@@ -1952,15 +1952,21 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 		hm->relight = NULL;
 
 #ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL && qglDeleteBuffersARB)
+	if (qrenderer == QR_OPENGL)
 	{
-		qglDeleteBuffersARB(1, &s->vbo.coord.gl.vbo);
-		s->vbo.coord.gl.vbo = 0;
-		qglDeleteBuffersARB(1, &s->vbo.indicies.gl.vbo);
-		s->vbo.indicies.gl.vbo = 0;
+		if (qglDeleteBuffersARB)
+		{
+			qglDeleteBuffersARB(1, &s->vbo.coord.gl.vbo);
+			s->vbo.coord.gl.vbo = 0;
+			qglDeleteBuffersARB(1, &s->vbo.indicies.gl.vbo);
+			s->vbo.indicies.gl.vbo = 0;
+		}
 	}
+	else
 #endif
-	//FIXME: BE_ClearVBO(&s->vbo);
+	{
+		BE_ClearVBO(&s->vbo, true);
+	}
 
 	Z_Free(s->ents);
 	Z_Free(s->mesh.xyz_array);
@@ -2710,6 +2716,21 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 		batch.mesh = &meshes;
 
 		VKBE_GenBatchVBOs(&vbo, &batch, NULL);
+		s->vbo = *vbo;
+	}
+#endif
+#ifdef D3D9QUAKE
+	if (qrenderer == QR_DIRECT3D9)
+	{
+		void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch);
+		batch_t batch = {0};
+		mesh_t *meshes = &s->mesh;
+		vbo_t *vbo = NULL;
+		batch.maxmeshes = 1;
+		batch.mesh = &meshes;
+
+		//BE_ClearVBO(&s->vbo);
+		D3D9BE_GenBatchVBOs(&vbo, &batch, NULL);
 		s->vbo = *vbo;
 	}
 #endif
@@ -5409,6 +5430,8 @@ void Terr_FinishTerrain(model_t *mod)
 						//FIXME: these maps are a legacy thing, and could be removed if third-party glsl properly contains s_diffuse
 						"{\n"
 							"map $diffuse\n"
+							"rgbgen vertex\n"
+							"alphagen vertex\n"
 						"}\n"
 						"{\n"
 							"map $upperoverlay\n"

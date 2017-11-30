@@ -64,6 +64,11 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_setwindow(JNIEnv *env, jobj
 
 	r_forceheadless = (sys_jsurface == NULL);
 
+	if (r_forceheadless)
+		Sys_Printf("Running without a window\n");
+	else
+		Sys_Printf("Got a window\n");
+
 	if (qrenderer)	//if the window changed then we need to restart everything to match it, BEFORE we return from this function... :(
 		R_RestartRenderer_f();
 }
@@ -276,6 +281,7 @@ static qboolean VKVID_Init (rendererstate_t *info, unsigned char *palette)
 	//this is simpler than most platforms, as the window itself is handled by java code, and we can't create/destroy it here
 	//(android surfaces can be resized/resampled separately from their window, and are always 'fullscreen' anyway, so this isn't actually an issue for once)
 	const char *extnames[] = {VK_KHR_ANDROID_SURFACE_EXTENSION_NAME, NULL};
+	Sys_Printf("initialising vulkan...\n");
 	if (!sys_jsurface)
 	{
 		Sys_Printf("VKVID_Init failed: no window known yet\n");

@@ -3351,7 +3351,7 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		}
 		mt = (miptex_t *)((qbyte *)m + m->dataofs[i]);
 
-	TRACE(("dbg: Mod_LoadTextures: texture %s\n", loadname));
+	TRACE(("dbg: Mod_LoadTextures: texture %s\n", mt->name));
 
 		if (!*mt->name)	//I HATE MAPPERS!
 		{

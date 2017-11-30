@@ -1,8 +1,31 @@
 !!permu FOG
+!!samps 5
+
 #include "sys/fog.h"
-varying vec2 tc;
-varying vec2 lm;
-varying vec4 vc;
+
+//FIXME: too lazy to implement this right now.
+#undef RTLIGHT
+#undef PCF
+#undef CUBE
+
+struct a2v
+{
+	float3 pos: POSITION0;
+	float2 tc: TEXCOORD0;
+	float2 lm: TEXCOORD1;
+	float4 vc: COLOR;
+
+#ifdef RTLIGHT
+	attribute vec3 v_normal;
+	attribute vec3 v_svector;
+	attribute vec3 v_tvector;
+#endif
+};
+struct v2f
+{
+	float1 depth: TEXCOORD1;
+	float4 tclm: TEXCOORD0;
+	float4 vc: COLOR;
 
 #ifdef RTLIGHT
 	varying vec3 lightvector;
@@ -14,11 +37,20 @@ varying vec4 vc;
 	#endif
 #endif
 
+#ifndef FRAGMENT_SHADER
+	float4 pos: POSITION;
+#endif
+};
+
 
 
 
 
 #ifdef VERTEX_SHADER
+
+float4x4  m_model;
+float4x4  m_view;
+float4x4  m_projection;
 
 #ifdef RTLIGHT
 	uniform vec3 l_lightposition;
@@ -28,21 +60,22 @@ varying vec4 vc;
 	#if defined(PCF) || defined(CUBE) || defined(SPOT)
 		uniform mat4 l_cubematrix;
 	#endif
-	attribute vec3 v_normal;
-	attribute vec3 v_svector;
-	attribute vec3 v_tvector;
 #endif
 
-attribute vec2 v_texcoord;
-attribute vec2 v_lmcoord;
-attribute vec4 v_colour;
+float3 e_lmscale;
 
-void main (void)
+v2f main (a2v inp)
 {
-	tc = v_texcoord.st;
-	lm = v_lmcoord.st;
-	vc = v_colour;
-	gl_Position = ftetransform();
+	v2f outp;
+	outp.tclm = float4(inp.tc, inp.lm);
+	outp.vc = inp.vc;
+
+	float4 pos = float4(inp.pos, 1);
+	pos = mul(m_model, pos);
+	pos = mul(m_view, pos);
+	outp.depth = pos.z;
+	pos = mul(m_projection, pos);
+	outp.pos = pos;
 
 	#ifdef RTLIGHT
 		//light position is in model space, which is handy.
@@ -64,7 +97,11 @@ void main (void)
 			//for texture projections/shadowmapping on dlights
 			vtexprojcoord = (l_cubematrix*vec4(v_position.xyz, 1.0));
 		#endif
+	#else
+		outp.vc.rgb *= e_lmscale.rgb;
 	#endif
+
+	return outp;
 }
 #endif
 
@@ -73,13 +110,13 @@ void main (void)
 
 #ifdef FRAGMENT_SHADER
 //four texture passes
-uniform sampler2D s_t0;
-uniform sampler2D s_t1;
-uniform sampler2D s_t2;
-uniform sampler2D s_t3;
+sampler s_t0;
+sampler s_t1;
+sampler s_t2;
+sampler s_t3;
 
 //mix values
-uniform sampler2D s_t4;
+sampler s_t4;
 
 #ifdef PCF
 	uniform sampler2DShadow s_t5;
@@ -89,24 +126,39 @@ uniform sampler2D s_t4;
 	uniform samplerCube s_t6;
 #endif
 
-//light levels
-uniform vec4 e_lmscale;
-
 #ifdef RTLIGHT
 	uniform float l_lightradius;
 	uniform vec3 l_lightcolour;
 	uniform vec3 l_lightcolourscale;
 #endif
 
-void main (void)
-{
-	vec4 r;
-	vec4 m = texture2D(s_t4, lm);
 
-	r  = texture2D(s_t0, tc)*m.r;
-	r += texture2D(s_t1, tc)*m.g;
-	r += texture2D(s_t2, tc)*m.b;
-	r += texture2D(s_t3, tc)*(1.0 - (m.r + m.g + m.b));
+
+
+
+
+
+
+
+
+
+
+
+
+float4 main (v2f inp) : COLOR
+{
+	float2 lm = inp.tclm.zw;
+	float2 tc = inp.tclm.xy;
+	float4 vc = inp.vc;
+
+	float4 r;
+	float4 m = tex2D(s_t4, lm);
+
+	r  = tex2D(s_t0, tc)*m.r;
+	r += tex2D(s_t1, tc)*m.g;
+	r += tex2D(s_t2, tc)*m.b;
+	r += tex2D(s_t3, tc)*(1.0 - (m.r + m.g + m.b));
+	r.a = 1.0;
 
 	//vertex colours provide a scaler that applies even through rtlights.
 	r *= vc;
@@ -135,7 +187,7 @@ void main (void)
 		colorscale *= 1.0-(dot(spot,spot));
 	#endif
 	#ifdef PCF
-		colorscale *= ShadowmapFilter(s_t5, vtexprojcoord);
+		colorscale *= ShadowmapFilter(s_t5);
 	#endif
 
 	r.rgb *= colorscale * l_lightcolour;
@@ -144,11 +196,12 @@ void main (void)
 		r.rgb *= textureCube(s_t6, vtexprojcoord.xyz).rgb;
 	#endif
 
-	gl_FragColor = fog4additive(r);
+	r = fog4additive(r, inp.pos);
 #else
 	//lightmap is greyscale in m.a. probably we should just scale the texture mix, but precision errors when editing make me paranoid.
-	r *= e_lmscale*vec4(m.aaa,1.0);
-	gl_FragColor = fog4(r);
+	r.rgb *= m.aaa;
+	r = fog4(r, inp.depth);
 #endif
+	return r;
 }
 #endif

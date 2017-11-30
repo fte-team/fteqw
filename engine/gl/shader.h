@@ -787,7 +787,7 @@ void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, unsig
 void GLBE_SubmitBatch(batch_t *batch);
 batch_t *GLBE_GetTempBatch(void);
 void GLBE_GenBrushModelVBO(model_t *mod);
-void GLBE_ClearVBO(vbo_t *vbo);
+void GLBE_ClearVBO(vbo_t *vbo, qboolean dataonly);
 void GLBE_UploadAllLightmaps(void);
 void GLBE_DrawWorld (batch_t **worldbatches);
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model);
@@ -817,7 +817,7 @@ void D3D8BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, uns
 void D3D8BE_SubmitBatch(batch_t *batch);
 batch_t *D3D8BE_GetTempBatch(void);
 void D3D8BE_GenBrushModelVBO(model_t *mod);
-void D3D8BE_ClearVBO(vbo_t *vbo);
+void D3D8BE_ClearVBO(vbo_t *vbo, qboolean dataonly);
 void D3D8BE_UploadAllLightmaps(void);
 void D3D8BE_DrawWorld (batch_t **worldbatches);
 qboolean D3D8BE_LightCullModel(vec3_t org, model_t *model);
@@ -842,7 +842,7 @@ void D3D9BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, uns
 void D3D9BE_SubmitBatch(batch_t *batch);
 batch_t *D3D9BE_GetTempBatch(void);
 void D3D9BE_GenBrushModelVBO(model_t *mod);
-void D3D9BE_ClearVBO(vbo_t *vbo);
+void D3D9BE_ClearVBO(vbo_t *vbo, qboolean dataonly);
 void D3D9BE_UploadAllLightmaps(void);
 void D3D9BE_DrawWorld (batch_t **worldbatches);
 qboolean D3D9BE_LightCullModel(vec3_t org, model_t *model);
@@ -867,7 +867,7 @@ void D3D11BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, un
 void D3D11BE_SubmitBatch(batch_t *batch);
 batch_t *D3D11BE_GetTempBatch(void);
 void D3D11BE_GenBrushModelVBO(model_t *mod);
-void D3D11BE_ClearVBO(vbo_t *vbo);
+void D3D11BE_ClearVBO(vbo_t *vbo, qboolean dataonly);
 void D3D11BE_UploadAllLightmaps(void);
 void D3D11BE_DrawWorld (batch_t **worldbatches);
 qboolean D3D11BE_LightCullModel(vec3_t org, model_t *model);

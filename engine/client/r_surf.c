@@ -2888,7 +2888,7 @@ R_DrawWorld
 =============
 */
 
-static pvsbuffer_t surf_frustumvis;
+static pvsbuffer_t surf_frustumvis[R_MAX_RECURSE];
 void Surf_DrawWorld (void)
 {
 	//surfvis vs entvis - the key difference is that surfvis is surfaces while entvis is volume. though surfvis should be frustum culled also for lighting. entvis doesn't care.
@@ -3045,9 +3045,10 @@ void Surf_DrawWorld (void)
 #if defined(Q2BSPS) || defined(Q3BSPS)
 		if (currentmodel->fromgame == fg_quake2 || currentmodel->fromgame == fg_quake3)
 		{
-			if (surf_frustumvis.buffersize < currentmodel->pvsbytes)
-				surf_frustumvis.buffer = BZ_Realloc(surf_frustumvis.buffer, surf_frustumvis.buffersize=currentmodel->pvsbytes);
-			frustumvis = surf_frustumvis.buffer;
+			pvsbuffer_t *vis = &surf_frustumvis[r_refdef.recurse];
+			if (vis->buffersize < currentmodel->pvsbytes)
+				vis->buffer = BZ_Realloc(vis->buffer, vis->buffersize=currentmodel->pvsbytes);
+			frustumvis = vis->buffer;
 			memset(frustumvis, 0, currentmodel->pvsbytes);
 
 			if (!r_refdef.areabitsknown)
@@ -3106,13 +3107,15 @@ void Surf_DrawWorld (void)
 //				entvis = surfvis = R_MarkLeafSurfaces_Q1();
 //			else
 			{
+				pvsbuffer_t *vis = &surf_frustumvis[r_refdef.recurse];
+
 				entvis = R_MarkLeaves_Q1 (false);
 				if (!(r_novis.ival & 2))
 					VectorCopy (r_origin, modelorg);
 
-				if (surf_frustumvis.buffersize < currentmodel->pvsbytes)
-					surf_frustumvis.buffer = BZ_Realloc(surf_frustumvis.buffer, surf_frustumvis.buffersize=currentmodel->pvsbytes);
-				frustumvis = surf_frustumvis.buffer;
+				if (vis->buffersize < currentmodel->pvsbytes)
+					vis->buffer = BZ_Realloc(vis->buffer, vis->buffersize=currentmodel->pvsbytes);
+				frustumvis = vis->buffer;
 				memset(frustumvis, 0, currentmodel->pvsbytes);
 
 				if (r_refdef.useperspective)
@@ -3189,8 +3192,9 @@ void Surf_DeInit(void)
 	if (lightmap)
 		BZ_Free(lightmap);
 
-	Z_Free(surf_frustumvis.buffer);
-	memset(&surf_frustumvis, 0, sizeof(surf_frustumvis));
+	for (i = 0; i < R_MAX_RECURSE; i++)
+		Z_Free(surf_frustumvis[i].buffer);
+	memset(surf_frustumvis, 0, sizeof(surf_frustumvis));
 
 	lightmap=NULL;
 	numlightmaps=0;
@@ -3221,7 +3225,7 @@ void Surf_Clear(model_t *mod)
 	{
 		vbo = mod->vbos;
 		mod->vbos = vbo->next;
-		BE_ClearVBO(vbo);
+		BE_ClearVBO(vbo, false);
 	}
 
 	if (!mod->submodelof)

@@ -170,7 +170,7 @@ struct batch_s *SWBE_GetTempBatch(void);
 void SWBE_DrawWorld(batch_t **worldbatches);
 void SWBE_Init(void);
 void SWBE_GenBrushModelVBO(struct model_s *mod);
-void SWBE_ClearVBO(struct vbo_s *vbo);
+void SWBE_ClearVBO(struct vbo_s *vbo, qboolean dataonly);
 void SWBE_UploadAllLightmaps(void);
 void SWBE_SelectEntity(struct entity_s *ent);
 qboolean SWBE_SelectDLight(struct dlight_s *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);

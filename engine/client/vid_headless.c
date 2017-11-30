@@ -201,7 +201,7 @@ static void	Headless_BE_Init	(void)
 static void Headless_BE_GenBrushModelVBO	(struct model_s *mod)
 {
 }
-static void Headless_BE_ClearVBO	(struct vbo_s *vbo)
+static void Headless_BE_ClearVBO	(struct vbo_s *vbo, qboolean dataonly)
 {
 }
 static void Headless_BE_UploadAllLightmaps	(void)

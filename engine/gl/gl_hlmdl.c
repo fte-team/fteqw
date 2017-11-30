@@ -540,14 +540,14 @@ void HL_CalcBoneAdj(hlmodel_t *model)
  =======================================================================================================================
  */
 void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt );
-void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, float subblendfrac, float frametime, float *matrix)
+void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, float subblendfrac1, float subblendfrac2, float frametime, float *matrix)
 {
 	/*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-	int						i;
+	int						i, j;
 	vec3_t					organg1[2];
 	vec3_t					organg2[2];
 	vec3_t					organgb[2];
-	vec4_t					quat1, quat2, quatb;
+	vec4_t					quat1, quat2;
 
 	int frame1, frame2;
 
@@ -654,54 +654,170 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 		FIXME: we don't handle frame2.
 	*/
 
-	if (sequence->hasblendseq>1 && sequence->hasblendseq<9)
+	if (sequence->hasblendseq>1)
 	{
-		//I have no idea how to deal with > 1.
-		//some CS models seem to have 9 here, but some look like they're fucked.
-		if (subblendfrac < 0)
-			subblendfrac = 0;
-		if (subblendfrac > 1)
-			subblendfrac = 1;
+		int bf0, bf1;
+		int bweights;
+		struct
+		{
+			int frame;
+			float weight;
+			hlmdl_anim_t *anim;
+		} blend[8];
+		//right, so, this stuff is annoying.
+		//we have two different blend factors.
+		//we have up to 9 blend weights. figure out which frames are what
+		switch(sequence->hasblendseq)
+		{
+		case 0:	//erk?
+			return;
+		case 1: //no blending.
+			bf0 = bf1 = 1;
+			break;
+		default:
+		case 2: //mix(0, 1, weight0)
+		case 3: //mix(0, 1, 2, weight0);
+		case 8: //weight0 only...
+			bf0 = sequence->hasblendseq;
+			bf1 = 1;
+			break;
+		case 4: //mix(mix(0, 1, weight0), mix(2, 3, weight0), weight1)
+			bf0 = bf1 = 2;
+			break;
+		//case 6: //???
+		//	bf[0] = 3; bf[1] = 2;
+		//	break;
+		case 9: //mix(mix(0, 1, 2, weight0), mix(2, 3, 4, weight0), mix(5, 6, 7, weight0), weight1)
+			bf0 = bf1 = 3;
+			break;
+		}
+
+		subblendfrac1 = (subblendfrac1+1)/2;
+		subblendfrac2 = (subblendfrac2+1)/2;
+		bweights = 0;
+		if (bf0 > 1)
+		{
+			float frac = (bf0-1) * bound(0, subblendfrac1, 1);
+			int f1 = bound(0, frac, bf0-1);
+			int f2 = bound(0, f1+1, bf0-1);
+			frac = (frac-f1);
+			frac = bound(0, frac, 1);
+			if (bf1 > 1)
+			{
+				float frac2 = (bf1-1) * bound(0, subblendfrac2, 1);
+				int a1 = bound(0, frac2, bf1-1);
+				int a2 = bound(0, a1+1, bf1-1);
+				frac2 = (frac2-a1);
+				frac2 = bound(0, frac2, 1);
+
+				if (frac2)
+				{
+					if (frac)
+					{
+						blend[bweights].frame = frame1;
+						blend[bweights].anim = animation + model->header->numbones * (f2 + a2*bf0);
+						blend[bweights++].weight = frac*frac2;
+					}
+					if (1-frac)
+					{
+						blend[bweights].frame = frame1;
+						blend[bweights].anim = animation + model->header->numbones * (f1 + a2*bf0);
+						blend[bweights++].weight = (1-frac)*frac2;
+					}
+				}
+
+				if (1-frac2)
+				{
+					if (frac)
+					{
+						blend[bweights].frame = frame1;
+						blend[bweights].anim = animation + model->header->numbones * (f2 + a1*bf0);
+						blend[bweights++].weight = frac*(1-frac2);
+					}
+					if (1-frac)
+					{
+						blend[bweights].frame = frame1;
+						blend[bweights].anim = animation + model->header->numbones * (f1 + a1*bf0);
+						blend[bweights++].weight = (1-frac)*(1-frac2);
+					}
+				}
+			}
+			else
+			{
+				if (frac)
+				{
+					blend[bweights].frame = frame1;
+					blend[bweights].anim = animation + model->header->numbones * f1;
+					blend[bweights++].weight = frac;
+				}
+				if (1-frac)
+				{
+					blend[bweights].frame = frame1;
+					blend[bweights].anim = animation + model->header->numbones * f2;
+					blend[bweights++].weight = 1-frac;
+				}
+			}
+		}
+		else
+		{
+			blend[bweights].frame = frame1;
+			blend[bweights].anim = animation;
+			blend[bweights++].weight = 1;
+		}
+		if (frame1 != frame2)
+		{
+			for (i = 0; i < bweights; i++)
+			{
+				blend[bweights+i].frame = frame2;
+				blend[bweights+i].anim = blend[i].anim;
+				blend[bweights+i].weight = blend[i].weight;
+
+				blend[i].weight *= 1-frametime;
+				blend[bweights+i].weight *= frametime;
+			}
+			bweights *= 2;
+		}
+
 		for(i = firstbone; i < lastbone; i++, matrix+=12)
 		{
-			//calc first blend (writes organgb+quatb)
-			HL_CalculateBones(frame1, model->adjust, model->bones + i, animation + i, organgb[0]);
-			QuaternionGLAngle(organgb[1], quatb);	/* A quaternion */
-			if (frame1 != frame2)
-			{
-				HL_CalculateBones(frame2, model->adjust, model->bones + i, animation + i, organg2[0]);
-				QuaternionGLAngle(organg2[1], quat2);	/* A quaternion */
+			vec3_t t;
+			float len;
 
-				QuaternionSlerp(quatb, quat2, frametime, quatb);
-				VectorInterpolate(organgb[0], frametime, organg2[0], organgb[0]);
+			HL_CalculateBones(blend[0].frame, model->adjust, model->bones + i, blend[0].anim + i, organgb[0]);
+			QuaternionGLAngle(organgb[1], quat2);
+			Vector4Scale(quat2, blend[0].weight, quat1);
+			VectorScale(organgb[0], blend[0].weight, t);
+
+			for (j = 1; j < bweights; j++)
+			{
+				HL_CalculateBones(blend[j].frame, model->adjust, model->bones + i, blend[j].anim + i, organgb[0]);
+				QuaternionGLAngle(organgb[1], quat2);
+				if (DotProduct4(quat2, quat1) < 0)	//negative quats are annoying
+					Vector4MA(quat1, -blend[j].weight, quat2, quat1);
+				else
+					Vector4MA(quat1, blend[j].weight, quat2, quat1);
+				VectorMA(t, blend[j].weight, organgb[0], t);
 			}
 
-			//calc first blend (writes organg1+quat1)
-			HL_CalculateBones(frame1, model->adjust, model->bones + i, animation + i + model->header->numbones, organg1[0]);
-			QuaternionGLAngle(organg1[1], quat1);	/* A quaternion */
-			if (frame1 != frame2)
+			//we were lame and didn't use slerp. boo hiss. now we need to normalise the things and hope we didn't hit any singularities
+			len = sqrt(DotProduct4(quat1,quat1));
+			if (len && len != 1)
 			{
-				HL_CalculateBones(frame2, model->adjust, model->bones + i, animation + i + model->header->numbones, organg2[0]);
-				QuaternionGLAngle(organg2[1], quat2);	/* A quaternion */
-
-				QuaternionSlerp(quat1, quat2, frametime, quat1);
-				VectorInterpolate(organg1[0], frametime, organg2[0], organg1[0]);
+				len = 1/len;
+				quat1[0] *= len;
+				quat1[1] *= len;
+				quat1[2] *= len;
+				quat1[3] *= len;
 			}
 
-			//blend the two, figure out a matrix.
-			QuaternionSlerp(quatb, quat1, subblendfrac, quat1);
 			QuaternionGLMatrix(quat1[0], quat1[1], quat1[2], quat1[3], (vec4_t*)matrix);
-			FloatInterpolate(organgb[0][0], subblendfrac, organg1[0][0], matrix[0*4+3]);
-			FloatInterpolate(organgb[0][1], subblendfrac, organg1[0][1], matrix[1*4+3]);
-			FloatInterpolate(organgb[0][2], subblendfrac, organg1[0][2], matrix[2*4+3]);
+			matrix[0*4+3] = t[0];
+			matrix[1*4+3] = t[1];
+			matrix[2*4+3] = t[2];
 		}
 	}
 	else
 	{
-		//FIXME: disgusting hack to get CS player models not looking like total idiots. but merely regular ones instead.
-		if (sequence->hasblendseq == 9)
-			animation += 4*model->header->numbones;
-
 		for(i = firstbone; i < lastbone; i++, matrix+=12)
 		{
 			HL_CalculateBones(frame1, model->adjust, model->bones + i, animation + i, organg1[0]);
@@ -797,7 +913,7 @@ static int HLMDL_GetBoneData_Internal(hlmodel_t *model, int firstbone, int lastb
 			lastbone = model->header->numbones;
 		if (cbone >= lastbone)
 			continue;
-		HL_SetupBones(model, fstate->g[bgroup].frame[0], cbone, lastbone, (fstate->g[bgroup].subblendfrac+1)*0.5, fstate->g[bgroup].frametime[0], result);	/* Setup the bones */
+		HL_SetupBones(model, fstate->g[bgroup].frame[0], cbone, lastbone, fstate->g[bgroup].subblendfrac, fstate->g[bgroup].subblend2frac, fstate->g[bgroup].frametime[0], result);	/* Setup the bones */
 		cbone = lastbone;
 	}
 	return cbone;
@@ -1064,7 +1180,7 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_submodel_t *amodel, entity_t *curen
 				lastbone = model->header->numbones;
 			if (cbone >= lastbone)
 				continue;
-			HL_SetupBones(model, curent->framestate.g[bgroup].frame[0], cbone, lastbone, (curent->framestate.g[bgroup].subblendfrac+1)*0.5, curent->framestate.g[bgroup].frametime[0], relatives);	// Setup the bones
+			HL_SetupBones(model, curent->framestate.g[bgroup].frame[0], cbone, lastbone, curent->framestate.g[bgroup].subblendfrac, curent->framestate.g[bgroup].frametime[0], relatives);	// Setup the bones
 			cbone = lastbone;
 		}
 */

@@ -604,6 +604,8 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	r_refdef.maxdist = gl_maxdist.value;
 	r_refdef.playerview = &cl.playerview[0];
 
+	memset(&r_refdef.globalfog, 0, sizeof(r_refdef.globalfog));
+
 	if (r_torch.ival)
 	{
 		dlight_t *dl;

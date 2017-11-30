@@ -1041,9 +1041,10 @@ static void GHL_GetFrameState(hledict_t *ent, framestate_t *fstate)
 	fstate->g[FS_REG].frametime[0] = (SVHL_Globals.time - ent->v.framestarttime) * ent->v.framerate;
 	fstate->g[FS_REG].frame[0] = ent->v.frame;
 	fstate->g[FS_REG].lerpweight[0] = 1;
-	fstate->g[FS_REG].subblendfrac = ent->v.blending[0]; //fixme: which is upper?
+	fstate->g[FS_REG].subblendfrac = ent->v.blending[0];
+	fstate->g[FS_REG].subblend2frac = ent->v.blending[1];
 
-	//FIXME: no lower parts.
+	//FIXME: no lower parts set here.
 	
 	fstate->bonecontrols[0] = ent->v.controller[0] / 255.0;
 	fstate->bonecontrols[1] = ent->v.controller[1] / 255.0;

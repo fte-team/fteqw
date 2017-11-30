@@ -11,12 +11,25 @@
 extern LPDIRECT3DDEVICE9 pD3DDev9;
 
 typedef struct {
-  LPCSTR Name;
-  LPCSTR Definition;
+	LPCSTR Name;
+	LPCSTR Definition;
 } D3DXMACRO;
 
 #define D3DXHANDLE void *
-#define LPD3DXINCLUDE void *
+typedef enum D3DXINCLUDE_TYPE { 
+	D3DXINC_LOCAL        = 0,
+	D3DXINC_SYSTEM       = 1,
+	D3DXINC_FORCE_DWORD  = 0x7fffffff
+} D3DXINCLUDE_TYPE, *LPD3DXINCLUDE_TYPE;
+
+#undef INTERFACE
+#define INTERFACE myID3DXInclude
+DECLARE_INTERFACE(myID3DXInclude)
+{
+	STDMETHOD_(HRESULT,Open)(THIS_ D3DXINCLUDE_TYPE IncludeType, LPCSTR pFileName, LPCVOID pParentData, LPCVOID *ppData, UINT *pBytes) PURE;
+	STDMETHOD_(HRESULT,Close)(THIS_ LPCVOID pData) PURE;
+};
+typedef struct myID3DXInclude *LPD3DXINCLUDE;
 
 #undef INTERFACE
 #define INTERFACE d3dxbuffer
@@ -141,8 +154,111 @@ static dllhandle_t *shaderlib;
     (This)->lpVtbl -> Release(This)
 #endif
 
+static HRESULT STDMETHODCALLTYPE myID3DXIncludeVtbl_Close(myID3DXInclude *cls, LPCVOID pData)
+{
+	return S_OK;
+}
+static HRESULT STDMETHODCALLTYPE myID3DXIncludeVtbl_Open(myID3DXInclude *cls, D3DXINCLUDE_TYPE IncludeType, LPCSTR pFileName, LPCVOID pParentData, LPCVOID *ppData, UINT *pBytes)
+{
+	char *file = NULL;
+//	"sys/defs.h"
+//	"sys/skeletal.h"
+//	"sys/offsetmapping.h"
+	if (!strcmp(pFileName, "sys/fog.h"))
+	{
+		file =
+				"#ifdef FRAGMENT_SHADER\n"
+				"#ifdef FOG\n"
+					"#ifndef DEFS_DEFINED\n"
+						"float4 w_fog[2];\n"
+						"#define w_fogcolour	w_fog[0].rgb\n"
+						"#define w_fogalpha		w_fog[0].a\n"
+						"#define w_fogdensity	w_fog[1].x\n"
+						"#define w_fogdepthbias	w_fog[1].y\n"
+					"#endif\n"
+					"static const float r_fog_exp2 = 1.0;\n"
+
+					"float3 fog3(float3 regularcolour, float distance)"
+					"{"
+						"float z = w_fogdensity * -distance;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
+						"if (r_fog_exp2)\n"
+							"z *= z;\n"
+						"float fac = exp2(-(z * 1.442695));\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
+						"return lerp(w_fogcolour, regularcolour, fac);\n"
+					"}\n"
+					"float3 fog3additive(float3 regularcolour, float distance)"
+					"{"
+						"float z = w_fogdensity * -distance;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
+						"if (r_fog_exp2)\n"
+							"z *= z;\n"
+						"float fac = exp2(-(z * 1.442695));\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
+						"return regularcolour * fac;\n"
+					"}\n"
+					"float4 fog4(float4 regularcolour, float distance)"
+					"{"
+						"return float4(fog3(regularcolour.rgb, distance), 1.0) * regularcolour.a;\n"
+					"}\n"
+					"float4 fog4additive(float4 regularcolour, float distance)"
+					"{"
+						"float z = w_fogdensity * -distance;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
+						"if (r_fog_exp2)\n"
+							"z *= z;\n"
+						"float fac = exp2(-(z * 1.442695));\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
+						"return regularcolour * float4(fac, fac, fac, 1.0);\n"
+					"}\n"
+					"float4 fog4blend(float4 regularcolour, float distance)"
+					"{"
+						"float z = w_fogdensity * -distance;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
+						"if (r_fog_exp2)\n"
+							"z *= z;\n"
+						"float fac = exp2(-(z * 1.442695));\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
+						"return regularcolour * float4(1.0, 1.0, 1.0, fac);\n"
+					"}\n"
+				"#else\n"
+					/*don't use macros for this - mesa bugs out*/
+					"float3 fog3(float3 regularcolour, float4 fragcoord) { return regularcolour; }\n"
+					"float3 fog3additive(float3 regularcolour, float4 fragcoord) { return regularcolour; }\n"
+					"float4 fog4(float4 regularcolour, float4 fragcoord) { return regularcolour; }\n"
+					"float4 fog4additive(float4 regularcolour, float4 fragcoord) { return regularcolour; }\n"
+					"float4 fog4blend(float4 regularcolour, float4 fragcoord) { return regularcolour; }\n"
+				"#endif\n"
+			"#endif\n"
+			;
+	}
+	else if (!strcmp(pFileName, "sys/pcf.h"))
+	{
+		file =
+			"#define ShadowmapFilter(smap,proj) 1.0\n"
+			;
+	}
+	
+	if (file)
+	{
+		*ppData = file;
+		*pBytes = strlen(file);
+		return S_OK;
+	}
+	else
+		return E_FAIL;
+}
+static struct myID3DXIncludeVtbl myID3DXIncludeVtbl_C = 
+{
+	myID3DXIncludeVtbl_Open,
+	myID3DXIncludeVtbl_Close
+};
+static struct myID3DXInclude myID3DXIncludeVtbl_Instance = {&myID3DXIncludeVtbl_C};
+
 static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean silent, vfsfile_t *blobfile)
 {
+
 	D3DXMACRO defines[64];
 	LPD3DXBUFFER code = NULL, errors = NULL;
 	qboolean success = false;
@@ -209,7 +325,7 @@ static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, un
 		success = true;
 
 		defines[0].Name = "VERTEX_SHADER";
-		if (FAILED(pD3DXCompileShader(vert, strlen(vert), defines, NULL, "main", "vs_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->permu[permu].h.hlsl.ctabv)))
+		if (FAILED(pD3DXCompileShader(vert, strlen(vert), defines, &myID3DXIncludeVtbl_Instance, "main", "vs_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->permu[permu].h.hlsl.ctabv)))
 			success = false;
 		else
 		{
@@ -224,7 +340,7 @@ static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, un
 		}
 
 		defines[0].Name = "FRAGMENT_SHADER";
-		if (FAILED(pD3DXCompileShader(frag, strlen(frag), defines, NULL, "main", "ps_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->permu[permu].h.hlsl.ctabf)))
+		if (FAILED(pD3DXCompileShader(frag, strlen(frag), defines, &myID3DXIncludeVtbl_Instance, "main", "ps_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->permu[permu].h.hlsl.ctabf)))
 			success = false;
 		else
 		{

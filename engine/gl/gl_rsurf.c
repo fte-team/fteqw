@@ -28,7 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t gl_lightmap_nearest;
 
-void GLBE_ClearVBO(vbo_t *vbo)
+void GLBE_ClearVBO(vbo_t *vbo, qboolean dataonly)
 {
 	int vboh[6 + MAXRLIGHTMAPS];
 	int i, j;
@@ -40,6 +40,14 @@ void GLBE_ClearVBO(vbo_t *vbo)
 	vboh[5] = vbo->tvector.gl.vbo;
 	for (i = 0; i < MAXRLIGHTMAPS; i++)
 		vboh[6+i] = vbo->lmcoord[i].gl.vbo;
+
+	memset (&vbo->indicies, 0, sizeof(vbo->indicies));
+	memset (&vbo->coord, 0, sizeof(vbo->coord));
+	memset (&vbo->texcoord, 0, sizeof(vbo->texcoord));
+	memset (&vbo->normals, 0, sizeof(vbo->normals));
+	memset (&vbo->svector, 0, sizeof(vbo->svector));
+	memset (&vbo->tvector, 0, sizeof(vbo->tvector));
+	memset (&vbo->lmcoord, 0, sizeof(vbo->lmcoord));
 
 	for (i = 0; i < 7; i++)
 	{
@@ -55,8 +63,11 @@ void GLBE_ClearVBO(vbo_t *vbo)
 	}
 	if (vbo->vertdata)
 		BZ_Free(vbo->vertdata);
+	vbo->vertdata = NULL;
 	BZ_Free(vbo->meshlist);
-	BZ_Free(vbo);
+	vbo->meshlist = NULL;
+	if (!dataonly)
+		BZ_Free(vbo);
 }
 
 void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic, unsigned int vaostatic);

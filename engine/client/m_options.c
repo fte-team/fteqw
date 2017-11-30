@@ -720,7 +720,7 @@ const char *presetname[] =
 	"Realtime",	//everything on
 	NULL
 };
-#define PRESET_NUM 6
+#define PRESET_NUM (countof(presetname)-1)
 
 // this is structured like this for a possible future feature
 // also don't include cvars that need a restart here

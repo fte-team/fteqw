@@ -1211,7 +1211,7 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 						((pass->rgbgen == RGB_GEN_VERTEX_LIGHTING) ||
 						(pass->rgbgen == RGB_GEN_VERTEX_EXACT) ||
 						(pass->rgbgen == RGB_GEN_ONE_MINUS_VERTEX)) &&
-						(pass->alphagen == ALPHA_GEN_VERTEX)))
+						(pass->alphagen == ALPHA_GEN_VERTEX)) && shaderstate.batchvbo->colours_bytes)
 		{
 			//fixme
 			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.batchvbo->colours[0].d3d.buff, shaderstate.batchvbo->colours[0].d3d.offs, sizeof(vbovdata_t)));
@@ -1957,11 +1957,13 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 
 		case SP_E_TOPCOLOURS:
 			R_FetchPlayerColour(shaderstate.curentity->topcolour, param4);
-			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, param4, 3);
+			param4[3] = 1;
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, param4, 1);
 			break;
 		case SP_E_BOTTOMCOLOURS:
 			R_FetchPlayerColour(shaderstate.curentity->bottomcolour, param4);
-			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, param4, 3);
+			param4[3] = 1;
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, param4, 1);
 			break;
 
 		case SP_E_LMSCALE:
@@ -1979,7 +1981,11 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 				VectorSet(param4, identitylighting, identitylighting, identitylighting);
 			}
 			param4[3] = 1;
-			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, param4, 3);
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, param4, 1);
+			break;
+
+		case SP_W_FOG:
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, r_refdef.globalfog.colour, 2);	//colour and density
 			break;
 
 		case SP_M_ENTBONES:
@@ -1987,7 +1993,6 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 		case SP_E_VLSCALE:
 		case SP_E_ORIGIN:
 		case SP_E_GLOWMOD:
-		case SP_W_FOG:
 		case SP_M_INVVIEWPROJECTION:
 		case SP_M_INVMODELVIEWPROJECTION:
 		case SP_SOURCESIZE:
@@ -2052,6 +2057,8 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].h.loaded)
 		perm |= PERMUTATION_LIGHTSTYLES;
 #endif
+
+	vdec |= BE_GenerateColourMods(vertcount, s->passes);
 
 	BE_ApplyUniforms(p, perm);
 
@@ -2547,7 +2554,7 @@ void D3D9BE_SelectEntity(entity_t *ent)
 }
 
 #if 1
-static void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch)
+void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch)
 {
 	int maxvboelements;
 	int maxvboverts;
@@ -2618,9 +2625,18 @@ static void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *
 				vbovdata->coord[3] = 1;
 				Vector2Copy(m->st_array[i],			vbovdata->tex);
 				Vector2Copy(m->lmst_array[0][i],		vbovdata->lm);
-				VectorCopy(m->normals_array[i],		vbovdata->ndir);
-				VectorCopy(m->snormals_array[i],	vbovdata->sdir);
-				VectorCopy(m->tnormals_array[i],	vbovdata->tdir);
+				if (m->normals_array)
+				{
+					VectorCopy(m->normals_array[i],		vbovdata->ndir);
+					VectorCopy(m->snormals_array[i],	vbovdata->sdir);
+					VectorCopy(m->tnormals_array[i],	vbovdata->tdir);
+				}
+				else
+				{
+					VectorSet(vbovdata->ndir, 0, 0, 1);
+					VectorSet(vbovdata->sdir, 1, 0, 0);
+					VectorSet(vbovdata->tdir, 0, 1, 0);
+				}
 				Vector4Scale(m->colors4f_array[0][i],	255, vbovdata->colorsb);
 
 				vbovdata++;
@@ -2719,7 +2735,7 @@ void D3D9BE_GenBrushModelVBO(model_t *mod)
 		if (!mod->textures[t])
 			continue;
 		vbo = &mod->textures[t]->vbo;
-		BE_ClearVBO(vbo);
+		BE_ClearVBO(vbo, false);
 
 		maxvboverts = 0;
 		maxvboelements = 0;
@@ -2869,7 +2885,7 @@ void D3D9BE_GenBrushModelVBO(model_t *mod)
 }
 #endif
 /*Wipes a vbo*/
-void D3D9BE_ClearVBO(vbo_t *vbo)
+void D3D9BE_ClearVBO(vbo_t *vbo, qboolean dataonly)
 {
 	IDirect3DVertexBuffer9 *vbuff = vbo->coord.d3d.buff;
 	IDirect3DIndexBuffer9 *ebuff = vbo->indicies.d3d.buff;
@@ -2880,7 +2896,8 @@ void D3D9BE_ClearVBO(vbo_t *vbo)
 	vbo->coord.d3d.buff = NULL;
 	vbo->indicies.d3d.buff = NULL;
 
-	free(vbo);
+	if (!dataonly)
+		free(vbo);
 }
 
 /*upload all lightmaps at the start to reduce lags*/

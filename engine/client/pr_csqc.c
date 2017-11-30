@@ -588,7 +588,9 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 	out->bonecontrols[3] = in->xv->bonecontrol4;
 	out->bonecontrols[4] = in->xv->bonecontrol5;
 	out->g[FS_REG].subblendfrac = in->xv->subblendfrac;
+	out->g[FS_REG].subblend2frac = in->xv->subblend2frac;
 	out->g[FST_BASE].subblendfrac = in->xv->subblendfrac;
+	out->g[FST_BASE].subblend2frac = in->xv->subblend2frac;
 #endif
 
 	//FTE_CSQC_BASEFRAME
@@ -1042,7 +1044,17 @@ static void QCBUILTIN PF_R_RemoveEntity(pubprogfuncs_t *prinst, struct globalvar
 void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t rgbvalue, float alphavalue);
 static void QCBUILTIN PF_R_AddDecal(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	shader_t *shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
+	shader_t *shader = R_RegisterShader(PR_GetStringOfs(prinst, OFS_PARM0), SUF_NONE, 
+		"{\n"
+			"polygonOffset\n"
+			"surfaceparms nodlight\n"
+			"{\n"
+				"map $diffuse\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+				"blendfunc gl_one gl_one_minus_src_alpha\n"
+			"}\n"
+		"}\n");
 	float *org = G_VECTOR(OFS_PARM1);
 	float *up = G_VECTOR(OFS_PARM2);
 	float *side = G_VECTOR(OFS_PARM3);

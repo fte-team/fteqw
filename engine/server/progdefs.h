@@ -318,8 +318,10 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(bonecontrol3,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
 	comfieldfloat(bonecontrol4,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
 	comfieldfloat(bonecontrol5,"Halflife model format bone controller. This typically affects the mouth.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(subblendfrac,"Weird animation value specific to halflife models. On player models, this typically affects the spine's pitch.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(basesubblendfrac,"See basebone")	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/
+	comfieldfloat(subblendfrac,"Weird animation value specific to halflife models. On player models, this typically affects the spine's pitch, or yaw, or...")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(subblend2frac,"Weird animation value specific to halflife models. I've no idea what this does, probably nothing for most models.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(basesubblendfrac,"See basebone")	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(basesubblend2frac,"See basebone")	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/
 #else
 #define HALFLIFEMODEL_FIELDS
 #endif

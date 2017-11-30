@@ -2843,7 +2843,7 @@ static void CL_AddDecal_Callback(void *vctx, vec3_t *fte_restrict points, size_t
 	for (v = 0; v < numpoints; v++)
 	{
 		VectorCopy(points[v], cl_strisvertv[cl_numstrisvert+v]);
-		cl_strisvertt[cl_numstrisvert+v][0] = (DotProduct(points[v], ctx->axis[1]) - ctx->offset[1]) * ctx->scale[1];
+		cl_strisvertt[cl_numstrisvert+v][0] = 1+(DotProduct(points[v], ctx->axis[1]) - ctx->offset[1]) * ctx->scale[1];
 		cl_strisvertt[cl_numstrisvert+v][1] = -(DotProduct(points[v], ctx->axis[2]) - ctx->offset[2]) * ctx->scale[2];
 		cl_strisvertc[cl_numstrisvert+v][0] = ctx->rgbavalue[0];
 		cl_strisvertc[cl_numstrisvert+v][1] = ctx->rgbavalue[1];
@@ -2908,7 +2908,7 @@ void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t
 	ctx.t = t;
 	VectorCopy(rgbvalue, ctx.rgbavalue);
 	ctx.rgbavalue[3] = alphavalue;
-	Mod_ClipDecal(cl.worldmodel, origin, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius*2, 0,0, CL_AddDecal_Callback, &ctx);
+	Mod_ClipDecal(cl.worldmodel, origin, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius, 0,0, CL_AddDecal_Callback, &ctx);
 
 	if (!t->numidx)
 		cl_numstris--;

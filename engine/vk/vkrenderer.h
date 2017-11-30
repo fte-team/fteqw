@@ -410,7 +410,7 @@ void VKBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, unsig
 void VKBE_SubmitBatch(batch_t *batch);
 batch_t *VKBE_GetTempBatch(void);
 void VKBE_GenBrushModelVBO(model_t *mod);
-void VKBE_ClearVBO(vbo_t *vbo);
+void VKBE_ClearVBO(vbo_t *vbo, qboolean dataonly);
 void VKBE_UploadAllLightmaps(void);
 void VKBE_DrawWorld (batch_t **worldbatches);
 qboolean VKBE_LightCullModel(vec3_t org, model_t *model);

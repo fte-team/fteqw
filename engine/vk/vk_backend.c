@@ -4010,8 +4010,20 @@ static void VKBE_SafeClearVBO(void *vboptr)
 	BZ_Free(vbo);
 }
 /*Wipes a vbo*/
-void VKBE_ClearVBO(vbo_t *vbo)
+void VKBE_ClearVBO(vbo_t *vbo, qboolean dataonly)
 {
+	if (dataonly)
+	{
+		//create one for the safe callback to clear.
+		vbo_t *nvbo = BZ_Malloc(sizeof(*vbo));
+		nvbo->indicies = vbo->indicies;
+		nvbo->coord = vbo->coord;
+
+		//scrub it now
+		memset(&vbo->indicies, 0, sizeof(vbo->indicies));
+		memset(&vbo->coord, 0, sizeof(vbo->coord));
+		vbo = nvbo;
+	}
 	VK_AtFrameEnd(VKBE_SafeClearVBO, &vbo, sizeof(vbo));
 }
 

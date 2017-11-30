@@ -2674,7 +2674,7 @@ void D3D11BE_GenBrushModelVBO(model_t *mod)
 }
 
 /*Wipes a vbo*/
-void D3D11BE_ClearVBO(vbo_t *vbo)
+void D3D11BE_ClearVBO(vbo_t *vbo, qboolean dataonly)
 {
 	ID3D11Buffer *vbuff = vbo->coord.d3d.buff;
 	ID3D11Buffer *ebuff = vbo->indicies.d3d.buff;
@@ -2691,7 +2691,8 @@ void D3D11BE_ClearVBO(vbo_t *vbo)
 	vbo->coord.d3d.buff = NULL;
 	vbo->indicies.d3d.buff = NULL;
 
-	BZ_Free(vbo);
+	if (!dataonly)
+		BZ_Free(vbo);
 }
 
 /*upload all lightmaps at the start to reduce lags*/

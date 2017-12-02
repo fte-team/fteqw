@@ -2495,6 +2495,8 @@ qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 
 		if (r_novis.ival)
 		{
+			if (curframevis[portal].buffersize < cl.worldmodel->pvsbytes)
+				curframevis[portal].buffer = BZ_Realloc(curframevis[portal].buffer, curframevis[portal].buffersize=cl.worldmodel->pvsbytes);
 			vis = cvis[portal] = curframevis[portal].buffer;
 			memset (curframevis[portal].buffer, 0xff, curframevis[portal].buffersize);
 

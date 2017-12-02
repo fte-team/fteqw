@@ -73,7 +73,7 @@ cvar_t	sv_mintic					= CVARD("sv_mintic","0", "The minimum interval between runn
 cvar_t	sv_maxtic					= CVARD("sv_maxtic","0.1", "The maximum interval between running physics frames. If the value is too low, multiple physics interations might be run at a time (based upon sv_limittics). Set to 0 for fixed-interval ticks, which may be required if ODE is used.");//never run a tick slower than this
 cvar_t	sv_limittics				= CVARD("sv_limittics","3", "The maximum number of ticks that may be run within a frame, to allow the server to catch up if it stalled or if sv_maxtic is too low.");//
 
-cvar_t	sv_nailhack					= CVARD("sv_nailhack","0", "If set to 1, disables the nail entity networking optimisation. This hack was popularised by qizmo which recommends it for better compression. Also allows clients to interplate nail positions and add trails.");
+cvar_t	sv_nailhack					= CVARD("sv_nailhack","1", "If set to 1, disables the nail entity networking optimisation. This hack was popularised by qizmo which recommends it for better compression. Also allows clients to interplate nail positions and add trails.");
 cvar_t	sv_nopvs					= CVARD("sv_nopvs", "0", "Set to 1 to ignore pvs on the server. This can make wallhacks more dangerous, so should only be used for debugging.");
 cvar_t	fraglog_public				= CVARD("fraglog_public", "1", "Enables support for connectionless fraglog requests");
 cvar_t	fraglog_details				= CVARD("fraglog_details", "1", "Bitmask\n1: killer+killee names.\n2: killer+killee teams\n4:timestamp.\n8:killer weapon\n16:killer+killee guid.\nFor compatibility, use 1(vanilla) or 7(mvdsv).");

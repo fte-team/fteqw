@@ -586,7 +586,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 		to = &addr;
 		if (!NET_StringToAdr (cls.servername, PORT_QWSERVER, to))
 		{
-			Con_TPrintf ("Bad server address\n");
+			Con_TPrintf ("CL_SendConnectPacket: Bad server address \"%s\"\n", cls.servername);
 			connectinfo.trying = false;
 			return;
 		}
@@ -899,7 +899,7 @@ void CL_CheckForResend (void)
 		{
 			if (!NET_StringToAdr (cls.servername, connectinfo.defaultport, &connectinfo.adr))
 			{
-				Con_TPrintf ("Bad server address\n");
+				Con_TPrintf ("CL_CheckForResend: Bad server address \"%s\"\n", cls.servername);
 				connectinfo.trying = false;
 				SCR_EndLoadingPlaque();
 				return;
@@ -999,7 +999,7 @@ void CL_CheckForResend (void)
 
 		if (!NET_StringToAdr (host, connectinfo.defaultport, &connectinfo.adr))
 		{
-			Con_TPrintf ("Bad server address\n");
+			Con_TPrintf ("Bad server address \"%s\"\n", host);
 			connectinfo.trying = false;
 			SCR_EndLoadingPlaque();
 			return;

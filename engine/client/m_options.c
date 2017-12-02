@@ -813,7 +813,7 @@ const char *presetexec[] =
 	"cl_bob 0.02;"
 	//these things are perhaps a little extreme
 	"r_loadlit 0;"
-	"vid_hardwaregamma 1;"
+	"vid_hardwaregamma 1;"		//auto hardware gamma, for fast fullscreen and usable windowed.
 	"d_mipcap 0 2;"				//gl without anisotropic filtering favours too-distant mips too often, so lets just pretend it doesn't exist. should probably mess with lod instead or something
 	"r_part_classic_expgrav 1;"	//vanillaery
 	"r_part_classic_opaque 1;"
@@ -826,7 +826,7 @@ const char *presetexec[] =
 	"seta cl_deadbodyfilter 0;"
 
 	, //vanilla-esque options.
-	"gl_texturemode nnl;"		//yup, we went there.
+	"gl_texturemode nll;"		//yup, we went there.
 	"gl_texturemode2d n.l;"		//yeah, 2d too.
 	"r_nolerp 1;"
 	"cl_sbar 1;"
@@ -863,7 +863,7 @@ const char *presetexec[] =
 
 	, // nice options
 //	"r_stains 0.75;"
-	"gl_texturemode ll;"
+	"gl_texturemode lll;"
 #ifndef MINIMAL
 //	"r_particlesystem script;"
 	"r_particledesc \"high tsshaft\";"

@@ -1839,7 +1839,7 @@ m-dbg:
 m-profile:
 	@$(MAKE) m-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(MB_DIR)"
 
-.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir makelibs wel-rel web-dbg
+.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir makelibs wel-rel web-dbg httpserver
 
 
 _qcc-tmp: $(REQDIR)
@@ -2159,9 +2159,9 @@ libs-$(ARCH)/libopus.a:
 
 makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libopus.a
 
-HTTP_OBJECTS=http/httpserver.c http/iwebiface.c common/fs_stdio.c
+HTTP_OBJECTS=http/httpserver.c http/iwebiface.c common/fs_stdio.c http/ftpserver.c
 $(RELEASE_DIR)/httpserver$(BITS): $(HTTP_OBJECTS)
-	$(CC) -o $(RELEASE_DIR)/httpserver$(BITS) $(HTTP_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DWEBSVONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -DNO_PNG
+	$(CC) -o $(RELEASE_DIR)/httpserver$(BITS) -Icommon -Iclient -Iqclib -Igl -Iserver -DWEBSERVER -DWEBSVONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -DNO_PNG $(HTTP_OBJECTS)
 httpserver: $(RELEASE_DIR)/httpserver$(BITS)
 
 IQM_OBJECTS=../iqm/iqm.cpp

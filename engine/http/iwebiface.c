@@ -15,28 +15,28 @@ char *NET_SockadrToString(char *s, int slen, struct sockaddr_qstorage *addr)
 		Q_snprintfz(s, slen, "%s:%u", inet_ntoa(((struct sockaddr_in*)addr)->sin_addr), ntohs(((struct sockaddr_in*)addr)->sin_port));
 		break;
 	case AF_INET6:
-		if (!memcmp(((struct sockaddr_in6*)addr)->sin6_addr.s6_bytes, "\0\0\0\0\0\0\0\0\0\0\xff\xff", 12))
+		if (!memcmp(((struct sockaddr_in6*)addr)->sin6_addr.s6_addr, "\0\0\0\0\0\0\0\0\0\0\xff\xff", 12))
 		{	//ipv4-mapped
 			Q_snprintfz(s, slen, "[::ffff:%u.%u.%u.%u]:%u", 
-				((struct sockaddr_in6*)addr)->sin6_addr.s6_bytes[12],
-				((struct sockaddr_in6*)addr)->sin6_addr.s6_bytes[13],
-				((struct sockaddr_in6*)addr)->sin6_addr.s6_bytes[14],
-				((struct sockaddr_in6*)addr)->sin6_addr.s6_bytes[15],
+				((struct sockaddr_in6*)addr)->sin6_addr.s6_addr[12],
+				((struct sockaddr_in6*)addr)->sin6_addr.s6_addr[13],
+				((struct sockaddr_in6*)addr)->sin6_addr.s6_addr[14],
+				((struct sockaddr_in6*)addr)->sin6_addr.s6_addr[15],
 
 				ntohs(((struct sockaddr_in6*)addr)->sin6_port));
 		}
 		else
 		{
 			Q_snprintfz(s, slen, "[%x:%x:%x:%x:%x:%x:%x:%x]:%u", 
-				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[0]),
-				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[1]),
-				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[2]),
-				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[3]),
+				ntohs(((unsigned short*)((struct sockaddr_in6*)addr)->sin6_addr.s6_addr)[0]),
+				ntohs(((unsigned short*)((struct sockaddr_in6*)addr)->sin6_addr.s6_addr)[1]),
+				ntohs(((unsigned short*)((struct sockaddr_in6*)addr)->sin6_addr.s6_addr)[2]),
+				ntohs(((unsigned short*)((struct sockaddr_in6*)addr)->sin6_addr.s6_addr)[3]),
 
-				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[4]),
-				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[5]),
-				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[6]),
-				ntohs(((struct sockaddr_in6*)addr)->sin6_addr.s6_words[7]),
+				ntohs(((unsigned short*)((struct sockaddr_in6*)addr)->sin6_addr.s6_addr)[4]),
+				ntohs(((unsigned short*)((struct sockaddr_in6*)addr)->sin6_addr.s6_addr)[5]),
+				ntohs(((unsigned short*)((struct sockaddr_in6*)addr)->sin6_addr.s6_addr)[6]),
+				ntohs(((unsigned short*)((struct sockaddr_in6*)addr)->sin6_addr.s6_addr)[7]),
 
 				ntohs(((struct sockaddr_in6*)addr)->sin6_port));
 		}
@@ -181,7 +181,7 @@ int main(int argc, char **argv)
 			printf("	-user <name> specifies the username that has full access. if not supplied noone can write.\n");
 			printf("	-pass <pass> specifies the password to go with that username\n");
 			printf("	-noanon will refuse to serve files to anyone but the authed user\n");
-			return;
+			return 0;
 		}
 		else if (!strcmp(a, "port") || !strcmp(a, "p"))
 		{
@@ -311,6 +311,11 @@ void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, ti
 	}
 	while(FindNextFileA(r, &fd) && go);
 	FindClose(r);
+}
+#else
+void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *f), void *parm)
+{
+	//No implementation on unix etc
 }
 #endif
 

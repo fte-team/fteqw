@@ -929,7 +929,8 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 		}
 
 	/*and start it up again*/
-		palSourcePlay(src);
+		if (schanged != 2)
+			palSourcePlay(src);
 	}
 
 	PrintALError("post start sound");

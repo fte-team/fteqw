@@ -278,7 +278,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 					avail = scache->length;
 					if (avail > maxlen)
 						avail = snd_speed*10;
-					avail = (((int)(scache->soundoffset + avail)<<PITCHSHIFT) - ch->pos) / ch->rate;
+					avail = (((int)(scache->soundoffset + avail)<<PITCHSHIFT) - ch->pos + (ch->rate-1)) / ch->rate;
 				}
 				// mix the smaller of how much is available or the time left
 				count = min(avail, end - ltime);

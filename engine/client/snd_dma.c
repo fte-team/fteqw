@@ -2781,14 +2781,14 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	extern cvar_t cl_demospeed;
 	int chanupdatetype = true;
 
-	if (fvol < 0)
+	if (!sfx)
+		sfx = target_chan->sfx;
+
+	if (fvol < 0 || !sfx)
 	{	//stopsound, apparently.
 		target_chan->sfx = NULL;
 		return;
 	}
-	
-	if (!sfx)
-		sfx = target_chan->sfx;
 
 	if (ratemul <= 0)
 		ratemul = 1;
@@ -2798,6 +2798,8 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	vol = fvol*255;
 
 // spatialize
+	if (target_chan->sfx != sfx)
+		chanupdatetype = true;
 	memset (target_chan, 0, sizeof(*target_chan));
 	if (!origin)
 	{
@@ -2831,18 +2833,13 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 		return;		// not audible at all
 	}
 
-	if (sfx)
+	if (!S_LoadSound (sfx))
 	{
-		if (!S_LoadSound (sfx))
-		{
-			target_chan->sfx = NULL;
-			return;		// couldn't load the sound's data
-		}
-
-		if (target_chan->sfx != sfx)
-			chanupdatetype = true;
-		target_chan->sfx = sfx;
+		target_chan->sfx = NULL;
+		return;		// couldn't load the sound's data
 	}
+
+	target_chan->sfx = sfx;
 
 	if (updateonly && sc->ChannelUpdate)
 	{

@@ -1945,6 +1945,7 @@ struct shader_field_names_s shader_unif_names[] =
 	/*viewer properties*/
 	{"v_eyepos",				SP_V_EYEPOS},
 	{"w_fog",					SP_W_FOG},
+	{"w_user",					SP_W_USER},
 
 	/*ent properties*/
 	{"e_vblend",				SP_E_VBLEND},

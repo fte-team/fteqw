@@ -428,6 +428,7 @@ typedef struct {
 		SP_E_EYEPOS, /*viewer's eyepos, in model space*/
 		SP_V_EYEPOS, /*viewer's eyepos, in world space*/
 		SP_W_FOG,
+		SP_W_USER,	//user-specified blob of data.
 
 		SP_M_ENTBONES,
 		SP_M_VIEW,

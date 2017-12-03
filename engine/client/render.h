@@ -301,6 +301,8 @@ typedef struct
 	qbyte		*forcedvis;			/*set if forcevis is set*/
 	qboolean	areabitsknown;
 	qbyte		areabits[MAX_MAP_AREA_BYTES];
+
+	vec4_t		userdata[16];		/*for custom glsl*/
 } refdef_t;
 
 extern	refdef_t	r_refdef;

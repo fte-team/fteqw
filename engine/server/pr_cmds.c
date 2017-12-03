@@ -262,22 +262,29 @@ pbool PDECL ED_CanFree (edict_t *ed)
 	ed->v->frame = 0;
 	VectorClear (ed->v->origin);
 	VectorClear (ed->v->angles);
-	ed->v->nextthink = 0;
 	ed->v->solid = 0;
 	ed->xv->pvsflags = 0;
 
-	ed->v->classname = 0;
-
-	if (pr_imitatemvdsv.value)
-	{
-		ed->v->health = 0;
-		ed->v->nextthink = -1;
-		ed->v->impulse = 0;	//this is not true imitation, but it seems we need this line to get out of some ktpro infinate loops.
-	}
-	else
-	{
+#ifdef QUAKETC
+	//ideal world...
+		ed->v->nextthink = 0;
 		ed->v->think = 0;
-	}
+		ed->v->classname = 0;
+		ed->v->health = 0;
+#else
+	//yay compat
+		ed->v->nextthink = -1;
+		if (progstype == PROG_QW)
+		{
+			ed->v->classname = 0;	//this should be below, but 0 is a nicer choice, and matches all qw servers that we actually care about, even if wrong.
+			if (pr_imitatemvdsv.value)
+			{
+
+				ed->v->health = 0;
+				ed->v->impulse = 0;	//this is not true imitation, but it seems we need this line to get out of some ktpro infinate loops.
+			}
+		}
+#endif
 
 	ed->xv->SendEntity = 0;
 	sv.csqcentversion[ed->entnum] += 1;
@@ -11564,6 +11571,7 @@ void PR_DumpPlatform_f(void)
 		{"m_shutdown",				"void()", MENU},
 		{"m_draw",					"void(vector screensize)", MENU, "Provides the menuqc with a chance to draw. Will be called even if the menu does not have focus, so be sure to avoid that. COMPAT: screensize is not provided in DP."},
 		{"m_drawloading",			"void(vector screensize, float opaque)", MENU, "Additional drawing function to draw loading screens. If opaque is set, then this function must ensure that the entire screen is overdrawn (even if just by a black drawfill)."},
+		{"Menu_InputEvent",			"float(float evtype, float scanx, float chary, float devid)", MENU, "If present, this is called instead of m_keydown and m_keyup\nCalled whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time."},
 		{"m_keydown",				"void(float scan, float chr)", MENU},
 		{"m_keyup",					"void(float scan, float chr)", MENU},
 		{"m_toggle",				"void(float wantmode)", MENU},
@@ -11987,6 +11995,7 @@ void PR_DumpPlatform_f(void)
 		{"VF_RT_DEPTH",			"const float", CS|MENU, D("The texture name to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (16bit=4,24bit=5,32bit=6), sizexy."), VF_RT_DEPTH},
 		{"VF_RT_RIPPLE",		"const float", CS|MENU, D("The texture name to use as a ripplemap (target for shaders with 'sort ripple'). Also used for shaders that specify $ripplemap. 1-based. Additional arguments are: format, sizexy."), VF_RT_RIPPLE},
 		{"VF_ENVMAP",			"const float", CS|MENU, D("The cubemap name to use as a fallback for $reflectcube, if a shader was unable to load one. Note that this doesn't automatically change shader permutations or anything."), VF_ENVMAP},
+		{"VF_USERDATA",			"const float", CS|MENU, D("Pointer (and byte size) to an array of vec4s. This data is then globally visible to all glsl via the w_user uniform."), VF_USERDATA},
 
 		{"RF_VIEWMODEL",		"const float", CS, D("Specifies that the entity is a view model, and that its origin is relative to the current view position. These entities are also subject to viewweapon bob."), CSQCRF_VIEWMODEL},
 		{"RF_EXTERNALMODEL",	"const float", CS, D("Specifies that this entity should be displayed in mirrors (and may still cast shadows), but will not otherwise be visible."), CSQCRF_EXTERNALMODEL},

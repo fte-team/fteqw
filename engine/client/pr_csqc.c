@@ -2232,6 +2232,26 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		BE_RenderToTextureUpdate2d(false);
 		break;
 
+	case VF_USERDATA:
+		{
+			int qcptr = G_INT(OFS_PARM1);
+			int size = G_INT(OFS_PARM2);
+			void *ptr;
+
+			if (size > sizeof(r_refdef.userdata))
+				size = sizeof(r_refdef.userdata);
+
+			//validates the pointer.
+			if (qcptr < 0 || qcptr+size >= prinst->stringtablesize || size < 0)
+			{
+				PR_BIError(prinst, "PF_R_SetViewFlag: invalid pointer\n");
+				return;
+			}
+			ptr = (struct reverbproperties_s*)(prinst->stringtable + qcptr);
+			memcpy(r_refdef.userdata, ptr, size);
+		}
+		break;
+
 	default:
 		Con_DPrintf("SetViewFlag: %i not recognised\n", parametertype);
 		G_FLOAT(OFS_RETURN) = 0;

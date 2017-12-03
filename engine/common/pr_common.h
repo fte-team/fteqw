@@ -691,6 +691,7 @@ typedef enum
 	VF_RT_DESTCOLOUR6	= 218,
 	VF_RT_DESTCOLOUR7	= 219,
 	VF_ENVMAP			= 220,	//cubemap image for reflectcube
+	VF_USERDATA			= 221,
 } viewflags;
 
 /*FIXME: this should be changed*/

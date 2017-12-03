@@ -3465,6 +3465,9 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 		case SP_W_FOG:
 			qglUniform4fvARB(ph, 2, r_refdef.globalfog.colour);	//and density
 			break;
+		case SP_W_USER:
+			qglUniform4fvARB(ph, countof(r_refdef.userdata), r_refdef.userdata);	//and density
+			break;
 		case SP_V_EYEPOS:
 			qglUniform3fvARB(ph, 1, r_origin);
 			break;

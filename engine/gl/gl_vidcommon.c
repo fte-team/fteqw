@@ -1380,6 +1380,7 @@ static const char *glsl_hdrs[] =
 				"#define w_fogalpha		w_fog[0].a\n"
 				"#define w_fogdensity	w_fog[1].x\n"
 				"#define w_fogdepthbias	w_fog[1].y\n"
+				"uniform vec4 w_user[16];\n"
 
 				/*ent properties*/
 				//"uniform vec2 e_vblend;\n"

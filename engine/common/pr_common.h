@@ -223,8 +223,10 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	#define PF_frameforname			PF_Fixme
 	#define PF_skel_delete			PF_Fixme
 	#define PF_skel_copybones		PF_Fixme
-	#define PF_skel_mul_bones		PF_Fixme
-	#define PF_skel_mul_bone		PF_Fixme
+	#define PF_skel_premul_bones	PF_Fixme
+	#define PF_skel_premul_bone		PF_Fixme
+	#define PF_skel_postmul_bones	PF_Fixme
+	#define PF_skel_postmul_bone	PF_Fixme
 	#define PF_skel_set_bone		PF_Fixme
 	#define PF_skel_get_boneabs		PF_Fixme
 	#define PF_skel_get_bonerel		PF_Fixme
@@ -252,8 +254,10 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	void QCBUILTIN PF_skel_get_bonerel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skel_get_boneabs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skel_set_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-	void QCBUILTIN PF_skel_mul_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-	void QCBUILTIN PF_skel_mul_bones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_premul_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_premul_bones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_postmul_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_postmul_bones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skel_copybones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skel_delete (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_frametoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

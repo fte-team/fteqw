@@ -2175,7 +2175,7 @@ void QCBUILTIN PF_skel_set_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr
 }
 
 //void(float skel, float bonenum, vector org [, vector fwd, vector right, vector up]) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-void QCBUILTIN PF_skel_mul_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_premul_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);
@@ -2191,15 +2191,38 @@ void QCBUILTIN PF_skel_mul_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	skelobj = skel_get(w, skelidx);
 	if (!skelobj || boneidx >= skelobj->numbones)
 		return;
-//testme
+
+	//this is backwards. it rotates the EXISTING position around the passed position. this makes it hard to work with bones that have existing animation data (even if its a static transform).
 	Vector4Copy(skelobj->bonematrix+12*boneidx+0, temp[0]);
 	Vector4Copy(skelobj->bonematrix+12*boneidx+4, temp[1]);
 	Vector4Copy(skelobj->bonematrix+12*boneidx+8, temp[2]);
 	R_ConcatTransforms(mult, temp, (float(*)[4])(skelobj->bonematrix+12*boneidx));
 }
+void QCBUILTIN PF_skel_postmul_bone (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	int skelidx = G_FLOAT(OFS_PARM0);
+	int boneidx = G_FLOAT(OFS_PARM1)-1;
+	float temp[3][4];
+	float mult[3][4];
+	skelobject_t *skelobj;
+	if (prinst->callargc > 5)
+		bonemat_fromqcvectors((float*)mult, G_VECTOR(OFS_PARM3), G_VECTOR(OFS_PARM4), G_VECTOR(OFS_PARM5), G_VECTOR(OFS_PARM2));
+	else
+		bonemat_fromqcvectors((float*)mult, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_PARM2));
+
+	skelobj = skel_get(w, skelidx);
+	if (!skelobj || boneidx >= skelobj->numbones)
+		return;
+
+	Vector4Copy(skelobj->bonematrix+12*boneidx+0, temp[0]);
+	Vector4Copy(skelobj->bonematrix+12*boneidx+4, temp[1]);
+	Vector4Copy(skelobj->bonematrix+12*boneidx+8, temp[2]);
+	R_ConcatTransforms(temp, mult, (float(*)[4])(skelobj->bonematrix+12*boneidx));
+}
 
 //void(float skel, float startbone, float endbone, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-void QCBUILTIN PF_skel_mul_bones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_skel_premul_bones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	int skelidx = G_FLOAT(OFS_PARM0);

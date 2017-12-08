@@ -6540,7 +6540,7 @@ lh_extension_t QSG_Extensions[] = {
 													"resorthostcache", "sethostcachesort", "refreshhostcache", "gethostcachenumber", "gethostcacheindexforkey",
 													"addwantedhostcachekey", "getextresponse"}, "Provides builtins to query the engine's serverbrowser servers list from ssqc. Note that these builtins are always available in menuqc."},
 	{"FTE_CSQC_SKELETONOBJECTS",		15,	NULL, {	"skel_create", "skel_build", "skel_get_numbones", "skel_get_bonename", "skel_get_boneparent", "skel_find_bone",
-													"skel_get_bonerel", "skel_get_boneabs", "skel_set_bone", "skel_mul_bone", "skel_mul_bones", "skel_copybones",
+													"skel_get_bonerel", "skel_get_boneabs", "skel_set_bone", "skel_premul_bone", "skel_premul_bones", "skel_copybones",
 													"skel_delete", "frameforname", "frameduration"}, "Provides container objects for skeletal bone data, which can be modified on a per bone basis if needed. This allows you to dynamically generate animations (or just blend them with greater customisation) instead of being limited to a single animation or two."},
 	{"FTE_CSQC_RAWIMAGES",				2,	NULL, {"r_uploadimage","r_readimage"}, "Provides raw rgba image access to csqc. With this, the csprogs can read textures into qc-accessible memory, modify it, and then upload it to the renderer."},
 	{"FTE_CSQC_RENDERTARGETS",			0,	NULL, {NULL}, "VF_RT_DESTCOLOUR exists and can be used to redirect any rendering to a texture instead of the screen."},

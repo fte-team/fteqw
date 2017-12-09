@@ -727,7 +727,7 @@ struct
 
 #ifndef SERVERONLY
 #ifdef D3DQUAKE
-void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals)
+void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals, qboolean usecolourmod)
 {
 	int i;
 	int c;
@@ -745,7 +745,7 @@ void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *
 		shadelightb[i] = bound(0, l, 255);
 	}
 
-	if (ambientlightb[0] == shadelightb[0] && ambientlightb[1] == shadelightb[1] && ambientlightb[2] == shadelightb[2])
+	if (!normals || (ambientlightb[0] == shadelightb[0] && ambientlightb[1] == shadelightb[1] && ambientlightb[2] == shadelightb[2]))
 	{
 		for (i = vertcount-1; i >= 0; i--)
 		{
@@ -774,7 +774,7 @@ void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *
 }
 #endif
 
-void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *normals, float scale)
+void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *normals, float scale, qboolean colormod)
 {
 	extern cvar_t r_vertexdlights;
 	int i;
@@ -782,20 +782,28 @@ void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int
 
 	//float *lightdir = currententity->light_dir; //unused variable
 
-	if (!entity->light_range[0] && !entity->light_range[1] && !entity->light_range[2])
+	if (!normals || (!entity->light_range[0] && !entity->light_range[1] && !entity->light_range[2]))
 	{
+		vec3_t val;
+		VectorCopy(entity->light_avg, val);
+		if (colormod)
+			VectorMul(val, entity->shaderRGBAf, val);
+
 		for (i = vertcount-1; i >= 0; i--)
 		{
-			colours[i][0] = entity->light_avg[0];
-			colours[i][1] = entity->light_avg[1];
-			colours[i][2] = entity->light_avg[2];
+			VectorCopy(val, colours[i]);
 		}
 	}
 	else
 	{
-		vec3_t la, lr;
+		avec3_t la, lr;
 		VectorScale(entity->light_avg, scale, la);
 		VectorScale(entity->light_range, scale, lr);
+		if (colormod)
+		{
+			VectorMul(la, entity->shaderRGBAf, la);
+			VectorMul(lr, entity->shaderRGBAf, lr);
+		}
 #ifdef SSE_INTRINSICS
 		__m128 va, vs, vl, vr;
 		va = _mm_load_ps(ambientlight);
@@ -822,7 +830,7 @@ void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int
 		}
 	}
 
-	if (r_vertexdlights.ival && r_dynamic.ival > 0)
+	if (r_vertexdlights.ival && r_dynamic.ival > 0 && normals)
 	{
 		unsigned int lno, v;
 		vec3_t dir, rel;

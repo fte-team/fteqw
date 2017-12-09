@@ -8415,11 +8415,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 //we need to write specular exponents if we want per-pixel control over that
-//#if defined(SPECULAR)
+"#if defined(SPECULAR)\n"
 "ospec = texture2D(s_specular, tc);\n"
-//#else
-//	ospec = vec4(0.0, 0.0, 0.0, 0.0);
-//#endif
+"#else\n"
+"ospec = vec4(0.0, 0.0, 0.0, 0.0);\n"
+"#endif\n"
 
 "gl_FragColor = vec4(onorm.xyz, ospec.a * FTE_SPECULAR_EXPONENT);\n"
 "}\n"

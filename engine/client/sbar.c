@@ -953,6 +953,7 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 {
 	int		i;
 	size_t	lumpsize;
+	qbyte	lumptype;
 	if (sbar_loaded)
 		return;
 
@@ -976,7 +977,7 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 
 #ifdef HEXEN2
 	sbar_hexen2 = false;
-	if (W_SafeGetLumpName("tinyfont", &lumpsize))
+	if (W_GetLumpName("tinyfont", &lumpsize, &lumptype))
 		sbar_hexen2 = true;
 //	if (sb_nums[0][0] && sb_nums[0][0]->width < 13)
 //		sbar_hexen2 = true;
@@ -1057,7 +1058,7 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 	sb_scorebar = Sbar_PicFromWad ("scorebar");
 
 	//try to detect rogue wads, and thus the stats we will be getting from the server.
-	sbar_rogue = COM_CheckParm("-rogue") || !!W_SafeGetLumpName("r_lava", &lumpsize);
+	sbar_rogue = COM_CheckParm("-rogue") || !!W_GetLumpName("r_lava", &lumpsize, &lumptype);
 	if (sbar_rogue)
 	{
 		rsb_invbar[0] = Sbar_PicFromWad ("r_invbar1");
@@ -1079,7 +1080,7 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 		rsb_ammo[2] = Sbar_PicFromWad ("r_ammoplasma");
 	}
 
-	sbar_hipnotic = COM_CheckParm("-hipnotic") || !!W_SafeGetLumpName("inv_mjolnir", &lumpsize);
+	sbar_hipnotic = COM_CheckParm("-hipnotic") || !!W_GetLumpName("inv_mjolnir", &lumpsize, &lumptype);
 	if (sbar_hipnotic)
 	{
 		hsb_weapons[0][0] = Sbar_PicFromWad ("inv_laser");

@@ -198,11 +198,13 @@ void SListOptionChanged(serverinfo_t *newserver);
 extern serverinfo_t *firstserver;
 extern master_t *master;
 extern player_t *mplayers;
+extern qboolean sb_favouriteschanged;
 
 void Master_SetupSockets(void);
 qboolean CL_QueryServers(void);
 int Master_CheckPollSockets(void);
 void MasterInfo_Shutdown(void);
+void MasterInfo_WriteServers(void);
 void MasterInfo_Request(master_t *mast);
 serverinfo_t *Master_InfoForServer (netadr_t *addr);
 serverinfo_t *Master_InfoForNum (int num);

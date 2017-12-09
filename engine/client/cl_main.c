@@ -1223,6 +1223,7 @@ void CL_Connect_f (void)
 	}
 
 	server = Cmd_Argv (1);
+	server = strcpy(alloca(strlen(server)+1), server);
 
 #ifndef CLIENTONLY
 	if (sv.state == ss_clustermode)
@@ -1289,6 +1290,7 @@ static void CL_Join_f (void)
 	}
 
 	server = Cmd_Argv (1);
+	server = strcpy(alloca(strlen(server)+1), server);
 
 	CL_Disconnect_f ();
 
@@ -1316,6 +1318,7 @@ void CL_Observe_f (void)
 	}
 
 	server = Cmd_Argv (1);
+	server = strcpy(alloca(strlen(server)+1), server);
 
 	CL_Disconnect_f ();
 
@@ -1336,6 +1339,7 @@ void CLNQ_Connect_f (void)
 	}
 
 	server = Cmd_Argv (1);
+	server = strcpy(alloca(strlen(server)+1), server);
 
 	CL_Disconnect_f ();
 
@@ -1658,6 +1662,7 @@ void CL_ClearState (void)
 
 	if (cfg_save_auto.ival && Cvar_UnsavedArchive())
 		Cmd_ExecuteString("cfg_save\n", RESTRICT_LOCAL);
+	MasterInfo_WriteServers();
 }
 
 /*

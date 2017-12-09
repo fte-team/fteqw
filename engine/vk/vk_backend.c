@@ -862,8 +862,8 @@ VkShaderModule VK_CreateGLSLModule(program_t *prog, const char *name, int ver, c
 	"vec3 e_eyepos;"
 	"float e_time;"
 	"vec3 e_light_ambient;	float epad1;"
-	"vec3 e_light_dir;	float epad2;"
-	"vec3 e_light_mul;	float epad3;"
+	"vec3 e_light_dir;		float epad2;"
+	"vec3 e_light_mul;		float epad3;"
 	"vec4 e_lmscales[4];"
 	"vec3 e_uppercolour;	float epad4;"
 	"vec3 e_lowercolour;	float epad5;"
@@ -875,11 +875,11 @@ VkShaderModule VK_CreateGLSLModule(program_t *prog, const char *name, int ver, c
 "layout(std140, binding=1) uniform lightblock"
 "{\n"
 	"mat4 l_cubematrix;"
-	"vec3 l_lightposition; 	float lpad1;"
+	"vec3 l_lightposition;		float lpad1;"
 	"vec3 l_lightcolour; 		float lpad2;"
 	"vec3 l_lightcolourscale; 	float l_lightradius;"
 	"vec4 l_shadowmapproj;"
-	"vec2 l_shadowmapscale;	vec2 lpad3;"
+	"vec2 l_shadowmapscale;		vec2 lpad3;"
 "};\n"
 ;
 
@@ -1992,21 +1992,11 @@ static void colourgen(const shaderpass_t *pass, int cnt, byte_vec4_t *srcb, avec
 			dst[cnt][2] = pass->rgbgen_func.args[2];
 		}
 		break;
+	case RGB_GEN_ENTITY_LIGHTING_DIFFUSE:
+		R_LightArrays(shaderstate.curentity, mesh->xyz_array, dst, cnt, mesh->normals_array, shaderstate.identitylighting, true);
+		break;
 	case RGB_GEN_LIGHTING_DIFFUSE:
-		//collect lighting details for mobile entities
-		if (!mesh->normals_array)
-		{
-			while((cnt)--)
-			{
-				dst[cnt][0] = 1;
-				dst[cnt][1] = 1;
-				dst[cnt][2] = 1;
-			}
-		}
-		else
-		{
-			R_LightArrays(shaderstate.curentity, mesh->xyz_array, dst, cnt, mesh->normals_array, shaderstate.identitylighting);
-		}
+		R_LightArrays(shaderstate.curentity, mesh->xyz_array, dst, cnt, mesh->normals_array, shaderstate.identitylighting, false);
 		break;
 	case RGB_GEN_WAVE:
 		{

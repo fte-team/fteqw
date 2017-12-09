@@ -1696,8 +1696,6 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 			default:
 				break;
 		}
-#undef SETPARAMS
-
 	}
 }
 

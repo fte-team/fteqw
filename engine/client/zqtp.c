@@ -1376,7 +1376,7 @@ TP_ParseFunChars
 Doesn't check for overflows, so strlen(s) should be < MAX_MACRO_STRING
 ==============
 */
-static char *TP_ParseFunChars (char *s)
+char *TP_ParseFunChars (char *s)
 {
 	static char	 buf[MAX_MACRO_STRING];
 	char		*out = buf;

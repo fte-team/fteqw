@@ -41,6 +41,7 @@ cvar_t	cl_netfps = CVAR("cl_netfps", "150");
 cvar_t	cl_sparemsec = CVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
 cvar_t  cl_queueimpulses = CVAR("cl_queueimpulses", "0");
 cvar_t	cl_smartjump = CVAR("cl_smartjump", "1");
+cvar_t	cl_iDrive = CVARFD("cl_iDrive", "1", CVAR_SEMICHEAT, "Effectively releases movement keys when the opposing key is pressed. This avoids dead-time when both keys are pressed. This can be emulated with various scripts, but that's messy.");
 cvar_t	cl_run = CVARD("cl_run", "0", "Enables autorun, inverting the state of the +speed key.");
 cvar_t	cl_fastaccel = CVARD("cl_fastaccel", "1", "Begin moving at full speed instantly, instead of waiting a frame or so.");
 extern cvar_t cl_rollspeed;
@@ -142,18 +143,19 @@ state bit 2 is edge triggered on the down to up transition
 */
 
 
-kbutton_t	in_mlook, in_klook;
-kbutton_t	in_left, in_right, in_forward, in_back;
-kbutton_t	in_lookup, in_lookdown, in_moveleft, in_moveright;
-kbutton_t	in_strafe, in_speed, in_use, in_jump, in_attack;
-kbutton_t	in_rollleft, in_rollright, in_up, in_down;
+kbutton_t	in_mlook, in_strafe, in_speed;
+static kbutton_t	in_klook;
+static kbutton_t	in_left, in_right, in_forward, in_back;
+static kbutton_t	in_lookup, in_lookdown, in_moveleft, in_moveright;
+static kbutton_t	in_use, in_jump, in_attack;
+static kbutton_t	in_rollleft, in_rollright, in_up, in_down;
 
-kbutton_t	in_button3, in_button4, in_button5, in_button6, in_button7, in_button8;
+static kbutton_t	in_button3, in_button4, in_button5, in_button6, in_button7, in_button8;
 
 #define IN_IMPULSECACHE 32
-int			in_impulse[MAX_SPLITS][IN_IMPULSECACHE];
-int			in_nextimpulse[MAX_SPLITS];
-int			in_impulsespending[MAX_SPLITS];
+static int			in_impulse[MAX_SPLITS][IN_IMPULSECACHE];
+static int			in_nextimpulse[MAX_SPLITS];
+static int			in_impulsespending[MAX_SPLITS];
 
 qboolean	cursor_active;
 
@@ -161,7 +163,7 @@ qboolean	cursor_active;
 
 
 
-void KeyDown (kbutton_t *b)
+static void KeyDown (kbutton_t *b, kbutton_t *anti)
 {
 	int		k;
 	char	*c;
@@ -190,9 +192,17 @@ void KeyDown (kbutton_t *b)
 	if (b->state[pnum] & 1)
 		return;		// still down
 	b->state[pnum] |= 1 + 2;	// down + impulse down
+
+	if (anti && (anti->state[pnum] & 1) && cl_iDrive.ival)
+	{	//anti-keys are the opposing key. so +forward can auto-release +back for slightly faster-responding keypresses.
+		b->suppressed[pnum] = anti;
+		anti->suppressed[pnum] = NULL;
+		anti->state[pnum] &= ~1;		// now up
+		anti->state[pnum] |= 4; 		// impulse up
+	}
 }
 
-void KeyUp (kbutton_t *b)
+static void KeyUp (kbutton_t *b)
 {
 	int		k;
 	char	*c;
@@ -204,6 +214,7 @@ void KeyUp (kbutton_t *b)
 		k = atoi(c);
 	else
 	{ // typed manually at the console, assume for unsticking, so clear all
+		b->suppressed[pnum] = NULL;
 		b->down[pnum][0] = b->down[pnum][1] = 0;
 		b->state[pnum] = 4;	// impulse up
 		return;
@@ -222,54 +233,61 @@ void KeyUp (kbutton_t *b)
 		return;		// still up (this should not happen)
 	b->state[pnum] &= ~1;		// now up
 	b->state[pnum] |= 4; 		// impulse up
+
+	if (b->suppressed[pnum])
+	{
+		if (b->suppressed[pnum]->down[pnum][0] || b->suppressed[pnum]->down[pnum][1])
+			b->suppressed[pnum]->state[pnum] |= 1 + 2;
+		b->suppressed[pnum] = NULL;
+	}
 }
 
-void IN_KLookDown (void) {KeyDown(&in_klook);}
-void IN_KLookUp (void) {KeyUp(&in_klook);}
-void IN_MLookDown (void) {KeyDown(&in_mlook);}
-void IN_MLookUp (void)
+static void IN_KLookDown (void) {KeyDown(&in_klook, NULL);}
+static void IN_KLookUp (void) {KeyUp(&in_klook);}
+static void IN_MLookDown (void) {KeyDown(&in_mlook, NULL);}
+static void IN_MLookUp (void)
 {
 	int pnum = CL_TargettedSplit(false);
 	KeyUp(&in_mlook);
 	if ( !(in_mlook.state[pnum]&1) &&  lookspring.ival)
 		V_StartPitchDrift(&cl.playerview[pnum]);
 }
-void IN_UpDown(void) {KeyDown(&in_up);}
-void IN_UpUp(void) {KeyUp(&in_up);}
-void IN_DownDown(void) {KeyDown(&in_down);}
-void IN_DownUp(void) {KeyUp(&in_down);}
-void IN_LeftDown(void) {KeyDown(&in_left);}
-void IN_LeftUp(void) {KeyUp(&in_left);}
-void IN_RightDown(void) {KeyDown(&in_right);}
-void IN_RightUp(void) {KeyUp(&in_right);}
-void IN_ForwardDown(void) {KeyDown(&in_forward);}
-void IN_ForwardUp(void) {KeyUp(&in_forward);}
-void IN_BackDown(void) {KeyDown(&in_back);}
-void IN_BackUp(void) {KeyUp(&in_back);}
-void IN_LookupDown(void) {KeyDown(&in_lookup);}
-void IN_LookupUp(void) {KeyUp(&in_lookup);}
-void IN_LookdownDown(void) {KeyDown(&in_lookdown);}
-void IN_LookdownUp(void) {KeyUp(&in_lookdown);}
-void IN_MoveleftDown(void) {KeyDown(&in_moveleft);}
-void IN_MoveleftUp(void) {KeyUp(&in_moveleft);}
-void IN_MoverightDown(void) {KeyDown(&in_moveright);}
-void IN_MoverightUp(void) {KeyUp(&in_moveright);}
-void IN_RollLeftDown(void) {KeyDown(&in_rollleft);}
-void IN_RollLeftUp(void) {KeyUp(&in_rollleft);}
-void IN_RollRightDown(void) {KeyDown(&in_rollright);}
-void IN_RollRightUp(void) {KeyUp(&in_rollright);}
+static void IN_UpDown(void) {KeyDown(&in_up, &in_down);}
+static void IN_UpUp(void) {KeyUp(&in_up);}
+static void IN_DownDown(void) {KeyDown(&in_down, &in_up);}
+static void IN_DownUp(void) {KeyUp(&in_down);}
+static void IN_LeftDown(void) {KeyDown(&in_left, &in_right);}
+static void IN_LeftUp(void) {KeyUp(&in_left);}
+static void IN_RightDown(void) {KeyDown(&in_right, &in_left);}
+static void IN_RightUp(void) {KeyUp(&in_right);}
+static void IN_ForwardDown(void) {KeyDown(&in_forward, &in_back);}
+static void IN_ForwardUp(void) {KeyUp(&in_forward);}
+static void IN_BackDown(void) {KeyDown(&in_back, &in_forward);}
+static void IN_BackUp(void) {KeyUp(&in_back);}
+static void IN_LookupDown(void) {KeyDown(&in_lookup, &in_lookdown);}
+static void IN_LookupUp(void) {KeyUp(&in_lookup);}
+static void IN_LookdownDown(void) {KeyDown(&in_lookdown, &in_lookup);}
+static void IN_LookdownUp(void) {KeyUp(&in_lookdown);}
+static void IN_MoveleftDown(void) {KeyDown(&in_moveleft, &in_moveright);}
+static void IN_MoveleftUp(void) {KeyUp(&in_moveleft);}
+static void IN_MoverightDown(void) {KeyDown(&in_moveright, &in_moveleft);}
+static void IN_MoverightUp(void) {KeyUp(&in_moveright);}
+static void IN_RollLeftDown(void) {KeyDown(&in_rollleft, &in_rollright);}
+static void IN_RollLeftUp(void) {KeyUp(&in_rollleft);}
+static void IN_RollRightDown(void) {KeyDown(&in_rollright, &in_rollleft);}
+static void IN_RollRightUp(void) {KeyUp(&in_rollright);}
 
-void IN_SpeedDown(void) {KeyDown(&in_speed);}
-void IN_SpeedUp(void) {KeyUp(&in_speed);}
-void IN_StrafeDown(void) {KeyDown(&in_strafe);}
-void IN_StrafeUp(void) {KeyUp(&in_strafe);}
+static void IN_SpeedDown(void) {KeyDown(&in_speed, NULL);}
+static void IN_SpeedUp(void) {KeyUp(&in_speed);}
+static void IN_StrafeDown(void) {KeyDown(&in_strafe, NULL);}
+static void IN_StrafeUp(void) {KeyUp(&in_strafe);}
 
-void IN_AttackDown(void) {KeyDown(&in_attack);}
-void IN_AttackUp(void) {KeyUp(&in_attack);}
+static void IN_AttackDown(void) {KeyDown(&in_attack, NULL);}
+static void IN_AttackUp(void) {KeyUp(&in_attack);}
 
-void IN_UseDown (void) {KeyDown(&in_use);}
-void IN_UseUp (void) {KeyUp(&in_use);}
-void IN_JumpDown (void)
+static void IN_UseDown (void) {KeyDown(&in_use, NULL);}
+static void IN_UseUp (void) {KeyUp(&in_use);}
+static void IN_JumpDown (void)
 {
 	qboolean condition;
 
@@ -281,7 +299,7 @@ void IN_JumpDown (void)
 	condition = (cls.state == ca_active && cl_smartjump.ival && !prox_inmenu.ival);
 #ifdef Q2CLIENT
 	if (condition && cls.protocol == CP_QUAKE2)
-		KeyDown(&in_up);
+		KeyDown(&in_up, &in_down);
 	else
 #endif
 #ifdef QUAKESTATS
@@ -289,36 +307,36 @@ void IN_JumpDown (void)
 			(cls.protocol==CP_NETQUAKE || cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[pv->playernum].messagenum == cl.validsequence)
 			&& cl.playerview[pnum].waterlevel >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
 	)
-		KeyDown(&in_up);
+		KeyDown(&in_up, &in_down);
 	else
 #endif
 		if (condition && pv->spectator && pv->cam_state == CAM_FREECAM)
-		KeyDown(&in_up);
+		KeyDown(&in_up, &in_down);
 	else
-		KeyDown(&in_jump);
+		KeyDown(&in_jump, &in_down);
 }
-void IN_JumpUp (void)
+static void IN_JumpUp (void)
 {
 	if (cl_smartjump.ival)
 		KeyUp(&in_up);
 	KeyUp(&in_jump);
 }
 
-void IN_Button3Down(void) {KeyDown(&in_button3);}
-void IN_Button3Up(void) {KeyUp(&in_button3);}
-void IN_Button4Down(void) {KeyDown(&in_button4);}
-void IN_Button4Up(void) {KeyUp(&in_button4);}
-void IN_Button5Down(void) {KeyDown(&in_button5);}
-void IN_Button5Up(void) {KeyUp(&in_button5);}
-void IN_Button6Down(void) {KeyDown(&in_button6);}
-void IN_Button6Up(void) {KeyUp(&in_button6);}
-void IN_Button7Down(void) {KeyDown(&in_button7);}
-void IN_Button7Up(void) {KeyUp(&in_button7);}
-void IN_Button8Down(void) {KeyDown(&in_button8);}
-void IN_Button8Up(void) {KeyUp(&in_button8);}
+static void IN_Button3Down(void) {KeyDown(&in_button3, NULL);}
+static void IN_Button3Up(void) {KeyUp(&in_button3);}
+static void IN_Button4Down(void) {KeyDown(&in_button4, NULL);}
+static void IN_Button4Up(void) {KeyUp(&in_button4);}
+static void IN_Button5Down(void) {KeyDown(&in_button5, NULL);}
+static void IN_Button5Up(void) {KeyUp(&in_button5);}
+static void IN_Button6Down(void) {KeyDown(&in_button6, NULL);}
+static void IN_Button6Up(void) {KeyUp(&in_button6);}
+static void IN_Button7Down(void) {KeyDown(&in_button7, NULL);}
+static void IN_Button7Up(void) {KeyUp(&in_button7);}
+static void IN_Button8Down(void) {KeyDown(&in_button8, NULL);}
+static void IN_Button8Up(void) {KeyUp(&in_button8);}
 
 float in_rotate;
-void IN_Rotate_f (void) {in_rotate += atoi(Cmd_Argv(1));}
+static void IN_Rotate_f (void) {in_rotate += atoi(Cmd_Argv(1));}
 
 
 void IN_WriteButtons(vfsfile_t *f, qboolean all)
@@ -2183,6 +2201,7 @@ void CL_InitInput (void)
 	Cvar_Register (&cl_netfps, inputnetworkcvargroup);
 	Cvar_Register (&cl_sparemsec, inputnetworkcvargroup);
 	Cvar_Register (&cl_run, inputnetworkcvargroup);
+	Cvar_Register (&cl_iDrive, inputnetworkcvargroup);
 
 #ifdef NQPROT
 	Cvar_Register (&cl_movement, inputnetworkcvargroup);

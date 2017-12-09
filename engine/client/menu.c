@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "winquake.h"
 #include "shader.h"
+#include "cl_master.h"
 
 qboolean menu_mousedown;
 
@@ -1067,6 +1068,8 @@ void M_Menu_Quit_f (void)
 	int mode;
 	extern cvar_t cfg_save_auto;
 	char *arg = Cmd_Argv(1);
+
+	MasterInfo_WriteServers();
 
 	if (!strcmp(arg, "force"))
 		mode = 0;

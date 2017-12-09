@@ -318,8 +318,8 @@ void BE_GenModelBatches(struct batch_s **batches, const struct dlight_s *dl, uns
 void R_GAliasFlushSkinCache(qboolean final);
 void R_GAlias_DrawBatch(struct batch_s *batch);
 void R_GAlias_GenerateBatches(entity_t *e, struct batch_s **batches);
-void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals);
-void R_LightArrays(const entity_t *entity, vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals, float scale);
+void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals, qboolean colormod);
+void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *normals, float scale, qboolean colormod);
 
 qboolean R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
 void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int width, unsigned int height);	/*generate q1 sky texnums*/

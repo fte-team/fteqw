@@ -190,14 +190,17 @@ typedef struct
 	enum {ASSOC_LEFT, ASSOC_RIGHT, ASSOC_RIGHT_RESULT}			associative;
 	struct QCC_type_s		**type_a, **type_b, **type_c;
 
-	unsigned int flags;
+	unsigned int flags;	//OPF_*
 	//ASSIGNS_B
 	//ASSIGNS_IB
 	//ASSIGNS_C
 	//ASSIGNS_IC
 } QCC_opcode_t;
 extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
-
+#define OPF_STD			0x1	//reads a+b, writes c.
+#define OPF_STORE		0x2	//b+=a or just b=a
+#define OPF_STOREPTR	0x4	//the form of c=(*b+=a)
+#define OPF_LOADPTR		0x8
 
 
 

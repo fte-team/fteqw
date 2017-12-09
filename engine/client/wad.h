@@ -35,6 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	TYP_QPIC		66
 #define	TYP_SOUND		67
 #define	TYP_MIPTEX		68
+#define	TYP_HLFONT		70
 
 //on disk representation of most q1 images.
 typedef struct
@@ -91,8 +92,7 @@ void W_Shutdown (void);
 void	W_LoadWadFile (char *filename);
 void	W_CleanupName (const char *in, char *out);
 //lumpinfo_t	*W_GetLumpinfo (char *name);
-//void	*W_GetLumpName (char *name);
-void	*W_SafeGetLumpName (const char *name, size_t *size);
+void	*W_GetLumpName (const char *name, size_t *size, qbyte *lumptype);
 //void	*W_GetLumpNum (int num);
 void Wads_Flush (void);
 extern void *wadmutex;

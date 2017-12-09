@@ -336,113 +336,113 @@ QCC_opcode_t pr_opcodes[] =
 {
  {6, "<DONE>", "DONE",		PC_NONE,	ASSOC_LEFT,		&type_void, &type_void, &type_void},
 
- {6, "*", "MUL_F",			PC_MULDIV,	ASSOC_LEFT,		&type_float, &type_float, &type_float},
- {6, "*", "MUL_V",			PC_MULDIV,	ASSOC_LEFT,		&type_vector, &type_vector, &type_float},
- {6, "*", "MUL_FV",			PC_MULDIV,	ASSOC_LEFT,		&type_float, &type_vector, &type_vector},
- {6, "*", "MUL_VF",			PC_MULDIV,	ASSOC_LEFT,		&type_vector, &type_float, &type_vector},
+ {6, "*", "MUL_F",			PC_MULDIV,	ASSOC_LEFT,		&type_float, &type_float, &type_float,		OPF_STD},
+ {6, "*", "MUL_V",			PC_MULDIV,	ASSOC_LEFT,		&type_vector, &type_vector, &type_float,	OPF_STD},
+ {6, "*", "MUL_FV",			PC_MULDIV,	ASSOC_LEFT,		&type_float, &type_vector, &type_vector,	OPF_STD},
+ {6, "*", "MUL_VF",			PC_MULDIV,	ASSOC_LEFT,		&type_vector, &type_float, &type_vector,	OPF_STD},
 
- {6, "/", "DIV_F",			PC_MULDIV,	ASSOC_LEFT,		&type_float, &type_float, &type_float},
+ {6, "/", "DIV_F",			PC_MULDIV,	ASSOC_LEFT,		&type_float, &type_float, &type_float,		OPF_STD},
 
- {6, "+", "ADD_F",			PC_ADDSUB,	ASSOC_LEFT,		&type_float, &type_float, &type_float},
- {6, "+", "ADD_V",			PC_ADDSUB,	ASSOC_LEFT,		&type_vector, &type_vector, &type_vector},
+ {6, "+", "ADD_F",			PC_ADDSUB,	ASSOC_LEFT,		&type_float, &type_float, &type_float,		OPF_STD},
+ {6, "+", "ADD_V",			PC_ADDSUB,	ASSOC_LEFT,		&type_vector, &type_vector, &type_vector,	OPF_STD},
 
- {6, "-", "SUB_F",			PC_ADDSUB,	ASSOC_LEFT,		&type_float, &type_float, &type_float},
- {6, "-", "SUB_V",			PC_ADDSUB,	ASSOC_LEFT,		&type_vector, &type_vector, &type_vector},
+ {6, "-", "SUB_F",			PC_ADDSUB,	ASSOC_LEFT,		&type_float, &type_float, &type_float,		OPF_STD},
+ {6, "-", "SUB_V",			PC_ADDSUB,	ASSOC_LEFT,		&type_vector, &type_vector, &type_vector,	OPF_STD},
 
- {6, "==", "EQ_F",			PC_EQUALITY, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, "==", "EQ_V",			PC_EQUALITY, ASSOC_LEFT,				&type_vector, &type_vector, &type_float},
- {6, "==", "EQ_S",			PC_EQUALITY, ASSOC_LEFT,				&type_string, &type_string, &type_float},
- {6, "==", "EQ_E",			PC_EQUALITY, ASSOC_LEFT,				&type_entity, &type_entity, &type_float},
- {6, "==", "EQ_FNC",		PC_EQUALITY, ASSOC_LEFT,				&type_function, &type_function, &type_float},
+ {6, "==", "EQ_F",			PC_EQUALITY, ASSOC_LEFT,	&type_float, &type_float, &type_float,		OPF_STD},
+ {6, "==", "EQ_V",			PC_EQUALITY, ASSOC_LEFT,	&type_vector, &type_vector, &type_float,	OPF_STD},
+ {6, "==", "EQ_S",			PC_EQUALITY, ASSOC_LEFT,	&type_string, &type_string, &type_float,	OPF_STD},
+ {6, "==", "EQ_E",			PC_EQUALITY, ASSOC_LEFT,	&type_entity, &type_entity, &type_float,	OPF_STD},
+ {6, "==", "EQ_FNC",		PC_EQUALITY, ASSOC_LEFT,	&type_function, &type_function, &type_float,OPF_STD},
 
- {6, "!=", "NE_F",			PC_EQUALITY, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, "!=", "NE_V",			PC_EQUALITY, ASSOC_LEFT,				&type_vector, &type_vector, &type_float},
- {6, "!=", "NE_S",			PC_EQUALITY, ASSOC_LEFT,				&type_string, &type_string, &type_float},
- {6, "!=", "NE_E",			PC_EQUALITY, ASSOC_LEFT,				&type_entity, &type_entity, &type_float},
- {6, "!=", "NE_FNC",		PC_EQUALITY, ASSOC_LEFT,				&type_function, &type_function, &type_float},
+ {6, "!=", "NE_F",			PC_EQUALITY, ASSOC_LEFT,	&type_float, &type_float, &type_float,		OPF_STD},
+ {6, "!=", "NE_V",			PC_EQUALITY, ASSOC_LEFT,	&type_vector, &type_vector, &type_float,	OPF_STD},
+ {6, "!=", "NE_S",			PC_EQUALITY, ASSOC_LEFT,	&type_string, &type_string, &type_float,	OPF_STD},
+ {6, "!=", "NE_E",			PC_EQUALITY, ASSOC_LEFT,	&type_entity, &type_entity, &type_float,	OPF_STD},
+ {6, "!=", "NE_FNC",		PC_EQUALITY, ASSOC_LEFT,	&type_function, &type_function, &type_float,OPF_STD},
 
- {6, "<=", "LE_F",			PC_RELATION, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, ">=", "GE_F",			PC_RELATION, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, "<", "LT_F",			PC_RELATION, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, ">", "GT_F",			PC_RELATION, ASSOC_LEFT,				&type_float, &type_float, &type_float},
+ {6, "<=", "LE_F",			PC_RELATION, ASSOC_LEFT,	&type_float, &type_float, &type_float,		OPF_STD},
+ {6, ">=", "GE_F",			PC_RELATION, ASSOC_LEFT,	&type_float, &type_float, &type_float,		OPF_STD},
+ {6, "<", "LT_F",			PC_RELATION, ASSOC_LEFT,	&type_float, &type_float, &type_float,		OPF_STD},
+ {6, ">", "GT_F",			PC_RELATION, ASSOC_LEFT,	&type_float, &type_float, &type_float,		OPF_STD},
 
- {6, ".", "LOADF_F",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_float},
- {6, ".", "LOADF_V",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_vector},
- {6, ".", "LOADF_S",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_string},
- {6, ".", "LOADF_E",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_entity},
- {6, ".", "LOADF_FI",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_field},
- {6, ".", "LOADF_FU",		PC_MEMBER, ASSOC_LEFT,			&type_entity, &type_field, &type_function},
+ {6, ".", "LOADF_F",		PC_MEMBER, ASSOC_LEFT,		&type_entity, &type_field, &type_float},
+ {6, ".", "LOADF_V",		PC_MEMBER, ASSOC_LEFT,		&type_entity, &type_field, &type_vector},
+ {6, ".", "LOADF_S",		PC_MEMBER, ASSOC_LEFT,		&type_entity, &type_field, &type_string},
+ {6, ".", "LOADF_E",		PC_MEMBER, ASSOC_LEFT,		&type_entity, &type_field, &type_entity},
+ {6, ".", "LOADF_FI",		PC_MEMBER, ASSOC_LEFT,		&type_entity, &type_field, &type_field},
+ {6, ".", "LOADF_FU",		PC_MEMBER, ASSOC_LEFT,		&type_entity, &type_field, &type_function},
 
- {6, ".", "FLDADDRESS",		PC_MEMBER, ASSOC_LEFT,				&type_entity, &type_field, &type_pointer},
+ {6, ".", "FLDADDRESS",		PC_MEMBER, ASSOC_LEFT,		&type_entity, &type_field, &type_pointer},
 
- {6, "=", "STORE_F",		PC_STORE, ASSOC_RIGHT,				&type_float, &type_float, &type_float},
- {6, "=", "STORE_V",		PC_STORE, ASSOC_RIGHT,				&type_vector, &type_vector, &type_vector},
- {6, "=", "STORE_S",		PC_STORE, ASSOC_RIGHT,				&type_string, &type_string, &type_string},
- {6, "=", "STORE_ENT",		PC_STORE, ASSOC_RIGHT,				&type_entity, &type_entity, &type_entity},
- {6, "=", "STORE_FLD",		PC_STORE, ASSOC_RIGHT,				&type_field, &type_field, &type_field},
- {6, "=", "STORE_FNC",		PC_STORE, ASSOC_RIGHT,				&type_function, &type_function, &type_function},
+ {6, "=", "STORE_F",		PC_STORE, ASSOC_RIGHT,		&type_float, &type_float, &type_float,			OPF_STORE},
+ {6, "=", "STORE_V",		PC_STORE, ASSOC_RIGHT,		&type_vector, &type_vector, &type_vector,		OPF_STORE},
+ {6, "=", "STORE_S",		PC_STORE, ASSOC_RIGHT,		&type_string, &type_string, &type_string,		OPF_STORE},
+ {6, "=", "STORE_ENT",		PC_STORE, ASSOC_RIGHT,		&type_entity, &type_entity, &type_entity,		OPF_STORE},
+ {6, "=", "STORE_FLD",		PC_STORE, ASSOC_RIGHT,		&type_field, &type_field, &type_field,			OPF_STORE},
+ {6, "=", "STORE_FNC",		PC_STORE, ASSOC_RIGHT,		&type_function, &type_function, &type_function,	OPF_STORE},
 
- {6, "=", "STOREP_F",		PC_STORE, ASSOC_RIGHT,				&type_pointer, &type_float, &type_float},
- {6, "=", "STOREP_V",		PC_STORE, ASSOC_RIGHT,				&type_pointer, &type_vector, &type_vector},
- {6, "=", "STOREP_S",		PC_STORE, ASSOC_RIGHT,				&type_pointer, &type_string, &type_string},
- {6, "=", "STOREP_ENT",		PC_STORE, ASSOC_RIGHT,			&type_pointer, &type_entity, &type_entity},
- {6, "=", "STOREP_FLD",		PC_STORE, ASSOC_RIGHT,			&type_pointer, &type_field, &type_field},
- {6, "=", "STOREP_FNC",		PC_STORE, ASSOC_RIGHT,			&type_pointer, &type_function, &type_function},
+ {6, "=", "STOREP_F",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_float, &type_float,		OPF_STOREPTR},
+ {6, "=", "STOREP_V",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_vector, &type_vector,		OPF_STOREPTR},
+ {6, "=", "STOREP_S",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_string, &type_string,		OPF_STOREPTR},
+ {6, "=", "STOREP_ENT",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_entity, &type_entity,		OPF_STOREPTR},
+ {6, "=", "STOREP_FLD",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_field, &type_field,		OPF_STOREPTR},
+ {6, "=", "STOREP_FNC",		PC_STORE, ASSOC_RIGHT,		&type_pointer, &type_function, &type_function,	OPF_STOREPTR},
 
  {6, "<RETURN>", "RETURN",	PC_NONE, ASSOC_LEFT,		&type_vector, &type_void, &type_void},
 
- {6, "!", "NOT_F",			PC_UNARY, ASSOC_LEFT,				&type_float, &type_void, &type_float},
- {6, "!", "NOT_V",			PC_UNARY, ASSOC_LEFT,				&type_vector, &type_void, &type_float},
- {6, "!", "NOT_S",			PC_UNARY, ASSOC_LEFT,				&type_vector, &type_void, &type_float},
- {6, "!", "NOT_ENT",		PC_UNARY, ASSOC_LEFT,				&type_entity, &type_void, &type_float},
- {6, "!", "NOT_FNC",		PC_UNARY, ASSOC_LEFT,				&type_function, &type_void, &type_float},
+ {6, "!", "NOT_F",			PC_UNARY, ASSOC_LEFT,		&type_float, &type_void, &type_float},
+ {6, "!", "NOT_V",			PC_UNARY, ASSOC_LEFT,		&type_vector, &type_void, &type_float},
+ {6, "!", "NOT_S",			PC_UNARY, ASSOC_LEFT,		&type_vector, &type_void, &type_float},
+ {6, "!", "NOT_ENT",		PC_UNARY, ASSOC_LEFT,		&type_entity, &type_void, &type_float},
+ {6, "!", "NOT_FNC",		PC_UNARY, ASSOC_LEFT,		&type_function, &type_void, &type_float},
 
-  {6, "<IF>", "IF",			PC_NONE, ASSOC_RIGHT,				&type_float, NULL, &type_void},
-  {6, "<IFNOT>", "IFNOT",	PC_NONE, ASSOC_RIGHT,			&type_float, NULL, &type_void},
+  {6, "<IF>", "IF",			PC_NONE, ASSOC_RIGHT,		&type_float, NULL, &type_void},
+  {6, "<IFNOT>", "IFNOT",	PC_NONE, ASSOC_RIGHT,		&type_float, NULL, &type_void},
 
 // calls returns REG_RETURN
- {6, "<CALL0>", "CALL0",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL1>", "CALL1",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL2>", "CALL2",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL3>", "CALL3",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL4>", "CALL4",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL5>", "CALL5",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL6>", "CALL6",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL7>", "CALL7",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
- {6, "<CALL8>", "CALL8",	PC_NONE, ASSOC_LEFT,			&type_function, &type_void, &type_void},
+ {6, "<CALL0>", "CALL0",	PC_NONE, ASSOC_LEFT,		&type_function, &type_void, &type_void},
+ {6, "<CALL1>", "CALL1",	PC_NONE, ASSOC_LEFT,		&type_function, &type_void, &type_void},
+ {6, "<CALL2>", "CALL2",	PC_NONE, ASSOC_LEFT,		&type_function, &type_void, &type_void},
+ {6, "<CALL3>", "CALL3",	PC_NONE, ASSOC_LEFT,		&type_function, &type_void, &type_void},
+ {6, "<CALL4>", "CALL4",	PC_NONE, ASSOC_LEFT,		&type_function, &type_void, &type_void},
+ {6, "<CALL5>", "CALL5",	PC_NONE, ASSOC_LEFT,		&type_function, &type_void, &type_void},
+ {6, "<CALL6>", "CALL6",	PC_NONE, ASSOC_LEFT,		&type_function, &type_void, &type_void},
+ {6, "<CALL7>", "CALL7",	PC_NONE, ASSOC_LEFT,		&type_function, &type_void, &type_void},
+ {6, "<CALL8>", "CALL8",	PC_NONE, ASSOC_LEFT,		&type_function, &type_void, &type_void},
 
- {6, "<STATE>", "STATE",	PC_NONE, ASSOC_LEFT,			&type_float, &type_float, &type_void},
+ {6, "<STATE>", "STATE",	PC_NONE, ASSOC_LEFT,		&type_float, &type_float, &type_void},
 
- {6, "<GOTO>", "GOTO",		PC_NONE, ASSOC_RIGHT,			NULL, &type_void, &type_void},
+ {6, "<GOTO>", "GOTO",		PC_NONE, ASSOC_RIGHT,		NULL, &type_void, &type_void},
 
- {6, "&&", "AND_F",			PC_LOGICAND, ASSOC_LEFT,					&type_float,	&type_float, &type_float},
- {6, "||", "OR_F",			PC_LOGICOR, ASSOC_LEFT,					&type_float,	&type_float, &type_float},
+ {6, "&&", "AND_F",			PC_LOGICAND, ASSOC_LEFT,	&type_float,	&type_float, &type_float,	OPF_STD},
+ {6, "||", "OR_F",			PC_LOGICOR, ASSOC_LEFT,		&type_float,	&type_float, &type_float,	OPF_STD},
 
- {6, "&", "BITAND",			PC_BITAND, ASSOC_LEFT,				&type_float, &type_float, &type_float},
- {6, "|", "BITOR",			PC_BITOR, ASSOC_LEFT,				&type_float, &type_float, &type_float},
+ {6, "&", "BITAND",			PC_BITAND, ASSOC_LEFT,		&type_float, &type_float, &type_float,		OPF_STD},
+ {6, "|", "BITOR",			PC_BITOR, ASSOC_LEFT,		&type_float, &type_float, &type_float,		OPF_STD},
 
  //version 6 are in normal progs.
 
 
 
 //these are hexen2
- {7, "*=", "MULSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
- {7, "*=", "MULSTORE_VF",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_vector, &type_float, &type_vector},
- {7, "*=", "MULSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
- {7, "*=", "MULSTOREP_VF",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_vector},
+ {7, "*=", "MULSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float,		OPF_STORE},
+ {7, "*=", "MULSTORE_VF",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_vector, &type_float, &type_vector,	OPF_STORE},
+ {7, "*=", "MULSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float,	OPF_STOREPTR},
+ {7, "*=", "MULSTOREP_VF",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_vector,	OPF_STOREPTR},
 
- {7, "/=", "DIVSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
- {7, "/=", "DIVSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
+ {7, "/=", "DIVSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float,		OPF_STORE},
+ {7, "/=", "DIVSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float,	OPF_STOREPTR},
 
- {7, "+=", "ADDSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
- {7, "+=", "ADDSTORE_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_vector, &type_vector, &type_vector},
- {7, "+=", "ADDSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
- {7, "+=", "ADDSTOREP_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_vector, &type_vector},
+ {7, "+=", "ADDSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float,		OPF_STORE},
+ {7, "+=", "ADDSTORE_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_vector, &type_vector, &type_vector,	OPF_STORE},
+ {7, "+=", "ADDSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float,	OPF_STOREPTR},
+ {7, "+=", "ADDSTOREP_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_vector, &type_vector,	OPF_STOREPTR},
 
- {7, "-=", "SUBSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float},
- {7, "-=", "SUBSTORE_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_vector, &type_vector, &type_vector},
- {7, "-=", "SUBSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float},
- {7, "-=", "SUBSTOREP_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_vector, &type_vector},
+ {7, "-=", "SUBSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_float, &type_float, &type_float,		OPF_STORE},
+ {7, "-=", "SUBSTORE_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_vector, &type_vector, &type_vector,	OPF_STORE},
+ {7, "-=", "SUBSTOREP_F",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_float, &type_float,	OPF_STOREPTR},
+ {7, "-=", "SUBSTOREP_V",	PC_STORE, ASSOC_RIGHT_RESULT,				&type_pointer, &type_vector, &type_vector,	OPF_STOREPTR},
 
  {7, "<FETCH_GBL_F>", "FETCH_GBL_F",		PC_NONE, ASSOC_LEFT,	&type_float, &type_float, &type_float},
  {7, "<FETCH_GBL_V>", "FETCH_GBL_V",		PC_NONE, ASSOC_LEFT,	&type_vector, &type_float, &type_vector},
@@ -456,10 +456,10 @@ QCC_opcode_t pr_opcodes[] =
 
  {7, "<THINKTIME>", "THINKTIME",			PC_NONE, ASSOC_LEFT,	&type_entity, &type_float, &type_void},
 
- {7, "|=", "BITSETSTORE_F",					PC_STORE,	ASSOC_RIGHT,	&type_float, &type_float, &type_float},
- {7, "|=", "BITSETSTOREP_F",				PC_STORE,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float},
- {7, "&~=", "BITCLRSTORE_F",				PC_STORE,	ASSOC_RIGHT,	&type_float, &type_float, &type_float},
- {7, "&~=", "BITCLRSTOREP_F",				PC_STORE,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float},
+ {7, "|=", "BITSETSTORE_F",					PC_STORE,	ASSOC_RIGHT,	&type_float, &type_float, &type_float,	OPF_STORE},
+ {7, "|=", "BITSETSTOREP_F",				PC_STORE,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float,OPF_STOREPTR},
+ {7, "&~=", "BITCLRSTORE_F",				PC_STORE,	ASSOC_RIGHT,	&type_float, &type_float, &type_float,	OPF_STORE},
+ {7, "&~=", "BITCLRSTOREP_F",				PC_STORE,	ASSOC_RIGHT,	&type_pointer, &type_float, &type_float,OPF_STOREPTR},
 
  {7, "<RAND0>", "RAND0",					PC_NONE, ASSOC_LEFT,	&type_void, &type_void, &type_float},
  {7, "<RAND1>", "RAND1",					PC_NONE, ASSOC_LEFT,	&type_float, &type_void, &type_float},
@@ -480,268 +480,271 @@ QCC_opcode_t pr_opcodes[] =
 
 //Later are additions by DMW.
 
- {7, "<CALL1H>", "CALL1H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_void},
- {7, "<CALL2H>", "CALL2H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL3H>", "CALL3H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL4H>", "CALL4H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL5H>", "CALL5H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL6H>", "CALL6H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL7H>", "CALL7H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
- {7, "<CALL8H>", "CALL8H",	PC_NONE, ASSOC_RIGHT,			&type_function, &type_variant, &type_variant},
+ {7, "<CALL1H>", "CALL1H",	PC_NONE, ASSOC_RIGHT,		&type_function, &type_variant, &type_void},
+ {7, "<CALL2H>", "CALL2H",	PC_NONE, ASSOC_RIGHT,		&type_function, &type_variant, &type_variant},
+ {7, "<CALL3H>", "CALL3H",	PC_NONE, ASSOC_RIGHT,		&type_function, &type_variant, &type_variant},
+ {7, "<CALL4H>", "CALL4H",	PC_NONE, ASSOC_RIGHT,		&type_function, &type_variant, &type_variant},
+ {7, "<CALL5H>", "CALL5H",	PC_NONE, ASSOC_RIGHT,		&type_function, &type_variant, &type_variant},
+ {7, "<CALL6H>", "CALL6H",	PC_NONE, ASSOC_RIGHT,		&type_function, &type_variant, &type_variant},
+ {7, "<CALL7H>", "CALL7H",	PC_NONE, ASSOC_RIGHT,		&type_function, &type_variant, &type_variant},
+ {7, "<CALL8H>", "CALL8H",	PC_NONE, ASSOC_RIGHT,		&type_function, &type_variant, &type_variant},
 
- {7, "=",	"STORE_I",		PC_STORE, ASSOC_RIGHT,				&type_integer, &type_integer, &type_integer},
- {7, "=",	"STORE_IF",		PC_STORE, ASSOC_RIGHT,			&type_float, &type_integer, &type_integer},
- {7, "=",	"STORE_FI",		PC_STORE, ASSOC_RIGHT,			&type_integer, &type_float, &type_float},
+ {7, "=",	"STORE_I",		PC_STORE, ASSOC_RIGHT,		&type_integer, &type_integer, &type_integer,	OPF_STORE},
+ {7, "=",	"STORE_IF",		PC_STORE, ASSOC_RIGHT,		&type_float, &type_integer, &type_integer,	OPF_STORE},
+ {7, "=",	"STORE_FI",		PC_STORE, ASSOC_RIGHT,		&type_integer, &type_float, &type_float,	OPF_STORE},
 
- {7, "+", "ADD_I",			PC_ADDSUB, ASSOC_LEFT,				&type_integer, &type_integer, &type_integer},
- {7, "+", "ADD_FI",			PC_ADDSUB, ASSOC_LEFT,				&type_float, &type_integer, &type_float},
- {7, "+", "ADD_IF",			PC_ADDSUB, ASSOC_LEFT,				&type_integer, &type_float, &type_float},
+ {7, "+", "ADD_I",			PC_ADDSUB, ASSOC_LEFT,		&type_integer, &type_integer, &type_integer,OPF_STD},
+ {7, "+", "ADD_FI",			PC_ADDSUB, ASSOC_LEFT,		&type_float, &type_integer, &type_float,	OPF_STD},
+ {7, "+", "ADD_IF",			PC_ADDSUB, ASSOC_LEFT,		&type_integer, &type_float, &type_float,	OPF_STD},
 
- {7, "-", "SUB_I",			PC_ADDSUB, ASSOC_LEFT,				&type_integer, &type_integer, &type_integer},
- {7, "-", "SUB_FI",			PC_ADDSUB, ASSOC_LEFT,				&type_float, &type_integer, &type_float},
- {7, "-", "SUB_IF",			PC_ADDSUB, ASSOC_LEFT,				&type_integer, &type_float, &type_float},
+ {7, "-", "SUB_I",			PC_ADDSUB, ASSOC_LEFT,		&type_integer, &type_integer, &type_integer,OPF_STD},
+ {7, "-", "SUB_FI",			PC_ADDSUB, ASSOC_LEFT,		&type_float, &type_integer, &type_float,	OPF_STD},
+ {7, "-", "SUB_IF",			PC_ADDSUB, ASSOC_LEFT,		&type_integer, &type_float, &type_float,	OPF_STD},
 
- {7, "<CIF>", "C_ITOF",		PC_STORE, ASSOC_LEFT,				&type_integer, &type_void, &type_float},
- {7, "<CFI>", "C_FTOI",		PC_STORE, ASSOC_LEFT,				&type_float, &type_void, &type_integer},
- {7, "<CPIF>", "CP_ITOF",	PC_STORE, ASSOC_LEFT,			&type_pointer, &type_integer, &type_float},
- {7, "<CPFI>", "CP_FTOI",	PC_STORE, ASSOC_LEFT,			&type_pointer, &type_float, &type_integer},
+ {7, "<CIF>", "C_ITOF",		PC_STORE, ASSOC_LEFT,		&type_integer, &type_void, &type_float},
+ {7, "<CFI>", "C_FTOI",		PC_STORE, ASSOC_LEFT,		&type_float, &type_void, &type_integer},
+ {7, "<CPIF>", "CP_ITOF",	PC_STORE, ASSOC_LEFT,		&type_pointer, &type_integer, &type_float},
+ {7, "<CPFI>", "CP_FTOI",	PC_STORE, ASSOC_LEFT,		&type_pointer, &type_float, &type_integer},
 
- {7, ".", "LOADF_I",	PC_MEMBER, ASSOC_LEFT,				&type_entity,	&type_field, &type_integer},
- {7, "=", "STOREP_I",	PC_STORE, ASSOC_RIGHT,				&type_pointer,	&type_integer, &type_integer},
- {7, "=", "STOREP_IF",	PC_STORE, ASSOC_RIGHT,				&type_pointer,	&type_float, &type_integer},
- {7, "=", "STOREP_FI",	PC_STORE, ASSOC_RIGHT,				&type_pointer,	&type_integer, &type_float},
+ {7, ".", "LOADF_I",	PC_MEMBER, ASSOC_LEFT,			&type_entity,	&type_field, &type_integer},
+ {7, "=", "STOREP_I",	PC_STORE, ASSOC_RIGHT,			&type_pointer,	&type_integer, &type_integer,	OPF_STOREPTR},
+ {7, "=", "STOREP_IF",	PC_STORE, ASSOC_RIGHT,			&type_pointer,	&type_float, &type_integer,	OPF_STOREPTR},
+ {7, "=", "STOREP_FI",	PC_STORE, ASSOC_RIGHT,			&type_pointer,	&type_integer, &type_float,	OPF_STOREPTR},
 
- {7, "&", "BITAND_I",	PC_BITAND, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
- {7, "|", "BITOR_I",	PC_BITOR, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
+ {7, "&", "BITAND_I",	PC_BITAND, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer,OPF_STD},
+ {7, "|", "BITOR_I",	PC_BITOR, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer,OPF_STD},
 
- {7, "*", "MUL_I",		PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
- {7, "/", "DIV_I",		PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
- {7, "==", "EQ_I",		PC_EQUALITY, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
- {7, "!=", "NE_I",		PC_EQUALITY, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
+ {7, "*", "MUL_I",		PC_MULDIV, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer,OPF_STD},
+ {7, "/", "DIV_I",		PC_MULDIV, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer,OPF_STD},
+ {7, "==", "EQ_I",		PC_EQUALITY, ASSOC_LEFT,		&type_integer,	&type_integer, &type_integer,OPF_STD},
+ {7, "!=", "NE_I",		PC_EQUALITY, ASSOC_LEFT,		&type_integer,	&type_integer, &type_integer,OPF_STD},
 
  {7, "<IFNOTS>", "IFNOTS",	PC_NONE, ASSOC_RIGHT,		&type_string,	NULL, &type_void},
- {7, "<IFS>", "IFS",		PC_NONE, ASSOC_RIGHT,				&type_string,	NULL, &type_void},
+ {7, "<IFS>", "IFS",		PC_NONE, ASSOC_RIGHT,		&type_string,	NULL, &type_void},
 
- {7, "!", "NOT_I",			PC_UNARY, ASSOC_LEFT,				&type_integer,	&type_void, &type_integer},
+ {7, "!", "NOT_I",			PC_UNARY, ASSOC_LEFT,		&type_integer,	&type_void, &type_integer},
 
- {7, "/", "DIV_VF",			PC_MULDIV, ASSOC_LEFT,				&type_vector,	&type_float, &type_vector},
+ {7, "/", "DIV_VF",			PC_MULDIV, ASSOC_LEFT,		&type_vector,	&type_float, &type_vector,	OPF_STD},
 
- {7, "^", "BITXOR_I",		PC_BITXOR, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
- {7, ">>", "RSHIFT_I",		PC_SHIFT, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
- {7, "<<", "LSHIFT_I",		PC_SHIFT, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
+ {7, "^", "BITXOR_I",		PC_BITXOR, ASSOC_LEFT,		&type_integer,	&type_integer, &type_integer,OPF_STD},
+ {7, ">>", "RSHIFT_I",		PC_SHIFT, ASSOC_LEFT,		&type_integer,	&type_integer, &type_integer,OPF_STD},
+ {7, "<<", "LSHIFT_I",		PC_SHIFT, ASSOC_LEFT,		&type_integer,	&type_integer, &type_integer,OPF_STD},
 
 										//var,		offset			return
  {7, "<ARRAY>", "GLOBALADDRESS", PC_NONE, ASSOC_LEFT,	&type_float,		&type_integer, &type_pointer},
- {7, "<ARRAY>", "ADD_PIW", PC_NONE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_pointer},
+ {7, "<ARRAY>", "ADD_PIW", PC_NONE, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_pointer},
 
- {7, "=", "LOADA_F",		PC_STORE, ASSOC_LEFT,			&type_float,	&type_integer, &type_float},
- {7, "=", "LOADA_V",		PC_STORE, ASSOC_LEFT,			&type_vector,	&type_integer, &type_vector},
- {7, "=", "LOADA_S",		PC_STORE, ASSOC_LEFT,			&type_string,	&type_integer, &type_string},
+ {7, "=", "LOADA_F",		PC_STORE, ASSOC_LEFT,		&type_float,	&type_integer, &type_float},
+ {7, "=", "LOADA_V",		PC_STORE, ASSOC_LEFT,		&type_vector,	&type_integer, &type_vector},
+ {7, "=", "LOADA_S",		PC_STORE, ASSOC_LEFT,		&type_string,	&type_integer, &type_string},
  {7, "=", "LOADA_ENT",		PC_STORE, ASSOC_LEFT,		&type_entity,	&type_integer, &type_entity},
  {7, "=", "LOADA_FLD",		PC_STORE, ASSOC_LEFT,		&type_field,	&type_integer, &type_field},
  {7, "=", "LOADA_FNC",		PC_STORE, ASSOC_LEFT,		&type_function,	&type_integer, &type_function},
- {7, "=", "LOADA_I",		PC_STORE, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
+ {7, "=", "LOADA_I",		PC_STORE, ASSOC_LEFT,		&type_integer,	&type_integer, &type_integer},
 
- {7, "=", "STORE_P",		PC_STORE, ASSOC_RIGHT,			&type_pointer,	&type_pointer, &type_void},
- {7, ".", "LOADF_P",		PC_MEMBER, ASSOC_LEFT,			&type_entity,	&type_field, &type_pointer},
+ {7, "=", "STORE_P",		PC_STORE, ASSOC_RIGHT,		&type_pointer,	&type_pointer, &type_void,	OPF_STORE},
+ {7, ".", "LOADF_P",		PC_MEMBER, ASSOC_LEFT,		&type_entity,	&type_field, &type_pointer},
 
- {7, "=", "LOADP_F",		PC_STORE, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_float},
- {7, "=", "LOADP_V",		PC_STORE, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_vector},
- {7, "=", "LOADP_S",		PC_STORE, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_string},
- {7, "=", "LOADP_ENT",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_entity},
- {7, "=", "LOADP_FLD",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_field},
- {7, "=", "LOADP_FNC",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_function},
- {7, "=", "LOADP_I",		PC_STORE, ASSOC_LEFT,			&type_pointer,	&type_integer, &type_integer},
+ {7, "=", "LOADP_F",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_float,	OPF_LOADPTR},
+ {7, "=", "LOADP_V",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_vector,	OPF_LOADPTR},
+ {7, "=", "LOADP_S",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_string,	OPF_LOADPTR},
+ {7, "=", "LOADP_ENT",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_entity,	OPF_LOADPTR},
+ {7, "=", "LOADP_FLD",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_field,	OPF_LOADPTR},
+ {7, "=", "LOADP_FNC",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_function,	OPF_LOADPTR},
+ {7, "=", "LOADP_I",		PC_STORE, ASSOC_LEFT,		&type_pointer,	&type_integer, &type_integer,	OPF_LOADPTR},
 
 
- {7, "<=", "LE_I",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
- {7, ">=", "GE_I",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
- {7, "<", "LT_I",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
- {7, ">", "GT_I",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
+ {7, "<=", "LE_I",			PC_RELATION, ASSOC_LEFT,	&type_integer, &type_integer, &type_integer,	OPF_STD},
+ {7, ">=", "GE_I",			PC_RELATION, ASSOC_LEFT,	&type_integer, &type_integer, &type_integer,	OPF_STD},
+ {7, "<", "LT_I",			PC_RELATION, ASSOC_LEFT,	&type_integer, &type_integer, &type_integer,	OPF_STD},
+ {7, ">", "GT_I",			PC_RELATION, ASSOC_LEFT,	&type_integer, &type_integer, &type_integer,	OPF_STD},
 
- {7, "<=", "LE_IF",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
- {7, ">=", "GE_IF",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
- {7, "<", "LT_IF",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
- {7, ">", "GT_IF",			PC_RELATION, ASSOC_LEFT,					&type_integer, &type_float, &type_integer},
+ {7, "<=", "LE_IF",			PC_RELATION, ASSOC_LEFT,	&type_integer, &type_float, &type_integer,	OPF_STD},
+ {7, ">=", "GE_IF",			PC_RELATION, ASSOC_LEFT,	&type_integer, &type_float, &type_integer,	OPF_STD},
+ {7, "<", "LT_IF",			PC_RELATION, ASSOC_LEFT,	&type_integer, &type_float, &type_integer,	OPF_STD},
+ {7, ">", "GT_IF",			PC_RELATION, ASSOC_LEFT,	&type_integer, &type_float, &type_integer,	OPF_STD},
 
- {7, "<=", "LE_FI",			PC_RELATION, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
- {7, ">=", "GE_FI",			PC_RELATION, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
- {7, "<", "LT_FI",			PC_RELATION, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
- {7, ">", "GT_FI",			PC_RELATION, ASSOC_LEFT,					&type_float, &type_integer, &type_integer},
+ {7, "<=", "LE_FI",			PC_RELATION, ASSOC_LEFT,	&type_float, &type_integer, &type_integer,	OPF_STD},
+ {7, ">=", "GE_FI",			PC_RELATION, ASSOC_LEFT,	&type_float, &type_integer, &type_integer,	OPF_STD},
+ {7, "<", "LT_FI",			PC_RELATION, ASSOC_LEFT,	&type_float, &type_integer, &type_integer,	OPF_STD},
+ {7, ">", "GT_FI",			PC_RELATION, ASSOC_LEFT,	&type_float, &type_integer, &type_integer,	OPF_STD},
 
- {7, "==", "EQ_IF",			PC_EQUALITY, ASSOC_LEFT,				&type_integer,	&type_float, &type_integer},
- {7, "==", "EQ_FI",			PC_EQUALITY, ASSOC_LEFT,				&type_float,	&type_integer, &type_float},
+ {7, "==", "EQ_IF",			PC_EQUALITY, ASSOC_LEFT,	&type_integer,	&type_float, &type_integer,	OPF_STD},
+ {7, "==", "EQ_FI",			PC_EQUALITY, ASSOC_LEFT,	&type_float,	&type_integer, &type_float,	OPF_STD},
 
  	//-------------------------------------
 	//string manipulation.
- {7, "+", "ADD_SF",	PC_ADDSUB, ASSOC_LEFT,				&type_string,	&type_float, &type_string},
- {7, "-", "SUB_S",	PC_ADDSUB, ASSOC_LEFT,				&type_string,	&type_string, &type_float},
+ {7, "+", "ADD_SF",	PC_ADDSUB, ASSOC_LEFT,				&type_string,	&type_float, &type_string,	OPF_STD},
+ {7, "-", "SUB_S",	PC_ADDSUB, ASSOC_LEFT,				&type_string,	&type_string, &type_float,	OPF_STD},
  {7, "<STOREP_C>", "STOREP_C",	PC_STORE, ASSOC_RIGHT,	&type_string,	&type_float, &type_float},
- {7, "<LOADP_C>", "LOADP_C",	PC_STORE, ASSOC_LEFT,	&type_string,	&type_float, &type_float},
+ {7, "<LOADP_C>", "LOADP_C",	PC_STORE, ASSOC_LEFT,	&type_string,	&type_float, &type_float,	OPF_LOADPTR},
 	//-------------------------------------
 
 
 
-{7, "*", "MUL_IF",	PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_float,	&type_float},
-{7, "*", "MUL_FI",	PC_MULDIV, ASSOC_LEFT,				&type_float,	&type_integer,	&type_float},
-{7, "*", "MUL_VI",	PC_MULDIV, ASSOC_LEFT,				&type_vector,	&type_integer,	&type_vector},
-{7, "*", "MUL_IV",	PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_vector,	&type_vector},
+{7, "*", "MUL_IF",	PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_float,	&type_float,	OPF_STD},
+{7, "*", "MUL_FI",	PC_MULDIV, ASSOC_LEFT,				&type_float,	&type_integer,	&type_float,	OPF_STD},
+{7, "*", "MUL_VI",	PC_MULDIV, ASSOC_LEFT,				&type_vector,	&type_integer,	&type_vector,	OPF_STD},
+{7, "*", "MUL_IV",	PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_vector,	&type_vector,	OPF_STD},
 
-{7, "/", "DIV_IF",	PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_float,	&type_float},
-{7, "/", "DIV_FI",	PC_MULDIV, ASSOC_LEFT,				&type_float,	&type_integer,	&type_float},
+{7, "/", "DIV_IF",	PC_MULDIV, ASSOC_LEFT,				&type_integer,	&type_float,	&type_float,	OPF_STD},
+{7, "/", "DIV_FI",	PC_MULDIV, ASSOC_LEFT,				&type_float,	&type_integer,	&type_float,	OPF_STD},
 
-{7, "&", "BITAND_IF",	PC_BITAND, ASSOC_LEFT,			&type_integer,	&type_float,	&type_integer},
-{7, "|", "BITOR_IF",	PC_BITOR, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
-{7, "&", "BITAND_FI",	PC_BITAND, ASSOC_LEFT,			&type_float,	&type_integer,	&type_integer},
-{7, "|", "BITOR_FI",	PC_BITOR, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
+{7, "&", "BITAND_IF",	PC_BITAND, ASSOC_LEFT,			&type_integer,	&type_float,	&type_integer,	OPF_STD},
+{7, "|", "BITOR_IF",	PC_BITOR, ASSOC_LEFT,			&type_integer,	&type_float,	&type_integer,	OPF_STD},
+{7, "&", "BITAND_FI",	PC_BITAND, ASSOC_LEFT,			&type_float,	&type_integer,	&type_integer,	OPF_STD},
+{7, "|", "BITOR_FI",	PC_BITOR, ASSOC_LEFT,			&type_float,	&type_integer,	&type_integer,	OPF_STD},
 
-{7, "&&", "AND_I",	PC_LOGICAND, ASSOC_LEFT,				&type_integer,	&type_integer,	&type_integer},
-{7, "||", "OR_I",	PC_LOGICOR, ASSOC_LEFT,				&type_integer,	&type_integer,	&type_integer},
-{7, "&&", "AND_IF",	PC_LOGICAND, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
-{7, "||", "OR_IF",	PC_LOGICOR, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
-{7, "&&", "AND_FI",	PC_LOGICAND, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
-{7, "||", "OR_FI",	PC_LOGICOR, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
-{7, "!=", "NE_IF",	PC_EQUALITY, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
-{7, "!=", "NE_FI",	PC_EQUALITY, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
-
-
+{7, "&&", "AND_I",	PC_LOGICAND, ASSOC_LEFT,			&type_integer,	&type_integer,	&type_integer,	OPF_STD},
+{7, "||", "OR_I",	PC_LOGICOR, ASSOC_LEFT,				&type_integer,	&type_integer,	&type_integer,	OPF_STD},
+{7, "&&", "AND_IF",	PC_LOGICAND, ASSOC_LEFT,			&type_integer,	&type_float,	&type_integer,	OPF_STD},
+{7, "||", "OR_IF",	PC_LOGICOR, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer,	OPF_STD},
+{7, "&&", "AND_FI",	PC_LOGICAND, ASSOC_LEFT,			&type_float,	&type_integer,	&type_integer,	OPF_STD},
+{7, "||", "OR_FI",	PC_LOGICOR, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer,	OPF_STD},
+{7, "!=", "NE_IF",	PC_EQUALITY, ASSOC_LEFT,			&type_integer,	&type_float,	&type_integer,	OPF_STD},
+{7, "!=", "NE_FI",	PC_EQUALITY, ASSOC_LEFT,			&type_float,	&type_integer,	&type_integer,	OPF_STD},
 
 
 
 
-{7, "<>",	"GSTOREP_I",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_F",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_ENT",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_FLD",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_S",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_FNC",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
-{7, "<>",	"GSTOREP_V",	PC_NONE, ASSOC_LEFT,			&type_float,	&type_float,	&type_float},
 
-{7, "<>",	"GADDRESS",		PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
-{7, "<>",	"GLOAD_I",		PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_F",		PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_FLD",	PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_ENT",	PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_S",		PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
-{7, "<>",	"GLOAD_FNC",	PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_I",	PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_F",	PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_ENT",	PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_FLD",	PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_S",	PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_FNC",	PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GSTOREP_V",	PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
 
-{7, "<>",	"BOUNDCHECK",	PC_NONE, ASSOC_LEFT,				&type_integer,	NULL,	NULL},
+{7, "<>",	"GADDRESS",		PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
 
-{7, "<UNUSED>",	"UNUSED",	PC_NONE,	ASSOC_RIGHT,				&type_void,	&type_void,	&type_void},
-{7, "<PUSH>",	"PUSH",		PC_NONE, ASSOC_RIGHT,			&type_float,	&type_void,		&type_pointer},
-{7, "<POP>",	"POP",		PC_NONE, ASSOC_RIGHT,			&type_float,	&type_void,		&type_void},
+{7, "<>",	"GLOAD_I",		PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_F",		PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_FLD",	PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_ENT",	PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_S",		PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_FNC",	PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
 
-{7, "<SWITCH_I>", "SWITCH_I",PC_NONE, ASSOC_LEFT,	&type_void, NULL, &type_void},
-{7, "<>",	"GLOAD_S",		PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
+{7, "<>",	"BOUNDCHECK",	PC_NONE, ASSOC_LEFT,		&type_integer,	NULL,	NULL},
 
-{7, "<IF_F>",	"IF_F",		PC_NONE, ASSOC_RIGHT,				&type_float, NULL, &type_void},
-{7, "<IFNOT_F>","IFNOT_F",	PC_NONE, ASSOC_RIGHT,				&type_float, NULL, &type_void},
+{7, "<UNUSED>",	"UNUSED",	PC_NONE, ASSOC_RIGHT,		&type_void,	&type_void,	&type_void},
+{7, "<PUSH>",	"PUSH",		PC_NONE, ASSOC_RIGHT,		&type_float,	&type_void,		&type_pointer},
+{7, "<POP>",	"POP",		PC_NONE, ASSOC_RIGHT,		&type_float,	&type_void,		&type_void},
+
+{7, "<SWITCH_I>", "SWITCH_I",PC_NONE, ASSOC_LEFT,		&type_void, NULL, &type_void},
+{7, "<>",	"GLOAD_S",		PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+
+{7, "<IF_F>",	"IF_F",		PC_NONE, ASSOC_RIGHT,		&type_float, NULL, &type_void},
+{7, "<IFNOT_F>","IFNOT_F",	PC_NONE, ASSOC_RIGHT,		&type_float, NULL, &type_void},
 /*
-{7, "<=>",	"STOREF_F",		PC_STORE, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
-{7, "<=>",	"STOREF_V",		PC_STORE, ASSOC_RIGHT,				&type_entity, &type_field, &type_vector},
-{7, "<=>",	"STOREF_IF",	PC_STORE, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
-{7, "<=>",	"STOREF_FI",	PC_STORE, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
+{7, "<=>",	"STOREF_F",		PC_STORE, ASSOC_RIGHT,		&type_entity, &type_field, &type_float},
+{7, "<=>",	"STOREF_V",		PC_STORE, ASSOC_RIGHT,		&type_entity, &type_field, &type_vector},
+{7, "<=>",	"STOREF_IF",	PC_STORE, ASSOC_RIGHT,		&type_entity, &type_field, &type_float},
+{7, "<=>",	"STOREF_FI",	PC_STORE, ASSOC_RIGHT,		&type_entity, &type_field, &type_float},
 */
 /* emulated ops begin here */
  {7, "<>",	"OP_EMULATED",	PC_NONE, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
 
- {7, "|=", "BITSET_I",		PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
- {7, "|=", "BITSETP_I",		PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
- {7, "&~=", "BITCLR_I",		PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "|=", "BITSET_I",		PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer,	OPF_STORE},
+ {7, "|=", "BITSETP_I",		PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer,	OPF_STOREPTR},
+ {7, "&~=", "BITCLR_I",		PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer,	OPF_STORE},
 
 
- {7, "*=", "MULSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
- {7, "/=", "DIVSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
- {7, "+=", "ADDSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
- {7, "-=", "SUBSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer},
+ {7, "*=", "MULSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer,	OPF_STORE},
+ {7, "/=", "DIVSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer,	OPF_STORE},
+ {7, "+=", "ADDSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer,	OPF_STORE},
+ {7, "-=", "SUBSTORE_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_integer, &type_integer,	OPF_STORE},
 
- {7, "*=", "MULSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
- {7, "/=", "DIVSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
- {7, "+=", "ADDSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
- {7, "-=", "SUBSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer},
+ {7, "*=", "MULSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer,	OPF_STOREPTR},
+ {7, "/=", "DIVSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer,	OPF_STOREPTR},
+ {7, "+=", "ADDSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer,	OPF_STOREPTR},
+ {7, "-=", "SUBSTOREP_I",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_integer,	OPF_STOREPTR},
 
- {7, "*=", "MULSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
- {7, "*=", "MULSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
- {7, "/=", "DIVSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
- {7, "/=", "DIVSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
- {7, "+=", "ADDSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
- {7, "+=", "ADDSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
- {7, "-=", "SUBSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float},
- {7, "-=", "SUBSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float},
+ {7, "*=", "MULSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float,	OPF_STORE},
+ {7, "*=", "MULSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float,	OPF_STOREPTR},
+ {7, "/=", "DIVSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float,	OPF_STORE},
+ {7, "/=", "DIVSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float,	OPF_STOREPTR},
+ {7, "+=", "ADDSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float,	OPF_STORE},
+ {7, "+=", "ADDSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float,	OPF_STOREPTR},
+ {7, "-=", "SUBSTORE_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_integer, &type_float, &type_float,	OPF_STORE},
+ {7, "-=", "SUBSTOREP_IF",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_intpointer, &type_float, &type_float,	OPF_STOREPTR},
 
- {7, "*=", "MULSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
- {7, "*=", "MULSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
- {7, "/=", "DIVSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
- {7, "/=", "DIVSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
- {7, "+=", "ADDSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
- {7, "+=", "ADDSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
- {7, "-=", "SUBSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float},
- {7, "-=", "SUBSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float},
+ {7, "*=", "MULSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float,	OPF_STORE},
+ {7, "*=", "MULSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float,	OPF_STOREPTR},
+ {7, "/=", "DIVSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float,	OPF_STORE},
+ {7, "/=", "DIVSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float,	OPF_STOREPTR},
+ {7, "+=", "ADDSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float,	OPF_STORE},
+ {7, "+=", "ADDSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float,	OPF_STOREPTR},
+ {7, "-=", "SUBSTORE_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_float, &type_integer, &type_float,	OPF_STORE},
+ {7, "-=", "SUBSTOREP_FI",	PC_STORE,	ASSOC_RIGHT_RESULT,		&type_floatpointer, &type_integer, &type_float,	OPF_STOREPTR},
 
- {7, "*=", "MULSTORE_VI",	PC_STORE, ASSOC_RIGHT_RESULT,		&type_vector, &type_integer, &type_vector},
- {7, "*=", "MULSTOREP_VI",	PC_STORE, ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_vector},
+ {7, "*=", "MULSTORE_VI",	PC_STORE, ASSOC_RIGHT_RESULT,		&type_vector, &type_integer, &type_vector,	OPF_STORE},
+ {7, "*=", "MULSTOREP_VI",	PC_STORE, ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_vector,	OPF_STOREPTR},
 
  {7, "=", "LOADA_STRUCT",	PC_STORE, ASSOC_LEFT,				&type_float,	&type_integer, &type_float},
 
- {7, "=",	"LOADP_P",		PC_STORE, ASSOC_LEFT,				&type_pointer,	&type_integer, &type_pointer},
- {7, "=",	"STOREP_P",		PC_STORE,	ASSOC_RIGHT,			&type_pointer,	&type_pointer,	&type_pointer},
+ {7, "=",	"LOADP_P",		PC_STORE, ASSOC_LEFT,				&type_pointer,	&type_integer, &type_pointer,	OPF_LOADPTR},
+ {7, "=",	"STOREP_P",		PC_STORE,	ASSOC_RIGHT,			&type_pointer,	&type_pointer, &type_pointer, OPF_STOREPTR},
  {7, "~",	"BITNOT_F",		PC_UNARY, ASSOC_LEFT,				&type_float,	&type_void, &type_float},
  {7, "~",	"BITNOT_I",		PC_UNARY, ASSOC_LEFT,				&type_integer,	&type_void, &type_integer},
 
- {7, "==", "EQ_P",			PC_EQUALITY, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
- {7, "!=", "NE_P",			PC_EQUALITY, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
- {7, "<=", "LE_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
- {7, ">=", "GE_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
- {7, "<", "LT_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
- {7, ">", "GT_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float},
+ {7, "==", "EQ_P",			PC_EQUALITY, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float, OPF_STD},
+ {7, "!=", "NE_P",			PC_EQUALITY, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float, OPF_STD},
+ {7, "<=", "LE_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float, OPF_STD},
+ {7, ">=", "GE_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float, OPF_STD},
+ {7, "<", "LT_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float, OPF_STD},
+ {7, ">", "GT_P",			PC_RELATION, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_float, OPF_STD},
 
- {7, "&=", "ANDSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,		&type_float, &type_float, &type_float},
- {7, "&~=", "BITCLR_F",		PC_STORE, ASSOC_LEFT,					&type_float, &type_float, &type_float},
- {7, "&~=", "BITCLR_I",		PC_STORE, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
+ {7, "&=", "ANDSTORE_F",	PC_STORE, ASSOC_RIGHT_RESULT,		&type_float, &type_float, &type_float, OPF_STORE},
+ {7, "&~=", "BITCLR_F",		PC_STORE, ASSOC_LEFT,					&type_float, &type_float, &type_float, OPF_STORE},
+ {7, "&~=", "BITCLR_I",		PC_STORE, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer, OPF_STORE},
 
- {7, "+", "ADD_SI",	PC_ADDSUB, ASSOC_LEFT,						&type_string,	&type_integer,	&type_string},
- {7, "+", "ADD_IS",	PC_ADDSUB, ASSOC_LEFT,						&type_integer,	&type_string,	&type_string},
- {7, "+", "ADD_PF",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_float,	&type_pointer},
- {7, "+", "ADD_FP",	PC_ADDSUB, ASSOC_LEFT,						&type_float,	&type_pointer,	&type_pointer},
- {7, "+", "ADD_PI",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_integer,	&type_pointer},
- {7, "+", "ADD_IP",	PC_ADDSUB, ASSOC_LEFT,						&type_integer,	&type_pointer,	&type_pointer},
- {7, "-", "SUB_SI",	PC_ADDSUB, ASSOC_LEFT,						&type_string,	&type_integer,	&type_string},
- {7, "-", "SUB_PF",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_float,	&type_pointer},
- {7, "-", "SUB_PI",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_integer,	&type_pointer},
- {7, "-", "SUB_PP",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_pointer,	&type_integer},
+ {7, "+", "ADD_SI",	PC_ADDSUB, ASSOC_LEFT,						&type_string,	&type_integer,	&type_string,	OPF_STD},
+ {7, "+", "ADD_IS",	PC_ADDSUB, ASSOC_LEFT,						&type_integer,	&type_string,	&type_string,	OPF_STD},
+ {7, "+", "ADD_PF",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_float,	&type_pointer,	OPF_STD},
+ {7, "+", "ADD_FP",	PC_ADDSUB, ASSOC_LEFT,						&type_float,	&type_pointer,	&type_pointer,	OPF_STD},
+ {7, "+", "ADD_PI",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_integer,	&type_pointer,	OPF_STD},
+ {7, "+", "ADD_IP",	PC_ADDSUB, ASSOC_LEFT,						&type_integer,	&type_pointer,	&type_pointer,	OPF_STD},
+ {7, "-", "SUB_SI",	PC_ADDSUB, ASSOC_LEFT,						&type_string,	&type_integer,	&type_string,	OPF_STD},
+ {7, "-", "SUB_PF",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_float,	&type_pointer,	OPF_STD},
+ {7, "-", "SUB_PI",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_integer,	&type_pointer,	OPF_STD},
+ {7, "-", "SUB_PP",	PC_ADDSUB, ASSOC_LEFT,						&type_pointer,	&type_pointer,	&type_integer,	OPF_STD},
 
- {7, "%", "MOD_F",	PC_MULDIV, ASSOC_LEFT,						&type_float,	&type_float,	&type_float},
- {7, "%", "MOD_I",	PC_MULDIV, ASSOC_LEFT,						&type_integer,	&type_integer,	&type_integer},
- {7, "%", "MOD_V",	PC_MULDIV, ASSOC_LEFT,						&type_vector,	&type_vector,	&type_vector},
+ {7, "%", "MOD_F",	PC_MULDIV, ASSOC_LEFT,						&type_float,	&type_float,	&type_float,	OPF_STD},
+ {7, "%", "MOD_I",	PC_MULDIV, ASSOC_LEFT,						&type_integer,	&type_integer,	&type_integer,	OPF_STD},
+ {7, "%", "MOD_V",	PC_MULDIV, ASSOC_LEFT,						&type_vector,	&type_vector,	&type_vector,	OPF_STD},
 
- {7, "^", "BITXOR_F",	PC_BITXOR, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
- {7, ">>", "RSHIFT_F",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
- {7, "<<", "LSHIFT_F",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
- {7, ">>", "RSHIFT_IF",	PC_SHIFT, ASSOC_LEFT,					&type_integer,	&type_float,	&type_integer},
- {7, "<<", "LSHIFT_IF",	PC_SHIFT, ASSOC_LEFT,					&type_integer,	&type_float,	&type_integer},
- {7, ">>", "RSHIFT_FI",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_integer,	&type_integer},
- {7, "<<", "LSHIFT_FI",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_integer,	&type_integer},
+ {7, "^", "BITXOR_F",	PC_BITXOR, ASSOC_LEFT,					&type_float,	&type_float,	&type_float,	OPF_STD},
+ {7, ">>", "RSHIFT_F",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_float,	&type_float,	OPF_STD},
+ {7, "<<", "LSHIFT_F",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_float,	&type_float,	OPF_STD},
+ {7, ">>", "RSHIFT_IF",	PC_SHIFT, ASSOC_LEFT,					&type_integer,	&type_float,	&type_integer,	OPF_STD},
+ {7, "<<", "LSHIFT_IF",	PC_SHIFT, ASSOC_LEFT,					&type_integer,	&type_float,	&type_integer,	OPF_STD},
+ {7, ">>", "RSHIFT_FI",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_integer,	&type_integer,	OPF_STD},
+ {7, "<<", "LSHIFT_FI",	PC_SHIFT, ASSOC_LEFT,					&type_float,	&type_integer,	&type_integer,	OPF_STD},
 
- {7, "&&", "AND_ANY",	PC_LOGICAND, ASSOC_LEFT,					&type_variant,	&type_variant,	&type_float},
- {7, "||", "OR_ANY",	PC_LOGICOR, ASSOC_LEFT,					&type_variant,	&type_variant,	&type_float},
+ {7, "&&", "AND_ANY",	PC_LOGICAND, ASSOC_LEFT,					&type_variant,	&type_variant,	&type_float,	OPF_STD},
+ {7, "||", "OR_ANY",	PC_LOGICOR, ASSOC_LEFT,					&type_variant,	&type_variant,	&type_float,	OPF_STD},
 
- {7, "+", "ADD_EI",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_integer,	&type_entity},
- {7, "+", "ADD_EF",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_float,	&type_entity},
- {7, "-", "SUB_EI",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_integer,	&type_entity},
- {7, "-", "SUB_EF",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_float,	&type_entity},
+ {7, "+", "ADD_EI",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_integer,	&type_entity,	OPF_STD},
+ {7, "+", "ADD_EF",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_float,	&type_entity,	OPF_STD},
+ {7, "-", "SUB_EI",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_integer,	&type_entity,	OPF_STD},
+ {7, "-", "SUB_EF",		PC_ADDSUB, ASSOC_LEFT,						&type_entity,	&type_float,	&type_entity,	OPF_STD},
 
- {7, "&", "BITAND_V",	PC_BITAND, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector},
- {7, "|", "BITOR_V",	PC_BITOR, ASSOC_LEFT,						&type_vector,	&type_vector,	&type_vector},
- {7, "~", "BITNOT_V",	PC_UNARY, ASSOC_LEFT,					&type_vector,	&type_void,		&type_vector},
- {7, "^", "BITXOR_V",	PC_BITXOR, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector},
+ {7, "&", "BITAND_V",	PC_BITAND, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector,	OPF_STD},
+ {7, "|", "BITOR_V",	PC_BITOR, ASSOC_LEFT,						&type_vector,	&type_vector,	&type_vector,	OPF_STD},
+ {7, "~", "BITNOT_V",	PC_UNARY, ASSOC_LEFT,					&type_vector,	&type_void,		&type_vector,	OPF_STD},
+ {7, "^", "BITXOR_V",	PC_BITXOR, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector,	OPF_STD},
 
- {7, "*^", "POW_F",		PC_MULDIV, ASSOC_LEFT,					&type_float,	&type_float,	&type_float},
- {7, "><", "CROSS_V",	PC_MULDIV, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector},
+ {7, "*^", "POW_F",		PC_MULDIV, ASSOC_LEFT,					&type_float,	&type_float,	&type_float,	OPF_STD},
+ {7, "><", "CROSS_V",	PC_MULDIV, ASSOC_LEFT,					&type_vector,	&type_vector,	&type_vector,	OPF_STD},
 
- {7, "==", "EQ_FLD",	PC_EQUALITY, ASSOC_LEFT,				&type_field,	&type_field,	&type_float},
- {7, "!=", "NE_FLD",	PC_EQUALITY, ASSOC_LEFT,				&type_field,	&type_field,	&type_float},
+ {7, "==", "EQ_FLD",	PC_EQUALITY, ASSOC_LEFT,				&type_field,	&type_field,	&type_float,	OPF_STD},
+ {7, "!=", "NE_FLD",	PC_EQUALITY, ASSOC_LEFT,				&type_field,	&type_field,	&type_float,	OPF_STD},
+
+ {0, NULL, "OPD_GOTO_FORSTART"},
+ {0, NULL, "OPD_GOTO_WHILE1"},
 
  {0, NULL}
 };
@@ -14773,33 +14776,35 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 			if (QCC_PR_CheckToken("]"))
 			{
 				//FIXME: preprocessor will hate this with a passion.
-				QCC_PR_Expect("=");
-				QCC_PR_Expect("{");
-				arraysize++;
-				depth = 1;
-				while(1)
+				if (QCC_PR_CheckToken("="))
 				{
-					if(pr_token_type == tt_eof)
+					QCC_PR_Expect("{");
+					arraysize++;
+					depth = 1;
+					while(1)
 					{
-						QCC_PR_ParseError (ERR_EOF, "EOF inside definition of %s", name);
-						break;
-					}
-					else if (depth == 1 && QCC_PR_CheckToken(","))
-					{
-						if (QCC_PR_CheckToken("}"))
+						if(pr_token_type == tt_eof)
+						{
+							QCC_PR_ParseError (ERR_EOF, "EOF inside definition of %s", name);
 							break;
-						arraysize++;
+						}
+						else if (depth == 1 && QCC_PR_CheckToken(","))
+						{
+							if (QCC_PR_CheckToken("}"))
+								break;
+							arraysize++;
+						}
+						else if (QCC_PR_CheckToken("{") || QCC_PR_CheckToken("["))
+							depth++;
+						else if (QCC_PR_CheckToken("}") || QCC_PR_CheckToken("]"))
+						{
+							depth--;
+							if (depth == 0)
+								break;
+						}
+						else
+							QCC_PR_Lex();
 					}
-					else if (QCC_PR_CheckToken("{") || QCC_PR_CheckToken("["))
-						depth++;
-					else if (QCC_PR_CheckToken("}") || QCC_PR_CheckToken("]"))
-					{
-						depth--;
-						if (depth == 0)
-							break;
-					}
-					else
-						QCC_PR_Lex();
 				}
 				pr_file_p = oldprfile;
 				pr_source_line = oldline;
@@ -14866,13 +14871,8 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 		gd_flags = 0;
 		if (isstatic)
 			gd_flags |= GDF_STATIC;
-		if (isconstant)
-			gd_flags |= GDF_CONST;
-		if (type->type == ev_function && !isvar && !pr_scope)
-			gd_flags |= GDF_CONST;
-		if (type->type == ev_field && !isvar && !pr_scope)
-			gd_flags |= GDF_CONST;
-
+		if (isconstant || (!isvar && !pr_scope && ((isinitialised && !flag_assumevar) || type->type == ev_function || type->type == ev_field)))
+			gd_flags |= GDF_CONST;	//initialised things are assumed to be consts, unless assumevar is specified. functions and fields are always assumed to be consts even when not initialised. nothing is assumed const at local scope.
 		if (!nosave)
 			gd_flags |= GDF_SAVED;
 		if (allowinline)
@@ -14965,6 +14965,7 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 		}
 		else if (isinitialised)	//this is an initialisation (or a function)
 		{
+			pbool isconst;
 			QCC_type_t *parentclass;
 			if (aliasof)
 				QCC_PR_ParseError (ERR_SHAREDINITIALISED, "alias %s may not be initialised", name);
@@ -15027,9 +15028,15 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal)
 			parentclass = pr_classtype;
 			pr_classtype = defclass?defclass:pr_classtype;
 			if (flag_assumevar)
-				def->constant = isconstant || (!isvar && !pr_scope && (type->type == ev_function || type->type == ev_field));
+				isconst = isconstant || (!isvar && !pr_scope && (type->type == ev_function || type->type == ev_field));
 			else
-				def->constant = (isconstant || (!isvar && !pr_scope));
+				isconst = (isconstant || (!isvar && !pr_scope));
+			if (isconst != def->constant)
+			{	//we should only be optimising consts if its initialised, so it shouldn't have been read as 0 at any point so far.
+				QCC_PR_ParseWarning(WARN_REDECLARATIONMISMATCH, "Redeclaration of %s would change const.", def->name);
+				QCC_PR_ParsePrintDef(WARN_REDECLARATIONMISMATCH, def);
+//				def->constant = isconst;
+			}
 			if (accumulate || def->accumulate)
 			{
 				unsigned int pif_flags = PIF_ACCUMULATE;

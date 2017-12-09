@@ -977,7 +977,34 @@ void FPS_Preset_f (void)
 	{
 		char buffer[MAX_OSPATH];
 		COM_QuotedString(presetfname, buffer, sizeof(buffer), false);
-		Cbuf_AddText(va("\nexec %s\nfs_restart\n", buffer), RESTRICT_LOCAL);
+		Cbuf_InsertText(va("\nexec %s\nfs_restart\n", buffer), RESTRICT_LOCAL, false);
+		return;
+	}
+
+	if (!stricmp("timedemo", arg))
+	{
+		//some extra things to pwn timedemos.
+		Cbuf_InsertText(
+			"fps_preset fast\n"
+			"set r_renderscale 1\n"
+			"set contrast 1\n"
+			"set gamma 1\n"
+			"set brightness 0\n"
+			"set scr_autoid 0\n"
+			"set scr_autoid_team 0\n"
+			"set r_dynamic 0\n"
+			"set sbar_teamstatus 2\n"
+			"set gl_polyblend 0\n"
+#if 1
+			//these are cheaty settings.
+			"set gl_flashblend 0\n"
+			"set cl_predict_players 0\n"	//very cheaty. you won't realise its off, but noone would disable it for actual play.
+#else
+			//to make things fair
+			"set gl_flashblend 1\n"
+			"set r_part_density 1\n"
+#endif
+			, RESTRICT_LOCAL, false);
 		return;
 	}
 

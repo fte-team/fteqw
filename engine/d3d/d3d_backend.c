@@ -1021,20 +1021,11 @@ static void colourgenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *srcb, 
 			((D3DCOLOR*)dst)[cnt] = block;
 		}
 		break;
+	case RGB_GEN_ENTITY_LIGHTING_DIFFUSE:
+		R_LightArraysByte_BGR(shaderstate.curentity , mesh->xyz_array, dst, cnt, mesh->normals_array, true);
+		break;
 	case RGB_GEN_LIGHTING_DIFFUSE:
-		//collect lighting details for mobile entities
-		if (!mesh->normals_array)
-		{
-			block = D3DCOLOR_RGBA(255, 255, 255, 255);
-			while((cnt)--)
-			{
-				((D3DCOLOR*)dst)[cnt] = block;
-			}
-		}
-		else
-		{
-			R_LightArraysByte_BGR(shaderstate.curentity , mesh->xyz_array, dst, cnt, mesh->normals_array);
-		}
+		R_LightArraysByte_BGR(shaderstate.curentity , mesh->xyz_array, dst, cnt, mesh->normals_array, false);
 		break;
 	case RGB_GEN_WAVE:
 		{
@@ -1986,6 +1977,9 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 
 		case SP_W_FOG:
 			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, r_refdef.globalfog.colour, 2);	//colour and density
+			break;
+		case SP_W_USER://FIXME: needs seperate vertex+fragment handles!
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, r_refdef.userdata[0], countof(r_refdef.userdata));
 			break;
 
 		case SP_M_ENTBONES:

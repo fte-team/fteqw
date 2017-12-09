@@ -3034,6 +3034,8 @@ static void Shaderpass_RGBGen (shader_t *shader, shaderpass_t *pass, char **ptr)
 		pass->rgbgen = RGB_GEN_ONE_MINUS_VERTEX;
 	else if (!Q_stricmp (token, "lightingDiffuse"))
 		pass->rgbgen = RGB_GEN_LIGHTING_DIFFUSE;
+	else if (!Q_stricmp (token, "entitylighting"))
+		pass->rgbgen = RGB_GEN_ENTITY_LIGHTING_DIFFUSE;
 	else if (!Q_stricmp (token, "exactvertex"))
 		pass->rgbgen = RGB_GEN_VERTEX_EXACT;
 	else if (!Q_stricmp (token, "const") || !Q_stricmp (token, "constant"))
@@ -4532,7 +4534,7 @@ void Shader_Programify (shader_t *s)
 	for (i = 0; i < s->numpasses; i++)
 	{
 		pass = &s->passes[i];
-		if (pass->rgbgen == RGB_GEN_LIGHTING_DIFFUSE)
+		if (pass->rgbgen == RGB_GEN_LIGHTING_DIFFUSE || pass->rgbgen == RGB_GEN_ENTITY_LIGHTING_DIFFUSE)
 			modellighting = pass;
 		else if (pass->rgbgen == RGB_GEN_ENTITY)
 			modellighting = pass;
@@ -6710,6 +6712,7 @@ static char *Shader_DecomposePass(char *o, shaderpass_t *p, qboolean simple)
 		default:
 		case RGB_GEN_IDENTITY: sprintf(o, "RGB_GEN_IDENTITY "); break;
 		case RGB_GEN_CONST: sprintf(o, "RGB_GEN_CONST "); break;
+		case RGB_GEN_ENTITY_LIGHTING_DIFFUSE: sprintf(o, "RGB_GEN_ENTITY_LIGHTING_DIFFUSE "); break;
 		case RGB_GEN_LIGHTING_DIFFUSE: sprintf(o, "RGB_GEN_LIGHTING_DIFFUSE "); break;
 		case RGB_GEN_WAVE: sprintf(o, "RGB_GEN_WAVE "); break;
 		case RGB_GEN_TOPCOLOR: sprintf(o, "RGB_GEN_TOPCOLOR "); break;

@@ -2927,37 +2927,110 @@ void SCR_ScreenShot_Cubemap_f(void)
 	uploadfmt_t fmt;
 	char filename[MAX_QPATH];
 	char *fname = Cmd_Argv(1);
-	int i;
+	int i, firstside;
+	char olddrawviewmodel[64];	//hack, so we can set r_drawviewmodel to 0 so that it doesn't appear in screenshots even if the csqc is generating new data.
+	vec3_t oldangles;
 	const struct
 	{
 		vec3_t angle;
 		const char *postfix;
+		qboolean verticalflip;
+		qboolean horizontalflip;
 	} sides[] =
 	{
-		{{0, 0, 0}, "_px"},
-		{{0, 180, 0}, "_nx"},
-		{{0, 90, 0}, "_py"},
-		{{0, 270, 0}, "_ny"},
-		{{90, 0, 0}, "_pz"},
-		{{-90, 0, 0}, "_nz"}
+		//standard cubemap
+		{{0, 0, 90}, "_px", true},
+		{{0, 180, -90}, "_nx", true},
+		{{0, 90, 0}, "_py", true},	//upside down
+		{{0, 270, 0}, "_ny", false, true},
+		{{-90, 0, 90}, "_pz", true},
+		{{90, 0, 90}, "_nz", true},
+
+		//annoying envmap (requires processing to flip/etc the images before they can be loaded into a texture)
+		{{0, 270, 0}, "_ft"},
+		{{0, 90, 0}, "_bk"},
+		{{0, 0, 0}, "_rt"},
+		{{0, 180, 0}, "_lf"},
+		{{90, 0, 0}, "_dn"},
+		{{-90, 0, 0}, "_up"}
 	};
 
-	r_refdef.stereomethod = STEREO_OFF;
+	if (!cls.state || !cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
+	{
+		Con_Printf("Please start a map first\n");
+		return;
+	}
 
-	fbheight = atoi(Cmd_Argv(2));
+	firstside = strcmp(Cmd_Argv(0), "envmap")?0:6;
+
+	r_refdef.stereomethod = STEREO_OFF;
+	Q_strncpyz(olddrawviewmodel, r_drawviewmodel.string, sizeof(olddrawviewmodel));
+	Cvar_Set(&r_drawviewmodel, "0");
+
+	VectorCopy(cl.playerview->viewangles, oldangles);
+
+	fbheight = atoi(Cmd_Argv(2))&~1;
 	if (fbheight < 1)
 		fbheight = 512;
 	fbwidth = fbheight;
 
-	for (i = 0; i < countof(sides); i++)
+	for (i = firstside; i < firstside+6; i++)
 	{
-		Q_snprintfz(filename, sizeof(filename), "cubemaps/%s%s", fname, sides[i].postfix);
+		if (!*fname)
+		{
+			char base[MAX_QPATH];
+			COM_FileBase(cl.worldmodel->name, base, sizeof(base));
+			fname = va("%s/%i_%i_%i", base, (int)r_refdef.vieworg[0], (int)r_refdef.vieworg[1], (int)r_refdef.vieworg[2]);
+		}
+		Q_snprintfz(filename, sizeof(filename), "textures/%s%s", fname, sides[i].postfix);
 		COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
+
+		VectorCopy(sides[i].angle, cl.playerview->simangles);
+		VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
 
 		buffer = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt);
 		if (buffer)
 		{
 			char			sysname[1024];
+			if (sides[i].horizontalflip)
+			{
+				int y, x, p;
+				int pxsize;
+				char *bad = buffer;
+				char *in = buffer, *out;
+				switch(fmt)
+				{
+				case TF_RGBA32:
+				case TF_BGRA32:
+				case TF_RGBX32:
+				case TF_BGRX32:
+					pxsize = 4;
+					break;
+				case TF_RGB24:
+				case TF_BGR24:
+					pxsize = 3;
+					break;
+				default:	//erk!
+					pxsize = 1;
+					break;
+				}
+				buffer = out = BZ_Malloc(fbwidth*fbheight*pxsize);
+				for (y = 0; y < fbheight; y++, in += abs(stride), out += fbwidth*pxsize)
+				{
+					for (x = 0; x < fbwidth*pxsize; x+=pxsize)
+					{
+						for (p = 0; p < pxsize; p++)
+							out[x+p] = in[(fbwidth-1)*pxsize-x+p];
+					}
+				}
+				BZ_Free(bad);
+				if (stride < 0)
+					stride = -fbwidth*pxsize;
+				else
+					stride = fbwidth*pxsize;
+			}
+			if (sides[i].verticalflip)
+				stride = -stride;
 			if (SCR_ScreenShot(filename, FS_GAMEONLY, &buffer, 1, stride, fbwidth, fbheight, fmt))
 			{
 				FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
@@ -2971,6 +3044,10 @@ void SCR_ScreenShot_Cubemap_f(void)
 			BZ_Free(buffer);
 		}
 	}
+
+	Cvar_Set(&r_drawviewmodel, olddrawviewmodel);
+
+	VectorCopy(oldangles, cl.playerview->viewangles);
 }
 
 
@@ -2987,7 +3064,10 @@ static void SCR_DrawCharToSnap (int num, qbyte *dest, int width)
 	if (!draw_chars)
 	{
 		size_t lumpsize;
-		draw_chars = W_SafeGetLumpName("conchars", &lumpsize);
+		qbyte lumptype;
+		draw_chars = W_GetLumpName("conchars", &lumpsize, &lumptype);
+//		if (lumptype != )
+//			draw_chars = NULL;
 		if (!draw_chars || lumpsize != 128*128)
 			return;
 	}

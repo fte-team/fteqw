@@ -67,11 +67,11 @@ void main()
 #endif
 
 //we need to write specular exponents if we want per-pixel control over that
-//#if defined(SPECULAR)
+#if defined(SPECULAR)
 	ospec = texture2D(s_specular, tc);
-//#else
-//	ospec = vec4(0.0, 0.0, 0.0, 0.0);
-//#endif
+#else
+	ospec = vec4(0.0, 0.0, 0.0, 0.0);
+#endif
 
 	gl_FragColor = vec4(onorm.xyz, ospec.a * FTE_SPECULAR_EXPONENT);
 }

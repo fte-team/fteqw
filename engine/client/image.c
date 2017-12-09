@@ -228,7 +228,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 		return NULL;
 	}
 	//validate the size to some sanity limit.
-	if ((unsigned short)tgaheader.width > 8192 || (unsigned short)tgaheader.height > 8192)
+	if ((unsigned short)tgaheader.width > 16384 || (unsigned short)tgaheader.height > 16384)
 		return NULL;
 
 
@@ -2589,8 +2589,9 @@ static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 	if (!strncmp(tex->ident, "gfx/", 4))
 	{
 		size_t lumpsize;
-		qpic_t *pic = W_SafeGetLumpName(tex->ident+4, &lumpsize);
-		if (pic && lumpsize == 8 + pic->width*pic->height)
+		qbyte lumptype;
+		qpic_t *pic = W_GetLumpName(tex->ident+4, &lumpsize, &lumptype);
+		if (pic && lumptype == TYP_QPIC && lumpsize == 8 + pic->width*pic->height)
 		{
 			tex->width = pic->width;
 			tex->height = pic->height;
@@ -3464,6 +3465,7 @@ static void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int fla
 }
 
 //stolen from DP
+//FIXME: optionally support borders as 0,0,0,0
 static void Image_Resample32LerpLine (const qbyte *in, qbyte *out, int inwidth, int outwidth)
 {
 	int		j, xi, oldx = 0, f, fstep, endx, lerp;
@@ -3497,15 +3499,16 @@ static void Image_Resample32LerpLine (const qbyte *in, qbyte *out, int inwidth, 
 
 //yes, this is lordhavok's code too.
 //superblur away!
+//FIXME: optionally support borders as 0,0,0,0
 #define LERPBYTE(i) r = row1[i];out[i] = (qbyte) ((((row2[i] - r) * lerp) >> 16) + r)
 static void Image_Resample32Lerp(const void *indata, int inwidth, int inheight, void *outdata, int outwidth, int outheight)
 {
 	int i, j, r, yi, oldy, f, fstep, lerp, endy = (inheight-1), inwidth4 = inwidth*4, outwidth4 = outwidth*4;
 	qbyte *out;
 	const qbyte *inrow;
-	qbyte *tmem, *row1, *row2;
+	qbyte *row1, *row2;
 
-	tmem = row1 = BZ_Malloc(2*(outwidth*4));
+	row1 = alloca(2*(outwidth*4));
 	row2 = row1 + (outwidth * 4);
 
 	out = outdata;
@@ -3584,6 +3587,7 @@ static void Image_Resample32Lerp(const void *indata, int inwidth, int inheight, 
 		}
 		else
 		{
+			yi = endy;	//don't read off the end
 			if (yi != oldy)
 			{
 				inrow = (qbyte *)indata + inwidth4*yi;
@@ -3594,9 +3598,9 @@ static void Image_Resample32Lerp(const void *indata, int inwidth, int inheight, 
 				oldy = yi;
 			}
 			memcpy(out, row1, outwidth4);
+			out += outwidth4;	//Fixes a bug from DP.
 		}
 	}
-	BZ_Free(tmem);
 }
 
 
@@ -4802,28 +4806,34 @@ struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicename, ch
 	{
 		char *suffix;
 		qboolean flipx, flipy, flipd;
-	} cmscheme[] =
+	} cmscheme[][6] =
 	{
-		{"rt", true,  false, true},
-		{"lf", false, true,  true},
-		{"ft", true,  true,  false},
-		{"bk", false, false, false},
-		{"up", true,  false, true},
-		{"dn", true,  false, true},
+		{
+			{"rt", true,  false, true},
+			{"lf", false, true,  true},
+			{"ft", true,  true,  false},
+			{"bk", false, false, false},
+			{"up", true,  false, true},
+			{"dn", true,  false, true}
+		},
 
-		{"px", false, false, false},
-		{"nx", false, false, false},
-		{"py", false, false, false},
-		{"ny", false, false, false},
-		{"pz", false, false, false},
-		{"nz", false, false, false},
+		{
+			{"px", false, false, false},
+			{"nx", false, false, false},
+			{"py", false, false, false},
+			{"ny", false, false, false},
+			{"pz", false, false, false},
+			{"nz", false, false, false}
+		},
 
-		{"posx", false, false, false},
-		{"negx", false, false, false},
-		{"posy", false, false, false},
-		{"negy", false, false, false},
-		{"posz", false, false, false},
-		{"negz", false, false, false}
+		{
+			{"posx", false, false, false},
+			{"negx", false, false, false},
+			{"posy", false, false, false},
+			{"negy", false, false, false},
+			{"posz", false, false, false},
+			{"negz", false, false, false}
+		}
 	};
 	int i, j, e;
 	struct pendingtextureinfo *mips;
@@ -4851,14 +4861,14 @@ struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicename, ch
 				qbyte *buf = NULL, *data;
 				filesize = 0;
 
-				for (j = 0; j < sizeof(cmscheme)/sizeof(cmscheme[0])/6; j++)
+				for (j = 0; j < countof(cmscheme); j++)
 				{
-					Q_snprintfz(fname+prefixlen, sizeof(fname)-prefixlen, "%s_%s%s", nicename, cmscheme[i + 6*j].suffix, tex_extensions[e].name);
+					Q_snprintfz(fname+prefixlen, sizeof(fname)-prefixlen, "%s_%s%s", nicename, cmscheme[j][i].suffix, tex_extensions[e].name);
 					buf = COM_LoadFile(fname, 5, &filesize);
 					if (buf)
 						break;
 
-					Q_snprintfz(fname+prefixlen, sizeof(fname)-prefixlen, "%s%s%s", nicename, cmscheme[i + 6*j].suffix, tex_extensions[e].name);
+					Q_snprintfz(fname+prefixlen, sizeof(fname)-prefixlen, "%s%s%s", nicename, cmscheme[j][i].suffix, tex_extensions[e].name);
 					buf = COM_LoadFile(fname, 5, &filesize);
 					if (buf)
 						break;
@@ -4874,7 +4884,7 @@ struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicename, ch
 						{	//(skies have a fallback for invalid sizes, but it'll run a bit slower)
 							if (!(texflags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 								BoostGamma(data, width, height);
-							mips->mip[i].data = R_FlipImage32(data, &width, &height, cmscheme[i + 6*j].flipx, cmscheme[i + 6*j].flipy, cmscheme[i + 6*j].flipd);
+							mips->mip[i].data = R_FlipImage32(data, &width, &height, cmscheme[j][i].flipx, cmscheme[j][i].flipy, cmscheme[j][i].flipd);
 							mips->mip[i].datasize = width*height*4;
 							mips->mip[i].width = width;
 							mips->mip[i].height = height;

@@ -343,7 +343,7 @@ cvar_t gl_conback							= CVARFCD ("gl_conback", "",
 //cvar_t gl_detail							= CVARF ("gl_detail", "0",
 //												CVAR_ARCHIVE);
 //cvar_t gl_detailscale						= CVAR  ("gl_detailscale", "5");
-cvar_t gl_font								= CVARFD ("gl_font", "",
+cvar_t gl_font								= CVARAFD ("gl_font", "", "gl_consolefont",
 													  CVAR_RENDERERCALLBACK|CVAR_ARCHIVE, ("Specifies the font file to use. a value such as FONT:ALTFONT specifies an alternative font to be used when ^^a is used.\n"
 													  "When using TTF fonts, you will likely need to scale text to at least 150% - vid_conautoscale 1.5 will do this.\n"
 													  "TTF fonts may be loaded from your windows directory. \'gl_font cour?col=1,1,1:couri?col=0,1,0\' loads eg: c:\\windows\\fonts\\cour.ttf, and uses the italic version of courier for alternative text, with specific colour tints."
@@ -401,7 +401,7 @@ cvar_t gl_mipcap							= CVARAFC("d_mipcap", "0 1000", "gl_miptexLevel",
 cvar_t gl_texturemode2d						= CVARFCD("gl_texturemode2d", "GL_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, Image_TextureMode_Callback,
 												"Specifies how 2d images are sampled. format is a 3-tupple ");
-cvar_t r_font_linear						= CVARF("r_font_linear", "1", CVAR_RENDERERLATCH);
+cvar_t r_font_linear						= CVARF("r_font_linear", "1", 0);
 
 cvar_t vid_triplebuffer						= CVARAFD ("vid_triplebuffer", "1", "gl_triplebuffer", CVAR_ARCHIVE, "Specifies whether the hardware is forcing tripplebuffering on us, this is the number of extra page swaps required before old data has been completely overwritten.");
 

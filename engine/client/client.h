@@ -1111,10 +1111,12 @@ entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 //
 // cl_input
 //
-typedef struct
+typedef struct kbutton_s
 {
 	int		down[MAX_SPLITS][2];		// key nums holding it down
 	int		state[MAX_SPLITS];			// low bit is down state
+
+	struct kbutton_s *suppressed[MAX_SPLITS];	//the button that was suppressed by this one getting pressed
 } kbutton_t;
 
 extern	kbutton_t	in_mlook;

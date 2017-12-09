@@ -66,11 +66,17 @@ static rbeplugfuncs_t *rbefuncs;
 
 static void World_Bullet_RunCmd(world_t *world, rbecommandqueue_t *cmd);
 
+static cvar_t *physics_bullet_enable;
+static cvar_t *physics_bullet_maxiterationsperframe;
+static cvar_t *physics_bullet_framerate;
+static cvar_t *pr_meshpitch;
+
 void World_Bullet_Init(void)
 {
-	pCvar_Register("physics_bullet_enable",					"1",	0, "Bullet");
-	pCvar_Register("physics_bullet_maxiterationsperframe",	"10",	0, "Bullet");
-	pCvar_Register("physics_bullet_framerate",				"60",	0, "Bullet");
+	physics_bullet_enable					= pCvar_GetNVFDG("physics_bullet_enable",					"1",	0, "", "Bullet");
+	physics_bullet_maxiterationsperframe	= pCvar_GetNVFDG("physics_bullet_maxiterationsperframe",	"10",	0, "FIXME: should be 1 when CCD is working properly.", "Bullet");
+	physics_bullet_framerate				= pCvar_GetNVFDG("physics_bullet_framerate",				"60",	0, "", "Bullet");
+	pr_meshpitch								= pCvar_GetNVFDG("r_meshpitch",								"-1",	0, "", "Bullet");
 }
 
 void World_Bullet_Shutdown(void)
@@ -293,38 +299,64 @@ static void World_Bullet_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 #endif
 }
 
+
+static bool NegativeMeshPitch(world_t *world, wedict_t *ent)
+{
+	if (ent->v->modelindex)
+	{
+		model_t *model = world->Get_CModel(world, ent->v->modelindex);
+		if (model && (model->type == mod_alias || model->type == mod_halflife))
+			return pr_meshpitch->value < 0;
+		return false;
+	}
+	return false;
+}
+
+static btTransform transformFromQuake(world_t *world, wedict_t *ent)
+{
+	vec3_t forward, left, up;
+	if (NegativeMeshPitch(world, ent))
+	{
+		vec3_t iangles = {-ent->v->angles[0], ent->v->angles[1], ent->v->angles[2]};
+		rbefuncs->AngleVectors(iangles, forward, left, up);
+	}
+	else
+		rbefuncs->AngleVectors(ent->v->angles, forward, left, up);
+	VectorNegate(left, left);
+
+	return btTransform(btMatrix3x3(forward[0], forward[1], forward[2], left[0], left[1], left[2], up[0], up[1], up[2]), btVector3(ent->v->origin[0], ent->v->origin[1], ent->v->origin[2]));
+}
+
 static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 {
-#if 0
-	dJointID j = 0;
-	dBodyID b1 = 0;
-	dBodyID b2 = 0;
+	bulletcontext_t *rbe = (bulletcontext_t*)world->rbe;
+	btTypedConstraint *j = NULL;
+	btRigidBody *b1 = NULL;
+	btRigidBody *b2 = NULL;
 	int movetype = 0;
 	int jointtype = 0;
 	int enemy = 0, aiment = 0;
-	wedict_t *o;
-	vec3_t origin, velocity, angles, forward, left, up, movedir;
-	vec_t CFM, ERP, FMax, Stop, Vel;
-	VectorClear(origin);
-	VectorClear(velocity);
-	VectorClear(angles);
-	VectorClear(movedir);
+	wedict_t *e1, *e2;
+//	vec_t CFM, ERP, FMax;
+	vec_t Stop, Vel;
+	vec3_t forward;
 	movetype = (int)ed->v->movetype;
 	jointtype = (int)ed->xv->jointtype;
 	enemy = ed->v->enemy;
 	aiment = ed->v->aiment;
-	VectorCopy(ed->v->origin, origin);
-	VectorCopy(ed->v->velocity, velocity);
-	VectorCopy(ed->v->angles, angles);
-	VectorCopy(ed->v->movedir, movedir);
+	btVector3 origin(ed->v->origin[0], ed->v->origin[1], ed->v->origin[2]);
+	btVector3 velocity(ed->v->velocity[0], ed->v->velocity[1], ed->v->velocity[2]);
+	btVector3 movedir(ed->v->movedir[0], ed->v->movedir[1], ed->v->movedir[2]);
 	if(movetype == MOVETYPE_PHYSICS)
 		jointtype = 0; // can't have both
 
-	o = (wedict_t*)PROG_TO_EDICT(world->progs, enemy);
-	if(o->isfree || o->ode.ode_body == 0)
+	e1 = (wedict_t*)PROG_TO_EDICT(world->progs, enemy);
+	b1 = (btRigidBody*)e1->ode.ode_body;
+	if(ED_ISFREE(e1) || !b1)
 		enemy = 0;
-	o = (wedict_t*)PROG_TO_EDICT(world->progs, aiment);
-	if(o->isfree || o->ode.ode_body == 0)
+	e2 = (wedict_t*)PROG_TO_EDICT(world->progs, aiment);
+	b2 = (btRigidBody*)e2->ode.ode_body;
+	if(ED_ISFREE(e2) || !b2)
 		aiment = 0;
 	// see http://www.ode.org/old_list_archives/2006-January/017614.html
 	// we want to set ERP? make it fps independent and work like a spring constant
@@ -334,149 +366,168 @@ static void World_Bullet_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		float K = movedir[0];
 		float D = movedir[1];
 		float R = 2.0 * D * sqrt(K); // we assume D is premultiplied by sqrt(sprungMass)
-		CFM = 1.0 / (world->ode.ode_step * K + R); // always > 0
-		ERP = world->ode.ode_step * K * CFM;
+//		CFM = 1.0 / (rbe->ode_step * K + R); // always > 0
+//		ERP = rbe->ode_step * K * CFM;
 		Vel = 0;
-		FMax = 0;
+//		FMax = 0;
 		Stop = movedir[2];
 	}
 	else if(movedir[1] < 0)
 	{
-		CFM = 0;
-		ERP = 0;
+//		CFM = 0;
+//		ERP = 0;
 		Vel = movedir[0];
-		FMax = -movedir[1]; // TODO do we need to multiply with world.physics.ode_step?
-		Stop = movedir[2] > 0 ? movedir[2] : dInfinity;
+//		FMax = -movedir[1]; // TODO do we need to multiply with world.physics.ode_step?
+		Stop = movedir[2] > 0 ? movedir[2] : BT_INFINITY;
 	}
 	else // movedir[0] > 0, movedir[1] == 0 or movedir[0] < 0, movedir[1] >= 0
 	{
-		CFM = 0;
-		ERP = 0;
+//		CFM = 0;
+//		ERP = 0;
 		Vel = 0;
-		FMax = 0;
-		Stop = dInfinity;
+//		FMax = 0;
+		Stop = BT_INFINITY;
 	}
-	if(jointtype == ed->ode.ode_joint_type && VectorCompare(origin, ed->ode.ode_joint_origin) && VectorCompare(velocity, ed->ode.ode_joint_velocity) && VectorCompare(angles, ed->ode.ode_joint_angles) && enemy == ed->ode.ode_joint_enemy && aiment == ed->ode.ode_joint_aiment && VectorCompare(movedir, ed->ode.ode_joint_movedir))
+	if(jointtype == ed->ode.ode_joint_type && VectorCompare(origin, ed->ode.ode_joint_origin) && VectorCompare(velocity, ed->ode.ode_joint_velocity) && VectorCompare(ed->v->angles, ed->ode.ode_joint_angles) && enemy == ed->ode.ode_joint_enemy && aiment == ed->ode.ode_joint_aiment && VectorCompare(movedir, ed->ode.ode_joint_movedir))
 		return; // nothing to do
-	AngleVectorsFLU(angles, forward, left, up);
-	switch(jointtype)
-	{
-		case JOINTTYPE_POINT:
-			j = dJointCreateBall(world->ode.ode_world, 0);
-			break;
-		case JOINTTYPE_HINGE:
-			j = dJointCreateHinge(world->ode.ode_world, 0);
-			break;
-		case JOINTTYPE_SLIDER:
-			j = dJointCreateSlider(world->ode.ode_world, 0);
-			break;
-		case JOINTTYPE_UNIVERSAL:
-			j = dJointCreateUniversal(world->ode.ode_world, 0);
-			break;
-		case JOINTTYPE_HINGE2:
-			j = dJointCreateHinge2(world->ode.ode_world, 0);
-			break;
-		case JOINTTYPE_FIXED:
-			j = dJointCreateFixed(world->ode.ode_world, 0);
-			break;
-		case 0:
-		default:
-			// no joint
-			j = 0;
-			break;
-	}
+
 	if(ed->ode.ode_joint)
 	{
-		//Con_Printf("deleted old joint %i\n", (int) (ed - prog->edicts));
-		dJointAttach(ed->ode.ode_joint, 0, 0);
-		dJointDestroy(ed->ode.ode_joint);
+		j = (btTypedConstraint*)ed->ode.ode_joint;
+		rbe->dworld->removeConstraint(j);
+		ed->ode.ode_joint = NULL;
+		delete j;
 	}
-	ed->ode.ode_joint = (void *) j;
+	if (!jointtype)
+		return;
+
+	btVector3 b1org(0,0,0), b2org(0,0,0);
+	if(enemy)
+		b1org.setValue(e1->v->origin[0], e1->v->origin[1], e1->v->origin[2]);
+	if(aiment)
+		b2org.setValue(e2->v->origin[0], e2->v->origin[1], e2->v->origin[2]);
+
 	ed->ode.ode_joint_type = jointtype;
 	ed->ode.ode_joint_enemy = enemy;
 	ed->ode.ode_joint_aiment = aiment;
 	VectorCopy(origin, ed->ode.ode_joint_origin);
 	VectorCopy(velocity, ed->ode.ode_joint_velocity);
-	VectorCopy(angles, ed->ode.ode_joint_angles);
+	VectorCopy(ed->v->angles, ed->ode.ode_joint_angles);
 	VectorCopy(movedir, ed->ode.ode_joint_movedir);
-	if(j)
+
+	rbefuncs->AngleVectors(ed->v->angles, forward, NULL, NULL);
+
+	//Con_Printf("making new joint %i\n", (int) (ed - prog->edicts));
+	switch(jointtype)
 	{
-		//Con_Printf("made new joint %i\n", (int) (ed - prog->edicts));
-		dJointSetData(j, (void *) ed);
-		if(enemy)
-			b1 = (dBodyID)((WEDICT_NUM(world->progs, enemy))->ode.ode_body);
-		if(aiment)
-			b2 = (dBodyID)((WEDICT_NUM(world->progs, aiment))->ode.ode_body);
-		dJointAttach(j, b1, b2);
-
-		switch(jointtype)
+	case JOINTTYPE_POINT:
+		j = new btPoint2PointConstraint(*b1, *b2, btVector3(b1org - origin), btVector3(b2org - origin));
+		break;
+/*	case JOINTTYPE_HINGE:
+		btHingeConstraint *h = new btHingeConstraint(*b1, *b2, btVector3(b1org - origin), btVector3(b2org - origin), aa, ab, ref);
+		j = h;
+		if (h)
 		{
-			case JOINTTYPE_POINT:
-				dJointSetBallAnchor(j, origin[0], origin[1], origin[2]);
-				break;
-			case JOINTTYPE_HINGE:
-				dJointSetHingeAnchor(j, origin[0], origin[1], origin[2]);
-				dJointSetHingeAxis(j, forward[0], forward[1], forward[2]);
-				dJointSetHingeParam(j, dParamFMax, FMax);
-				dJointSetHingeParam(j, dParamHiStop, Stop);	
-				dJointSetHingeParam(j, dParamLoStop, -Stop);
-				dJointSetHingeParam(j, dParamStopCFM, CFM);
-				dJointSetHingeParam(j, dParamStopERP, ERP);
-				dJointSetHingeParam(j, dParamVel, Vel);
-				break;
-			case JOINTTYPE_SLIDER:
-				dJointSetSliderAxis(j, forward[0], forward[1], forward[2]);
-				dJointSetSliderParam(j, dParamFMax, FMax);
-				dJointSetSliderParam(j, dParamHiStop, Stop);
-				dJointSetSliderParam(j, dParamLoStop, -Stop);
-				dJointSetSliderParam(j, dParamStopCFM, CFM);
-				dJointSetSliderParam(j, dParamStopERP, ERP);
-				dJointSetSliderParam(j, dParamVel, Vel);
-				break;
-			case JOINTTYPE_UNIVERSAL:
-				dJointSetUniversalAnchor(j, origin[0], origin[1], origin[2]);
-				dJointSetUniversalAxis1(j, forward[0], forward[1], forward[2]);
-				dJointSetUniversalAxis2(j, up[0], up[1], up[2]);
-				dJointSetUniversalParam(j, dParamFMax, FMax);
-				dJointSetUniversalParam(j, dParamHiStop, Stop);
-				dJointSetUniversalParam(j, dParamLoStop, -Stop);
-				dJointSetUniversalParam(j, dParamStopCFM, CFM);
-				dJointSetUniversalParam(j, dParamStopERP, ERP);
-				dJointSetUniversalParam(j, dParamVel, Vel);
-				dJointSetUniversalParam(j, dParamFMax2, FMax);
-				dJointSetUniversalParam(j, dParamHiStop2, Stop);
-				dJointSetUniversalParam(j, dParamLoStop2, -Stop);
-				dJointSetUniversalParam(j, dParamStopCFM2, CFM);
-				dJointSetUniversalParam(j, dParamStopERP2, ERP);
-				dJointSetUniversalParam(j, dParamVel2, Vel);
-				break;
-			case JOINTTYPE_HINGE2:
-				dJointSetHinge2Anchor(j, origin[0], origin[1], origin[2]);
-				dJointSetHinge2Axis1(j, forward[0], forward[1], forward[2]);
-				dJointSetHinge2Axis2(j, velocity[0], velocity[1], velocity[2]);
-				dJointSetHinge2Param(j, dParamFMax, FMax);
-				dJointSetHinge2Param(j, dParamHiStop, Stop);
-				dJointSetHinge2Param(j, dParamLoStop, -Stop);
-				dJointSetHinge2Param(j, dParamStopCFM, CFM);
-				dJointSetHinge2Param(j, dParamStopERP, ERP);
-				dJointSetHinge2Param(j, dParamVel, Vel);
-				dJointSetHinge2Param(j, dParamFMax2, FMax);
-				dJointSetHinge2Param(j, dParamHiStop2, Stop);
-				dJointSetHinge2Param(j, dParamLoStop2, -Stop);
-				dJointSetHinge2Param(j, dParamStopCFM2, CFM);
-				dJointSetHinge2Param(j, dParamStopERP2, ERP);
-				dJointSetHinge2Param(j, dParamVel2, Vel);
-				break;
-			case JOINTTYPE_FIXED:
-				break;
-			case 0:
-			default:
-				break;
-		}
-#undef SETPARAMS
+			h->setLimit(-Stop, Stop, softness, bias, relaxation);
+			h->setAxis(btVector3(forward[0], forward[1], forward[2]));
+//			h->dJointSetHingeParam(j, dParamFMax, FMax);
+//			h->dJointSetHingeParam(j, dParamHiStop, Stop);	
+//			h->dJointSetHingeParam(j, dParamLoStop, -Stop);
+//			h->dJointSetHingeParam(j, dParamStopCFM, CFM);
+//			h->dJointSetHingeParam(j, dParamStopERP, ERP);
 
+//			h->setMotorTarget(vel);
+		}
+		break;*/
+	case JOINTTYPE_SLIDER:
+		{
+			btTransform jointtransform = transformFromQuake(world, ed);
+			btTransform b1transform = transformFromQuake(world, e1).inverseTimes(jointtransform);
+			btTransform b2transform = transformFromQuake(world, e2).inverseTimes(jointtransform);
+
+			btSliderConstraint *s = new btSliderConstraint(*b1, *b2, b1transform, b2transform, false);
+			j = s;
+			if (s)
+			{
+//				s->dJointSetSliderAxis(j, forward[0], forward[1], forward[2]);
+//				s->dJointSetSliderParam(j, dParamFMax, FMax);
+				s->setLowerLinLimit(-Stop);
+				s->setUpperLinLimit(Stop);
+				s->setLowerAngLimit(0);
+				s->setUpperAngLimit(0);
+//				s->dJointSetSliderParam(j, dParamHiStop, Stop);
+//				s->dJointSetSliderParam(j, dParamLoStop, -Stop);
+//				s->dJointSetSliderParam(j, dParamStopCFM, CFM);
+//				s->dJointSetSliderParam(j, dParamStopERP, ERP);
+//				s->setTargetLinMotorVelocity(vel);
+//				s->setPoweredLinMotor(true);
+			}
+		}
+		break;
+/*	case JOINTTYPE_UNIVERSAL:
+		btGeneric6DofConstraint
+		j = dJointCreateUniversal(rbe->ode_world, 0);
+		if (j)
+		{
+			dJointSetUniversalAnchor(j, origin[0], origin[1], origin[2]);
+			dJointSetUniversalAxis1(j, forward[0], forward[1], forward[2]);
+			dJointSetUniversalAxis2(j, up[0], up[1], up[2]);
+			dJointSetUniversalParam(j, dParamFMax, FMax);
+			dJointSetUniversalParam(j, dParamHiStop, Stop);
+			dJointSetUniversalParam(j, dParamLoStop, -Stop);
+			dJointSetUniversalParam(j, dParamStopCFM, CFM);
+			dJointSetUniversalParam(j, dParamStopERP, ERP);
+			dJointSetUniversalParam(j, dParamVel, Vel);
+			dJointSetUniversalParam(j, dParamFMax2, FMax);
+			dJointSetUniversalParam(j, dParamHiStop2, Stop);
+			dJointSetUniversalParam(j, dParamLoStop2, -Stop);
+			dJointSetUniversalParam(j, dParamStopCFM2, CFM);
+			dJointSetUniversalParam(j, dParamStopERP2, ERP);
+			dJointSetUniversalParam(j, dParamVel2, Vel);
+		}
+		break;*/
+/*	case JOINTTYPE_HINGE2:
+		j = dJointCreateHinge2(rbe->ode_world, 0);
+		if (j)
+		{
+			dJointSetHinge2Anchor(j, origin[0], origin[1], origin[2]);
+			dJointSetHinge2Axis1(j, forward[0], forward[1], forward[2]);
+			dJointSetHinge2Axis2(j, velocity[0], velocity[1], velocity[2]);
+			dJointSetHinge2Param(j, dParamFMax, FMax);
+			dJointSetHinge2Param(j, dParamHiStop, Stop);
+			dJointSetHinge2Param(j, dParamLoStop, -Stop);
+			dJointSetHinge2Param(j, dParamStopCFM, CFM);
+			dJointSetHinge2Param(j, dParamStopERP, ERP);
+			dJointSetHinge2Param(j, dParamVel, Vel);
+			dJointSetHinge2Param(j, dParamFMax2, FMax);
+			dJointSetHinge2Param(j, dParamHiStop2, Stop);
+			dJointSetHinge2Param(j, dParamLoStop2, -Stop);
+			dJointSetHinge2Param(j, dParamStopCFM2, CFM);
+			dJointSetHinge2Param(j, dParamStopERP2, ERP);
+			dJointSetHinge2Param(j, dParamVel2, Vel);
+		}
+		break;*/
+	case JOINTTYPE_FIXED:
+		{
+			btTransform jointtransform = transformFromQuake(world, ed);
+			btTransform b1transform = transformFromQuake(world, e1).inverseTimes(jointtransform);
+			btTransform b2transform = transformFromQuake(world, e2).inverseTimes(jointtransform);
+
+			j = new btFixedConstraint(*b1, *b2, b1transform, b2transform);
+		}
+		break;
+	case 0:
+	default:
+		j = NULL;
+		break;
 	}
-#endif
+
+	ed->ode.ode_joint = (void *) j;
+	if (j)
+	{
+		j->setUserConstraintPtr((void *) ed);
+		rbe->dworld->addConstraint(j, false);
+	}
 }
 
 static qboolean QDECL World_Bullet_RagMatrixToBody(rbebody_t *bodyptr, float *mat)
@@ -635,7 +686,8 @@ static void QDECL World_Bullet_RagMatrixFromJoint(rbejoint_t *joint, rbejointinf
 		return;
 		break;
 	}
-	AngleVectorsFLU(vec3_origin, mat+0, mat+4, mat+8);
+	rbefuncs->AngleVectors(vec3_origin, mat+0, mat+4, mat+8);
+	VectorNegate((mat+4), (mat+4));
 */
 }
 
@@ -836,7 +888,6 @@ public:
 	virtual void setWorldTransform(const btTransform &worldTrans)
 	{
 		vec3_t fwd, left, up, offset;
-		qboolean meshmodel;
 		trans = worldTrans;
 
 		btVector3 pos = worldTrans.getOrigin();
@@ -848,20 +899,15 @@ public:
 		VectorMA(pos, offset[1]*-1, left, pos);
 		VectorMA(pos, offset[2]*-1, up, edict->v->origin);
 
-		if (edict->v->modelindex)
-		{
-			model_t *model = world->Get_CModel(world, edict->v->modelindex);
-			if (model && (model->type == mod_alias || model->type == mod_halflife))
-				meshmodel = qtrue;
-			else meshmodel = qfalse;
-		}
-		else meshmodel = qfalse;
+		rbefuncs->VectorAngles(fwd, up, edict->v->angles, (qboolean)NegativeMeshPitch(world, edict));
 
-		rbefuncs->VectorAngles(fwd, up, edict->v->angles, meshmodel);
+		const btVector3 &vel = ((btRigidBody*)edict->ode.ode_body)->getLinearVelocity();
+		VectorCopy(vel.m_floats, edict->v->velocity);
 
 		//so it doesn't get rebuilt
 		VectorCopy(edict->v->origin, edict->ode.ode_origin);
 		VectorCopy(edict->v->angles, edict->ode.ode_angles);
+		VectorCopy(edict->v->velocity, edict->ode.ode_velocity);
 
 //		World_LinkEdict(world, edict, false);
 
@@ -1166,8 +1212,10 @@ static void World_Bullet_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 //			body->setCenterOfMassTransform(trans);
 			ed->ode.ode_body = (void*)body;
 
-			//continuous collision detection prefers using a sphere within the object. tbh I have no idea what values to specify.
+			//motion threshhold should be speed/physicsframerate.
+			//FIXME: recalculate...
 			body->setCcdMotionThreshold((geomsize[0]+geomsize[1]+geomsize[2])*(4/3));
+			//radius should be the body's radius
 			body->setCcdSweptSphereRadius((geomsize[0]+geomsize[1]+geomsize[2])*(0.5/3));
 
 			ctx->dworld->addRigidBody(body, ed->xv->dimension_solid, ed->xv->dimension_hit);
@@ -1547,7 +1595,7 @@ static void QDECL World_Bullet_Frame(world_t *world, double frametime, double gr
 
 		ctx->dworld->setGravity(btVector3(0, 0, -gravity));
 
-		ctx->dworld->stepSimulation(frametime, max(0, pCvar_GetFloat("physics_bullet_maxiterationsperframe")), 1/bound(1, pCvar_GetFloat("physics_bullet_framerate"), 500));
+		ctx->dworld->stepSimulation(frametime, max(0, physics_bullet_maxiterationsperframe->value), 1/bound(1, physics_bullet_framerate->value, 500));
 
 		// set the tolerance for closeness of objects
 //		dWorldSetContactSurfaceLayer(world->ode.ode_world, max(0, physics_bullet_contactsurfacelayer.value));
@@ -1652,7 +1700,7 @@ static void QDECL World_Bullet_Start(world_t *world)
 	if (world->rbe)
 		return;	//no thanks, we already have one. somehow.
 
-	if (!pCvar_GetFloat("physics_bullet_enable"))
+	if (!physics_bullet_enable->value)
 		return;
 
 	ctx = (struct bulletcontext_s*)BZ_Malloc(sizeof(*ctx));

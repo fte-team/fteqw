@@ -113,7 +113,7 @@ void W_LoadWadFile (char *filename)
 	if (header->identification[0] != 'W'
 	|| header->identification[1] != 'A'
 	|| header->identification[2] != 'D'
-	|| header->identification[3] != '2')
+	|| (header->identification[3] != '2' && header->identification[3] != '3'))
 	{
 		Con_Printf ("W_LoadWadFile: Wad file %s doesn't have WAD2 id\n",filename);
 		wad_numlumps = 0;
@@ -138,32 +138,17 @@ void W_LoadWadFile (char *filename)
 
 /*
 =============
-W_GetLumpinfo
+W_GetLumpName
 =============
 */
-/*lumpinfo_t	*W_GetLumpinfo (char *name)
+void *W_GetLumpName (const char *name, size_t *size, qbyte *type)
 {
 	int		i;
 	lumpinfo_t	*lump_p;
 	char	clean[16];
-	
-	W_CleanupName (name, clean);
-	
-	for (lump_p=wad_lumps, i=0 ; i<wad_numlumps ; i++,lump_p++)
-	{
-		if (!strcmp(clean, lump_p->name))
-			return lump_p;
-	}
-	
-	Sys_Error ("W_GetLumpinfo: %s not found", name);
-	return NULL;
-}*/
 
-void *W_SafeGetLumpName (const char *name, size_t *size)
-{
-	int		i;
-	lumpinfo_t	*lump_p;
-	char	clean[16];
+	*type = 0;
+	*size = 0;
 
 	W_CleanupName (name, clean);
 
@@ -171,33 +156,13 @@ void *W_SafeGetLumpName (const char *name, size_t *size)
 	{
 		if (!strcmp(clean, lump_p->name))
 		{
+			*type = lump_p->type;
 			*size = lump_p->disksize;
 			return (void *)(wad_base+lump_p->filepos);
 		}
 	}
 	return NULL;
 }
-
-/*void *W_GetLumpName (char *name)
-{
-	lumpinfo_t	*lump;
-	
-	lump = W_GetLumpinfo (name);
-	
-	return (void *)(wad_base + lump->filepos);
-}*/
-
-/*void *W_GetLumpNum (int num)
-{
-	lumpinfo_t	*lump;
-	
-	if (num < 0 || num >= wad_numlumps)
-		Sys_Error ("W_GetLumpNum: bad number: %i", num);
-		
-	lump = wad_lumps + num;
-	
-	return (void *)(wad_base + lump->filepos);
-}*/
 
 /*
 =============================================================================
@@ -499,10 +464,11 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 	{
 		qpic_t *p;
 		size_t lumpsize;
-		p = W_SafeGetLumpName(name+4, &lumpsize);
+		qbyte lumptype;
+		p = W_GetLumpName(name+4, &lumpsize, &lumptype);
 		if (p)
 		{
-			if (!strcmp(name+4, "conchars") && lumpsize==128*128)
+			if (/*lumptype == TYP_QPIC && */!strcmp(name+4, "conchars") && lumpsize==128*128)
 			{	//conchars has no header.
 				qbyte *lump = (qbyte*)p;
 				extern cvar_t con_ocranaleds;
@@ -529,7 +495,7 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 
 				return data;
 			}
-			else if (lumpsize == 8+p->width*p->height)
+			else if (lumptype == TYP_QPIC && lumpsize == 8+p->width*p->height)
 			{
 				*width = p->width;
 				*height = p->height;
@@ -542,6 +508,26 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 				}
 				return data;
 			}
+			else if (lumptype == TYP_QPIC && lumpsize == 8+p->width*p->height+4+768)
+			{	//halflife, 24bit palette at end
+				qbyte *pal = p->data+p->width*p->height+4;
+				*width = p->width;
+				*height = p->height;
+				*usesalpha = true;
+
+				data = BZ_Malloc(p->width * p->height * 4);
+				for (i = 0; i < p->width * p->height; i++)
+				{
+					qbyte *rgb = pal + p->data[i]*3;
+					data[i*4+0] = rgb[0];
+					data[i*4+1] = rgb[1];
+					data[i*4+2] = rgb[2];
+					data[i*4+3] = ((p->data[i]==255)?0:255);
+				}
+				return data;
+			}
+			else
+				Con_Printf("W_GetTexture: unknown lump type\n");
 		}
 	}
 

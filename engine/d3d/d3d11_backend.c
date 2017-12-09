@@ -1268,7 +1268,7 @@ static void colourgenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *srcb, 
 		}
 		else
 		{
-			R_LightArraysByte_BGR(shaderstate.curentity , mesh->xyz_array, dst, cnt, mesh->normals_array);
+			R_LightArraysByte_BGR(shaderstate.curentity , mesh->xyz_array, dst, cnt, mesh->normals_array, pass->rgbgen==RGB_GEN_ENTITY_LIGHTING_DIFFUSE);
 		}
 		break;
 	case RGB_GEN_WAVE:

@@ -6,6 +6,9 @@ clientside master queries and server ping/polls
 #include "quakedef.h"
 #include "cl_master.h"
 
+#define FAVOURITESFILE "favourites.txt"
+
+qboolean	sb_favouriteschanged;	//some server's favourite flag got changed. we'll need to resave the list.
 qboolean	sb_enablequake2;
 qboolean	sb_enablequake3;
 qboolean	sb_enablenetquake;
@@ -585,7 +588,7 @@ void SV_Master_Shutdown (void)
 //the number of servers should be limited only by memory.
 
 cvar_t slist_cacheinfo = CVAR("slist_cacheinfo", "0");	//this proves dangerous, memory wise.
-cvar_t slist_writeserverstxt = CVAR("slist_writeservers", "0");
+cvar_t slist_writeserverstxt = CVAR("slist_writeservers", "1");
 
 void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad);
 int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favorite);
@@ -2488,110 +2491,44 @@ void MasterInfo_Request(master_t *mast)
 
 void MasterInfo_WriteServers(void)
 {
-	char *typename, *protoname;
-	master_t *mast;
 	serverinfo_t *server;
-	vfsfile_t *mf, *qws;
+	vfsfile_t *qws;
 	char adr[MAX_ADR_SIZE];
 
-	mf = FS_OpenVFS("masters.txt", "wt", FS_ROOT);
-	if (!mf)
+	if (slist_writeserverstxt.ival && sb_favouriteschanged)
 	{
-		Con_Printf(CON_ERROR "Couldn't write masters.txt");
-		return;
-	}
-
-	for (mast = master; mast; mast=mast->next)
-	{
-		if (mast->nosave)
-			continue;
-
-		switch(mast->mastertype)
+		qws = FS_OpenVFS(FAVOURITESFILE, "wt", FS_ROOT);
+		if (qws)
 		{
-		case MT_MASTERUDP:
-			typename = "master";
-			break;
-		case MT_MASTERHTTP:
-			typename = "masterhttp";
-			break;
-		case MT_MASTERHTTPJSON:
-			typename = "masterjson";
-			break;
-		case MT_BCAST:
-			typename = "bcast";
-			break;
-		case MT_SINGLE:
-			typename = "single";
-			break;
-		default:
-			typename = "??";
-			break;
-		}
-		switch(mast->protocoltype)
-		{
-		case MP_QUAKEWORLD:
-			protoname = ":qw";
-			break;
-		case MP_QUAKE2:
-			protoname = ":q2";
-			break;
-		case MP_QUAKE3:
-			protoname = ":q3";
-			break;
-		case MP_NETQUAKE:
-			protoname = ":nq";
-			break;
-		case MP_DPMASTER:
-			protoname = ":dp";
-			break;
-		default:
-		case MP_UNSPECIFIED:
-			protoname = "";
-			break;
-		}
-		if (mast->address)
-			VFS_PUTS(mf, va("%s\t%s%s\t%s\n", mast->address, typename, protoname, mast->name));
-		else
-			VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &mast->adr), typename, mast->name));
-	}
-
-	if (slist_writeserverstxt.value)
-		qws = FS_OpenVFS("servers.txt", "wt", FS_ROOT);
-	else
-		qws = NULL;
-	if (qws)
-		VFS_PUTS(mf, va("\n%s\t%s\t%s\n\n", "file servers.txt", "favorite:qw", "personal server list"));
-
-	for (server = firstserver; server; server = server->next)
-	{
-		if (server->special & SS_FAVORITE)
-		{
-			switch(server->special & SS_PROTOCOLMASK)
+			sb_favouriteschanged = false;
+			for (server = firstserver; server; server = server->next)
 			{
-			case SS_QUAKE3:
-				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:q3", server->name));
-				break;
-			case SS_QUAKE2:
-				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:q2", server->name));
-				break;
-			case SS_NETQUAKE:
-				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:nq", server->name));
-				break;
-			case SS_QUAKEWORLD:
-				if (qws)	//servers.txt doesn't support the extra info, so don't write it if its not needed
-					VFS_PUTS(qws, va("%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), server->name));
-				else			
-					VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:qw", server->name));
-				break;
+				if (server->special & SS_FAVORITE)
+				{
+					switch(server->special & SS_PROTOCOLMASK)
+					{
+					case SS_QUAKE3:
+						VFS_PUTS(qws, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:q3", server->name));
+						break;
+					case SS_QUAKE2:
+						VFS_PUTS(qws, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:q2", server->name));
+						break;
+					case SS_NETQUAKE:
+						VFS_PUTS(qws, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:nq", server->name));
+						break;
+//					case SS_DARKPLACES:
+//						VFS_PUTS(qws, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:dp", server->name));
+//						break;
+					case SS_QUAKEWORLD:
+						VFS_PUTS(qws, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), &server->adr), "favorite:qw", server->name));
+						break;
+					}
+				}
 			}
+
+			VFS_CLOSE(qws);
 		}
 	}
-
-	if (qws)
-		VFS_CLOSE(qws);
-
-
-	VFS_CLOSE(mf);
 }
 
 //poll master servers for server lists.
@@ -2602,11 +2539,15 @@ void MasterInfo_Refresh(void)
 
 	loadedone = false;
 	loadedone |= Master_LoadMasterList("masters.txt", false, MT_MASTERUDP, MP_QUAKEWORLD, 5);	//fte listing
-	loadedone |= Master_LoadMasterList("sources.txt", true, MT_MASTERUDP, MP_QUAKEWORLD, 5);	//merge with ezquake compat listing
+
+	Master_LoadMasterList(FAVOURITESFILE, false, MT_MASTERUDP, MP_QUAKEWORLD, 1);
 
 	if (!loadedone)
 	{
 		int i;
+
+		Master_LoadMasterList("sources.txt", true, MT_MASTERUDP, MP_QUAKEWORLD, 5);	//merge with ezquake compat listing
+
 		Master_LoadMasterList("servers.txt", false, MT_MASTERUDP, MP_QUAKEWORLD, 1);
 
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_QWSERVER),				MT_BCAST,			MP_QUAKEWORLD, "Nearby QuakeWorld UDP servers.");
@@ -3030,7 +2971,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 		name = Info_ValueForKey(msg, "sv_hostname");
 	Q_strncpyz(info->name, name, sizeof(info->name));
 	info->special = info->special & (SS_FAVORITE | SS_KEEPINFO | SS_LOCAL);	//favorite+local is never cleared
-	if (!strcmp(DISTRIBUTION, Info_ValueForKey(msg, "*distrib")))
+	if (!strcmp(DISTRIBUTION, Info_ValueForKey(msg, "*distrib")))	//outdated
 		info->special |= SS_FTESERVER;
 	else if (!strncmp(DISTRIBUTION, Info_ValueForKey(msg, "*version"), strlen(DISTRIBUTION)))
 		info->special |= SS_FTESERVER;

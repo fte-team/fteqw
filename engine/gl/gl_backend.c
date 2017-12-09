@@ -2084,21 +2084,11 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 			dst[cnt][2] = pass->rgbgen_func.args[2];
 		}
 		break;
+	case RGB_GEN_ENTITY_LIGHTING_DIFFUSE:
+		R_LightArrays(shaderstate.curentity, mesh->xyz_array, dst, cnt, mesh->normals_array, shaderstate.identitylighting, true);
+		break;
 	case RGB_GEN_LIGHTING_DIFFUSE:
-		//collect lighting details for mobile entities
-		if (!mesh->normals_array)
-		{
-			while((cnt)--)
-			{
-				dst[cnt][0] = 1;
-				dst[cnt][1] = 1;
-				dst[cnt][2] = 1;
-			}
-		}
-		else
-		{
-			R_LightArrays(shaderstate.curentity, mesh->xyz_array, dst, cnt, mesh->normals_array, shaderstate.identitylighting);
-		}
+		R_LightArrays(shaderstate.curentity, mesh->xyz_array, dst, cnt, mesh->normals_array, shaderstate.identitylighting, false);
 		break;
 	case RGB_GEN_WAVE:
 		{
@@ -2572,7 +2562,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 	else
 	{
 		extern cvar_t r_nolightdir;
-		if (pass->rgbgen == RGB_GEN_LIGHTING_DIFFUSE)
+		if (pass->rgbgen == RGB_GEN_LIGHTING_DIFFUSE || pass->rgbgen == RGB_GEN_ENTITY_LIGHTING_DIFFUSE)
 		{
 			if (shaderstate.mode == BEM_DEPTHDARK || shaderstate.mode == BEM_DEPTHONLY)
 			{
@@ -3466,7 +3456,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			qglUniform4fvARB(ph, 2, r_refdef.globalfog.colour);	//and density
 			break;
 		case SP_W_USER:
-			qglUniform4fvARB(ph, countof(r_refdef.userdata), r_refdef.userdata);	//and density
+			qglUniform4fvARB(ph, countof(r_refdef.userdata), r_refdef.userdata[0]);	//and density
 			break;
 		case SP_V_EYEPOS:
 			qglUniform3fvARB(ph, 1, r_origin);
@@ -4022,7 +4012,7 @@ static void BE_LegacyLighting(void)
 		}
 	}
 
-	if (TEXVALID(shaderstate.curtexnums->bump) && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_dot3 && gl_config.arb_texture_env_combine && be_maxpasses >= 4)
+	if (TEXLOADED(shaderstate.curtexnums->bump) && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_dot3 && gl_config.arb_texture_env_combine && be_maxpasses >= 4)
 	{	//we could get this down to 2 tmus by arranging for the dot3 result to be written the alpha buffer. But then we'd need to have an alpha buffer too.
 
 		if (!shaderstate.normalisationcubemap)
@@ -4056,7 +4046,7 @@ static void BE_LegacyLighting(void)
 		tmu++;
 	
 		//tmu3: $any+multiply-by-colour+notc
-		GL_LazyBind(tmu, GL_TEXTURE_2D, shaderstate.curtexnums->bump);	//texture not used, its just to make sure the code leaves it enabled.
+		GL_LazyBind(tmu, GL_TEXTURE_2D, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
 		BE_SetPassBlendMode(tmu, PBM_MODULATE_PREV_COLOUR);
 		shaderstate.pendingtexcoordparts[tmu] = 0;
 		shaderstate.pendingtexcoordvbo[tmu] = 0;
@@ -4098,9 +4088,9 @@ static void BE_LegacyLighting(void)
 
 	BE_SubmitMeshChain(false);
 
-	GL_LazyBind(1, 0, r_nulltex);
-	GL_LazyBind(2, 0, r_nulltex);
-	GL_LazyBind(3, 0, r_nulltex);
+//	GL_LazyBind(1, 0, r_nulltex);
+//	GL_LazyBind(2, 0, r_nulltex);
+//	GL_LazyBind(3, 0, r_nulltex);
 }
 #endif
 

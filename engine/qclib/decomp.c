@@ -1634,14 +1634,11 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		QCC_CatVFile(Decompileofile, ";\n");
 
 	}
-	else if ((OP_MUL_F <= s->op && s->op <= OP_SUB_V) ||
-		(OP_EQ_F <= s->op && s->op <= OP_GT_F) ||
-		(OP_AND_F <= s->op && s->op <= OP_BITOR_F)
-		/*|| pr_opcodes[s->op].associative == ASSOC_LEFT*/)
+	else if (pr_opcodes[s->op].flags & OPF_STD)
 	{
 		DecompileOpcode(df, s->a, s->b, s->c, pr_opcodes[s->op].name, typ1, typ2, typ3, true, indent);
 	}
-	else if (OP_GLOBALADDRESS == s->op)
+	else if ((pr_opcodes[s->op].flags & OPF_LOADPTR) || OP_GLOBALADDRESS == s->op)
 	{
 		arg1 = DecompileGet(df, s->a, typ1);
 		arg2 = DecompileGet(df, s->b, typ2);
@@ -1696,7 +1693,7 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 			DecompileImmediate_Insert(df, s->c, line, typ3);
 		}
 	}
-	else if ((OP_STORE_F <= s->op && s->op <= OP_STORE_FNC) || s->op == OP_STORE_I || s->op == OP_STORE_P)
+	else if (pr_opcodes[s->op].flags & OPF_STORE)
 	{
 		QCC_type_t *parmtype=NULL;
 		if (s->b >= ofs_parms[0] && s->b < ofs_parms[7]+ofs_size)
@@ -1779,7 +1776,7 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		if (arg3)
 		{
 			DecompileIndent(*indent);
-			QCC_CatVFile(Decompileofile, "%s = %s;\n", arg3, arg1);
+			QCC_CatVFile(Decompileofile, "%s %s %s;\n", arg3, pr_opcodes[s->op].name, arg1);
 		}
 		else
 		{
@@ -1788,23 +1785,27 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		}
 
 	}
-	else if (OP_STOREP_F <= s->op && s->op <= OP_STOREP_FNC)
+	else if (pr_opcodes[s->op].flags & OPF_STOREPTR)
 	{
 		arg1 = DecompileGet(df, s->a, typ2);
 		//FIXME: we need to deal with ref types and other crazyness, so we know whether we need to add * or *& or if we can skip that completely
 		arg2 = DecompileGet(df, s->b, typ2);
 
 		DecompileIndent(*indent);
-		QCC_CatVFile(Decompileofile, "%s = %s;\n", arg2, arg1);
+		QCC_CatVFile(Decompileofile, "%s %s %s;\n", arg2, pr_opcodes[s->op].name, arg1);
 
 	}
 	else if (OP_CONV_FTOI == s->op)
 	{
-
 		arg1 = DecompileGet(df, s->a, typ1);
 		QC_snprintfz(line, sizeof(line), "(int)%s", arg1);
 		DecompileImmediate_Insert(df, s->c, line, type_integer);
-
+	}
+	else if (OP_CONV_ITOF == s->op)
+	{
+		arg1 = DecompileGet(df, s->a, typ1);
+		QC_snprintfz(line, sizeof(line), "(float)%s", arg1);
+		DecompileImmediate_Insert(df, s->c, line, type_float);
 	}
 	else if (OP_RAND0 == s->op)
 	{

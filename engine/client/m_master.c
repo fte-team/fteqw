@@ -353,6 +353,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 		if (server)
 		{
 			server->special ^= SS_FAVORITE;
+			sb_favouriteschanged = true;
 		}
 	}
 

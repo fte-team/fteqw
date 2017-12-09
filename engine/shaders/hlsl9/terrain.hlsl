@@ -3,7 +3,7 @@
 
 #include "sys/fog.h"
 
-//FIXME: too lazy to implement this right now.
+//FIXME: too lazy to implement this right now. rtlights on d3d9 are just bad right now.
 #undef RTLIGHT
 #undef PCF
 #undef CUBE

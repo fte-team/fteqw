@@ -21,6 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "fs.h"
+#ifndef SERVERONLY
+#include "cl_master.h"
+#endif
 
 cvar_t ruleset_allow_in		= CVAR("ruleset_allow_in", "1");
 cvar_t rcon_level			= CVAR("rcon_level", "20");
@@ -765,6 +768,37 @@ void Cmd_Exec_f (void)
 		if (fs_manifest->defaultoverrides)
 			Cbuf_InsertText (fs_manifest->defaultoverrides, level, false);
 	}
+#ifndef QUAKETC
+	//hack to try to work around nquake's b0rkedness
+	if (!strncmp(s, "// ", 3))
+	{
+		char *eol = strstr(s, "\n");
+		if (eol)
+		{
+			*eol = 0;
+			s = eol+1;
+			if (strstr(f, "nQuake"))
+			{	//this is evil, but if we're running quake then com_parseutf8 will be 0 and we can just convert to quake chars.
+				char *in = s;
+				char *out = s;
+				int foundone = 0;
+				while (*in)
+				{
+					if (*in == '^')
+					{
+						*out++ = 0x80|*++in;
+						foundone++;
+					}
+					else
+						*out++ = *in;
+					in++;
+				}
+				if (foundone)
+					Cbuf_InsertText(va("echo fixups for nquake config %s: %i replacements\n", buf, foundone), level, false);
+			}
+		}
+	}
+#endif
 	Cbuf_InsertText (s, level, true);
 	if (cvar_watched)
 		Cbuf_InsertText (va("echo BEGIN %s", buf), level, true);
@@ -794,21 +828,32 @@ Cmd_Echo_f
 Just prints the rest of the line to the console
 ===============
 */
+char *TP_ParseFunChars (char *s);
 void Cmd_Echo_f (void)
 {
+	char text[4096];
+	char extext[4096], *t;
+	int level = Cmd_ExecLevel;
 	int		i;
+	*text = 0;
 
 	for (i=1 ; i<Cmd_Argc() ; i++)
 	{
 		if (i >= 2)
-			Con_Printf (" ");
-#ifdef SERVERONLY
-		Con_Printf ("%s", Cmd_Argv(i));
-#else
-		Con_PrintFlags (Cmd_Argv(i), (com_parseezquake.ival?PFS_EZQUAKEMARKUP:0), 0);
-#endif
+			Q_strncatz(text, " ", sizeof(text));
+		Q_strncatz(text, Cmd_Argv(i), sizeof(text));
 	}
-	Con_Printf ("\n");
+	Q_strncatz(text, "\n", sizeof(text));
+
+	//echo text is often quoted, so expand the text again now that we're no longer in quotes.
+	t = Cmd_ExpandString(text, extext, sizeof(extext), &level, !Cmd_IsInsecure()?true:false, true);
+
+#ifdef SERVERONLY
+	Con_Printf ("%s", t);
+#else
+	t = TP_ParseFunChars(t);
+	Con_PrintFlags (t, (com_parseezquake.ival?PFS_EZQUAKEMARKUP:0), 0);
+#endif
 }
 
 static void Key_Alias_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
@@ -3754,6 +3799,10 @@ void Cmd_WriteConfig_f(void)
 		snprintf(fname, sizeof(fname), "config.cfg");
 #else
 		snprintf(fname, sizeof(fname), "fte.cfg");
+#endif
+
+#ifndef SERVERONLY
+		MasterInfo_WriteServers();
 #endif
 
 		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 3, "quake.rc", "hexen.rc", "*.cfg", "configs/*.cfg");

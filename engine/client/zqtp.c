@@ -3789,7 +3789,7 @@ void CL_Say (qboolean team, char *extra)
 				if (*s == 'z')
 					*d++ = 'x';
 				else
-					*d++ = 139;
+					*d++ = (char)139;
 
 				*d++ = '^';
 				*d++ = 'r';

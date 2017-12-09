@@ -1357,7 +1357,7 @@ static const char *lastfile = 0;
 			if (debugaction == DEBUG_TRACE_NORESUME)
 				continue;
 			else if(debugaction == DEBUG_TRACE_ABORT)
-				progfuncs->funcs.parms->Abort (fault?fault:"Debugger Abort");
+				progfuncs->funcs.parms->Abort ("%s", fault?fault:"Debugger Abort");
 			else if (debugaction == DEBUG_TRACE_OFF)
 			{
 				//if we're resuming, don't hit any lingering step-over triggers

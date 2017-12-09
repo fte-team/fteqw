@@ -1409,10 +1409,10 @@ void CL_Rcon_f (void)
 		}
 	}
 
-	message[0] = 255;
-	message[1] = 255;
-	message[2] = 255;
-	message[3] = 255;
+	message[0] = (char)255;
+	message[1] = (char)255;
+	message[2] = (char)255;
+	message[3] = (char)255;
 	message[4] = 0;
 
 	Q_strncatz (message, "rcon ", sizeof(message));

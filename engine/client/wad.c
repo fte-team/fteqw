@@ -26,7 +26,7 @@ void *wadmutex;
 #ifndef PACKAGE_TEXWAD
 void Wads_Flush (void){}
 qboolean Wad_NextDownload (void){return true;}
-void *W_SafeGetLumpName (const char *name, size_t *size) {return NULL;}
+void *W_GetLumpName (const char *name, size_t *size, qbyte *type) {return NULL;}
 qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalpha){return NULL;}
 void W_LoadWadFile (char *filename){}
 void W_Shutdown (void){}

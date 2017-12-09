@@ -230,10 +230,10 @@ static void Mod_BlockTextureColour_f (void)
 //	unsigned int colour[8*8];
 	unsigned int rgba;
 
-	((char *)&rgba)[0] = atoi(Cmd_Argv(2));
-	((char *)&rgba)[1] = atoi(Cmd_Argv(3));
-	((char *)&rgba)[2] = atoi(Cmd_Argv(4));
-	((char *)&rgba)[3] = 255;
+	((qbyte *)&rgba)[0] = atoi(Cmd_Argv(2));
+	((qbyte *)&rgba)[1] = atoi(Cmd_Argv(3));
+	((qbyte *)&rgba)[2] = atoi(Cmd_Argv(4));
+	((qbyte *)&rgba)[3] = 255;
 
 	sprintf(texname, "purergb_%i_%i_%i", (int)((char *)&rgba)[0], (int)((char *)&rgba)[1], (int)((char *)&rgba)[2]);
 /*	s = R_RegisterCustom(Cmd_Argv(2), SUF_LIGHTMAP, NULL, NULL);

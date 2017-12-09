@@ -1722,7 +1722,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 		FMT_QUAKE,		//first is default
 		FMT_ISO88591,	//latin-1 (first 256 chars of unicode too)
 		FMT_HORIZONTAL,	//unicode, charcount=width/(height-2). single strip of chars, like halflife.
-	} fmt;
+	} fmt = FMT_AUTO;
 
 	Q_strncpy(facename, fontfilename, sizeof(facename));
 

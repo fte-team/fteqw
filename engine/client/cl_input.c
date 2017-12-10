@@ -1140,6 +1140,8 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 				CLNQ_SendMove (&cl.outframes[i].cmd[seat], seat, buf);
 		}
 	}
+	else
+		MSG_WriteByte (buf, clc_nop);
 
 	for (i = 0; i < cl.numackframes; i++)
 	{
@@ -1843,6 +1845,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			fullsend = false;
 		}
 		framemsecs = usetime;
+		msecs = 0;
 	}
 	else
 	{

@@ -1,4 +1,20 @@
+enum masterprotocol_e
+{
+	MP_UNSPECIFIED,
+	MP_QUAKEWORLD,
+#if defined(Q2CLIENT) || defined(Q2SERVER)
+	MP_QUAKE2,
+#endif
+#if defined(Q3CLIENT) || defined(Q3SERVER)
+	MP_QUAKE3,
+#endif
+#ifdef NQPROT
+	MP_NETQUAKE,
+#endif
+	MP_DPMASTER
+};
 
+#if defined(CL_MASTER) && !defined(SERVERONLY)
 #define SS_PROTOCOLMASK 0xf
 #define SS_UNKNOWN		0
 #define SS_QUAKEWORLD	1
@@ -25,15 +41,6 @@ enum mastertype_e
 	MT_MASTERUDP,
 	MT_BCAST,
 	MT_SINGLE,
-};
-enum masterprotocol_e
-{
-	MP_UNSPECIFIED,
-	MP_QUAKEWORLD,
-	MP_QUAKE2,
-	MP_QUAKE3,
-	MP_NETQUAKE,
-	MP_DPMASTER
 };
 
 
@@ -231,3 +238,6 @@ serverinfo_t *Master_SortedServer(int idx);
 void Master_SetMaskString(qboolean or, hostcachekey_t field, const char *param, slist_test_t testop);
 void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_test_t testop);
 serverinfo_t *Master_FindRoute(netadr_t target);
+#else
+#define MasterInfo_WriteServers()
+#endif

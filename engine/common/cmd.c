@@ -21,9 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "fs.h"
-#ifndef SERVERONLY
 #include "cl_master.h"
-#endif
 
 cvar_t ruleset_allow_in		= CVAR("ruleset_allow_in", "1");
 cvar_t rcon_level			= CVAR("rcon_level", "20");
@@ -3801,9 +3799,7 @@ void Cmd_WriteConfig_f(void)
 		snprintf(fname, sizeof(fname), "fte.cfg");
 #endif
 
-#ifndef SERVERONLY
 		MasterInfo_WriteServers();
-#endif
 
 		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 3, "quake.rc", "hexen.rc", "*.cfg", "configs/*.cfg");
 

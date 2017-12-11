@@ -76,11 +76,9 @@ typedef struct {
 	cvar_t		cv;
 	char		*comment;
 
-#ifndef CLIENTONLY
 	qboolean	needsresolve;	//set any time the cvar is modified
 	qboolean	resolving;	//set any time the cvar is modified
 	netadr_t	adr[MAX_MASTER_ADDRESSES];
-#endif
 } net_masterlist_t;
 net_masterlist_t net_masterlist[] = {
 #ifndef QUAKETC
@@ -152,11 +150,18 @@ net_masterlist_t net_masterlist[] = {
 //	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"master.planetgloom.com:27900",					CVAR_NOSAVE, Net_Masterlist_Callback)},	//?
 //	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"master.q2servers.com:27900",					CVAR_NOSAVE, Net_Masterlist_Callback)},	//?
 	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"netdome.biz:27900",							CVAR_NOSAVE, Net_Masterlist_Callback)},	//?
+	{MP_QUAKE2,		CVARFC("net_q2masterextra2",	"master.quakeservers.net:27900",				CVAR_NOSAVE, Net_Masterlist_Callback)},	//?
 #endif
 
 #ifdef Q3CLIENT
 //	{MP_QUAKE3,		CVARFC("net_q3masterextra1",	"masterserver.exhale.de:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Official Quake3 master server"},
 	{MP_QUAKE3,		CVARFC("net_q3masterextra1",	"master.quake3arena.com:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Official Quake3 master server"},
+	{MP_QUAKE3,		CVARFC("net_q3masterextra2",	"master0.excessiveplus.net:27950",				CVAR_NOSAVE, Net_Masterlist_Callback),	"DE: Excessive Plus"},
+	{MP_QUAKE3,		CVARFC("net_q3masterextra3",	"master.ioquake3.org:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"DE: ioquake3"},
+	{MP_QUAKE3,		CVARFC("net_q3masterextra4",	"master.huxxer.de:27950",						CVAR_NOSAVE, Net_Masterlist_Callback),	"DE: BMA Team"},
+	{MP_QUAKE3,		CVARFC("net_q3masterextra5",	"master.maverickservers.com:27950",				CVAR_NOSAVE, Net_Masterlist_Callback),	"US: Maverickservers.com"},
+	{MP_QUAKE3,		CVARFC("net_q3masterextra6",	"dpmaster.deathmask.net:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"US: DeathMask.net"},
+	{MP_QUAKE3,		CVARFC("net_q3masterextra8",	"master3.idsoftware.com:27950",					CVAR_NOSAVE, Net_Masterlist_Callback),	"US: id Software Quake III Master"},
 #endif
 
 	{MP_UNSPECIFIED, CVAR(NULL, NULL)}
@@ -245,6 +250,7 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 					NET_SendPacket (NS_SERVER, strlen(string), string, na);
 				}
 				break;
+#ifdef Q2SERVER
 			case MP_QUAKE2:
 				if (svs.gametype == GT_QUAKE2 && sv_listen_qw.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
@@ -258,6 +264,7 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 					}
 				}
 				break;
+#endif
 			case MP_DPMASTER:
 				if (sv_listen_dp.value || sv_listen_nq.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
@@ -317,8 +324,12 @@ void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 					case MP_UNSPECIFIED:
 					case MP_NETQUAKE:
 					case MP_DPMASTER:	na->port = BigShort (27950);	break;
+#ifdef Q2SERVER
 					case MP_QUAKE2:		na->port = BigShort (27000);	break;	//FIXME: verify
+#endif
+#ifdef Q3SERVER
 					case MP_QUAKE3:		na->port = BigShort (27950);	break;
+#endif
 					case MP_QUAKEWORLD:	na->port = BigShort (27000);	break;
 					}
 				}
@@ -333,9 +344,11 @@ void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 					//q2+qw masters are given a ping to verify that they're still up
 					switch (master->protocol)
 					{
+#ifdef Q2SERVER
 					case MP_QUAKE2:
 						NET_SendPacket (NS_SERVER, 8, "\xff\xff\xff\xffping", na);
 						break;
+#endif
 					case MP_QUAKEWORLD:
 						//qw does this for some reason, keep the behaviour even though its unreliable thus pointless
 						NET_SendPacket (NS_SERVER, 2, "k\0", na);
@@ -407,8 +420,12 @@ void SV_Master_Heartbeat (void)
 		switch (net_masterlist[i].protocol)
 		{
 		case MP_DPMASTER:	enabled = sb_enabledarkplaces;	break;
+#ifdef Q2SERVER
 		case MP_QUAKE2:		enabled = sb_enablequake2;		break;
+#endif
+#ifdef Q3SERVER
 		case MP_QUAKE3:		enabled = sb_enablequake3;		break;
+#endif
 		case MP_QUAKEWORLD:	enabled = sb_enablequakeworld;	break;
 		default:			enabled = false;				break;
 		}
@@ -1409,9 +1426,13 @@ void CLMaster_AddMaster_Worker_Resolved(void *ctx, void *data, size_t a, size_t 
 			switch (mast->protocoltype)
 			{
 			case MP_DPMASTER:	mast->adr.port = BigShort (27950);	break;
-			case MP_QUAKE2:		mast->adr.port = BigShort (27000);	break;	//FIXME: verify
+#ifdef Q2CLIENT
+			case MP_QUAKE2:		mast->adr.port = BigShort (27900);	break;	//FIXME: verify
+#endif
+#ifdef Q3CLIENT
 			case MP_QUAKE3:		mast->adr.port = BigShort (27950);	break;
-			case MP_QUAKEWORLD:	mast->adr.port = BigShort (27000);	break;
+#endif
+			case MP_QUAKEWORLD:	mast->adr.port = BigShort (PORT_QWMASTER);	break;
 			}
 		}
 
@@ -1656,18 +1677,27 @@ qboolean Master_LoadMasterList (char *filename, qboolean withcomment, int defaul
 			else if (!strcmp(sep, "bcast"))
 				servertype = MT_BCAST;
 
+#ifndef QUAKETC
 			else if (!strcmp(com_token, "qw"))
 				protocoltype = MP_QUAKEWORLD;
+#endif
+#ifdef Q2CLIENT
 			else if (!strcmp(com_token, "q2"))
 				protocoltype = MP_QUAKE2;
+#endif
+#ifdef Q3CLIENT
 			else if (!strcmp(com_token, "q3"))
 				protocoltype = MP_QUAKE3;
+#endif
+#ifdef NQPROT
 			else if (!strcmp(com_token, "nq"))
 				protocoltype = MP_NETQUAKE;
+#endif
 			else if (!strcmp(com_token, "dp"))
 				protocoltype = MP_DPMASTER;
 
 			//legacy compat
+#ifdef NQPROT
 			else if (!strcmp(com_token, "httpjson"))
 			{
 				servertype = MT_MASTERHTTPJSON;
@@ -1678,11 +1708,14 @@ qboolean Master_LoadMasterList (char *filename, qboolean withcomment, int defaul
 				servertype = MT_MASTERHTTP;
 				protocoltype = MP_NETQUAKE;
 			}
+#endif
+#ifndef QUAKETC
 			else if (!strcmp(com_token, "httpqw"))
 			{
 				servertype = MT_MASTERHTTP;
 				protocoltype = MP_QUAKEWORLD;
 			}
+#endif
 
 			else if (!strcmp(com_token, "favourite") || !strcmp(com_token, "favorite"))
 				favourite = true;
@@ -2649,22 +2682,28 @@ qboolean CL_QueryServers(void)
 			if (!sb_enabledarkplaces)
 				continue;
 			break;
+#ifdef NQPROT
 		case MP_NETQUAKE:
 			if (!sb_enablenetquake)
 				continue;
 			break;
+#endif
 		case MP_QUAKEWORLD:
 			if (!sb_enablequakeworld)
 				continue;
 			break;
+#ifdef Q2CLIENT
 		case MP_QUAKE2:
 			if (!sb_enablequake2)
 				continue;
 			break;
+#endif
+#ifdef Q3CLIENT
 		case MP_QUAKE3:
 			if (!sb_enablequake3)
 				continue;
 			break;
+#endif
 		}
 
 		if (mast->sends > 0)
@@ -3003,12 +3042,18 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 			break;
 		}
 	}
+#ifdef Q2CLIENT
 	else if (prototype == MP_QUAKE2)
 		info->special |= SS_QUAKE2;
+#endif
+#ifdef Q3CLIENT
 	else if (prototype == MP_QUAKE3)
 		info->special |= SS_QUAKE3;
+#endif
+#ifdef NQPROT
 	else if (prototype == MP_NETQUAKE)
 		info->special |= SS_NETQUAKE;
+#endif
 	else
 		info->special |= SS_QUAKEWORLD;
 	if (favorite)	//was specifically named, not retrieved from a master.

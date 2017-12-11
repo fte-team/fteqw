@@ -5348,7 +5348,7 @@ void CL_LinkViewModel(void)
 	if (plnum == -1)
 		plnum = r_refdef.playerview->playernum;
 	playereffects = 0;
-	if (r_refdef.playerview->nolocalplayer && plnum >= 0 && plnum < cl.maxlerpents)
+	if (r_refdef.playerview->nolocalplayer && plnum < cl.maxlerpents)
 	{
 		if (plnum+1 < cl.maxlerpents)
 		{
@@ -5357,7 +5357,7 @@ void CL_LinkViewModel(void)
 				playereffects = le->entstate->effects;
 		}
 	}
-	else if (plnum >= 0 && plnum < cl.allocated_client_slots)
+	else if (plnum < cl.allocated_client_slots)
 		playereffects = cl.inframes[parsecountmod].playerstate[plnum].effects;
 
 	if (playereffects & DPEF_NOGUNBOB)

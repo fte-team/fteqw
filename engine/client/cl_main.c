@@ -942,6 +942,13 @@ void CL_CheckForResend (void)
 
 				SVC_DirectConnect();
 			}
+			else if (1)
+			{
+				net_from = connectinfo.adr;
+				Q_snprintfz(net_message.data, net_message.maxsize, "xxxxconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5 RMQ FITZ NEHAHRABJP2 NEHAHRABJP NEHAHRABJP3 QUAKE\\challenge\\0x%x\\name\\%s", SV_NewChallenge(), name.string);
+				Cmd_TokenizeString (net_message.data+4, false, false);
+				SVC_DirectConnect();
+			}
 			else
 				CL_ConnectToDarkPlaces("", &connectinfo.adr);
 //			connectinfo.trying = false;

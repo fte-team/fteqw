@@ -2054,6 +2054,8 @@ static void Q1BSP_ClustersInSphere_Union(mleaf_t *firstleaf, vec3_t center, floa
 		if (node->contents < 0)
 		{	//leaf! mark/merge it.
 			size_t c = (mleaf_t *)node - firstleaf;
+			if (c == -1)
+				return;
 			if (unionwith)
 				out[c>>3] |= (1<<(c&7)) & unionwith[c>>3];
 			else
@@ -2097,7 +2099,7 @@ static qbyte *Q1BSP_ClustersInSphere(model_t *mod, vec3_t center, float radius, 
 	if (pvsbuffer->buffersize < mod->pvsbytes)
 		pvsbuffer->buffer = BZ_Realloc(pvsbuffer->buffer, pvsbuffer->buffersize=mod->pvsbytes);
 	Q_memset (pvsbuffer->buffer, 0, mod->pvsbytes);
-	Q1BSP_ClustersInSphere_Union(mod->leafs-1, center, radius, mod->nodes, pvsbuffer->buffer, NULL);//unionwith);
+	Q1BSP_ClustersInSphere_Union(mod->leafs+1, center, radius, mod->nodes, pvsbuffer->buffer, NULL);//unionwith);
 	return pvsbuffer->buffer;
 }
 

@@ -1998,47 +1998,6 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 			if (f->singletexture->status == TEX_LOADING)
 				COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
 		}
-
-		//halflife fonts are awkward. 256 chars are placed horizontally, and are 2 chars narrower than the height.
-		//FIXME: we ought to reprocess the image, for old gpus to avoid downscaling...
-		/*if (f->singletexture && f->singletexture->status == TEX_LOADED && f->singletexture->width == (f->singletexture->height-2) * 256)
-		{
-			f->txwidth = f->singletexture->width;
-			f->txheight = f->singletexture->height;
-			for ( ; i < 256; i++)
-			{
-				c = Font_GetCharStore(f, i);
-
-				c->advance = f->charheight;
-				c->bmh = f->singletexture->height;
-				c->bmw = f->singletexture->height-2;
-				c->bmx = i*(f->singletexture->height-2);
-				c->bmy = 0;
-				c->left = 0;
-				c->top = 0;
-				c->nextchar = 0;	//these chars are not linked in
-				c->texplane = BITMAPPLANE;
-			}
-			return f; //fixme: no 0xe0XX range
-		}
-		else*/
-		{
-			/*force it to load, even if there's nothing there*/
-			for (i = ((fmt==FMT_QUAKE)?32:0); i < ((fmt==FMT_QUAKE)?128:256); i++)
-			{
-				c = Font_GetCharStore(f, i);
-
-				c->advance = f->charheight;
-				c->bmh = PLANEWIDTH/16;
-				c->bmw = PLANEWIDTH/16;
-				c->bmx = (i&15)*(PLANEWIDTH/16);
-				c->bmy = (i/16)*(PLANEWIDTH/16);
-				c->left = 0;
-				c->top = 0;
-				c->nextchar = 0;	//these chars are not linked in
-				c->texplane = BITMAPPLANE;
-			}
-		}
 	}
 
 	defaultplane = INVALIDPLANE;/*assume the bitmap plane - don't use the fallback as people don't think to use com_parseutf8*/
@@ -2072,6 +2031,25 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 
 	if (defaultplane != INVALIDPLANE)
 	{
+		if (!f->faces)
+		{	
+			/*force it to load, even if there's nothing there*/
+			for (i = ((fmt==FMT_QUAKE)?32:0); i < ((fmt==FMT_QUAKE)?128:256); i++)
+			{
+				c = Font_GetCharStore(f, i);
+
+				c->advance = f->charheight;
+				c->bmh = PLANEWIDTH/16;
+				c->bmw = PLANEWIDTH/16;
+				c->bmx = (i&15)*(PLANEWIDTH/16);
+				c->bmy = (i/16)*(PLANEWIDTH/16);
+				c->left = 0;
+				c->top = 0;
+				c->nextchar = 0;	//these chars are not linked in
+				c->texplane = defaultplane;
+			}
+		}
+
 		/*pack the default chars into it*/
 		for (i = 0xe000; i <= 0xe0ff; i++)
 		{

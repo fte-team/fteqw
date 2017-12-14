@@ -2973,14 +2973,17 @@ static const char *If_Token_Term(const char *func, const char **end)
 			{
 				level--;
 				if (!level)
+				{
+					s2++;
 					break;
+				}
 			}
 			else if (*s2 == '(')
 				level++;
 			s2++;
 		}
 		func = If_Token(s, end, IF_PRI_MAX);
-		*end = s2+1;
+		*end = s2;
 		s = *end;
 		s2 = func;
 	}

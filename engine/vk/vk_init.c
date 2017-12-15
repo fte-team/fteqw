@@ -1557,9 +1557,9 @@ void VK_SetupViewPortProjection(qboolean flipy)
 		r_refdef.flipcull = 0;
 	}
 	if (r_refdef.maxdist)
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
 	else
-		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist);
+		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist);
 }
 
 void VK_Set2D(void)
@@ -1628,9 +1628,9 @@ void VK_Set2D(void)
 	VKBE_Set2D(true);
 
 	if (0)
-		Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.fbvwidth, 0, vid.fbvheight, -99999, 99999);
+		Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, 0, vid.fbvwidth, 0, vid.fbvheight, -99999, 99999);
 	else
-		Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.fbvwidth, vid.fbvheight, 0, -99999, 99999);
+		Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, 0, vid.fbvwidth, vid.fbvheight, 0, -99999, 99999);
 	Matrix4x4_Identity(r_refdef.m_view);
 
 	BE_SelectEntity(&r_worldentity);
@@ -1984,7 +1984,7 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 
 		VKBE_SelectEntity(&r_worldentity);
 
-		R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+		R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 		RQ_BeginFrame();
 		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 		{
@@ -2206,7 +2206,7 @@ void	VK_R_RenderView				(void)
 
 		VKBE_SelectEntity(&r_worldentity);
 
-		R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+		R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 		RQ_BeginFrame();
 		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 		{

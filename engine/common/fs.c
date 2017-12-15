@@ -21,6 +21,7 @@ qboolean fs_readonly;
 int waitingformanifest;
 static unsigned int fs_restarts;
 void *fs_thread_mutex;
+float fs_accessed_time;	//timestamp of read (does not include flocates, which should normally happen via a cache).
 
 cvar_t com_fs_cache			= CVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
 cvar_t fs_noreexec			= CVARD("fs_noreexec", "0", "Disables automatic re-execing configs on gamedir switches.\nThis means your cvar defaults etc may be from the wrong mod, and cfg_save will leave that stuff corrupted!");	
@@ -1877,6 +1878,8 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 
 	//eventually, this function will be the *ONLY* way to get at files
 
+	fs_accessed_time = realtime;
+
 	if (relativeto == FS_SYSTEM)
 		return VFSOS_Open(filename, mode);
 
@@ -2134,6 +2137,8 @@ qbyte *COM_LoadFile (const char *path, int usehunk, size_t *filesize)
 
 	if (loc.len > 0x7fffffff)	//don't malloc 5000gb sparse files or anything crazy on a 32bit system...
 		return NULL;
+
+	fs_accessed_time = realtime;
 
 	f = loc.search->handle->OpenVFS(loc.search->handle, &loc, "rb");
 	if (!f)

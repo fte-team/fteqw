@@ -1199,6 +1199,44 @@ void V_ApplyAFov(playerview_t *pv)
 			r_refdef.fov_x = CalcFov(r_refdef.fov_y, r_refdef.vrect.height, r_refdef.vrect.width*ws);
 		}
 	}
+
+	if (!r_refdef.fovv_x || !r_refdef.fovv_y)
+	{
+		extern cvar_t r_stereo_separation;
+		float ws;
+
+		float afov = scr_fov_viewmodel.value;
+		if (afov)
+		{
+			afov = bound(0.001, afov, 170);
+
+			ws = 1;
+#ifdef FTE_TARGET_WEB
+			if (r_refdef.stereomethod == STEREO_WEBVR)
+				ws = 0.5;
+#endif
+			if (r_refdef.stereomethod == STEREO_CROSSEYED && r_stereo_separation.value)
+				ws = 0.5;
+
+			//attempt to retain a classic fov
+			if (ws*r_refdef.vrect.width < (r_refdef.vrect.height*640)/432)
+			{
+				r_refdef.fovv_y = CalcFov(afov, (ws*r_refdef.vrect.width*r_refdef.pxrect.width)/vid.fbvwidth, (r_refdef.vrect.height*r_refdef.pxrect.height)/vid.fbvheight);
+				r_refdef.fovv_x = afov;//CalcFov(r_refdef.fov_y, 432, 640);
+			}
+			else
+			{
+				r_refdef.fovv_y = CalcFov(afov, 640, 432);
+				r_refdef.fovv_x = CalcFov(r_refdef.fovv_y, r_refdef.vrect.height, r_refdef.vrect.width*ws);
+			}
+		}
+		else
+		{
+			r_refdef.fovv_x = r_refdef.fov_x;
+			r_refdef.fovv_y = r_refdef.fov_y;
+		}
+	}
+
 	if (r_refdef.useperspective)
 	{
 		if (r_refdef.mindist < 1)
@@ -1405,6 +1443,8 @@ void V_ClearRefdef(playerview_t *pv)
 	r_refdef.afov = scr_fov.value;	//will have a better value applied if fov is bad. this allows setting.
 	r_refdef.fov_x = 0;
 	r_refdef.fov_y = 0;
+	r_refdef.fovv_x = 0;
+	r_refdef.fovv_y = 0;
 
 	r_refdef.drawsbar = cl.intermissionmode == IM_NONE;
 	r_refdef.flags = 0;
@@ -1579,8 +1619,6 @@ The player's clipping box goes from (-16 -16 -24) to (16 16 32) from
 the entity origin, so any view position inside that will be valid
 ==================
 */
-extern vrect_t scr_vrect;
-
 qboolean r_secondaryview;
 #ifdef SIDEVIEWS
 

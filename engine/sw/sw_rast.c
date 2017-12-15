@@ -930,16 +930,16 @@ void SW_R_RenderView(void)
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
 	if (r_refdef.useperspective)
-		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, r_refdef.fov_x, r_refdef.fov_y, r_refdef.mindist);
+		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, r_refdef.fov_x, r_refdef.fov_y, r_refdef.mindist);
 	else
-		Matrix4x4_CM_Orthographic(r_refdef.m_projection, -r_refdef.fov_x/2, r_refdef.fov_x/2, -r_refdef.fov_y/2, r_refdef.fov_y/2, r_refdef.mindist, r_refdef.maxdist>=1?r_refdef.maxdist:9999);
+		Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, -r_refdef.fov_x/2, r_refdef.fov_x/2, -r_refdef.fov_y/2, r_refdef.fov_y/2, r_refdef.mindist, r_refdef.maxdist>=1?r_refdef.maxdist:9999);
 	VectorCopy(r_refdef.viewangles, newa);
 	newa[0] = r_refdef.viewangles[0];
 	newa[1] = r_refdef.viewangles[1];
 	newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
 	Matrix4x4_CM_ModelViewMatrix(r_refdef.m_view, newa, r_refdef.vieworg);
 
-	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+	R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 
 	RQ_BeginFrame();
 

@@ -1430,16 +1430,16 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	if (!lvis)
 	{
 		int clus;
-//		if ((type == SMT_SHADOWLESS || dl->lightcolourscales[0]) && cl.worldmodel->funcs.ClustersInSphere)
+		if ((type == SMT_SHADOWLESS || dl->lightcolourscales[0]) && cl.worldmodel->funcs.ClustersInSphere)
 			//shadowless lights don't cast shadows, so they're seen through everything - their vis must reflect that.
-//			lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb, NULL);
-//		else
+			lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb, NULL);
+		else
 		{
 			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
 			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 
-//			if (cl.worldmodel->funcs.ClustersInSphere)
-//				lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, lvis);
+			if (cl.worldmodel->funcs.ClustersInSphere)
+				lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, lvis);
 		}
 	}
 
@@ -1814,7 +1814,7 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, srect_t *r)
 	{
 		vert[i][3] = 1;
 		Matrix4x4_CM_Transform4(r_refdef.m_view, vert[i], tv); 
-		Matrix4x4_CM_Transform4(r_refdef.m_projection, tv, v);
+		Matrix4x4_CM_Transform4(r_refdef.m_projection_std, tv, v);
 
 		x = v[0] / v[3];
 		y = v[1] / v[3];
@@ -2401,12 +2401,12 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 	if (!sidevisible)
 		return false;
 
-	memcpy(oproj, r_refdef.m_projection, sizeof(oproj));
+	memcpy(oproj, r_refdef.m_projection_std, sizeof(oproj));
 	memcpy(oview, r_refdef.m_view, sizeof(oview));
 	oprect = r_refdef.pxrect;
 	smesh = SHM_BuildShadowMesh(l, lvis, SMT_SHADOWMAP);
 
-	Matrix4x4_CM_Projection_Far(r_refdef.m_projection, l->fov?l->fov:90, l->fov?l->fov:90, r_shadow_shadowmapping_nearclip.value, l->radius);
+	Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, l->fov?l->fov:90, l->fov?l->fov:90, r_shadow_shadowmapping_nearclip.value, l->radius);
 
 	switch(qrenderer)
 	{
@@ -2474,7 +2474,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 		if (!gl_config.nofixedfunc)
 		{
 			qglMatrixMode(GL_PROJECTION);
-			qglLoadMatrixf(r_refdef.m_projection);
+			qglLoadMatrixf(r_refdef.m_projection_std);
 			qglMatrixMode(GL_MODELVIEW);
 		}
 		break;
@@ -2504,18 +2504,18 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 		if (sidevisible & (1u<<f))
 		{
 			RQuantAdd(RQUANT_SHADOWSIDES, 1);
-			Sh_GenShadowFace(l, axis, smesh, f, smsize, r_refdef.m_projection);
+			Sh_GenShadowFace(l, axis, smesh, f, smsize, r_refdef.m_projection_std);
 		}
 	}
 
 	memcpy(r_refdef.m_view, oview, sizeof(r_refdef.m_view));
-	memcpy(r_refdef.m_projection, oproj, sizeof(r_refdef.m_projection));
+	memcpy(r_refdef.m_projection_std, oproj, sizeof(r_refdef.m_projection_std));
 
 	r_refdef.pxrect = oprect;
 
 	r_refdef.flipcull = oldflip;
 	r_refdef.externalview = oldexternalview;
-	R_SetFrustum(r_refdef.m_projection, r_refdef.m_view);
+	R_SetFrustum(r_refdef.m_projection_std, r_refdef.m_view);
 
 	switch(qrenderer)
 	{
@@ -2528,7 +2528,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 		if (!gl_config.nofixedfunc)
 		{
 			qglMatrixMode(GL_PROJECTION);
-			qglLoadMatrixf(r_refdef.m_projection);
+			qglLoadMatrixf(r_refdef.m_projection_std);
 			qglMatrixMode(GL_MODELVIEW);
 			qglLoadMatrixf(r_refdef.m_view);
 		}
@@ -2675,8 +2675,8 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qb
 			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, l->origin);
 			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, &lvisb, PVM_FAST);
 			//FIXME: surely we can use the phs for this?
-//			if (cl.worldmodel->funcs.ClustersInSphere)
-//				lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, l->origin, l->radius, &lvisb2, lvis);
+			if (cl.worldmodel->funcs.ClustersInSphere)
+				lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, l->origin, l->radius, &lvisb2, lvis);
 
 			if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 			{
@@ -3544,8 +3544,16 @@ void Sh_PreGenerateLights(void)
 				else
 					shadowtype = SMT_STENCILVOLUME;
 
-				leaf = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
-				lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, leaf, &lvisb, PVM_FAST);
+				//shadowless and lights with an ambient term pass through walls, so need to affect EVERY leaf withing the sphere.
+				if (shadowtype == SMT_SHADOWLESS || dl->lightcolourscales[0])
+					lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, NULL);
+				else
+				{	//other lights only want to use the source leaf's pvs (clamped by the sphere)
+					leaf = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+					lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, leaf, &lvisb, PVM_FAST);
+					if (cl.worldmodel->funcs.ClustersInSphere)
+						lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, lvis);
+				}
 
 				SHM_BuildShadowMesh(dl, lvis, shadowtype);
 				continue;

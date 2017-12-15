@@ -590,7 +590,7 @@ void SWBE_Set2D(void)
 		w = fabs(cos(rad)) * (vid.width) + fabs(sin(rad)) * (vid.height);
 		h = fabs(sin(rad)) * (vid.width) + fabs(cos(rad)) * (vid.height);
 
-		Matrix4x4_CM_Orthographic(r_refdef.m_projection, w/-2.0f, w/2.0f, h/2.0f, h/-2.0f, -99999, 99999);
+		Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, w/-2.0f, w/2.0f, h/2.0f, h/-2.0f, -99999, 99999);
 
 		Matrix4x4_Identity(tmp);
 		Matrix4_Multiply(Matrix4x4_CM_NewTranslation((vid.width/-2.0f), (vid.height/-2.0f), 0), tmp, tmp2);
@@ -599,13 +599,13 @@ void SWBE_Set2D(void)
 	else
 	{
 		if (0)
-			Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.width, 0, vid.height, 0, 99999);
+			Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, 0, vid.width, 0, vid.height, 0, 99999);
 		else
-			Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, 0, 99999);
+			Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, 0, vid.width, vid.height, 0, 0, 99999);
 		Matrix4x4_Identity(r_refdef.m_view);
 	}
 
-	memcpy(shaderstate.m_mvp, r_refdef.m_projection, sizeof(shaderstate.m_mvp));
+	memcpy(shaderstate.m_mvp, r_refdef.m_projection_std, sizeof(shaderstate.m_mvp));
 
 	shaderstate.viewplane[0] = -r_refdef.m_view[0*4+2];
 	shaderstate.viewplane[1] = -r_refdef.m_view[1*4+2];
@@ -830,7 +830,7 @@ void SWBE_SelectEntity(struct entity_s *ent)
 	shaderstate.curentity = ent;
 
 	SWR_RotateForEntity(modelmatrix, modelviewmatrix, shaderstate.curentity, shaderstate.curentity->model);
-	Matrix4_Multiply(r_refdef.m_projection, modelviewmatrix, shaderstate.m_mvp);
+	Matrix4_Multiply(r_refdef.m_projection_std, modelviewmatrix, shaderstate.m_mvp);
 	shaderstate.viewplane[0] = vpn[0];//-modelviewmatrix[0];//0*4+2];
 	shaderstate.viewplane[1] = vpn[1];//-modelviewmatrix[1];//1*4+2];
 	shaderstate.viewplane[2] = vpn[2];//-modelviewmatrix[2];//2*4+2];

@@ -1187,7 +1187,7 @@ void D3D11_Set2D (void)
 	D3D11_VIEWPORT vport;
 
 //	Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), 0, 100);
-	Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, 0, 99999);
+	Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, 0, vid.width, vid.height, 0, 0, 99999);
 	Matrix4x4_Identity(r_refdef.m_view);
 
 	vport.TopLeftX = 0;
@@ -1443,9 +1443,9 @@ static void D3D11_SetupViewPort(void)
 	/*view matrix*/
 	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 	if (r_refdef.maxdist)
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
 	else
-		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist);
+		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist);
 }
 
 static void	(D3D11_R_RenderView)				(void)
@@ -1499,7 +1499,7 @@ static void	(D3D11_R_RenderView)				(void)
 
 		//fixme: waterwarp fov
 
-		R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+		R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 		RQ_BeginFrame();
 	//	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	//	{

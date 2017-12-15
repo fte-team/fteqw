@@ -4223,6 +4223,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	float ndr;
 	float modelmatrix[16];
 	float *m = modelmatrix;
+	float *proj;
 	vkcbuf_entity_t *cbe = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbe) + 0x0ff) & ~0xff, &shaderstate.ubo_entity.buffer, &shaderstate.ubo_entity.offset);
 	shaderstate.ubo_entity.range = sizeof(*cbe);
 
@@ -4233,6 +4234,8 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	{
 		float em[16];
 		float vm[16];
+
+		proj = r_refdef.m_projection_view;
 
 		if (e->flags & RF_WEAPONMODELNOBOB)
 		{
@@ -4303,6 +4306,8 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	}
 	else
 	{
+		proj = r_refdef.m_projection_std;
+
 		m[0] = e->axis[0][0];
 		m[1] = e->axis[0][1];
 		m[2] = e->axis[0][2];
@@ -4387,7 +4392,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	{
 		float modelview[16];
 		Matrix4_Multiply(r_refdef.m_view, m, modelview);
-		Matrix4_Multiply(r_refdef.m_projection, modelview, cbe->m_modelviewproj);
+		Matrix4_Multiply(proj, modelview, cbe->m_modelviewproj);
 	}
 	memcpy(cbe->m_model, m, sizeof(cbe->m_model));
 	Matrix4_Invert(modelmatrix, cbe->m_modelinv);
@@ -5548,7 +5553,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist
 		qglEnable(GL_CLIP_PLANE0);
 	}
 */	//fixme: we can probably scissor a smaller frusum
-	R_SetFrustum (r_refdef.m_projection, vmat);
+	R_SetFrustum (r_refdef.m_projection_std, vmat);
 	if (r_refdef.frustum_numplanes < MAXFRUSTUMPLANES)
 	{
 		extern int SignbitsForPlane (mplane_t *out);
@@ -5621,7 +5626,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist
 		r_refdef.flipcull |= SHADER_CULL_FLIP;
 	else
 		r_refdef.flipcull &= ~SHADER_CULL_FLIP;
-	if (r_refdef.m_projection[5]<0)
+	if (r_refdef.m_projection_std[5]<0)
 		r_refdef.flipcull ^= SHADER_CULL_FLIP;
 
 	VKBE_SelectEntity(&r_worldentity);

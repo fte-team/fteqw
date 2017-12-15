@@ -2778,10 +2778,10 @@ void D3D11BE_SetupViewCBuffer(void)
 	//d3d uses 0 to 1 depth.
 	//so we scale the projection matrix by a bias
 #if 1
-	Matrix4_Multiply(projgltod3d, r_refdef.m_projection, cbv->m_projection);
+	Matrix4_Multiply(projgltod3d, r_refdef.m_projection_std, cbv->m_projection);
 #else
-	memcpy(cbv->m_projection, r_refdef.m_projection, sizeof(cbv->m_projection));
-	cbv->m_projection[10] = r_refdef.m_projection[10] * 0.5;
+	memcpy(cbv->m_projection, r_refdef.m_projection_std, sizeof(cbv->m_projection));
+	cbv->m_projection[10] = r_refdef.m_projection_std[10] * 0.5;
 #endif
 	memcpy(cbv->m_view, r_refdef.m_view, sizeof(cbv->m_view));
 	VectorCopy(r_origin, cbv->v_eyepos);
@@ -3403,7 +3403,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 
 
 
-	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+	R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 	/*FIXME: we need to borrow pretty much everything about portal positioning from the gl renderer. make it common code or something, because this is horrendous.
 	if (r_refdef.frustum_numplanes < MAXFRUSTUMPLANES)
 	{
@@ -3439,7 +3439,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
 
-	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+	R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 	shaderstate.curentity = NULL;
 
 	D3D11BE_SetupViewCBuffer();

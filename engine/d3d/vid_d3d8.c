@@ -1294,14 +1294,14 @@ static void D3D8_SetupViewPortProjection(void)
 		/*d3d projection matricies scale depth to 0 to 1*/
 		Matrix4x4_CM_Projection_Far(d3d_trueprojection, fov_x, fov_y, r_refdef.mindist/2, r_refdef.maxdist);
 		/*ogl projection matricies scale depth to -1 to 1, and I would rather my code used consistant culling*/
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
 	}
 	else
 	{
 		/*d3d projection matricies scale depth to 0 to 1*/
 		Matrix4x4_CM_Projection_Inf(d3d_trueprojection, fov_x, fov_y, r_refdef.mindist/2);
 		/*ogl projection matricies scale depth to -1 to 1, and I would rather my code used consistant culling*/
-		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist);
+		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist);
 	}
 
 	d3d8error(IDirect3DDevice8_SetTransform(pD3DDev8, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection));
@@ -1337,7 +1337,7 @@ static void	(D3D8_R_RenderView)				(void)
 	//	else
 			d3d8error(IDirect3DDevice8_Clear(pD3DDev8, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
 
-		R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+		R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 		RQ_BeginFrame();
 		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 		{

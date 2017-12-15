@@ -206,6 +206,7 @@ extern cvar_t			scr_sshot_compression;
 extern cvar_t			crosshair;
 extern cvar_t			scr_consize;
 cvar_t			scr_neticontimeout = CVAR("scr_neticontimeout", "0.3");
+cvar_t			scr_diskicontimeout = CVAR("scr_diskicontimeout", "0.3");
 
 qboolean        scr_initialized;                // ready to draw
 
@@ -223,8 +224,6 @@ qboolean        scr_disabled_for_loading;
 qboolean        scr_drawloading;
 float           scr_disabled_time;
 
-float oldsbar = 0;
-
 cvar_t	con_stayhidden = CVARFD("con_stayhidden", "0", CVAR_NOTFROMSERVER, "0: allow console to pounce on the user\n1: console stays hidden unless explicitly invoked\n2:toggleconsole command no longer works\n3: shift+escape key no longer works");
 cvar_t	show_fps	= CVARFD("show_fps", "0", CVAR_ARCHIVE, "Displays the current framerate on-screen.\n1: framerate average over a second.\n2: Slowest frame over the last second (the game will play like shit if this is significantly lower than the average).\n3: Shows the rate of the fastest frame (not very useful).\n4: Shows the current frame's timings (this depends upon timer precision).\n5: Display a graph of how long it took to render each frame, large spikes are BAD BAD BAD.\n6: Displays the standard deviation of the frame times, if its greater than 3 then something is probably badly made, or you've a virus scanner running...\n7: Framegraph, for use with slower frames.");
 cvar_t	show_fps_x	= CVAR("show_fps_x", "-1");
@@ -238,6 +237,9 @@ cvar_t	show_gameclock_y	= CVAR("cl_gameclock_y", "-1");
 cvar_t	show_speed	= CVAR("show_speed", "0");
 cvar_t	show_speed_x	= CVAR("show_speed_x", "-1");
 cvar_t	show_speed_y	= CVAR("show_speed_y", "-9");
+cvar_t	scr_showdisk	= CVAR("scr_showdisk", "0");
+cvar_t	scr_showdisk_x	= CVAR("scr_showdisk_x", "-24");
+cvar_t	scr_showdisk_y	= CVAR("scr_showdisk_y", "0");
 cvar_t	scr_showobituaries = CVAR("scr_showobituaries", "0");
 
 cvar_t	scr_loadingrefresh = CVARD("scr_loadingrefresh", "0", "Force redrawing of the loading screen, in order to display EVERY resource that is loaded");
@@ -283,6 +285,10 @@ void CLSCR_Init(void)
 	Cvar_Register(&show_speed_x, cl_screengroup);
 	Cvar_Register(&show_speed_y, cl_screengroup);
 	Cvar_Register(&scr_neticontimeout, cl_screengroup);
+	Cvar_Register(&scr_showdisk, cl_screengroup);
+	Cvar_Register(&scr_showdisk_x, cl_screengroup);
+	Cvar_Register(&scr_showdisk_y, cl_screengroup);
+	Cvar_Register(&scr_diskicontimeout, cl_screengroup);
 	Cvar_Register(&scr_showobituaries, cl_screengroup);
 
 
@@ -1536,57 +1542,6 @@ void SCR_SizeDown_f (void)
 
 //============================================================================
 
-/*
-==============
-SCR_DrawTurtle
-==============
-*/
-void SCR_DrawTurtle (void)
-{
-	static int      count;
-
-	if (!scr_showturtle.ival || !scr_turtle)
-		return;
-
-	if (host_frametime <= 1.0/scr_turtlefps.value)
-	{
-		count = 0;
-		return;
-	}
-
-	count++;
-	if (count < 3)
-		return;
-
-	R2D_ScalePic (scr_vrect.x, scr_vrect.y, 64, 64, scr_turtle);
-}
-
-void SCR_DrawDisk (void)
-{
-//	if (!draw_disc)
-		return;
-
-//	if (!COM_HasWork())
-//		return;
-
-//	R2D_ScalePic (scr_vrect.x + vid.width-24, scr_vrect.y, 24, 24, draw_disc);
-}
-
-/*
-==============
-SCR_DrawNet
-==============
-*/
-void SCR_DrawNet (void)
-{
-	if (realtime - cls.netchan.last_received < scr_neticontimeout.value)
-		return;
-	if (cls.demoplayback || !scr_net)
-		return;
-
-	R2D_ScalePic (scr_vrect.x+64, scr_vrect.y, 64, 64, scr_net);
-}
-
 void SCR_StringXY(char *str, float x, float y)
 {
 	char *s2;
@@ -1614,6 +1569,60 @@ void SCR_StringXY(char *str, float x, float y)
 		px = Font_DrawChar(px, py, CON_WHITEMASK, codepoint);
 	}
 	Font_EndString(font_default);
+}
+
+/*
+==============
+SCR_DrawTurtle
+==============
+*/
+void SCR_DrawTurtle (void)
+{
+	static int      count;
+
+	if (!scr_showturtle.ival || !scr_turtle)
+		return;
+
+	if (host_frametime <= 1.0/scr_turtlefps.value)
+	{
+		count = 0;
+		return;
+	}
+
+	count++;
+	if (count < 3)
+		return;
+
+	R2D_ScalePic (scr_vrect.x, scr_vrect.y, 64, 64, scr_turtle);
+}
+
+void SCR_DrawDisk (void)
+{
+	extern float fs_accessed_time;
+	if ((float)realtime - fs_accessed_time > scr_diskicontimeout.value)
+		return;
+	if (!draw_disc || !scr_showdisk.ival)
+		return;
+
+	if (!R_GetShaderSizes(draw_disc, NULL, NULL, true))
+		SCR_StringXY("FS", scr_showdisk_x.value, scr_showdisk_y.value);
+	else
+		R2D_ScalePic (scr_showdisk_x.value + (scr_showdisk_x.value<0?vid.width:0), scr_showdisk_y.value + (scr_showdisk_y.value<0?vid.height:0), 24, 24, draw_disc);
+}
+
+/*
+==============
+SCR_DrawNet
+==============
+*/
+void SCR_DrawNet (void)
+{
+	if (realtime - cls.netchan.last_received < scr_neticontimeout.value)
+		return;
+	if (cls.demoplayback || !scr_net)
+		return;
+
+	R2D_ScalePic (scr_vrect.x+64, scr_vrect.y, 64, 64, scr_net);
 }
 
 void SCR_DrawFPS (void)
@@ -3322,6 +3331,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	}
 	else if (nohud)
 	{
+		SCR_DrawDisk();
 		SCR_DrawFPS ();
 		SCR_CheckDrawCenterString ();
 	}

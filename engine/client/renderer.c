@@ -224,6 +224,8 @@ cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
 // 10 - 170
 cvar_t scr_fov								= CVARFCD("fov", "90", CVAR_ARCHIVE, SCR_Fov_Callback,
 												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
+cvar_t scr_fov_viewmodel					= CVARFCD("r_viewmodel_fov", "", CVAR_ARCHIVE, SCR_Fov_Callback,
+												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
 cvar_t scr_printspeed						= CVAR  ("scr_printspeed", "16");
 cvar_t scr_showpause						= CVAR  ("showpause", "1");
 cvar_t scr_showturtle						= CVAR  ("showturtle", "0");
@@ -877,6 +879,7 @@ void Renderer_Init(void)
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);
+	Cvar_Register(&scr_fov_viewmodel, SCREENOPTIONS);
 //	Cvar_Register(&scr_chatmodecvar, SCREENOPTIONS);
 
 	Cvar_Register (&scr_sshot_type, SCREENOPTIONS);

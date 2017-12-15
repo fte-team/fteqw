@@ -439,7 +439,7 @@ void R_RenderDlights (void)
 					v[2] = l->origin[2];
 					v[3] = 1;
 
-					Matrix4_Multiply(r_refdef.m_projection, r_refdef.m_view, mvp);
+					Matrix4_Multiply(r_refdef.m_projection_std, r_refdef.m_view, mvp);
 					Matrix4x4_CM_Transform4(mvp, v, tempv);
 
 					tempv[0] /= tempv[3];
@@ -596,8 +596,19 @@ void R_GenDlightBatches(batch_t *batches[])
 	dlight_t	*l;
 	batch_t		*b;
 	int lmode;
+	unsigned modes;
+	extern cvar_t r_shadow_realtime_dlight;
+	extern cvar_t r_shadow_realtime_world;
 	if (!r_lightprepass)
 		return;
+
+	if (r_shadow_realtime_dlight.ival)
+		modes |= LFLAG_NORMALMODE;
+	if (r_shadow_realtime_world.ival)
+		modes |= LFLAG_REALTIMEMODE;
+	if (!modes)
+		return;
+
 
 	if (!deferredlight_shader[0])
 	{
@@ -624,6 +635,9 @@ void R_GenDlightBatches(batch_t *batches[])
 	for (i=rtlights_first; i<rtlights_max; i++, l++)
 	{
 		if (!l->radius)
+			continue;
+
+		if (!(modes & l->flags))
 			continue;
 
 		if (R_CullSphere(l->origin, l->radius))
@@ -658,7 +672,7 @@ void R_GenDlightBatches(batch_t *batches[])
 			b->lightmap[j] = -1;
 		b->surf_first = i;
 		b->surf_count = lmode;
-		b->flags |= BEF_NOSHADOWS;
+		b->flags |= BEF_NOSHADOWS|BEF_NODLIGHT;	//that would be weeird
 		b->vbo = NULL;
 		b->next = batches[sort];
 		batches[sort] = b;

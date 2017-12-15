@@ -186,7 +186,7 @@ void GL_Set2D (qboolean flipped)
 		w = fabs(cos(rad)) * (vid.width) + fabs(sin(rad)) * (vid.height);
 		h = fabs(sin(rad)) * (vid.width) + fabs(cos(rad)) * (vid.height);
 
-		Matrix4x4_CM_Orthographic(r_refdef.m_projection, w/-2.0f, w/2.0f, h/2.0f, h/-2.0f, -99999, 99999);
+		Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, w/-2.0f, w/2.0f, h/2.0f, h/-2.0f, -99999, 99999);
 
 		Matrix4x4_Identity(tmp);
 		Matrix4_Multiply(Matrix4x4_CM_NewTranslation((vid.width/-2.0f), (vid.height/-2.0f), 0), tmp, tmp2);
@@ -197,9 +197,9 @@ void GL_Set2D (qboolean flipped)
 		w = vid.fbvwidth;
 		h = vid.fbvheight;
 		if (flipped)
-			Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, w, 0, h, -99999, 99999);
+			Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, 0, w, 0, h, -99999, 99999);
 		else
-			Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, w, h, 0, -99999, 99999);
+			Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, 0, w, h, 0, -99999, 99999);
 		Matrix4x4_Identity(r_refdef.m_view);
 	}
 	//current physical position on the current render target.
@@ -215,7 +215,7 @@ void GL_Set2D (qboolean flipped)
 	if (qglLoadMatrixf)
 	{
 		qglMatrixMode(GL_PROJECTION);
-		qglLoadMatrixf(r_refdef.m_projection);
+		qglLoadMatrixf(r_refdef.m_projection_std);
 
 		qglMatrixMode(GL_MODELVIEW);
 		qglLoadMatrixf(r_refdef.m_view);

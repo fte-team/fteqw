@@ -2880,6 +2880,7 @@ float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_
 	int result = 0;
 	int cards = 0;
 	soundcardinfo_t *sc;
+	channel_t *chan;
 
 	if (cls.demoseeking)
 		return result;
@@ -2895,6 +2896,14 @@ float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_
 				result++;
 				break;
 			}
+		}
+
+		//start it if we couldn't find it.
+		if (i == sc->total_chans && sfx)
+		{
+			chan = SND_PickChannel(sc, entnum, entchannel);
+			if (chan)
+				S_UpdateSoundCard(sc, false, chan, entnum, entchannel, sfx, origin, velocity, fvol, attenuation, timeofs, pitchadj, flags);
 		}
 	}
 	S_UnlockMixer();

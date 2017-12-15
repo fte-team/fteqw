@@ -424,6 +424,7 @@ void R_SetupGL (float stereooffset, int i)
 	vec3_t newa;
 
 	float fov_x, fov_y;
+	float fovv_x, fovv_y;
 
 	if (!r_refdef.recurse)
 	{
@@ -524,19 +525,25 @@ void R_SetupGL (float stereooffset, int i)
 			r_refdef.pxrect.height = h;
 			r_refdef.pxrect.maxheight = vid.fbpheight;
 		}
-		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
-		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+		fov_x = r_refdef.fov_x;
+		fov_y = r_refdef.fov_y;
+		fovv_x = r_refdef.fovv_x;
+		fovv_y = r_refdef.fovv_y;
 
 		if ((*r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname) && strcmp(r_refdef.rt_destcolour[0].texname, "megascreeny"))
 		{
 			r_refdef.pxrect.y = r_refdef.pxrect.maxheight - (r_refdef.pxrect.height+r_refdef.pxrect.y);
 			fov_y *= -1;
+			fovv_y *= -1;
 			r_refdef.flipcull ^= SHADER_CULL_FLIP;
 		}
 		else if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
 		{
 			fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 			fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+
+			fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+			fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
 		}
 
 		GL_ViewportUpdate();
@@ -545,7 +552,8 @@ void R_SetupGL (float stereooffset, int i)
 		if (r_refdef.stereomethod == STEREO_WEBVR)
 		{
 			float vm[16], em[16];
-			emscriptenfte_getvreyedata(i, r_refdef.m_projection, em);
+			emscriptenfte_getvreyedata(i, r_refdef.m_projection_std, em);
+			memcpy(r_refdef.m_projection_view, r_refdef.m_projection_std, sizeof(r_refdef.m_projection_view));
 			Matrix4x4_Identity(em);
 
 			Matrix4x4_CM_ModelViewMatrixFromAxis(vm, vpn, vright, vup, r_origin);
@@ -568,16 +576,19 @@ void R_SetupGL (float stereooffset, int i)
 			//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
 			//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
 
-					Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+					Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+					Matrix4x4_CM_Projection_Far(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, r_refdef.maxdist);
 				}
 				else
 				{
-					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, r_refdef.mindist);
+					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist);
+					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist);
 				}
 			}
 			else
 			{
-				Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, r_refdef.mindist, r_refdef.maxdist?r_refdef.maxdist:9999);
+				Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, r_refdef.mindist, r_refdef.maxdist?r_refdef.maxdist:9999);
+				memcpy(r_refdef.m_projection_view, r_refdef.m_projection_std, sizeof(r_refdef.m_projection_view));
 			}
 
 			Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
@@ -587,7 +598,7 @@ void R_SetupGL (float stereooffset, int i)
 	if (qglLoadMatrixf)
 	{
 		qglMatrixMode(GL_PROJECTION);
-		qglLoadMatrixf(r_refdef.m_projection);
+		qglLoadMatrixf(r_refdef.m_projection_std);
 
 		qglMatrixMode(GL_MODELVIEW);
 		qglLoadMatrixf(r_refdef.m_view);
@@ -739,7 +750,7 @@ void R_RenderScene (void)
 
 		TRACE(("dbg: calling R_SetFrustrum\n"));
 		if (!r_refdef.recurse)
-			R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+			R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 
 		RQ_BeginFrame();
 
@@ -1203,7 +1214,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		qglEnable(GL_CLIP_PLANE0);
 	}
 */	//fixme: we can probably scissor a smaller frusum
-	R_SetFrustum (r_refdef.m_projection, vmat);
+	R_SetFrustum (r_refdef.m_projection_std, vmat);
 	if (r_refdef.frustum_numplanes < MAXFRUSTUMPLANES)
 	{
 		extern int SignbitsForPlane (mplane_t *out);
@@ -1237,7 +1248,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		if (qglLoadMatrixf)
 		{
 			qglMatrixMode(GL_PROJECTION);
-			qglLoadMatrixf(r_refdef.m_projection);
+			qglLoadMatrixf(r_refdef.m_projection_std);
 			qglMatrixMode(GL_MODELVIEW);
 		}
 		//portals to mask are relative to the old view still.
@@ -1278,7 +1289,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		r_refdef.flipcull |= SHADER_CULL_FLIP;
 	else
 		r_refdef.flipcull &= ~SHADER_CULL_FLIP;
-	if (r_refdef.m_projection[5]<0)
+	if (r_refdef.m_projection_std[5]<0)
 		r_refdef.flipcull ^= SHADER_CULL_FLIP;
 
 	Surf_SetupFrame();
@@ -1310,7 +1321,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	{
 		/*put GL back the way it was*/
 		qglMatrixMode(GL_PROJECTION);
-		qglLoadMatrixf(r_refdef.m_projection);
+		qglLoadMatrixf(r_refdef.m_projection_std);
 		qglMatrixMode(GL_MODELVIEW);
 	}
 	GLBE_SelectEntity(&r_worldentity);

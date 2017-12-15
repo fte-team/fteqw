@@ -3121,7 +3121,7 @@ static void R_RenderScene(void)
 {
 	IDirect3DDevice8_SetTransform(pD3DDev8, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection);
 	IDirect3DDevice8_SetTransform(pD3DDev8, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
-	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+	R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 	Surf_DrawWorld();
 }
 
@@ -3237,7 +3237,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 
 	IDirect3DDevice8_SetTransform(pD3DDev8, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection);
 	IDirect3DDevice8_SetTransform(pD3DDev8, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
-	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+	R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 }
 
 static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)

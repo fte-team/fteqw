@@ -3817,20 +3817,20 @@ void R_ObliqueNearClip(float *viewmat, mplane_t *wplane)
 	// transform it into camera space by multiplying it
 	// by the inverse of the projection matrix
 
-	q[0] = (sgn(vplane[0]) + r_refdef.m_projection[8]) / r_refdef.m_projection[0];
-	q[1] = (sgn(vplane[1]) + fabs(r_refdef.m_projection[9])) / fabs(r_refdef.m_projection[5]);
+	q[0] = (sgn(vplane[0]) + r_refdef.m_projection_std[8]) / r_refdef.m_projection_std[0];
+	q[1] = (sgn(vplane[1]) + fabs(r_refdef.m_projection_std[9])) / fabs(r_refdef.m_projection_std[5]);
 	q[2] = -1.0F;
-	q[3] = (1.0F + r_refdef.m_projection[10]) / r_refdef.m_projection[14];
+	q[3] = (1.0F + r_refdef.m_projection_std[10]) / r_refdef.m_projection_std[14];
 
 	// Calculate the scaled plane vector
 	f = 2.0F / DotProduct4(vplane, q);
 	Vector4Scale(vplane, f, c);
 
 	// Replace the third row of the projection matrix
-	r_refdef.m_projection[2] = c[0];
-	r_refdef.m_projection[6] = c[1];
-	r_refdef.m_projection[10] = c[2] + 1.0F;
-	r_refdef.m_projection[14] = c[3];
+	r_refdef.m_projection_std[2] = c[0];
+	r_refdef.m_projection_std[6] = c[1];
+	r_refdef.m_projection_std[10] = c[2] + 1.0F;
+	r_refdef.m_projection_std[14] = c[3];
 }
 
 

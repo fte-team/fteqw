@@ -134,6 +134,7 @@ struct {
 		float modelmatrix[16];
 		float modelmatrixinv[16];
 		float modelviewmatrix[16];
+		float projectionmatrix[16];
 
 		int colourarraytype;
 		vec4_t pendingcolourflat;
@@ -919,7 +920,7 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 		if (shaderstate.allblackshader.glsl.handle != shaderstate.lastuniform && shaderstate.allblack_mvp != -1)
 		{
 			float m16[16];
-			Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
+			Matrix4_Multiply(shaderstate.projectionmatrix, shaderstate.modelviewmatrix, m16);
 			qglUniformMatrix4fvARB(shaderstate.allblack_mvp, 1, false, m16);
 		}
 		shaderstate.lastuniform = shaderstate.allblackshader.glsl.handle;
@@ -3213,7 +3214,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			qglUniformMatrix4fvARB(ph, 1, false, r_refdef.m_view);
 			break;
 		case SP_M_PROJECTION:
-			qglUniformMatrix4fvARB(ph, 1, false, r_refdef.m_projection);
+			qglUniformMatrix4fvARB(ph, 1, false, shaderstate.projectionmatrix);
 			break;
 		case SP_M_MODELVIEW:
 			qglUniformMatrix4fvARB(ph, 1, false, shaderstate.modelviewmatrix);
@@ -3221,14 +3222,14 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 		case SP_M_MODELVIEWPROJECTION:
 			{
 				float m16[16];
-				Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
+				Matrix4_Multiply(shaderstate.projectionmatrix, shaderstate.modelviewmatrix, m16);
 				qglUniformMatrix4fvARB(ph, 1, false, m16);
 			}
 			break;
 		case SP_M_INVMODELVIEWPROJECTION:
 			{
 				float m16[16], inv[16];
-				Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
+				Matrix4_Multiply(shaderstate.projectionmatrix, shaderstate.modelviewmatrix, m16);
 				Matrix4_Invert(m16, inv);
 				qglUniformMatrix4fvARB(ph, 1, false, inv);
 			}
@@ -3247,7 +3248,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 		case SP_M_INVVIEWPROJECTION:
 			{
 				float m16[16], inv[16];
-				Matrix4_Multiply(r_refdef.m_projection, r_refdef.m_view, m16);
+				Matrix4_Multiply(shaderstate.projectionmatrix, r_refdef.m_view, m16);
 				Matrix4_Invert(m16, inv);
 				qglUniformMatrix4fvARB(ph, 1, false, inv);
 			}
@@ -3436,7 +3437,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				v[3] = 1;
 
 				Matrix4x4_CM_Transform4(shaderstate.modelviewmatrix, v, tempv); 
-				Matrix4x4_CM_Transform4(r_refdef.m_projection, tempv, v);
+				Matrix4x4_CM_Transform4(shaderstate.projectionmatrix, tempv, v);
 
 				v[3] *= 2;
 				v[0] = (v[0]/v[3]) + 0.5;
@@ -3822,6 +3823,17 @@ void GLBE_SelectEntity(entity_t *ent)
 		nd = 1;
 	if (shaderstate.depthrange != nd)
 	{
+		if (nd < 1)
+			memcpy(shaderstate.projectionmatrix, r_refdef.m_projection_view, sizeof(shaderstate.projectionmatrix));
+		else
+			memcpy(shaderstate.projectionmatrix, r_refdef.m_projection_std, sizeof(shaderstate.projectionmatrix));
+		if (qglLoadMatrixf)
+		{
+			qglMatrixMode(GL_PROJECTION);
+			qglLoadMatrixf(shaderstate.projectionmatrix);
+			qglMatrixMode(GL_MODELVIEW);
+		}
+
 		shaderstate.depthrange = nd;
 		if (qglDepthRange)
 			qglDepthRange (gldepthmin, gldepthmin + shaderstate.depthrange*(gldepthmax-gldepthmin));
@@ -4313,7 +4325,7 @@ static void DrawMeshes(void)
 				if (shaderstate.allblackshader.glsl.handle != shaderstate.lastuniform && shaderstate.allblack_mvp != -1)
 				{
 					float m16[16];
-					Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
+					Matrix4_Multiply(shaderstate.projectionmatrix, shaderstate.modelviewmatrix, m16);
 					qglUniformMatrix4fvARB(shaderstate.allblack_mvp, 1, false, m16);
 				}
 				BE_SubmitMeshChain(shaderstate.allblackshader.glsl.usetesselation);

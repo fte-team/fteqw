@@ -1720,6 +1720,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	float usetime;		//how many msecs we can use for the new frame
 	int msecstouse;		//usetime truncated to network precision (how much we'll actually eat)
 	float framemsecs;	//how long we're saying the input frame should be (differs from realtime with nq as we want to send frames reguarly, but note this might end up with funny-duration frames).
+	qboolean xonoticworkaround;
 
 	clcmdbuf_t *next;
 
@@ -1824,7 +1825,8 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	buf.data = data;
 	buf.prim = cls.netchan.message.prim;
 
-	if (cls.protocol == CP_NETQUAKE && cl.time && !cl.paused)
+	xonoticworkaround = cls.protocol == CP_NETQUAKE && CPNQ_IS_DP && cl.time && !cl.paused;
+	if (xonoticworkaround)
 	{
 		if (cl.movesequence_time > cl.time + 0.5)
 			cl.movesequence_time = cl.time + 0.5;	//shouldn't really happen
@@ -1833,7 +1835,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		framemsecs = (cl.time - cl.movesequence_time)*1000;
 
 		wantfps = cl_netfps.value;
-		usetime = CL_FilterTime(framemsecs, wantfps, 1.5, false);
+		usetime = CL_FilterTime(framemsecs, wantfps, 5, false);
 		if (usetime > 0)
 		{
 			usetime = framemsecs - usetime;
@@ -1844,7 +1846,8 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			usetime = framemsecs - usetime;
 			fullsend = false;
 		}
-		framemsecs = usetime;
+		msecstouse = usetime;
+		framemsecs = msecstouse;
 		msecs = 0;
 	}
 	else
@@ -1881,7 +1884,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			if (!runningindepphys && (cl_netfps.value > 0 || !fullsend))
 			{
 				float spare;
-				spare = CL_FilterTime(msecs, wantfps, (cls.protocol == CP_NETQUAKE?0:1.5), false);
+				spare = CL_FilterTime(msecs, wantfps, (/*cls.protocol == CP_NETQUAKE*/0?0:1.5), false);
 				usetime = msecsround + (msecs - spare);
 				msecstouse = (int)usetime;
 				if (!spare)
@@ -1914,11 +1917,10 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		if (usetime <= 0)
 			return;	//infinite frame times = weirdness.
 
-		cl.movesequence_time = cl.time;
 		framemsecs = msecstouse;
 
 		if (cls.protocol == CP_NETQUAKE)
-			framemsecs = 0;
+			framemsecs = 1000*(cl.time - cl.movesequence_time);
 	}
 
 #ifdef HLCLIENT
@@ -1956,7 +1958,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		if (fullsend && (cl_pendingcmd[plnum].msec > 12.9 && cl_pendingcmd[plnum].msec < 13) && cls.maxfps == 77)
 			cl_pendingcmd[plnum].msec = 13;
 	}
-	msecstouse = cl_pendingcmd[0].msec;
+//	msecstouse = cl_pendingcmd[0].msec;
 
 	//the main loop isn't allowed to send
 	if (runningindepphys && mainloop)
@@ -2030,7 +2032,10 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			}
 		}
 
-		cl.movesequence_time += framemsecs/1000.0;
+		if (xonoticworkaround)
+			cl.movesequence_time += msecstouse/1000.0;
+		else
+			cl.movesequence_time = cl.time;
 		switch (cls.protocol)
 		{
 #ifdef NQPROT

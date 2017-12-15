@@ -8089,7 +8089,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	move->fservertime = cltime;
 	move->servertime = move->fservertime*1000;
 
-	frame->ping_time = sv.time - cltime;
+		frame->ping_time = sv.time - cltime;
 
 
 	if (frame->ping_time*1000 > sv_minping.value+1)
@@ -8331,7 +8331,9 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			if (cl->delta_sequence == -1 && cl->pendingdeltabits)
 				cl->pendingdeltabits[0] = UF_REMOVE;
 			SV_AckEntityFrame(cl, cl->delta_sequence);
-			cl->frameunion.frames[cl->delta_sequence&UPDATE_MASK].ping_time = realtime - cl->frameunion.frames[cl->delta_sequence&UPDATE_MASK].senttime;
+//			if (cl->frameunion.frames[cl->delta_sequence&UPDATE_MASK].sequence == cl->delta_sequence)
+//				if (cl->frameunion.frames[cl->delta_sequence&UPDATE_MASK].ping_time < 0)
+//					cl->frameunion.frames[cl->delta_sequence&UPDATE_MASK].ping_time = realtime - cl->frameunion.frames[cl->delta_sequence&UPDATE_MASK].senttime;
 			break;
 		case clcdp_ackdownloaddata:
 			SV_DarkPlacesDownloadAck(cl);

@@ -1894,6 +1894,7 @@ void pf_hash_purge(void)	//restart command was used. revert to the state at the 
 
 typedef struct {
 	char name[256];
+	vfsfile_t *file;
 	char *data;
 	size_t bufferlen;
 	size_t len;
@@ -1940,7 +1941,7 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	Con_DPrintf("qcfopen(\"%s\", %i) called\n", name, fmode);
 
 	for (i = 0; i < MAX_QC_FILES; i++)
-		if (!pf_fopen_files[i].data)
+		if (!pf_fopen_files[i].prinst)
 			break;
 
 	if (i == MAX_QC_FILES)	//too many already open
@@ -2000,7 +2001,30 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 			pf_fopen_files[i].prinst = prinst;
 		}
 		break;
-	case FRIK_FILE_READ:	//read
+	case FRIK_FILE_READ:
+	case FRIK_FILE_READ_DELAY:
+		{
+			pf_fopen_files[i].accessmode = FRIK_FILE_READ_DELAY;
+			pf_fopen_files[i].file = FS_OpenVFS(pf_fopen_files[i].name, "rb", FS_GAME);
+			if (!pf_fopen_files[i].file && fallbackread)
+			{
+				Q_strncpyz(pf_fopen_files[i].name, fallbackread, sizeof(pf_fopen_files[i].name));
+				pf_fopen_files[i].file = FS_OpenVFS(pf_fopen_files[i].name, "rb", FS_GAME);
+			}
+			pf_fopen_files[i].ofs = 0;
+			if (pf_fopen_files[i].file)
+			{
+				pf_fopen_files[i].len = VFS_GETLEN(pf_fopen_files[i].file);
+
+				G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
+				pf_fopen_files[i].prinst = prinst;
+			}
+			else
+				G_FLOAT(OFS_RETURN) = -1;
+		}
+		break;
+
+//	case FRIK_FILE_READ:	//read
 	case FRIK_FILE_READNL:	//read whole file
 		fsize = FS_LoadFile(pf_fopen_files[i].name, (void**)&pf_fopen_files[i].data);
 		if (!pf_fopen_files[i].data && fallbackread)
@@ -2060,7 +2084,7 @@ void PF_fclose_i (int fnum)
 		return;	//out of range
 	}
 
-	if (!pf_fopen_files[fnum].data)
+	if (!pf_fopen_files[fnum].prinst)
 	{
 		Con_Printf("PF_fclose: File is not open\n");
 		return;	//not open
@@ -2075,18 +2099,23 @@ void PF_fclose_i (int fnum)
 		pf_fopen_files[fnum].prinst->AddressableFree(pf_fopen_files[fnum].prinst, pf_fopen_files[fnum].data);
 		break;
 
+	case FRIK_FILE_READ_DELAY:
+		VFS_CLOSE(pf_fopen_files[fnum].file);
+		break;
+
 	case FRIK_FILE_READ:
-	case 4:
+	case FRIK_FILE_READNL:
 		BZ_Free(pf_fopen_files[fnum].data);
 		break;
-	case 1:
-	case 2:
+	case FRIK_FILE_APPEND:
+	case FRIK_FILE_WRITE:
 		COM_WriteFile(pf_fopen_files[fnum].name, FS_GAMEONLY, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
 		BZ_Free(pf_fopen_files[fnum].data);
 		break;
-	case 3:
+	case FRIK_FILE_INVALID:
 		break;
 	}
+	pf_fopen_files[fnum].file = NULL;
 	pf_fopen_files[fnum].data = NULL;
 	pf_fopen_files[fnum].prinst = NULL;
 }
@@ -2099,6 +2128,12 @@ void QCBUILTIN PF_fclose (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	{
 		PF_Warningf(prinst, "PF_fclose: File out of range (%g)\n", G_FLOAT(OFS_PARM0));
 		return;	//out of range
+	}
+
+	if (!pf_fopen_files[fnum].prinst)
+	{
+		Con_Printf("PF_fclose: File is not open\n");
+		return;	//not open
 	}
 
 	if (pf_fopen_files[fnum].prinst != prinst)
@@ -2124,7 +2159,7 @@ void QCBUILTIN PF_fgets (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		return;	//out of range
 	}
 
-	if (!pf_fopen_files[fnum].data)
+	if (!pf_fopen_files[fnum].prinst)
 	{
 		PR_BIError(prinst, "PF_fgets: File is not open\n");
 		return;	//not open
@@ -2134,6 +2169,16 @@ void QCBUILTIN PF_fgets (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	{
 		PR_BIError(prinst, "PF_fgets: File is from wrong instance\n");
 		return;	//this just isn't ours.
+	}
+
+	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_READ_DELAY)
+	{	//on first read, convert into a regular file.
+		pf_fopen_files[fnum].accessmode = FRIK_FILE_READ;
+		pf_fopen_files[fnum].data = BZ_Malloc(pf_fopen_files[fnum].len+1);
+		pf_fopen_files[fnum].data[pf_fopen_files[fnum].len] = 0;
+		pf_fopen_files[fnum].len = pf_fopen_files[fnum].bufferlen = VFS_READ(pf_fopen_files[fnum].file, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
+		VFS_CLOSE(pf_fopen_files[fnum].file);
+		pf_fopen_files[fnum].file = NULL;
 	}
 
 	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_MMAP_READ || pf_fopen_files[fnum].accessmode == FRIK_FILE_MMAP_RW)
@@ -2232,7 +2277,7 @@ static int PF_fwrite_internal (pubprogfuncs_t *prinst, int fnum, const char *msg
 		return 0;	//out of range
 	}
 
-	if (!pf_fopen_files[fnum].data)
+	if (!pf_fopen_files[fnum].prinst)
 	{
 		PF_Warningf(prinst, "PF_fwrite: File is not open\n");
 		return 0;	//not open
@@ -2276,7 +2321,7 @@ static int PF_fread_internal (pubprogfuncs_t *prinst, int fnum, char *msg, size_
 		return 0;	//out of range
 	}
 
-	if (!pf_fopen_files[fnum].data)
+	if (!pf_fopen_files[fnum].prinst)
 	{
 		PF_Warningf(prinst, "PF_fread: File is not open\n");
 		return 0;	//not open
@@ -2347,7 +2392,7 @@ void QCBUILTIN PF_fseek (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		PF_Warningf(prinst, "PF_fread: File out of range\n");
 		return;	//out of range
 	}
-	if (!pf_fopen_files[fnum].data)
+	if (!pf_fopen_files[fnum].prinst)
 	{
 		PF_Warningf(prinst, "PF_fread: File is not open\n");
 		return;	//not open
@@ -2373,7 +2418,7 @@ void QCBUILTIN PF_fsize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		PF_Warningf(prinst, "PF_fsize: File out of range\n");
 		return;	//out of range
 	}
-	if (!pf_fopen_files[fnum].data)
+	if (!pf_fopen_files[fnum].prinst)
 	{
 		PF_Warningf(prinst, "PF_fsize: File is not open\n");
 		return;	//not open

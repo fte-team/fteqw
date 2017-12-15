@@ -719,6 +719,8 @@ typedef enum
 #define FRIK_FILE_MMAP_READ	5 /*fgets returns a pointer. memory is not guarenteed to be released.*/
 #define FRIK_FILE_MMAP_RW	6 /*fgets returns a pointer. file is written upon close. memory is not guarenteed to be released.*/
 
+#define FRIK_FILE_READ_DELAY (7) /*internal special mode where the file is not read until the first read. this avoids extra slowness with xonotic*/
+
 #define MASK_DELTA 1
 #define MASK_STDVIEWMODEL 2
 

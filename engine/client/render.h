@@ -260,6 +260,7 @@ typedef struct
 	vec3_t		eyeoffset;			/*world space, for vr screenies*/
 
 	float		fov_x, fov_y, afov;
+	float		fovv_x, fovv_y;	//viewmodel fovs
 	float		mindist, maxdist;	//maxdist may be 0, for 'infinite', in which case mindist probably isn't valid either.
 
 	qboolean	drawsbar;
@@ -273,7 +274,8 @@ typedef struct
 	float		time;
 //	float		waterheight;	//updated by the renderer. stuff sitting at this height generate ripple effects
 
-	float		m_projection[16];
+	float		m_projection_std[16];	//projection matrix for normal stuff
+	float		m_projection_view[16];	//projection matrix for the viewmodel. because people are weird.
 	float		m_view[16];
 	qbyte		*scenevis;			/*this is the vis that's currently being draw*/
 

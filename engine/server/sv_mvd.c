@@ -35,7 +35,7 @@ static void QDECL SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
 
 cvar_t	sv_demoUseCache = CVARD("sv_demoUseCache", "", "If set, demo data will be flushed only periodically");
 cvar_t	sv_demoCacheSize = CVAR("sv_demoCacheSize", "0x80000"); //half a meg
-cvar_t	sv_demoMaxDirSize = CVAR("sv_demoMaxDirSize", "102400");	//so ktpro autorecords.
+cvar_t	sv_demoMaxDirSize = CVARD("sv_demoMaxDirSize", "102400", "Maximum allowed serverside storage for mvds. set to blank to remove the limit. New demos cannot be recorded once this reaches 0.");	//so ktpro autorecords.
 cvar_t	sv_demoDir = CVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
 cvar_t	sv_demofps = CVAR("sv_demofps", "30");
 cvar_t	sv_demoPings = CVARD("sv_demoPings", "10", "Interval between ping updates in mvds");

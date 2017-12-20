@@ -430,7 +430,11 @@ void Font_Init(void)
 			"endif\n"
 			"nomipmaps\n"
 			"{\n"
-				"map $diffuse\n"
+				"if r_font_linear\n"
+					"map $linear:$diffuse\n"
+				"else\n"
+					"map $nearest:$diffuse\n"
+				"endif\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
 				"blendfunc gl_one gl_one_minus_src_alpha\n"
@@ -1452,7 +1456,7 @@ static texid_t Font_LoadReplacementConchars(void)
 {
 	texid_t tex;
 	//q1 replacement
-	tex = R_LoadHiResTexture("gfx/conchars.lmp", NULL, IF_NEAREST|IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadHiResTexture("gfx/conchars.lmp", NULL, (r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_PREMULTIPLYALPHA|IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	TEXDOWAIT(tex);
 	if (TEXLOADED(tex))
 		return tex;
@@ -1994,7 +1998,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 		//default to only map the ascii-compatible chars from the quake font.
 		if (*fontfilename)
 		{
-			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts:charsets", IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOMIPMAP);
+			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts:charsets", IF_PREMULTIPLYALPHA|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
 			if (f->singletexture->status == TEX_LOADING)
 				COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
 		}
@@ -2003,7 +2007,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 	defaultplane = INVALIDPLANE;/*assume the bitmap plane - don't use the fallback as people don't think to use com_parseutf8*/
 	if (TEXLOADED(f->singletexture))
 		defaultplane = BITMAPPLANE;
-	if (TEXLOADED(fontplanes.defaultfont))
+	else if (TEXLOADED(fontplanes.defaultfont))
 		defaultplane = DEFAULTPLANE;
 
 	if (defaultplane == INVALIDPLANE)
@@ -2025,7 +2029,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 
 		if (TEXLOADED(f->singletexture))
 			defaultplane = BITMAPPLANE;
-		if (TEXLOADED(fontplanes.defaultfont))
+		else if (TEXLOADED(fontplanes.defaultfont))
 			defaultplane = DEFAULTPLANE;
 	}
 

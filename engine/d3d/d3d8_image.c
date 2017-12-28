@@ -122,7 +122,7 @@ qboolean D3D8_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 		else
 		{
 			size_t rowbytes = ((mips->mip[i].width+blockwidth-1)/blockwidth)*blockbytes;
-			for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y+blockheight, out += lock.Pitch, in += rowbytes)
+			for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y+=blockheight, out += lock.Pitch, in += rowbytes)
 				memcpy(out, in, rowbytes);
 		}
 		IDirect3DTexture8_UnlockRect(dt, i);

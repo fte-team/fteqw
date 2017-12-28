@@ -522,11 +522,19 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 
 			//legacy formats
 			case PTI_RGB8:
+#ifdef GLESONLY
+				return false;
+#else
 				qglTexImage2D(targface, j, GL_RGB8, mips->mip[i].width, mips->mip[i].height, 0, GL_RGB, GL_UNSIGNED_BYTE, mips->mip[i].data);
 				break;
+#endif
 			case PTI_LUMINANCE8_ALPHA8:
+#ifdef GLESONLY
+				return false;
+#else
 				qglTexImage2D(targface, j, GL_LUMINANCE8_ALPHA8, mips->mip[i].width, mips->mip[i].height, 0, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, mips->mip[i].data);
 				break;
+#endif
 			//s3tc (desktop) compressed formats
 			case PTI_BC1_RGB:
 				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB_S3TC_DXT1_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);

@@ -127,7 +127,7 @@ typedef struct cvar_group_s
 #define CVAR_NOTFROMSERVER	(1<<7)	//cvar cannot be set by gamecode. the console will ignore changes to cvars if set at from the server or any gamecode. This is to protect against security flaws - like qterm
 #define CVAR_USERCREATED	(1<<8)	//write a 'set' or 'seta' in front of the var name.
 #define CVAR_CHEAT			(1<<9)	//latch to the default, unless cheats are enabled.
-#define CVAR_SEMICHEAT		(1<<10)	//if strict ruleset, force to 0/blank.
+#define CVAR_SEMICHEAT		(1<<10)	//if strict ruleset, force to blank (aka 0).
 #define CVAR_RENDERERLATCH	(1<<11)	//requires a vid_restart to reapply.
 #define CVAR_SERVEROVERRIDE	(1<<12)	//the server has overridden out local value - should probably be called SERVERLATCH
 #define CVAR_RENDERERCALLBACK	(1<<13) //force callback for cvars on renderer change

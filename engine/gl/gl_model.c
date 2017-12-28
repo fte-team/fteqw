@@ -2937,8 +2937,8 @@ static void Mod_Batches_AllocLightmaps(model_t *mod)
 	mod->lightmaps.width = 1<<i;
 	for (i = 0; (1<<i) < mod->lightmaps.height; i++);
 	mod->lightmaps.height = 1<<i;
-	mod->lightmaps.width = bound(64, mod->lightmaps.width, sh_config.texture_maxsize);
-	mod->lightmaps.height = bound(64, mod->lightmaps.height, sh_config.texture_maxsize);
+	mod->lightmaps.width = bound(64, mod->lightmaps.width, sh_config.texture2d_maxsize);
+	mod->lightmaps.height = bound(64, mod->lightmaps.height, sh_config.texture2d_maxsize);
 
 	Mod_LightmapAllocInit(&lmallocator, mod->deluxdata != NULL, mod->lightmaps.width, mod->lightmaps.height, 0x50);
 

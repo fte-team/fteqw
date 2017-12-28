@@ -605,7 +605,7 @@ void D3D9Shader_Init(void)
 		sh_config.texture_non_power_of_two = true;
 	}
 
-	sh_config.texture_maxsize = min(caps.MaxTextureWidth, caps.MaxTextureHeight);
+	sh_config.texturecube_maxsize = sh_config.texture2d_maxsize = min(caps.MaxTextureWidth, caps.MaxTextureHeight);
 }
 #endif
 

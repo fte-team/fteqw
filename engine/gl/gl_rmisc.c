@@ -445,9 +445,6 @@ void GLR_DeInit (void)
 
 //	Cmd_RemoveCommand ("makewad");
 
-	Cvar_Unhook(&vid_conautoscale);
-	Cvar_Unhook(&vid_conheight);
-	Cvar_Unhook(&vid_conwidth);
 //	Cvar_Unhook(&v_gamma);
 //	Cvar_Unhook(&v_contrast);
 //	Cvar_Unhook(&v_brightness);

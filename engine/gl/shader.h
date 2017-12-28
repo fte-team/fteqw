@@ -741,7 +741,8 @@ typedef struct
 	unsigned int max_gpu_bones;	//max number of bones supported by uniforms.
 
 	qboolean texfmt[PTI_MAX];		//which texture formats are supported (renderable not implied)
-	unsigned int texture_maxsize;	//max size of a 2d texture
+	unsigned int texture2d_maxsize;			//max size of a 2d texture
+	unsigned int texturecube_maxsize;
 	qboolean texture_non_power_of_two;		//full support for npot
 	qboolean texture_non_power_of_two_pic;	//npot only works with clamp-to-edge mipless images.
 	qboolean npot_rounddown;				//memory limited systems can say that they want to use less ram.
@@ -859,6 +860,7 @@ void D3D9BE_Scissor(srect_t *rect);
 void D3D9Shader_Init(void);
 void D3D9BE_Reset(qboolean before);
 void D3D9BE_Set2D(void);
+void D3D9BE_SetViewport(int x, int y, int w, int h);
 #endif
 #ifdef D3D11QUAKE
 void D3D11BE_Init(void);
@@ -878,7 +880,7 @@ qboolean D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsig
 
 qboolean D3D11Shader_Init(unsigned int featurelevel);
 void D3D11BE_Reset(qboolean before);
-void D3D11BE_SetupViewCBuffer(void);
+void D3D11BE_Set2D(void);
 void D3D11_UploadLightmap(lightmapinfo_t *lm);
 void D3D11BE_VBO_Begin(vbobctx_t *ctx, size_t maxsize);
 void D3D11BE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);

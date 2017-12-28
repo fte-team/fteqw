@@ -1321,9 +1321,10 @@ void Matrix4x4_Identity(float *outm)
 	outm[15] = 1;
 }
 
-void Matrix4x4_CM_Projection_Far(float *proj, float fovx, float fovy, float neard, float fard)
+void Matrix4x4_CM_Projection_Far(float *proj, float fovx, float fovy, float neard, float fard, qboolean d3d)
 {
 	double xmin, xmax, ymin, ymax;
+	double dn = (d3d?0:-1), df = 1;
 
 	//proj
 	ymax = neard * tan( fovy * M_PI / 360.0 );
@@ -1352,8 +1353,8 @@ void Matrix4x4_CM_Projection_Far(float *proj, float fovx, float fovy, float near
 
 	proj[2] = 0;
 	proj[6] = 0;
-	proj[10] = (fard+neard)/(neard-fard);
-	proj[14] = (2*fard*neard)/(neard-fard);
+	proj[10] = (fard*df-neard*dn)/(neard-fard);
+	proj[14] = ((df-dn)*fard*neard)/(neard-fard);
 	
 	proj[3] = 0;
 	proj[7] = 0;
@@ -1361,10 +1362,10 @@ void Matrix4x4_CM_Projection_Far(float *proj, float fovx, float fovy, float near
 	proj[15] = 0;
 }
 
-void Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float neard)
+void Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float neard, qboolean d3d)
 {
 	float xmin, xmax, ymin, ymax;
-	float nudge = 1;
+	double dn = (d3d?0:-1), df = 1;
 
 	//proj
 	ymax = neard * tan( fovy * M_PI / 360.0 );
@@ -1391,10 +1392,29 @@ void Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float near
 	proj[9] = (ymax + ymin) / (ymax - ymin);
 	proj[13] = 0;
 
+#if 1
+	{
+		const double epsilon = 1.0/(1<<22);
+		proj[2] = 0;
+		proj[6] = 0;
+		proj[10] = epsilon-1;
+		proj[14] = (epsilon-(df-dn))*neard;
+	}
+#elif 1
+	{	//mathematical target
+		const float fard = (1<<22);
+		proj[2] = 0;
+		proj[6] = 0;
+		proj[10] = (fard*df-neard*dn)/(neard-fard);
+		proj[14] = ((df-dn)*fard*neard)/(neard-fard);
+	}
+#else
+	//old logic
 	proj[2] = 0;
 	proj[6] = 0;
 	proj[10] = -1  * ((float)(1<<21)/(1<<22));
-	proj[14] = -2*neard * nudge;
+	proj[14] = -2*neard;
+#endif
 	
 	proj[3] = 0;
 	proj[7] = 0;
@@ -1793,7 +1813,7 @@ void Matrix4x4_CM_UnProject(const vec3_t in, vec3_t out, const vec3_t viewangles
 	float tempm[16];
 
 	Matrix4x4_CM_ModelViewMatrix(modelview, viewangles, vieworg);
-	Matrix4x4_CM_Projection_Inf(proj, fovx, fovy, 4);
+	Matrix4x4_CM_Projection_Inf(proj, fovx, fovy, 4, true);
 	Matrix4_Multiply(proj, modelview, tempm);
 
 	Matrix4_Invert(tempm, proj);
@@ -1828,7 +1848,7 @@ qboolean Matrix4x4_CM_Project (const vec3_t in, vec3_t out, const vec3_t viewang
 	float proj[16];
 
 	Matrix4x4_CM_ModelViewMatrix(modelview, viewangles, vieworg);
-	Matrix4x4_CM_Projection_Inf(proj, fovx, fovy, 4);
+	Matrix4x4_CM_Projection_Inf(proj, fovx, fovy, 4, true);
 
 	{
 		float v[4], tempv[4];

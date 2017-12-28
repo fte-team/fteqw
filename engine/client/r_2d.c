@@ -395,7 +395,7 @@ void R2D_Init(void)
 	atlas.shader = NULL;
 	atlas.data = NULL;
 	atlas.dirty = false;
-	Mod_LightmapAllocInit(&atlas.allocation, false, min(512, sh_config.texture_maxsize), min(512, sh_config.texture_maxsize), 0);
+	Mod_LightmapAllocInit(&atlas.allocation, false, min(512, sh_config.texture2d_maxsize), min(512, sh_config.texture2d_maxsize), 0);
 }
 
 mpic_t	*R2D_SafeCachePic (const char *path)
@@ -1161,7 +1161,12 @@ void R2D_Console_Resize(void)
 	}
 
 	if (!cwidth && !cheight)
-		cheight = 480;
+	{
+		if (vid.dpi_y)
+			cheight = (480 * 96) / vid.dpi_y;
+		else
+			cheight = 480;
+	}
 	if (cheight && !cwidth && vid.rotpixelheight)
 		cwidth = (cheight*vid.rotpixelwidth)/vid.rotpixelheight;
 	if (cwidth && !cheight && vid.rotpixelwidth)

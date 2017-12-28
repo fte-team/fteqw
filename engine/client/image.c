@@ -33,10 +33,14 @@ char *r_defaultimageextensions =
 #if defined(AVAIL_JPEGLIB) || defined(FTE_TARGET_WEB)
 	" jpg"	//q3 uses some jpegs, for some reason
 #endif
+#if 0//def IMAGEFMT_PKM
+	" pkm"	//compressed format, but lacks mipmaps which makes it terrible to use.
+#endif
 #ifndef NOLEGACY
 	" pcx"	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
 #endif
 	;
+static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt);
 static void QDECL R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue);
 cvar_t r_imageexensions				= CVARCD("r_imageexensions", NULL, R_ImageExtensions_Callback, "The list of image file extensions which fte should attempt to load.");
 cvar_t r_image_downloadsizelimit	= CVARFD("r_image_downloadsizelimit", "131072", CVAR_NOTFROMSERVER, "The maximum allowed file size of images loaded from a web-based url. 0 disables completely, while empty imposes no limit.");
@@ -2621,7 +2625,7 @@ typedef struct
 	unsigned int numberofmipmaplevels;
 	unsigned int bytesofkeyvaluedata;
 } ktxheader_t;
-static qboolean Image_ReadKTXFile(texid_t tex, unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
+static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
 {
 	static const char magic[12] = {0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A};
 	ktxheader_t *header;
@@ -2629,13 +2633,13 @@ static qboolean Image_ReadKTXFile(texid_t tex, unsigned int flags, char *fname, 
 	int mipnum;
 	int face;
 	int datasize;
-	unsigned int w, h, x, y;
+	unsigned int w, h;
 	struct pendingtextureinfo *mips;
 	int encoding;
-	qbyte *out, *in;
+	qbyte *in;
 
 	if (memcmp(filedata, magic, sizeof(magic)))
-		return false;	//not a ktx file
+		return NULL;	//not a ktx file
 
 	header = (ktxheader_t*)filedata;
 	nummips = header->numberofmipmaplevels;
@@ -2643,76 +2647,94 @@ static qboolean Image_ReadKTXFile(texid_t tex, unsigned int flags, char *fname, 
 		nummips = 1;
 
 	if (header->numberofarrayelements != 0)
-		return false;	//don't support array textures
+		return NULL;	//don't support array textures
 	if (header->numberoffaces == 1)
 		;	//non-cubemap
 	else if (header->numberoffaces == 6)
 	{
 		if (header->pixeldepth != 0)
-			return false;
-		if (header->numberofmipmaplevels != 1)
-			return false;	//only allow cubemaps that have no mips
+			return NULL;
+//		if (header->numberofmipmaplevels != 1)
+//			return false;	//only allow cubemaps that have no mips
 	}
 	else
-		return false;	//don't allow weird cubemaps
+		return NULL;	//don't allow weird cubemaps
 	if (header->pixeldepth && header->pixelwidth != header->pixeldepth && header->pixelheight != header->pixeldepth)
-		return false;	//we only support 3d textures where width+height+depth are the same. too lazy to change it now.
+		return NULL;	//we only support 3d textures where width+height+depth are the same. too lazy to change it now.
 
 	switch(header->glinternalformat)
 	{
-	case 0x8D64/*GL_ETC1_RGB8_OES*/:
-		encoding = PTI_ETC1_RGB8;
-		break;
-	case 0x9274/*GL_COMPRESSED_RGB8_ETC2*/:
-	case 0x9275/*GL_COMPRESSED_SRGB8_ETC2*/:
-		encoding = PTI_ETC2_RGB8;
-		break;
-	case 0x9276/*GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2*/:
-	case 0x9277/*GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2*/:
-		encoding = PTI_ETC2_RGB8A1;
-		break;
-	case 0x9278/*GL_COMPRESSED_RGBA8_ETC2_EAC*/:
-	case 0x9279/*GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC*/:
-		encoding = PTI_ETC2_RGB8A8;
-		break;
-	case 0x83F0/*GL_COMPRESSED_RGB_S3TC_DXT1_EXT*/:
-		encoding = PTI_S3RGB1;
-		break;
-	case 0x83F1/*GL_COMPRESSED_RGBA_S3TC_DXT1_EXT*/:
-		encoding = PTI_S3RGBA1;
-		break;
-	case 0x83F2/*GL_COMPRESSED_RGBA_S3TC_DXT3_EXT*/:
-		encoding = PTI_S3RGBA3;
-		break;
-	case 0x83F3/*GL_COMPRESSED_RGBA_S3TC_DXT5_EXT*/:
-		encoding = PTI_S3RGBA5;
-		break;
-	case 0x80E1/*GL_BGRA_EXT*/:
-		encoding = PTI_BGRA8;
-		break;
-	case 0x1908/*GL_RGBA*/:
-		encoding = PTI_RGBA8;
-		break;
-	case 0x8C43/*GL_SRGB8_ALPHA8_EXT*/:
-		encoding = PTI_RGBA8_SRGB;
-		break;
-	case 0x8045/*GL_LUMINANCE8_ALPHA8*/:
-		encoding = PTI_RGBA8;
-		break;
-	case 0x8051/*GL_RGB8*/:
-		encoding = PTI_RGBX8;
-		break;
+	case 0x8D64/*GL_ETC1_RGB8_OES*/:							encoding = PTI_ETC1_RGB8;			break;
+	case 0x9274/*GL_COMPRESSED_RGB8_ETC2*/:						encoding = PTI_ETC2_RGB8;			break;
+	case 0x9275/*GL_COMPRESSED_SRGB8_ETC2*/:					encoding = PTI_ETC2_RGB8_SRGB;		break;
+	case 0x9276/*GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2*/:	encoding = PTI_ETC2_RGB8A1;			break;
+	case 0x9277/*GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2*/:encoding = PTI_ETC2_RGB8A1_SRGB;	break;
+	case 0x9278/*GL_COMPRESSED_RGBA8_ETC2_EAC*/:				encoding = PTI_ETC2_RGB8A8;			break;
+	case 0x9279/*GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC*/:			encoding = PTI_ETC2_RGB8A8_SRGB;	break;
+	case 0x83F0/*GL_COMPRESSED_RGB_S3TC_DXT1_EXT*/:				encoding = PTI_BC1_RGB;				break;
+	case 0x8C4C/*GL_COMPRESSED_SRGB_S3TC_DXT1_EXT*/:			encoding = PTI_BC1_RGB_SRGB;		break;
+	case 0x83F1/*GL_COMPRESSED_RGBA_S3TC_DXT1_EXT*/:			encoding = PTI_BC1_RGBA;			break;
+	case 0x8C4D/*GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT*/:		encoding = PTI_BC1_RGBA_SRGB;		break;
+	case 0x83F2/*GL_COMPRESSED_RGBA_S3TC_DXT3_EXT*/:			encoding = PTI_BC2_RGBA;			break;
+	case 0x8C4E/*GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT*/:		encoding = PTI_BC2_RGBA_SRGB;		break;
+	case 0x83F3/*GL_COMPRESSED_RGBA_S3TC_DXT5_EXT*/:			encoding = PTI_BC3_RGBA;			break;
+	case 0x8C4F/*GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT*/:		encoding = PTI_BC3_RGBA_SRGB;		break;
+	case 0x8DBC/*GL_COMPRESSED_SIGNED_RED_RGTC1*/:				encoding = PTI_BC4_R8_SIGNED;		break;
+	case 0x8DBB/*GL_COMPRESSED_RED_RGTC1*/:						encoding = PTI_BC4_R8;				break;
+	case 0x8DBE/*GL_COMPRESSED_SIGNED_RG_RGTC2*/:				encoding = PTI_BC5_RG8_SIGNED;		break;
+	case 0x8DBD/*GL_COMPRESSED_RG_RGTC2*/:						encoding = PTI_BC5_RG8;				break;
+	case 0x8E8F/*GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB*/:	encoding = PTI_BC6_RGBF;			break;
+	case 0x8E8E/*GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB*/:		encoding = PTI_BC6_RGBF_SIGNED;		break;
+	case 0x8E8C/*GL_COMPRESSED_RGBA_BPTC_UNORM_ARB*/:			encoding = PTI_BC7_RGBA;			break;
+	case 0x8E8D/*GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB*/:		encoding = PTI_BC7_RGBA_SRGB;		break;
+	case 0x93B0/*GL_COMPRESSED_RGBA_ASTC_4x4_KHR*/:				encoding = PTI_ASTC_4X4;			break;
+	case 0x93B1/*GL_COMPRESSED_RGBA_ASTC_5x4_KHR*/:				encoding = PTI_ASTC_5X4;			break;
+	case 0x93B2/*GL_COMPRESSED_RGBA_ASTC_5x5_KHR*/:				encoding = PTI_ASTC_5X5;			break;
+	case 0x93B3/*GL_COMPRESSED_RGBA_ASTC_6x5_KHR*/:				encoding = PTI_ASTC_6X5;			break;
+	case 0x93B4/*GL_COMPRESSED_RGBA_ASTC_6x6_KHR*/:				encoding = PTI_ASTC_6X6;			break;
+	case 0x93B5/*GL_COMPRESSED_RGBA_ASTC_8x5_KHR*/:				encoding = PTI_ASTC_8X5;			break;
+	case 0x93B6/*GL_COMPRESSED_RGBA_ASTC_8x6_KHR*/:				encoding = PTI_ASTC_8X6;			break;
+	case 0x93B7/*GL_COMPRESSED_RGBA_ASTC_10x5_KHR*/:			encoding = PTI_ASTC_10X5;			break;
+	case 0x93B8/*GL_COMPRESSED_RGBA_ASTC_10x6_KHR*/:			encoding = PTI_ASTC_10X6;			break;
+	case 0x93B9/*GL_COMPRESSED_RGBA_ASTC_8x8_KHR*/:				encoding = PTI_ASTC_8X8;			break;
+	case 0x93BA/*GL_COMPRESSED_RGBA_ASTC_10x8_KHR*/:			encoding = PTI_ASTC_10X8;			break;
+	case 0x93BB/*GL_COMPRESSED_RGBA_ASTC_10x10_KHR*/:			encoding = PTI_ASTC_10X10;			break;
+	case 0x93BC/*GL_COMPRESSED_RGBA_ASTC_12x10_KHR*/:			encoding = PTI_ASTC_12X10;			break;
+	case 0x93BD/*GL_COMPRESSED_RGBA_ASTC_12x12_KHR*/:			encoding = PTI_ASTC_12X12;			break;
+	case 0x93D0/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR*/:		encoding = PTI_ASTC_4X4_SRGB;		break;
+	case 0x93D1/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR*/:		encoding = PTI_ASTC_5X4_SRGB;		break;
+	case 0x93D2/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR*/:		encoding = PTI_ASTC_5X5_SRGB;		break;
+	case 0x93D3/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR*/:		encoding = PTI_ASTC_6X5_SRGB;		break;
+	case 0x93D4/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR*/:		encoding = PTI_ASTC_6X6_SRGB;		break;
+	case 0x93D5/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR*/:		encoding = PTI_ASTC_8X5_SRGB;		break;
+	case 0x93D6/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR*/:		encoding = PTI_ASTC_8X6_SRGB;		break;
+	case 0x93D7/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR*/:	encoding = PTI_ASTC_10X5_SRGB;		break;
+	case 0x93D8/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR*/:	encoding = PTI_ASTC_10X6_SRGB;		break;
+	case 0x93D9/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR*/:		encoding = PTI_ASTC_8X8_SRGB;		break;
+	case 0x93DA/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR*/:	encoding = PTI_ASTC_10X8_SRGB;		break;
+	case 0x93DB/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR*/:	encoding = PTI_ASTC_10X10_SRGB;		break;
+	case 0x93DC/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR*/:	encoding = PTI_ASTC_12X10_SRGB;		break;
+	case 0x93DD/*GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR*/:	encoding = PTI_ASTC_12X12_SRGB;		break;
+	case 0x80E1/*GL_BGRA_EXT*/:									encoding = PTI_BGRA8;				break;
+	case 0x1908/*GL_RGBA*/:										encoding = PTI_RGBA8;				break;
+	case 0x8C43/*GL_SRGB8_ALPHA8_EXT*/:							encoding = PTI_RGBA8_SRGB;			break;
+	case 0x8045/*GL_LUMINANCE8_ALPHA8*/:						encoding = PTI_LUMINANCE8_ALPHA8;	break;
+	case 0x8051/*GL_RGB8*/:										encoding = PTI_RGB8;				break;
+//	case 0x????/*GL_BGR8_EXT*/:									encoding = PTI_BGR8;				break;
+	case GL_RGBA16F_ARB:										encoding = PTI_RGBA16F;				break;
+	case GL_RGBA32F_ARB:										encoding = PTI_RGBA32F;				break;
+
 	//note: this could be pretty much anything, including 24bit data.
 	default:
 		Con_Printf("Unsupported ktx internalformat %x in %s\n", header->glinternalformat, fname);
-		return false;
+		return NULL;
 	}
 
-	if (!sh_config.texfmt[encoding])
-	{
-		Con_Printf("KTX %s: encoding %x not supported on this system\n", fname, header->glinternalformat);
-		return false;
-	}
+//	if (!sh_config.texfmt[encoding])
+//	{
+//		Con_Printf("KTX %s: encoding %x not supported on this system\n", fname, header->glinternalformat);
+//		return false;
+//	}
 
 	mips = Z_Malloc(sizeof(*mips));
 	mips->mipcount = 0;
@@ -2728,6 +2750,9 @@ static qboolean Image_ReadKTXFile(texid_t tex, unsigned int flags, char *fname, 
 	filedata += sizeof(*header);			//skip the header...
 	filedata += header->bytesofkeyvaluedata;	//skip the keyvalue stuff
 
+	if (nummips * header->numberoffaces > countof(mips->mip))
+		nummips = countof(mips->mip) / header->numberoffaces;
+
 	w = header->pixelwidth;
 	h = header->pixelheight;
 	for (mipnum = 0; mipnum < nummips; mipnum++)
@@ -2742,38 +2767,6 @@ static qboolean Image_ReadKTXFile(texid_t tex, unsigned int flags, char *fname, 
 			mips->mip[mips->mipcount].datasize = datasize;
 			mips->mip[mips->mipcount].width = w;
 			mips->mip[mips->mipcount].height = h;
-			
-			//some formats are old and not really supported. we convert.
-			switch(header->glinternalformat)
-			{
-			case 0x8045/*GL_LUMINANCE8_ALPHA8*/:
-				mips->mip[mips->mipcount].needfree = true;
-				mips->mip[mips->mipcount].data = out = BZ_Malloc(datasize*2);
-				mips->mip[mips->mipcount].datasize = datasize * 2;
-				//fixme: input must be a multiple of 2...
-				for (y = 0; y < h; y++)
-					for (x = 0; x < w; x++, out+=4)
-					{
-						out[0] = out[1] = out[2] = *in++;
-						out[3] = *in++;
-					}
-				break;
-			case 0x8051/*GL_RGB8*/:
-//			case GL_BGR8_EXT:
-				mips->mip[mips->mipcount].needfree = true;
-				mips->mip[mips->mipcount].datasize = (datasize/3)*4;
-				mips->mip[mips->mipcount].data = out = BZ_Malloc((datasize/3)*4);
-				//fixme: input must be a multiple of 4...
-				for (y = 0; y < h; y++)
-					for (x = 0; x < w; x++, out+=4)
-					{
-						out[0] = *in++;
-						out[1] = *in++;
-						out[2] = *in++;
-						out[3] = 255;
-					}
-				break;
-			}
 			mips->mipcount++;
 
 			filedata += datasize;
@@ -2784,11 +2777,96 @@ static qboolean Image_ReadKTXFile(texid_t tex, unsigned int flags, char *fname, 
 		h = (h+1)>>1;
 	}
 
-	if (flags & IF_NOWORKER)
-		Image_LoadTextureMips(tex, mips, 0, 0);
+	return mips;
+}
+#endif
+
+#ifdef IMAGEFMT_PKM
+static struct pendingtextureinfo *Image_ReadPKMFile(unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
+{
+	struct pendingtextureinfo *mips;
+	unsigned int encoding, blockbytes;
+	unsigned short ver, dfmt;
+	unsigned short datawidth, dataheight;
+	unsigned short imgwidth, imgheight;
+	if (filedata[0] != 'P' || filedata[1] != 'K' || filedata[2] != 'M' || filedata[3] != ' ')
+		return NULL;
+	ver = (filedata[4]<<8) | filedata[5];
+	dfmt = (filedata[6]<<8) | filedata[7];
+	datawidth = (filedata[8]<<8) | filedata[9];
+	dataheight = (filedata[10]<<8) | filedata[11];
+	imgwidth = (filedata[12]<<8) | filedata[13];
+	imgheight = (filedata[14]<<8) | filedata[15];
+	if (((imgwidth+3)&~3)!=datawidth || ((imgheight+3)&~3)!=dataheight)
+		return NULL;	//these are all 4*4 blocks.
+	if (ver == ((1<<8)|0) && ver == ((2<<8)|0))
+	{
+		if (dfmt == 0)	//should only be in v1
+			encoding = PTI_ETC1_RGB8;
+		//following should only be in v2, but we don't care.
+		else if (dfmt == 1)
+			encoding = PTI_ETC2_RGB8;
+		else if (dfmt == 2)
+			return NULL;	//'old' rgba8 format that's not supported.
+		else if (dfmt == 3)
+			encoding = PTI_ETC2_RGB8A8;
+		else if (dfmt == 4)
+			encoding = PTI_ETC2_RGB8A1;
+		else if (dfmt == 5)
+			encoding = PTI_EAC_R11;
+		else if (dfmt == 6)
+			encoding = PTI_EAC_RG11;
+		else if (dfmt == 7)
+			encoding = PTI_EAC_R11_SIGNED;
+		else if (dfmt == 8)
+			encoding = PTI_EAC_RG11_SIGNED;
+		else if (dfmt == 9)
+			encoding = PTI_ETC2_RGB8_SRGB;	//srgb
+		else if (dfmt == 10)
+			encoding = PTI_ETC2_RGB8A8_SRGB;	//srgb
+		else if (dfmt == 11)
+			encoding = PTI_ETC2_RGB8A1_SRGB;	//srgb
+		else
+			return NULL;	//unknown/unsupported
+	}
 	else
-		COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
-	return true;
+		return NULL;
+
+	switch(encoding)
+	{
+	case PTI_ETC1_RGB8:
+	case PTI_ETC2_RGB8:
+	case PTI_ETC2_RGB8_SRGB:
+	case PTI_ETC2_RGB8A1:
+	case PTI_ETC2_RGB8A1_SRGB:
+	case PTI_EAC_R11:
+	case PTI_EAC_R11_SIGNED:
+		blockbytes = 8;
+		break;
+	case PTI_ETC2_RGB8A8:
+	case PTI_ETC2_RGB8A8_SRGB:
+	case PTI_EAC_RG11:
+	case PTI_EAC_RG11_SIGNED:
+		blockbytes = 16;
+		break;
+	default:
+		return NULL;
+	}
+
+	if (16+(datawidth/4)*(dataheight/4)*blockbytes != filesize)
+		return NULL;	//err, not the right size!
+
+	mips = Z_Malloc(sizeof(*mips));
+	mips->mipcount = 1;	//this format doesn't support mipmaps. so there's only one level.
+	mips->type = PTI_2D;
+	mips->extrafree = filedata;
+	mips->encoding = encoding;
+	mips->mip[0].data = filedata+16;
+	mips->mip[0].datasize = filesize-16;
+	mips->mip[0].width = imgwidth;
+	mips->mip[0].height = imgheight;
+	mips->mip[0].needfree = false;
+	return mips;
 }
 #endif
 
@@ -2814,26 +2892,37 @@ typedef struct {
 	unsigned int ddsCaps[4];
 	unsigned int dwReserved2;
 } ddsheader;
+typedef struct {
+	unsigned int dxgiformat;
+	unsigned int resourcetype; //0=unknown, 1=buffer, 2=1d, 3=2d, 4=3d
+	unsigned int miscflag;	//singular... yeah. 4=cubemap.
+	unsigned int arraysize;
+	unsigned int miscflags2;
+} dds10header_t;
 
-
-static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
+static struct pendingtextureinfo *Image_ReadDDSFile(unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
 {
 	int nummips;
 	int mipnum;
 	int datasize;
-	int pad;
+//	int pad;
 	unsigned int w, h;
-	int divsize, blocksize;
+	unsigned int blockwidth, blockheight, blockbytes;
 	struct pendingtextureinfo *mips;
 	int encoding;
+	int layers = 1, layer;
 
 	ddsheader fmtheader;
+	dds10header_t fmt10header;
+
 	if (*(int*)filedata != (('D'<<0)|('D'<<8)|('S'<<16)|(' '<<24)))
-		return false;
+		return NULL;
 
 	memcpy(&fmtheader, filedata+4, sizeof(fmtheader));
 	if (fmtheader.dwSize != sizeof(fmtheader))
-		return false;	//corrupt/different version
+		return NULL;	//corrupt/different version
+	memset(&fmt10header, 0, sizeof(fmt10header));
+	fmt10header.arraysize = 1;
 
 	nummips = fmtheader.dwMipMapCount;
 	if (nummips < 1)
@@ -2841,58 +2930,130 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 
 	if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('1'<<24)))
 	{
-		encoding = PTI_S3RGBA1;	//alpha or not? Assume yes, and let the drivers decide.
-		pad = 8;
-		divsize = 4;
-		blocksize = 8;
+		encoding = PTI_BC1_RGBA;	//alpha or not? Assume yes, and let the drivers decide.
+//		pad = 8;
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('2'<<24)))	//dx3 with premultiplied alpha
 	{
 //		if (!(tex->flags & IF_PREMULTIPLYALPHA))
 //			return false;
-		encoding = PTI_S3RGBA3;
-		pad = 8;
-		divsize = 4;
-		blocksize = 16;
+		encoding = PTI_BC2_RGBA;
+//		pad = 8;
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('3'<<24)))
 	{
 //		if (tex->flags & IF_PREMULTIPLYALPHA)
 //			return false;
-		encoding = PTI_S3RGBA3;
-		pad = 8;
-		divsize = 4;
-		blocksize = 16;
+		encoding = PTI_BC2_RGBA;
+//		pad = 8;
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('4'<<24)))	//dx5 with premultiplied alpha
 	{
 //		if (!(tex->flags & IF_PREMULTIPLYALPHA))
 //			return false;
 
-		encoding = PTI_S3RGBA5;
-		pad = 8;
-		divsize = 4;
-		blocksize = 16;
+		encoding = PTI_BC3_RGBA;
+//		pad = 8;
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('T'<<16)|('5'<<24)))
 	{
 //		if (tex->flags & IF_PREMULTIPLYALPHA)
 //			return false;
 
-		encoding = PTI_S3RGBA5;
-		pad = 8;
-		divsize = 4;
-		blocksize = 16;
+		encoding = PTI_BC3_RGBA;
+//		pad = 8;
+	}
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('E'<<0)|('T'<<8)|('C'<<16)|('2'<<24)))
+	{
+		encoding = PTI_ETC2_RGB8;
+//		pad = 8;
+	}
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == (('D'<<0)|('X'<<8)|('1'<<16)|('0'<<24)))
+	{
+		//this has some weird extra header with dxgi format types.
+		memcpy(&fmt10header, filedata+4+fmtheader.dwSize, sizeof(fmt10header));
+		fmtheader.dwSize += sizeof(fmt10header);
+//		pad = 8;
+		switch(fmt10header.dxgiformat)
+		{
+		case 71/*DXGI_FORMAT_BC1_UNORM*/:
+			encoding = PTI_BC1_RGBA;
+			break;
+		case 72/*DXGI_FORMAT_BC1_UNORM_SRGB*/:
+			encoding = PTI_BC1_RGBA_SRGB;
+			break;
+		case 74/*DXGI_FORMAT_BC2_UNORM*/:
+			encoding = PTI_BC2_RGBA;
+			break;
+		case 75/*DXGI_FORMAT_BC2_UNORM_SRGB*/:
+			encoding = PTI_BC2_RGBA_SRGB;
+			break;
+		case 77/*DXGI_FORMAT_BC3_UNORM*/:
+			encoding = PTI_BC3_RGBA;
+			break;
+		case 78/*DXGI_FORMAT_BC3_UNORM_SRGB*/:
+			encoding = PTI_BC3_RGBA_SRGB;
+			break;
+		case 80/*DXGI_FORMAT_BC4_UNORM*/:
+			encoding = PTI_BC4_R8;
+			break;
+		case 81/*DXGI_FORMAT_BC4_SNORM*/:
+			encoding = PTI_BC4_R8_SIGNED;
+			break;
+		case 83/*DXGI_FORMAT_BC5_UNORM*/:
+			encoding = PTI_BC5_RG8;
+			break;
+		case 84/*DXGI_FORMAT_BC5_SNORM*/:
+			encoding = PTI_BC5_RG8_SIGNED;
+			break;
+		case 95/*DXGI_FORMAT_BC6H_UF16*/:
+			encoding = PTI_BC6_RGBF;
+			break;
+		case 96/*DXGI_FORMAT_BC6H_SF16*/:
+			encoding = PTI_BC6_RGBF_SIGNED;
+			break;
+		case 98/*DXGI_FORMAT_BC7_UNORM*/:
+			encoding = PTI_BC7_RGBA;
+			break;
+		case 99/*DXGI_FORMAT_BC7_UNORM_SRGB*/:
+			encoding = PTI_BC7_RGBA_SRGB;
+			break;
+
+		default:
+			Con_Printf("Unsupported dds10 dxgi in %s - %u\n", fname, fmt10header.dxgiformat);
+			return NULL;
+		}
 	}
 	else
 	{
-		Con_Printf("Unsupported dds fourcc in %s\n", fname);
-		return false;
+		Con_Printf("Unsupported dds fourcc in %s - \"%c%c%c%c\"\n", fname,
+			((char*)&fmtheader.ddpfPixelFormat.dwFourCC)[0],
+			((char*)&fmtheader.ddpfPixelFormat.dwFourCC)[1],
+			((char*)&fmtheader.ddpfPixelFormat.dwFourCC)[2],
+			((char*)&fmtheader.ddpfPixelFormat.dwFourCC)[3]);
+		return NULL;
 	}
+
+	if ((fmtheader.ddsCaps[1] & 0x200) && (fmtheader.ddsCaps[1] & 0xfc00) != 0xfc00)
+		return NULL;	//cubemap without all 6 faces defined.
+	if (fmtheader.ddsCaps[1] & 0x200000)
+		return NULL;	//3d texture. fte internally interleaves layers on the x axis. I'll bet dds does not.
+
+	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
+	if (!blockbytes)
+		return NULL;	//werid/unsupported
 
 	mips = Z_Malloc(sizeof(*mips));
 	mips->mipcount = 0;
-	mips->type = PTI_2D;
+	if (fmtheader.ddsCaps[1] & 0x200)
+	{
+		layers = 6;
+		mips->type = PTI_CUBEMAP;
+	}
+	else if (fmtheader.ddsCaps[1] & 0x200000)
+		mips->type = PTI_3D;
+	else
+		mips->type = PTI_2D;
 	mips->extrafree = filedata;
 	mips->encoding = encoding;
 
@@ -2903,34 +3064,32 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 	h = fmtheader.dwHeight;
 	for (mipnum = 0; mipnum < nummips; mipnum++)
 	{
-		if (nummips >= countof(mips->mip))
+		if (mips->mipcount >= countof(mips->mip))
 			break;
 
-		if (datasize < pad)
-			datasize = pad;
-		datasize = ((w+divsize-1)/divsize) * ((h+divsize-1)/divsize) * blocksize;
+//		if (datasize < 8)
+//			datasize = pad;
+		datasize = ((w+blockwidth-1)/blockwidth) * ((h+blockheight-1)/blockheight) * blockbytes;
 
-		mips->mip[mipnum].data = filedata;
-		mips->mip[mipnum].datasize = datasize;
-		mips->mip[mipnum].width = w;
-		mips->mip[mipnum].height = h;
-		filedata += datasize;
+		for (layer = 0; layer < layers; layer++)
+		{
+			mips->mip[mips->mipcount].data = filedata;
+			mips->mip[mips->mipcount].datasize = datasize;
+			mips->mip[mips->mipcount].width = w;
+			mips->mip[mips->mipcount].height = h;
+			mips->mipcount++;
+			filedata += datasize;
+		}
 		w = (w+1)>>1;
 		h = (h+1)>>1;
 	}
 
-	mips->mipcount = mipnum;
-
-	if (flags & IF_NOWORKER)
-		Image_LoadTextureMips(tex, mips, 0, 0);
-	else
-		COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
-	return true;
+	return mips;
 }
 #endif
 
 #ifdef IMAGEFMT_BLP
-static qboolean Image_ReadBLPFile(texid_t tex, unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
+static struct pendingtextureinfo *Image_ReadBLPFile(unsigned int flags, char *fname, qbyte *filedata, size_t filesize)
 {
 	//FIXME: cba with endian.
 	int miplevel;
@@ -2958,7 +3117,7 @@ static qboolean Image_ReadBLPFile(texid_t tex, unsigned int flags, char *fname, 
 	blp = (void*)filedata;
 
 	if (memcmp(blp->blp2, "BLP2", 4) || blp->type != 1)
-		return false;
+		return NULL;
 
 	mips = Z_Malloc(sizeof(*mips));
 	mips->mipcount = 0;
@@ -2975,15 +3134,15 @@ static qboolean Image_ReadBLPFile(texid_t tex, unsigned int flags, char *fname, 
 		default:
 		case 0: //dxt1
 			if (blp->alphadepth)
-				mips->encoding = PTI_S3RGBA1;
+				mips->encoding = PTI_BC1_RGBA;
 			else
-				mips->encoding = PTI_S3RGB1;
+				mips->encoding = PTI_BC1_RGB;
 			break;
 		case 1: //dxt2/3
-			mips->encoding = PTI_S3RGBA3;
+			mips->encoding = PTI_BC2_RGBA;
 			break;
 		case 7: //dxt4/5
-			mips->encoding = PTI_S3RGBA5;
+			mips->encoding = PTI_BC3_RGBA;
 			break;
 		}
 		for (miplevel = 0; miplevel < 16; )
@@ -3092,15 +3251,7 @@ static qboolean Image_ReadBLPFile(texid_t tex, unsigned int flags, char *fname, 
 		BZ_Free(filedata);
 		mips->mipcount = miplevel;
 	}
-
-	tex->width = w;
-	tex->height = h;
-	if (flags & IF_NOWORKER)
-		Image_LoadTextureMips(tex, mips, 0, 0);
-	else
-		COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
-
-	return true;
+	return mips;
 }
 #endif
 
@@ -3752,12 +3903,12 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 
 	TRACE(("dbg: GL_RoundDimensions: %f\n", gl_max_size.value));
 
-	if (sh_config.texture_maxsize)
+	if (sh_config.texture2d_maxsize)
 	{
-		if (*scaled_width > sh_config.texture_maxsize)
-			*scaled_width = sh_config.texture_maxsize;
-		if (*scaled_height > sh_config.texture_maxsize)
-			*scaled_height = sh_config.texture_maxsize;
+		if (*scaled_width > sh_config.texture2d_maxsize)
+			*scaled_width = sh_config.texture2d_maxsize;
+		if (*scaled_height > sh_config.texture2d_maxsize)
+			*scaled_height = sh_config.texture2d_maxsize;
 	}
 	if (!(flags & (IF_UIPIC|IF_RENDERTARGET)))
 	{
@@ -3934,6 +4085,668 @@ static void Image_8_BGR_RGB_Swap(qbyte *data, unsigned int w, unsigned int h)
 	}
 }
 
+typedef union
+{
+	byte_vec4_t v;
+	unsigned int u;
+} pixel32_t;
+#ifdef DECOMPRESS_ETC2
+//FIXME: this is littleendian only...
+static void Image_ETC2_Decode_Block_TH_Internal(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, pixel32_t base1, pixel32_t base2, int d, qboolean tmode)
+{
+	pixel32_t painttable[4];
+	int dtab[] = {3,6,11,16,23,32,41,64};	//writing that felt like giving out lottery numbers.
+#define etc_addclamptopixel(r,p,d) r.v[0]=bound(0,p.v[0]+d, 255),r.v[1]=bound(0,p.v[1]+d, 255),r.v[2]=bound(0,p.v[2]+d, 255),r.v[3]=0xff
+	d = dtab[d];
+	if (tmode)
+	{
+		painttable[0].u = base1.u;
+		etc_addclamptopixel(painttable[1], base2, d);
+		painttable[2].u = base2.u;
+		etc_addclamptopixel(painttable[3], base2, -d);
+	}
+	else
+	{
+		etc_addclamptopixel(painttable[0], base1, d);
+		etc_addclamptopixel(painttable[1], base1, -d);
+		etc_addclamptopixel(painttable[2], base2, d);
+		etc_addclamptopixel(painttable[3], base2, -d);
+	}
+#undef etc_addclamptoint
+	//yay, we have our painttable. now use it. also, screw that msb/lsb split.
+
+#define etc2_th_pix(r,i)								\
+	if (in[5-(i/8)]&(1<<(i&7))) {						\
+		if (in[7-(i/8)]&(1<<(i&7)))	r.u = painttable[3].u;	\
+		else						r.u = painttable[2].u;	\
+	} else {											\
+		if (in[7-(i/8)]&(1<<(i&7)))	r.u = painttable[1].u;	\
+		else						r.u = painttable[0].u;	\
+	}
+
+	etc2_th_pix(out[0], 0);
+	etc2_th_pix(out[1], 4);
+	etc2_th_pix(out[2], 8);
+	etc2_th_pix(out[3], 12);
+	out += w;
+	etc2_th_pix(out[0], 1);
+	etc2_th_pix(out[1], 5);
+	etc2_th_pix(out[2], 9);
+	etc2_th_pix(out[3], 13);
+	out += w;
+	etc2_th_pix(out[0], 2);
+	etc2_th_pix(out[1], 6);
+	etc2_th_pix(out[2], 10);
+	etc2_th_pix(out[3], 14);
+	out += w;
+	etc2_th_pix(out[0], 3);
+	etc2_th_pix(out[1], 7);
+	etc2_th_pix(out[2], 11);
+	etc2_th_pix(out[3], 15);
+#undef etc2_th_pix
+}
+static void Image_ETC2_Decode_Block_Internal(qbyte *fte_restrict in, pixel32_t *fte_restrict out0, int w, int alphamode)
+{
+	static const char tab[8][2] =
+	{
+		{2,8},
+		{5,17},
+		{9,29},
+		{13,42},
+		{18,60},
+		{24,80},
+		{33,106},
+		{47,183}
+	};
+	int tv;
+	pixel32_t base1, base2, base3;
+	const char *cw1, *cw2;
+	unsigned char R1,G1,B1;
+	pixel32_t *out1, *out2, *out3;
+
+#define etc_expandv(p,x,y,z) p.v[0]|=p.v[0]>>x,p.v[1]|=p.v[1]>>y,p.v[2]|=p.v[2]>>z
+
+	qboolean opaque;
+
+	if (alphamode)
+		opaque = in[3]&2;
+	else
+		opaque = 1;
+
+	if (alphamode || (in[3]&2))	//diffbit, bit 33
+	{
+		R1=(in[0]>>3)&31;//59+5
+		G1=(in[1]>>3)&31;//51+5
+		B1=(in[2]>>3)&31;//43+5
+		VectorSet(base1.v, (R1<<3)+(R1>>2), (G1<<3)+(G1>>2), (B1<<3)+(B1>>2));
+		R1 += (char)((in[0]&3)|((in[0]&4)*0x3f));	//56+3
+		if (R1&~0x1f) //R2 overflow = T mode
+		{
+			Vector4Set(base1.v, ((in[0]&0x18)<<3) | ((in[0]&0x3)<<4), (in[1]&0xf0), ((in[1]&0x0f)<<4), 0xff);
+			Vector4Set(base2.v, (in[2]&0xf0), ((in[2]&0x0f)<<4), (in[3]&0xf0), 0xff);
+			tv = ((in[3]&0x0c)>>1)|(in[3]&0x01);
+			etc_expandv(base1,4,4,4);
+			etc_expandv(base2,4,4,4);
+			Image_ETC2_Decode_Block_TH_Internal(in, out0, w, base1, base2, tv, true);
+			return;
+		}
+		G1 += (char)((in[1]&3)|((in[1]&4)*0x3f));	//48+3
+		if (G1&~0x1f) //G2 overflow = H mode
+		{
+			Vector4Set(base1.v, ((in[0]&0x78)<<1), ((in[0]&0x07)<<5)|((in[1]&0x10)<<0), ((in[1]&0x08)<<4)|((in[1]&0x03)<<5)|((in[2]&0x80)>>3), 0xff);
+			Vector4Set(base2.v, ((in[2]&0x78)<<1), ((in[2]&0x07)<<5)|((in[3]&0x80)>>3), ((in[3]&0x78)<<1), 0xff);
+			tv = ((in[3]&0x04)>>1)|(in[3]&0x01);
+			etc_expandv(base1,4,4,4);
+			etc_expandv(base2,4,4,4);
+			Image_ETC2_Decode_Block_TH_Internal(in, out0, w, base1, base2, tv, false);
+			return;
+		}
+		B1 += (char)((in[2]&3)|((in[2]&4)*0x3f));	//40+3
+		if (B1&~0x1f) //B2 overflow = Planar mode
+		{//origin horizontal, vertical delas, interpolated across the 16 pixels
+			VectorSet(base1.v, ((in[0]&0x7f)<<1),((in[0]&0x01)<<7)|((in[1])&0x7e),(in[1]<<7)|((in[2]&0x18)<<2)|((in[2]&0x3)<<3)|((in[3]&0x80)>>5));
+			VectorSet(base2.v, ((in[3]&0x7c)<<1)|((in[3]&0x01)<<2),(in[4]&0xfe),((in[4]&1)<<7)|((in[5]&0xf8)>>1));
+			VectorSet(base3.v, ((in[5]&0x07)<<5)|((in[6]&0xe0)>>3),((in[6]&0x1f)<<3)|((in[7]&0xc0)>>5),(in[7]&0x3f)<<2);
+			etc_expandv(base1,6,7,6);
+			etc_expandv(base2,6,7,6);
+			etc_expandv(base3,6,7,6);
+#define etc2_planar2(r,x,y)				\
+	r[x].v[0] =	bound(0,(4*base1.v[0] + x*((short)base2.v[0]-base1.v[0]) + y*((short)base3.v[0]-base1.v[0]) + 2)>>2,0xff),	\
+	r[x].v[1] = bound(0,(4*base1.v[1] + x*((short)base2.v[1]-base1.v[1]) + y*((short)base3.v[1]-base1.v[1]) + 2)>>2,0xff),	\
+	r[x].v[2] = bound(0,(4*base1.v[2] + x*((short)base2.v[2]-base1.v[2]) + y*((short)base3.v[2]-base1.v[2]) + 2)>>2,0xff),	\
+	r[x].v[3] = 0xff
+#define etc2_planar(r,y)				\
+					etc2_planar2(r,0,y);		\
+					etc2_planar2(r,1,y);		\
+					etc2_planar2(r,2,y);		\
+					etc2_planar2(r,3,y);
+			etc2_planar(out0,0);out0 += w;
+			etc2_planar(out0,1);out0 += w;
+			etc2_planar(out0,2);out0 += w;
+			etc2_planar(out0,3);
+			return;
+		}
+		//they should still be 5 bits.
+		VectorSet(base2.v, (R1<<3)+(R1>>2), (G1<<3)+(G1>>2), (B1<<3)+(B1>>2));
+	}
+	else
+	{
+		VectorSet(base1.v, ((in[0]>>4)&15)*0x11,	/*60+4*/
+						 ((in[1]>>4)&15)*0x11,	/*52+4*/
+						 ((in[2]>>4)&15)*0x11);	/*44+4*/
+		VectorSet(base2.v, ((in[0]>>0)&15)*0x11,	/*56+4*/
+						 ((in[1]>>0)&15)*0x11,	/*48+4*/
+						 ((in[2]>>0)&15)*0x11);	/*40+4*/
+	}
+
+	cw1 = tab[(in[3]>>5)&7];	//37+3
+	cw2 = tab[(in[3]>>2)&7];	//34+3
+
+	out1 = out0+w*1;
+	out2 = out0+w*2;
+	out3 = out0+w*3;
+
+#define etc1_pix(r, base,cw,i)	\
+	if (in[7-(i/8)]&(1<<(i&7)))						\
+		tv = (in[5-(i/8)]&(1<<(i&7)))?-cw[1]:cw[1];	\
+	else if (opaque)								\
+		tv = (in[5-(i/8)]&(1<<(i&7)))?-cw[0]:cw[0];	\
+	else /*punchthrough alpha mode*/				\
+		tv = (in[5-(i/8)]&(1<<(i&7)))?-255:0;		\
+	if (tv==-255)									\
+		r.u = 0;									\
+	else											\
+		r.v[0] = bound(0,base.v[0]+tv,0xff),			\
+		r.v[1] = bound(0,base.v[1]+tv,0xff),			\
+		r.v[2] = bound(0,base.v[2]+tv,0xff),			\
+		r.v[3] = 0xff
+
+	etc1_pix(out0[0], base1,cw1,0);
+	etc1_pix(out0[1], base1,cw1,4);
+	etc1_pix(out1[0], base1,cw1,1);
+	etc1_pix(out1[1], base1,cw1,5);
+
+	etc1_pix(out2[2], base2,cw2,10);
+	etc1_pix(out2[3], base2,cw2,14);
+	etc1_pix(out3[2], base2,cw2,11);
+	etc1_pix(out3[3], base2,cw2,15);
+	if (in[3]&1)	//flipbit bit 32 - blocks are vertical
+	{
+		etc1_pix(out0[2], base1,cw1,8);
+		etc1_pix(out0[3], base1,cw1,12);
+		etc1_pix(out1[2], base1,cw1,9);
+		etc1_pix(out1[3], base1,cw1,13);
+
+		etc1_pix(out2[0], base2,cw2,2);
+		etc1_pix(out2[1], base2,cw2,6);
+		etc1_pix(out3[0], base2,cw2,3);
+		etc1_pix(out3[1], base2,cw2,7);
+	}
+	else
+	{
+		etc1_pix(out0[2], base2,cw2,8);
+		etc1_pix(out0[3], base2,cw2,12);
+		etc1_pix(out1[2], base2,cw2,9);
+		etc1_pix(out1[3], base2,cw2,13);
+
+		etc1_pix(out2[0], base1,cw1,2);
+		etc1_pix(out2[1], base1,cw1,6);
+		etc1_pix(out3[0], base1,cw1,3);
+		etc1_pix(out3[1], base1,cw1,7);
+	}
+#undef etc1_pix
+}
+static void Image_EAC8U_Decode_Block_Internal(qbyte *fte_restrict in, qbyte *fte_restrict out, int stride, qboolean goestoeleven)
+{
+	static const char tabs[16][8] =
+	{
+		{-3,-6, -9,-15,2,5,8,14},
+		{-3,-7,-10,-13,2,6,9,12},
+		{-2,-5, -8,-13,1,4,7,12},
+		{-2,-4, -6,-13,1,3,5,12},
+		{-3,-6, -8,-12,2,5,7,11},
+		{-3,-7, -9,-11,2,6,8,10},
+		{-4,-7, -8,-11,3,6,7,10},
+		{-3,-5, -8,-11,2,4,7,10},
+		{-2,-6, -8,-10,1,5,7,9},
+		{-3,-5, -8,-10,1,4,7,9},
+		{-2,-4, -8,-10,1,3,7,9},
+		{-2,-5, -7,-10,1,4,6,9},
+		{-3,-4, -7,-10,2,3,6,9},
+		{-1,-2, -3,-10,0,1,2,9},
+		{-4,-6, -8, -9,3,5,7,8},
+		{-3,-5, -7, -9,2,4,6,8},
+	};
+
+	const qbyte base = in[0];
+	const qbyte mul = in[1]>>4;
+	const char *tab = tabs[in[1]&0xf];
+	const quint64_t bits = in[2] | (in[3]<<8) | (in[4]<<16) | (in[5]<<24) | ((quint64_t)in[6]<<32) | ((quint64_t)in[7]<<40);
+
+#define EAC_Pix(r,x,y)	r = bound(0, base + tab[(bits>>((x*4+y)*3))&7] * mul, 255);
+#define EAC_Row(y)	EAC_Pix(out[0], 0,y);EAC_Pix(out[1], 1,y);EAC_Pix(out[2], 2,y);EAC_Pix(out[3], 3,y);
+	EAC_Row(0);out += stride;EAC_Row(1);out += stride;EAC_Row(2);out += stride;EAC_Row(3);
+#undef EAC_Row
+#undef EAC_Pix
+}
+static void Image_ETC2_RGB8_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{
+	Image_ETC2_Decode_Block_Internal(in, out, w, false);
+}
+//punchthrough alpha works by removing interleaved mode releasing a bit that says whether a block can have alpha=0, .
+static void Image_ETC2_RGB8A1_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{
+	Image_ETC2_Decode_Block_Internal(in, out, w, true);
+}
+//ETC2 RGBA's alpha and R11(and RG11) work the same way as each other, but with varying extra blocks with either 8 or 11 bits of valid precision.
+static void Image_ETC2_RGB8A8_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{
+	Image_ETC2_Decode_Block_Internal(in+8, out, w, false);
+	Image_EAC8U_Decode_Block_Internal(in, out->v+3, w*4, false);
+}
+static void Image_EAC_R11U_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{
+	pixel32_t r;
+	int i = 0;
+	Vector4Set(r.v, 0, 0, 0, 0xff);
+	for (i = 0; i < 4; i++)
+		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
+	Image_EAC8U_Decode_Block_Internal(in, out->v, w*4, false);
+}
+static void Image_EAC_RG11U_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{
+	pixel32_t r;
+	int i = 0;
+	Vector4Set(r.v, 0, 0, 0, 0xff);
+	for (i = 0; i < 4; i++)
+		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
+	Image_EAC8U_Decode_Block_Internal(in, out->v+0, w*4, false);
+	Image_EAC8U_Decode_Block_Internal(in+8, out->v+1, w*4, false);
+}
+#endif
+
+#ifdef DECOMPRESS_S3TC
+static void Image_S3TC_Decode_Block_Internal(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w, qbyte blackalpha)
+{
+	pixel32_t tab[4];
+	unsigned int bits;
+
+	Vector4Set(tab[0].v, (in[1]&0xf8), ((in[0]&0xe0)>>3)|((in[1]&7)<<5), (in[0]&0x1f)<<3, 0xff);
+	etc_expandv(tab[0],5,6,5);
+	Vector4Set(tab[1].v, (in[3]&0xf8), ((in[2]&0xe0)>>3)|((in[3]&7)<<5), (in[2]&0x1f)<<3, 0xff);
+	etc_expandv(tab[1],5,6,5);
+
+#define BC1_Lerp(a,as,b,bs,div,c)		((c)[0]=((a)[0]*(as)+(b)[0]*(bs))/(div),(c)[1]=((a)[1]*(as)+(b)[1]*(bs))/(div), (c)[2]=((a)[2]*(as)+(b)[2]*(bs))/(div), (c)[3] = 0xff)
+	if ((in[0]|(in[1]<<8)) > (in[2]|(in[3]<<8)))
+	{
+		BC1_Lerp(tab[0].v,2, tab[1].v,1, 3,tab[2].v);
+		BC1_Lerp(tab[0].v,1, tab[1].v,2, 3,tab[3].v);
+	}
+	else
+	{
+		BC1_Lerp(tab[0].v,1, tab[1].v,1, 2,tab[2].v);
+		Vector4Set(tab[3].v, 0, 0, 0, blackalpha);
+	}
+
+	bits = in[4] | (in[5]<<8) | (in[6]<<16) | (in[7]<<24);
+
+#define BC1_Pix(r,i)	r.u = tab[(bits>>(i*2))&3].u;
+
+	BC1_Pix(out[0], 0);
+	BC1_Pix(out[1], 1);
+	BC1_Pix(out[2], 2);
+	BC1_Pix(out[3], 3);
+	out += w;
+	BC1_Pix(out[0], 4);
+	BC1_Pix(out[1], 5);
+	BC1_Pix(out[2], 6);
+	BC1_Pix(out[3], 7);
+	out += w;
+	BC1_Pix(out[0], 8);
+	BC1_Pix(out[1], 9);
+	BC1_Pix(out[2], 10);
+	BC1_Pix(out[3], 11);
+	out += w;
+	BC1_Pix(out[0], 12);
+	BC1_Pix(out[1], 13);
+	BC1_Pix(out[2], 14);
+	BC1_Pix(out[3], 15);
+}
+static void Image_BC1_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{
+	Image_S3TC_Decode_Block_Internal(in, out, w, 0xff);
+}
+static void Image_BC1A_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{
+	Image_S3TC_Decode_Block_Internal(in, out, w, 0);
+}
+static void Image_BC2_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{
+	Image_S3TC_Decode_Block_Internal(in+8, out, w, 0xff);
+
+	//BC2 has straight 4-bit alpha.
+#define BC2_AlphaRow()	\
+	out[0].v[3] = in[0]&0x0f; out[0].v[3] |= out[0].v[3]<<4;	\
+	out[1].v[3] = in[0]&0xf0; out[1].v[3] |= out[1].v[3]>>4;	\
+	out[2].v[3] = in[1]&0x0f; out[2].v[3] |= out[2].v[3]<<4;	\
+	out[3].v[3] = in[1]&0xf0; out[3].v[3] |= out[3].v[3]>>4;
+
+	BC2_AlphaRow();
+	in += 2;out += w;
+	BC2_AlphaRow();
+	in += 2;out += w;
+	BC2_AlphaRow();
+	in += 2;out += w;
+	BC2_AlphaRow();
+#undef BC2_AlphaRow
+}
+#endif
+#ifdef DECOMPRESS_RGTC
+static void Image_RGTC_Decode_Block_Internal(qbyte *fte_restrict in, qbyte *fte_restrict out, int stride, qboolean issigned)
+{
+	quint64_t bits;
+	union
+	{
+		qbyte u;
+		char s;
+	} tab[8];
+	tab[0].u = in[0];
+	tab[1].u = in[1];
+	if (issigned)
+	{
+		if (tab[0].s > tab[1].s)
+		{
+			tab[2].s = (tab[0].s*6 + tab[1].s*1)/7;
+			tab[3].s = (tab[0].s*5 + tab[1].s*2)/7;
+			tab[4].s = (tab[0].s*4 + tab[1].s*3)/7;
+			tab[5].s = (tab[0].s*3 + tab[1].s*4)/7;
+			tab[6].s = (tab[0].s*2 + tab[1].s*5)/7;
+			tab[7].s = (tab[0].s*1 + tab[1].s*6)/7;
+		}
+		else
+		{
+			tab[2].s = (tab[0].s*4 + tab[1].s*1)/5;
+			tab[3].s = (tab[0].s*3 + tab[1].s*2)/5;
+			tab[4].s = (tab[0].s*2 + tab[1].s*3)/5;
+			tab[5].s = (tab[0].s*1 + tab[1].s*4)/5;
+			tab[6].s = -128;
+			tab[7].s = 127;
+		}
+	}
+	else
+	{
+		if (tab[0].u > tab[1].u)
+		{
+			tab[2].u = (tab[0].u*6 + tab[1].u*1)/7;
+			tab[3].u = (tab[0].u*5 + tab[1].u*2)/7;
+			tab[4].u = (tab[0].u*4 + tab[1].u*3)/7;
+			tab[5].u = (tab[0].u*3 + tab[1].u*4)/7;
+			tab[6].u = (tab[0].u*2 + tab[1].u*5)/7;
+			tab[7].u = (tab[0].u*1 + tab[1].u*6)/7;
+		}
+		else
+		{
+			tab[2].u = (tab[0].u*4 + tab[1].u*1)/5;
+			tab[3].u = (tab[0].u*3 + tab[1].u*2)/5;
+			tab[4].u = (tab[0].u*2 + tab[1].u*3)/5;
+			tab[5].u = (tab[0].u*1 + tab[1].u*4)/5;
+			tab[6].u = 0;
+			tab[7].u = 0xff;
+		}
+	}
+
+	bits = in[2] | (in[3]<<8) | (in[4]<<16) | (in[5]<<24) | ((quint64_t)in[6]<<32) | ((quint64_t)in[7]<<40);
+
+#define BC3AU_Pix(r,i)	r = tab[(bits>>((i)*3))&7].u;
+#define BC3AU_Row(i)	BC3AU_Pix(out[0], i+0);BC3AU_Pix(out[4], i+1);BC3AU_Pix(out[8], i+2);BC3AU_Pix(out[12], i+3);
+	BC3AU_Row(0);out += stride;BC3AU_Row(4);out += stride;BC3AU_Row(8);out += stride;BC3AU_Row(12);
+#undef BC3AU_Pix
+}
+#ifdef DECOMPRESS_S3TC
+//s3tc rgb channel, with an rgtc alpha channel that depends upon both encodings (really the origin of rgtc, but mneh).
+static void Image_BC3_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{
+	Image_S3TC_Decode_Block_Internal(in+8, out, w, 0xff);
+	Image_RGTC_Decode_Block_Internal(in, out->v+3, w*4, false);
+}
+#endif
+static void Image_BC4U_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{	//BC4: BC3's alpha channel but used as red only.
+	pixel32_t r;
+	int i = 0;
+	Vector4Set(r.v, 0, 0, 0, 0xff);
+	for (i = 0; i < 4; i++)
+		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
+	Image_RGTC_Decode_Block_Internal(in, out->v+0, w*4, false);
+}
+static void Image_BC4S_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{	//BC4: BC3's alpha channel but used as red only.
+	pixel32_t r;
+	int i = 0;
+	Vector4Set(r.v, 0, 0, 0, 0xff);
+	for (i = 0; i < 4; i++)
+		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
+	Image_RGTC_Decode_Block_Internal(in, out->v+0, w*4, true);
+}
+static void Image_BC5U_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{	//BC5: two of BC3's alpha channels but used as red+green only.
+	pixel32_t r;
+	int i = 0;
+	Vector4Set(r.v, 0, 0, 0, 0xff);
+	for (i = 0; i < 4; i++)
+		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
+	Image_RGTC_Decode_Block_Internal(in+0, out->v+0, w*4, false);
+	Image_RGTC_Decode_Block_Internal(in+8, out->v+1, w*4, false);
+}
+static void Image_BC5S_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{	//BC5: two of BC3's alpha channels but used as red+green only.
+	pixel32_t r;
+	int i = 0;
+	Vector4Set(r.v, 0, 0, 0, 0xff);
+	for (i = 0; i < 4; i++)
+		out[w*0+i] = out[w*1+i] = out[w*2+i] = out[w*3+i] = r;
+	Image_RGTC_Decode_Block_Internal(in+0, out->v+0, w*4, true);
+	Image_RGTC_Decode_Block_Internal(in+8, out->v+1, w*4, true);
+}
+#endif
+
+static void Image_RGB8_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{
+	Vector4Set(out->v, in[0], in[1], in[2], 0xff);
+}
+static void Image_LUMA8_Decode_Block(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w)
+{
+	Vector4Set(out->v, in[0], in[0], in[0], 0xff);
+}
+
+void Image_BlockSizeForEncoding(unsigned int encoding, unsigned int *blockbytes, unsigned int *blockwidth, unsigned int *blockheight)
+{
+	unsigned int b, w = 1, h = 1;
+	switch(encoding)
+	{
+	case PTI_RGB565:
+	case PTI_RGBA4444:
+	case PTI_ARGB4444:
+	case PTI_RGBA5551:
+	case PTI_ARGB1555:
+		b = 2;	//16bit formats
+		break;
+	case PTI_RGBA8:
+	case PTI_RGBX8:
+	case PTI_BGRA8:
+	case PTI_BGRX8:
+	case PTI_RGBA8_SRGB:
+	case PTI_RGBX8_SRGB:
+	case PTI_BGRA8_SRGB:
+	case PTI_BGRX8_SRGB:
+		b = 4;
+		break;
+
+	case PTI_RGBA16F:
+		b = 4*2;
+		break;
+	case PTI_RGBA32F:
+		b = 4*4;
+		break;
+	case PTI_R8:
+	case PTI_R8_SIGNED:
+		b = 1;
+		break;
+	case PTI_RG8:
+	case PTI_RG8_SIGNED:
+		b = 2;
+		break;
+
+	case PTI_DEPTH16:
+		b = 2;
+		break;
+	case PTI_DEPTH24:
+		b = 3;
+		break;
+	case PTI_DEPTH32:
+		b = 4;
+		break;
+	case PTI_DEPTH24_8:
+		b = 4;
+		break;
+
+	case PTI_RGB8:
+		b = 3;
+		break;
+	case PTI_LUMINANCE8_ALPHA8:
+		b = 2;
+		break;
+
+	case PTI_BC1_RGB:
+	case PTI_BC1_RGB_SRGB:
+	case PTI_BC1_RGBA:
+	case PTI_BC1_RGBA_SRGB:
+	case PTI_BC4_R8:
+	case PTI_BC4_R8_SIGNED:
+	case PTI_ETC1_RGB8:
+	case PTI_ETC2_RGB8:
+	case PTI_ETC2_RGB8_SRGB:
+	case PTI_ETC2_RGB8A1:
+	case PTI_ETC2_RGB8A1_SRGB:
+	case PTI_EAC_R11:
+	case PTI_EAC_R11_SIGNED:
+		w = h = 4;
+		b = 8;
+		break;
+	case PTI_BC2_RGBA:
+	case PTI_BC2_RGBA_SRGB:
+	case PTI_BC3_RGBA:
+	case PTI_BC3_RGBA_SRGB:
+	case PTI_BC5_RG8:
+	case PTI_BC5_RG8_SIGNED:
+	case PTI_BC6_RGBF:
+	case PTI_BC6_RGBF_SIGNED:
+	case PTI_BC7_RGBA:
+	case PTI_BC7_RGBA_SRGB:
+	case PTI_ETC2_RGB8A8:
+	case PTI_ETC2_RGB8A8_SRGB:
+	case PTI_EAC_RG11:
+	case PTI_EAC_RG11_SIGNED:
+		w = h = 4;
+		b = 16;
+		break;
+
+// ASTC is crazy with its format subtypes... note that all are potentially rgba, selected on a per-block basis
+	case PTI_ASTC_4X4_SRGB:
+	case PTI_ASTC_4X4:		w = 4; h = 4; b = 16; break;
+	case PTI_ASTC_5X4_SRGB:
+	case PTI_ASTC_5X4:		w = 5; h = 4; b = 16; break;
+	case PTI_ASTC_5X5_SRGB:
+	case PTI_ASTC_5X5:		w = 5; h = 5; b = 16; break;
+	case PTI_ASTC_6X5_SRGB:
+	case PTI_ASTC_6X5:		w = 6; h = 5; b = 16; break;
+	case PTI_ASTC_6X6_SRGB:
+	case PTI_ASTC_6X6:		w = 6; h = 6; b = 16; break;
+	case PTI_ASTC_8X5_SRGB:
+	case PTI_ASTC_8X5:		w = 8; h = 5; b = 16; break;
+	case PTI_ASTC_8X6_SRGB:
+	case PTI_ASTC_8X6:		w = 8; h = 6; b = 16; break;
+	case PTI_ASTC_10X5_SRGB:
+	case PTI_ASTC_10X5:		w = 10; h = 5; b = 16; break;
+	case PTI_ASTC_10X6_SRGB:
+	case PTI_ASTC_10X6:		w = 10; h = 6; b = 16; break;
+	case PTI_ASTC_8X8_SRGB:
+	case PTI_ASTC_8X8:		w = 8; h = 8; b = 16; break;
+	case PTI_ASTC_10X8_SRGB:
+	case PTI_ASTC_10X8:		w = 10; h = 8; b = 16; break;
+	case PTI_ASTC_10X10_SRGB:
+	case PTI_ASTC_10X10:	w = 10; h = 10; b = 16; break;
+	case PTI_ASTC_12X10_SRGB:
+	case PTI_ASTC_12X10:	w = 12; h = 10; b = 16; break;
+	case PTI_ASTC_12X12_SRGB:
+	case PTI_ASTC_12X12:	w = 12; h = 12; b = 16; break;
+
+	case PTI_WHOLEFILE: //UNKNOWN!
+	case PTI_MAX:
+	default:
+		w = h = 1;
+		b = 0;
+		break;
+	}
+
+	*blockbytes = b;
+	*blockwidth = w;
+	*blockheight = h;
+}
+
+static pixel32_t *Image_Block_Decode(qbyte *fte_restrict in, int w, int h, void(*decodeblock)(qbyte *fte_restrict in, pixel32_t *fte_restrict out, int w), int encoding)
+{
+#define TMPBLOCKSIZE 16u
+	pixel32_t *ret, *out;
+	pixel32_t tmp[TMPBLOCKSIZE*TMPBLOCKSIZE];
+	int x, y, i, j;
+
+	unsigned int blockbytes, blockwidth, blockheight;
+	Image_BlockSizeForEncoding(encoding, &blockbytes, &blockwidth, &blockheight);
+
+	if (blockwidth > TMPBLOCKSIZE || blockheight > TMPBLOCKSIZE)
+		Sys_Error("Image_Block_Decode only supports up to %u*%u blocks.\n", TMPBLOCKSIZE,TMPBLOCKSIZE);
+
+	ret = out = BZ_Malloc(w*h*sizeof(*out));
+
+	for (y = 0; y < (h&~(blockheight-1)); y+=blockheight, out += w*(blockheight-1))
+	{
+		for (x = 0; x < (w&~(blockwidth-1)); x+=blockwidth, in+=blockbytes, out+=blockwidth)
+			decodeblock(in, out, w);
+		if (w%blockwidth)
+		{
+			decodeblock(in, tmp, TMPBLOCKSIZE);
+			for (i = 0; x < w; x++, out++, i++)
+			{
+				for (j = 0; j < blockheight; j++)
+					out[w*j] = tmp[i+TMPBLOCKSIZE*j];
+			}
+			in+=blockbytes;
+		}
+	}
+
+	if (h%blockheight)
+	{
+		h %= blockheight;
+		for (x = 0; x < w; )
+		{
+			decodeblock(in, tmp, TMPBLOCKSIZE);
+			i = 0;
+			do
+			{
+				if (x == w)
+					break;
+				for (y = 0; y < h; y++)
+					out[w*y] = tmp[i+TMPBLOCKSIZE*y];
+				out++;
+				i++;
+			} while (++x % blockwidth);
+			in+=blockbytes;
+		}
+	}
+	return ret;
+}
+
 static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt)
 {
 	int mip;
@@ -3952,7 +4765,7 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 				unsigned char *out;
 				unsigned char *in;
 				void *needfree = NULL;
-				
+
 				in = mips->mip[mip].data;
 				if (mips->mip[mip].needfree)
 					out = in;
@@ -3977,6 +4790,129 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 	//if that format isn't supported/desired, try converting it.
 	if (sh_config.texfmt[mips->encoding])
 		return;
+
+	{	//various compressed formats might not be supported.
+		void *decodefunc = NULL;
+		int rcoding = mips->encoding;
+		//its easy enough to decompress these, if needed, its not so easy to compress them as something that's actually supported...
+		switch(mips->encoding)
+		{
+		default:
+			break;
+		case PTI_RGB8:
+			decodefunc = Image_RGB8_Decode_Block;
+			rcoding = PTI_RGBX8;
+			break;
+		case PTI_LUMINANCE8_ALPHA8:
+			decodefunc = Image_LUMA8_Decode_Block;
+			rcoding = PTI_RGBA8;
+			break;
+#ifdef DECOMPRESS_ETC2
+		case PTI_ETC1_RGB8:
+		case PTI_ETC2_RGB8: //backwards compatible, so we just treat them the same
+		case PTI_ETC2_RGB8_SRGB:
+			decodefunc = Image_ETC2_RGB8_Decode_Block;
+			rcoding = (mips->encoding==PTI_ETC2_RGB8_SRGB)?PTI_RGBX8_SRGB:PTI_RGBX8;
+			break;
+		case PTI_ETC2_RGB8A1:	//weird hack mode
+		case PTI_ETC2_RGB8A1_SRGB:
+			decodefunc = Image_ETC2_RGB8A1_Decode_Block;
+			rcoding = (mips->encoding==PTI_ETC2_RGB8A1_SRGB)?PTI_RGBA8_SRGB:PTI_RGBA8;
+			break;
+		case PTI_ETC2_RGB8A8:
+		case PTI_ETC2_RGB8A8_SRGB:
+			decodefunc = Image_ETC2_RGB8A8_Decode_Block;
+			rcoding = (mips->encoding==PTI_ETC2_RGB8A8_SRGB)?PTI_RGBA8_SRGB:PTI_RGBA8;
+			break;
+/*		case PTI_EAC_R11_SIGNED:
+			decodefunc = Image_EAC_R11S_Decode_Block;
+			rcoding = PTI_RGBX8;
+			break;
+*/		case PTI_EAC_R11_SIGNED:
+			decodefunc = Image_EAC_R11U_Decode_Block;
+			rcoding = PTI_RGBX8;
+			break;
+/*		case PTI_EAC_RG11_SIGNED:
+			decodefunc = Image_EAC_RG11S_Decode_Block;
+			rcoding = PTI_RGBX8;
+			break;*/
+		case PTI_EAC_RG11:
+			decodefunc = Image_EAC_RG11U_Decode_Block;
+			rcoding = PTI_RGBX8;
+			break;
+#endif
+
+#ifdef DECOMPRESS_S3TC
+		case PTI_BC1_RGB:
+		case PTI_BC1_RGB_SRGB:
+			decodefunc = Image_BC1_Decode_Block;
+			rcoding = (mips->encoding==PTI_BC1_RGB_SRGB)?PTI_RGBX8_SRGB:PTI_RGBX8;
+			break;
+		case PTI_BC1_RGBA:
+		case PTI_BC1_RGBA_SRGB:
+			decodefunc = Image_BC1A_Decode_Block;
+			rcoding = (mips->encoding==PTI_BC1_RGBA_SRGB)?PTI_RGBA8_SRGB:PTI_RGBA8;
+			break;
+		case PTI_BC2_RGBA:
+		case PTI_BC2_RGBA_SRGB:
+			decodefunc = Image_BC2_Decode_Block;
+			rcoding = (mips->encoding==PTI_BC2_RGBA_SRGB)?PTI_RGBA8_SRGB:PTI_RGBA8;
+			break;
+#endif
+#if defined(DECOMPRESS_RGTC) && defined(DECOMPRESS_S3TC)
+		case PTI_BC3_RGBA:
+		case PTI_BC3_RGBA_SRGB:
+			decodefunc = Image_BC3_Decode_Block;
+			rcoding = (mips->encoding==PTI_BC3_RGBA_SRGB)?PTI_RGBA8_SRGB:PTI_RGBA8;
+			break;
+#endif
+#ifdef DECOMPRESS_RGTC
+		case PTI_BC4_R8_SIGNED:
+			decodefunc = Image_BC4S_Decode_Block;
+			rcoding = PTI_RGBX8;
+			break;
+		case PTI_BC4_R8:
+			decodefunc = Image_BC4U_Decode_Block;
+			rcoding = PTI_RGBX8;
+			break;
+		case PTI_BC5_RG8_SIGNED:
+			decodefunc = Image_BC5S_Decode_Block;
+			rcoding = PTI_RGBX8;
+			break;
+		case PTI_BC5_RG8:
+			decodefunc = Image_BC5U_Decode_Block;
+			rcoding = PTI_RGBX8;
+			break;
+#endif
+#if 0//def DECOMPRESS_BPTC
+		case PTI_BC6_RGBFU:
+		case PTI_BC6_RGBFS:
+		case PTI_BC7_RGBA:
+		case PTI_BC7_RGBA_SRGB:
+			rcoding = PTI_ZOMGWTF;
+			break;
+#endif
+		}
+		if (decodefunc)
+		{
+			for (mip = 0; mip < mips->mipcount; mip++)
+			{
+				pixel32_t *out = Image_Block_Decode(mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height, decodefunc, mips->encoding);
+				if (mips->mip[mip].needfree)
+					BZ_Free(mips->mip[mip].data);
+				mips->mip[mip].data = out;
+				mips->mip[mip].needfree = true;
+				mips->mip[mip].datasize = mips->mip[mip].width*mips->mip[mip].height*sizeof(*out);
+			}
+			if (mips->extrafree)
+				BZ_Free(mips->extrafree);	//might as well free this now, as nothing is poking it any more.
+			mips->extrafree = NULL;
+			mips->encoding = rcoding;
+
+			if (sh_config.texfmt[mips->encoding])
+				return;	//its okay now
+		}
+	}
 
 	if (mips->encoding == PTI_R8)
 	{
@@ -4518,24 +5454,79 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_RGBA4444:
 		case PTI_RGBA5551:
 			break;	//erk
-		case PTI_S3RGBA1:	//mostly compatible, but I don't want to push it.
-		case PTI_S3RGBA3:
-		case PTI_S3RGBA5:
-		case PTI_ETC2_RGB8A1:
-		case PTI_ETC2_RGB8A8:
+		case PTI_BC1_RGBA:
+			mips->encoding = PTI_BC1_RGB;
+			break;
+		case PTI_BC1_RGBA_SRGB:
+			mips->encoding = PTI_BC1_RGB_SRGB;
+			break;
+		case PTI_BC2_RGBA:	//could strip to PTI_BC1_RGB
+		case PTI_BC2_RGBA_SRGB:	//could strip to PTI_BC1_RGB
+		case PTI_BC3_RGBA:	//could strip to PTI_BC1_RGB
+		case PTI_BC3_RGBA_SRGB:	//could strip to PTI_BC1_RGB
+		case PTI_BC7_RGBA:	//much too messy...
+		case PTI_BC7_RGBA_SRGB:
+		case PTI_ETC2_RGB8A1: //would need to force the 'opaque' bit in each block and treat as PTI_ETC2_RGB8.
+		case PTI_ETC2_RGB8A1_SRGB: //would need to force the 'opaque' bit in each block and treat as PTI_ETC2_RGB8.
+		case PTI_ETC2_RGB8A8: //could strip to PTI_ETC2_RGB8
+		case PTI_ETC2_RGB8A8_SRGB: //could strip to PTI_ETC2_SRGB8
+		case PTI_ASTC_4X4:
+		case PTI_ASTC_4X4_SRGB:
+		case PTI_ASTC_5X4:
+		case PTI_ASTC_5X4_SRGB:
+		case PTI_ASTC_5X5:
+		case PTI_ASTC_5X5_SRGB:
+		case PTI_ASTC_6X5:
+		case PTI_ASTC_6X5_SRGB:
+		case PTI_ASTC_6X6:
+		case PTI_ASTC_6X6_SRGB:
+		case PTI_ASTC_8X5:
+		case PTI_ASTC_8X5_SRGB:
+		case PTI_ASTC_8X6:
+		case PTI_ASTC_8X6_SRGB:
+		case PTI_ASTC_10X5:
+		case PTI_ASTC_10X5_SRGB:
+		case PTI_ASTC_10X6:
+		case PTI_ASTC_10X6_SRGB:
+		case PTI_ASTC_8X8:
+		case PTI_ASTC_8X8_SRGB:
+		case PTI_ASTC_10X8:
+		case PTI_ASTC_10X8_SRGB:
+		case PTI_ASTC_10X10:
+		case PTI_ASTC_10X10_SRGB:
+		case PTI_ASTC_12X10:
+		case PTI_ASTC_12X10_SRGB:
+		case PTI_ASTC_12X12:
+		case PTI_ASTC_12X12_SRGB:
 		case PTI_WHOLEFILE:
+		case PTI_LUMINANCE8_ALPHA8:
 			//erk. meh.
 			break;
 		case PTI_R8:
+		case PTI_R8_SIGNED:
 		case PTI_RG8:
+		case PTI_RG8_SIGNED:
 		case PTI_RGB565:
+		case PTI_RGB8:
 		case PTI_RGBX8:
 		case PTI_BGRX8:
 		case PTI_RGBX8_SRGB:
 		case PTI_BGRX8_SRGB:
-		case PTI_S3RGB1:
+		case PTI_BC1_RGB:
+		case PTI_BC1_RGB_SRGB:
+		case PTI_BC4_R8:
+		case PTI_BC4_R8_SIGNED:
+		case PTI_BC5_RG8:
+		case PTI_BC5_RG8_SIGNED:
+		case PTI_BC6_RGBF:
+		case PTI_BC6_RGBF_SIGNED:
 		case PTI_ETC1_RGB8:
 		case PTI_ETC2_RGB8:
+		case PTI_ETC2_RGB8_SRGB:
+		case PTI_EAC_R11:
+		case PTI_EAC_R11_SIGNED:
+		case PTI_EAC_RG11:
+		case PTI_EAC_RG11_SIGNED:
 			break;	//already no alpha in these formats
 		case PTI_DEPTH16:
 		case PTI_DEPTH24:
@@ -4553,10 +5544,21 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		int nf = PTI_MAX;
 		switch(mips->encoding)
 		{
-		case PTI_RGBA8: nf = PTI_RGBA8_SRGB; break;
-		case PTI_RGBX8: nf = PTI_RGBX8_SRGB; break;
-		case PTI_BGRA8: nf = PTI_BGRA8_SRGB; break;
-		case PTI_BGRX8: nf = PTI_BGRX8_SRGB; break;
+		case PTI_RGBA8:			nf = PTI_RGBA8_SRGB; break;
+		case PTI_RGBX8:			nf = PTI_RGBX8_SRGB; break;
+		case PTI_BGRA8:			nf = PTI_BGRA8_SRGB; break;
+		case PTI_BGRX8:			nf = PTI_BGRX8_SRGB; break;
+		case PTI_BC1_RGB:		nf = PTI_BC1_RGB_SRGB; break;
+		case PTI_BC1_RGBA:		nf = PTI_BC1_RGBA_SRGB; break;
+		case PTI_BC2_RGBA:		nf = PTI_BC2_RGBA_SRGB; break;
+		case PTI_BC3_RGBA:		nf = PTI_BC3_RGBA_SRGB; break;
+		case PTI_BC7_RGBA:		nf = PTI_BC7_RGBA_SRGB; break;
+		case PTI_ETC1_RGB8:		nf = PTI_ETC2_RGB8_SRGB; break;
+		case PTI_ETC2_RGB8:		nf = PTI_ETC2_RGB8_SRGB; break;
+		case PTI_ETC2_RGB8A1:	nf = PTI_ETC2_RGB8A1_SRGB; break;
+		case PTI_ETC2_RGB8A8:	nf = PTI_ETC2_RGB8A8_SRGB; break;
+		//case PTI_ASTC_4X4:	nf = PTI_ASTC_4X4_SRGB; break;
+		//ASTC fixme: more blocksize formats
 		default:
 			if (freedata)
 				BZ_Free(rgbadata);
@@ -4567,6 +5569,14 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		else
 		{	//srgb->linear
 			int m = mips->mip[0].width*mips->mip[0].height*4;
+			if (nf >= PTI_BC1_RGB)
+			{	//these formats are weird. we can't just fiddle with the rgbdata
+				//FIXME: bc1/2/3 has two leading 16bit values per block.
+				//FIXME: etc2 has all sorts of weird encoding tables...
+				if (freedata)
+					BZ_Free(rgbadata);
+				return false;
+			}
 			if (mips->type == PTI_3D)
 				m *= mips->mip[0].height;
 			for (i = 0; i < m; i+=4)
@@ -4641,7 +5651,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	{
 		//works for rgba or bgra
 		int i;
-		unsigned char *fte_restrict premul = (unsigned char*)mips->mip[0].data;
+		qbyte *fte_restrict premul = (qbyte*)mips->mip[0].data;
 		for (i = 0; i < mips->mip[0].width*mips->mip[0].height; i++, premul+=4)
 		{
 			premul[0] = (premul[0] * premul[3])>>8;
@@ -4705,22 +5715,38 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 
 	int imgwidth, imgheight;
 
+	struct pendingtextureinfo *mips = NULL;
+
 	//these formats have special handling, because they cannot be implemented via Read32BitImageFile - they don't result in rgba images.
 #ifdef IMAGEFMT_KTX
-	if (Image_ReadKTXFile(tex, flags, fname, filedata, filesize))
-		return true;
+	if (!mips)
+		mips = Image_ReadKTXFile(flags, fname, filedata, filesize);
+#endif
+#ifdef IMAGEFMT_PKM
+	if (!mips)
+		mips = Image_ReadPKMFile(flags, fname, filedata, filesize);
 #endif
 #ifdef IMAGEFMT_DDS
-	if (Image_ReadDDSFile(tex, flags, fname, filedata, filesize))
-		return true;
+	if (!mips)
+		mips = Image_ReadDDSFile(flags, fname, filedata, filesize);
 #endif
 #ifdef IMAGEFMT_BLP
-	if (filedata[0] == 'B' && filedata[1] == 'L' && filedata[2] == 'P' && filedata[3] == '2') 
-	{
-		if (Image_ReadBLPFile(tex, flags, fname, filedata, filesize))
-			return true;
-	}
+	if (!mips && filedata[0] == 'B' && filedata[1] == 'L' && filedata[2] == 'P' && filedata[3] == '2') 
+		mips = Image_ReadBLPFile(flags, fname, filedata, filesize);
 #endif
+
+	if (mips)
+	{
+		tex->width = mips->mip[0].width;
+		tex->height = mips->mip[0].height;
+		Image_ChangeFormat(mips, flags, TF_INVALID);
+
+		if (flags & IF_NOWORKER)
+			Image_LoadTextureMips(tex, mips, 0, 0);
+		else
+			COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
+		return true;
+	}
 
 	hasalpha = false;
 	if ((rgbadata = Read32BitImageFile(filedata, filesize, &imgwidth, &imgheight, &hasalpha, fname)))
@@ -5144,6 +6170,7 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 {
 	image_t *tex = ctx;
 	char fname[MAX_QPATH];
+	char fname2[MAX_QPATH];
 	char *altname;
 	char *nextalt;
 
@@ -5154,6 +6181,7 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 	size_t fsize;
 	char *buf;
 
+	int i, j;
 	int imgwidth;
 	int imgheight;
 	qboolean alphaed;
@@ -5165,7 +6193,8 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 		//the exception is single-file dds cubemaps, but we don't support those.
 		for(altname = tex->ident;altname;altname = nextalt)
 		{
-			struct pendingtextureinfo *mips;
+			struct pendingtextureinfo *mips = NULL;
+			static const char *cubeexts[] = {"", ".ktx", ".dds"};
 
 			nextalt = strchr(altname, ':');
 			if (nextalt)
@@ -5178,7 +6207,57 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 				altname = fname;
 			}
 
-			mips = Image_LoadCubemapTextureData(altname, tex->subpath, tex->flags);
+			for (i = 0; i < countof(tex_path) && !mips; i++)
+			{
+				if (!tex_path[i].enabled)
+					continue;
+				buf = NULL;
+				if (tex_path[i].args == 3 && tex->subpath)
+				{
+					char subpath[MAX_QPATH];
+					char *n = tex->subpath, *e;
+					while (*n)
+					{
+						e = strchr(n, ':');
+						if (!e)
+							e = n+strlen(n);
+						Q_strncpyz(subpath, n, min(sizeof(subpath), (e-n)+1));
+						n = e;
+						while(*n == ':')
+							n++;
+						for (j = 0; !buf && j < countof(cubeexts); j++)
+						{
+							Q_snprintfz(fname2, sizeof(fname2), tex_path[i].path, subpath, altname, cubeexts[j]);
+							buf = FS_LoadMallocFile(fname2, &fsize);
+						}
+					}
+				}
+				else if (tex_path[i].args == 2)
+				{
+					for (j = 0; !buf && j < countof(cubeexts); j++)
+					{
+						Q_snprintfz(fname2, sizeof(fname2), tex_path[i].path, altname, cubeexts[j]);
+						buf = FS_LoadMallocFile(fname2, &fsize);
+					}
+				}
+				if (buf)
+				{
+#ifdef IMAGEFMT_KTX
+					if (!mips)
+						mips = Image_ReadKTXFile(tex->flags, altname, buf, fsize);
+#endif
+#ifdef IMAGEFMT_DDS
+					if (!mips)
+						mips = Image_ReadDDSFile(tex->flags, altname, buf, fsize);
+#endif
+					if (!mips)
+						BZ_Free(buf);
+				}
+			}
+
+			if (!mips)	//try to load multiple images
+				mips = Image_LoadCubemapTextureData(altname, tex->subpath, tex->flags);
+
 			if (mips)
 			{
 				tex->width = mips->mip[0].width;

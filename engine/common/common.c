@@ -1711,6 +1711,12 @@ float MSG_ReadCoord24 (void)
 	MSG_ReadData(&c, 3);
 	return MSG_FromCoord(c, 3);
 }
+float MSG_ReadCoordFloat (void)
+{
+	coorddata c = {{0}};
+	MSG_ReadData(&c, 4);
+	return MSG_FromCoord(c, 4);
+}
 
 void MSG_ReadPos (vec3_t pos)
 {

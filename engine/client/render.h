@@ -448,6 +448,7 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 void Image_Purge(void);	//purge any textures which are not needed any more (releases memory, but doesn't give null pointers).
 void Image_Init(void);
 void Image_Shutdown(void);
+void Image_BlockSizeForEncoding(unsigned int encoding, unsigned int *blockbytes, unsigned int *blockwidth, unsigned int *blockheight);
 
 image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
 

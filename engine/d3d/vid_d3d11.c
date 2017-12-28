@@ -839,13 +839,18 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	sh_config.texture_non_power_of_two_pic = true;	//always supported in d3d11, supposedly, even with d3d9 devices.
 	sh_config.npot_rounddown = false;
 	if (flevel>=D3D_FEATURE_LEVEL_11_0)
-		sh_config.texture_maxsize = 16384;
+		sh_config.texture2d_maxsize = 16384;
 	else if (flevel>=D3D_FEATURE_LEVEL_10_0)
-		sh_config.texture_maxsize = 8192;
+		sh_config.texture2d_maxsize = 8192;
 	else if (flevel>=D3D_FEATURE_LEVEL_9_3)
-		sh_config.texture_maxsize = 4096;
+		sh_config.texture2d_maxsize = 4096;
 	else
-		sh_config.texture_maxsize = 2048;
+		sh_config.texture2d_maxsize = 2048;
+
+	if (flevel>=D3D_FEATURE_LEVEL_9_3)
+		sh_config.texture2d_maxsize = 4096;
+	else
+		sh_config.texture2d_maxsize = 512;
 
 //11.1 formats
 #define DXGI_FORMAT_B4G4R4A4_UNORM 115
@@ -860,13 +865,26 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, &support);	sh_config.texfmt[PTI_RGBA8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8A8_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BGRA8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8X8_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BGRX8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC1_UNORM, &support);		sh_config.texfmt[PTI_S3RGBA1] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC2_UNORM, &support);		sh_config.texfmt[PTI_S3RGBA3] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC3_UNORM, &support);		sh_config.texfmt[PTI_S3RGBA5] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC1_UNORM, &support);		sh_config.texfmt[PTI_BC1_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC2_UNORM, &support);		sh_config.texfmt[PTI_BC2_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC3_UNORM, &support);		sh_config.texfmt[PTI_BC3_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC1_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BC1_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC2_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BC2_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC3_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BC3_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC4_UNORM, &support);		sh_config.texfmt[PTI_BC4_R8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC4_SNORM, &support);		sh_config.texfmt[PTI_BC4_R8_SIGNED] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC5_UNORM, &support);		sh_config.texfmt[PTI_BC5_RG8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC5_SNORM, &support);		sh_config.texfmt[PTI_BC5_RG8_SIGNED] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC6H_UF16, &support);		sh_config.texfmt[PTI_BC6_RGBF] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC6H_SF16, &support);		sh_config.texfmt[PTI_BC6_RGBF_SIGNED] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC7_UNORM, &support);		sh_config.texfmt[PTI_BC7_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC7_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BC7_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 
 	//these formats are not officially supported as specified, but noone cares
 	sh_config.texfmt[PTI_RGBX8] = sh_config.texfmt[PTI_RGBA8];
-	sh_config.texfmt[PTI_S3RGB1] = sh_config.texfmt[PTI_S3RGBA1];
+	sh_config.texfmt[PTI_RGBX8_SRGB] = sh_config.texfmt[PTI_RGBA8_SRGB];
+	sh_config.texfmt[PTI_BC1_RGB] = sh_config.texfmt[PTI_BC1_RGBA];
+	sh_config.texfmt[PTI_BC1_RGB_SRGB] = sh_config.texfmt[PTI_BC1_RGBA_SRGB];
 
 	vid.srgb = info->srgb>1;
 
@@ -1184,21 +1202,9 @@ static void	(D3D11_VID_SetWindowCaption)		(const char *msg)
 
 void D3D11_Set2D (void)
 {
-	D3D11_VIEWPORT vport;
-
 //	Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), 0, 100);
 	Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, 0, vid.width, vid.height, 0, 0, 99999);
 	Matrix4x4_Identity(r_refdef.m_view);
-
-	vport.TopLeftX = 0;
-	vport.TopLeftY = 0;
-	vport.Width = vid.pixelwidth;
-	vport.Height = vid.pixelheight;
-	vport.MinDepth = 0;
-	vport.MaxDepth = 1;
-
-	ID3D11DeviceContext_RSSetViewports(d3ddevctx, 1, &vport);
-	D3D11BE_SetupViewCBuffer();
 
 
 	vid.fbvwidth = vid.width;
@@ -1206,12 +1212,12 @@ void D3D11_Set2D (void)
 	vid.fbpwidth = vid.pixelwidth;
 	vid.fbpheight = vid.pixelheight;
 
-	D3D11BE_Scissor(NULL);
-
 	r_refdef.pxrect.x = 0;
 	r_refdef.pxrect.y = 0;
 	r_refdef.pxrect.width = vid.fbpwidth;
 	r_refdef.pxrect.height = vid.fbpheight;
+
+	D3D11BE_Set2D();
 }
 
 static qboolean	(D3D11_SCR_UpdateScreen)			(void)
@@ -1407,8 +1413,7 @@ static void D3D11_SetupViewPort(void)
 	int		x, x2, y2, y;
 
 	float fov_x, fov_y;
-
-//	D3DVIEWPORT9 vport;
+	float fovv_x, fovv_y;
 
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
@@ -1433,19 +1438,29 @@ static void D3D11_SetupViewPort(void)
 
 	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+	fovv_x = r_refdef.fovv_x;
+	fovv_y = r_refdef.fovv_y;
 
 	if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
 	{
 		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+		fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+		fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
 	}
 
 	/*view matrix*/
 	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 	if (r_refdef.maxdist)
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+	{
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist, false);
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, r_refdef.maxdist, false);
+	}
 	else
-		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist);
+	{
+		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, false);
+		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, false);
+	}
 }
 
 static void	(D3D11_R_RenderView)				(void)

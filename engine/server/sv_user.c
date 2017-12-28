@@ -103,8 +103,8 @@ extern cvar_t	pm_flyfriction;
 cvar_t sv_pushplayers = CVAR("sv_pushplayers", "0");
 
 //yes, realip cvars need to be fully initialised or realip will be disabled
-cvar_t sv_getrealip = CVARD("sv_getrealip", "0", "Attempt to obtain a more reliable IP for clients, rather than just their proxy.");
-cvar_t sv_realip_kick = CVAR("sv_realip_kick", "0");
+cvar_t sv_getrealip = CVARD("sv_getrealip", "0", "Attempt to obtain a more reliable IP for clients, rather than just their proxy.\n0: Don't attempt.\n1: Unreliable checks.\n2: Validate if possible.\n3: Mandatory validation.");
+cvar_t sv_realip_kick = CVARD("sv_realip_kick", "0", "Kicks clients if their realip could not be validated to the level specified by sv_getrealip.");
 cvar_t sv_realiphostname_ipv4 = CVARD("sv_realiphostname_ipv4", "", "This is the server's public ip:port. This is needed for realip to work when the autodetected/local ip is not globally routable");
 cvar_t sv_realiphostname_ipv6 = CVARD("sv_realiphostname_ipv6", "", "This is the server's public ip:port. This is needed for realip to work when the autodetected/local ip is not globally routable");
 cvar_t sv_realip_timeout = CVAR("sv_realip_timeout", "10");

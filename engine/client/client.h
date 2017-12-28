@@ -442,6 +442,7 @@ typedef struct
 #ifdef PROTOCOLEXTENSIONS
 	unsigned int fteprotocolextensions;
 	unsigned int fteprotocolextensions2;
+	unsigned int ezprotocolextensions1;
 #endif
 	unsigned int z_ext;
 
@@ -953,10 +954,18 @@ extern unsigned int		cl_enemybottomcolor;
 
 //FPD values
 //(commented out ones are ones that we don't support)
-#define FPD_NO_FORCE_SKIN	256
-#define FPD_NO_FORCE_COLOR	512
-#define FPD_LIMIT_PITCH		(1 << 14)	//limit scripted pitch changes
-#define FPD_LIMIT_YAW		(1 << 15)	//limit scripted yaw changes
+//#define FPD_NO_SAY_MACROS			(1 << 0)
+//#define FPD_NO_TIMERS				(1 << 1)
+//#define FPD_NO_SOUNDTRIGGERS		(1 << 2)
+#define FPD_NO_FAKE_LAG				(1 << 3)
+#define FPD_ANOUNCE_FAKE_LAG		(1 << 4)
+//#define FPD_HIDE_ENEMY_VICINITY	(1 << 5)
+//#define FPD_NO_SPEC_CHAT			(1 << 6)
+//#define FPD_HIDE_X_Y_MACRO		(1 << 7)
+#define FPD_NO_FORCE_SKIN			(1 << 8)
+#define FPD_NO_FORCE_COLOR			(1 << 9)
+#define FPD_LIMIT_PITCH				(1 << 14)	//limit scripted pitch changes
+#define FPD_LIMIT_YAW				(1 << 15)	//limit scripted yaw changes
 
 //
 // cvars
@@ -1336,7 +1345,7 @@ void CLQW_ParsePacketEntities (qboolean delta);
 void CLFTE_ParseEntities (void);
 void CLFTE_ParseBaseline(entity_state_t *es, qboolean numberisimportant);
 void CL_SetSolidEntities (void);
-void CL_ParsePlayerinfo (void);
+void CLQW_ParsePlayerinfo (void);
 void CL_ParseClientPersist(void);
 //these last ones are needed for csqc handling of engine-bound ents.
 void CL_ClearEntityLists(void);

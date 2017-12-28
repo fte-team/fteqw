@@ -224,7 +224,7 @@ cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
 // 10 - 170
 cvar_t scr_fov								= CVARFCD("fov", "90", CVAR_ARCHIVE, SCR_Fov_Callback,
 												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
-cvar_t scr_fov_viewmodel					= CVARFCD("r_viewmodel_fov", "", CVAR_ARCHIVE, SCR_Fov_Callback,
+cvar_t scr_fov_viewmodel					= CVARFD("r_viewmodel_fov", "", CVAR_ARCHIVE,
 												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
 cvar_t scr_printspeed						= CVAR  ("scr_printspeed", "16");
 cvar_t scr_showpause						= CVAR  ("showpause", "1");
@@ -377,7 +377,6 @@ cvar_t gl_overbright_all					= CVARF ("gl_overbright_all", "0",
 cvar_t gl_picmip							= CVARFD  ("gl_picmip", "0", CVAR_ARCHIVE, "Reduce world/model texture sizes by some exponential factor.");
 cvar_t gl_picmip2d							= CVARFD  ("gl_picmip2d", "0", CVAR_ARCHIVE, "Reduce hud/menu texture sizes by some exponential factor.");
 cvar_t gl_nohwblend							= CVARD  ("gl_nohwblend","1", "If 1, don't use hardware gamma ramps for transient effects that change each frame (does not affect long-term effects like holding quad or underwater tints).");
-cvar_t gl_savecompressedtex					= CVARD  ("gl_savecompressedtex", "0", "Write out a copy of textures in a compressed format. The driver will do the compression on the fly, thus this setting is likely inferior to software which does not care so much about compression times.");
 //cvar_t gl_schematics						= CVARD  ("gl_schematics", "0", "Gimmick rendering mode that draws the length of various world edges.");
 cvar_t gl_skyboxdist						= CVARD  ("gl_skyboxdist", "0", "The distance of the skybox. If 0, the engine will determine it based upon the far clip plane distance.");	//0 = guess.
 cvar_t gl_smoothcrosshair					= CVAR  ("gl_smoothcrosshair", "1");
@@ -518,7 +517,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_picmip2d, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_shaderblobs, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_savecompressedtex, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_compress, GLRENDEREROPTIONS);
 //	Cvar_Register (&gl_detail, GRAPHICALNICETIES);
 //	Cvar_Register (&gl_detailscale, GRAPHICALNICETIES);
@@ -1370,8 +1368,8 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 	pmove.numphysent = 0;
 	pmove.physents[0].model = NULL;
 
-	vid.dpi_x = 0;
-	vid.dpi_y = 0;
+	vid.dpi_x = 96;
+	vid.dpi_y = 96;
 
 #ifndef CLIENTONLY
 	sv.world.lastcheckpvs = NULL;
@@ -2693,56 +2691,60 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 	float scale;
 	int i;
 	float mvp[16];
+	mplane_t *p;
 
 	if (r_novis.ival & 4)
 		return;
 
 	Matrix4_Multiply(projmat, viewmat, mvp);
 
+	r_refdef.frustum_numplanes = 0;
+
 	for (i = 0; i < 4; i++)
 	{
+		//each of the four side planes
+		p = &r_refdef.frustum[r_refdef.frustum_numplanes++];
 		if (i & 1)
 		{
-			r_refdef.frustum[i].normal[0]	= mvp[3] + mvp[0+i/2];
-			r_refdef.frustum[i].normal[1]	= mvp[7] + mvp[4+i/2];
-			r_refdef.frustum[i].normal[2]	= mvp[11] + mvp[8+i/2];
-			r_refdef.frustum[i].dist		= mvp[15] + mvp[12+i/2];
+			p->normal[0] = mvp[3] + mvp[0+i/2];
+			p->normal[1] = mvp[7] + mvp[4+i/2];
+			p->normal[2] = mvp[11] + mvp[8+i/2];
+			p->dist		 = mvp[15] + mvp[12+i/2];
 		}
 		else
 		{
-			r_refdef.frustum[i].normal[0]	= mvp[3] - mvp[0+i/2];
-			r_refdef.frustum[i].normal[1]	= mvp[7] - mvp[4+i/2];
-			r_refdef.frustum[i].normal[2]	= mvp[11] - mvp[8+i/2];
-			r_refdef.frustum[i].dist		= mvp[15] - mvp[12+i/2];
+			p->normal[0] = mvp[3] - mvp[0+i/2];
+			p->normal[1] = mvp[7] - mvp[4+i/2];
+			p->normal[2] = mvp[11] - mvp[8+i/2];
+			p->dist		 = mvp[15] - mvp[12+i/2];
 		}
 
-		scale = 1/sqrt(DotProduct(r_refdef.frustum[i].normal, r_refdef.frustum[i].normal));
-		r_refdef.frustum[i].normal[0]	*= scale;
-		r_refdef.frustum[i].normal[1]	*= scale;
-		r_refdef.frustum[i].normal[2]	*= scale;
-		r_refdef.frustum[i].dist		*= -scale;
+		scale = 1/sqrt(DotProduct(p->normal, p->normal));
+		p->normal[0] *= scale;
+		p->normal[1] *= scale;
+		p->normal[2] *= scale;
+		p->dist		 *= -scale;
 
-		r_refdef.frustum[i].type = PLANE_ANYZ;
-		r_refdef.frustum[i].signbits = SignbitsForPlane (&r_refdef.frustum[i]);
+		p->type		 = PLANE_ANYZ;
+		p->signbits	 = SignbitsForPlane (p);
 	}
 
-	r_refdef.frustum_numplanes = 4;
+	//the near clip plane.
+	p = &r_refdef.frustum[r_refdef.frustum_numplanes++];
 
-	r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] = mvp[3] - mvp[2];
-	r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] = mvp[7] - mvp[6];
-	r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] = mvp[11] - mvp[10];
-	r_refdef.frustum[r_refdef.frustum_numplanes].dist      = mvp[15] - mvp[14];
+	p->normal[0] = mvp[3] - mvp[2];
+	p->normal[1] = mvp[7] - mvp[6];
+	p->normal[2] = mvp[11] - mvp[10];
+	p->dist      = mvp[15] - mvp[14];
 
-	scale = 1/sqrt(DotProduct(r_refdef.frustum[r_refdef.frustum_numplanes].normal, r_refdef.frustum[r_refdef.frustum_numplanes].normal));
-	r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] *= scale;
-	r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] *= scale;
-	r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] *= scale;
-	r_refdef.frustum[r_refdef.frustum_numplanes].dist *= -scale;
+	scale = 1/sqrt(DotProduct(p->normal, p->normal));
+	p->normal[0] *= scale;
+	p->normal[1] *= scale;
+	p->normal[2] *= scale;
+	p->dist *= -scale;
 
-	r_refdef.frustum[r_refdef.frustum_numplanes].type      = PLANE_ANYZ;
-	r_refdef.frustum[r_refdef.frustum_numplanes].signbits  = SignbitsForPlane (&r_refdef.frustum[4]);
-
-	r_refdef.frustum_numplanes++;
+	p->type      = PLANE_ANYZ;
+	p->signbits  = SignbitsForPlane (p);
 
 	r_refdef.frustum_numworldplanes = r_refdef.frustum_numplanes;
 
@@ -2773,21 +2775,21 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 			culldist = culldist / (-r_refdef.globalfog.density);
 		//anything drawn beyond this point is fully obscured by fog
 
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] = mvp[3] - mvp[2];
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] = mvp[7] - mvp[6];
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] = mvp[11] - mvp[10];
-		r_refdef.frustum[r_refdef.frustum_numplanes].dist      = mvp[15] - mvp[14];
+		p = &r_refdef.frustum[r_refdef.frustum_numplanes++];
+		p->normal[0] = mvp[3] - mvp[2];
+		p->normal[1] = mvp[7] - mvp[6];
+		p->normal[2] = mvp[11] - mvp[10];
+		p->dist      = mvp[15] - mvp[14];
 
-		scale = 1/sqrt(DotProduct(r_refdef.frustum[r_refdef.frustum_numplanes].normal, r_refdef.frustum[r_refdef.frustum_numplanes].normal));
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] *= -scale;
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] *= -scale;
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] *= -scale;
-//		r_refdef.frustum[r_refdef.frustum_numplanes].dist *= scale;
-		r_refdef.frustum[r_refdef.frustum_numplanes].dist	= DotProduct(r_origin, r_refdef.frustum[r_refdef.frustum_numplanes].normal)-culldist;
+		scale = 1/sqrt(DotProduct(p->normal, p->normal));
+		p->normal[0] *= -scale;
+		p->normal[1] *= -scale;
+		p->normal[2] *= -scale;
+//		p->dist *= scale;
+		p->dist	= DotProduct(r_origin, p->normal)-culldist;
 
-		r_refdef.frustum[r_refdef.frustum_numplanes].type      = PLANE_ANYZ;
-		r_refdef.frustum[r_refdef.frustum_numplanes].signbits  = SignbitsForPlane (&r_refdef.frustum[r_refdef.frustum_numplanes]);
-		r_refdef.frustum_numplanes++;
+		p->type      = PLANE_ANYZ;
+		p->signbits  = SignbitsForPlane (p);
 	}
 }
 #else

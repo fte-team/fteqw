@@ -293,8 +293,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define R_XFLIP			//allow view to be flipped horizontally
 		#define TEXTEDITOR
 		#define IMAGEFMT_KTX	//Khronos TeXture. common on gles3 devices for etc2 compression
+		#define IMAGEFMT_PKM	//file format generally written by etcpack or android's etc1tool
 		#define IMAGEFMT_DDS	//a sort of image file format.
 		#define IMAGEFMT_BLP	//a sort of image file format.
+		#define DECOMPRESS_ETC2	//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).
+//		#define DECOMPRESS_S3TC	//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...
+		#define DECOMPRESS_RGTC	//bc4+bc5
 #ifndef RTLIGHTS
 		#define RTLIGHTS		//realtime lighting
 #endif

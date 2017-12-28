@@ -76,6 +76,7 @@ typedef struct {
 	cvar_t		cv;
 	char		*comment;
 
+	qboolean	announced;		//when set, hide when sv_reportheartbeats 2
 	qboolean	needsresolve;	//set any time the cvar is modified
 	qboolean	resolving;	//set any time the cvar is modified
 	netadr_t	adr[MAX_MASTER_ADDRESSES];
@@ -245,7 +246,11 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 					}
 
 					if (sv_reportheartbeats.value)
-						Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), master->cv.string);
+					{
+						if (sv_reportheartbeats.ival != 2 || !master->announced)
+							Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), master->cv.string);
+						master->announced = true;
+					}
 
 					NET_SendPacket (NS_SERVER, strlen(string), string, na);
 				}
@@ -255,7 +260,11 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 				if (svs.gametype == GT_QUAKE2 && sv_listen_qw.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
 					if (sv_reportheartbeats.value)
-						Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), master->cv.string);
+					{
+						if (sv_reportheartbeats.ival != 2 || !master->announced)
+							Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), master->cv.string);
+						master->announced = true;
+					}
 
 					{
 						char *str = "\377\377\377\377heartbeat\n%s";
@@ -269,7 +278,11 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 				if (sv_listen_dp.value || sv_listen_nq.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
 					if (sv_reportheartbeats.value)
-						Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), master->cv.string);
+					{
+						if (sv_reportheartbeats.ival != 2 || !master->announced)
+							Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), master->cv.string);
+						master->announced = true;
+					}
 
 					{
 						//darkplaces here refers to the master server protocol, rather than the game protocol

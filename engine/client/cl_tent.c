@@ -278,7 +278,7 @@ sfx_t			*cl_sfx_ric2;
 sfx_t			*cl_sfx_ric3;
 sfx_t			*cl_sfx_r_exp3;
 
-cvar_t	cl_expsprite = CVARFD("cl_expsprite", "0", CVAR_ARCHIVE, "Display a central sprite in explosion effects. QuakeWorld typically does so, NQ mods should not (which is problematic when played with the qw protocol).");
+cvar_t	cl_expsprite = CVARFD("cl_expsprite", "1", CVAR_ARCHIVE, "Display a central sprite in explosion effects. QuakeWorld typically does so, NQ mods should not (which is problematic when played with the qw protocol).");
 cvar_t  r_explosionlight = CVARFC("r_explosionlight", "1", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
 cvar_t	cl_truelightning = CVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
 cvar_t  cl_beam_trace = CVAR("cl_beam_trace", "0");

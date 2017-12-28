@@ -54,9 +54,10 @@ extern LPDIRECT3DDEVICE9 pD3DDev9;
 #define MAX_TC_TMUS 4
 
 extern texid_t r_whiteimage;
-extern float d3d_trueprojection[16];
+extern float d3d_trueprojection_std[16];
+extern float d3d_trueprojection_view[16];
 
-static void BE_RotateForEntity (const entity_t *e, const model_t *mod);
+static void D3D9BE_RotateForEntity (const entity_t *e, const model_t *mod);
 
 /*========================================== tables for deforms =====================================*/
 #define frand() (rand()*(1.0/RAND_MAX))
@@ -157,6 +158,9 @@ typedef struct
 {
 	backendmode_t mode;
 	unsigned int flags;
+
+	D3DVIEWPORT9 vport;
+	float		*curprojection;
 
 	float		curtime;
 	const entity_t	*curentity;
@@ -671,6 +675,7 @@ void D3D9BE_Init(void)
 	be_maxpasses = MAX_TMUS;
 	memset(&shaderstate, 0, sizeof(shaderstate));
 	shaderstate.curvertdecl = -1;
+	shaderstate.curentity = &r_worldentity;
 
 	FTable_Init();
 
@@ -691,6 +696,20 @@ void D3D9BE_Set2D(void)
 {	//start of some 2d rendering code.
 	r_refdef.time = realtime;
 	shaderstate.curtime = r_refdef.time;
+}
+
+void D3D9BE_SetViewport(int x, int w, int y, int h)
+{
+	shaderstate.vport.X = x;
+	shaderstate.vport.Y = y;
+	shaderstate.vport.Width = w;
+	shaderstate.vport.Height = h;
+	shaderstate.vport.MinZ = 0;
+	shaderstate.vport.MaxZ = 1;
+	IDirect3DDevice9_SetViewport(pD3DDev9, &shaderstate.vport);
+
+	shaderstate.curprojection = d3d_trueprojection_std;
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)shaderstate.curprojection);
 }
 
 static void allocvertexbuffer(IDirect3DVertexBuffer9 *buff, unsigned int bmaxsize, unsigned int *offset, void **data, unsigned int bytes)
@@ -1677,14 +1696,7 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 			for (j = 0; j < 3; j++)
 				rot_centre[j] = (quad[0][j] + quad[1][j] + quad[2][j] + quad[3][j]) * 0.25;
 
-			if (shaderstate.curentity)
-			{
-				VectorAdd(shaderstate.curentity->origin, rot_centre, tv);
-			}
-			else
-			{
-				VectorCopy(rot_centre, tv);
-			}
+			VectorAdd(shaderstate.curentity->origin, rot_centre, tv);
 			VectorSubtract(r_origin, tv, tv);
 
 			// filter any longest-axis-parts off the camera-direction
@@ -1863,7 +1875,7 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 		switch (pp->type)
 		{
 		case SP_M_PROJECTION:
-			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, d3d_trueprojection, 4);
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, shaderstate.curprojection, 4);
 			break;
 		case SP_M_VIEW:
 			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, r_refdef.m_view, 4);
@@ -1898,7 +1910,7 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 			{
 				float mv[16], mvp[16];
 				Matrix4_Multiply(r_refdef.m_view, shaderstate.m_model, mv);
-				Matrix4_Multiply(d3d_trueprojection, mv, mvp);
+				Matrix4_Multiply(shaderstate.curprojection, mv, mvp);
 				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, mvp, 4);
 			}
 			break;
@@ -2048,7 +2060,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 //	if (p->permu[perm|PERMUTATION_DELUXE].h.loaded && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
 #if MAXRLIGHTMAPS > 1
-	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].h.loaded)
+	if (shaderstate.curbatch && shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].h.loaded)
 		perm |= PERMUTATION_LIGHTSTYLES;
 #endif
 
@@ -2544,7 +2556,7 @@ qboolean D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsign
 void D3D9BE_SelectEntity(entity_t *ent)
 {
 	shaderstate.curentity = ent;
-	BE_RotateForEntity(ent, ent->model);
+	D3D9BE_RotateForEntity(ent, ent->model);
 }
 
 #if 1
@@ -2983,10 +2995,11 @@ batch_t *D3D9BE_GetTempBatch(void)
 	return &shaderstate.wbatches[shaderstate.wbatch++];
 }
 
-static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
+static void D3D9BE_RotateForEntity (const entity_t *e, const model_t *mod)
 {
 //	float mv[16];
 	float *m = shaderstate.m_model;
+	float maxz;
 
 	shaderstate.curentity = e;
 
@@ -3147,11 +3160,22 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)m);
 
+	if (e->flags & RF_DEPTHHACK)
+		maxz = 0.333;
+	else
+		maxz = 1;
+
+	if (shaderstate.vport.MaxZ != maxz)
 	{
-	D3DVIEWPORT9 vport;
-	IDirect3DDevice9_GetViewport(pD3DDev9, &vport);
-	vport.MaxZ = (e->flags & RF_DEPTHHACK)?0.333:1;
-	IDirect3DDevice9_SetViewport(pD3DDev9, &vport);
+		shaderstate.vport.MaxZ = maxz;
+
+		if (maxz < 1)
+			shaderstate.curprojection = d3d_trueprojection_view;
+		else
+			shaderstate.curprojection = d3d_trueprojection_std;
+
+		IDirect3DDevice9_SetViewport(pD3DDev9, &shaderstate.vport);
+		IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)shaderstate.curprojection);
 	}
 }
 
@@ -3163,7 +3187,7 @@ void D3D9BE_SubmitBatch(batch_t *batch)
 		return;
 	if (shaderstate.curentity != batch->ent)
 	{
-		BE_RotateForEntity(batch->ent, batch->ent->model);
+		D3D9BE_RotateForEntity(batch->ent, batch->ent->model);
 		shaderstate.curtime = r_refdef.time - shaderstate.curentity->shaderTime;
 	}
 	shaderstate.batchvbo = batch->vbo;
@@ -3379,7 +3403,7 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 }
 static void R_RenderScene(void)
 {
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection);
+//	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
 	R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 	Surf_DrawWorld();
@@ -3491,7 +3515,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
 
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection);
+//	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
 	R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 }
@@ -3603,7 +3627,7 @@ void D3D9BE_DrawWorld (batch_t **worldbatches)
 	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();
 
-	shaderstate.curentity = NULL;
+	shaderstate.curentity = &r_worldentity;
 
 	if (!r_refdef.recurse)
 	{
@@ -3677,7 +3701,7 @@ void D3D9BE_DrawWorld (batch_t **worldbatches)
 
 	R_RenderDlights ();
 
-	BE_RotateForEntity(&r_worldentity, NULL);
+	D3D9BE_RotateForEntity(&r_worldentity, NULL);
 }
 void D3D9BE_VBO_Begin(vbobctx_t *ctx, size_t maxsize)
 {

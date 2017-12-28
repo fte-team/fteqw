@@ -64,6 +64,7 @@ cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be show exactly what was last received, which will be jerky. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
+cvar_t	cl_fullpitch_nq = CVARAFD("cl_fullpitch", "0", "pq_fullpitch", CVAR_SEMICHEAT, "When set, attempts to unlimit the default view pitch. Note that some servers will screw over your angles if you use this, resulting in terrible gameplay, while some may merely clamp your angle serverside. This is also considered a cheat in quakeworld, so this will not function there. For the equivelent in quakeworld, use serverinfo minpitch+maxpitch instead, which applies to all players fairly.");
 cvar_t	*hud_tracking_show;
 cvar_t	*hud_miniscores_show;
 extern cvar_t net_compress;
@@ -417,6 +418,7 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 	char	data[2048];
 	cls.fteprotocolextensions = 0;
 	cls.fteprotocolextensions2 = 0;
+	cls.ezprotocolextensions1 = 0;
 
 	cls.resendinfo = false;
 
@@ -2157,10 +2159,10 @@ void CL_CheckServerInfo(void)
 	// Initialize cl.maxpitch & cl.minpitch
 	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)
 	{
-		s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "maxpitch") : "";
-		cl.maxpitch = *s ? Q_atof(s) : 80.0f;
-		s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "minpitch") : "";
-		cl.minpitch = *s ? Q_atof(s) : -70.0f;
+		s = Info_ValueForKey (cl.serverinfo, "maxpitch");
+		cl.maxpitch = *s ? Q_atof(s) : ((cl_fullpitch_nq.ival && !cl.haveserverinfo)?90.0f:80.0f);
+		s = Info_ValueForKey (cl.serverinfo, "minpitch");
+		cl.minpitch = *s ? Q_atof(s) : ((cl_fullpitch_nq.ival && !cl.haveserverinfo)?-90.0f:-70.0f);
 
 		if (cls.protocol == CP_NETQUAKE)
 		{	//proquake likes spamming us with fixangles
@@ -3477,6 +3479,7 @@ void CLNQ_ConnectionlessPacket(void)
 
 		cls.fteprotocolextensions = connectinfo.fteext1;
 		cls.fteprotocolextensions2 = connectinfo.fteext2;
+		cls.ezprotocolextensions1 = 0;
 		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
 		CL_ParseEstablished();
 		cls.netchan.isnqprotocol = true;
@@ -4221,6 +4224,9 @@ void CL_Init (void)
 
 	Cvar_Register (&cl_nolerp, "Item effects");
 	Cvar_Register (&cl_nolerp_netquake, "Item effects");
+#ifdef NQPROT
+	Cvar_Register (&cl_fullpitch_nq, "Cheats");
+#endif
 
 	Cvar_Register (&r_drawflame, "Item effects");
 

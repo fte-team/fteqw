@@ -2698,11 +2698,11 @@ static void SCR_ScreenShot_Mega_f(void)
 	}
 
 	if (!fbwidth)
-		fbwidth = sh_config.texture_maxsize;
-	fbwidth = bound(1, fbwidth, sh_config.texture_maxsize);
+		fbwidth = sh_config.texture2d_maxsize;
+	fbwidth = bound(1, fbwidth, sh_config.texture2d_maxsize);
 	if (!fbheight)
 		fbheight = (fbwidth * 3)/4;
-	fbheight = bound(1, fbheight, sh_config.texture_maxsize);
+	fbheight = bound(1, fbheight, sh_config.texture2d_maxsize);
 
 	if (strstr (screenyname, "..") || strchr(screenyname, ':') || *screenyname == '.' || *screenyname == '/')
 		screenyname = "";
@@ -2799,8 +2799,8 @@ static void SCR_ScreenShot_VR_f(void)
 
 	if (width <= 2)
 		width = 2048;
-	if (width > sh_config.texture_maxsize)
-		width = sh_config.texture_maxsize;
+	if (width > sh_config.texture2d_maxsize)
+		width = sh_config.texture2d_maxsize;
 	height = width/2;
 	if (step <= 0)
 		step = 5;

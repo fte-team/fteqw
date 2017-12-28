@@ -356,6 +356,24 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 			lhs = false;
 		else if (!Q_stricmp(token, "loweroverlay"))
 			lhs = false;
+
+		//these are for compat/documentation purposes with qfusion/warsow
+		else if (!Q_stricmp(token, "maxTextureSize"))
+			lhs = sh_config.texture2d_maxsize;
+		else if (!Q_stricmp(token, "maxTextureCubemapSize"))
+			lhs = sh_config.texturecube_maxsize;
+		else if (!Q_stricmp(token, "maxTextureUnits"))
+			lhs = 0;
+		else if (!Q_stricmp(token, "textureCubeMap"))
+			lhs = sh_config.havecubemaps;
+//		else if (!Q_stricmp(token, "GLSL"))
+//			lhs = 1;
+		else if (!Q_stricmp(token, "deluxeMaps") || !Q_stricmp(token, "deluxe"))
+			lhs = r_deluxmapping;
+		else if (!Q_stricmp(token, "portalMaps"))
+			lhs = false;
+		//end qfusion
+
 		else
 		{
 			cv = Cvar_Get(token, "", 0, "Shader Conditions");
@@ -3531,7 +3549,7 @@ static void Shaderpass_CubeMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	char *token = Shader_ParseString(ptr);
 
-	if (pass->tcgen == TC_GEN_BASE)
+	if (pass->tcgen == TC_GEN_UNSPECIFIED)
 		pass->tcgen = TC_GEN_SKYBOX;
 	pass->texgen = T_GEN_CUBEMAP;
 	pass->anim_frames[0] = Shader_FindImage(token, IF_CUBEMAP);
@@ -3593,14 +3611,14 @@ static shaderkey_t shaderpasskeys[] =
 	//qfusion/warsow compat
 	{"material",	Shaderpass_QF_Material,		"qf"},
 	{"animclampmap",Shaderpass_QF_AnimClampMap,	"qf"},
-//	{"cubemap",		Shaderpass_CubeMap,			"qf"},
-//	{"shadecubemap",Shaderpass_ShadeCubeMap,	"qf"},
-//	{"surroundmap",	Shaderpass_SurroundMap,		"qf"},
-//	{"distortion",	Shaderpass_Distortion,		"qf"},
-//	{"celshade",	Shaderpass_Celshade,		"qf"},
-//	{"grayscale",	Shaderpass_Greyscale,		"qf"},
-//	{"greyscale",	Shaderpass_Greyscale,		"qf"},
-//	{"skip",		Shaderpass_Skip,			"qf"},
+//	{"cubemap",		Shaderpass_QF_CubeMap,		"qf"},
+//	{"shadecubemap",Shaderpass_QF_ShadeCubeMap,	"qf"},
+	{"surroundmap",	Shaderpass_CubeMap,			"qf"},
+//	{"distortion",	Shaderpass_QF_Distortion,	"qf"},
+//	{"celshade",	Shaderpass_QF_Celshade,		"qf"},
+//	{"grayscale",	Shaderpass_QF_Greyscale,	"qf"},
+//	{"greyscale",	Shaderpass_QF_Greyscale,	"qf"},
+//	{"skip",		Shaderpass_QF_Skip,			"qf"},
 
 	{NULL,			NULL}
 };

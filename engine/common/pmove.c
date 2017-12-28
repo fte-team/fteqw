@@ -773,6 +773,14 @@ void PM_AirMove (void)
 	vec3_t		wishdir;
 	float		wishspeed;
 
+	if (pmove.gravitydir[2] == -1 && (pmove.angles[0] == 90 || pmove.angles[0] == -90))
+	{	//HACK: attempt to avoid a stupid numerical precision issue.
+		//You know its a hack because I'm comparing exact angles.
+		vec3_t tmp;
+		VectorSet(tmp, pmove.angles[0]*0.99, pmove.angles[1], pmove.angles[2]);
+		AngleVectors (tmp, forward, right, up);
+	}
+
 	fmove = pmove.cmd.forwardmove;
 	smove = pmove.cmd.sidemove;
 	VectorMA(forward, -DotProduct(forward, pmove.gravitydir), pmove.gravitydir, forward); //z=0

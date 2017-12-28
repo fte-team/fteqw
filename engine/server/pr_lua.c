@@ -56,7 +56,8 @@
 //any globals or functions that the server might want access to need to be known also.
 #define luaextragloballist	\
 	globalstring	(true, startspot)	\
-	globalstring	(true, ClientReEnter)
+	globalstring	(true, ClientReEnter) \
+	globalfloat		(false, dimension_default)
 
 typedef struct
 {
@@ -107,7 +108,7 @@ static struct
 	luafld_t entflds[1024];		//fld->offset+type
 
 	qboolean triedlib;
-	dllhandle_t lib;
+	dllhandle_t *lib;
 
 	lua_State *		(QDECL *newstate)		(lua_Alloc f, void *ud);
 	lua_CFunction	(QDECL *atpanic)		(lua_State *L, lua_CFunction panicf);
@@ -431,7 +432,7 @@ static int my_lua_entity_set(lua_State *L)	//__newindex
 			lua.getfield(L, 1, "entnum");
 			entnum = lua.tointegerx(L, -1, NULL);
 			lua.pop(L, 1);
-			if (entnum < lua.maxedicts && lua.edicttable[entnum] && !lua.edicttable[entnum]->isfree)
+			if (entnum < lua.maxedicts && lua.edicttable[entnum] && !ED_ISFREE(lua.edicttable[entnum]))
 			{
 				eval = (eval_t*)((char*)lua.edicttable[entnum]->v + fld->offset);
 				switch(fld->type)
@@ -450,7 +451,7 @@ static int my_lua_entity_set(lua_State *L)	//__newindex
 						eval->function = 0;	//so the engine can distinguish between nil and not.
 					else
 						eval->function = fld->offset | ((entnum+1)<<10);
-					lua.pushlightuserdata(L, (void *)fld->offset);	//execute only knows a function id, so we need to translate the store to match.
+					lua.pushlightuserdata(L, (void *)(qintptr_t)fld->offset);	//execute only knows a function id, so we need to translate the store to match.
 					lua.replace(L, 2);
 					lua.rawset(L, 1);
 					return 0;
@@ -459,7 +460,7 @@ static int my_lua_entity_set(lua_State *L)	//__newindex
 						eval->string = 0;	//so the engine can distinguish between nil and not.
 					else
 						eval->string = fld->offset | ((entnum+1)<<10);
-					lua.pushlightuserdata(L, (void *)fld->offset);	//execute only knows a string id, so we need to translate the store to match.
+					lua.pushlightuserdata(L, (void *)(qintptr_t)fld->offset);	//execute only knows a string id, so we need to translate the store to match.
 					lua.replace(L, 2);
 					lua.rawset(L, 1);
 					return 0;
@@ -517,7 +518,7 @@ static int my_lua_entity_get(lua_State *L)	//__index
 					return 1;
 				case ev_function:
 				case ev_string:
-					lua.pushlightuserdata(L, (void *)(eval->function & 1023));	//execute only knows a function id, so we need to translate the store to match.
+					lua.pushlightuserdata(L, (void *)(qintptr_t)(eval->function & 1023));	//execute only knows a function id, so we need to translate the store to match.
 					lua.replace(L, 2);
 					lua.rawget(L, 1);
 					return 1;
@@ -619,7 +620,7 @@ static int my_lua_global_get(lua_State *L)	//__index
 				lua.pushnumber(L, eval->_float);
 				return 1;
 			case ev_function:
-				lua.pushlightuserdata(L, (void *)eval->function);	//execute only knows a function id, so we need to translate the store to match.
+				lua.pushlightuserdata(L, (void *)(qintptr_t)eval->function);	//execute only knows a function id, so we need to translate the store to match.
 				lua.replace(L, 2);
 				lua.rawget(L, 1);
 				return 1;
@@ -667,7 +668,7 @@ static int bi_lua_lightstyle(lua_State *L)
 }
 static int bi_lua_spawn(lua_State *L)
 {
-	edict_t *e = lua.progfuncs.EntAlloc(&lua.progfuncs);
+	edict_t *e = lua.progfuncs.EntAlloc(&lua.progfuncs, false, 0);
 	if (e)
 	{
 		lua.pushlightuserdata(L, e);
@@ -811,7 +812,7 @@ static int bi_lua_sound(lua_State *L)
 
 	//note: channel & 256 == reliable
 
-	SVQ1_StartSound (NULL, (wedict_t*)EDICT_NUM((&lua.progfuncs), entnum), channel, samp, volume*255, attenuation, 0);
+	SVQ1_StartSound (NULL, (wedict_t*)EDICT_NUM((&lua.progfuncs), entnum), channel, samp, volume*255, attenuation, 0, 0, 0);
 	return 0;
 }
 
@@ -850,7 +851,7 @@ static int bi_lua_droptofloor(lua_State *L)
 	vec3_t		start;
 	trace_t		trace;
 	const float *gravitydir;
-	extern const vec3_t standardgravity;
+	static const vec3_t standardgravity = {0,0,-1};
 	pubprogfuncs_t *prinst = &lua.progfuncs;
 	world_t *world = prinst->parms->user;
 
@@ -887,9 +888,10 @@ static int bi_lua_checkbottom(lua_State *L)
 {
 	qboolean okay;
 	int entnum;
+	vec3_t up = {0,0,1};
 	lua.getfield(L, 1, "entnum");
 	entnum = lua.tointegerx(L, -1, NULL);
-	okay = World_CheckBottom(&sv.world, (wedict_t*)EDICT_NUM((&lua.progfuncs), entnum));
+	okay = World_CheckBottom(&sv.world, (wedict_t*)EDICT_NUM((&lua.progfuncs), entnum), up);
 	lua.pushboolean(L, okay);
 	return 1;
 }
@@ -946,11 +948,11 @@ static void set_trace_globals(trace_t *trace)
 	pr_global_struct->trace_fraction = trace->fraction;
 	pr_global_struct->trace_inwater = trace->inwater;
 	pr_global_struct->trace_inopen = trace->inopen;
-	pr_global_struct->trace_surfaceflags = trace->surface?trace->surface->flags:0;
+	pr_global_struct->trace_surfaceflagsf = trace->surface?trace->surface->flags:0;
 	pr_global_struct->trace_surfaceflagsi = trace->surface?trace->surface->flags:0;
-	if (pr_global_struct->trace_surfacename)
-		prinst->SetStringField(prinst, NULL, &pr_global_struct->trace_surfacename, tr->surface?tr->surface->name:"", true);
-	pr_global_struct->trace_endcontents = trace->contents;
+//	if (pr_global_struct->trace_surfacename)
+//		prinst->SetStringField(prinst, NULL, &pr_global_struct->trace_surfacename, tr->surface?tr->surface->name:"", true);
+	pr_global_struct->trace_endcontentsf = trace->contents;
 	pr_global_struct->trace_endcontentsi = trace->contents;
 //	if (trace.fraction != 1)
 //		VectorMA (trace->endpos, 4, trace->plane.normal, P_VEC(trace_endpos));
@@ -1011,7 +1013,7 @@ static int bi_lua_walkmove(lua_State *L)
 	float	yaw, dist;
 	vec3_t	move;
 	int 	oldself;
-	vec3_t	axis;
+	vec3_t	axis[3];
 
 	ent = PROG_TO_WEDICT(prinst, *world->g.self);
 	yaw = lua.tonumberx(L, 1, NULL);
@@ -1070,7 +1072,7 @@ static int bi_lua_nextent(lua_State *L)
 			break;
 		}
 		ent = WEDICT_NUM(world->progs, i);
-		if (!ent->isfree)
+		if (!ED_ISFREE(ent))
 		{
 			break;
 		}
@@ -1098,7 +1100,7 @@ static int bi_lua_nextclient(lua_State *L)
 			break;
 		}
 		ent = WEDICT_NUM(world->progs, i);
-		if (!ent->isfree)
+		if (!ED_ISFREE(ent))
 		{
 			break;
 		}
@@ -1145,7 +1147,7 @@ static int bi_lua_vectoangles(lua_State *L)
 		lua_readvector(L, 1, up);
 		uv = up;
 	}
-	VectorAngles(forward, up, ret);
+	VectorAngles(forward, uv, ret, true);
 
 	lua.createtable(L, 0, 0);
 	//FIXME: should provide a metatable with a __tostring
@@ -1203,7 +1205,7 @@ static int bi_lua_findradiuschain(lua_State *L)
 	for (i=1 ; i<world->num_edicts ; i++)
 	{
 		ent = EDICT_NUM(world->progs, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 		if (ent->v->solid == SOLID_NOT && (progstype != PROG_QW || !((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
 			continue;
@@ -1242,7 +1244,7 @@ static int bi_lua_findradiustable(lua_State *L)
 	for (i=1 ; i<world->num_edicts ; i++)
 	{
 		ent = EDICT_NUM(world->progs, i);
-		if (ent->isfree)
+		if (ED_ISFREE(ent))
 			continue;
 		if (ent->v->solid == SOLID_NOT && (progstype != PROG_QW || !((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
 			continue;
@@ -1408,7 +1410,7 @@ typedef struct
 	lua_State *L;
 	int idx;
 } luafsenum_t;
-static int QDECL lua_file_enumerate(const char *fname, qofs_t fsize, void *param, searchpathfuncs_t *spath)
+static int QDECL lua_file_enumerate(const char *fname, qofs_t fsize, time_t mtime, void *param, searchpathfuncs_t *spath)
 {
 	luafsenum_t *e = param;
 	lua.pushinteger(e->L, e->idx++);
@@ -1651,7 +1653,7 @@ void Lua_EntClear (pubprogfuncs_t *pf, edict_t *e)
 {
 	int num = e->entnum;
 	memset (e->v, 0, sv.world.edict_size);
-	e->isfree = false;
+	e->ereftype = ER_ENTITY;
 	e->entnum = num;
 }
 edict_t *Lua_CreateEdict(unsigned int num)
@@ -1671,7 +1673,7 @@ static void QDECL Lua_EntRemove(pubprogfuncs_t *pf, edict_t *e)
 
 	if (!ED_CanFree(e))
 		return;
-	e->isfree = true;
+	e->ereftype = ER_FREE;
 	e->freetime = sv.time;
 
 	//clear out the lua version of the entity, so that it can be garbage collected.
@@ -1713,7 +1715,7 @@ static edict_t *Lua_DoRespawn(pubprogfuncs_t *pf, edict_t *e, int num)
 	lua.settable(L, LUA_REGISTRYINDEX);
 	return e;
 }
-static edict_t *QDECL Lua_EntAlloc(pubprogfuncs_t *pf)
+static edict_t *QDECL Lua_EntAlloc(pubprogfuncs_t *pf, pbool isobject, size_t extrasize)
 {
 	int i;
 	edict_t *e;
@@ -1722,7 +1724,7 @@ static edict_t *QDECL Lua_EntAlloc(pubprogfuncs_t *pf)
 		e = (edict_t*)EDICT_NUM(pf, i);
 		// the first couple seconds of server time can involve a lot of
 		// freeing and allocating, so relax the replacement policy
-		if (!e || (e->isfree && ( e->freetime < 2 || sv.time - e->freetime > 0.5 ) ))
+		if (!e || (ED_ISFREE(e) && ( e->freetime < 2 || sv.time - e->freetime > 0.5 ) ))
 		{
 			e = Lua_DoRespawn(pf, e, i);
 			return (struct edict_s *)e;
@@ -1736,7 +1738,7 @@ static edict_t *QDECL Lua_EntAlloc(pubprogfuncs_t *pf)
 			e = (edict_t*)EDICT_NUM(pf, i);
 			// the first couple seconds of server time can involve a lot of
 			// freeing and allocating, so relax the replacement policy
-			if (!e || (e->isfree))
+			if (!e || ED_ISFREE(e))
 			{
 				e = Lua_DoRespawn(pf, e, i);
 				return (struct edict_s *)e;
@@ -1757,7 +1759,7 @@ static edict_t *QDECL Lua_EntAlloc(pubprogfuncs_t *pf)
 	return (struct edict_s *)e;
 }
 
-static int QDECL Lua_LoadEnts(pubprogfuncs_t *pf, char *mapstring, float spawnflags)
+static int QDECL Lua_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, void *ctx, void (PDECL *callback) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend))
 {
 	lua_State *L = lua.ctx;
 	int i = 0;
@@ -1769,7 +1771,7 @@ static int QDECL Lua_LoadEnts(pubprogfuncs_t *pf, char *mapstring, float spawnfl
 		lua.pushstring(L, com_token);
 		lua.settable(L, -3);
 	}
-	lua.pushinteger(L, spawnflags);
+//	lua.pushinteger(L, spawnflags);
 
 	if (lua.pcall(L, 2, 0, 0) != 0)
 	{
@@ -1871,7 +1873,7 @@ static void QDECL Lua_SetStringField(pubprogfuncs_t *prinst, edict_t *ed, string
 	*fld = base | val;	//set the engine's value
 
 	//set the stuff so that lua can read it properly.
-	lua.pushlightuserdata(L, (void *)val);
+	lua.pushlightuserdata(L, (void *)(qintptr_t)val);
 	lua.pushfstring(L, "%s", str);
 	lua.rawset(L, -3);
 
@@ -1902,7 +1904,7 @@ static const char *ASMCALL QDECL Lua_StringToNative(pubprogfuncs_t *prinst, stri
 		}
 
 		//read the function from the table
-		lua.pushlightuserdata(lua.ctx, (void *)str);
+		lua.pushlightuserdata(lua.ctx, (void *)(qintptr_t)str);
 		lua.rawget(lua.ctx, -2);
 		ret = lua.tolstring(lua.ctx, -1, NULL);
 		lua.pop(lua.ctx, 2);	//pop the table+string.
@@ -2044,7 +2046,7 @@ void QDECL Lua_ExecuteProgram(pubprogfuncs_t *funcs, func_t func)
 	}
 
 	//read the function from the table
-	lua.pushlightuserdata(lua.ctx, (void *)func);
+	lua.pushlightuserdata(lua.ctx, (void *)(qintptr_t)func);
 	lua.rawget(lua.ctx, -2);
 
 	//and now invoke it.
@@ -2131,7 +2133,7 @@ qboolean PR_LoadLua(void)
 	my_lua_registerbuiltins(lua.ctx);
 
 	//spawn the world, woo.
-	world->edicts = (wedict_t*)pf->EntAlloc(pf);
+	world->edicts = (wedict_t*)pf->EntAlloc(pf,false,0);
 
 	//load the gamecode now. it should be safe for it to call various builtins.
 	if (0 != lua.load(lua.ctx, my_lua_Reader, sourcefile, "progs.lua", "bt"))	//load the file, embed it within a function and push it

@@ -3587,10 +3587,22 @@ static void BE_DrawMeshChain_Internal(void)
 
 			if (p->prog)
 			{
-				vertexbuffers[VK_BUFF_TC] = shaderstate.batchvbo->texcoord.vk.buff;
-				vertexoffsets[VK_BUFF_TC] = shaderstate.batchvbo->texcoord.vk.offs;
-				vertexbuffers[VK_BUFF_LMTC] = shaderstate.batchvbo->lmcoord[0].vk.buff;
-				vertexoffsets[VK_BUFF_LMTC] = shaderstate.batchvbo->lmcoord[0].vk.offs;
+				if (shaderstate.batchvbo)
+				{
+					vertexbuffers[VK_BUFF_TC] = shaderstate.batchvbo->texcoord.vk.buff;
+					vertexoffsets[VK_BUFF_TC] = shaderstate.batchvbo->texcoord.vk.offs;
+					vertexbuffers[VK_BUFF_LMTC] = shaderstate.batchvbo->lmcoord[0].vk.buff;
+					vertexoffsets[VK_BUFF_LMTC] = shaderstate.batchvbo->lmcoord[0].vk.offs;
+				}
+				else
+				{
+					float *map;
+					map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
+					BE_GenerateTCMods(p, map);
+
+					vertexbuffers[VK_BUFF_LMTC] = vertexbuffers[VK_BUFF_TC];
+					vertexoffsets[VK_BUFF_LMTC] = vertexoffsets[VK_BUFF_TC];
+				}
 
 				BE_GenerateColourMods(vertcount, p, &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
 
@@ -4191,7 +4203,7 @@ void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 		float view[16];
 		float proj[16];
 		extern cvar_t r_shadow_shadowmapping_nearclip;
-		Matrix4x4_CM_Projection_Far(proj, l->fov, l->fov, r_shadow_shadowmapping_nearclip.value, l->radius);
+		Matrix4x4_CM_Projection_Far(proj, l->fov, l->fov, r_shadow_shadowmapping_nearclip.value, l->radius, false);
 		Matrix4x4_CM_ModelViewMatrixFromAxis(view, l->axis[0], l->axis[1], l->axis[2], l->origin);
 		Matrix4_Multiply(proj, view, cbl->l_cubematrix);
 	}
@@ -4229,13 +4241,15 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 
 	shaderstate.curentity = e;
 
+	if (e->flags & RF_DEPTHHACK)
+		proj = r_refdef.m_projection_view;
+	else
+		proj = r_refdef.m_projection_std;
 
 	if ((e->flags & RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
 	{
 		float em[16];
 		float vm[16];
-
-		proj = r_refdef.m_projection_view;
 
 		if (e->flags & RF_WEAPONMODELNOBOB)
 		{
@@ -4306,8 +4320,6 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	}
 	else
 	{
-		proj = r_refdef.m_projection_std;
-
 		m[0] = e->axis[0][0];
 		m[1] = e->axis[0][1];
 		m[2] = e->axis[0][2];

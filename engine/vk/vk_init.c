@@ -451,7 +451,8 @@ static qboolean VK_CreateSwapChain(void)
 		}
 
 		if (!vk.vsync && swapinfo.presentMode != VK_PRESENT_MODE_IMMEDIATE_KHR)
-			Con_Printf("Warning: vulkan graphics driver does not support VK_PRESENT_MODE_IMMEDIATE_KHR.\n");
+			if (!vk.swapchain)	//only warn on vid_restart, otherwise its annoying when resizing.
+				Con_Printf("Warning: vulkan graphics driver does not support VK_PRESENT_MODE_IMMEDIATE_KHR.\n");
 
 		vk.srgbcapable = false;
 		swapinfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
@@ -887,62 +888,99 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	ret.layout = staging?VK_IMAGE_LAYOUT_PREINITIALIZED:VK_IMAGE_LAYOUT_UNDEFINED;
 
 	//16bit formats.
-	if (encoding == PTI_RGB565)
-		format = VK_FORMAT_R5G6B5_UNORM_PACK16;
-	else if (encoding == PTI_RGBA4444) 
-		format = VK_FORMAT_R4G4B4A4_UNORM_PACK16;
-	else if (encoding == PTI_ARGB4444) 
-		format = VK_FORMAT_B4G4R4A4_UNORM_PACK16;	//fixme: this seems wrong.
-	else if (encoding == PTI_RGBA5551) 
-		format = VK_FORMAT_R5G5B5A1_UNORM_PACK16;
-	else if (encoding == PTI_ARGB1555) 
-		format = VK_FORMAT_A1R5G5B5_UNORM_PACK16;
+	switch(encoding)
+	{
+	case PTI_RGB565:			format = VK_FORMAT_R5G6B5_UNORM_PACK16;				break;
+	case PTI_RGBA4444:			format = VK_FORMAT_R4G4B4A4_UNORM_PACK16;			break;
+	case PTI_ARGB4444:			format = VK_FORMAT_B4G4R4A4_UNORM_PACK16;			break; //fixme: this seems wrong...
+	case PTI_RGBA5551:			format = VK_FORMAT_R5G5B5A1_UNORM_PACK16;			break;
+	case PTI_ARGB1555:			format = VK_FORMAT_A1R5G5B5_UNORM_PACK16;			break;
 	//float formats
-	else if (encoding == PTI_RGBA16F) 
-		format = VK_FORMAT_R16G16B16A16_SFLOAT;
-	else if (encoding == PTI_RGBA32F) 
-		format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	case PTI_RGBA16F:			format = VK_FORMAT_R16G16B16A16_SFLOAT;				break;
+	case PTI_RGBA32F:			format = VK_FORMAT_R32G32B32A32_SFLOAT;				break;
 	//weird formats
-	else if (encoding == PTI_R8) 
-		format = VK_FORMAT_R8_UNORM;
-	else if (encoding == PTI_RG8)
-		format = VK_FORMAT_R8G8_UNORM;
+	case PTI_R8:				format = VK_FORMAT_R8_UNORM;						break;
+	case PTI_RG8:				format = VK_FORMAT_R8G8_UNORM;						break;
+	case PTI_R8_SIGNED:			format = VK_FORMAT_R8_SNORM;						break;
+	case PTI_RG8_SIGNED:		format = VK_FORMAT_R8G8_SNORM;						break;
 	//compressed formats
-	else if (encoding == PTI_S3RGB1)
-		format = VK_FORMAT_BC1_RGB_UNORM_BLOCK;
-	else if (encoding == PTI_S3RGBA1)
-		format = VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
-	else if (encoding == PTI_S3RGBA3)
-		format = VK_FORMAT_BC2_UNORM_BLOCK;
-	else if (encoding == PTI_S3RGBA5)
-		format = VK_FORMAT_BC3_UNORM_BLOCK;
-	else if (encoding == PTI_ETC1_RGB8)	//vulkan doesn't support etc1, but etc2 is a superset so its all okay.
-		format = VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
-	else if (encoding == PTI_ETC2_RGB8)
-		format = VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
-	else if (encoding == PTI_ETC2_RGB8A1)
-		format = VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK;
-	else if (encoding == PTI_ETC2_RGB8A8)
-		format = VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
+	case PTI_BC1_RGB:			format = VK_FORMAT_BC1_RGB_UNORM_BLOCK;			break;
+	case PTI_BC1_RGB_SRGB:		format = VK_FORMAT_BC1_RGB_SRGB_BLOCK;			break;
+	case PTI_BC1_RGBA:			format = VK_FORMAT_BC1_RGBA_UNORM_BLOCK;		break;
+	case PTI_BC1_RGBA_SRGB:		format = VK_FORMAT_BC1_RGBA_SRGB_BLOCK;			break;
+	case PTI_BC2_RGBA:			format = VK_FORMAT_BC2_UNORM_BLOCK;				break;
+	case PTI_BC2_RGBA_SRGB:		format = VK_FORMAT_BC2_SRGB_BLOCK;				break;
+	case PTI_BC3_RGBA:			format = VK_FORMAT_BC3_UNORM_BLOCK;				break;
+	case PTI_BC3_RGBA_SRGB:		format = VK_FORMAT_BC3_SRGB_BLOCK;				break;
+	case PTI_BC4_R8:			format = VK_FORMAT_BC4_UNORM_BLOCK;				break;
+	case PTI_BC4_R8_SIGNED:		format = VK_FORMAT_BC4_SNORM_BLOCK;				break;
+	case PTI_BC5_RG8:			format = VK_FORMAT_BC5_UNORM_BLOCK;				break;
+	case PTI_BC5_RG8_SIGNED:	format = VK_FORMAT_BC5_SNORM_BLOCK;				break;
+	case PTI_BC6_RGBF:			format = VK_FORMAT_BC6H_UFLOAT_BLOCK;			break;
+	case PTI_BC6_RGBF_SIGNED:	format = VK_FORMAT_BC6H_SFLOAT_BLOCK;			break;
+	case PTI_BC7_RGBA:			format = VK_FORMAT_BC7_UNORM_BLOCK;				break;
+	case PTI_BC7_RGBA_SRGB:		format = VK_FORMAT_BC7_SRGB_BLOCK;				break;
+	case PTI_ETC1_RGB8:			format = VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;		break;	//vulkan doesn't support etc1, but etc2 is a superset so its all okay.
+	case PTI_ETC2_RGB8:			format = VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;		break;
+	case PTI_ETC2_RGB8_SRGB:	format = VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK;		break;
+	case PTI_ETC2_RGB8A1:		format = VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK;	break;
+	case PTI_ETC2_RGB8A1_SRGB:	format = VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK;	break;
+	case PTI_ETC2_RGB8A8:		format = VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;	break;
+	case PTI_ETC2_RGB8A8_SRGB:	format = VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK;	break;
+	case PTI_EAC_R11:			format = VK_FORMAT_EAC_R11_UNORM_BLOCK;			break;
+	case PTI_EAC_R11_SIGNED:	format = VK_FORMAT_EAC_R11_SNORM_BLOCK;			break;
+	case PTI_EAC_RG11:			format = VK_FORMAT_EAC_R11G11_UNORM_BLOCK;		break;
+	case PTI_EAC_RG11_SIGNED:	format = VK_FORMAT_EAC_R11G11_SNORM_BLOCK;		break;
+
+	case PTI_ASTC_4X4:			format = VK_FORMAT_ASTC_4x4_UNORM_BLOCK;		break;
+	case PTI_ASTC_4X4_SRGB:		format = VK_FORMAT_ASTC_4x4_SRGB_BLOCK;			break;
+	case PTI_ASTC_5X4:			format = VK_FORMAT_ASTC_5x4_UNORM_BLOCK;		break;
+	case PTI_ASTC_5X4_SRGB:		format = VK_FORMAT_ASTC_5x4_SRGB_BLOCK;			break;
+	case PTI_ASTC_5X5:			format = VK_FORMAT_ASTC_5x5_UNORM_BLOCK;		break;
+	case PTI_ASTC_5X5_SRGB:		format = VK_FORMAT_ASTC_5x5_SRGB_BLOCK;			break;
+	case PTI_ASTC_6X5:			format = VK_FORMAT_ASTC_6x5_UNORM_BLOCK;		break;
+	case PTI_ASTC_6X5_SRGB:		format = VK_FORMAT_ASTC_6x5_SRGB_BLOCK;			break;
+	case PTI_ASTC_6X6:			format = VK_FORMAT_ASTC_6x6_UNORM_BLOCK;		break;
+	case PTI_ASTC_6X6_SRGB:		format = VK_FORMAT_ASTC_6x6_SRGB_BLOCK;			break;
+	case PTI_ASTC_8X5:			format = VK_FORMAT_ASTC_8x5_UNORM_BLOCK;		break;
+	case PTI_ASTC_8X5_SRGB:		format = VK_FORMAT_ASTC_8x5_SRGB_BLOCK;			break;
+	case PTI_ASTC_8X6:			format = VK_FORMAT_ASTC_8x6_UNORM_BLOCK;		break;
+	case PTI_ASTC_8X6_SRGB:		format = VK_FORMAT_ASTC_8x6_SRGB_BLOCK;			break;
+	case PTI_ASTC_8X8:			format = VK_FORMAT_ASTC_8x8_UNORM_BLOCK;		break;
+	case PTI_ASTC_8X8_SRGB:		format = VK_FORMAT_ASTC_8x8_SRGB_BLOCK;			break;
+	case PTI_ASTC_10X5:			format = VK_FORMAT_ASTC_10x5_UNORM_BLOCK;		break;
+	case PTI_ASTC_10X5_SRGB:	format = VK_FORMAT_ASTC_10x5_SRGB_BLOCK;		break;
+	case PTI_ASTC_10X6:			format = VK_FORMAT_ASTC_10x6_UNORM_BLOCK;		break;
+	case PTI_ASTC_10X6_SRGB:	format = VK_FORMAT_ASTC_10x6_SRGB_BLOCK;		break;
+	case PTI_ASTC_10X8:			format = VK_FORMAT_ASTC_10x8_UNORM_BLOCK;		break;
+	case PTI_ASTC_10X8_SRGB:	format = VK_FORMAT_ASTC_10x8_SRGB_BLOCK;		break;
+	case PTI_ASTC_10X10:		format = VK_FORMAT_ASTC_10x10_UNORM_BLOCK;		break;
+	case PTI_ASTC_10X10_SRGB:	format = VK_FORMAT_ASTC_10x10_SRGB_BLOCK;		break;
+	case PTI_ASTC_12X10:		format = VK_FORMAT_ASTC_12x10_UNORM_BLOCK;		break;
+	case PTI_ASTC_12X10_SRGB:	format = VK_FORMAT_ASTC_12x10_SRGB_BLOCK;		break;
+	case PTI_ASTC_12X12:		format = VK_FORMAT_ASTC_12x12_UNORM_BLOCK;		break;
+	case PTI_ASTC_12X12_SRGB:	format = VK_FORMAT_ASTC_12x12_SRGB_BLOCK;		break;
+
 	//depth formats
-	else if (encoding == PTI_DEPTH16)
-		format = VK_FORMAT_D16_UNORM;
-	else if (encoding == PTI_DEPTH24)
-		format = VK_FORMAT_X8_D24_UNORM_PACK32;
-	else if (encoding == PTI_DEPTH32)
-		format = VK_FORMAT_D32_SFLOAT;
-	else if (encoding == PTI_DEPTH24_8)
-		format = VK_FORMAT_D24_UNORM_S8_UINT;
+	case PTI_DEPTH16:			format = VK_FORMAT_D16_UNORM;					break;
+	case PTI_DEPTH24:			format = VK_FORMAT_X8_D24_UNORM_PACK32;			break;
+	case PTI_DEPTH32:			format = VK_FORMAT_D32_SFLOAT;					break;
+	case PTI_DEPTH24_8:			format = VK_FORMAT_D24_UNORM_S8_UINT;			break;
 	//srgb formats
-	else if (encoding == PTI_BGRA8_SRGB || encoding == PTI_BGRX8_SRGB)
-		format = VK_FORMAT_B8G8R8A8_SRGB;
-	else if (encoding == PTI_RGBA8_SRGB || encoding == PTI_RGBX8_SRGB)
-		format = VK_FORMAT_R8G8B8A8_SRGB;
+	case PTI_BGRA8_SRGB:
+	case PTI_BGRX8_SRGB:		format = VK_FORMAT_B8G8R8A8_SRGB;				break;
+	case PTI_RGBA8_SRGB:
+	case PTI_RGBX8_SRGB:		format = VK_FORMAT_R8G8B8A8_SRGB;				break;
 	//standard formats
-	else if (encoding == PTI_BGRA8 || encoding == PTI_BGRX8)
-		format = VK_FORMAT_B8G8R8A8_UNORM;
-	else //if (encoding == PTI_RGBA8 || encoding == PTI_RGBX8)
-		format = VK_FORMAT_R8G8B8A8_UNORM;
+	case PTI_BGRA8:
+	case PTI_BGRX8:				format = VK_FORMAT_B8G8R8A8_UNORM;				break;
+	case PTI_RGBA8:
+	case PTI_RGBX8:				format = VK_FORMAT_R8G8B8A8_UNORM;				break;
+	default:
+		Sys_Error("VK_CreateTexture2DArray: Unrecognised image encoding: %u\n", encoding);
+		format = VK_FORMAT_UNDEFINED;
+		break;
+	}
 	ici.flags = (ret.type==PTI_CUBEMAP)?VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT:0;
 	ici.imageType = VK_IMAGE_TYPE_2D;
 	ici.format = format;
@@ -1188,7 +1226,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	VkCommandBuffer vkloadcmd;
 	vk_image_t target;
 	uint32_t i;
-	uint32_t blocksize;
+	uint32_t blockwidth, blockheight;
 	uint32_t blockbytes;
 	uint32_t layers;
 	uint32_t mipcount = mips->mipcount;
@@ -1213,57 +1251,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		}
 	}
 
-	switch(mips->encoding)
-	{
-	case PTI_RGB565:
-	case PTI_RGBA4444:
-	case PTI_ARGB4444:
-	case PTI_RGBA5551:
-	case PTI_ARGB1555:
-		blocksize = 1;
-		blockbytes = 2;	//16bit formats
-		break;
-	case PTI_RGBA8:
-	case PTI_RGBX8:
-	case PTI_BGRA8:
-	case PTI_BGRX8:
-	case PTI_RGBA8_SRGB:
-	case PTI_RGBX8_SRGB:
-	case PTI_BGRA8_SRGB:
-	case PTI_BGRX8_SRGB:
-		blocksize = 1;	//in texels
-		blockbytes = 4;
-		break;
-	case PTI_S3RGB1:
-	case PTI_S3RGBA1:
-		blocksize = 4;
-		blockbytes = 8;
-		break;
-	case PTI_S3RGBA3:
-	case PTI_S3RGBA5:
-		blocksize = 4;
-		blockbytes = 16;
-		break;
-	case PTI_RGBA16F:
-		blocksize = 1;
-		blockbytes = 4*2;
-		break;
-	case PTI_RGBA32F:
-		blocksize = 1;
-		blockbytes = 4*4;
-		break;
-	case PTI_R8:
-		blocksize = 1;
-		blockbytes = 1;
-		break;
-	case PTI_RG8:
-		blocksize = 1;
-		blockbytes = 2;
-		break;
-
-	default:
-		return false;
-	}
+	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
 
 	fence = VK_FencedBegin(VK_TextureLoaded, sizeof(*fence));
 	fence->mips = mipcount;
@@ -1346,10 +1334,10 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	bci.size = 0;
 	for (i = 0; i < mipcount; i++)
 	{
-		uint32_t blockwidth = (mips->mip[i].width+blocksize-1) / blocksize;
-		uint32_t blockheight = (mips->mip[i].height+blocksize-1) / blocksize;
+		uint32_t blockswidth = (mips->mip[i].width+blockwidth-1) / blockwidth;
+		uint32_t blocksheight = (mips->mip[i].height+blockheight-1) / blockheight;
 
-		bci.size += blockwidth*blockheight*blockbytes;
+		bci.size += blockswidth*blocksheight*blockbytes;
 	}
 	bci.flags = 0;
 	bci.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -1378,18 +1366,18 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		//figure out the number of 'blocks' in the image.
 		//for non-compressed formats this is just the width directly.
 		//for compressed formats (ie: s3tc/dxt) we need to round up to deal with npot.
-		uint32_t blockwidth = (mips->mip[i].width+blocksize-1) / blocksize;
-		uint32_t blockheight = (mips->mip[i].height+blocksize-1) / blocksize;
+		uint32_t blockswidth = (mips->mip[i].width+blockwidth-1) / blockwidth;
+		uint32_t blocksheight = (mips->mip[i].height+blockheight-1) / blockheight;
 
 		if (mips->mip[i].data)
-			memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockwidth*blockbytes*blockheight);
+			memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockswidth*blockbytes*blocksheight);
 		else
-			memset((char*)mapdata + bci.size, 0, blockwidth*blockbytes*blockheight);
+			memset((char*)mapdata + bci.size, 0, blockswidth*blockbytes*blocksheight);
 
 		//queue up a buffer->image copy for this mip
 		region.bufferOffset = bci.size;
-		region.bufferRowLength = blockwidth*blocksize;//*blockbytes;
-		region.bufferImageHeight = blockheight*blocksize;
+		region.bufferRowLength = blockswidth*blockwidth;
+		region.bufferImageHeight = blocksheight*blockheight;
 		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		region.imageSubresource.mipLevel = i%(mipcount/layers);
 		region.imageSubresource.baseArrayLayer = i/(mipcount/layers);
@@ -1397,13 +1385,13 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		region.imageOffset.x = 0;
 		region.imageOffset.y = 0;
 		region.imageOffset.z = 0;
-		region.imageExtent.width = mips->mip[i].width;//blockwidth*blocksize;
-		region.imageExtent.height = mips->mip[i].height;//blockheight*blocksize;
+		region.imageExtent.width = mips->mip[i].width;//blockswidth*blockwidth;
+		region.imageExtent.height = mips->mip[i].height;//blocksheight*blockheight;
 		region.imageExtent.depth = 1;
 
 		vkCmdCopyBufferToImage(vkloadcmd, fence->stagingbuffer, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-		bci.size += blockwidth*blockheight*blockbytes;
+		bci.size += blockswidth*blocksheight*blockbytes;
 	}
 	vkUnmapMemory(vk.device, fence->stagingmemory);
 #else
@@ -1416,8 +1404,8 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		//figure out the number of 'blocks' in the image.
 		//for non-compressed formats this is just the width directly.
 		//for compressed formats (ie: s3tc/dxt) we need to round up to deal with npot.
-		uint32_t blockwidth = (mips->mip[i].width+blocksize-1) / blocksize;
-		uint32_t blockheight = (mips->mip[i].height+blocksize-1) / blocksize;
+		uint32_t blockswidth = (mips->mip[i].width+blockwidth-1) / blockwidth;
+		uint32_t blocksheight = (mips->mip[i].height+blockheight-1) / blockheight;
 
 		fence->staging[i] = VK_CreateTexture2DArray(mips->mip[i].width, mips->mip[i].height, 0, 1, mips->encoding, PTI_2D);
 		subres.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1428,7 +1416,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		if (mapdata)
 		{
 			for (y = 0; y < blockheight; y++)
-				memcpy((char*)mapdata + layout.offset + y*layout.rowPitch, (char*)mips->mip[i].data + y*blockwidth*blockbytes, blockwidth*blockbytes);
+				memcpy((char*)mapdata + layout.offset + y*layout.rowPitch, (char*)mips->mip[i].data + y*blockswidth*blockbytes, blockswidth*blockbytes);
 		}
 		else
 			Sys_Error("Unable to map staging image\n");
@@ -1527,17 +1515,22 @@ void	VK_R_DeInit					(void)
 void VK_SetupViewPortProjection(qboolean flipy)
 {
 	float fov_x, fov_y;
+	float fovv_x, fovv_y;
 
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
 
 	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+	fovv_x = r_refdef.fovv_x;
+	fovv_y = r_refdef.fovv_y;
 
 	if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
 	{
 		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+		fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+		fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
 	}
 
 //	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
@@ -1557,9 +1550,15 @@ void VK_SetupViewPortProjection(qboolean flipy)
 		r_refdef.flipcull = 0;
 	}
 	if (r_refdef.maxdist)
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+	{
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist, false);
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, r_refdef.maxdist, false);
+	}
 	else
-		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist);
+	{
+		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, false);
+		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, false);
+	}
 }
 
 void VK_Set2D(void)
@@ -3373,21 +3372,69 @@ void VK_CheckTextureFormats(void)
 		{PTI_RGBA32F,		VK_FORMAT_R32G32B32A32_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
 		{PTI_R8,			VK_FORMAT_R8_UNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_RG8,			VK_FORMAT_R8G8_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_R8_SIGNED,		VK_FORMAT_R8_SNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RG8_SIGNED,	VK_FORMAT_R8G8_SNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 
 		{PTI_DEPTH16,		VK_FORMAT_D16_UNORM,				VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
 		{PTI_DEPTH24,		VK_FORMAT_X8_D24_UNORM_PACK32,		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
 		{PTI_DEPTH32,		VK_FORMAT_D32_SFLOAT,				VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
 		{PTI_DEPTH24_8,		VK_FORMAT_D24_UNORM_S8_UINT,		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
 
-		{PTI_S3RGB1,		VK_FORMAT_BC1_RGB_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_S3RGBA1,		VK_FORMAT_BC1_RGBA_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_S3RGBA3,		VK_FORMAT_BC2_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_S3RGBA5,		VK_FORMAT_BC3_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-
-		{PTI_ETC1_RGB8,		VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},	//vulkan doesn't support etc1.
-		{PTI_ETC2_RGB8,		VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ETC2_RGB8A1,	VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK,VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ETC2_RGB8A8,	VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK,VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC1_RGB,			VK_FORMAT_BC1_RGB_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC1_RGBA,			VK_FORMAT_BC1_RGBA_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC2_RGBA,			VK_FORMAT_BC2_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC3_RGBA,			VK_FORMAT_BC3_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC1_RGB_SRGB,		VK_FORMAT_BC1_RGB_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC1_RGBA_SRGB,		VK_FORMAT_BC1_RGBA_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC2_RGBA_SRGB,		VK_FORMAT_BC2_SRGB_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC3_RGBA_SRGB,		VK_FORMAT_BC3_SRGB_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC4_R8,			VK_FORMAT_BC4_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC4_R8_SIGNED,		VK_FORMAT_BC4_SNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC5_RG8,			VK_FORMAT_BC5_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC5_RG8_SIGNED,	VK_FORMAT_BC5_SNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC6_RGBF,			VK_FORMAT_BC6H_UFLOAT_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC6_RGBF_SIGNED,	VK_FORMAT_BC6H_SFLOAT_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC7_RGBA,			VK_FORMAT_BC7_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC7_RGBA_SRGB,		VK_FORMAT_BC7_SRGB_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ETC1_RGB8,			VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},	//vulkan doesn't support etc1 (but that's okay, because etc2 is a superset).
+		{PTI_ETC2_RGB8,			VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ETC2_RGB8A1,		VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK,VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ETC2_RGB8A8,		VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK,VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ETC2_RGB8_SRGB,	VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ETC2_RGB8A1_SRGB,	VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ETC2_RGB8A8_SRGB,	VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_EAC_R11,			VK_FORMAT_EAC_R11_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_EAC_R11_SIGNED,	VK_FORMAT_EAC_R11_SNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_EAC_RG11,			VK_FORMAT_EAC_R11G11_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_EAC_RG11_SIGNED,	VK_FORMAT_EAC_R11G11_SNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_4X4,			VK_FORMAT_ASTC_4x4_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_4X4_SRGB,		VK_FORMAT_ASTC_4x4_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_5X4,			VK_FORMAT_ASTC_5x4_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_5X4_SRGB,		VK_FORMAT_ASTC_5x4_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_5X5,			VK_FORMAT_ASTC_5x5_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_5X5_SRGB,		VK_FORMAT_ASTC_5x5_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_6X5,			VK_FORMAT_ASTC_6x5_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_6X5_SRGB,		VK_FORMAT_ASTC_6x5_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_6X6,			VK_FORMAT_ASTC_6x6_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_6X6_SRGB,		VK_FORMAT_ASTC_6x6_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X5,			VK_FORMAT_ASTC_8x5_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X5_SRGB,		VK_FORMAT_ASTC_8x5_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X6,			VK_FORMAT_ASTC_8x6_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X6_SRGB,		VK_FORMAT_ASTC_8x6_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X8,			VK_FORMAT_ASTC_8x8_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_8X8_SRGB,		VK_FORMAT_ASTC_8x8_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X5,			VK_FORMAT_ASTC_10x5_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X5_SRGB,	VK_FORMAT_ASTC_10x5_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X6,			VK_FORMAT_ASTC_10x6_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X6_SRGB,	VK_FORMAT_ASTC_10x6_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X8,			VK_FORMAT_ASTC_10x8_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X8_SRGB,	VK_FORMAT_ASTC_10x8_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X10,		VK_FORMAT_ASTC_10x10_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_10X10_SRGB,	VK_FORMAT_ASTC_10x10_SRGB_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_12X10,		VK_FORMAT_ASTC_12x10_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_12X10_SRGB,	VK_FORMAT_ASTC_12x10_SRGB_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_12X12,		VK_FORMAT_ASTC_12x12_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ASTC_12X12_SRGB,	VK_FORMAT_ASTC_12x12_SRGB_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 	};
 	unsigned int i;
 	VkPhysicalDeviceProperties props;
@@ -3395,7 +3442,8 @@ void VK_CheckTextureFormats(void)
 	vkGetPhysicalDeviceProperties(vk.gpu, &props);
 	vk.limits = props.limits;
 
-	sh_config.texture_maxsize = props.limits.maxImageDimension2D;
+	sh_config.texture2d_maxsize = props.limits.maxImageDimension2D;
+	sh_config.texturecube_maxsize = props.limits.maxImageDimensionCube;
 
 	for (i = 0; i < countof(texfmt); i++)
 	{
@@ -3803,6 +3851,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		//try to enable whatever we can use, if we can.
 		features.robustBufferAccess		= avail.robustBufferAccess;
 		features.textureCompressionBC	= avail.textureCompressionBC;
+		features.textureCompressionETC2	= avail.textureCompressionETC2;
 		features.samplerAnisotropy		= avail.samplerAnisotropy;
 		features.geometryShader			= avail.geometryShader;
 		features.tessellationShader		= avail.tessellationShader;
@@ -3923,7 +3972,6 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	sh_config.minver = -1;
 	sh_config.maxver = -1;
 
-	sh_config.texture_maxsize = 4096;		//must be at least 4096, FIXME: query this properly
 	sh_config.texture_non_power_of_two = true;	//is this always true?
 	sh_config.texture_non_power_of_two_pic = true;	//probably true...
 	sh_config.npot_rounddown = false;

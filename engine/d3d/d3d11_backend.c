@@ -2748,21 +2748,21 @@ batch_t *D3D11BE_GetTempBatch(void)
 	return &shaderstate.wbatches[shaderstate.wbatch++];
 }
 
-float projd3dtogl[16] = 
+/*static float projd3dtogl[16] = 
 {
 	1.0, 0.0, 0.0, 0.0,
 	0.0, 1.0, 0.0, 0.0,
 	0.0, 0.0, 2.0, 0.0,
 	0.0, 0.0, -1.0, 1.0
-};
-float projgltod3d[16] = 
+};*/
+static float projgltod3d[16] = 
 {
 	1.0, 0.0, 0.0, 0.0,
 	0.0, 1.0, 0.0, 0.0,
 	0.0, 0.0, 0.5, 0.0,
 	0.0, 0.0, 0.5, 1.0
 };
-void D3D11BE_SetupViewCBuffer(void)
+static void D3D11BE_SetupViewCBuffer(void)
 {
 	cbuf_view_t *cbv;
 	D3D11_MAPPED_SUBRESOURCE msr;
@@ -2778,7 +2778,7 @@ void D3D11BE_SetupViewCBuffer(void)
 	//d3d uses 0 to 1 depth.
 	//so we scale the projection matrix by a bias
 #if 1
-	Matrix4_Multiply(projgltod3d, r_refdef.m_projection_std, cbv->m_projection);
+	Matrix4_Multiply(projgltod3d, (shaderstate.depthrange<1)?r_refdef.m_projection_view:r_refdef.m_projection_std, cbv->m_projection);
 #else
 	memcpy(cbv->m_projection, r_refdef.m_projection_std, sizeof(cbv->m_projection));
 	cbv->m_projection[10] = r_refdef.m_projection_std[10] * 0.5;
@@ -2788,6 +2788,20 @@ void D3D11BE_SetupViewCBuffer(void)
 	cbv->v_time = r_refdef.time;
 
 	ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)shaderstate.vcbuffer, 0);
+}
+void D3D11BE_Set2D(void)
+{
+	D3D11_VIEWPORT vport;
+	vport.TopLeftX = 0;
+	vport.TopLeftY = 0;
+	vport.Width = vid.pixelwidth;
+	vport.Height = vid.pixelheight;
+	vport.MinDepth = 0;
+	vport.MaxDepth = shaderstate.depthrange = 1;
+
+	ID3D11DeviceContext_RSSetViewports(d3ddevctx, 1, &vport);
+	D3D11BE_SetupViewCBuffer();
+	D3D11BE_Scissor(NULL);
 }
 void D3D11BE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 {
@@ -3096,6 +3110,8 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		vport.MinDepth = 0;
 		vport.MaxDepth = shaderstate.depthrange;
 		ID3D11DeviceContext_RSSetViewports(d3ddevctx, 1, &vport);
+
+		D3D11BE_SetupViewCBuffer();
 	}
 }
 

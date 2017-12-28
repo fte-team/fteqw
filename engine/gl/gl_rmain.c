@@ -576,13 +576,13 @@ void R_SetupGL (float stereooffset, int i)
 			//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
 			//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
 
-					Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
-					Matrix4x4_CM_Projection_Far(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, r_refdef.maxdist);
+					Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist, false);
+					Matrix4x4_CM_Projection_Far(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, r_refdef.maxdist, false);
 				}
 				else
 				{
-					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist);
-					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist);
+					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, false);
+					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, false);
 				}
 			}
 			else
@@ -2002,8 +2002,8 @@ void GLR_RenderView (void)
 		}
 
 		//well... err... meh.
-		vid.fbpwidth = bound(1, vid.fbpwidth, sh_config.texture_maxsize);
-		vid.fbpheight = bound(1, vid.fbpheight, sh_config.texture_maxsize);
+		vid.fbpwidth = bound(1, vid.fbpwidth, sh_config.texture2d_maxsize);
+		vid.fbpheight = bound(1, vid.fbpheight, sh_config.texture2d_maxsize);
 
 		vid.fbvwidth = vid.fbpwidth;
 		vid.fbvheight = vid.fbpheight;

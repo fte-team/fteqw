@@ -111,8 +111,7 @@ static void Upload_Texture_32(ID3D11Texture2D *tex, unsigned int *data, int data
 
 qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mips)
 {
-	int bytesperpixel = 4;
-	int bcbytes = 0;
+	unsigned int blockbytes, blockwidth, blockheight;
 	HRESULT hr;
 	D3D11_TEXTURE2D_DESC tdesc = {0};
 	D3D11_SUBRESOURCE_DATA subresdesc[sizeof(mips->mip) / sizeof(mips->mip[0])];
@@ -159,91 +158,107 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 	case PTI_DEPTH16:
 		tdesc.Format = DXGI_FORMAT_D16_UNORM;
 		tdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-		bytesperpixel = 2;
 		break;
 	case PTI_DEPTH24:
 		tdesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 		tdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-		bytesperpixel = 3;
 		break;
 	case PTI_DEPTH32:
 		tdesc.Format = DXGI_FORMAT_D32_FLOAT;
 		tdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-		bytesperpixel = 4;
 		break;
 	case PTI_DEPTH24_8:
 		tdesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
 		tdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-		bytesperpixel = 4;
 		break;
 	case PTI_RGB565:
 		tdesc.Format = DXGI_FORMAT_B5G6R5_UNORM;
-		bytesperpixel = 2;
 		break;
 //	case PTI_RGBA5551:
 //		tdesc.Format = DXGI_FORMAT_A1B5G5R5_UNORM;
-//		bytesperpixel = 2;
 //		break;
 	case PTI_ARGB1555:
 		tdesc.Format = DXGI_FORMAT_B5G5R5A1_UNORM;
-		bytesperpixel = 2;
 		break;
 	case PTI_RGBA4444:
 		tdesc.Format = DXGI_FORMAT_B4G4R4A4_UNORM;
-		bytesperpixel = 2;
 		break;
 //	case PTI_ARGB4444:
 //		tdesc.Format = DXGI_FORMAT_A4B4G4R4_UNORM;
-//		bytesperpixel = 2;
 //		break;
 	case PTI_RGBA8:
 		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		bytesperpixel = 4;
 		break;
 	case PTI_RGBX8:	//d3d11 has no alphaless format. be sure to proprly disable alpha in the shader. 
 		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		bytesperpixel = 4;
 		break;
 	case PTI_BGRA8:
 		tdesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-		bytesperpixel = 4;
 		break;
 	case PTI_BGRX8:
 		tdesc.Format = DXGI_FORMAT_B8G8R8X8_UNORM;
-		bytesperpixel = 4;
 		break;
 
 	case PTI_RGBA8_SRGB:
 		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-		bytesperpixel = 4;
 		break;
 	case PTI_RGBX8_SRGB:	//d3d11 has no alphaless format. be sure to proprly disable alpha in the shader. 
 		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-		bytesperpixel = 4;
 		break;
 	case PTI_BGRA8_SRGB:
 		tdesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
-		bytesperpixel = 4;
 		break;
 	case PTI_BGRX8_SRGB:
 		tdesc.Format = DXGI_FORMAT_B8G8R8X8_UNORM_SRGB;
-		bytesperpixel = 4;
 		break;
 
-	case PTI_S3RGB1:	//d3d11 provides no way to disable alpha with dxt1. be sure to proprly disable alpha in the shader. 
-	case PTI_S3RGBA1:
+	case PTI_BC1_RGB:	//d3d11 provides no way to disable alpha with dxt1. be sure to proprly disable alpha in the shader. 
+	case PTI_BC1_RGBA:
 		tdesc.Format = DXGI_FORMAT_BC1_UNORM;
-		bcbytes = 8;
 		break;
-	case PTI_S3RGBA3:
+	case PTI_BC2_RGBA:
 		tdesc.Format = DXGI_FORMAT_BC2_UNORM;
-		bcbytes = 16;
 		break;
-	case PTI_S3RGBA5:
+	case PTI_BC3_RGBA:
 		tdesc.Format = DXGI_FORMAT_BC3_UNORM;
-		bcbytes = 16;
+		break;
+	case PTI_BC1_RGB_SRGB:	//d3d11 provides no way to disable alpha with dxt1. be sure to proprly disable alpha in the shader. 
+	case PTI_BC1_RGBA_SRGB:
+		tdesc.Format = DXGI_FORMAT_BC1_UNORM_SRGB;
+		break;
+	case PTI_BC2_RGBA_SRGB:
+		tdesc.Format = DXGI_FORMAT_BC2_UNORM_SRGB;
+		break;
+	case PTI_BC3_RGBA_SRGB:
+		tdesc.Format = DXGI_FORMAT_BC3_UNORM_SRGB;
+		break;
+	case PTI_BC4_R8:
+		tdesc.Format = DXGI_FORMAT_BC4_UNORM;
+		break;
+	case PTI_BC4_R8_SIGNED:
+		tdesc.Format = DXGI_FORMAT_BC4_SNORM;
+		break;
+	case PTI_BC5_RG8:
+		tdesc.Format = DXGI_FORMAT_BC5_UNORM;
+		break;
+	case PTI_BC5_RG8_SIGNED:
+		tdesc.Format = DXGI_FORMAT_BC5_SNORM;
+		break;
+	case PTI_BC6_RGBF:
+		tdesc.Format = DXGI_FORMAT_BC6H_UF16;
+		break;
+	case PTI_BC6_RGBF_SIGNED:
+		tdesc.Format = DXGI_FORMAT_BC6H_SF16;
+		break;
+	case PTI_BC7_RGBA:
+		tdesc.Format = DXGI_FORMAT_BC7_UNORM;
+		break;
+	case PTI_BC7_RGBA_SRGB:
+		tdesc.Format = DXGI_FORMAT_BC7_UNORM_SRGB;
 		break;
 	}
+
+	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
 
 	if (!mips->mip[0].data)
 	{
@@ -256,16 +271,8 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 		for (i = 0; i < mips->mipcount; i++)
 		{
 			subresdesc[i].pSysMem = mips->mip[i].data;
-			if (bcbytes)
-			{
-				subresdesc[i].SysMemPitch = ((mips->mip[i].width+3)/4) * bcbytes;
-				subresdesc[i].SysMemSlicePitch = mips->mip[i].datasize;
-			}
-			else
-			{
-				subresdesc[i].SysMemPitch = mips->mip[i].width*bytesperpixel;
-				subresdesc[i].SysMemSlicePitch = mips->mip[i].datasize;//mips->mip[i].width*mips->mip[i].height*bytesperpixel;
-			}
+			subresdesc[i].SysMemPitch = ((mips->mip[i].width+blockwidth-1)/blockwidth) * blockbytes;
+			subresdesc[i].SysMemSlicePitch = mips->mip[i].datasize;
 		}
 		tdesc.MipLevels = i/tdesc.ArraySize;
 	}

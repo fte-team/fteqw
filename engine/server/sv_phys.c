@@ -56,6 +56,7 @@ cvar_t	sv_waterfriction	 = CVAR( "sv_waterfriction", "4");
 cvar_t	sv_gameplayfix_noairborncorpse		= CVAR( "sv_gameplayfix_noairborncorpse", "0");
 cvar_t	sv_gameplayfix_multiplethinks		= CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1.");
 cvar_t	sv_gameplayfix_stepdown				= CVARD( "sv_gameplayfix_stepdown", "0", "Attempt to step down steps, instead of only up them. Affects non-predicted movetype_walk.");
+cvar_t	sv_gameplayfix_bouncedownslopes		= CVARD( "sv_gameplayfix_grenadebouncedownslopes", "0", "MOVETYPE_BOUNCE speeds are calculated relative to the impacted surface, instead of the vertical, reducing the chance of grenades just sitting there on slopes.");
 #if !defined(CLIENTONLY) && defined(NQPROT) && !defined(NOLEGACY)
 cvar_t	sv_gameplayfix_spawnbeforethinks	= CVARD( "sv_gameplayfix_spawnbeforethinks", "0", "Fixes an issue where player thinks (including Pre+Post) can be called before PutClientInServer. Unfortunately at least one mod depends upon PreThink being called first in order to correctly determine spawn positions.");
 #endif
@@ -92,6 +93,7 @@ void WPhys_Init(void)
 	Cvar_Register (&sv_gameplayfix_noairborncorpse,		cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_multiplethinks,		cvargroup_serverphysics);
 	Cvar_Register (&sv_gameplayfix_stepdown,			cvargroup_serverphysics);
+	Cvar_Register (&sv_gameplayfix_bouncedownslopes,	cvargroup_serverphysics);
 
 #if !defined(CLIENTONLY) && defined(NQPROT) && !defined(NOLEGACY)
 	Cvar_Register (&sv_gameplayfix_spawnbeforethinks,	cvargroup_serverphysics);
@@ -1383,12 +1385,19 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	VectorCopy(trace.endpos, move);
 
 	if (ent->v->movetype == MOVETYPE_BOUNCE)
-		backoff = 1.5;
+	{
+		if (ent->xv->bouncefactor)
+			backoff = 1 + ent->xv->bouncefactor;
+		else
+			backoff = 1.5;
+	}
 	else if (ent->v->movetype == MOVETYPE_BOUNCEMISSILE)
 	{
-//		if (progstype == PROG_H2 && ent->v->solid == SOLID_PHASEH2 && ((int)((wedict_t*)trace.ent)->v->flags & (FL_MONSTER|FL_CLIENT)))
+		if (ent->xv->bouncefactor)
+			backoff = 1 + ent->xv->bouncefactor;
+//		else if (progstype == PROG_H2 && ent->v->solid == SOLID_PHASEH2 && ((int)((wedict_t*)trace.ent)->v->flags & (FL_MONSTER|FL_CLIENT)))
 //			backoff = 0;
-//		else
+		else
 			backoff = 2;
 	}
 	else
@@ -1401,7 +1410,15 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 // stop if on ground
 	if ((-DotProduct(gravitydir, trace.plane.normal) > 0.7) && (ent->v->movetype != MOVETYPE_BOUNCEMISSILE))
 	{
-		if (-DotProduct(gravitydir, ent->v->velocity) < 60 || ent->v->movetype != MOVETYPE_BOUNCE )
+		float bouncespeed;
+		float bouncestop = ent->xv->bouncestop;
+		if (!bouncestop)
+			bouncestop = 60;
+		if (sv_gameplayfix_bouncedownslopes.ival)
+			bouncespeed = DotProduct(trace.plane.normal, ent->v->velocity);
+		else
+			bouncespeed = -DotProduct(gravitydir, ent->v->velocity);
+		if (bouncespeed < bouncestop || ent->v->movetype != MOVETYPE_BOUNCE )
 		{
 			ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
 			ent->v->groundentity = EDICT_TO_PROG(w->progs, trace.ent);
@@ -1926,7 +1943,7 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 		if (fabs(start_velocity[0]) < 0.03125 && fabs(start_velocity[1]) < 0.03125)
 			return;
 
-		if (ent->v->movetype != MOVETYPE_FLY)
+		if (ent->v->movetype != MOVETYPE_FLY && ent->v->movetype != MOVETYPE_FLY_WORLDONLY)
 		{
 			// return if gibbed by a trigger
 			if (ent->v->movetype != MOVETYPE_WALK)
@@ -2173,6 +2190,19 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		break;
 	case MOVETYPE_FLY_WORLDONLY:
 	case MOVETYPE_FLY:
+		if (svent)
+		{	//NQ players with movetype_fly are not like non-players.
+			if (!WPhys_RunThink (w, ent))
+				return;
+			if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
+				gravitydir = ent->xv->gravitydir;
+			else
+				gravitydir = w->g.defaultgravitydir;
+			WPhys_CheckStuck (w, ent);
+			WPhys_WalkMove (w, ent, gravitydir);
+			break;
+		}
+		//fallthrough
 	case MOVETYPE_H2SWIM:
 	case MOVETYPE_TOSS:
 	case MOVETYPE_BOUNCE:

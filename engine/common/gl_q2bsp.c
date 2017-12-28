@@ -3511,7 +3511,7 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		maps /= 2;
 
 	{
-		int limit = min(sh_config.texture_maxsize / loadmodel->lightmaps.height, 16);//mod_mergeq3lightmaps.ival);
+		int limit = min(sh_config.texture2d_maxsize / loadmodel->lightmaps.height, 16);//mod_mergeq3lightmaps.ival);
 		loadmodel->lightmaps.merge = 1;
 		while (loadmodel->lightmaps.merge*2 <= limit && loadmodel->lightmaps.merge < maps)
 			loadmodel->lightmaps.merge *= 2;
@@ -5881,6 +5881,19 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	VectorCopy (mins, trace_mins);
 	VectorCopy (maxs, trace_maxs);
 
+	if (1)
+	{
+		VectorAdd(trace_maxs, trace_mins, point);
+		VectorScale(point, 0.5, point);
+
+		VectorAdd(trace_start, point, trace_start);
+		VectorAdd(trace_end, point, trace_end);
+		VectorSubtract(trace_mins, point, trace_mins);
+		VectorSubtract(trace_maxs, point, trace_maxs);
+	}
+
+
+
 	// build a bounding box of the entire move (for patches)
 	ClearBounds (trace_absmins, trace_absmaxs);
 
@@ -5890,8 +5903,8 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		trace_shape = shape_ispoint;
 		VectorSet (trace_extents, 1/32.0, 1/32.0, 1/32.0);
 		//acedemic
-		AddPointToBounds (start, trace_absmins, trace_absmaxs);
-		AddPointToBounds (end, trace_absmins, trace_absmaxs);
+		AddPointToBounds (trace_start, trace_absmins, trace_absmaxs);
+		AddPointToBounds (trace_end, trace_absmins, trace_absmaxs);
 	}
 	else if (capsule)
 	{
@@ -5909,24 +5922,24 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		trace_extents[2] = ext+1;
 
 		//determine the total range
-		VectorSubtract (start, trace_extents, point);
+		VectorSubtract (trace_start, trace_extents, point);
 		AddPointToBounds (point, trace_absmins, trace_absmaxs);
-		VectorAdd (start, trace_extents, point);
+		VectorAdd (trace_start, trace_extents, point);
 		AddPointToBounds (point, trace_absmins, trace_absmaxs);
-		VectorSubtract (end, trace_extents, point);
+		VectorSubtract (trace_end, trace_extents, point);
 		AddPointToBounds (point, trace_absmins, trace_absmaxs);
-		VectorAdd (end, trace_extents, point);
+		VectorAdd (trace_end, trace_extents, point);
 		AddPointToBounds (point, trace_absmins, trace_absmaxs);
 	}
 	else
 	{
-		VectorAdd (start, trace_mins, point);
+		VectorAdd (trace_start, trace_mins, point);
 		AddPointToBounds (point, trace_absmins, trace_absmaxs);
-		VectorAdd (start, trace_maxs, point);
+		VectorAdd (trace_start, trace_maxs, point);
 		AddPointToBounds (point, trace_absmins, trace_absmaxs);
-		VectorAdd (end, trace_mins, point);
+		VectorAdd (trace_end, trace_mins, point);
 		AddPointToBounds (point, trace_absmins, trace_absmaxs);
-		VectorAdd (end, trace_maxs, point);
+		VectorAdd (trace_end, trace_maxs, point);
 		AddPointToBounds (point, trace_absmins, trace_absmaxs);
 
 		trace_shape = shape_isbox;
@@ -5969,8 +5982,8 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		vec3_t	c1, c2;
 		int		topnode;
 
-		VectorAdd (start, mins, c1);
-		VectorAdd (start, maxs, c2);
+		VectorAdd (trace_start, mins, c1);
+		VectorAdd (trace_start, maxs, c2);
 		for (i=0 ; i<3 ; i++)
 		{
 			c1[i] -= 1;
@@ -5998,7 +6011,7 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	if (trace_nearfraction == 1)
 	{
 		trace_trace.fraction = 1;
-		VectorCopy (trace_end, trace_trace.endpos);
+		VectorCopy (end, trace_trace.endpos);
 	}
 	else
 	{
@@ -6006,7 +6019,7 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 			trace_nearfraction=0;
 		trace_trace.fraction = trace_nearfraction;
 		for (i=0 ; i<3 ; i++)
-			trace_trace.endpos[i] = trace_start[i] + trace_trace.fraction * (trace_end[i] - trace_start[i]);
+			trace_trace.endpos[i] = start[i] + trace_trace.fraction * (end[i] - start[i]);
 	}
 	return trace_trace;
 }

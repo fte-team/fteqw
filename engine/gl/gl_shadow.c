@@ -2406,7 +2406,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 	oprect = r_refdef.pxrect;
 	smesh = SHM_BuildShadowMesh(l, lvis, SMT_SHADOWMAP);
 
-	Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, l->fov?l->fov:90, l->fov?l->fov:90, r_shadow_shadowmapping_nearclip.value, l->radius);
+	Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, l->fov?l->fov:90, l->fov?l->fov:90, r_shadow_shadowmapping_nearclip.value, l->radius, false);
 
 	switch(qrenderer)
 	{

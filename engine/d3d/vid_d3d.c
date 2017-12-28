@@ -59,7 +59,8 @@ static void resetD3D9(void);
 static LPDIRECT3D9 pD3D;
 LPDIRECT3DDEVICE9 pD3DDev9;
 static D3DPRESENT_PARAMETERS d3dpp;
-float d3d_trueprojection[16];
+float d3d_trueprojection_std[16];
+float d3d_trueprojection_view[16];
 
 qboolean vid_initializing;
 
@@ -613,14 +614,23 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 				unsigned int usage;
 			} fmts[] =
 			{
-				{PTI_BGRX8,      D3DFMT_X8R8G8B8, D3DUSAGE_QUERY_FILTER},
-				{PTI_BGRA8,      D3DFMT_A8R8G8B8, D3DUSAGE_QUERY_FILTER},
-				{PTI_RGB565,     D3DFMT_R5G6B5,   D3DUSAGE_QUERY_FILTER},
-				{PTI_ARGB1555,   D3DFMT_A1R5G5B5, D3DUSAGE_QUERY_FILTER},
-				{PTI_ARGB4444,   D3DFMT_A4R4G4B4, D3DUSAGE_QUERY_FILTER},
+				{PTI_BGRX8,			D3DFMT_X8R8G8B8,	D3DUSAGE_QUERY_FILTER},
+				{PTI_BGRA8,			D3DFMT_A8R8G8B8,	D3DUSAGE_QUERY_FILTER},
+				{PTI_RGB565,		D3DFMT_R5G6B5,		D3DUSAGE_QUERY_FILTER},
+				{PTI_ARGB1555,		D3DFMT_A1R5G5B5,	D3DUSAGE_QUERY_FILTER},
+				{PTI_ARGB4444,		D3DFMT_A4R4G4B4,	D3DUSAGE_QUERY_FILTER},
 
-				{PTI_BGRX8_SRGB, D3DFMT_X8R8G8B8, D3DUSAGE_QUERY_SRGBREAD},
-				{PTI_BGRA8_SRGB, D3DFMT_A8R8G8B8, D3DUSAGE_QUERY_SRGBREAD},
+				{PTI_BGRX8_SRGB,	D3DFMT_X8R8G8B8,	D3DUSAGE_QUERY_FILTER|D3DUSAGE_QUERY_SRGBREAD},
+				{PTI_BGRA8_SRGB,	D3DFMT_A8R8G8B8,	D3DUSAGE_QUERY_FILTER|D3DUSAGE_QUERY_SRGBREAD},
+
+				{PTI_BC1_RGB,		D3DFMT_DXT1,		D3DUSAGE_QUERY_FILTER},
+				{PTI_BC1_RGBA,		D3DFMT_DXT1,		D3DUSAGE_QUERY_FILTER},
+				{PTI_BC2_RGBA,		D3DFMT_DXT3,		D3DUSAGE_QUERY_FILTER},
+				{PTI_BC3_RGBA,		D3DFMT_DXT5,		D3DUSAGE_QUERY_FILTER},
+				{PTI_BC1_RGB_SRGB,	D3DFMT_DXT1,		D3DUSAGE_QUERY_FILTER|D3DUSAGE_QUERY_SRGBREAD},
+				{PTI_BC1_RGBA_SRGB,	D3DFMT_DXT1,		D3DUSAGE_QUERY_FILTER|D3DUSAGE_QUERY_SRGBREAD},
+				{PTI_BC2_RGBA_SRGB,	D3DFMT_DXT3,		D3DUSAGE_QUERY_FILTER|D3DUSAGE_QUERY_SRGBREAD},
+				{PTI_BC3_RGBA_SRGB,	D3DFMT_DXT5,		D3DUSAGE_QUERY_FILTER|D3DUSAGE_QUERY_SRGBREAD},
 			};
 			for (i = 0; i < countof(fmts); i++)
 				if (SUCCEEDED(IDirect3D9_CheckDeviceFormat(pD3D, devno, devtype, d3dpp.BackBufferFormat, fmts[i].usage, D3DRTYPE_TEXTURE, fmts[i].d3d9)))
@@ -919,26 +929,15 @@ static void	(D3D9_VID_SetWindowCaption)		(const char *msg)
 void D3D9_Set2D (void)
 {
 	float m[16];
-	D3DVIEWPORT9 vport;
 //	IDirect3DDevice9_EndScene(pD3DDev9);
 
-	Matrix4x4_CM_OrthographicD3D(m, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), 0, 100);
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)m);
+	Matrix4x4_CM_OrthographicD3D(d3d_trueprojection_std, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), 0, 100);
 
 	Matrix4x4_Identity(m);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)m);
 
 	Matrix4x4_Identity(m);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)m);
-
-	vport.X = 0;
-	vport.Y = 0;
-	vport.Width = vid.pixelwidth;
-	vport.Height = vid.pixelheight;
-	vport.MinZ = 0;
-	vport.MaxZ = 1;
-	IDirect3DDevice9_SetViewport(pD3DDev9, &vport);
-
 
 	vid.fbvwidth = vid.width;
 	vid.fbvheight = vid.height;
@@ -951,6 +950,7 @@ void D3D9_Set2D (void)
 	r_refdef.pxrect.height = vid.fbpheight;
 
 	D3D9BE_Set2D();
+	D3D9BE_SetViewport(0, vid.fbpwidth, 0, vid.fbpheight);
 }
 
 static int d3d9error(int i)
@@ -1196,8 +1196,7 @@ static void D3D9_SetupViewPortProjection(void)
 	int		x, x2, y2, y, w, h;
 
 	float fov_x, fov_y;
-
-	D3DVIEWPORT9 vport;
+	float fovv_x, fovv_y;
 
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
@@ -1223,21 +1222,17 @@ static void D3D9_SetupViewPortProjection(void)
 	w = x2 - x;
 	h = y2 - y;
 
-	vport.X = x;
-	vport.Y = y;
-	vport.Width = w;
-	vport.Height = h;
-	vport.MinZ = 0;
-	vport.MaxZ = 1;
-	IDirect3DDevice9_SetViewport(pD3DDev9, &vport);
-
 	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+	fovv_x = r_refdef.fovv_x;
+	fovv_y = r_refdef.fovv_y;
 
 	if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
 	{
 		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+		fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+		fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
 	}
 
 	/*view matrix*/
@@ -1247,19 +1242,21 @@ static void D3D9_SetupViewPortProjection(void)
 	if (r_refdef.maxdist)
 	{
 		/*d3d projection matricies scale depth to 0 to 1*/
-		Matrix4x4_CM_Projection_Far(d3d_trueprojection, fov_x, fov_y, r_refdef.mindist/2, r_refdef.maxdist);
+		Matrix4x4_CM_Projection_Far(d3d_trueprojection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist, true);
+		Matrix4x4_CM_Projection_Far(d3d_trueprojection_view, fovv_x, fovv_y, r_refdef.mindist, r_refdef.maxdist, true);
 		/*ogl projection matricies scale depth to -1 to 1, and I would rather my code used consistant culling*/
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist);
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist, false);
 	}
 	else
 	{
 		/*d3d projection matricies scale depth to 0 to 1*/
-		Matrix4x4_CM_Projection_Inf(d3d_trueprojection, fov_x, fov_y, r_refdef.mindist/2);
+		Matrix4x4_CM_Projection_Inf(d3d_trueprojection_std, fov_x, fov_y, r_refdef.mindist, true);
+		Matrix4x4_CM_Projection_Inf(d3d_trueprojection_view, fovv_x, fovv_y, r_refdef.mindist, true);
 		/*ogl projection matricies scale depth to -1 to 1, and I would rather my code used consistant culling*/
-		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist);
+		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, false);
 	}
 
-	d3d9error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection));
+	D3D9BE_SetViewport(x, w, y, h);
 }
 
 static void	(D3D9_R_RenderView)				(void)

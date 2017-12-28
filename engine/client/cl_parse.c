@@ -3013,8 +3013,9 @@ static void CLQW_ParseServerData (void)
 // parse protocol version number
 // allow 2.2 and 2.29 demos to play
 #ifdef PROTOCOL_VERSION_FTE
-	cls.fteprotocolextensions=0;
-	cls.fteprotocolextensions2=0;
+	cls.fteprotocolextensions = 0;
+	cls.fteprotocolextensions2 = 0;
+	cls.ezprotocolextensions1 = 0;
 	for(;;)
 	{
 		protover = MSG_ReadLong ();
@@ -3026,6 +3027,11 @@ static void CLQW_ParseServerData (void)
 		if (protover == PROTOCOL_VERSION_FTE2)
 		{
 			cls.fteprotocolextensions2 = MSG_ReadLong();
+			continue;
+		}
+		if (protover == PROTOCOL_VERSION_EZQUAKE1)
+		{
+			cls.ezprotocolextensions1 = MSG_ReadLong();
 			continue;
 		}
 		if (protover == PROTOCOL_VERSION_VARLENGTH)
@@ -3059,9 +3065,11 @@ static void CLQW_ParseServerData (void)
 		Host_EndGame ("Server returned version %i, not %i\n", protover, PROTOCOL_VERSION_QW);
 #endif
 
-	if (cls.fteprotocolextensions2||cls.fteprotocolextensions)
-		if (developer.ival || cl_shownet.ival)
+	if (developer.ival || cl_shownet.ival)
+	{
+		if (cls.fteprotocolextensions2||cls.fteprotocolextensions)
 			Con_TPrintf ("Using FTE extensions 0x%x%08x\n", cls.fteprotocolextensions2, cls.fteprotocolextensions);
+	}
 
 	if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
 	{
@@ -3313,6 +3321,7 @@ static void CLQ2_ParseServerData (void)
 	cls.netchan.netprim.anglesize = 1;
 	cls.fteprotocolextensions = 0;
 	cls.fteprotocolextensions2 = 0;
+	cls.ezprotocolextensions1 = 0;
 	cls.demohadkeyframe = true;	//assume that it did, so this stuff all gets recorded.
 
 	Con_DPrintf ("Serverdata packet %s.\n", cls.demoplayback?"read":"received");
@@ -3479,6 +3488,7 @@ static void CLNQ_ParseProtoVersion(void)
 
 	cls.fteprotocolextensions = 0;
 	cls.fteprotocolextensions2 = 0;
+	cls.ezprotocolextensions1 = 0;
 	for(;;)
 	{
 		protover = MSG_ReadLong ();
@@ -6713,6 +6723,8 @@ void CLQW_ParseServerMessage (void)
 			else
 			{
 				inframe_t *inf = &cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK];
+				if (cls.ezprotocolextensions1 & EZPEXT1_SETANGLEREASON)
+					MSG_ReadByte();	//0=unknown, 1=tele, 2=spawn
 				for (i=0 ; i<3 ; i++)
 					ang[i] = MSG_ReadAngle();
 				if (!CSQC_Parse_SetAngles(destsplit, ang, false))
@@ -6963,7 +6975,7 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_playerinfo:
-			CL_ParsePlayerinfo ();
+			CLQW_ParsePlayerinfo ();
 			break;
 
 		case svc_nails:

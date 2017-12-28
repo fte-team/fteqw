@@ -736,6 +736,7 @@ const char *presetexec[] =
 	"seta r_part_classic_square 0;"
 	"seta r_part_classic_expgrav 10;"
 	"seta r_part_classic_opaque 0;"
+	"seta cl_expsprite 1;"
 	"seta r_stains 0;"
 	"seta r_drawflat 1;"
 	"seta r_lightmap 0;"

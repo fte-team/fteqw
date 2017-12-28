@@ -5662,13 +5662,13 @@ static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int 
 					if(!width_only) {
 						if (ti_cl->items & IT_QUAD)
 							Draw_SPic (x, y, sb_items[5], 1.0/2);
-							x += FONTWIDTH;
+						x += FONTWIDTH;
 						if (ti_cl->items & IT_INVULNERABILITY)
 							Draw_SPic (x, y, sb_items[3], 1.0/2);
-							x += FONTWIDTH;
+						x += FONTWIDTH;
 						if (ti_cl->items & IT_INVISIBILITY)
 							Draw_SPic (x, y, sb_items[2], 1.0/2);
-							x += FONTWIDTH;
+						x += FONTWIDTH;
 					}
 					else { x += 3* FONTWIDTH; }
 					break;
@@ -5677,13 +5677,13 @@ static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int 
 					if(!width_only) {
 						if ( sb_face_quad && (ti_cl->items & IT_QUAD))
 							Draw_SPic (x, y, sb_face_quad, 1.0/3);
-							x += FONTWIDTH;
+						x += FONTWIDTH;
 						if ( sb_face_invuln && (ti_cl->items & IT_INVULNERABILITY))
 							Draw_SPic (x, y, sb_face_invuln, 1.0/3);
-							x += FONTWIDTH;
+						x += FONTWIDTH;
 						if ( sb_face_invis && (ti_cl->items & IT_INVISIBILITY))
 							Draw_SPic (x, y, sb_face_invis, 1.0/3);
-							x += FONTWIDTH;
+						x += FONTWIDTH;
 					}
 					else { x += 3* FONTWIDTH; }
 					break;
@@ -5692,13 +5692,13 @@ static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int 
 					if(!width_only) {
 						if (ti_cl->items & IT_QUAD)
 							Draw_ColoredString (x, y, "&c03fQ", false);
-							x += FONTWIDTH;
+						x += FONTWIDTH;
 						if (ti_cl->items & IT_INVULNERABILITY)
 							Draw_ColoredString (x, y, "&cf00P", false);
-							x += FONTWIDTH;
+						x += FONTWIDTH;
 						if (ti_cl->items & IT_INVISIBILITY)
 							Draw_ColoredString (x, y, "&cff0R", false);
-							x += FONTWIDTH;
+						x += FONTWIDTH;
 					}
 					else { x += 3* FONTWIDTH; }
 					break;

@@ -981,13 +981,9 @@ static qboolean VID_SetWindowedMode (rendererstate_t *info)
 		Con_Printf("Can't run GL in non-RGB mode\n");
 		return false;
 	}
+	vid.dpi_x = GetDeviceCaps(hdc, LOGPIXELSX);
+	vid.dpi_y = GetDeviceCaps(hdc, LOGPIXELSY);
 	ReleaseDC(NULL, hdc);
-
-	WindowRect.top = WindowRect.left = 0;
-
-	WindowRect.right = info->width;
-	WindowRect.bottom = info->height;
-
 
 #ifndef FTE_SDL
 	if (sys_parentwindow)
@@ -1001,8 +997,8 @@ static qboolean VID_SetWindowedMode (rendererstate_t *info)
 		pwidth = sys_parentwidth;
 		pheight = sys_parentheight;
 
-		WindowRect.right = sys_parentwidth;
-		WindowRect.bottom = sys_parentheight;
+		wwidth = sys_parentwidth;
+		wheight = sys_parentheight;
 	}
 	else
 #endif
@@ -1018,21 +1014,27 @@ static qboolean VID_SetWindowedMode (rendererstate_t *info)
 		pwidth = GetSystemMetrics(SM_CXSCREEN);
 		pheight = GetSystemMetrics(SM_CYSCREEN);
 
-		/*Assume dual monitors, and chop the width to try to put it on only one screen*/
-		if (pwidth >= pheight*2)
-			pwidth /= 2;
+		/*Assume dual monitors, and chop the width to try to put it on only one screen
+		  "Because of app compatibility reasons these system metrics return the size of the primary monitor"
+		  so we shouldn't need this...
+		*/
+//		if (pwidth >= pheight*2)
+//			pwidth /= 2;
+
+		wwidth = info->width;
+		wheight = info->height;
+		/*win8 code:
+		HMONITOR mod = MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST);
+		if (mon != INVALID_HANDLE_VALUE)
+			GetDpiForMonitor(mon, 0, &vid.dpi_x, &vid.dpi_y);
+		*/
+		wwidth = (wwidth*vid.dpi_x)/96;
+		wheight = (wheight*vid.dpi_y)/96;
 	}
 
-	DIBWidth = WindowRect.right - WindowRect.left;
-	DIBHeight = WindowRect.bottom - WindowRect.top;
-
-	rect = WindowRect;
-	AdjustWindowRectEx(&rect, WindowStyle, FALSE, 0);
-
-	wwidth = rect.right - rect.left;
-	wheight = rect.bottom - rect.top;
-
 	WindowRect = centerrect(pleft, ptop, pwidth, pheight, wwidth, wheight);
+	if (!sys_parentwindow)
+		AdjustWindowRectEx(&rect, WindowStyle, FALSE, 0);
 
 	// Create the DIB window
 	if (WinNT)
@@ -1071,6 +1073,12 @@ static qboolean VID_SetWindowedMode (rendererstate_t *info)
 		Con_Printf ("Couldn't create DIB window");
 		return false;
 	}
+
+	GetClientRect(dibwindow, &WindowRect);
+	WindowRect.right -= WindowRect.left;
+	WindowRect.bottom -= WindowRect.top;
+	DIBWidth = WindowRect.right;
+	DIBHeight = WindowRect.bottom;
 
 	SendMessage (dibwindow, WM_SETICON, (WPARAM)TRUE, (LPARAM)hIcon);
 	SendMessage (dibwindow, WM_SETICON, (WPARAM)FALSE, (LPARAM)hIcon);

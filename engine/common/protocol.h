@@ -78,6 +78,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT2_PREDINFO				0x00000020	//movevar stats, NQ input sequences+acks.
 #define PEXT2_NEWSIZEENCODING		0x00000040	//richer size encoding.
 
+//EzQuake/Mvdsv extensions
+#define EZPEXT1_FLOATENTCOORDS		0x00000001	//quirky - doesn't apply to broadcasts, just players+ents. this gives more precision, but will bug out if you try using it to increase map bounds in ways that may not be immediately apparent. iiuc this was added instead of fixing some inconsistent rounding...
+#define EZPEXT1_SETANGLEREASON		0x00000002	//specifies the reason for an svc_setangles call. the mvdsv implementation will fuck over any mods that writebyte them. we'd need to modify our preparse stuff to work around the issue.
+
 //ZQuake transparent protocol extensions.
 #define Z_EXT_PM_TYPE		(1<<0)	// basic PM_TYPE functionality (reliable jump_held)
 #define Z_EXT_PM_TYPE_NEW	(1<<1)	// adds PM_FLY, PM_SPECTATOR
@@ -102,6 +106,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define PROTOCOL_VERSION_FTE			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))	//fte extensions.
 #define PROTOCOL_VERSION_FTE2			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('2' << 24))	//fte extensions.
+#define PROTOCOL_VERSION_EZQUAKE1		(('M'<<0) + ('V'<<8) + ('D'<<16) + ('1' << 24)) //ezquake/mvdsv extensions
 #define PROTOCOL_VERSION_HUFFMAN		(('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24))	//packet compression
 #define PROTOCOL_VERSION_FRAGMENT		(('F'<<0) + ('R'<<8) + ('A'<<16) + ('G' << 24))	//supports fragmentation/packets larger than 1450
 #ifdef HAVE_DTLS

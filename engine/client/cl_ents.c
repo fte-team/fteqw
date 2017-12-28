@@ -407,19 +407,34 @@ void CLQW_ParseDelta (entity_state_t *from, entity_state_t *to, int bits)
 		to->effects = (to->effects&0xff00)|MSG_ReadByte();
 
 	if (bits & U_ORIGIN1)
-		to->origin[0] = MSG_ReadCoord ();
+	{
+		if (cls.ezprotocolextensions1 & EZPEXT1_FLOATENTCOORDS)
+			to->origin[0] = MSG_ReadCoordFloat ();
+		else
+			to->origin[0] = MSG_ReadCoord ();
+	}
 
 	if (bits & U_ANGLE1)
 		to->angles[0] = MSG_ReadAngle ();
 
 	if (bits & U_ORIGIN2)
-		to->origin[1] = MSG_ReadCoord ();
+	{
+		if (cls.ezprotocolextensions1 & EZPEXT1_FLOATENTCOORDS)
+			to->origin[1] = MSG_ReadCoordFloat ();
+		else
+			to->origin[1] = MSG_ReadCoord ();
+	}
 
 	if (bits & U_ANGLE2)
 		to->angles[1] = MSG_ReadAngle ();
 
 	if (bits & U_ORIGIN3)
-		to->origin[2] = MSG_ReadCoord ();
+	{
+		if (cls.ezprotocolextensions1 & EZPEXT1_FLOATENTCOORDS)
+			to->origin[1] = MSG_ReadCoordFloat ();
+		else
+			to->origin[2] = MSG_ReadCoord ();
+	}
 
 	if (bits & U_ANGLE3)
 		to->angles[2] = MSG_ReadAngle ();
@@ -4420,7 +4435,7 @@ void CL_MVDUpdateSpectator(void)
 }
 
 
-void CL_ParsePlayerinfo (void)
+void CLQW_ParsePlayerinfo (void)
 {
 	float			msec;
 	unsigned int			flags;
@@ -4571,9 +4586,18 @@ void CL_ParsePlayerinfo (void)
 	state->flags = flags;
 
 	state->messagenum = cl.parsecount;
-	org[0] = MSG_ReadCoord ();
-	org[1] = MSG_ReadCoord ();
-	org[2] = MSG_ReadCoord ();
+	if (cls.ezprotocolextensions1 & EZPEXT1_FLOATENTCOORDS)
+	{
+		org[0] = MSG_ReadCoordFloat ();
+		org[1] = MSG_ReadCoordFloat ();
+		org[2] = MSG_ReadCoordFloat ();
+	}
+	else
+	{
+		org[0] = MSG_ReadCoord ();
+		org[1] = MSG_ReadCoord ();
+		org[2] = MSG_ReadCoord ();
+	}
 
 	VectorCopy(org, state->origin);
 

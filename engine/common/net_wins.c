@@ -102,7 +102,15 @@ cvar_t	net_enable_http			= CVARD("net_enable_http",			"1", "If enabled, tcp port
 cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, tcp ports will accept websocket game clients.");
 cvar_t	net_enable_webrtcbroker	= CVARD("net_enable_webrtcbroker",	"1", "If 1, tcp ports will accept websocket connections from clients trying to broker direct webrtc connections. This should be low traffic, but might involve a lot of mostly-idle connections.");
 #endif
-cvar_t	cl_delay_packets		= CVARD("cl_delay_packets",			"0", "Extra latency, in milliseconds.");
+
+#ifndef SERVERONLY
+static void cl_delay_packets_Announce(cvar_t *var, char *oldval)
+{
+	if (cls.state >= ca_connected && cl.fpd & FPD_ANOUNCE_FAKE_LAG)
+		Cbuf_AddText(va("say Fake lag now %ims\n", var->ival), RESTRICT_LOCAL);
+}
+static cvar_t	cl_delay_packets		= CVARCD("cl_delay_packets",			"0", cl_delay_packets_Announce, "Extra latency, in milliseconds.");
+#endif
 
 extern cvar_t sv_public, sv_listen_qw, sv_listen_nq, sv_listen_dp;
 #ifdef QWOVERQ3
@@ -6570,13 +6578,13 @@ neterr_t NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t
 #else
 		collection = cls.sockets;
 
-		if (cl_delay_packets.value >= 1)
+		if (cl_delay_packets.ival >= 1 && !(cl.fpd & FPD_NO_FAKE_LAG))
 		{
 			struct ftenet_delayed_packet_s *p, **l;
 			if (!collection)
 				return NETERR_NOROUTE;	//erk...
 			p = BZ_Malloc(sizeof(*p) - sizeof(p->data) + length);
-			p->sendtime = Sys_Milliseconds() + (int)cl_delay_packets.value;
+			p->sendtime = Sys_Milliseconds() + cl_delay_packets.ival;
 			p->next = NULL;
 			p->cursize = length;
 			p->dest = *to;
@@ -7313,12 +7321,12 @@ void NET_Init (void)
 
 	Cvar_Register(&net_hybriddualstack, "networking");
 	Cvar_Register(&net_fakeloss, "networking");
-	Cvar_Register(&cl_delay_packets, "networking");
 
 #ifndef CLIENTONLY
 	Cmd_AddCommand("sv_addport", SVNET_AddPort_f);
 #endif
 #ifndef SERVERONLY
+	Cvar_Register(&cl_delay_packets, "networking");
 	Cmd_AddCommand("cl_addport", NET_ClientPort_f);
 #endif
 

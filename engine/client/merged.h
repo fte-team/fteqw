@@ -303,22 +303,74 @@ struct pendingtextureinfo
 		PTI_ARGB4444,	//16bit format (d3d)
 		PTI_RGBA5551,	//16bit alpha format (gl).
 		PTI_ARGB1555,	//16bit alpha format (d3d).
+		PTI_RGB8,		//24bit packed format. generally not supported
+		PTI_LUMINANCE8_ALPHA8, //16bit format.
 		//floating point formats
 		PTI_RGBA16F,
 		PTI_RGBA32F,
 		//small formats.
 		PTI_R8,
-		PTI_RG8,
-		//(desktop) compressed formats
-		PTI_S3RGB1,
-		PTI_S3RGBA1,
-		PTI_S3RGBA3,
-		PTI_S3RGBA5,
-		//(mobile) compressed formats
+		PTI_RG8,	//might be useful for normalmaps
+		PTI_R8_SIGNED,
+		PTI_RG8_SIGNED,	//might be useful for normalmaps
+		//(desktop/tegra) compressed formats
+		PTI_BC1_RGB,
+		PTI_BC1_RGB_SRGB,
+		PTI_BC1_RGBA,
+		PTI_BC1_RGBA_SRGB,
+		PTI_BC2_RGBA,
+		PTI_BC2_RGBA_SRGB,
+		PTI_BC3_RGBA,	//maybe add a bc3 normalmapswizzle type for d3d9?
+		PTI_BC3_RGBA_SRGB,
+		PTI_BC4_R8,
+		PTI_BC4_R8_SIGNED,
+		PTI_BC5_RG8,	//useful for normalmaps
+		PTI_BC5_RG8_SIGNED,	//useful for normalmaps
+		PTI_BC6_RGBF,	//unsigned (half) floats!
+		PTI_BC6_RGBF_SIGNED,	//signed (half) floats!
+		PTI_BC7_RGBA,	//multimode compression, using as many bits as bc2/bc3
+		PTI_BC7_RGBA_SRGB,
+		//(mobile/intel) compressed formats
 		PTI_ETC1_RGB8,	//limited form
 		PTI_ETC2_RGB8,	//extended form
 		PTI_ETC2_RGB8A1,
 		PTI_ETC2_RGB8A8,
+		PTI_ETC2_RGB8_SRGB,
+		PTI_ETC2_RGB8A1_SRGB,
+		PTI_ETC2_RGB8A8_SRGB,
+		PTI_EAC_R11,	//no idea what this might be used for, whatever
+		PTI_EAC_R11_SIGNED,	//no idea what this might be used for, whatever
+		PTI_EAC_RG11,	//useful for normalmaps (calculate blue)
+		PTI_EAC_RG11_SIGNED,	//useful for normalmaps (calculate blue)
+		//astc... zomg
+		PTI_ASTC_4X4,
+		PTI_ASTC_4X4_SRGB,
+		PTI_ASTC_5X4,
+		PTI_ASTC_5X4_SRGB,
+		PTI_ASTC_5X5,
+		PTI_ASTC_5X5_SRGB,
+		PTI_ASTC_6X5,
+		PTI_ASTC_6X5_SRGB,
+		PTI_ASTC_6X6,
+		PTI_ASTC_6X6_SRGB,
+		PTI_ASTC_8X5,
+		PTI_ASTC_8X5_SRGB,
+		PTI_ASTC_8X6,
+		PTI_ASTC_8X6_SRGB,
+		PTI_ASTC_10X5,
+		PTI_ASTC_10X5_SRGB,
+		PTI_ASTC_10X6,
+		PTI_ASTC_10X6_SRGB,
+		PTI_ASTC_8X8,
+		PTI_ASTC_8X8_SRGB,
+		PTI_ASTC_10X8,
+		PTI_ASTC_10X8_SRGB,
+		PTI_ASTC_10X10,
+		PTI_ASTC_10X10_SRGB,
+		PTI_ASTC_12X10,
+		PTI_ASTC_12X10_SRGB,
+		PTI_ASTC_12X12,
+		PTI_ASTC_12X12_SRGB,
 		//weird specialcase mess to take advantage of webgl so we don't need redundant bloat where we're already strugging with potential heap limits
 		PTI_WHOLEFILE,
 		//depth formats
@@ -328,6 +380,7 @@ struct pendingtextureinfo
 		PTI_DEPTH24_8,
 		PTI_MAX,
 	} encoding;	//0
+	void *extrafree;
 	int mipcount;
 	struct
 	{
@@ -336,8 +389,7 @@ struct pendingtextureinfo
 		int width;
 		int height;
 		qboolean needfree;
-	} mip[32];
-	void *extrafree;
+	} mip[72];	//enough for a 4096 cubemap. or a really smegging big 2d texture...
 };
 
 //small context for easy vbo creation.

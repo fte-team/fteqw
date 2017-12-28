@@ -27,25 +27,21 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 	D3DSURFACE_DESC desc;
 	IDirect3DBaseTexture9 *dbt;
 	qboolean swap = false;
-	unsigned int pixelsize = 4;
-	unsigned int blocksize = 0;
+	unsigned int blockwidth, blockheight, blockbytes;
 
 	switch(mips->encoding)
 	{
 	case PTI_RGB565:
-		pixelsize = 2;
 		fmt = D3DFMT_R5G6B5;
 		break;
 	case PTI_RGBA4444://not supported on d3d9
 		return false;
 	case PTI_ARGB4444:
-		pixelsize = 2;
 		fmt = D3DFMT_A4R4G4B4;
 		break;
 	case PTI_RGBA5551://not supported on d3d9
 		return false;
 	case PTI_ARGB1555:
-		pixelsize = 2;
 		fmt = D3DFMT_A1R5G5B5;
 		break;
 	case PTI_RGBA8_SRGB:
@@ -70,23 +66,29 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 		break;
 
 	//too lazy to support these for now
-	case PTI_S3RGB1:
-	case PTI_S3RGBA1:	//d3d doesn't distinguish between these
+	case PTI_BC1_RGB_SRGB:
+	case PTI_BC1_RGBA_SRGB:	//d3d doesn't distinguish between these
+	case PTI_BC1_RGB:
+	case PTI_BC1_RGBA:	//d3d doesn't distinguish between these
 		fmt = D3DFMT_DXT1;
-		blocksize = 8;
 		break;
-	case PTI_S3RGBA3:
+	case PTI_BC2_RGBA_SRGB:
+	case PTI_BC2_RGBA:
 		fmt = D3DFMT_DXT3;
-		blocksize = 16;
 		break;
-	case PTI_S3RGBA5:
+	case PTI_BC3_RGBA_SRGB:
+	case PTI_BC3_RGBA:
 		fmt = D3DFMT_DXT5;
-		blocksize = 16;
 		break;
+
+	//bc4-7 not supported on d3d9.
+	//etc2 have no chance.
 
 	default:	//no idea
 		return false;
 	}
+
+	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
 
 	if (!pD3DDev9)
 		return false;	//can happen on errors
@@ -111,17 +113,12 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 			//can't do it in one go. pitch might contain padding or be upside down.
 			if (!mips->mip[i].data)
 				;
-			else if (blocksize)
-			{
-				if (lock.Pitch == ((mips->mip[i].width+3)/4)*blocksize)
-				//for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y++, out += lock.Pitch, in += mips->mip[i].width*pixelsize)
-				memcpy(lock.pBits, mips->mip[i].data, mips->mip[i].datasize);
-			}
 			else if (swap)
-			{
-				for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y++, out += lock.Pitch, in += mips->mip[i].width*4)
+			{	//only works for blockbytes=4
+				size_t rowbytes = ((mips->mip[i].width+blockwidth-1)/blockwidth)*blockbytes;
+				for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y+=blockheight, out += lock.Pitch, in += rowbytes)
 				{
-					for (x = 0; x < mips->mip[i].width*4; x+=4)
+					for (x = 0; x < rowbytes; x+=4)
 					{
 						out[x+0] = in[x+2];
 						out[x+1] = in[x+1];
@@ -132,8 +129,9 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 			}
 			else
 			{
-				for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y++, out += lock.Pitch, in += mips->mip[i].width*pixelsize)
-					memcpy(out, in, mips->mip[i].width*pixelsize);
+				size_t rowbytes = ((mips->mip[i].width+blockwidth-1)/blockwidth)*blockbytes;
+				for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y+=blockheight, out += lock.Pitch, in += rowbytes)
+					memcpy(out, in, rowbytes);
 			}
 			IDirect3DCubeTexture9_UnlockRect(dt, i%6, i/6);
 		}
@@ -159,17 +157,12 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 			//can't do it in one go. pitch might contain padding or be upside down.
 			if (!mips->mip[i].data)
 				;
-			else if (blocksize)
-			{
-				if (lock.Pitch == ((mips->mip[i].width+3)/4)*blocksize)
-				//for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y++, out += lock.Pitch, in += mips->mip[i].width*pixelsize)
-				memcpy(lock.pBits, mips->mip[i].data, mips->mip[i].datasize);
-			}
 			else if (swap)
 			{
-				for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y++, out += lock.Pitch, in += mips->mip[i].width*4)
+				size_t rowbytes = ((mips->mip[i].width+blockwidth-1)/blockwidth)*blockbytes;
+				for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y+=blockheight, out += lock.Pitch, in += rowbytes)
 				{
-					for (x = 0; x < mips->mip[i].width*4; x+=4)
+					for (x = 0; x < rowbytes; x+=4)
 					{
 						out[x+0] = in[x+2];
 						out[x+1] = in[x+1];
@@ -180,8 +173,9 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 			}
 			else
 			{
-				for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y++, out += lock.Pitch, in += mips->mip[i].width*pixelsize)
-					memcpy(out, in, mips->mip[i].width*pixelsize);
+				size_t rowbytes = ((mips->mip[i].width+blockwidth-1)/blockwidth)*blockbytes;
+				for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y+=blockheight, out += lock.Pitch, in += rowbytes)
+					memcpy(out, in, rowbytes);
 			}
 			IDirect3DTexture9_UnlockRect(dt, i);
 		}

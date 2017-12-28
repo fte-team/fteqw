@@ -290,6 +290,7 @@ char *MSG_ReadString (void);
 char *MSG_ReadStringLine (void);
 
 float MSG_ReadCoord (void);
+float MSG_ReadCoordFloat (void);
 void MSG_ReadPos (float *pos);
 float MSG_ReadAngle (void);
 float MSG_ReadAngle16 (void);

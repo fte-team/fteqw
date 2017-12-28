@@ -602,6 +602,7 @@ void R_GenDlightBatches(batch_t *batches[])
 	if (!r_lightprepass)
 		return;
 
+	modes = 0;
 	if (r_shadow_realtime_dlight.ival)
 		modes |= LFLAG_NORMALMODE;
 	if (r_shadow_realtime_world.ival)

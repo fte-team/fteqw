@@ -442,8 +442,8 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 
 			if (tex->flags & IF_TEXTYPE)
 			{
-				targface = cubeface[i];
-				j = 0;
+				targface = cubeface[i%countof(cubeface)];
+				j = i/countof(cubeface);
 			}
 			else
 			{
@@ -452,12 +452,13 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			}
 			switch(encoding)
 			{
-#ifdef FTE_TARGET_WEB
 			case PTI_WHOLEFILE:
+			case PTI_MAX:
+#ifdef FTE_TARGET_WEB
 				if (!i)
 					emscriptenfte_gl_loadtexturefile(tex->num, &tex->width, &tex->height, mips->mip[i].data, mips->mip[i].datasize);
-				break;
 #endif
+				break;
 			case PTI_DEPTH16:
 				qglTexImage2D(targface, j, gl_config.gles?GL_DEPTH_COMPONENT:GL_DEPTH_COMPONENT16_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, mips->mip[i].data);
 				break;
@@ -480,7 +481,6 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			case PTI_BGRX8:
 				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGB_ARB:GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
 				break;
-			default:
 			case PTI_BGRA8:
 				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
 				break;
@@ -519,18 +519,64 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			case PTI_RGB565:
 				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, mips->mip[i].data);
 				break;
-			//(desktop) compressed formats
-			case PTI_S3RGB1:
+
+			//legacy formats
+			case PTI_RGB8:
+				qglTexImage2D(targface, j, GL_RGB8, mips->mip[i].width, mips->mip[i].height, 0, GL_RGB, GL_UNSIGNED_BYTE, mips->mip[i].data);
+				break;
+			case PTI_LUMINANCE8_ALPHA8:
+				qglTexImage2D(targface, j, GL_LUMINANCE8_ALPHA8, mips->mip[i].width, mips->mip[i].height, 0, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, mips->mip[i].data);
+				break;
+			//s3tc (desktop) compressed formats
+			case PTI_BC1_RGB:
 				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB_S3TC_DXT1_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
 				break;
-			case PTI_S3RGBA1:
+			case PTI_BC1_RGBA:
 				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
 				break;
-			case PTI_S3RGBA3:
+			case PTI_BC2_RGBA:
 				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
 				break;
-			case PTI_S3RGBA5:
+			case PTI_BC3_RGBA:
 				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_BC1_RGB_SRGB:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB_S3TC_DXT1_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_BC1_RGBA_SRGB:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_BC2_RGBA_SRGB:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_BC3_RGBA_SRGB:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			//atin/rgtc (desktop) compressed formats (derived from bc3's alpha channel)
+			case PTI_BC4_R8:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RED_RGTC1, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_BC4_R8_SIGNED:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SIGNED_RED_RGTC1, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_BC5_RG8:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RG_RGTC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_BC5_RG8_SIGNED:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SIGNED_RG_RGTC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			//bptc desktop formats
+			case PTI_BC6_RGBF:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_BC6_RGBF_SIGNED:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_BC7_RGBA:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA_BPTC_UNORM_ARB, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_BC7_RGBA_SRGB:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
 				break;
 			//(mobile) compressed formats
 			case PTI_ETC1_RGB8:
@@ -547,6 +593,56 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 			case PTI_ETC2_RGB8A8:
 				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA8_ETC2_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
 				break;
+			case PTI_ETC2_RGB8_SRGB:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ETC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_ETC2_RGB8A1_SRGB:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_ETC2_RGB8A8_SRGB:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_EAC_R11:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_R11_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_EAC_R11_SIGNED:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SIGNED_R11_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_EAC_RG11:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RG11_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			case PTI_EAC_RG11_SIGNED:
+				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SIGNED_RG11_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				break;
+			//astc variations...
+			case PTI_ASTC_4X4:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_4x4_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_4X4_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_5X4:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_5x4_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_5X4_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_5X5:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_5x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_5X5_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_6X5:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_6x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_6X5_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_6X6:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_6x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_6X6_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_8X5:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_8x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_8X5_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_8X6:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_8x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_8X6_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_10X5:			qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_10x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_10X5_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_10X6:			qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_10x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_10X6_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_8X8:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_8x8_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_8X8_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_10X8:			qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_10x8_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_10X8_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_10X10:		qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_10x10_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_10X10_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_12X10:		qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_12x10_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_12X10_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_12X12:		qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_12x12_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+			case PTI_ASTC_12X12_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
 			}
 		}
 	}

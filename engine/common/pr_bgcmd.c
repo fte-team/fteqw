@@ -53,7 +53,7 @@ void PF_Common_RegisterCvars(void)
 			_mm_setcsr(mxcsr & ~(0x8040));
 		}
 		else
-			Con_Printf(CON_WARNING "WARNING: denormalised floats are disabled. Use -nodaz to re-enable if mods malfunction\n");
+			Con_Printf(CON_WARNING "denormalised floats are disabled. Use -nodaz to re-enable if mods malfunction\n");
 	}
 #else
 	volatile union
@@ -64,7 +64,7 @@ void PF_Common_RegisterCvars(void)
 	a.i = 1;
 	b.i = 1;
 	if (!(a.f && b.f))
-		Con_Printf(CON_WARNING "WARNING: denormalised floats are disabled. Some mods might may malfunction\n");
+		Con_Printf(CON_WARNING "denormalised floats are disabled. Some mods might may malfunction\n");
 #endif
 #endif
 

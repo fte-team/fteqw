@@ -872,6 +872,20 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 {
 	char newname[MAX_QPATH];
 	console_t *edit;
+
+	if (!strncmp(filename, "./", 2))
+		filename+=2;
+
+	stepasm = !line || *line < 0;
+
+	//we can cope with no line info by displaying asm
+	if (editormodal || (stepasm && !statement))
+	{
+		if (fatal)
+			return DEBUG_TRACE_ABORT;
+		return DEBUG_TRACE_OFF;	//whoops
+	}
+
 	if (!pr_debugger.ival)
 	{
 		Con_Printf("Set %s to trace\n", pr_debugger.name);
@@ -880,25 +894,19 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		return DEBUG_TRACE_OFF;	//get lost
 	}
 
-	if (!strncmp(filename, "./", 2))
-		filename+=2;
-
-	//we can cope with no line info by displaying asm
-	if (editormodal || !statement
-		|| !line || *line == -1	//FIXME
-		)
-	{
-		if (fatal)
-			return DEBUG_TRACE_ABORT;
-		return DEBUG_TRACE_OFF;	//whoops
-	}
-
-	if (qrenderer == QR_NONE)
+	if (qrenderer == QR_NONE || stepasm)
 	{	//just dump the line of code that's being execed onto the console.
 		int i;
 		char buffer[8192];
 		char *r;
 		vfsfile_t *f;
+
+		if (stepasm)
+		{
+			prfncs->GenerateStatementString(prfncs, *statement, buffer, sizeof(buffer));
+			Con_Printf("%s", buffer);
+			return DEBUG_TRACE_INTO;
+		}
 
 		if (!line)
 		{	//please don't crash
@@ -924,10 +932,9 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		return DEBUG_TRACE_OUT;	//only display the line itself.
 	}
 
-	stepasm = !line;
 	editprogfuncs = prfncs;
 
-	if (!COM_FCheckExists(filename))
+	if (!stepasm && *filename && !COM_FCheckExists(filename))
 	{
 		//people generally run their qcc from $mod/src/ or so, so paths are usually relative to that instead of the mod directory.
 		//this means we now need to try and guess what the user used.
@@ -963,19 +970,19 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 		}
 		if (filename != newname)
 		{
+			stepasm = true;
 			if (fatal)
-			{
 				Con_Printf(CON_ERROR "Unable to find file \"%s\"\n", filename);
-				return DEBUG_TRACE_ABORT;
-			}
-			Con_Printf(CON_WARNING "Unable to find file \"%s\"\n", filename);
-			return DEBUG_TRACE_OFF;	//whoops
+			else
+				Con_Printf(CON_WARNING "Unable to find file \"%s\"\n", filename);
 		}
 	}
 
 	if (stepasm)
 	{
-		return DEBUG_TRACE_OFF;
+		if (fatal)
+			return DEBUG_TRACE_ABORT;
+		return DEBUG_TRACE_OFF;	//whoops
 	}
 	else
 	{

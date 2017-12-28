@@ -127,7 +127,7 @@ cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
 #ifdef HAVE_DTLS
 cvar_t sv_listen_dtls		= CVARCD("net_enable_dtls", "", SV_Listen_Dtls_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: available in desired.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
 #endif
-cvar_t sv_reportheartbeats	= CVAR("sv_reportheartbeats", "1");
+cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_highchars			= CVAR("sv_highchars", "1");
 cvar_t sv_maxrate			= CVAR("sv_maxrate", "30000");
 cvar_t sv_maxdrate			= CVARAF("sv_maxdrate", "500000",
@@ -541,6 +541,9 @@ void SV_DropClient (client_t *drop)
 	{
 	case GT_MAX:
 		break;
+#ifdef VM_LUA
+	case GT_LUA:
+#endif
 	case GT_Q1QVM:
 	case GT_PROGS:
 		if (svprogfuncs)

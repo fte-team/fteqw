@@ -592,6 +592,7 @@ void R_GenDlightMesh(struct batch_s *batch)
 }
 void R_GenDlightBatches(batch_t *batches[])
 {
+#ifdef RTLIGHTS
 	int i, j, sort;
 	dlight_t	*l;
 	batch_t		*b;
@@ -678,6 +679,7 @@ void R_GenDlightBatches(batch_t *batches[])
 		b->next = batches[sort];
 		batches[sort] = b;
 	}
+#endif
 }
 
 /*

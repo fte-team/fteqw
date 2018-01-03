@@ -224,6 +224,12 @@ void V_StopPitchDrift (playerview_t *pv)
 	pv->pitchvel = 0;
 }
 
+void V_CenterView_f(void)
+{
+	int pnum = CL_TargettedSplit(false);
+	V_StartPitchDrift(&cl.playerview[pnum]);
+}
+
 /*
 ===============
 V_DriftPitch
@@ -2354,7 +2360,7 @@ void V_Init (void)
 	Cmd_AddCommand ("bf", V_BonusFlash_f);
 	Cmd_AddCommand ("df", V_DarkFlash_f);
 	Cmd_AddCommand ("wf", V_WhiteFlash_f);
-//	Cmd_AddCommand ("centerview", V_StartPitchDrift);
+	Cmd_AddCommand ("centerview", V_CenterView_f);
 
 	Cvar_Register (&v_centermove, VIEWVARS);
 	Cvar_Register (&v_centerspeed, VIEWVARS);

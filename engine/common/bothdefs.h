@@ -257,7 +257,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define MD5MODELS		//doom3 models
 		#define ZYMOTICMODELS	//zymotic skeletal models.
 		#define DPMMODELS		//darkplaces model format (which I've never seen anyone use)
-		#define PSKMODELS		//PSK model format (ActorX stuff from UT, though not the format the game itself uses)
+//		#define PSKMODELS		//PSK model format (ActorX stuff from UT, though not the format the game itself uses)
 		#define HALFLIFEMODELS	//halflife model support (experimental)
 		#define INTERQUAKEMODELS
 		#define RAGDOLL
@@ -299,6 +299,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define DECOMPRESS_ETC2	//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).
 //		#define DECOMPRESS_S3TC	//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...
 		#define DECOMPRESS_RGTC	//bc4+bc5
+		//would be nice to have BPTC decompression too, for gl<4.2, d3d9, or d3d11_level10, but frankly its overcomplicated. I'm not going to bother with ASTC either.
 #ifndef RTLIGHTS
 		#define RTLIGHTS		//realtime lighting
 #endif

@@ -5279,10 +5279,13 @@ static void CL_SetStatMovevar(int pnum, int stat, int ivalue, float value)
 		movevars.stepheight = value;
 		break;
 	case STAT_MOVEVARS_TICRATE:		//cl_maxfps limiter hint
-		if (value <= 0)
-			cls.maxfps = 1.0/value;
-		else
-			cls.maxfps = 72;
+		if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
+		{
+			if (value <= 0)
+				cls.maxfps = 1.0/value;
+			else
+				cls.maxfps = 72;
+		}
 		break;
 	case STAT_MOVEFLAGS:
 //		movevars.flags = ivalue;

@@ -2829,7 +2829,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "float d = dot(n,e_light_dir);\n"
 "if (d < 0.0)  //vertex shader. this might get ugly, but I don't really want to make it per vertex.\n"
 "d = 0.0; //this avoids the dark side going below the ambient level.\n"
-"light = e_light_ambient + (dot(n,e_light_dir)*e_light_mul);\n"
+"light = e_light_ambient + (d*e_light_mul);\n"
+
+//FIXME: Software rendering imitation should possibly push out normals by half a pixel or something to approximate software's over-estimation of distant model sizes (small models are drawn using JUST their verticies using the nearest pixel, which results in larger meshes)
 
 "#ifdef TESS\n"
 "normal = n;\n"
@@ -2993,7 +2995,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //FIXME: with this extra flag, half the permutations are redundant.
 "lightlev *= 0.5; //counter the fact that the colourmap contains overbright values and logically ranges from 0 to 2 intead of to 1.\n"
 "float pal = texture2D(s_paletted, tc).r; //the palette index. hopefully not interpolated.\n"
-"lightlev -= 1.0 / 128.0; //software rendering appears to round down, so make sure we favour the lower values instead of rounding to the nearest\n"
+//	lightlev -= 1.0 / 128.0;	//software rendering appears to round down, so make sure we favour the lower values instead of rounding to the nearest
 "col.r = texture2D(s_colourmap, vec2(pal, 1.0-lightlev.r)).r; //do 3 lookups. this is to cope with lit files, would be a waste to not support those.\n"
 "col.g = texture2D(s_colourmap, vec2(pal, 1.0-lightlev.g)).g; //its not very softwarey, but re-palettizing is ugly.\n"
 "col.b = texture2D(s_colourmap, vec2(pal, 1.0-lightlev.b)).b; //without lits, it should be identical.\n"
@@ -10684,7 +10686,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#include \"sys/fog.h\"\n"
 
-//FIXME: too lazy to implement this right now.
+//FIXME: too lazy to implement this right now. rtlights on d3d9 are just bad right now.
 "#undef RTLIGHT\n"
 "#undef PCF\n"
 "#undef CUBE\n"

@@ -1090,6 +1090,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name));
 #endif
 
 qbyte GetPaletteIndex(int red, int green, int blue);
+qbyte GetPaletteIndexNoFB(int red, int green, int blue);
 int Mod_ReadFlagsFromMD1(char *name, int md3version);
 
 /*

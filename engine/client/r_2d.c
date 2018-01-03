@@ -105,6 +105,32 @@ qbyte GetPaletteIndex(int red, int green, int blue)
 		return best;
 	}
 }
+qbyte GetPaletteIndexNoFB(int red, int green, int blue)
+{
+	//slow, horrible method.
+	{
+		int i, best=15;
+		int bestdif=256*256*256, curdif;
+		extern qbyte *host_basepal;
+		qbyte *pa;
+
+	#define _abs(x) ((x)*(x))
+
+		pa = host_basepal;
+		for (i = 0; i < 256 - vid.fullbright; i++, pa+=3)
+		{
+			curdif = _abs(red - pa[0]) + _abs(green - pa[1]) + _abs(blue - pa[2]);
+			if (curdif < bestdif)
+			{
+				if (curdif<1)
+					return i;
+				bestdif = curdif;
+				best = i;
+			}
+		}
+		return best;
+	}
+}
 
 void R2D_Shutdown(void)
 {

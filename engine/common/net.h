@@ -320,6 +320,14 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 #define PROTOCOL_VERSION_BJP2	10001
 #define PROTOCOL_VERSION_BJP3	10002
 
+#define MOD_PROQUAKE 1
+//#define MOD_PROQUAKE_VERSION (10*3.1)		//password feature added
+//#define MOD_PROQUAKE_VERSION (10*3.2)		//first 'cheatfree'
+#define MOD_PROQUAKE_VERSION (10*3.3)		//no real changes, but w/e, this is the highest we can claim without having serverside issues.
+//#define MOD_PROQUAKE_VERSION (10*3.4)		//added nat wait weirdness that's redundant and breaks the whole single-port thing by using two ports on the client too. *sigh*.
+//#define MOD_PROQUAKE_VERSION (10*3.5)		//optional cheatfree encryption
+//#define MOD_PROQUAKE_VERSION (10*4.51)	//current version
+
 /*RMQ protocol flags*/
 #define RMQFL_SHORTANGLE	(1 << 1)
 #define RMQFL_FLOATANGLE	(1 << 2)

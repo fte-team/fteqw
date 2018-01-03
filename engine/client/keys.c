@@ -2704,20 +2704,20 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 
 		//gamepad buttons should get fallbacks out of the box, even if they're not initially listed on the binds menu.
 		//these may be redefined later...
+		case K_GP_LEFT_SHOULDER:	dc = "impulse 12";		goto defaultedbind;	//matches QS's default.cfg
+		case K_GP_RIGHT_SHOULDER:	dc = "impulse 10";		goto defaultedbind;	//matches QS's default.cfg
+		case K_GP_LEFT_TRIGGER:		dc = "+jump";			goto defaultedbind;	//matches QS's default.cfg
+		case K_GP_RIGHT_TRIGGER:	dc = "+attack";			goto defaultedbind;	//matches QS's default.cfg
 		case K_GP_START:			dc = "togglemenu";		goto defaultedbind;
 		case K_GP_A:				dc = "+button4";		goto defaultedbind;
 		case K_GP_B:				dc = "+button3";		goto defaultedbind;
-		case K_GP_LEFT_SHOULDER:
 		case K_GP_X:				dc = "+attack";			goto defaultedbind;
-		case K_GP_RIGHT_SHOULDER:
 		case K_GP_Y:				dc = "+jump";			goto defaultedbind;
 		case K_GP_BACK:				dc = "impulse 10";		goto defaultedbind;
 		case K_GP_DPAD_UP:			dc = "+forward";		goto defaultedbind;
 		case K_GP_DPAD_DOWN:		dc = "+back";			goto defaultedbind;
 		case K_GP_DPAD_LEFT:		dc = "+moveleft";		goto defaultedbind;
 		case K_GP_DPAD_RIGHT:		dc = "+moveright";		goto defaultedbind;
-		case K_GP_LEFT_TRIGGER:		dc = "+left";			goto defaultedbind;
-		case K_GP_RIGHT_TRIGGER:	dc = "+right";			goto defaultedbind;
 		case K_GP_LEFT_THUMB:		dc = "toggleconsole";	goto defaultedbind;
 		case K_GP_UNKNOWN:
 		case K_GP_RIGHT_THUMB:

@@ -1853,8 +1853,8 @@ void SV_AcceptMessage(client_t *newcl)
 			MSG_WriteLong(&sb, ShortSwap(localaddr.port));
 			if (newcl->proquake_angles_hack)
 			{
-				MSG_WriteByte(&sb, 1/*MOD_PROQUAKE*/);
-				MSG_WriteByte(&sb, 10 * 3.50/*MOD_PROQUAKE_VERSION*/);
+				MSG_WriteByte(&sb, MOD_PROQUAKE);
+				MSG_WriteByte(&sb, MOD_PROQUAKE_VERSION);
 				MSG_WriteByte(&sb, 0/*flags*/);
 			}
 			*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
@@ -3861,7 +3861,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 					MSG_WriteLong(&sb, BigLong(1));	//sequence 1, because 0 matches the old sequence, and thus might get dropped. hopefully the client will cope with dupes properly and ignore any regular (but unreliable) stuff.
 
 					MSG_WriteByte(&sb, svc_stufftext);
-					MSG_WriteString(&sb, va("cmd challengeconnect %i %i\n", SV_NewChallenge(), 1/*MOD_PROQUAKE*/));
+					MSG_WriteString(&sb, va("cmd challengeconnect %i %i\n", SV_NewChallenge(), MOD_PROQUAKE));
 
 					*(int*)sb.data = BigLong(NETFLAG_UNRELIABLE|sb.cursize);
 					NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
@@ -3949,8 +3949,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 				MSG_WriteByte(&sb, CCREP_ACCEPT);
 				NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0);
 				MSG_WriteLong(&sb, ShortSwap(localaddr.port));
-				MSG_WriteByte(&sb, 1/*MOD_PROQUAKE*/);
-				MSG_WriteByte(&sb, 10 * 3.50/*MOD_PROQUAKE_VERSION*/);
+				MSG_WriteByte(&sb, MOD_PROQUAKE);
+				MSG_WriteByte(&sb, MOD_PROQUAKE_VERSION);
 				*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
 				NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
 

@@ -970,7 +970,6 @@ static qboolean VID_SetWindowedMode (rendererstate_t *info)
 	int i;
 	HDC				hdc;
 	int				wwidth, wheight, pleft, ptop, pwidth, pheight;
-	RECT			rect;
 
 	modestate = MS_WINDOWED;
 
@@ -1034,7 +1033,7 @@ static qboolean VID_SetWindowedMode (rendererstate_t *info)
 
 	WindowRect = centerrect(pleft, ptop, pwidth, pheight, wwidth, wheight);
 	if (!sys_parentwindow)
-		AdjustWindowRectEx(&rect, WindowStyle, FALSE, 0);
+		AdjustWindowRectEx(&WindowRect, WindowStyle, FALSE, 0);
 
 	// Create the DIB window
 	if (WinNT)

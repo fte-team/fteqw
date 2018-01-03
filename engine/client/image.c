@@ -4779,7 +4779,7 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, unsigned int fla
 				mips->mip[mip].needfree = true;
 
 				for (i = 0; i < mips->mip[mip].width*mips->mip[mip].height; i++, in+=4)
-					out[i] = GetPaletteIndex(in[0], in[1], in[2]);
+					out[i] = GetPaletteIndexNoFB(in[0], in[1], in[2]);
 
 				if (needfree)
 					BZ_Free(needfree);

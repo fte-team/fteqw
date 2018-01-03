@@ -2773,8 +2773,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 #ifdef USE_EGL
 	case PSL_EGL:
 		visinfo = &vinfodef;
-		if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, info->bpp, TrueColor, visinfo))
-	//	if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, DefaultDepth(vid_dpy, scrnum), TrueColor, &visinfo))
+		if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, info->bpp?info->bpp:DefaultDepth(vid_dpy, scrnum), TrueColor, visinfo))
 		{
 			Sys_Error("Couldn't choose visual for EGL\n");
 		}
@@ -2791,8 +2790,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 #ifdef VKQUAKE
 	case PSL_VULKAN:
 		visinfo = &vinfodef;
-		if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, info->bpp, TrueColor, visinfo))
-	//	if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, DefaultDepth(vid_dpy, scrnum), TrueColor, &visinfo))
+		if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, info->bpp?info->bpp:DefaultDepth(vid_dpy, scrnum), TrueColor, visinfo))
 		{
 			Sys_Error("Couldn't choose visual for vulkan\n");
 		}

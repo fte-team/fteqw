@@ -78,10 +78,10 @@ static cvar_t	joy_advaxis[6] =
 #define ADVAXISDESC (const char *)"Provides a way to remap each joystick/controller axis.\nShould be set to one of: moveforward, moveback, lookup, lookdown, turnleft, turnright, moveleft, moveright, moveup, movedown, rollleft, rollright"
 	CVARCD("joyadvaxisx", "turnright", joyaxiscallback, ADVAXISDESC),
 	CVARCD("joyadvaxisy", "lookup", joyaxiscallback, ADVAXISDESC),
-	CVARCD("joyadvaxisz", "moveup", joyaxiscallback, ADVAXISDESC),
+	CVARCD("joyadvaxisz", "", joyaxiscallback, ADVAXISDESC),
 	CVARCD("joyadvaxisr", "moveright", joyaxiscallback, ADVAXISDESC),
 	CVARCD("joyadvaxisu", "moveforward", joyaxiscallback, ADVAXISDESC),
-	CVARCD("joyadvaxisv", "rollright", joyaxiscallback, ADVAXISDESC)
+	CVARCD("joyadvaxisv", "", joyaxiscallback, ADVAXISDESC)
 };
 static cvar_t	joy_advaxisscale[6] =
 {

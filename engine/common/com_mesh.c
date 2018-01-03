@@ -816,16 +816,33 @@ void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int
 		{
 			l = DotProduct(normals[i], entity->light_dir);
 	#ifdef SSE_INTRINSICS
-			vl = _mm_load1_ps(&l);
-			vr = _mm_mul_ss(va,vl);
-			vr = _mm_add_ss(vr,vs);
+			if (l < 0)
+			{
+				_mm_storeu_ps(colours[i], va);
+				//stomp on colour[i][3] (will be set to 1)
+			}
+			else
+			{
+				vl = _mm_load1_ps(&l);
+				vr = _mm_mul_ss(va,vl);
+				vr = _mm_add_ss(vr,vs);
 
-			_mm_storeu_ps(colours[i], vr);
-			//stomp on colour[i][3] (will be set to 1)
+				_mm_storeu_ps(colours[i], vr);
+				//stomp on colour[i][3] (will be set to 1)
+			}
 	#else
-			colours[i][0] = l*lr[0]+la[0];
-			colours[i][1] = l*lr[1]+la[1];
-			colours[i][2] = l*lr[2]+la[2];
+			if (l < 0)
+			{	//don't over-shade the dark side of the mesh.
+				colours[i][0] = la[0];
+				colours[i][1] = la[1];
+				colours[i][2] = la[2];
+			}
+			else
+			{
+				colours[i][0] = l*lr[0]+la[0];
+				colours[i][1] = l*lr[1]+la[1];
+				colours[i][2] = l*lr[2]+la[2];
+			}
 	#endif
 		}
 	}
@@ -5883,7 +5900,6 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	}
 
 	gmdl = ZG_Malloc(&mod->memgroup, sizeof(*gmdl)*num_matt);
-	Mod_DefaultMesh(gmdl, mod->name, 0);
 
 	/*bones!*/
 	bones = ZG_Malloc(&mod->memgroup, sizeof(galiasbone_t) * num_boneinfo);
@@ -6104,6 +6120,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	{
 #endif
 		//common to all builds
+		Mod_DefaultMesh(&gmdl[i], mod->name, i);
 
 		gmdl[i].ofsanimations = group;
 		gmdl[i].numanimations = num_animinfo;

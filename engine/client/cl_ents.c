@@ -295,7 +295,13 @@ void CL_DecayLights (void)
 			continue;
 		}
 
-		dl->radius -= frametime*dl->decay;
+		if (r_dynamic.ival == 2)
+		{	//don't decay quite so fast, this should aproximate winquake a bit better.
+			dl->die -= frametime * 0.5;
+			dl->radius -= frametime*dl->decay * 0.5;
+		}
+		else
+			dl->radius -= frametime*dl->decay;
 		if (dl->radius < 0)
 		{
 			if (i==rtlights_first)

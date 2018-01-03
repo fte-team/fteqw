@@ -3041,7 +3041,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 
 /*quake requires a few settings for compatibility*/
 #define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\n"
-#define QRPCOMPAT "cl_cursor_scale 0.2\ncl_cursor_bias_x 7.5\ncl_cursor_bias_y 0.8"
+#define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8"
 #define QCFG "set com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT
 //nehahra has to be weird with extra cvars, and buggy fullbrights.
 #define NEHCFG QCFG "set nospr32 0\nset cutscene 1\nalias startmap_sp \"map nehstart\"\nr_fb_bmodels 0\nr_fb_models 0\n"

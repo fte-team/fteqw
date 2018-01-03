@@ -2583,7 +2583,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 				shaderstate.pendingcolourpointer = NULL;
 				return;
 			}
-			if (r_nolightdir.ival)
+			if (r_nolightdir.ival || (!shaderstate.curentity->light_range[0] && !shaderstate.curentity->light_range[1] && !shaderstate.curentity->light_range[2]))
 			{
 				VectorCopy(shaderstate.curentity->light_avg, shaderstate.pendingcolourflat);
 				shaderstate.pendingcolourflat[3] = shaderstate.curentity->shaderRGBAf[3];

@@ -8776,7 +8776,7 @@ void SV_ClientThink (void)
 //
 // if dead, behave differently
 //
-	if (sv_player->v->health <= 0)
+	if (sv_player->v->health <= 0 && !host_client->spectator)
 		return;
 
 //

@@ -605,7 +605,7 @@ void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	mpic_t *p;
 
 	p = R2D_SafeCachePic(picname);
-	if (!p)
+	if (!p || !R_GetShaderSizes(p, NULL, NULL, false))
 		p = R2D_SafePicFromWad(picname);
 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);

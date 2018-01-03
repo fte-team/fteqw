@@ -173,6 +173,7 @@ typedef struct {
 
 	blendmode_t blendmode;
 	shader_t *shader;
+	qboolean	nearest;
 
 	float scalefactor;
 	float invscalefactor;
@@ -914,7 +915,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 		memset(&tn, 0, sizeof(tn));
 		if (*ptype->texname)
 		{
-			tn.base = R_LoadHiResTexture(ptype->texname, "particles", IF_LOADNOW | IF_NOMIPMAP|(ptype->looks.premul?IF_PREMULTIPLYALPHA:0));	//mipmapping breaks particlefont stuff
+			tn.base = R_LoadHiResTexture(ptype->texname, "particles", IF_LOADNOW | IF_NOMIPMAP|(ptype->looks.nearest?IF_NEAREST:IF_LINEAR)|(ptype->looks.premul?IF_PREMULTIPLYALPHA:0));	//mipmapping breaks particlefont stuff
 			if (tn.base && tn.base->status == TEX_LOADING)
 				COM_WorkerPartialSync(tn.base, &tn.base->status, TEX_LOADING);
 		}
@@ -1245,8 +1246,11 @@ void P_ParticleEffect_f(void)
 			else
 				Cbuf_InsertText(buf, Cmd_ExecLevel, true);
 		}
-		else if (!strcmp(var, "texture"))
+		else if (!strcmp(var, "texture") || !strcmp(var, "linear_texture") || !strcmp(var, "nearest_texture") || !strcmp(var, "nearesttexture"))
+		{
 			Q_strncpyz(ptype->texname, value, sizeof(ptype->texname));
+			ptype->looks.nearest = !strncmp(var, "nearest", 7);
+		}
 		else if (!strcmp(var, "tcoords"))
 		{
 			float tscale;
@@ -2383,7 +2387,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 		if (*ptype->texname || all)
 		{	//note: particles don't really know if the shader was embedded or not. the shader system handles all that.
 			//this means that you'll really need to use external shaders for this to work.
-			Q_strncatz(outstr, va("texture \"%s\"\n", ptype->texname), outstrlen);
+			Q_strncatz(outstr, va("%stexture \"%s\"\n", ptype->looks.nearest?"nearest_":"", ptype->texname), outstrlen);
 			Q_strncatz(outstr, va("tcoords %g %g %g %g %g %i %g\n", ptype->s1, ptype->t1, ptype->s2, ptype->t2, 1.0f, ptype->randsmax, ptype->texsstride), outstrlen);
 		}
 

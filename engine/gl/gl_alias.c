@@ -1010,6 +1010,63 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				cm->texnum.specular = shader->defaulttextures->specular;
 				cm->texnum.reflectcube = shader->defaulttextures->reflectcube;
 				cm->texnum.reflectmask = shader->defaulttextures->reflectmask;
+				cm->texnum.paletted = shader->defaulttextures->paletted;
+
+#ifdef HEXEN2	//too lazy to do this
+				if (h2playertranslations && pc)
+					;
+				else
+#endif
+				if (r_softwarebanding)
+				{
+					qbyte *pixels8 = (void*)pixels;
+					qbyte *out8;
+					for (i=0 ; i<256 ; i++)
+						translate32[i] = i;
+
+					//fancy colours are not supported here. try to aproximate them.
+					if (tc >= 16)
+						tc = GetPaletteIndexNoFB((tc>>16)&0xff, (tc>>8)&0xff, (tc>>0)&0xff)/16;
+					if (bc >= 16)
+						bc = GetPaletteIndexNoFB((bc>>16)&0xff, (bc>>8)&0xff, (bc>>0)&0xff)/16;
+
+					for (i = 0; i < 16; i++)
+					{
+						if (tc < 8)
+							translate32[TOP_RANGE+i] = (tc<<4)+i;
+						else
+							translate32[TOP_RANGE+i] = (tc<<4)+15-i;
+
+						if (bc < 8)
+							translate32[BOTTOM_RANGE+i] = (bc<<4)+i;
+						else
+							translate32[BOTTOM_RANGE+i] = (bc<<4)+15-i;
+					}
+
+					fracstep = tinwidth*0x10000/scaled_width;
+					for (i=0, out8=pixels8 ; i<scaled_height ; i++, out8 += scaled_width)
+					{
+						inrow = original + inwidth*(i*inheight/scaled_height);
+						frac = fracstep >> 1;
+						for (j=0 ; j<scaled_width ; j+=4)
+						{
+							out8[j] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+							out8[j+1] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+							out8[j+2] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+							out8[j+3] = translate32[inrow[frac>>16]];
+							frac += fracstep;
+						}
+					}
+
+
+					cm->texnum.paletted = R_LoadTexture(va("paletted$%x$%x$%i$%i$%i$%s", tc, bc, cm->skinnum, subframe, pc, cm->name),
+								scaled_width, scaled_height, TF_LUM8, pixels8, IF_NEAREST|IF_NOMIPMAP);
+
+				}
+
 				/*if (!h2playertranslations)
 				{
 					qboolean valid = false;
@@ -1313,117 +1370,186 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		lightdir[2] = 1;
 	}
 
-	if (!r_vertexdlights.ival && r_dynamic.ival > 0)
-	{
-		float *org = e->origin;
-		if (e->flags & RF_WEAPONMODEL)
-			org = r_refdef.vieworg;
-
-		//don't do world lights, although that might be funny
-		for (i=rtlights_first; i<RTL_FIRST; i++)
-		{
-			if (cl_dlights[i].radius)
-			{
-				VectorSubtract (org,
-								cl_dlights[i].origin,
-								dist);
-				add = cl_dlights[i].radius - Length(dist);
-
-#ifdef RTLIGHTS
-				//if world lighting is on, there may be no lightmap influence even if r_dynamic is on.
-				if (r_shadow_realtime_world.ival)
-					add *= r_shadow_realtime_world_lightmaps.value;
-#endif
-
-				if (add > 0)
-				{
-					ambientlight[0] += add * cl_dlights[i].color[0];
-					ambientlight[1] += add * cl_dlights[i].color[1];
-					ambientlight[2] += add * cl_dlights[i].color[2];
-					//ZOID models should be affected by dlights as well
-					shadelight[0] += add * cl_dlights[i].color[0];
-					shadelight[1] += add * cl_dlights[i].color[1];
-					shadelight[2] += add * cl_dlights[i].color[2];
-				}
-			}
-		}
-	}
-
-	m = max(max(ambientlight[0], ambientlight[1]), ambientlight[2]);
-	if (m > 255)
-	{
-		ambientlight[0] *= 255.0/m;
-		ambientlight[1] *= 255.0/m;
-		ambientlight[2] *= 255.0/m;
-	}
-	m = max(max(shadelight[0], shadelight[1]), shadelight[2]);
-	if (m > 128)
-	{
-		shadelight[0] *= 128.0/m;
-		shadelight[1] *= 128.0/m;
-		shadelight[2] *= 128.0/m;
-	}
-
-//MORE HUGE HACKS! WHEN WILL THEY CEASE!
-	// clamp lighting so it doesn't overbright as much
-	// ZOID: never allow players to go totally black
-	if (clmodel->engineflags & MDLF_PLAYER)
-	{
-		float fb = r_fullbrightSkins.value;
-		if (fb > cls.allow_fbskins)
-			fb = cls.allow_fbskins;
-		if (fb < 0)
-			fb = 0;
-		if (fb)
-		{
-			extern cvar_t r_fb_models;
-
-			if (fb >= 1 && r_fb_models.value)
-			{
-				ambientlight[0] = ambientlight[1] = ambientlight[2] = 1;
-				shadelight[0] = shadelight[1] = shadelight[2] = 1;
-
-				e->light_known = 2;
-				return e->light_known-1;
-			}
-			else
-			{
-				for (i = 0; i < 3; i++)
-				{
-					ambientlight[i] = max(ambientlight[i], 8 + fb * 120);
-					shadelight[i] = max(shadelight[i], 8 + fb * 120);
-				}
-			}
-		}
-		for (i = 0; i < 3; i++)
-		{
-			if (ambientlight[i] < 8)
-				ambientlight[i] = 8;
-		}
-	}
-
-
-	for (i = 0; i < 3; i++)
-	{
-		if (ambientlight[i] > 128)
-			ambientlight[i] = 128;
-
-		shadelight[i] /= 200.0/255;
-		ambientlight[i] /= 200.0/255;
-	}
-
-	if ((e->model->flags & MF_ROTATE) && cl.hexen2pickups)
-	{
-		shadelight[0] = shadelight[1] = shadelight[2] =
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = 128+sin(cl.servertime*4)*64;
-	}
 #ifdef HEXEN2
 	if ((e->drawflags & MLS_MASK) == MLS_ABSLIGHT)
 	{
 		shadelight[0] = shadelight[1] = shadelight[2] = e->abslight;
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = e->abslight;
 	}
+	else
 #endif
+
+		if (r_softwarebanding)
+	{
+		//mimic software rendering as closely as possible
+		lightdir[2] = 0;	//horizontal light only.
+
+		VectorMA(vec3_origin, 0.5, shadelight, ambientlight);
+		VectorCopy(ambientlight, shadelight);
+
+		if (!r_vertexdlights.ival && r_dynamic.ival > 0)
+		{
+			float *org = e->origin;
+			if (e->flags & RF_WEAPONMODEL)
+				org = r_refdef.vieworg;
+			//don't do world lights, although that might be funny
+			for (i=rtlights_first; i<RTL_FIRST; i++)
+			{
+				if (cl_dlights[i].radius)
+				{
+					VectorSubtract (org,
+									cl_dlights[i].origin,
+									dist);
+					add = cl_dlights[i].radius - Length(dist);
+#ifdef RTLIGHTS
+					if (r_shadow_realtime_world.ival)	//if world lighting is on, there may be no lightmap influence even if r_dynamic is on.
+						add *= r_shadow_realtime_world_lightmaps.value;
+#endif
+					if (add > 0)
+					{
+						if (r_dynamic.ival == 2)
+						{
+							ambientlight[0] += add * 2;
+							ambientlight[1] += add * 2;
+							ambientlight[2] += add * 2;
+						}
+						else
+						{
+							ambientlight[0] += add * cl_dlights[i].color[0];
+							ambientlight[1] += add * cl_dlights[i].color[1];
+							ambientlight[2] += add * cl_dlights[i].color[2];
+						}
+					}
+				}
+			}
+		}
+
+		for (i = 0; i < 3; i++)
+		{
+			if (ambientlight[i] > 128)
+				ambientlight[i] = 128;
+			if (ambientlight[i] + shadelight[i] > 192)
+				shadelight[i] = 192 - ambientlight[i];
+		}
+	}
+	else
+	{
+		if (!r_vertexdlights.ival && r_dynamic.ival > 0)
+		{
+			float *org = e->origin;
+			if (e->flags & RF_WEAPONMODEL)
+				org = r_refdef.vieworg;
+
+			//don't do world lights, although that might be funny
+			for (i=rtlights_first; i<RTL_FIRST; i++)
+			{
+				if (cl_dlights[i].radius)
+				{
+					VectorSubtract (org,
+									cl_dlights[i].origin,
+									dist);
+					add = cl_dlights[i].radius - Length(dist);
+#ifdef RTLIGHTS
+					if (r_shadow_realtime_world.ival)	//if world lighting is on, there may be no lightmap influence even if r_dynamic is on.
+						add *= r_shadow_realtime_world_lightmaps.value;
+#endif
+
+					if (add > 0)
+					{
+						if (r_dynamic.ival == 2)
+						{
+							ambientlight[0] += add * 2;
+							ambientlight[1] += add * 2;
+							ambientlight[2] += add * 2;
+							//ZOID models should be affected by dlights as well
+							shadelight[0] += add * 2;
+							shadelight[1] += add * 2;
+							shadelight[2] += add * 2;
+						}
+						else
+						{
+							ambientlight[0] += add * cl_dlights[i].color[0];
+							ambientlight[1] += add * cl_dlights[i].color[1];
+							ambientlight[2] += add * cl_dlights[i].color[2];
+							//ZOID models should be affected by dlights as well
+							shadelight[0] += add * cl_dlights[i].color[0];
+							shadelight[1] += add * cl_dlights[i].color[1];
+							shadelight[2] += add * cl_dlights[i].color[2];
+						}
+					}
+				}
+			}
+		}
+
+		m = max(max(ambientlight[0], ambientlight[1]), ambientlight[2]);
+		if (m > 255)
+		{
+			ambientlight[0] *= 255.0/m;
+			ambientlight[1] *= 255.0/m;
+			ambientlight[2] *= 255.0/m;
+		}
+		m = max(max(shadelight[0], shadelight[1]), shadelight[2]);
+		if (m > 128)
+		{
+			shadelight[0] *= 128.0/m;
+			shadelight[1] *= 128.0/m;
+			shadelight[2] *= 128.0/m;
+		}
+
+	//MORE HUGE HACKS! WHEN WILL THEY CEASE!
+		// clamp lighting so it doesn't overbright as much
+		// ZOID: never allow players to go totally black
+		if (clmodel->engineflags & MDLF_PLAYER)
+		{
+			float fb = r_fullbrightSkins.value;
+			if (fb > cls.allow_fbskins)
+				fb = cls.allow_fbskins;
+			if (fb < 0)
+				fb = 0;
+			if (fb)
+			{
+				extern cvar_t r_fb_models;
+
+				if (fb >= 1 && r_fb_models.value)
+				{
+					ambientlight[0] = ambientlight[1] = ambientlight[2] = 1;
+					shadelight[0] = shadelight[1] = shadelight[2] = 1;
+
+					e->light_known = 2;
+					return e->light_known-1;
+				}
+				else
+				{
+					for (i = 0; i < 3; i++)
+					{
+						ambientlight[i] = max(ambientlight[i], 8 + fb * 120);
+						shadelight[i] = max(shadelight[i], 8 + fb * 120);
+					}
+				}
+			}
+			for (i = 0; i < 3; i++)
+			{
+				if (ambientlight[i] < 8)
+					ambientlight[i] = 8;
+			}
+		}
+
+
+		for (i = 0; i < 3; i++)
+		{
+			if (ambientlight[i] > 128)
+				ambientlight[i] = 128;
+
+			shadelight[i] /= 200.0/255;
+			ambientlight[i] /= 200.0/255;
+		}
+
+		if ((e->model->flags & MF_ROTATE) && cl.hexen2pickups)
+		{
+			shadelight[0] = shadelight[1] = shadelight[2] =
+			ambientlight[0] = ambientlight[1] = ambientlight[2] = 128+sin(cl.servertime*4)*64;
+		}
+	}
 
 	if (e->flags & RF_WEAPONMODEL)
 	{
@@ -1458,8 +1584,16 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		VectorScale(shadelight, scale, shadelight);
 	}
 
-	VectorMA(ambientlight, 0.5, shadelight, e->light_avg);
-	VectorSubtract(shadelight, ambientlight, e->light_range);
+	if (r_softwarebanding)
+	{	//overbright the models.
+		VectorScale(ambientlight, 2, e->light_avg);
+		VectorScale(shadelight, 2, e->light_range);
+	}
+	else
+	{	//calculate average and range, to allow for negative lighting dotproducts
+		VectorMA(ambientlight, 0.5, shadelight, e->light_avg);
+		VectorSubtract(shadelight, ambientlight, e->light_range);
+	}
 
 	e->light_known = 1;
 	return e->light_known-1;

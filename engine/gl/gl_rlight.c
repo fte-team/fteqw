@@ -1860,7 +1860,7 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 		res_dir[1] = r[4];
 		res_dir[2] = -r[5];
 		if (!res_dir[0] && !res_dir[1] && !res_dir[2])
-			res_dir[1] = res_dir[2] = 1;
+			res_dir[0] = res_dir[2] = 1;
 		VectorNormalize(res_dir);
 	}
 

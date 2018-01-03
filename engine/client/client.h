@@ -1393,7 +1393,7 @@ qboolean CSQC_UseGamecodeLoadingScreen(void);
 void	 CSQC_Shutdown(void);
 qboolean CSQC_StuffCmd(int lplayernum, char *cmd, char *cmdend);
 void	 CSQC_MapEntityEdited(int modelindex, int idx, const char *newe);
-qboolean CSQC_LoadResource(char *resname, char *restype);
+//qboolean CSQC_LoadResource(char *resname, char *restype);
 qboolean CSQC_ParsePrint(char *message, int printlevel);
 qboolean CSQC_ParseGamePacket(int seat);
 qboolean CSQC_CenterPrint(int seat, const char *cmd);

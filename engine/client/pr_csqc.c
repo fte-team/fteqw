@@ -145,7 +145,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	\
 	globalfunction(event_sound,			"CSQC_Event_Sound");	\
 	globalfunction(serversound,			"CSQC_ServerSound");/*obsolete, use event_sound*/	\
-	globalfunction(loadresource,		"CSQC_LoadResource");/*EXT_CSQC_1*/	\
+	/*globalfunction(loadresource,		"CSQC_LoadResource");*//*EXT_CSQC_1*/	\
 	globalfunction(parse_tempentity,	"CSQC_Parse_TempEntity");/*EXT_CSQC_ABSOLUTLY_VILE*/	\
 	\
 	globalfunction(mapentityedited,		"CSQC_MapEntityEdited");\
@@ -3172,7 +3172,7 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 		else if (argtypes[i] == 'i')
 		{
 			MSG_WriteByte(&cls.netchan.message, ev_integer);
-			MSG_WriteFloat(&cls.netchan.message, G_FLOAT(OFS_PARM2+i*3));
+			MSG_WriteLong(&cls.netchan.message, G_INT(OFS_PARM2+i*3));
 		}
 		else if (argtypes[i] == 'v')
 		{
@@ -8027,7 +8027,7 @@ void CSQC_MapEntityEdited(int modelindex, int idx, const char *newe)
 	PR_ExecuteProgram (csqcprogs, csqcg.mapentityedited);
 }
 
-qboolean CSQC_LoadResource(char *resname, char *restype)
+/*qboolean CSQC_LoadResource(char *resname, char *restype)
 {
 	void *pr_globals;
 	if (!csqcprogs || !csqcg.loadresource)
@@ -8040,7 +8040,7 @@ qboolean CSQC_LoadResource(char *resname, char *restype)
 	PR_ExecuteProgram (csqcprogs, csqcg.loadresource);
 
 	return !!G_FLOAT(OFS_RETURN);
-}
+}*/
 
 qboolean CSQC_Parse_Damage(int seat, float save, float take, vec3_t source)
 {

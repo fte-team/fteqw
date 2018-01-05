@@ -3510,7 +3510,10 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 				lfrac = (servertime - le->orglerpstarttime) / le->orglerpdeltatime;
 				lfrac = bound(0, lfrac, 1);
 				if (r_nolerp.ival)
+				{
 					lfrac = 1;
+					isnew = true;
+				}
 				for (i = 0; i < 3; i++)
 				{
 					le->origin[i] = le->oldorigin[i] + lfrac*(le->neworigin[i] - le->oldorigin[i]);

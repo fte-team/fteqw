@@ -2615,7 +2615,8 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t
 			if (!cvars[i])
 				continue;
 
-			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, va("cvar_%s", cvarnames[i]));
+			Q_snprintfz(tmpname, sizeof(tmpname), "cvar_%s", cvarnames[i]);
+			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, tmpname);
 			if (uniformloc >= 0)
 			{
 				if (pp->numparms >= maxparms)

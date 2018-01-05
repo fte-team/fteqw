@@ -49,11 +49,11 @@ void PF_Common_RegisterCvars(void)
 	{
 		if (COM_CheckParm("-nodaz"))
 		{
-			Con_Printf("Disabling DAZ. This may have performance implications.\n");
+			Con_DPrintf("Disabling DAZ. This may have performance implications.\n");
 			_mm_setcsr(mxcsr & ~(0x8040));
 		}
 		else
-			Con_Printf(CON_WARNING "denormalised floats are disabled. Use -nodaz to re-enable if mods malfunction\n");
+			Con_DPrintf(CON_WARNING "denormalised floats are disabled. Use -nodaz to re-enable if mods malfunction\n");
 	}
 #else
 	volatile union

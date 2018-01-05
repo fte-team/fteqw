@@ -76,11 +76,11 @@ void QDECL joyaxiscallback(cvar_t *var, char *oldvalue)
 static cvar_t	joy_advaxis[6] =
 {
 #define ADVAXISDESC (const char *)"Provides a way to remap each joystick/controller axis.\nShould be set to one of: moveforward, moveback, lookup, lookdown, turnleft, turnright, moveleft, moveright, moveup, movedown, rollleft, rollright"
-	CVARCD("joyadvaxisx", "turnright", joyaxiscallback, ADVAXISDESC),
-	CVARCD("joyadvaxisy", "lookup", joyaxiscallback, ADVAXISDESC),
+	CVARCD("joyadvaxisx", "moveright", joyaxiscallback, ADVAXISDESC),
+	CVARCD("joyadvaxisy", "moveforward", joyaxiscallback, ADVAXISDESC),
 	CVARCD("joyadvaxisz", "", joyaxiscallback, ADVAXISDESC),
-	CVARCD("joyadvaxisr", "moveright", joyaxiscallback, ADVAXISDESC),
-	CVARCD("joyadvaxisu", "moveforward", joyaxiscallback, ADVAXISDESC),
+	CVARCD("joyadvaxisr", "turnright", joyaxiscallback, ADVAXISDESC),
+	CVARCD("joyadvaxisu", "lookup", joyaxiscallback, ADVAXISDESC),
 	CVARCD("joyadvaxisv", "", joyaxiscallback, ADVAXISDESC)
 };
 static cvar_t	joy_advaxisscale[6] =
@@ -94,13 +94,13 @@ static cvar_t	joy_advaxisscale[6] =
 };
 static cvar_t	joy_anglesens[3] =
 {
-	CVARD("joypitchsensitivity", "1.0", "Scaler value for the controller when it is at its most extreme value"),
+	CVARD("joypitchsensitivity", "0.5", "Scaler value for the controller when it is at its most extreme value"),
 	CVAR("joyyawsensitivity", "-1.0"),
 	CVAR("joyrollsensitivity", "1.0")
 };
 static cvar_t	joy_movesens[3] =
 {
-	CVAR("joyforwardsensitivity", "-1.0"),
+	CVAR("joyforwardsensitivity", "1.0"),
 	CVAR("joysidesensitivity", "1.0"),
 	CVAR("joyupsensitivity", "1.0")
 };
@@ -118,7 +118,7 @@ static cvar_t	joy_movethreshold[3] =
 	CVAR("joyupthreshold", "0.118"),	//30/255	 (trigger)
 };
 
-static cvar_t joy_exponent = CVARD("joyexponent", "2", "Scales joystick/controller sensitivity non-linearly to increase precision in the center.\nA value of 1 is linear.");
+static cvar_t joy_exponent = CVARD("joyexponent", "3", "Scales joystick/controller sensitivity non-linearly to increase precision in the center.\nA value of 1 is linear.");
 static cvar_t joy_radialdeadzone = CVARD("joyradialdeadzone", "1", "Treat controller dead zones as a pair, rather than per-axis.");
 
 

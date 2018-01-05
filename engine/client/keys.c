@@ -2709,20 +2709,20 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		case K_GP_LEFT_TRIGGER:		dc = "+jump";			goto defaultedbind;	//matches QS's default.cfg
 		case K_GP_RIGHT_TRIGGER:	dc = "+attack";			goto defaultedbind;	//matches QS's default.cfg
 		case K_GP_START:			dc = "togglemenu";		goto defaultedbind;
-		case K_GP_A:				dc = "+button4";		goto defaultedbind;
-		case K_GP_B:				dc = "+button3";		goto defaultedbind;
-		case K_GP_X:				dc = "+attack";			goto defaultedbind;
-		case K_GP_Y:				dc = "+jump";			goto defaultedbind;
-		case K_GP_BACK:				dc = "impulse 10";		goto defaultedbind;
+		case K_GP_A:				dc = "+button3";		goto defaultedbind;
+		case K_GP_B:				dc = "+button4";		goto defaultedbind;
+		case K_GP_X:				dc = "+button5";		goto defaultedbind;
+		case K_GP_Y:				dc = "+button6";		goto defaultedbind;
+		case K_GP_BACK:				dc = "+showscores";		goto defaultedbind;
+		case K_GP_UNKNOWN:			dc = "+button8";		goto defaultedbind;
 		case K_GP_DPAD_UP:			dc = "+forward";		goto defaultedbind;
 		case K_GP_DPAD_DOWN:		dc = "+back";			goto defaultedbind;
 		case K_GP_DPAD_LEFT:		dc = "+moveleft";		goto defaultedbind;
 		case K_GP_DPAD_RIGHT:		dc = "+moveright";		goto defaultedbind;
-		case K_GP_LEFT_THUMB:		dc = "toggleconsole";	goto defaultedbind;
-		case K_GP_UNKNOWN:
-		case K_GP_RIGHT_THUMB:
 		case K_GP_GUIDE:			dc = "togglemenu";		goto defaultedbind;
 
+		case K_GP_LEFT_THUMB:		dc = "+movedown";		goto defaultedbind;
+		case K_GP_RIGHT_THUMB:
 		default:
 			break;
 		}

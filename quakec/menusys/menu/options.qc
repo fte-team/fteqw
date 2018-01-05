@@ -34,7 +34,8 @@ nonstatic void(mitem_desktop desktop) M_Options =
 
 
 	//and show the options.
-	fr.add(spawn(mitem_text, item_text:"Graphical Presets",			item_command:"m_pop;m_preset", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;
+	if (assumefalsecheckcommand("fps_preset"))
+		{fr.add(spawn(mitem_text, item_text:"Graphical Presets",	item_command:"m_pop;m_preset", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;}
 	fr.add(spawn(mitem_text, item_text:"Game Configs", 			item_command:"m_pop;m_configs", 	item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;
 	fr.add(spawn(mitem_text, item_text:"Basic Setup", 			item_command:"m_pop;m_basicopts",	item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;
 	fr.add(spawn(mitem_text, item_text:"Audio", 				item_command:"m_pop;m_audio", 		item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [0, 16]);	pos += 16;

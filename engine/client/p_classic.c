@@ -726,7 +726,7 @@ static void Classic_RunParticleEffect (vec3_t org, vec3_t dir, int color, int co
 
 	scale = (count > 130) ? 3 : (count > 20) ? 2  : 1;
 
-	count *= r_part_density.value;
+	count = ceil(count*r_part_density.value);	//round-to-0 was resulting in blood being far too hard to see, especially when blood is often spawned with multiple points all rounded down
 
 	for (i = 0; i < count; i++)
 	{

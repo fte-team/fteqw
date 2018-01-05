@@ -11559,7 +11559,7 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_Ent_Remove",			"void()", CS},
 		{"CSQC_Event_Sound",		"float(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags"/*", float timeofs*/")", CS},
 //		{"CSQC_ServerSound",		"//void()", CS},
-		{"CSQC_LoadResource",		"float(string resname, string restype)", CS, "Called each time some resource is being loaded. CSQC can invoke various draw calls to provide a loading screen, until WorldLoaded is called."},
+//		{"CSQC_LoadResource",		"float(string resname, string restype)", CS, "Called each time some resource is being loaded. CSQC can invoke various draw calls to provide a loading screen, until WorldLoaded is called."},
 		{"CSQC_Parse_TempEntity",	"float()", CS,	"Please don't use this. Use CSQC_Parse_Event and multicasts instead.\nThe use of serverside protocol translation to handle QW vs NQ protocols mean that you're likely to end up reading slightly different data. Which is bad.\nReturn true to say that you fully handled the tempentity. Return false to have the client attempt to rewind the network stream and parse the message itself."},
 
 		{"GameCommand",				"void(string cmdtext)", CS|MENU},

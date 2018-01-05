@@ -2108,28 +2108,31 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		host_client = &svs.clients[ent->entnum-1];
 		SV_ClientThink();
 
-		if (progstype == PROG_QW)	//detect if the mod should do a jump
-			if (svent->v->button2)
-				if ((int)svent->v->flags & FL_JUMPRELEASED)
-					readyforjump = true;
-
-	//
-	// call standard client pre-think
-	//
-		pr_global_struct->time = sv.world.physicstime;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-#ifdef VM_Q1
-		if (svs.gametype == GT_Q1QVM)
-			Q1QVM_PlayerPreThink();
-		else
-#endif
-			if (pr_global_ptrs->PlayerPreThink)
-				PR_ExecuteProgram (svprogfuncs, *pr_global_ptrs->PlayerPreThink);
-
-		if (readyforjump)	//qw progs can't jump for themselves...
+		if (!host_client->spectator)
 		{
-			if (!svent->v->button2 && !((int)ent->v->flags & FL_JUMPRELEASED) && ent->v->velocity[2] <= 0)
-				svent->v->velocity[2] += 270;
+			if (progstype == PROG_QW)	//detect if the mod should do a jump
+				if (svent->v->button2)
+					if ((int)svent->v->flags & FL_JUMPRELEASED)
+						readyforjump = true;
+
+			//
+			// call standard client pre-think
+			//
+			pr_global_struct->time = sv.world.physicstime;
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
+#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+				Q1QVM_PlayerPreThink();
+			else
+#endif
+				if (pr_global_ptrs->PlayerPreThink)
+					PR_ExecuteProgram (svprogfuncs, *pr_global_ptrs->PlayerPreThink);
+
+			if (readyforjump)	//qw progs can't jump for themselves...
+			{
+				if (!svent->v->button2 && !((int)ent->v->flags & FL_JUMPRELEASED) && ent->v->velocity[2] <= 0)
+					svent->v->velocity[2] += 270;
+			}
 		}
 	}
 	else
@@ -2252,16 +2255,19 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 	{
 		World_LinkEdict (w, (wedict_t*)svent, true);
 
-		pr_global_struct->time = w->physicstime;
-		pr_global_struct->self = EDICT_TO_PROG(w->progs, ent);
-#ifdef VM_Q1
-		if (svs.gametype == GT_Q1QVM)
-			Q1QVM_PostThink();
-		else
-#endif
+		if (!host_client->spectator)
 		{
-			if (pr_global_ptrs->PlayerPostThink)
-				PR_ExecuteProgram (w->progs, *pr_global_ptrs->PlayerPostThink);
+			pr_global_struct->time = w->physicstime;
+			pr_global_struct->self = EDICT_TO_PROG(w->progs, ent);
+#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+				Q1QVM_PostThink();
+			else
+#endif
+			{
+				if (pr_global_ptrs->PlayerPostThink)
+					PR_ExecuteProgram (w->progs, *pr_global_ptrs->PlayerPostThink);
+			}
 		}
 	}
 #endif

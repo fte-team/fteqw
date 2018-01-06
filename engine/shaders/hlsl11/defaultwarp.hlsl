@@ -1,5 +1,5 @@
 !!samps diffuse
-!!cvarf r_wateralpha
+//!!cvarf r_wateralpha
 
 struct a2v
 {
@@ -34,8 +34,15 @@ struct v2f
 	float4 main (v2f inp) : SV_TARGET
 	{
 		float2 ntc;
+		float4 r;
 		ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;
 		ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;
-		return t_diffuse.Sample(s_diffuse, ntc);
+		r = t_diffuse.Sample(s_diffuse, ntc);
+#ifdef ALPHA
+		r.a = float(ALPHA);
+#else
+//		r.a *= r_wateralpha;
+#endif
+		return r;
 	}
 #endif

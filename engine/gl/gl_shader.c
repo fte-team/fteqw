@@ -5831,7 +5831,7 @@ void Shader_DefaultSkybox(const char *shortname, shader_t *s, const void *args)
 	}
 }
 
-char *Shader_DefaultBSPWater(shader_t *s, const char *shortname)
+char *Shader_DefaultBSPWater(shader_t *s, const char *shortname, char *buffer, size_t buffersize)
 {
 	int wstyle;
 	int type;
@@ -5938,7 +5938,7 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname)
 		);
 	default:
 	case 1:	//vanilla style
-		return va(
+		Q_snprintfz(buffer, buffersize, 
 				"{\n"
 					"program defaultwarp%s\n"
 					"{\n"
@@ -5953,6 +5953,7 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname)
 					"surfaceparm nomarks\n"
 				"}\n"
 				, explicitalpha?"":va("#ALPHA=%g",alpha), alpha, alpha);
+		return buffer;
 	case 2:	//refraction of the underwater surface, with a fresnel
 		return (
 			"{\n"
@@ -6038,7 +6039,8 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname)
 
 void Shader_DefaultWaterShader(const char *shortname, shader_t *s, const void *args)
 {
-	Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(s, shortname));
+	char tmpbuffer[2048];
+	Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(s, shortname, tmpbuffer, sizeof(tmpbuffer)));
 }
 void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 {
@@ -6053,7 +6055,8 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 	}
 	else if (Shader_FloatArgument(s, "#WARP"))//!strncmp(shortname, "warp/", 5) || !strncmp(shortname, "warp33/", 7) || !strncmp(shortname, "warp66/", 7))
 	{
-		Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(s, shortname));
+		char tmpbuffer[2048];
+		Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(s, shortname, tmpbuffer, sizeof(tmpbuffer)));
 	}
 	else if (Shader_FloatArgument(s, "#ALPHA"))//   !strncmp(shortname, "trans/", 6))
 	{
@@ -6074,6 +6077,7 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 {
 	char *builtin = NULL;
+	char tmpbuffer[2048];
 
 	if (!strcmp(shortname, "mirror_portal"))
 	{
@@ -6113,7 +6117,7 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 
 	if (!builtin && (*shortname == '*' || *shortname == '!'))
 	{
-		builtin = Shader_DefaultBSPWater(s, shortname);
+		builtin = Shader_DefaultBSPWater(s, shortname, tmpbuffer, sizeof(tmpbuffer));
 	}
 	if (!builtin && !strncmp(shortname, "sky", 3))
 	{

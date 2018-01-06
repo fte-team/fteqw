@@ -31,6 +31,10 @@ struct v2f {
 		ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;
 		float3 ts = tex2D(s_diffuse, ntc).xyz;
 
+#ifdef ALPHA
+		return float4(ts, float(ALPHA));
+#else
 		return float4(ts, cvar_r_wateralpha);
+#endif
 	}
 #endif

@@ -414,6 +414,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 	char *dsformat = NULL;
 	char *fsformat;
 	char *gsformat = NULL;
+	char *tmp;
 	D3D_SHADER_MACRO defines[64];
 	ID3DBlob *vcode = NULL, *hcode = NULL, *dcode = NULL, *gcode = NULL, *fcode = NULL, *errors = NULL;
 	qboolean success = false;
@@ -475,8 +476,10 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 		defines[consts].Definition = __DATE__;
 		consts++;
 
+		tmp = Z_Malloc(64);
+		Q_snprintfz(tmp, 64, "0x%x", d3dfeaturelevel);
 		defines[consts].Name = Z_StrDup("LEVEL");
-		defines[consts].Definition = Z_StrDup(va("0x%x", d3dfeaturelevel));
+		defines[consts].Definition = tmp;
 		consts++;
 
 		for (; *precompilerconstants; precompilerconstants++)

@@ -394,6 +394,7 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 	struct programpermu_s *pp;
 	unsigned int i, p;
 	int uniformloc;
+	char tmpbuffer[256];
 
 #define ALTLIGHTMAPSAMP 13
 #define ALTDELUXMAPSAMP 16
@@ -436,7 +437,8 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 			//just directly sets uniforms. can't cope with cvars dynamically changing.
 			cvarrefs[i]->flags |= CVAR_SHADERSYSTEM;
 		
-			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 1, va("cvar_%s", cvarnames[i]));
+			Q_snprintfz(tmpbuffer, sizeof(tmpbuffer), "cvar_%s", cvarnames[i]);
+			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 1, tmpbuffer);
 			if (uniformloc != -1)
 			{
 				if (cvartypes[i] == SP_CVARI)
@@ -447,7 +449,7 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 				else
 					IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, 0, cvarrefs[i]->vec4, 1);
 			}
-			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 2, va("cvar_%s", cvarnames[i]));
+			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 2, tmpbuffer);
 			if (uniformloc != -1)
 			{
 				if (cvartypes[i] == SP_CVARI)
@@ -463,7 +465,8 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cva
 		/*set texture uniforms*/
 		for (i = 0; i < 8; i++)
 		{
-			uniformloc = D3D9Shader_FindUniform(&pp->h, 2, va("s_t%i", i));
+			Q_snprintfz(tmpbuffer, sizeof(tmpbuffer), "s_t%i", i);
+			uniformloc = D3D9Shader_FindUniform(&pp->h, 2, tmpbuffer);
 			if (uniformloc != -1)
 			{
 				int v[4] = {i};

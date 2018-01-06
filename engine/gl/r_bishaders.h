@@ -7349,7 +7349,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;\n"
 "float3 ts = tex2D(s_diffuse, ntc).xyz;\n"
 
+"#ifdef ALPHA\n"
+"return float4(ts, float(ALPHA));\n"
+"#else\n"
 "return float4(ts, cvar_r_wateralpha);\n"
+"#endif\n"
 "}\n"
 "#endif\n"
 },
@@ -7357,7 +7361,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #ifdef D3D11QUAKE
 {QR_DIRECT3D11, 11, "defaultwarp",
 "!!samps diffuse\n"
-"!!cvarf r_wateralpha\n"
+//!!cvarf r_wateralpha
 
 "struct a2v\n"
 "{\n"
@@ -7392,9 +7396,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "float4 main (v2f inp) : SV_TARGET\n"
 "{\n"
 "float2 ntc;\n"
+"float4 r;\n"
 "ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;\n"
 "ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;\n"
-"return t_diffuse.Sample(s_diffuse, ntc);\n"
+"r = t_diffuse.Sample(s_diffuse, ntc);\n"
+"#ifdef ALPHA\n"
+"r.a = float(ALPHA);\n"
+"#else\n"
+//		r.a *= r_wateralpha;
+"#endif\n"
+"return r;\n"
 "}\n"
 "#endif\n"
 },

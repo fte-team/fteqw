@@ -4988,7 +4988,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					{
 						shaderstate.tex_refraction[r_refdef.recurse] = Image_CreateTexture("***tex_refraction***", NULL, 0);
 						if (!shaderstate.tex_refraction[r_refdef.recurse]->num)
-						qglGenTextures(1, &shaderstate.tex_refraction[r_refdef.recurse]->num);
+							qglGenTextures(1, &shaderstate.tex_refraction[r_refdef.recurse]->num);
 					}
 					if (shaderstate.tex_refraction[r_refdef.recurse]->width != r_refdef.pxrect.width || shaderstate.tex_refraction[r_refdef.recurse]->height != r_refdef.pxrect.height)
 					{
@@ -5921,6 +5921,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 
 	GLBE_SelectEntity(&r_worldentity);
 //	shaderstate.curtime = shaderstate.updatetime = realtime;
+	shaderstate.depthrange = 0;
 
 	shaderstate.identitylighting = 1;
 

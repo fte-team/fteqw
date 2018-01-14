@@ -1284,7 +1284,55 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	}
 	else
 	{
-		World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
+		if (ent->v->skin < 0)
+		{	//if forcedcontents is set, then ALL brushes in this model are forced to the specified contents value.
+			//we achive this by tracing against ALL then forcing it after.
+			int forcedcontents;
+			switch((int)ent->v->skin)
+			{
+			case Q1CONTENTS_EMPTY:
+				forcedcontents = FTECONTENTS_EMPTY;
+				break;
+			case Q1CONTENTS_SOLID:
+				forcedcontents = FTECONTENTS_SOLID;
+				break;
+			case Q1CONTENTS_WATER:
+				forcedcontents = FTECONTENTS_WATER;
+				break;
+			case Q1CONTENTS_SLIME:
+				forcedcontents = FTECONTENTS_SLIME;
+				break;
+			case Q1CONTENTS_LAVA:
+				forcedcontents = FTECONTENTS_LAVA;
+				break;
+			case Q1CONTENTS_SKY:
+				forcedcontents = FTECONTENTS_SKY;
+				break;
+			case Q1CONTENTS_LADDER:
+				forcedcontents = FTECONTENTS_LADDER;
+				break;
+			default:
+				forcedcontents = 0;
+				break;
+			}
+			if (hitcontentsmask & forcedcontents)
+			{
+				World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, ~0u);
+				if (trace.contents)
+					trace.contents = forcedcontents;
+			}
+			else
+			{
+				memset (&trace, 0, sizeof(trace_t));
+				trace.fraction = 1;
+				trace.allsolid = true;
+				trace.startsolid = false;
+				trace.inopen = true;	//probably wrong...
+				VectorCopy (end, trace.endpos);
+			}
+		}
+		else
+			World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
 	}
 
 // if using hitmodel, we know it hit the bounding box, so try a proper trace now.
@@ -2016,7 +2064,10 @@ static void World_ClipToLinks (world_t *w, areagridlink_t *node, moveclip_t *cli
 			clip->trace.startsolid |= trace.startsolid;
 			clip->trace.allsolid |= trace.allsolid;
 			if (!clip->trace.ent)
+			{
+				clip->trace.contents = trace.contents;
 				clip->trace.ent = touch;
+			}
 		}
 	}
 }

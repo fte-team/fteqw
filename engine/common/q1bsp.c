@@ -450,7 +450,7 @@ static void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh, mtexinfo_t *texin
 	vecV_t verts[3];
 	shader_t *surfshader = texinfo->texture->shader;
 
-	if (surfshader->flags & SHADER_NOMARKS)
+	if ((surfshader->flags & SHADER_NOMARKS) || !mesh)
 		return;
 
 	if (dec->surfflagmask)

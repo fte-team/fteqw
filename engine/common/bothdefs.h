@@ -303,6 +303,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef RTLIGHTS
 		#define RTLIGHTS		//realtime lighting
 #endif
+		//#define SHADOWDBG_COLOURNOTDEPTH	//for debugging. renders shadowmaps to a colour buffer instead of a depth buffer. resulting in projected textures instead of actual shadows (the glsl only picks up the red component, but whatever)
 
 //		#define QWOVERQ3		//allows qw servers with q3 clients. requires specific cgame.
 

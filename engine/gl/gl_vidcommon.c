@@ -16,7 +16,7 @@ void (APIENTRY *qglCopyTexSubImage2D) (GLenum target, GLint level, GLint xoffset
 void (APIENTRY *qglCullFace) (GLenum mode);
 void (APIENTRY *qglDepthFunc) (GLenum func);
 void (APIENTRY *qglDepthMask) (GLboolean flag);
-void (APIENTRY *qglDepthRangef) (GLclampf zNear, GLclampf zFar);
+//void (APIENTRY *qglDepthRangef) (GLclampf zNear, GLclampf zFar);
 void (APIENTRY *qglDisable) (GLenum cap);
 void (APIENTRY *qglEnable) (GLenum cap);
 void (APIENTRY *qglFinish) (void);
@@ -122,7 +122,7 @@ void (APIENTRY *qglColor4f) (GLfloat red, GLfloat green, GLfloat blue, GLfloat a
 void (APIENTRY *qglColor4fv) (const GLfloat *v);
 //void (APIENTRY *qglColor4ub) (GLubyte red, GLubyte green, GLubyte blue, GLubyte alpha);
 //void (APIENTRY *qglColor4ubv) (const GLubyte *v);
-void (APIENTRY *qglDepthRange) (GLclampd zNear, GLclampd zFar);
+//void (APIENTRY *qglDepthRange) (GLclampd zNear, GLclampd zFar);
 void (APIENTRY *qglDrawBuffer) (GLenum mode);
 void (APIENTRY *qglDrawPixels) (GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
 void (APIENTRY *qglEnd) (void);
@@ -885,7 +885,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 #ifdef GL_STATIC
 	gl_config.arb_shader_objects = true;
 #else
-	if (Cvar_Get("gl_blacklist_debug_glsl", "0", CVAR_RENDERERLATCH, "gl blacklists")->ival && !gl_config.nofixedfunc)
+	if (Cvar_Get("gl_blacklist_debug_glsl", "0", CVAR_VIDEOLATCH, "gl blacklists")->ival && !gl_config.nofixedfunc)
 	{
 		Con_Printf(CON_NOTICE "GLSL disabled\n");
 		gl_config.arb_shader_objects = false;
@@ -925,7 +925,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	// glslang
 	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.
 	//but our code kinda requires both for clean workings.
-	else if (strstr(gl_renderer, " Mesa ") && (gl_config.glversion < 3 || gl_config.gles) && Cvar_Get("gl_blacklist_mesa_glsl", "1", CVAR_RENDERERLATCH, "gl blacklists")->ival)
+	else if (strstr(gl_renderer, " Mesa ") && (gl_config.glversion < 3 || gl_config.gles) && Cvar_Get("gl_blacklist_mesa_glsl", "1", CVAR_VIDEOLATCH, "gl blacklists")->ival)
 	{
 //(9:12:33 PM) bigfoot: Spike, can you please blacklist your menu shader on Mesa? My machine just hard locked up again because I forgot that pressing escape in FTE is verboten
 //(11:51:42 PM) bigfoot: OpenGL vendor string: Tungsten Graphics, Inc
@@ -1265,9 +1265,13 @@ static const char *glsl_hdrs[] =
 				"attribute vec4 v_colour4;"
 #endif
 			"\n#endif\n"
+#ifdef SHADOWDBG_COLOURNOTDEPTH
+			"#define sampler2DShadow sampler2D\n"
+#else
 			"#ifndef USE_ARB_SHADOW\n"	//fall back on regular samplers if we must
 				"#define sampler2DShadow sampler2D\n"
 			"#endif\n"
+#endif
 			"#ifndef SPECEXP\n"
 				"#define SPECEXP 1.0\n"
 			"#endif\n"
@@ -1706,7 +1710,10 @@ static const char *glsl_hdrs[] =
 				"#ifdef SPOT\n"
 					//bias it. don't bother figuring out which side or anything, its not needed
 					//l_projmatrix contains the light's projection matrix so no other magic needed
-					"return ((cubeproj.xyz-vec3(0.0,0.0,0.015))/cubeproj.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
+					"return ((cubeproj.yxz-vec3(0.0,0.0,0.015))/cubeproj.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
+				"#elif defined(ORTHO)\n"
+					//the light's origin is in the center of the 'cube', projecting from one side to the other, so don't bias the z.
+					"return ((cubeproj.xyz-vec3(0.0,0.0,0.015))/cubeproj.w + vec3(1.0, 1.0, 0.0)) * vec3(0.5, 0.5, 1.0);\n"
 				//"#elif defined(CUBESHADOW)\n"
 				//	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
 				//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
@@ -1751,7 +1758,10 @@ static const char *glsl_hdrs[] =
 				"float ShadowmapFilter(sampler2DShadow smap, vec4 cubeproj)\n"
 				"{\n"
 					"vec3 shadowcoord = ShadowmapCoord(cubeproj);\n"
-
+#ifdef SHADOWDBG_COLOURNOTDEPTH
+					//just r, unfortunately. oh well.
+					"return texture2D(smap, shadowcoord.xy + (vec2(0.0,0.0)*l_shadowmapscale.xy)).r;\n"
+#else
 					"#if 0\n"//def GL_ARB_texture_gather
 						"vec2 ipart, fpart;\n"
 						"#define dosamp(x,y) textureGatherOffset(smap, ipart.xy, vec2(x,y)))\n"
@@ -1796,6 +1806,7 @@ static const char *glsl_hdrs[] =
 							"return s/9.0;\n"
 						"#endif\n"
 					"#endif\n"
+#endif
 				"}\n"
 			"#endif\n"
 		,
@@ -2701,7 +2712,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	qglCullFace			= (void *)getglcore("glCullFace");
 	qglDepthFunc		= (void *)getglcore("glDepthFunc");
 	qglDepthMask		= (void *)getglcore("glDepthMask");
-	qglDepthRangef		= (void *)getglcore("glDepthRangef");
+//	qglDepthRangef		= (void *)getglcore("glDepthRangef");
 	qglDisable			= (void *)getglcore("glDisable");
 	qglEnable			= (void *)getglcore("glEnable");
 	qglFinish			= (void *)getglcore("glFinish");
@@ -2743,7 +2754,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		qglColor4fv = GL_Color4fv_Emul;	//can be missing in gles1
 //	qglColor4ub			= (void *)getglcore("glColor4ub");
 //	qglColor4ubv		= (void *)getglcore("glColor4ubv");
-	qglDepthRange		= (void *)getglcore("glDepthRange");
+//	qglDepthRange		= (void *)getglcore("glDepthRange");
 	qglDrawBuffer		= (void *)getglcore("glDrawBuffer");
 	qglDrawPixels		= (void *)getglcore("glDrawPixels");
 	qglEnd				= (void *)getglcore("glEnd");
@@ -2846,7 +2857,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		qglLoadMatrixf = NULL;
 		qglPolygonMode = NULL;
 		qglShadeModel = NULL;
-		qglDepthRange = NULL;
+//		qglDepthRange = NULL;
 		qglDrawBuffer = NULL;
 
 		qglEnableClientState = GL_ClientStateStub;
@@ -2859,7 +2870,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		qglLoadMatrixf = NULL;
 		qglPolygonMode = NULL;
 		qglShadeModel = NULL;
-		qglDepthRange = NULL;
+//		qglDepthRange = NULL;
 		qglDrawBuffer = NULL;
 
 		qglEnableClientState = GL_ClientStateStub;

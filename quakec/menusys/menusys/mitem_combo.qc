@@ -54,6 +54,9 @@ void(vector pos) mitem_combo::item_draw =
 {
 	local float i, v;
 	local string curval = get(item_command);
+	vector rgb = item_rgb;
+	if (!(item_flags & IF_SELECTABLE))
+		rgb *= 0.2;
 	
 	if (cfriend)
 		cfriend.item_position = pos + [item_size_x / 2, item_size_y];
@@ -88,7 +91,7 @@ void(vector pos) mitem_combo::item_draw =
 	ui.setcliparea(pos[0], pos[1], item_size_x/2, item_size_y);
 	pos_y += (item_size_y - item_scale)*0.5;
 	pos_x += 1;
-	ui.drawstring(pos, curval, '1 1 0' * item_scale, item_rgb, item_alpha, 0);
+	ui.drawstring(pos, curval, '1 1 0' * item_scale, rgb, item_alpha, 0);
 	ui.setcliparea(ui.drawrectmin[0], ui.drawrectmin[1], ui.drawrectmax[0] - ui.drawrectmin[0], ui.drawrectmax[1] - ui.drawrectmin[1]);
 };
 void(mitem newfocus, float flag) mitem_combo::item_focuschange =
@@ -277,6 +280,7 @@ mitem_combo(string text, string command, vector sz, string valuelist) menuitemco
 	n.mstrlist = strzone(valuelist);
 
 	n.item_command = command;
-	n.item_flags |= IF_SELECTABLE;
+	if (n.isvalid(command))
+		n.item_flags |= IF_SELECTABLE;
 	return n;
 };

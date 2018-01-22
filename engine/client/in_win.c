@@ -339,7 +339,7 @@ INS_ShowMouse
 static void INS_ShowMouse (void)
 {
 	if (!mouseshowtoggle)
-	{
+	{	//FIXME: we should be sending this via the window thread.
 		ShowCursor (TRUE);
 		mouseshowtoggle = 1;
 	}
@@ -354,8 +354,12 @@ INS_HideMouse
 static void INS_HideMouse (void)
 {
 	if (mouseshowtoggle)
-	{
-		ShowCursor (FALSE);
+	{	//I'm told that nvidia's null-named 'Geforce Experience' (which is malware in my book) fucks with cursor visibility.
+		//So lets try to ensure that it gets hidden properly in case we've got race conditions and code getting injected into our process.
+		//in modern windows, this is per-thread, so blame code injection if this ever prints.
+		//FIXME: we should be sending this via the window thread.
+		while (ShowCursor (FALSE) >= 0)
+			Con_Printf(CON_WARNING "Force-hiding mouse cursor...\n");
 		mouseshowtoggle = 0;
 	}
 }

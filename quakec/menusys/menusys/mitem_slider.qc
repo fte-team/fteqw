@@ -12,6 +12,9 @@ class mitem_hslider : mitem
 void(vector pos) mitem_hslider::item_draw =
 {
 	local float curval;
+	vector rgb = self.item_rgb;
+	if (!(item_flags & IF_SELECTABLE))
+		rgb *= 0.2;
 
 	super::item_draw(pos);
 	pos_x += item_size_x / 2;
@@ -21,8 +24,11 @@ void(vector pos) mitem_hslider::item_draw =
 		//if we're sliding it, update the value
 		curval = (ui.mousepos[0] - pos_x-8) / (10*8);
 		curval = bound(0, curval, 1);
-		curval = curval * (item_slidercontrols_y - item_slidercontrols_x) + item_slidercontrols_x;
-		set(item_command, ftos(curval));
+		curval = curval * (item_slidercontrols_y - item_slidercontrols_x);
+		if (!ui.shiftheld)
+			curval = rint(curval / item_slidercontrols_z) * item_slidercontrols_z;	//round it.
+		curval += item_slidercontrols_x;
+		set(item_command, sprintf("%g", curval));
 	}
 	curval = stof(get(item_command));
 
@@ -30,22 +36,22 @@ void(vector pos) mitem_hslider::item_draw =
 	{	//no ^U markup support. chr2str avoids warnings about non-utf8 strings which at least allows bi-compat to work.
 		string s = strcat(chr2str(0xe080, 0xe081, 0xe081, 0xe081, 0xe081, 0xe081), chr2str(0xe081, 0xe081, 0xe081, 0xe081, 0xe081, 0xe082));
 		//slider background uses the fallback quake chars
-		ui.drawstring(pos, sprintf("%s (%g)", s, curval), '1 1 0' * self.item_scale, self.item_rgb, self.item_alpha, 0);
+		ui.drawstring(pos, sprintf("%s (%g)", s, curval), '1 1 0' * self.item_scale, rgb, self.item_alpha, 0);
 		//now draw an indicater char in the right place.
 		//the inner side of the boundary is 4 pixels wide so we can overlap the ends by that many pixels.
 		curval = (curval - self.item_slidercontrols_x) / (self.item_slidercontrols_y - self.item_slidercontrols_x);	//fractionize it
 		curval = bound(0, curval, 1);
-		ui.drawstring(pos + [4 + curval*10*8, 0], chr2str(0xe083), '1 1 0' * self.item_scale, self.item_rgb, self.item_alpha, 0);
+		ui.drawstring(pos + [4 + curval*10*8, 0], chr2str(0xe083), '1 1 0' * self.item_scale, rgb, self.item_alpha, 0);
 	}
 	else
 	{
 		//slider background uses the fallback quake chars
-		ui.drawstring(pos, sprintf("^{e080}^{e081}^{e081}^{e081}^{e081}^{e081}^{e081}^{e081}^{e081}^{e081}^{e081}^{e082} (%g)", curval), '1 1 0' * self.item_scale, self.item_rgb, self.item_alpha, 0);
+		ui.drawstring(pos, sprintf("^{e080}^{e081}^{e081}^{e081}^{e081}^{e081}^{e081}^{e081}^{e081}^{e081}^{e081}^{e082} (%g)", curval), '1 1 0' * self.item_scale, rgb, self.item_alpha, 0);
 		//now draw an indicater char in the right place.
 		//the inner side of the boundary is 4 pixels wide so we can overlap the ends by that many pixels.
 		curval = (curval - self.item_slidercontrols_x) / (self.item_slidercontrols_y - self.item_slidercontrols_x);	//fractionize it
 		curval = bound(0, curval, 1);
-		ui.drawstring(pos + [4 + curval*10*8, 0], "^{e083}", '1 1 0' * self.item_scale, self.item_rgb, self.item_alpha, 0);
+		ui.drawstring(pos + [4 + curval*10*8, 0], "^{e083}", '1 1 0' * self.item_scale, rgb, self.item_alpha, 0);
 	}
 };
 float(vector pos, float scan, float char, float down) mitem_hslider::item_keypress =
@@ -77,7 +83,7 @@ float(vector pos, float scan, float char, float down) mitem_hslider::item_keypre
 			if (curval < 0 || curval > 1)
 				return FALSE;
 			curval = curval * (item_slidercontrols_y - item_slidercontrols_x) + item_slidercontrols_x;
-			set(item_command, ftos(curval));
+			set(item_command, sprintf("%g", curval));
 			ui.mgrabs = this;
 		}
 		else if (scan == K_DEL && down && cvar_type(item_command))
@@ -85,16 +91,16 @@ float(vector pos, float scan, float char, float down) mitem_hslider::item_keypre
 		else if ((scan == K_LEFTARROW || scan == K_MWHEELUP) && down)
 		{
 			if (item_slidercontrols_x > item_slidercontrols_y)
-				set(item_command, ftos(min(curval - item_slidercontrols_z, item_slidercontrols_x)));
+				set(item_command, sprintf("%g", min(curval - item_slidercontrols_z, item_slidercontrols_x)));
 			else
-				set(item_command, ftos(max(curval - item_slidercontrols_z, item_slidercontrols_x)));
+				set(item_command, sprintf("%g", max(curval - item_slidercontrols_z, item_slidercontrols_x)));
 		}
 		else if ((scan == K_RIGHTARROW || scan == K_MWHEELDOWN) && down)
 		{
 			if (item_slidercontrols_x > item_slidercontrols_y)
-				set(item_command, ftos(max(curval + item_slidercontrols_z, item_slidercontrols_y)));
+				set(item_command, sprintf("%g", max(curval + item_slidercontrols_z, item_slidercontrols_y)));
 			else
-				set(item_command, ftos(min(curval + item_slidercontrols_z, item_slidercontrols_y)));
+				set(item_command, sprintf("%g", min(curval + item_slidercontrols_z, item_slidercontrols_y)));
 		}
 		else if ((scan == K_ENTER || scan == K_SPACE) && down)
 		{
@@ -102,16 +108,16 @@ float(vector pos, float scan, float char, float down) mitem_hslider::item_keypre
 			if (item_slidercontrols_x > item_slidercontrols_y)
 			{
 				if (curval-0.001 <= item_slidercontrols_y)
-					set(item_command, ftos(item_slidercontrols_x));
+					set(item_command, sprintf("%g", item_slidercontrols_x));
 				else
-					set(item_command, ftos(max(curval + item_slidercontrols_z, item_slidercontrols_y)));
+					set(item_command, sprintf("%g", max(curval + item_slidercontrols_z, item_slidercontrols_y)));
 			}
 			else
 			{
 				if (curval+0.001 >= item_slidercontrols_y)
-					set(item_command, ftos(item_slidercontrols_x));
+					set(item_command, sprintf("%g", item_slidercontrols_x));
 				else
-					set(item_command, ftos(min(curval + item_slidercontrols_z, item_slidercontrols_y)));
+					set(item_command, sprintf("%g", min(curval + item_slidercontrols_z, item_slidercontrols_y)));
 			}
 		}
 		else
@@ -132,6 +138,7 @@ mitem_hslider(string text, string command, vector controls, vector sz) menuitems
 	n.item_slidercontrols = controls;
 
 	n.item_command = command;
-	n.item_flags |= IF_SELECTABLE;
+	if (n.isvalid(command))
+		n.item_flags |= IF_SELECTABLE;
 	return n;
 };

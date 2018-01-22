@@ -116,6 +116,7 @@ typedef struct {
 	int	walljump;
 	qboolean slidefix;
 	qboolean airstep;
+	qboolean stepdown;
 	qboolean slidyslopes;
 	int stepheight;
 

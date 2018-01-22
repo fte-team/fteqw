@@ -100,7 +100,8 @@ typedef struct
 		DEFORMV_BULGE,
 		DEFORMV_AUTOSPRITE,
 		DEFORMV_AUTOSPRITE2,
-		DEFORMV_PROJECTION_SHADOW
+		DEFORMV_PROJECTION_SHADOW,
+		DEFORMV_TEXT
 	} type;
     float			args[4];
     shaderfunc_t	func;
@@ -538,10 +539,16 @@ typedef struct {
 enum
 {
 	LSHADER_STANDARD=0u,	//stencil or shadowless
-	LSHADER_CUBE=1u<<0,		//has a cubemap
-	LSHADER_SMAP=1u<<1,		//filter based upon 6 directions of a shadowmap
+	LSHADER_CUBE=1u<<0,		//has a cubemap filter (FIXME: use custom 2d filter on spot lights)
+	LSHADER_SMAP=1u<<1,		//filter based upon a shadowmap instead of stencil/unlit
 	LSHADER_SPOT=1u<<2,		//filter based upon a single spotlight shadowmap
+#ifdef LFLAG_ORTHO
+	LSHADER_ORTHO=1u<<3,	//uses a parallel projection(ortho) matrix, with the light source being an entire plane instead of a singular point. which is weird. read: infinitely far away sunlight
+	LSHADER_MODES=1u<<4
+#else
+	LSHADER_ORTHO=0,	//so bitmasks return false
 	LSHADER_MODES=1u<<3
+#endif
 };
 enum
 {
@@ -645,6 +652,16 @@ struct shader_s
 	} *clutter;
 
 	bucket_t bucket;
+
+	//arranged as a series of vec4s
+/*	struct
+	{
+		float offsetmappingscale;	//default 1
+		float offsetmappingbias;	//default 0
+		float specularexpscale;		//default 1*gl_specular_power
+		float specularvalscale;		//default 1*gl_specular
+	} fragpushdata;
+*/
 };
 
 extern unsigned int r_numshaders;
@@ -810,6 +827,12 @@ int GLBE_FBO_Push(fbostate_t *state);
 void GLBE_FBO_Pop(int oldfbo);
 void GLBE_FBO_Destroy(fbostate_t *state);
 int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, int colourbuffers, texid_t destdepth, int width, int height, int layer);
+
+qboolean GLBE_BeginShadowMap(int id, int w, int h, int *restorefbo);
+void GLBE_EndShadowMap(int restorefbo);
+void GLBE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float shadowscale);
+
+
 #endif
 #ifdef D3D8QUAKE
 void D3D8BE_Init(void);
@@ -888,6 +911,10 @@ void D3D11BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *e
 void D3D11BE_VBO_Destroy(vboarray_t *vearray, void *mem);
 void D3D11BE_Scissor(srect_t *rect);
 
+qboolean D3D11_BeginShadowMap(int id, int w, int h);
+void D3D11_EndShadowMap(void);
+void D3D11BE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float shadowscale);
+
 enum
 {	//these are the buffer indexes
 	D3D11_BUFF_POS,
@@ -912,8 +939,6 @@ void GLBE_PolyOffsetStencilShadow(qboolean foobar);
 #else
 void GLBE_PolyOffsetStencilShadow(void);
 #endif
-//sets up gl for depth-only FIXME
-int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale);
 //Called from shadowmapping code into backend
 void GLBE_BaseEntTextures(void);
 void D3D9BE_BaseEntTextures(void);

@@ -70,7 +70,7 @@ void Mod_FlushSkin(skinid_t id)
 		return;
 	sk->qwskin = NULL;
 }
-void Mod_WipeSkin(skinid_t id)
+void Mod_WipeSkin(skinid_t id, qboolean force)
 {
 	//FIXME: skin objects should persist for a frame.
 	skinfile_t *sk;
@@ -81,6 +81,8 @@ void Mod_WipeSkin(skinid_t id)
 	sk = registeredskins[id];
 	if (!sk)
 		return;
+	if (!force && --sk->refcount > 0)
+		return; //still in use.
 
 	for (i = 0; i < sk->nummappings; i++)
 	{
@@ -100,7 +102,7 @@ static void Mod_WipeAllSkins(qboolean final)
 	if (final)
 	{
 		for (id = 0; id < numregisteredskins; )
-			Mod_WipeSkin(++id);
+			Mod_WipeSkin(++id, true);
 		Z_Free(registeredskins);
 		registeredskins = NULL;
 		numregisteredskins = 0;
@@ -263,6 +265,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 	}
 
 	skin = Z_Malloc(sizeof(*skin) - sizeof(skin->mappings) + sizeof(skin->mappings[0])*4);
+	skin->refcount++;
 	skin->maxmappings = 4;
 	Q_strncpyz(skin->skinname, skinname, sizeof(skin->skinname));
 	skin->q1lower = Q1UNSPECIFIED;
@@ -418,7 +421,10 @@ skinid_t Mod_RegisterSkinFile(const char *skinname)
 		if (!registeredskins[id])
 			continue;
 		if (!strcmp(skinname, registeredskins[id]->skinname))
+		{
+			registeredskins[id]->refcount++;
 			return id+1;
+		}
 	}
 	f = FS_LoadMallocFile(skinname, NULL);
 	if (!f)

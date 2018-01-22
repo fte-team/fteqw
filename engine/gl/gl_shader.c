@@ -48,8 +48,9 @@ extern cvar_t r_fastturb, r_fastsky, r_skyboxname;
 extern cvar_t r_drawflat;
 extern cvar_t r_shaderblobs;
 extern cvar_t r_tessellation;
+extern cvar_t gl_compress;
 
-//backend fills this in to say the max pass count
+//backend fills this in to say the max fixed-function pass count (often 1, where its emulated by us, because we're too lazy).
 int be_maxpasses;
 
 
@@ -898,6 +899,11 @@ static void Shader_DeformVertexes ( shader_t *shader, shaderpass_t *pass, char *
 	}
 	else if ( !Q_stricmp (token, "projectionShadow") )
 		deformv->type = DEFORMV_PROJECTION_SHADOW;
+	else if ( !Q_strnicmp (token, "text", 4) )
+	{
+		deformv->type = DEFORMV_TEXT;
+		deformv->args[0] = atoi(token+4);
+	}
 	else
 		return;
 
@@ -2535,14 +2541,17 @@ static void Shader_BEMode(shader_t *shader, shaderpass_t *pass, char **ptr)
 		//shorthand for rtlights
 		for (mode = 0; mode < LSHADER_MODES; mode++)
 		{
-			if ((mode & LSHADER_CUBE) && (mode & LSHADER_SPOT))
-				continue;
-			Q_snprintfz(subname, sizeof(subname), "%s%s%s%s%s", tokencopy,
+			if ((mode & LSHADER_CUBE) && (mode & (LSHADER_SPOT|LSHADER_ORTHO)))
+				continue;	//cube projections don't make sense when the light isn't projecting a cube
+			if ((mode & LSHADER_ORTHO) && (mode & LSHADER_SPOT))
+				continue;	//ortho+spot are mutually exclusive.
+			Q_snprintfz(subname, sizeof(subname), "%s%s%s%s%s%s", tokencopy,
 																(mode & LSHADER_SMAP)?"#PCF":"",
 																(mode & LSHADER_SPOT)?"#SPOT":"",
 																(mode & LSHADER_CUBE)?"#CUBE":"",
+																(mode & LSHADER_ORTHO)?"#ORTHO":"",
 #ifdef GLQUAKE
-																(qrenderer == QR_OPENGL && gl_config.arb_shadow && (mode & (LSHADER_SMAP|LSHADER_SPOT)))?"#USE_ARB_SHADOW":""
+																(qrenderer == QR_OPENGL && gl_config.arb_shadow && (mode & LSHADER_SMAP))?"#USE_ARB_SHADOW":""
 #else
 																""
 #endif
@@ -2620,6 +2629,21 @@ static shaderkey_t shaderkeys[] =
 	{"noshadows",			NULL,						"doom3"},
 	{"nooverlays",			NULL,						"doom3"},
 	{"nofragment",			NULL,						"doom3"},
+
+	/*RTCW vompat*/
+	{"nocompress",			NULL,						"rtcw"},
+	{"allowcompress",		NULL,						"rtcw"},
+	{"nofog",				NULL,						"rtcw"},
+	{"skyfogvars",			NULL,						"rtcw"},
+	{"sunshader",			NULL,						"rtcw"},
+	{"sun",					NULL,						"q3map2"},	//provides rgb and dir
+	{"sunExt",				NULL,						"q3map2"},	//treated as an alias
+	{"fogParms",			NULL,						"rtcw"},	//sets a cvar. *shudder*
+	{"fogvars",				NULL,						"rtcw"},	//sets a cvar. *shudder*
+	{"waterfogvars",		NULL,						"rtcw"},	//sets a cvar. *shudder*
+	{"light",				NULL,						"rtcw"},	//for q3map2, not us
+	{"lightgridmulamb",		NULL,						"rtcw"},	//urm
+	{"lightgridmuldir",		NULL,						"rtcw"},	//not really sure how this is useful to us
 
 	/*qfusion / warsow compat*/
 //	{"skyparms2",			NULL,						"qf"},	//skyparms without the underscore.
@@ -2979,6 +3003,37 @@ static void Shaderpass_VideoMap (shader_t *shader, shaderpass_t *pass, char **pt
 		pass->rgbgen_func.args[0] = pass->rgbgen_func.args[1] = pass->rgbgen_func.args[2] = 0;
 	}
 #endif
+}
+
+static void Shaderpass_RTCW_Map_16bit (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	if (!gl_load24bit.ival)	//urm, not sure if suitable choice of cvar
+		Shaderpass_Map(shader, pass, ptr);
+}
+static void Shaderpass_RTCW_Map_32bit (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	if (gl_load24bit.ival)
+		Shaderpass_Map(shader, pass, ptr);
+}
+static void Shaderpass_RTCW_Map_s3tc (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	if (sh_config.texfmt[PTI_BC3_RGBA] && gl_compress.ival)
+		Shaderpass_Map(shader, pass, ptr);
+}
+static void Shaderpass_RTCW_Map_nos3tc (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	if (!(sh_config.texfmt[PTI_BC3_RGBA] && gl_compress.ival))
+		Shaderpass_Map(shader, pass, ptr);
+}
+static void Shaderpass_RTCW_AnimMap_s3tc (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	if ((sh_config.texfmt[PTI_BC3_RGBA] && gl_compress.ival))
+		Shaderpass_AnimMap(shader, pass, ptr);
+}
+static void Shaderpass_RTCW_AnimMap_nos3tc (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	if (!(sh_config.texfmt[PTI_BC3_RGBA] && gl_compress.ival))
+		Shaderpass_AnimMap(shader, pass, ptr);
 }
 
 static void Shaderpass_SLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr, int qrtype)
@@ -3348,8 +3403,11 @@ static void Shaderpass_TcMod (shader_t *shader, shaderpass_t *pass, char **ptr)
 			tcmod->args[i] = Shader_ParseFloat (shader, ptr, 0);
 		tcmod->type = SHADER_TCMOD_PAGE;
 	}
+//	else if (!Q_stricmp (token, "entityTranslate"))	//RTCW
+//	else if (!Q_stricmp (token, "swap"))			//RTCW
 	else
 	{
+		Con_DPrintf("Unknown tcmod %s in %s\n", token, shader->name);
 		return;
 	}
 
@@ -3441,6 +3499,8 @@ static void Shaderpass_TcGen ( shader_t *shader, shaderpass_t *pass, char **ptr 
 		pass->tcgen = TC_GEN_LIGHTMAP;
 	} else if ( !Q_stricmp (token, "environment") ) {
 		pass->tcgen = TC_GEN_ENVIRONMENT;
+	} else if ( !Q_stricmp (token, "fireriseenv") ) {	//from RTCW
+		pass->tcgen = TC_GEN_ENVIRONMENT;	//FIXME: not supported
 	} else if ( !Q_stricmp (token, "vector") )
 	{
 		pass->tcgen = TC_GEN_VECTOR;
@@ -3607,6 +3667,17 @@ static shaderkey_t shaderpasskeys[] =
 	{"blue",		Shaderpass_Blue,			"doom3"},
 	{"alpha",		Shaderpass_Alpha,			"doom3"},
 
+
+	//RTCW
+	//fancy map lines use the map if that mode is active.
+	//FIXME: actually check these to ensure there's no issues with any shaders overriding the pass's previously specified map
+	//      (hopefully no shaders would actually do that due to the engine loading both textures, which would be wasteful)
+	{"map16",		Shaderpass_RTCW_Map_16bit,		"rtcw"},
+	{"map32",		Shaderpass_RTCW_Map_32bit,		"rtcw"},
+	{"mapcomp",		Shaderpass_RTCW_Map_s3tc,		"rtcw"},
+	{"mapnocomp",	Shaderpass_RTCW_Map_nos3tc,		"rtcw"},
+	{"animcompmap",	Shaderpass_RTCW_AnimMap_s3tc,	"rtcw"},
+	{"animnocompmap",Shaderpass_RTCW_AnimMap_nos3tc,"rtcw"},
 
 	//qfusion/warsow compat
 	{"material",	Shaderpass_QF_Material,		"qf"},
@@ -3980,8 +4051,9 @@ void Shader_Shutdown (void)
 	shader_reload_needed = false;
 }
 
-void Shader_SetBlendmode (shaderpass_t *pass)
+void Shader_SetBlendmode (shaderpass_t *pass, shaderpass_t *lastpass)
 {
+	qboolean lightmapoverbright;
 	if (pass->texgen == T_GEN_DELUXMAP)
 	{
 		pass->blendmode = PBM_DOTPRODUCT;
@@ -3996,7 +4068,7 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 
 	if (!(pass->shaderbits & SBITS_BLEND_BITS))
 	{
-		if (pass->texgen == T_GEN_LIGHTMAP)
+		if (pass->texgen == T_GEN_LIGHTMAP && lastpass)
 			pass->blendmode = PBM_OVERBRIGHT;
 		else if ((pass->rgbgen == RGB_GEN_IDENTITY) && (pass->alphagen == ALPHA_GEN_IDENTITY))
 		{
@@ -4020,15 +4092,18 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 		return;
 	}
 
+	lightmapoverbright = pass->texgen == T_GEN_LIGHTMAP || (lastpass && lastpass->texgen == T_GEN_LIGHTMAP && lastpass->blendmode != PBM_OVERBRIGHT);
+
 	if (((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ZERO|SBITS_DSTBLEND_SRC_COLOR)) ||
-		((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_DST_COLOR|SBITS_DSTBLEND_ZERO)))
-		pass->blendmode = (pass->texgen == T_GEN_LIGHTMAP)?PBM_OVERBRIGHT:PBM_MODULATE;
+		((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_DST_COLOR|SBITS_DSTBLEND_ZERO)) ||
+		((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_DST_COLOR|SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA)))
+		pass->blendmode = lightmapoverbright?PBM_OVERBRIGHT:PBM_MODULATE;
 	else if ((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ONE))
 		pass->blendmode = PBM_ADD;
 	else if ((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_SRC_ALPHA|SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA))
 		pass->blendmode = PBM_DECAL;
 	else
-		pass->blendmode = (pass->texgen == T_GEN_LIGHTMAP)?PBM_OVERBRIGHT:PBM_MODULATE;
+		pass->blendmode = lightmapoverbright?PBM_OVERBRIGHT:PBM_MODULATE;
 }
 
 void Shader_FixupProgPasses(shader_t *shader, shaderpass_t *pass)
@@ -4486,10 +4561,12 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 		{
 			pass->numMergedPasses++;
 		}
-		else if ((pass->blendmode == PBM_MODULATE || pass->blendmode == PBM_OVERBRIGHT) && pass2->blendmode == PBM_MODULATE)
+		else if ((pass->blendmode == PBM_MODULATE || pass->blendmode == PBM_OVERBRIGHT) && (pass2->blendmode == PBM_MODULATE || pass2->blendmode == PBM_OVERBRIGHT))
 		{
 			pass->numMergedPasses++;
 		}
+		else if (pass->blendmode == PBM_DECAL && pass2->blendmode == PBM_OVERBRIGHT)
+			pass->numMergedPasses++;	//HACK: allow modulating overbright passes with decal passes. overbright passes need to blend with something for their lighting to be correct, so this is a tradeoff.
 		else
 			return;
 	}
@@ -4751,7 +4828,7 @@ void Shader_Finish (shader_t *s)
 		pass->rgbgen = RGB_GEN_IDENTITY;
 		pass->alphagen = ALPHA_GEN_IDENTITY;
 		pass->numMergedPasses = 1;
-		Shader_SetBlendmode(pass);
+		Shader_SetBlendmode(pass, NULL);
 	}
 
 	if (!s->numpasses && s->sort != SHADER_SORT_PORTAL && !(s->flags & (SHADER_NODRAW|SHADER_SKY)) && !s->fog_dist)
@@ -4776,7 +4853,7 @@ void Shader_Finish (shader_t *s)
 		pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
 		pass->alphagen = ALPHA_GEN_IDENTITY;
 		pass->numMergedPasses = 1;
-		Shader_SetBlendmode(pass);
+		Shader_SetBlendmode(pass, NULL);
 	}
 
 	if (!Q_stricmp (s->name, "flareShader"))
@@ -4959,15 +5036,22 @@ done:;
 	// all passes have blendfuncs
 	if (i == s->numpasses)
 	{
-		int opaque;
+		int maskpass;
+		qboolean isopaque = false;
 
-		opaque = -1;
+		maskpass = -1;
 		pass = s->passes;
 		for (i = 0; i < s->numpasses; i++, pass++ )
 		{
 			if (pass->shaderbits & SBITS_ATEST_BITS)
 			{
-				opaque = i;
+				maskpass = i;
+			}
+			else if ((pass->shaderbits & SBITS_MASK_BITS) == 0)
+			{	//a few shaders use blendfunc one zero so that they're ignored when using r_vertexlight (while later alpha-masked surfs are not).
+				if (/*(pass->shaderbits & (SBITS_SRCBLEND_BITS|SBITS_DSTBLEND_BITS)) == 0 ||*/
+					(pass->shaderbits & (SBITS_SRCBLEND_BITS|SBITS_DSTBLEND_BITS)) == (SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ZERO))
+					isopaque = true;
 			}
 
 			if (pass->rgbgen == RGB_GEN_UNKNOWN)
@@ -4980,7 +5064,7 @@ done:;
 					pass->rgbgen = RGB_GEN_IDENTITY;
 			}
 
-			Shader_SetBlendmode (pass);
+			Shader_SetBlendmode (pass, i?pass-1:NULL);
 
 			if (pass->blendmode == PBM_ADD)
 				s->defaulttextures->fullbright = pass->anim_frames[0];
@@ -4988,8 +5072,15 @@ done:;
 
 		if (!(s->flags & SHADER_SKY ) && !s->sort)
 		{
-			if (opaque == -1)
-				s->sort = SHADER_SORT_BLEND;
+			if (isopaque)
+				s->sort = SHADER_SORT_OPAQUE;
+			else if (maskpass == -1)
+			{
+				if (s->numpasses && s->passes[0].blendmode == PBM_ADD)
+					s->sort = SHADER_SORT_ADDITIVE;
+				else
+					s->sort = SHADER_SORT_BLEND;
+			}
 			else
 				s->sort = SHADER_SORT_SEETHROUGH;
 		}
@@ -5010,7 +5101,7 @@ done:;
 					sp->rgbgen = RGB_GEN_IDENTITY;
 			}
 
-			Shader_SetBlendmode (sp);
+			Shader_SetBlendmode (sp, j?sp-1:NULL);
 		}
 
 		if (!s->sort)
@@ -5038,7 +5129,7 @@ done:;
 				break;
 
 			pass = s->passes + i;
-			for (j = i + pass->numMergedPasses; j < s->numpasses-i && j == i + pass->numMergedPasses && j < be_maxpasses; j++)
+			for (j = 1; j < s->numpasses-i && j == pass->numMergedPasses && j+1 < be_maxpasses; j++)
 				Shader_SetPassFlush (pass, pass + j);
 
 			i += pass->numMergedPasses;
@@ -6273,7 +6364,7 @@ void Shader_DefaultBSPFlare(const char *shortname, shader_t *s, const void *args
 	pass->numtcmods = 0;
 	pass->tcgen = TC_GEN_BASE;
 	pass->numMergedPasses = 1;
-	Shader_SetBlendmode(pass);
+	Shader_SetBlendmode(pass, NULL);
 
 	if (!TEXVALID(pass->anim_frames[0]))
 	{

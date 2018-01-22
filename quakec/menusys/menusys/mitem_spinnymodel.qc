@@ -32,21 +32,23 @@ probably others. it really wouldn't surprise me.
 //helper function to work around a DP bug.
 static vector(vector v) vtodpp =
 {
+#ifndef CSQC_SIMPLE
 	//so fucking disgustingly ugly.
 	if (dp_workarounds)
 	{
 		v_x *= cvar("vid_width") / cvar("vid_conwidth");
 		v_y *= cvar("vid_height") / cvar("vid_conheight");
 	}
+#endif
 	return v;
 };
 //make sure the fields are all defined if we're in menuqc or something
-.vector origin;
-.vector angles;
-.vector mins;
-.vector maxs;
-.string model;
-.float frame, frame2, lerpfrac, renderflags;
+noref .vector origin;
+noref .vector angles;
+noref .vector mins;
+noref .vector maxs;
+noref .string model;
+noref .float frame, frame2, lerpfrac, renderflags;
 float frametime;
 class mitem_spinnymodel : mitem
 {
@@ -55,6 +57,10 @@ class mitem_spinnymodel : mitem
 	float framecount;
 	float shootframe;
 	float shootframes;
+	
+#ifndef EXT_CSQC
+	virtual void(vector pos) item_draw = {};
+#else
 
 	//might as well use the class as the entity that is drawn.
 	//it might end up clobbering any fields used for multiple things...
@@ -124,7 +130,7 @@ class mitem_spinnymodel : mitem
 
 	void() mitem_spinnymodel =
 	{
-#ifdef MENU
+#if defined(MENU) || defined(CSQC_SIMPLE)
 		if (!checkextension("DP_QC_RENDER_SCENE") || dp_workarounds)
 		{
 			item_draw = dp_draw;
@@ -136,4 +142,6 @@ class mitem_spinnymodel : mitem
 		zbias += (mins_z - maxs_z)/2 - mins_z; //center the model on its z axis, so the whole thing is visible.
 		frame = firstframe;
 	};
+#endif
 };
+

@@ -2499,6 +2499,10 @@ void PR_CleanUpStatements32(progfuncs_t *progfuncs, dstatement32_t *st, pbool he
 }
 
 char *decode(int complen, int len, int method, char *info, char *buffer);
+unsigned char *PR_GetHeapBuffer (void *ctx, size_t bufsize)
+{
+	return PRHunkAlloc(ctx, bufsize+1, "proginfo");
+}
 /*
 ===============
 PR_LoadProgs
@@ -2509,7 +2513,7 @@ int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_
 	unsigned int		i, j, type;
 //	extensionbuiltin_t *eb;
 //	float	fl;
-	int len;
+//	int len;
 //	int num;
 //	dfunction_t *f, *f2;
 	ddef16_t *d16;
@@ -2528,6 +2532,7 @@ int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_
 	mfunction_t *fnc2;
 	dstatement16_t *st16;
 	size_t fsz;
+	int len;
 
 	int hmark=0xffffffff;
 
@@ -2558,7 +2563,9 @@ int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_
 //	CRC_Init (&pr_crc);
 
 retry:
-	if ((len=externs->FileSize(filename))<=0)
+	hmark = PRHunkMark(progfuncs);
+	pr_progs = externs->ReadFile(filename, PR_GetHeapBuffer, progfuncs, &fsz);
+	if (!pr_progs)
 	{
 		if (externs->autocompile == PR_COMPILENEXIST || externs->autocompile == PR_COMPILECHANGED)	//compile if file is not found (if 2, we have already tried, so don't bother)
 		{
@@ -2567,7 +2574,8 @@ retry:
 				printf("couldn't open progs %s. Attempting to compile.\n", filename);
 				CompileFile(progfuncs, filename);
 			}
-			if ((len=externs->FileSize(filename))<0)
+			pr_progs = externs->ReadFile(filename, PR_GetHeapBuffer, progfuncs, &fsz);
+			if (!pr_progs)
 			{
 				printf("Couldn't find or compile file %s\n", filename);
 				return false;
@@ -2580,16 +2588,6 @@ retry:
 			printf("Couldn't find file %s\n", filename);
 			return false;
 		}
-	}
-
-	hmark = PRHunkMark(progfuncs);
-	pr_progs = PRHunkAlloc(progfuncs, len+1, "proginfo");
-	if (!externs->ReadFile(filename, pr_progs, len+1, &fsz))
-	{
-		if (!complain)
-			return false;
-		printf("Failed to open %s", filename);
-		return false;
 	}
 
 //	for (i=0 ; i<len ; i++)
@@ -2823,24 +2821,21 @@ retry:
 		strcpy(lnoname, filename);
 		StripExtension(lnoname);
 		strcat(lnoname, ".lno");
-		if ((len=externs->FileSize(lnoname))>0)
+		file = externs->ReadFile(lnoname, PR_GetHeapBuffer, progfuncs, &fsz);
+		if (file)
 		{
-			file = PRHunkAlloc(progfuncs, len+1, "line numbers");
-			if (externs->ReadFile(lnoname, file, len+1, &fsz))
+			if (	file[0] != lnotype
+				||	file[1] != version
+				||	file[2] != pr_progs->numglobaldefs
+				||	file[3] != pr_progs->numglobals
+				||	file[4] != pr_progs->numfielddefs
+				||	file[5] != pr_progs->numstatements
+				)
 			{
-				if (	file[0] != lnotype
-					||	file[1] != version
-					||	file[2] != pr_progs->numglobaldefs
-					||	file[3] != pr_progs->numglobals
-					||	file[4] != pr_progs->numfielddefs
-					||	file[5] != pr_progs->numstatements
-					)
-				{
-					PRHunkFree(progfuncs, ohm);	//whoops: old progs or incompatible
-				}
-				else
-					pr_linenums = file + 6;
+				PRHunkFree(progfuncs, ohm);	//whoops: old progs or incompatible
 			}
+			else
+				pr_linenums = file + 6;
 		}
 	}
 
@@ -3171,7 +3166,7 @@ retry:
 					case OP_ADDRESS:
 						if (st[i+1].op == OP_STOREP_V && st[i+1].b == st[i].c)
 						{	//following stores a vector to this field.
-							if (st[i].b+2 < pr_progs->numglobals)
+							if (st[i].b+2u < pr_progs->numglobals)
 							{	//vectors are usually 3 fields. if they're not then we're screwed.
 								basictypetable[st[i].b+0] = ev_field;
 								basictypetable[st[i].b+1] = ev_field;
@@ -3191,7 +3186,7 @@ retry:
 							basictypetable[st[i].b] = ev_field;
 						break;
 					case OP_LOAD_V:
-						if (st[i].b+2 < pr_progs->numglobals)
+						if (st[i].b+2u < pr_progs->numglobals)
 						{	//vectors are usually 3 fields. if they're not then we're screwed.
 							basictypetable[st[i].b+0] = ev_field;
 							basictypetable[st[i].b+1] = ev_field;

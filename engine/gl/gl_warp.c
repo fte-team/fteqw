@@ -168,7 +168,7 @@ qboolean R_DrawSkyChain (batch_t *batch)
 	}
 	else if (skyshader->numpasses)
 	{	//if we have passes, then they're normally projected.
-		if (*r_fastsky.string && TEXVALID(batch->shader->defaulttextures->base) && TEXVALID(batch->shader->defaulttextures->fullbright))
+		if (*r_fastsky.string && skyshader->numpasses == 2 && TEXVALID(batch->shader->defaulttextures->base) && TEXVALID(batch->shader->defaulttextures->fullbright))
 		{	//we have a small perf trick to accelerate q1 skies, also helps avoids distortions, but doesn't work too well for any other type of sky.
 			R_CalcSkyChainBounds(batch);
 			GL_DrawSkyGrid(skyshader->defaulttextures);

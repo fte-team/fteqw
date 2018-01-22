@@ -894,6 +894,9 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 	int			i;
 	int			count;
 
+	if (cl->controller)
+		cl = cl->controller;
+
 	if (!cl->frameunion.frames)
 		return 0;
 
@@ -5043,6 +5046,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	pm_ktjump;
 	extern	cvar_t	pm_slidefix;
 	extern	cvar_t	pm_airstep;
+	extern	cvar_t	pm_stepdown;
 	extern	cvar_t	pm_walljump;
 	extern	cvar_t	pm_slidyslopes;
 	extern	cvar_t	pm_watersinkspeed;
@@ -5102,6 +5106,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&pm_slidefix,			cvargroup_serverphysics);
 	Cvar_Register (&pm_slidyslopes,			cvargroup_serverphysics);
 	Cvar_Register (&pm_airstep,				cvargroup_serverphysics);
+	Cvar_Register (&pm_stepdown,			cvargroup_serverphysics);
 	Cvar_Register (&pm_walljump,			cvargroup_serverphysics);
 
 	Cvar_Register (&sv_compatiblehulls,		cvargroup_serverphysics);

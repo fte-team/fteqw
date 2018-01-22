@@ -62,6 +62,18 @@ static const char **resaspects[ASPECT_RATIOS] =
 	res16x10
 };
 #define ASPECT_LIST "4:3", "5:4", "16:9", "16:10",
+enum
+{
+	ASPECT3D_DESKTOP = ASPECT_RATIOS,
+	ASPECT3D_CUSTOM,
+};
+enum
+{
+	ASPECT2D_AUTO = ASPECT_RATIOS,
+	ASPECT2D_HEIGHT,
+	ASPECT2D_SCALED,
+	ASPECT2D_CUSTOM,
+};
 
 qboolean M_Vid_GetMode(int num, int *w, int *h)
 {
@@ -979,6 +991,22 @@ void FPS_Preset_f (void)
 		char buffer[MAX_OSPATH];
 		COM_QuotedString(presetfname, buffer, sizeof(buffer), false);
 		Cbuf_InsertText(va("\nexec %s\nfs_restart\n", buffer), RESTRICT_LOCAL, false);
+		return;
+	}
+
+	if (!stricmp("tenebrae", arg))
+	{	//for the luls. combine with the tenebrae mod for maximum effect.
+		Cbuf_InsertText(
+			"set r_shadow_realtime_world 1\n"
+			"set r_shadow_realtime_dlight 1\n"
+			"set r_shadow_bumpscale_basetexture 4\n"
+			"set r_shadow_shadowmapping 0\n"
+			"set gl_specular 1\n"
+			"set gl_specular_power 16\n"
+			"set gl_specular_fallback 1\n"
+			"set mod_litsprites_force 1\n"
+			"set r_nolerp 1\n"	//well, that matches tenebrae. for the luls, right?
+			, RESTRICT_LOCAL, false);
 		return;
 	}
 
@@ -2347,19 +2375,19 @@ void CheckCustomMode(struct menu_s *menu)
 	{
 		info->resmode->common.ishidden = false;
 		sel = info->resmode->selectedoption;
-		if (sel < ASPECT_RATIOS)
-		{
-			// unhide appropriate aspect ratio combo and restricted bpp/hz combos
-			info->bppfixed->common.ishidden = false;
-			info->hzfixed->common.ishidden = false;
-			info->ressize[sel]->common.ishidden = false;
-		}
-		else if (sel == (ASPECT_RATIOS + 1))
+		if (sel == ASPECT3D_CUSTOM)
 		{ // unhide custom entries for custom option
 			info->width->common.ishidden = false;
 			info->height->common.ishidden = false;
 			info->bpp->common.ishidden = false;
 			info->hz->common.ishidden = false;
+		}
+		else if (sel != ASPECT3D_DESKTOP)
+		{
+			// unhide appropriate aspect ratio combo and restricted bpp/hz combos
+			info->bppfixed->common.ishidden = false;
+			info->hzfixed->common.ishidden = false;
+			info->ressize[sel]->common.ishidden = false;
 		}
 	}
 	// hide all 2d display controls
@@ -2369,15 +2397,17 @@ void CheckCustomMode(struct menu_s *menu)
 	for (i = 0; i < ASPECT_RATIOS; i++)
 		info->res2dsize[i]->common.ishidden = true;
 	sel = info->res2dmode->selectedoption;
-	if (sel < ASPECT_RATIOS) // unhide appropriate aspect ratio combo
-		info->res2dsize[sel]->common.ishidden = false;
-	else if (sel == (ASPECT_RATIOS + 1)) // unhide scale option
+	if (sel == ASPECT2D_SCALED) // unhide scale option
 		info->scale->common.ishidden = false;
-	else if (sel == (ASPECT_RATIOS + 2)) // unhide custom entries for custom option
+	else if (sel == ASPECT2D_HEIGHT) // unhide custom entries for height-only option
+		info->height2d->common.ishidden = false;
+	else if (sel == ASPECT2D_CUSTOM) // unhide custom entries for custom option
 	{
 		info->width2d->common.ishidden = false;
 		info->height2d->common.ishidden = false;
 	}
+	else if (sel != ASPECT2D_AUTO) // unhide appropriate aspect ratio combo
+		info->res2dsize[sel]->common.ishidden = false;
 }
 
 int M_MatchModes(int width, int height, int *outres)
@@ -2438,10 +2468,10 @@ qboolean M_VideoApply (union menuoption_s *op, struct menu_s *menu, int key)
 
 		switch (info->resmode->selectedoption)
 		{
-		case ASPECT_RATIOS: // Desktop
+		case ASPECT3D_DESKTOP: // Desktop
 			dc = "1";
 			break;
-		case ASPECT_RATIOS + 1: // Custom
+		case ASPECT3D_CUSTOM: // Custom
 			wc = info->width->text;
 			hc = info->height->text;
 			bc = info->bpp->text;
@@ -2485,10 +2515,14 @@ qboolean M_VideoApply (union menuoption_s *op, struct menu_s *menu, int key)
 		{
 		case ASPECT_RATIOS: // Default
 			break;
-		case ASPECT_RATIOS + 1: // Scale
+		case ASPECT2D_SCALED: // Scale
 			sc = info->scale->values[info->scale->selectedoption];
 			break;
-		case ASPECT_RATIOS + 2: // Custom
+		case ASPECT2D_HEIGHT:
+			wc = "0";
+			hc = info->height2d->text;
+			break;
+		case ASPECT2D_CUSTOM: // Custom
 			wc = info->width2d->text;
 			hc = info->height2d->text;
 			break;
@@ -2660,6 +2694,7 @@ void M_Menu_Video_f (void)
 	static const char *res2dmodeopts[] = {
 		ASPECT_LIST
 		"Default",
+		"Square (by height)",
 		"Scale",
 		"Custom",
 		NULL
@@ -2702,16 +2737,18 @@ void M_Menu_Video_f (void)
 	snprintf(current3dres, sizeof(current3dres), "Current: %ix%i", vid.pixelwidth, vid.pixelheight);
 	resmodechoice = M_MatchModes(vid.pixelwidth, vid.pixelheight, reschoices);
 	if (vid_desktopsettings.ival)
-		resmodechoice = ASPECT_RATIOS;
+		resmodechoice = ASPECT3D_DESKTOP;
 	else if (resmodechoice < 0)
-		resmodechoice = ASPECT_RATIOS + 1;
+		resmodechoice = ASPECT3D_CUSTOM;
 	res2dmodechoice = M_MatchModes(vid.pixelwidth, vid.pixelheight, res2dchoices);
-	if (vid_conautoscale.ival >= 1)
-		res2dmodechoice = ASPECT_RATIOS + 1;
+	if (vid_conautoscale.value > 0)
+		res2dmodechoice = ASPECT2D_SCALED;
 	else if (!vid_conwidth.ival && !vid_conheight.ival)
-		res2dmodechoice = ASPECT_RATIOS;
+		res2dmodechoice = ASPECT2D_AUTO;
+	else if (!vid_conwidth.ival)
+		res2dmodechoice = ASPECT2D_HEIGHT;
 	else if (res2dmodechoice < 0)
-		res2dmodechoice = ASPECT_RATIOS + 2;
+		res2dmodechoice = ASPECT2D_CUSTOM;
 
 	{
 		menubulk_t bulk[] =

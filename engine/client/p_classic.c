@@ -59,6 +59,9 @@ typedef enum {
 	EXPLOSION2_POINT,
 	TELEPORTSPLASH_POINT,
 	MUZZLEFLASH_POINT,
+	QWGUNSHOT_POINT,	//not actually the same as nq, to deal with higher counts better
+	QWSTDBLOOD_POINT,	//same
+	QWLGBLOOD_POINT,	//same
 
 	EFFECTTYPE_MAX
 } effect_type_t;
@@ -159,6 +162,13 @@ static int PClassic_FindParticleType(const char *name)
 		return MUZZLEFLASH_POINT;
 	if (!stricmp("ef_brightfield", name))
 		return BRIGHTFIELD_POINT;
+
+	if (!stricmp("te_qwgunshot", name))
+		return QWGUNSHOT_POINT;
+	if (!stricmp("te_qwblood", name))
+		return QWSTDBLOOD_POINT;
+	if (!stricmp("te_lightningblood", name))
+		return QWLGBLOOD_POINT;
 
 	return P_INVALID;
 }
@@ -716,7 +726,7 @@ static void Classic_BlobExplosion (vec3_t org)
 	}
 }
 
-static void Classic_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count)
+static void Classic_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count, qboolean qwstyle)
 {
 	int i, j, scale;
 	cparticle_t *p;
@@ -724,7 +734,10 @@ static void Classic_RunParticleEffect (vec3_t org, vec3_t dir, int color, int co
 	if (!dir)
 		dir = vec3_origin;
 
-	scale = (count > 130) ? 3 : (count > 20) ? 2  : 1;
+	if (qwstyle)
+		scale = (count > 130) ? 3 : (count > 20) ? 2  : 1;	//QW
+	else
+		scale = 1;	//NQ
 
 	count = ceil(count*r_part_density.value);	//round-to-0 was resulting in blood being far too hard to see, especially when blood is often spawned with multiple points all rounded down
 
@@ -739,7 +752,10 @@ static void Classic_RunParticleEffect (vec3_t org, vec3_t dir, int color, int co
 
 		p->die = cl.time + 0.1 * (rand() % 5);
 		p->rgb = d_8to24rgbtable[(color & ~7) + (rand() & 7)];
-		p->type = pt_grav;
+		if (qwstyle)
+			p->type = pt_grav;	//QW
+		else
+			p->type = pt_slowgrav;	//NQ
 		for (j = 0; j < 3; j++)
 		{
 			p->org[j] = org[j] + scale * ((rand() & 15) - 8);
@@ -950,6 +966,15 @@ static int PClassic_RunParticleEffectState (vec3_t org, vec3_t dir, float count,
 #endif
 		}
 		break;
+	case QWGUNSHOT_POINT:
+		Classic_RunParticleEffect(org, dir, 0, count*20, true);
+		break;
+	case QWSTDBLOOD_POINT:
+		Classic_RunParticleEffect(org, dir, 73, count*20, true);
+		break;
+	case QWLGBLOOD_POINT:
+		Classic_RunParticleEffect(org, dir, 225, count*50, true);
+		break;
 	default:
 		return 1;
 	}
@@ -977,6 +1002,7 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 	VectorScale(delta, 1 / len, dir);	//unit vector in direction of trail
 
 	VectorMA(point, -leftover, dir, point);
+	Con_Printf("%g %g\n", len, leftover);
 	len += leftover;
 	rlen = len;
 
@@ -1122,11 +1148,11 @@ static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dl
 //svc_particle support: add X particles with the given colour, velocity, and aproximate origin.
 static void PClassic_RunParticleEffect (vec3_t org, vec3_t dir, int color, int count)
 {
-	Classic_RunParticleEffect(org, dir, color, count);
+	Classic_RunParticleEffect(org, dir, color, count, false);
 }
 static void PClassic_RunParticleEffectPalette (const char *nameprefix, vec3_t org, vec3_t dir, int color, int count)
 {
-	Classic_RunParticleEffect(org, dir, color, count);
+	Classic_RunParticleEffect(org, dir, color, count, false);
 }
 
 particleengine_t pe_classic =

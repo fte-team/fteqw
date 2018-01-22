@@ -1559,6 +1559,10 @@ void VK_SetupViewPortProjection(qboolean flipy)
 		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, false);
 		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, false);
 	}
+	r_refdef.m_projection_view[2+4*0] *= 0.333;
+	r_refdef.m_projection_view[2+4*1] *= 0.333;
+	r_refdef.m_projection_view[2+4*2] *= 0.333;
+	r_refdef.m_projection_view[2+4*3] *= 0.333;
 }
 
 void VK_Set2D(void)
@@ -3849,12 +3853,13 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		vkGetPhysicalDeviceFeatures(vk.gpu, &avail);
 
 		//try to enable whatever we can use, if we can.
-		features.robustBufferAccess		= avail.robustBufferAccess;
-		features.textureCompressionBC	= avail.textureCompressionBC;
-		features.textureCompressionETC2	= avail.textureCompressionETC2;
-		features.samplerAnisotropy		= avail.samplerAnisotropy;
-		features.geometryShader			= avail.geometryShader;
-		features.tessellationShader		= avail.tessellationShader;
+		features.robustBufferAccess			= avail.robustBufferAccess;
+		features.textureCompressionBC		= avail.textureCompressionBC;
+		features.textureCompressionETC2		= avail.textureCompressionETC2;
+		features.textureCompressionASTC_LDR	= avail.textureCompressionASTC_LDR;
+		features.samplerAnisotropy			= avail.samplerAnisotropy;
+		features.geometryShader				= avail.geometryShader;
+		features.tessellationShader			= avail.tessellationShader;
 
 		//Add in the extensions we support
 		for (e = 0; e < countof(knowndevexts); e++)

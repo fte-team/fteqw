@@ -826,8 +826,8 @@ long ParseNum (char *str)
 #define MAXQCCFILES 3
 struct {
 	char name[64];
+	FILE *stdio;
 	char *buff;
-//	int buffismalloc;
 	int buffsize;
 	int ofs;
 	int maxofs;
@@ -842,20 +842,23 @@ int SafeOpenWrite (char *filename, int maxsize)
 	}
 	for (i = 0; i < MAXQCCFILES; i++)
 	{
-		if (!qccfile[i].buff)
+		if (!qccfile[i].stdio && !qccfile[i].buff)
 		{
 			strcpy(qccfile[i].name, filename);
 			qccfile[i].buffsize = maxsize;
 			qccfile[i].maxofs = 0;
 			qccfile[i].ofs = 0;
-//			if (maxsize > 8192)
-//				qccfile[i].buffismalloc = 1;
-//			else
-//				qccfile[i].buffismalloc = 0;
-//			if (qccfile[i].buffismalloc)
+			qccfile[i].stdio = NULL;
+			qccfile[i].buff = NULL;
+			if (maxsize < 0)
+				qccfile[i].stdio = fopen(filename, "wb");
+			else
 				qccfile[i].buff = malloc(qccfile[i].buffsize);
-//			else
-//				qccfile[i].buff = memalloc(qccfile[i].buffsize);
+			if (!qccfile[i].stdio && !qccfile[i].buff)
+			{
+				QCC_Error(ERR_TOOMANYOPENFILES, "Unable to open %s", filename);
+				return -1;
+			}
 			return i;
 		}
 	}
@@ -865,28 +868,14 @@ int SafeOpenWrite (char *filename, int maxsize)
 
 void ResizeBuf(int hand, int newsize)
 {
-//	int wasmal = qccfile[hand].buffismalloc;
 	char *nb;
 
 	if (qccfile[hand].buffsize >= newsize)
 		return;	//already big enough
-
-//	if (newsize > 8192)
-//	{
-//		qccfile[hand].buffismalloc = true;
-		nb = malloc(newsize);
-//	}
-//	else
-//	{
-//		qccfile[hand].buffismalloc = false;
-//		nb = memalloc(newsize);
-//	}
+	nb = malloc(newsize);
 
 	memcpy(nb, qccfile[hand].buff, qccfile[hand].maxofs);
-//	if (wasmal)
-		free(qccfile[hand].buff);
-//	else
-//		externs->memfree(qccfile[hand].buff);
+	free(qccfile[hand].buff);
 	qccfile[hand].buff = nb;
 	qccfile[hand].buffsize = newsize;
 }
@@ -917,12 +906,15 @@ pbool SafeClose(int hand)
 {
 	progfuncs_t *progfuncs = qccprogfuncs;
 	pbool ret;
-	ret = externs->WriteFile(qccfile[hand].name, qccfile[hand].buff, qccfile[hand].maxofs);
-//	if (qccfile[hand].buffismalloc)
+	if (qccfile[hand].stdio)
+		ret = 0==fclose(qccfile[hand].stdio);
+	else
+	{
+		ret = externs->WriteFile(qccfile[hand].name, qccfile[hand].buff, qccfile[hand].maxofs);
 		free(qccfile[hand].buff);
-//	else
-//		externs->memfree(qccfile[hand].buff);
+	}
 	qccfile[hand].buff = NULL;
+	qccfile[hand].stdio = NULL;
 	return ret;
 }
 
@@ -1146,7 +1138,7 @@ unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen, pbool *e
 
 //input is a raw file (will not be changed
 //output is utf-8 data
-char *QCC_SanitizeCharSet(char *mem, unsigned int *len, pbool *freeresult, int *origfmt)
+char *QCC_SanitizeCharSet(char *mem, size_t *len, pbool *freeresult, int *origfmt)
 {
 	if (freeresult)
 		*freeresult = true;
@@ -1216,32 +1208,29 @@ char *QCC_SanitizeCharSet(char *mem, unsigned int *len, pbool *freeresult, int *
 	return mem;
 }
 
+static unsigned char *QCC_LoadFileHunk(void *ctx, size_t size)
+{	//2 ensures we can always put a \n in there.
+	return (unsigned char*)qccHunkAlloc(sizeof(qcc_cachedsourcefile_t)+size+2) + sizeof(qcc_cachedsourcefile_t);
+}
+
 long	QCC_LoadFile (char *filename, void **bufferptr)
 {
+	qcc_cachedsourcefile_t *sfile;
 	progfuncs_t *progfuncs = qccprogfuncs;
 	char *mem;
 	int check;
-	int flen;
-	unsigned int len;
+	size_t len;
 	int line;
 	int orig;
 	pbool warned = false;
-	flen = externs->FileSize(filename);
-	if (flen < 0)
+
+	mem = externs->ReadFile(filename, QCC_LoadFileHunk, NULL, &len);
+	if (!mem)
 	{
 		QCC_Error(ERR_COULDNTOPENFILE, "Couldn't open file %s", filename);
-//		if (!externs->Abort)
-			return -1;
-//		externs->Abort("failed to find file %s", filename);
+		return -1;
 	}
-	len = flen;
-	mem = qccHunkAlloc(sizeof(qcc_cachedsourcefile_t) + len+2);
-
-	((qcc_cachedsourcefile_t*)mem)->next = qcc_sourcefile;
-	qcc_sourcefile = (qcc_cachedsourcefile_t*)mem;
-	mem += sizeof(qcc_cachedsourcefile_t);
-
-	externs->ReadFile(filename, mem, len+2, NULL);
+	sfile = (qcc_cachedsourcefile_t*)(mem-sizeof(qcc_cachedsourcefile_t));
 	mem[len] = 0;
 
 	mem = QCC_SanitizeCharSet(mem, &len, NULL, &orig);
@@ -1267,10 +1256,12 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 	mem[len] = '\n';
 	mem[len+1] = '\0';
 
-	strcpy(qcc_sourcefile->filename, filename);
-	qcc_sourcefile->size = len;
-	qcc_sourcefile->file = mem;
-	qcc_sourcefile->type = FT_CODE;
+	strcpy(sfile->filename, filename);
+	sfile->size = len;
+	sfile->file = mem;
+	sfile->type = FT_CODE;
+	sfile->next = qcc_sourcefile;
+	qcc_sourcefile = sfile;
 
 	*bufferptr=mem;
 
@@ -1278,6 +1269,7 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 }
 void	QCC_AddFile (char *filename)
 {
+	qcc_cachedsourcefile_t *sfile;
 	progfuncs_t *progfuncs = qccprogfuncs;
 	char *mem;
 	int len;
@@ -1286,26 +1278,33 @@ void	QCC_AddFile (char *filename)
 		externs->Abort("failed to find file %s", filename);
 	mem = qccHunkAlloc(sizeof(qcc_cachedsourcefile_t) + len+1);
 
-	((qcc_cachedsourcefile_t*)mem)->next = qcc_sourcefile;
-	qcc_sourcefile = (qcc_cachedsourcefile_t*)mem;
-	qcc_sourcefile->size = len;
-	mem += sizeof(qcc_cachedsourcefile_t);
-	strcpy(qcc_sourcefile->filename, filename);
-	qcc_sourcefile->file = mem;
-	qcc_sourcefile->type = FT_DATA;
-
-	externs->ReadFile(filename, mem, len+1, NULL);
+	
+	mem = externs->ReadFile(filename, QCC_LoadFileHunk, NULL, &len);
+	if (!mem)
+		externs->Abort("failed to find file %s", filename);
+	sfile = (qcc_cachedsourcefile_t*)(mem-sizeof(qcc_cachedsourcefile_t));
 	mem[len] = '\0';
+
+	sfile->size = len;
+	strcpy(sfile->filename, filename);
+	sfile->file = mem;
+	sfile->type = FT_DATA;
+	sfile->next = qcc_sourcefile;
+	qcc_sourcefile = sfile;
+
 }
-void *FS_ReadToMem(char *filename, void *mem, int *len)
+static unsigned char *FS_ReadToMem_Alloc(void *ctx, size_t size)
+{
+	unsigned char *mem;
+	progfuncs_t *progfuncs = qccprogfuncs;
+	mem = externs->memalloc(size+1);
+	mem[size] = 0;
+	return mem;
+}
+void *FS_ReadToMem(char *filename, size_t *len)
 {
 	progfuncs_t *progfuncs = qccprogfuncs;
-	if (!mem)
-	{
-		*len = externs->FileSize(filename);
-		mem = externs->memalloc(*len);
-	}
-	return externs->ReadFile(filename, mem, *len, NULL);
+	return externs->ReadFile(filename, FS_ReadToMem_Alloc, NULL, len);
 }
 
 void FS_CloseFromMem(void *mem)

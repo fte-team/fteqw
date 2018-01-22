@@ -6,8 +6,6 @@ There is no screen-space culling of lit surfaces.
 model meshes are interpolated multiple times per frame
 */
 
-//#define DBG_COLOURNOTDEPTH
-
 
 #if defined(RTLIGHTS) && !defined(SERVERONLY)
 
@@ -48,11 +46,6 @@ static void SHM_Shutdown(void);
 extern qboolean r_pushdepth;
 #endif
 
-#ifdef GLQUAKE
-static texid_t shadowmap[2];
-static int shadow_fbo_id;
-static int shadow_fbo_depth_num;
-#endif
 texid_t crepuscular_texture_id;
 fbostate_t crepuscular_fbo;
 shader_t *crepuscular_shader;
@@ -92,22 +85,6 @@ flushes textures so they can be regenerated at the real size
 void Sh_Reset(void)
 {
 #ifdef GLQUAKE
-	if (shadow_fbo_id)
-	{
-		qglDeleteFramebuffersEXT(1, &shadow_fbo_id);
-		shadow_fbo_id = 0;
-		shadow_fbo_depth_num = 0;
-	}
-	if (shadowmap[0])
-	{
-		Image_DestroyTexture(shadowmap[0]);
-		shadowmap[0] = r_nulltex;
-	}
-	if (shadowmap[1])
-	{
-		Image_DestroyTexture(shadowmap[1]);
-		shadowmap[1] = r_nulltex;
-	}
 	if (crepuscular_texture_id)
 	{
 		Image_DestroyTexture(crepuscular_texture_id);
@@ -2050,78 +2027,6 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, vrect_t *r)
 }
 #endif
 
-#ifdef GLQUAKE
-#ifdef DBG_COLOURNOTDEPTH
-void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
-{
-	if (gl_config.ext_framebuffer_objects)
-	{
-		if (!shadow_fbo_id)
-		{
-			int drb;
-			qglGenFramebuffersEXT(1, &shadow_fbo_id);
-			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
-
-			//create an unnamed depth buffer
-//			qglGenRenderbuffersEXT(1, &drb);
-//			qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, drb);
-//			qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2);
-//			qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, drb);
-
-			if (qglDrawBuffer)
-				qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
-			if (qglReadBuffer)
-				qglReadBuffer(GL_NONE);
-		}
-		else
-			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
-
-		if (TEXVALID(depthtexture))
-			qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, depthtexture.num, 0);
-	}
-}
-#else
-void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
-{
-	if (gl_config.ext_framebuffer_objects)
-	{
-		if (!shadow_fbo_id)
-		{
-			qglGenFramebuffersEXT(1, &shadow_fbo_id);
-			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
-			if (qglDrawBuffers)
-				qglDrawBuffers(0, NULL);
-			else if (qglDrawBuffer)
-				qglDrawBuffer(GL_NONE);
-			if (qglReadBuffer)
-				qglReadBuffer(GL_NONE);
-		}
-		else
-			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
-
-		if (shadow_fbo_depth_num != depthtexture->num)
-		{
-			shadow_fbo_depth_num = depthtexture->num;
-			if (TEXVALID(depthtexture))
-				qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, depthtexture->num, 0);
-		}
-	}
-}
-#endif
-void GL_EndRenderBuffer_DepthOnly(int restorefbo, texid_t depthtexture, int texsize)
-{
-	if (gl_config.ext_framebuffer_objects)
-	{
-		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, restorefbo);
-	}
-	else
-	{
-		GL_MTBind(0, GL_TEXTURE_2D, depthtexture);
-		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, texsize, texsize);
-	}
-}
-#endif
-
 void D3D11BE_BeginShadowmapFace(void);
 
 //determine the 5 bounding points of a shadowmap light projection side
@@ -2156,7 +2061,7 @@ static void Sh_LightFrustumPlanes(dlight_t *l, vec3_t axis[3], vec4_t *planes, i
 
 //culling for the face happens in the caller.
 //these faces should thus match Sh_LightFrustumPlanes
-static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], shadowmesh_t *smesh, int face, int smsize, float proj[16])
+static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowmesh_t *smesh, int face, int smsize, float proj[16])
 {
 	vec3_t t1,t2,t3;
 	texture_t *tex;
@@ -2222,7 +2127,7 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], shadowmesh_t *smesh, i
 		break;
 	}
 
-	if (l->fov)
+	if (lighttype & (LSHADER_SPOT|LSHADER_ORTHO))
 	{
 		r_refdef.pxrect.x = (SHADOWMAP_SIZE-smsize)/2;
 		r_refdef.pxrect.width = smsize;
@@ -2241,14 +2146,12 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], shadowmesh_t *smesh, i
 
 	R_SetFrustum(proj, r_refdef.m_view);
 
-#ifdef DBG_COLOURNOTDEPTH
+#ifdef SHADOWDBG_COLOURNOTDEPTH
 	BE_SelectMode(BEM_STANDARD);
 #else
 	BE_SelectMode(BEM_DEPTHONLY);
 #endif
-
 	BE_SelectEntity(&r_worldentity);
-
 
 	switch(qrenderer)
 	{
@@ -2341,32 +2244,34 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], shadowmesh_t *smesh, i
 */
 }
 
-qboolean D3D11_BeginShadowMap(int id, int w, int h);
-void D3D11_EndShadowMap(void);
-
-void D3D11BE_SetupForShadowMap(dlight_t *dl, qboolean isspot, int texwidth, int texheight, float shadowscale);
-
-qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
+qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvis, int smsize)
 {
-#ifdef GLQUAKE
-	int restorefbo = 0;
-#endif
-	int f;
-	float oproj[16], oview[16];
+	int restorefbo;
+	int f,lf;
+	float oprojs[16], oprojv[16], oview[16];
 	pxrect_t oprect;
 	shadowmesh_t *smesh;
-	int isspot = (l->fov != 0);
+	qboolean isspot = !!(lighttype & (LSHADER_SPOT|LSHADER_ORTHO));
 	int sidevisible;
 	int oldflip = r_refdef.flipcull;
 	int oldexternalview = r_refdef.externalview;
 
-	if (!R_CullSphere(l->origin, 0))
-		sidevisible = l->fov?1:0x3f;	//assume all are visible if the central point is onscreen
+	if (isspot)
+	{	//spotlights only face forwards. which is side 4. which is annoying.
+		f = 4;
+		lf = f+1;
+		sidevisible = 1<<f;
+	}
 	else
 	{
-		sidevisible = 0;
+		f = 0;
+		lf = 6;
+		sidevisible = (1<<6)-1;
+	}
+	if (R_CullSphere(l->origin, 0))
+	{	//if the light's center isn't onscreen, cull individual faces
 		//FIXME: if the fov is < 90, we need to clip by the near lightplane first
-		for (f = 0; f < (l->fov?1:6); f++)
+		for (; f < lf; f++)
 		{
 			vec4_t planes[5];
 			float dist;
@@ -2392,8 +2297,8 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 				if (dist <= 0)
 					break;		
 			}
-			if (fp == r_refdef.frustum_numplanes)
-				sidevisible |= 1u<<f;
+			if (fp != r_refdef.frustum_numplanes)
+				sidevisible &= ~(1u<<f);
 		}
 	}
 
@@ -2401,12 +2306,28 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 	if (!sidevisible)
 		return false;
 
-	memcpy(oproj, r_refdef.m_projection_std, sizeof(oproj));
+	memcpy(oprojs, r_refdef.m_projection_std, sizeof(oprojs));
+	memcpy(oprojv, r_refdef.m_projection_view, sizeof(oprojv));
 	memcpy(oview, r_refdef.m_view, sizeof(oview));
 	oprect = r_refdef.pxrect;
 	smesh = SHM_BuildShadowMesh(l, lvis, SMT_SHADOWMAP);
 
-	Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, l->fov?l->fov:90, l->fov?l->fov:90, r_shadow_shadowmapping_nearclip.value, l->radius, false);
+	if (lighttype & LSHADER_SPOT)
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, l->fov, l->fov, r_shadow_shadowmapping_nearclip.value, l->radius, false);
+	else if (lighttype & LSHADER_ORTHO)
+	{
+		float xmin = -l->radius;
+		float ymin = -l->radius;
+		float znear = -l->radius;
+		float xmax = l->radius;
+		float ymax = l->radius;
+		float zfar = l->radius;
+		Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, xmin, xmax, ymax, ymin, znear, zfar);
+	}
+	else
+		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, 90, 90, r_shadow_shadowmapping_nearclip.value, l->radius, false);
+
+	memcpy(r_refdef.m_projection_view, r_refdef.m_projection_std, sizeof(r_refdef.m_projection_view));
 
 	switch(qrenderer)
 	{
@@ -2414,77 +2335,14 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 		return false;
 #ifdef GLQUAKE
 	case QR_OPENGL:
-		if (!TEXVALID(shadowmap[isspot]))
-		{
-			if (isspot)
-			{
-				shadowmap[isspot] = Image_CreateTexture("***shadowmap2dspot***", NULL, 0);
-				qglGenTextures(1, &shadowmap[isspot]->num);
-				GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
-	#ifdef DBG_COLOURNOTDEPTH
-				qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SHADOWMAP_SIZE, SHADOWMAP_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-	#else
-				qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16_ARB, SHADOWMAP_SIZE, SHADOWMAP_SIZE, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
-	#endif
-			}
-			else
-			{
-				shadowmap[isspot] = Image_CreateTexture("***shadowmap2domni***", NULL, 0);
-				qglGenTextures(1, &shadowmap[isspot]->num);
-				GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
-	#ifdef DBG_COLOURNOTDEPTH
-				qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-	#else
-				if (gl_config.gles)
-					qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, NULL);
-				else
-					qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16_ARB, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, NULL);
-	#endif
-			}
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	#if 0//def DBG_COLOURNOTDEPTH
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	#else
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	#endif
-			//in case we're using shadow samplers
-			if (gl_config.arb_shadow)
-			{
-				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_R_TO_TEXTURE_ARB);
-				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
-				qglTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_LUMINANCE);
-			}
-		}
-
-		/*set framebuffer*/
-		GL_BeginRenderBuffer_DepthOnly(shadowmap[isspot]);
-		restorefbo = GLBE_SetupForShadowMap(shadowmap[isspot], isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
-
-		BE_Scissor(NULL);
-		qglViewport(0, 0, smsize*3, smsize*2);
-		qglClear (GL_DEPTH_BUFFER_BIT);
-#ifdef DBG_COLOURNOTDEPTH
-		qglClearColor(0,1,0,1);
-		qglClear (GL_COLOR_BUFFER_BIT);
-#endif
-
-		if (!gl_config.nofixedfunc)
-		{
-			qglMatrixMode(GL_PROJECTION);
-			qglLoadMatrixf(r_refdef.m_projection_std);
-			qglMatrixMode(GL_MODELVIEW);
-		}
+		if (!GLBE_BeginShadowMap(isspot, (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*3)), (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*2)), &restorefbo))
+			return false;
 		break;
 #endif
 #ifdef D3D11QUAKE
 	case QR_DIRECT3D11:
 		if (!D3D11_BeginShadowMap(isspot, (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*3)), (isspot?SHADOWMAP_SIZE:(SHADOWMAP_SIZE*2))))
 			return false;
-
-//		BE_Scissor(&rect);
 		break;
 #endif
 
@@ -2504,12 +2362,13 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 		if (sidevisible & (1u<<f))
 		{
 			RQuantAdd(RQUANT_SHADOWSIDES, 1);
-			Sh_GenShadowFace(l, axis, smesh, f, smsize, r_refdef.m_projection_std);
+			Sh_GenShadowFace(l, axis, lighttype, smesh, f, smsize, r_refdef.m_projection_std);
 		}
 	}
 
 	memcpy(r_refdef.m_view, oview, sizeof(r_refdef.m_view));
-	memcpy(r_refdef.m_projection_std, oproj, sizeof(r_refdef.m_projection_std));
+	memcpy(r_refdef.m_projection_std, oprojs, sizeof(r_refdef.m_projection_std));
+	memcpy(r_refdef.m_projection_view, oprojv, sizeof(r_refdef.m_projection_view));
 
 	r_refdef.pxrect = oprect;
 
@@ -2519,19 +2378,10 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 
 	switch(qrenderer)
 	{
-	default:
-		break;
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		/*end framebuffer*/
-		GL_EndRenderBuffer_DepthOnly(restorefbo, shadowmap[isspot], smsize);
-		if (!gl_config.nofixedfunc)
-		{
-			qglMatrixMode(GL_PROJECTION);
-			qglLoadMatrixf(r_refdef.m_projection_std);
-			qglMatrixMode(GL_MODELVIEW);
-			qglLoadMatrixf(r_refdef.m_view);
-		}
+		GLBE_EndShadowMap(restorefbo);
 		GL_ViewportUpdate();
 		break;
 #endif
@@ -2546,18 +2396,20 @@ qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 		VKBE_DoneShadows();
 		break;
 #endif
+	default:
+		(void)restorefbo;
+		break;
 	}
 
 	return true;
 }
 
-qboolean Sh_GenerateShadowMap(dlight_t *l)
+qboolean Sh_GenerateShadowMap(dlight_t *l, int lighttype)
 {
-	qboolean isspot;
 	int smsize;
 	qbyte *vvis = r_refdef.scenevis;
 	qbyte *lvis;
-
+	int texwidth, texheight;
 	
 /*	if (Sh_ScissorForBox(mins, maxs, &rect))
 	{
@@ -2595,10 +2447,8 @@ qboolean Sh_GenerateShadowMap(dlight_t *l)
 		lvis = NULL;
 
 
-
-	isspot = l->fov != 0;
-	if (isspot)
-		smsize = SHADOWMAP_SIZE;
+	if (lighttype & (LSHADER_SPOT | LSHADER_ORTHO))
+		texwidth = texheight = smsize = SHADOWMAP_SIZE;
 	else
 	{
 		//Stolen from DP. Actually, LH pasted it to me in IRC.
@@ -2612,19 +2462,35 @@ qboolean Sh_GenerateShadowMap(dlight_t *l)
 		distance = VectorLength(d);
 		lodlinear = (l->radius * r_shadow_shadowmapping_precision.value) / sqrt(max(1.0f, distance / l->radius));
 		smsize = bound(16, lodlinear, SHADOWMAP_SIZE);
+		texwidth = smsize*3;
+		texheight = smsize*2;
 	}
 
+	switch(qrenderer)
+	{
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		GLBE_SetupForShadowMap(l, texwidth, texheight, (smsize-4) / (float)SHADOWMAP_SIZE);
+		break;
+#endif
 #ifdef D3D11QUAKE
-	if (qrenderer == QR_DIRECT3D11)
-		D3D11BE_SetupForShadowMap(l, isspot, isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
+	case QR_DIRECT3D11:
+		D3D11BE_SetupForShadowMap(l, texwidth, texheight, (smsize-4) / (float)SHADOWMAP_SIZE);
+		break;
 #endif
 #ifdef VKQUAKE
-	if (qrenderer == QR_VULKAN)
-		VKBE_SetupForShadowMap(l, isspot, isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
+	case QR_VULKAN:
+		VKBE_SetupForShadowMap(l, texwidth, texheight, (smsize-4) / (float)SHADOWMAP_SIZE);
+		break;
 #endif
+	default:
+		(void)texwidth;
+		(void)texheight;
+		break;
+	}
 
 	//fixme: light rotation
-	if (!Sh_GenShadowMap(l, l->axis, lvis, smsize))
+	if (!Sh_GenShadowMap(l, lighttype, l->axis, lvis, smsize))
 		return false;	//didn't need to do anything
 	return true;
 }
@@ -2635,7 +2501,17 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qb
 	qbyte *lvis;
 	srect_t rect;
 	int smsize;
-	qboolean isspot;
+	int lighttype;
+	int texwidth, texheight;
+
+	if (l->fov != 0)
+		lighttype = LSHADER_SMAP|LSHADER_SPOT;
+#ifdef LFLAG_ORTHO
+	else if (l->flags & LFLAG_ORTHO)
+		lighttype = LSHADER_SMAP|LSHADER_ORTHO;
+#endif
+	else
+		lighttype = LSHADER_SMAP;
 
 	if (R_CullSphere(l->origin, l->radius))
 	{
@@ -2688,10 +2564,18 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qb
 	else
 		lvis = NULL;
 
-
-	isspot = l->fov != 0;
-	if (isspot)
-		smsize = SHADOWMAP_SIZE;
+	if (lighttype & LSHADER_SPOT)
+	{
+		smsize = SHADOWMAP_SIZE;	//spot lights or ortho lights can just use the full thing.
+		texwidth = smsize;
+		texheight = smsize;
+	}
+	else if (lighttype & LSHADER_ORTHO)
+	{
+		smsize = SHADOWMAP_SIZE;	//spot lights or ortho lights can just use the full thing.
+		texwidth = smsize;
+		texheight = smsize;
+	}
 	else
 	{
 		//Stolen from DP. Actually, LH pasted it to me in IRC.
@@ -2705,20 +2589,36 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qb
 		distance = VectorLength(d);
 		lodlinear = (l->radius * r_shadow_shadowmapping_precision.value) / sqrt(max(1.0f, distance / l->radius));
 		smsize = bound(16, lodlinear, SHADOWMAP_SIZE);
+		texwidth = smsize*3;
+		texheight = smsize*2;
 	}
 
+	switch(qrenderer)
+	{
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		GLBE_SetupForShadowMap(l, texwidth, texheight, (smsize-4) / (float)SHADOWMAP_SIZE);
+		break;
+#endif
 #ifdef D3D11QUAKE
-	if (qrenderer == QR_DIRECT3D11)
-		D3D11BE_SetupForShadowMap(l, isspot, isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
+	case QR_DIRECT3D11:
+		D3D11BE_SetupForShadowMap(l, texwidth, texheight, (smsize-4) / (float)SHADOWMAP_SIZE);
+		break;
 #endif
 #ifdef VKQUAKE
-	if (qrenderer == QR_VULKAN)
-		VKBE_SetupForShadowMap(l, isspot, isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
+	case QR_VULKAN:
+		VKBE_SetupForShadowMap(l, texwidth, texheight, (smsize-4) / (float)SHADOWMAP_SIZE);
+		break;
 #endif
+	default:
+		(void)texwidth;
+		(void)texheight;
+		break;
+	}
 
-	if (!BE_SelectDLight(l, colour, axis, isspot?LSHADER_SPOT:LSHADER_SMAP))
+	if (!BE_SelectDLight(l, colour, axis, lighttype))
 		return;
-	if (!Sh_GenShadowMap(l, axis, lvis, smsize))
+	if (!Sh_GenShadowMap(l, lighttype, axis, lvis, smsize))
 		return;
 
 	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
@@ -3594,6 +3494,7 @@ void Sh_CheckSettings(void)
 	case QR_VULKAN:
 		canshadowless = true;
 		cansmap = true;
+		canstencil = false;
 		break;
 #endif
 #ifdef GLQUAKE
@@ -3601,14 +3502,14 @@ void Sh_CheckSettings(void)
 		canshadowless = gl_config.arb_shader_objects || !gl_config_nofixedfunc; //falls back to crappy texture env
 		if (gl_config.arb_shader_objects && gl_config.ext_framebuffer_objects && gl_config.arb_depth_texture)// && gl_config.arb_shadow)
 			cansmap = true;
-		else if (r_shadow_realtime_world_shadows.ival || r_shadow_realtime_dlight_shadows.ival)
+		else if ((r_shadow_realtime_world_shadows.ival || r_shadow_realtime_dlight_shadows.ival) && r_shadow_shadowmapping.ival)
 		{
 			if (!gl_config.arb_shader_objects)
-				Con_Printf("No arb_shader_objects\n");
-			if (!gl_config.ext_framebuffer_objects)
-				Con_Printf("No ext_framebuffer_objects\n");
-			if (!gl_config.arb_depth_texture)
-				Con_Printf("No arb_depth_texture\n");
+				Con_DPrintf("Shadowmapping unsupported: No arb_shader_objects\n");
+			else if (!gl_config.ext_framebuffer_objects)
+				Con_DPrintf("Shadowmapping unsupported: No ext_framebuffer_objects\n");
+			else if (!gl_config.arb_depth_texture)
+				Con_DPrintf("Shadowmapping unsupported: No arb_depth_texture\n");
 		}
 		if (gl_stencilbits)
 			canstencil = true;
@@ -3642,7 +3543,7 @@ void Sh_CheckSettings(void)
 	{
 		//can't even do lighting
 		if (r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival)
-			Con_Printf("Missing driver extensions: realtime lighting is not possible.\n");
+			Con_Printf("Missing rendering features: realtime lighting is not possible.\n");
 		r_shadow_realtime_world.ival = 0;
 		r_shadow_realtime_dlight.ival = 0;
 	}
@@ -3650,7 +3551,7 @@ void Sh_CheckSettings(void)
 	{
 		//no shadow methods available at all.
 		if ((r_shadow_realtime_world.ival&&r_shadow_realtime_world_shadows.ival)||(r_shadow_realtime_dlight.ival&&r_shadow_realtime_dlight_shadows.ival))
-			Con_Printf("Missing driver extensions: realtime shadows are not possible.\n");
+			Con_Printf("Missing rendering features: realtime shadows are not possible.\n");
 		r_shadow_realtime_world_shadows.ival = 0;
 		r_shadow_realtime_dlight_shadows.ival = 0;
 	}
@@ -3660,7 +3561,7 @@ void Sh_CheckSettings(void)
 		if (!!r_shadow_shadowmapping.ival != cansmap)
 		{
 			if (r_shadow_shadowmapping.ival && ((r_shadow_realtime_world.ival&&r_shadow_realtime_world_shadows.ival)||(r_shadow_realtime_dlight.ival&&r_shadow_realtime_dlight_shadows.ival)))
-				Con_Printf("Missing driver extensions: forcing shadowmapping %s.\n", cansmap?"on":"off");
+				Con_Printf("Missing rendering features: forcing shadowmapping %s.\n", cansmap?"on":"off");
 			r_shadow_shadowmapping.ival = cansmap;
 		}
 	}

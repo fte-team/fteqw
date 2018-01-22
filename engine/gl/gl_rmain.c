@@ -592,6 +592,13 @@ void R_SetupGL (float stereooffset, int i)
 			}
 
 			Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
+
+			r_refdef.m_projection_view[2+4*0] *= 0.333;
+			r_refdef.m_projection_view[2+4*1] *= 0.333;
+			r_refdef.m_projection_view[2+4*2] *= 0.333;
+			r_refdef.m_projection_view[2+4*3] *= 0.333;
+			r_refdef.m_projection_view[14] -= 0.666;
+			//FIXME: bias, so that we use -1 to -.333 range instead of -.333 to 0.333
 		}
 	}
 
@@ -1317,13 +1324,6 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
 
-	if (qglLoadMatrixf)
-	{
-		/*put GL back the way it was*/
-		qglMatrixMode(GL_PROJECTION);
-		qglLoadMatrixf(r_refdef.m_projection_std);
-		qglMatrixMode(GL_MODELVIEW);
-	}
 	GLBE_SelectEntity(&r_worldentity);
 
 	GL_CullFace(0);//make sure flipcull reversion takes effect

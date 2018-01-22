@@ -480,22 +480,10 @@ Returns the new program statement counter
 int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int progsnum)
 {
 	int		i, j, c, o;
+	prstack_t *st;
 
-	pr_stack[pr_depth].s = pr_xstatement;
-	pr_stack[pr_depth].f = pr_xfunction;
-	pr_stack[pr_depth].progsnum = progsnum;
-	pr_stack[pr_depth].pushed = prinst.spushed;
-	pr_stack[pr_depth].stepping = progfuncs->funcs.debug_trace;
-	if (progfuncs->funcs.debug_trace == DEBUG_TRACE_OVER)
-		progfuncs->funcs.debug_trace = DEBUG_TRACE_OFF;
-	if (prinst.profiling)
-	{
-		pr_stack[pr_depth].timestamp = Sys_GetClock();
-	}
-	pr_depth++;
 	if (pr_depth == MAX_STACK_DEPTH)
 	{
-		pr_depth--;
 		PR_StackTrace (&progfuncs->funcs, false);
 
 		printf ("stack overflow on call to %s (depth %i)\n", progfuncs->funcs.stringtable+f->s_name, pr_depth);
@@ -504,6 +492,18 @@ int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int progsn
 		PR_AbortStack(&progfuncs->funcs);
 		externs->Abort("Stack Overflow in %s\n", progfuncs->funcs.stringtable+f->s_name);
 		return pr_xstatement;
+	}
+	st = &pr_stack[pr_depth++];
+	st->s = pr_xstatement;
+	st->f = pr_xfunction;
+	st->progsnum = progsnum;
+	st->pushed = prinst.spushed;
+	st->stepping = progfuncs->funcs.debug_trace;
+	if (progfuncs->funcs.debug_trace == DEBUG_TRACE_OVER)
+		progfuncs->funcs.debug_trace = DEBUG_TRACE_OFF;
+	if (prinst.profiling)
+	{
+		st->timestamp = Sys_GetClock();
 	}
 
 	prinst.localstack_used += prinst.spushed;	//make sure the call doesn't hurt pushed pointers
@@ -544,9 +544,13 @@ PR_LeaveFunction
 int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 {
 	int		i, c;
+	prstack_t *st;
 
 	if (pr_depth <= 0)
 		Sys_Error ("prog stack underflow");
+
+	// up stack
+	st = &pr_stack[--pr_depth];
 
 // restore locals from the stack
 	c = pr_xfunction->locals;
@@ -557,31 +561,28 @@ int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 	for (i=0 ; i < c ; i++)
 		((int *)pr_globals)[pr_xfunction->parm_start + i] = prinst.localstack[prinst.localstack_used+i];
 
-// up stack
-	pr_depth--;
-
-	PR_SwitchProgsParms(progfuncs, pr_stack[pr_depth].progsnum);
-	prinst.spushed = pr_stack[pr_depth].pushed;
+	PR_SwitchProgsParms(progfuncs, st->progsnum);
+	prinst.spushed = st->pushed;
 
 	if (!progfuncs->funcs.debug_trace)
-		progfuncs->funcs.debug_trace = pr_stack[pr_depth].stepping;
+		progfuncs->funcs.debug_trace = st->stepping;
 
 	if (prinst.profiling)
 	{
 		prclocks_t cycles;
-		cycles = Sys_GetClock() - pr_stack[pr_depth].timestamp;
+		cycles = Sys_GetClock() - st->timestamp;
 		if (cycles > prinst.profilingalert)
 			printf("QC call to %s took over a second\n", PR_StringToNative(&progfuncs->funcs,pr_xfunction->s_name));
 		pr_xfunction->profiletime += cycles;
-		pr_xfunction = pr_stack[pr_depth].f;
+		pr_xfunction = st->f;
 		if (pr_depth)
 			pr_xfunction->profilechildtime += cycles;
 	}
 	else
-		pr_xfunction = pr_stack[pr_depth].f;
+		pr_xfunction = st->f;
 
 	prinst.localstack_used -= prinst.spushed;
-	return pr_stack[pr_depth].s;
+	return st->s;
 }
 
 ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
@@ -1307,7 +1308,7 @@ static const char *lastfile = 0;
 			lastfile = PR_StringToNative(&progfuncs->funcs, f->s_file);
 
 			faultline = lastline;
-			debugaction = externs->useeditor(&progfuncs->funcs, lastfile, ((lastline>0)?&lastline:NULL), &statement, fault, fatal);
+			debugaction = externs->useeditor(&progfuncs->funcs, lastfile, ((lastline!=-1)?&lastline:NULL), &statement, fault, fatal);
 
 			//if they changed the line to execute, we need to find a statement that is on that line
 			if (lastline && faultline != lastline)
@@ -1797,7 +1798,7 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 	}
 
 	//forget about any tracing if its active. control returning to the engine should not look like its calling some random function.
-	progfuncs->funcs.debug_trace = 0;
+	progfuncs->funcs.debug_trace = DEBUG_TRACE_OFF;
 
 // make a stack frame
 	prinst.exitdepth = pr_depth;

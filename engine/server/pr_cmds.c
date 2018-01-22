@@ -622,12 +622,41 @@ pbool PDECL PR_SSQC_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc
 		return false;
 	return true;
 }
+static void *PDECL SSQC_PRReadFile (const char *path, qbyte *(PDECL *buf_get)(void *buf_ctx, size_t size), void *buf_ctx, size_t *size)
+{
+	flocation_t loc;
+	if (FS_FLocateFile(path, FSLF_IFFOUND, &loc))
+	{
+		qbyte *buffer = NULL;
+		vfsfile_t *file = FS_OpenReadLocation(&loc);
+		if (file)
+		{
+			*size = loc.len;
+			buffer = buf_get(buf_ctx, *size);
+			if (buffer)
+				VFS_READ(file, buffer, *size);
+			VFS_CLOSE(file);
+		}
+		return buffer;
+	}
+	else
+		return NULL;
+}
+static int PDECL SSQC_PRFileSize (const char *path)
+{
+	flocation_t loc;
+	if (FS_FLocateFile(path, FSLF_IFFOUND, &loc))
+		return loc.len;
+	else
+		return -1;
+}
+
 void Q_SetProgsParms(qboolean forcompiler)
 {
 	progstype = PROG_NONE;
 	svprogparms.progsversion = PROGSTRUCT_VERSION;
-	svprogparms.ReadFile = COM_LoadStackFile;//char *(*ReadFile) (char *fname, void *buffer, int *len);
-	svprogparms.FileSize = COM_FileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
+	svprogparms.ReadFile = SSQC_PRReadFile;//char *(*ReadFile) (char *fname, void *buffer, int *len);
+	svprogparms.FileSize = SSQC_PRFileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
 	svprogparms.WriteFile = QC_WriteFile;//bool (*WriteFile) (char *name, void *data, int len);
 	svprogparms.Printf = PR_Printf;//Con_Printf;//void (*printf) (char *, ...);
 	svprogparms.DPrintf = PR_DPrintf;//Con_Printf;//void (*printf) (char *, ...);
@@ -2297,14 +2326,16 @@ qboolean PR_ConsoleCmd(const char *command)
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 		if (gfuncs.ConsoleCmd)
 		{
-			if (sv_redirected != RD_OBLIVION)
-			{
-				pr_global_struct->time = sv.world.physicstime;
+			int oself = pr_global_struct->self;
+			pr_global_struct->time = sv.world.physicstime;
+			if (sv_redirected == RD_CLIENT)
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, host_client->edict);
+			else
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
-			}
 
 			G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, command);
 			PR_ExecuteProgram (svprogfuncs, gfuncs.ConsoleCmd);
+			pr_global_struct->self = oself;
 			return (int) G_FLOAT(OFS_RETURN);
 		}
 	}
@@ -10505,12 +10536,16 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"readsingleentitystate",PF_Fixme,0,	0,		0,		370},
 	{"deltalisten",		PF_Fixme,	0,		0,		0,		371,	D("float(string modelname, float(float isnew) updatecallback, float flags)", "Specifies a per-modelindex callback to listen for engine-networking entity updates. Such entities are automatically interpolated by the engine (unless flags specifies not to).\nThe various standard entity fields will be overwritten each frame before the updatecallback function is called.")},//  (EXT_CSQC_1)
 
+	{"dynamiclight_spawnstatic",PF_Fixme,0,	0,		0,		0,		D("float(vector org, float radius, vector rgb)", "Retrieves a property from the given dynamic/rt light. Return type depends upon the light field requested.")},
 	{"dynamiclight_get",PF_Fixme,	0,		0,		0,		372,	D("__variant(float lno, float fld)", "Retrieves a property from the given dynamic/rt light. Return type depends upon the light field requested.")},
 	{"dynamiclight_set",PF_Fixme,	0,		0,		0,		373,	D("void(float lno, float fld, __variant value)", "Changes a property on the given dynamic/rt light. Value type depends upon the light field to be changed.")},
 	{"particleeffectquery",PF_Fixme,0,		0,		0,		374,	D("string(float efnum, float body)", "Retrieves either the name or the body of the effect with the given number. The effect body is regenerated from internal state, and can be changed before being reapplied via the localcmd builtin.")},
 
 	{"adddecal",		PF_Fixme,	0,		0,		0,		375,	D("void(string shadername, vector origin, vector up, vector side, vector rgb, float alpha)", "Adds a temporary clipped decal shader to the scene, centered at the given point with given orientation. Will be drawn by the next renderscene call, and freed by the next clearscene call.")},
-	{"setcustomskin",	PF_Fixme,	0,		0,		0,		376,	D("void(entity e, string skinfilename, optional string skindata)", "Sets an entity's skin overrides. These are custom per-entity surface->shader lookups. The skinfilename/data should be in .skin format:\nsurfacename,shadername - makes the named surface use the named shader\nreplace \"surfacename\" \"shadername\" - same.\nqwskin \"foo\" - use an unmodified quakeworld player skin (including crop+repalette rules)\nq1lower 0xff0000 - specify an override for the entity's lower colour, in this case to red\nq1upper 0x0000ff - specify an override for the entity's lower colour, in this case to blue\ncompose \"surfacename\" \"shader\" \"imagename@x,y:w,h$s,t,s2,t2?r,g,b,a\" - compose a skin texture from multiple images.\n  The texture is determined to be sufficient to hold the first named image, additional images can be named as extra tokens on the same line.\n  Use a + at the end of the line to continue reading image tokens from the next line also, the named shader must use 'map $diffuse' to read the composed texture (compatible with the defaultskin shader).")},
+	{"setcustomskin",	PF_Fixme,	0,		0,		0,		376,	D("void(entity e, string skinfilename, optional string skindata)", "Sets an entity's skin overrides to a new skin object. Releases the entities old skin (refcounted).")},
+	{"loadcustomskin",	PF_Fixme,	0,		0,		0,		377,	D("float(string skinfilename, optional string skindata)", "Creates a new skin object and returns it. These are custom per-entity surface->shader lookups. The skinfilename/data should be in .skin format:\nsurfacename,shadername - makes the named surface use the named shader\nreplace \"surfacename\" \"shadername\" - same.\nqwskin \"foo\" - use an unmodified quakeworld player skin (including crop+repalette rules)\nq1lower 0xff0000 - specify an override for the entity's lower colour, in this case to red\nq1upper 0x0000ff - specify an override for the entity's lower colour, in this case to blue\ncompose \"surfacename\" \"shader\" \"imagename@x,y:w,h$s,t,s2,t2?r,g,b,a\" - compose a skin texture from multiple images.\n  The texture is determined to be sufficient to hold the first named image, additional images can be named as extra tokens on the same line.\n  Use a + at the end of the line to continue reading image tokens from the next line also, the named shader must use 'map $diffuse' to read the composed texture (compatible with the defaultskin shader). Must be matched with a releasecustomskin call later, and is pointless without applycustomskin.")},
+	{"applycustomskin",	PF_Fixme,	0,		0,		0,		378,	D("void(entity e, float skinobj)", "Updates the entity's custom skin (refcounted).")},
+	{"releasecustomskin",PF_Fixme,	0,		0,		0,		379,	D("void(float skinobj)", "Lets the engine know that the skin will no longer be needed. Thanks to refcounting any ents with the skin already applied will retain their skin until later changed. It is valid to destroy a skin just after applying it to an ent in the same function that it was created in, as the skin will only be destroyed once its refcount rops to 0.")},
 //END EXT_CSQC
 
 	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	D("__variant*(int size)", "Allocate an arbitary block of memory")},
@@ -12058,6 +12093,11 @@ void PR_DumpPlatform_f(void)
 		{"LFLAG_NOSHADOWS",		"const float", CS, NULL, LFLAG_NOSHADOWS},
 		{"LFLAG_SHADOWMAP",		"const float", CS, NULL, LFLAG_SHADOWMAP},
 		{"LFLAG_CREPUSCULAR",	"const float", CS, NULL, LFLAG_CREPUSCULAR},
+#ifdef LFLAG_ORTHO
+		{"LFLAG_ORTHOSUN",		"const float", CS, NULL, LFLAG_ORTHO},
+#else
+		{"LFLAG_ORTHOSUN",		"const float", CS, NULL, 0},
+#endif
 
 #ifdef TERRAIN
 		{"TEREDIT_RELOAD",		"const float", CS, NULL, ter_reload},

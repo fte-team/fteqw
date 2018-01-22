@@ -201,7 +201,7 @@ struct pubprogfuncs_s
 typedef struct progexterns_s {
 	int progsversion;	//PROGSTRUCT_VERSION
 
-	unsigned char *(PDECL *ReadFile)	(const char *fname, void *buffer, int len, size_t *sz);
+	void *(PDECL *ReadFile)				(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size);
 	int (PDECL *FileSize)				(const char *fname);	//-1 if file does not exist
 	pbool (PDECL *WriteFile)			(const char *name, void *data, int len);
 	int (VARGS *Printf)					(const char *, ...) LIKEPRINTF(1);

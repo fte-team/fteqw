@@ -90,8 +90,8 @@ cvar_t gl_nocolors							= CVARF  ("gl_nocolors", "0", CVAR_ARCHIVE);
 cvar_t gl_part_flame						= CVARFD  ("gl_part_flame", "1", CVAR_ARCHIVE, "Enable particle emitting from models. Mainly used for torch and flame effects.");
 
 //opengl library, blank means try default.
-static cvar_t gl_driver						= CVARFD ("gl_driver", "", CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Specifies the graphics driver name to load. This is typically a filename. Blank for default.");
-static cvar_t vid_devicename					= CVARFD ("vid_devicename", "", CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Specifies which video device to try to use. If blank or invalid then one will be guessed.");
+static cvar_t gl_driver						= CVARFD ("gl_driver", "", CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Specifies the graphics driver name to load. This is typically a filename. Blank for default.");
+static cvar_t vid_devicename					= CVARFD ("vid_devicename", "", CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Specifies which video device to try to use. If blank or invalid then one will be guessed.");
 cvar_t gl_shadeq1_name						= CVARD  ("gl_shadeq1_name", "*", "Rename all surfaces from quake1 bsps using this pattern for the purposes of shader names.");
 extern cvar_t r_vertexlight;
 extern cvar_t r_forceprogramify;
@@ -178,7 +178,7 @@ cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
 												"Enable particle effects to emit off of surfaces. Mainly used for weather or lava/slime effects.");
 cvar_t r_skyboxname							= CVARFC ("r_skybox", "",
 												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM, R_SkyBox_Changed);
-cvar_t r_softwarebanding_cvar				= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
+cvar_t r_softwarebanding_cvar				= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM|CVAR_RENDERERLATCH, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
 qboolean r_softwarebanding;
 cvar_t r_speeds								= CVAR ("r_speeds", "0");
 cvar_t r_stainfadeammount					= CVAR  ("r_stainfadeammount", "1");
@@ -248,38 +248,38 @@ cvar_t vid_conwidth							= CVARF ("vid_conwidth", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
 //see R_RestartRenderer_f for the effective default 'if (newr.renderer == -1)'.
 cvar_t vid_renderer							= CVARFD ("vid_renderer", "",
-													 CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Specifies which backend is used. Values that might work are: sv (dedicated server), headless (null renderer), vk (vulkan), gl (opengl), egl (opengl es), d3d9 (direct3d 9), d3d11 (direct3d 11, with default hardware rendering), d3d11 warp (direct3d 11, with software rendering).");
+													 CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Specifies which backend is used. Values that might work are: sv (dedicated server), headless (null renderer), vk (vulkan), gl (opengl), egl (opengl es), d3d9 (direct3d 9), d3d11 (direct3d 11, with default hardware rendering), d3d11 warp (direct3d 11, with software rendering).");
 cvar_t vid_renderer_opts					= CVARFD ("_vid_renderer_opts", "", CVAR_NOSET, "The possible video renderer apis, in \"value\" \"description\" pairs, for gamecode to read.");
 
 cvar_t vid_bpp								= CVARFD ("vid_bpp", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The number of colour bits to request from the renedering context");
+												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The number of colour bits to request from the renedering context");
 cvar_t vid_desktopsettings					= CVARFD ("vid_desktopsettings", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Ignore the values of vid_width and vid_height, and just use the same settings that are used for the desktop.");
+												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Ignore the values of vid_width and vid_height, and just use the same settings that are used for the desktop.");
 #ifdef NACL
 cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "0",
 												CVAR_ARCHIVE);
 #else
 //these cvars will be given their names when they're registered, based upon whether -plugin was used. this means code can always use vid_fullscreen without caring, but gets saved properly.
 cvar_t vid_fullscreen						= CVARAFD (NULL, "1", "vid_fullscreen",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Whether to use fullscreen or not. A value of 2 specifies fullscreen windowed (aka borderless window) mode.");
+												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Whether to use fullscreen or not. A value of 2 specifies fullscreen windowed (aka borderless window) mode.");
 cvar_t vid_fullscreen_alternative			= CVARFD (NULL, "1",
 												CVAR_ARCHIVE, "Whether to use fullscreen or not. This cvar is saved to your config but not otherwise used in this operating mode.");
 #endif
 cvar_t vid_height							= CVARFD ("vid_height", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The screen height to attempt to use, in physical pixels. 0 means use desktop resolution.");
+												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The screen height to attempt to use, in physical pixels. 0 means use desktop resolution.");
 cvar_t vid_multisample						= CVARFD ("vid_multisample", "0",
 													CVAR_ARCHIVE, "The number of samples to use for Multisample AntiAliasing (aka: msaa). A value of 1 explicitly disables it.");
 cvar_t vid_refreshrate						= CVARF ("vid_displayfrequency", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+												CVAR_ARCHIVE | CVAR_VIDEOLATCH);
 cvar_t vid_srgb								= CVARFD ("vid_srgb", "0",
 													  CVAR_ARCHIVE, "0: Off. Colour blending will be wrong.\n1: Only the framebuffer should use sRGB colourspace, textures and colours will be assumed to be linear. This has the effect of brightening the screen.\n2: Use sRGB extensions/support to ensure that the sh");
 cvar_t vid_wndalpha							= CVARD ("vid_wndalpha", "1", "When running windowed, specifies the window's transparency level.");
 #if defined(_WIN32) && defined(MULTITHREAD)
-cvar_t vid_winthread						= CVARFD ("vid_winthread", "", CVAR_ARCHIVE|CVAR_RENDERERLATCH, "When enabled, window messages will be handled by a separate thread. This allows the game to continue rendering when Microsoft Windows blocks while resizing etc.");
+cvar_t vid_winthread						= CVARFD ("vid_winthread", "", CVAR_ARCHIVE|CVAR_VIDEOLATCH, "When enabled, window messages will be handled by a separate thread. This allows the game to continue rendering when Microsoft Windows blocks while resizing etc.");
 #endif
 //more readable defaults to match conwidth/conheight.
 cvar_t vid_width							= CVARFD ("vid_width", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The screen width to attempt to use, in physical pixels. 0 means use desktop resolution.");
+												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The screen width to attempt to use, in physical pixels. 0 means use desktop resolution.");
 cvar_t vid_dpi_x							= CVARFD ("vid_dpi_x", "0", CVAR_NOSET, "For mods that need to determine the physical screen size (like with touchscreens). 0 means unknown");
 cvar_t vid_dpi_y							= CVARFD ("vid_dpi_y", "0", CVAR_NOSET, "For mods that need to determine the physical screen size (like with touchscreens). 0 means unknown");
 
@@ -336,7 +336,7 @@ cvar_t r_tessellation_level					= CVAR  ("r_tessellation_level", "5");
 cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
 cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Blend sprites instead of alpha testing them");
 cvar_t r_deluxmapping_cvar					= CVARAFD ("r_deluxemapping", "0", "r_glsl_deluxemapping",
-												CVAR_ARCHIVE, "Enables bumpmapping based upon precomputed light directions.\n0=off\n1=use if available\n2=auto-generate (if possible)");
+												CVAR_ARCHIVE|CVAR_RENDERERLATCH, "Enables bumpmapping based upon precomputed light directions.\n0=off\n1=use if available\n2=auto-generate (if possible)");
 qboolean r_deluxmapping;
 cvar_t r_shaderblobs						= CVARD ("r_shaderblobs", "0", "If enabled, can massively accelerate vid restarts / loading (especially with the d3d renderer). Can cause issues when upgrading engine versions, so this is disabled by default.");
 cvar_t gl_compress							= CVARFD ("gl_compress", "0", CVAR_ARCHIVE, "Enable automatic texture compression even for textures which are not pre-compressed.");
@@ -355,7 +355,7 @@ cvar_t gl_lerpimages						= CVARFD  ("gl_lerpimages", "1", CVAR_ARCHIVE, "Enable
 //cvar_t gl_lightmapmode						= SCVARF("gl_lightmapmode", "",
 //												CVAR_ARCHIVE);
 cvar_t gl_load24bit							= CVARF ("gl_load24bit", "1",
-												CVAR_ARCHIVE);
+												CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 
 cvar_t	r_clear								= CVARAF("r_clear","0",
 													 "gl_clear", 0);
@@ -636,7 +636,7 @@ void R_ToggleFullscreen_f(void)
 	if (currentrendererstate.renderer->rtype == QR_HEADLESS || currentrendererstate.renderer->rtype == QR_NONE)
 		return;
 
-	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
+	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
 
 	newr = currentrendererstate;
 	if (newr.fullscreen)
@@ -1011,7 +1011,7 @@ qboolean Renderer_Started(void)
 void Renderer_Start(void)
 {
 	r_blockvidrestart = false;
-	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
+	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
 
 	//renderer = none && currentrendererstate.bpp == -1 means we've never applied any mode at all
 	//if we currently have none, we do actually need to apply it still
@@ -1608,6 +1608,7 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 	{
 		cl.worldmodel = NULL;
 		CG_Stop();
+		memset(cl.model_precache, 0, sizeof(cl.model_precache));
 		CG_Start();
 		if (cl.worldmodel)
 			Surf_NewMap();
@@ -1726,6 +1727,8 @@ void R_ReloadRenderer_f (void)
 	float time = Sys_DoubleTime();
 	if (qrenderer == QR_NONE || qrenderer == QR_HEADLESS)
 		return;	//don't bother reloading the renderer if its not actually rendering anything anyway.
+
+	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
 	R_ShutdownRenderer(false);
 	Con_DPrintf("teardown = %f\n", Sys_DoubleTime() - time);
 	//reloads textures without destroying video context.
@@ -1975,7 +1978,7 @@ void R_RestartRenderer_f (void)
 	double time;
 	rendererstate_t newr;
 
-	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
+	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
 	if (!R_BuildRenderstate(&newr, vid_renderer.string))
 	{
 		Con_Printf("vid_renderer \"%s\" unsupported. Using default.\n", vid_renderer.string);
@@ -2009,7 +2012,7 @@ void R_SetRenderer_f (void)
 		return;
 	}
 
-	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
+	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
 	if (!R_BuildRenderstate(&newr, param))
 	{
 		Con_Printf("setrenderer: parameter not supported (%s)\n", param);

@@ -738,6 +738,7 @@ enum {
 	WARN_UNEXPECTEDPUNCT,
 	WARN_UNINITIALIZED,
 	WARN_DENORMAL,
+	WARN_STRINGOFFSET,	//works for static/memalloc strings, but fundamentally unsafe on tempstrings/etc, and varies between engine
 	WARN_OVERFLOW,		//compile time overflow or inprecision.
 	WARN_ASSIGNMENTTOCONSTANT,
 	WARN_ASSIGNMENTTOCONSTANTFUNC,
@@ -1105,6 +1106,11 @@ extern qcc_cachedsourcefile_t *qcc_sourcefile;
 int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell, pbool legacyembed);
 
 
+struct pkgctx_s;
+struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, char *message), void *userctx);
+void			Packager_Parse(struct pkgctx_s *ctx, char *scriptname);
+void			Packager_WriteDataset(struct pkgctx_s *ctx, char *setname);
+void			Packager_Destroy(struct pkgctx_s *ctx);
 
 
 

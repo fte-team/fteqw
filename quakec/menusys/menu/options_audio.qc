@@ -24,9 +24,9 @@ nonstatic void(mitem_desktop desktop) M_Options_Audio =
 	pos += 8;
 	fr.add(menuitemcombo_spawn(_("Sound Device"),	"s_device",			'280 8', cvar_string("_s_device_opts")),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Master Volume"),	"volume",			'0.0 1 0.1', 		'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Ambient Volume"),"s_ambientlevel",		'0 0.5 0.05', 		'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemslider_spawn(_("Ambient Volume"),"ambient_level",		'0 0.5 0.05', 		'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Self Volume"),	"s_localvolume",		'0 1 0.1', 		'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
-	fr.add(menuitemslider_spawn(_("Music Volume"),	"musicvolume",			'0 0.5 0.05', 		'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemslider_spawn(_("Music Volume"),	"bgmvolume",			'0 0.5 0.05', 		'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemslider_spawn(_("Channels"),	"s_numspeakers",		'1 6 1', 		'280 8'),		fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcombo_spawn(_("Audio Quality"),	"s_khz",						'280 8', _(
 												"11025	\"11025hz (vanilla quake)\" "

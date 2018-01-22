@@ -5306,7 +5306,7 @@ void Mod_LoadDoomSprite (model_t *mod)
 				"{\n"										\
 					"map $diffuse\n"						\
 					"if gl_blendsprites\n"					\
-						"blendfunc GL_SRC_ALPHA GL_ONE\n"	\
+						"blendfunc GL_ONE GL_ONE_MINUS_SRC_ALPHA\n"	\
 					"else\n"								\
 						"alphafunc ge128\n"					\
 						"depthwrite\n"						\
@@ -5378,7 +5378,7 @@ void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspritefra
 				"program defaultsprite\n"
 				"{\n"
 					"map $diffuse\n"
-					"blendfunc GL_SRC_ALPHA GL_ONE\n"
+					"blendfunc GL_ONE GL_ONE\n"	//lit sprites are actually additive...
 					"rgbgen vertex\n"
 					"alphagen vertex\n"
 				"}\n"
@@ -5482,7 +5482,7 @@ static void * Mod_LoadSpriteFrame (model_t *mod, void *pin, void *pend, mspritef
 	}
 
 	Q_snprintfz(name, sizeof(name), "%s_%i.tga", mod->name, framenum);
-	pspriteframe->image = Image_GetTexture(name, "sprites", IF_NOMIPMAP|IF_NOGAMMA|IF_CLAMP, dataptr, palette, width, height, lowresfmt);
+	pspriteframe->image = Image_GetTexture(name, "sprites", IF_NOMIPMAP|IF_NOGAMMA|IF_CLAMP|IF_PREMULTIPLYALPHA, dataptr, palette, width, height, lowresfmt);
 
 	return (void *)((qbyte *)(pinframe+1) + size);
 }

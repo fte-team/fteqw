@@ -3322,14 +3322,15 @@ void SVQ3_NewMapConnects(void)
 		if (svs.clients[i].state < cs_connected)
 			continue;
 
-		ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, i, false, false);
+		ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, i, false, svs.clients[i].protocol == SCP_BAD);
 		if (ret)
 		{
 			SV_DropClient(&svs.clients[i]);
 		}
-		else
-		{
-			//FIXME: make sure bots get the right GAME_CLIENT_BEGIN
+		else if (svs.clients[i].protocol == SCP_BAD)
+		{	//spawn bots now.
+			svs.clients[i].state = cs_spawned;
+			SVQ3_ClientBegin(&svs.clients[i]);
 		}
 	}
 }

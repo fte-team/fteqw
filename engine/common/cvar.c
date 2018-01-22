@@ -141,6 +141,8 @@ char *Cvar_FlagToName(int flag)
 		return "semicheat";
 	case CVAR_RENDERERLATCH:
 		return "renderlatch";
+	case CVAR_VIDEOLATCH:
+		return "videolatch";
 	case CVAR_SERVEROVERRIDE:
 		return "serverlatch";
 	case CVAR_RENDERERCALLBACK:
@@ -725,8 +727,10 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		latch = "variable %s is latched and will be applied for the start of the next map\n";
 //	else if (var->flags & CVAR_LATCHFLUSH)
 //		latch = "variable %s is latched (type flush)\n";
-	else if (var->flags & CVAR_RENDERERLATCH && qrenderer != QR_NONE)
+	else if (var->flags & CVAR_VIDEOLATCH && qrenderer != QR_NONE)
 		latch = "variable %s will be changed after a vid_restart\n";
+	else if (var->flags & CVAR_RENDERERLATCH && qrenderer != QR_NONE)
+		latch = "variable %s will be changed after a vid_reload\n";
 	else if (var->flags & CVAR_RULESETLATCH)
 		latch = "variable %s is latched due to current ruleset\n";
 #ifndef SERVERONLY
@@ -739,7 +743,8 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	if (latch && !force)
 	{
 		if (cl_warncmd.value)
-		{
+		{	//FIXME: flag that there's a latched cvar instead of spamming prints.
+			//FIXME: apply pending rendererlatches vith a vid_reload when leaving the console/menu.
 			if (var->latched_string)
 			{	//already latched
 				if (strcmp(var->latched_string, value))
@@ -1284,10 +1289,15 @@ qboolean	Cvar_Command (int level)
 				Con_Printf ("\"%s\" is currently \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
 				Con_Printf ("Will be changed to \"%s\" on the next map\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
 			}
-			else if (v->flags & CVAR_RENDERERLATCH)
+			else if (v->flags & CVAR_VIDEOLATCH)
 			{
 				Con_Printf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
 				Con_Printf ("Will be changed to \"%s\" on vid_restart\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
+			}
+			else if (v->flags & CVAR_RENDERERLATCH)
+			{
+				Con_Printf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
+				Con_Printf ("Will be changed to \"%s\" on vid_reload\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
 			}
 			else
 			{

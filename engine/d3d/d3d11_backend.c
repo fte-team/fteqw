@@ -1767,9 +1767,9 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 
 			for (k = 0; k < 4; k++)
 			{
-				dst[k][0] = mid[0] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[0+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[0+1]);
-				dst[k][1] = mid[1] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[4+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[4+1]);
-				dst[k][2] = mid[2] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[8+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[8+1]);
+				dst[k][0] = mid[0] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[0+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[0+1]);
+				dst[k][1] = mid[1] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[4+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[4+1]);
+				dst[k][2] = mid[2] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[8+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[8+1]);
 			}
 		}
 		break;
@@ -1785,15 +1785,15 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 			float len[3];
 			mat3_t m0, m1, m2, result;
 			float *quad[4];
-			vec3_t rot_centre, tv;
+			vec3_t rot_centre, tv, tv2;
 
-			quad[0] = (float *)(dst + mesh->indexes[k+0]);
-			quad[1] = (float *)(dst + mesh->indexes[k+1]);
-			quad[2] = (float *)(dst + mesh->indexes[k+2]);
+			quad[0] = (float *)(src + mesh->indexes[k+0]);
+			quad[1] = (float *)(src + mesh->indexes[k+1]);
+			quad[2] = (float *)(src + mesh->indexes[k+2]);
 
 			for (j = 2; j >= 0; j--)
 			{
-				quad[3] = (float *)(dst + mesh->indexes[k+3+j]);
+				quad[3] = (float *)(src + mesh->indexes[k+3+j]);
 				if (!VectorEquals (quad[3], quad[0]) &&
 					!VectorEquals (quad[3], quad[1]) &&
 					!VectorEquals (quad[3], quad[2]))
@@ -1898,9 +1898,10 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 
 			for (j = 0; j < 4; j++)
 			{
+				int v = ((vecV_t*)quad[j]-src);
 				VectorSubtract(quad[j], rot_centre, tv);
-				Matrix3_Multiply_Vec3((void *)result, tv, quad[j]);
-				VectorAdd(rot_centre, quad[j], quad[j]);
+				Matrix3_Multiply_Vec3((void *)result, tv, tv2);
+				VectorAdd(rot_centre, tv2, dst[v]);
 			}
 		}
 		break;
@@ -2477,7 +2478,7 @@ qboolean D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsig
 }
 
 #ifdef RTLIGHTS
-void D3D11BE_SetupForShadowMap(dlight_t *dl, qboolean isspot, int texwidth, int texheight, float shadowscale)
+void D3D11BE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float shadowscale)
 {
 #define SHADOWMAP_SIZE 512
 	extern cvar_t r_shadow_shadowmapping_nearclip, r_shadow_shadowmapping_bias;

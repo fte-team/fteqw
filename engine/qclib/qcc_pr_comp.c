@@ -3086,7 +3086,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			else
 			{
 				if (!var_a.sym->constant)
-					QCC_PR_ParseWarning(0, "OP_ADD_SF: string+float may be unsafe");
+					QCC_PR_ParseWarning(WARN_STRINGOFFSET, "OP_ADD_SF: string+float may be unsafe");
 				var_b = QCC_SupplyConversion(var_b, ev_integer, true);	//FIXME: this should be an unconditional float->int conversion
 				var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], var_a, var_b, NULL, 0);
 			}
@@ -3136,7 +3136,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 		case OP_ADD_SI:
 		case OP_ADD_IS:
-			QCC_PR_ParseWarning(0, "OP_ADD_SI: string+int may be unsafe");
+			QCC_PR_ParseWarning(WARN_STRINGOFFSET, "OP_ADD_SI: string+int may be unsafe");
 			var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], var_a, var_b, NULL, 0);
 			var_c.cast = type_string;
 			return var_c;

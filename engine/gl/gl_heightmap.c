@@ -7217,6 +7217,57 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				continue;
 			}
 		}
+		else if (inbrush && !strcmp(token, "patchDef2"))
+		{
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			/*validate {*/
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			/*parse texture name*/
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			/*validate (*/
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			/*xoffset = atof(token);*/
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			/*yoffset = atof(token);*/
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			/*rotation = atof(token);*/
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			/*xscale = atof(token);*/
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			/*yscale = atof(token);*/
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			/*validate )*/
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			/*validate (*/
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			while (!strcmp(token, "("))
+			{
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				while (!strcmp(token, "("))
+				{
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					//x = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					//y = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					//z = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					//s = atof(token);
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					//t = atof(token);
+
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					/*validate )*/
+
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				}
+				/*validate )*/
+				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			}
+			/*validate )*/
+			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			/*validate }*/
+		}
 		else if (inbrush)
 		{
 			//parse a plane
@@ -7224,6 +7275,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			//hexen2: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname 0 -32 rotation sscale tscale utterlypointless
 			//Valve: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname [x y z d] [x y z d] rotation sscale tscale
 			//fte  : ( px py pz pd ) texname [sx sy sz sd] [tx ty tz td] 0 1 1
+			//q3   : (( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) common/caulk common/caulk rotation sscale tscale detailcontents unused unused
 			brushtex_t *bt;
 			vec3_t d1,d2;
 			vec3_t points[3];
@@ -7332,10 +7384,31 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			scale[1] = atof(token);
 
 			//hexen2 has some extra junk that is useless - some 'light' value, but its never used and should normally be -1.
+			//quake3 on the other hand has 3 different args. Contents Unused Unused. The contents conveys only CONTENTS_DETAIL. which is awkward as it varies by game.
 			while (*entities == ' ' || *entities == '\t')
 				entities++;
 			if (*entities == '-' || (*entities >= '0' && *entities <= '9'))
+			{
+				int ex1;
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				ex1 = atoi(token);
+
+				while (*entities == ' ' || *entities == '\t')
+					entities++;
+				if (*entities == '-' || (*entities >= '0' && *entities <= '9'))
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+
+				while (*entities == ' ' || *entities == '\t')
+					entities++;
+				if (*entities == '-' || (*entities >= '0' && *entities <= '9'))
+				{
+					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					//if we got this far, then its q3 format.
+					//q3 is weird. the first extra arg is contents. but only the detail contents is used.
+					if (ex1 & Q3CONTENTS_DETAIL)
+						brushcontents |= Q3CONTENTS_DETAIL;
+				}
+			}
 
 			//okay, that's all the actual parsing, now try to make sense of this plane.
 			if (p == 4)

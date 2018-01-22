@@ -1233,11 +1233,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 		qboolean anycsqc;
 		char *endptr;
 		unsigned int chksum;
-#ifdef _DEBUG
-		anycsqc = true;
-#else
 		anycsqc = atoi(Info_ValueForKey(cl.serverinfo, "anycsqc"));
-#endif
 		if (cls.demoplayback)
 			anycsqc = true;
 		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
@@ -3775,7 +3771,6 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 
 #ifdef PEXT_CSQC
 	CSQC_Shutdown();
-	CSQC_Init(cls.demoplayback, false, 0);
 #endif
 }
 static void CLNQ_SendInitialUserInfo(void *ctx, const char *key, const char *value)

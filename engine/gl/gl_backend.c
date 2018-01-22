@@ -32,6 +32,12 @@ extern texid_t missing_texture_normal;
 extern texid_t scenepp_postproc_cube;
 extern texid_t r_whiteimage;
 
+#ifdef GLQUAKE
+static texid_t shadowmap[2];
+static int shadow_fbo_id;
+static int shadow_fbo_depth_num;
+#endif
+
 #ifndef GLSLONLY
 static void GenerateTCMods(const shaderpass_t *pass, int passnum);
 #endif
@@ -1048,27 +1054,67 @@ void PPL_RevertToKnownState(void)
 }
 
 #ifdef RTLIGHTS
-//called from gl_shadow
-int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale)
+void GLBE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float shadowscale)
 {
 	extern cvar_t r_shadow_shadowmapping_bias;
 	extern cvar_t r_shadow_shadowmapping_nearclip;
 	float n = r_shadow_shadowmapping_nearclip.value;
-	float f = shaderstate.lightradius;
+	float f = dl->radius;
 	float b = r_shadow_shadowmapping_bias.value;
-	//FIXME: this is used for rendering, not for shadow generation!
-#define SHADOWMAP_SIZE 512
-	//projection frustum, slots 10+11. scaled by 0.5
-	//lightshadowmapproj is a projection matrix packed into a vec4, with various texture scaling stuff built in.
+
 	shaderstate.lightshadowmapproj[0] = shadowscale * (1.0-(1.0/texwidth)) * 0.5/3.0;
 	shaderstate.lightshadowmapproj[1] = shadowscale * (1.0-(1.0/texheight)) * 0.5/2.0;
 	shaderstate.lightshadowmapproj[2] = 0.5*(f+n)/(n-f);
 	shaderstate.lightshadowmapproj[3] = (f*n)/(n-f) - b*n*(1024/texheight);
 
-	shaderstate.lightshadowmapscale[0] = 1.0/(SHADOWMAP_SIZE*3);
-	shaderstate.lightshadowmapscale[1] = 1.0/(SHADOWMAP_SIZE*2);
+	shaderstate.lightshadowmapscale[0] = 1.0/texwidth;
+	shaderstate.lightshadowmapscale[1] = 1.0/texheight;
+}
 
-	shaderstate.curshadowmap = shadowmaptex;
+int GLBE_BeginRenderBuffer_DepthOnly(texid_t depthtexture);
+qboolean GLBE_BeginShadowMap(int id, int w, int h, int *restorefbo)
+{
+	if (!gl_config.ext_framebuffer_objects)
+		return false;
+
+	if (!TEXVALID(shadowmap[id]))
+	{
+		shadowmap[id] = Image_CreateTexture(va("***shadowmap2d%i***", id), NULL, 0);
+		qglGenTextures(1, &shadowmap[id]->num);
+		GL_MTBind(0, GL_TEXTURE_2D, shadowmap[id]);
+#ifdef SHADOWDBG_COLOURNOTDEPTH
+		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+#else
+		if (gl_config.gles)
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, w, h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, NULL);
+		else
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16_ARB, w, h, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, NULL);
+#endif
+
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+#if 0//def SHADOWDBG_COLOURNOTDEPTH
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+#else
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+#endif
+		//in case we're using shadow samplers
+		if (gl_config.arb_shadow)
+		{
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_R_TO_TEXTURE_ARB);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
+			qglTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_LUMINANCE);
+		}
+	}
+	shaderstate.curshadowmap = shadowmap[id];
+
+	/*set framebuffer*/
+	*restorefbo = GLBE_BeginRenderBuffer_DepthOnly(shaderstate.curshadowmap);
+
+	shaderstate.depthrange = 0;		//make sure the projection matrix is updated.
+
 	while(shaderstate.lastpasstmus>0)
 	{
 		GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
@@ -1076,14 +1122,24 @@ int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, fl
 
 	shaderstate.shaderbits &= ~SBITS_MISC_DEPTHWRITE;
 
-//	if (qglShadeModel)
-//		qglShadeModel(GL_FLAT);
-	GL_ForceDepthWritable();
-//	qglColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-
 	BE_SelectMode(BEM_DEPTHONLY);
 
-	return shaderstate.fbo_current;
+	BE_Scissor(NULL);
+	qglViewport(0, 0, w, h);
+	GL_ForceDepthWritable();
+	qglClear (GL_DEPTH_BUFFER_BIT);
+#ifdef SHADOWDBG_COLOURNOTDEPTH
+	qglColorMask(TRUE,TRUE,TRUE,TRUE);
+	qglClearColor(1,1,1,1);
+	qglClear (GL_COLOR_BUFFER_BIT);
+#endif
+
+	return true;
+}
+void GLBE_EndShadowMap(int restorefbo)
+{
+	GLBE_FBO_Pop(restorefbo);
+	shaderstate.depthrange = 0;		//make sure the projection matrix is updated.
 }
 #endif
 
@@ -1421,6 +1477,21 @@ void GLBE_DestroyFBOs(void)
 		shaderstate.temptexture = r_nulltex;
 	}
 
+	//shadowmapping stuff
+	if (shadow_fbo_id)
+	{
+		qglDeleteFramebuffersEXT(1, &shadow_fbo_id);
+		shadow_fbo_id = 0;
+		shadow_fbo_depth_num = 0;
+	}
+	for (i = 0; i < 2; i++)
+	{
+		if (shadowmap[i])
+		{
+			Image_DestroyTexture(shadowmap[i]);
+			shadowmap[i] = r_nulltex;
+		}
+	}
 
 	//nuke deferred rendering stuff
 	for (i = 0; i < countof(shaderstate.tex_gbuf); i++)
@@ -1495,20 +1566,20 @@ void GLBE_Init(void)
 
 #ifdef RTLIGHTS
 	Sh_CheckSettings();
-	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
-	{
-		if (r_shadow_shadowmapping.ival)
-		{
-			GLBE_RegisterLightShader(LSHADER_SMAP);
-			GLBE_RegisterLightShader(LSHADER_SMAP|LSHADER_CUBE);
-			GLBE_RegisterLightShader(LSHADER_SMAP|LSHADER_SPOT);
-		}
-		else
-		{
-			GLBE_RegisterLightShader(LSHADER_STANDARD);
-			GLBE_RegisterLightShader(LSHADER_STANDARD|LSHADER_CUBE);
-			GLBE_RegisterLightShader(LSHADER_STANDARD|LSHADER_SPOT);
-		}
+	if ((r_shadow_realtime_dlight.ival && r_shadow_shadowmapping.ival) ||
+		(r_shadow_realtime_world.ival  && r_shadow_shadowmapping.ival) )
+	{	//we expect some lights that will need shadowmapped shadows.
+		GLBE_RegisterLightShader(LSHADER_SMAP);
+		GLBE_RegisterLightShader(LSHADER_SMAP|LSHADER_CUBE);
+		GLBE_RegisterLightShader(LSHADER_SMAP|LSHADER_SPOT);
+	}
+	if ((r_shadow_realtime_dlight.ival && (!r_shadow_shadowmapping.ival || !r_shadow_realtime_dlight_shadows.ival)) ||
+		(r_shadow_realtime_world.ival  && (!r_shadow_shadowmapping.ival || !r_shadow_realtime_world_shadows.ival )) )
+	{	//these are also used when there's no shadow.
+		//FIXME: should also happen if there's static world lights without shadows. Move elsewhere?
+		GLBE_RegisterLightShader(LSHADER_STANDARD);
+		GLBE_RegisterLightShader(LSHADER_STANDARD|LSHADER_CUBE);
+		GLBE_RegisterLightShader(LSHADER_STANDARD|LSHADER_SPOT);
 	}
 #endif
 
@@ -1677,9 +1748,9 @@ static float *tcgen3(const shaderpass_t *pass, int cnt, float *dst, const mesh_t
 		src = mesh->xyz_array;
 		for (i = 0; i < cnt; i++, dst += 3)
 		{
-			dst[0] = src[i][0] - r_refdef.vieworg[0];
-			dst[1] = r_refdef.vieworg[1] - src[i][1];
-			dst[2] = src[i][2] - r_refdef.vieworg[2];
+			dst[0] = src[i][0] - shaderstate.modelmatrix[3];
+			dst[1] = shaderstate.modelmatrix[7] - src[i][1];
+			dst[2] = src[i][2] - shaderstate.modelmatrix[11];
 		}
 		return dst-cnt*3;
 
@@ -2138,6 +2209,84 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 }
 #endif
 
+static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m);
+static void DeformGen_Text(int stringid, int cnt, vecV_t *src, vecV_t *dst, const mesh_t *mesh)
+{
+#define maxlen 32
+	vecV_t *textverts = vertexarray;
+	static vec2_t texttc[maxlen*4];
+	extern index_t	r_quad_indexes[];
+	static mesh_t textmesh, *meshptr = &textmesh;
+	int i;
+	vec3_t org;
+	vec3_t right;
+	vec3_t down;
+	float s, t, d;
+	char cvarname[64];
+	const char *text;
+	Q_snprintfz(cvarname, sizeof(cvarname), "r_shadertext_%i", stringid);
+	text = Cvar_Get(cvarname, "", 0, "Shader System")->string;
+	VectorCopy(mesh->snormals_array[0], right);
+	VectorNegate(mesh->tnormals_array[0], down);
+	CrossProduct(right, down, org);
+	if (DotProduct(mesh->normals_array[0], org) > 0)
+		VectorNegate(right, right);
+	VectorClear(org);
+	for (i = 0; i < cnt; i++)
+		VectorAdd(org, src[i], org);
+	VectorScale(org, 1.0/i, org);
+	for (i = 0, s = 0; i < 4; i++)
+	{
+		d = DotProduct(right, src[i]) - DotProduct(right, org);
+		if (s < d)
+			s = d;
+	}
+	i = strlen(text);
+	VectorScale(right, 2*s/i, right);
+	VectorScale(down, 2*s/i, down);
+	VectorMA(org, -i*0.5, right, org);
+
+	memset(&textmesh, 0, sizeof(textmesh));
+	textmesh.indexes = r_quad_indexes;
+	textmesh.xyz_array = textverts;
+	textmesh.st_array = texttc;
+
+	org[1] += 0;
+
+	for (i = 0; i < maxlen; )
+	{
+		qbyte c = *text++;
+		if (!c)
+			break;
+		if (c != ' ')
+		{
+			const float sz = 1 / 16.0f;
+			s = (c&15)*sz;
+			t = (c>>4)*sz;
+			VectorCopy(org, textverts[i*4+0]);
+			Vector2Set(texttc[i*4+0], s, t);
+
+			VectorAdd(textverts[i*4+0], right, textverts[i*4+1]);
+			Vector2Set(texttc[i*4+1], s+sz, t);
+
+			VectorAdd(textverts[i*4+1], down, textverts[i*4+2]);
+			Vector2Set(texttc[i*4+2], s+sz, t+sz);
+
+			VectorAdd(textverts[i*4+0], down, textverts[i*4+3]);
+			Vector2Set(texttc[i*4+3], s, t+sz);
+			i++;
+		}
+		VectorAdd(org, right, org);
+	}
+	textmesh.numindexes = i*6;
+	textmesh.numvertexes = i*4;
+
+	if (!BE_GenTempMeshVBO(&shaderstate.sourcevbo, &textmesh))
+		return;
+	shaderstate.meshcount = 1;
+	shaderstate.meshes = &meshptr;
+#undef maxlen
+}
 static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *dst, const mesh_t *mesh)
 {
 	float *table;
@@ -2227,7 +2376,7 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 		if (mesh->numindexes < 6)
 			break;
 
-		for (j = 0; j < cnt-3; j+=4, src+=4, dst+=4)
+		for (j = 0; j+3 < cnt; j+=4, src+=4, dst+=4)
 		{
 			vec3_t mid, d;
 			float radius;
@@ -2239,9 +2388,9 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 
 			for (k = 0; k < 4; k++)
 			{
-				dst[k][0] = mid[0] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[0+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[0+1]);
-				dst[k][1] = mid[1] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[4+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[4+1]);
-				dst[k][2] = mid[2] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[8+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[8+1]);
+				dst[k][0] = mid[0] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[0+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[0+1]);
+				dst[k][1] = mid[1] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[4+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[4+1]);
+				dst[k][2] = mid[2] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[8+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[8+1]);
 			}
 		}
 		break;
@@ -2257,15 +2406,15 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 			float len[3];
 			mat3_t m0, m1, m2, result;
 			float *quad[4];
-			vec3_t rot_centre, tv;
+			vec3_t rot_centre, tv, tv2;
 
-			quad[0] = (float *)(dst + mesh->indexes[k+0]);
-			quad[1] = (float *)(dst + mesh->indexes[k+1]);
-			quad[2] = (float *)(dst + mesh->indexes[k+2]);
+			quad[0] = (float *)(src + mesh->indexes[k+0]);
+			quad[1] = (float *)(src + mesh->indexes[k+1]);
+			quad[2] = (float *)(src + mesh->indexes[k+2]);
 
 			for (j = 2; j >= 0; j--)
 			{
-				quad[3] = (float *)(dst + mesh->indexes[k+3+j]);
+				quad[3] = (float *)(src + mesh->indexes[k+3+j]);
 				if (!VectorEquals (quad[3], quad[0]) &&
 					!VectorEquals (quad[3], quad[1]) &&
 					!VectorEquals (quad[3], quad[2]))
@@ -2370,15 +2519,20 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 
 			for (j = 0; j < 4; j++)
 			{
+				int v = ((vecV_t*)quad[j]-src);
 				VectorSubtract(quad[j], rot_centre, tv);
-				Matrix3_Multiply_Vec3((const vec3_t*)result, tv, quad[j]);
-				VectorAdd(rot_centre, quad[j], quad[j]);
+				Matrix3_Multiply_Vec3((const vec3_t*)result, tv, tv2);
+				VectorAdd(rot_centre, tv2, dst[v]);
 			}
 		}
 		break;
 
 //	case DEFORMV_PROJECTION_SHADOW:
 //		break;
+
+	case DEFORMV_TEXT:
+		DeformGen_Text(deformv->args[0], cnt, src, dst, mesh);
+		break;
 	}
 }
 
@@ -2586,7 +2740,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 			if (r_nolightdir.ival || (!shaderstate.curentity->light_range[0] && !shaderstate.curentity->light_range[1] && !shaderstate.curentity->light_range[2]))
 			{
 				VectorCopy(shaderstate.curentity->light_avg, shaderstate.pendingcolourflat);
-				shaderstate.pendingcolourflat[3] = shaderstate.curentity->shaderRGBAf[3];
+				alphagen(pass, 1, meshlist->colors4f_array[0], &shaderstate.pendingcolourflat, meshlist);
 				shaderstate.colourarraytype = 0;
 				shaderstate.pendingcolourvbo = 0;
 				shaderstate.pendingcolourpointer = NULL;
@@ -3299,7 +3453,14 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 #endif
 			{
 				vec4_t param4;
-				Vector4Set(param4, shaderstate.identitylighting, shaderstate.identitylighting, shaderstate.identitylighting, 1);
+				if (shaderstate.curbatch->flags & BEF_NODLIGHT)
+				{
+					Vector4Set(param4, 1, 1, 1, 1);
+				}
+				else
+				{
+					Vector4Set(param4, shaderstate.identitylighting, shaderstate.identitylighting, shaderstate.identitylighting, 1);
+				}
 				qglUniform4fvARB(ph, 1, (GLfloat*)param4);
 			}
 			break;
@@ -3835,14 +3996,15 @@ void GLBE_SelectEntity(entity_t *ent)
 		}
 
 		shaderstate.depthrange = nd;
-		if (qglDepthRange)
-			qglDepthRange (gldepthmin, gldepthmin + shaderstate.depthrange*(gldepthmax-gldepthmin));
-		else if (qglDepthRangef)
-			qglDepthRangef (gldepthmin, gldepthmin + shaderstate.depthrange*(gldepthmax-gldepthmin));
+//		if (qglDepthRange)
+//			qglDepthRange (gldepthmin, gldepthmin + shaderstate.depthrange*(gldepthmax-gldepthmin));
+//		else if (qglDepthRangef)
+//			qglDepthRangef (gldepthmin, gldepthmin + shaderstate.depthrange*(gldepthmax-gldepthmin));
 	}
 
 	shaderstate.lastuniform = 0;
 }
+
 #if 1
 static void BE_SelectFog(vec3_t colour, float alpha, float density)
 {
@@ -3865,11 +4027,12 @@ static qboolean GLBE_RegisterLightShader(int mode)
 {
 	if (!shaderstate.inited_shader_light[mode])
 	{
-		char *name = va("rtlight%s%s%s%s", 
+		char *name = va("rtlight%s%s%s%s%s", 
 			(mode & LSHADER_SMAP)?"#PCF":"",
 			(mode & LSHADER_SPOT)?"#SPOT":"",
 			(mode & LSHADER_CUBE)?"#CUBE":"",
-			(gl_config.arb_shadow && (mode & (LSHADER_SMAP|LSHADER_SPOT|LSHADER_CUBE)))?"#USE_ARB_SHADOW":""
+			(mode & LSHADER_ORTHO)?"#ORTHO":"",
+			(gl_config.arb_shadow && (mode & (LSHADER_SMAP|LSHADER_SPOT|LSHADER_CUBE|LSHADER_ORTHO)))?"#USE_ARB_SHADOW":""
 			);
 
 		shaderstate.inited_shader_light[mode] = true;
@@ -3907,7 +4070,7 @@ qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned
 #ifdef RTLIGHTS
 	VectorCopy(dl->lightcolourscales, shaderstate.lightcolourscale);
 	shaderstate.lightcolourscale[2] *= gl_specular.value;
-	if (lmode & LSHADER_SPOT)
+	if (lmode & (LSHADER_SPOT|LSHADER_ORTHO))
 		shaderstate.lightcubemap = r_nulltex;
 	else
 		shaderstate.lightcubemap = dl->cubetexture;
@@ -3918,7 +4081,18 @@ qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned
 		return false;
 
 	/*generate light projection information*/
-	if (shaderstate.lightmode & LSHADER_SPOT)
+	if (shaderstate.lightmode & LSHADER_ORTHO)
+	{
+		float xmin = -dl->radius;
+		float ymin = -dl->radius;
+		float znear = -dl->radius;
+		float xmax = dl->radius;
+		float ymax = dl->radius;
+		float zfar = dl->radius;
+		Matrix4x4_CM_Orthographic(shaderstate.lightprojmatrix, xmin, xmax, ymax, ymin, znear, zfar);
+//		Matrix4x4_CM_LightMatrixFromAxis(shaderstate.lightprojmatrix, axis[0], axis[1], axis[2], dl->origin);
+	}
+	else if (shaderstate.lightmode & LSHADER_SPOT)
 	{
 		float view[16];
 		float proj[16];
@@ -4288,7 +4462,7 @@ static void DrawMeshes(void)
 			BE_RenderMeshProgram(shaderstate.wireframeshader, shaderstate.wireframeshader->passes, shaderstate.wireframeshader->prog);
 		}
 #ifndef GLSLONLY
-		else if (gl_config_nofixedfunc)
+		else if (!gl_config_nofixedfunc)
 		{
 			BE_SetPassBlendMode(0, PBM_REPLACE);
 			GL_DeSelectProgram();
@@ -4490,7 +4664,7 @@ static void DrawMeshes(void)
 			shaderstate.pendingcolourvbo = 0;
 			shaderstate.pendingcolourpointer = NULL;
 			BE_SetPassBlendMode(0, PBM_MODULATE);
-			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_MISC_DEPTHEQUALONLY);
+			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | (shaderstate.curshader->numpasses?SBITS_MISC_DEPTHEQUALONLY:0));
 
 			GenerateTCFog(0, shaderstate.curbatch->fog);
 			BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR) | (1u<<VATTR_LEG_TMU0), 0);
@@ -5284,6 +5458,69 @@ void GLBE_FBO_Destroy(fbostate_t *state)
 
 	state->enables = 0;
 }
+
+#ifdef RTLIGHTS
+#ifdef SHADOWDBG_COLOURNOTDEPTH
+void GLBE_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
+{
+	if (gl_config.ext_framebuffer_objects)
+	{
+		if (!shadow_fbo_id)
+		{
+			int drb;
+			qglGenFramebuffersEXT(1, &shadow_fbo_id);
+			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
+
+			//create an unnamed depth buffer
+//			qglGenRenderbuffersEXT(1, &drb);
+//			qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, drb);
+//			qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2);
+//			qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, drb);
+
+			if (qglDrawBuffer)
+				qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+			if (qglReadBuffer)
+				qglReadBuffer(GL_NONE);
+		}
+		else
+			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
+
+		if (TEXVALID(depthtexture))
+			qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, depthtexture->num, 0);
+	}
+}
+#else
+int GLBE_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
+{
+	int old = shaderstate.fbo_current;
+	if (gl_config.ext_framebuffer_objects)
+	{
+		if (!shadow_fbo_id)
+		{
+			qglGenFramebuffersEXT(1, &shadow_fbo_id);
+			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
+			if (qglDrawBuffers)
+				qglDrawBuffers(0, NULL);
+			else if (qglDrawBuffer)
+				qglDrawBuffer(GL_NONE);
+			if (qglReadBuffer)
+				qglReadBuffer(GL_NONE);
+		}
+		else
+			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
+		shaderstate.fbo_current = shadow_fbo_id;
+
+		if (shadow_fbo_depth_num != depthtexture->num)
+		{
+			shadow_fbo_depth_num = depthtexture->num;
+			if (TEXVALID(depthtexture))
+				qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, depthtexture->num, 0);
+		}
+	}
+	return old;
+}
+#endif
+#endif
 
 //state->colour is created if usedepth is set and it doesn't previously exist
 int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, int mrt, texid_t destdepth, int width, int height, int layer)

@@ -219,6 +219,11 @@ typedef struct
 	int mipfilter[3];
 	int picfilter[3];
 	D3DSAMPLERSTATETYPE anisfilter;
+
+	texid_t fogtexture;
+	float fogdensity;
+	float fogdepth;
+	float fogfar;
 } d3dbackend_t;
 
 typedef struct
@@ -672,7 +677,7 @@ static const char LIGHTPASS_SHADER[] = "\
 
 void D3D9BE_Init(void)
 {
-	be_maxpasses = MAX_TMUS;
+	be_maxpasses = MAX_TC_TMUS;
 	memset(&shaderstate, 0, sizeof(shaderstate));
 	shaderstate.curvertdecl = -1;
 	shaderstate.curentity = &r_worldentity;
@@ -1490,8 +1495,101 @@ static void GenerateTCMods3(const shaderpass_t *pass, float *dest)
 	}
 }
 
+static void tcgen_fog(float *st, unsigned int numverts, float *xyz, mfog_t *fog)
+{
+	int			i;
+
+	float z;
+	float eye, point;
+	vec4_t zmat;
+	vec4_t distmat;
+
+	//FIXME
+	float modelviewmatrix[16];
+	Matrix4_Multiply(r_refdef.m_view, shaderstate.m_model, modelviewmatrix);
+
+	//generate a simple matrix to calc only the projected z coord
+	zmat[0] = -modelviewmatrix[2];
+	zmat[1] = -modelviewmatrix[6];
+	zmat[2] = -modelviewmatrix[10];
+	zmat[3] = -modelviewmatrix[14];
+
+	VectorCopy(fog->visibleplane->normal, distmat);
+	distmat[3] = fog->visibleplane->dist;
+
+	Vector4Scale(zmat, shaderstate.fogfar, zmat);
+
+	if (fog && fog->visibleplane)
+	{
+		eye = (DotProduct(r_refdef.vieworg, distmat) - distmat[3]);
+		if (eye < 1)
+			eye = 1;
+
+		for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), st += 2 )
+		{
+			z = DotProduct(xyz, zmat) + zmat[3];
+			st[0] = z;
+
+			if (fog->visibleplane)
+				point = (DotProduct(xyz, distmat) - distmat[3]);
+			else
+				point = 1;
+			st[1] = point / (point - eye);
+		}
+	}
+	else
+	{
+		for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), st += 2 )
+		{
+			z = DotProduct(xyz, zmat) + zmat[3];
+			st[0] = z;
+			st[1] = 1.0;//31/32.0;
+		}
+	}
+}
+
 //end texture coords
 /*******************************************************************************************************************/
+
+
+static void GenerateFogTexture(texid_t *tex, float density, float zscale)
+{
+#define FOGS 256
+#define FOGT 32
+	byte_vec4_t fogdata[FOGS*FOGT];
+	int s, t;
+	float f, z;
+
+	for(s = 0; s < FOGS; s++)
+		for(t = 0; t < FOGT; t++)
+		{
+			z = (float)s / (FOGS-1);
+			z *= zscale;
+
+			if (0)//q3
+				f = pow(z, 0.5);
+			else if (1)//GL_EXP
+				f = 1-exp(-density * z);
+			else //GL_EXP2
+				f = 1-exp(-(density*density) * z);
+			if (f < 0)
+				f = 0;
+			if (f > 1)
+				f = 1;
+			f *= (float)t / (FOGT-1);
+
+			fogdata[t*FOGS + s][0] = 255;
+			fogdata[t*FOGS + s][1] = 255;
+			fogdata[t*FOGS + s][2] = 255;
+			fogdata[t*FOGS + s][3] = 255*f;
+		}
+
+	if (!TEXVALID(*tex))
+		*tex = Image_CreateTexture("***fog***", NULL, IF_CLAMP|IF_NOMIPMAP);
+	Image_Upload(*tex, TF_RGBA32, fogdata, NULL, FOGS, FOGT, IF_CLAMP|IF_NOMIPMAP);
+}
+
+
 
 static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *dst, const mesh_t *mesh)
 {
@@ -1588,9 +1686,9 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 
 			for (k = 0; k < 4; k++)
 			{
-				dst[k][0] = mid[0] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[0+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[0+1]);
-				dst[k][1] = mid[1] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[4+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[4+1]);
-				dst[k][2] = mid[2] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[8+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[8+1]);
+				dst[k][0] = mid[0] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[0+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[0+1]);
+				dst[k][1] = mid[1] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[4+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[4+1]);
+				dst[k][2] = mid[2] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[8+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[8+1]);
 			}
 		}
 		break;
@@ -1606,15 +1704,15 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 			float len[3];
 			mat3_t m0, m1, m2, result;
 			float *quad[4];
-			vec3_t rot_centre, tv;
+			vec3_t rot_centre, tv, tv2;
 
-			quad[0] = (float *)(dst + mesh->indexes[k+0]);
-			quad[1] = (float *)(dst + mesh->indexes[k+1]);
-			quad[2] = (float *)(dst + mesh->indexes[k+2]);
+			quad[0] = (float *)(src + mesh->indexes[k+0]);
+			quad[1] = (float *)(src + mesh->indexes[k+1]);
+			quad[2] = (float *)(src + mesh->indexes[k+2]);
 
 			for (j = 2; j >= 0; j--)
 			{
-				quad[3] = (float *)(dst + mesh->indexes[k+3+j]);
+				quad[3] = (float *)(src + mesh->indexes[k+3+j]);
 				if (!VectorEquals (quad[3], quad[0]) &&
 					!VectorEquals (quad[3], quad[1]) &&
 					!VectorEquals (quad[3], quad[2]))
@@ -1712,9 +1810,10 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 
 			for (j = 0; j < 4; j++)
 			{
+				int v = ((vecV_t*)quad[j]-src);
 				VectorSubtract(quad[j], rot_centre, tv);
-				Matrix3_Multiply_Vec3((void *)result, tv, quad[j]);
-				VectorAdd(rot_centre, quad[j], quad[j]);
+				Matrix3_Multiply_Vec3((void *)result, tv, tv2);
+				VectorAdd(rot_centre, tv2, dst[v]);
 			}
 		}
 		break;
@@ -2340,7 +2439,7 @@ static void BE_DrawMeshChain_Internal(void)
 
 	//if anything is dynamic ALL must be dynamic
 	//might want to flag this for multi-mesh batches on pre-t&l cards too, so that there's no gaps.
-	if ((useshader->flags & SHADER_NEEDSARRAYS) && shaderstate.nummeshes > 0)
+	if ((useshader->flags & SHADER_NEEDSARRAYS || (shaderstate.curbatch && shaderstate.curbatch->fog)) && shaderstate.nummeshes > 0)
 		shaderstate.batchvbo = NULL;
 
 	if (shaderstate.batchvbo)
@@ -2518,7 +2617,7 @@ static void BE_DrawMeshChain_Internal(void)
 		else
 		{
 			/*now go through and flush each pass*/
-			for (passno = 0, pass = useshader->passes; passno < shaderstate.curshader->numpasses; passno += pass->numMergedPasses)
+			for (passno = 0, pass = useshader->passes; passno < useshader->numpasses; passno += pass->numMergedPasses)
 			{
 				if (!BE_DrawMeshChain_SetupPass(pass+passno, vertcount))
 					continue;
@@ -2530,6 +2629,59 @@ static void BE_DrawMeshChain_Internal(void)
 				BE_SubmitMeshChain(vertbase, vertfirst, vertcount, idxfirst, idxcount);
 //				d3dcheck(IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3));
 			}
+		}
+
+		if (shaderstate.curbatch && shaderstate.curbatch->fog && shaderstate.curbatch->fog->shader)
+		{
+			if (!TEXVALID(shaderstate.fogtexture) || shaderstate.fogdensity != shaderstate.curbatch->fog->shader->fog_dist || shaderstate.fogdepth != 2048)
+			{
+				shaderstate.fogdensity = shaderstate.curbatch->fog->shader->fog_dist;
+				shaderstate.fogdepth = 2048;
+				shaderstate.fogfar = 1.0f/shaderstate.fogdepth; /*scaler for z coords*/
+				GenerateFogTexture(&shaderstate.fogtexture, shaderstate.fogdensity, shaderstate.fogdepth);
+			}
+
+			while(shaderstate.lastpasscount>1)
+			{
+				passno = --shaderstate.lastpasscount;
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+passno, NULL, 0, 0));
+				BindTexture(passno, NULL);
+				d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLOROP, D3DTOP_DISABLE));
+				d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
+			}
+			shaderstate.lastpasscount = 1;
+			passno = 0;
+			BindTexture(passno, shaderstate.fogtexture);
+			BE_ApplyTMUState(passno, shaderstate.curtexflags[passno]);
+
+			Vector4Set((qbyte*)&shaderstate.passcolour, shaderstate.curbatch->fog->shader->fog_color[2], shaderstate.curbatch->fog->shader->fog_color[1], shaderstate.curbatch->fog->shader->fog_color[0], shaderstate.curbatch->fog->shader->fog_color[3]);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_CONSTANT, shaderstate.passcolour);
+			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORVERTEX, FALSE);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLORARG1, D3DTA_CONSTANT);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLORARG2, D3DTA_TEXTURE);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLOROP, D3DTOP_MODULATE);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAARG1, D3DTA_CONSTANT);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+			BE_ApplyShaderBits(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | (useshader->numpasses?SBITS_MISC_DEPTHEQUALONLY:0));
+
+			allocvertexbuffer(shaderstate.dynst_buff[passno], shaderstate.dynst_size, &shaderstate.dynst_offs[passno], &map, vertcount*sizeof(vec2_t));
+			for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
+			{
+				m = shaderstate.meshlist[mno];
+				tcgen_fog((float*)map+vertcount*2, m->numvertexes, (float*)m->xyz_array, shaderstate.curbatch->fog); 
+				vertcount += m->numvertexes;
+			}
+			IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[passno]);
+			IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+passno, shaderstate.dynst_buff[passno], shaderstate.dynst_offs[passno] - vertcount*sizeof(vec2_t), sizeof(vec2_t));
+
+			if (D3D_VDEC_ST0 != shaderstate.curvertdecl)
+			{
+				shaderstate.curvertdecl = D3D_VDEC_ST0;
+				d3dcheck(IDirect3DDevice9_SetVertexDeclaration(pD3DDev9, vertexdecls[shaderstate.curvertdecl]));
+			}
+
+			BE_SubmitMeshChain(vertbase, vertfirst, vertcount, idxfirst, idxcount);
 		}
 		break;
 	}
@@ -3233,6 +3385,7 @@ void D3D9BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, uns
 	shaderstate.batchvbo = vbo;
 	shaderstate.curtime = realtime;
 	shaderstate.curshader = shader;
+	shaderstate.curbatch = NULL;
 	if (shader->numdefaulttextures)
 		shaderstate.curtexnums = shader->defaulttextures + ((int)(shader->defaulttextures_fps * shaderstate.curtime) % shader->numdefaulttextures);
 	else

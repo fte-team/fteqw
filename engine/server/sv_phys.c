@@ -71,6 +71,7 @@ cvar_t	pm_flyfriction		= CVARFD("pm_flyfriction", "", CVAR_SERVERINFO, "Amount o
 cvar_t	pm_slidefix			 = CVARF("pm_slidefix", "", CVAR_SERVERINFO);
 cvar_t	pm_slidyslopes		 = CVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
 cvar_t	pm_airstep			 = CVARF("pm_airstep", "", CVAR_SERVERINFO);
+cvar_t	pm_stepdown			 = CVARF("pm_stepdown", "", CVAR_SERVERINFO);
 cvar_t	pm_walljump			 = CVARF("pm_walljump", "", CVAR_SERVERINFO);
 
 #define cvargroup_serverphysics  "server physics variables"

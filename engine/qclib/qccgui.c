@@ -23,6 +23,7 @@ void OptionsDialog(void);
 static void GUI_CreateInstaller_Windows(void);
 static void GUI_CreateInstaller_Android(void);
 static void SetProgsSrcFileAndPath(char *filename);
+static void CreateOutputWindow(pbool doannoates);
 void AddSourceFile(const char *parentsrc, const char *filename);
 
 #ifndef TVM_SETBKCOLOR
@@ -449,59 +450,57 @@ void QCC_EnumerateFilesResult(const char *name, const void *compdata, size_t com
 LoadFile
 ==============
 */
-unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz)
+void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size)
+//unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz)
 {
-	long    length;
+	size_t len;
 	FILE *f;
+	char *buffer;
 	vfile_t *v = QCC_FindVFile(fname);
 	if (v)
 	{
-		if (!buffer)
-		{
-			len = v->fsize;
+		len = v->fsize;
+		if (buf_get)
+			buffer = buf_get(buf_ctx, len+1);
+		else
 			buffer = malloc(len+1);
-			((char*)buffer)[len] = 0;
-		}
+		if (!buffer)
+			return NULL;
+		((char*)buffer)[len] = 0;
 		if (len > v->fsize)
 			len = v->fsize;
 		memcpy(buffer, v->fdata, len);
-		if (sz)
-			*sz = len;
+		if (out_size)
+			*out_size = len;
 		return buffer;
 	}
 
 	f = fopen(fname, "rb");
 	if (!f)
 	{
-		if (sz)
-			*sz = 0;
+		if (out_size)
+			*out_size = 0;
 		return NULL;
 	}
 
-	if (!buffer)
-	{
-		fseek(f, 0, SEEK_END);
-		len = ftell(f);
-		fseek(f, 0, SEEK_SET);
-		buffer = malloc(len+1);
-		((char*)buffer)[len] = 0;
-		length = fread(buffer, 1, len, f);
-		if (length != len)
-		{
-			free(buffer);
-			buffer = NULL;
-		}
-	}
+	fseek(f, 0, SEEK_END);
+	len = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	if (buf_get)
+		buffer = buf_get(buf_ctx, len+1);
 	else
+		buffer = malloc(len+1);
+	((char*)buffer)[len] = 0;
+	if (len != fread(buffer, 1, len, f))
 	{
-		length = fread(buffer, 1, len, f);
-		if (length != len)
-			buffer = NULL;
+		if (!buf_get)
+			free(buffer);
+		buffer = NULL;
 	}
 	fclose(f);
 
-	if (sz)
-		*sz = length;
+	if (out_size)
+		*out_size = len;
 	return buffer;
 }
 int PDECL QCC_RawFileSize (const char *fname)
@@ -1606,6 +1605,7 @@ enum {
 	IDM_ENCODING_WINDOWS,
 	IDM_CREATEINSTALLER_WINDOWS,
 	IDM_CREATEINSTALLER_ANDROID,
+	IDM_CREATEINSTALLER_PACKAGES,
 
 	IDI_O_LEVEL0,
 	IDI_O_LEVEL1,
@@ -1649,6 +1649,8 @@ void QueryOpenFile(void)
 		EditFile(filename, -1, false);
 	SetCurrentDirectory(oldpath);
 }
+
+static void Packager_MessageCallback(void *ctx, const char *fmt, ...);
 
 //IDM_ stuff that needs no active window
 void GenericMenu(WPARAM wParam)
@@ -1695,6 +1697,19 @@ void GenericMenu(WPARAM wParam)
 		break;
 	case IDM_CREATEINSTALLER_ANDROID:
 		GUI_CreateInstaller_Android();
+		break;
+	case IDM_CREATEINSTALLER_PACKAGES:
+		{
+			struct pkgctx_s *ctx;
+
+			CreateOutputWindow(false);
+			GUIprintf("");
+
+			ctx = Packager_Create(Packager_MessageCallback, NULL);
+			Packager_Parse(ctx, "packages.src");
+			Packager_WriteDataset(ctx, NULL);
+			Packager_Destroy(ctx);
+		}
 		break;
 
 	case IDM_ABOUT:
@@ -2443,8 +2458,7 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 //indentbuf may contain spaces or tabs. preferably tabs.
 static void scin_get_line_indent(HWND editpane, int lineidx, char *indentbuf, size_t sizeofbuf)
 {
-	int i;
-	size_t len;
+	size_t i, len;
 	while (lineidx --> 0)
 	{
 		len = SendMessage(editpane, SCI_LINELENGTH, lineidx, 0);
@@ -2891,7 +2905,7 @@ static void EditorReload(editor_t *editor)
 	char *file;
 	unsigned int flen;
 	pbool dofree;
-	rawfile = QCC_ReadFile(editor->filename, NULL, 0, &flensz);
+	rawfile = QCC_ReadFile(editor->filename, NULL, NULL, &flensz);
 	flen = flensz;
 
 	file = QCC_SanitizeCharSet(rawfile, &flen, &dofree, &editor->savefmt);
@@ -3332,26 +3346,42 @@ void EditorsRun(void)
 {
 }
 
-
-unsigned char *GUIReadFile(const char *fname, void *buffer, int blen, size_t *sz)
+static unsigned char *buf_get_malloc(void *ctx, size_t len)
+{
+	return malloc(len);
+}
+void *GUIReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size)
 {
 	editor_t *e;
+	size_t blen;
+	unsigned char *buffer;
+	if (!buf_get)
+		buf_get = buf_get_malloc;
 	for (e = editors; e; e = e->next)
 	{
 		if (e->window && !strcmp(e->filename, fname))
 		{
-//			int elen = GetWindowTextLengthW(e->editpane);
 			//our qcc itself is fine with utf-16, so long as it has a BOM.
 			if (e->scintilla)
-			{
+			{	//take the opportunity to grab a predefined preprocessor list for this file
+				char *deflist = QCC_PR_GetDefinesList();
+				SendMessage(e->editpane, SCI_SETKEYWORDS,	4,	(LPARAM)deflist);
+				free(deflist);
+
+				blen = SendMessage(e->editpane, SCI_GETLENGTH, 0, 0);
+				buffer = buf_get(buf_ctx, blen);
 				blen = SendMessage(e->editpane, SCI_GETTEXT, blen, (LPARAM)buffer);
 			}
 			else if (e->savefmt == UTF_ANSI)
 			{
+				blen = GetWindowTextLengthA(e->editpane);
+				buffer = buf_get(buf_ctx, blen);
 				GetWindowTextA(e->editpane, buffer, blen);
 			}
 			else
 			{
+				blen = (GetWindowTextLengthW(e->editpane)+1)*2;
+				buffer = buf_get(buf_ctx, blen);
 				*(wchar_t*)buffer = 0xfeff;
 				GetWindowTextW(e->editpane, (wchar_t*)buffer+1, blen-sizeof(wchar_t));
 			}
@@ -3375,11 +3405,12 @@ unsigned char *GUIReadFile(const char *fname, void *buffer, int blen, size_t *sz
 				}
 			}
 
+			*out_size = blen;
 			return buffer;
 		}
 	}
 
-	return QCC_ReadFile(fname, buffer, blen, NULL);
+	return QCC_ReadFile(fname, buf_get, buf_ctx, out_size);
 }
 
 int GUIFileSize(const char *fname)
@@ -3391,13 +3422,7 @@ int GUIFileSize(const char *fname)
 		{
 			int len;
 			if (e->scintilla)
-			{	//take the opportunity to grab a predefined preprocessor list for this file
-				char *deflist = QCC_PR_GetDefinesList();
-				SendMessage(e->editpane, SCI_SETKEYWORDS,	4,	(LPARAM)deflist);
-				free(deflist);
-
 				len = SendMessage(e->editpane, SCI_GETLENGTH, 0, 0);
-			}
 			else if (e->savefmt == UTF_ANSI)
 				len = GetWindowTextLengthA(e->editpane);
 			else
@@ -5827,6 +5852,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					AppendMenu(m, MF_SEPARATOR, 0, NULL);
 					AppendMenu(m, 0, IDM_CREATEINSTALLER_WINDOWS,				"Create Windows Installer");
 					AppendMenu(m, 0, IDM_CREATEINSTALLER_ANDROID,				"Create Android Installer");
+					AppendMenu(m, 0, IDM_CREATEINSTALLER_PACKAGES,				"Create Packages");
 					AppendMenu(m, MF_SEPARATOR, 0, NULL);
 					AppendMenu(m, 0, IDM_QUIT,									"Exit");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Navigation");
@@ -6727,7 +6753,7 @@ void RunCompiler(char *args, pbool quick)
 }
 
 
-void CreateOutputWindow(pbool doannoates)
+static void CreateOutputWindow(pbool doannoates)
 {
 	gui_doannotates = doannoates;
 
@@ -6923,6 +6949,17 @@ void UpdateFileList(void)
 
 		RunCompiler(parameters, true);
 	}
+}
+
+static void Packager_MessageCallback(void *ctx, const char *fmt, ...)
+{
+	va_list		va;
+	char		message[1024];
+	va_start (va, fmt);
+	vsnprintf (message, sizeof(message)-1, fmt, va);
+	va_end (va);
+
+	outlen = GUIEmitOutputText(outputbox, outlen, message, strlen(message), RGB(0, 0, 0));
 }
 
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)

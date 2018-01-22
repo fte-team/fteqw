@@ -5813,32 +5813,50 @@ void FS_ChangeGame_f(void)
 	//don't execute this if we're executing rcon commands, as this can change game directories.
 	if (cmd_blockwait)
 		return;
+	if (Cmd_IsInsecure())
+		return;
 
 	if (!*arg)
 	{
 		Con_Printf("Valid games are:\n");
 		for (i = 0; gamemode_info[i].argname; i++)
 		{
-			Con_Printf(" %s\n", gamemode_info[i].argname+1);
+			char nbase[MAX_OSPATH];
+			char *note = "not installed";
+			if (FS_DirHasGame(com_gamepath, i))
+				note = com_gamepath;
+			else if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].argname+1, nbase, sizeof(nbase), false) && FS_FixPath(nbase, sizeof(nbase)) && FS_DirHasGame(nbase, i))
+				note = nbase;
+			Con_Printf(" %s (%s)\n", gamemode_info[i].argname+1, note);
 		}
+		//FIXME: scan for fmf files.
 	}
 	else
 	{
-		for (i = 0; gamemode_info[i].argname; i++)
-		{			
-			if (!Q_strcasecmp(gamemode_info[i].argname+1, arg))
-			{
-				Con_Printf("Switching to %s\n", gamemode_info[i].argname+1);
-				PM_Shutdown();
-				FS_ChangeGame(FS_GenerateLegacyManifest(NULL, 0, true, i), true, true);
-				return;
-			}
+		if (strrchr(arg, '/') && !strrchr(arg, '/')[1])
+		{
+			Q_strncpyz(com_gamepath, arg, sizeof(com_gamepath));
+			host_parms.basedir = com_gamepath;
+			FS_ChangeGame(FS_ReadDefaultManifest(NULL, 0, true), true, true);
 		}
+		else
+		{
+			for (i = 0; gamemode_info[i].argname; i++)
+			{			
+				if (!Q_strcasecmp(gamemode_info[i].argname+1, arg))
+				{
+					Con_Printf("Switching to %s\n", gamemode_info[i].argname+1);
+					PM_Shutdown();
+					FS_ChangeGame(FS_GenerateLegacyManifest(NULL, 0, true, i), true, true);
+					return;
+				}
+			}
 
 #ifndef SERVERONLY
-		if (!Host_RunFile(arg, strlen(arg), NULL))
-			Con_Printf("Game unknown\n");
+			if (!Host_RunFile(arg, strlen(arg), NULL))
+				Con_Printf("Game unknown\n");
 #endif
+		}
 	}
 }
 
@@ -6090,6 +6108,8 @@ void COM_InitFilesystem (void)
 		com_homepathusable = false;
 	if (!*com_homepath)
 		com_homepathusable = false;
+
+	com_homepathenabled = com_homepathusable;
 
 	fs_readonly = COM_CheckParm("-readonly");
 

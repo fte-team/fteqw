@@ -222,7 +222,11 @@ void main()
 
 void main ()
 {
+#ifdef ORTHO
+	float colorscale = 1.0;
+#else
 	float colorscale = max(1.0 - (dot(lightvector, lightvector)/(l_lightradius*l_lightradius)), 0.0);
+#endif
 #ifdef PCF
 	/*filter the light by the shadowmap. logically a boolean, but we allow fractions for softer shadows*/
 	colorscale *= ShadowmapFilter(s_shadowmap, vtexprojcoord);

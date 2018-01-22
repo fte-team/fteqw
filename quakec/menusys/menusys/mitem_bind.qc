@@ -13,6 +13,14 @@ class mitem_bind : mitem
 		item_scale = item_size[1];
 
 		item_flags |= IF_SELECTABLE;
+		
+		item_text = strzone(item_text);
+		item_command = strzone(item_command);
+	};
+	virtual void() item_remove =
+	{
+		strunzone(item_text);
+		strunzone(item_command);
 	};
 };
 #define menuitembind_spawn(text,command,sz)	\

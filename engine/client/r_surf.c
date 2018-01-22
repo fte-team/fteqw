@@ -3446,7 +3446,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 	{
 		if (m->submodelof->loadstate != MLS_LOADED)
 			return;
-		newfirst = cl.model_precache[1]->lightmaps.first;
+		newfirst = m->submodelof->lightmaps.first;
 	}
 	else
 	{

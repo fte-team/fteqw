@@ -492,27 +492,61 @@ void CL_CalcCrouch (playerview_t *pv)
 	VectorCopy (pv->simorg, pv->oldorigin);
 
 
-	if (pv->onground && orgz - pv->oldz > 0)
+	if (pv->onground && orgz - pv->oldz)// > 0)
 	{
-		if (orgz - pv->oldz > movevars.stepheight+2)
-		{
-			// if on steep stairs, increase speed
-			if (pv->crouchspeed < 160)
-			{
-				pv->extracrouch = orgz - pv->oldz - host_frametime * 200 - 15;
-				pv->extracrouch = min(pv->extracrouch, 5);
-			}
-			pv->crouchspeed = 160;
-		}
-
-		pv->oldz += host_frametime * pv->crouchspeed;
 		if (pv->oldz > orgz)
-			pv->oldz = orgz;
+		{	//stepping down should be a little faster than stepping up.
+			//so steps will still feel a little juddery. my knees hate walking down steep hills, so I guess this is similar.
+			if (pv->crouchspeed > 0)
+				pv->crouchspeed = -pv->crouchspeed*2;
 
-		if (orgz - pv->oldz > 15 + pv->extracrouch)
-			pv->oldz = orgz - 15 - pv->extracrouch;
-		pv->extracrouch -= host_frametime * 200;
-		pv->extracrouch = max(pv->extracrouch, 0);
+			if (orgz - pv->oldz < -movevars.stepheight-2)
+			{
+				// if on steep stairs, increase speed
+				if (pv->crouchspeed > -160*2)
+				{
+					pv->extracrouch = orgz - pv->oldz + host_frametime * 400 + 15;
+//					pv->extracrouch = max(pv->extracrouch, -5);
+				}
+				pv->crouchspeed = -160*2;
+			}
+
+			pv->oldz += host_frametime * pv->crouchspeed;
+			if (pv->oldz < orgz)
+				pv->oldz = orgz;
+
+			if (pv->oldz > orgz + 15 - pv->extracrouch)
+				pv->oldz = orgz + 15 - pv->extracrouch;
+			pv->extracrouch += host_frametime * 400;
+			pv->extracrouch = min(pv->extracrouch, 0);
+		}
+		else
+		{
+			if (pv->crouchspeed < 0)
+				pv->crouchspeed = -pv->crouchspeed/2;
+
+			if (orgz - pv->oldz > movevars.stepheight+2)
+			{
+				// if on steep stairs, increase speed
+				if (pv->crouchspeed < 160)
+				{
+					pv->extracrouch = orgz - pv->oldz - host_frametime * 200 - 15;
+					pv->extracrouch = min(pv->extracrouch, 5);
+				}
+				pv->crouchspeed = 160;
+			}
+
+			pv->oldz += host_frametime * pv->crouchspeed;
+			if (pv->oldz > orgz)
+				pv->oldz = orgz;
+		
+
+//			if (orgz - pv->oldz > 15 + pv->extracrouch)
+			if (pv->oldz < orgz - 15 - pv->extracrouch)
+				pv->oldz = orgz - 15 - pv->extracrouch;
+			pv->extracrouch -= host_frametime * 200;
+			pv->extracrouch = max(pv->extracrouch, 0);
+		}
 
 		pv->crouch = pv->oldz - orgz;
 	}
@@ -520,12 +554,25 @@ void CL_CalcCrouch (playerview_t *pv)
 	{
 		// in air or moving down
 		pv->oldz = orgz;
-		pv->crouch += host_frametime * 150;
-		if (orgz - pv->oldz < 0)
-			pv->crouch -= orgz - pv->oldz;	//if the view moved down, remove that amount from our crouching to avoid unneeded bobbing
 		if (pv->crouch > 0)
-			pv->crouch = 0;
-		pv->crouchspeed = 100;
+		{
+			//step-down
+			pv->crouch -= host_frametime * 150;
+			if (orgz - pv->oldz > 0)
+				pv->crouch += orgz - pv->oldz;	//if the view moved down, remove that amount from our crouching to avoid unneeded bobbing
+			if (pv->crouch > 0)
+				pv->crouch = 0;
+			pv->crouchspeed = -100;
+		}
+		else
+		{	//step-up
+			pv->crouch += host_frametime * 150;
+			if (orgz - pv->oldz < 0)
+				pv->crouch -= orgz - pv->oldz;	//if the view moved down, remove that amount from our crouching to avoid unneeded bobbing
+			if (pv->crouch > 0)
+				pv->crouch = 0;
+			pv->crouchspeed = 100;
+		}
 		pv->extracrouch = 0;
 	}
 }

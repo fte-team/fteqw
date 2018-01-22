@@ -37,6 +37,7 @@
 //#define Q3SURF_DUST			0x00040000
 cvar_t q3bsp_surf_meshcollision_flag = CVARD("q3bsp_surf_meshcollision_flag", "0x80000000", "The surfaceparm flag(s) that enables q3bsp trisoup collision");
 cvar_t q3bsp_surf_meshcollision_force = CVARD("q3bsp_surf_meshcollision_force", "0", "Force mesh-based collisions on all q3bsp trisoup surfaces.");
+cvar_t q3bsp_mergeq3lightmaps = CVARD("q3bsp_mergedlightmaps", "16", "Specifies the maximum number of lightmaps that may be merged for performance reasons. Unfortunately this breaks tcgen on lightmap passes - if you care, set this to 1.");
 
 #if Q3SURF_NODRAW != TI_NODRAW
 #error "nodraw isn't constant"
@@ -3511,7 +3512,7 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		maps /= 2;
 
 	{
-		int limit = min(sh_config.texture2d_maxsize / loadmodel->lightmaps.height, 16);//mod_mergeq3lightmaps.ival);
+		int limit = min(sh_config.texture2d_maxsize / loadmodel->lightmaps.height, q3bsp_mergeq3lightmaps.ival);
 		loadmodel->lightmaps.merge = 1;
 		while (loadmodel->lightmaps.merge*2 <= limit && loadmodel->lightmaps.merge < maps)
 			loadmodel->lightmaps.merge *= 2;
@@ -3553,8 +3554,27 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		//and the submap
 		out += (m%loadmodel->lightmaps.merge)*mapsize;
 
+#if 1
+		for(s = 0; s < mapsize; )
+		{
+			float i;
+			vec3_t l;
+			l[0] = *in++;
+			l[1] = *in++;
+			l[2] = *in++;
+			i = VectorNormalize(l);
+			i *= (1<<(2-gl_overbright.ival));
+			if (i > 255)
+				i = 255;	//don't oversaturate (clamping results in discolouration, which looks weird)
+			VectorScale(l, i, l);
+			out[s++] = l[0];
+			out[s++] = l[1];
+			out[s++] = l[2];
+		}
+#else
 		for(s = 0; s < mapsize; s++)
 			out[s] = lmgamma[*in++];
+#endif
 		if (r_lightmap_saturation.value != 1.0f)
 			SaturateR8G8B8(out, mapsize, r_lightmap_saturation.value);
 		
@@ -6688,6 +6708,7 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&map_autoopenportals, MAPOPTIONS);
 	Cvar_Register(&q3bsp_surf_meshcollision_flag, MAPOPTIONS);
 	Cvar_Register(&q3bsp_surf_meshcollision_force, MAPOPTIONS);
+	Cvar_Register(&q3bsp_mergeq3lightmaps, MAPOPTIONS);
 	Cvar_Register(&r_subdivisions, MAPOPTIONS);
 
 	CM_InitBoxHull ();

@@ -1817,7 +1817,7 @@ static void QCBUILTIN PF_m_setcustomskin(pubprogfuncs_t *prinst, struct globalva
 
 	if (val->_float > 0)
 	{
-		Mod_WipeSkin(val->_float);
+		Mod_WipeSkin(val->_float, false);
 		val->_float = 0;
 	}
 
@@ -2485,7 +2485,27 @@ pbool PDECL Menu_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc)
 	return false;
 }
 
-static int QDECL MP_PRFileSize (const char *path)
+static void *PDECL MP_PRReadFile (const char *path, qbyte *(PDECL *buf_get)(void *buf_ctx, size_t size), void *buf_ctx, size_t *size)
+{
+	flocation_t loc;
+	if (FS_FLocateFile(path, FSLF_IFFOUND|FSLF_SECUREONLY, &loc))
+	{
+		qbyte *buffer = NULL;
+		vfsfile_t *file = FS_OpenReadLocation(&loc);
+		if (file)
+		{
+			*size = loc.len;
+			buffer = buf_get(buf_ctx, *size);
+			if (buffer)
+				VFS_READ(file, buffer, *size);
+			VFS_CLOSE(file);
+		}
+		return buffer;
+	}
+	else
+		return NULL;
+}
+static int PDECL MP_PRFileSize (const char *path)
 {
 	flocation_t loc;
 	if (FS_FLocateFile(path, FSLF_IFFOUND|FSLF_SECUREONLY, &loc))
@@ -2516,7 +2536,7 @@ qboolean MP_Init (void)
 
 
 	menuprogparms.progsversion = PROGSTRUCT_VERSION;
-	menuprogparms.ReadFile = COM_LoadStackFile;//char *(*ReadFile) (char *fname, void *buffer, int *len);
+	menuprogparms.ReadFile = MP_PRReadFile;//char *(*ReadFile) (char *fname, void *buffer, int *len);
 	menuprogparms.FileSize = MP_PRFileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
 	menuprogparms.WriteFile = QC_WriteFile;//bool (*WriteFile) (char *name, void *data, int len);
 	menuprogparms.Printf = (void *)Con_Printf;//Con_Printf;//void (*printf) (char *, ...);
@@ -2685,7 +2705,14 @@ void MP_CoreDump_f(void)
 void MP_Reload_f(void)
 {
 	M_Shutdown(false);
-	M_Reinit();
+
+	if (!strcmp(Cmd_Argv(1), "off"))
+	{	//explicitly restart the engine's menu. not the menuqc crap
+		//don't even start csqc menus.
+		M_Init_Internal();
+	}
+	else
+		M_Reinit();
 }
 
 static void MP_Poke_f(void)
@@ -2795,6 +2822,7 @@ qboolean MP_Keydown(int key, int unicode, unsigned int devid)
 	if (setjmp(mp_abort))
 		return true;
 
+#ifndef QUAKETC
 	if (key == 'c')
 	{
 		if (keydown[K_LCTRL] || keydown[K_RCTRL])
@@ -2804,6 +2832,7 @@ qboolean MP_Keydown(int key, int unicode, unsigned int devid)
 			return true;
 		}
 	}
+#endif
 
 	mpkeysdown[key>>3] |= (1<<(key&7));
 

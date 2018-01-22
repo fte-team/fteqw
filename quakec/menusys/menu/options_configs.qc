@@ -33,9 +33,9 @@ nonstatic void(mitem_desktop desktop) M_Configs =
 	for (i = 0; i < c; i++)
 	{
 		string fname = search_getfilename(fs, i);
-		string iname = substring(fname, 13, -5);
+		string iname = strzone(substring(fname, 13, -5));
 		string dname = GetFirstLineComment(fname, iname);
-		iname = sprintf("exec \"%s\"", iname);
+		iname = sprintf("exec \"%s\"", fname);
 		if (dname && !fr.findchildcmd(iname))
 			fr.add(spawn(mitem_text, item_text:dname, item_command:iname, item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y+=16], '100 16');
 	}

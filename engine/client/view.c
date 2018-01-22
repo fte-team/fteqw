@@ -2020,7 +2020,7 @@ void R_DrawNameTags(void)
 						vec2_t scale = {8,8};
 						x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
 						y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
-						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, scale);
+						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_console, scale);
 					}
 
 				}
@@ -2054,7 +2054,7 @@ void R_DrawNameTags(void)
 		}
 		else
 			str = "hit nothing";
-		R_DrawTextField(r_refdef.vrect.x + r_refdef.vrect.width/4, r_refdef.vrect.y, r_refdef.vrect.width/2, r_refdef.vrect.height, str, CON_WHITEMASK, CPRINT_LALIGN, font_default, scale);
+		R_DrawTextField(r_refdef.vrect.x + r_refdef.vrect.width/4, r_refdef.vrect.y, r_refdef.vrect.width/2, r_refdef.vrect.height, str, CON_WHITEMASK, CPRINT_LALIGN, font_console, scale);
 	}
 #endif
 

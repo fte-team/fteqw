@@ -366,6 +366,18 @@ int VMQ3_Cvar_Register(q3vmcvar_t *v, char *name, char *defval, int flags)
 	c = Cvar_Get(name, defval, fteflags, "Q3VM cvars");
 	if (!c)	//command name, etc
 		return 0;
+	if ((flags & CVAR_USERINFO) && !(c->flags & CVAR_USERINFO))
+	{
+		c->flags |= CVAR_USERINFO;
+		Info_SetValueForKey(cls.userinfo[0], c->name, c->string, sizeof(cls.userinfo[0]));
+		cls.resendinfo = true;
+	}
+	if ((flags & CVAR_SERVERINFO) && !(c->flags & CVAR_SERVERINFO))
+	{
+		c->flags |= CVAR_SERVERINFO;
+		Info_SetValueForKey (svs.info, c->name, c->string, MAX_SERVERINFO_STRING);
+		SV_SendServerInfoChange(c->name, c->string);
+	}
 	for (i = 0; i < MAX_VMQ3_CVARS; i++)
 	{
 		if (!q3cvlist[i])

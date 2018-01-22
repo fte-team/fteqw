@@ -1049,7 +1049,7 @@ menucheck_t *MC_AddCheckBox(menu_t *menu, int tx, int cx, int y, const char *tex
 	if (var)
 		if (!(var->flags & CVAR_ARCHIVE))
 			Con_Printf("Warning: %s is not set for archiving\n", var->name);
-		else if (var->flags & CVAR_RENDERERLATCH)
+		else if (var->flags & (CVAR_RENDERERLATCH|CVAR_VIDEOLATCH))
 			Con_Printf("Warning: %s requires a vid_restart\n", var->name);
 #endif
 

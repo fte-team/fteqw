@@ -427,7 +427,7 @@ struct vk_shadowbuffer;
 struct vk_shadowbuffer *VKBE_GenerateShadowBuffer(vecV_t *verts, int numverts, index_t *indicies, int numindicies, qboolean istemp);
 void VKBE_DestroyShadowBuffer(struct vk_shadowbuffer *buf);
 void VKBE_RenderShadowBuffer(struct vk_shadowbuffer *buf);
-void VKBE_SetupForShadowMap(dlight_t *dl, qboolean isspot, int texwidth, int texheight, float shadowscale);
+void VKBE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float shadowscale);
 qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height);
 void VKBE_BeginShadowmapFace(void);
 void VKBE_DoneShadows(void);

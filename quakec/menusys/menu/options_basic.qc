@@ -1,7 +1,7 @@
 
-.float skinobject;
 class mitem_playerpreview : mitem_spinnymodel
 {
+#if defined(FTE_QC_CUSTOMSKINS)
 	virtual void(vector pos) item_draw =
 	{
 		//if you wanted to get more advanced, you could use q3 skins here.
@@ -14,6 +14,7 @@ class mitem_playerpreview : mitem_spinnymodel
 	
 		super::item_draw(pos);
 	};
+#endif
 };
 
 static string() skinopts =
@@ -34,6 +35,12 @@ static string() skinopts =
 var float autocvar_m_pitch = 0.022;
 class options_basic : mitem_exmenu
 {
+	virtual float(string key) isvalid =
+	{
+		if (key == "m_pitchsign")
+			return TRUE;
+		return super::isvalid(key);
+	};
 	virtual string(string key) get =
 	{
 		if (key == "m_pitchsign")

@@ -161,7 +161,7 @@ cvar_t snd_voip_micamp			= CVARAFD("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "A
 cvar_t snd_voip_codec			= CVARAFD("cl_voip_codec", "", NULL, CVAR_ARCHIVE, "0: speex(@11khz). 1: raw. 2: opus. 3: speex(@8khz). 4: speex(@16). 5:speex(@32). 6: pcma. 7: pcmu.");
 cvar_t snd_voip_noisefilter		= CVARAFD("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.");
 cvar_t snd_voip_autogain		= CVARAFD("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.");
-cvar_t snd_voip_opus_bitrate	= CVARAFD("cl_voip_opus_bitrate", "3000", NULL, CVAR_ARCHIVE, "For codecs with non-specific bitrates, this specifies the target bitrate to use.");
+cvar_t snd_voip_bitrate			= CVARAFD("cl_voip_bitrate", "3000", NULL, CVAR_ARCHIVE, "For codecs with non-specific bitrates, this specifies the target bitrate to use.");
 #endif
 
 extern vfsfile_t *rawwritefile;
@@ -1418,7 +1418,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				start = (short*)(s_voip.capturebuf + encpos);
 				frames = (s_voip.capturepos-encpos)/2;
 
-				nrate = snd_voip_opus_bitrate.value;
+				nrate = snd_voip_bitrate.value;
 				if (nrate != s_voip.curbitrate)
 				{
 					s_voip.curbitrate = nrate;
@@ -1640,7 +1640,7 @@ void S_Voip_Init(void)
 	Cvar_Register(&snd_voip_codec,		"Voice Chat");
 	Cvar_Register(&snd_voip_noisefilter,		"Voice Chat");
 	Cvar_Register(&snd_voip_autogain,		"Voice Chat");
-	Cvar_Register(&snd_voip_opus_bitrate,		"Voice Chat");
+	Cvar_Register(&snd_voip_bitrate,		"Voice Chat");
 	Cmd_AddCommand("+voip", S_Voip_Enable_f);
 	Cmd_AddCommand("-voip", S_Voip_Disable_f);
 	Cmd_AddCommand("voip", S_Voip_f);

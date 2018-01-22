@@ -55,7 +55,7 @@ static var float lasttool = ter_blank;
 static int painttex;
 static float mautorepeattime;
 static entity tempent;
-static var searchhandle texturesearch = -1;
+static var searchhandle texturesearch = (searchhandle)-1;
 static float texturesearchfirst;
 static string texturesearchhighlighted;
 

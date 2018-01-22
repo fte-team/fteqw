@@ -520,7 +520,7 @@ void R_RenderDlights (void)
 }
 
 
-qboolean Sh_GenerateShadowMap(dlight_t *l);
+qboolean Sh_GenerateShadowMap(dlight_t *l, int lightflags);
 qboolean Sh_CullLight(dlight_t *dl, qbyte *vvis);
 void R_GenDlightMesh(struct batch_s *batch)
 {
@@ -554,7 +554,7 @@ void R_GenDlightMesh(struct batch_s *batch)
 #ifdef RTLIGHTS
 	if (lightflags & LSHADER_SMAP)
 	{
-		if (!Sh_GenerateShadowMap(l))
+		if (!Sh_GenerateShadowMap(l, lightflags))
 		{
 			batch->meshes = 0;
 			return;
@@ -1245,7 +1245,7 @@ void R_SaveRTLights_f(void)
 			light->style-1,
 			light->cubemapname, light->corona,
 			ang[0], ang[1], ang[2],
-			light->coronascale, light->lightcolourscales[0], light->lightcolourscales[1], light->lightcolourscales[2], light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE|LFLAG_CREPUSCULAR),
+			light->coronascale, light->lightcolourscales[0], light->lightcolourscales[1], light->lightcolourscales[2], light->flags&~(LFLAG_NOSHADOWS|LFLAG_INTERNAL),
 			light->rotation[0],light->rotation[1],light->rotation[2],light->fov
 			));
 	}

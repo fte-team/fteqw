@@ -21,6 +21,9 @@ class mitem_check : mitem
 	};
 	virtual void(vector pos) item_draw =
 	{
+		vector rgb = item_rgb;
+		if (!(item_flags & IF_SELECTABLE))
+			rgb *= 0.2;
 		local float truth = stof(get(item_command));
 
 		super::item_draw(pos);
@@ -28,15 +31,15 @@ class mitem_check : mitem
 
 		if (dp_workarounds)
 		{	//lame, but whatever
-			ui.drawstring(pos, chr2str(0xe080, 0xe082), '1 1 0' * this.item_scale, this.item_rgb, this.item_alpha, 0);
+			ui.drawstring(pos, chr2str(0xe080, 0xe082), '1 1 0' * this.item_scale, rgb, this.item_alpha, 0);
 			if (truth)
-				ui.drawstring(pos + '4 0', chr2str(0xe083), '1 1 0' * this.item_scale, this.item_rgb, this.item_alpha, 0);
+				ui.drawstring(pos + '4 0', chr2str(0xe083), '1 1 0' * this.item_scale, rgb, this.item_alpha, 0);
 		}
 		else
 		{
-			ui.drawstring(pos, "^{e080}^{e082}", '1 1 0' * this.item_scale, this.item_rgb, this.item_alpha, 0);
+			ui.drawstring(pos, "^{e080}^{e082}", '1 1 0' * this.item_scale, rgb, this.item_alpha, 0);
 			if (truth)
-				ui.drawstring(pos + '4 0', "^{e083}", '1 1 0' * this.item_scale, this.item_rgb, this.item_alpha, 0);
+				ui.drawstring(pos + '4 0', "^{e083}", '1 1 0' * this.item_scale, rgb, this.item_alpha, 0);
 		}
 	};
 	void() mitem_check =
@@ -45,18 +48,13 @@ class mitem_check : mitem
 			item_scale = 8;
 		if (!item_size_y)
 			item_size_y = item_scale;
-		item_flags |= IF_SELECTABLE;
+		if (isvalid(item_command))
+			item_flags |= IF_SELECTABLE;
 	};
 };
 
 //optional, can spawn direcly
 mitem_check(string text, string command, vector sz) menuitemcheck_spawn =
 {
-	mitem_check n = spawn(mitem_check);
-	n.item_scale = sz_y;
-	n.item_text = text;
-	n.item_size = sz;
-
-	n.item_command = command;
-	return n;
+	return spawn(mitem_check, item_scale: sz_y, item_text: text, item_size: sz, item_command: command);
 };

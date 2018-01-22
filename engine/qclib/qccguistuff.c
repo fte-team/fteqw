@@ -19,27 +19,24 @@ char enginebinary[MAX_PATH];
 char enginebasedir[MAX_PATH];
 char enginecommandline[8192];
 
-char *GUIReadFile(const char *fname, void *buffer, int blen, size_t *sz);
-int GUIFileSize(const char *fname);
-
 int qccpersisthunk = 1;
 int Grep(char *filename, char *string)
 {
 	int foundcount = 0;
 	char *last, *found, *linestart;
 	int line = 1;
-	int sz;
+	size_t sz;
 	char *raw, *buf;
 	pbool dofree;
 	int origfmt;
 	if (!filename)
 		return foundcount;
-	sz = GUIFileSize(filename);
-	if (sz <= 0)
+
+	raw = GUIReadFile(filename, NULL, NULL, &sz);
+	if (!raw)
 		return foundcount;
-	raw = malloc(sz+2);
-	raw[sz] = 0;
-	GUIReadFile(filename, raw, sz, NULL);
+	if (raw[sz] != 0)
+		return foundcount;	//error....
 
 	buf = QCC_SanitizeCharSet(raw, &sz, &dofree, &origfmt);
 

@@ -1847,11 +1847,11 @@ _qcc-tmp: $(REQDIR)
 qcc-rel:
 	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-rel:
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o decomp.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 qcc-dbg:
 	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(QCC_DIR)" SOBJS="qcctui.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-dbg:
-	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o decomp.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 
 #scintilla is messy as fuck when building statically. but at least we can strip out the lexers we don't use this way.
@@ -1869,7 +1869,7 @@ scintilla$(BITS)_static:
 	@$(MAKE) reldir OUT_DIR=$(RELEASE_DIR)/$(QCC_DIR)scin
 	@$(MAKE) $(RELEASE_DIR)/scintilla$(BITS).a VPATH="$(SCINTILLA_DIRS)" CFLAGS="$(SCINTILLA_INC) -DDISABLE_D2D -DSTATIC_BUILD -DSCI_LEXER -std=c++11" OUT_DIR=$(RELEASE_DIR)/$(QCC_DIR)scin WCFLAGS="$(WCFLAGS) -Os" WARNINGFLAGS=
 qccgui-scintilla: scintilla$(BITS)_static
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)scin" SOBJS="qccgui.o qccguistuff.o decomp.o fteqcc.o" WCFLAGS="$(WCFLAGS) -DSCISTATIC" LDFLAGS="$(LDFLAGS) $(RELEASE_DIR)/scintilla$(BITS).a -static -luuid -lole32 -limm32 -lstdc++ -loleaut32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)scin" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" WCFLAGS="$(WCFLAGS) -DSCISTATIC" LDFLAGS="$(LDFLAGS) $(RELEASE_DIR)/scintilla$(BITS).a -static -luuid -lole32 -limm32 -lstdc++ -loleaut32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 ifdef windir
 debugdir:

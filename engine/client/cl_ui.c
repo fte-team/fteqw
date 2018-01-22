@@ -414,7 +414,7 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.shaderRGBAf[2] = q3->shaderRGBA[2]/255.0f;
 	ent.shaderRGBAf[3] = q3->shaderRGBA[3]/255.0f;
 
-	/*don't set translucent, the shader is meant to already be correct*/
+	/*don't set force-translucent etc, the shader is meant to already be correct*/
 //	if (ent.shaderRGBAf[3] <= 0)
 //		return;
 
@@ -581,6 +581,10 @@ void VQ3_RenderView(const q3refdef_t *ref)
 {
 	int i;
 	extern cvar_t r_torch;
+
+	if (R2D_Flush)
+		R2D_Flush();
+
 	VectorCopy(ref->vieworg, r_refdef.vieworg);
 	r_refdef.viewangles[0] = -(atan2(ref->viewaxis[0][2], sqrt(ref->viewaxis[0][1]*ref->viewaxis[0][1]+ref->viewaxis[0][0]*ref->viewaxis[0][0])) * 180 / M_PI);
 	r_refdef.viewangles[1] = (atan2(ref->viewaxis[0][1], ref->viewaxis[0][0]) * 180 / M_PI);
@@ -592,8 +596,8 @@ void VQ3_RenderView(const q3refdef_t *ref)
 		r_refdef.flags |= RDF_NOWORLDMODEL;
 	else
 		r_refdef.flags &= ~RDF_NOWORLDMODEL;
-	r_refdef.fov_x = ref->fov_x;
-	r_refdef.fov_y = ref->fov_y;
+	r_refdef.fovv_x = r_refdef.fov_x = ref->fov_x;
+	r_refdef.fovv_y = r_refdef.fov_y = ref->fov_y;
 	r_refdef.vrect.x = ref->x;
 	r_refdef.vrect.y = ref->y;
 	r_refdef.vrect.width = ref->width;
@@ -603,6 +607,14 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	r_refdef.mindist = bound(0.1, gl_mindist.value, 4);
 	r_refdef.maxdist = gl_maxdist.value;
 	r_refdef.playerview = &cl.playerview[0];
+
+	if (ref->y < 0)
+	{	//evil hack to work around player model ui bug.
+		//if the y coord is off screen, reduce the height to keep things centred, and reduce the fov to compensate.
+		r_refdef.vrect.height += ref->y*2;
+		r_refdef.fovv_y = r_refdef.fov_y = ref->fov_y * r_refdef.vrect.height / ref->height;
+		r_refdef.vrect.y = 0;
+	}
 
 	memset(&r_refdef.globalfog, 0, sizeof(r_refdef.globalfog));
 
@@ -1635,14 +1647,17 @@ void UI_Start (void)
 void UI_Restart_f(void)
 {
 	UI_Stop();
-	UI_Start();
-
-	if (uivm)
+	if (strcmp(Cmd_Argv(1), "off"))
 	{
-		if (cls.state)
-			VM_Call(uivm, UI_SET_ACTIVE_MENU, 2);
-		else
-			VM_Call(uivm, UI_SET_ACTIVE_MENU, 1);
+		UI_Start();
+
+		if (uivm)
+		{
+			if (cls.state)
+				VM_Call(uivm, UI_SET_ACTIVE_MENU, 2);
+			else
+				VM_Call(uivm, UI_SET_ACTIVE_MENU, 1);
+		}
 	}
 }
 

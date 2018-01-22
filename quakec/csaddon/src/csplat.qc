@@ -742,6 +742,7 @@ Note that any rendertarget textures may be destroyed on video mode changes or so
 #define LFLAG_NOSHADOWS 256
 #define LFLAG_SHADOWMAP 512
 #define LFLAG_CREPUSCULAR 1024
+#define LFLAG_ORTHO 2048
 #define TEREDIT_RELOAD 0
 #define TEREDIT_SAVE 1
 #define TEREDIT_SETHOLE 2

@@ -1290,30 +1290,14 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 			int forcedcontents;
 			switch((int)ent->v->skin)
 			{
-			case Q1CONTENTS_EMPTY:
-				forcedcontents = FTECONTENTS_EMPTY;
-				break;
-			case Q1CONTENTS_SOLID:
-				forcedcontents = FTECONTENTS_SOLID;
-				break;
-			case Q1CONTENTS_WATER:
-				forcedcontents = FTECONTENTS_WATER;
-				break;
-			case Q1CONTENTS_SLIME:
-				forcedcontents = FTECONTENTS_SLIME;
-				break;
-			case Q1CONTENTS_LAVA:
-				forcedcontents = FTECONTENTS_LAVA;
-				break;
-			case Q1CONTENTS_SKY:
-				forcedcontents = FTECONTENTS_SKY;
-				break;
-			case Q1CONTENTS_LADDER:
-				forcedcontents = FTECONTENTS_LADDER;
-				break;
-			default:
-				forcedcontents = 0;
-				break;
+			case Q1CONTENTS_EMPTY:  forcedcontents = FTECONTENTS_EMPTY; break;
+			case Q1CONTENTS_SOLID:  forcedcontents = FTECONTENTS_SOLID; break;
+			case Q1CONTENTS_WATER:  forcedcontents = FTECONTENTS_WATER; break;
+			case Q1CONTENTS_SLIME:  forcedcontents = FTECONTENTS_SLIME; break;
+			case Q1CONTENTS_LAVA:   forcedcontents = FTECONTENTS_LAVA;  break;
+			case Q1CONTENTS_SKY:    forcedcontents = FTECONTENTS_SKY;   break;
+			case Q1CONTENTS_LADDER: forcedcontents = FTECONTENTS_LADDER;break;
+			default:				forcedcontents = 0;                 break;
 			}
 			if (hitcontentsmask & forcedcontents)
 			{

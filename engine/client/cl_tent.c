@@ -171,6 +171,7 @@ int
 	rtdp_nexuizplasma=P_INVALID,
 	rtdp_glowtrail=P_INVALID,
 
+	ptqw_gunshot=P_INVALID,
 	ptqw_blood=P_INVALID,
 	ptqw_lightningblood=P_INVALID,
 
@@ -516,7 +517,8 @@ void CL_RegisterParticles(void)
 	rtdp_glowtrail			= P_FindParticleType("TR_GLOWTRAIL");
 	/*internal to psystem*/   P_FindParticleType("SVC_PARTICLE");
 
-	ptqw_blood				= P_FindParticleType("TE_BLOOD");
+	ptqw_gunshot			= (pt_gunshot!=P_INVALID)?pt_gunshot:P_FindParticleType("TE_QWGUNSHOT");	/*shotgun*/
+	ptqw_blood				= (ptdp_blood!=P_INVALID)?ptdp_blood:P_FindParticleType("TE_QWBLOOD");
 	ptqw_lightningblood		= P_FindParticleType("TE_LIGHTNINGBLOOD");
 
 #ifdef Q2CLIENT

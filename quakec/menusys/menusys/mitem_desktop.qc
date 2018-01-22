@@ -17,25 +17,31 @@ class mitem_desktop : mitem_frame
 };
 #endif
 
-#ifndef MENU
+#if !defined(MENU) && !defined(CSQC_SIMPLE)
 float sb_showscores;
 #endif
 
+float drawfont;
+float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset) loadfont = #357;
+
 void() mitem_desktop::mitem_desktop =
 {
-#define menu_font_win 		autocvar(menu_font_win, "")
+#define menu_font_win 		autocvar(menu_font_win, "cour")
 #define menu_font		autocvar(menu_font, "")
 #define menu_font_fallback	autocvar(gl_font, "")
 	queryscreensize();
 
-	//make sure we have a font that can cope with slightly up-scaled stuff.
-	//windows is special because we can load from the system fonts
-	string fontname = menu_font_fallback;
-	if (menu_font_win != "" && !strncmp(cvar_string("sys_platform"), "Win", 3))
-		fontname = menu_font_win;
-	else if (menu_font != "")
-		fontname = menu_font;		
-	drawfont = loadfont("", fontname, "8 12 16", -1);
+	if (checkextension("DP_GFX_FONTS"))
+	{
+		//make sure we have a font that can cope with slightly up-scaled stuff.
+		//windows is special because we can load from the system fonts
+		string fontname = menu_font_fallback;
+		if (menu_font_win != "" && !strncasecmp(cvar_string("sys_platform"), "Win", 3))
+			fontname = menu_font_win;
+		else if (menu_font != "")
+			fontname = menu_font;
+		drawfont = loadfont("", fontname, "8 12 16", -1);
+	}
 
 	item_text = "desktop";
 	if (!item_flags)
@@ -120,7 +126,7 @@ float(vector pos, float scan, float char, float down) mitem_desktop::item_keypre
 
 	if (scan == K_MOUSE1 && down)
 	{
-#ifdef CSQC
+#if defined(CSQC) && defined(FTE_SPLITSCREEN)
 		if (numclientseats)
 			localcmd("in_forcesplitclient 0\n");
 #endif
@@ -133,11 +139,11 @@ float(vector pos, float scan, float char, float down) mitem_desktop::item_keypre
 	}
 	if (scan == K_MOUSE2 && down)
 	{
-#ifdef CSQC
+#if defined(CSQC) && defined(FTE_SPLITSCREEN)
 		if (numclientseats > 3)
-			localcmd("in_forcesplitclient ", ftos(1 + ((ui.mousepos[0]>ui.screensize[0]/2)?1:0) + ((ui.mousepos[1]>ui.screensize[1]/2)?2:0)), "\n");
+			localcmd(strcat("in_forcesplitclient ", ftos(1 + ((ui.mousepos[0]>ui.screensize[0]/2)?1:0) + ((ui.mousepos[1]>ui.screensize[1]/2)?2:0)), "\n"));
 		else if (numclientseats > 1)
-			localcmd("in_forcesplitclient ", ftos(1 + floor(ui.mousepos[1]*numclientseats/ui.screensize[1])), "\n");
+			localcmd(strcat("in_forcesplitclient ", ftos(1 + floor(ui.mousepos[1]*numclientseats/ui.screensize[1])), "\n"));
 		else if (numclientseats)
 			localcmd("in_forcesplitclient 0\n");
 #endif
@@ -159,7 +165,7 @@ float(vector pos, float scan, float char, float down) mitem_desktop::item_keypre
 	return FALSE;
 };
 
-#ifndef MENU
+#if !defined(MENU) && !defined(CSQC_SIMPLE)
 static vector(vector v) vtodpp =
 {
 	//so fucking disgustingly ugly.
@@ -204,7 +210,7 @@ void(float seat, vector minpos, vector size) mitem_desktop::drawgame_helper =
 
 void(vector pos) mitem_desktop::item_draw =
 {
-#ifndef MENU
+#if !defined(MENU) && !defined(CSQC_SIMPLE)
 //menuqc picks up the game/console as a background
 	string constate = serverkey("constate");
 	if (constate != "" && constate != "active")	//allow empty, so things still kinda work with dp too.
@@ -213,6 +219,7 @@ void(vector pos) mitem_desktop::item_draw =
 	}
 	else if (this.drawgame != __NULL__)
 	{
+#ifdef FTE_SPLITSCREEN
 		if (numclientseats > 3)
 		{
 			drawgame_helper(0, [0, 0], 0.5*ui.screensize);
@@ -235,6 +242,7 @@ void(vector pos) mitem_desktop::item_draw =
 			setviewprop(VF_LPLAYER, 0);
 		}
 		else
+#endif
 		{
 			drawgame_helper(0, '0 0', ui.screensize);
 		}
@@ -244,7 +252,7 @@ void(vector pos) mitem_desktop::item_draw =
 
 	if (ui.kgrabs == this)
 	{
-#ifndef MENU
+#if defined(CSQC) && !defined(CSQC_SIMPLE)
 		if (sb_showscores && ui.mgrabs == this)
 			ui.mgrabs = __NULL__;
 		else
@@ -326,8 +334,9 @@ void(mitem_desktop desktop) items_draw =
 	ui.oldmousepos = ui.mousepos;
 };
 
+#ifdef CSQC
 //items_keypress has quite strong dimorphism. These are meant to tailored to the target's available event notifications, rather than being really rather annoying.
-csqconly float(mitem_desktop desktop, float evtype, float scanx, float chary, float devid) items_keypress_ =
+csqconly float(mitem_desktop desktop, float evtype, float scanx, float chary, float devid) items_keypress =
 {
 	local float result = FALSE;
 	vector pos;
@@ -336,6 +345,8 @@ csqconly float(mitem_desktop desktop, float evtype, float scanx, float chary, fl
 	{
 	case IE_KEYDOWN:
 	case IE_KEYUP:
+		if (scanx == K_SHIFT)
+			ui.shiftheld = evtype==IE_KEYDOWN;
 #ifdef HEIRACHYDEBUG
 		if (scanx == K_F1 && evtype == IE_KEYDOWN)
 		{
@@ -398,11 +409,9 @@ csqconly float(mitem_desktop desktop, float evtype, float scanx, float chary, fl
 	}
 	return result;
 };
-void() gah = 
-{
-	items_keypress_(0, 0,0,0,0);
-};
+#endif
 
+#ifdef MENU
 menuonly float(mitem_desktop desktop, float scan, float char, float down) items_keypress =
 {
 	local float result = FALSE;
@@ -451,5 +460,6 @@ menuonly float(mitem_desktop desktop, float scan, float char, float down) items_
 
 	return result;
 };
+#endif
 
 

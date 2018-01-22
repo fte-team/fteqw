@@ -721,7 +721,7 @@ void Sbar_ShowTeamScores (void)
 
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
-		return;
+		;//return;
 #endif
 
 	cl.playerview[seat].sb_showteamscores = true;
@@ -768,7 +768,7 @@ void Sbar_ShowScores (void)
 
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand(seat, Cmd_Argv(0)))
-		return;
+		;//return;
 #endif
 
 	cl.playerview[seat].sb_showscores = true;
@@ -2224,6 +2224,9 @@ void Sbar_DrawScoreboard (playerview_t *pv)
 	if (Key_Dest_Has(~kdm_game))
 		return;
 
+	if (CSQC_DrawScores(pv))
+		return;
+
 #ifndef CLIENTONLY
 	/*no scoreboard in single player (if you want bots, set deathmatch)*/
 	if (sv.state && sv.allocated_client_slots == 1)
@@ -2772,6 +2775,9 @@ void Sbar_Draw (playerview_t *pv)
 	int sbarwidth;
 	qboolean minidmoverlay;
 	extern cvar_t scr_centersbar;
+
+	if (CSQC_DrawHud(pv))
+		return;
 
 	headsup = !(cl_sbar.value || (scr_viewsize.value<100));
 	if ((sb_updates >= vid.numpages) && !headsup)

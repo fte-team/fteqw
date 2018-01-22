@@ -162,7 +162,7 @@ cvar_t	cl_sendguid				= CVARD("cl_sendguid", "", "Send a randomly generated 'glo
 cvar_t	cl_downloads			= CVARFD("cl_downloads", "1", CVAR_NOTFROMSERVER, "Allows you to block all automatic downloads.");
 cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
 cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. Also allows the server to send nearly arbitary download commands.\n2: allows redirection only to named packages files (and demos/*.mvd), which is a bit safer.");
-cvar_t  cl_download_mapsrc		= CVARFD("cl_download_mapsrc", "", CVAR_ARCHIVE, "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
+cvar_t  cl_download_mapsrc		= CVARFD("cl_download_mapsrc", "", CVAR_ARCHIVE, "Specifies an http location prefix for map downloads. EG: \"http://example.com/path/quakemaps/\"");
 cvar_t	cl_download_packages	= CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
 cvar_t	requiredownloads		= CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
 
@@ -2146,6 +2146,7 @@ void CL_CheckServerInfo(void)
 		cl.bunnyspeedcap = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_bunnyspeedcap"));
 		movevars.slidefix = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_slidefix")) != 0);
 		movevars.airstep = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_airstep")) != 0);
+		movevars.stepdown = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_stepdown")) != 0);
 		movevars.walljump = (Q_atof(Info_ValueForKey(cl.serverinfo, "pm_walljump")));
 		movevars.ktjump = Q_atof(Info_ValueForKey(cl.serverinfo, "pm_ktjump"));
 		s = Info_ValueForKey(cl.serverinfo, "pm_stepheight");

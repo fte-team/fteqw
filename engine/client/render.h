@@ -162,6 +162,7 @@ typedef struct entity_s
 #define Q1UNSPECIFIED 0x00ffffff	//0xffRRGGBB or 0x0000000V are both valid values. so this is an otherwise-illegal value to say its not been set.
 typedef struct
 {
+	int refcount;
 	char skinname[MAX_QPATH];
 	int nummappings;
 	int maxmappings;
@@ -487,7 +488,7 @@ extern	texid_t ptritexture;
 
 skinid_t Mod_RegisterSkinFile(const char *skinname);
 skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext);
-void Mod_WipeSkin(skinid_t id);
+void Mod_WipeSkin(skinid_t id, qboolean force);
 skinfile_t *Mod_LookupSkin(skinid_t id);
 
 void	Mod_Init (qboolean initial);

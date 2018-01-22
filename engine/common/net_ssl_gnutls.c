@@ -567,7 +567,7 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 			qgnutls_x509_crt_import(cert, certlist, GNUTLS_X509_FMT_DER);
 			if (qgnutls_x509_crt_check_hostname(cert, file->certname))
 			{
-				if (preverified && certstatus == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
+				if (preverified && (certstatus&~GNUTLS_CERT_EXPIRED) == (GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
 					return 0;
 				if (certstatus == 0)
 					return SSL_CheckUserTrust(session, file, 0);

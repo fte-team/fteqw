@@ -2,7 +2,9 @@
 #include "qcc.h"
 
 #if !defined(NO_ZLIB) && !defined(FTE_TARGET_WEB) && !defined(NACL) && !defined(_XBOX)
+#ifndef AVAIL_ZLIB
 #define AVAIL_ZLIB
+#endif
 #endif
 
 #ifdef AVAIL_ZLIB

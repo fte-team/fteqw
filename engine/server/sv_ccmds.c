@@ -488,20 +488,31 @@ void SV_Map_f (void)
 	}
 #endif
 
-
-	if (Cmd_Argc() != 2 && Cmd_Argc() != 3)
+	if (!Q_strcasecmp(Cmd_Argv(0), "map_restart"))
 	{
-		if (Cmd_IsInsecure())
-			return;
-		Con_TPrintf ("Available maps:\n", Cmd_Argv(0));
-		SV_MapList_f();
-		return;
+		float delay = atof(Cmd_Argv(1));
+		if (delay)
+			Con_DPrintf ("map_restart delay not implemented yet\n");
+		Q_strncpyz (level, ".", sizeof(level));
+		startspot = NULL;
+
+		//FIXME: if precaches+statics don't change, don't do the whole networking thing.
 	}
+	else
+	{
 
-	sv.mapchangelocked = false;
+		if (Cmd_Argc() != 2 && Cmd_Argc() != 3)
+		{
+			if (Cmd_IsInsecure())
+				return;
+			Con_TPrintf ("Available maps:\n", Cmd_Argv(0));
+			SV_MapList_f();
+			return;
+		}
 
-	Q_strncpyz (level, Cmd_Argv(1), sizeof(level));
-	startspot = ((Cmd_Argc() == 2)?NULL:Cmd_Argv(2));
+		Q_strncpyz (level, Cmd_Argv(1), sizeof(level));
+		startspot = ((Cmd_Argc() == 2)?NULL:Cmd_Argv(2));
+	}
 
 	q2savetos0 = !strcmp(Cmd_Argv(0), "gamemap") && !isDedicated;	//q2
 #ifdef Q3SERVER
@@ -509,6 +520,8 @@ void SV_Map_f (void)
 #endif
 	flushparms = !strcmp(Cmd_Argv(0), "map") || !strcmp(Cmd_Argv(0), "spmap");
 	newunit = flushparms || (!strcmp(Cmd_Argv(0), "changelevel") && !startspot);
+
+	sv.mapchangelocked = false;
 
 	if (strcmp(level, "."))	//restart current
 	{
@@ -3017,6 +3030,7 @@ void SV_InitOperatorCommands (void)
 #endif
 	Cmd_AddCommandAD ("gamemap", SV_Map_f, SV_Map_c, NULL);
 	Cmd_AddCommandAD ("changelevel", SV_Map_f, SV_Map_c, NULL);
+	Cmd_AddCommandD ("map_restart", SV_Map_f, NULL);	//from q3.
 	Cmd_AddCommand ("listmaps", SV_MapList_f);
 	Cmd_AddCommand ("maplist", SV_MapList_f);
 

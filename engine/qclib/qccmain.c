@@ -40,7 +40,7 @@ extern int qccpersisthunk;
 pbool QCC_PR_SimpleGetToken (void);
 void QCC_PR_LexWhitespace (pbool inhibitpreprocessor);
 
-void *FS_ReadToMem(char *fname, void *membuf, int *len);
+void *FS_ReadToMem(char *fname, size_t *len);
 void FS_CloseFromMem(void *mem);
 
 unsigned int MAX_REGS;
@@ -717,7 +717,6 @@ void QCC_PrintFiles (void)
 	}
 }
 
-int encode(int len, int method, char *in, int handle);
 int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell, pbool legacyembed)
 {
 	//helpers to deal with misaligned data. writes little-endian.
@@ -1643,6 +1642,8 @@ pbool QCC_WriteData (int crc)
 		break;
 	default:
 		Sys_Error("structtype error");
+		funcdata = NULL;
+		funcdatasize = 0;
 	}
 
 	for (dupewarncount = 0, def = pr.def_head.next ; def ; def = def->next)
@@ -2747,6 +2748,11 @@ static void QCC_MergeGlobalDefs16(ddef16_t *in, size_t num, void *values, size_t
 	QCC_FreeDef(root);
 }
 
+static unsigned char *QCC_LoadFileHunkAlloc(void *ctx, size_t size)
+{
+	return (unsigned char*)qccHunkAlloc(size+1);
+}
+
 /*load a progs into the current compile state.*/
 void QCC_ImportProgs(const char *filename)
 {
@@ -2770,21 +2776,17 @@ void QCC_ImportProgs(const char *filename)
 	if (numpr_globals != RESERVED_OFS)	//not normally changed until after compiling
 		QCC_Error(ERR_BADEXTENSION, "#merge used too late. It must be used before any other definitions (regs).");
 
-	flen = externs->FileSize(filename);
-	if (flen < 0)
-	{
-		QCC_Error(ERR_COULDNTOPENFILE, "Couldn't open file %s", filename);
-		return;
-	}
-
 	printf ("\nnote: The #merge feature is still experimental\n\n");
 	//FIXME: find overlapped locals. strip them. merge with new ones.
 	//FIXME: find temps. strip them. you get the idea.
 	//FIXME: find immediates. set up hash tables for them for reuse. HAH!
 
-	prog = qccHunkAlloc(flen);
-
-	externs->ReadFile(filename, prog, flen, NULL);
+	prog = externs->ReadFile(filename, QCC_LoadFileHunkAlloc, NULL, &flen);
+	if (!prog)
+	{
+		QCC_Error(ERR_COULDNTOPENFILE, "Couldn't open file %s", filename);
+		return;
+	}
 
 	if (prog->version == 7 && prog->secondaryversion == PROG_SECONDARYVERSION16 && !prog->blockscompressed && !prog->numtypes)
 		;
@@ -3693,7 +3695,7 @@ void QCC_PackFile (char *src, char *name)
 		QCC_Error (ERR_TOOMANYPAKFILES, "Too many files in pak file");
 
 #if 1
-	f = FS_ReadToMem(src, NULL, &remaining);
+	f = FS_ReadToMem(src, &remaining);
 	if (!f)
 	{
 		printf ("%64s : %7s\n", name, "");
@@ -4665,14 +4667,9 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	strcpy(destfile, "");
 	compressoutput = 0;
 
-	p = externs->FileSize("qcc.cfg");
-//	if (p < 0)
-//		p = externs->FileSize("src/qcc.cfg");
-	if (p>0)
+	s = externs->ReadFile("qcc.cfg", QCC_LoadFileHunkAlloc, NULL, &p);
+	if (s)
 	{
-		s = qccHunkAlloc(p+1);
-		s = (char*)externs->ReadFile("qcc.cfg", s, p, NULL);
-
 		while(1)
 		{
 			s = QCC_COM_Parse(s);

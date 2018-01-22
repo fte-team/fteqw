@@ -203,7 +203,7 @@ pbool QCC_PR_UnInclude(void)
 	return true;
 }
 
-static void QCC_Canonicalize(char *fullname, size_t fullnamesize, char *newfile, char *base)
+void QCC_Canonicalize(char *fullname, size_t fullnamesize, const char *newfile, const char *base)
 {
 	int doubledots;
 	char *end = fullname;
@@ -224,6 +224,7 @@ static void QCC_Canonicalize(char *fullname, size_t fullnamesize, char *newfile,
 			break;
 	}
 
+	//FIXME: length validation!
 	if (base)
 		strcpy(fullname, base);
 	else

@@ -78,19 +78,20 @@ class mitem_text : mitem
 {
 	virtual void(vector pos) item_draw =
 	{
+		vector rgb = menuitem_textcolour(this);
 		float w;
 		if (item_flags & IF_CENTERALIGN)
 		{
 			w = stringwidth(item_text, TRUE, '1 1 0'*item_scale);
-			ui.drawstring(pos + [(item_size_x-w)/2, 0], item_text, '1 1 0' * item_scale, menuitem_textcolour(this), item_alpha, 0);
+			ui.drawstring(pos + [(item_size_x-w)/2, 0], item_text, '1 1 0' * item_scale, rgb, item_alpha, 0);
 		}
 		else if (item_flags & IF_RIGHTALIGN)
 		{
 			w = stringwidth(item_text, TRUE, '1 1 0'*item_scale);
-			ui.drawstring(pos + [(item_size_x-w), 0], item_text, '1 1 0' * item_scale, menuitem_textcolour(this), item_alpha, 0);
+			ui.drawstring(pos + [(item_size_x-w), 0], item_text, '1 1 0' * item_scale, rgb, item_alpha, 0);
 		}
 		else
-			ui.drawstring(pos, item_text, '1 1 0' * item_scale, menuitem_textcolour(this), item_alpha, 0);
+			ui.drawstring(pos, item_text, '1 1 0' * item_scale, rgb, item_alpha, 0);
 	};
 	virtual float(vector pos, float scan, float char, float down) item_keypress =
 	{

@@ -6473,6 +6473,8 @@ lh_extension_t QSG_Extensions[] = {
 	//only in dp6 currently {"DP_ENT_GLOW"},
 	{"DP_ENT_VIEWMODEL"},
 	{"DP_GECKO_SUPPORT",				7,	NULL, {"gecko_create", "gecko_destroy", "gecko_navigate", "gecko_keyevent", "gecko_mousemove", "gecko_resize", "gecko_get_texture_extent"}},
+	{"DP_GFX_FONTS",					2,	NULL, {"findfont", "loadfont"}},	//note: font slot numbers/names are not special in fte.
+//	{"DP_GFX_FONTS_FREETYPE"},	//extra cvars are not supported.
 //	{"DP_GFX_QUAKE3MODELTAGS"},
 	{"DP_GFX_SKINFILES"},
 	{"DP_GFX_SKYBOX"},	//according to the spec. :)
@@ -6505,7 +6507,6 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_GETSURFACEPOINTATTRIBUTE",	1,	NULL, {"getsurfacepointattribute"}},
 	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
 	{"DP_QC_MULTIPLETEMPSTRINGS",		0,	NULL, {NULL}, "Superseded by DP_QC_UNLIMITEDTEMPSTRINGS. Functions that return a temporary string will not overwrite/destroy previous temporary strings until at least 16 strings are returned (or control returns to the engine)."},
-	{"DP_SV_PRINT",						1,	NULL, {"print"}, "Says that the print builtin can be used from nqssqc (as well as just csqc), bypassing the developer cvar issues."},
 	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
 	{"DP_QC_RENDER_SCENE",				0,	NULL, {NULL}, "clearscene+addentity+setviewprop+renderscene+setmodel are available to menuqc. WARNING: DP advertises this extension without actually supporting it, FTE does actually support it."},
 	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
@@ -6551,6 +6552,7 @@ lh_extension_t QSG_Extensions[] = {
 //	{"DP_SV_POINTPARTICLES",			3,	NULL, {"particleeffectnum", "pointparticles", "trailparticles"}, "Specifies that pointparticles (and trailparticles) exists in ssqc as well as csqc (and that dp's trailparticles argument fuckup will normally work). ssqc values can be passed to csqc for use, the reverse is not true. Does NOT mean that DP's effectinfo.txt is supported, only that ssqc has functionality equivelent to csqc."},
 	{"DP_SV_POINTSOUND",				1,	NULL, {"pointsound"}},
 	{"DP_SV_PRECACHEANYTIME",			0,	NULL, {NULL}, "Specifies that the various precache builtins can be called at any time. WARNING: precaches are sent reliably while sound events, modelindexes, and particle events are not. This can mean sounds and particles might not work the first time around, or models may take a while to appear (after the reliables are received and the model is loaded from disk). Always attempt to precache a little in advance in order to reduce these issues (preferably at the start of the map...)"},
+	{"DP_SV_PRINT",						1,	NULL, {"print"}, "Says that the print builtin can be used from nqssqc (as well as just csqc), bypassing the developer cvar issues."},
 	{"DP_SV_SETCOLOR"},
 	{"DP_SV_SPAWNFUNC_PREFIX"},
 	{"DP_SV_WRITEPICTURE",				1,	NULL, {"WritePicture"}},
@@ -6599,7 +6601,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_GFX_QUAKE3SHADERS",			0,	NULL, {NULL},	"specifies that the engine has full support for vanilla quake3 shaders"},
 	{"FTE_GFX_REMAPSHADER",				0,	NULL, {NULL},	"With the raw power of stuffcmds, the r_remapshader console command is exposed! This mystical command can be used to remap any shader to another. Remapped shaders that specify $diffuse etc in some form will inherit the textures implied by the surface."},
 //	{"FTE_GFX_IQM_HITMESH",				0,	NULL, {NULL},	"Supports hitmesh iqm extensions. Also supports geomsets and embedded events."},
-//	{"FTE_GFX_MODELEVENTS",				1,	NULL, {"processmodelevents", "getnextmodelevent", "getmodeleventidx"},	"Provides a query for per-animation events in model files, including from progs/foo.mdl.events files."},
+	{"FTE_GFX_MODELEVENTS",				1,	NULL, {"processmodelevents", "getnextmodelevent", "getmodeleventidx"},	"Provides a query for per-animation events in model files, including from progs/foo.mdl.events files."},
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}, "Allows you to check if a client has too many reliable messages pending."},
 	{"FTE_MEMALLOC",					4,	NULL, {"memalloc", "memfree", "memcpy", "memfill8"}, "Allows dynamically allocating memory. Use pointers to access this memory. Memory will not be saved into saved games."},
 #ifdef HAVE_MEDIA_DECODER
@@ -6635,6 +6637,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_CHECKCOMMAND",				1,	NULL, {"checkcommand"}, "Provides a way to test if a console command exists, and whether its a command/alias/cvar. Does not say anything about the expected meanings of any arguments or values."},
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
 	{"FTE_QC_CROSSPRODUCT",				1,	NULL, {"crossproduct"}},
+	{"FTE_QC_CUSTOMSKINS",				1,	NULL, {"setcustomskin", "loadcustomskin", "applycustomskin", "releasecustomskin"}, "The engine supports the use of q3 skins, as well as the use of such skin 'files' to specify rich top+bottom colours, qw skins, geomsets, or texture composition even on non-players.."},
 	{"FTE_QC_FS_SEARCH_SIZEMTIME",		2,	NULL, {"search_getfilesize", "search_getfilemtime"}},
 	{"FTE_QC_HARDWARECURSORS",			0,	NULL, {NULL}, "setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits (or hardware cursors are unsupported), it will be emulated using regular draws - this at least still avoids conflicting cursors as only one will ever be used, even if console+menu+csqc are all overlayed."},
 	{"FTE_QC_HASHTABLES",				6,	NULL, {"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}, "Provides efficient string-based lookups."},
@@ -6666,6 +6669,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QUAKE3_SERVER",				0,	NULL, {NULL}, "This engine is able to act as a quake3 server"},
 #endif
 	{"FTE_SOLID_LADDER",				NOBI			"Allows a simple trigger to remove effects of gravity (solid 20). obsolete. will prolly be removed at some point as it is not networked properly. Use FTE_ENT_SKIN_CONTENTS"},
+	{"FTE_SPLITSCREEN",					NOBI			"Client supports splitscreen, controlled via cl_splitclients. Servers require allow_splitscreen 1 if splitscreen is to be used over the internet. Mods that use csqc will need to be aware for this to work properly. per-client networking may be problematic."},
 
 #ifdef SQL
 	// serverside SQL functions for managing an SQL database connection

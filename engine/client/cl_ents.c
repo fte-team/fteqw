@@ -189,6 +189,7 @@ dlight_t *CL_AllocSlight(void)
 	dl = &cl_dlights[rtlights_max++];
 
 	CL_ClearDlight(dl, 0);
+	dl->flags = LFLAG_REALTIMEMODE;
 	dl->corona = 0;
 	return dl;
 }

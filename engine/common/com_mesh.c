@@ -374,6 +374,7 @@ static void Alias_TransformVerticies_V(const float *bonepose, int vertcount, qby
 			}
 			matrix = mat;
 		}
+		//NOTE: else we assume that weights[0] is 1.
 
 		xyzout[0] = (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + matrix[ 3]);
 		xyzout[1] = (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + matrix[ 7]);
@@ -2971,7 +2972,7 @@ void Mod_LoadAliasShaders(model_t *mod)
 					R_BuildDefaultTexnums(&f->texnums, f->shader);
 			}
 		}
-		Mod_WipeSkin(skinid);
+		Mod_WipeSkin(skinid, false);
 	}
 }
 #endif
@@ -6965,6 +6966,40 @@ const void *IQM_FindExtension(const char *buffer, const char *extname, int index
 	return NULL;
 }
 
+static void Mod_CleanWeights(const char *modelname, size_t numverts, vec4_t *oweight, byte_vec4_t *oindex)
+{	//some IQMs lack weight values, apparently.
+	int j, v;
+	qboolean problemfound = false;
+	for (v = 0; v < numverts; v++)
+	{
+		float t = oweight[v][0]+oweight[v][1]+oweight[v][2]+oweight[v][3];
+		if (!t)
+		{
+			problemfound = true;
+			Vector4Set(oweight[v], 1, 0, 0, 0);
+		}
+		else if (t < 0.99 || t > 1.01)
+			Vector4Scale(oweight[v], 1/t, oweight[v]);
+
+		//compact any omitted weights...
+		for(j = 3; j > 0; )
+		{
+			if (oweight[v][j] && !oweight[v][j-1])
+			{
+				problemfound = true;
+				oweight[v][j-1] = oweight[v][j];
+				oindex[v][j-1] = oindex[v][j];
+				oweight[v][j] = 0;
+				j++; //bubble back up
+			}
+			else
+				j--;
+		}
+	}
+	if (problemfound)
+		Con_Printf(CON_ERROR"%s has invalid vertex weights. Verticies will probably be attached to the wrong bones\n", modelname);
+}
+
 galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsize)
 {
 	const struct iqmheader *h = (struct iqmheader *)buffer;
@@ -7463,6 +7498,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsi
 		if (!IQM_ImportArray4B(buffer, &vbone, oindex, h->num_vertexes, h->num_joints))
 			Con_Printf(CON_WARNING "Invalid bone indexes detected inside %s\n", mod->name);
 		IQM_ImportArrayF(buffer, &vweight, (float*)oweight, 4, h->num_vertexes, defaultweight);
+		Mod_CleanWeights(mod->name, h->num_vertexes, oweight, oindex);
 	}
 
 	if (otcoords)

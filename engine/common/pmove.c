@@ -375,7 +375,20 @@ int PM_StepSlideMove (qboolean in_air)
 	blocked = PM_SlideMove ();
 
 	if (!blocked)
+	{
+		if (!in_air && movevars.stepdown)
+		{	//if we were onground, try stepping down after the move to try to stay on said ground.
+			VectorMA (pmove.origin, movevars.stepheight, pmove.gravitydir, dest);
+			trace = PM_PlayerTracePortals (pmove.origin, dest, MASK_PLAYERSOLID, NULL);
+			if (trace.fraction != 1 && -DotProduct(pmove.gravitydir, trace.plane.normal) > MIN_STEP_NORMAL)
+			{
+				if (!trace.startsolid && !trace.allsolid)
+					VectorCopy (trace.endpos, pmove.origin);
+			}
+		}
+
 		return blocked;		// moved the entire distance
+	}
 
 	if (in_air)
 	{

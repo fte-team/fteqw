@@ -155,10 +155,10 @@ void Sys_Init(void)
 {
 	extern cvar_t vid_width, vid_height, vid_fullscreen;
 	//vid_fullscreen takes effect only on mouse clicks, any suggestion to do a vid_restart is pointless.
-	vid_fullscreen.flags &= ~CVAR_RENDERERLATCH;
+	vid_fullscreen.flags &= ~CVAR_VIDEOLATCH;
 	//these are not really supported. so silence any spam that suggests we do something about something not even supported.
-	vid_width.flags &= ~CVAR_RENDERERLATCH;
-	vid_height.flags &= ~CVAR_RENDERERLATCH;
+	vid_width.flags &= ~CVAR_VIDEOLATCH;
+	vid_height.flags &= ~CVAR_VIDEOLATCH;
 
 	Cmd_AddCommand("sys_browserredirect", Sys_BrowserRedirect_f);
 }

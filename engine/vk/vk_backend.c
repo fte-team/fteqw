@@ -2503,9 +2503,9 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 
 			for (k = 0; k < 4; k++)
 			{
-				dst[k][0] = mid[0] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[0+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[0+1]);
-				dst[k][1] = mid[1] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[4+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[4+1]);
-				dst[k][2] = mid[2] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[8+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[8+1]);
+				dst[k][0] = mid[0] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[0+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[0+1]);
+				dst[k][1] = mid[1] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[4+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[4+1]);
+				dst[k][2] = mid[2] + radius*((mesh->st_array[j+k][0]-0.5)*r_refdef.m_view[8+0]-(mesh->st_array[j+k][1]-0.5)*r_refdef.m_view[8+1]);
 			}
 		}
 		break;
@@ -2521,15 +2521,15 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 			float len[3];
 			mat3_t m0, m1, m2, result;
 			float *quad[4];
-			vec3_t rot_centre, tv;
+			vec3_t rot_centre, tv, tv2;
 
-			quad[0] = (float *)(dst + mesh->indexes[k+0]);
-			quad[1] = (float *)(dst + mesh->indexes[k+1]);
-			quad[2] = (float *)(dst + mesh->indexes[k+2]);
+			quad[0] = (float *)(src + mesh->indexes[k+0]);
+			quad[1] = (float *)(src + mesh->indexes[k+1]);
+			quad[2] = (float *)(src + mesh->indexes[k+2]);
 
 			for (j = 2; j >= 0; j--)
 			{
-				quad[3] = (float *)(dst + mesh->indexes[k+3+j]);
+				quad[3] = (float *)(src + mesh->indexes[k+3+j]);
 				if (!VectorEquals (quad[3], quad[0]) &&
 					!VectorEquals (quad[3], quad[1]) &&
 					!VectorEquals (quad[3], quad[2]))
@@ -2634,9 +2634,10 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 
 			for (j = 0; j < 4; j++)
 			{
+				int v = ((vecV_t*)quad[j]-src);
 				VectorSubtract(quad[j], rot_centre, tv);
-				Matrix3_Multiply_Vec3((void *)result, tv, quad[j]);
-				VectorAdd(rot_centre, quad[j], quad[j]);
+				Matrix3_Multiply_Vec3((void *)result, tv, tv2);
+				VectorAdd(rot_centre, tv2, dst[v]);
 			}
 		}
 		break;
@@ -4232,7 +4233,6 @@ void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 {
 	int i;
-	float ndr;
 	float modelmatrix[16];
 	float *m = modelmatrix;
 	float *proj;
@@ -4473,7 +4473,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	cbe->w_fogdepthbias = r_refdef.globalfog.depthbias;
 	Vector2Set(cbe->pad7, 0, 0);
 
-	ndr = (e->flags & RF_DEPTHHACK)?0.333:1;
+	/*ndr = (e->flags & RF_DEPTHHACK)?0.333:1;
 	if (ndr != shaderstate.rc.depthrange)
 	{
 		VkViewport viewport;
@@ -4486,7 +4486,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		viewport.minDepth = 0;
 		viewport.maxDepth = ndr;
 		vkCmdSetViewport(vk.rendertarg->cbuf, 0, 1, &viewport);
-	}
+	}*/
 }
 
 void VKBE_SubmitBatch(batch_t *batch)
@@ -5015,7 +5015,7 @@ void VKBE_RT_Begin(struct vk_rendertarg *targ)
 		viewport.width = r_refdef.pxrect.width;
 		viewport.height = r_refdef.pxrect.height;
 		viewport.minDepth = 0;
-		viewport.maxDepth = shaderstate.rc.depthrange;
+		viewport.maxDepth = 1;
 		vkCmdSetViewport(vk.rendertarg->cbuf, 0, 1, &viewport);
 		wrekt.offset.x = viewport.x;
 		wrekt.offset.y = viewport.y;
@@ -6125,7 +6125,7 @@ void VKBE_DoneShadows(void)
 		viewport.width = r_refdef.pxrect.width;
 		viewport.height = r_refdef.pxrect.height;
 		viewport.minDepth = 0;
-		viewport.maxDepth = shaderstate.rc.depthrange;
+		viewport.maxDepth = 1;
 		vkCmdSetViewport(vk.rendertarg->cbuf, 0, 1, &viewport);
 	}
 
@@ -6133,7 +6133,7 @@ void VKBE_DoneShadows(void)
 	VKBE_SelectEntity(&r_worldentity);
 }
 
-void VKBE_SetupForShadowMap(dlight_t *dl, qboolean isspot, int texwidth, int texheight, float shadowscale)
+void VKBE_SetupForShadowMap(dlight_t *dl, int texwidth, int texheight, float shadowscale)
 {
 #define SHADOWMAP_SIZE 512
 	extern cvar_t r_shadow_shadowmapping_nearclip, r_shadow_shadowmapping_bias;
@@ -6182,7 +6182,17 @@ void VKBE_DrawWorld (batch_t **worldbatches)
 
 	shaderstate.curentity = NULL;
 
-	shaderstate.rc.depthrange = 0;
+	{
+		VkViewport viewport;
+
+		viewport.x = r_refdef.pxrect.x;
+		viewport.y = r_refdef.pxrect.y;
+		viewport.width = r_refdef.pxrect.width;
+		viewport.height = r_refdef.pxrect.height;
+		viewport.minDepth = 0;
+		viewport.maxDepth = 1;
+		vkCmdSetViewport(vk.rendertarg->cbuf, 0, 1, &viewport);
+	}
 
 	if (!r_refdef.recurse)
 	{

@@ -97,6 +97,7 @@ extern cvar_t	pm_ktjump;
 extern cvar_t	pm_slidefix;
 extern cvar_t	pm_slidyslopes;
 extern cvar_t	pm_airstep;
+extern cvar_t	pm_stepdown;
 extern cvar_t	pm_walljump;
 extern cvar_t	pm_watersinkspeed;
 extern cvar_t	pm_flyfriction;
@@ -743,8 +744,14 @@ void SVNQ_New_f (void)
 	MSG_WriteByte (&host_client->netchan.message, svc_setview);
 	MSG_WriteEntity (&host_client->netchan.message, (host_client - svs.clients)+1);//NUM_FOR_EDICT(svprogfuncs, host_client->edict));
 
-	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
-	MSG_WriteByte (&host_client->netchan.message, 1);
+	if (!(host_client->fteprotocolextensions2 & PEXT2_PREDINFO))
+	{	//old clients can't cope with reliables until they finish loading the models specified above.
+		//we need to wait before sending any more
+		//updated clients can wait a bit, and use signonnum 1 to tell them when to start loading stuff.
+		MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
+		MSG_WriteByte (&host_client->netchan.message, 1);
+		host_client->netchan.nqunreliableonly = 2;
+	}
 
 //	host_client->sendsignon = true;
 //	host_client->spawned = false;		// need prespawn, spawn, etc
@@ -754,8 +761,6 @@ void SVNQ_New_f (void)
 	else
 		host_client->prespawn_stage = PRESPAWN_SERVERINFO;
 	host_client->prespawn_idx = 0;
-
-	host_client->netchan.nqunreliableonly = 2;
 }
 #endif
 
@@ -1009,6 +1014,30 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			}
 			else if (client->prespawn_idx == 1)
 			{
+				FS_GetPackNames(buffer, sizeof(buffer), 2, true); /*retain extensions, or we'd have to assume pk3*/
+				ClientReliableWrite_Begin(client, svc_stufftext, 1+11+strlen(buffer)+1+1);
+				ClientReliableWrite_SZ(client, "//paknames ", 11);
+				ClientReliableWrite_SZ(client, buffer, strlen(buffer));
+				ClientReliableWrite_String(client, "\n");
+			}
+			else if (client->prespawn_idx == 2)
+			{
+				FS_GetPackHashes(buffer, sizeof(buffer), false);
+				ClientReliableWrite_Begin(client, svc_stufftext, 1+7+strlen(buffer)+1+1);
+				ClientReliableWrite_SZ(client, "//paks ", 7);
+				ClientReliableWrite_SZ(client, buffer, strlen(buffer));
+				ClientReliableWrite_String(client, "\n");
+			}
+			else if (client->prespawn_idx == 3)
+			{
+				if (ISNQCLIENT(client) && (client->fteprotocolextensions2 & PEXT2_PREDINFO))
+				{
+					ClientReliableWrite_Begin(client, svc_signonnum, 2);
+					ClientReliableWrite_Byte (client, 1);
+				}
+			}
+			else if (client->prespawn_idx == 4)
+			{
 				int track = 0;
 
 				if (progstype == PROG_H2)
@@ -1024,23 +1053,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				if (!track && *sv.h2miditrack)
 					SV_StuffcmdToClient(client, va("music \"%s\"\n", sv.h2miditrack));
 			}
-			else if (client->prespawn_idx == 2)
-			{
-				FS_GetPackNames(buffer, sizeof(buffer), 2, true); /*retain extensions, or we'd have to assume pk3*/
-				ClientReliableWrite_Begin(client, svc_stufftext, 1+11+strlen(buffer)+1+1);
-				ClientReliableWrite_SZ(client, "//paknames ", 11);
-				ClientReliableWrite_SZ(client, buffer, strlen(buffer));
-				ClientReliableWrite_String(client, "\n");
-			}
-			else if (client->prespawn_idx == 3)
-			{
-				FS_GetPackHashes(buffer, sizeof(buffer), false);
-				ClientReliableWrite_Begin(client, svc_stufftext, 1+7+strlen(buffer)+1+1);
-				ClientReliableWrite_SZ(client, "//paks ", 7);
-				ClientReliableWrite_SZ(client, buffer, strlen(buffer));
-				ClientReliableWrite_String(client, "\n");
-			}
-			else if (client->prespawn_idx == 4)
+			else if (client->prespawn_idx == 5)
 			{
 				ClientReliableWrite_Begin(client, svc_setpause, 2);
 				ClientReliableWrite_Byte (client, sv.paused!=0);
@@ -6864,6 +6877,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		movevars.ktjump = pm_ktjump.value;
 		movevars.slidefix = (pm_slidefix.value != 0);
 		movevars.airstep = (pm_airstep.value != 0);
+		movevars.stepdown = (pm_stepdown.value != 0);
 		movevars.walljump = (pm_walljump.value);
 		movevars.slidyslopes = (pm_slidyslopes.value!=0);
 		movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
@@ -7109,6 +7123,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.ktjump = pm_ktjump.value;
 	movevars.slidefix = (pm_slidefix.value != 0);
 	movevars.airstep = (pm_airstep.value != 0);
+	movevars.stepdown = (pm_stepdown.value != 0);
 	movevars.walljump = (pm_walljump.value);
 	movevars.slidyslopes = (pm_slidyslopes.value!=0);
 	movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;

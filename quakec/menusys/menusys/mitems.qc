@@ -84,13 +84,14 @@ class mitem_frame;
 class mitem
 {
 	void() 	mitem;
-	virtual void(vector pos)								item_draw;
-	virtual float(vector pos, float scan, float char, float down)		item_keypress = {return FALSE;};
-	virtual void(mitem newfocus, float changedflag)				item_focuschange;	//move into frame?
-	virtual string(string key)								get;
-	virtual void(string key, string newval)						set;
-	virtual void() 										item_remove;
-	virtual void() 										item_resized;
+	virtual void(vector pos)										item_draw;
+	virtual float(vector pos, float scan, float char, float down)	item_keypress = {return FALSE;};
+	virtual void(mitem newfocus, float changedflag)					item_focuschange;	//move into frame?
+	virtual string(string key)										get;
+	virtual void(string key, string newval)							set;
+	virtual float(string key)										isvalid;
+	virtual void() 													item_remove;
+	virtual void() 													item_resized;
 	float 			item_flags;		//contains IF_ flags
 	vector 		item_position;		//relative to the parent's client area. which is admittedly not well defined...
 	vector 		item_size;			//interaction bounding box.
@@ -125,6 +126,7 @@ typedef struct uiinfo_s
 	mitem kgrabs;		//kfocused or mfocused or both or none to say what sort of grabs is in effect.
 	mitem mgrabs;		//says who has stolen all input events.
 
+	float shiftheld;	//shift is held.
 	float mousedown;	//which mouse buttons are currently held.
 	vector oldmousepos;	//old mouse position, to track whether its moved.
 	vector mousepos;	//current mouse position.
@@ -161,15 +163,19 @@ void() queryscreensize =
 	ui.screensize[2] = 0;
 #endif
 #ifdef CSQC
-	//make sure the screensize is set.
-	normalize('0 0 1');	//when getproperty fails to return a meaningful value, make sure that we don't read some random stale value.
-	ui.screensize = (vector)getproperty(VF_SCREENVSIZE);
-	if (ui.screensize[2])	//lingering return value from normalize.
-	{
-		ui.screensize[2] = 0;
-		ui.screensize[0] = cvar("vid_conwidth");
-		ui.screensize[1] = cvar("vid_conheight");
-	}
+	#ifdef CSQC_SIMPLE
+		ui.screensize = screensize;
+	#else
+		//make sure the screensize is set.
+		normalize('0 0 1');	//when getproperty fails to return a meaningful value, make sure that we don't read some random stale value.
+		ui.screensize = (vector)getproperty(VF_SCREENVSIZE);
+		if (ui.screensize[2])	//lingering return value from normalize.
+		{
+			ui.screensize[2] = 0;
+			ui.screensize[0] = cvar("vid_conwidth");
+			ui.screensize[1] = cvar("vid_conheight");
+		}
+	#endif
 #endif
 };
 
@@ -303,6 +309,14 @@ void(string key, string newval) mitem::set =
 		this.item_parent.set(key, newval);
 	else	//no parent, just assume its a cvar.
 		cvar_set(key, newval);
+};
+float(string key) mitem::isvalid =
+{
+	//walk through to the parent for menu parents to track all this.
+	if (this.item_parent)
+		return this.item_parent.isvalid(key);
+	else	//no parent, just assume its a cvar.
+		return cvar_type(key);
 };
 
 

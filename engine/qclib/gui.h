@@ -5,10 +5,13 @@ void EditFile(const char *name, int line, pbool setcontrol);
 void GUI_SetDefaultOpts(void);
 int GUI_BuildParms(char *args, char **argv, pbool quick);
 
-unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz);
+//unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz);
 int QCC_RawFileSize (const char *fname);
 pbool QCC_WriteFile (const char *name, void *data, int len);
 void GUI_DialogPrint(char *title, char *text);
+
+void *GUIReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size);
+int GUIFileSize(const char *fname);
 
 void GUI_ParseCommandLine(char *args);
 void GUI_SaveConfig(void);

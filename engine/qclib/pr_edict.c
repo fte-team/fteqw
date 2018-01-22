@@ -2712,6 +2712,7 @@ retry:
 				break;
 			default:
 				Sys_Error("Bad struct type");
+				len = 0;
 			}
 			s = PRHunkAlloc(progfuncs, len, "dstatements");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_statements16), len, 2, (char *)(((int *)pr_statements16)+1), s);
@@ -2730,6 +2731,7 @@ retry:
 				break;
 			default:
 				Sys_Error("Bad struct type");
+				len = 0;
 			}
 			s = PRHunkAlloc(progfuncs, len, "dglobaldefs");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_globaldefs16), len, 2, (char *)(((int *)pr_globaldefs16)+1), s);
@@ -2748,6 +2750,7 @@ retry:
 				break;
 			default:
 				Sys_Error("Bad struct type");
+				len = 0;
 			}
 			s = PRHunkAlloc(progfuncs, len, "progfieldtable");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_fielddefs16), len, 2, (char *)(((int *)pr_fielddefs16)+1), s);

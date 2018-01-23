@@ -2246,7 +2246,7 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 
 qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvis, int smsize)
 {
-	int restorefbo;
+	int restorefbo = 0;
 	int f,lf;
 	float oprojs[16], oprojv[16], oview[16];
 	pxrect_t oprect;

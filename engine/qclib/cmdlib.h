@@ -97,8 +97,8 @@ void	ExtractFileExtension (char *path, char *dest);
 
 long 	ParseNum (char *str);
 
-unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen, pbool *errors);
-char *QCC_SanitizeCharSet(char *mem, unsigned int *len, pbool *freeresult, int *origfmt);
+unsigned short *QCC_makeutf16(char *mem, size_t len, int *outlen, pbool *errors);
+char *QCC_SanitizeCharSet(char *mem, size_t *len, pbool *freeresult, int *origfmt);
 
 
 char *QCC_COM_Parse (const char *data);

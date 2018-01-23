@@ -39,14 +39,14 @@ This file came to FTE via EzQuake.
 typedef struct
 {
     unsigned int state[5];
-    unsigned int count[2];
+    size_t count[2];
     unsigned char buffer[64];
 } SHA1_CTX;
 
 #define DIGEST_SIZE 20
 void SHA1Transform(unsigned int state[5], const unsigned char buffer[64]);
 void SHA1Init(SHA1_CTX* context);
-void SHA1Update(SHA1_CTX* context, const unsigned char* data, unsigned int len);
+void SHA1Update(SHA1_CTX* context, const unsigned char* data, size_t len);
 void SHA1Final(unsigned char digest[DIGEST_SIZE], SHA1_CTX* context);
 
 
@@ -122,9 +122,9 @@ void SHA1Init(SHA1_CTX* context)
 
 /* Run your data through this. */
 
-void SHA1Update(SHA1_CTX* context, const unsigned char* data, unsigned int len)
+void SHA1Update(SHA1_CTX* context, const unsigned char* data, size_t len)
 {
-	unsigned int i, j;
+	size_t i, j;
 
 	j = (context->count[0] >> 3) & 63;
 	if ((context->count[0] += len << 3) < (len << 3)) context->count[1]++;
@@ -250,7 +250,7 @@ size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize,
 	char innerhash[HMAC_DIGEST_MAXSIZE];
 
 	char block[64];
-	int innerhashsize;
+	size_t innerhashsize;
 
 	/* Reduce the key's size, so that it is never larger than a block. */
 

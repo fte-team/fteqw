@@ -2126,7 +2126,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		else
 		{
 			// don't count this message when calculating PL
-			cl.outframes[i].latency = -3;
+			cl.outframes[(cl.movesequence-1) & UPDATE_MASK].latency = -3;
 			// drop this message
 			cls.netchan.outgoing_sequence++;
 			dropcount++;

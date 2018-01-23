@@ -966,7 +966,7 @@ unsigned int utf8_check(const void *in, unsigned int *value)
 
 //read utf-16 chars and output the 'native' utf-8.
 //we don't expect essays written in code, so we don't need much actual support for utf-8.
-static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, unsigned int *outlen, pbool usemalloc)
+static char *decodeUTF(int type, unsigned char *inputf, size_t inbytes, size_t *outlen, pbool usemalloc)
 {
 	char *utf8, *start;
 	unsigned int inc;
@@ -1079,7 +1079,7 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, un
 //the gui is a windows program.
 //this means that its fucked.
 //on the plus side, its okay with a bom...
-unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen, pbool *errors)
+unsigned short *QCC_makeutf16(char *mem, size_t len, int *outlen, pbool *errors)
 {
 	unsigned int code;
 	int l;
@@ -1272,13 +1272,8 @@ void	QCC_AddFile (char *filename)
 	qcc_cachedsourcefile_t *sfile;
 	progfuncs_t *progfuncs = qccprogfuncs;
 	char *mem;
-	int len;
-	len = externs->FileSize(filename);
-	if (len < 0)
-		externs->Abort("failed to find file %s", filename);
-	mem = qccHunkAlloc(sizeof(qcc_cachedsourcefile_t) + len+1);
+	size_t len;
 
-	
 	mem = externs->ReadFile(filename, QCC_LoadFileHunk, NULL, &len);
 	if (!mem)
 		externs->Abort("failed to find file %s", filename);

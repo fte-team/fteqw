@@ -1261,7 +1261,7 @@ static void QCC_GenerateFieldDefs(QCC_def_t *def, char *fieldname, int ofs, QCC_
 	{	//the qcvm cannot cope with struct fields. so we need to generate lots of fake ones.
 		char sub[256];
 		unsigned int p, a;
-		int parms = type->num_parms;
+		unsigned int parms = type->num_parms;
 		if (type->type == ev_union)
 			parms = 1;	//unions only generate the first element. it simplifies things (should really just be the biggest).
 		for (p = 0; p < parms; p++)
@@ -1560,7 +1560,7 @@ pbool QCC_WriteData (int crc)
 					funcs[i].parm_start = functions[i].merged->parm_start;
 					funcs[i].locals = functions[i].merged->locals;
 					funcs[i].numparms = functions[i].merged->numparms;
-					for(p = 0; p < funcs[i].numparms; p++)
+					for(p = 0; p < (unsigned)funcs[i].numparms; p++)
 						funcs[i].parm_size[p] = functions[i].merged->parm_size[p];
 				}
 				else if (functions[i].code == -1)
@@ -2756,7 +2756,7 @@ static unsigned char *QCC_LoadFileHunkAlloc(void *ctx, size_t size)
 /*load a progs into the current compile state.*/
 void QCC_ImportProgs(const char *filename)
 {
-	int flen;
+	size_t flen;
 	dprograms_t *prog;
 
 	//these keywords are implicitly enabled by #merge
@@ -3681,7 +3681,7 @@ Copy a file into the pak file
 */
 void QCC_PackFile (char *src, char *name)
 {
-	int		remaining;
+	size_t	remaining;
 #if 1
 	char	*f;
 #else
@@ -4613,7 +4613,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	time_t long_time;
 	extern QCC_type_t *pr_classtype;
 
-	int		p;
+	size_t		p;
 	extern int qccpersisthunk;
 
 	char *s;

@@ -6212,6 +6212,7 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 				if (!tex_path[i].enabled)
 					continue;
 				buf = NULL;
+				fsize = 0;
 				if (tex_path[i].args == 3 && tex->subpath)
 				{
 					char subpath[MAX_QPATH];

@@ -3706,7 +3706,7 @@ void QCC_PackFile (char *src, char *name)
 	pf->filepos = PRLittleLong (SafeSeek (packhandle, 0, SEEK_CUR));
 	pf->filelen = PRLittleLong (remaining);
 	strcpy (pf->name, name);
-	printf ("%64s : %7i\n", pf->name, remaining);
+	printf ("%64s : %7u\n", pf->name, (unsigned int)remaining);
 
 	packbytes += remaining;
 
@@ -3720,7 +3720,7 @@ void QCC_PackFile (char *src, char *name)
 	pf->filepos = PRLittleLong (lseek (packhandle, 0, SEEK_CUR));
 	pf->filelen = PRLittleLong (remaining);
 	strcpy (pf->name, name);
-	printf ("%64s : %7i\n", pf->name, remaining);
+	printf ("%64s : %7u\n", pf->name, (unsigned int)remaining);
 
 	packbytes += remaining;
 

@@ -7836,7 +7836,7 @@ qboolean CSQC_DrawView(void)
 			G_FLOAT(OFS_PARM0) = vid.width;
 			G_FLOAT(OFS_PARM1) = vid.height;
 		}
-		G_FLOAT(OFS_PARM2) = !Key_Dest_Has(kdm_emenu) && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
+		G_FLOAT(OFS_PARM2) = !Key_Dest_Has(kdm_emenu|kdm_gmenu|kdm_cwindows) && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
 
 		if (csqcg.f_updateviewloading && cls.state && cls.state < ca_active)
 			PR_ExecuteProgram(csqcprogs, csqcg.f_updateviewloading);
@@ -7879,10 +7879,14 @@ qboolean CSQC_DrawHud(playerview_t *pv)
 		G_FLOAT(OFS_PARM0+0) = r_refdef.grect.width;
 		G_FLOAT(OFS_PARM0+1) = r_refdef.grect.height;
 		G_FLOAT(OFS_PARM0+2) = 0;
+#ifdef QUAKEHUD
 		G_FLOAT(OFS_PARM1) = (pv->sb_showscores?1:0) | (pv->sb_showteamscores?2:0);
-//		G_FLOAT(OFS_PARM2+0) = r_refdef.grect.x;
-//		G_FLOAT(OFS_PARM2+1) = r_refdef.grect.y;
-//		G_FLOAT(OFS_PARM2+2) = pv-cl.playerview;
+#else
+		G_FLOAT(OFS_PARM1) = false;	//hmm
+#endif
+		G_FLOAT(OFS_PARM2+0) = 0;//r_refdef.grect.x;
+		G_FLOAT(OFS_PARM2+1) = 0;//r_refdef.grect.y;
+		G_FLOAT(OFS_PARM2+2) = 0;//pv-cl.playerview;
 		PR_ExecuteProgram(csqcprogs, csqcg.f_drawhud);
 
 		if (*r_refdef.rt_destcolour[0].texname)
@@ -7919,10 +7923,14 @@ qboolean CSQC_DrawScores(playerview_t *pv)
 		G_FLOAT(OFS_PARM0+0) = r_refdef.grect.width;
 		G_FLOAT(OFS_PARM0+1) = r_refdef.grect.height;
 		G_FLOAT(OFS_PARM0+2) = 0;
+#ifdef QUAKEHUD
 		G_FLOAT(OFS_PARM1) = (pv->sb_showscores?1:0) | (pv->sb_showteamscores?2:0);
-//		G_FLOAT(OFS_PARM2+0) = r_refdef.grect.x;
-//		G_FLOAT(OFS_PARM2+1) = r_refdef.grect.y;
-//		G_FLOAT(OFS_PARM2+2) = pv-cl.playerview;
+#else
+		G_FLOAT(OFS_PARM1) = false;	//hmm
+#endif
+		G_FLOAT(OFS_PARM2+0) = 0;//r_refdef.grect.x;
+		G_FLOAT(OFS_PARM2+1) = 0;//r_refdef.grect.y;
+		G_FLOAT(OFS_PARM2+2) = 0;//pv-cl.playerview;
 		PR_ExecuteProgram(csqcprogs, csqcg.f_drawscores);
 
 		if (*r_refdef.rt_destcolour[0].texname)

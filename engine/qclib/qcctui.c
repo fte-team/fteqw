@@ -8,21 +8,39 @@
 LoadFile
 ==============
 */
-unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz)
+void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size)
+//unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz)
 {
-	long    length;
+	size_t len;
 	FILE *f;
+	char *buffer;
+
 	f = fopen(fname, "rb");
 	if (!f)
+	{
+		if (out_size)
+			*out_size = 0;
 		return NULL;
-	length = fread(buffer, 1, len, f);
+	}
+
+	fseek(f, 0, SEEK_END);
+	len = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	if (buf_get)
+		buffer = buf_get(buf_ctx, len+1);
+	else
+		buffer = malloc(len+1);
+	((char*)buffer)[len] = 0;
+	if (len != fread(buffer, 1, len, f))
+	{
+		if (!buf_get)
+			free(buffer);
+		buffer = NULL;
+	}
 	fclose(f);
 
-	if (length != len)
-		return NULL;
-
-	if (sz)
-		*sz = length;
+	if (out_size)
+		*out_size = len;
 	return buffer;
 }
 int PDECL QCC_FileSize (const char *fname)

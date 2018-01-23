@@ -24,7 +24,9 @@
 //#define D3D9QUAKE
 //#define GLQUAKE
 #undef D3D11QUAKE
+#if defined(WIN32)
 #define D3D8QUAKE
+#endif
 #undef VKQUAKE
 #undef HEADLESSQUAKE
 
@@ -39,7 +41,7 @@
 #define MENU_DAT
 #define PSET_SCRIPT
 #define VOICECHAT
-#define RTLIGHTS
+#undef RTLIGHTS
 #ifndef MULTITHREAD
 #define MULTITHREAD	//misc basic multithreading - dsound, downloads, basic stuff that's unlikely to have race conditions.
 #endif
@@ -64,7 +66,7 @@
 #define Q3BSPS
 #undef Q1BSPS
 #undef Q2BSPS
-#define RFBSPS	//qfusion's bsp format / jk2o etc.
+#undef RFBSPS	//qfusion's bsp format / jk2o etc.
 #undef TERRAIN
 #undef DOOMWADS
 #undef MAP_PROC
@@ -123,9 +125,6 @@
 #undef HAVE_MEDIA_DECODER	//can play cin/roq, more with plugins
 #undef HAVE_MEDIA_ENCODER	//capture/capturedemo work.
 #undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
-
-
-
 
 #ifdef COMPILE_OPTS
 //things to configure qclib, which annoyingly doesn't include this file itself

@@ -1,4 +1,6 @@
 #include "quakedef.h"
+
+#ifdef HAVE_MIXER
 #include "winquake.h"
 
 #ifdef DYNAMIC_SDL
@@ -439,4 +441,5 @@ snd_capture_driver_t SDL_Capture =
 	SDL_Capture_Stop,
 	SDL_Capture_Shutdown
 };
+#endif
 #endif

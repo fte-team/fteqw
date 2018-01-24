@@ -9,6 +9,7 @@
 #include <dlfcn.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <pthread.h>
 
 #ifndef ANDROID
 #error ANDROID wasnt defined
@@ -33,6 +34,7 @@ static char sys_basedir[MAX_OSPATH];
 static char sys_basepak[MAX_OSPATH];
 extern  jmp_buf 	host_abort;
 JNIEnv *sys_jenv;
+JavaVM *sys_jvm;
 
 cvar_t sys_vibrate = CVARFD("sys_vibrate", "1", CVAR_ARCHIVE, "Enables the system vibrator for damage events and such things. The value provided is a duration scaler.");
 cvar_t sys_osk = CVAR("sys_osk", "0");	//to be toggled
@@ -45,6 +47,13 @@ void VID_Register(void);
 #define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, DISTRIBUTION"Droid", __VA_ARGS__))
 #define LOGW(...) ((void)__android_log_print(ANDROID_LOG_WARN, DISTRIBUTION"Droid", __VA_ARGS__))
 #define LOGE(...) ((void)__android_log_print(ANDROID_LOG_ERROR, DISTRIBUTION"Droid", __VA_ARGS__))
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
+{
+	sys_jvm = vm;
+
+	return JNI_VERSION_1_2;
+}
 
 void Sys_Vibrate(float count)
 {
@@ -121,6 +130,8 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_gryoscope(JNIEnv *env, jobj
 JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj)
 {
 	int ret;
+
+//	Sys_Printf("run frame\n");
 
 	sys_jenv = env;
 
@@ -233,13 +244,18 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		#else
 			Host_Init(&parms);
 		#endif
-		sys_running = true;
 		sys_lastframe = Sys_Milliseconds();
 		sys_orientation.modified = true;
 
 		while(r_blockvidrestart == 1)
-			Java_com_fteqw_FTEDroidEngine_frame(env, obj);
+		{
+			unsigned int now = Sys_Milliseconds();
+			double tdelta = (now - sys_lastframe) * 0.001;
+			Host_Frame(tdelta);
+			sys_lastframe = now;
+		}
 
+		sys_running = true;
 		Sys_Printf("Engine started\n");
 	}
 }
@@ -343,15 +359,20 @@ void Sys_Error (const char *error, ...)
 void Sys_Printf (char *fmt, ...)
 {
 	va_list         argptr;
-	static char linebuf[2048];	//android doesn't do \ns properly *sigh*
-	static char *endbuf = linebuf;	//android doesn't do \ns properly *sigh*
 	char *e;
 
+	static char linebuf[2048];	//android doesn't do \ns properly *sigh*
+	static char *endbuf = linebuf;	//android doesn't do \ns properly *sigh*
+	static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+	pthread_mutex_lock(&lock);
+
+	//append the new data
 	va_start (argptr, fmt);
 	vsnprintf (endbuf,sizeof(linebuf)-(endbuf-linebuf)-1, fmt,argptr);
 	va_end (argptr);
 	endbuf += strlen(endbuf);
 
+	//split it on linebreaks
 	while ((e = strchr(linebuf, '\n')))
 	{
 		*e = 0;
@@ -360,6 +381,8 @@ void Sys_Printf (char *fmt, ...)
 		linebuf[endbuf-(e+1)] = 0;
 		endbuf -= (e+1)-linebuf;
 	}
+
+	pthread_mutex_unlock(&lock);
 }
 void Sys_Warn (char *fmt, ...)
 {

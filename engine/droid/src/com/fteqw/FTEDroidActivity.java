@@ -220,18 +220,16 @@ public class FTEDroidActivity extends Activity
 		{
 			private FTEView theview;
 			private android.view.SurfaceHolder surfaceholder;
-			private android.view.Surface surf;
 			private boolean doquit;
 			public FTERenderThread(FTEView parent, android.view.SurfaceHolder sh)
 			{
 				surfaceholder = sh;
-				surf = sh.getSurface();
 				theview = parent;
 			}
 			@Override
 			public void run()
 			{
-				FTEDroidEngine.setwindow(surf);
+				FTEDroidEngine.setwindow(surfaceholder.getSurface());
 				if (!theview.inited)
 				{
 					FTEDroidEngine.init(0, 0, basedir, userdir);

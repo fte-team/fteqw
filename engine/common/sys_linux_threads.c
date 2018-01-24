@@ -47,6 +47,66 @@ void Sys_ThreadAbort(void)
 	pthread_exit(NULL);
 }
 
+#ifdef ANDROID
+#include <jni.h>
+extern JavaVM *sys_jvm;
+#endif
+
+#if 1
+typedef struct {
+	int (*func)(void *);
+	void *args;
+} qthread_t;
+static int Sys_CreatedThread(void *v)
+{
+	qthread_t *qthread = v;
+	int r;
+
+#ifdef ANDROID
+	JNIEnv* env;
+	(*sys_jvm)->AttachCurrentThread(sys_jvm, &env, NULL);
+#endif
+
+	r = qthread->func(qthread->args);
+
+#ifdef ANDROID
+	(*sys_jvm)->DetachCurrentThread(sys_jvm);
+#endif
+
+	return r;
+}
+
+void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
+{
+	pthread_t *thread;
+	qthread_t *qthread;
+	pthread_attr_t attr;
+
+	thread = (pthread_t *)malloc(sizeof(pthread_t)+sizeof(qthread_t));
+	if (!thread)
+		return NULL;
+
+	qthread = (qthread_t*)(thread+1);
+	qthread->func = func;
+	qthread->args = args;
+
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+	if (stacksize < PTHREAD_STACK_MIN*2)
+		stacksize = PTHREAD_STACK_MIN*2;
+	if (stacksize < PTHREAD_STACK_MIN+65536*16)
+		stacksize = PTHREAD_STACK_MIN+65536*16;
+	pthread_attr_setstacksize(&attr, stacksize);
+	if (pthread_create(thread, &attr, (pfunction_t)Sys_CreatedThread, qthread))
+	{
+		free(thread);
+		thread = NULL;
+	}
+	pthread_attr_destroy(&attr);
+
+	return (void *)thread;
+}
+#else
 void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
 {
 	pthread_t *thread;
@@ -70,6 +130,7 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 
 	return (void *)thread;
 }
+#endif
 
 void Sys_WaitOnThread(void *thread)
 {

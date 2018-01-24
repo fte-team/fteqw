@@ -5984,6 +5984,7 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&pm_downloads_url, "Filesystem");
 	Cvar_Register(&pm_autoupdate, "Filesystem");
 	Cvar_Register(&com_protocolname, "Server Info");
+	Cvar_Register(&com_protocolversion, "Server Info");
 	Cvar_Register(&fs_game, "Filesystem");
 #ifdef Q2SERVER
 	Cvar_Register(&fs_gamedir, "Filesystem");

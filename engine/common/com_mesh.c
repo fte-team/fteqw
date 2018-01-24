@@ -1224,7 +1224,7 @@ const float *Alias_GetBoneInformation(galiasinfo_t *inf, framestate_t *framestat
 
 	//try to return data in-place.
 	if (numgroups==1 && lerps[0].lerpcount == 1)
-		return Alias_ConvertBoneData(lerps[0].skeltype, lerps[0].pose[0], lerps[0].endbone, inf->ofsbones, targettype, targetbuffer, targetbufferalt, maxbufferbones);
+		return Alias_ConvertBoneData(lerps[0].skeltype, lerps[0].pose[0], min(lerps[0].endbone, inf->numbones), inf->ofsbones, targettype, targetbuffer, targetbufferalt, maxbufferbones);
 
 	for (lerp = lerps; numgroups--; lerp++)
 	{

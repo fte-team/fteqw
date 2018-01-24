@@ -144,8 +144,10 @@ cvar_t sv_phs					= CVARD("sv_phs", "1", "If 1, do not use the phs. It is genera
 cvar_t sv_resetparms			= CVAR("sv_resetparms", "0");
 cvar_t sv_pupglow				= CVARFD("sv_pupglow", "", CVAR_SERVERINFO, "Instructs clients to enable hexen2-style powerup pulsing.");
 
+#ifdef SV_MASTER
 cvar_t sv_master				= CVAR("sv_master", "0");
 cvar_t sv_masterport			= CVAR("sv_masterport", "0");
+#endif
 
 cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
 
@@ -1251,13 +1253,13 @@ static void SVC_GetInfo (char *challenge, int fullstatus)
 	Q_strncpyz(resp, svs.info, sizeof(response) - (resp-response));
 	//this is a DP protocol query, so some QW fields are not needed
 	Info_RemoveKey(resp, "maxclients");	//replaced with sv_maxclients
-	Info_RemoveKey(resp, "map");	//replaced with mapname
+	Info_RemoveKey(resp, "map");		//replaced with mapname
+	Info_RemoveKey(resp, "*gamedir");	//replaced with modname
+	Info_RemoveKey(resp, "*z_ext");		//uninteresting and spammy.
 	Info_SetValueForKey(resp, "gamename", protocolname, sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "modname", FS_GetGamedir(true), sizeof(response) - (resp-response));
 //	Info_SetValueForKey(resp, "gamedir", FS_GetGamedir(true), sizeof(response) - (resp-response));
-#ifdef NQPROT
-	Info_SetValueForKey(resp, "protocol", va("%d", NQ_NETCHAN_VERSION), sizeof(response) - (resp-response));
-#endif
+	Info_SetValueForKey(resp, "protocol", va("%d", com_protocolversion.ival), sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "mapname", Info_ValueForKey(svs.info, "map"), sizeof(response) - (resp-response));
@@ -4832,6 +4834,7 @@ float SV_Frame (void)
 	IWebRun();
 #endif
 
+#ifdef SV_MASTER
 	if (sv_master.ival)
 	{
 		if (sv_masterport.ival)
@@ -4839,6 +4842,7 @@ float SV_Frame (void)
 		else
 			SVM_Think(PORT_QWMASTER);
 	}
+#endif
 
 #ifdef PLUGINS
 	if (isDedicated)
@@ -5145,8 +5149,10 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_showconnectionlessmessages, cvargroup_servercontrol);
 	Cvar_Register (&sv_banproxies, cvargroup_serverpermissions);
+#ifdef SV_MASTER
 	Cvar_Register (&sv_master,	cvargroup_servercontrol);
 	Cvar_Register (&sv_masterport,	cvargroup_servercontrol);
+#endif
 
 	Cvar_Register (&filterban,	cvargroup_servercontrol);
 

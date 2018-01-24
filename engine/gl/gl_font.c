@@ -782,69 +782,114 @@ static struct charcache_s *Font_LoadPlaceholderGlyph(font_t *f, CHARIDXTYPE char
 {
 	struct charcache_s *c;
 	unsigned int out[169*4], i, o, g, b, w, h, d, n;
-	d = (f->charheight >= 11);
-	if (d)
-	{	//two rows
-		h = 11;
-		if (charidx > 0xffff)
-			n = 3;
-		else if (charidx > 0xff)
-			n = 2;
+	if (charidx == 0xe080 || charidx == 0xe081 || charidx == 0xe082 || charidx == 0xe083)
+	{	//scrollbar glyps
+		w = min(16,f->charheight);
+		h = max(1,w/8);
+		d = 0;
+
+		if (charidx == 0xe083)	//centre
+		{
+			h *= 3;
+			memset(out+w*h*0, 0xff, w*4*h);
+		}
 		else
-			n = 1;
-		w = n*4-1;
-		n*=2;
+		{
+			memset(out+w*h*0, 0xff, w*4*h);
+			memset(out+w*h*1, 0x00, w*4*h);
+			memset(out+w*h*2, 0xff, w*4*h);
+			for (i = 0; i < h; i++)
+			{
+				if (charidx == 0xe080)	//left
+					memset(out+w*(i+h*1), 0xff, h*4);
+				if (charidx == 0xe082)	//right
+					memset(out+w*(i+h*1)+w-h, 0xff, h*4);
+			}
+			h *= 3;
+		}
+	}
+	else if (charidx == 0xe01d || charidx == 0xe01e || charidx == 0xe01f)
+	{	//horizontal separator
+		w = min(16,f->charheight);
+		h = max(1,w/8);
+		d = 0;
+		memset(out, 0xff, w*4*h);
+	}
+	else if (charidx == 0xe00b)
+	{
+		h = min(16,f->charheight);
+		w = max(1,h/8);
+		d = 1;
+		memset(out, 0xff, w*4*h);
 	}
 	else
-	{	//single row. bye bye fixed-width.
-		if (charidx > 0xfffff)
-			n = 6;
-		else if (charidx > 0xffff)
-			n = 5;
-		else if (charidx > 0xfff)
-			n = 4;
-		else if (charidx > 0xff)
-			n = 3;
-		else
-			n = 2;
-		w = n*4-1;
-		h = 5;
-	}
-
-	//figure out if we can get away with giving it a little more border to boost readability
-	b = (h+2 < f->charheight);
-	w += b*2;
-	h += b*2;
-
-	memset(out, 0xff, sizeof(out));
-
-	for (i = 0; i < n; i++)
 	{
-		g = hex[0xf & (charidx>>(i<<2))];
-		o = b + w*b;
+		d = (f->charheight >= 11);
 		if (d)
-		{	//stradle them over the two rows.
-			if (i >= (n>>1))
-				o += 4*(n-i-1);
+		{	//two rows
+			h = 11;
+			if (charidx > 0xffff)
+				n = 3;
+			else if (charidx > 0xff)
+				n = 2;
 			else
+				n = 1;
+			w = n*4-1;
+			n*=2;
+		}
+		else
+		{	//single row. bye bye fixed-width.
+			if (charidx > 0xfffff)
+				n = 6;
+			else if (charidx > 0xffff)
+				n = 5;
+			else if (charidx > 0xfff)
+				n = 4;
+			else if (charidx > 0xff)
+				n = 3;
+			else
+				n = 2;
+			w = n*4-1;
+			h = 5;
+		}
+
+		//figure out if we can get away with giving it a little more border to boost readability
+		b = (h+2 < f->charheight);
+		w += b*2;
+		h += b*2;
+
+		memset(out, 0xff, sizeof(out));
+
+		for (i = 0; i < n; i++)
+		{
+			g = hex[0xf & (charidx>>(i<<2))];
+			o = b + w*b;
+			if (d)
+			{	//stradle them over the two rows.
+				if (i >= (n>>1))
+					o += 4*(n-i-1);
+				else
+				{
+					o += 4*((n>>1)-i-1);
+					o += w * 6;
+				}
+			}
+			else
+				o += 4*(n-i-1);	//just arrange them in order
+			for (; g; g>>=3, o+=w)
 			{
-				o += 4*((n>>1)-i-1);
-				o += w * 6;
+				if (g & 4)	out[o+0] = 0xff0000ff;
+				if (g & 2)	out[o+1] = 0xff0000ff;
+				if (g & 1)	out[o+2] = 0xff0000ff;
 			}
 		}
-		else
-			o += 4*(n-i-1);	//just arrange them in order
-		for (; g; g>>=3, o+=w)
-		{
-			if (g & 4)	out[o+0] = 0xff0000ff;
-			if (g & 2)	out[o+1] = 0xff0000ff;
-			if (g & 1)	out[o+2] = 0xff0000ff;
-		}
+
+		d = 1;
 	}
 	c = Font_LoadGlyphData(f, charidx, FT_PIXEL_MODE_RGBA, out, w, h, w*4);
 	if (c)
 	{
-		c->advance = w+1;
+		c->advance = w+d;
 		c->left = 0;
 		c->top = (f->charheight-h-1)/2;
 	}
@@ -895,7 +940,8 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 			}
 			return c;
 		}
-		charidx &= 0x7f;
+		if ((charidx&0x7f) > 0x20)
+			charidx &= 0x7f;
 	}
 #endif
 
@@ -1724,7 +1770,9 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 	{
 		FMT_AUTO,		//freetype, or quake
 		FMT_QUAKE,		//first is default
-		FMT_ISO88591,	//latin-1 (first 256 chars of unicode too)
+		FMT_ISO88591,	//latin-1 (first 256 chars of unicode too, c1 glyphs are usually invisible)
+		FMT_WINDOWS1252,//variation of latin-1 with extra glyphs
+		FMT_KOI8U,		//image is 16*16 koi8-u codepage.
 		FMT_HORIZONTAL,	//unicode, charcount=width/(height-2). single strip of chars, like halflife.
 	} fmt = FMT_AUTO;
 
@@ -1777,6 +1825,10 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 					fmt = FMT_QUAKE;
 				else if (*t == 'l')
 					fmt = FMT_ISO88591;
+				else if (*t == 'w')
+					fmt = FMT_WINDOWS1252;
+				else if (*t == 'k')
+					fmt = FMT_KOI8U;
 				else if (*t == 'h')
 					fmt = FMT_HORIZONTAL;
 			}
@@ -2036,11 +2088,52 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 	if (defaultplane != INVALIDPLANE)
 	{
 		if (!f->faces)
-		{	
+		{
+			static const unsigned short iso88591[] = {
+				0x80,0x81,0x82,0x83, 0x84,0x85,0x86,0x87, 0x88,0x89,0x8a,0x8b, 0x8c,0x8d,0x8e,0x8f,
+				0x90,0x91,0x92,0x93, 0x94,0x95,0x96,0x97, 0x98,0x99,0x9a,0x9b, 0x9c,0x9d,0x9e,0x9f};
+			static const unsigned short win1252[] = {
+				0x20ac,  0x81,0x201a,0x0192, 0x201e,0x2026,0x2020,0x2021, 0x02c6,0x2030,0x0160,0x2039, 0x0152,  0x8d,0x017d,  0x8f,
+				  0x90,0x2018,0x2019,0x101c, 0x201d,0x2022,0x2013,0x2014, 0x02dc,0x2122,0x0161,0x203a, 0x0153,  0x9d,0x017e,0x0178};
+			static const unsigned short koi8u[] = {
+				0x2500,0x2502,0x250C,0x2510, 0x2514,0x2518,0x251C,0x2524, 0x252C,0x2534,0x253C,0x2580, 0x2584,0x2588,0x258C,0x2590,
+				0x2591,0x2592,0x2593,0x2320, 0x25A0,0x2219,0x221A,0x2248, 0x2264,0x2265,0x00A0,0x2321, 0x00B0,0x00B2,0x00B7,0x00F7,
+				0x2550,0x2551,0x2552,0x0451, 0x0454,0x2554,0x0456,0x0457, 0x2557,0x2558,0x2559,0x255A, 0x255B,0x0491,0x255D,0x255E,
+				0x255F,0x2560,0x2561,0x0401, 0x0404,0x2563,0x0406,0x0407, 0x2566,0x2567,0x2568,0x2569, 0x256A,0x0490,0x256C,0x00A9,
+				0x044E,0x0430,0x0431,0x0446, 0x0434,0x0435,0x0444,0x0433, 0x0445,0x0438,0x0439,0x043A, 0x043B,0x043C,0x043D,0x043E,
+				0x043F,0x044F,0x0440,0x0441, 0x0442,0x0443,0x0436,0x0432, 0x044C,0x044B,0x0437,0x0448, 0x044D,0x0449,0x0447,0x044A,
+				0x042E,0x0410,0x0411,0x0426, 0x0414,0x0415,0x0424,0x0413, 0x0425,0x0418,0x0419,0x041A, 0x041B,0x041C,0x041D,0x041E,
+				0x041F,0x042F,0x0420,0x0421, 0x0422,0x0423,0x0416,0x0412, 0x042C,0x042B,0x0417,0x0428, 0x042D,0x0429,0x0427,0x042A};
+			const unsigned short *c1;
+			unsigned int c1size;
+
+			if (fmt==FMT_AUTO)
+				fmt=FMT_QUAKE;
+
+			if (fmt == FMT_WINDOWS1252)
+			{	//some tools use these extra ones (latin-1 has no visible c1 entries)
+				c1 = win1252;
+				c1size = countof(win1252);
+			}
+			else if (fmt == FMT_KOI8U)
+			{	//lots of russians in the quake scene
+				c1 = koi8u;
+				c1size = countof(koi8u);
+			}
+			else
+			{
+				c1 = iso88591;
+				c1size = countof(iso88591);
+			}
+			c1size += 128;
+
 			/*force it to load, even if there's nothing there*/
 			for (i = ((fmt==FMT_QUAKE)?32:0); i < ((fmt==FMT_QUAKE)?128:256); i++)
 			{
-				c = Font_GetCharStore(f, i);
+				if (i >= 128 && i < c1size)
+					c = Font_GetCharStore(f, c1[i-128]);
+				else
+					c = Font_GetCharStore(f, i);
 
 				c->advance = f->charheight;
 				c->bmh = PLANEWIDTH/16;
@@ -2054,19 +2147,22 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 			}
 		}
 
-		/*pack the default chars into it*/
-		for (i = 0xe000; i <= 0xe0ff; i++)
+		if (fmt == FMT_QUAKE)
 		{
-			c = Font_GetCharStore(f, i);
-			c->advance = f->charheight;
-			c->bmh = PLANEWIDTH/16;
-			c->bmw = PLANEWIDTH/16;
-			c->bmx = ((i&15))*(PLANEWIDTH/16);
-			c->bmy = ((i&0xf0)/16)*(PLANEWIDTH/16);
-			c->left = 0;
-			c->top = 0;
-			c->nextchar = 0;	//these chars are not linked in
-			c->texplane = defaultplane;
+			/*pack the default chars into it*/
+			for (i = 0xe000; i <= 0xe0ff; i++)
+			{
+				c = Font_GetCharStore(f, i);
+				c->advance = f->charheight;
+				c->bmh = PLANEWIDTH/16;
+				c->bmw = PLANEWIDTH/16;
+				c->bmx = ((i&15))*(PLANEWIDTH/16);
+				c->bmy = ((i&0xf0)/16)*(PLANEWIDTH/16);
+				c->left = 0;
+				c->top = 0;
+				c->nextchar = 0;	//these chars are not linked in
+				c->texplane = defaultplane;
+			}
 		}
 	}
 	return f;

@@ -2768,7 +2768,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvarf gl_specular\n"
 "!!cvardf gl_affinemodels=0\n"
 "!!cvardf r_tessellation_level=5\n"
-"!!samps diffuse normalmap specular fullbright upper lower paletted\n"
+"!!samps diffuse normalmap specular fullbright upper lower paletted reflectmask reflectcube\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -10998,7 +10998,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvardf r_glsl_pcf\n"
 "!!cvardf r_tessellation_level=5\n"
-"!!samps shadowmap diffuse normalmap specular upper lower reflectcube reflectmask\n"
+"!!samps shadowmap diffuse normalmap specular upper lower reflectcube reflectmask projectionmap\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -11211,7 +11211,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "void main ()\n"
 "{\n"
+"#ifdef ORTHO\n"
+"float colorscale = 1.0;\n"
+"#else\n"
 "float colorscale = max(1.0 - (dot(lightvector, lightvector)/(l_lightradius*l_lightradius)), 0.0);\n"
+"#endif\n"
 "#ifdef PCF\n"
 /*filter the light by the shadowmap. logically a boolean, but we allow fractions for softer shadows*/
 "colorscale *= ShadowmapFilter(s_shadowmap, vtexprojcoord);\n"

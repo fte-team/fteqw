@@ -11,7 +11,7 @@
 !!cvarf gl_specular
 !!cvardf gl_affinemodels=0
 !!cvardf r_tessellation_level=5
-!!samps diffuse normalmap specular fullbright upper lower paletted
+!!samps diffuse normalmap specular fullbright upper lower paletted reflectmask reflectcube
 
 #include "sys/defs.h"
 

@@ -6854,6 +6854,7 @@ void CSQC_Shutdown(void)
 //when the qclib needs a file, it calls out to this function.
 void *PDECL CSQC_PRLoadFile (const char *path, unsigned char *(PDECL *buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *sz)
 {
+	extern cvar_t sv_demo_write_csqc;
 	qbyte *file = NULL;
 
 	if (!strcmp(path, "csprogs.dat"))
@@ -6898,8 +6899,16 @@ void *PDECL CSQC_PRLoadFile (const char *path, unsigned char *(PDECL *buf_get)(v
 							file = NULL;	//not valid
 					}
 
+					//we write the csprogs into our archive if it was loaded from outside of there.
+					//this is to ensure that demos will play on the same machine later on...
+					//this is unreliable though, and redundant if we're writing the csqc into the demos themselves.
+					//also kinda irrelevant with sv_pure.
 #ifndef FTE_TARGET_WEB
-					if (file)
+					if (file
+#ifndef CLIENTONLY
+						&& !sv_demo_write_csqc.ival
+#endif
+						)
 						//back it up
 						COM_WriteFile(newname, FS_GAMEONLY, file, *sz);
 #endif

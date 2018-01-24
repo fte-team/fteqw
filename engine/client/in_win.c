@@ -1792,6 +1792,8 @@ void INS_StartupJoystick (void)
 		}
 		if (pXInputGetState)
 		{
+			XINPUT_STATE xistate;
+			numdevs = 0;
 			for (id = 0; id < 4; id++)
 			{
 				if (joy_count == countof(wjoy))
@@ -1802,8 +1804,11 @@ void INS_StartupJoystick (void)
 				wjoy[joy_count].devid = DEVID_UNSET;//id;
 				wjoy[joy_count].numbuttons = 18;	//xinput supports 16 buttons, we emulate two more with the two triggers.
 				joy_count++;
+
+				if (ERROR_DEVICE_NOT_AVAILABLE != pXInputGetState(id, &xistate))
+					numdevs++;
 			}
-			Con_Printf("XInput is enabled (max %i controllers)\n", id);
+			Con_DPrintf("XInput is enabled (%i controllers found)\n", numdevs);
 		}
 		else
 			Con_Printf("XInput not installed\n");

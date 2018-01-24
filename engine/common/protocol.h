@@ -128,11 +128,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //=========================================
 
 #define	PORT_NQSERVER	26000
+#define PORT_DPMASTER	PORT_Q3MASTER
 #define	PORT_QWCLIENT	27001
 #define	PORT_QWMASTER	27000
 #define	PORT_QWSERVER	27500
 #define PORT_Q2CLIENT	27901
 #define PORT_Q2SERVER	27910
+#define PORT_Q3MASTER	27950
 #define PORT_Q3SERVER	27960
 
 //hexen2: 26900

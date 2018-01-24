@@ -140,11 +140,21 @@ net_masterlist_t net_masterlist[] = {
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"kubus.rulez.pl:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"kubus.rulez.pl"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"telefrag.me:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"telefrag.me"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"master.teamdamage.com:27000",				CVAR_NOSAVE, Net_Masterlist_Callback),	"master.teamdamage.com"},
-#endif
 
+	//Total conversions will need to define their own in defaults.cfg or whatever.
 	{MP_DPMASTER,	CVARFC("net_masterextra1",		"ghdigital.com:27950 207.55.114.154:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //207.55.114.154 (was 69.59.212.88 (admin: LordHavoc)
 	{MP_DPMASTER,	CVARFC("net_masterextra2",		"dpmaster.deathmask.net:27950 107.161.23.68:27950 [2604:180::4ac:98c1]:27950",	CVAR_NOSAVE, Net_Masterlist_Callback)}, //107.161.23.68 (admin: Willis)
 	{MP_DPMASTER,	CVARFC("net_masterextra3",		"dpmaster.tchr.no:27950 92.62.40.73:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //92.62.40.73 (admin: tChr)
+#else
+	{MP_DPMASTER,	CVARFC("net_masterextra1",		"",												CVAR_NOSAVE, Net_Masterlist_Callback)},
+	{MP_DPMASTER,	CVARFC("net_masterextra2",		"",												CVAR_NOSAVE, Net_Masterlist_Callback)},
+	{MP_DPMASTER,	CVARFC("net_masterextra3",		"",												CVAR_NOSAVE, Net_Masterlist_Callback)},
+#endif
+	{MP_DPMASTER,	CVARFC("net_masterextra4",		"",												CVAR_NOSAVE, Net_Masterlist_Callback)},
+	{MP_DPMASTER,	CVARFC("net_masterextra5",		"",												CVAR_NOSAVE, Net_Masterlist_Callback)},
+	{MP_DPMASTER,	CVARFC("net_masterextra6",		"",												CVAR_NOSAVE, Net_Masterlist_Callback)},
+	{MP_DPMASTER,	CVARFC("net_masterextra7",		"",												CVAR_NOSAVE, Net_Masterlist_Callback)},
+	{MP_DPMASTER,	CVARFC("net_masterextra8",		"",												CVAR_NOSAVE, Net_Masterlist_Callback)},
 
 #ifdef Q2CLIENT
 //	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"satan.idsoftware.com:27900",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Official Quake2 master server"},
@@ -275,7 +285,14 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 				break;
 #endif
 			case MP_DPMASTER:
-				if (sv_listen_dp.value || sv_listen_nq.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
+				//fte normally uses quakeworld masters for clients that support qw protocols, and dpmaster for clients that support nq protocols.
+				//unfortunately qwmasters don't support ipv6, and total conversions don't want to use qwmasters.
+				//we default to FTE-Quake when running quake so at least that part is fair.
+				//however, I made QSS also look for FTE-Quake servers too, so that's messy with listen_nq 0, but that's true if listen_dp is set.
+				//so we want to be quite permissive here, at least with custom builds that will default to these cvars set to 0.
+#if defined(NQPROT) && !defined(QUAKETC)
+				if (sv_listen_dp.value || sv_listen_nq.value)
+#endif
 				{
 					if (sv_reportheartbeats.value)
 					{
@@ -2471,6 +2488,7 @@ void MasterInfo_Request(master_t *mast)
 		case MP_NETQUAKE:
 			//there is no nq udp master protocol
 			break;
+#endif
 		case MP_DPMASTER:
 			{
 				char *str;
@@ -2483,14 +2501,13 @@ void MasterInfo_Request(master_t *mast)
 					//for compat with dp, we use the nq netchan version. which is stupid, but whatever
 					//we ask for ipv6 addresses from ipv6 masters (assuming it resolved okay)
 					if (mast->adr.type == NA_IPV6)
-						str = va("%c%c%c%cgetserversExt %s %u empty full ipv6"/*\x0A\n"*/, 255, 255, 255, 255, game, NQ_NETCHAN_VERSION);
+						str = va("%c%c%c%cgetserversExt %s %u empty full ipv6"/*\x0A\n"*/, 255, 255, 255, 255, game, com_protocolversion.ival);
 					else
-						str = va("%c%c%c%cgetservers %s %u empty full"/*\x0A\n"*/, 255, 255, 255, 255, game, NQ_NETCHAN_VERSION);
+						str = va("%c%c%c%cgetservers %s %u empty full"/*\x0A\n"*/, 255, 255, 255, 255, game, com_protocolversion.ival);
 					NET_SendPollPacket (strlen(str), str, mast->adr);
 				}
 			}
 			break;
-#endif
 		}
 		break;
 	case MT_BCAST:
@@ -2523,6 +2540,7 @@ void MasterInfo_Request(master_t *mast)
 			NET_SendPollPacket(net_message.cursize, net_message.data, mast->adr);
 			SZ_Clear(&net_message);
 			break;
+#endif
 		case MP_DPMASTER:	//fixme
 			{
 				char *str;
@@ -2530,7 +2548,6 @@ void MasterInfo_Request(master_t *mast)
 				NET_SendPollPacket (strlen(str), str, mast->adr);
 			}
 			break;
-#endif
 		}
 		break;
 	}

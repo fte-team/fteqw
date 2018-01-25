@@ -1540,9 +1540,15 @@ void CL_Record_f (void)
 	if (c == 2)	//user supplied a name
 	{
 		fname = Cmd_Argv(1);
+		
+		// See if the users supplied their own filename...
 		s = strrchr(fname, '.');
-		if (!Q_strcasecmp(s, defaultext))
-			*s = 0;	//hack away that extension that they added.
+		
+		// They did.
+		if ( s != NULL ) {
+			if (!Q_strcasecmp(s, defaultext))
+				*s = 0;	//hack away that extension that they added.
+		}
 	}
 	else
 	{	//automagically generate a name

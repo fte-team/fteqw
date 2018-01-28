@@ -983,7 +983,7 @@ static int PClassic_RunParticleEffectState (vec3_t org, vec3_t dir, float count,
 
 static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, effect_type_t type)
 {
-	vec3_t point, delta, dir;
+	vec3_t point, delta, dir, step;
 	float len, rlen, scale;
 	int i, j, num_particles;
 	cparticle_t *p;
@@ -1002,7 +1002,6 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 	VectorScale(delta, 1 / len, dir);	//unit vector in direction of trail
 
 	VectorMA(point, -leftover, dir, point);
-	Con_Printf("%g %g\n", len, leftover);
 	len += leftover;
 	rlen = len;
 
@@ -1022,7 +1021,7 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 
 	scale /= r_part_density.value;
 
-	VectorScale (dir, scale, dir);
+	VectorScale (dir, scale, step);
 
 	len /= scale;
 	leftover = rlen - ((int)(len) * scale);
@@ -1073,14 +1072,14 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 
 			VectorCopy (point, p->org);
 			if (tracercount & 1)
-			{
-				p->vel[0] = 90 * dir[1];
-				p->vel[1] = 90 * -dir[0];
+			{	//the addition of /scale here counters dir being rescaled
+				p->vel[0] = 30 * dir[1];
+				p->vel[1] = 30 * -dir[0];
 			}
 			else
 			{
-				p->vel[0] = 90 * -dir[1];
-				p->vel[1] = 90 * dir[0];
+				p->vel[0] = 30 * -dir[1];
+				p->vel[1] = 30 * dir[0];
 			}
 			break;
 		case VOOR_TRAIL:
@@ -1106,7 +1105,7 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 				p->org[j] = point[j] + ((rand() % 6) - 3);
 			break;
 		}
-		VectorAdd (point, dir, point);
+		VectorAdd (point, step, point);
 	}
 done:
 	return leftover;

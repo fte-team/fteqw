@@ -816,11 +816,23 @@ static struct charcache_s *Font_LoadPlaceholderGlyph(font_t *f, CHARIDXTYPE char
 		memset(out, 0xff, w*4*h);
 	}
 	else if (charidx == 0xe00b)
-	{
+	{	//console input cursor
 		h = min(16,f->charheight);
 		w = max(1,h/8);
 		d = 1;
 		memset(out, 0xff, w*4*h);
+	}
+	else if (charidx == 0xe00d)
+	{	//filled > arrow indicator (used by the menus)
+		h = min(16,f->charheight);
+		w = (h+1)/2;
+		d = 1;
+		memset(out, 0xff, w*4*h);
+		for (i = 0; i < w; i++)
+		{
+			memset(out + w*i + (i+1), 0x0, (w-i-1)*4);
+			memset(out + w*(h-i-1) + (i+1), 0x0, (w-i-1)*4);
+		}
 	}
 	else
 	{
@@ -2087,6 +2099,8 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 
 	if (defaultplane != INVALIDPLANE)
 	{
+		if (fmt==FMT_AUTO)
+			fmt=FMT_QUAKE;
 		if (!f->faces)
 		{
 			static const unsigned short iso88591[] = {
@@ -2106,9 +2120,6 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 				0x041F,0x042F,0x0420,0x0421, 0x0422,0x0423,0x0416,0x0412, 0x042C,0x042B,0x0417,0x0428, 0x042D,0x0429,0x0427,0x042A};
 			const unsigned short *c1;
 			unsigned int c1size;
-
-			if (fmt==FMT_AUTO)
-				fmt=FMT_QUAKE;
 
 			if (fmt == FMT_WINDOWS1252)
 			{	//some tools use these extra ones (latin-1 has no visible c1 entries)

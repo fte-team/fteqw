@@ -447,7 +447,8 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 		}
 		out += 4;
 	}
-	BoostGamma(data, tex->width, tex->height);
+	if (!vid_hardwaregamma.value)
+		BoostGamma(data, tex->width, tex->height);
 	*usesalpha = !!alpha;
 	return data;
 }

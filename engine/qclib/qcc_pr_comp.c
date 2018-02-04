@@ -5346,7 +5346,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 	if (callconvention == OP_CALL1H)
 	{
 		for (i = 0; i < parm && i < 2; i++)
-			if (args[i].ref.sym->generatedfor == &def_ret && args[i].ref.sym->refcount == 1)
+			if (args[i].ref.sym && args[i].ref.sym->generatedfor == &def_ret && args[i].ref.sym->refcount == 1)
 			{
 				QCC_FreeTemp(args[i].ref);
 				args[i].ref.sym = &def_ret;
@@ -5427,7 +5427,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 
 				if (arglist[i]->readonly)
 				{
-					QCC_PR_ParseWarning(ERR_TYPEMISMATCHPARM, "Unable to write to out argument\n");
+					QCC_PR_ParseWarning(ERR_TYPEMISMATCHPARM, "Unable to write to read-only out argument");
 					continue;
 				}
 				if (parm>=MAX_PARMS)

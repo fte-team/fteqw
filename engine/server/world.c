@@ -1254,7 +1254,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 		VectorSubtract (ent->v->mins, maxs, boxmins);
 		VectorSubtract (ent->v->maxs, mins, boxmaxs);
 
-		if (hitcontentsmask & ((ent->v->solid == SOLID_CORPSE)?FTECONTENTS_CORPSE:FTECONTENTS_BODY))
+		if (hitcontentsmask & ((ent->v->solid == SOLID_CORPSE && w->usesolidcorpse)?FTECONTENTS_CORPSE:FTECONTENTS_BODY))
 			hitcontentsmask = FTECONTENTS_CORPSE|FTECONTENTS_BODY;
 		else
 			hitcontentsmask = 0;

@@ -7213,6 +7213,7 @@ const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned 
 	}
 	return ret;
 }
+#ifndef SERVERONLY
 void SV_AddDebugPolygons(void)
 {
 	int i;
@@ -7227,11 +7228,14 @@ void SV_AddDebugPolygons(void)
 			if (svs.clients[i].netchan.remote_address.type == NA_LOOPBACK)
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 		PR_ExecuteProgram (svprogfuncs, gfuncs.AddDebugPolygons);
+		if (R2D_Flush)
+			R2D_Flush();
 #ifdef PROGS_DAT
 		csqc_dp_lastwas3d = false;
 #endif
 	}
 }
+#endif
 
 #ifdef HEXEN2
 static void QCBUILTIN PF_h2AdvanceFrame(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

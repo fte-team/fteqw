@@ -151,35 +151,51 @@ void *PRAddressableExtend(progfuncs_t *progfuncs, void *src, size_t srcsize, int
 }
 
 
-#define MARKER 0xF1E3E3E7u
+#define MARKER_USED 0xC2A4F5A6u
+#define MARKER_FREE 0xF1E3E3E7u
 typedef struct
 {
+#ifdef _DEBUG
+	unsigned int marker;
+#endif
 	unsigned int next;
 	unsigned int prev;
-	unsigned int size;
+	unsigned int size;	//includes header size
 } qcmemfreeblock_t;
 typedef struct
 {
 	unsigned int marker;
-	unsigned int size;
+#ifdef _DEBUG
+	unsigned int next;
+	unsigned int prev;
+#endif
+	unsigned int size;	//includes header size
 } qcmemusedblock_t;
-static void PF_fmem_unlink(progfuncs_t *pr, qcmemfreeblock_t *p)
+static void PF_fmem_unlink(progfuncs_t *progfuncs, qcmemfreeblock_t *p)
 {
 	qcmemfreeblock_t *np;
+#ifdef _DEBUG
+	if (p->marker != MARKER_FREE)
+	{
+		printf("PF_fmem_unlink: memory corruption\n");
+		PR_StackTrace(&progfuncs->funcs, false);
+	}
+	p->marker = 0;
+#endif
 	if (p->prev)
 	{
-		np = (qcmemfreeblock_t*)(pr->funcs.stringtable + p->prev);
+		np = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + p->prev);
 		np->next = p->next;
 	}
 	else
-		pr->inst.mfreelist = p->next;
+		progfuncs->inst.mfreelist = p->next;
 	if (p->next)
 	{
-		np = (qcmemfreeblock_t*)(pr->funcs.stringtable + p->next);
+		np = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + p->next);
 		np->prev = p->prev;
 	}
 }
-/*
+
 static void PR_memvalidate (progfuncs_t *progfuncs)
 {
 	qcmemfreeblock_t *p;
@@ -197,7 +213,11 @@ static void PR_memvalidate (progfuncs_t *progfuncs)
 		}
 		p = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + b);
 
-		if (p->prev != l ||
+		if (
+#ifdef _DEBUG
+			p->marker != MARKER_FREE ||
+#endif
+			p->prev != l ||
 			(p->next && p->next < b + p->size) ||
 			p->next >= prinst.addressableused ||
 			b + p->size >= prinst.addressableused ||
@@ -211,7 +231,7 @@ static void PR_memvalidate (progfuncs_t *progfuncs)
 		b = p->next;
 	}
 }
-*/
+
 static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
@@ -220,6 +240,8 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 	unsigned int b,n;
 	/*round size up*/
 	size = (size+sizeof(qcmemusedblock_t) + 63) & ~63;
+
+	PR_memvalidate(progfuncs);
 
 	b = prinst.mfreelist;
 	while (b)
@@ -249,6 +271,9 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 				/*make a new header just after it, with basically the same properties, and shift the important fields over*/
 				n = b + size;
 				np = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + b + size);
+#ifdef _DEBUG
+				np->marker = MARKER_FREE;
+#endif
 				np->prev = p->prev;
 				np->next = p->next;
 				np->size = p->size - size;
@@ -289,10 +314,10 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 		//FIXME: merge with previous block
 	}
 	memset(ub, 0, size);
-	ub->marker = MARKER;
+	ub->marker = MARKER_USED;
 	ub->size = size;
 
-//	PR_memvalidate(progfuncs);
+	PR_memvalidate(progfuncs);
 
 	return ub+1;
 }
@@ -300,7 +325,7 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	qcmemusedblock_t *ub;
-	qcmemfreeblock_t *p, *np, *pp; 
+	qcmemfreeblock_t *b, *nb, *pb; 
 	unsigned int pa, na;	//prev addr, next addr
 	unsigned int size;
 	unsigned int ptr = memptr?((char*)memptr - progfuncs->funcs.stringtable):0;
@@ -308,10 +333,12 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 	/*freeing NULL is ignored*/
 	if (!ptr)
 		return;
-//	PR_memvalidate(progfuncs);
-	if (ptr < sizeof(qcmemusedblock_t) || ptr >= prinst.addressableused)
+	PR_memvalidate(progfuncs);
+	ptr -= sizeof(qcmemusedblock_t);
+	if (/*ptr < 0 ||*/ ptr >= prinst.addressableused)
 	{
-		if (ptr < sizeof(qcmemusedblock_t) && !*(char*)memptr)
+		ptr += sizeof(qcmemusedblock_t);
+		if (ptr < prinst.addressableused && !*(char*)memptr)
 		{
 			//the empty string is a point of contention. while we can detect it from fteqcc, its best to not give any special favours (other than nicer debugging, where possible)
 			//we might not actually spot it from other qccs, so warning about it where possible is probably a very good thing.
@@ -323,18 +350,20 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 		return;
 	}
 
+	//this is the used block that we're trying to free
 	ub = (qcmemusedblock_t*)(progfuncs->funcs.stringtable + ptr);
-	ub--;
-	ptr = (char*)ub - progfuncs->funcs.stringtable;
-	if (ub->marker != MARKER || ub->size <= sizeof(*ub) || ptr + ub->size > (unsigned int)prinst.addressableused)
+	if (ub->marker != MARKER_USED || ub->size <= sizeof(*ub) || ptr + ub->size > (unsigned int)prinst.addressableused)
 	{
 		printf("PR_memfree: pointer lacks marker - double-freed?\n");
 		PR_StackTrace(&progfuncs->funcs, false);
 		return;
 	}
-	ub->marker = 0;
+	ub->marker = 0;	//invalidate it
 	size = ub->size;
+	ub = NULL;
 
+	//we have an (ordered) list of free blocks.
+	//in order to free our memory, we need to find the free block before+after the 'new' block
 	for (na = prinst.mfreelist, pa = 0; ;)
 	{
 		if (/*na < 0 ||*/ na >= prinst.addressableused)
@@ -345,60 +374,74 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 		}
 		if (!na || na >= ptr)
 		{
-			np = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + pa);
-			if (pa && pa+np->size>ptr)
-			{
+			pb = pa?(qcmemfreeblock_t*)(progfuncs->funcs.stringtable + pa):NULL;
+			if (pb && pa+pb->size>ptr)
+			{	//previous free block extends into the block that we're trying to free.
 				printf("PF_memfree: double free\n");
 				PR_StackTrace(&progfuncs->funcs, false);
 				return;
 			}
+#ifdef _DEBUG
+			if (pb && pb->marker != MARKER_FREE)
+			{
+				printf("PF_memfree: use-after-free?\n");
+				PR_StackTrace(&progfuncs->funcs, false);
+				return;
+			}
+#endif
+
+			nb = na?(qcmemfreeblock_t*)(progfuncs->funcs.stringtable + na):NULL;
+			if (nb && ptr+size > na)
+			{
+				printf("PF_memfree: block extends into neighbour\n");
+				PR_StackTrace(&progfuncs->funcs, false);
+				return;
+			}
+#ifdef _DEBUG
+			if (nb && nb->marker != MARKER_FREE)
+			{
+				printf("PF_memfree: use-after-free?\n");
+				PR_StackTrace(&progfuncs->funcs, false);
+				return;
+			}
+#endif
 
 			/*generate the free block, now we know its proper values*/
-			p = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + ptr);
-			np = na?(qcmemfreeblock_t*)(progfuncs->funcs.stringtable + na):NULL;
-			pp = pa?(qcmemfreeblock_t*)(progfuncs->funcs.stringtable + pa):NULL;
-
-			p->prev = pa;
-			p->next = na;
-			p->size = size;
-
-			/*update the next's previous*/
+			b = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + ptr);
+#ifdef _DEBUG
+			b->marker = MARKER_FREE;
+#endif
+			b->prev = pa;
+			b->next = na;
+			b->size = size;
 			if (na)
-			{
-				np->prev = ptr;
-			
-				/*extend this block and kill the next if they are adjacent*/
-				if (p->next == ptr + size)
-				{
-					p->size += np->size; 
-					PF_fmem_unlink(progfuncs, np);
-				}
-			}
-
-			/*update the link to get here*/
+				nb->prev = ptr;
 			if (!pa)
 				prinst.mfreelist = ptr;
 			else
+				pb->next = ptr;
+
+			/*extend this block and kill the next if they are adjacent*/
+			if (na && b->next == ptr + size)
 			{
-				pp->next = ptr;
-
-				/*we're adjacent to the previous block, so merge them by killing the newly freed region*/
-				if (na && pa + np->size == ptr)
-				{
-					p->size += np->size;
-					PF_fmem_unlink(progfuncs, np);
-				}
-
+				b->size += nb->size; 
+				PF_fmem_unlink(progfuncs, nb);
+			}
+			/*we're adjacent to the previous block, so merge them by killing the newly freed region*/
+			if (pa && pa + pb->size == ptr)
+			{
+				pb->size += size;
+				PF_fmem_unlink(progfuncs, b);
 			}
 			break;
 		}
 
 		pa = na;
-		p = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + pa);
-		na = p->next;
+		b = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + pa);
+		na = b->next;
 	}
 
-//	PR_memvalidate(progfuncs);
+	PR_memvalidate(progfuncs);
 }
 
 void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount)

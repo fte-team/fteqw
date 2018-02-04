@@ -1576,7 +1576,7 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	else
 		flags &= ~BEF_LINES;
 
-	if (flags != csqc_poly_flags)
+	if (flags != csqc_poly_flags || (cl_numstrisvert-csqc_poly_origvert) >= 32768)
 	{
 		int sv = cl_numstrisvert - nv;
 		cl_numstrisvert -= nv;
@@ -2787,18 +2787,14 @@ static void QCBUILTIN PF_cs_SetModelIndex(pubprogfuncs_t *prinst, struct globalv
 
 	csqc_setmodel(prinst, ent, modelindex);
 }
-static void QCBUILTIN PF_cs_PrecacheModel(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static int PF_cs_PrecacheModel_Internal(pubprogfuncs_t *prinst, const char *modelname, qboolean queryonly)
 {
 	int modelindex, freei;
-	const char *modelname = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *fixedname;
 	int i;
 
 	if (!*modelname)
-	{
-		G_FLOAT(OFS_RETURN) = 0;
-		return;
-	}
+		return 0;
 
 	fixedname = Mod_FixName(modelname, csqc_world.worldmodel->publicname);
 
@@ -2816,7 +2812,7 @@ static void QCBUILTIN PF_cs_PrecacheModel(pubprogfuncs_t *prinst, struct globalv
 
 	modelindex = CS_FindModel(modelname, &freei);	//now load it
 
-	if (!modelindex)
+	if (!modelindex && !queryonly)
 	{
 		if (!freei)
 			Host_EndGame("CSQC ran out of model slots\n");
@@ -2828,7 +2824,22 @@ static void QCBUILTIN PF_cs_PrecacheModel(pubprogfuncs_t *prinst, struct globalv
 		cl.model_csqcprecache[-freei] = Mod_ForName(fixedname, MLV_WARN);
 	}
 
-	G_FLOAT(OFS_RETURN) = modelindex;
+	return modelindex;
+}
+static void QCBUILTIN PF_cs_PrecacheModel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char	*s = PR_GetStringOfs(prinst, OFS_PARM0);
+
+	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
+	PF_cs_PrecacheModel_Internal(prinst, s, false);
+}
+
+static void QCBUILTIN PF_cs_getmodelindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char	*s = PR_GetStringOfs(prinst, OFS_PARM0);
+	qboolean queryonly = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):false;
+
+	G_FLOAT(OFS_RETURN) = PF_cs_PrecacheModel_Internal(prinst, s, queryonly);
 }
 static void QCBUILTIN PF_cs_precachefile(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6043,7 +6054,7 @@ static struct {
 	{"localsound",				PF_cl_localsound,	177},
 
 //200
-	{"getmodelindex",			PF_cs_PrecacheModel,	200},
+	{"getmodelindex",			PF_cs_getmodelindex,	200},
 	{"externcall",				PF_externcall,	201},
 	{"addprogs",				PF_cs_addprogs,	202},
 	{"externvalue",				PF_externvalue,	203},

@@ -1265,7 +1265,10 @@ void P_ParticleEffect_f(void)
 			ptype->t2 = atof(Cmd_Argv(4))/tscale;
 
 			ptype->randsmax = atoi(Cmd_Argv(6));
-			ptype->texsstride = atof(Cmd_Argv(7));
+			if (Cmd_Argc()>7)
+				ptype->texsstride = atof(Cmd_Argv(7));/*FIXME: divide-by-tscale missing */
+			else
+				ptype->texsstride = 1/tscale;
 
 			if (ptype->randsmax < 1 || ptype->texsstride == 0)
 				ptype->randsmax = 1;

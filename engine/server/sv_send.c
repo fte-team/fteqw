@@ -707,7 +707,14 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	client_t	*oneclient = NULL, *split;
 	int seat;
 
-	if (!sv.multicast.cursize)
+	if (!sv.multicast.cursize 
+#ifdef NQPROT
+		&& !sv.nqmulticast.cursize
+#endif
+#ifdef Q2SERVER
+		&& !sv.q2multicast.cursize
+#endif
+		)
 		return;
 
 	if (to == MULTICAST_INIT)
@@ -2911,8 +2918,10 @@ void SV_FlushBroadcasts (void)
 	SZ_Clear (&sv.nqreliable_datagram);
 	SZ_Clear (&sv.nqdatagram);
 #endif
+#ifdef Q2SERVER
 	SZ_Clear (&sv.q2reliable_datagram);
 	SZ_Clear (&sv.q2datagram);
+#endif
 }
 
 /*

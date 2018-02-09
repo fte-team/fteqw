@@ -1748,9 +1748,9 @@ static float *tcgen3(const shaderpass_t *pass, int cnt, float *dst, const mesh_t
 		src = mesh->xyz_array;
 		for (i = 0; i < cnt; i++, dst += 3)
 		{
-			dst[0] = src[i][0] - shaderstate.modelmatrix[3];
-			dst[1] = shaderstate.modelmatrix[7] - src[i][1];
-			dst[2] = src[i][2] - shaderstate.modelmatrix[11];
+			dst[0] = src[i][0] - r_refdef.vieworg[0];
+			dst[1] = r_refdef.vieworg[1] - src[i][1];
+			dst[2] = src[i][2] - r_refdef.vieworg[2];
 		}
 		return dst-cnt*3;
 

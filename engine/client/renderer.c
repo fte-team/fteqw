@@ -2901,7 +2901,7 @@ void R_InitParticleTexture (void)
 		}
 	}
 
-	TEXASSIGN(particletexture, R_LoadTexture32("dotparticle", 8, 8, data, IF_NOMIPMAP|IF_NOPICMIP));
+	TEXASSIGN(particletexture, R_LoadTexture32("dotparticle", 8, 8, data, IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP));
 
 
 	//
@@ -2925,7 +2925,7 @@ void R_InitParticleTexture (void)
 				data[y*32+x][3] = 255;
 		}
 	}
-	particlecqtexture = Image_GetTexture("classicparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP, data, NULL, 32, 32, TF_RGBA32);
+	particlecqtexture = Image_GetTexture("classicparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP, data, NULL, 32, 32, TF_RGBA32);
 
 	//draw a square in the top left. still a triangle.
 	for (x=0 ; x<16 ; x++)
@@ -2935,7 +2935,7 @@ void R_InitParticleTexture (void)
 			data[y*32+x][3] = 255;
 		}
 	}
-	Image_GetTexture("classicparticle_square", "particles", IF_NOMIPMAP|IF_NOPICMIP, data, NULL, 32, 32, TF_RGBA32);
+	Image_GetTexture("classicparticle_square", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP, data, NULL, 32, 32, TF_RGBA32);
 
 
 	for (x=0 ; x<16 ; x++)

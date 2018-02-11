@@ -1897,6 +1897,8 @@ void World_TouchAllLinks (world_t *w, wedict_t *ent)
 			continue;
 		if (!touch->v->touch || touch->v->solid != SOLID_TRIGGER)
 			continue;
+		if (touch == ent)
+			continue;
 
 		if (ent->v->absmin[0] > touch->v->absmax[0]
 		|| ent->v->absmin[1] > touch->v->absmax[1]

@@ -918,6 +918,8 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			tn.base = R_LoadHiResTexture(ptype->texname, "particles", IF_LOADNOW | IF_NOMIPMAP|(ptype->looks.nearest?IF_NEAREST:IF_LINEAR)|(ptype->looks.premul?IF_PREMULTIPLYALPHA:0));	//mipmapping breaks particlefont stuff
 			if (tn.base && tn.base->status == TEX_LOADING)
 				COM_WorkerPartialSync(tn.base, &tn.base->status, TEX_LOADING);
+			if (!TEXLOADED(tn.base))
+				tn.base = R_LoadHiResTexture(ptype->texname, "particles", IF_CLAMP|IF_NOREPLACE|IF_LOADNOW | IF_NOMIPMAP|(ptype->looks.nearest?IF_NEAREST:IF_LINEAR)|(ptype->looks.premul?IF_PREMULTIPLYALPHA:0));	//mipmapping breaks particlefont stuff
 		}
 		else
 			tn.base = NULL;

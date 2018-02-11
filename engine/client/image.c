@@ -2721,8 +2721,8 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, char *fn
 	case 0x8045/*GL_LUMINANCE8_ALPHA8*/:						encoding = PTI_LUMINANCE8_ALPHA8;	break;
 	case 0x8051/*GL_RGB8*/:										encoding = PTI_RGB8;				break;
 //	case 0x????/*GL_BGR8_EXT*/:									encoding = PTI_BGR8;				break;
-	case GL_RGBA16F_ARB:										encoding = PTI_RGBA16F;				break;
-	case GL_RGBA32F_ARB:										encoding = PTI_RGBA32F;				break;
+	case 0x881A/*GL_RGBA16F_ARB*/:								encoding = PTI_RGBA16F;				break;
+	case 0x8814/*GL_RGBA32F_ARB*/:								encoding = PTI_RGBA32F;				break;
 
 	//note: this could be pretty much anything, including 24bit data.
 	default:

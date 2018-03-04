@@ -976,7 +976,6 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 void IN_Move (float *movements, int pnum, float frametime)
 {
 	int i;
-	INS_Move(movements, pnum);
 	for (i = 0; i < MAXPOINTERS; i++)
 		IN_MoveMouse(&ptr[i], movements, pnum, frametime);
 

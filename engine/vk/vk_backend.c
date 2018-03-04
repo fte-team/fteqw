@@ -1750,7 +1750,7 @@ static void T_Gen_CurrentRender(void)
 	if (img->width != vid.fbpwidth || img->height != vid.fbpheight)
 	{
 		//FIXME: free the old image when its safe to do so.
-		*img = VK_CreateTexture2DArray(vid.fbpwidth, vid.fbpheight, 1, 1, PTI_BGRA8, PTI_2D, true);
+		*img = VK_CreateTexture2DArray(vid.fbpwidth, vid.fbpheight, 1, 1, -vk.backbufformat, PTI_2D, true);
 
 		if (!img->sampler)
 			VK_CreateSampler(shaderstate.tex_currentrender->flags, img);
@@ -4032,14 +4032,14 @@ void VKBE_ClearVBO(vbo_t *vbo, qboolean dataonly)
 
 void VK_UploadLightmap(lightmapinfo_t *lm)
 {
-	extern cvar_t gl_lightmap_nearest;
+	extern cvar_t r_lightmap_nearest;
 	struct pendingtextureinfo mips;
 	image_t *tex;
 
 	lm->modified = false;
 	if (!TEXVALID(lm->lightmap_texture))
 	{
-		lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR));
+		lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR));
 		if (!lm->lightmap_texture)
 			return;
 	}
@@ -4086,13 +4086,22 @@ void VK_UploadLightmap(lightmapinfo_t *lm)
 		mips.mip[0].needfree = false;
 		mips.mip[0].width = lm->width;
 		mips.mip[0].height = lm->height;
+		mips.mip[0].depth = 1;
 		switch(lightmap_fmt)
 		{
-		case TF_BGRA32:
+		default:
+		case PTI_A2BGR10:
+		case PTI_E5BGR9:
+		case PTI_RGBA16F:
+		case PTI_RGBA32F:
+		case PTI_L8:
+			mips.encoding = lightmap_fmt;
+			break;
+		case PTI_BGRA8:
 			mips.encoding = PTI_BGRX8;
 			break;
-		default:
-			Sys_Error("Unsupported encoding\n");
+		case TF_BGR24:	//shouldn't happen
+			mips.encoding = PTI_R8;
 			break;
 		}
 		mips.mipcount = 1;

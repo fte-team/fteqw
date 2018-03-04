@@ -33,6 +33,7 @@ void R_RenderBrushPoly (msurface_t *fa);
 
 extern int		gl_stencilbits;
 
+FTEPFNGLCOMPRESSEDTEXIMAGE3DARBPROC qglCompressedTexImage3DARB;
 FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
 FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 
@@ -60,6 +61,7 @@ extern cvar_t	r_stereo_separation;
 extern cvar_t	r_stereo_convergence;
 extern cvar_t	r_stereo_method;
 extern cvar_t	r_postprocshader, r_fxaa;
+extern cvar_t	r_hdr_framebuffer;
 
 extern cvar_t	gl_screenangle;
 
@@ -88,6 +90,7 @@ extern	cvar_t	scr_fov;
 shader_t *scenepp_rescaled;
 shader_t *scenepp_antialias;
 shader_t *scenepp_waterwarp;
+shader_t *scenepp_gamma;
 
 // post processing stuff
 texid_t sceneblur_texture;
@@ -143,19 +146,34 @@ void GL_InitSceneProcessingShaders (void)
 		GL_InitSceneProcessingShaders_WaterWarp();
 	}
 
+	scenepp_gamma = R_RegisterShader("fte_scenegamma", 0, 
+		"{\n"
+			"program defaultgammacb\n"
+			"affine\n"
+			"{\n"
+				"map $sourcecolour\n"
+				"nodepthtest\n"
+			"}\n"
+		"}\n"
+		);
+
 	scenepp_rescaled = R_RegisterShader("fte_rescaler", 0, 
 		"{\n"
 			"program default2d\n"
+			"affine\n"
 			"{\n"
 				"map $sourcecolour\n"
+				"nodepthtest\n"
 			"}\n"
 		"}\n"
 		);
 	scenepp_antialias = R_RegisterShader("fte_ppantialias", 0, 
 		"{\n"
 			"program fxaa\n"
+			"affine\n"
 			"{\n"
 				"map $sourcecolour\n"
+				"nodepthtest\n"
 			"}\n"
 		"}\n"
 		);
@@ -640,14 +658,6 @@ void R_SetupGL (float stereooffset, int i)
 		{
 			qglDisable(GL_DITHER);
 		}
-	}
-	if (vid_srgb.modified && !gl_config_gles)
-	{
-		vid_srgb.modified = false;
-		if (vid_srgb.ival == 1 || vid.srgb)
-			qglEnable(GL_FRAMEBUFFER_SRGB);	//specifies that the glsl is writing colours in the linear colour space, even if the framebuffer is not sRGB.
-		else
-			qglDisable(GL_FRAMEBUFFER_SRGB);
 	}
 }
 
@@ -1846,6 +1856,7 @@ void GLR_RenderView (void)
 	shader_t *custompostproc = NULL;
 	float renderscale;	//extreme, but whatever
 	int oldfbo = 0;
+	qboolean forcedfb = false;
 
 	checkglerror();
 
@@ -1873,9 +1884,7 @@ void GLR_RenderView (void)
 	r_refdef.flags &= ~(RDF_ALLPOSTPROC|RDF_RENDERSCALE);
 
 	if (dofbo || (r_refdef.flags & RDF_NOWORLDMODEL))
-	{
 		renderscale = 1;
-	}
 	else
 	{
 		renderscale = r_renderscale.value;
@@ -1917,10 +1926,21 @@ void GLR_RenderView (void)
 	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && r_fxaa.ival) //overlays will have problems.
 		r_refdef.flags |= RDF_ANTIALIAS;
 
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && r_hdr_framebuffer.ival && !(vid.flags & VID_FP16))	//primary use of this cvar is to fix q3shader overbrights (so bright lightmaps can oversaturate then drop below 1 by modulation with the lightmap
+		forcedfb = true;
+	if (vid_hardwaregamma.ival == 4 && (v_gamma.value != 1 || v_contrast.value != 1 || v_brightness.value != 0))
+		r_refdef.flags |= RDF_SCENEGAMMA;
+
 	//disable stuff if its simply not supported.
 	if (dofbo || !gl_config.arb_shader_objects || !gl_config.ext_framebuffer_objects || !sh_config.texture_non_power_of_two_pic)
+	{
+		forcedfb &= !dofbo && gl_config.ext_framebuffer_objects && sh_config.texture_non_power_of_two_pic;
 		r_refdef.flags &= ~(RDF_ALLPOSTPROC);	//block all of this stuff
-
+	}
+	if (dofbo)
+		forcedfb = false;
+	else if (r_renderscale.value != 1)
+		forcedfb = true;
 
 	BE_Scissor(NULL);
 	if (dofbo)
@@ -1969,9 +1989,10 @@ void GLR_RenderView (void)
 			flags |= FBO_RB_DEPTH;
 		oldfbo = GLBE_FBO_Update(&fbo_gameview, flags, col, mrt, depth, vid.fbpwidth, vid.fbpheight, 0);
 	}
-	else if ((r_refdef.flags & (RDF_ALLPOSTPROC)) || renderscale != 1)
+	else if ((r_refdef.flags & (RDF_ALLPOSTPROC)) || forcedfb)
 	{
 		unsigned int rtflags = IF_NOMIPMAP|IF_CLAMP|IF_RENDERTARGET;
+		enum uploadfmt fmt;
 
 		r_refdef.flags |= RDF_RENDERSCALE;
 
@@ -2008,7 +2029,16 @@ void GLR_RenderView (void)
 		vid.fbvwidth = vid.fbpwidth;
 		vid.fbvheight = vid.fbpheight;
 
-		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, /*(r_refdef.flags&RDF_BLOOM)?TF_RGBA16F:*/TF_RGBA32, rtflags);
+		fmt = PTI_RGBA8;
+		if ((r_refdef.flags&RDF_SCENEGAMMA)||(vid.flags&(VID_SRGBAWARE|VID_FP16))||r_hdr_framebuffer.ival)
+		{	//gamma ramps really need higher colour precision, otherwise the entire thing looks terrible.
+			if (sh_config.texfmt[PTI_RGBA16F])
+				fmt = PTI_RGBA16F;
+			else if (sh_config.texfmt[PTI_A2BGR10])
+				fmt = PTI_A2BGR10;
+		}
+
+		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, fmt, rtflags);
 
 		oldfbo = GLBE_FBO_Update(&fbo_gameview, FBO_RB_DEPTH, &sourcetex, 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
 		dofbo = true;
@@ -2095,13 +2125,19 @@ void GLR_RenderView (void)
 
 	// SCENE POST PROCESSING
 
-	if (renderscale != 1 && !(r_refdef.flags & RDF_ALLPOSTPROC))
+	if (forcedfb && !(r_refdef.flags & RDF_ALLPOSTPROC))
 	{
 		GLBE_FBO_Sources(sourcetex, r_nulltex);
 		R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 1, 1, 0, scenepp_rescaled);
 	}
 	else
 	{
+		if (r_refdef.flags & RDF_SCENEGAMMA)
+		{
+			R2D_ImageColours (v_gamma.value, v_contrast.value, v_brightness.value, 1);
+			sourcetex = R_RenderPostProcess (sourcetex, RDF_SCENEGAMMA, scenepp_gamma, "rt/$gammaed");
+			R2D_ImageColours (1, 1, 1, 1);
+		}
 		sourcetex = R_RenderPostProcess (sourcetex, RDF_WATERWARP, scenepp_waterwarp, "rt/$waterwarped");
 		sourcetex = R_RenderPostProcess (sourcetex, RDF_CUSTOMPOSTPROC, custompostproc, "rt/$postproced");
 		sourcetex = R_RenderPostProcess (sourcetex, RDF_ANTIALIAS, scenepp_antialias, "rt/$antialiased");

@@ -513,6 +513,7 @@ typedef struct
 {
 	fsbucket_t bucket;
 	char	name[MAX_QPATH];
+	unsigned int disknum;
 	qofs_t	localpos;	//location of local header
 	qofs_t	filelen;	//uncompressed size
 	time_t	mtime;
@@ -522,7 +523,7 @@ typedef struct
 #define ZFL_DEFLATED	1	//need to use zlib
 #define ZFL_STORED		2	//direct access is okay
 #define ZFL_SYMLINK		4	//file is a symlink
-#define ZFL_CORRUPT		8	//file is corrupt or otherwise unreadable.
+#define ZFL_CORRUPT		8	//file is corrupt or otherwise unreadable (usually just means we don't support reading it rather than actually corrupt, but hey).
 #define ZFL_WEAKENCRYPT	16	//traditional zip encryption
 
 
@@ -533,6 +534,12 @@ typedef struct zipfile_s
 	char			filename[MAX_OSPATH];
 	unsigned int	numfiles;
 	zpackfile_t		*files;
+
+	//spanned zips are weird.
+	//the starting zip is usually the last one, but should be null to simplify ref tracking.
+	unsigned int	thisdisk;
+	unsigned int	numspans;
+	struct zipfile_s **spans;
 
 	//info about the underlying file
 	void			*mutex;
@@ -555,6 +562,7 @@ static void QDECL FSZIP_GetPathDetails(searchpathfuncs_t *handle, char *out, siz
 }
 static void QDECL FSZIP_ClosePath(searchpathfuncs_t *handle)
 {
+	size_t s;
 	qboolean stillopen;
 	zipfile_t *zip = (void*)handle;
 
@@ -566,6 +574,15 @@ static void QDECL FSZIP_ClosePath(searchpathfuncs_t *handle)
 		return;	//not free yet
 
 	VFS_CLOSE(zip->raw);
+	for (s = 0; s < zip->numspans; s++)
+	{
+		if (zip->spans[s])
+		{
+			zip->spans[s]->pub.ClosePath(&zip->spans[s]->pub);
+			zip->spans[s] = NULL;
+		}
+	}
+	Z_Free(zip->spans);
 	Sys_DestroyMutex(zip->mutex);
 	if (zip->files)
 		Z_Free(zip->files);
@@ -1074,6 +1091,22 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	if (flags & ZFL_CORRUPT)
 		return NULL;
 
+	if (zip->thisdisk != pf->disknum)
+	{
+		if (pf->disknum >= zip->numspans)
+		{
+			Con_Printf("file %s has oob disk number\n", pf->name);
+			return NULL;
+		}
+		zip = zip->spans[pf->disknum];
+		if (!zip)
+		{
+			zip = (void*)handle;
+			Con_Printf("spanned zip %s lacks segment %u for file %s\n", zip->filename, pf->disknum+1, pf->name);
+			return NULL;
+		}
+	}
+
 	vfsz = Z_Malloc(sizeof(vfszip_t));
 
 	vfsz->parent = zip;
@@ -1093,6 +1126,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 
 	if (!FSZIP_ValidateLocalHeader(zip, pf, &vfsz->startpos, &datasize))
 	{
+		Con_Printf("file %s:%s is incompatible or inconsistent with zip central directory\n", zip->filename, pf->name);
 		Z_Free(vfsz);
 		return NULL;
 	}
@@ -1152,6 +1186,11 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 //infozip utf-8 name override.
 //other 'extra' fields.
 
+//split archives:
+//central directory must be stored exclusively inside the initial zip.
+//files on other parts will fail to load.
+//individual files must not be split over files
+
 struct zipinfo
 {
 	unsigned int	thisdisk;					//this disk number
@@ -1164,7 +1203,7 @@ struct zipinfo
 
 	unsigned int	zip64_centraldirend_disk;	//zip64 weirdness
 	qofs_t			zip64_centraldirend_offset;
-	unsigned int	zip64_diskcount;
+	unsigned int	diskcount;
 	qofs_t			zip64_eocdsize;
 	unsigned short	zip64_version_madeby;
 	unsigned short	zip64_version_needed;
@@ -1315,7 +1354,7 @@ static qboolean FSZIP_ValidateLocalHeader(zipfile_t *zip, zpackfile_t *zfile, qo
 	}
 	localstart += local.extra_len;
 	*datastart = localstart;	//this is the end of the local block, and the start of the data block (well, actually, should be encryption, but we don't support that).
-	*datasize = local.csize;
+	*datasize = local.csize;	//FIXME: this is often masked. use the central directory's value instead.
 
 	if (local.gpflags & (1u<<3))
 	{
@@ -1333,6 +1372,9 @@ static qboolean FSZIP_ValidateLocalHeader(zipfile_t *zip, zpackfile_t *zfile, qo
 
 	//FIXME: with pure paths, we still don't bother checking the crc (again, would require decompressing the entire file in advance).
 
+	if (localstart+local.csize > zip->rawsize)
+		return false;	//FIXME: proper spanned zips fragment compressed data over multiple spans, but we don't support that
+
 	if (local.cmethod == 0)
 		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED)) == ZFL_STORED;
 	if (local.cmethod == 8)
@@ -1342,6 +1384,7 @@ static qboolean FSZIP_ValidateLocalHeader(zipfile_t *zip, zpackfile_t *zfile, qo
 
 static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipcentralentry *entry)
 {
+	struct tm t;
 	entry->flags = 0;
 	entry->fname = "";
 	entry->fnane_len = 0;
@@ -1375,7 +1418,14 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 	entry->fname = data+entry->cesize;
 	entry->cesize += entry->fnane_len;
 
-	entry->mtime = 0;
+	memset(&t, 0, sizeof(t));
+	t.tm_mday =  (entry->lastmodfiledate&0x001f)>>0;
+	t.tm_mon  =  (entry->lastmodfiledate&0x01e0)>>5;
+	t.tm_year = ((entry->lastmodfiledate&0xfe00)>>9) + (1980 - 1900);
+	t.tm_sec  = ((entry->lastmodfiletime&0x001f)>>0)*2;
+	t.tm_min  =  (entry->lastmodfiletime&0x07e0)>>5;
+	t.tm_hour =  (entry->lastmodfiletime&0xf800)>>11;
+	entry->mtime = mktime(&t);
 
 	//parse extra
 	if (entry->extra_len)
@@ -1553,6 +1603,7 @@ static qboolean FSZIP_EnumerateCentralDirectory(zipfile_t *zip, struct zipinfo *
 				if (!FSZIP_ReadCentralEntry(zip, centraldir+ofs, &entry) || ofs + entry.cesize > info->centraldir_size)
 					break;
 
+				f->disknum = entry.disknum;
 				f->crc = entry.crc32;
 
 				//copy out the filename and lowercase it
@@ -1662,6 +1713,8 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip, struct zipinfo *in
 			info->centraldir_offset			= LittleU4FromPtr(magic+16);
 			info->commentlength				= LittleU2FromPtr(magic+20);
 
+			info->diskcount = info->thisdisk+1;	//zips are normally opened via the last file.
+
 			result = true;
 			break;
 		}
@@ -1685,13 +1738,7 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip, struct zipinfo *in
 
 			info->zip64_centraldirend_disk		= LittleU4FromPtr(magic+4);
 			info->zip64_centraldirend_offset	= LittleU8FromPtr(magic+8);
-			info->zip64_diskcount				= LittleU4FromPtr(magic+16);
-
-			if (info->zip64_diskcount != 1 || info->zip64_centraldirend_disk != 0)
-			{
-				Con_Printf("zip: archive is spanned\n");
-				return false;
-			}
+			info->diskcount						= LittleU4FromPtr(magic+16);
 
 			VFS_SEEK(zip->raw, info->zip64_centraldirend_offset);
 			VFS_READ(zip->raw, z64eocd, sizeof(z64eocd));
@@ -1730,11 +1777,17 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip, struct zipinfo *in
 				result = false;
 			}
 
+			if (info->diskcount < 1 || info->zip64_centraldirend_disk != info->thisdisk)
+			{
+				Con_Printf("zip: archive is spanned\n");
+				return false;
+			}
+
 			break;
 		}
 	}
 
-	if (info->thisdisk || info->centraldir_startdisk || info->centraldir_numfiles_disk != info->centraldir_numfiles_all)
+	if (info->thisdisk != info->centraldir_startdisk || info->centraldir_numfiles_disk != info->centraldir_numfiles_all)
 	{
 		Con_Printf("zip: archive is spanned\n");
 		result = false;
@@ -1758,7 +1811,7 @@ Loads the header and directory, adding the files at the beginning
 of the list so they override previous pack files.
 =================
 */
-searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *desc, const char *prefix)
+searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix)
 {
 	zipfile_t *zip;
 	struct zipinfo info;
@@ -1788,7 +1841,7 @@ searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *d
 	}
 
 	//now read it.
-	if (!FSZIP_EnumerateCentralDirectory(zip, &info, prefix) && !info.zip64_diskcount)
+	if (!FSZIP_EnumerateCentralDirectory(zip, &info, prefix))
 	{
 		//uh oh... the central directory wasn't where it was meant to be!
 		//assuming that the endofcentraldir is packed at the true end of the centraldir (and that we're not zip64 and thus don't have an extra block), then we can guess based upon the offset difference
@@ -1799,6 +1852,54 @@ searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *d
 			Con_TPrintf ("zipfile \"%s\" appears to be missing its central directory\n", desc);
 			return NULL;
 		}
+	}
+
+	zip->thisdisk = info.thisdisk;
+	if (info.diskcount > 1)
+	{
+		if (parent && filename)
+		{
+			zipfile_t *szip;
+			unsigned int s;
+			flocation_t loc;
+			char splitname[MAX_OSPATH];
+			char *ext;
+			zip->numspans = info.diskcount;
+			zip->spans = Z_Malloc(info.diskcount*sizeof(*zip->spans));
+			for(s = 0; s < zip->numspans; s++)
+			{
+				if (info.thisdisk == s)
+					continue;	//would be weird.
+
+				Q_strncpyz(splitname, filename, sizeof(splitname));
+				ext = strrchr(splitname, '.');
+				if (ext)
+				{
+					ext++;
+					if (*ext)
+						ext++;	//skip the first letter of the extension
+				}
+				else
+					ext = splitname + strlen(splitname);
+				Q_snprintfz(ext, sizeof(splitname)-(ext-splitname), *ext?"%02u":"%03u", s+1);
+				if (parent->FindFile(parent, &loc, splitname, NULL) != FF_FOUND)
+					continue;
+				packhandle = parent->OpenVFS(parent, &loc, "rb");
+				if (!packhandle)
+					continue;
+
+				zip->spans[s] = szip = Z_Malloc(sizeof(zipfile_t));
+				szip->thisdisk = s;
+				Q_strncpyz(szip->filename, splitname, sizeof(szip->filename));
+				szip->raw = packhandle;
+				szip->rawsize = VFS_GETLEN(szip->raw);
+				szip->references = 1;
+				szip->mutex = Sys_CreateMutex();
+				szip->pub.ClosePath			= FSZIP_ClosePath;
+			}
+		}
+		else
+			Con_TPrintf ("spanned zip \"%s\" with no path info\n", desc);
 	}
 
 	zip->references = 1;

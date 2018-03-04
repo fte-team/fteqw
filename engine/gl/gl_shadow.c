@@ -3445,7 +3445,7 @@ void Sh_PreGenerateLights(void)
 					shadowtype = SMT_STENCILVOLUME;
 
 				//shadowless and lights with an ambient term pass through walls, so need to affect EVERY leaf withing the sphere.
-				if (shadowtype == SMT_SHADOWLESS || dl->lightcolourscales[0])
+				if ((shadowtype == SMT_SHADOWLESS || dl->lightcolourscales[0]) && cl.worldmodel->funcs.ClustersInSphere)
 					lvis = cl.worldmodel->funcs.ClustersInSphere(cl.worldmodel, dl->origin, dl->radius, &lvisb2, NULL);
 				else
 				{	//other lights only want to use the source leaf's pvs (clamped by the sphere)

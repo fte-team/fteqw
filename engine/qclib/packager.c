@@ -2,6 +2,11 @@
 #include <time.h>
 void QCC_Canonicalize(char *fullname, size_t fullnamesize, const char *newfile, const char *base);
 
+//package formats:
+//pakzip - files are uncompressed, with both a pak header and a zip trailer, allowing it to be read as either type of file.
+//zip - standard zips
+//spanned zip - the full list of files is written into a separate central-directory-only zip, the actual file data comes from regular zips named foo.z##/.p## instead of foo.zip/foo.pk3
+
 /*
 dataset common
 {
@@ -46,6 +51,9 @@ texa0
 }
 */
 
+#define quint64_t long long
+#define qofs_t size_t
+
 #define countof(x) (sizeof(x)/sizeof((x)[0]))
 
 struct pkgctx_s
@@ -55,8 +63,10 @@ struct pkgctx_s
 
 	char *listfile;
 
+	pbool test;
 	pbool readoldpacks;
 	char gamepath[MAX_PATH];
+	char sourcepath[MAX_PATH];
 	time_t buildtime;
 
 	//skips the file if its listed in one of these packages, unless the modification time on disk is newer.
@@ -68,9 +78,14 @@ struct pkgctx_s
 		struct
 		{
 			char name[128];
-			size_t size;
-//			unsigned int zcrc;
-//			timestamp;
+
+			unsigned short zmethod;
+			unsigned int zcrc;
+			qofs_t zhdrofs;
+			qofs_t rawsize;
+			qofs_t zipsize;
+			unsigned short dostime;
+			unsigned short dosdate;
 		} *file;
 	} *oldpacks;
 
@@ -85,6 +100,10 @@ struct pkgctx_s
 			char code[128];
 			char filename[128];
 			struct file_s *files;
+
+			pbool usediffs;
+			unsigned int numparts;
+			struct oldpack_s *oldparts;
 		} *outputs;
 
 		char name[1];
@@ -126,15 +145,30 @@ struct pkgctx_s
 				char name[128];
 				struct file_s *nextwrite;
 				struct rule_s *rule;
+				unsigned int zdisk;
+				unsigned short zmethod;
 				unsigned int zcrc;
-				unsigned int zhdrofs;
-				unsigned int pakofs;
-				unsigned int rawsize;
-				unsigned int zipsize;
+				qofs_t zhdrofs;
+				qofs_t pakofs;
+				qofs_t rawsize;
+				qofs_t zipsize;
+				unsigned short dostime;
+				unsigned short dosdate;
+				time_t	timestamp;
 			} write;
 		} *files;
 	} *classes;
 };
+
+#ifdef _WIN32
+static time_t filetime_to_timet(FILETIME ft)
+{
+	ULARGE_INTEGER ull;
+	ull.LowPart = ft.dwLowDateTime;
+	ull.HighPart = ft.dwHighDateTime;
+	return ull.QuadPart / 10000000ULL - 11644473600ULL;
+}
+#endif
 
 static struct rule_s *PKG_FindRule(struct pkgctx_s *ctx, char *code)
 {
@@ -304,7 +338,7 @@ static void PKG_ReplaceString(char *str, char *find, char *newpart)
 		str = oldpart+nlen;
 	}
 }
-static void PKG_CreateOutput(struct pkgctx_s *ctx, struct dataset_s *s, const char *code, const char *filename)
+static void PKG_CreateOutput(struct pkgctx_s *ctx, struct dataset_s *s, const char *code, const char *filename, pbool diff)
 {
 	char path[MAX_PATH];
 	char date[64];
@@ -331,12 +365,13 @@ static void PKG_CreateOutput(struct pkgctx_s *ctx, struct dataset_s *s, const ch
 	o = malloc(sizeof(*o));
 	memset(o, 0, sizeof(*o));
 	strcpy(o->code, code);
+	o->usediffs = diff;
 	QCC_Canonicalize(o->filename, sizeof(o->filename), path, ctx->gamepath);
 	o->next = s->outputs;
 	s->outputs = o;
 }
 
-static void PKG_ParseOutput(struct pkgctx_s *ctx)
+static void PKG_ParseOutput(struct pkgctx_s *ctx, pbool diff)
 {
 	struct dataset_s *s;
 	char name[128];
@@ -352,7 +387,7 @@ static void PKG_ParseOutput(struct pkgctx_s *ctx)
 	if (PKG_GetStringToken(ctx, prop, sizeof(prop)))
 	{
 		s = PKG_GetDataset(ctx, "core");
-		PKG_CreateOutput(ctx, s, name, prop);
+		PKG_CreateOutput(ctx, s, name, prop, diff);
 	}
 	else
 	{
@@ -370,7 +405,7 @@ static void PKG_ParseOutput(struct pkgctx_s *ctx)
 					*e = 0;
 					s = PKG_GetDataset(ctx, prop);
 					if (PKG_GetStringToken(ctx, fname, sizeof(fname)))
-						PKG_CreateOutput(ctx, s, name, fname);
+						PKG_CreateOutput(ctx, s, name, fname, diff);
 					else
 						ctx->messagecallback(ctx->userctx, "Output '%s[%s]' filename omitted\n", name, prop);
 				}
@@ -555,9 +590,10 @@ static void PKG_ParseRule(struct pkgctx_s *ctx)
 	r->next = ctx->rules;
 	ctx->rules = r;
 }
-static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char *fname)
+static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char *fname, time_t mtime)
 {
 	struct file_s *f;
+	struct tm *t;
 
 	if (strlen(fname) >= sizeof(f->name))
 	{
@@ -568,6 +604,10 @@ static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char
 	f = malloc(sizeof(*f));
 	memset(f, 0, sizeof(*f));
 	strcpy(f->name, fname);
+	f->write.timestamp = mtime;
+	t = localtime(&f->write.timestamp);
+	f->write.dostime = (t->tm_sec>>1)|(t->tm_min<<5)|(t->tm_hour<<11);
+	f->write.dosdate = (t->tm_mday<<0)|(t->tm_mon<<5)|((t->tm_year+1900-1980)<<9);
 	f->next = c->files;
 	c->files = f;
 }
@@ -577,7 +617,7 @@ static void PKG_AddClassFiles(struct pkgctx_s *ctx, struct class_s *c, const cha
 	WIN32_FIND_DATA fd;
 	HANDLE h;
 	char basepath[MAX_PATH];
-	QCC_Canonicalize(basepath, sizeof(basepath), fname, ctx->gamepath);
+	QCC_Canonicalize(basepath, sizeof(basepath), fname, ctx->sourcepath);
 	h = FindFirstFile(basepath, &fd);
 	if (h == INVALID_HANDLE_VALUE)
 		ctx->messagecallback(ctx->userctx, "wildcard string '%s' found no files\n", fname);
@@ -586,7 +626,7 @@ static void PKG_AddClassFiles(struct pkgctx_s *ctx, struct class_s *c, const cha
 		do
 		{
 			QCC_Canonicalize(basepath, sizeof(basepath), fd.cFileName, fname);
-			PKG_AddClassFile(ctx, c, basepath);
+			PKG_AddClassFile(ctx, c, basepath, filetime_to_timet(fd.ftLastWriteTime));
 		} while(FindNextFile(h, &fd));
 	}
 #else
@@ -693,10 +733,10 @@ static void PKG_ParseClass(struct pkgctx_s *ctx, char *output)
 				}
 				else if (strchr(prop, '.'))
 				{
-					if (strchr(prop, '*') || strchr(prop, '?'))
+//					if (strchr(prop, '*') || strchr(prop, '?'))
 						PKG_AddClassFiles(ctx, c, prop);
-					else
-						PKG_AddClassFile(ctx, c, prop);
+//					else
+//						PKG_AddClassFile(ctx, c, prop);
 				}
 				else
 					ctx->messagecallback(ctx->userctx, "Class '%s' has unknown property '%s'\n", name, prop);
@@ -724,10 +764,10 @@ static void PKG_ParseClassFiles(struct pkgctx_s *ctx, struct class_s *c)
 			if (!strcmp(prop, ";"))
 				continue;
 
-			if (strchr(prop, '*') || strchr(prop, '?'))
+//			if (strchr(prop, '*') || strchr(prop, '?'))
 				PKG_AddClassFiles(ctx, c, prop);
-			else
-				PKG_AddClassFile(ctx, c, prop);
+//			else
+//				PKG_AddClassFile(ctx, c, prop);
 		}
 	}
 }
@@ -774,9 +814,9 @@ static unsigned int PKG_DeflateToFile(FILE *f, unsigned int rawsize, void *in, i
 		strm.next_out = out;
 		strm.avail_out = sizeof(out);
 	}
+	deflateEnd(&strm);
 	fwrite(out, 1, sizeof(out) - strm.avail_out, f);
 	i+=sizeof(out) - strm.avail_out;
-	deflateEnd(&strm);
 	return i;
 }
 #endif
@@ -836,7 +876,8 @@ static void *PKG_OpenSourceFile(struct pkgctx_s *ctx, struct file_s *file, size_
 
 	*fsize = 0;
 
-	QCC_Canonicalize(fullname, sizeof(fullname), file->name, ctx->gamepath);
+	QCC_Canonicalize(fullname, sizeof(fullname), file->name, ctx->sourcepath);
+	strcpy(file->write.name, file->name);
 
 	f = fopen(fullname, "rb");
 	if (!f)
@@ -847,7 +888,6 @@ static void *PKG_OpenSourceFile(struct pkgctx_s *ctx, struct file_s *file, size_
 	else
 		ctx->messagecallback(ctx->userctx, "\t\tCompressing %s\n", file->name);
 
-	strcpy(file->write.name, file->name);
 	if (rule)
 	{
 		data = strrchr(file->write.name, '.');
@@ -873,7 +913,7 @@ static void *PKG_OpenSourceFile(struct pkgctx_s *ctx, struct file_s *file, size_
 			//delete temp file...
 			fclose(f);
 
-			QCC_Canonicalize(tempname, sizeof(tempname), file->write.name, ctx->gamepath);
+			QCC_Canonicalize(tempname, sizeof(tempname), file->write.name, ctx->sourcepath);
 			f = fopen(tempname, "rb");
 			if (f)
 			{
@@ -958,20 +998,22 @@ static void *PKG_OpenSourceFile(struct pkgctx_s *ctx, struct file_s *file, size_
 	return data;
 }
 
-static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out)
+static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, unsigned int index, pbool directoryonly)
 {
 	//helpers to deal with misaligned data. writes little-endian.
-#define misbyte(ptr,ofs,data) ((unsigned char*)(ptr))[ofs] = (data)&0xff;
-#define misshort(ptr,ofs,data) misbyte((ptr),(ofs),(data));misbyte((ptr),(ofs)+1,(data)>>8);
-#define misint(ptr,ofs,data) misshort((ptr),(ofs),(data));misshort((ptr),(ofs)+2,(data)>>16);
-	int num=0;
-	int ofs;
+#define misbyte(ptr,ofs,data)  ((unsigned char*)(ptr))[ofs] = (data)&0xff
+#define misshort(ptr,ofs,data) do{misbyte((ptr),(ofs),(data));misbyte((ptr),(ofs)+1,(data)>>8);}while(0)
+#define misint(ptr,ofs,data)   do{misshort((ptr),(ofs),(data));misshort((ptr),(ofs)+2,(data)>>16);}while(0)
+#define misint64(ptr,ofs,data) do{misint((ptr),(ofs),(data));misint((ptr),(ofs)+4,((quint64_t)(data))>>32);}while(0)
+	qofs_t num=0;
 	pbool pak = false;
 	int startofs = 0;
 
 	struct file_s *f;
 	char centralheader[46+sizeof(f->write.name)];
-	int centraldirsize;
+	qofs_t centraldirsize;
+	qofs_t centraldirofs;
+	qofs_t z64eocdofs;
 
 	char *filedata;
 
@@ -984,18 +1026,35 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out)
 	} pakheader = {"PACK", 0, 0};
 	char *ext;
 
+#define GPF_TRAILINGSIZE (1u<<3)
+#define GPF_UTF8 (1u<<11)
 #ifdef AVAIL_ZLIB
 	#define compmethod (pak?0:8)/*Z_DEFLATED*/
 #else
 	#define compmethod 0/*Z_RAW*/
 #endif
-	if (!compmethod)
+	if (!compmethod && !directoryonly)
 		pak = true; //might as well boost compat...
 	ext = strrchr(out->filename, '.');
-	if (ext && !QC_strcasecmp(ext, ".pak"))
+	if (ext && !QC_strcasecmp(ext, ".pak") && !index)
 		pak = true;
 
-	outf = fopen(out->filename, "wb");
+	if (out->usediffs && !directoryonly)
+	{
+		char newname[MAX_PATH];
+		memcpy(newname, out->filename, sizeof(newname));
+		if (ext)
+		{
+			ext = newname+(ext-out->filename);
+			ext+=1;
+			if (*ext)
+				ext++;
+			QC_snprintfz(ext, sizeof(newname)-(ext-newname), "%02u", index+1);
+		}
+		outf = fopen(newname, "wb");
+	}
+	else
+		outf = fopen(out->filename, "wb");
 	if (!outf)
 	{
 		ctx->messagecallback(ctx->userctx, "Unable to open %s\n", out->filename);
@@ -1005,58 +1064,94 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out)
 	if (pak)	//reserve space for the pak header
 		fwrite(&pakheader, 1, sizeof(pakheader), outf);
 
-	for (f = out->files; f ; f=f->write.nextwrite)
+	if (!directoryonly)
 	{
-		char header[32+sizeof(f->write.name)];
-		size_t fnamelen = strlen(f->write.name);
-
-		filedata = PKG_OpenSourceFile(ctx, f, &f->write.rawsize);
-		if (!filedata)
+		for (f = out->files; f ; f=f->write.nextwrite)
 		{
-			ctx->messagecallback(ctx->userctx, "Unable to open %s\n", f->name);
-		}
+			char header[32+sizeof(f->write.name)];
+			size_t fnamelen = strlen(f->write.name);
+			size_t hofs;
+			unsigned short gpflags = GPF_UTF8;
 
-		f->write.zcrc = QC_encodecrc(f->write.rawsize, filedata);
-		misint  (header, 0, 0x04034b50);
-		misshort(header, 4, 0);//minver
-		misshort(header, 6, 0);//general purpose flags
-		misshort(header, 8, 0);//compression method, 0=store, 8=deflate
-		misshort(header, 10, 0);//lastmodfiletime
-		misshort(header, 12, 0);//lastmodfiledate
-		misint  (header, 14, f->write.zcrc);//crc32
-		misint  (header, 18, f->write.rawsize);//compressed size
-		misint  (header, 22, f->write.rawsize);//uncompressed size
-		misshort(header, 26, fnamelen);//filename length
-		misshort(header, 28, 0);//extradata length
-		strcpy(header+30, f->write.name);
+			if (index != f->write.zdisk)
+				continue;	//not in this disk...
 
-		f->write.zhdrofs = ftell(outf);
-		fwrite(header, 1, 30+fnamelen, outf);
+			filedata = PKG_OpenSourceFile(ctx, f, &f->write.rawsize);
+			if (!filedata)
+			{
+				ctx->messagecallback(ctx->userctx, "Unable to open %s\n", f->name);
+			}
+
+			f->write.zcrc = QC_encodecrc(f->write.rawsize, filedata);
+			misint  (header, 0, 0x04034b50);
+			misshort(header, 4, 45);//minver
+			misshort(header, 6, gpflags);//general purpose flags
+			misshort(header, 8, 0);//compression method, 0=store, 8=deflate
+			misshort(header, 10, f->write.dostime);//lastmodfiletime
+			misshort(header, 12, f->write.dosdate);//lastmodfiledate
+			misint  (header, 14, f->write.zcrc);//crc32
+			misint  (header, 18, f->write.rawsize);//compressed size
+			misint  (header, 22, f->write.rawsize);//uncompressed size
+			misshort(header, 26, fnamelen);//filename length
+			misshort(header, 28, 0);//extradata length
+			strcpy(header+30, f->write.name);
+			hofs = 30+fnamelen;
+
+			misshort(header, 28, hofs-(30+fnamelen));//extradata length
+			f->write.zhdrofs = ftell(outf);
+			fwrite(header, 1, hofs, outf);
 
 #ifdef AVAIL_ZLIB
-		if (compmethod == 2 || compmethod == 8)
-		{
-			size_t end;
-			f->write.pakofs = 0;
+			if (f->write.rawsize && (compmethod == 2 || compmethod == 8))
+			{
+				gpflags |= 1u<<1;
+				f->write.pakofs = 0;
 
-			f->write.zipsize = PKG_DeflateToFile(outf, f->write.rawsize, filedata, compmethod);
-
-			misshort(header, 8, compmethod);//compression method, 0=store, 8=deflate
-			misint  (header, 18, f->write.zipsize);
-
-			end = ftell(outf);
-			fseek(outf, f->write.zhdrofs, SEEK_SET);
-			fwrite(header, 1, 30+fnamelen, outf);
-			fseek(outf, end, SEEK_SET);
-		}
-		else
+				f->write.zmethod = compmethod;
+				f->write.zipsize = PKG_DeflateToFile(outf, f->write.rawsize, filedata, compmethod);
+			}
+			else
 #endif
-		{
-			f->write.pakofs = ftell(outf);
-			f->write.zipsize = fwrite(filedata, 1, f->write.rawsize, outf);
+			{
+				f->write.zmethod = 0;
+				f->write.pakofs = ftell(outf);
+				f->write.zipsize = fwrite(filedata, 1, f->write.rawsize, outf);
+			}
+
+			//update the header
+			misshort(header, 8, f->write.zmethod);//compression method, 0=store, 8=deflate
+			if (f->write.zipsize > 0xffffffff)
+			{
+				misint  (header, 18, 0xffffffff);//compressed size
+				gpflags |= GPF_TRAILINGSIZE;
+			}
+			else
+				misint  (header, 18, f->write.zipsize);//compressed size
+			if (f->write.rawsize > 0xffffffff)
+			{
+				misint  (header, 22, 0xffffffff);//compressed size
+				gpflags |= GPF_TRAILINGSIZE;
+			}
+			else
+				misint  (header, 22, f->write.rawsize);//compressed size
+			misshort(header, 6, gpflags);//general purpose flags
+
+			fseek(outf, f->write.zhdrofs, SEEK_SET);
+			fwrite(header, 1, hofs, outf);
+			fseek(outf, 0, SEEK_END);
+
+			if (gpflags & GPF_TRAILINGSIZE) //if (gpflags & GPF_TRAILINGSIZE)
+			{
+				misint  (header, 0, 0x08074b50);
+				misint  (header, 4, f->write.zcrc);
+				misint64(header, 8, f->write.zipsize);
+				misint64(header, 16, f->write.rawsize);
+				fwrite(header, 1, 24, outf);
+			}
+
+			free(filedata);
+			num++;
 		}
-		free(filedata);
-		num++;
 	}
 
 	if (pak)
@@ -1067,15 +1162,14 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out)
 			unsigned int size;
 			unsigned int offset;
 		} pakentry;
-		//prepare the header
-		pakheader.tabbytes = num * sizeof(pakentry);
 		pakheader.tabofs = ftell(outf);
-		fseek(outf, 0, SEEK_SET);
-		fwrite(&pakheader, 1, sizeof(pakheader), outf);
-		//now go and write the file table.
-		fseek(outf, pakheader.tabofs, SEEK_SET);
+
+		//write the pak file table.
 		for (f = out->files,num=0; f ; f=f->write.nextwrite)
 		{
+			if (index != f->write.zdisk)
+				continue;	//not in this disk...
+
 			memset(&pakentry, 0, sizeof(pakentry));
 			QC_strlcpy(pakentry.name, f->write.name, sizeof(pakentry.name));
 			pakentry.size = (f->write.pakofs==0)?0:f->write.rawsize;
@@ -1083,43 +1177,106 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out)
 			fwrite(&pakentry, 1, sizeof(pakentry), outf);
 			num++;
 		}
+
+		//replace the pak header, then return to the end of the file for the zip end-of-central-directory
+		pakheader.tabbytes = num * sizeof(pakentry);
+		fseek(outf, 0, SEEK_SET);
+		fwrite(&pakheader, 1, sizeof(pakheader), outf);
+		fseek(outf, 0, SEEK_END);
 	}
 
-	ofs = ftell(outf);
+	centraldirofs = ftell(outf);
 	for (f = out->files,num=0; f ; f=f->write.nextwrite)
 	{
+		size_t hofs;
 		size_t fnamelen;
+		if (!directoryonly && index != f->write.zdisk)
+			continue;
+
 		fnamelen = strlen(f->write.name);
 		misint  (centralheader, 0, 0x02014b50);
-		misshort(centralheader, 4, 0);//ourver
-		misshort(centralheader, 6, 0);//minver
-		misshort(centralheader, 8, 0);//general purpose flags
-		misshort(centralheader, 10, compmethod);//compression method, 0=store, 8=deflate
-		misshort(centralheader, 12, 0);//lastmodfiletime
-		misshort(centralheader, 14, 0);//lastmodfiledate
+		misshort(centralheader, 4, (3<<8)|63);//ourver
+		misshort(centralheader, 6, 45);//minver
+		misshort(centralheader, 8, GPF_UTF8);//general purpose flags
+		misshort(centralheader, 10, f->write.rawsize?compmethod:0);//compression method, 0=store, 8=deflate
+		misshort(centralheader, 12, f->write.dostime);//lastmodfiletime
+		misshort(centralheader, 14, f->write.dosdate);//lastmodfiledate
 		misint  (centralheader, 16, f->write.zcrc);//crc32
 		misint  (centralheader, 20, f->write.zipsize);//compressed size
 		misint  (centralheader, 24, f->write.rawsize);//uncompressed size
 		misshort(centralheader, 28, fnamelen);//filename length
 		misshort(centralheader, 30, 0);//extradata length
 		misshort(centralheader, 32, 0);//comment length
-		misshort(centralheader, 34, 0);//first disk number
+		misshort(centralheader, 34, f->write.zdisk);//first disk number
 		misshort(centralheader, 36, 0);//internal file attribs
 		misint  (centralheader, 38, 0);//external file attribs
 		misint  (centralheader, 42, f->write.zhdrofs);//local header offset
 		strcpy(centralheader+46, f->write.name);
-		fwrite(centralheader, 1, 46 + fnamelen, outf);
+
+		hofs = 46+fnamelen;
+		if (f->write.zdisk >= 0xffff || f->write.zhdrofs >= 0xffffffff || f->write.rawsize >= 0xffffffff || f->write.zipsize >= 0xffffffff)
+		{
+			misshort(centralheader, hofs, 0x0001);//zip64 tagid
+			misshort(centralheader, hofs+2, 0x0001);//zip64 tag size
+			hofs+=4;
+			if (f->write.rawsize >= 0xffffffff)
+			{
+				misint64(centralheader, hofs, f->write.rawsize);//uncompressed size
+				hofs += 8;
+			}
+			if (f->write.zipsize >= 0xffffffff)
+			{
+				misint64(centralheader, hofs, f->write.zipsize);//compressed size
+				hofs += 8;
+			}
+			if (f->write.zhdrofs >= 0xffffffff)
+			{
+				misint64(centralheader, hofs, f->write.zhdrofs);//localheader offset
+				hofs += 8;
+			}
+			if (f->write.zdisk >= 0xffff)
+			{
+				misint  (centralheader, hofs, f->write.zdisk);//compressed size
+				hofs += 4;
+			}
+		}
+		misshort(centralheader, 30, hofs-(46+fnamelen));//extradata length
+
+		fwrite(centralheader, 1, hofs, outf);
 		num++;
 	}
+	centraldirsize = ftell(outf)-centraldirofs;
 
-	centraldirsize = ftell(outf)-ofs;
+	//zip64 end of central dir 
+	z64eocdofs = ftell(outf);
+	misint  (centralheader, 0, 0x06064b50);
+	misint64(centralheader, 4, (qofs_t)(56-16));
+	misshort(centralheader, 12, (3<<8)|63);	//ver made by = unix|appnote ver
+	misshort(centralheader, 14, 45);	//ver needed
+	misint  (centralheader, 16, index);	//thisdisk number
+	misint  (centralheader, 20, index);	//centraldir start disk
+    misint64(centralheader, 24, num);	//centraldir entry count (disk)
+	misint64(centralheader, 32, num);	//centraldir entry count (total)
+	misint64(centralheader, 40, centraldirsize);//centraldir entry bytes
+	misint64(centralheader, 48, centraldirofs);	//centraldir start offset
+	fwrite(centralheader, 1, 56, outf);
+
+	//zip64 end of central dir locator 
+	misint  (centralheader, 0, 0x07064b50);
+	misint  (centralheader, 4, index);		//centraldir first disk
+	misint64(centralheader, 8, z64eocdofs);
+	misint  (centralheader, 16, index+1);		//total disk count
+	fwrite(centralheader, 1, 20, outf);
+
+//	centraldirofs = ftell(outf) - centraldirofs;
+	//write zip end-of-central-directory
 	misint  (centralheader, 0, 0x06054b50);
-	misshort(centralheader, 4, 0);	//this disk number
-	misshort(centralheader, 6, 0);	//centraldir first disk
-	misshort(centralheader, 8, num);	//centraldir entries
-	misshort(centralheader, 10, num);	//total centraldir entries
-	misint  (centralheader, 12, centraldirsize);	//centraldir size
-	misint  (centralheader, 16, ofs);	//centraldir offset
+	misshort(centralheader, 4,  (index         >    0xffff)?    0xffff:index);	//this disk number
+	misshort(centralheader, 6,  (index         >    0xffff)?    0xffff:index);	//centraldir first disk
+	misshort(centralheader, 8,  (num           >    0xffff)?    0xffff:num);	//centraldir entries
+	misshort(centralheader, 10, (num           >    0xffff)?    0xffff:num);	//total centraldir entries
+	misint  (centralheader, 12, (centraldirsize>0xffffffff)?0xffffffff:centraldirsize);	//centraldir size
+	misint  (centralheader, 16, (centraldirofs >0xffffffff)?0xffffffff:centraldirofs);	//centraldir offset
 	misshort(centralheader, 20, 0);	//comment length
 	fwrite(centralheader, 1, 22, outf);
 
@@ -1161,13 +1318,19 @@ static void PKG_ReadPackContents(struct pkgctx_s *ctx, struct oldpack_s *old)
 	if (f)
 	{
 		//find end-of-central-dir
+		//assume no comment
 		fseek(f, -22, SEEK_END);
 		fread(header, 1, 22, f);
 
 		if (header[0] == 'P' && header[1] == 'K' && header[2] == 5 && header[3] == 6)
 		{
+			//thisdisk = shortfromptr(header+4);
+			//centraldirstart = shortfromptr(header+6);
 			old->numfiles = shortfromptr(header+8);
+			//numfiles_all = shortfromptr(header+10);
+			//centaldirsize = shortfromptr(header+12);
 			foffset = longfromptr(header+16);
+			//commentength = shortfromptr(header+20);
 
 			old->file = malloc(sizeof(*old->file)*old->numfiles);
 
@@ -1175,13 +1338,30 @@ static void PKG_ReadPackContents(struct pkgctx_s *ctx, struct oldpack_s *old)
 			fseek(f, foffset, SEEK_SET);
 			for(u = 0; u < old->numfiles; u++)
 			{
+				unsigned int extra_len, comment_len;
 				fread(header, 1, 46, f);
 				//zcrc @ 16
-				old->file[u].size = longfromptr(header+24);
+
+				//version_madeby = shortfromptr(header+4);
+				//version_needed = shortfromptr(header+6);
+				//gflags = shortfromptr(header+8);
+				old->file[u].zmethod = shortfromptr(header+10);
+				old->file[u].dostime = shortfromptr(header+12);
+				old->file[u].dosdate = shortfromptr(header+12);
+				old->file[u].zcrc = longfromptr(header+16);
+				old->file[u].zipsize = longfromptr(header+20);
+				old->file[u].rawsize = longfromptr(header+24);
 				namelen = shortfromptr(header+28);
+				extra_len = shortfromptr(header+30);
+				comment_len = shortfromptr(header+32);
+				//disknum = shortfromptr(header+34);
+				//iattributes = shortfromptr(header+36);
+				//eattributes = longfromptr(header+38);
+				//localheaderoffset = longfromptr(header+42);
+
 				fread(old->file[u].name, 1, namelen, f);
 				old->file[u].name[namelen] = 0;
-				i = shortfromptr(header+30)+shortfromptr(header+32);
+				i = extra_len+comment_len;
 				if (i)
 					fseek(f, i, SEEK_CUR);
 			}
@@ -1208,7 +1388,7 @@ static void PKG_ReadPackContents(struct pkgctx_s *ctx, struct oldpack_s *old)
 				for (u = 0; u < old->numfiles; u++)
 				{
 					strcpy(old->file[u].name, files[u].name);
-					old->file[u].size = files[u].size;
+					old->file[u].rawsize = files[u].size;
 				}
 				free(files);
 			}
@@ -1221,17 +1401,26 @@ static void PKG_ReadPackContents(struct pkgctx_s *ctx, struct oldpack_s *old)
 	}
 }
 
-static pbool PKG_FileIsModified(struct pkgctx_s *ctx, const char *filename)
+static pbool PKG_FileIsModified(struct pkgctx_s *ctx, struct oldpack_s *old, struct file_s *file)
 {
-	struct oldpack_s *old;
 	size_t u;
-	for (old = ctx->oldpacks; old; old = old->next)
+
+	for (u = 0; u < old->numfiles; u++)
 	{
-		for (u = 0; u < old->numfiles; u++)
+		//should check filesize etc, but rules and extension changes make that messy
+		if (!strcmp(old->file[u].name, file->name))
 		{
-			if (!strcmp(old->file[u].name, filename))
+			if(file->write.dosdate < old->file[u].dosdate || (file->write.dosdate == old->file[u].dosdate && file->write.dostime <= old->file[u].dostime))
 			{
-				ctx->messagecallback(ctx->userctx, "\t%s already contains %s\n", old->filename, filename);
+				file->write.zmethod = old->file[u].zmethod;
+				//char name[128];
+				file->write.zcrc = old->file[u].zcrc;
+				file->write.zhdrofs = old->file[u].zhdrofs;
+				file->write.pakofs = 0;
+				file->write.rawsize = old->file[u].rawsize;
+				file->write.zipsize = old->file[u].zipsize;
+				file->write.dostime = old->file[u].dostime;
+				file->write.dosdate = old->file[u].dosdate;
 				return false;
 			}
 		}
@@ -1255,6 +1444,14 @@ static void PKG_WriteDataset(struct pkgctx_s *ctx, struct dataset_s *set)
 		for(old = ctx->oldpacks; old; old = old->next)
 		{	//fixme: strip any wildcarded paks that match an output, to avoid weirdness.
 			PKG_ReadPackContents(ctx, old);
+		}
+
+		for (out = set->outputs; out; out = out->next)
+		{
+			if(out->usediffs)
+			{	//FIXME: look for old parts
+
+			}
 		}
 	}
 
@@ -1285,13 +1482,32 @@ static void PKG_WriteDataset(struct pkgctx_s *ctx, struct dataset_s *set)
 
 		for (file = cls->files; file; file = file->next)
 		{
-			if (!PKG_FileIsModified(ctx, file->name))
-				continue;
-//			ctx->messagecallback(ctx->userctx, "\t\tFile %s, rule %s\n", file->name, rule?rule->name:"");
+			for (old = ctx->oldpacks; old; old = old->next)
+			{
+				if (!PKG_FileIsModified(ctx, old, file))
+					break;
+			}
+			if (old)
+			{
+				ctx->messagecallback(ctx->userctx, "\t\tFile %s found inside %s\n", file->name, old->filename);
+				file->write.zdisk = ~0u;
+			}
+			else
+			{
+//				ctx->messagecallback(ctx->userctx, "\t\tFile %s, rule %s\n", file->name, rule?rule->name:"");
 
-			file->write.nextwrite = out->files;
-			file->write.rule = rule;
-			out->files = file;
+				file->write.zdisk = out->numparts;
+
+				for (old = out->oldparts; old; old = old->next)
+				{
+					if (!PKG_FileIsModified(ctx, old, file))
+						break;
+				}
+
+				file->write.nextwrite = out->files;
+				file->write.rule = rule;
+				out->files = file;
+			}
 		}
 	}
 
@@ -1302,9 +1518,25 @@ static void PKG_WriteDataset(struct pkgctx_s *ctx, struct dataset_s *set)
 			ctx->messagecallback(ctx->userctx, "\tOutput %s[%s] \"%s\" has no files\n", out->code, set->name, out->filename);
 			continue;
 		}
-		
-		ctx->messagecallback(ctx->userctx, "\tGenerating %s[%s] \"%s\"\n", out->code, set->name, out->filename);
-		PKG_WritePackageData(ctx, out);
+
+		if (ctx->test)
+		{
+			for (file = out->files; file; file = file->write.nextwrite)
+			{
+				if (file->write.rule)
+					ctx->messagecallback(ctx->userctx, "\t\tFile %s has changed (rule %s)\n", file->name, file->write.rule->name);
+				else
+					ctx->messagecallback(ctx->userctx, "\t\tFile %s has changed\n", file->name);
+			}
+		}
+		else
+		{
+			ctx->messagecallback(ctx->userctx, "\tGenerating %s[%s] \"%s\"\n", out->code, set->name, out->filename);
+			PKG_WritePackageData(ctx, out, out->numparts, false);
+		}
+
+		if(out->usediffs)
+			PKG_WritePackageData(ctx, out, out->numparts+1, true);
 	}
 }
 void Packager_WriteDataset(struct pkgctx_s *ctx, char *setname)
@@ -1324,31 +1556,40 @@ void Packager_WriteDataset(struct pkgctx_s *ctx, char *setname)
 			PKG_WriteDataset(ctx, dataset);
 	}
 }
-struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, char *message), void *userctx)
+struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, char *message, ...), void *userctx)
 {
 	struct pkgctx_s *ctx;
 	ctx = malloc(sizeof(*ctx));
 	memset(ctx, 0, sizeof(*ctx));
 	ctx->messagecallback = messagecallback;
 	ctx->userctx = userctx;
+	ctx->test = false;
 	time(&ctx->buildtime);
 	return ctx;
 }
-void Packager_Parse(struct pkgctx_s *ctx, char *scriptname)
+void Packager_ParseText(struct pkgctx_s *ctx, char *scripttext)
 {
-	size_t remaining = 0;
-	char *file = QCC_ReadFile(scriptname, NULL, NULL, &remaining);
 	char cmd[128];
 
-	strcpy(ctx->gamepath, scriptname);
-
-	ctx->listfile = file;
+	ctx->listfile = scripttext;
 	while (PKG_GetToken(ctx, cmd, sizeof(cmd), true))
 	{
 //		if (!strcmp(cmd, "dataset"))
 //			PKG_ParseDataset(ctx);
 		if (!strcmp(cmd, "output"))
-			PKG_ParseOutput(ctx);
+			PKG_ParseOutput(ctx, false);
+		else if (!strcmp(cmd, "diffoutput") || !strcmp(cmd, "splitoutput"))
+			PKG_ParseOutput(ctx, true);
+		else if (!strcmp(cmd, "inputdir"))
+		{
+			char old[MAX_PATH];
+			memcpy(old, ctx->sourcepath, sizeof(old));
+			if (PKG_GetStringToken(ctx, cmd, sizeof(cmd)))
+			{
+				QC_strlcat(cmd, "/", sizeof(cmd));
+				QCC_Canonicalize(ctx->sourcepath, sizeof(ctx->sourcepath), cmd, old);
+			}
+		}
 		else if (!strcmp(cmd, "rule"))
 			PKG_ParseRule(ctx);
 		else if (!strcmp(cmd, "class"))
@@ -1379,6 +1620,15 @@ void Packager_Parse(struct pkgctx_s *ctx, char *scriptname)
 				break;
 		}
 	}
+}
+
+void Packager_ParseFile(struct pkgctx_s *ctx, char *scriptname)
+{
+	size_t remaining = 0;
+	char *file = qccprogfuncs->funcs.parms->ReadFile(scriptname, NULL, NULL, &remaining);
+	strcpy(ctx->gamepath, scriptname);
+	strcpy(ctx->sourcepath, scriptname);
+	Packager_ParseText(ctx, file);
 	free(file);
 }
 

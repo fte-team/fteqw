@@ -1234,8 +1234,8 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 }
 qintptr_t VARGS Plug_FS_Seek(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	unsigned int handle = arg[0];
-	unsigned int low = arg[1], high = arg[2];
+	unsigned int handle = VM_LONG(arg[0]);
+	unsigned int low = VM_LONG(arg[1]), high = VM_LONG(arg[2]);
 	pluginstream_t *stream;
 
 	if (handle >= pluginstreamarraylen)
@@ -1249,7 +1249,7 @@ qintptr_t VARGS Plug_FS_Seek(void *offset, quintptr_t mask, const qintptr_t *arg
 
 qintptr_t VARGS Plug_FS_GetLength(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	unsigned int handle = arg[0];
+	unsigned int handle = VM_LONG(arg[0]);
 	unsigned int *low = VM_POINTER(arg[1]), *high = VM_POINTER(arg[2]);
 	pluginstream_t *stream;
 	qofs_t size;

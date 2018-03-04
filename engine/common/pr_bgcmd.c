@@ -6359,27 +6359,25 @@ void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename)
 	extern cvar_t language;
 	if (!prinst || newprogs < 0)
 		return;
-	if (*language.string)
+
+	Q_strncpyz(lang, language.string, sizeof(lang));
+	while ((h = strchr(lang, '-')))
+		*h = '_';
+	for(;;)
 	{
-		Q_strncpyz(lang, language.string, sizeof(lang));
-		while ((h = strchr(lang, '-')))
-			*h = '_';
-		for(;;)
-		{
-			if (!*lang)
-				break;
-			if (!f)
-				f = FS_OpenVFS(va("%s.%s.po", modulename, lang), "rb", FS_GAME);
-			if (!f2)
-				f2 = FS_OpenVFS(va("common.%s.po", lang), "rb", FS_GAME);
-			if (f && f2)
-				break;
-			h = strchr(lang, '_');
-			if (h)
-				*h = 0;
-			else
-				break;
-		}
+		if (!f)
+			f = FS_OpenVFS(va("%s.%s.po", modulename, *lang?lang:"default"), "rb", FS_GAME);
+		if (!f2)
+			f2 = FS_OpenVFS(va("common.%s.po", *lang?lang:"default"), "rb", FS_GAME);
+		if (f && f2)
+			break;
+		if (!*lang)
+			break;
+		h = strchr(lang, '_');
+		if (h)
+			*h = 0;
+		else
+			break;
 	}
 
 	if (f || f2)

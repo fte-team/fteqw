@@ -305,7 +305,7 @@ void INS_RawInput_DeInit(void);
 
 // forward-referenced functions
 void INS_StartupJoystick (void);
-void INS_JoyMove (float *movements, int pnum);
+void INS_JoyMove (void);
 
 /*
 ===========
@@ -1333,7 +1333,7 @@ void INS_MouseEvent (int mstate)
 INS_MouseMove
 ===========
 */
-void INS_MouseMove (float *movements, int pnum)
+void INS_MouseMove (void)
 {
 #ifdef AVAIL_DINPUT
 	if (dinput && mouseactive)
@@ -1426,12 +1426,12 @@ void INS_MouseMove (float *movements, int pnum)
 INS_Move
 ===========
 */
-void INS_Move (float *movements, int pnum)
+void INS_Move (void)
 {
 	if (vid.activeapp && !Minimized)
 	{
-		INS_MouseMove (movements, pnum);
-		INS_JoyMove (movements, pnum);
+		INS_MouseMove ();
+		INS_JoyMove ();
 	}
 	else
 		INS_Accumulate();
@@ -2132,39 +2132,17 @@ static qboolean INS_ReadJoystick (struct wjoy_s *joy)
 	return false;
 }
 
-static void INS_JoyMovePtr (struct wjoy_s *joy, float *movements, int pnum)
-{
-	int wpnum;
-
-	/*each device will be processed when its player comes to be processed*/
-	wpnum = cl.splitclients;
-	if (wpnum < 1)
-		wpnum = 1;
-	if (cl_forceseat.ival)
-		wpnum = (cl_forceseat.ival-1) % wpnum; 
-	else
-		wpnum = joy->devid % wpnum;
-	if (wpnum != pnum)
-		return;
-
-
-	// collect the joystick data, if possible
-	if (INS_ReadJoystick (joy) != true)
-	{
-		return;
-	}
-}
 /*
 ===========
 INS_JoyMove
 ===========
 */
-void INS_JoyMove (float *movements, int pnum)
+void INS_JoyMove (void)
 {
 	unsigned int idx;
 	for (idx = 0; idx < joy_count; idx++)
 	{
-		INS_JoyMovePtr(&wjoy[idx], movements, pnum);
+		INS_ReadJoystick(&wjoy[idx]);
 	}
 }
 

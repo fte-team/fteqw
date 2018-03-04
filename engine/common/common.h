@@ -67,8 +67,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define FTE_WORDSIZE 32
 	#else
 		#ifdef __LP64__
-			#define qintptr_t long
-			#define qint64_t long
+			#define qintptr_t long int
+			#define qint64_t long int
 			#define FTE_WORDSIZE 64
 		#elif __WORDSIZE == 64
 			#define qintptr_t long long

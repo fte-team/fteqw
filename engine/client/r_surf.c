@@ -49,6 +49,13 @@ unsigned		*blocklights;
 
 lightmapinfo_t **lightmap;
 int numlightmaps;
+static const float rgb9e5tab[32] = {	//multipliers for the 9-bit mantissa, according to the biased mantissa
+	//aka: pow(2, biasedexponent - bias-bits) where bias is 15 and bits is 9
+	1.0/(1<<24),	1.0/(1<<23),	1.0/(1<<22),	1.0/(1<<21),	1.0/(1<<20),	1.0/(1<<19),	1.0/(1<<18),	1.0/(1<<17),
+	1.0/(1<<16),	1.0/(1<<15),	1.0/(1<<14),	1.0/(1<<13),	1.0/(1<<12),	1.0/(1<<11),	1.0/(1<<10),	1.0/(1<<9),
+	1.0/(1<<8),		1.0/(1<<7),		1.0/(1<<6),		1.0/(1<<5),		1.0/(1<<4),		1.0/(1<<3),		1.0/(1<<2),		1.0/(1<<1),
+	1.0,			1.0*(1<<1),		1.0*(1<<2),		1.0*(1<<3),		1.0*(1<<4),		1.0*(1<<5),		1.0*(1<<6),		1.0*(1<<7),
+};
 
 extern mleaf_t		*r_vischain;		// linked list of visible leafs
 
@@ -56,7 +63,8 @@ extern cvar_t r_stains;
 extern cvar_t r_loadlits;
 extern cvar_t r_stainfadetime;
 extern cvar_t r_stainfadeammount;
-extern cvar_t gl_lightmap_nearest;
+extern cvar_t r_lightmap_nearest;
+extern cvar_t r_lightmap_format;
 
 static int lightmap_shift;
 int Surf_LightmapShift (model_t *model)
@@ -623,12 +631,6 @@ static void Surf_BuildDeluxMap (model_t *wmodel, msurface_t *surf, qbyte *dest, 
 		goto store;
 	}
 
-	if (wmodel->engineflags & MDLF_RGBLIGHTING)
-		deluxmap = surf->samples - wmodel->lightdata + wmodel->deluxdata;
-	else
-		deluxmap = (surf->samples - wmodel->lightdata)*3 + wmodel->deluxdata;
-
-
 // clear to no light
 	for (i=0 ; i<size ; i++)
 	{
@@ -640,12 +642,28 @@ static void Surf_BuildDeluxMap (model_t *wmodel, msurface_t *surf, qbyte *dest, 
 // add all the lightmaps
 	if (lightmap)
 	{
-		if (wmodel->engineflags & MDLF_RGBLIGHTING)
+		switch(wmodel->lightmaps.fmt)
 		{
+		case LM_E5BGR9:
 			deluxmap = surf->samples - wmodel->lightdata + wmodel->deluxdata;
-
-			for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
-				 maps++)
+			for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+			{
+				scale = d_lightstylevalue[surf->styles[maps]];
+				for (i=0 ; i<size ; i++)
+				{
+					unsigned lm = ((unsigned int*)lightmap)[i];
+					intensity = max3(((lm>>0)&0x1ff),((lm>>9)&0x1ff),((lm>>18)&0x1ff)) * scale * (rgb9e5tab[lm>>27]*(1<<7));
+					blocknormals[i][0] += intensity*(deluxmap[i*3+0]-127);
+					blocknormals[i][1] += intensity*(deluxmap[i*3+1]-127);
+					blocknormals[i][2] += intensity*(deluxmap[i*3+2]-127);
+				}
+				lightmap += size*4;	// skip to next lightmap
+				deluxmap += size*3;
+			}
+			break;
+		case LM_RGB8:
+			deluxmap = surf->samples - wmodel->lightdata + wmodel->deluxdata;
+			for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
 			{
 				scale = d_lightstylevalue[surf->styles[maps]];
 				for (i=0 ; i<size ; i++)
@@ -658,13 +676,10 @@ static void Surf_BuildDeluxMap (model_t *wmodel, msurface_t *surf, qbyte *dest, 
 				lightmap += size*3;	// skip to next lightmap
 				deluxmap += size*3;
 			}
-		}
-		else
-		{
+			break;
+		case LM_L8:
 			deluxmap = (surf->samples - wmodel->lightdata)*3 + wmodel->deluxdata;
-
-			for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
-				 maps++)
+			for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
 			{
 				scale = d_lightstylevalue[surf->styles[maps]];
 				for (i=0 ; i<size ; i++)
@@ -677,6 +692,7 @@ static void Surf_BuildDeluxMap (model_t *wmodel, msurface_t *surf, qbyte *dest, 
 				lightmap += size;	// skip to next lightmap
 				deluxmap += size*3;
 			}
+			break;
 		}
 	}
 
@@ -708,27 +724,250 @@ store:
 	}
 }
 
-enum lm_mode
+static unsigned int Surf_PackE5BRG9(int r, int g, int b, int shift)
+{	//5 bits exponent, 3*9 bits of mantissa. no sign bit.
+	int e = 0;
+	float m = max(max(r, g), b) / (float)(1<<shift);
+	float scale;
+
+	if (m >= 0.5)
+	{	//positive exponent
+		while (m >= (1<<(e)) && e < 30-15)	//don't do nans.
+			e++;
+	}
+	else
+	{	//negative exponent...
+		while (m < 1/(1<<-e) && e > -15)	//don't do denormals.
+			e--;
+	}
+
+	scale = pow(2, e-9);
+	scale *= (1<<shift);
+
+	r = bound(0, r/scale + 0.5, 0x1ff);
+	g = bound(0, g/scale + 0.5, 0x1ff);
+	b = bound(0, b/scale + 0.5, 0x1ff);
+
+	return ((e+15)<<27) | (b<<18) | (g<<9) | r;
+}
+
+static unsigned short Surf_GenHalf(float val)
 {
-	bgra4_os,
-	bgra4,
-	rgb3_os,
-	lum
-};
+	union 
+	{
+		float f;
+		unsigned int u;
+	} u = {val};
+	int e = 0;
+	int m;
+
+	e = ((u.u>>23)&0xff) - 127;
+	if (e < -15)
+		return 0; //too small exponent, treat it as a 0 denormal
+	if (e > 15)
+		m = 0; //infinity instead of a nan
+	else
+		m = (u.u&((1<<23)-1))>>13;
+	return ((e+15)<<10) | m;
+}
+static void Surf_PackRGB16F(void *result, int r, int g, int b, int one)
+{
+#if 0
+	//bulldozer+ or skylake+ supposedly. which means I can't test it, which means I can't enable it.
+	__v4sf rgba = (__v4sf){r, g, b, one} / (float)one;
+	union
+	{
+		__v8hi v;
+		__v4hi i;
+	} tmp;
+	//vcvtps2ph writes either a 64bit mem location, or the lower half of an xmm register. unfortunately ts still an xmm register, and that's 128bit.
+	//the __vXhi weirdness is because half-floats just don't work anywhere but conversions so __vXhf would cause all sorts of compiler errors, is the theory
+	tmp.v = __builtin_ia32_vcvtps2ph(rgba, 1);
+	*(__v4hi*)result = tmp.i;
+#else
+	((unsigned short*)result)[0] = Surf_GenHalf(r / (float)one);
+	((unsigned short*)result)[1] = Surf_GenHalf(g / (float)one);
+	((unsigned short*)result)[2] = Surf_GenHalf(b / (float)one);
+	((unsigned short*)result)[3] = Surf_GenHalf(1.0);//0x0f<<10; //a standard ieee float should have all but the lead bit set of its exponent, and its mantissa 0.
+#endif
+}
+static void Surf_PackRGB32F(void *result, int r, int g, int b, int one)
+{
+	((float*)result)[0] = r/(float)one;
+	((float*)result)[1] = g/(float)one;
+	((float*)result)[2] = b/(float)one;
+	((float*)result)[3] = 1.0;
+}
+
 /*any sane compiler will inline and split this, removing the stainsrc stuff
 just unpacks the internal lightmap block into texture info ready for upload
 merges stains and oversaturates overbrights.
 */
-static void Surf_StoreLightmap(qbyte *dest, unsigned int *bl, int smax, int tmax, unsigned int shift, enum lm_mode lm_mode, stmap *stainsrc, unsigned int lmwidth)
+static void Surf_StoreLightmap_RGB(qbyte *dest, unsigned int *bl, int smax, int tmax, unsigned int shift, stmap *stainsrc, unsigned int lmwidth)
 {
-	int r, g, b, t, m;
+	int r, g, b, m;
 	unsigned int i, j;
 	int stride;
 
-	switch (lm_mode)
+	switch(lightmap_fmt)
 	{
-	case bgra4_os:
-		stride = lmwidth*4 - (smax<<2);
+	default:
+		Sys_Error("Bad lightmap_fmt\n");
+		break;
+	case PTI_A2BGR10:
+		stride = (lmwidth-smax)<<2;
+
+		shift -= 2;
+
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++ >> shift;
+				g = *bl++ >> shift;
+				b = *bl++ >> shift;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				// quake 2 method, scale highest down to
+				// maintain hue
+				m = max(max(r, g), b);
+				if (m > 1023)
+				{
+					r *= 1023.0/m;
+					g *= 1023.0/m;
+					b *= 1023.0/m;
+				}
+
+				*(unsigned int*)dest = (3<<30) | ((b&0x3ff)<<20) | ((g&0x3ff)<<10) | (r&0x3ff);
+				dest += 4;
+			}
+			if (stainsrc)
+				stainsrc += (lmwidth - smax)*3;
+		}
+		break;
+	case PTI_E5BGR9:
+		stride = (lmwidth-smax)<<2;
+
+		//5bit shared exponent, with bias of 15.
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++;
+				g = *bl++;
+				b = *bl++;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				*(unsigned int*)dest = Surf_PackE5BRG9(r,g,b,shift+8);
+				dest += 4;
+			}
+			if (stainsrc)
+				stainsrc += (lmwidth - smax)*3;
+		}
+		break;
+	case PTI_RGBA16F:
+		stride = (lmwidth-smax)<<3;
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++;
+				g = *bl++;
+				b = *bl++;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				Surf_PackRGB16F(dest, r,g,b,1<<(shift+8));
+				dest += 8;
+			}
+			if (stainsrc)
+				stainsrc += (lmwidth - smax)*3;
+		}
+		break;
+	case PTI_RGBA32F:
+		stride = (lmwidth-smax)<<4;
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++;
+				g = *bl++;
+				b = *bl++;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				Surf_PackRGB32F(dest, r,g,b,1<<(shift+8));
+				dest += sizeof(float)*4;
+			}
+			if (stainsrc)
+				stainsrc += (lmwidth - smax)*3;
+		}
+		break;
+	case PTI_RGBX8:
+	case PTI_RGBA8:
+		stride = (lmwidth-smax)<<2;
+
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++ >> shift;
+				g = *bl++ >> shift;
+				b = *bl++ >> shift;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				// quake 2 method, scale highest down to
+				// maintain hue
+				m = max(max(r, g), b);
+				if (m > 255)
+				{
+					r *= 255.0/m;
+					g *= 255.0/m;
+					b *= 255.0/m;
+				}
+
+				dest[0] = r;
+				dest[1] = g;
+				dest[2] = b;
+				dest[3] = 255;
+
+				dest += 4;
+			}
+			if (stainsrc)
+				stainsrc += (lmwidth - smax)*3;
+		}
+		break;
+	case PTI_BGRX8:
+	case PTI_BGRA8:
+		stride = (lmwidth-smax)<<2;
 
 		for (i=0 ; i<tmax ; i++, dest += stride)
 		{
@@ -767,8 +1006,9 @@ static void Surf_StoreLightmap(qbyte *dest, unsigned int *bl, int smax, int tmax
 		}
 		break;
 /*
-	case bgra4:
-		stride = LMBLOCK_WIDTH*4 - (smax<<2);
+	case PTI_BGRX8:
+	case PTI_BGRA8:
+		stride = (lmwidth-smax)<<2;
 
 		bl = blocklights;
 
@@ -816,7 +1056,182 @@ static void Surf_StoreLightmap(qbyte *dest, unsigned int *bl, int smax, int tmax
 		}
 		break;
 */
-	case rgb3_os:
+	case PTI_RGB565:
+		stride = (lmwidth-smax)<<1;
+
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++ >> shift;
+				g = *bl++ >> shift;
+				b = *bl++ >> shift;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				// quake 2 method, scale highest down to
+				// maintain hue
+				m = max(max(r, g), b);
+				if (m > 255)
+				{
+					r *= 255.0/m;
+					g *= 255.0/m;
+					b *= 255.0/m;
+				}
+
+				*(unsigned short*)dest = (b>>3) | ((g>>2)<<5) | ((r>>3)<<11);
+				dest += 2;
+			}
+			if (stainsrc)
+				stainsrc += (lmwidth - smax)*3;
+		}
+		break;
+	case PTI_RGBA4444:
+		stride = (lmwidth-smax)<<1;
+
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++ >> shift;
+				g = *bl++ >> shift;
+				b = *bl++ >> shift;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				// quake 2 method, scale highest down to
+				// maintain hue
+				m = max(max(r, g), b);
+				if (m > 255)
+				{
+					r *= 255.0/m;
+					g *= 255.0/m;
+					b *= 255.0/m;
+				}
+
+				*(unsigned short*)dest = ((r>>4)<<12) | ((g>>4)<<8) | ((b>>4)<<4) | 0x000f;
+				dest += 2;
+			}
+			if (stainsrc)
+				stainsrc += (lmwidth - smax)*3;
+		}
+		break;
+	case PTI_RGBA5551:
+		stride = (lmwidth-smax)<<1;
+
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++ >> shift;
+				g = *bl++ >> shift;
+				b = *bl++ >> shift;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				// quake 2 method, scale highest down to
+				// maintain hue
+				m = max(max(r, g), b);
+				if (m > 255)
+				{
+					r *= 255.0/m;
+					g *= 255.0/m;
+					b *= 255.0/m;
+				}
+
+				*(unsigned short*)dest = ((r>>3)<<11) | ((g>>3)<<6) | ((b>>3)<<1) | 0x0001;
+				dest += 2;
+			}
+			if (stainsrc)
+				stainsrc += (lmwidth - smax)*3;
+		}
+		break;
+	case PTI_ARGB4444:
+		stride = (lmwidth-smax)<<1;
+
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++ >> shift;
+				g = *bl++ >> shift;
+				b = *bl++ >> shift;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				// quake 2 method, scale highest down to
+				// maintain hue
+				m = max(max(r, g), b);
+				if (m > 255)
+				{
+					r *= 255.0/m;
+					g *= 255.0/m;
+					b *= 255.0/m;
+				}
+
+				*(unsigned short*)dest = 0xf000 | ((r>>4)<<8) | ((g>>4)<<4) | ((b>>4)<<0);
+				dest += 2;
+			}
+			if (stainsrc)
+				stainsrc += (lmwidth - smax)*3;
+		}
+		break;
+	case PTI_ARGB1555:
+		stride = (lmwidth-smax)<<1;
+
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++ >> shift;
+				g = *bl++ >> shift;
+				b = *bl++ >> shift;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				// quake 2 method, scale highest down to
+				// maintain hue
+				m = max(max(r, g), b);
+				if (m > 255)
+				{
+					r *= 255.0/m;
+					g *= 255.0/m;
+					b *= 255.0/m;
+				}
+
+				*(unsigned short*)dest = 0x8000 | ((r>>3)<<10) | ((g>>3)<<5) | ((b>>3)<<0);
+				dest += 2;
+			}
+			if (stainsrc)
+				stainsrc += (lmwidth - smax)*3;
+		}
+		break;
+	case PTI_RGB8:
 		stride = lmwidth*3 - (smax*3);
 
 		for (i=0 ; i<tmax ; i++, dest += stride)
@@ -853,22 +1268,23 @@ static void Surf_StoreLightmap(qbyte *dest, unsigned int *bl, int smax, int tmax
 				stainsrc += (lmwidth - smax)*3;
 		}
 		break;
-	case lum:
-		stride = lmwidth;
-		for (i=0 ; i<tmax ; i++, dest += stride)
+	}
+}
+static void Surf_StoreLightmap_Grey(qbyte *dest, unsigned int *bl, int smax, int tmax, unsigned int shift, stmap *stainsrc, unsigned int lmwidth)
+{
+	int t;
+	unsigned int i, j;
+
+	for (i=0 ; i<tmax ; i++, dest += lmwidth)
+	{
+		for (j=0 ; j<smax ; j++)
 		{
-			for (j=0 ; j<smax ; j++)
-			{
-				t = *bl++;
-				t >>= shift;
-				if (t > 255)
-					t = 255;
-				dest[j] = t;
-			}
+			t = *bl++;
+			t >>= shift;
+			if (t > 255)
+				t = 255;
+			dest[j] = t;
 		}
-		break;
-	default:
-		Sys_Error ("Bad lightmap format");
 	}
 }
 
@@ -879,18 +1295,17 @@ R_BuildLightMap
 Combine and scale multiple lightmaps into the 8.8 format in blocklights
 ===============
 */
-static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift, int ambient, unsigned int lmwidth)
+static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift, int ambient, unsigned int lmwidth, int *d_lightstylevalue)
 {
 	int			smax, tmax;
 	int			t;
-	int			i, j;
+	int			i;
 	size_t		size;
 	qbyte		*lightmap;
+	unsigned	scalergb[3];
 	unsigned	scale;
 	int			maps;
 	unsigned	*bl;
-
-	//int stride = LMBLOCK_WIDTH*lightmap_bytes; //warning: unused variable ‘stride’
 
 	shift += 7; // increase to base value
 	surf->cached_dlight = (surf->dlightframe == r_framecount);
@@ -902,6 +1317,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 
 	if (size > maxblocksize)
 	{	//fixme: fill in?
+		//Threading: this should not be a problem, all surfaces should have been built from the main thead at map load so it should have maxed it there.
 		BZ_Free(blocklights);
 		BZ_Free(blocknormals);
 
@@ -913,7 +1329,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 	if (currentmodel->deluxdata)
 		Surf_BuildDeluxMap(currentmodel, surf, deluxdest, lmwidth, blocknormals);
 
-	if (lightmap_fmt != TF_LUM8)
+	if (lightmap_fmt != PTI_L8)
 	{
 		// set to full bright if no light data
 		if (ambient < 0)
@@ -972,111 +1388,74 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 // add all the lightmaps
 			if (lightmap)
 			{
-				if (currentmodel->fromgame == fg_quake3)	//rgb
+				if (currentmodel->fromgame == fg_quake3)
+					Sys_Error("Surf_BuildLightMap: q3bsp");
+				switch(currentmodel->lightmaps.fmt)
 				{
-					/*q3 lightmaps are meant to be pre-built
-					this code is misguided, and ought never be executed anyway.
-					*/
-					bl = blocklights;
-					for (i = 0; i < tmax; i++)
+				case LM_E5BGR9:
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
 					{
-						for (j = 0; j < smax; j++)
-						{
-							bl[0]		= 255*lightmap[(i*lmwidth+j)*3];
-							bl[1]		= 255*lightmap[(i*lmwidth+j)*3+1];
-							bl[2]		= 255*lightmap[(i*lmwidth+j)*3+2];
-							bl+=3;
-						}
-					}
-				}
-				else if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
-				{
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
-						 maps++)
-					{
-						scale = d_lightstylevalue[surf->styles[maps]];
-						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_light[maps] = scale = d_lightstylevalue[surf->styles[maps]];	// 8.8 fraction
 						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
-
 						if (scale)
 						{
-							if (cl_lightstyle[surf->styles[maps]].colours[0] == 1 && cl_lightstyle[surf->styles[maps]].colours[1] == 1 && cl_lightstyle[surf->styles[maps]].colours[2] == 1)	//hopefully a faster alternative.
+							VectorScale(cl_lightstyle[surf->styles[maps]].colours, scale, scalergb);
+							for (i=0 ; i<size ; i++)
 							{
-								bl = blocklights;
-								for (i=0 ; i<size*3 ; i++)
-								{
-									*bl++		+=   *lightmap++ * scale;
-								}
+								unsigned int l = ((unsigned int*)lightmap)[i];
+								float e = rgb9e5tab[l>>27]*(1<<7);
+								blocklights[i*3+0] += scalergb[0] * e * ((l>> 0)&0x1ff);
+								blocklights[i*3+1] += scalergb[1] * e * ((l>> 9)&0x1ff);
+								blocklights[i*3+2] += scalergb[2] * e * ((l>>18)&0x1ff);
 							}
-							else
+						}
+						lightmap += size*4;	// skip to next lightmap
+					}
+					break;
+				case LM_RGB8:
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+					{
+						surf->cached_light[maps] = scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+						if (scale)
+						{
+							VectorScale(cl_lightstyle[surf->styles[maps]].colours, scale, scalergb);
+							bl = blocklights;
+							for (i=0 ; i<size ; i++)
 							{
-								if (cl_lightstyle[surf->styles[maps]].colours[0])
-								{
-									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[0];
-									for (i=0 ; i<size ; i++)
-										blocklights[i+0]	+= lightmap[i*3+0] * scale;
-								}
-								if (cl_lightstyle[surf->styles[maps]].colours[1])
-								{
-									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[1];
-									for (i=0 ; i<size ; i++)
-										blocklights[i+1]	+= lightmap[i*3+1] * scale;
-								}
-								if (cl_lightstyle[surf->styles[maps]].colours[2])
-								{
-									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[2];
-									for (i=0 ; i<size ; i++)
-										blocklights[i+2]	+= lightmap[i*3+2] * scale;
-								}
-								lightmap += size*3;	// skip to next lightmap
+								*bl++		+=   *lightmap++ * scalergb[0];
+								*bl++		+=   *lightmap++ * scalergb[1];
+								*bl++		+=   *lightmap++ * scalergb[2];
 							}
 						}
 						else
 							lightmap += size*3;	// skip to next lightmap
 					}
-				}
-				else
+					break;
+
+				case LM_L8:
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						 maps++)
 					{
-						scale = d_lightstylevalue[surf->styles[maps]];
-						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_light[maps] = scale = d_lightstylevalue[surf->styles[maps]];	// 8.8 fraction
 						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
-
-						if (cl_lightstyle[surf->styles[maps]].colours[0] == 1 && cl_lightstyle[surf->styles[maps]].colours[1] == 1 && cl_lightstyle[surf->styles[maps]].colours[2] == 1)	//hopefully a faster alternative.
+						if (scale)
 						{
+							VectorScale(cl_lightstyle[surf->styles[maps]].colours, scale, scalergb);
 							bl = blocklights;
 							for (i=0 ; i<size ; i++)
 							{
-								*bl++		+= *lightmap * scale;
-								*bl++		+= *lightmap * scale;
-								*bl++		+= *lightmap * scale;
+								*bl++		+= *lightmap * scalergb[0];
+								*bl++		+= *lightmap * scalergb[1];
+								*bl++		+= *lightmap * scalergb[2];
 								lightmap++;
 							}
 						}
 						else
-						{
-							if (cl_lightstyle[surf->styles[maps]].colours[0])
-							{
-								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[0];
-								for (i=0, bl = blocklights; i<size; i++, bl+=3)
-									*bl += lightmap[i] * scale;
-							}
-							if (cl_lightstyle[surf->styles[maps]].colours[1])
-							{
-								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[1];
-								for (i=0, bl = blocklights+1; i<size; i++, bl+=3)
-									*bl += lightmap[i] * scale;
-							}
-							if (cl_lightstyle[surf->styles[maps]].colours[2])
-							{
-								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[2];
-								for (i=0, bl = blocklights+2; i<size; i++, bl+=3)
-									*bl += lightmap[i] * scale;
-							}
 							lightmap += size;	// skip to next lightmap
-						}
 					}
+					break;
+				}
 			}
 		}
 
@@ -1087,37 +1466,25 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 		if (!r_stains.value || !surf->stained)
 			stainsrc = NULL;
 
-		switch(lightmap_fmt)
-		{
-		default:
-			Sys_Error("Bad lightmap_fmt\n");
-		case TF_BGRA32:
-			Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgra4_os, stainsrc, lmwidth);
-			break;
-//		case TF_RGBA32:
-//			Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgba4, stainsrc, lmwidth);
-//			break;
-		case TF_RGB24:
-			Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgb3_os, stainsrc, lmwidth);
-			break;
-		}
+		Surf_StoreLightmap_RGB(dest, blocklights, smax, tmax, shift, stainsrc, lmwidth);
 	}
 	else
 	{
-	// set to full bright if no light data
-		if (!surf->samples || !currentmodel->lightdata)
-		{
-			for (i=0 ; i<size*3 ; i++)
-			{
-				blocklights[i] = 255*256;
-			}
-			surf->cached_light[0] = d_lightstylevalue[0];
-			surf->cached_colour[0] = cl_lightstyle[0].colourkey;
-		}
-		else if (r_fullbright.ival)
+		// set to full bright if no light data
+		if (r_fullbright.ival || !currentmodel->lightdata)
 		{
 			for (i=0 ; i<size ; i++)
 				blocklights[i] = 255*256;
+			surf->cached_light[0] = d_lightstylevalue[0];
+			surf->cached_colour[0] = cl_lightstyle[0].colourkey;
+		}
+		//surfaces with no light data on lit maps are black
+		else if (!surf->samples)
+		{
+			for (i=0 ; i<size*3 ; i++)
+				blocklights[i] = 0;
+			surf->cached_light[0] = d_lightstylevalue[0];
+			surf->cached_colour[0] = cl_lightstyle[0].colourkey;
 		}
 		else
 		{
@@ -1128,21 +1495,35 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 // add all the lightmaps
 			if (lightmap)
 			{
-				if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
-						 maps++)
+				switch(currentmodel->lightmaps.fmt)
+				{
+				case LM_E5BGR9:
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
 					{
-						scale = d_lightstylevalue[surf->styles[maps]]/3;
+						scale = d_lightstylevalue[surf->styles[maps]];
 						surf->cached_light[maps] = scale;	// 8.8 fraction
 						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
 						for (i=0 ; i<size ; i++)
-							blocklights[i] += (lightmap[i*3]+lightmap[i*3+1]+lightmap[i*3+2]) * scale;
+						{
+							unsigned int lm = ((unsigned int *)lightmap)[i];
+							blocklights[i] += max3(((lm>>0)&0x1ff),((lm>>9)&0x1ff),((lm>>18)&0x1ff)) * scale * (rgb9e5tab[lm>>27]*(1<<7));
+						}
+						lightmap += size*4;	// skip to next lightmap
+					}
+					break;
+				case LM_RGB8:
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+					{
+						scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+						for (i=0 ; i<size ; i++)
+							blocklights[i] += max3(lightmap[i*3],lightmap[i*3+1],lightmap[i*3+2]) * scale;
 						lightmap += size*3;	// skip to next lightmap
 					}
-
-				else
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
-						 maps++)
+					break;
+				case LM_L8:
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]];
 						surf->cached_light[maps] = scale;	// 8.8 fraction
@@ -1151,13 +1532,15 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 							blocklights[i] += lightmap[i] * scale;
 						lightmap += size;	// skip to next lightmap
 					}
+					break;
+				}
 			}
 // add all the dynamic lights
 			if (surf->dlightframe == r_framecount)
 				Surf_AddDynamicLights (surf);
 		}
 
-		Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, lum, stainsrc, lmwidth);
+		Surf_StoreLightmap_Grey(dest, blocklights, smax, tmax, shift, stainsrc, lmwidth);
 	}
 }
 
@@ -1169,6 +1552,7 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte 
 	int			i, j;
 	size_t		size;
 	qbyte		*lightmap;
+	unsigned	scalergb[3];
 	unsigned	scale;
 	int			maps;
 	unsigned	*bl;
@@ -1197,7 +1581,7 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte 
 	if (wmodel->deluxdata)
 		Surf_BuildDeluxMap(wmodel, surf, deluxdest, lmwidth, blocknormals);
 
-	if (lightmap_fmt != TF_LUM8)
+	if (lightmap_fmt != PTI_L8)
 	{
 		// set to full bright if no light data
 		if (ambient < 0)
@@ -1273,112 +1657,79 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte 
 						}
 					}
 				}
-				else if (wmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
+				else switch(cl.worldmodel->lightmaps.fmt)
 				{
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
-						 maps++)
+				case LM_E5BGR9:
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
 					{
-						scale = d_lightstylevalue[surf->styles[maps]];
-						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_light[maps] = scale = d_lightstylevalue[surf->styles[maps]];	// 8.8 fraction
 						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
-
 						if (scale)
 						{
-							if (cl_lightstyle[surf->styles[maps]].colours[0] == 1 && cl_lightstyle[surf->styles[maps]].colours[1] == 1 && cl_lightstyle[surf->styles[maps]].colours[2] == 1)	//hopefully a faster alternative.
+							VectorScale(cl_lightstyle[surf->styles[maps]].colours, scale, scalergb);
+							for (i=0 ; i<size ; i++)
 							{
-								bl = blocklights;
-								for (i=0 ; i<size*3 ; i++)
-								{
-									*bl++		+=   *lightmap++ * scale;
-								}
+								unsigned int l = ((unsigned int*)lightmap)[i];
+								float e = rgb9e5tab[l>>27]*(1<<7);
+								blocklights[i*3+0] += scalergb[0] * e * ((l>> 0)&0x1ff);
+								blocklights[i*3+1] += scalergb[1] * e * ((l>> 9)&0x1ff);
+								blocklights[i*3+2] += scalergb[2] * e * ((l>>18)&0x1ff);
 							}
-							else
+						}
+						lightmap += size*4;	// skip to next lightmap
+					}
+					break;
+				case LM_RGB8:
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+					{
+						surf->cached_light[maps] = scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+						if (scale)
+						{
+							VectorScale(cl_lightstyle[surf->styles[maps]].colours, scale, scalergb);
+							bl = blocklights;
+							for (i=0 ; i<size ; i++)
 							{
-								if (cl_lightstyle[surf->styles[maps]].colours[0])
-								{
-									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[0];
-									for (i=0 ; i<size ; i++)
-										blocklights[i+0]	+= lightmap[i*3+0] * scale;
-								}
-								if (cl_lightstyle[surf->styles[maps]].colours[1])
-								{
-									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[1];
-									for (i=0 ; i<size ; i++)
-										blocklights[i+1]	+= lightmap[i*3+1] * scale;
-								}
-								if (cl_lightstyle[surf->styles[maps]].colours[2])
-								{
-									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[2];
-									for (i=0 ; i<size ; i++)
-										blocklights[i+2]	+= lightmap[i*3+2] * scale;
-								}
-								lightmap += size*3;	// skip to next lightmap
+								*bl++		+=   *lightmap++ * scalergb[0];
+								*bl++		+=   *lightmap++ * scalergb[1];
+								*bl++		+=   *lightmap++ * scalergb[2];
 							}
 						}
 						else
 							lightmap += size*3;	// skip to next lightmap
 					}
-				}
-				else
+					break;
+
+				case LM_L8:
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						 maps++)
 					{
-						scale = d_lightstylevalue[surf->styles[maps]];
-						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_light[maps] = scale = d_lightstylevalue[surf->styles[maps]];	// 8.8 fraction
 						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
-
-						if (cl_lightstyle[surf->styles[maps]].colours[0] == 1 && cl_lightstyle[surf->styles[maps]].colours[1] == 1 && cl_lightstyle[surf->styles[maps]].colours[2] == 1)	//hopefully a faster alternative.
+						if (scale)
 						{
+							VectorScale(cl_lightstyle[surf->styles[maps]].colours, scale, scalergb);
 							bl = blocklights;
 							for (i=0 ; i<size ; i++)
 							{
-								*bl++		+= *lightmap * scale;
-								*bl++		+= *lightmap * scale;
-								*bl++		+= *lightmap * scale;
+								*bl++		+= *lightmap * scalergb[0];
+								*bl++		+= *lightmap * scalergb[1];
+								*bl++		+= *lightmap * scalergb[2];
 								lightmap++;
 							}
 						}
 						else
-						{
-							if (cl_lightstyle[surf->styles[maps]].colours[0])
-							{
-								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[0];
-								for (i=0, bl = blocklights; i<size; i++, bl+=3)
-									*bl += lightmap[i] * scale;
-							}
-							if (cl_lightstyle[surf->styles[maps]].colours[1])
-							{
-								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[1];
-								for (i=0, bl = blocklights+1; i<size; i++, bl+=3)
-									*bl += lightmap[i] * scale;
-							}
-							if (cl_lightstyle[surf->styles[maps]].colours[2])
-							{
-								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[2];
-								for (i=0, bl = blocklights+2; i<size; i++, bl+=3)
-									*bl += lightmap[i] * scale;
-							}
 							lightmap += size;	// skip to next lightmap
-						}
 					}
+					break;
+				}
 			}
 		}
 
 		if (!r_stains.value || !surf->stained)
 			stainsrc = NULL;
 
-		switch(lightmap_fmt)
-		{
-		default:
-			Sys_Error("Bad lightmap_fmt\n");
-			break;
-		case TF_BGRA32:
-			Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgra4_os, stainsrc, lmwidth);
-			break;
-		case TF_RGB24:
-			Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgb3_os, stainsrc, lmwidth);
-			break;
-		}
+		Surf_StoreLightmap_RGB(dest, blocklights, smax, tmax, shift, stainsrc, lmwidth);
 	}
 	else
 	{
@@ -1406,21 +1757,35 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte 
 // add all the lightmaps
 			if (lightmap)
 			{
-				if (wmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
-						 maps++)
+				switch(cl.worldmodel->lightmaps.fmt)
+				{
+				case LM_E5BGR9:
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
 					{
-						scale = d_lightstylevalue[surf->styles[maps]]/3;
+						scale = d_lightstylevalue[surf->styles[maps]];
 						surf->cached_light[maps] = scale;	// 8.8 fraction
 						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
 						for (i=0 ; i<size ; i++)
-							blocklights[i] += (lightmap[i*3]+lightmap[i*3+1]+lightmap[i*3+2]) * scale;
+						{
+							unsigned int lm = ((unsigned int *)lightmap)[i];
+							blocklights[i] += max3(((lm>>0)&0x1ff),((lm>>9)&0x1ff),((lm>>18)&0x1ff)) * scale * (rgb9e5tab[lm>>27]*(1<<7));
+						}
+						lightmap += size*4;	// skip to next lightmap
+					}
+					break;
+				case LM_RGB8:
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
+					{
+						scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+						for (i=0 ; i<size ; i++)
+							blocklights[i] += max3(lightmap[i*3],lightmap[i*3+1],lightmap[i*3+2]) * scale;
 						lightmap += size*3;	// skip to next lightmap
 					}
-
-				else
-					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
-						 maps++)
+					break;
+				case LM_L8:
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ; maps++)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]];
 						surf->cached_light[maps] = scale;	// 8.8 fraction
@@ -1429,10 +1794,12 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte 
 							blocklights[i] += lightmap[i] * scale;
 						lightmap += size;	// skip to next lightmap
 					}
+					break;
+				}
 			}
 		}
 
-		Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, lum, stainsrc, lmwidth);
+		Surf_StoreLightmap_Grey(dest, blocklights, smax, tmax, shift, stainsrc, lmwidth);
 	}
 }
 #endif
@@ -1534,7 +1901,7 @@ dynamic:
 		base += (fa->light_t[0] * lm->width + fa->light_s[0]) * lightmap_bytes;
 		stainbase = lm->stainmaps;
 		stainbase += (fa->light_t[0] * lm->width + fa->light_s[0]) * 3;
-		Surf_BuildLightMap (fa, base, luxbase, stainbase, lightmap_shift, r_ambient.value*255, lm->width);
+		Surf_BuildLightMap (currentmodel, fa, base, luxbase, stainbase, lightmap_shift, r_ambient.value*255, lm->width, d_lightstylevalue);
 
 		RSpeedEnd(RSPEED_DYNAMIC);
 	}
@@ -1693,7 +2060,7 @@ dynamic:
 		base += (fa->light_t[0] * lm->width + fa->light_s[0]) * lightmap_bytes;
 		stainbase = lm->stainmaps;
 		stainbase += (fa->light_t[0] * lm->width + fa->light_s[0]) * 3;
-		Surf_BuildLightMap (fa, base, luxbase, stainbase, lightmap_shift, -1-ambient, lm->width);
+		Surf_BuildLightMap (currentmodel, fa, base, luxbase, stainbase, lightmap_shift, -1-ambient, lm->width, d_lightstylevalue);
 
 		RSpeedEnd(RSPEED_DYNAMIC);
 	}
@@ -3252,45 +3619,123 @@ void Surf_Clear(model_t *mod)
 	maxblocksize = 0;
 }
 
+uploadfmt_t Surf_NameToFormat(const char *nam)
+{
+	static uploadfmt_t tab[] = {PTI_L8, PTI_RGB8, PTI_BGRA8, PTI_A2BGR10, PTI_E5BGR9, PTI_RGBA16F, PTI_RGBA32F, PTI_RGB565, PTI_RGBA4444, PTI_RGBA5551};
+	int idx = atoi(nam)-1;
+	if (idx>=0 && idx < countof(tab))
+		return tab[idx];
+
+	if (!Q_strcasecmp(nam, "e5bgr9") || !Q_strcasecmp(nam, "rgb9e5"))
+		return PTI_E5BGR9;
+	if (!Q_strcasecmp(nam, "a2bgr10") || !Q_strcasecmp(nam, "rgb10a2") || !Q_strcasecmp(nam, "rgb10"))
+		return PTI_A2BGR10;
+	if (!Q_strcasecmp(nam, "rgba32f"))
+		return PTI_RGBA32F;
+	if (!Q_strcasecmp(nam, "rgba16f"))
+		return PTI_RGBA16F;
+//	if (!Q_strcasecmp(nam, "rgba8s"))
+//		return PTI_RGBA8_SIGNED;
+	if (!Q_strcasecmp(nam, "rgb565") || !Q_strcasecmp(nam, "rgb5"))
+		return PTI_RGB565;
+	if (!Q_strcasecmp(nam, "rgba4444") || !Q_strcasecmp(nam, "rgba4"))
+		return PTI_RGBA4444;
+	if (!Q_strcasecmp(nam, "rgba5551") || !Q_strcasecmp(nam, "rgba51"))
+		return PTI_RGBA5551;
+	if (!Q_strcasecmp(nam, "argb4444"))
+		return PTI_ARGB4444;
+	if (!Q_strcasecmp(nam, "argb1555"))
+		return PTI_ARGB1555;
+	if (!Q_strcasecmp(nam, "rgbx8") || !Q_strcasecmp(nam, "bgrx8") || !Q_strcasecmp(nam, "rgba8") || !Q_strcasecmp(nam, "bgra8"))
+		return PTI_BGRX8;
+	if (!Q_strcasecmp(nam, "rgb8") || !Q_strcasecmp(nam, "bgr8"))
+		return PTI_RGB8;
+	if (!Q_strcasecmp(nam, "l8"))
+		return PTI_L8;
+	if (*nam)
+		Con_Printf("Unknown lightmap format: %s\n", nam);
+	return TF_INVALID;
+}
+
 //pick fastest mode for lightmap data
 void Surf_LightmapMode(void)
 {
-	switch(qrenderer)
+	lightmap_fmt = Surf_NameToFormat(r_lightmap_format.string);
+	if (!sh_config.texfmt[lightmap_fmt])
 	{
-	default:
-//	case QR_VULKAN:
-//	case QR_SOFTWARE:
-//	case QR_DIRECT3D8:
-//	case QR_DIRECT3D9:
-//	case QR_DIRECT3D11:
-		lightmap_fmt = TF_BGRA32;
-		break;
-#ifdef GLQUAKE
-	case QR_OPENGL:
-		/*favour bgra if the gpu supports it, otherwise use rgb only if it'll be used*/
-		if (gl_config.gles)
-			lightmap_fmt = TF_RGB24;		//rgb24 is a guarenteed supported format, where bgr24 or rgbx32 are not.
-		else if (gl_config.glversion >= 1.2)
-			lightmap_fmt = TF_BGRA32;		//the more common case
-		else if (cl.worldmodel->fromgame == fg_quake3 || (cl.worldmodel->engineflags & MDLF_RGBLIGHTING) || cl.worldmodel->deluxdata || r_loadlits.value)
-			lightmap_fmt = TF_RGB24;		//ooold gl driver, but we need rgb lighting
+		qboolean hdr = (vid.flags&VID_SRGBAWARE), rgb = false;
+
+		if (lightmap_fmt != TF_INVALID)
+			Con_Printf("lightmap format %s not supported by renderer\n", r_lightmap_format.string);
+
+		if (cl.worldmodel)
+		{
+			switch (cl.worldmodel->lightmaps.fmt)
+			{
+			case LM_E5BGR9:
+				hdr = rgb = true;
+				break;
+			case LM_RGB8:
+				rgb = true;
+				break;
+			case LM_L8:
+				break;
+			}
+			if (cl.worldmodel->deluxdata)
+				rgb = true;
+		}
+
+		if (sh_config.texfmt[PTI_E5BGR9] && hdr)
+			lightmap_fmt = PTI_E5BGR9;
+		else if (sh_config.texfmt[PTI_RGBA16F] && hdr)
+			lightmap_fmt = PTI_RGBA16F;
+		else if (sh_config.texfmt[PTI_RGBA32F] && hdr)
+			lightmap_fmt = PTI_RGBA32F;
+		else if (sh_config.texfmt[PTI_A2BGR10] && rgb)
+			lightmap_fmt = PTI_A2BGR10;
+		else if (sh_config.texfmt[PTI_L8] && !rgb)
+			lightmap_fmt = PTI_L8;
+		else if (sh_config.texfmt[PTI_BGRX8])
+			lightmap_fmt = PTI_BGRX8;
+		else if (sh_config.texfmt[PTI_RGB8])
+			lightmap_fmt = PTI_RGB8;
 		else
-			lightmap_fmt = TF_LUM8;			//oldskool!
-		break;
-#endif
+			lightmap_fmt = PTI_RGBX8;
+
 	}
+
+	Con_DPrintf("Using lightmap format %s\n", Image_FormatName(lightmap_fmt));
 
 	switch(lightmap_fmt)
 	{
+	case PTI_RGBA32F:
+		lightmap_bytes = 4*sizeof(float);
+		break;
+	case PTI_RGBA16F:
+		lightmap_bytes = 4*sizeof(short);
+		break;
 	default:
-	case TF_BGRA32:
-		lightmap_bytes = 4;
+	case PTI_A2BGR10:
+	case PTI_E5BGR9:
+	case PTI_RGBA8:
+	case PTI_RGBX8:
+	case PTI_BGRA8:
+	case PTI_BGRX8:
+		lightmap_bytes = 4*sizeof(qbyte);
 		break;
-	case TF_RGB24:
-		lightmap_bytes = 3;
+	case PTI_RGB8:
+	case PTI_BGR8:
+		lightmap_bytes = 3*sizeof(qbyte);
 		break;
-	case TF_LUM8:
-		lightmap_bytes = 1;
+	case PTI_RGB565:
+	case PTI_RGBA4444:
+	case PTI_RGBA5551:
+	case PTI_ARGB4444:
+	case PTI_ARGB1555:
+		lightmap_bytes = sizeof(short);
+		break;
+	case PTI_L8:
+		lightmap_bytes = 1*sizeof(qbyte);
 		break;
 	}
 }
@@ -3320,7 +3765,7 @@ int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe)
 
 		if (deluxe && ((i - numlightmaps)&1))
 		{
-			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*4)*width*height);
+			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*lightmap_bytes)*width*height);
 			lightmap[i]->width = width;
 			lightmap[i]->height = height;
 			lightmap[i]->lightmaps = (qbyte*)(lightmap[i]+1);
@@ -3329,11 +3774,11 @@ int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe)
 		}
 		else
 		{
-			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*4 + sizeof(stmap)*3)*width*height);
+			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*lightmap_bytes + sizeof(stmap)*3)*width*height);
 			lightmap[i]->width = width;
 			lightmap[i]->height = height;
 			lightmap[i]->lightmaps = (qbyte*)(lightmap[i]+1);
-			lightmap[i]->stainmaps = (stmap*)(lightmap[i]->lightmaps+4*width*height);
+			lightmap[i]->stainmaps = (stmap*)(lightmap[i]->lightmaps+lightmap_bytes*width*height);
 			lightmap[i]->hasdeluxe = deluxe;
 		}
 
@@ -3389,7 +3834,7 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 
 		Q_snprintfz(nname, sizeof(nname), filepattern, i - numlightmaps);
 
-		TEXASSIGN(lightmap[i]->lightmap_texture, R_LoadHiResTexture(nname, NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
+		TEXASSIGN(lightmap[i]->lightmap_texture, R_LoadHiResTexture(nname, NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
 		if (lightmap[i]->lightmap_texture->status == TEX_LOADING)
 			COM_WorkerPartialSync(lightmap[i]->lightmap_texture, &lightmap[i]->lightmap_texture->status, TEX_LOADING);
 		lightmap[i]->width = lightmap[i]->lightmap_texture->width;
@@ -3519,7 +3964,16 @@ void Surf_BuildModelLightmaps (model_t *m)
 				default:
 					Sys_Error("Bad lightmap_fmt\n");
 					break;
-				case TF_BGRA32:
+				case PTI_A2BGR10:
+					for (; src < stop; dst += 4, src += 3)
+						*(unsigned int*)dst = (0x3<<30) | (src[2]<<22) | (src[1]<<12) | (src[0]<<2);
+					break;
+				case PTI_E5BGR9:
+					for (; src < stop; dst += 4, src += 3)
+						*(unsigned int*)dst = Surf_PackE5BRG9(src[0], src[1], src[2], 8);
+					break;
+				case PTI_BGRA8:
+				case PTI_BGRX8:
 					for (; src < stop; dst += 4, src += 3)
 					{
 						dst[0] = src[2];
@@ -3551,6 +4005,12 @@ void Surf_BuildModelLightmaps (model_t *m)
 						dst[0] = src[0];
 						dst[1] = src[1];
 						dst[2] = src[2];
+					}
+					break;
+				case PTI_L8:
+					for (; src < stop; dst += 1, src += 3)
+					{
+						dst[0] = max(max(src[0], src[1]), src[2]);
 					}
 					break;
 				}
@@ -3595,11 +4055,11 @@ void Surf_BuildModelLightmaps (model_t *m)
 				else
 					deluxemap = NULL;
 
-				Surf_BuildLightMap (surf, 
+				Surf_BuildLightMap (currentmodel, surf, 
 					lm->lightmaps + (surf->light_t[j] * lm->width + surf->light_s[j]) * lightmap_bytes,
 					deluxemap,
 					lm->stainmaps + (surf->light_t[j] * lm->width + surf->light_s[j]) * 3,
-					shift, r_ambient.value*255, lm->width);
+					shift, r_ambient.value*255, lm->width, d_lightstylevalue);
 			}
 		}
 	}

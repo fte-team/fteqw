@@ -1675,13 +1675,15 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 				sv.skipbprintclient = host_client;
 				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+				if (pr_global_ptrs->ClientConnect)
+					PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 				sv.skipbprintclient = NULL;
 
 				// actually spawn the player
 				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+				if (pr_global_ptrs->PutClientInServer)
+					PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 				sv.spawned_client_slots++;
 
 				// send notification to all clients

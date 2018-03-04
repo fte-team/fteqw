@@ -10359,8 +10359,24 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"ftoi",			PF_ftoi,			0,		0,		0,		0,		D("int(float)", "Converts the given float into a true integer without depending on extended qcvm instructions.")},
 	{"itof",			PF_itof,			0,		0,		0,		0,		D("float(int)", "Converts the given true integer into a float without depending on extended qcvm instructions.")},
 
+	#define qcskelblend				\
+	"typedef struct\n{\n"			\
+		"\tint sourcemodelindex; /*frame data will be imported from this model, bones must be compatible*/\n"	\
+		"\tint reserved;\n"			\
+		"\tint firstbone;\n"		\
+		"\tint lastbone;\n"			\
+		"\tfloat prescale;	/*0 destroys existing data, 1 retains it*/\n"\
+		"\tfloat scale[4];	/*you'll need to do lerpfrac manually*/\n"			\
+		"\tint animation[4];\n"		\
+		"\tfloat animationtime[4];\n"	\
+		"\t/*halflife models*/\n"	\
+		"\tfloat subblend[2];\n"	\
+		"\tfloat controllers[5];\n"	\
+	"} skelblend_t;\n"
+
 	{"skel_create",		PF_skel_create,		0,		0,		0,		263,	D("float(float modlindex, optional float useabstransforms)", "Allocates a new uninitiaised skeletal object, with enough bone info to animate the given model.\neg: self.skeletonobject = skel_create(self.modelindex);")}, // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_build",		PF_skel_build,		0,		0,		0,		264,	D("float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addfrac)", "Animation data (according to the entity's frame info) is pulled from the specified model and blended into the specified skeletal object.\nIf retainfrac is set to 0 on the first call and 1 on the others, you can blend multiple animations together according to the addfrac value. The final weight should be 1. Other values will result in scaling and/or other weirdness. You can use firstbone and lastbone to update only part of the skeletal object, to allow legs to animate separately from torso, use 0 for both arguments to specify all, as bones are 1-based.")}, // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build",		PF_skel_build,		0,		0,		0,		264,	D(qcskelblend"float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addfrac)", "Animation data (according to the entity's frame info) is pulled from the specified model and blended into the specified skeletal object.\nIf retainfrac is set to 0 on the first call and 1 on the others, you can blend multiple animations together according to the addfrac value. The final weight should be 1. Other values will result in scaling and/or other weirdness. You can use firstbone and lastbone to update only part of the skeletal object, to allow legs to animate separately from torso, use 0 for both arguments to specify all, as bones are 1-based.")}, // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build_ptr",	PF_skel_build_ptr,	0,		0,		0,		0,		D("float(float skel, int numblends, skelblend_t *weights, int structsize)", "Like skel_build, but slightly simpler.")},
 	{"skel_get_numbones",PF_skel_get_numbones,0,	0,		0,		265,	D("float(float skel)", "Retrives the number of bones in the model. The valid range is 1<=bone<=numbones.")}, // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_get_bonename",PF_skel_get_bonename,0,	0,		0,		266,	D("string(float skel, float bonenum)", "Retrieves the name of the specified bone. Mostly only for debugging.")}, // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
 	{"skel_get_boneparent",PF_skel_get_boneparent,0,0,		0,		267,	D("float(float skel, float bonenum)", "Retrieves which bone this bone's position is relative to. Bone 0 refers to the entity's position rather than an actual bone")}, // (FTE_CSQC_SKELETONOBJECTS)

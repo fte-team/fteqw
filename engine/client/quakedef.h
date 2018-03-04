@@ -202,6 +202,7 @@ extern "C" {
 #define max(a,b) ((a) > (b) ? (a) : (b))
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #endif
+#define max3(a,b,c) max(max(a,b),c)
 
 //msvcrt lacks any and all c99 support.
 #if defined(_WIN32)

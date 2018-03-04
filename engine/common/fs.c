@@ -51,11 +51,11 @@ struct
 {
 	void *module;
 	const char *extension;
-	searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc, const char *prefix);
+	searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
 	qboolean loadscan;
 } searchpathformats[64];
 
-int FS_RegisterFileSystemType(void *module, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc, const char *prefix), qboolean loadscan)
+int FS_RegisterFileSystemType(void *module, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix), qboolean loadscan)
 {
 	unsigned int i;
 	for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
@@ -2315,7 +2315,7 @@ searchpathfuncs_t *FS_GetOldPath(searchpath_t **oldpaths, const char *dir, unsig
 }
 
 typedef struct {
-	searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc, const char *prefix);
+	searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
 	searchpath_t **oldpaths;
 	const char *parentdesc;
 	const char *puredesc;
@@ -2357,7 +2357,7 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, time_
 			if (!vfs)
 				return true;
 		}
-		newpak = param->OpenNew (vfs, pakfile, "");
+		newpak = param->OpenNew (vfs, funcs, descriptor, pakfile, "");
 		if (!newpak)
 		{
 			VFS_CLOSE(vfs);
@@ -2375,7 +2375,7 @@ static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, time_
 	return true;
 }
 
-searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, const char *pakname)
+searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname)
 {
 	searchpathfuncs_t *pak;
 	int j;
@@ -2387,7 +2387,7 @@ searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, const char *pakname)
 			continue;
 		if (!strcmp(ext, searchpathformats[j].extension))
 		{
-			pak = searchpathformats[j].OpenNew(f, pakname, "");
+			pak = searchpathformats[j].OpenNew(f, parent, filename, pakname, "");
 			if (pak)
 				return pak;
 			Con_Printf("Unable to open %s - corrupt?\n", pakname);
@@ -2475,7 +2475,7 @@ void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parentpath, const 
 						}
 
 						if (vfs)
-							handle = searchpathformats[fmt].OpenNew (vfs, lname, pakprefix?pakprefix:"");
+							handle = searchpathformats[fmt].OpenNew (vfs, search?search->handle:NULL, pakpath, lname, pakprefix?pakprefix:"");
 						if (!handle && vfs)
 							VFS_CLOSE(vfs);	//erk
 					}
@@ -2538,6 +2538,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 	char			pakfile[MAX_OSPATH];
 	char			logicalpaths[MAX_OSPATH];	//with a slash
 	char			purefile[MAX_OSPATH];
+	char			logicalfile[MAX_OSPATH];
 	unsigned int	keptflags;
 	vfsfile_t *vfs;
 	flocation_t loc;
@@ -2605,27 +2606,27 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 				if (!search->handle->FindFile(search->handle, &loc, pakfile, NULL))
 					break;	//not found..
 
-				snprintf (pakfile, sizeof(pakfile), "%spak%i.%s", logicalpaths, i, extension);
+				snprintf (logicalfile, sizeof(pakfile), "%spak%i.%s", logicalpaths, i, extension);
 				snprintf (purefile, sizeof(purefile), "%s/pak%i.%s", purepath, i, extension);
 
 				for (existing = com_searchpaths; existing; existing = existing->next)
 				{
-					if (!Q_strcasecmp(existing->logicalpath, pakfile))	//assumption: first member of structure is a char array
+					if (!Q_strcasecmp(existing->logicalpath, logicalfile))	//assumption: first member of structure is a char array
 						break; //already loaded (base paths?)
 				}
 				if (!existing)
 				{
-					handle = FS_GetOldPath(oldpaths, pakfile, &keptflags);
+					handle = FS_GetOldPath(oldpaths, logicalfile, &keptflags);
 					if (!handle)
 					{
 						vfs = search->handle->OpenVFS(search->handle, &loc, "rb");
 						if (!vfs)
 							break;
-						handle = searchpathformats[j].OpenNew (vfs, pakfile, "");
+						handle = searchpathformats[j].OpenNew (vfs, search->handle, pakfile, logicalfile, "");
 						if (!handle)
 							break;
 					}
-					FS_AddPathHandle(oldpaths, purefile, pakfile, handle, "", SPF_COPYPROTECTED|pflags|keptflags, (unsigned int)-1);
+					FS_AddPathHandle(oldpaths, purefile, logicalfile, handle, "", SPF_COPYPROTECTED|pflags|keptflags, (unsigned int)-1);
 				}
 			}
 		}
@@ -2790,7 +2791,7 @@ void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, const ch
 //
 	handle = FS_GetOldPath(oldpaths, dir, &keptflags);
 	if (!handle)
-		handle = VFSOS_OpenPath(NULL, dir, "");
+		handle = VFSOS_OpenPath(NULL, NULL, dir, dir, "");
 
 	FS_AddPathHandle(oldpaths, puredir, dir, handle, "", flags|keptflags, loadstuff);
 }
@@ -3332,7 +3333,7 @@ vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name)
 						f = (search?search:loc.search->handle)->OpenVFS(search?search:loc.search->handle, &loc, "rb");
 						if (f)
 						{
-							searchpathfuncs_t *newsearch = searchpathformats[i].OpenNew(f, name, "");
+							searchpathfuncs_t *newsearch = searchpathformats[i].OpenNew(f, search?search:loc.search->handle, name, name, "");
 							if (newsearch)
 							{
 								f = CL_OpenFileInPackage(newsearch, end+1);
@@ -3429,7 +3430,7 @@ qboolean CL_ListFilesInPackage(searchpathfuncs_t *search, char *name, int (QDECL
 					f = (search?search:loc.search->handle)->OpenVFS(search?search:loc.search->handle, &loc, "rb");
 					if (f)
 					{
-						searchpathfuncs_t *newsearch = searchpathformats[i].OpenNew(f, name, "");
+						searchpathfuncs_t *newsearch = searchpathformats[i].OpenNew(f, search?search:loc.search->handle, name, name, "");
 						if (newsearch)
 						{
 							ret = CL_ListFilesInPackage(newsearch, end+1, func, parm, cb.nameprefix);
@@ -3586,7 +3587,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 		const char *pakname = com_argv[i+1];
 		searchpathfuncs_t *pak;
 		vfsfile_t *vfs = VFSOS_Open(pakname, "rb");
-		pak = FS_OpenPackByExtension(vfs, pakname);
+		pak = FS_OpenPackByExtension(vfs, NULL, pakname, pakname);
 		if (pak)	//logically should have SPF_EXPLICIT set, but that would give it a worse gamedir depth
 			FS_AddPathHandle(&oldpaths, "", pakname, pak, "", SPF_COPYPROTECTED, reloadflags);
 		i = COM_CheckNextParm ("-basepack", i);
@@ -3615,7 +3616,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			//paths equal to '*' actually result in loading packages without an actual gamedir. note that this does not imply that we can write anything.
 			if (!strcmp(dir, "*"))
 			{
-				searchpathfuncs_t *handle = VFSOS_OpenPath(NULL, com_gamepath, "");
+				searchpathfuncs_t *handle = VFSOS_OpenPath(NULL, NULL, com_gamepath, com_gamepath, "");
 				searchpath_t *search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
 				search->flags = 0;
 				search->handle = handle;
@@ -3814,7 +3815,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 							continue;
 						if (!strcmp(ext, searchpathformats[i].extension))
 						{
-							handle = searchpathformats[i].OpenNew (vfs, local, "");
+							handle = searchpathformats[i].OpenNew (vfs, NULL, local, local, "");
 							if (!handle)
 								break;
 							sp = FS_AddPathHandle(&oldpaths, pname, local, handle, "", SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY, (unsigned int)-1);
@@ -4670,7 +4671,7 @@ static void FS_PackageDownloaded(struct dl_download *dl)
 
 		if (fspdl_extracttype == X_UNZIP || fspdl_extracttype == X_MULTIUNZIP)	//if zip...
 		{	//archive
-			searchpathfuncs_t *archive = FSZIP_LoadArchive(VFSOS_Open(fspdl_temppath, "rb"), dl->url, "");
+			searchpathfuncs_t *archive = FSZIP_LoadArchive(VFSOS_Open(fspdl_temppath, "rb"), NULL, dl->url, dl->url, "");
 			if (archive)
 			{
 				flocation_t loc;
@@ -5153,7 +5154,7 @@ ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, q
 		const char *pakname = com_argv[i+1];
 		searchpathfuncs_t *pak;
 		vfsfile_t *vfs = VFSOS_Open(pakname, "rb");
-		pak = FS_OpenPackByExtension(vfs, pakname);
+		pak = FS_OpenPackByExtension(vfs, NULL, pakname, pakname);
 		if (pak)
 		{
 			flocation_t loc;
@@ -5665,7 +5666,7 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 		const char *pakname = com_argv[i+1];
 		searchpathfuncs_t *pak;
 		vfsfile_t *vfs = VFSOS_Open(pakname, "rb");
-		pak = FS_OpenPackByExtension(vfs, pakname);
+		pak = FS_OpenPackByExtension(vfs, NULL, pakname, pakname);
 		if (pak)
 		{
 			pak->EnumerateFiles(pak, "*.fmf", FS_EnumerateFMFs, &e);
@@ -6122,14 +6123,14 @@ void COM_InitFilesystem (void)
 
 
 //this is at the bottom of the file to ensure these globals are not used elsewhere
-extern searchpathfuncs_t *(QDECL VFSOS_OpenPath) (vfsfile_t *file, const char *desc, const char *prefix);
+/*extern searchpathfuncs_t *(QDECL VFSOS_OpenPath) (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
 #if 1//def AVAIL_ZLIB
-extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *packhandle, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
 #endif
-extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *packhandle, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
 #ifdef PACKAGE_DOOMWAD
-extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
-#endif
+extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *packhandle, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
+#endif*/
 void FS_RegisterDefaultFileSystems(void)
 {
 #ifdef PACKAGE_DZIP

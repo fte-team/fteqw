@@ -309,7 +309,7 @@ Loads the header and directory, adding the files at the beginning
 of the list so they override previous pack files.
 =================
 */
-searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, const char *desc, const char *prefix)
+searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix)
 {
 	dpackheader_t	header;
 	int				i;

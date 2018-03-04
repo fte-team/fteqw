@@ -85,42 +85,144 @@ enum fs_relative;
 
 typedef enum uploadfmt
 {
-		TF_INVALID,
-		TF_RGBA32,              /*rgba byte order*/
-		TF_BGRA32,              /*bgra byte order*/
-		TF_RGBX32,              /*rgb byte order, with extra wasted byte after blue*/
-		TF_BGRX32,              /*rgb byte order, with extra wasted byte after blue*/
-		TF_RGB24,               /*rgb byte order, no alpha channel nor pad, and regular top down*/
-		TF_BGR24,               /*bgr byte order, no alpha channel nor pad, and regular top down*/
-		TF_BGR24_FLIP,  /*bgr byte order, no alpha channel nor pad, and bottom up*/
-		TF_LUM8,		/*8bit greyscale image*/
-		TF_MIP4_LUM8,	/*8bit 4-mip greyscale image*/
-		TF_MIP4_SOLID8,	/*8bit 4-mip image in default palette*/
-		TF_MIP4_8PAL24,	/*8bit 4-mip image with included palette*/
-		TF_MIP4_8PAL24_T255,/*8bit 4-mip image with included palette where index 255 is alpha 0*/
-		TF_SOLID8,      /*8bit quake-palette image*/
-		TF_TRANS8,      /*8bit quake-palette image, index 255=transparent*/
-		TF_TRANS8_FULLBRIGHT,   /*fullbright 8 - fullbright texels have alpha 255, everything else 0*/
-		TF_HEIGHT8,     /*image data is greyscale, convert to a normalmap and load that, uploaded alpha contains the original heights*/
-		TF_HEIGHT8PAL, /*source data is palette values rather than actual heights, generate a fallback heightmap*/
-		TF_H2_T7G1, /*8bit data, odd indexes give greyscale transparence*/
-		TF_H2_TRANS8_0, /*8bit data, 0 is transparent, not 255*/
-		TF_H2_T4A4,     /*8bit data, weird packing*/
+	PTI_INVALID,
 
-		/*this block requires a palette*/
-		TF_PALETTES,
-		TF_8PAL24,
-		TF_8PAL32,
+	//these formats are specified as direct byte access (listed in byte order, aka big-endian 0xrrggbbaa order)
+	PTI_RGBA8,	//rgba byte ordering
+	PTI_RGBX8,	//rgb pad byte ordering
+	PTI_BGRA8,	//alpha channel
+	PTI_BGRX8,	//no alpha channel
+	PTI_RGBA8_SRGB,	//rgba byte ordering
+	PTI_RGBX8_SRGB,	//rgb pad byte ordering
+	PTI_BGRA8_SRGB,	//alpha channel
+	PTI_BGRX8_SRGB,	//no alpha channel
+	PTI_RGB8,		//24bit packed format. generally not supported
+	PTI_BGR8,		//24bit packed format. generally not supported
+	PTI_L8,			//8bit format (legacy more than anything else). luminance gets flooded to all RGB channels. might be supported using swizzles.
+	PTI_L8A8,		//16bit format (legacy more than anything else). L=luminance
+	//small formats.
+	PTI_R8,			//used for paletted data
+	PTI_RG8,		//might be useful for normalmaps
+	PTI_R8_SNORM,
+	PTI_RG8_SNORM,	//might be useful for normalmaps
+	//floating point formats
+	PTI_RGBA16F,
+	PTI_RGBA32F,
+	//packed/misaligned formats: these are specified in native endian order (high bits listed first because that's how things are represented in hex), so may need byte swapping...
+	PTI_A2BGR10,	//mostly for rendertargets, might also be useful for overbight lightmaps.
+	PTI_E5BGR9,		//mostly for fancy lightmaps
+	PTI_RGB565,		//16bit alphaless format.
+	PTI_RGBA4444,	//16bit format (gl)
+	PTI_ARGB4444,	//16bit format (d3d)
+	PTI_RGBA5551,	//16bit alpha format (gl).
+	PTI_ARGB1555,	//16bit alpha format (d3d).
+	//(desktop/tegra) compressed formats
+	PTI_BC1_RGB,
+	PTI_BC1_RGB_SRGB,
+	PTI_BC1_RGBA,
+	PTI_BC1_RGBA_SRGB,
+	PTI_BC2_RGBA,
+	PTI_BC2_RGBA_SRGB,
+	PTI_BC3_RGBA,	//maybe add a bc3 normalmapswizzle type for d3d9?
+	PTI_BC3_RGBA_SRGB,
+	PTI_BC4_R8,
+	PTI_BC4_R8_SNORM,
+	PTI_BC5_RG8,	//useful for normalmaps
+	PTI_BC5_RG8_SNORM,	//useful for normalmaps
+	PTI_BC6_RGB_UFLOAT,	//unsigned (half) floats!
+	PTI_BC6_RGB_SFLOAT,	//signed (half) floats!
+	PTI_BC7_RGBA,	//multimode compression, using as many bits as bc2/bc3
+	PTI_BC7_RGBA_SRGB,
+	//(mobile/intel) compressed formats
+	PTI_ETC1_RGB8,	//limited form
+	PTI_ETC2_RGB8,	//extended form
+	PTI_ETC2_RGB8A1,
+	PTI_ETC2_RGB8A8,
+	PTI_ETC2_RGB8_SRGB,
+	PTI_ETC2_RGB8A1_SRGB,
+	PTI_ETC2_RGB8A8_SRGB,
+	PTI_EAC_R11,	//no idea what this might be used for, whatever
+	PTI_EAC_R11_SNORM,	//no idea what this might be used for, whatever
+	PTI_EAC_RG11,	//useful for normalmaps (calculate blue)
+	PTI_EAC_RG11_SNORM,	//useful for normalmaps (calculate blue)
+	//astc... zomg
+	PTI_ASTC_4X4,
+	PTI_ASTC_4X4_SRGB,
+	PTI_ASTC_5X4,
+	PTI_ASTC_5X4_SRGB,
+	PTI_ASTC_5X5,
+	PTI_ASTC_5X5_SRGB,
+	PTI_ASTC_6X5,
+	PTI_ASTC_6X5_SRGB,
+	PTI_ASTC_6X6,
+	PTI_ASTC_6X6_SRGB,
+	PTI_ASTC_8X5,
+	PTI_ASTC_8X5_SRGB,
+	PTI_ASTC_8X6,
+	PTI_ASTC_8X6_SRGB,
+	PTI_ASTC_10X5,
+	PTI_ASTC_10X5_SRGB,
+	PTI_ASTC_10X6,
+	PTI_ASTC_10X6_SRGB,
+	PTI_ASTC_8X8,
+	PTI_ASTC_8X8_SRGB,
+	PTI_ASTC_10X8,
+	PTI_ASTC_10X8_SRGB,
+	PTI_ASTC_10X10,
+	PTI_ASTC_10X10_SRGB,
+	PTI_ASTC_12X10,
+	PTI_ASTC_12X10_SRGB,
+	PTI_ASTC_12X12,
+	PTI_ASTC_12X12_SRGB,
 
-		/*for render targets*/
-		TF_DEPTH16,
-		TF_DEPTH24,
-		TF_DEPTH32,
-		TF_RGBA16F,
-		TF_RGBA32F,
+	//depth formats
+	PTI_DEPTH16,
+	PTI_DEPTH24,
+	PTI_DEPTH32,
+	PTI_DEPTH24_8,
 
-		/*for weird systems where the gl driver needs to do the decode (read: webgl)*/
-		TF_SYSTEMDECODE
+	TF_BGR24_FLIP,			/*bgr byte order, no alpha channel nor pad, and bottom up*/
+	TF_MIP4_R8,		/*8bit 4-mip greyscale image*/
+	TF_MIP4_SOLID8,	/*8bit 4-mip image in default palette*/
+	TF_MIP4_8PAL24,	/*8bit 4-mip image with included palette*/
+	TF_MIP4_8PAL24_T255,/*8bit 4-mip image with included palette where index 255 is alpha 0*/
+	TF_SOLID8,      /*8bit quake-palette image*/
+	TF_TRANS8,      /*8bit quake-palette image, index 255=transparent*/
+	TF_TRANS8_FULLBRIGHT,   /*fullbright 8 - fullbright texels have alpha 255, everything else 0*/
+	TF_HEIGHT8,     /*image data is greyscale, convert to a normalmap and load that, uploaded alpha contains the original heights*/
+	TF_HEIGHT8PAL, /*source data is palette values rather than actual heights, generate a fallback heightmap*/
+	TF_H2_T7G1, /*8bit data, odd indexes give greyscale transparence*/
+	TF_H2_TRANS8_0, /*8bit data, 0 is transparent, not 255*/
+	TF_H2_T4A4,     /*8bit data, weird packing*/
+
+	/*this block requires an explicit (separate) palette*/
+	TF_8PAL24,
+	TF_8PAL32,
+
+#ifdef FTE_TARGET_WEB
+	//weird specialcase mess to take advantage of webgl so we don't need redundant bloat where we're already strugging with potential heap limits
+	PTI_WHOLEFILE,
+#endif
+
+	PTI_MAX,
+
+	TF_INVALID = PTI_INVALID,
+	TF_DEPTH16 = PTI_DEPTH16,
+	TF_DEPTH24 = PTI_DEPTH24,
+	TF_DEPTH32 = PTI_DEPTH32,
+	TF_RGBA16F = PTI_RGBA16F,
+	TF_RGBA32F = PTI_RGBA32F,
+	TF_RGBA32 = PTI_RGBA8,              /*rgba byte order*/
+	TF_BGRA32 = PTI_BGRA8,              /*bgra byte order*/
+	TF_RGBX32 = PTI_RGBX8,              /*rgb byte order, with extra wasted byte after blue*/
+	TF_BGRX32 = PTI_BGRX8,              /*rgb byte order, with extra wasted byte after blue*/
+	TF_RGB24 = PTI_RGB8,				/*rgb byte order, no alpha channel nor pad, and regular top down*/
+	TF_BGR24 = PTI_BGR8,               /*bgr byte order, no alpha channel nor pad, and regular top down*/
+	TF_LUM8 = PTI_L8,
+	TF_R8 = PTI_R8
+
+	//these are emulated formats. this 'case' value allows drivers to easily ignore them
+#define PTI_EMULATED 	TF_INVALID:case TF_BGR24_FLIP:case TF_MIP4_R8:case TF_MIP4_SOLID8:case TF_MIP4_8PAL24:case TF_MIP4_8PAL24_T255:case TF_SOLID8:case TF_TRANS8:case TF_TRANS8_FULLBRIGHT:case TF_HEIGHT8:case TF_HEIGHT8PAL:case TF_H2_T7G1:case TF_H2_TRANS8_0:case TF_H2_T4A4:case TF_8PAL24:case TF_8PAL32
 } uploadfmt_t;
 
 qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int bytestride, int width, int height, enum uploadfmt fmt);
@@ -184,6 +286,33 @@ extern struct font_s *font_tiny;
 void PR_ReleaseFonts(unsigned int purgeowner);	//for menu/csqc
 void PR_ReloadFonts(qboolean reload);
 /*end fonts*/
+
+//normally we're not srgb aware, which means that while the intensity may APPEAR linear, it actually isn't.
+fte_inline float M_SRGBToLinear(float x, float mag)
+{
+	x /= mag;
+	if (x <= 0.04045f)
+		x = x * (1.0f / 12.92f);
+	else
+		x = pow(( x + 0.055f) * (1.0f / 1.055f), 2.4f);
+	x *= mag;
+	return x;
+}
+fte_inline float M_LinearToSRGB(float x, float mag)
+{
+	x /= mag;
+	if (x <= 0.00031308)
+		x = 12.92 * x;
+	else
+		x = 1.055*pow(x,(float)(1.0 / 2.4) ) - 0.055;
+	x *= mag;
+	return x;
+}
+//macros that are used to explicitly state that a value is srgb, and convert to linear as needed.
+#define SRGBf(x) ((vid.flags&VID_SRGBAWARE)?M_SRGBToLinear(x,1):x)
+#define SRGBb(x) ((vid.flags&VID_SRGBAWARE)?(unsigned char)M_SRGBToLinear(x,255):x)
+#define SRGB3(x,y,z) SRGBf(x),SRGBf(y),SRGBf(z)
+#define SRGBA(x,y,z,w) SRGBf(x),SRGBf(y),SRGBf(z),w
 
 void R_NetgraphInit(void);
 void R_NetGraph (void);

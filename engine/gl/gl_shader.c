@@ -661,6 +661,16 @@ static void Shader_ParseFunc (shader_t *shader, char **ptr, shaderfunc_t *func)
 		func->type = SHADER_FUNC_INVERSESAWTOOTH;
 	else if (!Q_stricmp (token, "noise"))
 		func->type = SHADER_FUNC_NOISE;
+	else if (!Q_stricmp (token, "distanceramp"))	//QFusion
+	{
+		func->type = SHADER_FUNC_CONSTANT;	//not supported...
+		Shader_ParseFloat (shader, ptr, 0);
+		Shader_ParseFloat (shader, ptr, 0);
+		Shader_ParseFloat (shader, ptr, 0);
+		Shader_ParseFloat (shader, ptr, 0);
+		Vector4Set(func->args, 255, 255, 255, 255);
+		return;
+	}
 
 	func->args[0] = Shader_ParseFloat (shader, ptr, 0);
 	func->args[1] = Shader_ParseFloat (shader, ptr, 0);
@@ -1254,42 +1264,49 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				}
 			}
 		}
-		else if (!strncmp(script, "!!cvardf", 8))
+		else if (!strncmp(script, "!!cvardf", 8) || !strncmp(script, "!!cvard3", 8) || !strncmp(script, "!!cvard4", 8) || !strncmp(script, "!!cvard_srgb", 11))
 		{
-			script += 8;
-			while (*script == ' ' || *script == '\t')
-				script++;
-			end = script;
-			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
-				end++;
-			if (nummodifiers < MAXMODIFIERS && end - script < 64)
+			qboolean srgb = false;
+			float div = 1;
+			char type = script[7];
+			script+=8;
+			if (type == '_')
 			{
-				cvar_t *var;
-				char namebuf[64];
-				char valuebuf[64];
-				memcpy(namebuf, script, end - script);
-				namebuf[end - script] = 0;
-				while (*end == ' ' || *end == '\t')
-					end++;
-				if (*end == '=')
+				if (*script == 's')
 				{
-					script = ++end;
-					while (*end && *end != '\n' && *end != '\r' && end < script+sizeof(namebuf)-1)
-						end++;
-					memcpy(valuebuf, script, end - script);
-					valuebuf[end - script] = 0;
+					srgb = true;
+					script+=1;
 				}
-				else
-					strcpy(valuebuf, "0");
-				var = Cvar_Get(namebuf, valuebuf, CVAR_SHADERSYSTEM, "GLSL Variables");
-				if (var)
-					permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %g\n", namebuf, var->value));
+
+				if (!strncmp(script, "rgba", 4))
+				{
+					type = '4';
+					script+=4;
+				}
+				else if (!strncmp(script, "rgb", 3))
+				{
+					type = '3';
+					script+=3;
+				}
+				else if (!strncmp(script, "rg", 2))
+				{
+					type = '2';
+					script+=2;
+				}
+				else if (!strncmp(script, "r", 1) || !strncmp(script, "f", 1))
+				{
+					type = 'f';
+					script+=1;
+				}
+
+				if (!strncmp(script, "_b", 2))
+				{
+					div = 255;
+					script+=2;
+				}
+				else if (!strncmp(script, "_", 1))
+					div = strtod(script, &script);
 			}
-			script = end;
-		}
-		else if (!strncmp(script, "!!cvard3", 8))
-		{
-			script += 8;
 			while (*script == ' ' || *script == '\t')
 				script++;
 			end = script;
@@ -1316,40 +1333,26 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 					strcpy(valuebuf, "0");
 				var = Cvar_Get(namebuf, valuebuf, CVAR_SHADERSYSTEM, "GLSL Variables");
 				if (var)
-					permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec3":"float3"), var->vec4[0], var->vec4[1], var->vec4[2]));
-			}
-			script = end;
-		}
-		else if (!strncmp(script, "!!cvard4", 8))
-		{
-			script += 8;
-			while (*script == ' ' || *script == '\t')
-				script++;
-			end = script;
-			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
-				end++;
-			if (nummodifiers < MAXMODIFIERS && end - script < 64)
-			{
-				cvar_t *var;
-				char namebuf[64];
-				char valuebuf[64];
-				memcpy(namebuf, script, end - script);
-				namebuf[end - script] = 0;
-				while (*end == ' ' || *end == '\t')
-					end++;
-				if (*end == '=')
 				{
-					script = ++end;
-					while (*end && *end != '\n' && *end != '\r' && end < script+sizeof(namebuf)-1)
-						end++;
-					memcpy(valuebuf, script, end - script);
-					valuebuf[end - script] = 0;
+					if (srgb)
+					{
+						if (type == '4')
+							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec4":"float4"), SRGBf(var->vec4[0]/div), SRGBf(var->vec4[1]/div), SRGBf(var->vec4[2]/div), var->vec4[3]/div));
+						else if (type == '3')
+							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec3":"float3"), SRGBf(var->vec4[0]/div), SRGBf(var->vec4[1]/div), SRGBf(var->vec4[2]/div)));
+						else
+							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %g\n", namebuf, SRGBf(var->value/div)));
+					}
+					else
+					{
+						if (type == '4')
+							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec4":"float4"), var->vec4[0]/div, var->vec4[1]/div, var->vec4[2]/div, var->vec4[3]/div));
+						else if (type == '3')
+							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec3":"float3"), var->vec4[0]/div, var->vec4[1]/div, var->vec4[2]/div));
+						else
+							permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %g\n", namebuf, var->value/div));
+					}
 				}
-				else
-					strcpy(valuebuf, "0");
-				var = Cvar_Get(namebuf, valuebuf, CVAR_SHADERSYSTEM, "GLSL Variables");
-				if (var)
-					permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec4":"float4"), var->vec4[0], var->vec4[1], var->vec4[2], var->vec4[3]));
 			}
 			script = end;
 		}
@@ -1448,6 +1451,9 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		blobfile = FS_OpenVFS(blobfilename, "w+b", FS_GAMEONLY);
 	else
 		blobfile = NULL;
+
+	if (!r_fog_permutation.ival)
+		nopermutation |= PERMUTATION_BIT_FOG;
 
 	if (blobfile)
 	{
@@ -3118,6 +3124,17 @@ static void Shaderpass_RGBGen (shader_t *shader, shaderpass_t *pass, char **ptr)
 
 		Shader_ParseVector (shader, ptr, pass->rgbgen_func.args);
 	}
+	else if (!Q_stricmp (token, "srgb") || !Q_stricmp (token, "srgbconst"))
+	{
+		pass->rgbgen = RGB_GEN_CONST;
+		pass->rgbgen_func.type = SHADER_FUNC_CONSTANT;
+
+		Shader_ParseVector (shader, ptr, pass->rgbgen_func.args);
+
+		pass->rgbgen_func.args[0] = SRGBf(pass->rgbgen_func.args[0]);
+		pass->rgbgen_func.args[1] = SRGBf(pass->rgbgen_func.args[1]);
+		pass->rgbgen_func.args[2] = SRGBf(pass->rgbgen_func.args[2]);
+	}
 	else if (!Q_stricmp (token, "topcolor"))
 		pass->rgbgen = RGB_GEN_TOPCOLOR;
 	else if (!Q_stricmp (token, "bottomcolor"))
@@ -3962,7 +3979,7 @@ char *Shader_Skip ( char *ptr )
 		tok = COM_ParseExt (&ptr, true, true);
 	}
 
-	for (brace_count = 1; brace_count > 0 ; ptr++)
+	for (brace_count = 1; brace_count > 0; )
 	{
 		tok = COM_ParseExt (&ptr, true, true);
 
@@ -4809,7 +4826,7 @@ void Shader_Finish (shader_t *s)
 							"sort sky\n"
 							"{\n"
 								"map $whiteimage\n"
-								"rgbgen const $r_fastskycolour\n"
+								"rgbgen srgb $r_fastskycolour\n"
 							"}\n"
 							"surfaceparm nodlight\n"
 						"}\n"
@@ -5536,6 +5553,35 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader)
 	}
 }
 
+#if 0//def Q2BSPS
+static qbyte *ReadRGBA8ImageFile(const char *fname, const char *subpath, int *width, int *height)
+{
+	qboolean hasalpha;
+	qofs_t filesize;
+	qbyte *img, *filedata = NULL;
+	char *patterns[] = 
+	{
+		"*overrides/%s.tga",
+		"*overrides/%s.jpg",
+		"textures/%s.tga",
+		"textures/%s.jpg",
+	};
+	char nname[MAX_QPATH];
+	size_t p;
+	for (p = 0; p < countof(patterns) && !filedata; p++)
+	{
+		if (*patterns[p] == '*')
+			Q_snprintfz(nname, sizeof(nname), patterns[p]+1, COM_SkipPath(fname));
+		else
+			Q_snprintfz(nname, sizeof(nname), patterns[p], fname);
+		filedata = FS_MallocFile(nname, FS_GAME, &filesize);
+	}
+	img = filedata?Read32BitImageFile(filedata, filesize, width, height, &hasalpha, fname):NULL;
+	BZ_Free(filedata);
+	return img;
+}
+#endif
+
 //call this with some fallback textures to directly load some textures
 void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, const char *subpath, unsigned int loadflags, unsigned int imageflags, uploadfmt_t basefmt, size_t width, size_t height, qbyte *mipdata[4], qbyte *palette)
 {
@@ -5634,6 +5680,62 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 	{
 		COM_StripExtension(tex->mapname, mapname, sizeof(mapname));
 
+#if 0//def Q2BSPS
+		if (gl_load24bit.ival == 2)
+		{
+			qbyte *base;
+			int basewidth, baseheight;
+			qbyte *norm;
+			int normwidth, normheight;
+			qbyte tmp;
+			int x, y;
+			base = ReadRGBA8ImageFile(imagename, subpath, &basewidth, &baseheight);
+			//base contains diffuse RGB, and height
+			if (base)
+			{
+				tex->base = Image_GetTexture(va("%s_diff", imagename), subpath, imageflags|IF_NOREPLACE, base, NULL, basewidth, baseheight, TF_RGBX32);	//queues the texture creation.
+				norm = ReadRGBA8ImageFile(va("%s_bump", imagename), subpath, &normwidth, &normheight);
+				if (norm)
+				{
+					if (normwidth != basewidth || normheight != baseheight)
+					{
+						//sucks...
+						tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_NOREPLACE, norm, NULL, normwidth, normheight, TF_RGBX32);	//queues the texture creation.
+					}
+					else
+					{
+						//so we have a base texture, and normalmap
+						//we already uploaded the diffuse, so now we can just pretend that the base is the specularmap.
+						//we just need to swap the two alpha channels.
+						for (y = 0; y < baseheight; y++)
+						{
+							for (x = 0; x < basewidth; x++)
+							{
+								tmp = base[(x+y*basewidth)*4+3];
+								base[(x+y*basewidth)*4+3] = norm[(x+y*basewidth)*4+3];
+								norm[(x+y*basewidth)*4+3] = ((x+y)&1)*255;//tmp;
+							}
+						}
+						tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_NOREPLACE, norm, NULL, normwidth, normheight, TF_RGBA32);	//queues the texture creation.
+						tex->specular = Image_GetTexture(va("%s_spec", imagename), subpath, imageflags|IF_NOREPLACE, base, NULL, basewidth, baseheight, TF_RGBA32);	//queues the texture creation.
+					}
+					BZ_Free(norm);
+				}
+				else
+				{
+					//generate a height8 image from the alpha channel. we  can do it in place
+					for (y = 0; y < baseheight; y++)
+					{
+						for (x = 0; x < basewidth; x++)
+							base[(x+y*basewidth)] = base[(x+y*basewidth)*4+3];
+					}
+					tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_NOREPLACE, base, NULL, basewidth, baseheight, TF_HEIGHT8);
+				}
+				BZ_Free(base);
+			}
+		}
+#endif
+
 		/*dlights/realtime lighting needs some stuff*/
 		if (loadflags & SHADER_HASDIFFUSE)
 		{
@@ -5663,7 +5765,7 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 			if (!TEXVALID(tex->paletted) && *mapname)
 				tex->paletted = R_LoadHiResTexture(va("%s_pal", mapname), NULL, imageflags|IF_NEAREST);
 			if (!TEXVALID(tex->paletted))
-				tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST, mipdata[0], palette, width, height, (basefmt==TF_MIP4_SOLID8)?TF_MIP4_LUM8:TF_LUM8);
+				tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST|IF_NOSRGB, mipdata[0], palette, width, height, (basefmt==TF_MIP4_SOLID8)?TF_MIP4_R8:TF_R8);
 		}
 
 		imageflags |= IF_LOWPRIORITY;
@@ -5768,7 +5870,7 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 					"{\n"
 						"map $lightmap\n"
 						"tcgen lightmap\n"
-						"rgbgen const 255 255 255\n"
+						"rgbgen srgb 255 255 255\n"
 					"}\n"
 				"}\n"
 			);
@@ -5780,7 +5882,7 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 					"{\n"
 						"map $lightmap\n"
 						"tcgen lightmap\n"
-						"rgbgen const $r_floorcolour\n"
+						"rgbgen srgb $r_floorcolour\n"
 					"}\n"
 				"}\n"
 			);
@@ -6021,7 +6123,7 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname, char *buffer, s
 //				"program defaultfill\n"
 				"{\n"
 					"map $whiteimage\n"
-					"rgbgen const $r_fastturbcolour\n"
+					"rgbgen srgb $r_fastturbcolour\n"
 				"}\n"
 				"surfaceparm nodlight\n"
 				"surfaceparm nomarks\n"
@@ -6220,7 +6322,7 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 						"sort sky\n"
 						"{\n"
 							"map $whiteimage\n"
-							"rgbgen const $r_fastskycolour\n"
+							"rgbgen srgb $r_fastskycolour\n"
 						"}\n"
 						"surfaceparm nodlight\n"
 					"}\n"
@@ -6921,7 +7023,36 @@ static char *Shader_DecomposeSubPass(char *o, shaderpass_t *p, qboolean simple)
 	case T_GEN_SINGLEMAP:
 		if (p->anim_frames[0])
 		{
-			sprintf(o, "singlemap \"%s\" %ix%i", p->anim_frames[0]->ident, p->anim_frames[0]->width, p->anim_frames[0]->height);
+			unsigned int flags = p->anim_frames[0]->flags;
+			sprintf(o, "singlemap \"%s\" %ix%i%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s", p->anim_frames[0]->ident, p->anim_frames[0]->width, p->anim_frames[0]->height,
+				(p->anim_frames[0]->status == TEX_FAILED)?" FAILED":"",
+				(flags&IF_CLAMP)?" clamp":"",
+				(flags&IF_NOMIPMAP)?" nomipmap":"",
+				(flags&IF_NEAREST)?" nearest":"",
+				(flags&IF_LINEAR)?" linear":"",
+				(flags&IF_UIPIC)?" uipic":"",
+				(flags&IF_SRGB)?" srgb":"",
+
+				(flags&IF_NOPICMIP)?" nopicmip":"",
+				(flags&IF_NOALPHA)?" noalpha":"",
+				(flags&IF_NOGAMMA)?" noalpha":"",
+				(flags&IF_TEXTYPE)?" non-2d":"",
+				(flags&IF_MIPCAP)?"":" nomipcap",
+				(flags&IF_PREMULTIPLYALPHA)?" premultiply":"",
+
+				(flags&IF_NOSRGB)?" nosrgb":"",
+
+				(flags&IF_PALETTIZE)?" palettize":"",
+				(flags&IF_NOPURGE)?" nopurge":"",
+				(flags&IF_HIGHPRIORITY)?" highpri":"",
+				(flags&IF_LOWPRIORITY)?" lowpri":"",
+				(flags&IF_LOADNOW)?" loadnow":"",
+				(flags&IF_TRYBUMP)?" trybump":"",
+				(flags&IF_RENDERTARGET)?" rendertarget":"",
+				(flags&IF_EXACTEXTENSION)?" exactext":"",
+				(flags&IF_NOREPLACE)?" noreplace":"",
+				(flags&IF_NOWORKER)?" noworker":""
+				);
 		}
 		else
 			sprintf(o, "singlemap ");

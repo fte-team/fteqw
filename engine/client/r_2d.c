@@ -355,7 +355,7 @@ void R2D_Init(void)
 				"{\n"
 					"map $whiteimage\n"
 					"blendfunc gl_dst_color gl_zero\n"
-					"rgbgen const $r_menutint\n"
+					"rgbgen srgb $r_menutint\n"
 				"}\n"
 #else
 			"if gl_menutint_shader != 0\n"
@@ -369,7 +369,7 @@ void R2D_Init(void)
 				"{\n"
 					"map $whiteimage\n"
 					"blendfunc gl_dst_color gl_zero\n"
-					"rgbgen const $r_menutint\n"
+					"rgbgen srgb $r_menutint\n"
 				"}\n"
 			"endif\n"
 #endif
@@ -1300,18 +1300,15 @@ void R2D_BrightenScreen (void)
 	if (v_contrast.value < 0.5)
 		v_contrast.value = 0.5;
 
-	if (r2d_canhwgamma)
+	if (r2d_canhwgamma || vid_hardwaregamma.ival == 4)
 		return;
 
 	TRACE(("R2D_BrightenScreen: brightening\n"));
-	if (v_gamma.value != 1 && shader_gammacb->prog)
+	if ((v_gamma.value != 1 || v_contrast.value > 3) && shader_gammacb->prog)
 	{
 		//this should really be done properly, with render-to-texture
 		R2D_ImageColours (v_gamma.value, v_contrast.value, v_brightness.value, 1);
-		if (qrenderer == QR_OPENGL)
-			R2D_Image(0, 0, vid.width, vid.height, 0, 1, 1, 0, shader_gammacb);
-		else
-			R2D_Image(0, 0, vid.width, vid.height, 0, 0, 1, 1, shader_gammacb);
+		R2D_Image(0, 0, vid.width, vid.height, 0, 0, 1, 1, shader_gammacb);
 	}
 	else
 	{

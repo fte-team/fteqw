@@ -15,8 +15,10 @@ extern cvar_t vk_nv_glsl_shader;
 extern cvar_t vk_nv_dedicated_allocation;
 extern cvar_t vk_khr_dedicated_allocation;
 extern cvar_t vk_khr_push_descriptor;
-extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method, vid_multisample;
+extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method, vid_multisample, vid_bpp;
 void R2D_Console_Resize(void);
+
+extern qboolean		scr_con_forcedraw;
 
 #ifndef MULTITHREAD
 #define Sys_LockConditional(c)
@@ -294,7 +296,7 @@ static qboolean VK_CreateSwapChain(void)
 		if (vk.swapchain || vk.backbuf_count)
 			VK_DestroySwapChain();
 
-		vk.backbufformat = (vid.srgb||vid_srgb.ival)?VK_FORMAT_B8G8R8A8_SRGB:VK_FORMAT_B8G8R8A8_UNORM;
+		vk.backbufformat = ((vid.flags&VID_SRGBAWARE)||vid_srgb.ival)?VK_FORMAT_B8G8R8A8_SRGB:VK_FORMAT_B8G8R8A8_UNORM;
 		vk.backbuf_count = 4;
 
 		swapinfo.imageExtent.width = vid.pixelwidth;
@@ -383,6 +385,33 @@ static qboolean VK_CreateSwapChain(void)
 	}
 	else
 	{	//using vulkan's presentation engine.
+		int BOOST_UNORM, BOOST_SNORM, BOOST_SRGB, BOOST_UFLOAT, BOOST_SFLOAT;
+
+		if (vid_srgb.ival > 2)
+		{	//favour float formats, then srgb, then unorms
+			BOOST_UNORM		= 0;
+			BOOST_SNORM		= 0;
+			BOOST_SRGB		= 128;
+			BOOST_UFLOAT	= 256;
+			BOOST_SFLOAT	= 256;
+		}
+		else if (vid_srgb.ival)
+		{
+			BOOST_UNORM		= 0;
+			BOOST_SNORM		= 0;
+			BOOST_SRGB		= 256;
+			BOOST_UFLOAT	= 128;
+			BOOST_SFLOAT	= 128;
+		}
+		else
+		{
+			BOOST_UNORM		= 256;
+			BOOST_SNORM		= 256;
+			BOOST_SRGB		= 0;
+			BOOST_UFLOAT	= 128;
+			BOOST_SFLOAT	= 128;
+		}
+
 		VkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.gpu, vk.surface, &fmtcount, NULL));
 		surffmts = malloc(sizeof(VkSurfaceFormatKHR)*fmtcount);
 		VkAssert(vkGetPhysicalDeviceSurfaceFormatsKHR(vk.gpu, vk.surface, &fmtcount, surffmts));
@@ -440,7 +469,7 @@ static qboolean VK_CreateSwapChain(void)
 				priority = (vk.vsync?2:0) + 1;
 				break;
 			case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
-				priority = (vk.vsync?2:0) + 2;	//strict vsync results in weird juddering if rtlights etc caues framerates to drop below the refreshrate
+				priority = (vk.vsync?2:0) + 2;	//strict vsync results in weird juddering if rtlights etc caues framerates to drop below the refreshrate. and nvidia just suck with vsync, so I'm not taking any chances.
 				break;
 			}
 			if (priority > curpri)
@@ -455,33 +484,75 @@ static qboolean VK_CreateSwapChain(void)
 				Con_Printf("Warning: vulkan graphics driver does not support VK_PRESENT_MODE_IMMEDIATE_KHR.\n");
 
 		vk.srgbcapable = false;
-		swapinfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-		swapinfo.imageFormat = (vid.srgb||vid_srgb.ival)?VK_FORMAT_B8G8R8A8_SRGB:VK_FORMAT_B8G8R8A8_UNORM;
+		swapinfo.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+		swapinfo.imageFormat = VK_FORMAT_UNDEFINED;
 		for (i = 0, curpri = 0; i < fmtcount; i++)
 		{
 			uint32_t priority = 0;
+
 			switch(surffmts[i].format)
 			{
 			case VK_FORMAT_B8G8R8A8_UNORM:
 			case VK_FORMAT_R8G8B8A8_UNORM:
-				priority = 4+!(vid.srgb||vid_srgb.ival);
+			case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
+				priority = ((vid_bpp.ival>=24)?24:11)+BOOST_UNORM;
+				break;
+			case VK_FORMAT_B8G8R8A8_SNORM:
+			case VK_FORMAT_R8G8B8A8_SNORM:
+			case VK_FORMAT_A8B8G8R8_SNORM_PACK32:
+				priority = ((vid_bpp.ival>=21)?21:2)+BOOST_SNORM;
 				break;
 			case VK_FORMAT_B8G8R8A8_SRGB:
 			case VK_FORMAT_R8G8B8A8_SRGB:
-				priority = 4+!!(vid.srgb||vid_srgb.ival);
+			case VK_FORMAT_A8B8G8R8_SRGB_PACK32:
+				priority = ((vid_bpp.ival>=24)?24:11)+BOOST_SRGB;
 				vk.srgbcapable = true;
 				break;
+			case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
+			case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+				priority = ((vid_bpp.ival==30)?30:10)+BOOST_UNORM;
+				break;
+
+			case VK_FORMAT_B10G11R11_UFLOAT_PACK32:
+				priority = ((vid_srgb.ival>=3||vid_bpp.ival==32)?32:11)+BOOST_UFLOAT;
+				break;
 			case VK_FORMAT_R16G16B16A16_SFLOAT:	//16bit per-channel formats
+				priority = ((vid_srgb.ival>=3||vid_bpp.ival>=48)?48:9)+BOOST_SFLOAT;
+				break;
+			case VK_FORMAT_R16G16B16A16_UNORM:
+				priority = ((vid_srgb.ival>=3||vid_bpp.ival>=48)?48:9)+BOOST_UNORM;
+				break;
 			case VK_FORMAT_R16G16B16A16_SNORM:
-				priority = 3;
+				priority = ((vid_srgb.ival>=3||vid_bpp.ival>=48)?48:9)+BOOST_SFLOAT;
 				break;
 			case VK_FORMAT_R32G32B32A32_SFLOAT:	//32bit per-channel formats
-				priority = 2;
+				priority = ((vid_bpp.ival>=47)?96:8)+BOOST_SFLOAT;
 				break;
-			default:	//16 bit formats (565).
+
+			case VK_FORMAT_B5G6R5_UNORM_PACK16:
+			case VK_FORMAT_R5G6B5_UNORM_PACK16:
+				priority = 16+BOOST_UNORM;
+				break;
+			case VK_FORMAT_R4G4B4A4_UNORM_PACK16:
+			case VK_FORMAT_B4G4R4A4_UNORM_PACK16:
+				priority = 12+BOOST_UNORM;
+				break;
+			case VK_FORMAT_A1R5G5B5_UNORM_PACK16:
+			case VK_FORMAT_R5G5B5A1_UNORM_PACK16:
+			case VK_FORMAT_B5G5R5A1_UNORM_PACK16:
+				priority = 15+BOOST_UNORM;
+				break;
+
+			default:	//no idea, use as lowest priority.
 				priority = 1;
 				break;
 			}
+
+			if (surffmts[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR &&				//sRGB
+				surffmts[i].colorSpace == VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT &&	//scRGB
+				surffmts[i].colorSpace == VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT)			//linear vaugely like sRGB
+				priority += 512;	//always favour supported colour spaces.
+
 			if (priority > curpri)
 			{
 				curpri = priority;
@@ -490,12 +561,43 @@ static qboolean VK_CreateSwapChain(void)
 			}
 		}
 
+		if (swapinfo.imageFormat == VK_FORMAT_UNDEFINED)
+		{	//if we found this format then it means the drivers don't really give a damn. pick a real format.
+			if (vid_srgb.ival > 2 && swapinfo.imageColorSpace == VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT)
+				swapinfo.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+			else if (vid_srgb.ival)
+				swapinfo.imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
+			else
+				swapinfo.imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
+		}
+
 		if (vk.backbufformat != swapinfo.imageFormat)
 		{
 			VK_DestroyRenderPass();
 			reloadshaders = true;
 		}
 		vk.backbufformat = swapinfo.imageFormat;
+
+		//VK_COLORSPACE_SRGB_NONLINEAR means the presentation engine will interpret the image as SRGB whether its a UNORM or SRGB format or not.
+		//an SRGB format JUST means rendering converts linear->srgb and does not apply to the presentation engine.
+		vid.flags &= ~VID_SRGB_FB;
+		if (swapinfo.imageColorSpace == VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT)
+			vid.flags |= VID_SRGB_FB_LINEAR;
+		else
+		{
+			switch(vk.backbufformat)
+			{
+			case VK_FORMAT_R8G8B8_SRGB:
+			case VK_FORMAT_B8G8R8_SRGB:
+			case VK_FORMAT_B8G8R8A8_SRGB:
+			case VK_FORMAT_R8G8B8A8_SRGB:
+			case VK_FORMAT_A8B8G8R8_SRGB_PACK32:
+				vid.flags |= VID_SRGB_FB_LINEAR;
+				break;
+			default:
+				break;	//non-srgb (or compressed)
+			}
+		}
 
 		free(presentmode);
 		free(surffmts);
@@ -767,11 +869,6 @@ static qboolean VK_CreateSwapChain(void)
 	
 void	VK_Draw_Init(void)
 {
-	qboolean srgb = vid_srgb.ival > 1 && vk.srgbcapable;
-	if (vid.srgb != srgb)
-		vid_srgb.modified = true;
-	vid.srgb = srgb;
-
 	R2D_Init();
 }
 void	VK_Draw_Shutdown(void)
@@ -863,7 +960,7 @@ void VK_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], 
 	}
 }
 
-vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, unsigned int encoding, unsigned int type, qboolean rendertarget)
+vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, uploadfmt_t encoding, unsigned int type, qboolean rendertarget)
 {
 	vk_image_t ret;
 #ifdef USE_STAGING_BUFFERS
@@ -877,7 +974,7 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 
 	VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
 	VkDedicatedAllocationImageCreateInfoNV nv_daici = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV};
-	VkFormat format;
+	VkFormat format = VK_FORMAT_UNDEFINED;;
 
 	ret.width = width;
 	ret.height = height;
@@ -887,22 +984,31 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	ret.type = type;
 	ret.layout = staging?VK_IMAGE_LAYOUT_PREINITIALIZED:VK_IMAGE_LAYOUT_UNDEFINED;
 
-	//16bit formats.
-	switch(encoding)
+	//vulkan expresses packed formats in terms of native endian (if big-endian, then everything makes sense), non-packed formats are expressed in byte order (consistent with big-endian).
+	//PTI formats are less well-defined...
+	if ((int)encoding < 0) 
+		format = -(int)encoding;
+	else switch(encoding)
 	{
-	case PTI_RGB565:			format = VK_FORMAT_R5G6B5_UNORM_PACK16;				break;
-	case PTI_RGBA4444:			format = VK_FORMAT_R4G4B4A4_UNORM_PACK16;			break;
-	case PTI_ARGB4444:			format = VK_FORMAT_B4G4R4A4_UNORM_PACK16;			break; //fixme: this seems wrong...
-	case PTI_RGBA5551:			format = VK_FORMAT_R5G5B5A1_UNORM_PACK16;			break;
-	case PTI_ARGB1555:			format = VK_FORMAT_A1R5G5B5_UNORM_PACK16;			break;
+	//16bit formats.
+	case PTI_RGB565:			format = VK_FORMAT_R5G6B5_UNORM_PACK16;			break;
+	case PTI_RGBA4444:			format = VK_FORMAT_R4G4B4A4_UNORM_PACK16;		break;
+	case PTI_ARGB4444:			/*format = VK_FORMAT_A4R4G4B4_UNORM_PACK16;*/	break;
+	case PTI_RGBA5551:			format = VK_FORMAT_R5G5B5A1_UNORM_PACK16;		break;
+	case PTI_ARGB1555:			format = VK_FORMAT_A1R5G5B5_UNORM_PACK16;		break;
 	//float formats
-	case PTI_RGBA16F:			format = VK_FORMAT_R16G16B16A16_SFLOAT;				break;
-	case PTI_RGBA32F:			format = VK_FORMAT_R32G32B32A32_SFLOAT;				break;
+	case PTI_RGBA16F:			format = VK_FORMAT_R16G16B16A16_SFLOAT;			break;
+	case PTI_RGBA32F:			format = VK_FORMAT_R32G32B32A32_SFLOAT;			break;
 	//weird formats
-	case PTI_R8:				format = VK_FORMAT_R8_UNORM;						break;
-	case PTI_RG8:				format = VK_FORMAT_R8G8_UNORM;						break;
-	case PTI_R8_SIGNED:			format = VK_FORMAT_R8_SNORM;						break;
-	case PTI_RG8_SIGNED:		format = VK_FORMAT_R8G8_SNORM;						break;
+	case PTI_R8:				format = VK_FORMAT_R8_UNORM;					break;
+	case PTI_RG8:				format = VK_FORMAT_R8G8_UNORM;					break;
+	case PTI_R8_SNORM:			format = VK_FORMAT_R8_SNORM;					break;
+	case PTI_RG8_SNORM:			format = VK_FORMAT_R8G8_SNORM;					break;
+	case PTI_A2BGR10:			format = VK_FORMAT_A2B10G10R10_UNORM_PACK32;	break;
+	case PTI_E5BGR9:			format = VK_FORMAT_E5B9G9R9_UFLOAT_PACK32;		break;
+	//swizzled/legacy formats
+	case PTI_L8:				format = VK_FORMAT_R8_UNORM;					break;
+	case PTI_L8A8:				format = VK_FORMAT_R8G8_UNORM;					break;
 	//compressed formats
 	case PTI_BC1_RGB:			format = VK_FORMAT_BC1_RGB_UNORM_BLOCK;			break;
 	case PTI_BC1_RGB_SRGB:		format = VK_FORMAT_BC1_RGB_SRGB_BLOCK;			break;
@@ -913,11 +1019,11 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	case PTI_BC3_RGBA:			format = VK_FORMAT_BC3_UNORM_BLOCK;				break;
 	case PTI_BC3_RGBA_SRGB:		format = VK_FORMAT_BC3_SRGB_BLOCK;				break;
 	case PTI_BC4_R8:			format = VK_FORMAT_BC4_UNORM_BLOCK;				break;
-	case PTI_BC4_R8_SIGNED:		format = VK_FORMAT_BC4_SNORM_BLOCK;				break;
+	case PTI_BC4_R8_SNORM:		format = VK_FORMAT_BC4_SNORM_BLOCK;				break;
 	case PTI_BC5_RG8:			format = VK_FORMAT_BC5_UNORM_BLOCK;				break;
-	case PTI_BC5_RG8_SIGNED:	format = VK_FORMAT_BC5_SNORM_BLOCK;				break;
-	case PTI_BC6_RGBF:			format = VK_FORMAT_BC6H_UFLOAT_BLOCK;			break;
-	case PTI_BC6_RGBF_SIGNED:	format = VK_FORMAT_BC6H_SFLOAT_BLOCK;			break;
+	case PTI_BC5_RG8_SNORM:		format = VK_FORMAT_BC5_SNORM_BLOCK;				break;
+	case PTI_BC6_RGB_UFLOAT:	format = VK_FORMAT_BC6H_UFLOAT_BLOCK;			break;
+	case PTI_BC6_RGB_SFLOAT:	format = VK_FORMAT_BC6H_SFLOAT_BLOCK;			break;
 	case PTI_BC7_RGBA:			format = VK_FORMAT_BC7_UNORM_BLOCK;				break;
 	case PTI_BC7_RGBA_SRGB:		format = VK_FORMAT_BC7_SRGB_BLOCK;				break;
 	case PTI_ETC1_RGB8:			format = VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;		break;	//vulkan doesn't support etc1, but etc2 is a superset so its all okay.
@@ -928,9 +1034,9 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	case PTI_ETC2_RGB8A8:		format = VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;	break;
 	case PTI_ETC2_RGB8A8_SRGB:	format = VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK;	break;
 	case PTI_EAC_R11:			format = VK_FORMAT_EAC_R11_UNORM_BLOCK;			break;
-	case PTI_EAC_R11_SIGNED:	format = VK_FORMAT_EAC_R11_SNORM_BLOCK;			break;
+	case PTI_EAC_R11_SNORM:		format = VK_FORMAT_EAC_R11_SNORM_BLOCK;			break;
 	case PTI_EAC_RG11:			format = VK_FORMAT_EAC_R11G11_UNORM_BLOCK;		break;
-	case PTI_EAC_RG11_SIGNED:	format = VK_FORMAT_EAC_R11G11_SNORM_BLOCK;		break;
+	case PTI_EAC_RG11_SNORM:	format = VK_FORMAT_EAC_R11G11_SNORM_BLOCK;		break;
 
 	case PTI_ASTC_4X4:			format = VK_FORMAT_ASTC_4x4_UNORM_BLOCK;		break;
 	case PTI_ASTC_4X4_SRGB:		format = VK_FORMAT_ASTC_4x4_SRGB_BLOCK;			break;
@@ -976,11 +1082,21 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	case PTI_BGRX8:				format = VK_FORMAT_B8G8R8A8_UNORM;				break;
 	case PTI_RGBA8:
 	case PTI_RGBX8:				format = VK_FORMAT_R8G8B8A8_UNORM;				break;
-	default:
-		Sys_Error("VK_CreateTexture2DArray: Unrecognised image encoding: %u\n", encoding);
-		format = VK_FORMAT_UNDEFINED;
+	//misaligned formats
+	case PTI_RGB8:				format = VK_FORMAT_R8G8B8_UNORM;				break;
+	case PTI_BGR8:				format = VK_FORMAT_B8G8R8_UNORM;				break;
+
+	//unsupported 'formats'
+	case PTI_MAX:
+#ifdef FTE_TARGET_WEB
+	case PTI_WHOLEFILE:
+#endif
+	case PTI_EMULATED:
 		break;
 	}
+	if (format == VK_FORMAT_UNDEFINED)	//no default case means warnings for unsupported formats above.
+		Sys_Error("VK_CreateTexture2DArray: Unrecognised image encoding: %u\n", encoding);
+
 	ici.flags = (ret.type==PTI_CUBEMAP)?VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT:0;
 	ici.imageType = VK_IMAGE_TYPE_2D;
 	ici.format = format;
@@ -1038,10 +1154,39 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 		viewInfo.image = ret.image;
 		viewInfo.viewType = (ret.type==PTI_CUBEMAP)?VK_IMAGE_VIEW_TYPE_CUBE:VK_IMAGE_VIEW_TYPE_2D;
 		viewInfo.format = format;
-		viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
-		viewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
-		viewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
-		viewInfo.components.a = (encoding == PTI_RGBX8 || encoding == PTI_BGRX8)?VK_COMPONENT_SWIZZLE_ONE:VK_COMPONENT_SWIZZLE_A;
+		switch(encoding)
+		{
+		//formats that explicitly drop the alpha
+		case PTI_BC1_RGB:
+		case PTI_BC1_RGB_SRGB:
+		case PTI_RGBX8:
+		case PTI_RGBX8_SRGB:
+		case PTI_BGRX8:
+		case PTI_BGRX8_SRGB:
+			viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+			viewInfo.components.g = VK_COMPONENT_SWIZZLE_G;
+			viewInfo.components.b = VK_COMPONENT_SWIZZLE_B;
+			viewInfo.components.a = VK_COMPONENT_SWIZZLE_ONE;
+			break;
+		case PTI_L8:	//must be an R8 texture
+			viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+			viewInfo.components.g = VK_COMPONENT_SWIZZLE_R;
+			viewInfo.components.b = VK_COMPONENT_SWIZZLE_R;
+			viewInfo.components.a = VK_COMPONENT_SWIZZLE_ONE;
+			break;
+		case PTI_L8A8:	//must be an RG8 texture
+			viewInfo.components.r = VK_COMPONENT_SWIZZLE_R;
+			viewInfo.components.g = VK_COMPONENT_SWIZZLE_R;
+			viewInfo.components.b = VK_COMPONENT_SWIZZLE_R;
+			viewInfo.components.a = VK_COMPONENT_SWIZZLE_G;
+			break;
+		default:
+			viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+			viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+			viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+			viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+			break;
+		}
 		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		viewInfo.subresourceRange.baseMipLevel = 0;
 		viewInfo.subresourceRange.levelCount = mips;
@@ -1162,6 +1307,33 @@ void VK_FencedSync(void *work)
 	struct vk_fencework *w = work;
 	VK_FencedSubmit(w);
 
+#ifdef MULTITHREAD
+	//okay, this is crazy, but it ensures that the work was submitted BEFORE the WaitForFence call.
+	//we should probably come up with a better sync method.
+	if (vk.submitthread)
+	{
+		qboolean nnsc = vk.neednewswapchain;
+		vk.neednewswapchain = true;
+		Sys_LockConditional(vk.submitcondition);	//annoying, but required for it to be reliable with respect to other things.
+		Sys_ConditionSignal(vk.submitcondition);
+		Sys_UnlockConditional(vk.submitcondition);
+		Sys_WaitOnThread(vk.submitthread);
+		vk.submitthread = NULL;
+
+		while (vk.work)
+		{
+			Sys_LockConditional(vk.submitcondition);
+			VK_Submit_DoWork();
+			Sys_UnlockConditional(vk.submitcondition);
+		}
+
+		//we know all work is synced now...
+
+		vk.neednewswapchain = nnsc;
+		vk.submitthread = Sys_CreateThread("vksubmission", VK_Submit_Thread, NULL, THREADP_HIGHEST, 0);
+	}
+#endif
+
 	//fixme: waiting for the fence while it may still be getting created by the worker is unsafe.
 	vkWaitForFences(vk.device, 1, &w->fence, VK_FALSE, UINT64_MAX);
 }
@@ -1230,12 +1402,13 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	uint32_t blockbytes;
 	uint32_t layers;
 	uint32_t mipcount = mips->mipcount;
-	if (mips->type != PTI_2D && mips->type != PTI_CUBEMAP)
+	if (mips->type != PTI_2D && mips->type != PTI_CUBEMAP)// && mips->type != PTI_2D_ARRAY)
 		return false;
 	if (!mipcount || mips->mip[0].width == 0 || mips->mip[0].height == 0)
 		return false;
 
 	layers = (mips->type == PTI_CUBEMAP)?6:1;
+	layers *= mips->mip[0].depth;
 
 	if (layers == 1 && mipcount > 1)
 	{	//npot mipmapped textures are awkward.
@@ -2357,6 +2530,7 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 	capt = VK_AtFrameEnd(VKVID_CopiedRGBData, NULL, sizeof(*capt));
 	capt->gotrgbdata = gotrgbdata;
 
+	//FIXME: vkCmdBlitImage the image to convert it from half-float or whatever to a format that our screenshot etc code can cope with.
 	capt->imageformat = TF_BGRA32;
 	capt->imagestride = vk.frame->backbuf->colour.width*4;	//vulkan is top-down, so this should be positive.
 	capt->imagewidth = vk.frame->backbuf->colour.width;
@@ -2401,32 +2575,54 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 
 char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
-	//with vulkan, we need to create a staging image to write into, submit a copy, wait for completion, map the copy, copy that out, free the staging.
-	//its enough to make you pitty anyone that writes opengl drivers.
+	//in order to deal with various backbuffer formats (like half-float) etc, we play safe and blit the framebuffer to a safe format.
+	//we then transfer that into a buffer that we can then directly read.
+	//and then we allocate a C buffer that we then copy it into...
+	//so yeah, 3 copies. life sucks.
+	//blit requires support for VK_IMAGE_USAGE_TRANSFER_DST_BIT on our image, which means we need optimal, which means we can't directly map it, which means we need the buffer copy too.
+	//this might be relaxed on mobile, but who really takes screenshots on mobiles anyway?!? anyway, video capture shouldn't be using this either way so top performance isn't a concern
 	if (VK_SCR_GrabBackBuffer())
 	{
+		VkImageLayout framebufferlayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;//vk.frame->backbuf->colour.layout;
+
 		void *imgdata, *outdata;
 		struct vk_fencework *fence = VK_FencedBegin(NULL, 0);
-		VkImageCopy icpy;
 		VkImage tempimage;
 		VkDeviceMemory tempmemory;
-		VkImageSubresource subres = {0};
-		VkSubresourceLayout layout;
-
+		VkBufferCreateInfo bci = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+		VkBuffer tempbuffer;
+		VkDeviceMemory tempbufmemory;
 		VkMemoryRequirements mem_reqs;
 		VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
 		VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+		//VkFormatProperties vkfmt;
+
 		ici.flags = 0;
 		ici.imageType = VK_IMAGE_TYPE_2D;
-		ici.format = VK_FORMAT_B8G8R8A8_UNORM;
+		/*vkGetPhysicalDeviceFormatProperties(vk.gpu, VK_FORMAT_B8G8R8_UNORM, &vkfmt);
+		if ((vkfmt.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT) && (vkfmt.optimalTilingFeatures & VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR))
+		{	//if we can do BGR, then use it, because that's what most PC file formats use, like tga.
+			//we don't really want alpha data anyway.
+			if (vid.flags & VID_SRGB_FB)
+				ici.format = VK_FORMAT_B8G8R8_SRGB;
+			else
+				ici.format = VK_FORMAT_B8G8R8_UNORM;
+		}
+		else*/
+		{	//otherwise lets just get bgra data.
+			if (vid.flags & VID_SRGB_FB)
+				ici.format = VK_FORMAT_B8G8R8A8_SRGB;
+			else
+				ici.format = VK_FORMAT_B8G8R8A8_UNORM;
+		}
 		ici.extent.width = vid.pixelwidth;
 		ici.extent.height = vid.pixelheight;
 		ici.extent.depth = 1;
 		ici.mipLevels = 1;
 		ici.arrayLayers = 1;
 		ici.samples = VK_SAMPLE_COUNT_1_BIT;
-		ici.tiling = VK_IMAGE_TILING_LINEAR;
-		ici.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+		ici.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT|VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		ici.queueFamilyIndexCount = 0;
 		ici.pQueueFamilyIndices = NULL;
@@ -2434,57 +2630,100 @@ char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight
 		VkAssert(vkCreateImage(vk.device, &ici, vkallocationcb, &tempimage));
 		vkGetImageMemoryRequirements(vk.device, tempimage, &mem_reqs);
 		memAllocInfo.allocationSize = mem_reqs.size;
-		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
 		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &tempmemory));
 		VkAssert(vkBindImageMemory(vk.device, tempimage, tempmemory, 0));
 
+		bci.flags = 0;
+		bci.size = vid.pixelwidth*vid.pixelheight*4;
+		bci.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+		bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		bci.queueFamilyIndexCount = 0;
+		bci.pQueueFamilyIndices = NULL;
+
+		VkAssert(vkCreateBuffer(vk.device, &bci, vkallocationcb, &tempbuffer));
+		vkGetBufferMemoryRequirements(vk.device, tempbuffer, &mem_reqs);
+		memAllocInfo.allocationSize = mem_reqs.size;
+		memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+		if (memAllocInfo.memoryTypeIndex == ~0u)
+			memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &tempbufmemory));
+		VkAssert(vkBindBufferMemory(vk.device, tempbuffer, tempbufmemory, 0));
 
 
-		set_image_layout(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
+		set_image_layout(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, framebufferlayout, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
 		set_image_layout(fence->cbuf, tempimage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT);
+		{
+			VkImageBlit iblt;
+			iblt.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			iblt.srcSubresource.mipLevel = 0;
+			iblt.srcSubresource.baseArrayLayer = 0;
+			iblt.srcSubresource.layerCount = 1;
+			iblt.srcOffsets[0].x = 0;
+			iblt.srcOffsets[0].y = 0;
+			iblt.srcOffsets[0].z = 0;
+			iblt.srcOffsets[1].x = vid.pixelwidth;
+			iblt.srcOffsets[1].y = vid.pixelheight;
+			iblt.srcOffsets[1].z = 1;
+			iblt.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			iblt.dstSubresource.mipLevel = 0;
+			iblt.dstSubresource.baseArrayLayer = 0;
+			iblt.dstSubresource.layerCount = 1;
+			iblt.dstOffsets[0].x = 0;
+			iblt.dstOffsets[0].y = 0;
+			iblt.dstOffsets[0].z = 0;
+			iblt.dstOffsets[1].x = vid.pixelwidth;
+			iblt.dstOffsets[1].y = vid.pixelheight;
+			iblt.dstOffsets[1].z = 1;
 
+			vkCmdBlitImage(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tempimage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &iblt, VK_FILTER_LINEAR);
+		}
+		set_image_layout(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, framebufferlayout, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+		set_image_layout(fence->cbuf, tempimage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
 
-		//fixme: transition layouts!
-		icpy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		icpy.srcSubresource.mipLevel = 0;
-		icpy.srcSubresource.baseArrayLayer = 0;
-		icpy.srcSubresource.layerCount = 1;
-		icpy.srcOffset.x = 0;
-		icpy.srcOffset.y = 0;
-		icpy.srcOffset.z = 0;
-		icpy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		icpy.dstSubresource.mipLevel = 0;
-		icpy.dstSubresource.baseArrayLayer = 0;
-		icpy.dstSubresource.layerCount = 1;
-		icpy.dstOffset.x = 0;
-		icpy.dstOffset.y = 0;
-		icpy.dstOffset.z = 0;
-		icpy.extent.width = vid.pixelwidth;
-		icpy.extent.height = vid.pixelheight;
-		icpy.extent.depth = 1;
-		vkCmdCopyImage(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tempimage, VK_IMAGE_LAYOUT_GENERAL, 1, &icpy);
+		{
+			VkBufferImageCopy icpy;
+			icpy.bufferOffset = 0;
+			icpy.bufferRowLength = 0;	//packed
+			icpy.bufferImageHeight = 0;	//packed
+			icpy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			icpy.imageSubresource.mipLevel = 0;
+			icpy.imageSubresource.baseArrayLayer = 0;
+			icpy.imageSubresource.layerCount = 1;
+			icpy.imageOffset.x = 0;
+			icpy.imageOffset.y = 0;
+			icpy.imageOffset.z = 0;
+			icpy.imageExtent.width = ici.extent.width;
+			icpy.imageExtent.height = ici.extent.height;
+			icpy.imageExtent.depth = 1;
 
-		set_image_layout(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-		set_image_layout(fence->cbuf, tempimage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_ACCESS_HOST_READ_BIT);
+			vkCmdCopyImageToBuffer(fence->cbuf, tempimage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, tempbuffer, 1, &icpy);
+		}
 
 		VK_FencedSync(fence);
 
-		outdata = BZ_Malloc(4*vid.pixelwidth*vid.pixelheight);	//FIXME: this sucks.
-		*fmt = PTI_BGRA8;
-		*bytestride = vid.pixelwidth*4;
-		*truevidwidth = vid.pixelwidth;
-		*truevidheight = vid.pixelheight;
+		outdata = BZ_Malloc(4*ici.extent.width*ici.extent.height);
+		if (ici.format == VK_FORMAT_B8G8R8_SRGB || ici.format == VK_FORMAT_B8G8R8_UNORM)
+			*fmt = PTI_BGR8;
+		else if (ici.format == VK_FORMAT_R8G8B8_SRGB || ici.format == VK_FORMAT_R8G8B8_UNORM)
+			*fmt = PTI_RGB8;
+		else if (ici.format == VK_FORMAT_R8G8B8A8_SRGB || ici.format == VK_FORMAT_R8G8B8A8_UNORM)
+			*fmt = PTI_RGBA8;
+		else
+			*fmt = PTI_BGRA8;
+		*bytestride = ici.extent.width*4;
+		*truevidwidth = ici.extent.width;
+		*truevidheight = ici.extent.height;
 
-		subres.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		subres.mipLevel = 0;
-		subres.arrayLayer = 0;
-		vkGetImageSubresourceLayout(vk.device, tempimage, &subres, &layout);
-		VkAssert(vkMapMemory(vk.device, tempmemory, 0, mem_reqs.size, 0, &imgdata));
-		memcpy(outdata, imgdata, 4*vid.pixelwidth*vid.pixelheight);
-		vkUnmapMemory(vk.device, tempmemory);
+		VkAssert(vkMapMemory(vk.device, tempbufmemory, 0, 4*ici.extent.width*ici.extent.height, 0, &imgdata));
+		memcpy(outdata, imgdata, 4*ici.extent.width*ici.extent.height);
+		vkUnmapMemory(vk.device, tempbufmemory);
 
 		vkDestroyImage(vk.device, tempimage, vkallocationcb);
 		vkFreeMemory(vk.device, tempmemory, vkallocationcb);
+
+		vkDestroyBuffer(vk.device, tempbuffer, vkallocationcb);
+		vkFreeMemory(vk.device, tempbufmemory, vkallocationcb);
 
 		return outdata;
 	}
@@ -2606,7 +2845,7 @@ static void VK_PaintScreen(void)
 		}
 	}
 
-//	scr_con_forcedraw = false;
+	scr_con_forcedraw = false;
 	if (noworld)
 	{
 		extern char levelshotname[];
@@ -2616,8 +2855,8 @@ static void VK_PaintScreen(void)
 			R2D_ScalePic(0, 0, vid.width, vid.height, R2D_SafeCachePic (levelshotname));
 		else if (scr_con_current != vid.height)
 			R2D_ConsoleBackground(0, vid.height, true);
-//		else
-//			scr_con_forcedraw = true;
+		else
+			scr_con_forcedraw = true;
 
 		nohud = true;
 	}
@@ -2757,7 +2996,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		imgbarrier.pNext = NULL;
 		imgbarrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
 		imgbarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		imgbarrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;	//'Alternately, oldLayout can be VK_IMAGE_LAYOUT_UNDEFINED, if the image’s contents need not be preserved.'
+		imgbarrier.oldLayout = vk.rendertarg->colour.layout;	//'Alternately, oldLayout can be VK_IMAGE_LAYOUT_UNDEFINED, if the image’s contents need not be preserved.'
 		imgbarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		imgbarrier.image = vk.frame->backbuf->colour.image;
 		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -2774,6 +3013,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 			imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 			vk.frame->backbuf->firstuse = false;
 		}
+		vk.rendertarg->colour.layout = imgbarrier.newLayout;
 		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 	}
 	{
@@ -3012,6 +3252,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		imgbarrier.srcQueueFamilyIndex = vk.queuefam[0];
 		imgbarrier.dstQueueFamilyIndex = vk.queuefam[1];
 		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+		vk.rendertarg->colour.layout = imgbarrier.newLayout;
 	}
 
 //	vkCmdWriteTimestamp(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, querypool, vk.bufferidx*2+1);
@@ -3357,32 +3598,37 @@ void VK_CheckTextureFormats(void)
 		unsigned int needextra;
 	} texfmt[] =
 	{
-		{PTI_RGBA8,			VK_FORMAT_R8G8B8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_RGBX8,			VK_FORMAT_R8G8B8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_BGRA8,			VK_FORMAT_B8G8R8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_BGRX8,			VK_FORMAT_B8G8R8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_RGBA8,				VK_FORMAT_R8G8B8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_RGBX8,				VK_FORMAT_R8G8B8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BGRA8,				VK_FORMAT_B8G8R8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BGRX8,				VK_FORMAT_B8G8R8A8_UNORM,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 
-		{PTI_RGBA8_SRGB,	VK_FORMAT_R8G8B8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
-		{PTI_RGBX8_SRGB,	VK_FORMAT_R8G8B8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
-		{PTI_BGRA8_SRGB,	VK_FORMAT_B8G8R8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
-		{PTI_BGRX8_SRGB,	VK_FORMAT_B8G8R8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RGB8,				VK_FORMAT_R8G8B8_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BGR8,				VK_FORMAT_B8G8R8_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 
-		{PTI_RGB565,		VK_FORMAT_R5G6B5_UNORM_PACK16,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_RGBA4444,		VK_FORMAT_R4G4B4A4_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ARGB4444,		VK_FORMAT_B4G4R4A4_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_RGBA5551,		VK_FORMAT_R5G5B5A1_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_ARGB1555,		VK_FORMAT_A1R5G5B5_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_RGBA16F,		VK_FORMAT_R16G16B16A16_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
-		{PTI_RGBA32F,		VK_FORMAT_R32G32B32A32_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
-		{PTI_R8,			VK_FORMAT_R8_UNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
-		{PTI_RG8,			VK_FORMAT_R8G8_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
-		{PTI_R8_SIGNED,		VK_FORMAT_R8_SNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
-		{PTI_RG8_SIGNED,	VK_FORMAT_R8G8_SNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RGBA8_SRGB,		VK_FORMAT_R8G8B8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RGBX8_SRGB,		VK_FORMAT_R8G8B8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_BGRA8_SRGB,		VK_FORMAT_B8G8R8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_BGRX8_SRGB,		VK_FORMAT_B8G8R8A8_SRGB,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 
-		{PTI_DEPTH16,		VK_FORMAT_D16_UNORM,				VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
-		{PTI_DEPTH24,		VK_FORMAT_X8_D24_UNORM_PACK32,		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
-		{PTI_DEPTH32,		VK_FORMAT_D32_SFLOAT,				VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
-		{PTI_DEPTH24_8,		VK_FORMAT_D24_UNORM_S8_UINT,		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+		{PTI_E5BGR9,			VK_FORMAT_E5B9G9R9_UFLOAT_PACK32,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_A2BGR10,			VK_FORMAT_A2B10G10R10_UNORM_PACK32,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RGB565,			VK_FORMAT_R5G6B5_UNORM_PACK16,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_RGBA4444,			VK_FORMAT_R4G4B4A4_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+//		{PTI_ARGB4444,			VK_FORMAT_A4R4G4B4_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_RGBA5551,			VK_FORMAT_R5G5B5A1_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_ARGB1555,			VK_FORMAT_A1R5G5B5_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_RGBA16F,			VK_FORMAT_R16G16B16A16_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
+		{PTI_RGBA32F,			VK_FORMAT_R32G32B32A32_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
+		{PTI_R8,				VK_FORMAT_R8_UNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RG8,				VK_FORMAT_R8G8_UNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_R8_SNORM,			VK_FORMAT_R8_SNORM,					VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+		{PTI_RG8_SNORM,			VK_FORMAT_R8G8_SNORM,				VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
+
+		{PTI_DEPTH16,			VK_FORMAT_D16_UNORM,				VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+		{PTI_DEPTH24,			VK_FORMAT_X8_D24_UNORM_PACK32,		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+		{PTI_DEPTH32,			VK_FORMAT_D32_SFLOAT,				VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
+		{PTI_DEPTH24_8,			VK_FORMAT_D24_UNORM_S8_UINT,		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT},
 
 		{PTI_BC1_RGB,			VK_FORMAT_BC1_RGB_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_BC1_RGBA,			VK_FORMAT_BC1_RGBA_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
@@ -3393,11 +3639,11 @@ void VK_CheckTextureFormats(void)
 		{PTI_BC2_RGBA_SRGB,		VK_FORMAT_BC2_SRGB_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_BC3_RGBA_SRGB,		VK_FORMAT_BC3_SRGB_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_BC4_R8,			VK_FORMAT_BC4_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_BC4_R8_SIGNED,		VK_FORMAT_BC4_SNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC4_R8_SNORM,		VK_FORMAT_BC4_SNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_BC5_RG8,			VK_FORMAT_BC5_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_BC5_RG8_SIGNED,	VK_FORMAT_BC5_SNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_BC6_RGBF,			VK_FORMAT_BC6H_UFLOAT_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_BC6_RGBF_SIGNED,	VK_FORMAT_BC6H_SFLOAT_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC5_RG8_SNORM,		VK_FORMAT_BC5_SNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC6_RGB_UFLOAT,	VK_FORMAT_BC6H_UFLOAT_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_BC6_RGB_SFLOAT,	VK_FORMAT_BC6H_SFLOAT_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_BC7_RGBA,			VK_FORMAT_BC7_UNORM_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_BC7_RGBA_SRGB,		VK_FORMAT_BC7_SRGB_BLOCK,			VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ETC1_RGB8,			VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},	//vulkan doesn't support etc1 (but that's okay, because etc2 is a superset).
@@ -3408,9 +3654,9 @@ void VK_CheckTextureFormats(void)
 		{PTI_ETC2_RGB8A1_SRGB,	VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ETC2_RGB8A8_SRGB,	VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_EAC_R11,			VK_FORMAT_EAC_R11_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_EAC_R11_SIGNED,	VK_FORMAT_EAC_R11_SNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_EAC_R11_SNORM,		VK_FORMAT_EAC_R11_SNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_EAC_RG11,			VK_FORMAT_EAC_R11G11_UNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-		{PTI_EAC_RG11_SIGNED,	VK_FORMAT_EAC_R11G11_SNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+		{PTI_EAC_RG11_SNORM,	VK_FORMAT_EAC_R11G11_SNORM_BLOCK,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_4X4,			VK_FORMAT_ASTC_4x4_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_4X4_SRGB,		VK_FORMAT_ASTC_4x4_SRGB_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ASTC_5X4,			VK_FORMAT_ASTC_5x4_UNORM_BLOCK,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
@@ -4032,6 +4278,8 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		}
 #endif
 	}
+	if (info->srgb != 1 && (vid.flags & VID_SRGB_FB))
+		vid.flags |= VID_SRGBAWARE;
 	return true;
 }
 void VK_Shutdown(void)

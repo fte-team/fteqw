@@ -7,6 +7,8 @@
 #include "renderque.h"
 #include "resource.h"
 
+#define FUCKDXGI
+
 #define COBJMACROS
 #include <d3d11.h>
 
@@ -144,14 +146,14 @@ static void D3D11_PresentOrCrash(void)
 {
 	extern cvar_t vid_vsync;
 	RSpeedMark();
-	HRESULT hr = IDXGISwapChain_Present(d3dswapchain, vid_vsync.ival, 0);
+	HRESULT hr = IDXGISwapChain_Present(d3dswapchain, max(0,vid_vsync.ival), 0);
 	if (FAILED(hr))
 		Sys_Error("IDXGISwapChain_Present: %s\n", D3D_NameForResult(hr));
 	RSpeedEnd(RSPEED_PRESENT);
 }
 
-typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
-static modestate_t modestate;
+typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLWINDOW, MS_UNINIT} dx11modestate_t;
+static dx11modestate_t modestate;
 
 //FIXME: need to push/pop render targets like gl does, to not harm shadowmaps/refraction/etc.
 void D3D11_ApplyRenderTargets(qboolean usedepth)
@@ -285,7 +287,7 @@ static qboolean D3D11AppActivate(BOOL fActive, BOOL minimize)
 	return true;
 }
 
-
+#ifndef FUCKDXGI
 static void D3D11_DoResize(void)
 {
 	d3d_resized = true;
@@ -312,14 +314,30 @@ static void D3D11_DoResize(void)
 	resetd3dbackbuffer(vid.pixelwidth, vid.pixelheight);
 	D3D11BE_Reset(false);
 }
+#endif
 
+static void ClearAllStates (void)
+{
+	int		i;
+
+// send an up event for each key, to make sure the server clears them all
+	for (i=0 ; i<256 ; i++)
+	{
+		Key_Event (0, i, 0, false);
+	}
+
+	Key_ClearStates ();
+	INS_ClearStates ();
+}
 
 static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	LONG    lRet = 0;
-	int		fActive, fMinimized, temp;
+	int		temp;
 	extern unsigned int uiWheelMessage;
+#ifndef FUCKDXGI
 	extern qboolean	keydown[K_MAX];
+#endif
 
 	if ( uMsg == uiWheelMessage )
 		uMsg = WM_MOUSEWHEEL;
@@ -327,11 +345,24 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 	switch (uMsg)
 	{
 #if 1
-/*		case WM_KILLFOCUS:
-			if (modestate == MS_FULLDIB)
+		case WM_KILLFOCUS:
+			if (modestate == MS_FULLWINDOW)
 				ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
+			D3D11AppActivate(false, false);
 			break;
-*/
+
+		case WM_SETFOCUS:
+			if (modestate == MS_FULLWINDOW)
+				ShowWindow(mainwindow, SW_SHOWMAXIMIZED);
+			D3D11AppActivate(true, false);
+
+			if (modestate == MS_FULLSCREEN && d3dswapchain)
+				IDXGISwapChain_SetFullscreenState(d3dswapchain, vid.activeapp, (vid.activeapp)?d3dscreen:NULL);
+			Cvar_ForceCallback(&v_gamma);
+
+			ClearAllStates ();
+			break;
+
 //		case WM_CREATE:
 //			break;
 
@@ -342,6 +373,7 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
+#ifndef FUCKDXGI
 			if (keydown[K_LALT] && wParam == '\r')
 			{
 				if (d3dscreen)
@@ -402,7 +434,9 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 				D3D11_DoResize();
 				Cvar_ForceCallback(&v_gamma);
 			}
-			else if (!vid_initializing)
+			else
+#endif
+			if (!vid_initializing)
 				INS_TranslateKeyEvent (wParam, lParam, true, 0, false);
 			break;
 
@@ -553,31 +587,6 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
 				}
 
-			break;
-
-		case WM_ACTIVATE:
-			fActive = LOWORD(wParam);
-			fMinimized = (BOOL) HIWORD(wParam);
-			if (!D3D11AppActivate(!(fActive == WA_INACTIVE), fMinimized))
-				break;//so, urm, tell me microsoft, what changed?
-
-			if (modestate == MS_FULLDIB)
-				ShowWindow(mainwindow, SW_SHOWNORMAL);
-
-			if (modestate == MS_FULLSCREEN)
-			{
-				if (d3dswapchain)
-				{
-					IDXGISwapChain_SetFullscreenState(d3dswapchain, vid.activeapp, d3dscreen);
-					D3D11_DoResize();
-				}
-			}
-			Cvar_ForceCallback(&v_gamma);
-
-		// fix the leftover Alt from any Alt-Tab or the like that switched us away
-//			ClearAllStates ();
-
-			lRet = 1;
 			break;
 
 		case WM_DESTROY:
@@ -791,7 +800,17 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	scd.BufferDesc.RefreshRate.Numerator = 0;
 	scd.BufferDesc.RefreshRate.Denominator = 0;
 	scd.BufferCount = 1+info->triplebuffer;	//back buffer count
-	scd.BufferDesc.Format = info->srgb?DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:DXGI_FORMAT_R8G8B8A8_UNORM;	//32bit colour
+	if (info->srgb)
+	{
+		if (info->srgb >= 3)	//fixme: detect properly.
+			scd.BufferDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;	//on nvidia, outputs linear rgb to srgb devices, which means info->srgb is effectively set
+		else
+			scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+	}
+	else if (info->bpp == 30)	//fixme: detect properly.
+		scd.BufferDesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+	else
+		scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	scd.OutputWindow = hWnd;
 	scd.SampleDesc.Count = d3d11multisample_count = max(1, info->multisample);	//as we're starting up windowed (and switching to fullscreen after), the frontbuffer is handled by windows.
@@ -856,29 +875,65 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 #define DXGI_FORMAT_B4G4R4A4_UNORM 115
 
 	//why does d3d11 have no rgbx format? anyone else think that weird?
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B5G6R5_UNORM, &support);		sh_config.texfmt[PTI_RGB565] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B5G5R5A1_UNORM, &support);	sh_config.texfmt[PTI_ARGB1555] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B4G4R4A4_UNORM, &support);	sh_config.texfmt[PTI_ARGB4444] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R8G8B8A8_UNORM, &support);	sh_config.texfmt[PTI_RGBA8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8A8_UNORM, &support);	sh_config.texfmt[PTI_BGRA8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8X8_UNORM, &support);	sh_config.texfmt[PTI_BGRX8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, &support);	sh_config.texfmt[PTI_RGBA8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8A8_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BGRA8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8X8_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BGRX8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC1_UNORM, &support);		sh_config.texfmt[PTI_BC1_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC2_UNORM, &support);		sh_config.texfmt[PTI_BC2_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC3_UNORM, &support);		sh_config.texfmt[PTI_BC3_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC1_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BC1_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC2_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BC2_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC3_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BC3_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC4_UNORM, &support);		sh_config.texfmt[PTI_BC4_R8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC4_SNORM, &support);		sh_config.texfmt[PTI_BC4_R8_SIGNED] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC5_UNORM, &support);		sh_config.texfmt[PTI_BC5_RG8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC5_SNORM, &support);		sh_config.texfmt[PTI_BC5_RG8_SIGNED] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC6H_UF16, &support);		sh_config.texfmt[PTI_BC6_RGBF] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC6H_SF16, &support);		sh_config.texfmt[PTI_BC6_RGBF_SIGNED] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC7_UNORM, &support);		sh_config.texfmt[PTI_BC7_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
-	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC7_UNORM_SRGB, &support);	sh_config.texfmt[PTI_BC7_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B5G6R5_UNORM, &support)))			//crippled to win8+ only.
+		sh_config.texfmt[PTI_RGB565] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B5G5R5A1_UNORM, &support)))		//crippled to win8+ only.
+		sh_config.texfmt[PTI_ARGB1555] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B4G4R4A4_UNORM, &support)))		//crippled to win8+ only.
+		sh_config.texfmt[PTI_ARGB4444] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R8G8B8A8_UNORM, &support)))
+		sh_config.texfmt[PTI_RGBA8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, &support)))
+		sh_config.texfmt[PTI_RGBA8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R10G10B10A2_UNORM, &support)))
+		sh_config.texfmt[PTI_A2BGR10] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D) && !!(support & D3D11_FORMAT_SUPPORT_RENDER_TARGET);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R9G9B9E5_SHAREDEXP, &support)))
+		sh_config.texfmt[PTI_E5BGR9] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R16G16B16A16_FLOAT, &support)))
+		sh_config.texfmt[PTI_RGBA16F] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D) && !!(support & D3D11_FORMAT_SUPPORT_RENDER_TARGET);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R32G32B32A32_FLOAT, &support)))
+		sh_config.texfmt[PTI_RGBA32F] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D) && !!(support & D3D11_FORMAT_SUPPORT_RENDER_TARGET);
+
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8A8_UNORM, &support)))
+		sh_config.texfmt[PTI_BGRA8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8A8_UNORM_SRGB, &support)))
+		sh_config.texfmt[PTI_BGRA8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8X8_UNORM, &support)))
+		sh_config.texfmt[PTI_BGRX8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8X8_UNORM_SRGB, &support)))
+		sh_config.texfmt[PTI_BGRX8_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+
+	//compressed formats
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC1_UNORM, &support)))
+		sh_config.texfmt[PTI_BC1_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC1_UNORM_SRGB, &support)))
+		sh_config.texfmt[PTI_BC1_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC2_UNORM, &support)))
+		sh_config.texfmt[PTI_BC2_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC2_UNORM_SRGB, &support)))
+		sh_config.texfmt[PTI_BC2_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC3_UNORM, &support)))
+		sh_config.texfmt[PTI_BC3_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC3_UNORM_SRGB, &support)))
+		sh_config.texfmt[PTI_BC3_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC4_UNORM, &support)))
+		sh_config.texfmt[PTI_BC4_R8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC4_SNORM, &support)))
+		sh_config.texfmt[PTI_BC4_R8_SNORM] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC5_UNORM, &support)))
+		sh_config.texfmt[PTI_BC5_RG8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC5_SNORM, &support)))
+		sh_config.texfmt[PTI_BC5_RG8_SNORM] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC6H_UF16, &support)))
+		sh_config.texfmt[PTI_BC6_RGB_UFLOAT] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC6H_SF16, &support)))
+		sh_config.texfmt[PTI_BC6_RGB_SFLOAT] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC7_UNORM, &support)))
+		sh_config.texfmt[PTI_BC7_RGBA] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	if (SUCCEEDED(ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC7_UNORM_SRGB, &support)))
+		sh_config.texfmt[PTI_BC7_RGBA_SRGB] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
 
 	//these formats are not officially supported as specified, but noone cares
 	sh_config.texfmt[PTI_RGBX8] = sh_config.texfmt[PTI_RGBA8];
@@ -886,7 +941,22 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	sh_config.texfmt[PTI_BC1_RGB] = sh_config.texfmt[PTI_BC1_RGBA];
 	sh_config.texfmt[PTI_BC1_RGB_SRGB] = sh_config.texfmt[PTI_BC1_RGBA_SRGB];
 
-	vid.srgb = info->srgb>1;
+	switch(scd.BufferDesc.Format)
+	{
+	case DXGI_FORMAT_R16G16B16A16_FLOAT:
+		vid.flags |= VID_SRGB_FB_LINEAR|VID_FP16;	//these are apparently linear already.
+		break;
+	case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+	case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+	case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
+		vid.flags |= VID_SRGB_FB_LINEAR;	//effectively linear.
+		break;
+	default:
+		//non-linear formats.
+		break;
+	}
+	if ((vid.flags & VID_SRGB_FB) && info->srgb != 1)
+		vid.flags |= VID_SRGBAWARE;
 
 	vid.numpages = scd.BufferCount;
 	if (!D3D11Shader_Init(flevel))
@@ -987,15 +1057,30 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	RegisterClass(&wc);
 
-	modestate = info->fullscreen?MS_FULLSCREEN:MS_WINDOWED;
+	if (info->fullscreen/* == 2*/)
+		modestate = MS_FULLWINDOW;
+	else if (info->fullscreen)
+		modestate = MS_FULLSCREEN;	//FIXME: I'm done with fighting dxgi. I'm just going to pick the easy method that doesn't end up with totally fucked up behaviour.
+	else
+		modestate = MS_WINDOWED;
 
-	wstyle = WS_OVERLAPPEDWINDOW;
-
-	rect.left = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
-	rect.top = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
-	rect.right = rect.left+width;
-	rect.bottom = rect.top+height;
-	AdjustWindowRectEx(&rect, wstyle, FALSE, 0);
+	if (modestate == MS_FULLWINDOW)
+	{
+		wstyle = WS_POPUP;
+		rect.right = GetSystemMetrics(SM_CXSCREEN);
+		rect.bottom = GetSystemMetrics(SM_CYSCREEN);
+		rect.left = 0;
+		rect.top = 0;
+	}
+	else
+	{
+		wstyle = WS_OVERLAPPEDWINDOW;
+		rect.left = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
+		rect.top = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
+		rect.right = rect.left+width;
+		rect.bottom = rect.top+height;
+		AdjustWindowRectEx(&rect, wstyle, FALSE, 0);
+	}
 	mainwindow = CreateWindow(CLASSNAME, "Direct3D11", wstyle, rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top, NULL, NULL, NULL, NULL);
 
 	// Try as specified.
@@ -1010,15 +1095,15 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 
-	if (info->fullscreen)
+	vid.pixelwidth = width;
+	vid.pixelheight = height;
+
+	if (modestate == MS_FULLSCREEN)
 	{
 		if (!d3dscreen)
 			IDXGISwapChain_GetContainingOutput(d3dswapchain, &d3dscreen);
 		IDXGISwapChain_SetFullscreenState(d3dswapchain, true, d3dscreen);
 	}
-
-	vid.pixelwidth = width;
-	vid.pixelheight = height;
 
 	while (PeekMessage(&msg, NULL,  0, 0, PM_REMOVE))
 	{
@@ -1028,7 +1113,10 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	CL_UpdateWindowTitle();
 
-	ShowWindow(mainwindow, SW_SHOWNORMAL);
+	if (modestate == MS_FULLWINDOW)
+		ShowWindow(mainwindow, SW_SHOWMAXIMIZED);
+	else
+		ShowWindow(mainwindow, SW_SHOWNORMAL);
 
 	vid.width = vid.pixelwidth;
 	vid.height = vid.pixelheight;

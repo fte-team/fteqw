@@ -1965,12 +1965,12 @@ void SV_Begin_Core(client_t *split)
 	else
 	{
 #ifndef NOLEGACY
-		sv_player->xv->clientcolors = host_client->playercolor;
+		sv_player->xv->clientcolors = split->playercolor;
 		if (progstype != PROG_QW)
 		{	//some redundant things, purely for dp compat
 			eval_t *eval;
 			edict_t *ent = split->edict;
-			sv_player->v->team = host_client->playercolor&15;
+			sv_player->v->team = split->playercolor&15;
 
 			eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "playermodel", ev_string, NULL);
 			if (eval)

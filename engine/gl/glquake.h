@@ -156,6 +156,7 @@ typedef void (APIENTRY *PRIORTEXFUNCPTR)(GLsizei, const GLuint *,
                     const GLclampf *);
 typedef void (APIENTRY *TEXSUBIMAGEPTR)(int, int, int, int, int, int, int, int, void *);
 typedef void (APIENTRY *FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC)	(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid* data);
+typedef void (APIENTRY *FTEPFNGLCOMPRESSEDTEXIMAGE3DARBPROC)	(GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void *data);
 typedef void (APIENTRY *FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC)	(GLenum target, GLint lod, const GLvoid* img);
 typedef void (APIENTRY *FTEPFNGLPNTRIANGLESIATIPROC)(GLenum pname, GLint param);
 typedef void (APIENTRY *FTEPFNGLPNTRIANGLESFATIPROC)(GLenum pname, GLfloat param);
@@ -198,12 +199,26 @@ extern	TEXSUBIMAGEPTR TexSubImage2DFunc;
 extern void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
 #endif
 extern FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
+extern FTEPFNGLCOMPRESSEDTEXIMAGE3DARBPROC qglCompressedTexImage3DARB;
 extern FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 extern	FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
 extern	FTEPFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
 extern void (APIENTRY *qglPatchParameteriARB)(GLenum pname, GLint value);	//core in gl4
 
 qboolean GL_CheckExtension(char *extname);
+
+struct glfmt_s
+{
+	int sizedformat;	//texstorage
+	int cformat;		//sized format used when gl_compress is set
+	int internalformat;	//used instead of internal format when gl_compress is set, or 0
+	int format;			//0 for compressed data
+	int type;			//0 for compressed data
+	int swizzle_r;
+	int swizzle_g;
+	int swizzle_b;
+	int swizzle_a;
+};
 
 typedef struct {
 	float glversion;
@@ -236,6 +251,8 @@ typedef struct {
 	qboolean ext_packed_depth_stencil;
 	qboolean arb_depth_clamp;
 	int ext_texture_filter_anisotropic;
+
+	struct glfmt_s formatinfo[PTI_MAX];
 } gl_config_t;
 
 extern gl_config_t gl_config;
@@ -245,6 +262,7 @@ extern	float	gldepthmin, gldepthmax;
 void GL_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
 qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips);
 void GL_DestroyTexture(texid_t tex);
+void GL_SetupFormats(void);
 
 /*
 typedef struct
@@ -996,6 +1014,7 @@ extern void (APIENTRY *qglTexGeniv) (GLenum coord, GLenum pname, const GLint *pa
 extern void (APIENTRY *qglTexImage1D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
 extern void (APIENTRY *qglTexImage3D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
 extern void (APIENTRY *qglTexSubImage1D) (GLenum target, GLint level, GLint xoffset, GLsizei width, GLenum format, GLenum type, const GLvoid *pixels);
+extern void (APIENTRY *qglTexSubImage3D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels);
 extern void (APIENTRY *qglTranslated) (GLdouble x, GLdouble y, GLdouble z);
 extern void (APIENTRY *qglTranslatef) (GLfloat x, GLfloat y, GLfloat z);
 
@@ -1059,6 +1078,11 @@ extern void (APIENTRY *qglVertexPointer) (GLint size, GLenum type, GLsizei strid
 
 extern void (APIENTRY *qglGenVertexArrays)(GLsizei n, GLuint *arrays);
 extern void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
+
+extern void (APIENTRY *qglTexStorage2D)(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height);		//gl4.2
+extern void (APIENTRY *qglTexStorage3D)(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth);	//gl4.2
+extern void (APIENTRY *qglCompressedTexSubImage3D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
+extern void (APIENTRY *qglCompressedTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
 
 
 

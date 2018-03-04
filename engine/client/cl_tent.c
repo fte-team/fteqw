@@ -3103,9 +3103,9 @@ void CL_UpdateExplosions (void)
 		if (ex->flags & Q2RF_BEAM)
 		{
 			ent->rtype = RT_BEAM;
-			ent->shaderRGBAf[0] = ((d_8to24rgbtable[ex->skinnum & 0xFF] >>  0) & 0xFF)/255.0;
-			ent->shaderRGBAf[1] = ((d_8to24rgbtable[ex->skinnum & 0xFF] >>  8) & 0xFF)/255.0;
-			ent->shaderRGBAf[2] = ((d_8to24rgbtable[ex->skinnum & 0xFF] >> 16) & 0xFF)/255.0;
+			ent->shaderRGBAf[0] = ((d_8to24srgbtable[ex->skinnum & 0xFF] >>  0) & 0xFF)/255.0;
+			ent->shaderRGBAf[1] = ((d_8to24srgbtable[ex->skinnum & 0xFF] >>  8) & 0xFF)/255.0;
+			ent->shaderRGBAf[2] = ((d_8to24srgbtable[ex->skinnum & 0xFF] >> 16) & 0xFF)/255.0;
 		}
 		else if (ex->skinnum < 0)
 		{

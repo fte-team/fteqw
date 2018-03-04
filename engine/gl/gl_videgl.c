@@ -208,6 +208,12 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
 		EGL_NONE
 	};
+	EGLint wndattrib[] =
+	{
+//		EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_LINEAR_KHR,
+
+		EGL_NONE
+	};
 	EGLint contextattr[] =
 	{
 		EGL_CONTEXT_CLIENT_VERSION, 2,	//requires EGL 1.3
@@ -256,7 +262,7 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 		return false;
 	}
 
-	eglsurf = qeglCreateWindowSurface(egldpy, cfg, window, NULL);
+	eglsurf = qeglCreateWindowSurface(egldpy, cfg, window, info->srgb?wndattrib:NULL);
 	if (eglsurf == EGL_NO_SURFACE)
 	{
 		Con_Printf(CON_ERROR "EGL: eglCreateWindowSurface failed: %x\n", qeglGetError());

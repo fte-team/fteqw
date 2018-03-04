@@ -657,7 +657,7 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 	if (sequence->hasblendseq>1)
 	{
 		int bf0, bf1;
-		int bweights;
+		unsigned int bweights;
 		struct
 		{
 			int frame;
@@ -766,6 +766,7 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 		}
 		if (frame1 != frame2)
 		{
+			//bweights can be 0-4 here..
 			for (i = 0; i < bweights; i++)
 			{
 				blend[bweights+i].frame = frame2;

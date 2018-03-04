@@ -1011,7 +1011,7 @@ void INS_ReInit (void)
 }
 
 //stubs, all the work is done in Sys_SendKeyEvents
-void INS_Move(float *movements, int pnum)
+void INS_Move(void)
 {
 }
 void INS_Init (void)

@@ -1884,9 +1884,9 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 		if ( renderfx & Q2RF_BEAM )
 		{	// the four beam colors are encoded in 32 bits of skinnum (hack)
 			ent.skinnum = (s1->skinnum >> ((rand() % 4)*8)) & 0xff;
-			ent.shaderRGBAf[0] = ((d_8to24rgbtable[ent.skinnum & 0xFF] >>  0) & 0xFF)/255.0;
-			ent.shaderRGBAf[1] = ((d_8to24rgbtable[ent.skinnum & 0xFF] >>  8) & 0xFF)/255.0;
-			ent.shaderRGBAf[2] = ((d_8to24rgbtable[ent.skinnum & 0xFF] >> 16) & 0xFF)/255.0;
+			ent.shaderRGBAf[0] = ((d_8to24srgbtable[ent.skinnum & 0xFF] >>  0) & 0xFF)/255.0;
+			ent.shaderRGBAf[1] = ((d_8to24srgbtable[ent.skinnum & 0xFF] >>  8) & 0xFF)/255.0;
+			ent.shaderRGBAf[2] = ((d_8to24srgbtable[ent.skinnum & 0xFF] >> 16) & 0xFF)/255.0;
 			ent.shaderRGBAf[3] = 0.30;
 			ent.model = NULL;
 			ent.framestate.g[FS_REG].lerpweight[0] = 0;

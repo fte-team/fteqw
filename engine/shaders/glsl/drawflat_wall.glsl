@@ -1,5 +1,5 @@
-!!cvarv r_floorcolor
-!!cvarv r_wallcolor
+!!cvard_srgb_b r_floorcolor
+!!cvard_srgb_b r_wallcolor
 !!permu FOG
 
 //this is for the '286' preset walls, and just draws lightmaps coloured based upon surface normals.
@@ -10,12 +10,10 @@ varying vec4 col;
 attribute vec3 v_normal;
 attribute vec2 v_lmcoord;
 varying vec2 lm;
-uniform vec3 cvar_r_wallcolor;
-uniform vec3 cvar_r_floorcolor;
 uniform vec4 e_lmscale;
 void main ()
 {
-	col = vec4(e_lmscale.rgb/255.0 * ((v_normal.z < 0.73)?cvar_r_wallcolor:cvar_r_floorcolor), e_lmscale.a);
+	col = vec4(e_lmscale.rgb * ((v_normal.z < 0.73)?r_wallcolor:r_floorcolor), e_lmscale.a);
 	lm = v_lmcoord;
 	gl_Position = ftetransform();
 }

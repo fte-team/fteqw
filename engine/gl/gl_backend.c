@@ -1176,7 +1176,12 @@ static void T_Gen_CurrentRender(int tmu)
 		qglGenTextures(1, &shaderstate.temptexture->num);
 	}
 	GL_MTBind(tmu, GL_TEXTURE_2D, shaderstate.temptexture);
-	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
+	if (vid.flags&VID_FP16)
+		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, 0, 0, vwidth, vheight, 0);
+	else if (vid.flags&VID_SRGBAWARE)
+		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA_EXT, 0, 0, vwidth, vheight, 0);
+	else
+		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -1377,6 +1382,7 @@ static float *FTableForFunc ( unsigned int func )
 {
 	switch (func)
 	{
+		default:
 		case SHADER_FUNC_SIN:
 			return r_sintable;
 
@@ -1391,10 +1397,10 @@ static float *FTableForFunc ( unsigned int func )
 
 		case SHADER_FUNC_INVERSESAWTOOTH:
 			return r_inversesawtoothtable;
-	}
 
-	//bad values allow us to crash (so I can debug em)
-	return NULL;
+		case SHADER_FUNC_NOISE:
+			return NULL;
+	}
 }
 
 void Shader_LightPass(const char *shortname, shader_t *s, const void *args)
@@ -1506,8 +1512,15 @@ void GLBE_DestroyFBOs(void)
 
 void GLBE_Shutdown(void)
 {
+	size_t u;
 	GLBE_FBO_Destroy(&shaderstate.fbo_2dfbo);
 	GLBE_DestroyFBOs();
+
+	for (u = 0; u < countof(shaderstate.programfixedemu); u++)
+	{
+		Shader_ReleaseGeneric(shaderstate.programfixedemu[u]);
+		shaderstate.programfixedemu[u] = NULL;
+	}
 
 	BZ_Free(shaderstate.wbatches);
 	shaderstate.wbatches = NULL;
@@ -1624,7 +1637,11 @@ void GLBE_Init(void)
 	memset(&shaderstate.streamebo, 0, sizeof(shaderstate.streamebo));
 	memset(&shaderstate.streamvao, 0, sizeof(shaderstate.streamvao));
 	//only do this where we have to.
-	if (qglBufferDataARB && gl_config_nofixedfunc)
+	if (qglBufferDataARB && gl_config_nofixedfunc
+#ifndef FTE_TARGET_WEB
+		&& !gl_config_gles
+#endif
+		)
 	{
 		qglGenBuffersARB(sizeof(shaderstate.streamvbo)/sizeof(shaderstate.streamvbo[0]), shaderstate.streamvbo);
 		qglGenBuffersARB(sizeof(shaderstate.streamebo)/sizeof(shaderstate.streamebo[0]), shaderstate.streamebo);
@@ -1919,7 +1936,7 @@ static void GenerateTCMods3(const shaderpass_t *pass, int passnum)
 		if (src != texcoordarray[passnum]+mesh->vbofirstvert*3)
 		{
 			//this shouldn't actually ever be true
-			memcpy(texcoordarray[passnum]+mesh->vbofirstvert*3, src, 8*mesh->numvertexes);
+			memcpy(texcoordarray[passnum]+mesh->vbofirstvert*3, src, sizeof(vec3_t)*mesh->numvertexes);
 		}
 	}
 	shaderstate.pendingtexcoordparts[passnum] = 3;
@@ -3045,6 +3062,8 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 		{
 			index_t *fte_restrict ilst; //FIXME: this should be cached for multiple-pass shaders.
 			GL_SelectEBO(0);
+
+			//FIXME: use a coherant persistently mapped buffer.
 
 			mesh = shaderstate.meshes[0];
 			startv = mesh->vbofirstvert;
@@ -5245,7 +5264,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					shaderstate.tex_ripplemap[r_refdef.recurse]->width = r_refdef.pxrect.width;
 					shaderstate.tex_ripplemap[r_refdef.recurse]->height = r_refdef.pxrect.height;
 					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_ripplemap[r_refdef.recurse]);
-					qglTexImage2D(GL_TEXTURE_2D, 0, /*(gl_config.glversion>3.1)?GL_RGBA8_SNORM:*/GL_RGBA16F_ARB, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					qglTexImage2D(GL_TEXTURE_2D, 0, /*(gl_config.glversion>3.1)?GL_RGBA8_SNORM:*/GL_RGBA16F_ARB, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_HALF_FLOAT, NULL);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -5304,20 +5323,6 @@ static void BE_UpdateLightmaps(void)
 {
 	lightmapinfo_t *lm;
 	int lmidx;
-	int glformat, gltype;
-	int internalformat = /*vid.srgb?GL_SRGB8_ALPHA8_EXT:*/GL_RGBA;
-	switch (lightmap_fmt)
-	{
-	case TF_INVALID:	return;
-	default: Sys_Error("Bad lightmap_fmt\n"); return;
-	case TF_BGRA32:	glformat = GL_BGRA_EXT;	gltype = GL_UNSIGNED_INT_8_8_8_8_REV;	break;
-//	case TF_RGBA32:	glformat = GL_RGBA;		gltype = GL_UNSIGNED_INT_8_8_8_8_REV;	break;
-//	case TF_BGR24:	glformat = GL_BGR_EXT;	gltype = GL_UNSIGNED_BYTE;				break;
-	case TF_RGB24:	glformat = GL_RGB;		gltype = GL_UNSIGNED_BYTE;				break;
-	case TF_LUM8:	glformat = GL_LUMINANCE;gltype = GL_UNSIGNED_BYTE;				break;
-	}
-	if (gl_config.gles)
-		internalformat = glformat;
 
 	for (lmidx = 0; lmidx < numlightmaps; lmidx++)
 	{
@@ -5335,18 +5340,26 @@ static void BE_UpdateLightmaps(void)
 #endif
 			if (!TEXVALID(lm->lightmap_texture))
 			{
-				extern cvar_t gl_lightmap_nearest;
-				TEXASSIGN(lm->lightmap_texture, Image_CreateTexture(va("***lightmap %i***", lmidx), NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
+				extern cvar_t r_lightmap_nearest;
+				TEXASSIGN(lm->lightmap_texture, Image_CreateTexture(va("***lightmap %i***", lmidx), NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
 				qglGenTextures(1, &lm->lightmap_texture->num);
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				qglTexImage2D(GL_TEXTURE_2D, 0, internalformat,	lm->width, lm->height, 0, glformat, gltype,	lm->lightmaps);
+				qglTexImage2D(GL_TEXTURE_2D, 0, gl_config.formatinfo[lightmap_fmt].internalformat,	lm->width, lm->height, 0, gl_config.formatinfo[lightmap_fmt].format, gl_config.formatinfo[lightmap_fmt].type,	lm->lightmaps);
+
+				if (gl_config.glversion >= (gl_config.gles?3.0:3.3))
+				{
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, gl_config.formatinfo[lightmap_fmt].swizzle_r);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, gl_config.formatinfo[lightmap_fmt].swizzle_g);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, gl_config.formatinfo[lightmap_fmt].swizzle_b);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, gl_config.formatinfo[lightmap_fmt].swizzle_a);
+				}
 			}
 			else
 			{
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t, lm->width, b-t, glformat, gltype, lm->lightmaps+t*lm->width*lightmap_bytes);
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t, lm->width, b-t, gl_config.formatinfo[lightmap_fmt].format, gl_config.formatinfo[lightmap_fmt].type, lm->lightmaps+t*lm->width*lightmap_bytes);
 			}
 			lm->modified = false;
 			lm->rectchange.l = lm->width;
@@ -5839,7 +5852,7 @@ void GLBE_DrawLightPrePass(void)
 				{	//gles3
 					ifmt = GL_RGBA16F_ARB;
 					dfmt = GL_RGBA;
-					dtype = GL_FLOAT;
+					dtype = GL_HALF_FLOAT;
 				}
 				else
 					ifmt = GL_RGBA16F_ARB;
@@ -6118,7 +6131,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 		RSpeedEnd(RSPEED_TRANSPARENTS);
 
 #ifndef GLSLONLY
-		if (r_refdef.globalfog.density && !gl_config.arb_shader_objects)
+		if (r_refdef.globalfog.density && (!gl_config.arb_shader_objects || !r_fog_permutation.ival))
 		{	//fixed function-only. with global fog. that means we need to hack something in.
 			//FIXME: should really be doing this on a per-shader basis, for custom shaders that don't use glsl
 			BE_SelectMode(BEM_FOG);

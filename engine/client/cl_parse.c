@@ -840,8 +840,10 @@ void CL_DownloadFinished(qdownload_t *dl)
 		}
 		S_ResetFailedLoad();	//okay, so this can still get a little spammy in bad places...
 
+#ifdef QWSKINS
 		//this'll do the magic for us
 		Skin_FlushSkin(filename);
+#endif
 	}
 }
 
@@ -4892,6 +4894,7 @@ void CL_ParseClientdata (void)
 		CL_AckedInputFrame(cls.netchan.incoming_sequence, cl.parsecount, false);
 }
 
+#ifdef QWSKINS
 static qboolean CLQ2_PlayerSkinIsOkay(skinid_t id)
 {
 	skinfile_t *sk = Mod_LookupSkin(id);
@@ -5025,6 +5028,7 @@ void CL_NewTranslation (int slot)
 	player->ttopcolor = top;
 	player->tbottomcolor = bottom;
 }
+#endif
 
 /*
 ==============
@@ -5064,7 +5068,6 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 	if (player->rbottomcolor > 13)
 		player->rbottomcolor = 13;
 */
-	player->model = NULL;
 
 #ifdef HEXEN2
 	/*if we're running hexen2, they have to be some class...*/
@@ -5075,7 +5078,10 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 		player->h2playerclass = 1;
 #endif
 
+#ifdef QWSKINS
+	player->model = NULL;
 	player->colourised = TP_FindColours(player->name);
+#endif
 
 	// If it's us
 	for (i = 0; i < cl.splitclients; i++)
@@ -5098,13 +5104,15 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 
 		Skin_FlushPlayers();
 	}
+#ifdef QWSKINS
 	else if (cl.teamplay && cl.playerview[0].spectator && slot == Cam_TrackNum(&cl.playerview[0]))	//skin forcing cares about the team of the guy we're tracking.
 		Skin_FlushPlayers();
 	else if (cls.state == ca_active)
 		Skin_Find (player);
 
-	Sbar_Changed ();
 	CL_NewTranslation (slot);
+#endif
+	Sbar_Changed ();
 }
 
 /*
@@ -7863,13 +7871,14 @@ void CLNQ_ParseServerMessage (void)
 
 //					CLNQ_CheckPlayerIsSpectator(i);
 
+#ifdef QWSKINS
 					if (cls.state == ca_active)
 						Skin_Find (&cl.players[i]);
-
 					if (i == cl.playerview[destsplit].playernum)
 						Skin_FlushPlayers();
-					Sbar_Changed ();
 					CL_NewTranslation (i);
+#endif
+					Sbar_Changed ();
 				}
 			}
 			break;

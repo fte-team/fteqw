@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "renderque.h"
 #include <math.h>
 
-extern cvar_t gl_lightmap_nearest;
+extern cvar_t r_lightmap_nearest;
 
 void GLBE_ClearVBO(vbo_t *vbo, qboolean dataonly)
 {
@@ -543,11 +543,11 @@ void GLBE_UploadAllLightmaps(void)
 			continue;
 		lm->modified = false;
 		if (!TEXVALID(lm->lightmap_texture))
-			TEXASSIGN(lm->lightmap_texture, Image_CreateTexture(va("***lightmap %i***", i), NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
+			TEXASSIGN(lm->lightmap_texture, Image_CreateTexture(va("***lightmap %i***", i), NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
 		if (!lm->lightmap_texture->num)
 			qglGenTextures(1, &lm->lightmap_texture->num);
 		GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
-		if (gl_lightmap_nearest.ival)
+		if (r_lightmap_nearest.ival)
 		{
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -557,15 +557,17 @@ void GLBE_UploadAllLightmaps(void)
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		}
-		switch(lightmap_fmt)	//bgra32, rgba32, rgb24, lum8
+
+		qglTexImage2D(GL_TEXTURE_2D, 0, gl_config.formatinfo[lightmap_fmt].internalformat,	lm->width, lm->height, 0, gl_config.formatinfo[lightmap_fmt].format, gl_config.formatinfo[lightmap_fmt].type, lightmap[i]->lightmaps);
+
+		if (gl_config.glversion >= (gl_config.gles?3.0:3.3))
 		{
-		default:		Sys_Error("Bad lightmap_fmt\n");	break;
-		case TF_BGRA32:	qglTexImage2D(GL_TEXTURE_2D, 0, /*vid.srgb?GL_SRGB8_ALPHA8_EXT:*/GL_RGBA,	  lm->width, lm->height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV,lightmap[i]->lightmaps); break;
-//		case TF_RGBA32:	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,	  lm->width, lm->height, 0, GL_RGBA,	 GL_UNSIGNED_INT_8_8_8_8_REV,lightmap[i]->lightmaps); break;
-//		case TF_BGR24:	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,		  lm->width, lm->height, 0, GL_BGR_EXT,	 GL_UNSIGNED_BYTE,			 lightmap[i]->lightmaps); break;
-		case TF_RGB24:	qglTexImage2D(GL_TEXTURE_2D, 0, /*vid.srgb?GL_SRGB8_EXT:*/GL_RGB,		  lm->width, lm->height, 0, GL_RGB,		 GL_UNSIGNED_BYTE,			 lightmap[i]->lightmaps); break;
-		case TF_LUM8:	qglTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, lm->width, lm->height, 0, GL_LUMINANCE,GL_UNSIGNED_BYTE,			 lightmap[i]->lightmaps); break;
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, gl_config.formatinfo[lightmap_fmt].swizzle_r);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, gl_config.formatinfo[lightmap_fmt].swizzle_g);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, gl_config.formatinfo[lightmap_fmt].swizzle_b);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, gl_config.formatinfo[lightmap_fmt].swizzle_a);
 		}
+
 		//for completeness.
 		lm->lightmap_texture->width = lm->width;
 		lm->lightmap_texture->height = lm->height;

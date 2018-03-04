@@ -9,25 +9,24 @@ typedef struct
 } exports_t;
 extern exports_t exports[16];
 
-qintptr_t NATIVEEXPORT vmMain( qintptr_t command, qintptr_t arg0, qintptr_t arg1, qintptr_t arg2, qintptr_t arg3, qintptr_t arg4, qintptr_t arg5, qintptr_t arg6, qintptr_t arg7, qintptr_t arg8, qintptr_t arg9, qintptr_t arg10, qintptr_t arg11  )
+qintptr_t NATIVEEXPORT vmMain( qintptr_t command, qintptr_t arg0, qintptr_t arg1, qintptr_t arg2, qintptr_t arg3, qintptr_t arg4, qintptr_t arg5, qintptr_t arg6, qintptr_t arg7/*, qintptr_t arg8, qintptr_t arg9, qintptr_t arg10, qintptr_t arg11*/)
 {
-	qintptr_t ret;
-	qintptr_t args[12];
-	args[0] = arg0;
-	args[1] = arg1;
-	args[2] = arg2;
-	args[3] = arg3;
-	args[4] = arg4;
-	args[5] = arg5;
-	args[6] = arg6;
-	args[7] = arg7;
-	args[8] = arg8;
-	args[9] = arg9;
-	args[10] = arg10;
-	args[11] = arg11;
-//	return exports[command].func(args);
-	ret = exports[command].func(args);
-	return ret;
+	qintptr_t args[] =
+	{
+		arg0,
+		arg1,
+		arg2,
+		arg3,
+		arg4,
+		arg5,
+		arg6,
+		arg7,
+//		arg8,
+//		arg9,
+//		arg10,
+//		arg11,
+	};
+	return exports[command].func(args);
 }
 
 
@@ -42,7 +41,7 @@ BUILTINR(funcptr_t, Plug_GetEngineFunction, (const char *funcname));
 #undef ARGNAMES
 
 #define ARGNAMES ,funcname,expnum
-BUILTINR(int, Plug_ExportToEngine, (const char *funcname, int expnum));
+BUILTINR(int, Plug_ExportToEngine, (const char *funcname, quintptr_t expnum));
 #undef ARGNAMES
 
 #ifndef Q3_VM
@@ -60,7 +59,7 @@ BUILTIN(void, Con_Print, (const char *text));	//on to main console.
 #undef ARGNAMES
 
 #define ARGNAMES ,conname,flags
-BUILTINR(qhandle_t, Con_POpen, (const char *conname, unsigned int flags));
+BUILTINR(qhandle_t, Con_POpen, (const char *conname, quintptr_t flags));
 #undef ARGNAMES
 #define ARGNAMES ,conname,text
 BUILTIN(void, Con_SubPrint, (const char *conname, const char *text));	//on to named sub console (creating it too).
@@ -78,7 +77,7 @@ BUILTIN(void, Con_SetActive, (const char *conname));
 BUILTIN(void, Con_Destroy, (const char *conname));
 #undef ARGNAMES
 #define ARGNAMES ,connum,conname,connamelen
-BUILTIN(void, Con_NameForNum, (int connum, char *conname, int connamelen));
+BUILTIN(void, Con_NameForNum, (qintptr_t connum, char *conname, quintptr_t connamelen));
 #undef ARGNAMES
 #define ARGNAMES ,conname,attribname
 BUILTINR(float, Con_GetConsoleFloat, (const char *conname, const char *attribname));
@@ -87,7 +86,7 @@ BUILTINR(float, Con_GetConsoleFloat, (const char *conname, const char *attribnam
 BUILTIN(void, Con_SetConsoleFloat, (const char *conname, const char *attribname, float newvalue));
 #undef ARGNAMES
 #define ARGNAMES ,conname,attribname,value,valuesize
-BUILTINR(int, Con_GetConsoleString, (const char *conname, const char *attribname, const char *value, unsigned int valuesize));
+BUILTINR(int, Con_GetConsoleString, (const char *conname, const char *attribname, const char *value, quintptr_t valuesize));
 #undef ARGNAMES
 #define ARGNAMES ,conname,attribname,newvalue
 BUILTIN(void, Con_SetConsoleString, (const char *conname, const char *attribname, const char *newvalue));
@@ -97,7 +96,7 @@ BUILTIN(void, Con_SetConsoleString, (const char *conname, const char *attribname
 BUILTIN(void, Sys_Error, (const char *message));	//abort the entire engine.
 #undef ARGNAMES
 #define ARGNAMES 
-BUILTINR(unsigned int, Sys_Milliseconds, (void));	//get the time the engine has been running.
+BUILTINR(quintptr_t, Sys_Milliseconds, (void));	//get the time the engine has been running.
 #undef ARGNAMES
 
 #define ARGNAMES ,buffer
@@ -127,7 +126,7 @@ BUILTIN(void, Cvar_SetString, (const char *name, const char *value));	//set a cv
 BUILTIN(void, Cvar_SetFloat, (const char *name, float value));	//set a cvar float
 #undef ARGNAMES
 #define ARGNAMES ,name,retstring,sizeofretstring
-BUILTINR(qboolean, Cvar_GetString, (const char *name, char *retstring, int sizeofretstring));	//retrieve a cvar string
+BUILTINR(qboolean, Cvar_GetString, (const char *name, char *retstring, quintptr_t sizeofretstring));	//retrieve a cvar string
 #undef ARGNAMES
 #define ARGNAMES ,name
 BUILTINR(float, Cvar_GetFloat, (const char *name));			//get a cvar's value

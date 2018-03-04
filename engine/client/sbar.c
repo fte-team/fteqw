@@ -2224,8 +2224,10 @@ void Sbar_DrawScoreboard (playerview_t *pv)
 	if (Key_Dest_Has(~kdm_game))
 		return;
 
+#ifdef CSQC_DAT
 	if (CSQC_DrawScores(pv))
 		return;
+#endif
 
 #ifndef CLIENTONLY
 	/*no scoreboard in single player (if you want bots, set deathmatch)*/
@@ -2776,8 +2778,10 @@ void Sbar_Draw (playerview_t *pv)
 	qboolean minidmoverlay;
 	extern cvar_t scr_centersbar;
 
+#ifdef CSQC_DAT
 	if (CSQC_DrawHud(pv))
 		return;
+#endif
 
 	headsup = !(cl_sbar.value || (scr_viewsize.value<100));
 	if ((sb_updates >= vid.numpages) && !headsup)

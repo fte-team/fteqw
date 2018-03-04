@@ -3830,7 +3830,7 @@ void Cmd_WriteConfig_f(void)
 		return;
 	}
 
-	VFS_WRITE(f, "// FTE config file\n\n", 20);
+	VFS_PRINTF(f, "// %s config file\n\n", *fs_gamename.string?fs_gamename.string:FULLENGINENAME);
 #ifndef SERVERONLY
 	Key_WriteBindings (f);
 	IN_WriteButtons(f, all);

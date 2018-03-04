@@ -153,7 +153,10 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 		if (info->stereo)
 			SDL_GL_SetAttribute(SDL_GL_STEREO, 1);
 
-#if 0//SDL_MAJOR_VERSION >= 2
+		if (info->srgb)
+			SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
+
+#if SDL_MAJOR_VERSION >= 2
 		//FIXME: this stuff isn't part of info.
 		//this means it shouldn't be exposed to the menu or widely advertised.
 		if (*vid_gl_context_version.string)
@@ -245,12 +248,26 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 #ifdef OPENGL_SDL
 	if (qrenderer == QR_OPENGL)
 	{
+		int srgb;
 		sdlcontext = SDL_GL_CreateContext(sdlwindow);
 		if (!sdlcontext)
 		{
-			Con_Printf("Couldn't initialize GL context: %s\n", SDL_GetError());
-			return false;
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+			sdlcontext = SDL_GL_CreateContext(sdlwindow);
+			if (!sdlcontext)
+			{
+				Con_Printf("Couldn't initialize GL context: %s\n", SDL_GetError());
+				return false;
+			}
 		}
+
+		srgb = 0;
+		SDL_GL_GetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, &srgb);
+		if (srgb)
+			vid.flags |= VID_SRGB_CAPABLE;
 	}
 #endif
 

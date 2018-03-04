@@ -1946,6 +1946,167 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	G_FLOAT(OFS_RETURN) = (skelobj - skelobjects) + 1;
 }
 
+typedef struct
+{
+	int sourcemodelindex;
+	int sourceskel;
+	int firstbone;
+	int lastbone;
+	float prescale;	//0 destroys existing data, 1 retains it.
+	float scale[4];
+	int animation[4];
+	float animationtime[4];
+
+	//halflife models
+	float subblend[2];
+	float controllers[5];
+} skelblend_t;
+//float(float skel, int numblends, skelblend_t *blenddata, int structsize) skel_build_ptr
+void QCBUILTIN PF_skel_build_ptr(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	int skelidx = G_FLOAT(OFS_PARM0);
+	int numblends = G_INT(OFS_PARM1);
+	int blends_qcptr = G_INT(OFS_PARM2);
+	int structsize = G_INT(OFS_PARM3);
+
+	skelblend_t *fte_restrict blends = (skelblend_t*)(prinst->stringtable+blends_qcptr);
+	int i, j;
+	framestate_t fstate;
+	skelobject_t *skelobj;
+
+	float relationsbuf[MAX_BONES*12];
+	float scale;
+	int numbones, firstbone, lastbone;
+	model_t *model;
+	qboolean noadd;
+
+	//default to failure
+	G_FLOAT(OFS_RETURN) = 0;
+
+	memset(&fstate, 0, sizeof(fstate));
+
+	skelobj = skel_get(w, skelidx);
+	if (!skelobj)
+		return;	//couldn't get one, ran out of memory or something?
+
+	if (structsize < sizeof(skelblend_t))
+		return;	//enforce a minimum size...
+
+	for(; numblends --> 0; blends = (skelblend_t*)((char*)blends + structsize))
+	{
+		noadd = blends->scale[0] == 0 && blends->scale[1] == 0 && blends->scale[2] == 0 && blends->scale[3] == 0;
+		if (blends->prescale == 1 && noadd)
+			continue;	//does nothing to the model, skip it before wasting too much time.
+			
+		if (blends->sourceskel)
+		{
+			skelobject_t *srcskel = skel_get(w, blends->sourceskel);
+			if (!srcskel)
+				continue;
+			model = srcskel->model;
+			if (!model)
+				continue; //invalid model, can't get a skeleton
+			fstate.bonecount = numbones = srcskel->numbones;
+			fstate.bonestate = srcskel->bonematrix;
+			fstate.skeltype = srcskel->type;
+		}
+		else
+		{
+			fstate.bonecount = 0;
+			fstate.bonestate = NULL;
+			fstate.skeltype = SKEL_RELATIVE;
+
+			if (blends->sourcemodelindex)
+				model = w->Get_CModel(w, blends->sourcemodelindex);
+			else
+				model = w->Get_CModel(w, skelobj->modelindex);
+			if (!model)
+				continue; //invalid model, can't get a skeleton
+
+			numbones = Mod_GetNumBones(model, false);
+			if (!numbones)
+				continue;	//this isn't a skeletal model.
+		}
+
+		firstbone = blends->firstbone-1;
+		lastbone = blends->lastbone-1;
+
+		if (lastbone < 0)
+			lastbone = numbones;
+		if (lastbone > numbones)
+			lastbone = numbones;
+		if (firstbone < 0)
+			firstbone = 0;
+		if (lastbone < firstbone)
+			lastbone = firstbone;
+
+		fstate.g[FS_REG].endbone = 0x7fffffff;
+		for (i = 0; i < 4; i++)
+		{
+			fstate.g[FS_REG].frame[i] = blends->animation[i];
+			fstate.g[FS_REG].frametime[i] = blends->animationtime[i];
+			fstate.g[FS_REG].lerpweight[i] = blends->scale[i];
+		}
+#ifdef HALFLIFEMODELS
+		fstate.g[FS_REG].subblendfrac = blends->subblend[0];
+		fstate.g[FS_REG].subblend2frac = blends->subblend[1];
+		fstate.bonecontrols[0] = blends->controllers[0];
+		fstate.bonecontrols[1] = blends->controllers[1];
+		fstate.bonecontrols[2] = blends->controllers[2];
+		fstate.bonecontrols[3] = blends->controllers[3];
+		fstate.bonecontrols[4] = blends->controllers[4];
+#endif
+
+		if (skelobj->type != SKEL_RELATIVE)
+		{
+			if (firstbone > 0 || lastbone < skelobj->numbones || blends->prescale)
+			{
+				Con_Printf("skel_build on non-relative skeleton\n");
+				return;
+			}
+			skelobj->type = SKEL_RELATIVE;	//entire model will get replaced, convert it.
+		}
+		if (noadd)
+		{
+			if (blends->prescale == 0)
+				memset(skelobj->bonematrix+firstbone*12, 0, sizeof(float)*12);
+			else
+			{	//just rescale the existing bones
+				scale = blends->prescale;
+				for (i = firstbone; i < lastbone; i++)
+				{
+					for (j = 0; j < 12; j++)
+						skelobj->bonematrix[i*12+j] *= scale;
+				}
+			}
+		}
+		else if (blends->prescale == 0) //new data only. directly replace the existing data
+			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, skelobj->bonematrix);
+		else
+		{
+			if (blends->prescale != 1)
+			{	//rescale the existing bones
+				scale = blends->prescale;
+				for (i = firstbone; i < lastbone; i++)
+				{
+					for (j = 0; j < 12; j++)
+						skelobj->bonematrix[i*12+j] *= scale;
+				}
+			}
+
+			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
+			for (i = firstbone; i < lastbone; i++)
+			{
+				for (j = 0; j < 12; j++)
+					skelobj->bonematrix[i*12+j] += relationsbuf[i*12+j];
+			}
+		}
+	}
+
+	G_FLOAT(OFS_RETURN) = (skelobj - skelobjects) + 1;
+}
+
 //float(float skel) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
 void QCBUILTIN PF_skel_get_numbones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

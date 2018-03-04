@@ -84,7 +84,7 @@ JNIEXPORT jstring JNICALL Java_com_fteqw_FTEDroidEngine_getpreferedorientation(J
 }
 
 /*the java passes in all input directly via a 'UI' thread. we don't need to poll it at all*/
-void INS_Move(float *movements, int pnum)
+void INS_Move(void)
 {
 }
 void INS_Commands(void)

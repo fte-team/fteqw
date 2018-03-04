@@ -265,9 +265,23 @@ typedef struct
 	unsigned int	id;			//networked/gamecode id.
 	unsigned int	axialplanes;	//+x,+y,+z,-x,-y,-z. used for bevel stuff.
 	unsigned int	numplanes;
-	qboolean		selected;	//different shader stuff
+	unsigned char	selected:1;	//different shader stuff
 	vec4_t			*planes;
 	vec3_t			mins, maxs;	//for optimisation and stuff
+	struct patchdata_s
+	{	//unlit, always...
+		brushtex_t *tex;
+		unsigned short xpoints;
+		unsigned short ypoints;
+		struct
+		{
+			vec3_t v;
+			vec2_t tc;
+			vec3_t norm;
+			vec3_t sdir;
+			vec3_t tdir;
+		} verts[1]; //x+(y*xpoints)
+	} *patch;
 	struct brushface_s
 	{
 		brushtex_t *tex;
@@ -277,8 +291,8 @@ typedef struct
 		unsigned short lmscale;
 		int	lightmap;
 		unsigned short lmbase[2];	//min st coord of the lightmap atlas, in texels.
-		unsigned int relight:1;
-		unsigned int relit:1;
+		unsigned short relight:1;
+		unsigned short relit:1;
 		int lmbias[2];
 		unsigned short lmextents[2];
 		qbyte *lightdata;

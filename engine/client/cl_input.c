@@ -1924,7 +1924,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	}
 
 #ifdef HLCLIENT
-	if (!CLHL_BuildUserInput(msecstouse, &independantphysics[0]))
+	if (!CLHL_BuildUserInput(msecstouse, &cl_pendingcmd[0]))
 #endif
 	for (plnum = 0; plnum < (cl.splitclients?cl.splitclients:1); plnum++)
 	{
@@ -1952,13 +1952,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	//	if (cl.spectator)
 		Cam_Track(&cl.playerview[plnum], &cl_pendingcmd[plnum]);
 		Cam_FinishMove(&cl.playerview[plnum], &cl_pendingcmd[plnum]);
-
-		//HACK: 1000/77 = 12.98. nudge it just under so we never appear to be using 83fps at 77fps (which can trip cheat detection in mods that expect 72 fps when many servers are configured for 77)
-		//so lets just never use 12.
-		if (fullsend && (cl_pendingcmd[plnum].msec > 12.9 && cl_pendingcmd[plnum].msec < 13) && cls.maxfps == 77)
-			cl_pendingcmd[plnum].msec = 13;
 	}
-//	msecstouse = cl_pendingcmd[0].msec;
 
 	//the main loop isn't allowed to send
 	if (runningindepphys && mainloop)
@@ -1972,6 +1966,13 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 //	if (msecstouse > 127)
 //		Con_Printf("%i\n", msecstouse, msecs);
+
+	//HACK: 1000/77 = 12.98. nudge it just under so we never appear to be using 83fps at 77fps (which can trip cheat detection in mods that expect 72 fps when many servers are configured for 77)
+	//so lets just never use 12.
+	if (fullsend && cls.maxfps == 77)
+		for (plnum = 0; plnum < (cl.splitclients?cl.splitclients:1); plnum++)
+			if (cl_pendingcmd[plnum].msec > 12.9 && cl_pendingcmd[plnum].msec < 13)
+				cl_pendingcmd[plnum].msec = 13;
 
 #ifdef NQPROT
 	if (cls.protocol != CP_NETQUAKE || cls.netchan.nqreliable_allowed)

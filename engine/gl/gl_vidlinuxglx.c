@@ -132,6 +132,8 @@ qboolean X11_CheckFeature(const char *featurename, qboolean defaultval)
 
 struct _XrmHashBucketRec;
 
+typedef int (*qXErrorHandler) (Display*, XErrorEvent*);
+
 static struct
 {
 	void *lib;
@@ -187,6 +189,8 @@ static struct
 	int 	 (*pXWarpPointer)(Display *display, Window src_w, Window dest_w, int src_x, int src_y, unsigned int src_width, unsigned int src_height, int dest_x, int dest_y);
 	Status (*pXMatchVisualInfo)(Display *display, int screen, int depth, int class, XVisualInfo *vinfo_return);
 
+	qXErrorHandler (*pXSetErrorHandler)(XErrorHandler);
+
 #define XI_RESOURCENAME "FTEQW"
 #define XI_RESOURCECLASS "FTEQW"
 	char *(*pXSetLocaleModifiers)(char *modifier_list);
@@ -206,6 +210,15 @@ static struct
 	XIC			unicodecontext;
 	XIM			inputmethod;
 } x11;
+
+static int X11_ErrorHandler(Display *dpy, XErrorEvent *e)
+{
+	char msg[80];
+//	XGetErrorText(dpy, e->error_code, msg, sizeof(msg));
+	*msg = 0;
+	Con_Printf(CON_ERROR "XLib Error %d (%s): request %d.%d\n", e->error_code, msg, e->request_code, e->minor_code);
+	return 0;	//ignored.
+}
 
 static qboolean x11_initlib(void)
 {
@@ -276,6 +289,11 @@ static qboolean x11_initlib(void)
 		//these ones are extensions, and the reason we're doing this.
 		if (x11.lib)
 		{
+			x11.pXSetErrorHandler	= Sys_GetAddressForName(x11.lib, "XSetErrorHandler");
+
+			if (x11.pXSetErrorHandler)
+				x11.pXSetErrorHandler(X11_ErrorHandler);
+
 			//raw input (yay mouse deltas)
 			x11.pXGetEventData		= Sys_GetAddressForName(x11.lib, "XGetEventData");
 			x11.pXFreeEventData		= Sys_GetAddressForName(x11.lib, "XFreeEventData");
@@ -1253,67 +1271,381 @@ char clipboard_buffer[SYS_CLIPBOARD_SIZE];
 /*-----------------------------------------------------------------------*/
 
 #ifdef GLQUAKE
-static dllhandle_t *gllibrary;
+static struct
+{
+	dllhandle_t *gllibrary;
 
-XVisualInfo* (*qglXChooseVisual) (Display *dpy, int screen, int *attribList);
-void (*qglXSwapBuffers) (Display *dpy, GLXDrawable drawable);
-Bool (*qglXMakeCurrent) (Display *dpy, GLXDrawable drawable, GLXContext ctx);
-GLXContext (*qglXCreateContext) (Display *dpy, XVisualInfo *vis, GLXContext shareList, Bool direct);
-void (*qglXDestroyContext) (Display *dpy, GLXContext ctx);
-void *(*qglXGetProcAddress) (char *name);
+	const char *glxextensions;
+
+	XVisualInfo* (*ChooseVisual) (Display *dpy, int screen, int *attribList);
+	void (*SwapBuffers) (Display *dpy, GLXDrawable drawable);
+	Bool (*MakeCurrent) (Display *dpy, GLXDrawable drawable, GLXContext ctx);
+	GLXContext (*CreateContext) (Display *dpy, XVisualInfo *vis, GLXContext shareList, Bool direct);
+	void (*DestroyContext) (Display *dpy, GLXContext ctx);
+
+	const char * (*QueryExtensionsString)(Display * dpy,  int screen);
+	void *(*GetProcAddress) (char *name);
+
+	GLXFBConfig *(*ChooseFBConfig)(Display *dpy, int screen, const int *attrib_list, int *nelements);
+	int (*GetFBConfigAttrib)(Display *dpy, GLXFBConfig config, int attribute, int * value);
+	XVisualInfo *(*GetVisualFromFBConfig)(Display *dpy, GLXFBConfig config);
+	GLXContext (*CreateContextAttribs)(Display *dpy, GLXFBConfig config, GLXContext share_context, Bool direct, const int *attrib_list);
+} glx;
 
 void GLX_CloseLibrary(void)
 {
-	Sys_CloseLibrary(gllibrary);
-	gllibrary = NULL;
-}
-
-qboolean GLX_InitLibrary(char *driver)
-{
-	dllfunction_t funcs[] =
-	{
-		{(void*)&qglXChooseVisual,		"glXChooseVisual"},
-		{(void*)&qglXSwapBuffers,		"glXSwapBuffers"},
-		{(void*)&qglXMakeCurrent,		"glXMakeCurrent"},
-		{(void*)&qglXCreateContext,		"glXCreateContext"},
-		{(void*)&qglXDestroyContext,	"glXDestroyContext"},
-		{NULL,							NULL}
-	};
-
-	if (driver && *driver)
-		gllibrary = Sys_LoadLibrary(driver, funcs);
-	else
-		gllibrary = NULL;
-#ifdef __CYGWIN__
-	if (!gllibrary)
-		gllibrary = Sys_LoadLibrary("cygGL-1.dll", funcs);
-#endif
-	if (!gllibrary)	//I hate this.
-		gllibrary = Sys_LoadLibrary("libGL.so.1", funcs);
-	if (!gllibrary)
-		gllibrary = Sys_LoadLibrary("libGL", funcs);
-	if (!gllibrary)
-		return false;
-
-	qglXGetProcAddress = Sys_GetAddressForName(gllibrary, "glXGetProcAddress");
-	if (!qglXGetProcAddress)
-		qglXGetProcAddress = Sys_GetAddressForName(gllibrary, "glXGetProcAddressARB");
-
-	return true;
+	Sys_CloseLibrary(glx.gllibrary);
+	glx.gllibrary = NULL;
 }
 
 void *GLX_GetSymbol(char *name)
 {
 	void *symb;
 
-	if (qglXGetProcAddress)
-		symb = qglXGetProcAddress(name);
+	if (glx.GetProcAddress)
+		symb = glx.GetProcAddress(name);
 	else
 		symb = NULL;
 
 	if (!symb)
-		symb = Sys_GetAddressForName(gllibrary, name);
+		symb = Sys_GetAddressForName(glx.gllibrary, name);
 	return symb;
+}
+
+qboolean GLX_InitLibrary(char *driver)
+{
+	dllfunction_t funcs[] =
+	{
+		{(void*)&glx.ChooseVisual,		"glXChooseVisual"},
+		{(void*)&glx.SwapBuffers,		"glXSwapBuffers"},
+		{(void*)&glx.MakeCurrent,		"glXMakeCurrent"},
+		{(void*)&glx.CreateContext,		"glXCreateContext"},
+		{(void*)&glx.DestroyContext,	"glXDestroyContext"},
+		{NULL,							NULL}
+	};
+	memset(&glx, 0, sizeof(glx));
+
+	if (driver && *driver)
+		glx.gllibrary = Sys_LoadLibrary(driver, funcs);
+	else
+		glx.gllibrary = NULL;
+#ifdef __CYGWIN__
+	if (!glx.gllibrary)
+		glx.gllibrary = Sys_LoadLibrary("cygGL-1.dll", funcs);
+#endif
+	if (!glx.gllibrary)	//I hate this.
+		glx.gllibrary = Sys_LoadLibrary("libGL.so.1", funcs);
+	if (!glx.gllibrary)
+		glx.gllibrary = Sys_LoadLibrary("libGL", funcs);
+	if (!glx.gllibrary)
+		return false;
+
+	glx.GetProcAddress = GLX_GetSymbol("glXGetProcAddress");
+	if (!glx.GetProcAddress)
+		glx.GetProcAddress = GLX_GetSymbol("glXGetProcAddressARB");
+	glx.QueryExtensionsString = GLX_GetSymbol("glXQueryExtensionsString");
+
+	glx.ChooseFBConfig = GLX_GetSymbol("glXChooseFBConfig");
+	glx.GetFBConfigAttrib = GLX_GetSymbol("glXGetFBConfigAttrib");
+	glx.GetVisualFromFBConfig = GLX_GetSymbol("glXGetVisualFromFBConfig");
+	glx.CreateContextAttribs = GLX_GetSymbol("glXCreateContextAttribsARB");
+
+	return true;
+}
+
+#ifndef GLX_RGBA_FLOAT_BIT
+#define GLX_RGBA_FLOAT_BIT	0x00000004
+#endif
+#ifndef GLX_CONTEXT_OPENGL_NO_ERROR_ARB
+#define GLX_CONTEXT_OPENGL_NO_ERROR_ARB	0x31B3
+#endif
+
+qboolean GLX_CheckExtension(const char *ext)
+{
+	const char *e = glx.glxextensions, *n;
+	size_t el = strlen(ext);
+	while(e && *e)
+	{
+		while (*e == ' ')
+			e++;
+		n = strchr(e, ' ');
+		if (!n)
+			n = n+strlen(e);
+
+		if (n-e == el && !strncmp(ext, e, el))
+		{
+			Con_DPrintf("GLX: Found %s\n", ext);
+			return true;
+		}
+		e = n;
+	}
+	Con_DPrintf("GLX: Missing %s\n", ext);
+	return false;
+}
+
+//Since GLX1.3 (equivelent to gl1.2)
+GLXFBConfig GLX_GetFBConfig(rendererstate_t *info)
+{
+	int attrib[32];
+	int n, i;
+	int numconfigs;
+	GLXFBConfig *fbconfigs;
+
+	qboolean hassrgb, hasmultisample, hasfloats;
+
+	if (glx.QueryExtensionsString)
+		glx.glxextensions = glx.QueryExtensionsString(vid_dpy, scrnum);
+
+	if (!glx.ChooseFBConfig || !glx.GetVisualFromFBConfig)
+	{
+		Con_Printf("Missing function pointer\n");
+		return NULL;
+	}
+	if (!glx.CreateContextAttribs)
+	{
+		Con_Printf("Missing CreateContextAttribs\n");
+		return NULL;	//don't worry about it
+	}
+
+	hassrgb = GLX_CheckExtension("GLX_ARB_framebuffer_sRGB");
+	hasmultisample = GLX_CheckExtension("GLX_ARB_multisample");
+	hasfloats = GLX_CheckExtension("GLX_ARB_fbconfig_float");
+
+	//do it in a loop, mostly to disable extensions that are unlikely to be supported on various glx implementations.
+	for (i = 0; i < (16<<1); i++)
+	{
+		n = 0;
+		//attrib[n++] = GLX_LEVEL;			attrib[n++] = 0;	//overlays
+		attrib[n++] = GLX_DOUBLEBUFFER;		attrib[n++] = True;
+		if (!(i&1))
+		{
+			if (!info->stereo)
+				continue;
+			attrib[n++] = GLX_STEREO; attrib[n++] = True;
+		}
+		if (!(i&2))
+		{
+			if (!info->srgb || !hassrgb)
+				continue;
+			attrib[n++] = GLX_FRAMEBUFFER_SRGB_CAPABLE_ARB; attrib[n++] = True;
+		}
+		//attrib[n++] = GLX_AUX_BUFFERS;	attrib[n++] = 0;
+
+		
+		if (!(i&4))
+		{
+			if (info->srgb <= 2 || !hasfloats)
+				continue;	//skip fp16 framebuffers
+			attrib[n++] = GLX_RENDER_TYPE;		attrib[n++] = GLX_RGBA_FLOAT_BIT;
+			attrib[n++] = GLX_RED_SIZE;			attrib[n++] = info->bpp?info->bpp/3:4;
+			attrib[n++] = GLX_GREEN_SIZE;		attrib[n++] = info->bpp?info->bpp/3:4;
+			attrib[n++] = GLX_BLUE_SIZE;		attrib[n++] = info->bpp?info->bpp/3:4;
+		}
+		else
+		{
+			if (info->bpp > 24)
+			{
+				attrib[n++] = GLX_RED_SIZE;			attrib[n++] = 8;
+				attrib[n++] = GLX_GREEN_SIZE;		attrib[n++] = 8;
+				attrib[n++] = GLX_BLUE_SIZE;		attrib[n++] = 8;
+			}
+			else
+			{
+				attrib[n++] = GLX_RED_SIZE;			attrib[n++] = info->bpp?info->bpp/3:4;
+				attrib[n++] = GLX_GREEN_SIZE;		attrib[n++] = info->bpp?info->bpp/3:4;
+				attrib[n++] = GLX_BLUE_SIZE;		attrib[n++] = info->bpp?info->bpp/3:4;
+			}
+		}
+		//attrib[n++] = GLX_ALPHA_SIZE;		attrib[n++] = GLX_DONT_CARE;
+		attrib[n++] = GLX_DEPTH_SIZE;		attrib[n++] = 16;
+		attrib[n++] = GLX_STENCIL_SIZE;		attrib[n++] = (i&16)?0:4;
+
+		if (!(i&8))
+		{
+			if (!info->multisample || !hasmultisample)
+				continue;
+			attrib[n++] = GLX_SAMPLE_BUFFERS_ARB;	attrib[n++] = True;
+			attrib[n++] = GLX_SAMPLES_ARB,			attrib[n++] = info->multisample;
+		}
+
+		//attrib[n++] = GLX_ACCUM_RED_SIZE;	attrib[n++] = 0;
+		//attrib[n++] = GLX_ACCUM_GREEN_SIZE;	attrib[n++] = 0;
+		//attrib[n++] = GLX_ACCUM_BLUE_SIZE;	attrib[n++] = 0;
+		//attrib[n++] = GLX_ACCUM_ALPHA_SIZE;	attrib[n++] = 0;
+
+		attrib[n++] = GLX_DRAWABLE_TYPE;	attrib[n++] = GLX_WINDOW_BIT;
+		attrib[n++] = GLX_X_RENDERABLE;		attrib[n++] = True;
+		//attrib[n++] = GLX_X_VISUAL_TYPE;	attrib[n++] = info->srgb?GLX_TRUE_COLOR:GLX_DIRECT_COLOR;
+		//attrib[n++] = GLX_CONFIG_CAVEAT;	attrib[n++] = GLX_DONT_CARE; GLX_NONE||GLX_SLOW_CONFIG||GLX_NON_CONFORMANT_CONFIG
+		//attrib[n++] = GLX_TRANSPARENT_TYPE;attrib[n++] = GLX_NONE;
+		//attrib[n++] = GLX_TRANSPARENT_ALPHA_VALUE;attrib[n++] = 0;
+		attrib[n++] = None;
+
+		numconfigs = 0;
+		fbconfigs = glx.ChooseFBConfig(vid_dpy, scrnum, attrib, &numconfigs);
+		if (fbconfigs)
+		{
+			if (numconfigs)
+			{
+				GLXFBConfig r = fbconfigs[0];
+				x11.pXFree(fbconfigs);
+				return r;
+			}
+			x11.pXFree(fbconfigs);
+		}
+	}
+	return NULL;
+}
+//for GLX<1.3
+XVisualInfo *GLX_GetVisual(rendererstate_t *info)
+{
+	XVisualInfo *visinfo;
+	int attrib[32];
+	int numattrib, i;
+
+	//do it in a loop, mostly to disable extensions that are unlikely to be supported on various glx implementations.
+	for (i = 0; i < (8<<1); i++)
+	{
+		numattrib = 0;
+		attrib[numattrib++] = GLX_RGBA;
+		attrib[numattrib++] = GLX_DOUBLEBUFFER;
+		if (!(i&1))
+		{
+			if (!info->stereo)
+				continue;
+			attrib[numattrib++] = GLX_STEREO;
+		}
+		if (!(i&2))
+		{
+			if (!info->srgb)
+				continue;
+			attrib[numattrib++] = GLX_FRAMEBUFFER_SRGB_CAPABLE_ARB;
+		}
+		if (!(i&4))
+		{
+			if (!info->multisample)
+				continue;
+			attrib[numattrib++] = GLX_SAMPLE_BUFFERS_ARB; attrib[numattrib++] = info->multisample;
+		}
+		if (!(i&8))
+		{
+			attrib[numattrib++] = GLX_STENCIL_SIZE;	attrib[numattrib++] = 4;
+		}
+		attrib[numattrib++] = GLX_RED_SIZE;		attrib[numattrib++] = 4;
+		attrib[numattrib++] = GLX_GREEN_SIZE;	attrib[numattrib++] = 4;
+		attrib[numattrib++] = GLX_BLUE_SIZE;	attrib[numattrib++] = 4;
+		attrib[numattrib++] = GLX_DEPTH_SIZE;	attrib[numattrib++] = 16;
+		attrib[numattrib++] = None;
+
+		visinfo = glx.ChooseVisual(vid_dpy, scrnum, attrib);
+		if (visinfo)
+			return visinfo;
+	}
+	return NULL;
+}
+
+qboolean GLX_Init(rendererstate_t *info, GLXFBConfig fbconfig, XVisualInfo *visinfo)
+{
+	extern cvar_t	vid_gl_context_version;
+	extern cvar_t	vid_gl_context_forwardcompatible;
+	extern cvar_t	vid_gl_context_compatibility;
+	extern cvar_t	vid_gl_context_debug;
+	extern cvar_t	vid_gl_context_es;
+	extern cvar_t	vid_gl_context_robustness;
+//	extern cvar_t	vid_gl_context_selfreset;
+	extern cvar_t	vid_gl_context_noerror;
+
+	if (fbconfig && glx.CreateContextAttribs)
+	{
+		unsigned int majorver=1, minorver=1;
+		unsigned profile = 0;
+		unsigned contextflags = 0;
+		int attrib[16*2+1];
+		int n, val;
+		char *ver;
+
+		ver = vid_gl_context_version.string;
+		if (!*ver && vid_gl_context_es.ival && GLX_CheckExtension("GLX_EXT_create_context_es_profile"))
+			ver = vid_gl_context_es.string;
+		if (!*ver && !vid_gl_context_compatibility.ival && *vid_gl_context_compatibility.string)
+			ver = "3.2";	//if the user explicitly disabled compat, then they'll want a version that actually supports doing so.
+
+		majorver = strtoul(ver, &ver, 10);
+		if (*ver == '.')
+			minorver = strtoul(ver+1, &ver, 10);
+		else
+			minorver = 0;
+
+		//some weirdness for you:
+		//3.0 simply marked stuff as deprecated, without removing it.
+		//3.1 removed it (moved to the optional GL_ARB_compatibility extension, which shouldn't be supported in a forward-compatible context).
+		//3.2 added the concept of profiles.
+
+		if (vid_gl_context_debug.ival)
+			contextflags |= GLX_CONTEXT_DEBUG_BIT_ARB;
+		if (vid_gl_context_forwardcompatible.ival)	//treat this as a dev/debug thing.
+			contextflags |= GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
+		if (vid_gl_context_robustness.ival && GLX_CheckExtension("GLX_ARB_create_context_robustness"))
+			contextflags |= GLX_CONTEXT_ROBUST_ACCESS_BIT_ARB;
+
+		if (vid_gl_context_es.ival && GLX_CheckExtension("GLX_EXT_create_context_es_profile"))
+			profile = GLX_CONTEXT_ES_PROFILE_BIT_EXT;
+		else if (majorver>3 || (majorver==3&&minorver>=2))
+		{	//profiles only started with 3.2
+			if (vid_gl_context_compatibility.ival)
+				profile = GLX_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
+			else
+				profile = GLX_CONTEXT_CORE_PROFILE_BIT_ARB;
+		}
+		else
+			profile = 0;
+
+		n = 0;
+		if (majorver || minorver)
+		{
+			attrib[n++] = GLX_CONTEXT_MAJOR_VERSION_ARB;		attrib[n++] = majorver;
+			attrib[n++] = GLX_CONTEXT_MINOR_VERSION_ARB;		attrib[n++] = minorver;
+		}
+		if (contextflags)
+		{
+			attrib[n++] = GLX_CONTEXT_FLAGS_ARB;				attrib[n++] = contextflags;
+		}
+		if (profile)
+		{
+			attrib[n++] = GLX_CONTEXT_PROFILE_MASK_ARB;		attrib[n++] = profile;
+		}
+		if (vid_gl_context_noerror.ival &&  GLX_CheckExtension("GLX_ARB_create_context_no_error"))
+		{
+			attrib[n++] = GLX_CONTEXT_OPENGL_NO_ERROR_ARB;	attrib[n++] = !vid_gl_context_robustness.ival && !vid_gl_context_debug.ival;
+		}
+		attrib[n++] = None;
+
+		if (glx.GetFBConfigAttrib)
+		{
+			if (glx.GetFBConfigAttrib(vid_dpy, fbconfig, GLX_RENDER_TYPE, &val) && val == GLX_RGBA_FLOAT_BIT)
+				vid.flags |= VID_FP16;			//other things need to be 16bit too, to avoid loss of precision.
+			if (glx.GetFBConfigAttrib(vid_dpy, fbconfig, GLX_FRAMEBUFFER_SRGB_CAPABLE_ARB, &val) && val)
+				vid.flags |= VID_SRGB_CAPABLE;	//can use srgb properly, without faking it etc.
+		}
+
+		ctx = glx.CreateContextAttribs(vid_dpy, fbconfig, NULL, True, attrib);
+	}
+	else
+		ctx = glx.CreateContext(vid_dpy, visinfo, NULL, True);
+	if (!ctx)
+	{
+		Con_Printf("Failed to create GLX context.\n");
+		return false;
+	}
+
+	if (!glx.MakeCurrent(vid_dpy, vid_window, ctx))
+	{
+		Con_Printf("glXMakeCurrent failed\n");
+		return false;
+	}
+
+	//okay, we have a context, now init OpenGL-proper.
+	return GL_Init(info, &GLX_GetSymbol);
 }
 #endif
 
@@ -2082,7 +2414,7 @@ void GLVID_Shutdown(void)
 	case PSL_GLX:
 		if (ctx)
 		{
-			qglXDestroyContext(vid_dpy, ctx);
+			glx.DestroyContext(vid_dpy, ctx);
 			ctx = NULL;
 		}
 		break;
@@ -2393,7 +2725,7 @@ void GLVID_SwapBuffers (void)
 	case PSL_GLX:
 		//we don't need to flush, XSawpBuffers does it for us.
 		//chances are, it's version is more suitable anyway. At least there's the chance that it might be.
-		qglXSwapBuffers(vid_dpy, vid_window);
+		glx.SwapBuffers(vid_dpy, vid_window);
 		break;
 #endif
 #ifdef VKQUAKE
@@ -2414,11 +2746,19 @@ void X_StoreIcon(Window wnd)
 	Atom proptype = x11.pXInternAtom(vid_dpy, "CARDINAL", false);
 
 	size_t filesize;
-	qbyte *filedata = FS_LoadMallocFile("icon.png", &filesize);
+	qbyte *filedata = NULL;
+#ifdef AVAIL_PNGLIB
 	if (!filedata)
-		FS_LoadMallocFile("icon.tga", &filesize);
+		filedata = FS_LoadMallocFile("icon.png", &filesize);
+#endif
 	if (!filedata)
-		FS_LoadMallocFile("icon.jpg", &filesize);
+		filedata = FS_LoadMallocFile("icon.tga", &filesize);
+#ifdef AVAIL_JPEGLIB
+	if (!filedata)
+		filedata = FS_LoadMallocFile("icon.jpg", &filesize);
+#endif
+	if (!filedata)
+		filedata = FS_LoadMallocFile("icon.ico", &filesize);
 	if (filedata)
 	{
 		int imagewidth, imageheight;
@@ -2638,22 +2978,13 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	int width = info->width;	//can override these if vmode isn't available
 	int height = info->height;
 	int rate = info->rate;
-#ifdef GLQUAKE
-	int attrib[] = {
-		GLX_RGBA,
-		GLX_RED_SIZE, 4,
-		GLX_GREEN_SIZE, 4,
-		GLX_BLUE_SIZE, 4,
-		GLX_DOUBLEBUFFER,
-		GLX_DEPTH_SIZE, 16,
-		GLX_STENCIL_SIZE, 4,
-		None
-	};
-#endif
 #if defined(USE_EGL) || defined(VKQUAKE)
 	XVisualInfo vinfodef;
 #endif
 	XVisualInfo *visinfo;
+#ifdef GLQUAKE
+	GLXFBConfig fbconfig = NULL;
+#endif
 	qboolean fullscreen = false;
 
 	if (!x11_initlib())
@@ -2780,10 +3111,16 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		break;
 #endif
 	case PSL_GLX:
-		visinfo = qglXChooseVisual(vid_dpy, scrnum, attrib);
+		fbconfig = GLX_GetFBConfig(info);
+		if (fbconfig)
+			visinfo = glx.GetVisualFromFBConfig(vid_dpy, fbconfig);
+		else
+			visinfo = GLX_GetVisual(info);
 		if (!visinfo)
 		{
-			Sys_Error("X11VID_Init: Error couldn't get an RGB, Double-buffered, Depth visual\n");
+			Con_Printf("X11VID_Init: Error couldn't get an RGB, Double-buffered, Depth visual\n");
+			GLVID_Shutdown();
+			return false;
 		}
 		break;
 #endif
@@ -2841,7 +3178,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		if (rampsize > countof(vm.originalramps[0]))
 		{
 			vm.originalapplied = false;
-			Con_Printf("Gamma ramps are not of 256 components (but %i).\n", rampsize);
+			Con_Printf("Gamma ramps have more than %zi entries (%i).\n", countof(vm.originalramps[0]), rampsize);
 		}
 		else
 		{
@@ -2855,23 +3192,11 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	{
 #ifdef GLQUAKE
 	case PSL_GLX:
-		ctx = qglXCreateContext(vid_dpy, visinfo, NULL, True);
-		if (!ctx)
+		if (!GLX_Init(info, fbconfig, visinfo))
 		{
-			Con_Printf("Failed to create GLX context.\n");
 			GLVID_Shutdown();
 			return false;
 		}
-
-		if (!qglXMakeCurrent(vid_dpy, vid_window, ctx))
-		{
-			Con_Printf("glXMakeCurrent failed\n");
-			GLVID_Shutdown();
-			return false;
-		}
-
-		if (!GL_Init(info, &GLX_GetSymbol))
-			return false;
 		break;
 #ifdef USE_EGL
 	case PSL_EGL:
@@ -3083,7 +3408,7 @@ void Force_CenterView_f (void)
 
 
 //these are done from the x11 event handler. we don't support evdev.
-void INS_Move(float *movements, int pnum)
+void INS_Move(void)
 {
 }
 void INS_Commands(void)

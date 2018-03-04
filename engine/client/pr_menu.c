@@ -2812,7 +2812,6 @@ void MP_Draw(void)
 qboolean MP_Keydown(int key, int unicode, unsigned int devid)
 {
 	qboolean result = false;
-	extern qboolean	keydown[K_MAX];
 
 #ifdef TEXTEDITOR
 	if (editormodal)
@@ -2822,9 +2821,10 @@ qboolean MP_Keydown(int key, int unicode, unsigned int devid)
 	if (setjmp(mp_abort))
 		return true;
 
-#ifndef QUAKETC
+#ifndef NOBUILTINMENUS
 	if (key == 'c')
 	{
+		extern qboolean	keydown[K_MAX];
 		if (keydown[K_LCTRL] || keydown[K_RCTRL])
 		{
 			MP_Shutdown();

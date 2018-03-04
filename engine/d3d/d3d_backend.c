@@ -654,9 +654,6 @@ void D3D9BE_Reset(qboolean before)
 		/*force all state to change, thus setting a known state*/
 		shaderstate.shaderbits = ~0;
 		BE_ApplyShaderBits(0);
-
-
-		Surf_BuildLightmaps();
 	}
 }
 
@@ -3080,7 +3077,7 @@ static void BE_UploadLightmaps(qboolean force)
 
 		if (lightmap[i]->modified)
 		{
-			extern cvar_t gl_lightmap_nearest;
+			extern cvar_t r_lightmap_nearest;
 			IDirect3DTexture9 *tex;
 			D3DLOCKED_RECT lock;
 			RECT rect;
@@ -3089,11 +3086,42 @@ static void BE_UploadLightmaps(qboolean force)
 			int w;
 
 			if (!TEXLOADED(lm->lightmap_texture))
-				lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP);
+				lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP);
 			tex = lm->lightmap_texture->ptr;
 			if (!tex)
 			{
-				IDirect3DDevice9_CreateTexture(pD3DDev9, lm->width, lm->height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &tex, NULL);
+				switch(lightmap_fmt)
+				{
+				default:
+					break;
+				case PTI_BGRA8:
+					IDirect3DDevice9_CreateTexture(pD3DDev9, lm->width, lm->height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &tex, NULL);
+					break;
+				case PTI_BGRX8:
+					IDirect3DDevice9_CreateTexture(pD3DDev9, lm->width, lm->height, 1, 0, D3DFMT_X8R8G8B8, D3DPOOL_MANAGED, &tex, NULL);
+					break;
+				case PTI_RGB565:
+					IDirect3DDevice9_CreateTexture(pD3DDev9, lm->width, lm->height, 1, 0, D3DFMT_R5G6B5, D3DPOOL_MANAGED, &tex, NULL);
+					break;
+				case PTI_ARGB4444:
+					IDirect3DDevice9_CreateTexture(pD3DDev9, lm->width, lm->height, 1, 0, D3DFMT_A4R4G4B4, D3DPOOL_MANAGED, &tex, NULL);
+					break;
+				case PTI_ARGB1555:
+					IDirect3DDevice9_CreateTexture(pD3DDev9, lm->width, lm->height, 1, 0, D3DFMT_A1R5G5B5, D3DPOOL_MANAGED, &tex, NULL);
+					break;
+				case PTI_A2BGR10:
+					IDirect3DDevice9_CreateTexture(pD3DDev9, lm->width, lm->height, 1, 0, D3DFMT_A2B10G10R10, D3DPOOL_MANAGED, &tex, NULL);
+					break;
+				case PTI_L8:
+					IDirect3DDevice9_CreateTexture(pD3DDev9, lm->width, lm->height, 1, 0, D3DFMT_L8, D3DPOOL_MANAGED, &tex, NULL);
+					break;
+				case PTI_RGBA16F:
+					IDirect3DDevice9_CreateTexture(pD3DDev9, lm->width, lm->height, 1, 0, D3DFMT_A16B16G16R16F, D3DPOOL_MANAGED, &tex, NULL);
+					break;
+				case PTI_RGBA32F:
+					IDirect3DDevice9_CreateTexture(pD3DDev9, lm->width, lm->height, 1, 0, D3DFMT_A32B32G32R32F, D3DPOOL_MANAGED, &tex, NULL);
+					break;
+				}
 				if (!tex)
 					continue;
 				lm->lightmap_texture->ptr = tex;

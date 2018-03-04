@@ -24,7 +24,7 @@
 //#define D3D9QUAKE
 //#define GLQUAKE
 #undef D3D11QUAKE
-#if defined(WIN32)
+#if defined(WIN32) && !defined(D3D8QUAKE)
 #define D3D8QUAKE
 #endif
 #undef VKQUAKE
@@ -99,6 +99,7 @@
 #undef USE_SQLITE	//sql-database-as-file support
 #undef QUAKESTATS	//defines STAT_HEALTH etc. if omitted, you'll need to provide that functionality yourself.
 #undef QUAKEHUD		//support for drawing the vanilla hud.
+#undef QWSKINS		//disabling this means no qw .pcx skins nor enemy/team skin/colour forcing
 #undef SVRANKING	//legacy server-side ranking system.
 #undef RAGDOLL		//ragdoll support. requires RBE support.
 #undef HUFFNETWORK	//crappy network compression. probably needs reseeding.

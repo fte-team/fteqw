@@ -454,9 +454,6 @@ void D3D8BE_Reset(qboolean before)
 		/*force all state to change, thus setting a known state*/
 		shaderstate.shaderbits = ~0;
 		BE_ApplyShaderBits(0);
-
-
-		Surf_BuildLightmaps();
 	}
 }
 
@@ -2658,7 +2655,7 @@ static void BE_UploadLightmaps(qboolean force)
 
 		if (lightmap[i]->modified)
 		{
-			extern cvar_t gl_lightmap_nearest;
+			extern cvar_t r_lightmap_nearest;
 			IDirect3DTexture8 *tex;
 			D3DLOCKED_RECT lock;
 			RECT rect;
@@ -2667,7 +2664,7 @@ static void BE_UploadLightmaps(qboolean force)
 			int w;
 
 			if (!TEXLOADED(lm->lightmap_texture))
-				lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP);
+				lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP);
 			tex = lm->lightmap_texture->ptr;
 			if (!tex)
 			{

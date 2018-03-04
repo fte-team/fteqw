@@ -38,7 +38,9 @@ qboolean vid_isfullscreen;
 #define VKRENDEREROPTIONS	"Vulkan-Specific Renderer Options"
 
 unsigned int	d_8to24rgbtable[256];
+unsigned int	d_8to24srgbtable[256];
 unsigned int	d_8to24bgrtable[256];
+unsigned int	d_quaketo24srgbtable[256];
 
 extern int gl_anisotropy_factor;
 
@@ -76,8 +78,8 @@ cvar_t vid_vsync							= CVARAF  ("vid_vsync", "0",
 													   "vid_wait", CVAR_ARCHIVE);
 #endif
 
-cvar_t _windowed_mouse						= CVARF ("_windowed_mouse","1",
-													 CVAR_ARCHIVE);
+cvar_t _windowed_mouse						= CVARF ("in_windowed_mouse","1",
+													 CVAR_ARCHIVE);	//renamed this, because of freecs users complaining that it doesn't work. I don't personally see why you'd want it set to 0, but that's winquake's default so boo hiss to that.
 
 cvar_t con_ocranaleds						= CVAR  ("con_ocranaleds", "2");
 
@@ -86,7 +88,9 @@ cvar_t cl_cursorscale						= CVAR  ("cl_cursor_scale", "1.0");
 cvar_t cl_cursorbiasx						= CVAR  ("cl_cursor_bias_x", "0.0");
 cvar_t cl_cursorbiasy						= CVAR  ("cl_cursor_bias_y", "0.0");
 
+#ifdef QWSKINS
 cvar_t gl_nocolors							= CVARF  ("gl_nocolors", "0", CVAR_ARCHIVE);
+#endif
 cvar_t gl_part_flame						= CVARFD  ("gl_part_flame", "1", CVAR_ARCHIVE, "Enable particle emitting from models. Mainly used for torch and flame effects.");
 
 //opengl library, blank means try default.
@@ -158,6 +162,7 @@ cvar_t r_lightstylesmooth_limit				= CVAR	("r_lightstylesmooth_limit", "2");
 cvar_t r_lightstylespeed					= CVAR	("r_lightstylespeed", "10");
 cvar_t r_lightstylescale					= CVAR	("r_lightstylescale", "1");
 cvar_t r_lightmap_scale						= CVARFD ("r_shadow_realtime_nonworld_lightmaps", "1", 0, "Scaler for lightmaps used when not using realtime world lighting. Probably broken.");
+cvar_t r_hdr_framebuffer					= CVARFD("r_hdr_framebuffer", "0", CVAR_ARCHIVE, "If enabled, the map will be rendered into a high-precision image framebuffer. This avoids issues with shaders that contribute more than 1 in any single pass (like overbrights).");
 cvar_t r_hdr_irisadaptation					= CVARF	("r_hdr_irisadaptation", "0", CVAR_ARCHIVE);
 cvar_t r_hdr_irisadaptation_multiplier		= CVAR	("r_hdr_irisadaptation_multiplier", "2");
 cvar_t r_hdr_irisadaptation_minvalue		= CVAR	("r_hdr_irisadaptation_minvalue", "0.5");
@@ -207,8 +212,9 @@ cvar_t r_waterwarp							= CVARFD ("r_waterwarp", "1",
 cvar_t r_replacemodels						= CVARFD ("r_replacemodels", IFMINIMAL("","md3 md2"),
 												CVAR_ARCHIVE, "A list of filename extensions to attempt to use instead of mdl.");
 
-cvar_t gl_lightmap_nearest					= CVARFD ("gl_lightmap_nearest", "0", CVAR_ARCHIVE, "Use nearest sampling for lightmaps. This will give a more blocky look. Meaningless when gl_lightmap_average is enabled.");
-cvar_t gl_lightmap_average					= CVARFD ("gl_lightmap_average", "0", CVAR_ARCHIVE, "Determine lightmap values based upon the center of the polygon. This will give a more buggy look, quite probably.");
+cvar_t r_lightmap_nearest					= CVARFD ("gl_lightmap_nearest", "0", CVAR_ARCHIVE, "Use nearest sampling for lightmaps. This will give a more blocky look. Meaningless when gl_lightmap_average is enabled.");
+cvar_t r_lightmap_average					= CVARFD ("gl_lightmap_average", "0", CVAR_ARCHIVE, "Determine lightmap values based upon the center of the polygon. This will give a more buggy look, quite probably.");
+cvar_t r_lightmap_format					= CVARFD ("r_lightmap_format", "", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, "Overrides the default texture format used for lightmaps. rgb9e5 is a good choice for HDR.");
 
 //otherwise it would defeat the point.
 cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
@@ -440,11 +446,12 @@ cvar_t r_vertexdlights						= CVARD	("r_vertexdlights", "0", "Determine model li
 
 cvar_t vid_preservegamma					= CVARD ("vid_preservegamma", "0", "Restore initial hardware gamma ramps when quitting.");
 cvar_t vid_hardwaregamma					= CVARFD ("vid_hardwaregamma", "1",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Use hardware gamma ramps. 0=ugly texture-based gamma, 1=glsl(windowed) or hardware(fullscreen), 2=always glsl, 3=always hardware gamma (disabled if hardware doesn't support).");
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Use hardware gamma ramps. 0=ugly texture-based gamma, 1=glsl(windowed) or hardware(fullscreen), 2=always glsl, 3=always hardware gamma (disabled if hardware doesn't support), 4=scene-only gamma.");
 cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Apply gamma ramps upon the desktop rather than the window.");
 
 cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces's default) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
+cvar_t r_fog_permutation					= CVARFD ("r_fog_permutation", "1", CVAR_SHADERSYSTEM, "Renders fog using a material permutation. 0 plays nicer with q3 shaders, but 1 is otherwise a better choice.");
 
 extern cvar_t gl_dither;
 cvar_t	gl_screenangle = CVAR("gl_screenangle", "0");
@@ -487,7 +494,9 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nohwblend, GLRENDEREROPTIONS);
+#ifdef QWSKINS
 	Cvar_Register (&gl_nocolors, GLRENDEREROPTIONS);
+#endif
 	Cvar_Register (&gl_finish, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lateswap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lerpimages, GLRENDEREROPTIONS);
@@ -524,6 +533,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_overbright_all, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
 	Cvar_Register (&r_fog_exp2, GLRENDEREROPTIONS);
+	Cvar_Register (&r_fog_permutation, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_tessellation, GRAPHICALNICETIES);
 	Cvar_Register (&gl_ati_truform_type, GRAPHICALNICETIES);
@@ -548,8 +558,9 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_menutint_shader, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_lightmap_nearest, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_lightmap_average, GLRENDEREROPTIONS);
+	Cvar_Register (&r_lightmap_nearest, GLRENDEREROPTIONS);
+	Cvar_Register (&r_lightmap_average, GLRENDEREROPTIONS);
+	Cvar_Register (&r_lightmap_format, GLRENDEREROPTIONS);
 }
 #endif
 
@@ -824,6 +835,7 @@ void Renderer_Init(void)
 	Cvar_Register(&r_lightstylescale, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightmap_scale, GRAPHICALNICETIES);
 
+	Cvar_Register(&r_hdr_framebuffer, GRAPHICALNICETIES);
 	Cvar_Register(&r_hdr_irisadaptation, GRAPHICALNICETIES);
 	Cvar_Register(&r_hdr_irisadaptation_multiplier, GRAPHICALNICETIES);
 	Cvar_Register(&r_hdr_irisadaptation_minvalue, GRAPHICALNICETIES);
@@ -1253,7 +1265,9 @@ void R_ShutdownRenderer(qboolean devicetoo)
 
 	CL_AllowIndependantSendCmd(false);	//FIXME: figure out exactly which parts are going to affect the model loading.
 
+#ifdef QWSKINS
 	Skin_FlushAll();
+#endif
 
 	P_Shutdown();
 	Mod_Shutdown(false);
@@ -1301,6 +1315,7 @@ void R_ShutdownRenderer(qboolean devicetoo)
 
 void R_GenPaletteLookup(void)
 {
+	extern qbyte default_quakepal[];
 	int r,g,b,i;
 	unsigned char *pal = host_basepal;
 	for (i=0 ; i<256 ; i++)
@@ -1311,12 +1326,16 @@ void R_GenPaletteLookup(void)
 		pal += 3;
 
 		d_8to24rgbtable[i] = (255<<24) + (r<<0) + (g<<8) + (b<<16);
+		d_8to24srgbtable[i] = (255<<24) + (SRGBb(r)<<0) + (SRGBb(g)<<8) + (SRGBb(b)<<16);
 		d_8to24bgrtable[i] = (255<<24) + (b<<0) + (g<<8) + (r<<16);
 	}
 	d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
+	d_8to24srgbtable[255] &= 0xffffff;	// 255 is transparent
 	d_8to24bgrtable[255] &= 0xffffff;	// 255 is transparent
-}
 
+	for (i=0 ; i<256 ; i++)
+		d_quaketo24srgbtable[i] = (255<<24) | (SRGBb(default_quakepal[(i)*3+0])<<0) | (SRGBb(default_quakepal[(i)*3+1])<<8) | (SRGBb(default_quakepal[(i)*3+2])<<16);
+}
 qboolean R_ApplyRenderer (rendererstate_t *newr)
 {
 	double time;
@@ -1384,7 +1403,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 #endif
 		if (newr)
 			if (!r_forceheadless || newr->renderer->rtype != QR_HEADLESS)
-				Con_TPrintf("Setting mode %i*%i*%i*%i %s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->renderer->description);
+				Con_TPrintf("Setting mode %i*%i %ibpp %ihz %s%s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->srgb?"SRGB ":"", newr->renderer->description);
 
 		vid.fullbright=0;
 
@@ -1439,12 +1458,12 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 			vid.fullbright = 0;	//transparent colour doesn't count.
 
 q2colormap:
-		R_GenPaletteLookup();
 
 TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 
 		if (newr)
 		{
+			vid.flags = 0;
 			vid.gammarampsize = 256;	//make a guess.
 			if (!VID_Init(newr, host_basepal))
 			{
@@ -1452,6 +1471,9 @@ TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 			}
 		}
 TRACE(("dbg: R_ApplyRenderer: vid applied\n"));
+
+		//update palettes now that we know whether srgb is to be used etc
+		R_GenPaletteLookup();
 
 		r_softwarebanding = false;
 		r_deluxmapping = false;
@@ -2025,7 +2047,7 @@ void R_SetRenderer_f (void)
 	}
 
 	if (newr.renderer->rtype != QR_HEADLESS && !strstr(param, "headless"))	//don't save headless in the vid_renderer cvar via the setrenderer command. 'setrenderer headless;vid_restart' can then do what is most sane.
-		Cvar_Set(&vid_renderer, param);
+		Cvar_ForceSet(&vid_renderer, param);
 
 	if (!r_blockvidrestart)
 		R_RestartRenderer(&newr);

@@ -5774,9 +5774,43 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 					for (numverts = 0, numindicies = 0; i < hm->numbrushes; i++, br++)
 					{
 						//if a single batch has too many verts, cut it off before it overflows our maximum batch size, and hope we don't get a really really complex brush.
-						if (numverts > 0xf000 || numindicies > 0xf000)
+						if (numverts >= 0xf000 || numindicies >= 0xf000)
 							break;
 
+						if (br->patch && br->patch->tex == bt && lmnum == -1)
+						{
+							int x, y;
+							index_t r1, r2;
+	
+							for (y = 0, r1 = numverts, r2 = 0; y < br->patch->ypoints; y++)
+							{
+								for (x = 0; x < br->patch->xpoints; x++, r1++, r2++)
+								{
+									VectorCopy(br->patch->verts[r2].v, arrays->coord[r1]);
+									Vector2Copy(br->patch->verts[r2].tc, arrays->texcoord[r1]);
+									VectorCopy(br->patch->verts[r2].norm, arrays->normal[r1]);
+									VectorCopy(br->patch->verts[r2].sdir, arrays->svector[r1]);
+									VectorCopy(br->patch->verts[r2].tdir, arrays->tvector[r1]);
+
+									Vector2Copy(br->patch->verts[r2].tc, arrays->lmcoord[r1]);
+								}
+							}
+							for (y = 0, r1 = numverts, r2 = r1 + br->patch->xpoints; y < br->patch->ypoints-1; y++)
+							{
+								for (x = 0; x < br->patch->xpoints-1; x++, r1++, r2++)
+								{
+									arrays->index[numindicies++] = r1;
+									arrays->index[numindicies++] = r1+1;
+									arrays->index[numindicies++] = r2;
+
+									arrays->index[numindicies++] = r1+1;
+									arrays->index[numindicies++] = r2+1;
+									arrays->index[numindicies++] = r2;
+								}
+								r1++; r2++;
+							}
+							numverts += br->patch->ypoints*br->patch->xpoints;
+						}
 						for (j = 0; j < br->numplanes; j++)
 						{
 							if (br->faces[j].tex == bt && !br->selected && br->faces[j].lightmap == lmnum)
@@ -6915,27 +6949,58 @@ void QCBUILTIN PF_brush_findinvolume(pubprogfuncs_t *prinst, struct globalvars_s
 
 void Terr_WriteBrushInfo(vfsfile_t *file, brushes_t *br)
 {
+	//valve 220 format:
+	//{
 	//( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname [x y z d] [x y z d] rotation sscale tscale
+	//}
 	float *point[3];
-	int i;
+	int i, x, y;
 
 	VFS_PRINTF(file, "\n{");
-	for (i = 0; i < br->numplanes; i++)
+	if (br->patch)
 	{
-		point[0] = br->faces[i].points[0];
-		point[1] = br->faces[i].points[1];
-		point[2] = br->faces[i].points[2];
-
-		//%.9g is 'meant' to be lossless for a standard ieee single-precision float. (%.17g for a double)
-		VFS_PRINTF(file, "\n( %.9g %.9g %.9g ) ( %.9g %.9g %.9g ) ( %.9g %.9g %.9g ) \"%s\" [ %.9g %.9g %.9g %.9g ] [ %.9g %.9g %.9g %.9g ] 0 1 1",
-			point[0][0], point[0][1], point[0][2],
-			point[1][0], point[1][1], point[1][2],
-			point[2][0], point[2][1], point[2][2],
-			br->faces[i].tex?br->faces[i].tex->shadername:"",
-			br->faces[i].stdir[0][0], br->faces[i].stdir[0][1], br->faces[i].stdir[0][2], br->faces[i].stdir[0][3],
-			br->faces[i].stdir[1][0], br->faces[i].stdir[1][1], br->faces[i].stdir[1][2], br->faces[i].stdir[1][3]
-			);
+		VFS_PRINTF(file, "\n\tpatchDef2\n\t{\n\t\"%s\"\n\t( %.9g %.9g %.9g %.9g %.9g )\n\t(\t\n", 
+				br->patch->tex?br->patch->tex->shadername:"",
+				0.0/*xoffset*/,
+				0.0/*yoffset*/,
+				0.0/*rotation*/,
+				1.0/*xscale*/,
+				1.0/*yscale*/);
+		for (y = 0; y < br->patch->ypoints; y++)
+		{
+			VFS_PRINTF(file, "\t\t( ");
+			for (x = 0; x < br->patch->xpoints; x++)
+			{
+				VFS_PRINTF(file, "( %.9g %.9g %.9g %.9g %.9g )",	br->patch->verts[x + y*br->patch->xpoints].v[0],
+																	br->patch->verts[x + y*br->patch->xpoints].v[1],
+																	br->patch->verts[x + y*br->patch->xpoints].v[2],
+																	br->patch->verts[x + y*br->patch->xpoints].tc[0],
+																	br->patch->verts[x + y*br->patch->xpoints].tc[1]);
+			}
+			VFS_PRINTF(file, " )");
+		}
+		VFS_PRINTF(file, " )\n\t}\n");
 	}
+	else
+	{
+		for (i = 0; i < br->numplanes; i++)
+		{
+			point[0] = br->faces[i].points[0];
+			point[1] = br->faces[i].points[1];
+			point[2] = br->faces[i].points[2];
+
+			//%.9g is 'meant' to be lossless for a standard ieee single-precision float. (%.17g for a double)
+			VFS_PRINTF(file, "\n( %.9g %.9g %.9g ) ( %.9g %.9g %.9g ) ( %.9g %.9g %.9g ) \"%s\" [ %.9g %.9g %.9g %.9g ] [ %.9g %.9g %.9g %.9g ] 0 1 1",
+				point[0][0], point[0][1], point[0][2],
+				point[1][0], point[1][1], point[1][2],
+				point[2][0], point[2][1], point[2][2],
+				br->faces[i].tex?br->faces[i].tex->shadername:"",
+				br->faces[i].stdir[0][0], br->faces[i].stdir[0][1], br->faces[i].stdir[0][2], br->faces[i].stdir[0][3],
+				br->faces[i].stdir[1][0], br->faces[i].stdir[1][1], br->faces[i].stdir[1][2], br->faces[i].stdir[1][3]
+				);
+		}
+	}
+
 	VFS_PRINTF(file, "\n}");
 }
 void Terr_WriteMapFile(vfsfile_t *file, model_t *mod)
@@ -7219,12 +7284,14 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 		}
 		else if (inbrush && !strcmp(token, "patchDef2"))
 		{
+			vec5_t pvert[64][64];
+			int x, y;
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			/*validate {*/
+			if (strcmp(token, "{")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			/*parse texture name*/
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			/*validate (*/
+			if (strcmp(token, "(")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			/*xoffset = atof(token);*/
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
@@ -7236,46 +7303,53 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 			/*yscale = atof(token);*/
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			/*validate )*/
+			if (strcmp(token, ")")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			/*validate (*/
+			if (strcmp(token, "(")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+			y = 0;
 			while (!strcmp(token, "("))
 			{
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				x = 0;
 				while (!strcmp(token, "("))
 				{
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					//x = atof(token);
+					pvert[y][x][0] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					//y = atof(token);
+					pvert[y][x][1] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					//z = atof(token);
+					pvert[y][x][2] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					//s = atof(token);
+					pvert[y][x][3] = atof(token);
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					//t = atof(token);
+					pvert[y][x][4] = atof(token);
 
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-					/*validate )*/
+					if (strcmp(token, ")")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 
 					entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+					if (x < countof(pvert[y])-1)
+						x++;
 				}
-				/*validate )*/
+				if (strcmp(token, ")")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
+				if (y < countof(pvert)-1)
+					y++;
 			}
-			/*validate )*/
+			if (strcmp(token, ")")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 			entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			/*validate }*/
+			if (strcmp(token, "}")) {Con_Printf(CON_ERROR "%s: invalid patch\n", mod->name);return false;}
 		}
 		else if (inbrush)
 		{
 			//parse a plane
-			//Quake: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname 0 -32 rotation sscale tscale
-			//hexen2: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname 0 -32 rotation sscale tscale utterlypointless
+			//Quake: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname soffset toffset rotation sscale tscale
+			//hexen2:( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname soffset toffset rotation sscale tscale utterlypointless
 			//Valve: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname [x y z d] [x y z d] rotation sscale tscale
 			//fte  : ( px py pz pd ) texname [sx sy sz sd] [tx ty tz td] 0 1 1
-			//q3   : (( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) common/caulk common/caulk rotation sscale tscale detailcontents unused unused
+			//q3   : ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) common/caulk common/caulk rotation sscale tscale detailcontents unused unused
+			//doom3: brushdef3 { ( px py pz pd ) ( ( x y z ) ( x y z ) ) texture detailcontents unused unused }
 			brushtex_t *bt;
 			vec3_t d1,d2;
 			vec3_t points[3];
@@ -7331,7 +7405,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			else if (!Q_strncasecmp(token, "*sky", 4))
 				brushcontents = FTECONTENTS_SKY;
 			else if (!Q_strcasecmp(token, "clip"))
-				brushcontents = FTECONTENTS_PLAYERCLIP;
+				brushcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
 			else
 				brushcontents = FTECONTENTS_SOLID;
 

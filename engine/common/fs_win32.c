@@ -226,6 +226,8 @@ static int QDECL VFSW32_ReadBytes (struct vfsfile_s *file, void *buffer, int byt
 	{
 		if (intfile->offset+bytestoread > intfile->length)
 			bytestoread = intfile->length-intfile->offset;
+		if (bytestoread < 0)
+			bytestoread = 0;	//shouldn't happen...
 
 		memcpy(buffer, (char*)intfile->mmap + intfile->offset, bytestoread);
 		intfile->offset += bytestoread;
@@ -327,6 +329,7 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 	qboolean write = !!strchr(mode, 'w');
 	qboolean append = !!strchr(mode, 'a');
 	qboolean text = !!strchr(mode, 't');
+	//qboolean persistent = !!strchr(mode, 'p');	//save to long-term storage
 	write |= append;
 	create = write;
 	if (strchr(mode, '+'))
@@ -642,7 +645,7 @@ static qboolean QDECL VFSW32_MkDir(searchpathfuncs_t *handle, const char *filena
 	return true;
 }
 
-searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc, const char *prefix)
+searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix)
 {
 	vfsw32path_t *np;
 	int dlen = strlen(desc);

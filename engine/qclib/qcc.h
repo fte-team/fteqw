@@ -1107,8 +1107,9 @@ int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell
 
 
 struct pkgctx_s;
-struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, char *message), void *userctx);
-void			Packager_Parse(struct pkgctx_s *ctx, char *scriptname);
+struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, char *message, ...), void *userctx);
+void			Packager_ParseFile(struct pkgctx_s *ctx, char *scriptfilename);
+void			Packager_ParseText(struct pkgctx_s *ctx, char *scripttext);
 void			Packager_WriteDataset(struct pkgctx_s *ctx, char *setname);
 void			Packager_Destroy(struct pkgctx_s *ctx);
 

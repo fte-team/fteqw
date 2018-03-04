@@ -81,6 +81,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define STRINGIFY2(s) #s
 #define STRINGIFY(s) STRINGIFY2(s)
 
+#define QWSKINS	//disables qw .pcx skins, as well as enemy/team colour forcing.
+
 #ifdef CONFIG_FILE_NAME
 	//yup, C89 allows this (doesn't like C's token concat though).
 	#include STRINGIFY(CONFIG_FILE_NAME)

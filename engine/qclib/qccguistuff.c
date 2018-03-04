@@ -443,11 +443,12 @@ void GUI_LoadConfig(void)
 
 
 //this function takes the windows specified commandline and strips out all the options menu items.
-void GUI_ParseCommandLine(char *args)
+int GUI_ParseCommandLine(char *args)
 {
 	int paramlen=0;
 	int l, p;
 	char *next;
+	int mode = 0;
 
 	if (!*args)
 	{
@@ -531,7 +532,15 @@ void GUI_ParseCommandLine(char *args)
 		parameters[paramlen+next-args] = '\0';
 		l = strlen(parameters+paramlen)+1;
 
-		if (!strnicmp(parameters+paramlen, "-O", 2) || !strnicmp(parameters+paramlen, "/O", 2))
+		if (!strnicmp(parameters+paramlen, "-stdout", 7) || !strnicmp(parameters+paramlen, "--version", 9))
+		{
+			mode = 1;
+		}
+		/*else if (!strnicmp(parameters+paramlen, "-zippatch", 9))
+		{
+			mode = 2;
+		}*/
+		else if (!strnicmp(parameters+paramlen, "-O", 2) || !strnicmp(parameters+paramlen, "/O", 2))
 		{	//strip out all -O
 			fl_nondfltopts = true;
 			if (parameters[paramlen+2])
@@ -751,6 +760,7 @@ void GUI_ParseCommandLine(char *args)
 		parameters[paramlen-1] = '\0';
 	else
 		*parameters = '\0';
+	return mode;
 }
 
 void GUI_SetDefaultOpts(void)

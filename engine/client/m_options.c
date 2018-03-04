@@ -901,6 +901,7 @@ const char *presetexec[] =
 	"r_glsl_offsetmapping 1;"
 	"r_shadow_realtime_world 1;"
 	"gl_texture_anisotropic_filtering 16;"
+	"vid_hardwaregamma 6;"	//scene gamma
 };
 
 typedef struct fpsmenuinfo_s
@@ -1179,7 +1180,9 @@ void M_Menu_Render_f (void)
 		MB_SLIDER("Water Alpha", r_wateralpha, 0, 1, 0.1, NULL),
 		MB_SLIDER("Viewmodel Alpha", r_drawviewmodel, 0, 1, 0.1, NULL),
 		MB_CHECKBOXCVAR("Poly Blending", gl_cshiftenabled, 0),
+#ifdef QWSKINS
 		MB_CHECKBOXCVAR("Disable Colormap", gl_nocolors, 0),
+#endif
 		MB_COMBOCVAR("Log Centerprints", scr_logcenterprint, logcenteropts, logcentervalues, "Display centerprints in the console also."),
 #ifdef GLQUAKE
 		MB_CHECKBOXCVAR("Bloom", r_bloom, 0),
@@ -1380,7 +1383,7 @@ void M_Menu_Lighting_f (void)
 #ifndef MINIMAL
 	extern cvar_t r_vertexlight;
 #endif
-	extern cvar_t r_stains, r_shadows, r_loadlits;
+	extern cvar_t r_stains, r_shadows, r_loadlits, r_lightmap_format;
 	extern cvar_t r_lightstylesmooth, r_nolightdir;
 #ifdef RTLIGHTS
 	extern cvar_t r_dynamic, r_shadow_realtime_world, r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
@@ -1479,6 +1482,34 @@ void M_Menu_Lighting_f (void)
 		NULL
 	};
 
+	static const char *lightmapformatopts[] =
+	{
+		"Automatic",
+		"8bit (Greyscale)",
+		"8bit (Misaligned)",
+		"8bit (Aligned)",
+		"10bit",
+		"9bit (HDR)",
+		"Half-Float (HDR)",
+		"Float (HDR)",
+		NULL
+	};
+	static const char *lightmapformatvalues[] =
+	{
+		"",
+		"l8",
+		"rgb8",
+		"bgrx8",
+		"rgb10",
+		"rgb9e5",
+		"rgba16f",
+		"rgba32f",
+//		"rgb4",
+//		"rgb565",
+//		"rgba5551",
+		NULL
+	};
+
 	int y;
 	menu_t *menu = M_Options_Title(&y, sizeof(lightingmenuinfo_t));
 
@@ -1535,6 +1566,7 @@ void M_Menu_Lighting_f (void)
 			MB_CMD("Apply Lighting", M_VideoApplyShadowLighting, "Applies set lighting modes and restarts video."),
 			MB_SPACING(4),
 #endif
+			MB_COMBOCVAR("Lightmap Format", r_lightmap_format, lightmapformatopts, lightmapformatvalues, "Selects which format to use for lightmaps."),
 			MB_COMBOCVAR("LIT Loading", r_loadlits, loadlitopts, loadlitvalues, "Determines if the engine should use external colored lighting for maps. The generated setting will cause the engine to generate colored lighting for maps that don't have the associated data."),
 			MB_COMBOCVAR("Deluxmapping", r_deluxmapping_cvar, loadlitopts, loadlitvalues, "Controls whether static lighting should respond to lighting directions."),
 			MB_CHECKBOXCVAR("Lightstyle Lerp", r_lightstylesmooth, 0),
@@ -2561,6 +2593,23 @@ void M_Menu_Video_f (void)
 	extern cvar_t vid_desktopsettings, vid_conautoscale;
 	extern cvar_t vid_bpp, vid_refreshrate, vid_multisample;
 
+	static const char *gammamodeopts[] = {
+		"Off",
+		"Auto",
+		"GLSL",
+		"Hardware",
+		"Scene-Only",
+		NULL
+	};
+	static const char *gammamodevalues[] = {
+		"0",
+		"1",
+		"2",
+		"3",
+		"4",
+		NULL
+	};
+
 #ifdef ANDROID
 	extern cvar_t sys_orientation;
 	static const char *orientationopts[] = {
@@ -2801,6 +2850,7 @@ void M_Menu_Video_f (void)
 			MB_CMD("Apply Settings", M_VideoApply, "Restart video and apply renderer, display, and 2D resolution options."),
 			MB_SPACING(4),
 			MB_SLIDER("View Size", scr_viewsize, 30, 120, 10, NULL),
+			MB_COMBOCVAR("Gamma Mode", v_gamma, gammamodeopts, gammamodevalues, "Controls how gamma is applied"),
 			MB_SLIDER("Gamma", v_gamma, 1.5, 0.25, -0.05, NULL),
 			MB_SLIDER("Contrast", v_contrast, 0.8, 3, 0.05, NULL),
 			MB_END()

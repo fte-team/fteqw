@@ -153,6 +153,7 @@ void (APIENTRY *qglTexEnvi) (GLenum target, GLenum pname, GLint param);
 void (APIENTRY *qglTexGeni) (GLenum coord, GLenum pname, GLint param);
 void (APIENTRY *qglTexGenfv) (GLenum coord, GLenum pname, const GLfloat *param);
 void (APIENTRY *qglTexImage3D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
+void (APIENTRY *qglTexSubImage3D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const void *pixels);
 void (APIENTRY *qglTranslatef) (GLfloat x, GLfloat y, GLfloat z);
 void (APIENTRY *qglVertex2f) (GLfloat x, GLfloat y);
 void (APIENTRY *qglVertex3f) (GLfloat x, GLfloat y, GLfloat z);
@@ -189,6 +190,11 @@ GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 
 void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
 #endif
+
+void (APIENTRY *qglTexStorage2D)(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height);		//gl4.2
+void (APIENTRY *qglTexStorage3D)(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth);	//gl4.2
+void (APIENTRY *qglCompressedTexSubImage3D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
+void (APIENTRY *qglCompressedTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
 
 void (APIENTRY *qglGenVertexArrays)(GLsizei n, GLuint *arrays);
 void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
@@ -341,7 +347,6 @@ void (APIENTRY myGLDEBUGPROCAMD)(GLenum source,
 	OutputDebugStringA("\n");
 }
 #endif
-
 
 int gl_mtexarbable=0;	//max texture units
 qboolean gl_mtexable = false;
@@ -779,17 +784,26 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	if (gl_config.gles)
 	{	//GL_ARB_texture_compression is not quite supported in gles, but works for custom compressed formats (like etc2).
 		qglCompressedTexImage2DARB = (void *)getglext("glCompressedTexImage2D");
+		qglCompressedTexImage3DARB = (void *)getglext("glCompressedTexImage3D");
+		qglCompressedTexSubImage2D = (void *)getglext("glCompressedTexSubImage2D");
+		qglCompressedTexSubImage3D = (void *)getglext("glCompressedTexSubImage3D");
 		qglGetCompressedTexImageARB = NULL;
 	}
 	else if (!gl_config.gles && gl_config.glversion > 1.3)
 	{	//GL_ARB_texture_compression is core in gl1.3
 		qglCompressedTexImage2DARB = (void *)getglext("glCompressedTexImage2D");
+		qglCompressedTexImage3DARB = (void *)getglext("glCompressedTexImage3D");
+		qglCompressedTexSubImage2D = (void *)getglext("glCompressedTexSubImage2D");
+		qglCompressedTexSubImage3D = (void *)getglext("glCompressedTexSubImage3D");
 		qglGetCompressedTexImageARB = (void *)getglext("glGetCompressedTexImage");
 		gl_config.arb_texture_compression = true;
 	}
 	else if (GL_CheckExtension("GL_ARB_texture_compression"))
 	{
 		qglCompressedTexImage2DARB = (void *)getglext("glCompressedTexImage2DARB");
+		qglCompressedTexImage3DARB = (void *)getglext("glCompressedTexImage3DARB");
+		qglCompressedTexSubImage2D = (void *)getglext("glCompressedTexSubImage2DARB");
+		qglCompressedTexSubImage3D = (void *)getglext("glCompressedTexSubImage3DARB");
 		qglGetCompressedTexImageARB = (void *)getglext("glGetCompressedTexImageARB");
 
 		if (!qglCompressedTexImage2DARB || !qglGetCompressedTexImageARB)
@@ -834,6 +848,11 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	{
 		qglLockArraysEXT = (void *)getglext("glLockArraysEXT");
 		qglUnlockArraysEXT = (void *)getglext("glUnlockArraysEXT");
+	}
+	else
+	{
+		qglLockArraysEXT = NULL;
+		qglUnlockArraysEXT = NULL;
 	}
 
 	/*various combiner features*/
@@ -1095,12 +1114,24 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	else
 		gl_config.geometryshaders = false;
 
+	if ((!gl_config.gles && gl_config.glversion >= 4.2) ||
+		( gl_config.gles && gl_config.glversion >= 3.0))
+	{	//from gles3.0 or gl4.2 onwards
+		qglTexStorage2D = getglext("glTexStorage2D");
+		qglTexStorage3D = getglext("glTexStorage3D");
+	}
+	else
+	{
+		qglTexStorage2D = NULL;
+		qglTexStorage3D = NULL;
+	}
+
 #ifdef GL_STATIC
 	gl_config.ext_framebuffer_objects = true;				//exists as core in gles2
 #else
 	if ((gl_config.gles && gl_config.glversion >= 2) ||		//exists as core in gles2
 		(!gl_config.gles && gl_config.glversion >= 3) ||	//exists as core in gl3
-		GL_CheckExtension("GL_ARB_framebuffer_object"))		//exists as an extension in gl2
+		GL_CheckExtension("GL_ARB_framebuffer_object"))		//exists as an extension in gl2 (defined in terms of gl3 so no ARB postfix needed)
 	{
 		gl_config.ext_framebuffer_objects = true;
 		qglGenFramebuffersEXT			= (void *)getglext("glGenFramebuffers");
@@ -2783,6 +2814,7 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	qglTexGeni			= (void *)getglcore("glTexGeni");
 	qglTexGenfv			= (void *)getglcore("glTexGenfv");
 	qglTexImage3D		= (void *)getglext("glTexImage3D");
+	qglTexSubImage3D	= (void *)getglext("glTexSubImage3D");
 	qglTranslatef		= (void *)getglcore("glTranslatef");
 	qglVertex2f			= (void *)getglcore("glVertex2f");
 	qglVertex3f			= (void *)getglcore("glVertex3f");
@@ -2899,75 +2931,6 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	sh_config.texture2d_maxsize = 256;	//early minidrivers might not implement this, but anything else should.
 	qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &sh_config.texture2d_maxsize);
 
-	//always supported
-	sh_config.texfmt[PTI_RGBA8] = true;
-	if (GL_CheckExtension("GL_EXT_texture_compression_s3tc"))
-	{
-		sh_config.texfmt[PTI_BC1_RGB] = true;
-		sh_config.texfmt[PTI_BC1_RGBA] = true;
-		sh_config.texfmt[PTI_BC2_RGBA] = true;
-		sh_config.texfmt[PTI_BC3_RGBA] = true;
-	}
-	else if (gl_config.gles)
-	{
-		sh_config.texfmt[PTI_BC1_RGB] =
-		sh_config.texfmt[PTI_BC1_RGBA] = GL_CheckExtension("GL_EXT_texture_compression_dxt1");
-		sh_config.texfmt[PTI_BC2_RGBA] = GL_CheckExtension("GL_ANGLE_texture_compression_dxt3");
-		sh_config.texfmt[PTI_BC3_RGBA] = GL_CheckExtension("GL_ANGLE_texture_compression_dxt5");
-	}
-	if (GL_CheckExtension("GL_ARB_texture_compression_rgtc") || GL_CheckExtension("GL_EXT_texture_compression_rgtc"))
-	{
-		sh_config.texfmt[PTI_BC4_R8] = true;
-		sh_config.texfmt[PTI_BC4_R8_SIGNED] = true;
-		sh_config.texfmt[PTI_BC5_RG8] = true;
-		sh_config.texfmt[PTI_BC5_RG8_SIGNED] = true;
-	}
-	if ((!gl_config.gles && gl_config.glversion >= 4.2) || GL_CheckExtension("GL_ARB_texture_compression_bptc"))
-		sh_config.texfmt[PTI_BC6_RGBF] = sh_config.texfmt[PTI_BC6_RGBF_SIGNED] =
-		sh_config.texfmt[PTI_BC7_RGBA] = sh_config.texfmt[PTI_BC7_RGBA_SRGB] = true;
-
-#ifdef FTE_TARGET_WEB
-	if (GL_CheckExtension("WEBGL_compressed_texture_etc"))
-#else
-	if ((gl_config.gles && gl_config.glversion >= 3.0) || (!gl_config.gles && (gl_config.glversion >= 4.3 || GL_CheckExtension("GL_ARB_ES3_compatibility"))))
-#endif
-	{	//gles3 and gl4.3 have mandatory support for etc2. probably desktop drivers will pre-decompress, but whatever.
-		//webgl tries to cater to d3d, so doesn't support this gles3 feature, because browser writers are lazy.
-		//warning: while support is mandatory, it may just be a driver trick with the hardware using uncompressed data.
-		sh_config.texfmt[PTI_ETC1_RGB8] = true;
-
-		sh_config.texfmt[PTI_ETC2_RGB8]			= true;
-		sh_config.texfmt[PTI_ETC2_RGB8A1]		= true;
-		sh_config.texfmt[PTI_ETC2_RGB8A8]		= true;
-		sh_config.texfmt[PTI_EAC_R11]			= true;
-		sh_config.texfmt[PTI_EAC_R11_SIGNED]	= true;
-		sh_config.texfmt[PTI_EAC_RG11]			= true;
-		sh_config.texfmt[PTI_EAC_RG11_SIGNED]	= true;
-	}
-	else
-	{
-		sh_config.texfmt[PTI_ETC1_RGB8]			= GL_CheckExtension("GL_OES_compressed_ETC1_RGB8_texture");
-
-		sh_config.texfmt[PTI_ETC2_RGB8]			= GL_CheckExtension("GL_OES_compressed_ETC2_RGB8_texture");	//or OES_compressed_ETC2_sRGB8_texture...
-		sh_config.texfmt[PTI_ETC2_RGB8A1]		= GL_CheckExtension("GL_OES_compressed_ETC2_punchthroughA_RGBA8_texture");	//or OES_compressed_ETC2_punchthroughA_sRGB8_alpha_texture...
-		sh_config.texfmt[PTI_ETC2_RGB8A8]		= GL_CheckExtension("GL_OES_compressed_ETC2_RGBA8_texture");	//or OES_compressed_ETC2_sRGB8_alpha8_texture
-		sh_config.texfmt[PTI_EAC_R11]			= GL_CheckExtension("GL_OES_compressed_EAC_R11_unsigned_texture");
-		sh_config.texfmt[PTI_EAC_R11_SIGNED]	= GL_CheckExtension("GL_OES_compressed_EAC_R11_signed_texture");
-		sh_config.texfmt[PTI_EAC_RG11]			= GL_CheckExtension("GL_OES_compressed_EAC_RG11_unsigned_texture");
-		sh_config.texfmt[PTI_EAC_RG11_SIGNED]	= GL_CheckExtension("GL_OES_compressed_EAC_RG11_signed_texture");
-	}
-	sh_config.texfmt[PTI_ETC1_RGB8] |= sh_config.texfmt[PTI_ETC2_RGB8];
-
-	if (GL_CheckExtension("GL_KHR_texture_compression_astc_ldr"))
-	{	//24 different formats...
-		//hdr profile adds 3d slices, and support for the hdr subblocks (ldr-only will decode them as fixed-colour errors)
-		//full profile adds 3d blocks
-		//we don't do 3d astc textures, so the api doesn't change. either the gpu supports the data or parts get decoded as fixed colours, which is still better than our crappy fallback texture.
-		int gah;
-		for (gah = PTI_ASTC_4X4; gah <= PTI_ASTC_12X12_SRGB; gah++)
-			sh_config.texfmt[gah] = true;
-	}
-
 	/*note regarding GL_COMPRESSED_TEXTURE_FORMATS:
 	nvidia lists bc1-3, oes paletted, etc2, astc, astc_srgb.
 	so the only listed formats that the hardware actually supports are bc1-3.
@@ -2977,21 +2940,6 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 
 	if (gl_config.gles)
 	{
-		qboolean srgb = false;//TEST ME GL_CheckExtension("GL_EXT_sRGB");
-
-		sh_config.texfmt[PTI_RGBX8] = sh_config.texfmt[PTI_RGBA8];	//FIXME: this is faked with PTI_RGBA8
-
-		sh_config.texfmt[PTI_RGB565] = !gl_config.webgl_ie;	//ie sucks and doesn't support things that webgl requires it to support.
-		sh_config.texfmt[PTI_RGBA4444] = !gl_config.webgl_ie;
-		sh_config.texfmt[PTI_RGBA5551] = !gl_config.webgl_ie;
-		sh_config.texfmt[PTI_BGRX8] = sh_config.texfmt[PTI_BGRA8] = false;
-
-//		sh_config.texfmt[PTI_RGBX8_SRGB] = sh_config.texfmt[PTI_RGBX8] && srgb;
-		sh_config.texfmt[PTI_RGBA8_SRGB] = sh_config.texfmt[PTI_RGBA8] && srgb;
-//		sh_config.texfmt[PTI_BGRX8_SRGB] = sh_config.texfmt[PTI_BGRX8] && srgb;
-		sh_config.texfmt[PTI_BGRA8_SRGB] = sh_config.texfmt[PTI_BGRA8] && srgb;
-		vid.srgb = info->srgb && srgb;
-
 		sh_config.minver = 100;
 		if (gl_config.glversion >= 3.1)
 			sh_config.maxver = 310;
@@ -3009,44 +2957,9 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 	}
 	else
 	{
-		GLint srgb = gl_config.glversion >= 2.1 || GL_CheckExtension("GL_EXT_texture_sRGB");	//became core in gl 2.1
 		sh_config.can_mipcap = gl_config.glversion >= 1.2;
 
 		sh_config.havecubemaps = gl_config.glversion >= 1.3;	//cubemaps AND clamp-to-edge.
-
-		sh_config.texfmt[PTI_RGBX8] = true;	//proper support
-
-		//these require stuff like GL_UNSIGNED_SHORT_5_5_5_1 etc, which needs gl 1.2+
-		if (gl_config.glversion >= 1.2)
-		{
-			//16bit formats
-			sh_config.texfmt[PTI_RGB565] = true;
-			sh_config.texfmt[PTI_RGBA4444] = true;
-			sh_config.texfmt[PTI_RGBA5551] = true;
-			//bgr formats
-			if (GL_CheckExtension("GL_EXT_bgra"))
-			{
-				//32bit formats
-				sh_config.texfmt[PTI_BGRX8] = true;
-				sh_config.texfmt[PTI_BGRA8] = true;
-				//16bit formats
-				sh_config.texfmt[PTI_ARGB4444] = true;
-				sh_config.texfmt[PTI_ARGB1555] = true;
-			}
-		}
-		if (!gl_config.gles && (gl_config.glversion >= 1.4 || GL_CheckExtension("GL_ARB_depth_texture")))
-		{	//depth formats
-			sh_config.texfmt[PTI_DEPTH16] = true;
-			sh_config.texfmt[PTI_DEPTH24] = true;
-			sh_config.texfmt[PTI_DEPTH32] = true;
-		}
-		else if (gl_config.gles && GL_CheckExtension("GL_OES_depth_texture"))
-		{	//16+32, not 24.
-			sh_config.texfmt[PTI_DEPTH16] = true;
-			sh_config.texfmt[PTI_DEPTH32] = true;
-		}
-		if (GL_CheckExtension("GL_EXT_packed_depth_stencil"))
-			sh_config.texfmt[PTI_DEPTH24_8] = true;
 
 		if (gl_config.nofixedfunc)
 		{	//core contexts don't normally support glsl < 140 (such glsl versions have lots of compat syntax still, which will not function on core. drivers might accept it anyway, but yeah, lots of crap that shouldn't work)
@@ -3068,18 +2981,6 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		sh_config.blobpath = "glsl/%s.blob";
 		sh_config.progpath = "glsl/%s.glsl";
 		sh_config.shadernamefmt = "%s_glsl";
-
-		sh_config.texfmt[PTI_RGBX8_SRGB] = sh_config.texfmt[PTI_RGBX8] && srgb;
-		sh_config.texfmt[PTI_RGBA8_SRGB] = sh_config.texfmt[PTI_RGBA8] && srgb;
-		sh_config.texfmt[PTI_BGRX8_SRGB] = sh_config.texfmt[PTI_BGRX8] && srgb;
-		sh_config.texfmt[PTI_BGRA8_SRGB] = sh_config.texfmt[PTI_BGRA8] && srgb;
-		sh_config.texfmt[PTI_BC1_RGB_SRGB] = sh_config.texfmt[PTI_BC1_RGB] && srgb;
-		sh_config.texfmt[PTI_BC1_RGBA_SRGB] = sh_config.texfmt[PTI_BC1_RGBA] && srgb;
-		sh_config.texfmt[PTI_BC2_RGBA_SRGB] = sh_config.texfmt[PTI_BC2_RGBA] && srgb;
-		sh_config.texfmt[PTI_BC3_RGBA_SRGB] = sh_config.texfmt[PTI_BC3_RGBA] && srgb;
-		sh_config.texfmt[PTI_ETC2_RGB8_SRGB] = sh_config.texfmt[PTI_ETC2_RGB8] && srgb;
-		sh_config.texfmt[PTI_ETC2_RGB8A1_SRGB] = sh_config.texfmt[PTI_ETC2_RGB8A1] && srgb;
-		sh_config.texfmt[PTI_ETC2_RGB8A8_SRGB] = sh_config.texfmt[PTI_ETC2_RGB8A8] && srgb;
 	}
 
 	sh_config.texturecube_maxsize = 0;
@@ -3110,6 +3011,8 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 		sh_config.nv_tex_env_combine4	= gl_config.nv_tex_env_combine4;
 		sh_config.env_add				= gl_config.env_add;
 	}
+
+	GL_SetupFormats();
 
 	return true;
 }

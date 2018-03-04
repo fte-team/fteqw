@@ -1010,7 +1010,7 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 	int l = 0;
 	galiasanimation_t *g;
 	unsigned int b;
-	float totalweight = 0;
+	float totalweight = 0, dropweight = 0;
 #ifndef SERVERONLY
 	extern cvar_t r_nolerp;
 #endif
@@ -1028,12 +1028,18 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 				if (inf->numanimations)
 					frame = 0;
 				else
+				{
+					dropweight += fs->lerpweight[b];
 					continue;//frame = (unsigned)frame%inf->groups;
+				}
 			}
 
 			g = &inf->ofsanimations[frame];
 			if (!g->numposes)
+			{
+				dropweight += fs->lerpweight[b];
 				continue;	//err...
+			}
 
 			mlerp = time*g->rate;
 			frame1=mlerp;
@@ -1053,7 +1059,10 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 			if (lerps->skeltype == SKEL_IDENTITY)
 				lerps->skeltype = g->skeltype;
 			else if (lerps->skeltype != g->skeltype)
+			{
+				dropweight += fs->lerpweight[b];
 				continue;	//oops, can't cope with mixed blend types
+			}
 
 			if (frame1 == frame2)
 				mlerp = 0;
@@ -1087,15 +1096,15 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 				mlerp = lerps->frac[b];
 			}
 		}
-		lerps->frac[0] = 1;
+		lerps->frac[0] = totalweight+dropweight;
 		lerps->pose[0] = lerps->pose[frame1];
 		l = 1;
 	}
 	else
 #endif
-		if (l && totalweight != 1)
+		if (l && totalweight && dropweight)
 	{	//don't rescale if some animation got dropped.
-		totalweight = 1 / totalweight;
+		totalweight = (totalweight+dropweight) / totalweight;
 		for (b = 0; b < l; b++)
 		{
 			lerps->frac[b] *= totalweight;
@@ -6948,7 +6957,7 @@ static void IQM_ImportArrayF(const qbyte *base, const struct iqmvertexarray *src
 	}
 }
 
-const void *IQM_FindExtension(const char *buffer, const char *extname, int index, size_t *extsize)
+static const void *IQM_FindExtension(const char *buffer, size_t buffersize, const char *extname, int index, size_t *extsize)
 {
 	struct iqmheader *h = (struct iqmheader *)buffer;
 	const char *strings = buffer + h->ofs_text;
@@ -6956,6 +6965,8 @@ const void *IQM_FindExtension(const char *buffer, const char *extname, int index
 	int i;
 	for (i = 0, ext = (struct iqmextension*)(buffer + h->ofs_extensions); i < h->num_extensions; i++, ext = (struct iqmextension*)(buffer + ext->ofs_extensions))
 	{
+		if ((char*)ext > buffer+buffersize || ext->name > h->num_text || ext->ofs_data+ext->num_data>buffersize)
+			break;
 		if (!Q_strcasecmp(strings + ext->name, extname) && index-->=0)
 		{
 			*extsize = ext->num_data;
@@ -6997,7 +7008,7 @@ static void Mod_CleanWeights(const char *modelname, size_t numverts, vec4_t *owe
 		}
 	}
 	if (problemfound)
-		Con_Printf(CON_ERROR"%s has invalid vertex weights. Verticies will probably be attached to the wrong bones\n", modelname);
+		Con_DPrintf(CON_ERROR"%s has invalid vertex weights. Verticies will probably be attached to the wrong bones\n", modelname);
 }
 
 galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsize)
@@ -7360,7 +7371,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsi
 		extsize = 0;
 	}
 	else
-		fteevents = IQM_FindExtension(buffer, "FTE_EVENT", 0, &extsize);
+		fteevents = IQM_FindExtension(buffer, fsize, "FTE_EVENT", 0, &extsize);
 	if (fteevents && !(extsize % sizeof(*fteevents)))
 	{
 		galiasevent_t *oevent, **link;
@@ -7400,7 +7411,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsi
 	else
 		AddPointToBounds(vec3_origin, mod->mins, mod->maxs);
 
-	ftemesh = IQM_FindExtension(buffer, "FTE_MESH", 0, &extsize);
+	ftemesh = IQM_FindExtension(buffer, fsize, "FTE_MESH", 0, &extsize);
 	if (!extsize || extsize != sizeof(*ftemesh)*h->num_meshes)
 		ftemesh = NULL;	//erk.
 
@@ -7496,7 +7507,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, size_t fsi
 	if (!noweights)
 	{
 		if (!IQM_ImportArray4B(buffer, &vbone, oindex, h->num_vertexes, h->num_joints))
-			Con_Printf(CON_WARNING "Invalid bone indexes detected inside %s\n", mod->name);
+			Con_DPrintf(CON_WARNING "Invalid bone indexes detected inside %s\n", mod->name);
 		IQM_ImportArrayF(buffer, &vweight, (float*)oweight, 4, h->num_vertexes, defaultweight);
 		Mod_CleanWeights(mod->name, h->num_vertexes, oweight, oindex);
 	}

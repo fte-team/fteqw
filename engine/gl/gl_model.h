@@ -423,7 +423,7 @@ typedef struct msurface_s
 	qbyte		styles[MAXQ1LIGHTMAPS];
 	qbyte		vlstyles[MAXRLIGHTMAPS];
 	int			cached_light[MAXQ1LIGHTMAPS];	// values currently used in lightmap
-	int			cached_colour[MAXQ1LIGHTMAPS];
+	int			cached_colour[MAXQ1LIGHTMAPS];	// values currently used in lightmap
 	qboolean	cached_dlight;				// true if dynamic light in cache
 #ifndef NOSTAINS
 	qboolean stained;
@@ -997,6 +997,14 @@ typedef struct model_s
 		int width;				//x size of lightmaps
 		int height;				//y size of lightmaps
 		int surfstyles;			//numbers of style per surface.
+		enum {
+			//vanilla used byte values, with 255 being a value of about 2.
+			//float/hdr formats use 1 to mean 1, however.
+			//internally, we still use integers for lighting, with .7 bits of extra precision.
+			LM_L8,
+			LM_RGB8,
+			LM_E5BGR9
+		} fmt;
 		qboolean deluxemapping;	//lightmaps are interleaved with deluxemap data (lightmap indicies should only be even values)
 		qboolean deluxemapping_modelspace; //deluxemaps are in modelspace - we need different glsl.
 	} lightmaps;
@@ -1018,7 +1026,7 @@ typedef struct model_s
 #define MDLF_EMITREPLACE     0x0001 // particle effect engulphs model (don't draw)
 #define MDLF_EMITFORWARDS    0x0002
 #define MDLF_NODEFAULTTRAIL  0x0004
-#define MDLF_RGBLIGHTING     0x0008
+//#define MDLF_RGBLIGHTING     0x0008
 #define MDLF_PLAYER          0x0010 // players have specific lighting values
 #define MDLF_FLAME           0x0020 // can be excluded with r_drawflame, fullbright render hack
 #define MDLF_DOCRC           0x0040 // model needs CRC built

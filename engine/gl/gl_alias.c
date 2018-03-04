@@ -61,6 +61,7 @@ struct cctx_s
 };
 void Mod_FlushSkin(skinid_t id)
 {
+#ifdef QWSKINS
 	skinfile_t *sk;
 	id--;
 	if (id >= numregisteredskins)
@@ -69,6 +70,7 @@ void Mod_FlushSkin(skinid_t id)
 	if (!sk)
 		return;
 	sk->qwskin = NULL;
+#endif
 }
 void Mod_WipeSkin(skinid_t id, qboolean force)
 {
@@ -268,8 +270,10 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 	skin->refcount++;
 	skin->maxmappings = 4;
 	Q_strncpyz(skin->skinname, skinname, sizeof(skin->skinname));
+#ifdef QWSKINS
 	skin->q1lower = Q1UNSPECIFIED;
 	skin->q1upper = Q1UNSPECIFIED;
+#endif
 
 	while(skintext)
 	{
@@ -359,6 +363,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 		{
 			//ignore it. matches q3.
 		}
+#ifdef QWSKINS
 		else if (!strcmp(com_token, "qwskin"))
 		{
 			skintext = COM_ParseToken(skintext, NULL);
@@ -380,6 +385,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 			else
 				skin->q1upper = atoi(com_token);
 		}
+#endif
 		else
 		{
 			while(*skintext == ' ' || *skintext == '\t')
@@ -591,18 +597,16 @@ void R_GAliasFlushSkinCache(qboolean final)
 static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, entity_t *e, texnums_t **forcedtex)
 {
 	galiasskin_t *skins;
+#ifdef QWSKINS
 	shader_t *shader;
 	qwskin_t *plskin = NULL;
-	int frame;
 	unsigned int subframe;
-	extern int cl_playerindex;	//so I don't have to strcmp
-
-	unsigned int tc, bc, pc;
-	qboolean forced;
+	unsigned int tc = e->topcolour, bc = e->bottomcolour, pc;
 	qboolean generateupperlower = false;
-
-	tc = e->topcolour;
-	bc = e->bottomcolour;
+	qboolean forced;
+	extern int cl_playerindex;	//so I don't have to strcmp
+#endif
+	int frame;
 
 	*forcedtex = NULL;
 	/*q3 .skin files*/
@@ -629,13 +633,15 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				*forcedtex = &sk->mappings[fallback].texnums;
 				return sk->mappings[fallback].shader;
 			}
-			if (!sk->qwskin && *sk->qwskinname)
-				sk->qwskin = Skin_Lookup(sk->qwskinname);
+#ifdef QWSKINS
 			if (sk->q1lower != Q1UNSPECIFIED)
 				bc = e->bottomcolour = sk->q1lower;
 			if (sk->q1upper != Q1UNSPECIFIED)
 				tc = e->topcolour = sk->q1upper;
+			if (!sk->qwskin && *sk->qwskinname)
+				sk->qwskin = Skin_Lookup(sk->qwskinname);
 			plskin = sk->qwskin;
+#endif
 		}
 	}
 	else if (inf->geomset < MAX_GEOMSETS && 0 != inf->geomid)
@@ -655,7 +661,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 		}
 	}
 
-
+#ifdef QWSKINS
 	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && !ruleset_allow_sensitive_texture_replacements.ival)
 		forced = true;
 	else
@@ -1069,7 +1075,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 
 					cm->texnum.paletted = R_LoadTexture(va("paletted$%x$%x$%i$%i$%i$%s", tc, bc, cm->skinnum, subframe, pc, cm->name),
-								scaled_width, scaled_height, TF_LUM8, pixels8, IF_NEAREST|IF_NOMIPMAP);
+								scaled_width, scaled_height, PTI_R8, pixels8, IF_NEAREST|IF_NOMIPMAP);
 
 				}
 
@@ -1160,7 +1166,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			return shader;
 		}
 	}
-
+#endif
 	if (!inf->numskins)
 		return NULL;
 
@@ -1487,19 +1493,28 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			}
 		}
 
-		m = max(max(ambientlight[0], ambientlight[1]), ambientlight[2]);
-		if (m > 255)
+		switch(lightmap_fmt)
 		{
-			ambientlight[0] *= 255.0/m;
-			ambientlight[1] *= 255.0/m;
-			ambientlight[2] *= 255.0/m;
-		}
-		m = max(max(shadelight[0], shadelight[1]), shadelight[2]);
-		if (m > 128)
-		{
-			shadelight[0] *= 128.0/m;
-			shadelight[1] *= 128.0/m;
-			shadelight[2] *= 128.0/m;
+		case PTI_E5BGR9:
+		case PTI_RGBA16F:
+		case PTI_RGBA32F:
+			break;
+		default:
+			m = max(max(ambientlight[0], ambientlight[1]), ambientlight[2]);
+			if (m > 255)
+			{
+				ambientlight[0] *= 255.0/m;
+				ambientlight[1] *= 255.0/m;
+				ambientlight[2] *= 255.0/m;
+			}
+			m = max(max(shadelight[0], shadelight[1]), shadelight[2]);
+			if (m > 128)
+			{
+				shadelight[0] *= 128.0/m;
+				shadelight[1] *= 128.0/m;
+				shadelight[2] *= 128.0/m;
+			}
+			break;
 		}
 
 	//MORE HUGE HACKS! WHEN WILL THEY CEASE!
@@ -1664,6 +1679,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 		return;
 
 	clmodel = e->model;
+#ifdef QWSKINS
 	/*switch model if we're the player model, and the player skin says a new model*/
 	{
 		extern int cl_playerindex;
@@ -1674,6 +1690,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 				clmodel = e->model;	//oops, never mind
 		}
 	}
+#endif
 
 	if (!(e->flags & RF_WEAPONMODEL)
 #ifdef SKELETALMODELS

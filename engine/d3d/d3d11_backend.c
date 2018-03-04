@@ -13,7 +13,7 @@ extern ID3D11DepthStencilView *fb_backdepthstencil;
 
 extern cvar_t r_shadow_realtime_world_lightmaps;
 extern cvar_t gl_overbright;
-extern cvar_t r_portalrecursion;
+extern cvar_t r_portalrecursion, r_wireframe;
 
 extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
 
@@ -137,7 +137,7 @@ typedef struct
 	vec3_t e_light_ambient; float pad1;
 	vec3_t e_light_dir; float pad2;
 	vec3_t e_light_mul; float pad3;
-} cbuf_view_t;
+} dx11_cbuf_view_t;
 
 typedef struct
 {
@@ -147,7 +147,7 @@ typedef struct
 	vec3_t l_lightcolourscale; float l_lightradius;
 	vec4_t l_shadowmapproj;
 	vec2_t l_shadowmapscale; vec2_t pad3;
-} cbuf_light_t;
+} dx11_cbuf_light_t;
 
 //entity-specific constant-buffer
 typedef struct
@@ -163,7 +163,7 @@ typedef struct
 	vec4_t e_lowercolour;
 	vec4_t e_colourmod;
 	vec4_t e_glowmod;
-} cbuf_entity_t;
+} dx11_cbuf_entity_t;
 
 //vertex attributes
 typedef struct
@@ -175,7 +175,7 @@ typedef struct
 	vec3_t sdir;
 	vec3_t tdir;
 	byte_vec4_t colorsb;
-} vbovdata_t;
+} dx11_vbovdata_t;
 
 enum
 {
@@ -794,7 +794,7 @@ void D3D11BE_Init(void)
 	for (i = 0; i < NUMECBUFFERS; i++)
 	{
 		bd.Usage = D3D11_USAGE_DYNAMIC;
-		bd.ByteWidth = sizeof(cbuf_entity_t);
+		bd.ByteWidth = sizeof(dx11_cbuf_entity_t);
 		bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 		bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 		bd.MiscFlags = 0;
@@ -803,7 +803,7 @@ void D3D11BE_Init(void)
 			return;
 	}
 	bd.Usage = D3D11_USAGE_DYNAMIC;
-	bd.ByteWidth = sizeof(cbuf_view_t);
+	bd.ByteWidth = sizeof(dx11_cbuf_view_t);
 	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	bd.MiscFlags = 0;
@@ -812,7 +812,7 @@ void D3D11BE_Init(void)
 		return;
 
 	bd.Usage = D3D11_USAGE_DYNAMIC;
-	bd.ByteWidth = sizeof(cbuf_light_t);
+	bd.ByteWidth = sizeof(dx11_cbuf_light_t);
 	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 	bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	bd.MiscFlags = 0;
@@ -1006,25 +1006,27 @@ static texid_t T_Gen_CurrentRender(void)
 	{
 		if (!shaderstate.currentrender)
 			shaderstate.currentrender = Image_CreateTexture("***$currentrender***", NULL, 0);
-		if (!shaderstate.currentrender)
-			return r_nulltex;	//err
+		if (shaderstate.currentrender)
+		{
+			shaderstate.currentrender->width = tdesc.Width;
+			shaderstate.currentrender->height = tdesc.Height;
 
-		shaderstate.currentrender->width = tdesc.Width;
-		shaderstate.currentrender->height = tdesc.Height;
+			tdesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+			tdesc.CPUAccessFlags = 0;
 
-		tdesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-		tdesc.CPUAccessFlags = 0;
-
-		if (shaderstate.currentrender->ptr)
-			ID3D11Texture2D_Release((ID3D11Texture2D*)shaderstate.currentrender->ptr);
-		shaderstate.currentrender->ptr = NULL;
-		ID3D11Device_CreateTexture2D(pD3DDev11, &tdesc, NULL, (ID3D11Texture2D**)&shaderstate.currentrender->ptr);
+			if (shaderstate.currentrender->ptr)
+				ID3D11Texture2D_Release((ID3D11Texture2D*)shaderstate.currentrender->ptr);
+			shaderstate.currentrender->ptr = NULL;
+			ID3D11Device_CreateTexture2D(pD3DDev11, &tdesc, NULL, (ID3D11Texture2D**)&shaderstate.currentrender->ptr);
+		}
 	}
 	ID3D11DeviceContext_CopyResource(d3ddevctx, (ID3D11Resource*)shaderstate.currentrender->ptr, (ID3D11Resource*)backbuf);
 
 	if (shaderstate.currentrender->ptr2)
 		ID3D11ShaderResourceView_Release((ID3D11ShaderResourceView*)shaderstate.currentrender->ptr2);
 	shaderstate.currentrender->ptr2 = NULL;
+
+	ID3D11Texture2D_Release(backbuf);
 
 	return shaderstate.currentrender;
 }
@@ -1470,7 +1472,7 @@ static void BE_GenerateColourMods(unsigned int vertcount, const shaderpass_t *pa
 		{
 			shaderstate.stream_buffer[D3D11_BUFF_COL] = shaderstate.batchvbo->colours[0].d3d.buff;
 			shaderstate.stream_offset[D3D11_BUFF_COL] = shaderstate.batchvbo->colours[0].d3d.offs;
-			shaderstate.stream_stride[D3D11_BUFF_COL] = sizeof(vbovdata_t);
+			shaderstate.stream_stride[D3D11_BUFF_COL] = sizeof(dx11_vbovdata_t);
 			shaderstate.stream_rgbaf = false;
 		}
 		else
@@ -1989,6 +1991,10 @@ static void D3D11BE_Cull(unsigned int cullflags, int depthbias, float depthfacto
 	else if (cullflags)
 		cullflags ^= r_refdef.flipcull;
 
+#define SHADER_CULL_WIREFRAME SHADER_NODRAW //borrow a flag...
+	if (shaderstate.mode == BEM_WIREFRAME)
+		cullflags |= SHADER_CULL_WIREFRAME;
+
 	if (shaderstate.curcull != cullflags || shaderstate.depthbias != depthbias || shaderstate.depthfactor != depthfactor)
 	{
 		shaderstate.curcull = cullflags;
@@ -2022,7 +2028,7 @@ static void D3D11BE_Cull(unsigned int cullflags, int depthbias, float depthfacto
 		rasterdesc.SlopeScaledDepthBias = shaderstate.depthfactor;
 		rasterdesc.DepthBiasClamp = 0.0f;
 		rasterdesc.DepthClipEnable = true;
-		rasterdesc.FillMode = 0?D3D11_FILL_WIREFRAME:D3D11_FILL_SOLID;
+		rasterdesc.FillMode = (shaderstate.curcull&SHADER_CULL_WIREFRAME)?D3D11_FILL_WIREFRAME:D3D11_FILL_SOLID;
 		rasterdesc.FrontCounterClockwise = false;
 		rasterdesc.MultisampleEnable = false;
 		rasterdesc.ScissorEnable = true;
@@ -2090,6 +2096,15 @@ static void BE_DrawMeshChain_Internal(void)
 	default:
 	case BEM_STANDARD:
 		altshader = shaderstate.curshader;
+		break;
+	case BEM_WIREFRAME:
+		altshader = R_RegisterShader("wireframe", SUF_NONE, 
+			"{\n"
+				"{\n"
+					"map $whiteimage\n"
+				"}\n"
+			"}\n"
+			);
 		break;
 	}
 	if (!altshader)
@@ -2193,7 +2208,7 @@ static void BE_DrawMeshChain_Internal(void)
 	{
 		shaderstate.stream_buffer[D3D11_BUFF_POS] = shaderstate.batchvbo->coord.d3d.buff;
 		shaderstate.stream_offset[D3D11_BUFF_POS] = shaderstate.batchvbo->coord.d3d.offs;
-		shaderstate.stream_stride[D3D11_BUFF_POS] = sizeof(vbovdata_t);
+		shaderstate.stream_stride[D3D11_BUFF_POS] = sizeof(dx11_vbovdata_t);
 	}
 	else
 	{
@@ -2262,17 +2277,17 @@ static void BE_DrawMeshChain_Internal(void)
 		{
 			shaderstate.stream_buffer[D3D11_BUFF_COL] = shaderstate.batchvbo->colours[0].d3d.buff;
 			shaderstate.stream_offset[D3D11_BUFF_COL] = shaderstate.batchvbo->colours[0].d3d.offs;
-			shaderstate.stream_stride[D3D11_BUFF_COL] = sizeof(vbovdata_t);
+			shaderstate.stream_stride[D3D11_BUFF_COL] = sizeof(dx11_vbovdata_t);
 			shaderstate.stream_rgbaf = false;
 			shaderstate.stream_buffer[D3D11_BUFF_TC] = shaderstate.batchvbo->texcoord.d3d.buff;
 			shaderstate.stream_offset[D3D11_BUFF_TC] = shaderstate.batchvbo->texcoord.d3d.offs;
-			shaderstate.stream_stride[D3D11_BUFF_TC] = sizeof(vbovdata_t);
+			shaderstate.stream_stride[D3D11_BUFF_TC] = sizeof(dx11_vbovdata_t);
 			shaderstate.stream_buffer[D3D11_BUFF_LMTC] = shaderstate.batchvbo->lmcoord[0].d3d.buff;
 			shaderstate.stream_offset[D3D11_BUFF_LMTC] = shaderstate.batchvbo->lmcoord[0].d3d.offs;
-			shaderstate.stream_stride[D3D11_BUFF_LMTC] = sizeof(vbovdata_t);
+			shaderstate.stream_stride[D3D11_BUFF_LMTC] = sizeof(dx11_vbovdata_t);
 			shaderstate.stream_buffer[D3D11_BUFF_NORM] = shaderstate.batchvbo->normals.d3d.buff;
 			shaderstate.stream_offset[D3D11_BUFF_NORM] = shaderstate.batchvbo->normals.d3d.offs;
-			shaderstate.stream_stride[D3D11_BUFF_NORM] = sizeof(vbovdata_t);
+			shaderstate.stream_stride[D3D11_BUFF_NORM] = sizeof(dx11_vbovdata_t);
 		}
 		else
 		{
@@ -2398,13 +2413,13 @@ static void BE_DrawMeshChain_Internal(void)
 				{
 					shaderstate.stream_buffer[D3D11_BUFF_TC] = shaderstate.batchvbo->lmcoord[0].d3d.buff;
 					shaderstate.stream_offset[D3D11_BUFF_TC] = shaderstate.batchvbo->lmcoord[0].d3d.offs;
-					shaderstate.stream_stride[D3D11_BUFF_TC] = sizeof(vbovdata_t);
+					shaderstate.stream_stride[D3D11_BUFF_TC] = sizeof(dx11_vbovdata_t);
 				}
 				else if (p->tcgen == TC_GEN_BASE)
 				{
 					shaderstate.stream_buffer[D3D11_BUFF_TC] = shaderstate.batchvbo->texcoord.d3d.buff;
 					shaderstate.stream_offset[D3D11_BUFF_TC] = shaderstate.batchvbo->texcoord.d3d.offs;
-					shaderstate.stream_stride[D3D11_BUFF_TC] = sizeof(vbovdata_t);
+					shaderstate.stream_stride[D3D11_BUFF_TC] = sizeof(dx11_vbovdata_t);
 				}
 				else
 				{
@@ -2516,7 +2531,7 @@ void D3D11BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopba
 	ID3D11Buffer *vbuff;
 	ID3D11Buffer *ebuff;
 	index_t *vboedata, *vboedatastart;
-	vbovdata_t *vbovdata, *vbovdatastart;
+	dx11_vbovdata_t *vbovdata, *vbovdatastart;
 	D3D11_BUFFER_DESC vbodesc;
 	D3D11_BUFFER_DESC ebodesc;
 	D3D11_SUBRESOURCE_DATA srd;
@@ -2765,14 +2780,14 @@ static float projgltod3d[16] =
 };
 static void D3D11BE_SetupViewCBuffer(void)
 {
-	cbuf_view_t *cbv;
+	dx11_cbuf_view_t *cbv;
 	D3D11_MAPPED_SUBRESOURCE msr;
 	if (FAILED(ID3D11DeviceContext_Map(d3ddevctx, (ID3D11Resource*)shaderstate.vcbuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr)))
 	{
 		Con_Printf("BE_RotateForEntity: failed to map constant buffer\n");
 		return;
 	}
-	cbv = (cbuf_view_t*)msr.pData;
+	cbv = (dx11_cbuf_view_t*)msr.pData;
 
 	//we internally use gl-style projection matricies.
 	//gl's viewport is based upon -1 to 1 depth.
@@ -2807,14 +2822,14 @@ void D3D11BE_Set2D(void)
 void D3D11BE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 {
 	extern cvar_t gl_specular;
-	cbuf_light_t *cbl;
+	dx11_cbuf_light_t *cbl;
 	D3D11_MAPPED_SUBRESOURCE msr;
 	if (FAILED(ID3D11DeviceContext_Map(d3ddevctx, (ID3D11Resource*)shaderstate.lcbuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &msr)))
 	{
 		Con_Printf("BE_RotateForEntity: failed to map constant buffer\n");
 		return;
 	}
-	cbl = (cbuf_light_t*)msr.pData;
+	cbl = (dx11_cbuf_light_t*)msr.pData;
 
 	cbl->l_lightradius = l->radius;
 
@@ -2871,7 +2886,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	float ndr;
 	float modelinv[16];
 	float *m = shaderstate.m_model;
-	cbuf_entity_t *cbe;
+	dx11_cbuf_entity_t *cbe;
 	D3D11_MAPPED_SUBRESOURCE msr;
 	shaderstate.ecbufferidx = (shaderstate.ecbufferidx + 1) & (NUMECBUFFERS-1);
 	if (FAILED(ID3D11DeviceContext_Map(d3ddevctx, (ID3D11Resource*)shaderstate.ecbuffers[shaderstate.ecbufferidx], 0, D3D11_MAP_WRITE_DISCARD, 0, &msr)))
@@ -2879,7 +2894,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		Con_Printf("BE_RotateForEntity: failed to map constant buffer\n");
 		return;
 	}
-	cbe = (cbuf_entity_t*)msr.pData;
+	cbe = (dx11_cbuf_entity_t*)msr.pData;
 
 
 	shaderstate.curentity = e;
@@ -3053,7 +3068,10 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	R_FetchPlayerColour(e->topcolour, cbe->e_uppercolour);
 	R_FetchPlayerColour(e->bottomcolour, cbe->e_lowercolour);
 	R_FetchPlayerColour(e->bottomcolour, cbe->e_colourmod);
-	VectorCopy(e->shaderRGBAf, cbe->e_colourmod);
+	if (shaderstate.flags & BEF_FORCECOLOURMOD)
+		Vector4Copy(e->shaderRGBAf, cbe->e_colourmod);
+	else
+		Vector4Set(cbe->e_colourmod, 1, 1, 1, e->shaderRGBAf[3]);
 	VectorCopy(e->glowmod, cbe->e_glowmod);cbe->e_glowmod[3] = 1;
 
 	//various stuff in modelspace
@@ -3688,6 +3706,13 @@ void D3D11BE_DrawWorld (batch_t **worldbatches)
 		RSpeedRemark();
 		D3D11BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_SEETHROUGH+1, SHADER_SORT_COUNT);
 		RSpeedEnd(RSPEED_TRANSPARENTS);
+
+		if (r_wireframe.ival)
+		{
+			D3D11BE_SelectMode(BEM_WIREFRAME);
+			D3D11BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+			D3D11BE_SelectMode(BEM_STANDARD);
+		}
 	}
 	else
 	{

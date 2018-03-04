@@ -370,6 +370,8 @@ enum{
 };
 #define PERMUTATIONS				(1u<<PERMUTATION_BIT_MAX)
 
+extern cvar_t r_fog_permutation;
+
 enum shaderattribs_e
 {
 	//GLES2 has a limit of 8.

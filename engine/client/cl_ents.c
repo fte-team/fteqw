@@ -2012,8 +2012,8 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 		if ((ent->flags & RF_WEAPONMODEL) && ent->playerindex == -1 && ps->colormap > 0 && ps->colormap <= cl.allocated_client_slots)
 		{
 			ent->playerindex = ps->colormap-1;
-			ent->topcolour    = cl.players[ent->playerindex].ttopcolor;
-			ent->bottomcolour = cl.players[ent->playerindex].tbottomcolor;
+			ent->topcolour    = cl.players[ent->playerindex].dtopcolor;
+			ent->bottomcolour = cl.players[ent->playerindex].dbottomcolor;
 		}
 	}
 	else
@@ -4057,8 +4057,8 @@ void CL_LinkPacketEntities (void)
 #ifdef HEXEN2
 			ent->h2playerclass = cl.players[ent->playerindex].h2playerclass;
 #endif
-			ent->topcolour    = cl.players[ent->playerindex].ttopcolor;
-			ent->bottomcolour = cl.players[ent->playerindex].tbottomcolor;
+			ent->topcolour    = cl.players[ent->playerindex].dtopcolor;
+			ent->bottomcolour = cl.players[ent->playerindex].dbottomcolor;
 		}
 
 		// set skin
@@ -5109,8 +5109,8 @@ void CL_LinkPlayers (void)
 
 		// set colormap
 		ent->playerindex = j;
-		ent->topcolour	  = info->ttopcolor;
-		ent->bottomcolour = info->tbottomcolor;
+		ent->topcolour	  = info->dtopcolor;
+		ent->bottomcolour = info->dbottomcolor;
 #ifdef HEXEN2
 		ent->h2playerclass = info->h2playerclass;
 #endif

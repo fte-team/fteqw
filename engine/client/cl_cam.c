@@ -559,8 +559,6 @@ void Cam_Unlock(playerview_t *pv)
 
 void Cam_Lock(playerview_t *pv, int playernum)
 {
-	int i;
-
 	pv->cam_lastviewtime = -1000;	//allow the wallcam to re-snap as soon as it can
 
 	CL_SendClientCommand(true, "ptrack %i", playernum);
@@ -592,8 +590,13 @@ void Cam_Lock(playerview_t *pv, int playernum)
 
 	Sbar_Changed();
 
-	for (i = 0; i < cl.allocated_client_slots; i++)
-		CL_NewTranslation(i);
+#ifdef QWSKINS
+	{
+		int i;
+		for (i = 0; i < cl.allocated_client_slots; i++)
+			CL_NewTranslation(i);
+	}
+#endif
 }
 
 trace_t Cam_DoTrace(vec3_t vec1, vec3_t vec2)

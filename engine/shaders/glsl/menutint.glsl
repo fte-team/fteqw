@@ -1,5 +1,5 @@
 !!cvari r_menutint_inverse
-!!cvarv r_menutint
+!!cvard_srgb r_menutint
 
 #ifdef VERTEX_SHADER
 		attribute vec2 v_texcoord;
@@ -15,7 +15,6 @@
 #ifdef FRAGMENT_SHADER
 
 		varying vec2 texcoord;
-		uniform vec3 cvar_r_menutint;
 		uniform sampler2D s_t0;
 		uniform int cvar_r_menutint_inverse;
 		const vec3 lumfactors = vec3(0.299, 0.587, 0.114);
@@ -25,7 +24,7 @@
 			vec3 texcolor = texture2D(s_t0, texcoord).rgb;
 			float luminance = dot(lumfactors, texcolor);
 			texcolor = vec3(luminance, luminance, luminance);
-			texcolor *= cvar_r_menutint;
+			texcolor *= r_menutint;
 			texcolor = (cvar_r_menutint_inverse > 0) ? (invertvec - texcolor) : texcolor;
 			gl_FragColor = vec4(texcolor, 1.0);
 		}

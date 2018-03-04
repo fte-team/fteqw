@@ -132,6 +132,7 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 	tdesc.CPUAccessFlags = (mips->mip[0].data)?0:D3D11_CPU_ACCESS_WRITE;
 	tdesc.MiscFlags = 0;
+	tdesc.Format = DXGI_FORMAT_UNKNOWN;
 
 	if (tex->flags & IF_RENDERTARGET)
 	{
@@ -145,16 +146,20 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 		tdesc.ArraySize *= 6;
 		tdesc.MiscFlags |= D3D11_RESOURCE_MISC_TEXTURECUBE;
 	}
-	else if (mips->type == PTI_3D)
+//	else if (mips->type == PTI_2D_ARRAY)
+//	{
+//		tdesc.ArraySize *= mips->mip[0].depth;
+//	}
+	else if (mips->type != PTI_2D)
 		return false;	//nyi
 
 //d3d11.1 formats
 #define DXGI_FORMAT_B4G4R4A4_UNORM 115
 
+	//dxgi formats are expressed in little-endian bit order. byte-aligned formats are always in byte order and are thus little-endian even on big-endian machines.
+	//so byte aligned have the same order, while misligned need reversed order.
 	switch(mips->encoding)
 	{
-	default:
-		return false;
 	case PTI_DEPTH16:
 		tdesc.Format = DXGI_FORMAT_D16_UNORM;
 		tdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
@@ -174,18 +179,24 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 	case PTI_RGB565:
 		tdesc.Format = DXGI_FORMAT_B5G6R5_UNORM;
 		break;
-//	case PTI_RGBA5551:
-//		tdesc.Format = DXGI_FORMAT_A1B5G5R5_UNORM;
-//		break;
 	case PTI_ARGB1555:
 		tdesc.Format = DXGI_FORMAT_B5G5R5A1_UNORM;
 		break;
-	case PTI_RGBA4444:
-		tdesc.Format = DXGI_FORMAT_B4G4R4A4_UNORM;
+	case PTI_RGBA5551:
+//		tdesc.Format = DXGI_FORMAT_A1B5G5R5_UNORM;
 		break;
-//	case PTI_ARGB4444:
+	case PTI_ARGB4444:
+		tdesc.Format = DXGI_FORMAT_B4G4R4A4_UNORM;	//DX11.1
+		break;
+	case PTI_RGBA4444:
 //		tdesc.Format = DXGI_FORMAT_A4B4G4R4_UNORM;
-//		break;
+		break;
+	case PTI_RGB8:
+//		tdesc.Format = DXGI_FORMAT_R8G8B8_UNORM;
+		break;
+	case PTI_BGR8:
+//		tdesc.Format = DXGI_FORMAT_B8G8R8_UNORM;
+		break;
 	case PTI_RGBA8:
 		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		break;
@@ -197,6 +208,12 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 		break;
 	case PTI_BGRX8:
 		tdesc.Format = DXGI_FORMAT_B8G8R8X8_UNORM;
+		break;
+	case PTI_A2BGR10:	//mostly for rendertargets, might also be useful for overbight lightmaps.
+		tdesc.Format = DXGI_FORMAT_R10G10B10A2_UNORM;
+		break;
+	case PTI_E5BGR9:
+		tdesc.Format = DXGI_FORMAT_R9G9B9E5_SHAREDEXP;
 		break;
 
 	case PTI_RGBA8_SRGB:
@@ -235,19 +252,19 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 	case PTI_BC4_R8:
 		tdesc.Format = DXGI_FORMAT_BC4_UNORM;
 		break;
-	case PTI_BC4_R8_SIGNED:
+	case PTI_BC4_R8_SNORM:
 		tdesc.Format = DXGI_FORMAT_BC4_SNORM;
 		break;
 	case PTI_BC5_RG8:
 		tdesc.Format = DXGI_FORMAT_BC5_UNORM;
 		break;
-	case PTI_BC5_RG8_SIGNED:
+	case PTI_BC5_RG8_SNORM:
 		tdesc.Format = DXGI_FORMAT_BC5_SNORM;
 		break;
-	case PTI_BC6_RGBF:
+	case PTI_BC6_RGB_UFLOAT:
 		tdesc.Format = DXGI_FORMAT_BC6H_UF16;
 		break;
-	case PTI_BC6_RGBF_SIGNED:
+	case PTI_BC6_RGB_SFLOAT:
 		tdesc.Format = DXGI_FORMAT_BC6H_SF16;
 		break;
 	case PTI_BC7_RGBA:
@@ -256,6 +273,77 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 	case PTI_BC7_RGBA_SRGB:
 		tdesc.Format = DXGI_FORMAT_BC7_UNORM_SRGB;
 		break;
+
+	case PTI_RGBA16F:
+		tdesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		break;
+	case PTI_RGBA32F:
+		tdesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		break;
+	case PTI_L8:	//UNSUPPORTED
+	case PTI_R8:
+		tdesc.Format = DXGI_FORMAT_R8_UNORM;
+		break;
+	case PTI_L8A8: //UNSUPPORTED
+	case PTI_RG8:
+		tdesc.Format = DXGI_FORMAT_R8G8_UNORM;
+		break;
+	case PTI_R8_SNORM:
+		tdesc.Format = DXGI_FORMAT_R8_SNORM;
+		break;
+	case PTI_RG8_SNORM:
+		tdesc.Format = DXGI_FORMAT_R8G8_SNORM;
+		break;
+
+	case PTI_ETC1_RGB8:			//not invented here...
+	case PTI_ETC2_RGB8:
+	case PTI_ETC2_RGB8A1:
+	case PTI_ETC2_RGB8A8:
+	case PTI_ETC2_RGB8_SRGB:
+	case PTI_ETC2_RGB8A1_SRGB:
+	case PTI_ETC2_RGB8A8_SRGB:
+	case PTI_EAC_R11:
+	case PTI_EAC_R11_SNORM:
+	case PTI_EAC_RG11:
+	case PTI_EAC_RG11_SNORM:
+	case PTI_ASTC_4X4:			//not invented here...
+	case PTI_ASTC_4X4_SRGB:
+	case PTI_ASTC_5X4:
+	case PTI_ASTC_5X4_SRGB:
+	case PTI_ASTC_5X5:
+	case PTI_ASTC_5X5_SRGB:
+	case PTI_ASTC_6X5:
+	case PTI_ASTC_6X5_SRGB:
+	case PTI_ASTC_6X6:
+	case PTI_ASTC_6X6_SRGB:
+	case PTI_ASTC_8X5:
+	case PTI_ASTC_8X5_SRGB:
+	case PTI_ASTC_8X6:
+	case PTI_ASTC_8X6_SRGB:
+	case PTI_ASTC_10X5:
+	case PTI_ASTC_10X5_SRGB:
+	case PTI_ASTC_10X6:
+	case PTI_ASTC_10X6_SRGB:
+	case PTI_ASTC_8X8:
+	case PTI_ASTC_8X8_SRGB:
+	case PTI_ASTC_10X8:
+	case PTI_ASTC_10X8_SRGB:
+	case PTI_ASTC_10X10:
+	case PTI_ASTC_10X10_SRGB:
+	case PTI_ASTC_12X10:
+	case PTI_ASTC_12X10_SRGB:
+	case PTI_ASTC_12X12:
+	case PTI_ASTC_12X12_SRGB:
+#ifdef FTE_TARGET_WEB
+	case PTI_WHOLEFILE:			//basically webgl only...
+#endif
+	case PTI_MAX:				//not actually valid...
+	case PTI_EMULATED:			//not hardware-compatible.
+		break;
+	}
+	if (tdesc.Format == DXGI_FORMAT_UNKNOWN)
+	{
+		return false;
 	}
 
 	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
@@ -284,13 +372,13 @@ qboolean D3D11_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mi
 }
 void D3D11_UploadLightmap(lightmapinfo_t *lm)
 {
-	extern cvar_t gl_lightmap_nearest;
+	extern cvar_t r_lightmap_nearest;
 	struct pendingtextureinfo mips;
 	image_t *tex;
 	lm->modified = false;
 	if (!TEXVALID(lm->lightmap_texture))
 	{
-		lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR));
+		lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (r_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR));
 		if (!lm->lightmap_texture)
 			return;
 	}
@@ -305,15 +393,22 @@ void D3D11_UploadLightmap(lightmapinfo_t *lm)
 	mips.mip[0].datasize = lm->width*lm->height*4;
 	switch (lightmap_fmt)
 	{
-	case TF_BGRA32:
+	default:
+	case PTI_A2BGR10:
+	case PTI_E5BGR9:
+	case PTI_RGBA16F:
+	case PTI_RGBA32F:
+		mips.encoding = lightmap_fmt;
+		break;
+	case PTI_BGRA8:
 		mips.encoding = PTI_BGRX8;
 		break;
-	case TF_RGBA32:
+	case PTI_RGBA8:
 		mips.encoding = PTI_RGBX8;
 		break;
-	default:
-		Sys_Error("D3D11_UploadLightmap: Unsupported format");
-		return;
+	case PTI_L8:
+		mips.encoding = PTI_R8;	//FIXME: unspported
+		break;
 	}
 	mips.mipcount = 1;
 	D3D11_LoadTextureMips(tex, &mips);

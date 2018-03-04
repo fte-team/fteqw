@@ -360,7 +360,7 @@ void INS_Shutdown (void)
 void INS_ReInit (void)
 {
 }
-void INS_Move(float *movements, int pnum)
+void INS_Move(void)
 {
 }
 void INS_Init (void)

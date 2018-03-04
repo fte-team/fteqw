@@ -2227,6 +2227,7 @@ static qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 	int			i, count, j;
 	vec2_t		*lmout, *stout;
 	vec4_t *cout;
+	extern cvar_t gl_overbright;
 	extern qbyte lmgamma[256];
 
 	in = (void *)(mod_base + l->fileofs);
@@ -2242,6 +2243,8 @@ static qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 		Con_Printf (CON_ERROR "Map has too many vertexes\n");
 		return false;
 	}
+
+	BuildLightMapGammaTable(1, 1<<(2-gl_overbright.ival));
 
 	out = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
 	stout = ZG_Malloc(&mod->memgroup, count*sizeof(*stout));
@@ -2274,9 +2277,9 @@ static qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 			stout[i][j] = LittleFloat ( ((float *)in->texcoords)[j] );
 			lmout[i][j] = LittleFloat ( ((float *)in->texcoords)[j+2] );
 		}
-		cout[i][0] = lmgamma[in->color[0]]/255.0f;
-		cout[i][1] = lmgamma[in->color[1]]/255.0f;
-		cout[i][2] = lmgamma[in->color[2]]/255.0f;
+		cout[i][0] = (lmgamma[in->color[0]]<<gl_overbright.ival)/255.0f;
+		cout[i][1] = (lmgamma[in->color[1]]<<gl_overbright.ival)/255.0f;
+		cout[i][2] = (lmgamma[in->color[2]]<<gl_overbright.ival)/255.0f;
 		cout[i][3] = in->color[3]/255.0f;
 	}
 
@@ -3490,7 +3493,7 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 
 	extern cvar_t gl_overbright;
 	extern qbyte lmgamma[256];
-	loadmodel->engineflags &= ~MDLF_RGBLIGHTING;
+	loadmodel->lightmaps.fmt = LM_L8;
 
 	//round up the samples, in case the last one is partial.
 	maps = ((samples+mapsize-1)&~(mapsize-1)) / mapsize;
@@ -3506,7 +3509,7 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 
 	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
 
-	loadmodel->engineflags |= MDLF_RGBLIGHTING;
+	loadmodel->lightmaps.fmt = LM_RGB8;
 
 	if (loadmodel->lightmaps.deluxemapping)
 		maps /= 2;
@@ -4125,6 +4128,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		//q3 maps have built in 4-fold overbright.
 		//if we're not rendering with that, we need to brighten the lightmaps in order to keep the darker parts the same brightness. we loose the 2 upper bits. those bright areas become uniform and indistinct.
 		//this is used for both the lightmap AND vertex lighting
+		//FIXME: when not using overbrights, we suffer a loss of precision.
 		gl_overbright.flags |= CVAR_RENDERERLATCH;
 		BuildLightMapGammaTable(1, (1<<(2-gl_overbright.ival)));
 

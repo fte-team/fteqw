@@ -691,10 +691,11 @@ void NPP_NQFlush(void)
 		else
 			bufferlen-=1;
 		break;
+	case svc_updatefrags:
+		break;
 		//ignore these.
 	case svc_print:
 	case svcdp_skybox:
-	case svc_setfrags:
 		bufferlen = 0;
 		break;
 	case svc_updatename:

@@ -247,6 +247,7 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skel_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skel_build (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_skel_build_ptr (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skel_get_numbones (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skel_get_bonename (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skel_get_boneparent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

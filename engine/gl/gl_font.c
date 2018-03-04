@@ -329,7 +329,6 @@ static qboolean curfont_scaled;
 
 extern cvar_t r_font_linear;
 
-
 //^Ue2XX
 static struct
 {
@@ -1855,6 +1854,17 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 		}
 	}
 
+	if (vid.flags&VID_SRGBAWARE)
+	{
+		f->tint[0] = M_SRGBToLinear(f->tint[0], 1);
+		f->tint[1] = M_SRGBToLinear(f->tint[1], 1);
+		f->tint[2] = M_SRGBToLinear(f->tint[2], 1);
+
+		f->alttint[0] = M_SRGBToLinear(f->alttint[0], 1);
+		f->alttint[1] = M_SRGBToLinear(f->alttint[1], 1);
+		f->alttint[2] = M_SRGBToLinear(f->alttint[2], 1);
+	}
+
 #ifdef PACKAGE_DOOMWAD
 	if (!*fontfilename)
 	{
@@ -2660,6 +2670,13 @@ int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint
 				rgba[1] = consolecolours[col].fg*255;
 				rgba[2] = consolecolours[col].fb*255;
 				rgba[3] = 255;
+			}
+
+			if (vid.flags&VID_SRGBAWARE)
+			{
+				rgba[0] = M_SRGBToLinear(rgba[0], 255);
+				rgba[1] = M_SRGBToLinear(rgba[1], 255);
+				rgba[2] = M_SRGBToLinear(rgba[2], 255);
 			}
 
 			col = (charflags&CON_BGMASK)>>CON_BGSHIFT;

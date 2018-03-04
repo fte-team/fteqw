@@ -1917,6 +1917,7 @@ char *TP_MapName (void)
 	return host_mapname.string;
 }
 
+#ifdef QWSKINS
 /*
 =============================================================================
 						TEAMCOLOR & ENEMYCOLOR
@@ -2131,6 +2132,7 @@ static void TP_EnemyColor_f (void)
 				CL_NewTranslation(i);
 	}
 }
+#endif
 
 //===================================================================
 
@@ -3700,15 +3702,16 @@ void TP_Init (void)
 	Cmd_AddCommand ("loadloc", TP_LoadLocFile_f);
 	Cmd_AddCommand ("filter", TP_MsgFilter_f);
 	Cmd_AddCommand ("msg_trigger", TP_MsgTrigger_f);
+#ifdef QWSKINS
 	Cmd_AddCommand ("teamcolor", TP_TeamColor_f);
 	Cmd_AddCommand ("enemycolor", TP_EnemyColor_f);
-	Cmd_AddCommand ("tp_took", TP_Took_f);
-	Cmd_AddCommand ("tp_pickup", TP_Pickup_f);
-	Cmd_AddCommand ("tp_point", TP_Point_f);
-
 	Cmd_AddCommand ("colourise", TP_Colourise_f);	//uk
 	Cmd_AddCommand ("colorize", TP_Colourise_f);	//us
 	//Cmd_AddCommand ("colorise", TP_Colourise_f);	//piss off both.
+#endif
+	Cmd_AddCommand ("tp_took", TP_Took_f);
+	Cmd_AddCommand ("tp_pickup", TP_Pickup_f);
+	Cmd_AddCommand ("tp_point", TP_Point_f);
 
 	TP_InitMacros();
 }
@@ -3888,5 +3891,44 @@ void CL_SayTeam_f (void)
 	CL_Say (true, NULL);
 }
 
+qboolean TP_SoundTrigger(char *message)	//if there is a trigger there, play it. Return true if we found one, stripping off the file (it's neater that way).
+{
+	char *strip;
+	char *lineend = NULL;
+	char soundname[128];
+	int filter = 0;
 
+	for (strip = message+strlen(message)-1; *strip && strip >= message; strip--)
+	{
+		if (*strip == '#')
+			filter++;
+		if (*strip == ':')
+			break;	//if someone says just one word, we can take any tidles in their name to be a voice command
+		if (*strip == '\n')
+			lineend = strip;
+		else if (*strip <= ' ')
+		{
+			if (filter == 0 || filter == 1)	//allow one space in front of a filter.
+			{
+				filter++;
+				continue;
+			}
+			break;
+		}
+		else if (*strip == '~')
+		{
+			//looks like a trigger, whoopie!
+			if (lineend-strip > sizeof(soundname)-1)
+			{
+				Con_Printf("Sound trigger's file-name was too long\n");
+				return false;
+			}
+			Q_strncpyz(soundname, strip+1, lineend-strip);
+			memmove(strip, lineend, strlen(lineend)+1);
 
+			Cbuf_AddText(va("play %s\n", soundname), RESTRICT_LOCAL);
+			return true;
+		}
+	}
+	return false;
+}

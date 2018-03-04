@@ -225,6 +225,8 @@ typedef struct image_s
 	int regsequence;
 	int width;	//this is the logical size. the physical size is not considered important (except for render targets, which should not be loaded from disk).
 	int height;
+	int depth;
+	uploadfmt_t format;
 	int status;	//TEX_
 	unsigned int flags;
 	struct image_s *next;
@@ -283,103 +285,12 @@ struct pendingtextureinfo
 	{
 		PTI_2D,
 		PTI_3D,
-		PTI_CUBEMAP	//mips are packed (to make d3d11 happy)
+		PTI_CUBEMAP,	//mips are packed (to make d3d11 happy)
+		PTI_2D_ARRAY,	//looks like a 3d texture, but depth doesn't change.
+		PTI_CUBEMAP_ARRAY,	//looks like PTI_2D_ARRAY, with depth*6
 	} type;
 
-	enum
-	{
-		//these formats are specified as direct byte access
-		PTI_RGBA8,	//rgba byte ordering
-		PTI_RGBX8,	//rgb pad byte ordering
-		PTI_BGRA8,	//alpha channel
-		PTI_BGRX8,	//no alpha channel
-		PTI_RGBA8_SRGB,	//rgba byte ordering
-		PTI_RGBX8_SRGB,	//rgb pad byte ordering
-		PTI_BGRA8_SRGB,	//alpha channel
-		PTI_BGRX8_SRGB,	//no alpha channel
-		//these formats are specified in native endian order
-		PTI_RGB565,		//16bit alphaless format.
-		PTI_RGBA4444,	//16bit format (gl)
-		PTI_ARGB4444,	//16bit format (d3d)
-		PTI_RGBA5551,	//16bit alpha format (gl).
-		PTI_ARGB1555,	//16bit alpha format (d3d).
-		PTI_RGB8,		//24bit packed format. generally not supported
-		PTI_LUMINANCE8_ALPHA8, //16bit format.
-		//floating point formats
-		PTI_RGBA16F,
-		PTI_RGBA32F,
-		//small formats.
-		PTI_R8,
-		PTI_RG8,	//might be useful for normalmaps
-		PTI_R8_SIGNED,
-		PTI_RG8_SIGNED,	//might be useful for normalmaps
-		//(desktop/tegra) compressed formats
-		PTI_BC1_RGB,
-		PTI_BC1_RGB_SRGB,
-		PTI_BC1_RGBA,
-		PTI_BC1_RGBA_SRGB,
-		PTI_BC2_RGBA,
-		PTI_BC2_RGBA_SRGB,
-		PTI_BC3_RGBA,	//maybe add a bc3 normalmapswizzle type for d3d9?
-		PTI_BC3_RGBA_SRGB,
-		PTI_BC4_R8,
-		PTI_BC4_R8_SIGNED,
-		PTI_BC5_RG8,	//useful for normalmaps
-		PTI_BC5_RG8_SIGNED,	//useful for normalmaps
-		PTI_BC6_RGBF,	//unsigned (half) floats!
-		PTI_BC6_RGBF_SIGNED,	//signed (half) floats!
-		PTI_BC7_RGBA,	//multimode compression, using as many bits as bc2/bc3
-		PTI_BC7_RGBA_SRGB,
-		//(mobile/intel) compressed formats
-		PTI_ETC1_RGB8,	//limited form
-		PTI_ETC2_RGB8,	//extended form
-		PTI_ETC2_RGB8A1,
-		PTI_ETC2_RGB8A8,
-		PTI_ETC2_RGB8_SRGB,
-		PTI_ETC2_RGB8A1_SRGB,
-		PTI_ETC2_RGB8A8_SRGB,
-		PTI_EAC_R11,	//no idea what this might be used for, whatever
-		PTI_EAC_R11_SIGNED,	//no idea what this might be used for, whatever
-		PTI_EAC_RG11,	//useful for normalmaps (calculate blue)
-		PTI_EAC_RG11_SIGNED,	//useful for normalmaps (calculate blue)
-		//astc... zomg
-		PTI_ASTC_4X4,
-		PTI_ASTC_4X4_SRGB,
-		PTI_ASTC_5X4,
-		PTI_ASTC_5X4_SRGB,
-		PTI_ASTC_5X5,
-		PTI_ASTC_5X5_SRGB,
-		PTI_ASTC_6X5,
-		PTI_ASTC_6X5_SRGB,
-		PTI_ASTC_6X6,
-		PTI_ASTC_6X6_SRGB,
-		PTI_ASTC_8X5,
-		PTI_ASTC_8X5_SRGB,
-		PTI_ASTC_8X6,
-		PTI_ASTC_8X6_SRGB,
-		PTI_ASTC_10X5,
-		PTI_ASTC_10X5_SRGB,
-		PTI_ASTC_10X6,
-		PTI_ASTC_10X6_SRGB,
-		PTI_ASTC_8X8,
-		PTI_ASTC_8X8_SRGB,
-		PTI_ASTC_10X8,
-		PTI_ASTC_10X8_SRGB,
-		PTI_ASTC_10X10,
-		PTI_ASTC_10X10_SRGB,
-		PTI_ASTC_12X10,
-		PTI_ASTC_12X10_SRGB,
-		PTI_ASTC_12X12,
-		PTI_ASTC_12X12_SRGB,
-		//weird specialcase mess to take advantage of webgl so we don't need redundant bloat where we're already strugging with potential heap limits
-		PTI_WHOLEFILE,
-		//depth formats
-		PTI_DEPTH16,
-		PTI_DEPTH24,
-		PTI_DEPTH32,
-		PTI_DEPTH24_8,
-		PTI_MAX,
-	} encoding;	//0
+	uploadfmt_t encoding;	//0
 	void *extrafree;
 	int mipcount;
 	struct
@@ -388,6 +299,7 @@ struct pendingtextureinfo
 		size_t datasize;
 		int width;
 		int height;
+		int depth;
 		qboolean needfree;
 	} mip[72];	//enough for a 4096 cubemap. or a really smegging big 2d texture...
 };

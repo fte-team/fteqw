@@ -9,7 +9,7 @@ attribute vec2 v_texcoord;
 attribute vec4 v_colour;
 void main ()
 {
-	tc = v_texcoord;
+	tc = vec2(v_texcoord.s, 1.0-v_texcoord.t);
 	vc = v_colour;
 	gl_Position = ftetransform();
 }

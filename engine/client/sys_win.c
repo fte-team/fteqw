@@ -64,7 +64,7 @@ void Sys_Init (void){}							//safe, stub is fine. used to register system-speci
 void Sys_Shutdown(void){}						//safe
 qboolean Sys_RandomBytes(qbyte *string, int len){return false;}
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate){return false;}
-void INS_Move(float *movements, int pnum){}		//safe
+void INS_Move(void){}							//safe
 void INS_Commands(void){}						//safe
 void INS_Init(void){}							//safe. should be xinput2 I guess. nothing else is actually supported. touchscreens don't really count.
 void INS_ReInit(void){}							//safe

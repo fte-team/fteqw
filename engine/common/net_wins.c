@@ -104,7 +104,7 @@ cvar_t	net_enable_webrtcbroker	= CVARD("net_enable_webrtcbroker",	"1", "If 1, tc
 #endif
 
 #ifndef SERVERONLY
-static void cl_delay_packets_Announce(cvar_t *var, char *oldval)
+static void QDECL cl_delay_packets_Announce(cvar_t *var, char *oldval)
 {
 	if (cls.state >= ca_connected && cl.fpd & FPD_ANOUNCE_FAKE_LAG)
 		Cbuf_AddText(va("say Fake lag now %ims\n", var->ival), RESTRICT_LOCAL);
@@ -2850,6 +2850,7 @@ qboolean FTENET_Datagram_GetPacket(ftenet_generic_connection_t *con)
 		return false;
 
 	fromlen = sizeof(from);
+	((struct sockaddr*)&from)->sa_family = AF_UNSPEC;
 	ret = recvfrom (con->thesocket, (char *)net_message_buffer, sizeof(net_message_buffer), 0, (struct sockaddr*)&from, &fromlen);
 
 	if (ret == -1)
@@ -2876,7 +2877,7 @@ qboolean FTENET_Datagram_GetPacket(ftenet_generic_connection_t *con)
 			unsigned int curtime = Sys_Milliseconds();
 			if (curtime-resettime >= 5000 || err == NET_ECONNRESET)	//throttle prints to once per 5 secs (even if they're about different clients, yay ddos)
 			{
-				if (err == NET_ECONNABORTED)
+				if (((struct sockaddr*)&from)->sa_family != AF_UNSPEC)
 					Con_TPrintf ("Connection lost or aborted (%s)\n", NET_AdrToString (adr, sizeof(adr), &net_from));	//server died/connection lost.
 				else
 					Con_TPrintf ("Connection lost or aborted\n");	//server died/connection lost.
@@ -2896,8 +2897,10 @@ qboolean FTENET_Datagram_GetPacket(ftenet_generic_connection_t *con)
 			return false;
 		}
 
-
-		Con_Printf ("NET_GetPacket: Error (%i): %s\n", err, strerror(err));
+		if (((struct sockaddr*)&from)->sa_family != AF_UNSPEC)
+			Con_Printf ("NET_GetPacket: Error (%i): %s (%s)\n", err, strerror(err), NET_AdrToString (adr, sizeof(adr), &net_from));
+		else
+			Con_Printf ("NET_GetPacket: Error (%i): %s\n", err, strerror(err));
 		return false;
 	}
 	SockadrToNetadr (&from, &net_from);
@@ -2905,7 +2908,7 @@ qboolean FTENET_Datagram_GetPacket(ftenet_generic_connection_t *con)
 	net_message.packing = SZ_RAWBYTES;
 	net_message.currentbit = 0;
 	net_message.cursize = ret;
-	if (net_message.cursize == sizeof(net_message_buffer) )
+	if (net_message.cursize >= sizeof(net_message_buffer) )
 	{
 		Con_TPrintf ("Warning:  Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 		return false;

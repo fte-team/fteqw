@@ -25,6 +25,12 @@ typedef vec_t vec3_t[3];
 typedef vec_t vec4_t[4];
 typedef vec_t vec5_t[5];
 
+typedef int ivec_t;
+typedef ivec_t ivec2_t[2];
+typedef ivec_t ivec3_t[3];
+typedef ivec_t ivec4_t[4];
+typedef ivec_t ivec5_t[5];
+
 /*16-byte aligned vectors, for auto-vectorising, should propogate to structs
 sse and altivec can unroll loops using aligned reads, which should be faster... 4 at once.
 */

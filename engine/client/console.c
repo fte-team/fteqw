@@ -2120,12 +2120,12 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 				if (l->flags & CONL_EXECUTION)
 				{
 					if (l->flags & CONL_BREAKPOINT)
-						R2D_ImageColours(0.3,0.15,0.0, alphaval);
+						R2D_ImageColours(SRGBA(0.3,0.15,0.0, alphaval));
 					else
-						R2D_ImageColours(0.3,0.3,0.0, alphaval);
+						R2D_ImageColours(SRGBA(0.3,0.3,0.0, alphaval));
 				}
 				else //if (l->flags & CONL_BREAKPOINT)
-					R2D_ImageColours(0.3,0.0,0.0, alphaval);
+					R2D_ImageColours(SRGBA(0.3,0.0,0.0, alphaval));
 				R2D_FillBlock((sx*(float)vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((ex - sx)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
 				R2D_Flush();
 			}
@@ -2174,7 +2174,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 					sstart += center;
 					send += center;
 
-					R2D_ImageColours(0.1,0.1,0.3, alphaval);
+					R2D_ImageColours(SRGBA(0.1,0.1,0.3, alphaval));
 					if (send < sstart)
 						R2D_FillBlock((send*(float)vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((sstart - send)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
 					else
@@ -2258,7 +2258,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 
 						if (selactive == 1)
 						{
-							R2D_ImageColours(0.1,0.1,0.3, alphaval);
+							R2D_ImageColours(SRGBA(0.1,0.1,0.3, alphaval));
 							if (send < sstart)
 								R2D_FillBlock((send*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((sstart - send)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
 							else
@@ -2374,9 +2374,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 		{
 			int top = 8;	//padding at the top
 			if (con_curwindow==w)
-				R2D_ImageColours(0.0, 0.05, 0.1, 0.8);
+				R2D_ImageColours(SRGBA(0.0, 0.05, 0.1, 0.8));
 			else
-				R2D_ImageColours(0.0, 0.05, 0.1, 0.5);
+				R2D_ImageColours(SRGBA(0.0, 0.05, 0.1, 0.5));
 			R2D_FillBlock(w->wnd_x, w->wnd_y, w->wnd_w, w->wnd_h);
 			R2D_ImageColours(1, 1, 1, 1);
 
@@ -2495,7 +2495,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		{
 			if (!fadetime)
 			{
-				R2D_ImageColours(0, 0.1, 0.2, 1.0);
+				R2D_ImageColours(SRGBA(0, 0.1, 0.2, 1.0));
 				if ((w->buttonsdown & CB_SIZELEFT) || (con_curwindow==w && w->mousecursor[0] >= -8 && w->mousecursor[0] < 0 && w->mousecursor[1] >= 8 && w->mousecursor[1] < w->wnd_h))
 					R2D_FillBlock(w->wnd_x, w->wnd_y+8, 8, w->wnd_h-8);
 				if ((w->buttonsdown & CB_SIZERIGHT) || (con_curwindow==w && w->mousecursor[0] >= w->wnd_w-16 && w->mousecursor[0] < w->wnd_w-8 && w->mousecursor[1] >= 8 && w->mousecursor[1] < w->wnd_h))

@@ -53,7 +53,7 @@ void IN_Accelerometer(unsigned int devid, float x, float y, float z);
 void IN_Gyroscope(unsigned int devid, float pitch, float yaw, float roll);
 
 //system-specific functions
-void INS_Move (float *movements, int pnum);
+void INS_Move (void);
 void INS_Accumulate (void);
 void INS_ClearStates (void);
 void INS_ReInit (void);

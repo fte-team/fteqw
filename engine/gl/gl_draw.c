@@ -43,6 +43,8 @@ static int	gl_filter_mip[3];	//everything else
 int		gl_mipcap_min = 0;
 int		gl_mipcap_max = 1000;
 
+void Image_WriteKTXFile(const char *filename, struct pendingtextureinfo *mips);
+
 void GL_DestroyTexture(texid_t tex)
 {
 	if (!tex)
@@ -52,6 +54,326 @@ void GL_DestroyTexture(texid_t tex)
 	tex->num = 0;
 }
 
+#define glfmtsw(qfmt,sz,in,fm,ty,cf,sr,sg,sb,sa)		\
+	do {												\
+		gl_config.formatinfo[qfmt].sizedformat = sz;	\
+		gl_config.formatinfo[qfmt].cformat = cf;		\
+		gl_config.formatinfo[qfmt].internalformat = in;	\
+		gl_config.formatinfo[qfmt].format = fm;			\
+		gl_config.formatinfo[qfmt].type = ty;			\
+		gl_config.formatinfo[qfmt].swizzle_r = sr;		\
+		gl_config.formatinfo[qfmt].swizzle_g = sg;		\
+		gl_config.formatinfo[qfmt].swizzle_b = sb;		\
+		gl_config.formatinfo[qfmt].swizzle_a = sa;		\
+		sh_config.texfmt[qfmt] = true;					\
+	} while(0)
+
+#define glfmt(qfmt,sz,in,fm,ty)			glfmtsw(qfmt, sz, in, fm, ty, 0,  GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA)
+#define glfmtc(qfmt,sz,in,fm,ty,cf)		glfmtsw(qfmt, sz, in, fm, ty, cf, GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA)
+#define glfmtb(qfmt,in)					glfmtsw(qfmt, in, in, 0,  0,  0,  GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA)
+
+#ifndef GL_RGB565
+#define GL_RGB565                         0x8D62
+#endif
+
+void GL_SetupFormats(void)
+{
+	int tc_ru = 0, tc_rs = 0, tc_rgu = 0, tc_rgs = 0, tc_rgb = 0, tc_rgba1 = 0, tc_rgba8 = 0, tc_srgb = 0, tc_srgba8 = 0;
+
+	qboolean bc1=false, bc2=false, bc3=false, bc45=false, bc67=false;
+	float ver = gl_config.glversion;
+	qboolean srgb = (gl_config.glversion >= (gl_config_gles?3.0:2.1)) || GL_CheckExtension("GL_EXT_texture_sRGB");
+
+	if (gl_config_gles && ver >= 3.0 && ver <= 3.3)
+		ver = 3.3;	//treat gles3.0 as desktop 3.3, they're roughly equivelent in feature set.
+
+	if (GL_CheckExtension("GL_EXT_texture_compression_s3tc"))
+		bc1=bc2=bc3=true;
+	if ((!gl_config_gles && ver >= 3.0) || GL_CheckExtension("GL_ARB_texture_compression_rgtc") || GL_CheckExtension("GL_EXT_texture_compression_rgtc"))
+		bc45 = true;
+	if ((!gl_config.gles && ver >= 4.2) || GL_CheckExtension("GL_ARB_texture_compression_bptc"))
+		bc67 = true;
+
+	if (bc45)
+		tc_ru = GL_COMPRESSED_RED_RGTC1;
+	if (bc45)
+		tc_rs = GL_COMPRESSED_SIGNED_RED_RGTC1;
+	if (bc45)
+		tc_rgu = GL_COMPRESSED_RG_RGTC2;
+	if (bc45)
+		tc_rgs = GL_COMPRESSED_SIGNED_RG_RGTC2;
+
+	if (bc1)
+		tc_rgb = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
+	if (bc1)
+		tc_srgb = GL_COMPRESSED_SRGB_S3TC_DXT1_EXT;
+	if (bc3)
+		tc_rgba8 = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+	if (bc3)
+		tc_srgba8 = GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT;
+	if (bc1)
+		tc_rgba1 = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
+//	if (bc1)
+//		tc_srgba1 = GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT;
+
+	bc1 |= GL_CheckExtension("GL_EXT_texture_compression_dxt1");
+	bc2 |= GL_CheckExtension("GL_ANGLE_texture_compression_dxt3");
+	bc3 |= GL_CheckExtension("GL_ANGLE_texture_compression_dxt5");
+
+	/*else if (sh_config.texfmt[PTI_ETC2_RGB8A8])
+	{	//these are probably a bad choice...
+		tc_ru = GL_COMPRESSED_R11_EAC;
+		tc_rgu = GL_COMPRESSED_RG11_EAC;
+		tc_rgb = GL_COMPRESSED_RGB8_ETC2;
+		tc_rgba = GL_COMPRESSED_RGBA8_ETC2_EAC;
+	}*/
+
+#ifdef FTE_TARGET_WEB
+	glfmt(PTI_WHOLEFILE, 0, 0, 0, 0);
+//	sh_config.texfmt[PTI_WHOLEFILE] = true;
+#endif
+
+	if (gl_config_gles)
+	{
+		//pre-3 gles doesn't support sized formats, and only a limited number of them too
+		glfmtc(PTI_RGB8,	GL_RGB,				GL_RGB,					GL_RGB,					GL_UNSIGNED_BYTE,			tc_rgb);
+		glfmtc(PTI_RGBA8,	GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_BYTE,			tc_rgba8);
+		glfmt(PTI_L8A8,		GL_LUMINANCE_ALPHA,	GL_LUMINANCE_ALPHA,		GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE);
+		glfmt(PTI_L8,		GL_LUMINANCE,		GL_LUMINANCE,			GL_LUMINANCE,			GL_UNSIGNED_BYTE);
+//		glfmt(PTI_RGBA8,	GL_ALPHA,			GL_ALPHA,				GL_ALPHA,				GL_UNSIGNED_BYTE);
+
+		if (!gl_config.webgl_ie)
+		{	//these should work on all gles2+webgl1 devices, but microsoft doesn't give a shit.
+			glfmtc(PTI_RGB565,	GL_RGB,				GL_RGB,					GL_RGB,					GL_UNSIGNED_SHORT_5_6_5,	tc_rgb);
+//			glfmtc(PTI_RGBA4444,GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_4_4_4_4,	tc_rgba8);
+//			glfmtc(PTI_RGBA5551,GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_5_5_5_1,	tc_rgba1);
+		}
+		if (GL_CheckExtension("GL_OES_texture_half_float")) 
+			glfmtc(PTI_RGBA16F,	GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT_OES,		0);	//not to be confused with GL_HALF_FLOAT[_ARB] which has a different value
+		if (GL_CheckExtension("GL_OES_texture_float"))
+			glfmtc(PTI_RGBA32F,	GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_FLOAT,				0);
+
+		if (GL_CheckExtension("GL_OES_depth_texture"))
+		{	//16+32, not 24.
+			glfmt(PTI_DEPTH16,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_SHORT);
+			glfmt(PTI_DEPTH32,	GL_DEPTH_COMPONENT, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT);
+		}
+
+		if (GL_CheckExtension("GL_EXT_texture_format_BGRA8888"))
+			glfmtc(PTI_BGRA8,	GL_BGRA_EXT,		GL_BGRA_EXT,			GL_BGRA_EXT,			GL_UNSIGNED_BYTE,		tc_rgba8);
+		if (GL_CheckExtension("GL_EXT_texture_type_2_10_10_10_REV"))
+			glfmtc(PTI_BGRA8,	GL_RGBA,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_INT_2_10_10_10_REV,		tc_rgba8);
+	}
+	if (!gl_config_gles || ver >= 3.0)
+	{
+		if (ver >= 1.4 || GL_CheckExtension("GL_ARB_depth_texture"))
+		{	//depth formats
+			glfmt(PTI_DEPTH16,	GL_DEPTH_COMPONENT16_ARB, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_SHORT);
+			glfmt(PTI_DEPTH24,	GL_DEPTH_COMPONENT24_ARB, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT/*FIXME*/);
+			if (gl_config_gles)// || ver >= 3.0)
+				glfmt(PTI_DEPTH32,	GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_FLOAT);
+			else
+				glfmt(PTI_DEPTH32,	GL_DEPTH_COMPONENT32_ARB, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_FLOAT);
+		}
+//		if (ver >= 3.0)
+//			glfmt(PTI_DEPTH32,	GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT,	GL_DEPTH_COMPONENT,		GL_FLOAT);
+		if (GL_CheckExtension("GL_EXT_packed_depth_stencil"))
+			glfmt(PTI_DEPTH24_8,GL_DEPTH24_STENCIL8_EXT,  GL_DEPTH_STENCIL_EXT,	GL_DEPTH_STENCIL_EXT,	GL_UNSIGNED_INT_24_8_EXT);
+
+		glfmtc(PTI_RGBA8,		GL_RGBA8,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_BYTE,	tc_rgba8);
+		if (srgb)
+			glfmtc(PTI_RGBA8_SRGB,	GL_SRGB8_ALPHA8_EXT,GL_SRGB_ALPHA_EXT,		GL_RGBA,				GL_UNSIGNED_BYTE,	tc_srgba8);
+		if (!gl_config_gles)
+		{
+			if (ver >= 3.3)	//I'm paranoid about performance, so lets swizzle the alpha to 1 to make the alignment explicit.
+				glfmtsw(PTI_RGBX8,		GL_RGBA8,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_BYTE,	tc_rgb,		GL_RED, GL_GREEN, GL_BLUE, GL_ONE);
+			else
+				glfmtc(PTI_RGBX8,		GL_RGB8,			GL_RGB,					GL_RGBA,				GL_UNSIGNED_BYTE,	tc_rgb);
+			if (srgb)
+				glfmtc(PTI_RGBX8_SRGB,	GL_SRGB8_EXT,		GL_SRGB_EXT,			GL_RGBA,				GL_UNSIGNED_BYTE,	tc_srgb);
+		}
+		if (ver >= 1.2 && !gl_config_gles)
+		{
+			glfmt(PTI_BGR8,			GL_RGB8,			GL_RGB,					GL_BGR_EXT,				GL_UNSIGNED_BYTE);
+			glfmtc(PTI_BGRX8,		GL_RGB8,			GL_RGB,					GL_BGRA_EXT,			GL_UNSIGNED_INT_8_8_8_8_REV,	tc_rgb);
+			glfmtc(PTI_BGRA8,		GL_RGBA8,			GL_RGBA,				GL_BGRA_EXT,			GL_UNSIGNED_INT_8_8_8_8_REV,	tc_rgba8);
+			if (srgb)
+			{
+				glfmtc(PTI_BGRX8_SRGB,	GL_SRGB8_EXT,		GL_SRGB_EXT,			GL_BGRA_EXT,			GL_UNSIGNED_BYTE,	tc_srgb);
+				glfmtc(PTI_BGRA8_SRGB,	GL_SRGB8_ALPHA8_EXT,GL_SRGB_ALPHA_EXT,		GL_BGRA_EXT,			GL_UNSIGNED_BYTE,	tc_srgba8);
+			}
+		}
+		else if (ver >= 3.3)
+		{
+			glfmtsw(PTI_BGR8,		GL_RGB8,			GL_RGB,					GL_RGB,				GL_UNSIGNED_BYTE,	0,			GL_BLUE, GL_GREEN, GL_RED, GL_ONE);
+			glfmtsw(PTI_BGRX8,		GL_RGB8,			GL_RGB,					GL_RGBA,			GL_UNSIGNED_BYTE,	tc_rgb,		GL_BLUE, GL_GREEN, GL_RED, GL_ONE);
+			glfmtsw(PTI_BGRA8,		GL_RGBA8,			GL_RGBA,				GL_RGBA,			GL_UNSIGNED_BYTE,	tc_rgba8,	GL_BLUE, GL_GREEN, GL_RED, GL_ALPHA);
+			if (srgb)
+			{
+				glfmtc(PTI_BGRX8_SRGB,	GL_SRGB8_EXT,		GL_SRGB_EXT,			GL_BGRA_EXT,			GL_UNSIGNED_BYTE,	tc_srgb);
+				glfmtc(PTI_BGRA8_SRGB,	GL_SRGB8_ALPHA8_EXT,GL_SRGB_ALPHA_EXT,		GL_BGRA_EXT,			GL_UNSIGNED_BYTE,	tc_srgba8);
+			}
+		}
+		if (ver >= 3.0 || GL_CheckExtension("GL_EXT_texture_shared_exponent"))
+			glfmt(PTI_E5BGR9,		GL_RGB9_E5,			GL_RGB9_E5,				GL_RGB,					GL_UNSIGNED_INT_5_9_9_9_REV);
+		if (ver >= 3.0 || GL_CheckExtension("GL_EXT_packed_pixels"))	//so gl1.2 then.
+			glfmt(PTI_A2BGR10,		GL_RGB10_A2,		GL_RGB10_A2,			GL_RGBA,				GL_UNSIGNED_INT_2_10_10_10_REV);
+		if (ver >= 3.0 || GL_CheckExtension("GL_ARB_texture_rg"))
+		{
+			glfmtc(PTI_R8,			GL_R8,				GL_RED,					GL_RED,					GL_UNSIGNED_BYTE,	tc_ru);
+			glfmtc(PTI_RG8,			GL_RG8,				GL_RG,					GL_RG,					GL_UNSIGNED_BYTE,	tc_rs);
+		}
+		if (ver >= 3.1 || (GL_CheckExtension("GL_EXT_texture_snorm") && GL_CheckExtension("GL_ARB_texture_rg")))
+		{
+			glfmtc(PTI_R8_SNORM,	GL_R8_SNORM,		GL_R8_SNORM,			GL_RED,					GL_BYTE,			tc_rgu);
+			glfmtc(PTI_RG8_SNORM,	GL_RG8_SNORM,		GL_RG8_SNORM,			GL_RG,					GL_BYTE,			tc_rgs);
+		}
+
+		if (ver >= 3.0)
+		{
+			glfmtc(PTI_RGBA16F,	GL_RGBA16F_ARB,		GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT,		0);
+			glfmtc(PTI_RGBA32F,	GL_RGBA32F_ARB,		GL_RGBA,				GL_RGBA,				GL_FLOAT,			0);
+		}
+		if (ver >= 1.2 && !gl_config_gles)
+		{
+			glfmtc(PTI_RGBA4444,	GL_RGBA4,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_4_4_4_4,		tc_srgba8);
+			glfmtc(PTI_RGBA5551,	GL_RGB5_A1,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_5_5_5_1,		tc_rgba1);
+
+			glfmtc(PTI_ARGB4444,	GL_RGBA4,			GL_RGBA,				GL_BGRA_EXT,			GL_UNSIGNED_SHORT_4_4_4_4_REV,	tc_srgba8);
+			glfmtc(PTI_ARGB1555,	GL_RGB5_A1,			GL_RGBA,				GL_BGRA_EXT,			GL_UNSIGNED_SHORT_1_5_5_5_REV,	tc_rgba1);
+		}
+		if (gl_config_gles || ver > 4.1)	//rgb565 was a gles thing, desktop gl just has a 555 internal format despite the 565 data...
+			glfmtc(PTI_RGB565,	GL_RGB565,			GL_RGB,					GL_RGB,					GL_UNSIGNED_SHORT_5_6_5,		tc_rgb);
+		else
+			glfmtc(PTI_RGB565,	GL_RGB5,			GL_RGB,					GL_RGB,					GL_UNSIGNED_SHORT_5_6_5,		tc_rgb);
+		glfmt(PTI_RGB8,			GL_RGB8,			GL_RGB,					GL_RGB,					GL_UNSIGNED_BYTE);
+		if (!gl_config_nofixedfunc)
+		{	//if we have fixed function, then we still have proper support. the driver can emulate with swizzles if it wants.
+			glfmtc(PTI_L8,		GL_LUMINANCE8,		GL_LUMINANCE,			GL_LUMINANCE,			GL_UNSIGNED_BYTE,	tc_ru);
+			glfmtc(PTI_L8A8,	GL_LUMINANCE8_ALPHA8,GL_LUMINANCE_ALPHA,	GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE,	tc_rgu);
+		}
+		else if (ver >= 3.3)
+		{	//can emulate them with swizzles.
+			glfmtsw(PTI_L8,		GL_R8,				GL_RED,					GL_RED,					GL_UNSIGNED_BYTE,	tc_ru,	GL_RED, GL_RED, GL_RED, GL_ONE);
+			glfmtsw(PTI_L8A8,	GL_RG8,				GL_RG,					GL_RG,					GL_UNSIGNED_BYTE,	tc_rgu,	GL_RED, GL_RED, GL_RED, GL_GREEN);
+		}
+	}
+
+	//block compresion formats.
+	if (bc1)
+	{
+		glfmtb(PTI_BC1_RGB,				GL_COMPRESSED_RGB_S3TC_DXT1_EXT);
+		glfmtb(PTI_BC1_RGBA,			GL_COMPRESSED_RGBA_S3TC_DXT1_EXT);
+		if (srgb)
+		{
+			glfmtb(PTI_BC1_RGB_SRGB,		GL_COMPRESSED_SRGB_S3TC_DXT1_EXT);
+			glfmtb(PTI_BC1_RGBA_SRGB,		GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT);
+		}
+	}
+	if (bc2)
+	{
+		glfmtb(PTI_BC2_RGBA,			GL_COMPRESSED_RGBA_S3TC_DXT3_EXT);
+		if (srgb)
+			glfmtb(PTI_BC2_RGBA_SRGB,		GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT);
+	}
+	if (bc3)
+	{
+		glfmtb(PTI_BC3_RGBA,			GL_COMPRESSED_RGBA_S3TC_DXT5_EXT);
+		if (srgb)
+			glfmtb(PTI_BC3_RGBA_SRGB,		GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT);
+	}
+	if (bc45)
+	{
+		glfmtb(PTI_BC4_R8,				GL_COMPRESSED_RED_RGTC1);
+		glfmtb(PTI_BC4_R8_SNORM,		GL_COMPRESSED_SIGNED_RED_RGTC1);
+		glfmtb(PTI_BC5_RG8,				GL_COMPRESSED_RG_RGTC2);
+		glfmtb(PTI_BC5_RG8_SNORM,		GL_COMPRESSED_SIGNED_RG_RGTC2);
+	}
+	if (bc67)
+	{
+		glfmtb(PTI_BC6_RGB_UFLOAT,		GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB);
+		glfmtb(PTI_BC6_RGB_SFLOAT,		GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB);
+		glfmtb(PTI_BC7_RGBA,			GL_COMPRESSED_RGBA_BPTC_UNORM_ARB);
+		glfmtb(PTI_BC7_RGBA_SRGB,		GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB);
+	}
+
+#ifdef FTE_TARGET_WEB
+	if (GL_CheckExtension("WEBGL_compressed_texture_etc"))
+#else
+	if ((gl_config.gles && gl_config.glversion >= 3.0) || (!gl_config.gles && (gl_config.glversion >= 4.3 || GL_CheckExtension("GL_ARB_ES3_compatibility"))))
+#endif
+	{
+		glfmtb(PTI_ETC1_RGB8,			GL_COMPRESSED_RGB8_ETC2);
+		glfmtb(PTI_ETC2_RGB8,			GL_COMPRESSED_RGB8_ETC2);
+		glfmtb(PTI_ETC2_RGB8A1,			GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2);
+		glfmtb(PTI_ETC2_RGB8A8,			GL_COMPRESSED_RGBA8_ETC2_EAC);
+		glfmtb(PTI_ETC2_RGB8_SRGB,		GL_COMPRESSED_SRGB8_ETC2);
+		glfmtb(PTI_ETC2_RGB8A1_SRGB,	GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2);
+		glfmtb(PTI_ETC2_RGB8A8_SRGB,	GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC);
+		glfmtb(PTI_EAC_R11,				GL_COMPRESSED_R11_EAC);
+		glfmtb(PTI_EAC_R11_SNORM,		GL_COMPRESSED_SIGNED_R11_EAC);
+		glfmtb(PTI_EAC_RG11,			GL_COMPRESSED_RG11_EAC);
+		glfmtb(PTI_EAC_RG11_SNORM,		GL_COMPRESSED_SIGNED_RG11_EAC);
+	}
+	else
+	{
+		if (GL_CheckExtension("GL_OES_compressed_ETC1_RGB8_texture"))
+			glfmtb(PTI_ETC1_RGB8,			GL_ETC1_RGB8_OES);
+		if (GL_CheckExtension("GL_OES_compressed_ETC2_RGB8_texture"))
+			glfmtb(PTI_ETC2_RGB8,			GL_COMPRESSED_RGB8_ETC2);
+		if (GL_CheckExtension("GL_OES_compressed_ETC2_sRGB8_texture"))
+			glfmtb(PTI_ETC2_RGB8_SRGB,		GL_COMPRESSED_SRGB8_ETC2);
+		if (GL_CheckExtension("GL_OES_compressed_ETC2_punchthroughA_RGBA8_texture"))
+			glfmtb(PTI_ETC2_RGB8A1,			GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2);
+		if (GL_CheckExtension("GL_OES_compressed_ETC2_punchthroughA_sRGB8_alpha_texture"))
+			glfmtb(PTI_ETC2_RGB8A1_SRGB,	GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2);
+		if (GL_CheckExtension("GL_OES_compressed_ETC2_RGBA8_texture"))
+			glfmtb(PTI_ETC2_RGB8A8,			GL_COMPRESSED_RGBA8_ETC2_EAC);
+		if (GL_CheckExtension("GL_OES_compressed_ETC2_sRGB8_alpha8_texture"))
+			glfmtb(PTI_ETC2_RGB8A8_SRGB,	GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC);
+		if (GL_CheckExtension("GL_OES_compressed_EAC_R11_unsigned_texture"))
+			glfmtb(PTI_EAC_R11,				GL_COMPRESSED_R11_EAC);
+		if (GL_CheckExtension("GL_OES_compressed_EAC_R11_signed_texture"))
+			glfmtb(PTI_EAC_R11_SNORM,		GL_COMPRESSED_SIGNED_R11_EAC);
+		if (GL_CheckExtension("GL_OES_compressed_EAC_RG11_unsigned_texture"))
+			glfmtb(PTI_EAC_RG11,			GL_COMPRESSED_RG11_EAC);
+		if (GL_CheckExtension("GL_OES_compressed_EAC_RG11_signed_texture"))
+			glfmtb(PTI_EAC_RG11_SNORM,		GL_COMPRESSED_SIGNED_RG11_EAC);
+	}
+
+	if (GL_CheckExtension("GL_KHR_texture_compression_astc_ldr") || (gl_config_gles && gl_config.glversion >= 3.2))
+	{	//astc ldr profile is a core part of gles 3.2
+		glfmtb(PTI_ASTC_4X4,			GL_COMPRESSED_RGBA_ASTC_4x4_KHR);
+		glfmtb(PTI_ASTC_4X4_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR);
+		glfmtb(PTI_ASTC_5X4,			GL_COMPRESSED_RGBA_ASTC_5x4_KHR);
+		glfmtb(PTI_ASTC_5X4_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR);
+		glfmtb(PTI_ASTC_5X5,			GL_COMPRESSED_RGBA_ASTC_5x5_KHR);
+		glfmtb(PTI_ASTC_5X5_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR);
+		glfmtb(PTI_ASTC_6X5,			GL_COMPRESSED_RGBA_ASTC_6x5_KHR);
+		glfmtb(PTI_ASTC_6X5_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR);
+		glfmtb(PTI_ASTC_6X6,			GL_COMPRESSED_RGBA_ASTC_6x6_KHR);
+		glfmtb(PTI_ASTC_6X6_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR);
+		glfmtb(PTI_ASTC_8X5,			GL_COMPRESSED_RGBA_ASTC_8x5_KHR);
+		glfmtb(PTI_ASTC_8X5_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR);
+		glfmtb(PTI_ASTC_8X6,			GL_COMPRESSED_RGBA_ASTC_8x6_KHR);
+		glfmtb(PTI_ASTC_8X6_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR);
+		glfmtb(PTI_ASTC_10X5,			GL_COMPRESSED_RGBA_ASTC_10x5_KHR);
+		glfmtb(PTI_ASTC_10X5_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR);
+		glfmtb(PTI_ASTC_10X6,			GL_COMPRESSED_RGBA_ASTC_10x6_KHR);
+		glfmtb(PTI_ASTC_10X6_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR);
+		glfmtb(PTI_ASTC_8X8,			GL_COMPRESSED_RGBA_ASTC_8x8_KHR);
+		glfmtb(PTI_ASTC_8X8_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR);
+		glfmtb(PTI_ASTC_10X8,			GL_COMPRESSED_RGBA_ASTC_10x8_KHR);
+		glfmtb(PTI_ASTC_10X8_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR);
+		glfmtb(PTI_ASTC_10X10,			GL_COMPRESSED_RGBA_ASTC_10x10_KHR);
+		glfmtb(PTI_ASTC_10X10_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR);
+		glfmtb(PTI_ASTC_12X10,			GL_COMPRESSED_RGBA_ASTC_12x10_KHR);
+		glfmtb(PTI_ASTC_12X10_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR);
+		glfmtb(PTI_ASTC_12X12,			GL_COMPRESSED_RGBA_ASTC_12x12_KHR);
+		glfmtb(PTI_ASTC_12X12_SRGB,		GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR);
+	}
+}
+
 /*
 ===============
 Draw_Init
@@ -59,6 +381,32 @@ Draw_Init
 */
 void GLDraw_Init (void)
 {
+	extern cvar_t scr_showloading;
+	extern cvar_t vid_srgb;
+	if ((vid.flags & VID_SRGB_CAPABLE) && gl_config.arb_framebuffer_srgb)
+	{	//srgb-capable
+		if (!vid_srgb.ival)
+		{	//srgb not wanted...
+			qglDisable(GL_FRAMEBUFFER_SRGB);
+			vid.flags &= ~VID_SRGB_FB_LINEAR;
+		}
+		else if (vid_srgb.ival > 1)
+		{	//full srgb wanted
+			qglEnable(GL_FRAMEBUFFER_SRGB);
+			vid.flags |= VID_SRGB_FB_LINEAR;
+		}
+		else
+		{	//srgb wanted only for the framebuffer, for gamma tricks.
+			vid.flags |= VID_SRGB_FB_LINEAR;
+			qglEnable(GL_FRAMEBUFFER_SRGB);
+		}
+	}
+	if ((vid.flags & VID_SRGB_FB) && vid_srgb.ival != 1)
+		vid.flags |= VID_SRGBAWARE;
+	else
+		vid.flags &= ~VID_SRGBAWARE;
+
+
 	//figure out which extra features we can support on these drivers.
 	r_deluxmapping = r_deluxmapping_cvar.ival;
 	r_lightprepass = r_lightprepass_cvar.ival && sh_config.progs_supported;
@@ -66,33 +414,30 @@ void GLDraw_Init (void)
 	if (gl_config.gles && gl_config.glversion < 3.0)
 		r_softwarebanding = false;
 
-	if (gl_config.arb_framebuffer_srgb)
-	{
-		extern cvar_t vid_srgb;
-		vid.srgb = vid_srgb.ival>1;
-		if (vid.srgb)
-			qglEnable(GL_FRAMEBUFFER_SRGB);
-	}
-	else
-		vid.srgb = false;
+	GL_SetupFormats();
 
 	R2D_Init();
 
 	qglDisable(GL_SCISSOR_TEST);
 	GL_Set2D(false);
 
-	qglClearColor(0, 0, 0, 1);
-	qglClear(GL_COLOR_BUFFER_BIT);
+	if (scr_showloading.ival)
 	{
 		mpic_t *pic = R2D_SafeCachePic ("gfx/loading.lmp");
-		if (pic)
-			R2D_ScalePic ( ((int)vid.width - pic->width)/2,
-				((int)vid.height - 48 - pic->height)/2, pic->width, pic->height, pic);
-	}
+		if (pic && R_GetShaderSizes(pic, NULL, NULL, true))
+		{	//if its too big for the screen, letterbox it.
+			qglClearColor(0, 0, 0, 1);
+			qglClear(GL_COLOR_BUFFER_BIT);
+			if (pic->width > vid.width || pic->height > vid.height)
+				R2D_Letterbox(0, 0, vid.width, vid.height, pic, pic->width, pic->height);
+			else	//otherwise draw it centred
+				R2D_ScalePic ( ((int)vid.width - pic->width)/2, ((int)vid.height - 48 - pic->height)/2, pic->width, pic->height, pic);
+		}
 
-	if (R2D_Flush)
-		R2D_Flush();
-	VID_SwapBuffers();
+		if (R2D_Flush)
+			R2D_Flush();
+		VID_SwapBuffers();
+	}
 
 	GL_SetupSceneProcessingTextures();
 
@@ -128,9 +473,10 @@ void GLDraw_DeInit (void)
 #ifdef RTLIGHTS
 	Sh_Shutdown();
 #endif
-	Shader_Shutdown();
 
 	GLBE_Shutdown();	//to release its images.
+	Shader_Shutdown();
+
 	Image_Shutdown();
 }
 
@@ -281,7 +627,6 @@ static void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 			qglTexParameterf(targ, GL_TEXTURE_MAX_ANISOTROPY_EXT, 1);
 	}
 }
-
 qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 {
 	static int cubeface[] =
@@ -294,9 +639,9 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_ARB
 	};
 	int targ, targface;
-	int i, j;
+	int i, j, ifmt;
 	int nummips = mips->mipcount;
-	int encoding = mips->encoding;
+	uploadfmt_t encoding = mips->encoding;
 	qboolean compress;
 
 
@@ -311,9 +656,6 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 		if (encoding == PTI_BGRX8)
 			encoding = PTI_BGRA8;
 	}
-	
-	if (!tex->num)
-		qglGenTextures(1, &tex->num);
 
 	switch((tex->flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
 	{
@@ -327,9 +669,26 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 	case 2:
 		targ = GL_TEXTURE_CUBE_MAP_ARB;
 		break;
+	case 3:
+		targ = GL_TEXTURE_2D_ARRAY;
+		break;
 	}
 
 	GL_MTBind(0, targ, tex);
+
+	if (tex->num && qglTexStorage2D)
+	{
+		qglDeleteTextures(1, &tex->num);
+		qglGenTextures(1, &tex->num);
+		GL_MTBind(0, targ, tex);
+		qglBindTexture (targ, tex->num);	//GL_MTBind caches, which is problematic when things are getting deleted.
+	}
+	else
+	{
+		if (!tex->num)
+			qglGenTextures(1, &tex->num);
+		GL_MTBind(0, targ, tex);
+	}
 
 	if (tex->flags&IF_CLAMP)
 	{
@@ -394,265 +753,225 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 //	tex->width = mips->mip[0].width;
 //	tex->height = mips->mip[0].height;
 	GL_Texturemode_Apply(targ, tex->flags);
-	if (targ == GL_TEXTURE_3D)
+
+#ifdef FTE_TARGET_WEB
+	if (encoding == PTI_WHOLEFILE)
 	{
-		targface = targ;
-		for (i = 0; i < nummips; i++)
+		emscriptenfte_gl_loadtexturefile(tex->num, &tex->width, &tex->height, mips->mip[i].data, mips->mip[i].datasize);
+		return true;
+	}
+#endif
+
+	//arb_texture_compression is core in gl1.3
+	//gles doesn't support autocompression as of gles3.
+	//only autocompress if we have actually have data (gl errors otherwise).
+	if (gl_config.arb_texture_compression && mips->mip[0].data && !(tex->flags & IF_RENDERTARGET))
+		compress = !!gl_compress.ival;
+	else
+		compress = false;
+	if (compress & gl_config.formatinfo[encoding].cformat)
+		ifmt = gl_config.formatinfo[encoding].cformat;
+	else
+		ifmt = gl_config.formatinfo[encoding].sizedformat;
+
+	if (!ifmt)
+		return false;
+
+	if (gl_config.formatinfo[encoding].swizzle_r != GL_RED || gl_config.formatinfo[encoding].swizzle_g != GL_GREEN ||
+		gl_config.formatinfo[encoding].swizzle_b != GL_BLUE || gl_config.formatinfo[encoding].swizzle_a != GL_ALPHA)
+	{
+		qglTexParameteri(targ, GL_TEXTURE_SWIZZLE_R, gl_config.formatinfo[encoding].swizzle_r);
+		qglTexParameteri(targ, GL_TEXTURE_SWIZZLE_G, gl_config.formatinfo[encoding].swizzle_g);
+		qglTexParameteri(targ, GL_TEXTURE_SWIZZLE_B, gl_config.formatinfo[encoding].swizzle_b);
+		qglTexParameteri(targ, GL_TEXTURE_SWIZZLE_A, gl_config.formatinfo[encoding].swizzle_a);
+	}
+
+	if (targ == GL_TEXTURE_3D || targ == GL_TEXTURE_2D_ARRAY)
+	{
+		//FIXME: support array textures properly
+		if (qglTexStorage3D)
 		{
-			int size = mips->mip[i].height;
-			switch(encoding)
+			if (tex->flags & IF_TEXTYPE)
+				qglTexStorage3D(targ, nummips/countof(cubeface), ifmt, mips->mip[0].width, mips->mip[0].height, mips->mip[0].depth);
+			else
+				qglTexStorage3D(targ, nummips, ifmt, mips->mip[0].width, mips->mip[0].height, mips->mip[0].depth);
+
+			for (i = 0; i < nummips; i++)
 			{
-			case PTI_RGBX8:
-				qglTexImage3D(targface, i, GL_RGB, size, size, size, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
-				break;
-			case PTI_RGBA8:
-				qglTexImage3D(targface, i, GL_RGBA, size, size, size, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
-				break;
-			case PTI_BGRX8:
-				qglTexImage3D(targface, i, GL_RGB, size, size, size, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
-				break;
-			default:
-			case PTI_BGRA8:
-				qglTexImage3D(targface, i, GL_RGBA, size, size, size, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
-				break;
-			case PTI_RGBA4444:
-				qglTexImage3D(targface, i, GL_RGBA, size, size, size, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, mips->mip[i].data);
-				break;
-			case PTI_RGBA5551:
-				qglTexImage3D(targface, i, GL_RGBA, size, size, size, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, mips->mip[i].data);
-				break;
-			case PTI_RGB565:
-				qglTexImage3D(targface, i, GL_RGB, size, size, size, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, mips->mip[i].data);
-				break;
+				if (!mips->mip[i].data)	//already specified by gltexstorage
+					continue;
+
+				if (gl_config.formatinfo[encoding].type)
+					qglTexSubImage3D			(targ, i, 0, 0, 0, mips->mip[i].width, mips->mip[i].height, mips->mip[0].depth, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type,	mips->mip[i].data);
+				else
+					qglCompressedTexSubImage3D	(targ, i, 0, 0, 0, mips->mip[i].width, mips->mip[i].height, mips->mip[0].depth,									ifmt, mips->mip[i].datasize,				mips->mip[i].data);
+			}
+		}
+		else
+		{
+			for (i = 0; i < nummips; i++)
+			{
+				if (gl_config.formatinfo[encoding].type)
+					qglTexImage3D				(targ, i, ifmt, mips->mip[i].width, mips->mip[i].height, mips->mip[0].depth, 0, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type,	mips->mip[i].data);
+				else
+					qglCompressedTexImage3DARB	(targ, i, ifmt, mips->mip[i].width, mips->mip[i].height, mips->mip[0].depth, 0,								mips->mip[i].datasize,							mips->mip[i].data);
 			}
 		}
 	}
 	else
 	{
-		//2d or cubemaps
-		for (i = 0; i < nummips; i++)
-		{
-			//arb_texture_compression is core in gl1.3
-			//gles doesn't support autocompression as of gles3.
-			//only autocompress if we have actually have data (gl errors otherwise).
-			if (gl_config.arb_texture_compression && mips->mip[i].data)
-				compress = !!gl_compress.ival;
-			else
-				compress = false;
-
+		if (qglTexStorage2D)
+		{	//FIXME: destroy the old texture
 			if (tex->flags & IF_TEXTYPE)
-			{
-				targface = cubeface[i%countof(cubeface)];
-				j = i/countof(cubeface);
-			}
+				qglTexStorage2D(targ, nummips/countof(cubeface), ifmt, mips->mip[0].width, mips->mip[0].height);
 			else
+				qglTexStorage2D(targ, nummips, ifmt, mips->mip[0].width, mips->mip[0].height);
+		
+			for (i = 0; i < nummips; i++)
 			{
-				targface = targ;
-				j = i;
-			}
-			switch(encoding)
-			{
-			case PTI_WHOLEFILE:
-			case PTI_MAX:
-#ifdef FTE_TARGET_WEB
-				if (!i)
-					emscriptenfte_gl_loadtexturefile(tex->num, &tex->width, &tex->height, mips->mip[i].data, mips->mip[i].datasize);
-#endif
-				break;
-			case PTI_DEPTH16:
-				qglTexImage2D(targface, j, gl_config.gles?GL_DEPTH_COMPONENT:GL_DEPTH_COMPONENT16_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, mips->mip[i].data);
-				break;
-			case PTI_DEPTH24:
-				qglTexImage2D(targface, j, gl_config.gles?GL_DEPTH_COMPONENT:GL_DEPTH_COMPONENT24_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, mips->mip[i].data);
-				break;
-			case PTI_DEPTH32:
-				qglTexImage2D(targface, j, gl_config.gles?GL_DEPTH_COMPONENT:GL_DEPTH_COMPONENT32_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, mips->mip[i].data);
-				break;
-			case PTI_DEPTH24_8:
-				qglTexImage2D(targface, j, GL_DEPTH24_STENCIL8_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_DEPTH_STENCIL_EXT, GL_UNSIGNED_INT_24_8_EXT, mips->mip[i].data);
-				break;
-			//32bit formats
-			case PTI_RGBX8:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGB_ARB:GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
-				break;
-			case PTI_RGBA8:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
-				break;
-			case PTI_BGRX8:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGB_ARB:GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
-				break;
-			case PTI_BGRA8:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
-				break;
-			case PTI_RGBX8_SRGB:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_SRGB_EXT:GL_SRGB_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
-				break;
-			case PTI_RGBA8_SRGB:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_SRGB_ALPHA_EXT:GL_SRGB_ALPHA_EXT, mips->mip[i].width, mips->mip[i].height, 0, gl_config.gles?GL_SRGB_ALPHA_EXT:GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
-				break;
-			case PTI_BGRX8_SRGB:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_SRGB_EXT:GL_SRGB_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
-				break;
-			case PTI_BGRA8_SRGB:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_SRGB_ALPHA_EXT:GL_SRGB_ALPHA_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
-				break;
-
-			case PTI_RGBA16F:
-				qglTexImage2D(targface, j, GL_RGBA16F_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
-				break;
-			case PTI_RGBA32F:
-				qglTexImage2D(targface, j, GL_RGBA32F_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
-				break;
-			//16bit formats
-			case PTI_RGBA4444:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, mips->mip[i].data);
-				break;
-			case PTI_RGBA5551:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_SHORT_5_5_5_1, mips->mip[i].data);
-				break;
-			case PTI_ARGB4444:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_SHORT_4_4_4_4_REV, mips->mip[i].data);
-				break;
-			case PTI_ARGB1555:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_SHORT_1_5_5_5_REV, mips->mip[i].data);
-				break;
-			case PTI_RGB565:
-				qglTexImage2D(targface, j, compress?GL_COMPRESSED_RGBA_ARB:GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, mips->mip[i].data);
-				break;
-
-			//legacy formats
-			case PTI_RGB8:
-#ifdef GLESONLY
-				return false;
-#else
-				qglTexImage2D(targface, j, GL_RGB8, mips->mip[i].width, mips->mip[i].height, 0, GL_RGB, GL_UNSIGNED_BYTE, mips->mip[i].data);
-				break;
-#endif
-			case PTI_LUMINANCE8_ALPHA8:
-#ifdef GLESONLY
-				return false;
-#else
-				qglTexImage2D(targface, j, GL_LUMINANCE8_ALPHA8, mips->mip[i].width, mips->mip[i].height, 0, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, mips->mip[i].data);
-				break;
-#endif
-			//s3tc (desktop) compressed formats
-			case PTI_BC1_RGB:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB_S3TC_DXT1_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC1_RGBA:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC2_RGBA:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC3_RGBA:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC1_RGB_SRGB:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB_S3TC_DXT1_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC1_RGBA_SRGB:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC2_RGBA_SRGB:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC3_RGBA_SRGB:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			//atin/rgtc (desktop) compressed formats (derived from bc3's alpha channel)
-			case PTI_BC4_R8:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RED_RGTC1, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC4_R8_SIGNED:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SIGNED_RED_RGTC1, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC5_RG8:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RG_RGTC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC5_RG8_SIGNED:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SIGNED_RG_RGTC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			//bptc desktop formats
-			case PTI_BC6_RGBF:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC6_RGBF_SIGNED:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC7_RGBA:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA_BPTC_UNORM_ARB, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_BC7_RGBA_SRGB:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			//(mobile) compressed formats
-			case PTI_ETC1_RGB8:
-			case PTI_ETC2_RGB8:
-				//etc2 is a superset of etc1. we distinguish only for hardware that cannot recognise etc2's 'invalid' encodings
-				if (sh_config.texfmt[PTI_ETC2_RGB8])
-					qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB8_ETC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
+				if (tex->flags & IF_TEXTYPE)
+				{	//cubemap face
+					targface = cubeface[i%countof(cubeface)];
+					j = i/countof(cubeface);
+				}
 				else
-					qglCompressedTexImage2DARB(targface, j, GL_ETC1_RGB8_OES, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_ETC2_RGB8A1:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_ETC2_RGB8A8:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA8_ETC2_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_ETC2_RGB8_SRGB:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ETC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_ETC2_RGB8A1_SRGB:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_ETC2_RGB8A8_SRGB:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_EAC_R11:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_R11_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_EAC_R11_SIGNED:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SIGNED_R11_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_EAC_RG11:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RG11_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			case PTI_EAC_RG11_SIGNED:
-				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SIGNED_RG11_EAC, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
-				break;
-			//astc variations...
-			case PTI_ASTC_4X4:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_4x4_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_4X4_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_5X4:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_5x4_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_5X4_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_5X5:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_5x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_5X5_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_6X5:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_6x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_6X5_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_6X6:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_6x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_6X6_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_8X5:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_8x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_8X5_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_8X6:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_8x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_8X6_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_10X5:			qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_10x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_10X5_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_10X6:			qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_10x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_10X6_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_8X8:			qglCompressedTexImage2DARB(targface, j,         GL_COMPRESSED_RGBA_ASTC_8x8_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_8X8_SRGB:		qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_10X8:			qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_10x8_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_10X8_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_10X10:		qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_10x10_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_10X10_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_12X10:		qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_12x10_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_12X10_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_12X12:		qglCompressedTexImage2DARB(targface, j,        GL_COMPRESSED_RGBA_ASTC_12x12_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
-			case PTI_ASTC_12X12_SRGB:	qglCompressedTexImage2DARB(targface, j,GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR,	mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);	break;
+				{	//2d
+					targface = targ;
+					j = i;
+				}
+
+				if (!mips->mip[i].data)	//already specified by gltexstorage, don't bother wiping it or anything.
+					continue;
+
+				if (gl_config.formatinfo[encoding].type)
+					qglTexSubImage2D			(targface, j, 0, 0, mips->mip[i].width, mips->mip[i].height, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type, mips->mip[i].data);
+				else
+					qglCompressedTexSubImage2D	(targface, j, 0, 0, mips->mip[i].width, mips->mip[i].height,								ifmt, mips->mip[i].datasize,				 mips->mip[i].data);
 			}
 		}
+		else
+		{
+			for (i = 0; i < nummips; i++)
+			{
+				if (tex->flags & IF_TEXTYPE)
+				{	//cubemap face
+					targface = cubeface[i%countof(cubeface)];
+					j = i/countof(cubeface);
+				}
+				else
+				{	//2d
+					targface = targ;
+					j = i;
+				}
+
+				if (gl_config.formatinfo[encoding].type)
+					qglTexImage2D				(targface, j, ifmt, mips->mip[i].width, mips->mip[i].height, 0, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type,	mips->mip[i].data);
+				else
+					qglCompressedTexImage2DARB	(targface, j, ifmt, mips->mip[i].width, mips->mip[i].height, 0,								mips->mip[i].datasize,							mips->mip[i].data);
+			}
+		}
+
+#ifdef IMAGEFMT_KTX
+		if (compress && gl_compress.ival>1 && gl_config.formatinfo[encoding].type)
+		{
+			GLint fmt;
+			GLint csize;
+			struct pendingtextureinfo out = {mips->type};
+			out.type = mips->type;
+			out.mipcount = mips->mipcount;
+			out.encoding = 0;
+			out.extrafree = NULL;
+
+			qglGetTexLevelParameteriv(targ, 0, GL_TEXTURE_INTERNAL_FORMAT, &fmt);
+
+			switch(fmt)
+			{
+			case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:				out.encoding = PTI_BC1_RGB;				break;
+			case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:				out.encoding = PTI_BC1_RGBA;			break;
+			case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:				out.encoding = PTI_BC2_RGBA;			break;
+			case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:				out.encoding = PTI_BC3_RGBA;			break;
+			case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:				out.encoding = PTI_BC1_RGB_SRGB;		break;
+			case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:		out.encoding = PTI_BC1_RGBA_SRGB;		break;
+			case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:		out.encoding = PTI_BC2_RGBA_SRGB;		break;
+			case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:		out.encoding = PTI_BC3_RGBA_SRGB;		break;
+			case GL_COMPRESSED_RED_RGTC1:						out.encoding = PTI_BC4_R8;				break;
+			case GL_COMPRESSED_SIGNED_RED_RGTC1:				out.encoding = PTI_BC4_R8_SNORM;		break;
+			case GL_COMPRESSED_RG_RGTC2:						out.encoding = PTI_BC5_RG8;				break;
+			case GL_COMPRESSED_SIGNED_RG_RGTC2:					out.encoding = PTI_BC5_RG8_SNORM;		break;
+			case GL_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT_ARB:		out.encoding = PTI_BC6_RGB_UFLOAT;		break;
+			case GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT_ARB:		out.encoding = PTI_BC6_RGB_SFLOAT;		break;
+			case GL_COMPRESSED_RGBA_BPTC_UNORM_ARB:				out.encoding = PTI_BC7_RGBA;			break;
+			case GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM_ARB:		out.encoding = PTI_BC7_RGBA_SRGB;		break;
+			case GL_ETC1_RGB8_OES:								out.encoding = PTI_ETC1_RGB8;			break;
+			case GL_COMPRESSED_RGB8_ETC2:						out.encoding = PTI_ETC2_RGB8;			break;
+			case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2:	out.encoding = PTI_ETC2_RGB8A1;			break;
+			case GL_COMPRESSED_RGBA8_ETC2_EAC:					out.encoding = PTI_ETC2_RGB8A8;			break;
+			case GL_COMPRESSED_SRGB8_ETC2:						out.encoding = PTI_ETC2_RGB8_SRGB;		break;
+			case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2:	out.encoding = PTI_ETC2_RGB8A1_SRGB;	break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC:			out.encoding = PTI_ETC2_RGB8A8_SRGB;	break;
+			case GL_COMPRESSED_R11_EAC:							out.encoding = PTI_EAC_R11;				break;
+			case GL_COMPRESSED_SIGNED_R11_EAC:					out.encoding = PTI_EAC_R11_SNORM;		break;
+			case GL_COMPRESSED_RG11_EAC:						out.encoding = PTI_EAC_RG11;			break;
+			case GL_COMPRESSED_SIGNED_RG11_EAC:					out.encoding = PTI_EAC_RG11_SNORM;		break;
+			case GL_COMPRESSED_RGBA_ASTC_4x4_KHR:				out.encoding = PTI_ASTC_4X4;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_4x4_KHR:		out.encoding = PTI_ASTC_4X4_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_5x4_KHR:				out.encoding = PTI_ASTC_5X4;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x4_KHR:		out.encoding = PTI_ASTC_5X4_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_5x5_KHR:				out.encoding = PTI_ASTC_5X5;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_5x5_KHR:		out.encoding = PTI_ASTC_5X5_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_6x5_KHR:				out.encoding = PTI_ASTC_6X5;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x5_KHR:		out.encoding = PTI_ASTC_6X5_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_6x6_KHR:				out.encoding = PTI_ASTC_6X6;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_6x6_KHR:		out.encoding = PTI_ASTC_6X6_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_8x5_KHR:				out.encoding = PTI_ASTC_8X5;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x5_KHR:		out.encoding = PTI_ASTC_8X5_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_8x6_KHR:				out.encoding = PTI_ASTC_8X6;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x6_KHR:		out.encoding = PTI_ASTC_8X6_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_10x5_KHR:				out.encoding = PTI_ASTC_10X5;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x5_KHR:		out.encoding = PTI_ASTC_10X5_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_10x6_KHR:				out.encoding = PTI_ASTC_10X6;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x6_KHR:		out.encoding = PTI_ASTC_10X6_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_8x8_KHR:				out.encoding = PTI_ASTC_8X8;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_8x8_KHR:		out.encoding = PTI_ASTC_8X8_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_10x8_KHR:				out.encoding = PTI_ASTC_10X8;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x8_KHR:		out.encoding = PTI_ASTC_10X8_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_10x10_KHR:				out.encoding = PTI_ASTC_10X10;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_10x10_KHR:		out.encoding = PTI_ASTC_10X10_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_12x10_KHR:				out.encoding = PTI_ASTC_12X10;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x10_KHR:		out.encoding = PTI_ASTC_12X10_SRGB;		break;
+			case GL_COMPRESSED_RGBA_ASTC_12x12_KHR:				out.encoding = PTI_ASTC_12X12;			break;
+			case GL_COMPRESSED_SRGB8_ALPHA8_ASTC_12x12_KHR:		out.encoding = PTI_ASTC_12X12_SRGB;		break;
+			}
+
+			if (out.encoding)
+			{
+				for (i = 0; i < nummips; i++)
+				{
+					if (tex->flags & IF_TEXTYPE)
+					{	//cubemap face
+						targface = cubeface[i%countof(cubeface)];
+						j = i/countof(cubeface);
+					}
+					else
+					{	//2d
+						targface = targ;
+						j = i;
+					}
+
+					qglGetTexLevelParameteriv(targ, j, GL_TEXTURE_COMPRESSED_IMAGE_SIZE_ARB, &csize);
+					out.mip[i].datasize = csize;
+					out.mip[i].data = BZ_Malloc(csize);
+					out.mip[i].needfree = true;
+					out.mip[i].width = mips->mip[i].width;
+					out.mip[i].height = mips->mip[i].height;
+					out.mip[i].depth = mips->mip[i].depth;
+					qglGetCompressedTexImageARB(targ, j, out.mip[i].data);
+				}
+
+				Image_WriteKTXFile(va("textures/%s.ktx", tex->ident), &out);
+			}
+		}
+#endif
 	}
 
 	return true;

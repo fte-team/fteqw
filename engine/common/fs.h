@@ -57,15 +57,15 @@ struct searchpathfuncs_s
 
 //the stdio filesystem is special as that's the starting point of the entire filesystem
 //warning: the handle is known to be a string pointer to the dir name
-extern searchpathfuncs_t *(QDECL VFSOS_OpenPath) (vfsfile_t *file, const char *desc, const char *prefix);
-extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
-extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
-extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *packhandle, const char *desc, const char *prefix);
-extern searchpathfuncs_t *(QDECL FSDZ_LoadArchive) (vfsfile_t *file, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL VFSOS_OpenPath)	(vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
+extern searchpathfuncs_t *(QDECL FSDZ_LoadArchive)	(vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
 vfsfile_t *QDECL VFSOS_Open(const char *osname, const char *mode);
 vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, vfsfile_t *outfile);
 
-int FS_RegisterFileSystemType(void *module, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc, const char *prefix), qboolean loadscan);
+int FS_RegisterFileSystemType(void *module, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix), qboolean loadscan);
 void FS_UnRegisterFileSystemType(int idx);
 void FS_UnRegisterFileSystemModule(void *module);
 

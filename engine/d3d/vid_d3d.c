@@ -444,7 +444,7 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 
 static void D3D9_VID_SwapBuffers(void)
 {
-	if (d3dpp.Windowed && (vid_srgb.ival==1 || vid.srgb))
+	if (vid.flags&VID_SRGB_FB_FAKED)
 	{
 		IDirect3DSwapChain9 *swapchain;
 		IDirect3DDevice9_GetSwapChain(pD3DDev9, 0, &swapchain);
@@ -526,6 +526,8 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 	{
 		if (info->bpp == 16)
 			d3dpp.BackBufferFormat = D3DFMT_R5G6B5;
+		else if (info->bpp == 30)
+			d3dpp.BackBufferFormat = D3DFMT_A2R10G10B10;
 		else
 			d3dpp.BackBufferFormat = D3DFMT_X8R8G8B8;
 	}
@@ -580,6 +582,8 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 
 		vid.numpages = d3dpp.BackBufferCount;
 
+		vid.flags = VID_SRGB_CAPABLE;
+
 		if (d3dpp.Windowed)	//fullscreen we get positioned automagically.
 		{					//windowed, we get positioned at 0,0... which is often going to be on the wrong screen
 							//the user can figure it out from here
@@ -619,6 +623,10 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 				{PTI_RGB565,		D3DFMT_R5G6B5,		D3DUSAGE_QUERY_FILTER},
 				{PTI_ARGB1555,		D3DFMT_A1R5G5B5,	D3DUSAGE_QUERY_FILTER},
 				{PTI_ARGB4444,		D3DFMT_A4R4G4B4,	D3DUSAGE_QUERY_FILTER},
+				{PTI_A2BGR10,		D3DFMT_A2B10G10R10,	D3DUSAGE_QUERY_FILTER},
+				{PTI_RGBA16F,		D3DFMT_A16B16G16R16F,	D3DUSAGE_QUERY_FILTER},
+				{PTI_RGBA32F,		D3DFMT_A32B32G32R32F,	D3DUSAGE_QUERY_FILTER},
+				{PTI_L8,			D3DFMT_L8,			D3DUSAGE_QUERY_FILTER},
 
 				{PTI_BGRX8_SRGB,	D3DFMT_X8R8G8B8,	D3DUSAGE_QUERY_FILTER|D3DUSAGE_QUERY_SRGBREAD},
 				{PTI_BGRA8_SRGB,	D3DFMT_A8R8G8B8,	D3DUSAGE_QUERY_FILTER|D3DUSAGE_QUERY_SRGBREAD},
@@ -639,10 +647,10 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 
 		//fixme: the engine kinda insists on rgba textures, which d3d9 does NOT support.
 		//we currently have some swapping, so these load, just slowly.
-		sh_config.texfmt[PTI_RGBX8] = sh_config.texfmt[PTI_BGRX8];
-		sh_config.texfmt[PTI_RGBA8] = sh_config.texfmt[PTI_BGRA8];
-		sh_config.texfmt[PTI_RGBX8_SRGB] = sh_config.texfmt[PTI_BGRX8_SRGB];
-		sh_config.texfmt[PTI_RGBA8_SRGB] = sh_config.texfmt[PTI_BGRA8_SRGB];
+		sh_config.texfmt[PTI_RGBX8] |= sh_config.texfmt[PTI_BGRX8];
+		sh_config.texfmt[PTI_RGBA8] |= sh_config.texfmt[PTI_BGRA8];
+		sh_config.texfmt[PTI_RGBX8_SRGB] |= sh_config.texfmt[PTI_BGRX8_SRGB];
+		sh_config.texfmt[PTI_RGBA8_SRGB] |= sh_config.texfmt[PTI_BGRA8_SRGB];
 
 		return true;	//successful
 	}
@@ -975,7 +983,7 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 		return false;                         // not initialized yet
 	}
 
-	if (d3d_resized && d3dpp.Windowed)
+	if (d3d_resized/* && d3dpp.Windowed*/)
 	{
 		extern cvar_t vid_conautoscale, vid_conwidth;
 		d3d_resized = false;
@@ -998,7 +1006,11 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 	if (vid_srgb.modified)
 	{
 		vid_srgb.modified = false;
-		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SRGBWRITEENABLE, (vid_srgb.ival==1 || vid.srgb) && !d3dpp.Windowed);
+		vid.flags &= VID_SRGB_FB;
+		if ((vid.flags & VID_SRGBAWARE) || vid_srgb.ival)
+			vid.flags |= (d3dpp.Windowed)?VID_SRGB_FB_FAKED:VID_SRGB_FB_LINEAR;
+
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SRGBWRITEENABLE, !!(vid.flags&VID_SRGB_FB_LINEAR));
 	}
 
 	switch (IDirect3DDevice9_TestCooperativeLevel(pD3DDev9))
@@ -1168,8 +1180,14 @@ static qboolean	(D3D9_SCR_UpdateScreen)			(void)
 
 static void	(D3D9_Draw_Init)				(void)
 {
-	vid.srgb = vid_srgb.ival>1;
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SRGBWRITEENABLE, (vid_srgb.ival==1 || vid.srgb) && !d3dpp.Windowed);
+	{
+		vid_srgb.modified = false;
+		vid.flags &= VID_SRGB_FB;
+		if ((vid.flags & VID_SRGBAWARE) || vid_srgb.ival)
+			vid.flags |= (d3dpp.Windowed)?VID_SRGB_FB_FAKED:VID_SRGB_FB_LINEAR;
+
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SRGBWRITEENABLE, !!(vid.flags&VID_SRGB_FB_LINEAR));
+	}
 
 	R2D_Init();
 }

@@ -44,30 +44,40 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 ./gl/gl_draw.c:3251: error: for each function it appears in.)
 */
 #ifndef GL_EXT_bgra
-#define GL_BGR_EXT                        0x80E0	/*core in opengl 1.2*/
-#define GL_BGRA_EXT                       0x80E1
+#define GL_BGR_EXT							0x80E0	/*core in opengl 1.2*/
+#define GL_BGRA_EXT							0x80E1
 #endif
 
 #ifndef GL_UNSIGNED_INT_8_8_8_8_REV
-#define GL_UNSIGNED_INT_8_8_8_8_REV       0x8367	/*opengl 1.2*/
+#define GL_UNSIGNED_INT_8_8_8_8_REV			0x8367	/*opengl 1.2*/
 #endif
-
+#ifndef GL_UNSIGNED_INT_2_10_10_10_REV
+#define GL_UNSIGNED_INT_2_10_10_10_REV		0x8368	/*opengl 1.2*/
+#endif
+#ifndef GL_UNSIGNED_INT_5_9_9_9_REV
+#define GL_UNSIGNED_INT_5_9_9_9_REV			0x8C3E	/*opengl 3.0*/
+#endif
 #ifndef GL_UNSIGNED_SHORT_4_4_4_4_REV
-#define GL_UNSIGNED_SHORT_4_4_4_4_REV      0x8365
+#define GL_UNSIGNED_SHORT_4_4_4_4_REV		0x8365
 #endif
 #ifndef GL_UNSIGNED_SHORT_1_5_5_5_REV
-#define GL_UNSIGNED_SHORT_1_5_5_5_REV      0x8366
+#define GL_UNSIGNED_SHORT_1_5_5_5_REV		0x8366
 #endif
 #ifndef GL_UNSIGNED_SHORT_4_4_4_4
-#define GL_UNSIGNED_SHORT_4_4_4_4         0x8033
+#define GL_UNSIGNED_SHORT_4_4_4_4			0x8033
 #endif
 #ifndef GL_UNSIGNED_SHORT_5_5_5_1
-#define GL_UNSIGNED_SHORT_5_5_5_1         0x8034
+#define GL_UNSIGNED_SHORT_5_5_5_1			0x8034
 #endif
 #ifndef GL_UNSIGNED_SHORT_5_6_5
-#define GL_UNSIGNED_SHORT_5_6_5           0x8363
+#define GL_UNSIGNED_SHORT_5_6_5				0x8363
 #endif
-
+#ifndef GL_HALF_FLOAT
+#define GL_HALF_FLOAT						0x140B		/*GL_ARB_half_float_pixel*/
+#endif
+#ifndef GL_HALF_FLOAT_OES
+#define GL_HALF_FLOAT_OES					0x8D61		/*GL_OES_texture_half_float*/
+#endif
 
 #ifndef GL_ARB_multitexture
 #define GL_ARB_multitexture 1
@@ -124,6 +134,11 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 #define GL_MAX_CUBE_MAP_TEXTURE_SIZE_ARB  0x851C
 #endif
 
+#ifndef GL_TEXTURE_2D_ARRAY				//gl 3.0 or GL_EXT_texture_array
+#define GL_TEXTURE_2D_ARRAY				0x8C1A
+#endif
+
+
 #ifndef GL_ARB_depth_texture
 #define GL_ARB_depth_texture
 #define GL_DEPTH_COMPONENT16_ARB          0x81A5
@@ -131,6 +146,9 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 #define GL_DEPTH_COMPONENT32_ARB          0x81A7
 #define GL_TEXTURE_DEPTH_SIZE_ARB         0x884A
 #define GL_DEPTH_TEXTURE_MODE_ARB         0x884B
+#endif
+#ifndef GL_DEPTH_COMPONENT32F
+#define GL_DEPTH_COMPONENT32F	0x8CAC
 #endif
 
 //GL_OES_depth_texture adds this because gles otherwise lacks it.
@@ -654,6 +672,24 @@ typedef void		(APIENTRYP PFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei
 #define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT 0x8C4E
 #define GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT 0x8C4F
 #endif /* GL_EXT_texture_sRGB */
+
+#ifndef GL_RG
+#define GL_RG                             0x8227
+#define GL_RGB9_E5                        0x8C3D	/*opengl 3.0*/
+#define GL_R8                             0x8229	/*opengl 3.0*/
+#define GL_RG8                            0x822B	/*opengl 3.0*/
+#endif
+#ifndef GL_RG8_SNORM
+#define GL_R8_SNORM                       0x8F94	/*opengl 3.1*/
+#define GL_RG8_SNORM                      0x8F95	/*opengl 3.1*/
+#endif
+
+#ifndef GL_TEXTURE_SWIZZLE_R
+#define GL_TEXTURE_SWIZZLE_R              0x8E42
+#define GL_TEXTURE_SWIZZLE_G              0x8E43
+#define GL_TEXTURE_SWIZZLE_B              0x8E44
+#define GL_TEXTURE_SWIZZLE_A              0x8E45
+#endif
 
 #ifndef GL_ETC1_RGB8_OES
 #define GL_ETC1_RGB8_OES 0x8D64	//4*4 blocks of 8 bytes

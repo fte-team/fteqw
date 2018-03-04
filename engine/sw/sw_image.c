@@ -48,7 +48,7 @@ qboolean	SW_LoadTextureMips		(texid_t tex, const struct pendingtextureinfo *mips
 	if (mips->type != PTI_2D)
 		return false;
 
-	//ensure we reject any s3tc encodings
+	//only accept formats that actually make sense here.
 	switch(mips->encoding)
 	{
 	case PTI_RGBA8:

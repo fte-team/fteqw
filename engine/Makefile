@@ -611,7 +611,6 @@ endif
 CLIENT_OBJS = \
 	textedit.o	\
 	fragstats.o	\
-	teamplay.o	\
 	zqtp.o	\
 	cl_demo.o	\
 	cl_ents.o	\

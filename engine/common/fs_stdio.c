@@ -336,7 +336,7 @@ static qboolean QDECL FSSTDIO_FileStat (searchpathfuncs_t *handle, flocation_t *
 }
 
 
-searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc, const char *prefix)
+searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix)
 {
 	stdiopath_t *np;
 	int dlen = strlen(desc);

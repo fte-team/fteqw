@@ -23,7 +23,7 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 	qbyte *fte_restrict out, *fte_restrict in;
 	int x, y, i;
 	D3DLOCKED_RECT lock;
-	D3DFORMAT fmt;
+	D3DFORMAT fmt = D3DFMT_UNKNOWN;
 	D3DSURFACE_DESC desc;
 	IDirect3DBaseTexture9 *dbt;
 	qboolean swap = false;
@@ -65,6 +65,10 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 		fmt = D3DFMT_X8R8G8B8;
 		break;
 
+	case PTI_A2BGR10:
+		fmt = D3DFMT_A2B10G10R10;
+		break;
+
 	//too lazy to support these for now
 	case PTI_BC1_RGB_SRGB:
 	case PTI_BC1_RGBA_SRGB:	//d3d doesn't distinguish between these
@@ -84,9 +88,12 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 	//bc4-7 not supported on d3d9.
 	//etc2 have no chance.
 
-	default:	//no idea
-		return false;
+	case PTI_EMULATED:	//no idea
+	default:
+		break;
 	}
+	if (fmt == D3DFMT_UNKNOWN)
+		return false;
 
 	Image_BlockSizeForEncoding(mips->encoding, &blockbytes, &blockwidth, &blockheight);
 
@@ -136,7 +143,7 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 			IDirect3DCubeTexture9_UnlockRect(dt, i%6, i/6);
 		}
 	}
-	else
+	else if (mips->type == PTI_2D)
 	{
 		IDirect3DTexture9 *dt;
 		if (FAILED(IDirect3DDevice9_CreateTexture(pD3DDev9, mips->mip[0].width, mips->mip[0].height, mips->mipcount, 0, fmt, D3DPOOL_MANAGED, &dt, NULL)))
@@ -180,6 +187,8 @@ qboolean D3D9_LoadTextureMips(image_t *tex, const struct pendingtextureinfo *mip
 			IDirect3DTexture9_UnlockRect(dt, i);
 		}
 	}
+	else
+		dbt = NULL;
 	D3D9_DestroyTexture(tex);
 	tex->ptr = dbt;
 

@@ -154,7 +154,7 @@ void Sys_Shutdown(void)
 }
 
 //this is already done using the ppapi event callback. can't poll any of this stuff.
-void INS_Move(float *movements, int pnum)
+void INS_Move(void)
 {
 }
 void INS_Commands(void)

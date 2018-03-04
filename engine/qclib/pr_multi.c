@@ -267,7 +267,10 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 				*/
 				if (prinst.field[i].type != ev_vector || type != ev_float)
 				{
-					printf("Field type mismatch on \"%s\". %i != %i\n", name, prinst.field[i].type, type);
+					if (prinst.field[i].type == ev_string && type == ev_float && !strcmp(name, "message"))
+						;	//hexen2 uses floats here instead of strings.
+					else
+						printf("Field type mismatch on \"%s\". %i != %i\n", name, prinst.field[i].type, type);
 					continue;
 				}
 			}

@@ -167,10 +167,12 @@ typedef struct
 	int nummappings;
 	int maxmappings;
 	qbyte geomset[MAX_GEOMSETS];	//allows selecting a single set of geometry from alternatives. this might be a can of worms.
+#ifdef QWSKINS
 	char qwskinname[MAX_QPATH];
 	struct qwskin_s *qwskin;
 	unsigned int q1upper;	//Q1UNSPECIFIED
 	unsigned int q1lower;	//Q1UNSPECIFIED
+#endif
 	struct
 	{
 		char surface[MAX_QPATH];
@@ -414,7 +416,7 @@ enum imageflags
 	IF_NOGAMMA = 1<<9,
 	IF_3DMAP = 1<<10,	/*waning - don't test directly*/
 	IF_CUBEMAP = 1<<11,	/*waning - don't test directly*/
-	IF_TEXTYPE = (1<<10) | (1<<11), /*0=2d, 1=3d, 2=cubeface, 3=?*/
+	IF_TEXTYPE = (1<<10) | (1<<11), /*0=2d, 1=3d, 2=cubeface, 3=2d array texture*/
 	IF_TEXTYPESHIFT = 10, /*0=2d, 1=3d, 2-7=cubeface*/
 	IF_MIPCAP = 1<<12,
 	IF_PREMULTIPLYALPHA = 1<<13,	//rgb *= alpha
@@ -449,7 +451,8 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 void Image_Purge(void);	//purge any textures which are not needed any more (releases memory, but doesn't give null pointers).
 void Image_Init(void);
 void Image_Shutdown(void);
-void Image_BlockSizeForEncoding(unsigned int encoding, unsigned int *blockbytes, unsigned int *blockwidth, unsigned int *blockheight);
+void Image_BlockSizeForEncoding(uploadfmt_t encoding, unsigned int *blockbytes, unsigned int *blockwidth, unsigned int *blockheight);
+const char *Image_FormatName(uploadfmt_t encoding);
 
 image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
 
@@ -645,7 +648,9 @@ extern	cvar_t	r_lightstylesmooth_limit;
 extern	cvar_t	r_lightstylespeed;
 extern	cvar_t	r_lightstylescale;
 extern	cvar_t	r_lightmap_scale;
+#ifdef QWSKINS
 extern	cvar_t	gl_nocolors;
+#endif
 extern	cvar_t	gl_load24bit;
 extern	cvar_t	gl_finish;
 

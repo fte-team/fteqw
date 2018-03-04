@@ -46,7 +46,7 @@ typedef struct {
 	int fullscreen;	//0 = windowed. 1 = fullscreen (mode changes). 2 = borderless+maximized
 	qboolean stereo;
 	qboolean srgb;
-	int bpp;
+	int bpp;	//16, 24(aka 32), 30, and 48 are meaningful
 	int rate;
 	int wait;	//-1 = default, 0 = off, 1 = on, 2 = every other
 	int multisample;	//for opengl antialiasing (which requires context stuff)
@@ -72,6 +72,15 @@ typedef struct
 	int maxheight;	//vid.pixelheight or so
 } pxrect_t;
 
+//srgb colourspace displays smoother visual gradients, but its more of an illusion than anything else.
+//
+#define VID_SRGBAWARE			(1u<<0)	//we need to convert input srgb values to actual linear values (requires vid_reload to change...)
+#define VID_SRGB_FB_LINEAR		(1u<<1) //framebuffer is linear (either the presentation engine is linear, or the blend unit is faking it)
+#define VID_SRGB_FB_FAKED		(1u<<2) //renderer is faking it with a linear texture
+#define VID_SRGB_CAPABLE		(1u<<3)	//we can toggle VID_SRGB_FB_LINEARISED on or off.
+#define VID_FP16				(1u<<4)	//use 16bit currentrender etc to avoid banding
+#define VID_SRGB_FB (VID_SRGB_FB_LINEAR|VID_SRGB_FB_FAKED)
+
 typedef struct
 {
 	qboolean		activeapp;
@@ -89,7 +98,7 @@ typedef struct
 	unsigned		height; /*virtual 2d screen height*/
 
 	int				numpages;
-	qboolean		srgb;	/*we're forcing linear fragment shaders, both inputs and outputs (and not using srgb as a gamma hack)*/
+	unsigned int	flags;	//VID_* flags
 
 	unsigned		rotpixelwidth; /*width after rotation in pixels*/
 	unsigned		rotpixelheight; /*pixel after rotation in pixels*/
@@ -103,7 +112,9 @@ typedef struct
 extern	viddef_t	vid;				// global video state
 
 extern unsigned int	d_8to24rgbtable[256];
+extern unsigned int	d_8to24srgbtable[256];
 extern unsigned int	d_8to24bgrtable[256];
+extern unsigned int	d_quaketo24srgbtable[256];
 
 #ifdef GLQUAKE
 //called when gamma ramps need to be reapplied

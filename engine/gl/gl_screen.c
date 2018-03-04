@@ -64,12 +64,38 @@ qboolean GLSCR_UpdateScreen (void)
 	int uimenu;
 	qboolean nohud;
 	qboolean noworld;
+	extern cvar_t vid_srgb;
 
 	r_refdef.pxrect.maxheight = vid.pixelheight;
 
 	vid.numpages = 2 + vid_triplebuffer.value;
 
 	R2D_Font_Changed();
+
+	if (vid_srgb.modified)
+	{
+		vid_srgb.modified = false;
+
+		//vid_srgb can be changed between 0 and 1, but other values need texture reloads. do that without too much extra weirdness.
+		if ((vid.flags & VID_SRGB_CAPABLE) && gl_config.arb_framebuffer_srgb)
+		{	//srgb-capable
+			if (vid_srgb.ival > 1 && (vid.flags & VID_SRGBAWARE))
+			{	//full srgb wanted (and textures are loaded)
+				qglEnable(GL_FRAMEBUFFER_SRGB);
+				vid.flags |= VID_SRGB_FB_LINEAR;
+			}
+			else if (vid_srgb.ival==1 || (vid.flags & VID_SRGBAWARE))
+			{	//srgb wanted only for the framebuffer, for gamma tricks.
+				qglEnable(GL_FRAMEBUFFER_SRGB);
+				vid.flags |= VID_SRGB_FB_LINEAR;
+			}
+			else
+			{	//srgb not wanted...
+				qglDisable(GL_FRAMEBUFFER_SRGB);
+				vid.flags &= ~VID_SRGB_FB_LINEAR;
+			}
+		}
+	}
 
 	if (!scr_initialized || !con_initialized)
 	{

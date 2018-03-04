@@ -163,6 +163,7 @@ typedef struct player_info_s
 	float	teamstatustime;
 
 	// scoreboard information
+	int		spectator;
 	char	name[MAX_SCOREBOARDNAME];
 	char	team[MAX_INFO_KEY];
 	float	realentertime;	//pegged against realtime, to cope with potentially not knowing the server's time when we first receive this message
@@ -185,21 +186,27 @@ typedef struct player_info_s
 	qboolean ignored;
 	qboolean vignored;
 
-	colourised_t *colourised;
-
 	// skin information
 	unsigned int		rtopcolor;	//real, according to their userinfo
 	unsigned int		rbottomcolor;
 
+#ifdef QWSKINS
+	colourised_t *colourised;
+
+	qwskin_t	*qwskin;
+	qwskin_t	*lastskin;	//last-known-good skin
+
 	unsigned int		ttopcolor;	//team, according to colour forcing
 	unsigned int		tbottomcolor;
 
-	int			spectator;
-	qwskin_t	*qwskin;
-	qwskin_t	*lastskin;	//last-known-good skin
-	skinid_t	skinid;
-
 	struct model_s	*model;
+	#define dtopcolor ttopcolor
+	#define dbottomcolor tbottomcolor
+#else
+	#define dtopcolor rtopcolor
+	#define dbottomcolor rbottomcolor
+#endif
+	skinid_t	skinid;
 
 //	unsigned short vweapindex;
 #ifdef HEXEN2

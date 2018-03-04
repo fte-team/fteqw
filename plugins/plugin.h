@@ -199,20 +199,20 @@ EBUILTIN(void *, Plug_GetNativePointer, (const char *funcname));
 #endif
 EBUILTIN(void, Con_Print, (const char *text));	//on to main console.
 
-EBUILTIN(qhandle_t, Con_POpen, (const char *conname, unsigned int flags));
+EBUILTIN(qhandle_t, Con_POpen, (const char *conname, quintptr_t flags));
 EBUILTIN(void, Con_SubPrint, (const char *subname, const char *text));	//on to sub console.
 EBUILTIN(void, Con_RenameSub, (const char *oldname, const char *newname));	//rename a console.
 EBUILTIN(int, Con_IsActive, (const char *conname));
 EBUILTIN(void, Con_SetActive, (const char *conname));
 EBUILTIN(void, Con_Destroy, (const char *conname));
-EBUILTIN(void, Con_NameForNum, (int connum, char *conname, int connamelen));
+EBUILTIN(void, Con_NameForNum, (qintptr_t connum, char *conname, quintptr_t connamelen));
 EBUILTIN(float, Con_GetConsoleFloat, (const char *conname, const char *attribname));
 EBUILTIN(void, Con_SetConsoleFloat, (const char *conname, const char *attribname, float newvalue));
-EBUILTIN(int, Con_GetConsoleString, (const char *conname, const char *attribname, const char *value, unsigned int valuesize));
+EBUILTIN(int, Con_GetConsoleString, (const char *conname, const char *attribname, const char *value, quintptr_t valuesize));
 EBUILTIN(void, Con_SetConsoleString, (const char *conname, const char *attribname, const char *newvalue));
 
 EBUILTIN(void, Sys_Error, (const char *message));	//abort the entire engine.
-EBUILTIN(unsigned int, Sys_Milliseconds, ());
+EBUILTIN(quintptr_t, Sys_Milliseconds, ());
 
 EBUILTIN(int, Cmd_AddCommand, (const char *buffer));	//abort the entire engine.
 EBUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//abort the entire engine.
@@ -223,7 +223,7 @@ EBUILTIN(void, Cmd_Tokenize, (const char *msg));	//abort the entire engine.
 
 EBUILTIN(void, Cvar_SetString, (const char *name, const char *value));
 EBUILTIN(void, Cvar_SetFloat, (const char *name, float value));
-EBUILTIN(qboolean, Cvar_GetString, (const char *name, char *retstring, int sizeofretstring));
+EBUILTIN(qboolean, Cvar_GetString, (const char *name, char *retstring, quintptr_t sizeofretstring));
 EBUILTIN(float, Cvar_GetFloat, (const char *name));
 EBUILTIN(qhandle_t,	Cvar_Register, (const char *name, const char *defaultval, int flags, const char *grouphint));
 EBUILTIN(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.

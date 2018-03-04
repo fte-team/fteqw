@@ -194,7 +194,7 @@ typedef struct
 	qbyte		nqmulticast_buf[MAX_NQMSGLEN];
 #endif
 
-
+#ifdef Q2SERVER
 	sizebuf_t	q2datagram;
 	qbyte		q2datagram_buf[MAX_Q2DATAGRAM];
 
@@ -203,6 +203,7 @@ typedef struct
 
 	sizebuf_t	q2multicast;
 	qbyte		q2multicast_buf[MAX_Q2MSGLEN];
+#endif
 
 	// the master buffer is used for building log packets
 	sizebuf_t	master;

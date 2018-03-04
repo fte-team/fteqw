@@ -827,8 +827,6 @@ static qboolean D3D8_VID_Init(rendererstate_t *info, unsigned char *palette)
 	vid.width = width;
 	vid.height = height;
 
-	vid.srgb = false;
-
 	vid_initializing = false;
 
 	IDirect3DDevice8_SetRenderState(pD3DDev8, D3DRS_LIGHTING, FALSE);

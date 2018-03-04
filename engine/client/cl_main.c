@@ -4116,8 +4116,10 @@ void CL_Init (void)
 	extern void CL_Say_f (void);
 	extern void CL_SayMe_f (void);
 	extern void CL_SayTeam_f (void);
+#ifdef QWSKINS
 	extern	cvar_t		baseskin;
 	extern	cvar_t		noskins;
+#endif
 	char *ver;
 
 	cls.state = ca_disconnected;
@@ -4204,8 +4206,10 @@ void CL_Init (void)
 
 	Cvar_Register (&cl_muzzleflash, cl_controlgroup);
 
+#ifdef QWSKINS
 	Cvar_Register (&baseskin,	"Teamplay");
 	Cvar_Register (&noskins,	"Teamplay");
+#endif
 	Cvar_Register (&cl_noblink,	"Console controls");	//for lack of a better group
 
 	Cvar_Register (&cl_item_bobbing, "Item effects");
@@ -4335,7 +4339,9 @@ void CL_Init (void)
 	Cmd_AddCommand ("stopdemo", CL_Stopdemo_f);
 
 	Cmd_AddCommand ("skins", Skin_Skins_f);
+#ifdef QWSKINS
 	Cmd_AddCommand ("allskins", Skin_AllSkins_f);
+#endif
 
 	Cmd_AddCommand ("cl_status", CL_Status_f);
 	Cmd_AddCommandD ("quit", CL_Quit_f, "Use this command when you get angry. Does not save any cvars. Use cfg_save to save settings, or use the menu for a prompt.");
@@ -5518,12 +5524,13 @@ double Host_Frame (double time)
 //		host_frametime = 0.2;
 
 	// get new key events
-	Sys_SendKeyEvents ();
+	Sys_SendKeyEvents ();	//from windowing system
+	INS_Move();				//from things that need special polling
 
-	// allow mice or other external controllers to add commands
+	// check what we got, and handle any click/button events
 	IN_Commands ();
 
-	// process console commands
+	// process console commands from said click/button events
 	Cbuf_Execute ();
 
 #ifndef CLIENTONLY
@@ -5542,6 +5549,8 @@ double Host_Frame (double time)
 
 	// fetch results from server
 	CL_ReadPackets ();
+
+	CL_RequestNextDownload();
 
 	// send intentions now
 	// resend a connection request if necessary
@@ -5669,12 +5678,10 @@ double Host_Frame (double time)
 	}
 
 
-	IN_Commands ();
+//	IN_Commands ();
 
 	// process console commands
-	Cbuf_Execute ();
-
-	CL_RequestNextDownload();
+//	Cbuf_Execute ();
 
 
 	CL_QTVPoll();

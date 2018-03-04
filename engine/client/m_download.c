@@ -373,11 +373,11 @@ void PM_ValidatePackage(package_t *p)
 						searchpathfuncs_t *archive;
 
 						if (!Q_strcasecmp(COM_FileExtension(n, buf, sizeof(buf)), "pak"))
-							archive = FSPAK_LoadArchive(pf, n, NULL);
+							archive = FSPAK_LoadArchive(pf, NULL, n, n, NULL);
 						else
 						{
 #ifdef AVAIL_ZLIB					//assume zip/pk3/pk4/apk/etc
-							archive = FSZIP_LoadArchive(pf, n, NULL);
+							archive = FSZIP_LoadArchive(pf, NULL, n, n, NULL);
 #else
 							archive = NULL;
 #endif
@@ -1956,7 +1956,7 @@ static void PM_Download_Got(struct dl_download *dl)
 			vfsfile_t *f = FS_OpenVFS(tempname, "rb", p->fsroot);
 			if (f)
 			{
-				searchpathfuncs_t *archive = FSZIP_LoadArchive(f, tempname, NULL);
+				searchpathfuncs_t *archive = FSZIP_LoadArchive(f, NULL, tempname, tempname, NULL);
 				if (archive)
 				{
 					p->flags &= ~(DPF_NATIVE|DPF_CACHED|DPF_CORRUPT|DPF_ENABLED);

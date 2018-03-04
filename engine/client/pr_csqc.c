@@ -931,8 +931,8 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	if (ival > 0 && ival <= MAX_CLIENTS)
 	{
 		out->playerindex = ival - 1;
-		out->topcolour = cl.players[ival-1].ttopcolor;
-		out->bottomcolour = cl.players[ival-1].tbottomcolor;
+		out->topcolour = cl.players[ival-1].dtopcolor;
+		out->bottomcolour = cl.players[ival-1].dbottomcolor;
 	}
 	else if (ival /*>= 1024*/)
 	{
@@ -3732,7 +3732,7 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 //	}
 	else if (!strcmp(keyname, "topcolor_rgb"))	//packet loss
 	{
-		unsigned int col = cl.players[pnum].ttopcolor;
+		unsigned int col = cl.players[pnum].dtopcolor;
 		ret = buffer;
 		if (col < 16)
 		{
@@ -3744,7 +3744,7 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 	}
 	else if (!strcmp(keyname, "bottomcolor_rgb"))	//packet loss
 	{
-		unsigned int col = cl.players[pnum].tbottomcolor;
+		unsigned int col = cl.players[pnum].dbottomcolor;
 		ret = buffer;
 		if (col < 16)
 		{
@@ -5289,10 +5289,10 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 			AngleVectorsIndex(le->angles, ps->modelindex, NULL, NULL, G_VECTOR(OFS_RETURN));
 			break;
 		case GE_PANTSCOLOR:
-			G_FLOAT(OFS_RETURN) = cl.players[entnum-1].tbottomcolor;
+			G_FLOAT(OFS_RETURN) = cl.players[entnum-1].dbottomcolor;
 			break;
 		case GE_SHIRTCOLOR:
-			G_FLOAT(OFS_RETURN) = cl.players[entnum-1].ttopcolor;
+			G_FLOAT(OFS_RETURN) = cl.players[entnum-1].dtopcolor;
 			break;
 		case GE_LIGHT:
 			G_FLOAT(OFS_RETURN) = 0;
@@ -5437,13 +5437,13 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 		break;
 	case GE_PANTSCOLOR:
 		if (es->colormap <= cl.allocated_client_slots && !(es->dpflags & RENDER_COLORMAPPED))
-			G_FLOAT(OFS_RETURN) = cl.players[es->colormap].tbottomcolor;
+			G_FLOAT(OFS_RETURN) = cl.players[es->colormap].dbottomcolor;
 		else
 			G_FLOAT(OFS_RETURN) = es->colormap & 15;
 		break;
 	case GE_SHIRTCOLOR:
 		if (es->colormap <= cl.allocated_client_slots && !(es->dpflags & RENDER_COLORMAPPED))
-			G_FLOAT(OFS_RETURN) = cl.players[es->colormap].ttopcolor;
+			G_FLOAT(OFS_RETURN) = cl.players[es->colormap].dtopcolor;
 		else
 			G_FLOAT(OFS_RETURN) = es->colormap>>4;
 		break;
@@ -6137,6 +6137,7 @@ static struct {
 
 	{"skel_create",				PF_skel_create,			263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_build",				PF_skel_build,			264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addition) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build_ptr",			PF_skel_build_ptr,		0},//float(float skel, int numblends, __variant *blends, int blendsize) skel_build_ptr = #0;
 	{"skel_get_numbones",		PF_skel_get_numbones,	265},//float(float skel) skel_get_numbones = #265; // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_get_bonename",		PF_skel_get_bonename,	266},//string(float skel, float bonenum) skel_get_bonename = #266; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
 	{"skel_get_boneparent",		PF_skel_get_boneparent,	267},//float(float skel, float bonenum) skel_get_boneparent = #267; // (FTE_CSQC_SKELETONOBJECTS)

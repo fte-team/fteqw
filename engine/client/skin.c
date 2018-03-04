@@ -19,8 +19,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
-#include "glquake.h"
 
+#ifdef QWSKINS
 cvar_t		baseskin = CVAR("baseskin", "");
 cvar_t		noskins = CVAR("noskins", "0");
 
@@ -618,5 +618,27 @@ void Skin_FlushSkin(char *name)
 		}
 	}
 }
+#else
+void Skin_FlushPlayers(void)
+{
+}
+//required for the qw protocol (server stuffcmds 'skins' to get the client to send 'begin'. *sigh*
+void	Skin_Skins_f (void)
+{
+	if (cls.state == ca_disconnected)
+	{
+		Con_Printf ("Can't \"%s\", not connected\n", Cmd_Argv(0));
+		return;
+	}
 
+	R_GAliasFlushSkinCache(false);
+
+//	if (Cmd_FromServer())
+	{
+		SCR_SetLoadingStage(LS_NONE);
+
+		CL_SendClientCommand(true, "begin %i", cl.servercount);
+	}
+}
+#endif
 

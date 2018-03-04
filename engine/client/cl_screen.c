@@ -2538,6 +2538,18 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer,
 	}
 	else if (!Q_strcasecmp(ext, "tga"))	//tga
 		return WriteTGA(filename, fsroot, buffer[0], bytestride, width, height, fmt);
+	/*else if (!Q_strcasecmp(ext, "ktx"))	//ktx
+	{
+		struct pendingtextureinfo out = {PTI_2D};
+		out.encoding = fmt;
+		out.mipcount = 1;
+		out.mip[0].data = buffer[0];
+		out.mip[0].datasize = bytestride*height;
+		out.mip[0].width = width;
+		out.mip[0].height = height;
+		out.mip[0].depth = 1;
+		return Image_WriteKTXFile(filename, fsroot, &out);
+	}*/
 	else	//extension / type not recognised.
 		return false;
 	return true;

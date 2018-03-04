@@ -67,7 +67,7 @@ struct vm_s {
 	void *hInst;
 
 // native
-	qintptr_t (EXPORT_FN *vmMain)(qintptr_t command, qintptr_t arg0, qintptr_t arg1, qintptr_t arg2, qintptr_t arg3, qintptr_t arg4, qintptr_t arg5, qintptr_t arg6);
+	qintptr_t (EXPORT_FN *vmMain)(qintptr_t command, qintptr_t arg0, qintptr_t arg1, qintptr_t arg2, qintptr_t arg3, qintptr_t arg4, qintptr_t arg5, qintptr_t arg6, qintptr_t arg7);
 };
 
 //this is a bit weird. qvm plugins always come from $basedir/$mod/plugins/$foo.qvm
@@ -1143,7 +1143,7 @@ qintptr_t VARGS VM_Call(vm_t *vm, qintptr_t instruction, ...)
 	switch(vm->type)
 	{
 	case VM_NATIVE:
-		return vm->vmMain(instruction, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6]);
+		return vm->vmMain(instruction, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
 
 	case VM_BYTECODE:
 		return QVM_ExecVM(vm->hInst, instruction, arg[0]&0xffffffff, arg[1]&0xffffffff, arg[2]&0xffffffff, arg[3]&0xffffffff, arg[4]&0xffffffff, arg[5]&0xffffffff, arg[6]&0xffffffff, arg[7]&0xffffffff);

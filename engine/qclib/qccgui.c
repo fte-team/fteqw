@@ -1706,7 +1706,7 @@ void GenericMenu(WPARAM wParam)
 			GUIprintf("");
 
 			ctx = Packager_Create(Packager_MessageCallback, NULL);
-			Packager_Parse(ctx, "packages.src");
+			Packager_ParseFile(ctx, "packages.src");
 			Packager_WriteDataset(ctx, NULL);
 			Packager_Destroy(ctx);
 		}
@@ -6986,18 +6986,18 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		{FVIRTKEY,			VK_F12, IDM_GOTODEF},
 		{FSHIFT|FVIRTKEY,	VK_F12, IDM_RETURNDEF}
 	};
+	int mode;
 	ghInstance= hInstance;
-
-	GUI_SetDefaultOpts();
-	GUI_ParseCommandLine(lpCmdLine);
 
 	strcpy(enginebinary, "");
 	strcpy(enginebasedir, "");
 	strcpy(enginecommandline, "");
 
-	if(strstr(lpCmdLine, "-stdout") || strstr(lpCmdLine, "--version"))
+	GUI_SetDefaultOpts();
+	mode = GUI_ParseCommandLine(lpCmdLine);
+
+	if(mode == 1)
 	{
-		GUI_ParseCommandLine(lpCmdLine);
 		RunCompiler(lpCmdLine, false);
 		return 0;
 	}

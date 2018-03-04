@@ -7423,7 +7423,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "attribute vec4 v_colour;\n"
 "void main ()\n"
 "{\n"
-"tc = v_texcoord;\n"
+"tc = vec2(v_texcoord.s, 1.0-v_texcoord.t);\n"
 "vc = v_colour;\n"
 "gl_Position = ftetransform();\n"
 "}\n"
@@ -7656,8 +7656,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "drawflat_wall",
-"!!cvarv r_floorcolor\n"
-"!!cvarv r_wallcolor\n"
+"!!cvard_srgb_b r_floorcolor\n"
+"!!cvard_srgb_b r_wallcolor\n"
 "!!permu FOG\n"
 
 //this is for the '286' preset walls, and just draws lightmaps coloured based upon surface normals.
@@ -7668,12 +7668,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "attribute vec3 v_normal;\n"
 "attribute vec2 v_lmcoord;\n"
 "varying vec2 lm;\n"
-"uniform vec3 cvar_r_wallcolor;\n"
-"uniform vec3 cvar_r_floorcolor;\n"
 "uniform vec4 e_lmscale;\n"
 "void main ()\n"
 "{\n"
-"col = vec4(e_lmscale.rgb/255.0 * ((v_normal.z < 0.73)?cvar_r_wallcolor:cvar_r_floorcolor), e_lmscale.a);\n"
+"col = vec4(e_lmscale.rgb * ((v_normal.z < 0.73)?r_wallcolor:r_floorcolor), e_lmscale.a);\n"
 "lm = v_lmcoord;\n"
 "gl_Position = ftetransform();\n"
 "}\n"
@@ -10202,7 +10200,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "menutint",
 "!!cvari r_menutint_inverse\n"
-"!!cvarv r_menutint\n"
+"!!cvard_srgb r_menutint\n"
 
 "#ifdef VERTEX_SHADER\n"
 "attribute vec2 v_texcoord;\n"
@@ -10218,7 +10216,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef FRAGMENT_SHADER\n"
 
 "varying vec2 texcoord;\n"
-"uniform vec3 cvar_r_menutint;\n"
 "uniform sampler2D s_t0;\n"
 "uniform int cvar_r_menutint_inverse;\n"
 "const vec3 lumfactors = vec3(0.299, 0.587, 0.114);\n"
@@ -10228,7 +10225,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec3 texcolor = texture2D(s_t0, texcoord).rgb;\n"
 "float luminance = dot(lumfactors, texcolor);\n"
 "texcolor = vec3(luminance, luminance, luminance);\n"
-"texcolor *= cvar_r_menutint;\n"
+"texcolor *= r_menutint;\n"
 "texcolor = (cvar_r_menutint_inverse > 0) ? (invertvec - texcolor) : texcolor;\n"
 "gl_FragColor = vec4(texcolor, 1.0);\n"
 "}\n"

@@ -1550,7 +1550,7 @@ LOADREG(glob + op[i].b, REG_EDI);
 		}
 	}
 
-	if(1)//failed)
+	if(failed)
 	{	
 		free(jit->statementjumps);	//[MAX_STATEMENTS]
 		free(jit->statementoffsets); //[MAX_STATEMENTS]

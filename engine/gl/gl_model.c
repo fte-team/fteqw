@@ -31,7 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t r_shadow_bumpscale_basetexture;
 extern cvar_t r_replacemodels;
-extern cvar_t gl_lightmap_average;
+extern cvar_t r_lightmap_average;
 cvar_t mod_loadentfiles						= CVAR("sv_loadentfiles", "1");
 cvar_t mod_loadentfiles_dir					= CVAR("sv_loadentfiles_dir", "");
 cvar_t mod_external_vis						= CVARD("mod_external_vis", "1", "Attempt to load .vis patches for quake maps, allowing transparent water to work properly.");
@@ -1670,15 +1670,17 @@ Mod_LoadLighting
 void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides)
 {
 	qboolean luxtmp = true;
+	qboolean exptmp = true;
 	qboolean littmp = true;
-	qbyte *luxdata = NULL;
-	qbyte *litdata = NULL;
-	qbyte *lumdata = NULL;
+	qbyte *luxdata = NULL; //rgb8
+	qbyte *expdata = NULL; //e5bgr9 (hdr!)
+	qbyte *litdata = NULL; //xyz8
+	qbyte *lumdata = NULL; //l8
 	qbyte *out;
 	unsigned int samples;
 
 	extern cvar_t gl_overbright;
-	loadmodel->engineflags &= ~MDLF_RGBLIGHTING;
+	loadmodel->lightmaps.fmt = LM_L8;
 
 	//q3 maps have built in 4-fold overbright.
 	//if we're not rendering with that, we need to brighten the lightmaps in order to keep the darker parts the same brightness. we loose the 2 upper bits. those bright areas become uniform and indistinct.
@@ -1687,9 +1689,8 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		gl_overbright.flags |= CVAR_RENDERERLATCH;
 		BuildLightMapGammaTable(1, (1<<(2-gl_overbright.ival)));
 	}
-	else
-	//lit file light intensity is made to match the world's light intensity.
-	BuildLightMapGammaTable(1, 1);
+	else //lit file light intensity is made to match the world's light intensity.
+		BuildLightMapGammaTable(1, 1);
 
 	loadmodel->lightdata = NULL;
 	loadmodel->deluxdata = NULL;
@@ -1707,17 +1708,23 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		samples >>= 1;
 	if (!samples)
 	{
-		litdata = Q1BSPX_FindLump("RGBLIGHTING", &samples);
-		samples /= 3;
+		expdata = Q1BSPX_FindLump("LIGHTING_E5BGR9", &samples);	//expressed as a big-endian packed int - 0xEBGR type thing, except misaligned and 32bit.
+		samples /= 4;
 		if (!samples)
-			return;
+		{
+			litdata = Q1BSPX_FindLump("RGBLIGHTING", &samples); //RGB packed data
+			samples /= 3;
+			if (!samples)
+				return;
+		}
 	}
 
 #ifndef SERVERONLY
-	if (!litdata && r_loadlits.value)
+	if (!expdata && !litdata && r_loadlits.value)
 	{
 		char *litnames[] = {
 			"%s.lit2",
+			"%s.hdr",
 			"%s.lit",
 			"lits/%s.lit2",
 			"lits/%s.lit"
@@ -1765,22 +1772,31 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 
 		if (litdata && litsize >= 8)
 		{	//validate it, if we loaded one.
+			int litver = LittleLong(*(int *)&litdata[4]);
 			if (litdata[0] != 'Q' || litdata[1] != 'L' || litdata[2] != 'I' || litdata[3] != 'T')
 			{
 				litdata = NULL;
 				Con_Printf("lit \"%s\" isn't a lit\n", litname);
 			}
-			else if (LittleLong(*(int *)&litdata[4]) == 1 && l->filelen && samples*3 != (litsize-8))
+			else if (litver == 1)
 			{
+				if (l->filelen && samples*3 != (litsize-8))
+				{
+					litdata = NULL;
+					Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
+				}
+				else	
+					litdata += 8;	//header+version
+			}
+			else if (litver == 0x10001)
+			{
+				if (l->filelen && samples*4 != (litsize-8))
+					Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
+				else	
+					expdata = litdata+8;	//header+version
 				litdata = NULL;
-				Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
 			}
-			else if (LittleLong(*(int *)&litdata[4]) == 1)
-			{
-				//header+version
-				litdata += 8;
-			}
-			else if (LittleLong(*(int *)&litdata[4]) == 2 && overrides)
+			else if (litver == 2 && overrides)
 			{
 				qlit2_t *ql2 = (qlit2_t*)litdata;
 				unsigned int *offsets = (unsigned int*)(ql2+1);
@@ -1822,15 +1838,22 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 			}
 		}
 
-		littmp = false;
+		exptmp = littmp = false;
 		if (!litdata)
 		{
 			int size;
 			/*FIXME: bspx support for extents+lmscale, may require style+offset lumps too, not sure what to do here*/
-			litdata = Q1BSPX_FindLump("RGBLIGHTING", &size);
-			if (size != samples*3)
-				litdata = NULL;
-			littmp = true;
+			expdata = Q1BSPX_FindLump("LIGHTING_E5BGR9", &size);
+			exptmp = true;
+			if (size != samples*4)
+			{
+				expdata = NULL;
+
+				litdata = Q1BSPX_FindLump("RGBLIGHTING", &size);
+				littmp = true;
+				if (size != samples*3)
+					litdata = NULL;
+			}
 		}
 		else if (!inhibitvalidation)
 		{
@@ -2011,36 +2034,42 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 				overrides->styles = NULL;
 		}
 	}
-	
+
 	if (luxdata && luxtmp)
 	{
-		loadmodel->engineflags |= MDLF_RGBLIGHTING;
 		loadmodel->deluxdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
 		memcpy(loadmodel->deluxdata, luxdata, samples*3);
 	}
 	else if (luxdata)
-	{
 		loadmodel->deluxdata = luxdata;
-	}
 	else if (interleaveddeluxe)
 		loadmodel->deluxdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
 
-	if (litdata && littmp)
+	if (expdata)
 	{
-		loadmodel->engineflags |= MDLF_RGBLIGHTING;
-		loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
-		/*the memcpy is below*/
-		samples*=3;
+		loadmodel->lightmaps.fmt = LM_E5BGR9;
+		loadmodel->lightdatasize = samples*4;
+		if (exptmp)
+		{
+			loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, samples*4);
+			memcpy(loadmodel->lightdata, expdata, samples*4);
+		}
+		else
+			loadmodel->lightdata = expdata;
+		return;
 	}
 	else if (litdata)
 	{
-		loadmodel->engineflags |= MDLF_RGBLIGHTING;
-		loadmodel->lightdata = litdata;
+		loadmodel->lightmaps.fmt = LM_RGB8;
+		if (littmp)
+			loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, samples*3);	/*the memcpy is below*/
+		else
+			loadmodel->lightdata = litdata;
 		samples*=3;
 	}
 	else if (lumdata)
 	{
-		loadmodel->engineflags &= ~MDLF_RGBLIGHTING;
+		loadmodel->lightmaps.fmt = LM_L8;
 		loadmodel->lightdata = ZG_Malloc(&loadmodel->memgroup, samples);
 		litdata = lumdata;
 	}
@@ -2071,7 +2100,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 	}
 
 #ifndef SERVERONLY
-	if ((loadmodel->engineflags & MDLF_RGBLIGHTING) && r_lightmap_saturation.value != 1.0f)
+	if ((loadmodel->lightmaps.fmt == LM_RGB8) && r_lightmap_saturation.value != 1.0f)
 		SaturateR8G8B8(loadmodel->lightdata, l->filelen, r_lightmap_saturation.value);
 #endif
 }
@@ -2362,7 +2391,7 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 		}
 
 #ifndef SERVERONLY
-		if (gl_lightmap_average.ival)
+		if (r_lightmap_average.ival)
 		{
 			for (sty = 0; sty < 1; sty++)
 			{
@@ -3716,6 +3745,8 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, l
 	char buf[64];
 	lightmapoverrides_t overrides;
 
+	int lofsscale = 1;
+
 	memset(&overrides, 0, sizeof(overrides));
 
 	lmscale = atoi(Mod_ParseWorldspawnKey(loadmodel, "lightmap_scale", buf, sizeof(buf)));
@@ -3756,6 +3787,22 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, l
 	loadmodel->numsurfaces = count;
 
 	Mod_LoadLighting (loadmodel, mod_base, lightlump, false, &overrides);
+
+	switch(loadmodel->lightmaps.fmt)
+	{
+	case LM_E5BGR9:
+		lofsscale = 4;
+		break;
+	case LM_RGB8:
+		lofsscale = 3;
+		break;
+	default:
+	case LM_L8:
+		lofsscale = 1;
+		break;
+	}
+	if (loadmodel->fromgame == fg_halflife)
+		lofsscale /= 3;	//halflife has rgb offsets already (this should drop to 1, preserving any misaligned offsets...
 
 	for ( surfnum=0 ; surfnum<count ; surfnum++, out++)
 	{
@@ -3810,8 +3857,8 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, l
 				out->styles[i] = overrides.styles[surfnum*4+i];
 
 		CalcSurfaceExtents (loadmodel, out);
-		if (lofs != (unsigned int)-1 && (loadmodel->engineflags & MDLF_RGBLIGHTING) && loadmodel->fromgame != fg_halflife)
-			lofs *= 3;
+		if (lofs != (unsigned int)-1)
+			lofs *= lofsscale;
 		lend = lofs+(out->extents[0]+1)*(out->extents[1]+1);
 		if (lofs > loadmodel->lightdatasize || lend < lofs)
 			out->samples = NULL;	//should includes -1
@@ -4824,6 +4871,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 			}
 		}
 
+#if defined(Q3BSPS) || defined(RFBSPS)
 		if (mod->fromgame == fg_quake3)
 		{
 			if (mod->lightmaps.deluxemapping && mod->lightmaps.deluxemapping_modelspace)
@@ -4850,7 +4898,10 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 			}
 			mod->textures[2*mod->numtexinfo]->shader = R_RegisterShader_Flare("noshader");
 		}
-		else if (mod->fromgame == fg_quake2)
+		else
+#endif
+#ifdef Q2BSPS
+		if (mod->fromgame == fg_quake2)
 		{
 			COM_FileBase (mod->name, loadname, sizeof(loadname));
 			for(a = 0; a < mod->numtextures; a++)
@@ -4866,11 +4917,12 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 //					maps |= SHADER_HASNORMALMAP;
 				if (gl_specular.ival)
 					maps |= SHADER_HASGLOSS;
-				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, 0, TF_MIP4_SOLID8, mod->textures[a]->width, mod->textures[a]->height, mod->textures[a]->mips, mod->textures[a]->palette);
+				R_BuildLegacyTexnums(mod->textures[a]->shader, mod->textures[a]->name, loadname, maps, 0, TF_MIP4_8PAL24, mod->textures[a]->width, mod->textures[a]->height, mod->textures[a]->mips, mod->textures[a]->palette);
 				BZ_Free(mod->textures[a]->mips[0]);
 			}
 		}
 		else
+#endif
 		{
 			COM_FileBase (mod->name, loadname, sizeof(loadname));
 			if (!strncmp(loadname, "b_", 2))

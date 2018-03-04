@@ -264,6 +264,12 @@ static HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContex
 #define 	WGL_DEPTH_BITS_ARB			0x2022
 #define 	WGL_STENCIL_BITS_ARB		0x2023
 #define 	WGL_FULL_ACCELERATION_ARB	0x2027
+#define		WGL_PIXEL_TYPE_ARB			0x2013
+#define			WGL_TYPE_RGBA_ARB		0x202B
+#define			WGL_TYPE_RGBA_FLOAT_ARB	0x21A0
+#define		WGL_RED_BITS_ARB			0x2015
+#define		WGL_GREEN_BITS_ARB			0x2017
+#define		WGL_BLUE_BITS_ARB			0x2019
 
 
 
@@ -1263,9 +1269,9 @@ static qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	SendMessage (dibwindow, WM_SETICON, (WPARAM)FALSE, (LPARAM)hIcon);
 
 	if (modestate == MS_FULLWINDOW)
-		ShowWindow (dibwindow, SW_SHOWMAXIMIZED);
+		ShowWindow (dibwindow, SW_HIDE);//SW_SHOWMAXIMIZED);
 	else
-		ShowWindow (dibwindow, SW_SHOWDEFAULT);
+		ShowWindow (dibwindow, SW_HIDE);//SW_SHOWDEFAULT);
 	UpdateWindow (dibwindow);
 
 	// Because we have set the background brush for the window to NULL
@@ -1487,6 +1493,16 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 				return false;
 			}
 		}
+		else
+		{
+			TRACE(("dbg: GLVID_SetMode: unable to create window\n"));
+			return false;
+		}
+
+		if (modestate == MS_FULLWINDOW)
+			ShowWindow (dibwindow, SW_SHOWMAXIMIZED);
+		else
+			ShowWindow (dibwindow, SW_SHOWDEFAULT);
 
 		if (!GL_Init(info, getglfunc))
 			return false;
@@ -1509,7 +1525,7 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 			stat = EGL_Init (info, palette, mainwindow, maindc);
 
 			if (stat)
-				if (GL_Init(info, &EGL_Proc))
+				if (!GL_Init(info, &EGL_Proc))
 					return false;
 		}
 		break;
@@ -1558,6 +1574,7 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 
 #ifndef NPFTE
 	/*I don't like this, but if we */
+	Sleep (100);
 	while (PeekMessage (&msg, mainwindow, 0, 0, PM_REMOVE))
 	{
 		TranslateMessage (&msg);
@@ -1571,6 +1588,14 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 				  SWP_NOCOPYBITS);
 
 	SetForegroundWindow (mainwindow);
+
+	Sleep (100);
+	while (PeekMessage (&msg, mainwindow, 0, 0, PM_REMOVE))
+	{
+		TranslateMessage (&msg);
+		DispatchMessage (&msg);
+	}
+	Sleep (100);
 
 // fix the leftover Alt from any Alt-Tab or the like that switched us away
 	ClearAllStates ();
@@ -1778,6 +1803,9 @@ static qboolean WGL_CheckExtension(char *extname)
 
 qboolean VID_AttachGL (rendererstate_t *info)
 {	//make sure we can get a valid renderer.
+	int iAttributeNames[2];
+	FLOAT fAttributeValues[countof(iAttributeNames)];
+
 	do
 	{
 		TRACE(("dbg: VID_AttachGL: GLInitialise\n"));
@@ -1981,6 +2009,14 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		TRACE(("dbg: VID_AttachGL: qwglSwapIntervalEXT\n"));
 		qwglSwapIntervalEXT(vid_vsync.value);
 	}
+
+	vid.flags = 0;
+	iAttributeNames[0] = WGL_PIXEL_TYPE_ARB;
+	iAttributeNames[1] = WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB;
+	if (qwglGetPixelFormatAttribfvARB && qwglGetPixelFormatAttribfvARB(maindc, currentpixelformat, 0, 1, iAttributeNames+0, fAttributeValues+0) && fAttributeValues[0] == WGL_TYPE_RGBA_FLOAT_ARB)
+		vid.flags |= VID_FP16 | VID_SRGB_FB_LINEAR;
+	if (qwglGetPixelFormatAttribfvARB && qwglGetPixelFormatAttribfvARB(maindc, currentpixelformat, 0, 1, iAttributeNames+1, fAttributeValues+1) && fAttributeValues[1] == TRUE)
+		vid.flags |= VID_SRGB_CAPABLE;
 	return true;
 }
 #endif
@@ -2153,6 +2189,7 @@ qboolean GLVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramp
 		{
 		case 0:	//never use hardware/glsl gamma
 		case 2:	//ALWAYS use glsl gamma
+		case 4:	//scene-only gamma
 			return false;
 		default:
 		case 1:	//no hardware gamma when windowed
@@ -2244,7 +2281,7 @@ void	GLVID_Shutdown (void)
 #ifdef USE_WGL
 static BOOL CheckForcePixelFormat(rendererstate_t *info)
 {
-	if (qwglChoosePixelFormatARB && (info->multisample || info->srgb))
+	if (qwglChoosePixelFormatARB && (info->multisample || info->srgb || info->bpp==30))
 	{
 		HDC hDC;
 		int valid;
@@ -2257,8 +2294,44 @@ static BOOL CheckForcePixelFormat(rendererstate_t *info)
 		iAttribute[iAttributes++] = WGL_DRAW_TO_WINDOW_ARB;				iAttribute[iAttributes++] = GL_TRUE;
 		iAttribute[iAttributes++] = WGL_SUPPORT_OPENGL_ARB;				iAttribute[iAttributes++] = GL_TRUE;
 		iAttribute[iAttributes++] = WGL_ACCELERATION_ARB;				iAttribute[iAttributes++] = WGL_FULL_ACCELERATION_ARB;
-		iAttribute[iAttributes++] = WGL_COLOR_BITS_ARB;					iAttribute[iAttributes++] = (info->bpp>24)?24:info->bpp;
-//		iAttribute[iAttributes++] = WGL_ALPHA_BITS_ARB;					iAttribute[iAttributes++] = 4;
+
+		if (info->srgb>=3 && modestate != MS_WINDOWED)
+		{	//half-float backbuffers!
+
+			//'as has been the case since Windows Vista, fp16 swap chains are expected to have linear color data'
+			//if we try using WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB, then we won't actually get a pixelformat.
+			//we just have to assume that its a linear colour space.
+
+			//we ONLY use this fullscreen, because its totally fucked on nvidia otherwise.
+			//when windowed, its an scRGB image but with and srgb capable false, when fullscreen its always linear until something else takes focus...
+			//so if windowed or unfocused or whatever, we would need to use custom glsl to fix the gamma settings.
+
+			//additionally, a single program using floats will disable the desktop compositor, which can be a bit jarring.
+
+			iAttribute[iAttributes++] = WGL_PIXEL_TYPE_ARB;					iAttribute[iAttributes++] = WGL_TYPE_RGBA_FLOAT_ARB;
+			iAttribute[iAttributes++] = WGL_RED_BITS_ARB;					iAttribute[iAttributes++] = 16;
+			iAttribute[iAttributes++] = WGL_GREEN_BITS_ARB;					iAttribute[iAttributes++] = 16;
+			iAttribute[iAttributes++] = WGL_BLUE_BITS_ARB;					iAttribute[iAttributes++] = 16;
+		}
+		else
+		{
+			if (info->srgb)
+			{
+				iAttribute[iAttributes++] = WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB;	iAttribute[iAttributes++] = info->bpp<=32;
+			}
+			if (info->bpp==30)
+			{	//10-bit backbuffers!
+	//			iAttribute[iAttributes++] = WGL_PIXEL_TYPE_ARB;					iAttribute[iAttributes++] = WGL_TYPE_RGBA_FLOAT_ARB;
+				iAttribute[iAttributes++] = WGL_RED_BITS_ARB;					iAttribute[iAttributes++] = 10;
+				iAttribute[iAttributes++] = WGL_GREEN_BITS_ARB;					iAttribute[iAttributes++] = 10;
+				iAttribute[iAttributes++] = WGL_BLUE_BITS_ARB;					iAttribute[iAttributes++] = 10;
+			}
+			else
+			{
+				iAttribute[iAttributes++] = WGL_COLOR_BITS_ARB;					iAttribute[iAttributes++] = (info->bpp>24)?24:info->bpp;
+			}
+		}
+//		iAttribute[iAttributes++] = WGL_ALPHA_BITS_ARB;					iAttribute[iAttributes++] = 2;
 		iAttribute[iAttributes++] = WGL_DEPTH_BITS_ARB;					iAttribute[iAttributes++] = 16;
 		iAttribute[iAttributes++] = WGL_STENCIL_BITS_ARB;				iAttribute[iAttributes++] = 8;
 		iAttribute[iAttributes++] = WGL_DOUBLE_BUFFER_ARB;				iAttribute[iAttributes++] = GL_TRUE;
@@ -2267,10 +2340,6 @@ static BOOL CheckForcePixelFormat(rendererstate_t *info)
 		{
 			iAttribute[iAttributes++] = WGL_SAMPLE_BUFFERS_ARB;				iAttribute[iAttributes++] = GL_TRUE;
 			iAttribute[iAttributes++] = WGL_SAMPLES_ARB,					iAttribute[iAttributes++] = info->multisample;						// Check For 4x Multisampling
-		}
-		if (info->srgb)
-		{
-			iAttribute[iAttributes++] = WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB;	iAttribute[iAttributes++] = GL_TRUE;
 		}
 		iAttribute[iAttributes++] = 0;									iAttribute[iAttributes++] = 0;
 
@@ -2318,7 +2387,7 @@ static BOOL CheckForcePixelFormat(rendererstate_t *info)
 				{"WGL_SUPPORT_OPENGL",				WGL_SUPPORT_OPENGL_ARB},
 				{"WGL_DOUBLE_BUFFER",				WGL_DOUBLE_BUFFER_ARB},
 				{"WGL_STEREO",						WGL_STEREO_ARB},
-				{"WGL_PIXEL_TYPE",					0x2013},
+				{"WGL_PIXEL_TYPE",					WGL_PIXEL_TYPE_ARB},
 				{"WGL_COLOR_BITS",					WGL_COLOR_BITS_ARB},
 				{"WGL_RED_BITS",					0x2015},
 				{"WGL_RED_SHIFT",					0x2016},
@@ -2352,9 +2421,7 @@ static BOOL CheckForcePixelFormat(rendererstate_t *info)
 				{"WGL_COLORSPACE_EXT",				0x309D},	//WGL_EXT_colorspace
 
 				//stuff my drivers don't support
-//				{"WGL_TYPE_RGBA_FLOAT_ARB",			0x21A0},
 //				{"WGL_DEPTH_FLOAT_EXT",				0x2040},
-//				{"WGL_TYPE_RGBA_UNSIGNED_FLOAT_EXT",0x20A8},	//EXT_packed_float
 			};
 			int iAttributeNames[countof(iAttributeTable)];
 			float fAttributeValues[countof(iAttributeTable)];
@@ -2380,7 +2447,11 @@ static BOOL CheckForcePixelFormat(rendererstate_t *info)
 							Sys_Printf("%s: WGL_COLORSPACE_SRGB\n", iAttributeTable[j].name);
 						else if (iAttributeTable[j].id == 0x309D && fAttributeValues[j] == 0x308A)
 							Sys_Printf("%s: WGL_COLORSPACE_LINEAR\n", iAttributeTable[j].name);
-						else if (iAttributeTable[j].id == 0x202E)
+						else if (iAttributeTable[j].id == WGL_PIXEL_TYPE_ARB && fAttributeValues[j] == WGL_TYPE_RGBA_FLOAT_ARB)
+							Sys_Printf("%s: WGL_TYPE_RGBA_FLOAT_ARB\n", iAttributeTable[j].name);
+						else if (iAttributeTable[j].id == WGL_PIXEL_TYPE_ARB && fAttributeValues[j] == 0x20A8)
+							Sys_Printf("%s: WGL_TYPE_RGBA_UNSIGNED_FLOAT_EXT\n", iAttributeTable[j].name);
+						else if (iAttributeTable[j].id == 0x202E || iAttributeTable[j].id == WGL_PIXEL_TYPE_ARB)
 							Sys_Printf("%s: %#x\n", iAttributeTable[j].name, (int)fAttributeValues[j]);
 						else
 							Sys_Printf("%s: %g\n", iAttributeTable[j].name, fAttributeValues[j]);
@@ -2482,7 +2553,7 @@ static BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 	0,				// no accumulation buffer
 	0, 0, 0, 0, 			// accum bits ignored
 #ifndef RTLIGHTS
-	32,				// 32-bit z-buffer
+	24,				// 24-bit z-buffer
 	0,				// 0 stencil, don't need it unless we're using rtlights
 #else
 	24,				// 24-bit z-buffer
@@ -2501,50 +2572,27 @@ static BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 	if (info->bpp == 15 || info->bpp == 16)
 		pfd.cColorBits = 16;
 
-	if (shouldforcepixelformat && qwglChoosePixelFormatARB)	//the extra && is paranoia
+	if (shouldforcepixelformat && qwglChoosePixelFormatARB && 
+		qDescribePixelFormat(hDC, forcepixelformat, sizeof(pfd), &pfd) &&
+		qSetPixelFormat(hDC, forcepixelformat, &pfd))	//the extra && is paranoia
 	{
 		shouldforcepixelformat = false;
 		currentpixelformat = forcepixelformat;
 	}
+	else if ((currentpixelformat = qChoosePixelFormat(hDC, &pfd)) && qDescribePixelFormat(hDC, currentpixelformat, sizeof(pfd), &pfd) && qSetPixelFormat(hDC, currentpixelformat, &pfd))
+		;	//we got our desired pixel format, or close enough
 	else
 	{
-		if ((currentpixelformat = qChoosePixelFormat(hDC, &pfd)))
-		{
-			TRACE(("dbg: ChoosePixelFormat 1: worked\n"));
-
-			if (qSetPixelFormat(hDC, currentpixelformat, &pfd))
-			{
-				TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
-				qDescribePixelFormat(hDC, currentpixelformat, sizeof(pfd), &pfd);
-				FixPaletteInDescriptor(hDC, &pfd);
-
-				if ((pfd.dwFlags & PFD_GENERIC_FORMAT) && !(pfd.dwFlags & PFD_GENERIC_ACCELERATED))
-				{
-					Con_Printf(CON_WARNING "WARNING: software-rendered opengl context\nPlease install appropriate graphics drivers, or try d3d rendering instead\n");
-				}
-				else if (pfd.dwFlags & PFD_SWAP_COPY)
-					Con_Printf(CON_WARNING "WARNING: buffer swaps will use copy operations\n");
-				return TRUE;
-			}
-		}
-		TRACE(("dbg: ChoosePixelFormat 1: no stencil buffer for us\n"));
-
 		pfd.cStencilBits = 0;
-
-		if ( (currentpixelformat = qChoosePixelFormat(hDC, &pfd)) == 0 )
+		if ((currentpixelformat = qChoosePixelFormat(hDC, &pfd)) && qDescribePixelFormat(hDC, currentpixelformat, sizeof(pfd), &pfd) && qSetPixelFormat(hDC, currentpixelformat, &pfd))
+			;
+		else
 		{
-			Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed (%i)\n", (int)GetLastError());
+			Con_Printf("Unable to find suitable pixel format: %i\n", (int)GetLastError());
 			return FALSE;
 		}
 	}
-
-	qDescribePixelFormat(hDC, currentpixelformat, sizeof(pfd), &pfd);
-
-	if (qSetPixelFormat(hDC, currentpixelformat, &pfd) == FALSE)
-	{
-		Con_Printf("bSetupPixelFormat: SetPixelFormat failed (%i)\n", (int)GetLastError());
-		return FALSE;
-	}
+	shouldforcepixelformat = false;
 
 	if ((pfd.dwFlags & PFD_GENERIC_FORMAT) && !(pfd.dwFlags & PFD_GENERIC_ACCELERATED))
 	{
@@ -2598,6 +2646,8 @@ static qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 ****************************************************************************/
 {
 	static BOOL	sound_active;
+
+//	Con_Printf("GLAppActivate: %i %i\n", fActive, minimize);
 
 	if (vid.activeapp == fActive && Minimized == minimize)
 		return false;	//so windows doesn't crash us over and over again.
@@ -2746,18 +2796,16 @@ void MainThreadWndProc(void *ctx, void *data, size_t msg, size_t ex)
 		break;
 	case WM_SIZE:
 	case WM_MOVE:
-		Cvar_ForceCallback(&vid_conautoscale);	//FIXME: thread
+		Cvar_ForceCallback(&vid_conautoscale);
 		break;
 	case WM_KILLFOCUS:
-		GLAppActivate(FALSE, Minimized);//FIXME: thread
-		if (modestate == MS_FULLDIB)
-			ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
-		ClearAllStates ();	//FIXME: thread
+		GLAppActivate(FALSE, Minimized);
+		ClearAllStates ();
 		break;
 	case WM_SETFOCUS:
-		if (!GLAppActivate(TRUE, Minimized))//FIXME: thread
+		if (!GLAppActivate(TRUE, Minimized))
 			break;
-		ClearAllStates ();	//FIXME: thread
+		ClearAllStates ();
 		break;
 
 #ifdef HAVE_CDPLAYER
@@ -2807,10 +2855,10 @@ static LONG WINAPI GLMainWndProc (
 			COM_AddWork(WG_MAIN, MainThreadWndProc, NULL, NULL, uMsg, 0);
 #else
 			GLAppActivate(FALSE, Minimized);//FIXME: thread
-			if (modestate == MS_FULLDIB)
-				ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
 			ClearAllStates ();	//FIXME: thread
 #endif
+			if (modestate == MS_FULLDIB)
+				ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
 			break;
 		case WM_SETFOCUS:
 #ifdef WTHREAD

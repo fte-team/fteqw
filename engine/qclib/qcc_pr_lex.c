@@ -675,6 +675,21 @@ pbool QCC_PR_FalsePreProcessorIf(pbool hadtrue, int originalline)
 		pr_source_line++;
 	}
 }
+
+#if 0
+static void QCC_PR_PackagerMessage(void *userctx, char *message, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr,message);
+	QC_vsnprintf (string,sizeof(string)-1,message,argptr);
+	va_end (argptr);
+
+	printf ("%s", string);
+}
+#endif
+
 /*
 ==============
 QCC_PR_Precompiler
@@ -856,6 +871,24 @@ pbool QCC_PR_Precompiler(void)
 			if (strlen(msg) >= sizeof(QCC_copyright))
 				QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
 			QC_strlcpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
+		}
+		else if (!strncmp(directive, "package", 7))
+		{
+			pr_file_p=directive+7;
+
+			QCC_PR_SkipToEndOfLine(true);
+
+#if 0
+			if (!autoprototype)
+			{
+				struct pkgctx_s *ctx = Packager_Create(QCC_PR_PackagerMessage, NULL);
+				Packager_ParseText(ctx, pr_file_p);
+				Packager_WriteDataset(ctx, NULL);
+				Packager_Destroy(ctx);
+			}
+#endif
+
+			pr_file_p += strlen(pr_file_p);
 		}
 		else if (!strncmp(directive, "pack", 4))
 		{

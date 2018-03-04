@@ -817,6 +817,10 @@ void SV_Map_f (void)
 			svprogfuncs->restoreent(svprogfuncs, host_client->spawninfo, &j, host_client->edict);
 			host_client->istobeloaded = true;
 			host_client->state=cs_connected;
+			if (host_client->spectator)
+				sv.spawned_observer_slots++;
+			else
+				sv.spawned_client_slots++;
 		}
 
 		if (host_client->controller)

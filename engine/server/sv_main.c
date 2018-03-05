@@ -716,6 +716,14 @@ void SV_DropClient (client_t *drop)
 	}
 	if (drop->netchan.remote_address.type != NA_INVALID && drop->netchan.message.maxsize)
 	{
+#ifdef NQPROT
+		if (drop->netchan.isnqprotocol && drop->netchan.nqunreliableonly != 1)
+		{	//try and flush the reliables, so they can see why they were kicked.
+			drop->netchan.nqunreliableonly = 3;	//may cause problems if they were loading content. not much we can do about that.
+			while(Netchan_Transmit (&drop->netchan, 0, NULL, 10000))
+				;
+		}
+#endif
 		//send twice, to cover packetloss a little.
 		Netchan_Transmit (&drop->netchan, termmsg.cursize, termmsg.data, 10000);
 		Netchan_Transmit (&drop->netchan, termmsg.cursize, termmsg.data, 10000);
@@ -2445,7 +2453,6 @@ client_t *SVC_DirectConnect(void)
 			if (p == countof(dpnames))
 				Con_DPrintf("DP client reporting unknown protocol \"%s\"\n", com_token);
 		}
-		proquakeanglehack = false;
 
 		protocol = SCP_DARKPLACES7;
 
@@ -2464,7 +2471,9 @@ client_t *SVC_DirectConnect(void)
 			Info_SetValueForKey(userinfo[0], "name", "CONNECTING", sizeof(userinfo[0]));
 
 		qport = 0;
-		proquakeanglehack = true;
+		proquakeanglehack = false;	//NOTE: DP clients fuck up here due to a DP client bug.
+									//DP clients will use 16bit angles if it has previously connected to a proquake-handshake server,
+									//and 8bit angles otherwise (or a non-proquake/non-dp/non-qw server more recently than the proquake one).
 	}
 	else
 	{

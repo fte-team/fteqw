@@ -483,6 +483,8 @@ void SVNQ_New_f (void)
 		}
 		return;
 	}
+	if (host_client->drop)
+		return;
 
 	if (!host_client->pextknown && sv_listen_nq.ival != 1)	//1 acts as a legacy mode, used for clients that can't cope with cmd before serverdata (either because they crash out or because they refuse to send reliables until after they got the first serverdata)
 	{
@@ -8071,7 +8073,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 }
 #endif
 #ifdef NQPROT
-void SVNQ_ReadClientMove (usercmd_t *move)
+void SVNQ_ReadClientMove (usercmd_t *move, qboolean forceangle16)
 {
 	int		i;
 	int		bits;
@@ -8104,7 +8106,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	move->fservertime = cltime;
 	move->servertime = move->fservertime*1000;
 
-		frame->ping_time = sv.time - cltime;
+	frame->ping_time = sv.time - cltime;
 
 
 	if (frame->ping_time*1000 > sv_minping.value+1)
@@ -8124,7 +8126,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 // read current angles
 	for (i=0 ; i<3 ; i++)
 	{
-		if (host_client->protocol == SCP_FITZ666 || (host_client->proquake_angles_hack && (host_client->protocol == SCP_NETQUAKE || host_client->protocol == SCP_BJP3)))
+		if (forceangle16)
 			host_client->edict->v->v_angle[i] = MSG_ReadAngle16 ();
 		else
 			host_client->edict->v->v_angle[i] = MSG_ReadAngle ();
@@ -8259,6 +8261,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 	int		c;
 	char	*s;
 //	client_frame_t	*frame;
+	qboolean forceangle16;
 
 	cl->netchan.outgoing_sequence++;
 	cl->netchan.incoming_acknowledged = cl->netchan.outgoing_sequence-1;
@@ -8315,14 +8318,44 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 		case clc_nop:
 			break;
 
-//		case clc_delta:
+//		case clc_delta:			//not in NQ
 //			cl->delta_sequence = MSG_ReadByte ();
 //			break;
 
-		case clc_move:
-			if (cl->netchan.nqunreliableonly || cl->prespawn_stage == PRESPAWN_PROTOCOLSWITCH)
+		case clc_move:	//bytes: 16(nq), 19(proquake/fitz), 56(dp7)
+			if (cl->state != cs_spawned)
 				return;	//shouldn't be sending moves at this point. typically they're stale, left from the previous map. this results in crashes if the protocol is different.
-			SVNQ_ReadClientMove (&host_client->lastcmd);
+
+			forceangle16 = false;
+			switch(cl->protocol)
+			{
+			case SCP_FITZ666:
+				forceangle16 = true;
+				break;
+			case SCP_NETQUAKE:
+			case SCP_BJP3:
+				//Hack to work around buggy DP clients that don't reset the proquake hack for the next server
+				//this ONLY works because the other clc commands are very unlikely to both be 3 bytes big and sent unreliably
+				//aka: DP ProQuake angles hack hack
+				//note that if a client then decides to use 16bit coords because of this hack then it would be the 'fte dp proquake angles hack hack hack'....
+				if ((net_message.cursize-(msg_readcount-1) == 16 &&  cl->proquake_angles_hack) ||
+					(net_message.cursize-(msg_readcount-1) == 19 && !cl->proquake_angles_hack))
+				{
+					cl->proquake_angles_hack ^= 1;
+					SV_ClientPrintf(cl, PRINT_HIGH, "Client sent "S_COLOR_RED"wrong"S_COLOR_WHITE" clc_move size, switching to %u-bit angles to try to compensate\n", cl->proquake_angles_hack?16:8);
+				}
+				forceangle16 = cl->proquake_angles_hack;
+				break;
+			case SCP_BAD:
+			case SCP_QUAKEWORLD:
+			case SCP_QUAKE2:
+			case SCP_QUAKE3:
+			case SCP_DARKPLACES6:
+			case SCP_DARKPLACES7:
+				break;
+			}
+				
+			SVNQ_ReadClientMove (&cl->lastcmd, forceangle16);
 //			cmd = host_client->lastcmd;
 //			SV_ClientThink();
 			break;
@@ -8339,6 +8372,11 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 
 		case clcfte_qcrequest:
 			SV_ReadQCRequest();
+
+			host_client = cl;
+			sv_player = cl->edict;
+			if (cl->state < cs_connected)
+				return;
 			break;
 
 		case clcdp_ackframe:

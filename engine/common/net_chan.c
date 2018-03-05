@@ -627,8 +627,9 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				chan->nqreliable_allowed = false;
 				chan->nqreliable_resendtime = realtime + 0.3;	//resend reliables after 0.3 seconds. nq transports suck.
 
-				if (NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address) == NETERR_SENT && NET_AddrIsReliable(&chan->remote_address))
-				{	//if over tcp, everything is assumed to be reliable. pretend it got acked now.
+				if (NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address) == NETERR_SENT && (
+					NET_AddrIsReliable(&chan->remote_address) || chan->nqunreliableonly==3	))
+				{	//if over tcp (or we're dropping the connection), everything is assumed to be reliable. pretend it got acked now.
 					//if we get an ack later, then who cares.
 					chan->reliable_start += i;
 					if (chan->reliable_start >= chan->reliable_length)

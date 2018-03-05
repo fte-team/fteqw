@@ -539,9 +539,9 @@ else
 	#at the same time, -print-multiarch is not present, buggy, or just screwed in many gcc builds (ones that target a single arch will unhelpfully just give an empty string).
 	#so try multiarch first, and if that fails risk dumpmachine giving the wrong values.
 	#really we want dumpmachine's more specific cpu arch included here, so lets hope that idiot burns for all eternity. or something equally melodramatic.
-	ARCH:=$(shell $(CC) -print-multiarch)
+	ARCH:=$(shell $(CC) -print-multiarch 2>/dev/null)
 	ifneq ($(words $(ARCH)),1)
-		ARCH:=$(shell $(CC) -dumpmachine)
+		ARCH:=$(shell $(CC) -dumpmachine 2>/dev/null)
 	endif
 	#foo:=$(shell echo ARCH is $(ARCH) 1>&2 )
 endif

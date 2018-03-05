@@ -198,9 +198,6 @@ extern	DELTEXFUNCPTR delTexFunc;
 extern	TEXSUBIMAGEPTR TexSubImage2DFunc;
 extern void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
 #endif
-extern FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
-extern FTEPFNGLCOMPRESSEDTEXIMAGE3DARBPROC qglCompressedTexImage3DARB;
-extern FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 extern	FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
 extern	FTEPFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
 extern void (APIENTRY *qglPatchParameteriARB)(GLenum pname, GLint value);	//core in gl4
@@ -237,7 +234,7 @@ typedef struct {
 	qboolean arb_texture_env_dot3;
 	qboolean arb_texture_cube_map;
 
-	qboolean arb_texture_compression;
+	qboolean arb_texture_compression;	//means we support dynamic compression, rather than any specific compressed texture formats
 
 	qboolean geometryshaders;
 
@@ -680,6 +677,8 @@ extern void (APIENTRY *qglTexParameteri) (GLenum target, GLenum pname, GLint par
 extern void (APIENTRY *qglTexParameteriv) (GLenum target, GLenum pname, const GLint *params);
 extern void (APIENTRY *qglTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
 extern void (APIENTRY *qglViewport) (GLint x, GLint y, GLsizei width, GLsizei height);
+extern FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2D;
+extern void (APIENTRY *qglCompressedTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
 
 extern void (APIENTRY *qglGenFramebuffersEXT)(GLsizei n, GLuint* ids);
 extern void (APIENTRY *qglDeleteFramebuffersEXT)(GLsizei n, const GLuint* ids);
@@ -1021,6 +1020,10 @@ extern void (APIENTRY *qglTranslatef) (GLfloat x, GLfloat y, GLfloat z);
 extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4x3fv;
 extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix3x4fv;
 
+extern FTEPFNGLCOMPRESSEDTEXIMAGE3DARBPROC qglCompressedTexImage3D;
+extern void (APIENTRY *qglCompressedTexSubImage3D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
+extern FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImage;
+
 extern const GLubyte * (APIENTRY * qglGetStringi) (GLenum name, GLuint index);
 
 /*
@@ -1081,9 +1084,6 @@ extern void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
 
 extern void (APIENTRY *qglTexStorage2D)(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height);		//gl4.2
 extern void (APIENTRY *qglTexStorage3D)(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth);	//gl4.2
-extern void (APIENTRY *qglCompressedTexSubImage3D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
-extern void (APIENTRY *qglCompressedTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
-
 
 
 //glslang helper api

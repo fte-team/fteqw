@@ -45,6 +45,9 @@ void (APIENTRY *qglStencilOp) (GLenum fail, GLenum zfail, GLenum zpass);
 void (APIENTRY *qglStencilFunc) (GLenum func, GLint ref, GLuint mask);
 void (APIENTRY *qglDeleteTextures) (GLsizei n, const GLuint *textures);
 
+FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2D;
+void (APIENTRY *qglCompressedTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
+
 void (APIENTRY *qglGenFramebuffersEXT)(GLsizei n, GLuint* ids);
 void (APIENTRY *qglDeleteFramebuffersEXT)(GLsizei n, const GLuint* ids);
 void (APIENTRY *qglBindFramebufferEXT)(GLenum target, GLuint id);
@@ -193,8 +196,9 @@ void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr l
 
 void (APIENTRY *qglTexStorage2D)(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height);		//gl4.2
 void (APIENTRY *qglTexStorage3D)(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth);	//gl4.2
+FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImage;
 void (APIENTRY *qglCompressedTexSubImage3D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
-void (APIENTRY *qglCompressedTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
+FTEPFNGLCOMPRESSEDTEXIMAGE3DARBPROC qglCompressedTexImage3D;
 
 void (APIENTRY *qglGenVertexArrays)(GLsizei n, GLuint *arrays);
 void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
@@ -781,39 +785,41 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	if (GL_CheckExtension("GL_ARB_depth_clamp") || GL_CheckExtension("GL_NV_depth_clamp"))
 		gl_config.arb_depth_clamp = true;
 
+#ifndef GL_STATIC
 	if (gl_config.gles)
 	{	//GL_ARB_texture_compression is not quite supported in gles, but works for custom compressed formats (like etc2).
-		qglCompressedTexImage2DARB = (void *)getglext("glCompressedTexImage2D");
-		qglCompressedTexImage3DARB = (void *)getglext("glCompressedTexImage3D");
+		qglCompressedTexImage2D = (void *)getglext("glCompressedTexImage2D");
+		qglCompressedTexImage3D = (void *)getglext("glCompressedTexImage3D");
 		qglCompressedTexSubImage2D = (void *)getglext("glCompressedTexSubImage2D");
 		qglCompressedTexSubImage3D = (void *)getglext("glCompressedTexSubImage3D");
-		qglGetCompressedTexImageARB = NULL;
+		qglGetCompressedTexImage = NULL;
 	}
 	else if (!gl_config.gles && gl_config.glversion > 1.3)
 	{	//GL_ARB_texture_compression is core in gl1.3
-		qglCompressedTexImage2DARB = (void *)getglext("glCompressedTexImage2D");
-		qglCompressedTexImage3DARB = (void *)getglext("glCompressedTexImage3D");
+		qglCompressedTexImage2D = (void *)getglext("glCompressedTexImage2D");
+		qglCompressedTexImage3D = (void *)getglext("glCompressedTexImage3D");
 		qglCompressedTexSubImage2D = (void *)getglext("glCompressedTexSubImage2D");
 		qglCompressedTexSubImage3D = (void *)getglext("glCompressedTexSubImage3D");
-		qglGetCompressedTexImageARB = (void *)getglext("glGetCompressedTexImage");
+		qglGetCompressedTexImage = (void *)getglext("glGetCompressedTexImage");
 		gl_config.arb_texture_compression = true;
 	}
 	else if (GL_CheckExtension("GL_ARB_texture_compression"))
 	{
-		qglCompressedTexImage2DARB = (void *)getglext("glCompressedTexImage2DARB");
-		qglCompressedTexImage3DARB = (void *)getglext("glCompressedTexImage3DARB");
+		qglCompressedTexImage2D = (void *)getglext("glCompressedTexImage2DARB");
+		qglCompressedTexImage3D = (void *)getglext("glCompressedTexImage3DARB");
 		qglCompressedTexSubImage2D = (void *)getglext("glCompressedTexSubImage2DARB");
 		qglCompressedTexSubImage3D = (void *)getglext("glCompressedTexSubImage3DARB");
-		qglGetCompressedTexImageARB = (void *)getglext("glGetCompressedTexImageARB");
+		qglGetCompressedTexImage = (void *)getglext("glGetCompressedTexImageARB");
 
-		if (!qglCompressedTexImage2DARB || !qglGetCompressedTexImageARB)
+		if (!qglCompressedTexImage2D || !qglGetCompressedTexImage)
 		{
-			qglCompressedTexImage2DARB = NULL;
-			qglGetCompressedTexImageARB = NULL;
+			qglCompressedTexImage2D = NULL;
+			qglGetCompressedTexImage = NULL;
 		}
 		else
 			gl_config.arb_texture_compression = true;
 	}
+#endif
 /*
 	if (GL_CheckExtension("GL_EXT_depth_bounds_test"))
 		qglDepthBoundsEXT = (void *)getglext("glDepthBoundsEXT");

@@ -33,10 +33,6 @@ void R_RenderBrushPoly (msurface_t *fa);
 
 extern int		gl_stencilbits;
 
-FTEPFNGLCOMPRESSEDTEXIMAGE3DARBPROC qglCompressedTexImage3DARB;
-FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
-FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
-
 extern int			r_visframecount;	// bumped when going to a new PVS
 extern int			r_framecount;		// used for dlight push checking
 

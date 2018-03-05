@@ -891,6 +891,26 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #define GL_RGBA32F_ARB                      0x8814
 #endif
 
+#ifndef GL_RED
+//gles2 does not support swizzles, but gles3 does
+#define GL_RED								0x1903
+#define GL_GREEN							0x1904
+#define GL_BLUE								0x1905
+#endif
+#ifndef GL_RGBA8
+//gles2 does not support sized formats, but gl1.1 and gles3 do.
+#define GL_RGBA8							0x8058
+#define GL_RGB8								0x8051
+#define GL_RGB10_A2							0x8059
+#define GL_RGB5								0x8050	//note: not in gles3. a poor-man's substitute for rgb565
+#define GL_RGBA4							0x8056
+#define GL_RGB5_A1							0x8057
+#endif
+#ifndef GL_LUMINANCE8
+#define GL_LUMINANCE8						0x8040	//not in gles2, nor gl3core (use gl_red+swizzles for gles3)
+#define GL_LUMINANCE8_ALPHA8				0x8045	//not in gles2, nor gl3core (use gl_red+swizzles for gles3)
+#endif
+
 
 #ifndef GL_SAMPLES_PASSED_ARB
 #define GL_SAMPLES_PASSED_ARB                             0x8914

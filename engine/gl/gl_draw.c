@@ -814,7 +814,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 				if (gl_config.formatinfo[encoding].type)
 					qglTexImage3D				(targ, i, ifmt, mips->mip[i].width, mips->mip[i].height, mips->mip[0].depth, 0, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type,	mips->mip[i].data);
 				else
-					qglCompressedTexImage3DARB	(targ, i, ifmt, mips->mip[i].width, mips->mip[i].height, mips->mip[0].depth, 0,								mips->mip[i].datasize,							mips->mip[i].data);
+					qglCompressedTexImage3D		(targ, i, ifmt, mips->mip[i].width, mips->mip[i].height, mips->mip[0].depth, 0,								mips->mip[i].datasize,							mips->mip[i].data);
 			}
 		}
 	}
@@ -867,7 +867,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 				if (gl_config.formatinfo[encoding].type)
 					qglTexImage2D				(targface, j, ifmt, mips->mip[i].width, mips->mip[i].height, 0, gl_config.formatinfo[encoding].format, gl_config.formatinfo[encoding].type,	mips->mip[i].data);
 				else
-					qglCompressedTexImage2DARB	(targface, j, ifmt, mips->mip[i].width, mips->mip[i].height, 0,								mips->mip[i].datasize,							mips->mip[i].data);
+					qglCompressedTexImage2D		(targface, j, ifmt, mips->mip[i].width, mips->mip[i].height, 0,								mips->mip[i].datasize,							mips->mip[i].data);
 			}
 		}
 
@@ -965,7 +965,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 					out.mip[i].width = mips->mip[i].width;
 					out.mip[i].height = mips->mip[i].height;
 					out.mip[i].depth = mips->mip[i].depth;
-					qglGetCompressedTexImageARB(targ, j, out.mip[i].data);
+					qglGetCompressedTexImage(targ, j, out.mip[i].data);
 				}
 
 				Image_WriteKTXFile(va("textures/%s.ktx", tex->ident), &out);

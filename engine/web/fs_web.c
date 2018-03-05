@@ -261,7 +261,7 @@ static int QDECL FSWEB_EnumerateFiles (searchpathfuncs_t *handle, const char *ma
 }
 
 
-searchpathfuncs_t *QDECL FSWEB_OpenPath(vfsfile_t *mustbenull, const char *desc, const char *prefix)
+searchpathfuncs_t *QDECL FSWEB_OpenPath(vfsfile_t *mustbenull,  searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix)
 {
 	webpath_t *np;
 	int dlen = strlen(desc);

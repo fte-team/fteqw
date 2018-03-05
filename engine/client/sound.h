@@ -121,6 +121,7 @@ typedef struct
 
 //client-internal
 #define CF_AUTOSOUND		1024	// generated from q2 entities, which avoids breaking regular sounds, using it outside the sound system will probably break things.
+#define CF_INACTIVE			2048	// try to play even when inactive
 
 //server only
 #define CF_RELIABLE			1	// serverside only. yeah, evil. screw you.

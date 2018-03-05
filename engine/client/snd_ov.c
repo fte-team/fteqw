@@ -72,6 +72,8 @@ typedef struct {
 	int decodedbytestart;
 	int decodedbytecount;
 
+	quintptr_t pcmtotal;
+	float timetotal;
 	OggVorbis_File vf;
 
 	sfx_t *s;
@@ -127,11 +129,18 @@ float QDECL OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf, char *name, size
 	ovdecoderbuffer_t *dec = sfx->decoder.buf;
 	if (!dec)
 		return -1;
+
+	if (dec->timetotal < 0)
+	{
+		dec->pcmtotal = p_ov_pcm_total(&dec->vf, -1);
+		dec->timetotal = p_ov_time_total(&dec->vf, -1);
+	}
+
 	if (buf)
 	{
 		buf->data = NULL;	//you're not meant to actually be using the data here
 		buf->soundoffset = 0;
-		buf->length = p_ov_pcm_total(&dec->vf, -1);
+		buf->length = dec->pcmtotal;
 		buf->numchannels = dec->srcchannels;
 		buf->speed = dec->srcspeed;
 		buf->width = 2;
@@ -155,7 +164,7 @@ float QDECL OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf, char *name, size
 		else if (title)
 			Q_snprintfz(name, namesize, "%s", title);
 	}
-	return p_ov_time_total(&dec->vf, -1);
+	return dec->timetotal;
 }
 
 static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length)
@@ -501,6 +510,8 @@ static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdec
 
 	buffer->start = BZ_Malloc(length);
 	memcpy(buffer->start, start, length);
+
+	buffer->timetotal = -1;
 
 	return true;
 }

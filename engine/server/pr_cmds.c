@@ -10556,7 +10556,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"readsingleentitystate",PF_Fixme,0,	0,		0,		370},
 	{"deltalisten",		PF_Fixme,	0,		0,		0,		371,	D("float(string modelname, float(float isnew) updatecallback, float flags)", "Specifies a per-modelindex callback to listen for engine-networking entity updates. Such entities are automatically interpolated by the engine (unless flags specifies not to).\nThe various standard entity fields will be overwritten each frame before the updatecallback function is called.")},//  (EXT_CSQC_1)
 
-	{"dynamiclight_spawnstatic",PF_Fixme,0,	0,		0,		0,		D("float(vector org, float radius, vector rgb)", "Retrieves a property from the given dynamic/rt light. Return type depends upon the light field requested.")},
+	{"dynamiclight_spawnstatic",PF_Fixme,0,	0,		0,		0,		D("float(vector org, float radius, vector rgb)", "Creates a static persistent light at the given position with the specified colour. Additional properties must be set via dynamiclight_set.")},
 	{"dynamiclight_get",PF_Fixme,	0,		0,		0,		372,	D("__variant(float lno, float fld)", "Retrieves a property from the given dynamic/rt light. Return type depends upon the light field requested.")},
 	{"dynamiclight_set",PF_Fixme,	0,		0,		0,		373,	D("void(float lno, float fld, __variant value)", "Changes a property on the given dynamic/rt light. Value type depends upon the light field to be changed.")},
 	{"particleeffectquery",PF_Fixme,0,		0,		0,		374,	D("string(float efnum, float body)", "Retrieves either the name or the body of the effect with the given number. The effect body is regenerated from internal state, and can be changed before being reapplied via the localcmd builtin.")},

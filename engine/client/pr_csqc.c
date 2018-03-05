@@ -1261,7 +1261,7 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 	}
 }
 
-void QCBUILTIN PF_R_DynamicLight_Add(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_R_DynamicLight_AddInternal(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, qboolean isstatic)
 {
 	float *org = G_VECTOR(OFS_PARM0);
 	float radius = G_FLOAT(OFS_PARM1);
@@ -1272,7 +1272,7 @@ void QCBUILTIN PF_R_DynamicLight_Add(pubprogfuncs_t *prinst, struct globalvars_s
 
 #ifdef RTLIGHTS
 //	float *ambientdiffusespec = (prinst->callargc > 5)?{0,1,1}:G_VECTOR(OFS_PARM6);
-//	fov, orientation, corona, coronascale, etc. gah
+//	fov, orientation, corona, coronascale, rotation, die, etc, just use dynamiclight_set
 #endif
 
 	wedict_t *self;
@@ -1287,8 +1287,22 @@ void QCBUILTIN PF_R_DynamicLight_Add(pubprogfuncs_t *prinst, struct globalvars_s
 	else
 		dlkey = 0;
 
-	//if the org matches self, then attach it.
-	dl = CL_NewDlight (dlkey, org, radius, -0.1, rgb[0], rgb[1], rgb[2]);
+	if (isstatic)
+	{
+		dl = CL_AllocSlight();
+		dl->die = 0;
+		dl->flags = LFLAG_NORMALMODE|LFLAG_REALTIMEMODE;
+	}
+	else
+	{
+		dl = CL_AllocDlight(dlkey);
+		dl->die = cl.time + 0.1;
+		dl->flags = LFLAG_DYNAMIC;
+	}
+
+	VectorCopy(org, dl->origin);
+	dl->radius = radius;
+	VectorCopy(rgb, dl->color);
 
 	if (*dl->cubemapname)
 	{
@@ -1311,6 +1325,15 @@ void QCBUILTIN PF_R_DynamicLight_Add(pubprogfuncs_t *prinst, struct globalvars_s
 		dl->cubetexture = r_nulltex;
 
 	G_FLOAT(OFS_RETURN) = dl - cl_dlights;
+}
+
+void QCBUILTIN PF_R_DynamicLight_AddStatic(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	PF_R_DynamicLight_AddInternal(prinst, pr_globals, true);
+}
+void QCBUILTIN PF_R_DynamicLight_AddDynamic(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	PF_R_DynamicLight_AddInternal(prinst, pr_globals, false);
 }
 
 static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6198,7 +6221,7 @@ static struct {
 	{"setproperty",				PF_R_SetViewFlag,	303},				// #303 float(float property, ...) setproperty (EXT_CSQC)
 	{"renderscene",				PF_R_RenderScene,	304},				// #304 void() renderscene (EXT_CSQC)
 
-	{"dynamiclight_add",		PF_R_DynamicLight_Add,	305},			// #305 float(vector org, float radius, vector lightcolours) adddynamiclight (EXT_CSQC)
+	{"dynamiclight_add",		PF_R_DynamicLight_AddDynamic,	305},			// #305 float(vector org, float radius, vector lightcolours) adddynamiclight (EXT_CSQC)
 
 	{"R_BeginPolygon",			PF_R_PolygonBegin,	306},				// #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
 	{"R_PolygonVertex",			PF_R_PolygonVertex,	307},				// #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
@@ -6306,6 +6329,7 @@ static struct {
 //	{"readsingleentitystate",	PF_ReadSingleEntityState,		370},
 	{"deltalisten",				PF_DeltaListen,					371},		// #371 float(string modelname, float flags) deltalisten  (EXT_CSQC_1)
 
+	{"dynamiclight_spawnstatic",PF_R_DynamicLight_AddStatic,0},
 	{"dynamiclight_get",		PF_R_DynamicLight_Get,		372},
 	{"dynamiclight_set",		PF_R_DynamicLight_Set,		373},
 	{"particleeffectquery",		PF_cs_particleeffectquery,	374},

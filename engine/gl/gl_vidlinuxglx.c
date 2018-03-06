@@ -3201,7 +3201,9 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 			GLVID_Shutdown();
 			return false;
 		}
+#if defined(USE_EGL) || defined(VKQUAKE)
 		if (visinfo != &vinfodef)
+#endif
 			x11.pXFree(visinfo);
 		break;
 #ifdef USE_EGL

@@ -1887,7 +1887,7 @@ endif
 plugins-dbg:
 	@-mkdir -p $(DEBUG_DIR)
 	@if test -e ../plugins/Makefile; \
-	then $(MAKE) native -C ../plugins  OUT_DIR="$(DEBUG_DIR)" CC="$(CC) $(W32_CFLAGS) $(DEBUG_CFLAGS)" BASE_CFLAGS="$(BASE_CFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
+	then $(MAKE) native -C ../plugins  OUT_DIR="$(DEBUG_DIR)" CC="$(CC) $(W32_CFLAGS) $(DEBUG_CFLAGS)" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
 	fi
 plugins:
@@ -1895,7 +1895,7 @@ plugins:
 plugins-rel:
 	@-mkdir -p $(RELEASE_DIR)
 	@if test -e ../plugins/Makefile; \
-	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" BASE_CFLAGS="$(BASE_CFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
+	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
 	fi
 plugins-rel:

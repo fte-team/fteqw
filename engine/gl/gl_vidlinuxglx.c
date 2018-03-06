@@ -3194,7 +3194,9 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	case PSL_GLX:
 		if (!GLX_Init(info, fbconfig, visinfo))
 		{
+#if defined(USE_EGL) || defined(VKQUAKE)
 			if (visinfo != &vinfodef)
+#endif
 				x11.pXFree(visinfo);
 			GLVID_Shutdown();
 			return false;

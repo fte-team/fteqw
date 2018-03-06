@@ -5642,11 +5642,11 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 	case TF_MIP4_SOLID8:
 	case TF_SOLID8:
 		imageflags |= IF_NOALPHA;
-		if (!mipdata[0] || !mipdata[1] || !mipdata[2] || !mipdata[3])
+		if (!mipdata || !mipdata[0] || !mipdata[1] || !mipdata[2] || !mipdata[3])
 			basefmt = TF_SOLID8;
 		break;
 	default:
-		if (!mipdata[0] || !mipdata[1] || !mipdata[2] || !mipdata[3])
+		if (!mipdata || !mipdata[0] || !mipdata[1] || !mipdata[2] || !mipdata[3])
 			basefmt = TF_SOLID8;
 		break;
 	}

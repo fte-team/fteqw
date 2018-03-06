@@ -746,6 +746,8 @@ eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *ppf, const char *globname, progsnum_
 	unsigned int i;
 	ddef16_t *var16;
 	ddef32_t *var32;
+	if (type)
+		*type = ev_void;
 	if (pnum == PR_CURRENT)
 		pnum = prinst.pr_typecurrent;
 	if (pnum == PR_ANY)

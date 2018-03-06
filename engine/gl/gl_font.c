@@ -2192,6 +2192,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 //removes a font from memory.
 void Font_Free(struct font_s *f)
 {
+	size_t i;
 	struct charcache_s **link, *c, *valid;
 
 	//kill the alt font first.
@@ -2237,6 +2238,10 @@ void Font_Free(struct font_s *f)
 			Z_Free(qface);
 		}
 	}
+
+	for (i = 0; i < FONTBLOCKS; i++)
+		if (f->chars[i])
+			Z_Free(f->chars[i]);
 	Z_Free(f);
 }
 

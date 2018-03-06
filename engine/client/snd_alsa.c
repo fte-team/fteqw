@@ -39,6 +39,7 @@ static void *alsasharedobject;
 
 int (*psnd_pcm_open)				(snd_pcm_t **pcm, const char *name, snd_pcm_stream_t stream, int mode);
 int (*psnd_pcm_close)				(snd_pcm_t *pcm);
+int (*psnd_config_update_free_global)(void);
 const char *(*psnd_strerror)			(int errnum);
 int (*psnd_pcm_hw_params_any)			(snd_pcm_t *pcm, snd_pcm_hw_params_t *params);
 int (*psnd_pcm_hw_params_set_access)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_access_t _access);
@@ -179,6 +180,7 @@ static void ALSA_RW_Submit (soundcardinfo_t *sc, int start, int end)
 static void ALSA_Shutdown (soundcardinfo_t *sc)
 {
 	psnd_pcm_close (sc->handle);
+	psnd_config_update_free_global();	//and try to reduce leaks
 
 	if (sc->Submit == ALSA_RW_Submit)
 		free(sc->sn.buffer);
@@ -217,6 +219,7 @@ static qboolean Alsa_InitAlsa(void)
 
 	psnd_pcm_open							= dlsym(alsasharedobject, "snd_pcm_open");
 	psnd_pcm_close							= dlsym(alsasharedobject, "snd_pcm_close");
+	psnd_config_update_free_global			= dlsym(alsasharedobject, "snd_config_update_free_global");
 	psnd_strerror							= dlsym(alsasharedobject, "snd_strerror");
 	psnd_pcm_hw_params_any					= dlsym(alsasharedobject, "snd_pcm_hw_params_any");
 	psnd_pcm_hw_params_set_access			= dlsym(alsasharedobject, "snd_pcm_hw_params_set_access");
@@ -251,6 +254,7 @@ static qboolean Alsa_InitAlsa(void)
 
 	alsaworks = psnd_pcm_open
 		&& psnd_pcm_close
+		&& psnd_config_update_free_global
 		&& psnd_strerror
 		&& psnd_pcm_hw_params_any
 		&& psnd_pcm_hw_params_set_access

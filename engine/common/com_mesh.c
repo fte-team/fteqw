@@ -2975,6 +2975,9 @@ void Mod_LoadAliasShaders(model_t *mod)
 					if (r_loadbumpmapping)
 						loadflags |= SHADER_HASNORMALMAP;
 					mipdata[0] = f->texels;
+					mipdata[1] = NULL;
+					mipdata[2] = NULL;
+					mipdata[3] = NULL;
 					R_BuildLegacyTexnums(f->shader, basename, alttexpath, loadflags, imageflags, skintranstype, s->skinwidth, s->skinheight, mipdata, host_basepal);
 				}
 				else

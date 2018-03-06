@@ -3194,9 +3194,13 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	case PSL_GLX:
 		if (!GLX_Init(info, fbconfig, visinfo))
 		{
+			if (visinfo != &vinfodef)
+				x11.pXFree(visinfo);
 			GLVID_Shutdown();
 			return false;
 		}
+		if (visinfo != &vinfodef)
+			x11.pXFree(visinfo);
 		break;
 #ifdef USE_EGL
 	case PSL_EGL:
@@ -3441,7 +3445,7 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 			for (i = 0; i < devs; i++)
 			{
 				if (!dev[i].enabled)
-					return;
+					continue;
 				if (/*dev[i].use == XIMasterPointer ||*/ dev[i].use == XISlavePointer)
 				{
 					struct xidevinfo *devi = XI2_GetDeviceInfo(dev[i].deviceid);

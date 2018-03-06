@@ -93,17 +93,15 @@ anyway, the actual interface is the same. the old version might be slower, but w
 #endif
 /*end glibc workaround*/
 
-#define NUM_SAFE_ARGVS	6
-
 usercmd_t nullcmd; // guarenteed to be zero
 
 entity_state_t nullentitystate;	//this is the default state
 
-static const char	*largv[MAX_NUM_ARGVS + NUM_SAFE_ARGVS + 1];
-static char	*argvdummy = " ";
+static char	*safeargvs[] =
+	{"-stdvid", "-nolan", "-nosound", "-nocdaudio", "-nojoy", "-nomouse", "-nohome", "-window"};
 
-static char	*safeargvs[NUM_SAFE_ARGVS] =
-	{"-stdvid", "-nolan", "-nosound", "-nocdaudio", "-nojoy", "-nomouse"};
+static const char	*largv[MAX_NUM_ARGVS + countof(safeargvs) + 1];
+static char	*argvdummy = " ";
 
 cvar_t	registered = CVARD("registered","0","Set if quake's pak1.pak is available");
 cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version for server browsers");
@@ -4709,7 +4707,7 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 	{
 	// force all the safe-mode switches. Note that we reserved extra space in
 	// case we need to add these, so we don't need an overflow check
-		for (i=0 ; i<NUM_SAFE_ARGVS ; i++)
+		for (i=0 ; i<countof(safeargvs) ; i++)
 		{
 			largv[com_argc] = safeargvs[i];
 			com_argc++;

@@ -149,6 +149,7 @@ static int (VARGS *qgnutls_error_is_fatal)(int error);
 static int (VARGS *qgnutls_credentials_set)(gnutls_session_t, gnutls_credentials_type_t type, void* cred);
 //static int (VARGS *qgnutls_kx_set_priority)(gnutls_session_t session, const int*);
 static int (VARGS *qgnutls_init)(gnutls_session_t * session, gnutls_connection_end_t con_end);
+static void (VARGS *qgnutls_deinit)(gnutls_session_t session);
 static int (VARGS *qgnutls_set_default_priority)(gnutls_session_t session);
 static int (VARGS *qgnutls_certificate_allocate_credentials)(gnutls_certificate_credentials_t *sc);
 static int (VARGS *qgnutls_anon_allocate_client_credentials)(gnutls_anon_client_credentials_t *sc);
@@ -279,6 +280,7 @@ static qboolean Init_GNUTLS(void)
 	GNUTLS_FUNC(gnutls_error_is_fatal)	\
 	GNUTLS_FUNC(gnutls_credentials_set)	\
 	GNUTLS_FUNC(gnutls_init)	\
+	GNUTLS_FUNC(gnutls_deinit)	\
 	GNUTLS_FUNC(gnutls_set_default_priority)	\
 	GNUTLS_FUNC(gnutls_certificate_allocate_credentials)	\
 	GNUTLS_FUNC(gnutls_anon_allocate_client_credentials)	\
@@ -316,6 +318,7 @@ static qboolean Init_GNUTLS(void)
 		{(void**)&qgnutls_credentials_set, "gnutls_credentials_set"},
 //		{(void**)&qgnutls_kx_set_priority, "gnutls_kx_set_priority"},
 		{(void**)&qgnutls_init, "gnutls_init"},
+		{(void**)&qgnutls_deinit, "gnutls_deinit"},
 		{(void**)&qgnutls_set_default_priority, "gnutls_set_default_priority"},
 		{(void**)&qgnutls_certificate_allocate_credentials, "gnutls_certificate_allocate_credentials"},
 		{(void**)&qgnutls_anon_allocate_client_credentials, "gnutls_anon_allocate_client_credentials"},
@@ -431,11 +434,15 @@ static qboolean QDECL SSL_Close(vfsfile_t *vfs)
 	file->handshaking = true;
 
 	if (file->session)
+	{
 		qgnutls_bye (file->session, file->datagram?GNUTLS_SHUT_WR:GNUTLS_SHUT_RDWR);
+		qgnutls_deinit(file->session);
+	}
 	file->session = NULL;
 	if (file->stream)
 		VFS_CLOSE(file->stream);
 	file->stream = NULL;
+	Z_Free(file);
 	return true;
 }
 
@@ -952,10 +959,14 @@ qboolean SSL_InitGlobal(qboolean isserver)
 {
 	static int initstatus[2];
 	isserver = !!isserver;
+	if (COM_CheckParm("-notls"))
+		return false;
+	Sys_LockMutex(com_resourcemutex);
 	if (!initstatus[isserver])
 	{
 		if (!Init_GNUTLS())
 		{
+			Sys_UnlockMutex(com_resourcemutex);
 			Con_Printf("GnuTLS "GNUTLS_VERSION" library not available.\n");
 			return false;
 		}
@@ -980,6 +991,7 @@ qboolean SSL_InitGlobal(qboolean isserver)
 		qgnutls_certificate_set_x509_trust_file (xcred[isserver], CAFILE, GNUTLS_X509_FMT_PEM);
 #endif
 
+		Sys_UnlockMutex(com_resourcemutex);
 		if (isserver)
 		{
 #if 1
@@ -1004,6 +1016,8 @@ qboolean SSL_InitGlobal(qboolean isserver)
 			qgnutls_certificate_set_verify_function (xcred[isserver], SSL_CheckCert);
 #endif
 	}
+	else
+		Sys_UnlockMutex(com_resourcemutex);
 
 	if (initstatus[isserver] < 0)
 		return false;

@@ -834,7 +834,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			}
 			else if (!strncmp(cmdtext, "localservers", 12))
 			{
-				extern void NET_SendPollPacket(int len, void *data, netadr_t to);
+				extern qboolean NET_SendPollPacket(int len, void *data, netadr_t to);
 				netadr_t na;
 				MasterInfo_Refresh();
 

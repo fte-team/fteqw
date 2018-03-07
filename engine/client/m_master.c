@@ -408,7 +408,7 @@ static void SL_PreDraw	(menu_t *menu)
 	info->numslots = Master_NumSorted();
 	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u/%u/%u\n", info->numslots, Master_NumAlive(), Master_TotalCount());
 }
-void NET_SendPollPacket(int len, void *data, netadr_t to);
+qboolean NET_SendPollPacket(int len, void *data, netadr_t to);
 static void SL_PostDraw	(menu_t *menu)
 {
 	static char *helpstrings[] =

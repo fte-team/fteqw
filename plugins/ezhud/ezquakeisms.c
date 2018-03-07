@@ -49,7 +49,7 @@ byte *StringToRGB(const char *str)
 	int i;
 	for (i = 0; i < 4; i++)
 	{
-		while(*str <= ' ')
+		while(*str && *str <= ' ')
 			str++;
 		if (!*str)
 			rgba[i] = 255;

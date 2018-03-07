@@ -1793,11 +1793,12 @@ qboolean Master_LoadMasterList (char *filename, qboolean withcomment, int defaul
 	return true;
 }
 
-void NET_SendPollPacket(int len, void *data, netadr_t to)
+qboolean NET_SendPollPacket(int len, void *data, netadr_t to)
 {
 	unsigned long bcast;
 	int ret;
 	struct sockaddr_qstorage	addr;
+	char buf[128];
 
 	NetadrToSockadr (&to, &addr);
 #ifdef USEIPX
@@ -1818,7 +1819,7 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 		if (pollsocketsBCast[FIRSTIPXSOCKET+lastpollsockIPX] != bcast)
 		{
 			if (setsockopt(pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX], SOL_SOCKET, SO_BROADCAST, (char *)&bcast, sizeof(bcast)) == -1)
-				return;
+				return true;
 			pollsocketsBCast[FIRSTIPXSOCKET+lastpollsockIPX] = bcast;
 		}
 		ret = sendto (pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
@@ -1837,7 +1838,7 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 			pollsocketsBCast[FIRSTUDP6SOCKET+lastpollsockUDP6] = false;
 		}
 		if (pollsocketsList[FIRSTUDP6SOCKET+lastpollsockUDP6]==INVALID_SOCKET)
-			return;	//bother
+			return true;	//bother
 		ret = sendto (pollsocketsList[FIRSTUDP6SOCKET+lastpollsockUDP6], data, len, 0, (struct sockaddr *)&addr, sizeof(addr) );
 	}
 	else
@@ -1854,36 +1855,47 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 			pollsocketsBCast[FIRSTUDP4SOCKET+lastpollsockUDP4] = false;
 		}
 		if (pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4]==INVALID_SOCKET)
-			return;	//bother
+			return true;	//bother
 
 		bcast = !memcmp(to.address.ip, "\xff\xff\xff\xff", sizeof(to.address.ip));
 		if (pollsocketsBCast[FIRSTUDP4SOCKET+lastpollsockUDP4] != bcast)
 		{
 			if (setsockopt(pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4], SOL_SOCKET, SO_BROADCAST, (char *)&bcast, sizeof(bcast)) == -1)
-				return;
+				return true;
 			pollsocketsBCast[FIRSTUDP4SOCKET+lastpollsockUDP4] = bcast;
 		}
 		ret = sendto (pollsocketsList[FIRSTUDP4SOCKET+lastpollsockUDP4], data, len, 0, (struct sockaddr *)&addr, sizeof(struct sockaddr_in) );
 	}
 	else
 #endif
-		return;
+		return true;
 
 	if (ret == -1)
 	{
 		int er = neterrno();
 // wouldblock is silent
 		if (er == NET_EWOULDBLOCK)
-			return;
+			return false;
 
 		if (er == NET_ECONNREFUSED)
-			return;
+			return true;
 
+		if (er == NET_ENETUNREACH)
+			Con_Printf("NET_SendPollPacket Warning: unreachable: %s\n", NET_AdrToString(buf, sizeof(buf), &to));
+		else
+#ifdef _WIN32
 		if (er == NET_EADDRNOTAVAIL)
 			Con_DPrintf("NET_SendPollPacket Warning: %i\n", er);
 		else
 			Con_Printf ("NET_SendPollPacket ERROR: %i\n", er);
+#else
+		if (er == NET_EADDRNOTAVAIL)
+			Con_DPrintf("NET_SendPollPacket Warning: %s\n", strerror(er));
+		else
+			Con_Printf ("NET_SendPollPacket ERROR: %s\n", strerror(er));
+#endif
 	}
+	return true;
 }
 
 int Master_CheckPollSockets(void)
@@ -1930,7 +1942,7 @@ int Master_CheckPollSockets(void)
 		SockadrToNetadr (&from, &net_from);
 
 		net_message.cursize = ret;
-		if (ret == sizeof(net_message_buffer) )
+		if (ret >= sizeof(net_message_buffer) )
 		{
 			Con_Printf ("Oversize packet from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 			continue;
@@ -2690,7 +2702,8 @@ void Master_QueryServer(serverinfo_t *server)
 	default:
 		return;
 	}
-	NET_SendPollPacket (strlen(data), data, server->adr);
+	if (!NET_SendPollPacket (strlen(data), data, server->adr))
+		server->sends++; //if we failed, just try again later
 }
 //send a packet to each server in sequence.
 qboolean CL_QueryServers(void)

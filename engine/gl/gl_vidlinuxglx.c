@@ -1143,7 +1143,7 @@ static struct
 			qboolean abs;
 			double min, max;
 			float old;
-		} axis[2];
+		} axis[2]; //the meaning of any other axis is unknown. beware that they DO happen.
 		qboolean abs;
 	} *deviceinfo;
 	int nextqdev;
@@ -1176,7 +1176,7 @@ static struct xidevinfo *XI2_GetDeviceInfo(int devid)
 						if (dev->classes[j]->sourceid == xi2.ndeviceinfos && dev->classes[j]->type == XIValuatorClass)
 						{
 							XIValuatorClassInfo *v = (XIValuatorClassInfo*)dev->classes[j];
-							if (v->mode == XIModeAbsolute)
+							if (v->mode == XIModeAbsolute && v->number >= 0 && v->number < countof(xi2.deviceinfo[xi2.ndeviceinfos].axis))
 							{
 								xi2.deviceinfo[xi2.ndeviceinfos].abs = xi2.deviceinfo[xi2.ndeviceinfos].axis[v->number].abs = true;
 								xi2.deviceinfo[xi2.ndeviceinfos].axis[v->number].min = v->min;

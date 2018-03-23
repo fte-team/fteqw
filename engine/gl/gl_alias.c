@@ -1726,7 +1726,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			continue;
 		skin = skin?skin:NULL;
 		shader = e->forcedshader?e->forcedshader:regshader;
-		if (shader)
+		if (shader && !(shader->flags & SHADER_NODRAW))
 		{
 			b = BE_GetTempBatch();
 			if (!b)

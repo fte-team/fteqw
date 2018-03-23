@@ -1004,8 +1004,8 @@ typedef struct
 } skellerps_t;
 static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion_s *fs, int numbones, galiasinfo_t *inf)
 {
-	unsigned int frame1;
-	unsigned int frame2;
+	int frame1;	//signed, because frametime might be negative...
+	int frame2;
 	float mlerp;	//minor lerp, poses within a group.
 	int l = 0;
 	galiasanimation_t *g;
@@ -1042,18 +1042,22 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 			}
 
 			mlerp = time*g->rate;
-			frame1=mlerp;
+			frame1=floor(mlerp);
 			frame2=frame1+1;
 			mlerp-=frame1;
 			if (g->loop)
 			{	//loop normally.
 				frame1=frame1%g->numposes;
 				frame2=frame2%g->numposes;
+				if (frame1 < 0)
+					frame1 += g->numposes;
+				if (frame2 < 0)
+					frame2 += g->numposes;
 			}
 			else
 			{
-				frame1=(frame1>g->numposes-1)?g->numposes-1:frame1;
-				frame2=(frame2>g->numposes-1)?g->numposes-1:frame2;
+				frame1=bound(0, frame1, g->numposes-1);
+				frame2=bound(0, frame2, g->numposes-1);
 			}
 
 			if (lerps->skeltype == SKEL_IDENTITY)

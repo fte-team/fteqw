@@ -77,7 +77,7 @@ static struct vk_rendertarg_cube vk_rt_cubemap;
 
 qboolean VK_SCR_GrabBackBuffer(void);
 
-#ifdef __linux__
+#if defined(__linux__) && defined(__GLIBC__)
 #include <execinfo.h>
 #define DOBACKTRACE()					\
 do {							\

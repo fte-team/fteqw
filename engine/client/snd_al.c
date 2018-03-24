@@ -73,7 +73,6 @@ We also have no doppler with WebAudio.
 
 #ifdef FTE_TARGET_WEB	//emscripten sucks.
 AL_API void (AL_APIENTRY alSpeedOfSound)( ALfloat value ) {}
-#define alGetError() alGetError(NULL)
 #endif
 #else
 

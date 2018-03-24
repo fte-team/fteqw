@@ -437,6 +437,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if !defined(_WIN32) || (defined(_MSC_VER) && (_MSC_VER < 1300)) || defined(FTE_SDL)
 	#undef HAVE_WINSSPI
 #endif
+//subservers only has code for win32 threads and linux
+#if !((defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)) || (defined(__linux__) && !defined(ANDROID) && !defined(FTE_SDL)))
+	#undef SUBSERVERS
+#endif
 
 #ifndef HAVE_MIXER
 	//disable various sound drivers if we can't use them anyway.

@@ -3208,6 +3208,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 
 	if (ent->xv->basebone < 0)
 	{
+#ifdef SKELETALMODELS
 		if (ent->xv->skeletonindex && pack)
 		{
 			framestate_t fs;
@@ -3220,6 +3221,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 				//state->dpflags |= RENDER_COMPLEXANIMATION;
 			}
 		}
+#endif
 	}
 	else
 	{

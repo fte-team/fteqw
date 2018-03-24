@@ -4082,10 +4082,8 @@ void CL_Status_f(void)
 			Con_Printf("\textended coords\n");
 		if (cls.fteprotocolextensions & PEXT_SPLITSCREEN)
 			Con_Printf("\tsplit screen\n");
-#ifdef PEXT_CSQC
 		if (cls.fteprotocolextensions & PEXT_CSQC)
 			Con_Printf("\tcsqc info\n");
-#endif
 		if (cls.fteprotocolextensions2 & PEXT2_VOICECHAT)
 			Con_Printf("\tvoice chat\n");
 		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)

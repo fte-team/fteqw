@@ -251,8 +251,8 @@ void S_SoundInfo_f(void)
 
 #ifdef VOICECHAT
 #ifdef SPEEX_STATIC
-#include <speex.h>
-#include <speex_preprocess.h>
+#include <speex/speex.h>
+#include <speex/speex_preprocess.h>
 #else
 typedef struct {int stuff[15];} SpeexBits;
 typedef struct SpeexMode SpeexMode;

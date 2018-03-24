@@ -888,16 +888,23 @@ int main (int c, const char **v)
 
 	memset(&parms, 0, sizeof(parms));
 
-#ifdef USE_LIBTOOL
-	lt_dlinit();
-#endif
-
 	parms.argc = c;
 	parms.argv = v;
 #ifdef CONFIG_MANIFEST_TEXT
 	parms.manifest = CONFIG_MANIFEST_TEXT;
 #endif
 	COM_InitArgv(parms.argc, parms.argv);
+
+#ifdef USE_LIBTOOL
+	lt_dlinit();
+#endif
+
+#ifdef __linux__
+	uid_t ruid, euid, suid;
+	getresuid(&ruid, &euid, &suid);
+	if (!ruid || !euid || !suid)
+		printf("WARNING: you should NOT be running this as root!\n");
+#endif
 
 #ifdef __linux__
 	if (!COM_CheckParm("-nodumpstack"))

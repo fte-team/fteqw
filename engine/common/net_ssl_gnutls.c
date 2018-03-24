@@ -178,8 +178,8 @@ static int (VARGS *qgnutls_x509_crt_import)(gnutls_x509_crt_t cert, const gnutls
 #endif
 static const gnutls_datum_t *(VARGS *qgnutls_certificate_get_peers)(gnutls_session_t session, unsigned int * list_size);
 static gnutls_certificate_type_t (VARGS *qgnutls_certificate_type_get)(gnutls_session_t session);
-static void		*(VARGS *qgnutls_malloc)(size_t);
-static void (VARGS *qgnutls_free)(void * ptr);
+static void		*(VARGS **qgnutls_malloc)(size_t);
+static void (VARGS **qgnutls_free)(void * ptr);
 static int (VARGS *qgnutls_server_name_set)(gnutls_session_t session, gnutls_server_name_type_t type, const void * name, size_t name_length); 
 
 #ifdef HAVE_DTLS
@@ -259,7 +259,7 @@ static qboolean Init_GNUTLS(void)
 	GNUTLS_FUNC(gnutls_x509_crt_export2)	\
 	GNUTLS_FUNC(gnutls_x509_privkey_init)	\
 	GNUTLS_FUNC(gnutls_x509_privkey_deinit)	\
-	GNUTLS_FUNC(gnutls_x509_privkey_generate2)	\
+	GNUTLS_FUNC(gnutls_x509_privkey_generate)	\
 	GNUTLS_FUNC(gnutls_x509_privkey_export2)	\
 	GNUTLS_FUNC(gnutls_x509_crt_privkey_sign)	\
 	GNUTLS_FUNC(gnutls_privkey_init)	\
@@ -853,7 +853,7 @@ qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 		qgnutls_x509_privkey_init(&key);
 		ret = qgnutls_x509_privkey_generate(key, privalgo, qgnutls_sec_param_to_pk_bits(privalgo, GNUTLS_SEC_PARAM_HIGH), 0);
 		if (ret < 0)
-			Con_Printf("gnutls_x509_privkey_generate2 failed: %i\n", ret);
+			Con_Printf("gnutls_x509_privkey_generate failed: %i\n", ret);
 		ret = qgnutls_x509_privkey_export2(key, GNUTLS_X509_FMT_PEM, &priv);
 		if (ret < 0)
 			Con_Printf("gnutls_x509_privkey_export2 failed: %i\n", ret);
@@ -886,32 +886,35 @@ qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 			qgnutls_privkey_deinit(akey);
 		}
 		ret = qgnutls_x509_crt_export2(cert, GNUTLS_X509_FMT_PEM, &pub);
-		if (ret < 0)
-			Con_Printf("gnutls_x509_crt_export2 failed: %i\n", ret);
 		qgnutls_x509_crt_deinit(cert);
 		qgnutls_x509_privkey_deinit(key);
+		if (ret < 0)
+			Con_Printf("gnutls_x509_crt_export2 failed: %i\n", ret);
 
 		if (priv.size && pub.size)
 		{
+			char fullname[MAX_OSPATH];
 			privf = FS_OpenVFS(privname, "wb", FS_ROOT);
 			if (privf)
 			{
-				Con_Printf("Wrote %s\n", privname);
 				VFS_WRITE(privf, priv.data, priv.size);
 				VFS_CLOSE(privf);
+				FS_NativePath(privname, FS_ROOT, fullname, sizeof(fullname));
+				Con_Printf("Wrote %s\n", fullname);
 			}
-			memset(priv.data, 0, priv.size);
-			qgnutls_free(priv.data);
+//			memset(priv.data, 0, priv.size);
+			(*qgnutls_free)(priv.data);
 			memset(&priv, 0, sizeof(priv));
 
 			pubf = FS_OpenVFS(pubname, "wb", FS_ROOT);
 			if (pubf)
 			{
-				Con_Printf("Wrote %s\n", pubname);
 				VFS_WRITE(pubf, pub.data, pub.size);
 				VFS_CLOSE(pubf);
+				FS_NativePath(pubname, FS_ROOT, fullname, sizeof(fullname));
+				Con_Printf("Wrote %s\n", fullname);
 			}
-			qgnutls_free(pub.data);
+			(*qgnutls_free)(pub.data);
 			memset(&pub, 0, sizeof(pub));
 
 			privf = FS_OpenVFS(privname, "rb", FS_ROOT);
@@ -925,13 +928,13 @@ qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 	{
 		//read the two files now
 		priv.size = VFS_GETLEN(privf);
-		priv.data = qgnutls_malloc(priv.size+1);
+		priv.data = (*qgnutls_malloc)(priv.size+1);
 		if (priv.size != VFS_READ(privf, priv.data, priv.size))
 			priv.size = 0;
 		priv.data[priv.size] = 0;
 
 		pub.size = VFS_GETLEN(pubf);
-		pub.data = qgnutls_malloc(pub.size+1);
+		pub.data = (*qgnutls_malloc)(pub.size+1);
 		if (pub.size != VFS_READ(pubf, pub.data, pub.size))
 			pub.size = 0;
 		pub.data[pub.size] = 0;
@@ -949,8 +952,10 @@ qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 		Con_Printf("Unable to read/generate cert\n");
 
 	memset(priv.data, 0, priv.size);//just in case. FIXME: we didn't scrub the filesystem code. libc has its own caches etc. lets hope that noone comes up with some way to scrape memory remotely (although if they can inject code then we've lost either way so w/e)
-	qgnutls_free(priv.data);
-	qgnutls_free(pub.data);
+	if (priv.data)
+		(*qgnutls_free)(priv.data);
+	if (pub.data)
+		(*qgnutls_free)(pub.data);
 
 	return ret>=0;
 }
@@ -961,12 +966,14 @@ qboolean SSL_InitGlobal(qboolean isserver)
 	isserver = !!isserver;
 	if (COM_CheckParm("-notls"))
 		return false;
-	Sys_LockMutex(com_resourcemutex);
+	if (com_resourcemutex)
+		Sys_LockMutex(com_resourcemutex);
 	if (!initstatus[isserver])
 	{
 		if (!Init_GNUTLS())
 		{
-			Sys_UnlockMutex(com_resourcemutex);
+			if (com_resourcemutex)
+				Sys_UnlockMutex(com_resourcemutex);
 			Con_Printf("GnuTLS "GNUTLS_VERSION" library not available.\n");
 			return false;
 		}
@@ -991,7 +998,8 @@ qboolean SSL_InitGlobal(qboolean isserver)
 		qgnutls_certificate_set_x509_trust_file (xcred[isserver], CAFILE, GNUTLS_X509_FMT_PEM);
 #endif
 
-		Sys_UnlockMutex(com_resourcemutex);
+		if (com_resourcemutex)
+			Sys_UnlockMutex(com_resourcemutex);
 		if (isserver)
 		{
 #if 1
@@ -1017,7 +1025,10 @@ qboolean SSL_InitGlobal(qboolean isserver)
 #endif
 	}
 	else
-		Sys_UnlockMutex(com_resourcemutex);
+	{
+		if (com_resourcemutex)
+				Sys_UnlockMutex(com_resourcemutex);
+	}
 
 	if (initstatus[isserver] < 0)
 		return false;

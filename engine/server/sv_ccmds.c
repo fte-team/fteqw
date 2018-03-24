@@ -1837,7 +1837,7 @@ static void SV_Status_f (void)
 	extern cvar_t sv_listen_q3;
 #endif
 #ifdef HAVE_DTLS
-	extern cvar_t sv_listen_dtls;
+	extern cvar_t net_enable_dtls;
 #endif
 
 #ifndef SERVERONLY
@@ -1898,9 +1898,9 @@ static void SV_Status_f (void)
 		if (sv_listen_q3.ival) Con_Printf(" Q3");
 #endif
 #ifdef HAVE_DTLS
-		if (sv_listen_dtls.ival >= 3)
+		if (net_enable_dtls.ival >= 3)
 			Con_Printf(" DTLS-only");
-		else if (sv_listen_dtls.ival)
+		else if (net_enable_dtls.ival)
 			Con_Printf(" DTLS");
 #endif
 		/*if (net_enable_tls.ival)

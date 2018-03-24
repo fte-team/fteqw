@@ -5421,7 +5421,7 @@ static void QCBUILTIN PF_WriteString2 (pubprogfuncs_t *prinst, struct globalvars
 	G_FLOAT(OFS_PARM1) = old;
 }
 
-#ifndef QUAKETC
+#if !defined(QUAKETC) && defined(NETPREPARSE)
 //qtest-only builtins.
 static void QCBUILTIN PF_qtSingle_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -10049,7 +10049,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"WriteString",		PF_WriteString,		58,		58,		58,		0,	"void(float to, string val)"},	//58
 	{"WriteEntity",		PF_WriteEntity,		59,		59,		59,		0,	"void(float to, entity val)"},	//59
 
-#ifndef QUAKETC
+#if !defined(QUAKETC) && defined(NETPREPARSE)
 	{"swritebyte",		PF_qtSingle_WriteByte,			0,		0,		0,		0,	D("void(float val)", "A legacy of qtest - like WriteByte, except writes explicitly to the MSG_ONE target."), true},	//52
 	{"swritechar",		PF_qtSingle_WriteChar,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//53
 	{"swriteshort",		PF_qtSingle_WriteShort,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//54
@@ -11013,7 +11013,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 			builtincount[i]=100;
 	}
 
-#ifndef QUAKETC
+#if !defined(QUAKETC) && defined(NETPREPARSE)
 	if (type == PROG_PREREL)
 	{
 		pr_builtin[52] = PF_qtSingle_WriteByte;

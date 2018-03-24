@@ -235,6 +235,7 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	#define PF_skel_get_bonename	PF_Fixme
 	#define PF_skel_get_numbones	PF_Fixme
 	#define PF_skel_build			PF_Fixme
+	#define PF_skel_build_ptr		PF_Fixme
 	#define PF_skel_create			PF_Fixme
 	#define PF_skinforname			PF_Fixme
 

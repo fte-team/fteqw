@@ -103,7 +103,7 @@ static enum
 #endif
 } currentpsl;
 
-extern cvar_t vid_conautoscale;
+extern cvar_t vid_conautoscale, vid_vsync;
 
 extern int sys_parentleft;
 extern int sys_parenttop;
@@ -442,7 +442,7 @@ static qboolean VMODE_Init(void)
 	if (vm.lib)
 	{
 		if (vm.pXF86VidModeQueryVersion(vid_dpy, &vm.vmajor, &vm.vminor))
-			Con_Printf("Using XF86-VidModeExtension Ver. %d.%d\n", vm.vmajor, vm.vminor);
+			Con_DPrintf("Using XF86-VidModeExtension Ver. %d.%d\n", vm.vmajor, vm.vminor);
 		else
 		{
 			Con_Printf("No XF86-VidModeExtension support\n");
@@ -468,7 +468,7 @@ static void VMODE_SelectMode(int *width, int *height, float rate)
 	
 		if ((!*width || *width == DisplayWidth(vid_dpy, scrnum)) && (!*height || *height == DisplayHeight(vid_dpy, scrnum)) && !rate)
 		{
-			Con_Printf("XF86VM: mode change not needed\n");
+			Con_DPrintf("XF86VM: mode change not needed\n");
 			fullscreenflags |= FULLSCREEN_DESKTOP;
 			return;
 		}
@@ -1285,11 +1285,14 @@ static struct
 
 	const char * (*QueryExtensionsString)(Display * dpy,  int screen);
 	void *(*GetProcAddress) (char *name);
+	void (*SwapInterval) (Display *dpy, GLXDrawable drawable, int interval);
 
 	GLXFBConfig *(*ChooseFBConfig)(Display *dpy, int screen, const int *attrib_list, int *nelements);
 	int (*GetFBConfigAttrib)(Display *dpy, GLXFBConfig config, int attribute, int * value);
 	XVisualInfo *(*GetVisualFromFBConfig)(Display *dpy, GLXFBConfig config);
 	GLXContext (*CreateContextAttribs)(Display *dpy, GLXFBConfig config, GLXContext share_context, Bool direct, const int *attrib_list);
+
+	int swapint;
 } glx;
 
 void GLX_CloseLibrary(void)
@@ -1349,6 +1352,7 @@ qboolean GLX_InitLibrary(char *driver)
 	glx.GetFBConfigAttrib = GLX_GetSymbol("glXGetFBConfigAttrib");
 	glx.GetVisualFromFBConfig = GLX_GetSymbol("glXGetVisualFromFBConfig");
 	glx.CreateContextAttribs = GLX_GetSymbol("glXCreateContextAttribsARB");
+	glx.SwapInterval = GLX_GetSymbol("glXSwapIntervalEXT");
 
 	return true;
 }
@@ -2719,10 +2723,25 @@ void GLVID_SwapBuffers (void)
 #ifdef GLQUAKE
 #ifdef USE_EGL
 	case PSL_EGL:
-		EGL_BeginRendering();
+		EGL_SwapBuffers();
 		break;
 #endif
 	case PSL_GLX:
+		{
+			int n = vid_vsync.ival;
+			if (cls.timedemo && cls.demoplayback)
+				n = 0;
+			if (glx.swapint != n)
+			{
+				glx.swapint = n;
+				if (glx.SwapInterval)
+				{
+					glx.SwapInterval(vid_dpy, vid_window, glx.swapint);
+					Con_Printf("Swap interval %i\n", glx.swapint);
+				}
+			}
+		}
+
 		//we don't need to flush, XSawpBuffers does it for us.
 		//chances are, it's version is more suitable anyway. At least there's the chance that it might be.
 		glx.SwapBuffers(vid_dpy, vid_window);
@@ -3205,10 +3224,13 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		if (visinfo != &vinfodef)
 #endif
 			x11.pXFree(visinfo);
+		glx.swapint = vid_vsync.ival;
+		if (glx.SwapInterval)
+			glx.SwapInterval(vid_dpy, vid_window, glx.swapint);
 		break;
 #ifdef USE_EGL
 	case PSL_EGL:
-		if (!EGL_Init(info, palette, (EGLNativeWindowType)vid_window, (EGLNativeDisplayType)vid_dpy))
+		if (!EGL_Init(info, palette, EGL_PLATFORM_X11_KHR, &vid_window, vid_dpy, (EGLNativeWindowType)vid_window, (EGLNativeDisplayType)vid_dpy))
 		{
 			Con_Printf("Failed to create EGL context.\n");
 			GLVID_Shutdown();
@@ -3477,7 +3499,7 @@ void GLVID_SetCaption(const char *text)
 #include "gl_draw.h"
 rendererinfo_t eglrendererinfo =
 {
-	"EGL(X11)",
+	"OpenGL (X11 EGL)",
 	{
 		"egl"
 	},
@@ -3563,10 +3585,10 @@ static qboolean XVK_SetupSurface_XCB(void)
 #endif
 rendererinfo_t vkrendererinfo =
 {
-	"Vulkan(X11)",
+	"Vulkan (X11)",
 	{
-		"vk",
 		"xvk",
+		"vk",
 		"vulkan"
 	},
 	QR_VULKAN,
@@ -3625,20 +3647,23 @@ rendererinfo_t vkrendererinfo =
 #if 1
 char *Sys_GetClipboard(void)
 {
-	Atom xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
-	Atom xa_string = x11.pXInternAtom(vid_dpy, "UTF8_STRING", false);
-	Window clipboardowner = x11.pXGetSelectionOwner(vid_dpy, xa_clipboard);
-	if (clipboardowner != None && clipboardowner != vid_window)
+	if(vid_dpy)
 	{
-		int fmt;
-		Atom type;
-		unsigned long nitems, bytesleft;
-		unsigned char *data;
-		x11.pXConvertSelection(vid_dpy, xa_clipboard, xa_string, None, vid_window, CurrentTime);
-		x11.pXFlush(vid_dpy);
-		x11.pXGetWindowProperty(vid_dpy, vid_window, xa_string, 0, 0, False, AnyPropertyType, &type, &fmt, &nitems, &bytesleft, &data);
-		
-		return data;
+		Atom xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
+		Atom xa_string = x11.pXInternAtom(vid_dpy, "UTF8_STRING", false);
+		Window clipboardowner = x11.pXGetSelectionOwner(vid_dpy, xa_clipboard);
+		if (clipboardowner != None && clipboardowner != vid_window)
+		{
+			int fmt;
+			Atom type;
+			unsigned long nitems, bytesleft;
+			unsigned char *data;
+			x11.pXConvertSelection(vid_dpy, xa_clipboard, xa_string, None, vid_window, CurrentTime);
+			x11.pXFlush(vid_dpy);
+			x11.pXGetWindowProperty(vid_dpy, vid_window, xa_string, 0, 0, False, AnyPropertyType, &type, &fmt, &nitems, &bytesleft, &data);
+			
+			return data;
+		}
 	}
 	return clipboard_buffer;
 }
@@ -3648,14 +3673,18 @@ void Sys_CloseClipboard(char *bf)
 	if (bf == clipboard_buffer)
 		return;
 
-	x11.pXFree(bf);
+	if(vid_dpy)
+		x11.pXFree(bf);
 }
 
 void Sys_SaveClipboard(char *text)
 {
-	Atom xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
 	Q_strncpyz(clipboard_buffer, text, SYS_CLIPBOARD_SIZE);
-	x11.pXSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
+	if(vid_dpy)
+	{
+		Atom xa_clipboard = x11.pXInternAtom(vid_dpy, "PRIMARY", false);
+		x11.pXSetSelectionOwner(vid_dpy, xa_clipboard, vid_window, CurrentTime);
+	}
 }
 #endif
 

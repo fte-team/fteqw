@@ -10,6 +10,11 @@
 #endif
 #endif
 
+//small helper to aid compiling.
+#if defined(SKELETALMODELS) || defined(MD3MODELS)
+	#define SKELORTAGS
+#endif
+
 qboolean		r_loadbumpmapping;
 extern cvar_t dpcompat_psa_ungroup;
 extern cvar_t r_noframegrouplerp;
@@ -4225,10 +4230,10 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 
 int Mod_GetNumBones(model_t *model, qboolean allowtags)
 {
+#ifdef SKELORTAGS
 	if (model && model->type == mod_alias)
 	{
 		galiasinfo_t *inf = Mod_Extradata(model);
-
 #ifdef SKELETALMODELS
 		if (inf->numbones)
 			return inf->numbones;
@@ -4240,6 +4245,7 @@ int Mod_GetNumBones(model_t *model, qboolean allowtags)
 #endif
 		return 0;
 	}
+#endif
 #ifdef HALFLIFEMODELS
 	if (model && model->type == mod_halflife)
 		return HLMDL_GetNumBones(model, allowtags);
@@ -4390,6 +4396,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 	}
 #endif
 
+#ifdef SKELORTAGS
 	if (model && model->type == mod_alias)
 	{
 		galiasinfo_t *inf = Mod_Extradata(model);
@@ -4558,11 +4565,13 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 		}
 #endif
 	}
+#endif
 	return false;
 }
 
 int Mod_TagNumForName(model_t *model, const char *name)
 {
+#ifdef SKELORTAGS
 	int i;
 	galiasinfo_t *inf;
 
@@ -4611,6 +4620,7 @@ int Mod_TagNumForName(model_t *model, const char *name)
 #endif
 		return 0;
 	}
+#endif
 	return 0;
 }
 

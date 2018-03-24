@@ -718,6 +718,19 @@ void COM_Path_f (void)
 {
 	searchpath_t	*s;
 
+	if (!com_searchpaths && !com_purepaths)
+	{
+		Con_Printf("File system not initialised\n");
+		Con_Printf("gamedirfile: \"%s\"\n", gamedirfile);
+		Con_Printf("pubgamedirfile: \"%s\"\n", pubgamedirfile);
+		Con_Printf("com_gamepath: \"%s\"\n", com_gamepath);
+		Con_Printf("com_homepath: \"%s\" (enabled: %s, usable: %s)\n", com_homepath, com_homepathenabled?"yes":"no", com_homepathusable?"yes":"no");
+		Con_Printf("com_configdir: \"%s\"\n", com_configdir);
+		if (fs_manifest)
+			FS_Manifest_Print(fs_manifest);
+		return;
+	}
+
 	Con_TPrintf ("Current search path:\n");
 
 	if (com_purepaths || fs_puremode)

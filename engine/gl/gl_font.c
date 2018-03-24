@@ -45,7 +45,16 @@ extern unsigned int r2d_be_flags;
 
 static FT_Library fontlib;
 
-
+#ifdef FREETYPE_STATIC
+#define pFT_Init_FreeType	FT_Init_FreeType
+#define pFT_Load_Char		FT_Load_Char
+#define pFT_Get_Char_Index	FT_Get_Char_Index
+#define pFT_Set_Pixel_Sizes	FT_Set_Pixel_Sizes
+#define pFT_Select_Size		FT_Select_Size
+#define pFT_New_Face		FT_New_Face
+#define pFT_New_Memory_Face	FT_New_Memory_Face
+#define pFT_Done_Face		FT_Done_Face
+#else
 qboolean triedtoloadfreetype;
 dllhandle_t *fontmodule;
 FT_Error (VARGS *pFT_Init_FreeType)		(FT_Library  *alibrary);
@@ -56,6 +65,7 @@ FT_Error (VARGS *pFT_Select_Size)		(FT_Face face, FT_Int strike_index);
 FT_Error (VARGS *pFT_New_Face)			(FT_Library library, const char *pathname, FT_Long face_index, FT_Face *aface);
 FT_Error (VARGS *pFT_New_Memory_Face)	(FT_Library library, const FT_Byte* file_base, FT_Long file_size, FT_Long face_index, FT_Face *aface);
 FT_Error (VARGS *pFT_Done_Face)			(FT_Face face);
+#endif
 #else
 typedef unsigned int FT_Pixel_Mode; //for consistency even without freetype support.
 #endif
@@ -1363,17 +1373,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 
 	if (!fontlib)
 	{
-#if 0
-		pFT_Init_FreeType	= FT_Init_FreeType;
-		pFT_Load_Char		= FT_Load_Char;
-		pFT_Get_Char_Index	= FT_Get_Char_Index;
-		pFT_Set_Pixel_Sizes	= FT_Set_Pixel_Sizes;
-		pFT_Select_Size		= FT_Select_Size;
-		pFT_New_Face		= FT_New_Face;
-		pFT_New_Memory_Face	= FT_New_Memory_Face;
-		pFT_Init_FreeType	= FT_Init_FreeType;
-		pFT_Done_Face		= FT_Done_Face;
-#else
+#ifndef FREETYPE_STATIC
 		dllfunction_t ft2funcs[] =
 		{
 			{(void**)&pFT_Init_FreeType, "FT_Init_FreeType"},
@@ -1408,7 +1408,9 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 		if (error)
 		{
 			Con_Printf("FT_Init_FreeType failed.\n");
+#ifndef FREETYPE_STATIC
 			Sys_CloseLibrary(fontmodule);
+#endif
 			return false;
 		}
 		/*any other errors leave freetype open*/

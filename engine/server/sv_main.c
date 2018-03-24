@@ -41,26 +41,6 @@ void SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue);
 void SV_Port_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue);
-#ifdef HAVE_DTLS
-void QDECL SV_Listen_Dtls_Changed(struct cvar_s *var, char *oldvalue)
-{
-	//set up the default value
-	if (!*var->string)
-		var->ival = 1;	//FIXME: change to 2 when better tested.
-
-	if (var->ival)
-	{
-		if (!svs.sockets->dtlsfuncs)
-			svs.sockets->dtlsfuncs = DTLS_InitServer();
-		if (!svs.sockets->dtlsfuncs)
-		{
-			if (var->ival >= 2)
-				Con_Printf("Unable to set %s to \"%s\", no DTLS certificate available.\n", var->name, var->string);
-			var->ival = 0;	//disable the cvar (internally) if we don't have a usable certificate. this allows us to default the cvar to enabled without it breaking otherwise.
-		}
-	}
-}
-#endif
 
 client_t	*host_client;			// current client
 
@@ -124,9 +104,7 @@ cvar_t sv_listen_dp			= CVARD("sv_listen_dp", "0", "Allows the server to respond
 #ifdef QWOVERQ3
 cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
 #endif
-#ifdef HAVE_DTLS
-cvar_t sv_listen_dtls		= CVARCD("net_enable_dtls", "", SV_Listen_Dtls_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: available in desired.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
-#endif
+extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_highchars			= CVAR("sv_highchars", "1");
 cvar_t sv_maxrate			= CVAR("sv_maxrate", "30000");
@@ -1328,7 +1306,7 @@ static void SVC_GetInfo (char *challenge, int fullstatus)
 #ifdef Q2SERVER
 static void SVC_InfoQ2 (void)
 {
-	char	string[64];
+	char	string[128];
 	int		i, count;
 	int		version;
 
@@ -1648,13 +1626,13 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 #endif
 
 #ifdef HAVE_DTLS
-		if (sv_listen_dtls.ival/* || !*sv_listen_dtls.string*/)
+		if (net_enable_dtls.ival/* || !*net_enable_dtls.string*/)
 		{
 			lng = LittleLong(PROTOCOL_VERSION_DTLSUPGRADE);
 			memcpy(over, &lng, sizeof(lng));
 			over+=sizeof(lng);
 
-			if (sv_listen_dtls.ival >= 2)
+			if (net_enable_dtls.ival >= 2)
 				lng = LittleLong(2);	//required
 			else
 				lng = LittleLong(1);	//supported
@@ -1664,7 +1642,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 #endif
 		if (*sv_guidhash.string
 #ifdef HAVE_DTLS
-			&& (sv_listen_dtls.ival < 3 || net_from.prot == NP_DTLS)
+			&& (net_enable_dtls.ival < 3 || net_from.prot == NP_DTLS)
 #endif
 			)
 		{
@@ -2539,7 +2517,7 @@ client_t *SVC_DirectConnect(void)
 	}
 
 #ifdef HAVE_DTLS
-	if (sv_listen_dtls.ival > 2 && (net_from.prot == NP_DGRAM || net_from.prot == NP_STREAM || net_from.prot == NP_WS))
+	if (net_enable_dtls.ival > 2 && (net_from.prot == NP_DGRAM || net_from.prot == NP_STREAM || net_from.prot == NP_WS))
 	{
 		SV_RejectMessage (protocol, "This server requires the use of DTLS/TLS/WSS.\n");
 		return NULL;
@@ -3707,7 +3685,7 @@ qboolean SV_ConnectionlessPacket (void)
 	else if (!strcmp(c,"dtlsconnect"))
 	{
 #ifdef HAVE_DTLS
-		if (net_from.prot == NP_DGRAM && (sv_listen_dtls.ival /*|| !*sv_listen_dtls.ival*/))
+		if (net_from.prot == NP_DGRAM && (net_enable_dtls.ival /*|| !*net_enable_dtls.ival*/))
 		{
 			if (SV_ChallengePasses(atoi(Cmd_Argv(1))))
 			{
@@ -5140,9 +5118,6 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_listen_dp,	cvargroup_servercontrol);
 #ifdef QWOVERQ3
 	Cvar_Register (&sv_listen_q3,	cvargroup_servercontrol);
-#endif
-#ifdef HAVE_DTLS
-	Cvar_Register (&sv_listen_dtls,	cvargroup_servercontrol);
 #endif
 	sv_listen_qw.restriction = RESTRICT_MAX;	//no disabling this over rcon.
 	Cvar_Register (&fraglog_public,	cvargroup_servercontrol);

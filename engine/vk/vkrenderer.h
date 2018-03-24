@@ -7,14 +7,17 @@
 #endif
 
 #ifdef ANDROID
-#define VK_USE_PLATFORM_ANDROID_KHR
-#define VKInstXLibFuncs VKFunc(CreateAndroidSurfaceKHR)
+	#define VK_USE_PLATFORM_ANDROID_KHR
+	#define VKInstXLibFuncs VKFunc(CreateAndroidSurfaceKHR)
 #elif defined(__linux__)
-#define VK_USE_PLATFORM_XLIB_KHR
-#define VKInstXLibFuncs VKFunc(CreateXlibSurfaceKHR)
+	#define VK_USE_PLATFORM_XLIB_KHR
+	#define VKInstXLibFuncs VKFunc(CreateXlibSurfaceKHR)
 
-#define VK_USE_PLATFORM_XCB_KHR
-#define VKInstXCBFuncs VKFunc(CreateXcbSurfaceKHR)
+	#define VK_USE_PLATFORM_XCB_KHR
+	#define VKInstXCBFuncs VKFunc(CreateXcbSurfaceKHR)
+	
+	#define VK_USE_PLATFORM_WAYLAND_KHR
+	#define VKInstWaylandFuncs VKFunc(CreateWaylandSurfaceKHR)
 #endif
 
 #define VK_NO_PROTOTYPES
@@ -36,7 +39,10 @@
 #ifndef VKInstXCBFuncs
 #define VKInstXCBFuncs
 #endif
-#define VKInstArchFuncs VKInstWin32Funcs VKInstXLibFuncs VKInstXCBFuncs
+#ifndef VKInstWaylandFuncs
+#define VKInstWaylandFuncs
+#endif
+#define VKInstArchFuncs VKInstWin32Funcs VKInstXLibFuncs VKInstXCBFuncs VKInstWaylandFuncs
 
 
 //funcs needed for creating an instance
@@ -448,7 +454,7 @@ struct stagingbuf
 	VkBufferUsageFlags usage;
 };
 vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, uploadfmt_t encoding, unsigned int type, qboolean rendertarget);
-void set_image_layout(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspectMask, VkImageLayout old_image_layout, VkAccessFlags srcaccess, VkImageLayout new_image_layout, VkAccessFlags dstaccess);
+void set_image_layout(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspectMask, VkImageLayout old_image_layout, VkAccessFlags srcaccess, VkPipelineStageFlagBits srcstagemask, VkImageLayout new_image_layout, VkAccessFlags dstaccess, VkPipelineStageFlagBits dststagemask);
 void VK_CreateSampler(unsigned int flags, vk_image_t *img);
 void *VKBE_CreateStagingBuffer(struct stagingbuf *n, size_t size, VkBufferUsageFlags usage);
 VkBuffer VKBE_FinishStaging(struct stagingbuf *n, VkDeviceMemory *memptr);

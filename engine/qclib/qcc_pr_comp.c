@@ -13162,7 +13162,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 		if (name)
 			QC_snprintfz(newname, sizeof(newname), "%s%s", name, array);
 		else
-			*newname = *"";
+			QC_snprintfz(newname, sizeof(newname), "%s", array);
 
 		// allocate a new def
 		def = (void *)qccHunkAlloc (sizeof(QCC_def_t));
@@ -13250,14 +13250,14 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 				switch (parttype->type)
 				{
 				case ev_vector:
-					QC_snprintfz(newname, sizeof(newname), "%s%s.%s", name, array, type->params[partnum].paramname);
+					QC_snprintfz(newname, sizeof(newname), "%s.%s", def->name, type->params[partnum].paramname);
 					QCC_PR_DummyDef(parttype, newname, scope, type->params[partnum].arraysize, rootsymbol, def->ofs+type->params[partnum].ofs, false, flags);
 
-//					QC_snprintfz(newname, sizeof(newname), "%s%s.%s_x", name, array, type->params[partnum].paramname);
+//					QC_snprintfz(newname, sizeof(newname), "%s.%s_x", def->name, type->params[partnum].paramname);
 //					QCC_PR_DummyDef(type_float, newname, scope, 0, rootsymbol, type->params[partnum].ofs - rootsymbol->ofs, false, flags | GDF_CONST);
-//					QC_snprintfz(newname, sizeof(newname), "%s%s.%s_y", name, array, type->params[partnum].paramname);
+//					QC_snprintfz(newname, sizeof(newname), "%s.%s_y", def->name, type->params[partnum].paramname);
 //					QCC_PR_DummyDef(type_float, newname, scope, 0, rootsymbol, type->params[partnum].ofs+1 - rootsymbol->ofs, false, flags | GDF_CONST);
-//					QC_snprintfz(newname, sizeof(newname), "%s%s.%s_z", name, array, type->params[partnum].paramname);
+//					QC_snprintfz(newname, sizeof(newname), "%s.%s_z", def->name, type->params[partnum].paramname);
 //					QCC_PR_DummyDef(type_float, newname, scope, 0, rootsymbol, type->params[partnum].ofs+2 - rootsymbol->ofs, false, flags | GDF_CONST);
 					break;
 
@@ -13271,12 +13271,12 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 				case ev_struct:
 				case ev_union:
 				case ev_variant:	//for lack of any better alternative
-					QC_snprintfz(newname, sizeof(newname), "%s%s.%s", name, array, type->params[partnum].paramname);
+					QC_snprintfz(newname, sizeof(newname), "%s.%s", def->name, type->params[partnum].paramname);
 					QCC_PR_DummyDef(parttype, newname, scope, type->params[partnum].arraysize, rootsymbol, def->ofs+type->params[partnum].ofs, false, flags);
 					break;
 
 				case ev_function:
-					QC_snprintfz(newname, sizeof(newname), "%s%s.%s", name, array, parttype->name);
+					QC_snprintfz(newname, sizeof(newname), "%s.%s", def->name, parttype->name);
 					QCC_PR_DummyDef(parttype, newname, scope, type->params[partnum].arraysize, rootsymbol, def->ofs+type->params[partnum].ofs, false, flags)->initialized = true;
 					break;
 				case ev_void:
@@ -13286,11 +13286,11 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 		}
 		else if (type->type == ev_vector && !arraysize)
 		{	//do the vector thing.
-			QC_snprintfz(newname, sizeof(newname), "%s%s_x", name, array);
+			QC_snprintfz(newname, sizeof(newname), "%s_x", def->name);
 			QCC_PR_DummyDef(type_float, newname, scope, 0, rootsymbol, def->ofs+0, referable, (flags&~GDF_SAVED) | GDF_STRIP);
-			QC_snprintfz(newname, sizeof(newname), "%s%s_y", name, array);
+			QC_snprintfz(newname, sizeof(newname), "%s_y", def->name);
 			QCC_PR_DummyDef(type_float, newname, scope, 0, rootsymbol, def->ofs+1, referable, (flags&~GDF_SAVED) | GDF_STRIP);
-			QC_snprintfz(newname, sizeof(newname), "%s%s_z", name, array);
+			QC_snprintfz(newname, sizeof(newname), "%s_z", def->name);
 			QCC_PR_DummyDef(type_float, newname, scope, 0, rootsymbol, def->ofs+2, referable, (flags&~GDF_SAVED) | GDF_STRIP);
 		}
 		else if (type->type == ev_field)
@@ -13298,11 +13298,11 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 			if (type->aux_type->type == ev_vector && !arraysize)
 			{
 				//do the vector thing.
-				QC_snprintfz(newname, sizeof(newname), "%s%s_x", name, array);
+				QC_snprintfz(newname, sizeof(newname), "%s_x", def->name);
 				QCC_PR_DummyDef(type_floatfield, newname, scope, 0, rootsymbol, def->ofs+0, referable, flags);
-				QC_snprintfz(newname, sizeof(newname), "%s%s_y", name, array);
+				QC_snprintfz(newname, sizeof(newname), "%s_y", def->name);
 				QCC_PR_DummyDef(type_floatfield, newname, scope, 0, rootsymbol, def->ofs+1, referable, flags);
-				QC_snprintfz(newname, sizeof(newname), "%s%s_z", name, array);
+				QC_snprintfz(newname, sizeof(newname), "%s_z", def->name);
 				QCC_PR_DummyDef(type_floatfield, newname, scope, 0, rootsymbol, def->ofs+2, referable, flags);
 			}
 		}

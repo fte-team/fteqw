@@ -526,7 +526,7 @@ int IWebGetSafeListeningPort(void)
 	char *e;
 	int base, range;
 	static int sequence;
-	if (!*sv_ftp_port_range.string)
+	if (!sv_ftp_port_range.string || !*sv_ftp_port_range.string)
 		return 0;	//lets the OS pick.
 	base = strtol(sv_ftp_port_range.string, &e, 0);
 	while(*e == ' ')

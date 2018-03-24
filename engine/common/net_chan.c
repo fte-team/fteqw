@@ -164,7 +164,7 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 	#ifdef PEXT_CHUNKEDDOWNLOADS
 		mask |= PEXT_CHUNKEDDOWNLOADS;
 	#endif
-	#ifdef PEXT_CSQC
+	#ifdef CSQC_DAT
 		mask |= PEXT_CSQC;
 	#endif
 	#ifdef PEXT_DPFLAGS
@@ -175,7 +175,7 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 		{
 			//only ones that are tested
 			mask &= 
-#ifdef PEXT_CSQC
+#ifdef CSQC_DAT
 					PEXT_CSQC |
 #endif
 #ifdef PEXT_Q2BSP

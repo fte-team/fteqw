@@ -37,12 +37,20 @@ static int QDECL VFSSTDIO_WriteBytes (struct vfsfile_s *file, const void *buffer
 static qboolean QDECL VFSSTDIO_Seek (struct vfsfile_s *file, qofs_t pos)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
+#if _POSIX_C_SOURCE >= 200112L
+	return fseeko(intfile->handle, (off_t)pos, SEEK_SET) == 0;
+#else
 	return fseek(intfile->handle, pos, SEEK_SET) == 0;
+#endif
 }
 static qofs_t QDECL VFSSTDIO_Tell (struct vfsfile_s *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
+#if _POSIX_C_SOURCE >= 200112L
+	return (qofs_t)ftello(intfile->handle);
+#else
 	return ftell(intfile->handle);
+#endif
 }
 static void QDECL VFSSTDIO_Flush(struct vfsfile_s *file)
 {
@@ -53,12 +61,21 @@ static qofs_t QDECL VFSSTDIO_GetSize (struct vfsfile_s *file)
 {
 	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
 
+#if _POSIX_C_SOURCE >= 200112L
+	off_t curpos;
+	qofs_t maxlen;
+	curpos = ftello(intfile->handle);
+	fseeko(intfile->handle, 0, SEEK_END);
+	maxlen = (qofs_t)ftello(intfile->handle);
+	fseeko(intfile->handle, curpos, SEEK_SET);
+#else
 	unsigned int curpos;
 	unsigned int maxlen;
 	curpos = ftell(intfile->handle);
 	fseek(intfile->handle, 0, SEEK_END);
 	maxlen = ftell(intfile->handle);
 	fseek(intfile->handle, curpos, SEEK_SET);
+#endif
 
 	return maxlen;
 }
@@ -139,6 +156,7 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsfl
 	qboolean write = !!strchr(mode, 'w');
 	qboolean append = !!strchr(mode, 'a');
 	qboolean text = !!strchr(mode, 't');
+//	qboolean dolock = !!strchr(mode, 'l');
 	char newmode[5];
 	int modec = 0;
 

@@ -2194,6 +2194,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		break;
 	case MOVETYPE_FLY_WORLDONLY:
 	case MOVETYPE_FLY:
+#ifndef CLIENTONLY
 		if (svent)
 		{	//NQ players with movetype_fly are not like non-players.
 			if (!WPhys_RunThink (w, ent))
@@ -2206,6 +2207,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 			WPhys_WalkMove (w, ent, gravitydir);
 			break;
 		}
+#endif
 		//fallthrough
 	case MOVETYPE_H2SWIM:
 	case MOVETYPE_TOSS:

@@ -1190,7 +1190,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 	pmove.numphysent = 0;
 	pmove.physents[0].model = NULL;
 
-/*#ifdef PEXT_CSQC
+/*#ifdef CSQC_DAT
 	if (atstage())
 	{
 		extern cvar_t  cl_nocsqc;
@@ -1228,7 +1228,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 	}
 #endif
 
-#ifdef PEXT_CSQC
+#ifdef CSQC_DAT
 	if (atstage())
 	{
 		char *s;
@@ -3771,7 +3771,7 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 	S_Voip_MapChange();
 #endif
 
-#ifdef PEXT_CSQC
+#ifdef CSQC_DAT
 	CSQC_Shutdown();
 #endif
 }
@@ -4638,7 +4638,7 @@ static void CLQW_ParseStartSoundPacket(void)
 	if (ent > MAX_EDICTS)
 		Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
 
-#ifdef PEXT_CSQC
+#ifdef CSQC_DAT
 	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, 1, 0, 0))
 #endif
 	{
@@ -4834,7 +4834,7 @@ static void CLNQ_ParseStartSoundPacket(void)
 	for (i=0 ; i<3 ; i++)
 		pos[i] = MSG_ReadCoord ();
 
-#ifdef PEXT_CSQC
+#ifdef CSQC_DAT
 	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, pitchadj, timeofs, flags))
 #endif
 	{
@@ -7064,7 +7064,7 @@ void CLQW_ParseServerMessage (void)
 			CL_ParseEffect(true);
 			break;
 
-#ifdef PEXT_CSQC
+#ifdef CSQC_DAT
 		case svcfte_csqcentities:
 			csqcpacket = true;
 			CSQC_ParseEntities();
@@ -8070,7 +8070,7 @@ void CLNQ_ParseServerMessage (void)
 			CL_ParseStaticSound(true);
 			break;
 
-#ifdef PEXT_CSQC
+#ifdef CSQC_DAT
 		case svcdp_csqcentities:
 			CSQC_ParseEntities();
 			break;

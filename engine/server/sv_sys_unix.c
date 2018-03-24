@@ -17,7 +17,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
-#ifdef __i386__
+#ifdef __linux__
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE	//we need this in order to fix up broken backtraces. make sure its defined only where needed so we still some posixy conformance test on one plat.
 #endif
@@ -47,6 +47,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef MULTITHREAD
 #include <pthread.h>
 #endif
+
+#if defined(__linux__)
+//if we're chrooting, then we need to poke a few other systems to ensure libraries are loaded
+#include "netinc.h"
+#endif
+
 
 // callbacks
 void Sys_Linebuffer_Callback (struct cvar_s *var, char *oldvalue);
@@ -704,6 +710,112 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 }
 #endif
 
+#ifdef HAVE_GNUTLS
+qboolean SSL_InitGlobal(qboolean isserver);
+#endif
+static int Sys_CheckChRoot(void)
+{	//also warns if run as root.
+	int ret = false;
+#ifdef __linux__
+	//three ways to use this:
+	//nonroot-with-SUID-root -- chroots+drops to a fixed path when run as a regular user. the homedir mechanism can be used for writing files.
+	//root -chroot foo -uid bar -- requires root, changes the filesystem and then switches user rights before starting the game itself.
+	//root -chroot foo -- requires root,changes the filesystem and 
+
+	uid_t ruid, euid, suid;
+	int arg = COM_CheckParm("-chroot");
+	const char *newroot = arg?com_argv[arg+1]:NULL;
+	const char *newhome;
+
+	getresuid(&ruid, &euid, &suid);
+	printf("ruid %u, euid %u, suid %u\n", ruid, euid, suid);
+	if (!euid && ruid != euid)
+	{	//if we're running SUID-root then assume the admin set it up that way in order to use chroot without making any libraries available inside the jail.
+		//however, chroot needs a certain level of sandboxing to prevent somehow running suid programs with eg a custom /etc/passwd, etc.
+		//this means we can't allow
+		//FIXME other games. should use the list in fs.c
+		if (COM_CheckParm("-quake"))
+			newroot = "/usr/share/quake";
+		else if (COM_CheckParm("-quake2"))
+			newroot = "/usr/share/quake2";
+		else if (COM_CheckParm("-quake3"))
+			newroot = "/usr/share/quake3";
+		else if (COM_CheckParm("-hexen2") || COM_CheckParm("-portals"))
+			newroot = "/usr/share/hexen2";
+		else
+#ifdef GAME_SHORTNAME
+			newroot = "/usr/share/" GAME_SHORTNAME;
+#else
+			newroot = "/usr/share/quake";
+#endif
+
+		//just read the environment name
+		newhome = getenv("USER");
+	}
+	else
+	{
+		newhome = NULL;
+		arg = COM_CheckParm("-uid");
+		if (arg)
+			ruid = strtol(com_argv[arg+1], NULL, 0);
+	}
+
+	if (newroot)
+	{	//chroot requires running as root, which sucks.
+		//make sure there's no suid programs in the new root dir that might get confused by /etc/ being something else.
+		//this binary MUST NOT be inside the new root.
+
+		//FIXME: should we temporarily try swapping uid+euid so we don't have any more access than a non-suid binary for this initial init stuff?
+		struct addrinfo *info;
+		if (getaddrinfo("localhost", NULL, NULL, &info) == 0)	//make sure we've loaded /etc/resolv.conf etc, otherwise any dns requests are going to fail.
+			freeaddrinfo(info);
+
+#ifdef HAVE_GNUTLS
+		SSL_InitGlobal(false);	//we need to load the known CA certs while we still can, as well as any shared objects
+		//SSL_InitGlobal(true);	//make sure we load our public cert from outside the sandbox. an exploit might still be able to find it in memory though. FIXME: disabled in case this reads from somewhere bad - we're still root.
+#endif
+
+		printf("Changing to root: \"%s\"\n", newroot);
+		if (chroot(newroot))
+		{
+			printf("chroot call failed\n");
+			return -1;
+		}
+		chdir("/");	//chroot does NOT change the working directory, so we need to make sure that happens otherwise still a way out.
+
+		if (newhome)
+			setenv("HOME", va("/user/%s", newhome), true);
+		else
+			setenv("HOME", va("/user/%i", ruid), true);
+		setenv("PWD", "/", true);
+	
+		ret = true;
+	}
+
+	if (ruid != euid || newroot)
+	{
+		if (setresuid(ruid, ruid, ruid))	//go back to our original user, assuming we were SUIDed
+		{
+			printf("error dropping priveledges\n");
+			return -1;
+		}
+		getresuid(&ruid, &euid, &suid);
+
+		if (setuid(0) != -1 || errno != EPERM)
+		{
+			printf("priveledges were not dropped...\n");
+			return -1;
+		}
+		getresuid(&ruid, &euid, &suid);
+	}
+
+
+	if (!ruid || !euid || !suid)
+		printf("WARNING: you should NOT be running this as root!\n");
+#endif
+	return ret;
+}
+
 /*
 =============
 main
@@ -715,6 +827,7 @@ int main(int argc, char *argv[])
 	quakeparms_t	parms;
 //	fd_set	fdset;
 //	extern	int		net_socket;
+	char bindir[MAX_OSPATH];
 
 	signal(SIGPIPE, SIG_IGN);
 	tcgetattr(STDIN_FILENO, &orig);
@@ -728,6 +841,42 @@ int main(int argc, char *argv[])
 #ifdef CONFIG_MANIFEST_TEXT
 	parms.manifest = CONFIG_MANIFEST_TEXT;
 #endif
+
+	switch(Sys_CheckChRoot())
+	{
+	case true:
+		parms.basedir = "/";
+		break;
+	case false:
+		parms.basedir = "./";
+#ifdef __linux__
+		//attempt to figure out where the exe is located
+		int l = readlink("/proc/self/exe", bindir, sizeof(bindir)-1);
+		if (l > 0)
+		{
+			bindir[l] = 0;
+			*COM_SkipPath(bindir) = 0;
+			printf("Binary is located at \"%s\"\n", bindir);
+			parms.binarydir = bindir;
+		}
+/*#elif defined(__bsd__)
+		//attempt to figure out where the exe is located
+		int l = readlink("/proc/self/exe", bindir, sizeof(bindir)-1);
+		if (l > 0)
+		{
+			bindir[l] = 0;
+			*COM_SkipPath(bindir) = 0;
+			printf("Binary is located at "%s"\n", bindir);
+			parms.binarydir = bindir;
+		}
+*/
+#endif
+		break;
+	default:
+		return -1;
+	}
+
+
 
 #ifdef __linux__
 	if (!COM_CheckParm("-nodumpstack"))
@@ -750,7 +899,6 @@ int main(int argc, char *argv[])
 		isClusterSlave = true;
 #endif
 
-	parms.basedir = "./";
 	TL_InitLanguages(parms.basedir);
 
 	SV_Init (&parms);

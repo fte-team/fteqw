@@ -1441,7 +1441,7 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 {
 	//when using networked terrain, the client will never load a section from disk, but will only load it from the server
 	//one section at a time.
-	if (mod_terrain_networked.ival && !sv.state)
+	if (mod_terrain_networked.ival && !sv_state)
 	{
 		char fname[MAX_QPATH];
 		if (flags & TGS_NODOWNLOAD)
@@ -1792,7 +1792,7 @@ static hmsection_t *QDECL Terr_GetSection(heightmap_t *hm, int x, int y, unsigne
 	//when using networked terrain, the client will never load a section from disk, but only loading it from the server
 	//this means we need to send a new request to download the section if it was flagged as modified.
 	if (!(flags & TGS_NODOWNLOAD))
-	if (section && (section->flags & TSF_NOTIFY) && mod_terrain_networked.ival && !sv.state)
+	if (section && (section->flags & TSF_NOTIFY) && mod_terrain_networked.ival && !sv_state)
 	{
 		//try to download it now...
 		if (!cl.downloadlist)
@@ -1987,12 +1987,13 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 //so the clients know to re-download the section.
 static void Terr_DoEditNotify(heightmap_t *hm)
 {
+#ifndef CLIENTONLY
 	int i;
 	char *cmd;
 	hmsection_t *s;
 	link_t *ln = &hm->recycle;
 
-	if (!sv.state)
+	if (!sv_state)
 		return;
 
 	for (i = 0; i < sv.allocated_client_slots; i++)
@@ -2021,9 +2022,9 @@ static void Terr_DoEditNotify(heightmap_t *hm)
 			return;
 		}
 	}
+#endif
 }
 
-#ifndef SERVERONLY
 //garbage collect the oldest section, to make space for another
 static qboolean Terr_Collect(heightmap_t *hm)
 {
@@ -2066,7 +2067,6 @@ static qboolean Terr_Collect(heightmap_t *hm)
 	}
 	return false;
 }
-#endif
 #endif
 
 /*purge all sections, but not root
@@ -4933,7 +4933,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			}
 
 #ifndef CLIENTONLY
-			if (sv.state && modelindex > 0)
+			if (sv_state && modelindex > 0)
 			{
 				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
 				MSG_WriteShort(&sv.multicast, modelindex);
@@ -6257,7 +6257,7 @@ void CL_Parse_BrushEdit(void)
 #ifdef CLIENTONLY
 	const qboolean		ignore = false;
 #else
-	const qboolean		ignore = (sv.state>=ss_loading);	//if we're the server then we already have this info. don't break anything (this info is present for demos).
+	const qboolean		ignore = (sv_state>=ss_loading);	//if we're the server then we already have this info. don't break anything (this info is present for demos).
 #endif
 
 	if (cmd == hmcmd_brush_delete)

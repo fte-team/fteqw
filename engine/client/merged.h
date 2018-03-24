@@ -389,6 +389,7 @@ typedef struct rendererinfo_s {
 	r_qrenderer_t rtype;
 	//FIXME: all but the vid stuff really should be filled in by the video code, simplifying system-specific stuff.
 
+//FIXME: remove these...
 	void	(*Draw_Init)				(void);
 	void	(*Draw_Shutdown)			(void);
 
@@ -400,6 +401,7 @@ typedef struct rendererinfo_s {
 	void	 (*R_DeInit)					(void);	//FIXME - merge implementations
 	void	 (*R_RenderView)				(void);	// must set r_refdef first
 
+//FIXME: keep these...
 	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 	void	 (*VID_DeInit)				(void);
 	void	 (*VID_SwapBuffers)			(void);	//force a buffer swap, regardless of what's displayed.
@@ -410,6 +412,8 @@ typedef struct rendererinfo_s {
 	void	 (*VID_DestroyCursor)			(void *cursor);	//may be null
 
 	void	 (*VID_SetWindowCaption)		(const char *msg);
+
+//FIXME: remove these...
 	char	*(*VID_GetRGBInfo)			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
 
 	qboolean (*SCR_UpdateScreen)			(void);
@@ -445,6 +449,12 @@ typedef struct rendererinfo_s {
 	void	(*BE_RenderToTextureUpdate2d)(qboolean destchanged);
 
 	char *alignment;	//just to make sure that added functions cause compile warnings.
+
+//FIXME: keep this...
+	int		(*VID_GetPriority)	(void);	//so that eg x11 or wayland can be prioritised depending on environment settings
+
+//FIXME: add getdestopres
+//FIXME: add clipboard handling
 } rendererinfo_t;
 
 #define rf currentrendererstate.renderer

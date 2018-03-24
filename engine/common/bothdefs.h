@@ -60,7 +60,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifndef MULTITHREAD
-#define NO_MULTITHREAD
+	#if !defined(_WIN32) || defined(FTE_SDL) //win32 is annoying
+		#define NO_MULTITHREAD
+	#endif
 #endif
 
 #ifdef FTE_TARGET_WEB
@@ -73,29 +75,37 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifdef D3DQUAKE
-#define D3D9QUAKE
-//#define D3D11QUAKE
-#undef D3DQUAKE
+	#define D3D9QUAKE
+	//#define D3D11QUAKE
+	#undef D3DQUAKE
 #endif
 
 #define STRINGIFY2(s) #s
 #define STRINGIFY(s) STRINGIFY2(s)
 
-#define QWSKINS	//disables qw .pcx skins, as well as enemy/team colour forcing.
+#ifndef CONFIG_FILE_NAME
+	#ifdef HAVE_CONFIG_H
+		#define CONFIG_FILE_NAME config.h
+	#elif defined(NOLEGACY)
+		#define CONFIG_FILE_NAME config_nolegacy.h
+	#elif defined(MINIMAL)
+		#define CONFIG_FILE_NAME config_minimal.h
+	#else
+		#define CONFIG_FILE_NAME config_fteqw.h
+	#endif
+#endif
 
 #ifdef CONFIG_FILE_NAME
+	#undef MULTITHREAD
+	#undef BOTLIB_STATIC
+	#define HEADLESSQUAKE	//usable renderers are normally specified via the makefile, but HEADLESS is considered a feature rather than an actual renderer, so usually gets forgotten about...
+
 	//yup, C89 allows this (doesn't like C's token concat though).
 	#include STRINGIFY(CONFIG_FILE_NAME)
-#elif defined(HAVE_CONFIG_H)	//if it was configured properly, then we have a more correct list of features we want to use.
-	#include "config.h"
 #else
-	#ifdef NO_LIBRARIES
-		#define NO_DIRECTX
-		#define NO_PNG
-		#define NO_JPEG
-		#define NO_ZLIB
-		#define NO_OGG
-	#else
+	#define QWSKINS	//disables qw .pcx skins, as well as enemy/team colour forcing.
+
+	#ifndef NO_LIBRARIES
 		#define AVAIL_OPENAL
 		#define AVAIL_FREETYPE
 	#endif
@@ -110,61 +120,44 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define AVAIL_OGGVORBIS
 	#endif
 
-#ifdef WINRT
-	#define AVAIL_XAUDIO2
-	#define AVAIL_WASAPI
-#elif !defined(NO_DIRECTX) && !defined(NODIRECTX) && defined(_WIN32)
-	#define AVAIL_DINPUT
-	#define AVAIL_DSOUND
-	#define AVAIL_WASAPI
-	//#define AVAIL_XAUDIO2 //gcc doesn't provide any headers
-#endif
-#define AVAIL_XZDEC
-
-#if !defined(MINIMAL) && !defined(NPFTE) && !defined(NPQTV)
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
-	#if !defined(_MSC_VER) || _MSC_VER > 1200
-		#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
+	#ifdef WINRT
+		#define AVAIL_XAUDIO2
+		#define AVAIL_WASAPI
+	#elif !defined(NO_DIRECTX) && !defined(NODIRECTX) && defined(_WIN32)
+		#define AVAIL_DINPUT
+		#define AVAIL_DSOUND
+		#define AVAIL_WASAPI
+		//#define AVAIL_XAUDIO2 //gcc doesn't provide any headers
 	#endif
-#elif (defined(__linux__) || defined(__CYGWIN__)) && !defined(ANDROID)
-	#define HAVE_GNUTLS		//currently disabled as it does not validate the server's certificate, beware the mitm attack.
-#endif
-#endif
+	#define AVAIL_XZDEC
 
-//#define DYNAMIC_ZLIB
-//#define DYNAMIC_LIBPNG
-//#define DYNAMIC_LIBJPEG
-//#define LIBVORBISFILE_STATIC
-//#define SPEEX_STATIC
+	#if !defined(MINIMAL) && !defined(NPFTE) && !defined(NPQTV)
+		#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
+			#if !defined(_MSC_VER) || _MSC_VER > 1200
+				#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
+			#endif
+		#elif (defined(__linux__) || defined(__CYGWIN__)) && !defined(ANDROID)
+			#define HAVE_GNUTLS		//currently disabled as it does not validate the server's certificate, beware the mitm attack.
+		#endif
+	#endif
 
-#if defined(_WIN32) && defined(GLQUAKE)
-	//#define USE_EGL
-#endif
+	//#define DYNAMIC_ZLIB
+	//#define DYNAMIC_LIBPNG
+	//#define DYNAMIC_LIBJPEG
+	//#define LIBVORBISFILE_STATIC
+	//#define SPEEX_STATIC
 
-#if defined(_MSC_VER) && !defined(BOTLIB_STATIC) //too lazy to fix up the makefile
-	#define BOTLIB_STATIC
-#endif
+	#if defined(_WIN32) && defined(GLQUAKE)
+		//#define USE_EGL
+	#endif
 
-#ifdef NO_OPENAL
-	#undef AVAIL_OPENAL
-#endif
+	#if defined(_MSC_VER) && !defined(BOTLIB_STATIC) //too lazy to fix up the makefile
+		#define BOTLIB_STATIC
+	#endif
 
-#ifdef NO_PNG
-	#undef AVAIL_PNGLIB
-#endif
-#ifdef NO_JPEG
-	#undef AVAIL_JPEGLIB
-#endif
-#ifdef NO_OGG
-	#undef AVAIL_OGGVORBIS
-#endif
-#if defined(NO_FREETYPE)
-	#undef AVAIL_FREETYPE
-#endif
-
-#if (defined(_MSC_VER) && (_MSC_VER < 1500)) || defined(FTE_SDL)
-	#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
-#endif
+	#if (defined(_MSC_VER) && (_MSC_VER < 1500)) || defined(FTE_SDL)
+		#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
+	#endif
 
 	#define HAVE_TCP		//says we can use tcp too (either ipv4 or ipv6)
 	#define HAVE_PACKET		//if we have the socket api at all...
@@ -204,9 +197,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef AVAIL_JPEGLIB
 		#undef AVAIL_XZDEC
 
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(MULTITHREAD) && !defined(_XBOX) //always thread on win32 non-minimal builds
-		#define MULTITHREAD
-#endif
 	#elif defined(MINIMAL)
 		#define QUAKESTATS
 		#define QUAKEHUD
@@ -302,9 +292,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define DECOMPRESS_S3TC	//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...
 		#define DECOMPRESS_RGTC	//bc4+bc5
 		//would be nice to have BPTC decompression too, for gl<4.2, d3d9, or d3d11_level10, but frankly its overcomplicated. I'm not going to bother with ASTC either.
-#ifndef RTLIGHTS
-		#define RTLIGHTS		//realtime lighting
-#endif
+		#ifndef RTLIGHTS
+				#define RTLIGHTS		//realtime lighting
+		#endif
 		//#define SHADOWDBG_COLOURNOTDEPTH	//for debugging. renders shadowmaps to a colour buffer instead of a depth buffer. resulting in projected textures instead of actual shadows (the glsl only picks up the red component, but whatever)
 
 //		#define QWOVERQ3		//allows qw servers with q3 clients. requires specific cgame.
@@ -368,14 +358,53 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 	#endif
 
-//software rendering is just too glitchy, don't use it.
+#if defined(SERVERONLY) && defined(CLIENTONLY)
+	#undef CLIENTONLY	//impossible build. assume the config had CLIENTONLY and they tried building a dedicated server
+#endif
+
+//software rendering is just too glitchy, don't use it - unless its the only choice.
 #if defined(SWQUAKE) && !defined(_DEBUG) && !defined(__DJGPP__)
 	#undef SWQUAKE
 #endif
-#if (defined(D3D8QUAKE) || defined(D3D9QUAKE) || defined(D3D11QUAKE)) && !defined(D3DQUAKE)
-#define D3DQUAKE
+#if defined(USE_EGL) && !defined(GLQUAKE)
+	#undef USE_EGL
+#endif
+#if defined(WAYLANDQUAKE) && !(defined(__linux__) && (defined(VKQUAKE) || (defined(GLQUAKE) && defined(USE_EGL))))
+	#undef WAYLANDQUAKE
 #endif
 
+#ifdef NO_MULTITHREAD
+	#undef MULTITHREAD
+#endif
+#ifdef NO_LIBRARIES //catch-all...
+	#define NO_DIRECTX
+	#define NO_PNG
+	#define NO_JPEG
+	#define NO_ZLIB
+	#define NO_OGG
+	#define NO_FREETYPE
+#endif
+#ifdef NO_OPENAL
+	#undef AVAIL_OPENAL
+#endif
+#ifdef NO_PNG
+	#undef AVAIL_PNGLIB
+#endif
+#ifdef NO_JPEG
+	#undef AVAIL_JPEGLIB
+#endif
+#ifdef NO_OGG
+	#undef AVAIL_OGGVORBIS
+#endif
+#ifdef NO_FREETYPE
+	#undef AVAIL_FREETYPE
+#endif
+#ifdef NO_ZLIB
+	#undef AVAIL_ZLIB
+	#undef AVAIL_PNGLIB
+	#undef AVAIL_XZDEC
+	#undef AVAIL_GZDEC
+#endif
 
 //include a file to update the various configurations for game-specific configs (hopefully just names)
 #ifdef BRANDING_INC
@@ -394,18 +423,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define ENGINEWEBSITE "http://fte.triptohell.info"	//url for program
 #endif
 
-//#define QUAKESPYAPI //define this if you want the engine to be usable via gamespy/quakespy, which has been dead for a long time now.
-
-#ifdef NO_ZLIB	//compile-time option.
-	#undef AVAIL_ZLIB
-	#undef AVAIL_PNGLIB
-	#undef AVAIL_XZDEC
-	#undef AVAIL_GZDEC
-#endif
-
 #if !defined(_WIN32) || defined(WINRT)
 	#undef HAVE_SPEECHTOTEXT
 	#undef AVAIL_MP3_ACM
+	#undef AVAIL_DSOUND
+	#undef AVAIL_XAUDIO2
+	#undef AVAIL_WASAPI
+#endif
+
+#if !(defined(__linux__) || defined(__CYGWIN__)) || defined(ANDROID)
+	#undef HAVE_GNUTLS
+#endif
+#if !defined(_WIN32) || (defined(_MSC_VER) && (_MSC_VER < 1300)) || defined(FTE_SDL)
+	#undef HAVE_WINSSPI
 #endif
 
 #ifndef HAVE_MIXER
@@ -414,6 +444,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_XAUDIO2
 	#undef AVAIL_WASAPI
 #endif
+
 
 #ifdef NOMEDIA
 	#undef HAVE_CDPLAYER		//includes cd playback. actual cds. faketracks are supported regardless.
@@ -425,7 +456,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #if defined(_XBOX)
-	#define D3DQUAKE
 	#define D3D8QUAKE
 	#undef HAVE_TCP		//FIXME
 	#undef HAVE_PACKET	//FIXME
@@ -519,7 +549,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //	#undef PSET_SCRIPT	//bss+size
 	#define GLSLONLY	//pointless having the junk
 	#define GLESONLY	//should reduce the conditions a little
-	#define R_MAX_RECURSE 2 //less bss
+	#ifndef R_MAX_RECURSE
+		#define R_MAX_RECURSE 2 //less bss
+	#endif
 //	#undef RTLIGHTS
 	#undef HEADLESSQUAKE
 	#define NO_FREETYPE
@@ -679,6 +711,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HLSERVER
 	#undef WEBSERVER
 	#undef FTPSERVER
+	#undef SUBSERVERS
 	#undef VM_Q1
 	#undef SQL
 #endif
@@ -709,6 +742,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q3CLIENT //reconsider this (later)
 	#undef Q3SERVER //reconsider this (later)
 #endif
+#ifdef DEBUG
+	#undef NOQCDESCRIPTIONS	//don't disable writing fteextensions.qc in debug builds, otherwise how would you ever build one? :o
+#endif
+
 
 #ifndef Q3CLIENT
 	#undef VM_CG	// :(
@@ -720,6 +757,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #if defined(VM_Q1) || defined(VM_UI) || defined(VM_CG) || defined(Q3SERVER) || defined(PLUGINS)
 	#define VM_ANY
+#endif
+
+#if (defined(D3D8QUAKE) || defined(D3D9QUAKE) || defined(D3D11QUAKE)) && !defined(D3DQUAKE)
+	#define D3DQUAKE	//shouldn't still matter
 #endif
 
 #define PROTOCOLEXTENSIONS

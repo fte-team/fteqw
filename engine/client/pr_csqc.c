@@ -838,7 +838,9 @@ static float CSQC_PitchScaleForModelIndex(int index)
 	return 1;
 }
 
+#ifdef SKELETALOBJECTS
 wedict_t *skel_gettaginfo_args (pubprogfuncs_t *prinst, vec3_t axis[3], vec3_t origin, int tagent, int tagnum);
+#endif
 
 static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 {
@@ -921,9 +923,11 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 
 	if (csqc_isdarkplaces && in->xv->tag_entity)
 	{
+#ifdef SKELETALOBJECTS
 		csqcedict_t *p = (csqcedict_t*)skel_gettaginfo_args(csqcprogs, out->axis, out->origin, in->xv->tag_entity, in->xv->tag_index);
 		if (p && (int)p->xv->renderflags & CSQCRF_VIEWMODEL)
 			out->flags |= RF_DEPTHHACK|RF_WEAPONMODEL;
+#endif
 	}
 
 	ival = in->v->colormap;
@@ -7782,7 +7786,7 @@ qboolean CSQC_DrawView(void)
 			if (csqc_world.rbe)
 			{
 #ifdef RAGDOLL
-				rag_doallanimations(&sv.world);
+				rag_doallanimations(&csqc_world);
 #endif
 				csqc_world.rbe->RunFrame(&csqc_world, host_frametime, 800);
 			}

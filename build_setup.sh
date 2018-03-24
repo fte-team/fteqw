@@ -33,8 +33,8 @@ ANDROID_ZIPALIGN=$ANDROIDROOT/build-tools/$ANDROIDBUILDTOOLS/zipalign	#relative 
 
 THREADS="-j 4"
 
-TARGETS_LINUX=qcc-rel rel dbg vk-rel plugins-rel plugins-dbg
-TARGETS_WINDOWS=sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel
+TARGETS_LINUX="qcc-rel rel dbg vk-rel plugins-rel plugins-dbg"
+TARGETS_WINDOWS="sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel"
 
 
 
@@ -242,7 +242,7 @@ debianpackages subversion make automake libtool p7zip-full zip || otherpackages 
 
 if [ "$BUILD_LINUXx86" == "y" ]; then
 	#for building linux targets
-	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev libvorbis-dev || otherpackages gcc || exit
+	debianpackages gcc-multilib g++-multilib mesa-common-dev libasound2-dev || otherpackages gcc || exit
 	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
 	if [[ "$PLUGINS_LINUXx86" =~ "ffmpeg" ]]; then
 		debianpackages libswscale-dev libavcodec-dev || otherpackages || exit

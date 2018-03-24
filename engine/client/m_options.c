@@ -1868,7 +1868,7 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, 0, cursorpositionY, NULL, false);
 }
 
-#ifdef Q2CLIENT
+#ifdef Q2SERVER
 // Quake 2
 
 typedef struct {
@@ -2353,7 +2353,7 @@ void M_Menu_Singleplayer_Cheats_f (void)
 	case MGT_QUAKE1:
 		M_Menu_Singleplayer_Cheats_Quake();
 		break;
-#ifdef Q2CLIENT
+#ifdef Q2SERVER
 	case MGT_QUAKE2:
 		M_Menu_Singleplayer_Cheats_Quake2();
 		break;
@@ -2933,7 +2933,9 @@ typedef struct
 	world_t ragworld;
 	wedict_t ragworldedict;
 	comentvars_t ragworldvars;
+#ifdef VM_Q1
 	comextentvars_t ragworldextvars;
+#endif
 	pubprogfuncs_t ragfuncs;
 	qboolean flop;	//ragdoll flopping enabled.
 	float fixedrate;
@@ -3123,7 +3125,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			mods->fixedrate = 1;
 		while (mods->fixedrate >= rate)
 		{
-			sv.world.rbe->RunFrame(&mods->ragworld, rate, 800);
+			mods->ragworld.rbe->RunFrame(&mods->ragworld, rate, 800);
 			mods->fixedrate -= rate;
 		}
 
@@ -3594,7 +3596,9 @@ void M_Menu_ModelViewer_f(void)
 	mv->ragfuncs.edicttable = (edict_t**)&mv->ragworld.edicts;
 	mv->ragworld.edicts = &mv->ragworldedict;
 	mv->ragworld.edicts->v = &mv->ragworldvars;
+#ifdef VM_Q1
 	mv->ragworld.edicts->xv = &mv->ragworldextvars;
+#endif
 	mv->ragworld.num_edicts = 1;
 	mv->ragworld.edicts->v->solid = SOLID_BBOX;
 	VectorSet(mv->ragworld.edicts->v->mins, -1000, -1000, -101);

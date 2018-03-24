@@ -578,7 +578,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 	int mfwt;
 	qboolean strafe_x, strafe_y;
 	int wpnum;
-#ifdef PEXT_CSQC
+#ifdef CSQC_DAT
 #ifdef MULTITHREAD
 	extern qboolean runningindepphys;
 #else
@@ -711,7 +711,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 				my = 0;
 			}
 #endif
-#ifdef PEXT_CSQC
+#ifdef CSQC_DAT
 			if (!runningindepphys && CSQC_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
 			{
 				mx = 0;
@@ -732,7 +732,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 		}
 #endif
 
-#ifdef PEXT_CSQC
+#ifdef CSQC_DAT
 		if (mx || my)
 		if (!runningindepphys && CSQC_MouseMove(mx, my, mouse->qdeviceid))
 		{

@@ -1782,11 +1782,19 @@ static void T_Gen_CurrentRender(void)
 		region.extent.height = vid.fbpheight;
 		region.extent.depth = 1;
 
-		set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
-		set_image_layout(vk.rendertarg->cbuf, img->image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT);
+		set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT,
+				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,	VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,	VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,		VK_ACCESS_TRANSFER_READ_BIT,		VK_PIPELINE_STAGE_TRANSFER_BIT);
+		set_image_layout(vk.rendertarg->cbuf, img->image, VK_IMAGE_ASPECT_COLOR_BIT,
+				VK_IMAGE_LAYOUT_UNDEFINED,			0,					VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,		VK_ACCESS_TRANSFER_WRITE_BIT,		VK_PIPELINE_STAGE_TRANSFER_BIT);
 		vkCmdCopyImage(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, img->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-		set_image_layout(vk.rendertarg->cbuf, img->image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT);
-		set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+		set_image_layout(vk.rendertarg->cbuf, img->image, VK_IMAGE_ASPECT_COLOR_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,		VK_ACCESS_TRANSFER_WRITE_BIT,		VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,	VK_ACCESS_SHADER_READ_BIT,		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,		VK_ACCESS_TRANSFER_READ_BIT,		VK_PIPELINE_STAGE_TRANSFER_BIT,
+				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,	VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,	VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 	}
 
 
@@ -6330,7 +6338,7 @@ void VKBE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earr
 	struct stagingbuf *n;
 	struct stagingbuf ebo;
 	VkDeviceMemory *retarded;
-	index_t *map = VKBE_CreateStagingBuffer(&ebo, esize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+	index_t *map = VKBE_CreateStagingBuffer(&ebo, esize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 	memcpy(map, edata, esize);
 	*ebomem = retarded = Z_Malloc(sizeof(*retarded));
 	earray->vk.buff = VKBE_FinishStaging(&ebo, retarded);

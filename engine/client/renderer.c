@@ -466,7 +466,7 @@ cvar_t vk_busywait							= CVARD ("vk_busywait",					"", "Force busy waiting unt
 cvar_t vk_waitfence							= CVARD ("vk_waitfence",				"", "Waits on fences, instead of semaphores. This is more likely to result in gpu stalls while the cpu waits.");
 cvar_t vk_nv_glsl_shader					= CVARD	("vk_loadglsl",					"", "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
 cvar_t vk_nv_dedicated_allocation			= CVARD	("vk_nv_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
-//cvar_t vk_khr_dedicated_allocation		= CVARD	("vk_khr_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
+cvar_t vk_khr_dedicated_allocation		= CVARD	("vk_khr_dedicated_allocation",	"", "Flag vulkan memory allocations as dedicated, where applicable.");
 cvar_t vk_khr_push_descriptor				= CVARD	("vk_khr_push_descriptor",		"", "Enables better descriptor streaming.");
 #endif
 
@@ -999,7 +999,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&vk_nv_glsl_shader,			VKRENDEREROPTIONS);
 	Cvar_Register (&vk_nv_dedicated_allocation,	VKRENDEREROPTIONS);
-//	Cvar_Register (&vk_khr_dedicated_allocation,VKRENDEREROPTIONS);
+	Cvar_Register (&vk_khr_dedicated_allocation,VKRENDEREROPTIONS);
 	Cvar_Register (&vk_khr_push_descriptor,		VKRENDEREROPTIONS);
 #endif
 
@@ -1123,58 +1123,55 @@ rendererinfo_t dedicatedrendererinfo = {
 };
 
 #ifdef GLQUAKE
-extern rendererinfo_t openglrendererinfo;
-#ifdef USE_EGL
-extern rendererinfo_t eglrendererinfo;
-#endif
-extern rendererinfo_t rpirendererinfo;
-rendererinfo_t waylandrendererinfo;
-rendererinfo_t fbdevrendererinfo;
+	extern rendererinfo_t openglrendererinfo;
+	#ifdef USE_EGL
+		extern rendererinfo_t eglrendererinfo;
+	#endif
+	extern rendererinfo_t rpirendererinfo;
+	#ifdef WAYLANDQUAKE
+		extern rendererinfo_t rendererinfo_wayland_gl;
+	#endif
+	rendererinfo_t fbdevrendererinfo;
 #endif
 #ifdef D3D8QUAKE
-extern rendererinfo_t d3d8rendererinfo;
+	extern rendererinfo_t d3d8rendererinfo;
 #endif
 #ifdef D3D9QUAKE
-extern rendererinfo_t d3d9rendererinfo;
+	extern rendererinfo_t d3d9rendererinfo;
 #endif
 #ifdef D3D11QUAKE
-extern rendererinfo_t d3d11rendererinfo;
+	extern rendererinfo_t d3d11rendererinfo;
 #endif
 #ifdef SWQUAKE
-extern rendererinfo_t swrendererinfo;
+	extern rendererinfo_t swrendererinfo;
 #endif
 #ifdef VKQUAKE
-extern rendererinfo_t vkrendererinfo;
-//rendererinfo_t headlessvkrendererinfo;
-#if defined(_WIN32) && defined(GLQUAKE) && !defined(FTE_SDL)
-extern rendererinfo_t nvvkrendererinfo;
-#endif
+	extern rendererinfo_t vkrendererinfo;
+	//rendererinfo_t headlessvkrendererinfo;
+	#if defined(_WIN32) && defined(GLQUAKE) && !defined(FTE_SDL)
+		extern rendererinfo_t nvvkrendererinfo;
+	#endif
+	#ifdef WAYLANDQUAKE
+		extern rendererinfo_t rendererinfo_wayland_vk;
+	#endif
 #endif
 #ifdef HEADLESSQUAKE
-extern rendererinfo_t headlessrenderer;
+	extern rendererinfo_t headlessrenderer;
 #endif
 
 rendererinfo_t *rendererinfo[16] =
 {
 #ifdef GLQUAKE
-#ifdef FTE_RPI
-	&rpirendererinfo,
-#endif
+	#ifdef FTE_RPI
+		&rpirendererinfo,
+	#endif
 	&openglrendererinfo,
-#ifdef USE_EGL
-	&eglrendererinfo,
-#endif
-	&waylandrendererinfo,
-	&fbdevrendererinfo,
+	#ifdef USE_EGL
+		&eglrendererinfo,
+	#endif
 #endif
 #ifdef D3D9QUAKE
 	&d3d9rendererinfo,
-#endif
-#ifdef D3D11QUAKE
-	&d3d11rendererinfo,
-#endif
-#ifdef SWQUAKE
-	&swrendererinfo,
 #endif
 #ifdef VKQUAKE
 	&vkrendererinfo,
@@ -1182,17 +1179,34 @@ rendererinfo_t *rendererinfo[16] =
 		&nvvkrendererinfo,
 	#endif
 #endif
+#ifdef D3D11QUAKE
+	&d3d11rendererinfo,
+#endif
+#ifdef SWQUAKE
+	&swrendererinfo,
+#endif
 #ifdef D3D8QUAKE
 	&d3d8rendererinfo,
+#endif
+#ifdef WAYLANDQUAKE
+	#ifdef GLQUAKE
+		&rendererinfo_wayland_gl,
+	#endif
+	#ifdef VKQUAKE
+		&rendererinfo_wayland_vk,
+	#endif
+#endif
+#ifdef GLQUAKE
+	&fbdevrendererinfo,	//direct stuff that doesn't interact well with the system should always be low priority
 #endif
 #ifndef NPQTV
 	&dedicatedrendererinfo,
 #endif
 #ifdef HEADLESSQUAKE
 	&headlessrenderer,
-#ifdef VKQUAKE
-	//&headlessvkrendererinfo,
-#endif
+	#ifdef VKQUAKE
+		//&headlessvkrendererinfo,
+	#endif
 #endif
 };
 
@@ -1960,6 +1974,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 				failed = !R_ApplyRenderer(newr);
 			}
 
+			//FIXME: query renderers for their priority and then use that. then we can favour X11 when DISPLAY is set and wayland when WAYLAND_DISPLAY is set, etc.
 			for (i = 0; failed && i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 			{
 				newr->renderer = rendererinfo[i];

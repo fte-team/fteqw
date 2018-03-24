@@ -1105,6 +1105,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svc_centerprint:
 			nullterms = 1;
 			break;
+#ifdef HEXEN2
 		case svch2_clearviewflags:
 			if (progstype == PROG_H2)
 			{
@@ -1129,6 +1130,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				protocollen = sizeof(buffer);
 			}
 			break;
+#endif
 		case svc_cutscene:
 			nullterms = 1;
 			break;
@@ -1162,6 +1164,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		switch(majortype)
 		{
 		case 128:
+#ifdef NQPROT
 			{
 				unsigned int bits = buffer[0];
 				protocollen = 1;
@@ -1207,6 +1210,9 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				if (bits & DPU_EXTEND1)
 					Con_DPrintf("NQWriteByte: fast update with extension bits is not supported\n");
 			}
+#else
+			ignoreprotocol = true;
+#endif
 			break;
 		case svc_sound:
 			protocollen = 5+destprim->coordsize*3;

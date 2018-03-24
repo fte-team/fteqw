@@ -826,8 +826,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 
 	Con_DPrintf ("SpawnServer: %s\n",server);
 
-	svs.spawncount++;		// any partially connected client will be
-							// restarted
+	svs.spawncount++;		// any partially connected client will be restarted
+	sv.world.spawncount = svs.spawncount;
 
 #ifndef SERVERONLY
 	total_loading_size = 100;

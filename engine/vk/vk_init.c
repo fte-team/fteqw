@@ -77,6 +77,23 @@ static struct vk_rendertarg_cube vk_rt_cubemap;
 
 qboolean VK_SCR_GrabBackBuffer(void);
 
+#ifdef __linux__
+#include <execinfo.h>
+#define DOBACKTRACE()					\
+do {							\
+	void *bt[16];					\
+	int i, fr = backtrace(bt, countof(bt));		\
+	char **strings = backtrace_symbols(bt, fr);	\
+	for (i = 0; i < fr; i++)			\
+		if (strings)				\
+			Con_Printf("\t%s\n", strings[i]);	\
+		else					\
+			Con_Printf("\t%p\n", bt[i]);	\
+	free(strings);					\
+} while(0)
+#else
+#define DOBACKTRACE()
+#endif
 
 static VkDebugReportCallbackEXT vk_debugcallback;
 static VkBool32 VKAPI_PTR mydebugreportcallback(
@@ -90,26 +107,41 @@ static VkBool32 VKAPI_PTR mydebugreportcallback(
 				void*                                       pUserData)
 {
 	if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT)
-		Con_Printf("%s: %s\n", pLayerPrefix, pMessage);
+	{
+		Con_Printf("ERR: %s: %s\n", pLayerPrefix, pMessage);
+//		DOBACKTRACE();
+	}
 	else if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT)
 	{
 		if (!strncmp(pMessage, "Additional bits in Source accessMask", 36) && strstr(pMessage, "VK_IMAGE_LAYOUT_UNDEFINED"))
 			return false;	//I don't give a fuck. undefined can be used to change layouts on a texture that already exists too.
-		Con_Printf("%s: %s\n", pLayerPrefix, pMessage);
+		Con_Printf("WARN: %s: %s\n", pLayerPrefix, pMessage);
+		DOBACKTRACE();
 	}
 	else if (flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT)
-		Con_Printf("%s: %s\n", pLayerPrefix, pMessage);
+	{
+		Con_DPrintf("DBG: %s: %s\n", pLayerPrefix, pMessage);
+//		DOBACKTRACE();
+	}
 	else if (flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT)
 	{
 #ifdef _WIN32
-	//	OutputDebugString(va("%s\n", pMessage));
+//		OutputDebugString(va("INF: %s\n", pMessage));
+#else
+		Con_Printf("INF: %s: %s\n", pLayerPrefix, pMessage);
+//		DOBACKTRACE();
 #endif
-//		Con_Printf("%s: %s\n", pLayerPrefix, pMessage);
 	}
 	else if (flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT)
-		Con_Printf("%s: %s\n", pLayerPrefix, pMessage);    
+	{
+		Con_Printf("PERF: %s: %s\n", pLayerPrefix, pMessage);    
+		DOBACKTRACE();
+	}
 	else
-		Con_Printf("%s: %s\n", pLayerPrefix, pMessage);
+	{
+		Con_Printf("OTHER: %s: %s\n", pLayerPrefix, pMessage);
+		DOBACKTRACE();
+	}
 	return false;
 }
 
@@ -332,6 +364,7 @@ static qboolean VK_CreateSwapChain(void)
 		{
 			VkMemoryRequirements mem_reqs;
 			VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+			VkMemoryDedicatedAllocateInfoKHR khr_mdai = {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR};
 			VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
 			VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
 			VkDedicatedAllocationImageCreateInfoNV nv_daici = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_IMAGE_CREATE_INFO_NV};
@@ -377,6 +410,12 @@ static qboolean VK_CreateSwapChain(void)
 				nv_damai.pNext = memAllocInfo.pNext;
 				nv_damai.image = images[i];
 				memAllocInfo.pNext = &nv_damai;
+			}
+			if (vk.khr_dedicated_allocation)
+			{
+				khr_mdai.pNext = memAllocInfo.pNext;
+                                khr_mdai.image = images[i];
+                                memAllocInfo.pNext = &khr_mdai;
 			}
 
 			VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &memories[i]));
@@ -602,6 +641,7 @@ static qboolean VK_CreateSwapChain(void)
 		free(presentmode);
 		free(surffmts);
 
+		newvkswapchain = VK_NULL_HANDLE;
 		VkAssert(vkCreateSwapchainKHR(vk.device, &swapinfo, vkallocationcb, &newvkswapchain));
 		if (!newvkswapchain)
 			return false;
@@ -743,6 +783,7 @@ static qboolean VK_CreateSwapChain(void)
 			{
 				VkMemoryRequirements mem_reqs;
 				VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+	                        VkMemoryDedicatedAllocateInfoKHR khr_mdai = {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR};
 				VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
 				vkGetImageMemoryRequirements(vk.device, vk.backbufs[i].depth.image, &mem_reqs);
 				memAllocInfo.allocationSize = mem_reqs.size;
@@ -752,6 +793,12 @@ static qboolean VK_CreateSwapChain(void)
 					nv_damai.image = vk.backbufs[i].depth.image;
 					nv_damai.pNext = memAllocInfo.pNext;
 					memAllocInfo.pNext = &nv_damai;
+				}
+				if (vk.khr_dedicated_allocation)
+				{
+					khr_mdai.image = vk.backbufs[i].depth.image;
+					khr_mdai.pNext = memAllocInfo.pNext;
+					memAllocInfo.pNext = &khr_mdai;
 				}
 				VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &vk.backbufs[i].depth.memory));
 				VkAssert(vkBindImageMemory(vk.device, vk.backbufs[i].depth.image, vk.backbufs[i].depth.memory, 0));
@@ -813,6 +860,7 @@ static qboolean VK_CreateSwapChain(void)
 			{
 				VkMemoryRequirements mem_reqs;
 				VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+	                        VkMemoryDedicatedAllocateInfoKHR khr_mdai = {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR};
 				VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
 				vkGetImageMemoryRequirements(vk.device, vk.backbufs[i].mscolour.image, &mem_reqs);
 				memAllocInfo.allocationSize = mem_reqs.size;
@@ -823,6 +871,13 @@ static qboolean VK_CreateSwapChain(void)
 					nv_damai.pNext = memAllocInfo.pNext;
 					memAllocInfo.pNext = &nv_damai;
 				}
+				if (vk.khr_dedicated_allocation)
+				{
+					khr_mdai.image = vk.backbufs[i].mscolour.image;
+					khr_mdai.pNext = memAllocInfo.pNext;
+					memAllocInfo.pNext = &khr_mdai;
+				}
+
 				VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &vk.backbufs[i].mscolour.memory));
 				VkAssert(vkBindImageMemory(vk.device, vk.backbufs[i].mscolour.image, vk.backbufs[i].mscolour.memory, 0));
 			}
@@ -970,6 +1025,7 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 #endif
 	VkMemoryRequirements mem_reqs;
 	VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+	VkMemoryDedicatedAllocateInfoKHR khr_mdai = {VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR};
 	VkDedicatedAllocationMemoryAllocateInfoNV nv_damai = {VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV};
 
 	VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
@@ -1141,6 +1197,12 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 		nv_damai.pNext = memAllocInfo.pNext;
 		memAllocInfo.pNext = &nv_damai;
 	}
+	if (vk.khr_dedicated_allocation)
+	{
+		khr_mdai.image = ret.image;
+		khr_mdai.pNext = memAllocInfo.pNext;
+		memAllocInfo.pNext = &khr_mdai;
+	}
 	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &ret.memory));
 	VkAssert(vkBindImageMemory(vk.device, ret.image, ret.memory, 0));
 
@@ -1196,7 +1258,9 @@ vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t lay
 	}
 	return ret;
 }
-void set_image_layout(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspectMask, VkImageLayout old_image_layout, VkAccessFlags srcaccess, VkImageLayout new_image_layout, VkAccessFlags dstaccess)
+void set_image_layout(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspectMask, 
+		VkImageLayout old_image_layout, VkAccessFlags srcaccess, VkPipelineStageFlagBits srcstagemask,
+	       	VkImageLayout new_image_layout, VkAccessFlags dstaccess, VkPipelineStageFlagBits dststagemask)
 {
 	//images have weird layout representations.
 	//we need to use a side-effect of memory barriers in order to convert from one layout to another, so that we can actually use the image.
@@ -1233,7 +1297,7 @@ void set_image_layout(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags asp
 	else if (old_image_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
 		imgbarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 */
-	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+	vkCmdPipelineBarrier(cmd, srcstagemask, dststagemask, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 }
 
 void VK_FencedCheck(void)
@@ -1474,7 +1538,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 
 			imgbarrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
 			imgbarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-			vkCmdPipelineBarrier(vkloadcmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+			vkCmdPipelineBarrier(vkloadcmd, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 		}
 	}
 	else
@@ -1498,7 +1562,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 
 			imgbarrier.srcAccessMask = 0;
 			imgbarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-			vkCmdPipelineBarrier(vkloadcmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+			vkCmdPipelineBarrier(vkloadcmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 		}
 	}
 
@@ -1617,7 +1681,9 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 			region.extent.height = mips->mip[i].height;
 			region.extent.depth = 1;
 
-			set_image_layout(vkloadcmd, fence->staging[i].image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_ACCESS_HOST_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
+			set_image_layout(vkloadcmd, fence->staging[i].image, VK_IMAGE_ASPECT_COLOR_BIT,
+					VK_IMAGE_LAYOUT_PREINITIALIZED, VK_ACCESS_HOST_WRITE_BIT,
+					VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
 			vkCmdCopyImage(vkloadcmd, fence->staging[i].image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 		}
 	}
@@ -1641,7 +1707,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 
 		imgbarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		imgbarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
-		vkCmdPipelineBarrier(vkloadcmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+		vkCmdPipelineBarrier(vkloadcmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 	}
 
 	VK_FencedSubmit(fence);
@@ -2552,7 +2618,9 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &capt->memory));
 	VkAssert(vkBindBufferMemory(vk.device, capt->buffer, capt->memory, 0));
 
-	set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
+	set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
 	icpy.bufferOffset = 0;
 	icpy.bufferRowLength = 0;	//packed
@@ -2570,7 +2638,9 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 
 	vkCmdCopyImageToBuffer(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, capt->buffer, 1, &icpy);
 
-	set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+	set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT,
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 }
 
 char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
@@ -2651,8 +2721,12 @@ char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight
 		VkAssert(vkBindBufferMemory(vk.device, tempbuffer, tempbufmemory, 0));
 
 
-		set_image_layout(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, framebufferlayout, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
-		set_image_layout(fence->cbuf, tempimage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT);
+		set_image_layout(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT,
+				framebufferlayout, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+		set_image_layout(fence->cbuf, tempimage, VK_IMAGE_ASPECT_COLOR_BIT,
+				VK_IMAGE_LAYOUT_UNDEFINED, 0, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 		{
 			VkImageBlit iblt;
 			iblt.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -2678,8 +2752,12 @@ char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight
 
 			vkCmdBlitImage(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, tempimage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &iblt, VK_FILTER_LINEAR);
 		}
-		set_image_layout(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, framebufferlayout, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-		set_image_layout(fence->cbuf, tempimage, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT);
+		set_image_layout(fence->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+				framebufferlayout, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+		set_image_layout(fence->cbuf, tempimage, VK_IMAGE_ASPECT_COLOR_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_ACCESS_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
 		{
 			VkBufferImageCopy icpy;
@@ -2994,9 +3072,9 @@ qboolean VK_SCR_GrabBackBuffer(void)
 	{
 		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
 		imgbarrier.pNext = NULL;
-		imgbarrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+		imgbarrier.srcAccessMask = 0;//VK_ACCESS_MEMORY_READ_BIT;
 		imgbarrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-		imgbarrier.oldLayout = vk.rendertarg->colour.layout;	//'Alternately, oldLayout can be VK_IMAGE_LAYOUT_UNDEFINED, if the image’s contents need not be preserved.'
+		imgbarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;//vk.rendertarg->colour.layout;	//'Alternately, oldLayout can be VK_IMAGE_LAYOUT_UNDEFINED, if the image’s contents need not be preserved.'
 		imgbarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		imgbarrier.image = vk.frame->backbuf->colour.image;
 		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -3020,7 +3098,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
 		imgbarrier.pNext = NULL;
 		imgbarrier.srcAccessMask = 0;
-		imgbarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		imgbarrier.dstAccessMask = 0;//VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 		imgbarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imgbarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		imgbarrier.image = vk.frame->backbuf->depth.image;
@@ -3251,7 +3329,7 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		imgbarrier.subresourceRange.layerCount = 1;
 		imgbarrier.srcQueueFamilyIndex = vk.queuefam[0];
 		imgbarrier.dstQueueFamilyIndex = vk.queuefam[1];
-		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
+		vkCmdPipelineBarrier(vk.rendertarg->cbuf,  VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 		vk.rendertarg->colour.layout = imgbarrier.newLayout;
 	}
 
@@ -3717,6 +3795,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	uint32_t extensions_count = 0;
 
 	//device extensions that want to enable
+	//initialised in reverse order, so superseeded should name later extensions.
 	struct
 	{
 		qboolean *flag;
@@ -3731,7 +3810,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		{&vk.khr_swapchain,				VK_KHR_SWAPCHAIN_EXTENSION_NAME,			NULL,							true, NULL, " Nothing will be drawn!"},
 		{&vk.nv_glsl_shader,			VK_NV_GLSL_SHADER_EXTENSION_NAME,			&vk_nv_glsl_shader,				false, NULL, " Direct use of glsl is not supported."},
 		{&vk.nv_dedicated_allocation,	VK_NV_DEDICATED_ALLOCATION_EXTENSION_NAME,	&vk_nv_dedicated_allocation,	true, &vk.khr_dedicated_allocation, ""},
-//		{&vk.khr_dedicated_allocation,	VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,	&vk_khr_dedicated_allocation,	true, NULL, ""},
+		{&vk.khr_dedicated_allocation,	VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,	&vk_khr_dedicated_allocation,	true, NULL, ""},
 		{&vk.khr_push_descriptor,		VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,		&vk_khr_push_descriptor,		true, NULL, ""},
 	};
 	size_t e;

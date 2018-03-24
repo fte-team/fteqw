@@ -210,6 +210,7 @@ struct world_s
 	struct pubprogfuncs_s *progs;
 	qboolean		usesolidcorpse;	//to disable SOLID_CORPSE when running hexen2 due to conflict.
 	model_t			*worldmodel;
+	unsigned int	spawncount;	//number of times it got restarted, so we can stop events from happening after vm restarts
 
 #ifdef USEAREAGRID
 	vec2_t			gridbias;

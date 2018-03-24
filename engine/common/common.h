@@ -454,6 +454,7 @@ extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 	#endif
 #endif
 #ifdef FS_64BIT
+	//we should probably use off_t here, but then we have fun as to whether its actually 64bit or not, which results in warnings and problems with printf etc.
 	typedef quint64_t qofs_t;	//type to use for a file offset
 	#define qofs_Make(low,high) (low | (((qofs_t)(high))<<32))
 	#define qofs_Low(ofs) ((ofs)&0xffffffffu)

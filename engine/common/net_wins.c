@@ -102,6 +102,27 @@ cvar_t	net_enable_http			= CVARD("net_enable_http",			"1", "If enabled, tcp port
 cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, tcp ports will accept websocket game clients.");
 cvar_t	net_enable_webrtcbroker	= CVARD("net_enable_webrtcbroker",	"1", "If 1, tcp ports will accept websocket connections from clients trying to broker direct webrtc connections. This should be low traffic, but might involve a lot of mostly-idle connections.");
 #endif
+#if defined(HAVE_DTLS) && !defined(CLIENTONLY)
+static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
+{
+	//set up the default value
+	if (!*var->string)
+		var->ival = 0;	//FIXME: change to 1 then 2 when better tested.
+
+	if (var->ival && svs.sockets)
+	{
+		if (!svs.sockets->dtlsfuncs)
+			svs.sockets->dtlsfuncs = DTLS_InitServer();
+		if (!svs.sockets->dtlsfuncs)
+		{
+			if (var->ival >= 2)
+				Con_Printf("%sUnable to set %s to \"%s\", no DTLS certificate available.\n", (var->ival >= 2)?CON_ERROR:CON_WARNING, var->name, var->string);
+			var->ival = 0;	//disable the cvar (internally) if we don't have a usable certificate. this allows us to default the cvar to enabled without it breaking otherwise.
+		}
+	}
+}
+cvar_t net_enable_dtls		= CVARAFCD("net_enable_dtls", "", "sv_listen_dtls", 0, NET_Enable_DTLS_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: available in desired.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
+#endif
 
 #ifndef SERVERONLY
 static void QDECL cl_delay_packets_Announce(cvar_t *var, char *oldval)
@@ -4360,7 +4381,7 @@ closesvstream:
 			if (st->inlen < 6)
 				continue;
 
-#ifdef HAVE_SSL	//if its non-ascii, then try and upgrade the connection to tls
+#if defined(HAVE_SSL) && !defined(CLIENTONLY)	//if its non-ascii, then try and upgrade the connection to tls
 			if (net_enable_tls.ival && con->generic.islisten && st->remoteaddr.prot == NP_STREAM && st->clientstream && !((st->inbuffer[0] >= 'a' && st->inbuffer[0] <= 'z') || (st->inbuffer[0] >= 'A' && st->inbuffer[0] <= 'Z')))
 			{
 				//copy off our buffer so we can read it into the tls stream's buffer instead.
@@ -7509,6 +7530,9 @@ void SVNET_RegisterCvars(void)
 	Cvar_Register (&net_enable_websockets,		"networking");
 	Cvar_Register (&net_enable_webrtcbroker,	"networking");
 #endif
+#if defined(HAVE_DTLS) && !defined(CLIENTONLY)
+	Cvar_Register (&net_enable_dtls,			"networking");
+#endif
 }
 
 void NET_CloseServer(void)
@@ -7556,6 +7580,9 @@ void NET_InitServer(void)
 #endif
 #ifdef HAVE_NATPMP
 		Cvar_ForceCallback(&sv_port_natpmp);
+#endif
+#ifdef HAVE_DTLS
+		Cvar_ForceCallback(&net_enable_dtls);
 #endif
 	}
 	else

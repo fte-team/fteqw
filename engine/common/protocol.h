@@ -57,15 +57,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_SETATTACHMENT		0x08000000	//md3 tags (needs networking, they need to lerp).
 //#define PEXT_NEVERUSED		0x10000000	//reserved for a future multicastmask
 #define PEXT_CHUNKEDDOWNLOADS	0x20000000	//alternate file download method. Hopefully it'll give quadroupled download speed, especially on higher pings.
-
-#ifdef CSQC_DAT
 #define PEXT_CSQC				0x40000000	//csqc additions
-#endif
-
 #define PEXT_DPFLAGS			0x80000000	//extra flags for viewmodel/externalmodel and possible other persistant style flags.
 
 #ifdef CSQC_DAT
-#define PEXT_BIGUSERINFOS	PEXT_CSQC
+#define PEXT_BIGUSERINFOS	PEXT_CSQC	//FIXME: while useful for csqc, we should include something else that isn't so often stripped, or is available in ezquake, or something.
 #else
 #define PEXT_BIGUSERINFOS	0xffffffff
 #endif		
@@ -287,9 +283,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_effect				74		// [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
 #define svcfte_effect2				75		// [vector] org [short] modelindex [short] startframe [byte] framecount [byte] framerate
 
-#ifdef PEXT_CSQC
 #define svcfte_csqcentities			76	//entity lump for csqc
-#endif
 
 #define svcfte_precache				77
 

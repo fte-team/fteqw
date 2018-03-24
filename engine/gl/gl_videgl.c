@@ -13,6 +13,7 @@ static dllhandle_t *eslibrary;
 
 static EGLint		(EGLAPIENTRY *qeglGetError)(void);
 
+static EGLDisplay	(EGLAPIENTRY *qeglGetPlatformDisplay)(EGLenum platform, void *native_display, const EGLint *attrib_list);
 static EGLDisplay	(EGLAPIENTRY *qeglGetDisplay)(EGLNativeDisplayType display_id);
 static EGLBoolean	(EGLAPIENTRY *qeglInitialize)(EGLDisplay dpy, EGLint *major, EGLint *minor);
 static EGLBoolean	(EGLAPIENTRY *qeglTerminate)(EGLDisplay dpy);
@@ -20,6 +21,7 @@ static EGLBoolean	(EGLAPIENTRY *qeglTerminate)(EGLDisplay dpy);
 static EGLBoolean	(EGLAPIENTRY *qeglGetConfigs)(EGLDisplay dpy, EGLConfig *configs, EGLint config_size, EGLint *num_config);
 static EGLBoolean	(EGLAPIENTRY *qeglChooseConfig)(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs, EGLint config_size, EGLint *num_config);
 
+static EGLSurface	(EGLAPIENTRY *qeglCreatePlatformWindowSurface)(EGLDisplay dpy, EGLConfig config, void *native_window, const EGLint *attrib_list);
 static EGLSurface	(EGLAPIENTRY *qeglCreateWindowSurface)(EGLDisplay dpy, EGLConfig config, EGLNativeWindowType win, const EGLint *attrib_list);
 static EGLBoolean	(EGLAPIENTRY *qeglDestroySurface)(EGLDisplay dpy, EGLSurface surface);
 static EGLBoolean	(EGLAPIENTRY *qeglQuerySurface)(EGLDisplay dpy, EGLSurface surface, EGLint attribute, EGLint *value);
@@ -87,6 +89,26 @@ void *EGL_Proc(char *f)
 	return proc;
 }
 
+const char *EGL_GetErrorString(int error)
+{
+	switch(error)
+	{
+	case EGL_BAD_ACCESS:		return "BAD_ACCESS";
+	case EGL_BAD_ALLOC:		return "BAD_ALLOC";
+	case EGL_BAD_ATTRIBUTE:		return "BAD_ATTRIBUTE";
+	case EGL_BAD_CONFIG:		return "BAD_CONFIG";
+	case EGL_BAD_CONTEXT:		return "BAD_CONEXT";
+	case EGL_BAD_CURRENT_SURFACE:	return "BAD_CURRENT_SURFACE";
+	case EGL_BAD_DISPLAY:		return "BAD_DISPLAY";
+	case EGL_BAD_MATCH:		return "BAD_MATCH";
+	case EGL_BAD_NATIVE_PIXMAP:	return "BAD_NATIVE_PIXMAP";
+	case EGL_BAD_NATIVE_WINDOW:	return "BAD_NATIVE_WINDOW";
+	case EGL_BAD_PARAMETER:		return "BAD_PARAMETER";
+	case EGL_BAD_SURFACE:		return "BAD_SURFACE";
+	default:			return va("EGL:%#x", error);
+	}
+}
+
 void EGL_UnloadLibrary(void)
 {
 	if (egllibrary)
@@ -118,11 +140,6 @@ qboolean EGL_LoadLibrary(char *driver)
 #ifndef _WIN32
 	if (!eslibrary)
 	{
-		eslibrary = dlopen("libGL", RTLD_NOW|RTLD_GLOBAL);
-		if (eslibrary) Sys_Printf("Loaded libGL\n");
-	}
-	if (!eslibrary)
-	{
 		eslibrary = dlopen("libGL.so.1.2", RTLD_NOW|RTLD_GLOBAL);
 		if (eslibrary) Sys_Printf("Loaded libGL.so.1.2\n");
 	}
@@ -130,6 +147,11 @@ qboolean EGL_LoadLibrary(char *driver)
 	{
 		eslibrary = dlopen("libGL.so.1", RTLD_NOW|RTLD_GLOBAL);
 		if (eslibrary) Sys_Printf("Loaded libGL.so.1\n");
+	}
+	if (!eslibrary)
+	{
+		eslibrary = dlopen("libGL", RTLD_NOW|RTLD_GLOBAL);
+		if (eslibrary) Sys_Printf("Loaded libGL\n");
 	}
 #endif
 	if (!eslibrary)
@@ -146,6 +168,13 @@ qboolean EGL_LoadLibrary(char *driver)
 		return false;
 	}
 	Sys_Printf("success\n");
+
+	//these are from egl1.5
+	qeglGetPlatformDisplay		= EGL_Proc("eglGetPlatformDisplay");
+	qeglCreatePlatformWindowSurface	= EGL_Proc("eglCreatePlatformWindowSurface");
+	//and in case they arn't defined...
+	if (!qeglGetPlatformDisplay)		qeglGetPlatformDisplay		= EGL_Proc("eglGetPlatformDisplayEXT");
+	if (!qeglCreatePlatformWindowSurface)	qeglCreatePlatformWindowSurface	= EGL_Proc("eglCreatePlatformWindowSurfaceEXT");
 
 	return true;
 }
@@ -168,19 +197,23 @@ void EGL_Shutdown(void)
 	eglsurf = EGL_NO_SURFACE;
 }
 
+static void EGL_UpdateSwapInterval(void)
+{
+	int interval;
+	vid_vsync.modified = false;
+	if (*vid_vsync.string)
+		interval = vid_vsync.ival;
+	else
+		interval = 1;	//default is to always vsync, according to EGL docs, so lets just do that.
+
+	if (qeglSwapInterval)
+		qeglSwapInterval(egldpy, interval);
+}
+
 void EGL_SwapBuffers (void)
 {
 	if (vid_vsync.modified)
-	{
-		int interval;
-		vid_vsync.modified = false;
-		if (*vid_vsync.string)
-			interval = vid_vsync.ival;
-		else
-			interval = 1;	//default is to always vsync, according to EGL docs, so lets just do that.
-		if (qeglSwapInterval)
-			qeglSwapInterval(egldpy, interval);
-	}
+		EGL_UpdateSwapInterval();
 
 	TRACE(("EGL_SwapBuffers\n"));
 	TRACE(("swapping buffers\n"));
@@ -189,7 +222,7 @@ void EGL_SwapBuffers (void)
 	TRACE(("EGL_SwapBuffers done\n"));
 }
 
-qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindowType window, EGLNativeDisplayType dpy)
+qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, int eglplat, void *nwindow, void *ndpy, EGLNativeWindowType windowid, EGLNativeDisplayType dpyid)
 {
 	EGLint numconfig;
 	EGLConfig cfg;
@@ -226,9 +259,16 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 		return false;
 	}
 */
-	egldpy = qeglGetDisplay(dpy);
+
+	if (qeglGetPlatformDisplay && eglplat)
+		egldpy = qeglGetPlatformDisplay(eglplat, ndpy, NULL/*attribs*/);
+	else
+		egldpy = qeglGetDisplay(dpyid);
 	if (egldpy == EGL_NO_DISPLAY)
+	{
+		Con_Printf(CON_WARNING "EGL: creating default display\n");
 		egldpy = qeglGetDisplay(EGL_DEFAULT_DISPLAY);
+	}
 	if (egldpy == EGL_NO_DISPLAY)
 	{
 		Con_Printf(CON_ERROR "EGL: can't get display!\n");
@@ -262,13 +302,20 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 		return false;
 	}
 
-	eglsurf = qeglCreateWindowSurface(egldpy, cfg, window, info->srgb?wndattrib:NULL);
+	if (qeglCreatePlatformWindowSurface)
+		eglsurf = qeglCreatePlatformWindowSurface(egldpy, cfg, nwindow, info->srgb?wndattrib:NULL);
+	else
+		eglsurf = qeglCreateWindowSurface(egldpy, cfg, windowid, info->srgb?wndattrib:NULL);
 	if (eglsurf == EGL_NO_SURFACE)
 	{
-		Con_Printf(CON_ERROR "EGL: eglCreateWindowSurface failed: %x\n", qeglGetError());
+		int err = qeglGetError();
+		if (eglplat == EGL_PLATFORM_WAYLAND_KHR && err == EGL_BAD_CONTEXT)	//slightly more friendly error that slags off nvidia for their refusal to implement existing standards, as is apparently appropriate.
+			Con_Printf(CON_ERROR "EGL: eglCreateWindowSurface failed: Bad Display. This often happens with nvidia... Try different drivers...\n");
+		else
+			Con_Printf(CON_ERROR "EGL: eglCreateWindowSurface failed: %s\n", EGL_GetErrorString(err));
 		return false;
 	}
-
+	
 	eglctx = qeglCreateContext(egldpy, cfg, EGL_NO_SURFACE, contextattr);
 	if (eglctx == EGL_NO_CONTEXT)
 	{
@@ -281,9 +328,14 @@ qboolean EGL_Init (rendererstate_t *info, unsigned char *palette, EGLNativeWindo
 		Con_Printf(CON_ERROR "EGL: can't make current!\n");
 		return false;
 	}
+	
+	if (eglplat == EGL_PLATFORM_WAYLAND_KHR)
+	{	//if we don't do this, only the first frame will get displayed, and we'll lock up
+		qeglSwapInterval = NULL;
+		Con_DPrintf(CON_WARNING"Wayland: Disabling vsync controls to work around wayland bug\n");
+	}
 
-
-	vid_vsync.modified = true;
+	EGL_UpdateSwapInterval();
 
 	return true;
 }

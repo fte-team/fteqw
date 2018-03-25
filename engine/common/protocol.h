@@ -195,7 +195,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	svc_temp_entity				23	// variable
 #define	svc_setpause				24	// [qbyte] on / off
-#define	svc_signonnum				25	// [qbyte]  used for the signon sequence
+#define	svcnq_signonnum				25	// [qbyte]  used for the signon sequence
+#define	svcfte_splitscreenconfig	25	// [qbyte] seats, player[seat]. spectator flags passed via userinfo.
 
 #define	svc_centerprint				26	// [string] to put in center of the screen
 

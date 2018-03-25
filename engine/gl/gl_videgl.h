@@ -17,6 +17,10 @@
 #define EGL_PLATFORM_WAYLAND_KHR                0x31D8	//EGL_KHR_platform_wayland
 #endif
 
+#ifndef EGL_PLATFORM_WIN32
+#define EGL_PLATFORM_WIN32						0		//no meaningful value.
+#endif
+
 void *EGL_Proc(char *f);
 void EGL_UnloadLibrary(void);
 qboolean EGL_LoadLibrary(char *driver);

@@ -2697,6 +2697,7 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 		seat = 0;
 		VectorSubtract(ch->origin, listener[seat].origin, world_vec);
 		dist = DotProduct(world_vec,world_vec);
+#if MAX_SPLITS > 1
 		for (i = 1; i < cl.splitclients; i++)
 		{
 			VectorSubtract(ch->origin, listener[i].origin, world_vec);
@@ -2707,6 +2708,7 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 				seat = i;
 			}
 		}
+#endif
 	}
 	else
 	{

@@ -538,7 +538,7 @@ qboolean Cam_DrawViewModel(playerview_t *pv)
 
 int Cam_TrackNum(playerview_t *pv)
 {
-	if (pv->spectator && pv->cam_state == CAM_EYECAM)
+	if (pv->spectator && CAM_ISLOCKED(pv))
 		return pv->cam_spec_track;
 	return -1;
 }
@@ -658,6 +658,9 @@ static qboolean Cam_IsVisible(vec3_t playerorigin, vec3_t vec)
 	trace_t trace;
 	vec3_t v;
 	float d;
+
+	VectorClear(pmove.player_mins);
+	VectorClear(pmove.player_maxs);
 
 	trace = Cam_DoTrace(playerorigin, vec);
 	if (trace.fraction != 1 || /*trace.inopen ||*/ trace.inwater)
@@ -850,6 +853,15 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 
 	frame = &cl.inframes[cl.validsequence & UPDATE_MASK];
 	player = frame->playerstate + pv->cam_spec_track;
+	if (!cmd)
+	{	//this is our fancy force-wallcam mode.
+		if (pv->cam_state != CAM_WALLCAM || !Cam_IsVisible(player->origin, pv->cam_desired_position))
+		{
+			if (!InitFlyby(pv, pv->cam_desired_position, player->origin, player->viewangles, true))
+				InitFlyby(pv, pv->cam_desired_position, player->origin, player->viewangles, false);
+		}
+		return;
+	}
 	self = frame->playerstate + pv->playernum;
 
 	if (!cl_chasecam.value && (pv->cam_state != CAM_WALLCAM || !Cam_IsVisible(player->origin, pv->cam_desired_position)))
@@ -873,7 +885,7 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 		return;
 
 
-	if (cl_chasecam.value || scr_chatmode == 2)
+	if (cl_chasecam.value)
 	{
 		float *neworg;
 //		float *newang;
@@ -882,8 +894,7 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 		else
 			neworg = player->origin;
 
-		if (scr_chatmode != 2)
-			pv->cam_lastviewtime = realtime;
+		pv->cam_lastviewtime = realtime;
 
 //		VectorCopy(newang, pv->viewangles);
 		if (memcmp(neworg, &self->origin, sizeof(vec3_t)) != 0)
@@ -1145,7 +1156,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 
 void Cam_Reset(void)
 {
-	int pnum;
+	unsigned int pnum;
 	for (pnum = 0; pnum < MAX_SPLITS; pnum++)
 	{
 		playerview_t *pv = &cl.playerview[pnum];

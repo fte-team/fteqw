@@ -532,10 +532,12 @@ void M_Menu_SinglePlayer_f (void)
 		b->common.width = width;
 		b->common.height = 20;
 
+#if MAX_SPLITS > 1
 		b = (menubutton_t*)MC_AddCvarCombo(menu, 72, 72+width/2, 92, "", &cl_splitscreen, opts, vals);
 		MC_AddWhiteText(menu, 72, 0, 92, "^aSplitscreen", false);
 		b->common.height = 20;
 		b->common.width = width;
+#endif
 
 		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);
 	}

@@ -42179,6 +42179,26 @@
 				RelativePath="..\common\zone.h"
 				>
 			</File>
+			<Filter
+				Name="configs"
+				>
+				<File
+					RelativePath="..\common\config_fteqw.h"
+					>
+				</File>
+				<File
+					RelativePath="..\common\config_minimal.h"
+					>
+				</File>
+				<File
+					RelativePath="..\common\config_nocompat.h"
+					>
+				</File>
+				<File
+					RelativePath="..\common\config_wastes.h"
+					>
+				</File>
+			</Filter>
 		</Filter>
 	</Files>
 	<Globals>

@@ -5075,6 +5075,7 @@ cvar_t worker_sleeptime = CVARFD("worker_sleeptime", "0", CVAR_NOTFROMSERVER, "C
 
 #define WORKERTHREADS 16	//max
 /*multithreading worker thread stuff*/
+void *com_resourcemutex;
 static int com_liveworkers[WG_COUNT];
 static void *com_workercondition[WG_COUNT];
 static volatile int com_workeracksequence;

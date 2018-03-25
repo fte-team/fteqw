@@ -6805,7 +6805,7 @@ void NET_PrintConnectionsStatus(ftenet_connections_t *collection)
 int TCP_OpenStream (netadr_t *remoteaddr)
 {
 #ifndef HAVE_TCP
-	return INVALID_SOCKET;
+	return (int)INVALID_SOCKET;
 #else
 	unsigned long _true = true;
 	int newsocket;

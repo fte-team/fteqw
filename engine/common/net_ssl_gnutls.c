@@ -966,14 +966,18 @@ qboolean SSL_InitGlobal(qboolean isserver)
 	isserver = !!isserver;
 	if (COM_CheckParm("-notls"))
 		return false;
+#ifdef LOADERTHREAD
 	if (com_resourcemutex)
 		Sys_LockMutex(com_resourcemutex);
+#endif
 	if (!initstatus[isserver])
 	{
 		if (!Init_GNUTLS())
 		{
+#ifdef LOADERTHREAD
 			if (com_resourcemutex)
 				Sys_UnlockMutex(com_resourcemutex);
+#endif
 			Con_Printf("GnuTLS "GNUTLS_VERSION" library not available.\n");
 			return false;
 		}
@@ -998,8 +1002,10 @@ qboolean SSL_InitGlobal(qboolean isserver)
 		qgnutls_certificate_set_x509_trust_file (xcred[isserver], CAFILE, GNUTLS_X509_FMT_PEM);
 #endif
 
+#ifdef LOADERTHREAD
 		if (com_resourcemutex)
 			Sys_UnlockMutex(com_resourcemutex);
+#endif
 		if (isserver)
 		{
 #if 1
@@ -1026,8 +1032,10 @@ qboolean SSL_InitGlobal(qboolean isserver)
 	}
 	else
 	{
+#ifdef LOADERTHREAD
 		if (com_resourcemutex)
-				Sys_UnlockMutex(com_resourcemutex);
+			Sys_UnlockMutex(com_resourcemutex);
+#endif
 	}
 
 	if (initstatus[isserver] < 0)

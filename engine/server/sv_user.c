@@ -750,7 +750,7 @@ void SVNQ_New_f (void)
 	{	//old clients can't cope with reliables until they finish loading the models specified above.
 		//we need to wait before sending any more
 		//updated clients can wait a bit, and use signonnum 1 to tell them when to start loading stuff.
-		MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
+		MSG_WriteByte (&host_client->netchan.message, svcnq_signonnum);
 		MSG_WriteByte (&host_client->netchan.message, 1);
 		host_client->netchan.nqunreliableonly = 2;
 	}
@@ -1034,7 +1034,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			{
 				if (ISNQCLIENT(client) && (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 				{
-					ClientReliableWrite_Begin(client, svc_signonnum, 2);
+					ClientReliableWrite_Begin(client, svcnq_signonnum, 2);
 					ClientReliableWrite_Byte (client, 1);
 				}
 			}
@@ -1639,7 +1639,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		if (ISNQCLIENT(client))
 		{
 			//effectively a cmd spawn... but also causes the client to actually send the player's name too.
-			ClientReliableWrite_Begin (client, svc_signonnum, 2);
+			ClientReliableWrite_Begin (client, svcnq_signonnum, 2);
 			ClientReliableWrite_Byte (client, 2);
 		}
 		else
@@ -1967,12 +1967,12 @@ void SV_Begin_Core(client_t *split)
 	else
 	{
 #ifndef NOLEGACY
-		sv_player->xv->clientcolors = split->playercolor;
+		split->edict->xv->clientcolors = split->playercolor;
 		if (progstype != PROG_QW)
 		{	//some redundant things, purely for dp compat
 			eval_t *eval;
 			edict_t *ent = split->edict;
-			sv_player->v->team = split->playercolor&15;
+			ent->v->team = split->playercolor&15;
 
 			eval = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "playermodel", ev_string, NULL);
 			if (eval)
@@ -2100,7 +2100,7 @@ void SV_Begin_Core(client_t *split)
 					}
 					SV_PostRunCmd();
 					host_client = oh;
-					sv_player = host_client->edict;
+					sv_player = oh?oh->edict:NULL;
 				}
 			}
 		}
@@ -2111,8 +2111,8 @@ void SV_Begin_Core(client_t *split)
 	split->dp_pl = NULL;
 	if (progstype == PROG_NQ)
 	{
-		split->dp_ping = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, sv_player, "ping", ev_float, NULL);
-		split->dp_pl = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, sv_player, "ping_packetloss", ev_float, NULL);
+		split->dp_ping = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, split->edict, "ping", ev_float, NULL);
+		split->dp_pl = (float*)sv.world.progs->GetEdictFieldValue(sv.world.progs, split->edict, "ping_packetloss", ev_float, NULL);
 	}
 #endif
 }
@@ -4040,7 +4040,7 @@ static void SV_UpdateSeats(client_t *controller)
 	for (curclients = 0, cl = controller; cl; cl = cl->controlled)
 		curclients++;
 
-	ClientReliableWrite_Begin(controller, svc_signonnum, 2+curclients);
+	ClientReliableWrite_Begin(controller, svcfte_splitscreenconfig, 2+curclients);
 	ClientReliableWrite_Byte(controller, curclients);
 	for (curclients = 0, cl = controller; cl; cl = cl->controlled, curclients++)
 	{
@@ -4966,7 +4966,7 @@ static void Cmd_AddSeat_f(void)
 {
 	client_t *cl, *prev;
 	qboolean changed = false;
-	//don't allow an altseat to add. paranoia.
+	//don't allow an altseat to add or remove. that's not how this works.
 	if (host_client->controller)
 		return;
 
@@ -5003,7 +5003,7 @@ static void Cmd_AddSeat_f(void)
 					//okay, it can get lost now.
 					cl->drop = true;
 				}
-				host_client->controller->joinobservelockeduntil = realtime + 3;
+				host_client->joinobservelockeduntil = realtime + 3;
 				changed = true;
 				break;
 			}
@@ -5512,7 +5512,7 @@ static void SVNQ_Spawn_f (void)
 
 	//SV_Begin_Core(host_client);
 
-	ClientReliableWrite_Begin (host_client, svc_signonnum, 2);
+	ClientReliableWrite_Begin (host_client, svcnq_signonnum, 2);
 	ClientReliableWrite_Byte (host_client, 3);
 
 	host_client->send_message = true;
@@ -6110,8 +6110,10 @@ void SV_ExecuteUserCommand (const char *s, qboolean fromQC)
 	{	//'cmd 2 say hi' should 
 		char *a=Cmd_Argv(0), *e;
 		int pnum = strtoul(a, &e, 10);
-		
-		if (e == a+1 && pnum >= 1 && pnum <= MAX_SPLITS)
+
+		//commands might be in the form of eg '2on2' so make sure that its fully numeric.
+		//KTX uses eg 'cmd 231', so don't take it if it can't be a seat, but there may be race conditions so we don't want error messages when it might have been a seat.
+		if (!*e && pnum >= 1 && pnum <= MAX_SPLITS)
 		{
 			client_t *sp;
 			for (sp = host_client; sp; sp = sp->controlled)

@@ -2798,7 +2798,7 @@ static void SV_SendGameCommand_f(void)
 	}
 	else
 #endif
-		Con_Printf("Mod-specific command not known\n");
+		Con_Printf("Mod-specific command \"%s\" not known\n", Cmd_Argv(1));
 }
 
 

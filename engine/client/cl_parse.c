@@ -3166,7 +3166,7 @@ static void CLQW_ParseServerData (void)
 		}
 
 		/*parsing here is slightly different to allow us 255 max players instead of 127*/
-		cl.splitclients = MSG_ReadByte();
+		cl.splitclients = (qbyte)MSG_ReadByte();
 		if (cl.splitclients & 128)
 		{
 //			spec = true;
@@ -3179,7 +3179,7 @@ static void CLQW_ParseServerData (void)
 			cl.playerview[pnum].spectator = true;
 			if (cls.z_ext & Z_EXT_VIEWHEIGHT)
 				cl.playerview[pnum].viewheight = 0;
-			cl.playerview[pnum].playernum = MSG_ReadByte();
+			cl.playerview[pnum].playernum = (qbyte)MSG_ReadByte();
 			if (cl.playerview[pnum].playernum >= cl.allocated_client_slots)
 				Host_EndGame("unsupported local player slot\n");
 			cl.playerview[pnum].viewentity = cl.playerview[pnum].playernum+1;
@@ -4921,6 +4921,13 @@ static int QDECL CLQ2_EnumeratedSkin(const char *name, qofs_t size, time_t mtime
 	return true;
 }
 
+//returns the player if they're not spectating. 
+static int CL_TryTrackNum(playerview_t *pv)
+{
+	if (pv->spectator && pv->cam_state != CAM_FREECAM && pv->cam_spec_track >= 0)
+		return pv->cam_spec_track;
+	return pv->playernum;
+}
 /*
 =====================
 CL_NewTranslation
@@ -4930,6 +4937,7 @@ void CL_NewTranslation (int slot)
 {
 	int		top, bottom;
 	int local;
+	qboolean mayforce;
 
 	char *s;
 	player_info_t	*player;
@@ -4974,6 +4982,24 @@ void CL_NewTranslation (int slot)
 		return;
 	}
 
+	mayforce = !(cl.fpd & FPD_NO_FORCE_COLOR);
+#if MAX_SPLITS > 1
+	if (mayforce && cl.splitclients > 1 && cl.teamplay)
+	{	//if we're using splitscreen, only allow team/enemy forcing if all split clients are on the same team
+		char *needteam;
+		int i;
+		needteam = cl.players[CL_TryTrackNum(&cl.playerview[0])].team;
+		for (i = 1; i < cl.splitclients; i++)
+		{
+			if (strcmp(needteam, cl.players[CL_TryTrackNum(&cl.playerview[i])].team))
+			{
+				mayforce = false;
+				break;
+			}
+		}
+	}
+#endif
+
 	s = Skin_FindName (player);
 	COM_StripExtension(s, s, MAX_QPATH);
 	if (player->qwskin && !stricmp(s, player->qwskin->name))
@@ -4981,20 +5007,12 @@ void CL_NewTranslation (int slot)
 	player->skinid = 0;
 	player->model = NULL;
 
-
-
 	top = player->rtopcolor;
 	bottom = player->rbottomcolor;
-	if (cl.splitclients < 2 && !(cl.fpd & FPD_NO_FORCE_COLOR))	//no colour/skin forcing in splitscreen.
+
+	if (mayforce)
 	{
-		if (cl.teamplay && cl.playerview[0].spectator)
-		{
-			local = Cam_TrackNum(&cl.playerview[0]);
-			if (local < 0)
-				local = cl.playerview[0].playernum;
-		}
-		else
-			local = cl.playerview[0].playernum;
+		local = CL_TryTrackNum(&cl.playerview[0]);
 		if ((cl.teamplay || cls.protocol == CP_NETQUAKE) && !strcmp(player->team, cl.players[local].team))
 		{
 			if (cl_teamtopcolor != ~0)
@@ -6676,9 +6694,9 @@ void CLQW_ParseServerMessage (void)
 			Cbuf_Execute ();		// make sure any stuffed commands are done
  			CLQW_ParseServerData ();
 			break;
-		case svc_signonnum:
+		case svcfte_splitscreenconfig:
 			cl.splitclients = MSG_ReadByte();
-			for (i = 0; i < cl.splitclients && i < 4; i++)
+			for (i = 0; i < cl.splitclients && i < MAX_SPLITS; i++)
 			{
 				cl.playerview[i].playernum = MSG_ReadByte();
 				cl.playerview[i].viewentity = cl.playerview[i].playernum+1;
@@ -7688,7 +7706,7 @@ void CLNQ_ParseServerMessage (void)
 			cl.playerview[destsplit].viewentity = i;
 			break;
 
-		case svc_signonnum:
+		case svcnq_signonnum:
 			i = MSG_ReadByte ();
 
 			if (i <= cls.signon)

@@ -1,5 +1,7 @@
 // Build-Config file for FTE's minimal builds.
 // to use: make FTE_CONFIG=minimal
+// These builds are a compromise between true minimal and something that will actually work.
+// As such we allow pk3s, md3s, pngs, and built-in menus, but that's about it.
 
 // Features should either be commented or not. If you change undefs to defines or vice versa then expect problems.
 // Later code will disable any features if they're not supported on the current platform, so don't worry about win/lin/mac/android/web/etc here - any such issues should be fixed elsewhere.
@@ -27,7 +29,7 @@
 //#undef D3D9QUAKE
 //#undef D3D11QUAKE
 //#undef VKQUAKE
-//#undef HEADLESSQUAKE          //no-op renderer...
+#undef HEADLESSQUAKE          //no-op renderer...
 //#undef WAYLANDQUAKE           //linux only
 
 //Misc Renderer stuff
@@ -43,17 +45,18 @@
 #define LOADERTHREAD			//worker threads for loading misc stuff. falls back on main thread if not supported.
 #define AVAIL_DINPUT
 //#define SIDEVIEWS   4			//enable secondary/reverse views.
+//#define MAX_SPLITS 4u
 //#define TEXTEDITOR				//my funky text editor! its awesome!
 //#define PLUGINS					//support for external plugins (like huds or fancy menus or whatever)
 //#define USE_SQLITE			//sql-database-as-file support
 
 //Filesystem formats
-//#define PACKAGE_PK3
+#define PACKAGE_PK3
 #define PACKAGE_Q1PAK			//also q2
 //#define PACKAGE_DOOMWAD		//doom wad support (generates various file names, and adds support for doom's audio, sprites, etc)
 //#define AVAIL_XZDEC			//.xz decompression
 //#define AVAIL_GZDEC			//.gz decompression
-//#define AVAIL_ZLIB			//whether pk3s can be compressed or not.
+#define AVAIL_ZLIB			//whether pk3s can be compressed or not.
 //#define AVAIL_DZIP			//.dzip support for smaller demos (which are actually more like pak files and can store ANY type of file)
 
 //Map formats
@@ -63,15 +66,15 @@
 //#define RFBSPS				//qfusion's bsp format / jk2o etc.
 //#define TERRAIN				//FTE's terrain, as well as .map support
 //#define DOOMWADS				//map support, filesystem support is separate.
-//#define  MAP_PROC				//doom3...
+//#define MAP_PROC				//doom3...
 
 //Model formats
 #define SPRMODELS				//Quake's sprites
 //#define SP2MODELS				//Quake2's models
-#define DSPMODELS				//Doom sprites!
+//#define DSPMODELS				//Doom sprites!
 #define MD1MODELS				//Quake's models.
 //#define MD2MODELS				//Quake2's models
-//#define MD3MODELS				//Quake3's models, also often used for q1 etc too.
+#define MD3MODELS				//Quake3's models, also often used for q1 etc too.
 //#define MD5MODELS				//Doom3 models.
 //#define ZYMOTICMODELS			//nexuiz uses these, for some reason.
 //#define DPMMODELS				//these keep popping up, despite being a weak format.
@@ -86,7 +89,7 @@
 //#define IMAGEFMT_DDS			//.dds files embed mipmaps and texture compression. faster to load.
 //#define IMAGEFMT_BLP			//legacy crap
 #define PACKAGE_TEXWAD			//quake's image wad support
-//#define AVAIL_PNGLIB			//.png image format support (read+screenshots)
+#define AVAIL_PNGLIB			//.png image format support (read+screenshots)
 //#define AVAIL_JPEGLIB			//.jpeg image format support (read+screenshots)
 //#define AVAIL_FREETYPE		//for truetype font rendering
 //#define DECOMPRESS_ETC2		//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).

@@ -505,7 +505,9 @@ void M_Menu_Keys_f (void)
 	int y;
 	menu_t *menu;
 	vfsfile_t *bindslist;
+#if MAX_SPLITS > 1
 	extern cvar_t cl_splitscreen;
+#endif
 
 	Key_Dest_Add(kdm_emenu);
 
@@ -533,6 +535,7 @@ void M_Menu_Keys_f (void)
 		break;
 	}
 
+#if MAX_SPLITS > 1
 	if (cl.splitclients || cl_splitscreen.ival || cl_forceseat.ival)
 	{
 		static char *texts[MAX_SPLITS+2] =
@@ -540,8 +543,12 @@ void M_Menu_Keys_f (void)
 			"Depends on device",
 			"Player 1",
 			"Player 2",
+#if MAX_SPLITS >= 3
 			"Player 3",
+#endif
+#if MAX_SPLITS >= 4
 			"Player 4",
+#endif
 			NULL
 		};
 		static char *values[MAX_SPLITS+1] =
@@ -549,12 +556,17 @@ void M_Menu_Keys_f (void)
 			"0",
 			"1",
 			"2",
+#if MAX_SPLITS >= 3
 			"3",
+#endif
+#if MAX_SPLITS >= 4
 			"4"
+#endif
 		};
 		MC_AddCvarCombo(menu, 16, 170, y, "Force client", &cl_forceseat, (const char **)texts, (const char **)values);
 		y+=8;
 	}
+#endif
 
 	bindslist = FS_OpenVFS("bindlist.lst", "rb", FS_GAME);
 	if (bindslist)

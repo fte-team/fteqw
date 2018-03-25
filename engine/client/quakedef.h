@@ -347,7 +347,7 @@ qboolean COM_HasWork(void);
 void COM_WorkerFullSync(void);
 void COM_DestroyWorkerThread(void);
 void COM_WorkerPartialSync(void *priorityctx, int *address, int value);
-void *com_resourcemutex;	//random mutex to simplify resource creation type stuff.
+extern void *com_resourcemutex;	//random mutex to simplify resource creation type stuff.
 void COM_WorkerAbort(char *message);	//calls sys_error on the main thread, if running on a worker.
 #ifdef _DEBUG
 void COM_AssertMainThread(const char *msg);

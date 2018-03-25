@@ -578,9 +578,9 @@ void R2D_ImageColours(float r, float g, float b, float a)
 }
 void R2D_ImagePaletteColour(unsigned int i, float a)
 {
-	draw_active_colour[0] = host_basepal[i*3+0]/255.0;
-	draw_active_colour[1] = host_basepal[i*3+1]/255.0;
-	draw_active_colour[2] = host_basepal[i*3+2]/255.0;
+	draw_active_colour[0] = SRGBf(host_basepal[i*3+0]/255.0);
+	draw_active_colour[1] = SRGBf(host_basepal[i*3+1]/255.0);
+	draw_active_colour[2] = SRGBf(host_basepal[i*3+2]/255.0);
 	draw_active_colour[3] = a;
 
 	Font_InvalidateColour(draw_active_colour);
@@ -888,11 +888,6 @@ void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque)
 		a = scr_conalpha.value;
 	}
 
-	if (scr_chatmode == 2)
-	{
-		h>>=1;
-		w>>=1;
-	}
 	if (R_GetShaderSizes(conback, NULL, NULL, false) <= 0)
 	{
 		R2D_ImageColours(0, 0, 0, a);

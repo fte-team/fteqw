@@ -63,7 +63,7 @@
 #define RFBSPS					//qfusion's bsp format / jk2o etc.
 //#define TERRAIN				//FTE's terrain, as well as .map support
 //#define DOOMWADS				//map support, filesystem support is separate.
-//#define  MAP_PROC				//doom3...
+//#define MAP_PROC				//doom3...
 
 //Model formats
 #define SPRMODELS				//Quake's sprites

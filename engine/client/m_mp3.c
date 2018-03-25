@@ -2542,7 +2542,9 @@ qboolean Media_PlayFilm(char *name, qboolean enqueue)
 
 	if (videoshader)
 	{
+#ifdef HAVE_CDPLAYER
 		CDAudio_Stop();
+#endif
 		SCR_EndLoadingPlaque();
 
 		if (Key_Dest_Has(kdm_emenu))

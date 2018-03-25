@@ -204,8 +204,6 @@ extern	int		edit_line;
 extern	int		key_linepos;
 extern	int		history_line;
 
-extern int scr_chatmode;
-
 //extern int con_totallines;
 extern qboolean con_initialized;
 extern qbyte *con_chars;

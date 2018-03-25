@@ -41,8 +41,6 @@ extern qboolean        scr_initialized;
 extern float oldsbar;
 extern qboolean        scr_drawloading;
 
-extern int scr_chatmode;
-extern cvar_t scr_chatmodecvar;
 extern cvar_t vid_conautoscale;
 extern qboolean		scr_con_forcedraw;
 extern qboolean		depthcleared;

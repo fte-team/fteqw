@@ -43,6 +43,7 @@
 #define LOADERTHREAD			//worker threads for loading misc stuff. falls back on main thread if not supported.
 #define AVAIL_DINPUT
 #define SIDEVIEWS   4   		//enable secondary/reverse views.
+#define MAX_SPLITS	4u
 #define TEXTEDITOR				//my funky text editor! its awesome!
 #define PLUGINS					//support for external plugins (like huds or fancy menus or whatever)
 #define USE_SQLITE				//sql-database-as-file support
@@ -63,7 +64,7 @@
 #define RFBSPS					//qfusion's bsp format / jk2o etc.
 #define TERRAIN					//FTE's terrain, as well as .map support
 //#define DOOMWADS				//map support, filesystem support is separate.
-//#define  MAP_PROC				//doom3...
+//#define MAP_PROC				//doom3...
 
 //Model formats
 #define SPRMODELS				//Quake's sprites

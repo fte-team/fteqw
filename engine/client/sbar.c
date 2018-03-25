@@ -1266,7 +1266,7 @@ void Sbar_FillPC (float x, float y, float w, float h, unsigned int pcolour)
 {
 	if (pcolour >= 16)
 	{
-		R2D_ImageColours (((pcolour&0xff0000)>>16)/255.0f, ((pcolour&0xff00)>>8)/255.0f, (pcolour&0xff)/255.0f, 1.0);
+		R2D_ImageColours (SRGBA(((pcolour&0xff0000)>>16)/255.0f, ((pcolour&0xff00)>>8)/255.0f, (pcolour&0xff)/255.0f, 1.0));
 		R2D_FillBlock (x, y, w, h);
 	}
 	else
@@ -1279,7 +1279,7 @@ static void Sbar_FillPCDark (float x, float y, float w, float h, unsigned int pc
 {
 	if (pcolour >= 16)
 	{
-		R2D_ImageColours (((pcolour&0xff0000)>>16)/1024.0f, ((pcolour&0xff00)>>8)/1024.0f, (pcolour&0xff)/1024.0f, alpha);
+		R2D_ImageColours (SRGBA(((pcolour&0xff0000)>>16)/1024.0f, ((pcolour&0xff00)>>8)/1024.0f, (pcolour&0xff)/1024.0f, alpha));
 		R2D_FillBlock (x, y, w, h);
 	}
 	else
@@ -2962,13 +2962,6 @@ void Sbar_Draw (playerview_t *pv)
 	else
 		Sbar_Voice(16);
 
-	{
-		extern int scr_chatmode;
-		if (scr_chatmode)
-			Sbar_ChatModeOverlay(pv);
-	}
-
-
 	Sbar_DrawUPS (pv);
 	SCR_DrawClock();
 	SCR_DrawGameClock();
@@ -3592,100 +3585,6 @@ if (showcolumns & (1<<COLUMN##title)) \
 }
 		ALLCOLUMNS
 #undef COLUMN
-	}
-
-	if (y >= vid.height-10) // we ran over the screen size, squish
-		largegame = true;
-}
-
-void Sbar_ChatModeOverlay(playerview_t *pv)
-{
-	int start =0;
-	int				i, k, l;
-	int				top, bottom;
-	int				x, y;
-	player_info_t	*s;
-	char			team[5];
-	int				skip = 10;
-
-	if (largegame)
-		skip = 8;
-
-// request new ping times every two second
-	if (realtime - cl.last_ping_request > 2 && cls.protocol == CP_QUAKEWORLD && cls.demoplayback != DPB_EZTV)
-	{
-		cl.last_ping_request = realtime;
-		CL_SendClientCommand(true, "pings");
-	}
-
-// scores
-	Sbar_SortFrags (true, false);
-
-	if (Cam_TrackNum(pv)>=0)
-		Q_strncpyz (team, cl.players[Cam_TrackNum(pv)].team, sizeof(team));
-	else if (pv->playernum>=0 && pv->playernum<MAX_CLIENTS)
-		Q_strncpyz (team, cl.players[pv->playernum].team, sizeof(team));
-	else
-		*team = '\0';
-
-// draw the text
-	l = scoreboardlines;
-
-	if (start)
-		y = start;
-	else
-		y = 24;
-	y = vid.height/2;
-
-	x = 4;
-	Draw_FunString ( x , y, "name");
-	y += 8;
-	Draw_FunString ( x , y, "\x1d\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1e\x1f");
-	y += 8;
-
-	for (i=0 ; i<l && y <= vid.height-10 ; i++)
-	{
-		k = fragsort[i];
-		s = &cl.players[k];
-		if (!s->name[0])
-			continue;
-
-		// draw background
-		top = Sbar_TopColour(s);
-		bottom = Sbar_BottomColour(s);
-
-		if (largegame)
-			Sbar_FillPC ( x, y+1, 8*4, 3, top);
-		else
-			Sbar_FillPC ( x, y, 8*4, 4, top);
-		Sbar_FillPC ( x, y+4, 8*4, 4, bottom);
-/*
-		if (cl.spectator && k == Cam_TrackNum(pv))
-		{
-			Draw_Character ( x, y, 16);
-			Draw_Character ( x+8*3, y, 17);
-		}
-		else if (!cl.spectator && k == pv->cl.playernum)
-		{
-			Draw_Character ( x, y, 16);
-			Draw_Character ( x+8*3, y, 17);
-		}
-		else if (cl.teamplay)
-		{
-			if (!stricmp(s->team, team))
-			{
-				Draw_Character ( x, y, '[');
-				Draw_Character ( x+8*3, y, ']');
-			}
-		}
-*/
-		// draw name
-		if (cl.teamplay)
-			Draw_FunString (x+8*4, y, s->name);
-		else
-			Draw_FunString (x+8*4, y, s->name);
-
-		y += skip;
 	}
 
 	if (y >= vid.height-10) // we ran over the screen size, squish

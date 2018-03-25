@@ -1155,7 +1155,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose);
 
 void SV_SaveInfos(vfsfile_t *f);
 
-void SV_FixupName(char *in, char *out, unsigned int outlen);
+void SV_FixupName(const char *in, char *out, unsigned int outlen);
 
 #ifdef SUBSERVERS
 //cluster stuff

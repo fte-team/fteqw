@@ -995,14 +995,32 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 
 void M_Menu_Network_f (void)
 {
+#if MAX_SPLITS > 1
+	extern cvar_t cl_splitscreen;
 	static const char *splitopts[] = {
 		"Disabled",
 		"2 Screens",
+#if MAX_SPLITS > 2
 		"3 Screens",
+#endif
+#if MAX_SPLITS > 3
 		"4 Screens",
+#endif
 		NULL
 	};
-	static const char *splitvalues[] = {"0", "1", "2", "3", NULL};
+	static const char *splitvalues[] =
+	{
+		"0",
+		"1",
+#if MAX_SPLITS > 2
+		"2",
+#endif
+#if MAX_SPLITS > 3
+		"3",
+#endif
+		NULL
+	};
+#endif
 	static const char *smoothingopts[] = {
 		"Lower Latency",
 		"Smoother",
@@ -1011,7 +1029,7 @@ void M_Menu_Network_f (void)
 	};
 	static const char *smoothingvalues[] = {"0", "1", "2", NULL};
 	extern cvar_t cl_download_csprogs, cl_download_redirection, requiredownloads, cl_solid_players;
-	extern cvar_t cl_splitscreen, cl_predict_players, cl_predict_smooth, cl_predict_extrapolate;
+	extern cvar_t cl_predict_players, cl_predict_smooth, cl_predict_extrapolate;
 	menu_t *menu;
 	static menuresel_t resel;
 	int y;
@@ -1031,7 +1049,9 @@ void M_Menu_Network_f (void)
 		MB_CHECKBOXCVARTIP("Extrapolate Prediction", cl_predict_extrapolate, 0, "Extrapolate local player movement beyond the frames already sent to the server"),
 		MB_CHECKBOXCVARTIP("Predict Other Players", cl_predict_players, 0, "Toggle player prediction"),
 		MB_CHECKBOXCVARTIP("Solid Players", cl_solid_players, 0, "When running/clipping into other players, ON make it appear they are solid, OFF will make it appear like running into a marshmellon."),
+#if MAX_SPLITS > 1
 		MB_COMBOCVAR("Split-screen", cl_splitscreen, splitopts, splitvalues, "Enables split screen with a number of clients. This feature requires server support."),
+#endif
 		MB_END()
 	};
 	menu = M_Options_Title(&y, 0);

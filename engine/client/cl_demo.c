@@ -1958,19 +1958,19 @@ void CL_Record_f (void)
 		MSG_WriteByte (&buf, svc_setview);
 		MSG_WriteEntity (&buf, cl.playerview[0].viewentity);
 
-		MSG_WriteByte (&buf, svc_signonnum);
+		MSG_WriteByte (&buf, svcnq_signonnum);
 		MSG_WriteByte (&buf, 1);
 		CL_WriteRecordDemoMessage (&buf, seq++);
 
 		seq = CL_Record_ParticlesStaticsBaselines(&buf, seq);
 		//fixme: brushes...
-		MSG_WriteByte (&buf, svc_signonnum);
+		MSG_WriteByte (&buf, svcnq_signonnum);
 		MSG_WriteByte (&buf, 2);
 		CL_WriteRecordDemoMessage (&buf, seq++);
 		//fixme: clients
 		seq = CL_Record_Lightstyles(&buf, seq);
 		//fixme: stats
-		MSG_WriteByte (&buf, svc_signonnum);
+		MSG_WriteByte (&buf, svcnq_signonnum);
 		MSG_WriteByte (&buf, 3);
 		CL_WriteRecordDemoMessage (&buf, seq++);
 		break;

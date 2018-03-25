@@ -93,19 +93,19 @@ const char *EGL_GetErrorString(int error)
 {
 	switch(error)
 	{
-	case EGL_BAD_ACCESS:		return "BAD_ACCESS";
-	case EGL_BAD_ALLOC:		return "BAD_ALLOC";
-	case EGL_BAD_ATTRIBUTE:		return "BAD_ATTRIBUTE";
-	case EGL_BAD_CONFIG:		return "BAD_CONFIG";
-	case EGL_BAD_CONTEXT:		return "BAD_CONEXT";
+	case EGL_BAD_ACCESS:			return "BAD_ACCESS";
+	case EGL_BAD_ALLOC:				return "BAD_ALLOC";
+	case EGL_BAD_ATTRIBUTE:			return "BAD_ATTRIBUTE";
+	case EGL_BAD_CONFIG:			return "BAD_CONFIG";
+	case EGL_BAD_CONTEXT:			return "BAD_CONEXT";
 	case EGL_BAD_CURRENT_SURFACE:	return "BAD_CURRENT_SURFACE";
-	case EGL_BAD_DISPLAY:		return "BAD_DISPLAY";
-	case EGL_BAD_MATCH:		return "BAD_MATCH";
-	case EGL_BAD_NATIVE_PIXMAP:	return "BAD_NATIVE_PIXMAP";
-	case EGL_BAD_NATIVE_WINDOW:	return "BAD_NATIVE_WINDOW";
-	case EGL_BAD_PARAMETER:		return "BAD_PARAMETER";
-	case EGL_BAD_SURFACE:		return "BAD_SURFACE";
-	default:			return va("EGL:%#x", error);
+	case EGL_BAD_DISPLAY:			return "BAD_DISPLAY";
+	case EGL_BAD_MATCH:				return "BAD_MATCH";
+	case EGL_BAD_NATIVE_PIXMAP:		return "BAD_NATIVE_PIXMAP";
+	case EGL_BAD_NATIVE_WINDOW:		return "BAD_NATIVE_WINDOW";
+	case EGL_BAD_PARAMETER:			return "BAD_PARAMETER";
+	case EGL_BAD_SURFACE:			return "BAD_SURFACE";
+	default:						return va("EGL:%#x", error);
 	}
 }
 

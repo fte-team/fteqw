@@ -87,7 +87,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#ifdef HAVE_CONFIG_H
 		#define CONFIG_FILE_NAME config.h
 	#elif defined(NOLEGACY)
-		#define CONFIG_FILE_NAME config_nolegacy.h
+		#undef NOLEGACY
+		#define CONFIG_FILE_NAME config_nocompat.h
 	#elif defined(MINIMAL)
 		#define CONFIG_FILE_NAME config_minimal.h
 	#else
@@ -404,6 +405,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_PNGLIB
 	#undef AVAIL_XZDEC
 	#undef AVAIL_GZDEC
+#endif
+#if (defined(_MSC_VER) && (_MSC_VER < 1500)) || defined(FTE_SDL)
+	#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
 #endif
 
 //include a file to update the various configurations for game-specific configs (hopefully just names)
@@ -1201,7 +1205,9 @@ STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION	= 255, // DP
 
 
 //split screen stuff
-#define MAX_SPLITS 4
+#ifndef MAX_SPLITS
+#define MAX_SPLITS 1u	//disabled, but must be defined for sanities sake.
+#endif
 
 
 

@@ -122,9 +122,9 @@ net_masterlist_t net_masterlist[] = {
 	//engine-specified/maintained master lists (so users can be lazy and update the engine without having to rewrite all their configs).
 	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra1", "qwmaster.ocrana.de:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"Ocrana(2nd)"},	//german. admin unknown
 	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra2", ""/*"masterserver.exhale.de:27000" seems dead*/,	CVAR_NOSAVE, Net_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra3", "asgaard.morphos-team.net:27000",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Germany, admin: bigfoot"},
+//	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra3", "asgaard.morphos-team.net:27000",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Germany, admin: bigfoot"},
 	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra4", "master.quakeservers.net:27000",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Germany, admin: raz0?"},
-	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra5", "qwmaster.fodquake.net:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"admin: bigfoot"},
+//	{MP_QUAKEWORLD, CVARFC("net_qwmasterextra5", "qwmaster.fodquake.net:27000",						CVAR_NOSAVE, Net_Masterlist_Callback),	"admin: bigfoot"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"satan.idsoftware.com:27000",				CVAR_NOSAVE, Net_Masterlist_Callback),	"Official id Master"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"satan.idsoftware.com:27002",				CVAR_NOSAVE, Net_Masterlist_Callback),	"Official id Master For CTF Servers"},
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"satan.idsoftware.com:27003",				CVAR_NOSAVE, Net_Masterlist_Callback),	"Official id Master For TeamFortress Servers"},
@@ -890,8 +890,8 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 //	qboolean enabled;
 
 	//always filter out dead unresponsive servers.
-	if (!a->ping)
-		return false;
+//	if (!(a->status & 1))
+//		return false;
 
 /*	switch(a->special & SS_PROTOCOLMASK)
 	{
@@ -1813,7 +1813,7 @@ qboolean NET_SendPollPacket(int len, void *data, netadr_t to)
 			pollsocketsBCast[FIRSTIPXSOCKET+lastpollsockIPX] = false;
 		}
 		if (pollsocketsList[FIRSTIPXSOCKET+lastpollsockIPX]==INVALID_SOCKET)
-			return;	//bother
+			return true;	//bother
 
 		bcast = !memcmp(to.address.ipx, "\0\0\0\0\xff\xff\xff\xff\xff\xff", sizeof(to.address.ipx));
 		if (pollsocketsBCast[FIRSTIPXSOCKET+lastpollsockIPX] != bcast)
@@ -2287,19 +2287,27 @@ void MasterInfo_ProcessHTTP(struct dl_download *dl)
 			info->sends = 1;
 
 			info->special = 0;
-			if (protocoltype == MP_DPMASTER)
+			if (protocoltype == MP_QUAKEWORLD)
+				info->special |= SS_QUAKEWORLD;
+			else if (protocoltype == MP_DPMASTER)
 				info->special |= SS_DARKPLACES;
+#if defined(Q2CLIENT) || defined(Q2SERVER)
 			else if (protocoltype == MP_QUAKE2)
 				info->special |= SS_QUAKE2;
+#endif
+#if defined(Q3CLIENT) || defined(Q3SERVER)
 			else if (protocoltype == MP_QUAKE3)
 				info->special |= SS_QUAKE3;
+#endif
+#ifdef NQPROT
 			else if (protocoltype == MP_NETQUAKE)
 				info->special |= SS_NETQUAKE;
+#endif
 
 			info->refreshtime = 0;
 			info->ping = 0xffff;
 
-			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adrbuf, sizeof(adrbuf), &info->adr));
+			snprintf(info->name, sizeof(info->name), "%s h", NET_AdrToString(adrbuf, sizeof(adrbuf), &info->adr));
 
 			info->next = firstserver;
 			firstserver = info;
@@ -2398,6 +2406,7 @@ char *jsonnode(int level, char *node)
 		else
 		{
 			info = Z_Malloc(sizeof(serverinfo_t));
+			info->ping = 0xffff;
 			info->adr = adr;
 			info->sends = 1;
 			info->special = flags;
@@ -2405,7 +2414,7 @@ char *jsonnode(int level, char *node)
 			info->players = cp;
 			info->maxplayers = mp;
 
-			snprintf(info->name, sizeof(info->name), "%s", *servername?servername:NET_AdrToString(servername, sizeof(servername), &info->adr));
+			snprintf(info->name, sizeof(info->name), "%s j", *servername?servername:NET_AdrToString(servername, sizeof(servername), &info->adr));
 
 			info->next = firstserver;
 			firstserver = info;
@@ -2963,7 +2972,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 
 		info->adr = net_from;
 
-		snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adr, sizeof(adr), &info->adr));
+		snprintf(info->name, sizeof(info->name), "%s ?", NET_AdrToString(adr, sizeof(adr), &info->adr));
 
 		info->next = firstserver;
 		firstserver = info;
@@ -3036,10 +3045,11 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 						peer->peer = Z_Malloc(sizeof(serverinfo_t));
 						peer->peer->adr = pa;
 						peer->peer->sends = 1;
-						peer->peer->special = 0;
+						peer->peer->special = SS_QUAKEWORLD;
 						peer->peer->refreshtime = 0;
 						peer->peer->ping = 0xffff;
 						peer->peer->next = firstserver;
+						snprintf(peer->peer->name, sizeof(peer->peer->name), "%s p", NET_AdrToString(adr, sizeof(adr), &pa));
 						firstserver = peer->peer;
 					}
 					peer++;
@@ -3359,6 +3369,8 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 	char adr[MAX_ADR_SIZE];
 	int i;
 
+	char madr[MAX_ADR_SIZE];
+
 	switch(adrtype)
 	{
 	case NA_IP:
@@ -3373,6 +3385,8 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 	default:
 		return;
 	}
+
+	NET_AdrToString(madr, sizeof(madr), &net_from);
 
 	MSG_ReadByte ();	//should be \n
 
@@ -3412,6 +3426,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 		default:
 			break;
 		}
+		info->ping = 0xffff;
 
 		p1 = MSG_ReadByte();
 		p2 = MSG_ReadByte();
@@ -3431,10 +3446,11 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 		else
 		{
 			info->sends = 1;
+
 			info->special = type;
 			info->refreshtime = 0;
 
-			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adr, sizeof(adr), &info->adr));
+			snprintf(info->name, sizeof(info->name), "%s (via %s)", NET_AdrToString(adr, sizeof(adr), &info->adr), madr);
 
 			info->next = last;
 			last = info;

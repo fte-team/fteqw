@@ -1300,7 +1300,7 @@ void V_ApplyRefdef (void)
 	else
 		sb_lines = 24+16+8;
 
-	if (scr_viewsize.value >= 100.0 || scr_chatmode)
+	if (scr_viewsize.value >= 100.0)
 	{
 		full = true;
 		size = 100.0;
@@ -1344,14 +1344,6 @@ void V_ApplyRefdef (void)
 	else
 		r_refdef.vrect.y = (h - r_refdef.vrect.height)/2;
 
-	if (scr_chatmode)
-	{
-		if (scr_chatmode != 2)
-			r_refdef.vrect.height = r_refdef.vrect.y=r_refdef.grect.height/2;
-		r_refdef.vrect.width = r_refdef.vrect.x=r_refdef.grect.width/2;
-		if (r_refdef.vrect.width<320 || r_refdef.vrect.height<200)	//disable hud if too small
-			sb_lines=0;
-	}
 	r_refdef.vrect.x += r_refdef.grect.x;
 	r_refdef.vrect.y += r_refdef.grect.y;
 #endif
@@ -1642,61 +1634,24 @@ entity_t *CL_EntityNum(int num)
 #endif
 #endif
 
-float CalcFov (float fov_x, float width, float height);
-static void SCR_VRectForPlayer(vrect_t *vrect, int pnum, unsigned maxseats)
+static qboolean SCR_VRectForPlayer(vrect_t *vrect, int pnum, unsigned maxseats)
 {
-#if MAX_SPLITS > 4
-#pragma warning "Please change this function to cope with the new MAX_SPLITS value"
-#endif
-	switch(maxseats)
+	int w = 1, h = 1;
+	while (w*h < maxseats)
 	{
-	case 1:
-		vrect->width = vid.fbvwidth;
-		vrect->height = vid.fbvheight;
-		vrect->x = 0;
-		vrect->y = 0;
-
-		if (scr_chatmode == 2)
-		{
-			vrect->height/=2;
-			vrect->y += vrect->height;
-		}
-		break;
-
-	case 2:	//horizontal bands
-	case 3:
-#ifdef GLQUAKE
-		if (qrenderer == QR_OPENGL && vid.rotpixelwidth > vid.rotpixelheight * 2
-			&& r_projection.ival == PROJ_PANORAMA /*panoramic view always stacks player views*/
-			)
-		{	//over twice as wide as high, assume dual moniter, horizontal.
-			vrect->width = vid.fbvwidth/cl.splitclients;
-			vrect->height = vid.fbvheight;
-			vrect->x = 0 + vrect->width*pnum;
-			vrect->y = 0;
-		}
+		//spread them out so they're all fair.
+		//panorama always stacks vertically, using the full width, because we can.
+		if (vid.fbvwidth/(w*16.0) > vid.fbvheight/(h*10.0) && r_projection.ival != PROJ_PANORAMA)
+			w++;
 		else
-#endif
-		{
-			//stack them vertically
-			vrect->width = vid.fbvwidth;
-			vrect->height = vid.fbvheight/cl.splitclients;
-			vrect->x = 0;
-			vrect->y = 0 + vrect->height*pnum;
-		}
-
-		break;
-
-	case 4:	//4 squares
-		vrect->width = vid.fbvwidth/2;
-		vrect->height = vid.fbvheight/2;
-		vrect->x = (pnum&1) * vrect->width;
-		vrect->y = (pnum&2)/2 * vrect->height;
-		break;
-
-	default:
-		Sys_Error("cl.splitclients is invalid.");
+			h++;
 	}
+	vrect->width = vid.fbvwidth/(float)w;
+	vrect->height = vid.fbvheight/(float)h;
+	vrect->x = (pnum%w) * vrect->width;
+	vrect->y = (pnum/w) * vrect->height;
+
+	return pnum < w*h;
 }
 
 void Draw_ExpandedString(float x, float y, conchar_t *str);
@@ -2159,22 +2114,7 @@ void V_RenderPlayerViews(playerview_t *pv)
 	cl_numvisedicts = oldnuments;
 	cl_numstris = oldstris;
 
-	if (scr_chatmode == 2)
-	{
-		vec3_t dir;
-
-		r_refdef.vrect.y -= r_refdef.vrect.height;
-		r_secondaryview = 2;
-
-		VectorSubtract(r_refdef.vieworg, pv->cam_desired_position, dir);
-		VectorAngles(dir, NULL, r_refdef.viewangles, false);
-
-
-		VectorCopy(pv->cam_desired_position, r_refdef.vieworg);
-		R_RenderView ();
-	}
 	r_secondaryview = true;
-
 
 #ifdef SIDEVIEWS
 /*	//adjust main view height to strip off the rearviews at the top
@@ -2278,10 +2218,11 @@ void V_RenderPlayerViews(playerview_t *pv)
 	r_refdef.externalview = false;
 }
 
+#include "shader.h"
 void V_RenderView (void)
 {
-	int viewnum;
-	int maxviews = cl.splitclients;
+	int seatnum;
+	int maxseats = cl.splitclients;
 
 	Surf_LessenStains();
 
@@ -2289,18 +2230,18 @@ void V_RenderView (void)
 		return;
 
 	if (cl.intermissionmode != IM_NONE)
-		maxviews = 1;
+		maxseats = 1;
 
 	R_PushDlights ();
 
 	r_secondaryview = 0;
-	for (viewnum = 0; viewnum < maxviews; viewnum++)
+	for (seatnum = 0; seatnum < cl.splitclients && seatnum < maxseats; seatnum++)
 	{
-		V_ClearRefdef(&cl.playerview[viewnum]);
-		if (viewnum)
+		V_ClearRefdef(&cl.playerview[seatnum]);
+		if (seatnum)
 		{
 			//should be enough to just hack a few things.
-			V_EditExternalModels(cl.playerview[viewnum].viewentity, NULL, 0);
+			V_EditExternalModels(r_refdef.playerview->viewentity, NULL, 0);
 		}
 		else
 		{
@@ -2324,7 +2265,8 @@ void V_RenderView (void)
 		}
 		if (R2D_Flush)
 			R2D_Flush();
-		SCR_VRectForPlayer(&r_refdef.grect, viewnum, maxviews);
+
+		SCR_VRectForPlayer(&r_refdef.grect, seatnum, maxseats);
 		V_RenderPlayerViews(r_refdef.playerview);
 
 #ifdef PLUGINS
@@ -2339,6 +2281,82 @@ void V_RenderView (void)
 		else
 			SCR_TileClear (0);
 #endif
+	}
+	if (seatnum > 1)
+	{
+		int extra = 0;
+		for (; ; seatnum++, extra++)
+		{
+			if (!SCR_VRectForPlayer(&r_refdef.grect, seatnum, maxseats))
+				break;
+
+			switch(extra)
+			{
+#ifdef QUAKEHUD
+			case 0:	//show a mini-console.
+				{
+					console_t *con = &con_main;
+					extern cvar_t gl_conback;
+					shader_t *conback;
+					if (*gl_conback.string && (conback = R_RegisterPic(gl_conback.string, NULL)) && R_GetShaderSizes(conback, NULL, NULL, true) > 0)
+						R2D_Image(r_refdef.grect.x, r_refdef.grect.y, r_refdef.grect.width, r_refdef.grect.height, 0, 0, 1, 1, conback);
+					else if ((conback = R_RegisterPic("gfx/conback.lmp", NULL)) && R_GetShaderSizes(conback, NULL, NULL, true) > 0)
+						R2D_Image(r_refdef.grect.x, r_refdef.grect.y, r_refdef.grect.width, r_refdef.grect.height, 0, 0, 1, 1, conback);
+					else
+						R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y, r_refdef.grect.width, r_refdef.grect.height);
+					if (!scr_conlines)
+					{
+						int gah;
+						Font_BeginString(font_console, 0, 0, &gah, &gah);
+						Con_DrawOneConsole(con, con->flags & CONF_KEYFOCUSED, font_console, r_refdef.grect.x+8, r_refdef.grect.y, r_refdef.grect.width-16, r_refdef.grect.height-Font_CharHeight(), 0);
+					}
+				}
+				break;
+			case 1:	//show some scores, because we can.
+				{	//FIXME: show ALL tracked players.
+					int tmp;
+					R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y, r_refdef.grect.width, r_refdef.grect.height);
+					r_refdef.playerview = &cl.playerview[0];
+					tmp = r_refdef.playerview->sb_showscores;
+					r_refdef.playerview->sb_showscores = true;
+					Sbar_DrawScoreboard (r_refdef.playerview);
+					r_refdef.playerview->sb_showscores = tmp;
+				}
+				break;
+			case 2:
+				{
+					static playerview_t cam_view;
+					vec3_t dir;
+					int track = cl.playerview[0].cam_spec_track;
+					if (track < 0)
+						track = cl.playerview[0].playernum;
+
+					if (cam_view.cam_state == CAM_FREECAM || cam_view.cam_spec_track != track)
+						cam_view.cam_state = CAM_PENDING;
+					cam_view.playernum = -1;//cl.playerview[0].playernum;
+					cam_view.cam_spec_track = track;
+					cam_view.viewentity = 0;
+					cam_view.nolocalplayer = true;
+					cam_view.spectator = true;
+
+					Cam_Track(&cam_view, NULL);
+
+					VectorSubtract(cl.playerview[0].simorg, cam_view.cam_desired_position, dir);
+					VectorAngles(dir, NULL, cam_view.simangles, false);
+
+					VectorCopy(cam_view.cam_desired_position, cam_view.simorg);
+
+					V_ClearRefdef(&cam_view);
+					V_EditExternalModels(0, NULL, 0);
+					V_RenderPlayerViews(r_refdef.playerview);
+				}
+				break;
+#endif
+			default:	//wow, loads. nothing to show though.
+				R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y, r_refdef.grect.width, r_refdef.grect.height);
+				break;
+			}
+		}
 	}
 	r_refdef.playerview = NULL;
 }

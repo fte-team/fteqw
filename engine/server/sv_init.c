@@ -1305,6 +1305,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 					i = QWMAX_CLIENTS;
 			}
 		}
+		if (i > MAX_CLIENTS)
+			i = MAX_CLIENTS;
 		SV_UpdateMaxPlayers(i);
 
 		// leave slots at start for clients only

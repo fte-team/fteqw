@@ -4763,9 +4763,9 @@ qboolean Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 		if (!(f->flags & HRF_FILETYPES))
 		{
 			if (mimetype)
-				Con_Printf("mime type \"%s\" and file extension of \"%s\" not recognised\n", mimetype, f->fname);
+				Con_Printf("mime type \"%s\" nor file extension of \"%s\" not known\n", mimetype, f->fname);
 			else
-				Con_Printf("file extension of \"%s\" not recognised\n", f->fname);
+				Con_Printf("file extension of \"%s\" not known\n", f->fname);
 			//file type not guessable from extension either.
 			f->flags |= HRF_ABORT;
 			Host_DoRunFile(f);
@@ -4891,33 +4891,33 @@ done:
 		return;
 	}
 
-	if (!(f->flags & HRF_FILETYPES))
-	{
 #ifdef WEBCLIENT
-		if (isurl(f->fname) && !f->srcfile)
+	if (isurl(f->fname) && !f->srcfile)
+	{
+		if (!(f->flags & HRF_OPENED))
 		{
-			if (!(f->flags & HRF_OPENED))
+			struct dl_download *dl;
+			f->flags |= HRF_OPENED;
+			dl = HTTP_CL_Get(f->fname, NULL, Host_RunFileDownloaded);
+			if (dl)
 			{
-				struct dl_download *dl;
-				f->flags |= HRF_OPENED;
-				dl = HTTP_CL_Get(f->fname, NULL, Host_RunFileDownloaded);
-				if (dl)
-				{
-					f->flags |= HRF_DOWNLOADED;
-					dl->notifystarted = Host_BeginFileDownload;
-					dl->user_ctx = f;
+				f->flags |= HRF_DOWNLOADED;
+				dl->notifystarted = Host_BeginFileDownload;
+				dl->user_ctx = f;
 
-					if (!(f->flags & HRF_WAITING))
-					{
-						f->flags |= HRF_WAITING;
-						waitingformanifest++;
-					}
-					return;
+				if (!(f->flags & HRF_WAITING))
+				{
+					f->flags |= HRF_WAITING;
+					waitingformanifest++;
 				}
+				return;
 			}
 		}
+	}
 #endif
 
+	if (!(f->flags & HRF_FILETYPES))
+	{
 		f->flags |= Host_GuessFileType(NULL, f->fname);
 		
 		//if we still don't know what it is, give up.
@@ -4939,10 +4939,29 @@ done:
 
 	if (f->flags & HRF_DEMO)
 	{
-		//play directly via system path, no prompts needed
-		FS_FixupGamedirForExternalFile(f->fname, loadcommand, sizeof(loadcommand));
-		Cbuf_AddText(va("playdemo \"%s\"\n", loadcommand), RESTRICT_LOCAL);
-
+		if (f->srcfile)
+		{
+			VFS_SEEK(f->srcfile, 0);
+			if (f->flags & HRF_DEMO_QWD)
+				CL_PlayDemoStream(f->srcfile, f->fname, true, DPB_QUAKEWORLD, 0);
+#ifdef Q2CLIENT
+			else if (f->flags & HRF_DEMO_DM2)
+				CL_PlayDemoStream(f->srcfile, f->fname, true, DPB_QUAKE2, 0);
+#endif
+#ifdef NQPROT
+			else if (f->flags & HRF_DEMO_DEM)
+				CL_PlayDemoStream(f->srcfile, f->fname, true, DPB_NETQUAKE, 0);
+#endif
+			else //if (f->flags & HRF_DEMO_MVD)
+				CL_PlayDemoStream(f->srcfile, f->fname, true, DPB_MVD, 0);
+			f->srcfile = NULL;
+		}
+		else
+		{
+			//play directly via system path, no prompts needed
+			FS_FixupGamedirForExternalFile(f->fname, loadcommand, sizeof(loadcommand));
+			Cbuf_AddText(va("playdemo \"%s\"\n", loadcommand), RESTRICT_LOCAL);
+		}
 		goto done;
 	}
 	else if (f->flags & HRF_BSP)
@@ -5206,7 +5225,7 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 	}
 	else
 #elif !defined(FTE_TARGET_WEB)
-	//unix file urls are fairly consistant.
+	//unix file urls are fairly consistant - must be an absolute path.
 	if (nlen >= 8 && !strncmp(fname, "file:///", 8))
 	{
 		fname += 7;
@@ -5624,12 +5643,7 @@ double Host_Frame (double time)
 
 	if (SCR_UpdateScreen && !vid.isminimized)
 	{
-		extern cvar_t scr_chatmodecvar, r_stereo_method;
-
-		if (scr_chatmodecvar.ival && cl.intermissionmode == IM_NONE)
-			scr_chatmode = (cl.playerview[0].spectator&&cl.splitclients<2&&cls.state == ca_active)?2:1;
-		else
-			scr_chatmode = 0;
+		extern cvar_t r_stereo_method;
 
 		r_refdef.stereomethod = r_stereo_method.ival;
 #ifdef FTE_TARGET_WEB

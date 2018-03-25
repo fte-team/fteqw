@@ -1522,7 +1522,7 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 		if (stat)
 		{
 			maindc = GetDC(mainwindow);
-			stat = EGL_Init (info, palette, mainwindow, maindc);
+			stat = EGL_Init (info, palette, EGL_PLATFORM_WIN32, mainwindow, maindc, (EGLNativeWindowType)mainwindow, (EGLNativeDisplayType)maindc);
 
 			if (stat)
 				if (!GL_Init(info, &EGL_Proc))

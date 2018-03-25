@@ -527,7 +527,7 @@ static qintptr_t VARGS Plug_GetPlayerInfo(void *offset, quintptr_t mask, const q
 	{
 		if (i < 0)
 		{
-			if (i >= -MAX_SPLITS)
+			if (i >= -(int)MAX_SPLITS)
 				i = cl.playerview[-i-1].playernum;
 			if (i < 0)
 			{
@@ -1244,8 +1244,11 @@ qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, cons
 		GenMatrixPosQuat4Scale,
 		COM_StripExtension,
 		Alias_ForceConvertBoneData,
-		
-		Terr_GetTerrainFuncs
+#ifdef TERRAIN
+		Terr_GetTerrainFuncs,
+#else
+		NULL,
+#endif
 	};
 	if (VM_LONG(arg[0]) >= sizeof(funcs))
 		return (qintptr_t)&funcs;

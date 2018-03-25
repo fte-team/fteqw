@@ -222,7 +222,6 @@ cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
 cvar_t scr_centersbar						= CVAR  ("scr_centersbar", "2");
 cvar_t scr_centertime						= CVAR  ("scr_centertime", "2");
 cvar_t scr_logcenterprint					= CVARD  ("con_logcenterprint", "1", "Specifies whether to print centerprints on the console.\n0: never\n1: single-player or coop only.\n2: always.\n");
-cvar_t scr_chatmodecvar						= CVAR  ("scr_chatmode", "0");
 cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 												Cvar_Limiter_ZeroToOne_Callback);
 cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
@@ -890,7 +889,6 @@ void Renderer_Init(void)
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);
 	Cvar_Register(&scr_fov_viewmodel, SCREENOPTIONS);
-//	Cvar_Register(&scr_chatmodecvar, SCREENOPTIONS);
 
 	Cvar_Register (&scr_sshot_type, SCREENOPTIONS);
 	Cvar_Register (&scr_sshot_compression, SCREENOPTIONS);

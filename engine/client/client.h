@@ -697,7 +697,6 @@ struct playerview_s
 
 	vec3_t		cam_desired_position;	// where the camera wants to be
 	int			cam_oldbuttons;			//
-	vec3_t		cam_viewangles;			//
 	double		cam_lastviewtime;		// timer for wallcam
 	float		cam_reautotrack;		// timer to throttle tracking changes.
 	int			cam_spec_track;			// player# of who we are tracking / want to track / might want to track
@@ -799,9 +798,9 @@ typedef struct
 	lerpents_t	lerpplayers[MAX_CLIENTS];
 
 	//when running splitscreen, we have multiple viewports all active at once
-	int			splitclients;	//we are running this many clients split screen.
+	unsigned int	splitclients;	//we are running this many clients split screen.
 	playerview_t	playerview[MAX_SPLITS];
-	int			defaultnetsplit;//which multiview splitscreen to parse the message for (set by mvd playback code)
+	unsigned int	defaultnetsplit;//which multiview splitscreen to parse the message for (set by mvd playback code)
 
 	// localized movement vars
 	float		bunnyspeedcap;

@@ -184,7 +184,6 @@ char cvargroup_servercontrol[] = "server control variables";
 
 vfsfile_t	*sv_fraglogfile;
 
-void SV_FixupName(char *in, char *out, unsigned int outlen);
 void SV_AcceptClient (netadr_t *adr, int userid, char *userinfo);
 void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
 
@@ -2091,10 +2090,12 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 client_t *SV_AddSplit(client_t *controller, char *info, int id)
 {
 	client_t *cl, *prev;
-	int i;
+	int i, j;
 	int curclients;
 	qboolean loadgame;
 	const char *name;
+	unsigned int clients = 0, spectators = 0;
+	qboolean asspec;
 
 	if (!(controller->fteprotocolextensions & PEXT_SPLITSCREEN))
 	{
@@ -2111,8 +2112,8 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	if (id && curclients != id)
 		return NULL;	//this would be weird.
 
-	if (curclients >= 16)
-		return NULL;	//protocol limit on stats.
+//	if (curclients >= 16)
+//		return NULL;	//protocol limit on stats.
 	if (curclients >= MAX_SPLITS)
 		return NULL;
 	//only allow splitscreen if its explicitly allowed. unless its the local client in which case its always allowed.
@@ -2168,9 +2169,26 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	}
 
 	loadgame = (cl->state == cs_loadzombie);
+	if (loadgame)
+		asspec = cl->spectator;
+	else
+		asspec = !!atoi(Info_ValueForKey(info, "spectator"));
+	for (j=0 ; j<sv.allocated_client_slots ; j++)
+	{
+		if (svs.clients[j].state == cs_free)
+			continue;
+		if (svs.clients[j].spectator && svs.clients[j].spectator!=2)
+			spectators++;
+		else
+			clients++;
+	}
+	if ((asspec?spectators:clients) >= (asspec?maxspectators.ival:maxclients.ival))
+	{
+		SV_PrintToClient(controller, PRINT_HIGH, "Server full, cannot add new seat\n");
+		return NULL;
+	}
 
-	if (!loadgame)
-		cl->spectator = controller->spectator;
+	cl->spectator = asspec;
 	cl->netchan.remote_address = controller->netchan.remote_address;
 	cl->netchan.message.prim = controller->netchan.message.prim;
 	cl->zquake_extensions = controller->zquake_extensions;
@@ -2238,13 +2256,16 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 
 	Info_RemoveKey (cl->userinfo, "spectator");
 	//this is a hint rather than a game breaker should it fail.
-	Info_SetValueForStarKey (cl->userinfo, "*spectator", va("%i", cl->spectator), sizeof(cl->userinfo));
+	if (cl->spectator)
+		Info_SetValueForStarKey (cl->userinfo, "*spectator", va("%i", cl->spectator), sizeof(cl->userinfo));
+	cl->state = controller->state;
+
+//	host_client = NULL;
+//	sv_player = NULL;
 
 	SV_ExtractFromUserinfo (cl, true);
 	if (!loadgame)
 		SV_GetNewSpawnParms(cl);
-
-	cl->state = controller->state;
 
 	if (cl->state >= cs_connected)
 	{
@@ -2837,7 +2858,7 @@ client_t *SVC_DirectConnect(void)
 	{
 		if (cl->state == cs_free)
 			continue;
-		if (cl->spectator)
+		if (cl->spectator && cl->spectator!=2)
 			spectators++;
 		else
 			clients++;
@@ -5225,7 +5246,7 @@ void SV_InitLocal (void)
 //" is so mods that use player names in tokenizing/frik_files don't mess up. mods are still expected to be able to cope with space.
 
 //is allowed to shorten, out must be as long as in and min of "unnamed"+1
-void SV_FixupName(char *in, char *out, unsigned int outlen)
+void SV_FixupName(const char *in, char *out, unsigned int outlen)
 {
 	char *s, *p;
 	unsigned int len;

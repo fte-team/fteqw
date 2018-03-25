@@ -2988,7 +2988,10 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, char *fn
 			mips->type = PTI_2D_ARRAY;
 		}
 		else
+		{
+			header->pixeldepth = 1;
 			mips->type = PTI_2D;
+		}
 	}
 	mips->extrafree = filedata;
 	mips->encoding = encoding;

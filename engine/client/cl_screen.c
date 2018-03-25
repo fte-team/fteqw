@@ -175,8 +175,6 @@ console is:
 
 
 
-int scr_chatmode;
-extern cvar_t scr_chatmodecvar;
 
 
 float mousecursor_x, mousecursor_y;
@@ -2230,7 +2228,7 @@ void SCR_SetUpToDrawConsole (void)
 			else
 				scr_conlines = 0;
 		}
-		else if ((Key_Dest_Has(kdm_console) || scr_chatmode))
+		else if (Key_Dest_Has(kdm_console))
 		{
 			//go half-screen if we're meant to have the console visible
 			scr_conlines = vid.height*scr_consize.value;    // half screen

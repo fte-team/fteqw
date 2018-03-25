@@ -132,6 +132,7 @@
 #undef HAVE_CDPLAYER	//includes cd playback. actual cds. named/numbered tracks are supported regardless (though you need to use the 'music' command to play them without this).
 #undef QTERM
 #undef SIDEVIEWS
+#undef MAX_SPLITS
 #undef SUBSERVERS
 #undef SV_MASTER
 #undef HAVE_MIXER	//openal only

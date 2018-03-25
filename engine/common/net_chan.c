@@ -153,7 +153,9 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 	#endif
 		mask |= PEXT_SPAWNSTATIC2;
 		mask |= PEXT_COLOURMOD;
+	#if MAX_SPLITS > 1
 		mask |= PEXT_SPLITSCREEN;
+	#endif
 		mask |= PEXT_HEXEN2;
 		mask |= PEXT_CUSTOMTEMPEFFECTS;
 		mask |= PEXT_256PACKETENTITIES;

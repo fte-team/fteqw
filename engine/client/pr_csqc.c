@@ -1300,7 +1300,7 @@ static void PF_R_DynamicLight_AddInternal(pubprogfuncs_t *prinst, struct globalv
 	else
 	{
 		dl = CL_AllocDlight(dlkey);
-		dl->die = cl.time + 0.1;
+		dl->die = cl.time - 0.1;
 		dl->flags = LFLAG_DYNAMIC;
 	}
 

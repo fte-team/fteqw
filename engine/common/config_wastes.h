@@ -89,6 +89,7 @@
 // What do we NOT want to use
 #undef AVAIL_FREETYPE	//for truetype font rendering
 #undef AVAIL_WASAPI	//windows advanced sound api
+#undef AVAIL_DSOUND
 #undef BOTLIB_STATIC	//q3 botlib
 #undef AVAIL_XZDEC	//.xz decompression
 #undef AVAIL_GZDEC	//.gz decompression

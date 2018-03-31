@@ -4264,6 +4264,13 @@ qboolean SV_UserInfoIsBasic(const char *infoname)
 	return false;
 }
 
+
+static void SV_SetInfo_PrintCB (void *ctx, const char *key, const char *value)
+{
+	client_t *cl = ctx;
+	SV_ClientPrintf(cl, PRINT_HIGH, "\t%-20s%s\n", key, value);
+}
+
 /*
 ==================
 SV_SetInfo_f
@@ -4279,7 +4286,7 @@ void SV_SetInfo_f (void)
 	if (Cmd_Argc() == 1)
 	{
 		SV_ClientPrintf(host_client, PRINT_HIGH, "User info settings:\n");
-		Info_Print (host_client->userinfo, "");
+		Info_Enumerate(host_client->userinfo, (void*)host_client, SV_SetInfo_PrintCB);
 		return;
 	}
 

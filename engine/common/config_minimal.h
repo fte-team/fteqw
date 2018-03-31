@@ -129,6 +129,7 @@
 // Audio Drivers
 //#define AVAIL_OPENAL
 //#define AVAIL_WASAPI			//windows advanced sound api
+#define AVAIL_DSOUND
 //#define HAVE_MIXER			//support non-openal audio drivers
 
 // Audio Formats

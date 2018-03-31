@@ -1578,7 +1578,7 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 
 		if (sv_demoExtensions.ival == 2 || !*sv_demoExtensions.string)
 		{	/*more limited subset supported by ezquake*/
-			demo.recorder.fteprotocolextensions = PEXT_CHUNKEDDOWNLOADS|PEXT_256PACKETENTITIES|/*PEXT_FLOATCOORDS|*/PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SPAWNSTATIC2;
+			demo.recorder.fteprotocolextensions = /*PEXT_CHUNKEDDOWNLOADS|*/PEXT_256PACKETENTITIES|/*PEXT_FLOATCOORDS|*/PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SPAWNSTATIC2;
 //			demo.recorder.fteprotocolextensions |= PEXT_HLBSP;	/*ezquake DOES have this, but it is pointless and should have been in some feature mask rather than protocol extensions*/
 //			demo.recorder.fteprotocolextensions |= PEXT_ACCURATETIMINGS;	/*ezquake does not support this any more*/
 //			demo.recorder.fteprotocolextensions |= PEXT_TRANS;	/*ezquake has no support for .alpha*/
@@ -1607,7 +1607,7 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 		}
 
 		//pointless extensions that are redundant with mvds
-		demo.recorder.fteprotocolextensions &= ~PEXT_ACCURATETIMINGS | PEXT_HLBSP;
+		demo.recorder.fteprotocolextensions &= ~PEXT_ACCURATETIMINGS | PEXT_HLBSP | PEXT_CHUNKEDDOWNLOADS;
 #ifdef PEXT_Q2BSP
 		demo.recorder.fteprotocolextensions &= ~PEXT_Q2BSP;
 #endif

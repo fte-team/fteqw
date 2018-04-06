@@ -3,6 +3,7 @@
 #define MINPLUGVER "4239"
 //main reason to use connection close is because we're lazy and don't want to give sizes in advance (yes, we could use chunks..)
 
+size_t SHA1(unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen);
 
 void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen)
 {
@@ -235,7 +236,7 @@ static void HTTPSV_SendHTMLFooter(cluster_t *cluster, oproxy_t *dest)
 	char buffer[2048];
 
 	/*Proxy version*/
-	snprintf(buffer, sizeof(buffer), "<br/>Server Version: %i <a href=\""PROXYWEBSITE"\" target=\"_blank\">"PROXYWEBSITE"</a>", cluster->buildnumber);
+	snprintf(buffer, sizeof(buffer), "<br/>Server Version: "QTV_VERSION_STRING" <a href=\""PROXYWEBSITE"\" target=\"_blank\">"PROXYWEBSITE"</a>");
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 
 #if 0
@@ -1193,7 +1194,7 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 				unsigned char sha1digest[20];
 				char padkey[512];
 				snprintf(padkey, sizeof(padkey), "%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", key);
-				tobase64(acceptkey, sizeof(acceptkey), sha1digest, SHA1(sha1digest, sizeof(sha1digest), padkey));
+				tobase64(acceptkey, sizeof(acceptkey), sha1digest, SHA1(sha1digest, sizeof(sha1digest), padkey, strlen(padkey)));
 
 				snprintf(padkey, sizeof(padkey), 
 							"HTTP/1.1 101 Switching Protocols\r\n"

@@ -874,7 +874,8 @@ qboolean Net_ConnectToServer(sv_t *qtv)
 	char *ip = Net_DiagnoseProtocol(qtv);
 
 	qtv->usequakeworldprotocols = false;
-	qtv->pext = 0;
+	qtv->pext1 = 0;
+	qtv->pext2 = 0;
 
 	if (qtv->sourcetype == SRC_DEMO || qtv->sourcetype == SRC_DEMODIR)
 	{
@@ -1318,7 +1319,7 @@ qboolean QTV_ConnectStream(sv_t *qtv, char *serverurl)
 
 	*qtv->map.serverinfo = '\0';
 	Info_SetValueForStarKey(qtv->map.serverinfo, "*version",	"FTEQTV",	sizeof(qtv->map.serverinfo));
-	Info_SetValueForStarKey(qtv->map.serverinfo, "*qtv",		VERSION,	sizeof(qtv->map.serverinfo));
+	Info_SetValueForStarKey(qtv->map.serverinfo, "*qtv",		QTV_VERSION_STRING,	sizeof(qtv->map.serverinfo));
 	Info_SetValueForStarKey(qtv->map.serverinfo, "hostname",	qtv->cluster->hostname,	sizeof(qtv->map.serverinfo));
 	Info_SetValueForStarKey(qtv->map.serverinfo, "maxclients",	"99",	sizeof(qtv->map.serverinfo));
 	if (!strncmp(qtv->server, "file:", 5))
@@ -2011,9 +2012,9 @@ void QTV_Run(sv_t *qtv)
 					cmd[1] = &qtv->proxyplayerucmds[(qtv->proxyplayerucmdnum-1)%3];
 					cmd[2] = &qtv->proxyplayerucmds[(qtv->proxyplayerucmdnum-0)%3];
 
-					cmd[2]->angles[0] = qtv->proxyplayerangles[0]/360*65535;
-					cmd[2]->angles[1] = qtv->proxyplayerangles[1]/360*65535;
-					cmd[2]->angles[2] = qtv->proxyplayerangles[2]/360*65535;
+					cmd[2]->angles[0] = (qtv->proxyplayerangles[0]/360)*0x10000;
+					cmd[2]->angles[1] = (qtv->proxyplayerangles[1]/360)*0x10000;
+					cmd[2]->angles[2] = (qtv->proxyplayerangles[2]/360)*0x10000;
 					cmd[2]->buttons = qtv->proxyplayerbuttons & 255;
 					cmd[2]->forwardmove = (qtv->proxyplayerbuttons & (1<<8))?800:0 + (qtv->proxyplayerbuttons & (1<<9))?-800:0;
 					cmd[2]->sidemove = (qtv->proxyplayerbuttons & (1<<11))?800:0 + (qtv->proxyplayerbuttons & (1<<10))?-800:0;

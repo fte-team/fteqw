@@ -229,12 +229,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 size_t strlcpy(char *dst, const char *src, size_t siz);
 
+size_t SHA1(unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen);
+
 
 #ifdef LIBQTV
 #define Sys_Printf QTVSys_Printf
 #endif
 
-#define VERSION "0.01"	//this will be added to the serverinfo
+#ifdef SVNREVISION
+#define QTV_VERSION_STRING SVNREVISION
+#else
+//#include "../engine/common/bothdefs.h"
+//#define QTV_VERSION_STRING STRINGIFY(FTE_VER_MAJOR)"."STRINGIFY(FTE_VER_MINOR)
+#define QTV_VERSION_STRING "v?""?""?"
+#endif
 
 #define PROX_DEFAULTSERVERPORT 27500
 #define PROX_DEFAULTLISTENPORT 27501
@@ -332,22 +340,35 @@ typedef struct {
 } filename_t;
 
 typedef struct {
-	unsigned char frame;
-	unsigned char modelindex;
-	unsigned char colormap;
-	unsigned char skinnum;
+	unsigned char	frame;
+	unsigned short	modelindex;
+	unsigned char	colormap;
+	unsigned char	skinnum;
 	float origin[3];
 	float angles[3];
-	unsigned char effects;
+	unsigned short	effects;
+	unsigned char	alpha;
+	unsigned char	scale;
+//	unsigned char	fatness;
+//	unsigned char	abslight;
+//	unsigned char	h2flags;
+//	unsigned char	colormod[3];
+//	unsigned short	light[4];
+//	unsigned char	lightstyle;
+//	unsigned char	lightpflags;
+//	unsigned char	tagentity;
+//	unsigned char	tagindex;
 } entity_state_t;
 typedef struct {
 	unsigned char frame;
 	unsigned char modelindex;
+	//colormap
 	unsigned char skinnum;
 	float origin[3];
-	short velocity[3];
-	short angles[3];
+	float angles[3];
 	unsigned char effects;
+
+	short velocity[3];
 	unsigned char weaponframe;
 } player_state_t;
 typedef struct {
@@ -378,7 +399,7 @@ typedef struct {
 
 typedef struct {
 	unsigned char msec;
-	unsigned short angles[3];
+	float angles[3];
 	short forwardmove, sidemove, upmove;
 	unsigned char buttons;
 	unsigned char impulse;
@@ -415,10 +436,18 @@ typedef struct {
 } pmove_t;
 
 
+#define MBTN_UP		(1u<<0)
+#define MBTN_DOWN	(1u<<1)
+#define MBTN_LEFT	(1u<<2)
+#define MBTN_RIGHT	(1u<<3)
+#define MBTN_ENTER	(1u<<4)
+
 #define MAX_BACK_BUFFERS	16
 typedef struct sv_s sv_t;
 typedef struct cluster_s cluster_t;
 typedef struct viewer_s {
+	//viewers are regular clients connected over udp.
+	//they may be watching a communal stream, or they might themselves be playing through the proxy, directly controlling the stream.
 	qboolean drop;
 	unsigned int timeout;
 	unsigned int nextpacket;	//for nq clients
@@ -451,6 +480,7 @@ typedef struct viewer_s {
 	int lost;	//packets
 	usercmd_t ucmds[3];
 	unsigned int lasttime;
+	unsigned int menubuttons;
 
 
 	int settime;	//the time that we last told the client.
@@ -519,8 +549,8 @@ typedef struct tcpconnect_s
 } tcpconnect_t;
 
 typedef struct {
-	short origin[3];
-	unsigned char soundindex;
+	float origin[3];
+	unsigned short soundindex;
 	unsigned char volume;
 	unsigned char attenuation;
 } staticsound_t;
@@ -588,9 +618,6 @@ struct sv_s {	//details about a server connection (also known as stream)
 	qboolean upstreamacceptsdownload;
 	//
 
-	unsigned char buffer[MAX_PROXY_BUFFER];	//this doesn't cycle.
-	int buffersize;	//it memmoves down
-	int forwardpoint;	//the point in the stream that we've forwarded up to.
 	qboolean parsingqtvheader;
 
 	unsigned char upstreambuffer[2048];
@@ -607,7 +634,8 @@ struct sv_s {	//details about a server connection (also known as stream)
 	qboolean silentstream;
 
 	qboolean usequakeworldprotocols;
-	unsigned int pext;
+	unsigned int pext1;
+	unsigned int pext2;
 	int challenge;
 	unsigned short qport;
 	int isconnected;
@@ -708,10 +736,14 @@ struct sv_s {	//details about a server connection (also known as stream)
 		int thisplayer;
 		qboolean ispaused;
 	} map;
+
+	unsigned char buffer[MAX_PROXY_BUFFER];	//this doesn't cycle.
+	int buffersize;	//it memmoves down
+	int forwardpoint;	//the point in the stream that we've forwarded up to.
 };
 
 typedef struct {
-	char name[64];
+	char name[128];
 	int size;
 	int time, smalltime;
 } availdemo_t;
@@ -760,8 +792,6 @@ struct cluster_s {
 	int tooslowdelay;	//if stream ran out of data, stop parsing for this long
 
 	int maxviewers;
-
-	int buildnumber;
 
 	int numproxies;
 	int maxproxies;

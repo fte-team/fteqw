@@ -67,11 +67,11 @@ void ReadDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move)
 
 // read current angles
 	if (bits & CM_ANGLE1)
-		move->angles[0] = ReadShort (m);
+		move->angles[0] = (ReadShort (m)/(float)0x10000)*360;
 	if (bits & CM_ANGLE2)
-		move->angles[1] = ReadShort (m);
+		move->angles[1] = (ReadShort (m)/(float)0x10000)*360;
 	if (bits & CM_ANGLE3)
-		move->angles[2] = ReadShort (m);
+		move->angles[2] = (ReadShort (m)/(float)0x10000)*360;
 
 // read movement
 	if (bits & CM_FORWARD)
@@ -120,11 +120,11 @@ void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move)
 
 // read current angles
 	if (bits & CM_ANGLE1)
-		WriteShort (m, move->angles[0]);
+		WriteShort (m, (move->angles[0]/360.0)*0x10000);
 	if (bits & CM_ANGLE2)
-		WriteShort (m, move->angles[1]);
+		WriteShort (m, (move->angles[1]/360.0)*0x10000);
 	if (bits & CM_ANGLE3)
-		WriteShort (m, move->angles[2]);
+		WriteShort (m, (move->angles[2]/360.0)*0x10000);
 
 // read movement
 	if (bits & CM_FORWARD)
@@ -192,7 +192,7 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *viewer)
 
 		WriteByte(msg, svc_stufftext);
 		WriteString2(msg, "fullserverinfo \"");
-		WriteString2(msg, "\\*QTV\\"VERSION);
+		WriteString2(msg, "\\*QTV\\"QTV_VERSION_STRING);
 		WriteString(msg, "\"\n");
 
 	}
@@ -236,10 +236,15 @@ void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int playernum)
 {
 	int i;
 	WriteByte(msg, svc_serverdata);
-	WriteLong(msg, PROTOCOL_VERSION_NQ);
+	if (tv && tv->pext1 & PEXT_FLOATCOORDS)
+	{
+		WriteLong(msg, 999);
+		WriteLong(msg, (1<<1)|(1<<4));	//short angles, float coords, same as PEXT_FLOATCOORDS
+	}
+	else
+		WriteLong(msg, PROTOCOL_VERSION_NQ);
 	WriteByte(msg, 16);	//MAX_CLIENTS
 	WriteByte(msg, 1);	//game type
-
 
 	if (!tv || tv->parsingconnectiondata )
 	{
@@ -400,7 +405,7 @@ int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i, int thispl
 		{
 			WriteByte(msg, svc_updateuserinfo);
 			WriteByte(msg, i);
-			WriteLong(msg, i);
+			WriteLong(msg, i+1);
 			WriteString2(msg, "\\*spectator\\1\\name\\");
 
 			// Print the number of people on QTV along with the hostname
@@ -447,7 +452,7 @@ int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i, int thispl
 		}
 		WriteByte(msg, svc_updateuserinfo);
 		WriteByte(msg, i);
-		WriteLong(msg, i);
+		WriteLong(msg, i+1);
 		WriteString(msg, tv->map.players[i].userinfo);
 
 		WriteByte(msg, svc_updatefrags);
@@ -497,7 +502,7 @@ int SendCurrentBaselines(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize
 		{
 			WriteByte(msg, svc_spawnbaseline);
 			WriteShort(msg, i);
-			WriteEntityState(msg, &tv->map.entity[i].baseline, tv->pext);
+			WriteEntityState(msg, &tv->map.entity[i].baseline, tv->pext1);
 		}
 	}
 
@@ -535,9 +540,9 @@ int SendStaticSounds(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize, in
 			continue;
 
 		WriteByte(msg, svc_spawnstaticsound);
-		WriteCoord(msg, tv->map.staticsound[i].origin[0], tv->pext);
-		WriteCoord(msg, tv->map.staticsound[i].origin[1], tv->pext);
-		WriteCoord(msg, tv->map.staticsound[i].origin[2], tv->pext);
+		WriteCoord(msg, tv->map.staticsound[i].origin[0], tv->pext1);
+		WriteCoord(msg, tv->map.staticsound[i].origin[1], tv->pext1);
+		WriteCoord(msg, tv->map.staticsound[i].origin[2], tv->pext1);
 		WriteByte(msg, tv->map.staticsound[i].soundindex);
 		WriteByte(msg, tv->map.staticsound[i].volume);
 		WriteByte(msg, tv->map.staticsound[i].attenuation);
@@ -560,7 +565,7 @@ int SendStaticEntities(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize, 
 			continue;
 
 		WriteByte(msg, svc_spawnstatic);
-		WriteEntityState(msg, &tv->map.spawnstatic[i], tv->pext);
+		WriteEntityState(msg, &tv->map.spawnstatic[i], tv->pext1);
 	}
 
 	return i;
@@ -651,7 +656,8 @@ void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv)
 		viewer->server->numviewers++;
 	if (!sv || !sv->parsingconnectiondata)
 	{
-		QW_StuffcmdToViewer(viewer, "cmd new\n");
+		if (sv != oldserver)
+			QW_StuffcmdToViewer(viewer, "cmd new\n");
 		viewer->thinksitsconnected = false;
 	}
 	viewer->servercount++;
@@ -711,7 +717,7 @@ void NewClient(cluster_t *cluster, viewer_t *viewer)
 
 
 #ifndef LIBQTV
-	QW_PrintfToViewer(viewer, "Welcome to FTEQTV build %i\n", cluster->buildnumber);
+	QW_PrintfToViewer(viewer, "Welcome to FTEQTV %s\n", QTV_VERSION_STRING);
 	QW_StuffcmdToViewer(viewer, "alias admin \"cmd admin\"\n");
 
 		QW_StuffcmdToViewer(viewer, "alias \"proxy:up\" \"say proxy:menu up\"\n");
@@ -1030,8 +1036,7 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 	WriteByte(&msg, 'n');
 
 	WriteString2(&msg, "\\*QTV\\");
-	sprintf(elem, "%i", cluster->buildnumber);
-	WriteString2(&msg, elem);
+	WriteString2(&msg, QTV_VERSION_STRING);
 
 	if (cluster->numservers==1)
 	{	//show this server's info
@@ -1273,13 +1278,33 @@ void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t 
 	if (from->skinnum != to->skinnum)
 		bits |= U_SKIN;
 	if (from->modelindex != to->modelindex)
-		bits |= U_MODEL;
+	{
+		if (to->modelindex > 0xff)
+		{
+			if (to->modelindex <= 0x1ff)
+				bits |= U_MODEL|UX_MODELDBL;	//0x100|byte
+			else
+				bits |= UX_MODELDBL;			//short
+		}
+		else
+			bits |= U_MODEL;
+	}
 	if (from->frame != to->frame)
 		bits |= U_FRAME;
-	if (from->effects != to->effects)
+	if ((from->effects&0xff) != (to->effects&0xff))
 		bits |= U_EFFECTS;
+	if ((from->effects&0xff00) != (to->effects&0xff00))
+		bits |= UX_EFFECTS16;
+	if (from->alpha != to->alpha)
+		bits |= UX_ALPHA;
+	if (from->scale != to->scale)
+		bits |= UX_SCALE;
 
-	if (bits & 255)
+	if (bits & 0xff000000)
+		bits |= UX_YETMORE;
+	if (bits & 0x00ff0000)
+		bits |= UX_EVENMORE;
+	if (bits & 0x000000ff)
 		bits |= U_MOREBITS;
 
 
@@ -1292,16 +1317,16 @@ void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t 
 
 	if (bits & U_MOREBITS)
 		WriteByte (msg, bits&255);
-/*
-#ifdef PROTOCOLEXTENSIONS
-	if (bits & U_EVENMORE)
-		WriteByte (msg, evenmorebits&255);
-	if (evenmorebits & U_YETMORE)
-		WriteByte (msg, (evenmorebits>>8)&255);
-#endif
-*/
+
+	if (bits & UX_EVENMORE)
+		WriteByte (msg, bits>>16);
+	if (bits & UX_YETMORE)
+		WriteByte (msg, bits>>24);
+
 	if (bits & U_MODEL)
 		WriteByte (msg,	to->modelindex&255);
+	else if (bits & UX_MODELDBL)
+		WriteShort(msg,	to->modelindex&0xffff);
 	if (bits & U_FRAME)
 		WriteByte (msg, to->frame);
 	if (bits & U_COLORMAP)
@@ -1322,6 +1347,43 @@ void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t 
 		WriteCoord(msg, to->origin[2], pext);
 	if (bits & U_ANGLE3)
 		WriteAngle(msg, to->angles[2], pext);
+
+	if (bits & UX_SCALE)
+		WriteByte (msg, to->scale);
+	if (bits & UX_ALPHA)
+		WriteByte (msg, to->alpha);
+/*	if (bits & UX_FATNESS)
+		WriteByte (msg, to->fatness);
+	if (bits & UX_DRAWFLAGS)
+		WriteByte (msg, to->hexen2flags);
+	if (bits & UX_ABSLIGHT)
+		WriteByte (msg, to->abslight);
+	if (bits & UX_COLOURMOD)
+	{
+		WriteByte (msg, to->colormod[0]);
+		WriteByte (msg, to->colormod[1]);
+		WriteByte (msg, to->colormod[2]);
+	}
+	if (bits & UX_DPFLAGS)
+	{	// these are bits for the 'flags' field of the entity_state_t
+		WriteByte (msg, to->dpflags);
+	}
+	if (bits & UX_TAGINFO)
+	{
+		WriteShort (msg, to->tagentity);
+		WriteShort (msg, to->tagindex);
+	}
+	if (bits & UX_LIGHT)
+	{
+		WriteShort (msg, to->light[0]);
+		WriteShort (msg, to->light[1]);
+		WriteShort (msg, to->light[2]);
+		WriteShort (msg, to->light[3]);
+		WriteByte (msg, to->lightstyle);
+		WriteByte (msg, to->lightpflags);
+	}*/
+	if (bits & UX_EFFECTS16)
+		WriteByte (msg, to->effects>>8);
 }
 
 const entity_state_t nullentstate = {0};
@@ -1365,7 +1427,7 @@ void SV_EmitPacketEntities (const sv_t *qtv, const viewer_t *v, const packet_ent
 		if (newnum == oldnum)
 		{	// delta update from old position
 //Con_Printf ("delta %i\n", newnum);
-			SV_WriteDelta (newnum, &from->ents[oldindex], &to->ents[newindex], msg, false, qtv->pext);
+			SV_WriteDelta (newnum, &from->ents[oldindex], &to->ents[newindex], msg, false, qtv->pext1);
 
 			oldindex++;
 			newindex++;
@@ -1376,7 +1438,7 @@ void SV_EmitPacketEntities (const sv_t *qtv, const viewer_t *v, const packet_ent
 		{	// this is a new entity, send it from the baseline
 			baseline = &qtv->map.entity[newnum].baseline;
 //Con_Printf ("baseline %i\n", newnum);
-			SV_WriteDelta (newnum, baseline, &to->ents[newindex], msg, true, qtv->pext);
+			SV_WriteDelta (newnum, baseline, &to->ents[newindex], msg, true, qtv->pext1);
 
 			newindex++;
 			continue;
@@ -1403,7 +1465,7 @@ void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg)
 	for (i = 0; i < frame->numents; i++)
 	{
 		entnum = frame->entnums[i];
-		SV_WriteDelta(entnum, &qtv->map.entity[entnum].baseline, &frame->ents[i], msg, true, qtv->pext);
+		SV_WriteDelta(entnum, &qtv->map.entity[entnum].baseline, &frame->ents[i], msg, true, qtv->pext1);
 	}
 	WriteShort(msg, 0);
 }
@@ -1413,10 +1475,10 @@ static float InterpolateAngle(float current, float ideal, float fraction)
 	float move;
 
 	move = ideal - current;
-	if (move >= 32767)
-		move -= 65535;
-	else if (move <= -32767)
-		move += 65535;
+	if (move >= 180)
+		move -= 360;
+	else if (move <= -180)
+		move += 360;
 
 	return current + fraction * move;
 }
@@ -1425,6 +1487,7 @@ void SendLocalPlayerState(sv_t *tv, viewer_t *v, int playernum, netmsg_t *msg)
 {
 	int flags;
 	int j;
+	unsigned int pext1 = tv?tv->pext1:0;
 
 	WriteByte(msg, svc_playerinfo);
 	WriteByte(msg, playernum);
@@ -1448,9 +1511,9 @@ void SendLocalPlayerState(sv_t *tv, viewer_t *v, int playernum, netmsg_t *msg)
 				flags |= (PF_VELOCITY1<<j);
 
 		WriteShort(msg, flags);
-		WriteCoord(msg, tv->map.players[tv->map.thisplayer].current.origin[0], tv->pext);
-		WriteCoord(msg, tv->map.players[tv->map.thisplayer].current.origin[1], tv->pext);
-		WriteCoord(msg, tv->map.players[tv->map.thisplayer].current.origin[2], tv->pext);
+		WriteCoord(msg, tv->map.players[tv->map.thisplayer].current.origin[0], tv->pext1);
+		WriteCoord(msg, tv->map.players[tv->map.thisplayer].current.origin[1], tv->pext1);
+		WriteCoord(msg, tv->map.players[tv->map.thisplayer].current.origin[2], tv->pext1);
 		WriteByte(msg, tv->map.players[tv->map.thisplayer].current.frame);
 
 		for (j=0 ; j<3 ; j++)
@@ -1475,9 +1538,9 @@ void SendLocalPlayerState(sv_t *tv, viewer_t *v, int playernum, netmsg_t *msg)
 				flags |= (PF_VELOCITY1<<j);
 
 		WriteShort(msg, flags);
-		WriteCoord(msg, v->origin[0], tv->pext);
-		WriteCoord(msg, v->origin[1], tv->pext);
-		WriteCoord(msg, v->origin[2], tv->pext);
+		WriteCoord(msg, v->origin[0], pext1);
+		WriteCoord(msg, v->origin[1], pext1);
+		WriteCoord(msg, v->origin[2], pext1);
 		WriteByte(msg, 0);
 
 		for (j=0 ; j<3 ; j++)
@@ -1631,11 +1694,13 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 	float org[3];
 	entity_t *ent;
 	playerinfo_t *pl;
+	unsigned int pext1;
 
 	memset(&to, 0, sizeof(to));
 
 	if (tv)
 	{
+		pext1 = tv->pext1;
 		WriteByte(msg, svc_nqtime);
 		WriteFloat(msg, (tv->physicstime - tv->mapstarttime)/1000.0f);
 
@@ -1653,6 +1718,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 		WriteFloat(msg, (cluster->curtime)/1000.0f);
 
 		lerp = 1;
+		pext1 = 0;
 	}
 
 	SendNQClientData(tv, v, msg);
@@ -1667,9 +1733,9 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				WriteShort(msg, v->trackplayer+1);
 
 				WriteByte(msg, svc_setangle);
-				WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[0], tv->map.players[v->trackplayer].current.angles[0], lerp)>>8);
-				WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[1], tv->map.players[v->trackplayer].current.angles[1], lerp)>>8);
-				WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[2], tv->map.players[v->trackplayer].current.angles[2], lerp)>>8);
+				WriteAngle(msg, InterpolateAngle(tv->map.players[v->trackplayer].old.angles[0], tv->map.players[v->trackplayer].current.angles[0], lerp), tv->pext1);
+				WriteAngle(msg, InterpolateAngle(tv->map.players[v->trackplayer].old.angles[1], tv->map.players[v->trackplayer].current.angles[1], lerp), tv->pext1);
+				WriteAngle(msg, InterpolateAngle(tv->map.players[v->trackplayer].old.angles[2], tv->map.players[v->trackplayer].current.angles[2], lerp), tv->pext1);
 			}
 			else
 			{
@@ -1688,10 +1754,10 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				bits = UNQ_ORIGIN1 | UNQ_ORIGIN2 | UNQ_ORIGIN3 | UNQ_COLORMAP;
 
 
-  				if (e+1 >= 256)
+  				if (e+1 > 255)
 					bits |= UNQ_LONGENTITY;
 
-				if (bits >= 256)
+				if (bits > 255)
 					bits |= UNQ_MOREBITS;
 				WriteByte (msg,bits | UNQ_SIGNAL);
 				if (bits & UNQ_MOREBITS)
@@ -1712,28 +1778,26 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				if (bits & UNQ_EFFECTS)
 					WriteByte (msg, 0);
 				if (bits & UNQ_ORIGIN1)
-					WriteCoord (msg, v->origin[0], tv->pext);
+					WriteCoord (msg, v->origin[0], tv->pext1);
 				if (bits & UNQ_ANGLE1)
-					WriteAngle(msg, -(360.0*v->ucmds[2].angles[0])/0x10000, tv->pext);
+					WriteAngle(msg, -v->ucmds[2].angles[0], tv->pext1);
 				if (bits & UNQ_ORIGIN2)
-					WriteCoord (msg, v->origin[1], tv->pext);
+					WriteCoord (msg, v->origin[1], tv->pext1);
 				if (bits & UNQ_ANGLE2)
-					WriteAngle(msg, (360.0*v->ucmds[2].angles[1])/0x10000, tv->pext);
+					WriteAngle(msg, v->ucmds[2].angles[1], tv->pext1);
 				if (bits & UNQ_ORIGIN3)
-					WriteCoord (msg, v->origin[2], tv->pext);
+					WriteCoord (msg, v->origin[2], tv->pext1);
 				if (bits & UNQ_ANGLE3)
-					WriteAngle(msg, (360.0*v->ucmds[2].angles[2])/0x10000, tv->pext);
+					WriteAngle(msg, v->ucmds[2].angles[2], tv->pext1);
 				continue;
 			}
 
 			if (!pl->active)
 				continue;
 
-			if (v != tv->controller)
-				if (pl->current.modelindex >= tv->map.numinlines && !BSP_Visible(tv->map.bsp, pl->leafcount, pl->leafs))
+			if (v != tv->controller && e != v->trackplayer)
+				if (pl->current.modelindex >= tv->map.numinlines && !BSP_Visible(tv->map.bsp, pl->leafcount, pl->leafs))	//don't cull bsp objects, like nq...
 					continue;
-
-			pl->current.modelindex = 8;
 
 // send an update
 			bits = 0;
@@ -1744,13 +1808,13 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				bits |= UNQ_ORIGIN1<<i;
 			}
 
-			if ( pl->current.angles[0]>>8 != ent->baseline.angles[0] )
+			if ( pl->current.angles[0] != ent->baseline.angles[0] )
 				bits |= UNQ_ANGLE1;
 
-			if ( pl->current.angles[1]>>8 != ent->baseline.angles[1] )
+			if ( pl->current.angles[1] != ent->baseline.angles[1] )
 				bits |= UNQ_ANGLE2;
 
-			if ( pl->current.angles[2]>>8 != ent->baseline.angles[2] )
+			if ( pl->current.angles[2] != ent->baseline.angles[2] )
 				bits |= UNQ_ANGLE3;
 
 //			if (pl->v.movetype == MOVETYPE_STEP)
@@ -1771,10 +1835,10 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			if (ent->baseline.modelindex != pl->current.modelindex)
 				bits |= UNQ_MODEL;
 
-			if (e+1 >= 256)
+			if (e+1 > 255)
 				bits |= UNQ_LONGENTITY;
 
-			if (bits >= 256)
+			if (bits > 255)
 				bits |= UNQ_MOREBITS;
 
 		//
@@ -1800,17 +1864,17 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			if (bits & UNQ_EFFECTS)
 				WriteByte (msg, pl->current.effects);
 			if (bits & UNQ_ORIGIN1)
-				WriteCoord (msg, org[0], tv->pext);
+				WriteCoord (msg, org[0], tv->pext1);
 			if (bits & UNQ_ANGLE1)
-				WriteAngle(msg, -(360.0*pl->current.angles[0])/0x10000, tv->pext);
+				WriteAngle(msg, -pl->current.angles[0], tv->pext1);
 			if (bits & UNQ_ORIGIN2)
-				WriteCoord (msg, org[1], tv->pext);
+				WriteCoord (msg, org[1], tv->pext1);
 			if (bits & UNQ_ANGLE2)
-				WriteAngle(msg, (360.0*pl->current.angles[1])/0x10000, tv->pext);
+				WriteAngle(msg, pl->current.angles[1], tv->pext1);
 			if (bits & UNQ_ORIGIN3)
-				WriteCoord (msg, org[2], tv->pext);
+				WriteCoord (msg, org[2], tv->pext1);
 			if (bits & UNQ_ANGLE3)
-				WriteAngle(msg, (360.0*pl->current.angles[2])/0x10000, tv->pext);
+				WriteAngle(msg, pl->current.angles[2], tv->pext1);
 		}
 
 
@@ -1845,8 +1909,8 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 
 				for (i=0 ; i<3 ; i++)
 				{
-					miss = (int)(newstate->origin[i]) - ent->baseline.origin[i];
-					if ( miss <= -1 || miss >= 1 )
+					miss = (newstate->origin[i]) - ent->baseline.origin[i];
+					if ( miss <= -1/8.0 || miss >= 1/8.0 )
 						bits |= UNQ_ORIGIN1<<i;
 				}
 
@@ -1906,17 +1970,17 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				if (bits & UNQ_EFFECTS)
 					WriteByte (msg, newstate->effects);
 				if (bits & UNQ_ORIGIN1)
-					WriteShort (msg, newstate->origin[0]);
+					WriteCoord (msg, newstate->origin[0], pext1);
 				if (bits & UNQ_ANGLE1)
-					WriteByte(msg, newstate->angles[0]);
+					WriteAngle(msg, newstate->angles[0], pext1);
 				if (bits & UNQ_ORIGIN2)
-					WriteShort (msg, newstate->origin[1]);
+					WriteCoord (msg, newstate->origin[1], pext1);
 				if (bits & UNQ_ANGLE2)
-					WriteByte(msg, newstate->angles[1]);
+					WriteAngle(msg, newstate->angles[1], pext1);
 				if (bits & UNQ_ORIGIN3)
-					WriteShort (msg, newstate->origin[2]);
+					WriteCoord (msg, newstate->origin[2], pext1);
 				if (bits & UNQ_ANGLE3)
-					WriteByte(msg, newstate->angles[2]);
+					WriteAngle(msg, newstate->angles[2], pext1);
 			}
 		}
 	}
@@ -1928,9 +1992,9 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 		WriteShort (msg,UNQ_MOREBITS|UNQ_MODEL|UNQ_ORIGIN1 | UNQ_ORIGIN2 | UNQ_ORIGIN3 | UNQ_SIGNAL);
 		WriteByte (msg, v->thisplayer+1);
 		WriteByte (msg, 2);	//model
-		WriteCoord (msg, v->origin[0], tv->pext);
-		WriteCoord (msg, v->origin[1], tv->pext);
-		WriteCoord (msg, v->origin[2], tv->pext);
+		WriteCoord (msg, v->origin[0], pext1);
+		WriteCoord (msg, v->origin[1], pext1);
+		WriteCoord (msg, v->origin[2], pext1);
 	}
 }
 
@@ -2065,18 +2129,18 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 				(tv->map.players[i].current.origin[1] - tv->map.players[i].old.origin[1])*(tv->map.players[i].current.origin[1] - tv->map.players[i].old.origin[1]) > snapdist ||
 				(tv->map.players[i].current.origin[2] - tv->map.players[i].old.origin[2])*(tv->map.players[i].current.origin[2] - tv->map.players[i].old.origin[2]) > snapdist)
 			{	//teleported (or respawned), so don't interpolate
-				WriteCoord(msg, tv->map.players[i].current.origin[0], tv->pext);
-				WriteCoord(msg, tv->map.players[i].current.origin[1], tv->pext);
-				WriteCoord(msg, tv->map.players[i].current.origin[2], tv->pext);
+				WriteCoord(msg, tv->map.players[i].current.origin[0], tv->pext1);
+				WriteCoord(msg, tv->map.players[i].current.origin[1], tv->pext1);
+				WriteCoord(msg, tv->map.players[i].current.origin[2], tv->pext1);
 			}
 			else
 			{	//send interpolated angles
 				interp = (lerp)*tv->map.players[i].current.origin[0] + (1-lerp)*tv->map.players[i].old.origin[0];
-				WriteCoord(msg, interp, tv->pext);
+				WriteCoord(msg, interp, tv->pext1);
 				interp = (lerp)*tv->map.players[i].current.origin[1] + (1-lerp)*tv->map.players[i].old.origin[1];
-				WriteCoord(msg, interp, tv->pext);
+				WriteCoord(msg, interp, tv->pext1);
 				interp = (lerp)*tv->map.players[i].current.origin[2] + (1-lerp)*tv->map.players[i].old.origin[2];
-				WriteCoord(msg, interp, tv->pext);
+				WriteCoord(msg, interp, tv->pext1);
 			}
 
 			WriteByte(msg, tv->map.players[i].current.frame);
@@ -2968,7 +3032,7 @@ tuiadmin:
 		QW_StuffcmdToViewer(v, "bind downarrow +proxback\n");
 		QW_StuffcmdToViewer(v, "bind rightarrow +proxright\n");
 		QW_StuffcmdToViewer(v, "bind leftarrow +proxleft\n");
-		QW_PrintfToViewer(v, "Keys bound not recognised\n");
+		QW_PrintfToViewer(v, "Keys bound\n");
 	}
 	else if (!strcmp(command, "bsay"))
 	{
@@ -3200,7 +3264,12 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 			WriteByte(&msg, svc_print);
 
 			if (ov->netchan.isnqprotocol)
+			{
 				WriteByte(&msg, 1);
+				WriteByte(&msg, '[');
+				WriteString2(&msg, "QTV");
+				WriteByte(&msg, ']');
+			}
 			else
 			{
 				if (ov->conmenussupported)
@@ -3282,30 +3351,33 @@ void QW_StuffcmdToViewer(viewer_t *v, char *format, ...)
 void QW_PositionAtIntermission(sv_t *qtv, viewer_t *v)
 {
 	netmsg_t msg;
-	char buf[4];
+	char buf[7];
 	const intermission_t *spot;
+	unsigned int pext1;
 
 
 	if (qtv)
+	{
 		spot = BSP_IntermissionSpot(qtv->map.bsp);
+		pext1 = qtv->pext1;
+	}
 	else
+	{
 		spot = &nullstreamspot;
+		pext1 = 0;
+	}
 
 
 	v->origin[0] = spot->pos[0];
 	v->origin[1] = spot->pos[1];
 	v->origin[2] = spot->pos[2];
 
-
-	msg.data = buf;
-	msg.maxsize = sizeof(buf);
-	msg.cursize = 0;
-	msg.overflowed = 0;
+	InitNetMsg(&msg, buf, sizeof(buf));
 
 	WriteByte (&msg, svc_setangle);
-	WriteByte (&msg, (spot->angle[0]/360) * 256);
-	WriteByte (&msg, (spot->angle[1]/360) * 256);
-	WriteByte (&msg, 0);//spot->angle[2]);
+	WriteAngle(&msg, spot->angle[0], pext1);
+	WriteAngle(&msg, spot->angle[1], pext1);
+	WriteAngle(&msg, 0, pext1);
 
 	SendBufferToViewer(v, msg.data, msg.cursize, true);
 }
@@ -3451,11 +3523,20 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			v->drop = true;
 			return;
 		case clc_move:
+			v->ucmds[0] = v->ucmds[1];
+			v->ucmds[1] = v->ucmds[2];
 			ReadFloat(m);	//time, for pings
 			//three angles
-			v->ucmds[2].angles[0] = ReadByte(m)*256;
-			v->ucmds[2].angles[1] = ReadByte(m)*256;
-			v->ucmds[2].angles[2] = ReadByte(m)*256;
+			{
+				unsigned int pext1;
+				if (v->server)
+					pext1 = v->server->pext1;
+				else
+					pext1 = 0;
+				v->ucmds[2].angles[0] = ReadAngle(m, pext1);
+				v->ucmds[2].angles[1] = ReadAngle(m, pext1);
+				v->ucmds[2].angles[2] = ReadAngle(m, pext1);
+			}
 			//three direction values
 			v->ucmds[2].forwardmove = ReadShort(m);
 			v->ucmds[2].sidemove = ReadShort(m);
@@ -3468,6 +3549,29 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 
 			v->ucmds[2].msec = cluster->curtime - v->lasttime;
 			v->lasttime = cluster->curtime;
+
+			if (v->menunum)
+			{
+				int mb = 0;
+				if (v->ucmds[2].forwardmove > 0)	mb = MBTN_UP;
+				if (v->ucmds[2].forwardmove < 0)	mb = MBTN_DOWN;
+				if (v->ucmds[2].sidemove > 0)		mb = MBTN_RIGHT;
+				if (v->ucmds[2].sidemove < 0)		mb = MBTN_LEFT;
+				if (v->ucmds[2].buttons & 2)		mb = MBTN_ENTER;
+				if (mb & ~v->menubuttons & MBTN_UP)		v->menuop -= 1;
+				if (mb & ~v->menubuttons & MBTN_DOWN)	v->menuop += 1;
+				if (mb & ~v->menubuttons & MBTN_RIGHT)	Menu_Enter(cluster, v, 1);
+				if (mb & ~v->menubuttons & MBTN_LEFT)	Menu_Enter(cluster, v, -1);
+				if (mb & ~v->menubuttons & MBTN_ENTER)	Menu_Enter(cluster, v, 0);
+				if (v->menubuttons != mb)
+					v->menuspamtime = cluster->curtime-1;
+				v->ucmds[2].forwardmove = 0;
+				v->ucmds[2].sidemove = 0;
+				v->ucmds[2].buttons = 0;
+				v->menubuttons = mb;
+			}
+			else
+				v->menubuttons = ~0;	//so nothing gets instantly flagged once we enter a menu.
 
 			if (v->server && v->server->controller == v)
 				return;
@@ -3498,8 +3602,11 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					*/
 					if (t >= MAX_CLIENTS)
 					{
+						if (v->trackplayer >= 0)
+							QW_PrintfToViewer(v, "Stopped tracking\n");
+						else
+							QW_PrintfToViewer(v, "Not tracking\n");
 						v->trackplayer = -1;	//no trackable players found
-						QW_PrintfToViewer(v, "Not tracking\n");
 					}
 					else
 					{
@@ -3554,9 +3661,9 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 
 			if (v->trackplayer > -1 && v->server)
 			{
-				v->origin[0] = v->server->map.players[v->trackplayer].current.origin[0]/8.0;
-				v->origin[1] = v->server->map.players[v->trackplayer].current.origin[1]/8.0;
-				v->origin[2] = v->server->map.players[v->trackplayer].current.origin[2]/8.0;
+				v->origin[0] = v->server->map.players[v->trackplayer].current.origin[0];
+				v->origin[1] = v->server->map.players[v->trackplayer].current.origin[1];
+				v->origin[2] = v->server->map.players[v->trackplayer].current.origin[2];
 			}
 
 			break;
@@ -3602,7 +3709,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					QW_StuffcmdToViewer(v, "cmd new\n");
 				else
 				{
-					QW_StuffcmdToViewer(v, "//querycmd conmenu\n");
+//					QW_StuffcmdToViewer(v, "//querycmd conmenu\n");
 					SendServerData(qtv, v);
 				}
 			}

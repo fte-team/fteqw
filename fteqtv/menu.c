@@ -12,6 +12,8 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 	switch(viewer->menunum)
 	{
 	default:
+		if (buttonnum < 0)
+			QW_SetMenu(viewer, MENU_MAIN);	//no other sort of back button...
 		break;
 
 	case MENU_MAIN:
@@ -73,8 +75,25 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 		break;
 
 	case MENU_CLIENTS:
+		if (buttonnum >= 0)
 		{
+			viewer_t *v = cluster->viewers;
+			for (i = 0; i < viewer->menuop && v; i++)
+				v = v->next;
+			if (!v)
+				break;
+			if (v == viewer)
+			{
+				if (viewer->commentator)
+					QW_SetCommentator(cluster, viewer, NULL);
+				else
+					QW_PrintfToViewer(viewer, "Please stop touching yourself\n");
+			}
+			else
+				QW_SetCommentator(cluster, viewer, v);
 		}
+		else
+			QW_SetMenu(viewer, MENU_MAIN);
 		break;
 
 	case MENU_DEMOS:
@@ -115,7 +134,9 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 		}
 		//fallthrough
 	case MENU_SERVERS:
-		if (!cluster->servers)
+		if (buttonnum < 0)
+			QW_SetMenu(viewer, MENU_MAIN);
+		else if (!cluster->servers)
 		{
 			QW_StuffcmdToViewer(viewer, "echo Please enter a server ip\nmessagemode\n");
 			strcpy(viewer->expectcommand, "insecadddemo");
@@ -252,8 +273,7 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 
 	WriteByte(&m, svc_centerprint);
 
-	sprintf(str, "FTEQTV build %i\n", cluster->buildnumber);
-	WriteString2(&m, str);
+	WriteString2(&m, "/PFTEQTV "QTV_VERSION_STRING"\n");
 	WriteString2(&m, PROXYWEBSITE"\n");
 	WriteString2(&m, "-------------\n");
 	
@@ -301,6 +321,11 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 			char *srv;
 			int c;
 			v = cluster->viewers;
+
+			if (viewer->menuop < 0)
+				viewer->menuop = 0;
+			if (viewer->menuop > cluster->numviewers - 1)
+				viewer->menuop = cluster->numviewers - 1;
 
 			WriteString2(&m, "\nActive Clients\n\n");
 
@@ -358,16 +383,13 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 			start = viewer->menuop & ~7;
 			for (i = start; i < start+8; i++)
 			{
-				if (i == viewer->menuop)
-				{
-					WriteByte(&m, '[');
-					WriteString2(&m, cluster->availdemos[i].name);
-					WriteByte(&m, ']');
-				}
-				else
-				{
-					WriteString2(&m, cluster->availdemos[i].name);
-				}
+				char cleanname[128];
+				char *us;
+				strlcpy(cleanname, cluster->availdemos[i].name, sizeof(cleanname));
+				for (us = cleanname; *us; us++)
+					if (*us == '_')
+						*us = ' ';
+				WriteStringSelection(&m, i == viewer->menuop,	cleanname);
 				WriteByte(&m, '\n');
 			}
 		}

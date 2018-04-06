@@ -149,9 +149,9 @@ void PM_PlayerMove (pmove_t *pmove)
 	}
 */
 	// take angles directly from command
-	pmove->angles[0] = SHORT2ANGLE(pmove->cmd.angles[0]);
-	pmove->angles[1] = SHORT2ANGLE(pmove->cmd.angles[1]);
-	pmove->angles[2] = SHORT2ANGLE(pmove->cmd.angles[2]);
+	pmove->angles[0] = pmove->cmd.angles[0];
+	pmove->angles[1] = pmove->cmd.angles[1];
+	pmove->angles[2] = pmove->cmd.angles[2];
 
 	AngleVectors (pmove->angles, pmove->forward, pmove->right, pmove->up);
 

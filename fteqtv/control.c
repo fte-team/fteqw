@@ -13,46 +13,6 @@ Contains the control routines that handle both incoming and outgoing stuff
 #include <direct.h>
 #endif
 
-// char *date = "Oct 24 1996";
-static const char *date = __DATE__ ;
-static const char *mon[12] =
-{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-static char mond[12] =
-{ 31,    28,    31,    30,    31,    30,    31,    31,    30,    31,    30,    31 };
-
-// returns days since Oct 24 1996
-int build_number( void )
-{
-	int m;
-	int d = 0;
-	int y;
-	int b;
-
-	for (m = 0; m < 11; m++)
-	{
-		if (strncmp( &date[0], mon[m], 3 ) == 0)
-			break;
-		d += mond[m];
-	}
-
-	d += atoi( &date[4] ) - 1;
-
-	y = atoi( &date[7] ) - 1900;
-
-	b = d + (int)((y - 1) * 365.25);
-
-	if (((y % 4) == 0) && m > 1)
-	{
-		b += 1;
-	}
-
-	b -= 35778; // Dec 16 1998
-
-	return b;
-}
-
-
-
 typedef struct {
 	char name[56];
 	int offset;
@@ -517,12 +477,11 @@ int main(int argc, char **argv)
 		cluster->qwlistenportnum = 0;
 		cluster->allownqclients = true;
 		strcpy(cluster->hostname, DEFAULT_HOSTNAME);
-		cluster->buildnumber = build_number();
 		cluster->maxproxies = -1;
 
 		strcpy(cluster->demodir, "qw/demos/");
 
-		Sys_Printf(cluster, "QTV Build %i.\n", cluster->buildnumber);
+		Sys_Printf(cluster, "QTV "QTV_VERSION_STRING"\n");
 
 		DoCommandLine(cluster, argc, argv);
 

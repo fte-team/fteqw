@@ -135,6 +135,7 @@ enum {
 
 #define	svc_spawnstatic		20
 //#define	svc_spawnstatic2	21 (not used anywhere)
+#define	svcfte_spawnstatic2	21
 #define	svc_spawnbaseline	22
 
 #define	svc_temp_entity		23	// variable
@@ -184,7 +185,9 @@ enum {
 #define svc_updatepl		53		// [qbyte] [qbyte]
 #define svc_nails2			54		//mvd only - [qbyte] num [52 bits] nxyzpy 8 12 12 12 4 8
 
-
+#define svcfte_soundlistshort		56
+#define	svcfte_modellistshort		60
+#define svcfte_spawnbaseline2		66
 
 
 
@@ -252,7 +255,8 @@ enum {
 #define PEXT2_SETANGLEDELTA			0x00000004
 #define PEXT2_OLDREPLACEMENTDELTAS	0x00000008	//weaponframe was part of the entity state. that flag is now the player's v_angle.
 #define PEXT2_MAXPLAYERS			0x00000010	//Client is able to cope with more players than 32. abs max becomes 255, due to colormap issues.
-#define PEXT2_REPLACEMENTDELTAS		0x00000040
+#define PEXT2_PREDINFO				0x00000020	//movevar stats, NQ input sequences+acks.
+#define PEXT2_NEWSIZEENCODING		0x00000040	//richer size encoding.
 //#define PEXT2_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
 
 
@@ -273,8 +277,24 @@ enum {
 #define	U_SKIN		(1<<4)
 #define	U_EFFECTS	(1<<5)
 #define	U_SOLID		(1<<6)		// the entity should be solid for prediction
+#define	UX_EVENMORE	(1<<7)
 
-
+#define UX_SCALE		(1<<16)	//scaler of alias models
+#define UX_ALPHA		(1<<17)	//transparency value
+#define UX_FATNESS		(1<<18)	//qbyte describing how fat an alias model should be. (moves verticies along normals). Useful for vacuum chambers...
+#define UX_MODELDBL		(1<<19)	//extra bit for modelindexes
+#define UX_UNUSED1		(1<<20)
+#define UX_ENTITYDBL	(1<<21)	//use an extra qbyte for origin parts, cos one of them is off
+#define UX_ENTITYDBL2	(1<<22)	//use an extra qbyte for origin parts, cos one of them is off
+#define UX_YETMORE		(1<<23)	//even more extension info stuff.
+#define UX_DRAWFLAGS	(1<<24)	//use an extra qbyte for origin parts, cos one of them is off
+#define UX_ABSLIGHT		(1<<25)	//Force a lightlevel
+#define UX_COLOURMOD	(1<<26)	//rgb
+#define UX_DPFLAGS		(1<<27)
+#define UX_TAGINFO		(1<<28)
+#define UX_LIGHT		(1<<29)
+#define	UX_EFFECTS16	(1<<30)
+#define UX_FARMORE		(1<<31)
 
 
 

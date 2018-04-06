@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "qtv.h"
+#include <time.h>
 #ifdef _WIN32
 #include <direct.h>
 #else
@@ -1230,7 +1231,7 @@ void Cmd_Commands(cmdctxt_t *ctx)
 	const rconcommands_t *cmd;
 	consolecommand_t lastfunc = NULL;
 
-	Cmd_Printf(ctx, "Commands:\n");
+	Cmd_Printf(ctx, "Say Commands:\n");
 	for (cmd = rconcommands; cmd->name; cmd++)
 	{
 		if (cmd->func == lastfunc)

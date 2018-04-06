@@ -401,7 +401,9 @@ int BSP_SphereLeafNums_r(bsp_t *bsp, int first, int maxleafs, unsigned short *li
 
 	rn = -1-rn;
 
-	if (maxleafs>numleafs)
+	if (rn <= 0)
+		;	//leaf 0 has no pvs info, so don't add it.
+	else if (maxleafs>numleafs)
 	{
 		list[numleafs] = rn-1;
 		numleafs++;

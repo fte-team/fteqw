@@ -24,6 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define ParseError(m) (m)->readpos = (m)->cursize+1	//
 
+static const entity_state_t null_entity_state;
+
 void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean reliable)
 {
 	if (reliable)
@@ -46,6 +48,7 @@ void SendBufferToViewer(viewer_t *v, const char *buffer, int length, qboolean re
 		}
 		else
 		{
+
 			//create a new backbuffer
 			if (!v->backbuf[v->backbuffered].data)
 			{
@@ -121,8 +124,11 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 	//free the old map state
 	QTV_CleanupMap(tv);
 
-	tv->pext = 0;
+	tv->pext1 = 0;
+	tv->pext2 = 0;
 
+	//when it comes to QTV, the proxy 'blindly' forwards the data after parsing the header, so we need to support EVERYTHING the original server might.
+	//and if we don't, then we might have troubles.
 	for(;;)
 	{
 		protocol = ReadLong(m);
@@ -132,25 +138,73 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 			break;
 		case PROTOCOL_VERSION_FTE:
 			protocol = ReadLong(m);
-			tv->pext = protocol;
+			tv->pext1 = protocol;
 
+			//HAVE
 			supported = PEXT_SETVIEW|PEXT_ACCURATETIMINGS; /*simple forwarding*/
 			supported |= PEXT_256PACKETENTITIES|PEXT_VIEW2|PEXT_HLBSP|PEXT_Q2BSP|PEXT_Q3BSP;	//features other than the protocol (stats, simple limits etc)
 
-			//supported |= PEXT_FLOATCOORDS|PEXT_TRANS|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2;	//things we ought to support, but do not
+			supported |= PEXT_FLOATCOORDS|PEXT_SPAWNSTATIC2;	//working
+//			supported |= PEXT_CHUNKEDDOWNLOADS;					//shouldn't be relevant...
+			supported |= PEXT_TRANS|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SOUNDDBL;
 
-			if (protocol & PEXT_FLOATCOORDS)
-			{
-				Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FTE (PEXT_FLOATCOORDS) not supported\n");
-				supported |= PEXT_FLOATCOORDS;
-			}
+			//replaced by replacementdeltas. we parse these, but we don't actually forward the data right now
+			supported |= PEXT_SCALE|PEXT_TRANS|PEXT_FATNESS|PEXT_COLOURMOD|PEXT_HEXEN2|PEXT_SETATTACHMENT|PEXT_DPFLAGS;
+
+			//stuff that we ought to handle, but don't currently
+			//PEXT_LIGHTSTYLECOL	- woo, fancy rgb colours
+			//PEXT_CUSTOMTEMPEFFECTS - required for hexen2's effects. kinda messy.
+			//PEXT_TE_BULLET		- implies nq tents too.
+
+			//HARD...
+			//PEXT_CSQC -- all bets are off if we receive a csqc ent update
+
+			//totally optional... so will probably never be added...
+			//PEXT_HULLSIZE			- bigger players... maybe. like anyone can depend on this... not supported with mvd players so w/e
+			//PEXT_CHUNKEDDOWNLOADS	- not sure there's much point
+			//PEXT_SPLITSCREEN		- irrelevant for mvds. might be useful as a qw client, but who cares.
+			//PEXT_SHOWPIC			- rare, lame, limited. just yuck.
+
 			if (protocol & ~supported)
-				Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FTE (%x) not supported\n", protocol & ~supported);
+			{
+				int i;
+				const char *names[] = {
+					"PEXT_SETVIEW",				"PEXT_SCALE",			"PEXT_LIGHTSTYLECOL",	"PEXT_TRANS",
+					"PEXT_VIEW2",				"0x00000020",			"PEXT_ACCURATETIMINGS", "PEXT_SOUNDDBL",
+					"PEXT_FATNESS",				"PEXT_HLBSP",			"PEXT_TE_BULLET",		"PEXT_HULLSIZE",
+					"PEXT_MODELDBL",			"PEXT_ENTITYDBL",		"PEXT_ENTITYDBL2",		"PEXT_FLOATCOORDS",
+					"0x00010000",				"PEXT_Q2BSP",			"PEXT_Q3BSP",			"PEXT_COLOURMOD",
+					"PEXT_SPLITSCREEN",			"PEXT_HEXEN2",			"PEXT_SPAWNSTATIC2",	"PEXT_CUSTOMTEMPEFFECTS",
+					"PEXT_256PACKETENTITIES",	"0x02000000",			"PEXT_SHOWPIC",			"PEXT_SETATTACHMENT",
+					"0x10000000",				"PEXT_CHUNKEDDOWNLOADS","PEXT_CSQC",			"PEXT_DPFLAGS",
+				};
+				for (i = 0; i < sizeof(names)/sizeof(names[0]); i++)
+				{
+					if (protocol & ~supported & (1u<<i))
+					{
+						Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FTE (%s) not supported\n", names[i]);
+						supported |= (1u<<i);
+					}
+				}
+				if (protocol & ~supported)
+					Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FTE (%x) not supported\n", protocol & ~supported);
+			}
 			continue;
 		case PROTOCOL_VERSION_FTE2:
 			protocol = ReadLong(m);
+			tv->pext2 = protocol;
 			supported = 0;
 //			supported |= PEXT2_PRYDONCURSOR|PEXT2_VOICECHAT|PEXT2_SETANGLEDELTA|PEXT2_REPLACEMENTDELTAS|PEXT2_MAXPLAYERS;
+
+			//FIXME: handle the svc and clc if they arrive.
+			supported |= PEXT2_VOICECHAT;
+
+			//WANT
+			//PEXT2_SETANGLEDELTA
+			//PEXT2_REPLACEMENTDELTAS
+			//PEXT2_SETANGLEDELTA
+			//PEXT2_PREDINFO
+			//PEXT2_PRYDONCURSOR
 
 			if (protocol & ~supported)
 				Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FTE2 (%x) not supported\n", protocol & ~supported);
@@ -270,7 +324,7 @@ void QTV_UpdatedServerInfo(sv_t *tv)
 		fromproxy = false;
 
 	//add on our extra infos
-	Info_SetValueForStarKey(tv->map.serverinfo, "*qtv", VERSION, sizeof(tv->map.serverinfo));
+	Info_SetValueForStarKey(tv->map.serverinfo, "*qtv", QTV_VERSION_STRING, sizeof(tv->map.serverinfo));
 	Info_SetValueForStarKey(tv->map.serverinfo, "*z_ext", Z_EXT_STRING, sizeof(tv->map.serverinfo));
 
 	Info_ValueForKey(tv->map.serverinfo, "hostname", tv->map.hostname, sizeof(tv->map.hostname));
@@ -326,6 +380,11 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		if (tv->controller)
 			QW_SetMenu(tv->controller, atoi(text+18)?MENU_FORWARDING:MENU_NONE);
 	}
+//	else if (!strncmp(text, "//set protocolname ", 19))
+//	else if (!strncmp(text, "//set recorddate ", 17))	//reports when the demo was originally recorded, without needing to depend upon metadata.
+//	else if (!strncmp(text, "//paknames ", 11))
+//	else if (!strncmp(text, "//paks ", 7))
+//	else if (!strncmp(text, "//vwep ", 7))
 	else if (strstr(text, "screenshot"))
 	{
 		if (tv->controller)
@@ -362,8 +421,6 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		text[strlen(text)-1] = '\0';
 		/*strip trailing quote*/
 		text[strlen(text)-1] = '\0';
-
-
 
 		//copy over the server's serverinfo
 		strlcpy(tv->map.serverinfo, text+16, sizeof(tv->map.serverinfo));
@@ -407,6 +464,8 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	{
 		if (tv->controller)
 		{	//if we're acting as a proxy, forward the realip packets, and ONLY to the controller
+			//quakeworld proxies are usually there for routing or protocol advantages, NOT privacy
+			//(client can always ignore it themselves, but a server might ban you, but at least they'll be less inclined to ban the proxy).
 			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);
 			return;
 		}
@@ -557,11 +616,14 @@ static void ParseCenterprint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		break;
 	}
 }
-static int ParseList(sv_t *tv, netmsg_t *m, filename_t *list, int to, unsigned int mask)
+static int ParseList(sv_t *tv, netmsg_t *m, filename_t *list, int to, unsigned int mask, qboolean big)
 {
 	int first;
 
-	first = ReadByte(m)+1;
+	if (big)
+		first = ReadShort(m)+1;
+	else
+		first = ReadByte(m)+1;
 	for (; first < MAX_LIST; first++)
 	{
 		ReadString(m, list[first].name, sizeof(list[first].name));
@@ -584,22 +646,9 @@ static void ParseEntityState(sv_t *tv, entity_state_t *es, netmsg_t *m)	//for ba
 	es->skinnum = ReadByte(m);
 	for (i = 0; i < 3; i++)
 	{
-		es->origin[i] = ReadCoord(m, tv->pext);
-		es->angles[i] = ReadAngle(m, tv->pext);
+		es->origin[i] = ReadCoord(m, tv->pext1);
+		es->angles[i] = ReadAngle(m, tv->pext1);
 	}
-}
-static void ParseBaseline(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
-{
-	unsigned int entnum;
-	entnum = ReadShort(m);
-	if (entnum >= MAX_ENTITIES)
-	{
-		ParseError(m);
-		return;
-	}
-	ParseEntityState(tv, &tv->map.entity[entnum].baseline, m);
-	
-	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 }
 
 static void ParseStaticSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
@@ -610,9 +659,9 @@ static void ParseStaticSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		Sys_Printf(tv->cluster, "Too many static sounds\n");
 	}
 
-	tv->map.staticsound[tv->map.staticsound_count].origin[0] = ReadShort(m);
-	tv->map.staticsound[tv->map.staticsound_count].origin[1] = ReadShort(m);
-	tv->map.staticsound[tv->map.staticsound_count].origin[2] = ReadShort(m);
+	tv->map.staticsound[tv->map.staticsound_count].origin[0] = ReadCoord(m, tv->pext1);
+	tv->map.staticsound[tv->map.staticsound_count].origin[1] = ReadCoord(m, tv->pext1);
+	tv->map.staticsound[tv->map.staticsound_count].origin[2] = ReadCoord(m, tv->pext1);
 	tv->map.staticsound[tv->map.staticsound_count].soundindex = ReadByte(m);
 	tv->map.staticsound[tv->map.staticsound_count].volume = ReadByte(m);
 	tv->map.staticsound[tv->map.staticsound_count].attenuation = ReadByte(m);
@@ -632,21 +681,6 @@ static void ParseIntermission(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	ReadByte(m);
 
 	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
-}
-
-void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
-{
-	if (tv->map.spawnstatic_count == MAX_STATICENTITIES)
-	{
-		tv->map.spawnstatic_count--;	// don't be fatal.
-		Sys_Printf(tv->cluster, "Too many static entities\n");
-	}
-
-	ParseEntityState(tv, &tv->map.spawnstatic[tv->map.spawnstatic_count], m);
-
-	tv->map.spawnstatic_count++;
-
-	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
 }
 
 extern const usercmd_t nullcmd;
@@ -679,9 +713,9 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 	{
 		flags = (unsigned short)ReadShort (m);
 
-		tv->map.players[num].current.origin[0] = ReadCoord (m, tv->pext);
-		tv->map.players[num].current.origin[1] = ReadCoord (m, tv->pext);
-		tv->map.players[num].current.origin[2] = ReadCoord (m, tv->pext);
+		tv->map.players[num].current.origin[0] = ReadCoord (m, tv->pext1);
+		tv->map.players[num].current.origin[1] = ReadCoord (m, tv->pext1);
+		tv->map.players[num].current.origin[2] = ReadCoord (m, tv->pext1);
 
 		tv->map.players[num].current.frame = ReadByte(m);
 
@@ -705,9 +739,9 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 			}
 			else
 			{
-				tv->map.players[num].current.angles[0] = tv->proxyplayerangles[0]/360*65535;
-				tv->map.players[num].current.angles[1] = tv->proxyplayerangles[1]/360*65535;
-				tv->map.players[num].current.angles[2] = tv->proxyplayerangles[2]/360*65535;
+				tv->map.players[num].current.angles[0] = tv->proxyplayerangles[0];
+				tv->map.players[num].current.angles[1] = tv->proxyplayerangles[1];
+				tv->map.players[num].current.angles[2] = tv->proxyplayerangles[2];
 			}
 		}
 
@@ -754,14 +788,14 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 		for (i = 0; i < 3; i++)
 		{
 			if (flags & (DF_ORIGIN << i))
-				tv->map.players[num].current.origin[i] = ReadCoord (m, tv->pext);
+				tv->map.players[num].current.origin[i] = ReadCoord (m, tv->pext1);
 		}
 
 		for (i = 0; i < 3; i++)
 		{
 			if (flags & (DF_ANGLES << i))
 			{
-				tv->map.players[num].current.angles[i] = ReadShort(m);
+				tv->map.players[num].current.angles[i] = (ReadShort(m)/(float)0x10000)*360;
 			}
 		}
 
@@ -805,28 +839,35 @@ static int readentitynum(netmsg_t *m, unsigned int *retflags)
 	{
 		flags |= ReadByte(m);
 
-/*		if (flags & U_EVENMORE)
+		if (flags & UX_EVENMORE)
 			flags |= ReadByte(m)<<16;
-		if (flags & U_YETMORE)
+		if (flags & UX_YETMORE)
 			flags |= ReadByte(m)<<24;
-*/	}
+	}
 
-/*	if (flags & U_ENTITYDBL)
+	if (flags & UX_ENTITYDBL)
 		entnum += 512;
-	if (flags & U_ENTITYDBL2)
+	if (flags & UX_ENTITYDBL2)
 		entnum += 1024;
-*/
+
 	*retflags = flags;
 
 	return entnum;
 }
 
-static void ParseEntityDelta(sv_t *tv, netmsg_t *m, entity_state_t *old, entity_state_t *new, unsigned int flags, entity_t *ent, qboolean forcerelink)
+static void ParseEntityDelta(sv_t *tv, netmsg_t *m, const entity_state_t *old, entity_state_t *new, unsigned int flags, entity_t *ent, qboolean forcerelink)
 {
 	memcpy(new, old, sizeof(entity_state_t));
 
 	if (flags & U_MODEL)
-		new->modelindex = ReadByte(m);
+	{
+		if (flags & UX_MODELDBL)
+			new->modelindex = ReadByte(m)|0x100;	//doubled limit...
+		else
+			new->modelindex = ReadByte(m);
+	}
+	else if (flags & UX_MODELDBL)
+		new->modelindex = ReadShort(m);	//more sane path...
 	if (flags & U_FRAME)
 		new->frame = ReadByte(m);
 	if (flags & U_COLORMAP)
@@ -834,29 +875,67 @@ static void ParseEntityDelta(sv_t *tv, netmsg_t *m, entity_state_t *old, entity_
 	if (flags & U_SKIN)
 		new->skinnum = ReadByte(m);
 	if (flags & U_EFFECTS)
-		new->effects = ReadByte(m);
+		new->effects = (new->effects&0xff00)|ReadByte(m);
 
 	if (flags & U_ORIGIN1)
-		new->origin[0] = ReadCoord(m, tv->pext);
+		new->origin[0] = ReadCoord(m, tv->pext1);
 	if (flags & U_ANGLE1)
-		new->angles[0] = ReadAngle(m, tv->pext);
+		new->angles[0] = ReadAngle(m, tv->pext1);
 	if (flags & U_ORIGIN2)
-		new->origin[1] = ReadCoord(m, tv->pext);
+		new->origin[1] = ReadCoord(m, tv->pext1);
 	if (flags & U_ANGLE2)
-		new->angles[1] = ReadAngle(m, tv->pext);
+		new->angles[1] = ReadAngle(m, tv->pext1);
 	if (flags & U_ORIGIN3)
-		new->origin[2] = ReadCoord(m, tv->pext);
+		new->origin[2] = ReadCoord(m, tv->pext1);
 	if (flags & U_ANGLE3)
-		new->angles[2] = ReadAngle(m, tv->pext);
+		new->angles[2] = ReadAngle(m, tv->pext1);
+
+	if (flags & UX_SCALE)
+		new->scale = ReadByte(m);
+	if (flags & UX_ALPHA)
+		new->alpha = ReadByte(m);
+	if (flags & UX_FATNESS)
+		/*new->fatness =*/ (signed char)ReadByte(m);
+	if (flags & UX_DRAWFLAGS)
+		/*new->hexen2flags =*/ ReadByte(m);
+	if (flags & UX_ABSLIGHT)
+		/*new->abslight =*/ ReadByte(m);
+	if (flags & UX_COLOURMOD)
+	{
+		/*new->colormod[0] =*/ ReadByte(m);
+		/*new->colormod[1] =*/ ReadByte(m);
+		/*new->colormod[2] =*/ ReadByte(m);
+	}
+	if (flags & UX_DPFLAGS)
+	{	// these are bits for the 'flags' field of the entity_state_t
+		/*new->dpflags =*/ ReadByte(m);
+	}
+	if (flags & UX_TAGINFO)
+	{
+		/*new->tagentity =*/ ReadShort(m);
+		/*new->tagindex =*/ ReadShort(m);
+	}
+	if (flags & UX_LIGHT)
+	{
+		/*new->light[0] =*/ ReadShort(m);
+		/*new->light[1] =*/ ReadShort(m);
+		/*new->light[2] =*/ ReadShort(m);
+		/*new->light[3] =*/ ReadShort(m);
+		/*new->lightstyle =*/ ReadByte(m);
+		/*new->lightpflags =*/ ReadByte(m);
+	}
+	if (flags & UX_EFFECTS16)
+		new->effects = (new->effects&0x00ff)|(ReadByte(m)<<8);
 
 
 	if (forcerelink || (flags & (U_ORIGIN1|U_ORIGIN2|U_ORIGIN3|U_MODEL)))
 	{
-		ent->leafcount = 
-				BSP_SphereLeafNums(tv->map.bsp, MAX_ENTITY_LEAFS, ent->leafs,
-				new->origin[0],
-				new->origin[1],
-				new->origin[2], 32);
+		if (ent)
+			ent->leafcount = 
+					BSP_SphereLeafNums(tv->map.bsp, MAX_ENTITY_LEAFS, ent->leafs,
+					new->origin[0],
+					new->origin[1],
+					new->origin[2], 32);
 	}
 }
 
@@ -1105,6 +1184,59 @@ return;
 */
 }
 
+void ParseSpawnStatic(sv_t *tv, netmsg_t *m, int to, unsigned int mask, qboolean delta)
+{
+	if (tv->map.spawnstatic_count == MAX_STATICENTITIES)
+	{
+		tv->map.spawnstatic_count--;	// don't be fatal.
+		Sys_Printf(tv->cluster, "Too many static entities\n");
+	}
+
+	if (delta)
+	{
+		unsigned int flags;
+		readentitynum(m, &flags);
+		ParseEntityDelta(tv, m, &null_entity_state, &tv->map.spawnstatic[tv->map.spawnstatic_count], flags, NULL, false);
+	}
+	else
+		ParseEntityState(tv, &tv->map.spawnstatic[tv->map.spawnstatic_count], m);
+
+	tv->map.spawnstatic_count++;
+
+	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
+}
+
+static void ParseBaseline(sv_t *tv, netmsg_t *m, int to, unsigned int mask, qboolean delta)
+{
+	unsigned int entnum;
+	if (delta)
+	{
+		entity_state_t es;
+		unsigned int flags;
+		entnum = readentitynum(m, &flags);
+		ParseEntityDelta(tv, m, &null_entity_state, &es, flags, NULL, false);
+
+		if (entnum >= MAX_ENTITIES)
+		{
+			ParseError(m);
+			return;
+		}
+		tv->map.entity[entnum].baseline = es;
+	}
+	else
+	{
+		entnum = ReadShort(m);
+		if (entnum >= MAX_ENTITIES)
+		{
+			ParseError(m);
+			return;
+		}
+		ParseEntityState(tv, &tv->map.entity[entnum].baseline, m);
+	}
+	
+	ConnectionData(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, Q1);
+}
+
 static void ParseUpdatePing(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	int pnum;
@@ -1242,12 +1374,13 @@ static void ParseSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	unsigned char vol;
 	unsigned char atten;
 	unsigned char sound_num;
-	short org[3];
+	float org[3];
 	int ent;
 
 
-	unsigned char nqversion[64];
-	int nqlen = 0;
+	netmsg_t nqversion;
+	unsigned char nqbuffer[64];
+	InitNetMsg(&nqversion, nqbuffer, sizeof(nqbuffer));
 
 	channel = (unsigned short)ReadShort(m);
 
@@ -1268,48 +1401,51 @@ static void ParseSound(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	channel &= 7;
 
 	for (i=0 ; i<3 ; i++)
-		org[i] = ReadCoord (m, tv->pext);
+		org[i] = ReadCoord (m, tv->pext1);
 
 	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 
-	nqversion[0] = svc_sound;
-	nqversion[1] = 0;
+
+	WriteByte(&nqversion, svc_sound);
+	i = 0;
 	if (vol != DEFAULT_SOUND_PACKET_VOLUME)
-		nqversion[1] |= 1;
+		i |= 1;
 	if (atten != DEFAULT_SOUND_PACKET_ATTENUATION)
-		nqversion[1] |= 2;
-	nqlen=2;
+		i |= 2;
+	if (ent > 8191 || channel > 7)
+		i |= 8;
+	if (sound_num > 255)
+		i |= 16;
+	WriteByte(&nqversion, i);
+	if (i & 1)
+		WriteByte(&nqversion, vol);
+	if (i & 2)
+		WriteByte(&nqversion, atten*64);
+	if (i & 8)
+	{
+		WriteShort(&nqversion, ent);
+		WriteByte(&nqversion, channel);
+	}
+	else
+		WriteShort(&nqversion, (ent<<3) | channel);
+	if (i & 16)
+		WriteShort(&nqversion, sound_num);
+	else
+		WriteByte(&nqversion, sound_num);
+	WriteCoord(&nqversion, org[0], tv->pext1);
+	WriteCoord(&nqversion, org[1], tv->pext1);
+	WriteCoord(&nqversion, org[2], tv->pext1);
 
-	if (nqversion[1] & 1)
-		nqversion[nqlen++] = vol;
-	if (nqversion[1] & 2)
-		nqversion[nqlen++] = atten*64;
-
-	channel = (ent<<3) | channel;
-
-	nqversion[nqlen++] = (channel&0x00ff)>>0;
-	nqversion[nqlen++] = (channel&0xff00)>>8;
-	nqversion[nqlen++] = sound_num;
-
-	nqversion[nqlen++] = 0;
-	nqversion[nqlen++] = 0;
-
-	nqversion[nqlen++] = 0;
-	nqversion[nqlen++] = 0;
-
-	nqversion[nqlen++] = 0;
-	nqversion[nqlen++] = 0;
-
-	Multicast(tv, nqversion, nqlen, to, mask, NQ);
+	Multicast(tv, nqversion.data, nqversion.cursize, to, mask, NQ);
 }
 
 static void ParseDamage(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
 	ReadByte (m);
 	ReadByte (m);
-	ReadCoord (m, tv->pext);
-	ReadCoord (m, tv->pext);
-	ReadCoord (m, tv->pext);
+	ReadCoord (m, tv->pext1);
+	ReadCoord (m, tv->pext1);
+	ReadCoord (m, tv->pext1);
 	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW);
 }
 
@@ -1341,15 +1477,15 @@ static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	switch(i)
 	{
 	case TE_SPIKE:
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 		dest |= NQ;
 		break;
 	case TE_SUPERSPIKE:
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 		dest |= NQ;
 		break;
 	case TE_GUNSHOT:
@@ -1357,21 +1493,23 @@ static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 		nqversion[0] = svc_temp_entity;
 		nqversion[1] = TE_GUNSHOT;
-		nqversion[2] = ReadByte (m);nqversion[3] = ReadByte (m);
-		nqversion[4] = ReadByte (m);nqversion[5] = ReadByte (m);
-		nqversion[6] = ReadByte (m);nqversion[7] = ReadByte (m);
-		nqversionlength = 8;
+		if (tv->pext1 & PEXT_FLOATCOORDS)
+			nqversionlength = 2+3*4;
+		else
+			nqversionlength = 2+3*2;
+		for (i = 2; i < nqversionlength; i++)
+			nqversion[i] = ReadByte (m);
 		break;
 	case TE_EXPLOSION:
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 		dest |= NQ;
 		break;
 	case TE_TAREXPLOSION:
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 		dest |= NQ;
 		break;
 	case TE_LIGHTNING1:
@@ -1379,50 +1517,50 @@ static void ParseTempEntity(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	case TE_LIGHTNING3:
 		ReadShort (m);
 
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 		dest |= NQ;
 		break;
 	case TE_WIZSPIKE:
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 		dest |= NQ;
 		break;
 	case TE_KNIGHTSPIKE:
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 		dest |= NQ;
 		break;
 	case TE_LAVASPLASH:
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 		dest |= NQ;
 		break;
 	case TE_TELEPORT:
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 		dest |= NQ;
 		break;
 	case TE_BLOOD:
 		ReadByte (m);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 		//FIXME: generate svc_particle for nq
 		break;
 	case TE_LIGHTNINGBLOOD:
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
-		ReadCoord (m, tv->pext);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
+		ReadCoord (m, tv->pext1);
 		//FIXME: generate svc_particle for nq
 		break;
 	default:
@@ -1542,6 +1680,8 @@ void ParseDownload(sv_t *tv, netmsg_t *m)
 
 void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 {
+	int lastsvc;
+	int svc = -1;
 	int i;
 	netmsg_t buf;
 	qboolean clearoldplayers = true;
@@ -1552,18 +1692,20 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 	buf.startpos = 0;
 	while(buf.readpos < buf.cursize)
 	{
+		lastsvc = svc;
 		if (buf.readpos > buf.cursize)
 		{
-			Sys_Printf(tv->cluster, "Read past end of parse buffer\n");
+			Sys_Printf(tv->cluster, "Read past end of parse buffer\n, last was %i\n", lastsvc);
 			return;
 		}
-//		printf("%i\n", buf.buffer[0]);
 		buf.startpos = buf.readpos;
-		switch (ReadByte(&buf))
+		svc = ReadByte(&buf);
+//		printf("%i\n", svc);
+		switch (svc)
 		{
 		case svc_bad:
 			ParseError(&buf);
-			Sys_Printf(tv->cluster, "ParseMessage: svc_bad\n");
+			Sys_Printf(tv->cluster, "ParseMessage: svc_bad, last was %i\n", lastsvc);
 			return;
 		case svc_nop:	//quakeworld isn't meant to send these.
 			QTV_Printf(tv, "nop\n");
@@ -1621,21 +1763,21 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 		case svc_setangle:
 			if (!tv->usequakeworldprotocols)
 				ReadByte(&buf);
-			tv->proxyplayerangles[0] = ReadAngle(&buf, tv->pext);
-			tv->proxyplayerangles[1] = ReadAngle(&buf, tv->pext);
-			tv->proxyplayerangles[2] = ReadAngle(&buf, tv->pext);
+			tv->proxyplayerangles[0] = ReadAngle(&buf, tv->pext1);
+			tv->proxyplayerangles[1] = ReadAngle(&buf, tv->pext1);
+			tv->proxyplayerangles[2] = ReadAngle(&buf, tv->pext1);
 
 			if (tv->usequakeworldprotocols && tv->controller)
 				SendBufferToViewer(tv->controller, (char*)buf.data+buf.startpos, buf.readpos - buf.startpos, true);
 
-			{
-				char nq[4];
+			/*{
+				char nq[7];
 				nq[0] = svc_setangle;
 				nq[1] = tv->proxyplayerangles[0];
 				nq[2] = tv->proxyplayerangles[1];
 				nq[3] = tv->proxyplayerangles[2];
 //				Multicast(tv, nq, 4, to, mask, Q1);
-			}
+			}*/
 			break;
 
 		case svc_serverdata:
@@ -1657,9 +1799,9 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 //#define	svc_updatecolors	17	// [qbyte] [qbyte] [qbyte]
 
 		case svc_particle:
-			ReadCoord(&buf, tv->pext);
-			ReadCoord(&buf, tv->pext);
-			ReadCoord(&buf, tv->pext);
+			ReadCoord(&buf, tv->pext1);
+			ReadCoord(&buf, tv->pext1);
+			ReadCoord(&buf, tv->pext1);
 			ReadByte(&buf);
 			ReadByte(&buf);
 			ReadByte(&buf);
@@ -1673,12 +1815,24 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			break;
 
 		case svc_spawnstatic:
-			ParseSpawnStatic(tv, &buf, to, mask);
+			ParseSpawnStatic(tv, &buf, to, mask, false);
 			break;
 
-//#define	svc_spawnstatic2	21
+		case svcfte_spawnstatic2:
+			if (tv->pext1 & PEXT_SPAWNSTATIC2)
+				ParseSpawnStatic(tv, &buf, to, mask, true);
+			else
+				goto badsvc;
+			break;
+
 		case svc_spawnbaseline:
-			ParseBaseline(tv, &buf, to, mask);
+			ParseBaseline(tv, &buf, to, mask, false);
+			break;
+		case svcfte_spawnbaseline2:
+			if (tv->pext1 & PEXT_SPAWNSTATIC2)
+				ParseBaseline(tv, &buf, to, mask, true);
+			else
+				goto badsvc;
 			break;
 
 		case svc_temp_entity:
@@ -1762,8 +1916,9 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			ReadByte(&buf);
 			break;
 
+		case svcfte_modellistshort:
 		case svc_modellist:
-			i = ParseList(tv, &buf, tv->map.modellist, to, mask);
+			i = ParseList(tv, &buf, tv->map.modellist, to, mask, svc==svcfte_modellistshort);
 			if (!i)
 			{
 				int j;
@@ -1837,8 +1992,9 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 				}
 			}
 			break;
+		case svcfte_soundlistshort:
 		case svc_soundlist:
-			i = ParseList(tv, &buf, tv->map.soundlist, to, mask);
+			i = ParseList(tv, &buf, tv->map.soundlist, to, mask, svc==svcfte_soundlistshort);
 			if (!i)
 				strcpy(tv->status, "Receiving modellist\n");
 			ConnectionData(tv, (void*)((char*)buf.data+buf.startpos), buf.readpos - buf.startpos, to, mask, QW);
@@ -1888,8 +2044,9 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			break;
 
 		default:
+		badsvc:
 			buf.readpos = buf.startpos;
-			Sys_Printf(tv->cluster, "Can't handle svc %i\n", (unsigned int)ReadByte(&buf));
+			Sys_Printf(tv->cluster, "Can't handle svc %i, last was %i\n", (unsigned int)ReadByte(&buf), lastsvc);
 			return;
 		}
 	}

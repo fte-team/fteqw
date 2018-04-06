@@ -329,7 +329,7 @@ static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
 			}
 			else
 			{
-				ed = PROG_TO_EDICT(progfuncs, entnum);
+				ed = PROG_TO_EDICT_PB(progfuncs, entnum);
 				if ((unsigned int)((eval_t *)&pr_globals[st16[st].b])->_int*4u >= ed->fieldsize)
 					continue;
 				else
@@ -751,8 +751,10 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, char *key, eval_t **result, etype_
 		fofs = fdef->ofs;
 		type = fdef->type;
 
-
-		ed = PROG_TO_EDICT(progfuncs, val->_int);
+		if ((unsigned int)val->_int >= prinst.maxedicts)
+			ed = NULL;
+		else
+			ed = PROG_TO_EDICT_PB(progfuncs, val->_int);
 		if (!ed)
 			return false;
 		if (fofs < 0 || fofs >= (int)prinst.max_fields_size)
@@ -1492,7 +1494,7 @@ const char *PR_GetEdictClassname(progfuncs_t *progfuncs, unsigned int edict)
 	fdef_t *cnfd = ED_FindField(progfuncs, "classname");
 	if (cnfd && edict < prinst.maxedicts)
 	{
-		string_t *v = (string_t *)((char *)edvars(PROG_TO_EDICT(progfuncs, edict)) + cnfd->ofs*4);
+		string_t *v = (string_t *)((char *)edvars(PROG_TO_EDICT_PB(progfuncs, edict)) + cnfd->ofs*4);
 		return PR_StringToNative(&progfuncs->funcs, *v);
 	}
 	return "";

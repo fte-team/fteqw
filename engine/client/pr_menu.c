@@ -1512,7 +1512,7 @@ void QCBUILTIN PF_menu_findchain (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = (menuedict_t *)EDICT_NUM(prinst, i);
+		ent = (menuedict_t *)EDICT_NUM_PB(prinst, i);
 		if (ent->ereftype == ER_FREE)
 			continue;
 		t = *(string_t *)&((float*)ent->fields)[f];
@@ -1544,7 +1544,7 @@ void QCBUILTIN PF_menu_findchainfloat (pubprogfuncs_t *prinst, struct globalvars
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = (menuedict_t*)EDICT_NUM(prinst, i);
+		ent = (menuedict_t*)EDICT_NUM_PB(prinst, i);
 		if (ent->ereftype == ER_FREE)
 			continue;
 		if (((float *)ent->fields)[f] != s)
@@ -1573,7 +1573,7 @@ void QCBUILTIN PF_menu_findchainflags (pubprogfuncs_t *prinst, struct globalvars
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = (menuedict_t*)EDICT_NUM(prinst, i);
+		ent = (menuedict_t*)EDICT_NUM_PB(prinst, i);
 		if (ent->ereftype == ER_FREE)
 			continue;
 		if ((int)((float *)ent->fields)[f] & s)
@@ -1596,7 +1596,7 @@ void QCBUILTIN PF_ftoe(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int entnum = G_FLOAT(OFS_PARM0);
 
-	RETURN_EDICT(prinst, EDICT_NUM(prinst, entnum));
+	RETURN_EDICT(prinst, EDICT_NUM_UB(prinst, entnum));
 }
 
 void QCBUILTIN PF_IsNotNull(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2623,8 +2623,8 @@ qboolean MP_Init (void)
 
 
 		//'world' edict
-//		EDICT_NUM(menu_world.progs, 0)->readonly = true;
-		EDICT_NUM(menu_world.progs, 0)->ereftype = ER_ENTITY;
+//		EDICT_NUM_PB(menu_world.progs, 0)->readonly = true;
+		EDICT_NUM_PB(menu_world.progs, 0)->ereftype = ER_ENTITY;
 
 
 		mp_init_function = PR_FindFunction(menu_world.progs, "m_init", PR_ANY);
@@ -2640,7 +2640,7 @@ qboolean MP_Init (void)
 			PR_ExecuteProgram(menu_world.progs, mp_init_function);
 		inmenuprogs--;
 
-		EDICT_NUM(menu_world.progs, 0)->readonly = true;
+		EDICT_NUM_PB(menu_world.progs, 0)->readonly = true;
 
 		Con_DPrintf("Initialized menu.dat\n");
 		return true;

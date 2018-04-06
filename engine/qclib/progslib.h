@@ -105,8 +105,8 @@ struct pubprogfuncs_s
 	struct edict_s	*(PDECL *EntAlloc)			(pubprogfuncs_t *prinst, pbool object, size_t extrasize);
 	void	(PDECL *EntFree)					(pubprogfuncs_t *prinst, struct edict_s *ed);
 
-	struct edict_s	*(PDECL *EDICT_NUM)			(pubprogfuncs_t *prinst, unsigned int n);		//get the nth edict
-	unsigned int		(PDECL *NUM_FOR_EDICT)	(pubprogfuncs_t *prinst, struct edict_s *e);	//so you can find out what that 'n' will be
+	struct edict_s	*(PDECL *EdictNum)			(pubprogfuncs_t *prinst, unsigned int n);		//get the nth edict
+	unsigned int		(PDECL *NumForEdict)	(pubprogfuncs_t *prinst, struct edict_s *e);	//so you can find out what that 'n' will be
 
 	char	*(PDECL *VarString)					(pubprogfuncs_t *prinst, int	first);	//returns a string made up of multiple arguments
 
@@ -195,6 +195,7 @@ struct pubprogfuncs_s
 	void (PDECL *SetStringField)				(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static);	//if ed is null, fld points to a global. if str_is_static, then s doesn't need its own memory allocated.
 	pbool (PDECL *DumpProfile)					(pubprogfuncs_t *progfuncs, pbool resetprofiles);
 
+	unsigned int edicttable_length;
 	struct edict_s **edicttable;
 };
 
@@ -285,9 +286,10 @@ typedef union eval_s
 #if 0//def _DEBUG
 #define EDICT_NUM(pf, num)									(*pf->EDICT_NUM)			(pf, num)
 #else
-#define EDICT_NUM(pf, num)									(pf->edicttable[num])
+#define EDICT_NUM_PB(pf, num)								(pf->edicttable[num])
+#define EDICT_NUM_UB(pf, num)								EDICT_NUM_PB(pf,(((unsigned int)(num))>=pf->edicttable_length)?0:num)
 #endif
-#define NUM_FOR_EDICT(pf, e)								(*pf->NUM_FOR_EDICT)		(pf, (struct edict_s*)(e))
+#define NUM_FOR_EDICT(pf, e)								(*pf->NumForEdict)			(pf, (struct edict_s*)(e))
 #define SetGlobalEdict(pf, ed, ofs)							(*pf->SetGlobalEdict)		(pf, ed, ofs)
 #define PR_VarString(pf,first)								(*pf->VarString)			(pf,first)
 

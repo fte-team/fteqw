@@ -1227,7 +1227,7 @@ void QCBUILTIN PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = WEDICT_NUM(prinst, i);
+		ent = WEDICT_NUM_PB(prinst, i);
 		if (ED_ISFREE(ent))
 			continue;
 		if (!((int)((float *)ent->v)[ff] & s))
@@ -1258,7 +1258,7 @@ void QCBUILTIN PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = WEDICT_NUM(prinst, i);
+		ent = WEDICT_NUM_PB(prinst, i);
 		if (ED_ISFREE(ent))
 			continue;
 		if (((float *)ent->v)[ff] != s)
@@ -1291,7 +1291,7 @@ void QCBUILTIN PF_findchain (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	for (i = 1; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = WEDICT_NUM(prinst, i);
+		ent = WEDICT_NUM_PB(prinst, i);
 		if (ED_ISFREE(ent))
 			continue;
 		t = *(string_t *)&((float*)ent->v)[ff];
@@ -1321,7 +1321,7 @@ void QCBUILTIN PF_FindFlags (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	for (e++; e < *prinst->parms->sv_num_edicts; e++)
 	{
-		ed = WEDICT_NUM(prinst, e);
+		ed = WEDICT_NUM_PB(prinst, e);
 		if (ED_ISFREE(ed))
 			continue;
 		if ((int)((float *)ed->v)[f] & s)
@@ -1353,7 +1353,7 @@ void QCBUILTIN PF_FindFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	for (e++; e < *prinst->parms->sv_num_edicts; e++)
 	{
-		ed = WEDICT_NUM(prinst, e);
+		ed = WEDICT_NUM_PB(prinst, e);
 		if (ED_ISFREE(ed))
 			continue;
 		if (((int *)ed->v)[f] == s)
@@ -1386,7 +1386,7 @@ void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	for (e++ ; e < *prinst->parms->sv_num_edicts ; e++)
 	{
-		ed = WEDICT_NUM(prinst, e);
+		ed = WEDICT_NUM_PB(prinst, e);
 		if (ED_ISFREE(ed))
 			continue;
 		t = ((string_t *)ed->v)[f];
@@ -2925,7 +2925,7 @@ void QCBUILTIN PF_edict_for_num(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	if (num >= w->num_edicts)
 		RETURN_EDICT(prinst, w->edicts);
 
-	ent = (edict_t*)EDICT_NUM(prinst, num);
+	ent = (edict_t*)EDICT_NUM_PB(prinst, num);
 	RETURN_EDICT(prinst, ent);
 }
 
@@ -2998,7 +2998,7 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		rad = rad*rad;
 		for (i=1 ; i<w->num_edicts ; i++)
 		{
-			ent = WEDICT_NUM(prinst, i);
+			ent = WEDICT_NUM_PB(prinst, i);
 			if (ED_ISFREE(ent))
 				continue;
 			if (ent->v->solid == SOLID_NOT && (!((int)ent->v->flags & FL_FINDABLE_NONSOLID)) && !sv_gameplayfix_blowupfallenzombies.value)
@@ -3031,7 +3031,7 @@ void QCBUILTIN PF_nextent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 			RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
 			return;
 		}
-		ent = WEDICT_NUM(prinst, i);
+		ent = WEDICT_NUM_PB(prinst, i);
 		if (!ED_ISFREE(ent))
 		{
 			RETURN_EDICT(prinst, ent);

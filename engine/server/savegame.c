@@ -341,7 +341,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		{
 			if (cl->state)
 				sv.spawned_client_slots += 1;
-			ent = EDICT_NUM(svprogfuncs, i+1);
+			ent = EDICT_NUM_PB(svprogfuncs, i+1);
 		}
 		else
 			ent = NULL;
@@ -824,7 +824,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
 		if (i < sv.allocated_client_slots)
-			ent = EDICT_NUM(svprogfuncs, i+1);
+			ent = EDICT_NUM_PB(svprogfuncs, i+1);
 		else
 			ent = NULL;
 		svs.clients[i].edict = ent;
@@ -881,7 +881,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 
 	for (i=0 ; i<sv.world.num_edicts ; i++)
 	{
-		ent = EDICT_NUM(svprogfuncs, i);
+		ent = EDICT_NUM_PB(svprogfuncs, i);
 		if (ED_ISFREE(ent))
 			continue;
 
@@ -1162,7 +1162,7 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 	{
 		for (clnum=0; clnum < sv.allocated_client_slots; clnum++)
 		{
-			edict_t *ed = EDICT_NUM(svprogfuncs, clnum+1);
+			edict_t *ed = EDICT_NUM_PB(svprogfuncs, clnum+1);
 			ed->ereftype = ER_ENTITY;
 		}
 	}
@@ -1208,6 +1208,20 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 	{
 		Con_Printf("Server is playing a cinematic - unable to save\n");
 		return;
+	}
+
+	switch(svs.gametype)
+	{
+	default:
+	case GT_Q1QVM:
+#ifdef VM_LUA
+	case GT_LUA:
+#endif
+		Con_Printf("gamecode doesn't support saving\n");
+		return;
+	case GT_PROGS:
+	case GT_QUAKE2:
+		break;
 	}
 
 	if (sv.allocated_client_slots == 1 && svs.gametype == GT_PROGS)
@@ -1444,9 +1458,6 @@ void SV_AutoSave(void)
 	default:	//probably broken. don't ever try.
 		return;
 
-#ifdef VM_LUA
-	case GT_LUA:
-#endif
 	case GT_Q1QVM:
 	case GT_PROGS:
 		//don't bother to autosave multiplayer games.

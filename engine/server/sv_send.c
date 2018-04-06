@@ -1710,7 +1710,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	// a fixangle might get lost in a dropped packet.  Oh well.
 	if (client->spectator && ISNQCLIENT(client) && client->spec_track > 0)
 	{
-		edict_t *ed = EDICT_NUM(svprogfuncs, client->spec_track);
+		edict_t *ed = EDICT_NUM_UB(svprogfuncs, client->spec_track);
 		MSG_WriteByte(msg, svc_setangle);
 		MSG_WriteAngle(msg, ed->v->v_angle[0]);
 		MSG_WriteAngle(msg, ed->v->v_angle[1]);
@@ -1841,7 +1841,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 #ifdef NQPROT
 	ent = client->edict;
 	if (client->spectator && client->spec_track)
-		ent = EDICT_NUM(svprogfuncs, client->spec_track);
+		ent = EDICT_NUM_UB(svprogfuncs, client->spec_track);
 	if (progstype != PROG_QW)
 	{
 		if (ISQWCLIENT(client) && !(client->fteprotocolextensions2 & PEXT2_PREDINFO))
@@ -2250,7 +2250,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 	// if we are a spectator and we are tracking a player, we get his stats
 	// so our status bar reflects his
 	if (client->spectator && client->spec_track > 0)
-		ent = EDICT_NUM(svprogfuncs, client->spec_track);
+		ent = EDICT_NUM_UB(svprogfuncs, client->spec_track);
 
 #ifdef HLSERVER
 	if (svs.gametype == GT_HALFLIFE)

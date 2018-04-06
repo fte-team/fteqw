@@ -165,7 +165,8 @@ typedef struct areanode_s
 
 typedef struct wedict_s wedict_t;
 #define PROG_TO_WEDICT (wedict_t*)PROG_TO_EDICT
-#define WEDICT_NUM (wedict_t *)EDICT_NUM
+#define WEDICT_NUM_UB (wedict_t *)EDICT_NUM_UB	//ent number isn't bounded
+#define WEDICT_NUM_PB (wedict_t *)EDICT_NUM_PB	//pre-bound
 #define G_WEDICT (wedict_t *)G_EDICT
 
 typedef struct

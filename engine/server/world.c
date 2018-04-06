@@ -308,7 +308,7 @@ void World_ClearWorld_Nodes (world_t *w, qboolean relink)
 	{
 		for (i=0 ; i<w->num_edicts ; i++)
 		{
-			ent = WEDICT_NUM(w->progs, i);
+			ent = WEDICT_NUM_PB(w->progs, i);
 			if (!ent)
 				continue;
 			ent->area.prev = ent->area.next = NULL;
@@ -369,7 +369,7 @@ static void World_ClearWorld_AreaGrid (world_t *w, qboolean relink)
 	{
 		for (i=0 ; i<w->num_edicts ; i++)
 		{
-			ent = WEDICT_NUM(w->progs, i);
+			ent = WEDICT_NUM_PB(w->progs, i);
 			if (!ent)
 				continue;
 			for (j = 0; j < countof(ent->gridareas); j++)
@@ -1802,7 +1802,7 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 	wedict_t		*touch;
 	for (e=1 ; e<w->num_edicts ; e++)
 	{
-		touch = (wedict_t*)EDICT_NUM(w->progs, e);
+		touch = (wedict_t*)EDICT_NUM_PB(w->progs, e);
 
 		if (ED_ISFREE(touch))
 			continue;
@@ -2414,7 +2414,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 
 	if (type & MOVE_OTHERONLY)
 	{
-		wedict_t *other = WEDICT_NUM(w->progs, *w->g.other);
+		wedict_t *other = WEDICT_NUM_UB(w->progs, *w->g.other);
 		return World_ClipMoveToEntity (w, other, other->v->origin, start, mins, maxs, end, hullnum, type & MOVE_HITMODEL, clip.capsule, clip.hitcontentsmask);
 	}
 
@@ -2502,7 +2502,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 				if (clip.trace.allsolid)
 					break;
 
-				touch = (wedict_t*)EDICT_NUM(w->progs, i+1);
+				touch = (wedict_t*)EDICT_NUM_PB(w->progs, i+1);
 				if (touch->v->solid == SOLID_NOT)
 					continue;
 				if (touch == clip.passedict)
@@ -2647,7 +2647,7 @@ void World_RBE_Shutdown(world_t *world)
 	{
 		for (u = 0; u < world->num_edicts; u++)
 		{
-			ed = WEDICT_NUM(world->progs, u);
+			ed = WEDICT_NUM_PB(world->progs, u);
 			world->rbe->RemoveJointFromEntity(world, ed);
 			world->rbe->RemoveFromEntity(world, ed);
 		}

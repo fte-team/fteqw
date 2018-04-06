@@ -430,7 +430,7 @@ reeval:
 				return pr_xstatement;
 			break;
 		}
-		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
+		ed = PROG_TO_EDICT_PB(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
@@ -491,7 +491,7 @@ reeval:
 			OPC->_int = 0;
 			break;
 		}
-		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
+		ed = PROG_TO_EDICT_PB(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
@@ -528,7 +528,7 @@ reeval:
 			OPC->_vector[2] = 0;
 			break;
 		}
-		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
+		ed = PROG_TO_EDICT_PB(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
@@ -967,7 +967,7 @@ reeval:
 		break;
 
 	case OP_THINKTIME:
-		externs->thinktimeop(&progfuncs->funcs, (struct edict_s *)PROG_TO_EDICT(progfuncs, OPA->edict), OPB->_float);
+		externs->thinktimeop(&progfuncs->funcs, (struct edict_s *)PROG_TO_EDICT_UB(progfuncs, OPA->edict), OPB->_float);
 		break;
 
 	case OP_MULSTORE_F:

@@ -93,7 +93,7 @@ static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t
 {
 	vec3_t rounded;
 	qboolean okay = true;
-	wedict_t *portal = WEDICT_NUM(w->progs, portalnum);
+	wedict_t *portal = WEDICT_NUM_UB(w->progs, portalnum);
 	int oself = *w->g.self;
 	void *pr_globals = PR_globals(w->progs, PR_CURRENT);
 	int i;

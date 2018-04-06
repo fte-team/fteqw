@@ -802,7 +802,7 @@ char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		QC_snprintfz (line, sizeof(line), "%s", PR_StringToNative(&progfuncs->funcs, val->string));
 		break;
 	case ev_entity:
-		QC_snprintfz (line, sizeof(line), "%i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)));
+		QC_snprintfz (line, sizeof(line), "%i", val->edict);
 		break;
 	case ev_function:
 		f = pr_progstate[(val->function & 0xff000000)>>24].functions + (val->function & ~0xff000000);
@@ -2143,7 +2143,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 			sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
 			sv_edicts=(struct edict_s *)&tempedict;
 			prinst.edicttable = (struct edictrun_s**)(progfuncs->funcs.edicttable = &sv_edicts);
-
+			progfuncs->funcs.edicttable_length = numents;
 
 			sv_num_edicts = numents;	//should be fine
 

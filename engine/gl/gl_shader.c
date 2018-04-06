@@ -2592,11 +2592,6 @@ static shaderkey_t shaderkeys[] =
 	{"clutter",				Shader_ClutterParms,		"fte"},
 	{"deferredlight",		Shader_Deferredlight,		"fte"},	//(sort = prelight)
 //	{"lpp_light",			Shader_Deferredlight,		"fte"},	//(sort = prelight)
-	{"glslprogram",			Shader_GLSLProgramName,		"fte"},
-	{"program",				Shader_ProgramName,			"fte"},	//gl or d3d
-	{"hlslprogram",			Shader_HLSL9ProgramName,	"fte"},	//for d3d
-	{"hlsl11program",		Shader_HLSL11ProgramName,	"fte"},	//for d3d
-	{"param",				Shader_ProgramParam,		"fte"},	//legacy
 	{"affine",				Shader_Affine,				"fte"},	//some hardware is horribly slow, and can benefit from certain hints.
 
 	{"bemode",				Shader_BEMode,				"fte"},
@@ -2609,9 +2604,14 @@ static shaderkey_t shaderkeys[] =
 	{"lowermap",			Shader_LowerMap,			"fte"},
 	{"reflectmask",			Shader_ReflectMask,			"fte"},
 
-	/*simpler parsing for fte shaders*/
-	{"progblendfunc",		Shader_ProgBlendFunc,		"fte"},
-	{"progmap",				Shader_ProgMap,				"fte"},
+	/*program stuff at the material level is an outdated practise.*/
+	{"program",				Shader_ProgramName,			"fte"},	//usable with any renderer that has a usable shader language...
+	{"glslprogram",			Shader_GLSLProgramName,		"fte"},	//for renderers that accept embedded glsl
+	{"hlslprogram",			Shader_HLSL9ProgramName,	"fte"},	//for d3d with embedded hlsl
+	{"hlsl11program",		Shader_HLSL11ProgramName,	"fte"},	//for d3d with embedded hlsl
+	{"param",				Shader_ProgramParam,		"fte"},	//legacy
+	{"progblendfunc",		Shader_ProgBlendFunc,		"fte"},	//specifies the blend mode (actually just overrides the first subpasses' blendmode.
+	{"progmap",				Shader_ProgMap,				"fte"},	//avoids needing extra subpasses (actually just inserts an extra pass).
 
 	//dp compat
 	{"reflectcube",			Shader_ReflectCube,			"dp"},
@@ -4364,6 +4364,8 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		{
 			if ( token[0] == '}' )
 				break;
+			else if (token[0] == '{')
+				Con_Printf("unexpected indentation in %s\n", shader->name);
 			else if ( Shader_Parsetok (shader, pass, shaderpasskeys, token, ptr) )
 				break;
 		}
@@ -4470,6 +4472,12 @@ static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey
 	shaderkey_t *key;
 	char *prefix;
 	qboolean toolchainprefix = false;
+
+	if (*token == '_')
+	{	//forward compat: make sure there's a way to shut stuff up if you're using future extensions in an outdated engine.
+		token++;
+		toolchainprefix = true;
+	}
 
 	//handle known prefixes.
 	if		(!Q_strncasecmp(token, "fte", 3))		{prefix = token; token += 3; }

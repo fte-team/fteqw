@@ -232,7 +232,7 @@ void SVQ1_CreateBaseline (void)
 
 	for (entnum = 0; entnum < sv.world.num_edicts ; entnum++)
 	{
-		svent = EDICT_NUM(svprogfuncs, entnum);
+		svent = EDICT_NUM_PB(svprogfuncs, entnum);
 
 		memcpy(&svent->baseline, &nullentitystate, sizeof(entity_state_t));
 		svent->baseline.number = entnum;
@@ -304,6 +304,7 @@ void SV_SpawnParmsToClient(client_t *client)
 void SV_SaveSpawnparmsClient(client_t *client, float *transferparms)
 {
 	int j;
+	eval_t *eval;
 	SV_SpawnParmsToQC(client);
 
 #ifdef VM_Q1
@@ -344,7 +345,8 @@ void SV_SaveSpawnparmsClient(client_t *client, float *transferparms)
 	}
 
 	// call the progs to get default spawn parms for the new client
-	if (PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL))
+	eval = PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL);
+	if (eval && eval->function)
 	{//oooh, evil.
 		char buffer[65536*4];
 		size_t bufsize = 0;
@@ -1280,7 +1282,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 #endif
 	case GT_Q1QVM:
 	case GT_PROGS:
-		ent = EDICT_NUM(svprogfuncs, 0);
+		ent = EDICT_NUM_PB(svprogfuncs, 0);
 		ent->ereftype = ER_ENTITY;
 
 #ifndef SERVERONLY
@@ -1386,7 +1388,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		//world entity is hackily spawned
 		extern cvar_t coop, pr_imitatemvdsv;
-		ent = EDICT_NUM(svprogfuncs, 0);
+		ent = EDICT_NUM_PB(svprogfuncs, 0);
 		ent->ereftype = ER_ENTITY;
 #ifdef VM_Q1
 		if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
@@ -1518,7 +1520,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	if (svprogfuncs)
 	{
 		eval_t *val;
-		ent = EDICT_NUM(svprogfuncs, 0);
+		ent = EDICT_NUM_PB(svprogfuncs, 0);
 		ent->v->angles[0] = ent->v->angles[1] = ent->v->angles[2] = 0;
 		if ((val = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "message", ev_string, NULL)))
 			snprintf(sv.mapname, sizeof(sv.mapname), "%s", PR_GetString(svprogfuncs, val->string));
@@ -1614,7 +1616,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		eval_t *eval;
 		eval = PR_FindGlobal(svprogfuncs, "startspot", 0, NULL);
-		if (eval) eval->string = PR_NewString(svprogfuncs, startspot);
+		if (eval && svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
+			svprogfuncs->SetStringField(svprogfuncs, NULL, &eval->string, startspot, false);
 	}
 
 	if (Cmd_AliasExist("f_svnewmap", RESTRICT_LOCAL))
@@ -1633,7 +1636,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		//fixme: go off bsp extents instead?
 		for(i = 1; i < sv.world.num_edicts; i++)
 		{
-			ent = EDICT_NUM(svprogfuncs, i);
+			ent = EDICT_NUM_PB(svprogfuncs, i);
 			for (j = 0; j < 3; j++)
 			{
 				ne = fabs(ent->v->origin[j]);

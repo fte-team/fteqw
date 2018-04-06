@@ -2646,7 +2646,7 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 #ifdef CSQC_DAT
 		if (ch->entnum < 0 && -ch->entnum < csqc_world.num_edicts)
 		{
-			wedict_t *ed = WEDICT_NUM(csqc_world.progs, -ch->entnum);
+			wedict_t *ed = WEDICT_NUM_PB(csqc_world.progs, -ch->entnum);
 			if (ed->ereftype == ER_ENTITY)
 			{
 				VectorCopy(ed->v->origin, ch->origin);

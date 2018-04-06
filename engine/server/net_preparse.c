@@ -1826,7 +1826,7 @@ void NPP_QWFlush(void)
 		{
 			short data;
 			float org[3];
-			edict_t *ent = EDICT_NUM(svprogfuncs, LittleShort((*(short*)&buffer[1])));
+			edict_t *ent = EDICT_NUM_UB(svprogfuncs, LittleShort((*(short*)&buffer[1])));
 			ent->muzzletime = sv.world.physicstime+host_frametime;	//flag the entity as needing an EF_MUZZLEFLASH
 			VectorCopy(ent->v->origin, org);
 

@@ -2242,7 +2242,7 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 		break;
 #endif
 	default:
-		cl->edict = EDICT_NUM(svprogfuncs, i+1);
+		cl->edict = EDICT_NUM_PB(svprogfuncs, i+1);
 		break;
 	}
 
@@ -3006,7 +3006,7 @@ client_t *SVC_DirectConnect(void)
 		}
 
 		if (svprogfuncs)
-			ent = EDICT_NUM(svprogfuncs, edictnum);
+			ent = EDICT_NUM_UB(svprogfuncs, edictnum);
 		else
 			ent = NULL;
 #ifdef Q2SERVER

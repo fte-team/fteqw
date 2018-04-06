@@ -483,7 +483,7 @@ static void PDECL PR_SSQC_Relocated(pubprogfuncs_t *pr, char *oldb, char *newb, 
 #ifdef VM_Q1
 	for (i = 0; i < sv.world.num_edicts; i++)
 	{
-		ent = EDICT_NUM(pr, i);
+		ent = EDICT_NUM_PB(pr, i);
 		if ((char*)ent->xv >= oldb && (char*)ent->xv < oldb+oldlen)
 			ent->xv = (extentvars_t*)((char*)ent->xv - oldb + newb);
 	}
@@ -1273,7 +1273,7 @@ static void PR_ApplyCompilation_f (void)
 
 	for (i=0 ; i<sv.allocated_client_slots ; i++)
 	{
-		ent = EDICT_NUM(svprogfuncs, i+1);
+		ent = EDICT_NUM_PB(svprogfuncs, i+1);
 
 		svs.clients[i].edict = ent;
 	}
@@ -3096,7 +3096,7 @@ PF_particle
 particle(origin, color, count)
 =================
 */
-static void QCBUILTIN PF_particle (pubprogfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was for compatability only.
+void QCBUILTIN PF_particle (pubprogfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was for compatability only.
 {
 	float		*org, *dir;
 	int		color;
@@ -3686,7 +3686,7 @@ void PF_newcheckclient (pubprogfuncs_t *prinst, world_t *w)
 		if (i >= sv.allocated_client_slots+1)
 			i = 1;
 
-		ent = EDICT_NUM(prinst, i);
+		ent = EDICT_NUM_UB(prinst, i);
 
 		if (i == w->lastcheck)
 			break;	// didn't find anything else
@@ -3747,7 +3747,7 @@ int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 	}
 
 // return check if it might be visible
-	ent = EDICT_NUM(prinst, w->lastcheck);
+	ent = EDICT_NUM_PB(prinst, w->lastcheck);
 	if (ED_ISFREE(ent) || ent->v->health <= 0)
 	{
 		return 0;
@@ -3776,7 +3776,7 @@ int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 
 static void QCBUILTIN PF_checkclient (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	RETURN_EDICT(prinst, EDICT_NUM(prinst, PF_checkclient_Internal(prinst)));
+	RETURN_EDICT(prinst, EDICT_NUM_PB(prinst, PF_checkclient_Internal(prinst)));
 }
 
 //============================================================================
@@ -3961,7 +3961,7 @@ static void QCBUILTIN PF_spawnclient (pubprogfuncs_t *prinst, struct globalvars_
 			svs.clients[i].datagram.allowoverflow = true;
 			svs.clients[i].datagram.maxsize = 0;
 
-			svs.clients[i].edict = EDICT_NUM(prinst, i+1);
+			svs.clients[i].edict = EDICT_NUM_PB(prinst, i+1);
 
 			SV_SetUpClientEdict (&svs.clients[i], svs.clients[i].edict);
 
@@ -4700,7 +4700,7 @@ vector aim(entity, missilespeed)
 */
 //cvar_t	sv_aim = {"sv_aim", "0.93"};
 cvar_t	sv_aim = CVAR("sv_aim", "2");
-static void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent, *check, *bestent;
 	vec3_t	start, dir, end, bestdir;
@@ -4754,7 +4754,7 @@ static void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	for (i=1 ; i<sv.world.num_edicts ; i++ )
 	{
-		check = EDICT_NUM(prinst, i);
+		check = EDICT_NUM_PB(prinst, i);
 		if (check->v->takedamage != DAMAGE_AIM)
 			continue;
 		if (check == ent)
@@ -8449,8 +8449,8 @@ void PRSV_RunThreads(void)
 		{	//call it and forget it ever happened. The Sleep biltin will recreate if needed.
 			pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, state->self));
-			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, state->other));
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_UB(svprogfuncs, state->self));
+			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_UB(svprogfuncs, state->other));
 			G_FLOAT(OFS_RETURN) = state->returnval;
 
 			svprogfuncs->RunThread(svprogfuncs, state->thread);
@@ -9256,7 +9256,7 @@ static void QCBUILTIN PF_ShowPic(pubprogfuncs_t *prinst, struct globalvars_s *pr
 		prinst->callargc = 6;
 		for (entnum = 0; entnum < sv.allocated_client_slots; entnum++)
 		{
-			G_INT(OFS_PARM5) = EDICT_TO_PROG(prinst, EDICT_NUM(prinst, entnum+1));
+			G_INT(OFS_PARM5) = EDICT_TO_PROG(prinst, EDICT_NUM_PB(prinst, entnum+1));
 			PF_ShowPic(prinst, pr_globals);
 		}
 	}
@@ -9285,7 +9285,7 @@ static void QCBUILTIN PF_HidePic(pubprogfuncs_t *prinst, struct globalvars_s *pr
 		prinst->callargc = 2;
 		for (entnum = 0; entnum < sv.allocated_client_slots; entnum++)
 		{
-			G_INT(OFS_PARM1) = EDICT_TO_PROG(prinst, EDICT_NUM(prinst, entnum+1));
+			G_INT(OFS_PARM1) = EDICT_TO_PROG(prinst, EDICT_NUM_PB(prinst, entnum+1));
 			PF_HidePic(prinst, pr_globals);
 		}
 	}
@@ -9323,7 +9323,7 @@ static void QCBUILTIN PF_MovePic(pubprogfuncs_t *prinst, struct globalvars_s *pr
 		prinst->callargc = 5;
 		for (entnum = 0; entnum < sv.allocated_client_slots; entnum++)
 		{
-			G_INT(OFS_PARM4) = EDICT_TO_PROG(prinst, EDICT_NUM(prinst, entnum+1));
+			G_INT(OFS_PARM4) = EDICT_TO_PROG(prinst, EDICT_NUM_PB(prinst, entnum+1));
 			PF_MovePic(prinst, pr_globals);
 		}
 	}
@@ -9354,7 +9354,7 @@ static void QCBUILTIN PF_ChangePic(pubprogfuncs_t *prinst, struct globalvars_s *
 		prinst->callargc = 3;
 		for (entnum = 0; entnum < sv.allocated_client_slots; entnum++)
 		{
-			G_INT(OFS_PARM2) = EDICT_TO_PROG(prinst, EDICT_NUM(prinst, entnum+1));
+			G_INT(OFS_PARM2) = EDICT_TO_PROG(prinst, EDICT_NUM_PB(prinst, entnum+1));
 			PF_ChangePic(prinst, pr_globals);
 		}
 	}
@@ -9531,7 +9531,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		if (pmove.onground)
 		{
 			ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
-			ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, pmove.physents[pmove.groundent].info));
+			ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_PB(svprogfuncs, pmove.physents[pmove.groundent].info));
 		}
 		else
 			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
@@ -9544,7 +9544,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 			if (pmove.physents[pmove.touchindex[i]].notouch)
 				continue;
 			n = pmove.physents[pmove.touchindex[i]].info;
-			touched = EDICT_NUM(svprogfuncs, n);
+			touched = EDICT_NUM_PB(svprogfuncs, n);
 			if (!touched->v->touch || n >= playertouchmax || (playertouch[n/8]&(1<<(n%8))))
 				continue;
 

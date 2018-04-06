@@ -1934,7 +1934,7 @@ void R_DrawNameTags(void)
 			float bestscore = 0, score = 0;
 			for (i = 1; i < w->num_edicts; i++)
 			{
-				e = WEDICT_NUM(w->progs, i);
+				e = WEDICT_NUM_PB(w->progs, i);
 				if (ED_ISFREE(e))
 					continue;
 				VectorInterpolate(e->v->mins, 0.5, e->v->maxs, org);
@@ -1957,7 +1957,7 @@ void R_DrawNameTags(void)
 			}
 			if (best)
 			{
-				e = WEDICT_NUM(w->progs, best);
+				e = WEDICT_NUM_PB(w->progs, best);
 				VectorInterpolate(e->v->mins, 0.5, e->v->maxs, org);
 				VectorAdd(org, e->v->origin, org);
 				if (Matrix4x4_CM_Project(org, screenspace, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))

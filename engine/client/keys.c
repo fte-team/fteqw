@@ -51,7 +51,6 @@ int		key_bindmaps[2];
 char	*keybindings[K_MAX][KEY_MODIFIERSTATES];
 qbyte	bindcmdlevel[K_MAX][KEY_MODIFIERSTATES];
 qboolean	consolekeys[K_MAX];	// if true, can't be rebound while in console
-qboolean	menubound[K_MAX];	// if true, can't be rebound while in menu
 int		keyshift[K_MAX];		// key to map to if shift held down in console
 int		key_repeats[K_MAX];	// if > 1, it is autorepeating
 qboolean	keydown[K_MAX];
@@ -2303,10 +2302,6 @@ void Key_Init (void)
 	keyshift[']'] = '}';
 	keyshift['`'] = '~';
 	keyshift['\\'] = '|';
-
-	menubound[K_ESCAPE] = true;
-	for (i=0 ; i<12 ; i++)
-		menubound[K_F1+i] = true;
 
 //
 // register our functions

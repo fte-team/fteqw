@@ -1536,7 +1536,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				break;
 			}
 
-			ent = EDICT_NUM(svprogfuncs, client->prespawn_idx);
+			ent = EDICT_NUM_PB(svprogfuncs, client->prespawn_idx);
 
 			if (!ent)
 				state = &nullentitystate;
@@ -1918,7 +1918,7 @@ void SV_SpawnSpectator (void)
 
 	for (i=svs.allocated_client_slots+1 ; i<sv.world.num_edicts ; i++)
 	{
-		e = EDICT_NUM(svprogfuncs, i);
+		e = EDICT_NUM_PB(svprogfuncs, i);
 		if (!strcmp(PR_GetString(svprogfuncs, e->v->classname), "info_player_start"))
 		{
 			VectorCopy (e->v->origin, sv_player->v->origin);
@@ -2000,7 +2000,7 @@ void SV_Begin_Core(client_t *split)
 			{
 				//keep the spectator tracking the player from the previous map
 				if (split->spec_track > 0)
-					split->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, split->spec_track));
+					split->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_UB(svprogfuncs, split->spec_track));
 				else
 					split->edict->v->goalentity = 0;
 
@@ -4144,8 +4144,8 @@ void SV_PTrack_f (void)
 	{
 		// turn off tracking
 		host_client->spec_track = 0;
-		ent = EDICT_NUM(svprogfuncs, host_client - svs.clients + 1);
-		tent = EDICT_NUM(svprogfuncs, 0);
+		ent = EDICT_NUM_PB(svprogfuncs, host_client - svs.clients + 1);
+		tent = EDICT_NUM_PB(svprogfuncs, 0);
 		ent->v->goalentity = EDICT_TO_PROG(svprogfuncs, tent);
 
 		if (ISNQCLIENT(host_client))
@@ -4169,8 +4169,8 @@ void SV_PTrack_f (void)
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, "invalid player to track\n");
 		host_client->spec_track = 0;
-		ent = EDICT_NUM(svprogfuncs, host_client - svs.clients + 1);
-		tent = EDICT_NUM(svprogfuncs, 0);
+		ent = EDICT_NUM_PB(svprogfuncs, host_client - svs.clients + 1);
+		tent = EDICT_NUM_PB(svprogfuncs, 0);
 		ent->v->goalentity = EDICT_TO_PROG(svprogfuncs, tent);
 
 		if (ISNQCLIENT(host_client))
@@ -4182,8 +4182,8 @@ void SV_PTrack_f (void)
 	}
 	host_client->spec_track = i + 1; // now tracking
 
-	ent = EDICT_NUM(svprogfuncs, host_client - svs.clients + 1);
-	tent = EDICT_NUM(svprogfuncs, i + 1);
+	ent = EDICT_NUM_PB(svprogfuncs, host_client - svs.clients + 1);
+	tent = EDICT_NUM_PB(svprogfuncs, i + 1);
 	ent->v->goalentity = EDICT_TO_PROG(svprogfuncs, tent);
 
 	if (ISNQCLIENT(host_client))
@@ -7223,7 +7223,7 @@ if (sv_player->v->health > 0 && before && !after )
 	if (pmove.onground)
 	{
 		sv_player->v->flags = (int)sv_player->v->flags | FL_ONGROUND;
-		sv_player->v->groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, pmove.physents[pmove.groundent].info));
+		sv_player->v->groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_PB(svprogfuncs, pmove.physents[pmove.groundent].info));
 	}
 	else
 		sv_player->v->flags = (int)sv_player->v->flags & ~FL_ONGROUND;
@@ -7305,7 +7305,7 @@ if (sv_player->v->health > 0 && before && !after )
 					float vel;
 					vec3_t dir;
 					vec3_t svel;
-					ent = EDICT_NUM(svprogfuncs, n);
+					ent = EDICT_NUM_PB(svprogfuncs, n);
 					VectorSubtract(ent->v->origin, sv_player->v->origin, dir);
 					VectorNormalize(dir);
 					VectorCopy(sv_player->v->velocity, svel);
@@ -7319,7 +7319,7 @@ if (sv_player->v->health > 0 && before && !after )
 			if (pmove.physents[pmove.touchindex[i]].notouch)
 				continue;
 			n = pmove.physents[pmove.touchindex[i]].info;
-			ent = EDICT_NUM(svprogfuncs, n);
+			ent = EDICT_NUM_PB(svprogfuncs, n);
 
 			if (n >= playertouchmax || playertouch[n>>3]&(1<<(n&7)))
 				continue;
@@ -7437,7 +7437,7 @@ void SV_ReadPrydonCursor(void)
 	}
 	// as requested by FrikaC, cursor_trace_ent is reset to world if the
 	// entity is free at time of receipt
-	if (!svprogfuncs || ED_ISFREE(EDICT_NUM(svprogfuncs, entnum)))
+	if (!svprogfuncs || ED_ISFREE(EDICT_NUM_UB(svprogfuncs, entnum)))
 		entnum = 0;
 	if (msg_badread) Con_Printf("SV_ReadPrydonCursor: badread at %s:%i\n", __FILE__, __LINE__);
 
@@ -7512,7 +7512,7 @@ void SV_ReadQCRequest(void)
 			e = MSGSV_ReadEntity(host_client);
 			if (e < 0 || e >= sv.world.num_edicts)
 				e = 0;
-			G_INT(OFS_PARM0+i*3) = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, e));
+			G_INT(OFS_PARM0+i*3) = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_PB(svprogfuncs, e));
 			break;
 		}
 		i++;
@@ -8164,7 +8164,7 @@ void SVNQ_ReadClientMove (usercmd_t *move, qboolean forceangle16)
 			if (host_client->spec_track)
 			{	//disable tracking
 				host_client->spec_track = 0;
-				host_client->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, 0));
+				host_client->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_PB(svprogfuncs, 0));
 				ClientReliableWrite_Begin(host_client, svc_setview, 4);
 				ClientReliableWrite_Entity(host_client, host_client - svs.clients + 1);
 			}
@@ -8194,7 +8194,7 @@ void SVNQ_ReadClientMove (usercmd_t *move, qboolean forceangle16)
 			}
 
 			host_client->spec_track = i;
-			host_client->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, i));
+			host_client->edict->v->goalentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM_PB(svprogfuncs, i));
 			ClientReliableWrite_Begin(host_client, svc_setview, 4);
 			ClientReliableWrite_Entity(host_client, i?i:(host_client - svs.clients + 1));
 

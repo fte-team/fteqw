@@ -701,7 +701,7 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 	if (pusher->v->movetype != MOVETYPE_H2PUSHPULL)
 	for (e = 1; e < w->num_edicts; e++)
 	{
-		check = WEDICT_NUM(w->progs, e);
+		check = WEDICT_NUM_PB(w->progs, e);
 		if (ED_ISFREE(check))
 			continue;
 
@@ -902,7 +902,7 @@ qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t amove)
 	num_moved = 0;
 	for (e=1 ; e<w->num_edicts ; e++)
 	{
-		check = WEDICT_NUM(w->progs, e);
+		check = WEDICT_NUM_PB(w->progs, e);
 		if (ED_ISFREE(check))
 			continue;
 		if (check->v->movetype == MOVETYPE_PUSH
@@ -2368,7 +2368,7 @@ void World_Physics_Frame(world_t *w)
 		/*physics mode 1 = thinks only*/
 		for (i=0 ; i<w->num_edicts ; i++)
 		{
-			ent = (wedict_t*)EDICT_NUM(w->progs, i);
+			ent = (wedict_t*)EDICT_NUM_PB(w->progs, i);
 			if (ED_ISFREE(ent))
 				continue;
 
@@ -2386,7 +2386,7 @@ void World_Physics_Frame(world_t *w)
 	//
 	for (i=0 ; i<w->num_edicts ; i++)
 	{
-		ent = (wedict_t*)EDICT_NUM(w->progs, i);
+		ent = (wedict_t*)EDICT_NUM_PB(w->progs, i);
 		if (ED_ISFREE(ent))
 			continue;
 

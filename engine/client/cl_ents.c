@@ -2764,7 +2764,7 @@ void CLQ1_AddVisibleBBoxes(void)
 		"}\n");
 	for (i = 1; i < w->num_edicts; i++)
 	{
-		e = WEDICT_NUM(w->progs, i);
+		e = WEDICT_NUM_PB(w->progs, i);
 		if (ED_ISFREE(e))
 			continue;
 

@@ -328,7 +328,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 			{
 				if (!(client->pendingcsqcbits[entnum] & SENDFLAGS_REMOVED))
 				{	//while the entity has NOREMOVE, only remove it if the remove is a resend
-					if ((int)EDICT_NUM(svprogfuncs, en)->xv->pvsflags & PVSF_NOREMOVE)
+					if ((int)EDICT_NUM_PB(svprogfuncs, en)->xv->pvsflags & PVSF_NOREMOVE)
 						continue;
 				}
 				if (msg->cursize + 5 >= msg->maxsize)
@@ -451,7 +451,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 		{
 			if (!(client->pendingcsqcbits[entnum] & SENDFLAGS_REMOVED))
 			{	//while the entity has NOREMOVE, only remove it if the remove is a resend
-				if ((int)EDICT_NUM(svprogfuncs, en)->xv->pvsflags & PVSF_NOREMOVE)
+				if ((int)EDICT_NUM_PB(svprogfuncs, entnum)->xv->pvsflags & PVSF_NOREMOVE)
 					continue;
 			}
 			if (msg->cursize + 5 >= msg->maxsize)
@@ -1387,7 +1387,7 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 			o = &client->sentents.entities[j];
 			if (o->number)
 			{
-				e = EDICT_NUM(svprogfuncs, o->number);
+				e = EDICT_NUM_PB(svprogfuncs, o->number);
 				if (!((int)e->xv->pvsflags & PVSF_NOREMOVE))
 				{
 					client->pendingdeltabits[j] = UF_REMOVE;
@@ -1446,7 +1446,7 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 		o = &client->sentents.entities[j];
 		if (o->number)
 		{
-			e = EDICT_NUM(svprogfuncs, o->number);
+			e = EDICT_NUM_PB(svprogfuncs, o->number);
 			if (!((int)e->xv->pvsflags & PVSF_NOREMOVE))
 			{
 				client->pendingdeltabits[j] = UF_REMOVE;
@@ -1527,14 +1527,14 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 			{
 				/*if reset2, then this is the second packet sent to the client and should have a forced reset (but which isn't tracked)*/
 				resend[outno].bits = bits & ~UF_RESET2;
-				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM(svprogfuncs, j)->baseline, NULL, &client->sentents.entities[j], client->sentents.bonedata);
+				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM_PB(svprogfuncs, j)->baseline, NULL, &client->sentents.entities[j], client->sentents.bonedata);
 //				Con_Printf("RESET2 %i @ %i\n", j, sequence);
 			}
 			else if (bits & UF_RESET)
 			{
 				/*flag the entity for the next packet, so we always get two resets when it appears, to reduce the effects of packetloss on seeing rockets etc*/
 				client->pendingdeltabits[j] = UF_RESET2;
-				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM(svprogfuncs, j)->baseline, NULL, &client->sentents.entities[j], client->sentents.bonedata);
+				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM_PB(svprogfuncs, j)->baseline, NULL, &client->sentents.entities[j], client->sentents.bonedata);
 				resend[outno].bits = UF_RESET;
 //				Con_Printf("RESET %i @ %i\n", j, sequence);
 			}
@@ -1623,7 +1623,7 @@ void SVQW_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t
 		if (newnum < oldnum)
 		{	// this is a new entity, send it from the baseline
 			if (svprogfuncs)
-				ent = EDICT_NUM(svprogfuncs, newnum);
+				ent = EDICT_NUM_UB(svprogfuncs, newnum);
 			else
 				ent = NULL;
 //Con_Printf ("baseline %i\n", newnum);
@@ -2593,7 +2593,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 		ent = cl->edict;
 		if (cl->viewent && ent == clent)
 		{
-			vent = EDICT_NUM(svprogfuncs, cl->viewent);
+			vent = EDICT_NUM_UB(svprogfuncs, cl->viewent);
 			if (!vent)
 				vent = ent;
 		}
@@ -2704,7 +2704,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 				{
 					if (client->spec_track > 0)
 					{
-						edict_t *s = EDICT_NUM(svprogfuncs, client->spec_track);
+						edict_t *s = EDICT_NUM_UB(svprogfuncs, client->spec_track);
 
 						clst.spectator = 2;
 						clst.mins = s->v->mins;
@@ -2766,7 +2766,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 #ifdef NQPROT
 void SVNQ_EmitEntityState(sizebuf_t *msg, entity_state_t *ent)
 {
-	edict_t *ed = EDICT_NUM(svprogfuncs, ent->number);
+	edict_t *ed = EDICT_NUM_PB(svprogfuncs, ent->number);
 	entity_state_t *baseline = &ed->baseline;
 
 int i, eff;
@@ -3536,7 +3536,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 
 	for ( ; e<limit ; e++)
 	{
-		ent = EDICT_NUM(svprogfuncs, e);
+		ent = EDICT_NUM_PB(svprogfuncs, e);
 		if (ED_ISFREE(ent))
 			continue;
 
@@ -3599,7 +3599,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 						tracecullent = ent;
 						while(tracecullent->xv->tag_entity&&c-->0)
 						{
-							tracecullent = EDICT_NUM(svprogfuncs, tracecullent->xv->tag_entity);
+							tracecullent = EDICT_NUM_UB(svprogfuncs, tracecullent->xv->tag_entity);
 						}
 						if (tracecullent == clent)
 							tracecullent = NULL;
@@ -3800,13 +3800,13 @@ void SV_Snapshot_SetupPVS(client_t *client, pvscamera_t *camera)
 	for (; client; client = client->controlled)
 	{
 		if (client->viewent)	//svc_viewentity hack
-			SV_AddCameraEntity(camera, EDICT_NUM(svprogfuncs, client->viewent), client->edict->v->view_ofs);
+			SV_AddCameraEntity(camera, EDICT_NUM_UB(svprogfuncs, client->viewent), client->edict->v->view_ofs);
 		else
 			SV_AddCameraEntity(camera, client->edict, client->edict->v->view_ofs);
 
 		//spectators should always see their targetted player
 		if (client->spec_track)
-			SV_AddCameraEntity(camera, EDICT_NUM(svprogfuncs, client->spec_track), client->edict->v->view_ofs);
+			SV_AddCameraEntity(camera, EDICT_NUM_UB(svprogfuncs, client->spec_track), client->edict->v->view_ofs);
 
 		//view2 support should always see the extra entity
 		if (client->edict->xv->view2)
@@ -4031,7 +4031,7 @@ void SV_ProcessSendFlags(client_t *c)
 		return;
 	for (e=1 ; e<sv.world.num_edicts && e < c->max_net_ents; e++)
 	{
-		ent = EDICT_NUM(svprogfuncs, e);
+		ent = EDICT_NUM_PB(svprogfuncs, e);
 		if (ED_ISFREE(ent))
 			continue;
 		if (ent->xv->SendFlags)
@@ -4052,7 +4052,7 @@ void SV_CleanupEnts(void)
 
 	for (e=1 ; e<=needcleanup ; e++)
 	{
-		ent = EDICT_NUM(svprogfuncs, e);
+		ent = EDICT_NUM_PB(svprogfuncs, e);
 		ent->xv->SendFlags = 0;
 
 #ifndef NOLEGACY

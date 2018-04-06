@@ -1572,14 +1572,14 @@ static void QDECL World_Bullet_Frame(world_t *world, double frametime, double gr
 		// copy physics properties from entities to physics engine
 		for (i = 0;i < world->num_edicts;i++)
 		{
-			ed = (wedict_t*)EDICT_NUM(world->progs, i);
+			ed = (wedict_t*)EDICT_NUM_PB(world->progs, i);
 			if (!ED_ISFREE(ed))
 				World_Bullet_Frame_BodyFromEntity(world, ed);
 		}
 		// oh, and it must be called after all bodies were created
 		for (i = 0;i < world->num_edicts;i++)
 		{
-			ed = (wedict_t*)EDICT_NUM(world->progs, i);
+			ed = (wedict_t*)EDICT_NUM_PB(world->progs, i);
 			if (!ED_ISFREE(ed))
 				World_Bullet_Frame_JointFromEntity(world, ed);
 		}
@@ -1620,7 +1620,7 @@ static void QDECL World_Bullet_Frame(world_t *world, double frametime, double gr
 			// copy physics properties from physics engine to entities
 			for (i = 1;i < world->num_edicts;i++)
 			{
-				ed = (wedict_t*)EDICT_NUM(world->progs, i);
+				ed = (wedict_t*)EDICT_NUM_PB(world->progs, i);
 				if (!ED_ISFREE(ed))
 					World_Bullet_Frame_BodyToEntity(world, ed);
 			}

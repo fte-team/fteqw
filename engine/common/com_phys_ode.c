@@ -1627,9 +1627,9 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		//Con_Printf("made new joint %i\n", (int) (ed - prog->edicts));
 		dJointSetData(j, (void *) ed);
 		if(enemy)
-			b1 = (dBodyID)((WEDICT_NUM(world->progs, enemy))->ode.ode_body);
+			b1 = (dBodyID)((WEDICT_NUM_UB(world->progs, enemy))->ode.ode_body);
 		if(aiment)
-			b2 = (dBodyID)((WEDICT_NUM(world->progs, aiment))->ode.ode_body);
+			b2 = (dBodyID)((WEDICT_NUM_UB(world->progs, aiment))->ode.ode_body);
 		dJointAttach(j, b1, b2);
 
 		switch(jointtype)
@@ -2641,14 +2641,14 @@ static void QDECL World_ODE_Frame(world_t *world, double frametime, double gravi
 			// copy physics properties from entities to physics engine
 			for (i = 0;i < world->num_edicts;i++)
 			{
-				ed = (wedict_t*)EDICT_NUM(world->progs, i);
+				ed = (wedict_t*)EDICT_NUM_PB(world->progs, i);
 				if (!ED_ISFREE(ed))
 					World_ODE_Frame_BodyFromEntity(world, ed);
 			}
 			// oh, and it must be called after all bodies were created
 			for (i = 0;i < world->num_edicts;i++)
 			{
-				ed = (wedict_t*)EDICT_NUM(world->progs, i);
+				ed = (wedict_t*)EDICT_NUM_PB(world->progs, i);
 				if (!ED_ISFREE(ed))
 					World_ODE_Frame_JointFromEntity(world, ed);
 			}
@@ -2691,7 +2691,7 @@ static void QDECL World_ODE_Frame(world_t *world, double frametime, double gravi
 			// copy physics properties from physics engine to entities
 			for (i = 1;i < world->num_edicts;i++)
 			{
-				ed = (wedict_t*)EDICT_NUM(world->progs, i);
+				ed = (wedict_t*)EDICT_NUM_PB(world->progs, i);
 				if (!ED_ISFREE(ed))
 					World_ODE_Frame_BodyToEntity(world, ed);
 			}

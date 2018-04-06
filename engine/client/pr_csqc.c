@@ -39,11 +39,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern usercmd_t cl_pendingcmd[MAX_SPLITS];
 
 
-#ifndef TEXTEDITOR
-//client only builds don't have a qc debugger
-#define QCEditor NULL
-#endif
-
 static pubprogfuncs_t *csqcprogs;
 
 typedef struct csqctreadstate_s {
@@ -1373,7 +1368,7 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 		maxe = *prinst->parms->sv_num_edicts;
 		for (e=1; e < maxe; e++)
 		{
-			ent = (void*)EDICT_NUM(prinst, e);
+			ent = (void*)EDICT_NUM_PB(prinst, e);
 			if (ED_ISFREE(ent))
 				continue;
 			if (ent->v->think)
@@ -1404,7 +1399,7 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 		maxe = *prinst->parms->sv_num_edicts;
 		for (e=1; e < maxe; e++)
 		{
-			ent = (void*)EDICT_NUM(prinst, e);
+			ent = (void*)EDICT_NUM_PB(prinst, e);
 			if (ED_ISFREE(ent))
 				continue;
 
@@ -3185,7 +3180,7 @@ void CSQC_ResetTrails(void)
 
 	for (i = 0; i < *prinst->parms->sv_num_edicts; i++)
 	{
-		ent = (csqcedict_t*)EDICT_NUM(prinst, i);
+		ent = (csqcedict_t*)EDICT_NUM_PB(prinst, i);
 		ent->trailstate = NULL;
 	}
 }
@@ -4577,8 +4572,8 @@ void CSQC_RunThreads(void)
 		{	//call it and forget it ever happened. The Sleep biltin will recreate if needed.
 
 
-			*csqcg.self = EDICT_TO_PROG(csqcprogs, EDICT_NUM(csqcprogs, state->self));
-			*csqcg.other = EDICT_TO_PROG(csqcprogs, EDICT_NUM(csqcprogs, state->other));
+			*csqcg.self = EDICT_TO_PROG(csqcprogs, EDICT_NUM_UB(csqcprogs, state->self));
+			*csqcg.other = EDICT_TO_PROG(csqcprogs, EDICT_NUM_UB(csqcprogs, state->other));
 
 			csqcprogs->RunThread(csqcprogs, state->thread);
 			csqcprogs->parms->memfree(state->thread);
@@ -7331,7 +7326,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csqc_maxedicts.value);
 
 		//world edict becomes readonly
-		worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
+		worldent = (csqcedict_t *)EDICT_NUM_PB(csqcprogs, 0);
 		worldent->ereftype = ER_ENTITY;
 
 		for (i = 0; i < csqcprogs->numprogs; i++)
@@ -7450,7 +7445,7 @@ void CSQC_WorldLoaded(void)
 	csqc_world.worldmodel = cl.worldmodel;
 	World_RBE_Start(&csqc_world);
 
-	worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
+	worldent = (csqcedict_t *)EDICT_NUM_PB(csqcprogs, 0);
 	worldent->v->solid = SOLID_BSP;
 	wmodelindex = CS_FindModel(cl.worldmodel?cl.worldmodel->name:"", &tmp);
 	tmp = csqc_worldchanged;
@@ -7710,7 +7705,7 @@ qboolean CSQC_SetupToRenderPortal(int entkeynum)
 
 	if (csqcprogs && entkeynum < 0)
 	{
-		csqcedict_t *e = (void*)EDICT_NUM(csqcprogs, -entkeynum);
+		csqcedict_t *e = (void*)EDICT_NUM_UB(csqcprogs, -entkeynum);
 		if (e->xv->camera_transform)
 		{
 			int oself = *csqcg.self;
@@ -8483,7 +8478,7 @@ void CSQC_GetEntityOrigin(unsigned int csqcent, float *out)
 	wedict_t *ent;
 	if (!csqcprogs)
 		return;
-	ent = WEDICT_NUM(csqcprogs, csqcent);
+	ent = WEDICT_NUM_UB(csqcprogs, csqcent);
 	VectorCopy(ent->v->origin, out);
 }
 
@@ -8631,7 +8626,7 @@ void CSQC_ParseEntities(void)
 #ifndef CLIENTONLY
 					if (sv.state)
 					{
-						Con_Printf("Server classname: \"%s\"\n", PR_GetString(svprogfuncs, EDICT_NUM(svprogfuncs, entnum)->v->classname));
+						Con_Printf("Server classname: \"%s\"\n", PR_GetString(svprogfuncs, EDICT_NUM_UB(svprogfuncs, entnum)->v->classname));
 					}
 #endif
 				}

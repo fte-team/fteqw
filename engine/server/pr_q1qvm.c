@@ -472,7 +472,7 @@ static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf, pbool object, size_t 
 	edict_t *e;
 	for ( i=0 ; i<sv.world.num_edicts ; i++)
 	{
-		e = (edict_t*)EDICT_NUM(pf, i);
+		e = (edict_t*)EDICT_NUM_PB(pf, i);
 		// the first couple seconds of server time can involve a lot of
 		// freeing and allocating, so relax the replacement policy
 		if (!e || (ED_ISFREE(e) && ( e->freetime < 2 || sv.time - e->freetime > 0.5 ) ))
@@ -488,7 +488,7 @@ static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf, pbool object, size_t 
 	{
 		for ( i=0 ; i<sv.world.num_edicts ; i++)
 		{
-			e = (edict_t*)EDICT_NUM(pf, i);
+			e = (edict_t*)EDICT_NUM_PB(pf, i);
 			// the first couple seconds of server time can involve a lot of
 			// freeing and allocating, so relax the replacement policy
 			if (!e || ED_ISFREE(e))
@@ -868,7 +868,7 @@ static qintptr_t QVM_BPrint (void *offset, quintptr_t mask, const qintptr_t *arg
 }
 static qintptr_t QVM_SPrint (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if ((unsigned)VM_LONG(arg[0]) > sv.allocated_client_slots)
+	if ((unsigned)VM_LONG(arg[0])-1u >= sv.allocated_client_slots)
 		return 0;
 	SV_ClientPrintf(&svs.clients[VM_LONG(arg[0])-1], VM_LONG(arg[1]), "%s", (char*)VM_POINTER(arg[2]));
 	return 0;
@@ -951,7 +951,7 @@ static qintptr_t QVM_FindRadius (void *offset, quintptr_t mask, const qintptr_t 
 	rad *= rad;
 	for(start++; start < sv.world.num_edicts; start++)
 	{
-		ed = EDICT_NUM(svprogfuncs, start);
+		ed = EDICT_NUM_PB(svprogfuncs, start);
 		if (ED_ISFREE(ed))
 			continue;
 		VectorSubtract(ed->v->origin, org, diff);
@@ -962,7 +962,7 @@ static qintptr_t QVM_FindRadius (void *offset, quintptr_t mask, const qintptr_t 
 }
 static qintptr_t QVM_WalkMove (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	wedict_t *ed = WEDICT_NUM(svprogfuncs, arg[0]);
+	wedict_t *ed = WEDICT_NUM_UB(svprogfuncs, arg[0]);
 	float yaw = VM_FLOAT(arg[1]);
 	float dist = VM_FLOAT(arg[2]);
 	vec3_t move;
@@ -985,7 +985,7 @@ static qintptr_t QVM_DropToFloor (void *offset, quintptr_t mask, const qintptr_t
 	trace_t		trace;
 	extern cvar_t pr_droptofloorunits;
 
-	ent = EDICT_NUM(svprogfuncs, arg[0]);
+	ent = EDICT_NUM_UB(svprogfuncs, arg[0]);
 
 	VectorCopy (ent->v->origin, end);
 	if (pr_droptofloorunits.value > 0)
@@ -1010,7 +1010,7 @@ static qintptr_t QVM_DropToFloor (void *offset, quintptr_t mask, const qintptr_t
 static qintptr_t QVM_CheckBottom (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	vec3_t up = {0,0,1};
-	return World_CheckBottom(&sv.world, (wedict_t*)EDICT_NUM(svprogfuncs, VM_LONG(arg[0])), up);
+	return World_CheckBottom(&sv.world, (wedict_t*)EDICT_NUM_UB(svprogfuncs, VM_LONG(arg[0])), up);
 }
 static qintptr_t QVM_PointContents (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -1033,7 +1033,7 @@ static qintptr_t QVM_NextEnt (void *offset, quintptr_t mask, const qintptr_t *ar
 		{
 			return 0;
 		}
-		ent = EDICT_NUM(svprogfuncs, i);
+		ent = EDICT_NUM_PB(svprogfuncs, i);
 		if (!ED_ISFREE(ent))
 		{
 			return i;
@@ -1530,7 +1530,7 @@ static qintptr_t QVM_Add_Bot (void *offset, quintptr_t mask, const qintptr_t *ar
 			cl->datagram.allowoverflow = true;
 			cl->datagram.maxsize = 0;
 
-			cl->edict = EDICT_NUM(sv.world.progs, i+1);
+			cl->edict = EDICT_NUM_PB(sv.world.progs, i+1);
 
 			Info_SetValueForKey(cl->userinfo, "name", name, sizeof(cl->userinfo));
 			Info_SetValueForKey(cl->userinfo, "topcolor", va("%i", top), sizeof(cl->userinfo));
@@ -2167,8 +2167,8 @@ qboolean PR_LoadQ1QVM(void)
 
 
 //	q1qvmprogfuncs.AddString = Q1QVMPF_AddString;	//using this breaks 64bit support, and is a 'bad plan' elsewhere too,
-	q1qvmprogfuncs.EDICT_NUM = Q1QVMPF_EdictNum;
-	q1qvmprogfuncs.NUM_FOR_EDICT = Q1QVMPF_NumForEdict;
+	q1qvmprogfuncs.EdictNum = Q1QVMPF_EdictNum;
+	q1qvmprogfuncs.NumForEdict = Q1QVMPF_NumForEdict;
 	q1qvmprogfuncs.EdictToProgs = Q1QVMPF_EdictToProgs;
 	q1qvmprogfuncs.ProgsToEdict = Q1QVMPF_ProgsToEdict;
 	q1qvmprogfuncs.EntAlloc = Q1QVMPF_EntAlloc;
@@ -2262,6 +2262,7 @@ qboolean PR_LoadQ1QVM(void)
 	sv.world.num_edicts = 1;
 	sv.world.max_edicts = bound(64, gd.maxedicts, MAX_EDICTS);
 	q1qvmprogfuncs.edicttable = Z_Malloc(sizeof(*q1qvmprogfuncs.edicttable) * sv.world.max_edicts);
+	q1qvmprogfuncs.edicttable_length = sv.world.max_edicts;
 
 	limit = VM_MemoryMask(q1qvm);
 	if (gd.sizeofent < 0 || gd.sizeofent > 0xffffffff / gd.maxedicts)

@@ -2405,31 +2405,34 @@ void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdev
 
 int INS_AppCommand(LPARAM lParam)
 {
+	const char *b;
 	int qkey = 0;
 	switch(HIWORD(lParam)&0xfff)
 	{
-	case APPCOMMAND_BROWSER_BACKWARD:	qkey = K_MM_BACK;		break;
-	case APPCOMMAND_BROWSER_FAVORITES:	qkey = K_MM_FAVORITES;	break;
-	case APPCOMMAND_BROWSER_FORWARD:	qkey = K_MM_FORWARD;	break;
-	case APPCOMMAND_BROWSER_HOME:		qkey = K_MM_HOME;		break;
-	case APPCOMMAND_BROWSER_REFRESH:	qkey = K_MM_REFRESH;	break;
-	case APPCOMMAND_BROWSER_SEARCH:		qkey = K_SEARCH;		break;
-	case APPCOMMAND_BROWSER_STOP:		qkey = K_MM_STOP;		break;
-//	case APPCOMMAND_VOLUME_MUTE:		qkey = K_MM_MUTE;		break;
-	case APPCOMMAND_VOLUME_UP:			qkey = K_VOLUP;			break;
-	case APPCOMMAND_VOLUME_DOWN:		qkey = K_VOLDOWN;		break;
-
-//	I want to use these, but that would fuck up external music players.
-//	case APPCOMMAND_MEDIA_NEXTTRACK:
-//	case APPCOMMAND_MEDIA_PREVIOUSTRACK:
-//	case APPCOMMAND_MEDIA_STOP:
-//	case APPCOMMAND_MEDIA_PLAY_PAUSE:
+	case APPCOMMAND_BROWSER_BACKWARD:	qkey = K_MM_BROWSER_BACK;			break;
+	case APPCOMMAND_BROWSER_FAVORITES:	qkey = K_MM_BROWSER_FAVORITES;		break;
+	case APPCOMMAND_BROWSER_FORWARD:	qkey = K_MM_BROWSER_FORWARD;		break;
+	case APPCOMMAND_BROWSER_HOME:		qkey = K_MM_BROWSER_HOME;			break;
+	case APPCOMMAND_BROWSER_REFRESH:	qkey = K_MM_BROWSER_REFRESH;		break;
+	case APPCOMMAND_BROWSER_SEARCH:		qkey = K_SEARCH;					break;
+	case APPCOMMAND_BROWSER_STOP:		qkey = K_MM_BROWSER_STOP;			break;
+	case APPCOMMAND_VOLUME_MUTE:		qkey = K_MM_VOLUME_MUTE;			break;
+	case APPCOMMAND_VOLUME_UP:			qkey = K_VOLUP;						break;
+	case APPCOMMAND_VOLUME_DOWN:		qkey = K_VOLDOWN;					break;
+	case APPCOMMAND_MEDIA_NEXTTRACK:	qkey = K_MM_TRACK_NEXT;				break;
+	case APPCOMMAND_MEDIA_PREVIOUSTRACK:qkey = K_MM_TRACK_PREV;				break;
+	case APPCOMMAND_MEDIA_STOP:			qkey = K_MM_TRACK_STOP;				break;
+	case APPCOMMAND_MEDIA_PLAY_PAUSE:	qkey = K_MM_TRACK_PLAYPAUSE;		break;
 	default:
 		return false;
 	}
-	IN_KeyEvent(0, true,  qkey, 0);
-	IN_KeyEvent(0, false, qkey, 0);
-	return true;
+	b = Key_GetBinding(qkey, 0, 0);
+	if (b && *b)
+	{	//only take the key if its actually bound to something, otherwise let the system handle it normally.
+		IN_KeyEvent(0, true,  qkey, 0);
+		IN_KeyEvent(0, false, qkey, 0);
+		return true;
+	}
 	return false;
 }
 #endif

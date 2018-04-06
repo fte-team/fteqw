@@ -147,9 +147,6 @@ typedef struct prinst_s
 #define pr_xstatement prinst.pr_xstatement
 
 //pr_edict.c
-
-	unsigned int maxedicts;
-
 	evalc_t spawnflagscache;
 	unsigned int fields_size;	// in bytes
 	unsigned int max_fields_size;
@@ -161,6 +158,7 @@ typedef struct prinst_s
 	size_t addressableused;
 	size_t addressablesize;
 
+	unsigned int maxedicts;
 	struct edictrun_s **edicttable;
 } prinst_t;
 
@@ -413,7 +411,8 @@ unsigned int PDECL QC_NUM_FOR_EDICT(pubprogfuncs_t *progfuncs, struct edict_s *e
 //#define	NEXT_EDICT(e) ((edictrun_t *)( (byte *)e + pr_edict_size))
 
 #define	EDICT_TO_PROG(pf, e) (((edictrun_t*)e)->entnum)
-#define PROG_TO_EDICT(pf, e) ((struct edictrun_s *)prinst.edicttable[e])
+#define PROG_TO_EDICT_PB(pf, e) ((struct edictrun_s *)prinst.edicttable[e])	//index already validated
+#define PROG_TO_EDICT_UB(pf, e) ((struct edictrun_s *)prinst.edicttable[((unsigned int)(e)<prinst.maxedicts)?e:0])	//(safely) pokes world if the index is otherwise invalid
 
 //============================================================================
 

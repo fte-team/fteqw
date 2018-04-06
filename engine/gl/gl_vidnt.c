@@ -2908,7 +2908,8 @@ static LONG WINAPI GLMainWndProc (
 			break;
 
 		case WM_APPCOMMAND:
-			lRet = INS_AppCommand(lParam);
+			if (!INS_AppCommand(lParam))
+				lRet = DefWindowProc(hWnd, uMsg, wParam, lParam);	//otherwise it won't get handled by background apps, like media players.
 			break;
 
 		case WM_MOUSEACTIVATE:

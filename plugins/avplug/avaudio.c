@@ -287,7 +287,7 @@ static qboolean QDECL S_LoadAVSound (sfx_t *s, qbyte *data, size_t datalen, int 
 	const int iBufSize = 4 * 1024;
 
 	if (!ffmpeg_audiodecoder)
-		ffmpeg_audiodecoder = pCvar_GetNVFDG("ffmpeg_audiodecoder_wip", "0", 0, "Enables the use of ffmpeg's decoder for pure audio files.", "ffmpeg");
+		return false;
 	if (!ffmpeg_audiodecoder->value /* && *ffmpeg_audiodecoder.string */)
 		return false;
 
@@ -358,6 +358,8 @@ static qboolean AVAudio_Init(void)
 {
 	if (!pPlug_ExportNative("S_LoadSound", S_LoadAVSound))
 	{
+		ffmpeg_audiodecoder = pCvar_GetNVFDG("ffmpeg_audiodecoder_wip", "0", 0, "Enables the use of ffmpeg's decoder for pure audio files.", "ffmpeg");
+
 		Con_Printf("avplug: Engine doesn't support audio decoder plugins\n");
 		return false;
 	}

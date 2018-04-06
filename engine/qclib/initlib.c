@@ -498,6 +498,7 @@ int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 	prinst.max_fields_size = prinst.fields_size;
 
 	prinst.edicttable = (struct edictrun_s**)(progfuncs->funcs.edicttable = PRHunkAlloc(progfuncs, prinst.maxedicts*sizeof(struct edicts_s *), "edicttable"));
+	progfuncs->funcs.edicttable_length = prinst.maxedicts;
 	e = PRHunkAlloc(progfuncs, externs->edictsize, "edict0");
 	e->fieldsize = prinst.fields_size;
 	e->entnum = 0;
@@ -571,6 +572,7 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 	prinst.profilingalert = Sys_GetClockRate();
 	prinst.maxedicts = 1;
 	prinst.edicttable = (edictrun_t**)(progfuncs->funcs.edicttable = &sv_edicts);
+	progfuncs->funcs.edicttable_length = 1;
 	sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
 	sv_edicts=(struct edict_s *)&tempedict;
 	tempedict.readonly = true;
@@ -874,7 +876,7 @@ struct edict_s *PDECL ProgsToEdict (pubprogfuncs_t *ppf, int progs)
 		}
 		progs = 0;
 	}
-	return (struct edict_s *)PROG_TO_EDICT(progfuncs.inst, progs);
+	return (struct edict_s *)PROG_TO_EDICT_PB(progfuncs.inst, progs);
 }
 int PDECL EdictToProgs (pubprogfuncs_t *ppf, struct edict_s *ed)
 {

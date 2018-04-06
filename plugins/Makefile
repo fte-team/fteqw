@@ -115,7 +115,7 @@ irc-clean:
 #linux users are expected to have the library installed locally already. If your version is too old or missing, run the following command to install it (to /usr/local), then delete the gz and directory.
 #wget http://ffmpeg.org/releases/ffmpeg-1.2.tar.gz && cd tar xvfz ffmpeg-1.2.tar.gz && cd ffmpeg-1.2/ && ./configure --disable-yasm --enable-shared && make && sudo make install
 #we use ffmpeg's version for some reason, as opposed to libav. not sure what the differences are meant to be, but libav seemed to have non-depricated functions defined, docs that say to use them, and these functions missing.
-AV_VER=ffmpeg-3.2.4
+AV_VER=ffmpeg-3.4.2
 ifeq (0,1)
     AV_ARCHIVEEXT=.z7
     AV_EXTRACT=7z e -y
@@ -123,12 +123,18 @@ else
     AV_ARCHIVEEXT=.zip
     AV_EXTRACT=unzip -ju
 endif
-AV_W32=$(AV_VER)-win32-dev$(AV_ARCHIVEEXT)
-AV_W64=$(AV_VER)-win64-dev$(AV_ARCHIVEEXT)
-AV_URL32=http://ffmpeg.zeranoe.com/builds/win32/dev/$(AV_W32)
-AV_URL64=http://ffmpeg.zeranoe.com/builds/win64/dev/$(AV_W64)
-AV_PRE32=$(AV_VER)-win32-dev/
-AV_PRE64=$(AV_VER)-win64-dev/
+AV_W32_DEV=$(AV_VER)-win32-dev$(AV_ARCHIVEEXT)
+AV_W64_DEV=$(AV_VER)-win64-dev$(AV_ARCHIVEEXT)
+AV_W32_BIN=$(AV_VER)-win32-shared$(AV_ARCHIVEEXT)
+AV_W64_BIN=$(AV_VER)-win64-shared$(AV_ARCHIVEEXT)
+AV_URL32_DEV=https://ffmpeg.zeranoe.com/builds/win32/dev/$(AV_W32_DEV)
+AV_URL64_DEV=https://ffmpeg.zeranoe.com/builds/win64/dev/$(AV_W64_DEV)
+AV_URL32_BIN=https://ffmpeg.zeranoe.com/builds/win32/shared/$(AV_W32_BIN)
+AV_URL64_BIN=https://ffmpeg.zeranoe.com/builds/win64/shared/$(AV_W64_BIN)
+AV_PRE32_DEV=$(AV_VER)-win32-dev/
+AV_PRE64_DEV=$(AV_VER)-win64-dev/
+AV_PRE32_BIN=$(AV_VER)-win32-shared/
+AV_PRE64_BIN=$(AV_VER)-win64-shared/
 ifeq ($(findstring win,$(FTE_TARGET)),win)
   AV_BASE=$(abspath $(OUT_DIR)/../fte_libav_$(AV_VER))/
 endif
@@ -144,29 +150,50 @@ endif
 
 AVPLUG_OBJS= avplug/avaudio.c avplug/avencode.c avplug/avdecode.c plugin.c qvm_api.c
 ifeq ($(FTE_TARGET),win32)
+FFMPEG_ZIP=$(OUT_DIR)/$(AV_VER)-x86.zip
 #NATIVE_PLUGINS+=ffmpeg
 endif
 ifeq ($(FTE_TARGET),win64)
+FFMPEG_ZIP=$(OUT_DIR)/$(AV_VER)-x64.zip
 #NATIVE_PLUGINS+=ffmpeg
+endif
+
+$(AV_BASE)$(AV_VER)-win32.zip:
+	mkdir -p $(AV_BASE)
+	cd $(AV_BASE) && wget -N $(AV_URL32_BIN)
+	mkdir -p $(AV_BASE)bin32 && cd $(AV_BASE)bin32 && $(AV_EXTRACT) ../$(AV_W32_BIN) $(AV_PRE32_BIN)bin/avcodec-*.dll $(AV_PRE32_BIN)bin/avutil-*.dll $(AV_PRE32_BIN)bin/swresample-*.dll $(AV_PRE32_BIN)bin/avformat-*.dll $(AV_PRE32_BIN)bin/swscale-*.dll && cd -
+	zip -j9 $@ $(AV_BASE)bin32/*.dll
+
+$(AV_BASE)$(AV_VER)-win64.zip:
+	mkdir -p $(AV_BASE)
+	cd $(AV_BASE) && wget -N $(AV_URL64_BIN)
+	mkdir -p $(AV_BASE)bin64 && cd $(AV_BASE)bin64 && $(AV_EXTRACT) ../$(AV_W64_BIN) $(AV_PRE64_BIN)bin/avcodec-*.dll $(AV_PRE64_BIN)bin/avutil-*.dll $(AV_PRE64_BIN)bin/swresample-*.dll $(AV_PRE64_BIN)bin/avformat-*.dll $(AV_PRE64_BIN)bin/swscale-*.dll && cd -
+	zip -j9 $@ $(AV_BASE)bin64/*.dll
+
+ifneq ($(FFMPEG_ZIP),)
+$(FFMPEG_ZIP): $(AV_BASE)$(AV_VER)-$(FTE_TARGET).zip
+	cp $(AV_BASE)$(AV_VER)-$(FTE_TARGET).zip $@
 endif
 
 $(AV_BASE)libavformat/avformat.h:
 	mkdir -p $(AV_BASE)
-	cd $(AV_BASE) && wget -N $(AV_URL32)
-	mkdir -p $(AV_BASE)libavformat && cd $(AV_BASE)libavformat && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)include/libavformat/* && cd -
-	mkdir -p $(AV_BASE)libavcodec  && cd $(AV_BASE)libavcodec  && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)include/libavcodec/*  && cd -
-	mkdir -p $(AV_BASE)libavutil   && cd $(AV_BASE)libavutil   && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)include/libavutil/*   && cd -
-	mkdir -p $(AV_BASE)libswscale  && cd $(AV_BASE)libswscale  && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)include/libswscale/*  && cd -
-	mkdir -p $(AV_BASE)lib32 && cd $(AV_BASE)lib32 && $(AV_EXTRACT) ../$(AV_W32) $(AV_PRE32)lib/avformat.lib $(AV_PRE32)lib/avcodec.lib $(AV_PRE32)lib/avutil.lib $(AV_PRE32)lib/swscale.lib && cd -
+	cd $(AV_BASE) && wget -N $(AV_URL32_DEV)
+	mkdir -p $(AV_BASE)libavformat && cd $(AV_BASE)libavformat && $(AV_EXTRACT) ../$(AV_W32_DEV) $(AV_PRE32_DEV)include/libavformat/* && cd -
+	mkdir -p $(AV_BASE)libavcodec  && cd $(AV_BASE)libavcodec  && $(AV_EXTRACT) ../$(AV_W32_DEV) $(AV_PRE32_DEV)include/libavcodec/*  && cd -
+	mkdir -p $(AV_BASE)libavutil   && cd $(AV_BASE)libavutil   && $(AV_EXTRACT) ../$(AV_W32_DEV) $(AV_PRE32_DEV)include/libavutil/*   && cd -
+	mkdir -p $(AV_BASE)libswscale  && cd $(AV_BASE)libswscale  && $(AV_EXTRACT) ../$(AV_W32_DEV) $(AV_PRE32_DEV)include/libswscale/*  && cd -
+	mkdir -p $(AV_BASE)lib32 && cd $(AV_BASE)lib32 && $(AV_EXTRACT) ../$(AV_W32_DEV) $(AV_PRE32_DEV)lib/avformat.lib $(AV_PRE32_DEV)lib/avcodec.lib $(AV_PRE32_DEV)lib/avutil.lib $(AV_PRE32_DEV)lib/swscale.lib && cd -
 	#rm $(AV_BASE)$(AV_W32)
-	cd $(AV_BASE) && wget -N $(AV_URL64)
-	mkdir -p $(AV_BASE)lib64 && cd $(AV_BASE)lib64 && $(AV_EXTRACT) ../$(AV_W64) $(AV_PRE64)lib/avformat.lib $(AV_PRE64)lib/avcodec.lib $(AV_PRE64)lib/avutil.lib $(AV_PRE64)lib/swscale.lib && cd -
+	cd $(AV_BASE) && wget -N $(AV_URL64_DEV)
+	mkdir -p $(AV_BASE)lib64 && cd $(AV_BASE)lib64 && $(AV_EXTRACT) ../$(AV_W64_DEV) $(AV_PRE64_DEV)lib/avformat.lib $(AV_PRE64_DEV)lib/avcodec.lib $(AV_PRE64_DEV)lib/avutil.lib $(AV_PRE64_DEV)lib/swscale.lib && cd -
 	#rm $(AV_BASE)$(AV_W64)
 
 distclean:
 	rm $(AV_BASE)libavformat/avformat.h
+	rm $(AV_BASE)$(AV_VER)-win32.zip
+	rm $(AV_BASE)$(AV_VER)-win64.zip
 
-$(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): $(AV_DEP)
+$(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): $(AV_DEP) $(FFMPEG_ZIP)
 
 $(OUT_DIR)/fteplug_ffmpeg$(PLUG_NATIVE_EXT): $(AVPLUG_OBJS)
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AV_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(AV_LDFLAGS)

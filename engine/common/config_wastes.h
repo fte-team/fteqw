@@ -15,6 +15,7 @@
 #define GAME_FULLNAME		FULLENGINENAME 	//full name of the game we're playing
 #define GAME_BASEGAMES		GAME_SHORTNAME	//comma-separate list of basegame strings to use
 #define GAME_PROTOCOL		"FTE-Wastes"	//so other games won't show up in the server browser
+#define GAME_DEFAULTPORT	27500			//FIXME: change me!
 //#define GAME_IDENTIFYINGFILES	NULL	//with multiple games, this string-list gives verification that the basedir is actually valid. if null, will just be assumed correct.
 //#define GAME_DOWNLOADSURL	NULL	//url for the package manger to update from
 //#define GAME_DEFAULTCMDS	NULL	//a string containing the things you want to 

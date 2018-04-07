@@ -69,7 +69,19 @@ cvar_t	*hud_tracking_show;
 cvar_t	*hud_miniscores_show;
 extern cvar_t net_compress;
 
-cvar_t	cl_defaultport		= CVARAFD("cl_defaultport", STRINGIFY(PORT_QWSERVER), "port", 0, "The default port to connect to servers.\nQW: "STRINGIFY(PORT_QWSERVER)", NQ: "STRINGIFY(PORT_NQSERVER)", Q2: "STRINGIFY(PORT_Q2SERVER)".");
+cvar_t	cl_defaultport		= 
+	#ifdef GAME_DEFAULTPORT	//remove the confusing port alias if we're running as a TC, as well as info about irrelevant games.
+		CVARFD("cl_defaultport", STRINGIFY(PORT_DEFAULTSERVER),			 0, "The default port used to connect to servers.")
+	#else
+		CVARAFD("cl_defaultport", STRINGIFY(PORT_DEFAULTSERVER), "port", 0, "The default port used to connect to servers."
+			"\nQW: "STRINGIFY(PORT_QWSERVER)
+			", NQ: "STRINGIFY(PORT_NQSERVER)
+			", Q2: "STRINGIFY(PORT_Q2SERVER)
+			", Q3: "STRINGIFY(PORT_Q3SERVER)
+		"."
+		)
+	#endif
+	;
 
 cvar_t	cfg_save_name = CVARFD("cfg_save_name", "fte", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "This is the config name that is saved by default when no argument is specified.");
 
@@ -586,7 +598,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	if (!to)
 	{
 		to = &addr;
-		if (!NET_StringToAdr (cls.servername, PORT_QWSERVER, to))
+		if (!NET_StringToAdr (cls.servername, PORT_DEFAULTSERVER, to))
 		{
 			Con_TPrintf ("CL_SendConnectPacket: Bad server address \"%s\"\n", cls.servername);
 			connectinfo.trying = false;
@@ -2453,7 +2465,7 @@ void CL_Packet_f (void)
 		return;
 	}
 
-	if (!NET_StringToAdr (Cmd_Argv(1), PORT_QWSERVER, &adr))
+	if (!NET_StringToAdr (Cmd_Argv(1), PORT_DEFAULTSERVER, &adr))
 	{
 		Con_Printf ("Bad address: %s\n", Cmd_Argv(1));
 		return;
@@ -2814,7 +2826,7 @@ void CL_ConnectionlessPacket (void)
 			netadr_t adr;
 			char *data = MSG_ReadStringLine();
 			Con_TPrintf ("redirect to %s\n", data);
-			if (NET_StringToAdr(data, PORT_QWSERVER, &adr))
+			if (NET_StringToAdr(data, PORT_DEFAULTSERVER, &adr))
 			{
 				data = "\xff\xff\xff\xffgetchallenge\n";
 
@@ -4354,17 +4366,19 @@ void CL_Init (void)
 		"Use a scheme of tcp:// or tls:// to connect via non-udp protocols."
 #endif
 #if defined(NQPROT) || defined(Q2CLIENT) || defined(Q3CLIENT)
-		"\nDefault port is port "STRINGIFY(PORT_QWSERVER)"."
-#ifdef NQPROT
-		" NQ:"STRINGIFY(PORT_NQSERVER)"."
-#endif
-		" QW:"STRINGIFY(PORT_QWSERVER)"."
-#ifdef Q2CLIENT
-		" Q2:"STRINGIFY(PORT_Q2SERVER)"."
-#endif
-#ifdef Q3CLIENT
-		" Q3:"STRINGIFY(PORT_Q3SERVER)"."
-#endif
+		"\nDefault port is port "STRINGIFY(PORT_DEFAULTSERVER)"."
+	#ifndef GAME_DEFAULTPORT
+		#ifdef NQPROT
+				" NQ:"STRINGIFY(PORT_NQSERVER)"."
+		#endif
+				" QW:"STRINGIFY(PORT_QWSERVER)"."
+		#ifdef Q2CLIENT
+				" Q2:"STRINGIFY(PORT_Q2SERVER)"."
+		#endif
+		#ifdef Q3CLIENT
+				" Q3:"STRINGIFY(PORT_Q3SERVER)"."
+		#endif
+	#endif
 #endif
 		);
 	Cmd_AddCommandD ("cl_transfer", CL_Transfer_f, "Connect to a different server, disconnecting from the current server only when the new server replies.");

@@ -3076,9 +3076,11 @@ ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(qboolean isserv
 	int family;
 	int port;
 	int bindtries;
+	const int bindmaxtries = 100;
 	int bufsz;
 	qboolean hybrid = false;
 	int protocol;
+	char addrstr[128];
 
 	switch(adr.type)
 	{
@@ -3101,7 +3103,7 @@ ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(qboolean isserv
 
 	if (adr.type == NA_INVALID)
 	{
-		Con_Printf("unable to resolve local address %s\n", address);
+		Con_Printf(CON_ERROR "unable to resolve local address %s\n", address);
 		return NULL;	//couldn't resolve the name
 	}
 	temp = NetadrToSockadr(&adr, &qs);
@@ -3167,23 +3169,33 @@ ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(qboolean isserv
 
 	//try and find an unused port.
 	port = ntohs(((struct sockaddr_in*)&qs)->sin_port);
-	for (bindtries = 100; bindtries > 0; bindtries--)
+	for (bindtries = 0; bindtries < bindmaxtries; bindtries++)
 	{
-		((struct sockaddr_in*)&qs)->sin_port = htons((unsigned short)(port+100-bindtries));
+		((struct sockaddr_in*)&qs)->sin_port = htons((unsigned short)(port+bindtries));
 		if ((bind(newsocket, (struct sockaddr *)&qs, temp) == INVALID_SOCKET))
 		{
+			if (port == 0)
+			{	//if binding to an ephemerial port failed, binding to the admin-only ports won't work any better...
+				bindtries = bindmaxtries;
+				break;
+			}
 			continue;
 		}
 		break;
 	}
-	if (!bindtries)
+	if (bindtries == bindmaxtries)
 	{
 		SockadrToNetadr(&qs, &adr);
-		//mneh, reuse qs.
-		NET_AdrToString((char*)&qs, sizeof(qs), &adr);
-		Con_Printf("Unable to listen at %s\n", (char*)&qs);
+		NET_AdrToString(addrstr, sizeof(addrstr), &adr);
+		Con_Printf(CON_ERROR "Unable to listen at %s\n", addrstr);
 		closesocket(newsocket);
 		return NULL;
+	}
+	else if (bindtries && isserver)
+	{
+		SockadrToNetadr(&qs, &adr);
+		NET_AdrToString(addrstr, sizeof(addrstr), &adr);
+		Con_Printf(CON_ERROR "Unable to bind to port %i, bound to %s instead\n", port, addrstr);
 	}
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
@@ -7260,7 +7272,7 @@ void SVNET_AddPort_f(void)
 	{
 		svs.sockets = FTENET_CreateCollection(true);
 #ifndef SERVERONLY
-		FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, NP_DGRAM);
+		FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_DEFAULTSERVER), NA_LOOPBACK, NP_DGRAM);
 #endif
 	}
 
@@ -7449,7 +7461,7 @@ void QDECL SV_Port_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IP, NP_DGRAM);
 }
-cvar_t  sv_port_ipv4 = CVARC("sv_port", STRINGIFY(PORT_QWSERVER), SV_Port_Callback);
+cvar_t  sv_port_ipv4 = CVARC("sv_port", STRINGIFY(PORT_DEFAULTSERVER), SV_Port_Callback);
 #endif
 #ifdef IPPROTO_IPV6
 void QDECL SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue)
@@ -7553,7 +7565,7 @@ void NET_InitServer(void)
 		{
 			svs.sockets = FTENET_CreateCollection(true);
 #ifndef SERVERONLY
-			FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, NP_DGRAM);
+			FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_DEFAULTSERVER), NA_LOOPBACK, NP_DGRAM);
 #endif
 		}
 
@@ -7591,7 +7603,7 @@ void NET_InitServer(void)
 
 #ifndef SERVERONLY
 		svs.sockets = FTENET_CreateCollection(true);
-		FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, NP_DGRAM);
+		FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_DEFAULTSERVER), NA_LOOPBACK, NP_DGRAM);
 #endif
 	}
 }

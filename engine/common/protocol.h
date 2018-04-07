@@ -123,6 +123,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //=========================================
 
+//#define	GAME_DEFAULTPORT	XXXXX	//rebranding allows selection of a different default port, which slightly reduces protocol conflicts.
 #define	PORT_NQSERVER	26000
 #define PORT_DPMASTER	PORT_Q3MASTER
 #define	PORT_QWCLIENT	27001
@@ -132,6 +133,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PORT_Q2SERVER	27910
 #define PORT_Q3MASTER	27950
 #define PORT_Q3SERVER	27960
+
+#ifdef GAME_DEFAULTPORT
+	#define PORT_DEFAULTSERVER	GAME_DEFAULTPORT
+#else
+	#define PORT_DEFAULTSERVER	PORT_QWSERVER
+#endif
 
 //hexen2: 26900
 

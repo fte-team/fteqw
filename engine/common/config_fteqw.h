@@ -12,10 +12,11 @@
 //#define BRANDING_ICON			"fte_eukara.ico"				//The file to use in windows' resource files - for linux your game should include an icon.[png|ico] file in the game's data.
 
 //filesystem rebranding
-//#define GAME_SHORTNAME		"wastes"		//short alphanumeric description
+//#define GAME_SHORTNAME		"quake"			//short alphanumeric description
 //#define GAME_FULLNAME			FULLENGINENAME 	//full name of the game we're playing
 //#define GAME_BASEGAMES		GAME_SHORTNAME	//comma-separate list of basegame strings to use
-//#define GAME_PROTOCOL			"FTE-Wastes"	//so other games won't show up in the server browser
+//#define GAME_PROTOCOL			"FTE-Quake"		//so other games won't show up in the server browser
+//#define GAME_DEFAULTPORT		27500			//slightly reduces the chance of people connecting to the wrong type of server
 //#define GAME_IDENTIFYINGFILES	NULL			//with multiple games, this string-list gives verification that the basedir is actually valid. if null, will just be assumed correct.
 //#define GAME_DOWNLOADSURL		NULL			//url for the package manger to update from
 //#define GAME_DEFAULTCMDS		NULL			//a string containing the things you want to exec in order to override default.cfg 

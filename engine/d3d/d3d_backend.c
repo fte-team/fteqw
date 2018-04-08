@@ -1511,13 +1511,13 @@ static void tcgen_fog(float *st, unsigned int numverts, float *xyz, mfog_t *fog)
 	zmat[2] = -modelviewmatrix[10];
 	zmat[3] = -modelviewmatrix[14];
 
-	VectorCopy(fog->visibleplane->normal, distmat);
-	distmat[3] = fog->visibleplane->dist;
-
 	Vector4Scale(zmat, shaderstate.fogfar, zmat);
 
 	if (fog && fog->visibleplane)
 	{
+		VectorCopy(fog->visibleplane->normal, distmat);
+		distmat[3] = fog->visibleplane->dist;
+
 		eye = (DotProduct(r_refdef.vieworg, distmat) - distmat[3]);
 		if (eye < 1)
 			eye = 1;
@@ -2605,6 +2605,57 @@ static void BE_DrawMeshChain_Internal(void)
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORWRITEENABLE, D3DCOLORWRITEENABLE_RED|D3DCOLORWRITEENABLE_GREEN|D3DCOLORWRITEENABLE_BLUE|D3DCOLORWRITEENABLE_ALPHA);
 		break;
 #endif
+	case BEM_FOG:
+		if (!TEXVALID(shaderstate.fogtexture) || shaderstate.fogdensity != r_refdef.globalfog.density || shaderstate.fogdepth != 2048)
+		{
+			shaderstate.fogdensity = r_refdef.globalfog.density;
+			shaderstate.fogdepth = 2048;
+			shaderstate.fogfar = 1.0f/shaderstate.fogdepth; /*scaler for z coords*/
+			GenerateFogTexture(&shaderstate.fogtexture, shaderstate.fogdensity, shaderstate.fogdepth);
+		}
+
+		while(shaderstate.lastpasscount>1)
+		{
+			passno = --shaderstate.lastpasscount;
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+passno, NULL, 0, 0));
+			BindTexture(passno, NULL);
+			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLOROP, D3DTOP_DISABLE));
+			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
+		}
+		shaderstate.lastpasscount = 1;
+		passno = 0;
+		BindTexture(passno, shaderstate.fogtexture);
+		BE_ApplyTMUState(passno, shaderstate.curtexflags[passno]);
+
+		Vector4Set((qbyte*)&shaderstate.passcolour, r_refdef.globalfog.colour[2]*255, r_refdef.globalfog.colour[1]*255, r_refdef.globalfog.colour[0]*255, r_refdef.globalfog.colour[3]*255);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_CONSTANT, shaderstate.passcolour);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORVERTEX, FALSE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLORARG1, D3DTA_CONSTANT);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLORARG2, D3DTA_TEXTURE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAARG1, D3DTA_CONSTANT);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+		BE_ApplyShaderBits(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | (useshader->numpasses?SBITS_MISC_DEPTHEQUALONLY:0));
+
+		allocvertexbuffer(shaderstate.dynst_buff[passno], shaderstate.dynst_size, &shaderstate.dynst_offs[passno], &map, vertcount*sizeof(vec2_t));
+		for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
+		{
+			m = shaderstate.meshlist[mno];
+			tcgen_fog((float*)map+vertcount*2, m->numvertexes, (float*)m->xyz_array, NULL); 
+			vertcount += m->numvertexes;
+		}
+		IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[passno]);
+		IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+passno, shaderstate.dynst_buff[passno], shaderstate.dynst_offs[passno] - vertcount*sizeof(vec2_t), sizeof(vec2_t));
+
+		if (D3D_VDEC_ST0 != shaderstate.curvertdecl)
+		{
+			shaderstate.curvertdecl = D3D_VDEC_ST0;
+			d3dcheck(IDirect3DDevice9_SetVertexDeclaration(pD3DDev9, vertexdecls[shaderstate.curvertdecl]));
+		}
+
+		BE_SubmitMeshChain(vertbase, vertfirst, vertcount, idxfirst, idxcount);
+		break;
 	default:
 	case BEM_STANDARD:
 		if (useshader->prog)
@@ -3866,6 +3917,15 @@ void D3D9BE_DrawWorld (batch_t **worldbatches)
 			RSpeedEnd(RSPEED_RTLIGHTS);
 		}
 #endif
+
+		if (r_refdef.globalfog.density && (!sh_config.progs_supported || !r_fog_permutation.ival))
+		{	//fixed function-only. with global fog. that means we need to hack something in.
+			//FIXME: should really be doing this on a per-shader basis, for custom shaders that don't use glsl
+			BE_SelectMode(BEM_FOG);
+
+//			BE_SelectFog(r_refdef.globalfog.colour, r_refdef.globalfog.alpha, r_refdef.globalfog.density);
+			D3D9BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+		}
 
 		BE_SelectMode(BEM_STANDARD);
 

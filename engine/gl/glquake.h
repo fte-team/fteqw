@@ -737,9 +737,9 @@ extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 #endif
 extern void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
 
+#endif
 extern void (APIENTRY *qglBufferStorage)(GLenum target, GLsizeiptr size, const GLvoid *data, GLbitfield flags);
 
-#endif
 extern void (APIENTRY *qglGenQueriesARB)(GLsizei n, GLuint *ids);
 extern void (APIENTRY *qglDeleteQueriesARB)(GLsizei n, const GLuint *ids);
 //extern GLboolean (APIENTRY *qglIsQueryARB)(GLuint id);

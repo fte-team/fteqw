@@ -83,7 +83,7 @@ luaextragloballist
 typedef struct
 {
 	int type;
-	ptrdiff_t offset;
+	quintptr_t offset;
 	char *name;
 	bucket_t buck;
 } luafld_t;
@@ -330,6 +330,7 @@ static void lua_pushedict(lua_State *L, struct edict_s *ent)
 	lua_rawgetp(L, LUA_REGISTRYINDEX, ent);
 }
 
+/*
 static void lua_debugstack(lua_State *L)
 {
 	int idx;
@@ -377,6 +378,7 @@ static void lua_debugstack(lua_State *L)
 		}
 	}
 }
+*/
 
 static void *my_lua_alloc (void *ud, void *ptr, size_t osize, size_t nsize)
 {
@@ -495,6 +497,50 @@ static int bi_lua_tostring(lua_State *L)
 }
 #define bi_lua_vtos bi_lua_tostring
 #define bi_lua_ftos bi_lua_tostring
+
+//taken from lua's baselib.c, with dependancies reduced a little.
+static int bi_lua_tonumber(lua_State *L)
+{
+//	if (lua_type(L, 1) == LUA_TNONE)
+//		luaL_argerror(L, narg, "value expected");
+	if (luaL_callmeta(L, 1, "__tonumber"))
+		return 1;
+	switch (lua_type(L, 1))
+	{
+	case LUA_TSTRING:
+		lua_pushnumber(L, atof(lua_tostring(L, 1)));
+		break;
+	case LUA_TNUMBER:
+		lua_pushvalue(L, 1);
+		break;
+	case LUA_TBOOLEAN:
+		lua_pushnumber(L, lua_toboolean(L, 1));
+		break;
+	case LUA_TNIL:
+		lua_pushnumber(L, 0);
+		break;
+	case LUA_TTABLE:
+		//special check for things that look like vectors.
+		lua_getfield(L, 1, "x");
+		lua_getfield(L, 1, "y");
+		lua_getfield(L, 1, "z");
+		if (lua_type(L, -3) == LUA_TNUMBER && lua_type(L, -2) == LUA_TNUMBER && lua_type(L, -1) == LUA_TNUMBER)
+		{
+			vec3_t v = {lua_tonumberx(L, -3, NULL), lua_tonumberx(L, -2, NULL), lua_tonumberx(L, -1, NULL)};
+			lua_pushnumber(L, DotProduct(v,v));
+			return 1;
+		}
+		lua_getfield(L, 1, "entnum");
+		if (lua_type(L, -1) == LUA_TNUMBER)
+			return 1;
+		//fallthrough
+	default:
+		lua_pushfstring(L, "%s: %p", lua_typename(L, lua_type(L, 1)), lua_topointer(L, 1));
+		break;
+	}
+	return 1;
+}
+#define bi_lua_stof bi_lua_tonumber
 
 static int my_lua_panic(lua_State *L)
 {
@@ -2185,7 +2231,7 @@ static int bi_lua_objerror (lua_State *L)
 			int i;
 			const void *ud = lua_topointer(L, -2);
 			for (i = 0; i < countof(lua.entflds); i++)
-				if (lua.entflds[i].offset == (ptrdiff_t)ud)
+				if (lua.entflds[i].offset == (quintptr_t)ud)
 					break;
 
 			if (i == countof(lua.entflds))
@@ -2285,12 +2331,15 @@ static void my_lua_registerbuiltins(lua_State *L)
 	//standard lua library replacement
 	//this avoids the risk of including any way to access os.execute etc, or other file access.
 	registerfuncn(tostring);	//standardish
+	registerfuncn(tonumber);	//standardish
 	registerfuncn(type);		//standardish
 	registerfuncn(print);		//'standard' lua print, except prints to console. WARNING: this adds an implicit \n. Use conprint for the quake-style version.
 	registerfuncn(require);		//'standard'ish, except uses quake's filesystem instead of reading random system paths.
 #ifdef LIBLUA_STATIC
 	registerfuncn(pairs);
 #endif
+	lua_pushnil(L); lua_setglobal(L, "dofile");	//violates our sandbox
+	lua_pushnil(L); lua_setglobal(L, "loadfile"); //violates our sandbox
 
 	lua_newtable(L);
 		lua_pushcclosure(L, bi_lua_fabs, 0); lua_setfield(L, -2, "abs");
@@ -2432,6 +2481,7 @@ static void my_lua_registerbuiltins(lua_State *L)
 	registerfuncd(aim);	//original implementation nudges v_forward up or down so that keyboard players can still play.
 	registerfunc(vtos);
 	registerfunc(ftos);
+	registerfunc(stof);
 
 	//registerfunc(PRECACHE_VWEP_MODEL);
 	//registerfunc(SETPAUSE);

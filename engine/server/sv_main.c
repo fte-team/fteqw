@@ -5657,7 +5657,7 @@ void SV_Init (quakeparms_t *parms)
 #endif
 		NET_Init ();
 		COM_Init ();
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 		CM_Init();
 #endif
 #ifdef TERRAIN

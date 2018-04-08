@@ -6182,15 +6182,20 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 
 void GLBE_VBO_Begin(vbobctx_t *ctx, size_t maxsize)
 {
-	COM_AssertMainThread("GLBE_VBO_Begin");
+	COM_AssertMainThread("GLBE_VBO_Begin");	//actually, we should probably just build this in memory and throw it to the main thread as needed, but we still need some buffers indexes. I guess we could build a list of varrays. the other option is to just create a large persistant-mapped buffer, and then just append+reuse from any thread, but that makes destruction messy.
 
 	ctx->maxsize = maxsize;
 	ctx->pos = 0;
 	ctx->fallback = NULL;
-	if (qglBufferDataARB)
+	if (qglBufferStorage)
 	{
-		ctx->vboid[0] = 0;
-		ctx->vboid[1] = 0;
+		ctx->vboid[0] = ctx->vboid[1] = 0;
+		qglGenBuffersARB(2, ctx->vboid);
+		ctx->fallback = BZ_Malloc(maxsize);
+	}
+	else if (qglBufferDataARB)
+	{
+		ctx->vboid[0] = ctx->vboid[1] = 0;
 		qglGenBuffersARB(2, ctx->vboid);
 		GL_SelectVBO(ctx->vboid[0]);
 		//WARNING: in emscripten/webgl, we should probably not pass null.
@@ -6201,7 +6206,13 @@ void GLBE_VBO_Begin(vbobctx_t *ctx, size_t maxsize)
 }
 void GLBE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray)
 {
-	if (ctx->fallback)
+	if (qglBufferStorage)
+	{
+		memcpy((char*)ctx->fallback + ctx->pos, data, size);
+		varray->gl.vbo = ctx->vboid[0];
+		varray->gl.addr = (void*)ctx->pos;
+	}
+	else if (ctx->fallback)
 	{
 		memcpy((char*)ctx->fallback + ctx->pos, data, size);
 		varray->gl.vbo = 0;
@@ -6220,7 +6231,18 @@ void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earr
 {
 	if (ctx->pos > ctx->maxsize)
 		Sys_Error("BE_VBO_Finish: too much data given\n");
-	if (ctx->fallback)
+	if (qglBufferStorage)
+	{
+		GL_SelectVBO(ctx->vboid[0]);
+		qglBufferStorage(GL_ARRAY_BUFFER_ARB, ctx->pos, ctx->fallback, 0);
+		BZ_Free(ctx->fallback);
+		ctx->fallback = NULL;
+		GL_SelectEBO(ctx->vboid[1]);
+		qglBufferStorage(GL_ELEMENT_ARRAY_BUFFER_ARB, esize, edata, 0);
+		earray->gl.vbo = ctx->vboid[1];
+		earray->gl.addr = NULL;
+	}
+	else if (ctx->fallback)
 	{
 		void *d = BZ_Malloc(esize);
 		memcpy(d, edata, esize);

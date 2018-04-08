@@ -735,7 +735,9 @@ extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 #ifndef GL_MAP_READ_BIT
 #define GL_MAP_READ_BIT 1
 #endif
-void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
+extern void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
+
+extern void (APIENTRY *qglBufferStorage)(GLenum target, GLsizeiptr size, const GLvoid *data, GLbitfield flags);
 
 #endif
 extern void (APIENTRY *qglGenQueriesARB)(GLsizei n, GLuint *ids);

@@ -194,6 +194,8 @@ GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 void *(APIENTRY *qglMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
 #endif
 
+void (APIENTRY *qglBufferStorage)(GLenum target, GLsizeiptr size, const GLvoid *data, GLbitfield flags);
+
 void (APIENTRY *qglTexStorage2D)(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height);		//gl4.2
 void (APIENTRY *qglTexStorage3D)(GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth);	//gl4.2
 FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImage;
@@ -870,6 +872,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	gl_config.arb_texture_cube_map = GL_CheckExtension("GL_ARB_texture_cube_map");
 
+	qglBufferStorage = NULL;
 #if !defined(GL_STATIC)
 	/*vbos, were made core in gl1.5 or gles2.0*/
 	if ((gl_config.gles && gl_config.glversion >= 2) || (!gl_config.gles && (gl_major_version > 1 || (gl_major_version == 1 && gl_minor_version >= 5))))
@@ -905,7 +908,13 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	//ARB_map_buffer_range: core in gl3.0/gles3.0, the extension is backported, and thus no ARB postfix on functions.
 	qglMapBufferRange = (void *)getglext("glMapBufferRange");
+
+	if (qglBufferSubDataARB && qglMapBufferRange)
 #endif
+	{
+		if ((!gl_config.gles && gl_config.glversion >= 4.4) || GL_CheckExtension("GL_ARB_buffer_storage"))
+			qglBufferStorage = (void *)getglext("glBufferStorage");	//no arb postfix even with the extension form of it.
+	}
 
 #ifdef GL_STATIC
 	gl_config.arb_shader_objects = true;

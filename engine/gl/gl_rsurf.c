@@ -156,10 +156,19 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 
 	GLBE_SetupVAO(vbo, vaodynamic, vaostatic);
 	
-	qglBufferDataARB(GL_ARRAY_BUFFER_ARB, vsize, vdata, GL_STATIC_DRAW_ARB);
-	if (elementsize>0)
+	if (qglBufferStorage)
+	{	//gl4.4 allows us to explicitly create device-only vbos
+		qglBufferStorage(GL_ARRAY_BUFFER_ARB, vsize, vdata, 0);
+		if (elementsize>0)
+			qglBufferStorage(GL_ELEMENT_ARRAY_BUFFER_ARB, elementsize, edata, 0);
+	}
+	else
 	{
-		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, elementsize, edata, GL_STATIC_DRAW_ARB);
+		qglBufferDataARB(GL_ARRAY_BUFFER_ARB, vsize, vdata, GL_STATIC_DRAW_ARB);
+		if (elementsize>0)
+		{
+			qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, elementsize, edata, GL_STATIC_DRAW_ARB);
+		}
 	}
 
 	return true;

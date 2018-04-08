@@ -6133,7 +6133,7 @@ void Host_Init (quakeparms_t *parms)
 	Plug_Initialise(false);
 #endif
 
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 	CM_Init();
 #endif
 #ifdef TERRAIN

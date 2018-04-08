@@ -154,7 +154,7 @@ static void Mod_BatchList_f(void)
 #endif
 						Con_Printf("  %s lm=(%i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->maxmeshes);
 					else
-						Con_Printf("  %s lm=%i surfs=%u verts=%i indexes=%i\n", batch->texture->shader->name, batch->lightmap[0], batch->maxmeshes, batch->vbo->vertcount, batch->vbo->indexcount);
+						Con_Printf("  %s lm=%i surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->maxmeshes);
 					count++;
 				}
 			}

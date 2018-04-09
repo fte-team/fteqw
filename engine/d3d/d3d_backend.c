@@ -174,8 +174,8 @@ typedef struct
 	int			curvertdecl;
 	unsigned int shaderbits;
 	unsigned int curcull;
-	float depthbias;
-	float depthfactor;
+	polyoffset_t curpolyoffset;
+	float		 gltod3d_depthunit; //multiplier to convert from gl's depthunit notches to d3d's range values
 	float m_model[16];
 	unsigned int lastpasscount;
 	vbo_t *batchvbo;
@@ -654,6 +654,45 @@ void D3D9BE_Reset(qboolean before)
 		/*force all state to change, thus setting a known state*/
 		shaderstate.shaderbits = ~0;
 		BE_ApplyShaderBits(0);
+
+		shaderstate.gltod3d_depthunit = 1.0/((1u<<16) - 1u);	//erk, panic.
+		{
+			IDirect3DSurface9 *surf = NULL;
+			D3DSURFACE_DESC desc = {D3DFMT_D16};
+			if (SUCCEEDED(IDirect3DDevice9_GetDepthStencilSurface(pD3DDev9, &surf)))
+			{
+				IDirect3DSurface9_GetDesc(surf, &desc);
+				IDirect3DSurface9_Release(surf);
+				switch(desc.Format)
+				{
+				case D3DFMT_D15S1:
+					shaderstate.gltod3d_depthunit = 1.0/((1u<<15) - 1u);
+					break;
+				case D3DFMT_D16_LOCKABLE:
+				case D3DFMT_D16:
+					shaderstate.gltod3d_depthunit = 1.0/((1u<<24) - 1u);
+					break;
+				case D3DFMT_D24S8:
+				case D3DFMT_D24X8:
+				case D3DFMT_D24X4S4:
+					shaderstate.gltod3d_depthunit = 1.0/((1u<<24) - 1u);
+					break;
+				default:
+				case D3DFMT_D32:
+					shaderstate.gltod3d_depthunit = 1.0/(quint32_t)(-1);
+					break;
+
+				//floating point depth formats are just messy as heck.
+				//I guess the definition issue here is more with opengl, and I don't know what it would say for 1 'notch', so lets just go by mantissa size.
+				case D3DFMT_D24FS8:			//20e4
+					shaderstate.gltod3d_depthunit = 1.0/((1u<<20) - 1u);
+					break;
+				case D3DFMT_D32F_LOCKABLE:	//23e8s1
+					shaderstate.gltod3d_depthunit = 1.0/((1u<<23) - 1u);
+					break;
+				}
+			}
+		}
 	}
 }
 
@@ -2383,32 +2422,30 @@ static void BE_DrawMeshChain_Internal(void)
 	unsigned int passno = 0;
 	shaderpass_t *pass;
 	shader_t *useshader = shaderstate.curshader;
-	float pushdepth = shaderstate.curshader->polyoffset.factor;
-//	float pushfactor;
+	polyoffset_t po = shaderstate.curshader->polyoffset;
 
 #ifdef BEF_PUSHDEPTH
 	if (shaderstate.flags & BEF_PUSHDEPTH)
 	{
-		extern cvar_t r_polygonoffset_submodel_factor;
-		pushdepth += r_polygonoffset_submodel_factor.value;
+		extern cvar_t r_polygonoffset_submodel_factor, r_polygonoffset_submodel_offset;
+		po.factor += r_polygonoffset_submodel_factor.value;
+		po.unit += r_polygonoffset_submodel_offset.value;
 	}
 #endif
-	pushdepth /= 0xffff;
 
 	D3D9BE_Cull(shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK));
 
-	if (pushdepth != shaderstate.depthbias)
+	if (po.factor != shaderstate.curpolyoffset.factor)
 	{
-		shaderstate.depthbias = pushdepth;
-		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_DEPTHBIAS, *(DWORD*)&shaderstate.depthbias);
+		shaderstate.curpolyoffset.factor = po.factor;
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SLOPESCALEDEPTHBIAS, *(DWORD*)&po.factor);
 	}
-//	pushdepth = shaderstate.curshader->polyoffset.unit/-1;// + ((shaderstate.flags & BEF_PUSHDEPTH)?8:0);
-//	pushfactor = shaderstate.curshader->polyoffset.factor/-1;
-//	if (pushfactor != shaderstate.depthfactor)
-//	{
-//		shaderstate.depthfactor = pushfactor;
-//		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SLOPESCALEDEPTHBIAS, *(DWORD*)&shaderstate.depthfactor);
-//	}
+	if (po.unit != shaderstate.curpolyoffset.unit)
+	{
+		shaderstate.curpolyoffset.unit = po.unit;
+		po.unit *= shaderstate.gltod3d_depthunit;
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_DEPTHBIAS, *(DWORD*)&po.unit);
+	}
 
 	switch (shaderstate.mode)
 	{

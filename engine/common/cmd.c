@@ -52,6 +52,11 @@ cmdalias_t	*cmd_alias;
 
 cvar_t	cfg_save_all = CVARFD("cfg_save_all", "", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, cfg_save ALWAYS saves all cvars. If 0, cfg_save only ever saves archived cvars. If empty, cfg_save saves all cvars only when an explicit filename was given (ie: when not used internally via quit menu options).");
 cvar_t	cfg_save_auto = CVARFD("cfg_save_auto", "0", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, the config will automatically be saved and without prompts. If 0, you'll have to save your config manually (possibly via prompts from the quit menu).");
+cvar_t	cfg_save_infos = CVARFD("cfg_save_infos", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves userinfo and serverinfo to configs.");
+cvar_t	cfg_save_aliases = CVARFD("cfg_save_aliases", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves userinfo and serverinfo to configs.");
+cvar_t	cfg_save_binds = CVARFD("cfg_save_binds", "1", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves all key bindings to configs.");
+cvar_t	cfg_save_buttons = CVARFD("cfg_save_buttons", "0", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves the state of things such as +mlook or +forward to configs.");
+
 cvar_t cl_warncmd			= CVARF("cl_warncmd", "1", CVAR_NOSAVE|CVAR_NORESET);
 cvar_t cl_aliasoverlap		= CVARF("cl_aliasoverlap", "1", CVAR_NOTFROMSERVER);
 
@@ -3785,7 +3790,6 @@ void Cmd_WriteConfig_f(void)
 	char fname[MAX_QPATH];
 	char sysname[MAX_OSPATH];
 	qboolean all = true;
-	extern cvar_t cfg_save_all;
 
 	if (Cmd_IsInsecure() && Cmd_Argc() > 1)
 	{
@@ -3832,18 +3836,23 @@ void Cmd_WriteConfig_f(void)
 
 	VFS_PRINTF(f, "// %s config file\n\n", *fs_gamename.string?fs_gamename.string:FULLENGINENAME);
 #ifndef SERVERONLY
-	Key_WriteBindings (f);
-	IN_WriteButtons(f, all);
-	CL_SaveInfo(f);
+	if (cfg_save_binds.ival)
+		Key_WriteBindings (f);
+	if (cfg_save_buttons.ival)
+		IN_WriteButtons(f, all);
+	if (cfg_save_infos.ival)
+		CL_SaveInfo(f);
 #else
 	VFS_WRITE(f, "// Dedicated Server config\n\n", 28);
 #endif
 #ifdef CLIENTONLY
 	VFS_WRITE(f, "// no local/server infos\n\n", 26);
 #else
-	SV_SaveInfos(f);
+	if (cfg_save_infos.ival)
+		SV_SaveInfos(f);
 #endif
-	Alias_WriteAliases (f);
+	if (cfg_save_aliases.ival)
+		Alias_WriteAliases (f);
 	Cvar_WriteVariables (f, all);
 	VFS_CLOSE(f);
 
@@ -4100,6 +4109,10 @@ void Cmd_Init (void)
 	Cvar_Register (&cl_warncmd, "Warnings");
 	Cvar_Register (&cfg_save_all, "client operation options");
 	Cvar_Register (&cfg_save_auto, "client operation options");
+	Cvar_Register (&cfg_save_infos, "client operation options");
+	Cvar_Register (&cfg_save_aliases, "client operation options");
+	Cvar_Register (&cfg_save_binds, "client operation options");
+	Cvar_Register (&cfg_save_buttons, "client operation options");
 
 #ifndef SERVERONLY
 	rcon_level.ival = atof(rcon_level.enginevalue);	//client is restricted to not be allowed to change restrictions.

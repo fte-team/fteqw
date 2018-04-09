@@ -185,7 +185,7 @@ static void KeyDown (kbutton_t *b, kbutton_t *anti)
 		b->down[pnum][1] = k;
 	else
 	{
-		Con_Printf ("Three keys down for a button!\n");
+		Con_DPrintf ("Three keys down for a button!\n");
 		return;
 	}
 	
@@ -379,20 +379,20 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all)
 	VFS_PRINTF(f, "\n//Player 1 buttons\n");
 	for (b = 0; b < countof(buttons); b++)
 	{
-		if (buttons[b].button->state[s]&1)
+		if ((buttons[b].button->state[s]&1) && (buttons[b].button->down[s][0]==-1 || buttons[b].button->down[s][1]==-1))
 			VFS_PRINTF(f, "+%s\n", buttons[b].name);
 		else if (b || all)
 			VFS_PRINTF(f, "-%s\n", buttons[b].name);
 	}
-	for (; s < MAX_SPLITS; s++)
+	for (s = 1; s < MAX_SPLITS; s++)
 	{
-		VFS_PRINTF(f, "\n//Player %i buttons\n", s+1);
+		VFS_PRINTF(f, "\n//Player %i buttons\n", s);
 		for (b = 0; b < countof(buttons); b++)
 		{
-			if (buttons[b].button->state[s]&1)
-				VFS_PRINTF(f, "+p%i %s\n", s+1, buttons[b].name);
+			if ((buttons[b].button->state[s]&1) && (buttons[b].button->down[s][0]==-1 || buttons[b].button->down[s][1]==-1))
+				VFS_PRINTF(f, "+p%i %s\n", s, buttons[b].name);
 			else if (b || all)
-				VFS_PRINTF(f, "-p%i %s\n", s+1, buttons[b].name);
+				VFS_PRINTF(f, "-p%i %s\n", s, buttons[b].name);
 		}
 	}
 

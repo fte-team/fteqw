@@ -2664,7 +2664,7 @@ static void BE_DrawMeshChain_Internal(void)
 		BindTexture(passno, shaderstate.fogtexture);
 		BE_ApplyTMUState(passno, shaderstate.curtexflags[passno]);
 
-		Vector4Set((qbyte*)&shaderstate.passcolour, r_refdef.globalfog.colour[2]*255, r_refdef.globalfog.colour[1]*255, r_refdef.globalfog.colour[0]*255, r_refdef.globalfog.colour[3]*255);
+		Vector4Set((qbyte*)&shaderstate.passcolour, r_refdef.globalfog.colour[2]*255, r_refdef.globalfog.colour[1]*255, r_refdef.globalfog.colour[0]*255, r_refdef.globalfog.alpha*255);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_CONSTANT, shaderstate.passcolour);
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORVERTEX, FALSE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLORARG1, D3DTA_CONSTANT);
@@ -3862,20 +3862,28 @@ void D3D9BE_BaseEntTextures(void)
 
 void D3D9BE_RenderShadowBuffer(unsigned int numverts, IDirect3DVertexBuffer9 *vbuf, unsigned int numindicies, IDirect3DIndexBuffer9 *ibuf)
 {
-	float pushdepth = shaderstate.curshader->polyoffset.factor;
+	polyoffset_t po = shaderstate.curshader->polyoffset;
 #ifdef BEF_PUSHDEPTH
-	extern cvar_t r_polygonoffset_submodel_factor;
-//	if (shaderstate.flags & BEF_PUSHDEPTH)
-		pushdepth += r_polygonoffset_submodel_factor.value;
-#endif
-//	D3D9BE_Cull(0);//shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK));
-	pushdepth /= 0xffff;
-
-	if (pushdepth != shaderstate.depthbias)
+	if (shaderstate.flags & BEF_PUSHDEPTH)
 	{
-		shaderstate.depthbias = pushdepth;
-		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_DEPTHBIAS, *(DWORD*)&shaderstate.depthbias);
+		extern cvar_t r_polygonoffset_submodel_factor, r_polygonoffset_submodel_offset;
+		po.factor += r_polygonoffset_submodel_factor.value;
+		po.unit += r_polygonoffset_submodel_offset.value;
 	}
+#endif
+	if (po.factor != shaderstate.curpolyoffset.factor)
+	{
+		shaderstate.curpolyoffset.factor = po.factor;
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SLOPESCALEDEPTHBIAS, *(DWORD*)&po.factor);
+	}
+	if (po.unit != shaderstate.curpolyoffset.unit)
+	{
+		shaderstate.curpolyoffset.unit = po.unit;
+		po.unit *= shaderstate.gltod3d_depthunit;
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_DEPTHBIAS, *(DWORD*)&po.unit);
+	}
+
+//	D3D9BE_Cull(0);
 
 
 	IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT, vbuf, 0, sizeof(vecV_t));

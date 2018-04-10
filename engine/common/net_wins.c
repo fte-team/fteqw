@@ -2899,7 +2899,10 @@ qboolean FTENET_Datagram_GetPacket(ftenet_generic_connection_t *con)
 			if (curtime-resettime >= 5000 || err == NET_ECONNRESET)	//throttle prints to once per 5 secs (even if they're about different clients, yay ddos)
 			{
 				if (((struct sockaddr*)&from)->sa_family != AF_UNSPEC)
+				{
+					SockadrToNetadr (&from, &net_from);
 					Con_TPrintf ("Connection lost or aborted (%s)\n", NET_AdrToString (adr, sizeof(adr), &net_from));	//server died/connection lost.
+				}
 				else
 					Con_TPrintf ("Connection lost or aborted\n");	//server died/connection lost.
 				resettime = curtime;
@@ -3110,7 +3113,7 @@ ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(qboolean isserv
 	family = ((struct sockaddr*)&qs)->sa_family;
 
 #if defined(IPPROTO_IPV6) && defined(IPV6_V6ONLY)
-	if (isserver && family == AF_INET && net_hybriddualstack.ival && !((struct sockaddr_in*)&qs)->sin_addr.s_addr)
+	if (/*isserver &&*/ family == AF_INET && net_hybriddualstack.ival && !((struct sockaddr_in*)&qs)->sin_addr.s_addr)
 	{
 		unsigned long _false = false;
 		if ((newsocket = socket (AF_INET6, SOCK_CLOEXEC|SOCK_DGRAM, protocol)) != INVALID_SOCKET)

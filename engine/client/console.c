@@ -713,6 +713,7 @@ void Con_Init (void)
 	Cvar_Register (&con_notify_w, "Console controls");
 	Cvar_Register (&con_numnotifylines, "Console controls");
 	Cvar_Register (&con_displaypossibilities, "Console controls");
+	Cvar_Register (&con_showcompletion, "Console controls");
 	Cvar_Register (&cl_chatmode, "Console controls");
 	Cvar_Register (&con_maxlines, "Console controls");
 	Cvar_Register (&con_numnotifylines_chat, "Console controls");
@@ -1294,7 +1295,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	i = 0;
 	x = left;
 
-	if (con->commandcompletion && con_)
+	if (con->commandcompletion && con_showcompletion.ival)
 	{
 		if (cl_chatmode.ival && (text[0] == '/' || (cl_chatmode.ival == 2 && Cmd_IsCommand(text))))
 		{	//color the first token yellow, it's a valid command

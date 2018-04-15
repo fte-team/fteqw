@@ -32,9 +32,10 @@ qboolean vid_isfullscreen;
 
 #define VIDCOMMANDGROUP "Video config"
 #define GRAPHICALNICETIES "Graphical Nicaties"	//or eyecandy, which ever you prefer.
-#define GLRENDEREROPTIONS	"GL Renderer Options"
 #define SCREENOPTIONS	"Screen Options"
 
+#define GLRENDEREROPTIONS	"GL Renderer Options" //fixme: often used for generic cvars that apply to more than just gl...
+#define D3DRENDEREROPTIONS	"D3D Renderer Options"
 #define VKRENDEREROPTIONS	"Vulkan-Specific Renderer Options"
 
 unsigned int	d_8to24rgbtable[256];
@@ -469,9 +470,16 @@ cvar_t vk_khr_dedicated_allocation		= CVARD	("vk_khr_dedicated_allocation",	"", 
 cvar_t vk_khr_push_descriptor				= CVARD	("vk_khr_push_descriptor",		"", "Enables better descriptor streaming.");
 #endif
 
+#ifdef D3D9QUAKE
+cvar_t d3d9_hlsl							= CVAR("d3d_hlsl", "1");
+#endif
+
 #if defined(D3DQUAKE)
 void GLD3DRenderer_Init(void)
 {
+#ifdef D3D9QUAKE
+	Cvar_Register (&d3d9_hlsl, D3DRENDEREROPTIONS);
+#endif
 }
 #endif
 

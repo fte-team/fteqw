@@ -9,6 +9,7 @@
 #endif
 #include <d3d9.h>
 extern LPDIRECT3DDEVICE9 pD3DDev9;
+extern cvar_t d3d9_hlsl;
 
 typedef struct {
 	LPCSTR Name;

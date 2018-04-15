@@ -917,22 +917,29 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define FTE_ALIGN(a)
 #endif
 
+//fte_inline must only be used in headers, and requires one and ONLY one fte_inlinebody elsewhere.
+//fte_inlinebody must be used on a prototype OUTSIDE of a header.
+//fte_inlinestatic must not be used inside any headers at all.
 #if __STDC_VERSION__ >= 199901L
 	//C99 specifies that an inline function is used as a hint. there should be an actual body/copy somewhere (extern inline foo).
 	#define fte_inline inline	//must have non-line 'int foo();' somewhere
 	#define fte_inlinebody extern inline
+	#define fte_inlinestatic static inline
 #elif defined(_MSC_VER)
 	//msvc will inline like C++. and that's fine.
 	#define fte_inline __inline //c++ style
 	#define fte_inlinebody
+	#define fte_inlinestatic static __inline
 #elif (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5))
 	//gcc will generally inline where it can - so long as its static. but that doesn't stop it warning
 	#define fte_inline __attribute__((unused)) static
 	#define fte_inlinebody static
+	#define fte_inlinestatic static
 #else
 	//make it static so we at least don't get errors (might still get warnings. see above)
 	#define fte_inline static
 	#define fte_inlinebody static
+	#define fte_inlinestatic static
 #endif
 
 

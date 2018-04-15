@@ -480,7 +480,7 @@ char *Q_strlwr(char *s)
 	return ret;
 }
 
-static char fte_inline Q_tolower(char c)
+fte_inlinestatic char Q_tolower(char c)
 {
 	if (c >= 'A' && c <= 'Z')
 		return c-'A'+'a';

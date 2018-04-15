@@ -2195,7 +2195,7 @@ struct cmdargcompletion_ctx_s
 	cmd_completion_t *res;
 	const char *desc;
 };
-static fte_inline int Q_tolower(char c)
+fte_inlinestatic int Q_tolower(char c)
 {
 	if (c >= 'a' && c <= 'z')
 		c -= ('a' - 'A');
